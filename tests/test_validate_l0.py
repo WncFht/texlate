@@ -7,6 +7,10 @@ def _sev(rep: L0Report, rule: str) -> list[Severity]:
     return [i.severity for i in rep.issues if i.rule == rule]
 
 
+def _issues(rep: L0Report, rule: str) -> list:
+    return [i for i in rep.issues if i.rule == rule]
+
+
 # ---------------------------------------------------------------- 干净对
 
 
@@ -193,12 +197,15 @@ def test_key_dropped() -> None:
     assert any("'c'" in i.message for i in rep.issues)
 
 
-def test_key_hallucinated_warn_only() -> None:
+def test_key_hallucinated_key_warn_macro_error() -> None:
+    """幻觉引用双轴：key 规则 warn（新增 key）+ E24 macro error（第二枚 ``\\cite``
+    是净新增控制词计数）。"""
     src = "见 \\cite{a}。"
     zh = "见 \\cite{a} 和 \\cite{bogus2024}。"
     rep = validate_pair(src, zh)
-    assert rep.ok  # 新增 key 是 warn（幻觉引用）
+    assert not rep.ok
     assert Severity.WARN in _sev(rep, "key")
+    assert Severity.ERROR in _sev(rep, "macro")
 
 
 def test_key_space_before_brace() -> None:
@@ -245,26 +252,102 @@ def test_math_odd_dollar_inherited_warn() -> None:
 
 
 def test_length_ratio_cjk_compression_ok() -> None:
-    """E21 防误报：0.25–0.30 区间的正常中文压缩不再告警。"""
+    """E24 token 代理口径：正常中文压缩（char 比 ~0.23）落在带内零误伤。"""
     src = (
         "We present a comprehensive evaluation of the proposed approach "
         "on several benchmark datasets."
-    )  # 94ch
-    zh = "我们在多个基准数据集上综合评估了所提方法。"  # 22ch ≈ 0.23 → 应出 warn? 见下
+    )  # 94ch → est_src≈20
+    zh = "我们在多个基准数据集上综合评估了所提方法。"  # est_zh≈21 → r≈1.05
     rep = validate_pair(src, zh)
-    # 22/94 ≈ 0.234 < 0.25 → warn 允许存在；这里断言不误报 error
-    assert rep.ok
-    # 更典型：≥0.25 的压缩应无 length warn
-    zh2 = "我们在多个基准数据集上对所提方法进行了综合评估与验证。"  # 27ch ≈ 0.287
+    assert rep.ok, str(rep)
+    zh2 = "我们在多个基准数据集上对所提方法进行了综合评估与验证。"
     rep2 = validate_pair(src, zh2)
     assert not _sev(rep2, "length"), str(rep2)
 
 
 def test_length_ratio_too_short() -> None:
+    """E24：token 代理比坍缩出带 → error（char 级旧口径的 warn 升档）。"""
     src = "x" * 100 + " 的长段落说明文字，包含足够的上下文内容。"
     zh = "短。"
     rep = validate_pair(src, zh)
-    assert Severity.WARN in _sev(rep, "length")
+    assert Severity.ERROR in _sev(rep, "length")
+    assert not rep.ok
+
+
+def test_length_ratio_too_long() -> None:
+    """E24：膨胀臂对称拒收——zh est 3x+ 于 src → error。"""
+    src = "We propose a simple method for the general case of interest here."
+    zh = "我们提出了一种简单的方法。" * 20  # 退化重复膨胀
+    rep = validate_pair(src, zh)
+    assert Severity.ERROR in _sev(rep, "length")
+    assert not rep.ok
+
+
+def test_length_ratio_placeholder_heavy_exempt() -> None:
+    """剥后 src est<10 豁免——占位符主导块不比长度。"""
+    src = "See [[MATH_1]] and [[MATH_2]]."
+    zh = "见 [[MATH_1]] 与 [[MATH_2]]，其中推导从略，详细展开全部省略了。"
+    rep = validate_pair(src, zh)
+    assert not [i for i in _issues(rep, "length") if "长度比" in i.message], str(rep)
+
+
+# ---------------------------------------------------------------- same_source
+
+
+def test_same_source_echo_fires() -> None:
+    """钉「确实触发」：整段英文 verbatim 回显 → error（babeldoc #610 死代码教训）。"""
+    src = (
+        "The experimental results demonstrate that our method achieves "
+        "state-of-the-art performance on all benchmark datasets."
+    )
+    rep = validate_pair(src, src)
+    assert not rep.ok
+    hits = _issues(rep, "same_source")
+    assert hits
+    assert hits[0].severity is Severity.ERROR
+
+
+def test_same_source_whitespace_normalized_fires() -> None:
+    """规范化后等值仍算回显——多余空白/换行差异不免罪。"""
+    src = "We   study the  dynamics\nof two-phase   flows under confinement."
+    zh = "We study the dynamics of two-phase flows under confinement.  "
+    rep = validate_pair(src, zh)
+    assert _issues(rep, "same_source"), str(rep)
+
+
+def test_same_source_bib_exempt() -> None:
+    """``[[BIB_`` 直通块留英合法——回显豁免不报错。"""
+    src = "[[BIB_323]] P.D. BATISTA and M. KATSUMATA, A study of the method."
+    rep = validate_pair(src, src)
+    assert not _issues(rep, "same_source"), str(rep)
+
+
+def test_same_source_short_exempt() -> None:
+    """剥后 <10 est_token 的短残段豁免（邮箱/短签名类——输出=输入正确态）。"""
+    src = "E-mail: foo@bar.edu"
+    rep = validate_pair(src, src)
+    assert not _issues(rep, "same_source"), str(rep)
+
+
+def test_same_source_pure_ph_exempt() -> None:
+    rep = validate_pair("[[MATH_1]]", "[[MATH_1]]")
+    assert not _issues(rep, "same_source"), str(rep)
+
+
+def test_same_source_cjk_identity_exempt() -> None:
+    """``zh==en`` 含 CJK 是合法恒等译文（share.py 收录口径）——拉丁主导才追责。"""
+    x = "这一段原本就是中文，无需翻译，保持原样是正确产出。"
+    rep = validate_pair(x, x)
+    assert not _issues(rep, "same_source"), str(rep)
+
+
+def test_same_source_near_echo_not_flagged() -> None:
+    """近似回显不归本门——邮箱块改一词即出等值判（CJK 占比 warn 兜底）。"""
+    src = "{ E-mail: D.Bukhvalov@science.ru.nl, M. Katsnelson@science.ru.nl}"
+    zh = "{ 电子邮箱: D.Bukhvalov@science.ru.nl, M. Katsnelson@science.ru.nl}"
+    rep = validate_pair(src, zh)
+    assert not _issues(rep, "same_source"), str(rep)
+    assert rep.ok, str(rep)
 
 
 def test_length_cjk_share_low() -> None:
@@ -286,12 +369,22 @@ def test_macro_structural_hallucination() -> None:
     assert any("幻觉结构" in i.message for i in rep.issues)
 
 
-def test_macro_new_nonstructural_warn() -> None:
+def test_macro_new_nonstructural_error() -> None:
+    """E24 全档拒收：泛新增 ``\\[a-zA-Z@]`` 控制词 → error（原 warn 升档）。"""
     src = "普通文本一段，长度足够用于检查各种情况才行。"
     zh = "普通文本一段，长度足够用于检查各种情况才行。\\foo{bar}"
     rep = validate_pair(src, zh)
-    assert rep.ok
-    assert Severity.WARN in _sev(rep, "macro")
+    assert not rep.ok
+    assert Severity.ERROR in _sev(rep, "macro")
+
+
+def test_macro_new_escape_family_exempt() -> None:
+    """转义族 ``\\_``/``\\%``/``\\&``/``\\{``/``\\}``/``\\\\``/``\\,`` 是 bs 类——
+    zh 净新增不入 cs 计数，天然豁免（texglot 门槛同款放行面）。"""
+    src = "成本是 50% 且 a_b 形如 x&y，长度足够用于检查。"
+    zh = "成本是 50\\% 且 a\\_b 形如 x\\&y，长度足够用于检查。\\{注\\}"
+    rep = validate_pair(src, zh)
+    assert not _issues(rep, "macro"), str(rep)
 
 
 def test_macro_cs_dropped_fragile() -> None:

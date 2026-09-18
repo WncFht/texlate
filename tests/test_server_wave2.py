@@ -351,7 +351,8 @@ class _BoomTranslator:
 
 
 class _OkTranslator:
-    """固定成功的假 Translator（记录调用参数）。"""
+    """固定成功的假 Translator（记录调用参数；zh 按 user 长度折倍——
+    E24 长度比带下固定短桩是坍缩比会触发 length error）。"""
 
     def __init__(self, zh: str = "译文") -> None:
         self.zh = zh
@@ -361,7 +362,7 @@ class _OkTranslator:
     async def translate(self, **kw: object) -> str:
         self.calls += 1
         self.kw = kw
-        return self.zh
+        return self.zh * max(1, len(str(kw.get("user", ""))) // 8)
 
 
 class _NullBus:

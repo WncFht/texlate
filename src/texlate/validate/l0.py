@@ -20,19 +20,27 @@ src 自带的不平衡/不一致不追责（继承容忍），只报 zh 相对 s
   env          ``\\begin/\\end`` 栈配对 + 环境名 multiset 签名差分。
   key          ``\\cite*/\\*ref/\\label/\\bibitem/\\bibliography`` key multiset。
   math         未转义 ``$`` 计数 + ``\\(\\)`` ``\\[\\]`` 成对。
-  length       zh/src 长度比（E21 下界放宽到 0.25）+ 剥占位符后 CJK 占比。
-  macro        zh 新增控制序列 diff（结构族=error，其余=warn；
-               含非 ASCII 字符的融合 cs=error——``\\ ``+中文熔成 ``\\和`` 是
-               未定义 cs 编译炸弹）；E21/E22：src→zh 方向脆弱间距命令
-               （``\\ `` ``\\,`` ``\\;`` ``\\:`` ``\\!`` ``~``）计数差升硬判据
-               cs_dropped，其余丢失 cs 报 warn。
+  length       剥占位符/cs 后 token 代理比带 [0.3,3.0] 外 → error（退化
+               坍缩/膨胀拒收，E24——char 级旧口径因 CJK 密度 241 假离群
+               弃用，token 代理带经 qualbase-2026-09-18 全池标定零误伤）；
+               剥占位符后 CJK 占比「疑似未翻译」仍 warn。
+  same_source  剥占位符/cs + 空白折叠 + 小写后 src==zh 整段回显 → error
+               （``[[BIB_`` bib 直通/剥后 <10 token 短残段豁免——输出=输入
+               是正确态；仅规范化等值比较，近似匹配会误伤邮箱/数学残段）。
+  macro        zh 新增控制序列 diff=error（E24 全档拒收：texglot 同口径
+               ``\\[a-zA-Z@]`` 控制词可携 prompt-injection 直进 .tex；
+               ``\\.`` 转义族是 bs 类本不入 cs 计数天然豁免；含非 ASCII
+               融合 cs ``\\和`` 与结构族同档）；E21/E22：src→zh 方向
+               脆弱间距命令（``\\ `` ``\\,`` ``\\;`` ``\\:`` ``\\!`` ``~``）
+               计数差升硬判据 cs_dropped，其余丢失 cs 报 warn。
   item_glue    ``\\item`` 紧跟 ASCII 字母粘成 ``\\itemFSU`` 类非法 cs（管线引入
                签名，8 篇实证 Undefined cs 编译炸弹）——zh 净多出计数 → warn；
                ``\\itemsep`` 等合法 cs 与 src 自带粘连靠 src↔zh 净差豁免。
   bare_cs     译文裸 cs 注入两子类 → error（realpostfix2 0905.4907：
                ``\alpha 发射体`` 数学 cs 落文本域 → Missing $ 炸弹；
                ``\itemOC``/``\linebreakGF`` 前缀+含大写后缀粘合 → 未定义
-               cs 炸弹）。泛新增 cs 仍归 macro warn，本规则只管编译即炸。
+               cs 炸弹）。泛新增 cs E24 起归 macro error，本规则只管
+               编译即炸的位置签名。
   protocol_echo 交付 zh 净多出协议字面 → error（repro-2410b §4b：corrector
                三段式节标/L0 反馈消息/``slot_validation_failures``/
                ``[compile_error]`` 被当正文回显——multiset 可吻合而载荷脏，
@@ -110,7 +118,7 @@ ENV_RX: Final = re.compile(r"\\(begin|end)\s*\{([^{}]*)\}")
 
 
 #: zh 内剥命令/占位符用。
-_CS_OR_SYM_RX: Final = re.compile(r"\\[a-zA-Z@]+\*?|\\.")
+_CS_OR_SYM_RX: Final = re.compile(r"\\[a-zA-Z@]+\*?|\\[\s\S]")
 
 #: 非 ASCII 控制序列名 = 融合产物（`\ `+中文 → `\和`，未定义 cs 编译炸弹）。
 _NONASCII_RX: Final = re.compile(r"[^\x00-\x7f]")
@@ -184,10 +192,15 @@ _ECHO_SIGS: Final = (
     "[compile_error]",  # pipeline L2 回灌重译
 )
 
-#: 阈值常数（E21：长度比下界 0.30 → 0.25，正常 CJK 压缩线）。
-LENGTH_RATIO_LO: Final = 0.25
-LENGTH_RATIO_HI: Final = 2.50
-_MIN_SRC_LEN_FOR_RATIO: Final = 30
+#: 长度比带（E24 token 代理口径）：剥占位符/cs 后 est_token 比出带 →
+#: error。char 级旧带 [0.25,2.5] 因 CJK 密度 241 假离群弃用；本带经
+#: qualbase-2026-09-18 全池标定（p0=0.76 / p50=1.18 / p99.5=1.80），
+#: 合法件双侧留 ~4x 余量，带外即退化坍缩/膨胀。
+TOKEN_RATIO_LO: Final = 0.30
+TOKEN_RATIO_HI: Final = 3.00
+#: 剥后 src est_token 下界——之下按纯占位符/短残段豁免（输出=输入是正确态，
+#: babeldoc ``input_token_count>10`` 同口径）。
+_MIN_PROSE_TOKENS: Final = 10
 CJK_SHARE_MIN: Final = 0.30
 _MIN_LATIN_FOR_CJK_CHECK: Final = 8
 _LEV_CAP: Final = 2
@@ -785,24 +798,73 @@ def _check_math(src: str, zh: str, issues: list[Issue]) -> None:
         )
 
 
+def _prose(s: str) -> str:
+    """剥占位符 + 控制序列 + 空白折叠后的散文本体（长度比/回显共用口径）。"""
+    t = PH_ANY_LIKE_RX.sub(" ", s)
+    t = _CS_OR_SYM_RX.sub(" ", t)
+    return re.sub(r"\s+", " ", t).strip()
+
+
+def _est_tokens(s: str) -> float:
+    """Token 代理估计：CJK 1 字≈1 token，其余可见字符≈4/token。
+
+    无 tokenizer 依赖的标定口径——误差双侧对冲后 qualbase-2026-09-18
+    全池实测 zh/src 比 p0=0.76 / p50=1.18 / p99.5=1.80。
+    """
+    cjk = len(CJK_RX.findall(s))
+    nonws = sum(1 for c in s if not c.isspace())
+    return cjk + (nonws - cjk) / 4
+
+
+def _check_same_source(src: str, zh: str, issues: list[Issue]) -> None:
+    """整段原文回显拒收（E24）：规范化等值 src==zh 且拉丁主导 → error。
+
+    豁免：``[[BIB_`` bib 直通块（留英合法）、剥后 src <10 est_token
+    （纯占位符/短残段——输出=输入是正确态，babeldoc ``input_token_count>10``
+    同口径）。仅规范化等值比较不取近似度——qualbase 实测 >0.85 相似档
+    唯一命中是合法邮箱块；拉丁主导门槛豁免 ``zh==en`` 含 CJK 的合法
+    恒等译文（share.py 收录口径同款情形）。
+    """
+    if "[[BIB_" in src:
+        return
+    ss, sz = _prose(src).lower(), _prose(zh).lower()
+    if _est_tokens(ss) < _MIN_PROSE_TOKENS or ss != sz:
+        return
+    cjk = len(CJK_RX.findall(ss))
+    lat = sum(1 for c in ss if c.isascii() and c.isalpha())
+    if lat >= _MIN_LATIN_FOR_CJK_CHECK and cjk / (cjk + lat) < CJK_SHARE_MIN:
+        issues.append(
+            Issue(
+                "same_source",
+                Severity.ERROR,
+                f"整段原文回显（剥占位符规范化后 src==zh，est={_est_tokens(ss):.0f}）",
+            )
+        )
+
+
 def _check_length(src: str, zh: str, issues: list[Issue]) -> None:
-    """长度比 sanity + 疑似未翻译（拉丁字符占比过高）。阈值见 E21 修订。"""
-    ls, lz = len(src.strip()), len(zh.strip())
-    if ls >= _MIN_SRC_LEN_FOR_RATIO:
-        r = lz / ls
-        if not LENGTH_RATIO_LO <= r <= LENGTH_RATIO_HI:
+    """长度比 sanity（E24 token 代理口径）+ 疑似未翻译（拉丁字符占比）。
+
+    长度比：剥后 est_token 比出 [0.3,3.0] → error 拒收（src est<10 豁免）。
+    CJK 占比：zh 剥后拉丁主导（share<0.30）→ warn 疑似未翻译。
+    """
+    ss, sz = _prose(src), _prose(zh)
+    ts = _est_tokens(ss)
+    if ts >= _MIN_PROSE_TOKENS:
+        tz = _est_tokens(sz)
+        r = tz / ts
+        if not TOKEN_RATIO_LO <= r <= TOKEN_RATIO_HI:
             issues.append(
                 Issue(
                     "length",
-                    Severity.WARN,
-                    f"长度比 {r:.2f} 超出 [{LENGTH_RATIO_LO},{LENGTH_RATIO_HI}] "
-                    f"(src={ls} zh={lz})",
+                    Severity.ERROR,
+                    f"长度比(token 代理) {r:.2f} 超出 "
+                    f"[{TOKEN_RATIO_LO},{TOKEN_RATIO_HI}] "
+                    f"(src~{ts:.0f} zh~{tz:.0f})",
                 )
             )
-    text = PH_ANY_LIKE_RX.sub(" ", zh)
-    text = _CS_OR_SYM_RX.sub(" ", text)
-    cjk = len(CJK_RX.findall(text))
-    lat = sum(1 for c in text if c.isascii() and c.isalpha())
+    cjk = len(CJK_RX.findall(sz))
+    lat = sum(1 for c in sz if c.isascii() and c.isalpha())
     if lat >= _MIN_LATIN_FOR_CJK_CHECK:
         share = cjk / (cjk + lat)
         if share < CJK_SHARE_MIN:
@@ -835,7 +897,7 @@ def _cs_names(s: str) -> tuple[Counter[str], Counter[str]]:
 
 
 def _macro_new_issues(sn: Counter[str], zn: Counter[str], issues: list[Issue]) -> None:
-    """zh−src 新增方向：结构族/融合 cs=error，其余=warn。"""
+    """zh−src 新增方向：E24 全档 error（新控制词即拒收，转义族 bs 天然豁免）。"""
     new = zn - sn
     for nme in sorted(new):
         if _NONASCII_RX.search(nme):
@@ -857,14 +919,19 @@ def _macro_new_issues(sn: Counter[str], zn: Counter[str], issues: list[Issue]) -
             )
         else:
             issues.append(
-                Issue("macro", Severity.WARN, f"译文新增控制序列 \\{nme} ×{new[nme]}")
+                Issue(
+                    "macro",
+                    Severity.ERROR,
+                    f"译文新增控制序列 \\{nme} ×{new[nme]} "
+                    f"(新控制词可携 prompt-injection 直进 .tex，拒收)",
+                )
             )
 
 
 def _check_macro(src: str, zh: str, issues: list[Issue]) -> None:
-    """控制序列双向 diff（E21/E22 修订口径）。
+    """控制序列双向 diff（E21/E22/E24 修订口径）。
 
-    zh−src 新增：结构族=error；含非 ASCII 字符的融合 cs=error；其余=warn。
+    zh−src 新增：全档 error（结构族/非 ASCII 融合 cs 同档处理）。
     src−zh 丢失：脆弱间距命令计数差（cs_dropped）=error；其余丢失=warn。
     """
     sn, sf = _cs_names(src)
@@ -1047,7 +1114,7 @@ def _check_protocol_echo(src: str, zh: str, issues: list[Issue]) -> None:
 
 
 def validate_pair(src: str, zh: str) -> L0Report:
-    """对 ``(src_chunk, zh_chunk)`` 跑全部 11 组检查，返回结构化 verdict。
+    """对 ``(src_chunk, zh_chunk)`` 跑全部 12 组检查，返回结构化 verdict。
 
     ``report.ok`` 为 True 即可送 L1/拼回；False 时 ``report.feedback()``
     的文本可直接进 corrector 的 ``previous_validation_error`` 字段。
@@ -1058,6 +1125,7 @@ def validate_pair(src: str, zh: str) -> L0Report:
     _check_env(src, zh, rep.issues)
     _check_key(src, zh, rep.issues)
     _check_math(src, zh, rep.issues)
+    _check_same_source(src, zh, rep.issues)
     _check_length(src, zh, rep.issues)
     _check_macro(src, zh, rep.issues)
     _check_item_glue(src, zh, rep.issues)

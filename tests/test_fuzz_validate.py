@@ -899,34 +899,45 @@ def _o_env_signature(
     return n_orphan, n_mis, Counter(stack), begins, ends
 
 
-def _o_strip_for_length(zh: str) -> str:
-    """剥严格占位符 + ``\\[a-zA-Z@]+\\*?``/``\\.`` token（length 规则口径）。
-
-    注意 cs 名是 ASCII 集（非 ``isalpha``）——``\\和x`` 只剥 ``\\和`` 留下 ``x``
-    计入拉丁，与 ``_CS_OR_SYM_RX`` 同口径。
-    """
+def _o_strip_ph(s: str) -> str:
+    """剥严格 ``[[A-Z…]]`` 占位符——impl ``PH_ANY_LIKE_RX.sub`` 同序第一遍。"""
     out: list[str] = []
-    i, n = 0, len(zh)
+    i, n = 0, len(s)
     while i < n:
-        if zh.startswith("[[", i):
+        if s.startswith("[[", i):
             j = i + 2
-            while j < n and zh[j] in _UPPER_DIG_US:
+            while j < n and s[j] in _UPPER_DIG_US:
                 j += 1
             if (
                 j > i + 2
-                and zh[i + 2] in string.ascii_uppercase
-                and zh[j : j + 2] == "]]"
+                and s[i + 2] in string.ascii_uppercase
+                and s[j : j + 2] == "]]"
             ):
                 out.append(" ")
                 i = j + 2
                 continue
-        if zh[i] == "\\" and i + 1 < n:
-            nxt = zh[i + 1]
+        out.append(s[i])
+        i += 1
+    return "".join(out)
+
+
+def _o_strip_cs(s: str) -> str:
+    """剥 ``\\[a-zA-Z@]+\\*?``/``\\<任意>`` token——impl ``_CS_OR_SYM_RX.sub``
+    同序第二遍。
+
+    cs 名是 ASCII 集（非 ``isalpha``）——``\\和x`` 只剥 ``\\和`` 留下 ``x``
+    计入拉丁。``\\<换行>`` 亦按控制符号剥（``[\\s\\S]`` 口径）。
+    """
+    out: list[str] = []
+    i, n = 0, len(s)
+    while i < n:
+        if s[i] == "\\" and i + 1 < n:
+            nxt = s[i + 1]
             if nxt.isascii() and (nxt.isalpha() or nxt == "@"):
                 j = i + 1
-                while j < n and zh[j].isascii() and (zh[j].isalpha() or zh[j] == "@"):
+                while j < n and s[j].isascii() and (s[j].isalpha() or s[j] == "@"):
                     j += 1
-                if j < n and zh[j] == "*":
+                if j < n and s[j] == "*":
                     j += 1
                 out.append(" ")
                 i = j
@@ -934,32 +945,64 @@ def _o_strip_for_length(zh: str) -> str:
             out.append(" ")
             i += 2
             continue
-        out.append(zh[i])
+        out.append(s[i])
         i += 1
     return "".join(out)
 
 
-_LEN_SRC_MIN = 30
-_LEN_RATIO_LO = 0.25
-_LEN_RATIO_HI = 2.50
+def _o_strip_for_length(s: str) -> str:
+    """剥占位符→剥 cs 两遍序（impl ``_prose`` 同序——``\\[[MTH_1]]`` 类
+    cs 前缀占位符须先 ph 后 cs 才剥净）。"""
+    return _o_strip_cs(_o_strip_ph(s))
+
+
+_LEN_MIN_TOKENS = 10
+_LEN_RATIO_LO = 0.30
+_LEN_RATIO_HI = 3.00
 _LEN_LAT_MIN = 8
 _LEN_CJK_SHARE = 0.30
 
 
-def _o_length_warns(src: str, zh: str) -> set[str]:
-    """length 规则 warn 集 oracle：``{"ratio","cjk"}`` 子集。"""
-    warns: set[str] = set()
-    ls, lz = len(src.strip()), len(zh.strip())
-    if ls >= _LEN_SRC_MIN:
-        r = lz / ls
+def _o_est_tokens(s: str) -> float:
+    """token 代理 oracle（l0 ``_est_tokens`` 同款）：CJK 1 + 其余可见/4。"""
+    cjk = len(_CJK_RX.findall(s))
+    nonws = sum(1 for ch in s if not ch.isspace())
+    return cjk + (nonws - cjk) / 4
+
+
+def _o_length_sigs(src: str, zh: str) -> set[str]:
+    """length 规则签名集 oracle：``{"ratio","cjk"}`` 子集。
+
+    E24：ratio 臂改 token 代理口径且升 error（签名解析不分 severity）。
+    """
+    sigs: set[str] = set()
+    ss = _o_strip_for_length(src)
+    sz = _o_strip_for_length(zh)
+    ts = _o_est_tokens(ss)
+    if ts >= _LEN_MIN_TOKENS:
+        r = _o_est_tokens(sz) / ts
         if not _LEN_RATIO_LO <= r <= _LEN_RATIO_HI:
-            warns.add("ratio")
-    text = _o_strip_for_length(zh)
-    cjk = len(_CJK_RX.findall(text))
-    lat = sum(1 for ch in text if ch.isascii() and ch.isalpha())
+            sigs.add("ratio")
+    cjk = len(_CJK_RX.findall(sz))
+    lat = sum(1 for ch in sz if ch.isascii() and ch.isalpha())
     if lat >= _LEN_LAT_MIN and cjk / (cjk + lat) < _LEN_CJK_SHARE:
-        warns.add("cjk")
-    return warns
+        sigs.add("cjk")
+    return sigs
+
+
+def _o_same_source_hit(src: str, zh: str) -> bool:
+    """same_source 规则 oracle：bib/短残段豁免 + 规范化等值 + 拉丁主导。"""
+    if "[[BIB_" in src:
+        return False
+    ss = _o_strip_for_length(src).lower()
+    sz = _o_strip_for_length(zh).lower()
+    ss = re.sub(r"\s+", " ", ss).strip()
+    sz = re.sub(r"\s+", " ", sz).strip()
+    if _o_est_tokens(ss) < _LEN_MIN_TOKENS or ss != sz:
+        return False
+    cjk = len(_CJK_RX.findall(ss))
+    lat = sum(1 for ch in ss if ch.isascii() and ch.isalpha())
+    return lat >= _LEN_LAT_MIN and cjk / (cjk + lat) < _LEN_CJK_SHARE
 
 
 def _o_macro_sigs(src: str, zh: str) -> list[tuple[str, str]]:
@@ -1083,6 +1126,8 @@ def test_fuzz_identity_pair_no_error() -> None:
     """``(x,x)`` 恒不产 error——译文不得比原文更坏的零基线。
 
     warn 只许两类继承信号：math 奇数 ``$``、length CJK 占比。
+    E24 唯一例外：拉丁主导恒等对即「整段未翻译」——same_source error
+    是新门的本意判（``zh==en`` 含 CJK 合法恒等不受影响）。
     """
     rng = random.Random(20261002)  # noqa: S311 -- 确定性种子
     fixed = [
@@ -1097,8 +1142,10 @@ def test_fuzz_identity_pair_no_error() -> None:
     cases = fixed + [_soup(rng, _SOUP_ID, 0, 16) for _ in range(1500)]
     for x in cases:
         rep = validate_pair(x, x)
-        assert rep.n_error == 0, f"{x!r}\n{rep}"
-        assert {i.rule for i in rep.issues} <= {"math", "length"}, f"{x!r}\n{rep}"
+        echo = _o_same_source_hit(x, x)
+        assert rep.n_error == (1 if echo else 0), f"{x!r}\n{rep}"
+        allowed = {"math", "length"} | ({"same_source"} if echo else set())
+        assert {i.rule for i in rep.issues} <= allowed, f"{x!r}\n{rep}"
 
 
 def test_identity_comment_ph_midline_tail_flagged() -> None:
@@ -1301,7 +1348,8 @@ def test_fuzz_macro_classification_oracle() -> None:
         ), f"src={src!r}\nzh={zh!r}\n{rep}"
 
 
-def test_fuzz_length_warn_oracle() -> None:
+def test_fuzz_length_sig_oracle() -> None:
+    """length 签名集 == oracle（E24：ratio 臂 token 代理 + error 档）。"""
     rng = random.Random(20261014)  # noqa: S311 -- 确定性种子
     words = ["word ", "text ", "中", "文", "[[MATH_1]]", "\\textbf{x}", "$x$", " "]
     for _ in range(800):
@@ -1316,7 +1364,7 @@ def test_fuzz_length_warn_oracle() -> None:
                 got.add("ratio")
             elif "CJK" in i.message:
                 got.add("cjk")
-        assert got == _o_length_warns(src, zh), f"{src!r} -> {zh!r}\n{rep}"
+        assert got == _o_length_sigs(src, zh), f"{src!r} -> {zh!r}\n{rep}"
 
 
 def test_fuzz_item_glue_oracle() -> None:

@@ -248,8 +248,23 @@ class TestFaultPaths:
         """T4：ChatClient.usage_sink → task_usage 行 + snapshot.usage 出账。"""
 
         def handler(req: httpx.Request) -> httpx.Response:
-            # echo 回 user 内容——占位符全保留，批量/单翻两侧校验都过
+            # user 内容前加中文前缀——占位符全保留且非同文回显（E24 same_source
+            # 门槛下 verbatim echo 会被拒）；slots JSON 逐槽同形，批量/单翻
+            # 两侧校验都过
             body = json.loads(req.content)
+            user = body["messages"][-1]["content"]
+            try:
+                slots = json.loads(user).get("slots")
+            except (json.JSONDecodeError, AttributeError):
+                slots = None
+            content = (
+                json.dumps(
+                    {"slots": {k: "译文：" + str(v) for k, v in slots.items()}},
+                    ensure_ascii=False,
+                )
+                if isinstance(slots, dict)
+                else "译文：" + user
+            )
             return httpx.Response(
                 HTTPStatus.OK,
                 json={
@@ -258,7 +273,7 @@ class TestFaultPaths:
                         {
                             "message": {
                                 "role": "assistant",
-                                "content": body["messages"][-1]["content"],
+                                "content": content,
                             },
                             "finish_reason": "stop",
                         }
