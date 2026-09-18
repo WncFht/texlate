@@ -54,12 +54,19 @@ def _parsed(
     }
 
 
-def _sig(*, ph_missing: int = 0, ph_invented: int = 0, en_residue: int = 0) -> dict:
+def _sig(
+    *,
+    ph_missing: int = 0,
+    ph_invented: int = 0,
+    en_residue: int = 0,
+    src_bib: bool = False,
+) -> dict:
     """contest_reasons 输入的最小 L0 确定性信号块。"""
     return {
         "ph_missing": ph_missing,
         "ph_invented": ph_invented,
         "en_residue": en_residue,
+        "src_bib": src_bib,
     }
 
 
@@ -367,6 +374,10 @@ def test_contest_critical_and_l0() -> None:
     )
     assert "l0_en_unreported" not in qualbench.contest_reasons(
         _parsed([_err("non-translation", "critical")]), _sig(en_residue=8)
+    )
+    # src_bib=True（源侧含 [[BIB_ 段）→ en_residue 豁免触发（075a42b）
+    assert "l0_en_unreported" not in qualbench.contest_reasons(
+        _parsed(), _sig(en_residue=8, src_bib=True)
     )
 
 
