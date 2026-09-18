@@ -28,8 +28,11 @@ from texlate.latex.placeholder import (
     PH_RX,
 )
 from texlate.latex.tables import (
+    ACCENT_CHARS,
     CHUNK_MAX,
     CITE_NAMES,
+    FONT_SWITCHES,
+    INLINE_LITERAL_CMDS,
     MATH_ENVS,
     PROTECTED_ENVS,
     REF_NAMES,
@@ -309,6 +312,20 @@ def _cite_ref_type(name: str) -> PhType | None:
     ):
         return PhType.REF
     return None
+
+
+def _accent_cs(name: str) -> bool:
+    r"""Accent 族行谓词：``\c{c}``/``\~n`` 单参保护——``_DISPATCH_FAMS``/``_GRP_SURFACE_FAMS``/``_PEND_SPEC_FAMS`` 三表与 ``_dispatch`` 16c 行同判据。"""
+    return len(name) == 1 and name in ACCENT_CHARS
+
+
+def _inline_lit_cs(name: str) -> bool:
+    r"""行内字面行谓词：符号/品牌/旧式字体开关/无参单字符命令——三镜像表与 ``_dispatch`` 17 行同判据。"""
+    return (
+        name in INLINE_LITERAL_CMDS
+        or name in FONT_SWITCHES
+        or (len(name) == 1 and not name.isalpha())
+    )
 
 
 def _pend_call_slots(name: str) -> list[str]:

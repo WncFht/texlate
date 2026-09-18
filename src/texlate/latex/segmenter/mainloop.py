@@ -27,13 +27,10 @@ from texlate.latex.placeholder import (
     PH_RX,
 )
 from texlate.latex.tables import (
-    ACCENT_CHARS,
     BOUNDARY_NAMES,
     BOX_TAIL_NAMES,
     CHUNK_ARG_NAMES,
     COND_RX,
-    FONT_SWITCHES,
-    INLINE_LITERAL_CMDS,
     INPUT_SCAN_CMDS,
     PAIR_BLOCK_ALL,
     PROTECT_BLOCK_NAMES,
@@ -53,8 +50,10 @@ from ._common import (
     _TAIL_CAP,
     _TAIL_RX,
     TokenSource,
+    _accent_cs,
     _ArgTok,
     _cite_ref_type,
+    _inline_lit_cs,
     _ListSource,
 )
 
@@ -68,20 +67,6 @@ r"""``Segmenter`` 主循环/preamble/分派/math/verb。"""
 
 _VERB_LIKE = ("verb", "verb*", "lstinline")
 _MATH_CLOSE_CS = ("]", ")")
-
-
-def _accent_cs(name: str) -> bool:
-    r"""Accent 族行谓词：``\c{c}``/``\~n`` 单参保护（``_group_surface`` 镜像行同判据）。"""
-    return len(name) == 1 and name in ACCENT_CHARS
-
-
-def _inline_lit_cs(name: str) -> bool:
-    r"""行内字面行谓词：符号/品牌/旧式字体开关/无参单字符命令。"""
-    return (
-        name in INLINE_LITERAL_CMDS
-        or name in FONT_SWITCHES
-        or (len(name) == 1 and not name.isalpha())
-    )
 
 
 # ``_dispatch`` 行序的名级投影——``pending._GRP_SURFACE_FAMS``/``_PEND_SPEC_FAMS``
