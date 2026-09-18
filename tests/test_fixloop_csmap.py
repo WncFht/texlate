@@ -1,4 +1,4 @@
-"""cs_targeted_fix cs_table 扩项单测 —— natbib 引用族 + ``\\kwd`` polyfill。
+"""cs_targeted_fix cs_table 扩项单测 —— natbib 引用族 + ``\\kwd``/``\\newblock`` polyfill。
 
 实证背景 (failmine-2026-09-19, loop2 best_effort_pdf 残面): ``\\citet``/
 ``\\citealt``/``\\kwd`` 的 undefined_cs payload 命中 cs_targeted_fix 但
@@ -8,6 +8,12 @@ cs_table 无键 → 落 undefined_cs_guess 未修。本批补 natbib 全家族
 noop polyfill (imsart 类在而 ``\\kwd`` 缺位面: 1012.2012/1206.1960/
 1811.10292, 与 startlocaldefs/endlocaldefs 同格)。均为表内键值条目,
 非新规则 —— ruleset 规则数不变。
+
+newblockpf (failmine2): ``LaTeX Error: Command \\newblock undefined.``
+是 ``\\renewcommand`` 对未定义 cs 的内核签 (natbib.sty:1070 重定义
+thebibliography 内 ``\\renewcommand\\newblock`` 要宿主先定义, 老类/shim
+缺位面 ~13 cells)。taxonomy 新签归 ``undefined_cs:newblock`` →
+canonical hskip 形 ``\\providecommand`` polyfill。
 """
 
 from pathlib import Path
@@ -123,9 +129,7 @@ def test_builtin_payload_leading_backslash(tmp_path: Path) -> None:
     ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel="main.tex")
     ok, _ = _fix(ctx, "\\citet")
     assert ok
-    assert "\\usepackage{natbib}" in (tmp_path / "main.tex").read_text(
-        encoding="utf-8"
-    )
+    assert "\\usepackage{natbib}" in (tmp_path / "main.tex").read_text(encoding="utf-8")
 
 
 def test_builtin_natbib_already_loaded_no_dup(tmp_path: Path) -> None:
@@ -167,3 +171,54 @@ def test_builtin_unknown_cs_misses(tmp_path: Path) -> None:
     ok, note = _fix(ctx, "boguscs")
     assert not ok
     assert "not in cs-fix table" in note
+
+
+# ---------------------------------------------------------------- newblock
+def test_table_newblock_polyfill_shape() -> None:
+    """``newblock`` 键是 canonical hskip 形 ``\\providecommand`` polyfill。
+
+    ``\\providecommand`` 先于 natbib ``\\renewcommand\\newblock``
+    (natbib.sty:1070) 落位 → renew 合法接管; 宿主类已定义时 provide
+    静默 no-op (runtime 幂等), 不抢类语义。"""
+    polyfill = _cs_table()["newblock"]["polyfill"]
+    assert polyfill.startswith("\n")  # docclass 行尾 % 注释逃逸前缀
+    assert "\\providecommand{\\newblock}" in polyfill
+    assert "\\hskip .11em plus .33em minus .07em" in polyfill
+
+
+def test_when_fires_newblock_payload(tmp_path: Path) -> None:
+    """taxonomy 归 ``undefined_cs:newblock`` 后 when 臂命中。"""
+    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
+    assert actions._when_ok(_rule().when, "undefined_cs", "newblock", ctx)  # noqa: SLF001
+
+
+def test_builtin_newblock_polyfill_injected(tmp_path: Path) -> None:
+    """``newblock`` payload → docclass 缝注 providecommand (preamble 面)。"""
+    _proj(
+        tmp_path,
+        "\\documentclass{article}\n\\usepackage{natbib}\n"
+        "\\begin{document}\n\\begin{thebibliography}{9}\n"
+        "\\bibitem{k} a \\newblock b\n\\end{thebibliography}\n\\end{document}\n",
+    )
+    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel="main.tex")
+    ok, note = _fix(ctx, "newblock")
+    assert ok, note
+    text = (tmp_path / "main.tex").read_text(encoding="utf-8")
+    assert "\\providecommand{\\newblock}" in text
+    assert text.index("\\providecommand{\\newblock}") < text.index("\\begin{document}")
+
+
+def test_builtin_newblock_refire_idempotent(tmp_path: Path) -> None:
+    """二次点火: snippet 已在 → applied nothing, 不重复注入。"""
+    _proj(
+        tmp_path,
+        "\\documentclass{article}\n\\begin{document}\nx\n\\end{document}\n",
+    )
+    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel="main.tex")
+    ok1, _ = _fix(ctx, "newblock")
+    assert ok1
+    ok2, note2 = _fix(ctx, "newblock")
+    assert not ok2
+    assert "applied nothing" in note2
+    text = (tmp_path / "main.tex").read_text(encoding="utf-8")
+    assert text.count("\\providecommand{\\newblock}") == 1

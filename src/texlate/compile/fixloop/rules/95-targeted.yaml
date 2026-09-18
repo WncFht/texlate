@@ -88,6 +88,16 @@ rules:
           citeyearpar: { usepackage: natbib }
           citetext: { usepackage: natbib }
           citenum: { usepackage: natbib }
+          # natbib thebibliography 侧对偶 (failmine2 ~13 cells: 1109.6007/
+          # 1306.0551/astro-ph/0501240): natbib.sty:1070 重定义 env 内
+          # \renewcommand\newblock 要宿主先定义, 老类/shim 缺位面炸内核签
+          # "Command \newblock undefined" (taxonomy 归 undefined_cs:newblock)。
+          # canonical hskip 形 (natbib/elsart/quantumarticle/ptptex 同值);
+          # providecommand 先于 renewcommand 落位 → renew 合法接管。
+          newblock:
+            {
+              polyfill: "\n\\providecommand{\\newblock}{\\hskip .11em plus .33em minus .07em}",
+            }
           # 2501.14787 (repro-2501-2026-09-16): \DeclareUnicodeCharacter 是
           # inputenc 私有 cs, XeTeX 内核恒未定义 (en/zh 两臂同炸) → lccode
           # 惯用法 polyfill。normalize.XETEX_COMPATIBILITY 同源 shim

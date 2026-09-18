@@ -198,6 +198,18 @@ def test_warn_patterns_scanned() -> None:
         # undefined_cs payload 抓上下文顶行末位 cs 名 (供 polyfill/shadow 定位);
         # 无宏展开时顶行即 l.N 行 (payload-scout-2026-09-17)
         ("! Undefined control sequence.\nl.5 \\foo", "undefined_cs", "foo"),
+        # 2026-09-19: \renewcommand 对未定义 cs 的内核签归 undefined_cs
+        # (natbib \renewcommand\newblock 面, failmine2 ~13 cells)
+        (
+            "! LaTeX Error: Command \\newblock undefined.",
+            "undefined_cs",
+            "newblock",
+        ),
+        (
+            "./main.bbl:1: LaTeX Error: Command \\newblock undefined.",
+            "undefined_cs",
+            "newblock",
+        ),
         # 2026-09-16: inputenc 拒载 Unicode 引擎 (inputenc.sty:164)
         (
             "! Package inputenc Error: inputenc is not designed for xetex or luatex.",
