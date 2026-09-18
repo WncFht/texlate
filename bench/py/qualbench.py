@@ -193,6 +193,10 @@ Rules:
   a concise heading, a caption a compact legend).
 - Do NOT mark an error for content correctly left in English (person
   names, citation/bibliography entries, math placeholders).
+- A Source fragment containing [[BIB_n]] tokens is a bibliography
+  region the pipeline intentionally keeps in English: a Translation
+  identical to the Source there is CORRECT — do not flag
+  non-translation or any other error for it.
 - If the translation is fully correct, return an empty error list.
 
 Step 2 — after the error list, give "score": your overall 0-100 quality
@@ -558,6 +562,19 @@ def mock_judge(pair: Pair) -> dict:
     """确定性 mock judge（ESA 形态）：按确定性信号出 errors+stated100。"""
     sig = pair_signals(pair.src, pair.zh)
     raw_errors: list[dict] = []
+    if sig["src_bib"]:
+        # bib 直通语境：zh≡src 是正确态——占位符守恒外零错误。
+        if sig["ph_missing"] or sig["ph_invented"]:
+            raw_errors.append(
+                {
+                    "span": "[[",
+                    "category": "convention-placeholder",
+                    "severity": "major",
+                    "note": "placeholder mismatch",
+                }
+            )
+            return _norm_parsed(raw_errors, 70)
+        return _norm_parsed(raw_errors, 95)
     if pair.zh.strip() == pair.src.strip() or not pair.zh.strip():
         raw_errors.append(
             {
