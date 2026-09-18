@@ -274,3 +274,178 @@ def test_inline_verb_input_no_edge(tmp_path: Path) -> None:
     r = locate(tmp_path)
     assert r.order == ["main.tex"]
     assert "fake.tex" not in r.edges.get("main.tex", [])
+
+
+def test_nontex_documentclass_not_candidate(tmp_path: Path) -> None:
+    r"""非 TEX_EXT 后缀的 ``\documentclass`` 文件不进候选（W69）。
+
+    ``.txt`` 伪主文件在 TEX_EXT 闸外，扫描阶段即不入场。
+    """
+    _write_tree(
+        tmp_path,
+        {
+            "paper.tex": MAIN_TEX,
+            "notes.txt": ("\\documentclass{book}\n\\begin{document}n\\end{document}\n"),
+            "sec1.tex": "one\n",
+        },
+    )
+    r = locate(tmp_path)
+    assert r.candidates == ["paper.tex"]
+    assert r.main == "paper.tex"
+
+
+def test_nontex_only_documentclass_rootless(tmp_path: Path) -> None:
+    r"""唯一 docclass 落在 ``.txt`` 里 → 根缺失告警照出（W69/W71 交界）。"""
+    _write_tree(
+        tmp_path,
+        {
+            "frag.tex": "just a fragment\n",
+            "readme.txt": "\\documentclass{book}\n",
+        },
+    )
+    r = locate(tmp_path)
+    assert r.main is None
+    assert r.candidates == []
+    assert any(w.startswith("no_documentclass:") for w in r.warnings)
+
+
+def test_ltx_extension_candidate(tmp_path: Path) -> None:
+    """``.ltx`` 同属 TEX_EXT——候选不只看 ``.tex``。"""
+    _write_tree(
+        tmp_path,
+        {
+            "ms.ltx": "\\documentclass{article}\n\\begin{document}\nx\\end{document}\n",
+        },
+    )
+    r = locate(tmp_path)
+    assert r.candidates == ["ms.ltx"]
+    assert r.main == "ms.ltx"
+
+
+def test_relative_cls_documentclass_candidate(tmp_path: Path) -> None:
+    r"""``\documentclass{./dir/cls}`` 相对路径类名照样进候选（W98）。
+
+    探测只看控制序列存在，不解析 cls 参数路径。
+    """
+    _write_tree(
+        tmp_path,
+        {
+            "ms.tex": (
+                "\\documentclass{./cls/journal}\n"
+                "\\begin{document}\nbody\\end{document}\n"
+            ),
+        },
+    )
+    r = locate(tmp_path)
+    assert r.main == "ms.tex"
+    assert r.kind is DocKind.LATEX
+
+
+def test_documentstyle_candidate(tmp_path: Path) -> None:
+    r"""``\documentstyle``（latex209 形）同样计候选——DOCCLASS_RX 含此命令。"""
+    _write_tree(
+        tmp_path,
+        {
+            "old.tex": (
+                "\\documentstyle[12pt]{article}\n\\begin{document}\nx\\end{document}\n"
+            ),
+        },
+    )
+    r = locate(tmp_path)
+    assert r.main == "old.tex"
+
+
+def test_multi_doc_independent_roots(tmp_path: Path) -> None:
+    """≥2 独立根（各带 docclass+bd、互不引）→ multi_doc 置位（B07）。
+
+    文件名先验把 ``paper.tex`` 推上 main。
+    """
+    _write_tree(
+        tmp_path,
+        {
+            "paper.tex": (
+                "\\documentclass{article}\n\\begin{document}\np\\end{document}\n"
+            ),
+            "supp.tex": (
+                "\\documentclass{article}\n\\begin{document}\ns\\end{document}\n"
+            ),
+        },
+    )
+    r = locate(tmp_path)
+    assert r.multi_doc
+    assert r.independent_roots == ["paper.tex", "supp.tex"]
+    assert r.main == "paper.tex"
+
+
+def test_stub_body_warning(tmp_path: Path) -> None:
+    """main 正文近空（无 section、可见文本 <2KB）→ stub_body 告警。"""
+    _write_tree(
+        tmp_path,
+        {
+            "main.tex": (
+                "\\documentclass{article}\n\\begin{document}\nhi\\end{document}\n"
+            ),
+        },
+    )
+    r = locate(tmp_path)
+    assert r.main == "main.tex"
+    assert any(w.startswith("stub_body:") for w in r.warnings)
+    assert not r.pdf_wrapper
+
+
+def test_input_space_dir_member(tmp_path: Path) -> None:
+    r"""含空格目录成员 ``\input{my dir/sec}`` 正常解析入图（W52）。"""
+    _write_tree(
+        tmp_path,
+        {
+            "main.tex": (
+                "\\documentclass{article}\n\\begin{document}\n"
+                "\\input{my dir/sec}\nbody\\end{document}\n"
+            ),
+            "my dir/sec.tex": "sec\n",
+        },
+    )
+    r = locate(tmp_path)
+    assert "my dir/sec.tex" in r.order
+    assert not r.unresolved
+
+
+def test_bibliography_trailing_empty_arg(tmp_path: Path) -> None:
+    r"""``\bibliography{main}{}`` 尾随空参组被忽略，``main`` 正常解析（W36）。"""
+    _write_tree(
+        tmp_path,
+        {
+            "main.tex": (
+                "\\documentclass{article}\n\\begin{document}\nbody\n"
+                "\\bibliography{main}{}\n\\end{document}\n"
+            ),
+            "main.bbl": "\\begin{thebibliography}{1}\\end{thebibliography}\n",
+        },
+    )
+    r = locate(tmp_path)
+    assert "main.bbl" in r.bibliographies
+    assert not r.unresolved
+
+
+def test_bibliography_host_path_unresolved(tmp_path: Path) -> None:
+    r"""主机路径 ``\bibliography`` 一律拒解析 → unresolved（W16）。
+
+    绝对路径、``~``、盘符、``..`` 逃逸四形态同归 ``_norm_arg`` 拒绝臂。
+    """
+    _write_tree(
+        tmp_path,
+        {
+            "main.tex": (
+                "\\documentclass{article}\n\\begin{document}\nbody\n"
+                "\\bibliography{/home/u/refs,~/more,C:\\bibs\\x,../up}\n"
+                "\\end{document}\n"
+            ),
+        },
+    )
+    r = locate(tmp_path)
+    assert not r.bibliographies
+    args = {u.arg for u in r.unresolved}
+    assert "/home/u/refs" in args
+    assert "~/more" in args
+    assert "C:\\bibs\\x" in args
+    assert "../up" in args
