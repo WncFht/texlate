@@ -263,3 +263,50 @@
 - 裁决⑦证据包：可进 default-on 候选——无分布回归 + 机制收益方向复现 + 代价=非术语块零增益、每篇 +1 抽取调用。REPORT=tmp/lane-autogloss-reg/REPORT.txt。
 - 事故尾账：双 orchestrator 致 arm-off 1 例 unparseable 末行（299/300 已接受——resume 视 error done，记录留存）；arm-on ~60 重复判分同配 judge 无害。
 - cron 641bf83b 已删。下一步：空窗跑首个真 qualdrift 哨兵点（网关闲）。
+
+## 2026-09-18 23:50 — tar 0-member 修复 + bracecasc 收割 + 4 道新派
+
+- **80bea92 tar_blob_extract 退役解耦**：0-member 异常实锤=语料同捆全部成员（corpus_v3/0707.0382/extracted 内 AMSbsy.sty tar 与 9 成员并存）→补缺落地 0→blob 留毒（设计注"0 成员非本机制案"前提错——tar 魔数+`.sty` 名即非法 TeX，与落地数无关）。修=命中魔数即改名退役；补钉 test_tar_blob_retires_when_all_members_exist（预置成员+0 新成员仍退役）。5 tar 钉+96 fixloop 面全绿。tarrecheck 2 格重放批脱管在跑（stagerun-tarrecheck）。
+- **bracecasc 收割**（tmp/lane-bracecasc/report.md）：~38 格级联簇=下游噪声非单机制——逐格首错拆根后三枚我方可修根：**①mn2e/mnras natbib 接口缺**（0707.4614/1206.0597/1206.5819，stub \LoadClass{mnras} 命中老 cls 无 \citet/\citealt 族→57-142 错）；**②nicematrix 版本错配**（2203.00012/2308.12712 ~4 格，vendor 件要 L3>2022-07-14 而 runtime=2022-07-14）；**③stub 参数元数缺**（aaspp4.sty:98+aasms4.sty:97 `\def\markcite{}` 0 参 vs 真件吞 {key}→残留组排印→`_` 文本模式炸，astro-ph/9910310；通式嫌疑覆盖 undefined_cs×50 桶一部分）。另：astro-ph/9901364 姊妹改名件(crckapb_copy)单格候选低于规则阈值记档。
+- **新派 4 道**：stubaudit-lane（vendor/stubs 全权：natbib 接口+元数审计+offprints）、nicematrix-lane（vendor 非 stubs 区+版本门判：先定是我方 vendor 还是稿自带）、masklane（match_surface:masked 通用机制——finditer 落遮盖视图+raw 右到左 span 拼接防 \n 位移，natbib_numbers_pass 单点 opt-in；残口 ledger 项转产品）、residdiag-lane（只读：cond-mat/0408520+9910091 残 partial + gr-qc/0104075 240s 超时根因 + motivation.tex/1012.1548 瞬态复查）。roster：restatable(keyval 续道)+4 新道=5 活跃在飞。
+
+## 2026-09-18 ~00:2x — tar 三阶修复 + masklane/restatable-B 收割
+
+- **0e55221 魔数扫窗**：tarrecheck 一跑揭穿更深一层——splice/zh 构建对 .sty 一律前置我方 prologue（`\PassOptionsToPackage`+`\providecommand` ~1452B），ustar 魔数推离 257 → 定点探测漏检（上一版"0 成员"诊断实为"未检出"表象同 note）。修=前 64KB 扫 ustar 回推 257+name 字段 NUL 轻校验；抽取从头起点切片+顺序迭代（弃 getmembers 全扫）容忍 recode 中段损坏。钉：displaced-magic 检出+成员照补+退役；文本 ustar 字样不误中。真件验证：splice AMSbsy.sty hdr=1452 检出、pristine hdr=0。
+- **tarrecheck 二跑 FLIP**：0707.0382 unfixable→**clean**；astro-ph/0104007 unfixable→**partial(best_effort_pdf)**——aipproc.cls tar 退役后 stub shim 接手出 PDF，残 41 错=异族（`Missing \endcsname` symposium.tex:250 + env_undefined `references` + undefined_cs×12 = aipproc stub 覆盖缺，交 stubaudit 邻接域）。
+- **3f2cbb6 masklane**：`match_surface: masked` 机制——mask_tex 等长遮盖实测 offsets 逐字保；finditer 落遮盖视图+raw 右到左 span 拼接防 \n 位移；ruleset fail-closed 校验。opt-in=natbib_numbers_pass+**conmp_pdo_pdfstring**（lane 残口上浮→leader 裁决：同 `(\begin{document})`+\n-repl 形同证据同收，注释内 begin 永非活锚）。8 钉+601 扫面绿。**natbib 遮盖残口 ledger 项清零**——修复道升级为机制道。
+- **a61c7ab restatable-B**：keyval 组注释剥除——`\lstdefinelanguage{lean}{` ~250 行体首行 % 注释使 `_KEYVAL_GROUP_RX` 形状门断 → 键名挖成散文（2105.00041 `这是译文` 进 key 位实锤为**键名被挖**非 caption 逗号裂）。两 gate 统一走 `_keyval_shaped` 剥注再判；爆半径=有界少译。**跨会话夹带记档**：`_KV_COMMENT_RX`/`_keyval_shaped` helper 经 peer aa8882f 整文件 add 先落地，余 diff 净 lane 件。
+- roster：stubaudit/nicematrix/residdiag 在飞；restatable-lane/masklane/bracecasc 交付已收关闭。
+
+## 2026-09-18 ~00:4x — peer verify 报告落错 inbox + 交叉确认
+
+- 四枚 peer verify-* 代理（xlat/misc/gullet/fixloop 簇）把判词发到本 session 的 team-lead 地址——核实：彼等验证的文件全部已在 master 早前 peer 提交里（c28b2c3 指纹闸+vendor 三 stub、ffe27ca autogloss+terms CSV、ca27eb2 网关迁移+layout_bench），本树无未提交对应件 → 判词纯信息性，无我可 commit 之物。已 SendMessage 精简判词+blockers 回 texlate-48（layout_bench 6 ruff、gullet 11 ruff、index.yaml 接线缺）。
+- **交叉确认两枚本域相关项**：①`terms/index.yaml` 无 cond-mat/quant-ph 键——两 CSV 为死资产（verify-misc 判词属实；exact-match 需 quant-ph 一键 + cond-mat 九 subcat 键）——已回执 peer，下一轮巡逻若仍缺则我自补；②`aaspp4.sty:98`/`aasms4.sty:97` `\def\markcite{}` 0 参缺陷在 HEAD 仍在（peer 指纹闸提交 c28b2c3 未涉元数）→ stubaudit-lane 元数审计域内，无冲突。
+- roster：stubaudit/nicematrix/residdiag/macrogate/pacsdiag 5 道在飞。
+
+## 2026-09-18 ~01:0x — 夜巡 + 5 道新派（roster→9）
+
+- 批存活：l1-gate parsebench **PASS**（strict identity 100.00% [99.80,100.00]、leak 0.000% 0/135840——post-W84 树 L1 门稳）；autogloss-reg/tarrecheck 均已 rc=0 收尾；无残留 stagerun/rexlat 进程。
+- 新派 5 道：copyrename（`*_copy.sty` 姊妹改名普查→≥2 格则晋级补缺规则）、begindoc13（17 格 Missing\begindoc 残 13 逐格裁决：tar 扫窗/input_sty/重注释已覆盖 vs 新机制 vs paper）、taildiag（babel×4/illegal-unit×5/endgroup×7/input-stack×3 + **undefined_cs×50 按 cs 名直方图**——长尾是否暗藏 5 族）、bininject（上游修：splice/zh 对 .sty 一律前置 prologue 是 tar 魔数位移之源——二进制/魔数件应免注入）、macrogate+pacsdiag（前轮）。roster 9 道在飞，无僵尸。
+- 门巡：clean% 本轮单调非降（flipcheck 全目标格改善或持平）；sabotage 上次 escaped=0（本轮新规则批后需刷新——记为待办）；teammate 零 git 无违例（全口头交付）。
+- 待办队列：index.yaml 接线（peer 已回执，下巡未补则我自办）；qualdrift 首个真哨兵点（真臂 ≤100 格预算内设计 25-30 格）；sabotage-b 重跑（本轮 tar/mask/keyval 落地后门④刷新）。
+
+## 2026-09-18 ~01:2x — residdiag 收割（3 格判毕+2 产品级 bug）+ copyrename 阴性结案
+
+- **residdiag**：①cond-mat/9910091=paper 根（sw20lart 私件缺失 base 双臂同炸）+2 枚我方 stub 伤——`tcilatex.tex:23` vendored `\def\QQQ#1{}` 1 参 vs 真件 `\long\def\QQQ#1#2`（arg2 漏进导言→Missing\begindoc @Chechkin.tex:154）+ sw20lart noop stub 致 `\tag`×115 undef；②cond-mat/0408520=paper 根（BoxedEPS 缺失）+stub noop 致 16 undef cs，env_undefined:abstract 经零代码复现判 paper-authentic（abstract_frontmatter_hoist 覆盖但未火——轮次被 cs 错吃光，优先级/轮预算记档）；③gr-qc/0104075=**我方病态循环非真大档**——1813 行源产 73,595 页 Overfull\vbox 至 SIGKILL（enddoc \clearpage 死循环 @revtex4-2/ltxgrid 升级稿，loop1 同期曾 best_effort_pdf 秒出=可二分）。**两枚产品 bug**：(a) 超时被杀编译解析 0 错→verdict=clean 后 post-compile 再烧 240s——timeout 必须 veto clean；(b) 无 runaway-page 闸——73K 页烧满 240s。派 runguard（veto+runaway_output 分类）+revtexloop（极简复现→根因→修）。motivation.tex/1012.1548 监视安静关闭。
+- **copyrename**：阴性全普查——`*_copy/*_old/*_orig/.bak/*2` ~110 件零候选；fixloop missing-file ~130 格零件有姊妹改名版（前缀撞名全是异件）。N=1 不破阈不立规则；未来若立须 `X_copy.*` 全 ext glob（epsf 案 .sty→.tex 跨扩展）。9901364 实序=nato.sty 真缺→legacy_pkg_shim→best_effort 93 错。
+- stubaudit 获第 2 批加派：`\QQQ` 元数+sw20lart `\tag` noop+BoxedEPS 族（\BoxedEPSF→\includegraphics）。
+- roster：stubaudit/nicematrix/macrogate/pacsdiag/begindoc13/taildiag/bininject/runguard/revtexloop=9 在飞；copyrename/residdiag 交付关闭。
+
+## 2026-09-18 ~01:4x — 夜巡（安静持有）
+
+- 批存活：无新 run.log/批（三道 lane scratch probe log 已完）；无残留进程。
+- roster 9 全 running 无僵尸：stubaudit(33m)/nicematrix(33m)/macrogate(15m)/pacsdiag(13m)/begindoc13(7m)/taildiag(6m)/bininject(5m)/runguard(2m)/revtexloop(1m)。
+- **树内已见两道未报交付**（代理仍跑=勿收）：nicematrix——`vendor/files/nicematrix.sty` 钉 v7.11a+`10-taxonomy` 加 pkg_version_skew+`40-install` vendored-substitute 规则+新测试（lane 自建 task #12-14 推进可见）；stubaudit——7 件 stub 改动（aasms4/aaspp4/aipproc/jheppub/jinstpub/mn/mn2e/svjour3）+test_fixloop_stubaudit.py。等口头交付再归因 commit。
+- 门巡：无新码落地故门禁态不变；sabotage 刷新仍挂起（待本轮道落地齐跑）；零 git 违例。
+
+## 2026-09-18 23:39 — selfimp-qual：verify-misc 收割（ruff 清零 + terms 接线）
+
+- 第三会话 verify-* 裁决经 texlate-cf 转达（报告误投其 team-lead 信箱）：GO×2 无项；NO-GO 两项核实均真——已落地 `fcdc15b`（layout_bench EXE001/SIM105/F841/S607/RUF021/FURB122、test_gullet_l9 TC001、test_fuzz_inject FBT+I001、test_bare_cs I001、autogloss 重排，全仓 ruff 净）+ `b36310f`（terms/index.yaml 补 bare cond-mat + 9 子类 + quant-ph——ffe27ca 两张 CSV 此前是死资产，冒烟 str-el→1155/quant-ph→710/hep-th→default 405）。
+- qualdrift 首跑 267/300 在飞（pid 457429，~33min），cron 486ad343 文件面监视；出判即入 trend + 裁决报告。
+- 待办：qualdrift 门禁判读；⑦autoglossary 裁决证据已齐（REPORT 全门 PASS）；用户 7 项裁决包仍待回。
