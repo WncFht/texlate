@@ -846,7 +846,7 @@ def test_gate_union_best_of(
     monkeypatch.setattr(sys, "argv", ["gate_scorecard", str(recdir), "--json"])
     assert gate_scorecard.main() == 0
     d = json.loads(capsys.readouterr().out)
-    assert d["schema"] == "gate_scorecard/v2"
+    assert d["schema"] == "gate_scorecard/v3"
     assert d["cells"] == len(comp)
     # a: end=fixloop:fail(回退)，union=compile partial → pdf；b: fix clean
     want_end_pdf, want_uni_pdf = 1, 2
@@ -875,15 +875,28 @@ def test_gate_union_best_of(
 
 
 def _oracle_fresh(c: dict, f: dict) -> bool:
-    """pick_final 新鲜度判定的独立 oracle——fp/csb/upstream 三闸。"""
+    """pick_final 新鲜度判定的独立 oracle——post/fp/csb/upstream 四闸。
+
+    与 pick_final 同构（window_stale 是调用侧注入——无 run_meta 空集，
+    oracle 不复制）：post.status 相悖 / fp 失配 / fp 匹配但 csb 相悖 /
+    无 fp 时 csb 缺席或失配 → 不新鲜。
+    """
     if c["status"] not in gate_scorecard.COMPILED:
         return False
     m = f.get("metrics")
     if not isinstance(m, dict):
         m = {}
+    post = m.get("post")
+    if isinstance(post, dict):
+        ps = post.get("status")
+        if isinstance(ps, str) and ps and ps != f.get("status"):
+            return False
     fp = m.get("compile_fp")
     if isinstance(fp, str) and fp:
         if fp != gate_scorecard.compile_fp(c):
+            return False
+        csb = m.get("compile_status_before")
+        if csb is not None and csb != c["status"]:
             return False
     else:
         csb = m.get("compile_status_before")
