@@ -57,6 +57,14 @@ r"""``Segmenter`` 参数读取/保护调用/各 handler/argspec 发射。"""
 # （字母数字 ``_@*.-``），逗号前缀只收裸键位，``{散文}``/``{key 散文}`` 不中。
 _KEYVAL_GROUP_RX = re.compile(r"\s*(?:[\w@*.\-]+[ \t]*,[ \t]*)*[\w@*.\-]+[ \t]*=")
 
+# 逗号分隔机读名单形状——``\usetikzlibrary{arrows, automata, backgrounds,
+# calendar}``/``\includeonly{ch1, ch2}``/``\bibliography{r1.bib, r2.bib}`` 类
+# 标识符/文件名/路径列：≥4 连词判据会被 ``a, b, c, d`` 误判成散文，抠出
+# 翻译会把库名/包名/文件名译断。纯名单槽位逐项 ``[\w@*.\-/]+`` 逗号相连
+# 才收——真散文词间缺逗号即不中（``{word, word, word}`` 散文罕见，宁漏
+# 不译名单）。
+_COMMA_LIST_RX = re.compile(r"\s*[\w@*.\-/]+\s*(?:,\s*[\w@*.\-/]+\s*)*,?\s*")
+
 # opaque 宏 ``{..}`` 参的调用点散文判据（gullet-at scout 口径）：检测文本先
 # 剔 ``%`` 注释与 cs（``\emph`` 类名不计词），再要 ≥4 个 ``[A-Za-z]{2,}``
 # 连词（容标点分隔）、非全大写缩写列——``\sortbibitem{KEY}``/``\bibinfo{f}``
@@ -1163,12 +1171,18 @@ class _Args:
             vspan,
         )
 
-    def _opaque_arg_prose(self, fid: int, a: _ArgTok) -> bool:
+    def _opaque_arg_prose(  # noqa: PLR0911 — 形状门逐条早退，平铺即判据表
+        self, fid: int, a: _ArgTok
+    ) -> bool:
         r"""Opaque 宏 ``{..}`` 组参的调用点散文门（gullet-at scout 口径）。
 
         只认本 fid 实消费的 ``{``-open 组参：跨 fid 组字节切片判不了形
         （``_keyval_tail_end`` 同款守门）、``[``-open/``e``/定界/单 token
-        参不是散文槽位。内容剔注释+cs 后 ≥4 连词即散文。
+        参不是散文槽位。``key=`` 起头的 keyval 组不挖——``{pdftitle={长标题}}``
+        值内散文会连 ``key=`` 键位一起抬进译文面（``_keyval_tail_end``
+        同款形状门，``\setkeys`` 炸面）；逗号分隔机读名单同罩——
+        ``{arrows, automata, backgrounds, calendar}`` 类库/包/文件列抠出
+        翻译即断链（1907.03868 实遇）。内容剔注释+cs 后 ≥4 连词即散文。
         """
         if a.fe <= a.fs or a.cs <= a.fs:
             return False  # 未消费占位 / 单 token 参
@@ -1176,6 +1190,10 @@ class _Args:
             return False  # 跨 fid 组——``file_texts[fid]`` 切片错位，保持 opaque
         if self.file_texts[fid][a.fs] != "{":
             return False  # ``[``-open 组——可选/非散文槽位不挖
+        if _KEYVAL_GROUP_RX.match(self.file_texts[fid], a.cs, a.ce) is not None:
+            return False  # ``{key=..}`` 组——键位非散文，整参保持 opaque
+        if _COMMA_LIST_RX.fullmatch(self.file_texts[fid][a.cs : a.ce]):
+            return False  # 逗号名单（库/包/文件列）——机读槽位不挖
         text = _OPAQUE_ARG_STRIP_RX.sub(" ", self.file_texts[fid][a.cs : a.ce])
         for mm in _OPAQUE_ARG_PROSE_RX.finditer(text):
             words = _OPAQUE_ARG_WORD_RX.findall(mm.group(0))
@@ -1310,7 +1328,7 @@ class _Args:
         self._unread_args(src, args)
         self._rappend_tok(t)
 
-    def _handle_argspec_cs(  # noqa: C901, PLR0911 — policy 分派早退平铺，顺序即语义
+    def _handle_argspec_cs(  # noqa: C901, PLR0911, PLR0912 — policy 分派早退平铺，顺序即语义
         self, t: Tok, src: TokenSource, e: ArgspecEntry
     ) -> None:
         r"""Argspec 表命中分派：policy → literal/boundary/protect/chunk-arg。
@@ -1382,11 +1400,36 @@ class _Args:
             self._rappend_tok(t)
             return
         self._cover_gap(fid, t.pos[1])
-        vspan = self._cover_to(fid, end)
         if e.policy == "boundary" and not self.in_arg:
+            vspan = self._cover_to(fid, end)
             self._flush_run(vspan.start)
             self._emit(vspan.start, vspan.end)
             return
+        # 与 ``_handle_unknown_cs`` 探针臂同款散文参挖掘：protect/key
+        # （+in_arg boundary）签名参消费后整调用 ``[[CMD]]`` 塌缩同型蒸发
+        # ——``\marginpar{prose}``/``\only<1>{prose}``/``\frame{prose}`` 面。
+        # 逐参 ``_opaque_arg_prose`` 调用点判定（key/良性参天然不命中，
+        # keyval 组由判据内形状门挡住），花括号所在结构段仍 ``[[CMD]]`` 原文。
+        prose_args = (
+            []
+            if e.name in _SWALLOW_ARG_NAMES
+            else [a for a in args if self._opaque_arg_prose(fid, a)]
+        )
+        if prose_args and self.gen >= MAX_GEN:
+            self.state.warnings.append(
+                ScanWarning("gen_overflow", len(self.vt), f"argspec:{t.text}")
+            )
+            prose_args = []
+        for a in prose_args:
+            vspan = self._cover_to(fid, a.cs)
+            self._rappend_ph(
+                self._ph(PhType.CMD, self.vt.slice(vspan.start, vspan.end)),
+                vspan,
+            )
+            vmark = len(self.vt)
+            rendered = self._subscan_render(a)
+            self._rappend(rendered, rendered, Span(vmark, len(self.vt)))
+        vspan = self._cover_to(fid, end)
         self._rappend_ph(
             self._ph(PhType.CMD, self.vt.slice(vspan.start, vspan.end)),
             vspan,
