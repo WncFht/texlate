@@ -7,3 +7,14 @@ cs.AI: cs.AI.csv
 cs.CV: cs.CV.csv
 stat.ML: cs.ML.csv
 eess.AS: cs.AI.csv
+cond-mat: cond-mat.csv
+cond-mat.dis-nn: cond-mat.csv
+cond-mat.mes-hall: cond-mat.csv
+cond-mat.mtrl-sci: cond-mat.csv
+cond-mat.other: cond-mat.csv
+cond-mat.quant-gas: cond-mat.csv
+cond-mat.soft: cond-mat.csv
+cond-mat.stat-mech: cond-mat.csv
+cond-mat.str-el: cond-mat.csv
+cond-mat.supr-con: cond-mat.csv
+quant-ph: quant-ph.csv
