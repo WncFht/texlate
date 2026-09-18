@@ -215,3 +215,13 @@
 - 周期哨兵的持久化（systemd timer/crontab）属 heavier 持久层，暂不启用——session cron 随会话死；台账留重启后 re-arm 协议。
 
 - 23:30 巡逻+派道：autogloss-reg 批发现死批——judge arm=off 295/300 处进程蒸发（run.log 22:30 断尾无 rc 行，看门狗式死亡），run.sh 末行胜 resume 设计在但无拉起者→leader setsid 重启（pid 125559，resume at 295/300 接续 judging→arm-on→qualfreeze×3）。新派 2 诊断道（报告件零树编）：ifdiag-lane=iffalse×3(1206.0701/1306.0364 unfixable:other+2308.12633 clean 对照)+input_stack×6 簇——1404.0037/1706.00076 unfixable:capacity vs 1803.03248/2105.03753/2403.05529 acceptable_pdf 三格顺带取「clean 但 capacity 错记档」verdict 语义证据（instack 留的裁决点，报非判）；othcensus-lane=残池两大桶 other×117/syntax×105 内簇普查——log_excerpt 首错 signature 归一化聚类，≥3 格子簇定名+ours-vs-paper 快判+单则可修性 flag（已裁簇全跳过：env/tar/epsfig/pdfstring/symfont/restatable）。**门巡**：⑤ clean% 本轮 4 规则全向 fail→clean 方向非降；④ sabotage 0/1698 已钉；teammate 零 git 令无违例（树内未签件全归 peer texlate-48 prompt-bundle/delimargs 道）。roster：restatable/natbib/ifdiag/othcensus 4 道在飞+autogloss 批续航。
+
+## 2026-09-18 22:50 — autogloss-reg 双 orchestrator 事故处置
+
+- 22:31:15 出现第二个 `bash run.sh`（pid 352563，PPID=1 setsid）——疑为前一轮 cron 巡检看到判分尾速慢（295/300）误判 orchestrator 死亡后重新 invoke。它 resume 跑完 phase0（1s no-op）→ arm-off 补判 295→300（rc=0，产出 5 行重复——末行胜 dedup 无害）→ 22:33 准备进入 arm-on 判分。
+- 处置：kill 352563（在其 spawn 第二个 arm-on judge 前——并发写同一 records.jsonl 有 >4KB torn-line 风险 + 双倍 token 烧）；原 orchestrator 125559 及其 arm-on judge 356906 不动。352589（dup 的 arm-off 子进程）已自行退出。
+- 完整性验证：arm-off 305 行全 parse、300 uniq key 全 scored = **arm-off 判分完成**；arm-on 99 行/79 uniq（20 行是 qualbench 自 retry 追加，正常）在跑。
+- 根因修补：cron 47cc8076 → 641bf83b，prompt 加入「ps 核对恰好 1 个 run.sh + 至多 1 子进程；绝不重新 invoke；发现第二个 orchestrator 先杀后报」。教训：resume-safe 设计不等于 duplicate-safe——幂等重入防崩溃，防不了双开。
+- glossimpl stale 交付通知到达（20:29 旧件）——产物早已落 ffe27ca，无僵尸代理，不动作。
+
+- 23:45 巡逻：autogloss-reg 复活后续航正常——arm=off judge rc=0(304 scored)，arm=on 93+/300 判分中。树内两道交付已见未收（lanes 仍跑）：**natbib 道又一自伤实锤**——natbib_numbers_pass(186) 的 `(\begin{document})` 重写无注释遮盖，注释行内 \begin{document} 被 \n 切成两半脱注释成活行（astro-ph/0307344 ms.tex:172/198），首活行先于 \NAT@numberstrue 注入位(:285) 触发 aux 读→compat 炸+preamble-only 103 错级联；修=`begindoc_tail_recomment`(194) 行首带尾文+下游另有行首 begin 者重注释（lookahead 门保合法单 begin{document}Hello 稿）。**restatable 道拆门而非修门**：argspec_lookup_env 去 pkgs 门控——per-file 包扫看不见跨文件导言包名（\input 拆分后体文件无 \usepackage 行）门必假阴→env-name/key 参漏成散文送译（{这是译文}→cleveref 递归炸栈 2105.00111）；\begin{X} 在场即工程级加载证据，\newenvironment 撞名由调用方 reg 先短路，最坏=未收录 env 按签名多吞组（有界少译无腐蚀）。门巡：teammate 零 git 令无违例；4 道在飞。
