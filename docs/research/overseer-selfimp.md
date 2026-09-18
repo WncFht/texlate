@@ -732,3 +732,9 @@
 
 - **sabotage-b r3 落地**（39 格, ~90s）：1622 注入事件——1620 recovered + 2 caught + **escaped=0**。wave-4 面 (inputleak 占位符 + 5 fixloop 规则) 未开逃逸路, gate-④ 过。
 - roster 7 全在飞 (xbbpregen 已见 _builtins_graphics 在写)；零交付待收。
+
+## 2026-09-19 ~07:4x — xbbpregen 收割入库 (001094d) + bibhang 普查核销
+
+- **xbbpregen 交付**：`xbb_pregen` 规则 (45-graphics.yaml order 15.5) + `_builtins_graphics.py` builtin —— dvipdfmx.def `"|extractbb` pipe 沙箱死 → 全量图形 `extractbb -x` 预生成 .xbb 旁缓存, pipe 臂整体跳过; 零源改。实证订正 4 项 (extractbb -O=stdout/-x=写盘、批式只写末件、openout_any=p 拒绝对径、败残留空 .xbb 是毒件需清)。14 测试 + 1031 回归绿; `## REVIEW` 标 (新 run_tool builtin)。归因单主已核 (csfix.py 同改=chineseclear 在飞, 剔出)。
+- **bibhang 普查核销** (#97)：4 格 mn2e+usenatbib —— 根因=mn2e stub 裸 `\LoadClass{mnras}` 丢选项 (今日已修 `\LoadClassWithOptions`), 残链由 already_def_undefine order-113 兜底; 无新规则。
+- roster 5：chineseclear 实施中 (csfix.py+75-syntax.yaml 在写) + xlinkobj/bblmath/failmine2/ifclosegap 普查中; xbbpregen/bibhang 尸清。#99 flipcheck8 排队 (等 #93/#94 落地同批重放)。
