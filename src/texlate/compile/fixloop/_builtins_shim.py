@@ -783,8 +783,11 @@ _REVTEX42_DOCCLASS_RE = re.compile(
 #: 注入面——与 90-shim-legacy.yaml ``shim_map.revtex.cls`` stub body 同义,
 #: 剥去 cls 装载件 (``\LoadClassWithOptions`` 已由升级稿 docclass 行完成),
 #: 补 ``\makeatletter`` 包装 (主文件语境 ``@`` 是 catcode-12, cls 内免费)。
-#: ``\AtBeginDocument`` 参数内 ``##1`` 双写沿用 stub 体原样——hook 宏存
-#: token 时 ``##`` 折叠为字面 ``#``, 否则 begin-doc 展开炸非法参数号。
+#: ``\AtBeginDocument`` 参数内用单 ``#1``——hook 逐字存 token、
+#: ``\begin{document}`` 时才执行内层 ``\def``; ``##`` 只用于 def 嵌 def
+#: 的替换文本, 此处的 ``\def\pacs`` 不嵌在任何 def 里, 双写会字面留下
+#: ``##`` 炸 "Parameters must be numbered consecutively" (guardsmoke
+#: 两格实证, 2026-09-18)。
 _REVTEX209_POLYFILL = (
     "% fixloop: revtex 2.09 surface polyfill (upgraded doc on revtex4-2)\n"
     "\\makeatletter\n"
@@ -793,7 +796,7 @@ _REVTEX209_POLYFILL = (
     "\\providecommand{\\twocolumn}[1][]{#1}\n"
     "\\@ifundefined{@makecol}"
     "{\\def\\@makecol{\\setbox\\@outputbox\\vbox{\\unvbox\\@cclv}}}{}\n"
-    "\\AtBeginDocument{\\def\\pacs##1{\\par\\noindent\\textbf{PACS:} ##1\\par}}\n"
+    "\\AtBeginDocument{\\def\\pacs#1{\\par\\noindent\\textbf{PACS:} #1\\par}}\n"
     "\\makeatother"
 )
 

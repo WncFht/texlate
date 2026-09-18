@@ -57,7 +57,10 @@ def test_hit_injects_after_docclass(tmp_path: Path) -> None:
     assert "\\frontmatter@init" in t
     assert "\\providecommand{\\twocolumn}[1][]{#1}" in t
     assert "\\@ifundefined{@makecol}" in t
-    assert "\\AtBeginDocument{\\def\\pacs##1{" in t
+    # hook 内 \def 单 ``#``——``##`` 会字面留下炸参数号 (guardsmoke 实证)
+    assert "\\AtBeginDocument{\\def\\pacs#1{" in t
+    injected = t.split(mark, 1)[1].split("\\makeatother", 1)[0]
+    assert "##" not in injected
     assert "\\makeatletter" in t
     assert "\\makeatother" in t
 
