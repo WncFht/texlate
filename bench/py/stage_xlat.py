@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import contextvars
 import json
 import shutil
 import time
@@ -64,6 +65,75 @@ class _SemTranslator:
     async def translate(self, **kw: object) -> str:
         async with self._sem:
             return await self._inner.translate(**kw)
+
+
+#: 逐请求计时归因槽：``client.chat`` 全 run 只包一层（client 跨篇共享），
+#: 靠本 contextvar 把每次 HTTP 耗时记回发起它的 inner.translate 账上——
+#: 同 task 上下文生效，worker 任务间天然隔离，跨篇不串账。
+_CHAT_SINK: contextvars.ContextVar[list[float] | None] = contextvars.ContextVar(
+    "xlat_chat_sink", default=None
+)
+
+
+def _install_chat_timer(client: ChatClient) -> None:
+    """``client.chat`` 包计时一层（real 臂；幂等——drive 可多篇复用同 client）。"""
+    if getattr(client, "_chat_timed", False):
+        return
+    orig = client.chat
+
+    async def timed(*a: object, **kw: object) -> object:
+        t0 = time.monotonic()
+        try:
+            return await orig(*a, **kw)
+        finally:
+            s = _CHAT_SINK.get()
+            if s is not None:
+                s.append(time.monotonic() - t0)
+
+    client.chat = timed  # 实例遮蔽类方法；client 生命周期 = 本次 run
+    client._chat_timed = True
+
+
+def _instrument_translator(translator: object) -> dict:
+    """per-paper 请求时序三包——``translate.seconds`` 三分拆原料（零产品码）。
+
+    管道只见外层 ``translator.translate``：outer span = 全局 sem 排队 + 全程；
+    ``translator._inner.translate``（real=GatewayTranslator）：inner span =
+    退避重试全程（call_with_backoff 内部 sleep 也在其内）；inner span 内经
+    ``_CHAT_SINK`` 收齐的 ``client.chat`` 耗时 = 纯请求时延。故
+    退避 ≈ inner − chat，sem 排队 ≈ outer − inner。mock/无 ``.client`` 臂
+    chat 侧自然记零。
+    """
+    rec = {"calls": 0, "outer_s": 0.0, "inner_s": 0.0, "chat_s": 0.0, "chat_calls": 0}
+    inner = getattr(translator, "_inner", translator)
+    orig_inner = inner.translate
+
+    async def inner_timed(**kw: object) -> str:
+        chats: list[float] = []
+        tok = _CHAT_SINK.set(chats)
+        t0 = time.monotonic()
+        try:
+            return await orig_inner(**kw)
+        finally:
+            d = time.monotonic() - t0
+            _CHAT_SINK.reset(tok)
+            rec["inner_s"] += d
+            rec["chat_s"] += sum(chats)
+            rec["chat_calls"] += len(chats)
+
+    inner.translate = inner_timed  # per-paper 实例遮蔽，无跨篇串账
+    orig_outer = translator.translate
+
+    async def outer_timed(**kw: object) -> str:
+        t0 = time.monotonic()
+        try:
+            return await orig_outer(**kw)
+        finally:
+            rec["outer_s"] += time.monotonic() - t0
+            rec["calls"] += 1
+
+    translator.translate = outer_timed
+    return rec
 
 
 async def _translate_tree(
@@ -132,6 +202,7 @@ async def _translate_tree(
             categories=glossary_categories,
             placeholders=collect_doc_placeholders(c.content for c in chunks),
         )
+    req_rec = _instrument_translator(translator)
     pipe = XlatPipeline(
         translator,
         config=cfg,
@@ -192,6 +263,17 @@ async def _translate_tree(
         "warn_kinds": dict(sorted(warn_kinds.items())),
         "seconds": round(translate_s, 1),
         "src_chars": total_chars,
+        # 请求时序三分拆（A1 界外需求裁决 a）：chat=纯 HTTP 时延，
+        # backoff=inner−chat 退避睡眠，sem_wait=outer−inner 全局闸排队，
+        # span=outer 请求路径总占；编排残差 = seconds − span/concurrency。
+        "req_timing": {
+            "calls": req_rec["calls"],
+            "chat_calls": req_rec["chat_calls"],
+            "chat_s": round(req_rec["chat_s"], 1),
+            "backoff_s": round(max(0.0, req_rec["inner_s"] - req_rec["chat_s"]), 1),
+            "sem_wait_s": round(max(0.0, req_rec["outer_s"] - req_rec["inner_s"]), 1),
+            "span_s": round(req_rec["outer_s"], 1),
+        },
         # AuthGate 设计口径「跨论文熔断由调用方累计」（e2e_real 同款键）：
         # 整篇全 auth 败时 drive 连记 N 篇即收摊（篇内阈值块熔断走
         # AuthTrippedError 即停，本键兜篇均不足阈值块的慢速失血）。
@@ -496,6 +578,7 @@ def stage_xlat(
 
         async def _run_real() -> None:
             async with ChatClient(args.base_url, args.api_key) as client:
+                _install_chat_timer(client)
                 if not args.no_probe:
                     probe = await client.probe_model(args.model)
                     print(

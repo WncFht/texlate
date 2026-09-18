@@ -25,8 +25,11 @@ json 是全量账（每篇每 lane 一格），md 是人读表（分阶段分布
 - 重试面：xlat ``attempts - (chunks - skipped)`` ≈ HTTP 重试次数（skipped
   是 state 命中不发请求的块）；块级明细 ``work/<sid>/xlat-<arm>.jsonl``
   （attempts/error_kind 逐块）只对带重试/非 ok 信号的篇回读（``--no-chunks`` 关）。
-- 未测出：``translate.seconds`` 内「请求时延 vs 退避睡眠 vs 编排」的拆分——
-  records 无此字段（见 md 缺口节）。
+- 请求时序三分拆：``metrics.translate.req_timing``（stage_xlat
+  ``_instrument_translator`` 记账）——``chat_s`` 纯 HTTP 时延、``backoff_s``
+  退避睡眠（inner−chat）、``sem_wait_s`` 全局闸排队（outer−inner）、
+  ``span_s`` 请求路径总占；派生 http_retries/mean_chat_s/req_par/
+  orch_resid_s（编排残差 = innerΣ − spanΣ/conc）。仅新批有账。
 """
 
 from __future__ import annotations
@@ -237,6 +240,33 @@ def load_run(run_dir: Path, *, with_chunks: bool = True) -> dict:
                     cell["retries"] = xe["retries"]
                 if xe["src_chars"]:
                     cell["src_chars"] = xe["src_chars"]
+                # 请求时序三分拆（stage_xlat._instrument_translator 记账）：
+                # chat=HTTP 时延 backoff=退避 sem_wait=全局闸排队 span=outer
+                rt = (rec.get("metrics") or {}).get("translate") or {}
+                rt = rt.get("req_timing")
+                if isinstance(rt, dict):
+                    acc = extra.setdefault(
+                        "req_timing",
+                        {
+                            "n_papers": 0,
+                            "calls": 0,
+                            "chat_calls": 0,
+                            "chat_s": 0.0,
+                            "backoff_s": 0.0,
+                            "sem_wait_s": 0.0,
+                            "span_s": 0.0,
+                        },
+                    )
+                    acc["n_papers"] += 1
+                    for k in (
+                        "calls",
+                        "chat_calls",
+                        "chat_s",
+                        "backoff_s",
+                        "sem_wait_s",
+                        "span_s",
+                    ):
+                        acc[k] += float(rt.get(k) or 0.0)
             if stage == "fixloop":
                 m = rec.get("metrics") or {}
                 extra["rounds"].append(int(m.get("rounds") or 0))
@@ -324,22 +354,29 @@ def load_run(run_dir: Path, *, with_chunks: bool = True) -> dict:
             jobs = float(jraw) if jraw else None
         except ValueError:
             jobs = None
+        try:
+            conc = float(_opt("--concurrency") or "") or None
+        except ValueError:
+            conc = None
         if stage == "xlat":
-            return f"xlat[{_opt('--arm') or '?'}]", jobs
+            return f"xlat[{_opt('--arm') or '?'}]", jobs, conc
         if stage == "compile":
             arm = _opt("--arm") or "?"
             xa = _opt("--xlat-arm")
-            return (f"compile[{arm}·{xa}]" if xa else f"compile[{arm}]"), jobs
-        return stage, jobs
+            return (f"compile[{arm}·{xa}]" if xa else f"compile[{arm}]"), jobs, conc
+        return stage, jobs, conc
 
     spans: list[tuple[str, float]] = []
     lane_jobs: dict[str, float] = {}
+    lane_conc: dict[str, float] = {}
     prev_ts = prev_lane = None
     for inv in sorted(invocations, key=lambda i: str(i.get("ts") or "")):
         ts = benchlib.parse_iso(inv.get("ts"))
-        lane, jobs = _inv_lane(inv)
+        lane, jobs, conc = _inv_lane(inv)
         if jobs:
             lane_jobs[lane] = max(jobs, lane_jobs.get(lane, 0))
+        if conc:
+            lane_conc[lane] = max(conc, lane_conc.get(lane, 0))
         if prev_ts is not None and ts is not None:
             spans.append((prev_lane, ts.timestamp() - prev_ts))
         prev_ts, prev_lane = (ts.timestamp() if ts else None), lane
@@ -381,6 +418,21 @@ def load_run(run_dir: Path, *, with_chunks: bool = True) -> dict:
             if jb and par > jb * 1.2:
                 st["parallelism_suspect"] = f"span_underestimate:jobs={jb:g}"
 
+    # 请求时序派生：HTTP 重试数、单请求均延、请求路径并行度、编排残差。
+    # orch_resid = innerΣ − spanΣ/conc——worker 不满载部分的壁钟（排队/IO/
+    # splice 等编排面），conc 缺席按管道默认 10。
+    for lane, st in lane_stats.items():
+        rt = st["extras"].get("req_timing")
+        if not rt or not rt["calls"]:
+            continue
+        inner_sum = st["inner_s"]["sum"]
+        rt["http_retries"] = int(max(0, rt["chat_calls"] - rt["calls"]))
+        rt["mean_chat_s"] = round(rt["chat_s"] / max(rt["chat_calls"], 1), 1)
+        if inner_sum > 0:
+            rt["req_par"] = round(rt["span_s"] / inner_sum, 2)
+            conc = lane_conc.get(lane) or 10
+            rt["orch_resid_s"] = round(inner_sum - rt["span_s"] / conc, 1)
+
     rows = [
         {
             "id": pid,
@@ -407,6 +459,7 @@ def load_run(run_dir: Path, *, with_chunks: bool = True) -> dict:
         },
         "stage_spans": dict(stage_span),
         "lane_spans": dict(lane_span),
+        "lane_conc": dict(lane_conc),
         "lanes": lane_stats,
         "papers": rows,
     }
@@ -510,6 +563,23 @@ def render_md(runs: list[dict], out_name: str, top_n: int) -> str:
                         f"块明细回读 {cd['papers_read']} 篇：retried_chunks={cd['retried_chunks']} error_kind[{ek or '无'}]"
                     )
                 lines.append(f"- **{lane}**：" + "；".join(parts))
+                rt = ex.get("req_timing")
+                if rt:
+                    conc = (run.get("lane_conc") or {}).get(lane)
+                    tail = ""
+                    if rt.get("req_par"):
+                        tail += f"，req_par={rt['req_par']}"
+                        if conc:
+                            tail += f"/conc={conc:g}"
+                    if rt.get("orch_resid_s") is not None:
+                        tail += f"；编排残差≈{rt['orch_resid_s']:.0f}s"
+                    lines.append(
+                        f"  - 请求时序（{rt['n_papers']} 篇）：calls={rt['calls']:.0f} "
+                        f"chat={rt['chat_calls']:.0f}（HTTP 重试 {rt.get('http_retries', 0)}）"
+                        f" chatΣ={rt['chat_s']:.0f}s（均 {rt.get('mean_chat_s', 0)}s/req）"
+                        f" backoffΣ={rt['backoff_s']:.0f}s semΣ={rt['sem_wait_s']:.0f}s"
+                        f" spanΣ={rt['span_s']:.0f}s{tail}"
+                    )
             lines.append("")
 
         # fixloop/compile 附注
@@ -566,10 +636,9 @@ def render_md(runs: list[dict], out_name: str, top_n: int) -> str:
         "## 未测出 / 缺口",
         "",
         (
-            "- **xlat `translate.seconds` 内部拆分缺席**：records 只记 attempts（≈HTTP 重试次数），"
-            "不拆「请求时延 vs 退避睡眠 vs 编排开销」。`xlat/retry.py::call_with_backoff` 已有 "
-            "`on_retry(attempt,e,delay)` 钩子但未接线——加字段需动 `xlat/pipeline.py`（产品码，界外）"
-            "或在 `stage_xlat.py` 包 `client.chat` 计时（bench 驱动，非本 lane owned）。"
+            "- xlat `req_timing` 仅仪表化后新批有账；存量批（rt1 等）无此字段。"
+            "编排残差 = innerΣ − spanΣ/conc 是推导值——spanΣ 含 sem 排队，"
+            "残差混着 worker 空转/state IO/splice，非纯净编排功。"
         ),
         "- ingest：dur_s 含下载+解包合一，无下载/解包子相位（metrics.source 只见 cache/ia）。",
         "- compile：注入/复判开销 = dur_s − compile.seconds 间接得；inject 无独立计时。",
