@@ -626,3 +626,11 @@
 - **#71 citembox 派出**：latex209.py `_MATH_SWITCH_209` 同 traversal 扩——math 域内 cite 族 8 令（含星号/双 opt）包 `\mbox{}`；已包/注释/文-mode/\ref 系跳过；N=1 域=documentstyle 215 格（现代 revtex4-2 直稿残留由后续 yaml 规则补）。
 - **peer 三落地**：efc53bc0 segmirror 三镜合并（_FAM_BIND registry——pendspec walker 吸收毕）；13c603cf corpus eval/dev 扩 8 层 13,266 篇；70be3618 pipecore 抽脊落地——test_docx_done 修链闭环。
 - roster 3：secdispatch(#70)/citembox(#71)/failmine(#69)；citemath 尸清。
+
+## 2026-09-19 ~08:4x — failmine 收割：top5 目标 + roster 扩 10
+
+- **failmine rule_targets.txt 收**（records>09-17 全域挖）：①natbib cs_map 扩 citet/citealt/citealp/citeauthor/citeyearpar/citetext（11 格，与 citep/citeyear 同型 trivial）②aux 残留 `\NAT@force@numbers` 清（4 格，numbers_pass 防写不清理）③`\kwd` cs_map polyfill（3 格，imsart shim 已证 noop）④未闭 `\if*`→`\fi` 注入（2+14 格，MODERATE 注入点须慎）⑤babel_opt 非 LDF 名规范化（2 格，机制未明待查）。名誉榜：pst-arrow(5 已 vendor——疑似 reachability 同型)、float_opt|H(5)、aux_scan_eof|newl@bel(5)、setstack.sty(3 未 vendor)、conm-p-l.cls(3 未 vendor)、\bibhang(2)、proof env(3)、\g undefined_cs(9)、unfixable:capacity(7)、hyperref_driver|dvipdfmx(1)。
+- **mutex 排布派 5 道**：csmap(#72，95-targeted cs_map 块=natbib+kwd 并道避撞)、nataux(#73，80-bib aux 清)、ifclose(#74，75-syntax \fi 注入——与 draftsty edef 幻影同签名异因，cond 须分流)、vendordiag(#75，pst-arrow/setstack/conm-p-l 机制诊+pst-arrow N=2 广义 sweep 触发判)、floatopt(#76，70-pkgopt [H] 规)。
+- **追派 2 普查**：gcensus(#77，\g 主导展开→cs_map 可判否)、capcensus(#78，capacity 爆型逐格归因)；\bibhang 串行候 ifclose 让文件；aux_scan_eof|newl@bel 或已覆 aux_purge_regen 待 nataux 域顺手核。
+- roster 10 在飞：secdispatch/citembox/failmine/csmap/nataux/ifclose/vendordiag/floatopt/gcensus/capcensus。
+- 门巡：零活批；树 4 改全 peer 域（selfimp-skeleton/repair/stubaudit/packaging）；L1/L0 绿保持。
