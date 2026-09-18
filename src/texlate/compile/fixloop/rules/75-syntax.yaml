@@ -741,6 +741,38 @@ rules:
     stats: { fires: 0 }
     source_ref: "wave-3: early_eof 类目首个消费规则 (交互面)"
 
+  # 2026-09-18 pdo-lane (2607.10569 loop2+rt1 双池 main.tex:291/302):
+  # acmart+hyperref 下 moving-arg 内 $\times$ → \pdfstringdef 去 math
+  # shift 后做 `\<cs> 字母常量扫描, 多字符 cs (`\times) 非法 → Improper
+  # alphabetic constant + intcalc \InCa@Div 级联。通用面: 任意多字符
+  # cs 皆可犯 (不只 \times)。解 = hyperref 文档化逃生舱
+  # \pdfstringdefDisableCommands{\def\<cs>{}} —— 排版侧零接触, cs 只在
+  # 书签/pdfstring 域消失; 肇事 cs 名从日志 <to be read again> 行取,
+  # len>2 滤单字符合法形 (`\x 是合法字母常量 TeX 不报)。
+  - id: pdfstring_cs_disarm
+    mechanisms: [W165]
+    description: "moving-arg 数学 cs 犯 hyperref pdfstring `\\<cs> 字母常量扫描 → \\pdfstringdefDisableCommands{\\def\\<cs>{}} 按日志名逐个缴械"
+    phase: loop
+    order: 193 # 95-targeted conmp_pdo_pdfstring(187) 专名先收 \pdo; 本规则兜其余多字符 cs
+    when: { category: syntax }
+    condition:
+      ctx_suggests: "Improper alphabetic constant"
+    action:
+      kind: builtin_transform
+      function: pdfstring_cs_disarm
+    risk: low # \ifdefined 守卫: 无 hyperref 稿整件死文本不炸; \def\cs{} 只清 pdfstring 域定义, 排版侧原义不动
+    known_gap: "cs 名仅取 <to be read again> 行; 单字符 cs len>2 滤除不收; 多 offender 每轮换名全注, 已注者幂等跳过"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "2607.10569 (loop2+rt1 双池, tmp/lane-pdo/t1-t5 复现)",
+          error: "Improper alphabetic constant. <to be read again> \\times @ \\maketitle (acmart+hyperref \\pdfstringdef)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-pdo: t5 \\pdfstringdefDisableCommands{\\def\\times{}} 0 err 净出 PDF; 纯 acmart+xelatex 复现 → 上游脆弱性非 texlate 注入"
+
   # ─── 兜底: 恒最后 ───
   - id: undefined_cs_guess
     description: "未定义控制序列 → cs→pkg 知识库长射 + LLM 兜底分析 (占位)"

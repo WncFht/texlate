@@ -519,3 +519,60 @@ def undefine_for_redef(
             )
         return False, "all offenders already cleared"
     return True, "; ".join(done) + f" — {', '.join(sorted(fire_set))}"
+
+
+# ═══ pdfstring 字母常量扫描肇事 cs 空降格 (W165, 2607.10569) ═══
+
+#: ``Improper alphabetic constant`` 行后紧随的 ``<to be read again>``
+#: 展示行给出肇事 token——pdfstring/书签域 `` `\cs `` 字母常量扫描只炸
+#: 多字符 cs (`` `\x `` 单字符是合法字母常量形, TeX 不报)。
+_ALPHA_BAD_CS_RE = re.compile(
+    r"Improper alphabetic constant\.\s*\n<to be read again>\s*\n? *(\\[A-Za-z@]+)"
+)
+
+
+def pdfstring_cs_disarm(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""`` `\cs `` pdfstring 字母常量扫描炸 → 肇事 cs 书签域 ``\def`` 空降格。
+
+    触发面: ``$\\times$``/``$\\pdo$`` 类数学进 ``\title``/``\section``/
+    ``\author`` 等 moving-arg——hyperref ``\pdfstringdef`` 展开书签时
+    `` `\cs `` 扫描撞多字符 cs + intcalc 级联 (acmart+hyperref+xelatex
+    上游脆面, 与类无关; tmp/lane-pdo 最小复现 ``$\times$`` in ``\title``)。
+    上游文档化逃生舱 ``\pdfstringdefDisableCommands`` 只动书签域——
+    正文排版零接触, 比 ``\texorpdfstring`` 逐处包源干净一个量级;
+    ``\def\cs{}`` 空降格顺带消掉 "removing `\cs'" 警告 (cs 在展开期
+    已消失)。注入走 docclass 缝+``\ifdefined`` 双闸: hyperref 缺席稿
+    整件死文本不炸。
+    """
+    del eng, payload, params
+    blob = (ctx.err_head or "") + "\n" + _fixloop_log(ctx)
+    names = sorted(
+        {
+            n
+            for n in _ALPHA_BAD_CS_RE.findall(blob)
+            if len(n) > 2  # noqa: PLR2004 - 2 = 反斜杠+单字符合法形 (\x) 滤界
+        }
+    )
+    if not names:
+        return False, "no multi-char cs behind Improper alphabetic constant"
+    main = ctx.main_path()
+    if main is None:
+        return False, "no main file"
+    t = ctx.read(main) or ""
+    todo = [n for n in names if f"\\def{n}{{}}" not in t]
+    if not todo:
+        return False, "offenders already disarmed"
+    defs = "".join(f"\\def{n}{{}}" for n in todo)
+    snippet = (
+        "\\ifdefined\\pdfstringdefDisableCommands\n"
+        f"  \\pdfstringdefDisableCommands{{{defs}}}\n"
+        "\\fi"
+    )
+    if not _inject_after_docclass(ctx, snippet):
+        nt = t.replace("\\begin{document}", snippet + "\n\\begin{document}", 1)
+        if nt == t:
+            return False, "no injection point"
+        ctx.write(main, nt)
+    return True, f"pdfstring-disarm {', '.join(todo)}"

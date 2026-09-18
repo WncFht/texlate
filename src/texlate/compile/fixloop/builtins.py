@@ -41,6 +41,7 @@ from texlate.compile.fixloop._builtins_common import (
 from texlate.compile.fixloop._builtins_csfix import (
     _allocated_cs_names,
     cs_targeted_fix,
+    pdfstring_cs_disarm,
     undefine_for_redef,
 )
 from texlate.compile.fixloop._builtins_misc import (
@@ -161,6 +162,7 @@ __all__ = [
     "missing_char_fix",
     "non_utf8_recode",
     "option_clash_merge",
+    "pdfstring_cs_disarm",
     "pdftex_prim_polyfill",
     "physics_stub_detach",
     "plain_format_detect",
@@ -950,4 +952,5 @@ TRANSFORM_FNS = {
     "font_cs_shim": font_cs_shim,
     "cs_rebind": cs_rebind,
     "revtex209_surface_polyfill": revtex209_surface_polyfill,
+    "pdfstring_cs_disarm": pdfstring_cs_disarm,
 }
