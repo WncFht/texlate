@@ -3,7 +3,7 @@
 流程：
 
     chunks[] → 滤 completed（state 续跑）→ 纯占位符直落盘
-             → 超大原子块切分 → 短块贪心装箱（≤2000 字符/批）
+             → 超大原子块切分 → 全量 K 量化等大装箱（≤12000 字符/批）
              → 文档级术语表物化 + 各 kind system prompt 预建（逐字节恒定）
              → 首发单飞暖前缀缓存 → N worker 消费 queue
              → 每块经 retry 阶梯 → 占位符对账（leftover token 升格回退原文）
@@ -28,8 +28,9 @@ from texlate.textutil import JSON_FENCE_RX, bare_cs_net, ph_in_cs_net
 from . import placeholders, prompts
 from .batch import (
     BATCH_MAX_CHARS,
+    BATCH_MAX_ITEMS,
+    BATCH_MIN_CHARS,
     CHUNK_HARD_LIMIT,
-    SHORT_CHAR_LIMIT,
     encode_batch,
     pack_batches,
     parse_batch_response,
@@ -477,8 +478,9 @@ class PipelineConfig:
     """编排参数（docs/08 §1.6 定案默认值）。"""
 
     concurrency: int = DEFAULT_CONCURRENCY
-    short_limit: int = SHORT_CHAR_LIMIT
     batch_max_chars: int = BATCH_MAX_CHARS
+    batch_max_items: int = BATCH_MAX_ITEMS
+    batch_min_chars: int = BATCH_MIN_CHARS
     hard_limit: int = CHUNK_HARD_LIMIT
     temperature: float = TRANSLATE_TEMPERATURE
     max_tokens: int = TRANSLATE_MAX_TOKENS
@@ -1076,15 +1078,18 @@ class XlatPipeline:
         pending: list[ChunkIn],
         split_items: list[tuple[str, Any]],
     ) -> list[tuple[str, Any]]:
-        """分桶 + 装箱：`("batch",(序号,[ChunkIn])) | ("single",ChunkIn) | split`。
+        """全量装箱：`("batch",(序号,[ChunkIn])) | ("single",ChunkIn) | split`。
 
-        batch 按 kind 分组再装箱——一批共用 ``members[0].kind`` 的 system
-        prompt，混 kind 会让 caption/abstract 等专属条款错配到 para 头上。
+        不分 short/long——产线对账批质量 ≥ 单发（per-placeholder 错率 0.32%
+        vs 8.93%），全量入批只为削 ``n_req × ~2.9s`` 固定开销。batch 按 kind
+        分组再装箱——一批共用 ``members[0].kind`` 的 system prompt，混 kind
+        会让 caption/abstract 等专属条款错配到 para 头上。装箱吃
+        ``concurrency`` 做 K 量化等大对齐（batchmodel-2026-09-18 §8）；
+        装箱退化成单成员的组走 ``single`` 阶梯路径（比一发批协议多 corrector/
+        slots/repair 全套修复臂）。
         """
-        short = [c for c in pending if len(c.content) < self.cfg.short_limit]
-        longs = [c for c in pending if len(c.content) >= self.cfg.short_limit]
         by_kind: dict[str, list[ChunkIn]] = {}
-        for c in short:
+        for c in pending:
             by_kind.setdefault(c.kind, []).append(c)
         work_items: list[tuple[str, Any]] = []
         seq = 0
@@ -1092,10 +1097,15 @@ class XlatPipeline:
             for grp in pack_batches(
                 [c.content for c in grp_chunks],
                 max_chars=self.cfg.batch_max_chars,
+                max_items=self.cfg.batch_max_items,
+                min_chars=self.cfg.batch_min_chars,
+                workers=self.cfg.concurrency,
             ):
-                work_items.append(("batch", (seq, [grp_chunks[j] for j in grp])))
-                seq += 1
-        work_items += [("single", c) for c in longs]
+                if len(grp) == 1:
+                    work_items.append(("single", grp_chunks[grp[0]]))
+                else:
+                    work_items.append(("batch", (seq, [grp_chunks[j] for j in grp])))
+                    seq += 1
         return work_items + split_items
 
     async def _worker(

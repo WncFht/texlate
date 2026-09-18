@@ -1,8 +1,13 @@
-r"""批量协议（docs/08 §1.3）：short 桶贪心装箱 + `[n]` 编号 + `@@` 兜底 + 整批退单翻。
+r"""批量协议（docs/08 §1.3 + batchmodel-2026-09-18 修订）：全量入批 + K 量化等大装箱 + `[n]` 编号 + `@@` 兜底 + 整批退单翻。
 
-- 分桶：`content < 300` 字符入批（short），否则逐条单翻（long）。
-- 装箱：short 桶顺序贪心 ≤2000 字符/批（含编号开销；按 token 控可放宽到 ~8000
-  字符——成本实测 prompt 摊销占输入 68%，批阈值是最大杠杆，见 cost-model §4）。
+- 分桶：**取消 short/long 分桶，全量入批**——产线 129K chunk 对账：批成员
+  per-placeholder 错率 0.32% vs 单发 8.93%，批质量全面 ≥ 单发；34% 单发
+  chunk 占 89% 请求数纯烧 ~2.9s/发 的固定开销。
+- 装箱：顺序等大填充——``n_req`` 由 ``cap`` 下限与 ``workers`` 并行填充
+  共同决定，>workers 时向上取 workers 整数倍（K 量化，不留半空波次），
+  批目标大小 ``total/n_req``。字符硬顶 12000（实测 [n] 协议 19K/53 条
+  干净解析；12K 字符 ≈ 4.2K 输出 token，8192 max_tokens 留足 reasoning
+  余量），条数软顶 32（只为整批退单翻的爆炸半径兜底，非协议需要）。
 - 协议：请求 `[1] xxx\n[2] yyy`；响应按行首锚定 `[n]` 解析，`@@` 独占行
   分隔兜底；数量不符/序号越界/解析歧义 → `None`，调用方整批退化逐条单翻。
 - 跳过：纯占位符 chunk（`placeholders.is_placeholder_only`）不发请求。
@@ -10,6 +15,7 @@ r"""批量协议（docs/08 §1.3）：short 桶贪心装箱 + `[n]` 编号 + `@@
 
 from __future__ import annotations
 
+import math
 import re
 from typing import TYPE_CHECKING, TypeVar
 
@@ -18,10 +24,16 @@ from .placeholders import encode_newlines
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-#: <300 字符入批
-SHORT_CHAR_LIMIT = 300
-#: 单批 payload 上限（含 `[n] ` 编号开销；token 口径放宽见模块 docstring）
-BATCH_MAX_CHARS = 2000
+#: 单批 payload 硬顶（含 `[n] ` 编号开销；12K 字符 ≈ 4.2K 输出 token——
+#: out_tok/字符产线 p90=0.348，max_tokens=8192 下 reasoning+content 留足余量；
+#: 再大逼近上限且 decode 主导下对 makespan 无补，见 batchmodel-2026-09-18 §8/9）
+BATCH_MAX_CHARS = 12000
+#: 单批成员软顶——`[n]` 协议对条数不敏感（实测 53 条干净解析、产线 40+ 条
+#: 全过），此值只为整批退单翻的爆炸半径兜底
+BATCH_MAX_ITEMS = 32
+#: 每批有效负载下限——低于此拆批不如少发：单请求 ~2.9s 固定开销与平行
+#: decode 收益的盈亏平衡点量级（D/批 ≈ 5.3ms×字符，拆批省 decode 须 >2.9s）
+BATCH_MIN_CHARS = 2500
 #: `[n] ` 编号开销估计（用于装箱容量计算）
 BATCH_ITEM_OVERHEAD = 8
 #: 超大原子 chunk 的切分阈值（> 此值先切分再入批/单翻）
@@ -49,19 +61,48 @@ _LEAKED_MARK_RX = re.compile(r"(?<!\[)\[(\d+)\](?!\])")
 _EOL_RX = re.compile("\r\n|[\r\x0b\x0c\x85\u2028\u2029]")
 
 
-def pack_batches(
+def pack_batches(  # noqa: PLR0913 -- 装箱旋钮面即 PipelineConfig.batch_* 四件 + workers
     contents: Sequence[str],
     *,
     max_chars: int = BATCH_MAX_CHARS,
+    max_items: int = BATCH_MAX_ITEMS,
+    min_chars: int = BATCH_MIN_CHARS,
     item_overhead: int = BATCH_ITEM_OVERHEAD,
+    workers: int = 1,
 ) -> list[list[int]]:
-    """Short 桶顺序贪心装箱 → 每批是 contents 的下标列表（保持原序）。"""
+    r"""顺序等大装箱 + K 量化波次对齐 → 每批是 contents 的下标列表（保持原序）。
+
+    目标批数 ``n_req`` 取三者最大：``ceil(total/max_chars)``（payload 硬顶）、
+    ``min(workers, total//min_chars)``（并行填充——总负载太小不硬凑 K，
+    低于 ``min_chars``/批 的拆分发不如少发）；``n_req > workers`` 时向上取
+    workers 整数倍（K 量化——13 请求在 K=10 上留 3-worker 半空波次，
+    取 20 反而每批更小、波次整齐）。随后按 ``target = total/n_req`` 顺序
+    等大填充；``max_chars``/``max_items`` 是硬顶，任何时候都可提前封批
+    （等大只是目标，硬顶优先）。单成员超 ``max_chars`` 的原子块不拆——
+    独占一批原样放行（>hard_limit 的上游已切分，此处纯防御）。
+    """
+    lens = [len(t) + item_overhead for t in contents]
+    if not lens:
+        return []
+    total = sum(lens)
+    n_req = max(
+        math.ceil(total / max(max_chars, 1)),
+        min(max(workers, 1), max(1, total // max(min_chars, 1))),
+    )
+    n_req = min(n_req, len(lens))
+    w = max(workers, 1)
+    if n_req > w:
+        n_req = min(math.ceil(n_req / w) * w, len(lens))
+    target = total / n_req
     batches: list[list[int]] = []
     cur: list[int] = []
     cur_len = 0
-    for i, text in enumerate(contents):
-        need = len(text) + item_overhead
-        if cur and cur_len + need > max_chars:
+    for i, need in enumerate(lens):
+        if cur and (
+            cur_len + need > max_chars
+            or len(cur) >= max_items
+            or (cur_len + need > target and len(batches) < n_req - 1)
+        ):
             batches.append(cur)
             cur, cur_len = [], 0
         cur.append(i)

@@ -52,20 +52,23 @@ class TestEndToEnd:
             mk_chunk("Short one [[MATH_1]]", "s1"),
             mk_chunk("Short two [[CITE_2]]", "s2"),
             mk_chunk("Long prose " + "x" * 400 + " [[REF_3]]", "l1"),
+            mk_chunk("Caption text " + "y" * 50, "cap1", kind="caption"),
             mk_chunk("[[MATH_9]]", "ph1"),
         ]
         out = run_pipeline(chunks, translator=t)
-        assert [r.chunk_id for r in out] == ["s1", "s2", "l1", "ph1"]
+        assert [r.chunk_id for r in out] == ["s1", "s2", "l1", "cap1", "ph1"]
         assert all(r.status == "ok" for r in out)
-        # 短块走了批量路径
+        # 全量入批——para 三块不分长短同批
         assert out[0].batched
         assert out[0].batch_id == "batch_0000"
         assert out[1].batched
         assert out[1].batch_id == "batch_0000"
-        # 长块单翻
-        assert not out[2].batched
+        assert out[2].batched
+        assert out[2].batch_id == "batch_0000"
+        # 独员 kind 组退化成 single 阶梯路径
+        assert not out[3].batched
         # 纯占位符不发请求、原样落盘
-        assert out[3].translation == "[[MATH_9]]"
+        assert out[4].translation == "[[MATH_9]]"
         # 占位符契约
         assert "[[MATH_1]]" in out[0].translation
         assert "[[CITE_2]]" in out[1].translation
@@ -91,7 +94,7 @@ class TestEndToEnd:
         assert all("denied" in r.skip_reason for r in out)
 
     def test_split_chunk_merged_under_parent_id(self) -> None:
-        cfg = pl.PipelineConfig(hard_limit=80, short_limit=40)
+        cfg = pl.PipelineConfig(hard_limit=80)
         big = "Sentence one here. " * 20  # ~380 chars → 切多片
         out = run_pipeline(
             [mk_chunk(big, "big")], translator=pl.MockTranslator(), config=cfg
@@ -286,7 +289,7 @@ class TestAuthGate:
 
     def test_success_resets_consecutive(self) -> None:
         """bad,bad,ok,bad,bad：ok 清零连续计数——不熔断、正常返回。"""
-        cfg = pl.PipelineConfig(concurrency=1, short_limit=0)
+        cfg = pl.PipelineConfig(concurrency=1, batch_max_items=1)
         t = _SelectiveAuthTranslator()
         chunks = [
             mk_chunk("BAD one", "b1"),
@@ -303,7 +306,7 @@ class TestAuthGate:
 
     def test_tripped_short_circuits_rest(self) -> None:
         """闸断后剩余块不再发请求——直接按 auth 失败记账。"""
-        cfg = pl.PipelineConfig(concurrency=1, short_limit=0)
+        cfg = pl.PipelineConfig(concurrency=1, batch_max_items=1)
         t = _SelectiveAuthTranslator()
         pipe = pl.XlatPipeline(t, config=cfg)
         chunks = [mk_chunk(f"BAD text {i}", f"c{i}") for i in range(6)]
@@ -314,7 +317,7 @@ class TestAuthGate:
 
     def test_gate_reset_between_runs(self) -> None:
         """run() 开头重置闸——同一 pipe 二跑不吃上篇的连续计数。"""
-        cfg = pl.PipelineConfig(concurrency=1, short_limit=0)
+        cfg = pl.PipelineConfig(concurrency=1, batch_max_items=1)
         pipe = pl.XlatPipeline(_AuthFailTranslator(), config=cfg)
         bad = [mk_chunk(f"text {i}", f"c{i}") for i in range(3)]
         with pytest.raises(pl.AuthTrippedError):

@@ -968,19 +968,19 @@ class TestDrivePipeline:
     ) -> None:
         """契约钉：translate 内抛的 BaseException 穿透 drive_pipeline。
 
-        E3 回归钉。12 块各 ≥300 字符 → 12 个 ``("single", …)`` 工作项 >
+        E3 回归钉。12 块各异 kind → 各成 ``("single", …)`` 工作项 >
         默认 conc=10：warmup 消化首项后 worker 吃到 ``TRIPBASE`` 块挂
         ``fatal``，此刻队列剩余项多于存活 worker——「worker 带
         BaseException 死亡（sentinel 孤儿）」与「fatal 后吃一条即退
         （剩余项无人 task_done）」两种 join 死锁形都被罩住；修复后
         worker 只吃不做排空到 sentinel、``_drain`` 在 join 收敛后重抛。
         """
-        prose = "word " * 80  # ≥SHORT_CHAR_LIMIT(300) → 每块一个 single 工作项
+        prose = "word " * 80
         chunks = [
             ChunkIn(
                 chunk_id=f"c{i}",
                 content=prose + ("TRIPBASE" if i == 1 else ""),
-                kind="para",
+                kind=f"k{i}",  # 异 kind 分组装箱——每块一个 single 工作项
             )
             for i in range(12)  # 工作项数须 > 默认 conc=10 才钉得住 drain 语义
         ]
@@ -1014,7 +1014,7 @@ class TestDrivePipeline:
         ]
         pipe = XlatPipeline(
             _TripTranslator(GeneratorExit()),
-            config=PipelineConfig(concurrency=2),
+            config=PipelineConfig(concurrency=2, batch_max_items=1),
         )
         with pytest.raises(GeneratorExit):
             asyncio.run(pipe.run(chunks))

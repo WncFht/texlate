@@ -459,11 +459,11 @@ def _gen_doc(rng: random.Random, base: int) -> list[ChunkIn]:
 
 
 def _cfg(rng: random.Random, **kw: object) -> PipelineConfig:
-    """小预算配置：hard 500 / short 80 / batch 200 → 三路由臂都打得到。"""
+    """小预算配置：hard 500 / batch 200 / min 100 → 批/独员 single/split 三臂都打得到。"""
     return PipelineConfig(
         concurrency=rng.choice([1, 2, 4]),
-        short_limit=80,
         batch_max_chars=200,
+        batch_min_chars=100,
         hard_limit=500,
         auth_fail_threshold=0,
         **kw,  # type: ignore[arg-type]
@@ -537,20 +537,23 @@ def _simulate(  # noqa: C901, PLR0912 -- oracle 复刻编排路由，分支即�
             continue
         pending.append(c)
 
-    for c in pending:
-        if len(c.content) >= cfg.short_limit:
-            exp[c.chunk_id] = _exp_single(c.content)
-
     by_kind: dict[str, list[ChunkIn]] = {}
     for c in pending:
-        if len(c.content) < cfg.short_limit:
-            by_kind.setdefault(c.kind, []).append(c)
+        by_kind.setdefault(c.kind, []).append(c)
     for grp in by_kind.values():
         groups = xb.pack_batches(
-            [c.content for c in grp], max_chars=cfg.batch_max_chars
+            [c.content for c in grp],
+            max_chars=cfg.batch_max_chars,
+            max_items=cfg.batch_max_items,
+            min_chars=cfg.batch_min_chars,
+            workers=cfg.concurrency,
         )
         for idxs in groups:
             members = [grp[j] for j in idxs]
+            if len(members) == 1:
+                # 独员组退化成 single 阶梯路径
+                exp[members[0].chunk_id] = _exp_single(members[0].content)
+                continue
             kinds = {_marker_of(m.content) for m in members}
             if _M_AUTH in kinds:
                 # 非 retryable ChatError → 全批同罪 skip（连坐语义）
@@ -733,7 +736,6 @@ def test_pipeline_all_auth_trips_gate() -> None:
     """全员 auth 失败 → ``AuthTrippedError``（凭证失效绝不静默 fallback 整篇）。"""
     cfg = PipelineConfig(
         concurrency=3,
-        short_limit=80,
         batch_max_chars=200,
         hard_limit=500,
         auth_fail_threshold=2,

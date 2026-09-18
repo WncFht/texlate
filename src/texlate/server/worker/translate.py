@@ -122,7 +122,7 @@ class _Translate:
         pipe = XlatPipeline(
             translator,
             config=PipelineConfig(
-                concurrency=self._opt_int(ctx, ctx.options(), "concurrency", 3, hi=16),
+                concurrency=self._opt_int(ctx, ctx.options(), "concurrency", 10, hi=16),
                 tgt_lang=_tgt_lang(str(ctx.row["target_lang"])),
             ),
             glossary=prep["glossary"],

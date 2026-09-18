@@ -27,8 +27,8 @@ import pytest
 
 from texlate.xlat import pipeline as pl
 
-#: ≥ ``SHORT_CHAR_LIMIT``(300) → ``_build_work_items`` 落 ``("single", c)``
-#: 工作单元——不装箱进 batch，注入点火位计数才确定。
+#: 测试侧以 ``batch_max_items=1`` 压每块成 ``("single", c)`` 工作单元——
+#: 不装箱进 batch，注入点火位计数才确定。
 _LONG = "prose " + "x" * 400
 
 #: run 级死锁判定时限——join 收敛正常 <1s，给足余量；超时即「worker 死了
@@ -121,7 +121,9 @@ class TestRunFatalLedger:
         fire_at: int,
     ) -> None:
         t = pl.MockTranslator()
-        p = pl.XlatPipeline(t, config=pl.PipelineConfig(concurrency=1))
+        p = pl.XlatPipeline(
+            t, config=pl.PipelineConfig(concurrency=1, batch_max_items=1)
+        )
         boom = exc_cls("injected at auth_gate.record")
         seen = 0
         orig = pl.AuthGate.record
@@ -157,7 +159,7 @@ class TestRunFatalLedger:
         t = pl.MockTranslator()
         p = pl.XlatPipeline(
             t,
-            config=pl.PipelineConfig(concurrency=1),
+            config=pl.PipelineConfig(concurrency=1, batch_max_items=1),
             on_result=_gated_emit,
         )
         chunks = [_chunk(f"c{i}") for i in range(4)]
@@ -222,7 +224,7 @@ class TestPrologueFatalLedger:
         t = pl.MockTranslator()
         p = pl.XlatPipeline(
             t,
-            config=pl.PipelineConfig(concurrency=1),
+            config=pl.PipelineConfig(concurrency=1, batch_max_items=1),
             on_result=_gated_emit,
         )
         with pytest.raises(KeyboardInterrupt) as ei:

@@ -267,19 +267,38 @@ class PhDiff:
     misspelled: list[tuple[str, str]] = field(default_factory=list)
 
     @property
+    def real_extra(self) -> list[str]:
+        """``extra`` 剔除幂等无载荷类型（``_BENIGN_EXTRA_TYPES``）后的净多 token。"""
+        return [
+            e
+            for e in self.extra
+            if (e.strip("[]").rpartition("_")[0] or e.strip("[]"))
+            not in _BENIGN_EXTRA_TYPES
+        ]
+
+    @property
     def ok(self) -> bool:
-        """无差异。"""
-        return not (self.missing or self.extra or self.misspelled)
+        """无差异（多余仅含 benign 类型不算差异）。"""
+        return not (self.missing or self.real_extra or self.misspelled)
 
     def describe(self) -> str:
         """一行错误描述，喂给 corrector 的 [Error] 段 / errors_report。"""
         parts = [f"missing placeholder: {ph}" for ph in self.missing]
-        parts += [f"extra/unrecognized placeholder: {ph}" for ph in self.extra]
+        parts += [f"extra/unrecognized placeholder: {ph}" for ph in self.real_extra]
         parts += [
             f"misspelled placeholder: '{bad}' should be '{good}'"
             for bad, good in self.misspelled
         ]
         return "; ".join(parts)
+
+
+#: extra 判定豁免的占位符类型——载荷无内容的幂等标记（``[[NBSP]]`` 解码即
+#: ``~``）。模型把源文字面 ``~``（``Fig.~[[REF_5]]``/``H.~Tan``）规范成
+#: ``[[NBSP]]`` 是更正确的掩码恢复而非缺陷；计入 extra 判负只会白触发
+#: 成员级单发重翻（batchmodel-2026-09-18 §6 实测批内 NBSP 喷发）。
+#: splice 侧仍有 ``_leftover_ph_tokens`` 兜底：src 集外 token 不可解析时
+#: 照样拦，豁免只放松多重集计数。
+_BENIGN_EXTRA_TYPES = frozenset({"NBSP"})
 
 
 def _ph_in_comments(s: str, masked: str) -> Counter[str]:

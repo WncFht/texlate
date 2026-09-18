@@ -114,10 +114,9 @@ class _T:
 
 
 def _cfg(**kw: object) -> xp.PipelineConfig:
-    """批路径全命中配置：short 300 / batch 2000 / 串行。"""
+    """批路径全命中配置：batch 2000 / 串行（workers=1 关掉 min_chars 并行放大）。"""
     args: dict[str, object] = {
         "concurrency": 1,
-        "short_limit": 300,
         "batch_max_chars": 2000,
     }
     args.update(kw)
@@ -188,26 +187,19 @@ class TestPackBatches:
         assert out == [[0, 1]]
 
     def test_fuzz_overhead_partition_oracle(self) -> None:
-        """随机 (max_chars, overhead) 下重放装箱 oracle：保序划分 + 同一贪心。"""
+        """随机 (max_chars, overhead)：保序划分 + 硬帽不超（等大填充由单元钉）。"""
         rng = random.Random(20261201)  # noqa: S311 -- 确定性种子
         for _ in range(_FUZZ_MED):
             contents = ["x" * rng.randint(0, 300) for _ in range(rng.randint(0, 20))]
             max_chars = rng.choice([1, 8, 50, 300, 2000])
             ov = rng.choice([0, 1, 8, 40])
             groups = xb.pack_batches(contents, max_chars=max_chars, item_overhead=ov)
-            exp: list[list[int]] = []
-            cur: list[int] = []
-            cur_len = 0
-            for i, t in enumerate(contents):
-                need = len(t) + ov
-                if cur and cur_len + need > max_chars:
-                    exp.append(cur)
-                    cur, cur_len = [], 0
-                cur.append(i)
-                cur_len += need
-            if cur:
-                exp.append(cur)
-            assert groups == exp
+            assert [i for g in groups for i in g] == list(range(len(contents)))
+            for g in groups:
+                assert len(g) <= xb.BATCH_MAX_ITEMS
+                total = sum(len(contents[i]) + ov for i in g)
+                # 多成员组不得超字符帽（独员组允许独超）
+                assert total <= max_chars or len(g) == 1
 
 
 # ---------------------------------------------------------------- parse 行首锚定路径
@@ -679,11 +671,12 @@ class TestStageSlots:
 
 class TestBuildWorkItems:
     def test_kind_grouped_batches_and_ordering(self) -> None:
-        # observed: 批按 kind 分组不混装；批次先于 single/split；
-        # seq 跨 kind 全局递增；kind 组序 = pending 首见序
-        p = xp.XlatPipeline(_T(lambda u: u), config=_cfg(short_limit=10))
+        # observed: 全量装箱——批按 kind 分组不混装；独员组退化成 single
+        # 与批按装箱序交错（不再批先单后）；seq 跨 kind 全局递增；
+        # kind 组序 = pending 首见序
+        p = xp.XlatPipeline(_T(lambda u: u), config=_cfg(batch_max_chars=60))
         pending = [
-            xp.ChunkIn("s1", "a" * 50, "para"),
+            xp.ChunkIn("s1", "a" * 50, "para"),  # 58>60 → 独占组 → single
             xp.ChunkIn("b1", "short1", "para"),
             xp.ChunkIn("b2", "cap1", "caption"),
             xp.ChunkIn("b3", "short2", "para"),
@@ -691,17 +684,18 @@ class TestBuildWorkItems:
         ]
         items = p._build_work_items(pending, [])  # noqa: SLF001
         kinds = [it[0] for it in items]
-        assert kinds == ["batch", "batch", "single"]
-        b0, b1 = items[0][1], items[1][1]
+        assert kinds == ["single", "batch", "batch"]
+        assert items[0][1].chunk_id == "s1"
+        b0, b1 = items[1][1], items[2][1]
         assert b0[0] == 0
         assert [c.chunk_id for c in b0[1]] == ["b1", "b3"]
         assert b1[0] == 1
         assert [c.chunk_id for c in b1[1]] == ["b2", "b4"]
 
     def test_fuzz_kind_homogeneity(self) -> None:
-        """随机 pending：批内 kind 恒同质、batch 项先于 single、seq 连续。"""
+        """随机 pending：批内 kind 恒同质、批 ≥2 成员、seq 连续、全体划分。"""
         rng = random.Random(20261204)  # noqa: S311 -- 确定性种子
-        p = xp.XlatPipeline(_T(lambda u: u), config=_cfg(short_limit=20))
+        p = xp.XlatPipeline(_T(lambda u: u), config=_cfg(batch_max_chars=40))
         for _ in range(300):
             pending = [
                 xp.ChunkIn(
@@ -712,19 +706,20 @@ class TestBuildWorkItems:
                 for i in range(rng.randint(1, 15))
             ]
             items = p._build_work_items(pending, [])  # noqa: SLF001
-            batch_idxs: list[int] = []
             seqs: list[int] = []
-            for idx, (k, payload) in enumerate(items):
+            covered: list[str] = []
+            for k, payload in items:
                 if k == "batch":
                     members = payload[1]
+                    assert len(members) >= 2  # noqa: PLR2004 -- 独员组退化成 single 不落 batch
                     assert len({c.kind for c in members}) == 1
-                    batch_idxs.append(idx)
                     seqs.append(payload[0])
-            single_idxs = [i for i, (k, _p) in enumerate(items) if k != "batch"]
+                    covered += [c.chunk_id for c in members]
+                else:
+                    assert k == "single"
+                    covered.append(payload.chunk_id)
             assert seqs == list(range(len(seqs)))  # seq 全局连续
-            assert (
-                not batch_idxs or not single_idxs or max(batch_idxs) < min(single_idxs)
-            )
+            assert sorted(covered) == sorted(c.chunk_id for c in pending)  # 全划分
 
 
 class TestPipelineBatch:
@@ -748,6 +743,7 @@ class TestPipelineBatch:
                 xp.ChunkIn("pure", "[[MATH_1]] [[CITE_2]]", "para"),
                 xp.ChunkIn("purews", "  [[MATH_3]]  ", "para"),
                 xp.ChunkIn("real", "some real text", "para"),
+                xp.ChunkIn("real2", "more real text", "para"),
             ],
             t,
         )
@@ -758,7 +754,9 @@ class TestPipelineBatch:
         assert res[0].batch_id == ""
         assert not res[0].batched
         assert res[1].translation == "  [[MATH_3]]  "  # strip 判定、原文落盘
-        assert [c["user"] for c in t.calls] == ["[1] some real text"]
+        assert [c["user"] for c in t.calls] == [
+            "[1] some real text\n[2] more real text"
+        ]
 
     def test_whitespace_member_poisons_batch_pipeline(self) -> None:
         # observed: 空白成员（非 ph-only）编码成 ``[k] `` 空段 → 整批解析失败
@@ -778,7 +776,13 @@ class TestPipelineBatch:
     def test_newline_only_member_batches_fine(self) -> None:
         # observed: 纯换行成员不是 ph-only、编码成 [[PL]] 正常进批往返
         t = _T(lambda u: u)
-        res = _run([xp.ChunkIn("nl", "\n\n", "para")], t)
+        res = _run(
+            [
+                xp.ChunkIn("nl", "\n\n", "para"),
+                xp.ChunkIn("tail", "tail member", "para"),
+            ],
+            t,
+        )
         assert res[0].status == "ok"
         assert res[0].batched
         assert res[0].translation == "\n\n"

@@ -8,23 +8,52 @@ class TestPackBatches:
         assert batch.pack_batches([]) == []
 
     def test_single_oversized_gets_own_batch(self) -> None:
-        # 单块 ~2000 字符（含编号开销超限）独占一批；小块另批
-        out = batch.pack_batches(["x" * 1995, "a", "b"])
+        # 单块 ~2000 字符（含编号开销超 cap）独占一批；小块另批
+        out = batch.pack_batches(["x" * 1995, "a", "b"], max_chars=2000)
         assert out == [[0], [1, 2]]
 
     def test_boundary_exact_fit(self) -> None:
-        # 两块各 ~996：996+8=1004，两块 2008 > 2000 → 不合并
-        out = batch.pack_batches(["x" * 996, "y" * 996])
+        # 两块各 ~1004（含开销）：合计 2008 > cap → 不合并
+        out = batch.pack_batches(["x" * 996, "y" * 996], max_chars=2000)
         assert out == [[0], [1]]
 
-    def test_greedy_fill(self) -> None:
-        # 4×490 → 490+8=498 ×4 = 1992 ≤ 2000 → 同批；加第 5 块则溢出
-        out = batch.pack_batches(["x" * 490] * 5)
-        assert out == [[0, 1, 2, 3], [4]]
+    def test_equal_sized_fill(self) -> None:
+        # total=2490 → n_req=2、target=1245：[0,1] 封批，末批吞余量
+        out = batch.pack_batches(["x" * 490] * 5, max_chars=2000)
+        assert out == [[0, 1], [2, 3, 4]]
 
-    def test_order_preserved(self) -> None:
-        out = batch.pack_batches(["a" * 100, "b" * 1900, "c" * 100])
+    def test_hard_cap_overrides_target(self) -> None:
+        # 末批也不得超 cap：1908+108>2000 → [1] 单独封批
+        out = batch.pack_batches(["a" * 100, "b" * 1900, "c" * 100], max_chars=2000)
         assert out == [[0], [1], [2]]
+
+    def test_max_items_cap(self) -> None:
+        out = batch.pack_batches(["x" * 10] * 5, max_chars=10**9, max_items=2)
+        assert out == [[0, 1], [2, 3], [4]]
+
+    def test_workers_inflates_request_count(self) -> None:
+        # total≈8×1000：workers=10 → 并行填充拆到 ~min_chars/批 的多批
+        out = batch.pack_batches(
+            ["x" * 1000] * 8, max_chars=20000, min_chars=2000, workers=10
+        )
+        assert len(out) == 4  # total 8064//2000=4 批、每批 ~2 块
+        assert all(len(g) == 2 for g in out)
+
+    def test_workers_k_quantized(self) -> None:
+        # n_req>workers 时向上取 workers 倍数：40×3758 total≈150K、cap→13 批、
+        # K=10 → 取 20 批等大（每批 2 块），不留 10+3 半空波次
+        out = batch.pack_batches(
+            ["x" * 3750] * 40, max_chars=12000, min_chars=2500, workers=10
+        )
+        assert len(out) == 20
+        assert all(len(g) == 2 for g in out)
+
+    def test_tiny_group_stays_one_batch(self) -> None:
+        # total<min_chars 不硬凑 workers——一个小批胜过 N 个微型请求
+        out = batch.pack_batches(
+            ["a", "b", "c"], max_chars=12000, min_chars=2500, workers=10
+        )
+        assert out == [[0, 1, 2]]
 
 
 class TestEncodeParse:

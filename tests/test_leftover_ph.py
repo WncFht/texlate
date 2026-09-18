@@ -82,7 +82,7 @@ class TestIntercept:
 
     def test_split_parent_faults_on_piece_leftover(self) -> None:
         """切分块任一片段带残留 → 父块整体回退原文（保守口径）。"""
-        cfg = pl.PipelineConfig(hard_limit=80, short_limit=40)
+        cfg = pl.PipelineConfig(hard_limit=80)
         big = "Sentence one here. " * 20
         out = run_pipeline(
             [mk_chunk(big, "big")],
@@ -98,7 +98,8 @@ class TestIntercept:
         """论文级降格粒度：脏块 fault、净块 ok——不拖全篇。"""
         chunks = [
             mk_chunk("dirty-marker prose " + "x" * 400, "dirty"),
-            mk_chunk("clean prose " + "y" * 400, "clean"),
+            # 异 kind 分 request——同批则 marker 命中批载荷，净块译文同被污染
+            mk_chunk("clean prose " + "y" * 400, "clean", kind="caption"),
         ]
         out = run_pipeline(
             chunks,

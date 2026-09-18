@@ -12,8 +12,9 @@ import importlib
 _SUBMODULE_EXPORTS: dict[str, tuple[str, ...]] = {
     "batch": (
         "BATCH_MAX_CHARS",
+        "BATCH_MAX_ITEMS",
+        "BATCH_MIN_CHARS",
         "CHUNK_HARD_LIMIT",
-        "SHORT_CHAR_LIMIT",
         "encode_batch",
         "pack_batches",
         "parse_batch_response",

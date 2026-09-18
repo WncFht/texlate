@@ -186,10 +186,9 @@ class _T:
 
 
 def _cfg(**kw: object) -> xp.PipelineConfig:
-    """串行小预算：short 80 / batch 2000 / hard 120——split 臂伸手可及。"""
+    """串行小预算：batch 2000 / hard 120——split 臂伸手可及。"""
     args: dict[str, object] = {
         "concurrency": 1,
-        "short_limit": 80,
         "batch_max_chars": 2000,
         "hard_limit": _HARD,
     }
@@ -375,7 +374,7 @@ class TestDecodeForgeHole:
         交付译文（阶梯内 whole/corrector 连败 → lines/slots 兜底或 fallback）。
         """
         t = _T(single_fn=lambda _u, _t=tok: f"译文 {_t} 尾部")
-        # 100B ∈ [short_limit, hard_limit)——单发路径（>120 会走 split 臂）
+        # 100B 单块 → 独员组退化成 single 路径（>120 会走 split 臂）
         res = _run([xp.ChunkIn("c", "x" * 100, "para")], t)
         r = res[0]
         assert lit not in r.translation
@@ -397,7 +396,7 @@ class TestDecodeForgeHole:
         """对照组：validator 放行时 ``[[MATH_9]]`` 型带号 token 锻造仍被
         leftover 网拦降 fault——洞只在裸 token 族（decode 抹平后无迹可寻）。"""
         t = _T(single_fn=lambda _u: "译文 [[MATH_9]] 尾")
-        # 100B ∈ [short_limit, hard_limit)——单发路径钉 leftover 网本体
+        # 100B 单块 → 独员组退化成 single 路径钉 leftover 网本体
         res = _run(
             [xp.ChunkIn("c", "x" * 100, "para")],
             t,
@@ -476,13 +475,13 @@ class TestBatchCacheBypass:
         assert "[1] brand new text" in t.calls[0]["user"]
 
     def test_single_path_cache_hit_control(self) -> None:
-        """对照组：long/single 路径缓存命中零请求直回（≤120B 防走 split——
-        split 块按 piece 粒度查缓存，父键永不命中）。"""
+        """对照组：single 路径缓存命中零请求直回（异 kind 防同批合流；
+        ≤120B 防走 split——split 块按 piece 粒度查缓存，父键永不命中）。"""
         p = xp.XlatPipeline(_T(), config=_cfg(), validator=_bad_validator, cache={})
         c = xp.ChunkIn("c", "y" * 100, "para")
         assert p.cache is not None
         p.cache[p._seg_key(c)] = "缓存译文"  # noqa: SLF001
-        res = asyncio.run(p.run([c, xp.ChunkIn("f", "z" * 100, "para")]))
+        res = asyncio.run(p.run([c, xp.ChunkIn("f", "z" * 100, "caption")]))
         assert res[0].translation == "缓存译文"
         assert res[0].attempts == 0
 
@@ -779,11 +778,11 @@ class TestOrchestraResidual:
 
 
 def _collect_doc() -> list[xp.ChunkIn]:
-    """两长块（80<len≤120）各成 ``("single", c)`` item——``c0`` 走 warmup、
-    ``c1`` 走 worker，``_collect`` 的两个调用点都罩到。"""
+    """异 kind 两块各成 ``("single", c)`` item——``c0`` 走 warmup、``c1`` 走
+    worker，``_collect`` 的两个调用点都罩到。"""
     return [
         xp.ChunkIn("c0", "warmup-side collect body. " * 4, "para"),
-        xp.ChunkIn("c1", "worker-side collect body. " * 4, "para"),
+        xp.ChunkIn("c1", "worker-side collect body. " * 4, "caption"),
     ]
 
 
