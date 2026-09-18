@@ -16,12 +16,12 @@ from __future__ import annotations
 
 import hashlib
 import json
-import random
 import re
 import zipfile
 from typing import TYPE_CHECKING
 
 import pytest
+from _fuzzkit import fuzz_rng
 
 from texlate.share import (
     ARTIFACT_NAMES,
@@ -36,6 +36,7 @@ from texlate.share import (
 )
 
 if TYPE_CHECKING:
+    import random
     from collections.abc import Mapping
     from pathlib import Path
 
@@ -366,7 +367,7 @@ def _gen_manifest(rng: random.Random) -> dict[str, object]:
 
 def test_fuzz_pack_manifest_matrix(tmp_path: Path) -> None:
     """七组分 在场/缺席/null/空白/非串/含 ``|`` 矩阵：ShareError 或自洽成功。"""
-    rng = random.Random(20260923)  # noqa: S311 -- 确定性种子复现，非加密用途
+    rng = fuzz_rng(20260923)
     present = _write_work(
         tmp_path / "work",
         {"zh-src.zip": b"ZS", "zh.pdf": b"PDF", "dual.json": b"{}"},
@@ -397,7 +398,7 @@ def test_fuzz_pack_artifact_matrix(
 ) -> None:
     """随机产物集（缺席/目录/0B/``_MEMBER_MAX`` 边界）：ShareError 或字节级还原。"""
     monkeypatch.setattr("texlate.share._MEMBER_MAX", _MEMBER_CAP)
-    rng = random.Random(20260924)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260924)
     norm = _norm_parts_pack(_BASE_PARTS)
     assert norm is not None
     key = _oracle_key(norm)
@@ -583,7 +584,7 @@ def _mutate_members(payloads: dict[str, bytes], rng: random.Random) -> None:
 
 def test_fuzz_unpack_mutated_manifest(tmp_path: Path) -> None:
     """manifest 字段随机篡改：只许 ShareError 或自洽成功（dest == 登记集合）。"""
-    rng = random.Random(20260925)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260925)
     doc0, payloads0 = _base_bundle(tmp_path)
     for i in range(700):
         doc = json.loads(json.dumps(doc0))  # 深拷贝
@@ -602,7 +603,7 @@ def test_fuzz_unpack_mutated_manifest(tmp_path: Path) -> None:
 
 def test_fuzz_unpack_mutated_bytes(tmp_path: Path) -> None:
     """整包字节级变异/截断：几乎必 ShareError；偶然成功须内部自洽。"""
-    rng = random.Random(20260926)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260926)
     doc0, payloads0 = _base_bundle(tmp_path)
     good = _repack(tmp_path / "good.zip", doc0, payloads0)
     raw = good.read_bytes()
@@ -748,7 +749,7 @@ def test_unpack_rename_phase_no_partial_publish(tmp_path: Path) -> None:
 
 def test_fuzz_share_key_pipe_iff() -> None:
     """前六归一组分含 ``|`` ⇔ ShareError；否则 == 独立 sha256 重算。"""
-    rng = random.Random(20260927)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260927)
     alphabet = ["a", "v1", " ", "|", "a|b", "数据", "x" * 40, "", "\t"]
     ver_pool = [None, "", "v3", "3", 3, "|", "v|x", " v5 "]
     for _ in range(3000):

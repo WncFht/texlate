@@ -66,7 +66,6 @@ from __future__ import annotations
 import hashlib
 import io
 import json
-import random
 import re
 import zipfile
 from contextlib import suppress
@@ -74,6 +73,7 @@ from typing import TYPE_CHECKING
 from xml.sax.saxutils import escape
 
 import pytest
+from _fuzzkit import fuzz_rng
 from bs4 import BeautifulSoup
 from bs4.element import NavigableString
 from docx import Document
@@ -122,6 +122,7 @@ from texlate.xlat.pipeline import AuthTrippedError, ChunkResult, MockTranslator
 from texlate.xlat.placeholders import ANY_PH_RX, is_placeholder_only
 
 if TYPE_CHECKING:
+    import random
     from collections.abc import Callable
     from pathlib import Path
 
@@ -993,7 +994,7 @@ _CUT_REPLY_FAKE = 0.7
 
 def test_fuzz_reconcile_markers() -> None:  # noqa: C901 -- 对抗回复生成即分支表
     """调和协议：签发恰一次、字面保留、臆造剥净、一致回复逐字节原样。"""
-    rng = random.Random(20260917)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260917)
     for _ in range(_ITERS_PURE):
         issued = [
             marker_token(rng.choice(["IMG", "CODE", "A"]), i + 1)
@@ -1037,7 +1038,7 @@ def test_fuzz_reconcile_markers() -> None:  # noqa: C901 -- 对抗回复生成�
 
 def test_fuzz_split_on_markers_roundtrip() -> None:
     """``split_on_markers`` 恒还原输入；marker 段值 ∈ tokens。"""
-    rng = random.Random(20260918)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260918)
     for _ in range(_ITERS_PURE):
         tokens = [f"[[T_{i}]]" for i in range(rng.randint(0, 5))]
         text = "".join(
@@ -1053,7 +1054,7 @@ def test_fuzz_split_on_markers_roundtrip() -> None:
 
 def test_fuzz_normalize_sanitize() -> None:
     """归一化/净化幂等；输出无 XML 非法字符、零宽字符、连续/首尾空白。"""
-    rng = random.Random(20260919)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260919)
     pool = "abc中 \t\n\x00\x0b\x1f\u00ad\u200b\ufeff[]_XY9🎉<>"
     for _ in range(_ITERS_PURE):
         s = "".join(rng.choice(pool) for _ in range(rng.randint(0, 60)))
@@ -1070,7 +1071,7 @@ def test_fuzz_normalize_sanitize() -> None:
 
 def test_fuzz_safe_language() -> None:
     """任意输入不炸；非 None 输出恒 ``[\\w-]+`` fullmatch。"""
-    rng = random.Random(20260920)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260920)
     pool = "abzhCN-_ <>\"'&\n\x00中🎉/\\;"
     assert safe_language(None) is None
     assert safe_language("") is None
@@ -1082,7 +1083,7 @@ def test_fuzz_safe_language() -> None:
 
 def test_fuzz_ordinals_and_marker_names() -> None:
     """``Ordinals.allocate`` 永不发占用 token；``marker_name`` 恒 ``[A-Z_]+``。"""
-    rng = random.Random(20260921)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260921)
     for _ in range(_ITERS_PURE):
         ords = Ordinals(start=rng.randint(0, 3))
         occupied = (
@@ -1108,7 +1109,7 @@ def test_fuzz_ordinals_and_marker_names() -> None:
 
 def test_fuzz_text_predicates_never_raise() -> None:
     """过滤/判定谓词任意对抗串不炸、返回 bool。"""
-    rng = random.Random(20260922)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260922)
     for _ in range(_ITERS_PURE):
         s = "".join(
             rng.choice("a中1 .,!?:;https://x [[T_1]]\x00­")
@@ -1233,7 +1234,7 @@ def _assert_unit_shape(units: list[Unit]) -> None:
 
 def test_fuzz_iter_units_hostile(tmp_path: Path) -> None:
     """``iter_units`` 对 hostile body 不抛；unit 字段自洽。"""
-    rng = random.Random(20260923)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260923)
     for i in range(_ITERS_UNITS):
         body = (
             _HOSTILE_BODIES[i]
@@ -1254,7 +1255,7 @@ def test_fuzz_iter_units_hostile(tmp_path: Path) -> None:
 
 def test_fuzz_insert_translation_chaos(tmp_path: Path) -> None:
     """``insert_translation`` 对抗译文不抛；插后 well-formed；token 协议成立。"""
-    rng = random.Random(20260924)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260924)
     for i in range(_ITERS_INSERT):
         body = (
             _HOSTILE_BODIES[i]
@@ -1293,7 +1294,7 @@ def test_fuzz_insert_translation_chaos(tmp_path: Path) -> None:
 
 def test_fuzz_docx_insert_after() -> None:
     """``insert_after`` 对抗译文不抛；克隆段紧邻 + 色戳/语言章/剥 paraId。"""
-    rng = random.Random(20260925)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260925)
     doc = Document()
     for i in range(30):
         doc.add_paragraph(f"Source para {i} {rng.randrange(10**6)} text.")
@@ -1323,7 +1324,7 @@ def test_fuzz_docx_insert_after() -> None:
 
 def test_fuzz_epub_e2e(tmp_path: Path) -> None:
     """随机合法书 × 对抗译文器：出包全套不变量。"""
-    rng = random.Random(20260926)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260926)
     for i in range(_ITERS_EPUB):
         members = _gen_book(rng)
         src = _write_epub(tmp_path, f"e{i}", members)
@@ -1344,7 +1345,7 @@ def test_fuzz_epub_e2e(tmp_path: Path) -> None:
 
 def test_fuzz_docx_e2e(tmp_path: Path) -> None:
     """随机 docx × 对抗译文器：源段子序列 + 紧邻 + 色戳 + 全 part XML 合法。"""
-    rng = random.Random(20260927)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260927)
     for i in range(_ITERS_DOCX):
         src = tmp_path / f"d{i}.docx"
         src.write_bytes(_gen_docx(rng))
@@ -1690,7 +1691,7 @@ def test_export_document_dispatch(tmp_path: Path) -> None:
 
 def test_fuzz_sniff_format(tmp_path: Path) -> None:
     """``sniff_format``：任意成员集不炸；epub/docx 判定与嗅探规则互证。"""
-    rng = random.Random(20260928)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260928)
     pool = [
         "mimetype",
         "word/document.xml",

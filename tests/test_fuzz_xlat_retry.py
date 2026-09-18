@@ -38,11 +38,11 @@ from __future__ import annotations
 
 import asyncio
 import json
-import random
 import types
 from collections.abc import Awaitable, Callable
 
 import pytest
+from _fuzzkit import fuzz_rng
 
 from texlate.xlat import placeholders as ph
 from texlate.xlat import retry as rt
@@ -235,7 +235,7 @@ class TestSplitLinesScoped:
         """随机 ``{``/``}``/``\\``/``.!?``/空白汤不变量：
         ``join(parts)`` 恒为 ``text`` 前缀，余部只允许纯空白
         （被丢的只可能是尾片——中间片必含分隔符）。"""
-        rng = random.Random(20260917)  # noqa: S311 -- 确定性种子
+        rng = fuzz_rng(20260917)
         alphabet = ["a", "b", ".", "!", "?", "{", "}", "\\", " ", "\n", "\t", "z"]
         for _ in range(4000):
             t = "".join(rng.choice(alphabet) for _ in range(rng.randint(0, 40)))
@@ -293,7 +293,7 @@ class TestMakeSlotsAdversarial:
     def test_fuzz_seq_tiles_encoded(self) -> None:
         """随机编码文：seq 平铺恒等（生成面不含 >``SLOT_MAX_CHARS`` 空白
         run——那是下方 CONFIRMED 丢片缺陷的独立触发面）。"""
-        rng = random.Random(20260917)  # noqa: S311 -- 确定性种子
+        rng = fuzz_rng(20260917)
         soup = ["word ", "[[MATH_1]]", "[[CITE_2]]", "[[SL]]", " ", "x", " t", "~"]
         for _ in range(_FUZZ_MED):
             enc = "".join(rng.choice(soup) for _ in range(rng.randint(0, 15)))
@@ -336,7 +336,7 @@ class TestMakeSlotsAdversarial:
 
     def test_fuzz_slot_names_canonical_sequential(self) -> None:
         """随机输入：槽键恰为 ``⟪S{i:04d}⟫`` 连续枚举，seq 槽序同构。"""
-        rng = random.Random(20260917)  # noqa: S311 -- 确定性种子
+        rng = fuzz_rng(20260917)
         soup = ["a", " [[MATH_1]] ", "[[CITE_2]]", " ", "b ", "\n"]
         for _ in range(600):
             enc = ph.encode_newlines(
@@ -528,7 +528,7 @@ class TestLadderInvariants:
         """乱注 chaos：translate_fn 回随机垃圾（含 echo/丢 token/空串），
         slots_fn 回随机 dict/非 dict/崩——阶梯必终止且 attempts 有界：
         ``≤ 2 + nlines + 2·ceil(nslots/8)``。"""
-        rng = random.Random(20260917)  # noqa: S311 -- 确定性种子
+        rng = fuzz_rng(20260917)
         soup = [
             "Hello world. ",
             "Second sentence ",
@@ -880,7 +880,7 @@ class TestValidSlotTextLookalikes:
         """随机 soup：``_valid_slot_text`` 判定 ⟺ 有可见字符（非空白非零宽）
         + 无 ``⟪⟫[[ ]]`` 四字符 + 无象形括号 ``S\\d{4,}`` 形变——oracle
         逐条对账（口径随零宽/象形族修复同步更新）。"""
-        rng = random.Random(20260917)  # noqa: S311 -- 确定性种子
+        rng = fuzz_rng(20260917)
         soup = [
             "a",
             " ",

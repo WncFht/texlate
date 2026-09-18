@@ -41,12 +41,12 @@ from __future__ import annotations
 
 import itertools
 import math
-import random
 import sys
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
 
 import pytest
+from _fuzzkit import fuzz_rng
 from pypdf import PdfWriter
 from pypdf.errors import PdfReadError
 from pypdf.generic import (
@@ -65,6 +65,7 @@ from texlate import align
 from texlate.align import _WEIGHT, build_alignment, extract_landmarks
 
 if TYPE_CHECKING:
+    import random
     from pathlib import Path
 
 PAGE_H = 792.0
@@ -228,7 +229,7 @@ def _check_alignment(
 def test_fuzz_build_alignment_random_pdfs(tmp_path: Path) -> None:
     """随机双 PDF（共享锚子集 + 随机 /Top + 图像 XObject + 偶发旋转）：
     输出结构不变量 + 逐字节确定。"""
-    rng = random.Random(20260917)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260917)
     for i in range(300):
         pool = rng.sample(_NAME_POOL, rng.randint(1, len(_NAME_POOL)))
         a_dests, a_arts, na = _gen_pdf_spec(rng, pool)
@@ -252,7 +253,7 @@ def test_fuzz_build_alignment_random_pdfs(tmp_path: Path) -> None:
 def test_fuzz_build_alignment_garbage_inputs(tmp_path: Path) -> None:
     """随机/截断/目录/空文件输入：恒不抛、输出恒合法——pypdf 宽容解析下
     截断前缀仍可能抽出真锚（``landmarks`` 亦合法），只钉结构不变量。"""
-    rng = random.Random(20260918)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260918)
     good = _mk_pdf(tmp_path / "good.pdf", [("section.1", 0, PAGE_H)], 3, rng)
     for i in range(400):
         r = rng.random()
@@ -275,7 +276,7 @@ def test_fuzz_build_alignment_garbage_inputs(tmp_path: Path) -> None:
 
 def test_build_alignment_missing_paths_never_raise(tmp_path: Path) -> None:
     """不存在路径两侧组合：恒 ``kind="pages"`` 不抛。"""
-    rng = random.Random(20260919)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260919)
     good = _mk_pdf(tmp_path / "g.pdf", [("section.1", 0, PAGE_H)], 2, rng)
     missing = tmp_path / "nope.pdf"
     assert build_alignment(missing, good)["kind"] == "pages"
@@ -358,7 +359,7 @@ def _gen_stub(rng: random.Random) -> _StubReader:
 def test_fuzz_reader_landmarks_stub() -> None:
     """stub reader 随机页列+dests：heights 全正有限、dests 页号在界、
     ``page.N`` 不收、yfrac None 或 [0,1]——单 dest 坏不拖整侧。"""
-    rng = random.Random(20260920)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260920)
     for _ in range(800):
         r = _gen_stub(rng)
         lm = align._reader_landmarks(r)  # noqa: SLF001 -- 白盒钉私有提取
@@ -408,7 +409,7 @@ def _brute_chain_weight(items: list[tuple[str, dict, dict]]) -> int:
 def test_fuzz_monotonic_chain_optimality() -> None:
     """n≤8 随机 commons：DP 链权 == 全子集枚举最优；链是 original 序
     子序列且 translated ``(page, -yfrac)`` 非降。"""
-    rng = random.Random(20260921)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260921)
     for _ in range(600):
         commons = [
             (
@@ -466,7 +467,7 @@ _IDENT = (1.0, 0.0, 0.0, 1.0, 0.0, 0.0)
 
 def test_fuzz_multiply_matches_3x3_oracle() -> None:
     """``_multiply(f, s)`` == 行向量 3×3 乘 f×s；恒等元 + 结合律 + 随机等价。"""
-    rng = random.Random(20260922)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260922)
     for _ in range(2000):
         f = tuple(rng.uniform(-100, 100) for _ in range(6))
         s = tuple(rng.uniform(-100, 100) for _ in range(6))
@@ -486,7 +487,7 @@ def test_fuzz_multiply_matches_3x3_oracle() -> None:
 
 def test_fuzz_category_outputs() -> None:
     """任意名 → 恒在 ``_WEIGHT`` 键内；大小写不敏感。"""
-    rng = random.Random(20260923)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260923)
     alphabet = list("seciontublfigqraphzy.0123456789数据中_-.")
     for _ in range(3000):
         name = "".join(rng.choice(alphabet) for _ in range(rng.randint(0, 25)))
@@ -534,7 +535,7 @@ def test_build_alignment_both_dead_heights_empty(tmp_path: Path) -> None:
 
 def test_build_alignment_one_dead_keeps_survivor_heights(tmp_path: Path) -> None:
     """一侧坏掉 → ``pages`` 降级但存活侧真实 ``heights`` 保留。"""
-    rng = random.Random(20260924)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260924)
     good = _mk_pdf(tmp_path / "g.pdf", [("section.1", 0, PAGE_H)], 3, rng)
     bad = tmp_path / "b.pdf"
     bad.write_bytes(b"%PDF-1.4 truncated")
@@ -554,7 +555,7 @@ def test_pypdf_absent_bare_pages_shape(
     ``heights?.[side]`` 可选链容忍，属防御面不齐非功能缺陷。
     """
     monkeypatch.setitem(sys.modules, "pypdf", None)
-    rng = random.Random(20260925)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260925)
     a = _mk_pdf(tmp_path / "a.pdf", [("section.1", 0, PAGE_H)], 2, rng)
     assert build_alignment(a, a) == {"kind": "pages"}
 
@@ -595,7 +596,7 @@ def test_hostile_dest_names_roundtrip(tmp_path: Path) -> None:
     """
     names = ["", "a\x00b", "x" * 5000, "锚.1", "fig\nure", "..", " figure.2"]
     dests = [(n, 0, PAGE_H) for n in names]
-    rng = random.Random(20260926)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260926)
     a = _mk_pdf(tmp_path / "a.pdf", dests, 2, rng)
     lm = extract_landmarks(a)
     assert set(names) <= set(lm["dests"])

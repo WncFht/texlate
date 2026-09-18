@@ -96,16 +96,17 @@ from __future__ import annotations
 
 import asyncio
 import json
-import random
 from typing import TYPE_CHECKING, Any
 
 import httpx
 import pytest
+from _fuzzkit import fuzz_rng
 
 from texlate.xlat import client as cl
 from texlate.xlat.retry import RetryPolicy, _backoff_delay
 
 if TYPE_CHECKING:
+    import random
     from collections.abc import Callable
 
 # ---------------------------------------------------------------- 常量与 fake
@@ -365,7 +366,7 @@ class TestClassifyStatusFuzz:
 
     def test_fuzz_body_retry_after_oracle(self) -> None:
         """``_body_retry_after``：任意 JSON body → None 或 [0,60]，绝不抛。"""
-        rng = random.Random(20261102)  # noqa: S311
+        rng = fuzz_rng(20261102)
         for _ in range(_FUZZ_ITERS):
             body = json.dumps({"error": {"retry_after": _gen_json(rng)}})
             out = cl._body_retry_after(body)  # noqa: SLF001
@@ -400,7 +401,7 @@ class TestClassifyStatusFuzz:
 
     def test_fuzz_header_retry_after_ascii(self) -> None:
         """ASCII 头面：``_retry_after`` → None 或 [0,60]；isdigit 数串被接受。"""
-        rng = random.Random(20261103)  # noqa: S311
+        rng = fuzz_rng(20261103)
         soup = "0123456789 +-eE.\t abcGMT:"
         for _ in range(_FUZZ_ITERS):
             raw = "".join(rng.choice(soup) for _ in range(rng.randint(0, 12)))
@@ -428,7 +429,7 @@ class TestClassifyStatusFuzz:
 
     def test_fuzz_classify_msg_bounded(self) -> None:
         """消息恒 ``HTTP {status}: {body[:300]}``——body 任长截 300。"""
-        rng = random.Random(20261104)  # noqa: S311
+        rng = fuzz_rng(20261104)
         for _ in range(500):
             body = "".join(
                 rng.choice("ab{}\"'\x00é") for _ in range(rng.randint(0, 700))
@@ -469,7 +470,7 @@ class TestModelSwitchable:
 
     def test_fuzz_oracle(self) -> None:
         """随机 ChatError 组合 → 与独立判据一致。"""
-        rng = random.Random(20261105)  # noqa: S311
+        rng = fuzz_rng(20261105)
         kinds: list[Callable[..., cl.ChatError]] = [
             cl.ChatError,
             cl.AuthError,
@@ -498,7 +499,7 @@ class TestSseEvents:
 
     def test_fuzz_non_data_lines_never_done(self) -> None:
         """非 ``data:`` 前缀行恒 ``([], False)``。"""
-        rng = random.Random(20261106)  # noqa: S311
+        rng = fuzz_rng(20261106)
         for _ in range(_FUZZ_ITERS):
             line = "".join(
                 rng.choice('data: [DONE]{}"x,5 \r') for _ in range(rng.randint(0, 20))
@@ -522,7 +523,7 @@ class TestSseEvents:
 
     def test_fuzz_json_lines_escape_family(self) -> None:
         """``data: <随机 JSON>``：产出事件或跳过——绝不静默出 done、零逃逸。"""
-        rng = random.Random(20261107)  # noqa: S311
+        rng = fuzz_rng(20261107)
         escapes: dict[str, int] = {}
         for _ in range(_FUZZ_ITERS):
             line = f"data: {json.dumps(_gen_json(rng))}"
@@ -631,7 +632,7 @@ def _result_invariants(r: cl.ChatResult, latency: float) -> None:
 class TestParseOpenaiFuzz:
     def test_fuzz_payload_escape_family(self) -> None:
         """随机协议形状载荷 → ChatResult | ChatError | C3 逃逸族，三分天下。"""
-        rng = random.Random(20261108)  # noqa: S311
+        rng = fuzz_rng(20261108)
         c = _mock(lambda _r: _json({}))
         outcomes: dict[str, int] = {"result": 0, "chaterror": 0, "escape": 0}
         for _ in range(_FUZZ_ITERS):
@@ -743,7 +744,7 @@ class TestParseOpenaiFuzz:
 
 class TestParseAnthropicFuzz:
     def test_fuzz_payload_escape_family(self) -> None:
-        rng = random.Random(20261109)  # noqa: S311
+        rng = fuzz_rng(20261109)
         c = _mock(lambda _r: _json({}), base_url=_ANTHROPIC)
         outcomes: dict[str, int] = {"result": 0, "chaterror": 0, "escape": 0}
         for _ in range(_FUZZ_ITERS):
@@ -856,7 +857,7 @@ class TestDiscoverFuzz:
 
     def test_fuzz_members_oracle(self) -> None:
         """随机 panel 成员集 → 返回 uid 序 == 独立 oracle 或落 C5 逃逸族。"""
-        rng = random.Random(20261110)  # noqa: S311
+        rng = fuzz_rng(20261110)
         escapes = 0
         for _ in range(_FUZZ_ITERS_MED):
             members = [
@@ -1006,7 +1007,7 @@ class TestListPanelAsymmetry:
 class TestRankModelsFuzz:
     def test_fuzz_oracle(self) -> None:
         """随机 FreeModel 集 → 偏好序前缀 + 其余字典序，无重复、∈ 探活集。"""
-        rng = random.Random(20261111)  # noqa: S311
+        rng = fuzz_rng(20261111)
         pool = [
             "swe-2-medium",
             "swe-2-high",
@@ -1064,7 +1065,7 @@ class TestRankModelsFuzz:
 class TestUrlSurfaces:
     def test_fuzz_never_raises(self) -> None:
         """三 URL 函数对任意 str 绝不抛。"""
-        rng = random.Random(20261112)  # noqa: S311
+        rng = fuzz_rng(20261112)
         soup = "htp:/@.[]abcXYZ01234:/\t\n\x00é²-_%~?#&="
         for _ in range(_FUZZ_ITERS):
             u = "".join(rng.choice(soup) for _ in range(rng.randint(0, 30)))
@@ -1134,7 +1135,7 @@ class TestUrlSurfaces:
 
     def test_fuzz_normalize_invariants(self) -> None:
         """归一输出恒无尾 ``/``；剥后缀只认三个已知形。"""
-        rng = random.Random(20261113)  # noqa: S311
+        rng = fuzz_rng(20261113)
         suffixes = [
             "",
             "/",
@@ -1159,7 +1160,7 @@ class TestUrlSurfaces:
 class TestRedactFuzz:
     def test_fuzz_key_never_survives(self) -> None:
         """非空 api_key 值绝不留存输出；``redact`` 幂等。"""
-        rng = random.Random(20261114)  # noqa: S311
+        rng = fuzz_rng(20261114)
         soup = [
             "Bearer ",
             "sk-",
@@ -1181,7 +1182,7 @@ class TestRedactFuzz:
 
     def test_fuzz_secret_forms_covered(self) -> None:
         """已知 secret 形全灭：Bearer/sk-/sk-ant-/AIza/kv 族。"""
-        rng = random.Random(20261115)  # noqa: S311
+        rng = fuzz_rng(20261115)
         for _ in range(_FUZZ_ITERS):
             tok = "".join(
                 rng.choice("abcdefghijABCDEFGH_0123456789-")
@@ -1388,7 +1389,7 @@ class TestFallbackArm:
 class TestUsageSinkFuzz:
     def test_fuzz_sink_once_per_success(self) -> None:
         """任意 (status, body) 下 sink 恰记一笔 iff 拿到 ChatResult。"""
-        rng = random.Random(20261116)  # noqa: S311
+        rng = fuzz_rng(20261116)
         for _ in range(_FUZZ_ITERS_WIRE):
             recs: list[cl.UsageRecord] = []
             status = rng.choice([200, 200, 200, 400, 401, 404, 429, 500, 503])
@@ -1429,7 +1430,7 @@ class TestUsageSinkFuzz:
 class TestProbeFuzz:
     def test_fuzz_never_raises_oracle(self) -> None:
         """任意响应形态只回 ``FreeModel``——``probe_ok`` 与独立判据一致。"""
-        rng = random.Random(20261117)  # noqa: S311
+        rng = fuzz_rng(20261117)
         for _ in range(_FUZZ_ITERS_WIRE):
             status = rng.choice([200, 200, 200, 429, 500, 503])
             payload = _gen_openai_payload(rng)
@@ -1510,7 +1511,7 @@ class TestChatWireFuzz:
     def test_fuzz_only_known_outcomes(self) -> None:
         """任意 (status, payload) 下 ``chat()`` 两分天下：
         ChatResult | ChatError——绝不静默返回错误内容、零裸逃。"""
-        rng = random.Random(20261118)  # noqa: S311
+        rng = fuzz_rng(20261118)
         escapes = 0
         for _ in range(_FUZZ_ITERS_WIRE):
             status = rng.choice([200, 200, 200, 400, 401, 402, 404, 408, 429, 500, 503])
@@ -1535,7 +1536,7 @@ class TestChatWireFuzz:
     def test_fuzz_stream_only_known_outcomes(self) -> None:
         """随机 SSE 字节汤 → 事件流 | ChatError（坏形状行跳过）；
         ``[DONE]`` 之后绝不再产事件。"""
-        rng = random.Random(20261119)  # noqa: S311
+        rng = fuzz_rng(20261119)
         escapes = 0
         soup_lines = [
             'data: {"choices":[{"delta":{"content":"x"}}]}',

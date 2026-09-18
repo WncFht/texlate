@@ -4,12 +4,12 @@ r"""latex/ 对抗性二审探针（audit 2026-09-15）：benchmark 门没照到�
 corpus 依赖的 property 测试带 skipif 守卫（bench/corpus* 是 gitignored 数据层）。
 """
 
-import random
 import re
 import time
 from pathlib import Path
 
 import pytest
+from _fuzzkit import fuzz_rng
 from conftest import DOC, blob, scan_doc
 
 from texlate.latex import parse_file, parse_tex, reconstruct
@@ -310,7 +310,7 @@ _TOKENS = [
 
 def test_audit_fuzz_never_raises_tiles_identity() -> None:
     """token 汤 fuzz：零异常 + pieces 无缝平铺 + protected_tex 自洽 + identity。"""
-    rng = random.Random(42)  # noqa: S311 — 测试用确定性种子，非加密用途
+    rng = fuzz_rng(42)
     for _ in range(400):
         tex = "".join(rng.choice(_TOKENS) for _ in range(rng.randint(1, 40)))
         res = parse_tex(tex)  # 铁律 1：绝不抛异常
@@ -325,7 +325,7 @@ def test_audit_fuzz_never_raises_tiles_identity() -> None:
 
 def test_audit_fuzz_random_bytes() -> None:
     """纯随机字节 fuzz（含 \\r/|/<> 等脏字符）：零异常 + 平铺 + identity。"""
-    rng = random.Random(7)  # noqa: S311 — 测试用确定性种子，非加密用途
+    rng = fuzz_rng(7)
     alpha = "abcd$%{}[]\\~^_&# \t\n\r|<>*-=+':;,.!?/0123456789"
     for _ in range(400):
         tex = "".join(rng.choice(alpha) for _ in range(rng.randint(0, 200)))
@@ -368,7 +368,7 @@ def _corpus_mains() -> list[Path]:
 def test_audit_corpus_pieces_tiling_sample() -> None:
     """corpus_v3 抽样：pieces 平铺 + protected_tex 自洽 + reconstruct 无异常。"""
     mains = _corpus_mains()
-    rng = random.Random(1)  # noqa: S311 — 测试用确定性种子，非加密用途
+    rng = fuzz_rng(1)
     for f in rng.sample(mains, min(60, len(mains))):
         res = parse_file(f)
         pos = 0

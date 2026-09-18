@@ -26,11 +26,12 @@ r"""跨层一致性 fuzz —— ``texlog.update_file_stack`` → ``loginfo.parse
 
 from __future__ import annotations
 
-import random
 import re
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
+from _fuzzkit import fuzz_rng
 
 from texlate.compile.engine import CompRes
 from texlate.compile.fixloop._yamlish import load_yaml
@@ -45,6 +46,9 @@ from texlate.compile.judge import (
 from texlate.compile.loginfo import parse_log as eng_parse_log
 from texlate.texlog import update_file_stack
 from texlate.validate.l2 import _REDLINE_CLASSES, parse_log_text
+
+if TYPE_CHECKING:
+    import random
 
 # ---------------------------------------------------------------- 常量与构造
 
@@ -90,7 +94,7 @@ def _three(text: str) -> tuple[int, int, int]:
 
 def test_misschar_gate_nullfont_exact_partition() -> None:
     """gate+nullfont 恰划分所有 ``Missing character`` 字面出现位。"""
-    rng = random.Random(20260917)  # noqa: S311 -- 确定性种子复现
+    rng = fuzz_rng(20260917)
     fonts = ["nullfont", "cmr10", "[lmroman12-regular]:mapping=tex-text;"]
     chars = ["中", ";", ")", "(", "", "1"]
     anns = ["(U+4E2D)", '("4E2D)', '("FFFD)', ""]
@@ -198,7 +202,7 @@ def _gen_log(rng: random.Random) -> tuple[str, dict[str, int]]:
 
 def test_fuzz_l2_misschar_census_agrees() -> None:
     """l2 by_class 缺字四类 == 逐行 census；judge 门控数 == 非 nullfont 行数。"""
-    rng = random.Random(20260918)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260918)
     for _ in range(2500):
         text, exp = _gen_log(rng)
         v = parse_log_text(text)
@@ -221,7 +225,7 @@ def test_fuzz_l2_misschar_census_agrees() -> None:
 
 def test_fuzz_sys_hits_only_invalid_utf8() -> None:
     """``sys_hits`` 仅 ``invalid_utf8@`` 形态——设计内唯一降级类。"""
-    rng = random.Random(20260919)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260919)
     warn_pool = [
         "Invalid UTF-8 byte C3 in input.",
         "Missing character: There is no 中 (U+4E2D) in font cmr10!",
@@ -266,7 +270,7 @@ def test_real_logs_three_layer_error_count() -> None:
 
 def test_fuzz_canonical_log_three_layer_agree() -> None:
     """合成规范 log：计数/首错/首错栈三层一致。"""
-    rng = random.Random(20260920)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260920)
     for _ in range(1500):
         text, exp = _gen_log(rng)
         assert _three(text) == (exp["n_errors"],) * 3, text
@@ -280,7 +284,7 @@ def test_fuzz_canonical_log_three_layer_agree() -> None:
 
 def test_fuzz_mutated_real_log_agreement() -> None:
     """真实 log 注入 `!`/fileline 伪错 → 三层同步 +1；抽掉首行 → engine=None。"""
-    rng = random.Random(20260921)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260921)
     for p in _REAL_LOGS:
         lines = p.read_text(errors="replace").splitlines()
         base = _three("\n".join(lines) + "\n")
@@ -302,7 +306,7 @@ def test_fuzz_mutated_real_log_agreement() -> None:
 
 def test_fuzz_l2_structural_invariants() -> None:
     """``first_error==errors[0]``、errors≤200、ctx≤8、tail=末30、栈全具名。"""
-    rng = random.Random(20260922)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260922)
     for _ in range(1200):
         text, _ = _gen_log(rng)
         v = parse_log_text(text)
@@ -329,7 +333,7 @@ def test_l2_error_cap_boundary() -> None:
 
 def test_fuzz_update_file_stack_parens() -> None:
     """增量栈与裸括弧记账 oracle 一致；misschar 字形括弧豁免。"""
-    rng = random.Random(20260923)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260923)
     soup = [
         "(",
         ")",

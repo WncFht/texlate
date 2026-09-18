@@ -23,10 +23,12 @@
 from __future__ import annotations
 
 import codecs
-import random
 import re
 import sys
 from collections import Counter
+from typing import TYPE_CHECKING
+
+from _fuzzkit import fuzz_rng
 
 from texlate import textutil
 from texlate.textutil import (
@@ -47,6 +49,9 @@ from texlate.textutil import (
     ph_in_cs_net,
     sniff_tex_encoding,
 )
+
+if TYPE_CHECKING:
+    import random
 
 # ---------------------------------------------------------------- mask_comments
 
@@ -91,7 +96,7 @@ _COMMENT_ALPHA = [
 def test_fuzz_mask_comments_oracle() -> None:
     """随机 %/\\/换行汤：oracle 全等 + 等长 + 换行位不动 + 幂等 + 存活 ``%``
     恒为奇数反斜杠 run 后。"""
-    rng = random.Random(20260917)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260917)
     for _ in range(4000):
         t = "".join(rng.choice(_COMMENT_ALPHA) for _ in range(rng.randint(0, 50)))
         m = mask_comments(t)
@@ -161,7 +166,7 @@ def _check_mask_view(src: str, masked: str) -> None:
 
 def test_fuzz_mask_tex_invariants() -> None:
     """随机 TeX 汤 × 三种 flag 组合：等长 + 逐字白名单 + 换行保留 + 幂等。"""
-    rng = random.Random(20260918)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260918)
     kws = [{}, {"mask_dead": False}, {"keep_verbatim": True}]
     for _ in range(3000):
         t = "".join(rng.choice(_TEX_TOKENS) for _ in range(rng.randint(0, 40)))
@@ -175,7 +180,7 @@ def test_fuzz_mask_tex_invariants() -> None:
 def test_fuzz_mask_tex_equals_mask_comments_no_cs() -> None:
     """受限 alphabet（``\\`` 后不随字母——verbatim env/``\\verb``/cs 均不可能
     成形）下 ``mask_tex`` 与 ``mask_comments`` 逐字节全等。"""
-    rng = random.Random(20260919)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260919)
     alpha = [
         *"ab %~{}()[]0123456789",
         "\\\\",
@@ -210,7 +215,7 @@ def _lev_full(a: str, b: str) -> int:
 def test_fuzz_lev_capped_matches_full_oracle() -> None:
     """小 alphabet 随机串 × 随机 cap：``lev_capped == min(真距离, cap+1)``，
     对称、自身距离 0、返回值恒 ``≤ cap+1``。"""
-    rng = random.Random(20260920)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260920)
     alpha = "abc中"
     for _ in range(20000):
         a = "".join(rng.choice(alpha) for _ in range(rng.randint(0, 7)))
@@ -293,7 +298,7 @@ def _gen_blob(rng: random.Random) -> bytes:
 def test_fuzz_decode_tex_never_raises() -> None:
     """任意对抗字节：``decode_tex`` 不抛、返回 str、无 ``\\r``、与
     ``decode_tex_with`` 一致、双调确定。"""
-    rng = random.Random(20260921)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260921)
     for _ in range(1500):
         blob = _gen_blob(rng)
         out = decode_tex(blob)
@@ -308,7 +313,7 @@ def test_fuzz_decode_tex_never_raises() -> None:
 def test_fuzz_sniff_verdict_shape() -> None:
     """verdict 结构不变量：basis 登记集内、双调相等、非 mixed 的 encoding
     必为可 lookup codec、declared 为 None 或 str。"""
-    rng = random.Random(20260922)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260922)
     for _ in range(1500):
         blob = _gen_blob(rng)
         v1 = sniff_tex_encoding(blob)
@@ -327,7 +332,7 @@ def test_fuzz_decode_tex_utf8_roundtrip() -> None:
     UTF-8 与 utf-16 文本的内禀歧义，判定序是刻意的）与文首 U+FEFF
     （与 BOM 字节不可区分，utf-8-sig 语义剥除）。
     """
-    rng = random.Random(20260923)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260923)
     pool = (
         [chr(c) for c in range(0x20, 0x7F)]
         + ["é", "中", "文", "字", "α", "β", "—", "“", "”", "\U0001f600", "ß", "َ"]
@@ -369,7 +374,7 @@ _CS_NAME_RX = re.compile(r"\\([a-zA-Z][a-zA-Z@]*)")
 
 def test_fuzz_ph_in_cs_net_properties() -> None:
     """``net(a,b)``/``net(b,a)`` 键集恒不交、自净差空、键恒夹持形、计数正。"""
-    rng = random.Random(20260924)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260924)
     for _ in range(3000):
         src = "".join(rng.choice(_NET_ALPHA) for _ in range(rng.randint(0, 25)))
         zh = "".join(rng.choice(_NET_ALPHA) for _ in range(rng.randint(0, 25)))
@@ -384,7 +389,7 @@ def test_fuzz_ph_in_cs_net_properties() -> None:
 
 def test_fuzz_bare_cs_net_properties() -> None:
     """自净差空；产出键恒为 zh 遮盖面实存 cs 名且计数不超 zh 实计数。"""
-    rng = random.Random(20260925)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260925)
     for _ in range(3000):
         src = "".join(rng.choice(_NET_ALPHA) for _ in range(rng.randint(0, 25)))
         zh = "".join(rng.choice(_NET_ALPHA) for _ in range(rng.randint(0, 25)))
@@ -403,7 +408,7 @@ def test_fuzz_bare_cs_net_properties() -> None:
 
 def test_fuzz_eol_norm_oracle() -> None:
     """``\\r\\n``/``\\r`` → ``\\n``：独立 regex oracle 全等 + 幂等 + 无 ``\\r``。"""
-    rng = random.Random(20260926)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260926)
     oracle = re.compile(r"\r\n|\r")
     alpha = [*"ab\t", "\r\n", "\n", "\r", "\n\r", "\r\r\n"]
     for _ in range(3000):
@@ -419,7 +424,7 @@ def test_fuzz_eol_norm_oracle() -> None:
 
 def test_json_fence_rx_roundtrip() -> None:
     """构造 fence 串：body 组逐字还原；非 fence 形不匹配。"""
-    rng = random.Random(20260927)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260927)
     for _ in range(300):
         inner = "".join(
             rng.choice("ab{} \n\t\"':,数据") for _ in range(rng.randint(0, 40))
@@ -472,7 +477,7 @@ def test_dead_envs_masked_by_default() -> None:
 def test_fuzz_is_cjk_cp_cross_check() -> None:
     """``is_cjk_cp``（bisect 面）与线性 spec + ``CJK_RX`` 三方互洽——随机码点
     + 区间边界邻域。"""
-    rng = random.Random(20260928)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260928)
     spec = lambda cp: any(lo <= cp <= hi for lo, hi in CJK_RANGES)  # noqa: E731
     cps = {rng.randint(0, 0x10FFFF) for _ in range(4000)}
     for lo, hi in CJK_RANGES:

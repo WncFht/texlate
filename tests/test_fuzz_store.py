@@ -31,12 +31,12 @@
 from __future__ import annotations
 
 import asyncio
-import random
 import sqlite3
 import threading
 from typing import TYPE_CHECKING, Any
 
 import pytest
+from _fuzzkit import fuzz_rng
 
 from texlate.server.events import _RESYNC, _SUB_QUEUE_MAX, EventBus, sse_frame
 from texlate.server.store import (
@@ -159,7 +159,7 @@ def test_fuzz_transition_matrix(tmp_path: Path) -> None:
 
 def test_fuzz_transition_walk(tmp_path: Path) -> None:
     """随机游走 + oracle 逐步对账（含 force 钉脏态再拒非 force 出）。"""
-    rng = random.Random(20261102)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20261102)
     s = _store(tmp_path)
     tids = [_mk_task(s) for _ in range(_N_TASKS)]
     state = dict.fromkeys(tids, "queued")
@@ -224,7 +224,7 @@ def test_transition_field_effects(tmp_path: Path) -> None:
 
 def test_fuzz_task_id_oracle() -> None:
     """规范形放行；错长/错前缀/非 hex/空全拒。"""
-    rng = random.Random(20261103)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20261103)
     for _ in range(_ID_ITERS):
         tid = new_task_id()
         assert valid_task_id(tid)
@@ -261,7 +261,7 @@ def test_task_id_leniency_pinned() -> None:
 
 def test_fuzz_events_seq(tmp_path: Path) -> None:
     """逐任务 seq 从 1 连续单调；events_since(k) 精确回放 k+1..。"""
-    rng = random.Random(20261104)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20261104)
     s = _store(tmp_path)
     tids = [_mk_task(s) for _ in range(_N_TASKS)]
     expected = dict.fromkeys(tids, 0)
@@ -424,7 +424,7 @@ def test_delete_task_cascade_idempotent(tmp_path: Path) -> None:
 def test_fuzz_recover_startup(tmp_path: Path) -> None:
     """混合脏状态恢复：ACTIVE-queued → interrupted/needs_auth(header)；
     queued+header → needs_auth；queued 清 worker_id；终态不碰；二次幂等。"""
-    rng = random.Random(20261105)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20261105)
     s = _store(tmp_path)
     exp_status: dict[str, str] = {}
     claimed: set[str] = set()

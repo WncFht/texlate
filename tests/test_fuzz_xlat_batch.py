@@ -29,12 +29,12 @@ from __future__ import annotations
 
 import asyncio
 import json
-import random
 import re
 from collections.abc import Awaitable, Callable
 from typing import Any
 
 import pytest
+from _fuzzkit import fuzz_rng
 
 from texlate.xlat import batch as xb
 from texlate.xlat import pipeline as xp
@@ -188,7 +188,7 @@ class TestPackBatches:
 
     def test_fuzz_overhead_partition_oracle(self) -> None:
         """随机 (max_chars, overhead)：保序划分 + 硬帽不超（等大填充由单元钉）。"""
-        rng = random.Random(20261201)  # noqa: S311 -- 确定性种子
+        rng = fuzz_rng(20261201)
         for _ in range(_FUZZ_MED):
             contents = ["x" * rng.randint(0, 300) for _ in range(rng.randint(0, 20))]
             max_chars = rng.choice([1, 8, 50, 300, 2000])
@@ -497,7 +497,7 @@ class TestAssembleSlots:
 
     def test_fuzz_identity_oracle(self) -> None:
         """随机编码文本走 _make_slots→identity 装配 == decode_newlines。"""
-        rng = random.Random(20261202)  # noqa: S311 -- 确定性种子
+        rng = fuzz_rng(20261202)
         soup = ["word ", "[[MATH_1]]", "[[CITE_2]]", "[[SL]]", " ", "x", " tail"]
         for _ in range(_FUZZ_MED):
             raw = "".join(rng.choice(soup) for _ in range(rng.randint(0, 15)))
@@ -536,7 +536,7 @@ class TestSlotsRound:
 
     def test_fuzz_group_partition_order(self) -> None:
         """随机 pending 规模：组大小 ≤8、连续切分、拼接序 == pending 插入序。"""
-        rng = random.Random(20261203)  # noqa: S311 -- 确定性种子
+        rng = fuzz_rng(20261203)
         for _ in range(300):
             n = rng.randint(0, 30)
             groups: list[list[str]] = []
@@ -694,7 +694,7 @@ class TestBuildWorkItems:
 
     def test_fuzz_kind_homogeneity(self) -> None:
         """随机 pending：批内 kind 恒同质、批 ≥2 成员、seq 连续、全体划分。"""
-        rng = random.Random(20261204)  # noqa: S311 -- 确定性种子
+        rng = fuzz_rng(20261204)
         p = xp.XlatPipeline(_T(lambda u: u), config=_cfg(batch_max_chars=40))
         for _ in range(300):
             pending = [
@@ -936,7 +936,7 @@ class TestPipelineBatch:
 class TestParseFuzz:
     def test_fuzz_anchored_attribution_never_misaligns(self) -> None:
         """良构响应（行首 [k] + 任意乱序）永不错配——独立 oracle 逐段对账。"""
-        rng = random.Random(20261205)  # noqa: S311 -- 确定性种子
+        rng = fuzz_rng(20261205)
         words = ["alpha", "beta", "gamma", "[x]", "[a]", "中文", "@@", "}", "$"]
         for _ in range(_FUZZ_MED):
             n = rng.randint(1, 8)
@@ -961,7 +961,7 @@ class TestParseFuzz:
 
     def test_fuzz_garbage_none_or_n_nonempty(self) -> None:
         """标记系垃圾汤：只许 None 或恰 n 段非空——绝不部分错位。"""
-        rng = random.Random(20261206)  # noqa: S311 -- 确定性种子
+        rng = fuzz_rng(20261206)
         junk = [
             "[1]",
             "[2]",

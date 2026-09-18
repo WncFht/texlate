@@ -78,15 +78,16 @@
 from __future__ import annotations
 
 import os
-import random
 import re
 import string
 import subprocess
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 import yaml
+from _fuzzkit import fuzz_rng
 
 from texlate.repair import resolve_glossary_path  # 私有函数即被测对象
 from texlate.xlat.glossary import (
@@ -99,6 +100,9 @@ from texlate.xlat.glossary import (
     load_yaml,
 )
 from texlate.xlat.placeholders import sort_key
+
+if TYPE_CHECKING:
+    import random
 
 # ---------------------------------------------------------------- 常量与 soup
 
@@ -454,7 +458,7 @@ def test_fuzz_glossary_path_jail(jail_tree: tuple[Path, Path, Path]) -> None:
 
     崩溃族（NUL/>255B）由 xfail 钉单独覆盖；本汤全界内——抛即新缺陷。
     """
-    rng = random.Random(_SEED_JAIL)  # noqa: S311 -- 确定性种子复现
+    rng = fuzz_rng(_SEED_JAIL)
     base, gdir, outside = jail_tree
     for _ in range(_FUZZ_ITERS):
         n = rng.randint(0, 4)
@@ -473,7 +477,7 @@ def test_fuzz_glossary_path_jail(jail_tree: tuple[Path, Path, Path]) -> None:
 
 def test_fuzz_glossary_path_jail_forest(tmp_path: Path) -> None:
     """随机 symlink 林（内/外/悬挂/环）× 随机名——同牢笼不变量。"""
-    rng = random.Random(_SEED_JAIL + 1)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(_SEED_JAIL + 1)
     outside = tmp_path / "outside"
     outside.mkdir()
     (outside / "sec.yaml").write_text("leak: 1\n", encoding=_MODE)
@@ -617,7 +621,7 @@ def test_flatten_terms_null_is_identity(data: object) -> None:
 
 def test_fuzz_flatten_terms_contract() -> None:
     """随机结构汤——只回 ``dict[str,str]``（键非空）或 ``TypeError``，他型不抛。"""
-    rng = random.Random(_SEED_FLAT)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(_SEED_FLAT)
     atoms: list[object] = ["a", "1", 0, 1, True, False, None, 3.5, "é", " "]
 
     def gen(depth: int = 0) -> object:
@@ -696,7 +700,7 @@ def test_load_csv_deterministic(tmp_path: Path) -> None:
 
 def test_fuzz_load_csv_contract(tmp_path: Path) -> None:
     """随机行流——恒 ``dict[str,str]`` 键非空、重载同果。"""
-    rng = random.Random(_SEED_CSV)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(_SEED_CSV)
     for i in range(_FUZZ_ITERS_MED):
         lines = [
             ",".join(rng.choice(_CSV_FIELD_SOUP) for _ in range(rng.randint(1, 4)))
@@ -948,7 +952,7 @@ def test_fuzz_load_precedence_oracle(  # noqa: C901 -- 分层构造天然多支�
     oracle = 按层序 ``setdefault`` 重放我自己写出的表（文件内容即生成
     物——无解析黑盒）；类目声明序含重复与未登记项。
     """
-    rng = random.Random(_SEED_LOAD)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(_SEED_LOAD)
     cats_pool = ("cA", "cB", "cC")
     ens = ["alpha", "beta", "gamma", "delta", "eps", "zeta", "[[PH_1]]", "[[M_2]]"]
     zhs = ["甲", "乙", "丙", "丁"]
@@ -1239,7 +1243,7 @@ def test_doc_filter_output_order() -> None:
 
 def test_fuzz_doc_filter_oracle() -> None:
     """随机术语表 × 随机文本——命中集与输出序全量对独立 oracle。"""
-    rng = random.Random(_SEED_FILTER)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(_SEED_FILTER)
     for _ in range(_FUZZ_ITERS_MED):
         g = Glossary()
         for _ in range(rng.randint(0, 10)):

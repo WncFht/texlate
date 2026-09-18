@@ -70,7 +70,6 @@ import argparse
 import io
 import json
 import logging
-import random
 import secrets
 import stat
 import threading
@@ -79,6 +78,7 @@ from http import HTTPStatus
 from typing import TYPE_CHECKING, Any
 
 import pytest
+from _fuzzkit import fuzz_rng
 
 pytest.importorskip("fastapi", reason="server extra 未装")
 pytest.importorskip("starlette.testclient", reason="server extra 未装")
@@ -191,7 +191,7 @@ class TestValidateBaseUrl:
         """任意垃圾串：只许 ``ValueError`` 或合法串——不许第三类异常逃逸。"""
         from urllib.parse import urlsplit  # noqa: PLC0415
 
-        rng = random.Random(20260917)  # noqa: S311 -- 非安全语义的定序 fuzz
+        rng = fuzz_rng(20260917)
         alphabet = "ab:/.@?#[]=&%\x00-_~é中"
         for _ in range(400):
             s = "".join(rng.choice(alphabet) for _ in range(rng.randrange(40)))
@@ -795,7 +795,7 @@ class TestFeed:
     """``_Feed`` 字节流 → 进度/统计/错误的归类不变量。"""
 
     def test_random_bytes_and_bounds(self) -> None:
-        rng = random.Random(7)  # noqa: S311 -- 定序 fuzz
+        rng = fuzz_rng(7)
         feed = bd._Feed()  # noqa: SLF001
         for _ in range(_FEED_CHUNKS):
             feed.feed(
@@ -1279,7 +1279,7 @@ class TestMainEntry:
             with pytest.raises(argparse.ArgumentTypeError, match=r"."):
                 m._port(raw)  # noqa: SLF001
         # 任意字符串：ArgumentTypeError 或 1-65535 内 int
-        rng = random.Random(3)  # noqa: S311 -- 定序 fuzz
+        rng = fuzz_rng(3)
         alphabet = "0123456789+-. _ex８９"
         for _ in range(200):
             s = "".join(rng.choice(alphabet) for _ in range(rng.randrange(8)))

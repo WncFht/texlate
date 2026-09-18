@@ -28,13 +28,13 @@ from __future__ import annotations
 
 import json
 import os
-import random
 import re
 from collections import Counter
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING
 
 import pytest
+from _fuzzkit import fuzz_rng
 
 from texlate.compile import shadow
 from texlate.compile.mask import TEX_SOURCE_SUFFIXES, visible_tex
@@ -56,6 +56,7 @@ from texlate.compile.transcode import (
 from texlate.textutil import decode_tex, sniff_tex_encoding
 
 if TYPE_CHECKING:
+    import random
     from collections.abc import Mapping
 
 _DIR = object()  # 目录占位（rglob 只见文件，断言其存活即可）
@@ -643,7 +644,7 @@ def test_fuzz_project_tree_matrix(
     （字节同 + 零改写台账 + encodings 二跑只能 strict-utf8）。
     """
     monkeypatch.setattr(shadow.shutil, "which", lambda *_a: None)
-    rng = random.Random(20261101)  # noqa: S311 -- 确定性种子复现，非加密用途
+    rng = fuzz_rng(20261101)
     outside = tmp_path / "_outside_target"
     outside.write_bytes(b"outside \xe9 latin\n\\pdfcompresslevel=9\n")
     for i in range(_TREE_ITERS):
@@ -687,7 +688,7 @@ def test_fuzz_project_tree_matrix(
 
 def test_fuzz_engine_text_matrix() -> None:
     """``normalize_engine`` token 汤：幂等 + 行数不减 + 可见面 token 清除。"""
-    rng = random.Random(20261102)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20261102)
     engines = ["xelatex", "tectonic", "lualatex", "pdflatex", "", "weird"]
     for _ in range(_ENGINE_ITERS):
         parts = [rng.choice(_TEX_ANCHORS) for _ in range(rng.randint(0, 14))]
@@ -729,7 +730,7 @@ def test_fuzz_ps_arm_line_oracle(
 ) -> None:
     """PS 族后缀随机件：DOS 魔数逐字节不动 + 逐行净化 oracle。"""
     monkeypatch.setattr(shadow.shutil, "which", lambda *_a: None)
-    rng = random.Random(20261103)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20261103)
     suffixes = [".eps", ".epsi", ".epsf", ".mps", ".ps"]
     for i in range(_PS_ITERS):
         root = tmp_path / f"p{i}"
@@ -751,7 +752,7 @@ def test_fuzz_intermediate_tail_matrix(
 ) -> None:
     """中间产物截尾整形：在场 ⇒ 空或 ``\\n`` 收尾 + strict-UTF-8；缺席 ⇒ purged。"""
     monkeypatch.setattr(shadow.shutil, "which", lambda *_a: None)
-    rng = random.Random(20261104)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20261104)
     for i in range(_AUX_ITERS):
         root = tmp_path / f"a{i}"
         root.mkdir()
@@ -781,7 +782,7 @@ def test_fuzz_bundled_bbl_matrix(tmp_path: Path) -> None:
     → 恰好替换**首个**缺库者为 ``\\input{relpath.bbl}``；relpath 出
     ``..`` → 该命令跳过且后续同样不换（relpath 与 name 无关）。
     """
-    rng = random.Random(20261105)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20261105)
     for i in range(_BBL_ITERS):
         proj = tmp_path / f"b{i}"
         sub = proj / rng.choice(["", "chaps"])
@@ -831,7 +832,7 @@ def test_fuzz_rebase_violations_oracle(tmp_path: Path) -> None:
     不再计 violation；遮盖区（comment/verbatim）token 两边都不见。
     比对维度：violations 的**捕获名**多重集必须恰等于期望集。
     """
-    rng = random.Random(20261106)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20261106)
     name_pool = [
         "../shared/x.tex",
         "../../deep/y.tex",
@@ -935,7 +936,7 @@ def _rebase_oracle(root: Path, name: str) -> str | None:
 def test_fuzz_junk_stub_matrix(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """junk 名单逐名 stub：命中件覆写为 stub；非名单/大小写变体不动。"""
     monkeypatch.setattr(shadow.shutil, "which", lambda *_a: None)
-    rng = random.Random(20261107)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20261107)
     for i in range(80):
         root = tmp_path / f"j{i}"
         root.mkdir()

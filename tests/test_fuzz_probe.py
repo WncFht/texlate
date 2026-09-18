@@ -25,7 +25,6 @@ region 边界（preamble/死尾）与文件名清洗按 docs/08 §3.4 语义独�
 from __future__ import annotations
 
 import os
-import random
 import re
 from collections import Counter
 from dataclasses import dataclass, field
@@ -33,6 +32,7 @@ from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING
 
 import pytest
+from _fuzzkit import fuzz_rng
 
 from texlate.compile.engine import (
     BITMAP_FONT_PKG_NAMES,
@@ -50,6 +50,7 @@ from texlate.compile.probe import (
 from texlate.textutil import decode_tex
 
 if TYPE_CHECKING:
+    import random
     from collections.abc import Iterable
 
 #: 注入用迷你 tlpdb 索引——basename → [TL 包]（全离线，绝不 ensure）。
@@ -575,7 +576,7 @@ def _check_report(rep: ProbeReport, root: Path, index: TlpdbIndex) -> None:
 def test_fuzz_target_probe_structured_trees(tmp_path: Path) -> None:
     """生成侧 oracle 对拍：inputs 精确 BFS 序、deps 集合、missing 多重集、
     tl_packages/prefer_engine/flags 全等 + 结构不变量 + 确定性。"""
-    rng = random.Random(20260917)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260917)
     for i in range(140):
         tree = tmp_path / f"t{i}"
         tree.mkdir()
@@ -611,7 +612,7 @@ def test_fuzz_target_probe_structured_trees(tmp_path: Path) -> None:
 
 def test_fuzz_target_probe_adversarial(tmp_path: Path) -> None:
     """字节汤/截断/目录当 .tex/空文件/对抗 main_rel：恒不抛 + 结构不变量。"""
-    rng = random.Random(20260918)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260918)
     good_tex = (
         "\\documentclass{article}\n\\input{macros}\n\\begin{document}x\\end{document}\n"
     )
@@ -831,7 +832,7 @@ def _o_match(recorded: frozenset[str], fname: str) -> bool:
 def test_fuzz_deps_diff_oracle() -> None:
     """随机 expected/recorded：seen/unseen/extra == 规范化集合差分；
     ``saw`` == 独立判据；``dep_seen`` 与 ``deps_diff([],rec).saw`` 恒等。"""
-    rng = random.Random(20260919)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260919)
     for _ in range(2500):
         expected = [_rand_path(rng) for _ in range(rng.randint(0, 8))]
         recorded: list[str] | None = (
@@ -871,7 +872,7 @@ def test_fuzz_deps_diff_oracle() -> None:
 
 def test_dep_seen_monotone_under_superset() -> None:
     """recorded 扩集只能把 saw 翻 False→True（basename 兜底单调性）。"""
-    rng = random.Random(20260920)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260920)
     for _ in range(800):
         rec = {_rand_path(rng) for _ in range(rng.randint(0, 6))}
         extra = {_rand_path(rng) for _ in range(rng.randint(0, 4))}

@@ -38,7 +38,6 @@ import gzip
 import io
 import json
 import math
-import random
 import re
 import tarfile
 import time
@@ -49,8 +48,10 @@ from typing import TYPE_CHECKING
 
 import httpx
 import pytest
+from _fuzzkit import fuzz_rng
 
 if TYPE_CHECKING:
+    import random
     from collections.abc import Callable
 
 from conftest import make_targz
@@ -268,7 +269,7 @@ def _soup(rng: random.Random, n: int) -> str:
 
 def test_fuzz_normalize_never_raises_and_contract() -> None:
     """随机汤：不抛；ver 钉出 ⇒ base 必为 ASCII 合法 id 且 ver ≥ 1。"""
-    rng = random.Random(_SEED)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(_SEED)
     for _ in range(_NORM_ITERS):
         s = _soup(rng, rng.randint(0, 14))
         base, ver = normalize_arxiv_id(s)
@@ -285,7 +286,7 @@ def test_fuzz_normalize_two_step_fixed_point() -> None:
     (自身, None)。若 B 还带 ver 或 base 仍可被改写，说明前缀剥离可无限推进
     或钉版判断不自洽。
     """
-    rng = random.Random(_SEED + 1)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(_SEED + 1)
     for _ in range(_NORM_ITERS):
         s = _soup(rng, rng.randint(0, 12))
         b1, _v1 = normalize_arxiv_id(s)
@@ -355,7 +356,7 @@ def _sniff_oracle(res: SniffResult, blob: bytes, cap: int) -> None:
 
 def test_fuzz_sniff_random_blobs() -> None:
     """随机字节汤：只抛 SniffError；返回结果满足 kind↔payload 契约。"""
-    rng = random.Random(_SEED + 2)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(_SEED + 2)
     for _ in range(_SNIFF_ITERS):
         blob = rng.randbytes(rng.randint(0, 4000))
         if rng.random() < _P_GZIP_MAGIC:
@@ -382,7 +383,7 @@ def _tar_oracle(payload: bytes) -> bool:
 
 def test_fuzz_sniff_gzip_roundtrip() -> None:
     """gzip 往返：未超限 ⇒ payload 逐字节等于原始；tar 与否按可解析性判。"""
-    rng = random.Random(_SEED + 3)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(_SEED + 3)
     for _ in range(300):
         payload = rng.randbytes(rng.randint(0, 3000))
         if rng.random() < _P_USTAR:
@@ -409,7 +410,7 @@ def test_sniff_cap_boundary() -> None:
 
 def test_fuzz_sniff_mutated_gzip() -> None:
     """gzip 流字节变异：SniffError 或自洽结果，绝不抛其他异常。"""
-    rng = random.Random(_SEED + 4)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(_SEED + 4)
     base = bytearray(gzip.compress(b"payload-bytes" * 40))
     for _ in range(400):
         blob = bytearray(base)
@@ -477,7 +478,7 @@ _TEXT_POOL = (
 
 def test_fuzz_wrapper_invariants() -> None:
     """随机 TeX 文本汤：不抛；verdict 字段间逻辑恒真。"""
-    rng = random.Random(_SEED + 5)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(_SEED + 5)
     for _ in range(_WRAP_ITERS):
         src = "".join(rng.choice(_TEXT_POOL) for _ in range(rng.randint(0, 24)))
         cap = rng.choice([0, 1, 100, 2048])
@@ -511,7 +512,7 @@ def test_wrapper_directed() -> None:
 
 def test_fuzz_strip_comments() -> None:
     """任意文本：不抛、行数守恒、幂等、行尾无空白。"""
-    rng = random.Random(_SEED + 6)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(_SEED + 6)
     pieces = [*_TEXT_POOL, "%", "\\%", "%%", "\r\n", "\t", "verb|x|"]
     for _ in range(_STRIP_ITERS):
         src = "".join(rng.choice(pieces) for _ in range(rng.randint(0, 30)))
@@ -541,7 +542,7 @@ _RL_STATUSES = (200, 200, 200, 301, 404, 406, 429, 500, 502, 503, 999, 0)
 
 def test_fuzz_path_class() -> None:
     """任意 path → 四类之一；不抛。"""
-    rng = random.Random(_SEED + 7)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(_SEED + 7)
     chars = "/abcdefghijklmnopqrstuvwxyz.?=&%"
     for _ in range(1000):
         p = "".join(rng.choice(chars) for _ in range(rng.randint(0, 30)))
@@ -554,7 +555,7 @@ def test_fuzz_path_class() -> None:
 
 def test_fuzz_jitter_bounds() -> None:
     """jitter 确定性且恒在 [1-span, 1+span]。"""
-    rng = random.Random(_SEED + 8)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(_SEED + 8)
     for _ in range(500):
         seed = str(rng.random())
         j1, j2 = jitter(seed), jitter(seed)
@@ -565,7 +566,7 @@ def test_fuzz_jitter_bounds() -> None:
 
 def test_fuzz_ratelimit_ops() -> None:
     """随机 acquire/report/clock 推进：异常集封闭 + 预算上界 + park 自洽。"""
-    rng = random.Random(_SEED + 9)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(_SEED + 9)
     clk = _Clock()
     rl = RateLimiter(clock=clk.now, sleep=clk.sleep)
     for _ in range(_RL_OPS):
@@ -604,7 +605,7 @@ def test_ratelimit_state_roundtrip(tmp_path: Path) -> None:
 
 def test_fuzz_ratelimit_corrupt_state(tmp_path: Path) -> None:
     """损坏状态文件（非法 JSON/错型/浮点溢出/垃圾字节）→ 干净起步，不抛。"""
-    rng = random.Random(_SEED + 10)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(_SEED + 10)
     blobs = [
         b"",
         b"{}",
@@ -667,7 +668,7 @@ def test_ratelimit_day_rollover_resets_budget() -> None:
 
 def test_fuzz_find_versions_never_raises(tmp_path: Path) -> None:
     """任意 id 字符串：find_versions 不抛、输出升序非负 int。"""
-    rng = random.Random(_SEED + 11)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(_SEED + 11)
     cache = SourceCache(tmp_path)
     for name in ["2001.00001v1", "2001.00001v3", "2001.00001v2", "xv", "v9", ".v4"]:
         (tmp_path / name).mkdir()
@@ -685,7 +686,7 @@ def test_fuzz_find_versions_never_raises(tmp_path: Path) -> None:
 
 def test_fuzz_cache_get_corrupt_meta(tmp_path: Path) -> None:
     """meta.json 任意字节垃圾（含非 UTF-8）→ miss 或合法 entry，绝不抛。"""
-    rng = random.Random(_SEED + 12)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(_SEED + 12)
     cache = SourceCache(tmp_path)
     d = tmp_path / "2001.00001v1"
     d.mkdir()
@@ -735,7 +736,7 @@ def test_acquire_corrupt_meta_crash_e2e(tmp_path: Path) -> None:
 
 def test_fuzz_cache_commit_roundtrip(tmp_path: Path) -> None:
     """stage→写 meta→commit→get：meta 原样回读；目录名恒 {id}v{ver}；无残渣。"""
-    rng = random.Random(_SEED + 13)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(_SEED + 13)
     cache = SourceCache(tmp_path)
     ids = ["2001.00001", "hep-th/9901001", "cond-mat/0408438", "a.b/1234567"]
     for _ in range(60):
@@ -816,7 +817,7 @@ def _head_oracle(head: HeadInfo, url: str) -> None:
 
 def test_fuzz_parse_head() -> None:
     """随机 header 组合的 _parse_head：不抛 + 字段契约。"""
-    rng = random.Random(_SEED + 14)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(_SEED + 14)
     url = "https://arxiv.org/src/2001.00001"
     for _ in range(_HEAD_ITERS):
         headers: dict[str, str] = {}
@@ -990,7 +991,7 @@ def test_fuzz_acquire_source_scenarios(tmp_path: Path) -> None:
     前崩溃面（非 UTF-8 meta / 4300+ 位版本 / unicode CL / inf Retry-After /
     zlib.error）已由定向用例覆盖——现一律归 ERROR，不再穿透分类网。
     """
-    rng = random.Random(_SEED + 15)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(_SEED + 15)
     for i in range(_ACQ_ITERS):
         aid = rng.choice(_ACQ_IDS)
         head_status = rng.choice(_HEAD_STATUS)
@@ -1160,7 +1161,7 @@ def _check_paper_meta(m: PaperMeta | None) -> None:
 
 def test_fuzz_fetch_metadata_bodies() -> None:
     """Atom/OAI 任意响应体组合：None 或合法 PaperMeta，绝不抛。"""
-    rng = random.Random(_SEED + 16)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(_SEED + 16)
     for _ in range(_META_ITERS):
         atom = rng.choice(_META_BODIES)
         oai = rng.choice(_META_BODIES)
@@ -1184,7 +1185,7 @@ def test_fetch_metadata_bomb_falls_back_to_oai() -> None:
 
 def test_fuzz_resolve_version_contract() -> None:
     """resolve_version：want 给定时结果 ∈ {want, None}；裸调 ∈ {None, ≥1}。"""
-    rng = random.Random(_SEED + 17)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(_SEED + 17)
     for _ in range(200):
         atom = rng.choice(_META_BODIES)
         oai = rng.choice(_META_BODIES)
@@ -1224,7 +1225,7 @@ def _degrade_fetcher(statuses: dict[str, int], clk: _Clock) -> Fetcher:
 
 def test_fuzz_degrade_contract() -> None:
     """degrade：任意原因串 + 随机 HEAD 结局 → 契约一致或 ValueError（坏入参）。"""
-    rng = random.Random(_SEED + 18)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(_SEED + 18)
     valid = {r.value for r in DegradeReason}
     reasons = [*sorted(valid), "bogus", "", "PDF_ONLY ", "stub!"]
     for _ in range(200):
@@ -1269,7 +1270,7 @@ def test_fuzz_degrade_contract() -> None:
 
 def test_fuzz_rfc822_to_iso() -> None:
     """任意日期串：不抛；输出要么原样、要么 ISO Z 形。"""
-    rng = random.Random(_SEED + 19)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(_SEED + 19)
     iso = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
     pool = (
         "Wed, 01 Jan 2020 00:00:00 GMT",
@@ -1410,7 +1411,7 @@ def _locate_invariants(res: LocateResult) -> None:
 
 def test_fuzz_locate_trees(tmp_path: Path) -> None:
     """随机文件树：不抛 + 全套结构不变量 + 进程内确定性。"""
-    rng = random.Random(_SEED + 20)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(_SEED + 20)
     for i in range(_LOCATE_TREES):
         root = tmp_path / f"t{i}"
         root.mkdir()
@@ -1428,7 +1429,7 @@ def test_fuzz_locate_trees(tmp_path: Path) -> None:
 
 def test_fuzz_norm_arg() -> None:
     """\\input 参数归一化：不抛；输出恒为 POSIX 相对路径（无 .. 段、非绝对）。"""
-    rng = random.Random(_SEED + 21)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(_SEED + 21)
     for _ in range(1500):
         arg = _soup(rng, rng.randint(0, 8))
         out = _norm_arg(arg)
@@ -2179,7 +2180,7 @@ _HTML_ITERS = 300
 
 def test_fuzz_parse_html_random_soup() -> None:
     """随机 DOM 汤：不抛非 HtmlError；块 key 唯一；marked data-chunk 1:1。"""
-    rng = random.Random(_SEED + 30)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(_SEED + 30)
     for i in range(_HTML_ITERS):
         body = "".join(rng.choice(_HTML_FRAGS) for _ in range(rng.randint(0, 40)))
         doc = f'<article class="ltx_document">{body}</article>'
@@ -2245,7 +2246,7 @@ def test_fetch_html_stub_check_split_brain() -> None:
 
 def test_fuzz_fetch_html_statuses() -> None:
     """任意 status/body：异常集封闭 + 200 返回体必含 ltx_document 字面。"""
-    rng = random.Random(_SEED + 31)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(_SEED + 31)
     bodies = (
         "<article class='ltx_document'></article>",
         "ltx_document",

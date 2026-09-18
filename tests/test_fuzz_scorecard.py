@@ -39,15 +39,19 @@ from __future__ import annotations
 
 import json
 import math
-import random
 import sys
 from collections import Counter
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import benchlib
 import gate_scorecard
 import pytest
 import triage
+from _fuzzkit import fuzz_rng
+
+if TYPE_CHECKING:
+    import random
 
 _SEED = 20260917
 _ITERS = 300
@@ -186,7 +190,7 @@ def _write_jsonl(path: Path, rows: list) -> None:
 # ================================================================ verdict_sig
 def test_verdict_sig_deterministic() -> None:
     """等值输入（json 深拷贝）→ 同 sig；返回恒为 str。"""
-    rng = random.Random(_SEED)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(_SEED)
     for _ in range(_ITERS):
         v = _rand_verdict(rng)
         fe = rng.choice(_FIRST_ERROR)
@@ -198,7 +202,7 @@ def test_verdict_sig_deterministic() -> None:
 
 def test_verdict_sig_clean_blackout() -> None:
     """status clean/None/缺席 → 恒空 sig，其余字段噪声免疫。"""
-    rng = random.Random(_SEED + 1)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(_SEED + 1)
     for _ in range(_ITERS):
         v = _rand_verdict(rng)
         pick = rng.randrange(3)
@@ -213,7 +217,7 @@ def test_verdict_sig_clean_blackout() -> None:
 
 def test_verdict_sig_explicit_cat_reason_order_insensitive() -> None:
     """显式 cat + 真值 str payload → sig == cat:payload，reasons/first_error 无关。"""
-    rng = random.Random(_SEED + 2)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(_SEED + 2)
     for _ in range(_ITERS):
         cat = rng.choice(["missing_file", "undefined_cs", "syntax", "babel_opt"])
         pay = rng.choice(["a.cls", "x.sty", "\\foo", "实"])
@@ -487,7 +491,7 @@ def test_gate_last_records_filters(tmp_path: Path) -> None:
 
 def test_gate_last_records_fuzz_conservation(tmp_path: Path) -> None:
     """随机行流 → 输出行数 == 去重后可预言数；每个存活 id 取末行。"""
-    rng = random.Random(_SEED + 10)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(_SEED + 10)
     rows: list = []
     oracle: dict[str, dict] = {}
     for i in range(_ITERS):
@@ -626,7 +630,7 @@ def test_gate_main_conservation_fuzz(
 
     终态按 pick_final 文档语义独立复算（csb 匹配 + upstream 相容才接管）。
     """
-    rng = random.Random(_SEED + 11)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(_SEED + 11)
     comp_rows: list = []
     fix_by_id: dict[str, dict] = {}
     for i in range(_N_CELLS):
@@ -934,7 +938,7 @@ def test_gate_union_conservation_fuzz(
 ) -> None:
     """union 口径 fuzz 守恒：Σuni==cells ∧ union_pdf ≥ end_pdf ∧
     union_clean ≥ end_clean；逐格 union rank ≥ end rank。"""
-    rng = random.Random(_SEED + 41)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(_SEED + 41)
     comp_rows: list = []
     fix_by_id: dict[str, dict] = {}
     for i in range(_N_CELLS):
@@ -1043,7 +1047,7 @@ def test_benchlib_errors_sig_guards(errors: object, want: str) -> None:
 def test_load_records_conservation_fuzz(tmp_path: Path) -> None:
     """守恒：Σ 文件（唯一 (id,arm,upstream) 键 + 无 id dict 行）== 输出长度；
     同键末条胜。"""
-    rng = random.Random(_SEED + 20)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(_SEED + 20)
     rdir = tmp_path / "records"
     rdir.mkdir()
     total_oracle = 0
@@ -1103,7 +1107,7 @@ def test_load_records_conservation_fuzz(tmp_path: Path) -> None:
 
 def test_record_sig_deterministic_fuzz() -> None:
     """record_sig 确定性 + 恒 str；空 sig → errors[0] 合成 → nosig:status 兜底。"""
-    rng = random.Random(_SEED + 21)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(_SEED + 21)
     for _ in range(_ITERS):
         rec = _rec(
             "p",
@@ -1149,7 +1153,7 @@ def _ticketed(recs: list[dict]) -> list[dict]:
 
 def test_build_tickets_conservation_fuzz(tmp_path: Path) -> None:
     """Σ count == 非豁免记录数；桶不相交（每记录恰一 (stage,sig)）；排序+sig_id 唯一。"""
-    rng = random.Random(_SEED + 22)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(_SEED + 22)
     recs = [
         _rec(
             f"p{i}",
@@ -1203,7 +1207,7 @@ def test_build_tickets_ok_with_sig_warning() -> None:
 def test_compute_metrics_conservation_fuzz(tmp_path: Path) -> None:
     """逐 cell Σby_status==total ∧ ok/skip ⊆ total ∧ rate∈[0,1]；
     rescued ≤ attempted；pipeline_introduced 归因口径。"""
-    rng = random.Random(_SEED + 23)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(_SEED + 23)
     recs = [
         _rec(
             rng.choice(["a", "b", "c", "d", "e"]),
@@ -1483,7 +1487,7 @@ def _mutate(rec: dict, rng: random.Random) -> dict:  # noqa: C901 -- 变异点�
 )
 def test_real_records_mutated_triage(tmp_path: Path) -> None:
     """真实 stagerun 记录字段值变异 → build_tickets/compute_metrics 不崩且守恒。"""
-    rng = random.Random(_SEED + 30)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(_SEED + 30)
     sample = _sample_records_files(_SAMPLE_PER_FILE, rng)[:_SAMPLE_CAP]
     assert sample, "sample 为空——glob 命中但无 dict 行"
     mutated = [_mutate(r, rng) for r in sample]
@@ -1505,7 +1509,7 @@ def test_real_records_mutated_gate(
     tmp_path: Path, capsys: pytest.CaptureFixture, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """真实 compile/fixloop 记录变异 → gate_scorecard.main 不崩且 cells 守恒。"""
-    rng = random.Random(_SEED + 31)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(_SEED + 31)
     src = _RESULTS / "stagerun-loop1-2026-09-16" / "records"
     comp_rows: list = []
     fix_rows: list = []

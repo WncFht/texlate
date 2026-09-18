@@ -12,6 +12,7 @@ import re
 import string
 
 import pytest
+from _fuzzkit import fuzz_rng
 
 from texlate.xlat import placeholders as ph
 
@@ -485,7 +486,7 @@ class TestFuzzRoundTrip:
         return "".join(rng.choice(_FUZZ_ATOMS) for _ in range(n))
 
     def test_codec_round_trip_300(self) -> None:
-        rng = random.Random(20260917)  # noqa: S311 -- 确定性种子
+        rng = fuzz_rng(20260917)
         for i in range(300):
             s = self._soup(rng, rng.randint(0, 25))
             enc, _ = ph.encode_newlines(s)
@@ -493,7 +494,7 @@ class TestFuzzRoundTrip:
             assert dec == _norm(s), (i, s, enc, dec)
 
     def test_family_round_trip_300(self) -> None:
-        rng = random.Random(20260918)  # noqa: S311 -- 确定性种子
+        rng = fuzz_rng(20260918)
         for i in range(300):
             s = self._soup(rng, rng.randint(0, 20))
             for tag in _TAGS:
@@ -501,7 +502,7 @@ class TestFuzzRoundTrip:
                 assert out == s, (i, tag, s, _esc(s, tag), out)
 
     def test_double_encode_fuzz(self) -> None:
-        rng = random.Random(20260919)  # noqa: S311 -- 确定性种子
+        rng = fuzz_rng(20260919)
         for i in range(200):
             s = self._soup(rng, rng.randint(0, 20))
             enc1, _ = ph.encode_newlines(s)
@@ -511,7 +512,7 @@ class TestFuzzRoundTrip:
 
     def test_encode_output_charset_fuzz(self) -> None:
         """编码产物无裸 ``\\n``/``\\r``、无 ``\\ `` 等脆弱字面残留。"""
-        rng = random.Random(20260920)  # noqa: S311 -- 确定性种子
+        rng = fuzz_rng(20260920)
         fragile = ("\\ ", "~", "\\,", "\\:", "\\;", "\\!")
         for _ in range(200):
             s = self._soup(rng, rng.randint(0, 20))
@@ -523,7 +524,7 @@ class TestFuzzRoundTrip:
 
     def test_ascii_noise_fuzz(self) -> None:
         """纯 ASCII 噪声串（含 ``[]_LIT`` 高集字符）——闭链恒等。"""
-        rng = random.Random(20260921)  # noqa: S311 -- 确定性种子
+        rng = fuzz_rng(20260921)
         alpha = string.ascii_letters + string.digits + "[]_ \n\t\\~,;:!" + "TEXLATISP"
         for i in range(200):
             s = "".join(rng.choice(alpha) for _ in range(rng.randint(0, 80)))
@@ -534,7 +535,7 @@ class TestFuzzRoundTrip:
 
     def test_bracket_soup_fuzz(self) -> None:
         """括号汤——``[``/``]``/合法 token 碎片高密拼接。"""
-        rng = random.Random(20260922)  # noqa: S311 -- 确定性种子
+        rng = fuzz_rng(20260922)
         atoms = [
             "[",
             "]",
@@ -561,7 +562,7 @@ class TestFuzzRoundTrip:
 
     def test_sentinel_run_fuzz(self) -> None:
         """纯哨兵梯——多族多级规范哨兵连排 + 乱序穿插。"""
-        rng = random.Random(20260923)  # noqa: S311 -- 确定性种子
+        rng = fuzz_rng(20260923)
         for i in range(200):
             parts = []
             for _ in range(rng.randint(1, 12)):

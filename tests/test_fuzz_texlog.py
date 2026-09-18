@@ -36,9 +36,9 @@
 from __future__ import annotations
 
 import os
-import random
 import re
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 from _fuzzkit import fuzz_rng, short, soup_join, soup_pick
@@ -53,6 +53,9 @@ from texlate.texlog import (
     patch_graphic_top,
     update_file_stack,
 )
+
+if TYPE_CHECKING:
+    import random
 
 #: 独立 missing-char 字形豁免（与 _MISS_CHAR_RX 同语义的平行实现）。
 _ORACLE_MISS_RX = re.compile(r"Missing character: There is no ([()])(?=[ (]|$)")
@@ -138,7 +141,7 @@ def _gen_lines(rng: random.Random) -> list[str]:
 
 def test_fuzz_stack_depth_eq_paren_balance() -> None:
     """铁律：``len(stack)`` 恒等于豁免后括弧配对余额——栈永不负、幻影帧零。"""
-    rng = random.Random(20260917)  # noqa: S311 -- 确定性种子复现，非加密用途
+    rng = fuzz_rng(20260917)
     for _ in range(3000):
         lines = _gen_lines(rng)
         stack, _ = _replay(lines)
@@ -148,7 +151,7 @@ def test_fuzz_stack_depth_eq_paren_balance() -> None:
 
 def test_fuzz_popped_eq_effective_closes() -> None:
     """``popped`` 恰收有效 ``)`` 弹出的栈顶——空栈 ``)`` 丢弃不入账。"""
-    rng = random.Random(20260918)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260918)
     for _ in range(3000):
         lines = _gen_lines(rng)
         _, popped = _replay(lines)
@@ -161,7 +164,7 @@ def test_fuzz_popped_eq_effective_closes() -> None:
 
 def test_fuzz_file_stack_at_eq_incremental() -> None:
     """``file_stack_at(lines, i, popped)`` == 前缀逐行重放——任意 stop 位。"""
-    rng = random.Random(20260919)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260919)
     for _ in range(800):
         lines = _gen_lines(rng)
         for stop in range(len(lines) + 1):
@@ -178,7 +181,7 @@ def test_fuzz_missing_char_lines_are_neutral() -> None:
     码位形态 ``(U+XXXX)`` 行内含平衡括弧对——推 ``None`` 占位于自身
     即弹（栈零净效应），但 ``popped`` 历史如实多收这一条 ``None``。
     """
-    rng = random.Random(20260920)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260920)
     templates = [
         "Missing character: There is no ) in font nullfont!",
         "Missing character: There is no ( in font nullfont!",
@@ -202,7 +205,7 @@ def test_fuzz_missing_char_lines_are_neutral() -> None:
 
 def test_fuzz_never_raises_on_dirty_input() -> None:
     """脏字符汤（控制字符/代理区/巨型行）不炸——log 是不可信输入面。"""
-    rng = random.Random(20260921)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260921)
     alpha = "(){}[]<>| \t\x00\x01\x7f\udce9\ud800字\\/@:.,-abcTEX.sty"
     for _ in range(1500):
         lines = [
@@ -217,7 +220,7 @@ def test_fuzz_never_raises_on_dirty_input() -> None:
 
 def test_fuzz_named_frames_are_token_literals() -> None:
     """具名帧集合 ⊆ 行内 ``(`` 后 token——栈不发明文件名。"""
-    rng = random.Random(20260922)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260922)
     token_rx = re.compile(r"\(([^\s(){}]+)")
     for _ in range(2000):
         lines = _gen_lines(rng)

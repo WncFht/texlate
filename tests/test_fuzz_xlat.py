@@ -49,7 +49,6 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
-import random
 import re
 import stat
 from dataclasses import dataclass
@@ -57,6 +56,7 @@ from typing import TYPE_CHECKING, Any
 
 import httpx
 import pytest
+from _fuzzkit import fuzz_rng
 
 from texlate.validate.l0 import validate_pair
 from texlate.xlat import batch as xb
@@ -79,6 +79,7 @@ from texlate.xlat.state import (
 )
 
 if TYPE_CHECKING:
+    import random
     from pathlib import Path
 
 # ---------------------------------------------------------------- 常量与 soup
@@ -197,7 +198,7 @@ def _gen_soup_text(rng: random.Random, soup: list[str], lo: int, hi: int) -> str
 
 def test_fuzz_newline_codec_roundtrip() -> None:
     """任意 soup 文本 round-trip 逐字节还原（归一化后）。"""
-    rng = random.Random(20261001)  # noqa: S311 -- 确定性种子复现，非加密用途
+    rng = fuzz_rng(20261001)
     for _ in range(_FUZZ_ITERS):
         s = _gen_soup_text(rng, _CODEC_SOUP, 0, 30)
         enc, _counts = ph.encode_newlines(s)
@@ -206,7 +207,7 @@ def test_fuzz_newline_codec_roundtrip() -> None:
 
 def test_fuzz_encode_counts_oracle() -> None:
     """``source_sl``/``source_pl`` 计数 == 独立 run 重放 oracle。"""
-    rng = random.Random(20261002)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20261002)
     for _ in range(_FUZZ_ITERS):
         s = _gen_soup_text(rng, _CODEC_SOUP, 0, 30)
         _enc, counts = ph.encode_newlines(s)
@@ -226,7 +227,7 @@ def test_sentinel_literal_roundtrip() -> None:
 
 def test_fuzz_pack_batches_partition() -> None:
     """装箱 = ``range(n)`` 保序划分；多成员批受 ``max_chars`` 约束。"""
-    rng = random.Random(20261003)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20261003)
     for _ in range(_FUZZ_ITERS_MED):
         contents = [
             "".join(rng.choice("ab{}$ ") for _ in range(rng.randint(0, 500)))
@@ -243,7 +244,7 @@ def test_fuzz_pack_batches_partition() -> None:
 
 def test_fuzz_batch_encode_parse_roundtrip() -> None:
     """成员编码后非空的批载荷 → 解析逐字节还原（成员 ``.strip()`` 口径）。"""
-    rng = random.Random(20261004)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20261004)
     for _ in range(_FUZZ_ITERS_MED):
         contents = [
             s
@@ -273,7 +274,7 @@ def test_batch_whitespace_member_poisons_parse() -> None:
 
 def test_fuzz_parse_batch_never_misaligns() -> None:
     """垃圾/变异响应只许 ``None`` 或恰 ``n`` 段非空串——绝不部分错位。"""
-    rng = random.Random(20261005)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20261005)
     junk = [
         "[1]",
         "[2]",
@@ -305,7 +306,7 @@ def test_fuzz_parse_batch_never_misaligns() -> None:
 
 def test_fuzz_split_partition_oracle() -> None:
     """切分片段按序覆盖原文：逐段前缀匹配，接缝只允许丢 ``\\n``。"""
-    rng = random.Random(20261006)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20261006)
     for _ in range(_FUZZ_ITERS_MED):
         limit = rng.choice([1, 3, 40, 120, 500])
         text = _gen_soup_text(rng, _TEXT_SOUP, 1, 40)
@@ -328,7 +329,7 @@ def test_fuzz_split_partition_oracle() -> None:
 
 def test_fuzz_diff_identity_clean_pool() -> None:
     """干净池（无 fuzzy 形）逐字拷贝 → ``ok``；永不在脏输入上抛。"""
-    rng = random.Random(20261007)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20261007)
     for _ in range(_FUZZ_ITERS):
         s = _gen_soup_text(rng, _TEXT_SOUP, 0, 25)
         d = ph.diff(s, s)
@@ -340,7 +341,7 @@ def test_fuzz_diff_identity_clean_pool() -> None:
 
 def test_fuzz_diff_detects_drop_and_inject() -> None:
     """丢一个 ``[[X_n]]`` → missing/misspelled；多一个 src 外 token → extra。"""
-    rng = random.Random(20261008)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20261008)
     for _ in range(_FUZZ_ITERS_MED):
         toks = rng.sample(
             ["[[MATH_1]]", "[[CITE_2]]", "[[ENV_3]]", "[[TABLE_4]]"],
@@ -364,7 +365,7 @@ def test_diff_src_literal_fuzzy_exempt() -> None:
 
 def test_fuzz_is_placeholder_only_oracle() -> None:
     """``is_placeholder_only`` ⇒ 内容全由占位符 token + 空白覆盖（独立 oracle）。"""
-    rng = random.Random(20261009)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20261009)
     pool = ["[[MATH_1]]", "[[CITE_2]]", "[[SL]]", "[[PL]]", " ", "\n", "\t", "x", "%"]
     for _ in range(_FUZZ_ITERS):
         s = "".join(rng.choice(pool) for _ in range(rng.randint(0, 8)))
@@ -623,7 +624,7 @@ def _check_result(c: ChunkIn, r: ChunkResult, exp: _Exp) -> None:
 
 def test_fuzz_pipeline_no_lost_no_reorder() -> None:
     """随机 fault 文档：结果序==输入序、零丢失、逐块全字段对独立 oracle。"""
-    rng = random.Random(20261010)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20261010)
     for it in range(200):
         chunks = _gen_doc(rng, it)
         t = ScriptedTranslator()
@@ -647,7 +648,7 @@ def test_fuzz_pipeline_no_lost_no_reorder() -> None:
 
 def test_fuzz_pipeline_deterministic() -> None:
     """同输入同结果——attempts/batch_id/warnings 全字段逐字节等。"""
-    rng = random.Random(20261011)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20261011)
     for it in range(60):
         chunks = _gen_doc(rng, 10000 + it)
         cfg = _cfg(rng)
@@ -691,7 +692,7 @@ def test_fuzz_pipeline_deterministic() -> None:
 def test_fuzz_pipeline_resume_no_retranslate(tmp_path: Path) -> None:
     """续跑：run1 ok/partial 块零重发且结果同记录；skipped/fault 块必重发，
     且按新一轮（done 集合过滤后的）编排重出与 oracle 一致的结果。"""
-    rng = random.Random(20261012)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20261012)
     for it in range(40):
         outdir = tmp_path / f"r{it}"
         chunks = _gen_doc(rng, 20000 + it)
@@ -789,7 +790,7 @@ def test_chat_error_never_leaks_api_key() -> None:
 
 def test_fuzz_redact_key_forms() -> None:
     """``redact``：显式 key 逐字替换。"""
-    rng = random.Random(20261018)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20261018)
     for _ in range(500):
         key = f"sk-{rng.randbytes(8).hex()}"
         text = _gen_soup_text(rng, _TEXT_SOUP, 0, 6) + key + " tail"
@@ -801,7 +802,7 @@ def test_fuzz_redact_key_forms() -> None:
 
 def test_fuzz_segment_key_oracle() -> None:
     """``segment_key`` == 独立材料拼装的 sha256；逐成分敏感。"""
-    rng = random.Random(20261013)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20261013)
     for _ in range(_FUZZ_ITERS_MED):
         src = _gen_soup_text(rng, _TEXT_SOUP, 0, 12)
         role = rng.choice(["", "para", "caption"])
@@ -895,7 +896,7 @@ def test_cache_key_for_per_key_scope(clean_env: pytest.MonkeyPatch) -> None:
 
 def test_fuzz_authgate_oracle() -> None:
     """随机结果流 → consecutive/auth_failures/non_auth/tripped 逐条对账。"""
-    rng = random.Random(20261014)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20261014)
     for _ in range(_FUZZ_ITERS_MED):
         thr = rng.choice([0, 1, 3, 5])
         gate = AuthGate(threshold=thr)
@@ -945,7 +946,7 @@ def test_atomic_json_perms_and_residue(tmp_path: Path) -> None:
 
 def test_fuzz_state_record_load_roundtrip(tmp_path: Path) -> None:
     """随机 ChunkRecord 序列 → flush → load：completed 集合与字段逐条对账。"""
-    rng = random.Random(20261015)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20261015)
     from texlate.xlat.state import ChunkRecord  # noqa: PLC0415
 
     for it in range(60):
@@ -981,7 +982,7 @@ def test_fuzz_state_load_never_raises(tmp_path: Path) -> None:
     """state.json 字节/结构级变异：``load`` 只回 ``(set, dict)`` 绝不抛——
     字段级类型脏（``test_state_load_malformed_fields_quarantine``）同样
     走隔离回空。"""
-    rng = random.Random(20261016)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20261016)
     base = {
         "version": "1.0",
         "meta": {"total_chunks": 2},
@@ -1054,7 +1055,7 @@ def test_state_load_malformed_fields_quarantine(
 
 def test_fuzz_load_cache_never_raises(tmp_path: Path) -> None:
     """cache-*.json 变异：坏 JSON → 隔离改名 + {}；非 dict JSON → {} 不隔离。"""
-    rng = random.Random(20261017)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20261017)
     for i in range(300):
         d = tmp_path / f"c{i}"
         d.mkdir()

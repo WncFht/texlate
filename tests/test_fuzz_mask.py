@@ -60,10 +60,11 @@ tmp/mask-fix/probe/）：
 
 from __future__ import annotations
 
-import random
 import re
+from typing import TYPE_CHECKING
 
 import pytest
+from _fuzzkit import fuzz_rng
 
 from texlate.compile.mask import (
     TEX_SOURCE_SUFFIXES,
@@ -73,6 +74,9 @@ from texlate.compile.mask import (
     without_comments,
 )
 from texlate.textutil import DEAD_ENVS, VERBATIM_ENVS, mask_comments, mask_tex
+
+if TYPE_CHECKING:
+    import random
 
 # ---------------------------------------------------------------- 事件流 oracle
 
@@ -342,7 +346,7 @@ def _check_view(src: str, masked: str) -> None:
 
 def test_fuzz_mask_tex_span_oracle() -> None:
     """随机 TeX 汤 × 4 flag 组合：事件流 oracle 逐字节全等 + 不变量 + 幂等。"""
-    rng = random.Random(20260917)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260917)
     for _ in range(_MASK_ITERS):
         t = _soup(rng, rng.randint(0, 45))
         for kw in _FLAG_COMBOS:
@@ -357,7 +361,7 @@ def test_fuzz_mask_tex_span_oracle() -> None:
 
 def test_fuzz_visible_tex_wrapper_equiv() -> None:
     """``visible_tex`` 与 ``mask_tex`` 的 flag 映射逐字节全等。"""
-    rng = random.Random(20260918)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260918)
     for _ in range(800):
         t = _soup(rng, rng.randint(0, 30))
         assert visible_tex(t) == mask_tex(t)
@@ -369,7 +373,7 @@ def test_fuzz_visible_tex_wrapper_equiv() -> None:
 
 def test_fuzz_masked_view_splice_alignment() -> None:
     """消费契约：遮盖视图上的 cs/``\\begin`` 命中段回切原文逐字节同。"""
-    rng = random.Random(20260919)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260919)
     cs_rx = re.compile(r"\\[a-zA-Z@]+\*?|\\begin\s*\{[a-zA-Z*]+\}")
     for _ in range(800):
         t = _soup(rng, rng.randint(0, 40))
@@ -445,7 +449,7 @@ def _ge_soup(rng: random.Random) -> str:
 
 def test_fuzz_group_end_stack_oracle() -> None:
     """brace/escape/comment 汤 × 全 opener 位：栈 oracle 逐点全等。"""
-    rng = random.Random(20260920)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260920)
     for _ in range(_GE_ITERS):
         s = _ge_soup(rng)
         positions = [i for i, c in enumerate(s) if c in "[{"]
@@ -462,7 +466,7 @@ def test_fuzz_group_end_stack_oracle() -> None:
 
 def test_fuzz_group_end_never_raise() -> None:
     """对抗字符面（含裸 ``\\r``/NUL/lone ``\\``）：不抛 + 返回值界。"""
-    rng = random.Random(20260921)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260921)
     alpha = [*_GE_TOKENS, "\r", "\r\n", "\x00", "\ud800", "%\rx", "中"]
     for _ in range(2000):
         s = "".join(rng.choice(alpha) for _ in range(rng.randint(0, 30)))
@@ -495,7 +499,7 @@ def _oracle_apply_edits(text: str, edits: list[tuple[int, int, str]]) -> str:
 
 def test_fuzz_apply_edits_oracle() -> None:
     """非重叠随机编辑：oracle 全等 + 行数账公式 + 输入序无关 + 确定。"""
-    rng = random.Random(20260922)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260922)
     repl_pool = ["", "X", "\n", "a\nb", "  ", "line\nline\n", "\\cs{v}", "%"]
     for _ in range(2000):
         text = _soup(rng, rng.randint(0, 25))

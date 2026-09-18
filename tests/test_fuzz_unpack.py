@@ -18,11 +18,11 @@ from __future__ import annotations
 
 import hashlib
 import io
-import random
 import tarfile
 from typing import TYPE_CHECKING
 
 import pytest
+from _fuzzkit import fuzz_rng
 from conftest import make_tar, tar_dir, tar_reg
 
 from texlate.arxiv.unpack import (
@@ -36,6 +36,7 @@ from texlate.arxiv.unpack import (
 )
 
 if TYPE_CHECKING:
+    import random
     from pathlib import Path
 
 #: 已知告警前缀全集——出现表外前缀即未登记的新路径，需人工定性。
@@ -289,7 +290,7 @@ def _gen_member(rng: random.Random) -> tuple[tarfile.TarInfo, bytes]:
 
 def test_fuzz_random_member_streams(tmp_path: Path) -> None:
     """随机成员序列：解包成功则 mtree↔盘上实况全一致，否则必 UnpackError。"""
-    rng = random.Random(20260917)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260917)
     for i in range(500):
         members = [_gen_member(rng) for _ in range(rng.randint(1, 22))]
         payload = make_tar(members)
@@ -327,7 +328,7 @@ _BASE_MEMBERS: list[tuple[tarfile.TarInfo, bytes]] = [
 
 def test_fuzz_byte_mutations_never_lie(tmp_path: Path) -> None:
     """脏字节变异（含 checksum 修复让字段生效）：UnpackError 或盘上实况一致。"""
-    rng = random.Random(20260918)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260918)
     payload = make_tar(_BASE_MEMBERS)
     for i in range(600):
         mutated = _mutate(payload, rng, repair=rng.random() < _REPAIR_P)
@@ -341,7 +342,7 @@ def test_fuzz_byte_mutations_never_lie(tmp_path: Path) -> None:
 
 def test_fuzz_garbage_payloads(tmp_path: Path) -> None:
     """纯随机/截断/空载荷：只许 UnpackError（非 tar 流）。"""
-    rng = random.Random(20260919)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260919)
     payload = make_tar(_BASE_MEMBERS)
     for i in range(200):
         blob = rng.randbytes(rng.randint(0, 3000))

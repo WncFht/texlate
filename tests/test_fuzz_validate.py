@@ -34,7 +34,6 @@ import ast
 import json
 import os
 import queue
-import random
 import re
 import shutil
 import string
@@ -45,6 +44,7 @@ from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    import random
     from collections.abc import Callable
 
 import pytest
@@ -1059,7 +1059,7 @@ def _soup(rng: random.Random, alpha: list[str], lo: int, hi: int) -> str:
 
 def test_fuzz_lex_invariants() -> None:
     """``_lex`` 结构不变量：token 拼接还原输入、pos 对齐、kind 语义合法。"""
-    rng = random.Random(20260930)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260930)
     for _ in range(1500):
         s = _soup(rng, _SOUP, 0, 14)
         toks = _lex(s)
@@ -1096,7 +1096,7 @@ def test_fuzz_lex_invariants() -> None:
 
 def test_fuzz_validate_pair_never_throws_and_shape() -> None:
     """随机 src/zh 对恒不抛 + Issue/Report 字段形态合法。"""
-    rng = random.Random(20261001)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20261001)
     for _ in range(2000):
         src = _soup(rng, _SOUP, 0, 14)
         zh = _soup(rng, _SOUP, 0, 14)
@@ -1129,7 +1129,7 @@ def test_fuzz_identity_pair_no_error() -> None:
     E24 唯一例外：拉丁主导恒等对即「整段未翻译」——same_source error
     是新门的本意判（``zh==en`` 含 CJK 合法恒等不受影响）。
     """
-    rng = random.Random(20261002)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20261002)
     fixed = [
         "[[COMMENT_1]]\n段落 [[MATH_1]]。",
         "段一 [[COMMENT_1]]\n段二。",
@@ -1173,7 +1173,7 @@ def test_identity_bibitem_mixed_anchor_flagged() -> None:
 
 def test_fuzz_placeholder_oracle() -> None:
     """占位符规则全量签名 oracle——missing/extra/typo/cmtfab/order/anchor 全等。"""
-    rng = random.Random(20261003)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20261003)
     for _ in range(700):
         src = _soup(rng, _PH_SOUP, 0, 10)
         zh = _soup(rng, _PH_SOUP, 0, 10)
@@ -1185,7 +1185,7 @@ def test_fuzz_placeholder_oracle() -> None:
 
 def test_fuzz_ph_missing_exact_multiset() -> None:
     """zh 只丢不添：缺失集合 == 丢失多重集，且无多余/拼错混入。"""
-    rng = random.Random(20261004)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20261004)
     pool = [
         "[[MATH_1]]",
         "[[MATH_2]]",
@@ -1210,7 +1210,7 @@ def test_fuzz_ph_missing_exact_multiset() -> None:
 
 def test_fuzz_ph_extra_strict_multiset() -> None:
     """zh 注入 src 不存在的严格形 token → 全部按多余报。"""
-    rng = random.Random(20261005)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20261005)
     for _ in range(400):
         base = ["[[MATH_1]]", "[[MATH_2]]", "[[CITE_1]]"]
         extra = [f"[[NEW_{i}]]" for i in range(rng.randint(1, 4))]
@@ -1224,7 +1224,7 @@ def test_fuzz_ph_extra_strict_multiset() -> None:
 
 def test_fuzz_ph_typo_variants_pair() -> None:
     """同核心变体（小写/全角/缺括号/错号）lev≤2 配对成拼错而非缺失+多余。"""
-    rng = random.Random(20261006)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20261006)
     pairs = [
         ("[[MATH_1]]", "[[math_1]]"),
         ("[[MATH_1]]", "【MATH_1】"),
@@ -1283,7 +1283,7 @@ def test_comment_backslash_parity_classification(nbs: int) -> None:
 
 def test_fuzz_ph_anchor_metamorphic() -> None:
     """BIBITEM 行首锚定：脱位即 error；合法换行保行首不报。"""
-    rng = random.Random(20261007)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20261007)
     for _ in range(300):
         ph = rng.choice(["[[BIBITEM_1]]", "[[BIBITEM_7]]"])
         src = f"{ph} 条目作者甲。"
@@ -1302,35 +1302,35 @@ def test_fuzz_ph_anchor_metamorphic() -> None:
 
 
 def test_fuzz_brace_profile_oracle() -> None:
-    rng = random.Random(20261008)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20261008)
     for _ in range(1500):
         s = _soup(rng, _STRUCT_SOUP, 0, 16)
         assert _brace_profile(s) == _o_brace_profile(s), repr(s)
 
 
 def test_fuzz_math_profile_oracle() -> None:
-    rng = random.Random(20261009)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20261009)
     for _ in range(1500):
         s = _soup(rng, _STRUCT_SOUP, 0, 16)
         assert _math_profile(s) == _o_math_profile(s), repr(s)
 
 
 def test_fuzz_cs_names_oracle() -> None:
-    rng = random.Random(20261010)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20261010)
     for _ in range(1500):
         s = _soup(rng, _STRUCT_SOUP, 0, 16)
         assert _cs_names(s) == _o_cs_names(s), repr(s)
 
 
 def test_fuzz_key_multiset_oracle() -> None:
-    rng = random.Random(20261011)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20261011)
     for _ in range(1500):
         s = _soup(rng, _KEY_SOUP, 0, 8)
         assert _key_multiset(s) == _o_key_multiset(s), repr(s)
 
 
 def test_fuzz_env_signature_oracle() -> None:
-    rng = random.Random(20261012)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20261012)
     for _ in range(1500):
         s = _soup(rng, _ENV_SOUP, 0, 10)
         assert _env_signature(s) == _o_env_signature(s), repr(s)
@@ -1338,7 +1338,7 @@ def test_fuzz_env_signature_oracle() -> None:
 
 def test_fuzz_macro_classification_oracle() -> None:
     """macro 规则分类签名（nonascii/struct/new/fragile/dropped）与 oracle 全等。"""
-    rng = random.Random(20261013)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20261013)
     for _ in range(800):
         src = _soup(rng, _STRUCT_SOUP, 0, 12)
         zh = _soup(rng, _STRUCT_SOUP, 0, 12)
@@ -1350,7 +1350,7 @@ def test_fuzz_macro_classification_oracle() -> None:
 
 def test_fuzz_length_sig_oracle() -> None:
     """length 签名集 == oracle（E24：ratio 臂 token 代理 + error 档）。"""
-    rng = random.Random(20261014)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20261014)
     words = ["word ", "text ", "中", "文", "[[MATH_1]]", "\\textbf{x}", "$x$", " "]
     for _ in range(800):
         src = _soup(rng, words, 0, 30)
@@ -1369,7 +1369,7 @@ def test_fuzz_length_sig_oracle() -> None:
 
 def test_fuzz_item_glue_oracle() -> None:
     """``\\item``+大写尾粘合：净差非空 ↔ 恰好一条 warn 且 ×N 一致。"""
-    rng = random.Random(20261015)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20261015)
     for _ in range(500):
         src = _soup(rng, _STRUCT_SOUP, 0, 10)
         zh = _soup(rng, _STRUCT_SOUP, 0, 10)
@@ -1400,7 +1400,7 @@ def test_fuzz_item_glue_oracle() -> None:
 
 def test_fuzz_protocol_echo_oracle() -> None:
     """协议字面净差 → error，×N 与净差一致。"""
-    rng = random.Random(20261016)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20261016)
     sigs = [
         "占位符缺失:",
         "[Original]",
@@ -1429,7 +1429,7 @@ def test_fuzz_protocol_echo_oracle() -> None:
 
 def test_fuzz_bare_cs_ph_in_cs_existence() -> None:
     """bare_cs/ph_in_cs issue 存在性 == textutil 净差谓词；子类拆分一致。"""
-    rng = random.Random(20261017)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20261017)
     for _ in range(600):
         src = _soup(rng, _STRUCT_SOUP, 0, 10)
         zh = _soup(rng, _STRUCT_SOUP, 0, 10)
@@ -1452,7 +1452,7 @@ def test_fuzz_bare_cs_ph_in_cs_existence() -> None:
 
 def test_fuzz_key_family_drop_detected() -> None:
     """族内命令丢 key → error 且 expected 指名；幻觉新增 → warn。"""
-    rng = random.Random(20261018)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20261018)
     names = [
         "cite",
         "parencite",
@@ -1499,7 +1499,7 @@ def test_fuzz_key_family_drop_detected() -> None:
 
 def test_fuzz_key_comma_list_partial_drop() -> None:
     """逗号 key 表部分丢失：缺失多重集精确。"""
-    rng = random.Random(20261019)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20261019)
     for _ in range(300):
         keys = rng.sample(["a", "b", "c", "d", "e"], rng.randint(2, 5))
         kept = [k for k in keys if rng.random() > 0.4]  # noqa: PLR2004 -- 掉落概率
@@ -1550,7 +1550,7 @@ def test_ph_pairing_maximum_matching() -> None:
 
 def test_fuzz_ts_baseline_roundtrip() -> None:
     """TsBaseline dict round-trip：随机整数字段（含负/巨）恒等。"""
-    rng = random.Random(20261020)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20261020)
     for _ in range(300):
         b = TsBaseline(
             parse_errors=rng.randint(-100, 10**9),
@@ -1566,7 +1566,7 @@ def test_fuzz_ts_baseline_roundtrip() -> None:
 
 def test_fuzz_ts_result_from_dict_verdict() -> None:
     """TsResult.from_dict 合法 schema 任意值 → 字段保真 + verdict_ok 契约。"""
-    rng = random.Random(20261021)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20261021)
     for _ in range(400):
         d: dict[str, Any] = {
             "id": rng.choice([None, "x", "c1", 7]),
@@ -1636,7 +1636,7 @@ def _inject(v: TsValidator, replies: list[str | None]) -> _FakeProc:
 
 def test_fuzz_one_id_pairing() -> None:
     """``_one`` 按 id 配对：乱序/迟到/重复行中首个配对者胜。"""
-    rng = random.Random(20261022)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20261022)
     for _ in range(300):
         want = f"c{rng.randint(0, 3)}"
         noise = [

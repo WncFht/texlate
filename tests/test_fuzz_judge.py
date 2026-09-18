@@ -50,12 +50,12 @@ from __future__ import annotations
 import copy
 import dataclasses
 import importlib
-import random
 import re
 from collections import Counter
 from typing import TYPE_CHECKING, NamedTuple
 
 import pytest
+from _fuzzkit import fuzz_rng
 from pypdf import PdfReader, PdfWriter
 from pypdf.generic import (
     ArrayObject,
@@ -105,6 +105,7 @@ from texlate.textutil import DOCSTYLE_DECL_RX, DOCSTYLE_RX
 from texlate.validate import l2
 
 if TYPE_CHECKING:
+    import random
     from pathlib import Path
     from types import ModuleType
 
@@ -312,7 +313,7 @@ class TestJudge:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """旗标矩阵 × log 汤：status/reasons/notes 逐字段对拍 + 结构不变量。"""
-        rng = random.Random(20260917)  # noqa: S311 -- 确定性种子复现
+        rng = fuzz_rng(20260917)
         jm = _judge_mod()
         for it in range(400):
             soup = _gen_log_soup(rng)
@@ -507,7 +508,7 @@ class TestRedlines:
         （logpipe 已钉划分不变量；本节加的是**逐位** oracle 等值——
         窗口边界语义本身的对拍。）
         """
-        rng = random.Random(20260918)  # noqa: S311 -- 确定性种子
+        rng = fuzz_rng(20260918)
         gate_rx = re.compile(name_pattern(REDLINES_BY_ID["missing_char"].judge)[1])
         nf_rx = re.compile(
             name_pattern(REDLINES_BY_ID["missing_char_nullfont"].judge)[1]
@@ -535,7 +536,7 @@ class TestRedlines:
 
     def test_sameline_nullfont_all_layers_exempt(self) -> None:
         """同行 nullfont misschar 三层一致豁免（当前成立的口径区）。"""
-        rng = random.Random(20260919)  # noqa: S311 -- 确定性种子
+        rng = fuzz_rng(20260919)
         for _ in range(500):
             ch = rng.choice(["中", "x", ";", "文"])
             ann = rng.choice(["(U+4E2D)", '("4E2D)', ""])
@@ -1003,7 +1004,7 @@ class TestLatex209:
 
     def test_upgrade_oracle_full_reconstruction(self, tmp_path: Path) -> None:
         """随机文档汤：status/reason/字段/输出字节与 oracle 全等。"""
-        rng = random.Random(20260920)  # noqa: S311 -- 确定性种子
+        rng = fuzz_rng(20260920)
         (tmp_path / "mypkg.sty").write_text("\\ProvidesPackage{mypkg}\n")
         (tmp_path / "sub").mkdir()
         (tmp_path / "sub" / "deepsty.sty").write_text("% deep\n")
@@ -1177,7 +1178,7 @@ class TestLatex209:
             ("a,b,", ["a", "b"]),
         ]:
             assert _split_opts(s) == exp
-        rng = random.Random(20260921)  # noqa: S311 -- 确定性种子
+        rng = fuzz_rng(20260921)
         pool = "ab,{} \t中%"
         for _ in range(500):
             s = "".join(rng.choice(pool) for _ in range(rng.randint(0, 15)))

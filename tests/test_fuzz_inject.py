@@ -68,11 +68,11 @@ threeparttable 子串门（非正则）的良性过触发、无扩展名 ``\inpu
 
 from __future__ import annotations
 
-import random
 import re
 from typing import TYPE_CHECKING
 
 import pytest
+from _fuzzkit import fuzz_rng
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -928,7 +928,7 @@ _FRAGS = [
 
 def test_fuzz_random_inputs() -> None:
     """碎片随机拼接：缝扫描不变量 + 注入四态 + 幂等——恒不抛、恒自洽。"""
-    rng = random.Random(20260917)  # noqa: S311 -- 确定性种子
+    rng = fuzz_rng(20260917)
     for _ in range(240):
         tex = "".join(rng.choice(_FRAGS) for _ in range(rng.randrange(1, 14)))
         hits = _assert_seam_invariants(tex)

@@ -13,6 +13,7 @@ import random
 import re
 
 import pytest
+from _fuzzkit import fuzz_rng
 
 from texlate.xlat import placeholders as ph
 from texlate.xlat import prompts
@@ -519,7 +520,7 @@ class TestSeededFuzz:
         return "".join(rng.choice(_ATOMS) for _ in range(n))
 
     def test_round_trip_fuzz_400(self) -> None:
-        rng = random.Random(20260917)  # noqa: S311 -- 确定性种子
+        rng = fuzz_rng(20260917)
         for i in range(400):
             s = self._soup(rng, rng.randint(0, 20))
             enc, _ = ph.encode_newlines(s)
@@ -528,7 +529,7 @@ class TestSeededFuzz:
 
     def test_oracles_fuzz(self) -> None:
         """逐样本同钉三 oracle：charset、族计数、非幂等 iff。"""
-        rng = random.Random(20260918)  # noqa: S311 -- 确定性种子
+        rng = fuzz_rng(20260918)
         for i in range(250):
             s = self._soup(rng, rng.randint(0, 20))
             ns = _norm(s)
@@ -546,7 +547,7 @@ class TestSeededFuzz:
 
     def test_edge_heavy_fuzz(self) -> None:
         """边缘重采样——首尾强制 token/lit/换行原子，中段随机。"""
-        rng = random.Random(20260919)  # noqa: S311 -- 确定性种子
+        rng = fuzz_rng(20260919)
         edge_atoms = [a for a in _ATOMS if a.startswith("[[") or a in _SPACE_LITS]
         edge_atoms += [lit for _tok, lit in _SPACE_LITS] + ["\n", "\n\n", "\r\n"]
         for i in range(250):
@@ -560,7 +561,7 @@ class TestSeededFuzz:
 
     def test_newline_run_fuzz(self) -> None:
         """换行游程特化——随机游程（0..10）与随机原子交错。"""
-        rng = random.Random(20260920)  # noqa: S311 -- 确定性种子
+        rng = fuzz_rng(20260920)
         for i in range(250):
             parts = []
             for _ in range(rng.randint(1, 8)):

@@ -46,7 +46,6 @@ from __future__ import annotations
 
 import io
 import json
-import random
 import re
 import subprocess
 import sys
@@ -55,6 +54,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
+from _fuzzkit import fuzz_rng
 from conftest import make_tar, tar_reg
 
 import texlate.compile.deps as deps_mod
@@ -76,6 +76,7 @@ from texlate.compile.engine import (
 from texlate.texlog import file_stack_at, is_project_file
 
 if TYPE_CHECKING:
+    import random
     from collections.abc import Callable, Iterator
 
 # ------------------------------------------------------------------ 通用件
@@ -346,7 +347,7 @@ def _o_route(root: Path, prefer: str, expect: dict[str, object]) -> dict[str, ob
 
 def test_route_project_fuzz(tmp_path: Path) -> None:
     """随机工程树 × prefer 怪值 → engines/reasons/non_utf8/latex209 全字段对拍。"""
-    rng = random.Random(_SEED)  # noqa: S311
+    rng = fuzz_rng(_SEED)
     for i in range(_ITER):
         root = tmp_path / f"p{i}"
         root.mkdir()
@@ -503,7 +504,7 @@ _FLAG_POOL = (
 
 def test_split_flags_fuzz() -> None:
     """随机旗标表 → (applied, dropped) 与独立模拟全等 + 拒放不变量。"""
-    rng = random.Random(_SEED + 1)  # noqa: S311
+    rng = fuzz_rng(_SEED + 1)
     for _ in range(_ITER):
         flags = [rng.choice(_FLAG_POOL) for _ in range(rng.randrange(0, 8))]
         applied, dropped = XelatexEngine._split_flags(flags)  # noqa: SLF001
@@ -588,7 +589,7 @@ _TFLAG_POOL = (
 
 def test_map_flags_fuzz() -> None:
     """随机旗标表 → (toks,dropped,applied) 全等 + shell-escape 永不进 argv。"""
-    rng = random.Random(_SEED + 2)  # noqa: S311
+    rng = fuzz_rng(_SEED + 2)
     for _ in range(_ITER):
         flags = [rng.choice(_TFLAG_POOL) for _ in range(rng.randrange(0, 8))]
         toks, dropped, applied = TectonicEngine._map_flags(flags)  # noqa: SLF001
@@ -1440,7 +1441,7 @@ def _o_parse(lines: list[str]) -> dict[str, object]:
 
 def test_parse_log_fuzz() -> None:
     """随机 log → n_errors/first/ctx/l.NN/tail/栈快照/警告归属全字段对拍。"""
-    rng = random.Random(_SEED + 3)  # noqa: S311
+    rng = fuzz_rng(_SEED + 3)
     for i in range(_ITER):
         gen = _LogGen(rng)
         gen.emit()
@@ -1566,7 +1567,7 @@ def _mk_escape(name: str) -> str:
 
 def test_makefile_inputs_roundtrip() -> None:
     """随机 prereq 名 → Make 转义 → 解析回原名（round-trip 性质）。"""
-    rng = random.Random(_SEED + 4)  # noqa: S311
+    rng = fuzz_rng(_SEED + 4)
     alphabet = "ab ._-:#\\\t$"
     for _ in range(_ITER):
         names = [
@@ -1609,7 +1610,7 @@ def test_tectonic_unescaped_inputs_semantics() -> None:
 
 def test_compiled_dependencies_fuzz(tmp_path: Path) -> None:
     """随机 INPUT 集 × 随机文件集 → deps 对拍（存在性/根内/后缀/必含 main）。"""
-    rng = random.Random(_SEED + 5)  # noqa: S311
+    rng = fuzz_rng(_SEED + 5)
     pool = [
         "main.tex",
         "sub/s.tex",
@@ -1698,7 +1699,7 @@ def test_compiled_dependencies_tectonic_outdir_rel(tmp_path: Path) -> None:
 # ================================================================ kpathsea/bwrap 纯函数
 def test_kpathsea_list_fuzz() -> None:
     """随机分隔汤 → 绝对路径子集；``;`` 不是分隔符（钉值）。"""
-    rng = random.Random(_SEED + 6)  # noqa: S311
+    rng = fuzz_rng(_SEED + 6)
     atoms = ["/a", "/b c", "rel", "!", ":", ",", ";", "{", "}", "//", " ", "\n", "/x"]
     for _ in range(_ITER):
         s = "".join(rng.choice(atoms) for _ in range(rng.randrange(0, 12)))
@@ -1766,7 +1767,7 @@ def test_bwrap_mounts_anchor(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) ->
 
 def test_mirror_source_dirs_fuzz(tmp_path: Path) -> None:
     """目录镜像：非 dot 目录全镜像，dot 段与 out 内目录跳过。"""
-    rng = random.Random(_SEED + 7)  # noqa: S311
+    rng = fuzz_rng(_SEED + 7)
     src = tmp_path / "src"
     src.mkdir()
     made_dirs: set[str] = set()
