@@ -24,6 +24,7 @@ pdftotext 缺席时降级为 log 判据：`Missing character:` 计数==0。
 from __future__ import annotations
 
 import re
+from collections import Counter
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -220,25 +221,21 @@ def _slot_scan(
     return hits
 
 
-def _machine_slot_probe(v: Verdict, res: CompRes) -> None:
-    r"""Doc 级机位审计：workdir ``*.tex`` 机位实参非 ASCII → note 观察项。
+def machine_slot_audit(workdir: Path) -> list[str]:
+    r"""机位审计独立入口：``workdir`` 下 ``*.tex`` 机位实参非 ASCII → note 串。
 
-    未标机位参进 zh chunk 面=静默丢失真条件（``\label{中文}`` 断链、
-    ``\cite{中文}`` undefined citation、restatable env 参 ``\relax``
-    零 ``!`` 行），但纸真 CJK env 名/label 合法 → 只记 note 不判红。
-    ``mask_tex`` 视图匹配（注释/verbatim/死区同形非活机位），命中组
-    回切原文进报文。note 形 ``machine_slot_nonascii:<kind>:<file>:<arg>``，
-    ``_MACHINE_SLOT_MAX`` 封顶。
+    judge() 内 ``_machine_slot_probe`` 只兜 has_pdf 路径——编译挂死早退
+    时本函数仍给 splice 后调用面（e2e ``_translate_tree``/worker splice/
+    ``repair_l2._resplice``）留污染证据。note 形与探针同：
+    ``machine_slot_nonascii:<kind>:<file>:<arg>`` + ``capped`` 截断标记。
     """
-    if res.workdir is None:
-        return
     from texlate.compile.fixloop._builtins_bib import (  # noqa: PLC0415  # 延迟: fixloop 链重
         _CITE_FAMILY_RE,
     )
 
     rxs = (*_MACHINE_SLOT_RXS, ("cite", _CITE_FAMILY_RE))
     hits: list[str] = []
-    for tex in sorted(res.workdir.rglob("*.tex")):
+    for tex in sorted(workdir.rglob("*.tex")):
         try:
             src = tex.read_text(errors="replace")
         except OSError:
@@ -249,10 +246,22 @@ def _machine_slot_probe(v: Verdict, res: CompRes) -> None:
         )
         if len(hits) >= _MACHINE_SLOT_MAX:
             break
-    capped = len(hits) >= _MACHINE_SLOT_MAX
-    v.notes.extend(hits[:_MACHINE_SLOT_MAX])
-    if capped:
-        v.notes.append(f"machine_slot_nonascii:capped@{_MACHINE_SLOT_MAX}")
+    notes = hits[:_MACHINE_SLOT_MAX]
+    if len(hits) >= _MACHINE_SLOT_MAX:
+        notes.append(f"machine_slot_nonascii:capped@{_MACHINE_SLOT_MAX}")
+    return notes
+
+
+def _machine_slot_probe(v: Verdict, res: CompRes) -> None:
+    r"""Doc 级机位审计：workdir ``*.tex`` 机位实参非 ASCII → note 观察项。
+
+    未标机位参进 zh chunk 面=静默丢失真条件（``\label{中文}`` 断链、
+    ``\cite{中文}`` undefined citation、restatable env 参 ``\relax``
+    零 ``!`` 行），但纸真 CJK env 名/label 合法 → 只记 note 不判红。
+    本体在 ``machine_slot_audit``（splice 后调用面复用同一扫描）。
+    """
+    if res.workdir is not None:
+        v.notes.extend(machine_slot_audit(res.workdir))
 
 
 def _full_log_text(res: CompRes, log_text: str) -> str:
@@ -426,3 +435,84 @@ def judge(res: CompRes, *, expect_cjk: bool = False, log_text: str = "") -> Verd
 
     v.status = "clean" if not v.reasons else "partial"
     return v
+
+
+# ------------------------------------------------------------------ 配对机位 diff
+
+#: 逗号键表归一的机位类：``\cite{a,b}``↔``\cite{b,a}`` 键序重排合法，
+#: ``\bibliography``/``\addbibresource`` 多文件表同理——按键多重集比对。
+#: 其余类原子比对（``\ref{a,b}`` 合并即缺陷）。
+_SLOT_KEYLIST_KINDS = frozenset({"cite", "bib"})
+
+
+def _slot_args(
+    src: str, rxs: tuple[tuple[str, re.Pattern[str]], ...]
+) -> list[tuple[str, str]]:
+    r"""单文件源文机位实参全量命中 → ``(kind, arg)`` 序对。
+
+    ``_slot_scan`` 同口径的 ``mask_tex`` 视图 + 死尾截断，但无非 ASCII
+    过滤、每 match 全部非 None 捕获组各自入列（restatable 双参都收，
+    ``\\input`` 三形态只中一支）——arg 按视图命中区间回切原文字节。
+    """
+    view = mask_tex(src)
+    dead = _DEAD_TAIL_RX.search(view)
+    if dead is not None:
+        view = view[: dead.start()]
+    hits: list[tuple[str, str]] = []
+    for kind, rx in rxs:
+        for m in rx.finditer(view):
+            hits.extend(
+                (kind, src[m.start(i) : m.end(i)])
+                for i, g in enumerate(m.groups(), start=1)
+                if g is not None
+            )
+    return hits
+
+
+def _slot_arg_multiset(
+    src: str, rxs: tuple[tuple[str, re.Pattern[str]], ...]
+) -> Counter[tuple[str, str]]:
+    """机位命中归一成 ``(kind, key)`` 多重集：keylist 类逗号拆键去空白。"""
+    ms: Counter[tuple[str, str]] = Counter()
+    for kind, arg in _slot_args(src, rxs):
+        if kind in _SLOT_KEYLIST_KINDS:
+            for raw in arg.split(","):
+                key = raw.strip()
+                if key:
+                    ms[(kind, key)] += 1
+        else:
+            ms[(kind, arg)] += 1
+    return ms
+
+
+def paired_slot_diff(src_tex: str, zh_tex: str, rel: str) -> list[str]:
+    r"""src/zh 机位实参配对 diff：splice 后逐文件对账 → note 串。
+
+    ``res.vtex``（post-normalize 源，与落盘 src 字节同一）对 zh 重建文做
+    ``(kind, arg)`` 多重集 diff——``src−zh`` 记 ``slot_arg_missing``（丢参/
+    译参），``zh−src`` 记 ``slot_arg_extra``（幻影参：LLM 臆造 ``\cite`` →
+    undefined citation 前兆）。cite/bib 逗号键表归一后比对；其余类原子。
+    当前 chunk 面零机位 token 使本探针日常空转——价值在捕获下一个扫描
+    缺口把机位参漏上 LLM 面（silentthm 事故类）+ 重建侧参字节腐烂。
+    """
+    from texlate.compile.fixloop._builtins_bib import (  # noqa: PLC0415  # 延迟: fixloop 链重
+        _CITE_FAMILY_RE,
+    )
+
+    rxs = (*_MACHINE_SLOT_RXS, ("cite", _CITE_FAMILY_RE))
+    src_ms = _slot_arg_multiset(src_tex, rxs)
+    zh_ms = _slot_arg_multiset(zh_tex, rxs)
+    notes = [
+        f"slot_arg_missing:{kind}:{rel}:{arg!r}"
+        for (kind, arg), n in sorted((src_ms - zh_ms).items())
+        for _ in range(n)
+    ]
+    notes.extend(
+        f"slot_arg_extra:{kind}:{rel}:{arg!r}"
+        for (kind, arg), n in sorted((zh_ms - src_ms).items())
+        for _ in range(n)
+    )
+    if len(notes) > _MACHINE_SLOT_MAX:
+        notes = notes[:_MACHINE_SLOT_MAX]
+        notes.append(f"slot_arg_missing:capped@{_MACHINE_SLOT_MAX}")
+    return notes
