@@ -1,4 +1,4 @@
-"""mnras texmf 遮蔽退役 + vendor 补丁件平铺修复链单测。
+"""mnras texmf 遮蔽 stateless-drop 修复链单测 (可达病件指纹确证 → vendor 补丁件平铺 ./mnras.cls)。
 
 实证背景 (corpus_v3 1206.0291, geomreverify #57 stagerun 残格):
 mn2e stub ``needs:["mnras.cls"]`` → ``eng.install_file`` → ``tlmgr
@@ -7,18 +7,21 @@ mn2e stub ``needs:["mnras.cls"]`` → ``eng.install_file`` → ``tlmgr
 \\usepackage{graphicx}}`` 把 ``\\usepackage`` 写进 ``\\ds@`` 选项声明体,
 ``\\ProcessOptions`` 执行 usegraphicx 选项 → ``mnras.cls:114: LaTeX Error:
 \\RequirePackage or \\LoadClass in Options Section`` 硬错 (cat=other)。
-宿主 ``~/texmf`` 常驻副本同病 (TEXMFHOME 链尾保持可见 → 同样可达, 只遮蔽不退役)。
-退役→missing→vendored_fetch(11.5) 名义链不可达: ``install_file`` (order 10)
-先截 missing_file (宿主探得 already-present / tlmgr 重装同病上游件) ——
-规则脚本自给: ``find . ../_texmf/home`` 双根扫 (生产内嵌 + stagerun 兄弟
-式两布局), 指纹闸 (剥注释后 ``\\ds@usegraphicx`` 行内联
-``\\usepackage|\\RequirePackage``) 确证才 mv ``.fixloop-iso``;
-``texlate patch`` / ``texlate-fixloop-injected`` 双标跳过防自拆; python
-桥 ``_vendor_root`` 钉件平铺 ``./mnras.cls`` —— kpathsea cwd 序压过一切
-texmf 树件。
+宿主 ``~/texmf`` 常驻副本同病 (TEXMFHOME 链尾保持可见 → 同样可达)。
+设计: stateless DROP —— 退役→missing→vendored_fetch(11.5) 名义链不可达
+(``install_file``(10) 先截 missing_file: 宿主探得 already-present / tlmgr
+重装同病上游件 → 复毒死环), 且 mv usertree/宿主件是树外突变 —— 故指纹
+确证任一可达病形件 (wdir 根 / ``find . ../_texmf/home`` 双式 usertree /
+kpsewhich 宿主面) → vendor 补丁件平铺 wdir 根, kpathsea cwd 序压过一切
+texmf 树件; ``texlate patch`` / ``texlate-fixloop-injected`` 双标跳过防
+自拆; wdir 根稿自带病件先 mv ``.fixloop-iso`` 让位 (wdir 内退役, pstadd
+同型先例)。
 """
 
+import shutil
 from pathlib import Path
+
+import pytest
 
 from texlate.compile.fixloop import Ruleset, actions, fixloop, load_ruleset
 from texlate.compile.fixloop.engine import LoopCtx, Rule
@@ -27,7 +30,9 @@ from texlate.compile.fixloop.logparse import ErrReport, parse_text
 _VENDOR_DIR = (
     Path(__file__).resolve().parent.parent / "src/texlate/compile/fixloop/vendor/files"
 )
-_RULE_ID = "mnras_texmf_shadow_retire"
+_VENDOR_BYTES = (_VENDOR_DIR / "mnras.cls").read_text(encoding="utf-8")
+_RULE_ID = "mnras_texmf_shadow_drop"
+_KPSEWHICH = shutil.which("kpsewhich") is not None
 
 # 1206.0291 geomreverify 实证首错 (file-line-error 形态, cat=other pay=null)
 _ERR_OPTIONS = (
@@ -104,6 +109,20 @@ def _plant_cls(wdir: Path, body: str = _BUGGY_CLS) -> Path:
     return f
 
 
+def _fake_host(tmp_path: Path, body: str, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """假宿主 texmf: ``<root>/tex/latex/mnras/mnras.cls`` + TEXMFHOME 指向它。
+
+    kpsewhich 探宿主面走 env TEXMFHOME —— monkeypatch 后 run_tool 的
+    subprocess 继承 os.environ → 脚本内 kpsewhich 命中此树 (先于 TEXMFDIST,
+    故真机 texlive 病件不影响本组断言)。
+    """
+    f = tmp_path / "host-texmf/tex/latex/mnras/mnras.cls"
+    f.parent.mkdir(parents=True, exist_ok=True)
+    f.write_text(body, encoding="utf-8")
+    monkeypatch.setenv("TEXMFHOME", str(tmp_path / "host-texmf"))
+    return f
+
+
 # ---------------------------------------------------------------- taxonomy
 def test_taxonomy_options_section_is_other() -> None:
     """实证签名: Options Section LaTeX Error → other (兜底格)。"""
@@ -126,7 +145,7 @@ def test_taxonomy_undef_is_undefined_cs() -> None:
 # ---------------------------------------------------------------- 钉版面
 def test_vendored_mnras_pinned_patch() -> None:
     """vendor/files/mnras.cls 钉版: 补丁标 + ds@usegraphicx 行净 + 推迟载入块。"""
-    text = (_VENDOR_DIR / "mnras.cls").read_text(encoding="utf-8")
+    text = _VENDOR_BYTES
     assert "% texlate patch" in text
     assert "\\def\\ds@usegraphicx{\\@usegraphicxtrue}" in text
     assert "\\if@usegraphicx" in text
@@ -141,7 +160,7 @@ def test_vendored_mnras_pinned_patch() -> None:
 
 # ---------------------------------------------------------------- 规则接线
 def test_rule_wired_loop_phase() -> None:
-    """规则挂 loop 相 order 11.91 → run_tool sh -c 指纹退役 + vendor 平铺。"""
+    """规则挂 loop 相 order 11.91 → run_tool sh -c 指纹探测 + vendor 平铺。"""
     rule = _rule()
     assert rule.order == 11.91  # noqa: PLR2004 - schema 断言值
     cats = {c.get("category") for c in rule.when["any"]}
@@ -149,16 +168,18 @@ def test_rule_wired_loop_phase() -> None:
     assert "Options Section" in rule.condition["ctx_suggests"]
     assert "mnras" in rule.condition["ctx_suggests"]
     globs = {c.get("cache_dir_glob") for c in rule.condition["any"]}
-    assert globs == {"**/mnras.cls", "../_texmf/home/**/mnras.cls"}
+    assert globs == {"**/mnras.cls", "../_texmf/home/**/mnras.cls", None}
+    assert any(c.get("tool_available") == "kpsewhich" for c in rule.condition["any"])
     assert rule.condition["tool_available"] == "sh"
     assert rule.action["kind"] == "run_tool"
     argv = rule.action["params"]["argv"]
     assert argv[:2] == ["sh", "-c"]
     assert "mnras.cls" in argv[2]
-    assert "fixloop-iso" in argv[2]
+    assert "fixloop-iso" in argv[2]  # 根稿自带病件退役让位
     assert "ds@usegraphicx" in argv[2]
-    assert "texlate patch" in argv[2]  # 补丁标闸: 不退役 vendor 件
-    assert "texlate-fixloop-injected" in argv[2]  # 指纹闸: 不退役本引擎注入件
+    assert "kpsewhich" in argv[2]  # 宿主 ~/texmf/TEXMFDIST 面探址
+    assert "texlate patch" in argv[2]  # 补丁标闸: 不判 vendor 件病
+    assert "texlate-fixloop-injected" in argv[2]  # 指纹闸: 不判本引擎注入件病
     assert "_vendor_root" in argv[2]  # 平铺臂: 补丁件自给 (vendored_fetch 链不可达)
 
 
@@ -171,17 +192,6 @@ def test_rule_order_neighbors() -> None:
 
 
 # ---------------------------------------------------------------- condition 闸
-def test_cond_skip_when_file_absent(tmp_path: Path) -> None:
-    """wdir 无 mnras.cls → cache_dir_glob 闸拒 (不动别格错)。"""
-    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
-    ctx.err_head = _ERR_OPTIONS + "\n" + _ERR_OPTIONS_CTX
-    ok, why = actions._cond_ok(  # noqa: SLF001 - 闸行为直驱
-        _rule().condition, _rule(), ctx, None, None
-    )
-    assert not ok
-    assert "any" in why  # ctx_suggests 已过 → 是 glob any 臂拒
-
-
 def test_cond_skip_when_error_elsewhere(tmp_path: Path) -> None:
     """错误不点名 mnras.cls/Options Section (别包错) → ctx_suggests 闸拒。"""
     _plant_cls(tmp_path)
@@ -222,22 +232,40 @@ def test_cond_pass_bang_form(tmp_path: Path) -> None:
     assert ok, why
 
 
+@pytest.mark.skipif(not _KPSEWHICH, reason="kpsewhich 缺席 → 宿主面臂不评")
+def test_cond_pass_kpsewhich_arm_host_only(tmp_path: Path) -> None:
+    """本地零 mnras.cls (病件只在宿主树) → kpsewhich 工具臂放行脚本自裁。"""
+    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
+    ctx.err_head = _ERR_OPTIONS + "\n" + _ERR_OPTIONS_CTX
+    ok, why = actions._cond_ok(_rule().condition, _rule(), ctx, None, None)  # noqa: SLF001
+    assert ok, why
+
+
+def test_cond_skip_when_nothing_resolvable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """零在场证: 无本地件 + PATH 清空 (kpsewhich/sh 俱隐) → 全臂拒。"""
+    monkeypatch.setenv("PATH", str(tmp_path / "empty-bin"))
+    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
+    ctx.err_head = _ERR_OPTIONS + "\n" + _ERR_OPTIONS_CTX
+    ok, _ = actions._cond_ok(_rule().condition, _rule(), ctx, None, None)  # noqa: SLF001
+    assert not ok
+
+
 # ---------------------------------------------------------------- 动作直驱 (真 sh)
-def test_apply_retires_usertree_cls_and_plants(tmp_path: Path) -> None:
-    """_apply 真跑 sh: usertree 病件 → .fixloop-iso + vendor 补丁件平铺 ./mnras.cls。"""
+def test_apply_drops_when_usertree_buggy(tmp_path: Path) -> None:
+    """usertree 病件在场 → 原位保留 (零树外突变) + vendor 补丁件平铺 ./mnras.cls。"""
     cls = _plant_cls(tmp_path)
     ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
     ok, note = actions._apply(_rule(), ctx, None, None, ErrReport())  # noqa: SLF001
     assert ok, note
-    assert not cls.exists()
-    assert (cls.parent / "mnras.cls.fixloop-iso").read_text() == _BUGGY_CLS
-    planted = (tmp_path / "mnras.cls").read_text(encoding="utf-8")
-    assert planted == (_VENDOR_DIR / "mnras.cls").read_text(encoding="utf-8")
-    assert "% texlate patch" in planted
+    assert cls.read_text(encoding="utf-8") == _BUGGY_CLS  # 病件不动
+    assert not (cls.parent / "mnras.cls.fixloop-iso").exists()
+    assert (tmp_path / "mnras.cls").read_text(encoding="utf-8") == _VENDOR_BYTES
 
 
-def test_apply_retires_sibling_usertree(tmp_path: Path) -> None:
-    """stagerun 兄弟式: ../_texmf/home 病件退役 + 平铺落 wdir (splice)。"""
+def test_apply_drops_sibling_usertree(tmp_path: Path) -> None:
+    """stagerun 兄弟式: ../_texmf/home 病件证病 → 平铺落 wdir (splice), 兄弟件不动。"""
     splice = tmp_path / "splice"
     splice.mkdir()
     cls = tmp_path / "_texmf/home/tex/latex/mnras/mnras.cls"
@@ -246,84 +274,109 @@ def test_apply_retires_sibling_usertree(tmp_path: Path) -> None:
     ctx = LoopCtx(wdir=splice, engine_name="xelatex")
     ok, note = actions._apply(_rule(), ctx, None, None, ErrReport())  # noqa: SLF001
     assert ok, note
-    assert not cls.exists()
-    assert (cls.parent / "mnras.cls.fixloop-iso").exists()
-    planted = splice / "mnras.cls"
-    assert planted.read_text(encoding="utf-8") == (_VENDOR_DIR / "mnras.cls").read_text(
-        encoding="utf-8"
-    )
+    assert cls.read_text(encoding="utf-8") == _BUGGY_CLS
+    assert (splice / "mnras.cls").read_text(encoding="utf-8") == _VENDOR_BYTES
 
 
-def test_apply_retires_wdir_root_cls(tmp_path: Path) -> None:
-    """稿自带 ./mnras.cls 病件 → 退役后原位递补 vendor 补丁件。"""
+def test_apply_root_buggy_retired_then_dropped(tmp_path: Path) -> None:
+    """稿自带 ./mnras.cls 病件 (cwd 现胜者) → mv .fixloop-iso 让位 + vendor 递补。"""
     (tmp_path / "mnras.cls").write_text(_BUGGY_CLS, encoding="utf-8")
     ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
     ok, note = actions._apply(_rule(), ctx, None, None, ErrReport())  # noqa: SLF001
     assert ok, note
     assert (tmp_path / "mnras.cls.fixloop-iso").read_text() == _BUGGY_CLS
-    planted = (tmp_path / "mnras.cls").read_text(encoding="utf-8")
-    assert planted == (_VENDOR_DIR / "mnras.cls").read_text(encoding="utf-8")
+    assert (tmp_path / "mnras.cls").read_text(encoding="utf-8") == _VENDOR_BYTES
 
 
-def test_apply_skips_patched_marker(tmp_path: Path) -> None:
-    """texlate patch 标件不退役 —— vendor 件重扫防自拆。"""
+def test_apply_no_drop_when_patched_only(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """仅补丁标件可达 (树内 + 假宿主) → 指纹阴性 → 零平铺零退役。"""
     cls = _plant_cls(tmp_path, _PATCHED_CLS)
+    _fake_host(tmp_path, _PATCHED_CLS, monkeypatch)
     ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
     ok, note = actions._apply(_rule(), ctx, None, None, ErrReport())  # noqa: SLF001
     assert ok, note
     assert cls.read_text(encoding="utf-8") == _PATCHED_CLS
+    assert not (tmp_path / "mnras.cls").exists()
     assert not (cls.parent / "mnras.cls.fixloop-iso").exists()
 
 
-def test_apply_skips_fingerprint_clean_foreign(tmp_path: Path) -> None:
-    """指纹阴性外来件 (ds@ 行净, 无标) 不退役 —— 已修副本不冤。"""
+def test_apply_no_drop_when_safe_foreign(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """指纹阴性外来件 (ds@ 行净, 无标) → 不判病 → 不平铺。"""
     cls = _plant_cls(tmp_path, _SAFE_CLS)
+    _fake_host(tmp_path, _SAFE_CLS, monkeypatch)
     ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
     ok, note = actions._apply(_rule(), ctx, None, None, ErrReport())  # noqa: SLF001
     assert ok, note
     assert cls.read_text(encoding="utf-8") == _SAFE_CLS
+    assert not (tmp_path / "mnras.cls").exists()
 
 
-def test_apply_skips_commented_buggy_line(tmp_path: Path) -> None:
-    """病形只在注释行 → 剥注释指纹阴性 → 不动 (纯注释载件不冤)。"""
+def test_apply_no_drop_when_commented(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """病形只在注释行 → 剥注释指纹阴性 → 不平铺 (纯注释载件不冤)。"""
     cls = _plant_cls(tmp_path, _COMMENTED_CLS)
+    _fake_host(tmp_path, _SAFE_CLS, monkeypatch)
     ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
     ok, note = actions._apply(_rule(), ctx, None, None, ErrReport())  # noqa: SLF001
     assert ok, note
     assert cls.read_text(encoding="utf-8") == _COMMENTED_CLS
+    assert not (tmp_path / "mnras.cls").exists()
 
 
-def test_apply_skips_injected_marker(tmp_path: Path) -> None:
-    """texlate-fixloop-injected 指纹件不退役 —— 防退役→重投死循环。"""
+def test_apply_no_drop_when_injected(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """texlate-fixloop-injected 指纹件不判病 → 不平铺 —— 防投→判病→再投环。"""
     cls = _plant_cls(tmp_path, _INJECTED_CLS)
+    _fake_host(tmp_path, _PATCHED_CLS, monkeypatch)
     ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
     ok, note = actions._apply(_rule(), ctx, None, None, ErrReport())  # noqa: SLF001
     assert ok, note
     assert cls.read_text(encoding="utf-8") == _INJECTED_CLS
+    assert not (tmp_path / "mnras.cls").exists()
 
 
-def test_apply_does_not_clobber_root_cls(tmp_path: Path) -> None:
-    """./mnras.cls 已占 (稿自带/先投件) → 平铺臂不覆写, 仅退役树内病件。"""
-    _plant_cls(tmp_path)
+def test_apply_no_clobber_safe_root(tmp_path: Path) -> None:
+    """./mnras.cls 被安全件占 (cwd 已胜者) → 不退役不覆写, 树内病件也不动。"""
+    cls = _plant_cls(tmp_path)
     (tmp_path / "mnras.cls").write_text(_SAFE_CLS, encoding="utf-8")
     ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
     ok, note = actions._apply(_rule(), ctx, None, None, ErrReport())  # noqa: SLF001
     assert ok, note
     assert (tmp_path / "mnras.cls").read_text(encoding="utf-8") == _SAFE_CLS
+    assert not (tmp_path / "mnras.cls.fixloop-iso").exists()
+    assert cls.read_text(encoding="utf-8") == _BUGGY_CLS
+
+
+@pytest.mark.skipif(not _KPSEWHICH, reason="kpsewhich 缺席 → 宿主面探测跳过")
+def test_apply_drops_when_only_host_buggy(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """病件只在宿主 TEXMFHOME (wdir/兄弟面零件) → kpsewhich 证病 → 平铺, 宿主件不动。"""
+    host = _fake_host(tmp_path, _BUGGY_CLS, monkeypatch)
+    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
+    ok, note = actions._apply(_rule(), ctx, None, None, ErrReport())  # noqa: SLF001
+    assert ok, note
+    assert (tmp_path / "mnras.cls").read_text(encoding="utf-8") == _VENDOR_BYTES
+    assert host.read_text(encoding="utf-8") == _BUGGY_CLS  # 零树外突变
+    assert not (tmp_path / "mnras.cls.fixloop-iso").exists()
 
 
 def test_apply_idempotent_second_run(tmp_path: Path) -> None:
-    """二跑幂等: 平铺件带 patch 标 → find 跳过, [ -f ] 闸拒再平铺。"""
-    cls = _plant_cls(tmp_path)
+    """二跑幂等: 平铺件带 patch 标 → 不判病不覆写不退役。"""
+    _plant_cls(tmp_path)
     ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
     ok1, _ = actions._apply(_rule(), ctx, None, None, ErrReport())  # noqa: SLF001
     ok2, _ = actions._apply(_rule(), ctx, None, None, ErrReport())  # noqa: SLF001
     assert ok1
     assert ok2
-    planted = (tmp_path / "mnras.cls").read_text(encoding="utf-8")
-    assert planted == (_VENDOR_DIR / "mnras.cls").read_text(encoding="utf-8")
+    assert (tmp_path / "mnras.cls").read_text(encoding="utf-8") == _VENDOR_BYTES
     assert not (tmp_path / "mnras.cls.fixloop-iso").exists()  # vendor 件不被退役
-    assert (cls.parent / "mnras.cls.fixloop-iso").read_text() == _BUGGY_CLS
 
 
 # ---------------------------------------------------------------- e2e
@@ -411,7 +464,8 @@ def _sh_runner(
 ) -> tuple[int, str, float, bool]:
     """真跑 sh -c 的 runner (argv, timeout, wdir → rc,out,sec,to)。
 
-    不仿真脚本语义 —— subprocess 原样执行, find/指纹闸/平铺臂都走真件。
+    不仿真脚本语义 —— subprocess 原样执行 (env 继承 → monkeypatch TEXMFHOME
+    可注宿主树), find/指纹闸/kpsewhich/平铺臂都走真件。
     """
     import subprocess  # noqa: PLC0415 - 测试替身局部用
 
@@ -426,8 +480,8 @@ def _sh_runner(
     return p.returncode, (p.stdout or "") + (p.stderr or ""), 0.0, False
 
 
-def test_e2e_retire_then_plant_shadows(tmp_path: Path) -> None:
-    """整链 (内嵌布局): Options Section → 树内病件退役 + vendor 平铺 → clean。"""
+def test_e2e_drop_shadows_usertree_buggy(tmp_path: Path) -> None:
+    """整链 (内嵌布局): Options Section → 指纹确证 + vendor 平铺 → clean; 病件原位。"""
     eng = _MockEngine(
         [
             {"log": _ERR_OPTIONS + "\n" + _ERR_OPTIONS_CTX + "\n"},
@@ -437,15 +491,13 @@ def test_e2e_retire_then_plant_shadows(tmp_path: Path) -> None:
     cell = fixloop(_proj(tmp_path), eng, runner=_sh_runner)
     assert cell["verdict"] == "clean"
     assert any(a["rule"] == _RULE_ID for a in cell["actions"])
-    iso = tmp_path / "_texmf/home/tex/latex/mnras/mnras.cls.fixloop-iso"
-    assert iso.exists()
-    assert not (tmp_path / "_texmf/home/tex/latex/mnras/mnras.cls").exists()
-    planted = (tmp_path / "mnras.cls").read_text(encoding="utf-8")
-    assert planted == (_VENDOR_DIR / "mnras.cls").read_text(encoding="utf-8")
+    cls = tmp_path / "_texmf/home/tex/latex/mnras/mnras.cls"
+    assert cls.read_text(encoding="utf-8") == _BUGGY_CLS  # 树内件零突变
+    assert (tmp_path / "mnras.cls").read_text(encoding="utf-8") == _VENDOR_BYTES
 
 
-def test_e2e_retire_sibling_layout(tmp_path: Path) -> None:
-    """整链 (stagerun 兄弟式): ../_texmf/home 病件退役 + splice/mnras.cls 平铺。"""
+def test_e2e_drop_sibling_layout(tmp_path: Path) -> None:
+    """整链 (stagerun 兄弟式): ../_texmf/home 病件证病 → splice/mnras.cls 平铺。"""
     eng = _MockEngine(
         [
             {"log": _ERR_OPTIONS + "\n" + _ERR_OPTIONS_CTX + "\n"},
@@ -457,16 +509,35 @@ def test_e2e_retire_sibling_layout(tmp_path: Path) -> None:
     assert cell["verdict"] == "clean"
     assert any(a["rule"] == _RULE_ID for a in cell["actions"])
     cls = tmp_path / "_texmf/home/tex/latex/mnras/mnras.cls"
-    assert not cls.exists()
-    assert cls.with_name("mnras.cls.fixloop-iso").exists()
-    planted = splice / "mnras.cls"
-    assert planted.read_text(encoding="utf-8") == (_VENDOR_DIR / "mnras.cls").read_text(
-        encoding="utf-8"
+    assert cls.read_text(encoding="utf-8") == _BUGGY_CLS
+    assert (splice / "mnras.cls").read_text(encoding="utf-8") == _VENDOR_BYTES
+
+
+@pytest.mark.skipif(not _KPSEWHICH, reason="kpsewhich 缺席 → 宿主面臂不评")
+def test_e2e_drop_host_only_buggy(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """整链 (宿主病件): 本地零件 + TEXMFHOME 假宿主病 → kpsewhich 证病 → 平铺。"""
+    host = _fake_host(tmp_path, _BUGGY_CLS, monkeypatch)
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{mn2e}\n\\begin{document}\nx\n\\end{document}\n",
+        encoding="utf-8",
     )
+    eng = _MockEngine(
+        [
+            {"log": _ERR_OPTIONS + "\n" + _ERR_OPTIONS_CTX + "\n"},
+            {"log": CLEAN_LOG, "pdf": True},
+        ]
+    )
+    cell = fixloop(tmp_path, eng, runner=_sh_runner)
+    assert cell["verdict"] == "clean"
+    assert any(a["rule"] == _RULE_ID for a in cell["actions"])
+    assert (tmp_path / "mnras.cls").read_text(encoding="utf-8") == _VENDOR_BYTES
+    assert host.read_text(encoding="utf-8") == _BUGGY_CLS  # 宿主件零突变
 
 
 def test_e2e_no_fire_on_other_error(tmp_path: Path) -> None:
-    """非 mnras 签名: 别包错 → 本规则不动树内病件。"""
+    """非 mnras 签名: 别包错 → 本规则不动件不平铺。"""
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n\\begin{document}\n\\foo\n\\end{document}\n",
         encoding="utf-8",
@@ -484,13 +555,13 @@ def test_e2e_no_fire_on_other_error(tmp_path: Path) -> None:
     assert not (tmp_path / "mnras.cls").exists()
 
 
-def test_e2e_planted_not_retired_breaks_loop(tmp_path: Path) -> None:
-    """vendor 件已平铺仍报同名错: patch 标闸保件不退役 —— 无退役→重投环。"""
+def test_e2e_dropped_not_redropped_breaks_loop(tmp_path: Path) -> None:
+    """vendor 件已平铺仍报同名错: patch 标闸保件 —— 无再投→再判病环。"""
     eng = _MockEngine(
         [
             {"log": _ERR_OPTIONS + "\n" + _ERR_OPTIONS_CTX + "\n"},
             # 平铺的 vendor 件仍报 Options Section (假想签名变体重投场景):
-            # dedup 外再跑脚本也必须跳过 patch 标件, 不得退役→平铺循环
+            # dedup 外再跑脚本也必须跳过 patch 标件, 不得覆写→判病循环
             {
                 "log": "./mnras.cls:120: LaTeX Error: \\RequirePackage or "
                 "\\LoadClass in Options Section.\nl.120 \\fi\n"
@@ -501,6 +572,5 @@ def test_e2e_planted_not_retired_breaks_loop(tmp_path: Path) -> None:
     cell = fixloop(_proj(tmp_path), eng, runner=_sh_runner)
     # r2 同签名错被 dedup 拦 (rule:None 已 applied) → stuck → salvage 兜底出 pdf
     assert cell["verdict"] == "best_effort_pdf"
-    planted = (tmp_path / "mnras.cls").read_text(encoding="utf-8")
-    assert planted == (_VENDOR_DIR / "mnras.cls").read_text(encoding="utf-8")
+    assert (tmp_path / "mnras.cls").read_text(encoding="utf-8") == _VENDOR_BYTES
     assert not (tmp_path / "mnras.cls.fixloop-iso").exists()

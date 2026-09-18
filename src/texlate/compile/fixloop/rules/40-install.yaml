@@ -327,27 +327,32 @@ rules:
 
   # 2026-09-19 mnras-retire lane (1206.0291, geomreverify #57 实证): 病件
   # 是上游 mnras v3.2 本体 —— `\def\ds@usegraphicx{\@usegraphicxtrue
-  # \usepackage{graphicx}}` 把 inline \usepackage 写进选项声明体, kernel
-  # 在 \ProcessOptions 执行该选项 → `\RequirePackage or \LoadClass in
-  # Options Section` 硬错 (:114, cat=other)。装机通路: mn2e stub
-  # needs:["mnras.cls"] → eng.install_file → tlmgr --usermode install
-  # mnras → 上游病件落 _texmf/home/tex/latex/mnras/ (stagerun 兄弟式
-  # _texmf 在 wdir 邻树, 生产 _texmf 内嵌 wdir —— find . + ../_texmf/home
-  # 双根盖两式); 宿主 ~/texmf 常驻副本同病 —— TEXMFHOME 链尾保持可见故
-  # 同样可达 (宿主件只读不动, 靠平铺遮蔽而非退役)。退役段指纹闸: 剥注
-  # 释后 \ds@usegraphicx 行内联 \usepackage|\RequirePackage 才 mv
-  # .fixloop-iso; texlate patch (vendor 补丁标) / texlate-fixloop-injected
-  # (本引擎注入标) 双标跳过防自拆。平铺段: missing → vendored_fetch(11.5)
-  # 名义链不可达 —— missing_file 先被 install_file(10) 截 (宿主探得
-  # "already-present" 或 tlmgr 重装同病上游件), 故 vendor 补丁件必须本
-  # 规则自给: python 桥取 _vendor_root 钉件落 ./mnras.cls, kpathsea cwd
-  # 序压过一切 texmf 树件 (usertree+宿主同遮); python 缺席 → `|| true`
-  # 退化为纯退役语义不阻塞。
-  - id: mnras_texmf_shadow_retire
+  # \usepackage{graphicx}}` 把 inline \usepackage 写进 \ds@ 选项声明体,
+  # kernel 在 \ProcessOptions 执行该选项 → `\RequirePackage or \LoadClass
+  # in Options Section` 硬错 (:114, cat=other)。装机通路: mn2e stub
+  # needs:["mnras.cls"] → eng.install_file → tlmgr --usermode install mnras
+  # → 上游病件落 _texmf/home/tex/latex/mnras/ (生产 _texmf 内嵌 wdir,
+  # stagerun 兄弟式在 wdir 邻树); 宿主 ~/texmf 常驻副本同病 —— TEXMFHOME
+  # 链尾保持可见故同样可达 (mn2e+usegraphicx 稿 ~25 格同露: stub 选项剥
+  # 离被 \@loadwithoptions 裸拷贝绕过, geomverify repro 实证死代码)。
+  # 设计经 census 改裁定 stateless DROP 优于 retire-mv: (a) 退役→missing
+  # →vendored_fetch(11.5) 名义链不可达 —— missing_file 先被 install_file
+  # (10) 截 (宿主探得 already-present 或 tlmgr 重装同病上游件 → 复毒;
+  # retire 又被 rule:pay dedup → 死环); (b) mv _texmf/宿主件是树外突变
+  # (~/texmf RW 挂载全局持久, invasive)。故指纹确证任一可达病形件 →
+  # vendor 补丁件平铺 ./mnras.cls —— kpathsea cwd 序压过 usertree+宿主
+  # 同遮, 零树外突变零 missing 依赖。指纹: 剥注释后 \ds@usegraphicx 行
+  # 内联 \usepackage|\RequirePackage; texlate patch / texlate-fixloop-
+  # injected 双标跳过防自拆。探测三根: wdir 根 + find . ../_texmf/home
+  # (内嵌/兄弟两式 usertree) + kpsewhich (宿主 ~/texmf/TEXMFDIST 面);
+  # wdir 根稿自带病件 (cwd 现胜者) mv .fixloop-iso 让位 —— wdir 内退役
+  # pstadd 同型先例; 根槽被安全件占 → 不覆写 (已是胜者无妨)。python 桥
+  # 缺席 → `|| true` 纯探测不阻塞。
+  - id: mnras_texmf_shadow_drop
     mechanisms: [B05]
-    description: "texmf 驻留 mnras.cls 选项段内联 \\usepackage 病 → mv .fixloop-iso 退役 + vendor 补丁件平铺 cwd 遮蔽递补"
+    description: "可达 mnras.cls 选项段内联 \\usepackage 病 → vendor 补丁件平铺 ./mnras.cls cwd 遮蔽 (根病件退役让位), 零树外突变"
     phase: loop
-    order: 11.91 # pstricks_add_pair_retire(11.9) 后, abstract_edef_capture_neutralize(11.95) 前 —— texmf 驻留退役同族
+    order: 11.91 # pstricks_add_pair_retire(11.9) 后, abstract_edef_capture_neutralize(11.95) 前 —— texmf 驻留遮蔽同族
     when:
       any: # 签名散格: 本格 other; 连锁 Missing\begin{document}→syntax / undef cs 变体同闸收
         - { category: syntax }
@@ -355,9 +360,10 @@ rules:
         - { category: other }
     condition:
       ctx_suggests: "Options Section|mnras\\.cls"
-      any: # 病件在场证: wdir 内全层 (含生产内嵌 _texmf) ∨ stagerun 兄弟 usertree
+      any: # 在场证: wdir 内全层 ∨ stagerun 兄弟 usertree ∨ kpsewhich 可探 (宿主/TEXMFDIST 面交脚本指纹裁)
         - { cache_dir_glob: "**/mnras.cls" }
         - { cache_dir_glob: "../_texmf/home/**/mnras.cls" }
+        - { tool_available: kpsewhich }
       tool_available: sh
     action:
       kind: run_tool
@@ -366,18 +372,42 @@ rules:
           - sh
           - -c
           - |
-            find . ../_texmf/home -name mnras.cls -type f 2>/dev/null | while IFS= read -r f; do
-              grep -qE 'texlate-fixloop-injected|texlate patch' "$f" && continue
-              grep -vE '^[[:space:]]*%' "$f" | grep 'ds@usegraphicx' | grep -qE '\\usepackage|\\RequirePackage' || continue
-              mv -f "$f" "$f.fixloop-iso"
-            done
-            if [ ! -f ./mnras.cls ]; then
-              python -c "import shutil; from texlate.compile.fixloop._builtins_vendored import _vendor_root; shutil.copyfile(str(_vendor_root({})/'files'/'mnras.cls'), 'mnras.cls')" 2>/dev/null || python3 -c "import shutil; from texlate.compile.fixloop._builtins_vendored import _vendor_root; shutil.copyfile(str(_vendor_root({})/'files'/'mnras.cls'), 'mnras.cls')" 2>/dev/null || true
+            buggy=
+            if [ -f ./mnras.cls ] && ! grep -qE 'texlate-fixloop-injected|texlate patch' ./mnras.cls && grep -vE '^[[:space:]]*%' ./mnras.cls | grep 'ds@usegraphicx' | grep -qE '\\usepackage|\\RequirePackage'; then
+              buggy=1
+            fi
+            if [ -z "$buggy" ]; then
+              buggy=$(find . ../_texmf/home -name mnras.cls -type f ! -path './mnras.cls' 2>/dev/null | while IFS= read -r f; do
+                grep -qE 'texlate-fixloop-injected|texlate patch' "$f" && continue
+                if grep -vE '^[[:space:]]*%' "$f" | grep 'ds@usegraphicx' | grep -qE '\\usepackage|\\RequirePackage'; then
+                  echo 1
+                  break
+                fi
+              done)
+            fi
+            if [ -z "$buggy" ] && command -v kpsewhich >/dev/null 2>&1; then
+              k=$(kpsewhich mnras.cls 2>/dev/null | head -n 1)
+              case "$k" in
+                '' | ./mnras.cls | "$PWD/mnras.cls") ;;
+                *)
+                  if ! grep -qE 'texlate-fixloop-injected|texlate patch' "$k" 2>/dev/null && grep -vE '^[[:space:]]*%' "$k" 2>/dev/null | grep 'ds@usegraphicx' | grep -qE '\\usepackage|\\RequirePackage'; then
+                    buggy=1
+                  fi
+                  ;;
+              esac
+            fi
+            if [ -n "$buggy" ]; then
+              if [ -f ./mnras.cls ] && ! grep -qE 'texlate-fixloop-injected|texlate patch' ./mnras.cls && grep -vE '^[[:space:]]*%' ./mnras.cls | grep 'ds@usegraphicx' | grep -qE '\\usepackage|\\RequirePackage'; then
+                mv -f ./mnras.cls ./mnras.cls.fixloop-iso
+              fi
+              if [ ! -f ./mnras.cls ]; then
+                python -c "import shutil; from texlate.compile.fixloop._builtins_vendored import _vendor_root; shutil.copyfile(str(_vendor_root({})/'files'/'mnras.cls'), 'mnras.cls')" 2>/dev/null || python3 -c "import shutil; from texlate.compile.fixloop._builtins_vendored import _vendor_root; shutil.copyfile(str(_vendor_root({})/'files'/'mnras.cls'), 'mnras.cls')" 2>/dev/null || true
+              fi
             fi
             exit 0
         timeout: 30
-    risk: low # 退役仅动 wdir 可达病件 (宿主 ~/texmf 不碰); 平铺件是 vendor 钉版补丁副本, cwd 遮蔽可逆
-    known_gap: "宿主 ~/texmf 病件不退役 (wdir 外不越权) —— 靠 ./mnras.cls 平铺遮蔽而非移除; python 缺席时平铺缺省 → 宿主病件仍可遮蔽胜场, 纯退役臂不保证收敛 (install_file 会重装同病上游件)"
+    risk: low # 零树外突变: usertree/宿主件只遮蔽不动; 退役仅及 wdir 根稿自带病件 (pstadd 同型先例); 平铺件是 vendor 钉版补丁副本可逆
+    known_gap: "病件原位保留靠 cwd 平铺遮蔽而非移除; 根槽被安全外来件占时平铺缺省 (该件已是 cwd 胜者无遮蔽需求); python 缺席 → 仅探测不投件; tectonic 无 kpsewhich → 宿主面缺探, wdir/兄弟面仍盖"
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }
@@ -387,7 +417,7 @@ rules:
           error: "_texmf/home/tex/latex/mnras/mnras.cls:114: LaTeX Error: \\RequirePackage or \\LoadClass in Options Section (上游 v3.2 \\ds@usegraphicx 内联 \\usepackage{graphicx})",
         }
     stats: { fires: 0, status: proposed }
-    source_ref: "tmp/lane-geomverify/report.md (residual 1 通路裁定) + run/records/fixloop.jsonl r1 实读; 补丁件 = mnras-optpatch #51 vendor/files/mnras.cls"
+    source_ref: "tmp/lane-geomverify/report.md + fixloop.jsonl r1 实读; drop 化裁定 = census 改设 (leader); 补丁件 = mnras-optpatch #51 vendor/files/mnras.cls"
 
   # 2026-09-19 draftsty-patch lane: 稿自带 .sty 内 abstract 体捕获花括号
   # hack —— `\protected@edef\@tempa{\ifnum`}=\z@\fi...` 的 `` `} `` 被
