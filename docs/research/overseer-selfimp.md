@@ -654,3 +654,9 @@
 - **vendordiag N=2 否决**（notes.md 核销）：pst-arrow 5 格 loop2/rt1/guardsmoke 全 clean——loop1 是 extension-less vendor 件+dep fanout 覆盖前的纯缺席，非 mnras shadow（主机零 texlive 实体可遮，stale tlpdb≠可达件）；setstack noop stub 够用；conm-p-l→acmart shim 正解。mnras shadow 维持 N=1，不触发泛化扫描。
 - **bib-passthrough 裁决落地**（edc2dec skeleton）：用户 GO→40904c7 直通臂+246b08c judge 条款；bib14 回归 dnt-major 17→0、stated 14/14=100。
 - roster：secdispatch/ifclose/floatopt/gcensus/capcensus + babelinv/zhfile/proofdiag + 新派 thehalgo/auxeof/expl3diag = 11。
+
+## 2026-09-19 ~09:2x — secdispatch 落地（twinhead 设计实装）
+
+- **7dae23d secdispatch**：ErrReport.errs(≤32)+classify_head 抽出+err_candidates 去重保序；miss 路径候选逐条重指 ctx.round 派发，xelatex 单错 log 探针 ≤2/格（apply 变才重探）、结果留 salvage 复用净零编译；via:"secondary:<cat>" 落 actions；sig/stuck 保主错。零 yaml 改动——geometry_hoist 对孪生真身 (option_clash,geometry) 原样点火。16+1230 域钉绿。
+- 旁见：peer 测试件改名 test_server_fixes{,2}.py→test_server_audit_fixes.py 在树（非本队车道，留主）。
+- roster：ifclose/floatopt/gcensus/capcensus + babelinv/zhfile/proofdiag/thehalgo/auxeof/expl3diag = 9 研；csmap/nataux/citembox/secdispatch/vendordiag 尸清。
