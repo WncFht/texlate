@@ -170,6 +170,27 @@ REDLINES: Final[tuple[RedLine, ...]] = (
         engine=LayerSpec("degraded_file", r"^!.*(?:File|package)[^\n]*not found"),
         rules=LayerSpec("tectonic_degrade", r"^!+ .*not found"),
     ),
+    RedLine(
+        id="restatable_loss",
+        # thm-restate ``\begin{restatable}{env}{key}`` 的 env-name 参被译
+        # （argspec ungate 前的 opacity 缺口类，及一切再泄漏路径）→ 存体
+        # ``\csname #2\endcsname`` 打未定义 env 名——``\csname`` 对未定义名
+        # 自动 \relax **零消息**（lane-silentthm 实证 ``{定理}{main}``：
+        # 全链 0 个 ``!`` 行、无 warning，定理头静默丢失 body 照排，site
+        # 与 ``\main*`` recall 两处同丢）。key 参被译不属本行域——recall
+        # ``\key`` 未定义=普通 undefined_cs 显见。log 面无任何事件行可挂，
+        # 唯一可检信号 = 包加载痕迹（file-stack ``(…/thm-restate.sty`` /
+        # ``Package: thm-restate`` 行），故只登记 judge 探针记 notes 观察项
+        # （presence≠loss：包在场≠env 用≠参被译；纸真 CJK env 名亦合法）。
+        # engine/rules 不挂：presence 非判红语义（``warn:*`` 会污 verdict）；
+        # l2 不可挂：``_WARNING_RULES`` 预筛只吃 Warning 形态行，包名行
+        # 永不进分类器。真·判定信号在 vtex 源面（env-name 参非 ASCII/非
+        # 已声明 env）——属 judge source-scan 探针，非 log pattern，不入本表。
+        judge=LayerSpec(
+            "thm_restate_loaded",
+            r"thm-restate\.sty|Package: thm-restate\b",
+        ),
+    ),
 )
 
 REDLINES_BY_ID: Final[dict[str, RedLine]] = {r.id: r for r in REDLINES}

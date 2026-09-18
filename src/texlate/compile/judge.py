@@ -104,6 +104,21 @@ _MISSCHAR_NULLFONT = name_pattern(REDLINES_BY_ID["missing_char_nullfont"].judge)
 _MISSCHAR_GATE_RX = re.compile(_MISSCHAR_GATE[1])
 _MISSCHAR_NULLFONT_RX = re.compile(_MISSCHAR_NULLFONT[1])
 
+#: thm-restate ``restatable`` 观察探针（``restatable_loss`` 行，单源
+#: ``texlate.redlines``）：包加载痕迹 → notes。env-name 参被译 → 存体
+#: ``\csname #2\endcsname`` 打未定义 env 名 → ``\csname`` 自动 \relax
+#: **零消息**（lane-silentthm 实证 ``{定理}{main}``：0 个 ``!`` 行、定理头
+#: 静默丢、body 照排）——log 面无事件可挂，presence 是 log 侧最大诚实信号。
+_THM_RESTATE = name_pattern(REDLINES_BY_ID["restatable_loss"].judge)
+_THM_RESTATE_RX = re.compile(_THM_RESTATE[1])
+#: vtex 源面判定信号（source 介质，不入 registry——judge LayerSpec 语义是
+#: log regex）：``\begin{restatable}[?]{env}`` 的 env 参非 ASCII ≈ 参被译文
+#: 污染=静默丢失真条件（纸真 CJK env 名合法 → note 不判红）。
+_RESTATABLE_HDR_RX = re.compile(
+    r"\\begin\s*\{restatable\*?\}\s*(?:\[[^\]]*\])?\s*\{([^{}]*)\}"
+)
+_HDR_NONASCII_RX = re.compile(r"[^\x00-\x7f]")
+
 
 def count_missing_chars(log_text: str) -> int:
     """统计 log 里 `Missing character` 行数（缺字形告警=中文静默丢失信号）。
@@ -121,6 +136,42 @@ def _missing_char_check(v: Verdict, full_log: str, *, expect_cjk: bool) -> None:
         v.notes.append(f"{_MISSCHAR_NULLFONT[0]}×{nf_misses}")
     if expect_cjk and v.missing_chars > 0:
         v.reasons.append(f"{_MISSCHAR_GATE[0]}×{v.missing_chars}")
+
+
+def _thm_restate_probe(v: Verdict, res: CompRes, full_log: str) -> None:
+    """thm-restate 观察项：包在场记 note；restatable env 参非 ASCII 记强 note。"""
+    if not _THM_RESTATE_RX.search(full_log):
+        return
+    v.notes.append(_THM_RESTATE[0])
+    if res.workdir is None:
+        return
+    for tex in sorted(res.workdir.rglob("*.tex")):
+        try:
+            src = tex.read_text(errors="replace")
+        except OSError:
+            continue
+        for m in _RESTATABLE_HDR_RX.finditer(src):
+            if _HDR_NONASCII_RX.search(m.group(1)):
+                v.notes.append(f"restatable_env_nonascii:{tex.name}:{m.group(1)!r}")
+                return
+
+
+def _full_log_text(res: CompRes, log_text: str) -> str:
+    """Judge 用 log 全文：实参优先，缺席回退 log_path 读盘。"""
+    if log_text:
+        return log_text
+    if res.log_path and res.log_path.exists():
+        try:
+            return res.log_path.read_text(errors="replace")
+        except OSError:
+            return ""
+    return ""
+
+
+def _log_probes(v: Verdict, res: CompRes, full_log: str, *, expect_cjk: bool) -> None:
+    """log/源面观察探针束：缺字形门控 + thm-restate 包在场/异参 note。"""
+    _missing_char_check(v, full_log, expect_cjk=expect_cjk)
+    _thm_restate_probe(v, res, full_log)
 
 
 def _signal_attribution(res: CompRes) -> int | None:
@@ -250,13 +301,7 @@ def judge(res: CompRes, *, expect_cjk: bool = False, log_text: str = "") -> Verd
     # 留痕不阻断 clean（fixer-utf8 归因：96% invalid_utf8 属此类）。
     v.notes.extend(f"sys_warn:{hit}" for hit in res.log.warnings_sys)
 
-    full_log = log_text
-    if not full_log and res.log_path and res.log_path.exists():
-        try:
-            full_log = res.log_path.read_text(errors="replace")
-        except OSError:
-            full_log = ""
-    _missing_char_check(v, full_log, expect_cjk=expect_cjk)
+    _log_probes(v, res, _full_log_text(res, log_text), expect_cjk=expect_cjk)
 
     if expect_cjk:
         _cjk_render_check(v, res)

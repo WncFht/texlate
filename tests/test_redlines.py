@@ -153,19 +153,61 @@ def test_l2_classify_end_to_end() -> None:
     assert not any("nullfont" in r for r in v.warnings.redlines)
 
 
+def test_restatable_watch_shape() -> None:
+    """``restatable_loss`` 行形冻结：judge 探针独生，脏层/l2 切片零泄漏。"""
+    r = REDLINES_BY_ID["restatable_loss"]
+    assert r.engine is None
+    assert r.rules is None
+    assert r.l2 is None
+    assert r.l2_redline is False
+    assert r.judge is not None
+    assert name_pattern(r.judge)[0] == "thm_restate_loaded"
+    # presence 概念不进任何判红/镜像切片（warn:* 会污 verdict、l2 预筛
+    # 只吃 Warning 形态行——四层出口名单同时钉死本行无外溢）。
+    flat = [n for n, _ in ENGINE_RED_LINES] + [n for n, _ in RULES_WARNINGS]
+    assert "thm_restate_loaded" not in flat
+    assert "restatable_loss" not in L2_REDLINE_CLASSES
+
+
+def test_restatable_probe_behavior() -> None:
+    """judge 探针行为：thm-restate 包加载痕迹命中、无载日志不中。"""
+    rx = re.compile(name_pattern(REDLINES_BY_ID["restatable_loss"].judge)[1])
+    loaded = (
+        "This is XeTeX, Version 3\n"
+        "(/home/u/texmf/tex/latex/thmtools/thm-restate.sty\n"
+        "Package: thm-restate 2023/05/04 v0.76\n"
+    )
+    plain = "This is XeTeX, Version 3\nPackage: thmtools 2023/05/04 v0.76\n"
+    assert rx.search(loaded)
+    assert not rx.search(plain)
+    # 判据口径抽查：探针只承诺 presence——对静默丢失本身无签名
+    # （``{定理}{main}`` 实证 0 个 ``!`` 行），故仅记 notes 观察项。
+    noloss_sig = (
+        "Output written on x.pdf (1 page).\n"
+        "LaTeX Warning: Label(s) may have changed. Rerun to get "
+        "cross-references right.\n"
+    )
+    assert not rx.search(noloss_sig)
+
+
 def test_no_orphan_misschar_literal() -> None:
     """反漂移哨兵：消费层不再持有脱离 registry 的 tempered misschar 字面量。"""
     src = Path(texlate.redlines.__file__).parent
     pat = re.compile(r"Missing character\(\?!")
+    # engine 已拆包（``compile/engine.py``→``compile/engine/*.py``）——
+    # 单文件与包两形态都扫，谁在场扫谁。
+    files = [src / "compile" / "engine.py"]
+    files += sorted((src / "compile" / "engine").glob("*.py"))
+    files += [
+        src / "compile" / "loginfo.py",
+        src / "compile" / "judge.py",
+        src / "validate" / "l2.py",
+    ]
     offenders = [
-        f"{rel}:{i}"
-        for rel in (
-            "compile/engine.py",
-            "compile/loginfo.py",
-            "compile/judge.py",
-            "validate/l2.py",
-        )
-        for i, line in enumerate((src / rel).read_text().splitlines(), start=1)
+        f"{f.relative_to(src)}:{i}"
+        for f in files
+        if f.is_file()
+        for i, line in enumerate(f.read_text().splitlines(), start=1)
         if pat.search(line)
     ]
     assert offenders == [], f"registry 外残留 misschar 红线字面量: {offenders}"
