@@ -456,6 +456,37 @@ def test_normalize_project_junk_stub_nested(tmp_path: Path) -> None:
     assert "junk_stubbed" not in stats2
 
 
+def test_normalize_project_junk_name_collision(tmp_path: Path) -> None:
+    """名撞护栏：同名但无垃圾签名的真件不覆写；带签名件仍 stub。"""
+    real = "\\section{Results}\nreal paper body, not the AIP check file\n"
+    (tmp_path / "aipcheck.tex").write_text(real)
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\input{aipcheck}\n"
+        "\\begin{document}\nx\\end{document}\n"
+    )
+    stats = normalize_project(tmp_path, "xelatex", "main.tex")
+    assert "junk_stubbed" not in stats
+    assert (tmp_path / "aipcheck.tex").read_text() == real
+
+
+def test_normalize_project_junk_collision_mixed(tmp_path: Path) -> None:
+    """同树垃圾件 + 撞名真件并存：签名件 stub、真件放行（逐件判别）。"""
+    real = "\\section{Results}\nreal fragment\n"
+    sub = tmp_path / "vendor"
+    sub.mkdir()
+    (sub / "aipcheck.tex").write_text(
+        "% $Id: aipcheck.tex,v 1.9 2005/12/01 16:16:27 frank Exp $\n"
+        "\\typein{press return}\n"
+    )
+    (tmp_path / "aipcheck.tex").write_text(real)
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\nx\\end{document}\n"
+    )
+    stats = normalize_project(tmp_path, "xelatex", "main.tex")
+    assert stats["junk_stubbed"] == ["vendor/aipcheck.tex"]
+    assert (tmp_path / "aipcheck.tex").read_text() == real
+
+
 # ---------------------------------------------------------------- invalid_utf8 输入侧臂
 def test_sanitize_ps_comments_header_bad_byte(tmp_path: Path) -> None:
     """EPS 头注释 latin-1/GBK 字节 → UTF-8 净化；diff 仅限注释行。"""
