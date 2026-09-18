@@ -381,7 +381,7 @@ def _safe_member_name(name: str) -> PurePosixPath | None:
 
 
 def _extract_members(ctx: LoopCtx, f: Path) -> int:
-    """抽 tar ``f`` 的 regular-file 成员补缺落 ``f.parent`` → 落地数 (0=非本机制案)。"""
+    """抽 tar ``f`` 的 regular-file 成员补缺落 ``f.parent`` → 落地数 (0=无缺可补)。"""
     import tarfile  # noqa: PLC0415 — 冷路径: 命中伪装件才用, 不污染常规启动
 
     extracted = 0
@@ -422,8 +422,9 @@ def extract_tar_blobs(
     解包纪律: 仅 regular file 成员 (tarfile.extractfile 逐件读字节自写,
     不依赖平台 filter 语义); 名卫拒 ``..``/绝对/``./`` 残件/NUL;
     **no-clobber**——目标已存在跳过 (真件优先, tar 只补缺); blob 本体
-    只在抽中 ≥1 成员后改名 ``{name}.tarblob`` 退役 (移出 TeX 解析路径、
-    留现场可审计; 0 成员说明非本机制案, 原样放回)。
+    命中 tar 魔数即改名 ``{name}.tarblob`` 退役 (移出 TeX 解析路径、
+    留现场可审计)——tar 归档在 ``.sty``/``.cls`` 名下绝不是合法 TeX,
+    0 新成员 (=语料已带全部成员, 0707.0382 实案) 也必须退役。
     """
     del eng, payload
     exts = {str(e).lower() for e in (params.get("exts") or _TARBLOB_EXTS)}
@@ -434,9 +435,8 @@ def extract_tar_blobs(
         if not _is_tar_blob(f):
             continue
         extracted = _extract_members(ctx, f)
-        if extracted:
-            blob_name = f.name + ".tarblob"
-            f.rename(f.with_name(blob_name))
-            ctx.invalidate(f)
-            done.append(f"{f.name}({extracted} members)")
+        blob_name = f.name + ".tarblob"
+        f.rename(f.with_name(blob_name))
+        ctx.invalidate(f)
+        done.append(f"{f.name}({extracted} members)")
     return (bool(done)), f"tar blobs extracted: {', '.join(done)}"

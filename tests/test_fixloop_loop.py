@@ -1168,13 +1168,30 @@ def test_tar_blob_unsafe_members_rejected(tmp_path: Path) -> None:
 
 
 def test_tar_blob_ignores_real_files(tmp_path: Path) -> None:
-    """健康 .sty/.tex 不误判; 零成员 tar 原样放回。"""
+    """健康 .sty/.tex 不误判。"""
     (tmp_path / "real.sty").write_bytes(b"\\ProvidesPackage{real}\n")
     (tmp_path / "main.tex").write_bytes(b"\\documentclass{article}\n")
     ok, _ = _extract(tmp_path)
     assert not ok
     assert (tmp_path / "real.sty").is_file()
     assert not (tmp_path / "real.sty.tarblob").exists()
+
+
+def test_tar_blob_retires_when_all_members_exist(tmp_path: Path) -> None:
+    """0707.0382 实案: 语料已带全部成员 → 0 新成员, blob 仍须退役。
+
+    tar 归档在 ``.sty``/``.cls`` 名下绝不是合法 TeX——退役判据是
+    tar 魔数本身, 与补缺落地数解耦 (旧逻辑 0 成员原样放回 → blob
+    残留毒化编译)。
+    """
+    (tmp_path / "iaus.cls").write_bytes(b"\\ProvidesClass{iaus}\n")
+    _write_tar(tmp_path / "AMSbsy.sty", {"./iaus.cls": b"% stale dup\n"})
+    ok, note = _extract(tmp_path)
+    assert ok, note
+    assert "0 members" in note
+    assert not (tmp_path / "AMSbsy.sty").exists()
+    assert (tmp_path / "AMSbsy.sty.tarblob").is_file()
+    assert (tmp_path / "iaus.cls").read_bytes() == b"\\ProvidesClass{iaus}\n"
 
 
 # ------------------------------------------------------- physics detach @catcode
