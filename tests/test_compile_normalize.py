@@ -1413,7 +1413,10 @@ def test_bbl_input_probe_noninput_forms_still_inject(
     main = _mk_bbl(tmp_path)
     main.write_text("\\bibliography{gone}\n" + prior + "\n")
     out = use_bundled_bibliography(main.read_text(), main)
-    assert out.startswith("\\input{main.bbl}\n")
+    assert out.startswith(
+        "\\makeatletter\\@ifundefined{auto@bib}{}{\\let\\auto@bib\\@empty}"
+        "\\makeatother\n\\input{main.bbl}\n"
+    )
 
 
 def test_bbl_input_probe_other_file_still_injects(tmp_path: Path) -> None:
@@ -1435,7 +1438,10 @@ def test_bbl_bibliography_parent_ref_counts_as_missing(tmp_path: Path) -> None:
     main = proj / "main.tex"
     main.write_text("\\bibliography{../outside/x}\n")
     out = use_bundled_bibliography(main.read_text(), main)
-    assert out == "\\input{main.bbl}\n"
+    assert out == (
+        "\\makeatletter\\@ifundefined{auto@bib}{}{\\let\\auto@bib\\@empty}"
+        "\\makeatother\n\\input{main.bbl}\n"
+    )
 
 
 def test_bbl_bibliography_absolute_ref_counts_as_missing(tmp_path: Path) -> None:

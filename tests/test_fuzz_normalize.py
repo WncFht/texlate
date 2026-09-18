@@ -1165,7 +1165,10 @@ def test_bbl_long_bib_name_tolerated(tmp_path: Path) -> None:
     )
     tex = "\\bibliography{" + "d" * 300 + "}\n"
     out = use_bundled_bibliography(tex, tmp_path / "main.tex", tmp_path)
-    assert out == "\\input{main.bbl}\n"
+    assert out == (
+        "\\makeatletter\\@ifundefined{auto@bib}{}{\\let\\auto@bib\\@empty}"
+        "\\makeatother\n\\input{main.bbl}\n"
+    )
 
 
 def test_shadow_name_glob_metachars_escaped(tmp_path: Path) -> None:

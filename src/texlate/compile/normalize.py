@@ -623,6 +623,18 @@ def normalize_legacy_cjk(text: str, engine: str) -> str:
 
 
 # ---------------------------------------------------------------- 11. bundled .bbl
+## REVIEW(bblmath): emit-site 修复（非 yaml 规则）——revtex 系（revtex4-x /
+## emulateapj / aastex）`\bibliography` 顺带 `\auto@bib@empty` 解除 end-doc
+## `\auto@bib` 探测；裸 `\input` 丢失该解除后 `\test@bbl@sw` 在 \vbox 中把
+## `\bibitem` 必需组 cite key 当正文排印（_ / & / $ → Missing$ →
+## invalid-in-math 级联；探测为真再三读 → 重复书目 / Lonely \item /
+## env_mismatch）。`\input` 改写同时补上等价解除；`\@ifundefined` 使
+## 非 revtex 工程为零操作。
+_AUTOBIB_DISARM = (
+    r"\makeatletter\@ifundefined{auto@bib}{}{\let\auto@bib\@empty}\makeatother"
+)
+
+
 def use_bundled_bibliography(text: str, path: Path, cwd: Path | None = None) -> str:
     r"""当工程附现成 .bbl 而 .bib 缺失时，`\bibliography{x}` → `\input{x.bbl}`。
 
@@ -683,6 +695,8 @@ def use_bundled_bibliography(text: str, path: Path, cwd: Path | None = None) -> 
             if ref.is_absolute() or ".." in ref.parts or not safe_is_file(base / name):
                 return (
                     text[: match.start()]
+                    + _AUTOBIB_DISARM
+                    + "\n"
                     + r"\input{"
                     + target
                     + "}"

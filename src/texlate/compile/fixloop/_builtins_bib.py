@@ -20,6 +20,14 @@ if TYPE_CHECKING:
 
 from texlate.compile.fixloop._builtins_common import _fixloop_log
 
+#: 同 normalize._AUTOBIB_DISARM —— revtex 系 ``\bibliography`` 顺带解除
+#: end-doc ``\auto@bib`` 探测；裸 ``\input`` 改写必须补回，否则
+#: ``\test@bbl@sw`` 在 vbox 排印 cite key 必需组（_/&/$ → in-math 级联 +
+#: 三读重复书目）。``\@ifundefined`` 守卫使非 revtex 工程零操作。
+_AUTOBIB_DISARM = (
+    r"\makeatletter\@ifundefined{auto@bib}{}{\let\auto@bib\@empty}\makeatother"
+)
+
 
 def bbl_stub_rewrite(
     ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
@@ -43,7 +51,11 @@ def bbl_stub_rewrite(
         t = ctx.read(f)
         if t is None or "\\bibliography" not in t:
             continue
-        nt = pat.sub(rf"\\input{{{target.name}}}", t, count=1)
+        nt = pat.sub(
+            lambda _m: _AUTOBIB_DISARM + "\n\\input{" + target.name + "}",
+            t,
+            count=1,
+        )
         if nt != t:
             ctx.write(f, nt)
             changed += 1
