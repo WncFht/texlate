@@ -55,6 +55,8 @@ def test_phase_ordering() -> None:
     ]
     # v2: eps_route 挪 loop 层 (log 确证后兜底拒); pstricks 独立成 precheck 项
     assert [r.id for r in _rs().phase("precheck")] == [
+        # \input <pkg>.sty → \usepackage 殿首: 转换形供路由门/缺件扫描同收
+        "input_sty_to_usepackage",
         "pstricks_route",
         # C5 (W31): svg 包 tectonic 硬墙 → 路由 xelatex
         "svg_route",

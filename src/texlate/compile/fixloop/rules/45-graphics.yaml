@@ -216,3 +216,47 @@ rules:
         }
     stats: { fires: 0, status: proposed }
     source_ref: "docs/research/product/2026-09-16-signature-mining.md §2.2"
+
+  # astro-ph/9901081 实证 + core 层普查 (11 格 preamble 形): 2.09 老稿
+  # ``\input <pkg>.sty`` 裸装载——plain \input 以 @=catcode-12 读包文件,
+  # 包内全部 @-cs 断成 ``\define``+``@key`` 垃圾 (epsfig.sty:46
+  # ``\define@key`` 报 ``\define`` undefined_cs), 且文件不进 \@filelist
+  # 注册表、不走选项处理。``\usepackage{pkg}`` 是 LaTeX2e 唯一正载。
+  # 前瞻 ``(?=[\s\S]*\\begin{document})`` 只改导言区位——post-doc
+  # \input .sty (corpus 2 格) 换 \usepackage 会 preamble-only 新错,
+  # 原样保留。precheck -11 = 先于 pstricks/svg 路由门: 改写把
+  # ``\input pstricks.sty`` 也翻译成 \usepackage 形 → tectonic 侧由
+  # 既有路由正确拒走 (原 \input 形逃逸路由面); 先于 static_precheck(0)
+  # → 转换后缺件经其扫描面 shim/install 可达。
+  - id: input_sty_to_usepackage
+    description: "\\input <pkg>.sty 裸装载 (@=12 读包文件 → @-cs 全裂) → 改写 \\usepackage{<pkg>}"
+    phase: precheck
+    order: -11 # 先于 pstricks_route(-10)/svg_route(-9)/static_precheck(0)
+    when: { always: true }
+    condition:
+      source_contains: "\\\\input(?:\\s*\\{\\s*|\\s+)([A-Za-z][A-Za-z0-9_-]*)\\.sty(?:\\s*\\}|(?![\\w.-]))(?=[\\s\\S]*\\\\begin\\s*\\{document\\})"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex]
+        rewrites:
+          # braced|bare 两形共 \\g<1> 单组——(?| 分支复位是 regex 扩展,
+          # ruleset_validate 用 stdlib re 全量扫 repl/pattern 必须同构。
+          # ``\.sty`` 后 ``(?:\s*\}|(?![\w.-]))`` 择一: braced 收 ``}``,
+          # bare 零消耗留分隔空白 (不吃 \n, 防 \begin{document} 并进同行)
+          # + ``(?![\w.-])`` 防 .styx 半名误中。
+          - {
+              pattern: "\\\\input(?:\\s*\\{\\s*|\\s+)([A-Za-z][A-Za-z0-9_-]*)\\.sty(?:\\s*\\}|(?![\\w.-]))(?=[\\s\\S]*\\\\begin\\s*\\{document\\})",
+              repl: "\\\\usepackage{\\g<1>}",
+            }
+    risk: low # \input .sty 在 LaTeX2e 恒为误载; 前瞻闸只动导言区位
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same } # 源码改写天然可移植, 还顺带补路由识别
+    provenance:
+      - {
+          corpus: "astro-ph/9901081 (loop2 undefined_cs fail)",
+          error: "epsfig.sty:46 Undefined control sequence \\define (\\input epsfig.sty 裸装载 @=12 裂 \\define@key)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "bench/results/stagerun-loop2-2026-09-18/cases.jsonl astro-ph/9901081"
