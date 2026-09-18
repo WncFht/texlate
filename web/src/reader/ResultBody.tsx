@@ -45,6 +45,14 @@ const RESULT_TEXT: Record<string, string> = {
     needs_auth: t.reader.resultNeedsAuth,
 };
 
+/** done.stats.stage_seconds 短键 → 阶段名（t.status 键） */
+const STAGE_LABEL: Record<string, string> = {
+    fetch: t.status.fetching,
+    parse: t.status.parsing,
+    translate: t.status.translating,
+    compile: t.status.compiling,
+};
+
 export default function ResultBody(props: Props) {
     return (
         <>
@@ -119,6 +127,52 @@ export default function ResultBody(props: Props) {
                             </div>
                         </Show>
                     </dl>
+                )}
+            </Show>
+            {/* done.stats 细分件：分阶段耗时 / fixloop 判定 / L2 摘要——
+                各块独立缺席（老任务/未跑段的 payload 无此键） */}
+            <Show when={props.stats?.stageSeconds}>
+                {(ss) => (
+                    <p class="stage-secs muted">
+                        <span class="ss-label">{t.reader.statsStage}</span>
+                        <For each={Object.entries(ss())}>
+                            {([k, v]) => (
+                                <span class="ss-item">
+                                    {STAGE_LABEL[k] ?? k} {fmtElapsed(v)}
+                                </span>
+                            )}
+                        </For>
+                    </p>
+                )}
+            </Show>
+            <Show when={props.stats?.fixloop}>
+                {(v) => (
+                    <p class="stage-secs muted">
+                        <span class="ss-label">{t.reader.statsFixloop}</span>
+                        <span class="fx-badge">{v()}</span>
+                    </p>
+                )}
+            </Show>
+            <Show when={props.stats?.l2}>
+                {(l) => (
+                    <p class="stage-secs muted">
+                        <span class="ss-label">{t.reader.statsL2}</span>
+                        <Show when={l().enabled === false}>
+                            <span class="ss-item">{t.reader.statsL2Off}</span>
+                        </Show>
+                        <Show when={l().enabled !== false}>
+                            <span class="ss-item">
+                                {t.progress.l2Errors} {l().errors ?? 0}
+                            </span>
+                            <span class="ss-item">
+                                {t.progress.l2Retranslated}{" "}
+                                {l().retranslated ?? 0}
+                            </span>
+                            <span class="ss-item">
+                                {t.progress.l2Fallback} {l().fallback ?? 0}
+                            </span>
+                        </Show>
+                    </p>
                 )}
             </Show>
             {props.grid}

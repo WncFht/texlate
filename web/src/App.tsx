@@ -18,13 +18,22 @@ import { t } from "./i18n/zh";
 const Reader = lazy(() => import("./pages/Reader"));
 
 type Route =
-    | { page: "home" }
+    | { page: "home"; arxivId?: string }
     | { page: "reader"; taskId: string }
     | { page: "settings" };
 
-function parseHash(hash: string): Route {
+export function parseHash(hash: string): Route {
     const m = hash.match(/^#\/reader\/([A-Za-z0-9_-]+)/);
     if (m) return { page: "reader", taskId: m[1] };
+    // #/arxiv/{id} 深链：预填首页输入框 + 自动提交一次（Home 侧守卫）
+    const a = hash.match(/^#\/arxiv\/([A-Za-z0-9][A-Za-z0-9._/-]*)/);
+    if (a) {
+        try {
+            return { page: "home", arxivId: decodeURIComponent(a[1]) };
+        } catch {
+            return { page: "home", arxivId: a[1] };
+        }
+    }
     if (hash.startsWith("#/settings")) return { page: "settings" };
     return { page: "home" };
 }
@@ -48,6 +57,11 @@ export default function App() {
     onCleanup(() => window.removeEventListener("hashchange", onHash));
 
     const isReader = () => route().page === "reader";
+    /** 深链参数只喂 Home——其余页不携带，narrow 后取 arxivId */
+    const homeArxivId = () => {
+        const r = route();
+        return r.page === "home" ? r.arxivId : undefined;
+    };
 
     return (
         <div class="app">
@@ -88,7 +102,7 @@ export default function App() {
                         <Settings />
                     </Match>
                     <Match when={true}>
-                        <Home nav={nav} />
+                        <Home nav={nav} arxivId={homeArxivId()} />
                     </Match>
                 </Switch>
             </Suspense>

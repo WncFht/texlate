@@ -29,6 +29,9 @@ interface Props {
     url: string;
     /** dual.json chunks——仅 html 视图消费 */
     chunks: DualChunk[];
+    /** 单段重译通路（仅 HtmlPane 用）：taskId + 终态可重译 */
+    taskId?: string;
+    canRetranslate?: boolean;
     /** 「下载带批注副本」文件名（仅 PdfPane 用） */
     annotName: string;
     active: boolean;
@@ -92,6 +95,8 @@ export default function PaneSlot(props: Props) {
                         <HtmlPane
                             side={props.side}
                             chunks={props.chunks}
+                            taskId={props.taskId}
+                            canRetranslate={props.canRetranslate}
                             active={props.active}
                             onReady={(h) => props.onReady(h)}
                             onDispose={(h) => props.onDispose(h)}

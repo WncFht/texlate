@@ -11,6 +11,7 @@ import {
     type ChunkItem,
     type ChunkEvent,
     type DoneEvent,
+    type FixloopRound,
     type LogEvent,
     type StageEvent,
     type TaskChannel,
@@ -19,6 +20,24 @@ import {
     type TransportState,
     type WarningEvent,
 } from "../api/client";
+
+/** fixloop 修复循环 live 面：round 帧逐轮累积，done 帧落定 verdict/floor_restored */
+export interface FixloopLive {
+    rounds: FixloopRound[];
+    verdict?: string;
+    floor_restored?: boolean;
+    done: boolean;
+}
+
+/** L2 校验重译 live 面：整帧存，phase 缺省按 done 归一 */
+export interface L2Live {
+    phase: string;
+    message?: string;
+    enabled?: boolean;
+    errors?: number;
+    retranslated?: number;
+    fallback?: number;
+}
 
 export interface TaskLive {
     stage?: StageEvent;
@@ -31,6 +50,8 @@ export interface TaskLive {
     warnings: WarningEvent[];
     error?: TaskErrorEvent;
     done?: DoneEvent;
+    fixloop?: FixloopLive;
+    l2?: L2Live;
     transport: TransportState;
 }
 
@@ -123,7 +144,8 @@ function upsertTask(snap: TaskSnapshot) {
 }
 
 /** 终态收敛：释放 append-only 缓冲（logs/stages 会话内单调增长）；
- * done/chunk/chunkItems/warnings/error 留给终态面板与棋盘格 */
+ * done/chunk/chunkItems/warnings/error 留给终态面板与棋盘格；
+ * fixloop/l2 同属终态面板材料——不清 */
 function settleLive(taskId: string) {
     if (!state.live[taskId]) return;
     setState("live", taskId, "logs", []);
@@ -369,6 +391,38 @@ function ensureChannel(taskId: string): TaskChannel {
         warning: (e) =>
             setState("live", taskId, "warnings", (ws) => [...ws, e]),
         error: (e) => setState("live", taskId, "error", e),
+        fixloop: (e) => {
+            if (e.phase === "round") {
+                const r = e.round;
+                if (!r) return;
+                setState("live", taskId, "fixloop", (f) => {
+                    const cur = f ?? { rounds: [], done: false };
+                    const rounds = cur.rounds.slice();
+                    const i = rounds.findIndex((x) => x.round === r.round);
+                    if (i >= 0) rounds[i] = r;
+                    else rounds.push(r);
+                    return { ...cur, rounds };
+                });
+                return;
+            }
+            // done 帧：cell 兼容旧服务端裸 cell（rounds/verdict 平铺顶层）
+            const cell = e.cell ?? e;
+            setState("live", taskId, "fixloop", (f) => ({
+                rounds: cell.rounds ?? f?.rounds ?? [],
+                verdict: cell.verdict,
+                floor_restored: cell.floor_restored,
+                done: true,
+            }));
+        },
+        l2: (e) =>
+            setState("live", taskId, "l2", {
+                phase: e.phase ?? "done",
+                message: e.message,
+                enabled: e.enabled,
+                errors: e.errors,
+                retranslated: e.retranslated,
+                fallback: e.fallback,
+            }),
         done: (e) => {
             // DELETE 端点的收尾帧——本任务行已删，别回填成 "deleted" 僵尸行
             if (e.status === "deleted") {

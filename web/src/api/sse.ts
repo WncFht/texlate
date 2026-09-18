@@ -5,6 +5,8 @@ import {
     isTerminal,
     type ChunkEvent,
     type DoneEvent,
+    type FixloopEvent,
+    type L2Event,
     type LogEvent,
     type StageEvent,
     type TaskErrorEvent,
@@ -37,6 +39,10 @@ export interface TaskEventHandlers {
     warning?: (e: WarningEvent) => void;
     error?: (e: TaskErrorEvent) => void;
     done?: (e: DoneEvent) => void;
+    /** fixloop 修复循环帧（round 增量 / done 收尾；旧服务端只在收尾发一帧裸 cell） */
+    fixloop?: (e: FixloopEvent) => void;
+    /** L2 重译帧（start/progress/done；旧服务端只发一次结果负载） */
+    l2?: (e: L2Event) => void;
     /**
      * 服务端检出重放缺口（last_id 落已淘汰区段）发的 resync 帧——
      * 本层已重置 seq 水位线；上层应拉 snapshot 对齐状态面。
@@ -118,6 +124,8 @@ export function openTaskEvents(
         h.done?.(e);
         close();
     });
+    on("fixloop", (e: FixloopEvent) => h.fixloop?.(e));
+    on("l2", (e: L2Event) => h.l2?.(e));
     es.onopen = () => h.transport?.("live");
     es.onerror = (ev) => {
         // 具名 `event: error` 帧以 type=error 的 MessageEvent 派发，会连带

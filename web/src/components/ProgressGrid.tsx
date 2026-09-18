@@ -15,6 +15,8 @@ interface Props {
     cached?: number;
     failed?: number;
     items?: ChunkItem[]; // dense：index = seq，已是累积态
+    /** 失败格点击（seq 回传）——缺省则无交互 */
+    onCellClick?: (seq: number) => void;
 }
 
 const STATUS_CLASS: Record<string, string> = {
@@ -56,7 +58,22 @@ export default function ProgressGrid(props: Props) {
                                     props.items?.[i()]?.status ?? "pending"
                                 ] ?? "cell-pending",
                         );
-                        return <i class={cls()} />;
+                        const failed = () => cls() === "cell-failed";
+                        return (
+                            <i
+                                class={cls()}
+                                classList={{ clickable: failed() && !!props.onCellClick }}
+                                title={
+                                    failed()
+                                        ? (props.items?.[i()]?.error_code ??
+                                          "failed")
+                                        : undefined
+                                }
+                                onClick={() =>
+                                    failed() && props.onCellClick?.(i())
+                                }
+                            />
+                        );
                     }}
                 </Index>
             </div>

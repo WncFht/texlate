@@ -1614,6 +1614,7 @@ button {
 }
 
 .pane-html-body .chunk {
+    position: relative; /* .chunk-retx 定位锚 */
     border-bottom: 1px dashed var(--line);
     padding: 4px 0 10px;
 }
@@ -1639,6 +1640,107 @@ button {
     color: var(--ink-2);
     text-align: center;
     padding: 40px 0;
+}
+
+/* === live reading === 未翻译徽标 / 单段重译钮 / 窗格 toast / 边译边读面板 */
+
+/* 「未翻译」段徽标——HtmlPane 译文侧与 LivePane 共用 */
+.chunk-badge {
+    display: inline-block;
+    font-size: 10px;
+    line-height: 1;
+    color: var(--ochre-deep);
+    border: 1px solid var(--ochre);
+    border-radius: 4px;
+    padding: 2px 5px;
+    margin-inline-end: 6px;
+    vertical-align: middle;
+}
+
+/* 单段重译钮：贴段右上角，hover 才现（焦点同现——键盘可达） */
+.chunk-retx {
+    position: absolute;
+    top: 4px;
+    inset-inline-end: 0;
+    z-index: 2;
+    font-size: 11px;
+    line-height: 1;
+    padding: 3px 8px;
+    color: var(--ink-3);
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    cursor: pointer;
+    opacity: 0;
+    transition:
+        opacity 0.12s ease,
+        color 0.12s ease,
+        border-color 0.12s ease;
+}
+
+.chunk:hover .chunk-retx,
+.chunk-retx:focus-visible,
+.chunk-retx:disabled {
+    opacity: 1;
+}
+
+.chunk-retx:hover:not(:disabled) {
+    color: var(--cinnabar-deep);
+    border-color: var(--cinnabar);
+}
+
+.chunk-retx:disabled {
+    cursor: default;
+    color: var(--ochre-deep);
+}
+
+/* 窗格内 toast：sticky 钉在滚动口底部（.pane 自身是滚动容器） */
+.pane-toast {
+    position: sticky;
+    bottom: 14px;
+    z-index: 6;
+    width: fit-content;
+    max-width: 80%;
+    margin: 0 auto;
+    padding: 7px 14px;
+    font-size: 12px;
+    color: var(--paper);
+    background: var(--ink);
+    border-radius: 999px;
+    box-shadow: var(--shadow);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s ease;
+}
+
+.pane-toast.show {
+    opacity: 1;
+}
+
+/* 边译边读面板：进度页内可折叠区，复用 .pane-html-body/.chunk 排版 */
+.live-pane {
+    margin-top: 18px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel);
+    padding: 8px 14px;
+}
+
+.live-pane > summary {
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--ink-2);
+    user-select: none;
+}
+
+.live-pane .live-body {
+    max-height: 480px;
+    overflow: auto;
+    max-width: 720px;
+    margin: 0 auto;
+    /* .pane-html-body 原本为整窗格设计——面板内收 padding/去底部长留白 */
+    padding: 12px 8px 24px;
+    font-size: 14px;
 }
 
 /* ---------- Settings ---------- */
@@ -2320,4 +2422,170 @@ button {
         transition: none;
         animation: none;
     }
+}
+
+/* ---------- progress chrome：排队徽章 / ETA / 段耗时 / fixloop·L2 面板 / 日志命中 ---------- */
+
+.queue-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 10px;
+    margin: 0 0 12px;
+    border-radius: 999px;
+    font-size: 12px;
+    background: color-mix(in srgb, var(--ochre) 12%, transparent);
+    color: var(--ochre-deep);
+}
+
+.tp-eta {
+    margin: 0 0 4px;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+}
+
+.stage-timeline li .tl-dur {
+    flex: none;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    font-family: var(--font-mono);
+}
+
+.fx-panel {
+    margin-top: 14px;
+    padding: 8px 14px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel);
+    font-size: 13px;
+}
+
+.fx-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 6px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.fx-spin {
+    flex: none;
+    width: 10px;
+    height: 10px;
+    border: 2px solid var(--line-strong);
+    border-top-color: var(--cinnabar);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+.fx-rounds {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-2);
+}
+
+.fx-rounds li {
+    padding: 2px 0;
+}
+
+.fx-verdict {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 6px 0 0;
+}
+
+.fx-badge {
+    display: inline-block;
+    padding: 1px 8px;
+    font-size: 12px;
+    font-family: var(--font-mono);
+    border: 1px solid var(--line-strong);
+    border-radius: 6px;
+    background: var(--paper-2);
+    color: var(--ink);
+}
+
+.fx-floor {
+    font-size: 12px;
+    color: var(--ochre-deep);
+}
+
+.fx-note {
+    margin: 0;
+    font-variant-numeric: tabular-nums;
+}
+
+.log-line.hit {
+    background: color-mix(in srgb, var(--ochre) 30%, transparent);
+    border-radius: 2px;
+}
+
+/* ---------- 结果面板细分统计块 ---------- */
+
+.stage-secs {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 14px;
+    margin: 0;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+}
+
+.stage-secs .ss-label {
+    font-weight: 600;
+    color: var(--ink-2);
+}
+
+.stage-secs .ss-item {
+    white-space: nowrap;
+}
+
+/* ---------- 任务行 ↻ 重试迷你菜单 / share.zip 直链 ---------- */
+
+.task-retry {
+    position: relative;
+    flex: none;
+}
+
+.retry-menu {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 4px);
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    min-width: 132px;
+    padding: 4px;
+    border: 1px solid var(--line-strong);
+    border-radius: 8px;
+    background: var(--panel);
+    box-shadow: var(--shadow);
+}
+
+.retry-item {
+    display: block;
+    width: 100%;
+    padding: 5px 10px;
+    font-size: 12px;
+    text-align: left;
+    white-space: nowrap;
+    color: var(--ink-2);
+    background: transparent;
+    border: 0;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.retry-item:hover {
+    color: var(--ink);
+    background: var(--paper-2);
+}
+
+.progress-grid i.clickable {
+    cursor: pointer;
 }

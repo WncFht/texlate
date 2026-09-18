@@ -106,7 +106,9 @@ export default function ReaderView(props: Props) {
         translated: 1,
     });
     const [drift, setDrift] = createSignal<Partial<Record<DocId, boolean>>>({});
-    const [handles, setHandles] = createSignal<Partial<Record<DocId, AnyHandle>>>({});
+    const [handles, setHandles] = createSignal<
+        Partial<Record<DocId, AnyHandle>>
+    >({});
     const [helpOpen, setHelpOpen] = createSignal(false);
     const [splitPct, setSplitPct] = createSignal(0.5);
 
@@ -221,7 +223,10 @@ export default function ReaderView(props: Props) {
     });
 
     const mapper = createMemo(() =>
-        createPositionMapper(dual()?.alignment ?? info()?.alignment, pageCounts()),
+        createPositionMapper(
+            dual()?.alignment ?? info()?.alignment,
+            pageCounts(),
+        ),
     );
 
     /** split + 两侧 handle 就位 → 建引擎；否则销毁（handles() 是响应源） */
@@ -255,13 +260,18 @@ export default function ReaderView(props: Props) {
 
     const planModeChange = (next: Mode) => {
         if (next === mode()) return;
-        const src = handles()[active()] ?? handles().original ?? handles().translated;
+        const src =
+            handles()[active()] ?? handles().original ?? handles().translated;
         if (src) {
             const from = src.side;
             const pos = capturePos(src);
             // 目标侧：split → 当前隐藏的对侧；单栏 → next 对应侧
             const target: DocId =
-                next === "split" ? (from === "original" ? "translated" : "original") : next;
+                next === "split"
+                    ? from === "original"
+                        ? "translated"
+                        : "original"
+                    : next;
             const dst = handles()[target];
             if (dst) {
                 // 目标窗格仍在挂载态（U3 后单栏切换两侧俱在）——立即跳，
@@ -347,18 +357,25 @@ export default function ReaderView(props: Props) {
         const next: Partial<Record<DocId, boolean>> = {};
         for (const side of ["original", "translated"] as const) {
             const me = handles()[side];
-            const otherSide: DocId = side === "original" ? "translated" : "original";
+            const otherSide: DocId =
+                side === "original" ? "translated" : "original";
             const src = handles()[otherSide];
             if (!me || !src) continue;
-            const expected = scrollTopFor(me, mapper()(capturePos(src), otherSide));
-            next[side] = expected !== null && Math.abs(me.el.scrollTop - expected) > JUMPBACK_PX;
+            const expected = scrollTopFor(
+                me,
+                mapper()(capturePos(src), otherSide),
+            );
+            next[side] =
+                expected !== null &&
+                Math.abs(me.el.scrollTop - expected) > JUMPBACK_PX;
         }
         setDrift(next);
     };
 
     const jumpBack = (side: DocId) => {
         const me = handles()[side];
-        const otherSide: DocId = side === "original" ? "translated" : "original";
+        const otherSide: DocId =
+            side === "original" ? "translated" : "original";
         const src = handles()[otherSide];
         if (!me || !src) return;
         jumpTo(me, mapper()(capturePos(src), otherSide));
@@ -443,7 +460,9 @@ export default function ReaderView(props: Props) {
                   ? "en.pdf"
                   : "zh.pdf";
         // 优先服务端给的 url；否则按 files 约定拼（带版本校验防旧版，§2.3）
-        return doc.url || api.fileUrl(props.taskId, kind, { version: doc.version });
+        return (
+            doc.url || api.fileUrl(props.taskId, kind, { version: doc.version })
+        );
     };
 
     const isDom = () => props.view === "dom";
@@ -476,6 +495,10 @@ export default function ReaderView(props: Props) {
 
     // ---------- 渲染 ----------
 
+    /** 单段重译只在干净/部分终态开放（html 视图内由 HtmlPane 挂钮） */
+    const canRetranslate = () =>
+        props.status === "done" || props.status === "partial";
+
     const renderSlot = (side: DocId) => (
         <PaneSlot
             side={side}
@@ -483,6 +506,8 @@ export default function ReaderView(props: Props) {
             version={info()?.documents[side]?.version || undefined}
             url={docUrl(side)}
             chunks={dual()?.chunks ?? []}
+            taskId={props.taskId}
+            canRetranslate={canRetranslate()}
             annotName={annotFileName(props.taskId, side)}
             active={active() === side}
             hidden={!paneVisible(side)}
@@ -524,9 +549,7 @@ export default function ReaderView(props: Props) {
                 numPages={pageCounts()[active()]}
                 downloads={props.downloads}
                 arxivId={props.arxivId}
-                pageUnit={
-                    isPdf() ? undefined : t.reader.pageUnitChunk
-                }
+                pageUnit={isPdf() ? undefined : t.reader.pageUnitChunk}
                 canGotoPage={isPdf() || isDom()}
                 onMode={planModeChange}
                 onSync={setSync}
@@ -576,9 +599,7 @@ export default function ReaderView(props: Props) {
                         class="kbd-help-card"
                         onClick={(e) => e.stopPropagation()}
                     >
-                        <h2 class="rp-status">
-                            {t.reader.helpTitle}
-                        </h2>
+                        <h2 class="rp-status">{t.reader.helpTitle}</h2>
                         <dl class="kbd-help-list">
                             <For each={HELP_ITEMS}>
                                 {([k, d]) => (

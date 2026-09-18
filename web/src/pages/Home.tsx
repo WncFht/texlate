@@ -1,6 +1,7 @@
 // Home —— arXiv 输入 + 文件上传 + 任务列表（活动任务进度走 SSE）。
 
 import {
+    createEffect,
     createSignal,
     For,
     type JSX,
@@ -105,7 +106,11 @@ export function parseArxivId(raw: string): string | null {
     return m && ARXIV_RE.test(m[1]) ? m[1] : null;
 }
 
-export default function Home(props: { nav(to: string): void }) {
+export default function Home(props: {
+    nav(to: string): void;
+    /** #/arxiv/{id} 深链——预填输入框并自动提交一次 */
+    arxivId?: string;
+}) {
     const [arxivId, setArxivId] = createSignal("");
     const [busy, setBusy] = createSignal(false);
     const [error, setError] = createSignal("");
@@ -223,6 +228,21 @@ export default function Home(props: { nav(to: string): void }) {
             setBusy(false);
         }
     };
+
+    // #/arxiv/{id} 深链：值出现即预填 + 自动提交一次——lastAuto 记已消费的
+    // 值防同值重入；清空（离开深链）复位，回到同 id 可再提；busy() 门兜并发
+    let lastAuto: string | undefined;
+    createEffect(() => {
+        const a = props.arxivId;
+        if (!a) {
+            lastAuto = undefined;
+            return;
+        }
+        if (a === lastAuto) return;
+        lastAuto = a;
+        setArxivId(a);
+        void submit();
+    });
 
     /** 客户端预检——返回错误文案或 null 放行（.share.zip 走 .zip 白名单） */
     const precheck = (f: File): string | null => {

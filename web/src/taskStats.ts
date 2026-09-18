@@ -12,6 +12,17 @@ export interface ResultStats {
     prompt?: number;
     completion?: number;
     latency?: number;
+    /** 分阶段耗时（done.stats.stage_seconds：fetch/parse/translate/compile → 秒） */
+    stageSeconds?: Record<string, number>;
+    /** fixloop 判定串（done.stats.fixloop = cell.verdict） */
+    fixloop?: string;
+    /** L2 校验摘要（done.stats.l2 = {enabled,errors,retranslated,fallback}） */
+    l2?: {
+        enabled?: boolean;
+        errors?: number;
+        retranslated?: number;
+        fallback?: number;
+    };
 }
 
 /** 全字段缺席 → null（调用侧不渲染 stat-strip） */
@@ -24,6 +35,11 @@ export function mergeResultStats(
         tokens: stats?.tokens ?? counters?.tokens,
         seconds: stats?.seconds,
         failed: stats?.chunks_failed ?? counters?.failed,
+        stageSeconds: stats?.stage_seconds as
+            | Record<string, number>
+            | undefined,
+        fixloop: typeof stats?.fixloop === "string" ? stats.fixloop : undefined,
+        l2: stats?.l2 as ResultStats["l2"],
         calls: usage?.calls,
         prompt: usage?.prompt_tokens,
         completion: usage?.completion_tokens,

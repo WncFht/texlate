@@ -283,6 +283,15 @@ export const api = {
             },
             body: JSON.stringify(body ?? {}),
         }),
+    /** 单段重译（M8 用户侧入口）——202 入队 worker 重译 job，完成后前端轮询 chunks 刷新 */
+    retranslateChunk: (taskId: string, seq: number, byok?: ByokHeaders) =>
+        request<{ task_id: string; seq: number; status: string }>(
+            `/task/${taskId}/chunk/${seq}/retranslate`,
+            {
+                method: "POST",
+                headers: byokHeaders(byok),
+            },
+        ),
 
     files: (taskId: string) => request<FileManifest>(`/files/${taskId}`),
     fileUrl(

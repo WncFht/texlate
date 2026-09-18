@@ -51,6 +51,14 @@ const RETRYABLE = new Set([
     "interrupted",
 ]);
 
+/** ↻ 迷你菜单引擎子项：null=auto（options 不带 engine 键，后端按已存决议） */
+const RETRY_ENGINES: { key: string | null; label: string }[] = [
+    { key: null, label: t.home.engineAuto },
+    { key: "tectonic", label: "tectonic" },
+    { key: "xelatex", label: "xelatex" },
+    { key: "pdflatex", label: "pdflatex" },
+];
+
 /**
  * 终态任务行内产物下载：折叠钮展开直链清单。snapshot.artifacts（SSE
  * done 帧带过）优先；列表行缺 artifacts 时懒拉 files manifest——
@@ -131,6 +139,8 @@ export default function TaskList(props: Props) {
     const [query, setQuery] = createSignal("");
     const [acting, setActing] = createSignal<string | null>(null);
     const [cleaning, setCleaning] = createSignal(false);
+    // ↻ 重试迷你菜单：打开的 task_id（null=全收）
+    const [retryMenu, setRetryMenu] = createSignal<string | null>(null);
     // fmtRel 60s tick——相对时间随墙钟刷新，不靠任务事件顺带更新
     const [now, setNow] = createSignal(Date.now());
     const tick = setInterval(() => setNow(Date.now()), 60_000);
@@ -212,13 +222,20 @@ export default function TaskList(props: Props) {
         }
     };
 
-    /** 行内 ↻：retry 复用 task_id——resetLive 清上轮痕迹重订阅，refresh 拉新快照 */
-    const retryTask = async (task: TaskSnapshot) => {
+    /** 行内 ↻：retry 复用 task_id——resetLive 清上轮痕迹重订阅，refresh 拉新快照。
+     *  engine 三态：undefined=裸重试（沿用已存 engine_resolved）；null=auto
+     *  （options 不带 engine 键）；字符串=指定引擎重决议。 */
+    const retryTask = async (task: TaskSnapshot, engine?: string | null) => {
         if (!RETRYABLE.has(task.status) || acting() !== null) return;
         setActing(task.task_id);
+        setRetryMenu(null);
         setDelError("");
         try {
-            await api.retry(task.task_id);
+            await (engine === undefined
+                ? api.retry(task.task_id)
+                : api.retry(task.task_id, {
+                      options: engine === null ? {} : { engine },
+                  }));
             taskStore.resetLive(task.task_id);
             void taskStore.refresh();
         } catch (e) {
@@ -380,16 +397,77 @@ export default function TaskList(props: Props) {
                             </a>
                         </Show>
                         <Show when={RETRYABLE.has(task.status)}>
-                            <button
-                                type="button"
+                            <span class="task-retry">
+                                <button
+                                    type="button"
+                                    class="task-act"
+                                    disabled={acting() !== null}
+                                    title={t.home.retryTip}
+                                    aria-label={t.home.retry}
+                                    aria-haspopup="menu"
+                                    aria-expanded={
+                                        retryMenu() === task.task_id
+                                    }
+                                    onClick={() =>
+                                        setRetryMenu((v) =>
+                                            v === task.task_id
+                                                ? null
+                                                : task.task_id,
+                                        )
+                                    }
+                                >
+                                    ↻
+                                </button>
+                                <Show when={retryMenu() === task.task_id}>
+                                    <span class="retry-menu" role="menu">
+                                        <button
+                                            type="button"
+                                            role="menuitem"
+                                            class="retry-item"
+                                            onClick={() =>
+                                                void retryTask(task)
+                                            }
+                                        >
+                                            {t.home.retry}
+                                        </button>
+                                        <For each={RETRY_ENGINES}>
+                                            {(eng) => (
+                                                <button
+                                                    type="button"
+                                                    role="menuitem"
+                                                    class="retry-item"
+                                                    onClick={() =>
+                                                        void retryTask(
+                                                            task,
+                                                            eng.key,
+                                                        )
+                                                    }
+                                                >
+                                                    {t.home.retryAs.replace(
+                                                        "{engine}",
+                                                        eng.label,
+                                                    )}
+                                                </button>
+                                            )}
+                                        </For>
+                                    </span>
+                                </Show>
+                            </span>
+                        </Show>
+                        <Show when={task.artifacts?.share_zip}>
+                            <a
                                 class="task-act"
-                                disabled={acting() !== null}
-                                title={t.home.retryTip}
-                                aria-label={t.home.retry}
-                                onClick={() => void retryTask(task)}
+                                href={api.fileUrl(
+                                    task.task_id,
+                                    "share.zip",
+                                    { download: true },
+                                )}
+                                download=""
+                                title={t.home.shareZipTip}
+                                aria-label={t.home.shareZip}
                             >
-                                ↻
-                            </button>
+                                ⤓
+                            </a>
                         </Show>
                         <Show when={isTerminal(task.status)}>
                             <TaskDownloads task={task} />

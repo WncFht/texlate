@@ -42,7 +42,7 @@ describe("mergeResultStats 边界", () => {
         expect(r).toMatchObject({ seconds: 61, tokens: undefined });
     });
 
-    it("返回形状固定七键：未中字段显式 undefined 而非缺键", () => {
+    it("返回形状固定十键：未中字段显式 undefined 而非缺键", () => {
         const r = mergeResultStats({ tokens: 1 }, { failed: 2 }, { calls: 3 });
         expect(r).toStrictEqual({
             tokens: 1,
@@ -52,6 +52,22 @@ describe("mergeResultStats 边界", () => {
             prompt: undefined,
             completion: undefined,
             latency: undefined,
+            stageSeconds: undefined,
+            fixloop: undefined,
+            l2: undefined,
+        });
+    });
+
+    it("stage_seconds/fixloop/l2 细分键透传", () => {
+        const r = mergeResultStats({
+            stage_seconds: { fetch: 1.2, compile: 30 },
+            fixloop: "clean",
+            l2: { enabled: true, errors: 2, retranslated: 2, fallback: 0 },
+        });
+        expect(r).toMatchObject({
+            stageSeconds: { fetch: 1.2, compile: 30 },
+            fixloop: "clean",
+            l2: { enabled: true, errors: 2, retranslated: 2, fallback: 0 },
         });
     });
 });

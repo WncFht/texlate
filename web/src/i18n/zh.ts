@@ -77,6 +77,11 @@ export const t = {
         uploadTooBig: "文件超过 80MB 上限——请压缩后重试或改用 arXiv ID",
         uploadBadExt: "不支持的文件类型",
         processing: "已上传，处理中…",
+        // === progress chrome ===
+        retryAs: "重试 · {engine}",
+        retryEngineTip: "换引擎重试",
+        shareZip: "共享包",
+        shareZipTip: "下载 .share.zip 社区缓存包",
     },
     kind: {
         arxiv: "arXiv",
@@ -172,6 +177,11 @@ export const t = {
         shareErrRejected: "该任务不可共享",
         shareErrArtifacts: "产物未齐",
         shareErrFailed: "共享打包失败",
+        // === progress chrome ===
+        statsStage: "分阶段耗时",
+        statsFixloop: "修复判定",
+        statsL2: "L2 校验",
+        statsL2Off: "未启用",
     },
     pane: {
         rail: "文档面板",
@@ -236,6 +246,21 @@ export const t = {
         closed: "连接已关闭",
         warnings: "警告",
         preview: "译文预览",
+        // === progress chrome ===
+        queuePos: "排队第 {n} 位",
+        etaMin: "预计剩余 ~{n} 分钟",
+        etaUnder1: "预计剩余 <1 分钟",
+        fixloop: "修复循环",
+        fxRound: "第 {n} 轮",
+        fxErrors: "{n} 个错误",
+        fxDied: "编译器崩溃",
+        fxFloor: "已回退至修复前产物",
+        fxRunning: "修复中…",
+        l2: "L2 校验",
+        l2Running: "校验中…",
+        l2Errors: "校验错误",
+        l2Retranslated: "回灌重译",
+        l2Fallback: "回退原文",
     },
     files: {
         "en.pdf": "原文 PDF",
@@ -251,6 +276,8 @@ export const t = {
         "en.html": "原文 HTML",
         "zh.html": "译文 HTML",
         "src.html": "源码 HTML",
+        // === progress chrome ===
+        "share.zip": "共享包",
     } as Record<string, string>,
     settings: {
         title: "设置",
@@ -288,5 +315,16 @@ export const t = {
         themeAuto: "跟随系统",
         themeLight: "浅色",
         themeDark: "深色",
+    },
+    // === live reading ===
+    live: {
+        title: "边译边读",
+        progress: "已译 {n}/{total} 段",
+        untranslated: "未翻译",
+        retranslate: "重译",
+        retranslating: "重译中…",
+        retxDone: "译文已更新——重新编译 PDF 后生效",
+        retxTimeout: "等待重译结果超时——稍后刷新查看",
+        retxFail: "重译提交失败",
     },
 };

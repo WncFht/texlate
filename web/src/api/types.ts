@@ -91,6 +91,8 @@ export interface TaskSnapshot {
     options?: Record<string, unknown>;
     /** 生效术语表路径（config_json.glossary） */
     glossary?: string;
+    /** 排队位次（1 基）——status=queued 时由服务端按入队序给出，其余状态缺席 */
+    queue_position?: number;
 }
 
 export interface StageEvent {
@@ -118,6 +120,51 @@ export interface ChunkEvent {
 
 export interface LogEvent {
     line: string;
+}
+
+export interface FixloopRound {
+    round: number;
+    n_errors?: number;
+    category?: string;
+    sec?: number;
+    died?: boolean;
+}
+
+/**
+ * fixloop SSE 帧：
+ * - ``phase="round"``：循环进行中的逐轮增量帧（round 携带本轮结果）
+ * - ``phase="done"``：收尾帧，``cell`` 为完整修复单元（rounds/actions/verdict…）
+ * - 无 ``phase``：旧版服务端落的裸 cell（只在结束时发一帧）——按 done 处理，
+ *   rounds/verdict 等键平铺在顶层
+ */
+export interface FixloopEvent {
+    phase?: "round" | "done";
+    round?: FixloopRound;
+    cell?: {
+        rounds?: FixloopRound[];
+        verdict?: string;
+        floor_restored?: boolean;
+        actions?: unknown[];
+        [k: string]: unknown;
+    };
+    rounds?: FixloopRound[];
+    verdict?: string;
+    floor_restored?: boolean;
+    [k: string]: unknown;
+}
+
+/**
+ * L2 重译 SSE 帧：``phase`` 缺省视为 done（旧帧只发一次结果负载）。
+ * done 帧平铺统计键（enabled/errors/retranslated/fallback）。
+ */
+export interface L2Event {
+    phase?: "start" | "progress" | "done";
+    message?: string;
+    enabled?: boolean;
+    errors?: number;
+    retranslated?: number;
+    fallback?: number;
+    [k: string]: unknown;
 }
 
 export interface WarningEvent {
@@ -203,7 +250,8 @@ export type FileKind =
     | "zh.epub"
     | "en.html"
     | "zh.html"
-    | "src.html";
+    | "src.html"
+    | "share.zip";
 
 /** db kind → URL kind（files manifest / snapshot.artifacts / done.artifacts 的键均为 db kind） */
 export const DB_TO_URL_KIND: Record<string, FileKind> = {
@@ -220,6 +268,7 @@ export const DB_TO_URL_KIND: Record<string, FileKind> = {
     en_html: "en.html",
     zh_html: "zh.html",
     src_html: "src.html",
+    share_zip: "share.zip",
 };
 
 export interface FileEntry {
@@ -274,6 +323,8 @@ export interface DualChunk {
     en?: string;
     zh?: string;
     kind?: string;
+    /** 段状态（ok/fallback_orig/failed…）——新版 dual.json 起携带，旧文件缺席时按 zh 是否为空推断 */
+    status?: string;
 }
 
 export interface DualJson {

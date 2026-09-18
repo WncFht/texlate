@@ -150,7 +150,7 @@ describe("U8：行内快捷臂", () => {
         expect(mocks.cancel).toHaveBeenCalledWith("a1");
     });
 
-    it("fault 行有 ↻ 重试钮 → api.retry + resetLive 重订阅", async () => {
+    it("fault 行有 ↻ 重试钮 → 迷你菜单选「重试」→ api.retry + resetLive 重订阅", async () => {
         renderList();
         const row = [...root.querySelectorAll(".task-wrap")].find((w) =>
             w.textContent?.includes("fault gamma"),
@@ -159,8 +159,41 @@ describe("U8：行内快捷臂", () => {
         expect(btn.getAttribute("aria-label")).toBe("重试");
         click(btn);
         await flush();
+        const items = [...row.querySelectorAll(".retry-item")];
+        expect(items.map((x) => x.textContent)).toEqual([
+            "重试",
+            "重试 · 自动路由",
+            "重试 · tectonic",
+            "重试 · xelatex",
+            "重试 · pdflatex",
+        ]);
+        click(items[0] as HTMLElement);
+        await flush();
         expect(mocks.retry).toHaveBeenCalledWith("a3");
         expect(mocks.resetLive).toHaveBeenCalledWith("a3");
+    });
+
+    it("↻ 菜单引擎子项 → api.retry 带 options.engine（auto 不带 engine 键）", async () => {
+        renderList();
+        const row = [...root.querySelectorAll(".task-wrap")].find((w) =>
+            w.textContent?.includes("fault gamma"),
+        )!;
+        click(row.querySelector(".task-act") as HTMLButtonElement);
+        await flush();
+        const items = [...row.querySelectorAll(".retry-item")];
+        // xelatex → {options:{engine:"xelatex"}}
+        click(items[3] as HTMLElement);
+        await flush();
+        expect(mocks.retry).toHaveBeenCalledWith("a3", {
+            options: { engine: "xelatex" },
+        });
+        // 自动路由 → {options:{}}（不带 engine 键，后端按已存决议）
+        mocks.retry.mockClear();
+        click(row.querySelector(".task-act") as HTMLButtonElement);
+        await flush();
+        click(row.querySelectorAll(".retry-item")[1] as HTMLElement);
+        await flush();
+        expect(mocks.retry).toHaveBeenCalledWith("a3", { options: {} });
     });
 
     it("needs_auth 行给 ⚙ 设置链接而非 ↻", () => {
