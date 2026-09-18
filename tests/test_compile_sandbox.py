@@ -499,3 +499,34 @@ def test_run_process_rlimit_nofile_emfile(
     assert to is False
     assert rc not in (None, 0)
     assert "Too many open files" in out
+
+
+# ------------------------------------------------------------- 有界排干环
+@requires_posix
+def test_run_process_exits_on_child_death_not_eof(tmp_path: Path) -> None:
+    """孙进程握写端不挡收割：父死即收——旧 ``communicate`` 等 EOF 会烧满
+    timeout（loop2 xelatex↔xdvipdfmx 死锁对/setsid 逃逸孙实证签名）。"""
+    rc, out, sec, to = run_process(
+        ["sh", "-c", "echo done; sleep 30 &"],
+        cwd=tmp_path,
+        env=child_env(),
+        timeout=20,
+    )
+    assert to is False  # 等 EOF 形必然 timeout——此断言即回归签
+    assert sec < 15  # noqa: PLR2004 - 实测亚秒级，留足慢机余量
+    assert rc == 0
+    assert "done" in out
+
+
+@requires_posix
+def test_run_process_timeout_kills_and_salvages(tmp_path: Path) -> None:
+    """真超时臂：killpg 收树 + 已读输出经异常带出（echo 先于 sleep 落管）。"""
+    rc, out, _sec, to = run_process(
+        ["sh", "-c", "echo hi; sleep 60"],
+        cwd=tmp_path,
+        env=child_env(),
+        timeout=2,
+    )
+    assert to is True
+    assert rc == -signal.SIGKILL
+    assert "hi" in out

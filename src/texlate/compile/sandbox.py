@@ -22,6 +22,7 @@ import contextlib
 import json
 import os
 import re
+import selectors
 import shutil
 import signal
 import subprocess
@@ -255,24 +256,119 @@ def _rlimit_preexec(timeout: float) -> Callable[[], None] | None:
 #: cancel 置位到进程树死透收敛在亚秒级
 _CANCEL_POLL_S = 0.5
 
+#: ``_drain_bounded`` 的读片大小与驻留上界倍率——输出封顶 headroom 之外
+#: 不再放大驻留（runaway xelatex 日志 GB 级也只留尾部窗口）。
+_READ_CHUNK = 65536
+
+
+def _drain_nonblocking(fd: int, chunks: list[bytes]) -> None:
+    """子进程死透后非阻塞排干管道余量——孙进程握写端也不会再阻塞。"""
+    try:
+        os.set_blocking(fd, False)
+    except OSError:
+        return
+    while True:
+        try:
+            data = os.read(fd, _READ_CHUNK)
+        except (BlockingIOError, OSError):
+            return
+        if not data:
+            return
+        chunks.append(data)
+
+
+def _pump_once(
+    sel: selectors.BaseSelector, fd: int, wait_s: float
+) -> tuple[bytes, bool]:
+    """一轮 select+read：返回 ``(本轮数据, 是否 EOF)``；EOF 顺手 unregister。"""
+    buf = bytearray()
+    eof = False
+    for _key, _mask in sel.select(wait_s):
+        try:
+            data = os.read(fd, _READ_CHUNK)
+        except OSError:
+            data = b""
+        if data:
+            buf += data
+        else:
+            eof = True
+            with contextlib.suppress(KeyError, ValueError, OSError):
+                sel.unregister(fd)
+    return bytes(buf), eof
+
+
+def _drain_bounded(
+    proc: subprocess.Popen[bytes],
+    cmd: list[str],
+    timeout: float,
+    out_cap: int,
+    should_cancel: Callable[[], bool] | None = None,
+) -> bytes:
+    r"""POSIX 主流排干环：单调钟 deadline + 子进程死透即收——替 ``communicate``。
+
+    ``communicate`` 把「读完」定义为管道 EOF——孙进程继承写端不死则 EOF
+    永不到（xelatex→xdvipdfmx 死锁对、setsid 逃逸孙都实证过整格挂死）。
+    本环以 ``proc.poll()`` 为终态：子进程死透即非阻塞排干余量返回，孙
+    进程握管/死锁不再挂死本层；deadline 走 ``time.monotonic``——墙钟
+    拨回不再无限延时（旧实现 ``time.time()`` 实证过小时级假死）。
+    ``should_cancel`` 依旧 ``_CANCEL_POLL_S`` 分片响应。
+    ``TimeoutExpired`` 携带已读部分输出，``run_process`` 超时臂续收。
+    """
+    deadline = time.monotonic() + timeout
+    if proc.stdout is None:  # use_drain 闸住外防御——替身形态不炸 AttributeError
+        return b""
+    fd = proc.stdout.fileno()
+    sel = selectors.DefaultSelector()
+    chunks: list[bytes] = []
+    total = 0
+    headroom = max(4 * out_cap, _READ_CHUNK)
+    eof = False
+    try:
+        sel.register(fd, selectors.EVENT_READ)
+        while True:
+            if should_cancel is not None and should_cancel():
+                raise asyncio.CancelledError
+            left = deadline - time.monotonic()
+            if left <= 0:
+                raise subprocess.TimeoutExpired(cmd, timeout, output=b"".join(chunks))
+            if eof:
+                # 写端全关而子未死（子关 stdout 续跑的罕见形）——只轮询等死。
+                time.sleep(min(_CANCEL_POLL_S, left))
+            else:
+                data, eof = _pump_once(sel, fd, min(_CANCEL_POLL_S, left))
+                if data:
+                    chunks.append(data)
+                    total += len(data)
+                    if total > headroom:
+                        tail = b"".join(chunks)[-2 * out_cap :]
+                        chunks = [tail]
+                        total = len(tail)
+            if proc.poll() is not None:
+                break
+    finally:
+        sel.close()
+    _drain_nonblocking(fd, chunks)
+    return b"".join(chunks)
+
 
 def _communicate_cancellable(
     proc: subprocess.Popen[bytes],
     cmd: list[str],
     timeout: float,
-    should_cancel: Callable[[], bool],
+    should_cancel: Callable[[], bool] | None,
 ) -> bytes | None:
-    """``_CANCEL_POLL_S`` 分片轮询版 communicate——旗标置位抛 ``CancelledError``。
+    """win32 退化臂：``_CANCEL_POLL_S`` 分片 communicate——单调钟 deadline。
 
-    ``communicate`` 在 ``TimeoutExpired`` 后可合法重入续读不丢输出；
-    真超时（``TimeoutExpired``）与取消都抛给 ``run_process`` 的外层
-    臂收树——kill 语义单点不散。
+    selectors 在 win32 看不了管道 fd，``_drain_bounded`` 不可用；退回分片
+    ``communicate``（``TimeoutExpired`` 后可合法重入续读不丢输出）。旗标
+    置位抛 ``CancelledError``；真超时/取消都抛给 ``run_process`` 外层臂
+    收树——kill 语义单点不散。``should_cancel`` 为 None 时纯跑 deadline。
     """
-    deadline = time.time() + timeout
+    deadline = time.monotonic() + timeout
     while True:
-        if should_cancel():
+        if should_cancel is not None and should_cancel():
             raise asyncio.CancelledError
-        left = deadline - time.time()
+        left = deadline - time.monotonic()
         if left <= 0:
             raise subprocess.TimeoutExpired(cmd, timeout)
         try:
@@ -297,11 +393,12 @@ def run_process(  # noqa: PLR0913 -- 子进程参数面集中声明，kwarg 各�
     （latex→dvips/mktextfm 子进程一并带走），非 POSIX 平台降级 proc.kill。
     子进程 exec 前装资源软帽（仅降不升），硬顶之外的纵深兜底。
 
-    ``should_cancel`` 给了就把单发 ``communicate(timeout)`` 换成
-    ``_CANCEL_POLL_S`` 分片轮询——``communicate`` 在 ``TimeoutExpired``
-    后可合法重入续读不丢输出；旗标置位即抛 ``asyncio.CancelledError``
-    （``except BaseException`` 臂照常 ``_kill_tree`` 收树，编译段孤儿
-    不再等满 timeout 才死）。
+    POSIX 走 ``_drain_bounded``：单调钟 deadline + 子进程死透即收——
+    孙进程握管/死锁（xelatex↔xdvipdfmx 形）、墙钟拨回都不再挂死。
+    win32 selectors 看不了管道 fd，退回 ``_communicate_cancellable``
+    分片 ``communicate``（单调钟同款）。``should_cancel`` 旗标置位即抛
+    ``asyncio.CancelledError``（``except BaseException`` 臂照常
+    ``_kill_tree`` 收树，编译段孤儿不再等满 timeout 才死）。
     """
     t0 = time.time()
     try:
@@ -325,21 +422,35 @@ def run_process(  # noqa: PLR0913 -- 子进程参数面集中声明，kwarg 各�
         # （fixloop 轮内 FileNotFoundError 会整格崩）。
         return None, f"exec failed: {e}", time.time() - t0, False
     timed_out = False
+    # 有 stdout 管的 POSIX 真子进程走 drain 环；win32/测试替身（无 stdout
+    # 面）退回 communicate 系——原 ``communicate(timeout)`` 语义原样。
+    use_drain = sys.platform != "win32" and getattr(proc, "stdout", None) is not None
     try:
-        if should_cancel is None:
+        if use_drain:
+            out = _drain_bounded(proc, cmd, timeout, out_cap, should_cancel)
+        elif should_cancel is None:
             out, _ = proc.communicate(timeout=timeout)
         else:
             out = _communicate_cancellable(proc, cmd, timeout, should_cancel)
-    except subprocess.TimeoutExpired:
+    except subprocess.TimeoutExpired as e1:
         timed_out = True
+        # 超时前已读部分输出随异常带出——先收进口袋再收树。
+        prior = e1.output
+        out = b"".join(prior) if isinstance(prior, list) else (prior or b"")
         _kill_tree(proc)
         try:
-            out, _ = proc.communicate(timeout=30)
+            if use_drain:
+                # 子已死/将死：poll 即返 + 非阻塞排干——setsid/双 fork 逃逸
+                # 的孙进程仍握 stdout 写端也不再等 EOF，30s 硬顶兜住。
+                out += _drain_bounded(proc, cmd, 30, out_cap)
+            else:
+                rest, _ = proc.communicate(timeout=30)
+                out += rest or b""
         except subprocess.TimeoutExpired as e2:
             # setsid/双 fork 逃逸的孙进程仍握 stdout 写端——killpg 只带走
             # 本组，无限 communicate 会等孙进程退格才返 → 弃读防整格挂死。
             partial = e2.output
-            out = b"".join(partial) if isinstance(partial, list) else partial
+            out += b"".join(partial) if isinstance(partial, list) else (partial or b"")
     except BaseException:
         # KeyboardInterrupt/GeneratorExit 等——不杀树会把编译进程连同
         # mktex*/dvips 子孙一起孤儿化（sleep 30 探针实证幸存）。
