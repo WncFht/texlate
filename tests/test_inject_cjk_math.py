@@ -55,6 +55,15 @@ def test_math_fallback_engine_guard() -> None:
     assert body.index("\\ifdefined\\Umathcode") < body.index("\\DeclareSymbolFont")
 
 
+def test_math_fallback_mathgroup_budget_guard() -> None:
+    r"""``\DeclareSymbolFont`` 预算闸 ``\count18<15``（先 +1 后查 ``<16`` →
+    剩 1 空位须拒申；``<16`` 旧闸放行反而触发 ``Too many symbol fonts``
+    + ``texlatecjk`` 未定义级联——2203.00075 stix 后 count18=15 实证）。"""
+    body = CJK_MATH_FALLBACK
+    assert body.count(r"\ifnum\count18<15") == body.count("\\DeclareSymbolFont{texlate")
+    assert r"\ifnum\count18<16" not in body
+
+
 def test_math_fallback_skipped_when_cjk_present() -> None:
     """文档自带 CJK 支持 → status=already → 不注兜底块（不碰文档自有字体设定）。"""
     tex = "\\documentclass{ctexart}\n\\begin{document}\nx\\end{document}\n"

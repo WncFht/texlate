@@ -148,11 +148,13 @@ CJK_MATH_FALLBACK = r"""
 \DeclareFontShape{TU}{texlatecjk}{bx}{sl}{<->ssub*texlatecjk/b/n}{}
 \def\TeXlate@mathmap#1#2-#3;{\count@="#2\relax
   \@whilenum\count@<"#3 \do{\Umathcode\count@="0 #1 \count@\advance\count@\@ne}}
-% \count18 = LaTeX2e 内核 mathgroup 分配计数器（实证：每 \DeclareSymbolFont +1,
-% \SetSymbolFont 不占新号）——16 上限打满前降级：宁可缺 fb/cjk 兜底,
-% 不让整条注入把文档编译炸成 "Too many symbol fonts declared"（b2 归因：
-% txfonts 14 族文档只剩 1 空位）。
-\ifnum\count18<16\relax
+% \count18 = LaTeX2e 内核 mathgroup 分配计数器（实证：每 \DeclareSymbolFont
+% 先 +1 后查 ``<16`` ——count18=15 时分配失败炸 "Too many symbol fonts
+% declared"）——剩 1 空位须拒申（``<15``，不是 ``<16``；2203.00075 stix
+% 后 count18=15 实证，旧闸放行反而触发 + ``texlatecjk`` 未定义级联）。
+% 宁可缺 fb/cjk 兜底, 不让整条注入把文档编译炸掉（b2 归因：txfonts
+% 14 族文档只剩 1 空位）。
+\ifnum\count18<15\relax
 \DeclareSymbolFont{texlatecjk}{TU}{texlatecjk}{m}{n}
 \SetSymbolFont{texlatecjk}{bold}{TU}{texlatecjk}{b}{n}
 \TeXlate@mathmap\symtexlatecjk 4E00-9FFF;
@@ -178,7 +180,7 @@ CJK_MATH_FALLBACK = r"""
 \DeclareFontShape{TU}{texlatefb}{b}{it}{<->ssub*texlatefb/b/n}{}
 \DeclareFontShape{TU}{texlatefb}{bx}{it}{<->ssub*texlatefb/b/n}{}
 \DeclareFontShape{TU}{texlatefb}{bx}{sl}{<->ssub*texlatefb/b/n}{}
-\ifnum\count18<16\relax
+\ifnum\count18<15\relax
 \DeclareSymbolFont{texlatefb}{TU}{texlatefb}{m}{n}
 \SetSymbolFont{texlatefb}{bold}{TU}{texlatefb}{b}{n}
 \TeXlate@mathmap\symtexlatefb 0400-04FF;
