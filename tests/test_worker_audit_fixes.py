@@ -446,6 +446,86 @@ class TestFixloopFix:
         assert {"name": "xelatex", "halt_on_error": False} in built
         assert res.engine == "xelatex"  # 救回 partial/clean > fail → adopted
 
+    def test_fixloop_reject_route_cross_engine_arm(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """``reject_route=xelatex`` cell 令牌 → 无 dropped flag 也换臂。
+
+        t_c9249919e8d7a13f 实证面：biber/biblatex bcf 错配是 tectonic
+        bundle 内无解的工具链硬墙——``verdict reject:*`` rank 0，xelatex
+        任何 ≥fail 判定即 adopted，死路标签变真路由。
+        """
+        xeng = RecordingEngine("xelatex")
+        teng = RecordingEngine("tectonic")
+
+        def factory(name: str, **_kw: object) -> RecordingEngine:
+            return {"xelatex": xeng, "tectonic": teng}[name]
+
+        ctx, worker, _store = _mk(
+            tmp_path,
+            options={
+                "engine_resolved": "tectonic",
+                "route_engines": ["tectonic", "xelatex"],
+            },
+            worker_kw={"engine_factory": factory},
+        )
+        ctx.main_rel = "main.tex"
+        ctx.engine_name = "tectonic"
+        work = ctx.root / "build-zh"
+        work.mkdir(parents=True)
+        ctx.zh_dir.mkdir(parents=True)
+        (work / "main.tex").write_text(MINI_TEX, encoding="utf-8")
+        (ctx.zh_dir / "main.tex").write_text(MINI_TEX, encoding="utf-8")
+        cell = {
+            "verdict": "reject:biber_biblatex_skew_route",
+            "reject_route": "xelatex",
+            "engine_flags": [],
+            "engine_flags_dropped": [],
+            "rounds": [],
+            "actions": [],
+        }
+        monkeypatch.setattr("texlate.repair.fixloop", lambda *_a, **_kw: cell)
+        first = CompRes(engine="tectonic", ok=True, pdf=None, log=LogInfo(n_errors=2))
+        res = worker._run_fixloop(ctx, work, teng, first)  # noqa: SLF001
+        assert xeng.calls, "xelatex 跨引擎臂应被触发"
+        assert res.engine == "xelatex"  # reject rank 0 → 任何 ≥fail 判定即 adopted
+        assert ctx.fixloop is not None
+        assert ctx.fixloop["reject_route"] == "xelatex"
+        assert ctx.fixloop["cross_engine"]["adopted"] is True
+
+    def test_fixloop_reject_adopted_skips_policy_reject(self, tmp_path: Path) -> None:
+        """``cross_engine.adopted`` 时 reject verdict 让位实际产物判定 → done。
+
+        _stage_compile 的 reject 短路只挡「未换臂」的死路拒绝；换编被采用
+        代表终态已按 xelatex 复判取优，策略标签不应盖掉真实产物。
+        """
+        ctx, worker, store = _mk(tmp_path)
+        ctx.main_rel = "main.tex"
+        ctx.engine_name = "tectonic"
+        ctx.base_dir.mkdir(parents=True, exist_ok=True)
+        ctx.zh_dir.mkdir(parents=True, exist_ok=True)
+        (ctx.zh_dir / ".splice-done").write_text("", encoding="utf-8")
+        (ctx.zh_dir / ".compile-done").write_text("", encoding="utf-8")
+        (ctx.root / "zh.pdf").write_bytes(b"%PDF-1.4 fake")
+        (ctx.root / "en.pdf").write_bytes(b"%PDF-1.4 fake")
+        store.put_file(ctx.task_id, "zh_pdf", "zh.pdf", data_dir=ctx.root)
+        store.put_file(ctx.task_id, "en_pdf", "en.pdf", data_dir=ctx.root)
+        ctx.fixloop = {
+            "verdict": "reject:biber_biblatex_skew_route",
+            "reject_route": "xelatex",
+            "cross_engine": {"engine": "xelatex", "adopted": True},
+            "trace": [],
+        }
+
+        async def drive() -> None:
+            worker._loop = asyncio.get_running_loop()  # noqa: SLF001
+            worker._loop_tid = threading.get_ident()  # noqa: SLF001
+            await worker._stage_compile(ctx)  # noqa: SLF001
+
+        asyncio.run(drive())
+        row = store.get(ctx.task_id)
+        assert row["status"] == "done"
+
 
 class TestBuildDualThread:
     """Fix6：``_build_dual`` 在 worker 线程跑（store 读经 ``_on_loop`` 回弹）。"""

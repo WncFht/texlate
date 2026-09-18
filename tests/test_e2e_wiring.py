@@ -436,6 +436,66 @@ def test_route_engines_narrowed_by_explicit_engine(
         assert engines["xelatex"].calls == []
 
 
+@pytest.mark.parametrize(
+    ("engine_opt", "expect_cross"), [("auto", True), ("tectonic", False)]
+)
+def test_reject_route_cross_engine_consumed(
+    tmp_path: Path,
+    engines: dict[str, ScriptedEngine],
+    monkeypatch: pytest.MonkeyPatch,
+    engine_opt: str,
+    expect_cross: bool,  # noqa: FBT001 -- parametrize 差分臂
+) -> None:
+    """``reject_route=xelatex`` cell 令牌 → 跨引擎臂换编（无 dropped flag 也触发）。
+
+    t_c9249919e8d7a13f 实证面：biber/biblatex bcf 错配是 tectonic bundle 内
+    无解的工具链硬墙——fixloop 发 ``REJECT: route=xelatex``，repair 臂拿
+    令牌换编取优；``verdict reject:*`` rank 0，xelatex 任何 ≥fail 判定即
+    adopted。显式 engine= 收窄 route_engines 时臂自熄（尊重显式选型）。
+    """
+    work = _project(tmp_path / "p")
+    engines["tectonic"] = ScriptedEngine("tectonic", [_fail_unattributable])
+    engines["xelatex"] = ScriptedEngine("xelatex", [_clean])
+
+    def fake_fixloop(proj, eng, **kw) -> dict:  # noqa: ANN001, ANN003, ARG001
+        return {
+            "verdict": "reject:biber_biblatex_skew_route",
+            "reject_route": "xelatex",
+            "engine_flags": [],
+            "engine_flags_dropped": [],
+        }
+
+    monkeypatch.setattr("texlate.repair.fixloop", fake_fixloop)
+    report = e2e.mock_pipeline_run(work, engine_opt, timeout=30.0)
+
+    fl = report["fixloop"]
+    if expect_cross:
+        assert fl["cross_engine"]["engine"] == "xelatex"
+        assert fl["cross_engine"]["adopted"] is True
+        assert report["status"] == "clean"  # xelatex 臂更优 → 采用
+    else:
+        assert "cross_engine" not in fl
+        assert engines["xelatex"].calls == []
+
+
+def test_reject_verdict_without_route_no_cross(
+    tmp_path: Path, engines: dict[str, ScriptedEngine], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """裸 ``reject:*``（无 route 令牌）→ 不触发跨引擎臂，死路标签原样。"""
+    work = _project(tmp_path / "p")
+    engines["tectonic"] = ScriptedEngine("tectonic", [_fail_unattributable])
+    engines["xelatex"] = ScriptedEngine("xelatex", [_clean])
+
+    def fake_fixloop(proj, eng, **kw) -> dict:  # noqa: ANN001, ANN003, ARG001
+        return {"verdict": "reject:latex209_reject", "engine_flags_dropped": []}
+
+    monkeypatch.setattr("texlate.repair.fixloop", fake_fixloop)
+    report = e2e.mock_pipeline_run(work, "auto", timeout=30.0)
+
+    assert "cross_engine" not in report["fixloop"]
+    assert engines["xelatex"].calls == []
+
+
 def test_fixloop_ruleset_receives_presplice_baseline(
     tmp_path: Path,
     engines: dict[str, ScriptedEngine],
