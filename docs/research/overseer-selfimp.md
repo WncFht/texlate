@@ -234,3 +234,12 @@
 - 教训补记：kill 父进程不等于灭门——setsid 下子进程不随父死，清理双开必须 `kill 父+子` 同发或先子后父。
 
 - 23:55 **natbib+restatable 收割**：`62b9235` begindoc_tail_recomment（natbib 道 e2e 实证真件 0 错 12 页 PDF；**残口记档**——源规则 natbib_numbers_pass 仍无注释遮盖，_patch_files 级 mask 修法留债，修复道收任意来源裂伤故可立）；`3ecbfe3` env argspec 拆门（restatable 道真纸验证 intro.tex chunk6 不再漏 {theorem}/{main}，重构恒等保持；**残口记档**——宏侧 argspec_lookup 同病 \cref{key} 体文件可漏，lane 故意留门：宏名撞名率高于 env 名，拆门前须先验 reg 短路对 \newcommand 的覆盖）；`26e89d4` 顺带 ruff-format 两叶。891 latex 面绿。roster：ifdiag/othcensus 诊断道在飞；autogloss arm=on 184/300 判分中。本轮 session 累计 23 commit。
+
+## 2026-09-18 23:10 — lane-prompt-bundle 收割（6efc83e）
+
+- 交付：prompt 层四项一次 bump v3→v4——C8b untrusted 全 kind / C9 删 reorder+movable 授权 / placeholder_values user 块四注入点（单块/slots-JSON/L2/批合并）/ paper_context abstract 锚定（6000 截断，slots 臂显式排除）。+20 钉测，claimed 756/-k 绿——复跑核实 756 passed 一致。
+- 归因核查：diff 428+/-27 全部 hunks 对上 BRIEF+声明偏差；无夹带。偏差全合理：slots 排除用 `paper_ctx: bool` 形参（memo 三元组）；MockTranslator 剥块回显属必要连带（不剥批回显判定必败）；C901 逼出 `_slots_user_obj`/`_merged_value_frags` helper；PLR0913 noqa。
+- 已知不对称（记档不修）：`_materialize` 扫 `pending` 非全量 chunks——resume 跑 abstract 已译→ctx 缺席，优雅降级；fresh vs resume system prompt 不再逐字节同（prompt 不属 resume 正确性面）。
+- 同刻观察：peer 会话在飞 commit 扫走了我未提交的台账 append（台账 append-only 双会话共写惯例，内容无损）。
+- skeleton：四条目标 adopted + 落地注。效果判死归 frozen-300 回归批（非本 lane 职责）。
+- lane-delimargs 在飞（model.py/args.py 已见编辑，scope 内）。
