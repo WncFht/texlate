@@ -23,6 +23,7 @@
 后置规范暂居 research/（M3 时再提正）：`research/product/web-layer.md`（API/前端/BYOK/部署）、`research/latex/{pdf-path,doc-formats}.md`（PDF sidecar / EPUB/DOCX）、`research/arxiv/licensing.md`（法务）。
 
 > **本机留存路径注记**：文档与代码注释中的 `bench/results/`、`tmp/exp/`、`docs/research/gateway/`、`docs/HANDOFF-*.md` 等路径指向开发机的本地证据现场（gitignored 或未入库），fresh clone 不存在属预期——引用仅作实证出处留痕，结论均已就近摘要进正文。
+> **HANDOFF 交接链注记（2026-09-18）**：`HANDOFF-2026-09-16.md` 之后 09-17 未单列交接文档——当日产出由 `research/report-2026-09-17-final.md`（全天终报）+ `research/overseer-2026-09-16.md`（作战台账续记）承载；`HANDOFF-2026-09-18.md` 起续记，链内日期不保证连续。
 
 ## 修改纪律
 

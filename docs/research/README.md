@@ -58,7 +58,7 @@ TeXlate（hjfy.top 开源复刻）全部调研报告。**裁决与方案以 `doc
 | `corpus39-profile.md`           | bench/corpus 39 篇机器级统计画像                                                                                        |
 | `arxmliv-unarxive.md`           | arXMLiv/ar5iv/unarXive 学术发行物调研（结论：无源码不入料）                                                             |
 | `2026-09-15-parsebench-icc.md`  | parsebench 月间 ICC 信度分析（§7.2 统计口径行动项）                                                                     |
-| `2026-09-16-expand-layer.md`    | corpus_v3 expand 层 +3800（当时总 5072；现四层合计 5166，hot 层 166）：故障率加权配额、新旧池选样、QC 全过 +60 良性超收 |
+| `2026-09-16-expand-layer.md`    | corpus_v3 expand 层 +3800（当时总 5072；现四层合计 5232——hot 166 + expand 新批后 3866，2026-09-18 时点）：故障率加权配额、新旧池选样、QC 全过 +60 良性超收 |
 
 ## gateway/ — LLM 网关与模型选型（本机存档，不入库）
 

@@ -90,7 +90,7 @@ docker run --rm texlate fetch 1706.03762                    # 其他子命令同
 - `web/` — SolidJS+Vite+pdfslick 阅读器（独立 package.json；`npx tsc --noEmit && npx eslint . && npx vitest run`）
 - `tests/` — pytest（corpus/网关/node 依赖用例均有守卫，干净 clone 全绿）
 - `docs/` — [`docs/README.md`](docs/README.md) 总索引：决策史 01–05 + 现行技术规格 06–10 + `research/` 调研档案 + `tools-runbook.md` 工具手册
-- `bench/` — 评测 harness（`PROTOCOL.md` 协议；`py/` 评测器 B1–B7 + stagerun 批量驱动；`corpus*/` 语料与 `results/` 产物 gitignored，可经 `bench/py/build_corpus_*.py` 重建）
+- `bench/` — 评测 harness（`PROTOCOL.md` 协议；`py/` 评测器 B1–B7 + stagerun 批量驱动；`corpus*/` 语料与 `results/` 产物 gitignored，可经 `bench/py/` 三件套（`build_corpus_v3.py` + `build_hot_layer.py` + `build_corpus_expand.py`）重建）
 - `Dockerfile` / `.github/workflows/` — 容器形态与 CI（pre-commit 同源）
 
 ## 开发
