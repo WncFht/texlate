@@ -250,9 +250,9 @@ async def extract_terms(
     srcs = [t for t in texts if t and t.strip()]
     if not srcs:
         return {}
-    batches = _pack_batches(
-        _pick_corpus(srcs, batch_chars * max_batches), batch_chars
-    )[:max_batches]
+    batches = _pack_batches(_pick_corpus(srcs, batch_chars * max_batches), batch_chars)[
+        :max_batches
+    ]
     policy = RetryPolicy(max_tries=EXTRACT_TRIES)
     votes: dict[str, list[str]] = {}
     forms: dict[str, list[str]] = {}

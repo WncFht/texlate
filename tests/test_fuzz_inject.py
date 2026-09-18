@@ -77,9 +77,6 @@ import pytest
 if TYPE_CHECKING:
     from pathlib import Path
 
-from texlate.compile.mask import visible_tex
-from texlate.textutil import BEGIN_DOC_RX
-
 from texlate.compile.inject import (
     CJK_FIRST_USE_WARMUP,
     CJK_MATH_FALLBACK,
@@ -101,11 +98,13 @@ from texlate.compile.inject import (
     inject_table_fitting,
     prepare_chinese,
 )
+from texlate.compile.mask import visible_tex
+from texlate.textutil import BEGIN_DOC_RX
 
 # ---------------------------------------------------------------- oracle
 
 
-def _block(mode: str, nseams: int, bd_tail: bool = False) -> str:
+def _block(mode: str, nseams: int, *, bd_tail: bool = False) -> str:
     """``inject_cjk`` 块组装的独立重演（docs/08 §3.3 注入缝规格 + W157 尾锚）。"""
     blk = CTEX_LINE + "  % [texlate injected]" if mode == "ctex" else XECJK_BLOCK
     blk += (
@@ -947,11 +946,10 @@ def test_fuzz_random_inputs() -> None:
             # 字节守恒：双相注入重放逐字节一致（升级路径除外——
             # documentstyle 片段会被改写；bd 尾锚打破旧的末缝后缀守恒）。
             bd_tail = any(
-                m.start() > hits[0][0]
-                for m in BEGIN_DOC_RX.finditer(visible_tex(tex))
+                m.start() > hits[0][0] for m in BEGIN_DOC_RX.finditer(visible_tex(tex))
             )
             assert out == _splice(
-                tex, hits, _block("ctex", len(hits), bd_tail), bd_tail=bd_tail
+                tex, hits, _block("ctex", len(hits), bd_tail=bd_tail), bd_tail=bd_tail
             )
         out2, info2 = inject_cjk(out)
         assert info2["status"] == "already"

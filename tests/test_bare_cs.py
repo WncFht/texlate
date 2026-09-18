@@ -19,7 +19,6 @@ from texlate.latex import parse_tex, reconstruct
 from texlate.xlat import pipeline as pl
 from texlate.xlat.state import ChunkRecord, StateStore
 
-
 _NUM_RX = re.compile(r"^\s*\[(\d+)\]", re.MULTILINE)
 
 

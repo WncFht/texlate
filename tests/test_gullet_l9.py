@@ -8,8 +8,12 @@ W45/W46/W81/W83/W94/W105）：展开层语义的逐机制回归面。
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from texlate.latex.gullet import Gullet
-from texlate.latex.mouth import Tok
+
+if TYPE_CHECKING:
+    from texlate.latex.mouth import Tok
 
 
 def text_of(ts: list[Tok]) -> str:

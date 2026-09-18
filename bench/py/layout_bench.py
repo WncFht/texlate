@@ -13,6 +13,7 @@ Subcommands:
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import re
 import subprocess
@@ -32,7 +33,9 @@ RE_FLOAT_SPEC_H = re.compile(r"\\begin\{(?:figure|table)\*?\}\s*\[H\]")
 RE_INCLUDEPDF = re.compile(r"\\includepdf")
 RE_MULTICOLS = re.compile(r"\\begin\{multicols\*?\}|\\usepackage[^%]*\{multicol")
 RE_TWOCOLUMN_CMD = re.compile(r"\\twocolumn\b")
-RE_TABULAR_SPEC = re.compile(r"\\begin\{tabular\*?x?\}(?:\[[^\]]*\])?(?:\s*\{[^}]*\})?\s*\{([^}]*)\}")
+RE_TABULAR_SPEC = re.compile(
+    r"\\begin\{tabular\*?x?\}(?:\[[^\]]*\])?(?:\s*\{[^}]*\})?\s*\{([^}]*)\}"
+)
 
 FLOAT_ENVS = {
     "figure",
@@ -116,10 +119,8 @@ def cmd_features(args: argparse.Namespace) -> None:
                 continue
             text_parts: list[str] = []
             for tex in src.rglob("*.tex"):
-                try:
+                with contextlib.suppress(OSError):
                     text_parts.append(tex.read_text(errors="replace"))
-                except OSError:
-                    pass
             text = "\n".join(text_parts)
             m = RE_DOCCLASS.search(text)
             opts = (m.group(2) or "") if m else ""
@@ -138,8 +139,10 @@ def cmd_features(args: argparse.Namespace) -> None:
                 "twocolumn": bool(
                     re.search(r"twocolumn", opts)
                     or RE_TWOCOLUMN_CMD.search(text)
-                    or docclass in {"revtex4-1", "revtex4-2", "IEEEtran"}
-                    and re.search(r"twocolumn", opts)
+                    or (
+                        docclass in {"revtex4-1", "revtex4-2", "IEEEtran"}
+                        and re.search(r"twocolumn", opts)
+                    )
                 ),
                 "opts": opts,
                 "n_float": n_float,
@@ -180,7 +183,6 @@ def page_metrics(w: int, h: int, pix: bytes) -> dict:
     signature); page numbers at ~95% don't count. 'bleed' = body-zone rows with
     ink right of 93% page width (overfull box into margin).
     """
-    n = len(pix)
     body_top, body_bot = int(h * 0.08), int(h * 0.92)
     dark = pix.translate(_DARKMAP)  # 1 where pixel < 200
     row_ink = []
@@ -217,7 +219,7 @@ def page_metrics(w: int, h: int, pix: bytes) -> dict:
 def render_pdf(pdf: Path, outdir: Path, dpi: int = 60) -> list[Path]:
     outdir.mkdir(parents=True, exist_ok=True)
     subprocess.run(
-        ["pdftoppm", "-gray", "-r", str(dpi), str(pdf), str(outdir / "pg")],
+        ["pdftoppm", "-gray", "-r", str(dpi), str(pdf), str(outdir / "pg")],  # noqa: S607
         check=True,
         capture_output=True,
     )
@@ -323,8 +325,7 @@ def cmd_report(args: argparse.Namespace) -> None:
                     row[f"ink_{arm}_{k}"] = v
         rows.append(row)
     with Path(args.out).open("w") as fh:
-        for r in rows:
-            fh.write(json.dumps(r) + "\n")
+        fh.writelines(json.dumps(r) + "\n" for r in rows)
     print(f"joined: {len(rows)} -> {args.out}", file=sys.stderr)
 
 
