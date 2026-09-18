@@ -272,9 +272,10 @@ class TestL2Repair:
             assert snap["status"] == "done", snap
             evs = _events(c, tid)
             l2_evs = [e for e in evs if e["type"] == "l2"]
-            assert len(l2_evs) == 1
-            assert l2_evs[0]["data"]["retranslated"]
-            assert l2_evs[0]["data"]["recompiled"] == "clean"
+            l2_done = [e["data"] for e in l2_evs if e["data"].get("phase") == "done"]
+            assert len(l2_done) == 1
+            assert l2_done[0]["retranslated"]
+            assert l2_done[0]["report"]["recompiled"] == "clean"
             # L2 修好后 fixloop 不跑
             assert not [e for e in evs if e["type"] == "fixloop"]
             # 重译真被调过（[compile_error] 反馈）
@@ -298,7 +299,11 @@ class TestL2Repair:
             assert "l2" in seqs
             assert "fixloop" in seqs
             assert seqs["l2"] < seqs["fixloop"]
-            l2_data = next(e["data"] for e in evs if e["type"] == "l2")
+            l2_data = next(
+                e["data"]
+                for e in evs
+                if e["type"] == "l2" and e["data"].get("phase") == "done"
+            )
             assert l2_data["retranslated"]
             # 重译后仍被点名 → 回落原文落库
             rows = _chunks(c, tid)
@@ -326,11 +331,15 @@ class TestL2Repair:
             # fallback_orig 块存在 → 终态 partial（降级交付语义，非 done）
             assert snap["status"] == "partial", snap
             evs = _events(c, tid)
-            l2_data = next(e["data"] for e in evs if e["type"] == "l2")
-            # 回落确实发生 + 回落态裸编判定入账
-            assert l2_data["fallback_src"]
-            assert l2_data["fallback_verdict"] == "clean"
-            assert "fallback_unverified" not in l2_data
+            l2_data = next(
+                e["data"]
+                for e in evs
+                if e["type"] == "l2" and e["data"].get("phase") == "done"
+            )
+            # 回落确实发生（done 帧 fallback 计数）+ 回落态裸编判定入账（report 全量键）
+            assert l2_data["fallback"]
+            assert l2_data["report"]["fallback_verdict"] == "clean"
+            assert "fallback_unverified" not in l2_data["report"]
             # 首编 + 重译态重编 + 回落态裸编 = build-zh 同 wdir 共 3 次
             n_work = sum(1 for call in eng.calls if "build-zh" in call["wdir"])
             assert n_work == 3  # noqa: PLR2004 -- 首编+重译重编+回落裸编

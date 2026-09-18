@@ -578,7 +578,8 @@ class TestFixloopWiring:
         assert snap["status"] == "done"
         fix_ev = [e for e in evs if e["type"] == "fixloop"]
         assert fix_ev, "fixloop 事件应落 task_events（可重放）"
-        assert fix_ev[0]["data"]["verdict"] == "clean"
+        fix_done = next(e["data"] for e in fix_ev if e["data"].get("phase") == "done")
+        assert fix_done["cell"]["verdict"] == "clean"
         done_ev = next(e for e in evs if e["type"] == "done")
         assert done_ev["data"]["stats"].get("fixloop") == "clean"
         # §5.5 cases 沉淀

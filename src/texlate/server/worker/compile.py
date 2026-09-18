@@ -505,6 +505,22 @@ class _Compile:
             return self._engine_factory("xelatex")
         return _w.engine_for("xelatex", halt_on_error=True)
 
+    def _repair_event(self, ctx: TaskCtx, etype: str, payload: dict[str, Any]) -> None:
+        """修复链实况帧发布：``bus.publish`` 经 ``_on_loop`` 回弹 + BYOK 秘钥 scrub。
+
+        best-effort 观测面——帧发布失败只留 debug 痕，不拖垮修复臂本体。
+        fixloop ``on_round`` 回调与 L2 阶段帧同走此口。
+        """
+        try:
+            self._on_loop(
+                self.bus.publish,
+                ctx.task_id,
+                etype,
+                _scrub_deep(payload, ctx.secrets.api_key),
+            )
+        except Exception:
+            log.debug("%s event publish failed", etype, exc_info=True)
+
     def _run_fixloop(
         self, ctx: TaskCtx, work: Path, eng: Engine, first: CompRes
     ) -> CompRes:
@@ -529,9 +545,21 @@ class _Compile:
                 case_sink=CaseSink(self.data_dir / "fixloop-cases.jsonl"),
                 compile_timeout=self._compile_timeout,
                 should_cancel=ctx.cancel_flag.is_set,
+                on_round=lambda r: self._repair_event(
+                    ctx, "fixloop", {"phase": "round", "round": r}
+                ),
             )
         except Exception as e:  # noqa: BLE001 -- fixloop 崩不拖垮编译段
             self._log(ctx, f"fixloop crashed: {type(e).__name__}: {e}")
+            self._repair_event(
+                ctx,
+                "fixloop",
+                {
+                    "phase": "done",
+                    "crashed": True,
+                    "message": f"{type(e).__name__}: {e}",
+                },
+            )
             return first
         finally:
             self._teardown_llm_hook(ctx, hook_usage, hook_clients)
@@ -586,7 +614,9 @@ class _Compile:
         if note is not None:
             self._log(ctx, f"fixloop: {note}")
         ctx.fixloop = _scrub_deep(summary, ctx.secrets.api_key)
-        self._on_loop(self.bus.publish, ctx.task_id, "fixloop", ctx.fixloop)
+        # done 帧带完整引擎 cell（rounds/actions/verdict 全量，实况回放原料）；
+        # ctx.fixloop 仍是压缩摘要形——error_json/stats 消费面不变
+        self._repair_event(ctx, "fixloop", {"phase": "done", "cell": cell})
         for ln in cell.get("log") or []:
             self._log(ctx, f"fixloop: {ln}")
         if cell.get("main") and cell["main"] != ctx.main_rel:
@@ -739,6 +769,11 @@ class _Compile:
             run: TreeRun, hits: dict[str, dict[str, Any]], cap: int
         ) -> dict[str, Any]:
             try:
+                self._repair_event(
+                    ctx,
+                    "l2",
+                    {"phase": "progress", "message": f"L2 重译 {len(hits)} 块"},
+                )
                 return await retranslate_hits(run, hits, cap)
             finally:
                 # client 用/关收进同一 ephemeral loop——拆两次 asyncio.run
@@ -748,6 +783,9 @@ class _Compile:
                 clients.clear()
 
         def _recompile() -> tuple[CompRes, Verdict]:
+            self._repair_event(
+                ctx, "l2", {"phase": "progress", "message": "L2 回灌重编"}
+            )
             r = eng.compile(
                 work,
                 ctx.main_rel,
@@ -881,13 +919,36 @@ class _Compile:
                 ),
             }
             return res, v
+        self._repair_event(ctx, "l2", {"phase": "start"})
         try:
             rep, res2, v2 = self._l2_repair_zh(ctx, work, eng, res)
         except Exception as e:  # noqa: BLE001 -- L2 崩不拖垮编译段
             self._log(ctx, f"l2 crashed: {type(e).__name__}: {e}")
+            self._repair_event(
+                ctx,
+                "l2",
+                {
+                    "phase": "done",
+                    "crashed": True,
+                    "message": f"{type(e).__name__}: {e}",
+                },
+            )
             return res, v
         ctx.l2 = _scrub_deep(rep, ctx.secrets.api_key)
-        self._on_loop(self.bus.publish, ctx.task_id, "l2", ctx.l2)
+        # done 帧平铺统计键（enabled/errors/retranslated/fallback 计数）+
+        # report 全量（ctx.l2 已 scrub）——前端卡片读平铺键，调试看 report
+        self._repair_event(
+            ctx,
+            "l2",
+            {
+                "phase": "done",
+                "enabled": rep.get("enabled"),
+                "errors": rep.get("errors"),
+                "retranslated": len(rep.get("retranslated") or []),
+                "fallback": len(rep.get("fallback_src") or []),
+                "report": ctx.l2,
+            },
+        )
         for key in ("retranslated", "reverted_l0", "fallback_src", "unresolved"):
             if rep.get(key):
                 self._log(ctx, f"l2 {key}: {rep[key]}")
@@ -998,6 +1059,7 @@ class _Compile:
                 if r["status"] == "ok" and isinstance(r["translation"], str)
                 else "",
                 "kind": r["kind"],
+                "status": str(r["status"]),
             }
             for r in self._on_loop(self._all_chunks, ctx)
         ]
