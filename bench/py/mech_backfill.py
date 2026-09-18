@@ -182,6 +182,7 @@ def compute_features(rows: list[dict], cache_path: Path) -> dict[str, dict]:
             rec["id"] = pid
             rec.pop("_texts", None)
             fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
+            fh.flush()
             out[pid] = rec
             n_done += 1
             if n_done % 25 == 0:
@@ -246,10 +247,10 @@ def main() -> int:
     ledger = ledger_tags()
     by_paper = paper_ledger_tags(ledger)
 
+    # pass 1: id → tag 集 + 来源统计（初始读）
+    tag_map: dict[str, set[str]] = {}
     src_count = defaultdict(int)  # (source) → n papers tagged
     tag_by_src: dict[str, set[str]] = defaultdict(set)  # tag → sources
-    n_changed = 0
-    out_rows = []
     for row in rows:
         pid = row["id"]
         tags_src: dict[str, set[str]] = defaultdict(set)
@@ -263,18 +264,26 @@ def main() -> int:
         if f:
             for t in feat_eval(f, row.get("cat_group"), row.get("yymm")):
                 tags_src["feature"].add(t)
-        merged = sorted(set().union(*tags_src.values()) if tags_src else set())
+        tag_map[pid] = set().union(*tags_src.values()) if tags_src else set()
         for src, ts in tags_src.items():
             if ts:
                 src_count[src] += 1
                 tag_by_src[src] |= ts
+
+    # pass 2: 写前重读——运行期间别家 append 的行原样保留（拿 mech_tags=[] 或
+    # 命中 tag_map），竞态窗口缩到 read→write 瞬间
+    fresh = load_jsonl(mf_path)
+    n_changed = 0
+    out_rows = []
+    for row in fresh:
+        merged = sorted(set(row.get("mech_tags") or []) | tag_map.get(row["id"], set()))
         if merged != (row.get("mech_tags") or []):
             n_changed += 1
         out_rows.append(set_mech_tags(row, merged))
 
     stats = {
         "manifest": args.manifest,
-        "rows": len(rows),
+        "rows": len(fresh),
         "tagged": sum(1 for r in out_rows if r["mech_tags"]),
         "changed": n_changed,
         "papers_by_source": dict(sorted(src_count.items())),
@@ -284,7 +293,7 @@ def main() -> int:
         "tags_by_source": {k: sorted(v) for k, v in sorted(tag_by_src.items())},
     }
     print(
-        f"# {args.manifest}: {stats['tagged']}/{len(rows)} 行带 tag "
+        f"# {args.manifest}: {stats['tagged']}/{len(fresh)} 行带 tag "
         f"({n_changed} 行变更); 来源覆盖 {json.dumps(stats['papers_by_source'], ensure_ascii=False)}",
         file=sys.stderr,
     )
