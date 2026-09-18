@@ -142,7 +142,7 @@ async def translate_tree(
 ) -> dict:
     """work 内可译 .tex → XlatPipeline(GatewayTranslator)+L0 → splice 写回。
 
-    对齐 ``texlate.e2e.mock_translate_tree`` 的编排（chunk_id = file_idx:cid、
+    对齐 ``texlate.e2e.translate_tree`` 的编排（chunk_id = file_idx:cid、
     reconstruct 回写、PH_RX 数残留），差异：async + StateStore 续跑 +
     per-status 统计 + 调用量/耗时计量。
 

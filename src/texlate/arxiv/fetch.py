@@ -185,11 +185,6 @@ def valid_id(base: str) -> bool:
     return bool(_NEW_ID_RE.match(base) or _OLD_ID_RE.match(base))
 
 
-# TODO(refactor-sweep): drop alias after cli/app split lands——cli.py/cli.thin/  # noqa: TD003, FIX002
-# worker.html 仍 import 私名旧称。
-_valid_id = valid_id
-
-
 def _cd_filename(headers: httpx.Headers) -> str:
     m = _CD_FN_RE.search(headers.get("content-disposition", ""))
     return m.group(1) if m else ""

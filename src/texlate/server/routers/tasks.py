@@ -18,7 +18,7 @@ from fastapi import FastAPI, Query, Request, Response
 from fastapi.responses import JSONResponse
 from sse_starlette.sse import EventSourceResponse
 
-from texlate.arxiv.fetch import _valid_id, normalize_arxiv_id
+from texlate.arxiv.fetch import normalize_arxiv_id, valid_id
 from texlate.server.events import sse_frame
 from texlate.server.http import (
     _accepted,
@@ -56,7 +56,7 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 端
     async def arxiv_translate(request: Request, arxiv_id: str) -> Response:
         """建 arxiv 任务：202 + cache_key dedup/reuse（§2.1）。"""
         base, ver = normalize_arxiv_id(arxiv_id)
-        if not _valid_id(base):
+        if not valid_id(base):
             return _json_error(
                 400, f"invalid arxiv id: {arxiv_id!r}", "invalid_request"
             )

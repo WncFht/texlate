@@ -690,7 +690,7 @@ class TestThinClient:
     def test_unvalidated_id_submission(
         self, monkeypatch: pytest.MonkeyPatch, source: str
     ) -> None:
-        """回归钉（8a3d822 已修）：``_valid_id`` 闸在构造 URL 前拒非法 id。
+        """回归钉（8a3d822 已修）：``valid_id`` 闸在构造 URL 前拒非法 id。
 
         旧缺陷：``..`` 借 httpx dot-segment 归一化逃出 ``/api/arxiv/``
         命名空间落 ``/api/y/translate``。现行：本地 exit 2 零请求。

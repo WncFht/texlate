@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any
 from fastapi import Request, Response  # noqa: TC002
 from fastapi.responses import JSONResponse
 
-from texlate.arxiv.fetch import _valid_id, normalize_arxiv_id
+from texlate.arxiv.fetch import normalize_arxiv_id, valid_id
 from texlate.server.http import _ApiError
 from texlate.server.store import TERMINAL_STATUSES
 from texlate.server.worker import KIND_URL
@@ -47,7 +47,7 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901 -- 端点面平
     def _hjfy_row(request: Request, arxiv_id: str) -> dict[str, Any]:
         """``hjfy`` 轮询端点共用解析：id 归一校验 + tenant 内最新任务行（无 → 404）。"""
         base, ver = normalize_arxiv_id(arxiv_id)
-        if not _valid_id(base):
+        if not valid_id(base):
             raise _ApiError(
                 400,
                 {

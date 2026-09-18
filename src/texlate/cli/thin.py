@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 import httpx
 import typer
 
-from texlate.arxiv.fetch import _valid_id, normalize_arxiv_id
+from texlate.arxiv.fetch import normalize_arxiv_id, valid_id
 from texlate.cli._common import _is_dir
 
 if TYPE_CHECKING:
@@ -47,7 +47,7 @@ def _thin_run(  # noqa: PLR0911, PLR0913 -- 与 run 的 --server 选项面一一
         )
         return 2
     base, ver = normalize_arxiv_id(source)
-    if not _valid_id(base):
+    if not valid_id(base):
         # 非法 id 经 httpx dot-segment 归一化会逃逸 /api/arxiv/ 命名空间
         typer.echo(f"非法 arXiv id: {source}", err=True)
         return 2

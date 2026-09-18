@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     from bs4.element import Tag
 
 from texlate.arxiv.cache import SourceCache
-from texlate.arxiv.fetch import _valid_id, normalize_arxiv_id
+from texlate.arxiv.fetch import normalize_arxiv_id, valid_id
 from texlate.arxiv.html import (
     HtmlDoc,
     HtmlFetchError,
@@ -117,7 +117,7 @@ class _Html:
         self._abort_if_cancelled(ctx)
         arxiv_id = str(ctx.row["arxiv_id"])
         base, pin = normalize_arxiv_id(arxiv_id)
-        if not _valid_id(base) or (pin is not None and pin < 1):
+        if not valid_id(base) or (pin is not None and pin < 1):
             raise _StageError(code="arxiv_fetch", message=f"bad arxiv id: {arxiv_id!r}")
         cache = self._src_cache or SourceCache(self.data_dir / "src-cache")
         own = self._fetcher is None

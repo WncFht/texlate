@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING
 from fastapi import Request, Response  # noqa: TC002
 from fastapi.responses import JSONResponse
 
-from texlate.arxiv.fetch import _valid_id, normalize_arxiv_id
+from texlate.arxiv.fetch import normalize_arxiv_id, valid_id
 from texlate.server.http import (
     UploadPart,
     _accepted,
@@ -73,7 +73,7 @@ def _share_parts_checked(
     非数字形在此闸死，``int()`` 不会炸）。全数违例 → ``share_invalid``。
     """
     base, embedded = normalize_arxiv_id(parts["arxiv_id"])
-    if embedded is not None or not _valid_id(base):
+    if embedded is not None or not valid_id(base):
         raise _ApiError(
             400,
             {

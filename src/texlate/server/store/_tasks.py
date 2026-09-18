@@ -180,7 +180,7 @@ class TaskRepo:
         """``arxiv_id`` 最新任务行（hjfy 兼容面查源）。
 
         ``base_id`` 须已归一去版（调用方过 ``normalize_arxiv_id`` +
-        ``_valid_id``——id 字符集无 GLOB 元字符，``{base}v*`` 模式安全）。
+        ``valid_id``——id 字符集无 GLOB 元字符，``{base}v*`` 模式安全）。
         arxiv/upload_tex 建行存裸 id、share 导入存 ``{id}v{N}`` 钉版形，
         ``= base`` 或 GLOB 同罩两形；``version`` 钉版查询精确行优先，
         其余按创建时间取最新。tenant 隔离与 ``_get_task`` 同口径。

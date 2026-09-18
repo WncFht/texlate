@@ -285,11 +285,6 @@ def translate_tree(
     return stats
 
 
-# TODO(refactor-sweep): drop alias after cli/app split lands——cli/thin 与  # noqa: TD003, FIX002
-# bench/py 仍 import/打桩私名旧称。
-mock_translate_tree = translate_tree
-
-
 # ---------------------------------------------------------------- 编译尾段
 
 
@@ -757,8 +752,3 @@ def pipeline_run(  # noqa: PLR0913 -- 同上：开关面穿透到 pipe_condition
         )
     )
     return report
-
-
-# TODO(refactor-sweep): drop alias after cli/app split lands——cli.py/cli.run  # noqa: TD003, FIX002
-# 经 ``_cli.mock_pipeline_run`` 运行期解析、bench/py 直 import 旧名。
-mock_pipeline_run = pipeline_run

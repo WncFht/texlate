@@ -18,18 +18,17 @@ from importlib.util import find_spec
 
 from texlate import __version__  # noqa: F401
 from texlate.arxiv.cache import SourceCache
-from texlate.arxiv.fetch import (  # noqa: F401 -- _valid_id 私有转口
+from texlate.arxiv.fetch import (
     AcquireResult,
     AcquireStatus,
     Fetcher,
-    _valid_id,
     acquire_source,
     normalize_arxiv_id,
 )
 from texlate.cli._common import app
 from texlate.compile import toolchain
 from texlate.compile.sandbox import find_tool
-from texlate.e2e import mock_pipeline_run
+from texlate.e2e import pipeline_run as mock_pipeline_run
 from texlate.latex.api import parse_file
 from texlate.share import (
     KEY_PART_FIELDS,
