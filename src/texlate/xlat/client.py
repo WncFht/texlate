@@ -250,10 +250,15 @@ def _model_switchable(e: ChatError) -> bool:
     404 = 模型从清单摘除（promo 到期形态）；HTTP/合同级 retryable
     （429/5xx/408/409/425/空响应/截断）换候选有救。传输错误
     （status<0——同端点同死）、auth/计费/其余 4xx 不切。
+    本地闸门快败（"local gate"）不切：拒绝发自令牌级排队预算而非
+    模型/上游，换候选同令牌同队列只是白占闸位，交回上层按
+    retry_after 退避等本模型窗口。
     """
     if isinstance(e, EndpointNotFoundError):
         return True
     if isinstance(e, RetryableHTTPError) and e.status < 0:
+        return False
+    if e.status == HTTP_TOO_MANY_REQUESTS and "local gate" in str(e):
         return False
     return e.retryable
 

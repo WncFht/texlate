@@ -451,6 +451,14 @@ class TestModelSwitchable:
         assert not sw(cl.RetryableHTTPError("x", status=-1, retryable=True))
         assert sw(cl.RetryableHTTPError("x", status=429, retryable=True))
         assert sw(cl.RetryableHTTPError("x", status=500, retryable=True))
+        # 本地闸门 429 不切：换候选同令牌同队列，只是白占闸位
+        assert not sw(
+            cl.RetryableHTTPError(
+                "HTTP 429: upstream message rate limited by local gate",
+                status=429,
+                retryable=True,
+            )
+        )
         # 非 retryable ChatError 不切；裸 retryable ChatError 切
         assert not sw(cl.ChatError("x", status=500, retryable=False))
         assert sw(cl.ChatError("x", status=500, retryable=True))
