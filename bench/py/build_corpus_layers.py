@@ -748,6 +748,7 @@ def cmd_recent(args: argparse.Namespace) -> None:
     """
     from texlate.arxiv.cache import SourceCache
     from texlate.arxiv.fetch import AcquireStatus, Fetcher, acquire_source
+    from texlate.arxiv.ratelimit import RateLimiter, RatePolicy
 
     layer = args.layer
     prefix = PROFILES.get(layer, {}).get("cluster_prefix", layer.upper()[:2])
@@ -759,7 +760,9 @@ def cmd_recent(args: argparse.Namespace) -> None:
         else set()
     )
     taken = benchlib.corpus_ids(CORPUS)
-    fetcher = Fetcher()
+    fetcher = Fetcher(
+        limiter=RateLimiter(policy=RatePolicy(daily_budget=args.daily_budget))
+    )
     cache = SourceCache(Path.home() / ".cache" / "texlate" / "src")
     n_new = 0
     with man.open("a", encoding="utf-8") as mf:
@@ -940,6 +943,12 @@ def main() -> None:
         "--topup",
         action="store_true",
         help="extract: 只补 deficit cell（quota − manifest 实收），不动足额 cell",
+    )
+    ap.add_argument(
+        "--daily-budget",
+        type=int,
+        default=180,
+        help="recent: 本进程 acquire 请求数上限（内存态，重启即重置；默认 180=产品日预算）",
     )
     a = ap.parse_args()
     if a.cmd == "recent" and not a.ids_file:
