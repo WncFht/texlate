@@ -580,3 +580,17 @@
 - **flipcheck5 全报收**（#62 清尸）：四目标格全验+新残口=**`\cite`-in-math 字体开关**——gr-qc/9901082 splice:466 `\bfseries invalid in math` 残存，源无字面开关组：`\cite{HawMos}` 处 `$…$` 内被文-mode `{\it …}` 包，revtex compat 执行期解开关→\bfseries——字面组改写域外（b3a 同残，acceptable_pdf 语义挂 #10 裁决）。grpOpaque 判verdict-neutral 但 **gen_overflow 警 1→0 全 6 格**（spec walker 代探针正信号）。36/36 零逃逸收官。
 - roster 3：pendspec(#59)/mnrasretire(#61)/slotdiff(#63)；flipcheck5/pairediff/texmfshadow 尸清。
 - 待办串联：slotdiff 交付后三接线 patch text 转 texlate-13（彼 splice 域 e2e/worker/repair_l2）；pendspec 落地后 segmirror 放行的 ping 链不变。
+
+## 2026-09-19 ~04:5x — XCOMET-QE 三角测量批收官（task#13）
+
+- **qe-scores.jsonl 1200/1200 落袋**（archbox→tmp/qe-scores.jsonl；批程 3 次内核 OOM 连杀 + 1 次 peer-GPU 4GiB 挤占，Restart=on-failure + 断点续跑兜住）。
+- **三角测量读数**（join 1148 格，bib 52 行按 spike 结论剔除——QE 对未翻 bib 打 ~0.57 属设计内）：**Spearman(qe, judge)=0.455**、Pearson=0.332；qe 均值 0.661±0.228、judge 93.9±4.8。分歧格（|zdiff|>1.5σ）115 个，主方向=QE 高分/judge 低分（如 1003.4720|0:19 qe=0.887 judge=45——judge 抓语义错而 QE 只见流畅度）；反向 QE≈0.02/judge≥95 两例疑为占位符密集段 QE 盲区。清单全文 tmp/qe-join-report.txt。
+- 定位：ρ≈0.45 属 QE-vs-人工判定常态区间——**可作 cheap 预筛/异常格路由信号，不足以替代 judge**；L1 单发判官前可加 QE 兜底排序。现场已恢复（earlyoom 起、swapfile 撤）。
+
+## 2026-09-19 ~06:1x — 夜巡：roster 扩 7 + mnrasretire 混合设计落树
+
+- **mnrasretire 在飞改动抽查**（40-install.yaml +64，未交付）：`mnras_texmf_shadow_retire` order 11.91（pstadd 11.9 与 draftsty 11.95 间）——设计比我转达的纯 stateless drop 更丰：**wdir 可达域 mv-retire**（find . + ../_texmf/home 双根，盖 stagerun 兄弟式与生产内嵌式 _texmf；宿主 ~/texmf 不碰=守"零外变"）+ **vendor 补丁件平投 cwd**（kpathsea cwd 序压一切 texmf 树含宿主同病件）。条件闸：ctx_suggests `Options Section|mnras\.cls` ∧ any(cache_dir_glob `**/mnras.cls` ∨ `../_texmf/home/**/mnras.cls`) ∧ tool sh；指纹=剥注释行 `ds@usegraphicx` 携 `\usepackage|\RequirePackage` 才 mv，texlate 双标（patch/injected）跳过防自拆；python 桥 `_vendor_root` 取钉件 `|| true` 退化为纯退役不阻塞。收割核点备查：`_vendor_root` 存在性、`../` cache_dir_glob 越界支持、11.91 序位无撞。
+- **roster 扩 4 研究道**（→7 在飞）：citemath(#64 机链实证+语料暴露+机制选型)、twinhead(#66 多错 dispatch/salvage-as-discovery/孪生签名三案设计评估+回归风险)、draftgap(#67 draftsty known_gap 三缺口语料暴露——变体签名/子目录/cls-only)、acceptpdf(#65 acceptable_pdf 内容丢失爆半径——#10 裁决定量件)。
+- **L1 re-gate 裁定=候场**：pending.py +467/-59 未 commit——此刻跑 parsebench 测的是混合态非 commit 树，门无效；pendspec 落地后立即重跑（现行树=peer v1 退役+我 45fab85/cb404a6/22e94be/c68dc86 全入）。
+- **脱管批面**：l1-gate post-W84 完（1955/1955 strict、leak 0.0）；autogloss-reg 完 rc=0（contested 0.070→0.080 容内）。
+- 门巡：工作树改动全可归属（pending.py/slots 测=pendspec、40-install=mnrasretire、judge.py=peer 重构）；零 git 违例；#10 裁决点仍唯一用户面。
