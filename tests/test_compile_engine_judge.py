@@ -440,6 +440,105 @@ def test_count_missing_chars() -> None:
     assert count_missing_chars(log) == 2  # noqa: PLR2004 - 两行 Missing character
 
 
+# ---------------------------------------------------------------- 机位审计
+def _slot_res(tmp_path: Path, tex_body: str, name: str = "main.tex") -> CompRes:
+    """pdf-clean CompRes + workdir 内置一份 .tex——机位审计的最小输入。"""
+    res = _res(tmp_path, pdf=True, log_text="all good\n")
+    res.workdir = tmp_path
+    (tmp_path / name).write_text(tex_body, encoding="utf-8")
+    return res
+
+
+def _slot_notes(v) -> list[str]:  # noqa: ANN001 - Verdict 私有探针面
+    return [n for n in v.notes if n.startswith("machine_slot_nonascii:")]
+
+
+def test_machine_slot_fires_per_kind(tmp_path: Path) -> None:
+    """全机位命中：env/label/cite/bib/csname/input 路径/restatable 头。"""
+    body = (
+        "\\begin{定理环境}\n"
+        "\\label{sec:引理}\n"
+        "\\citep{张三2020}\n"
+        "\\bibliography{中文文献}\n"
+        "\\csname 中文体\\endcsname\n"
+        "\\input{中文文件}\n"
+        "\\end{定理环境}\n"
+    )
+    v = judge(_slot_res(tmp_path, body))
+    kinds = {n.split(":")[1] for n in _slot_notes(v)}
+    assert {"env", "ref", "cite", "bib", "csname", "input"} <= kinds
+    assert v.status == "clean"  # note 级——不污染 verdict
+
+
+def test_machine_slot_restatable_double_args(tmp_path: Path) -> None:
+    """restatable 头双机位参：env 名或 cskey 任一中招都记（原窄探针面）。"""
+    v = judge(_slot_res(tmp_path, "\\begin{restatable}{定理}{main}\nx\n"))
+    assert any(n.startswith("machine_slot_nonascii:restatable:") for n in v.notes)
+    v2 = judge(_slot_res(tmp_path, "\\begin{restatable}{theorem}{中文键}\nx\n"))
+    assert any(n.startswith("machine_slot_nonascii:restatable:") for n in v2.notes)
+
+
+def test_machine_slot_optional_and_text_args_silent(tmp_path: Path) -> None:
+    """FP 闸：可选位/文位 CJK 不命中——\\section/\\caption/[opt] 全哑。"""
+    body = (
+        "\\section{中文标题}\n"
+        "\\caption{中文说明}\n"
+        "\\citep[见][中文注]{key}\n"
+        "\\includegraphics[width=中文]{fig.png}\n"
+        "\\footnote{中文脚注}\n"
+        "\\begin{restatable}[中文注]{theorem}{main}\nx\\end{restatable}\n"
+    )
+    v = judge(_slot_res(tmp_path, body))
+    assert _slot_notes(v) == []
+
+
+def test_machine_slot_ascii_silent(tmp_path: Path) -> None:
+    """ASCII 机位参全静默：label/cite/env/input/bib 零命中。"""
+    body = (
+        "\\begin{theorem}\\label{thm:a}\\end{theorem}\n"
+        "\\cite{knuth84}\\ref{thm:a}\\eqref{eq:1}\\bibliography{refs}\n"
+        "\\input{macros}\\include{ch1}\\includegraphics{fig.png}\n"
+        "\\csname foo\\endcsname\n"
+    )
+    v = judge(_slot_res(tmp_path, body))
+    assert _slot_notes(v) == []
+
+
+def test_machine_slot_masked_regions_silent(tmp_path: Path) -> None:
+    """注释/verbatim/死区同形 token 非活机位——mask_tex 视图挡 FP。"""
+    body = (
+        "% \\label{注释键}\n"
+        "\\begin{verbatim}\n\\cite{逐字键}\n\\end{verbatim}\n"
+        "\\begin{document}\nx\n\\end{document}\n"
+        "\\label{死区键}\n"
+    )
+    v = judge(_slot_res(tmp_path, body))
+    assert _slot_notes(v) == []
+
+
+def test_machine_slot_no_workdir_no_crash(tmp_path: Path) -> None:
+    """workdir 缺席 → 探针短路不炸（手工 CompRes 面）。"""
+    v = judge(_res(tmp_path, pdf=True, log_text="all good\n"))
+    assert _slot_notes(v) == []
+
+
+def test_machine_slot_includegraphics_required_arg(tmp_path: Path) -> None:
+    """``\\includegraphics{中文.png}`` 必填路径中招（可选位排除不误伤）。"""
+    v = judge(_slot_res(tmp_path, "\\includegraphics[width=2cm]{中文.png}\n"))
+    assert any(
+        n == "machine_slot_nonascii:path:main.tex:'中文.png'" for n in v.notes
+    )
+
+
+def test_machine_slot_note_cap(tmp_path: Path) -> None:
+    """note 封顶：>20 命中截断 + capped 标记，不刷屏。"""
+    body = "".join(f"\\label{{k{i}:中文}}\n" for i in range(25))
+    v = judge(_slot_res(tmp_path, body))
+    notes = _slot_notes(v)
+    assert len(notes) == 21  # noqa: PLR2004 - 20 命中 + capped 标记
+    assert notes[-1] == "machine_slot_nonascii:capped@20"
+
+
 # ---------------------------------------------------------------- compiled_dependencies
 def test_compiled_dependencies_fls(tmp_path: Path) -> None:
     out = tmp_path

@@ -28,7 +28,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from texlate.redlines import REDLINES_BY_ID, name_pattern
-from texlate.textutil import CJK_RX
+from texlate.textutil import CJK_RX, CMD_BOUNDARY, mask_tex
 
 from .engine import CompRes, classify_error
 from .sandbox import find_tool, run_process
@@ -112,12 +112,70 @@ _MISSCHAR_NULLFONT_RX = re.compile(_MISSCHAR_NULLFONT[1])
 _THM_RESTATE = name_pattern(REDLINES_BY_ID["restatable_loss"].judge)
 _THM_RESTATE_RX = re.compile(_THM_RESTATE[1])
 #: vtex 源面判定信号（source 介质，不入 registry——judge LayerSpec 语义是
-#: log regex）：``\begin{restatable}[?]{env}`` 的 env 参非 ASCII ≈ 参被译文
-#: 污染=静默丢失真条件（纸真 CJK env 名合法 → note 不判红）。
+#: log regex）：``\begin{restatable}[?]{env}{cskey}`` 双机位参（env 名 +
+#: csname 键）非 ASCII ≈ 参被译文污染=静默丢失真条件（纸真 CJK env 名
+#: 合法 → note 不判红）。cskey 缺席的退化头仍收 env 参。
 _RESTATABLE_HDR_RX = re.compile(
-    r"\\begin\s*\{restatable\*?\}\s*(?:\[[^\]]*\])?\s*\{([^{}]*)\}"
+    r"\\begin\s*\{restatable\*?\}\s*(?:\[[^\]]*\])?\s*"
+    r"\{([^{}]*)\}(?:\s*\{([^{}]*)\})?"
 )
 _HDR_NONASCII_RX = re.compile(r"[^\x00-\x7f]")
+
+#: doc 级机位参数审计面（``_machine_slot_probe`` 消费）：逐 ``*.tex`` 在
+#: ``mask_tex`` 视图上匹配机位实参——注释/verbatim/死区同形 token 非活
+#: 机位（参定位在原文字节偏移上，报文回切原文）。每行 ``(kind, rx)``，
+#: rx 捕获组全为机位实参候选（任一组非 ASCII 即记 note）。可选位一律先
+#: 被 ``\[...\]``/``\*?`` 吃掉不命中；``\section{中文}`` 等文位结构上就
+#: 不在此表。ph_map 字节同一性靠构造保住，本表盯的活口是未标机参进
+#: ``[[CHUNK_n]]`` zh 面——restatable env 参被译（``\csname<undef>
+#: \endcsname``→``\relax`` 零 ``!`` 行）是实证锚点。
+_MACHINE_SLOT_RXS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    # \begin/\end env 名
+    ("env", re.compile(r"\\(?:begin|end)\s*\{([^{}\n]*)\}")),
+    # \begin{restatable}[?]{env}{cskey} 双机位参
+    ("restatable", _RESTATABLE_HDR_RX),
+    # \label/\ref/\eqref/\pageref/\autoref 键（star 形同收）
+    (
+        "ref",
+        re.compile(r"\\(?:label|ref|eqref|pageref|autoref)\*?\s*\{([^{}\n]*)\}"),
+    ),
+    # \bibliography/\addbibresource 文献路径
+    (
+        "bib",
+        re.compile(
+            r"\\(?:bibliography|addbibresource)\s*"
+            r"(?:\[[^\]\n]*\]\s*)?\{([^{}\n]*)\}"
+        ),
+    ),
+    # \csname...\endcsname 体（跨行体 DOTALL）
+    (
+        "csname",
+        re.compile(r"\\csname" + CMD_BOUNDARY + r"\s*(.*?)\\endcsname", re.DOTALL),
+    ),
+    # \include/\includegraphics 必填路径（可选位排除）
+    (
+        "path",
+        re.compile(
+            r"\\(?:include|includegraphics)\*?\s*"
+            r"(?:\[[^\]\n]*\]\s*)*\{([^{}\n]*)\}"
+        ),
+    ),
+    # \input 三形态：花括号/引号/裸 token（\inputlineno 系被 CMD_BOUNDARY 挡）
+    (
+        "input",
+        re.compile(
+            r"\\input"
+            + CMD_BOUNDARY
+            + r"\s*(?:\{([^{}\n]*)\}|\"([^\"\n]*)\"|([^\s{}%\\]+))"
+        ),
+    ),
+)
+#: 机位审计 note 封顶——防巨型工程 notes 刷屏。
+_MACHINE_SLOT_MAX = 20
+#: 死尾截断（``compile.probe._DEAD_TAIL_RE`` 同口径）：``\end{document}``/
+#: ``\endinput`` 之后的机位同形 token 非活 slot，在遮盖视图上定位（注释/
+#: verbatim 内的字面命中不算死界）。
+_DEAD_TAIL_RX = re.compile(r"\\end\s*\{document\}|\\endinput\b")
 
 
 def count_missing_chars(log_text: str) -> int:
@@ -138,22 +196,63 @@ def _missing_char_check(v: Verdict, full_log: str, *, expect_cjk: bool) -> None:
         v.reasons.append(f"{_MISSCHAR_GATE[0]}×{v.missing_chars}")
 
 
-def _thm_restate_probe(v: Verdict, res: CompRes, full_log: str) -> None:
-    """thm-restate 观察项：包在场记 note；restatable env 参非 ASCII 记强 note。"""
-    if not _THM_RESTATE_RX.search(full_log):
-        return
-    v.notes.append(_THM_RESTATE[0])
+def _thm_restate_probe(v: Verdict, full_log: str) -> None:
+    """thm-restate 观察项：包加载痕迹记 note；参审计并入 ``_machine_slot_probe``。"""
+    if _THM_RESTATE_RX.search(full_log):
+        v.notes.append(_THM_RESTATE[0])
+
+
+def _slot_scan(
+    src: str, rxs: tuple[tuple[str, re.Pattern[str]], ...]
+) -> list[tuple[str, str]]:
+    """单文件源文机位命中 → ``(kind, arg)`` 序对（遮盖视图 + 死尾截断）。"""
+    view = mask_tex(src)
+    dead = _DEAD_TAIL_RX.search(view)
+    if dead is not None:
+        view = view[: dead.start()]
+    hits: list[tuple[str, str]] = []
+    for kind, rx in rxs:
+        for m in rx.finditer(view):
+            for i, g in enumerate(m.groups(), start=1):
+                if g is not None and _HDR_NONASCII_RX.search(g):
+                    hits.append((kind, src[m.start(i) : m.end(i)]))
+                    break
+    return hits
+
+
+def _machine_slot_probe(v: Verdict, res: CompRes) -> None:
+    r"""Doc 级机位审计：workdir ``*.tex`` 机位实参非 ASCII → note 观察项。
+
+    未标机位参进 zh chunk 面=静默丢失真条件（``\label{中文}`` 断链、
+    ``\cite{中文}`` undefined citation、restatable env 参 ``\relax``
+    零 ``!`` 行），但纸真 CJK env 名/label 合法 → 只记 note 不判红。
+    ``mask_tex`` 视图匹配（注释/verbatim/死区同形非活机位），命中组
+    回切原文进报文。note 形 ``machine_slot_nonascii:<kind>:<file>:<arg>``，
+    ``_MACHINE_SLOT_MAX`` 封顶。
+    """
     if res.workdir is None:
         return
+    from texlate.compile.fixloop._builtins_bib import (  # noqa: PLC0415  # 延迟: fixloop 链重
+        _CITE_FAMILY_RE,
+    )
+
+    rxs = (*_MACHINE_SLOT_RXS, ("cite", _CITE_FAMILY_RE))
+    hits: list[str] = []
     for tex in sorted(res.workdir.rglob("*.tex")):
         try:
             src = tex.read_text(errors="replace")
         except OSError:
             continue
-        for m in _RESTATABLE_HDR_RX.finditer(src):
-            if _HDR_NONASCII_RX.search(m.group(1)):
-                v.notes.append(f"restatable_env_nonascii:{tex.name}:{m.group(1)!r}")
-                return
+        hits.extend(
+            f"machine_slot_nonascii:{kind}:{tex.name}:{arg!r}"
+            for kind, arg in _slot_scan(src, rxs)
+        )
+        if len(hits) >= _MACHINE_SLOT_MAX:
+            break
+    capped = len(hits) >= _MACHINE_SLOT_MAX
+    v.notes.extend(hits[:_MACHINE_SLOT_MAX])
+    if capped:
+        v.notes.append(f"machine_slot_nonascii:capped@{_MACHINE_SLOT_MAX}")
 
 
 def _full_log_text(res: CompRes, log_text: str) -> str:
@@ -169,9 +268,10 @@ def _full_log_text(res: CompRes, log_text: str) -> str:
 
 
 def _log_probes(v: Verdict, res: CompRes, full_log: str, *, expect_cjk: bool) -> None:
-    """log/源面观察探针束：缺字形门控 + thm-restate 包在场/异参 note。"""
+    """log/源面观察探针束：缺字形门控 + thm-restate 包在场 note + 机位审计。"""
     _missing_char_check(v, full_log, expect_cjk=expect_cjk)
-    _thm_restate_probe(v, res, full_log)
+    _thm_restate_probe(v, full_log)
+    _machine_slot_probe(v, res)
 
 
 def _signal_attribution(res: CompRes) -> int | None:
@@ -232,6 +332,44 @@ def _error_composition(
     v.error_pay = pays
 
 
+def _timeout_verdict(v: Verdict, res: CompRes, log_text: str) -> Verdict:
+    """超时/截杀编译的早退判定：fail + category 细分（runaway_output/timeout）。
+
+    活哨截杀留有行程内原因（``CompRes.sentry_reason`` 显式字段，或未经
+    归位的 str 形 ``timed_out``）——记录值优先于文本重扫：截断窗口数
+    不出全程签名密度（1003.2165 实证误归泛 timeout）。无记录原因退回
+    文本证据：全量 .log（页洪签名只在全文计数够得着
+    ``_RUNAWAY_PAGE_MAX``）+ stdout_tail 兜底窗。
+    """
+    v.reasons.append("timeout")
+    sentry_reason = getattr(res, "sentry_reason", None)
+    if sentry_reason is None and isinstance(res.timed_out, str):
+        sentry_reason = res.timed_out
+    if sentry_reason is not None:
+        v.notes.append(f"sentry:{sentry_reason}")
+        v.category = "runaway_output"
+        return v
+    # 超时编译细分 category（taxonomy 单源）：\output 期 Overfull \vbox
+    # 刷屏 → runaway_output（输出例程暴走），否则泛 timeout——triage/
+    # 账本据 category 分流（gr-qc/0104075：73,595 页暴走烧满预算）。
+    cat, _pay = classify_error(
+        res.log.first_error,
+        res.log.error_ctx,
+        res.log.tail,
+        timed_out=True,
+    )
+    if cat == "timeout":
+        from texlate.compile.fixloop.logparse import (  # noqa: PLC0415  # 延迟: fixloop/__init__ 链重
+            _is_runaway_output,
+        )
+
+        blob = _full_log_text(res, log_text)
+        if _is_runaway_output(blob) or _is_runaway_output(res.stdout_tail):
+            cat = "runaway_output"
+    v.category = cat
+    return v
+
+
 def judge(res: CompRes, *, expect_cjk: bool = False, log_text: str = "") -> Verdict:
     """CompRes → 终态判定。`expect_cjk` 打开中文渲染检查（zh 条件必开）。
 
@@ -241,27 +379,7 @@ def judge(res: CompRes, *, expect_cjk: bool = False, log_text: str = "") -> Verd
     v = Verdict(status="fail", n_errors=res.log.n_errors)
     v.warnings_hit = list(res.log.warnings_hit)
     if res.timed_out:
-        v.reasons.append("timeout")
-        # 超时编译细分 category（taxonomy 单源）：\output 期 Overfull \vbox
-        # 刷屏 → runaway_output（输出例程暴走），否则泛 timeout——triage/
-        # 账本据 category 分流（gr-qc/0104075：73,595 页暴走烧满预算）。
-        cat, _pay = classify_error(
-            res.log.first_error,
-            res.log.error_ctx,
-            res.log.tail,
-            timed_out=True,
-        )
-        if cat == "timeout":
-            # 活哨早杀的 .log 截在签名刷屏前——证据在 stdout_tail
-            # （哨件凭它越阈），补查使归因仍是 runaway_output。
-            from texlate.compile.fixloop.logparse import (  # noqa: PLC0415  # 延迟: fixloop/__init__ 链重
-                _is_runaway_output,
-            )
-
-            if _is_runaway_output(res.stdout_tail):
-                cat = "runaway_output"
-        v.category = cat
-        return v
+        return _timeout_verdict(v, res, log_text)
     # 引擎被信号杀死：死进程产出不可信，有 pdf 也判 dirty，
     # 并把真凶写进 reasons/notes（截断 aux 的下游症状不再顶包归因）。
     sig = _signal_attribution(res)
