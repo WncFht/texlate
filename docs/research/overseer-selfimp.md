@@ -67,3 +67,4 @@
 - 12:05 巡检脉冲：loop2 compile 8454→9161（+707 在飞，xlat/parse 满 5122）；rt1 pid 4023412 存活、孤儿 fd 守护者 pgid 2317256 持守（可见 84 行未动）；nightwatch 脱管环 10min 准点落 md
 - 12:05 a1-timing | `c2018de` | 请求时序三分拆（contextvar chat-sink+outer/inner/chat 三 span→req_timing records）+ batchmodel 文档（devin2api 86,705 行实测：conn 1.8s 固定/decode 543+13.3ms·out_tok/~550 out_tok/s 全局上限） | 注：loop2 xlat 先于插桩，req_timing 自下批生效 | 关代理
 - 12:05 派单 r3-audit：收割波-2/3 ~10 commit 独立复核（只读，按风险序：W91 regex 全引擎接入/biber skew token 流/根集闸语义/scorer 罚分）——回归门的独立验证层
+- 12:30 巡检脉冲：loop2 compile 9161→10286（+1125 在飞）；rt1 持守不变 | texlate-02 跨引擎钉 140 行代收 `b7b1a2e`-级（test_e2e_wiring+test_worker_audit_fixes reject_route 双臂覆盖，122 绿）| 在飞面全可归因：c1-L2(engine/probe/latex209)/c3-L10(_builtins×3+10-taxonomy+slashbox)/l9(gullet×4+test_gullet_l9)/c2-L5(model+tricky-mask+regression 61→72 钉)/l11 首两 stub 落地(mn2e+revtex)/l1+q1+r2+r3 新道工作中 | ra-bugs 转 idle 已问询 L3 状态
