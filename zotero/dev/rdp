@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# rdp — 在运行中的 Zotero 主窗口（zoteroPane context）eval 任意 JS 取回 JSON。
+# 整条验证链的咽喉：fixture 写入、selftest 驱动、菜单断言全过它。
+# 本脚本是薄 wrapper——协议实现与机制注释在 rdp.mjs，spike 证据在
+# dev/research/rdp.md。
+#
+# 反馈通道三属性（对照 docs/research/selfimp-skeleton.md）：
+#   局部可归因 — exit code 分流：0 成功 / 1 eval 异常或超时（stderr 带
+#     exceptionMessage+stack）/ 2 连接失败（ECONNREFUSED 直报端口）；
+#   廉价及时 — 单次 eval 秒级返回，--timeout 死线兜底（缺省 30s）；
+#   客观可验证 — stdout 恒为 {"ok":true,"value":<json>} 单行 JSON，
+#     调用方断言字段不 grep 文本。
+#
+# 骨架四字段：
+#   适用条件 — 实例带 --start-debugger-server <port> 启动，且 profile
+#     user.js 开 devtools.debugger.remote-enabled + prompt-connection=false
+#     （dev-zotero/dev-profile 已 seed）；
+#   变换方法 — 裸 TCP 长度前缀帧 RDP：root greeting → listProcesses →
+#     parent getTarget → consoleActor.evaluateJSAsync；async 结果写
+#     globalThis 槽、第二 eval 轮询读回（详见 rdp.mjs 头注）；
+#   资源约束 — node 运行时（零依赖，只用 node:net）；服务端事件噪音按
+#     type/resultID 过滤；读回即 delete 不留 globalThis 垃圾；
+#   验证证据 — 实跑输出与坑清单见 dev/research/rdp.md。
+exec node "$(dirname "$(readlink -f "$0")")/rdp.mjs" "$@"

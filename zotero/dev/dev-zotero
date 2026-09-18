@@ -1,0 +1,610 @@
+#!/usr/bin/env bash
+# dev-zotero — 构建/安装/起停带 texlate 插件的隔离 Zotero 开发实例
+# （xvfb + 固定端口 RDP 调试口）。
+#
+# 反馈三属性:
+#   局部可归因 — build/install/start/wait 分步断言各自带名；插件状态分三层
+#     回报（rdp-dead / not-registered / registered-not-init / loaded），
+#     未加载时自动附 extensions 目录清单+extensions.json+日志 addon 行，
+#     坏在「没装上」还是「装上没起来」一眼分清；
+#   廉价及时   — `dev-zotero run` 一条命令出全链结论：build→install→start
+#     →wait 60s 死线轮询，每步秒级返回，失败当时打印证据；
+#   客观可验证 — 断言只落机读事实：manifest.json 存在、指针文件逐字节内容、
+#     rdp eval 返回 JSON、Zotero.texlate.data.initialized===true——日志只做
+#     诊断证据，不当判据。
+#
+# 四要素:
+#   适用条件 — zotero + xvfb-run + node(npx)；zotero/node_modules 已装；
+#     wait/verify 探活依赖 zotero/dev/rdp（缺失时退化裸 TCP-accept 并标注）；
+#   变换方法 — npm run build 产出 .scaffold/build/addon → 写
+#     <profile>/extensions/<addonID> 指针文件（scaffold asProxy 同款机制，
+#     research/scaffold-mechanics.md §1）→ seed user.js → setsid 起
+#     xvfb-run zotero --purgecaches --profile <P> -datadir <ZDATA>
+#     --new-instance --start-debugger-server <PORT> -ZoteroDebugText
+#     （canonical profile 用共享 TEXLATE_DEV_ZDATA——fixtures 所在；
+#     非 canonical --profile 退到 -datadir profile 数据自隔离）；
+#   资源约束 — scratch 全在 tmp/zotero-dev/（pidfile/log/profile），断言
+#     TEXLATE_DEV_PROFILE 落在 TEXLATE_DEV_ROOT 下才动手；启动断言 RDP
+#     端口空闲（texlate_dev_port_free）；绝不裸起 zotero——--profile 写死
+#     在命令行，无代码路径省略（裸起会开用户真实库）；
+#   验证证据 — wait 死线内 rdp eval Zotero.version + 三层插件探针
+#     （getAllPluginIDs 注册态 × Zotero.texlate.data.initialized 运行态）；
+#     stop 只杀 pidfile 记的进程组。
+#
+# 安装路径抉择（research/scaffold-mechanics.md §1，dist 行号证据）：
+#   (a) npx zotero-plugin serve —— 弃用：zotero 是 node 前台子进程+watcher
+#     （不能 setsid 脱管成常驻 dev 实例）；RDP 端口 net.listen(0) 随机分配，
+#     我们的 rdp 工具要固定端口；exit 时 pkill -9 zotero 会连用户真实实例
+#     一起杀；其默认安装是 RDP installTemporaryAddon——进程死即失效。
+#   (b) extensions 指针文件 —— 采用：scaffold server.asProxy:true 同款：
+#     <profile>/extensions/<addonID> 文本含 .scaffold/build/addon 绝对路径，
+#     幂等、跨重启持久、不依赖任何长驻进程。**关键配套 pref：
+#     xpinstall.signatures.required=false**——缺它无签名代理包在启动扫描
+#     被静默拒载（实测：extensions.json 恒 {"addons":[]}、
+#     getAllPluginIDs()=[]、Zotero.texlate undefined）。
+#
+# 用法: dev-zotero <mode> [opts]（缺省 run）
+#   build    npm run build（=zotero-plugin build && tsc --noEmit；tsc 失败但
+#            产物在则 WARN 续行——开发中不过类型门）→ 报告 addon dir + xpi
+#   install  写 <profile>/extensions/<addonID> 指针（幂等：先清旧指针/xpi）
+#   start    未跑→断言端口空闲后拉起；在跑→插件已载则收养打印 PID exit 0，
+#            未载则重启加载；--force 无条件重启
+#   stop     只杀 pidfile 记的进程组（校验本 profile 上有实例再杀）
+#   restart  stop + start（不重 build/install）
+#   status   报告 instance/rdp/plugin 三态；实例不在 exit 1
+#   wait     阻塞至 rdp 握手成功且插件 loaded（60s 死线 TEXLATE_DEV_WAIT）
+#   verify   一次性断言插件 loaded（exit 0/1，不阻塞）
+#   run      build+install+start+wait 全链（缺省）；重 build 后要实例载新码
+#            用 `run --force` 或 `restart`——adopt 路径不热替换已载 bundle
+#
+# Opts: --port N  --profile DIR  --plugin-dir DIR  --force
+# env: TEXLATE_DEV_PROFILE (tmp/zotero-dev/profile)  TEXLATE_DEV_RDP_PORT (6100)
+#      ZOTERO_BIN (/usr/bin/zotero)  TEXLATE_DEV_WAIT (60)
+set -euo pipefail
+
+HERE="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+# shellcheck source=env.sh
+source "$HERE/env.sh"
+
+SCRATCH="$TEXLATE_DEV_ROOT"
+PROFILE="$TEXLATE_DEV_PROFILE"
+ZDATA="${TEXLATE_DEV_ZDATA:-$SCRATCH/zotero-data}"
+PORT="$TEXLATE_DEV_RDP_PORT"
+PLUGIN_DIR="$HERE/../.scaffold/build/addon"
+PIDFILE="$SCRATCH/dev-zotero.pid"
+LOGFILE="$SCRATCH/dev-zotero.zotero.log"
+RDP="$HERE/rdp"
+WAIT_DEADLINE="${TEXLATE_DEV_WAIT:-60}"
+FORCE=0
+
+usage() {
+  cat <<EOF
+Usage: dev-zotero <mode> [opts]
+
+Modes:
+  build    npm run build in zotero/ → report addon dir + xpi
+  install  write <profile>/extensions/<addonID> pointer file (idempotent)
+  start    launch isolated Zotero (xvfb) with plugin; adopt if already loaded;
+           restart the profile's instance if plugin missing; --force = always restart
+  stop     kill the pidfile's process group (only ours)
+  restart  stop + start
+  status   report instance/rdp/plugin three-state; exit 1 if down
+  wait     block until rdp handshake + plugin loaded (\${TEXLATE_DEV_WAIT:-60}s)
+  verify   one-shot plugin-loaded assert (exit 0/1)
+  run      build+install+start+wait (default)
+
+Opts:
+  --port N        RDP port (default: \$TEXLATE_DEV_RDP_PORT=$TEXLATE_DEV_RDP_PORT)
+  --plugin-dir D  unpacked addon dir (default: zotero/.scaffold/build/addon)
+  --profile D     profile dir (default: \$TEXLATE_DEV_PROFILE; must stay under
+                  \$TEXLATE_DEV_ROOT)
+  --force         start: restart even if plugin already loaded
+EOF
+}
+
+die() {
+  echo "[dev-zotero] ERROR: $*" >&2
+  exit 1
+}
+log() { echo "[dev-zotero] $*"; }
+warn() { echo "[dev-zotero] WARN: $*" >&2; }
+
+MODE=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+  --port)
+    PORT="${2:?--port needs a value}"
+    shift 2
+    ;;
+  --port=*)
+    PORT="${1#*=}"
+    shift
+    ;;
+  --plugin-dir)
+    PLUGIN_DIR="${2:?}"
+    shift 2
+    ;;
+  --plugin-dir=*)
+    PLUGIN_DIR="${1#*=}"
+    shift
+    ;;
+  --profile)
+    PROFILE="${2:?}"
+    shift 2
+    ;;
+  --profile=*)
+    PROFILE="${1#*=}"
+    shift
+    ;;
+  --force)
+    FORCE=1
+    shift
+    ;;
+  -h | --help)
+    usage
+    exit 0
+    ;;
+  build | install | start | stop | restart | status | wait | verify | run)
+    [[ -z $MODE ]] || die "only one mode allowed"
+    MODE="$1"
+    shift
+    ;;
+  *) die "unknown arg: $1 (see --help)" ;;
+  esac
+done
+MODE="${MODE:-run}"
+
+# --- profile 安全断言：只许落在 TEXLATE_DEV_ROOT（tmp/zotero-dev/）下 ----------
+assert_profile_safe() {
+  [[ -n $PROFILE && $PROFILE == "$SCRATCH"/* ]] ||
+    die "profile-guard: PROFILE=$PROFILE outside TEXLATE_DEV_ROOT=$SCRATCH — refusing to touch"
+}
+
+#: addon id 解析：built manifest 优先（安装真相源），package.json 兜底。
+plugin_id() {
+  local mf="$PLUGIN_DIR/manifest.json"
+  if [[ -f $mf ]]; then
+    python3 - "$mf" <<'PY' && return 0
+import json, sys
+m = json.load(open(sys.argv[1]))
+apps = m.get("applications", {})
+i = (apps.get("zotero") or apps.get("gecko") or {}).get("id") \
+    or m.get("browser_specific_settings", {}).get("gecko", {}).get("id")
+if not i or i.startswith("__"):
+    sys.exit("manifest id missing or still templated (__addonID__) — rebuild plugin")
+print(i)
+PY
+  fi
+  mf="$HERE/../package.json"
+  [[ -f $mf ]] && python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["config"]["addonID"])' "$mf" 2>/dev/null
+}
+
+#: 本 profile 上在跑的 zotero-bin 父进程 → "<pid> <rdp_port|?>"。
+#: 端口从 /proc cmdline 实读——不猜：外来实例可能不在我们要求的端口上，
+#: 探测错端口会把别的实例状态错归到本 profile（踩过：请求 6100 探到
+#: rdp-spike 的 rdp-profile 实例）。
+running_on_profile() {
+  local pesc pid port
+  pesc=$(printf '%s' "$PROFILE" | sed 's/[][\\.^$*+?{}|()]/\\&/g')
+  for pid in $(pgrep -f "zotero-bin.*--profile ${pesc}([[:space:]]|\$)" 2>/dev/null || true); do
+    port=$(tr '\0' '\n' <"/proc/$pid/cmdline" 2>/dev/null | grep -A1 -x -- '--start-debugger-server' | tail -1)
+    [[ $port =~ ^[0-9]+$ ]] || port="?"
+    echo "$pid $port"
+    return 0
+  done
+  return 1
+}
+
+#: rdp 探活：工具在→真握手 eval；不在→裸 TCP accept 兜底（标注降级）。
+rdp_alive() { # $1=port
+  if [[ -x $RDP ]]; then
+    "$RDP" --port "$1" --timeout 4 '1' >/dev/null 2>&1
+  else
+    (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null
+  fi
+}
+
+rdp_eval() { # $1=port $2=js → stdout {"ok":..,"value":..}；非零=连接/求值失败
+  [[ -x $RDP ]] || return 2
+  "$RDP" --port "$1" --timeout 10 "$2" 2>/dev/null
+}
+
+#: 三层插件探针 → loaded <ver> | registered-not-init | not-registered | rdp-dead
+#: （恒 return 0；set -e 下命令替换安全）。__AID__ 占位符换解析出的 addon id，
+#: 与 write_proxy 同源——id 变更时探针与安装不脱节。
+plugin_probe() { # $1=port
+  local out st ver aid js
+  aid=$(plugin_id 2>/dev/null || true)
+  aid="${aid:-texlate@hjfy.top}"
+  js='(async()=>{
+    const aid = "__AID__";
+    const a = Zotero.texlate;
+    const init = !!(a && a.data && a.data.initialized);
+    let reg = null;
+    try { reg = (await Zotero.Plugins.getAllPluginIDs()).includes(aid); } catch (e) {}
+    let ver = null;
+    try {
+      const {AddonManager} = ChromeUtils.importESModule("resource://gre/modules/AddonManager.sys.mjs");
+      const ad = await AddonManager.getAddonByID(aid);
+      ver = ad && ad.version || null;
+    } catch (e) {}
+    return {init:init, registered:reg, version:ver};
+  })()'
+  js="${js//__AID__/$aid}"
+  out=$(rdp_eval "$1" "$js") || {
+    echo "rdp-dead"
+    return 0
+  }
+  st=$(printf '%s' "$out" | python3 -c 'import json,sys
+try:
+    v = json.load(sys.stdin).get("value") or {}
+except Exception:
+    v = {}
+i, r = v.get("init"), v.get("registered")
+if i:
+    print("loaded")
+elif r:
+    print("registered-not-init")
+elif r is False:
+    print("not-registered")
+else:
+    print("unknown")')
+  ver=$(printf '%s' "$out" | python3 -c 'import json,sys
+try:
+    v = json.load(sys.stdin).get("value") or {}
+    print(v.get("version") or "?")
+except Exception:
+    print("?")')
+  case "$st" in
+  loaded) echo "loaded $ver" ;;
+  *) echo "$st" ;;
+  esac
+}
+
+#: 启动前 seed user.js——xpinstall.signatures.required=false 是硬需求：
+#: 缺它无签名代理包启动扫描即被静默拒载（extensions.json 恒 addons:[]，
+#: getAllPluginIDs()=[] ——dz-profile 探针现场实测）。
+write_userjs() {
+  mkdir -p "$PROFILE"
+  cat >"$PROFILE/user.js" <<'EOF'
+// dev-zotero managed — dev profile seed prefs（每次 start 重写）
+// --- RDP 调试通道（zotero/dev/rdp 依赖；prompt off 免连接确认弹窗）---
+user_pref("devtools.debugger.remote-enabled", true);
+user_pref("devtools.debugger.remote-websocket", true);
+user_pref("devtools.debugger.prompt-connection", false);
+user_pref("devtools.chrome.enabled", true);
+user_pref("devtools.console.stdout.chrome", true);
+user_pref("browser.dom.window.dump.enabled", true);
+// --- 插件装载：无签名代理包必需 signatures.required=false ---
+user_pref("xpinstall.signatures.required", false);
+user_pref("extensions.experiments.enabled", true);
+user_pref("extensions.autoDisableScopes", 0);
+user_pref("extensions.enabledScopes", 15);
+user_pref("extensions.update.enabled", false);
+user_pref("extensions.update.notifyUser", false);
+user_pref("extensions.getAddons.cache.enabled", false);
+// --- first-run/sync/update UI 抑制（xvfb 下无人点弹窗）---
+user_pref("extensions.zotero.firstRun2", false);
+user_pref("extensions.zotero.firstRunGuidance", false);
+user_pref("extensions.zotero.firstRunGuidanceShown.z7Banner", false);
+user_pref("extensions.zotero.firstRun.skipFirefoxProfileAccessCheck", true);
+user_pref("extensions.zotero.sync.reminder.setUp.enabled", false);
+user_pref("extensions.zotero.autoSync", false);
+user_pref("extensions.zotero.reportTranslationFailure", false);
+user_pref("app.update.auto", false);
+user_pref("app.update.disabledForTesting", true);
+user_pref("browser.shell.checkDefaultBrowser", false);
+user_pref("browser.shell.skipDefaultBrowserCheckOnFirstRun", true);
+user_pref("browser.sessionstore.resume_from_crash", false);
+user_pref("toolkit.startup.max_resumed_crashes", -1);
+user_pref("dom.disable_beforeunload", true);
+// --- zotero debug 输出 + 内置 connector 挪离真实默认端口 23119 ---
+user_pref("extensions.zotero.debug.log", true);
+user_pref("extensions.zotero.httpServer.enabled", true);
+user_pref("extensions.zotero.httpServer.port", 23124);
+user_pref("extensions.zotero.httpServer.localAPI.enabled", true);
+// --- Office 集成安装器关闭（xvfb 下无 Office）---
+user_pref("extensions.zoteroMacWordIntegration.skipInstallation", true);
+user_pref("extensions.zoteroWinWordIntegration.skipInstallation", true);
+user_pref("extensions.zoteroOpenOfficeIntegration.skipInstallation", true);
+EOF
+}
+
+#: <profile>/extensions/<id> 指针文件 = 插件目录绝对路径（scaffold asProxy 同款）。
+write_proxy() { # $1=addon id — 幂等：先清旧指针/<id>.xpi 再写
+  local extdir="$PROFILE/extensions"
+  mkdir -p "$extdir"
+  rm -f "$extdir/$1" "$extdir/$1.xpi"
+  printf '%s' "$(cd "$PLUGIN_DIR" && pwd -P)" >"$extdir/$1"
+  # extensions.json 修复：同 id 被禁/未激活时翻回（首装无此文件则跳过）
+  ID="$1" python3 - "$PROFILE/extensions.json" <<'PY'
+import json, os, sys
+p, aid = sys.argv[1], os.environ["ID"]
+if not os.path.exists(p):
+    sys.exit(0)
+try:
+    d = json.load(open(p))
+except (OSError, ValueError):
+    sys.exit(0)
+dirty = False
+for a in d.get("addons", []):
+    if a.get("id") == aid and (a.get("active") is False or a.get("userDisabled")):
+        a["active"] = True
+        a["userDisabled"] = False
+        dirty = True
+if dirty:
+    json.dump(d, open(p, "w"))
+PY
+}
+
+#: 插件未加载归因诊断（wait/status 失败路径）。
+diag_not_loaded() {
+  local id extdir="$PROFILE/extensions"
+  id=$(plugin_id) || id="(unknown)"
+  [[ -f $PLUGIN_DIR/manifest.json ]] ||
+    warn "diag: build artifact missing: $PLUGIN_DIR/manifest.json — run 'dev-zotero build'"
+  if [[ -d $extdir ]]; then
+    warn "diag: extensions dir contents:"
+    ls -la "$extdir" >&2
+    if [[ -f $extdir/$id ]]; then
+      warn "diag: pointer $extdir/$id -> $(cat "$extdir/$id")"
+    else
+      warn "diag: pointer file $extdir/$id missing — run 'dev-zotero install'"
+    fi
+  else
+    warn "diag: extensions dir $extdir missing — run 'dev-zotero install'"
+  fi
+  [[ -f $PROFILE/extensions.json ]] &&
+    warn "diag: extensions.json addons = $(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("addons"))' "$PROFILE/extensions.json" 2>/dev/null || echo '(unreadable)')"
+  if [[ -f $LOGFILE ]]; then
+    warn "diag: addon-related log tail:"
+    grep -inE "texlate|addon|signature|incompatible|bootstrap|extensions\.startup" "$LOGFILE" 2>/dev/null | tail -12 >&2 ||
+      warn "diag: (no addon lines in $LOGFILE)"
+  fi
+  warn "diag: xpinstall.signatures.required must be false — check $PROFILE/user.js"
+}
+
+#: 起实例（调用方保证端口已断言空闲、本 profile 无在跑实例）。
+#: -datadir 规则：canonical profile 用共享 ZDATA（fixtures 所在）；
+#: 非 canonical --profile 用 `-datadir profile`（数据隔离进各自 profile）。
+launch_instance() {
+  write_userjs
+  mkdir -p "$SCRATCH"
+  rm -f "$PROFILE/lock" "$PROFILE/.parentlock" # 陈旧 lock 清理
+  local datadir="$ZDATA"
+  if [[ $PROFILE != "$TEXLATE_DEV_PROFILE" ]]; then
+    datadir="profile"
+  else
+    mkdir -p "$ZDATA"
+  fi
+  : >>"$LOGFILE"
+  log "launching: xvfb-run zotero --purgecaches --profile $PROFILE -datadir $datadir --new-instance --start-debugger-server $PORT"
+  setsid nohup xvfb-run -a "$ZOTERO_BIN" \
+    --purgecaches \
+    --profile "$PROFILE" \
+    -datadir "$datadir" \
+    --new-instance \
+    --start-debugger-server "$PORT" \
+    -ZoteroDebugText \
+    >"$LOGFILE" 2>&1 </dev/null &
+  echo "$!" >"$PIDFILE" # pidfile 语义 = 要杀的进程组 id（setsid 使 launcher pid==pgid）
+  log "launched pgid $! — log $LOGFILE"
+}
+
+#: 杀单个 zotero-bin pid（TERM→KILL）；用于重启本 profile 外来实例——不动其
+#: 进程组（非 setsid 外来组可能误伤），xvfb-run/Xvfb 随主进程退出自清。
+kill_zotero_pid() {
+  local pid="$1"
+  kill "$pid" 2>/dev/null || true
+  for _ in $(seq 1 20); do
+    kill -0 "$pid" 2>/dev/null || break
+    sleep 0.5
+  done
+  kill -9 "$pid" 2>/dev/null || true
+}
+
+#: 只杀 pidfile 记的进程组；杀前校验组内确有 zotero 进程（防 pid 复用误杀）。
+pgid_has_zotero() { # $1=pgid
+  local p
+  for p in $(pgrep -g "$1" 2>/dev/null || true); do
+    tr '\0' ' ' <"/proc/$p/cmdline" 2>/dev/null | grep -qE "zotero|xvfb" && return 0
+  done
+  return 1
+}
+
+stop_instance() {
+  local pid
+  [[ -f $PIDFILE ]] || {
+    log "no pidfile — nothing started by this script"
+    return 0
+  }
+  pid=$(cat "$PIDFILE" 2>/dev/null || true)
+  rm -f "$PIDFILE"
+  if [[ $pid =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null; then
+    if ! pgid_has_zotero "$pid"; then
+      warn "pidfile pgid $pid alive but contains no zotero/xvfb process — refusing to kill (pid recycled?)"
+      return 0
+    fi
+    log "stopping zotero (pgid $pid)"
+    kill -- -"$pid" 2>/dev/null || kill "$pid" 2>/dev/null || true
+    for _ in $(seq 1 20); do
+      kill -0 "$pid" 2>/dev/null || break
+      sleep 0.5
+    done
+    kill -9 -- -"$pid" 2>/dev/null || true
+  else
+    log "stale pidfile (pid ${pid:-?}) — removed"
+  fi
+}
+
+cmd_build() {
+  [[ -d $HERE/../node_modules ]] ||
+    die "build: $HERE/../node_modules missing — run 'npm ci' in zotero/ first"
+  log "building plugin (npm run build = zotero-plugin build && tsc --noEmit)"
+  if ! (cd "$HERE/.." && npm run build); then
+    if [[ -f $PLUGIN_DIR/manifest.json ]]; then
+      warn "build: npm run build nonzero (likely tsc --noEmit) — addon artifact exists, continuing"
+    else
+      die "build: npm run build failed and no $PLUGIN_DIR/manifest.json produced"
+    fi
+  fi
+  [[ -f $PLUGIN_DIR/manifest.json ]] || die "build: no manifest at $PLUGIN_DIR/manifest.json"
+  local xpi=""
+  for xpi in "$HERE"/../.scaffold/build/*.xpi; do
+    [[ -f $xpi ]] && break
+  done
+  log "PASS build: addon dir $PLUGIN_DIR$([[ -f $xpi ]] && printf ' ; xpi %s' "$xpi")"
+}
+
+cmd_install() {
+  assert_profile_safe
+  local id
+  id=$(plugin_id) || die "install: cannot resolve addon id (build first: dev-zotero build)"
+  [[ -f $PLUGIN_DIR/manifest.json ]] ||
+    die "install: no built addon at $PLUGIN_DIR — run 'dev-zotero build' first"
+  write_proxy "$id"
+  log "PASS install: pointer $PROFILE/extensions/$id → $(cat "$PROFILE/extensions/$id")"
+}
+
+cmd_start() {
+  assert_profile_safe
+  command -v "$ZOTERO_BIN" >/dev/null || die "start: zotero binary not found: $ZOTERO_BIN"
+  command -v xvfb-run >/dev/null || die "start: xvfb-run not found (pacman -S xorg-server-xvfb)"
+  local id existing epid eport st pgid
+  id=$(plugin_id) || die "start: cannot resolve addon id (build first)"
+  [[ -f $PLUGIN_DIR/manifest.json ]] ||
+    die "start: no built addon at $PLUGIN_DIR — run 'dev-zotero build' first"
+  if existing=$(running_on_profile); then
+    read -r epid eport <<<"$existing"
+    st="rdp-dead"
+    [[ $eport != "?" ]] && st=$(plugin_probe "$eport")
+    if [[ $st == loaded* && $FORCE -eq 0 ]]; then
+      pgid=$(ps -o pgid= -p "$epid" 2>/dev/null | tr -d ' ')
+      echo "${pgid:-$epid}" >"$PIDFILE"
+      log "PASS start: already running with plugin on $PROFILE (pid $epid rdp $eport) — $st"
+      return 0
+    fi
+    warn "start: zotero on $PROFILE (pid $epid) plugin=$st$([[ $FORCE -eq 1 ]] && printf ', --force') — restarting"
+    kill_zotero_pid "$epid"
+    for _ in $(seq 1 20); do
+      running_on_profile >/dev/null || break
+      sleep 0.5
+    done
+  fi
+  if ! texlate_dev_port_free "$PORT"; then
+    die "start: rdp port $PORT busy (owner above) — set TEXLATE_DEV_RDP_PORT/--port or stop the holder"
+  fi
+  write_proxy "$id"
+  launch_instance
+}
+
+cmd_wait() {
+  local deadline=$((SECONDS + WAIT_DEADLINE)) port="$PORT" existing saw_rdp=0 st="?" ver
+  if existing=$(running_on_profile); then
+    read -r _ep port <<<"$existing"
+    [[ $port == "?" ]] && port="$PORT"
+  fi
+  while ((SECONDS < deadline)); do
+    if rdp_alive "$port"; then
+      saw_rdp=1
+      st=$(plugin_probe "$port")
+      if [[ $st == loaded* ]]; then
+        ver=$(rdp_eval "$port" 'Zotero.version' | python3 -c 'import json,sys
+try:
+    print(json.load(sys.stdin).get("value") or "?")
+except Exception:
+    print("?")')
+        log "PASS wait: rdp ok (Zotero $ver, port $port) — plugin $st"
+        return 0
+      fi
+    fi
+    sleep 1
+  done
+  if ((saw_rdp)); then
+    warn "wait: rdp answering on $port but plugin not loaded within ${WAIT_DEADLINE}s (last: $st)"
+  elif [[ -x $RDP ]]; then
+    warn "wait: rdp port $port never answered within ${WAIT_DEADLINE}s (instance starting? log: $LOGFILE)"
+  else
+    warn "wait: rdp tool missing ($RDP) — fell back to TCP-accept probe; port $port silent ${WAIT_DEADLINE}s"
+  fi
+  diag_not_loaded
+  return 1
+}
+
+cmd_status() {
+  local existing epid eport st ver rc=0
+  echo "profile : $PROFILE"
+  echo "pidfile : $([[ -f $PIDFILE ]] && cat "$PIDFILE" || echo '(none)')"
+  if existing=$(running_on_profile); then
+    read -r epid eport <<<"$existing"
+    echo "instance: pid $epid rdp $eport"
+    if [[ $eport != "?" ]] && rdp_alive "$eport"; then
+      ver=$(rdp_eval "$eport" 'Zotero.version' | python3 -c 'import json,sys
+try:
+    print(json.load(sys.stdin).get("value") or "?")
+except Exception:
+    print("?")')
+      echo "rdp     : ok — Zotero $ver"
+      st=$(plugin_probe "$eport")
+      echo "plugin  : $st"
+      [[ $st == loaded* ]] || rc=1
+    else
+      echo "rdp     : dead (port $eport)"
+      rc=1
+    fi
+  else
+    echo "instance: down"
+    rc=1
+  fi
+  return $rc
+}
+
+cmd_verify() {
+  local existing epid eport st
+  if ! existing=$(running_on_profile); then
+    die "verify: no instance on $PROFILE"
+  fi
+  read -r epid eport <<<"$existing"
+  [[ $eport != "?" ]] || die "verify: instance pid $epid has no debugger port in cmdline"
+  st=$(plugin_probe "$eport")
+  if [[ $st == loaded* ]]; then
+    log "PASS verify: plugin $st (pid $epid rdp $eport)"
+    return 0
+  fi
+  warn "verify: plugin state = $st"
+  diag_not_loaded
+  die "verify: FAIL plugin not loaded"
+}
+
+main() {
+  mkdir -p "$SCRATCH"
+  case "$MODE" in
+  build) cmd_build ;;
+  install) cmd_install ;;
+  start) cmd_start ;;
+  stop)
+    stop_instance
+    if existing=$(running_on_profile); then
+      read -r epid eport <<<"$existing"
+      log "instance pid $epid (rdp $eport) on $PROFILE left running (not tracked by current pidfile)"
+    fi
+    ;;
+  restart)
+    stop_instance
+    cmd_start
+    ;;
+  status) cmd_status ;;
+  wait) cmd_wait ;;
+  verify) cmd_verify ;;
+  run)
+    cmd_build
+    cmd_install
+    cmd_start
+    cmd_wait
+    if [[ -f $PIDFILE ]]; then
+      log "instance left running — pgid $(cat "$PIDFILE") (stop: dev-zotero stop; log: $LOGFILE)"
+    fi
+    ;;
+  esac
+}
+main

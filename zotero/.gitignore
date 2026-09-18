@@ -1,0 +1,23 @@
+# dot files
+.DS_Store
+
+# Node.js
+node_modules
+pnpm-lock.yaml
+yarn.lock
+
+# TSC
+tsconfig.tsbuildinfo
+
+# Scaffold
+.env
+.scaffold
+build
+dist
+logs
+
+# Packaged plugin
+*.xpi
+
+# Scratch
+tmp

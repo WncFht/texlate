@@ -1,0 +1,372 @@
+#!/usr/bin/env bash
+# dev-server — texlate mock web 服务生命周期 + curl e2e 协议校验（zotero 插件
+# 的协议靶场：插件打的就是这套 FastAPI 面）。
+#
+# 反馈通道三属性（对照 docs/research/selfimp-skeleton.md）：
+#   局部可归因 — 六步断言各自带名（health/create/poll/files/download/
+#     reader-url），首个 [FAIL] 即停并截断呈现违例响应（≤500B），坏在哪步
+#     一眼定位，不用翻日志猜；
+#   廉价及时 — `dev-server run` 一条命令给结论：起服 30s 就绪死线、poll 2s
+#     心跳记录每次状态迁移，失败当时打印 snapshot.error/message；
+#   客观可验证 — 断言只落在可机读事实：HTTP 码、JSON 字段、11 态枚举、
+#     sha256/字节数、%PDF 魔数——不 grep 日志文本当判据。
+#
+# 骨架四字段：
+#   适用条件 — uv sync --extra server 已跑、本机可拉 arXiv、tectonic 在 PATH
+#     （~/.local/bin/tectonic）；翻译侧零依赖——TEXLATE_TRANSLATOR=mock
+#     确定性假译，不烧 token，但 fetch/parse/tectonic 全真；
+#   变换方法 — setsid 起 `uv run texlate web` 独立进程组 + 独立
+#     TEXLATE_DATA_DIR（tmp/zotero-dev/texlate-data，与 ~/.texlate 正式库
+#     隔离，service.lock 不打架）；curl 逐步打 API；
+#   资源约束 — scratch 全在 tmp/zotero-dev/（server.pid/server.log/zh.pdf/
+#     .resp.json），端口默认 127.0.0.1:18765（env.sh 单源——8765 是本机
+#     真实 gateway 实例、8766 被 status_panel 长占；bind 前先
+#     texlate_dev_port_free 断言，连上后用 health.data_dir 验明正身），
+#     poll 死线 900s（TEXLATE_DEV_POLL_TIMEOUT 覆盖）；stop 只杀 pidfile
+#     记的进程组，校验 /proc cmdline 含 texlate 防 pid 复用误杀；
+#   验证证据 — [PASS] 行带 task_id/sha256/字节数，tmp/zotero-dev/zh.pdf
+#     实物落盘，server.log 留全程服务端日志。
+#
+# 用法：dev-server [run|start|stop|check|logs]（缺省 run）。
+#   run    起服（若未起）+ e2e check，跑完留服，打印 PID
+#   start  只起服 + 等 30s 就绪
+#   stop   停服（只杀本脚本起的进程组）
+#   check  对已在跑的服务跑六步 e2e 断言（health 先验 data_dir 正身）
+#   logs   tail -n 200 server.log（logs -f 跟随）
+set -euo pipefail
+
+# 共享约定（端口/路径单源）——见 env.sh 头部注释
+source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
+
+# uv run 需要项目根（pyproject 发现）——TEXLATE_DEV_ROOT=<repo>/tmp/zotero-dev
+REPO_ROOT=$(cd "$TEXLATE_DEV_ROOT/../.." && pwd)
+SCRATCH="$TEXLATE_DEV_ROOT"
+DATA_DIR="$TEXLATE_DEV_DATA"
+PIDFILE="$SCRATCH/server.pid"
+LOG="$SCRATCH/server.log"
+RESP_BODY="$SCRATCH/.resp.json"
+DL_PDF="$SCRATCH/zh.pdf"
+
+HOST=127.0.0.1
+PORT="$TEXLATE_DEV_PORT"
+BASE="$TEXLATE_DEV_BASE"
+ARXIV_ID=1706.03762
+POLL_TIMEOUT="${TEXLATE_DEV_POLL_TIMEOUT:-900}"
+POLL_INTERVAL=2
+HEALTH_DEADLINE=30
+
+#: 11 态机（src/texlate/server/store/_common.py：5 ACTIVE + 6 TERMINAL）。
+STATUS_ENUM=" queued fetching parsing translating compiling done partial fault cancelled interrupted needs_auth "
+TERMINAL=" done partial fault cancelled interrupted needs_auth "
+
+pass() { printf '[PASS] %s — %s\n' "$1" "$2"; }
+warn() { printf '[WARN] %s — %s\n' "$1" "$2"; }
+info() { printf '       %s\n' "$1"; }
+fail() {
+  printf '[FAIL] %s — %s\n' "$1" "$2" >&2
+  exit 1
+}
+
+#: 截断响应体 ≤500B（FAIL 证据）。
+snip() { head -c 500 "$RESP_BODY" 2>/dev/null || true; }
+
+#: req <curl-args...> → stdout=http_code，响应体落 $RESP_BODY；连不上=000。
+req() {
+  curl -sS --max-time 15 -o "$RESP_BODY" -w '%{http_code}' "$@" || true
+}
+
+#: jval <py-snippet-on-d> — stdin JSON → exec 片段（片段自己 print）；坏
+#: JSON/坏片段静默空输出（恒返回 0——set -e 下调用点靠空值断言走 FAIL
+#: 分支，不靠退出码）。
+jval() {
+  python3 -c 'import json,sys
+try:
+    d = json.load(sys.stdin)
+except ValueError:
+    d = {}
+try:
+    exec(sys.argv[1])
+except Exception:
+    pass' "$1" <"$RESP_BODY"
+}
+
+#: 进程是「本脚本启动的 texlate」吗（pidfile 防 pid 复用误杀）。
+is_ours() {
+  [[ -r "/proc/$1/cmdline" ]] && tr '\0' ' ' <"/proc/$1/cmdline" | grep -q texlate
+}
+
+healthy_on() { curl -sf --max-time 2 "http://$HOST:$1/api/health" >/dev/null 2>&1; }
+healthy_now() { healthy_on "$PORT"; }
+
+pidfile_live() {
+  local pid _
+  [[ -f $PIDFILE ]] || return 1
+  read -r pid _ <"$PIDFILE"
+  [[ $pid =~ ^[0-9]+$ ]] || return 1
+  kill -0 "$pid" 2>/dev/null && is_ours "$pid"
+}
+
+#: wait_healthy [pid] — 就绪死线 HEALTH_DEADLINE 秒；给了 pid 且其早夭 →
+#: 立即返回不等满死线（uvicorn 起不来时 30s 干等纯属浪费）。
+wait_healthy() {
+  local pid=${1:-} deadline=$((SECONDS + HEALTH_DEADLINE))
+  while ((SECONDS < deadline)); do
+    if healthy_now; then return 0; fi
+    if [[ -n $pid ]] && ! kill -0 "$pid" 2>/dev/null; then return 1; fi
+    sleep 1
+  done
+  return 1
+}
+
+cmd_start() {
+  mkdir -p "$SCRATCH" "$DATA_DIR"
+  if pidfile_live; then
+    local pid sport _
+    read -r pid sport _ <"$PIDFILE"
+    if [[ -n $sport && $sport == "$PORT" ]]; then
+      info "already running (pid $pid) → $BASE"
+      return 0
+    fi
+    # 单实例约定：pidfile 只追一个实例——端口不符或缺记（旧格式）都硬停；
+    # 空 sport 绝不能回退成 $PORT（曾因此把 8765 外来实例误当自己的
+    # 8899 实例认下，create 烧了一篇真 gateway 翻译）
+    fail start "own instance alive on :${sport:-unknown} (pid $pid) ≠ :$PORT — 'dev-server stop' first, or TEXLATE_DEV_PORT=${sport:-<port>}"
+  fi
+  rm -f "$PIDFILE"
+  # bind 前断言口空——本机 8765/8766 都有长期占主，EADDRINUSE 是事件不是
+  # 判据；texlate_dev_port_free 顺手把占主打到 stderr 当证据
+  if ! texlate_dev_port_free "$PORT"; then
+    fail start "port $PORT already bound (see owner above) — pick a free TEXLATE_DEV_PORT"
+  fi
+  cd "$REPO_ROOT"
+  local t0=$SECONDS pid
+  setsid env TEXLATE_TRANSLATOR=mock TEXLATE_DATA_DIR="$DATA_DIR" \
+    uv run texlate web --port "$PORT" </dev/null >>"$LOG" 2>&1 &
+  pid=$!
+  echo "$pid $PORT" >"$PIDFILE"
+  info "spawned pid $pid (setsid 进程组) → $BASE  log=$LOG"
+  if wait_healthy "$pid"; then
+    pass start "healthy in $((SECONDS - t0))s (deadline ${HEALTH_DEADLINE}s)"
+  else
+    fail health-wait "server did not become healthy (check log at tmp/zotero-dev/server.log)"
+  fi
+}
+
+cmd_stop() {
+  if [[ ! -f $PIDFILE ]]; then
+    info "no pidfile — nothing started by this script"
+    if healthy_now; then
+      warn stop "port $PORT serves texlate (foreign instance) — not killed"
+    fi
+    return 0
+  fi
+  local pid sport _
+  read -r pid sport _ <"$PIDFILE"
+  sport=${sport:-$PORT}
+  if [[ $pid =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null && is_ours "$pid"; then
+    kill -- -"$pid" 2>/dev/null || kill "$pid" 2>/dev/null || true
+    for _ in 1 2 3 4 5 6 7 8 9 10; do
+      kill -0 "$pid" 2>/dev/null || break
+      sleep 1
+    done
+    kill -9 -- -"$pid" 2>/dev/null || kill -9 "$pid" 2>/dev/null || true
+    info "stopped process group $pid"
+  else
+    info "stale pidfile (pid ${pid:-?} dead/not ours) — removed"
+  fi
+  rm -f "$PIDFILE"
+  if healthy_on "$sport"; then
+    warn stop "port $sport still serves texlate — a foreign instance, not killed"
+  fi
+}
+
+cmd_logs() {
+  [[ -f $LOG ]] || fail logs "no log at $LOG (server never started?)"
+  if [[ ${1:-} == "-f" || ${1:-} == "--follow" ]]; then
+    exec tail -n 200 -f "$LOG"
+  fi
+  tail -n "${TEXLATE_DEV_LOG_LINES:-200}" "$LOG"
+}
+
+check_health() {
+  local code ok dd
+  code=$(req "$BASE/api/health")
+  [[ $code == 200 ]] || fail health "expected HTTP 200 got $code: $(snip)"
+  ok=$(jval 'print(d.get("ok") is True)')
+  [[ $ok == True ]] || fail health "expected .ok==true: $(snip)"
+  # 身份校验——应答方必须是我们的 mock 实例：本机 8765 是真实 gateway
+  # 实例（~/.texlate），撞口时 200+ok 照样成立，只有 data_dir 说真话
+  dd=$(jval 'print(d.get("data_dir") or "")')
+  [[ $dd == "$DATA_DIR" ]] || fail health "wrong server on port — .data_dir=${dd:-<missing>} expected $DATA_DIR"
+  pass health "200 ok=true data_dir=$dd version=$(jval 'print(d.get("version") or "?")') commit=$(jval 'print(d.get("commit") or "?")')"
+}
+
+CREATE_JSON=""
+check_create() {
+  local code tid st
+  code=$(req -X POST -H 'Content-Type: application/json' -d '{}' \
+    "$BASE/api/arxiv/$ARXIV_ID/translate")
+  case $code in
+  200 | 202) ;;
+  409)
+    # duplicate_active——沿用已在跑的 task 继续 poll，不视为败
+    tid=$(jval 'print(d.get("task_id") or "")')
+    [[ -n $tid ]] || fail create "409 without task_id: $(snip)"
+    warn create "409 duplicate_active — adopting active task $tid"
+    TASK_ID=$tid
+    return 0
+    ;;
+  *) fail create "expected 202 got $code: $(snip)" ;;
+  esac
+  tid=$(jval 'print(d.get("task_id") or "")')
+  st=$(jval 'print(d.get("status") or "")')
+  [[ -n $tid ]] || fail create "empty .task_id: $(snip)"
+  [[ $STATUS_ENUM == *" $st "* ]] || fail create "status $st outside 11-state enum: $(snip)"
+  TASK_ID=$tid
+  CREATE_JSON=$(cat "$RESP_BODY")
+  pass create "$code task_id=$tid status=$st reused=$(jval 'print(bool(d.get("reused")))')"
+}
+
+check_reader_url() {
+  local rurl
+  [[ -n $CREATE_JSON ]] || {
+    warn reader-url "no create response captured (adopted task) — SPA $BASE/#/reader/$TASK_ID"
+    return 0
+  }
+  rurl=$(printf '%s' "$CREATE_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("reader_url") or "")')
+  if [[ -z $rurl ]]; then
+    warn reader-url "reader_url absent in create response (only dual_json kinds get it)"
+  elif [[ $rurl != "/api/task/$TASK_ID/reader" ]]; then
+    fail reader-url "expected /api/task/$TASK_ID/reader got $rurl"
+  else
+    pass reader-url "$rurl"
+  fi
+  info "SPA reader → $BASE/#/reader/$TASK_ID"
+}
+
+check_poll() {
+  local deadline=$((SECONDS + POLL_TIMEOUT)) t0=$SECONDS
+  local code st last="" trans=""
+  while :; do
+    code=$(req "$BASE/api/task/$TASK_ID")
+    [[ $code == 200 ]] || fail poll "expected HTTP 200 got $code: $(snip)"
+    st=$(jval 'print(d.get("status") or "")')
+    [[ $STATUS_ENUM == *" $st "* ]] || fail poll "status $st outside 11-state enum: $(snip)"
+    if [[ $st != "$last" ]]; then
+      trans="${trans:+$trans→}$st"
+      info "status=$st progress=$(jval 'print(d.get("progress"))')% $(jval 'print(str(d.get("message") or "")[:120])')"
+      last=$st
+    fi
+    [[ $TERMINAL == *" $st "* ]] && break
+    ((SECONDS < deadline)) || fail poll "not terminal within ${POLL_TIMEOUT}s (last=$st)"
+    sleep "$POLL_INTERVAL"
+  done
+  FINAL_STATUS=$st
+  case $st in
+  done | partial)
+    pass poll "terminal=$st in $((SECONDS - t0))s ($trans)"
+    ;;
+  needs_auth | fault)
+    fail poll "terminal=$st error=$(jval 'print(json.dumps(d.get("error"),ensure_ascii=False))') message=$(jval 'print(d.get("message"))')"
+    ;;
+  *)
+    fail poll "terminal=$st (unexpected for unattended run) message=$(jval 'print(d.get("message"))')"
+    ;;
+  esac
+}
+
+DL_KIND="" DL_SHA="" DL_BYTES="" DL_URL=""
+check_files() {
+  local code n row
+  code=$(req "$BASE/api/files/$TASK_ID")
+  [[ $code == 200 ]] || fail files "expected HTTP 200 got $code: $(snip)"
+  n=$(jval 'print(len(d.get("artifacts") or {}))')
+  [[ $n =~ ^[0-9]+$ ]] || n=0
+  # zh_pdf 一行 TSV：bytes \t sha256 \t url（缺件 → 全空走 fallback 分支）
+  row=$(jval 'z=(d.get("artifacts") or {}).get("zh_pdf") or {}; print("\t".join([str(z.get("bytes") or 0), str(z.get("sha256") or ""), str(z.get("url") or "")]))')
+  local zbytes zsha zurl
+  IFS=$'\t' read -r zbytes zsha zurl <<<"$row"
+  [[ $zbytes =~ ^[0-9]+$ ]] || zbytes=0
+  if ((zbytes > 0)) && [[ $zsha =~ ^[0-9a-f]{64}$ ]] && [[ -n $zurl ]]; then
+    DL_KIND=zh_pdf DL_SHA=$zsha DL_BYTES=$zbytes DL_URL=$zurl
+    pass files "zh_pdf bytes=$zbytes sha256=${zsha:0:16}… url=$zurl"
+  elif [[ $FINAL_STATUS == partial ]] && ((n > 0)); then
+    row=$(jval 'a=d.get("artifacts") or {}; k=sorted(a)[0]; z=a[k] or {}; print("\t".join([k, str(z.get("bytes") or 0), str(z.get("sha256") or ""), str(z.get("url") or "")]))')
+    IFS=$'\t' read -r DL_KIND DL_BYTES DL_SHA DL_URL <<<"$row"
+    warn files "partial without zh_pdf — falling back to $DL_KIND ($n artifact(s) total)"
+  else
+    fail files "expected zh_pdf bytes>0 + 64-hex sha256 (artifacts=$n status=$FINAL_STATUS): $(snip)"
+  fi
+}
+
+check_download() {
+  local code actual_sha actual_bytes magic extra=""
+  code=$(curl -sS --max-time 15 -o "$DL_PDF" -w '%{http_code}' "$BASE$DL_URL" || true)
+  [[ $code == 200 ]] || fail download "expected HTTP 200 got $code"
+  if [[ $DL_KIND == *pdf* ]]; then
+    magic=$(head -c4 "$DL_PDF")
+    [[ $magic == "%PDF" ]] || fail download "expected %PDF magic got '$magic'"
+    extra=", %PDF magic"
+  fi
+  actual_sha=$(sha256sum "$DL_PDF" | cut -d' ' -f1)
+  [[ $actual_sha == "$DL_SHA" ]] || fail download "sha256 mismatch listing=$DL_SHA actual=$actual_sha"
+  actual_bytes=$(wc -c <"$DL_PDF" | tr -d ' ')
+  [[ $actual_bytes == "$DL_BYTES" ]] || fail download "size mismatch listing=$DL_BYTES actual=$actual_bytes"
+  pass download "$DL_PDF — $actual_bytes bytes, sha256 match$extra"
+}
+
+cmd_check() {
+  mkdir -p "$SCRATCH"
+  TASK_ID="" FINAL_STATUS=""
+  check_health
+  check_create
+  check_poll
+  check_files
+  check_download
+  check_reader_url
+}
+
+cmd_run() {
+  cmd_start
+  cmd_check
+  if [[ -f $PIDFILE ]]; then
+    local pid _
+    read -r pid _ <"$PIDFILE"
+    info "server left running — pid $pid → $BASE (stop: dev-server stop; log: tmp/zotero-dev/server.log)"
+  fi
+}
+
+usage() {
+  cat <<'EOF'
+dev-server — texlate mock web 服务启停 + curl e2e 协议校验（zotero dev 通道）
+
+  dev-server run     起服(若未起) + 六步 e2e check，跑完留服（缺省）
+  dev-server start   只起服 + 等 30s 就绪（bind 前断言端口空闲）
+  dev-server stop    停服——只杀 pidfile 记的本脚本进程组
+  dev-server check   对已在跑的服务跑六步断言（health/create/poll/files/
+                     download/reader-url）；health 先验 .data_dir 正身，
+                     撞错实例（如 :8765 真 gateway）直接 FAIL
+  dev-server logs    tail -n 200 server.log；logs -f 跟随
+
+env: TEXLATE_DEV_PORT (18765)  TEXLATE_DEV_POLL_TIMEOUT (900)  TEXLATE_DEV_LOG_LINES (200)
+约定见同目录 env.sh——端口/路径以它为准
+EOF
+}
+
+main() {
+  local mode="${1:-run}"
+  if [[ $# -gt 0 ]]; then shift; fi
+  case $mode in
+  run) cmd_run ;;
+  start) cmd_start ;;
+  stop) cmd_stop ;;
+  check) cmd_check ;;
+  logs) cmd_logs "$@" ;;
+  -h | --help | help) usage ;;
+  *)
+    printf 'unknown mode %q — see dev-server --help\n' "$mode" >&2
+    exit 2
+    ;;
+  esac
+}
+main "$@"

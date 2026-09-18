@@ -1,0 +1,469 @@
+#!/usr/bin/env bash
+# dev-profile — 一键生成隔离的 Zotero 开发 profile + 确定性 fixture 条目
+#
+# 反馈三属性:
+#   局部可归因 — 每个 fixture 单独 PASS/FAIL 输出,失败能定位到具体字段
+#   廉价及时   — create 幂等可重跑;verify/list 直接走 rdp,秒级返回
+#   客观可验证 — verify 断言 fixture 字段精确匹配,非零退出即失败
+#
+# 四要素:
+#   适用条件 — 需要 zotero + xvfb-run;fixture 增删改查依赖 zotero/dev/rdp
+#   变换方法 — xvfb-run 起隔离实例(-datadir profile),rdp eval JS 写库
+#   资源约束 — 只写 tmp/zotero-dev/,绝不碰 ~/.zotero 与默认数据目录
+#   验证证据 — sqlite 存在性 + rdp 读回字段逐 fixture 断言
+#
+# 用法: dev-profile {create|verify|list|clean} [--port N]
+set -euo pipefail
+
+DEV_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+# 共享 dev 环境:canonical profile/datadir/rdp 端口由 env.sh 单源定义
+# (默认 TEXLATE_DEV_PROFILE=tmp/zotero-dev/rdp-profile,
+#        TEXLATE_DEV_ZDATA=tmp/zotero-dev/zotero-data,
+#        TEXLATE_DEV_RDP_PORT=6100 — 均可 env 覆盖)
+# shellcheck source=env.sh
+source "$DEV_DIR/env.sh"
+
+SCRATCH="$TEXLATE_DEV_ROOT"
+PROFILE="$TEXLATE_DEV_PROFILE"
+DATADIR="$TEXLATE_DEV_ZDATA" # Zotero library dir, NOT inside profile
+SQLITE="$DATADIR/zotero.sqlite"
+PIDFILE="$SCRATCH/dev-profile.zotero.pid"
+LOGFILE="$SCRATCH/dev-profile.zotero.log"
+RDP="$DEV_DIR/rdp"
+PORT="$TEXLATE_DEV_RDP_PORT"
+
+usage() {
+  cat <<EOF
+Usage: dev-profile <mode> [--port N]
+
+Modes:
+  create   init isolated profile + launch Zotero (xvfb) + insert fixtures (idempotent)
+  verify   assert every fixture exists with expected fields; nonzero exit on FAIL
+  list     dump all items (key + arXiv-relevant fields) for debugging
+  clean    stop our Zotero instance and rm -rf $PROFILE and $DATADIR
+
+Env: TEXLATE_DEV_PROFILE / TEXLATE_DEV_ZDATA / TEXLATE_DEV_RDP_PORT (see env.sh)
+EOF
+}
+
+die() {
+  echo "[dev-profile] ERROR: $*" >&2
+  exit 1
+}
+
+log() { echo "[dev-profile] $*"; }
+
+# --- arg parse: first positional = mode, --port anywhere --------------------
+MODE=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+  --port)
+    PORT="${2:?--port needs a value}"
+    shift 2
+    ;;
+  --port=*)
+    PORT="${1#*=}"
+    shift
+    ;;
+  -h | --help)
+    usage
+    exit 0
+    ;;
+  create | verify | list | clean)
+    [[ -z $MODE ]] || die "only one mode allowed"
+    MODE="$1"
+    shift
+    ;;
+  *) die "unknown arg: $1 (see --help)" ;;
+  esac
+done
+[[ -n $MODE ]] || {
+  usage >&2
+  exit 2
+}
+
+ZOTERO_BIN="${ZOTERO_BIN:-zotero}"
+command -v "$ZOTERO_BIN" >/dev/null || die "zotero binary not found: $ZOTERO_BIN"
+command -v xvfb-run >/dev/null || die "xvfb-run not found (pacman -S xorg-server-xvfb)"
+
+# --- instance state ---------------------------------------------------------
+running_pgid() {
+  # Print pgid of a live Zotero bound to $PROFILE, or nothing.
+  local pid
+  if [[ -f $PIDFILE ]]; then
+    pid="$(cat "$PIDFILE" 2>/dev/null || true)"
+    if [[ -n $pid ]] && kill -0 "$pid" 2>/dev/null; then
+      echo "$pid"
+      return 0
+    fi
+  fi
+  # adopt foreign-started instance on the same profile (pgid of zotero-bin)
+  pid="$(pgrep -f "zotero-bin.*--profile ${PROFILE}" | head -1 || true)"
+  if [[ -n $pid ]]; then
+    ps -o pgid= -p "$pid" 2>/dev/null | tr -d ' '
+    return 0
+  fi
+  return 1
+}
+
+stop_instance() {
+  local pgid
+  pgid="$(running_pgid || true)"
+  if [[ -n $pgid ]]; then
+    log "stopping zotero (pgid $pgid)"
+    kill -- -"$pgid" 2>/dev/null || true
+    for _ in $(seq 1 20); do
+      pgrep -g "$pgid" >/dev/null 2>&1 || break
+      sleep 0.5
+    done
+    kill -9 -- -"$pgid" 2>/dev/null || true
+  fi
+  rm -f "$PIDFILE"
+}
+
+write_userjs() {
+  mkdir -p "$PROFILE"
+  cat >"$PROFILE/user.js" <<'EOF'
+// dev-profile managed — suppress first-run/sync/update interactive UI
+user_pref("extensions.zotero.firstRun2", false);
+user_pref("extensions.zotero.firstRunGuidance", false);
+user_pref("extensions.zotero.firstRunGuidanceShown.z7Banner", false);
+user_pref("extensions.zotero.sync.reminder.setUp.enabled", false);
+user_pref("extensions.zotero.autoSync", false);
+user_pref("app.update.auto", false);
+user_pref("app.update.disabledForTesting", true);
+user_pref("browser.shell.checkDefaultBrowser", false);
+user_pref("browser.shell.skipDefaultBrowserCheckOnFirstRun", true);
+user_pref("browser.sessionstore.resume_from_crash", false);
+user_pref("toolkit.startup.max_resumed_crashes", -1);
+user_pref("devtools.chrome.enabled", true);
+user_pref("devtools.debugger.remote-enabled", true);
+user_pref("devtools.debugger.prompt-connection", false);
+user_pref("extensions.zotero.debug.log", true);
+EOF
+}
+
+wait_for_file() { # $1=path $2=timeout_s
+  local f="$1" deadline=$((SECONDS + ${2:-60}))
+  while ((SECONDS < deadline)); do
+    [[ -f $f ]] && return 0
+    sleep 1
+  done
+  return 1
+}
+
+wait_for_port() { # $1=port $2=timeout_s
+  local deadline=$((SECONDS + ${2:-30}))
+  while ((SECONDS < deadline)); do
+    nc -z 127.0.0.1 "$1" 2>/dev/null && return 0
+    sleep 1
+  done
+  return 1
+}
+
+launch_instance() {
+  local pgid
+  pgid="$(running_pgid || true)"
+  if [[ -n $pgid ]]; then
+    log "zotero already running on $PROFILE (pgid $pgid)"
+    return 0
+  fi
+  write_userjs
+  mkdir -p "$DATADIR" "$SCRATCH"
+  log "launching: xvfb-run zotero --profile $PROFILE -datadir $DATADIR --start-debugger-server $PORT"
+  setsid nohup xvfb-run -a "$ZOTERO_BIN" \
+    --profile "$PROFILE" \
+    -datadir "$DATADIR" \
+    --new-instance \
+    --start-debugger-server "$PORT" \
+    -ZoteroDebugText \
+    >"$LOGFILE" 2>&1 </dev/null &
+  local launcher_pid=$!
+  echo "$launcher_pid" >"$PIDFILE"
+  wait_for_file "$SQLITE" 60 || {
+    tail -30 "$LOGFILE" >&2
+    die "zotero.sqlite did not appear within 60s (log: $LOGFILE)"
+  }
+  log "sqlite ready: $SQLITE"
+  if wait_for_port "$PORT" 30; then
+    log "debugger server listening on 127.0.0.1:$PORT"
+  else
+    log "WARN: debugger port $PORT not open after 30s (another instance holding it? see $LOGFILE)"
+  fi
+}
+
+# --- fixture JS payloads ----------------------------------------------------
+# evaluateJSAsync does NOT await the returned promise (empirically verified on
+# Zotero 9.0.5 / Firefox 140esr): it replies with a pending-Promise grip.
+# So every work payload is a SYNC IIFE that stashes its async result into
+# globalThis.__texlateDP and returns "started" immediately; a second eval of
+# JS_COLLECT polls until {done:true}. The global persists across rdp
+# connections — same zoteroPane window context.
+
+JS_COLLECT='
+globalThis.__texlateDP && globalThis.__texlateDP.done ? JSON.stringify(globalThis.__texlateDP) : ""
+'
+
+JS_INSERT='
+(() => {
+  const P = "[texlate-fixture]";
+  globalThis.__texlateDP = { done: false };
+  (async () => {
+    const fixtures = [
+      { name: "doi-new", type: "journalArticle",
+        fields: { title: P + " doi arXiv DOI", DOI: "10.48550/arXiv.1706.03762" } },
+      { name: "url-new", type: "journalArticle",
+        fields: { title: P + " url new-format", url: "https://arxiv.org/abs/2305.10601" } },
+      { name: "url-old", type: "journalArticle",
+        fields: { title: P + " url old-format", url: "https://arxiv.org/abs/hep-th/9901001" } },
+      { name: "archiveid", type: "preprint",
+        fields: { title: P + " archiveID", archiveID: "2201.00001", archive: "arXiv" },
+        fallback: { type: "journalArticle", extra: "arXiv: 2201.00001" } },
+      { name: "extra-new", type: "journalArticle",
+        fields: { title: P + " extra new-format", extra: "arXiv: 2101.12345" } },
+      { name: "extra-old", type: "journalArticle",
+        fields: { title: P + " extra old-format", extra: "arXiv:hep-th/9901001" } },
+      { name: "negative", type: "journalArticle",
+        fields: { title: P + " negative non-arXiv", DOI: "10.1000/xyz123" } },
+    ];
+    const s = new Zotero.Search();
+    s.addCondition("title", "contains", P);
+    const ids = await s.search();
+    const have = {};
+    for (const id of ids) {
+      const it = Zotero.Items.get(id);
+      if (it && !it.deleted) have[it.getField("title")] = it.id;
+    }
+    const out = [];
+    for (const f of fixtures) {
+      const title = f.fields.title;
+      if (have[title]) { out.push({ name: f.name, id: have[title], status: "exists" }); continue; }
+      let type = f.type, fields = f.fields;
+      const tid = Zotero.ItemTypes.getID(type);
+      const bad = tid === false ? Object.keys(fields)
+        : Object.keys(fields).filter(k =>
+            k !== "title" && !Zotero.ItemFields.isValidForType(k, tid));
+      if (tid === false || bad.length) {
+        if (!f.fallback) { out.push({ name: f.name, error: "invalid fields: " + bad.join(",") }); continue; }
+        type = f.fallback.type;
+        fields = { title, extra: f.fallback.extra };
+      }
+      try {
+        const it = new Zotero.Item(type);
+        for (const [k, v] of Object.entries(fields)) it.setField(k, v);
+        const id = await it.saveTx();
+        out.push({ name: f.name, id, status: "created", type });
+      } catch (e) {
+        out.push({ name: f.name, error: String(e && e.message || e) });
+      }
+    }
+    globalThis.__texlateDP = { done: true, result: out };
+  })().catch(e => {
+    globalThis.__texlateDP = { done: true, error: String(e && e.stack || e) };
+  });
+  return "started";
+})()
+'
+
+JS_DUMP='
+(() => {
+  globalThis.__texlateDP = { done: false };
+  (async () => {
+    const items = await Zotero.Items.getAll(Zotero.Libraries.userLibraryID, true);
+    const rows = [];
+    for (const it of items) {
+      if (!it.isRegularItem() && !it.isNote()) continue;
+      rows.push({
+        id: it.id, key: it.key, type: Zotero.ItemTypes.getName(it.itemTypeID),
+        title: it.getField("title") || "", DOI: it.getField("DOI") || "",
+        url: it.getField("url") || "", archiveID: it.getField("archiveID") || "",
+        extra: it.getField("extra") || "",
+      });
+    }
+    globalThis.__texlateDP = { done: true, result: rows };
+  })().catch(e => {
+    globalThis.__texlateDP = { done: true, error: String(e && e.stack || e) };
+  });
+  return "started";
+})()
+'
+
+JS_VERIFY='
+(() => {
+  const P = "[texlate-fixture]";
+  globalThis.__texlateDP = { done: false };
+  (async () => {
+    const expect = [
+      { name: "doi-new", title: P + " doi arXiv DOI",
+        checks: { DOI: "10.48550/arXiv.1706.03762" } },
+      { name: "url-new", title: P + " url new-format",
+        checks: { url: "https://arxiv.org/abs/2305.10601" } },
+      { name: "url-old", title: P + " url old-format",
+        checks: { url: "https://arxiv.org/abs/hep-th/9901001" } },
+      { name: "archiveid", title: P + " archiveID",
+        anyOf: [
+          { archiveID: "2201.00001" },
+          { extra: "arXiv: 2201.00001" },
+        ] },
+      { name: "extra-new", title: P + " extra new-format",
+        checks: { extra: "arXiv: 2101.12345" } },
+      { name: "extra-old", title: P + " extra old-format",
+        checks: { extra: "arXiv:hep-th/9901001" } },
+      { name: "negative", title: P + " negative non-arXiv",
+        checks: { DOI: "10.1000/xyz123" },
+        absent: ["url", "archiveID", "extra"] },
+    ];
+    const s = new Zotero.Search();
+    s.addCondition("title", "contains", P);
+    const ids = await s.search();
+    const byTitle = {};
+    for (const id of ids) {
+      const it = Zotero.Items.get(id);
+      if (it && !it.deleted) byTitle[it.getField("title")] = it;
+    }
+    const results = [];
+    for (const f of expect) {
+      const it = byTitle[f.title];
+      if (!it) { results.push({ name: f.name, ok: false, evidence: "missing item" }); continue; }
+      let ok = true; const ev = [];
+      const read = k => { try { return it.getField(k) || ""; } catch (e) { return ""; } };
+      if (f.checks) {
+        for (const [k, want] of Object.entries(f.checks)) {
+          const got = read(k);
+          ev.push(k + "=" + JSON.stringify(got));
+          if (got !== want) ok = false;
+        }
+      }
+      if (f.anyOf) {
+        const alts = f.anyOf.map(alt =>
+          Object.entries(alt).every(([k, want]) => read(k) === want));
+        ev.push("anyOf=" + JSON.stringify(f.anyOf.map(alt =>
+          Object.fromEntries(Object.keys(alt).map(k => [k, read(k)])))));
+        if (!alts.some(Boolean)) ok = false;
+      }
+      if (f.absent) {
+        for (const k of f.absent) {
+          const got = read(k);
+          if (got && /arxiv/i.test(got)) { ok = false; ev.push(k + " leaked arXiv"); }
+        }
+      }
+      results.push({ name: f.name, ok, evidence: ev.join("; ") || "no checks" });
+    }
+    globalThis.__texlateDP = { done: true, result: results };
+  })().catch(e => {
+    globalThis.__texlateDP = { done: true, error: String(e && e.stack || e) };
+  });
+  return "started";
+})()
+'
+
+rdp_eval() { # $1=js -> echoes raw rdp stdout
+  [[ -x $RDP ]] || die "rdp tool missing at $RDP — fixture ops unavailable"
+  "$RDP" --port "$PORT" "$1"
+}
+
+# value: rdp prints {"ok":true,value:...}; our JS returns a string -> .value
+rdp_eval_value() {
+  local raw
+  raw="$(rdp_eval "$1")"
+  echo "$raw" | jq -r 'if .ok then .value else error(.error // "rdp eval failed") end'
+}
+
+# The debugger port opens BEFORE Zotero's data layer finishes initializing —
+# fresh-instance evals can throw UnloadedDataException. Probe the exact ops
+# our payloads use until they succeed (or 30s deadline).
+JS_READY='
+(() => {
+  try {
+    const s = new Zotero.Search();
+    s.addCondition("title", "contains", "x");
+    const it = new Zotero.Item("journalArticle");
+    it.setField("title", "x");
+    if (!Zotero.ItemFields.isValidForType("archiveID", Zotero.ItemTypes.getID("preprint"))) return "not-ready";
+    return "ready";
+  } catch (e) {
+    return "not-ready";
+  }
+})()
+'
+
+rdp_wait_ready() { # $1=timeout s
+  local deadline=$((SECONDS + ${1:-30})) st
+  while ((SECONDS < deadline)); do
+    st="$(rdp_eval "$JS_READY" 2>/dev/null | jq -r 'if .ok then .value else "not-ready" end' 2>/dev/null || echo not-ready)"
+    [[ $st == "ready" ]] && return 0
+    sleep 1
+  done
+  die "Zotero data layer not ready after ${1:-30}s"
+}
+
+# Fire work payload, poll JS_COLLECT until done, echo the result JSON.
+rdp_run() { # $1=work payload $2=poll timeout s
+  rdp_wait_ready 30
+  local started
+  started="$(rdp_eval_value "$1")"
+  [[ $started == "started" ]] || die "rdp fire returned unexpected: $started"
+  local deadline=$((SECONDS + ${2:-25})) poll
+  while ((SECONDS < deadline)); do
+    poll="$(rdp_eval_value "$JS_COLLECT")"
+    if [[ -n $poll ]]; then
+      local done_flag err
+      done_flag="$(echo "$poll" | jq -r '.done // false')"
+      if [[ $done_flag == "true" ]]; then
+        err="$(echo "$poll" | jq -r '.error // empty')"
+        [[ -z $err ]] || die "fixture JS error: $err"
+        echo "$poll" | jq '.result'
+        return 0
+      fi
+    fi
+    sleep 0.5
+  done
+  die "rdp collect timed out after ${2:-25}s"
+}
+
+cmd_create() {
+  launch_instance
+  if [[ ! -x $RDP ]]; then
+    log "rdp not found at $RDP — profile initialized, fixtures skipped."
+    log "re-run 'dev-profile create' after rdp lands to insert fixtures."
+    return 0
+  fi
+  log "inserting fixtures via rdp (port $PORT)"
+  local res
+  res="$(rdp_run "$JS_INSERT")"
+  echo "$res" | jq -r '.[] | "  [\(.status // .error)] \(.name)\(if .id then " id=" + (.id|tostring) else "" end)\(if .type then " type=" + .type else "" end)"'
+  local errs
+  errs="$(echo "$res" | jq '[.[] | select(.error)] | length')"
+  ((errs == 0)) || die "$errs fixture(s) failed to insert"
+  log "all fixtures present — running readback verify"
+  cmd_verify
+}
+
+cmd_verify() {
+  local res fails
+  res="$(rdp_run "$JS_VERIFY")"
+  echo "$res" | jq -r '.[] | if .ok then "[PASS] fixture \(.name) — \(.evidence)" else "[FAIL] fixture \(.name) — \(.evidence)" end'
+  fails="$(echo "$res" | jq '[.[] | select(.ok | not)] | length')"
+  ((fails == 0)) || {
+    log "$fails fixture(s) FAIL"
+    return 1
+  }
+  log "all fixtures verified"
+}
+
+cmd_list() {
+  rdp_run "$JS_DUMP" | jq -r '.[] | "id=\(.id) key=\(.key) [\(.type)] \(.title)\n    DOI=\(.DOI) url=\(.url) archiveID=\(.archiveID) extra=\(.extra)"'
+}
+
+cmd_clean() {
+  stop_instance
+  rm -rf "$PROFILE" "$DATADIR"
+  log "removed $PROFILE and $DATADIR"
+}
+
+case "$MODE" in
+create) cmd_create ;;
+verify) cmd_verify ;;
+list) cmd_list ;;
+clean) cmd_clean ;;
+esac

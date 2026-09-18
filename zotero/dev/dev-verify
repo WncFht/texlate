@@ -1,0 +1,661 @@
+#!/usr/bin/env bash
+# dev-verify — 一键端到端验证编排器：dev-server 协议 e2e → dev-zotero 插件
+# 加载断言 → 插件内 selftest 全链逐 fixture 断言 → 负例/菜单态/xpi/幂等
+# → sabotage 三例人为破坏的可归因性测验。
+#
+# 反馈通道三属性（对照 docs/research/selfimp-skeleton.md）：
+#   局部可归因 — 每条 [PASS]/[FAIL] 一行一带机读证据：selftest 逐步名
+#     （resolve-item→prefs→health→extract→already-marked→create→poll→
+#     files→download+attach→mark→attachments-verify→reader-url）、
+#     taskId、arxivId+source=、artifact bytes/sha256 前缀、attached
+#     itemID；sabotage 例硬性要求失败落在预期步（health /
+#     download+attach）且 detail 点名通道（unreachable/connection）或
+#     artifact kind（zh.pdf）——失败位置不对即视为 sabotage 无效；
+#   廉价及时 — quick 档只翻 1 个 fixture；服务器 prefer=reuse 使已译
+#     arXiv id 秒回（doi/url-old/extra-old 常态零等待）；rdp 单次 eval
+#     自带 async 两阶段轮询（rdp.mjs wrap+slot），selftest 死线
+#     TEXLATE_DEV_SELFTEST_TIMEOUT（默认 420s）；
+#   客观可验证 — 断言只落机读事实：SelftestResult.ok/steps[].ok、
+#     extract 的 arxivId 正则（新 \d{4}\.\d{4,5} / 旧 archive/YYMMNNN）、
+#     source= 字段、computeMenuState 布尔、xpi 解包清单 + manifest
+#     strict_min/max——不 grep 日志文本当判据。
+#
+# 骨架四字段：
+#   适用条件 — dev-server/dev-zotero/rdp 三件套就位；fixture 条目由
+#     dev-profile 注入（标题含 [texlate-fixture]，本脚本按标题重发现并
+#     分类，不信固定 id——isRegularItem 过滤掉撞名附件）；uv sync
+#     --extra server + tectonic 同 dev-server；
+#   变换方法 — dev-server run 起 mock 翻译服（TEXLATE_TRANSLATOR=mock，
+#     fetch/parse/tectonic 全真）→ dev-zotero verify 断言插件 loaded +
+#     data.initialized → rdp 设 serverUrl/pollInterval/pollTimeout
+#     prefs（必须带 global 位 true——getPref 读全局支，裸 set 只写
+#     profile 支、默认值 8765 仍生效）→ reset 清 fixture 的 texlate:
+#     标记与 TeXlate 附件（幂等可重跑的前提）→ 逐 fixture
+#     api.selftest(id) 断言 extract 源与 ID 形态 → 负例
+#     selftestNonArxiv → computeMenuState 三态 → xpi 解包 → 幂等重跑。
+#     sabotage 档三例：停服（health FAIL）、坏 serverUrl（health FAIL）、
+#     挪走 tasks/<id>/zh.pdf（download+attach FAIL 点名 zh.pdf）——每例
+#     后恢复并复验；
+#   资源约束 — scratch 全在 TEXLATE_DEV_ROOT（selftest-*.json 原始证据、
+#     .sabotaged 暂挪文件）；端口以 env.sh 单源（18765/6100——8765 是
+#     真实 gateway 永不碰）；reset 只碰 [texlate-fixture] 条目的
+#     texlate: 行与 TeXlate 前缀附件（dev 库专用）；dev-server stop
+#     只杀其 pidfile 进程组；
+#   验证证据 — PASS 行带 taskId/sha256/bytes/itemID/source=；原始
+#     SelftestResult JSON 落 tmp/zotero-dev/selftest-*.json；sabotage
+#     期望 FAIL 行原样打印违例步名+detail。
+#
+# 用法：dev-verify [full|quick|sabotage]（缺省 full）
+#   full      全矩阵：协议 e2e + 插件加载 + 6 fixture selftest + 负例 +
+#             菜单态 + xpi + 幂等重跑（~5-15min，真实 arXiv+tectonic）
+#   quick     协议 e2e + 插件加载 + 1 fixture + 负例 + 菜单态 + xpi
+#   sabotage  三例破坏各要求可归因 FAIL + 恢复验证；期望 FAIL 原样打印，
+#             全程 exit 码只反映「破坏没生效/恢复失败」这类真失败
+set -euo pipefail
+
+HERE="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+# shellcheck source=env.sh
+source "$HERE/env.sh"
+
+SCRATCH="$TEXLATE_DEV_ROOT"
+RDP="$HERE/rdp"
+DEV_SERVER="$HERE/dev-server"
+DEV_ZOTERO="$HERE/dev-zotero"
+RDP_PORT="$TEXLATE_DEV_RDP_PORT"
+BASE="$TEXLATE_DEV_BASE"
+DATA_DIR="$TEXLATE_DEV_DATA"
+XPI="$HERE/../.scaffold/build/texlate.xpi"
+PREF="extensions.zotero.texlate"
+SELFTEST_TIMEOUT="${TEXLATE_DEV_SELFTEST_TIMEOUT:-420}"
+
+FAILS=0
+pass() { printf '[PASS] %s — %s\n' "$1" "$2"; }
+warn() { printf '[WARN] %s — %s\n' "$1" "$2"; }
+info() { printf '       %s\n' "$1"; }
+fail() { # 记一笔真失败继续跑（矩阵要全亮）；退出码在末尾统一结算
+  printf '[FAIL] %s — %s\n' "$1" "$2" >&2
+  FAILS=$((FAILS + 1))
+}
+fail_evidence() { # sabotage 期望失败的原样证据行——不计入 FAILS
+  printf '[FAIL] %s — %s\n' "$1" "$2"
+}
+
+# --- rdp helpers -------------------------------------------------------------
+
+#: rdp_eval <js> [timeout_s] — 裸 eval，stdout = {"ok":..,"value":..}。
+rdp_eval() {
+  local js="$1" t="${2:-60}"
+  "$RDP" --port "$RDP_PORT" --timeout "$t" "$js" 2>/dev/null
+}
+
+#: rdp_val <js> [timeout_s] — 取 .value（JSON 文本）；rdp/求值失败非零返回。
+rdp_val() {
+  local raw
+  raw="$(rdp_eval "$1" "${2:-60}")" || return 1
+  python3 -c 'import json,sys
+d = json.loads(sys.argv[1])
+if not d.get("ok"):
+    sys.stderr.write(str(d.get("error") or "eval failed") + "\n")
+    sys.exit(1)
+print(json.dumps(d.get("value")))' "$raw"
+}
+
+#: run_selftest <itemID> <selftest|nonarxiv> <outfile> — 原始 rdp JSON 落盘。
+run_selftest() {
+  local fn="Zotero.texlate.api.selftest"
+  [[ $2 == nonarxiv ]] && fn="Zotero.texlate.api.selftestNonArxiv"
+  "$RDP" --port "$RDP_PORT" --timeout "$SELFTEST_TIMEOUT" \
+    "await ${fn}($1)" >"$3" 2>"$3.err" || true
+}
+
+#: summarize <rawfile> — SelftestResult → k<TAB>v 行（verdict/error/taskId/
+#: 各步 detail/bad_step/bad_detail）。
+summarize() {
+  python3 - "$1" <<'PY'
+import json, sys
+
+def emit(k, v):
+    print(k + "\t" + str(v).replace("\t", " ").replace("\n", " | "))
+
+try:
+    raw = json.load(open(sys.argv[1]))
+except Exception as e:  # noqa: BLE001
+    emit("verdict", "RDP")
+    emit("bad_detail", f"unparseable rdp output: {e}")
+    sys.exit(0)
+if not raw.get("ok"):
+    emit("verdict", "RDP")
+    emit("bad_detail", raw.get("error") or raw)
+    sys.exit(0)
+v = raw.get("value") or {}
+steps = {s.get("name"): s for s in (v.get("steps") or [])}
+det = lambda n: (steps.get(n) or {}).get("detail", "")
+emit("verdict", "OK" if v.get("ok") else "FAIL")
+emit("error", v.get("error") or "")
+emit("taskId", v.get("taskId") or "")
+for n in ("resolve-item", "prefs", "health", "extract", "already-marked",
+          "create", "poll", "files", "download+attach", "mark",
+          "attachments-verify", "reader-url"):
+    emit(n, det(n))
+bad = next((s for s in (v.get("steps") or []) if not s.get("ok")), None)
+emit("bad_step", bad.get("name", "") if bad else "")
+emit("bad_detail", bad.get("detail", "") if bad else "")
+PY
+}
+
+#: fill <assocname> <rawfile> — TSV → bash 关联数组。
+fill() {
+  local -n _A=$1
+  while IFS=$'\t' read -r k v; do _A["$k"]="$v"; done < <(summarize "$2")
+}
+
+# --- 环境前置 ----------------------------------------------------------------
+
+need_tools() {
+  local missing=0 t
+  for t in "$RDP" "$DEV_SERVER" "$DEV_ZOTERO"; do
+    [[ -x $t ]] || { fail tools "missing executable $t"; missing=1; }
+  done
+  for t in curl python3 unzip sha256sum; do
+    command -v "$t" >/dev/null || { fail tools "missing $t in PATH"; missing=1; }
+  done
+  ((missing == 0))
+}
+
+#: 服务器健康 + 正身（data_dir 必须等于我们的 dev 实例——8765 撞口也 200）。
+server_identity() {
+  curl -sf --max-time 3 "$BASE/api/health" 2>/dev/null |
+    python3 -c 'import json,sys
+try:
+    d = json.load(sys.stdin)
+except ValueError:
+    sys.exit(1)
+sys.exit(0 if d.get("data_dir") == sys.argv[1] else 1)' "$DATA_DIR"
+}
+
+phase_server() {
+  info "dev-server run — protocol e2e（health 先验 data_dir 正身）"
+  if "$DEV_SERVER" run; then
+    pass server-e2e "six-step protocol green → $BASE"
+  else
+    fail server-e2e "dev-server run nonzero — protocol layer broken"
+    return 1
+  fi
+}
+
+phase_zotero() {
+  if "$DEV_ZOTERO" verify; then
+    pass plugin-loaded "getAllPluginIDs + initialized probe green"
+  else
+    fail plugin-loaded "dev-zotero verify nonzero"
+    return 1
+  fi
+  local init
+  init="$(rdp_val 'Zotero.texlate.data.initialized === true' 15 || echo rdp-dead)"
+  if [[ $init == true ]]; then
+    pass plugin-init "Zotero.texlate.data.initialized === true"
+  else
+    fail plugin-init "initialized probe → $init"
+    return 1
+  fi
+}
+
+#: prefs —— 关键：第三个参数 true 写全局支（getPref 只读全局支；裸 set 写
+#: profile 支、pref 面仍见默认 8765 → 自测会打到真实 gateway）。
+phase_prefs() {
+  rdp_val "Zotero.Prefs.set('$PREF.serverUrl','$BASE',true), \
+Zotero.Prefs.set('$PREF.pollIntervalMs',2000,true), \
+Zotero.Prefs.set('$PREF.pollTimeoutMs',900000,true), 'ok'" 15 >/dev/null ||
+    {
+      fail prefs "rdp set failed"
+      return 1
+    }
+  local got
+  got="$(rdp_val "Zotero.Prefs.get('$PREF.serverUrl',true)" 15 || echo '?')"
+  if [[ $got == \"$BASE\" || $got == "$BASE" ]]; then
+    pass prefs "serverUrl=$BASE pollInterval=2000ms pollTimeout=900000ms (global branch)"
+  else
+    fail prefs "serverUrl readback=$got expected $BASE"
+    return 1
+  fi
+}
+
+# --- fixture 发现 / 重置 ------------------------------------------------------
+
+declare -A FIX=() # kind → itemID
+FIX_KINDS=(doi url-new url-old archiveid extra-new extra-old)
+declare -A EXP_SRC=(
+  [doi]=doi [url-new]=url [url-old]=url
+  [archiveid]=archiveID [extra-new]=extra [extra-old]=extra
+)
+declare -A EXP_FMT=(
+  [doi]=new [url-new]=new [url-old]=old
+  [archiveid]=new [extra-new]=new [extra-old]=old
+)
+
+#: 按标题含 [texlate-fixture] 发现条目并分类（isRegularItem 挡撞名附件——
+#: 附件标题同样含前缀 "TeXlate 中文 - [texlate-fixture] …"）。
+discover_fixtures() {
+  local js
+  js='await Zotero.Items.getAll(Zotero.Libraries.userLibraryID).then(items =>
+    items.filter(i => {
+      try {
+        return i.isRegularItem() &&
+          String(i.getField("title") || "").includes("[texlate-fixture]");
+      } catch (e) { return false; }
+    }).map(i => {
+      const t = String(i.getField("title") || "").toLowerCase();
+      let k = null;
+      if (t.includes("doi")) k = "doi";
+      else if (t.includes("url new")) k = "url-new";
+      else if (t.includes("url old")) k = "url-old";
+      else if (t.includes("archiveid")) k = "archiveid";
+      else if (t.includes("extra new")) k = "extra-new";
+      else if (t.includes("extra old")) k = "extra-old";
+      else if (t.includes("negative")) k = "negative";
+      return { id: i.id, kind: k };
+    }))'
+  local out
+  out="$(rdp_val "$js" 60)" || {
+    fail discover "rdp eval failed"
+    return 1
+  }
+  local rows
+  rows="$(python3 - "$out" <<'PY'
+import json, sys
+for r in json.loads(sys.argv[1]) or []:
+    print(f"{r.get('kind')}\t{r.get('id')}")
+PY
+)"
+  local k id missing=()
+  while IFS=$'\t' read -r k id; do
+    [[ -n $k && $k != None && -n $id ]] && FIX[$k]=$id
+  done <<<"$rows"
+  for k in "${FIX_KINDS[@]}" negative; do
+    [[ -n ${FIX[$k]:-} ]] || missing+=("$k")
+  done
+  if ((${#missing[@]})); then
+    fail discover "missing fixture kinds: ${missing[*]}"
+    return 1
+  fi
+  pass discover "7 fixtures: $(for k in "${FIX_KINDS[@]}" negative; do printf '%s=%s ' "$k" "${FIX[$k]}"; done)"
+}
+
+#: reset —— 清 fixture 的 `texlate:` Extra 行 + 删 TeXlate 前缀附件。
+#: 缺它二次跑 dev-verify 全部死在 download+attach「none attached」
+#: （attachArtifacts 对 seen 标题整体跳过 → attached=[] → StepError）。
+reset_fixtures() {
+  local js
+  js='await (async () => {
+    const items = await Zotero.Items.getAll(Zotero.Libraries.userLibraryID);
+    const out = [];
+    for (const it of items) {
+      let t = "";
+      try {
+        if (!it.isRegularItem() ||
+            !(t = String(it.getField("title") || "")).includes("[texlate-fixture]")) continue;
+      } catch (e) { continue; }
+      const extra = String(it.getField("extra") || "");
+      const kept = extra.split("\n").filter(l => !/^texlate\s*[:：]/i.test(l));
+      let cleared = false;
+      if (kept.join("\n") !== extra) {
+        it.setField("extra", kept.join("\n"));
+        await it.saveTx();
+        cleared = true;
+      }
+      let removed = 0;
+      for (const aid of it.getAttachments()) {
+        const att = Zotero.Items.get(aid);
+        if (!att) continue;
+        const at = String(att.getField("title") || att.getDisplayTitle() || "");
+        if (at.startsWith("TeXlate ")) { await att.eraseTx(); removed++; }
+      }
+      out.push({ id: it.id, cleared, removed });
+    }
+    return out;
+  })()'
+  local res
+  res="$(rdp_val "$js" 60)" || {
+    fail reset "rdp eval failed"
+    return 1
+  }
+  local ev
+  ev="$(python3 - "$res" <<'PY'
+import json, sys
+rows = json.loads(sys.argv[1]) or []
+c = sum(1 for r in rows if r.get("cleared"))
+a = sum(int(r.get("removed") or 0) for r in rows)
+print(f"items={len(rows)} marks-cleared={c} attachments-removed={a}")
+PY
+)"
+  pass fixture-reset "$ev"
+}
+
+# --- 断言件 -------------------------------------------------------------------
+
+#: assert_selftest <kind> — FIX[kind] 上跑全链，断言 ok + extract 源 + ID 形态。
+assert_selftest() {
+  local kind="$1" id="${FIX[$1]}" file="$SCRATCH/selftest-$1.json"
+  info "selftest($id) running — kind=$kind (timeout ${SELFTEST_TIMEOUT}s)"
+  run_selftest "$id" selftest "$file"
+  declare -A S=()
+  fill S "$file"
+  if [[ ${S[verdict]:-} != OK ]]; then
+    fail "selftest:$kind" "item=$id step=${S[bad_step]:-?} detail=${S[bad_detail]:-?} (raw=$file)"
+    return 1
+  fi
+  local ex="${S[extract]:-}" arxid src
+  arxid="${ex#arxivId=}"
+  arxid="${arxid%% *}"
+  src="${ex##*source=}"
+  if [[ $src != "${EXP_SRC[$kind]}" ]]; then
+    fail "selftest:$kind" "source=$src expected ${EXP_SRC[$kind]} (item=$id)"
+    return 1
+  fi
+  case "${EXP_FMT[$kind]}" in
+    new)
+      [[ $arxid =~ ^[0-9]{4}\.[0-9]{4,5}(v[0-9]+)?$ ]] || {
+        fail "selftest:$kind" "arxivId=$arxid not new-format NNNN.NNNNN"
+        return 1
+        }
+      ;;
+    old)
+      [[ $arxid == */* ]] || {
+        fail "selftest:$kind" "arxivId=$arxid not old-format archive/NNNNNNN"
+        return 1
+        }
+      ;;
+  esac
+  if [[ -n ${S[taskId]:-} && ${S[mark]:-} != *"${S[taskId]}"* ]]; then
+    fail "selftest:$kind" "mark step did not verify taskId=${S[taskId]} (mark=${S[mark]:-?})"
+    return 1
+  fi
+  pass "selftest:$kind" "item=$id $ex taskId=${S[taskId]}"
+  info "poll: ${S[poll]}"
+  info "files: ${S[files]}"
+  info "attach: ${S[download+attach]}"
+  info "mark: ${S[mark]} ; reader: ${S[reader-url]}"
+  return 0
+}
+
+assert_negative() {
+  local id="${FIX[negative]}" file="$SCRATCH/selftest-negative.json"
+  run_selftest "$id" nonarxiv "$file"
+  declare -A S=()
+  fill S "$file"
+  if [[ ${S[verdict]:-} != OK ]]; then
+    fail selftest:negative "item=$id step=${S[bad_step]:-?} detail=${S[bad_detail]:-?}"
+    return 1
+  fi
+  if [[ ${S[extract]:-} != *"no arXiv id"* && ${S[already-marked]:-} != *"mark=none"* ]]; then
+    fail selftest:negative "unexpected extract/mark detail: ${S[extract]:-?} / ${S[already-marked]:-?}"
+    return 1
+  fi
+  pass selftest:negative "item=$id extract='${S[extract]}' mark='${S[already-marked]}'"
+}
+
+#: menu_state <itemID> → stdout "translate,reader"
+menu_state() {
+  rdp_val "Zotero.texlate.api.computeMenuState([Zotero.Items.get($1)])" 30 |
+    python3 -c 'import json,sys
+d = json.loads(sys.stdin.read())
+print("%s,%s" % (d.get("translate"), d.get("reader")))'
+}
+
+assert_menu() { # $1=label $2=itemID $3=want_translate $4=want_reader
+  local got
+  got="$(menu_state "$2")" || {
+    fail "menu:$1" "computeMenuState eval failed (item=$2)"
+    return 1
+    }
+  if [[ $got == "$3,$4" ]]; then
+    pass "menu:$1" "item=$2 translate=$3 reader=$4"
+  else
+    fail "menu:$1" "item=$2 got translate,reader=$got expected $3,$4"
+    return 1
+  fi
+}
+
+assert_xpi() {
+  if [[ ! -f $XPI ]]; then
+    fail xpi "missing $XPI — run 'dev-zotero build'"
+    return 1
+  fi
+  local list absent=""
+  list="$(unzip -l "$XPI" 2>/dev/null)"
+  local want
+  for want in manifest.json bootstrap.js prefs.js locale/en-US/ locale/zh-CN/ content/scripts/texlate.js; do
+    grep -q "$want" <<<"$list" || absent="$absent $want"
+  done
+  if [[ -n $absent ]]; then
+    fail xpi "archive missing entries:$absent"
+    return 1
+  fi
+  local ver
+  ver="$(unzip -p "$XPI" manifest.json | python3 -c 'import json,sys
+m = json.load(sys.stdin)
+z = (m.get("applications") or {}).get("zotero") or {}
+print("min=%s max=%s ver=%s id=%s" % (z.get("strict_min_version"), z.get("strict_max_version"), m.get("version"), z.get("id")))')"
+  if [[ $ver == *"min=7.0"* && $ver == *"max=10.*"* ]]; then
+    pass xpi "$(basename "$XPI") manifest bootstrap prefs locales present — $ver"
+  else
+    fail xpi "manifest version bounds wrong: $ver"
+    return 1
+  fi
+}
+
+# --- 幂等 ---------------------------------------------------------------------
+
+#: 重跑已译 fixture：already-marked 须现 mark=<taskId>、create 须 reuse 同一
+#: taskId（服务端 dedup → 不烧二遍翻译）。selftest 对「全已挂上」会报
+#: none attached → ok:false——工具幂等性瑕疵，记 WARN 不算破坏。
+assert_idem() {
+  local id="${FIX[doi]}" file="$SCRATCH/selftest-idem.json" first="$1"
+  run_selftest "$id" selftest "$file"
+  declare -A S=()
+  fill S "$file"
+  local am="${S[already-marked]:-}" cr="${S[create]:-}"
+  if [[ $am == *"mark=${first}"* ]]; then
+    pass idem-mark "already-marked detail shows mark=$first (item=$id)"
+  else
+    fail idem-mark "already-marked detail='$am' expected mark=$first"
+  fi
+  if [[ $cr == *"taskId=${first}"* ]]; then
+    pass idem-reuse "create reused same taskId=$first — no duplicate work"
+  else
+    fail idem-reuse "create detail='$cr' expected taskId=$first"
+  fi
+  if [[ ${S[verdict]:-} == OK ]]; then
+    pass idem-selftest "re-run completed ok=true"
+  elif [[ ${S[bad_step]:-} == "download+attach" && ${S[bad_detail]:-} == *"none attached"* ]]; then
+    warn idem-selftest "re-run FAILs 'none attached' (seen-titles skip → attached=[]) — selftest not idempotent, production path short-circuits at mark (reported)"
+  else
+    warn idem-selftest "re-run verdict=${S[verdict]:-?} at ${S[bad_step]:-?}: ${S[bad_detail]:-?}"
+  fi
+}
+
+# --- sabotage -----------------------------------------------------------------
+
+#: sabotage_expect <label> <itemID> <want_step> <detail-regex> — 跑 selftest
+#: 并硬性要求 FAIL 落在 want_step 且 detail 匹配 regex；期望 FAIL 原样打印。
+#: 返回 0=破坏生效且可归因；1=破坏无效（真失败，计入 FAILS）。
+sabotage_expect() {
+  local label="$1" itemid="$2" want_step="$3" regex="$4"
+  local file="$SCRATCH/selftest-sabotage-$label.json"
+  run_selftest "$itemid" selftest "$file"
+  declare -A S=()
+  fill S "$file"
+  if [[ ${S[verdict]:-} == FAIL && ${S[bad_step]:-} == "$want_step" && ${S[bad_detail]:-} =~ $regex ]]; then
+    fail_evidence "sabotage-$label" "step=${S[bad_step]} detail=${S[bad_detail]}"
+    pass "sabotage-$label" "expected failure attributable at step=$want_step"
+    return 0
+  fi
+  fail "sabotage-$label" "ineffective — verdict=${S[verdict]:-?} step=${S[bad_step]:-?} detail=${S[bad_detail]:-?} (expected FAIL@$want_step =~ $regex)"
+  return 1
+}
+
+sab_a() {
+  local id="${FIX[doi]}"
+  info "sabotage-a: dev-server stop → selftest($id) must FAIL at health"
+  "$DEV_SERVER" stop >/dev/null 2>&1 || true
+  sabotage_expect server-down "$id" health 'unreachable|connection|ECONN|refused'
+  local rc=$?
+  info "sabotage-a: restoring — dev-server start"
+  "$DEV_SERVER" start >/dev/null 2>&1 || true
+  if server_identity; then
+    pass sabotage-a-restore "server healthy again on $BASE (data_dir verified)"
+  else
+    fail sabotage-a-restore "server not healthy after dev-server start"
+  fi
+  return $rc
+}
+
+sab_b() {
+  local id="${FIX[doi]}"
+  info "sabotage-b: serverUrl → http://127.0.0.1:19999 (dead) → health FAIL"
+  rdp_val "Zotero.Prefs.set('$PREF.serverUrl','http://127.0.0.1:19999',true),'ok'" 15 >/dev/null
+  sabotage_expect bad-serverUrl "$id" health 'unreachable|connection|ECONN|refused'
+  local rc=$?
+  rdp_val "Zotero.Prefs.set('$PREF.serverUrl','$BASE',true),'ok'" 15 >/dev/null
+  local got
+  got="$(rdp_val "Zotero.Prefs.get('$PREF.serverUrl',true)" 15 || echo '?')"
+  if [[ $got == \"$BASE\" || $got == "$BASE" ]] && server_identity; then
+    pass sabotage-b-restore "serverUrl back to $BASE, server healthy"
+  else
+    fail sabotage-b-restore "serverUrl=$got healthy=$(server_identity && echo yes || echo no)"
+  fi
+  return $rc
+}
+
+sab_c() {
+  local id="${FIX[doi]}" file="$SCRATCH/selftest-sabotage-c-setup.json"
+  info "sabotage-c: setup — selftest($id) to learn reused taskId"
+  run_selftest "$id" selftest "$file"
+  declare -A S=()
+  fill S "$file"
+  local tid="${S[taskId]:-}"
+  if [[ -z $tid ]]; then
+    # 已在译条目重跑会死 download+attach，但 create 步 detail 仍带 taskId
+    tid="${S[create]:-}"
+    tid="${tid#taskId=}"
+    tid="${tid%% *}"
+  fi
+  if [[ ! $tid =~ ^t_ ]]; then
+    fail sabotage-c "setup: no taskId obtainable (verdict=${S[verdict]:-?} create='${S[create]:-?}')"
+    return 1
+  fi
+  local zhpdf="$DATA_DIR/tasks/$tid/zh.pdf"
+  if [[ ! -f $zhpdf ]]; then
+    fail sabotage-c "setup: $zhpdf absent — nothing to corrupt"
+    return 1
+  fi
+  local bytes
+  bytes="$(wc -c <"$zhpdf" | tr -d ' ')"
+  # 先删本地 TeXlate 附件——seen-titles 跳过会让下载根本不发生，破坏
+  # 落不到 download 步（这就是「kill file visibility」要试的路径）。
+  local removed
+  removed="$(rdp_val "await (async () => {
+    const it = Zotero.Items.get($id); const out = [];
+    for (const aid of it.getAttachments()) {
+      const att = Zotero.Items.get(aid);
+      if (!att) continue;
+      const t = String(att.getField('title') || att.getDisplayTitle() || '');
+      if (t.startsWith('TeXlate ')) { await att.eraseTx(); out.push(t); }
+    }
+    return out;
+  })()" 30)"
+  info "sabotage-c: task=$tid — moved zh.pdf (${bytes}B) aside; removed attachments: ${removed:-[]}"
+  mv "$zhpdf" "$zhpdf.sabotaged"
+  sabotage_expect artifact-missing "$id" 'download+attach' 'zh\.pdf.*(404|missing|mismatch)'
+  local rc=$?
+  mv "$zhpdf.sabotaged" "$zhpdf"
+  info "sabotage-c: restored zh.pdf — re-running selftest($id) for green check"
+  run_selftest "$id" selftest "$SCRATCH/selftest-sabotage-c-restore.json"
+  declare -A S2=()
+  fill S2 "$SCRATCH/selftest-sabotage-c-restore.json"
+  if [[ ${S2[verdict]:-} == OK ]]; then
+    pass sabotage-c-restore "selftest green after restore — ${S2[download+attach]}"
+  else
+    fail sabotage-c-restore "post-restore verdict=${S2[verdict]:-?} step=${S2[bad_step]:-?} detail=${S2[bad_detail]:-?}"
+  fi
+  return $rc
+}
+
+# --- 模式 ---------------------------------------------------------------------
+
+mode_sabotage() {
+  info "mode=sabotage — ensuring dev server + plugin + prefs baseline"
+  server_identity || "$DEV_SERVER" start >/dev/null 2>&1 || true
+  server_identity || {
+    fail preflight "dev server not healthy on $BASE"
+    return 1
+    }
+  "$DEV_ZOTERO" verify >/dev/null 2>&1 || {
+    fail preflight "plugin not loaded"
+    return 1
+    }
+  phase_prefs || return 1
+  discover_fixtures || return 1
+  sab_a || true
+  sab_b || true
+  sab_c || true
+}
+
+mode_matrix() { # $1=full|quick
+  local mode="$1" kinds=()
+  phase_server || return 1
+  phase_zotero || return 1
+  phase_prefs || return 1
+  discover_fixtures || return 1
+  reset_fixtures || return 1
+  assert_menu untranslated "${FIX[doi]}" True False || true
+  if [[ $mode == full ]]; then
+    kinds=("${FIX_KINDS[@]}")
+  else
+    kinds=(doi)
+  fi
+  local k
+  for k in "${kinds[@]}"; do
+    assert_selftest "$k" || true
+  done
+  assert_negative || true
+  assert_menu translated "${FIX[doi]}" False True || true
+  assert_menu negative "${FIX[negative]}" False False || true
+  assert_xpi || true
+  if [[ $mode == full ]]; then
+    # 幂等重跑——用 doi fixture 首跑记的 taskId（result.taskId 为空时
+    # 从 selftest-doi.json 的 create 步补）
+    local first
+    first="$(summarize "$SCRATCH/selftest-doi.json" | awk -F'\t' '$1=="taskId"{print $2}')"
+    if [[ -n $first ]]; then
+      assert_idem "$first" || true
+    else
+      warn idem "no taskId from first doi selftest — idempotence check skipped"
+    fi
+  fi
+}
+
+main() {
+  local mode="${1:-full}"
+  mkdir -p "$SCRATCH"
+  printf '=== dev-verify %s — %s ===\n' "$mode" "$(date -Is)"
+  need_tools || {
+    printf '=== dev-verify done — FAILS=%d ===\n' "$FAILS"
+    exit 1
+    }
+  case "$mode" in
+    full | quick) mode_matrix "$mode" ;;
+    sabotage) mode_sabotage ;;
+    -h | --help | help)
+      sed -n '2,60p' "$0"
+      exit 0
+      ;;
+    *)
+      printf 'unknown mode %q — see dev-verify --help\n' "$mode" >&2
+      exit 2
+      ;;
+  esac
+  printf '=== dev-verify %s done — FAILS=%d ===\n' "$mode" "$FAILS"
+  ((FAILS == 0))
+}
+main "$@"

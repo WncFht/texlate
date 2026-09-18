@@ -1,0 +1,21 @@
+<linkset>
+  <html:link rel="localization" href="__addonRef__-preferences.ftl" />
+</linkset>
+<groupbox
+  onload="Zotero.__addonInstance__.hooks.onPrefsEvent('load', { window })"
+>
+  <label><html:h2 data-l10n-id="pref-title"></html:h2></label>
+  <html:label data-l10n-id="pref-note"></html:label>
+  <hbox>
+    <html:button
+      data-l10n-id="prefs-open-settings"
+      onclick="Zotero.__addonInstance__.api.openPrefsDialog()"
+    ></html:button>
+  </hbox>
+</groupbox>
+<vbox>
+  <html:label
+    data-l10n-id="pref-help"
+    data-l10n-args='{"time": "__buildTime__","name": "__addonName__","version":"__buildVersion__"}'
+  ></html:label>
+</vbox>

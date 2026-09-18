@@ -1,0 +1,2 @@
+# Module implementations (client/arxivId/poller/attach/prefs/menu/flow/selftest)
+# are filled in by the module agents. See ../contracts.ts for signatures.
