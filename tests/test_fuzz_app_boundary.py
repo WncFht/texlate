@@ -547,7 +547,7 @@ class TestContentTypeVsMagic:
         self, client: TestClient, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """filename=a.tex + tex/plain CT + %PDF 字节 → upload_pdf → 501。"""
-        monkeypatch.setattr("texlate.server.app.find_tool", lambda _n: None)
+        monkeypatch.setattr("texlate.server.routers.upload.find_tool", lambda _n: None)
         body = _mp(
             [
                 _cd("file", "a.tex")
@@ -594,9 +594,9 @@ class TestContentLengthLies:
         self, client: TestClient, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """CL 报小体真大：预检被绕，流式闸仍按实收字节 413。"""
-        import texlate.server.app as app_mod  # noqa: PLC0415 -- 测试内补丁对象
+        import texlate.server.http as http_mod  # noqa: PLC0415 -- 测试内补丁对象
 
-        monkeypatch.setattr(app_mod, "UPLOAD_CAP", 16)
+        monkeypatch.setattr(http_mod, "UPLOAD_CAP", 16)
         body = _mp([_file_part(b"y" * (128 * 1024), filename="big.bin")])
         r = client.post(
             "/api/upload",

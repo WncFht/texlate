@@ -505,7 +505,7 @@ class TestUploadEdges:
     ) -> None:
         """无 Content-Length（chunked 流式体）绕预检——文件字段有界读，
         累计超 CAP 同语义 413，全量不进 RAM。"""
-        monkeypatch.setattr(app_mod, "UPLOAD_CAP", 16)
+        monkeypatch.setattr("texlate.server.http.UPLOAD_CAP", 16)
         body = (
             b"--X\r\n"
             b'Content-Disposition: form-data; name="file"; filename="big.bin"\r\n'
@@ -541,7 +541,7 @@ class TestUploadEdges:
         """chunked 体 + 巨型 str 字段：receive 字节闸解析中途 413——str 字段
         不再随 ``request.form()`` 无界进 RAM（修前此例体全吞后按缺 file 400）。
         """
-        monkeypatch.setattr(app_mod, "UPLOAD_CAP", 16)
+        monkeypatch.setattr("texlate.server.http.UPLOAD_CAP", 16)
         body = (
             b"--X\r\n"
             b'Content-Disposition: form-data; name="options"\r\n\r\n'
@@ -562,7 +562,7 @@ class TestUploadEdges:
         """``_cap_request_body`` 的 JSON 闸：无 CL 的 JSON 体超 ``_JSON_BODY_CAP``
         → 413 ``body_too_large``（修前 ``request.body()`` 无界读进 RAM 后正常 202；
         JSON 端点与 upload 的 ``UPLOAD_CAP`` 已分闸）。"""
-        monkeypatch.setattr(app_mod, "_JSON_BODY_CAP", 16)
+        monkeypatch.setattr("texlate.server.http._JSON_BODY_CAP", 16)
         big = b'{"options": {"k": "' + b"v" * 80000 + b'"}}'
         r = client.post(
             f"/api/arxiv/{ARXIV}/translate",

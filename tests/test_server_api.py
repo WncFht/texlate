@@ -14,8 +14,6 @@ pytest.importorskip("fastapi", reason="server extra 未装")
 
 from conftest import MINI_TEX, mk_api_task
 
-import texlate.server.app as app_mod
-
 if TYPE_CHECKING:
     from starlette.testclient import TestClient
 
@@ -201,7 +199,7 @@ class TestUpload:
         self, client: TestClient, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """501 闸与宿主机 babeldoc 装没装无关——探测钉成未装。"""
-        monkeypatch.setattr("texlate.server.app.find_tool", lambda _n: None)
+        monkeypatch.setattr("texlate.server.routers.upload.find_tool", lambda _n: None)
         r = client.post(
             "/api/upload",
             files={"file": ("a.pdf", b"%PDF-1.4 fake", "application/pdf")},
@@ -230,7 +228,7 @@ class TestUpload:
     def test_oversize_413(
         self, client: TestClient, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.setattr(app_mod, "UPLOAD_CAP", 16)
+        monkeypatch.setattr("texlate.server.http.UPLOAD_CAP", 16)
         r = client.post(
             "/api/upload",
             files={"file": ("main.tex", MINI_TEX.encode(), "text/plain")},

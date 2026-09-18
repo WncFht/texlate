@@ -114,7 +114,7 @@ class TestUploadDocGuards:
         self, client: TestClient, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """501 闸与宿主机 babeldoc 装没装无关——探测钉成未装。"""
-        monkeypatch.setattr("texlate.server.app.find_tool", lambda _n: None)
+        monkeypatch.setattr("texlate.server.routers.upload.find_tool", lambda _n: None)
         r = client.post(
             "/api/upload",
             files={"file": ("a.pdf", b"%PDF-1.4 fake", "application/pdf")},
