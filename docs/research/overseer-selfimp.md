@@ -527,3 +527,16 @@
 - roster 3 在飞：geomreverify(#57 完待收尸)/pendspec(#59)/draftsty(#60)；sentryfix/slotaudit/providesdate 尸已清。新派 mnras-retire+flipcheck-5 → 5。
 - 门巡：L1 gate 全绿收官（1955/1955 ok strict，leak 0.0/135840——post-W84 树口径）；autogloss-reg ALL DONE 双臂 rc=0 qualfreeze pass；L0 域本轮 22+20+166+105 钉绿；commit 全我署。
 - 残口入册：`_round_cat` 不读 sentry_reason（fixloop/engine.py:~L201 跟进件）；`RunFn` 别名 ~L159 注记陈旧；`_grp_arg_prose` 缺 `_ZERO_WIDTH_ARG_RX`；ASCII↔ASCII env-arg mangling 仍盲区；texmf 影蔽类=mnras 首案，他 texmf-resident buggy 件同型待普查。
+
+## 2026-09-19 ~04:3x — geomverify 全报修正：影蔽源=tlmgr 非 ~/texmf + 双头守门新发现
+
+- **机制修正**（覆盖上条"user-texmf 影蔽"归因）：`_texmf/home/.../mnras.cls` 非 ~/texmf 复刻，而是 **tlmgr usermode install 产物**——mn2e stub `needs:["mnras.cls"]` → `_builtins_shim.py:108-113` → `eng.install_file` → filemap→`tlmgr --usermode install mnras` → texlive 旧 buggy v3.2。`vendored_fetch`(order 11.5) 只在 install_file 失败后触——texlive 有的包永远遮蔽 vendor 件。**缺陷类正名=vendor 可达性**：needs/install_file 全链不查 vendor/files。mnrasretire 规则形不变（fingerprint retire→missing→vendored_fetch），已转达关键正确性问题=missing-after-install 走 vendored_fetch 还是 install 重跑（后者→retire→reinstall 死环，须查实非假设）。
+- **geomverify 新发现二**（harness 实证，stagerun 重跑 byte-identical）：
+  - mn2e stub usegraphicx-strip=**死代码**——`\@loadwithoptions`(latex.ltx:18637) 拷原始 `opt@`/`@raw@opt@` 列表非 `\@classoptionslist`，改写被绕（repro/ 仪表实证）；修法=`\LoadClass[\mn@clean]{mnras}` 或 opt@ 改写，vendor patched 件上场则无须。
+  - **option_clash_geometry_hoist 永不可能此格首错中**——peel 后新首错=`Missing \begin{document}`@doc:147（cat=syntax，taxonomy:315 实证），即 clash 的**孪生头**（log 674 vs 686 差 12 行>CTX_LINES=8 err_head，ctx_suggests 同盲）；机制=doc l.147 `\usepackage[total=...,centering]{geometry}` 撞 cls-载 geometry[a4paper] 泄漏段落料→everypar→\@nodocument 先发。裸 `\usepackage{geometry}` 双错同消→净 33 页 PDF（repro2/t2 实证）。残口=多错 dispatch/ salvage-as-discovery/孪生签名规则变体——入引擎战略残口册。
+  - post error_cats={other:1,syntax:1,option_clash:1}——三错共存 salvage 轮实证。
+- **texlate-13 segmirror 已停让位**：彼误判 bd4d7140(彼 9/18 投影提升预备件)=pendspec 落地，澄清后停 agent，pending.py+slots 测试让出待我 pendspec commit ping。
+- **peer 接线确认**：texlate-13 在飞 judge.py 改动=将我 `_machine_slot_probe` 重构为公共 `machine_slot_audit(workdir)->list[str]`（splice 后调用面 e2e/worker/repair_l2/retranslate 接线，彼域文件）——slotaudit 交付的 peer-side patch text 落实中，互不干。
+- **新派 roundcat+texmfshadow+pairediff**：①`_round_cat` 读 sentry_reason（engine.py 微修+RunFn 注记）②texmfshadow census 扩域=vendor 可达性普查（filemap/tlmgr/doc-dir/TEXMFHOME 各解析点谁遮蔽 vendor 件）③pairediff 设计 src/zh 机槽参 diff 探针（ASCII↔ASCII mangling 盲区，先实证 FP 率再定建否）。
+- roster 7 在飞：pendspec(#59)/draftsty(#60)/mnrasretire(#61)/flipcheck5(#62)/roundcat/texmfshadow/pairediff；旧尸(psttimeout/multistrand/skiprole/mnras-optpatch/iffalse/pstadd/sentryfix/slotaudit/geomreverify)回声确认早收。
+- 门巡：ledger 9ed9a03 已 commit；geomverify report.md 已按全报重写。裁决点新增=孪生头守门机制选型（暂入册多错 dispatch 方向）。
