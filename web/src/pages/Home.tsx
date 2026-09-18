@@ -295,31 +295,40 @@ export default function Home(props: {
     const onUpProgress = (loaded: number, total: number) =>
         setUpPct(Math.min(100, Math.round((loaded / total) * 100)));
 
-    const upload = async (file: File, land = true) => {
-        if (busy()) return;
-        const bad = precheck(file);
-        if (bad) {
-            setError(`${file.name}：${bad}`);
-            return;
-        }
+    /** 单件执行体：precheck + 状态翻转 + uploadOne——upload/uploadBatch 共用。
+     *  成功回 ``{res}``，失败回 ``{err}`` 文案（单件路 setError、批路汇总）。 */
+    const runOne = async (
+        f: File,
+        snap: ReturnType<typeof uploadFields>,
+    ): Promise<{ res: Awaited<ReturnType<typeof uploadOne>> } | { err: string }> => {
+        const bad = precheck(f);
+        if (bad) return { err: `${f.name}：${bad}` };
         setError("");
         setBusy(true);
         setUploading(true);
         setUpPct(-1);
         try {
-            const res = await uploadOne(file, uploadFields(), onUpProgress);
-            if (!alive) return;
-            setOptKey("");
-            if (land) openRes(res);
+            return { res: await uploadOne(f, snap, onUpProgress) };
         } catch (e) {
-            if (alive)
-                setError(
-                    `${file.name}：${e instanceof Error ? e.message : String(e)}`,
-                );
+            return {
+                err: `${f.name}：${e instanceof Error ? e.message : String(e)}`,
+            };
         } finally {
             setBusy(false);
             setUploading(false);
         }
+    };
+
+    const upload = async (file: File, land = true) => {
+        if (busy()) return;
+        const r = await runOne(file, uploadFields());
+        if (!alive) return;
+        if ("err" in r) {
+            setError(r.err);
+            return;
+        }
+        setOptKey("");
+        if (land) openRes(r.res);
     };
 
     /**
@@ -336,25 +345,8 @@ export default function Home(props: {
         // 与单文件路同一套 multipart 字段——整批一次快照（中途改选项不影响在飞批）
         const snap = uploadFields();
         for (const f of files) {
-            const bad = precheck(f);
-            if (bad) {
-                errs.push(`${f.name}：${bad}`);
-                continue;
-            }
-            setError("");
-            setBusy(true);
-            setUploading(true);
-            setUpPct(-1);
-            try {
-                await uploadOne(f, snap, onUpProgress);
-            } catch (e) {
-                errs.push(
-                    `${f.name}：${e instanceof Error ? e.message : String(e)}`,
-                );
-            } finally {
-                setBusy(false);
-                setUploading(false);
-            }
+            const r = await runOne(f, snap);
+            if ("err" in r) errs.push(r.err);
             if (!alive) return;
         }
         setOptKey("");
