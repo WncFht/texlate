@@ -207,7 +207,7 @@ rules:
         # (source_contains 既有守卫兜爆半径)
         - { category: other, payload_required: false }
     condition:
-      source_contains: "hypdvips|\\[[^\\]]*\\b(?:pdftex|dvips|dvipsone|dviwindo|ps2pdf|hypertex|vtex|textures|tex4ht|latex2html|oztex|dvipdfmx?)\\b"
+      source_contains: "hypdvips|\\[[^\\]]*\\b(?:pdftex|dvips|dvipsone|dviwindo|ps2pdf|hypertex|vtex|textures|tex4ht|latex2html|oztex|dvipdfmx?)\\b|\\\\[gex]?def\\s*\\\\[\\w@]*driver[\\w@]*\\s*\\{\\s*(?:pdftex|dvips|dvipsone|dviwindo|ps2pdf|hypertex|vtex|vtexpdfmark|textures|tex4ht|latex2html|oztex|dvipdfmx?)\\s*\\}"
     action:
       kind: regex_rewrite
       params:
@@ -246,13 +246,20 @@ rules:
               pattern: "(\\\\PassOptionsTo(?:Package|Class)\\s*\\{[^}]*?)(?:,\\s*(?:pdftex|dvips|dvipsone|dviwindo|ps2pdf|hypertex|vtex|vtexpdfmark|textures|tex4ht|latex2html|oztex|dvipdfmx?)\\s*)+(?=,|\\})",
               repl: "\\g<1>",
             }
+          # \\def\\<cs>driver<cs>{<drv>} 间接指派 → xetex (kaist-ucs.cls 形:
+          # \\ifpdf/\\if@dvips 条件选支, 括号面零驱动词故旧闸够不着;
+          # 全支同覆写——xetex 家族下任一支命中都须是 xetex)
+          - {
+              pattern: "(\\\\[gex]?def\\s*\\\\[\\w@]*driver[\\w@]*\\s*\\{)\\s*(?:pdftex|dvips|dvipsone|dviwindo|ps2pdf|hypertex|vtex|vtexpdfmark|textures|tex4ht|latex2html|oztex|dvipdfmx?)\\s*\\}",
+              repl: "\\g<1>xetex}",
+            }
           # 空括号清扫: \usepackage[]{x} → \usepackage{x}
           - {
               pattern: "(\\\\(?:documentclass|usepackage|RequirePackage))\\s*\\[\\s*\\]",
               repl: "\\g<1>",
             }
     risk: low # xetex 下这些驱动本就失效; 自侦即作者意图
-    known_gap: "doc 若用 hypdvips 专属 cs (嵌入 PS 钩子) 会前进到 undefined_cs → cs_targeted_fix; \\hypersetup 内驱动键、非括号赋值 (\\def\\@driver) 未覆盖"
+    known_gap: "doc 若用 hypdvips 专属 cs (嵌入 PS 钩子) 会前进到 undefined_cs → cs_targeted_fix; \\hypersetup 内驱动键、非 \\def 形指派 (\\let/\\newcommand) 未覆盖"
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same } # XeTeX 内核同驱动面
