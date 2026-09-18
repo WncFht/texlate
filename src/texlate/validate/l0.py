@@ -67,6 +67,7 @@ from texlate.textutil import (
     bare_cs_net,
     lev_capped,
     mask_comments,
+    ph_in_cs_net,
 )
 
 __all__ = [
@@ -85,11 +86,6 @@ PH_ANY_LIKE_RX: Final = re.compile(r"\[\[[A-Z][A-Z0-9_]*(?:_\d+)?\]\]")
 
 #: 从模糊候选里剥出核心 token（去括号/空白），供 lev 配对。
 _PH_CORE_RX: Final = re.compile(r"[A-Za-z0-9_]+")
-
-#: 占位符嵌进 cs 名中段：``\cs名[[..]]字母`` 双侧夹持——尾邻无字母的
-#: ``\cs[[PH]]`` 是合法高频形（``\protect[[REF_n]]``/``\em[[CMD_n]]``），
-#: ``\\`` 控制符号 + ``[[PH]]`` 由必需字母排除。
-_PH_IN_CS_RX: Final = re.compile(r"\\[a-zA-Z@]+\[\[[^\[\]\n]{1,48}?\]\][a-zA-Z@]")
 
 #: key 承载命令：*cite* 族（cite/Cite/paracite/footcite/nocite/mcite……
 #: 前后缀皆收、首字母大小写皆收）/ *cites 多 key 参族（整段 {..}{..}
@@ -1011,9 +1007,7 @@ def _check_ph_in_cs(src: str, zh: str, issues: list[Issue]) -> None:
     记档：``\cs[[KEY_n]]`` 类尾邻载荷字母头也会融合，但 validator
     拿不到 ph_map 判不了类型——后续按 ph 类型白名单再补。
     """
-    extra = Counter(_PH_IN_CS_RX.findall(mask_comments(zh))) - Counter(
-        _PH_IN_CS_RX.findall(mask_comments(src))
-    )
+    extra = ph_in_cs_net(src, zh)
     if extra:
         toks = ", ".join(f"{t} ×{n}" for t, n in sorted(extra.items()))
         issues.append(
