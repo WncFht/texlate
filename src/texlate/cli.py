@@ -1078,43 +1078,28 @@ def _share_glossary_hash(
     内置/分类默认层随 ``pipeline_ver`` 走不进指纹；自定义层 = 配置的
     glossary 路径（缺省 ``~/.texlate/glossary.yaml`` 若存在）+ 论文级
     ``base/glossary.local.yaml``。配置路径已死 → ShareError——宁缺不
-    串桶，错标 ``""`` 会把自定义译文混进默认池。
+    串桶，错标 ``""`` 会把自定义译文混进默认池。指纹口径（层序/复合/
+    读失败策略）单源在 ``share.glossary_content_hash``——本臂只保留
+    CLI 侧解析策略（``expanduser`` 直收绝对/相对路径、死径即拒）。
     """
     from texlate.xlat.glossary import (  # noqa: PLC0415 -- share 子命令局部依赖
         LOCAL_GLOSSARY_NAME,
         USER_GLOSSARY_PATH,
     )
 
-    files: list[Path] = []
-    gfile: Path | None = None
     gpath = str(cfg.get("glossary") or options.get("glossary") or "")
+    gfile: Path | None = None
     if gpath:
         gfile = Path(gpath).expanduser()
         if not _is_file(gfile):
             msg = f"任务配置了 glossary 但文件不可读: {gpath}"
             raise ShareError(msg)
-        files.append(gfile)
-    elif _is_file(USER_GLOSSARY_PATH):
-        files.append(USER_GLOSSARY_PATH)
-    local = task_dir / "base" / LOCAL_GLOSSARY_NAME
-    if _is_file(local):
-        files.append(local)
-    if not files:
-        return ""
-    h = hashlib.sha256()
-    hashed = 0
-    for f in files:
-        try:
-            h.update(hashlib.sha256(f.read_bytes()).digest())
-        except OSError as e:
-            if f == gfile:
-                # 配置层已死与 gate 同口径拒——宁缺不串桶
-                msg = f"任务配置了 glossary 但文件不可读: {gpath}"
-                raise ShareError(msg) from e
-            typer.echo(f"glossary 层 {f} 读取失败（{e}）——按缺席计", err=True)
-        else:
-            hashed += 1
-    return h.hexdigest() if hashed else ""
+    return glossary_content_hash(
+        user_layer=gfile,
+        local_layer=task_dir / "base" / LOCAL_GLOSSARY_NAME,
+        fallback_user=USER_GLOSSARY_PATH,
+        strict_layers=frozenset({gfile}) if gfile is not None else frozenset(),
+    )
 
 
 def _share_out_is_file(out: Path) -> bool:

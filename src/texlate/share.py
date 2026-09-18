@@ -169,6 +169,57 @@ def share_key(  # noqa: PLR0913, PLR0917 -- 七组分即寻址公式本身，参
     return hashlib.sha256("|".join(parts).encode()).hexdigest()
 
 
+def _is_file(p: Path) -> bool:
+    """``p.is_file()`` 的容错版（OSError/ValueError 一律按不在计）。"""
+    try:
+        return p.is_file()
+    except (OSError, ValueError):
+        return False
+
+
+def glossary_content_hash(
+    *,
+    user_layer: Path | None,
+    local_layer: Path | None,
+    fallback_user: Path | None = None,
+    strict_layers: frozenset[Path] = frozenset(),
+) -> str:
+    """``glossary_hash`` 组分：翻译时生效的自定义术语层内容复合指纹。
+
+    层序 = 哈希材料序：user 层（``user_layer`` 命中；``None`` 时回落
+    ``fallback_user``——``Glossary.load`` 缺省 user 层同态）→ local 层
+    （``base/glossary.local.yaml``）。逐层 sha256 摘要再复合 sha256；
+    全部缺席/未读到 → ``""``（内建 category/default 层随 ``pipeline_ver``
+    走不进指纹）。
+
+    ``strict_layers`` 内层 ``read_bytes`` 失败 → ShareError（配置层已死
+    与 gate 同口径拒——宁缺不串桶）；其余层读失败 → ``log.warning``
+    按缺席计。**路径解析策略归调用方**：cli 臂 ``expanduser`` 直收 +
+    死径即拒，worker 臂 ``_glossary_path`` confine（拒/缺席回落缺省层）——
+    两臂各按自己翻译时的实际生效层喂参，本函数只管层序与指纹口径。
+    """
+    gfile = user_layer if user_layer is not None and _is_file(user_layer) else None
+    if gfile is None and fallback_user is not None and _is_file(fallback_user):
+        gfile = fallback_user
+    files = [f for f in (gfile, local_layer) if f is not None and _is_file(f)]
+    if not files:
+        return ""
+    strict = frozenset(strict_layers)
+    h = hashlib.sha256()
+    hashed = 0
+    for f in files:
+        try:
+            h.update(hashlib.sha256(f.read_bytes()).digest())
+        except OSError as e:
+            if f in strict:
+                msg = f"glossary 层 {f} 读取失败: {e}"
+                raise ShareError(msg) from e
+            log.warning("glossary 层 %s 读取失败（%s）——按缺席计", f, e)
+        else:
+            hashed += 1
+    return h.hexdigest() if hashed else ""
+
+
 # ---------------------------------------------------------------- pack
 
 

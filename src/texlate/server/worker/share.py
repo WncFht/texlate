@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import shutil
 import tempfile
@@ -14,6 +13,7 @@ from texlate.arxiv.fetch import normalize_arxiv_id
 from texlate.server.settings import share_dir
 from texlate.share import (
     ShareError,
+    glossary_content_hash,
     index_append,
     pack_share,
     share_key,
@@ -386,25 +386,24 @@ class _Share:
         ``USER_GLOSSARY_PATH``（``Glossary.load`` 的缺省 user 层）；
         local 层 ``base/glossary.local.yaml`` 恒进指纹。category/default
         内建层随 ``pipeline_ver`` 走不进指纹（cli ``_share_glossary_hash``
-        同口径）。无自定义层 → ``""``。
+        同口径）。无自定义层 → ``""``。指纹口径单源在
+        ``share.glossary_content_hash``——本臂只保留 confine 解析策略；
+        全部层 strict = 读失败即 ShareError（与原裸 ``read_bytes`` 传播
+        同口径，异常型归一 ShareError）。
         """
         gpath = str(cfg.get("glossary") or ctx.options().get("glossary") or "")
-        gfile: Path | None = None
-        if gpath:
-            gfile = self._glossary_path(ctx, gpath, str(cfg.get("glossary_dir") or ""))
-        if gfile is None and _w.USER_GLOSSARY_PATH.is_file():
-            gfile = _w.USER_GLOSSARY_PATH
-        files = [
-            f
-            for f in (gfile, ctx.base_dir / LOCAL_GLOSSARY_NAME)
-            if f is not None and f.is_file()
-        ]
-        if not files:
-            return ""
-        h = hashlib.sha256()
-        for f in files:
-            h.update(hashlib.sha256(f.read_bytes()).digest())
-        return h.hexdigest()
+        gfile = (
+            self._glossary_path(ctx, gpath, str(cfg.get("glossary_dir") or ""))
+            if gpath
+            else None
+        )
+        local = ctx.base_dir / LOCAL_GLOSSARY_NAME
+        return glossary_content_hash(
+            user_layer=gfile,
+            local_layer=local,
+            fallback_user=_w.USER_GLOSSARY_PATH,
+            strict_layers=frozenset(f for f in (gfile, local) if f is not None),
+        )
 
     def share_pack_manifest(
         self, ctx: TaskCtx, row: dict[str, Any]
