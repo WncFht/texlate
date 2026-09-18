@@ -325,6 +325,76 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "pstadd-lane 2026-09-19: tmp/lane-multistrand/report.md + flipcheck3 work/0707.4206 实读"
 
+  # 2026-09-19 draftsty-patch lane: 稿自带 .sty 内 abstract 体捕获花括号
+  # hack —— `\protected@edef\@tempa{\ifnum`}=\z@\fi...` 的 `` `} `` 被
+  # \ifnum 当字符码操作数吞掉 (125≠0 假值整段空), 使 edef 的 `{` 失去配对
+  # `}` 永不闭合 → abstract 体 + \endabstract + 文末全部流入 edef 扫描,
+  # 吸入展开链混入的 \iffalse (titlesec/hyperref 内件) 至 EOF 不合 →
+  # `Incomplete \iffalse` (1706.00240; bt7.tex = article[twocolumn] +
+  # verbatim draft.sty 零 texlate 含量同款复现 —— 2017 期构形 TL2026 不
+  # 再容忍)。err_head 不点名 sty 文件名 → 闸走 ctx 的 Incomplete \if /
+  # File-ended-\protected@edef 签名 ∧ wdir *.sty 在场; sh 脚本内再对
+  # `protected@edef.*ifnum`}=.z@` / `ifnum`{=.z@` 逐件确证 (注释行剥除后
+  # 判 —— 纯注释载件不动; 无签名件→ continue, 纯 no-op exit 0), 首个
+  # \endinput 前 (缺席则 EOF) 注入良性
+  # \def\abstract/\endabstract 覆写 —— hack 两行仍在文件里但永不再执行
+  # (sty 载入只扫参不展开, 覆写在后赢)。texlate-fixloop-injected 指纹
+  # 幂等; \ifdefined\maketitle 保住无 \maketitle 稿的题名块 (hack 原意即
+  # abstract 触发题名), quotation 兜体。
+  - id: abstract_edef_capture_neutralize
+    mechanisms: [B05]
+    description: "稿自带 .sty abstract edef 体捕获 hack (\\protected@edef\\@tempa{\\ifnum`}=\\z@ 吞 `}` → 全文入 edef) → \\endinput 前注入良性环境覆写"
+    phase: loop
+    order: 11.95 # pstricks_add_pair_retire(11.9) 后, legacy_pkg_shim(12) 前 —— 稿自带件病灶同族 (退役系 → 补丁系)
+    when:
+      any: # Incomplete \iffalse 落 other; 吸收展开首错变体 (File-ended/undef cs) 同闸收
+        - { category: other }
+        - { category: syntax }
+        - { category: undefined_cs }
+        - { category: runaway_scan }
+    condition:
+      any:
+        - { ctx_suggests: "Incomplete \\\\if" }
+        - {
+            ctx_suggests: "File ended while scanning use of \\\\protected@edef",
+          }
+      cache_dir_glob: "*.sty"
+      tool_available: sh
+    action:
+      kind: run_tool
+      params:
+        argv:
+          - sh
+          - -c
+          - |
+            for f in *.sty *.cls; do
+              [ -f "$f" ] || continue
+              grep -q 'texlate-fixloop-injected' "$f" && continue
+              grep -vE '^[[:space:]]*%' "$f" | grep -qE 'protected@edef.*ifnum.*}=.z@|ifnum`[{}]=.z@' || continue
+              ln=$(grep -n '\\endinput' "$f" | head -1 | cut -d: -f1)
+              {
+                if [ -n "$ln" ]; then head -n $((ln - 1)) "$f"; else cat "$f"; fi
+                printf '%s\n' '% texlate-fixloop-injected: abstract \protected@edef body-capture neutralized (Incomplete \iffalse)'
+                printf '%s\n' '\def\abstract{\ifdefined\maketitle\maketitle\fi\small\quotation\noindent\ignorespaces}%'
+                printf '%s\n' '\def\endabstract{\endquotation\ignorespacesafterend}%'
+                if [ -n "$ln" ]; then tail -n "+$ln" "$f"; fi
+              } > "$f.fixloop-tmp" && mv -f "$f.fixloop-tmp" "$f"
+            done
+            exit 0
+        timeout: 30
+    risk: low # 注入件仅覆写 \abstract/\endabstract 两 cs; \def 无存在性前提, sty 其余内容逐字节保留; 稿若自调 \maketitle → 题名重复 (妆面非断点)
+    known_gap: "闸/脚本只扫顶层 *.sty/*.cls —— 子目录 sty 件 (kpathsea TEXINPUTS 可及) 漏收; hack 写面变体 (\\edef 无 protected@、\\let\\endabstract 形) 签名外漏收; cls-only 载件 (无 .sty) 过不了 glob 闸"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "corpus_v3 1706.00240 (iffalse-census #46 残格, 裁定 unfixable:other)",
+          error: "Incomplete \\iffalse; all text was ignored after line 317 —— 稿自带 draft.sty \\protected@edef\\@tempa{\\ifnum`}=\\z@ 吞 `}` → edef 不闭 → 全文入 edef 扫描",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-iffalse/report.md (bt7.tex 复现链) + tmp/lane-draftsty 补丁实证 (xelatex repro2 题名+abstract 渲染全保)"
+
   # fixable-data 裁定 (1003.2165): polutonikogreek 是弃名, greek.polutoniko
   # 亦走 locale/invalid/ 弃名桩必炸。现行 ini 正形是 `greek.polytonic`
   # (locale/el/babel-polytonicgreek.tex 自证 "Provided: greek.polytonic";
