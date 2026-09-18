@@ -15,6 +15,7 @@ from texlate.compile.inject import (
     InjectRejectError,
     prepare_chinese,
 )
+from texlate.compile.judge import paired_slot_diff
 from texlate.compile.probe import (
     dep_seen,
     deps_diff,
@@ -322,6 +323,8 @@ class _Compile:
             if not by_int:
                 continue
             out = reconstruct(res, by_int)
+            if notes := paired_slot_diff(res.vtex, out, rel):
+                self._log(ctx, f"slotdiff {rel}: {'; '.join(notes)}")
             (ctx.zh_dir / rel).write_text(out, encoding="utf-8")
             ctx.leftover_ph += len(PH_RX.findall(out))
             n_files += 1

@@ -27,7 +27,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Protocol
 
 from texlate.compile.engine import engine_for
-from texlate.compile.judge import Verdict, judge
+from texlate.compile.judge import Verdict, judge, paired_slot_diff
 from texlate.compile.probe import target_probe
 from texlate.latex.api import scan_tex_tree
 from texlate.latex.reconstruct import reconstruct
@@ -304,12 +304,16 @@ def translate_tree_run(  # noqa: PLR0913 -- 注入面穿透（scan/validator 各
 
     n_files = 0
     n_leftover = 0
+    slot_diffs: dict[str, list[str]] = {}
     for idx, (f, res) in enumerate(scans):
         trans = by_file.get(idx)
         if not trans:
             continue
         zh = reconstruct(res, trans)
         f.write_text(zh, encoding="utf-8")
+        rel = f.relative_to(root).as_posix()
+        if notes := paired_slot_diff(res.vtex, zh, rel):
+            slot_diffs[rel] = notes
         n_files += 1
         n_leftover += len(PH_RX.findall(zh))
     stats = {
@@ -322,6 +326,7 @@ def translate_tree_run(  # noqa: PLR0913 -- 注入面穿透（scan/validator 各
         "support_skipped": len(support_files),
         "leftover_ph": n_leftover,
         "env_judge": env_stats,
+        "slot_diffs": slot_diffs,
     }
     run = TreeRun(
         scans=scans,

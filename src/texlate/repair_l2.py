@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from texlate.compile.inject import InjectRejectError, prepare_chinese
+from texlate.compile.judge import paired_slot_diff
 from texlate.latex.placeholder import CHUNK_RX, PH_RX
 from texlate.latex.reconstruct import (
     _LATIN_ITEM_RX,
@@ -406,7 +407,18 @@ def _resplice(run: TreeRun, work: Path, main_rel: str, fidxs: set[int]) -> list[
     return rewritten
 
 
-def l2_repair_round(  # noqa: PLR0913 -- 阶梯钩子面穿透两臂同一契约
+def _slot_diffs(run: TreeRun, work: Path, fidxs: set[int]) -> dict[str, list[str]]:
+    """``_resplice`` 落盘 zh 对 ``res.vtex`` 的机位配对 diff——重写后逐文件对账。"""
+    out: dict[str, list[str]] = {}
+    for fidx in sorted(fidxs):
+        f, res = run.scans[fidx]
+        rel = f.relative_to(work).as_posix()
+        if notes := paired_slot_diff(res.vtex, f.read_text(encoding="utf-8"), rel):
+            out[rel] = notes
+    return out
+
+
+def l2_repair_round(  # noqa: C901, PLR0913 -- 阶梯直铺：钩子面穿透两臂同一契约
     run: TreeRun,
     work: Path,
     main_rel: str,
@@ -446,9 +458,10 @@ def l2_repair_round(  # noqa: PLR0913 -- 阶梯钩子面穿透两臂同一契约
         rep["note"] = "no chunk changed"
         return rep, last_res, None
 
-    rep["rewritten"] = _resplice(
-        run, work, main_rel, {split_cid(c)[0] for c in changed}
-    )
+    fidxs = {split_cid(c)[0] for c in changed}
+    rep["rewritten"] = _resplice(run, work, main_rel, fidxs)
+    if diffs := _slot_diffs(run, work, fidxs):
+        rep["slot_diffs"] = diffs
     res2, v2 = recompile()
     if checkpoint is not None:
         checkpoint()
@@ -467,9 +480,10 @@ def l2_repair_round(  # noqa: PLR0913 -- 阶梯钩子面穿透两臂同一契约
         for cid in still_bad:
             fidx, ccid = split_cid(cid)
             run.trans.get(fidx, {}).pop(ccid, None)
-        rep["fallback_rewritten"] = _resplice(
-            run, work, main_rel, {split_cid(c)[0] for c in still_bad}
-        )
+        fb_fidxs = {split_cid(c)[0] for c in still_bad}
+        rep["fallback_rewritten"] = _resplice(run, work, main_rel, fb_fidxs)
+        if diffs := _slot_diffs(run, work, fb_fidxs):
+            rep["fallback_slot_diffs"] = diffs
         # 回落态即交付树——补一次裸编：fixloop 关/崩/reject 时不再有
         # 代验兜底，zh-src.zip 不能装未验证树（audit fallback_unverified）
         res3, v3 = recompile()

@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING, Any
 from texlate.compile.judge import judge
 from texlate.repair_l2 import (
     _resplice,
+    _slot_diffs,
     split_cid,
 )
 from texlate.server.settings import scrub
@@ -174,6 +175,10 @@ class _Retranslate:
     def _retr_resplice(self, ctx: TaskCtx, run: TreeRun, fidx: int) -> None:
         """受影响文件 reconstruct 重写进 ``zh/`` + 编译哨兵失效 + zh-src.zip 重打。"""
         rewritten = _resplice(run, ctx.zh_dir, ctx.main_rel, {fidx})
+        for rel, notes in _slot_diffs(run, ctx.zh_dir, {fidx}).items():
+            self._log(
+                ctx, f"retranslate slotdiff {rel}: {'; '.join(notes)}", force=True
+            )
         self._log(ctx, f"retranslate: resplice {','.join(rewritten)}", force=True)
         # zh/ 已变——.compile-done 哨兵随之失效（否则 retry 见哨兵直跳
         # 编译段，旧 pdf 当新译文产物交付）
