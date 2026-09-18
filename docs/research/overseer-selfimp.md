@@ -603,3 +603,10 @@
 - **test_docx_done 归因更正**（texlate-13 来讯）：非 pipecore WIP——系彼已 commit 的 ChunkResult.skipped→ChunkRecord.fell_back 改名漏了 union 消费点，57f0700 已修。
 - **L1 re-gate ②过**（tmp/l1-gate2 → parsebench-v3-postspec）：1955/1955 strict 全等、leak 0.0/133372 ≪0.040%——post-spec 树（pendspec walker+peer v1 退役+45fab85/cb404a6/22e94be/c68dc86/9577210/b1b46b3）全量验证。
 - roster 4 在飞：citemath/twinhead/draftgap 研究道+acceptpdf（完待报）；mnrasretire/slotdiff 尸待报文到齐后清。
+
+## 2026-09-19 ~07:0x — 夜巡：mnrasretire v2 追落 + 全树归因图
+
+- **e9b6583 mnrasretire v2 收**（中飞修订捕获）：commit 9577210 后工作树再变——agent 收到我 stateless-drop 重设计后先交 v1 混合（usertree 内仍 mv），续修订为纯 drop：`mnras_texmf_shadow_drop`——**三探测根**（wdir 根指纹 / find . ../_texmf/home 双式 usertree / kpsewhich 宿主+TEXMFDIST 面——纯证据不触件）+ **mv 收窄至 wdir 根稿自带病件**（cwd 现胜者让位，pstadd 同型先例）+ 根槽安全件不覆写 + tectonic 无 kpsewhich 宿主面缺探声明 known_gap。v2 严格优于 v1：树外突变归零（v1 仍 mv usertree=wdir 邻域突变）。27/27 钉绿、112 规则载、ruff 净。
+- **全树归因图**（零违例）：segmenter×6+argspec/dispatch_mirror 测=peer segmirror 三镜合并在飞（a28e853 上吸收 _PendRem/_grp_spec_walk）；worker/_common+compile+pipecore.py=peer 抽脊在飞；bench/py×4+test_fuzz×25+stubaudit 测=peer docstring 转义清扫批；40-install+mnrasretire 测=v2 已收。
+- **peer 更正入册**：test_docx_done 失败归因=texlate-13 已 commit 的 ChunkResult.skipped→fell_back 改名漏 union 消费点（57f0700 修）——非 pipecore WIP；L0 全域恢复绿。
+- **L1 re-gate ②过已记**；slotdiff 三接线 patch 仍待报文（lane 目录空——或随报文载）；roster 2 在飞（citemath/failmine 跑）+3 报文在途（twinhead/draftgap/acceptpdf 已清尸）。
