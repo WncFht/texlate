@@ -610,3 +610,12 @@
 - **全树归因图**（零违例）：segmenter×6+argspec/dispatch_mirror 测=peer segmirror 三镜合并在飞（a28e853 上吸收 _PendRem/_grp_spec_walk）；worker/_common+compile+pipecore.py=peer 抽脊在飞；bench/py×4+test_fuzz×25+stubaudit 测=peer docstring 转义清扫批；40-install+mnrasretire 测=v2 已收。
 - **peer 更正入册**：test_docx_done 失败归因=texlate-13 已 commit 的 ChunkResult.skipped→fell_back 改名漏 union 消费点（57f0700 修）——非 pipecore WIP；L0 全域恢复绿。
 - **L1 re-gate ②过已记**；slotdiff 三接线 patch 仍待报文（lane 目录空——或随报文载）；roster 2 在飞（citemath/failmine 跑）+3 报文在途（twinhead/draftgap/acceptpdf 已清尸）。
+
+## 2026-09-19 ~07:4x — 研究道收割：twinhead 设计采纳 + 三普查定量
+
+- **twinhead design=采纳**（tmp/lane-twinhead/design.md，前提修正件）：xelatex `-halt-on-error` 下孪生错**根本不在 log**（r1 log 仅 39 行 1 错）——多错 dispatch 与孪生签名规则双双死在 xelatex 面；tectonic `continue_on_errors` 默认全错在 rep.raw。采纳案=**miss 二次 dispatch**：`_match_apply` 空判→classify_errs(rep)（tectonic 免）∨ xelatex 跑一次 best_effort 探针编（salvage 同参，产件 stash 供 salvage 复用=净零编译）→候选 (cat,pay) 去重≠primary 重指 ctx 重跑规则匹配；**yaml 零改**——geometry_hoist 原签名 verbatim 中 twin 真 cat/pay；applied 去重绑二次 pay；sig/stuck 仍计 primary；探针预算 ≤2/cell 且仅 apply 改态后可再探。爆半径=加性仅 would-die 径，最坏=修级联症状先燃一轮。
+- **#70 secdispatch 派出**（engine.py+logparse.py+新测件，## REVIEW）。
+- **draftgap 裁决=known_gap 虚置**：EDEF_CAPTURE 精确签名仅 1706.00240（已覆）；IFNUM_BT_OTHER 16 格=pasj00.cls:3788 `\ifnum`0>\count@` 数字类判=良性习语；IFX_BT 1 格 nath.sty 良性；LET_ABS 410 格全 `\let\abstract\@undefined` 类=良性定义非捕获 hack；S0 10 格 amsmath 良性——变体桶全假阳，无后续规则修订需求。
+- **acceptpdf 定量（#10 证据件）**：1131 acceptable_pdf 格——594 ferr>0 / 537 ferr=0；**59 格（5.2%）携内容丢失签名**：env_undefined 31、missing_end 15、eof_truncation 5、capacity_abort 4、begin_end_mismatch 2、emergency 2；last_died 全 null。裁决点升级：~95% 为妆面残，5.2% 实丢 env/截断——待用户裁 acceptable_pdf 是否收紧排除内容丢失格。
+- **citemath 普查件产**（4 json，census209 ds209 代理 0/1987——2.09 探测口径或漏 revtex-era；机制报在途）。
+- roster 3：secdispatch(#70)/citemath/failmine；twinhead/draftgap/acceptpdf 尸清。
