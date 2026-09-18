@@ -130,10 +130,10 @@ def _cond_ok(  # noqa: C901, PLR0911, PLR0912  # 条件原语分派表, 每键�
             if str(v) not in ctx.main_head():
                 return False, "main head 无该子串"
         elif key == "source_contains":
-            if not re.search(str(v), ctx.source_blob()):
+            if not regex.search(str(v), ctx.source_blob()):
                 return False, "源码无该 pattern"
         elif key == "ctx_suggests":
-            if not re.search(str(v), ctx.err_head or ""):
+            if not regex.search(str(v), ctx.err_head or ""):
                 return False, "err ctx 无提示"
         elif key == "fileset":
             has = v.get("has_ext") or []
@@ -244,7 +244,7 @@ def _scan_names(code: str, sp: dict[str, Any]) -> Iterator[str]:
     ``\InputIfFileExists{aip-\X.tex}`` 花括号内构造名——都不可探测,
     放行即产 ``sv.tex``/``aip-.tex`` 噪音安装 (svjour/aipcheck 实证)。
     """
-    for m in re.finditer(sp["regex"], code):
+    for m in regex.finditer(sp["regex"], code):
         if m.end() < len(code) and code[m.end()] == "\\" and code[m.end() - 1] != "}":
             continue  # 匹配被 \ 截断——残头非实名
         names = [m.group(1)]
@@ -261,7 +261,9 @@ def _apply_scan_install(
 ) -> tuple[bool, str]:
     r"""静态扫 ``\usepackage``/``\documentclass`` → 探测缺失 → 批量装 (spike L594-618)。"""
     need: set[str] = set()
-    noise = re.compile(params["noise_filter"]) if params.get("noise_filter") else None
+    noise = (
+        regex.compile(params["noise_filter"]) if params.get("noise_filter") else None
+    )
     for f in ctx.tex_files():
         t = ctx.read(f)
         if t is None:
