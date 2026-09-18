@@ -45,6 +45,7 @@ from texlate.compile.fixloop._builtins_csfix import (
 )
 from texlate.compile.fixloop._builtins_misc import (
     docstrip_generate,
+    extract_tar_blobs,
     harvest_build_directives,
     non_utf8_recode,
     plain_format_detect,
@@ -144,6 +145,7 @@ __all__ = [
     "cs_targeted_fix",
     "docstrip_generate",
     "eps_to_pdf",
+    "extract_tar_blobs",
     "find_vendored_shadows",
     "font_cs_shim",
     "font_fallback",
@@ -939,6 +941,7 @@ TRANSFORM_FNS = {
     "vendored_fetch": vendored_fetch,
     "generated_stub": generated_stub,
     "docstrip_generate": docstrip_generate,
+    "extract_tar_blobs": extract_tar_blobs,
     "plain_format_detect": plain_format_detect,
     "harvest_build_directives": harvest_build_directives,
     "svg_prepare": svg_prepare,

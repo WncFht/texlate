@@ -1105,3 +1105,94 @@ def test_bounded_sub_timeout_returns_none_no_leak() -> None:
     assert actions._bounded_sub(pat, "x", "a" * 30 + "b", timeout_s=0.5) is None  # noqa: SLF001
     assert time.monotonic() - t0 < 10  # noqa: PLR2004 -- 上限即超时闸本身
     assert threading.enumerate() == before
+
+
+# ---------------------------------------------------------------- tar 伪装件
+def _write_tar(path: Path, members: dict[str, bytes]) -> None:
+    """POSIX tar 写出 (ustar 格式——``ustar`` 魔数 @257 必现)。"""
+    import io  # noqa: PLC0415
+    import tarfile  # noqa: PLC0415
+
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w", format=tarfile.USTAR_FORMAT) as tf:
+        for name, data in members.items():
+            info = tarfile.TarInfo(name)
+            info.size = len(data)
+            tf.addfile(info, io.BytesIO(data))
+    path.write_bytes(buf.getvalue())
+
+
+def _extract(wdir: Path) -> tuple[bool, str]:
+    ctx = LoopCtx(wdir=wdir, engine_name="xelatex")
+    return builtins.TRANSFORM_FNS["extract_tar_blobs"](ctx, None, None, {})
+
+
+def test_tar_blob_extracts_members_and_retires(tmp_path: Path) -> None:
+    r"""0707.0382/0104007 型: ``.sty`` 名 tar → 成员补缺 + blob 改名退役。"""
+    _write_tar(
+        tmp_path / "AMSbsy.sty",
+        {"./iaus.cls": b"\\ProvidesClass{iaus}\n", "figs/f1.eps": b"%!PS\n"},
+    )
+    ok, note = _extract(tmp_path)
+    assert ok, note
+    assert (tmp_path / "iaus.cls").read_bytes() == b"\\ProvidesClass{iaus}\n"
+    assert (tmp_path / "figs" / "f1.eps").is_file()
+    assert not (tmp_path / "AMSbsy.sty").exists()
+    assert (tmp_path / "AMSbsy.sty.tarblob").is_file()  # 退役留证, 移出解析路径
+
+
+def test_tar_blob_no_clobber_keeps_real_files(tmp_path: Path) -> None:
+    """成员名撞真件 → 真件不动 (tar 只补缺)。"""
+    (tmp_path / "aipproc.sty").write_bytes(b"\\ProvidesPackage{real}\n")
+    _write_tar(
+        tmp_path / "aipproc.cls",
+        {"./aipproc.sty": b"% stale dup\n", "./symposium.tex": b"\\bye\n"},
+    )
+    ok, _ = _extract(tmp_path)
+    assert ok
+    assert (tmp_path / "aipproc.sty").read_bytes() == b"\\ProvidesPackage{real}\n"
+    assert (tmp_path / "symposium.tex").is_file()  # 缺的补上
+
+
+def test_tar_blob_unsafe_members_rejected(tmp_path: Path) -> None:
+    """``..``/绝对路径/非常规成员全拒——只合法件落地。"""
+    _write_tar(
+        tmp_path / "evil.sty",
+        {"../escape.tex": b"x", "/abs.tex": b"y", "ok/inner.sty": b"z\n"},
+    )
+    ok, _ = _extract(tmp_path)
+    assert ok  # ok/inner.sty 一件落地即抽中
+    assert not (tmp_path.parent / "escape.tex").exists()
+    assert not Path("/abs.tex").exists()
+    assert (tmp_path / "ok" / "inner.sty").is_file()
+
+
+def test_tar_blob_ignores_real_files(tmp_path: Path) -> None:
+    """健康 .sty/.tex 不误判; 零成员 tar 原样放回。"""
+    (tmp_path / "real.sty").write_bytes(b"\\ProvidesPackage{real}\n")
+    (tmp_path / "main.tex").write_bytes(b"\\documentclass{article}\n")
+    ok, _ = _extract(tmp_path)
+    assert not ok
+    assert (tmp_path / "real.sty").is_file()
+    assert not (tmp_path / "real.sty.tarblob").exists()
+
+
+# ------------------------------------------------------- physics detach @catcode
+def test_detach_input_letter_wrap_per_host() -> None:
+    r"""``\\input{physics.sty}`` 在 .tex 宿主带 ``\\makeatletter`` 包裹——
+
+    裸 ``\\input`` 不设 @=letter, stub 内 ``\\@undefined`` 碎成 ``\\@``+裸
+    字母 → 排版文本泄 preamble 炸 Missing ``\\begin{document}`` (1706.00240
+    physics.sty:13 实证)。.sty/.cls 宿主 @ 本即 letter 走裸 ``\\input``。
+    """
+    from texlate.compile.fixloop._builtins_pkgload import (  # noqa: PLC0415
+        _detach_physics_loads,
+    )
+
+    src = "\\documentclass{article}\n\\usepackage{physics}\n"
+    tex_out, n = _detach_physics_loads(src, add_input=True, letter_wrap=True)
+    assert n == 1
+    assert "\\makeatletter\\input{physics.sty}\\makeatother" in tex_out
+    sty_out, _ = _detach_physics_loads(src, add_input=True, letter_wrap=False)
+    assert "\\input{physics.sty}" in sty_out
+    assert "\\makeatletter" not in sty_out

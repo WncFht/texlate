@@ -113,13 +113,21 @@ _PHYS_STUB_GUARD = (
 )
 
 
-def _detach_physics_loads(t: str, *, add_input: bool) -> tuple[str, int]:
+def _detach_physics_loads(
+    t: str, *, add_input: bool, letter_wrap: bool = True
+) -> tuple[str, int]:
     r"""剥 ``physics`` 装载点并原位换 ``\\input{physics.sty}`` 续载 → (新文本, 摘除数)。
 
     独载 → 整命令换成 ``\\input`` 行; 列表成员 → 摘除元素 + 行后挂 ``\\input``。
     ``\\input`` 不进 ``ver@`` 注册表, stub 的 ``\\abs``/``\\norm`` 等定义照常
     生效。命中位取自 ``mask_tex`` 遮盖视图——``%`` 注释内的假装载点不动
     (注释里拼 ``\\input`` 会把续行冲出注释)。
+
+    ``letter_wrap`` (``.tex`` 宿主=True): 裸 ``\\input`` 不挂 ``\\makeatletter``,
+    stub 内 ``\\@undefined``/``\\@ifpackageloaded`` 族在 @=other 下碎成
+    ``\\@``+裸字母 → 排版文本泄进 preamble 炸 Missing ``\\begin{document}``
+    (1706.00240 physics.sty:13 实证)。``.sty``/``.cls`` 宿主 @ 本即 letter,
+    加 ``\\makeatother`` 反而坏外层——传 False 走裸 ``\\input``。
     """
     masked = mask_tex(t)
     hits = []
@@ -136,7 +144,12 @@ def _detach_physics_loads(t: str, *, add_input: bool) -> tuple[str, int]:
     for m, keep in reversed(hits):
         if need:
             need = False
-            ins = "% fixloop: physics stub detached\n\\input{physics.sty}"
+            input_line = (
+                "\\makeatletter\\input{physics.sty}\\makeatother"
+                if letter_wrap
+                else "\\input{physics.sty}"
+            )
+            ins = f"% fixloop: physics stub detached\n{input_line}"
             repl = (
                 f"\\{m.group(1)}{m.group(2) or ''}{{{','.join(keep)}}}\n{ins}"
                 if keep
@@ -166,7 +179,9 @@ def _detach_in_tex_files(
         t = ctx.read(f)
         if t is None or "physics" not in t:
             continue
-        nt, n = _detach_physics_loads(t, add_input=need_input)
+        nt, n = _detach_physics_loads(
+            t, add_input=need_input, letter_wrap=f.suffix.lower() == ".tex"
+        )
         if not n or nt == t:
             continue
         ctx.write(f, nt)

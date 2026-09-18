@@ -189,6 +189,37 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "bench/corpus_v3/mechanisms.jsonl W31 verdict suggested_rules"
 
+  # W164 孤儿裁决 (stybegindoc-lane 2026-09-18): e-print 偶发把整包源码
+  # 以嵌套 tar 随投稿, 外层解包后 tar 以 .sty/.cls 名落进工作树 ——
+  # TeX \input 读 tar 头成排版文本 → Missing \begin{document} 于伪装件
+  # 第 N 行 (l.30 `A MSfonts.sty^^@^^@` NUL 填充实证)。必须在
+  # static_precheck(0) 前抽成员——tar 内含真 .sty/.cls/主档, 成员落地
+  # 后缺件扫描才看得见 (0707.0382 tar 含 iaus.cls 正是所需 docclass)。
+  - id: tar_blob_extract
+    mechanisms: [W164]
+    description: "e-print 内嵌 tar 伪装 .sty/.cls → 成员补缺解包 + blob 改名退役"
+    phase: precheck
+    order: -1 # svg_route(-9) 后, static_precheck(0) 前: 成员先落地缺件扫描才收
+    when: { always: true }
+    action:
+      kind: builtin_transform
+      function: extract_tar_blobs
+    risk: low # no-clobber 补缺 + 抽中才改名退役; 0 成员原样放回
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "0707.0382, astro-ph/0104007 (stagerun-loop2 fail)",
+          error: "Missing \\begin{document} at AMSbsy.sty:30 / aipproc.cls:30 — 文件本体是 POSIX tar (ustar@257), 非 .sty/.cls 内容",
+        }
+      - {
+          corpus: "1706.00240 (同 lane 副修): physics_stub_detach \\input 裸载缺 @-catcode",
+          error: "Missing \\begin{document} at physics.sty:13 — \\@undefined 在 @=other 下碎裂 (见 _builtins_pkgload letter_wrap)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-stybegindoc/ (loop2 cases.jsonl log_excerpt 取证)"
+
   - id: static_precheck
     mechanisms: [W11, W47, W61, B05, W80]
     description: "静态扫全部源码的 \\usepackage|\\RequirePackage|\\documentclass → 探测缺失 → filemap 批量装包 (一次装好, 省 N 轮循环)"

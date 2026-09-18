@@ -60,6 +60,8 @@ def test_phase_ordering() -> None:
         "pstricks_route",
         # C5 (W31): svg 包 tectonic 硬墙 → 路由 xelatex
         "svg_route",
+        # W164 (stybegindoc lane): e-print 内嵌 tar 冒名 .sty/.cls → 解包
+        "tar_blob_extract",
         "static_precheck",
         # C5 (W58): arara/!TEX 注释指令收割殿后
         "build_directive_harvest",

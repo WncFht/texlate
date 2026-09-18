@@ -326,3 +326,117 @@ def docstrip_generate(
             ctx.invalidate(hit)
             return True, f"docstrip {rel_ins} generated {hit.relative_to(ctx.wdir)}"
     return False, f"docstrip ran but {want} not produced"
+
+
+# ════════════════════════════════════════════════════════════════
+# tar 伪装件解包: e-print 内嵌 tar 以 .sty/.cls 名落盘 → 抽成员补缺
+# ════════════════════════════════════════════════════════════════
+
+#: POSIX ustar 魔数 ``ustar`` 驻留偏移 257 (tar header magic field)。
+_TAR_MAGIC_OFF = 257
+_TAR_MAGIC = b"ustar"
+
+#: 伪装判定扩展名集——tar blob 只在文本类名下才有害 (二进制件 .eps/.pdf
+#: 不查；``.tarblob`` 是本方改名件, 重扫须免再命中)。
+_TARBLOB_EXTS = frozenset(
+    {
+        ".tex",
+        ".sty",
+        ".cls",
+        ".clo",
+        ".def",
+        ".fd",
+        ".cfg",
+        ".bst",
+        ".bib",
+        ".ins",
+        ".dtx",
+        ".ltx",
+        ".stytxt",
+    }
+)
+
+
+def _is_tar_blob(f: Path) -> bool:
+    """Tar 魔数探针——读 262B 判 POSIX tar (ustar) 伪装件。"""
+    try:
+        with f.open("rb") as fh:
+            fh.seek(_TAR_MAGIC_OFF)
+            return fh.read(len(_TAR_MAGIC)) == _TAR_MAGIC
+    except OSError:
+        return False
+
+
+def _safe_member_name(name: str) -> PurePosixPath | None:
+    """成员名卫: 剥 ``./`` 前缀后拒绝对路径/``..``/空名/含 NUL。"""
+    n = name
+    while n.startswith("./"):
+        n = n[2:]
+    if not n or "\x00" in n:
+        return None
+    rel = PurePosixPath(n)
+    if rel.is_absolute() or ".." in rel.parts:
+        return None
+    return rel
+
+
+def _extract_members(ctx: LoopCtx, f: Path) -> int:
+    """抽 tar ``f`` 的 regular-file 成员补缺落 ``f.parent`` → 落地数 (0=非本机制案)。"""
+    import tarfile  # noqa: PLC0415 — 冷路径: 命中伪装件才用, 不污染常规启动
+
+    extracted = 0
+    try:
+        with tarfile.open(f) as tf:
+            for m in tf.getmembers():
+                if not m.isreg():
+                    continue
+                rel = _safe_member_name(m.name)
+                if rel is None:
+                    continue
+                dest = f.parent / Path(*rel.parts)
+                if dest.exists():
+                    continue
+                src = tf.extractfile(m)
+                if src is None:
+                    continue
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                dest.write_bytes(src.read())
+                ctx.invalidate(dest)
+                extracted += 1
+    except (tarfile.TarError, OSError):
+        return 0
+    return extracted
+
+
+def extract_tar_blobs(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""工作树内 tar 伪装件 → 成员补缺解包 + blob 改名 ``*.tarblob`` 退役。
+
+    arXiv e-print 偶发把整包源码以嵌套 tar 随投稿——外层解包后 tar 以
+    ``.sty``/``.cls`` 名落进工作树 (0707.0382 ``AMSbsy.sty``=全 bundle tar、
+    astro-ph/0104007 ``aipproc.cls``=aipproc.sty+figs+symposium.tex tar,
+    loop2 fixloop 实证): TeX ``\input`` 读 tar 头成排版文本 →
+    ``Missing \begin{document}`` 于伪装件第 N 行 (``l.30 AMSfonts.sty^^@``)。
+
+    解包纪律: 仅 regular file 成员 (tarfile.extractfile 逐件读字节自写,
+    不依赖平台 filter 语义); 名卫拒 ``..``/绝对/``./`` 残件/NUL;
+    **no-clobber**——目标已存在跳过 (真件优先, tar 只补缺); blob 本体
+    只在抽中 ≥1 成员后改名 ``{name}.tarblob`` 退役 (移出 TeX 解析路径、
+    留现场可审计; 0 成员说明非本机制案, 原样放回)。
+    """
+    del eng, payload
+    exts = {str(e).lower() for e in (params.get("exts") or _TARBLOB_EXTS)}
+    done: list[str] = []
+    for f in sorted(ctx.wdir.rglob("*")):
+        if not f.is_file() or f.suffix.lower() not in exts:
+            continue
+        if not _is_tar_blob(f):
+            continue
+        extracted = _extract_members(ctx, f)
+        if extracted:
+            blob_name = f.name + ".tarblob"
+            f.rename(f.with_name(blob_name))
+            ctx.invalidate(f)
+            done.append(f"{f.name}({extracted} members)")
+    return (bool(done)), f"tar blobs extracted: {', '.join(done)}"
