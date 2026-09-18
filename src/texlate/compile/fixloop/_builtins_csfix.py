@@ -734,3 +734,78 @@ def pdfstring_cs_disarm(
             return False, "no injection point"
         ctx.write(main, nt)
     return True, f"pdfstring-disarm {', '.join(todo)}"
+
+
+# ═══ phantom Incomplete \if — 脆弱前稿 cs 族 eTeX \protected 重定义 (B05 姊妹臂) ═══
+
+#: 展开态 phantom 链的宿主面: frontmatter/moving-arg 里常被 ``\edef``/
+#: ``\xdef``/``\MakeUppercase``/``\pdfstringdef`` 展开的 cs——``\footnote``/
+#: ``\thanks`` (amsproc ``\shortauthors`` → ``\markboth`` edef 实证) +
+#: 2.09 字体声明 ``\bf\it\rm\sf\tt\sc\sl`` (myectaart ``\xdef\@argi{#1}``
+#: 实证)。保护后其 ``\newif``-setter 替换体里的 ``\if@X\iffalse`` 不再被
+#: 执行——未定义名经 ``\ifdefined`` 闸跳过, 不造新坏定义。
+_IFPROT_FAMILY: tuple[str, ...] = (
+    "footnote",
+    "thanks",
+    "bf",
+    "it",
+    "rm",
+    "sf",
+    "tt",
+    "sc",
+    "sl",
+)
+
+#: 字面扫描器已跑过的凭据: ``unclosed_if_close`` (order 196) 的 run_tool
+#: note 固定带 ``ifclose:`` 判词 (``noop``/``injected`` 皆证"本轮已查字面
+#: 平衡")。该凭据缺席 = 扫描器 cond-skip (python3 缺位) 或 order 未达——
+#: 字面亏格可能悬着, 本规则的 ``\protected`` 域不含它, 保守不收。
+_IFPROT_SCANNER_RULE = "unclosed_if_close"
+
+
+def if_phantom_protect(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""Phantom ``Incomplete \if`` → 脆弱前稿 cs 族 ``\protected`` let-wrap 重定义。
+
+    phantom 机制: ``\let\if@X\iffalse`` 形 ``\newif``-setter 的替换体含活
+    conditional——``\edef``/``\xdef`` 展开扫描里 ``\let`` 惰性但 ``\if@X``
+    (=\iffalse) 执行 → 假 open 吞 token 到 EOF。源件字面平衡 → 196 号
+    字面扫描器 noop (applied 烧 dedup 位后下轮才轮到本规则)。eTeX
+    ``\protected`` 属性钉在 cs 自身, 不受 ``\let\protect\relax`` 剥除影响
+    (``\DeclareRobustCommand`` 的死穴) → 被护 cs 在 edef 扫描内整体带过,
+    setter 链根本走不到。正文体正常展开域里 wrapper 逐跳还原旧义, 语义
+    零变化 (min8 ``\protected\def\footnote`` / t2 ``\bf`` 双臂已实证出 PDF)。
+
+    注入 ``\AtBeginDocument`` 块 (docclass 缝): 全 preamble+包重定义
+    (hyperref 改 ``\footnote`` 等) 跑完才护, 不被反超; ``\maketitle`` 内
+    edef 触发时保护已就位。逐 cs ``\ifdefined`` 闸。
+    """
+    del eng, payload
+    fam = tuple(str(c).lstrip("\\") for c in (params.get("cs") or _IFPROT_FAMILY))
+    if not fam:
+        return False, "empty cs family"
+    seen = any(
+        a.get("rule") == _IFPROT_SCANNER_RULE and "ifclose:" in str(a.get("detail"))
+        for a in ctx.actions
+    )
+    if not seen:
+        return False, "literal if-scanner verdict not on ledger — abstain"
+    main = ctx.main_path()
+    if main is None:
+        return False, "no main file"
+    # 退文件头 = cls 加载前, \AtBeginDocument 未定义 → 必须有 docclass 缝
+    if not find_docclass_ends(ctx.read(main) or ""):
+        return False, "no docclass seam"
+    lines = "".join(
+        f"\\ifdefined\\{n}\\let\\TXLorig{n}\\{n}"
+        f"\\protected\\def\\{n}{{\\TXLorig{n}}}\\fi\n"
+        for n in fam
+    )
+    snippet = (
+        "% fixloop: phantom Incomplete \\if — \\protected frontmatter cs\n"
+        "\\AtBeginDocument{%\n" + lines + "}"
+    )
+    if not _inject_after_docclass(ctx, snippet):
+        return False, "protected re-defs already injected"
+    return True, f"protected {len(fam)} frontmatter cs ({', '.join(fam)})"

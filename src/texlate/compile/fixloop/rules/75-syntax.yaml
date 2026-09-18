@@ -1356,6 +1356,41 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/lane-failmine/rule_targets.txt item4; err_head 空无 `!` 行 → 与 other 臂分离独立 gating"
 
+  # phantom 臂: `Incomplete \if` 签名在同签下轮复发 = unclosed_if_close(196)
+  # 字面扫描 noop 过——源件 \if*/\fi 平衡, 真凶是展开态 conditional:
+  # \newif-setter 替换体 `\let\if@X\iffalse` 在 \edef/\xdef 扫描内 \let 惰性
+  # 但 \if@X 执行 → 假 open 吞到 EOF (amsproc \@nmbrlistfalse / myectaart
+  # \@forced@seriesfalse, 1206.0701/1306.0364 原文英文稿即炸 —— 上游
+  # cls/TL 偏斜非 texlate 注入)。file-end \fi 修不了 (edef 参不闭, 还会
+  # 造 Extra \fi)。修 = 脆弱前稿 cs 族 \protected let-wrap 重定义: eTeX
+  # \protected 属性钉在 cs 本体, 不被 \let\protect\relax 剥除 → edef 扫描
+  # 内整体带过, setter 链走不到。\AtBeginDocument 注入 (包重定义先跑完),
+  # 逐 cs \ifdefined 闸。transform 内置凭据闸: ledger 无 196 的 ifclose:
+  # 判词 (python3 缺位 cond-skip) → 字面亏格未排, 保守不收。
+  - id: if_phantom_protect
+    mechanisms: [B05]
+    description: "phantom Incomplete \\if (字面平衡复发) → \\footnote/\\thanks+\\bf\\it\\rm\\sf\\tt\\sc\\sl eTeX \\protected 重定义 (@\\begin{document} 钩)"
+    phase: loop
+    order: 197.5 # unclosed_if_close(196)+eof 臂(196.5) 字面扫描先烧 dedup 位, 同签复发才轮到本规则 = phantom 判别
+    when: { category: other }
+    condition:
+      ctx_suggests: "Incomplete \\\\if"
+    action:
+      kind: builtin_transform
+      function: if_phantom_protect
+    risk: low # let-wrap 保原义 (wrapper 无参直通原 cs 参扫); \ifdefined 闸不收未定义名; \AtBeginDocument 包后序位; 注入幂等 (snippet 指纹在件即跳)
+    known_gap: "被护 \\footnote token 仍会进 running-head 流 (\\markboth 标记语境展开)——phantom 错消但眉行可能多一个 footnote mark/次序怪; 扫描器 verdict 缺席即不收 (与 196 强序耦合: 规则被禁/重排则本规则永不发); 字面+phantom 混合稿在 196 注入 \fi 后复发才收"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "corpus_v3 flipcheck7: 1206.0701 (amsproc \\footnote-in-\\author → \\shortauthors→\\markboth edef 链), 1306.0364 (myectaart \\bf-in-\\title → \\xdef\\@argi 链)",
+          error: "Incomplete \\iffalse; all text was ignored after line N (源件字面平衡, unclosed_if_close 纯 noop)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-ifclosegap: min8 (\\protected\\def\\footnote) + t2/m2 (\\protected\\def\\bf) 双臂 PDF 实证; min1-7 展开链 \\tracingifs 归因"
+
   # ─── 兜底: 恒最后 ───
   - id: undefined_cs_guess
     description: "未定义控制序列 → cs→pkg 知识库长射 + LLM 兜底分析 (占位)"
