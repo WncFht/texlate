@@ -235,6 +235,8 @@ rules:
     when: { always: true }
     condition:
       source_contains: "\\\\input(?:\\s*\\{\\s*|\\s+)([A-Za-z][A-Za-z0-9_-]*)\\.sty(?:\\s*\\}|(?![\\w.-]))(?=[\\s\\S]*\\\\begin\\s*\\{document\\})"
+      # 2.09 (\documentstyle) 无 \usepackage——改写即非法 (0806.0904/0806.2953 回归)
+      main_head_contains: "\\documentclass"
     action:
       kind: regex_rewrite
       params:
