@@ -33,7 +33,7 @@ import re
 import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Final, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Final, NamedTuple, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Iterator
@@ -1198,6 +1198,76 @@ _BITMAP_FONT_PKGS = re.compile(
     + "|".join(sorted(BITMAP_FONT_PKG_NAMES))
     + r")\b"
 )
+#: dvips 原语插图 ``\special{psfile=..}``——xdvipdfmx/tectonic 均不渲染，
+#: 无双引擎可行路径，检出只注记不改引擎序（probe.py 同款口径）。
+_PSFILE_SPECIAL_RE = re.compile(r"\\special\s*\{\s*psfile\b")
+
+
+class _RouteSigs(NamedTuple):
+    """route_project 静态信号集——文件面布尔 + 文本签名布尔。"""
+
+    eps: bool
+    mf: bool
+    pstricks: bool
+    minted_frozen: bool
+    bitmap_fonts: bool
+    psfile_special: bool
+
+
+def _route_sigs(root: Path, blob_vis: str) -> _RouteSigs:
+    """工程树文件面 + 遮盖视图 blob → 静态路由信号集。"""
+    exts = {p.suffix.lower() for p in root.rglob("*") if p.is_file()}
+    return _RouteSigs(
+        eps=".eps" in exts,
+        mf=".mf" in exts,
+        pstricks=bool(_PSTRICKS_RE.search(blob_vis)),
+        minted_frozen=bool(
+            _MINTED_FROZEN_RE.search(blob_vis) and _MINTED_PKG_RE.search(blob_vis)
+        ),
+        bitmap_fonts=bool(_BITMAP_FONT_PKGS.search(blob_vis)),
+        psfile_special=bool(_PSFILE_SPECIAL_RE.search(blob_vis)),
+    )
+
+
+def _apply_route_sigs(
+    sigs: _RouteSigs,
+    engines: list[str],
+    latex209_suspect: list[str],
+    reasons: list[str],
+    *,
+    non_utf8: bool,
+) -> list[str]:
+    """信号集 → 引擎优先序重排 + reasons 追加；返回重排后引擎序。"""
+    if sigs.eps or sigs.pstricks:
+        # E2 硬墙：xdvipdfmx 不支持 EPS/PS → 跳过 tectonic
+        engines = sorted(engines, key=lambda e: 0 if e == "xelatex" else 1)
+        reasons.append(
+            f"eps_files={sigs.eps} pstricks={sigs.pstricks} → xelatex 优先"
+            "（tectonic xdvipdfmx 硬墙）"
+        )
+    elif sigs.minted_frozen:
+        engines = sorted(engines, key=lambda e: 0 if e == "tectonic" else 1)
+        reasons.append("minted frozencache → tectonic 优先（bundle v2.6 兼容）")
+    if sigs.bitmap_fonts:
+        reasons.append("bbm/dsfont 类位图字体包 → tectonic 高风险，失败换 xelatex")
+    if sigs.psfile_special:
+        reasons.append(
+            "\\special{psfile} dvips 原语插图 → xelatex/tectonic 均不渲染"
+            "（图件将缺，无双引擎可行路径）"
+        )
+    if sigs.mf:
+        reasons.append(
+            "包内 .mf METAFONT 源 → tectonic 无 mf 链"
+            "（xelatex 视 mktexfm 配置；真字体需求时字形必缺）"
+        )
+    if latex209_suspect:
+        reasons.append(
+            f"latex209_suspect: {', '.join(latex209_suspect)} "
+            "\\documentstyle → 试编不定死（fixloop gate 兜底拒）"
+        )
+    if non_utf8:
+        reasons.append("非 UTF-8 源 → 需 iconv 转码预处理或 inputenc 路注")
+    return engines
 
 
 def route_project(root: Path, *, prefer: str = "tectonic") -> RouteDecision:
@@ -1234,35 +1304,13 @@ def route_project(root: Path, *, prefer: str = "tectonic") -> RouteDecision:
     ]
 
     reasons: list[str] = []
-    has_eps = any(p.suffix.lower() == ".eps" and p.is_file() for p in root.rglob("*"))
-    has_pstricks = bool(_PSTRICKS_RE.search(blob_vis))
-    has_minted_frozen = bool(
-        _MINTED_FROZEN_RE.search(blob_vis) and _MINTED_PKG_RE.search(blob_vis)
-    )
-    has_bitmap_fonts = bool(_BITMAP_FONT_PKGS.search(blob_vis))
-
+    sigs = _route_sigs(root, blob_vis)
     engines = (
         ["xelatex", "tectonic"] if prefer == "xelatex" else ["tectonic", "xelatex"]
     )
-    if has_eps or has_pstricks:
-        # E2 硬墙：xdvipdfmx 不支持 EPS/PS → 跳过 tectonic
-        engines = sorted(engines, key=lambda e: 0 if e == "xelatex" else 1)
-        reasons.append(
-            f"eps_files={has_eps} pstricks={has_pstricks} → xelatex 优先"
-            "（tectonic xdvipdfmx 硬墙）"
-        )
-    elif has_minted_frozen:
-        engines = sorted(engines, key=lambda e: 0 if e == "tectonic" else 1)
-        reasons.append("minted frozencache → tectonic 优先（bundle v2.6 兼容）")
-    if has_bitmap_fonts:
-        reasons.append("bbm/dsfont 类位图字体包 → tectonic 高风险，失败换 xelatex")
-    if latex209_suspect:
-        reasons.append(
-            f"latex209_suspect: {', '.join(latex209_suspect)} "
-            "\\documentstyle → 试编不定死（fixloop gate 兜底拒）"
-        )
-    if non_utf8:
-        reasons.append("非 UTF-8 源 → 需 iconv 转码预处理或 inputenc 路注")
+    engines = _apply_route_sigs(
+        sigs, engines, latex209_suspect, reasons, non_utf8=non_utf8
+    )
     return RouteDecision(
         engines=engines,
         reject=None,

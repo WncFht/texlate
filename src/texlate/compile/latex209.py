@@ -429,8 +429,16 @@ def upgrade_209(tex: str, *, root: Path | None = None) -> tuple[str, dict]:
     ``info["status"]`` ∈ ``converted`` / ``reject`` / ``no-docstyle``；``reject``
     时 ``info["reason"]`` 供 inject 层记 ``inject_reject:<reason>``。
     """
-    m = _primary_docstyle(visible_tex(tex))
+    vis = visible_tex(tex)
+    m = _primary_docstyle(vis)
     if m is None:
+        if next(iter_depth0(DOCSTYLE_RX, vis), None) is not None:
+            # 深度 0 裸 ``\documentstyle`` token 在场但配不出 ``[opt]{cls}``
+            # 声明（残缺尾、选项段异常）——inject.find_docclass_ends 同深度
+            # 口径会把它当缝走到这里，泛 ``latex209`` 落账混进真 209 拒收，
+            # 细分签名供归因。深度>0 宏体残影（未闭合花括号内 token）
+            # 不进此桶——inject 同深度口径也不会触达。
+            return tex, {"status": "reject", "reason": "latex209_no_decl"}
         return tex, {"status": "no-docstyle"}
     cls = m.group(2).strip()
     if not cls:

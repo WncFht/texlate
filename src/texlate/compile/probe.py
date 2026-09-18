@@ -35,6 +35,7 @@ from .engine import (
     PST_PKG_PREFIXES,
     PSTRICKS_PKG_NAMES,
 )
+from .latex209 import _KERNEL_OPTS
 from .mask import visible_tex
 
 if TYPE_CHECKING:
@@ -62,6 +63,19 @@ _CLS_RE = re.compile(r"\\(documentclass|documentstyle|LoadClass)" + DECL_TAIL)
 #: 死尾边界：首个 ``\end{document}``/``\endinput`` 之后引擎不再读本文件——
 #: 其后的 ``\input`` 不产生 missing_file，扫它只会报假缺失。
 _DEAD_TAIL_RE = re.compile(r"\\end\s*\{document\}|\\endinput\b")
+#: ``\PreventPackageFromLoading`` 阻断名单收割（scrlfile 机制）：声明的包
+#: 运行时被拦——``\usepackage`` 仍在稿面但永不加载，依赖表若照声明装包
+#: 即 FP 向；阻断行自身被注释遮蔽则 FN 向（走遮盖视图天然豁免）。
+_PREVENT_RE = re.compile(r"\\PreventPackageFromLoading\*?\s*\{([^}]+)\}")
+#: SWP/SW（Scientific Word/Workplace）源码指纹——``%TCIDATA``/multibyte
+#: 头注释/``\input{tcilatex}``。跑 raw 文本：指纹活在注释里，遮盖视图不可见。
+_SWP_RE = re.compile(r"TCIDATA|multibyte Version:|\\input\s*\{?\s*tcilatex")
+#: 终端交互读原语：``\typein``（恒终端）+ ``\read-1``（-1=stdin 通道；
+#: 正数流号是文件读不收）。sandbox stdin=DEVNULL 已兜底防挂——此处仅诊断。
+_INTERACTIVE_RE = re.compile(r"\\typein\b|\\read\s*-1\b")
+#: dvips 原语插图 ``\special{psfile=..}``——xelatex(xdvipdfmx)/tectonic 均
+#: 不渲染 psfile special，检出即图件必缺（无双引擎可行路径，纯注记）。
+_PSFILE_SPECIAL_RE = re.compile(r"\\special\s*\{\s*psfile\b")
 
 #: 声明包名 → (信号, 说明)。信号集：``xelatex`` = tectonic xdvipdfmx 硬墙；
 #: ``shell_escape`` = 需 ``\write18``（xelatex flags 承载，tectonic
@@ -119,6 +133,14 @@ class _ScanCtx:
     missing_recorded: set[tuple[str, str]] = field(default_factory=set)
     blob_parts: list[str] = field(default_factory=list)
     latex209: bool = False
+    #: ``\PreventPackageFromLoading`` 阻断名单（跨文件并集）——名单内包
+    #: 的 missing/tl_pkg/信号记账抑制（声明≠加载）。
+    prevented: set[str] = field(default_factory=set)
+    #: ``\documentstyle[o]`` 非内核选项（209 选项位即 ``<opt>.sty`` 加载）。
+    docstyle_opts: list[str] = field(default_factory=list)
+    swp: bool = False  # SWP/SW 指纹命中（tcilatex 走 vendor stub 链）
+    interactive: int = 0  # 终端交互读原语命中数（DEVNULL 已兜底，纯诊断）
+    psfile: int = 0  # dvips-only \special{psfile} 命中数（图件必缺注记）
 
 
 def _load_index() -> TlpdbIndex | None:
@@ -162,7 +184,11 @@ def _resolve_dep(
     local = _find_local(root, cwd, fname)
     if local is not None:
         return fname, "local", local.relative_to(root).as_posix()
-    if index is not None:
+    # 路径段声明名（``\usepackage{dir/Name}``）只能由本地同名路径满足——
+    # basename 平铺装包不落该相对路径，且会拿同名真包遮蔽账（``dir/foo``
+    # 缺席误报成 TL ``foo`` 可装）。``\input`` 的 ``/`` 是常态相对路径
+    # （``chaps/one``），basename 反查同形 FP 但不在本机制范围，留旧口径。
+    if index is not None and (kind == "input" or "/" not in name):
         pkgs = index.query(PurePosixPath(fname).name)
         if pkgs:
             return fname, "tl_pkg", pkgs[0]
@@ -182,12 +208,16 @@ def _record_dep(
         detail=detail,
         declared_in=rel,
     )
+    # \PreventPackageFromLoading 名单内包：加载被运行时拦断——不产 missing_file
+    # 也不需装包，记账面抑制（dep 行仍留，声明确在）。
+    blocked = kind == "package" and name in ctx.prevented
     if (kind, fname) in ctx.declared:
         # 首个声明是 optional（\InputIfFileExists）缺席不计 missing；后续同名
         # 硬引用命中去重——引擎仍会落 missing_file，这里补登记一次。
         if (
             resolved == "missing"
             and not optional
+            and not blocked
             and (kind, fname) not in ctx.missing_recorded
         ):
             ctx.missing_recorded.add((kind, fname))
@@ -196,12 +226,12 @@ def _record_dep(
         return probe
     ctx.declared.add((kind, fname))
     ctx.rep.deps.append(probe)
-    if resolved == "missing" and not optional:
+    if resolved == "missing" and not optional and not blocked:
         # \InputIfFileExists 缺席走 else 分支——不是 missing_file，不进预热清单
         ctx.missing_recorded.add((kind, fname))
         ctx.rep.missing.append(fname)
         ctx.rep.missing.sort()
-    elif resolved == "tl_pkg" and detail not in ctx.rep.tl_packages:
+    elif resolved == "tl_pkg" and not blocked and detail not in ctx.rep.tl_packages:
         ctx.rep.tl_packages.append(detail)
         ctx.rep.tl_packages.sort()
     return probe
@@ -238,12 +268,21 @@ def _scan_file(ctx: _ScanCtx, tex: Path, rel: str, queue: list[Path]) -> None:
         # 单件不可读不拖垮整针——跳过该文件扫描，其余情报保留
         ctx.rep.notes.append(f"{rel} 读取失败——跳过声明扫描")
         return
-    vis = visible_tex(decode_tex(blob))
+    raw_text = decode_tex(blob)
+    if not ctx.swp and _SWP_RE.search(raw_text):
+        # SWP 指纹在注释里——须跑 raw 文本（vis 已抹注释）。
+        ctx.swp = True
+    vis = visible_tex(raw_text)
     ctx.blob_parts.append(vis)
+    ctx.interactive += len(_INTERACTIVE_RE.findall(vis))
+    ctx.psfile += len(_PSFILE_SPECIAL_RE.findall(vis))
     m = BEGIN_DOC_RX.search(vis)
     preamble = vis[: m.start()] if m is not None else vis
     dead = _DEAD_TAIL_RE.search(vis)
     live = vis[: dead.start()] if dead is not None else vis
+    # 阻断名单先收——main 是 BFS 首件，其 preamble 的 PreventPackageFromLoading
+    # 在一切 \usepackage 记账前就位（scrlfile 语义即声明顺序无关的运行时拦截）。
+    _harvest_prevented(ctx, preamble)
     for match in _PKG_RE.finditer(preamble):
         for raw in match.group(1).split(","):
             name = clean_decl_name(raw)
@@ -255,7 +294,31 @@ def _scan_file(ctx: _ScanCtx, tex: Path, rel: str, queue: list[Path]) -> None:
             _record_dep(ctx, rel, name, "class")
         if match.group(1) == "documentstyle":
             ctx.latex209 = True
+            _scan_docstyle_opts(ctx, rel, match.group(2))
     _scan_inputs(ctx, live, rel, queue)
+
+
+def _harvest_prevented(ctx: _ScanCtx, preamble: str) -> None:
+    r"""``\PreventPackageFromLoading`` 阻断名单并入 ctx.prevented（逗号分名）。"""
+    for match in _PREVENT_RE.finditer(preamble):
+        for raw_name in match.group(1).split(","):
+            pname = clean_decl_name(raw_name)
+            if pname is not None:
+                ctx.prevented.add(pname)
+
+
+def _scan_docstyle_opts(ctx: _ScanCtx, rel: str, optspan: str | None) -> None:
+    r"""``\documentstyle[opts]`` 非内核选项登记为 package 依赖。
+
+    209 选项位即 ``<opt>.sty`` 加载（a 带宏包依赖此前全盲：flags 只扫
+    ``\usepackage``）；内核选项名（12pt/twocolumn 族）不是样式文件，跳过。
+    """
+    for raw_opt in (optspan or "").split(","):
+        opt = clean_decl_name(raw_opt)
+        if opt is not None and opt not in _KERNEL_OPTS:
+            _record_dep(ctx, rel, opt, "package")
+            if opt not in ctx.docstyle_opts:
+                ctx.docstyle_opts.append(opt)
 
 
 def _dep_signal(dep: DepProbe, blob: str) -> tuple[str, str] | None:
@@ -285,6 +348,8 @@ def _apply_signals(ctx: _ScanCtx) -> None:
     blob = "\n".join(ctx.blob_parts)
     signals: list[str] = []
     for dep in rep.deps:
+        if dep.kind == "package" and dep.name in ctx.prevented:
+            continue  # 阻断名单内包不加载——其依赖信号一并豁免（防 FP 旗标）
         sig = _dep_signal(dep, blob)
         if sig is None:
             continue
@@ -297,14 +362,55 @@ def _apply_signals(ctx: _ScanCtx) -> None:
         rep.prefer_engine = "xelatex"  # 硬墙信号压一切
     elif "tectonic" in signals:
         rep.prefer_engine = "tectonic"
-    if ctx.latex209:
-        rep.notes.append(
-            "\\documentstyle → latex209_suspect（试编不定死，fixloop gate 兜底拒）"
-        )
+    _append_diag_notes(ctx)
     if not rep.index_available:
         rep.notes.append("tlpdb 索引不可用——missing 集含未证实项")
     if rep.missing:
         rep.notes.append("missing: " + ", ".join(rep.missing))
+
+
+def _append_diag_notes(ctx: _ScanCtx) -> None:
+    r"""路由诊断注记聚合（只播报不改决策）。
+
+    209/docstyle_opts/阻断名单/SWP/交互读/psfile/.mf 各命中面。
+    """
+    rep = ctx.rep
+    if ctx.latex209:
+        rep.notes.append(
+            "\\documentstyle → latex209_suspect（试编不定死，fixloop gate 兜底拒）"
+        )
+    if ctx.docstyle_opts:
+        rep.notes.append(
+            "docstyle_opts: "
+            + ", ".join(ctx.docstyle_opts)
+            + " → 209 选项位即 .sty 加载，已按 package 依赖登记"
+        )
+    if ctx.prevented:
+        rep.notes.append(
+            "PreventPackageFromLoading: "
+            + ", ".join(sorted(ctx.prevented))
+            + " → 声明≠加载，missing/装包/信号记账已抑制"
+        )
+    if ctx.swp:
+        rep.notes.append(
+            "SWP/SW 源指纹（TCIDATA/tcilatex）"
+            " → tcilatex.tex 走 vendor stub 链，路由不拒"
+        )
+    if ctx.interactive:
+        rep.notes.append(
+            f"终端交互读原语 \\typein/\\read-1 ×{ctx.interactive}"
+            " → stdin=DEVNULL 已兜底防挂（活性未区分，纯诊断）"
+        )
+    if ctx.psfile:
+        rep.notes.append(
+            f"dvips-only \\special{{psfile}} ×{ctx.psfile}"
+            " → xelatex/tectonic 均不渲染，图件将缺（需 dvips 通道或预转换）"
+        )
+    if any(p.suffix.lower() == ".mf" for p in ctx.root.rglob("*")):
+        rep.notes.append(
+            "包内 .mf METAFONT 源 → tectonic 无 mf 链（xelatex 视 mktexfm 配置），"
+            "真字体需求时字形必缺"
+        )
 
 
 def target_probe(
