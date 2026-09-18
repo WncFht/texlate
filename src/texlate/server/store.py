@@ -474,6 +474,26 @@ class Store:
         ).fetchone()
         return dict(row) if row else None
 
+    def find_latest_by_arxiv(
+        self, tenant: str, base_id: str, version: int | None = None
+    ) -> dict[str, Any] | None:
+        """``arxiv_id`` 最新任务行（hjfy 兼容面查源）。
+
+        ``base_id`` 须已归一去版（调用方过 ``normalize_arxiv_id`` +
+        ``_valid_id``——id 字符集无 GLOB 元字符，``{base}v*`` 模式安全）。
+        arxiv/upload_tex 建行存裸 id、share 导入存 ``{id}v{N}`` 钉版形，
+        ``= base`` 或 GLOB 同罩两形；``version`` 钉版查询精确行优先，
+        其余按创建时间取最新。tenant 隔离与 ``_get_task`` 同口径。
+        """
+        exact = f"{base_id}v{version}" if version is not None else base_id
+        row = self.conn.execute(
+            "SELECT * FROM tasks WHERE tenant = ?"
+            " AND (arxiv_id = ? OR arxiv_id GLOB ?)"
+            " ORDER BY (arxiv_id = ?) DESC, created_at DESC, id DESC LIMIT 1",
+            (tenant, base_id, f"{base_id}v*", exact),
+        ).fetchone()
+        return dict(row) if row else None
+
     def task_ids(self) -> list[str]:
         """全量任务 id——启动孤儿目录清扫（``_sweep_orphan_task_dirs``）的已知集合。"""
         rows = self.conn.execute("SELECT id FROM tasks").fetchall()
@@ -750,6 +770,14 @@ class Store:
         """Chunks 有行 = parsing 已完成（断点跳过判据）。"""
         row = self.conn.execute(
             "SELECT 1 FROM chunks WHERE task_id = ? LIMIT 1", (task_id,)
+        ).fetchone()
+        return row is not None
+
+    def chunk_exists(self, task_id: str, seq: int) -> bool:
+        """``(task_id, seq)`` chunk 存在性——单块重译端点的合法块闸。"""
+        row = self.conn.execute(
+            "SELECT 1 FROM chunks WHERE task_id = ? AND seq = ? LIMIT 1",
+            (task_id, seq),
         ).fetchone()
         return row is not None
 

@@ -106,6 +106,7 @@ KIND_URL = {
     "src_html": "src.html",
     "en_html": "en.html",
     "zh_html": "zh.html",
+    "share_zip": "share.zip",
 }
 
 #: URL kind → files.kind（反查）
@@ -125,9 +126,16 @@ _FETCH_NO_RETRY = frozenset(
 _SENTINELS = frozenset({".fetch-done", ".base-done", ".splice-done", ".compile-done"})
 
 #: splice 失效即作废的派生产物 kind——zh/ 及其下游（译文快照/编译物/
-#: 降级包）全随译文变更过期；en_pdf（base/ 编译）与 src_tar 不依赖
-#: chunks，保留
-_SPLICE_STALE_KINDS = ("zh_pdf", "zh_src_zip", "dual_json", "compile_log", "md_zip")
+#: 降级包/已发布 share.zip 镜像）全随译文变更过期；en_pdf（base/ 编译）
+#: 与 src_tar 不依赖 chunks，保留
+_SPLICE_STALE_KINDS = (
+    "zh_pdf",
+    "zh_src_zip",
+    "dual_json",
+    "compile_log",
+    "md_zip",
+    "share_zip",
+)
 
 #: probe diff 聚合行的列表截断上限（一条行不刷屏，超出记 +N）
 _PROBE_LIST_CAP = 8

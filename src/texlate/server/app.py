@@ -16,6 +16,7 @@ key 纪律：``X-Texlate-*`` 头只进内存 ``Secrets`` 随任务活，绝不�
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import ipaddress
 import json
 import logging
@@ -133,6 +134,25 @@ _MEDIA = {
     # arxiv_html 链的序列化 DOM 产物（file_get 对 text/html 补 CSP sandbox 闸）
     "en.html": "text/html; charset=utf-8",
     "zh.html": "text/html; charset=utf-8",
+    "share.zip": "application/zip",
+}
+
+#: 任务状态 → hjfy ``arxivStatus`` 词汇（compat 端点映射表）。hjfy 侧
+#: ``start``/``finished`` 都被客户端当中间态（finished 仅表管线跑完、
+#: zhCN 未落地还会再 prime）；本侧终态里 done/partial 有产物出才算
+#: finished，弃单系归 failed、needs_auth 归 error、fault 同名直译。
+_HJFY_STATUS = {
+    "queued": "start",
+    "fetching": "start",
+    "parsing": "start",
+    "translating": "start",
+    "compiling": "start",
+    "done": "finished",
+    "partial": "finished",
+    "cancelled": "failed",
+    "interrupted": "failed",
+    "needs_auth": "error",
+    "fault": "fault",
 }
 
 #: 会产出 ``dual.json``（→ reader 可用）的任务 kind。docx/epub 走
@@ -1230,6 +1250,84 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
         )
         return _accepted(row, status, extra)
 
+    # ------------------------------------------------------------ hjfy 兼容面
+
+    def _hjfy_row(request: Request, arxiv_id: str) -> dict[str, Any]:
+        """``hjfy`` 轮询端点共用解析：id 归一校验 + tenant 内最新任务行（无 → 404）。"""
+        base, ver = normalize_arxiv_id(arxiv_id)
+        if not _valid_id(base):
+            raise _ApiError(
+                400,
+                {
+                    "detail": f"invalid arxiv id: {arxiv_id!r}",
+                    "code": "invalid_request",
+                },
+            )
+        row = store.find_latest_by_arxiv(_auth(request).tenant, base, ver)
+        if row is None:
+            raise _ApiError(404, {"error": "not_found"})
+        return row
+
+    @app.get("/api/arxivStatus/{arxiv_id:path}")
+    async def arxiv_status(request: Request, arxiv_id: str) -> Response:
+        """``hjfy`` 轮询面（competitors.md §4）：``{status, info}`` + 扩展键。
+
+        状态词汇按 hjfy 插件轮询协议映射（``_HJFY_STATUS``）；
+        ``progress``/``task_id`` 是附加信息——只读 status/info 的客户端
+        不受影响。
+        """
+        row = _hjfy_row(request, arxiv_id)
+        return JSONResponse(
+            {
+                "status": _HJFY_STATUS.get(str(row["status"]), "error"),
+                "info": str(row.get("message") or ""),
+                "progress": int(row["progress"]),
+                "task_id": str(row["id"]),
+            }
+        )
+
+    @app.get("/api/arxivFiles/{arxiv_id:path}")
+    async def arxiv_files(request: Request, arxiv_id: str) -> Response:
+        """``hjfy`` 产物面：``{status, msg, data:{id,title,origin,zhCN,zhCNTar,isDeepSeek}}``。
+
+        ``status:0`` + ``data.zhCN`` 非空是客户端的「译好」判据；
+        ``101`` + 「请登录」= 需认证；其余态 ``msg`` 载任务行 message
+        （进行中/失败文案驱动 pending/dead 判定）。产物 URL 指到
+        ``/api/files/{id}/{kind}`` 下载路由——en.pdf→origin、
+        zh.pdf→zhCN、zh-src.zip→zhCNTar；未产出的 kind 给空串。
+        """
+        row = _hjfy_row(request, arxiv_id)
+        tid = str(row["id"])
+        recs = store.files(tid)
+
+        def _url(kind: str) -> str:
+            if kind not in recs:
+                return ""
+            return f"/api/files/{tid}/{KIND_URL[kind]}"
+
+        if str(row["status"]) == "needs_auth":
+            code, msg = 101, "请登录"
+        elif recs.get("zh_pdf"):
+            code, msg = 0, ""
+        elif str(row["status"]) in TERMINAL_STATUSES:
+            code, msg = 0, str(row.get("message") or "翻译失败")
+        else:
+            code, msg = 0, "正在处理中"
+        return JSONResponse(
+            {
+                "status": code,
+                "msg": msg,
+                "data": {
+                    "id": str(row.get("arxiv_id") or ""),
+                    "title": str(row.get("title") or ""),
+                    "origin": _url("en_pdf"),
+                    "zhCN": _url("zh_pdf"),
+                    "zhCNTar": _url("zh_src_zip"),
+                    "isDeepSeek": False,
+                },
+            }
+        )
+
     # ------------------------------------------------------------ §2.2 task/SSE
 
     @app.get("/api/task/{task_id}")
@@ -1638,6 +1736,37 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
 
     # ------------------------------------------------------------ share 导出
 
+    def _mirror_share_zip(task_id: str, bundle: Path) -> tuple[int, str]:
+        """发布包流式拷进 ``tasks/{id}/share.zip`` → ``(bytes, sha256)``。
+
+        ``file_get`` 只服 ``tasks/{id}/`` 相对路径（confine 闸）——share_dir
+        的包对 files manifest 不可达，拷一份任务目录内镜像上产物面。
+        重 I/O——调用方 ``to_thread`` 卸载。
+        """
+        dst = root / "tasks" / task_id / "share.zip"
+        digest = hashlib.sha256()
+        size = 0
+        with bundle.open("rb") as src, dst.open("wb") as out:
+            while chunk := src.read(1 << 20):
+                out.write(chunk)
+                digest.update(chunk)
+                size += len(chunk)
+        return size, digest.hexdigest()
+
+    async def _register_share_zip(task_id: str, bundle: Path) -> None:
+        """share.zip 镜像落盘 + files 登记 ``share_zip``（前端产物面）。
+
+        best-effort：镜像拷贝失败只留 warning——共享包发布（包文件 +
+        index.jsonl 行）已成功，产物面缺项由重发 pack 自愈，不把 200
+        打成 500。
+        """
+        try:
+            size, sha = await asyncio.to_thread(_mirror_share_zip, task_id, bundle)
+        except OSError as e:
+            log.warning("share.zip 镜像登记失败 %s: %s", task_id, e)
+            return
+        store.put_file(task_id, "share_zip", "share.zip", size=size, sha256=sha)
+
     @app.post("/api/task/{task_id}/share/pack")
     async def share_pack(request: Request, task_id: str) -> Response:  # noqa: C901, PLR0911 -- 守卫阶梯平铺
         """终态任务事后打 ``.share.zip``（shared-cache.md §6「完成后提示分享」服务端面）。
@@ -1728,6 +1857,7 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
                 except OSError:
                     size = -1  # 行在包不在（或竞态消失）——按未命中走重打
                 if size >= 0:
+                    await _register_share_zip(task_id, out_dir / name)
                     return JSONResponse({"share_key": key, "url": name, "bytes": size})
         missing = [n for n in REQUIRED_ARTIFACTS if not (task_root / n).is_file()]
         if missing:
@@ -1742,6 +1872,7 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
             )
         except ShareError as e:
             return _json_error(422, f"share 打包失败: {e}", "share_pack_failed")
+        await _register_share_zip(task_id, bundle)
         return JSONResponse(
             {
                 "share_key": mf.share_key,
@@ -1914,6 +2045,18 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
         # 必须先于 transition——超帽 400 拒在抢 queued 前，任务行不动
         options_json = _options_json_checked(opts)
         main_req = str(opts.get("main") or "")
+        # body 显式带 engine 且 ≠ 上轮持久化的 ``engine_resolved`` → 换引擎
+        # 与换 main 同档清废：base/ 树是旧引擎 ``normalize_project`` 产物，
+        # ``.base-done`` 哨兵不抹则 ``_build_base`` 整段跳过、engine_resolved
+        # 原地复活旧引擎（``_clean_task_options`` 已摘 body 内保留键，
+        # 合并后 opts 里读到的 engine_resolved 恒是上轮真值）
+        body_opts = body.get("options")
+        engine_req = (
+            str(body_opts.get("engine") or "") if isinstance(body_opts, dict) else ""
+        )
+        engine_stale = bool(engine_req) and engine_req != str(
+            opts.get("engine_resolved") or ""
+        )
         # 原子守卫先行——抢到 queued 前不做任何破坏清理。双发 retry 时后者
         # 在此 409 出局，不再抹掉 worker 已重插的 chunks / 覆盖 options（B3）
         try:
@@ -1921,11 +2064,13 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
         except TransitionError as e:
             return _json_error(409, str(e), "invalid_transition")
         try:
-            if main_req and main_req != str(row.get("main_tex") or ""):
-                # 换主文件（body.main 与 options.main 同口径）→ 解析产物作废
-                # （chunks/base/zh 重建，src/ 保留）；派生产物行与磁盘件并删——
-                # 残行会让 files/reader 照发上一轮产物（en.pdf 也随 base/
-                # 同死：换 main 后它编译自另一棵树）
+            if (
+                main_req and main_req != str(row.get("main_tex") or "")
+            ) or engine_stale:
+                # 换主文件（body.main 与 options.main 同口径）或显式换引擎 →
+                # 解析产物作废（chunks/base/zh 重建，src/ 保留）；派生产物行
+                # 与磁盘件并删——残行会让 files/reader 照发上一轮产物
+                # （en.pdf 也随 base/ 同死：换 main/引擎后它编译自另一棵树）
                 store.delete_chunks(task_id)
                 task_root = root / "tasks" / task_id
                 recs = [
@@ -1957,6 +2102,43 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 端点面即规格表，平�
             raise
         runner.enqueue(task_id, _secrets_for(request, row))
         return _accepted(store.get(task_id) or row, 202, {"cache": "retry"})
+
+    @app.post("/api/task/{task_id}/chunk/{seq}/retranslate")
+    async def chunk_retranslate(request: Request, task_id: str, seq: int) -> Response:
+        """终态任务单块重译入队——202 ``{task_id, seq, status:"queued"}``。
+
+        守卫阶梯：任务存在 + tenant 隔离（``_get_task`` 404）→ 状态须
+        done/partial（reader 消费面——ACTIVE 与其余终态 409）→ seq 须
+        命中 chunks 表（404）→ ``auth_source=header`` 重带 key（401，
+        retry 同口径：内存 secrets 随终态已摘）。``enqueue_retranslate``
+        的 KeyError/ValueError 归一 404/409——检查到入队之间行被并发
+        删/改态的竞态兜底。
+        """
+        row = _get_task(request, task_id)
+        if str(row["status"]) not in ("done", "partial"):
+            return _json_error(
+                409,
+                f"任务状态 {row['status']}：仅 done/partial 终态可单块重译",
+                "invalid_state",
+            )
+        if seq < 0 or not store.chunk_exists(task_id, seq):
+            return _json_error(404, f"no chunk seq {seq}", "not_found")
+        if row["auth_source"] == "header" and not request.headers.get("x-texlate-key"):
+            return _json_error(
+                401,
+                "auth_source=header：重译必须重带 X-Texlate-Key",
+                "auth_required",
+            )
+        try:
+            runner.enqueue_retranslate(task_id, seq, _secrets_for(request, row))
+        except KeyError:
+            return _json_error(404, "task not found", "not_found")
+        except ValueError as e:
+            return _json_error(409, str(e), "invalid_state")
+        return JSONResponse(
+            {"task_id": task_id, "seq": seq, "status": "queued"},
+            status_code=202,
+        )
 
     @app.delete("/api/task/{task_id}")
     async def task_delete(request: Request, task_id: str) -> Response:
