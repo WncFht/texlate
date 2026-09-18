@@ -78,7 +78,9 @@ rules:
               % \pacs 全期容忍: revtex4-2 版在 \maketitle 后调 → ClassError
               % (revtex_pacs 5 格实证)。begin-doc 起改直印 —— 前置调用失去
               % frontmatter 注册但文本可见且不炸 (2.09 老稿多后置)。
-              \AtBeginDocument{\def\pacs##1{\par\noindent\textbf{PACS:} ##1\par}}
+              % hook 内 \def 用单 #——hook 逐字存 token, 双写则字面留下炸
+              % 参数号 + \pacs 变定界宏撞 \par (loop2/rt1/guardsmoke 7 格实证)。
+              \AtBeginDocument{\def\pacs#1{\par\noindent\textbf{PACS:} #1\par}}
               \endinput
           psfig.sty:
             needs: ["epsfig.sty"]
