@@ -3,8 +3,10 @@ r"""argspec.json 表 + 分段器接线：包门控 / policy 分派 / env 体路�
 数据资产 ``src/texlate/latex/data/argspec.json``（CTAN 签名合成，
 ``tmp/exp/ctan/build_argspec.py`` 生成）。装载走
 ``tables.argspec_tables()``（``importlib.resources`` + ``@cache``）；
-查表 ``argspec_lookup``/``argspec_lookup_env`` 以
-``package ∈ pkgs ∪ ARGSPEC_ALWAYS_PKGS`` 或 ``also_in`` 交集门控。
+查表 ``argspec_lookup``（宏侧）以 ``package ∈ pkgs ∪
+ARGSPEC_ALWAYS_PKGS`` 或 ``also_in`` 交集门控；``argspec_lookup_env``
+（环境侧）不门控——``\begin{X}`` 本身即工程级加载证据（per-file
+pkgs 会漏跨文件导言包）。
 分段器挂点：``_handle_unknown_cs``（宏表未命中的未知 cs → policy
 分派）与 ``_handle_env_begin``（族表不知的 env → body_role 路由）。
 """
@@ -44,11 +46,16 @@ def test_loader_tables() -> None:
 
 
 def test_lookup_gating() -> None:
-    r"""真实包名须 ``pkgs`` 命中；``ALWAYS`` 族（latex2e 等）无条件激活。"""
+    r"""宏侧真实包名须 ``pkgs`` 命中；``ALWAYS`` 族（latex2e 等）无条件激活。
+
+    环境侧不门控：``\\begin{X}`` 本身即工程级加载证据（per-file pkgs
+    查不到跨文件导言包——``_argspec_env`` 的 ``reg`` 已先挡用户
+    ``\\newenvironment`` 撞名）。
+    """
     assert argspec_lookup("frametitle", set()) is None
     assert argspec_lookup("frametitle", {"beamer"}) is not None
     assert argspec_lookup("section", set()) is not None  # latex2e 恒激活
-    assert argspec_lookup_env("dcases", set()) is None
+    assert argspec_lookup_env("dcases", set()) is not None
     assert argspec_lookup_env("dcases", {"mathtools"}) is not None
     # also_in：主包未装、also_in 包已装 → 命中
     assert argspec_lookup("pageref", set()) is None
@@ -127,10 +134,14 @@ def test_protect_zero_arg() -> None:
 
 
 def test_env_math_body_gated() -> None:
-    r"""``dcases``（mathtools）：未装→体当文本流；已装→``[[MATH]]``。"""
+    r"""``dcases``（mathtools math 体）：装不装 ``\\usepackage`` 行都 ``[[MATH]]``——
+
+    ``pkgs`` 是 per-file 视图，体文件查不到导言区包名仍须按签名路由，
+    否则数学体漏成散文被译。
+    """
     body = "Text\n\\begin{dcases}x = 1\\end{dcases}\nmore text here."
-    gated = scan(body)
-    assert "\\begin{dcases}" in gated.protected_tex  # 未知 env 透明尾
+    bare = scan(body)
+    assert bare.ph_map.get("[[MATH_1]]") == "\\begin{dcases}x = 1\\end{dcases}"
     loaded = scan(body, "\\usepackage{mathtools}\n")
     assert loaded.ph_map.get("[[MATH_1]]") == "\\begin{dcases}x = 1\\end{dcases}"
 
@@ -144,6 +155,32 @@ def test_env_text_body_args() -> None:
     )
     assert "\\begin{frame}<+->[t]" in res.protected_tex
     assert any("{My Title Words}" in c.content for c in res.chunks)
+
+
+def test_env_restatable_header_args_never_translate() -> None:
+    r"""``restatable``（thmtools）：env-name/key 参永不进可译 chunk——
+
+    2105.00111 实证：``\\begin{restatable}{theorem}{main}`` 在体文件
+    （无 ``\\usepackage`` 行、per-file pkgs 空）两参曾漏成散文译成
+    ``{这是译文}{这是译文}`` → cleveref ``\\cref@resetstack`` 递归炸栈。
+    env-name/key 位永不译；装不装声明行行为一致。
+    """
+    body = (
+        "Lead sentence goes here.\n\n"
+        "\\begin{restatable}{theorem}{main}\n"
+        "\\label{thm:main}Restated body text here.\n"
+        "\\end{restatable}\n\n"
+        "Tail sentence goes here.\n"
+    )
+    for preamble in ("", "\\usepackage{thmtools}\n"):
+        res = scan(body, preamble)
+        joined = "\n".join(c.content for c in res.chunks)
+        assert "{theorem}" not in joined
+        assert "{main}" not in joined
+        assert "\\begin{restatable}{theorem}{main}" in res.vtex
+        assert any("Restated body text" in c.content for c in res.chunks)
+        tex = ART % (preamble, body)
+        assert reconstruct(res) == tex
 
 
 def test_env_opt_text_title_preserved() -> None:

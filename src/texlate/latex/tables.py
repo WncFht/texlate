@@ -903,15 +903,21 @@ def argspec_lookup(name: str, pkgs: set[str]) -> ArgspecEntry | None:
     return None
 
 
-def argspec_lookup_env(name: str, pkgs: set[str]) -> ArgspecEntry | None:
-    r"""``argspec_lookup`` 的环境侧同名物（``\\begin{X}`` 的 X）。"""
-    e = argspec_tables()[1].get(name)
-    if e is None:
-        return None
-    allowed = pkgs | ARGSPEC_ALWAYS_PKGS
-    if e.package in allowed or e.also_in & allowed:
-        return e
-    return None
+def argspec_lookup_env(name: str, _pkgs: set[str]) -> ArgspecEntry | None:
+    r"""``argspec_lookup`` 的环境侧同名物（``\\begin{X}`` 的 X）——不按包门控。
+
+    ``pkgs`` 只收本文件 ``\\usepackage``/``\\documentclass``；工程按
+    ``\\input`` 拆开后体文件查不到导言区包名，包门必假阴。``\\begin{X}``
+    出现本身即工程已供 X 的证据（X 无内核/恒激活族提供方；用户
+    ``\\newenvironment`` 撞名由调用方 ``_argspec_env`` 的 ``reg`` 先短路，
+    到不了此层）。不吃签名会把 env-name/key 参漏成散文送译——thmtools
+    ``restatable`` 实证：``\\begin{restatable}{theorem}{main}`` 的两参进
+    chunk 被译成 ``{这是译文}{这是译文}`` → cleveref ``\\cref@resetstack``
+    递归炸栈（2105.00111）。``text``/``opt-text`` 角色参回吐主流不受影响；
+    最坏形态 = 未定义/撞名 env 按签名多吞若干组（有界少译，无腐蚀面）。
+    ``_pkgs`` 留参与宏侧调用面对称，不读。
+    """
+    return argspec_tables()[1].get(name)
 
 
 # ---------------------------------------------------------------- 列型前导启发

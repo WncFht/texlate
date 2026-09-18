@@ -510,8 +510,12 @@ def test_restatable_bare_text_body_bounded_lose() -> None:
     assert "rest of the body words" in body
 
 
-def test_restatable_no_thmtools_dormant() -> None:
-    r"""无 ``\usepackage{thmtools}`` 条目不激活——``{main}`` 仍裸进 chunk（门控语义）。"""
+def test_restatable_no_thmtools_still_protected() -> None:
+    r"""无 ``\usepackage{thmtools}`` 行同收——per-file pkgs 查不到跨文件
+
+    导言包名，``\begin{restatable}`` 本身即工程级加载证据；env-name/key
+    参漏译会成 ``{这是译文}`` → cleveref 递归炸栈（2105.00111 实证）。
+    """
     tex = ART % (
         "",
         (
@@ -522,7 +526,10 @@ def test_restatable_no_thmtools_dormant() -> None:
     )
     res = parse_tex(tex)
     check_invariants(res, tex)
-    assert "{main}" in chunk_text(res)
+    body = chunk_text(res)
+    assert "{main}" not in body
+    assert "{theorem}" not in body
+    assert "Body words of the theorem" in body
 
 
 # ------------------------------------------------------------- epic/eepic 保护环境
