@@ -139,11 +139,7 @@ rules:
     description: "tectonic bundle biblatex ↔ 系统 biber bcf 版本错配 → REJECT route=xelatex 换引擎 (不改源)"
     phase: loop
     order: 8 # toolchain_skew/other 族首评: 硬墙先路由
-    when:
-      {
-        any:
-          [ { category: toolchain_skew }, { category: other } ],
-      }
+    when: { any: [{ category: toolchain_skew }, { category: other }] }
     condition:
       engine_in: [tectonic]
     action:
@@ -161,3 +157,42 @@ rules:
         }
     stats: { fires: 0, status: proposed }
     source_ref: "_builtins_bib.py biber_biblatex_skew_route; repair.py cross_engine_retry reject_route 臂"
+
+  # 2026-09-18 natbib-lane (astro-ph/0307344, stagerun-rt1): natbib_numbers_pass
+  # (95-targeted order 186) 的 (\\begin\{document\}) 重写无注释遮盖——注释行
+  # 提到 \begin{document} 的被 \n 尾巴切成两半, "command."/"." 尾脱注释成
+  # 行首活 \begin{document} (ms.tex:172/198), 首个活行在 \NAT@numberstrue
+  # 注入位 (:285) 之前触发 aux 读 → compat 炸 (ms.aux:32) + preamble-only
+  # 级联 (103 err)。aux purge 无用——裂伤在 tex 层。本规则收伤: 行首
+  # \begin{document} 带可见尾文 (排除尾挂注释) 且后文另有行首者重注释;
+  # 唯一带尾文的合法 \begin{document}Hello 形由 lookahead 门保住。
+  - id: begindoc_tail_recomment
+    mechanisms: [W117, W126]
+    description: "注入式 rewrite 注释切分裂伤 → 带尾文的行首孤立 \\begin{document} 重注释 (后起行首 \\begin{document} 门)"
+    phase: loop
+    order: 194 # natbib_numbers_pass(186) 裂伤兜底, 同签下轮收
+    when: { category: other }
+    condition:
+      ctx_suggests: "Bibliography not compatible with author-year|Can be used only in preamble"
+      source_contains: "\\n\\\\begin\\{document\\}[^\\S\\r\\n]*[^\\s%]"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex]
+        rewrites:
+          - {
+              pattern: "^\\\\begin\\{document\\}(?=[^\\S\\r\\n]*[^\\s%][\\s\\S]*^\\\\begin\\{document\\})",
+              repl: "%\\g<0>",
+              flags: [MULTILINE],
+            }
+    risk: low # 仅重注释裂伤活行; lookahead 门保唯一带尾文 \begin{document} 合法稿
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "astro-ph/0307344 (stagerun-rt1)",
+          error: "ms.aux:32 natbib compat + ms.tex:198/222/223 preamble-only 级联 — natbib_numbers_pass 注释切分裂伤",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "natbib.sty:974 \\NAT@force@numbers; ms.tex:172/198 裂伤行 vs :285 注入位"
