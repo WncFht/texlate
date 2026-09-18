@@ -79,6 +79,7 @@ from __future__ import annotations
 
 import os
 import random
+import re
 import string
 import subprocess
 import sys
@@ -1105,22 +1106,55 @@ def _afold(s: str) -> str:
     return "".join(c.upper() if "a" <= c <= "z" else c for c in s)
 
 
-def _oracle_term_hit(en: str, corpus: str) -> bool:
-    """独立命中 oracle：fold 后子串扫描 + 命中位前后不得是 ASCII 词字符。
+#: ws-flex 缝字符集——impl ``_term_pattern`` 的 ``[~\\s]+`` 同口径
+#: （``re.ASCII`` 旗下 ``\\s`` = 六空白符）。
+_SEAM = frozenset("~ \t\n\r\f\v")
+_WS_SPLIT_RX = re.compile(r"[~\s]+")
 
-    en="" 也走同一扫描——``(?<!\\w)(?!\\w)`` 零宽断言在非词字符邻接位
-    可命中空术语（正则语义逐位镜像，非提前拒）。
+
+def _zero_width_hit(fc: str) -> bool:
+    """空/纯缝 en 的 ``(?<!\\w)(?!\\w)`` 零宽断言——逐位扫描。"""
+    for i in range(len(fc) + 1):
+        pre_ok = i == 0 or fc[i - 1] not in _ASCII_WORD
+        post_ok = i == len(fc) or fc[i] not in _ASCII_WORD
+        if pre_ok and post_ok:
+            return True
+    return False
+
+
+def _seam_match(words: list[str], fc: str, i: int) -> int:
+    """位置 i 起词序列缝扫——命中返尾位，否则 -1。"""
+    j = i + len(words[0])
+    for w in words[1:]:
+        k = j
+        while k < len(fc) and fc[k] in _SEAM:
+            k += 1
+        if k == j or not fc.startswith(w, k):
+            return -1
+        j = k + len(w)
+    return j
+
+
+def _oracle_term_hit(en: str, corpus: str) -> bool:
+    """独立命中 oracle：词序列按 ``[~\\s]+`` 缝扫描 + 首尾 ASCII 词边界。
+
+    镜像 ``_term_pattern``：en strip 后按 ``[~\\s]+`` 切词，缝可吃
+    换行/tab/``~``/多空格（≥1 缝字符必有）；空/纯缝 en 退化为
+    零宽断言同旧口径。
     """
-    fe, fc = _afold(en), _afold(corpus)
-    start = 0
+    words = [_afold(w) for w in _WS_SPLIT_RX.split(en.strip()) if w]
+    fc = _afold(corpus)
+    if not words:
+        return _zero_width_hit(fc)
+    first, start = words[0], 0
     while True:
-        i = fc.find(fe, start)
+        i = fc.find(first, start)
         if i < 0:
             return False
+        j = _seam_match(words, fc, i)
         pre_ok = i == 0 or fc[i - 1] not in _ASCII_WORD
-        j = i + len(fe)
-        post_ok = j == len(fc) or fc[j] not in _ASCII_WORD
-        if pre_ok and post_ok:
+        post_ok = j >= 0 and (j == len(fc) or fc[j] not in _ASCII_WORD)
+        if j >= 0 and pre_ok and post_ok:
             return True
         start = i + 1
 

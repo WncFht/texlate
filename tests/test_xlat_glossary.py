@@ -117,6 +117,48 @@ class TestDocFilter:
         assert keys == ["[[CITE_1]]", "[[MATH_2]]", "[[MATH_10]]"]
 
 
+class TestDocFilterWsFlex:
+    """E24 qual:glossary-ws-flex——多词术语词内空白/``~`` 折缝化匹配。"""
+
+    @pytest.fixture
+    def g(self, tmp_path: Path) -> gl.Glossary:
+        d = tmp_path / "terms"
+        d.mkdir()
+        (d / "default.csv").write_text(
+            "computer vision,计算机视觉\nMaximum Likelihood,最大似然\n"
+            "domain adaptation,域适应\nsingle,单词\n",
+            encoding="utf-8",
+        )
+        return gl.Glossary.load(terms_dir=d, user_path=Path("/nonexistent"))
+
+    def test_tilde_joined(self, g: gl.Glossary) -> None:
+        assert "computer vision" in g.doc_filter(["we use computer~vision here"])
+
+    def test_newline_broken(self, g: gl.Glossary) -> None:
+        assert "Maximum Likelihood" in g.doc_filter(["the Maximum\nLikelihood est"])
+
+    def test_multi_space_and_tab(self, g: gl.Glossary) -> None:
+        assert "domain adaptation" in g.doc_filter(["domain  adaptation"])
+        assert "domain adaptation" in g.doc_filter(["domain\tadaptation"])
+
+    def test_normal_form_still_hits(self, g: gl.Glossary) -> None:
+        assert "computer vision" in g.doc_filter(["computer vision works"])
+
+    def test_boundary_still_enforced(self, g: gl.Glossary) -> None:
+        # 折缝化只松词内空隙——词边界 lookaround 不动：singles 不命中 single
+        assert "single" not in g.doc_filter(["the singles club"])
+        # 缝跨不进字母：computerXvision 不命中
+        assert "computer vision" not in g.doc_filter(["computerXvision"])
+
+    def test_term_with_literal_tilde_splits_clean(self, tmp_path: Path) -> None:
+        d = tmp_path / "terms"
+        d.mkdir()
+        (d / "default.csv").write_text("a~b,甲乙\n", encoding="utf-8")
+        g = gl.Glossary.load(terms_dir=d, user_path=Path("/nonexistent"))
+        assert "a~b" in g.doc_filter(["x a b y"])
+        assert "a~b" in g.doc_filter(["x a~b y"])
+
+
 class TestLoadIndex:
     def test_comma_string_and_list_forms(self, tmp_path: Path) -> None:
         p = tmp_path / "index.yaml"
