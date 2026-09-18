@@ -206,3 +206,10 @@
 - autogloss-reg phase1 arm-off judging 在跑（qualbench concurrency 8，run.log 持续出分，22:24 活跃）。
 
 - 23:20 **四道收割×4 commit**：归因全过逐 hunk 验证后落——`d30f636` epsfig（`\input pkg.sty` 裸载→`\usepackage` 改写，precheck -11 殿首+lookahead 限导言区；与 stybegindoc letter_wrap 判=互补非冲突：规则修 author-authored 裸载、wrap 修我方 emitted `\input{physics.sty}`——\input 不进 ver@ 注册表是有意，缺的只是 @-catcode 包裹）；`4509e5a` stybegindoc（W164 tar 伪装件解包 ustar@257 探针+名卫+no-clobber+抽中才退役；letter_wrap .tex 宿主才包 makeatletter）；`2c86fa1` pdo（W165 pdfstring 字母常量缴械——`\pdfstringdefDisableCommands{\def\<cs>{}}` 文档化逃生舱，offender 名从日志 `<to be read again>` 行挖 len>2 滤单字符合法形，上游 acmart+hyperref 脆面非我方注入）；`49b2ee5` stybegindoc 副修（actions.py 规则供给 pattern 四处评点换 regex 模块——`(?|` 扩展曾炸 _cond_ok 44 红，stdlib re 留守 re.escape/硬编点）。**builtins.py 双道共件分拆术**：pdo/stybegindoc 各注 3 行同文件——tar 道先 commit 时临时剥 pdfstring 3 行、commit 后还原（保每 commit 机制可归+中间态注册钉绿）。**ordering pin 双规则同件同舞**：epsfig commit 时暂摘 tar 行、tar commit 时还原。收割后 1536 钉绿 ruff 净。**envdiag 判=非我方**：env 簇修正口径 ×101（undef×91+mismatch×10 非 ×185）——mismatch 5/5 同 signature `Extra \endgroup.`、base 臂逐格复现同分布（1803.00222 自带 revtex4-1.cls 内含 \endgroup）=paper-authentic 不派规则；undef `abstract`×80 已被 abstract_frontmatter_hoist 收（76 clean）非新料；1803.00222 记 watch。**在飞**：restatable（env-arg opaque）、natbib（aux 清）；peer texlate-48 prompt-bundle/delimargs 道在飞（xlat pipeline/prompts + gullet/segmenter 树内件归彼）。autogloss-reg phase1 judging 续航。
+
+## 2026-09-18 22:35 — wave-2 drift-watch 仪表落地（ad558b9）
+
+- `bench/py/qualdrift.py` 新件：frozen300 zh 钉死 manifest → qualbench 复判 → qualfreeze check 四信号门禁（与回归批同套阈 0.05/0.01/5/0.10）→ `bench/results/qualdrift-history.jsonl` 趋势账。`run`/`history` 两子命令，--mock-judge 离线自检已验（mock 判分对 swe-2-max 基线 drift 是预期正确结果——编排链全通：qualbench→qualfreeze→history 行全字段）。
+- 定位：回归批前置「尺子校验」——钉集 zh 冻结，分布漂移只能来自 judge 侧（模型静默换版/口径漂移），把「翻译变化」与「判分变化」解耦。每次 frozen-300 回归前先跑哨兵。
+- 首个真实数据点安排：autogloss-reg 批收尾后空窗跑（现 arm-off 判分 297/300 收尾，避免网关并发争抢）；之后随每次回归批前置。
+- 周期哨兵的持久化（systemd timer/crontab）属 heavier 持久层，暂不启用——session cron 随会话死；台账留重启后 re-arm 协议。
