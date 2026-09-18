@@ -77,9 +77,8 @@ _KV_COMMENT_RX = re.compile(r"(?<!\\)%[^\n\r]*")
 
 def _keyval_shaped(ftext: str, cs: int, ce: int) -> bool:
     r"""``ftext[cs:ce]`` 剥注释后是否 ``key=``/``flag,key=`` 起头的 keyval 组。"""
-    return (
-        _KEYVAL_GROUP_RX.match(_KV_COMMENT_RX.sub(" ", ftext[cs:ce])) is not None
-    )
+    return _KEYVAL_GROUP_RX.match(_KV_COMMENT_RX.sub(" ", ftext[cs:ce])) is not None
+
 
 # 参内零宽命令整调用剥除——``\index``/``\label`` 不产生可见文本，但其
 # ``{..}`` 组在词链判据里当隔墙（``{inflation \index{x} and the epoch}``
@@ -1049,12 +1048,8 @@ class _Args:
                 src.unread(pulled)  # 组 token 已回吐；ws 回放
                 return end
             inner, closer = hit
-            if (
-                closer.pos[0] != x.pos[0]
-                or _KEYVAL_GROUP_RX.match(
-                    self.file_texts[x.pos[0]], x.pos[2], closer.pos[1]
-                )
-                is None
+            if closer.pos[0] != x.pos[0] or not _keyval_shaped(
+                self.file_texts[x.pos[0]], x.pos[2], closer.pos[1]
             ):
                 src.unread([*pulled, x, *inner, closer])
                 return end
@@ -1440,11 +1435,13 @@ class _Args:
             return False  # 跨 fid 组——``file_texts[fid]`` 切片错位，保持 opaque
         if self.file_texts[fid][a.fs] not in "{[":
             return False  # ``d<>``/``e``/``r()``/``t`` 定界参非散文槽位
-        if _KEYVAL_GROUP_RX.match(self.file_texts[fid], a.cs, a.ce) is not None:
+        content = self.file_texts[fid][a.cs : a.ce]
+        stripped = _KV_COMMENT_RX.sub(" ", content)
+        if _KEYVAL_GROUP_RX.match(stripped) is not None:
             return False  # ``{key=..}`` 组——键位非散文，整参保持 opaque
-        if _COMMA_LIST_RX.fullmatch(self.file_texts[fid][a.cs : a.ce]):
+        if _COMMA_LIST_RX.fullmatch(stripped):
             return False  # 逗号名单（库/包/文件列）——机读槽位不挖
-        text = _ZERO_WIDTH_ARG_RX.sub(" ", self.file_texts[fid][a.cs : a.ce])
+        text = _ZERO_WIDTH_ARG_RX.sub(" ", content)
         text = _OPAQUE_ARG_STRIP_RX.sub(" ", text)
         for mm in _OPAQUE_ARG_PROSE_RX.finditer(text):
             words = _OPAQUE_ARG_WORD_RX.findall(mm.group(0))

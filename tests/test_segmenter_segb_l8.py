@@ -374,6 +374,43 @@ def test_amsrefs_bib_keyval_stays_opaque() -> None:
     assert "long paper title" not in blob(res)
 
 
+def test_keyval_group_comment_leading_stays_opaque() -> None:
+    r"""注释行起头的 keyval 组同收——形状门先剥 ``%`` 注释行再判。
+
+    2105.00041 ``lstlean.tex`` 实证：``\lstdefinelanguage{lean}{`` 起头的
+    ~250 行定义体以 ``%`` 注释行起头，裸套 ``_KEYVAL_GROUP_RX`` 在 ``%``
+    处即断 → 组判成散文 → ``mathescape=``/``morekeywords=`` 键位被译成
+    ``这是译文`` → ``Package keyval Error``。``\%`` 转义不剥。
+    """
+    res = scan(
+        "\\lstdefinelanguage{lean} {\n"
+        "% Anything betweeen $ becomes LaTeX math mode\n"
+        "mathescape=false,\n"
+        "texcl=false,\n"
+        "morekeywords=[1]{import, prelude, open, as},\n"
+        "basicstyle={\\ttfamily},\n"
+        "}\n"
+        "Tail prose words keep flowing here.\n"
+    )
+    bodies = cmd_bodies(res)
+    assert any("mathescape=false" in b for b in bodies)
+    assert "mathescape" not in blob(res)
+    assert "morekeywords" not in blob(res)
+    assert "texcl" not in blob(res)
+    assert "Tail prose words" in blob(res)
+
+
+def test_keyval_group_comment_between_entries_stays_opaque() -> None:
+    r"""keyval 组内行间注释同剥——``key=val,`` 后注释行再 ``key=`` 仍 opaque。"""
+    res = scan(
+        "\\author{Doe}{% affiliation line\n"
+        "address=MIT, email=d@x, % trailing note\n"
+        "name=Third}\nBody prose keeps flowing here.\n"
+    )
+    assert "address=MIT" not in blob(res)
+    assert "email=d@x" not in blob(res)
+
+
 def test_epigraph_first_arg_surfaces() -> None:
     r"""``\epigraph{引文}{署名}``（W33）：引文散文出 surface，署名留 CMD。"""
     res = scan(
