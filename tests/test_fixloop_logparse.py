@@ -11,6 +11,8 @@ from typing import Any
 import pytest
 
 from texlate.compile.fixloop import Ruleset, load_ruleset
+from texlate.compile.fixloop.actions import _cond_ok, _when_ok
+from texlate.compile.fixloop.engine import LoopCtx
 from texlate.compile.fixloop.logparse import (
     Taxonomy,
     _ctx_tail_css,
@@ -147,6 +149,44 @@ def test_warn_patterns_scanned() -> None:
             "already_def",
             "c@thm",
         ),
+        # 2026-09-19 反引号签扩收 (failmine2 \Bbbk 族 23 cells): 老
+        # \@ifdefinable/amssymb 系 `` `\X' `` 形 —— 下行是 stagerun-loop2
+        # compile.jsonl 原样实录 (amssymb.sty:261)。
+        (
+            (
+                "/usr/share/texmf-dist/tex/latex/amsfonts/amssymb.sty:261: "
+                "LaTeX Error: Command `\\Bbbk' already defined."
+            ),
+            "already_def",
+            "Bbbk",
+        ),
+        # ltcmd `'\X'` 引号形 (1706.07911 实证)
+        (
+            "! LaTeX Error: Command '\\liningnums' already defined.",
+            "already_def",
+            "liningnums",
+        ),
+        # ntheorem 姊妹条目 (Theorem style X) 不受 Command 形扩收影响
+        (
+            "ntheorem.sty:524: LaTeX Error: Theorem style plain already defined",
+            "already_def",
+            "plain",
+        ),
+        # 负闸: `` `\X' `` 在邻接签名内不得误归 —— Control sequence 签
+        # 留给 ctlseq/fontspec_double_merge 车道 (other, 无 payload);
+        # "already defined" 短语锚不放的 (was never defined) 与
+        # `` `X' `` 在无关报文内 均不落 already_def。
+        (
+            "ctex.sty:500: LaTeX Error: Control sequence \\chinese already defined.",
+            "other",
+            None,
+        ),
+        (
+            "! LaTeX Error: Command `\\foo' was never defined.",
+            "other",
+            None,
+        ),
+        ("! Package foo Error: option `bar' unknown.", "other", None),
         ("! Package soul Error: Reconstruction failed.", "soul_err", None),
         ("! Not a letter.\nl.3 \\hyphenation{中-文}", "hyphenation", None),
         ("! Package minted Error: frozencache file missing.", "minted_froz", None),
@@ -186,6 +226,34 @@ def test_warn_patterns_scanned() -> None:
 )
 def test_head_categories(log: str, cat: str, pay: str | None) -> None:
     assert classify(log) == (cat, pay)
+
+
+def test_already_def_backtick_reaches_undefine_rule(tmp_path: Path) -> None:
+    r"""端到端路由钉: ``Command `\Bbbk'`` → already_def|Bbbk 后,
+
+    ``already_def_undefine`` (75-syntax:113) 的 when
+    (category+payload_required) 与 condition (ctx_suggests "Command")
+    双闸通过 —— 扩收前该签落 other 无 payload, already_def_* 三家
+    全够不到 (failmine2 23 cells)。"""
+    log = "! LaTeX Error: Command `\\Bbbk' already defined."
+    cat, pay = classify(log)
+    assert (cat, pay) == ("already_def", "Bbbk")
+    rule = next(r for r in _rs().rules if r.id == "already_def_undefine")
+    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel="main.tex")
+    ctx.err_head = "amssymb.sty:261: LaTeX Error: Command `\\Bbbk' already defined."
+    assert _when_ok(rule.when, cat, pay, ctx)
+    ok, why = _cond_ok(rule.condition, rule, ctx, None, pay)
+    assert ok, why
+
+
+def test_already_def_backtick_reaches_renew_rule(tmp_path: Path) -> None:
+    """姊妹闸: ``already_def_newcmd_renew`` (75-syntax:111) 同样可接。"""
+    log = "! LaTeX Error: Command `\\Bbbk' already defined."
+    cat, pay = classify(log)
+    rule = next(r for r in _rs().rules if r.id == "already_def_newcmd_renew")
+    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel="main.tex")
+    ctx.err_head = log
+    assert _when_ok(rule.when, cat, pay, ctx)
 
 
 def test_undefined_cs_subclassifies_pdftex_prim() -> None:

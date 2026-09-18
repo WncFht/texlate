@@ -94,10 +94,14 @@ taxonomy:
       pattern: "Option clash for package ([\\w-]+)",
     }
   - {
+      # 引号两形并收: `'?\X'? (ltcmd `'\X'`/裸 \X') 与 `` `\X' `` (老
+      # \@ifdefinable/amssymb 系反引号签 —— failmine2: \Bbbk 族 23 cells
+      # 曾落 other 无 payload, already_def_* 规则够不到)。Control
+      # sequence \X / Theorem style X 两签前缀不同, 天然不串线。
       id: already_def,
       scope: head,
       payload_group: 1,
-      pattern: "Command '?\\\\?([\\w@]+)'? already defined",
+      pattern: "Command [`']?\\\\?([\\w@]+)'? already defined",
     }
   - {
       # ntheorem 自检错 (Theorem style X already defined) —— amsthm/thmtools
@@ -151,6 +155,19 @@ taxonomy:
     subclassify:
       { pattern: "\\\\(pdf[a-zA-Z@]+)", into: pdftex_prim, payload_group: 1 }
   - { id: undefined_cs, scope: head, pattern: "Undefined control sequence" }
+  # 2026-09-19 failmine2 (~13 cells): `\renewcommand`/`\RenewCommandCopy`
+  # 对未定义 cs 的内核签 "Command \X undefined" (latex.ltx \renew@command,
+  # `\X' 反引号形为 \MakeRobust) —— 定义点缺位与用点 "Undefined control
+  # sequence" 同语义, 归同类携 cs payload → cs_targeted_fix 表查询。
+  # natbib.sty:1070 \renewenvironment{thebibliography} 内 \renewcommand
+  # \newblock 实证面 (老类/shim 无 \newblock 定义: 1109.6007/1306.0551/
+  # astro-ph/0501240); "was never defined" 措辞形天然不落本签。
+  - {
+      id: undefined_cs,
+      scope: head,
+      payload_group: 1,
+      pattern: "Command [`']?\\\\([\\w@]+)'? undefined",
+    }
   # capacity payload 走 python 提取器 (payload_scan 注册表, logparse):
   # ``TeX capacity exceeded, sorry [<name>=<n>]`` bracket 归一 tag + ctx
   # 首层 pending cs → ``<tag>|<cs>`` —— triage 路由键: input_stack=递归,
