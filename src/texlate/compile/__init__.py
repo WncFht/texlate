@@ -2,6 +2,8 @@
 
 - `mask`：visible_tex 遮蔽视图（所有手术的定位地基）
 - `normalize`：pdfTeX→XeTeX 无条件手术 12 项
+- `transcode`：支持件字节转码/净化（aux/bib/中间件/PS 文件——invalid_utf8 修复臂一）
+- `shadow`：系统包遮蔽（kpsewhich 解析 + 本地件遮蔽——invalid_utf8 修复臂三）
 - `latex209`：LaTeX 2.09 ``documentstyle`` → LaTeX2e 受限升级器（compat 模式唯一注入通路）
 - `inject`：ctex/xeCJK 中文注入 + FLOAT_SIZING/TABLE_FITTING
 - `cjkmap`：GB1→UCS2 ToUnicode CMap 注入（zh.pdf 复制/检索修复）

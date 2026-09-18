@@ -255,6 +255,45 @@ def normalize_pixel_dimensions(text: str) -> str:
     return apply_edits(text, [(s, e, v) for (s, e), v in edits.items()])
 
 
+# ---------------------------------------------------------------- 手工断词还原
+#: 字母夹断词整词匹配——前导字母串不许 ``\``/字母前接：``\foo\-bar``
+#: 的 ``foo\-bar`` 是 cs 尾+断词，直接剥 ``\-`` 会把 ``bar`` 接进宏名
+#: 变 ``\foobar``（lookbehind 在 ``f`` 与第二个 ``o`` 位双双挡死）；
+#: ``(?<!\\-)`` 再挡断词串续段——``\foo\-bar\-baz`` 里 ``bar`` 前位是
+#: ``\-`` 尾符，放行会把 ``barbaz`` 接走最后一个断点。
+_MANUAL_HYPHEN_RX: Final = re.compile(
+    r"(?<![a-zA-Z\\])(?<!\\-)[a-zA-Z]+(?:\\-[a-zA-Z]+)+"
+)
+#: tabbing 环境里 ``\-`` 是「上一制表位」命令（``x\-y`` 形同断词）——
+#: env 面豁免；tabbing 不可嵌套，``.*?`` 跨行扫安全。
+_TABBING_ENV_RX: Final = re.compile(
+    r"\\begin\s*\{tabbing\}.*?\\end\s*\{tabbing\}", re.DOTALL
+)
+
+
+def normalize_manual_hyphens(text: str) -> str:
+    r"""可译文本内手工断词 ``\-`` 还原为整词（``sphe\-ri\-cal`` → ``spherical``）。
+
+    ``\-`` 在散文是断词提示——segmenter 按 token 切分把它打成词碎片
+    （``sphe``/``ri``/``cal`` 或占位符夹段）喂翻译（hep-th/9910234 实证族：
+    ``cy\-lin\-dri\-cal``/``non-Car\-te\-sian``，东欧/前苏联作者稿高发）。
+    还原后整词进 parse/xlat；编译侧仅损失手工断点提示，xelatex 自动
+    断词不受影响。verbatim/注释在遮蔽视图外天然保留；tabbing 豁免见上。
+    """
+    visible = visible_tex(text)
+    tabbing = [m.span() for m in _TABBING_ENV_RX.finditer(visible)]
+    edits = [
+        (
+            match.start(),
+            match.end(),
+            text[match.start() : match.end()].replace(r"\-", ""),
+        )
+        for match in _MANUAL_HYPHEN_RX.finditer(visible)
+        if not any(s <= match.start() < e for s, e in tabbing)
+    ]
+    return apply_edits(text, edits)
+
+
 # ---------------------------------------------------------------- 7. inputenc/fontenc
 def strip_input_encodings(text: str) -> str:
     r"""剥 `\usepackage{..}` 名字列表里的 inputenc/fontenc，其余保留。
@@ -788,6 +827,7 @@ def normalize_engine(text: str, engine: str, *, doc_source: bool = True) -> str:
     """
     text = normalize_comment_terminators(text)
     text = normalize_float_positions(text)
+    text = normalize_manual_hyphens(text)
     if engine in ("tectonic", "xelatex"):
         text = normalize_pdftex_features(text, engine, doc_source=doc_source)
         if doc_source:
