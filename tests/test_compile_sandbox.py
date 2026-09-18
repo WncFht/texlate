@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any
 import pytest
 
 import texlate.compile.engine as eng_mod
+import texlate.compile.proc as proc_mod
 import texlate.compile.sandbox as sb
 from texlate.compile.engine import TectonicEngine, XelatexEngine
 from texlate.compile.sandbox import child_env, find_tool, run_process, sandbox_wrap
@@ -444,7 +445,7 @@ def test_run_process_rlimit_as_kills_hog(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """RLIMIT_AS 实证：512MB 帽下分配 2GB → MemoryError，失控进程吃不光宿主。"""
-    monkeypatch.setattr(sb, "_RLIMIT_AS_BYTES", 512 * 1024**2)
+    monkeypatch.setattr(proc_mod, "_RLIMIT_AS_BYTES", 512 * 1024**2)
     rc, out, _sec, to = run_process(
         [sys.executable, "-c", "b = bytearray(2 * 1024**3); print(len(b))"],
         cwd=tmp_path,
@@ -482,7 +483,7 @@ def test_run_process_rlimit_nofile_emfile(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """RLIMIT_NOFILE 实证：cap=24 时保活 open 撞 EMFILE。"""
-    monkeypatch.setattr(sb, "_RLIMIT_NOFILE", 24)
+    monkeypatch.setattr(proc_mod, "_RLIMIT_NOFILE", 24)
     rc, out, _sec, to = run_process(
         [
             sys.executable,
