@@ -1,4 +1,4 @@
-"""编译沙箱：env 白名单 + macOS sandbox-exec + linux bwrap + 进程树超时杀（docs/08 §4.4）。
+r"""编译沙箱：env 白名单 + macOS sandbox-exec + linux bwrap + 进程树超时杀（docs/08 §4.4）。
 
 - env **白名单**（非黑名单）：只放编译所需最小集，天然洗 KEY/TOKEN/SECRET；
   叠加 `TECTONIC_UNTRUSTED_MODE=1 openin_any=p openout_any=p shell_escape=f`。
@@ -13,6 +13,11 @@
   为 `proc.kill()`。子进程输出封顶 8MB 防内存炸。
 - POSIX rlimits 纵深：exec 前经 preexec_fn 装 AS/NOFILE/CPU 软帽——失控
   TeX 吃不光宿主内存与 fd，自旋进程墙钟之外还有 SIGXCPU 第二闸。
+- ``\output`` 暴走活哨（``_RunawaySentry``）：POSIX 排干环逐片喂签名
+  计数（logparse 事后判据同 regex 同阈值 + ``[N]`` 页标计数闸），越阈
+  抛 ``TimeoutExpired`` 走既有 killpg 收树臂——病态编译不再烧满墙钟
+  （gr-qc/0104075：96K+ 签名行 / ~97K 页烧 240s 实证），``timed_out``
+  置位让 ``runaway_output``/``timeout`` 归因原样命中。
 """
 
 from __future__ import annotations
@@ -260,6 +265,69 @@ _CANCEL_POLL_S = 0.5
 #: 不再放大驻留（runaway xelatex 日志 GB 级也只留尾部窗口）。
 _READ_CHUNK = 65536
 
+#: 活哨行界扫描的留尾上限——签名永不跨 ``\n``（regex 的 ``[^\n]*`` 界），
+#: 只留最后一个未完行；max_print_line=10000 保真行有界，更长的无换行
+#: 洪片按病态截断（签名海量重复，切断处漏一个不计）。
+_SENTRY_TAIL_CAP: Final = 65536
+#: 洪片截断的留尾——长过任一签名（vbox 行 ~85B、``[N]`` 页标数 B），
+#: 切断点的签名续段仍能拼回计数。
+_SENTRY_KEEP: Final = 4096
+#: 页标记闸（``[N]`` shipout 计数）——健康论文页数百级以下；gr-qc/0104075
+#: 暴走 ~240s 产 ~97K 页（~400 页/秒），10K 闸约 25s 截杀、距正常档两个
+#: 数量级。vbox 签名缺席的静默死循环由本闸兜住；计数制（非 max 值）免
+#: 被文本偶发的大数值括号（``[12345]`` 引用/编号）单发误伤。
+_RUNAWAY_PAGE_MAX: Final = 10_000
+_PAGE_MARK_RX: Final = re.compile(rb"\[\d+\]")
+
+
+class _RunawaySentry:
+    r"""``\output`` 暴走活哨：drain 流片喂入、行界扫描，签名越阈即报。
+
+    与 ``fixloop.logparse`` 事后判据同 regex 同阈值——``_RUNAWAY_VBOX_RX``
+    × ``_RUNAWAY_VBOX_MIN``（str 模式源 ``encode`` 成 bytes 编译形，定义
+    仍单源）；越阈由排干环抛 ``TimeoutExpired`` 走 ``run_process`` 既有
+    killpg 收树臂，``timed_out=True`` 让 ``runaway_output``/``timeout``
+    归因原样命中——病态编译烧满墙钟前即收。
+    """
+
+    def __init__(self) -> None:
+        from texlate.compile.fixloop.logparse import (  # noqa: PLC0415  # 延迟: fixloop/__init__ 链重(cases→fcntl 平台门)，运行期首用才拉
+            _RUNAWAY_VBOX_MIN,
+            _RUNAWAY_VBOX_RX,
+        )
+
+        self._vbox_rx = re.compile(_RUNAWAY_VBOX_RX.pattern.encode())
+        self._vbox_min = _RUNAWAY_VBOX_MIN
+        self._vbox_hits = 0
+        self._page_marks = 0
+        self._tail = b""
+        self.tripped = False
+
+    def feed(self, data: bytes) -> bool:
+        """喂一片 stdout；vbox 签名/``[N]`` 页标任一越阈返 True。"""
+        if self.tripped:
+            return True
+        buf = self._tail + data
+        cut = buf.rfind(b"\n")
+        if cut >= 0:
+            seg, tail = buf[:cut], buf[cut + 1 :]
+        else:
+            seg, tail = b"", buf
+        if len(tail) > _SENTRY_TAIL_CAP:
+            seg += tail[:-_SENTRY_KEEP]
+            tail = tail[-_SENTRY_KEEP:]
+        self._tail = tail
+        if seg:
+            self._scan(seg)
+        return self.tripped
+
+    def _scan(self, seg: bytes) -> None:
+        if self._vbox_hits < self._vbox_min:
+            self._vbox_hits += len(self._vbox_rx.findall(seg))
+        self._page_marks += len(_PAGE_MARK_RX.findall(seg))
+        if self._vbox_hits >= self._vbox_min or self._page_marks >= _RUNAWAY_PAGE_MAX:
+            self.tripped = True
+
 
 def _drain_nonblocking(fd: int, chunks: list[bytes]) -> None:
     """子进程死透后非阻塞排干管道余量——孙进程握写端也不会再阻塞。"""
@@ -297,12 +365,13 @@ def _pump_once(
     return bytes(buf), eof
 
 
-def _drain_bounded(
+def _drain_bounded(  # noqa: PLR0913, PLR0917 -- 排干环参数面集中声明
     proc: subprocess.Popen[bytes],
     cmd: list[str],
     timeout: float,
     out_cap: int,
     should_cancel: Callable[[], bool] | None = None,
+    sentry: _RunawaySentry | None = None,
 ) -> bytes:
     r"""POSIX 主流排干环：单调钟 deadline + 子进程死透即收——替 ``communicate``。
 
@@ -312,6 +381,9 @@ def _drain_bounded(
     进程握管/死锁不再挂死本层；deadline 走 ``time.monotonic``——墙钟
     拨回不再无限延时（旧实现 ``time.time()`` 实证过小时级假死）。
     ``should_cancel`` 依旧 ``_CANCEL_POLL_S`` 分片响应。
+    ``sentry`` 非 None 时逐片喂活签名——越阈视同超时抛
+    ``TimeoutExpired``（语义同 deadline 臂：调用方收树+续收），病态
+    ``\output`` 暴走不再烧满墙钟。
     ``TimeoutExpired`` 携带已读部分输出，``run_process`` 超时臂续收。
     """
     deadline = time.monotonic() + timeout
@@ -339,6 +411,12 @@ def _drain_bounded(
                 if data:
                     chunks.append(data)
                     total += len(data)
+                    if sentry is not None and sentry.feed(data):
+                        # 病态输出签名已坐实——视同超时收树：已读片随异常
+                        # 带出（超时臂续收），runaway_output 归因同口径。
+                        raise subprocess.TimeoutExpired(
+                            cmd, timeout, output=b"".join(chunks)
+                        )
                     if total > headroom:
                         tail = b"".join(chunks)[-2 * out_cap :]
                         chunks = [tail]
@@ -387,7 +465,7 @@ def run_process(  # noqa: PLR0913 -- 子进程参数面集中声明，kwarg 各�
     out_cap: int = 8 * 1024 * 1024,
     should_cancel: Callable[[], bool] | None = None,
 ) -> tuple[int | None, str, float, bool]:
-    """同步跑子进程：进程组隔离 + 超时 killpg + 输出封顶 + POSIX rlimits。
+    r"""同步跑子进程：进程组隔离 + 超时 killpg + 输出封顶 + POSIX rlimits。
 
     返回 `(rc, output, seconds, timed_out)`；timeout 后 SIGKILL 整组
     （latex→dvips/mktextfm 子进程一并带走），非 POSIX 平台降级 proc.kill。
@@ -399,6 +477,8 @@ def run_process(  # noqa: PLR0913 -- 子进程参数面集中声明，kwarg 各�
     分片 ``communicate``（单调钟同款）。``should_cancel`` 旗标置位即抛
     ``asyncio.CancelledError``（``except BaseException`` 臂照常
     ``_kill_tree`` 收树，编译段孤儿不再等满 timeout 才死）。
+    drain 臂内嵌 ``_RunawaySentry`` 活哨——``\output`` 暴走签名/``[N]``
+    页标越阈视同超时收树，``timed_out=True`` 让事后归因原样命中。
     """
     t0 = time.time()
     try:
@@ -427,7 +507,9 @@ def run_process(  # noqa: PLR0913 -- 子进程参数面集中声明，kwarg 各�
     use_drain = sys.platform != "win32" and getattr(proc, "stdout", None) is not None
     try:
         if use_drain:
-            out = _drain_bounded(proc, cmd, timeout, out_cap, should_cancel)
+            out = _drain_bounded(
+                proc, cmd, timeout, out_cap, should_cancel, _RunawaySentry()
+            )
         elif should_cancel is None:
             out, _ = proc.communicate(timeout=timeout)
         else:

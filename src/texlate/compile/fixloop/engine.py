@@ -198,6 +198,10 @@ def _round_cat(
     cat, pay = rs.taxonomy.classify(
         rep, timed_out=bool(getattr(res, "timed_out", False))
     )
+    if cat == "timeout" and _is_runaway_output(getattr(res, "stdout_tail", "") or ""):
+        # 活哨早杀的编译 .log 截断在签名刷屏之前——证据在 stdout_tail
+        # （哨件正是凭它越阈），补查使归因仍是 runaway_output 而非泛 timeout。
+        cat, pay = "runaway_output", None
     if (
         cat in (None, "clean")
         and not getattr(res, "timed_out", False)
