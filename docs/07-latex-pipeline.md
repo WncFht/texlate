@@ -33,7 +33,7 @@ src/texlate/latex/
   api.py             # parse_tex / parse_file（preamble 判定、入口装配）
 ```
 
-（勘误 2026-09-17：v2 落地后布局实为 13 件——另 `mouth.py`（字符→token 三态折叠）、`gullet.py`（回压式展开 + \input 展平原语）、`segmenter.py`（token 流→pieces/chunks/占位符）、`prose.py`（`file_has_prose` 散文闸——support 件判据，e2e/worker/builtins 三处消费）；v2 为默认产品路径，`TEXLATE_NO_EXPAND=1` 回退 v1。勘误同日：`TEXLATE_NO_EXPAND` 曾为非空即真直读（`=0`/`=false` 也触发回退），已收敛 `textutil.env_flag` 标准真值集（`api.py:103/122`）。锚点更新 2026-09-18：`gullet.py`/`segmenter.py` 已拆包——`gullet/`（args/classify/cond/core/decls/defcmd/entries/expand/input/tables/tokutil 十一叶）、`segmenter/`（args/\_common/core/env/group/mainloop/pending/tables 八叶——tables 系 B6 单源化收编的 scanner↔segmenter 七常量表）。勘误 2026-09-19：v1 臂退役——`scanner.py` 删除、`TEXLATE_NO_EXPAND` 回退开关移除（v2 为唯一解析路径，`parse_tex`/`parse_file` 直走 `parse_tex_v2`）；`macro_table.py` 瘦身为共享 helper 叶（`parse_argspec`→segmenter/tables、`body_has_text`/`classify_body`/`protected_param_positions`→gullet/classify）；`MacroTable` 平表删除、`ScanState` 瘦至 8 字段。上文 v1 布局清单与 `scanner.py` 锚点仅作历史参照。）
+（勘误 2026-09-17：v2 落地后布局实为 13 件——另 `mouth.py`（字符→token 三态折叠）、`gullet.py`（回压式展开 + \input 展平原语）、`segmenter.py`（token 流→pieces/chunks/占位符）、`prose.py`（`file_has_prose` 散文闸——support 件判据，e2e/worker/builtins 三处消费）；v2 为默认产品路径，`TEXLATE_NO_EXPAND=1` 回退 v1。勘误同日：`TEXLATE_NO_EXPAND` 曾为非空即真直读（`=0`/`=false` 也触发回退），已收敛 `textutil.env_flag` 标准真值集（`textutil/__init__.py:env_flag`）。锚点更新 2026-09-18：`gullet.py`/`segmenter.py` 已拆包——`gullet/`（args/classify/cond/core/decls/defcmd/entries/expand/input/tables/tokutil 十一叶）、`segmenter/`（args/\_common/core/env/group/mainloop/pending/tables 八叶——tables 系 B6 单源化收编的 scanner↔segmenter 七常量表）。勘误 2026-09-19：v1 臂退役——`scanner.py` 删除、`TEXLATE_NO_EXPAND` 回退开关移除（v2 为唯一解析路径，`parse_tex`/`parse_file` 直走 `parse_tex_v2`）；`macro_table.py` 瘦身为共享 helper 叶（`parse_argspec`→segmenter/tables、`body_has_text`/`classify_body`/`protected_param_positions`→gullet/classify）；`MacroTable` 平表删除、`ScanState` 瘦至 8 字段。上文 v1 布局清单与 `scanner.py` 锚点仅作历史参照。）
 
 依赖方向：`model/placeholder` 为纯数据层不反向依赖；`scanner` 只依赖 model/placeholder/macro_table/tables；`reconstruct` 只依赖 model/placeholder；`api`/`flatten` 是唯一可碰文件系统处。
 
@@ -55,7 +55,7 @@ class PhType(Enum):       # [[TYPE_n]] 全枚举
     HREF MACRO KEY AUTHOR COMMENT COND ENVTAG
     # CHUNK 不在此列：[[CHUNK_n]] 走 chunks[] 不走 ph_map
     # （勘误 2026-09-17：impl 另含 EXPAND——展开组 identity 面，
-    #  segmenter 体=调用点 vtex 切片，model.py:73）
+    #  segmenter 体=调用点 vtex 切片，model.py:PhType.EXPAND）
 
 class Chunk:
     id: int
@@ -114,7 +114,7 @@ class ScanResult:
     #  pieces/chunk.span 的坐标系；v1 字节 scanner 下留空）
 ```
 
-（勘误 2026-09-17：`ArgspecEntry`（model.py:142-161）整类未记档——`data/argspec.json` 一行：CTAN 宏/环境包归属 + xparse `signature` + `arg_roles`（text/opt-text 可译，key/verbatim/skip 保护）+ `policy` 兜底（chunk-arg|transparent|key|verbatim|protect|boundary|literal；env 侧 `body_role`: text|verbatim|math|protect）+ `guessed`（族规则推断签名，可审计回滚）+ `also_in` 跨包重名登记。）
+（勘误 2026-09-17：`ArgspecEntry`（model.py:ArgspecEntry）整类未记档——`data/argspec.json` 一行：CTAN 宏/环境包归属 + xparse `signature` + `arg_roles`（text/opt-text 可译，key/verbatim/skip 保护）+ `policy` 兜底（chunk-arg|transparent|key|verbatim|protect|boundary|literal；env 侧 `body_role`: text|verbatim|math|protect）+ `guessed`（族规则推断签名，可审计回滚）+ `also_in` 跨包重名登记。）
 
 ```python
 PH_RX    = re.compile(r"\[\[[A-Z_]+_\d+\]\]")   # 勘误 2026-09-17：无捕获组——findall 直接出整 token
@@ -143,7 +143,7 @@ while i < n:
 flush_run()
 ```
 
-### 3.2 `dispatch_cmd` 分派表（19 行，顺序原样；勘误 2026-09-17：impl 名 `_dispatch_cmd`，`scanner.py:788`）
+### 3.2 `dispatch_cmd` 分派表（19 行，顺序原样；勘误 2026-09-17：impl 名 `_dispatch_cmd`，`scanner.py:_dispatch_cmd`）
 
 | #   | 命中                                                                                                 | 顶层处理                                                            | in_arg 变体                      |
 | --- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- | -------------------------------- |
@@ -327,7 +327,7 @@ _args(tex, i, spec: list[ArgSpec] | int, has_opt=False, *,
 **时机：扫描中展平**（gullet 原语），不做扫描前 flatten——宏产出的 `\input` 也能展平；`pos=(file_id, offset)` 天然分文件。
 
 - 触发面：`\input/\include/\InputIfFileExists/\subfile/\import/\subimport/\includestandalone/\CatchFileBetweenTags` + **裸文件名形 `\input file`**（读 `[A-Za-z0-9._/-]+` 至空白/反斜杠）。
-- 查找序：including 文件目录 → 项目根 → basename 补 `.tex` → 裸名（勘误 2026-09-17：impl 实为**五级**——including 目录 → 项目根 → **paper top_dir** → basename 补 `.tex` → 裸名，`flatten.py:55-89`/`gullet/input.py:153` `_resolve_input`；且与 docs/06 §2.4 的 locate 建图序是**两套**——locate `_bases` 用 编译 CWD(主文件目录) → 项目根 → including 目录，`locate.py:222-228`。同一 `\input` 在 locate 建图与 gullet 展开两阶段可能解析到不同文件——分歧记档，以 gullet 序为展开语义权威）。注释内 `\input` 在 Mouth 层吞掉天然不触发；verbatim env 内不触发。
+- 查找序：including 文件目录 → 项目根 → basename 补 `.tex` → 裸名（勘误 2026-09-17：impl 实为**五级**——including 目录 → 项目根 → **paper top_dir** → basename 补 `.tex` → 裸名，`flatten.py:_resolve`/`gullet/input.py:_resolve_input`；且与 docs/06 §2.4 的 locate 建图序是**两套**——locate `_bases` 用 编译 CWD(主文件目录) → 项目根 → including 目录，`locate.py:_bases`。同一 `\input` 在 locate 建图与 gullet 展开两阶段可能解析到不同文件——分歧记档，以 gullet 序为展开语义权威）。注释内 `\input` 在 Mouth 层吞掉天然不触发；verbatim env 内不触发。
 - `\subfile{}` 必须展开且 `\end{document}` **只在顶层截停**（子文件自带 document 壳时——2609.06443 实测 335 chunks 被截成 7 的 bug）。
 - 防护：`MAX_INPUTS=8` 深度 + `_seen` 绝对路径集断环（留档偏差：合法重复包含被跳过一次，防环优先）。
 - `\includeonly` 忽略（全部包含）。
@@ -358,7 +358,7 @@ class Gullet:
     macros: ScopeMacroTable # scope 链（§8.5）
     ifflags: dict[str,bool] # \newif 旗标
     math_depth: int         # $/\(/\[/math env 计数 → \ifmmode 求值（勘误 2026-09-17：
-                            # impl 无此字段——`\ifmmode` 恒 False，gullet/cond.py:56-59；
+                            # impl 无此字段——`\ifmmode` 恒 False，gullet/cond.py:_eval_if；
                             # 数学区由分段器 raw 拉取成 [[MATH]]，其内 \ifmmode 不经求值）
     steps: int = 0
     BUDGET = 100_000        # 每文档展开步数上限
@@ -422,7 +422,7 @@ ScopeMacroTable.scopes: list[dict]
 
 | 档位         | 条件族                                                                                                                                                                                                                                     | 处理                                                                                                          |
 | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
-| **可求值**   | `\iftrue/\iffalse`；`\newif` 旗标；`\ifmmode`（math_depth——勘误 2026-09-17：impl 恒 False，gullet/cond.py:56-59，v2 不追踪数学深度实测未踩坑）；`\ifnum/\ifodd/\ifdim` 全字面量；`\ifdefined`；`\if/\ifcat`；`\ifx` 同 literal；`\ifcsname`；`\ifeof/\ifvoid/\ifhbox/\ifvbox/\ifinner`→恒 False；`\ifhmode/\ifvmode`→模式常量 | 读条件→`process_if(bool)`：case 收集只推回选中支（未选支 token 丢弃，其内 `\def` 不执行——TeX 语义一致）       |
+| **可求值**   | `\iftrue/\iffalse`；`\newif` 旗标；`\ifmmode`（math_depth——勘误 2026-09-17：impl 恒 False，gullet/cond.py:_eval_if，v2 不追踪数学深度实测未踩坑）；`\ifnum/\ifodd/\ifdim` 全字面量；`\ifdefined`；`\if/\ifcat`；`\ifx` 同 literal；`\ifcsname`；`\ifeof/\ifvoid/\ifhbox/\ifvbox/\ifinner`→恒 False；`\ifhmode/\ifvmode`→模式常量 | 读条件→`process_if(bool)`：case 收集只推回选中支（未选支 token 丢弃，其内 `\def` 不执行——TeX 语义一致）       |
 | **不可求值** | 带寄存器/内部量、`\ifx` 对宏、其余一切                                                                                                                                                                                                     | 条件部分按语法读掉；`\if/\else/\fi` 发结构界标 literal piece，**两分支都进分段器**——召回优先，编译端 TeX 自决 |
 
 `process_if`：`read_stream` 收集未展开 token 到 `\fi`，`\else/\or` 分案例，`\newif` 对整对保留（`\ifx\newif\ify` 序列特例），任何 `if*` 计嵌套，收尾 `\fi` 不推回，`unread(选中支)`。`\ifcase N`→`which=N`。

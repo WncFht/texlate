@@ -138,7 +138,7 @@ sidecar BabelDOC(AGPL 边界) | 降级链 HTML/PDF | 远期: EPUB/DOCX/批量层
 
 ### 5.3 展开层（规格：expansion-design.md）
 
-- 三段移植：Mouth（字节→token 流，`\input` 中途压栈、makeatletter 可变 catcode——E5 实测 14 区 median ~150 字符，当普通边界命令即可）→ Gullet（宏表 + 不动点展开；`\def` 定界参编译器已备（plasTeX `__init__.py:1170-1235`），v1 可先当 opaque 降级）→ Segmenter（段落切分）。
+- 三段移植：Mouth（字节→token 流，`\input` 中途压栈、makeatletter 可变 catcode——E5 实测 14 区 median ~150 字符，当普通边界命令即可）→ Gullet（宏表 + 不动点展开；`\def` 定界参编译器已备（plasTeX `__init__.py:Definition.invoke`），v1 可先当 opaque 降级）→ Segmenter（段落切分）。
 - 资源限：gen≤32 / steps≤100k / inputs≤8 / dep≤4 实测余量充足。
 - **铁律：splice 永远用调用点字节，gen>0 展开产物只进分类器**。
 - `\if`：结构化配对不求值——`\iffalse` 丢块 / `\iftrue`·已知旗标留块 / `\ifmmode` 取数学支 / 未知旗标整段字面或取 else（E5：含 prose 块仅 5，4 个在 preamble）。

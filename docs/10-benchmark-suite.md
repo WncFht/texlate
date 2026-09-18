@@ -109,7 +109,7 @@
 
 **构建方法**（harness 已扶正为 `src/texlate/e2e.py`——`mock_translate_tree`/`pipe_condition`/`base_condition`/`mock_pipeline_run`，CLI `texlate run` 与 `bench/py/e2e_mock_bench.py` 共用；勘误 2026-09-15：原写 `tmp/exp/e2e/pipeline.py` 扶正，实际落地为产品模块而非 bench 脚本，翻译走 XlatPipeline(MockTranslator)+L0 校验器全产品 API。勘误 2026-09-17：`e2e_mock_bench` 的 translate_tree 已改为单源调 `e2e._scan_tree`、fixloop 参数对齐产品签名（`d240b43`）——harness 不再自持第二份扫描实现。勘误 2026-09-17：`e2e_real_bench.translate_tree` 同收敛至 `e2e._scan_tree`（`a08dda3`）——此前 real 臂零文件闸送译 support 件，**n200 run（含）之前的 chunks/src_chars/ok 率等体积类指标与修复后新 run 口径断点不可直接比**（终态类指标不受影响；详见 `bench/results/realn200-2026-09-17/report.md` §4）：
 
-1. Mode A 位置忠实 mock：注入 ctex + 占位译文 + splice + 编译 → 验机械链路（已实证 16/16 PDF、0 FAIL、identity 111/111、leftover=0。勘误 2026-09-17：**mock 保真盲区登记不修**——`MockTranslator._PROSE_RUN_RX` 只认 ASCII 字母 run，西里尔/希腊文等非 ASCII 散文原样回显不进译文，mock 臂对含此类散文的语料过估「忠实」（scout-triage-2026-09-17 F-echo 1 格，low；`bench/py/qualbench.py:294` 同源副本同盲区）。真译臂不受影响。）
+1. Mode A 位置忠实 mock：注入 ctex + 占位译文 + splice + 编译 → 验机械链路（已实证 16/16 PDF、0 FAIL、identity 111/111、leftover=0。勘误 2026-09-17：**mock 保真盲区登记不修**——`MockTranslator._PROSE_RUN_RX` 只认 ASCII 字母 run，西里尔/希腊文等非 ASCII 散文原样回显不进译文，mock 臂对含此类散文的语料过估「忠实」（scout-triage-2026-09-17 F-echo 1 格，low；`bench/py/qualbench.py:_PROSE_RUN_RX` 同源副本同盲区）。真译臂不受影响。）
 2. Mode B 幻觉 mock：注入占位符丢失/幻觉 → 验校验链兜底（132 处破坏编译前 132/132 捕获——"出 PDF≠成功"的实证来源）。
 3. Mode C 位置扰动 mock：随机移位 ~10% 占位符。（勘误 2026-09-17：已实装并跑——`e2e_mock_bench.py` pipeC-xel/pipeC-tec 双臂，结果 `bench/results/mock-sabotage-v3-2026-09-16/`；pipeB 同有 -tec 变体，B/C 每 Mode 双引擎各一臂，原"待跑"标注失效。）
 4. Mode D 真实：B4 真译文接入（M1 后）。（勘误 2026-09-17：已跑——e2e-real n100、chunk ok 99.97%，见 §0 现状列。）
@@ -117,7 +117,7 @@
 
 **门槛**：mock A 全绿（PDF+identity+ 零残留占位 + 中文实际渲染）；mock B 破坏 100% 编译前捕获；Mode D 成功率即产品 SLA 观测点。
 
-> 增补 2026-09-16（**pipe-fix 救回臂**，`e2e_real_bench.py --fixloop onfail|always|never`）：pipe-xel 产物树 copy → fixloop（xelatex usermode + TUNA 钉 + tlpdb 索引，配方复用 `fixloop_bench`）→ 救后 xelatex+judge 复判，union 口径取 pipe-xel/pipe-fix 较优者。语义经冒烟实证校准：**onfail 只接 `fail`**——partial 已产出 PDF（warning 级判据非编译错误），fixloop 的 halt_on_error 引擎 + 树改写只会丢 PDF 而救不了 warning（hot 层 n9 冒烟实测 partial→fail 回退 2/3、fail→{clean,partial} 救回 3/4）。inject reject 不救。（勘误 2026-09-17：floor 底板落地后 `_want_fix` 已重校为 **fail + misschar/error 级 partial**——`e2e_real_bench.py:330` 注释自证；产品链 e2e/worker 对任意非 clean 进 fixloop 口径更宽，待 owner 收敛。）证据 `research/product/2026-09-16-e2e-pipefix-hotlayer.md`、`bench/results/e2e-hotfix-smoke-2026-09-16/`。
+> 增补 2026-09-16（**pipe-fix 救回臂**，`e2e_real_bench.py --fixloop onfail|always|never`）：pipe-xel 产物树 copy → fixloop（xelatex usermode + TUNA 钉 + tlpdb 索引，配方复用 `fixloop_bench`）→ 救后 xelatex+judge 复判，union 口径取 pipe-xel/pipe-fix 较优者。语义经冒烟实证校准：**onfail 只接 `fail`**——partial 已产出 PDF（warning 级判据非编译错误），fixloop 的 halt_on_error 引擎 + 树改写只会丢 PDF 而救不了 warning（hot 层 n9 冒烟实测 partial→fail 回退 2/3、fail→{clean,partial} 救回 3/4）。inject reject 不救。（勘误 2026-09-17：floor 底板落地后 `_want_fix` 已重校为 **fail + misschar/error 级 partial**——`e2e_real_bench.py:_want_fix` 注释自证；产品链 e2e/worker 对任意非 clean 进 fixloop 口径更宽，待 owner 收敛。）证据 `research/product/2026-09-16-e2e-pipefix-hotlayer.md`、`bench/results/e2e-hotfix-smoke-2026-09-16/`。
 
 ## B6 · validbench —— 校验段基准
 
