@@ -75,6 +75,12 @@ _GROUPS = {"cs", "math", "cond-mat", "astro-ph"}
 FILE_MARK = re.compile(r"^={10,}\r?\nFILE: (.+?)\r?\n={10,}\r?\n", re.MULTILINE)
 
 
+def yymm_recent(yymm_id: str | None) -> bool:
+    """yymm_id 前 4 位 ∈ [2501, 2699]——裸词表比较会把 "9xxx" 旧年代和非数字前缀放进来。"""
+    s = (yymm_id or "")[:4]
+    return s.isdigit() and int(MIN_YYMM) <= int(s) <= 2699
+
+
 def cat_group_of(categories: str) -> str:
     """sw categories 首类 → frame cat_group 词表。"""
     pc = (categories or "").split()[0] if categories else ""
@@ -141,12 +147,7 @@ def cmd_footers(_args: argparse.Namespace) -> None:
         benchlib.atomic_write_text(out, json.dumps(cat[n]))
         log(f"footer {n:04d}: {md.num_rows} rows {len(rgs)} rgs")
     benchlib.atomic_write_text(SW / "footers.json", json.dumps(cat, indent=1) + "\n")
-    recent = sum(
-        1
-        for s in cat.values()
-        for r in s["rgs"]
-        if (r.get("ymax") or "")[:4] >= MIN_YYMM
-    )
+    recent = sum(1 for s in cat.values() for r in s["rgs"] if yymm_recent(r.get("ymax")))
     log(f"footers: {len(cat)} shards; {recent} rgs 含 {MIN_YYMM}+")
 
 
@@ -156,7 +157,7 @@ def recent_rgs(cat: dict) -> list[dict]:
         {"shard": int(sn), **r}
         for sn, s in cat.items()
         for r in s["rgs"]
-        if (r.get("ymax") or "")[:4] >= MIN_YYMM
+        if yymm_recent(r.get("ymax"))
     ]
     return sorted(out, key=lambda x: (x["ymin"], x["shard"], x["i"]))
 
@@ -195,7 +196,7 @@ def cmd_pool(_args: argparse.Namespace) -> None:
                     "rg": i,
                 }
                 for r in t.to_pylist()
-                if (r["yymm_id"] or "")[:4] >= MIN_YYMM
+                if yymm_recent(r["yymm_id"])
             ]
             cache.write_text("\n".join(json.dumps(x) for x in rows) + "\n")
             for x in rows:
