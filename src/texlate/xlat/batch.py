@@ -19,7 +19,7 @@ import math
 import re
 from typing import TYPE_CHECKING, TypeVar
 
-from .placeholders import encode_newlines
+from .placeholders import EOL_RX, encode_newlines
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -55,10 +55,9 @@ _STUB_ONLY_RX = re.compile(r"\s*(?:\[\d+\]\s*)+")
 #: 不吃内层（`[k]` k∉{1..n} 不可能是序号分隔符，按引用号内容放行，见
 #: parse_batch_response 安全侧裁定）。
 _LEAKED_MARK_RX = re.compile(r"(?<!\[)\[(\d+)\](?!\])")
-#: 响应侧行界归一：`\r\n`/`\r`/VT/FF/NEL/U+2028/U+2029 统一按 `\n`——
-#: 行首锚定覆盖所有真实换行形态，模型裸发 Unicode 行界分隔序号时仍按
-#: 锚定路径解析（`\x1c`–`\x1e` 属 splitlines 超集但非行界语义，不收）。
-_EOL_RX = re.compile("\r\n|[\r\x0b\x0c\x85\u2028\u2029]")
+#: 响应侧行界归一——单源在 ``placeholders.EOL_RX``（decode_newlines 自带
+#: 此步；批解析幂等复跑，口径同 anchor 行界全形态）。
+_EOL_RX = EOL_RX  # 单源在 placeholders.EOL_RX——decode_newlines 自带归一，批解析幂等复跑
 
 
 def pack_batches(  # noqa: PLR0913 -- 装箱旋钮面即 PipelineConfig.batch_* 四件 + workers

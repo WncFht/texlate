@@ -244,9 +244,21 @@ def encode_newlines(text: str) -> tuple[str, dict[str, int]]:
     return "".join(out), {"source_sl": sl, "source_pl": pl}
 
 
+#: 响应侧行界归一：`\r\n`/`\r`/VT/FF/NEL/U+2028/U+2029 统一按 `\n`——
+#: 行首锚定覆盖所有真实换行形态，模型裸发 Unicode 行界分隔序号时仍按
+#: 锚定路径解析（`\x1c`–`\x1e` 属 splitlines 超集但非行界语义，不收）。
+EOL_RX = re.compile("\r\n|[\r\x0b\x0c\x85\u2028\u2029]")
+
+
 def decode_newlines(text: str) -> str:
-    r"""`[[SL]]`→`\n`、`[[PL]]`→`\n\n`、空白族 token→字面，随后还原被转义的字面 token。"""
-    decoded = text.replace(PARA_NEWLINE, "\n\n").replace(SOFT_NEWLINE, "\n")
+    r"""`[[SL]]`→`\n`、`[[PL]]`→`\n\n`、空白族 token→字面，随后还原被转义的字面 token。
+
+    先经 ``EOL_RX`` 归一裸行界符——单块阶梯臂（73ffa4c 前 1-member 组走
+    批解析自带 ``_EOL_RX``）曾漏此步，``\x0b`` 直落 export 被 sanitize
+    抹平而非归一成 ``\n``（export 控制符契约钉）。
+    """
+    decoded = EOL_RX.sub("\n", text)
+    decoded = decoded.replace(PARA_NEWLINE, "\n\n").replace(SOFT_NEWLINE, "\n")
     for _tag, tok, _raw, lit in _SPACE_FAM:
         decoded = decoded.replace(tok, lit)
     for tag, tok, raw, _lit in _ALL_FAM:
@@ -358,6 +370,22 @@ def diff(src: str, zh: str) -> PhDiff:
     return out
 
 
+def _copied_boundary_rx(fragment: str) -> re.Pattern[str]:
+    r"""逐片段类型选边界守卫——裸 ``replace`` 会把 token 嵌进更长文本。
+
+    ``\alpha`` 命中 ``\alphax`` 内、``$x$`` 命中 ``$$x$$`` 内、``42`` 命中
+    ``42.5`` 内。上游 texglot llm.py:148-156 三守卫同款。
+    """
+    pat = re.escape(fragment)
+    if fragment.startswith("$") and fragment.endswith("$"):
+        return re.compile(rf"(?<!\$){pat}(?!\$)")
+    if fragment.startswith("\\"):
+        return re.compile(rf"{pat}(?![A-Za-z@])")
+    if fragment[-1].isalnum() or fragment[-1] == "_":
+        return re.compile(rf"{pat}(?![A-Za-z0-9_.])")
+    return re.compile(pat)
+
+
 def recover_copied_tokens(zh: str, ph_map: Mapping[str, str]) -> tuple[str, list[str]]:
     """模型把受保护原文抄回译文时，**exact+unique** 才换回 token（docs/08 §1.6）。
 
@@ -371,8 +399,9 @@ def recover_copied_tokens(zh: str, ph_map: Mapping[str, str]) -> tuple[str, list
     for ph, fragment in sorted(ph_map.items(), key=lambda kv: (-len(kv[1]), kv[0])):
         if ph in present or not fragment:
             continue
-        if zh.count(fragment) == 1:
-            zh = zh.replace(fragment, ph, 1)
+        rx = _copied_boundary_rx(fragment)
+        if len(rx.findall(zh)) == 1:
+            zh = rx.sub(ph, zh, count=1)
             recovered.append(ph)
     return zh, recovered
 
