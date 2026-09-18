@@ -666,3 +666,10 @@
 - **0e989a0 floatopt**：`float_opt_h_pkgload` order 187——[H] 系锚是 float 宏包专属 (kernel \@xfloat 只认 htbp!)，根修 \begin{document} 前注 \usepackage{float} 非降级；双闸 (ctx_suggests+source_contains 无装载点∧有 H 用)+main_head_contains 挡 2.09；与 comma_strip(184) 零重叠。5 格 (0806.4088/1003.5014/1608.02624/astro-ph/0307059/cond-mat/0408234)。12 钉绿。
 - **flipcheck6 脱管批**：55 格=25 目标 (csmap14/nataux4/floatopt5/secdispatch:1206.0291/citembox:gr-qc/9901082)+30 clean 回归 (loop2 clean 池 577 抽 seed42)，stagerun 全链 mock-xlat → bench/results/stagerun-flipcheck6，gate-③⑤。
 - roster 9：ifclose/gcensus/capcensus + babelinv/zhfile/proofdiag/thehalgo/auxeof/expl3diag；secdispatch/floatopt 尸清。
+
+## 2026-09-19 ~09:4x — capcensus 核销 + W164 登记 + 报文潮全数对账
+
+- **capcensus 裁定**（lane-capacity/repro-* pristine 实证）：unfixable:capacity 7 格——5 已愈于在案修复（restatable argspec 泄漏×2、emulateapj5 自 input 环×2、1907.00027 主内存腐蚀自愈）；**2 格 paper-authentic 上游位腐**（1404.0037 utarticle.cls 1997 \address \xdef+\@nomath、1706.00076 amsart \title opt-arg→expl3 recursion_tail 尾环）——超安全改写界，处置=known-bad 登记。**4df5ac9 W164 入 mechanisms.jsonl** 挡重复救伤。附议项→#87 cappayload（capacity payload 带 bracket+pending token 利分诊）。
+- 早波报文全数对账核销：csmap(bcf7de9)/nataux(4b1b7e5)/citembox(6eaeb31)/secdispatch(7dae23d)/floatopt(0e989a0)/vendordiag(N=2 否决)——所述与已收一致，零追加。
+- flipcheck6 在跑（19/53 处全 clean 含 kwd 目标格 1012.2012 翻转实证）。
+- roster 10：ifclose/gcensus + babelinv/zhfile/proofdiag/thehalgo/auxeof/expl3diag(交付待收) + cappayload/dvipdfmiss。
