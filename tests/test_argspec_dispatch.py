@@ -12,9 +12,10 @@ r"""argspec policy 分派黑盒测试——每条 policy 取真实宏端到端�
 - ``chunk-arg``：text/opt-text 位出独立 chunk，key/skip 位留字面
 - env 侧 ``body_role``：verbatim/math/protect/text 四态 + 标题参回吐
 
-门控判官是 ``\ArrowBetweenLines``（mathtools ``s o`` 无必参）：未装包时
-名字内联、装包后裸名 ``[[CMD]]``——唯一能把 argspec protect 与探针
-``[[CMD]]``（罩 ``{..}`` 参）区分开的形状。
+签名不吃包门（``argspec_lookup``/``argspec_lookup_env`` 均不门控——名
+出现即工程级加载证据，per-file pkgs 查不到跨文件导言包）；``s o``
+无必参名的 ``\ArrowBetweenLines`` 装不装包恒裸名 ``[[CMD]]``——policy
+罩名与探针 ``[[CMD]]``（罩 ``{..}`` 参）同 ph 形状、不同成因。
 """
 
 import pytest
@@ -124,19 +125,13 @@ def test_protect_whole_call_multiline_args() -> None:
     assert "Intro" not in res.protected_tex
 
 
-def test_protect_gating_discriminator() -> None:
-    r"""门控判官 ``\ArrowBetweenLines``（mathtools ``s o`` 无必参）：
-    未装包 → 名字内联；装包 → 裸名 ``[[CMD]]``（探针无参可罩 vs policy
-    罩名——同 ph 形状、不同成因）。"""
-    ungated = scan("Text \\ArrowBetweenLines more words here.")
-    [c] = ungated.chunks
-    assert c.content == "Text \\ArrowBetweenLines more words here."
-    assert not ungated.ph_map
-
-    gated = scan(
-        "Text \\ArrowBetweenLines more words here.", "\\usepackage{mathtools}\n"
-    )
-    assert gated.ph_map["[[CMD_1]]"] == "\\ArrowBetweenLines"
+def test_protect_signature_ignores_pkgs() -> None:
+    r"""``\ArrowBetweenLines``（mathtools ``s o`` 无必参）：签名不吃包门——
+    装不装 ``\usepackage`` 裸名恒 ``[[CMD]]``（policy 罩名 vs 探针罩
+    ``{..}`` 参——同 ph 形状、不同成因；per-file pkgs 门控下必假阴）。"""
+    for preamble in ("", "\\usepackage{mathtools}\n"):
+        res = scan("Text \\ArrowBetweenLines more words here.", preamble)
+        assert res.ph_map["[[CMD_1]]"] == "\\ArrowBetweenLines"
 
 
 def test_protect_signature_consumes_star_opt() -> None:
@@ -269,17 +264,11 @@ def test_chunk_arg_opt_text_role() -> None:
 
 def test_chunk_arg_multiple_opt_text() -> None:
     r"""``\fillin[a][b]``（exam ``o o`` opt-text×2）→ 两独立 chunk；
-    未装 exam 时对照探针整调用。"""
-    res = scan(
-        "Text \\fillin[First Words][Second Words] end.",
-        "\\usepackage{exam}\n",
-    )
-    fills = [c for c in res.chunks if c.context == "fillin"]
-    assert [c.content for c in fills] == ["First Words", "Second Words"]
-
-    ungated = scan("Text \\fillin[First Words][Second Words] end.")
-    assert ungated.ph_map["[[CMD_1]]"] == "\\fillin[First Words][Second Words]"
-    assert not [c for c in ungated.chunks if c.context == "fillin"]
+    装不装 ``\usepackage{exam}`` 行为一致（签名不吃包门）。"""
+    for preamble in ("", "\\usepackage{exam}\n"):
+        res = scan("Text \\fillin[First Words][Second Words] end.", preamble)
+        fills = [c for c in res.chunks if c.context == "fillin"]
+        assert [c.content for c in fills] == ["First Words", "Second Words"]
 
 
 def test_chunk_arg_key_stays_literal() -> None:

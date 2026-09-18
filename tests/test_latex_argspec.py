@@ -1,12 +1,11 @@
-r"""argspec.json 表 + 分段器接线：包门控 / policy 分派 / env 体路由 / v1 导出。
+r"""argspec.json 表 + 分段器接线：签名分派 / env 体路由 / v1 导出。
 
 数据资产 ``src/texlate/latex/data/argspec.json``（CTAN 签名合成，
 ``tmp/exp/ctan/build_argspec.py`` 生成）。装载走
 ``tables.argspec_tables()``（``importlib.resources`` + ``@cache``）；
-查表 ``argspec_lookup``（宏侧）以 ``package ∈ pkgs ∪
-ARGSPEC_ALWAYS_PKGS`` 或 ``also_in`` 交集门控；``argspec_lookup_env``
-（环境侧）不门控——``\begin{X}`` 本身即工程级加载证据（per-file
-pkgs 会漏跨文件导言包）。
+查表 ``argspec_lookup``/``argspec_lookup_env`` 均不门控——名出现
+本身即工程级加载证据（per-file pkgs 会漏跨文件导言包），用户
+``\newcommand``/``\newenvironment`` 撞名由调用方 reg 先短路。
 分段器挂点：``_handle_unknown_cs``（宏表未命中的未知 cs → policy
 分派）与 ``_handle_env_begin``（族表不知的 env → body_role 路由）。
 """
@@ -17,7 +16,6 @@ from texlate.latex import parse_tex, parse_tex_v1, reconstruct
 from texlate.latex.gullet import IfSetter, MacroDef, ScopeMacroTable
 from texlate.latex.model import ScanResult
 from texlate.latex.tables import (
-    ARGSPEC_ALWAYS_PKGS,
     argspec_lookup,
     argspec_lookup_env,
     argspec_tables,
@@ -46,29 +44,32 @@ def test_loader_tables() -> None:
 
 
 def test_lookup_gating() -> None:
-    r"""宏侧真实包名须 ``pkgs`` 命中；``ALWAYS`` 族（latex2e 等）无条件激活。
+    r"""宏侧与环境侧查表均不门控：名出现即工程级加载证据。
 
-    环境侧不门控：``\\begin{X}`` 本身即工程级加载证据（per-file pkgs
-    查不到跨文件导言包——``_argspec_env`` 的 ``reg`` 已先挡用户
-    ``\\newenvironment`` 撞名）。
+    per-file ``pkgs`` 查不到跨文件导言包——体文件 ``\\crefrange`` 在
+    门控下必假阴。用户 ``\\newcommand``/``\\newenvironment`` 撞名由
+    调用方 reg 先短路（主流 ``_handle_unknown_cs`` 仅 ``m is None``
+    查表、``_argspec_env`` 先查 ``reg``），到不了表签名。
     """
-    assert argspec_lookup("frametitle", set()) is None
+    assert argspec_lookup("frametitle", set()) is not None
     assert argspec_lookup("frametitle", {"beamer"}) is not None
-    assert argspec_lookup("section", set()) is not None  # latex2e 恒激活
+    assert argspec_lookup("section", set()) is not None
     assert argspec_lookup_env("dcases", set()) is not None
     assert argspec_lookup_env("dcases", {"mathtools"}) is not None
-    # also_in：主包未装、also_in 包已装 → 命中
-    assert argspec_lookup("pageref", set()) is None
+    assert argspec_lookup("pageref", set()) is not None
     assert argspec_lookup("pageref", {"hyperref"}) is not None
-    for pkg in ARGSPEC_ALWAYS_PKGS:
-        assert not argspec_lookup("frametitle", {pkg})  # 恒激活族不冒充 beamer
 
 
-def test_gated_cmd_falls_to_probe() -> None:
-    r"""包未加载 → 探针档：``\frametitle{T}`` 整调用 ``[[CMD]]`` 无 chunk。"""
+def test_ungated_cmd_uses_signature() -> None:
+    r"""无 ``\\documentclass{beamer}`` 声明的 ``\\frametitle`` 也按签名分派：
+
+    chunk-arg ``d<> o m`` → ``{text}`` 角色参出 chunk（per-file pkgs
+    空 ≠ 包未加载——``\\input`` 拆开的体文件同形）。
+    """
     res = scan("Text \\frametitle{My Frame Title} more text here.")
-    assert "\\frametitle{My Frame Title}" in res.ph_map.values()
-    assert all(c.context != "frametitle" for c in res.chunks)
+    assert any(
+        c.context == "frametitle" and c.content == "My Frame Title" for c in res.chunks
+    )
 
 
 def test_documentclass_activates() -> None:
@@ -228,7 +229,7 @@ def test_v1_result_macros_converged() -> None:
 
 
 def test_argspec_identity_battery() -> None:
-    r"""恒等抽查：argspec 命中/门控两态 + env 三体，reconstruct 逐字节还原。"""
+    r"""恒等抽查：argspec 命中 + env 三体，reconstruct 逐字节还原。"""
     cases = [
         ART % ("", "Text \\foo{a}{b} \\printbibliography tail."),
         ART
@@ -250,3 +251,46 @@ def test_argspec_identity_battery() -> None:
     for tex in cases:
         res = parse_tex(tex)
         assert reconstruct(res) == tex
+
+
+def test_body_file_key_args_never_translate() -> None:
+    r"""多参 ref 宏的 key 参永不进可译 chunk（宏侧 ``restatable`` 同型）：
+
+    ``\\crefrange{a}{b}``（cleveref ``s m m``，``REF_NAMES`` 内唯一包
+    门控多参名）在体文件（per-file pkgs 空、无 ``\\usepackage`` 行）
+    门控下 ``_cite_ref_mand`` 只得 1——尾参 ``{b}`` 漏成散文被译 →
+    cleveref ``\\cref@resetstack`` 递归炸栈（2105.00111）。``\\joref``
+    （``m×5``，manual 恒激活族）同路钉大参目。key 位永不译；装不装
+    声明行行为一致。
+    """
+    body = "See \\crefrange{eq:a}{eq:b} and \\joref{Aauth}{Jour}{Vol}{Pag}{Year} done."
+    for preamble in ("", "\\usepackage{cleveref}\n"):
+        res = scan(body, preamble)
+        joined = "\n".join(c.content for c in res.chunks)
+        for key in ("eq:b", "Jour", "Vol", "Pag", "Year"):
+            assert key not in joined
+        assert "\\crefrange{eq:a}{eq:b}" in res.ph_map.values()
+        assert "\\joref{Aauth}{Jour}{Vol}{Pag}{Year}" in res.ph_map.values()
+        assert reconstruct(res) == ART % (preamble, body)
+
+
+def test_user_newcommand_shadow_wins() -> None:
+    r"""用户 ``\\newcommand`` 撞名优先于表签名——reg 短路实证钉。
+
+    ``\\frametitle``（beamer chunk-arg ``d<> o m``）：opaque 用户宏
+    → ``_handle_opaque_macro`` 按用户 spec 整调用 ``[[MACRO]]``，
+    ``{text}`` 角色签名不得抠出 chunk。``\\nolinkurl``（verbatim
+    policy）：可展开用户宏 gullet 先行展开——surface 见用户体文本，
+    verbatim 签名不得整调用逐字。
+    """
+    res = scan(
+        "Text \\frametitle{Hi There} more words here.",
+        "\\newcommand{\\frametitle}[1]{\\textbf{#1}}\n",
+    )
+    assert all(c.context != "frametitle" for c in res.chunks)
+    assert "\\frametitle{Hi There}" in res.ph_map.values()
+    res2 = scan(
+        "A \\nolinkurl{http://x} b words here.",
+        "\\newcommand{\\nolinkurl}[1]{URL:#1}\n",
+    )
+    assert any("URL:http://x" in c.content for c in res2.chunks)

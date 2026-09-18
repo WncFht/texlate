@@ -344,12 +344,12 @@ def test_chunk_arg_nested_in_arg_inlines() -> None:
     assert res.ph_map["[[CMD_2]]"] == "}"
 
 
-# ------------------------------------------------------- \usepackage 门控
+# ------------------------------------------------------- \usepackage 登记
 
 
-def test_usepackage_positional_gating() -> None:
-    r"""``\usepackage`` 位置语义：加载点前 ``\frametitle`` 未知 → 探针
-    ``[[CMD]]``；加载点后 → argspec chunk-arg（pkgs 集按分派时刻读取）。"""
+def test_frametitle_signature_position_independent() -> None:
+    r"""签名不随 ``\usepackage`` 位置门控：声明行前后 ``\frametitle`` 同按
+    chunk-arg 分派——per-file pkgs 查不到跨文件导言包，门控下体文件必假阴。"""
     tex = (
         "Text \\frametitle{Early Title} mid.\n"
         "\\usepackage{beamer}\n"
@@ -357,10 +357,8 @@ def test_usepackage_positional_gating() -> None:
     )
     res = parse_tex(tex)
     check_invariants(res, tex)
-    assert res.ph_map["[[CMD_1]]"] == "\\frametitle{Early Title}"
-    assert any(
-        c.context == "frametitle" and c.content == "Late Title" for c in res.chunks
-    )
+    titles = {c.content for c in res.chunks if c.context == "frametitle"}
+    assert titles == {"Early Title", "Late Title"}
 
 
 def test_usepackage_in_document_body() -> None:

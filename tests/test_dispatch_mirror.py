@@ -162,8 +162,8 @@ def _expected_b(a_tag: str, name: str) -> str:
     """审计裁定的 B 臂期望族——已知分工差异全在此表：
 
     - ``hyperref``：B 有显式行（argspec ``m m`` key,text 的组内对价——
-      pkg 未加载时主流探针整吞 ``[l]{t}`` 含可译 text；组内行无条件
-      保 text 参留 surface），A 走 unknown 探针 → ``hyperref``；
+      组内行无条件保 text 参留 surface），A 走 argspec chunk-arg
+      （key 位留字面、text 出独立 chunk）→ ``hyperref``；
     - ``math-close``：B 无收界专用行——``]``/``)`` 单字符非字母落
       inline-literal 行 → ``inline-literal``；
     - ``unknown`` ∧ ``DIMEN_TAIL_KIND``：A 折在 row19 unknown 内部
@@ -626,7 +626,12 @@ _SIG_DIFFS: dict[tuple[str, str], tuple[frozenset[str], str, frozenset[str], str
     ("endinput", "{zzq}"): (frozenset({"piece"}), "hid", frozenset({}), "-"),
     ("footnotemark", ""): (frozenset({"chunk"}), "-", frozenset({"CMD"}), "-"),
     ("footnotemark", "{zzq}"): (frozenset({"chunk"}), "vis", frozenset({"CMD"}), "vis"),
-    ("hyperref", "[zzu]{zzq}"): (frozenset({"CMD"}), "hid", frozenset({"CMD"}), "vis"),
+    ("hyperref", "[zzu]{zzq}"): (
+        frozenset({"piece"}),
+        "vis",
+        frozenset({"CMD"}),
+        "vis",
+    ),
     ("ifnum", "{zzq}"): (frozenset({"piece"}), "hid", frozenset({"COND"}), "-"),
     ("ifx", "{zzq}"): (frozenset({"piece"}), "hid", frozenset({}), "-"),
 }

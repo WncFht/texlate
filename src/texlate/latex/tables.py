@@ -892,15 +892,22 @@ def argspec_tables() -> tuple[dict[str, ArgspecEntry], dict[str, ArgspecEntry]]:
     return macros, envs
 
 
-def argspec_lookup(name: str, pkgs: set[str]) -> ArgspecEntry | None:
-    r"""未知控制序列查表：``package``/``also_in`` 命中已加载包 ∪ 恒激活族。"""
-    e = argspec_tables()[0].get(name)
-    if e is None:
-        return None
-    allowed = pkgs | ARGSPEC_ALWAYS_PKGS
-    if e.package in allowed or e.also_in & allowed:
-        return e
-    return None
+def argspec_lookup(name: str, _pkgs: set[str]) -> ArgspecEntry | None:
+    r"""未知控制序列查表——不按包门控（``argspec_lookup_env`` 同规）。
+
+    ``pkgs`` 只收本文件 ``\\usepackage``/``\\documentclass``；工程按
+    ``\\input`` 拆开后体文件查不到导言区包名，包门必假阴。用户
+    ``\\newcommand``/``\\def`` 撞名由调用方先短路：主流
+    ``_handle_unknown_cs`` 仅 ``m is None`` 才查表（``_resolve_macro``
+    命中 gullet 宏表即跳过；可展开用户宏 gullet 先行吃掉到不了分段
+    器），cite/ref 词族按名先行、签名只决定保护参目。不吃签名会把
+    key 参漏成散文送译——``\\crefrange{a}{b}`` 第二参、``\\joref``
+    尾四组实证泄漏 → cleveref ``\\cref@resetstack`` 递归炸栈
+    （2105.00111）。``text``/``opt-text`` 角色参回吐主流不受影响；
+    最坏形态 = 未加载包同名 cs 按签名多吞若干组（有界少译，无腐蚀
+    面）。``_pkgs`` 留参与 env 侧调用面对称，不读。
+    """
+    return argspec_tables()[0].get(name)
 
 
 def argspec_lookup_env(name: str, _pkgs: set[str]) -> ArgspecEntry | None:
