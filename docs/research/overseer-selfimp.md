@@ -594,3 +594,12 @@
 - **L1 re-gate 裁定=候场**：pending.py +467/-59 未 commit——此刻跑 parsebench 测的是混合态非 commit 树，门无效；pendspec 落地后立即重跑（现行树=peer v1 退役+我 45fab85/cb404a6/22e94be/c68dc86 全入）。
 - **脱管批面**：l1-gate post-W84 完（1955/1955 strict、leak 0.0）；autogloss-reg 完 rc=0（contested 0.070→0.080 容内）。
 - 门巡：工作树改动全可归属（pending.py/slots 测=pendspec、40-install=mnrasretire、judge.py=peer 重构）；零 git 违例；#10 裁决点仍唯一用户面。
+
+## 2026-09-19 ~06:5x — 收割×3：pendspec/mnrasretire/slotdiff 落 + L1 re-gate 绿
+
+- **a28e853 pendspec 收**（#59）：`_pend_spec_of` 真 spec walker——注册 opaque/math 宏在 pending/boundary 臂原走 `_PEND_PROBE` 兜底（`o m×6` 式）超吸尾随 `{..}` 组，今走真 `m.spec`（共享 toks-walk + 流侧 `_absorb_spec`/`_absorb_grp_tail`）；`_grp_spec_walk` 由 `_grp_opaque_args` **抽出不复写**，`_PendRem` 跨界余量五槽编码。11 新钉+全绿；残口披露=delim 中窗续无自然触发钉（声明非钉）。与 diff 逐 hunk 对账一致。
+- **9577210 mnrasretire 收**（#61）：`mnras_texmf_shadow_retire` 11.91——收割核点全过：`_vendor_root`(_builtins_vendored:293) 存在、`../` pathlib glob 支持实证、序位无撞、112 规则载、24/24 钉绿、ruff 净。混合设计=wdir 可达域指纹 mv-retire（find . + ../_texmf/home 双根盖两式 _texmf 布局；宿主 ~/texmf 零触）+ vendor 补丁件平投 cwd（kpathsea cwd 序压全链）。
+- **b1b46b3 slotdiff+peer 合收**（#63）：judge.py 尾挂 `_slot_args`/`_slot_arg_multiset`/`paired_slot_diff`（append-only 守约——peer `_machine_slot_probe`→公共 `machine_slot_audit` 抽离同文件同提交收，函数自含完整）+ test_slotdiff 44 绿。**接线 patch 三件未随产**——tmp/lane-slotdiff/ 空，待报文载件转 texlate-13（彼已预警：pipecore 抽脊在飞 e2e/compile/_common 面在动，patch 落点或迁 pipecore，彼侧负责重映射）。
+- **test_docx_done 归因更正**（texlate-13 来讯）：非 pipecore WIP——系彼已 commit 的 ChunkResult.skipped→ChunkRecord.fell_back 改名漏了 union 消费点，57f0700 已修。
+- **L1 re-gate ②过**（tmp/l1-gate2 → parsebench-v3-postspec）：1955/1955 strict 全等、leak 0.0/133372 ≪0.040%——post-spec 树（pendspec walker+peer v1 退役+45fab85/cb404a6/22e94be/c68dc86/9577210/b1b46b3）全量验证。
+- roster 4 在飞：citemath/twinhead/draftgap 研究道+acceptpdf（完待报）；mnrasretire/slotdiff 尸待报文到齐后清。
