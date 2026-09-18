@@ -72,7 +72,6 @@ from texlate.latex import (
     reconstruct,
     validate_result,
 )
-from texlate.latex.api import parse_file_v1
 from texlate.textutil import decode_tex
 
 if TYPE_CHECKING:
@@ -225,6 +224,10 @@ def parse_one(path: Path, timeout_s: int, *, flatten: bool = True) -> dict:
     signal.signal(signal.SIGALRM, _alarm)
     signal.alarm(timeout_s)
     try:
+        from texlate.latex.api import (
+            parse_file_v1,  # v1 臂退役期惰性导入——被删后落 except 桶，不毁模块导入
+        )
+
         res = parse_file_v1(str(path), flatten=flatten)
         ms_ = (time.perf_counter() - t0) * 1000
         return {"ok": True, "res": res, "ms": round(ms_, 1)}
