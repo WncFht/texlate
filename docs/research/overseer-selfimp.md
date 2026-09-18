@@ -39,3 +39,18 @@
 - a1 升 C5：BATCH_MAX_CHARS 尺寸分析（_timing 数据驱动+网关 conc4/bg120s 排队计入；草案不改 pipeline.py——ra 面在飞）
 - ra-bugs 状态更正：pipeline.py 终现 M（_route_chunks 残余+A 批实修在飞）——先前「17 任务 completed 零 src」系核销式结案为主，等报告对账
 
+- 10:47 b2-sixregress | `ab6f708` | 六篇归因全复现三证闭合→mechanisms 立账 W157-W161（inject mathgroup 一族两形态=注入时序最大单点风险；W161 关联 W06）| repro 件 tmp/lane-b2-sixregress/（REPORT.txt+repro-*.tex）| 界外需求：inject 声明下沉/normalize bbl 拆引信/xlat Cf 剥离（最便宜）+env 保真 | 关代理
+- 10:47 钉转正核销：test_fuzz_v1flatten 两枚 xfail_confirmed 已拆（c9 在 W73 根集闸落地后自行拆钉，docstring 注「XPASS 转红已拆钉转正」）→ scoped 26 绿 | c14 flatten W73 根集闸实证在树（flatten.py:63-110 roots 集+is_relative_to）
+- 10:56 b3 族账收齐：b3a-undefcs 49 票（d38/c10/a1；covered-pending-verify35+fix-landed10 → verify-replay 45 格在飞 run.log）| b3b-syntax 37 票（c32/a3/b1/d1；fixable34；JHEP3.cls 连炸签名→c13 缺口榜重合）| b3c-other 30 票（pipeline_introduced17/vendor_stub_gap10/version_skew2/source_latent1；already_fixed18/规则候选9→c3）| b3b/b3c 关代理，b3a 待 replay 结果
+- 10:56 c9-fuzz | `85b8050` | test_fuzz_v1flatten.py 896 行（v1 _resolve/flatten_inputs 对抗探针+D1 逃逸六路钉）| 两枚 xfail_confirmed 已于 W73 落地后拆钉转正，scoped 26 绿 | 关代理
+- 10:56 守护者二代：pid 2214285 已死（跟随者早夭同款命运），已 setsid+nohup 重挂 fd-hold（pgid 2317256）+ 即刻快照 xlat-orphan-1050.jsonl 987 行——孤儿 fd 仍随 pid 4023412 在写 | 教训：guardian 必须 setsid 脱管，harness 看门狗杀 shell 子进程
+- 11:10 收割波-2 落账（5 commit）：ra `562f773`（xlat 序章账本八点 _ledger_call 化+TestPrologueFatalLedger 10 例）+ `899416f`（reaudit-A 四钉 share-cap/align-close/hook-glob/secrets-repr）| c12 `4521e0e`（argspec 臂 [[CMD]] 散文抠出+keyval/comma-list 双形状门，全量 6343 绿+parsebench identity 100%）| c3 `d384916`（4 规则实证点火：greek_fontenc_install/legacy_pkg_shim_c3/cs_targeted_fix_c3/xcolor_override_opt_strip，6 翻 5 哨兵零回归）| texlate-02 `3fa3bd1`（biber/biblatex skew → REJECT route=xelatex 跨引擎臂：builtin+engine token+repair/e2e/worker 全链，实证 adopted→done——tectonic 死路开新路）
+- 11:10 **里程碑**：c2 `31c432e` dollar 族收口——孤 \$\$/孤 \$/\\\$ 三形归 [[CMD]] 单项保真（v2 row17 同规），parsebench-v3-c2dollar **leak 0/136049（0.040%→0.000%）identity 1955/1955**；tricky-dollar.tex D01-D10 钉 + bench_regression 37→61 断言 | C2 目标达成，门②leak 读数归零
+- 11:10 归因澄清：scanner.py=c2 在飞件（已收）；engine/builtins/10-taxonomy/80-bib/repair/e2e/server-worker-compile=texlate-02 跨引擎簇（其主动按约定知会，128 测绿实证）；四孤儿件全销账
+- 11:10 解封派单：L2→c1（route-shadowed 专长续道）/ L3→ra（earmarked）/ L5→c2（dollar 邻面续道）/ L8→c12（args.py 同文件续道）/ L10→c3（rules 引擎续道+b3 工单汇流）/ L7+L9 新发车
+- 11:35 收割波-3 落账（4 commit）：c14 `cf582ff`（v1 flatten `_resolve` openin_any 等价闸——real path 根集约束，`..`/绝对/根内 symlink 出界按 miss 永不进 read_bytes，与 v2 `_resolve_input` 同口径；W104 cs 文件名滤除同臂）+ `db3d4a1`（test_flatten_boundary.py 293 行五机制契约钉，28 绿）| texlate-02 `8672d22`（biber skew 测试件补收，属其 3fa3bd1 簇漏网）| c13 `498ae9e`（vendor 157 files + mn.cls stub，records 去重频次序——pstricks 全家桶/revtex4-2/llncs/kluwer/quantumarticle/siunitx 等）
+- 11:35 b3a 终局：verify-replay 74/74 格零 dirty——66 clean + 8 partial（7×best_effort_pdf revtex209/natbib 点火后 best-effort 出 PDF + 1×fixloop:clean 但 compile 臂 partial）| 工单残留移交 L10/L2 | 关代理（b3 三族归因簇全闭）
+- 11:35 关代理×4：b3a-undefcs / a3-mechtags / c14-flatten / c13-vendor / c7-server——交付物全落盘或入账，roster 16
+- 11:35 nightwatch 常驻化：archbox 无 crontab → setsid 脱管 10min 循环 pgid 2472632（`nightwatch.py --save` → bench/results/nightwatch/cron.log），跨会话存活
+- 11:35 派单补位回 18：l1-verify（L1 verify-flip 15 机制——规则已落待钉测翻格，只写 tests/ 新文件+fixtures add-only）+ l11-vendor（L11 残靶 9 件 ~300 篇：revtex.cls×167/mn2e×42/aa×33/JHEP3×14/aaspp4×12/svjour×9/aipproc×8/aasms4×8/JHEP，全 stub 形态）
+- 11:35 c7 裁决备忘三问挂用户队列：TTL 默认/conc ceiling/SSE 聚合/settings.concurrency 死键接线——备忘在 tmp/lane-c7-server/decision-memo.md
