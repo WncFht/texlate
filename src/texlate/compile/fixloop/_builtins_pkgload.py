@@ -100,8 +100,14 @@ def strip_inputenc(
 _PHYS_LOAD_RE = re.compile(
     r"\\(usepackage|RequirePackage)(\s*\[[^\]\n]*\])?\s*\{([^}]*)\bphysics\b([^}]*)\}"
 )
-#: 源侧既有 ``\\input{physics}`` 裸载点 —— 裸 ``\\input`` 本就不进注册表, 不重复补。
-_PHYS_INPUT_RE = re.compile(r"\\input\s*\{?\s*physics(?:\.sty|\.tex)?(?![\w.-])")
+#: 源侧既有 ``\\input{physics.sty}`` 裸载点 —— 只 ``.sty`` 显式形真载 stub:
+#: ``\\input{physics}``/``\\input{physics.tex}`` 走 kpathsea tex 格式只解析
+#: ``physics``/``physics.tex`` (章节文件, 1206.5202 ``\\input{physics}`` 即
+#: section 件), 永远摸不到 ``physics.sty`` —— ``need_input`` 检测与
+#: ``\\makeatletter`` 包裹双侧都按 ``.sty`` 形收窄。
+_PHYS_INPUT_RE = re.compile(r"\\input\s*\{?\s*physics\.sty(?![\w.-])")
+#: ``\\makeatletter``/``\\makeatother`` 事件 —— 遮盖视图组作用域走查用。
+_MAKEAT_RE = re.compile(r"\\makeat(?:letter|other)(?![a-zA-Z])")
 #: stub 内 ``\\ProvidesPackage{physics}`` —— ``\\input`` 路径下它仍置
 #: ``ver@physics.sty`` → siunitx 的 ``\\@ifpackageloaded{physics}`` 照中。
 _PHYS_PROVIDES_RE = re.compile(r"(\\Provides(?:Expl)?Package\s*\{)physics(\s*\})")
@@ -168,26 +174,129 @@ def _detach_physics_loads(
     return out, len(hits)
 
 
+def _scope_step(vis: str, pos: int) -> tuple[int, str | None]:
+    r"""单步组作用域事件 → ``(新 pos, open/close/letter/other/None)``。
+
+    ``\\X`` 双字符跳过 (``\\{`` 等转义不计深度); ``\\makeatletter``/
+    ``\\makeatother`` 是 letter/other 事件, 余字符不算事件。
+    """
+    c = vis[pos]
+    if c == "\\":
+        mm = _MAKEAT_RE.match(vis, pos)
+        if mm is not None:
+            return mm.end(), "letter" if mm.group(0) == "\\makeatletter" else "other"
+        return pos + 2, None
+    if c == "{":
+        return pos + 1, "open"
+    if c == "}":
+        return pos + 1, "close"
+    return pos + 1, None
+
+
+def _input_cmd_end(vis: str, m: re.Match[str]) -> int:
+    r"""``\\input{…}`` 的 ``{`` 形随尾闭合 ``}`` 扩展 end；无 ``{`` → ``m.end()``，未随尾闭合 → ``-1``。"""
+    if "{" not in m.group(0):
+        return m.end()
+    j = m.end()
+    while j < len(vis) and vis[j].isspace():
+        j += 1
+    return j + 1 if j < len(vis) and vis[j] == "}" else -1
+
+
+def _phys_sty_input_sites(t: str) -> list[tuple[int, int, bool]]:
+    r"""``\\input{physics.sty}`` 顶层 live 站收集 → ``[(start, end, at_letter)]``。
+
+    遮盖视图走查: 注释/verbatim 内假装载点不算 (``mask_tex`` 已遮),
+    宏体等 ``{}`` 组内站点不算 (深度 0 限定——组内 ``\\input`` 是延迟或
+    局部执行, 非顶层载点)。``\\makeatletter``/``\\makeatother`` 按组局部
+    语义入栈, ``at_letter`` = 站点处 @ 是否已是 letter。``end`` 对 ``{``
+    形含随尾闭合 ``}`` (被注释隔断等未闭合的站点丢弃)。匹配本体不推
+    游标 —— 下个命中前的走查把它当普通字符消费, 内部 ``{``/``}`` 照常
+    配对计深。
+    """
+    vis = mask_tex(t)
+    depth = 0
+    at_letter = False
+    stack: list[bool] = []
+    pos = 0
+    out: list[tuple[int, int, bool]] = []
+    for m in _PHYS_INPUT_RE.finditer(vis):
+        while pos < m.start():
+            pos, ev = _scope_step(vis, pos)
+            if ev == "open":
+                depth += 1
+                stack.append(at_letter)
+            elif ev == "close":
+                depth -= 1
+                if stack:
+                    at_letter = stack.pop()
+            elif ev is not None:
+                at_letter = ev == "letter"
+        if depth == 0 and vis[m.start() : m.end()] == t[m.start() : m.end()]:
+            end = _input_cmd_end(vis, m)
+            if end >= 0:
+                out.append((m.start(), end, at_letter))
+    return out
+
+
+def _wrap_phys_sty_inputs(t: str) -> tuple[str, int]:
+    r"""``\\input{physics.sty}`` 裸载点补 ``\\makeatletter`` 对 → (新文本, 包裹数)。
+
+    doc-native ``\\input`` 不挂 @=letter: ``.tex`` 宿主 @ 是 catcode-12,
+    stub 内 ``\\@undefined``/``\\@ifpackageloaded`` 族碎成 ``\\@``+裸字母
+    → undefined_cs 级联 (``\\let\\Re\\@undefined`` 断签名)。只包
+    ``_phys_sty_input_sites`` 里未处 ``\\makeatletter`` 组的站点 ——
+    ``\\makeatother`` 尾段会把外围 @ 强翻回 12, 已在 letter 区的站点不
+    重包, 宏体内站点 (延迟执行语境) 不动。包裹只罩 ``\\input`` 命令本体。
+    """
+    pieces: list[str] = []
+    prev, n = 0, 0
+    for start, end, at_letter in _phys_sty_input_sites(t):
+        if at_letter:
+            continue
+        pieces.append(t[prev:start])
+        pieces.append("\\makeatletter")
+        pieces.append(t[start:end])
+        pieces.append("\\makeatother")
+        prev = end
+        n += 1
+    if not n:
+        return t, 0
+    pieces.append(t[prev:])
+    return "".join(pieces), n
+
+
 def _detach_in_tex_files(
     ctx: LoopCtx, stub: Path, exts: tuple[str, ...], *, need_input: bool
-) -> list[str]:
-    r"""逐 tex 文件剥 physics 装载点 (首个文件补 ``\\input`` 续载) → 改动文件名。"""
+) -> tuple[list[str], list[str]]:
+    r"""逐 tex 文件剥 physics 装载点 + 裸 ``\\input{physics.sty}`` 补 @ 包裹。
+
+    ``.tex`` 宿主面 doc-native ``\\input{physics.sty}`` 站补
+    ``\\makeatletter`` 对 (``\\input`` 不挂 @=letter, stub @-cs 在
+    catcode-12 下碎裂) → (摘除文件名, 包裹文件名)。
+    """
     changed: list[str] = []
+    wrapped: list[str] = []
     for f in ctx.tex_files(exts):
         if f == stub:
             continue
         t = ctx.read(f)
         if t is None or "physics" not in t:
             continue
-        nt, n = _detach_physics_loads(
-            t, add_input=need_input, letter_wrap=f.suffix.lower() == ".tex"
-        )
-        if not n or nt == t:
+        is_tex = f.suffix.lower() == ".tex"
+        nt, n = _detach_physics_loads(t, add_input=need_input, letter_wrap=is_tex)
+        n_wrap = 0
+        if is_tex:
+            nt, n_wrap = _wrap_phys_sty_inputs(nt)
+        if not (n or n_wrap) or nt == t:
             continue
         ctx.write(f, nt)
-        changed.append(f.name)
-        need_input = False
-    return changed
+        if n:
+            changed.append(f.name)
+            need_input = False
+        if n_wrap:
+            wrapped.append(f.name)
+    return changed, wrapped
 
 
 def physics_stub_detach(
@@ -198,8 +307,9 @@ def physics_stub_detach(
     实证 (1706.00240 wall-3, fixer-apjbbx verification.txt): e-print 捆绑
     2012 手写 mini-physics (``\\dbar\\ord\\bra\\ket`` 族), siunitx v3
     ``\\AtBeginDocument`` 对 ``\\@ifpackageloaded{physics}`` 硬报错 →
-    ``\\begin{document}`` 处 undefined_cs。三步: ``\\usepackage`` 名单剥
+    ``\\begin{document}`` 处 undefined_cs。四步: ``\\usepackage`` 名单剥
     physics 原位改 ``\\input{physics.sty}`` (``\\input`` 不进 ``ver@`` 注册)
+    + doc-native ``\\input{physics.sty}`` 裸载点补 ``\\makeatletter`` 对
     + stub ``\\ProvidesPackage{physics}`` 更名 ``physics-stub`` + 双载守卫。
     真 CTAN physics (xparse ``\\DeclareDocumentCommand`` 形) 弃权——那与
     siunitx 是 ``\\qty`` 语义真冲突, 归 LLM。
@@ -213,19 +323,25 @@ def physics_stub_detach(
     if re.search(real_marker, st):
         return False, "physics.sty is xparse-form (real CTAN), not stub"
     exts = tuple(params.get("exts") or (".tex", ".sty", ".cls"))
-    need_input = _PHYS_INPUT_RE.search(mask_tex(ctx.source_blob())) is None
-    changed = _detach_in_tex_files(ctx, stub, exts, need_input=need_input)
+    # 顶层 live ``\\input{physics.sty}`` 站才算"已在载": 注释内/宏体内
+    # (延迟执行, 未必触发) 命中不算 —— 漏载致命, 双载由 stub 守卫兜底。
+    need_input = not _phys_sty_input_sites(ctx.source_blob())
+    changed, wrapped = _detach_in_tex_files(
+        ctx, stub, exts, need_input=need_input
+    )
     renamed = _PHYS_PROVIDES_RE.sub(r"\g<1>physics-stub\g<2>", st)
     neut = renamed
-    if (changed or neut != st) and _PHYS_GUARD_MARK not in neut:
+    if (changed or wrapped or neut != st) and _PHYS_GUARD_MARK not in neut:
         neut = _PHYS_STUB_GUARD + neut
     if neut != st:
         ctx.write(stub, neut)
-    if not changed and renamed == st:
+    if not changed and not wrapped and renamed == st:
         return False, "no physics load sites to detach"
     parts = []
     if changed:
         parts.append(f"\\input detach in {', '.join(changed)}")
+    if wrapped:
+        parts.append(f"@catcode wrap in {', '.join(wrapped)}")
     if renamed != st:
         parts.append("ProvidesPackage neutered")
     if neut != renamed:

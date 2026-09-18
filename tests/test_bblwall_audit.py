@@ -211,6 +211,7 @@ def test_physics_detach_existing_input_no_dup(tmp_path: Path) -> None:
     assert ok
     t = (tmp_path / "main.tex").read_text(encoding="utf-8")
     assert t.count("\\input{physics.sty}") == 1
+    assert "\\makeatletter\\input{physics.sty}\\makeatother" in t  # 裸载补 @ 包裹
     assert "\\usepackage{amsmath}" in t
 
 
@@ -291,6 +292,130 @@ def test_detach_loads_helper_unit() -> None:
     nt2, n2 = _detach_physics_loads("\\usepackage{physics-tools}\n", add_input=True)
     assert n2 == 0
     assert nt2 == "\\usepackage{physics-tools}\n"
+
+
+# ------------------------------------------------------- physics input @catcode wrap
+def test_wrap_phys_sty_inputs_unit() -> None:
+    r"""``_wrap_phys_sty_inputs`` 单测。
+
+    逐档: 裸载站包 ``\\makeatletter`` 对 / 已包站与开 letter 区幂等跳过 /
+    verbatim 与 ``\\input{physics}``·``\\input{physics.tex}`` 章节件
+    (kpathsea 只解析 ``.tex``) 不动 / 无花括号裸名形与行内嵌入站也包
+    (只罩 ``\\input`` 命令本体)。
+    """
+    from texlate.compile.fixloop._builtins_pkgload import (  # noqa: PLC0415
+        _wrap_phys_sty_inputs,
+    )
+
+    nt, n = _wrap_phys_sty_inputs("\\input{physics.sty}\n")
+    assert n == 1
+    assert nt == "\\makeatletter\\input{physics.sty}\\makeatother\n"
+    _nt2, n2 = _wrap_phys_sty_inputs(
+        "\\makeatletter\\input{physics.sty}\\makeatother\n"
+    )
+    assert n2 == 0
+    _nt3, n3 = _wrap_phys_sty_inputs("\\makeatletter\n\\input{physics.sty}\n")
+    assert n3 == 0
+    nt4, n4 = _wrap_phys_sty_inputs(
+        "\\begin{verbatim}\n\\input{physics.sty}\n\\end{verbatim}\n"
+    )
+    assert n4 == 0
+    assert "\\makeatletter" not in nt4
+    _nt5, n5 = _wrap_phys_sty_inputs("\\input{physics}\n\\input{physics.tex}\n")
+    assert n5 == 0
+    nt6, n6 = _wrap_phys_sty_inputs("\\input physics.sty\n")
+    assert n6 == 1
+    assert "\\makeatletter\\input physics.sty\\makeatother" in nt6
+    nt7, n7 = _wrap_phys_sty_inputs("x \\input{physics.sty} y\n")
+    assert n7 == 1
+    assert "\\makeatletter\\input{physics.sty}\\makeatother" in nt7
+
+
+def test_physics_wrap_doc_native_input_sty(tmp_path: Path) -> None:
+    r"""doc-native ``\\input{physics.sty}`` 裸载 → 补 ``\\makeatletter`` 对。
+
+    ``\\input`` 不挂 @=letter —— ``.tex`` 宿主文档级 @ 是 catcode-12,
+    stub 内 ``\\@undefined`` 碎成 ``\\@``+裸字母 (``\\let\\Re\\@undefined``
+    断签名)。
+    """
+    _write_main(tmp_path, "\\input{physics.sty}")
+    (tmp_path / "physics.sty").write_text(_STUB, encoding="utf-8")
+    ok, note = physics_stub_detach(_ctx(tmp_path), None, None, {})
+    assert ok, note
+    assert "@catcode wrap" in note
+    t = (tmp_path / "main.tex").read_text(encoding="utf-8")
+    assert "\\makeatletter\\input{physics.sty}\\makeatother" in t
+
+
+def test_physics_wrap_input_sty_inside_makeatletter(tmp_path: Path) -> None:
+    """已处 ``\\makeatletter`` 区的 ``\\input{physics.sty}`` → 不重包。"""
+    _write_main(tmp_path, "\\makeatletter\n\\input{physics.sty}\n\\makeatother")
+    (tmp_path / "physics.sty").write_text(_STUB, encoding="utf-8")
+    ok, _note = physics_stub_detach(_ctx(tmp_path), None, None, {})
+    assert ok  # ProvidesPackage 中和仍点火
+    t = (tmp_path / "main.tex").read_text(encoding="utf-8")
+    assert t.count("\\makeatletter") == 1
+    assert t.count("\\input{physics.sty}") == 1
+
+
+def test_physics_wrap_input_sty_commented_untouched(tmp_path: Path) -> None:
+    """``% \\input{physics.sty}`` 注释内假载点 → 不包 (mask 遮盖位过滤)。"""
+    line = "% \\input{physics.sty}"
+    _write_main(tmp_path, "\\usepackage{physics}\n" + line)
+    (tmp_path / "physics.sty").write_text(_STUB, encoding="utf-8")
+    physics_stub_detach(_ctx(tmp_path), None, None, {})
+    t = (tmp_path / "main.tex").read_text(encoding="utf-8")
+    assert line in t  # 注释原样保留
+    assert t.count("\\makeatletter\\input{physics.sty}\\makeatother") == 1
+
+
+def test_physics_wrap_input_sty_macro_body_untouched(tmp_path: Path) -> None:
+    r"""宏体内 ``\\input{physics.sty}`` → 深度>0 不包。
+
+    ``\\makeatother`` 尾段会把外围 @ 强翻回 catcode-12 —— 延迟执行语境
+    (``\\newcommand`` 体) 内包裹会在 letter 区调用时翻车, 保守不包。
+    """
+    body_def = "\\newcommand{\\loadphys}{\\input{physics.sty}}"
+    _write_main(tmp_path, "\\usepackage{physics}\n" + body_def)
+    (tmp_path / "physics.sty").write_text(_STUB, encoding="utf-8")
+    physics_stub_detach(_ctx(tmp_path), None, None, {})
+    t = (tmp_path / "main.tex").read_text(encoding="utf-8")
+    assert body_def in t  # 宏体内原样
+    assert "\\makeatletter\\input{physics.sty}\\makeatother" in t  # 续载注入在
+
+
+def test_physics_input_chapter_forms_not_stub(tmp_path: Path) -> None:
+    r"""``\\input{physics}``/``\\input{physics.tex}`` 是章节件 —— 不算载点不包裹。
+
+    kpathsea tex 格式对裸名只解析 ``.tex`` —— 永远摸不到 ``physics.sty``
+    (1206.5202 ``\\input{physics}`` = section 件实证)。错判会把章节件的
+    ``@`` 当 letter 吃进包裹, 假 need_input 命中还会压掉真续载。
+    """
+    _write_main(
+        tmp_path, "\\usepackage{physics}", "\\input{physics}\n\\input{physics.tex}"
+    )
+    (tmp_path / "physics.sty").write_text(_STUB, encoding="utf-8")
+    (tmp_path / "physics.tex").write_text("\\section{P}\n", encoding="utf-8")
+    ok, _note = physics_stub_detach(_ctx(tmp_path), None, None, {})
+    assert ok
+    t = (tmp_path / "main.tex").read_text(encoding="utf-8")
+    assert "\\makeatletter\\input{physics}\\makeatother" not in t
+    assert "\\makeatletter\\input{physics.tex}\\makeatother" not in t
+    # need_input 不被章节件压掉 —— usepackage 摘除后真续载照补
+    assert "\\makeatletter\\input{physics.sty}\\makeatother" in t
+
+
+def test_physics_wrap_skips_sty_host(tmp_path: Path) -> None:
+    """``.sty`` 宿主内 ``\\input{physics.sty}`` → @ 本即 letter 不包。"""
+    _write_main(tmp_path, "\\usepackage{physics}")
+    (tmp_path / "helper.sty").write_text(
+        "\\input{physics.sty}\n", encoding="utf-8"
+    )
+    (tmp_path / "physics.sty").write_text(_STUB, encoding="utf-8")
+    physics_stub_detach(_ctx(tmp_path), None, None, {})
+    st = (tmp_path / "helper.sty").read_text(encoding="utf-8")
+    assert "\\makeatletter" not in st
+    assert st == "\\input{physics.sty}\n"
 
 
 # ---------------------------------------------------------- A5 undefine_for_redef
