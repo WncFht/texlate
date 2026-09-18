@@ -24,6 +24,8 @@ from typing import TYPE_CHECKING, Final
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
+    from texlate.textutil import EncodingVerdict
+
 from texlate.textutil import (
     BEGIN_DOC_RX,
     CMD_BOUNDARY,
@@ -463,8 +465,60 @@ def _latin_font_edits(
     return edits
 
 
+# ---------------------------------------------------------------- 伪装二进制闸
+#: tar 魔数探测窗——与 fixloop ``_tar_header_start`` 同口径（前 64KB 扫
+#: ``ustar``、回推 257 验头），原生与被前置注入推位的变异 blob 通吃。
+#: ``decode_tex`` 永不抛（latin-1 兜底）：tar 成员文本里可含
+#: ``\begin{document}``/``\documentclass``/``\fontfamily``，blob 解出的
+#: "文本"照样命中各手术锚点——0707.0382 ``AMSbsy.sty`` 实为 1MB tar，
+#: 兼容前导块前置把 ustar 推离 257 实案。
+_TAR_SNIFF_WINDOW: Final = 65536
+_TAR_MAGIC_OFF: Final = 257
+_TAR_MAGIC: Final = b"ustar"
+#: tar chksum 字段（头内偏移 148，8 字节）——POSIX 形 ``6 位八进制+NUL+空格``，
+#: GNU 形 ``6 位八进制+空格+NUL``；轻校验挡文本里 ``ustar`` 字样的假阳
+#: （普通文本同名段凑不出该字段形态）。
+_TAR_CHKSUM_OFF: Final = 148
+_TAR_CHKSUM_LEN: Final = 8
+
+#: 支持件兼容前导块注入的 NUL 探测窗——``_transcode_one`` 漏网二进制闸
+#: 同族；strict-UTF-8 字节面下 NUL 即非文本证据（0x00 是合法 UTF-8 码位，
+#: 仅靠判定族分不出 ASCII+NUL 的 blob）。
+_PROLOGUE_NUL_WINDOW: Final = 4096
+
+
+def _tar_header_ok(head: bytes, start: int) -> bool:
+    """Tar 头轻校验：name 首字节非 NUL + chksum 字段八进制形态。"""
+    if head[start] == 0:
+        return False
+    chk = head[start + _TAR_CHKSUM_OFF : start + _TAR_CHKSUM_OFF + _TAR_CHKSUM_LEN]
+    return (
+        len(chk) == _TAR_CHKSUM_LEN
+        and all(c in b"01234567 " for c in chk[:6])
+        and chk[6] in (0, 0x20)
+        and chk[7] in (0, 0x20)
+    )
+
+
+def _tar_disguised(blob: bytes) -> bool:
+    """Tar 伪装件判定：探测窗内 ``ustar`` 回推 ``_TAR_MAGIC_OFF`` 验头。"""
+    head = blob[:_TAR_SNIFF_WINDOW]
+    pos = head.find(_TAR_MAGIC)
+    while pos != -1:
+        start = pos - _TAR_MAGIC_OFF
+        if start >= 0 and _tar_header_ok(head, start):
+            return True
+        pos = head.find(_TAR_MAGIC, pos + 1)
+    return False
+
+
+def _prologue_ok(blob: bytes, verdict: EncodingVerdict) -> bool:
+    """支持件兼容前导块注入闸：strict-UTF-8 解码且探测窗内无 NUL。"""
+    return verdict.basis == "strict-utf8" and b"\x00" not in blob[:_PROLOGUE_NUL_WINDOW]
+
+
 def _tex_sources(root: Path) -> dict[Path, str]:
-    """工程内非隐藏 tex 源 → 解码文本；软链/不可读件跳过。"""
+    """工程内非隐藏 tex 源 → 解码文本；软链/不可读件/tar 伪装件跳过。"""
     sources: dict[Path, str] = {}
     for path in root.rglob("*"):
         if (
@@ -475,9 +529,12 @@ def _tex_sources(root: Path) -> dict[Path, str]:
         ):
             continue
         try:
-            sources[path] = decode_tex(path.read_bytes())
+            blob = path.read_bytes()
         except OSError:
             continue
+        if _tar_disguised(blob):
+            continue  # 成员字节不是手术面——转码/改写都会腐蚀 blob
+        sources[path] = decode_tex(blob)
     return sources
 
 
@@ -702,9 +759,12 @@ def rebase_project_paths(root: Path, main: str) -> list[str]:
         ):
             continue
         try:
-            text = visible_tex(decode_tex(path.read_bytes()))
+            blob = path.read_bytes()
         except OSError:
             continue
+        if _tar_disguised(blob):
+            continue  # tar 伪装件——成员文本里的 \input 命中不是改写面
+        text = visible_tex(decode_tex(blob))
         # 成员集刻意窄收 \input/\include：本站是 ``../`` 前缀改写的手术
         # 面，仅限 tex 包含命令；includegraphics/openin 等更宽越界审计集
         # 在 source_path_violations（成员集分歧理由见该处注记）。
@@ -753,9 +813,12 @@ def source_path_violations(
         ):
             continue
         try:
-            text = visible_tex(decode_tex(p.read_bytes()))
+            blob = p.read_bytes()
         except OSError:
             continue
+        if _tar_disguised(blob):
+            continue  # tar 伪装件——成员文本里的路径引用不算越界证据
+        text = visible_tex(decode_tex(blob))
         # \input 族审计集与 textutil ``INPUT_BRACED_RX``/``INPUT_BARE_RX``、
         # ``arxiv.locate._REF_RES`` 刻意不同集（textutil 注记明写该族不按
         # 单枚正则单源）：本站收「单路径实参」的越界向量——
@@ -817,13 +880,18 @@ def _neutralize_junk_files(root: Path, stats: dict[str, object]) -> None:
 _DOC_SOURCE_SUFFIXES = frozenset({".tex", ".ltx"})
 
 
-def normalize_engine(text: str, engine: str, *, doc_source: bool = True) -> str:
+def normalize_engine(
+    text: str, engine: str, *, doc_source: bool = True, prologue: bool = True
+) -> str:
     r"""单文件无条件手术编排（docs/08 §3.2 清单 1–10 的文件内部分）。
 
     ``doc_source=False`` 按支持件处理：文档级输出控制删除
     （``\pdfinfo``/``\pdfoutput``/输出设置/``\DisableLigatures``）与
     px 像素改写跳过；驱动 token、microtype 降级、编码剥离等
-    装载期语义改写仍生效。
+    装载期语义改写仍生效。``prologue=False`` 再闸掉兼容前导块注入
+    （PIXEL/XETEX/TECTONIC 兼容块 + fontspec ``no-math`` 选项）——
+    ``has_document`` 命中二进制 blob 解出的成员文本时不许前置注入
+    （0707.0382 tar 伪装 .sty 实案），调用方按字节面判据传闸。
     """
     text = normalize_comment_terminators(text)
     text = normalize_float_positions(text)
@@ -832,28 +900,29 @@ def normalize_engine(text: str, engine: str, *, doc_source: bool = True) -> str:
         text = normalize_pdftex_features(text, engine, doc_source=doc_source)
         if doc_source:
             text = normalize_pixel_dimensions(text)
-        visible = visible_tex(text)
-        has_document = BEGIN_DOC_RX.search(visible)
-        if (
-            r"\pdfpxdimen" in visible
-            and has_document
-            and PIXEL_COMPATIBILITY not in text
-        ):
-            text = PIXEL_COMPATIBILITY + text
+        if prologue:
             visible = visible_tex(text)
-        if has_document and XETEX_COMPATIBILITY not in text:
-            text = XETEX_COMPATIBILITY + text
-        if (
-            engine == "tectonic"
-            and has_document
-            and TECTONIC_FONT_COMPATIBILITY not in text
-        ):
-            text = TECTONIC_FONT_COMPATIBILITY + text
-        if (
-            has_document
-            and r"\PassOptionsToPackage{no-math}{fontspec}" not in visible_tex(text)
-        ):
-            text = "\\PassOptionsToPackage{no-math}{fontspec}\n" + text
+            has_document = BEGIN_DOC_RX.search(visible)
+            if (
+                r"\pdfpxdimen" in visible
+                and has_document
+                and PIXEL_COMPATIBILITY not in text
+            ):
+                text = PIXEL_COMPATIBILITY + text
+                visible = visible_tex(text)
+            if has_document and XETEX_COMPATIBILITY not in text:
+                text = XETEX_COMPATIBILITY + text
+            if (
+                engine == "tectonic"
+                and has_document
+                and TECTONIC_FONT_COMPATIBILITY not in text
+            ):
+                text = TECTONIC_FONT_COMPATIBILITY + text
+            if (
+                has_document
+                and r"\PassOptionsToPackage{no-math}{fontspec}" not in visible_tex(text)
+            ):
+                text = "\\PassOptionsToPackage{no-math}{fontspec}\n" + text
         text = strip_input_encodings(text)
         text = normalize_pdf_primitives(text, doc_source=doc_source)
     if engine in ("tectonic", "xelatex", "lualatex"):
@@ -881,12 +950,19 @@ def _normalize_tex_files(
             continue  # 隐藏路径整体豁免手术（同 _transcode 口径）
         try:
             original = path.read_bytes()
+            if _tar_disguised(original):
+                # tar 伪装件逐字节不动——转码/手术都腐蚀成员数据；
+                # fixloop tar 解包臂（同口径扫描窗）在编译侧兜底补缺
+                log.debug("归一化跳过 tar 伪装件 %s", path)
+                continue
             text, verdict = decode_tex_with(original)
             _record_verdict(encodings, root, path, verdict)
+            doc_source = path.suffix.lower() in _DOC_SOURCE_SUFFIXES
             text = normalize_engine(
                 text,
                 engine,
-                doc_source=path.suffix.lower() in _DOC_SOURCE_SUFFIXES,
+                doc_source=doc_source,
+                prologue=doc_source or _prologue_ok(original, verdict),
             )
             if path.suffix.lower() == ".tex":
                 text = use_bundled_bibliography(
