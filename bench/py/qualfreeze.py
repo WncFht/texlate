@@ -101,12 +101,12 @@ KNOWN_FLAGS = (
     "fluency_register",
 )
 
-#: 门禁阈值——leader 裁决后填；None = 该信号 disabled 不参与裁决
+#: 门禁阈值——用户裁决④（2026-09-18）写死；None = 该信号 disabled 不参与裁决
 DEFAULTS: dict[str, float | None] = {
-    "ks_alpha": None,
-    "flag_alpha": None,
-    "kind_delta": None,
-    "contested_delta": None,
+    "ks_alpha": 0.05,
+    "flag_alpha": 0.01,
+    "kind_delta": 5.0,
+    "contested_delta": 0.10,
 }
 
 EXIT_PASS = 0
