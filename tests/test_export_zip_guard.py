@@ -278,7 +278,7 @@ def test_load_epub_inflated_total_over_cap(
     """成员逐个过闸、解压合计超 ``_EPUB_INFLATED_MAX`` → ``MalformedEpubError``
     ——成员闸管单点、合计闸管总量；缩小常量钉住累计逻辑本身。"""
     src = _wzip(tmp_path / "t.epub", {"a.bin": b"aaaa", "b.bin": b"bbbb"})
-    monkeypatch.setattr("texlate.export.epub._EPUB_INFLATED_MAX", 6)
+    monkeypatch.setattr("texlate.export.epub.load._EPUB_INFLATED_MAX", 6)
     with pytest.raises(MalformedEpubError, match="解压合计超限"):
         epub.load_epub(src)
 
