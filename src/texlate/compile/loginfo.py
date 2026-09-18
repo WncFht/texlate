@@ -215,6 +215,11 @@ def classify_error(
     漂移源）。
     """
     if timed_out:
+        # timeout/runaway_output 细分单源在 ``Taxonomy.classify``——
+        # rep 只携 tail 时按尾段刷屏判（暴走 log 的尾 30 行恒为签名）。
+        tax = _taxonomy()
+        if tax is not None:
+            return tax.classify(_err_report(err, ctx, tail), timed_out=True)
         return "timeout", None
     tax = _taxonomy()
     if tax is None:

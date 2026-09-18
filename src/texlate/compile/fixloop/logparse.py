@@ -23,6 +23,25 @@ __all__ = ["ErrReport", "Taxonomy", "parse_log", "parse_text"]
 
 _CTX_LINES = 8  # spike L62: 首错行后取 8 行上下文
 _TAIL_LINES = 30  # spike L63: tail 30 行
+#: ``Overfull \vbox ... while \output is active`` —— ``\clearpage`` 输出例程
+#: 死循环签名（gr-qc/0104075 实证：``\end{document}`` 期暴走 73,595 页烧满
+#: 240s SIGKILL）。健康编译也偶发少量同形告警，成串才判 runaway——
+#: 阈值内正常档过量告警永远够不着，病态档轻松过线几个量级。
+_RUNAWAY_VBOX_RX = re.compile(r"Overfull \\vbox[^\n]*while \\output is active")
+_RUNAWAY_VBOX_MIN = 30
+
+
+def _is_runaway_output(text: str) -> bool:
+    r"""Log 被 ``\output`` 期 Overfull ``\vbox`` 刷屏 → 输出例程死循环判据。
+
+    早退计数：命中 ``_RUNAWAY_VBOX_MIN`` 即返，对 73K 行病态 log 不整扫。
+    """
+    for hits, _m in enumerate(_RUNAWAY_VBOX_RX.finditer(text), 1):
+        if hits >= _RUNAWAY_VBOX_MIN:
+            return True
+    return False
+
+
 #: ctx 内 ``l.N`` 行号——行首锚对齐 impl-compile ``_L_NUM_RE`` (剥空白后
 #: ``^l\.\d+``) 语义; 非行首的 ``l.5`` 字样 (如 ``file:5:`` 残片/正文)
 #: 不误中。
@@ -195,6 +214,11 @@ class Taxonomy:
     ) -> tuple[str | None, str | None]:
         """→ (category, payload)。payload 供规则定位 (文件名/字体名/cs 名)。"""
         if timed_out:
+            # 超时被杀编译细分：输出例程暴走（``\clearpage`` 死循环刷屏
+            # Overfull \vbox）与「真大档超时」分流——前者重跑必再暴走，
+            # 归因面挂 ``runaway_output`` 让 triage/排除臂与普通超时分开。
+            if _is_runaway_output(rep.raw or rep.tail):
+                return "runaway_output", None
             return "timeout", None
         head_hit: tuple[str | None, str | None] | None = None
         if rep.first:

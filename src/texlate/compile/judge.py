@@ -191,6 +191,16 @@ def judge(res: CompRes, *, expect_cjk: bool = False, log_text: str = "") -> Verd
     v.warnings_hit = list(res.log.warnings_hit)
     if res.timed_out:
         v.reasons.append("timeout")
+        # 超时编译细分 category（taxonomy 单源）：\output 期 Overfull \vbox
+        # 刷屏 → runaway_output（输出例程暴走），否则泛 timeout——triage/
+        # 账本据 category 分流（gr-qc/0104075：73,595 页暴走烧满预算）。
+        cat, _pay = classify_error(
+            res.log.first_error,
+            res.log.error_ctx,
+            res.log.tail,
+            timed_out=True,
+        )
+        v.category = cat
         return v
     # 引擎被信号杀死：死进程产出不可信，有 pdf 也判 dirty，
     # 并把真凶写进 reasons/notes（截断 aux 的下游症状不再顶包归因）。

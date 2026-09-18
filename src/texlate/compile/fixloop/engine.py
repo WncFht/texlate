@@ -42,7 +42,12 @@ from texlate.compile.fixloop.actions import (
     _substitute,
     _when_ok,
 )
-from texlate.compile.fixloop.logparse import ErrReport, parse_log, parse_text
+from texlate.compile.fixloop.logparse import (
+    ErrReport,
+    _is_runaway_output,
+    parse_log,
+    parse_text,
+)
 from texlate.compile.fixloop.ruleset import (
     RULES_PATH,
     Rule,
@@ -165,6 +170,43 @@ def _res_has_pdf(res: CompResLike) -> bool:
     if hp is not None:
         return bool(hp() if callable(hp) else hp)
     return bool(getattr(res, "pdf", False))
+
+
+def _res_died(res: CompResLike) -> bool:
+    r"""编译非正常跑完 (超时 killpg / 信号截杀) —— 死进程产出不证 clean。
+
+    gr-qc/0104075 实证: ``\\output`` 死循环烧满 240s SIGKILL 留下 0 错
+    log + 残 pdf, 裸 ``pdf and nerr==0`` 门把它判成 clean 又让后续臂
+    白烧一轮满超时——被杀编译对正确性零证明, clean 判定必须否决。
+    """
+    return bool(getattr(res, "timed_out", False)) or (
+        getattr(res, "killed_signal", None) is not None
+    )
+
+
+def _round_cat(
+    rs: Ruleset, rep: ErrReport, res: CompResLike
+) -> tuple[str | None, str | None]:
+    r"""轮内 ``(category, payload)`` —— 死编译否决 clean 类。
+
+    超时由 ``Taxonomy.classify`` 直出 ``timeout``/``runaway_output``;
+    信号死 (非超时——外部截杀/驱动 SIGPIPE) 只在裸分类给 clean/None
+    时改写: log 被 ``\\output`` 期 Overfull ``\\vbox`` 刷屏归
+    ``runaway_output``, 否则 ``killed``。真错类照常走修复规则——
+    信号死是非定败, 轮内重编即续趟通道 (2211.13013 实证可救)。
+    """
+    cat, pay = rs.taxonomy.classify(
+        rep, timed_out=bool(getattr(res, "timed_out", False))
+    )
+    if (
+        cat in (None, "clean")
+        and not getattr(res, "timed_out", False)
+        and getattr(res, "killed_signal", None) is not None
+    ):
+        if _is_runaway_output(rep.raw or rep.tail):
+            return "runaway_output", None
+        return "killed", None
+    return cat, pay
 
 
 def _note_dropped_flags(ctx: LoopCtx, res: CompResLike) -> None:
@@ -624,9 +666,7 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
         )
         _note_dropped_flags(ctx, res)
         rep = _report_of(res, rs.warn_patterns)
-        cat, pay = rs.taxonomy.classify(
-            rep, timed_out=bool(getattr(res, "timed_out", False))
-        )
+        cat, pay = _round_cat(rs, rep, res)
         round_sec = float(getattr(res, "seconds", getattr(res, "sec", 0.0)))
         if (  # pass-1 判收敛 → 同轮全遍终编定稿: rungen_stub 类机制靠
             # 第二遍 \write 填实成品; 复编重分类回流下方同一决策面,
@@ -651,9 +691,7 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
             )
             _note_dropped_flags(ctx, res)
             rep = _report_of(res, rs.warn_patterns)
-            cat, pay = rs.taxonomy.classify(
-                rep, timed_out=bool(getattr(res, "timed_out", False))
-            )
+            cat, pay = _round_cat(rs, rep, res)
             round_sec += float(getattr(res, "seconds", getattr(res, "sec", 0.0)))
             ctx.events.append(
                 f"r{rnd} finalize: pass-1 clean → {passes}-pass "
@@ -674,6 +712,8 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
             "round": rnd,
             "pdf": pdf,
             "pdf_bytes": int(pdf_bytes or 0),
+            # 超时/被杀轮——死编译产出未证，汇总段 clean/acceptable 判据须查。
+            "died": _res_died(res),
             "n_errors": rep.n_bang,
             "category": cat,
             "payload": pay,
@@ -696,7 +736,12 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
                 except OSError as e:
                     ctx.advisories.append(f"floor snapshot: {e}")
         # —— 终止判据 (spike L742-761 + docs/08:312) ——
-        if pdf and rep.n_bang == 0 and cat not in rs.taxonomy.warn_cats:
+        if (
+            pdf
+            and rep.n_bang == 0
+            and cat not in rs.taxonomy.warn_cats
+            and not _res_died(res)  # 被杀/超时编译产 pdf 也不证 clean
+        ):
             # spike 首门 `pdf and nerr==0 → clean`; v1.1 放行 warn_* 伪类别
             # 让 warning 驱动的修复轮有机会跑 (non_utf8_source)
             cell["verdict"] = "clean"
@@ -734,12 +779,20 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
     # —— best-effort 兜底 pass: 规则耗尽且末轮无 pdf → 去 halt-on-error 让
     # TeX 错误恢复跑到底救残页 (astro-ph/0306068 型真回归: 首错即停 vs
     # nonstopmode 续跑出 partial pdf)。reject:* 是语义拒绝不救; clean/
-    # dirty/acceptable 已有 pdf 不救; timeout 重跑大概率再超时, 不救。
+    # dirty/acceptable 已有 pdf 不救; timeout 重跑大概率再超时, 不救;
+    # runaway_output 是 \output 死循环暴走, 非定败重跑必然再暴走, 不救。
     v_now = str(cell["verdict"] or "")
     if (
         v_now
         and not v_now.startswith("reject:")
-        and v_now not in ("clean", "acceptable_pdf", "dirty_pdf", "unfixable:timeout")
+        and v_now
+        not in (
+            "clean",
+            "acceptable_pdf",
+            "dirty_pdf",
+            "unfixable:timeout",
+            "unfixable:runaway_output",
+        )
         and not (cell["rounds"] and cell["rounds"][-1]["pdf"])
     ):
         swept = _sweep_bad_aux(wdir)
@@ -762,6 +815,7 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
                 "salvage": True,
                 "pdf": spdf,
                 "pdf_bytes": int(getattr(sres, "pdf_bytes", 0) or 0),
+                "died": _res_died(sres),
                 "n_errors": srep.n_bang,
                 "category": None,
                 "payload": None,
@@ -819,11 +873,17 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
         cell["log_excerpt"] = (head or last_rep.tail)[:2000]
     cell["started_fail"] = not (cell["rounds"] and cell["rounds"][0]["pdf"])
     if cell["verdict"] in (None, "max_rounds", "stuck") and cell["final_pdf"]:
-        cell["verdict"] = "dirty_pdf" if (last.get("n_errors") or 9) > 0 else "clean"
+        # 末轮死编译（超时/信号杀）产出 pdf 未证 clean——压成 dirty 且禁升。
+        cell["verdict"] = (
+            "dirty_pdf"
+            if (last.get("n_errors") or 9) > 0 or last.get("died")
+            else "clean"
+        )
     if (
         cell["final_pdf"]
         and (cell["final_errors"] or 0) <= clean_err_max
         and cell["verdict"] == "dirty_pdf"
+        and not last.get("died")  # 死编译末轮的 dirty 不升 acceptable
     ):
         cell["verdict"] = "acceptable_pdf"
     # 末态清场: 末轮/兜底被杀的截断 aux 不驻留毒化格后 post 复判

@@ -44,6 +44,8 @@ class MockRes:
             (wdir / f"{stem}.aux").write_text(spec["aux"], encoding="utf-8")
         self.pdf_bytes = self.pdf.stat().st_size if self.pdf else 0
         self.timed_out = bool(spec.get("timed_out"))
+        #: 镜像 CompRes.killed_signal (任一 pass 被信号杀死记信号号)。
+        self.killed_signal = spec.get("killed_signal")
         self.seconds = 0.05
         self.stdout_tail = spec.get("tail", "")
         #: 镜像 CompRes.log_text (编译期已读 .log 原文)——缺省 "" 走文件读。

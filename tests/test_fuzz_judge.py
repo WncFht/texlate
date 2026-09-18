@@ -234,7 +234,12 @@ def _oracle_judge(  # noqa: C901, PLR0912 -- 判定树逐支重述，压平伤�
     impl 侧 ``exists()``/``OSError`` 两支都坍成 ""）。
     """
     if res.timed_out:
-        return _Expect("fail", ["timeout"], [], 0, -1, None, None)
+        # impl 侧 judge 超时早退按 taxonomy 细分 category（vbox 刷屏
+        # → runaway_output，否则 timeout）——oracle 同源复算。
+        cat, _pay = classify_error(
+            res.log.first_error, res.log.error_ctx, res.log.tail, timed_out=True
+        )
+        return _Expect("fail", ["timeout"], [], 0, -1, cat, None)
     reasons: list[str] = []
     notes: list[str] = []
     sig = res.killed_signal
