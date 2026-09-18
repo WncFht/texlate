@@ -780,3 +780,12 @@
 - **普查核销 ×4**：begindoccen (2 tar 格已被 tar_blob_extract+letter_wrap 覆盖→flipcheck 验证, ~20 异质残件→shipclscen)；dsatcensus (96→实 14-16 格, 推 Option A style-as-class 仿真 1-2 天工——**裁决点累积**)；verifymiss (2 可行动: 2.09-arm input_sty + out-of-fileset prim 宽化→primofw/inputsty209)；inputstack (无 \input 环, 2 格上游 base-arm 缺→capverd 诚实标)；glossleak (2 格已愈, 但 ~13 格 CJK-in-key 族 6 形未盖→kvleak2)。
 - roster 10：drvverdict/arraypream + primofw/inputsty209/shipclscen/kvleak2/runawayscan/capverd/renewdocenv 在飞 + bticktax flipcheck8 批 (58 格含 32 clean, ~35min)。pdfsanitize/ifclosegap/bblmath/inputstack/glossleak 尸清。新翻格全转 flipcheck9。
 - 裁决队列: #10 acceptable_pdf + ds@ Option A (证据齐: 14 格/1-2 天/机制明) + acmart error-in-clean ×16 注记。
+
+## 2026-09-19 ~10:4x — drvverdict/inputsty209 入库 + flipcheck8 早段翻面
+
+- **drvverdict (072111d)**：`driver_fatal` 证据层——texlog `DRIVER_FATAL_RE`+`driver_fatal_line()` 单源；`_base._driver_fatal` = 签名∧失败相 (killed/rc≠0/无pdf, 单签名拒收保 \write18 契约)；judge `driver_fatal:<line>`→partial；fixloop `_res_died` 扩展 + `_round_cat` 只在 classify→clean/None 缘发 `driver_fatal` (主路径类保 `other`——pdf_asset_sanitize 按 other 派发不破, per-round 字段携归因+salvage 排除)。1907.00277 实证 clean→partial/dirty_pdf。9 文件 238 行, 1479 回归绿。
+- **inputsty209 (daa3858)**：`input_sty_209_requirepkg` precheck order -12——2.09 compat 只压 `\usepackage` (`\if@compatibility\else\let`)，`\RequirePackage` 内核无条件走全 `\@fileswithoptions` 机器; 同纹改写异枚子。order -12 双模式合法=严格占优, 顺带兜病态双中头。90-shim-legacy EOF hunk 经 apply --cached 过滤入库 (arraypream 在飞 hunk 剔出)——**交织文件正确流程首验：apply --cached+裸 commit**。
+- **flipcheck8 批完** (bticktax, 58格/fixloop 21格, 07:52 ALL DONE)：早段翻面 2105.00151→clean (xbbpregen✓)、2104.00012/math-0104250/nucl-ex-0501017→clean (ngerman 臂✓)、astro-ph/0104007→clean (tar✓)、2111.00082→clean (flushendopt✓)、0501100/0605138→clean (newblockpf✓)、1706.02400 cat=already_def (bticktax 缝✓)。**2403.00013 只到 acceptable_pdf** — ctlseq 目标错已清但残留→drvverdict 新派残因车道。全表等 harvest.py 回执。
+- **输入核销 ×2**：inputstack (3 格零 \input 环——2105.00111 已愈陈旧记录, 1706.00076/1404.0037 上游 base-arm 缺→capverd 诚实标派)；glossleak (2 格已愈, ~13 格 CJK-in-key 族 6 形未盖→kvleak2; trade-off 记: glossary 整件落 support 不再翻译, 若要翻需 kv-value digging 段器增强)。
+- roster 10：arraypream (75-syntax/90-shim/vendor/tests 在写) + primofw/shipclscen/kvleak2/runawayscan/capverd/renewdocenv/aastex61if 在飞 + drvverdict(2403resid)/bticktax(harvest 中)。inputsty209/drvverdict-#109 尸清。
+- **门警戒**：teammate 零 git 令✓；L1/autogloss run.log 皆 ALL DONE；pathspec 卷扫修复后 HEAD 双破import 已平 (22a1cfd+8527fa7)。
