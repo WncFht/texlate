@@ -12,9 +12,10 @@ from __future__ import annotations
 
 import re
 import shutil
-import threading
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any
+
+import regex
 
 from texlate.compile.fixloop import builtins
 from texlate.compile.fixloop.ruleset import _WHEN_ITEM_KEYS
@@ -173,32 +174,30 @@ _SUB_TIMEOUT_S = 20.0
 
 
 def _bounded_sub(
-    pat: re.Pattern[str],
-    repl: str | Callable[[re.Match[str]], str],
+    pat: regex.Pattern[str],
+    repl: str | Callable[[regex.Match[str]], str],
     text: str,
+    *,
+    timeout_s: float = _SUB_TIMEOUT_S,
 ) -> str | None:
-    """``pat.sub`` 时限包裹：超时返 ``None``（spinner 线程泄漏续跑）。
+    """``pat.sub`` 时限包裹：超时 ``TimeoutError`` 归一成 ``None``。
 
-    stdlib ``re`` 的回溯在 C 层不可中断——病态 pattern 遇特定文本退化
-    指数回溯（loop2 实证单格 utime 4.2h 纯 CPU）。Python 杀不了线程，
-    超时只能弃守：daemon 线程继续烧（GIL 分时降级、不拖死全局），本格
-    按未改动续走——「整格挂死」换成「一条替换跳过 + 事件归因」。
+    ``regex`` 引擎在匹配环内查 deadline——超时真中断、无残留线程。
+    旧 stdlib ``re`` + daemon-thread 弃守形实证失效：泄漏 spinner 在
+    C 层回溯不放 GIL，整进程冻结（guardsmoke fixloop 格 Thread-4
+    utime 29min、worker 全 GIL 饿死、子进程僵死不收，2026-09-18）。
+    ``regex`` 还自带部分病态形免疫（``(x+x+)``/``([a-zA-Z]+)*`` 线性过）。
     """
-    box: list[str] = []
-
-    def _run() -> None:
-        box.append(pat.sub(repl, text))
-
-    th = threading.Thread(target=_run, daemon=True)
-    th.start()
-    th.join(_SUB_TIMEOUT_S)
-    return None if th.is_alive() else box[0]
+    try:
+        return pat.sub(repl, text, timeout=timeout_s)
+    except TimeoutError:
+        return None
 
 
 def _patch_files(
     ctx: LoopCtx,
     exts: Iterable[str],
-    subs: list[tuple[re.Pattern[str], Any]],
+    subs: list[tuple[regex.Pattern[str], Any]],
     rule_id: str = "",
 ) -> int:
     """对全部匹配文件做 ``pattern→repl|function`` 替换; 返回改动文件数 (spike L245-261)。"""
@@ -224,13 +223,13 @@ def _patch_files(
 
 def _compile_rewrites(
     rewrites: list[dict[str, Any]],
-) -> list[tuple[re.Pattern[str], Any]]:
+) -> list[tuple[regex.Pattern[str], Any]]:
     subs = []
     for rw in rewrites:
         flags = 0
         for fl in rw.get("flags") or []:
-            flags |= getattr(re, fl, 0)
-        pat = re.compile(rw["pattern"], flags)
+            flags |= getattr(regex, fl, getattr(re, fl, 0))
+        pat = regex.compile(rw["pattern"], flags)
         if "function" in rw:
             subs.append((pat, builtins.REWRITE_FNS[rw["function"]]))
         else:

@@ -5,10 +5,14 @@ MockEngine 对齐 impl-compile ``compile/engine.py`` 的 CompRes/Engine 字段�
 顺带回归 _probe(cwd=) / _report_of(stdout_tail) 适配层。
 """
 
+import threading
+import time
 from collections.abc import Iterable
 from pathlib import Path
 
-from texlate.compile.fixloop import Ruleset, builtins, fixloop
+import regex
+
+from texlate.compile.fixloop import Ruleset, actions, builtins, fixloop
 from texlate.compile.fixloop.ctan import CtanFetcher
 from texlate.compile.fixloop.engine import (
     LoopCtx,
@@ -1086,3 +1090,18 @@ def test_report_of_prefers_compres_log_text(tmp_path: Path) -> None:
     rep = _report_of(res, [])
     assert rep.first == "! CACHED in-memory"
     assert rep.n_bang == 1
+
+
+def test_bounded_sub_timeout_returns_none_no_leak() -> None:
+    r"""病态 pattern 超时 → ``None`` 且零线程泄漏（``regex`` 原生 timeout 臂）。
+
+    旧 daemon-thread 弃守形把 spinner 泄漏进进程——泄漏线程在 C 层回溯
+    不放 GIL，整进程冻结（guardsmoke fixloop 格 Thread-4 utime 29min
+    实证，2026-09-18）。``regex`` 的匹配环内 deadline 检查是真中断。
+    """
+    pat = regex.compile(r"(a|a)*$")
+    before = threading.enumerate()
+    t0 = time.monotonic()
+    assert actions._bounded_sub(pat, "x", "a" * 30 + "b", timeout_s=0.5) is None  # noqa: SLF001
+    assert time.monotonic() - t0 < 10  # noqa: PLR2004 -- 上限即超时闸本身
+    assert threading.enumerate() == before

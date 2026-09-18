@@ -13,6 +13,7 @@ dependencies = [
   "pypdf>=5.0",
   "python-docx>=1.2.0",
   "pyyaml>=6.0.3",
+  "regex>=2026.9.10",
   "typer>=0.12",
 ]
 
@@ -33,6 +34,10 @@ texlate = "texlate.cli:app"
 
 [dependency-groups]
 dev = ["pytest>=8", "pytest-asyncio>=0.24"]
+
+[[tool.uv.index]]
+url = "https://mirrors.aliyun.com/pypi/simple"
+default = true
 
 [tool.pytest.ini_options]
 # 裸 pytest 从仓根只收 tests/——tmp/refs/ 参考 clone、bench、web 不入收集；
