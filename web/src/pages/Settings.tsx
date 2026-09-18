@@ -2,7 +2,7 @@
 
 import { createSignal, onCleanup, onMount, Show, For } from "solid-js";
 import { settingsStore } from "../stores/settings";
-import { t } from "../i18n/zh";
+import { t, langChoice, setLang, type LangChoice } from "../i18n";
 
 export default function Settings() {
     const [apiKey, setApiKey] = createSignal("");
@@ -353,6 +353,19 @@ export default function Settings() {
                         <option value="auto">{t.settings.themeAuto}</option>
                         <option value="light">{t.settings.themeLight}</option>
                         <option value="dark">{t.settings.themeDark}</option>
+                    </select>
+                </label>
+                <label>
+                    <span>{t.settings.lang}</span>
+                    <select
+                        value={langChoice()}
+                        onChange={(e) =>
+                            setLang(e.currentTarget.value as LangChoice)
+                        }
+                    >
+                        <option value="auto">{t.settings.langAuto}</option>
+                        <option value="zh">{t.settings.langZh}</option>
+                        <option value="en">{t.settings.langEn}</option>
                     </select>
                 </label>
                 <div class="settings-actions">

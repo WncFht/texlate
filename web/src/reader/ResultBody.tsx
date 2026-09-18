@@ -6,7 +6,7 @@ import { For, Show, type JSX } from "solid-js";
 import type { TaskSnapshot } from "../api/client";
 import type { ResultStats } from "../taskStats";
 import { fmtElapsed } from "./timefmt";
-import { t } from "../i18n/zh";
+import { t } from "../i18n";
 
 export interface RetryError {
     status: number;

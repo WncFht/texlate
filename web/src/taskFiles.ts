@@ -7,7 +7,7 @@
 // 阅读器可用——不在 DOC_KINDS 内。
 
 import { DB_TO_URL_KIND, type FileKind, type TaskKind } from "./api/client";
-import { t } from "./i18n/zh";
+import { t } from "./i18n";
 
 /** 无对照阅读器、走产物直链下载的任务 kind */
 const DOC_KINDS: ReadonlySet<string> = new Set(["docx", "epub"]);

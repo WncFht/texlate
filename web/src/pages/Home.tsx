@@ -19,7 +19,7 @@ import {
 import { taskStore } from "../stores/tasks";
 import { settingsStore } from "../stores/settings";
 import TaskList from "../components/TaskList";
-import { t } from "../i18n/zh";
+import { t } from "../i18n";
 
 const ARXIV_RE =
     /^(?:\d{4}\.\d{4,5}(?:v\d+)?|[a-z-]+(?:\.[A-Z][a-zA-Z]+)?\/\d{7}(?:v\d+)?)$/i;

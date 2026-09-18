@@ -58,7 +58,7 @@ import {
 } from "../api/client";
 import Reader from "../pages/Reader";
 import { taskStore } from "../stores/tasks";
-import { t } from "../i18n/zh";
+import { t } from "../i18n";
 
 const TID = "t_share_edge";
 

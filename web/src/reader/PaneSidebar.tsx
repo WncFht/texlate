@@ -15,7 +15,7 @@ import type {
     PDFSlickThumbnails,
     TPDFDocumentOutline,
 } from "@pdfslick/solid";
-import { t } from "../i18n/zh";
+import { t } from "../i18n";
 import { fmtBytes, outlineColor } from "./paneUtils";
 
 export type SideTab = "thumbs" | "outline" | "attach";

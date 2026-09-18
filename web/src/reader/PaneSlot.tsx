@@ -14,7 +14,7 @@ import DomPane, { type DomPaneHandle } from "./DomPane";
 import type { DocId } from "./alignment";
 import type { DualChunk } from "../api/client";
 import type { ReaderViewState } from "./view";
-import { t } from "../i18n/zh";
+import { t } from "../i18n";
 
 /** 三种窗格上报的 handle 联合（同步引擎/持久化走 PaneLike 公共面） */
 export type AnyHandle = PaneHandle | HtmlPaneHandle | DomPaneHandle;

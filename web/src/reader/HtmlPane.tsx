@@ -37,7 +37,7 @@ import {
     type PaneLike,
 } from "./sync";
 import { api, ApiError, type DualChunk } from "../api/client";
-import { t } from "../i18n/zh";
+import { t } from "../i18n";
 
 /** 单段重译后等待新 zh 落地的轮询参数 */
 const RETX_POLL_MS = 2000;

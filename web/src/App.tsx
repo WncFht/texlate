@@ -13,7 +13,7 @@ import {
 } from "solid-js";
 import Home from "./pages/Home";
 import Settings from "./pages/Settings";
-import { t } from "./i18n/zh";
+import { t } from "./i18n";
 
 const Reader = lazy(() => import("./pages/Reader"));
 

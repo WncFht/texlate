@@ -7,7 +7,7 @@
 
 import { createMemo, Index } from "solid-js";
 import type { ChunkItem } from "../api/client";
-import { t } from "../i18n/zh";
+import { t } from "../i18n";
 
 interface Props {
     total: number;

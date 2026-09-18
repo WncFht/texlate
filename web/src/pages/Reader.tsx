@@ -33,7 +33,7 @@ import ReaderView from "../reader/ReaderView";
 import TaskProgress from "../reader/TaskProgress";
 import ResultBody, { type RetryError } from "../reader/ResultBody";
 import ShareBlock, { createSharePack } from "../reader/ShareBlock";
-import { t } from "../i18n/zh";
+import { t } from "../i18n";
 
 export default function Reader(props: { taskId: string; nav(to: string): void }) {
     const [task, setTask] = createSignal<TaskSnapshot | null>(null);

@@ -315,6 +315,10 @@ export const t = {
         themeAuto: "跟随系统",
         themeLight: "浅色",
         themeDark: "深色",
+        lang: "界面语言",
+        langAuto: "跟随浏览器",
+        langZh: "中文",
+        langEn: "English",
     },
     // === live reading ===
     live: {

@@ -5,7 +5,7 @@
 
 import { createSignal, Show } from "solid-js";
 import { api, ApiError, type SharePackResponse } from "../api/client";
-import { t } from "../i18n/zh";
+import { t } from "../i18n";
 
 export interface ShareError {
     code?: string;

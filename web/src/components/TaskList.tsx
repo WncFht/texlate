@@ -9,7 +9,7 @@ import type { FileManifest, TaskError, TaskSnapshot } from "../api/client";
 import { api, isTerminal } from "../api/client";
 import { taskStore } from "../stores/tasks";
 import { downloadItems, isDocKind } from "../taskFiles";
-import { t } from "../i18n/zh";
+import { t } from "../i18n";
 
 interface Props {
     tasks: TaskSnapshot[];

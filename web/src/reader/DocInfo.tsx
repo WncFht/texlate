@@ -4,7 +4,7 @@
 
 import { For, onCleanup, onMount } from "solid-js";
 import type { PDFSlickState } from "@pdfslick/solid";
-import { t } from "../i18n/zh";
+import { t } from "../i18n";
 import { fmtBytes, fmtDate, pageSizeText } from "./paneUtils";
 
 interface Props {

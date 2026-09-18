@@ -1,7 +1,7 @@
 import { ErrorBoundary } from "solid-js";
 import { render } from "solid-js/web";
 import App from "./App";
-import { t } from "./i18n/zh";
+import { t } from "./i18n";
 import "./styles/app.css";
 
 document.title = `${t.appName} — ${t.tagline}`;

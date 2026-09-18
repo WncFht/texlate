@@ -52,7 +52,7 @@ import { render } from "solid-js/web";
 import { ApiError, type ReaderInfo, type TaskSnapshot } from "../api/client";
 import Reader from "../pages/Reader";
 import { taskStore } from "../stores/tasks";
-import { t } from "../i18n/zh";
+import { t } from "../i18n";
 
 const TID = "t_share";
 

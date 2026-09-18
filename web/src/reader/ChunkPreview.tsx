@@ -7,7 +7,7 @@
 
 import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { api } from "../api/client";
-import { t } from "../i18n/zh";
+import { t } from "../i18n";
 
 export interface PreviewChunk {
     seq: number;

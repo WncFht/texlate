@@ -10,7 +10,7 @@ import ProgressGrid from "../components/ProgressGrid";
 import ChunkPreview from "./ChunkPreview";
 import LivePane from "./LivePane";
 import { fmtClock, fmtElapsed } from "./timefmt";
-import { t } from "../i18n/zh";
+import { t } from "../i18n";
 
 const STAGES: TaskStage[] = ["fetching", "parsing", "translating", "compiling"];
 

@@ -7,7 +7,7 @@
 
 import { createEffect, createSignal, onCleanup, Show } from "solid-js";
 import type { PDFSlick } from "@pdfslick/solid";
-import { t } from "../i18n/zh";
+import { t } from "../i18n";
 import { FIND_STATE, findCountText, type FindCount } from "./paneUtils";
 
 interface Props {

@@ -11,7 +11,7 @@ import { createSignal, onCleanup, onMount } from "solid-js";
 import { api, type TaskChunksPage } from "../api/client";
 import { chunkUntranslated, loadMdLibs, type MdLibs } from "./markdown";
 import { escapeHtml } from "./sanitize";
-import { t } from "../i18n/zh";
+import { t } from "../i18n";
 
 export interface LiveChunk {
     seq: number;

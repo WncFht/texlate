@@ -32,6 +32,7 @@ vi.mock("../api/client", async (importOriginal) => {
 import { render } from "solid-js/web";
 import { ApiError } from "../api/client";
 import Home from "../pages/Home";
+import { t } from "../i18n";
 
 const RESP = {
     task_id: "t_0000000000000f01",
@@ -112,7 +113,7 @@ describe("Home 上传进度条", () => {
         await flush();
         // 100% = 字节送完、服务端建单中——回不定态扫条 + 处理中文案（U14）
         expect(bar()!.style.width).toBe("35%");
-        expect(label()).toContain("处理中");
+        expect(label()).toContain(t.home.processing);
     });
 
     it("上传结案后进度条隐藏（失败亦然），错误文案可见", async () => {
@@ -166,7 +167,7 @@ describe("Home 上传进度条", () => {
         await flush();
 
         expect(upBtn.disabled).toBe(true);
-        expect(upBtn.textContent).toBe("上传文件");
+        expect(upBtn.textContent).toBe(t.home.upload);
         expect(document.body.querySelector(".up-progress")).toBeNull();
     });
 

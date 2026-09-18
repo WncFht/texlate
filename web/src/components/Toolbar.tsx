@@ -12,7 +12,7 @@ import {
 import Segmented from "./Segmented";
 import type { FileKind, TaskStatus } from "../api/client";
 import { isTerminal } from "../api/client";
-import { t } from "../i18n/zh";
+import { t } from "../i18n";
 
 export type Mode = "original" | "translated" | "split";
 

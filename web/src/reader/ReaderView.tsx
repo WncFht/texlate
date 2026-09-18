@@ -39,7 +39,7 @@ import type { HtmlPaneHandle } from "./HtmlPane";
 import type { DomPaneHandle } from "./DomPane";
 import PaneSlot, { type AnyHandle } from "./PaneSlot";
 import type { ReaderViewState } from "./view";
-import { t } from "../i18n/zh";
+import { t } from "../i18n";
 
 const JUMPBACK_PX = 500;
 const SAVE_DEBOUNCE_MS = 1000;

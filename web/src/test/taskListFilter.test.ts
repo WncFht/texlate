@@ -37,6 +37,7 @@ vi.mock("../stores/tasks", () => ({
 import { render } from "solid-js/web";
 import TaskList from "../components/TaskList";
 import type { TaskSnapshot } from "../api/client";
+import { t } from "../i18n";
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
 let dispose: (() => void) | undefined;
@@ -111,16 +112,16 @@ describe("U5：搜索 + 筛选 + 活动置顶", () => {
             [...root.querySelectorAll(".task-chip")].find(
                 (b) => b.textContent === label,
             )!;
-        click(chip("进行中"));
+        click(chip(t.home.fActive));
         await flush();
         expect(titles()).toEqual(["active alpha"]);
-        click(chip("已完成"));
+        click(chip(t.home.fDone));
         await flush();
         expect(titles()).toEqual(["done epsilon", "done beta"]);
-        click(chip("异常"));
+        click(chip(t.home.fFailed));
         await flush();
         expect(titles()).toEqual(["fault gamma", "auth delta"]);
-        click(chip("全部"));
+        click(chip(t.home.fAll));
         await flush();
         expect(rows()).toHaveLength(5);
     });
@@ -132,7 +133,7 @@ describe("U5：搜索 + 筛选 + 活动置顶", () => {
         inp.dispatchEvent(new Event("input", { bubbles: true }));
         await flush();
         expect(root.querySelector(".task-empty")?.textContent).toContain(
-            "没有匹配",
+            t.home.searchEmpty,
         );
     });
 });
@@ -144,7 +145,7 @@ describe("U8：行内快捷臂", () => {
             w.textContent?.includes("active alpha"),
         )!;
         const btn = row.querySelector(".task-act") as HTMLButtonElement;
-        expect(btn.getAttribute("aria-label")).toBe("取消任务");
+        expect(btn.getAttribute("aria-label")).toBe(t.home.cancelTask);
         click(btn);
         await flush();
         expect(mocks.cancel).toHaveBeenCalledWith("a1");
@@ -156,16 +157,17 @@ describe("U8：行内快捷臂", () => {
             w.textContent?.includes("fault gamma"),
         )!;
         const btn = row.querySelector(".task-act") as HTMLButtonElement;
-        expect(btn.getAttribute("aria-label")).toBe("重试");
+        expect(btn.getAttribute("aria-label")).toBe(t.home.retry);
         click(btn);
         await flush();
         const items = [...row.querySelectorAll(".retry-item")];
+        const retryAs = (eng: string) => t.home.retryAs.replace("{engine}", eng);
         expect(items.map((x) => x.textContent)).toEqual([
-            "重试",
-            "重试 · 自动路由",
-            "重试 · tectonic",
-            "重试 · xelatex",
-            "重试 · pdflatex",
+            t.home.retry,
+            retryAs(t.home.engineAuto),
+            retryAs("tectonic"),
+            retryAs("xelatex"),
+            retryAs("pdflatex"),
         ]);
         click(items[0] as HTMLElement);
         await flush();

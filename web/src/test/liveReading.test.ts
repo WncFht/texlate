@@ -49,6 +49,7 @@ import HtmlPane from "../reader/HtmlPane";
 import { chunkUntranslated } from "../reader/markdown";
 import { parseHash } from "../App";
 import Home from "../pages/Home";
+import { t } from "../i18n";
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
@@ -322,7 +323,7 @@ describe("HtmlPane —— 单段重译", () => {
         ).toBeNull();
         expect(
             document.body.querySelector(".pane-toast")?.textContent,
-        ).toContain("译文已更新");
+        ).toContain(t.live.retxDone);
     });
 
     it("提交被拒 → 按钮复位 + 错误 toast", async () => {
@@ -351,7 +352,7 @@ describe("HtmlPane —— 单段重译", () => {
         await vi.waitFor(() => expect(btn.disabled).toBe(false));
         expect(
             document.body.querySelector(".pane-toast")?.textContent,
-        ).toContain("重译提交失败");
+        ).toContain(t.live.retxFail);
     });
 
     it("canRetranslate/taskId 缺席 → 不挂钮（进行中隐藏）", async () => {

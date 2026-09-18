@@ -17,7 +17,7 @@ import { ensurePdfjsWorker } from "../pdfjs";
 import PaneSidebar from "./PaneSidebar";
 import FindBar from "./FindBar";
 import DocInfo from "./DocInfo";
-import { t } from "../i18n/zh";
+import { t } from "../i18n";
 
 export interface PaneHandle extends PaneLike {
     readonly slick: PDFSlick | null;

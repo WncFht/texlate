@@ -24,7 +24,7 @@ import {
     type PageGeom,
     type PaneLike,
 } from "./sync";
-import { t } from "../i18n/zh";
+import { t } from "../i18n";
 
 export interface DomPaneHandle extends PaneLike {
     gotoPage?(n: number): void;
