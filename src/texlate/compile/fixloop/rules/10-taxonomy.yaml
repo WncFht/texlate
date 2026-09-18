@@ -151,7 +151,16 @@ taxonomy:
     subclassify:
       { pattern: "\\\\(pdf[a-zA-Z@]+)", into: pdftex_prim, payload_group: 1 }
   - { id: undefined_cs, scope: head, pattern: "Undefined control sequence" }
-  - { id: capacity, scope: head, pattern: "TeX capacity exceeded" }
+  # capacity payload 走 python 提取器 (payload_scan 注册表, logparse):
+  # ``TeX capacity exceeded, sorry [<name>=<n>]`` bracket 归一 tag + ctx
+  # 首层 pending cs → ``<tag>|<cs>`` —— triage 路由键: input_stack=递归,
+  # main_memory=暴走, save_size=组泄漏 (capacity-scout-2026-09-17 4/4 格
+  # 皆 input_stack)。pattern 保裸签名: bracket 折行/截断时仍归 capacity,
+  # 提取退 ``<tag>``/``?|<cs>``/None 不失类。
+  - id: capacity
+    scope: head
+    pattern: "TeX capacity exceeded"
+    payload_scan: capacity
   # 2026-09-16 compile-hard 新增 (2211.13013, aux-cjk-truncation 留档):
   # 引擎自产 aux 族中间件被 8192B 写缓冲劈断多字节字符 → 下遍回读
   # "Invalid UTF-8 byte" + "! File ended while scanning use of \@newl@bel"。

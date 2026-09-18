@@ -15,7 +15,10 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 from texlate.texlog import (
     CTX_LINES,
@@ -89,6 +92,50 @@ _CS_NAME_RE = re.compile(r"\\([a-zA-Z@]+)")
 #: argument 87 / write 3 文件, 恒居 ctx 行1 (最深层); ``<inserted text>``
 #: /``<to be read again>`` 的 token 在续行, 头行本身不携 cs。
 _CTX_HEAD_RE = re.compile(r"^[ \t]*<[a-zA-Z ]+>")
+# ── capacity payload 提取 (taxonomy ``payload_scan: capacity``) ──
+#: ``TeX capacity exceeded, sorry [<name>=<n>]`` bracket 名归一 +
+#: ctx 首层 pending cs → pay 形 ``<tag>|<cs>`` (triage 路由键:
+#: input_stack=递归, main_memory=暴走, save_size=组泄漏;
+#: capacity-scout-2026-09-17 4/4 格皆 input_stack)。bracket 距 exceeded
+#: 恒在 ~30 字符内 (file-line 形态 sorry 词可折行到 ctx[1]), 上限 40
+#: 防截断 log 误衔下游 ``[x]``; 名段限字母+空格+40 字符上限 (真名
+#: ≤22) 且钉 ``=<n>`` —— TeX 容量名固定句式, ``[1]``/``[fig]`` 不误中。
+_CAP_BRACKET_RX = re.compile(
+    r"TeX capacity exceeded[^\[\]]{0,40}?\[\s*([a-zA-Z][a-zA-Z ]{0,40}?)\s*=\s*\d+\s*\]"
+)
+#: bracket 原名 → 短 tag。未收名走 ``_cap_bracket_tag`` 全词 snake 兜底
+#: (``trie size`` → ``trie_size``), 确定性优先于名表完备。
+_CAP_BRACKET_TAG = {
+    "input stack size": "input_stack",
+    "main memory size": "main_memory",
+    "save size": "save_size",
+    "pool size": "pool_size",
+    "parameter stack size": "parameter_stack",
+    "semantic nest size": "semantic_nest",
+    "buffer size": "buffer_size",
+    "hash size": "hash_size",
+    "hash extra": "hash_extra",
+    "text input levels": "text_input_levels",
+    "grouping levels": "grouping_levels",
+    "pattern memory": "pattern_memory",
+    "pattern memory ops": "pattern_memory_ops",
+    "number of strings": "strings",
+    "string vacancies": "string_vacancies",
+    "exception dictionary": "exception_dict",
+    "font info": "font_info",
+    "font mem size": "font_mem",
+    "pdf memory size": "pdf_mem",
+}
+#: cs 词素——expl3 时代 ``_``/``:`` 计字母 (``\l__xeCJK_tmp_int``);
+#: nonletter cs 恰一字符 (与 undefined_cs 签同口径)。字母串截 64 字符:
+#: max_print_line=10000 病态行可产近万字符 cs 名撑爆 records。
+_CAP_CS_RX = re.compile(r"\\([a-zA-Z@_:]{1,64}|[^\s\\{}])")
+#: ctx 层头三形 (皆顶格): 宏展开层 ``\name<params>->`` / 伪输入层
+#: ``<argument>``/``<to be read again>`` / ``l.N`` 顶层行。缩进续行
+#: 永不作层头——宽松前导会把 ``{\@par }`` 残片/``#1<-`` 参绑行误判。
+_CAP_MACRO_RX = re.compile(r"^\\([a-zA-Z@_:]{1,64}|[^\s\\{}])")
+_CAP_HEAD_RX = re.compile(r"^<[a-zA-Z ]+>")
+_CAP_LN_ROW_RX = re.compile(r"^l\.\d+")
 # `-file-line-error` 模式下错误行是 `path:line: msg` (无 '!' 前缀) ——
 # impl-compile 的 xelatex 命令行带此旗标, 只数 '!' 会漏全部错误。
 # Warning 行 (`./f.tex:5: LaTeX Warning: ...`) 同格式但非错误, 须排除,
@@ -232,6 +279,68 @@ def _ctx_tail_css(ctx: str | None) -> set[str]:
     return out
 
 
+def _cap_bracket_tag(raw: str) -> str:
+    """Bracket 原名 → 短 tag (常见名查表, 未收名 snake 兜底保确定性)。"""
+    name = " ".join(raw.split()).lower()
+    if name in _CAP_BRACKET_TAG:
+        return _CAP_BRACKET_TAG[name]
+    return re.sub(r"[^a-z0-9]+", "_", name).strip("_")
+
+
+def _capacity_pending(lines: list[str]) -> str | None:
+    r"""Capacity ctx 首层 pending cs——TeX 上下文栈最深层印在最前。
+
+    层头三形各取位: 宏展开层 ``\name<params>->`` 的 name 即在扩宏 (行首
+    cs); ``<argument>``/``<recently read>`` 伪层头行止于冒犯 token (行
+    末 cs); ``<to be read again>``/``<inserted text>`` 头行无 token,
+    pending 在续行 (续行首 cs); ``l.N`` 顶层行末 cs 为冒犯 token, 行内
+    无 cs 时续行 (源行后半 = 待读 token) 首 cs 兜底。非层头行 (包行
+    折行残片/``#1<-`` 参绑行/空行) 跳过。
+    """
+    grab_next = False  # 上层头无 cs——token 在续行
+    for ln in lines:
+        hits = _CAP_CS_RX.findall(ln)
+        if grab_next:
+            if hits:
+                return hits[0]
+            grab_next = False
+        if (m := _CAP_MACRO_RX.match(ln)) is not None:
+            return m.group(1)
+        if _CAP_HEAD_RX.match(ln) or _CAP_LN_ROW_RX.match(ln):
+            if hits:
+                return hits[-1]
+            grab_next = True
+    return None
+
+
+def _capacity_payload(first: str | None, ctx: str | None) -> str | None:
+    """``TeX capacity exceeded`` → ``<tag>``/``<tag>|<cs>``/``?|<cs>``/None。
+
+    bracket 在错误行本体 (file-line 形态可折行到 ctx[1]) 故搜全 head;
+    pending cs 取 ctx 首层 (``_capacity_pending``)。截断 log 无 bracket
+    时 ``?`` 占位保两字段形。
+    """
+    blob = (first or "") + ("\n" + ctx if ctx else "")
+    m = _CAP_BRACKET_RX.search(blob)
+    tag = _cap_bracket_tag(m.group(1)) if m else None
+    lines = ctx.splitlines() if ctx else []
+    # parse_text 的 ctx 窗首行=错误行本身 (head 内重复两次) —— 跳过
+    if lines and first and lines[0].strip() == first:
+        lines = lines[1:]
+    tok = _capacity_pending(lines)
+    if tag is None:
+        return f"?|{tok}" if tok else None
+    return f"{tag}|{tok}" if tok else tag
+
+
+#: taxonomy ``payload_scan:`` 键的 python 提取器注册表 (head-scope 专用,
+#: 签名 ``(first, ctx) -> pay``)。未收名静默回退 regex payload_group 取值
+#: —— taxonomy 段无键白名单校验, 与未知可选键同口径。
+_PAYLOAD_SCANS: dict[str, Callable[[str | None, str | None], str | None]] = {
+    "capacity": _capacity_payload,
+}
+
+
 class Taxonomy:
     """rules/ taxonomy 段的编译态: scope 三段评估序照 spike L67-125。"""
 
@@ -292,7 +401,8 @@ class Taxonomy:
             m = pat.search(head)
             if not m:
                 continue
-            pay = _payload(entry, m)
+            scan = _PAYLOAD_SCANS.get(str(entry.get("payload_scan") or ""))
+            pay = scan(first, ctx) if scan is not None else _payload(entry, m)
             sub = entry.get("subclassify")
             if sub:
                 # 冒犯域收窄 (audit-2026-09-16): 细分命中须==主 payload
