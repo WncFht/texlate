@@ -480,3 +480,79 @@ rules:
         }
     stats: { fires: 0, status: proposed }
     source_ref: "failmine float_opt|H lane; corpus_v3 五格源实读混排形"
+
+  # 2026-09-19 flushend lane (failmine2, stagerun-loop2-2026-09-18 五格实读):
+  # sttools 3.x flushend.sty 删 keeplastbox 选项 (1.x 时代 \lastbox 冲刷保留
+  # 开关; 本机 /usr/share/texmf-dist/tex/latex/sttools/flushend.sty 全量
+  # \DeclareOption 名单无此项) —— 老稿 \usepackage[keeplastbox]{flushend}
+  # 直写形炸 flushend.sty:83 "Unknown option `keeplastbox' for package
+  # `flushend'", err 落 other 桶 (无专属签名类; tail 死面 variant 可达
+  # early_eof——同形 xcolor_override_opt_strip 先例三桶同挂)。五格 zh+base
+  # 双炸: 1706.02725/1803.09012/2105.00097/2105.03814/2111.00082。选项只调
+  # 末页栏平衡美学 (保 lastbox 参与 flush), 剥除即上游删项本意、语义零损失。
+  # ctx+source 双闸 AND 限定此机理才动; 括号/PassOptions 首参逗号成员级匹配
+  # (xkeeplastbox/keeplastboxfoo 不沾, {a={x,keeplastbox}} 嵌套值不剥)。
+  - id: flushend_keeplastbox_opt_strip
+    description: "flushend 已删选项 keeplastbox → usepackage/PassOptions 成员级剥除"
+    phase: loop
+    order: 197 # 同族 option 病理簇 (xcolor 184/pstcol 185/geometry 186/float 187) 后首空位
+    when:
+      any:
+        - { category: other, payload_required: false }
+        - { category: early_eof, payload_required: false }
+        - { category: syntax, payload_required: false }
+    condition:
+      ctx_suggests: "Unknown option [`']keeplastbox' for package [`']flushend'"
+      source_contains: "\\bkeeplastbox\\b"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty, .cls]
+        rewrites:
+          # 括号头: [keeplastbox,rest]{..flushend..} → [rest]{..flushend..}
+          - {
+              pattern: "(\\\\(?:usepackage|RequirePackage)\\s*\\[)\\s*keeplastbox\\s*,\\s*([^\\]]*\\]\\s*\\{[^{}]*\\bflushend\\b[^{}]*\\})",
+              repl: "\\g<1>\\g<2>",
+              match_surface: "masked",
+            }
+          # 括号中/末: [a,keeplastbox(,b)]{..flushend..} → [a(,b)]
+          - {
+              pattern: "(\\\\(?:usepackage|RequirePackage)\\s*\\[[^\\]]*?),\\s*keeplastbox\\s*(?=[,\\]])([^\\]]*\\]\\s*\\{[^{}]*\\bflushend\\b[^{}]*\\})",
+              repl: "\\g<1>\\g<2>",
+              match_surface: "masked",
+            }
+          # 括号 solo: [keeplastbox]{..flushend..} → 整括号摘除 (五格全此形)
+          - {
+              pattern: "(\\\\(?:usepackage|RequirePackage))\\s*\\[\\s*keeplastbox\\s*\\](\\s*\\{[^{}]*\\bflushend\\b[^{}]*\\})",
+              repl: "\\g<1>\\g<2>",
+              match_surface: "masked",
+            }
+          # PassOptionsToPackage 首参同三位 (大括号形)
+          - {
+              pattern: "(\\\\PassOptionsToPackage\\s*\\{)\\s*keeplastbox\\s*,\\s*([^}]*\\}\\s*\\{flushend\\})",
+              repl: "\\g<1>\\g<2>",
+              match_surface: "masked",
+            }
+          - {
+              pattern: "(\\\\PassOptionsToPackage\\s*\\{[^}]*?),\\s*keeplastbox\\s*(?=[,}])([^}]*\\}\\s*\\{flushend\\})",
+              repl: "\\g<1>\\g<2>",
+              match_surface: "masked",
+            }
+          # 首参 solo: 剥净留 {}{flushend} no-op (hyperref_driver 空参同留先例)
+          - {
+              pattern: "(\\\\PassOptionsToPackage\\s*\\{)\\s*keeplastbox\\s*\\}(\\s*\\{flushend\\})",
+              repl: "\\g<1>}\\g<2>",
+              match_surface: "masked",
+            }
+    risk: low # 死选项剥除; 选项本就只调栏平衡美学, 剥后行为即上游删项本意
+    known_gap: "组载 {flushend,other} 共享括号内 keeplastbox 同剥——他包若有同名合法键意图收窄 (flushend 专属名, 无实读例); documentclass 全局位不剥 (全局项不进 per-pkg Unknown-option 错误面); PassOptions 首参内嵌套 brace 值 (如 {a={x,y},keeplastbox}) [^}] 越不过内层 → 漏剥 (罕形); verbatim 内假装载 masked 面不沾"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "1706.02725/1803.09012/2105.00097/2105.03814/2111.00082 (stagerun-loop2-2026-09-18 failmine2)",
+          error: "flushend.sty:83 LaTeX Error: Unknown option `keeplastbox' for package `flushend'",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "failmine2 flushend lane; corpus_v3 五格源实读全 \\usepackage[keeplastbox]{flushend} 直写形"
