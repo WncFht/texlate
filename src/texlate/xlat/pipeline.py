@@ -54,7 +54,7 @@ from .retry import (
 from .state import ChunkRecord, StateStore, segment_key
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Awaitable, Callable
 
     from texlate.latex.model import Chunk
 
@@ -147,6 +147,17 @@ class Translator(Protocol):
         ...
 
 
+#: LLM 输出裸 C0 控制符（``\x09\x0a\x0d`` 合法空白保留）——剥除防 slots JSON strict
+#: 拒收整批弃置、以及 C0 落进 .tex 后 compile ``invalid_char``（``non_utf8_recode``
+#: 不管合法 UTF-8 控制符）。上游 BabelDOC PR #612 同坑实证。
+_C0_RX = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+
+#: 模型输出退化坍缩签名：20+ 连排句读标点 → 坍成单 ``.``（BabelDOC
+#: ``il_translator_llm_only.py`` :754 同款清理；合法 LaTeX 源不产 20+
+#: 连排点——TOC 点线是编译期生成，源文本无此形态）。
+_PUNCT_RUN_RX = re.compile(r"[.。…，]{20,}")
+
+
 class GatewayTranslator:
     """`ChatClient` 的 Translator 适配：HTTP 退避 + length 截断放大重试。"""
 
@@ -205,7 +216,7 @@ class GatewayTranslator:
                         response_format=response_format,
                     ),
                 )
-            return r.content
+            return _C0_RX.sub("", r.content)
 
         return await call_with_backoff(_go, policy=self.policy)
 
@@ -268,7 +279,10 @@ class MockTranslator:
             try:
                 payload = json.loads(user)
                 slots = payload.get("slots") or {}
-                return json.dumps(dict.fromkeys(slots, self.zh), ensure_ascii=False)
+                return json.dumps(
+                    {k: _mock_zh(str(v), self.zh) for k, v in slots.items()},
+                    ensure_ascii=False,
+                )
             except (json.JSONDecodeError, AttributeError):
                 return "{}"
         lines = user.split("\n")
@@ -282,8 +296,19 @@ class MockTranslator:
         return _mock_translate_text(user, self.zh)
 
 
+#: mock 译文密度：每 ~8 个英文字符折一倍 ``MOCK_ZH``——E24 token 比带
+#: [0.3,3.0] 下 mock 输出须贴近真实 CJK 密度（4 字固定桩对任何
+#: est≥10 的 src 都是坍缩比，会触发 length error 假 fault）。
+_MOCK_ZH_PER_CHARS = 8
+
+
+def _mock_zh(text: str, zh: str) -> str:
+    """``zh`` 按 ``text`` 长度折倍——产出 CJK≈拉丁/2 的拟真密度。"""
+    return zh * max(1, len(text) // _MOCK_ZH_PER_CHARS)
+
+
 def _mock_translate_text(text: str, zh: str) -> str:
-    r"""e2e mock_a 同款：token 原位保留，字母散文 run → 固定中文串。
+    r"""e2e mock_a 同款：token 原位保留，字母散文 run → 按比例中文串。
 
     护栏对齐 L0/C8a 口径：只替换行内字母 run（``\eg, Caffe`` →
     ``\eg, 这是译文``），标点/空白/换行原样——否则 ``\cs``+CJK 熔合成
@@ -292,10 +317,12 @@ def _mock_translate_text(text: str, zh: str) -> str:
     out: list[str] = []
     pos = 0
     for m in _MOCK_TOKEN_RX.finditer(text):
-        out.append(_PROSE_RUN_RX.sub(zh, text[pos : m.start()]))
+        out.append(
+            _PROSE_RUN_RX.sub(lambda m2: _mock_zh(m2.group(0), zh), text[pos : m.start()])
+        )
         out.append(m.group(0))
         pos = m.end()
-    out.append(_PROSE_RUN_RX.sub(zh, text[pos:]))
+    out.append(_PROSE_RUN_RX.sub(lambda m2: _mock_zh(m2.group(0), zh), text[pos:]))
     return "".join(out)
 
 
@@ -488,6 +515,11 @@ class PipelineConfig:
     tgt_lang: str = "Chinese"
     #: 连续 auth-fail 块数熔断阈值（T2；≤0 = 不熔断）
     auth_fail_threshold: int = 3
+    #: 逐篇术语抽取件（``autogloss.extract_terms`` 的 partial）——
+    #: ``async (masked_texts) -> {en: zh}``；None=关。抽取结果进 doc_glossary
+    #: 底层（同 key 由既有五层表赢——curated 覆盖 auto）。调用方负责
+    #: memoize（worker ctx.memo / e2e 单例），否则 resume 会重抽。
+    auto_glossary_fn: Callable[[list[str]], Awaitable[dict[str, str]]] | None = None
 
     def __post_init__(self) -> None:
         """数值钳位：0/负并发会饿死 worker 让 queue.join 死等；hard_limit<1 让 split 死循环。"""
@@ -541,11 +573,36 @@ class XlatPipeline:
             )
         return self._prompts[key]
 
-    def _materialize(self, pending: list[ChunkIn]) -> None:
+    async def _auto_glossary(
+        self, chunks: list[ChunkIn], pending: list[ChunkIn]
+    ) -> dict[str, str]:
+        """``auto_glossary_fn`` 抽取层——空 pending 不抽；失败降级 {} 不炸主链。
+
+        术语是增强件：抽取调用炸（网关/JSON/超时）只损失一层术语注入，
+        不该让论文 fault。输入=全量 chunks 的 masked 文本（与
+        ``_materialize`` 文档级过滤同口径，``[[X_n]]`` 占位符由抽取
+        prompt 按不透明 token 跳过）。
+        """
+        fn = self.cfg.auto_glossary_fn
+        if fn is None or not pending:
+            return {}
+        try:
+            terms = await fn([c.content for c in chunks])
+        except Exception as e:  # noqa: BLE001 -- 增强件失败只告警不致死
+            log.warning("auto-glossary extraction failed → 无 auto 层续跑: %s", e)
+            return {}
+        return terms or {}
+
+    def _materialize(
+        self, pending: list[ChunkIn], auto_terms: dict[str, str] | None = None
+    ) -> None:
         """文档级术语表过滤一次——整个跑批期间 system prompt 逐字节恒定。"""
-        self._doc_glossary = {}
+        self._doc_glossary = dict(auto_terms or {})
         if self.glossary is not None:
-            self._doc_glossary = self.glossary.doc_filter(c.content for c in pending)
+            # curated 五层表 update 在后赢同 key——auto 抽取层是底座
+            self._doc_glossary.update(
+                self.glossary.doc_filter(c.content for c in pending)
+            )
         # 同实例二次 run 换了文档 → 术语块变了，prompt memo 必须失效重渲染
         self._prompts.clear()
 
@@ -686,12 +743,13 @@ class XlatPipeline:
             if res.status == "recovered"
             else "fault"
         )
+        zh = _PUNCT_RUN_RX.sub(".", res.translation)
         if res.status in ("ok", "recovered"):
-            self._cache_store(c, res.translation)
+            self._cache_store(c, zh)
         return ChunkResult(
             chunk_id=c.chunk_id,
             source=c.content,
-            translation=res.translation,
+            translation=zh,
             kind=c.kind,
             status=status,
             batch_id=batch_id,
@@ -727,7 +785,7 @@ class XlatPipeline:
         except Exception as e:  # noqa: BLE001 -- 传输崩=保留原译，不算一次有效修复
             log.debug("retranslate %s transport failed: %s", c.chunk_id, e)
             return None
-        zh = placeholders.decode_newlines(raw)
+        zh = _PUNCT_RUN_RX.sub(".", placeholders.decode_newlines(raw))
         repair = self._repair_fn(c)
         warnings: list[str] = []
         if repair is not None:
@@ -1268,7 +1326,8 @@ class XlatPipeline:
             self.state.start(len(chunks))
         # 术语表物化吃全量 chunks 而非仅 pending——续跑时已完成块同样参与
         # 文档级过滤，保证 system prompt 与全新跑逐字节一致（缓存命中口径）。
-        self._materialize(list(chunks))
+        auto_terms = await self._auto_glossary(chunks, pending)
+        self._materialize(list(chunks), auto_terms)
 
         await self._drain(self._build_work_items(pending, split_items), done_map)
 

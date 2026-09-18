@@ -61,7 +61,7 @@ from .share import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterable
+    from collections.abc import Awaitable, Callable, Iterable
 
     from texlate.latex.model import Chunk
 
@@ -124,6 +124,7 @@ class _Translate:
             config=PipelineConfig(
                 concurrency=self._opt_int(ctx, ctx.options(), "concurrency", 10, hi=16),
                 tgt_lang=_tgt_lang(str(ctx.row["target_lang"])),
+                auto_glossary_fn=self._auto_glossary_fn(ctx, clients),
             ),
             glossary=prep["glossary"],
             state=state,  # type: ignore[arg-type] -- StateStore 鸭子型
@@ -680,6 +681,32 @@ class _Translate:
         ctx.memo[mkey] = g
         return g
 
+    def _auto_glossary_fn(
+        self, ctx: TaskCtx, clients: list[ChatClient]
+    ) -> Callable[[list[str]], Awaitable[dict[str, str]]] | None:
+        """``auto_glossary`` option 开时接 ``autogloss.extract_terms``。
+
+        抽取臂与翻译同模（``ctx.secrets.model``——BYOK 端点名字网关私有，
+        硬编 swe-2-medium 会在非公网端点上 404）。ctx.memo 备忘防 resume
+        重抽——同一 task 的二次 ``pipe.run`` 复用首轮结果。
+        """
+        if not ctx.options().get("auto_glossary") or not clients:
+            return None
+        client = clients[0]
+        model = str(ctx.secrets.model or "swe-2-medium")
+        memo_key = "autogloss_terms"
+
+        async def _fn(texts: list[str]) -> dict[str, str]:
+            from texlate.xlat.autogloss import (  # noqa: PLC0415 -- 可选件惰载
+                extract_terms,
+            )
+
+            if memo_key not in ctx.memo:
+                ctx.memo[memo_key] = await extract_terms(texts, client, model=model)
+            return ctx.memo[memo_key]  # type: ignore[return-value] -- memo 存的就是 dict
+
+        return _fn
+
     def _make_cache(self, ctx: TaskCtx) -> SegmentCache:
         """段缓存门面（cfg 指纹前缀含 model/prompt_ver/lang[/key 指纹]）。"""
         try:
@@ -718,9 +745,13 @@ class _Translate:
         # 不同——缺此项段缓存跨 provider 混桶中毒（spec file_cache_key
         # 公式含 base 同口径，spec-xlat #7）。
         base = str(ctx.secrets.base_url or cfg_row.get("base_url") or "")
+        # auto_glossary 开关进指纹：开=auto 抽取层进 system prompt → 同源句
+        # 翻译函数变，须分桶防关态译文污染开态桶（术语内容本身非确定，
+        # 不进——temp 抽取逐跑微漂，进了会把桶锁死成单次跑）。
+        ag = "1" if ctx.options().get("auto_glossary") else "0"
         cfg = hashlib.sha256(
             f"{ctx.row['model']}|{PROMPT_VERSION}|{ctx.row['target_lang']}"
-            f"|{base}|u:{user_sig}|l:{local_sig}|c:{cats}".encode()
+            f"|{base}|u:{user_sig}|l:{local_sig}|c:{cats}|ag:{ag}".encode()
         ).hexdigest()[:16]
         if cache_scope() == "per_key":
             # 与 cache_key_for 同一 oracle 防护：段级 translation_cache

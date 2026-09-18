@@ -2,7 +2,7 @@
 
 规格 docs/08 §1.6–1.7：
 
-- 默认后端 `http://127.0.0.1:3003`（本地 OpenAI 兼容网关，Chat 协议）；
+- 默认后端 `http://127.0.0.1:3033`（本地 OpenAI 兼容网关，Chat 协议）；
   **免费集运行时动态筛**——`/panel/api/models` 按 `cost_tier=="free"` ∧
   `promo.active` ∧ `not disabled` 过滤，∩ `/v1/models`，再逐模型探活，
   **不得硬编码免费集**（promo 到期自动降级，如 glm-5-2 2026-09-16）。
@@ -52,7 +52,7 @@ PROBE_TIMEOUT = httpx.Timeout(60.0, connect=10.0)
 #: 引这里，防两处字面量漂移（settings 侧是 UX 缺省，hook 侧是 env 兜底，
 #: 指向同一网关事实）。默认本地网关；任意 OpenAI 兼容端点可经
 #: TEXLATE_BASE_URL / server Settings 页覆盖
-DEFAULT_BASE_URL = "http://127.0.0.1:3003"
+DEFAULT_BASE_URL = "http://127.0.0.1:3033"
 #: 免费集偏好序（动态发现后按此排序——不是免费集本身，命中才选；
 #: 自有网关按实际模型集调整或经 TEXLATE_MODEL 指定）
 DEFAULT_MODEL_PREFERENCE = ("swe-2-medium", "swe-2-high", "swe-2-max", "glm-5-2")
@@ -65,6 +65,7 @@ FALLBACK_MAX_CANDIDATES = 3
 
 #: HTTP 状态码（classify 判定表）
 HTTP_OK = 200
+HTTP_BAD_REQUEST = 400
 HTTP_UNAUTHORIZED = 401
 HTTP_FORBIDDEN = 403
 HTTP_PAYMENT_REQUIRED = 402
@@ -123,6 +124,23 @@ class EndpointNotFoundError(ChatError):
 
 class ClientRejectedError(ChatError):
     """其余 4xx——请求本身被拒，重试无意义。"""
+
+
+class ContentFilterError(ChatError):
+    """上游内容过滤拒答（400 ``error.code`` / 200 ``finish_reason`` / anthropic ``refusal``）。
+
+    按内容判死的确定性拒绝：同模重试必同死，但**换模有救**（过滤策略随
+    provider/模型而异；上游 BabelDOC #580 多模降级臂生产实证同判）。
+    ``retryable=True`` 不为同模退避（``max_tries=1`` 零翻身防放大），
+    是喂两处既有臂：``_model_switchable`` 末行 ``e.retryable`` 放行进
+    ``fallback_candidates`` 换模；``_batch_call`` ``not retryable→整批
+    skip`` 短路转 degrade-to-singles——一个毒 chunk 不再把整批拖回原文。
+    ``status`` 记真实 HTTP 码（200 形=合同违约族，400 形=请求拒绝）。
+    """
+
+    def __init__(self, message: str, *, status: int = HTTP_OK) -> None:
+        """过滤拒答：retryable + 总尝试数封顶 1（换模臂内消化，不同模重试）。"""
+        super().__init__(message, status=status, retryable=True, max_tries=1)
 
 
 class RetryableHTTPError(ChatError):
@@ -241,6 +259,8 @@ def classify_status(
         return RetryableHTTPError(
             msg, status=status, retryable=True, retry_after=retry_after
         )
+    if status == HTTP_BAD_REQUEST and "content_filter" in redacted_body:
+        return ContentFilterError(msg, status=status)
     return ClientRejectedError(msg, status=status)
 
 
@@ -261,6 +281,28 @@ def _model_switchable(e: ChatError) -> bool:
     if e.status == HTTP_TOO_MANY_REQUESTS and "local gate" in str(e):
         return False
     return e.retryable
+
+
+def _raise_for_finish(finish: str, content: str) -> None:
+    """finish_reason 异常态早抛——``length``/``content_filter``/空正文三分支。
+
+    ``content_filter`` 携带的半截正文不可用——静默接受会把过滤截断译文落盘。
+    """
+    if finish == "length" and not content:
+        msg = (
+            "finish_reason=length with empty content "
+            "(reasoning model burned the whole budget?)"
+        )
+        raise LengthTruncatedError(msg)
+    if finish == "length":
+        msg = "finish_reason=length: output truncated"
+        raise LengthTruncatedError(msg, partial_content=content)
+    if finish == "content_filter":
+        msg = "finish_reason=content_filter: provider filtered request/response"
+        raise ContentFilterError(msg)
+    if not content.strip():
+        msg = "empty content in response"
+        raise EmptyContentError(msg)
 
 
 # ---------------------------------------------------------------- 结果类型
@@ -460,7 +502,7 @@ class ChatClient:
 
     用法::
 
-        async with ChatClient("http://127.0.0.1:3003", "sk-your-key") as c:
+        async with ChatClient("http://127.0.0.1:3033", "sk-your-key") as c:
             r = await c.chat("your-model", messages, temperature=0.2, max_tokens=8192)
     """
 
@@ -578,18 +620,7 @@ class ChatClient:
             cached_tokens=_usage_int(details.get("cached_tokens")),
             raw=usage_raw,
         )
-        if finish == "length" and not content:
-            msg = (
-                "finish_reason=length with empty content "
-                "(reasoning model burned the whole budget?)"
-            )
-            raise LengthTruncatedError(msg)
-        if finish == "length":
-            msg = "finish_reason=length: output truncated"
-            raise LengthTruncatedError(msg, partial_content=content)
-        if not content.strip():
-            msg = "empty content in response"
-            raise EmptyContentError(msg)
+        _raise_for_finish(finish, content)
         return ChatResult(
             content=content,
             reasoning=reasoning,
@@ -677,6 +708,9 @@ class ChatClient:
         if finish == "max_tokens":
             msg = "anthropic stop_reason=max_tokens"
             raise LengthTruncatedError(msg, partial_content=content)
+        if finish == "refusal":
+            msg = "anthropic stop_reason=refusal"
+            raise ContentFilterError(msg)
         if not content.strip():
             msg = "empty content in response"
             raise EmptyContentError(msg)

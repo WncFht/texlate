@@ -756,6 +756,34 @@ class TestOrchestraResidual:
 
         assert asyncio.run(go()) == [32768]
 
+    def test_gateway_strips_c0(self) -> None:
+        """observed：LLM 输出裸 C0 被剥、``\\t\\n\\r`` 合法空白保留。
+
+        C0 入 slots JSON → ``json.loads`` strict 拒收整批；入散文 → .tex
+        ``invalid_char``。剥除点在 GatewayTranslator 出口，单点盖全消费面。
+        """
+
+        temp = 0.1
+
+        class _Cli:
+            async def chat(
+                self, _m: str, _msgs: list[dict[str, str]], *, options: ChatOptions
+            ) -> SimpleNamespace:
+                assert options.temperature == temp
+                return SimpleNamespace(content="a\x0bb\x01c\nd\te\x7ff")
+
+        async def go() -> str:
+            gt = xp.GatewayTranslator(
+                _Cli(),  # type: ignore[arg-type]
+                "m",
+                policy=RetryPolicy(max_tries=1, base_delay=0),
+            )
+            return await gt.translate(
+                system="s", user="u", temperature=temp, max_tokens=100
+            )
+
+        assert asyncio.run(go()) == "abc\nd\tef"
+
     def test_run_result_order_and_source_echo(self) -> None:
         """observed：结果序 == 输入序，``source`` 逐块归位不错配。"""
         rng = fuzz_rng(20261213)

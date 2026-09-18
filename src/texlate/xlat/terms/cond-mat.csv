@@ -1,0 +1,756 @@
+# cond-mat 术语表（凝聚态：强关联/超导/拓扑/介观/软物质/统计物理）
+# 来源法：corpus_v3 cond-mat 层 148 篇 TeX 源码高频短语统计（tmp/lane-c4-terms/cand-cond-mat.txt）
+#   + 领域公认术语人工审定；仅收中译有公认定名的条目，拿不准不收。
+# 双形态条目：corpus 实测 TeX 命令拼写占优者（Schr\"odinger 407 次 > Schrodinger 131）给双行，
+#   doc_filter 按词边界逐字匹配，两种写法各自命中各自文本。
+ground state,基态
+excited state,激发态
+steady state,稳态
+equilibrium state,平衡态
+normal state,正常态
+superconducting state,超导态
+ordered phase,有序相
+quantum phase,量子相
+phase diagram,相图
+phase transition,相变
+quantum phase transition,量子相变
+phase coexistence,相共存
+first-order transition,一级相变
+second-order transition,二级相变
+continuous transition,连续相变
+critical point,临界点
+critical temperature,临界温度
+critical field,临界场
+critical exponent,临界指数
+critical phenomena,临界现象
+critical region,临界区
+universality class,普适类
+correlation length,关联长度
+order parameter,序参量
+spontaneous symmetry breaking,自发对称性破缺
+Goldstone mode,Goldstone模
+Higgs mode,Higgs模
+collective mode,集体模式
+finite-size scaling,有限尺寸标度
+scaling function,标度函数
+renormalization group,重整化群
+mean field theory,平均场理论
+mean-field approximation,平均场近似
+Gaussian approximation,高斯近似
+saddle point,鞍点
+fluctuation-dissipation theorem,涨落-耗散定理
+linear response,线性响应
+Kubo formula,Kubo公式
+response function,响应函数
+susceptibility,磁化率
+spin susceptibility,自旋磁化率
+specific heat,比热
+thermal conductivity,热导率
+thermopower,温差电动势
+Seebeck coefficient,Seebeck系数
+Nernst effect,Nernst效应
+Hall effect,霍尔效应
+quantum Hall effect,量子霍尔效应
+fractional quantum Hall effect,分数量子霍尔效应
+integer quantum Hall effect,整数量子霍尔效应
+quantum spin Hall effect,量子自旋霍尔效应
+anomalous Hall effect,反常霍尔效应
+spin Hall effect,自旋霍尔效应
+Hall conductivity,霍尔电导
+conductivity,电导率
+optical conductivity,光学电导率
+resistivity,电阻率
+magnetoresistance,磁电阻
+mobility,迁移率
+Drude model,Drude模型
+Boltzmann equation,玻尔兹曼方程
+relaxation time,弛豫时间
+mean free path,平均自由程
+scattering rate,散射率
+transport equation,输运方程
+Landauer formula,Landauer公式
+quantum point contact,量子点接触
+ballistic transport,弹道输运
+diffusive transport,扩散输运
+weak localization,弱局域化
+Anderson localization,Anderson局域化
+Anderson disorder,Anderson无序
+impurity,杂质
+disorder,无序
+random matrix,随机矩阵
+level statistics,能级统计
+mesoscopic system,介观系统
+persistent current,持续电流
+Fermi surface,费米面
+Fermi energy,费米能
+Fermi momentum,费米动量
+Fermi liquid,费米液体
+Fermi liquid theory,费米液体理论
+Fermi gas,费米气体
+Luttinger liquid,Luttinger液体
+non-Fermi liquid,非费米液体
+strange metal,奇异金属
+heavy fermion,重费米子
+Kondo effect,Kondo效应
+Kondo temperature,Kondo温度
+Kondo lattice,Kondo晶格
+quasiparticle,准粒子
+exciton,激子
+polaron,极化子
+plasmon,等离激元
+magnon,磁振子
+phonon,声子
+spinon,自旋子
+anyon,任意子
+skyrmion,斯格明子
+soliton,孤子
+vortex,涡旋
+domain wall,畴壁
+fermion,费米子
+boson,玻色子
+electron,电子
+hole,空穴
+Cooper pair,Cooper对
+BCS theory,BCS理论
+superconductivity,超导
+superconductor,超导体
+superconducting gap,超导能隙
+pairing symmetry,配对对称性
+d-wave pairing,d波配对
+s-wave pairing,s波配对
+Meissner effect,Meissner效应
+Josephson effect,Josephson效应
+Josephson junction,Josephson结
+flux quantum,磁通量子
+Ginzburg-Landau theory,Ginzburg-Landau理论
+Abrikosov vortex,Abrikosov涡旋
+Andreev reflection,Andreev反射
+Andreev bound state,Andreev束缚态
+proximity effect,邻近效应
+vortex lattice,涡旋晶格
+vortex glass,涡旋玻璃
+pseudogap,赝能隙
+band structure,能带结构
+band gap,带隙
+conduction band,导带
+valence band,价带
+flat band,平带
+Bloch theorem,Bloch定理
+Bloch state,Bloch态
+Brillouin zone,布里渊区
+reciprocal lattice,倒格子
+unit cell,晶胞
+tight-binding model,紧束缚模型
+nearly free electron,近自由电子
+energy band,能带
+dispersion relation,色散关系
+density of states,态密度
+van Hove singularity,van Hove奇点
+Fermi surface nesting,费米面嵌套
+Lifshitz transition,Lifshitz相变
+charge density wave,电荷密度波
+spin density wave,自旋密度波
+Peierls transition,Peierls相变
+Wigner crystal,Wigner晶体
+Mott insulator,Mott绝缘体
+Mott transition,Mott相变
+band insulator,能带绝缘体
+topological insulator,拓扑绝缘体
+topological superconductor,拓扑超导体
+topological phase,拓扑相
+topological invariant,拓扑不变量
+Chern number,陈数
+Chern insulator,陈绝缘体
+Weyl semimetal,Weyl半金属
+Dirac semimetal,Dirac半金属
+nodal-line semimetal,节线半金属
+Dirac cone,Dirac锥
+edge state,边缘态
+edge mode,边缘模式
+surface state,表面态
+bulk state,体态
+bulk-boundary correspondence,体边对应
+spin-orbit coupling,自旋轨道耦合
+Rashba effect,Rashba效应
+Zeeman effect,Zeeman效应
+Aharonov-Bohm effect,Aharonov-Bohm效应
+Berry phase,Berry相位
+Berry curvature,Berry曲率
+Hubbard model,Hubbard模型
+extended Hubbard model,扩展Hubbard模型
+Heisenberg model,Heisenberg模型
+Ising model,Ising模型
+XY model,XY模型
+Kitaev model,Kitaev模型
+Anderson impurity model,Anderson杂质模型
+t-J model,t-J模型
+spin chain,自旋链
+spin ladder,自旋梯
+square lattice,方晶格
+triangular lattice,三角晶格
+honeycomb lattice,蜂窝晶格
+kagome lattice,笼目晶格
+hexagonal lattice,六角晶格
+optical lattice,光晶格
+frustration,阻挫
+spin liquid,自旋液体
+spin glass,自旋玻璃
+resonating valence bond,共振价键
+valence bond,价键
+dimer model,二聚体模型
+spin-Peierls transition,自旋-Peierls相变
+Haldane phase,Haldane相
+string order,弦序
+hidden order,隐藏序
+quantum critical point,量子临界点
+quantum criticality,量子临界性
+ferromagnet,铁磁体
+antiferromagnet,反铁磁体
+paramagnet,顺磁体
+ferromagnetic order,铁磁序
+antiferromagnetic order,反铁磁序
+N\'eel temperature,Néel温度
+Neel temperature,Néel温度
+Curie temperature,居里温度
+magnetization,磁化强度
+magnetic field,磁场
+external magnetic field,外磁场
+applied magnetic field,外加磁场
+in-plane magnetic field,面内磁场
+magnetic moment,磁矩
+magnetic anisotropy,磁各向异性
+spin wave,自旋波
+exchange interaction,交换相互作用
+superexchange,超交换
+Dzyaloshinskii-Moriya interaction,Dzyaloshinskii-Moriya相互作用
+spin-orbit interaction,自旋轨道相互作用
+dipole interaction,偶极相互作用
+chemical potential,化学势
+free energy,自由能
+internal energy,内能
+kinetic energy,动能
+potential energy,势能
+energy density,能量密度
+entropy,熵
+partition function,配分函数
+Gibbs free energy,Gibbs自由能
+grand canonical ensemble,巨正则系综
+canonical ensemble,正则系综
+microcanonical ensemble,微正则系综
+thermodynamic limit,热力学极限
+finite temperature,有限温度
+zero temperature,零温度
+low temperature,低温
+room temperature,室温
+Bose-Einstein condensate,玻色-爱因斯坦凝聚
+Bose--Einstein condensate,玻色-爱因斯坦凝聚
+Bose-Einstein condensation,玻色-爱因斯坦凝聚
+BEC-BCS crossover,BEC-BCS渡越
+superfluid,超流
+superfluidity,超流性
+unitary Fermi gas,幺正费米气体
+cold atom,冷原子
+Hartree-Fock approximation,Hartree-Fock近似
+random phase approximation,无规相位近似
+density functional theory,密度泛函理论
+local density approximation,局域密度近似
+generalized gradient approximation,广义梯度近似
+perturbation theory,微扰论
+many-body perturbation theory,多体微扰论
+Green's function,格林函数
+Green function,格林函数
+retarded Green's function,推迟格林函数
+self-energy,自能
+Dyson equation,Dyson方程
+Matsubara frequency,Matsubara频率
+path integral,路径积分
+effective action,有效作用量
+effective Hamiltonian,有效哈密顿量
+dielectric function,介电函数
+dielectric constant,介电常数
+screening,屏蔽
+spectral function,谱函数
+spectral density,谱密度
+excitation spectrum,激发谱
+Monte Carlo simulation,蒙特卡罗模拟
+quantum Monte Carlo,量子蒙特卡罗
+exact diagonalization,精确对角化
+Lanczos method,Lanczos方法
+density matrix renormalization group,密度矩阵重整化群
+matrix product state,矩阵乘积态
+tensor network,张量网络
+wave function,波函数
+Hamiltonian,哈密顿量
+Hilbert space,希尔伯特空间
+Schr\"odinger equation,薛定谔方程
+Schrodinger equation,薛定谔方程
+Heisenberg equation,Heisenberg方程
+equation of motion,运动方程
+Langevin equation,Langevin方程
+Fokker-Planck equation,Fokker-Planck方程
+Fokker--Planck equation,Fokker-Planck方程
+Smoluchowski equation,Smoluchowski方程
+master equation,主方程
+diffusion equation,扩散方程
+Brownian motion,布朗运动
+diffusion,扩散
+stochastic process,随机过程
+noise,噪声
+thermal fluctuation,热涨落
+quantum fluctuation,量子涨落
+correlation function,关联函数
+pair correlation,对关联
+equal-time correlation,等时关联
+structure factor,结构因子
+form factor,形状因子
+elastic scattering,弹性散射
+inelastic scattering,非弹性散射
+neutron scattering,中子散射
+Raman spectrum,Raman谱
+photoemission,光电子发射
+angular resolved photoemission,角分辨光电子能谱
+scanning tunneling microscopy,扫描隧道显微术
+electron-phonon coupling,电声子耦合
+Fr\"ohlich interaction,Fröhlich相互作用
+Frohlich interaction,Fröhlich相互作用
+charge order,电荷序
+orbital order,轨道序
+stripe order,条纹序
+nematic order,向列序
+electronic nematicity,电子向列性
+colossal magnetoresistance,庞磁电阻
+spintronics,自旋电子学
+valleytronics,谷电子学
+multiferroic,多铁性
+ferroelectric,铁电
+piezoelectric,压电
+two-dimensional material,二维材料
+heterostructure,异质结构
+quantum well,量子阱
+quantum wire,量子线
+quantum dot,量子点
+nanowire,纳米线
+nanotube,纳米管
+graphene,石墨烯
+moir\'e superlattice,moiré超晶格
+moire superlattice,moiré超晶格
+twisted bilayer,转角双层
+glass transition,玻璃转变
+jamming,堵塞
+percolation,逾渗
+polymer,聚合物
+colloid,胶体
+liquid crystal,液晶
+nematic phase,向列相
+self-assembly,自组装
+membrane,膜
+soft matter,软物质
+granular material,颗粒材料
+active matter,活性物质
+non-equilibrium,非平衡
+non-equilibrium steady state,非平衡稳态
+thermalization,热化
+prethermalization,预热化
+many-body localization,多体局域化
+quantum many-body,量子多体
+few-body,少体
+two-body,二体
+one-body density,单体密度
+electron correlation,电子关联
+strongly correlated,强关联
+weak coupling,弱耦合
+strong coupling,强耦合
+intermediate coupling,中等耦合
+hopping amplitude,跃迁振幅
+hopping integral,跃迁积分
+on-site interaction,在位相互作用
+Coulomb interaction,库仑相互作用
+Coulomb repulsion,库仑排斥
+long-range interaction,长程相互作用
+short-range interaction,短程相互作用
+exchange energy,交换能
+bandwidth,带宽
+lattice constant,晶格常数
+crystal structure,晶体结构
+lattice vibration,晶格振动
+elastic constant,弹性常数
+melting,熔化
+nucleation,成核
+spinodal decomposition,旋节线分解
+domain structure,畴结构
+interface,界面
+surface tension,表面张力
+wetting,润湿
+roughening,粗化
+coarsening,粗化
+surface growth,表面生长
+fractal,分形
+self-organized criticality,自组织临界性
+avalanche,雪崩
+periodic boundary condition,周期边界条件
+real space,实空间
+momentum space,动量空间
+reciprocal space,倒空间
+Fourier transform,傅里叶变换
+electric field,电场
+electrostatic potential,静电势
+electric dipole,电偶极子
+dielectric polarization,电极化
+plasma frequency,等离子体频率
+electron density,电子密度
+charge density,电荷密度
+current density,电流密度
+local density,局域密度
+filling factor,填充因子
+carrier density,载流子密度
+doping,掺杂
+hole doping,空穴掺杂
+electron doping,电子掺杂
+half filling,半填充
+work function,功函数
+toric code,环面码
+quantum dot array,量子点阵列
+Rydberg atom,里德伯原子
+time evolution operator,时间演化算符
+creation and annihilation operators,产生湮灭算符
+creation operator,产生算符
+annihilation operator,湮灭算符
+spin operator,自旋算符
+angular momentum,角动量
+orbital angular momentum,轨道角动量
+fine structure constant,精细结构常数
+center of mass,质心
+quasi-classical approximation,准经典近似
+semiclassical approximation,半经典近似
+adiabatic approximation,绝热近似
+Born-Oppenheimer approximation,Born-Oppenheimer近似
+harmonic approximation,简谐近似
+low energy,低能
+high energy,高能
+energy scale,能标
+temperature scale,温标
+classical limit,经典极限
+thermodynamic equilibrium,热力学平衡
+local equilibrium,局域平衡
+initial state,初态
+final state,末态
+basis state,基矢态
+bound state,束缚态
+localized state,局域态
+extended state,扩展态
+scattering state,散射态
+single-particle,单粒子
+quasi-particle,准粒子
+distribution function,分布函数
+probability distribution,概率分布
+momentum distribution,动量分布
+ensemble average,系综平均
+ergodicity,遍历性
+detailed balance,细致平衡
+relaxation rate,弛豫率
+decoherence,退相干
+dissipation,耗散
+open system,开放系统
+non-Hermitian,非厄米
+parity-time symmetry,宇称-时间对称
+time-reversal symmetry,时间反演对称
+inversion symmetry,反演对称
+translational symmetry,平移对称
+rotational symmetry,旋转对称
+gauge field,规范场
+gauge theory,规范理论
+gauge symmetry,规范对称性
+emergent phenomenon,涌现现象
+emergent excitation,涌现激发
+confinement,禁闭
+deconfinement,解禁闭
+fractional charge,分数电荷
+fractional statistics,分数统计
+braid statistics,编织统计
+topological order,拓扑序
+symmetry-protected topological,对称保护拓扑
+Weyl fermion,Weyl费米子
+Dirac fermion,Dirac费米子
+Majorana fermion,Majorana费米子
+Majorana zero mode,Majorana零模
+chiral fermion,手征费米子
+chiral edge mode,手征边缘模
+flat band ferromagnetism,平带铁磁性
+itinerant ferromagnetism,巡游铁磁性
+quantum oscillation,量子振荡
+Shubnikov-de Haas oscillation,Shubnikov-de Haas振荡
+de Haas-van Alphen effect,de Haas-van Alphen效应
+thermal Hall effect,热霍尔效应
+spin Seebeck effect,自旋Seebeck效应
+Edwards-Anderson model,Edwards-Anderson模型
+replica symmetry breaking,复本对称破缺
+aging,老化
+creep,蠕变
+depinning,脱钉
+pinning,钉扎
+flux pinning,磁通钉扎
+critical current,临界电流
+upper critical field,上临界场
+lower critical field,下临界场
+type-II superconductor,第二类超导体
+type-I superconductor,第一类超导体
+unconventional superconductor,非常规超导体
+high-temperature superconductor,高温超导体
+cuprate,铜氧化物
+iron pnictide,铁基磷族化合物
+heavy-fermion superconductor,重费米子超导体
+p-wave superconductor,p波超导体
+odd-frequency pairing,奇频配对
+Fulde-Ferrell-Larkin-Ovchinnikov,Fulde-Ferrell-Larkin-Ovchinnikov
+Leggett mode,Leggett模
+amplitude mode,振幅模
+phase mode,相位模
+acoustic phonon,声学声子
+optical phonon,光学声子
+phonon dispersion,声子色散
+electron gas,电子气
+two-dimensional electron gas,二维电子气
+one-dimensional system,一维系统
+quasi-one-dimensional,准一维
+zero-dimensional,零维
+thin film,薄膜
+monolayer,单层
+bilayer,双层
+multilayer,多层
+bulk material,块体材料
+single crystal,单晶
+polycrystal,多晶
+amorphous solid,非晶固体
+lattice model,格点模型
+continuum model,连续模型
+toy model,玩具模型
+effective model,有效模型
+phenomenological model,唯象模型
+fermionic bath,费米子浴
+bosonic bath,玻色子浴
+heat bath,热浴
+finite size effect,有限尺寸效应
+size effect,尺寸效应
+boundary condition,边界条件
+open boundary condition,开放边界条件
+low density,低密度
+high density,高密度
+particle density,粒子密度
+number density,数密度
+spin density,自旋密度
+polarization density,极化密度
+magnetization density,磁化密度
+stress tensor,应力张量
+pressure,压强
+viscosity,黏度
+elastic modulus,弹性模量
+fracture,断裂
+plastic deformation,塑性形变
+dislocation,位错
+defect,缺陷
+vacancy,空位
+interstitial,间隙原子
+grain boundary,晶界
+diffusion coefficient,扩散系数
+ionic conductor,离子导体
+mixed conductor,混合导体
+semiconductor,半导体
+semimetal,半金属
+metal,金属
+insulator,绝缘体
+metal-insulator transition,金属-绝缘体转变
+excitonic insulator,激子绝缘体
+correlated insulator,关联绝缘体
+Dirac equation,Dirac方程
+effective mass,有效质量
+cyclotron resonance,回旋共振
+cyclotron frequency,回旋频率
+Landau level,Landau能级
+magnetic length,磁长度
+filling fraction,填充分数
+compressible,可压缩
+incompressible,不可压缩
+quasi-hole,准空穴
+composite fermion,复合费米子
+flux attachment,磁通附着
+Laughlin state,Laughlin态
+quantum spin liquid,量子自旋液体
+Dirac spin liquid,Dirac自旋液体
+chiral spin liquid,手征自旋液体
+projective symmetry group,投影对称群
+parton construction,部分子构造
+gauge fluctuation,规范涨落
+confinement potential,约束势
+interaction potential,相互作用势
+harmonic potential,谐振势
+trap potential,囚禁势
+potential well,势阱
+potential barrier,势垒
+tunneling,隧穿
+tunneling amplitude,隧穿振幅
+transmission coefficient,透射系数
+reflection coefficient,反射系数
+shot noise,散粒噪声
+Johnson noise,Johnson噪声
+nonlinear response,非线性响应
+second harmonic generation,二次谐波产生
+photoconductivity,光电导
+photovoltaic effect,光伏效应
+ultrafast dynamics,超快动力学
+pump-probe,泵浦-探测
+time-resolved,时间分辨
+terahertz,太赫兹
+infrared,红外
+optical absorption,光吸收
+absorption spectrum,吸收谱
+emission spectrum,发射谱
+luminescence,发光
+photoluminescence,光致发光
+exciton binding energy,激子结合能
+charged exciton,带电激子
+trion,三激子
+biexciton,双激子
+polariton,极化激元
+cavity polariton,腔极化激元
+strong light-matter coupling,强光-物质耦合
+vacuum Rabi splitting,真空Rabi劈裂
+Rabi splitting,Rabi劈裂
+Bose condensation,玻色凝聚
+quasi-equilibrium,准平衡
+nonthermal distribution,非热分布
+hot electron,热电子
+impact ionization,碰撞电离
+Auger recombination,Auger复合
+radiative recombination,辐射复合
+nonradiative recombination,非辐射复合
+carrier lifetime,载流子寿命
+spin lifetime,自旋寿命
+spin relaxation,自旋弛豫
+spin diffusion,自旋扩散
+spin injection,自旋注入
+spin valve,自旋阀
+magnetic tunnel junction,磁性隧道结
+tunneling magnetoresistance,隧穿磁电阻
+giant magnetoresistance,巨磁电阻
+exchange bias,交换偏置
+magnetocaloric effect,磁热效应
+magnetoelectric effect,磁电效应
+magnetoelastic coupling,磁弹耦合
+spin-lattice coupling,自旋-晶格耦合
+Jahn-Teller effect,Jahn-Teller效应
+crystal field,晶体场
+ligand field,配体场
+orbital degeneracy,轨道简并
+degeneracy,简并度
+double exchange,双交换
+charge transfer,电荷转移
+charge-transfer insulator,电荷转移绝缘体
+Hubbard band,Hubbard带
+lower Hubbard band,下Hubbard带
+upper Hubbard band,上Hubbard带
+spectral weight,谱权重
+quasiparticle weight,准粒子权重
+quasiparticle lifetime,准粒子寿命
+electron self-energy,电子自能
+impurity scattering,杂质散射
+electron-electron interaction,电子-电子相互作用
+electron-hole pair,电子-空穴对
+particle-hole symmetry,粒子-空穴对称
+particle-hole transformation,粒子-空穴变换
+Bogoliubov transformation,Bogoliubov变换
+Bogoliubov-de Gennes equation,Bogoliubov-de Gennes方程
+quasiparticle excitation,准粒子激发
+elementary excitation,元激发
+collective excitation,集体激发
+zero mode,零模
+bound exciton,束缚激子
+trion state,三激子态
+interlayer coupling,层间耦合
+van der Waals,范德瓦尔斯
+moir\'e pattern,moiré图样
+commensurate,公度
+incommensurate,非公度
+charge modulation,电荷调制
+spin modulation,自旋调制
+orbital moment,轨道磁矩
+magnetic susceptibility,磁化率
+Knight shift,Knight位移
+nuclear magnetic resonance,核磁共振
+electron spin resonance,电子自旋共振
+muon spin rotation,μ子自旋旋转
+M\"ossbauer spectroscopy,Mössbauer谱学
+Mossbauer spectroscopy,Mössbauer谱学
+neutron diffraction,中子衍射
+x-ray diffraction,X射线衍射
+x-ray scattering,X射线散射
+elastic constant measurement,弹性常数测量
+ultrasound attenuation,超声衰减
+magnetostriction,磁致伸缩
+thermal expansion,热膨胀
+Gr\"uneisen parameter,Grüneisen参数
+Gruneisen parameter,Grüneisen参数
+Sommerfeld coefficient,Sommerfeld系数
+Wilson ratio,Wilson比
+Kadowaki-Woods ratio,Kadowaki-Woods比
+pseudogap phase,赝能隙相
+charge order transition,电荷序转变
+structural phase transition,结构相变
+ferroic order,铁性序
+antiferroelectric,反铁电
+pyroelectric,热释电
+multiferroics,多铁体
+topological crystalline insulator,拓扑晶体绝缘体
+higher-order topological insulator,高阶拓扑绝缘体
+topological semimetal,拓扑半金属
+Dirac point,Dirac点
+Weyl point,Weyl点
+nodal point,节点
+nodal line,节线
+nodal surface,节面
+quadratic band crossing,二次能带交叉
+band inversion,带反转
+parity anomaly,宇称反常
+axion electrodynamics,轴子电动力学
+magnetoelectric polarizability,磁电极化率
+surface Hall effect,表面霍尔效应
+half-quantized,半量子化
+spectral asymmetry,谱不对称
+chiral anomaly,手征反常
+Adler-Bell-Jackiw anomaly,Adler-Bell-Jackiw反常
+negative magnetoresistance,负磁电阻
+positive magnetoresistance,正磁电阻
+longitudinal magnetoresistance,纵向磁电阻
+planar Hall effect,平面霍尔效应
+giant planar Hall effect,巨平面霍尔效应
+weak antilocalization,弱反局域化
+quantum interference,量子干涉
+Altshuler-Aronov correction,Altshuler-Aronov修正
+universal conductance fluctuation,普适电导涨落
+Aharonov-Bohm oscillation,Aharonov-Bohm振荡
+Coulomb blockade,库仑阻塞
+Kondo resonance,Kondo共振
+Fano resonance,Fano共振
+single-electron transistor,单电子晶体管
+quantum capacitance,量子电容
+level repulsion,能级排斥
+avoided crossing,避免交叉
+Landau-Zener transition,Landau-Zener跃迁
+Berry connection,Berry联络
+quantum metric,量子度规
+quantum geometric tensor,量子几何张量
+Wilson loop,Wilson圈
+Wannier function,Wannier函数
+Wannier orbital,Wannier轨道
+maximally localized Wannier function,最大局域Wannier函数
+band topology,能带拓扑
+symmetry indicator,对称指标
+topological quantum chemistry,拓扑量子化学
+fragile topology,脆弱拓扑
+filling anomaly,填充反常
+higher-order topology,高阶拓扑
+corner state,角态
+hinge state,铰链态
+Wannier center,Wannier中心
+polarization charge,极化电荷
+boundary charge,边界电荷
+fractional corner charge,分数角电荷

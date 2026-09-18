@@ -398,6 +398,56 @@ class TestProviderAndUrlExtra:
         assert cl.provider_for_url("https://API.ANTHROPIC.COM") == "anthropic"
 
 
+class TestContentFilter:
+    """content_filter 拒答 → ``ContentFilterError``：retryable（喂换模臂 +
+    批面 degrade-to-singles）但 ``max_tries=1`` 不同模翻身——BabelDOC #580 同款。"""
+
+    def test_400_content_filter_code_classified(self) -> None:
+        body = '{"error":{"code":"content_filter","message":"filtered"}}'
+        e = cl.classify_status(400, body, _headers())
+        assert isinstance(e, cl.ContentFilterError)
+        assert e.retryable
+        assert e.max_tries == 1
+        assert e.status == 400  # noqa: PLR2004
+        assert cl._model_switchable(e)  # noqa: SLF001 -- 钉换模臂判据
+
+    def test_400_other_code_still_rejected(self) -> None:
+        body = '{"error":{"code":"invalid_request","message":"bad"}}'
+        e = cl.classify_status(400, body, _headers())
+        assert isinstance(e, cl.ClientRejectedError)
+        assert not isinstance(e, cl.ContentFilterError)
+
+    def test_finish_content_filter_with_partial_content(self) -> None:
+        """200 ``finish_reason=content_filter`` + 非空 content 不许静默落盘。"""
+        c = _mock(
+            lambda _r: httpx.Response(
+                200, json=_chat_payload("半截译文", finish="content_filter")
+            )
+        )
+        with pytest.raises(cl.ContentFilterError):
+            asyncio.run(c.chat("m1", _MSGS))
+
+    def test_finish_content_filter_empty_not_empty_error(self) -> None:
+        """过滤空响应须归 ``ContentFilterError``——``EmptyContentError`` 同模
+        重试必同死，还吃掉 finish 语义。"""
+        c = _mock(
+            lambda _r: httpx.Response(
+                200, json=_chat_payload("", finish="content_filter")
+            )
+        )
+        with pytest.raises(cl.ContentFilterError):
+            asyncio.run(c.chat("m1", _MSGS))
+
+    def test_anthropic_refusal(self) -> None:
+        payload = {**_ANTHROPIC_OK, "stop_reason": "refusal"}
+        c = _mock(
+            lambda _r: httpx.Response(200, json=payload),
+            base_url=_ANTHROPIC_BASE,
+        )
+        with pytest.raises(cl.ContentFilterError):
+            asyncio.run(c.chat("m1", _MSGS))
+
+
 class TestRedactExtra:
     def test_google_key_pattern(self) -> None:
         out = cl.redact("k=AIzaSyD4iE2xVSpkLLOXoyq2uexnF3jJ2 end")

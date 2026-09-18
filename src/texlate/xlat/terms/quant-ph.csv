@@ -1,0 +1,311 @@
+# quant-ph 术语表（量子信息/量子计算/量子光学）
+# 来源法：corpus_v3 quant-ph 层 149 篇 TeX 源码高频短语统计（tmp/lane-c4-terms/cand-quant-ph.txt）
+#   + 领域公认术语人工审定；仅收中译有公认定名的条目，拿不准不收。
+# 双形态条目：corpus 实测 TeX 命令拼写占优者（R\'enyi 323 次 > Renyi 186）给双行，
+#   doc_filter 按词边界逐字匹配，两种写法各自命中各自文本。
+Hilbert space,希尔伯特空间
+Fock space,福克空间
+quantum state,量子态
+pure state,纯态
+mixed state,混合态
+product state,乘积态
+entangled state,纠缠态
+separable state,可分离态
+bipartite entanglement,两体纠缠
+multipartite entanglement,多体纠缠
+genuine multipartite entanglement,真多体纠缠
+bound entanglement,束缚纠缠
+bound entangled state,束缚纠缠态
+maximally entangled state,最大纠缠态
+maximally correlated state,最大关联态
+ground state,基态
+excited state,激发态
+vacuum state,真空态
+coherent state,相干态
+squeezed state,压缩态
+squeezed vacuum,压缩真空
+thermal state,热态
+Fock state,福克态
+photon number state,光子数态
+Gaussian state,高斯态
+non-Gaussian state,非高斯态
+Bell state,贝尔态
+GHZ state,GHZ态
+W state,W态
+cluster state,簇态
+graph state,图态
+stabilizer state,稳定子态
+Werner state,Werner态
+Dicke state,Dicke态
+spin coherent state,自旋相干态
+cat state,猫态
+NOON state,NOON态
+wave function,波函数
+density matrix,密度矩阵
+density operator,密度算符
+reduced density matrix,约化密度矩阵
+partial trace,偏迹
+Schmidt decomposition,施密特分解
+Schmidt rank,施密特秩
+purification,纯化
+Bloch sphere,布洛赫球面
+Bloch vector,布洛赫矢量
+Pauli matrix,泡利矩阵
+Pauli operator,泡利算符
+Pauli group,泡利群
+Clifford group,Clifford群
+Clifford gate,Clifford门
+Hadamard gate,阿达马门
+CNOT gate,CNOT门
+Toffoli gate,Toffoli门
+single-qubit gate,单量子比特门
+two-qubit gate,双量子比特门
+quantum gate,量子门
+universal gate set,通用门集
+quantum circuit,量子线路
+quantum register,量子寄存器
+qubit,量子比特
+qutrit,qutrit
+qudit,qudit
+logical qubit,逻辑量子比特
+physical qubit,物理量子比特
+ancilla,辅助比特
+ancillary qubit,辅助量子比特
+quantum information,量子信息
+quantum information theory,量子信息论
+quantum computation,量子计算
+quantum computer,量子计算机
+quantum algorithm,量子算法
+Shor's algorithm,Shor算法
+Grover's algorithm,Grover算法
+quantum Fourier transform,量子傅里叶变换
+phase estimation,相位估计
+amplitude amplification,振幅放大
+quantum walk,量子行走
+adiabatic quantum computation,绝热量子计算
+quantum annealing,量子退火
+quantum simulation,量子模拟
+quantum simulator,量子模拟器
+Hamiltonian simulation,哈密顿量模拟
+variational quantum eigensolver,变分量子本征求解器
+quantum approximate optimization algorithm,量子近似优化算法
+noisy intermediate-scale quantum,含噪中等规模量子
+fault-tolerant quantum computation,容错量子计算
+threshold theorem,阈值定理
+quantum error correction,量子纠错
+quantum error-correcting code,量子纠错码
+stabilizer code,稳定子码
+CSS code,CSS码
+surface code,表面码
+toric code,环面码
+color code,颜色码
+Shor code,Shor码
+Steane code,Steane码
+syndrome measurement,伴随式测量
+error syndrome,错误伴随式
+decoherence-free subspace,无消相干子空间
+dynamical decoupling,动力学解耦
+magic state,魔法态
+magic state distillation,魔法态蒸馏
+quantum supremacy,量子优越性
+quantum advantage,量子优势
+boson sampling,玻色采样
+quantum communication,量子通信
+quantum key distribution,量子密钥分发
+BB84 protocol,BB84协议
+decoy state,诱骗态
+device-independent,设备无关
+secret key rate,安全密钥率
+eavesdropper,窃听者
+no-cloning theorem,不可克隆定理
+quantum teleportation,量子隐形传态
+superdense coding,超密编码
+dense coding,稠密编码
+entanglement swapping,纠缠交换
+quantum repeater,量子中继
+quantum network,量子网络
+quantum memory,量子存储器
+quantum channel,量子信道
+quantum capacity,量子容量
+classical capacity,经典容量
+entanglement-assisted capacity,纠缠辅助容量
+depolarizing channel,退极化信道
+amplitude damping,振幅阻尼
+phase damping,相位阻尼
+bit flip,比特翻转
+phase flip,相位翻转
+Kraus operator,Kraus算符
+quantum operation,量子操作
+completely positive,完全正
+trace-preserving,保迹
+unitary evolution,幺正演化
+unitary operator,幺正算符
+Hermitian operator,厄米算符
+observable,可观测量
+expectation value,期望值
+projective measurement,投影测量
+generalized measurement,广义测量
+positive operator-valued measure,正算符值测度
+weak measurement,弱测量
+quantum measurement,量子测量
+measurement outcome,测量结果
+quantum state tomography,量子态层析
+process tomography,过程层析
+randomized benchmarking,随机基准测试
+quantum metrology,量子计量
+quantum sensing,量子传感
+Heisenberg limit,海森堡极限
+standard quantum limit,标准量子极限
+shot noise,散粒噪声
+quantum Fisher information,量子Fisher信息
+entanglement entropy,纠缠熵
+von Neumann entropy,von Neumann熵
+R\'enyi entropy,Rényi熵
+Renyi entropy,Rényi熵
+relative entropy,相对熵
+mutual information,互信息
+conditional entropy,条件熵
+entanglement measure,纠缠度量
+entanglement witness,纠缠见证
+concurrence,共生纠缠度
+negativity,负性
+logarithmic negativity,对数负性
+entanglement of formation,形成纠缠
+distillable entanglement,可蒸馏纠缠
+entanglement distillation,纠缠蒸馏
+entanglement purification,纠缠纯化
+entanglement monogamy,纠缠单配性
+quantum discord,量子失谐
+quantum steering,量子导引
+Bell inequality,贝尔不等式
+Bell test,贝尔检验
+Bell nonlocality,贝尔非定域性
+CHSH inequality,CHSH不等式
+EPR paradox,EPR佯谬
+hidden variable,隐变量
+local realism,定域实在论
+Tsirelson bound,Tsirelson界
+no-signaling,无信号
+contextuality,上下文性
+uncertainty principle,不确定性原理
+Heisenberg uncertainty,海森堡不确定性
+complementarity,互补性
+quantum decoherence,量子退相干
+decoherence time,退相干时间
+relaxation time,弛豫时间
+open quantum system,开放量子系统
+Markovian dynamics,马尔可夫动力学
+non-Markovian,非马尔可夫
+Lindblad equation,Lindblad方程
+master equation,主方程
+quantum jump,量子跳跃
+quantum trajectory,量子轨迹
+Born approximation,Born近似
+Markov approximation,马尔可夫近似
+rotating wave approximation,旋波近似
+Hamiltonian,哈密顿量
+effective Hamiltonian,有效哈密顿量
+Lagrangian,拉格朗日量
+Schr\"odinger equation,薛定谔方程
+Schrodinger equation,薛定谔方程
+Heisenberg picture,海森堡绘景
+interaction picture,相互作用绘景
+Schr\"odinger picture,薛定谔绘景
+time evolution,时间演化
+time evolution operator,时间演化算符
+annihilation operator,湮灭算符
+creation operator,产生算符
+ladder operator,阶梯算符
+lowering operator,降算符
+raising operator,升算符
+displacement operator,位移算符
+squeezing operator,压缩算符
+harmonic oscillator,谐振子
+quantum harmonic oscillator,量子谐振子
+two-level system,二能级系统
+two-level atom,二能级原子
+three-level system,三能级系统
+spin-1/2,自旋1/2
+angular momentum,角动量
+orbital angular momentum,轨道角动量
+spin angular momentum,自旋角动量
+Rabi frequency,拉比频率
+Rabi oscillation,拉比振荡
+Jaynes-Cummings model,Jaynes-Cummings模型
+Dicke model,Dicke模型
+cavity quantum electrodynamics,腔量子电动力学
+circuit quantum electrodynamics,线路量子电动力学
+cavity mode,腔模
+cavity field,腔场
+optical cavity,光学腔
+photon,光子
+single photon,单光子
+photon number,光子数
+photodetector,光电探测器
+homodyne detection,零差探测
+heterodyne detection,外差探测
+quadrature,正交分量
+phase space,相空间
+Wigner function,Wigner函数
+Husimi function,Husimi函数
+P representation,P表示
+covariance matrix,协方差矩阵
+continuous variable,连续变量
+bosonic mode,玻色模式
+optical mode,光学模式
+laser beam,激光束
+beam splitter,分束器
+Mach-Zehnder interferometer,马赫-曾德尔干涉仪
+Hong-Ou-Mandel interference,Hong-Ou-Mandel干涉
+linear optics,线性光学
+waveguide,波导
+polarization,偏振
+ion trap,离子阱
+trapped ion,囚禁离子
+neutral atom,中性原子
+Rydberg atom,里德伯原子
+optical lattice,光晶格
+optical tweezer,光镊
+atomic ensemble,原子系综
+superconducting qubit,超导量子比特
+Josephson junction,Josephson结
+NV center,NV色心
+quantum dot,量子点
+nuclear magnetic resonance,核磁共振
+Ising model,Ising模型
+Heisenberg model,Heisenberg模型
+many-body localization,多体局域化
+eigenstate thermalization hypothesis,本征态热化假设
+quantum chaos,量子混沌
+Floquet system,Floquet系统
+time crystal,时间晶体
+quantum phase transition,量子相变
+tensor network,张量网络
+matrix product state,矩阵乘积态
+area law,面积律
+probability distribution,概率分布
+variance,方差
+fidelity,保真度
+trace distance,迹距离
+quantum speedup,量子加速
+oracle,预言机
+query complexity,查询复杂度
+quantum complexity,量子复杂性
+postselection,后选择
+weak value,弱值
+quantum eraser,量子擦除
+delayed choice,延迟选择
+ensemble,系综
+spin echo,自旋回波
+Ramsey interference,Ramsey干涉
+optomechanics,光力学
+electromagnetic field,电磁场
+electric field,电场
+magnetic field,磁场
+laser field,激光场
+control field,控制场
+driving field,驱动场
+pump field,泵浦场
+resonant frequency,共振频率
+detuning,失谐
+linewidth,线宽

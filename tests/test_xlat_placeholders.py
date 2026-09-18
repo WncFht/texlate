@@ -192,6 +192,38 @@ class TestRecoverCopiedTokens:
         assert out == "译文里公式 [[MATH_2]] 保留原样"
         assert recovered == ["[[MATH_2]]"]
 
+    def test_cs_fragment_inside_longer_cs_rejected(self) -> None:
+        """`\\alpha` 裸 replace 会命中 `\\alphax` 内——边界守卫拒换。"""
+        ph_map = {"[[CMD_1]]": "\\alpha"}
+        zh = "命令 \\alphax 保持原样"
+        out, recovered = ph.recover_copied_tokens(zh, ph_map)
+        assert out == zh
+        assert recovered == []
+
+    def test_alnum_fragment_inside_number_rejected(self) -> None:
+        """`42` 裸 replace 会命中 `42.5` 内——alnum 尾守卫拒换。"""
+        ph_map = {"[[NUM_1]]": "42"}
+        zh = "取值 42.5 保留原样"
+        out, recovered = ph.recover_copied_tokens(zh, ph_map)
+        assert out == zh
+        assert recovered == []
+
+    def test_inline_math_inside_display_rejected(self) -> None:
+        """`$x$` 嵌在 `$$x$$` 内时拒换——无长 token 认领也不许啃坏 display。"""
+        ph_map = {"[[MATH_1]]": "$x$"}
+        zh = "译文里 $$x$$ 保留原样"
+        out, recovered = ph.recover_copied_tokens(zh, ph_map)
+        assert out == zh
+        assert recovered == []
+
+    def test_boundary_clean_fragment_still_recovers(self) -> None:
+        """正例对照：独立出现的 cs/alnum 片段照常换回。"""
+        ph_map = {"[[CMD_1]]": "\\alpha", "[[NUM_1]]": "42"}
+        zh = "令 \\alpha 与 42 同现"
+        out, recovered = ph.recover_copied_tokens(zh, ph_map)
+        assert out == "令 [[CMD_1]] 与 [[NUM_1]] 同现"
+        assert sorted(recovered) == ["[[CMD_1]]", "[[NUM_1]]"]
+
 
 def test_collect_doc_placeholders_stable_order() -> None:
     docs = ["b [[MATH_10]] [[SL]]", "a [[CITE_1]] [[MATH_2]]"]

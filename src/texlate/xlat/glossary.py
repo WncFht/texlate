@@ -47,6 +47,16 @@ LOCAL_GLOSSARY_NAME = "glossary.local.yaml"
 _TERM_BOUNDARY = r"(?<!\w){}(?!\w)"
 
 
+def _term_pattern(en: str) -> str:
+    r"""术语→词边界 pattern：词内空白/``~`` 一律按 ``[~\s]+`` 折缝化。
+
+    源码断行/不断行空格（``computer~vision``、``Maximum\\nLikelihood``）
+    会把多词术语劈开——词内逐词 escape 后留缝，边界 lookaround 不动。
+    """
+    parts = [p for p in re.split(r"[\s~]+", en.strip()) if p]
+    return _TERM_BOUNDARY.format("[~\\s]+".join(re.escape(p) for p in parts))
+
+
 @dataclass
 class TermEntry:
     """一条术语：en→zh + 来源层（provenance 供 term_dict.json 落盘追溯）。"""
@@ -134,9 +144,7 @@ class Glossary:
             if entry.source == "placeholder":
                 phs.append(entry)
                 continue
-            if re.search(
-                _TERM_BOUNDARY.format(re.escape(en)), corpus, re.IGNORECASE | re.ASCII
-            ):
+            if re.search(_term_pattern(en), corpus, re.IGNORECASE | re.ASCII):
                 real.append(entry)
         real.sort(key=lambda e: e.en.lower())
         phs.sort(key=lambda e: (sort_key(e.en), e.en))

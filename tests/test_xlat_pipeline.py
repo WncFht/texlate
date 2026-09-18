@@ -141,6 +141,21 @@ class TestEndToEnd:
         )
         assert not any(w.startswith("leftover_ph") for w in clean[0].warnings)
 
+    def test_punct_run_collapse(self) -> None:
+        """E24 退化清理件：模型输出 20+ 连排句读 → 坍成单 ``.``。"""
+
+        class Degenerate(pl.MockTranslator):
+            async def translate(self, **_kw: object) -> str:
+                return "译文 [[MATH_1]] " + "。" * 25
+
+        out = run_pipeline(
+            [mk_chunk("Some prose [[MATH_1]]", "p1", kind="caption")],
+            translator=Degenerate(),
+        )
+        assert out[0].status == "ok"
+        assert "。" * 2 not in out[0].translation
+        assert out[0].translation.endswith("[[MATH_1]] .")
+
 
 class TestResumeAndCache:
     def test_resume_skips_completed(self, tmp_path: Path) -> None:
