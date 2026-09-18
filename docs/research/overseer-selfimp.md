@@ -680,3 +680,12 @@
 - **0408234 未点火根因**：`main_head_contains` 走 `main_head(n=3000)` 3k 字符窗，稿首 70 行注释堆把 \documentclass 推到 char 3280 → 闸拒。**acdfc0b 修复**：docclass 断言并入 source_contains lookahead（全源拼接无窗限，2.09 拒义不变），复跑 float_opt_h_pkgload 点火→first_error:null、pdf 61KB→851KB（[H] 浮体全渲）。残余 U+0327 combining cedilla 缺字形×1（benign warn）。
 - 教训刻痕：window 类条件（main_head 3k）对注释厚重稿不可靠——断言应优先走 source_contains 全源面。
 - gate-③④⑤ 本波全过：目标格全翻/净、30 clean 零回归、sabotage 沿用既有覆盖。
+
+## 2026-09-19 ~10:2x — 研究潮 2 收割：4 报全核销 → 3 impl 车道派生
+
+- **expl3diag**：4 格同机理——`\documentclass` 全局 driver 选项 (dvips×3/pdftex×1) 撞 l3backend 一致性检查 @expl3.sty:154。`expl3_driver_opt_strip`(55-prim:17,order35) 早已在案但 **regex 逗号粘连缺陷**（中位选项吃掉两邻逗号→`[final,pdftex,reqno]`→`[finalreqno]` 幻选项）。→#91 expl3fix（拆 head/mid/tail 如 hyperref_driver_neutralize）。
+- **proofdiag**：0806.0904/2953 已愈于 geom stub 60 行版（proof env 在体）；0707.1588 仅需复跑。**真残口**：`undefined_env_polyfill` 只注 \begin{document} 前——preamble `\renewenvironment{X}` 站点（err 行<begindoc 行）结构性够不到。→#90 envpoly（docclass 缝/站点前注入臂）。
+- **0707.1588 单格复跑**（stagerun-fc6c）：polyfill 已点火、proof env 过——**新残 `undefined_cs:QED`**（amsthm 终证标记，shim 缺）。已转 envpoly 斟酌 proof polyfill 附带 \QED stub vs cs_map 条目。
+- **thehalgo**：kernel 原生 `\theH<ctr>`（latex.ltx:10145, ≥2024-11）× ICML 模板 `\newcommand{\theHalgorithm}` 搭车 shim 冲突——`already_def_newcmd_renew`(111) 已覆盖全家，3/4 新档实证。**零新规则**；provenance 附注延后（75-syntax 被 ifclose 占用）。
+- **zhfile**：这是译文=MOCK_ZH 经 bare `\input <file>` 于 resizebox body-arg in_arg 泄漏（fig2dev .pdf_t 叠层形）；格已愈（TRANSPARENT_HEAD_SPEC+8b87318 文件名span 硬化）。**活残口实证**：`\caption{see \input foo_bar.tex end}` 任意 in_arg 文本位裸 \input 仍漏 →#89 inputleak（args.py:744-746 吞裸文件名入保护段）。
+- roster：ifclose/auxeof/cappayload/dvipdfmiss + babelinv/gcensus(交付在途) + inputleak/envpoly/expl3fix = 10。
