@@ -386,3 +386,45 @@ rules:
         }
     stats: { fires: 0, status: proposed }
     source_ref: "pstlane defect-B; pstcol.sty:22 noxcolor 实读 + splice main.log:605"
+
+  # 2026-09-19 geomlane (stagerun-loop2 1206.0291 实读): option_clash 三规
+  # (merge 120 / loadopt_strip 121 / passopts 122) 够不到的残留面 ——
+  # vendored mn2e stub \LoadClassWithOptions{mnras} → mnras.cls:117
+  # \usepackage[a4paper]{geometry} 先载, doc 要 [total={17.8cm,24.0cm},
+  # centering] 撞。passopts 需 \n\documentclass 锚点把 doc 选项注进首载,
+  # 本篇 documentclass 居文件 0 字节 (其 known_gap 自承) 且 cls 链不经
+  # doc 侧文本 —— \geometry{} 是 geometry 自带运行时 keyval 面 (与装载
+  # 选项同表), 括号整组挪到载点后: 裸载 ⊆ 实载选项恒静默收敛, 意图经
+  # \geometry 零损失送达; 不依赖 documentclass 位置/存在, \input 拆分
+  # preamble、cls/sty 内载点同覆盖。masked 面只改活码。
+  - id: option_clash_geometry_hoist
+    mechanisms: [W48]
+    description: "option_clash geometry → 括号选项整组挪载点后 \\geometry{opts} (documentclass 位置无关)"
+    phase: loop
+    order: 186 # pstcol_pstricks_rewrite(185) 后; passopts(122) 失手形态兜底
+    when: { category: option_clash, payload_required: true }
+    condition:
+      ctx_suggests: "Option clash for package geometry\\b"
+      source_contains: "\\\\(?:usepackage|RequirePackage)\\s*\\[[^\\]]+\\]\\s*\\{[^}]*\\bgeometry\\b"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty, .cls]
+        rewrites:
+          - {
+              pattern: "(\\\\(?:usepackage|RequirePackage))\\s*\\[([^\\]]+)\\]\\s*(\\{[^{}]*\\bgeometry\\b[^{}]*\\})",
+              repl: '\g<1>\g<3>\n\\geometry{\g<2>}',
+              match_surface: "masked",
+            }
+    risk: low # \geometry 是 geometry 自带运行时设置面; 裸载 ⊆ 实载恒静默, 选项意图续传
+    known_gap: "组载 {geometry,other} 共享选项改挂 \\geometry{} 后只达 geometry——他包原受这份选项的意图收窄 (罕形); driver/truedimen/mag 等 load-only 键在 \\geometry 内无效 (warning 级, xetex 下本就错向)"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "1206.0291 (stagerun-loop2-2026-09-18)",
+          error: "LaTeX Error: Option clash for package geometry (mnras.cls:117 [a4paper] 先载, doc [total={17.8cm,24.0cm},centering] 撞)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "geomlane; vendor/files/mnras.cls:117 + fixloop.jsonl error_pay option_clash=geometry 实读"
