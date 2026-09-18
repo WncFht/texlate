@@ -126,13 +126,15 @@ class ChunkResult:
     error_kind: str = ""
 
     @property
-    def skipped(self) -> bool:
-        """zh≡src 有意回退簿记（单源派生）。
+    def fell_back(self) -> bool:
+        """zh≡src 有意回退簿记（单源派生）——DB 侧 ``fallback_orig`` 同语义。
 
         ``status == "skipped"``，或 ``fault`` + 回退原文 + 记有 ``skip_reason``。
-        ``retranslate_chunk`` 仍败的 fault 形同形回退但无簿记（O1 留档
-        异形）——区分键正是 ``skip_reason`` 缺位；写方只落 status/
-        translation/skip_reason 三件事实，本标记读其逻辑后果。
+        故名 ``fell_back`` 而非 ``skipped``——覆盖面比 ``status=="skipped"``
+        宽，同名会把 fault 臂读者带偏。``retranslate_chunk`` 仍败的 fault
+        形同形回退但无簿记（O1 留档异形）——区分键正是 ``skip_reason``
+        缺位；写方只落 status/translation/skip_reason 三件事实，本标记
+        读其逻辑后果。
         """
         return self.status == "skipped" or (
             self.status == "fault"
@@ -167,7 +169,7 @@ class ChunkResult:
             kind=self.kind,
             batched=self.batched,
             batch_id=self.batch_id or None,
-            skipped=self.skipped,
+            skipped=self.fell_back,
             skip_reason=self.skip_reason,
             attempts=self.attempts,
             warnings=self.warnings,
@@ -962,7 +964,7 @@ class XlatPipeline:
         if self.state is not None:
             self.state.record(
                 r.to_record(),
-                error=({"error": r.skip_reason} if r.skipped else None),
+                error=({"error": r.skip_reason} if r.fell_back else None),
             )
         if self.on_result is not None:
             self.on_result(r)

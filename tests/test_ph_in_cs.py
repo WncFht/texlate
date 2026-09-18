@@ -67,7 +67,7 @@ class TestIntercept:
         )
         r = out[0]
         assert r.status == "fault"
-        assert r.skipped
+        assert r.fell_back
         assert r.translation == src
         assert r.error_kind == "validate"
         assert "ph_in_cs:1" in r.warnings
@@ -202,7 +202,7 @@ class TestDownstreamContract:
         r = asyncio.run(pipe.retranslate_chunk(c, "compile error here"))
         assert r is not None
         assert r.status == "fault"
-        assert r.skipped
+        assert r.fell_back
         assert r.translation == c.content
         assert r.error_kind == "validate"
 

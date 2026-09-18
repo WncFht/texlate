@@ -750,7 +750,7 @@ class TestPipelineBatch:
         assert res[0].status == "ok"
         assert res[0].translation == "[[MATH_1]] [[CITE_2]]"
         assert res[0].attempts == 0
-        assert not res[0].skipped
+        assert not res[0].fell_back
         assert res[0].batch_id == ""
         assert not res[0].batched
         assert res[1].translation == "  [[MATH_3]]  "  # strip 判定、原文落盘
@@ -923,7 +923,7 @@ class TestPipelineBatch:
             validator=lambda _s, _z: "",  # 松 validator——拦截网是唯一闸
         )
         assert res[0].status == "fault"
-        assert res[0].skipped
+        assert res[0].fell_back
         assert res[0].translation == res[0].source
         assert res[0].error_kind == "validate"
         assert any("leftover_ph" in w for w in res[0].warnings)

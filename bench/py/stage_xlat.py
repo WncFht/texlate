@@ -379,7 +379,7 @@ async def _xlat_one_inner(
                     "status": r.status,
                     "attempts": r.attempts,
                     "batched": r.batched,
-                    "skipped": r.skipped,
+                    "skipped": r.fell_back,
                     "error_kind": r.error_kind,
                     "skip_reason": r.skip_reason,
                     "warnings": r.warnings,

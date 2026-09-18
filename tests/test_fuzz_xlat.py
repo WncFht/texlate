@@ -609,7 +609,7 @@ def _check_result(c: ChunkIn, r: ChunkResult, exp: _Exp) -> None:
         f"{c.chunk_id}: {r.status} != {exp.status} ({r.skip_reason})"
     )
     assert r.error_kind == exp.error_kind, f"{c.chunk_id}: {r.error_kind!r}"
-    assert r.skipped == exp.skipped, c.chunk_id
+    assert r.fell_back == exp.skipped, c.chunk_id
     assert r.batched == exp.batched, c.chunk_id
     if exp.attempts is not None:
         assert r.attempts == exp.attempts, f"{c.chunk_id}: attempts={r.attempts}"
@@ -665,7 +665,7 @@ def test_fuzz_pipeline_deterministic() -> None:
             (
                 r.status,
                 r.translation,
-                r.skipped,
+                r.fell_back,
                 r.error_kind,
                 r.batched,
                 r.batch_id,
@@ -677,7 +677,7 @@ def test_fuzz_pipeline_deterministic() -> None:
             (
                 r.status,
                 r.translation,
-                r.skipped,
+                r.fell_back,
                 r.error_kind,
                 r.batched,
                 r.batch_id,
@@ -731,9 +731,9 @@ def test_fuzz_pipeline_resume_no_retranslate(tmp_path: Path) -> None:
             if a.status in ("ok", "partial"):
                 # 已完成块：零重发 + 结果即 run1 落库记录
                 assert tag not in calls2, f"{c.chunk_id} re-requested"
-                assert (b.status, b.skipped, b.translation, b.error_kind) == (
+                assert (b.status, b.fell_back, b.translation, b.error_kind) == (
                     a.status,
-                    a.skipped,
+                    a.fell_back,
                     a.translation,
                     a.error_kind,
                 )

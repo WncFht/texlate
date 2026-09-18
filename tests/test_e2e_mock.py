@@ -6,7 +6,7 @@ r"""跨模块集成测试（M0）：``parse_file → XlatPipeline(Mock+L0) → r
   ``context``→``normalize_kind``→``kind``；
 - L0 校验器按 ``validator(src, zh) -> str`` 协议注入阶梯（空串=通过，
   ``L0Report.feedback()`` 即此形态）；
-- ``r.skipped`` 结果**回退原文**进 splice——``fallback_orig`` 的
+- ``r.fell_back`` 结果**回退原文**进 splice——``fallback_orig`` 的
   ``translation`` 字段即原文（best_zh 残译文折进 warnings 留诊断）；
 - reconstruct 后零占位符泄漏；``translations=None`` identity 逐字节还原。
 
@@ -113,7 +113,7 @@ def _run_mock(res: ScanResult, **kw: object) -> list[ChunkResult]:
 def _translations(res: ScanResult, results: list[ChunkResult]) -> dict[int, str]:
     """``{chunk_id: 译文}``；``skipped`` 一律回退原文（splice 侧契约）。"""
     return {
-        c.id: (r.source if r.skipped else r.translation)
+        c.id: (r.source if r.fell_back else r.translation)
         for c, r in zip(res.chunks, results, strict=True)
     }
 
@@ -136,7 +136,7 @@ def _assert_mock_chain(res: ScanResult, flat: str) -> str:
 
     # 1) 全块 ok：Mock 是守规矩模型，fault/skipped/partial 出现即接缝信号
     assert [r.status for r in results] == ["ok"] * len(res.chunks)
-    assert not any(r.skipped for r in results)
+    assert not any(r.fell_back for r in results)
 
     # 2) L0 复核存下来的 (src, zh) 对（post-decode 形态，双侧注释豁免在内）
     bad = [r.chunk_id for r in results if not validate_pair(r.source, r.translation).ok]
@@ -209,7 +209,7 @@ def test_all_fault_splices_source() -> None:
 
     non_trivial = [r for r in results if r.source.strip()]
     assert non_trivial
-    assert all(r.skipped for r in non_trivial)
+    assert all(r.fell_back for r in non_trivial)
     assert all(r.status == "fault" for r in non_trivial)
     # fallback_orig 的 translation 字段即原文——无残译文泄漏面
     assert all(r.translation == r.source for r in non_trivial)

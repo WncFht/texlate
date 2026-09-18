@@ -65,7 +65,7 @@ class TestIntercept:
         )
         r = out[0]
         assert r.status == "fault"
-        assert r.skipped
+        assert r.fell_back
         assert r.translation == src
         assert r.error_kind == "validate"
         assert "[[MATH_99]]" in r.skip_reason
@@ -77,7 +77,7 @@ class TestIntercept:
         chunks = [mk_chunk("A", "a"), mk_chunk("B", "b")]
         out = run_pipeline(chunks, translator=_Hallucinator(), validator=pass_validate)
         assert all(r.batched for r in out)
-        assert all(r.status == "fault" and r.skipped for r in out)
+        assert all(r.status == "fault" and r.fell_back for r in out)
         assert all(r.translation == r.source for r in out)
 
     def test_split_parent_faults_on_piece_leftover(self) -> None:
@@ -91,7 +91,7 @@ class TestIntercept:
             validator=pass_validate,
         )
         assert out[0].status == "fault"
-        assert out[0].skipped
+        assert out[0].fell_back
         assert out[0].translation == big
 
     def test_mixed_run_only_dirty_chunk_faults(self) -> None:
@@ -258,7 +258,7 @@ class TestDownstreamContract:
         r = asyncio.run(pipe.retranslate_chunk(c, "compile error here"))
         assert r is not None
         assert r.status == "fault"
-        assert r.skipped
+        assert r.fell_back
         assert r.translation == c.content
         assert r.error_kind == "validate"
 

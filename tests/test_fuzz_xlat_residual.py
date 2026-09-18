@@ -285,7 +285,7 @@ class TestSplitFaultShape:
         res = _run([xp.ChunkIn("big", content, "para")], _T())
         r = res[0]
         assert r.status == "fault"
-        assert r.skipped
+        assert r.fell_back
         assert r.translation == r.source
 
     def test_split_fault_merged_shape_observed(self) -> None:
@@ -297,7 +297,7 @@ class TestSplitFaultShape:
         res = _run([xp.ChunkIn("big", content, "para")], _T())
         r = res[0]
         assert r.status == "fault"
-        assert r.skipped
+        assert r.fell_back
         assert r.skip_reason == "split piece(s) failed"
         assert r.translation == r.source
         assert r.error_kind == "auth"
@@ -331,11 +331,11 @@ class TestSplitFaultShape:
             if not hit:
                 assert r.translation == expected_merged, (i, inject)
                 assert r.status == "ok", (i, r.status, r.skip_reason)
-                assert not r.skipped
+                assert not r.fell_back
                 assert r.error_kind == ""
             else:
                 assert r.status == "fault", (i, r.status)
-                assert r.skipped
+                assert r.fell_back
                 assert r.translation == r.source  # 不变量优先于 merged
                 assert r.error_kind == want_kind[inject]
                 assert any(w.startswith("best-effort zh") for w in r.warnings)
@@ -404,7 +404,7 @@ class TestDecodeForgeHole:
         )
         r = res[0]
         assert r.status == "fault"
-        assert r.skipped
+        assert r.fell_back
         assert r.translation == r.source
         assert r.error_kind == "validate"
         assert any("leftover_ph" in w for w in r.warnings)
@@ -630,7 +630,7 @@ class TestRetranslateShape:
         assert r.status == "fault"
         assert r.translation == r.source
         assert r.error_kind == "validate"
-        assert r.skipped is False  # 异形钉：fallback_orig 同语义置 True
+        assert r.fell_back is False  # 异形钉：fallback_orig 同语义置 True
         assert r.attempts == 1
 
     def test_intercepts_apply_on_ok(self) -> None:
@@ -645,7 +645,7 @@ class TestRetranslateShape:
         )
         assert r is not None
         assert r.status == "fault"
-        assert r.skipped
+        assert r.fell_back
         assert r.error_kind == "validate"
 
     def test_decode_hole_shared(self) -> None:

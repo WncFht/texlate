@@ -120,7 +120,7 @@ class TestEndToEnd:
         chunks = [mk_chunk("A", "a"), mk_chunk("B", "b")]
         out = run_pipeline(chunks, translator=_AuthFailTranslator())
         assert all(r.status == "skipped" for r in out)
-        assert all(r.skipped for r in out)
+        assert all(r.fell_back for r in out)
         assert all(r.translation == r.source for r in out)
         assert all("denied" in r.skip_reason for r in out)
 
@@ -147,7 +147,7 @@ class TestEndToEnd:
             validator=always_bad,
         )
         assert out[0].status == "fault"
-        assert out[0].skipped
+        assert out[0].fell_back
         assert out[0].skip_reason
 
     def test_leftover_ph_flagged(self) -> None:
@@ -328,7 +328,7 @@ class TestAuthGate:
         （跨篇熔断器读这个：连续全 auth 败的论文数）。"""
         pipe = pl.XlatPipeline(translator=_AuthFailTranslator())
         out = asyncio.run(pipe.run([mk_chunk("a", "a"), mk_chunk("b", "b")]))
-        assert all(r.skipped and r.error_kind == "auth" for r in out)
+        assert all(r.fell_back and r.error_kind == "auth" for r in out)
         assert not pipe.auth_gate.tripped
         assert pipe.auth_gate.all_failed
 
@@ -390,7 +390,7 @@ class TestAuthGate:
         cfg = pl.PipelineConfig(auth_fail_threshold=0)
         pipe = pl.XlatPipeline(_AuthFailTranslator(), config=cfg)
         out = asyncio.run(pipe.run([mk_chunk(f"t{i}", f"c{i}") for i in range(4)]))
-        assert all(r.skipped for r in out)
+        assert all(r.fell_back for r in out)
         assert not pipe.auth_gate.tripped
 
 
