@@ -1,6 +1,13 @@
 // Home —— arXiv 输入 + 文件上传 + 任务列表（活动任务进度走 SSE）。
 
-import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import {
+    createSignal,
+    For,
+    type JSX,
+    onCleanup,
+    onMount,
+    Show,
+} from "solid-js";
 import {
     api,
     ApiError,
@@ -22,6 +29,69 @@ const ENGINES = ["auto", "xelatex", "tectonic"];
 /** 上传客户端预检（U14）：80MB 上限 + 扩展名白名单——早于 XHR 失败给出本地错 */
 const MAX_UPLOAD_BYTES = 80 * 1024 * 1024;
 const UPLOAD_EXT = /\.(pdf|tex|tar|gz|tgz|zip|docx|epub)$/i;
+
+/** options 表单行描述——label/hint/控件形/信号绑定数据驱动渲染 */
+type OptRow = {
+    label: string;
+    hint?: string;
+    get: () => string;
+    set: (v: string) => void;
+    span2?: boolean;
+} & (
+    | {
+          kind: "input";
+          type?: "text" | "number" | "password";
+          placeholder?: () => string;
+          min?: number;
+          max?: number;
+      }
+    | {
+          kind: "select";
+          /** 空值 option 的文案；缺省 = 不出空 option（optSource 恒有值） */
+          defaultLabel?: () => string;
+          choices: { value: string; label: string }[];
+      }
+    | { kind: "textarea"; rows?: number }
+);
+
+/** 单 options 行的控件部分——label/span 由调用点统一渲染 */
+const optControl = (row: OptRow): JSX.Element => {
+    if (row.kind === "select") {
+        return (
+            <select
+                value={row.get()}
+                onChange={(e) => row.set(e.currentTarget.value)}
+            >
+                {row.defaultLabel && (
+                    <option value="">{row.defaultLabel()}</option>
+                )}
+                <For each={row.choices}>
+                    {(c) => <option value={c.value}>{c.label}</option>}
+                </For>
+            </select>
+        );
+    }
+    if (row.kind === "textarea") {
+        return (
+            <textarea
+                rows={row.rows ?? 3}
+                value={row.get()}
+                onInput={(e) => row.set(e.currentTarget.value)}
+            />
+        );
+    }
+    return (
+        <input
+            type={row.type ?? "text"}
+            min={row.min}
+            max={row.max}
+            autocomplete={row.type === "password" ? "off" : undefined}
+            value={row.get()}
+            placeholder={row.placeholder?.()}
+            onInput={(e) => row.set(e.currentTarget.value)}
+        />
+    );
+};
 
 // 服务端 normalize_arxiv_id 的轻量版：剥 arXiv: 前缀、各路径段 URL、
 // 尾部斜杠与 .pdf，再按新/旧 id 形白名单判
@@ -161,6 +231,50 @@ export default function Home(props: { nav(to: string): void }) {
         return null;
     };
 
+    /** upload 的 multipart 字段快照：options 透传走 JSON 字段——prefer 仅对
+     *  arxiv 缓存有意义（server 上传路恒 prefer=fresh）、source 是 arxiv
+     *  取源通道同理剔除；glossary 在 options 内传递故上提 */
+    const uploadFields = () => {
+        const o = collectOptions();
+        const upOpts: Record<string, unknown> = { ...o?.options };
+        delete upOpts.prefer;
+        delete upOpts.source;
+        if (o?.glossary) upOpts.glossary = o.glossary;
+        return { o, upOpts };
+    };
+
+    /** 单文件提交：.share.zip 是社区缓存包走 share/import（包内 manifest
+     *  自描述），其余走 api.upload（main 指定主文件） */
+    const uploadOne = (
+        f: File,
+        snap: ReturnType<typeof uploadFields>,
+        onProgress: (loaded: number, total: number) => void,
+    ) => {
+        const { o, upOpts } = snap;
+        if (f.name.toLowerCase().endsWith(".share.zip")) {
+            return api.shareImport(
+                f,
+                Object.keys(upOpts).length ? upOpts : undefined,
+                byok(),
+                onProgress,
+            );
+        }
+        const main = optMain().trim();
+        const fields =
+            o || main
+                ? {
+                      model: o?.model,
+                      target_lang: o?.target_lang,
+                      main: main || undefined,
+                      options: upOpts,
+                  }
+                : undefined;
+        return api.upload(f, fields, byok(), onProgress);
+    };
+
+    const onUpProgress = (loaded: number, total: number) =>
+        setUpPct(Math.min(100, Math.round((loaded / total) * 100)));
+
     const upload = async (file: File, land = true) => {
         if (busy()) return;
         const bad = precheck(file);
@@ -172,41 +286,8 @@ export default function Home(props: { nav(to: string): void }) {
         setBusy(true);
         setUploading(true);
         setUpPct(-1);
-        const onProgress = (loaded: number, total: number) =>
-            setUpPct(Math.min(100, Math.round((loaded / total) * 100)));
         try {
-            // upload 的 options 走 multipart JSON 字段；prefer 仅对 arxiv 缓存有意义
-            // （server 上传路恒 prefer=fresh），source 是 arxiv 取源通道同理剔除，
-            // glossary 在 options 内传递
-            const o = collectOptions();
-            const upOpts: Record<string, unknown> = { ...o?.options };
-            delete upOpts.prefer;
-            delete upOpts.source;
-            if (o?.glossary) upOpts.glossary = o.glossary;
-            // .share.zip 是社区缓存包——走 share/import（包内 manifest 自描述）
-            if (file.name.toLowerCase().endsWith(".share.zip")) {
-                const res = await api.shareImport(
-                    file,
-                    Object.keys(upOpts).length ? upOpts : undefined,
-                    byok(),
-                    onProgress,
-                );
-                if (!alive) return;
-                setOptKey("");
-                if (land) openRes(res);
-                return;
-            }
-            const main = optMain().trim();
-            const fields =
-                o || main
-                    ? {
-                          model: o?.model,
-                          target_lang: o?.target_lang,
-                          main: main || undefined,
-                          options: upOpts,
-                      }
-                    : undefined;
-            const res = await api.upload(file, fields, byok(), onProgress);
+            const res = await uploadOne(file, uploadFields(), onUpProgress);
             if (!alive) return;
             setOptKey("");
             if (land) openRes(res);
@@ -232,12 +313,8 @@ export default function Home(props: { nav(to: string): void }) {
             return;
         }
         const errs: string[] = [];
-        // 与单文件路同一套 multipart 字段（prefer/source 是 arxiv 概念剔除）
-        const o = collectOptions();
-        const upOpts: Record<string, unknown> = { ...o?.options };
-        delete upOpts.prefer;
-        delete upOpts.source;
-        if (o?.glossary) upOpts.glossary = o.glossary;
+        // 与单文件路同一套 multipart 字段——整批一次快照（中途改选项不影响在飞批）
+        const snap = uploadFields();
         for (const f of files) {
             const bad = precheck(f);
             if (bad) {
@@ -248,29 +325,8 @@ export default function Home(props: { nav(to: string): void }) {
             setBusy(true);
             setUploading(true);
             setUpPct(-1);
-            const onProgress = (loaded: number, total: number) =>
-                setUpPct(Math.min(100, Math.round((loaded / total) * 100)));
             try {
-                if (f.name.toLowerCase().endsWith(".share.zip")) {
-                    await api.shareImport(
-                        f,
-                        Object.keys(upOpts).length ? upOpts : undefined,
-                        byok(),
-                        onProgress,
-                    );
-                } else {
-                    const main = optMain().trim();
-                    const fields =
-                        o || main
-                            ? {
-                                  model: o?.model,
-                                  target_lang: o?.target_lang,
-                                  main: main || undefined,
-                                  options: upOpts,
-                              }
-                            : undefined;
-                    await api.upload(f, fields, byok(), onProgress);
-                }
+                await uploadOne(f, snap, onUpProgress);
             } catch (e) {
                 errs.push(
                     `${f.name}：${e instanceof Error ? e.message : String(e)}`,
@@ -291,6 +347,115 @@ export default function Home(props: { nav(to: string): void }) {
         const v = settingsStore.settings()?.[k];
         return v === undefined || v === "" ? "…" : String(v);
     };
+
+    const optRows: OptRow[] = [
+        {
+            kind: "input",
+            label: t.home.optModel,
+            get: optModel,
+            set: setOptModel,
+            placeholder: () => def("model"),
+        },
+        {
+            kind: "select",
+            label: t.home.optLang,
+            get: optLang,
+            set: setOptLang,
+            defaultLabel: () => `${t.home.optDefault}（${def("target_lang")}）`,
+            choices: TARGET_LANGS.map((l) => ({ value: l, label: l })),
+        },
+        {
+            kind: "select",
+            label: t.home.optEngine,
+            get: optEngine,
+            set: setOptEngine,
+            defaultLabel: () => `${t.home.optDefault}（${def("engine")}）`,
+            choices: ENGINES.map((en) => ({
+                value: en,
+                label: en === "auto" ? t.home.engineAuto : en,
+            })),
+        },
+        {
+            kind: "input",
+            type: "number",
+            min: 1,
+            max: 16,
+            label: t.home.optConcurrency,
+            get: optConcurrency,
+            set: setOptConcurrency,
+            placeholder: () => def("concurrency"),
+        },
+        {
+            kind: "select",
+            label: t.home.optGuidance,
+            get: optGuidance,
+            set: setOptGuidance,
+            defaultLabel: () => t.home.optDefault,
+            choices: [
+                { value: "on", label: t.home.optOn },
+                { value: "off", label: t.home.optOff },
+            ],
+        },
+        {
+            kind: "select",
+            label: t.home.optPrefer,
+            get: optPrefer,
+            set: setOptPrefer,
+            defaultLabel: () => t.home.optDefault,
+            choices: [
+                { value: "reuse", label: t.home.preferReuse },
+                { value: "fresh", label: t.home.preferFresh },
+            ],
+        },
+        {
+            kind: "select",
+            label: t.home.optSource,
+            get: optSource,
+            set: setOptSource,
+            choices: [
+                { value: "eprint", label: t.home.srcEprint },
+                { value: "html", label: t.home.srcHtml },
+            ],
+        },
+        {
+            kind: "select",
+            label: t.home.optShare,
+            hint: t.home.optShareHint,
+            get: optShare,
+            set: setOptShare,
+            defaultLabel: () => t.home.optDefault,
+            choices: [
+                { value: "on", label: t.home.optOn },
+                { value: "off", label: t.home.optOff },
+            ],
+        },
+        {
+            kind: "input",
+            label: t.home.optMain,
+            hint: t.home.optMainHint,
+            get: optMain,
+            set: setOptMain,
+            placeholder: () => "main.tex",
+        },
+        {
+            kind: "textarea",
+            label: t.home.optGlossary,
+            hint: t.home.optGlossaryHint,
+            get: optGlossary,
+            set: setOptGlossary,
+            rows: 3,
+            span2: true,
+        },
+        {
+            kind: "input",
+            type: "password",
+            label: t.home.optKey,
+            hint: t.home.optKeyHint,
+            get: optKey,
+            set: setOptKey,
+            span2: true,
+        },
+    ];
 
     /** 整页拖放上传：仅拦截文件拖拽（文本拖入输入框不受影响） */
     let dragDepth = 0;
@@ -433,167 +598,19 @@ export default function Home(props: { nav(to: string): void }) {
                 <details class="task-opts">
                     <summary>{t.home.options}</summary>
                     <div class="opts-grid">
-                        <label>
-                            <span>{t.home.optModel}</span>
-                            <input
-                                value={optModel()}
-                                placeholder={def("model")}
-                                onInput={(e) =>
-                                    setOptModel(e.currentTarget.value)
-                                }
-                            />
-                        </label>
-                        <label>
-                            <span>{t.home.optLang}</span>
-                            <select
-                                value={optLang()}
-                                onChange={(e) =>
-                                    setOptLang(e.currentTarget.value)
-                                }
-                            >
-                                <option value="">
-                                    {t.home.optDefault}（{def("target_lang")}）
-                                </option>
-                                <For each={TARGET_LANGS}>
-                                    {(l) => <option value={l}>{l}</option>}
-                                </For>
-                            </select>
-                        </label>
-                        <label>
-                            <span>{t.home.optEngine}</span>
-                            <select
-                                value={optEngine()}
-                                onChange={(e) =>
-                                    setOptEngine(e.currentTarget.value)
-                                }
-                            >
-                                <option value="">
-                                    {t.home.optDefault}（{def("engine")}）
-                                </option>
-                                <For each={ENGINES}>
-                                    {(en) => (
-                                        <option value={en}>
-                                            {en === "auto"
-                                                ? t.home.engineAuto
-                                                : en}
-                                        </option>
-                                    )}
-                                </For>
-                            </select>
-                        </label>
-                        <label>
-                            <span>{t.home.optConcurrency}</span>
-                            <input
-                                type="number"
-                                min={1}
-                                max={16}
-                                value={optConcurrency()}
-                                placeholder={def("concurrency")}
-                                onInput={(e) =>
-                                    setOptConcurrency(e.currentTarget.value)
-                                }
-                            />
-                        </label>
-                        <label>
-                            <span>{t.home.optGuidance}</span>
-                            <select
-                                value={optGuidance()}
-                                onChange={(e) =>
-                                    setOptGuidance(e.currentTarget.value)
-                                }
-                            >
-                                <option value="">{t.home.optDefault}</option>
-                                <option value="on">{t.home.optOn}</option>
-                                <option value="off">{t.home.optOff}</option>
-                            </select>
-                        </label>
-                        <label>
-                            <span>{t.home.optPrefer}</span>
-                            <select
-                                value={optPrefer()}
-                                onChange={(e) =>
-                                    setOptPrefer(e.currentTarget.value)
-                                }
-                            >
-                                <option value="">{t.home.optDefault}</option>
-                                <option value="reuse">
-                                    {t.home.preferReuse}
-                                </option>
-                                <option value="fresh">
-                                    {t.home.preferFresh}
-                                </option>
-                            </select>
-                        </label>
-                        <label>
-                            <span>{t.home.optSource}</span>
-                            <select
-                                value={optSource()}
-                                onChange={(e) =>
-                                    setOptSource(e.currentTarget.value)
-                                }
-                            >
-                                <option value="eprint">
-                                    {t.home.srcEprint}
-                                </option>
-                                <option value="html">{t.home.srcHtml}</option>
-                            </select>
-                        </label>
-                        <label>
-                            <span>
-                                {t.home.optShare}
-                                <em class="muted">{t.home.optShareHint}</em>
-                            </span>
-                            <select
-                                value={optShare()}
-                                onChange={(e) =>
-                                    setOptShare(e.currentTarget.value)
-                                }
-                            >
-                                <option value="">{t.home.optDefault}</option>
-                                <option value="on">{t.home.optOn}</option>
-                                <option value="off">{t.home.optOff}</option>
-                            </select>
-                        </label>
-                        <label>
-                            <span>
-                                {t.home.optMain}
-                                <em class="muted">{t.home.optMainHint}</em>
-                            </span>
-                            <input
-                                value={optMain()}
-                                placeholder="main.tex"
-                                onInput={(e) =>
-                                    setOptMain(e.currentTarget.value)
-                                }
-                            />
-                        </label>
-                        <label class="span2">
-                            <span>
-                                {t.home.optGlossary}
-                                <em class="muted">{t.home.optGlossaryHint}</em>
-                            </span>
-                            <textarea
-                                rows={3}
-                                value={optGlossary()}
-                                onInput={(e) =>
-                                    setOptGlossary(e.currentTarget.value)
-                                }
-                            />
-                        </label>
-                        <label class="span2">
-                            <span>
-                                {t.home.optKey}
-                                <em class="muted">{t.home.optKeyHint}</em>
-                            </span>
-                            <input
-                                type="password"
-                                autocomplete="off"
-                                value={optKey()}
-                                onInput={(e) =>
-                                    setOptKey(e.currentTarget.value)
-                                }
-                            />
-                        </label>
+                        <For each={optRows}>
+                            {(row) => (
+                                <label classList={{ span2: !!row.span2 }}>
+                                    <span>
+                                        {row.label}
+                                        <Show when={row.hint}>
+                                            <em class="muted">{row.hint}</em>
+                                        </Show>
+                                    </span>
+                                    {optControl(row)}
+                                </label>
+                            )}
+                        </For>
                     </div>
                 </details>
                 <p
