@@ -99,6 +99,8 @@ TeXlate（hjfy.top 开源复刻）全部调研报告。**裁决与方案以 `doc
 | `2026-09-16-loop1-status-and-next.md` | loop1 复盘 + 三方分派收敛（stagerun-loop1 n=5059 数字总账与在飞清单）                                |
 | `report-2026-09-17-final.md`          | 2026-09-17 全天作战终报：一页结论/波次总账/关键数字/缺陷账/排期摘要/决策点                           |
 | `reaudit-2026-09-18.md`               | 重构波后全仓重读审计：A 17 真 bug/安全 + B 13 单源债 + C 10 结构 + D 4 测试 + E 10 文档 + F 归属外表 |
+| `xlat-quality-eval-2026-09-18.md`    | 翻译质量评估方法论：MQM/ESA/GEMBA 文献核实 + qualbench 改造方案（ESA 式 span+score 两步、judge 路由、分层/锚定/CI） |
+| `xlat-selfimp-prompt-2026-09-18.md`  | selfimp-qual 环 leader prompt：dense-feedback 四层反馈 + 20 lane 三波次（协议落地→基线→假设改进环）全自动编排 |
 
 ## lit/ — 文献原件
 
