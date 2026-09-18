@@ -80,11 +80,43 @@ OVERLAY_EXTS = INDEX_EXTS - {".pfb", ".tex", ".rtx"}
 # tar 内已知顶层前缀 (探针 §2 踩坑: 前缀不统一)
 _TAR_PREFIXES = ("texmf-dist/", "texmf/", "tex/")
 _TLPDB_FILE_SECTIONS = {"runfiles", "docfiles", "srcfiles"}
+#: 单参 date 族 —— 日期即紧跟实参 (``{date}``/``[date]``):
+#: ``\NeedsTeXFormat{LaTeX2e}[date]``; ``\IfFormatAtLeastTF|T|F{date}``
+#: (nicematrix v7.11c ``\IfFormatAtLeastTF{2026-06-01}`` abort 实证,
+#: v7.11a 写 ``{ 2025-06-01 }`` 带空白 —— 允许内部空白);
+#: ``\IfExplAtLeastTF|T|F{date}`` (expl3 loader 日期闸, latex.ltx:1177);
+#: ``\@ifl@t@r\<cs>{date}`` 原语直用 (texmf 实证 \fmtversion 66 件/
+#: \ExplLoaderFileDate 11 件/``\csname ver@<file>\endcsname`` 形)。
 _NEEDFMT_RE = re.compile(
-    r"\\NeedsTeXFormat\{LaTeX2e\}\s*\[(\d{4})[/.-](\d{2})[/.-](\d{2})"
+    r"(?:\\NeedsTeXFormat\s*\{LaTeX2e\s*\}"
+    r"|\\IfFormatAtLeast(?:TF|T|F)"
+    r"|\\IfExplAtLeast(?:TF|T|F)"
+    r"|\\@ifl@t@r\s*\\csname\s*[^\\\s{}]*\\endcsname"
+    r"|\\@ifl@t@r\s*\\[A-Za-z@]+)"
+    r"\s*[\{\[]\s*(\d{4})\s*[/.-]\s*(\d{2})\s*[/.-]\s*(\d{2})"
 )
+#: 双参 date 族 —— 具名包/类/文件闸 ``{name}{date}`` 与
+#: loader 日期实参 ``{name}[date]``:
+#: ``\@ifpackagelater``/``\@ifclasslater``/``\IfPackageAtLeastTF|T|F``/
+#: ``\IfClassAtLeastTF|T|F``/``\IfFileAtLeastTF|T|F{name}{date}`` ——
+#: texmf 实证 gate 目标非 expl3 系占多数 (hyperref/csquotes/graphics…),
+#: 名槽开 ``[^}]*``; ``\@ifl@ter\@pkgextension|\@clsextension`` 原语形;
+#: ``\RequirePackage``/``\usepackage``/``\LoadClass``/``\documentclass``
+#: /``*WithOptions`` ``[opts]{names}[date]`` (texmf 实证 408 件,
+#: bracket 须日期开头 —— ``[=v2]``/``[\KOMAScriptVersion]`` 兼容钉不命中)。
+#: 注意 ``\ProvidesX{name}[date]``/``\ProvidesExplX{name}{date}`` 是包自署
+#: 日期非 floor 声明 (expl3 件多走 ``{\ExplFileDate}``/``\GetIdInfo`` 间址),
+#: 不入本族 —— 自署件抽取归 _builtins_vendored._provides_date 的遮蔽语义。
 _PKGLATER_RE = re.compile(
-    r"\\@ifpackagelater\{(?:expl3|latex2e|xparse)\}\{(\d{4})[/.-](\d{2})[/.-](\d{2})\}"
+    r"(?:\\@ifpackagelater|\\@ifclasslater"
+    r"|\\IfPackageAtLeast(?:TF|T|F)"
+    r"|\\IfClassAtLeast(?:TF|T|F)"
+    r"|\\IfFileAtLeast(?:TF|T|F)"
+    r"|\\@ifl@ter\s*\\@(?:pkg|cls)extension"
+    r"|\\RequirePackage|\\RequirePackageWithOptions|\\usepackage"
+    r"|\\LoadClass|\\LoadClassWithOptions|\\documentclass)"
+    r"\s*(?:\[[^\]]*\]\s*)?\{[^}]*\}\s*[\{\[]"
+    r"\s*(\d{4})\s*[/.-]\s*(\d{2})\s*[/.-]\s*(\d{2})"
 )
 
 Fetcher = Callable[[str], bytes]  # url → body (测试注入点)
@@ -417,11 +449,14 @@ def fetch_package(  # noqa: PLR0913  # mirror/overlay/fetcher/caps 注入面即�
 
 
 def check_version_compat(files: list[Path], epoch: str) -> tuple[bool, str | None]:
-    """Tlnet 最新版对 bundle 快照的 expl3/LaTeX2e 要求是否过新 (docs/08:276)。
+    r"""Tlnet 最新版对 bundle 快照的 expl3/LaTeX2e 要求是否过新 (docs/08:276)。
 
     epoch 形如 ``"2022-07-14"`` (tectonic bundle 快照年代)。
-    任一落盘文件声明的 ``NeedsTeXFormat``/``@ifpackagelater{expl3}``
-    要求晚于 epoch → (False, 说明)。
+    任一落盘文件声明的 format/包版本 floor —— ``\NeedsTeXFormat`` /
+    ``\IfFormatAtLeastT|F|TF`` / ``\IfExplAtLeastT|F|TF`` / ``\@ifl@t@r`` /
+    ``\@ifpackagelater`` / ``\@ifclasslater`` / ``\If{Package,Class,File}AtLeastT|F|TF`` /
+    ``\@ifl@ter`` / loader 日期实参 (``\RequirePackage{x}[date]`` 系) ——
+    取 max 晚于 epoch → (False, 说明)。
     """
     ey, em, ed = (int(x) for x in epoch.split("-"))
     req: tuple[int, int, int] | None = None
