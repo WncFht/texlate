@@ -19,6 +19,9 @@ from typing import (
     Protocol,
 )
 
+from texlate.latex.macro_table import (
+    parse_argspec,
+)
 from texlate.latex.model import (
     ArgSpec,
     PhType,
@@ -45,16 +48,6 @@ from texlate.textutil import (
     mask_tex,
 )
 
-from .tables import (  # noqa: F401 -- 七常量单源转口（args/core/env/group/mainloop/pending 经本模块取）
-    _CLEAN_CMD_RX,
-    _CLEAN_NONALPHA_RX,
-    _LEAD_WS_RX,
-    _LETTER_TAIL_RX,
-    _PROTECT_TYP,
-    _TRAIL_WS_RX,
-    _chunk_spec_cached,
-)
-
 if TYPE_CHECKING:
     from texlate.latex.gullet import (
         EnvDef,
@@ -65,6 +58,41 @@ if TYPE_CHECKING:
         Mouth,
         Tok,
     )
+
+# ---------------------------------------------------------------- 表常量
+# 原 ``segmenter/tables.py``（scanner v1/segmenter v2 双臂单源）——v1 退役后
+# 收回本模块直接定义；args/core/env/group/mainloop/pending 仍经本模块取。
+
+_CLEAN_CMD_RX = re.compile(r"\\[a-zA-Z@]+\*?|\\[^a-zA-Z]")
+_CLEAN_NONALPHA_RX = re.compile(r"[^a-zA-Z]")
+_LEAD_WS_RX = re.compile(r"\s*")
+_TRAIL_WS_RX = re.compile(r"\s*$")
+
+# 尾字符必须真字母：孤 ``\@`` 是控制符号而非控制词尾——``\@x`` 的 ``@``
+# 不吞后继空格，``_rappend``/``_seg_join`` 若按 ``\\[@]+`` 收它会补伪
+# ``" "`` 破 identity（S1）；``\ds@list`` 族中位 ``@`` 不受影响。
+# ``\Z`` 严格串尾（体尾 ``\n`` 已阻断 token 合并，放宽会收过头）。
+_LETTER_TAIL_RX = re.compile(r"\\[a-zA-Z@]*[a-zA-Z]\Z")
+
+_PROTECT_TYP = {
+    "includegraphics": PhType.GRAPHICS,
+    "url": PhType.URL,
+    "path": PhType.URL,
+    "label": PhType.LABEL,
+    "bibliography": PhType.BIB,
+    "bibliographystyle": PhType.BIB,
+    "bibitem": PhType.BIB,
+}
+
+_CHUNK_SPEC_CACHE: dict[str, list[ArgSpec]] = {}
+
+
+def _chunk_spec_cached(spec_str: str) -> list[ArgSpec]:
+    """``CHUNK_ARG_SPEC`` 签名串 → ``list[ArgSpec]``（解析一次缓存）。"""
+    if spec_str not in _CHUNK_SPEC_CACHE:
+        _CHUNK_SPEC_CACHE[spec_str] = parse_argspec(spec_str)
+    return _CHUNK_SPEC_CACHE[spec_str]
+
 
 _COMMENT_GAP_RX = re.compile(r"%[^\n]*")
 # 参数体内裸 ``%`` 注释（``\%`` 转义由 ``\\.`` 分支先吃掉）——in_arg 渲染串
