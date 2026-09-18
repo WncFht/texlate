@@ -196,3 +196,43 @@ rules:
         }
     stats: { fires: 0, status: proposed }
     source_ref: "natbib.sty:974 \\NAT@force@numbers; ms.tex:172/198 裂伤行 vs :285 注入位"
+
+  # 2026-09-19 failmine item 2 (4 格): natbib_numbers_pass (95-targeted
+  # order 186) preamble 末翻 \\NAT@numberstrue, 使 natbib \\AtEndDocument
+  # 向 aux 写 \\NAT@force@numbers 空转——只挡 FUTURE 写; 先前编译留下的
+  # .aux 已含 "\\providecommand\\NAT@force@numbers{}\\NAT@force@numbers"
+  # 行 (natbib.sty:967-968 写面), 次遍 \\begin{document} 期 aux 读仍炸
+  # "Bibliography not compatible with author-year citations"——同签复炸
+  # 而 numbers_pass 已 applied 不再点火。整行剥除: aux 族可再生,
+  # numbers_pass 在位即无再写源, 剥一次即净。
+  - id: natbib_aux_force_purge
+    mechanisms: [W117, W126]
+    description: "陈旧 .aux 残留 \\NAT@force@numbers 强制行 → 整行剥除 (numbers_pass 已挡再写)"
+    phase: loop
+    order: 195 # begindoc_tail_recomment(194) 同签族殿后: tex 层裂伤先收, aux 残毒后剥
+    when: { category: other } # .aux:NN file-line 签名归 other (taxonomy `^.` 兜底)
+    condition:
+      ctx_suggests: "Bibliography not compatible with author-year"
+      fileset: { has_ext: [.aux] }
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.aux]
+        rewrites:
+          - {
+              pattern: "^[^\\n]*\\\\NAT@force@numbers(?![a-zA-Z@])[^\\n]*\\n?",
+              repl: "",
+              flags: [MULTILINE],
+            }
+    risk: low # aux 可再生; 仅含标记的行整删余行逐字节不动; 无标记 0 命中不点火
+    known_gap: "\\NAT@force@letters (authoryear 强制臂) 未收——inverse 病理无实证格; 其他强制标记同理留待实证"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "0707.1345, astro-ph/0307344, astro-ph/0408113, astro-ph/0501630 (failmine loop2)",
+          error: ".aux:NN: Package natbib Error: Bibliography not compatible with author-year citations (stale aux \\NAT@force@numbers)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-failmine/rule_targets.txt item 2; natbib.sty:967-968 \\AtEndDocument aux 写面"
