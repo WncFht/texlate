@@ -13,6 +13,11 @@ r"""build_corpus_expand.py — corpus_v3 扩库管线: +~3740 篇 → 总 ~5000.
   extract   全局选样：旧池（已扫 56 chunk, 本地 tar 随机读）按 --reuse-frac
             摊 + 新池 Range-GET → corpus_v3/{id}/{raw.*,extracted/,meta.json}
             → manifest_expand.jsonl（逐行 append, id 幂等）
+  fetch-ids 定点补强：--ids-file 清单（mechanisms 台账回收的 orphan id 等
+            未扫成员）→ 产品 acquire_source /src 钉版 → corpus cell +
+            manifest_expand.jsonl append（channel=arxiv_eprint, layer=expand,
+            band/cat/license 由 frame_lookup 回填；--limit 护栏默认 0，
+            批规模按日预算 180 控制在 ~85 篇内）
   qc        核对落盘完整性/各 strata 实收 vs 配额 → stdout + expand/qc.md
 
 e-band (2021+) IA 索引无覆盖 → 走 tiger channel（HF LFS, Range GET 同路径）。
@@ -35,6 +40,7 @@ import json
 import math
 import random
 import re
+import shutil
 import tarfile
 import time
 from collections import Counter, defaultdict
@@ -928,12 +934,208 @@ def cmd_qc() -> None:
     log(f"qc: {len(man)} rows, cells 达成 {attained}/{len(quotas)}")
 
 
+# ---------------- fetch-ids (定点补强) ----------------
+
+
+def load_ids_file(path: Path) -> list[dict]:
+    """ids 清单 → [{id, mechs, note}]；jsonl 行或纯文本 id（# 注释/空行跳过）。"""
+    out = []
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("{"):
+            r = json.loads(line)
+            out.append(
+                {
+                    "id": r["id"],
+                    "mechs": r.get("mechs") or r.get("mech_tags") or [],
+                    "note": r.get("note") or r.get("justification") or "",
+                }
+            )
+        else:
+            out.append({"id": line, "mechs": [], "note": ""})
+    return out
+
+
+def frame_meta_for(ids: list[str]) -> dict[str, dict]:
+    """frame_lookup 流式过滤 → {id: {tar_yymm, year_band, cat_group, license_class}}."""
+    want = set(ids)
+    out: dict[str, dict] = {}
+    with gzip.open(WORK / "frame_lookup.tsv.gz", "rt") as f:
+        for line in f:
+            pid = line.split("\t", 1)[0]
+            if pid in want:
+                p = line.rstrip("\n").split("\t")
+                out[pid] = {
+                    "tar_yymm": p[1] if len(p) > 1 else None,
+                    "year_band": p[2] if len(p) > 2 else None,
+                    "cat_group": p[3] if len(p) > 3 else None,
+                    "primary_cat": p[4] if len(p) > 4 else None,
+                    "license_class": p[5] if len(p) > 5 else None,
+                }
+            if len(out) == len(want):
+                break
+    return out
+
+
+def cmd_fetch_ids(args: argparse.Namespace) -> None:
+    """定点补强批：ids 清单 → 产品 acquire_source 钉版 → corpus cell + manifest_expand append。
+
+    与 extract 的 IA Range-GET 不同：fetch-ids 走 arxiv.org /src 逐篇拉取——未扫
+    成员（mechanisms 台账定点回收的 orphan id）无 offset 记录时这是唯一通道。
+    channel=arxiv_eprint、item/member=None（hot 层同例）；layer/stratum_cell 仍归
+    expand 层，band/cat_group/license_class 由 frame_lookup 回填。限速由产品
+    RateLimiter 担（日预算 180），``--limit`` 是批护栏（默认 85，一篇 = HEAD+GET
+    2 发）。可重入：已在任何 manifest 或已有 meta.json+extracted 的 id 跳过/回补。
+    """
+    from texlate.arxiv.cache import SourceCache  # 同 extract 例：仅本子命令需产品代码
+    from texlate.arxiv.fetch import AcquireStatus, Fetcher, acquire_source
+
+    cands = load_ids_file(Path(args.ids_file))
+    fmeta = frame_meta_for([c["id"] for c in cands])
+    done = existing_ids()
+    fetcher = Fetcher()
+    cache = SourceCache(Path.home() / ".cache" / "texlate" / "src")
+    limit = args.limit or 85  # 日预算 180 / 单篇 2 发 → 批护栏缺省 85
+    n_new = n_ok = n_skip = n_err = 0
+    fails = EXP / "fetch_ids_fail.jsonl"
+    with MANIFEST_OUT.open("a", encoding="utf-8") as mf:
+        for cand in cands:
+            pid = cand["id"]
+            if pid in done:
+                n_skip += 1
+                continue
+            dest = CORPUS / pid
+            if (dest / "meta.json").exists() and (dest / "extracted").is_dir():
+                row = manifest_row_from_meta(dest)
+                if row is not None:
+                    mf.write(json.dumps(row, ensure_ascii=False) + "\n")
+                    mf.flush()
+                    done.add(pid)
+                    n_skip += 1
+                    continue
+            if n_new >= limit:
+                log(f"fetch-ids: limit {limit} — 截断续跑明日")
+                break
+            log(f"fetch {pid} mechs={'+'.join(cand['mechs']) or '-'}")
+            try:
+                res = acquire_source(pid, fetcher=fetcher, cache=cache)
+            except Exception as e:  # 批处理：单篇炸不拖死整批
+                log(f"  !! {pid} raised {type(e).__name__}: {e}")
+                benchlib.append_jsonl(
+                    fails, {"id": pid, "error": f"{type(e).__name__}: {e}"}
+                )
+                n_err += 1
+                continue
+            n_new += 1
+            if (
+                res.status not in (AcquireStatus.OK, AcquireStatus.HIT)
+                or res.entry is None
+            ):
+                log(f"  skip {pid}: {res.status.value} {res.detail or ''}")
+                benchlib.append_jsonl(
+                    fails,
+                    {"id": pid, "status": res.status.value, "detail": res.detail},
+                )
+                n_skip += 1
+                continue
+            entry = res.entry.dir
+            dest.mkdir(parents=True, exist_ok=True)
+            ext = dest / "extracted"
+            if ext.exists():
+                shutil.rmtree(ext)  # 半程截尾树会与 copytree 合并留幽灵文件
+            shutil.copytree(entry / "extracted", ext)
+            raw = None
+            for r_ in entry.glob("raw.*"):
+                raw = dest / r_.name
+                shutil.copy2(r_, raw)
+            meta = json.loads((entry / "meta.json").read_text(encoding="utf-8"))
+            fm = fmeta.get(pid) or {}
+            yymm = fm.get("tar_yymm") or pid.split(".", 1)[0][:4]
+            band = fm.get("year_band") or band_of_yymm(yymm)
+            cat = fm.get("cat_group") or "unknown"
+            cell = f"{band}|{cat}"
+            era = "old" if "/" in pid else "new"
+            locate_main = ((meta.get("locate") or {}).get("main")) or None
+            roots = (meta.get("locate") or {}).get("independent_roots") or (
+                [locate_main] if locate_main else []
+            )
+            main_sha = None
+            if locate_main and (ext / locate_main).exists():
+                main_sha = hashlib.sha256((ext / locate_main).read_bytes()).hexdigest()
+            mechs = "+".join(cand["mechs"]) or "manual"
+            meta.update(
+                {
+                    "era": era,
+                    "archive": pid.split("/")[0] if "/" in pid else None,
+                    "yymm": yymm,
+                    "cluster_id": f"EXP-{band}",
+                    "year_band": band,
+                    "layer": "expand",
+                    "stratum_cell": cell,
+                    "cat_group": cat,
+                    "license_class": fm.get("license_class"),
+                    "channel": "arxiv_eprint",
+                    "item": None,
+                    "member": None,
+                    "features": {"tex_roots": roots} if roots else {},
+                    "main_tex_sha256": main_sha,
+                    "pick_reason": f"expand_orphan:{mechs}",
+                    "pool": "eprint",
+                    "source": "arxiv_eprint",
+                }
+            )
+            (dest / "meta.json").write_text(
+                json.dumps(meta, indent=1, ensure_ascii=False), encoding="utf-8"
+            )
+            n_files = sum(1 for p in ext.rglob("*") if p.is_file())
+            n_tex = sum(1 for p in ext.rglob("*.tex"))
+            mf.write(
+                json.dumps(
+                    {
+                        "id": pid,
+                        "era": era,
+                        "archive": meta["archive"],
+                        "yymm": yymm,
+                        "cluster_id": meta["cluster_id"],
+                        "layer": "expand",
+                        "channel": "arxiv_eprint",
+                        "item": None,
+                        "member": None,
+                        "blob_sha256": meta.get("raw_sha256"),
+                        "main_tex_sha256": main_sha,
+                        "stratum_cell": cell,
+                        "cat_group": cat,
+                        "license_class": fm.get("license_class"),
+                        "format": meta.get("format"),
+                        "n_files": n_files,
+                        "n_tex": n_tex,
+                        "bytes": raw.stat().st_size if raw else meta.get("raw_size"),
+                        "pick_reason": meta["pick_reason"],
+                        "pool": "eprint",
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n"
+            )
+            mf.flush()
+            done.add(pid)
+            n_ok += 1
+    log(f"fetch-ids done: ok={n_ok} skip={n_skip} err={n_err} -> {MANIFEST_OUT}")
+
+
 # ---------------- main ----------------
 
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("cmd", choices=["plan", "scan", "extract", "qc"])
+    ap.add_argument("cmd", choices=["plan", "scan", "extract", "qc", "fetch-ids"])
+    ap.add_argument(
+        "--ids-file",
+        default="",
+        help="fetch-ids: 定点补强清单（jsonl {id,mechs,note} 或纯文本 id）",
+    )
     ap.add_argument("--target", type=int, default=TARGET)
     ap.add_argument("--bias", type=float, default=LAMBDA)
     ap.add_argument("--reuse-frac", type=float, default=REUSE_FRAC)
@@ -945,6 +1147,10 @@ def main() -> None:
     EXP.mkdir(parents=True, exist_ok=True)
     if a.cmd == "qc":
         cmd_qc()
+    elif a.cmd == "fetch-ids":
+        if not a.ids_file:
+            ap.error("fetch-ids 需要 --ids-file")
+        cmd_fetch_ids(a)
     else:
         {"plan": cmd_plan, "scan": cmd_scan, "extract": cmd_extract}[a.cmd](a)
 
