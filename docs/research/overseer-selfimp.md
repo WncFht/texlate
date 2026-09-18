@@ -572,3 +572,11 @@
 - **普查↔geomverify 矛盾裁决**：census 称 mn2e 径"stub 选项剥离已防"——**被 geomverify 仪表实证推翻**（repro/：\@loadwithoptions 拷原始 opt@ 列表非 \@classoptionslist，剥离死代码）。爆半径修正≈26 格（25 mn2e+usegraphicx + 1907.00331 直用）——wdir drop 双径同愈。
 - **结构注记**：stock-texlive 宿主使 135 NONE 中半数变 DIST 遮蔽——多为无害，**唯 nicematrix v7.11a 兼容钉**：texlive≥7.11c 前向遮蔽钉→2308.12712 pkg_version_skew 旧虫复活且 vendored_fetch 不达；未来一切 `texlate patch` 件同洞。通用件候选（N=2 再议）：static_precheck 扫——带 patch-marker/钉旗 vendor 件若 wdir 外解析得中→指纹 wdir drop（pkg_version_skew_vendored 泛化）。
 - roster 4：pendspec(#59)/mnrasretire(#61 重设计消化中)/flipcheck5(#62 完待报)/pairediff；texmfshadow 尸清。
+
+## 2026-09-19 ~05:5x — pairediff BUILD 裁决 + flipcheck5 全报 + slotdiff 派
+
+- **pairediff 裁决=BUILD**（tmp/lane-pairediff/proto.py）：per-file in-memory 配对——`res.vtex` 字节=src（post-normalize，protected_tex 是错面带占位符）；三 splice 点（e2e:236/worker:319/repair_l2:399）同刻持对。**FP 实证零**：~150 配对扫描全 55 原始旗皆错配伪影（normalize `\bibliography`→`\input{bbl}`×54 + fixloop cite-key 清洗×1），splice-时接线全消。**免责名录零需**。判例：现树空转（141 格 0 机令 token 上 chunk 面——restatable ungate 已修），价值=下次扫描隙泄参的绊线（silentthm 类事件旧靠运气发现）。合成实证：restatable env 参 CJK 改写 + `\label`→`\ref` ASCII 错植皆中，cite 重排正确抑制。
+- **#63 slotdiff 派出**：`paired_slot_diff(src_tex,zh_tex,rel)->list[str]` 进 judge.py——**append-only 约束**（peer 正在同文件重构 `_machine_slot_probe`→公共 audit，禁碰既有函数，新代码自立 `_slot_args` 提取器不重构 `_slot_scan`）；cite/bib 键表归一（逗号拆+重排免旗）余原子；note=`slot_arg_missing`/`slot_arg_extra` 双向 Counter diff 封顶 _MACHINE_SLOT_MAX。三接线点 patch text 交我转 texlate-13（彼域文件）。~80 行产+~60 测。
+- **flipcheck5 全报收**（#62 清尸）：四目标格全验+新残口=**`\cite`-in-math 字体开关**——gr-qc/9901082 splice:466 `\bfseries invalid in math` 残存，源无字面开关组：`\cite{HawMos}` 处 `$…$` 内被文-mode `{\it …}` 包，revtex compat 执行期解开关→\bfseries——字面组改写域外（b3a 同残，acceptable_pdf 语义挂 #10 裁决）。grpOpaque 判verdict-neutral 但 **gen_overflow 警 1→0 全 6 格**（spec walker 代探针正信号）。36/36 零逃逸收官。
+- roster 3：pendspec(#59)/mnrasretire(#61)/slotdiff(#63)；flipcheck5/pairediff/texmfshadow 尸清。
+- 待办串联：slotdiff 交付后三接线 patch text 转 texlate-13（彼 splice 域 e2e/worker/repair_l2）；pendspec 落地后 segmirror 放行的 ping 链不变。
