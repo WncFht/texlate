@@ -540,3 +540,12 @@
 - **新派 roundcat+texmfshadow+pairediff**：①`_round_cat` 读 sentry_reason（engine.py 微修+RunFn 注记）②texmfshadow census 扩域=vendor 可达性普查（filemap/tlmgr/doc-dir/TEXMFHOME 各解析点谁遮蔽 vendor 件）③pairediff 设计 src/zh 机槽参 diff 探针（ASCII↔ASCII mangling 盲区，先实证 FP 率再定建否）。
 - roster 7 在飞：pendspec(#59)/draftsty(#60)/mnrasretire(#61)/flipcheck5(#62)/roundcat/texmfshadow/pairediff；旧尸(psttimeout/multistrand/skiprole/mnras-optpatch/iffalse/pstadd/sentryfix/slotaudit/geomreverify)回声确认早收。
 - 门巡：ledger 9ed9a03 已 commit；geomverify report.md 已按全报重写。裁决点新增=孪生头守门机制选型（暂入册多错 dispatch 方向）。
+
+## 2026-09-19 ~04:5x — 夜巡：flipcheck5 半程数据 + draftsty 撞区处置
+
+- **flipcheck5 半程**（stagerun-fixcheck5，42 格=6 nonclean 修复臂+36 clean 回归臂）：compile 臂 36/42 全 clean 零回归；fixloop 臂 5/6 出——**astro-ph/9910310→clean**（math-switch 目标格全翻，rules=[tar_blob_extract,static_precheck,legacy_pkg_shim]）、**gr-qc/9901082→acceptable_pdf**（revtex209_surface_polyfill）、2112.00045→clean（csvsimple_l3_kernel_retire+pkg_version_skew_vendored=providesdate 投资兑现）、2105.03852/0806.4130→best_effort_pdf；0707.4206 pstadd 目标格在飞。
+- **draftsty×mnrasretire 撞区处置**：draftsty 抢在我 95-targeted pin 到达前把 `abstract_edef_capture_neutralize`（~71 行 run_tool 规则——`\protected@edef\@tempa{\ifnum`}=\z@` 吞 `}` 签名确证 + `\endinput` 前注入良性 \def\abstract 覆写，texlate-fixloop-injected 幂等）写进 40-install.yaml。裁定=**成品留原位**（语义可属 install/patch 类，搬迁纯增错）→ draftsty 冻笔待提交，mnrasretire 串行候场（先答 refetch-path 正确性问题+写测试件，yaml 落笔待我 ping）。文件互斥纪律内推成立。
+- **roundcat WIP 抽查合规**：`_round_cat` sentry_reason 优先→`runaway_output`+`sentry:<arm>` payload 槽（镜像 `_timeout_verdict`），RunFn 注记 `bool|str`，信号死 killed 改写逻辑保留——on-spec 未收割。
+- **peer 续流**：parsebench.py v1 臂 parse_one 整删（我 e9757c0 惰性导入件同去——v1 退役收尾，docs/09 §7.1 口径）；judge.py `machine_slot_audit` 公共化重构+repair.py/docs 改动仍彼在飞。
+- roster 7 在飞全活：pendspec(#59 未落笔——设计期)/draftsty(#60 yaml 成品+test 件在飞)/mnrasretire(#61 yaml 候场)/flipcheck5(#62 6th 格在跑)/roundcat(engine.py WIP)/texmfshadow(census 件产)/pairediff(proto.py 产)。
+- 门巡：compile 臂 36/36 clean 零逃逸（半程口径）；无 git 违例（工作树改动全可归属：engine.py=roundcat、40-install=draftsty、test_fixloop_draftsty.py=draftsty、parsebench/judge/repair/docs=peer）。
