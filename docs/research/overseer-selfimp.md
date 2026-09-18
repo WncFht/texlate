@@ -512,3 +512,18 @@
 - **texlate-13 双 ping**：①grpOpaque 落地通报（彼三镜像表合并解锁）②pendspec 同文件撞区预警（彼排期在先可串行）。parsebench 修复亦已互报。
 - roster 5 在飞：providesdate(#54)/sentryfix(#56)/geomreverify(#57)/slotaudit(#58)/pendspec(#59)；grpOpaque 尸已清（self-terminated）。
 - 门巡：本 tick 域内 49+139 绿 ruff 净；parsebench 断链属 peer 瞬态非回归；commit 全我署。L1 口径提示：l1-gate 结果系 post-W84 树（昨日 21:43 完），peer v1 退役落地后现行树 L1 需重跑——记档待彼 refactor 收敛。
+
+## 2026-09-19 ~04:1x — 收割潮二：providesdate/sentry/slotaudit 三落 + geomverify 揭 texmf 影蔽新类
+
+- **f8b884d providesdate 收**（#54）：`_provides_date` 覆盖 expl3 花括号三参 `{n}{YYYY-MM-DD}`（237 texmf 件，csvsimple ld<sd 闸实证饿）+ `\ProvidesFile` + `[%` 续行 + `_cs_date` 间接署名解析（\def/\tl_*/\*command/\GetIdInfo→\ExplFileDate，ver==-1→None）；不可解=None 绝不猜日期（错日期静默毒 ld<sd）。581/601 texmf expl3 件得日期（原~0）；22 钉+48 域绿+361 fixloop 扫绿。
+- **405c5b5+cb404a6 sentryfix×slotaudit 双道同 file 收**（#56/#58，judge.py 分时复用——机制层先落、judge 层待 slotaudit 完成后双署提交）：
+  - sentryfix：`_RunawaySentry` 双臂——`page_flood`（`[N]` shipout ≥10K，gr-qc/0104075 ~97K 页 25s 杀，count 非 max 故散 `[12345]` 引用不触）+ `vbox_flood`（vbox sigs ≥30 ∧ >4×页标=密度语义，1003.2165 46sigs/46页 ~1:1 永不触）；`run_process` 返 `bool|str` timed_out，`_collect_compile_outputs` 归一→`CompRes.sentry_reason`（零引擎改）；judge `_timeout_verdict` 优先录因（sentry:<arm> note+runaway_output）否则全 .log 扫兜底（4KB 尾窗看不见 page-flood）。~20+166 钉绿。
+  - slotaudit：`_machine_slot_probe` 泛化 `_thm_restate_probe`——`_MACHINE_SLOT_RXS` 八面表（env 名/restatable 双机参/label-ref 族/cite 族/bib/csname DOTALL/include+includegraphics 必参/input 三形）走 `mask_tex` 视图（注释/verbatim/死区不触），`_DEAD_TAIL_RX` 截 \end{document}/\endinput；note `machine_slot_nonascii:<kind>:<file>:<arg>` 封顶 20；**NOTE-LEVEL 永非红线**（纸真 CJK env 名合法），可选位参构造不触（`[..]` 先消费）。+~105 钉。
+- **geomverify 判明**（#57）：1206.0291 → best_effort_pdf + post clean；**geometry clash 签名确现身**（salvage 轮 L503 `Option clash for package geometry` tex:147）但不到 dispatch——r1 被前位错 `mnras.cls:114 \RequirePackage in Options Section` 截杀（cat=other 无规则 when 匹配，零 action）。根因=**user-texmf 影蔽**（新缺陷类）：`_texmf/home/` 复刻 `~/texmf/` 旧 buggy mnras.cls（`\ds@usegraphicx` 内联 `\usepackage`），我 patched vendor 件永不上场——static_precheck 只补缺失件（mn2e.cls），texmf 已有件不触发 vendored_fetch。同 pstricks-add 影蔽形上一层。**新派 mnras-retire**：fingerprint retire 规则进 40-install.yaml（`\def\ds@usegraphicx` 体含 \usepackage/\RequirePackage → mv .fixloop-iso → vendored_fetch patched；texlate-fixloop-injected 指纹跳过防环）。
+- **providesdate STAND DOWN 事故**：其报 #60 道号与 draftsty 撞——即停，#60 owner=draftsty 无实害。
+- **texlate-13 串行反转确认**：pending.py 上 pendspec 先 commit（小行为修 diff），彼三镜像表合并后 rebase（"吸已 commit 码比 rebase 真 spec walker 上新表风险低"）；彼 merge 开工前 ping 我。
+- **loginfo rename 瞬态**：peer `_ERR_*`→`ERR_*` 改名断 loginfo.py，彼自落消费端修，已解。
+- **派 flipcheck-5**（gate ②③ 兑现）：replay 0707.4206（pstadd retire）、astro-ph/9910310+gr-qc/9901082（math switch）、grpOpaque 覆盖格 + ≥30 clean 格 sabotage 检查。
+- roster 3 在飞：geomreverify(#57 完待收尸)/pendspec(#59)/draftsty(#60)；sentryfix/slotaudit/providesdate 尸已清。新派 mnras-retire+flipcheck-5 → 5。
+- 门巡：L1 gate 全绿收官（1955/1955 ok strict，leak 0.0/135840——post-W84 树口径）；autogloss-reg ALL DONE 双臂 rc=0 qualfreeze pass；L0 域本轮 22+20+166+105 钉绿；commit 全我署。
+- 残口入册：`_round_cat` 不读 sentry_reason（fixloop/engine.py:~L201 跟进件）；`RunFn` 别名 ~L159 注记陈旧；`_grp_arg_prose` 缺 `_ZERO_WIDTH_ARG_RX`；ASCII↔ASCII env-arg mangling 仍盲区；texmf 影蔽类=mnras 首案，他 texmf-resident buggy 件同型待普查。
