@@ -702,3 +702,14 @@
 - **envpoly 追单在飞**：_ENV_COMPANIONS 对偶件表（proof→\QED 开口盒 stub，0707.1588 转办）+95-targeted.yaml citerule 编辑中（#79）。
 - **新派研道**：pipecensus（Cannot run pipe command/.xbb 家族普查）、chineseconf（\chinese already defined 注入冲突普查）。
 - roster：citerule(#79)/auxeof(#84) + envpoly 追单 + pipecensus/chineseconf = 5 活；脱管批 3（L1 闸、drvdef 已完、flipcheck7）。
+
+## 2026-09-19 ~07:0x — 收割潮4：inputleak/QED/auxeof/citerule 四连 commit + 研报双核销派车道
+
+- **30d53c0 inputleak**：L1 闸落地绿（parsebench-v3-inputleak ok 1955/1955 strict、leak 0.0/133372）→ 提交。args.py in_arg 裸 `\input f.tex` 文件名连吃 FILENAME_CHARS 入 CMD 保护段（zhfile 普查 `\caption{…\input…}` 实漏），+7 钉。
+- **a5a26b6 envpoly 追单**：`_ENV_COMPANIONS` 对偶件表（proof→`\providecommand{\QED}` amsthm 开口盒 stub）随批块/站点前置同块下落；blob 取证先于注入防 stub 自证；95-targeted `QED:` cs_map 独立兜底。+4 钉（批块/站点/证据门/独立 env 负例）。
+- **cc10b53 auxeof 核销转修**：2403.05523 `aux_scan_eof|newl@bel` 幻影链根因=终编臂 (`passes>1` 同轮全遍终编) 只排 timed_out——xdvipdfmx `pdf_link_obj` fatal→SIGPIPE 截杀产 pdf+截断净 log (n_bang=0)，漏闸同轮重编恰读上半行截断 aux 自产自销（16384B 边界实证）；purge 每 payload 一次不可断。修=臂条件→`not _res_died(res)`（与 :905 clean 门同义）。3 钉含正控（健康 pass-1 终编照发）。余案→#94 xlinkobj（xdvipdfmx fatal 根车道=hyperref-link 畴）。
+- **12c21a5 citerule #79**：taxonomy `invalid_in_math`（`LaTeX Error:` 锚防同句式 Warning 抢签）+ latex209 `_math_regions`/`_cite_mbox_edits` 共用模态域走查抽出（`_fix_math_209` 与新规则同消费单源）+ `_builtins_bib.cite_in_math_mbox`（数学域裸 cite 族→`\mbox{}`，kernel 无包依赖；无 cite token 拒发）+75-syntax:105。natbib `\@citex` `{\reset@font\bfseries ?}` 无盒标记自续链断。20 钉。
+- **pipecensus 核销→#92 xbbpregen**（已派）：`Cannot run pipe command`+`.xbb no BoundingBox` 对偶错=dvipdfmx.def 内部 `\openin"|extractbb` 走 shell-escape；xetex.def 原生量 PDF 无管无 xbb。2105.00151 字面 `[dvipdfmx]` 26 错实损（missing_graphic）；2403.00013 已被 drvdef 臂灭（def→xetex 后走原生路径）。荐=extractbb 预生成 .xbb 落 wdir（`\Gread@generic` 先命中、零源改写零 write18）。
+- **chineseconf 核销→#93 chineseclear**（已派）：`\chinese already defined`=dhucs→xetexko `\let\chinese\Schinese`（cls 内载）× 注入 ctex `\cs_new:Npn \chinese` 冲突；cls 仅字符串比 "chinese" 于 \author 选项未调 cs → undefine 安全。荐=75-syntax ~110.8 `Control sequence` 签→`\let\X\@undefined` 于 docclass 后 ctex 前；警勿扩 _ALREADY_DEF_CS_RE（`\c__fontspec_*` 会劫 fontspec_double_merge 110.5<110.7）。
+- **peer 重构事故闭环**：bench/py 中途 staged 改名曾致 stage_compile `import quality_proxies` 断 → flipcheck7 fixloop 阶段零产出；peer 落定后 import 复原 → **fixloop-only 重放已起**（28 非净格 jobs4，compile 记录复用）→ tmp/lane-flipcheck7/run-fixloop.log。
+- roster 3：xbbpregen(#92)/chineseclear(#93) 跑、citerule 交付已收待尸清；auxeof/pipecensus/chineseconf/envpoly/expl3fix 尸清。
