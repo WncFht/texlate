@@ -428,3 +428,47 @@ rules:
         }
     stats: { fires: 0, status: proposed }
     source_ref: "geomlane; vendor/files/mnras.cls:117 + fixloop.jsonl error_pay option_clash=geometry 实读"
+
+  # 2026-09-19 floatopt lane (failmine 提名, stagerun-loop1-2026-09-16 五格
+  # 实读): float_opt|H —— 稿用 float 宏包专属锚 H (kernel \@xfloat 只认
+  # h/t/b/p/!) 而 preamble 未载 float → "Unknown float option `H'"。五格
+  # 形态: cond-mat/0408234 [H]; 0806.4088 [!Ht]; 1608.02624 [Hb]/[H!];
+  # astro-ph/0307059 [H!tbp]; 1003.5014 [H] —— H 与 !/小写混排同炸,
+  # 括号内 H 字符任意位都算使用证。根修即补包 (语义零改写, 非 [H]→[htbp]
+  # 降级)。source_contains 单 regex 组合双断言: \A(?!.*LOAD) 全程无 float
+  # 装载点 (usepackage/RequirePackage 名单元素级 \bfloat\b + \input
+  # float.sty 裸载形), (?=.*USAGE) 存在含 H 的浮体选项括号——ctx+source
+  # 双闸同证机理才动。注入落 \begin{document} 前 (masked 面: 注释掉的
+  # 不算), 注入后 LOAD 断言自锁 → 跨轮幂等。
+  - id: float_opt_h_pkgload
+    description: "float_opt 'H' 且 float 未载 → \\begin{document} 前注入 \\usepackage{float}"
+    phase: loop
+    order: 187 # option_clash_geometry_hoist(186) 后; 同签 comma_strip(184, 95-targeted) 先收逗号形
+    when: { category: float_opt, payload_required: true }
+    condition:
+      ctx_suggests: "Unknown float option [`']H'"
+      # 2.09 (\documentstyle) 无 \\usepackage——注入即非法 (input_sty_to_usepackage 同闸)
+      main_head_contains: "\\documentclass"
+      source_contains: "\\A(?![\\s\\S]*(?:\\\\(?:usepackage|RequirePackage)\\s*(\\[[^\\]\\n]*\\])?\\s*\\{[^}]*\\bfloat\\b|\\\\input(?:\\s*\\{\\s*|\\s+)float\\.sty))(?=[\\s\\S]*\\\\begin\\{[A-Za-z]+\\*?\\}\\s*\\[[^\\]\\n]*H)"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex]
+        rewrites:
+          - {
+              pattern: "(\\\\begin\\{document\\})",
+              repl: "% fixloop: float_opt H specifier needs float pkg\n\\\\usepackage{float}\n\\g<1>",
+              match_surface: "masked",
+            }
+    risk: low # float 只补锚定义; 已载稿被 LOAD 闸挡; 真双载 LaTeX 静默收敛
+    known_gap: "LOAD 断言走 raw 源面: 注释内/verbatim 假装载点视作已载 → 保守不点火 (漏救非误改); .def/.clo/.ins 等 tex_files 扩展名外的装载不可见 → 误注无害双载; [H] 纯宏展开生成 (源面无字面括号 H) → USAGE 断言拒 (病理形)"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "0806.4088/1003.5014/1608.02624/astro-ph/0307059/cond-mat/0408234 (stagerun-loop1-2026-09-16 failmine)",
+          error: "LaTeX Error: Unknown float option `H' @ \\begin{figure|table}[H]/[!Ht]/[Hb]/[H!tbp]",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "failmine float_opt|H lane; corpus_v3 五格源实读混排形"
