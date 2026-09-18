@@ -22,6 +22,7 @@ r"""``\input/\include`` 展平（docs/07 §7）。
 
 from __future__ import annotations
 
+import errno
 import re
 from pathlib import Path
 
@@ -43,6 +44,7 @@ from texlate.textutil import (
     BEGIN_DOC_RX,
     DEAD_ENVS,
     END_DOC_RX,
+    _tar_disguised,
     dead_env_end,
     decode_tex,
     mask_tex,
@@ -137,7 +139,12 @@ def _resolve(  # noqa: C901 — 根集装配 + 三段候选循环平铺即查找
 
 def _read_file(path: str) -> str:
     """文件读取接缝（bench ``flatten_reach`` 的 open 记录器经 shim 重绑这里）。"""
-    return decode_tex(Path(path).read_bytes())
+    blob = Path(path).read_bytes()
+    if _tar_disguised(blob):
+        # tar 伪装件——成员字节经 decode_tex（永不抛）解出假散文，内联进
+        # 展平输出即污染翻译面；按 OSError 走 _try_input 的非展开回吐
+        raise OSError(errno.EINVAL, "tar archive disguised as tex", path)
+    return decode_tex(blob)
 
 
 def _extract_tag_region(tex: str, tag: str) -> str | None:

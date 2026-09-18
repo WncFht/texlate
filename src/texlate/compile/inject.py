@@ -32,6 +32,7 @@ from texlate.textutil import (
     INPUT_BARE_RX,
     INPUT_BRACED_RX,
     VERBATIM_ENVS,
+    _tar_disguised,
     clean_decl_name,
     decode_tex,
     iter_depth0,
@@ -42,7 +43,7 @@ from texlate.textutil import (
 
 from .latex209 import upgrade_209
 from .mask import group_end, visible_tex
-from .normalize import _tar_disguised, inject_preamble
+from .normalize import inject_preamble
 
 if TYPE_CHECKING:
     from collections.abc import Iterator, Mapping

@@ -616,3 +616,46 @@ _decode_tex_with_memo = lru_cache(maxsize=_MEMO_MAXSIZE)(_decode_tex_with)
 def decode_tex(blob: bytes) -> str:
     """解码 arXiv 源码字节；判定层级见 :func:`sniff_tex_encoding`。"""
     return decode_tex_with(blob)[0]
+
+
+# ---------------------------------------------------------------- 伪装二进制闸
+#: tar 魔数探测窗——与 fixloop ``_tar_header_start`` 同口径（前 64KB 扫
+#: ``ustar``、回推 257 验头），原生与被前置注入推位的变异 blob 通吃。
+#: ``decode_tex`` 永不抛（latin-1 兜底）：tar 成员文本里可含
+#: ``\begin{document}``/``\documentclass``/``\fontfamily``，blob 解出的
+#: "文本"照样命中各手术锚点——0707.0382 ``AMSbsy.sty`` 实为 1MB tar，
+#: 兼容前导块前置把 ustar 推离 257 实案。宿于本叶：compile/latex 两层
+#: 共用（normalize/inject 手术面 + api/flatten 翻译面），不能锚在消费层。
+_TAR_SNIFF_WINDOW: Final = 65536
+_TAR_MAGIC_OFF: Final = 257
+_TAR_MAGIC: Final = b"ustar"
+#: tar chksum 字段（头内偏移 148，8 字节）——POSIX 形 ``6 位八进制+NUL+空格``，
+#: GNU 形 ``6 位八进制+空格+NUL``；轻校验挡文本里 ``ustar`` 字样的假阳
+#: （普通文本同名段凑不出该字段形态）。
+_TAR_CHKSUM_OFF: Final = 148
+_TAR_CHKSUM_LEN: Final = 8
+
+
+def _tar_header_ok(head: bytes, start: int) -> bool:
+    """Tar 头轻校验：name 首字节非 NUL + chksum 字段八进制形态。"""
+    if head[start] == 0:
+        return False
+    chk = head[start + _TAR_CHKSUM_OFF : start + _TAR_CHKSUM_OFF + _TAR_CHKSUM_LEN]
+    return (
+        len(chk) == _TAR_CHKSUM_LEN
+        and all(c in b"01234567 " for c in chk[:6])
+        and chk[6] in (0, 0x20)
+        and chk[7] in (0, 0x20)
+    )
+
+
+def _tar_disguised(blob: bytes) -> bool:
+    """Tar 伪装件判定：探测窗内 ``ustar`` 回推 ``_TAR_MAGIC_OFF`` 验头。"""
+    head = blob[:_TAR_SNIFF_WINDOW]
+    pos = head.find(_TAR_MAGIC)
+    while pos != -1:
+        start = pos - _TAR_MAGIC_OFF
+        if start >= 0 and _tar_header_ok(head, start):
+            return True
+        pos = head.find(_TAR_MAGIC, pos + 1)
+    return False

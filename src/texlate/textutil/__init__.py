@@ -58,6 +58,7 @@ from .encoding import (  # noqa: F401
     _declared_name,
     _decode_tex_with_memo,
     _eol_norm,
+    _tar_disguised,
     decode_tex,
     decode_tex_with,
     sniff_tex_encoding,

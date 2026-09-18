@@ -29,7 +29,14 @@ from texlate.latex.placeholder import PH_RX, PlaceholderIssuer
 from texlate.latex.prose import file_has_prose
 from texlate.latex.scanner import Scanner
 from texlate.latex.segmenter import parse_tex_v2, scan_v2
-from texlate.textutil import BEGIN_DOC_RX, DOCCLASS_RX, decode_tex, env_flag, mask_tex
+from texlate.textutil import (
+    BEGIN_DOC_RX,
+    DOCCLASS_RX,
+    _tar_disguised,
+    decode_tex,
+    env_flag,
+    mask_tex,
+)
 
 _NO_EXPAND = "TEXLATE_NO_EXPAND"
 
@@ -80,7 +87,12 @@ def parse_file_v1(
     main = Path(path).resolve()
     if not main.is_file():  # fifo/设备/检查时点消失——read_bytes 会悬挂或裸 OSError
         raise OSError(errno.ENXIO, "not a regular file", str(main))
-    tex = decode_tex(main.read_bytes())
+    blob = main.read_bytes()
+    if _tar_disguised(blob):
+        # tar 伪装 .tex——decode_tex 永不抛会把成员字节当散文喂
+        # parse→reconstruct 写回即腐蚀 blob；直读入口按 OSError 拒
+        raise OSError(errno.EINVAL, "tar archive disguised as .tex", str(main))
+    tex = decode_tex(blob)
     flat_warnings: list[ScanWarning] = []
     if flatten:
         d = str(main.parent)
@@ -124,7 +136,11 @@ def parse_file(
     main = Path(path).resolve()
     if not main.is_file():  # fifo/设备/检查时点消失——read_bytes 会悬挂或裸 OSError
         raise OSError(errno.ENXIO, "not a regular file", str(main))
-    tex = decode_tex(main.read_bytes())
+    blob = main.read_bytes()
+    if _tar_disguised(blob):
+        # tar 伪装 .tex——成员字节不是 tex 面（同 parse_file_v1 闸）
+        raise OSError(errno.EINVAL, "tar archive disguised as .tex", str(main))
+    tex = decode_tex(blob)
     if flatten:
         g = Gullet(
             root_dir=str(main.parent),
@@ -184,6 +200,14 @@ def scan_tex_tree(
         rel = f.relative_to(root).as_posix()
         if lowered.endswith(CODE_TEX_SUFFIX):
             out.support.append(rel)
+            continue
+        try:
+            blob = f.read_bytes()
+        except OSError:
+            blob = b""  # 读不动交给下方 parse_file 的 fault 分流记名
+        if _tar_disguised(blob):
+            # tar 伪装 .tex——成员字节不是翻译面（decode_tex 永不抛会把成员
+            # 文本当散文送译、写回腐蚀 blob）；不入任何名单，逐字节原样保留
             continue
         try:
             res = parse_file(f, flatten=False)

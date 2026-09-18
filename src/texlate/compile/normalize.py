@@ -30,6 +30,7 @@ from texlate.textutil import (
     BEGIN_DOC_RX,
     CMD_BOUNDARY,
     DOCCLASS_OPTS_RX,
+    _tar_disguised,
     decode_tex,
     decode_tex_with,
     safe_is_file,
@@ -466,50 +467,12 @@ def _latin_font_edits(
 
 
 # ---------------------------------------------------------------- 伪装二进制闸
-#: tar 魔数探测窗——与 fixloop ``_tar_header_start`` 同口径（前 64KB 扫
-#: ``ustar``、回推 257 验头），原生与被前置注入推位的变异 blob 通吃。
-#: ``decode_tex`` 永不抛（latin-1 兜底）：tar 成员文本里可含
-#: ``\begin{document}``/``\documentclass``/``\fontfamily``，blob 解出的
-#: "文本"照样命中各手术锚点——0707.0382 ``AMSbsy.sty`` 实为 1MB tar，
-#: 兼容前导块前置把 ustar 推离 257 实案。
-_TAR_SNIFF_WINDOW: Final = 65536
-_TAR_MAGIC_OFF: Final = 257
-_TAR_MAGIC: Final = b"ustar"
-#: tar chksum 字段（头内偏移 148，8 字节）——POSIX 形 ``6 位八进制+NUL+空格``，
-#: GNU 形 ``6 位八进制+空格+NUL``；轻校验挡文本里 ``ustar`` 字样的假阳
-#: （普通文本同名段凑不出该字段形态）。
-_TAR_CHKSUM_OFF: Final = 148
-_TAR_CHKSUM_LEN: Final = 8
-
-#: 支持件兼容前导块注入的 NUL 探测窗——``_transcode_one`` 漏网二进制闸
-#: 同族；strict-UTF-8 字节面下 NUL 即非文本证据（0x00 是合法 UTF-8 码位，
-#: 仅靠判定族分不出 ASCII+NUL 的 blob）。
+#: tar 伪装件判定宿于 ``textutil.encoding._tar_disguised``（本件经 facade
+#: import 消费——compile/latex 两层共用的字节闸不能锚在消费层，规格注记
+#: 随迁）。本档残留件：支持件兼容前导块注入的 NUL 探测窗——
+#: ``_transcode_one`` 漏网二进制闸同族；strict-UTF-8 字节面下 NUL 即非文本
+#: 证据（0x00 是合法 UTF-8 码位，仅靠判定族分不出 ASCII+NUL 的 blob）。
 _PROLOGUE_NUL_WINDOW: Final = 4096
-
-
-def _tar_header_ok(head: bytes, start: int) -> bool:
-    """Tar 头轻校验：name 首字节非 NUL + chksum 字段八进制形态。"""
-    if head[start] == 0:
-        return False
-    chk = head[start + _TAR_CHKSUM_OFF : start + _TAR_CHKSUM_OFF + _TAR_CHKSUM_LEN]
-    return (
-        len(chk) == _TAR_CHKSUM_LEN
-        and all(c in b"01234567 " for c in chk[:6])
-        and chk[6] in (0, 0x20)
-        and chk[7] in (0, 0x20)
-    )
-
-
-def _tar_disguised(blob: bytes) -> bool:
-    """Tar 伪装件判定：探测窗内 ``ustar`` 回推 ``_TAR_MAGIC_OFF`` 验头。"""
-    head = blob[:_TAR_SNIFF_WINDOW]
-    pos = head.find(_TAR_MAGIC)
-    while pos != -1:
-        start = pos - _TAR_MAGIC_OFF
-        if start >= 0 and _tar_header_ok(head, start):
-            return True
-        pos = head.find(_TAR_MAGIC, pos + 1)
-    return False
 
 
 def _prologue_ok(blob: bytes, verdict: EncodingVerdict) -> bool:
