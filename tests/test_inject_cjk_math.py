@@ -68,7 +68,7 @@ def test_first_use_warmup_injected_both_modes() -> None:
     """两条注入路径都带首用 warmup，且注册点在 CJK 宏包加载之后（启用点序正确）。"""
     tex = "\\documentclass{article}\n\\begin{document}\nx\\end{document}\n"
     anchors = {
-        "ctex": r"\usepackage[fontset=fandol,UTF8]{ctex}",
+        "ctex": r"\usepackage[fontset=fandol,UTF8,zihao=false]{ctex}",
         "xecjk": r"\setCJKmainfont",
     }
     for mode in ("ctex", "xecjk"):

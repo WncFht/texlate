@@ -63,7 +63,7 @@ WORK_DIR = ROOT / "bench" / "work_gwpilot"  # 命中 bench/work_*/ gitignore
 RESULTS_DIR = ROOT / "bench" / "results" / "gwpilot"
 TASK_PING = PY_DIR / "task_ping.py"
 
-DEFAULT_UPSTREAM = os.environ.get("TEXLATE_BASE_URL", "http://127.0.0.1:3003")
+DEFAULT_UPSTREAM = os.environ.get("TEXLATE_BASE_URL", "http://127.0.0.1:3033")
 DEFAULT_PORT = 3398
 DEFAULT_KEY = os.environ.get(
     "TEXLATE_API_KEY", ""

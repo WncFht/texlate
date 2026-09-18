@@ -3,7 +3,7 @@ r"""e2e real bench — corpus_v3 抽样 → 真实网关翻译 → ctex 注入 �
 
 docs/10 §B5 Mode B（真实翻译 E2E）。与 e2e_mock_bench 同产出契约
 （results.json + matrix.md + summary.md），差异只在翻译器：
-``XlatPipeline(GatewayTranslator(ChatClient))`` 打 3003 网关真模型，
+``XlatPipeline(GatewayTranslator(ChatClient))`` 打 3033 网关真模型，
 其余 route → normalize → L0 校验 → splice → prepare_chinese → compile →
 judge 全走 ``texlate.*`` 正式实现（``texlate.e2e.base_condition`` 复用，
 pipe 条件因翻译是 async 在本文件内联同款流程）。
@@ -37,7 +37,7 @@ pipe 条件因翻译是 async 在本文件内联同款流程）。
 产出: bench/results/e2e-real-<tag>-<date>/{records.jsonl,results.json,matrix.md,summary.md,run_meta.json}
 工作区: bench/work_e2ereal/{cond}/{safe_id}/ + _xlat_state/{safe_id}/（gitignored）
 依赖: uv venv（httpx/typer）；xelatex；pdftotext（judge CJK 检查）；
-      3003 网关（TEXLATE_GATEWAY_KEY 或 --api-key，默认见 -h）。
+      3033 网关（TEXLATE_GATEWAY_KEY 或 --api-key，默认见 -h）。
 """
 
 from __future__ import annotations
@@ -1007,12 +1007,12 @@ def main() -> None:
     ap.add_argument("--model", default="swe-2-medium")
     ap.add_argument(
         "--base-url",
-        default=os.environ.get("TEXLATE_BASE_URL", "http://127.0.0.1:3003"),
+        default=os.environ.get("TEXLATE_BASE_URL", "http://127.0.0.1:3033"),
     )
     ap.add_argument(
         "--api-key",
         default=os.environ.get("TEXLATE_API_KEY", ""),
-        help="gateway bearer key（默认本机 3003 开发 key）",
+        help="gateway bearer key（默认本机 3033 开发 key）",
     )
     ap.add_argument("--concurrency", type=int, default=10)
     ap.add_argument("--timeout", type=float, default=240.0, help="compile timeout")

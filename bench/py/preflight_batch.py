@@ -32,7 +32,7 @@ sys.path.insert(0, os.environ.get("TEXLATE_SRC", str(ROOT / "src")))
 
 BENCH = ROOT / "bench"
 CORPUS = BENCH / "corpus_v3"
-GATEWAY_DEFAULT = os.environ.get("TEXLATE_BASE_URL", "http://127.0.0.1:3003")
+GATEWAY_DEFAULT = os.environ.get("TEXLATE_BASE_URL", "http://127.0.0.1:3033")
 TOOLS = ("xelatex", "tectonic", "pdftotext")
 
 FAILS: list[str] = []

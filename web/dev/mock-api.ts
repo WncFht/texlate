@@ -617,7 +617,7 @@ seedTask("t_0000000000000a09", "done", {
 // 字段面 = SettingsStore.FIELDS 全量）
 const mockSettings: Record<string, unknown> = {
     has_api_key: true,
-    base_url: "http://127.0.0.1:3003/v1",
+    base_url: "http://127.0.0.1:3033/v1",
     model: "swe-2-medium",
     target_lang: "zh-CN",
     glossary: "",
@@ -814,7 +814,7 @@ function handleApi(req: Req, res: Res, url: URL): boolean {
             {
                 id: "gateway",
                 name: "Local Gateway",
-                base_url: "http://127.0.0.1:3003/v1",
+                base_url: "http://127.0.0.1:3033/v1",
                 model: "swe-2-medium",
                 key_env: "MOCK_GATEWAY_KEY",
             },

@@ -182,7 +182,7 @@ def main() -> None:
     p_xl.add_argument("--model", default="swe-2-medium")
     p_xl.add_argument(
         "--base-url",
-        default=os.environ.get("TEXLATE_BASE_URL", "http://127.0.0.1:3003"),
+        default=os.environ.get("TEXLATE_BASE_URL", "http://127.0.0.1:3033"),
     )
     p_xl.add_argument("--api-key", default=os.environ.get("TEXLATE_API_KEY", ""))
     p_xl.add_argument("--no-probe", action="store_true")

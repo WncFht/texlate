@@ -34,7 +34,7 @@ docs/research/xlat-quality-eval-2026-09-18 §7）：
   任一 critical、L0 信号矛盾（ph 缺失/en_residue≥8 但 judge 未报对应
   类目）。judge≠translator 按 chunk 级 meta.model 强制；swe-2-medium
   永不任 judge。judge 调用直接 httpx 打 OpenAI /v1/chat/completions
-  ——不 import texlate.xlat（--judge-temperature 默认 0.1：3003 网关
+  ——不 import texlate.xlat（--judge-temperature 默认 0.1：3033 网关
   temperature=0 直接 502；--judge-max-tokens 默认 8192 给 reasoning
   留预算；--judge-timeout 默认 300s）。
 
@@ -1260,7 +1260,7 @@ def main() -> None:
     )
     p_run.add_argument(
         "--base-url",
-        default=os.environ.get("TEXLATE_BASE_URL", "http://127.0.0.1:3003"),
+        default=os.environ.get("TEXLATE_BASE_URL", "http://127.0.0.1:3033"),
     )
     p_run.add_argument("--api-key", default=os.environ.get("TEXLATE_API_KEY", ""))
     p_run.add_argument("--mock-judge", action="store_true", help="离线确定性 judge")
@@ -1275,7 +1275,7 @@ def main() -> None:
         "--judge-temperature",
         type=float,
         default=0.1,
-        help="judge 温度——3003 网关 temperature=0 会 502（response_event），用近零正值",
+        help="judge 温度——3033 网关 temperature=0 会 502（response_event），用近零正值",
     )
     p_run.add_argument(
         "--judge-max-tokens",

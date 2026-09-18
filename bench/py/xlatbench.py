@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 r"""xlatbench — B4a 翻译硬契约回归跑分器 (gwbench 扶正版).
 
-对 3003 网关免费集模型跑分层抽样 LaTeX 段落翻译, 逐调用过 L0 validator
+对 3033 网关免费集模型跑分层抽样 LaTeX 段落翻译, 逐调用过 L0 validator
 + 三条增强判定, 产出 results.jsonl; report 子命令聚合排序表.
 
 样例池 (docs/10 §B4a): corpus_v3 manifest.jsonl 按 ``--where k=v`` 切层
@@ -55,7 +55,7 @@ from texlate.validate.l0 import validate_pair
 
 REPO = Path(__file__).resolve().parents[2]
 
-BASE = os.environ.get("TEXLATE_BASE_URL", "http://127.0.0.1:3003")
+BASE = os.environ.get("TEXLATE_BASE_URL", "http://127.0.0.1:3033")
 KEY = os.environ.get("TEXLATE_API_KEY", "")
 TIMEOUT = 240
 GAP_S = 1.0
