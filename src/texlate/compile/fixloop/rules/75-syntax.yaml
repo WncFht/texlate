@@ -773,6 +773,518 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/lane-pdo: t5 \\pdfstringdefDisableCommands{\\def\\times{}} 0 err 净出 PDF; 纯 acmart+xelatex 复现 → 上游脆弱性非 texlate 注入"
 
+  # 未闭合 \if* → 文件尾 \fi 注入双臂 (failmine item 4, 16 格)。
+  # other 臂: `! Incomplete \iffalse/\ifnum` 首错 (taxonomy 无专属条目 →
+  # `^.` 兜底归 other, ctx_suggests 可及)。脚本对 doc 源件做注释剥离后的
+  # \if*/\fi 栈平衡扫描, 只对"活区"亏格文件在 \end{document}/\endinput/EOF
+  # 前补 \fi —— def 体内 open 是冻结 token (file-end \fi 够不到, 注入反而
+  # 造 Extra \fi), 只计不注; 跨文件借用对 (\if 开 A 件 \fi 闭 B 件) 由全局
+  # opens>closes 闸兜住不注。扫描器即 phantom 判别器: draftsty 类展开态
+  # \iffalse (包内 edef 吞文件) 源件字面平衡 → 纯 noop 不误伤。
+  - id: unclosed_if_close
+    mechanisms: [B05]
+    description: "doc 源件未闭合 \\if* → \\end{document}/\\endinput/EOF 前注入 \\fi (other 臂: Incomplete \\if 首错)"
+    phase: loop
+    order: 196 # pdfstring_cs_disarm(193)/80-bib(195) 之后, undefined_cs_guess(900) 之前; draftsty 补丁(11.95) 先拿 phantom
+    when: { category: other }
+    condition:
+      ctx_suggests: "Incomplete \\\\if"
+      tool_available: python3
+    action:
+      kind: run_tool
+      params:
+        argv:
+          - python3
+          - -c
+          - |
+            import re
+            from pathlib import Path
+
+            try:
+                from texlate.textutil import mask_tex
+            except Exception:
+                mask_tex = None
+
+            MARK = "texlate-fixloop-injected"
+            EXTS = {".tex", ".sty", ".cls"}
+
+            # if-prefixed cs that are NOT TeX conditionals (macro tests, never take \fi)
+            NONCOND = {
+                "iff",
+                "ifdef", "ifundef", "ifcsdef", "ifcsundef", "ifcsempty", "ifcsvoid",
+                "ifdefequal", "ifdefstring", "ifdefempty", "ifdefvoid", "ifdefparam",
+                "ifdefprotected", "ifdefexpandable", "ifdefcounter", "ifdeflength",
+                "ifcsstring", "ifstrequal", "ifstrempty", "ifstrblank", "ifblank",
+                "ifempty", "ifnumcomp", "ifnumequal", "ifnumgreater", "ifnumless",
+                "ifnumodd", "ifdimcomp", "ifdimequal", "ifdimgreater", "ifdimless",
+                "ifboolexpr", "ifboolexpe", "ifbool", "ifboollazy", "iftoggle",
+                "ifinlist", "ifinlistcs", "ifthenelse", "ifnextchar",
+            }
+            # cs whose next N cs-tokens are name/arg positions (not live opens)
+            CONSUME = {
+                "newif": 1, "let": 2, "futurelet": 3, "string": 1, "meaning": 1,
+                "newcount": 1, "newdimen": 1, "newbox": 1, "newskip": 1,
+                "newmuskip": 1, "newtoks": 1, "newread": 1, "newwrite": 1,
+                "newfam": 1, "newinsert": 1, "newlanguage": 1, "chardef": 1,
+                "countdef": 1, "dimendef": 1, "skipdef": 1, "muskipdef": 1,
+                "toksdef": 1, "mathchardef": 1, "font": 1,
+            }
+            # cs that scan name+params until {body}; body tokens are frozen (def-tag)
+            DEFCMD = {
+                "def", "gdef", "edef", "xdef",
+                "everypar", "everymath", "everydisplay", "everyhbox", "everyvbox",
+                "everyjob", "everycr", "everyeof", "output", "toks",
+                "write", "special", "pdfliteral", "directlua",
+                "uppercase", "lowercase", "detokenize", "unexpanded", "scantokens",
+            }
+            # name (cs or {name}) then {body}
+            NCCMD = {
+                "newcommand", "renewcommand", "providecommand",
+                "DeclareRobustCommand", "DeclareMathOperator",
+            }
+            # name then {spec} then {body}
+            SPECCMD = {
+                "DeclareDocumentCommand", "NewDocumentCommand",
+                "RenewDocumentCommand", "ProvideDocumentCommand",
+                "DeclareExpandableDocumentCommand",
+            }
+            # {name} then {beg} then {end}
+            ENVCMD = {"newenvironment", "renewenvironment", "provideenvironment"}
+            CLOSE = {"fi", "repeat"}
+            TOKEN = re.compile(r"\\([a-zA-Z@]+)|([{}])")
+            STOP = re.compile(
+                r"\\end\s*\{document\}|\\endinput\b|\\stop\b|\\end\b(?!\s*\{)"
+            )
+
+
+            def scan(text):
+                """Return (unclosed-live-opens, live-opens, live-closes, boundary-pos).
+
+                Live = outside frozen def bodies; opens inside def-family bodies are
+                counted but never injected (a file-end \\fi cannot reach a token list).
+                """
+                vis = mask_tex(text) if mask_tex else text
+                opens = []  # (name, line, region) region=0 live else enclosing def depth
+                groups = []  # per-{ kind: "grp"|"def"|"skip"
+                live_opens = live_closes = def_unclosed = 0
+                consume = 0
+                pending = None  # brace-kind queue after NC/SPEC/ENV heads
+                def_params = False
+                stops = []  # (pos, live opens depth)
+
+                def def_depth():
+                    d = 0
+                    for i, k in enumerate(groups):
+                        if k == "def":
+                            d = i + 1
+                    return d
+
+                def close_group():
+                    nonlocal def_unclosed
+                    kind = groups.pop() if groups else "grp"
+                    if kind == "def":
+                        while opens and opens[-1][2] == len(groups) + 1:
+                            opens.pop()
+                            def_unclosed += 1
+
+                for tm in TOKEN.finditer(vis):
+                    cs, brace = tm.group(1), tm.group(2)
+                    if brace == "{":
+                        kind = "grp"
+                        if pending:
+                            kind = pending.pop(0)
+                        elif def_params:
+                            kind = "def"
+                            def_params = False
+                        if kind == "name":
+                            kind = "skip"  # \newcommand{\foo} name brace: content unscanned
+                        groups.append(kind)
+                        continue
+                    if brace == "}":
+                        close_group()
+                        if def_params and not pending:
+                            def_params = False
+                        continue
+                    # cs token
+                    if any(k == "skip" for k in groups):
+                        continue
+                    if consume:
+                        consume -= 1
+                        continue
+                    if def_params:
+                        continue  # \def name/params position
+                    if pending and pending[0] == "name":
+                        pending.pop(0)  # \newcommand\foo bare cs name
+                        continue
+                    if cs in CONSUME:
+                        consume = CONSUME[cs]
+                        continue
+                    if cs in DEFCMD:
+                        def_params = True
+                        continue
+                    if cs in NCCMD:
+                        pending = ["name", "def"]
+                        continue
+                    if cs in SPECCMD:
+                        pending = ["name", "skip", "def"]
+                        continue
+                    if cs in ENVCMD:
+                        pending = ["skip", "def", "def"]
+                        continue
+                    if cs == "bgroup":
+                        kind = "grp"
+                        if pending:
+                            kind = pending.pop(0)
+                        elif def_params:
+                            kind = "def"
+                            def_params = False
+                        if kind == "name":
+                            kind = "skip"
+                        groups.append(kind)
+                        continue
+                    if cs == "egroup":
+                        close_group()
+                        if def_params and not pending:
+                            def_params = False
+                        continue
+                    if cs in ("end", "endinput", "stop") and STOP.match(vis, tm.start()):
+                        if def_depth() == 0:  # STOP inside a def body is dead text
+                            stops.append((tm.start(), len(opens)))
+                        continue
+                    d = def_depth()
+                    if cs.startswith("if") and cs not in NONCOND:
+                        opens.append((cs, vis.count("\n", 0, tm.start()) + 1, d))
+                        if d == 0:
+                            live_opens += 1
+                    elif cs in CLOSE:
+                        if d > 0:
+                            if opens and opens[-1][2] == d:
+                                opens.pop()
+                        else:
+                            live_closes += 1
+                            if opens and opens[-1][2] == 0:
+                                opens.pop()
+                live_unclosed = [o for o in opens if o[2] == 0]
+                # boundary = min-depth STOP (depth 0 = live \end{document}; >0 = a STOP
+                # swallowed inside an unclosed \if — injecting \fi before its line
+                # closes the host conditional and lets the STOP execute)
+                boundary = min(stops, key=lambda s: s[1])[0] if stops else len(text)
+                return live_unclosed, live_opens, live_closes, boundary
+
+
+            if mask_tex is None:
+                print("ifclose: noop (texlate mask unavailable)")
+                raise SystemExit(0)
+            files = []
+            for p in sorted(Path(".").rglob("*")):
+                if not p.is_file() or p.suffix.lower() not in EXTS:
+                    continue
+                if any(part.startswith(".") for part in p.parts):
+                    continue
+                files.append(p)
+            tot_opens = tot_closes = 0
+            deficits = []  # (path, n_unclosed, boundary)
+            for p in files:
+                try:
+                    text = p.read_text(encoding="utf-8", errors="replace")
+                except OSError:
+                    continue
+                if MARK in text:
+                    continue
+                unclosed, no, nc, boundary = scan(text)
+                tot_opens += no
+                tot_closes += nc
+                if unclosed:
+                    deficits.append((p, len(unclosed), boundary))
+            # noop if no deficit, or opens<=closes globally (cross-file borrowed
+            # pair: \if in file A closed by \fi in \input'd file B works at runtime)
+            if not deficits or tot_opens <= tot_closes:
+                print(
+                    f"ifclose: noop opens={tot_opens} closes={tot_closes} "
+                    f"deficits={len(deficits)}"
+                )
+            else:
+                for p, n, boundary in deficits:
+                    text = p.read_text(encoding="utf-8", errors="replace")
+                    line_start = text.rfind("\n", 0, boundary) + 1
+                    inject = (
+                        "\\fi" * n
+                        + f" % {MARK}: closed {n} unclosed \\if* at file end\n"
+                    )
+                    p.write_text(
+                        text[:line_start] + inject + text[line_start:],
+                        encoding="utf-8",
+                    )
+                    ln = text[:line_start].count("\n") + 1
+                    print(f"ifclose: injected \\fi x{n} into {p} @line~{ln}")
+        timeout: 30
+    risk: low # 仅活区亏格件补 \fi (全局 opens>closes 才注); def 体 opens 只计不注 (file-end \fi 够不到冻结 token); 跨文件借用对/phantom 全局平衡 noop; 指纹幂等
+    known_gap: "def 体内未闭合 open (aastex61.cls \\if@two@col 于 \\def\\endrotatetable* 体 —— 1706.00175 等 5 格真凶) 需 \\fi 注在体 `}` 前 (中段注入), 本规则按简报只做 file-end 注 → 记 def_unclosed 不修; \\if 开在 \toks/宏体寄存器赋值体 (\\mytoks={\\ifx}) 误计 live; 顶层外子目录经 rglob 已盖但 dot-dir 略过"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "corpus_v3 failmine-4: 1206.0701/1306.0364 (loop2 \\iffalse), 0905.0193+1706.00175 等 (loop1 \\ifx)",
+          error: "Incomplete \\iffalse; all text was ignored after line N (首错 `!` 形 → other); \\end occurred when \\ifx on line N was incomplete → early_eof",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-failmine/rule_targets.txt item4; 12 格抽样全字面平衡 (phantom 主导) —— 扫描器即判别器, 修复面兜底真亏格稿"
+
+  # early_eof 臂: `\end occurred when \ifx on line N was incomplete` + `No
+  # pages of output` → early_eof (pay=\ifx) —— 该签名无 `!` 行 → err_head
+  # 空 → ctx_suggests 不可及, 故独立规则走 source_contains 门 +
+  # payload_required (滤掉 generic no-pages 与 inside-a-group 变体)。
+  - id: unclosed_if_close_eof
+    mechanisms: [B05]
+    description: "doc 源件未闭合 \\if* → \\end{document}/\\endinput/EOF 前注入 \\fi (early_eof 臂: \\end occurred when \\ifX incomplete)"
+    phase: loop
+    order: 196.5 # unclosed_if_close(196) 同族姊妹臂; typein_neutralize(180) 抢早期 eof 首因先走
+    when: { category: early_eof, payload_required: true }
+    condition:
+      source_contains: "\\\\if"
+      tool_available: python3
+    action:
+      kind: run_tool
+      params:
+        argv:
+          - python3
+          - -c
+          - |
+            import re
+            from pathlib import Path
+
+            try:
+                from texlate.textutil import mask_tex
+            except Exception:
+                mask_tex = None
+
+            MARK = "texlate-fixloop-injected"
+            EXTS = {".tex", ".sty", ".cls"}
+
+            # if-prefixed cs that are NOT TeX conditionals (macro tests, never take \fi)
+            NONCOND = {
+                "iff",
+                "ifdef", "ifundef", "ifcsdef", "ifcsundef", "ifcsempty", "ifcsvoid",
+                "ifdefequal", "ifdefstring", "ifdefempty", "ifdefvoid", "ifdefparam",
+                "ifdefprotected", "ifdefexpandable", "ifdefcounter", "ifdeflength",
+                "ifcsstring", "ifstrequal", "ifstrempty", "ifstrblank", "ifblank",
+                "ifempty", "ifnumcomp", "ifnumequal", "ifnumgreater", "ifnumless",
+                "ifnumodd", "ifdimcomp", "ifdimequal", "ifdimgreater", "ifdimless",
+                "ifboolexpr", "ifboolexpe", "ifbool", "ifboollazy", "iftoggle",
+                "ifinlist", "ifinlistcs", "ifthenelse", "ifnextchar",
+            }
+            # cs whose next N cs-tokens are name/arg positions (not live opens)
+            CONSUME = {
+                "newif": 1, "let": 2, "futurelet": 3, "string": 1, "meaning": 1,
+                "newcount": 1, "newdimen": 1, "newbox": 1, "newskip": 1,
+                "newmuskip": 1, "newtoks": 1, "newread": 1, "newwrite": 1,
+                "newfam": 1, "newinsert": 1, "newlanguage": 1, "chardef": 1,
+                "countdef": 1, "dimendef": 1, "skipdef": 1, "muskipdef": 1,
+                "toksdef": 1, "mathchardef": 1, "font": 1,
+            }
+            # cs that scan name+params until {body}; body tokens are frozen (def-tag)
+            DEFCMD = {
+                "def", "gdef", "edef", "xdef",
+                "everypar", "everymath", "everydisplay", "everyhbox", "everyvbox",
+                "everyjob", "everycr", "everyeof", "output", "toks",
+                "write", "special", "pdfliteral", "directlua",
+                "uppercase", "lowercase", "detokenize", "unexpanded", "scantokens",
+            }
+            # name (cs or {name}) then {body}
+            NCCMD = {
+                "newcommand", "renewcommand", "providecommand",
+                "DeclareRobustCommand", "DeclareMathOperator",
+            }
+            # name then {spec} then {body}
+            SPECCMD = {
+                "DeclareDocumentCommand", "NewDocumentCommand",
+                "RenewDocumentCommand", "ProvideDocumentCommand",
+                "DeclareExpandableDocumentCommand",
+            }
+            # {name} then {beg} then {end}
+            ENVCMD = {"newenvironment", "renewenvironment", "provideenvironment"}
+            CLOSE = {"fi", "repeat"}
+            TOKEN = re.compile(r"\\([a-zA-Z@]+)|([{}])")
+            STOP = re.compile(
+                r"\\end\s*\{document\}|\\endinput\b|\\stop\b|\\end\b(?!\s*\{)"
+            )
+
+
+            def scan(text):
+                """Return (unclosed-live-opens, live-opens, live-closes, boundary-pos).
+
+                Live = outside frozen def bodies; opens inside def-family bodies are
+                counted but never injected (a file-end \\fi cannot reach a token list).
+                """
+                vis = mask_tex(text) if mask_tex else text
+                opens = []  # (name, line, region) region=0 live else enclosing def depth
+                groups = []  # per-{ kind: "grp"|"def"|"skip"
+                live_opens = live_closes = def_unclosed = 0
+                consume = 0
+                pending = None  # brace-kind queue after NC/SPEC/ENV heads
+                def_params = False
+                stops = []  # (pos, live opens depth)
+
+                def def_depth():
+                    d = 0
+                    for i, k in enumerate(groups):
+                        if k == "def":
+                            d = i + 1
+                    return d
+
+                def close_group():
+                    nonlocal def_unclosed
+                    kind = groups.pop() if groups else "grp"
+                    if kind == "def":
+                        while opens and opens[-1][2] == len(groups) + 1:
+                            opens.pop()
+                            def_unclosed += 1
+
+                for tm in TOKEN.finditer(vis):
+                    cs, brace = tm.group(1), tm.group(2)
+                    if brace == "{":
+                        kind = "grp"
+                        if pending:
+                            kind = pending.pop(0)
+                        elif def_params:
+                            kind = "def"
+                            def_params = False
+                        if kind == "name":
+                            kind = "skip"  # \newcommand{\foo} name brace: content unscanned
+                        groups.append(kind)
+                        continue
+                    if brace == "}":
+                        close_group()
+                        if def_params and not pending:
+                            def_params = False
+                        continue
+                    # cs token
+                    if any(k == "skip" for k in groups):
+                        continue
+                    if consume:
+                        consume -= 1
+                        continue
+                    if def_params:
+                        continue  # \def name/params position
+                    if pending and pending[0] == "name":
+                        pending.pop(0)  # \newcommand\foo bare cs name
+                        continue
+                    if cs in CONSUME:
+                        consume = CONSUME[cs]
+                        continue
+                    if cs in DEFCMD:
+                        def_params = True
+                        continue
+                    if cs in NCCMD:
+                        pending = ["name", "def"]
+                        continue
+                    if cs in SPECCMD:
+                        pending = ["name", "skip", "def"]
+                        continue
+                    if cs in ENVCMD:
+                        pending = ["skip", "def", "def"]
+                        continue
+                    if cs == "bgroup":
+                        kind = "grp"
+                        if pending:
+                            kind = pending.pop(0)
+                        elif def_params:
+                            kind = "def"
+                            def_params = False
+                        if kind == "name":
+                            kind = "skip"
+                        groups.append(kind)
+                        continue
+                    if cs == "egroup":
+                        close_group()
+                        if def_params and not pending:
+                            def_params = False
+                        continue
+                    if cs in ("end", "endinput", "stop") and STOP.match(vis, tm.start()):
+                        if def_depth() == 0:  # STOP inside a def body is dead text
+                            stops.append((tm.start(), len(opens)))
+                        continue
+                    d = def_depth()
+                    if cs.startswith("if") and cs not in NONCOND:
+                        opens.append((cs, vis.count("\n", 0, tm.start()) + 1, d))
+                        if d == 0:
+                            live_opens += 1
+                    elif cs in CLOSE:
+                        if d > 0:
+                            if opens and opens[-1][2] == d:
+                                opens.pop()
+                        else:
+                            live_closes += 1
+                            if opens and opens[-1][2] == 0:
+                                opens.pop()
+                live_unclosed = [o for o in opens if o[2] == 0]
+                # boundary = min-depth STOP (depth 0 = live \end{document}; >0 = a STOP
+                # swallowed inside an unclosed \if — injecting \fi before its line
+                # closes the host conditional and lets the STOP execute)
+                boundary = min(stops, key=lambda s: s[1])[0] if stops else len(text)
+                return live_unclosed, live_opens, live_closes, boundary
+
+
+            if mask_tex is None:
+                print("ifclose: noop (texlate mask unavailable)")
+                raise SystemExit(0)
+            files = []
+            for p in sorted(Path(".").rglob("*")):
+                if not p.is_file() or p.suffix.lower() not in EXTS:
+                    continue
+                if any(part.startswith(".") for part in p.parts):
+                    continue
+                files.append(p)
+            tot_opens = tot_closes = 0
+            deficits = []  # (path, n_unclosed, boundary)
+            for p in files:
+                try:
+                    text = p.read_text(encoding="utf-8", errors="replace")
+                except OSError:
+                    continue
+                if MARK in text:
+                    continue
+                unclosed, no, nc, boundary = scan(text)
+                tot_opens += no
+                tot_closes += nc
+                if unclosed:
+                    deficits.append((p, len(unclosed), boundary))
+            # noop if no deficit, or opens<=closes globally (cross-file borrowed
+            # pair: \if in file A closed by \fi in \input'd file B works at runtime)
+            if not deficits or tot_opens <= tot_closes:
+                print(
+                    f"ifclose: noop opens={tot_opens} closes={tot_closes} "
+                    f"deficits={len(deficits)}"
+                )
+            else:
+                for p, n, boundary in deficits:
+                    text = p.read_text(encoding="utf-8", errors="replace")
+                    line_start = text.rfind("\n", 0, boundary) + 1
+                    inject = (
+                        "\\fi" * n
+                        + f" % {MARK}: closed {n} unclosed \\if* at file end\n"
+                    )
+                    p.write_text(
+                        text[:line_start] + inject + text[line_start:],
+                        encoding="utf-8",
+                    )
+                    ln = text[:line_start].count("\n") + 1
+                    print(f"ifclose: injected \\fi x{n} into {p} @line~{ln}")
+        timeout: 30
+    risk: low # 同 unclosed_if_close: 活区亏格件才注, 全局平衡/def体/借用对 noop, 指纹幂等; early_eof 臂额外有 payload_required 闸
+    known_gap: "同 unclosed_if_close (def 体中段注入缺位); 另: 裸 no-pages early_eof (pay=None) 与 inside-a-group 变体 (pay=None) 被 payload_required 滤掉 —— 未闭合 \\if 致 no-pages 但无 \\end-occurred 行的形态漏收"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "corpus_v3 failmine-4 loop1 格 (0905.0193/1706.00175/1803.00054/1907.00128 等, taxonomy pay=\\ifx)",
+          error: "(\\end occurred when \\ifx on line N was incomplete) + No pages of output → early_eof",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-failmine/rule_targets.txt item4; err_head 空无 `!` 行 → 与 other 臂分离独立 gating"
+
   # ─── 兜底: 恒最后 ───
   - id: undefined_cs_guess
     description: "未定义控制序列 → cs→pkg 知识库长射 + LLM 兜底分析 (占位)"
