@@ -250,6 +250,40 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "docs/research/product/2026-09-16-signature-mining.md §2.2"
 
+  # xlinkobj lane 5 格普查 (1404.5668/1206.0148/1907.00277/2403.05523/
+  # 2412.19437): 工程船货 .pdf 对象结构残缺 (cairo shading obj 缺 endobj /
+  # bare-CR EOL / token-per-line 挤烂 / ObjStm 压坏) → xdvipdfmx
+  # ``pdf:image`` import ``pdf_read_object`` 回 NULL → ``pdf_link_obj(NULL)``
+  # fatal → xelatex SIGPIPE。签名 ``xdvipdfmx:fatal:`` 只走 stderr→
+  # stdout_tail, .log 干净 —— ``_report_of`` 的 ``\w+:fatal:`` 归一抬成 '!'
+  # 行使签名对 ctx_suggests 可见 (同签恒伴 ``Didn't find "endobj"`` warning,
+  # 位 fatal 前行不入 err_head ctx 窗, 不作闸)。修复 = 全量内嵌 .pdf
+  # ``gs -sDEVICE=pdfwrite`` 重序列化 (内容不动只改对象布局; 5/5 格 bisect
+  # 实证清 fatal) —— fatal 不携文件名, 全量重写是唯一定位法。
+  - id: pdf_asset_sanitize
+    description: "xdvipdfmx pdf_link_obj invalid-object fatal → 全量内嵌 .pdf gs pdfwrite 重序列化"
+    phase: loop
+    order: 18.5 # graphic_repair(18) 后 —— 图件重蒸馏同族; other 类目同区
+    when: { category: other }
+    condition:
+      ctx_suggests: "pdf_link_obj\\(\\): passed invalid object"
+      tool_available: gs
+    action:
+      kind: builtin_transform
+      function: pdf_asset_sanitize
+      params: {}
+    risk: medium # 重写内嵌图件字节 (原件留 .fixloop-rd 备份); 重序列化不改内容
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same } # bundled xdvipdfmx 同 fatal 链 (2412.19437 实证)
+    provenance:
+      - {
+          corpus: "xlinkobj lane 5 格 (1404.5668/1206.0148/1907.00277/2403.05523/2412.19437)",
+          error: 'xdvipdfmx:fatal: pdf_link_obj(): passed invalid object (伴 Didn''t find "endobj")',
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-xlinkobj/; gs pdfwrite rewrite 5/5 bisect-verified"
+
   # astro-ph/9901081 实证 + core 层普查 (11 格 preamble 形): 2.09 老稿
   # ``\input <pkg>.sty`` 裸装载——plain \input 以 @=catcode-12 读包文件,
   # 包内全部 @-cs 断成 ``\define``+``@key`` 垃圾 (epsfig.sty:46

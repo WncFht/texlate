@@ -823,3 +823,70 @@ def xbb_pregen(
     if failed:
         note += f"; failed: {'; '.join(failed)}"
     return True, note
+
+
+# ═══ xdvipdfmx pdf_link_obj 域 (xlinkobj lane 2026-09-19): 内嵌 pdf 重序列化 ═══
+
+#: sanitize 目标扫描的排除目录 —— ``_texmf`` (wired vendored texmfhome) 与
+#: ``_tect_out`` (tectonic 产物树) 是引擎/注入侧封装件, 非文档内嵌图件。
+_PDF_SANITIZE_SKIP_DIRS = frozenset({"_texmf", "_tect_out"})
+
+
+def _pdf_sanitize_targets(ctx: LoopCtx) -> list[Path]:
+    """``wdir`` 内 sanitize 候选 .pdf —— 排除引擎产物/隐藏面/封装树。"""
+    main = ctx.main_path()
+    main_pdf = main.with_suffix(".pdf") if main is not None else None
+    out: list[Path] = []
+    for p in sorted(ctx.wdir.rglob("*")):
+        if not p.is_file() or p.suffix.lower() != ".pdf":
+            continue
+        parts = p.relative_to(ctx.wdir).parts
+        if any(part.startswith(".") for part in parts):
+            continue  # .fixloop-entry.pdf 底板快照等隐藏面不动
+        if parts[0] in _PDF_SANITIZE_SKIP_DIRS:
+            continue
+        if main_pdf is not None and p == main_pdf:
+            continue  # 主输出 pdf 重编译自生, 非内嵌图件
+        out.append(p)
+    return out
+
+
+def pdf_asset_sanitize(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""``pdf_link_obj(): passed invalid object`` fatal → 全量内嵌 .pdf gs 重序列化。
+
+    机制 (xlinkobj lane 5 格普查): 工程船货 .pdf 对象结构残缺 (缺 ``endobj``
+    / bare-CR EOL / token-per-line 挤烂) → ``pdf:image`` import
+    ``pdf_read_object`` 回 NULL → ``pdf_link_obj(NULL)`` fatal → xelatex
+    SIGPIPE。签名只走 stderr→stdout_tail, ``.log`` 干净 —— ``_report_of``
+    的 ``*:fatal:`` 归一使它可见即 ``other`` 类。gs pdfwrite 重序列化只改
+    对象布局不改内容, 原件留 ``<name>.fixloop-rd`` 备份 (与 graphic_repair
+    同 marker, 兼「已 sanitize」幂等标记); 肇事件不可定位 (fatal 不携
+    文件名) 故全量重写 —— 健康件重序列化是语义 no-op。
+    """
+    del eng, payload, params
+    targets = _pdf_sanitize_targets(ctx)
+    if not targets:
+        return False, "no pdf assets in project"
+    done = skipped = 0
+    failed: list[str] = []
+    for f in targets:
+        marker = f.with_name(f.name + ".fixloop-rd")
+        if marker.exists():
+            skipped += 1
+            continue
+        if why := _try_gs_redistill(ctx, f, marker):
+            failed.append(f"{f.name}({why})")
+        else:
+            done += 1
+    if not done:
+        if skipped and not failed:
+            return False, f"all {skipped} pdf already sanitized"
+        return False, f"0/{len(targets)} sanitized ({'; '.join(failed)})"
+    note = f"gs pdfwrite sanitized {done}/{len(targets)} pdf assets"
+    if skipped:
+        note += f", {skipped} already"
+    if failed:
+        note += f"; failed: {'; '.join(failed)}"
+    return True, note
