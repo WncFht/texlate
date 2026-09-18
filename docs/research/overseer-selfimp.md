@@ -619,3 +619,10 @@
 - **acceptpdf 定量（#10 证据件）**：1131 acceptable_pdf 格——594 ferr>0 / 537 ferr=0；**59 格（5.2%）携内容丢失签名**：env_undefined 31、missing_end 15、eof_truncation 5、capacity_abort 4、begin_end_mismatch 2、emergency 2；last_died 全 null。裁决点升级：~95% 为妆面残，5.2% 实丢 env/截断——待用户裁 acceptable_pdf 是否收紧排除内容丢失格。
 - **citemath 普查件产**（4 json，census209 ds209 代理 0/1987——2.09 探测口径或漏 revtex-era；机制报在途）。
 - roster 3：secdispatch(#70)/citemath/failmine；twinhead/draftgap/acceptpdf 尸清。
+
+## 2026-09-19 ~08:1x — citemath 机制实锤 + citembox 派 + peer 三大落地
+
+- **citemath EVIDENCE.md 收**：机链=`\cite`→revtex4-2 `\rtx@citex`(7143 上标壳)→natbib `\@citex`→undefined-cite 支吐 `{\reset@font\bfseries ?}` **无盒**——`\bfseries` 入 math→`\not@math@alphabet`（kernel `\@citex` 有 `\hbox` 故 article 免疫；`\ref`/`\eqref` 走 `\nfss@text` 免疫）。**自持环实锤**：halt_on_error 死于 cite 错→thebibliography 永不执行→aux 无 `\bibcite`→cite 恒 undefined→每轮同错（min4 aux 截 `\citation` 实证）。修法实证=min6：`\mbox{\cite{}}` 包壳一轮净。暴露=全库 492 格裸 cite-in-math（documentstyle 215 格、revtex 确 59、natbib-only 9）。
+- **#71 citembox 派出**：latex209.py `_MATH_SWITCH_209` 同 traversal 扩——math 域内 cite 族 8 令（含星号/双 opt）包 `\mbox{}`；已包/注释/文-mode/\ref 系跳过；N=1 域=documentstyle 215 格（现代 revtex4-2 直稿残留由后续 yaml 规则补）。
+- **peer 三落地**：efc53bc0 segmirror 三镜合并（_FAM_BIND registry——pendspec walker 吸收毕）；13c603cf corpus eval/dev 扩 8 层 13,266 篇；70be3618 pipecore 抽脊落地——test_docx_done 修链闭环。
+- roster 3：secdispatch(#70)/citembox(#71)/failmine(#69)；citemath 尸清。
