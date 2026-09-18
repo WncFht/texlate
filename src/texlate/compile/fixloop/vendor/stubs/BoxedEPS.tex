@@ -1,0 +1,32 @@
+% texlate vendored stub — 原许可禁分发，最小兼容面
+% BoxedEPS.tex S1 替身：OzTeX/dvips 期 boxed-EPS 图件宏（90 年代物理
+% 稿随稿件，TL 不收，texmf/corpus 无存本）——宏面按 cond-mat/0408520
+% 实证面 + 族内兄弟件收：driver-special 选择件与位移框开关 noop
+% （现代 graphicx 接管 \special，位移框本为 draft 衬件），
+% \ForceWidth/\ForceHeight 存值，\BoxedEPSF 退化 \includegraphics
+% （leader 口径：应 degrade 到 \includegraphics；存值键随调用注入
+% width=/height=）。本 stub 在场则 shim_map BoxedEPS 条成死配置
+% （vendored 预检先于 missing_file 落件，同 aipproc/tcilatex 先例）。
+% \input 装入件，@ 非字母须 \makeatletter 包裹（同 tcilatex 先例）。
+\makeatletter
+\RequirePackage{graphicx}% \BoxedEPSF 退化宿主
+\def\boxedeps@w{}\def\boxedeps@h{}
+\def\ForceWidth#1{\def\boxedeps@w{#1}}
+\def\ForceHeight#1{\def\boxedeps@h{#1}}
+\def\BoxedEPSF#1{%
+  \edef\boxedeps@opts{%
+    \ifx\boxedeps@w\@empty\else width=\boxedeps@w\fi
+    \ifx\boxedeps@h\@empty
+    \else\ifx\boxedeps@w\@empty\else,\fi height=\boxedeps@h\fi}%
+  \expandafter\includegraphics\expandafter[\boxedeps@opts]{#1}}
+% —— driver-special 选择件：OzTeX 系本尊 + 同期兄弟 driver 位（真件
+%    选位决定 \special 语法，现代 graphicx 自管 driver → 全 noop） ——
+\def\SetOzTeXEPSFSpecial{}
+\def\SetTexturesEPSFSpecial{}
+\def\SetPSPrintEPSFSpecial{}
+\def\SetdvipsEPSFSpecial{}
+% —— 位移框开关（draft 期衬框显隐；永不绘框 → 双 noop） ——
+\def\HideDisplacementBoxes{}
+\def\ShowDisplacementBoxes{}
+\makeatother
+\endinput

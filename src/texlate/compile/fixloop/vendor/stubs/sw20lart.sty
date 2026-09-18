@@ -1,0 +1,71 @@
+% texlate vendored stub — 原许可禁分发，最小兼容面
+% sw20lart.sty S1 替身：MacKichan Scientific Word 2.0 article kit
+% （© MacKichan 专有件，TL 不收，全网无存本）→ 最小宏面。本 stub 在场
+% 则 shim_map sw20lart 条成死配置（vendored 预检先于 missing_file
+% 落件，同 aipproc/jinstpub/tcilatex 先例）。
+% 宏面 = SW20 tag 机全件（语义抄真件 tcilatex.tex 尾段，
+% corpus_v2/1011.5681 L763-786 + L1215-1265——SW20 套件 tag 真件本在
+% tcilatex，本件自立同套防稿仅 \usepackage{sw20lart} 未 \input
+% tcilatex 之格；cond-mat/9910091 \tag×115 undefined_cs 实证）：
+% \tag{N}→(N) 压自动号、\tag*{lit}→lit；\TCItag 同签名兼设
+% \@currentlabel；eqnarray 行末补丁 \@@eqncr 与 equation 收尾补丁
+% \endequation 消费 \iftag@/\@taggnum。\tag 已定义（amsmath/
+% tcilatex 先载）则整机让位（真件 ExitTCILatex 语义）；\TCItag 恒
+% \def（真件 L778 先于判定段无条件定义，同 tcilatex stub 对偶）。
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{sw20lart}[2026/09/19 fixloop stub - Scientific Word kit, not in TL]
+\@ifundefined{tag}{%
+\def\@@eqncr{\let\@tempa\relax
+    \ifcase\@eqcnt \def\@tempa{& & &}\or \def\@tempa{& &}%
+      \else \def\@tempa{&}\fi
+     \@tempa
+     \if@eqnsw
+        \iftag@
+           \@taggnum
+        \else
+           \@eqnnum\stepcounter{equation}%
+        \fi
+     \fi
+     \global\tag@false
+     \global\@eqnswtrue
+     \global\@eqcnt\z@\cr}%
+\newif\iftag@ \tag@false
+\def\endequation{%
+     \ifmmode\ifinner % FLEQN hack
+      \iftag@
+        \addtocounter{equation}{-1}%
+        $\hfil
+           \displaywidth\linewidth\@taggnum\egroup \endtrivlist
+        \global\tag@false
+        \global\@ignoretrue
+      \else
+        $\hfil
+           \displaywidth\linewidth\@eqnnum\egroup \endtrivlist
+        \global\tag@false
+        \global\@ignoretrue
+      \fi
+     \else
+      \iftag@
+        \addtocounter{equation}{-1}%
+        \eqno \hbox{\@taggnum}%
+        \global\tag@false%
+        $$\global\@ignoretrue
+      \else
+        \eqno \hbox{\@eqnnum}%
+        $$\global\@ignoretrue
+      \fi
+     \fi\fi}%
+\def\tag{\@ifnextchar*{\@tagstar}{\@tag}}%
+\def\@tag#1{\global\tag@true\global\def\@taggnum{(#1)}}%
+\def\@tagstar*#1{\global\tag@true\global\def\@taggnum{#1}}%
+}{}
+\def\TCItag{\@ifnextchar*{\@TCItagstar}{\@TCItag}}%
+\def\@TCItag#1{%
+    \global\tag@true
+    \global\def\@taggnum{(#1)}%
+    \global\def\@currentlabel{#1}}%
+\def\@TCItagstar*#1{%
+    \global\tag@true
+    \global\def\@taggnum{#1}%
+    \global\def\@currentlabel{#1}}%
+\endinput

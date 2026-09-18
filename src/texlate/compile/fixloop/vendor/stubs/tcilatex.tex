@@ -18,9 +18,12 @@
 \def\QTD#1#2{#2}
 \def\QTS#1#2{#2}
 \def\QXP#1{#1}
-% —— SWP 特殊字符：\QZW{set}{size}{char} 出 char；\QQQ{hex} 丢 ——
+% —— SWP 特殊字符：\QZW{set}{size}{char} 出 char；\QQQ{name}{val} 定义
+%    \<name>=val（真件元数据机，全部存本一致 2 参——老 stub 误作 1 参
+%    sink，{val} 漏进 preamble 触发 Missing \begin{document}，
+%    cond-mat/9910091 \QQQ{Language}{American English} 实证） ——
 \def\QZW#1#2#3{#3}
-\def\QQQ#1{}
+\long\def\QQQ#1#2{\long\expandafter\def\csname#1\endcsname{#2}}
 \def\QQ#1{}
 \def\QVI#1{}
 \def\QSP#1{}
@@ -79,4 +82,69 @@
   \def\proof{\noindent{\bfseries Proof.} }\fi
 \expandafter\ifx\csname endproof\endcsname\relax
   \def\endproof{\mbox{\ \rule{.1in}{.1in}}}\fi
+% —— SW20 tag 机（真件尾段抄值，corpus_v2/1011.5681 tcilatex.tex
+%    L763-786 + L1215-1265）：\tag{N}→(N) 压自动号、\tag*{lit}→lit；
+%    \TCItag 同签名兼设 \@currentlabel；eqnarray 行末补丁 \@@eqncr 与
+%    equation 收尾补丁 \endequation 消费 \iftag@/\@taggnum。
+%    cond-mat/9910091 实证：\tag×115 undefined_cs（equation 与
+%    eqnarray 两族皆用）。\tag 已定义（amsmath/sw20lart 先载）则整机
+%    让位——真件 amstex 在场即 ExitTCILatex 的让位语义；\TCItag 恒
+%    \def（真件 L778 先于 amstex 判定段无条件定义）。本件由 \input
+%    装入，@ 非字母须 \makeatletter 包裹（真件 L8 同法）。 ——
+\makeatletter
+\@ifundefined{tag}{%
+\def\@@eqncr{\let\@tempa\relax
+    \ifcase\@eqcnt \def\@tempa{& & &}\or \def\@tempa{& &}%
+      \else \def\@tempa{&}\fi
+     \@tempa
+     \if@eqnsw
+        \iftag@
+           \@taggnum
+        \else
+           \@eqnnum\stepcounter{equation}%
+        \fi
+     \fi
+     \global\tag@false
+     \global\@eqnswtrue
+     \global\@eqcnt\z@\cr}%
+\newif\iftag@ \tag@false
+\def\endequation{%
+     \ifmmode\ifinner % FLEQN hack
+      \iftag@
+        \addtocounter{equation}{-1}%
+        $\hfil
+           \displaywidth\linewidth\@taggnum\egroup \endtrivlist
+        \global\tag@false
+        \global\@ignoretrue
+      \else
+        $\hfil
+           \displaywidth\linewidth\@eqnnum\egroup \endtrivlist
+        \global\tag@false
+        \global\@ignoretrue
+      \fi
+     \else
+      \iftag@
+        \addtocounter{equation}{-1}%
+        \eqno \hbox{\@taggnum}%
+        \global\tag@false%
+        $$\global\@ignoretrue
+      \else
+        \eqno \hbox{\@eqnnum}%
+        $$\global\@ignoretrue
+      \fi
+     \fi\fi}%
+\def\tag{\@ifnextchar*{\@tagstar}{\@tag}}%
+\def\@tag#1{\global\tag@true\global\def\@taggnum{(#1)}}%
+\def\@tagstar*#1{\global\tag@true\global\def\@taggnum{#1}}%
+}{}
+\def\TCItag{\@ifnextchar*{\@TCItagstar}{\@TCItag}}%
+\def\@TCItag#1{%
+    \global\tag@true
+    \global\def\@taggnum{(#1)}%
+    \global\def\@currentlabel{#1}}%
+\def\@TCItagstar*#1{%
+    \global\tag@true
+    \global\def\@taggnum{#1}%
+    \global\def\@currentlabel{#1}}%
+\makeatother
 \endinput

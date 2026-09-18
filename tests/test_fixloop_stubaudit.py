@@ -14,9 +14,19 @@
   (\\citep/\\citet) undefined_cs 级联。
 - ``svjour3.cls``: 真件 ``natbib`` 类选项 → AtEndOfClass 装 natbib;
   stub 星号转发把 ``natbib`` 当未知 option 丢给 article 静默吞。
-- ``aipproc.cls``: 真件装载面 calc/ifthen/graphicx[final]/url。
+- ``aipproc.cls``: 真件装载面 calc/ifthen/graphicx[final]/url;
+  ``\author`` 双签名 (新 keyval 双参 | 老 REVTeX3 单参+散调 ``\address``,
+  2 参硬吃后随 cs 炸 \csname/keyval) + ``references`` env
+  (astro-ph/0104007 env_undefined→\@listctr×12 级联)。
+- ``tcilatex.tex``: ``\QQQ`` 真件 2 参元数据机 (全部存本一致;
+  1 参 sink 漏 {val} 进 preamble → Missing\begin{document},
+  cond-mat/9910091 实证) + SW20 tag 机全套 (\tag×115 undefined_cs)。
+- ``sw20lart.sty``/``BoxedEPS.tex``: 新 stub 顶掉 shim_map noop 条
+  (vendored 预检先落件)——SW20 tag 机同套; BoxedEPS OzTeX 期图件
+  实证面 + \BoxedEPSF→\includegraphics (cond-mat/0408520 ×16)。
 
-实证基线: bench/results/stagerun-loop2-2026-09-18/records/fixloop.jsonl。
+实证基线: bench/results/stagerun-loop2-2026-09-18/records/fixloop.jsonl,
+stagerun-tarrecheck/, stagerun-flipcheck/ 同名 records。
 """
 
 import re
@@ -27,8 +37,7 @@ from pathlib import Path
 import pytest
 
 STUBS = (
-    Path(__file__).resolve().parent.parent
-    / "src/texlate/compile/fixloop/vendor/stubs"
+    Path(__file__).resolve().parent.parent / "src/texlate/compile/fixloop/vendor/stubs"
 )
 VENDOR_FILES = STUBS.parent / "files"
 
@@ -97,6 +106,65 @@ def test_svjour3_natbib_option_declared() -> None:
     body = (STUBS / "svjour3.cls").read_text(encoding="utf-8")
     assert "\\DeclareOption{natbib}" in body
     assert "\\AtEndOfClass{\\RequirePackage{natbib}" in body
+
+
+def _code_lines(body: str) -> str:
+    """滤 % 注释行后拼接——pin 断言不得被注释文本夹带。"""
+    return "\n".join(ln for ln in body.splitlines() if not ln.lstrip().startswith("%"))
+
+
+def test_tcilatex_qqq_two_arg_definer() -> None:
+    r"""tcilatex \QQQ 真件 2 参元数据机 pin（cond-mat/9910091
+    \QQQ{Language}{American English} 漏参 Missing\begin{document} 实证）。"""
+    code = _code_lines((STUBS / "tcilatex.tex").read_text(encoding="utf-8"))
+    assert (
+        "\\long\\def\\QQQ#1#2{\\long\\expandafter\\def\\csname#1\\endcsname{#2}}"
+        in code
+    )
+    assert "\\def\\QQQ#1{}" not in code
+
+
+def test_sw20_tag_machinery_present() -> None:
+    r"""SW20 tag 机 pin：tcilatex/sw20lart 双件各立全套
+    （cond-mat/9910091 \tag×115 undefined_cs 实证）。"""
+    for name in ("tcilatex.tex", "sw20lart.sty"):
+        code = _code_lines((STUBS / name).read_text(encoding="utf-8"))
+        for frag in (
+            "\\newif\\iftag@",
+            "\\def\\tag{\\@ifnextchar*{\\@tagstar}{\\@tag}}",
+            "\\def\\@@eqncr",
+            "\\def\\endequation",
+            "\\def\\TCItag",
+            "\\@ifundefined{tag}",
+        ):
+            assert frag in code, f"{name} 缺 {frag}"
+
+
+def test_boxedeps_iface_present() -> None:
+    r"""BoxedEPS kit pin（cond-mat/0408520 16 undefined_cs 实证）：
+    实证面 + 兄弟件齐全，\BoxedEPSF 退化 \includegraphics。"""
+    code = _code_lines((STUBS / "BoxedEPS.tex").read_text(encoding="utf-8"))
+    for frag in (
+        "\\def\\ForceWidth#1",
+        "\\def\\ForceHeight#1",
+        "\\def\\BoxedEPSF#1",
+        "\\def\\SetOzTeXEPSFSpecial{}",
+        "\\def\\HideDisplacementBoxes{}",
+        "\\def\\ShowDisplacementBoxes{}",
+        "\\includegraphics",
+    ):
+        assert frag in code, f"BoxedEPS.tex 缺 {frag}"
+
+
+def test_aipproc_author_dual_signature_and_references() -> None:
+    r"""aipproc \author 双签名 + references env pin（0104007 :250
+    keyval 爆 + env_undefined/\@listctr×12 实证）。"""
+    code = _code_lines((STUBS / "aipproc.cls").read_text(encoding="utf-8"))
+    assert "\\renewcommand{\\author}[1]" in code
+    assert "\\@ifnextchar\\bgroup{\\fixaip@author@kv" in code
+    assert "\\renewcommand{\\author}[2]" not in code
+    assert "\\newenvironment{references}" in code
+    assert "\\usecounter{enumiv}" in code
 
 
 # ------------------------------------------------------- 真编译钉
@@ -208,3 +276,117 @@ see \url{https://example.org}
     assert "graphicx.sty" in log
     assert "url.sty" in log
     assert _n_err(log) == 0
+
+
+@_COMPILE
+def test_tcilatex_qqq_defines_name_and_no_preamble_leak(tmp_path: Path) -> None:
+    r"""\QQQ{Language}{American English} → \Language 定义（真件元数据机），
+    次参不漏 preamble → 无 Missing\begin{document}。"""
+    shutil.copy(STUBS / "tcilatex.tex", tmp_path / "tcilatex.tex")
+    log = _run(
+        tmp_path,
+        r"""\documentclass{article}
+\input tcilatex
+\QQQ{Language}{American English}
+\begin{document}
+lang=\Language.
+\end{document}
+""",
+    )
+    assert _n_err(log) == 0, f"仍 {_n_err(log)} 个 '!' 错"
+    assert "Missing \\begin{document}" not in log
+    assert (tmp_path / "main.pdf").is_file()
+
+
+@_COMPILE
+@pytest.mark.parametrize("kit", ["tcilatex", "sw20lart"])
+def test_sw20_tag_in_equation_and_eqnarray(tmp_path: Path, kit: str) -> None:
+    r"""\tag{N}/\tag*{lit} 在 equation 与 eqnarray 两族皆消费
+    （9910091 实证面：\tag{2.1} equation、\tag{2.2} eqnarray）。"""
+    if kit == "tcilatex":
+        shutil.copy(STUBS / "tcilatex.tex", tmp_path / "tcilatex.tex")
+        load = "\\input tcilatex"
+    else:
+        shutil.copy(STUBS / "sw20lart.sty", tmp_path / "sw20lart.sty")
+        load = "\\usepackage{sw20lart}"
+    log = _run(
+        tmp_path,
+        rf"""\documentclass{{article}}
+{load}
+\begin{{document}}
+\begin{{equation}} x=1 \tag{{2.1}} \end{{equation}}
+\begin{{eqnarray}} y&=&2 \tag{{2.2}} \end{{eqnarray}}
+\begin{{equation}} z=3 \tag*{{lit}} \end{{equation}}
+\end{{document}}
+""",
+    )
+    assert _n_err(log) == 0, f"{kit} 仍 {_n_err(log)} 个 '!' 错"
+    assert (tmp_path / "main.pdf").is_file()
+
+
+@_COMPILE
+def test_boxedeps_iface_degrades_to_includegraphics(tmp_path: Path) -> None:
+    r"""\input BoxedEPS + 全实证面调用面 0 错；\BoxedEPSF→\includegraphics。"""
+    shutil.copy(STUBS / "BoxedEPS.tex", tmp_path / "BoxedEPS.tex")
+    log = _run(
+        tmp_path,
+        r"""\documentclass{article}
+\input BoxedEPS.tex
+\renewcommand{\includegraphics}[2][]{}
+\begin{document}
+\SetOzTeXEPSFSpecial\HideDisplacementBoxes
+\ForceWidth{7cm}
+fig: \BoxedEPSF{fig.eps}
+\ForceHeight{3cm}
+fig2: \BoxedEPSF{fig2.eps}
+\ShowDisplacementBoxes
+\end{document}
+""",
+    )
+    assert "graphicx.sty" in log, "BoxedEPS 未装 graphicx"
+    assert _n_err(log) == 0, f"仍 {_n_err(log)} 个 '!' 错"
+    assert (tmp_path / "main.pdf").is_file()
+
+
+@_COMPILE
+def test_aipproc_one_arg_author_and_references(tmp_path: Path) -> None:
+    r"""REVTeX3 式 \author{names} + \address{} + references env
+    （0104007 实证面）：不吞 \address、\bibitem 在 list 内工作。"""
+    shutil.copy(STUBS / "aipproc.cls", tmp_path / "aipproc.cls")
+    log = _run(
+        tmp_path,
+        r"""\documentclass{aipproc}
+\begin{document}
+\title{T}
+\author{Marcelo Alvarez$^*$, Paul R. Shapiro$^*$ and Hugo Martel$^*$}
+\address{$^*$Department of Astronomy, UT Austin}
+\maketitle
+text \cite{Moore00}.
+\begin{references}
+\bibitem{Moore00} Moore et al.
+\end{references}
+\end{document}
+""",
+    )
+    assert _n_err(log) == 0, f"仍 {_n_err(log)} 个 '!' 错"
+    assert (tmp_path / "main.pdf").is_file()
+
+
+@_COMPILE
+def test_aipproc_two_arg_author_kept(tmp_path: Path) -> None:
+    r"""新 keyval 双参 \author{Name}{address={..}} 不回潮（1306.2177 面）。"""
+    shutil.copy(STUBS / "aipproc.cls", tmp_path / "aipproc.cls")
+    log = _run(
+        tmp_path,
+        r"""\documentclass{aipproc}
+\begin{document}
+\title{T}
+\author{Alice}{address={MIT},email={a@x}}
+\author{Bob}{address={CERN}}
+\maketitle
+text.
+\end{document}
+""",
+    )
+    assert _n_err(log) == 0, f"仍 {_n_err(log)} 个 '!' 错"
+    assert (tmp_path / "main.pdf").is_file()
