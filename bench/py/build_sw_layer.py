@@ -439,11 +439,19 @@ def cmd_rehydrate(args: argparse.Namespace) -> None:
     n_ok = n_skip = n_err = 0
     for (sn, rgi), plist in sorted(by_rg.items()):
         want = {p["id"] for p in plist}
-        try:
-            with _fs_open(SHARD_URL.format(sn)) as f:
-                t = pq.ParquetFile(f).read_row_group(rgi, columns=cols)
-        except Exception as e:
-            log(f"FAIL rg {sn:04d}/{rgi}: {type(e).__name__}: {e}")
+        t = None
+        for attempt in range(3):
+            try:
+                with _fs_open(SHARD_URL.format(sn)) as f:
+                    t = pq.ParquetFile(f).read_row_group(rgi, columns=cols)
+                break
+            except Exception as e:
+                if attempt == 2:
+                    log(f"FAIL rg {sn:04d}/{rgi}: {type(e).__name__}: {e}")
+                else:
+                    log(f"  rg {sn:04d}/{rgi} retry#{attempt + 1}: {type(e).__name__}")
+                    time.sleep(15 * (attempt + 1))
+        if t is None:
             n_err += len(plist)
             continue
         rows = {r["id"]: r for r in t.to_pylist() if r["id"] in want}
