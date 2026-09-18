@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from texlate import textutil
-from texlate.compile import normalize
+from texlate.compile import shadow
 from texlate.compile.normalize import (
     PIXEL_COMPATIBILITY,
     TECTONIC_FONT_COMPATIBILITY,
@@ -741,9 +741,9 @@ def test_shadow_broken_system_package(
         "\\documentclass{article}\n\\usepackage{oldpkg}\n"
         "\\begin{document}\nx\\end{document}\n"
     )
-    monkeypatch.setattr(normalize.shutil, "which", lambda *_a: "/bin/kpsewhich")
+    monkeypatch.setattr(shadow.shutil, "which", lambda *_a: "/bin/kpsewhich")
     monkeypatch.setattr(
-        normalize,
+        shadow,
         "_kpse_resolve_many",
         lambda filenames, *_a: {
             f: bad if f == "oldpkg.sty" else None for f in filenames
@@ -752,8 +752,8 @@ def test_shadow_broken_system_package(
     stats = normalize_project(proj, "xelatex", "main.tex")
     shadows = stats["package_shadows"]
     assert shadows[0]["package"] == "oldpkg.sty"
-    shadow = proj / "oldpkg.sty"
-    assert "Schröder" in shadow.read_text(encoding="utf-8")
+    copied = proj / "oldpkg.sty"
+    assert "Schröder" in copied.read_text(encoding="utf-8")
     # 幂等：再跑不再遮蔽（遮蔽件已在 root 内解析命中）
     stats2 = normalize_project(proj, "xelatex", "main.tex")
     assert "package_shadows" not in stats2
@@ -773,9 +773,9 @@ def test_shadow_clean_system_package_noop(
         "\\documentclass{article}\n\\usepackage{goodpkg}\n"
         "\\begin{document}\nx\\end{document}\n"
     )
-    monkeypatch.setattr(normalize.shutil, "which", lambda *_a: "/bin/kpsewhich")
+    monkeypatch.setattr(shadow.shutil, "which", lambda *_a: "/bin/kpsewhich")
     monkeypatch.setattr(
-        normalize,
+        shadow,
         "_kpse_resolve_many",
         lambda filenames, *_a: dict.fromkeys(filenames, good),
     )
@@ -794,9 +794,9 @@ def test_shadow_resolved_inside_root_noop(
         "\\documentclass{article}\n\\usepackage{mypkg}\n"
         "\\begin{document}\nx\\end{document}\n"
     )
-    monkeypatch.setattr(normalize.shutil, "which", lambda *_a: "/bin/kpsewhich")
+    monkeypatch.setattr(shadow.shutil, "which", lambda *_a: "/bin/kpsewhich")
     monkeypatch.setattr(
-        normalize,
+        shadow,
         "_kpse_resolve_many",
         lambda filenames, *_a: dict.fromkeys(filenames, own),
     )
@@ -820,9 +820,9 @@ def test_shadow_vendored_same_name_in_subdir_skipped(
         "\\documentclass{article}\n\\usepackage{oldpkg}\n"
         "\\begin{document}\nx\\end{document}\n"
     )
-    monkeypatch.setattr(normalize.shutil, "which", lambda *_a: "/bin/kpsewhich")
+    monkeypatch.setattr(shadow.shutil, "which", lambda *_a: "/bin/kpsewhich")
     monkeypatch.setattr(
-        normalize,
+        shadow,
         "_kpse_resolve_many",
         lambda filenames, *_a: {
             f: bad if f == "oldpkg.sty" else None for f in filenames
@@ -903,9 +903,9 @@ def test_shadow_dangling_symlink_target_skipped(
         "\\begin{document}\nx\\end{document}\n"
     )
     (proj / "oldpkg.sty").symlink_to(tmp_path / "nowhere.sty")  # 悬挂
-    monkeypatch.setattr(normalize.shutil, "which", lambda *_a: "/bin/kpsewhich")
+    monkeypatch.setattr(shadow.shutil, "which", lambda *_a: "/bin/kpsewhich")
     monkeypatch.setattr(
-        normalize,
+        shadow,
         "_kpse_resolve_many",
         lambda filenames, *_a: {
             f: bad if f == "oldpkg.sty" else None for f in filenames
@@ -1144,7 +1144,7 @@ def test_kpse_resolve_many_one_subprocess(
     """N 名一次子进程：命中→Path、中部 miss（空行）与末尾 miss（截断）→ None。"""
     calls: list[list[str]] = []
     monkeypatch.setattr(
-        normalize.subprocess,
+        shadow.subprocess,
         "run",
         _kpse_run_factory(
             {
@@ -1156,7 +1156,7 @@ def test_kpse_resolve_many_one_subprocess(
             calls,
         ),
     )
-    out = normalize._kpse_resolve_many(  # noqa: SLF001 — 钉的就是内部批量映射
+    out = shadow._kpse_resolve_many(  # noqa: SLF001 — 钉的就是内部批量映射
         ["article.cls", "ghost.sty", "algo.sty", "ghost2.cls"],
         "xelatex",
         tmp_path,
@@ -1188,17 +1188,17 @@ def test_kpse_resolve_many_basename_mismatch_resingles(
     """命中行 basename 与请求名不符 → 该名回落 ``_kpse_resolve`` 单名复核。"""
     calls: list[list[str]] = []
     monkeypatch.setattr(
-        normalize.subprocess,
+        shadow.subprocess,
         "run",
         _kpse_run_factory({"foo.sty": "/texmf/WRONG.sty"}, calls),
     )
     singles: list[str] = []
     monkeypatch.setattr(
-        normalize,
+        shadow,
         "_kpse_resolve",
         lambda f, *_a: singles.append(f) or Path("/real/foo.sty"),
     )
-    out = normalize._kpse_resolve_many(  # noqa: SLF001
+    out = shadow._kpse_resolve_many(  # noqa: SLF001
         ["foo.sty"], "xelatex", tmp_path, "/k"
     )
     assert singles == ["foo.sty"]
@@ -1213,14 +1213,14 @@ def test_kpse_resolve_many_subprocess_failure_falls_back(
     def _boom(*_a: object, **_k: object) -> None:
         raise FileNotFoundError
 
-    monkeypatch.setattr(normalize.subprocess, "run", _boom)
+    monkeypatch.setattr(shadow.subprocess, "run", _boom)
     singles: list[str] = []
     monkeypatch.setattr(
-        normalize,
+        shadow,
         "_kpse_resolve",
         lambda f, *_a: singles.append(f) or None,
     )
-    out = normalize._kpse_resolve_many(  # noqa: SLF001
+    out = shadow._kpse_resolve_many(  # noqa: SLF001
         ["a.sty", "b.cls"], "xelatex", tmp_path, "/k"
     )
     assert singles == ["a.sty", "b.cls"]
@@ -1236,14 +1236,14 @@ def test_kpse_resolve_many_line_overflow_falls_back(
         returncode = 0
         stdout = "/x/a.sty\n/x/b.sty\n/extra\n"
 
-    monkeypatch.setattr(normalize.subprocess, "run", lambda *_a, **_k: _WeirdProc())
+    monkeypatch.setattr(shadow.subprocess, "run", lambda *_a, **_k: _WeirdProc())
     singles: list[str] = []
     monkeypatch.setattr(
-        normalize,
+        shadow,
         "_kpse_resolve",
         lambda f, *_a: singles.append(f) or Path("/real", f),
     )
-    out = normalize._kpse_resolve_many(  # noqa: SLF001
+    out = shadow._kpse_resolve_many(  # noqa: SLF001
         ["a.sty", "b.sty"], "xelatex", tmp_path, "/k"
     )
     assert singles == ["a.sty", "b.sty"]
@@ -1260,9 +1260,9 @@ def test_shadow_round_resolves_in_one_kpsewhich_call(
         encoding="utf-8",
     )
     calls: list[list[str]] = []
-    monkeypatch.setattr(normalize.shutil, "which", lambda *_a: "/bin/kpsewhich")
+    monkeypatch.setattr(shadow.shutil, "which", lambda *_a: "/bin/kpsewhich")
     monkeypatch.setattr(
-        normalize.subprocess,
+        shadow.subprocess,
         "run",
         _kpse_run_factory({}, calls),  # 全 miss——不遮蔽，只数调用
     )

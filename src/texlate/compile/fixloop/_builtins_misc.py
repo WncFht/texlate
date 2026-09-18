@@ -15,7 +15,7 @@ import shutil
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any
 
-from texlate.compile.normalize import INTERMEDIATE_SUFFIXES
+from texlate.compile.transcode import INTERMEDIATE_SUFFIXES
 from texlate.latex.api import NAME_GATED_TEX_SUFFIXES, parse_file
 from texlate.latex.prose import file_has_prose
 from texlate.textutil import CJK_RX, DOCCLASS_RX, mask_tex, safe_is_file

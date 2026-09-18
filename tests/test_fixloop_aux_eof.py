@@ -2,7 +2,7 @@ r"""fixloop aux 截断重试规则（2211.13013 闭环·引擎自产臂）。
 
 taxonomy ``aux_scan_eof`` 接 ``File ended while scanning use of \@newl@bel``
 签名 → ``aux_purge_regen`` 规则调 ``purge_corrupt_intermediates`` 删损坏
-可再生中间件。shipped 侧归 normalize.INTERMEDIATE_SUFFIXES 转码，本侧管
+可再生中间件。shipped 侧归 transcode.INTERMEDIATE_SUFFIXES 转码，本侧管
 引擎自产件的运行时截断。
 """
 

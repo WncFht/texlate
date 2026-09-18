@@ -36,19 +36,21 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from texlate.compile import normalize
+from texlate.compile import shadow
 from texlate.compile.mask import TEX_SOURCE_SUFFIXES, visible_tex
 from texlate.compile.normalize import (
-    AUX_BIB_SUFFIXES,
-    BINARY_SUFFIXES,
-    INTERMEDIATE_SUFFIXES,
     JUNK_FILE_STUBS,
-    PS_GRAPHIC_SUFFIXES,
     normalize_engine,
     normalize_project,
     rebase_project_paths,
     source_path_violations,
     use_bundled_bibliography,
+)
+from texlate.compile.transcode import (
+    AUX_BIB_SUFFIXES,
+    BINARY_SUFFIXES,
+    INTERMEDIATE_SUFFIXES,
+    PS_GRAPHIC_SUFFIXES,
 )
 from texlate.textutil import decode_tex, sniff_tex_encoding
 
@@ -632,7 +634,7 @@ def test_fuzz_project_tree_matrix(
     每树断言：无异常、stats 形态、逐件后缀族不变量；然后二跑幂等
     （字节同 + 零改写台账 + encodings 二跑只能 strict-utf8）。
     """
-    monkeypatch.setattr(normalize.shutil, "which", lambda *_a: None)
+    monkeypatch.setattr(shadow.shutil, "which", lambda *_a: None)
     rng = random.Random(20261101)  # noqa: S311 -- 确定性种子复现，非加密用途
     outside = tmp_path / "_outside_target"
     outside.write_bytes(b"outside \xe9 latin\n\\pdfcompresslevel=9\n")
@@ -718,7 +720,7 @@ def test_fuzz_ps_arm_line_oracle(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """PS 族后缀随机件：DOS 魔数逐字节不动 + 逐行净化 oracle。"""
-    monkeypatch.setattr(normalize.shutil, "which", lambda *_a: None)
+    monkeypatch.setattr(shadow.shutil, "which", lambda *_a: None)
     rng = random.Random(20261103)  # noqa: S311 -- 确定性种子
     suffixes = [".eps", ".epsi", ".epsf", ".mps", ".ps"]
     for i in range(_PS_ITERS):
@@ -740,7 +742,7 @@ def test_fuzz_intermediate_tail_matrix(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """中间产物截尾整形：在场 ⇒ 空或 ``\\n`` 收尾 + strict-UTF-8；缺席 ⇒ purged。"""
-    monkeypatch.setattr(normalize.shutil, "which", lambda *_a: None)
+    monkeypatch.setattr(shadow.shutil, "which", lambda *_a: None)
     rng = random.Random(20261104)  # noqa: S311 -- 确定性种子
     for i in range(_AUX_ITERS):
         root = tmp_path / f"a{i}"
@@ -924,7 +926,7 @@ def _rebase_oracle(root: Path, name: str) -> str | None:
 
 def test_fuzz_junk_stub_matrix(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """junk 名单逐名 stub：命中件覆写为 stub；非名单/大小写变体不动。"""
-    monkeypatch.setattr(normalize.shutil, "which", lambda *_a: None)
+    monkeypatch.setattr(shadow.shutil, "which", lambda *_a: None)
     rng = random.Random(20261107)  # noqa: S311 -- 确定性种子
     for i in range(80):
         root = tmp_path / f"j{i}"
@@ -953,7 +955,7 @@ def test_fuzz_junk_stub_matrix(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
 # ---------------------------------------------------------------- 边界钉
 def test_empty_and_edge_trees(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """空树 / 空 .tex / 仅 BOM / 单字节 / 不存在 root：零文件不炸。"""
-    monkeypatch.setattr(normalize.shutil, "which", lambda *_a: None)
+    monkeypatch.setattr(shadow.shutil, "which", lambda *_a: None)
     root = tmp_path / "empty"
     root.mkdir()
     assert normalize_project(root, "xelatex") == {"files": 0, "rewritten": 0}
@@ -977,7 +979,7 @@ def test_symlink_payloads_untouched(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """软链件全后缀族一律不写穿（root 外目标逐字节不动）。"""
-    monkeypatch.setattr(normalize.shutil, "which", lambda *_a: None)
+    monkeypatch.setattr(shadow.shutil, "which", lambda *_a: None)
     outside = tmp_path / "victim"
     outside.write_bytes(b"\\pdfcompresslevel=9\ncaf\xe9\n")
     root = tmp_path / "root"
@@ -997,7 +999,7 @@ def test_symlink_payloads_untouched(
 
 def test_huge_file_roundtrip(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """~600KB 多编码混杂 .tex：不炸 + 幂等。"""
-    monkeypatch.setattr(normalize.shutil, "which", lambda *_a: None)
+    monkeypatch.setattr(shadow.shutil, "which", lambda *_a: None)
     root = tmp_path / "big"
     root.mkdir()
     body = (
@@ -1065,7 +1067,7 @@ def test_nul_package_name_no_crash(
         b"\\documentclass{article}\n\\usepackage{a\x00b}\n"
         b"\\begin{document}\nx\\end{document}\n"
     )
-    monkeypatch.setattr(normalize.shutil, "which", lambda *_a: "/bin/true")
+    monkeypatch.setattr(shadow.shutil, "which", lambda *_a: "/bin/true")
     normalize_project(tmp_path, "xelatex", "main.tex")  # 期望不抛
 
 
@@ -1159,7 +1161,7 @@ def test_shadow_name_glob_metachars_escaped(tmp_path: Path) -> None:
         calls.append(req)
         return None
 
-    out = normalize._shadow_source(  # noqa: SLF001 -- 白盒钉遮蔽定位
+    out = shadow._shadow_source(  # noqa: SLF001 -- 白盒钉遮蔽定位
         "weird[n]", ".sty", tmp_path, resolver
     )
     assert out is None  # resolver 返回 None → 无系统件 → 不遮蔽
@@ -1170,7 +1172,7 @@ def test_shadow_resolve_symlink_loop_tolerated(tmp_path: Path) -> None:
     """kpse 命中件是 symlink loop：resolve RuntimeError → 不遮蔽、不崩。"""
     loop = tmp_path / "loop.sty"
     loop.symlink_to("loop.sty")
-    out = normalize._shadow_source(  # noqa: SLF001 -- 同上
+    out = shadow._shadow_source(  # noqa: SLF001 -- 同上
         "pkg", ".sty", tmp_path, lambda _r: loop
     )
     assert out is None
