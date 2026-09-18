@@ -2370,3 +2370,65 @@ rules:
         }
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/lane-c3-fixloop/ — C3 stats 驱动; qgpeosnew.tex:135 用面"
+
+  # astro-ph/9901081 (loop2 undefined_cs|define 实证): ``\documentstyle{mn}``
+  # LaTeX 2.09 稿 preamble 裸 ``\input epsfig.sty``/``\input psfig.sty``——
+  # 同 input_sty_to_usepackage 的 @=12 裂机制 (epsfig.sty:46 ``\define@key``
+  # → ``\define`` undefined_cs), 但 2.09 臂不能译 ``\usepackage``:
+  # latex.ltx ``\documentclass`` 体内 ``\if@compatibility\else\let
+  # \usepackage\RequirePackage\fi`` —— compat 模式 ``\usepackage`` 恒不定义
+  # (0806.0904/0806.2953 回归闸的来源), 而 ``\RequirePackage`` 是内核无条件
+  # 定义, compat 下照常走 ``\@fileswithoptions`` 全机器 (@=11 读件 /
+  # \@filelist 注册 / 选项处理)。故同纹改写、异枚替换子: 2e 臂 →
+  # ``\usepackage``, 2.09 臂 → ``\RequirePackage``。
+  # 弃选两臂 (tmp/lane-inputsty209/ d0-d3 xelatex 实证):
+  #   (a) 并进 ``\documentstyle[opts]`` —— latex209.def ``\@documentclasshook``
+  #       确以 ``\RequirePackage\@unusedoptionlist`` 装载选项 sty, 但装载点
+  #       被推迟到 document 钩、丢了 \input 行原位序, 且需解析/合并可选
+  #       括号——形更脆、收益为零;
+  #   (b) ``\makeatletter\input`` 包裹 —— 能修 @-catcode 但不进 \@filelist、
+  #       不走选项机器, 是 ``\RequirePackage`` 的严格下位。
+  # order -12 先于 2e 臂 (-11): ``\RequirePackage`` 产出在两模式皆合法,
+  # 病态双中头 (真 ``\documentstyle`` + 注释行 ``\documentclass``, 或反之)
+  # 一律先走本臂、得出恒合法形——顺带兜住 2e 臂对 ``\documentstyle`` 稿
+  # 译 ``\usepackage`` 的存量漏洞。下游零适配: pstricks_route(-10)/
+  # svg_route(-9) 行锚与 probe._PKG_RE 缺件扫描均 ``(?:usepackage|
+  # RequirePackage)`` 同收, 改写形照旧进路由门/vendor 安装面。
+  ## REVIEW: main_head_contains 是 raw 子串 (注释行 \documentstyle 亦中)——
+  ## 2e 稿注释行误中本臂时产出 \RequirePackage 仍合法, 仅统计归因偏移;
+  ## 本臂只解 \input .sty 装载面, 9901081 残余 ~151 错 (2.09 宏簇) 属其他车道。
+  - id: input_sty_209_requirepkg
+    description: "2.09 \\input <pkg>.sty 裸装载 → \\RequirePackage{<pkg>} (compat 下 \\usepackage 被压, \\RequirePackage 存活)"
+    phase: precheck
+    order: -12 # 先于 input_sty_to_usepackage(-11): 产出两臂皆合法, 病态双中头恒走安全臂
+    when: { always: true }
+    condition:
+      source_contains: "\\\\input(?:\\s*\\{\\s*|\\s+)([A-Za-z][A-Za-z0-9_-]*)\\.sty(?:\\s*\\}|(?![\\w.-]))(?=[\\s\\S]*\\\\begin\\s*\\{document\\})"
+      # 2.09 稿头闸——与 2e 臂 ``\documentclass`` 闸互斥分工
+      main_head_contains: "\\documentstyle"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex]
+        rewrites:
+          # pattern 与 2e 臂逐字节同形 (braced|bare 共 \\g<1>, 前瞻只动导言区);
+          # 唯 repl 换 \\RequirePackage —— compat 模式唯一存活的包装载 cs。
+          - {
+              pattern: "\\\\input(?:\\s*\\{\\s*|\\s+)([A-Za-z][A-Za-z0-9_-]*)\\.sty(?:\\s*\\}|(?![\\w.-]))(?=[\\s\\S]*\\\\begin\\s*\\{document\\})",
+              repl: "\\\\RequirePackage{\\g<1>}",
+            }
+    risk: low # 同 2e 臂: 前瞻闸只动导言区; RequirePackage 两臂皆合法
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same } # 源码改写天然可移植; RequirePackage 形路由/缺件扫描同收
+    provenance:
+      - {
+          corpus: "astro-ph/9901081 (loop2 unfixable:undefined_cs, fix arm raw 2.09)",
+          error: "epsfig.sty:46 Undefined control sequence \\define (\\documentstyle{mn} 下 \\input epsfig.sty @=12 裂 \\define@key)",
+        }
+      - {
+          corpus: "corpus_v3 raw-grep 家族 ~51 篇 (\\documentstyle ∧ \\input .sty): astro-ph/0003034 \\input{epsf,psfig}.sty, astro-ph/0103007 \\input psfig.sty 等 mn 簇",
+          error: "同机制——2.09 稿裸 \\input .sty 全裂 @-cs",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-inputsty209/ — d0-d3 arm 对比实证; bench/results/stagerun-loop2-2026-09-18/cases.jsonl astro-ph/9901081"
