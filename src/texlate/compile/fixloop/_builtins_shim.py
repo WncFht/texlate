@@ -495,6 +495,22 @@ def _env_noop_line(env: str) -> str:
     )
 
 
+#: env polyfill 对偶件表 —— env 名 → (源内使用证据 rx, 同补 stub 行)。
+#: 缺 proof env 的稿多伴 ``\QED`` 收尾标记 (amsthm 对偶件; 0707.1588
+#: IEEEtran 实证: proof noop 后 ``undefined_cs:QED`` 即浮面) —— polyfill
+#: proof 同轮补 ``\providecommand{\QED}`` 省一轮。stub 形 = amsthm
+#: ``\qedsymbol`` 纯原语开口盒, 不依赖 amssymb ``\square``。
+_ENV_COMPANIONS: dict[str, tuple[str, str]] = {
+    "proof": (
+        r"\\QED\b",
+        (
+            r"\providecommand{\QED}{\leavevmode\hbox to.77778em{\hfil\vrule"
+            r"\vbox to.675em{\hrule width.6em\vfil\hrule}\vrule}}"
+        ),
+    ),
+}
+
+
 #: renew 族环境再定义站点 —— ``\renewenvironment{X}`` 对未定义 env 报同一
 #: ``Environment X undefined`` 签 (0806.0904/0806.2953 ``\renewenvironment{proof}``
 #: 于 preamble :743 实证, pre-begindoc 注入 :1069 晚 325 行救不到);
@@ -508,30 +524,42 @@ _RENEW_ENV_SITE_RE = re.compile(
 )
 
 
-def _prepend_env_renew_sites(ctx: LoopCtx, envs: set[str]) -> set[str]:
+def _live_renew_sites(t: str, envs: set[str]) -> dict[str, int]:
+    r"""``envs`` 各名在 ``t`` 的首个 live renew 站点偏移 (env→pos)。
+
+    遮盖 span 复核剔注释/verbatim 死区; 其后同名站点见到的 env 已被
+    首站点 renew 定义, 无需再前置。
+    """
+    masked = mask_tex(t)
+    sites: dict[str, int] = {}
+    for m in _RENEW_ENV_SITE_RE.finditer(masked):
+        name = m.group(1)
+        if name not in envs or name in sites:
+            continue
+        if masked[m.start() : m.end()] != t[m.start() : m.end()]:
+            continue  # 注释/verbatim 死区内站点不动
+        sites[name] = m.start()
+    return sites
+
+
+def _prepend_env_renew_sites(
+    ctx: LoopCtx, envs: set[str], companions: dict[str, str]
+) -> set[str]:
     r"""``envs`` 的 live renew 站点行首前置 ``\ifcsname`` noop → 已处理 env 集。
 
-    每文件每 env 只处理**首个** live 站点 (遮盖 span 复核剔注释/verbatim
-    死区): 其后同名站点见到的 env 已被首站点 renew 定义, 无需再前置。
     行首锚 —— 站点裹 ``\AtBeginDocument``/宏参死块时前置仍落活区且先于
     执行点; 站点在 body 内同样覆盖 (renew 合法出现在任何位置)。
-    ``ins in nt[:pos]`` 幂等: 上轮前置或 pre-begindoc 批块行已先于站点
-    者不再重复 (批块在 preamble 站点之后, 不误伤本轮前置需求)。
+    ``companions`` (env→stub 行, 调用方已按源内使用证据过滤) 随 noop
+    同块下落 —— 站点多在 preamble, ``\QED`` 类对偶件若被序言调用
+    同样够得着。``ins in nt[:pos]`` 幂等: 上轮前置或 pre-begindoc 批块
+    行已先于站点者不再重复 (批块在 preamble 站点之后, 不误伤本轮需求)。
     """
     done: set[str] = set()
     for f in ctx.tex_files((".tex", ".sty", ".cls")):
         t = ctx.read(f)
         if t is None:
             continue
-        masked = mask_tex(t)
-        sites: dict[str, int] = {}
-        for m in _RENEW_ENV_SITE_RE.finditer(masked):
-            name = m.group(1)
-            if name not in envs or name in sites:
-                continue
-            if masked[m.start() : m.end()] != t[m.start() : m.end()]:
-                continue  # 注释/verbatim 死区内站点不动
-            sites[name] = m.start()
+        sites = _live_renew_sites(t, envs)
         if not sites:
             continue
         nt = t
@@ -540,8 +568,11 @@ def _prepend_env_renew_sites(ctx: LoopCtx, envs: set[str]) -> set[str]:
             ins = _env_noop_line(name)
             if ins in nt[:pos]:
                 continue
+            block = ins + " % fixloop: pre-renew noop\n"
+            if comp := companions.get(name):
+                block += comp + "\n"
             at = nt.rfind("\n", 0, pos) + 1
-            nt = nt[:at] + ins + " % fixloop: pre-renew noop\n" + nt[at:]
+            nt = nt[:at] + block + nt[at:]
             done.add(name)
         if nt != t:
             ctx.write(f, nt)
@@ -569,6 +600,11 @@ def undefined_env_polyfill(
     ``\begin``-used 门 (renew 本身即消费点); 站点在主文件者自动出
     fresh 批块 (``\ifcsname`` 已落盘), 在他文件者批块照注兜底
     (站点文件可能不被 ``\input`` 抵达, 双保险不误伤)。
+
+    对偶件臂 (``_ENV_COMPANIONS``, 0707.1588): proof 被 polyfill 且源内
+    ``\QED`` 在用 → 同块补 ``\providecommand{\QED}`` (amsthm 对偶件,
+    缺 proof env 的稿多伴此标记); 独立 ``undefined_cs:QED`` (proof 已
+    定义稿) 由 cs_targeted_fix ``cs_table.QED`` polyfill 兜。
     """
     del eng
     proven: set[str] = set()
@@ -579,11 +615,18 @@ def undefined_env_polyfill(
     proven -= deny
     if not proven:
         return False, "no undefined env to polyfill"
+    # blob 须在注入前取 —— 对偶件证据 (``\QED`` 在用) 与 defined 判
+    # 都不能看见自己即将注入的行 (stub 文本含 ``\QED`` 字面会自证)。
+    blob = mask_tex(ctx.source_blob())
+    companions = {
+        e: _ENV_COMPANIONS[e][1]
+        for e in proven
+        if e in _ENV_COMPANIONS and re.search(_ENV_COMPANIONS[e][0], blob)
+    }
     # renew 站点前置先行 —— preamble ``\renewenvironment{X}`` 的报错点在
     # pre-begindoc 注入位之前, 批扩永远够不到 (0806.0904/0806.2953);
     # 站点消费点注入后 renew 以稿自带定义覆盖 noop, 语义优于批扩 noop。
-    site_envs = _prepend_env_renew_sites(ctx, proven)
-    blob = mask_tex(ctx.source_blob())
+    site_envs = _prepend_env_renew_sites(ctx, proven, companions)
     used = set(_ENV_USE_RE.findall(blob)) - deny
     if not (proven & used) and not site_envs:
         return False, f"env(s) {sorted(proven)} not \\begin-used in source"
@@ -597,14 +640,14 @@ def undefined_env_polyfill(
     notes: list[str] = []
     if site_envs:
         notes.append(f"pre-renew noop: {', '.join(sorted(site_envs))}")
-    if fresh and _inject_before_begindoc(
-        ctx,
-        "\n".join(
-            ["% fixloop: undefined env polyfill (noop env)"]
-            + [_env_noop_line(e) for e in fresh]
-        ),
-    ):
-        notes.append(f"env polyfill: {', '.join(fresh)}")
+    if fresh:
+        lines = ["% fixloop: undefined env polyfill (noop env)"]
+        for e in fresh:
+            lines.append(_env_noop_line(e))
+            if e in companions:
+                lines.append(companions[e])
+        if _inject_before_begindoc(ctx, "\n".join(lines)):
+            notes.append(f"env polyfill: {', '.join(fresh)}")
     if not notes:
         return False, "undefined envs already polyfilled"
     return True, "; ".join(notes)

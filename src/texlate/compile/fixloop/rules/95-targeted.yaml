@@ -108,6 +108,14 @@ rules:
             }
           # svjour/amsthm \smartqed 重定义 \qed → noop (qed 保持包默认)
           smartqed: { polyfill: "\n\\providecommand{\\smartqed}{}" }
+          # amsthm \QED 收尾标记 —— 缺 proof/amsthm 面常用 (0707.1588
+          # IEEEtran undefined_cs:QED 实证); 纯原语开口盒 (amsthm
+          # \qedsymbol 形) 不依赖 amssymb \square; proof env 已定义的
+          # 独立 QED 缺位由本键兜 (env polyfill 对偶件只管 conjunctive)
+          QED:
+            {
+              polyfill: "\n\\providecommand{\\QED}{\\leavevmode\\hbox to.77778em{\\hfil\\vrule\\vbox to.675em{\\hrule width.6em\\vfil\\hrule}\\vrule}}",
+            }
           # 期刊投稿注 \submitto{journal} → noop
           submitto: { polyfill: "\n\\providecommand{\\submitto}[1]{}" }
           # \keywords{...} 渲染保留而非丢文 (article 系无此 cs)

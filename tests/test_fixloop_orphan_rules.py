@@ -902,6 +902,98 @@ def test_env_polyfill_renew_site_no_double_prepend(tmp_path: Path) -> None:
     assert t.count("\\ifcsname proof\\endcsname") == 1
 
 
+# ─── undefined_env_polyfill: \QED 对偶件臂 (0707.1588) ───
+
+
+def test_env_polyfill_proof_qed_companion_batch(tmp_path: Path) -> None:
+    """proof 批扩 + 源内 ``\\QED`` 在用 → 同块补 ``\\providecommand{\\QED}``
+    (amsthm 对偶件, 省一轮 undefined_cs)。"""
+    _write_main(
+        tmp_path,
+        "\\begin{document}\n\\begin{proof}body \\QED\\end{proof}\n\\end{document}\n",
+    )
+    (tmp_path / "main.log").write_text(
+        "main.tex:2: LaTeX Error: Environment proof undefined.\n"
+    )
+    ok, note = TRANSFORM_FNS["undefined_env_polyfill"](
+        _ctx(tmp_path), None, "proof", {}
+    )
+    assert ok, note
+    t = (tmp_path / "main.tex").read_text()
+    assert "\\providecommand{\\QED}" in t
+    assert "\\hfil\\vrule" in t  # amsthm \qedsymbol 形开口盒
+    assert t.index("\\providecommand{\\QED}") < t.index("\\begin{document}")
+
+
+def test_env_polyfill_renew_site_qed_companion(tmp_path: Path) -> None:
+    """站点前置块同样携 ``\\QED`` stub —— 序言 ``\\renewenvironment`` +
+    body ``\\QED`` 用 (0707.1588 IEEEtran 形)。"""
+    _write_main(
+        tmp_path,
+        "\\renewenvironment{proof}{}{}\n"
+        "\\begin{document}\n"
+        "\\begin{proof}body \\QED\\end{proof}\n"
+        "\\end{document}\n",
+    )
+    (tmp_path / "main.log").write_text(
+        "main.tex:2: LaTeX Error: Environment proof undefined.\n"
+    )
+    ok, _note = TRANSFORM_FNS["undefined_env_polyfill"](
+        _ctx(tmp_path), None, "proof", {}
+    )
+    assert ok
+    t = (tmp_path / "main.tex").read_text()
+    assert t.index("\\providecommand{\\QED}") < t.index("\\renewenvironment{proof}")
+
+
+def test_env_polyfill_no_qed_companion_without_use(tmp_path: Path) -> None:
+    """proof polyfill 但源无 ``\\QED`` → 不补 stub (证据门, 免死代码)。"""
+    _write_main(
+        tmp_path,
+        "\\begin{document}\n\\begin{proof}b\\end{proof}\n\\end{document}\n",
+    )
+    (tmp_path / "main.log").write_text(
+        "main.tex:2: LaTeX Error: Environment proof undefined.\n"
+    )
+    ok, _note = TRANSFORM_FNS["undefined_env_polyfill"](
+        _ctx(tmp_path), None, "proof", {}
+    )
+    assert ok
+    t = (tmp_path / "main.tex").read_text()
+    assert "\\providecommand{\\QED}" not in t
+
+
+def test_env_polyfill_qed_companion_independent_env(tmp_path: Path) -> None:
+    """``\\QED`` 在用但缺的是 sidebar (非 proof) → 不补 ``\\QED`` stub。"""
+    _write_main(
+        tmp_path,
+        "\\begin{document}\n\\begin{sidebar}s\\end{sidebar} \\QED\n\\end{document}\n",
+    )
+    (tmp_path / "main.log").write_text(
+        "main.tex:2: LaTeX Error: Environment sidebar undefined.\n"
+    )
+    ok, _note = TRANSFORM_FNS["undefined_env_polyfill"](
+        _ctx(tmp_path), None, "sidebar", {}
+    )
+    assert ok
+    t = (tmp_path / "main.tex").read_text()
+    assert "\\providecommand{\\QED}" not in t
+
+
+def test_cs_targeted_fix_qed_polyfill(tmp_path: Path) -> None:
+    """独立 ``undefined_cs:\\QED`` (proof 已定义稿) → 95-targeted.yaml
+    ``cs_table.QED`` polyfill 经 cs_targeted_fix 注入开口盒 stub。"""
+    _write_main(tmp_path, "\\begin{document}\nx \\QED\n\\end{document}\n")
+    rule = next(r for r in load_ruleset().rules if r.id == "cs_targeted_fix")
+    params = dict(rule.action.get("params") or {})
+    assert "QED" in (params.get("cs_table") or {})
+    ok, note = TRANSFORM_FNS["cs_targeted_fix"](_ctx(tmp_path), None, "QED", params)
+    assert ok, note
+    t = (tmp_path / "main.tex").read_text()
+    assert "\\providecommand{\\QED}" in t
+    assert "\\hfil\\vrule" in t
+
+
 # ─── undefine_for_redef: 批量 + 站点前置 + other 签 ───
 
 
