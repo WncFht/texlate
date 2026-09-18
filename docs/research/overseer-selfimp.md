@@ -563,3 +563,12 @@
 - **draftsty 迟到报告核对**：注入覆写设计 delta 理由三条成立（签名行免块界/\def 免存在性/\ifdefined\maketitle 保题名），与已 commit 22e94be 一致——无追加动作。
 - roster 5：pendspec(#59 落笔中)/mnrasretire(#61 yaml 放笔)/flipcheck5(#62 完待报)/texmfshadow/pairediff。
 - 门巡：本轮 commit 22e94be/c68dc86/57db761+dbf3996 全我署；零 git 违例；L0 域 18+24+888 绿。
+
+## 2026-09-19 ~05:4x — texmfshadow census 收：196 件普查 + mnrasretire 重设计
+
+- **普查结论**：196 vendor 件（168 files+28 stubs）×kpsewhich+字节 diff——135 NONE（Arch 分装 texlive 缺族）/58 IDENT/3 HOME-DIFF。**唯 1 活缺陷=mnras.cls**（texmf=2023 buggy 上游，源=fixloop 期 tlmgr usermode 漏进真 ~/texmf，44 件 mtime 聚 09-16 吻 engine.py:649-651 pollution 注）；siunitx=良性前向遮蔽（3.5.12 盖 3.6.0 无钉件，379 文档暴露零失败→监测）；binhex=良性（真件盖桩=正确方向，0 用）。
+- **install-path 判明**：missing 裁决链=`wdir→_texmf/home→~/texmf→TEXMFLOCAL→TEXMFDIST`（_xelatex.py:123-137 冒号链 TEXMFHOME，真 ~/texmf 挂尾=刻意保 host shim 可见）；xelatex 独有，tectonic bundle 自含免谈。
+- **mnrasretire 重设计（采纳 agent 建议）**：retire-mv→**stateless wdir drop**——~/texmf RW 挂载 mv 即全局突变（侵入），改指纹闸无条件把 vendor/files/mnras.cls 平投 wdir 根：cwd 赢全链，零外变，missing-file 依赖与 retire→reinstall 环同消。已两连发转达（含 garble 澄清）。
+- **普查↔geomverify 矛盾裁决**：census 称 mn2e 径"stub 选项剥离已防"——**被 geomverify 仪表实证推翻**（repro/：\@loadwithoptions 拷原始 opt@ 列表非 \@classoptionslist，剥离死代码）。爆半径修正≈26 格（25 mn2e+usegraphicx + 1907.00331 直用）——wdir drop 双径同愈。
+- **结构注记**：stock-texlive 宿主使 135 NONE 中半数变 DIST 遮蔽——多为无害，**唯 nicematrix v7.11a 兼容钉**：texlive≥7.11c 前向遮蔽钉→2308.12712 pkg_version_skew 旧虫复活且 vendored_fetch 不达；未来一切 `texlate patch` 件同洞。通用件候选（N=2 再议）：static_precheck 扫——带 patch-marker/钉旗 vendor 件若 wdir 外解析得中→指纹 wdir drop（pkg_version_skew_vendored 泛化）。
+- roster 4：pendspec(#59)/mnrasretire(#61 重设计消化中)/flipcheck5(#62 完待报)/pairediff；texmfshadow 尸清。
