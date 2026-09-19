@@ -48,16 +48,16 @@
 实跑输出（Zotero 9.0.5.SOURCE.f0bcd5ae1，profile=tmp/zotero-dev/rdp-profile）：
 
 ```text
-$ zotero/dev/rdp 'Zotero.version'                        -> {"ok":true,"value":"9.0.5.SOURCE.f0bcd5ae1"}
-$ zotero/dev/rdp 'Zotero.Items.getAll ? "have-items" : "no"' -> {"ok":true,"value":"have-items"}
-$ zotero/dev/rdp 'typeof ZoteroPane'                     -> {"ok":true,"value":"object"}
-$ zotero/dev/rdp 'Zotero.getMainWindow() ? "win-ok":"no"'-> {"ok":true,"value":"win-ok"}
-$ zotero/dev/rdp '(async()=>{return 42})()'              -> {"ok":true,"value":42}
-$ zotero/dev/rdp 'await new Promise(r=>setTimeout(r,800)).then(()=>"delayed-ok")' -> {"ok":true,"value":"delayed-ok"}
-$ zotero/dev/rdp 'var x=7; var y=x*3; return y'          -> {"ok":true,"value":21}
-$ zotero/dev/rdp 'throw new Error("boom-test")'          -> {"ok":false,"error":"Error: boom-test\n__v<@debugger eval code:1:47..."} exit=1
-$ zotero/dev/rdp --port 9999 '1+1'                       -> {"ok":false,"error":"connect ... ECONNREFUSED"} exit=2
-$ zotero/dev/rdp '({lib: Zotero.Libraries.userLibraryID, pane: typeof ZoteroPane})' -> {"ok":true,"value":{"lib":1,"pane":"object"}}
+zotero/dev/rdp 'Zotero.version'                        -> {"ok":true,"value":"9.0.5.SOURCE.f0bcd5ae1"}
+zotero/dev/rdp 'Zotero.Items.getAll ? "have-items" : "no"' -> {"ok":true,"value":"have-items"}
+zotero/dev/rdp 'typeof ZoteroPane'                     -> {"ok":true,"value":"object"}
+zotero/dev/rdp 'Zotero.getMainWindow() ? "win-ok":"no"'-> {"ok":true,"value":"win-ok"}
+zotero/dev/rdp '(async()=>{return 42})()'              -> {"ok":true,"value":42}
+zotero/dev/rdp 'await new Promise(r=>setTimeout(r,800)).then(()=>"delayed-ok")' -> {"ok":true,"value":"delayed-ok"}
+zotero/dev/rdp 'var x=7; var y=x*3; return y'          -> {"ok":true,"value":21}
+zotero/dev/rdp 'throw new Error("boom-test")'          -> {"ok":false,"error":"Error: boom-test\n__v<@debugger eval code:1:47..."} exit=1
+zotero/dev/rdp --port 9999 '1+1'                       -> {"ok":false,"error":"connect ... ECONNREFUSED"} exit=2
+zotero/dev/rdp '({lib: Zotero.Libraries.userLibraryID, pane: typeof ZoteroPane})' -> {"ok":true,"value":{"lib":1,"pane":"object"}}
 ```
 
 ## 踩过的死胡同

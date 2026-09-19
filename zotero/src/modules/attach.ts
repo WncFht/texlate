@@ -60,7 +60,7 @@ function attachTitle(
 /** Title → itemID of the item's existing attachments; missing ids = absent. */
 function existingAttachByTitle(item: Zotero.Item): Map<string, number> {
   const byTitle = new Map<string, number>();
-  let ids: number[] = [];
+  let ids: number[];
   try {
     ids = item.getAttachments();
   } catch {
@@ -110,11 +110,10 @@ export async function attachArtifacts(
       }
       // item.id in the leaf: two items on one server-deduped task would
       // otherwise race the same temp path (torn write → corrupt attachment).
-      const tmpLeaf =
-        `texlate_${item.id}_${taskId}_${urlKind}`.replace(
-          /[^a-zA-Z0-9._-]/g,
-          "_",
-        );
+      const tmpLeaf = `texlate_${item.id}_${taskId}_${urlKind}`.replace(
+        /[^a-zA-Z0-9._-]/g,
+        "_",
+      );
       const tmpPath = PathUtils.join(PathUtils.tempDir, tmpLeaf);
       temps.push(tmpPath);
       try {

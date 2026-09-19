@@ -73,7 +73,7 @@ Watch mode (4853-4888): source change → rebuild + regen impacted tests (esbuil
 Full defaults at bundle:88-181. Fields:
 
 - top: `source` ("src"), `dist` (".scaffold/build"), `watchIgnore`, `name`, `id`, `namespace`, `xpiName`, `updateURL`, `xpiDownloadLink` (templated `{{owner}}/{{repo}}/{{version}}/{{xpiName}}/{{buildTime}}/{{updateJson}}`, 60-71), `logLevel`.
-- `build`: `assets` ("addon/**/*.*"), `define`, `fluent{prefixFluentMessages,prefixLocaleFiles,ignore,dts}`, `prefs{prefix,prefixPrefKeys,dts}`, `esbuildOptions[]`, `makeManifest{enable,template}`, `makeUpdateJson{updates,hash}`, `hooks`.
+- `build`: `assets` (`"addon/**/*.*"`), `define`, `fluent{prefixFluentMessages,prefixLocaleFiles,ignore,dts}`, `prefs{prefix,prefixPrefKeys,dts}`, `esbuildOptions[]`, `makeManifest{enable,template}`, `makeUpdateJson{updates,hash}`, `hooks`.
 - `server`: `devtools` (true→`--jsdebugger`), `startArgs[]`, `prefs{}`, `asProxy` (false), `prebuild` (true), `createProfileIfMissing` (true), `hooks`. **No profile/dataDir/binary fields — env vars only.**
 - `test`: `entries` ("test"), `prefs{}`, `mocha.timeout` (10s), `abortOnFail`, `headless`, `startupDelay` (1s), `waitForPlugin` (JS expr string, default `"() => true"`), `watch` (true), `hooks`.
 - `release`: `bumpp{release,preid,confirm,commit:"chore(publish): release v%s",tag:"v%s",...}`, `github{enable:"ci",repository,updater,releaseNote}`, `changelog`, `hooks`.

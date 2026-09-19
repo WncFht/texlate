@@ -98,15 +98,15 @@ zotero/dev/dev-verify full         # selftest 矩阵终验
 
 ## 端口 / 路径
 
-| 项 | 值 | 说明 |
-| --- | --- | --- |
-| texlate dev server | `127.0.0.1:18765` | `TEXLATE_DEV_PORT`；**8765 是禁区**——本机真实 gateway 实例，8766 被 status_panel 长占；bind 前 `texlate_dev_port_free` 断言 + health `.data_dir` 验明正身 |
-| RDP 调试口 | `127.0.0.1:6100` | `TEXLATE_DEV_RDP_PORT`；`--start-debugger-server` 端口，绑定前同样断言空闲 |
-| scratch 根 | `tmp/zotero-dev/` | `TEXLATE_DEV_ROOT`，gitignored；pidfile/log/fixture/下载物全在此 |
-| texlate 数据 | `tmp/zotero-dev/texlate-data` | `TEXLATE_DEV_DATA`，与 `~/.texlate` 正式库隔离（service.lock 不打架） |
-| Zotero profile | `tmp/zotero-dev/rdp-profile` | `TEXLATE_DEV_PROFILE`；rdp-spike 初始化的 canonical profile |
-| Zotero 数据库 | `tmp/zotero-dev/zotero-data` | `TEXLATE_DEV_ZDATA`；`-datadir` 指定，不带会开 `~/Zotero` 真库 |
-| Zotero 二进制 | `/usr/bin/zotero` | `ZOTERO_BIN` 可覆盖 |
+| 项                 | 值                            | 说明                                                                                                                                                      |
+| ------------------ | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| texlate dev server | `127.0.0.1:18765`             | `TEXLATE_DEV_PORT`；**8765 是禁区**——本机真实 gateway 实例，8766 被 status_panel 长占；bind 前 `texlate_dev_port_free` 断言 + health `.data_dir` 验明正身 |
+| RDP 调试口         | `127.0.0.1:6100`              | `TEXLATE_DEV_RDP_PORT`；`--start-debugger-server` 端口，绑定前同样断言空闲                                                                                |
+| scratch 根         | `tmp/zotero-dev/`             | `TEXLATE_DEV_ROOT`，gitignored；pidfile/log/fixture/下载物全在此                                                                                          |
+| texlate 数据       | `tmp/zotero-dev/texlate-data` | `TEXLATE_DEV_DATA`，与 `~/.texlate` 正式库隔离（service.lock 不打架）                                                                                     |
+| Zotero profile     | `tmp/zotero-dev/rdp-profile`  | `TEXLATE_DEV_PROFILE`；rdp-spike 初始化的 canonical profile                                                                                               |
+| Zotero 数据库      | `tmp/zotero-dev/zotero-data`  | `TEXLATE_DEV_ZDATA`；`-datadir` 指定，不带会开 `~/Zotero` 真库                                                                                            |
+| Zotero 二进制      | `/usr/bin/zotero`             | `ZOTERO_BIN` 可覆盖                                                                                                                                       |
 
 ## research/
 

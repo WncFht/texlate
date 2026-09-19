@@ -154,10 +154,16 @@ fill() {
 need_tools() {
   local missing=0 t
   for t in "$RDP" "$DEV_SERVER" "$DEV_ZOTERO"; do
-    [[ -x $t ]] || { fail tools "missing executable $t"; missing=1; }
+    [[ -x $t ]] || {
+      fail tools "missing executable $t"
+      missing=1
+    }
   done
   for t in curl python3 unzip sha256sum; do
-    command -v "$t" >/dev/null || { fail tools "missing $t in PATH"; missing=1; }
+    command -v "$t" >/dev/null || {
+      fail tools "missing $t in PATH"
+      missing=1
+    }
   done
   ((missing == 0))
 }
@@ -225,12 +231,12 @@ Zotero.Prefs.set('$PREF.pollTimeoutMs',900000,true), 'ok'" 15 >/dev/null ||
 declare -A FIX=() # kind → itemID
 FIX_KINDS=(doi url-new url-old archiveid extra-new extra-old)
 declare -A EXP_SRC=(
-  [doi]=doi [url-new]=url [url-old]=url
-  [archiveid]=archiveID [extra-new]=extra [extra-old]=extra
+  ['doi']=doi ['url-new']=url ['url-old']=url
+  ['archiveid']=archiveID ['extra-new']=extra ['extra-old']=extra
 )
 declare -A EXP_FMT=(
-  [doi]=new [url-new]=new [url-old]=old
-  [archiveid]=new [extra-new]=new [extra-old]=old
+  ['doi']=new ['url-new']=new ['url-old']=old
+  ['archiveid']=new ['extra-new']=new ['extra-old']=old
 )
 
 #: 按标题含 [texlate-fixture] 发现条目并分类（isRegularItem 挡撞名附件——
@@ -261,12 +267,13 @@ discover_fixtures() {
     return 1
   }
   local rows
-  rows="$(python3 - "$out" <<'PY'
+  rows="$(
+    python3 - "$out" <<'PY'
 import json, sys
 for r in json.loads(sys.argv[1]) or []:
     print(f"{r.get('kind')}\t{r.get('id')}")
 PY
-)"
+  )"
   local k id missing=()
   while IFS=$'\t' read -r k id; do
     [[ -n $k && $k != None && -n $id ]] && FIX[$k]=$id
@@ -320,14 +327,15 @@ reset_fixtures() {
     return 1
   }
   local ev
-  ev="$(python3 - "$res" <<'PY'
+  ev="$(
+    python3 - "$res" <<'PY'
 import json, sys
 rows = json.loads(sys.argv[1]) or []
 c = sum(1 for r in rows if r.get("cleared"))
 a = sum(int(r.get("removed") or 0) for r in rows)
 print(f"items={len(rows)} marks-cleared={c} attachments-removed={a}")
 PY
-)"
+  )"
   pass fixture-reset "$ev"
 }
 
@@ -340,11 +348,11 @@ assert_selftest() {
   run_selftest "$id" selftest "$file"
   declare -A S=()
   fill S "$file"
-  if [[ ${S[verdict]:-} != OK ]]; then
-    fail "selftest:$kind" "item=$id step=${S[bad_step]:-?} detail=${S[bad_detail]:-?} (raw=$file)"
+  if [[ ${S['verdict']:-} != OK ]]; then
+    fail "selftest:$kind" "item=$id step=${S['bad_step']:-?} detail=${S['bad_detail']:-?} (raw=$file)"
     return 1
   fi
-  local ex="${S[extract]:-}" arxid src
+  local ex="${S['extract']:-}" arxid src
   arxid="${ex#arxivId=}"
   arxid="${arxid%% *}"
   src="${ex##*source=}"
@@ -353,28 +361,28 @@ assert_selftest() {
     return 1
   fi
   case "${EXP_FMT[$kind]}" in
-    new)
-      [[ $arxid =~ ^[0-9]{4}\.[0-9]{4,5}(v[0-9]+)?$ ]] || {
-        fail "selftest:$kind" "arxivId=$arxid not new-format NNNN.NNNNN"
-        return 1
-        }
-      ;;
-    old)
-      [[ $arxid == */* ]] || {
-        fail "selftest:$kind" "arxivId=$arxid not old-format archive/NNNNNNN"
-        return 1
-        }
-      ;;
+  new)
+    [[ $arxid =~ ^[0-9]{4}\.[0-9]{4,5}(v[0-9]+)?$ ]] || {
+      fail "selftest:$kind" "arxivId=$arxid not new-format NNNN.NNNNN"
+      return 1
+    }
+    ;;
+  old)
+    [[ $arxid == */* ]] || {
+      fail "selftest:$kind" "arxivId=$arxid not old-format archive/NNNNNNN"
+      return 1
+    }
+    ;;
   esac
-  if [[ -n ${S[taskId]:-} && ${S[mark]:-} != *"${S[taskId]}"* ]]; then
-    fail "selftest:$kind" "mark step did not verify taskId=${S[taskId]} (mark=${S[mark]:-?})"
+  if [[ -n ${S['taskId']:-} && ${S['mark']:-} != *"${S['taskId']}"* ]]; then
+    fail "selftest:$kind" "mark step did not verify taskId=${S['taskId']} (mark=${S['mark']:-?})"
     return 1
   fi
-  pass "selftest:$kind" "item=$id $ex taskId=${S[taskId]}"
-  info "poll: ${S[poll]}"
-  info "files: ${S[files]}"
-  info "attach: ${S[download+attach]}"
-  info "mark: ${S[mark]} ; reader: ${S[reader-url]}"
+  pass "selftest:$kind" "item=$id $ex taskId=${S['taskId']}"
+  info "poll: ${S['poll']}"
+  info "files: ${S['files']}"
+  info "attach: ${S['download+attach']}"
+  info "mark: ${S['mark']} ; reader: ${S['reader-url']}"
   return 0
 }
 
@@ -383,15 +391,15 @@ assert_negative() {
   run_selftest "$id" nonarxiv "$file"
   declare -A S=()
   fill S "$file"
-  if [[ ${S[verdict]:-} != OK ]]; then
-    fail selftest:negative "item=$id step=${S[bad_step]:-?} detail=${S[bad_detail]:-?}"
+  if [[ ${S['verdict']:-} != OK ]]; then
+    fail selftest:negative "item=$id step=${S['bad_step']:-?} detail=${S['bad_detail']:-?}"
     return 1
   fi
-  if [[ ${S[extract]:-} != *"no arXiv id"* && ${S[already-marked]:-} != *"mark=none"* ]]; then
-    fail selftest:negative "unexpected extract/mark detail: ${S[extract]:-?} / ${S[already-marked]:-?}"
+  if [[ ${S['extract']:-} != *"no arXiv id"* && ${S['already-marked']:-} != *"mark=none"* ]]; then
+    fail selftest:negative "unexpected extract/mark detail: ${S['extract']:-?} / ${S['already-marked']:-?}"
     return 1
   fi
-  pass selftest:negative "item=$id extract='${S[extract]}' mark='${S[already-marked]}'"
+  pass selftest:negative "item=$id extract='${S['extract']}' mark='${S['already-marked']}'"
 }
 
 #: menu_state <itemID> → stdout "translate,reader"
@@ -407,7 +415,7 @@ assert_menu() { # $1=label $2=itemID $3=want_translate $4=want_reader
   got="$(menu_state "$2")" || {
     fail "menu:$1" "computeMenuState eval failed (item=$2)"
     return 1
-    }
+  }
   if [[ $got == "$3,$4" ]]; then
     pass "menu:$1" "item=$2 translate=$3 reader=$4"
   else
@@ -454,7 +462,7 @@ assert_idem() {
   run_selftest "$id" selftest "$file"
   declare -A S=()
   fill S "$file"
-  local am="${S[already-marked]:-}" cr="${S[create]:-}"
+  local am="${S['already-marked']:-}" cr="${S['create']:-}"
   if [[ $am == *"mark=${first}"* ]]; then
     pass idem-mark "already-marked detail shows mark=$first (item=$id)"
   else
@@ -465,12 +473,12 @@ assert_idem() {
   else
     fail idem-reuse "create detail='$cr' expected taskId=$first"
   fi
-  if [[ ${S[verdict]:-} == OK ]]; then
+  if [[ ${S['verdict']:-} == OK ]]; then
     pass idem-selftest "re-run completed ok=true"
-  elif [[ ${S[bad_step]:-} == "download+attach" && ${S[bad_detail]:-} == *"none attached"* ]]; then
+  elif [[ ${S['bad_step']:-} == "download+attach" && ${S['bad_detail']:-} == *"none attached"* ]]; then
     warn idem-selftest "re-run FAILs 'none attached' (seen-titles skip → attached=[]) — selftest not idempotent, production path short-circuits at mark (reported)"
   else
-    warn idem-selftest "re-run verdict=${S[verdict]:-?} at ${S[bad_step]:-?}: ${S[bad_detail]:-?}"
+    warn idem-selftest "re-run verdict=${S['verdict']:-?} at ${S['bad_step']:-?}: ${S['bad_detail']:-?}"
   fi
 }
 
@@ -485,12 +493,12 @@ sabotage_expect() {
   run_selftest "$itemid" selftest "$file"
   declare -A S=()
   fill S "$file"
-  if [[ ${S[verdict]:-} == FAIL && ${S[bad_step]:-} == "$want_step" && ${S[bad_detail]:-} =~ $regex ]]; then
-    fail_evidence "sabotage-$label" "step=${S[bad_step]} detail=${S[bad_detail]}"
+  if [[ ${S['verdict']:-} == FAIL && ${S['bad_step']:-} == "$want_step" && ${S['bad_detail']:-} =~ $regex ]]; then
+    fail_evidence "sabotage-$label" "step=${S['bad_step']} detail=${S['bad_detail']}"
     pass "sabotage-$label" "expected failure attributable at step=$want_step"
     return 0
   fi
-  fail "sabotage-$label" "ineffective — verdict=${S[verdict]:-?} step=${S[bad_step]:-?} detail=${S[bad_detail]:-?} (expected FAIL@$want_step =~ $regex)"
+  fail "sabotage-$label" "ineffective — verdict=${S['verdict']:-?} step=${S['bad_step']:-?} detail=${S['bad_detail']:-?} (expected FAIL@$want_step =~ $regex)"
   return 1
 }
 
@@ -533,15 +541,15 @@ sab_c() {
   run_selftest "$id" selftest "$file"
   declare -A S=()
   fill S "$file"
-  local tid="${S[taskId]:-}"
+  local tid="${S['taskId']:-}"
   if [[ -z $tid ]]; then
     # 已在译条目重跑会死 download+attach，但 create 步 detail 仍带 taskId
-    tid="${S[create]:-}"
+    tid="${S['create']:-}"
     tid="${tid#taskId=}"
     tid="${tid%% *}"
   fi
   if [[ ! $tid =~ ^t_ ]]; then
-    fail sabotage-c "setup: no taskId obtainable (verdict=${S[verdict]:-?} create='${S[create]:-?}')"
+    fail sabotage-c "setup: no taskId obtainable (verdict=${S['verdict']:-?} create='${S['create']:-?}')"
     return 1
   fi
   local zhpdf="$DATA_DIR/tasks/$tid/zh.pdf"
@@ -573,10 +581,10 @@ sab_c() {
   run_selftest "$id" selftest "$SCRATCH/selftest-sabotage-c-restore.json"
   declare -A S2=()
   fill S2 "$SCRATCH/selftest-sabotage-c-restore.json"
-  if [[ ${S2[verdict]:-} == OK ]]; then
-    pass sabotage-c-restore "selftest green after restore — ${S2[download+attach]}"
+  if [[ ${S2['verdict']:-} == OK ]]; then
+    pass sabotage-c-restore "selftest green after restore — ${S2['download+attach']}"
   else
-    fail sabotage-c-restore "post-restore verdict=${S2[verdict]:-?} step=${S2[bad_step]:-?} detail=${S2[bad_detail]:-?}"
+    fail sabotage-c-restore "post-restore verdict=${S2['verdict']:-?} step=${S2['bad_step']:-?} detail=${S2['bad_detail']:-?}"
   fi
   return $rc
 }
@@ -589,11 +597,11 @@ mode_sabotage() {
   server_identity || {
     fail preflight "dev server not healthy on $BASE"
     return 1
-    }
+  }
   "$DEV_ZOTERO" verify >/dev/null 2>&1 || {
     fail preflight "plugin not loaded"
     return 1
-    }
+  }
   phase_prefs || return 1
   discover_fixtures || return 1
   sab_a || true
@@ -642,18 +650,18 @@ main() {
   need_tools || {
     printf '=== dev-verify done — FAILS=%d ===\n' "$FAILS"
     exit 1
-    }
+  }
   case "$mode" in
-    full | quick) mode_matrix "$mode" ;;
-    sabotage) mode_sabotage ;;
-    -h | --help | help)
-      sed -n '2,60p' "$0"
-      exit 0
-      ;;
-    *)
-      printf 'unknown mode %q — see dev-verify --help\n' "$mode" >&2
-      exit 2
-      ;;
+  full | quick) mode_matrix "$mode" ;;
+  sabotage) mode_sabotage ;;
+  -h | --help | help)
+    sed -n '2,60p' "$0"
+    exit 0
+    ;;
+  *)
+    printf 'unknown mode %q — see dev-verify --help\n' "$mode" >&2
+    exit 2
+    ;;
   esac
   printf '=== dev-verify %s done — FAILS=%d ===\n' "$mode" "$FAILS"
   ((FAILS == 0))

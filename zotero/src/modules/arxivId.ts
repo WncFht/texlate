@@ -40,7 +40,7 @@ function valid(candidate: string | null): string | null {
   // Captures run to end-of-token — real fields trail punctuation
   // ("arXiv: 2101.12345,", "abs/1706.03762/"). Trailing-only strip:
   // old-format ids keep their inner slash.
-  const id = candidate.trim().replace(/[.,;)\]\/]+$/, "");
+  const id = candidate.trim().replace(/[.,;)\]/]+$/, "");
   return ARXIV_ID_RE.test(id) ? id : null;
 }
 

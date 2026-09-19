@@ -151,8 +151,8 @@ export function createClient(prefs: TexlatePrefs): TexlateClient {
     listFiles: async (taskId) =>
       // `artifacts` could be absent/null on a contract-bending response —
       // an empty map degrades to "missing" instead of a TypeError.
-      ((await request<FilesResponse>("GET", `/api/files/${taskId}`))
-        .artifacts ?? {}),
+      (await request<FilesResponse>("GET", `/api/files/${taskId}`)).artifacts ??
+      {},
 
     async downloadFile(taskId, urlKind, destPath, opts) {
       const buf = await request<ArrayBuffer>(
