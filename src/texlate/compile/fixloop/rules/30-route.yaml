@@ -36,7 +36,11 @@ rules:
     condition: {
         # v2 修正: mhc 子串会被注释 %\documentstyle 误中 (1806.06690);
         # 加行锚定复核 —— 真 2.09 文档的 \documentstyle 必在行首。
-        source_contains: "(?m)^[ \\t]*\\\\documentstyle",
+        # v3 补面 (latex209_upgrade 落地后): 升级稿已无 \documentstyle,
+        # 但 post-upgrade 仍出 209 类错误 (compat-mode 残留) 时本文档
+        # 方言归属不变——COMPAT_SHIM 面包屑行 (latex209.py 唯一出处)
+        # 同判 209 籍, 路由拒绝语义保全而非 unfixable 白烧轮。
+        source_contains: "(?m)^[ \\t]*\\\\documentstyle|% texlate: LaTeX 2\\.09 compatibility shim",
       }
     action:
       kind: reject_route
@@ -258,6 +262,39 @@ rules:
         }
     stats: { fires: 2121, rescued_cells: 1463, status: active }
     source_ref: "tmp/lane-failmine3/ (#164b); 与 #168 subfilegate 注入侧互补"
+
+  # m1k base 臂实证 (fixloop_209.py): latex209_reject gate 拒收的 21 格
+  # 2.09 档, 主档 upgrade_209 转换后 21/21 converted → 20 clean + 1
+  # partial。gate 一刀切拒收过时——升级是确定性变换, 放 precheck 前置:
+  # 拆出的 \usepackage 缺件正好被 static_precheck(0) 同轮装包接住;
+  # 不可转形态 (ds@ 选项机类/盲升守卫) builtin 内携细分 reason REJECT,
+  # 与 gate 同路由语义但归因更准。zh 臂 splice 树 inject 已转,
+  # \documentstyle 缺席 → 条件天然不触发, 双臂零回归面。
+  - id: latex209_upgrade
+    mechanisms: [B01, W80, W88]
+    description: "主档 \\documentstyle → upgrade_209 升 2e (docclass+usepackage 拆分+compat shim); 不可转落 REJECT 兜 gate"
+    phase: precheck
+    order: -0.5 # subfile_docclass_strip(-0.7) 后, static_precheck(0) 前
+    when: { always: true }
+    condition: {
+        # 行锚粗筛 (注释行不命中, 同 gate 口径); builtin 内 upgrade_209
+        # 遮盖视图复核主档是权威 —— 条件命中子件而主档无 docstyle 时
+        # no-docstyle False 让位, 不耗轮。
+        source_contains: "(?m)^[ \\t]*\\\\documentstyle",
+      }
+    action:
+      kind: builtin_transform
+      function: latex209_upgrade
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same } # 源级确定性变换, 与引擎无关
+    provenance:
+      - {
+          corpus: "m1k base 臂 21 格 latex209_reject (astro/cond-mat/hep/gr-qc/nlin 96-01 老档)",
+          error: "LaTeX2e command in LaTeX 2.09 document / missing revtex.cls 表象",
+        }
+    stats: { fires: 21, rescued_cells: 20, status: active }
+    source_ref: "bench/work_m1k/fixloop_209.py + fixloop_base_report.md 补记 B"
 
   - id: static_precheck
     mechanisms: [W11, W47, W61, B05, W80]

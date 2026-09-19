@@ -26,6 +26,7 @@ from texlate.compile.fixloop._builtins_graphics import (
     _norm_graphic_name,
 )
 from texlate.compile.inject import _walk_inputs
+from texlate.compile.latex209 import upgrade_209
 from texlate.compile.transcode import INTERMEDIATE_SUFFIXES
 from texlate.latex.api import NAME_GATED_TEX_SUFFIXES, parse_file
 from texlate.latex.prose import file_has_prose
@@ -36,6 +37,7 @@ from texlate.textutil import (
     INPUT_BARE_RX,
     _tar_disguised,
     _tar_header_ok,
+    decode_tex,
     mask_tex,
     safe_is_file,
 )
@@ -231,6 +233,51 @@ def plain_format_detect(
         return False, "no plain-format signatures"
     route = str(params.get("route") or "tex-plain")
     return True, f"REJECT: route={route} plain-format doc (sigs: {', '.join(hits)})"
+
+
+def latex209_upgrade(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""主档 ``\documentstyle`` → ``latex209.upgrade_209`` 有界升 2e 形态。
+
+    ``latex209_reject`` gate 此前对 2.09 方言一律路由拒绝——但 inject 侧
+    同函数实证绝大多数可转 (m1k base 臂 21 格 upgrade+fixloop: 21/21
+    converted → 20 clean + 1 partial)。precheck 前置转换后, 选项拆分出
+    的 ``\usepackage`` 缺件由 static_precheck 同轮装包接住, gate 只兜
+    不可转形态。
+
+    读档走字节级 ``decode_tex``——209 老档多非 UTF-8, ``ctx.read`` 的
+    utf-8/replace 会把非 ASCII 字符蚀成 U+FFFD 再写回 = 二次毒化; 写回
+    utf-8 与 inject 同口径。``no-docstyle`` (条件命中的是子件、主档无
+    存活 docstyle) → False 让位不耗轮; ``reject`` (ds@ 选项机类 / 盲升
+    守卫) → ``REJECT: route=latex+dvips`` 携 upgrade 细分 reason——与
+    gate 同路由语义但归因更准。
+    """
+    del eng, payload, params
+    main = ctx.main_path()
+    if main is None:
+        return False, "no main file"
+    try:
+        blob = main.read_bytes()
+    except OSError:
+        return False, f"main unreadable: {main.name}"
+    tex, conv = upgrade_209(decode_tex(blob), root=ctx.wdir)
+    status = str(conv.get("status") or "")
+    if status == "converted":
+        ctx.write(main, tex)
+        cls = str(conv.get("class") or "?")
+        target = str(conv.get("target") or cls)
+        pkgs = [str(p) for p in (conv.get("pkg_opts") or ())]
+        note = f"\\documentstyle{{{cls}}} → \\documentclass{{{target}}}"
+        if pkgs:
+            note += f" +\\usepackage{{{','.join(pkgs)}}}"
+        return True, f"latex209 upgraded: {note}"
+    if status == "reject":
+        reason = str(conv.get("reason") or "latex209")
+        extra = f" class={conv['class']}" if conv.get("class") else ""
+        extra += f" target={conv['target']}" if conv.get("target") else ""
+        return True, f"REJECT: route=latex+dvips {reason}{extra}"
+    return False, f"upgrade_209: {status or 'no-docstyle'}"
 
 
 #: 注释内构建指令锚 —— 与全局注释遮盖惯例相反: 本族注释本体即信号。

@@ -67,6 +67,9 @@ def test_phase_ordering() -> None:
         "tar_blob_extract",
         # failmine3 (#164b): docclass 自带子档剥至 body —— 解包后收, 预检前清死导言
         "subfile_docclass_strip",
+        # m1k base 21 格实证: 主档 \documentstyle → upgrade_209 升 2e,
+        # 拆出 \usepackage 供 static_precheck 同轮装包; 不可转落 REJECT
+        "latex209_upgrade",
         # shipclscen: 随源 .cls/.sty 内裸 \input X.sty → exact-restore @ 包裹
         "shipped_sty_input_wrap",
         # slotrevert (#188): zh 化机位实参按 baseline 配对还原 —— 还原的
