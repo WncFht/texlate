@@ -1062,6 +1062,8 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
     # shipout 后管道, 不救——主面走末轮 ``driver_fatal`` 证据字段
     # (category 借 "other" 面供修复规则派发, verdict 词看不出驱动死),
     # ``unfixable:driver_fatal`` 兜 _round_cat clean/None 边路径。
+    # ``unfixable:input_stack`` 同为定败——该 cat 只由 capacity 重路由产出,
+    # 全属上游执行宏递归帧, nonstopmode 重跑同炸, 不救。
     v_now = str(cell["verdict"] or "")
     if (
         v_now
@@ -1074,6 +1076,7 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
             "unfixable:timeout",
             "unfixable:runaway_output",
             "unfixable:driver_fatal",
+            "unfixable:input_stack",
         )
         and not (cell["rounds"] and cell["rounds"][-1]["pdf"])
         and not (cell["rounds"] and cell["rounds"][-1].get("driver_fatal"))

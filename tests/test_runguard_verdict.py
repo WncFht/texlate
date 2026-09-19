@@ -59,6 +59,30 @@ def test_runaway_output_no_pdf_no_salvage(tmp_path: Path) -> None:
     assert eng.rounds == 1
 
 
+CAP_STACK_LOG = (
+    "! TeX capacity exceeded, sorry [input stack size=10000].\n"
+    "\\@nomath ->\\if@nomath\n"
+    "                  \\else \\expandafter \\@firstofone \\fi \n"
+    "l.190 \\section{intro}\n"
+    "If you really absolutely need more capacity,\n"
+    "you can ask a wizard to enlarge me.\n"
+)
+
+
+def test_input_stack_no_pdf_no_salvage(tmp_path: Path) -> None:
+    """unfixable:input_stack 进 salvage 排除臂——上游递归帧定败, 不烧兜底轮。
+
+    cat ``input_stack`` 只由 capacity ``input_stack|<cs>`` 重路由产出
+    (``_CAP_UPSTREAM_RECURSION_CS`` 名单, ``\\@nomath`` 内核守卫帧在
+    列), 全属 TeX-exec 宏递归——同输入同炸, nonstopmode 救不回。
+    """
+    eng = MockEngine([{"log": CAP_STACK_LOG}])
+    cell = fixloop(make_proj(tmp_path), eng)
+    assert cell["verdict"] == "unfixable:input_stack"
+    assert all(not r.get("salvage") for r in cell["rounds"])
+    assert eng.rounds == 1
+
+
 def test_killed_signal_pdf_not_clean(tmp_path: Path) -> None:
     """信号杀(非超时) + pdf + 0 错 → dirty_pdf, cat=killed。"""
     eng = MockEngine([{"log": CLEAN_LOG, "pdf": True, "killed_signal": 9}])
