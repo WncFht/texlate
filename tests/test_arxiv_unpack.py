@@ -1,3 +1,4 @@
+import json
 import gzip
 import hashlib
 import io
@@ -17,9 +18,18 @@ from texlate.arxiv.unpack import (
     write_manifest,
 )
 
-CORPUS_V2 = Path(__file__).resolve().parent.parent / "bench" / "corpus_v2"
+CORPUS = Path(__file__).resolve().parent.parent / "bench" / "corpus_v3"
+_MANIFEST_V2 = CORPUS / "manifest_v2.jsonl"
 
-BLOBS = sorted(CORPUS_V2.rglob("raw.*")) if CORPUS_V2.exists() else []
+BLOBS = (
+    sorted(
+        b
+        for line in _MANIFEST_V2.read_text().splitlines()
+        for b in (CORPUS / json.loads(line)["id"]).glob("raw.*")
+    )
+    if _MANIFEST_V2.is_file()
+    else []
+)
 
 
 def _warn_kinds(warnings: list[str]) -> set[str]:
@@ -27,7 +37,7 @@ def _warn_kinds(warnings: list[str]) -> set[str]:
 
 
 @pytest.mark.slow
-@pytest.mark.skipif(not BLOBS, reason="corpus_v2 not present")
+@pytest.mark.skipif(not BLOBS, reason="corpus_v3 not present")
 @pytest.mark.parametrize("blob", BLOBS, ids=[b.parent.name for b in BLOBS])
 def test_unpack_corpus(blob: Path, tmp_path: Path) -> None:
     """139 个真实包全量解包：零逃逸 + mtree 清单与落盘字节 sha256 逐一对拍。"""

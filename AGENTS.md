@@ -13,9 +13,11 @@
     - `bench/py/` — python 侧 bench（pylatexenc/TexSoup/plasTeX/fixloop/compile/parsebench 等；miniscanner spike 已退役，断言矩阵移植 `tests/test_bench_regression.py`），`report/`=一次性审计/横评/归因、`corpus/`=语料管线、`scratch/`=一次性探针
     - `bench/py/.venv_babeldoc/` — babeldoc 对照实验专用 venv（gitignored）
     - `bench/ts/` — js 侧 bench（latex-utensils/unified-latex/tree-sitter-latex），独立 package.json，CommonJS
-    - `bench/corpus/` — 39 篇手挑陷阱语料（子目录 gitignored，`MANIFEST.md` 入库）
-    - `bench/corpus_v2/` — 139 篇分层随机语料（同上惯例；`MANIFEST.md`+`build_corpus.py` 入库）
-    - `bench/corpus_v3/` — 核心随机层 + 策展补强层 + 热层（OpenAlex 高引近期）+ expand 扩展层，最新分层口径以 `MANIFEST.md` 为准（`manifest*.jsonl`/`mechanisms.jsonl`/`select_booster.py` 等入库、数据 gitignored；管线 `bench/py/corpus/build_corpus_v3.py` + `build_hot_layer.py` + `build_corpus_expand.py`）
+    - `bench/corpus_v3/` — **唯一语料物理根**（2026-09-20 七库合一，~14k 篇）：层化 manifest（core/booster/dev_*/expand/hot/holdout + v1 手挑陷阱裸布局 + v2 分层随机 + m1k 四层 + iclr），口径以 `MANIFEST.md` 为准；原四库文档折存 `MANIFEST_{v1,v2,m1k}.md`，版本冲突落选树存 `_alt-versions/`；`manifest*.jsonl`/`mechanisms.jsonl`/`select_booster.py` 入库、数据 gitignored；管线 `bench/py/corpus/`（build_corpus_{v2,m1k,v3,layers,expand,sw} + build_hot_layer + daily_arxiv）
+    - `bench/corpus_daily/` — soak 滚动窗口语料（每日增删，独立生命周期，不并入 v3）
+    - `bench/corpus_iclr_pdf/` — ICLR PDF 产物库（非 e-print 树）
+    - `bench/zh-store/` — real 臂 LLM 译文资产库（`{canon_id}/{zh,splice,provenance.json}`，不可再生；`_alt/`=重译落选副本）
+    - `bench/archive-*/` — results 归零前的账本镜像与审计留痕（数据 gitignored，README 入库）
     - `bench/fixtures/` — 陷阱构造 `.tex`（`% @Tnn` 标记；**逐字节即语义——不要格式化/润色这些文件**）
     - `bench/results/` — bench 产出目录（report/walkthrough/json 均由脚本重写；**全链划出**——改写型 formatter 与 check 类链都不覆盖：prettier/gfs/eslint/autocorrect 经 ignore/exclude，markdownlint 经 cli2 ignores，ruff 经 extend-exclude，shfmt/shellcheck/taplo 无对应文件类型属 vacuous）
     - `bench/work_*/` — 编译/fixloop 工作区（gitignored 重产物）

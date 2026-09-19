@@ -82,14 +82,14 @@ from texlate.xlat.placeholders import (
     is_placeholder_only,
 )
 
-CORPUS = ROOT / "bench/corpus"
+CORPUS = ROOT / "bench/corpus_v3"
 WORK = ROOT / "bench/work_e2emock"
 RESULTS_DIR_DEFAULT = "e2emock-corpus39"
 
 # ---------------------------------------------------------------- Mode B/C
 # docs/10 §B5: Mode B 幻觉 mock (译文丢/造占位符 → 校验链编译前 100% 捕获);
 # Mode C 位置扰动 mock (随机挪 ~10% 占位符 → 量化 splice 鲁棒性)。
-# 扰动决策 = f(段内容哈希) → 确定性可复现, 批/单块/阶梯重试同决策。
+# 扰动决策 = f(段内容哈希) → 确定性可复现，批/单块/阶梯重试同决策。
 
 MODE_B_RATE = 30  # 每段 ~30% 注一次幻觉破坏
 MODE_C_RATE = 10  # 每占位符 ~10% 挪位
@@ -104,9 +104,9 @@ _NUM_LINE_RX = re.compile(r"^(\[\d+\])\s?(.*)$", re.DOTALL)
 #: 词表与 ``l0._ECHO_SIGS`` 同款同序；src 自带签名的 delivered 块 echo 与
 #: 忠实译文裸包含不可区分 → armed（结构性盲区，记账只观测不进门槛）。
 DIRTY_SIGS: tuple[str, ...] = (
-    "占位符缺失:",  # l0._pair_placeholder_typos
+    "占位符缺失：",  # l0._pair_placeholder_typos
     "占位符疑似拼错",  # l0._pair_placeholder_typos lev 配对臂
-    "多余/未识别占位符:",  # l0._check_placeholder
+    "多余/未识别占位符：",  # l0._check_placeholder
     "结构占位符",  # l0._check_ph_anchor "脱离行首位置"
     "注释区内臆造占位符",  # l0._check_placeholder 注释区专项
     "[Original]",  # prompts.corrector_user 三段式
@@ -128,7 +128,7 @@ def _h(*parts: str) -> int:
 
 
 def _unwrap_seg(user: str) -> str:
-    """单块/阶梯/corrector 调用面里恢复被译段原文.
+    """单块/阶梯/corrector 调用面里恢复被译段原文。
 
     translate_fn 收到的是 encode_newlines 后文本 (retry.py ``ctx.encoded``),
     重试尾部拼 ``\\n\\n[previous_validation_error]\\n...``; corrector =
@@ -142,8 +142,8 @@ def _unwrap_seg(user: str) -> str:
 
 
 def _canon(seg: str) -> str:
-    """段原文归一: 编码形态剥回 \\n——ladder 各阶段 (encoded / corrector raw)
-    对同块得到同一哈希输入, 破坏决策跨重试一致."""
+    """段原文归一：编码形态剥回 \\n——ladder 各阶段 (encoded / corrector raw)
+    对同块得到同一哈希输入，破坏决策跨重试一致."""
     return decode_newlines(seg)
 
 
@@ -161,7 +161,7 @@ def _plan_b(seg: str) -> str | None:
 
 
 def _apply_b(out: str, seg: str, kind: str) -> tuple[str, str]:
-    """对译文段执行破坏, 返回 (破坏后文本, 细节)."""
+    """对译文段执行破坏，返回 (破坏后文本，细节)."""
     canon = _canon(seg)
     if kind == "drop_ph":
         ms = list(PH_RX.finditer(out))
@@ -182,7 +182,7 @@ def _apply_c(out: str, seg: str) -> tuple[str, int]:
     """Mode C: 每占位符 ~10% 概率挪到段内随机字符位 (multiset 不变 → L0 静默).
 
     按 token 值定位 (chunk 内占位符名唯一); 插入点 = 不在任何占位符 span 内
-    的随机字符边界——可落词中, 模拟真实幻觉错位。落回原位不计 moved。
+    的随机字符边界——可落词中，模拟真实幻觉错位。落回原位不计 moved。
     """
     canon = _canon(seg)
     ms = list(PH_RX.finditer(out))
@@ -211,7 +211,7 @@ def _apply_c(out: str, seg: str) -> tuple[str, int]:
 
 
 def _is_batch_user(lines_u: list[str]) -> bool:
-    """与 MockTranslator 批判别同口径: 全部非空行都是 ``[n] `` 前缀."""
+    """与 MockTranslator 批判别同口径：全部非空行都是 ``[n] `` 前缀."""
     return bool(lines_u) and all(_NUM_LINE_RX.match(ln) for ln in lines_u if ln.strip())
 
 
@@ -283,9 +283,9 @@ class PerturbTranslator(MockTranslator):
 
 
 def _seg_of(r_source: str, seg: str) -> bool:
-    """事件段 ↔ 块: 段可能是 encoded 全段/行切片 (batch+ladder) 或原文 (corrector).
+    """事件段 ↔ 块：段可能是 encoded 全段/行切片 (batch+ladder) 或原文 (corrector).
 
-    两侧统一 ``\\r\\n→\\n``——CRLF 源里 ``[[SL]]`` 解回 ``\\n`` 对不上原文,
+    两侧统一 ``\\r\\n→\\n``——CRLF 源里 ``[[SL]]`` 解回 ``\\n`` 对不上原文，
     旧口径漏账 (sabotaged/escaped 双降; v3 recount 实证 sabotaged +33).
     """
     src_n = r_source.replace("\r\n", "\n")
@@ -330,7 +330,7 @@ def pipe_mode_condition(
 ) -> dict:
     """pipe_condition 变体：翻译层换 Mode B/C 破坏 translator，其余全链同产品臂。
 
-    Mode B 逐块结局: caught (校验链拦下→原文回退) / recovered (阶梯修回干净)
+    Mode B 逐块结局：caught (校验链拦下→原文回退) / recovered (阶梯修回干净)
     / escaped (校验放行且译文占位符 multiset 破坏残留)；dirty = 交付块 zh
     命中协议回显签名（multiset 可对而载荷脏，escaped 的内容通道盲区，
     repro-2410b）——门槛 = escaped==0 AND dirty==0。
@@ -453,7 +453,7 @@ def pipe_mode_condition(
         rec["verdict"] = {"status": "partial", "reasons": [e.reason]}
         return rec
     job = PipeJob(work, main_rel, eng_name, timeout)
-    # 0-chunk 主文档不期待 CJK (与 pipe_condition 同口径, F 桶假阳修)
+    # 0-chunk 主文档不期待 CJK (与 pipe_condition 同口径，F 桶假阳修)
     expect_cjk = stats.get("chunks") != 0
     tail, res = compile_judge_tail(job, expect_cjk=expect_cjk)
     rec.update(tail)
@@ -493,7 +493,7 @@ def pipe_mode_condition(
                 rec.update(tail3)
         elif rec["status"] != "clean":
             rec["fixloop"] = {"enabled": False, "reason": ENV_NO_FIXLOOP}
-    # ToUnicode 注入在修复链收敛之后 (pipe_condition 同位, worker 同口径)
+    # ToUnicode 注入在修复链收敛之后 (pipe_condition 同位，worker 同口径)
     if res.has_pdf and res.pdf is not None:
         rec["tounicode_fonts"] = embed_tounicode_quiet(res.pdf)
     return rec
@@ -545,7 +545,12 @@ def list_projects(
             corpus, sorted(layers) if layers else _v3_layers(corpus)
         )
         return sorted(
-            {e["id"] for e in rows if (corpus / e["id"] / "extracted").is_dir()}
+            {
+                e["id"]
+                for e in rows
+                if (corpus / e["id"] / "extracted").is_dir()
+                or any((corpus / e["id"]).glob("*.tex"))  # v1 层裸布局
+            }
         )
     out = []
     for p in sorted(corpus.iterdir()):
@@ -716,7 +721,7 @@ def write_reports(results: dict, out_dir: Path, corpus_name: str = "corpus39") -
                 f"进 splice {tot['spliced']} / 回退 {tot['dropped']}；"
                 f"编译 verdict 分布 {dist}"
             )
-            # 存活率: Mode A (pipe-xel 同 commit 基线) 出 pdf 的篇 → C 仍出 pdf
+            # 存活率：Mode A (pipe-xel 同 commit 基线) 出 pdf 的篇 → C 仍出 pdf
             base_pdf = survived = 0
             broke: list[str] = []
             for rel, _c in recs:
@@ -736,8 +741,8 @@ def write_reports(results: dict, out_dir: Path, corpus_name: str = "corpus39") -
                     broke.append(rel)
             if base_pdf:
                 lines.append(
-                    f"- 存活率 vs pipe-xel 基线: {survived}/{base_pdf} 篇出 pdf"
-                    + (f"（退化: {broke}）" if broke else "")
+                    f"- 存活率 vs pipe-xel 基线：{survived}/{base_pdf} 篇出 pdf"
+                    + (f"（退化：{broke}）" if broke else "")
                 )
         lines.append("")
     (out_dir / "summary.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -774,7 +779,7 @@ def main() -> None:
         default=None,
         help="corpus_v3 层过滤，逗号分隔（默认全部在盘 manifest 层）",
     )
-    ap.add_argument("--ids", default=None, help="显式 id 逗号列表（跳过枚举+抽样）")
+    ap.add_argument("--ids", default=None, help="显式 id 逗号列表（跳过枚举 + 抽样）")
     ap.add_argument("--sample", type=int, default=None, help="枚举内 seed 随机抽 N 篇")
     ap.add_argument("--seed", type=int, default=42, help="--sample 随机种子")
     args = ap.parse_args()
@@ -788,7 +793,7 @@ def main() -> None:
         else None
     )
     # 非默认语料隔一层工作区——跨语料同 id（如 hep-th/9901001）不互踩
-    work = WORK if corpus == ROOT / "bench/corpus" else WORK / corpus.name
+    work = WORK if corpus == CORPUS else WORK / corpus.name
 
     conditions = [c.strip() for c in args.conditions.split(",") if c.strip()]
     out_dir = ROOT / "bench/results" / f"{args.tag}-{args.date}"

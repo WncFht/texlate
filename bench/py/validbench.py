@@ -4,7 +4,7 @@ r"""validbench — B6 校验段基准 harness（docs/10 §B6 产品化）.
 测 ``texlate.validate`` 对 LLM 译文破坏的检出能力：校验器本身必须被语料验证。
 
 流程:
-  1. 底材: bench/corpus_v2/{id}/extracted/ 主文件 → ``texlate.latex.parse_file``
+  1. 底材: bench/corpus_v3/{id}/extracted/ 主文件 → ``texlate.latex.parse_file``
      抽干净 chunk → ph 层 (src=chunk.content 含 [[TYPE_n]]) / raw 层
      (占位符不动点展开回原文, 模拟组装后文档校验) 两层 src↔zh 对,
      zh = 构造性伪译文 (机械不变量全保留, 拉丁词→确定性汉字).
@@ -59,7 +59,7 @@ from texlate.validate import l0
 from texlate.validate.l0 import Severity, validate_pair
 
 BENCH = ROOT / "bench"
-CORPUS_V2 = BENCH / "corpus_v2"
+CORPUS_V2 = BENCH / "corpus_v3"
 BENCH_TS_NM = (
     BENCH / "ts" / "node_modules"
 )  # dev 态 L1 依赖 (同 tests/test_validate_l1)

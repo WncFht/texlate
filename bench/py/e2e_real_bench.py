@@ -609,7 +609,7 @@ def _warn_date_fork(tag: str, out_dir: Path) -> None:
     latest = siblings[-1]
     print(
         f"*** WARNING: 目标目录 {out_dir.name}/ 不存在——本次将新建空目录从头跑。\n"
-        f"*** 同 tag 已有 {len(siblings)} 个历史日期目录（最近: {latest}）。\n"
+        f"*** 同 tag 已有 {len(siblings)} 个历史日期目录（最近：{latest}）。\n"
         f"*** 若意在续跑请加 --date {latest[len(prefix) :]}；"
         "确为全新一跑可无视本警告。",
         flush=True,
@@ -659,8 +659,8 @@ def write_reports(results: dict, out_dir: Path, meta: dict) -> None:
     lines = [
         f"# e2e real bench — {meta.get('model')}",
         "",
-        f"- 样本: {len(results)} 篇（seed={meta.get('seed')} layers={meta.get('layers')}）",
-        f"- 网关: {meta.get('base_url')} model={meta.get('model')}",
+        f"- 样本：{len(results)} 篇（seed={meta.get('seed')} layers={meta.get('layers')}）",
+        f"- 网关：{meta.get('base_url')} model={meta.get('model')}",
         "",
         "## 环节通过率",
     ]
@@ -676,13 +676,13 @@ def write_reports(results: dict, out_dir: Path, meta: dict) -> None:
     }
     lines.append(f"- 翻译执行（chunks>0）: {n_tr}/{len(ran_pipe)} 篇")
     lines.append(
-        f"- chunk 终态: ok {ok_chunks}/{tot_chunks}"
+        f"- chunk 终态：ok {ok_chunks}/{tot_chunks}"
         f" · partial {sum(r['pipe-xel']['translate'].get('partial', 0) for r in ran_pipe)}"
         f" · fault {sum(r['pipe-xel']['translate'].get('fault', 0) for r in ran_pipe)}"
         f" · skipped {sum(r['pipe-xel']['translate'].get('skipped', 0) for r in ran_pipe)}"
     )
     lines.append(
-        f"- splice 残留占位符: {ph}（应为 0）— gate "
+        f"- splice 残留占位符：{ph}（应为 0）— gate "
         + ("PASS" if not ph_bad else f"**FAIL** {ph_bad}")
     )
     for cond in ("pipe-xel", "pipe-fix", "base-xel"):
@@ -748,7 +748,7 @@ def write_reports(results: dict, out_dir: Path, meta: dict) -> None:
         lines.append(f"- {k}: {c}")
     if cats:
         lines.append(
-            "- first_error 类别: "
+            "- first_error 类别："
             + ", ".join(
                 f"{k}×{v}" for k, v in sorted(cats.items(), key=lambda kv: -kv[1])
             )

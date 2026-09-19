@@ -2,6 +2,7 @@
 *
 !.gitignore
 !MANIFEST.md
+!MANIFEST_*.md
 !manifest.jsonl
 !manifest_*.jsonl
 !mechanisms.jsonl

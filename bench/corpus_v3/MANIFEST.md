@@ -1131,3 +1131,21 @@ fill 即设计回补路径）；`cluster_id` 前缀 `DF`；1,901 tex · 342MB。
 并发事故留痕：两份 supp 清单生成时互没去重（380/400 重叠）+ `cmd_recent`
 cell-adoption 路径不分 layer → 5 id 跨层双落；已按 cell meta 归属清账（ho 删 3 /
 dr 删 2），管线修 `e7dc8f96`（异层 cell 只 skip 不克隆 + fetch 后 meta 复查）。
+
+## 2026-09-20 七库合一 —— 统一物理根
+
+本目录成为全部静态语料的唯一物理根。`corpus`/`corpus_v2`/`corpus_m1k`/`corpus_iclr` 四库的 paper 树已 rename 并入（947 搬移 + 251 去重 + 3 冲突双保留）；同日兼容壳整体拆除（1197 个 symlink 随 shell 目录删除），四库文档折存为 `MANIFEST_{v1,v2,m1k}.md`（iclr 库本无入库文档），构建脚本归 `bench/py/corpus/`。
+
+| 新层 | 文件 | 条数 | 来源 |
+|---|---|---|---|
+| `v1` | `manifest_v1.jsonl` | 39 | 手挑陷阱库（裸布局 `{id}/files`，无 extracted/） |
+| `v2` | `manifest_v2.jsonl` | 217（139 在场） | 分层随机库；manifest 是 fetch-log 含失败项 |
+| `m1k-axhot` | `manifest_m1k-axhot.jsonl` | 247 | m1k run 语料 |
+| `m1k-iclr` | `manifest_m1k-iclr.jsonl` | 200 | 同上 |
+| `m1k-recent` | `manifest_m1k-recent.jsonl` | 300 | 同上 |
+| `m1k-v3` | `manifest_m1k-v3.jsonl` | 250 | 同上（自本根抽样子集） |
+| `iclr` | `manifest_iclr.jsonl` | 25 | ICLR section-study 源语料（扫盘生成） |
+
+冲突双保留（同名不同版）：`1706.03762`（v1 裸版）、`2106.09685`、`2407.21783`（m1k 版）的源库副本移存 `_alt-versions/{id}/`——本根 `{id}/` 始终是 v3 版（manifest blob_sha256 完整），`_alt-versions/` 是落选版本存档。
+
+未并入：`corpus_daily`（滚动窗口，soak 每日增删，生命周期不同）、`corpus_iclr_pdf`（PDF 产物库非 e-print 树）。物理规模 ~54.9G / 14,161 extracted 树 + 38 裸布局树。合并脚本 `tmp/cleanup-a/merge_corpus.py`。

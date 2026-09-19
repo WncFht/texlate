@@ -1,5 +1,0 @@
-# corpus_m1k: manifest/台账入库, 论文数据 gitignored (同 corpus_v3 惯例)
-*
-!.gitignore
-!MANIFEST.md
-!manifest_*.jsonl

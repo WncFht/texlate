@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-r"""build_corpus_m1k.py — m1k 评测语料构建：4 源抽样 → 物化 → corpus_m1k/。
+r"""build_corpus_m1k.py — m1k 评测语料构建：4 源抽样 → 物化 → corpus_v3/（m1k-* 层）。
 
 语料组成（1000 篇，设计见本文件尾 + work_m1k/report.md）：
   recent 300  corpus_daily 2026-09-18 层 announce_type∈{new,cross} 已物化池
@@ -13,8 +13,8 @@ daily_arxiv/iclr_fetch 同 RatePolicy 独立预算账。
 
 子命令：
   select       抽样 + 去重 + cat_group 补全 → work_m1k/selection.jsonl
-  materialize  selection → corpus_m1k/{pid}/{meta.json,raw.*,extracted/}
-  emit         物化成功集 → corpus_m1k/manifest_{layer}.jsonl + report.md
+  materialize  selection → corpus_v3/{pid}/{meta.json,raw.*,extracted/}
+  emit         物化成功集 → corpus_v3/manifest_m1k-{layer}.jsonl + report.md
   all          以上一把梭（断点续跑：selection 已有即跳过抽样）
 
 用法:
@@ -47,11 +47,11 @@ from texlate.arxiv.fetch import ARXIV_HOST, EXPORT_HOST, AcquireStatus, Fetcher,
 from texlate.arxiv.ratelimit import RateLimiter, RatePolicy
 
 FETCH_HOSTS = (EXPORT_HOST, ARXIV_HOST)
-CORPUS = ROOT / "bench" / "corpus_m1k"
+CORPUS = ROOT / "bench" / "corpus_v3"  # 2026-09-20 起 m1k 层并入统一根
 WORK = ROOT / "bench" / "work_m1k"
 DAILY = ROOT / "bench" / "corpus_daily"
 V3 = ROOT / "bench" / "corpus_v3"
-ICLR_CORPUS = ROOT / "bench" / "corpus_iclr"
+ICLR_CORPUS = V3  # corpus_iclr 已并入 corpus_v3
 ICLR_MAP = ROOT / "bench" / "work_iclr" / "map.jsonl"
 ICLR_ACCEPTED = ROOT / "bench" / "work_iclr" / "accepted.jsonl"
 CACHE = Path.home() / ".cache" / "texlate" / "src"
@@ -411,9 +411,9 @@ def cmd_emit(args: argparse.Namespace) -> int:
         else:
             missing.append(r["id"])
     for layer, rows in by_layer.items():
-        fp = CORPUS / f"manifest_{layer}.jsonl"
+        fp = CORPUS / f"manifest_m1k-{layer}.jsonl"
         write_jsonl(fp, rows)
-        log(f"manifest_{layer}.jsonl: {len(rows)}")
+        log(f"manifest_m1k-{layer}.jsonl: {len(rows)}")
     report = WORK / "report.md"
     lines = [
         "# corpus_m1k 构建报告",

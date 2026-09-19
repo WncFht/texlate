@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """corpus_v2 builder: download arXiv e-print source packages for the
 stratified id lists, unpack per arxiv-layer.md §3, and lay down
-bench/corpus_v2/{id}/ + manifest.jsonl + bench/corpus_v2/MANIFEST.md.
+bench/corpus_v3/{id}/ + manifest_v2.jsonl + MANIFEST_v2.md
+(2026-09-20 起 v2 层并入统一根 corpus_v3).
 
 Deps: stdlib only (system python3).
 
@@ -32,15 +33,17 @@ import urllib.error
 import urllib.request
 from datetime import UTC, datetime
 
-ROOT = os.path.dirname(  # bench/corpus_v2/build_corpus.py → repo root
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT = os.path.dirname(  # bench/py/corpus/build_corpus_v2.py → repo root
+    os.path.dirname(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    )
 )
-DATA = os.path.join(ROOT, "bench/corpus_v2")
-BENCH_CORPUS = os.path.join(ROOT, "bench/corpus")
-MANIFEST_MD = os.path.join(ROOT, "bench/corpus_v2/MANIFEST.md")
-PROGRESS = os.path.join(DATA, "progress.json")
-MANIFEST_JSONL = os.path.join(DATA, "manifest.jsonl")
-LOG = os.path.join(DATA, "build.log")
+DATA = os.path.join(ROOT, "bench/corpus_v3")
+BENCH_CORPUS = DATA  # v1 已并入 corpus_v3（2026-09-20 七库合一）
+MANIFEST_MD = os.path.join(ROOT, "bench/corpus_v3/MANIFEST_v2.md")
+PROGRESS = os.path.join(DATA, "progress_v2.json")
+MANIFEST_JSONL = os.path.join(DATA, "manifest_v2.jsonl")
+LOG = os.path.join(DATA, "build_v2.log")
 SAMPLE_JSONL = os.path.join(ROOT, "tmp/exp/arxiv-serial2/sample.jsonl")
 COV_JSONL = os.path.join(ROOT, "tmp/exp/arxiv-serial2/arxiv_cov.jsonl")
 MONTHLY_CSV = os.path.join(ROOT, "tmp/exp/arxiv-serial2/arxiv_monthly.csv")

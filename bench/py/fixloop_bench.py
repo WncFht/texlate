@@ -79,7 +79,7 @@ from texlate.compile.fixloop import (
 from texlate.compile.fixloop.llm_hook import make_llm_hook
 
 ROOT = Path(__file__).resolve().parents[2]
-CORPUS = ROOT / "bench/corpus_v2"
+CORPUS = ROOT / "bench/corpus_v3"
 WORK = ROOT / "bench/work_fixloop_v2"
 BASE = ROOT / "bench/results/compilebench-corpusv2-2026-09-15"
 OUT = ROOT / "bench/results/fixloop-corpusv2-2026-09-15"

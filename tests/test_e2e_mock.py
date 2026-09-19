@@ -39,11 +39,11 @@ from texlate.xlat.pipeline import (
 )
 from texlate.xlat.prompts import all_kinds, normalize_kind
 
-CORPUS = Path(__file__).resolve().parents[1] / "bench" / "corpus"
+CORPUS = Path(__file__).resolve().parents[1] / "bench" / "corpus_v3"
 
 needs_corpus = pytest.mark.skipif(
     not any(CORPUS.rglob("*.tex")),
-    reason="bench/corpus 数据层不在场（gitignored 重产物）",
+    reason="bench/corpus_v3 数据层不在场（gitignored 重产物）",
 )
 
 #: (paper_dir, 主文件) —— 覆盖多文件 /input、宏重 preamble、脆弱间距（~x.
@@ -239,6 +239,8 @@ def test_kind_mapping_covers_six() -> None:
 def test_corpus_paper_full_chain(paper: str, main: str) -> None:
     """真实论文全链：identity → mock 翻译（L0 校验）→ splice 无泄漏。"""
     path = CORPUS / paper / main
+    if not path.is_file():
+        path = CORPUS / paper / "extracted" / main  # v3 标准布局
     if not path.is_file():
         pytest.skip(f"{paper}/{main} 不在语料内")
     d = str(path.resolve().parent)  # 与 parse_file 内部 flatten 同参

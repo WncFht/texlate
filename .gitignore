@@ -14,22 +14,19 @@ node_modules/
 /src/texlate/server/static/
 
 # bench 重产物 (可重建,不入库)
-bench/corpus/*/
-bench/corpus_v2/*/
-bench/corpus_v2/progress.json
-bench/corpus_v2/build.log
 bench/corpus_v3/*/
+bench/corpus_v3/progress_v2.json
+bench/corpus_v3/build_v2.log
 bench/corpus_daily/*/
-bench/corpus_iclr/*/
 bench/corpus_iclr_pdf/
-bench/corpus_m1k/*/
+bench/zh-store/*/
+bench/archive-*/*
+!bench/archive-*/README.md
 bench/work_*/
 # bench 运行产物与内部台账——不入发布仓（本地保留，可重建）
 bench/results/
 bench/queue/
 bench/py/scratch/
-!bench/corpus/MANIFEST.md
-!bench/corpus_v2/MANIFEST.md
 
 # 内部过程文档（transcript 采矿/网关运维/交接台账）——本机保留，不入发布仓
 docs/research/preclean-2026-09-16/
@@ -51,6 +48,8 @@ scripts/find-gateway-hog.sh
 *.fls
 *.fdb_latexmk
 *.synctex.gz
+*.xdv
+*.toc
 # tests/fixtures/ 的 .log 是入库测试输入,非编译产物
 !tests/fixtures/*.log
 !tests/fixtures/logs/*.log

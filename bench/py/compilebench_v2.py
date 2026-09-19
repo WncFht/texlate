@@ -55,10 +55,10 @@ from pathlib import Path
 import benchlib
 
 ROOT = Path("~/src/texlate").expanduser().resolve()
-CORPUS = ROOT / "bench/corpus_v2"
+CORPUS = ROOT / "bench/corpus_v3"
 WORK = ROOT / "bench/work_compile_v2"
 OUT = ROOT / "bench/results/compilebench-corpusv2-2026-09-15"
-MANIFEST = CORPUS / "manifest.jsonl"
+MANIFEST = CORPUS / "manifest_v2.jsonl"
 PARSE_PAPERS = ROOT / "bench/results/parsebench-corpusv2-papers.json"
 
 SEED = 20260915
@@ -601,7 +601,7 @@ def run_paper(p):
         paper["engines"][eng] = r
         cases.append(
             {
-                "corpus": "corpus_v2",
+                "corpus": "corpus_v3",
                 "cond": "baseline",
                 "paper_id": pid,
                 "band": p["band"],
@@ -679,7 +679,7 @@ def report():
     lines.append("")
     lines.append(f"- 日期: {meta['date']}")
     lines.append(
-        f"- 语料: `bench/corpus_v2/` extracted/ 分层样本 n={len(papers)} (sample.json, seed={SEED})"
+        f"- 语料: `bench/corpus_v3/` v2 层 extracted/ 分层样本 n={len(papers)} (sample.json, seed={SEED})"
     )
     lines.append(f"- 条件: baseline 原文直编, 不注入不修复; 超时 {TIMEOUT}s")
     lines.append(f"- xelatex: `{meta['xelatex']}` — nonstopmode ≤2 pass, 冷 TEXMF 沙箱")

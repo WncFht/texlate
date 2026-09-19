@@ -21,7 +21,7 @@ raw pooled 三口径并列; Wilson 95% CI (iid 近似) + 月簇稳健 bootstrap 
 
 用法:
   uv run python bench/py/parsebench.py --corpus bench/corpus_v3 [--out DIR]
-  python3 bench/py/parsebench.py --corpus corpus_v2 --limit 20   # src shim 兜底
+  python3 bench/py/parsebench.py --corpus corpus_daily --limit 20   # src shim 兜底
 
 产出 (docs/10 统一产出契约): OUT/files.jsonl + OUT/papers.json + OUT/summary.md,
 OUT 默认 bench/results/parsebench-{corpus.name}-{date}/.
@@ -1139,7 +1139,7 @@ def main() -> None:
         "--corpus",
         required=True,
         type=Path,
-        help="语料目录 (bench/corpus|corpus_v2|corpus_v3; 裸名按 bench/ 下解析)",
+        help="语料目录 (bench/corpus_v3|corpus_daily; 裸名按 bench/ 下解析)",
     )
     ap.add_argument(
         "--manifest",
