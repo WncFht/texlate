@@ -116,15 +116,23 @@ rules:
       params:
         exts: [.tex, .sty, .cls]
         rewrites:
+          # bal = regex 递归平衡花括号: \{ (转义\{|\}|\% | 行注释 | 嵌套bal |
+          # 非括号)* \} —— TeX 词法同构 (注释/转义内括号不计配对), 跨行实参
+          # 全真接管 (旧 [^\n] 弃守面收编)。赋值臂 value = (escape|bal|非括号
+          # 非注释字符|孤{)* —— 裸 } 必停: 单行 \def\f{\prim=1} / \def\f{\prim{a}}
+          # 外层 } 不可吞, 旧贪婪 [^\n%]*/[^\n]*} 吞外层 } 把 \fi 落出宏体外
+          # → Extra/Incomplete \fi 破坏级缺陷 (primarg 期审计实证, primguard
+          # 修)。孤 { 兜底吃字面量: 不可闭合 { 维持旧"整行吞", xetex 跳过面干净。
           - {
-              pattern: "(?<![\\\\a-zA-Z])(\\\\@pdftex_prims)(\\s*=\\s*[^\\n%]*)",
+              pattern: "(?<![\\\\a-zA-Z])(\\\\@pdftex_prims)(\\s*=\\s*(?:\\\\[{}%]|(?<bal>\\{(?:\\\\[{}%]|%[^\\n]*|(?&bal)|[^{}])*\\})|[^{}\\n%]|\\{)*)",
               repl: '\\ifdefined\g<1>\g<0>\\fi',
             }
           - {
-              pattern: "(?<![\\\\a-zA-Z])(\\\\@pdftex_prims)(\\s*\\{[^\\n]*\\})",
+              pattern: "(?<![\\\\a-zA-Z])(\\\\@pdftex_prims)(\\s*(?<bal>\\{(?:\\\\[{}%]|%[^\\n]*|(?&bal)|[^{}])*\\}))",
               repl: '\\ifdefined\g<1>\g<0>\\fi',
             }
     risk: low # lookbehind 排除 cs 名紧邻 (\<prim> 前接字母/反斜杠 = ifdefined/chardef/ifnum/let 定义语境 + 自输出第二枚), 幂等; loop1-1306.0036 实证旧 (?<!ifdefined) 会把 polyfill 注入的 \chardef\pdfoutput=1 再套娃改写
+    known_gap: "实参内裸 \\fi/\\else/\\or token 在 xetex 跳读语义下仍被认作条件闭 (跳读不计花括号层) —— 包装形固有面, 与站点正则无关, pdfdict 实参无实证; catcode 变更面 (verbatim/活动字符) 的括号/注释不识字面 —— raw 面匹配无 catcode 信息, 全 regex_rewrite 共同限制"
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same } # XeTeX 内核, 守卫语义一致
