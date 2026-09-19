@@ -510,6 +510,29 @@ def _prologue_ok(blob: bytes, verdict: EncodingVerdict) -> bool:
     return verdict.basis == "strict-utf8" and b"\x00" not in blob[:_PROLOGUE_NUL_WINDOW]
 
 
+#: Mac Finder-info/资源叉前缀剥除窗——首个 ``\documentstyle``/``\documentclass``/
+#: ``%&`` 行首锚点须落在窗内才认「真 TeX 起点」（cond-mat/0003309: 129B 垃圾
+#: 块 ``TEXT*TEX``/``mBIN`` 压在 ``\documentstyle`` 前 → base 臂 Missing
+#: \begin{document}）。窗外命中不剥——大 blob 后段碰巧含锚字面时剥除会腐蚀本体。
+_LEAD_JUNK_WINDOW: Final = 4096
+
+#: 行首锚点（``(?m)^`` 要 ``\n`` 或文件头在前）——锚点行是垃圾块的天然终点。
+_LEAD_ANCHOR_RX: Final = re.compile(rb"(?m)^(?:\\documentstyle|\\documentclass|%&)")
+
+
+def _strip_lead_junk(blob: bytes) -> bytes:
+    r"""剥首个行首锚点前的 NUL 垃圾前缀；无锚/锚在 0/前缀纯文本 → 原样返回。
+
+    NUL 是垃圾判别子——``\documentclass`` 前的纯文本前缀（许可证头/注释块）
+    是合法作者内容，不含 NUL 一律不剥。``_neutralize_junk_files`` 按文件名覆写
+    整件，拦不住真主件内嵌的二进制前缀——本臂补字节级缺面。
+    """
+    for m in _LEAD_ANCHOR_RX.finditer(blob[:_LEAD_JUNK_WINDOW]):
+        if b"\x00" in blob[: m.start()]:
+            return blob[m.start() :]
+    return blob
+
+
 def _tex_sources(root: Path) -> dict[Path, str]:
     """工程内非隐藏 tex 源 → 解码文本；软链/不可读件/tar 伪装件跳过。"""
     sources: dict[Path, str] = {}
@@ -988,14 +1011,19 @@ def _normalize_tex_files(
                 # fixloop tar 解包臂（同口径扫描窗）在编译侧兜底补缺
                 log.debug("归一化跳过 tar 伪装件 %s", path)
                 continue
-            text, verdict = decode_tex_with(original)
+            blob = _strip_lead_junk(original)
+            if blob is not original:
+                stats.setdefault("lead_junk_stripped", []).append(
+                    path.relative_to(root).as_posix()
+                )
+            text, verdict = decode_tex_with(blob)
             _record_verdict(encodings, root, path, verdict)
             doc_source = path.suffix.lower() in _DOC_SOURCE_SUFFIXES
             text = normalize_engine(
                 text,
                 engine,
                 doc_source=doc_source,
-                prologue=doc_source or _prologue_ok(original, verdict),
+                prologue=doc_source or _prologue_ok(blob, verdict),
             )
             if path.suffix.lower() == ".tex":
                 text = use_bundled_bibliography(

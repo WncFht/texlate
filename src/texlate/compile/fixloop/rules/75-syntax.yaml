@@ -150,8 +150,49 @@ rules:
       tectonic: { mode: same }
     provenance:
       - { corpus: "2005.11401/zh", error: "Package soul Error (6 errs 残留)" }
-    stats: { fires: 1, rescued_cells: 1, status: active, note: "唯一触发格 0 命中 → 已知覆盖缺口" }
+    stats:
+      {
+        fires: 1,
+        rescued_cells: 1,
+        status: active,
+        note: "唯一触发格 0 命中 → 已知覆盖缺口",
+      }
     source_ref: "fixloop.py L429-445"
+
+  # ── 2026-09-20 mathbd lane (singles3 bundle A) ──
+  # soul_cjk_mbox(100) 姊妹臂: soul 族实参为单个 cs (``\hl{\model}``) 时
+  # 字面 CJK 闸不命中——CJK/组结构藏在 cs 定义体内 (``\model``=``\texttt{ReAct}``,
+  # 展开出 ``\texttt{..}`` 组 → soul 判「可断材料包在组括号内」→ Reconstruction
+  # failed; TU 编码 xelatex 下无 inputenc/fontenc 包裹层)。修 = cs 裹 \mbox
+  # 成原子盒, soul 直接透传。pattern 只收单-cs 实参形 (多 token 不命中);
+  # \mbox 是 kernel 原语, 对任意 cs 实参包裹皆安全。
+  - id: soul_cs_mbox
+    description: "soul 族 (\\hl\\ul\\st\\so\\caps) 实参为单个 cs → \\mbox 包裹 (cs 展开体内组/CJK 触发逐字重构失败)"
+    phase: loop
+    order: 102 # soul_cjk_mbox(100) 字面 CJK 形先收; 本臂兜单-cs 实参形
+    when: { category: soul_err }
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty, .cls]
+        rewrites:
+          - {
+              pattern: "\\\\(hl|ul|st|so|caps)\\{\\s*(\\\\[a-zA-Z@]+)\\s*\\}",
+              repl: '\\\g<1>{\\mbox{\g<2>}}',
+              match_surface: "masked",
+            }
+    risk: low # \mbox kernel 原语零依赖; 已裹站点实参为 \mbox{..} 非单 cs → 不再命中 (幂等)
+    known_gap: "多 token 实参 (\\hl{a \\model}) 不收——soul_err 复发后无后续规则接, 残面同 soul_cjk_mbox 已知缺口"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "2210.03629/zh",
+          error: "Package soul Error: Reconstruction failed — \\hl{\\model}/\\act/\\reason 28 站 (cs 定义体含 \\texttt 组)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-mathbd/cells/2210.03629: 28-site \\mbox{\\cs} wrap xelatex 净编译实证"
 
   # ── 2026-09-19 citemath 匝道 (task #79; lane-citemath EVIDENCE) ──
   # natbib ``\@citex`` 未定义引用标记 ``{\reset@font\bfseries ?}`` 无盒
@@ -950,6 +991,86 @@ rules:
         }
     stats: { fires: 0 }
     source_ref: "wave-3: early_eof 类目首个消费规则 (交互面)"
+
+  # ── 2026-09-20 mathbd lane (singles3 bundle A; q-alg/9703043 zh) ──
+  # latex209 升级残留: zh 译文把 ``{\it``-组撑过 ``$$..$$`` 显示域 →
+  # cs_events_spans $-parity 歪斜 + ``\bea`` 系宏包 env 字面不可见 →
+  # 升级后文本域 ``{\it}/{\bf}`` 组 (affiliation/Proposition/bibliography
+  # 纯拉丁站点) 被 _fix_math_209 误判为数学域改写成 ``\mathit{..}`` →
+  # 文本域执行炸 ``\mathit allowed only in math mode``。
+  # 修 = ``\math<xx>{`` 全局回退 ``{\<xx> ``: 内核 \DeclareOldFontCommand
+  # 使 \<xx> 双域自适应 (文本→*shape, 数学→mathXX) —— 数学域内合法站点
+  # 回退后语义不变, 且恢复升级前 2.09 源面。掩面匹配: 注释/verbatim 内
+  # 字面 ``\mathit{`` 不动。
+  - id: math_alphabet_209_revert
+    description: "\\mathXX allowed only in math mode → \\math<xx>{ 全局回退 {\\<xx> (old-font-cmd 双域自适应)"
+    phase: loop
+    order: 190 # bm_symbfit_alias(191)/pdfstring_cs_disarm(193) 同 syntax 桶; 签名互斥无竞争
+    when: { category: syntax }
+    condition:
+      ctx_suggests: "\\\\math(it|bf|rm|sf|tt) allowed only in math mode"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .bbl]
+        rewrites:
+          - {
+              pattern: "\\\\math(it|bf|rm|sf|tt)\\{",
+              repl: '{\\\g<1> ',
+              match_surface: "masked",
+            }
+    risk: low # {\it X} 双域皆合法 (\DeclareOldFontCommand mode-aware); 回退后无 \math<xx>{ 字面残留 → 幂等
+    known_gap: "裸 \\mathit x 无括号形不收; \\mathbb/\\mathfrak 等 209-switch 五件套外的 math-alphabet 签名闸自拒"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "q-alg/9703043/zh",
+          error: "LaTeX Error: \\mathit allowed only in math mode ×23 (latex209 升级后文本域 {\\it}/{\\bf} 组被改写残留)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-mathbd/cells/q-alg-9703043: 23-site 回退 xelatex RC=0 19pg 实证"
+
+  # ── 2026-09-20 mathbd lane (singles3 bundle A; 2609.20524 zh) ──
+  # acmart+amsmath+bm+xelatex+unicode-math: ``\bm``/``\boldsymbol`` 的
+  # `` `\<cs>`` 字母常量扫描在 unicode-math 多字符 cs (``\mitxi``/``\mitomega``
+  # 等, <to be read again> 行可见) 上炸 Improper alphabetic constant
+  # (29 站, file-line 形)。与 pdfstring_cs_disarm(193) 同签但机理不同:
+  # 肇事帧在正文排版域非 \pdfstringdef —— \mit<cs> 门把两族分开
+  # (\times 类 pdfstring offender 无 \mit 前缀 → decline 交 193)。
+  # 修 = \begin{document} 前注 bm 双入口别名: unicode-math 时
+  # \let\bm/\boldsymbol→\symbfit (次选 \symbf), \ifdefined 守卫缺席零注入。
+  - id: bm_symbfit_alias
+    description: "Improper alphabetic constant (bm ``\\<cs>`` 扫描遇 unicode-math \\mit<cs>) → \\begin{document} 前注 \\bm/\\boldsymbol→\\symbfit/\\symbf 别名"
+    phase: loop
+    order: 191 # pdfstring_cs_disarm(193) 之前: \mit<cs> offender 是 unicode-math 专签, 本臂先收; dedup 后 193 兜底真 pdfstring 形
+    when: { category: syntax }
+    condition:
+      ctx_suggests: "Improper alphabetic constant[\\s\\S]{0,400}\\\\mit[a-zA-Z]"
+      source_contains: "\\\\(?:boldsymbol|bm)\\b"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex]
+        rewrites:
+          - {
+              pattern: "(\\\\begin\\{document\\})",
+              repl: "% fixloop: bm -> unicode-math symbf alias (Improper alphabetic constant)\n\\\\ifdefined\\\\symbfit\n  \\\\let\\\\bm\\\\symbfit \\\\let\\\\boldsymbol\\\\symbfit\n\\\\else\n  \\\\ifdefined\\\\symbf\n    \\\\let\\\\bm\\\\symbf \\\\let\\\\boldsymbol\\\\symbf\n  \\\\fi\n\\\\fi\n\\g<1>",
+              match_surface: "masked",
+            }
+    risk: low # \ifdefined 双守卫: 无 unicode-math 稿整件死文本; \let 别名对 \bm{\mu_i} 多 token 实参同构
+    known_gap: "unicode-math 缺席且无 \\symbf* 时注入件整件死文本 → 同签复发后 dedup 让位 pdfstring_cs_disarm; \\bm x 无括号裸形 usages 闸可见但本臂不修 site-形"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "2609.20524/zh",
+          error: "Improper alphabetic constant ×29 @\\boldsymbol{\\xi/\\omega/\\theta}/\\bm{\\mu} (acmart+bm+unicode-math)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-mathbd/cells/2609.20524: 双别名注入 0-Improper 29pg 实证"
 
   # 2026-09-18 pdo-lane (2607.10569 loop2+rt1 双池 main.tex:291/302):
   # acmart+hyperref 下 moving-arg 内 $\times$ → \pdfstringdef 去 math
