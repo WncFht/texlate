@@ -1133,3 +1133,12 @@
 - **L0 扫 fixloop 全套**: 156 绿 **1 红 = test_scanner_both_copies_carry_guards**——pin 断旧内嵌扫描器字面 (@boole@def/let-lookahead), ifscanner 薄壳落件删之在飞=**预期 churn 非回归**; 已嘱同落地更新 pin (assert 薄壳形), 行为 e2e 测 (booledef/let-char/let-cs/real-deficit) 必须照过——过才是新扫描器行为等价的实证, 弱化=真回归须报。
 - roster 7: ifscanner(#167 落中)/verifier164b(#170)/shimdiag(#171)/zhleakdiag(#172)/revtexlane(#174)/arrayarg(#175)/firezero(#176)。peer texlate-bb/preamble-toggles 持 mutex (segmenter/inject 域), replay 波续封。
 - 门: teammate 零 git✓; HEAD f47a6ded; L0 1 红归因在飞 lane 非格退; sab-r8 escaped=0✓; 裁决点 3 件仍待用户。
+
+## 2026-09-19 ~13:1x — 164b 裁定 KEEP → 22304933 复落 + ifscanner 8ec129ce + firezero 收获 → colorquote 新派
+
+- **#170 裁定落地 `22304933` (5 件 +221)**: verifier164b VERDICT=KEEP——三格子档全非 {subfiles} 类 (2410.00111={article}×\includestandalone / 2003.03508={standalone}×\subimport / 2310.16788 混合); standalone.sty:734 `\let\documentclass\sa@documentclass` 只在 \documentclass token 处吞→**前置块行在三种 pull 式下全按 body 执行**; post-撤除三格错重现实证 (4/8/l.1)。**#168 inject 侧覆盖空洞坐实**: SUBFILES_CHILD_RX 只门 {subfiles} 类, {standalone}/{article} 子档仍注 (article 与真 main 不可分→编译侧臂不可替代)。复落术: builtins 逆补丁 + 四件 d4527913^ 字还 (三路交织再演——misc/route/rules-test 无后续触碰故 ^ 字还精确, builtins 有 caret/ams 增量故走 patch)。39 测绿, facade 54 fns。次级建议入队: #168 门宽至 {standalone} 类 (廉价二级门, inject mutex 解后做)。
+- **#167 ifscanner 落地 `8ec129ce` (7 件 +870/−429)**: 新 textutil 叶 `ifscan.py` 477 行——活位扫描器 (\let 操作数/名位/def 体/跳读组全排除, if-alias 生命周期, token 预算带非空白 gap 扣减), 与 TeX 跳读扫描 (字面 \if-token 全计) 的发散面显式化为 phantom 类; 双 unclosed_if_close 253 行内嵌→~57 行薄壳, 判词带 `phantom=N`; ifprot 闸最新判词 phantom>0→abstain (跳读形在 \protected 域外)。**两真回归被 e2e 在落中抓住修好** (\ifnum 操作数吃 \fi / \@boole@def 跨组)——行为测未弱化, csfix2 pin 改指模块表。152 格 uniform-fail 签名机制层拔除。
+- **L0 复扫全绿**: 1510 passed/2 skipped (fixloop 面)——前红 pin churn 随落地消。
+- **firezero #176 全扫收获 (42 零发规分桶)**: 最锐=**undefined_color_fallback taxonomy 引号错配**——10-taxonomy:283 直引号 `'X'` vs 真件 backtick `` `X' `` → ~44 格错归 `other` 规不可达 (同 #102 bticktax 病族) → 即派 colorquote #177 (先验字节后修, kernel LaTeX Error 发行者变体待证; 多数格是这是译文泄格——fallback 是设计绷带非掩盖)。次簇: soul_cjk_mbox/frontmatter_order_hoist/thm_sibling_strip 等 decline 型派发疑 + stats-stale 74 规 (yaml fires=0 vs ledger>0, 簿记偏差不影响运行) + **盲位**: gate-REJECT 绕 actions→rules_fired 不可见 (latex209_reject 实证发而零记)。xelatex mode:skip 六规=dormant 设计内。
+- **关毕**: verifier164b/ifscanner/firezero。roster 5: shimdiag(#171)/zhleakdiag(#172)/revtexlane(#174)/arrayarg(#175)/colorquote(#177)。peer mutex 仍持→replay 波续封。
+- 门: teammate 零 git✓; HEAD 8ec129ce; L0 1510 绿✓; 裁决点 3 件仍待用户 (#10/ds@/verdict 排序)。
