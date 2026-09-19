@@ -906,3 +906,13 @@
 - **envdiag 派 (read-only)**：misplaced-& 4+ 格根=undefined diagram env——但 diagrams.sty 已在 vendor/stubs: stub-保真缝 vs 服件路缝 vs 机制误判, anchor math/0104250:417。
 - roster 9：bticktax(fc9 standby)/csfix2(扫描守收尾)/kvdig/primguard(a 修中) + mathchar/dimcen/209batch/defcensus/envdiag。
 - 门：teammate 零 git✓；无 detached 批；HEAD dbe8a3a 净；clean% 31/32 维。
+
+## 2026-09-19 ~19:0x — primguard 入库 (dd7f8bb) + csfix2 断树自解 + inputtail/hard18 派
+
+- **primguard (dd7f8bb)**：双臂 `regex` 递归 `(?&bal)` TeX 词法平衡括号 (转义/注释括号不计, 任意深度, 多行实参收编旧 `[^\n]` 弃守面); 赋值臂孤 `{` 兜底保旧"整行吞"。ruleset_validate 换 `regex` 引擎镜 `actions._compile_rewrites` (option-a 落地——stdlib `re` 无 `(?&name)` 会误拒)。21 测绿, load 128 规, ruff/prettier 净。
+- **csfix2 断树自解**：验证期 `Ruleset.load` 全仓 raise——其 `premature_cs_guard` 引 yaml:1500 而未注册 TRANSFORM_FNS。几分钟后 csfix2 自行撤规 + 注册 `if_phantom_protect` (builtins.py:46/194/284)——树回绿, 无需 leader 插手。其 `premature_cs_guard` def 暂留 _builtins_csfix.py 成 dead code (在写中)。**教训**：in-flight yaml 引未注册 builtin = 全仓 load 死——lane 交规顺序应为"先注册后引 yaml"。
+- **inputtail 派 (primguard 连任, #133)**：kvdig 两 handoff——(a) `\input` count-tail `_OPERAND_BASE` cs alternative 吃 `\input` 作 factor base → `{file}` 裸译 (2403.00100:651, _common.py+group.py/pending.py 三镜); (b) pending.py COND 镜缺 (`_pend_spec_of`:770 返 (None,""), grp-scan:1448 无 `{name}` 吸收——照 args.py `_COND_GROUP_ARGS`/`_handle_cond` ae685ff 镜)。文件全释。
+- **hard18 派 (read-only)**：18 hard 格预诊——逐格分 covered-by-new-rule / needs-new-rule / genuinely-stuck, loop3 收获时直读。
+- **kvdig 关** (交付 ae685ff 已入)。
+- roster 9：bticktax(fc9 standby)/csfix2/primguard(inputtail) + mathchar/dimcen/209batch/defcensus/envdiag/hard18。
+- 门：teammate 零 git✓；HEAD dd7f8bb 净；在飞 csfix2 三件套+mathchar 三件套 (builtins.py 双 lane 分行无撞)；clean% 31/32 维。
