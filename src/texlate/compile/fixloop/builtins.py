@@ -90,6 +90,7 @@ from texlate.compile.fixloop._builtins_graphics import (
     xbb_pregen,
 )
 from texlate.compile.fixloop._builtins_misc import (
+    cjk_env_relax,
     docstrip_generate,
     eps_converted_alias,
     extract_tar_blobs,
@@ -206,6 +207,7 @@ __all__ = [
     "caret_utf8_fix",
     "cite_in_math_mbox",
     "citekey_sanitize",
+    "cjk_env_relax",
     "cs_delim_tail_fix",
     "cs_rebind",
     "cs_targeted_fix",
@@ -363,4 +365,5 @@ TRANSFORM_FNS = {
     "main_wrapper_promote": main_wrapper_promote,
     "eps_converted_alias": eps_converted_alias,
     "raster_pdf_rename": raster_pdf_rename,
+    "cjk_env_relax": cjk_env_relax,
 }

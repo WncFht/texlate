@@ -371,6 +371,19 @@ taxonomy:
       scope: head,
       pattern: "Text line contains an invalid character",
     }
+  # ── 2026-09-20 cjkchar lane (#290, singlesweep cjk-pkg-invalid-char 2 格) ──
+  # CJK 包自报同族错形: 非 UTF-8 字节进 CJKutf8/CJK 解码面才炸, 措辞非
+  # 内核 "Text line contains..." —— 硬错在 head 段恒归 other|None 无
+  # 路由 (1607.00157 file-line 形 main.tex:58 / 2601.07372 main.tex:222,
+  # 1206.0266 tectonic `! ` 形, 三形同句)。归 invalid_char 后
+  # invalid_char_recode(97) 接续——非 UTF-8 源格 (1607.00157
+  # .tex+.cls decode-fail 实证) 转码即解; 全 UTF-8 格 recode 自
+  # decline 不误伤 (转码只对 decode-fail 文件动刀)。
+  - {
+      id: invalid_char,
+      scope: head,
+      pattern: "Package CJK Error: Invalid character code",
+    }
   - {
       id: expl3_backend,
       scope: head,

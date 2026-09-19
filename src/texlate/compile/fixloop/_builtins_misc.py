@@ -27,6 +27,7 @@ from texlate.compile.fixloop._builtins_graphics import (
 )
 from texlate.compile.inject import _walk_inputs
 from texlate.compile.latex209 import upgrade_209
+from texlate.compile.normalize import normalize_legacy_cjk
 from texlate.compile.transcode import INTERMEDIATE_SUFFIXES
 from texlate.latex.api import NAME_GATED_TEX_SUFFIXES, parse_file
 from texlate.latex.prose import file_has_prose
@@ -72,6 +73,34 @@ def non_utf8_recode(
                 recoded.append(f"{f.name}({enc})")
                 break
     return (bool(recoded)), f"recode to utf-8: {', '.join(recoded)}"
+
+
+def cjk_env_relax(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""``Package CJK Error: Invalid character code`` → 旧 CJK env+pkg 换装 xeCJK。
+
+    ``normalize_legacy_cjk`` 同口径: ``\begin{CJK*?}{enc}{fam}`` → 分组
+    ``{…}``, ``CJK``/``CJKutf8`` 包 → ``xeCJK``+Fandol 字体组。
+    8-bit CJK env 只收声明编码槽内码位 —— zh 臂 normalize 全件预中和,
+    本臂兜 normalize 漏网面 (base 对照档/replay/fileset 边缘件)。字节级
+    ``decode_tex`` 读档: GBK/Big5 档 (1607.00157 形) 转码保真进改写,
+    ``ctx.read`` 的 utf-8+replace 会先把汉字读成 U+FFFD 再写回毁档。
+    """
+    del eng, payload
+    exts = tuple(params.get("exts") or (".tex", ".sty", ".cls"))
+    changed = []
+    for f in ctx.tex_files(exts):
+        try:
+            raw = f.read_bytes()
+        except OSError:
+            continue
+        text = decode_tex(raw)
+        nt = normalize_legacy_cjk(text, ctx.engine_name)
+        if nt != text:
+            ctx.write(f, nt)
+            changed.append(f.name)
+    return bool(changed), f"legacy CJK → xeCJK+group: {', '.join(changed)}"
 
 
 def purge_corrupt_intermediates(
