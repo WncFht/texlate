@@ -1771,3 +1771,9 @@
 - **flipsel manifest**（收）：wave-13 **53 格**（28 ready + 11 pending + 14 preverified）；sabotage 换 cleansab 36；drvstage 4 落毕转 ready；ctexbls 2404.14219 仍 adjudication 持。
 - **dispatch ×8 → roster 10**：unkopt（impl：unknown-option ~4）、tcbchk（verify：tcb-zh-leak vs keyval#128）、residtail（verify：~8 resid 逐格）、pdfex（census：pdf_tex 族+payload nit）、dedupchk（census：{rid}:None dedup 盲点泛化）、stuckmine（census：stuck/budget-churn）、bibimpl（impl：bibpass 设计，engine.py——live-read 集→mutex 延）、primcen（census：string-prim/未播 engine-identity 族）。csfix8+singtail 续飞；failmine5 对簇 relay→singtail。
 - **门**：HEAD=ba4e5eaa；ruleset 178（worktree）；overnite 1699/2822 健康；flipcheck-12/wave-13 mutex 续持（csfix8+bibimpl impl 在飞）；共享 index 他家污染依旧（勿动）；无 teammate git 越权。
+
+### patrol ~11:35 — 心跳：无收割；roster 10 全在飞；overnite 1709/2822
+
+- l1-gate/autogloss-reg run.log 早已收官（无新写）；overnite 1709/2822 健康，ph=0 常态。
+- 无新 report.md。csfix8 1h+ 在飞——lane dir 07:49 后静默但仍在 real-xelatex 逐行 repro 合理窗口（8 行 bundle×~100-500s/编译）；下 tick 仍无声则 ping。singtail 26m 普查爬坡正常；8 新 lanes ~1min 均 running。
+- **门**：HEAD=ceb4f46d；ruleset 178（worktree）；wave-13 mutex 续持（csfix8+bibimpl 在飞——engine.py live-read）；共享 index 他家污染依旧（勿动）；无 teammate git 越权。
