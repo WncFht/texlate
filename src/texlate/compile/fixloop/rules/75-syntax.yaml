@@ -1324,6 +1324,46 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/lane-spacefactor/notes.md M3; svglov3.clo exact-restore idiom; _SHIP_WRAP_* 同款"
 
+  # ─── endsfix lane (task #213, 2026-09-19): babel 预载 raw-opts 种子 ───
+  # 0806.3242 loop1→loop3 持续 Missing \endcsname: 稿首 \RequirePackage
+  #   [british]{babel} 先于 \documentclass —— \@raw@classoptionslist 尚是
+  #   kernel 初始 \relax (latex.ltx:18355; 首个 class 选项处理才 \gdef,
+  #   :18718)。babel.sty:4230 \@nameuse{clist_map_inline:Nn} 把 \relax 当
+  #   1-项 clist 迭代 → \InputIfFileExists{babel-\@raw@classoptionslist.tex}
+  #   文件名 csname 吞入不可展开 token → Missing \endcsname。修 = 预载
+  #   babel 行头补 \def\@raw@classoptionslist{} (csname 形免 makeatletter)
+  #   —— 空 clist 零迭代; kernel 随后 \gdef 真值覆盖种子无冲突。
+  - id: babel_preclass_rawopts_seed
+    description: "\\documentclass 前 \\RequirePackage{babel} → \\@raw@classoptionslist 预置空 clist (\\relax 被 babel 当全局选项迭代 → csname 吞入)"
+    phase: loop
+    order: 199 # spacefactor_atdef_wrap(198.5) 之后, undefined_cs_guess(900) 之前
+    when: { category: syntax }
+    condition:
+      ctx_suggests: "Missing .?endcsname"
+      source_contains: "\\\\RequirePackage\\s*(\\[[^\\]]*\\])?\\s*\\{[^}]*\\bbabel\\b[^}]*\\}[\\s\\S]*\\\\documentclass"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex]
+        rewrites:
+          - {
+              pattern: "(?m)^[ \\t]*\\\\RequirePackage\\s*(\\[[^\\]]*\\])?\\s*\\{[^}]*\\bbabel\\b[^}]*\\}(?=[\\s\\S]*\\\\documentclass)",
+              repl: '\\expandafter\\def\\csname @raw@classoptionslist\\endcsname{} % fixloop: babel pre-class raw-opts seed\n\g<0>',
+              match_surface: masked,
+            }
+    risk: low # 空 clist 与 kernel \gdef 前语义一致; class 选项处理以真值覆盖种子
+    known_gap: "\\input 间接预载 (babel 在引入件内) 不收; 无 \\documentclass 的残缺稿不收; 错若复发会重复播种 (幂等 \\def 无副作用)"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "0806.3242 (endcsdiag census, loop1→loop3 持续)",
+          error: "Missing \\endcsname inserted / babel.sty:4259 <to be read again> \\@raw@classoptionslist",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-endcsdiag/report.md §2; latex.ltx:18355/18718; babel.sty:4230"
+
   # ─── 兜底: 恒最后 ───
   - id: undefined_cs_guess
     description: "未定义控制序列 → cs→pkg 知识库长射 + LLM 兜底分析 (占位)"

@@ -317,6 +317,14 @@ def _fb_snippet_lines(
     时不炸 ``\newfontfamily`` 重定义; ``cs`` 参数支持第二回退族
     (``txlatecjkfb`` = CJK 带 FandolSong 实例, fixer-font-fallback-8bit
     spec §1)。
+
+    ``\newunicodechar`` 行整体收进 ``\AtBeginDocument``: 本块注在
+    ``\documentclass`` 后即活化字符, 晚于其装载的 xeCJK/ctex 导言区
+    punct 表 ``\keys_set`` (xeCJK.sty 默认 KaiMingPunct/LongPunct/
+    MiddlePunct) 会把活动字 csname 化进 ``\tl_new:c`` → ``\protect``
+    撞 ``\endcsname`` (Missing endcsname, 2609.19944/2410.18001)。
+    begindocument 钩先于 ``\@onlypreamble`` 废名执行 (latex.ltx
+    ``\document`` 序), ``\newunicodechar`` 在钩内仍合法。
     """
     lines = [
         "% fixloop: per-char font fallback via newunicodechar",
@@ -324,12 +332,14 @@ def _fb_snippet_lines(
         "\\ifdefined\\newfontfamily\\else\\usepackage{fontspec}\\fi",
         f"\\ifdefined\\{cs}\\else\\newfontfamily\\{cs}{{{font}}}\\fi",
     ]
-    lines += (
+    acts = [
         f"\\newunicodechar{{{c}}}"
         f"{{\\ifmmode\\mbox{{\\{cs} {c}}}\\else{{\\{cs} {c}}}\\fi}}"
         for cp in cps
         if (c := _mc_chr(cp)) is not None
-    )
+    ]
+    if acts:
+        lines += ["\\AtBeginDocument{%", *acts, "}"]
     return lines
 
 
