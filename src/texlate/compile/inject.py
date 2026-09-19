@@ -14,21 +14,23 @@ docs/08 §3.3 注入缝：
   与 route reject 分流）
 
 实证：compile-bench 72 次编译中 ctex 注入破坏率 0%（bench/results/compile-report.md）。
+
+C4 拆分：本模块宿 CJK 注入 + 共享缝原语（``_splice_*``/``find_docclass_ends``）。
+主文件发现+``\input`` 闭包+filecontents 虚拟 FS 出叶 ``mainfile``，
+版式手术（FLOAT_SIZING/TABLE_FITTING/wrapfloat 降级）出叶 ``layout``——
+两叶消费名经本模块回引（mainfile 静态 import、layout ``__getattr__``
+惰性转口，后者顶层反向 import 本模块缝原语，静态互引会成环）。
 """
 
 from __future__ import annotations
 
 import re
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from texlate.textutil import (
     BEGIN_DOC_RX,
     DEAD_ENVS,
-    DOCCLASS_DECL_RX,
-    DOCCLASS_ONLY_RX,
     DOCCLASS_RX,
-    DOCSTYLE_RX,
     INPUT_BARE_RX,
     INPUT_BRACED_RX,
     VERBATIM_ENVS,
@@ -36,21 +38,39 @@ from texlate.textutil import (
     clean_decl_name,
     decode_tex,
     iter_depth0,
-    mask_tex,
-    safe_is_file,
-    safe_resolve,
 )
 
 from .latex209 import upgrade_209
+from .mainfile import (  # noqa: F401 — C4 出叶回引：find_main_tex/_walk_inputs 等公共+私名钉点面守恒
+    _resolve_input,
+    _walk_inputs,
+    classify_no_main,
+    find_main_tex,
+)
 from .mask import group_end, visible_tex
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator, Mapping
+    from pathlib import Path
 
 #: zihao=false 必须钉死：ctex 默认 scheme=chinese 在未收到显式字号选项时
 #: 强启 zihao=5（ctex-scheme-chinese.def），把 \normalsize..\tiny 全体重映射到
 #: 中文字号 bp 尺寸（10pt→10.53937pt +5.4%），版式几何全面膨胀。
 CTEX_LINE = r"\usepackage[fontset=fandol,UTF8,zihao=false]{ctex}"
+
+#: acmart.cls 类载时快照 ``\ACM@origbaselinestretch``（:3627）并
+#: ``\AtEndDocument`` 用 ``\ifx`` 比对 ``\baselinestretch``——ctex 默认
+#: scheme=chinese 在未显式传 linespread 时自补 ``\linespread{1.3}``
+#: （ctex-scheme-chinese.def → ctex.sty:711），恰构成「重定义」触发
+#: Class Error（soak-2026-09-18 zh-only 49 格，base 臂 0）。守卫自靶向：
+#: 快照 cs 名唯 acmart 系定义，命中即把 ``\baselinestretch`` 归位快照义
+#: ——类意本即禁改 stretch，比对恒真；非 acmart 档 ``\ifcsname`` 假空转。
+#: 紧随 usepackage 行后：ctex 的 \linespread 在包载时执行，快照必先存在。
+ACM_BASELINESTRETCH_GUARD = (
+    "\n% texlate: acmart \\baselinestretch guard (ctex scheme=chinese \\linespread{1.3})\n"
+    r"\ifcsname ACM@origbaselinestretch\endcsname"
+    r"\expandafter\let\expandafter\baselinestretch"
+    r"\csname ACM@origbaselinestretch\endcsname\fi"
+)
 
 #: xeCJK 降级块：ctex 与模板冲突时（fixloop/探针编译切换）换这条路径。
 XECJK_BLOCK = r"""
@@ -296,7 +316,6 @@ TEXT_8BIT_FALLBACK = r"""
 \DeclareFontShape{TU}{texlatecmu}{b}{it}{<->"[cmunbi.otf]"}{}
 \DeclareFontShape{TU}{texlatecmu}{bx}{it}{<->ssub*texlatecmu/b/it}{}
 \DeclareFontShape{TU}{texlatecmu}{b}{sl}{<->ssub*texlatecmu/b/it}{}
-\DeclareFontShape{TU}{texlatecmu}{bx}{sl}{<->ssub*texlatecmu/bx/it}{}
 \edef\TeXlate@cmuprev{\familydefault}
 \def\TeXlate@cmuOn{\edef\TeXlate@cmuprev{\f@family}%
   \fontfamily{texlatecmu}\selectfont}
@@ -366,142 +385,12 @@ _ENV_OPEN_RE = re.compile(
     + r")\}"
 )
 
-#: 可作主入口的 TeX 源后缀（mask.py TEX_SOURCE_SUFFIXES 的子集——
-#: .sty/.cls 等是被装载件不作 main 候选；.ltx 是合法主档形态）。
-#: tuple 保序：``_resolve_input`` 无扩展名补全按 kpathsea 序先 .tex 后 .ltx。
-_MAIN_TEX_SUFFIXES = (".tex", ".ltx")
-
 #: \documentclass 调用参数扫描上限（防御畸形输入死循环）。
 _DOCCLASS_SCAN_LIMIT = 4000
 
-#: ``_body_mass`` BFS 文件数上界——分数只是排序键，够分胜负即可，
-#: 病态工程（数千 .tex）不拖死选取。
-_MASS_FILE_CAP = 1024
-
-#: ``filecontents`` 环境成员抽取：``\begin{filecontents[*]}{name}`` 写的文件
-#: 物理不在包内，但编译时 TeX 会把它落到工作目录再 ``\input``——自解包形态
-#: （1502.06414 index_preprint.tex：50+ 成员包真 doc，外层尾行 ``\input{index}``）。
-#: 遮盖视图把环境连 begin 行整体抹平，抽取必须在 ``keep_verbatim`` 视图做：
-#: 注释内的伪 ``\begin{filecontents}`` 已被抹掉，成员体原样保留。
-_FILECONTENTS_BEGIN_RX = re.compile(
-    r"\\begin\s*\{(filecontents[^}\s]*)\}\s*(?:\[[^\]]*\])?\s*\{([^{}]+)\}"
-)
-
-#: 虚拟成员表上界——自解包包体可含数十成员（sty/cls/def），tex 族成员
-#: 才有闭包意义；超界即病态输入，成员表截断。
-_VIRTUAL_MEMBER_CAP = 256
-
-
-def _norm_virtual_key(name: str) -> str | None:
-    r"""``filecontents`` 名 → 规范包内相对路径；逃逸/绝对/噪声 → ``None``。"""
-    name = name.strip().strip('"').strip()
-    if not name or name.startswith(("/", "~")) or re.match(r"^[A-Za-z]:", name):
-        return None
-    parts = [p for p in name.split("/") if p not in ("", ".")]
-    if not parts or any(p == ".." for p in parts):
-        return None
-    return "/".join(parts)
-
-
-def _filecontents_bodies(kept: str) -> dict[str, str]:
-    r"""``keep_verbatim`` 视图上的 filecontents 成员表：名 → 体文本。
-
-    ``kept`` 是 ``mask_tex(raw, keep_verbatim=True)`` 产物——注释已抹、
-    逐字族环境（含 filecontents 体）原样。重复写同名成员先写者胜
-    （filecontents 不覆盖已存在文件，TeX 语义同款）。
-    """
-    out: dict[str, str] = {}
-    for m in _FILECONTENTS_BEGIN_RX.finditer(kept):
-        end = re.compile(r"\\end\{" + re.escape(m.group(1)) + r"\}").search(
-            kept, m.end()
-        )
-        key = _norm_virtual_key(m.group(2))
-        if key is not None and key not in out:
-            out[key] = kept[m.end() : end.start() if end else len(kept)]
-        if len(out) >= _VIRTUAL_MEMBER_CAP:
-            break
-    return out
-
-
-def _resolve_virtual(
-    root: Path, decl_dir: Path, name: str, virtual: Mapping[str, str]
-) -> tuple[Path, str] | None:
-    r"""``\input`` 目标 → filecontents 虚拟成员 ``(pseudo_path, body)``。
-
-    磁盘解析缺席后的二探（``_resolve_input`` 同口径：无扩展名补 ``.tex``
-    /``.ltx``，声明目录→工程根两跳）。pseudo_path 是该文件编译时会被
-    filecontents 落盘的合成位（root 下成员名）——``seen`` 键与嵌套
-    ``\input`` 基准目录沿用真路径语义，不落盘。
-    """
-    names = [name] if Path(name).suffix else [name + ext for ext in _MAIN_TEX_SUFFIXES]
-    try:
-        decl_rel = decl_dir.relative_to(root).as_posix()
-    except ValueError:
-        decl_rel = ""
-    if decl_rel == ".":
-        decl_rel = ""
-    for fname in names:
-        if Path(fname).suffix.lower() not in _MAIN_TEX_SUFFIXES:
-            continue
-        for base in (decl_rel, ""):
-            key = f"{base}/{fname}" if base else fname
-            body = virtual.get(key)
-            if body is not None:
-                return root / key, body
-    return None
-
-
-#: FLOAT_SIZING 仅在有 figure/table 时注入（docs/08 §3.3）。
-FLOAT_SIZING = r"""% texlate: fit complete oversized float boxes v1
-\usepackage{graphicx}
-\begingroup
-\makeatletter
-\AtBeginDocument{%
-\let\texlate@endfloatbox\@endfloatbox
-\def\@endfloatbox{%
-\texlate@endfloatbox
-\def\texlate@figure{figure}%
-\def\texlate@figurestar{figure*}%
-\def\texlate@table{table}%
-\def\texlate@tablestar{table*}%
-\let\texlate@floatscope\@empty
-\ifx\@currenvir\texlate@figure\def\texlate@floatscope{1}\fi
-\ifx\@currenvir\texlate@figurestar\def\texlate@floatscope{1}\fi
-\ifx\@currenvir\texlate@table\def\texlate@floatscope{1}\fi
-\ifx\@currenvir\texlate@tablestar\def\texlate@floatscope{1}\fi
-\ifx\texlate@floatscope\@empty\else
-\ifdim\dimexpr\ht\@currbox+\dp\@currbox\relax>\textheight
-\edef\texlate@floatwidth{\the\wd\@currbox}%
-\edef\texlate@floatheight{\the\dimexpr\textheight-\baselineskip\relax}%
-\ifdim\texlate@floatheight>0pt
-\typeout{TeXlate-Float-Fit: \@captype\space \csname the\@captype\endcsname; height \the\dimexpr\ht\@currbox+\dp\@currbox\relax; limit \texlate@floatheight}%
-\global\setbox\@currbox=\vbox{\hbox to\texlate@floatwidth{\hfil\resizebox*{!}{\texlate@floatheight}{\box\@currbox}\hfil}}%
-\fi\fi\fi}%
-}
-\endgroup
-"""
-
-#: TABLE_FITTING hook threeparttable（adjustbox max width）。
-TABLE_FITTING = r"""% texlate: fit complete measured table containers v1
-\usepackage{adjustbox}
-\begingroup
-\makeatletter
-\AtBeginDocument{%
-\newif\iftexlate@tablefit
-\newenvironment{TeXlateFitTable}{%
-\iftexlate@tablefit
-\let\texlate@endtablefit\relax
-\else
-\texlate@tablefittrue
-\def\texlate@endtablefit{\end{adjustbox}}%
-\begin{adjustbox}{max width=\linewidth}%
-\fi\ignorespaces
-}{\texlate@endtablefit}%
-\AddToHook{env/threeparttable/before}{\begin{TeXlateFitTable}}%
-\AddToHook{env/threeparttable/after}{\end{TeXlateFitTable}}%
-}
-\endgroup
-"""
+#: ``_input_hop_inject`` 一跳 ``\input`` 目标数上界——病态工程的巨量
+#: 声明不拖死探测；正常 preamble 分拆远在此界内。
+_INPUT_HOP_CAP = 64
 
 
 class InjectRejectError(ValueError):
@@ -516,297 +405,6 @@ class InjectRejectError(ValueError):
         """记录拒绝原因（默认 latex209 documentstyle）。"""
         self.reason = reason
         super().__init__("inject_reject:" + reason)
-
-
-def _resolve_input(root: Path, decl_dir: Path, name: str) -> Path | None:
-    r"""``\input``/``\include`` 目标 → 本地 .tex（声明目录→工程根两跳，kpathsea 序）。
-
-    无扩展名补 ``.tex``；解析到非 .tex（``.bbl``/``.sty`` 等）或越出
-    工程根的目标不计入 body 量（probe.py ``_find_local`` 同口径）。
-    """
-    names = [name] if Path(name).suffix else [name + ext for ext in _MAIN_TEX_SUFFIXES]
-    for fname in names:
-        if Path(fname).suffix.lower() not in _MAIN_TEX_SUFFIXES:
-            continue
-        for base in (decl_dir, root):
-            # ``\input`` 参数是文档可控面——巨名 ENAMETOOLONG、symlink loop
-            # RuntimeError、NUL ValueError 按不可解析处理（consistency-audit）。
-            cand = safe_resolve(base / fname)
-            if cand is not None and safe_is_file(cand) and cand.is_relative_to(root):
-                return cand
-    return None
-
-
-def _walk_inputs(
-    root: Path,
-    seeds: list[tuple[Path, str]],
-    virtual: Mapping[str, str] | None = None,
-) -> Iterator[tuple[Path, str]]:
-    r"""``\input``/``\include`` 传递闭包遍历：产出 ``(resolved_path, visible_text)``。
-
-    从 ``(decl_file, visible_text)`` 种子出发，在遮盖视图上扫描 input 族
-    目标（注释/verbatim 内的 ``\input`` 不参与），逐文件解析可存在的本地
-    .tex（``_resolve_input`` 口径：声明目录→工程根两跳、越出工程根不计）。
-    ``virtual`` 非空时磁盘缺席再探 filecontents 虚拟成员（自解包形态）。
-    环引由 visited 集收，规模上界 ``_MASS_FILE_CAP``。
-    """
-    vmap: Mapping[str, str] = virtual if virtual is not None else {}
-    seen = {src for src, _vis in seeds}
-    queue = list(seeds)
-    while queue and len(seen) <= _MASS_FILE_CAP:
-        src, vis = queue.pop()
-        for match in (
-            *INPUT_BRACED_RX.finditer(vis),
-            *INPUT_BARE_RX.finditer(vis),
-        ):
-            name = clean_decl_name(match["arg"])
-            if name is None:
-                continue
-            tgt = _resolve_input(root, src.parent, name)
-            if tgt is None and vmap:
-                hit = _resolve_virtual(root, src.parent, name, vmap)
-                if hit is not None and hit[0] not in seen:
-                    tgt, body = hit
-                    seen.add(tgt)
-                    sub = visible_tex(body)
-                    queue.append((tgt, sub))
-                    yield tgt, sub
-                    continue
-            if tgt is None or tgt in seen:
-                continue
-            seen.add(tgt)
-            try:
-                blob = tgt.read_bytes()
-            except OSError:
-                continue
-            if _tar_disguised(blob):
-                continue  # tar 伪装件——成员字节不是闭包面（normalize._tex_sources 同闸）
-            sub = visible_tex(decode_tex(blob))
-            queue.append((tgt, sub))
-            yield tgt, sub
-
-
-def _closure_has_document(
-    root: Path,
-    main: Path,
-    text: str,
-    virtual: Mapping[str, str] | None = None,
-) -> bool:
-    r"""``\begin{document}`` 在本体或 ``\input`` 传递闭包任一文件中可见。
-
-    编排壳 main（``\documentclass`` + ``\input{body}``，bd 落在被拉入的
-    子文件——cs/0408015 ``main.tex→body.tex``、2105.00092
-    ``main.tex→begin.tex`` 形态）按本谓词收为候选；闭包文件与本体同在
-    遮盖视图判定，注释掉的 bd/``\input`` 不计。``virtual`` 提供
-    filecontents 虚拟成员表（自解包形态）时磁盘缺席再探虚拟文件。
-    """
-    if BEGIN_DOC_RX.search(text):
-        return True
-    return any(
-        BEGIN_DOC_RX.search(sub)
-        for _tgt, sub in _walk_inputs(root, [(main, text)], virtual)
-    )
-
-
-def _closure_has_docclass(
-    root: Path,
-    main: Path,
-    text: str,
-    virtual: Mapping[str, str] | None = None,
-) -> bool:
-    r"""``\documentclass``/``\documentstyle`` 在本体或 ``\input`` 闭包可见。
-
-    W99 形态：docclass 写在被 ``\input`` 拉入的 helper 里（0905.2435
-    ``body.tex`` ``\input seki-deckblatt-3`` → helper 内
-    ``\documentclass[twoside,12pt]{\whatSEKIDOCUMENTCLASS}`` 宏参类名），
-    主文件本体零声明但 TeX 编译照常——候选识别与 bd 同口径走闭包。
-    """
-    if DOCCLASS_RX.search(text):
-        return True
-    return any(
-        DOCCLASS_RX.search(sub)
-        for _tgt, sub in _walk_inputs(root, [(main, text)], virtual)
-    )
-
-
-def _body_mass(
-    root: Path,
-    main: Path,
-    body: str,
-    virtual: Mapping[str, str] | None = None,
-) -> int:
-    r"""``\begin{document}`` 后实质 body 量：可见非空白字符数 + ``\input`` 闭包。
-
-    standalone 图档也能凑齐 ``document`` 环境但 body 与正文章节脱节——
-    裸 body 长度分不出「1K 的 ``\include`` 编排壳」与「1.5K 的 tikz 图」，
-    故按「这篇 document 实际拉进多少 .tex 内容」计：本体 body 可见非空白
-    字符 + body 内 ``\input``/``\include`` 可解析目标的传递闭包逐文件
-    同口径计数（1803.02985 E 桶：thesis.tex 本体 ~0.7K/闭包 ~400K，
-    standalone 图 body ~1.5K/闭包 0）。环引由 visited 集收，规模上界
-    ``_MASS_FILE_CAP``。
-    """
-    mass = len(re.sub(r"\s", "", body))
-    for _tgt, sub in _walk_inputs(root, [(main, body)], virtual):
-        mass += len(re.sub(r"\s", "", sub))
-    return mass
-
-
-def find_main_tex(root: Path) -> Path | None:  # noqa: C901, PLR0912 — 候选过滤+排序启发式平铺即算法本体
-    r"""定位主 .tex：最浅、最像正文的 `\documentclass`+`\begin{document}` 文件。
-
-    候选门槛：`\documentclass`/`\documentstyle` 必须在文件本体（遮盖视图），
-    `\begin{document}` 允许落在本体的 `\input`/`\include` 传递闭包内——
-    编排壳 main 只拉子文件、bd 在下游（cs/0408015、2105.00092 形态）。
-
-    排序：main/paper/ms 名 → 英文正文优先（多语种版本不靠 UTF-8 字节数
-    排序——多字节文字系统性吃亏；名先于语种——译后 splice 树主档变
-    CJK 众数，语种档会把真 main 输给 standalone 英文表档，
-    ds209diag #191 四格误选实证）→ 模板参档后置（``\documentclass``
-    的 ``[...]`` 里含控制序列 = 类文档模板算选项，如 aipguide
-    ``[\optionlist]{aipproc}``；真论文写字面选项——1206.0565 类发行
-    捆绑包中 guide/check 档 body 量比正主还大，需在深度/量级前挡下）
-    → 目录深度 → 实质 body 量级
-    （`\begin{document}` 后可见字符 + `\input` 闭包的十进制位数——
-    standalone 图档/document 薄壳与真 main 分野，1803.02985 E 桶修法；
-    只仲裁量级差，近等值回退文件大小，避免 `ver1/`、`old/`、diff 档
-    这类版本目录副本被几个百分点翻盘）→ 文件大小。
-    """
-    resolved = root.resolve()
-    scanned: list[tuple[Path, str, str]] = []
-    kept_views: list[str] = []
-    for p in sorted(
-        p for p in root.rglob("*") if p.suffix.lower() in _MAIN_TEX_SUFFIXES
-    ):
-        try:
-            blob = p.read_bytes()
-        except OSError:
-            continue
-        if _tar_disguised(blob):
-            continue  # tar 伪装件——成员文本可含 bd/dc 假信号且改写即腐蚀 blob
-        raw = decode_tex(blob)
-        scanned.append((p.resolve(), p.relative_to(root).as_posix(), visible_tex(raw)))
-        if "filecontents" in raw:
-            kept_views.append(mask_tex(raw, keep_verbatim=True))
-    virtual: dict[str, str] = {}
-    for kept in kept_views:
-        for key, body in _filecontents_bodies(kept).items():
-            virtual.setdefault(key, body)
-
-    candidates = []
-    bodies = {}
-    tpl: dict[str, bool] = {}
-
-    def _admit(rel: str, text: str) -> None:
-        candidates.append(rel)
-        # 与 _closure_has_document 的 ``\\begin\s*\{document\}`` 同口径——
-        # ``\begin {document}``（空白合法）字面 split 切不到，body 量被
-        # 前导区虚抬。
-        bodies[rel] = BEGIN_DOC_RX.split(text, maxsplit=1)[-1]
-        dc = DOCCLASS_DECL_RX.search(text)
-        tpl[rel] = bool(dc and dc.group(2) and "\\" in dc.group(2))
-
-    for p, rel, text in scanned:
-        if not DOCCLASS_RX.search(text):
-            continue
-        if not _closure_has_document(resolved, p, text):
-            continue
-        _admit(rel, text)
-    if not candidates:
-        # W99 二遍（纯增量——只把 ``<none>`` 翻成 main，不搅动已有池序）：
-        # docclass 可经 ``\input`` 闭包供给（helper 文件/W99 宏参类名，
-        # 或 filecontents 虚拟成员）——本体无声明但 bd+dc 双闭包齐者入池。
-        for p, rel, text in scanned:
-            if not (
-                BEGIN_DOC_RX.search(text)
-                or INPUT_BRACED_RX.search(text)
-                or INPUT_BARE_RX.search(text)
-            ):
-                continue  # 无 bd 也无 input 边 → 闭包双判定必空
-            if not _closure_has_document(resolved, p, text, virtual):
-                continue
-            if not _closure_has_docclass(resolved, p, text, virtual):
-                continue
-            _admit(rel, text)
-    if not candidates:
-        return None
-
-    def language_rank(path: str) -> bool:
-        body = bodies[path]
-        letters = sum(c.isalpha() for c in body)
-        latin = len(re.findall(r"[A-Za-z]", body))
-        return letters > 0 and latin < letters / 2
-
-    masses = {
-        rel: _body_mass(resolved, (resolved / rel).resolve(), bodies[rel])
-        for rel in candidates
-    }
-
-    candidates.sort(
-        key=lambda p: (
-            Path(p).name not in ("main.tex", "paper.tex", "ms.tex"),
-            language_rank(p),
-            tpl[p],
-            len(Path(p).parts),
-            -len(str(masses[p])),
-            -(root / p).stat().st_size,
-        )
-    )
-    return root / candidates[0]
-
-
-#: ``classify_no_main`` 的 plain-TeX/AMS-TeX 指纹：``\magnification``/``\magstep``
-#: /``\bye``/``\font\<cs>`` 装载原语、裸 ``\end``（负向断言挡 ``\end{env}``）、
-#: ``\input`` 的 209 前宏包名（attr 报告 §1.2 实测集 + gr-qc/9901068 补）。
-#: 只在无 dc/ds 的空池上判定——LaTeX 工程到不了这层，指纹误伤面天然有界。
-_PLAIN_TEX_RE = re.compile(
-    r"\\magnification\b|\\magstep\b|\\bye\b|\\font\\|\\end\b(?!\s*\{)"
-    r"|\\input\s*\{?\s*(?:harvmac|phyzzx|amstex|amsppt|epsf|jytex|mn|texinfo)\b"
-)
-
-
-def classify_no_main(root: Path) -> str | None:
-    r"""``find_main_tex`` 空池归因：确认不可修的上游形态 → 子码；存疑 → ``None``。
-
-    P-D 细分（bench/results/no-main-tex-attr-2026-09-17/report.md §3）——
-    全树 ``*.tex`` 遮盖视图（注释/verbatim 内命中不算）上归桶：
-
-    - ``"latex209"``：无 ``\documentclass`` 但有 ``\documentstyle``——209 时代
-      池（amsppt 顶物 ``\endtopmatter \document`` 形态；与 route 的
-      ``latex209_suspect`` 同族，upgrade_209 是旁路）。
-    - ``"plain_tex"``：dc/ds/bd 三无但有 plain-TeX/AMS-TeX 指纹
-      （``_PLAIN_TEX_RE``：装载原语 + 209 前 ``\input`` 宏包名）——
-      xelatex/tectonic 路由下本不可编，拒绝正确。
-    - ``"garbage"``：无任何可判 TeX/LaTeX 结构——HTML/DVI 伪装 .tex、撤稿
-      stub、无 driver 残片断、零 ``.tex`` 树。
-    - ``None``：可见 ``\documentclass`` 或 ``\begin{document}`` 但链路未闭——
-      可能是检测缺口或真散件，票面留 ``no_main_tex`` 不归上游。
-
-    消费方记 ``no_main_tex:<sub>``（stagerun errors payload、fixloop verdict
-    后缀、worker/e2e reason 后缀）；``None`` 时票面不变。
-    """
-    has_ds = has_bd = plain = False
-    for p in root.rglob("*"):
-        if not p.is_file() or p.suffix.lower() not in _MAIN_TEX_SUFFIXES:
-            continue
-        try:
-            blob = p.read_bytes()
-        except OSError:
-            continue
-        if _tar_disguised(blob):
-            continue  # tar 伪装件——成员文本不供 dc/ds/bd/指纹判据
-        vis = visible_tex(decode_tex(blob))
-        if DOCCLASS_ONLY_RX.search(vis):
-            return None
-        has_ds |= DOCSTYLE_RX.search(vis) is not None
-        has_bd |= BEGIN_DOC_RX.search(vis) is not None
-        plain |= _PLAIN_TEX_RE.search(vis) is not None
-    if has_ds:
-        return "latex209"
-    if has_bd:
-        return None
-    if plain:
-        return "plain_tex"
-    return "garbage"
 
 
 def _docclass_close(vis: str, start: int) -> int:
@@ -983,7 +581,11 @@ def _splice_before_document(
 
 
 def inject_cjk(  # noqa: C901 — ctex/xecjk 双模锚点分派+幂等校验平铺
-    tex: str, *, mode: str = "ctex", root: Path | None = None
+    tex: str,
+    *,
+    mode: str = "ctex",
+    root: Path | None = None,
+    _defer_math_fallback: bool = False,
 ) -> tuple[str, dict]:
     r"""在主文件文本上注入中文支持。返回 `(new_text, info)`。
 
@@ -995,6 +597,11 @@ def inject_cjk(  # noqa: C901 — ctex/xecjk 双模锚点分派+幂等校验平�
     `\documentstyle` → 先经 latex209.upgrade_209 升级转换（209 兼容模式内核层
     禁 `\usepackage`，注入前必须升级；`root` 提供工程树做随源 .sty 检测）。
     不可转形态（ds@ 选项机类）才抛 InjectRejectError，reason 注明机制。
+
+    ``_defer_math_fallback``：``_input_hop_inject`` 一跳注入子文件时置位——
+    ``CJK_MATH_FALLBACK`` 的 preamble 尾锚须落在编排 main 的 bd 前（子件
+    缝位在组合 preamble 里只是中段），由调用方负责回填，本函数两处
+    符号字体块落点全跳过。
     """
     if CJK_PRESENT_RE.search(visible_tex(tex)):
         return tex, {"status": "already"}
@@ -1011,7 +618,11 @@ def inject_cjk(  # noqa: C901 — ctex/xecjk 双模锚点分派+幂等校验平�
         if not hits:  # 转换产物必含 \documentclass——防御性兜底
             raise InjectRejectError
         lineno = hits[0][1]
-    block = CTEX_LINE + "  % [texlate injected]" if mode == "ctex" else XECJK_BLOCK
+    block = (
+        CTEX_LINE + "  % [texlate injected]" + ACM_BASELINESTRETCH_GUARD
+        if mode == "ctex"
+        else XECJK_BLOCK
+    )
     block += THEOREM_ANCHOR_SHIM
     block += CJK_FIRST_USE_WARMUP
     block += TIE_ACCENT_FIX
@@ -1026,7 +637,7 @@ def inject_cjk(  # noqa: C901 — ctex/xecjk 双模锚点分派+幂等校验平�
     bd_in_main = any(
         m.start() > hits[0][0] for m in iter_depth0(BEGIN_DOC_RX, visible_tex(tex))
     )
-    if not bd_in_main:
+    if not bd_in_main and not _defer_math_fallback:
         block += CJK_MATH_FALLBACK
     if len(hits) > 1:
         # 幂等哨兵：分支选择形态（\ifpdf A \else B \fi）逐缝注入，活臂的块
@@ -1038,7 +649,7 @@ def inject_cjk(  # noqa: C901 — ctex/xecjk 双模锚点分派+幂等校验平�
             "\\def\\TeXlateCJKloaded{1}%\n" + block + "\\fi\n"
         )
     out = _splice_after_seams(tex, hits, block)
-    if bd_in_main:
+    if bd_in_main and not _defer_math_fallback:
         out = _splice_before_document(out, CJK_MATH_FALLBACK, after=hits[0][0])
     info: dict = {"status": "injected", "mode": mode, "line": lineno}
     if conv is not None:
@@ -1048,82 +659,107 @@ def inject_cjk(  # noqa: C901 — ctex/xecjk 双模锚点分派+幂等校验平�
     return out, info
 
 
-def inject_float_sizing(root: Path) -> int:
-    r"""FLOAT_SIZING 前导块：仅在工程确实含 figure/table 环境时注入主文件。
+def _input_hop_inject(
+    root: Path, main_path: Path, main_text: str, *, mode: str
+) -> tuple[str, dict] | None:
+    r"""``\documentclass`` 藏在一跳 ``\input`` 子文件形态的二探注入。
 
-    超高 float 用 `\resizebox*` 缩进页高 + `\typeout{TeXlate-Float-Fit:}`
-    供日志回读。返回注入文件数（0/1）。
+    main 本体无 dc 缝（``no-docline``）时按文档序逐条字面 ``\input``
+    目标做一跳解析（``_resolve_input`` 同口径：声明目录→工程根、
+    ``.tex``/``.ltx`` 补全、越根/伪装件拒），首个带 dc 缝的子文件跑
+    ``inject_cjk`` 并写回；返回 ``(new_main_text, info)``，info 加
+    ``input_hop`` 记携带者包内相对路径。无携带者 → ``None``（调用方
+    维持 ``no-docline`` 票面）。
+
+    字面参 only——宏实参/条件臂不解析；``\include``/``\InputIfFileExists``
+    目标非 preamble 载体不收；bd 之后的 ``\input`` 是 body 件，dc 落
+    此非 preamble 缝。一跳面任一文件已带 CJK 支持则整树记 ``already``
+    ——per-文件 already 判定盖不到兄弟件，先注入再撞兄弟 ctex =
+    option clash。main 有 bd 时 ``CJK_MATH_FALLBACK`` 不下进子件而
+    挪到 main 的 bd 前：mathgroup 余号语义要求 preamble 尾锚，子件
+    缝位在组合 preamble 里只是中段（W157-W161 机理）。
     """
-    sources = {}
-    for path in root.rglob("*"):
-        if path.is_file() and path.suffix.lower() in _MAIN_TEX_SUFFIXES:
-            try:
-                blob = path.read_bytes()
-            except OSError:
-                continue  # chmod-0 等不可读档跳过（consistency-audit）
-            if _tar_disguised(blob):
-                continue  # tar 伪装件——成员字节非手术面，写回即腐蚀 blob
-            sources[path] = decode_tex(blob)
-    if not any(
-        re.search(r"\\begin\s*\{(?:figure|table)\*?\}", visible_tex(text))
-        for text in sources.values()
+    main_vis = visible_tex(main_text)
+    bd_positions = [m.start() for m in iter_depth0(BEGIN_DOC_RX, main_vis)]
+    first_bd = min(bd_positions) if bd_positions else None
+    hops: list[tuple[Path, str, int]] = []  # (子件路径, 解码文本, \input 位)
+    for m in sorted(
+        (*INPUT_BRACED_RX.finditer(main_vis), *INPUT_BARE_RX.finditer(main_vis)),
+        key=lambda x: x.start(),
     ):
-        return 0
-    n = 0
-    for path, text in sources.items():
-        new_text = _float_sized(text)
-        if new_text != text:
-            try:
-                path.write_text(new_text, encoding="utf-8")
-            except OSError:
-                continue  # 不可写档不计入
-            n += 1
-    return n
-
-
-def _float_sized(text: str) -> str:
-    r"""单文件 FLOAT_SIZING 注入：dc 在档即收，返回改写后文本（未变=不注）。
-
-    ``\AtBeginDocument`` 钩子只要求前导区位置——bd 在 ``\input`` 子文件的
-    编排壳 main（cs/0408015 形态）同权；有 bd 走 ``_splice_before_document``
-    depth-0 锚（宏体内 bd 字样不算——``\def\bd{\begin{document}}`` 简写形态），
-    无 bd 落 docclass 缝后（多臂声明逐缝注入 + 哨兵兜双执行——
-    ``\let\texlate@endfloatbox\@endfloatbox`` 二次捕获已补丁版本会自递归）。
-    """
-    vis = visible_tex(text)
-    if FLOAT_SIZING.strip() in text or not DOCCLASS_RX.search(vis):
-        return text
-    if next(iter_depth0(BEGIN_DOC_RX, vis), None) is not None:
-        return _splice_before_document(text, FLOAT_SIZING, sentinel="TeXlateFloatFit")
-    hits = find_docclass_ends(text)
-    if not hits:
-        return text
-    block = FLOAT_SIZING
-    if len(hits) > 1:
-        block = (
-            "% texlate: float sizing (multi-seam idempotent)\n"
-            "\\ifdefined\\TeXlateFloatFit\\else\n"
-            "\\def\\TeXlateFloatFit{1}%\n" + FLOAT_SIZING + "\\fi\n"
+        if (m.groupdict().get("verb") or "input") != "input":
+            continue  # \include/\InputIfFileExists 目标非 preamble 载体
+        if first_bd is not None and m.start() > first_bd:
+            break  # 命中点按文档序——bd 后 \input 一律 body 件
+        name = clean_decl_name(m["arg"])
+        if name is None:
+            continue
+        tgt = _resolve_input(root, main_path.parent, name)
+        if tgt is None:
+            continue
+        try:
+            blob = tgt.read_bytes()
+        except OSError:
+            continue
+        if _tar_disguised(blob):
+            continue  # _walk_inputs 同闸——伪装件字节非注入面
+        hops.append((tgt, decode_tex(blob), m.start()))
+        if len(hops) >= _INPUT_HOP_CAP:
+            break
+    if not hops:
+        return None
+    for tgt, sub, _ipos in hops:
+        if CJK_PRESENT_RE.search(visible_tex(sub)):
+            return main_text, {
+                "status": "already",
+                "input_hop": tgt.relative_to(root).as_posix(),
+            }
+    for tgt, sub, ipos in hops:
+        defer = first_bd is not None
+        new_sub, sinfo = inject_cjk(
+            sub, mode=mode, root=root, _defer_math_fallback=defer
         )
-    return _splice_after_seams(text, hits, block)
-
-
-def inject_table_fitting(tex: str) -> str:
-    """TABLE_FITTING 前导块：工程含 threeparttable 时注入（调用方负责判据）。"""
-    if TABLE_FITTING.strip() in tex:
-        return tex
-    return _splice_before_document(tex, TABLE_FITTING, sentinel="TeXlateTableFit")
+        if sinfo.get("status") == "no-docline":
+            continue
+        sinfo["input_hop"] = tgt.relative_to(root).as_posix()
+        if sinfo["status"] != "injected":  # 防御——already 预扫已挡
+            return main_text, sinfo
+        tgt.write_text(new_sub, encoding="utf-8")
+        if defer:
+            main_text = _splice_before_document(
+                main_text, CJK_MATH_FALLBACK, after=ipos
+            )
+            sinfo["math_fallback"] = "main-bd"
+        return main_text, sinfo
+    return None
 
 
 def prepare_chinese(
-    root: Path, main: Path | str, *, mode: str = "ctex", float_sizing: bool = True
+    root: Path,
+    main: Path | str,
+    *,
+    mode: str = "ctex",
+    float_sizing: bool = True,
+    demote_wrap: bool = True,
 ) -> dict:
-    r"""工程级中文注入编排：主文件 ctex/xeCJK + 按需 FLOAT_SIZING/TABLE_FITTING。
+    r"""工程级中文注入编排：ctex/xeCJK 注入 + 浮体钩子 + wrapfloat 降级。
 
-    返回注入报告 dict（注入缝行号/模式/已存在标记）。`\documentstyle` 工程
-    抛 InjectRejectError——调用方应记 ``inject_reject:<reason>`` 类 reject
-    （与 route reject 分流），而非编译失败。
+    主文件 ctex/xeCJK + 按需 FLOAT_SIZING/TABLE_FITTING；全树 wrapfloat
+    降级为普通浮体（``demote_wrap=False`` 时跳过）。
+
+    返回注入报告 dict（注入缝行号/模式/已存在标记/wrapfloats_demoted）。
+    `\documentstyle` 工程抛 InjectRejectError——调用方应记
+    ``inject_reject:<reason>`` 类 reject（与 route reject 分流），而非
+    编译失败。
     """
+    # layout 叶反向 import 本模块缝原语——顶层静态互引成环，调用点惰性取；
+    # 外部 ``inject.demote_wrapfloats`` 属性面同款经 __getattr__ 转口。
+    from .layout import (  # noqa: PLC0415 — 惰性位：inject↔layout 顶层互引成环
+        demote_wrapfloats,
+        inject_float_sizing,
+        inject_table_fitting,
+    )
+
     main_path = root / main if isinstance(main, str) else main
     blob = main_path.read_bytes()
     if _tar_disguised(blob):
@@ -1132,11 +768,50 @@ def prepare_chinese(
         raise InjectRejectError(reason="nontex")
     text = decode_tex(blob)
     new_text, info = inject_cjk(text, mode=mode, root=root)
+    if info.get("status") == "no-docline":
+        # \documentclass 藏一跳 \input 子件形态（soak-2026-09-18 两格实证：
+        # 2609.19979 MK2.tex→preambule.tex、2609.20454 arxiv.tex→preamble.tex
+        # ——本体零缝照出 0 中文字节豆腐 pdf）。
+        hop = _input_hop_inject(root, main_path, text, mode=mode)
+        if hop is not None:
+            new_text, info = hop
     if "threeparttable" in visible_tex(new_text):
         # 已带 CJK 的工程（status=already）同样要 threeparttable 溢宽钩子。
         new_text = inject_table_fitting(new_text)
     if new_text != text:
         main_path.write_text(new_text, encoding="utf-8")
+    if demote_wrap:
+        info["wrapfloats_demoted"] = demote_wrapfloats(root)
     if float_sizing:
         info["float_sizing"] = inject_float_sizing(root)
     return info
+
+
+#: C4 拆分转口表——layout 叶移出的消费名（tests/__init__/bench 钉点面）。
+#: layout 顶层 ``from .inject import`` 缝原语，本模块若再顶层静态
+#: ``from .layout import`` 即成 import 环——故走 ``__getattr__``（PEP 562）
+#: 惰性转口：``from texlate.compile.inject import demote_wrapfloats`` 与
+#: ``inject._float_sized`` 等钉点逐名守恒，命中后即落 ``__dict__`` 免再查。
+_LAYOUT_NAMES = frozenset(
+    {
+        "FLOAT_SIZING",
+        "TABLE_FITTING",
+        "_demote_wrapfloats_text",
+        "_float_sized",
+        "demote_wrapfloats",
+        "inject_float_sizing",
+        "inject_table_fitting",
+    }
+)
+
+
+def __getattr__(name: str) -> object:
+    """C4 转口兜底：``_LAYOUT_NAMES`` 内的名字惰性取回 layout 叶（防 import 环）。"""
+    if name in _LAYOUT_NAMES:
+        from . import layout  # noqa: PLC0415 — 惰性位：顶层互引成环
+
+        value = getattr(layout, name)
+        globals()[name] = value
+        return value
+    msg = f"module {__name__!r} has no attribute {name!r}"
+    raise AttributeError(msg)

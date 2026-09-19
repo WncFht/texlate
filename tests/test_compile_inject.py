@@ -67,6 +67,32 @@ def test_inject_cjk_ctex() -> None:
     assert out.index(CTEX_LINE) < out.index("\\begin{document}")
 
 
+def test_inject_cjk_acmart_baselinestretch_guard() -> None:
+    """ctex 模式在 usepackage 行后即插 acmart \\baselinestretch 归位守卫。
+
+    acmart.cls 类载快照 ``\\ACM@origbaselinestretch`` 并 ``\\AtEndDocument``
+    ``\\ifx`` 比对；ctex 默认 scheme=chinese 自补 ``\\linespread{1.3}``
+    （ctex-scheme-chinese.def → ctex.sty）触发 Class Error
+    （soak-2026-09-18 zh-only 49 格，base 臂 0）。守卫以快照 cs 名
+    自靶向——唯 acmart 系定义；非 acmart 档 ``\\ifcsname`` 假空转，
+    xecjk 模式不携带。
+    """
+    guard = (
+        "\\ifcsname ACM@origbaselinestretch\\endcsname"
+        "\\expandafter\\let\\expandafter\\baselinestretch"
+        "\\csname ACM@origbaselinestretch\\endcsname\\fi"
+    )
+    tex = "\\documentclass[sigconf]{acmart}\n\\begin{document}\nx\\end{document}"
+    out, info = inject_cjk(tex)
+    assert info["mode"] == "ctex"
+    assert guard in out
+    assert out.index(CTEX_LINE) < out.index(guard) < out.index("\\begin{document}")
+
+    out_xe, info_xe = inject_cjk(tex, mode="xecjk")
+    assert info_xe["mode"] == "xecjk"
+    assert guard not in out_xe
+
+
 def test_inject_cjk_already_present() -> None:
     tex = "\\documentclass{ctexart}\n\\begin{document}\nx\\end{document}"
     out, info = inject_cjk(tex)

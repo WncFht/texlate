@@ -1,0 +1,334 @@
+r"""版式手术 —— inject.py C4 拆分出叶。
+
+概念归属：译文侧版式适配——``FLOAT_SIZING``（超高 figure/table 浮体
+``\resizebox*`` 缩进页高 + ``\typeout`` 日志回读）、``TABLE_FITTING``
+（threeparttable 套 adjustbox 限宽）、wrapfig 三环境降级
+（``demote_wrapfloats``：wrapfigure/wraptable/wrapfloat → 普通浮体——
+绕排落点依赖后续段落行数，译文缩短必然漂移，重则 caption 裁出版心，
+2609.19101 zh p6 双亚型实证）。
+
+缝原语（``_splice_*``/``find_docclass_ends``）与 CJK 注入同归 inject.py
+宿主——本叶单向 ``from .inject import`` 取用；inject 侧对本叶的公共名
+经 ``__getattr__`` 惰性回引，故顶层无双向 import 环。
+"""
+
+from __future__ import annotations
+
+import re
+from typing import TYPE_CHECKING, Final
+
+from texlate.textutil import (
+    BEGIN_DOC_RX,
+    DOCCLASS_RX,
+    _tar_disguised,
+    decode_tex,
+    iter_depth0,
+)
+
+from .inject import _splice_after_seams, _splice_before_document, find_docclass_ends
+from .mainfile import _MAIN_TEX_SUFFIXES
+from .mask import apply_edits, group_end, visible_tex
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+#: FLOAT_SIZING 仅在有 figure/table 时注入（docs/08 §3.3）。
+FLOAT_SIZING = r"""% texlate: fit complete oversized float boxes v1
+\usepackage{graphicx}
+\begingroup
+\makeatletter
+\AtBeginDocument{%
+\let\texlate@endfloatbox\@endfloatbox
+\def\@endfloatbox{%
+\texlate@endfloatbox
+\def\texlate@figure{figure}%
+\def\texlate@figurestar{figure*}%
+\def\texlate@table{table}%
+\def\texlate@tablestar{table*}%
+\let\texlate@floatscope\@empty
+\ifx\@currenvir\texlate@figure\def\texlate@floatscope{1}\fi
+\ifx\@currenvir\texlate@figurestar\def\texlate@floatscope{1}\fi
+\ifx\@currenvir\texlate@table\def\texlate@floatscope{1}\fi
+\ifx\@currenvir\texlate@tablestar\def\texlate@floatscope{1}\fi
+\ifx\texlate@floatscope\@empty\else
+\ifdim\dimexpr\ht\@currbox+\dp\@currbox\relax>\textheight
+\edef\texlate@floatwidth{\the\wd\@currbox}%
+\edef\texlate@floatheight{\the\dimexpr\textheight-\baselineskip\relax}%
+\ifdim\texlate@floatheight>0pt
+\typeout{TeXlate-Float-Fit: \@captype\space \csname the\@captype\endcsname; height \the\dimexpr\ht\@currbox+\dp\@currbox\relax; limit \texlate@floatheight}%
+\global\setbox\@currbox=\vbox{\hbox to\texlate@floatwidth{\hfil\resizebox*{!}{\texlate@floatheight}{\box\@currbox}\hfil}}%
+\fi\fi\fi}%
+}
+\endgroup
+"""
+
+#: TABLE_FITTING hook threeparttable（adjustbox max width）。
+TABLE_FITTING = r"""% texlate: fit complete measured table containers v1
+\usepackage{adjustbox}
+\begingroup
+\makeatletter
+\AtBeginDocument{%
+\newif\iftexlate@tablefit
+\newenvironment{TeXlateFitTable}{%
+\iftexlate@tablefit
+\let\texlate@endtablefit\relax
+\else
+\texlate@tablefittrue
+\def\texlate@endtablefit{\end{adjustbox}}%
+\begin{adjustbox}{max width=\linewidth}%
+\fi\ignorespaces
+}{\texlate@endtablefit}%
+\AddToHook{env/threeparttable/before}{\begin{TeXlateFitTable}}%
+\AddToHook{env/threeparttable/after}{\end{TeXlateFitTable}}%
+}
+\endgroup
+"""
+
+
+def inject_float_sizing(root: Path) -> int:
+    r"""FLOAT_SIZING 前导块：仅在工程确实含 figure/table 环境时注入主文件。
+
+    超高 float 用 `\resizebox*` 缩进页高 + `\typeout{TeXlate-Float-Fit:}`
+    供日志回读。返回注入文件数（0/1）。
+    """
+    sources = {}
+    for path in root.rglob("*"):
+        if path.is_file() and path.suffix.lower() in _MAIN_TEX_SUFFIXES:
+            try:
+                blob = path.read_bytes()
+            except OSError:
+                continue  # chmod-0 等不可读档跳过（consistency-audit）
+            if _tar_disguised(blob):
+                continue  # tar 伪装件——成员字节非手术面，写回即腐蚀 blob
+            sources[path] = decode_tex(blob)
+    if not any(
+        re.search(r"\\begin\s*\{(?:figure|table)\*?\}", visible_tex(text))
+        for text in sources.values()
+    ):
+        return 0
+    n = 0
+    for path, text in sources.items():
+        new_text = _float_sized(text)
+        if new_text != text:
+            try:
+                path.write_text(new_text, encoding="utf-8")
+            except OSError:
+                continue  # 不可写档不计入
+            n += 1
+    return n
+
+
+def _float_sized(text: str) -> str:
+    r"""单文件 FLOAT_SIZING 注入：dc 在档即收，返回改写后文本（未变=不注）。
+
+    ``\AtBeginDocument`` 钩子只要求前导区位置——bd 在 ``\input`` 子文件的
+    编排壳 main（cs/0408015 形态）同权；有 bd 走 ``_splice_before_document``
+    depth-0 锚（宏体内 bd 字样不算——``\def\bd{\begin{document}}`` 简写形态），
+    无 bd 落 docclass 缝后（多臂声明逐缝注入 + 哨兵兜双执行——
+    ``\let\texlate@endfloatbox\@endfloatbox`` 二次捕获已补丁版本会自递归）。
+    """
+    vis = visible_tex(text)
+    if FLOAT_SIZING.strip() in text or not DOCCLASS_RX.search(vis):
+        return text
+    if next(iter_depth0(BEGIN_DOC_RX, vis), None) is not None:
+        return _splice_before_document(text, FLOAT_SIZING, sentinel="TeXlateFloatFit")
+    hits = find_docclass_ends(text)
+    if not hits:
+        return text
+    block = FLOAT_SIZING
+    if len(hits) > 1:
+        block = (
+            "% texlate: float sizing (multi-seam idempotent)\n"
+            "\\ifdefined\\TeXlateFloatFit\\else\n"
+            "\\def\\TeXlateFloatFit{1}%\n" + FLOAT_SIZING + "\\fi\n"
+        )
+    return _splice_after_seams(text, hits, block)
+
+
+def inject_table_fitting(tex: str) -> str:
+    """TABLE_FITTING 前导块：工程含 threeparttable 时注入（调用方负责判据）。"""
+    if TABLE_FITTING.strip() in tex:
+        return tex
+    return _splice_before_document(tex, TABLE_FITTING, sentinel="TeXlateTableFit")
+
+
+#: wrapfig 三环境：wrapfigure[*]/wraptable[*]/wrapfloat{type}——绕排落点依赖
+#: 后续段落行数，译文缩短必然改变落点，轻则滑进同页浮动体造成图压表、重则
+#: caption 整段裁出版心（2609.19101 zh p6 双亚型实证，bench/py/wrapfloat_bench
+#: 合成复现）。zh 侧无条件降级为普通浮体是根修：浮体间永不重叠、永不裁切。
+_WRAP_BEGIN_RX: Final = re.compile(
+    r"\\begin\s*\{(wrapfigure\*?|wraptable\*?|wrapfloat)\}"
+)
+_ENV_TOKEN_RX: Final = re.compile(r"\\(begin|end)\s*\{([^}\s]+)\}")
+_WRAP_CAPTYPE: Final = {"wrapfigure": "figure", "wraptable": "table"}
+#: 零宽声明（``{0pt}``/``{0in}`` 等）= wrapfig「按内容自然宽度」——降级后
+#: 不套 minipage 让 includegraphics 按原尺寸排版。
+_ZERO_DIM_RX: Final = re.compile(r"0*(?:\.0*)?\s*[a-z]{0,2}", re.IGNORECASE)
+
+
+def _skip_ws(vis: str, i: int) -> int:
+    """空白滑过（visible_tex 已遮蔽注释——视野内跳过的全是真空白）。"""
+    while i < len(vis) and vis[i] in " \t\n\r":
+        i += 1
+    return i
+
+
+def _wrap_args(
+    vis: str, pos: int, kind: str
+) -> tuple[int, str | None, str | None] | None:
+    """解析 ``[nlines]?{pos}[overhang]?{width}``（wrapfloat 先吃 ``{type}``）。
+
+    返回 ``(args_end, captype, width)``；必需组缺席（残稿）返 None 跳过降级。
+    """
+    captype = None
+    if kind == "wrapfloat":
+        i = _skip_ws(vis, pos)
+        if i >= len(vis) or vis[i] != "{":
+            return None
+        end = group_end(vis, i)
+        captype = vis[i + 1 : end - 1].strip() or None
+        pos = end
+    pos_seen = False
+    i = pos
+    while i < len(vis):
+        i = _skip_ws(vis, i)
+        c = vis[i] if i < len(vis) else ""
+        if c == "[":
+            i = group_end(vis, i)  # nlines / overhang 可选组直接跳过
+            continue
+        if c == "{":
+            end = group_end(vis, i)
+            if pos_seen:  # 第二必需组 = width（第一组 pos 已跳过）
+                return end, captype, vis[i + 1 : end - 1].strip()
+            pos_seen = True
+            i = end
+            continue
+        break
+    return None
+
+
+def _pop_to(stack: list[str], pending: dict[int, dict], name: str) -> None:
+    """非配对 end 容错：出栈到匹配层（沿途 pending 作废）。"""
+    while stack and stack[-1] != name:
+        stack.pop()
+        pending.pop(len(stack), None)
+    if stack:
+        stack.pop()
+        pending.pop(len(stack), None)
+
+
+def _neg_space_edits(vis: str, lo: int, hi: int) -> list[tuple[int, int, str]]:
+    r"""降级体内负间距命令删除编辑清单。
+
+    wrapfig 作者惯用负 ``\vspace``/``\hspace``/``\vskip`` 收绕排区（语料实测
+    182+2 例），落进浮体盒即成盒溢出（2609.19101 caption 尾行压正文实证）。
+    正间距在浮体内无害——只删负值。
+    """
+    out: list[tuple[int, int, str]] = []
+    for m in re.finditer(r"\\(?:vspace|hspace)\*?", vis[lo:hi]):
+        i = _skip_ws(vis, lo + m.end())
+        if i >= hi or vis[i] != "{":
+            continue
+        end = group_end(vis, i)
+        if end > hi:
+            continue
+        if vis[i + 1 : end - 1].lstrip().startswith("-"):
+            out.append((lo + m.start(), end, ""))
+    out.extend(
+        (lo + m.start(), lo + m.end(), "")
+        for m in re.finditer(
+            r"\\vskip\s*-(?:\s*[0-9.]+\s*[a-z]{2}|\s*\\[a-zA-Z@]+)", vis[lo:hi]
+        )
+    )
+    return out
+
+
+def _demote_pair(rec: dict) -> tuple[str, str]:
+    """单环境降级串对：``(begin 替换, end 替换)``（星号/宽度/minipage 决策点）。"""
+    star = "*" if rec["name"].endswith("*") else ""
+    captype = rec["captype"] or _WRAP_CAPTYPE.get(rec["name"].rstrip("*"), "figure")
+    env = captype + star
+    place = "[!tb]" if star else "[!htb]"
+    width = rec["width"]
+    if width and not _ZERO_DIM_RX.fullmatch(width):
+        return (
+            f"\\begin{{{env}}}{place}\\centering\\begin{{minipage}}{{{width}}}",
+            f"\\end{{minipage}}\\end{{{env}}}",
+        )
+    return f"\\begin{{{env}}}{place}\\centering", f"\\end{{{env}}}"
+
+
+def _demote_wrapfloats_text(tex: str) -> tuple[str, int]:
+    r"""单文件降级：wrapfigure/wraptable/wrapfloat → 同名普通浮体环境。
+
+    ``wrapfloat{T}`` 变 ``T``；声明宽度非零时套 ``minipage{原宽}`` 保内层
+    ``\linewidth`` 相对尺寸语义；体内负 ``\vspace``/``\hspace``/``\vskip``
+    一并删除（绕排收区 hack 落进浮体盒即溢出）。只在环境深度安全位降级
+    （文件顶层或 ``document`` 为唯一外层）——minipage/center 等盒内
+    wrapfig 降级成浮体会变 ``Not in outer par mode`` 错，保持原样。
+
+    返回 ``(新文本, 降级环境数)``。
+    """
+    vis = visible_tex(tex)
+    edits: list[tuple[int, int, str]] = []
+    stack: list[str] = []
+    pending: dict[int, dict] = {}  # wrap env 在 stack 的位置 → 解析记录
+    n_demoted = 0
+    for m in _ENV_TOKEN_RX.finditer(vis):
+        tag, name = m.group(1), m.group(2)
+        if tag == "begin":
+            wm = _WRAP_BEGIN_RX.fullmatch(m.group(0))
+            if wm and (not stack or stack[-1] == "document"):
+                args = _wrap_args(vis, m.end(), name)
+                if args is not None:
+                    pending[len(stack)] = {
+                        "name": name,
+                        "begin_end": args[0],
+                        "begin_start": m.start(),
+                        "captype": args[1],
+                        "width": args[2],
+                    }
+            stack.append(name)
+            continue
+        # end token
+        if stack and stack[-1] == name:
+            stack.pop()
+            rec = pending.pop(len(stack), None)
+            if rec is None:
+                continue
+            begin_repl, end_repl = _demote_pair(rec)
+            edits.append((rec["begin_start"], rec["begin_end"], begin_repl))
+            edits.append((m.start(), m.end(), end_repl))
+            edits.extend(_neg_space_edits(vis, rec["begin_end"], m.start()))
+            n_demoted += 1
+        elif name in stack:
+            _pop_to(stack, pending, name)  # 非配对 end（残稿容忍）
+    if not edits:
+        return tex, 0
+    return apply_edits(tex, edits), n_demoted
+
+
+def demote_wrapfloats(root: Path) -> int:
+    r"""工程级 wrapfloat 降级：全 ``.tex/.ltx`` 树扫，返回降级环境总数。
+
+    zh 侧手术（prepare_chinese 编排位）——en 树保持原文 wrapfig 排版保真。
+    """
+    n = 0
+    for path in root.rglob("*"):
+        if not path.is_file() or path.suffix.lower() not in _MAIN_TEX_SUFFIXES:
+            continue
+        try:
+            blob = path.read_bytes()
+        except OSError:
+            continue
+        if _tar_disguised(blob):
+            continue
+        text = decode_tex(blob)
+        new_text, k = _demote_wrapfloats_text(text)
+        if new_text != text:
+            try:
+                path.write_text(new_text, encoding="utf-8")
+            except OSError:
+                continue
+            n += k
+    return n
