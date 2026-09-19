@@ -1269,6 +1269,36 @@ rules:
     stats: { fires: 2, status: proposed }
     source_ref: "tmp/lane-bbkresid/report.md csfix-batch2 queue; csfix2 lane"
 
+  # \\include/\\input{*.<gfx>} 笔误臂: input 族单参命令把目标当 TeX 源吸进
+  # 编译流——花括号目标落图形扩展名 (.eps/.pdf/.png 系) 时必为
+  # \\include↔\\includegraphics 类笔误, 读进来的二进制/PS 头按 TeX 展开 →
+  # Missing \\begin{document} + Missing-$ 爆流 (math/0501227 preamble
+  # \\include{triangle_dots.eps} → 411 syntax 错; 同文档 body 另有
+  # \\includegraphics{triangle_dots} 正解)。修 = 剥掉整命令 span, 保行内
+  # 其余内容; 遮盖视图定位 (注释/verbatim 内同形串不算位)。premature_cs_
+  # guard(196.7) 同签先跑——.eps 肇事件无 cs/pkg 映射必 abstain, 落本规。
+  - id: graphics_include_strip
+    description: "\\include/\\input{*.<gfx 扩展名>} 笔误 → 剥除命令 span (input 族吸图形件必错)"
+    phase: loop
+    order: 196.8 # premature_cs_guard(196.7) 同 Missing-begindoc 签先跑, abstain 后落本规
+    when: { category: syntax }
+    condition:
+      ctx_suggests: "Missing \\\\begin\\{document\\}"
+    action:
+      kind: builtin_transform
+      function: graphics_include_strip
+    risk: low # 图形扩展名目标经 input 族载入在任何稿中都非法, 剥除零语义损失
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "math/0501227 (docclsstack lane; stagerun-loop3)",
+          error: "triangle_dots.eps:31 Missing \\begin{document} ← \\include{triangle_dots.eps}@preamble",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-docclsstack/; _builtins_misc.graphics_include_strip"
+
   # phantom 臂: `Incomplete \if` 签名在同签下轮复发 = unclosed_if_close(196)
   # 字面扫描 noop 过——源件 \if*/\fi 平衡, 真凶是展开态 conditional:
   # \newif-setter 替换体 `\let\if@X\iffalse` 在 \edef/\xdef 扫描内 \let 惰性

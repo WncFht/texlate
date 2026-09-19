@@ -704,6 +704,64 @@ def subfile_docclass_strip(
 
 
 # ════════════════════════════════════════════════════════════════
+# \include/\input{*.<gfx>} 非 TeX 目标剥除 (math/0501227)
+# ════════════════════════════════════════════════════════════════
+
+#: input 族把目标当 TeX 源吸进编译流——花括号目标落图形扩展名时必为
+#: ``\include``↔``\includegraphics`` 类笔误 (math/0501227 preamble 期
+#: ``\include{triangle_dots.eps}`` 把 EPS 头按 TeX 展开 → Missing
+#: ``\begin{document}`` 爆流; 同位 ``\includegraphics{triangle_dots}``
+#: 在 body 另有正解, 剥除零语义损失)。
+_GFX_INPUT_EXTS = frozenset(
+    {
+        ".eps",
+        ".ps",
+        ".pdf",
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".gif",
+        ".bmp",
+        ".tif",
+        ".tiff",
+        ".svg",
+    }
+)
+
+
+def graphics_include_strip(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""``\(include|input|InputIfFileExists){<name>.<gfxext>}`` → 剥除命令位。
+
+    单参 input 族命令只可能吸 TeX 源; 目标扩展名落图形族时该行必错,
+    剥掉命令 span (保行内其余内容)。遮盖视图定位——注释/verbatim 内
+    同形串不算位。
+    """
+    del eng, payload
+    exts = {str(e).lower() for e in (params.get("gfx_exts") or _GFX_INPUT_EXTS)}
+    done: list[str] = []
+    for f in ctx.tex_files((".tex",)):
+        t = ctx.read(f)
+        if t is None:
+            continue
+        masked = mask_tex(t)
+        spans = [
+            m.span()
+            for m in _INPUT_EXEC1_RX.finditer(masked)
+            if PurePosixPath(m.group(1).strip().strip('"')).suffix.lower() in exts
+        ]
+        if not spans:
+            continue
+        out = t
+        for start, end in reversed(spans):
+            out = out[:start] + out[end:]
+        ctx.write(f, out)
+        done.append(f"{f.name}×{len(spans)}")
+    return (bool(done)), f"gfx-target input sites stripped: {', '.join(done)}"
+
+
+# ════════════════════════════════════════════════════════════════
 # xdvipdfmx .pfa 硬墙: ASCII Type1 → usertree .pfb + map 遮蔽 (1907.03923)
 # ════════════════════════════════════════════════════════════════
 

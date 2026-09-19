@@ -90,6 +90,7 @@ from texlate.compile.fixloop._builtins_graphics import (
 from texlate.compile.fixloop._builtins_misc import (
     docstrip_generate,
     extract_tar_blobs,
+    graphics_include_strip,
     harvest_build_directives,
     non_utf8_recode,
     pfa_to_pfb,
@@ -214,6 +215,7 @@ __all__ = [
     "graphic_case_link",
     "graphic_missing_placeholder",
     "graphic_repair",
+    "graphics_include_strip",
     "harvest_build_directives",
     "if_phantom_protect",
     "includepdf_missing_stub",
@@ -343,4 +345,5 @@ TRANSFORM_FNS = {
     "subfile_docclass_strip": subfile_docclass_strip,
     "slot_arg_revert": slot_arg_revert,
     "pfa_to_pfb": pfa_to_pfb,
+    "graphics_include_strip": graphics_include_strip,
 }
