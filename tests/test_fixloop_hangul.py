@@ -290,3 +290,49 @@ def test_legacy_single_font_path_untouched(tmp_path: Path) -> None:
     )
     assert ok is True
     assert "NoSuchFont" in note
+
+
+def test_fixloop_e2e_dispatches_both_arms(tmp_path: Path) -> None:
+    """真环路派发钉: 混合缺字格 cjk(27) 先吃汉字, 谚文臂(28) 次轮认领谚文。
+
+    序位非认领依据 —— 两臂带表已互不重叠, 各轮第一命中臂独享。文中
+    ``\\newfontfamily`` 注入块不触发 ``_CJK_MECH_RE`` 误判
+    (``newfontfamily`` ≠ ``newCJKfontfamily``)。
+    """
+    from test_fixloop_loop import CLEAN_LOG, make_proj  # noqa: PLC0415
+
+    from texlate.compile.fixloop import fixloop  # noqa: PLC0415
+
+    make_proj(tmp_path)
+    log1 = (
+        "Missing character: There is no 가 (U+AC00) in font "
+        "[lmroman10-regular]:mapping=tex-text;!\n"
+        'Missing character: There is no 这 ("8FD9) in font cmr10!\n'
+        "Output written on main.pdf (1 page).\n"
+    )
+    log2 = (
+        "Missing character: There is no 가 (U+AC00) in font "
+        "[lmroman10-regular]:mapping=tex-text;!\n"
+        "Output written on main.pdf (1 page).\n"
+    )
+    eng = MockEngine(
+        [
+            {"log": log1, "pdf": True},
+            {"log": log2, "pdf": True},
+            {"log": CLEAN_LOG, "pdf": True},
+        ],
+        available={"newunicodechar.sty", "UnDotum.ttf"},
+    )
+    cell = fixloop(tmp_path, eng)
+    assert cell["verdict"] == "clean"
+    rules = [
+        a["rule"]
+        for a in cell["actions"]
+        if a["rule"] in {"cjk_font_fallback", "hangul_font_fallback"}
+    ]
+    assert rules == ["cjk_font_fallback", "hangul_font_fallback"]
+    t = (tmp_path / "main.tex").read_text()
+    assert "\\newfontfamily\\txlatecjkfb{FandolSong-Regular.otf}" in t
+    assert "\\newfontfamily\\txlatekofb{UnDotum.ttf}" in t
+    assert "\\newunicodechar{这}{\\ifmmode\\mbox{\\txlatecjkfb 这}" in t
+    assert "\\newunicodechar{가}{\\ifmmode\\mbox{\\txlatekofb 가}" in t
