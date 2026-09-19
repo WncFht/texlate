@@ -47,7 +47,7 @@ rules:
       tectonic: { mode: same } # tectonic 同理: cwd 旧版遮蔽 bundle 新版
     provenance:
       - { corpus: "—", error: "装了新包但错误依旧 → 工程内旧 .sty 遮蔽" }
-    stats: { fires: 17, status: proposed }
+    stats: { fires: 61, rescued_cells: 17, status: active }
     source_ref: "docs/08-translate-compile.md L269"
 
   # ── 2026-09-17 支援件腐蚀复原 (prose gate 落地前残案兜底) ──
@@ -72,7 +72,7 @@ rules:
           corpus: "scout-supportfiles 残案 (pstricks/epsf/tikzlibrary 宏件)",
           error: "support 件被注入 CJK → illegal_unit/undefined_cs 级联 (0707.4206 \\psunit 同族)",
         }
-    stats: { fires: 4, status: proposed }
+    stats: { fires: 9, rescued_cells: 6, status: active }
     source_ref: "builtins.py restore_support_from_src (c47e844) + worker 挂点 (2f1daf5)"
 
   # ── 2026-09-19 slotrevert lane (tmp/lane-zhleak + task#188) ──
@@ -108,7 +108,7 @@ rules:
           corpus: "tmp/lane-zhleak census (~74 cells '这是译文' 族; 残余 csname/env-arg 6 cells)",
           error: "Undefined color '这是译文' / No counter 'ZH' / can't find file 'ZH' (机位实参被 zh 化)",
         }
-    stats: { fires: 1379, rescued_cells: 1028, status: active }
+    stats: { fires: 1854, rescued_cells: 1330, status: active }
     source_ref: "tmp/lane-zhleak/notes.md; judge.py _MACHINE_SLOT_RXS/_slot_args 配对机位面"
 
   # 新增 (fixloop-v2 整改): tectonic bundle 内建类太老遮蔽 —— 内置
@@ -221,7 +221,7 @@ rules:
           corpus: "2410.00012 (loop1 stagerun)",
           error: "ieeeaccess.cls:128 Undefined control sequence (spotcolor \\AddSpotColor→\\pdfobj, payload=SpotSpace)",
         }
-    stats: { fires: 2, status: proposed }
+    stats: { fires: 7, rescued_cells: 2, status: active }
     source_ref: "loop1 rerun residual; xespotcolor.sty v2.1 API 核对"
 
   # 新增 (loop2-delta 残格): axessibility 是 pdfTeX-only 可访问性标注包,
@@ -268,7 +268,7 @@ rules:
           corpus: "2105.03906/2203.00048/2211.00005/2308.12590/2403.05523/2403.05532 (loop2-delta)",
           error: "axessibility.sty:349 \\pdfcompresslevel=0 Undefined control sequence → unfixable:pdftex_prim",
         }
-    stats: { fires: 8, status: proposed }
+    stats: { fires: 9, rescued_cells: 7, status: active }
     source_ref: "loop2-delta unfixable:pdftex_prim ×6 全为 \\usepackage[accsupp]{axessibility}"
 
   # 0905.0193: e-print 捆绑 svjour.cls (2003) 但零 .clo 伴船, TL 亦不收录
@@ -303,7 +303,7 @@ rules:
           corpus: "0905.0193 (1d fixer-svjour 实证)",
           error: "Class SVJour Error: No valid journal specified (sv*.clo 零伴船)",
         }
-    stats: { fires: 3, status: proposed }
+    stats: { fires: 8, rescued_cells: 1, status: active }
     source_ref: "builtins.py svjour_clo_stub (3e292eb)"
 
   # 新增 (fixloop-v2 整改): AAS 期刊缩写宏缺失 —— tectonic bundle 内置
@@ -343,7 +343,7 @@ rules:
           corpus: "1806.06690 tectonic 臂 (fixloop-corpusv2)",
           error: "Undefined control sequence \\actaa (bundle 内 aastex 5.0rc3.1 无此宏)",
         }
-    stats: { fires: 2, status: proposed } # 本语料唯一命中格被 order155 shadow 先接住
+    stats: { fires: 2, rescued_cells: 1, status: active }
     source_ref: "fixloop-v2 整改; emulateapj.cls L1201-1256 期刊表"
 
   # 2026-09-17 fixer-bblwall W3 (1706.00240 wall-3, fixer-apjbbx spec):
@@ -377,7 +377,7 @@ rules:
           corpus: "1706.00240 (stagerun-loop1 wall-3; fixer-apjbbx-2026-09-17)",
           error: "Undefined control sequence \\begin{document} → siunitx v3 \\@ifpackageloaded{physics} 硬报错 (bundled 2012 physics.sty stub)",
         }
-    stats: { fires: 5, status: proposed }
+    stats: { fires: 7, rescued_cells: 1, status: active }
     source_ref: "fixer-bblwall-2026-09-17 spec W3; fixer-apjbbx verification.txt L70-86"
 
   # fmsingles census (failmine4 item5, 2105.03729 stagerun-loop3): siunitx v3
@@ -450,7 +450,7 @@ rules:
           corpus: "shipclscen census (Missing \\begin{document} @cls/sty 族; aipproc.cls:10 等 ~20 随源件)",
           error: "Missing \\begin{document} / Undefined control sequence (\\input X.sty 裸装载 @=12 裂 @-cs)",
         }
-    stats: { fires: 24, status: proposed }
+    stats: { fires: 126, rescued_cells: 54, status: active }
     source_ref: "tmp/lane-shipclscen/mbd_hits.json; vendor/stubs/svglov3.clo exact-restore idiom"
 
   # mathchar census (failmine3, ~6 格): 译稿把 CJK 放进 \bm{...} 实参,
@@ -483,5 +483,5 @@ rules:
           corpus: "hep-ph/0605174 GLUON.tex:464 + 1206.0485 + 2112.00003 (loop1 stagerun)",
           error: "Extended mathchar used as mathchar (83922905=0x05008FD9=这 等 4 值循环, \\bm{这是译文} 原子遍历)",
         }
-    stats: { fires: 2, status: proposed }
+    stats: { fires: 5, rescued_cells: 2, status: active }
     source_ref: "tmp/mathchar/ repro (t1-t6/probe4-5/fix4); bm.sty \\bm@test@token \\count@\\mathcode`#1 walk"

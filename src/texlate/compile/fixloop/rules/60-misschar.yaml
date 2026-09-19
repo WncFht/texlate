@@ -205,7 +205,7 @@ rules:
           corpus: "2403.00013 (kaist-ucs.cls+kotex, hangul×1355 in FandolSong script=hani) / 2410.18001 (article+ctex+kotex, hangul×544 in lmroman) — kotexfix #196",
           error: "谚文落无 hangul 字体: xetexko catcode-12 杀 newunicodechar + HG 类暖盒无效 → 路由臂 AutoFallBack+hangulfont",
         }
-    stats: { fires: 40, status: proposed }
+    stats: { fires: 303, rescued_cells: 148, status: active }
     source_ref: "spec 2026-09-16-batch-hardening-design §9 F4; scout-misschar-coverage findings.yaml §outband_coverage+cls_pretokenized"
 
   # ─── F4c (2026-09-17, scout-misschar-coverage 0327 群 ~62 pids) ───
@@ -236,7 +236,7 @@ rules:
           corpus: "1206.1954 / 2308.00063 (scout-misschar-coverage-2026-09-17)",
           error: "Missing character U+0327 由 \\c{t} accent 机制生成, 非输入字符",
         }
-    stats: { fires: 27, status: proposed }
+    stats: { fires: 27, rescued_cells: 25, status: active }
     source_ref: "scout-misschar-coverage-2026-09-17 findings.yaml §combining_mark_accent_generated"
 
   # ─── F4b (2026-09-16, fixer-cjkfont 交付 f7822a8): 缺字第二分级 ——
@@ -270,7 +270,7 @@ rules:
           corpus: "scout-misschar-coverage-2026-09-17 outband greek 带",
           error: "Missing character: 希腊字面 U+3A5-3F5 落无希腊字形字体",
         }
-    stats: { fires: 55, status: proposed }
+    stats: { fires: 83, rescued_cells: 57, status: active }
     source_ref: "fixer-cjkfont 交付 (builtins.py f7822a8); 1d 转办 2026-09-16; greek 带 scout-misschar-coverage findings.yaml"
 
   # ─── E(b) 残余安全网 (fixer-font-fallback-8bit 交付, 批七并入) ───
@@ -331,7 +331,7 @@ rules:
           corpus: "jpp/fourier 类 futr8t (T1/futs→futr8t tfm): \\title{\\bf 这是译文} 在 \\maketitle frontmatter vbox 首用绑定落 tfm",
           error: "CJK 落非 spec 字体名 → cjk_glyph font-gate 跳过, font_fallback 带外",
         }
-    stats: { fires: 10, status: proposed } # 当前波面零活例 —— inject 已根治
+    stats: { fires: 29, rescued_cells: 10, status: active }
     source_ref: "fixer-font-fallback-8bit-2026-09-17 fragment; builtin params=A2 (827674d fixer-misschar 迟交付)"
 
   # ─── hangul 缺字专臂 (hangulfont lane 2026-09-19) ───
@@ -391,7 +391,7 @@ rules:
           corpus: "2410.18001 (stagerun-rt1/flipcheck)",
           error: "Missing character: hangul ×545 in lmroman —— 谚文路由未达 CJK 机制",
         }
-    stats: { fires: 2, status: proposed }
+    stats: { fires: 15, rescued_cells: 3, status: active }
     source_ref: "hangulfont lane census 2026-09-19 (tmp/hangulfont/census.json): 2 cells ×4 run-records"
 
   # ─── F4f (misscharcen #169, loop3 残余普查): bibtex-era ``^^XX`` UTF-8

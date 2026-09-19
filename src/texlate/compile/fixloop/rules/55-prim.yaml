@@ -102,7 +102,7 @@ rules:
           corpus: "2105.03753 (41 recut; fixer-bblwall-2026-09-17 A3)",
           error: "Undefined control sequence \\pdfglyphtounicode (lipics-v2021.cls:510 \\IfFileExists 守卫开火 input 真文件)",
         }
-    stats: { fires: 11, status: proposed }
+    stats: { fires: 45, rescued_cells: 26, status: active }
     source_ref: "fixer-bblwall-2026-09-17 spec A3; \\pdfgentounicode 是 count 赋值形故 \\newcount"
 
   # ─── loop: 源码改写系 —— 按"保守→激进"排序 ───
@@ -264,7 +264,7 @@ rules:
           corpus: "loop3-1206.0240 (^^@×179) + 1706.07495 (^^@×106): \\usepackage[pdftex]{graphicx,color}/{color,graphicx} 多包括号漏 normalize; 1306.0294 (^^A×20): vendored color.cfg/graphics.cfg \\ExecuteOptions{pdftex} + vendored 2007 pdftex.def",
           error: "Undefined control sequence \\pdfcolorstack → chardef 残值排字 missing_char",
         }
-    stats: { fires: 13, rescued_cells: 8, status: active }
+    stats: { fires: 15, rescued_cells: 9, status: active }
     source_ref: "c0diag C0-ctrl census; normalize.py _DRIVER_SCOPE_RX 单包括号面外漏网"
 
   - id: pdftex_prim_guard
@@ -302,7 +302,7 @@ rules:
           corpus: "1412.6980/*",
           error: "Undefined control sequence \\pdfoutput",
         }
-    stats: { fires: 11, rescued_cells: 3 }
+    stats: { fires: 36, rescued_cells: 18, status: active }
     source_ref: "fixloop.py L344-361, L284-298"
 
   # 新增 (docs/08:268): guard 只管赋值型; 读取型 \ifnum\pdfoutput 要补定义
@@ -345,7 +345,7 @@ rules:
           corpus: "—",
           error: "Undefined control sequence (\\ifnum\\pdfoutput 读取型)",
         }
-    stats: { fires: 13, status: proposed }
+    stats: { fires: 60, rescued_cells: 30, status: active }
     source_ref: "docs/08-translate-compile.md L268"
 
   # 2026-09-20 singlesweep pdfprim 车道 arm-B (pdftex-gated-codepath ×4):
@@ -421,5 +421,5 @@ rules:
           corpus: "singlesweep pdftex-gated-codepath ×4 (1706.07613 \\ifCLASSINFOpdf→graphicx[pdftex]→\\includegraphics; 2609.20238 dtrt.sty \\ifpdf→hyperref[pagebackref]→\\backref; 0712.1016 \\ifx\\pdfoutput 自产缺陷 GenericError)",
           error: "Undefined control sequence \\includegraphics / \\backref / GenericError (pdf 臂能力件被门死臂锁死)",
         }
-    stats: { fires: 0, status: proposed }
+    stats: { fires: 1, rescued_cells: 1, status: active }
     source_ref: "lane-pdfprim arm-B: 门死臂能力段复活 + polyfill 翻转存在探针的自产缺陷根修"

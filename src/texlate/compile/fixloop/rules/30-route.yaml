@@ -222,7 +222,7 @@ rules:
           corpus: "1706.00240 (同 lane 副修): physics_stub_detach \\input 裸载缺 @-catcode",
           error: "Missing \\begin{document} at physics.sty:13 — \\@undefined 在 @=other 下碎裂 (见 _builtins_pkgload letter_wrap)",
         }
-    stats: { fires: 765, status: proposed }
+    stats: { fires: 3849, rescued_cells: 1812, status: active }
     source_ref: "tmp/lane-stybegindoc/ (loop2 cases.jsonl log_excerpt 取证)"
 
   # failmine3 lane (3 格: 2410.00111/2003.03508/2310.16788): 非主 .tex
@@ -260,7 +260,7 @@ rules:
           corpus: "failmine3 loop3 3 格 (2410.00111/2003.03508/2310.16788)",
           error: "LaTeX Error: Can be used only in preamble. @subfile.tex:1 (\\input 子档自带 docclass)",
         }
-    stats: { fires: 2121, rescued_cells: 1463, status: active }
+    stats: { fires: 2762, rescued_cells: 1791, status: active }
     source_ref: "tmp/lane-failmine3/ (#164b); 与 #168 subfilegate 注入侧互补"
 
   # m1k base 臂实证 (fixloop_209.py): latex209_reject gate 拒收的 21 格
@@ -293,7 +293,7 @@ rules:
           corpus: "m1k base 臂 21 格 latex209_reject (astro/cond-mat/hep/gr-qc/nlin 96-01 老档)",
           error: "LaTeX2e command in LaTeX 2.09 document / missing revtex.cls 表象",
         }
-    stats: { fires: 21, rescued_cells: 20, status: active }
+    stats: { fires: 29, rescued_cells: 28, status: active }
     source_ref: "bench/work_m1k/fixloop_209.py + fixloop_base_report.md 补记 B"
 
   - id: static_precheck
@@ -337,7 +337,7 @@ rules:
         note: "bundle 没有的包 (自定义 sty) 仍值得预检 → 保留轻量版"
     provenance:
       - { corpus: "*", error: "冷 TEXMFHOME 下高频 missing_file" }
-    stats: { fires: 1996, note: "22/22 格执行; 每格装 0-9 包" }
+    stats: { fires: 4905, rescued_cells: 1921, status: active }
     source_ref: "fixloop.py L594-618"
 
   # W58 孤儿裁决 (mechmap-2026-09-17, 低优先级信号收割): % arara:/!TEX
@@ -365,5 +365,5 @@ rules:
           corpus: "mechmap W58 (arara/TeXShop 指令头稿)",
           error: "构建需求写在注释里无人执行 (shell-escape/引擎指定)",
         }
-    stats: { fires: 23, status: proposed }
+    stats: { fires: 62, rescued_cells: 24, status: active }
     source_ref: "bench/corpus/mechanisms.jsonl W58 verdict suggested_rules"

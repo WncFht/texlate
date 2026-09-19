@@ -1579,7 +1579,7 @@ rules:
           corpus: "0707.1778 + aastex 链 acceptable×69 (fixer-aastex-stub-2026-09-17)",
           error: "aastex.cls stub 补 v5 元数据面: \\paperid(活调用→级联实证)/\\email(revtex 版 \\@AF@join 未武装会炸)/\\received/\\revised/\\accepted",
         }
-    stats: { fires: 172, rescued_cells: 1, status: validated } # 1806.06690 xel FAIL→clean 实证
+    stats: { fires: 299, rescued_cells: 119, status: validated }
     source_ref: "fixloop-v2 整改; tlpdb filemap 实证 + 本机编译验证; aastex.cls 面扩 fixer-aastex-stub (0104174/0408531/0707.1778 复跑 0 stub 错)"
 
   - id: revtex209_surface_polyfill
@@ -1612,7 +1612,7 @@ rules:
           corpus: "corpus revtex_pacs 5 格 (astro-ph/9901028, cond-mat/0307221, hep-ph/0104104, hep-th/9910106, nlin/0104012)",
           error: "revtex4-2 ClassError: \\pacs must be called before \\maketitle (2.09 稿惯后置)",
         }
-    stats: { fires: 56, status: proposed }
+    stats: { fires: 82, rescued_cells: 31, status: active }
     source_ref: "tmp/c-bucket-residual/routing.md :29/:41/:119 (o2-revtex-209 车道); 注入面与 vendor/shims/revtex.cls 同义 (shim_map 槽已删: vendored 先中)"
 
   # 2026-09-18 C3 (stats 驱动, loop1 dedup 面): missing_file 真缺口只剩
@@ -1648,7 +1648,7 @@ rules:
           corpus: "loop1-dedup nucl-th/0104064 (fires×2)",
           error: "File `hangcaption.sty' not found",
         }
-    stats: { fires: 1, status: proposed }
+    stats: { fires: 4, rescued_cells: 1, status: active }
     source_ref: "tmp/lane-c3-fixloop/ — C3 stats 驱动; qgpeosnew.tex:135 用面"
 
   # astro-ph/9901081 (loop2 undefined_cs|define 实证): ``\documentstyle{mn}``
@@ -1710,5 +1710,5 @@ rules:
           corpus: "corpus raw-grep 家族 ~51 篇 (\\documentstyle ∧ \\input .sty): astro-ph/0003034 \\input{epsf,psfig}.sty, astro-ph/0103007 \\input psfig.sty 等 mn 簇",
           error: "同机制——2.09 稿裸 \\input .sty 全裂 @-cs",
         }
-    stats: { fires: 4, status: proposed }
+    stats: { fires: 14, rescued_cells: 6, status: active }
     source_ref: "tmp/lane-inputsty209/ — d0-d3 arm 对比实证; bench/results/stagerun-loop2-2026-09-18/cases.jsonl astro-ph/9901081"

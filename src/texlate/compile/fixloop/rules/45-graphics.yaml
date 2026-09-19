@@ -87,7 +87,7 @@ rules:
           corpus: "1404.5720 (realpostfix2 shim residuals, task#23)",
           error: "5× File `X.eps' not found 且 X.pdf 同目录在盘",
         }
-    stats: { fires: 8, status: proposed }
+    stats: { fires: 43, rescued_cells: 15, status: active }
 
   # 新增 (fixloop-v2 整改): log 确证的 PS 硬墙 → 先救后拒。
   # 实证: tectonic 对 .eps 工程分两类 —— 能出 pdf~ 的 (eps 引用未真正进
@@ -144,7 +144,7 @@ rules:
           corpus: "2105.00151 (pipecensus pipe/xbb 26 错格, 13 图全丢)",
           error: "Cannot run pipe command + Cannot determine size of graphic in X.xbb",
         }
-    stats: { fires: 1, status: proposed }
+    stats: { fires: 3, rescued_cells: 1, status: active }
     source_ref: "tmp/lane-pipecensus/cells.jsonl; graphics-def dvipdfmx.def:104-131"
 
   # 兜底拒: 转换工具缺席或全数失败时才拒 —— 替代原 precheck fileset 版,
@@ -197,7 +197,7 @@ rules:
           corpus: "2403.15102/2211.04457 (cbv4 other 拆家)",
           error: "Unable to load picture or PDF file 'img/sf_08_VX.pdf' (盘存 SF_08_VX.pdf)",
         }
-    stats: { fires: 0, status: proposed }
+    stats: { fires: 1, rescued_cells: 1, status: active }
     source_ref: "docs/research/product/2026-09-16-signature-mining.md §2.2"
 
   # W66 孤儿裁决 (mechmap-2026-09-17): pdfpages \includepdf 引用的外部
@@ -305,7 +305,7 @@ rules:
           corpus: "2105.00106 + 2203.00045 (stagerun-loop3; chronic347 item-a)",
           error: "LaTeX Error: File `fig2_direct_indirect_small' not found (doc \\ifpdf else 支 {.eps}; figures/*.jpg 与 *.pdf 在盘)",
         }
-    stats: { fires: 0, status: proposed }
+    stats: { fires: 2, rescued_cells: 2, status: active }
     source_ref: "tmp/lane-fmsingles/; PoS.cls:205-210 \\ifpdf 分支; normalize.py breakurl-scoped \\ifpdf patch"
 
   # 2026-09-20 haltsweep 扩面: halt_on_error 下每轮 log 只曝首个缺件,
@@ -349,7 +349,7 @@ rules:
           corpus: "failmine4-covgap v3all 6 格 (2501.01402/2501.01329/2509.14901/2501.01425/2603.08153/2604.03907)",
           error: "Unable to load picture or PDF file 'x.png' — xetex 图形域缺件措辞, missing_graphic 类目",
         }
-    stats: { fires: 11, rescued_cells: 8, status: active }
+    stats: { fires: 19, rescued_cells: 15, status: active }
     source_ref: "tmp/lane-failmine3/ (#164a); epsprobe 真编译臂 -no-shell-escape 验证; tmp/lane-covgap/ (二进制占位实证)"
 
   # singlesweep mislabeled-raster-as-pdf (6 格: 1607.00405/2310.01082/
@@ -406,7 +406,7 @@ rules:
           corpus: "1502.06541/1012.5273 (cbv4 other 拆家)",
           error: "figDY.pdf 合法但双引擎拒载 / zeromode.pdf 转换后仍拒载",
         }
-    stats: { fires: 1, status: proposed }
+    stats: { fires: 10, rescued_cells: 6, status: active }
     source_ref: "docs/research/product/2026-09-16-signature-mining.md §2.2"
 
   # xlinkobj lane 5 格普查 (1404.5668/1206.0148/1907.00277/2403.05523/
@@ -440,7 +440,7 @@ rules:
           corpus: "xlinkobj lane 5 格 (1404.5668/1206.0148/1907.00277/2403.05523/2412.19437)",
           error: 'xdvipdfmx:fatal: pdf_link_obj(): passed invalid object (伴 Didn''t find "endobj")',
         }
-    stats: { fires: 5, status: proposed }
+    stats: { fires: 12, rescued_cells: 4, status: active }
     source_ref: "tmp/lane-xlinkobj/; gs pdfwrite rewrite 5/5 bisect-verified"
 
   # astro-ph/9901081 实证 + core 层普查 (11 格 preamble 形): 2.09 老稿
@@ -486,7 +486,7 @@ rules:
           corpus: "astro-ph/9901081 (loop2 undefined_cs fail)",
           error: "epsfig.sty:46 Undefined control sequence \\define (\\input epsfig.sty 裸装载 @=12 裂 \\define@key)",
         }
-    stats: { fires: 41, status: proposed }
+    stats: { fires: 130, rescued_cells: 51, status: active }
     source_ref: "bench/results/stagerun-loop2-2026-09-18/cases.jsonl astro-ph/9901081"
 
   # firedunfixed 普查 item5 (2403.05444/2308.04278, epsconv lane):
@@ -529,5 +529,5 @@ rules:
           corpus: "2403.05444/2308.04278 (firedunfixed census item5)",
           error: "File `Fig1' not found / File `system-model' not found — 随稿只有 FigN-eps-converted-to.pdf",
         }
-    stats: { fires: 0, status: proposed }
+    stats: { fires: 5, rescued_cells: 2, status: active }
     source_ref: "tmp/lane-firedunfixed/report.md item5; tmp/lane-epsconv/"

@@ -79,7 +79,7 @@ rules:
           corpus: "loop2-delta fontspec_missing (1706.00240)",
           error: "The font \"Noto Mono\" cannot be found (\\setmonofont, bundled font-termes.sty)",
         }
-    stats: { fires: 5 }
+    stats: { fires: 10, rescued_cells: 2, status: active }
     source_ref: "wave-3: fontspec_missing 名替换面 (install_sysfont 兜底)"
 
   - id: missing_pfb_updmap
@@ -159,7 +159,7 @@ rules:
           corpus: "1810.04805/*",
           error: "Illegal unit of measure (px inserted)",
         }
-    stats: { fires: 3, rescued_cells: 3 }
+    stats: { fires: 3, rescued_cells: 3, status: active }
     source_ref: "fixloop.py L364-375"
 
   - id: microtype_off
@@ -231,7 +231,7 @@ rules:
           corpus: "stagerun-m1k-2026-09-19 (2412.06264/2504.01017) + soak-2026-09-18 (2609.19664); fairmeta.cls 同签第二容器",
           error: "fairmeta.cls:25: Package microtype Error: Disabling ligatures ... (同 ICLR 簇 \\DisableLigatures[f]{family=sf*})",
         }
-    stats: { fires: 0, status: proposed }
+    stats: { fires: 13, rescued_cells: 13, status: active }
     source_ref: "microtype.sty \\DisableLigatures pdfTeX/LuaTeX 引擎闸; tmp/lane-microtypelis/"
 
   # 2026-09-20 optfix lane (singlesweep microtype-xetex 机理, 2310.02541

@@ -64,7 +64,7 @@ rules:
           corpus: "apj-bib-scout-2026-09-17 §S4 (1003.1717/1206.5852/…×11)",
           error: ".bbl:N: Missing $ inserted / Misplaced alignment tab character &",
         }
-    stats: { fires: 3, status: proposed }
+    stats: { fires: 12, rescued_cells: 5, status: active }
     source_ref: "bench/results/apj-bib-scout-2026-09-17/report.md §S4"
 
   # 2009.11064 (stagerun-loop1): e-print 捆绑 biber <3.3 旧格式 .bbl,
@@ -89,7 +89,7 @@ rules:
           corpus: "2009.11064 (stagerun-loop1)",
           error: "Undefined control sequence \\sortlist / File 'ms.bbl' is wrong format version",
         }
-    stats: { fires: 14, status: proposed }
+    stats: { fires: 28, rescued_cells: 7, status: active }
     source_ref: "builtins.py bbl_regen (a5ba9a7)"
 
   # 2026-09-17 fixer-apjbbx (1706.00240): bundled apj.bbx (2017,
@@ -122,7 +122,7 @@ rules:
           corpus: "1706.00240 (stagerun-loop1; fixer-apjbbx-2026-09-17)",
           error: "Package biblatex Error: Cannot patch bibliography macro author / date+extrayear (bundled apj.bbx 2017 vs biblatex 3.21)",
         }
-    stats: { fires: 5, status: verified } # 全量 _fixloop_one r1 实证
+    stats: { fires: 7, rescued_cells: 1, status: verified }
     source_ref: "fixer-apjbbx-2026-09-17; apj.bbx L192-197 双点归因 + r1 rewrite in 1 files"
 
   # 2026-09-18 task t_c9249919e8d7a13f: tectonic bundle 钉 biblatex 3.17
@@ -194,7 +194,7 @@ rules:
           corpus: "astro-ph/0307344 (stagerun-rt1)",
           error: "ms.aux:32 natbib compat + ms.tex:198/222/223 preamble-only 级联 — natbib_numbers_pass 注释切分裂伤",
         }
-    stats: { fires: 1, status: proposed }
+    stats: { fires: 1, rescued_cells: 1, status: active }
     source_ref: "natbib.sty:974 \\NAT@force@numbers; ms.tex:172/198 裂伤行 vs :285 注入位"
 
   # 2026-09-19 failmine item 2 (4 格): natbib_numbers_pass (95-targeted

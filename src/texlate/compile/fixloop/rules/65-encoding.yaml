@@ -34,7 +34,7 @@ rules:
     # 2026-09-16 fixloop-rules 实跑 (5 篇 xelatex 格): fires=5 → clean×3
     # (1012.1124/1206.5832/1608.02354) + best_effort_pdf×2 (1206.5628/2308.04174);
     # tectonic 格全部死于 tlextras-2022 pin bundle os error 2 (环境), 与本规则无关
-    stats: { fires: 5, rescued_cells: 5, status: validated }
+    stats: { fires: 7, rescued_cells: 5, status: validated }
     source_ref: "handoff-2026-09-15 §2.2; compilebench-v3 失败构成"
 
   # 新增 (docs/08:272): xelatex 对非 UTF-8 源静默出 U+FFFD —— warning 驱动轮
@@ -118,7 +118,7 @@ rules:
           corpus: "m1k base 2503.10110 (scaneof lane)",
           error: "undefined_cs: root.aux:67: Undefined control sequence (\\abx@* 写端错配)",
         }
-    stats: { fires: 1, status: proposed }
+    stats: { fires: 2, rescued_cells: 1, status: active }
     source_ref: "docs/research/latex/2026-09-16-aux-cjk-truncation.md; tmp/lane-scaneof/"
 
   # 2026-09-20 watchimpl cjk-pkg-invalid-char (1607.00157/2601.07372 base 格):
