@@ -5,7 +5,8 @@ texglot-patterns §5），服务 ``uv tool install`` 一键可用语义：
 
 - 查找链 ``ensure_tectonic``：``find_tool``（PATH → macOS 落点）→ 托管目录
   ``<data>/tools/`` → 自动下载；``resolve_tool``/``find_managed`` 不触网，
-  供 health/探测面用。
+  供 health/探测面用。可替换件调用点统一经 ``compile.seams`` 查名
+  （patch ``seams.X`` 或 ``toolchain.X`` 同拦——回指语义见其 docstring）。
 - sha256 是**唯一信任锚**（无 PGP/sigstore）——不匹配即整体拒绝，先校验
   后落盘，绝不执行未过校验的产物。
 - 归档只提 ``tectonic`` 单文件（成员 basename 匹配且恰好一个）；先写
@@ -36,6 +37,7 @@ from pathlib import Path
 
 import httpx
 
+from texlate.compile import seams
 from texlate.textutil import data_root, env_flag
 
 log = logging.getLogger(__name__)
@@ -192,7 +194,8 @@ def find_tool(name: str) -> str | None:
     """``shutil.which`` + macOS TeX 常见落点（/Library/TeX/texbin、brew 前缀）。
 
     工具发现的唯一位——``resolve_tool`` 的系统件腿与 ``sandbox``/``judge``/
-    ``cli`` 的裸工具定位同喝这一份（``sandbox.find_tool`` 仅为再出口别名）。
+    ``cli`` 的裸工具定位同喝这一份（``sandbox.find_tool`` 仅为再出口别名，
+    ``compile.seams.find_tool`` 惰性回指本模块）。
     """
     found = shutil.which(name)
     if found:
@@ -216,7 +219,7 @@ def find_managed(name: str = "tectonic") -> str | None:
 
 def resolve_tool(name: str) -> str | None:
     """系统件（``find_tool``：PATH/常见落点）→ 托管件。探测面用，不触网。"""
-    return find_tool(name) or find_managed(name)
+    return seams.find_tool(name) or seams.find_managed(name)
 
 
 def _smoke(binary: Path) -> bool:
@@ -268,13 +271,13 @@ def ensure_tectonic(
     让 ``find_managed`` 永远命中坏件、每次编译都踩 Popen 异常）。要 raise
     语义的显式安装走 ``install_tectonic``。
     """
-    found = resolve_tool("tectonic")
+    found = seams.resolve_tool("tectonic")
     if found:
         return found
-    if not download_allowed():
+    if not seams.download_allowed():
         return None
     try:
-        path = install_tectonic(system=system, machine=machine, client=client)
+        path = seams.install_tectonic(system=system, machine=machine, client=client)
     except (
         OSError,
         RuntimeError,

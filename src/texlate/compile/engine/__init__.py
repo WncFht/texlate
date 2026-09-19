@@ -25,9 +25,12 @@ r"""引擎层：Engine 协议 + xelatex/tectonic 实现 + 静态路由表（docs
 ``engine.py`` 拆分包：本 facade 全量回引公开面与测试 patch 缝
 （``run_process``/``find_tool``/``tectonic_version``/``ensure_tectonic``
 钉在本模块名上，叶内经 ``import texlate.compile.engine as _eng`` 运行期
-回查，worker ``_w.`` 同款）；实现按边界出叶——``_base``（CompRes/Engine
-协议/共享小件）、``_xelatex``、``_tectonic``、``_route``（RouteDecision/
-签名集/route_project/engine_for）、``_cache``（tlmgr 搜索落盘缓存）。
+回查，worker ``_w.`` 同款——缝名单源 ``texlate.compile.seams``，本包
+eager 回引为叶侧确定性锚；``seams.X`` patch 只拦 seams 路由消费点、
+``engine.X`` patch 拦叶消费点，两平面不互通）；实现按边界出叶——
+``_base``（CompRes/Engine 协议/共享小件）、``_xelatex``、``_tectonic``、
+``_route``（RouteDecision/签名集/route_project/engine_for）、
+``_cache``（tlmgr 搜索落盘缓存）。
 """
 
 from __future__ import annotations
@@ -47,10 +50,18 @@ from texlate.compile.sandbox import (
     _rc_to_signal,
     _texmfdist,
     child_env,
-    find_tool,  # 测试 patch 缝（叶内经 _eng. 运行期回查，worker _w. 同款）
-    run_process,
 )
-from texlate.compile.toolchain import ensure_tectonic, tectonic_version
+
+# 测试 patch 缝（叶内经 ``_eng.`` 运行期回查，worker ``_w.`` 同款）——
+# 名单单源 ``texlate.compile.seams``；本包 eager 回引是 ``_eng.`` 消费侧
+# 确定性锚：``engine.X`` patch 拦叶消费点，``seams.X`` patch 拦 seams
+# 路由消费点，两平面不互通。
+from texlate.compile.seams import (
+    ensure_tectonic,
+    find_tool,
+    run_process,
+    tectonic_version,
+)
 from texlate.textutil import (
     DOCSTYLE_RX,
     decode_tex,
