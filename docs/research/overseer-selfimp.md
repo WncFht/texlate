@@ -1245,3 +1245,12 @@
 - **roster 处置**: injfix/mainrel/drvopt/cp1252fix/cp1252cen/envspec 交付毕关 (6 关); pfafont (#193) 独跑。texlate-bb mutex ping 待发 (inject/normalize/segmenter 全落, 无在飞波 → 全 mutex 释)。
 - 门: L0 30+1529 绿✓; Ruleset.load() 前波 139 验 (drvopt yaml 已含)✓; ③靶翻 6/6 (\bd 3 + drvopt 3 + #191 3 全翻, 0 down)✓; sab escaped=0 (本段无新跑, 前波持)✓; clean% 单调✓。裁决点 3 件仍待用户 (#10/ds@/verdict 排序)。
 - **backlog**: L1 parsebench post-argspec 重门; normalize.py:137 inject_preamble 零 caller 残件; flipcheck9 残 6 格 splice 重建; drvopt vendored .def/.cfg 退役扩; 1907.03923 待 pfafont。
+
+## 2026-09-19 ~15:10 — L1 re-gate PASS + prewave wave launched (loop2 rebuild discovered)
+
+- **L1 re-gate (post-argspec/envspec + 5edaebf7 inject anchor)**: parsebench corpus_v3-l1gate2 → strict identity **1955/1955 = 100.0%** CI[99.80,100]; leak **0/128460 = 0.000%**. Gate ② green for 6a8cec0f/7ec591e5/76ed5a66/5edaebf7.
+- **687-prewave replay (#173.1) — target set recomputed**: compile(zh) fail|partial AND (no fixloop rec OR latest≠clean) = **763** cells (loop2 625, loop3 117, fc5 2, fc7 3, fc8 6, fc9 10). `--rerun` bypasses is_done dedup → must scope via `--ids`, not blanket `--on nonclean` (would hit 2017 loop2 cells incl. already-fixed).
+- **Discovery: loop2 work/ purged to 580 wids** (4.4G kept, disk at 91%) — 619/625 targets have NO zh/ → `rerun_no_zh` (0.0s upstream error, expected). Only 6 ran inline (2 clean/3 acc/1 best_effort). Fix: chained rebuild `ingest→parse→xlat mock→fixloop` for the 619 (tmp/lane-prewave/rebuild-loop2.sh, detached pid 709715) — deterministic mock-arm rebuild = honest re-verification vs current ruleset+pipeline.
+- **In flight**: loop3 117-cell fixloop rerun (jobs 4, real verdicts flowing: acceptable_pdf/best_effort upgrades), flipcheck batch fc5→fc9 sequential (jobs 2), rebuild-loop2 detached.
+- **Roster**: failmine4 (records census), verifyfam (4 post-replay families), kotexfix (hangul misschar cond impl), drvext (drvopt residue + vendor .def/.cfg), arrayresid (CJK pream-payload gap), mojiverify (cp1252+envspec live evidence). Mid-wave edit ban reiterated: inject/normalize/latex/textutil frozen until waves drain.
+- **Stale-record discipline paid off again**: #191 "paradox" was a pre-commit record (`code: d2ba563d-dirty`); all 3 cells flip clean on committed code. Rule stands: check `code`/ts vs commit time before concluding failure.
