@@ -52,14 +52,19 @@ DOCCLASS_OPTS_RX: Final = re.compile(
     r"\\documentclass" + CMD_BOUNDARY + r"\s*(?:\[([^\]]*)\])?\s*\{"
 )
 
-#: ``\documentclass[..]{subfiles}`` —— subfiles 子档标记。母档 ``\subfile``
-#: 拉入时子件 ``\documentclass`` 起至 ``\begin{document}`` 区间被吞，声明行
-#: **之前**的文本却在母档 body 语境执行——前置块里 preamble-only cs
-#: （``\PassOptionsTo*``）落 body 即 "Can be used only in preamble"
-#: （2310.16788 birds_eye_view/side_view :1,14 实案）。消费侧同族约定：
-#: 遮盖/剥注释视图判定。
-SUBFILES_CHILD_RX: Final = re.compile(
-    r"\\documentclass" + CMD_BOUNDARY + r"\s*(?:\[[^\]]*\])?\s*\{\s*subfiles\s*\}"
+#: ``\documentclass[..]{subfiles|standalone}`` —— 子档类标记。母档
+#: ``\subfile``/standalone 包补丁下的 ``\input``/``\includestandalone`` 拉入
+#: 时子件 ``\documentclass`` 起至 ``\begin{document}`` 区间被吞（standalone
+#: 包 subpreambles 收集或跳过），声明行**之前**的文本却在母档 body 语境
+#: 执行——前置块里 preamble-only cs（``\PassOptionsTo*``）落 body 即
+#: "Can be used only in preamble"（2310.16788 birds_eye_view/side_view
+#: :1,14；2609.19210/2609.20069 standalone 图件 :1 实案）。standalone 类
+#: 独立编译件会因此失去前导块——图件作主档罕见，代价可受。消费侧同族
+#: 约定：遮盖/剥注释视图判定。
+SUBDOC_CHILD_RX: Final = re.compile(
+    r"\\documentclass"
+    + CMD_BOUNDARY
+    + r"\s*(?:\[[^\]]*\])?\s*\{\s*(?:subfiles|standalone)\s*\}"
 )
 
 #: 包/类加载命令名集——全仓各站现有集合的并集单源化（fixloop actions
