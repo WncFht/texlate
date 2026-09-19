@@ -1016,11 +1016,11 @@ def test_undefine_batch_journal_cluster(tmp_path: Path) -> None:
     assert ok, note
     t = (tmp_path / "main.tex").read_text()
     for cs in ("aj", "jcap", "mnras"):
-        assert f"\\let\\{cs}\\@undefined" in t, cs
+        assert f"\\csname {cs}\\endcsname\\TeXlateUndefCs" in t, cs
     # 站点前置在 \newcommand 行紧邻处
     assert (
-        "\\makeatletter\\let\\mnras\\@undefined\\makeatother\n\\newcommand{\\mnras}"
-        in t
+        "\\expandafter\\let\\csname mnras\\endcsname\\TeXlateUndefCs\n"
+        "\\newcommand{\\mnras}" in t
     )
 
 
@@ -1044,7 +1044,7 @@ def test_undefine_batch_multiline_log_still_batch(tmp_path: Path) -> None:
     assert ok, note
     t = (tmp_path / "main.tex").read_text()
     for cs in ("aj", "jcap", "mnras"):
-        assert f"\\let\\{cs}\\@undefined" in t, cs
+        assert f"\\csname {cs}\\endcsname\\TeXlateUndefCs" in t, cs
 
 
 def test_undefine_batch_single_collision_declines(tmp_path: Path) -> None:
@@ -1076,7 +1076,10 @@ def test_undefine_single_default_path(tmp_path: Path) -> None:
         _ctx(tmp_path), None, "liningnums", {}
     )
     assert ok, note
-    assert "\\let\\liningnums\\@undefined" in (tmp_path / "main.tex").read_text()
+    assert (
+        "\\csname liningnums\\endcsname\\TeXlateUndefCs"
+        in (tmp_path / "main.tex").read_text()
+    )
 
 
 def test_undefine_backtick_other_signature(tmp_path: Path) -> None:
@@ -1099,10 +1102,10 @@ def test_undefine_backtick_other_signature(tmp_path: Path) -> None:
     assert ok, note
     t = (tmp_path / "main.tex").read_text()
     assert (
-        "\\makeatletter\\let\\mathbfit\\@undefined\\makeatother\n"
-        "\\DeclareMathAlphabet{\\mathbfit}"
-    ) in t
-    assert "\\let\\mathbfss\\@undefined" in t
+        "\\expandafter\\let\\csname mathbfit\\endcsname\\TeXlateUndefCs\n"
+        "\\DeclareMathAlphabet{\\mathbfit}" in t
+    )
+    assert "\\csname mathbfss\\endcsname\\TeXlateUndefCs" in t
 
 
 def test_undefine_allocated_name_guard(tmp_path: Path) -> None:
@@ -1120,9 +1123,9 @@ def test_undefine_allocated_name_guard(tmp_path: Path) -> None:
 
 
 def test_undefine_cls_site_no_catcode_wrap(tmp_path: Path) -> None:
-    r"""1706.00221 实证: .cls/.sty 内 @ 本是 letter —— 站点前置在包文件
-    内必须裸 ``\\let`` (无 ``\\makeatletter`` 对); 尾部 ``\\makeatother``
-    会把 @ 翻回 catcode-12, 其后 ``\\define@key`` 族全烂。"""
+    r"""1706.00221 实证: 站点前置全局统一 csname-let 形 (零字面 ``@``
+    免 catcode); 包文件内 ``\\makeatother`` 尾注会把 @ 翻回 catcode-12,
+    其后 ``\\define@key`` 族全烂 —— 故永不再用 ``\\makeatletter`` 对。"""
     _write_main(tmp_path, "\\begin{document}\nx\n\\end{document}\n")
     (tmp_path / "foo.cls").write_text(
         "\\newcommand{\\aj}{AJ}\n\\newcommand{\\jcap}{J}\n\\def\\define@key#1{#1}\n",
@@ -1135,8 +1138,14 @@ def test_undefine_cls_site_no_catcode_wrap(tmp_path: Path) -> None:
     )
     assert ok, note
     t = (tmp_path / "foo.cls").read_text()
-    assert "\\let\\aj\\@undefined\n\\newcommand{\\aj}" in t
-    assert "\\let\\jcap\\@undefined\n\\newcommand{\\jcap}" in t
+    assert (
+        "\\expandafter\\let\\csname aj\\endcsname\\TeXlateUndefCs\n"
+        "\\newcommand{\\aj}" in t
+    )
+    assert (
+        "\\expandafter\\let\\csname jcap\\endcsname\\TeXlateUndefCs\n"
+        "\\newcommand{\\jcap}" in t
+    )
     assert "makeatletter" not in t
     assert "makeatother" not in t
 
@@ -1154,9 +1163,9 @@ def test_undefine_theorem_style_payload_dropped(tmp_path: Path) -> None:
     )
     assert ok, note
     t = (tmp_path / "main.tex").read_text()
-    assert "\\let\\plain\\@undefined" not in t  # 非 Command 签 payload 不送信
-    assert "\\let\\foo\\@undefined" in t
-    assert "\\let\\bar\\@undefined" in t
+    assert "\\csname plain\\endcsname" not in t  # 非 Command 签 payload 不送信
+    assert "\\csname foo\\endcsname\\TeXlateUndefCs" in t
+    assert "\\csname bar\\endcsname\\TeXlateUndefCs" in t
 
 
 def test_undefine_site_prepend_idempotent(tmp_path: Path) -> None:
@@ -1184,7 +1193,7 @@ def test_undefine_site_prepend_idempotent(tmp_path: Path) -> None:
 def test_undefine_endstar_provide_site_rc_bypass(tmp_path: Path) -> None:
     r"""W151 主钉 (o2-stub-fill ``\providecommand{\endproof}`` r1→r2 死循环
     实证): undefined 态 ``\endproof`` + provide 站点 → ``\@ifdefinable``
-    恒炸 already_def; ``\let\endproof\@undefined`` 清位徒劳。
+    恒炸 already_def; undefine 清位徒劳。
     end* 名 × ``\@ifdefinable`` 路由命令 → rc@ 单发旁路前置。"""
     _write_main(
         tmp_path,
@@ -1198,16 +1207,16 @@ def test_undefine_endstar_provide_site_rc_bypass(tmp_path: Path) -> None:
     assert ok, note
     t = (tmp_path / "main.tex").read_text()
     assert (
-        "\\makeatletter\\let\\@ifdefinable\\@rc@ifdefinable\\makeatother\n"
-        "\\providecommand{\\endproof}"
-    ) in t
-    # 恒拒名不注无效的 \@undefined 清位 (docclass 块亦不收)
-    assert "\\let\\endproof\\@undefined" not in t
+        "\\expandafter\\let\\csname @ifdefinable\\expandafter\\endcsname"
+        "\\csname @rc@ifdefinable\\endcsname\n\\providecommand{\\endproof}" in t
+    )
+    # 恒拒名不注无效的清位 (docclass 块亦不收)
+    assert "\\csname endproof\\endcsname" not in t
 
 
 def test_undefine_endstar_newcommand_batch_mixed(tmp_path: Path) -> None:
     r"""end* + 非 end* 混合撞名批清: ``\newcommand{\endproof}`` 站走 rc@,
-    ``\newcommand{\aj}`` 站仍走 ``\let``; end* 名不进 docclass 块。"""
+    ``\newcommand{\aj}`` 站仍走 undefine; end* 名不进 docclass 块。"""
     _write_main(
         tmp_path,
         "\\newcommand{\\endproof}{P}\n\\newcommand{\\aj}{A}\n"
@@ -1223,11 +1232,11 @@ def test_undefine_endstar_newcommand_batch_mixed(tmp_path: Path) -> None:
     assert ok, note
     t = (tmp_path / "main.tex").read_text()
     assert (
-        "\\makeatletter\\let\\@ifdefinable\\@rc@ifdefinable\\makeatother\n"
-        "\\newcommand{\\endproof}"
-    ) in t
-    assert "\\let\\aj\\@undefined" in t  # 非 end* 路径不变 (站点+docclass 双修)
-    assert "\\let\\endproof\\@undefined" not in t
+        "\\expandafter\\let\\csname @ifdefinable\\expandafter\\endcsname"
+        "\\csname @rc@ifdefinable\\endcsname\n\\newcommand{\\endproof}" in t
+    )
+    assert "\\csname aj\\endcsname\\TeXlateUndefCs" in t  # 非 end* 双修不变
+    assert "\\csname endproof\\endcsname" not in t
 
 
 def test_undefine_endstar_min_batch_collapses(tmp_path: Path) -> None:
@@ -1245,12 +1254,14 @@ def test_undefine_endstar_min_batch_collapses(tmp_path: Path) -> None:
         _ctx(tmp_path), None, "endnote", {"min_batch": 2}
     )
     assert ok, note
-    assert "\\let\\@ifdefinable\\@rc@ifdefinable" in (tmp_path / "main.tex").read_text()
+    assert "\\csname @rc@ifdefinable\\endcsname" in (
+        tmp_path / "main.tex"
+    ).read_text()
 
 
 def test_undefine_endstar_ltcmd_site_keeps_let(tmp_path: Path) -> None:
     r"""``\NewDocumentCommand`` 站 (ltcmd ``\cs_if_exist``, 无 end 守卫):
-    end* 名仍走 ``\let\X\@undefined`` —— rc@ 前置不食 ``\@ifdefinable``
+    end* 名仍走 undefine 清位 —— rc@ 前置不食 ``\@ifdefinable``
     会泄给下个用户。"""
     _write_main(
         tmp_path,
@@ -1266,9 +1277,9 @@ def test_undefine_endstar_ltcmd_site_keeps_let(tmp_path: Path) -> None:
     assert ok, note
     t = (tmp_path / "main.tex").read_text()
     assert (
-        "\\makeatletter\\let\\endnote\\@undefined\\makeatother\n"
-        "\\NewDocumentCommand{\\endnote}"
-    ) in t
+        "\\expandafter\\let\\csname endnote\\endcsname\\TeXlateUndefCs\n"
+        "\\NewDocumentCommand{\\endnote}" in t
+    )
 
 
 def test_undefine_endstar_siteless_declines(tmp_path: Path) -> None:
@@ -1281,11 +1292,11 @@ def test_undefine_endstar_siteless_declines(tmp_path: Path) -> None:
     ok, note = TRANSFORM_FNS["undefine_for_redef"](_ctx(tmp_path), None, "endfoo", {})
     assert not ok
     assert "endfoo" in note
-    assert "\\let\\endfoo" not in (tmp_path / "main.tex").read_text()
+    assert "\\csname endfoo\\endcsname" not in (tmp_path / "main.tex").read_text()
 
 
 def test_undefine_relax_reserved_abstains(tmp_path: Path) -> None:
-    r"""``\@qrelax`` 同恒拒 + ``\relax`` 是 primitive: ``\let\@undefined``
+    r"""``\@qrelax`` 同恒拒 + ``\relax`` 是 primitive: undefine 清位
     注毁其义, rc@ 旁路真重定义 —— 皆全局灾难, 弃修。"""
     _write_main(
         tmp_path,
@@ -1297,7 +1308,7 @@ def test_undefine_relax_reserved_abstains(tmp_path: Path) -> None:
     ok, _note = TRANSFORM_FNS["undefine_for_redef"](_ctx(tmp_path), None, "relax", {})
     assert not ok
     t = (tmp_path / "main.tex").read_text()
-    assert "\\let\\relax" not in t
+    assert "\\csname relax\\endcsname" not in t
     assert "rc@ifdefinable" not in t
 
 
@@ -1315,8 +1326,8 @@ def test_undefine_endstar_provide_nonendstar_untouched(tmp_path: Path) -> None:
     ok, note = TRANSFORM_FNS["undefine_for_redef"](_ctx(tmp_path), None, "aj", {})
     assert ok, note
     t = (tmp_path / "main.tex").read_text()
-    assert "\\let\\aj\\@undefined" in t
-    assert "\\let\\foo" not in t  # provide 站点非恒拒名 —— 不动
+    assert "\\csname aj\\endcsname\\TeXlateUndefCs" in t
+    assert "\\csname foo\\endcsname" not in t  # provide 站点非恒拒名 —— 不动
 
 
 def test_undefine_endstar_rc_prepend_idempotent(tmp_path: Path) -> None:

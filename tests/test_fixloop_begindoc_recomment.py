@@ -26,13 +26,13 @@ if TYPE_CHECKING:
 _DAMAGED = (
     "\\documentclass{aastex}\n"
     "%% macros should appear before the "
-    "\\makeatletter\\ifdefined\\NAT@numberstrue\\NAT@numberstrue\\fi\\makeatother\n"
+    "\\ifcsname NAT@numberstrue\\endcsname\\csname NAT@numberstrue\\endcsname\\fi\n"
     "\\begin{document} command.\n"
     "\\newcommand{\\x}{y}\n"
     "%% Indicate the beginning of the paper itself with "
-    "\\makeatletter\\ifdefined\\NAT@numberstrue\\NAT@numberstrue\\fi\\makeatother\n"
+    "\\ifcsname NAT@numberstrue\\endcsname\\csname NAT@numberstrue\\endcsname\\fi\n"
     "\\begin{document}.\n"
-    "\\makeatletter\\ifdefined\\NAT@numberstrue\\NAT@numberstrue\\fi\\makeatother\n"
+    "\\ifcsname NAT@numberstrue\\endcsname\\csname NAT@numberstrue\\endcsname\\fi\n"
     "\\begin{document}\n"
     "body\n"
     "\\end{document}\n"
@@ -81,14 +81,14 @@ def test_rewrite_repairs_stray_begins() -> None:
     # 真 \begin{document} 行未动
     assert "\n\\begin{document}\n" in out
     # 注入位完好
-    assert "\\ifdefined\\NAT@numberstrue\\NAT@numberstrue\\fi" in out
+    assert "\\ifcsname NAT@numberstrue\\endcsname" in out
 
 
 def test_rewrite_real_begin_untouched() -> None:
     r"""唯一 ``\\begin{document}`` 单独成行 (0408240 清洁注入形) → 不动。"""
     src = (
         "\\documentclass{article}\n"
-        "\\makeatletter\\ifdefined\\NAT@numberstrue\\NAT@numberstrue\\fi\\makeatother\n"
+        "\\ifcsname NAT@numberstrue\\endcsname\\csname NAT@numberstrue\\endcsname\\fi\n"
         "\\begin{document}\n"
         "body\n"
         "\\end{document}\n"

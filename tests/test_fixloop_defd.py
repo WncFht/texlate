@@ -5,13 +5,13 @@ item 1 ``.bbl`` 站点面 (1907.10621): shipped madminer.bbl ``\\newcommand{\\en
     ``\\auto@bib@innerbib`` → ``\\bibliography{}`` 再 input ``\\jobname.bbl``,
     第二遍撞第一遍的组内定义; 锚 ``\\bibliography``/``\\input`` 外侧的清位够不到
     bbl 内互撞 → ``_redef_site_map`` 扩 ``.bbl``, 站点前置清位落 bbl 内
-    (每遍 input 各自先清后定义)。``.bbl`` 在文档面 input (@=catcode-12),
-    同 ``.tex`` 需 ``\\makeatletter`` 包裹。
+    (每遍 input 各自先清后定义)。清位统一 csname-let 形 —— ``.bbl`` 在
+    文档面 input (@=catcode-12), 零字面 ``@`` 任意宿主 catcode 可读。
 item 2 ``\\AtBeginDocument`` 迟延定义者 (1706.00033): 用户 ``\\def\\sh`` vs
     babel russianb.ldf ``\\AtBeginDocument`` 钩内 ``\\DeclareMathOperator{\\sh}``
     —— 钩执行期错误的 file:line 归因恒为 ``\\begin{document}`` 所在行;
     一切立即 ``\\let`` (docclass 块/装载点前) 恒错序 → 声明点前注
-    ``\\AtBeginDocument{\\let\\sh\\@undefined}`` 占首钩位, 钩 FIFO 先清位,
+    ``\\AtBeginDocument{<csname-let 清位串>}`` 占首钩位, 钩 FIFO 先清位,
     迟延定义者再定义赢。
 item 3 ``\\newfont`` 站点命令 (astro-ph/0307459): ``\\newfont{\\Bbb}{msbm10
     scaled 1200}`` 产 Command 签 already_def —— ``_SITE_DEF_CMDS`` 收录后
@@ -85,8 +85,8 @@ def _read(tmp_path: Path, rel: str) -> str:
 # ═══════════════════════ item 1: .bbl 站点面 ═══════════════════════
 
 
-def test_bbl_site_prepend_makeatletter(tmp_path: Path) -> None:
-    """``.bbl`` 内 ``\\newcommand`` 站前置 ``\\makeatletter`` 包裹清位。"""
+def test_bbl_site_prepend_csname(tmp_path: Path) -> None:
+    """``.bbl`` 内 ``\\newcommand`` 站前置 csname-let 清位 (无 makeatletter 对)。"""
     _proj(
         tmp_path,
         {
@@ -107,8 +107,9 @@ def test_bbl_site_prepend_makeatletter(tmp_path: Path) -> None:
     assert "site-prepend" in note
     bbl = _read(tmp_path, "madminer.bbl")
     assert (
-        "\\makeatletter\\let\\enquote\\@undefined\\makeatother\n\\newcommand{\\enquote}"
-    ) in bbl
+        "\\expandafter\\let\\csname enquote\\endcsname\\TeXlateUndefCs\n"
+        "\\newcommand{\\enquote}" in bbl
+    )
     # 站点臂只剔 pkg_covered/abd 名 —— docclass 块 belt 同轮照发 (无害)。
     main = _read(tmp_path, "main.tex")
     assert "% fixloop: batch undefine" in main
@@ -137,9 +138,10 @@ def test_bbl_site_cluster_expanded_provide_skipped(tmp_path: Path) -> None:
     assert ok, note
     bbl = _read(tmp_path, "madminer.bbl")
     assert (
-        "\\makeatletter\\let\\arx\\@undefined\\makeatother\n\\newcommand{\\arx}"
-    ) in bbl
-    assert "\\let\\urlprefix\\@undefined" not in bbl
+        "\\expandafter\\let\\csname arx\\endcsname\\TeXlateUndefCs\n"
+        "\\newcommand{\\arx}" in bbl
+    )
+    assert "\\csname urlprefix\\endcsname" not in bbl
 
 
 def test_bbl_refire_no_double_prepend(tmp_path: Path) -> None:
@@ -163,7 +165,7 @@ def test_bbl_refire_no_double_prepend(tmp_path: Path) -> None:
     _UNDEF(_ctx(tmp_path), _EngStub(), "enquote", {})
     after = _read(tmp_path, "madminer.bbl")
     assert after == before
-    assert after.count("\\let\\enquote\\@undefined") == 1
+    assert after.count("\\csname enquote\\endcsname\\TeXlateUndefCs") == 1
 
 
 def test_bbl_dead_site_masked(tmp_path: Path) -> None:
@@ -187,7 +189,7 @@ def test_bbl_dead_site_masked(tmp_path: Path) -> None:
     assert ok, note
     assert "docclass block" in note
     bbl = _read(tmp_path, "madminer.bbl")
-    assert "\\let\\enquote\\@undefined" not in bbl
+    assert "\\csname enquote\\endcsname" not in bbl
 
 
 # ═══════════════ item 2: \AtBeginDocument 迟延定义者臂 ═══════════════
@@ -201,10 +203,12 @@ def test_abd_hook_injected_pre_docclass(tmp_path: Path) -> None:
     assert "AtBeginDocument" in note
     text = _read(tmp_path, "main.tex")
     assert (
-        "\\makeatletter\\AtBeginDocument{\\let\\sh\\@undefined}\\makeatother"
+        "\\AtBeginDocument{\\expandafter\\let\\csname sh\\endcsname\\TeXlateUndefCs}"
     ) in text
     # 钩注册位必须先于 \documentclass —— FIFO 首钩, 抢在 babel 钩注册前。
-    assert text.index("\\AtBeginDocument{\\let\\sh") < text.index("\\documentclass")
+    assert text.index("\\AtBeginDocument{\\expandafter") < text.index(
+        "\\documentclass"
+    )
     # 迟延定义者不被立即 \let 覆盖 → docclass 块不重发。
     assert "% fixloop: batch undefine" not in text
 
@@ -229,7 +233,7 @@ def test_abd_line_not_begindoc_falls_to_docclass(tmp_path: Path) -> None:
     assert "docclass block" in note
     text = _read(tmp_path, "main.tex")
     assert "\\AtBeginDocument{" not in text
-    assert "\\let\\zz\\@undefined" in text
+    assert "\\csname zz\\endcsname\\TeXlateUndefCs" in text
 
 
 def test_abd_no_docclass_declines_to_block(tmp_path: Path) -> None:
@@ -248,7 +252,7 @@ def test_abd_no_docclass_declines_to_block(tmp_path: Path) -> None:
     assert "docclass block" in note
     text = _read(tmp_path, "main.tex")
     assert "\\AtBeginDocument{" not in text
-    assert "\\let\\sh\\@undefined" in text
+    assert "\\csname sh\\endcsname\\TeXlateUndefCs" in text
 
 
 def test_abd_refire_idempotent(tmp_path: Path) -> None:
@@ -268,7 +272,10 @@ def test_abd_hook_via_err_head(tmp_path: Path) -> None:
     ctx = _ctx(tmp_path, err_head=_SH_LOG)
     ok, note = _UNDEF(ctx, _EngStub(), "sh", {})
     assert ok, note
-    assert "\\AtBeginDocument{\\let\\sh\\@undefined}" in _read(tmp_path, "main.tex")
+    assert (
+        "\\AtBeginDocument{\\expandafter\\let\\csname sh\\endcsname\\TeXlateUndefCs}"
+        in _read(tmp_path, "main.tex")
+    )
 
 
 # ═══════════════════════ item 3: \newfont 站点命令 ═══════════════════════
@@ -294,13 +301,13 @@ def test_newfont_brace_site_prepend(tmp_path: Path) -> None:
     assert "site-prepend" in note
     text = _read(tmp_path, "main.tex")
     assert (
-        "\\makeatletter\\let\\Bbb\\@undefined\\makeatother\n"
-        "\\newfont{\\Bbb}{msbm10 scaled 1200}"
-    ) in text
+        "\\expandafter\\let\\csname Bbb\\endcsname\\TeXlateUndefCs\n"
+        "\\newfont{\\Bbb}{msbm10 scaled 1200}" in text
+    )
     assert (
-        "\\makeatletter\\let\\frak\\@undefined\\makeatother\n"
-        "\\newfont{\\frak}{eufm10 scaled 1200}"
-    ) in text
+        "\\expandafter\\let\\csname frak\\endcsname\\TeXlateUndefCs\n"
+        "\\newfont{\\frak}{eufm10 scaled 1200}" in text
+    )
 
 
 def test_newfont_bare_form_alloc_guarded(tmp_path: Path) -> None:
@@ -324,6 +331,9 @@ def test_newfont_bare_form_alloc_guarded(tmp_path: Path) -> None:
 def test_newfont_ifn_routed_endstar() -> None:
     """``\\newfont`` 是 ``\\@ifdefinable`` 路由命令 —— end* 名换 rc@ 旁路。"""
     assert _site_clear_line("newfont", "endfoo") == (
-        r"\let\@ifdefinable\@rc@ifdefinable"
+        r"\expandafter\let\csname @ifdefinable\expandafter\endcsname"
+        r"\csname @rc@ifdefinable\endcsname"
     )
-    assert _site_clear_line("newfont", "Bbb") == r"\let\Bbb\@undefined"
+    assert _site_clear_line("newfont", "Bbb") == (
+        r"\expandafter\let\csname Bbb\endcsname\TeXlateUndefCs"
+    )

@@ -60,10 +60,13 @@ def test_hit_injects_after_docclass(tmp_path: Path) -> None:
     # hook 内 \long\def 单 ``#``——``##`` 会字面留下炸参数号 (guardsmoke 实证);
     # \long 容忍空行/\and 实参 (revpacs 残案)
     assert "\\AtBeginDocument{\\long\\def\\pacs#1{" in t
-    injected = t.split(mark, 1)[1].split("\\makeatother", 1)[0]
+    injected = t.split(mark, 1)[1].split("\\TeXlateAtRestore", 1)[0]
     assert "##" not in injected
-    assert "\\makeatletter" in t
-    assert "\\makeatother" in t
+    # exact-restore @=11 包裹 (无字面 makeatletter 对)
+    assert "\\catcode 64=11" in t
+    assert "\\TeXlateAtRestore" in t
+    assert "\\makeatletter" not in t
+    assert "\\makeatother" not in t
 
 
 def test_reject_no_breadcrumb(tmp_path: Path) -> None:

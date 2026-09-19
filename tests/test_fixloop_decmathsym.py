@@ -4,9 +4,9 @@ r"""decmathsym: ``_SITE_DEF_CMDS`` 数学声明族扩面 (resid209 census, 99010
 \upartial}`` 三处非致命 already_def —— DeclareMath{Symbol,Delimiter,Accent,
 Radical} 与 DeclareMathAlphabet 同走 ``\ifx\csname\@gobble\string#1\endcsname
 \relax`` 自有守卫 (latex.ltx:13462/13511/13594/13696 产 ``Command `\X'
-already defined``, 不经 ``\@ifdefinable``) → ``\let\X\@undefined`` 站点前置
+already defined``, 不经 ``\@ifdefinable``) → undefine 清位站点前置
 有效; end* 名亦无 ``\@qend`` 拒径 (守卫不查 ``\@ifdefinable``) → 仍走
-``\let`` 不换 rc@ 旁路。``\DeclareSymbolFontAlphabet`` 不入列: 守卫查的是
+undefine 不换 rc@ 旁路。``\DeclareSymbolFontAlphabet`` 不入列: 守卫查的是
 space-后缀伴生名 ``\X␣`` (latex.ltx:13753-13763), 清 ``\X`` 本体是徒劳。
 """
 
@@ -51,12 +51,14 @@ def test_decmathsym_ifnfsstwo_arm_cluster(tmp_path: Path) -> None:
     t = (tmp_path / "main.tex").read_text()
     for cs in ("upi", "umu", "upartial"):
         assert (
-            f"\\makeatletter\\let\\{cs}\\@undefined\\makeatother\n"
+            f"\\expandafter\\let\\csname {cs}\\endcsname\\TeXlateUndefCs\n"
             f"\\DeclareMathSymbol{{\\{cs}}}"
         ) in t, cs
     # 前置落在臂内 (\ifnfsstwo 与 \else 之间), 不泄出死臂语义
     assert (
-        t.index("\\ifnfsstwo") < t.index("\\let\\upi\\@undefined") < t.index("\\else")
+        t.index("\\ifnfsstwo")
+        < t.index("\\csname upi\\endcsname")
+        < t.index("\\else")
     )
 
 
@@ -86,7 +88,8 @@ def test_decmathsym_all_four_decl_sites(tmp_path: Path) -> None:
         ("sqrtsign", "DeclareMathRadical"),
     ):
         assert (
-            f"\\makeatletter\\let\\{cs}\\@undefined\\makeatother\n\\{cmd}{{\\{cs}}}"
+            f"\\expandafter\\let\\csname {cs}\\endcsname\\TeXlateUndefCs\n"
+            f"\\{cmd}{{\\{cs}}}"
         ) in t, cs
 
 
@@ -107,13 +110,14 @@ def test_decmathsym_unbraced_cs_site(tmp_path: Path) -> None:
     assert ok, note
     t = (tmp_path / "main.tex").read_text()
     assert (
-        "\\makeatletter\\let\\upi\\@undefined\\makeatother\n\\DeclareMathSymbol\\upi"
-    ) in t
-    assert "\\let\\umu\\@undefined" in t
+        "\\expandafter\\let\\csname upi\\endcsname\\TeXlateUndefCs\n"
+        "\\DeclareMathSymbol\\upi" in t
+    )
+    assert "\\csname umu\\endcsname\\TeXlateUndefCs" in t
 
 
 def test_decmathsym_endstar_name_keeps_let(tmp_path: Path) -> None:
-    r"""end* 名 × ``\DeclareMathSymbol`` 站仍走 ``\let\X\@undefined``:
+    r"""end* 名 × ``\DeclareMathSymbol`` 站仍走 undefine 清位:
     csname-freeze 守卫无 ``\@qend`` 恒拒径 (非 ``\@ifdefinable``),
     与 ``\newcommand`` 站换 rc@ 旁路的分流正好相反 —— 不可入
     ``_IFN_ROUTED_CMDS``。"""
@@ -129,15 +133,16 @@ def test_decmathsym_endstar_name_keeps_let(tmp_path: Path) -> None:
     assert ok, note
     t = (tmp_path / "main.tex").read_text()
     assert (
-        "\\makeatletter\\let\\endbaz\\@undefined\\makeatother\n"
+        "\\expandafter\\let\\csname endbaz\\endcsname\\TeXlateUndefCs\n"
         "\\DeclareMathSymbol{\\endbaz}"
     ) in t
     assert "rc@ifdefinable" not in t
 
 
 def test_decmathsym_sty_site_no_catcode_wrap(tmp_path: Path) -> None:
-    r""".sty 内 ``\DeclareMathSymbol`` 站前置裸 ``\let`` —— @ 本是
-    letter, ``\makeatother`` 尾注会烂掉其后 @-cs (同 .cls 钉)。"""
+    r""".sty 内 ``\DeclareMathSymbol`` 站前置 csname-let —— 零字面
+    ``@`` 任意宿主 catcode 可读; ``\makeatother`` 尾注会烂掉其后
+    @-cs (同 .cls 钉), 全局不分文件类统一 csname 形。"""
     _write_main(tmp_path, "\\begin{document}\nx\n\\end{document}\n")
     (tmp_path / "foo.sty").write_text(
         '\\DeclareMathSymbol{\\upi}{\\mathalpha}{letters}{"60}\n'
@@ -152,8 +157,14 @@ def test_decmathsym_sty_site_no_catcode_wrap(tmp_path: Path) -> None:
     )
     assert ok, note
     t = (tmp_path / "foo.sty").read_text()
-    assert "\\let\\upi\\@undefined\n\\DeclareMathSymbol{\\upi}" in t
-    assert "\\let\\umu\\@undefined\n\\DeclareMathSymbol{\\umu}" in t
+    assert (
+        "\\expandafter\\let\\csname upi\\endcsname\\TeXlateUndefCs\n"
+        "\\DeclareMathSymbol{\\upi}" in t
+    )
+    assert (
+        "\\expandafter\\let\\csname umu\\endcsname\\TeXlateUndefCs\n"
+        "\\DeclareMathSymbol{\\umu}" in t
+    )
     assert "makeatletter" not in t
     assert "makeatother" not in t
 
@@ -179,10 +190,10 @@ def test_decmathsym_unrelated_decls_untouched(tmp_path: Path) -> None:
     )
     assert ok, note
     t = (tmp_path / "main.tex").read_text()
-    assert "\\let\\umu\\@undefined" in t
-    assert "\\let\\upi" not in t  # provide 站点非恒拒名 —— 不动
-    assert "\\let\\mymath" not in t  # 守卫查 \mymath␣ 伴生名 —— 清本体徒劳
-    assert "\\let\\foo" not in t  # \SetMathAlphabet 不产 already_def 签
+    assert "\\csname umu\\endcsname\\TeXlateUndefCs" in t
+    assert "\\csname upi\\endcsname" not in t  # provide 站点非恒拒名 —— 不动
+    assert "\\csname mymath\\endcsname" not in t  # 守卫查 \mymath␣ 伴生名
+    assert "\\csname foo\\endcsname" not in t  # \SetMathAlphabet 不产签
 
 
 def test_decmathsym_single_site_declines_min_batch(tmp_path: Path) -> None:
@@ -219,4 +230,4 @@ def test_decmathsym_commented_site_not_counted(tmp_path: Path) -> None:
     assert not ok
     assert "<2" in note
     t = (tmp_path / "main.tex").read_text()
-    assert "\\let\\upi\\@undefined" not in t
+    assert "\\csname upi\\endcsname" not in t

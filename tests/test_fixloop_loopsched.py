@@ -225,7 +225,7 @@ def test_install_landing_refires_site_arm(tmp_path: Path) -> None:
     cell = fixloop(tmp_path, eng, ruleset=load_ruleset())
     assert cell["verdict"] == "clean"
     qux = (tmp_path / "qux.sty").read_text(encoding="utf-8")
-    assert "\\let\\zz\\@undefined" in qux  # 落件文件吃到站点前置
+    assert "\\csname zz\\endcsname\\TeXlateUndefCs" in qux  # 落件吃到站点前置
     acts = [a["rule"] for a in cell["actions"]]
     # 烧键过期 → 同规则两轮各应用一次 (r1 清位 + r3 落件站点)
     assert acts.count("already_def_undefine") == 2  # noqa: PLR2004
@@ -263,7 +263,7 @@ def test_overwrite_landing_invalidates_site_cache(tmp_path: Path) -> None:
     cell = fixloop(tmp_path, eng, ruleset=load_ruleset())
     assert cell["verdict"] == "clean"
     foo = (tmp_path / "foo.sty").read_text(encoding="utf-8")
-    assert "\\let\\ww\\@undefined" in foo
+    assert "\\csname ww\\endcsname\\TeXlateUndefCs" in foo
     acts = [a["rule"] for a in cell["actions"]]
     assert acts.count("already_def_undefine") == 2  # noqa: PLR2004
 

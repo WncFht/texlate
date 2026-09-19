@@ -121,7 +121,7 @@ def test_kernel_wrap_injected(tmp_path: Path) -> None:
     assert "\\long\\def\\NR@gettitle#1{\\TL@pl@strip{#1}" in t
     assert "\\long\\def\\TL@pl@NR@gettitle@si#1{\\TL@pl@NR@gettitle{#1}}" in t
     # wrap 块落在 \begin{document} 前 (aux 读死线)
-    assert t.index("\\makeatletter") < t.index("\\begin{document}")
+    assert t.index("\\catcode 64=11") < t.index("\\begin{document}")
     assert "\\ifdefined\\NR@gettitle" in t
 
 
