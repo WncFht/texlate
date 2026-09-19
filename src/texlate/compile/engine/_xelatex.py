@@ -150,6 +150,9 @@ class XelatexEngine:
         dirs = []
         if dist:
             dirs.append(str(Path(dist) / "fonts" / "opentype"))
+            # truetype 树同注册 (tinos/noto 等 google ttf 家族)——名查找字体
+            # 在 truetype 的格此前必炸 fontspec_missing (2609.20064 实证)。
+            dirs.append(str(Path(dist) / "fonts" / "truetype"))
         home_ot = (
             self.texmfhome / "home" / "fonts" / "opentype"
             if self.texmfhome

@@ -427,3 +427,95 @@ rules:
         }
     stats: { fires: 3, rescued_cells: 1, status: active }
     source_ref: "task #169 misscharcen wave-2; tmp/lane-misscharcen/cells.json ^^80/^^93 rows"
+
+  # ─── fontfb-A (2026-09-20, singlesweep 普查 font-not-installed 桶 7 格) ───
+  # fontspec_missing 精确臂: install_sysfont(30) 装不上 (家族名 payload 无
+  # filemap 档) 与 font_name_substitute(31) 无差别换 Latin Modern 之间,
+  # 按度量克隆表替换 —— Nimbus 系 → TeX Gyre 同源克隆 (otf 在 texmf
+  # opentype 树), Tinos/NotoSerif → texmf truetype 同件文件形名
+  # (Path = fonts/… 捆绑键剥除后保作者字体)。克隆件一律**文件形名**
+  # —— fixloop run_tool 面无 FONTCONFIG_FILE 注入, fc-list 对 texmf
+  # 字族恒盲, 唯 eng.probe_file (kpathsea) 与 fontspec 文件查找同路;
+  # probe 实证可达才动笔, 全灭 decline 落回 31 号 LM 臂。payload 茎
+  # 不在表 → decline (Amiri TL 内外皆无度量克隆 = lane 裁决 unfixable,
+  # 不发错字体声明; FontAwesome.otf 普查后 texlive 补装已自愈)。
+  # 跨分片 note: 类目主场在 50-font.yaml, 臂随 font_fallback 族 builtin
+  # 叶 (_builtins_misschar) 归本shard。
+  - id: fontspec_clone_sub
+    description: "fontspec 名查找缺字体 → 度量克隆/同件文件形名替换 + Path/Extension/*Font 捆绑键剥除"
+    phase: loop
+    order: 30.5 # install_sysfont(30) 后, font_name_substitute(31) LM 兜底前 —— 精确先于通用
+    when: { category: fontspec_missing, payload_required: true }
+    action:
+      kind: builtin_transform
+      function: fontspec_clone_sub
+      params:
+        exts: [.tex, .sty, .cls]
+        # 归一化茎 → 文件形替换名 (builtin _CLONE_TABLE 同表; 此显式重述
+        # 供按格覆盖)。文件形 = kpathsea 可探测; fontspec 对文件形名
+        # 自动同目录补全字重 (texgyretermes/Tinos/NotoSerif 实测)。
+        clone_table:
+          "nimbus roman": "texgyretermes-regular.otf"
+          "nimbus sans": "texgyreheros-regular.otf"
+          "nimbus mono ps": "texgyrecursor-regular.otf"
+          "tinos": "Tinos-Regular.ttf"
+          "notoserif": "NotoSerif-Regular.ttf"
+    risk: medium # 字体观感改变 (度量克隆等价); Path 捆绑剥除改变解析路径
+    known_gap: "cs 面未覆盖 addfontfeatures/默认字体链外声明 → applied=False; 克隆件缺席环境 decline 落 LM 臂"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same } # probe_file 只查工程内 → texmf 文件形候选恒 miss → decline 落 LM 臂
+    provenance:
+      - {
+          corpus: "soak-2026-09-18 (2609.19582 main.tex \\setmainfont{Nimbus Roman}/Sans/Mono PS ×3 站点)",
+          error: 'fontspec_missing|Nimbus Roman — URW nimbus 只发 TFM/pfb → TeX Gyre 同源克隆',
+        }
+      - {
+          corpus: "soak-2026-09-18 (2609.20064 anthology-ch.cls \\setmainfont{Tinos}[Path=fonts/Tinos/] + \\newfontfamily\\scfallbackfont{NotoSerif}[Path=fonts/Noto_Serif/])",
+          error: "fontspec_missing|Tinos-Regular — 同件在 texmf truetype 树, Path 捆绑毒化名解析",
+        }
+      - {
+          corpus: "soak-2026-09-18 (2609.20684 \\babelfont[arabic]{rm}{Amiri-Regular.ttf})",
+          error: "fontspec_missing|Amiri-Regular — TL 内外无度量克隆 → 表外 decline 诚实 unfixable",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "task #293 fontfb lane; tmp/lane-singlesweep/mech_buckets.json font-not-installed"
+
+  # ─── fontfb-B (2026-09-20, singlesweep 普查 fontenc-def-absent 桶 3 格) ───
+  # missing_file|<enc>enc.def 末位改写臂: install_file(10) filemap 档
+  # (t2aenc→cyrillic / lgrenc→greek-fontenc) 与 vendored_fetch(11.5) 真件
+  # (两 def 皆 vendor/files 在档) 都 decline 后才到 —— 面向既无档又无
+  # vendor 件的 enc.def。全文无 \fontencoding{ENC}/\DeclareText*{..}{ENC}
+  # 使用点时: fontenc 选项表摘 ENC (表空连方括号去, \usepackage{fontenc}
+  # TU 默认无害) + 裸 \DeclareFontEncoding 行注释。ENC 在使 → decline
+  # (T2A→OT2 换编码产 mojibake, 无安全替代 = unfixable)。2211.13021/
+  # 2609.19346 T2A 只载不用 → 摘; 1312.0514 LGR \textgreek 在用 →
+  # vendored 真件先行, 本臂够不到。
+  - id: fontenc_enc_relax
+    description: "<enc>enc.def 缺档且全文未用 → fontenc 选项表摘 enc + 裸 DeclareFontEncoding 行注释"
+    phase: loop
+    order: 11.995 # 全真件臂 (install 10/vendored 11.5/greek_fontenc 11.6/retire 族) 后, shim(12)/doc_absent_stub(12.95) 前 —— 真件 > 摘 > 假件
+    when: { category: missing_file, payload_required: true }
+    condition:
+      ctx_suggests: "enc\\.def" # 只对 enc.def 缺失错点火 (err_head 含 't2aenc.def' 等); 其他 missing_file 不烧 stats
+    action:
+      kind: builtin_transform
+      function: fontenc_enc_relax
+      params:
+        exts: [.tex, .sty, .cls]
+    risk: medium # enc 摘除改变文档声明面; 仅全文零使用时动手
+    known_gap: "enc 经 babel ldf/包内传递请求 (装载点不在 fileset) → decline; \\input 直读 .def 罕见形未收"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "soak-2026-09-18 (2211.13021/2609.19346 \\usepackage[T2A]{fontenc} 只载不用)",
+          error: "missing_file|t2aenc.def — texlive-lang* 缺席; filemap cyrillic/vendor 真件先行",
+        }
+      - {
+          corpus: "soak-2026-09-18 (1312.0514 \\usepackage[LGR,T1]{fontenc} + \\textgreek 在用)",
+          error: "missing_file|lgrenc.def — vendored lgrenc.def 先行; 在用 enc 本臂 decline",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "task #293 fontfb lane; tmp/lane-singlesweep/mech_buckets.json fontenc-def-absent"
