@@ -47,14 +47,8 @@ const SAVE_DEBOUNCE_MS = 1000;
 const SPLIT_MIN = 0.15;
 const SPLIT_MAX = 0.85;
 
-// putPosition 的 keepalive 透传项由 fe-live 侧契约补型——本地宽类型先行
-// （参数形一致后该别名即冗余，删了无妨）
-type PutPosition = (
-    taskId: string,
-    state: ReadingState & { swapped?: boolean },
-    opts?: { keepalive?: boolean },
-) => Promise<unknown>;
-const putPosition = api.putPosition as PutPosition;
+// putPosition 契约已补全（ReaderKeep=ReadingState 含 swapped，keepalive 透传项在
+// rest.ts 签名上）——直接调 api，不再需要本地宽类型别名
 
 interface Props {
     taskId: string;
@@ -330,8 +324,7 @@ export default function ReaderView(props: Props) {
         }
         // 无可写位置（窗格未挂/已卸）不发——空表会覆盖服务端已存位置
         if (Object.keys(positions).length === 0) return;
-        // swapped 字段后于 ReadingState 落地——宽类型携带，服务端列已收
-        const state: ReadingState & { swapped?: boolean } = {
+        const state: ReadingState = {
             positions,
             active: active(),
             mode: mode(),
@@ -340,7 +333,7 @@ export default function ReaderView(props: Props) {
             swapped: swapped(),
             document_version: info()?.documents.translated?.version,
         };
-        void putPosition(props.taskId, state, opts).catch(() => undefined);
+        void api.putPosition(props.taskId, state, opts).catch(() => undefined);
     };
 
     const persistPosition = () => {
@@ -383,30 +376,30 @@ export default function ReaderView(props: Props) {
         persistPosition();
     };
 
-    // 滚动侧记小旗，rAF 里一次采样——scroll 事件每帧多次也只读一次几何
-    let scrolledSide: DocId | null = null;
+    // 滚动侧记集合，rAF 里一次采样——同帧双侧都滚（同步回声带 user scroll
+    // 语义时）两侧页码都回写，不是只留最后进事件的一侧
+    const scrolledSides = new Set<DocId>();
 
     const onUserScroll = (side: DocId) => {
         persistPosition();
-        scrolledSide = side;
+        scrolledSides.add(side);
         // 双侧滚动+程序化回声每事件都进来——合帧到一次几何采样
         if (driftRaf) return;
         driftRaf = window.requestAnimationFrame(() => {
             driftRaf = 0;
-            const s = scrolledSide;
-            scrolledSide = null;
+            const sides = [...scrolledSides];
+            scrolledSides.clear();
             // 滚动侧页码回写（dom/html 无 pdfjs pagechanging 事件，走 capturePos；
             // 几何缓存已在，成本近零；pdf 侧与 onPageChange 同源一致）
-            if (s) {
+            for (const s of sides) {
                 const h = handles()[s];
-                if (h) {
-                    try {
-                        const p = capturePos(h).page;
-                        if (p !== pageNums()[s])
-                            setPageNums((prev) => ({ ...prev, [s]: p }));
-                    } catch {
-                        /* 拆解期 slick 已空 */
-                    }
+                if (!h) continue;
+                try {
+                    const p = capturePos(h).page;
+                    if (p !== pageNums()[s])
+                        setPageNums((prev) => ({ ...prev, [s]: p }));
+                } catch {
+                    /* 拆解期 slick 已空 */
                 }
             }
             updateDrift();
@@ -536,6 +529,16 @@ export default function ReaderView(props: Props) {
         ["?", t.reader.helpHelp],
     ];
 
+    // 帮助浮层打开时聚焦卡片本体——键盘用户随即 Esc/点击之外有焦点落点；
+    // 卡片是唯一可聚焦物，Tab 拦下即闭环（无内部控件可循环）
+    let helpCard!: HTMLDivElement;
+    createEffect(() => {
+        if (helpOpen()) queueMicrotask(() => helpCard?.focus());
+    });
+    const onHelpKey = (e: KeyboardEvent) => {
+        if (e.key === "Tab") e.preventDefault();
+    };
+
     return (
         <>
             {/* 终态阅读器（左右互换走 CSS row-reverse，逻辑侧不变） */}
@@ -592,11 +595,15 @@ export default function ReaderView(props: Props) {
                 <div
                     class="kbd-help"
                     role="dialog"
+                    aria-modal="true"
                     aria-label={t.reader.helpTitle}
                     onClick={() => setHelpOpen(false)}
+                    onKeyDown={onHelpKey}
                 >
                     <div
                         class="kbd-help-card"
+                        ref={(el) => (helpCard = el)}
+                        tabIndex={-1}
                         onClick={(e) => e.stopPropagation()}
                     >
                         <h2 class="rp-status">{t.reader.helpTitle}</h2>
