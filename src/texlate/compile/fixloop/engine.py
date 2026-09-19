@@ -973,7 +973,7 @@ def precheck_pass(  # noqa: PLR0913 -- 与 fixloop 同契约的注入面
     ``main_rel`` 缺省时 ``find_main_tex`` 宽松档推导；无主档置空串
     （预检的 source_contains/扫描原语只读工程树，不依赖主档存在）。
     """
-    rs = ruleset or Ruleset.load()
+    rs = ruleset or Ruleset.load(tolerant=True)
     engine_name = engine_name or getattr(
         eng, "name", rs.meta.get("engine_default", "xelatex")
     )
@@ -982,6 +982,7 @@ def precheck_pass(  # noqa: PLR0913 -- 与 fixloop 同契约的注入面
         main = find_main_tex(wdir)
         main_rel = str(main.relative_to(wdir)) if main is not None else ""
     ctx = LoopCtx(wdir=wdir, engine_name=engine_name, main_rel=main_rel, runner=runner)
+    ctx.ledger.advisories.extend(rs.skipped_rules)
     _wire_engine(eng, rs, wdir, ctx)
     verdict, route = _precheck_phase(rs, ctx, eng)
     pre = {
@@ -1030,7 +1031,7 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
     调用（含 salvage 兜底轮），entry 与 cell 内同对象——server worker
     借此发 SSE 实况帧；None 时零开销，e2e/bench 直调臂行为不变。
     """
-    rs = ruleset or Ruleset.load()
+    rs = ruleset or Ruleset.load(tolerant=True)
     engine_name = engine_name or getattr(
         eng, "name", rs.meta.get("engine_default", "xelatex")
     )
@@ -1068,6 +1069,7 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
         "main_fallback": None,
     }
     ctx = LoopCtx(wdir=wdir, engine_name=engine_name, runner=runner, llm_hook=llm_hook)
+    ctx.ledger.advisories.extend(rs.skipped_rules)
 
     main: Path | None = None
     if main_rel is not None:

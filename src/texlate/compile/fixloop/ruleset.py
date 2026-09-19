@@ -251,14 +251,41 @@ def _ruleset_fingerprint(p: Path) -> tuple[tuple[str, int, int], ...] | None:
 class Ruleset:
     """``rules/`` 规则库装载结果: meta + taxonomy + rules + filemap/capabilities。"""
 
-    def __init__(self, data: dict[str, Any], path: Path | None = None) -> None:
-        """校验 data → 切 meta/taxonomy/rules 三段 + phase 索引。"""
+    def __init__(
+        self, data: dict[str, Any], path: Path | None = None, *, tolerant: bool = False
+    ) -> None:
+        """校验 data → 切 meta/taxonomy/rules 三段 + phase 索引。
+
+        ``tolerant=True``：rule 级问题（缺字段/非法 phase/未知 builtin 等）
+        只弃肇事规则并记 ``skipped_rules``——yaml 与代码版本错位（server
+        跑旧 .py 读新 rules/）时一条坏规则不再击穿整条修复臂；file 级
+        问题（version/顶层结构/dup id）照旧 raise。严格模式（默认）行为
+        不变，仍是写规则的验证面。
+        """
         self.path = path
+        self.skipped_rules: list[str] = []
+        if tolerant:
+            file_probs = self._file_problems(data)
+            if file_probs:
+                where = str(self.path) if self.path is not None else "rules/"
+                raise RulesetError(
+                    f"规则库 {where} 校验失败:\n" + "\n".join(file_probs)
+                )
+            keep: list[dict[str, Any]] = []
+            for i, r in enumerate(data.get("rules") or []):
+                tag = r.get("id", f"#{i}") if isinstance(r, dict) else f"#{i}"
+                probs = self._rule_problems(r, tag)
+                if probs:
+                    self.skipped_rules.extend(probs)
+                else:
+                    keep.append(r)
+            data = {**data, "rules": keep}
+        else:
+            problems = self._validate(data)
+            if problems:
+                where = str(self.path) if self.path is not None else "rules/"
+                raise RulesetError(f"规则库 {where} 校验失败:\n" + "\n".join(problems))
         self.raw = data
-        problems = self._validate(data)
-        if problems:
-            where = str(self.path) if self.path is not None else "rules/"
-            raise RulesetError(f"规则库 {where} 校验失败:\n" + "\n".join(problems))
         self.meta: dict[str, Any] = data.get("meta") or {}
         self.loop_cfg: dict[str, Any] = self.meta.get("loop") or {}
         self.filemap_cfg: dict[str, Any] = data.get("filemap") or {}
@@ -275,67 +302,84 @@ class Ruleset:
         }
 
     @staticmethod
-    def _validate(data: dict[str, Any]) -> list[str]:  # 校验项逐条即分支
-        probs: list[str] = []
+    def _file_problems(data: dict[str, Any]) -> list[str]:
+        """文件级校验项（version/顶层结构/dup id）——tolerant 也照常 raise。"""
         if not isinstance(data, dict):
             return ["顶层必须是 map"]
+        probs: list[str] = []
         if data.get("version") != 1:
             probs.append(f"version 应为 1, 得 {data.get('version')!r}")
         probs.extend(_dup_id_problems(data.get("rules") or []))
+        return probs
+
+    @staticmethod
+    def _rule_problems(r: Any, tag: str) -> list[str]:  # noqa: ANN401  # yaml 值天然 Any; 校验项逐条即分支
+        """单条规则的校验项——tolerant 模式下命中即整条弃用。"""
+        probs: list[str] = []
+        if not isinstance(r, dict):
+            return [f"rule {tag}: 必须是 map"]
+        probs.extend(
+            f"rule {tag}: 缺字段 {k}"
+            for k in ("id", "phase", "when", "action")
+            if k not in r
+        )
+        if r.get("phase") not in _PHASES:
+            probs.append(f"rule {tag}: phase 非法 {r.get('phase')!r}")
+        probs.extend(_when_problems(r.get("when"), tag))
+        probs.extend(_cond_problems(r.get("condition"), tag))
+        kind = (r.get("action") or {}).get("kind")
+        if kind not in _ACTION_KINDS:
+            probs.append(f"rule {tag}: action.kind 非法 {kind!r}")
+        fn = (r.get("action") or {}).get("function")
+        if kind == "builtin_transform" and fn not in builtins.TRANSFORM_FNS:
+            probs.append(f"rule {tag}: 未知 builtin_transform {fn!r}")
+        rewrites = ((r.get("action") or {}).get("params") or {}).get("rewrites") or []
+        probs.extend(
+            f"rule {tag}: 未知 rewrite function {rw['function']!r}"
+            for rw in rewrites
+            if "function" in rw and rw["function"] not in builtins.REWRITE_FNS
+        )
+        probs.extend(
+            f"rule {tag}: match_surface 非法 {rw['match_surface']!r}"
+            for rw in rewrites
+            if "match_surface" in rw and rw["match_surface"] not in _MATCH_SURFACES
+        )
+        mechs = r.get("mechanisms")
+        if mechs is not None and not (
+            isinstance(mechs, list)
+            and all(isinstance(m, str) and _MECH_ID_RX.match(m) for m in mechs)
+        ):
+            probs.append(f"rule {tag}: mechanisms 必须是 [BTW]\\d+ 形标签列表")
+        for eng_name, spec in (r.get("engines") or {}).items():
+            mode = (spec or {}).get("mode")
+            if mode not in _MODES:
+                probs.append(f"rule {tag}: engines.{eng_name}.mode 非法 {mode!r}")
+        return probs
+
+    @staticmethod
+    def _validate(data: dict[str, Any]) -> list[str]:  # 校验项逐条即分支
+        probs = Ruleset._file_problems(data)
+        if not isinstance(data, dict):
+            return probs
         for i, r in enumerate(data.get("rules") or []):
-            tag = r.get("id", f"#{i}")
-            probs.extend(
-                f"rule {tag}: 缺字段 {k}"
-                for k in ("id", "phase", "when", "action")
-                if k not in r
-            )
-            if r.get("phase") not in _PHASES:
-                probs.append(f"rule {tag}: phase 非法 {r.get('phase')!r}")
-            probs.extend(_when_problems(r.get("when"), tag))
-            probs.extend(_cond_problems(r.get("condition"), tag))
-            kind = (r.get("action") or {}).get("kind")
-            if kind not in _ACTION_KINDS:
-                probs.append(f"rule {tag}: action.kind 非法 {kind!r}")
-            fn = (r.get("action") or {}).get("function")
-            if kind == "builtin_transform" and fn not in builtins.TRANSFORM_FNS:
-                probs.append(f"rule {tag}: 未知 builtin_transform {fn!r}")
-            rewrites = ((r.get("action") or {}).get("params") or {}).get(
-                "rewrites"
-            ) or []
-            probs.extend(
-                f"rule {tag}: 未知 rewrite function {rw['function']!r}"
-                for rw in rewrites
-                if "function" in rw and rw["function"] not in builtins.REWRITE_FNS
-            )
-            probs.extend(
-                f"rule {tag}: match_surface 非法 {rw['match_surface']!r}"
-                for rw in rewrites
-                if "match_surface" in rw and rw["match_surface"] not in _MATCH_SURFACES
-            )
-            mechs = r.get("mechanisms")
-            if mechs is not None and not (
-                isinstance(mechs, list)
-                and all(isinstance(m, str) and _MECH_ID_RX.match(m) for m in mechs)
-            ):
-                probs.append(f"rule {tag}: mechanisms 必须是 [BTW]\\d+ 形标签列表")
-            for eng_name, spec in (r.get("engines") or {}).items():
-                mode = (spec or {}).get("mode")
-                if mode not in _MODES:
-                    probs.append(f"rule {tag}: engines.{eng_name}.mode 非法 {mode!r}")
+            tag = r.get("id", f"#{i}") if isinstance(r, dict) else f"#{i}"
+            probs.extend(Ruleset._rule_problems(r, tag))
         return probs
 
     @classmethod
-    def load(cls, path: Path | None = None) -> Ruleset:
+    def load(cls, path: Path | None = None, *, tolerant: bool = False) -> Ruleset:
         """装载规则库 (默认本包附带 ``rules/`` 目录; 也接受单文件路径)。
 
         进程内按 ``(路径, 分片指纹)`` 缓存展开后纯数据, 命中 deepcopy 返回
         (见 ``_RULESET_CACHE`` 注 —— 调用方原地改写不外溢); 指纹漂移
         (分片增/删/改) 或不可 stat 时重走全量装载。
+        ``tolerant=True`` 是运行时面 (fixloop/precheck 两臂): rule 级
+        校验失败只弃该条记 ``skipped_rules``, 不击穿整条修复臂。
         """
         p = path or RULES_PATH
         fp = _ruleset_fingerprint(p)
         if fp is None:
-            return cls(_expand_family_tokens(load_yaml(p)), path=p)
+            return cls(_expand_family_tokens(load_yaml(p)), path=p, tolerant=tolerant)
         key = str(p)
         hit = _RULESET_CACHE.get(key)
         if hit is None or hit[0] != fp:
@@ -343,7 +387,7 @@ class Ruleset:
                 _RULESET_CACHE.clear()
             hit = (fp, _expand_family_tokens(load_yaml(p)))
             _RULESET_CACHE[key] = hit
-        return cls(copy.deepcopy(hit[1]), path=p)
+        return cls(copy.deepcopy(hit[1]), path=p, tolerant=tolerant)
 
     def phase(self, name: str) -> list[Rule]:
         """某 phase 的规则按 order 升序。"""
@@ -354,6 +398,6 @@ class Ruleset:
         return int(self.loop_cfg.get("max_rounds", 8))
 
 
-def load_ruleset(path: Path | None = None) -> Ruleset:
+def load_ruleset(path: Path | None = None, *, tolerant: bool = False) -> Ruleset:
     """``Ruleset.load`` 的函数式入口。"""
-    return Ruleset.load(path)
+    return Ruleset.load(path, tolerant=tolerant)

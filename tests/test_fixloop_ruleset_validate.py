@@ -20,7 +20,7 @@ from pathlib import Path
 import pytest
 import regex
 
-from texlate.compile.fixloop import Ruleset, RulesetError
+from texlate.compile.fixloop import Ruleset, RulesetError, load_ruleset
 from texlate.compile.fixloop.engine import _dep_stems
 
 _RULE_A = (
@@ -28,6 +28,10 @@ _RULE_A = (
 )
 _RULE_B = (
     "{id: b, phase: loop, order: 1, when: {always: true}, action: {kind: run_tool}}"
+)
+_RULE_BAD_BUILTIN = (
+    "{id: bad, phase: loop, order: 2, when: {always: true},"
+    " action: {kind: builtin_transform, function: nope_missing}}"
 )
 
 
@@ -75,6 +79,60 @@ def test_shipped_ruleset_no_dup_ids() -> None:
     rs = Ruleset.load()
     ids = [r.id for r in rs.rules]
     assert len(ids) == len(set(ids))
+
+
+# ------------------------------------------------------------ tolerant 装载
+def test_tolerant_load_drops_unknown_builtin(tmp_path: Path) -> None:
+    """``tolerant=True``：未知 builtin_transform 只弃该条记 ``skipped_rules``——
+    yaml/代码版本错位（server 跑旧 .py 读新 rules/）时一条坏规则不再击穿
+    整条修复臂（5+ 任务 RulesetError 全灭实证）。"""
+    shard = tmp_path / "a.yaml"
+    shard.write_text(_shard(_RULE_A, _RULE_BAD_BUILTIN), encoding="utf-8")
+    rs = Ruleset.load(shard, tolerant=True)
+    assert [r.id for r in rs.rules] == ["a"]
+    assert len(rs.skipped_rules) == 1
+    assert "bad" in rs.skipped_rules[0]
+    assert "nope_missing" in rs.skipped_rules[0]
+
+
+def test_strict_load_still_rejects_unknown_builtin(tmp_path: Path) -> None:
+    """严格默认面不变：同规则照旧 raise——写规则的验证面不收。"""
+    shard = tmp_path / "a.yaml"
+    shard.write_text(_shard(_RULE_A, _RULE_BAD_BUILTIN), encoding="utf-8")
+    with pytest.raises(RulesetError, match="未知 builtin_transform"):
+        Ruleset.load(shard)
+
+
+def test_tolerant_still_raises_file_level(tmp_path: Path) -> None:
+    """file 级问题（dup id / version）tolerant 也照常 raise——只放 rule 级。"""
+    shard = tmp_path / "a.yaml"
+    shard.write_text(_shard(_RULE_A, _RULE_A), encoding="utf-8")
+    with pytest.raises(RulesetError, match="重复定义"):
+        Ruleset.load(shard, tolerant=True)
+    bad = tmp_path / "b.yaml"
+    bad.write_text("version: 2\nrules: []\n", encoding="utf-8")
+    with pytest.raises(RulesetError, match="version"):
+        Ruleset.load(bad, tolerant=True)
+
+
+def test_tolerant_drops_non_map_rule(tmp_path: Path) -> None:
+    """非 map 规则项同弃——rule 级问题一律单条弃用不炸库。"""
+    shard = tmp_path / "a.yaml"
+    shard.write_text(
+        'version: 1\nrules:\n  - "x"\n  - ' + _RULE_A + "\n", encoding="utf-8"
+    )
+    rs = Ruleset.load(shard, tolerant=True)
+    assert [r.id for r in rs.rules] == ["a"]
+    assert rs.skipped_rules
+
+
+def test_load_ruleset_tolerant_passthrough(tmp_path: Path) -> None:
+    """``load_ruleset`` 函数入口透传 tolerant 开关。"""
+    shard = tmp_path / "a.yaml"
+    shard.write_text(_shard(_RULE_A, _RULE_BAD_BUILTIN), encoding="utf-8")
+    rs = load_ruleset(shard, tolerant=True)
+    assert [r.id for r in rs.rules] == ["a"]
+    assert rs.skipped_rules
 
 
 def test_dep_input_braced_no_space_form(tmp_path: Path) -> None:
