@@ -1210,3 +1210,12 @@
 - 门: L0 1544 绿✓; L1 N/A (无 parse 面动); ③83up✓; ④sab 0 逃逸 (15/15+0down)✓; ⑤单调✓。裁决点 3 件仍待用户 (#10/ds@/verdict 排序)。
 - **backlog 增**: blx@bbl@data polyfill 扩 (1 格实证), pfa→pfb t1binary 规 (1 格), kaist-ucs pretokenized binding (2403.00013 flag-only), missing_char_fix cjk_warmup kotex 误派 condition 注, .lean exts 外 (2105.00041 flag)。
 - roster 2: ds209diag(#191)/c0diag(C0 残面 census——misschar3 flagged 1003.0694 族)。
+
+### 2026-09-19 ~14:4x tick — blx@bbl@data c220f2f7 + AUTOBIB csname 统一 bd31e0c6 + inject 批开跑
+- **`c220f2f7` blx@bbl@data scratch 指针 (2 件 +13/−1)**: sortlist polyfill `\begingroup` 组内补 `\csname blx@bbl@data\endcsname→blx@data@tlsv` 指针宏 + 预建空目标 `\csname blx@data@tlsv\endcsname{}`。机制终证: bbl-2.8 `\true`/`\false` 选项行被 `\blx@bblstart` (biblatex.sty:8996,:9018-19) let 到真 `\blx@bbl@booltrue/false`, 其 `\csgappto` 写经 `\blx@bbl@data` —— 该指针仅真 `\blx@bbl@entry` 自组内 edef (:8687), 我方 gobble `\entry` 不设 → undefined_cs (1706.02744 `\true{moreauthor}`)。gobble `\true` 不可行 (bblstart 组内 let 遮蔽全局 def) → scratch 指针对一切写经此指针的 handler 通吃。**live 实证: 1706.02744 → clean fixloop=clean** (10.76s, `--rerun` 重建后新 emit 落盘)。
+- **`bd31e0c6` AUTOBIB_DISARM csname 统一 (4 件 +23/−16)**: normalize.py:654 `\makeatletter\@ifundefined` 旧形 → `_builtins_bib` 同款 `\ifcsname`/`\csname` 形 (2105.11398 同源隐患——`\bibliography` 站落已 tokenize def 体则 @=12 裸字母炸)。test_fixloop_bblauto `_DISARM_NORM=_DISARM_FIXLOOP` 合一 + compile_normalize×2 + fuzz_normalize×1 断言换形; 全库 grep 零旧形残; 147+1542 测绿。
+- **c0diag 交付处置**: 1003.0694 picinpar C0-sweep = 源生 `\computeilg` 已豁免, census 记 (e2fc7562 ~09:41) 是 gate (3263c223 11:49) 前陈旧档 —— replay 自清无修。**新 backlog**: 1206.0240 `^^@`×179 + 1306.0294 `^^A`×20 = `\usepackage[pdftex]{graphicx,color}` xelatex 下装 pdftex.def → `\pdfcolorstack` undefined 错误恢复留 chardef-0 排印 → driver-option strip 规候选 (fixloop 侧); 1706.07495 cp1252 `^^XX` mojibake → cp1252 decode arm 候选 (~15 C1 格多陈旧, 低优)。1706.02694 OT1 slot drift/2406.12080 `\char6` 族已文档化无动。陈旧档已 clean×5 注记。
+- **inject 批 (mutex 持, texlate-bb 互诺 ping)**: 2/4 项已落 (blx@bbl@data 属 fixloop 域实际不占 mutex; AUTOBIB 占 normalize 已毕)。余 2 项派工: `injfix` = \bd fix (0905.0876/hep-th/0307203/hep-th/9910011) + standalone-class 门扩 (#168 二级); `envspec` = segmenter env argspec 注册 (translatedabstract/Mizar)。
+- **ds209diag #191 二催**: idle 18m 无报告, 已 SendMessage 催办。
+- 门: L0 1542+147 绿✓; Ruleset.load()=139✓; 1706.02744 靶翻实证 (③); sab 0 (本 tick 无新跑, 前波 15/15 仍持)✓; clean% 单调 (83up+本格 up, 0 down)✓。裁决点 3 件仍待用户 (#10/ds@/verdict 排序)。
+- roster 3: injfix/envspec 跑道中; ds209diag 待报。c0diag 待关。
