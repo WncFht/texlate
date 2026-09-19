@@ -1574,3 +1574,201 @@ def spacefactor_atdef_wrap(
             ctx.write(f, out)
             changed.append(f"{f.name}(x{len(edits)})")
     return (bool(changed)), f"@def exact-restore wrap in {', '.join(changed)}"
+
+
+# ═══ \def\X<lit> 字面尾译文蚀除 → 逐站补回 (csdelim lane, 5 cells) ═══
+
+#: TeX 错误头 ``Use of \X doesn't match its definition.`` —— X 是 def 时
+#: 带字面参数文本的 cs。``\S+?`` 懒惰: 词型 (``\ch``) 收满字母段,
+#: 符型 (``\0``/``\~``) 收单字符。
+_MISMATCH_ERR_RE = re.compile(r"Use of \\(\S+?) doesn't match its definition")
+
+#: ``\def`` 族的 cs 名 + 字面参数尾 —— 前缀 ``\long``/``\outer``/
+#: ``\protected``/``\global`` 可叠, 本体 ``[egx]def``。尾 = ``{``/换行前的
+#: 原文: ``\def\c3h2{`` → ``3h2``; ``\def\b {`` → 空 (裸参宏); ``\def\a#1{``
+#: → ``#1`` 含 ``#`` 即真参宏, 不收。``\``/``{``/``}`` 入尾同理不收。
+_DEF_TAIL_RE = re.compile(
+    r"(?:\\(?:long|outer|protected|global)\s*)*"
+    r"\\[egx]?def\s*"
+    r"\\([A-Za-z@]+|[^A-Za-z\s])"
+    r"([^\n{]*)"
+)
+
+#: 词型 cs 后的空白吸收 —— TeX 在 control word 后跳过 space token 序列
+#: (``\n`` 亦按一 space 计); 符型 cs 不吸收 (``\0 `` 的空格进正文)。
+_DELIM_SKIP_RE = re.compile(r"[ \t]*(?:\n[ \t]*)?")
+
+#: 字面尾不可含的字符 —— ``#`` 真参 / ``\`` cs / ``{}`` 定界, 皆出机制面。
+_TAIL_BAD_RE = re.compile(r"[#\\{}]")
+
+
+def _tail_align(vis: str, pos: int, rest: str) -> tuple[int, int, int]:
+    r"""``rest`` 在 ``vis[pos:]`` 上的乱序对齐 → (consumed, end, junk)。
+
+    逐字符扫: 命中 ``rest[i]`` 前进; 非 ASCII 字 (译文残骸) 跳过记 junk;
+    ASCII 未命中时仅在 junk 已见 (有蚀除证据) 时前视 ``rest`` 后段 ——
+    蚀除吃掉的是居间 tail 字。``end`` = 最后一枚命中字符的后界。
+    """
+    i = 0
+    q = pos
+    last = pos
+    junk = 0
+    seen = False
+    n = len(vis)
+    while q < n and i < len(rest):
+        c = vis[q]
+        if c == rest[i]:
+            i += 1
+            q += 1
+            last = q
+            seen = False
+        elif not c.isascii():
+            q += 1
+            junk += 1
+            seen = True
+        elif seen:
+            nxt = rest.find(c, i)
+            if nxt < 0:
+                break
+            i = nxt + 1
+            q += 1
+            last = q
+            seen = False
+        else:
+            break
+    return i, last, junk
+
+
+def _delim_sites(  # noqa: C901 - 逐站证据分派, 每门即归因
+    vis: str,
+    site_rx: re.Pattern[str],
+    tail_pos: list[tuple[int, str | None]],
+    global_tail: str | None,
+    *,
+    letter_cs: bool,
+) -> list[tuple[int, int, str]]:
+    """单文件内某 cs 的蚀除站 → [(start, end, replacement)] 编辑面。
+
+    有效尾 = 站点前最近的本文件 def 尾; 本文件无此 cs 的 def 时回落
+    全局唯一尾 (def 在他件的 preamble 装载序)。def 在站点之后 = 该站
+    沿用更早定义 (上游本就不同的语义) → 不收; 全局多尾歧义 → 不收。
+    全对齐 → REPLACE 损毁域为尾 (junk 夹在两枚幸存尾字间 = 必为蚀除);
+    部分对齐/零对齐 + 蚀除证据 (junk>0 或已消费>0) → 已配前缀后 INSERT
+    残余尾 (零内容损失); 无证据 → 上游本就断裂, 不动。
+    """
+    edits: list[tuple[int, int, str]] = []
+    n = len(vis)
+    for m in site_rx.finditer(vis):
+        pos = m.start()
+        eff: str | None = None
+        later_def = False
+        for dp, dt in tail_pos:
+            if dp < pos:
+                eff = dt
+            else:
+                later_def = True
+                break
+        if later_def and eff is None:
+            continue  # 站先于本文件一切 def —— 上游语义不可考
+        if not tail_pos:
+            eff = global_tail
+        if not eff:
+            continue
+        j = m.end()
+        if letter_cs:
+            sm = _DELIM_SKIP_RE.match(vis, j)
+            j = sm.end() if sm else j
+        k = 0
+        while k < len(eff) and j + k < n and vis[j + k] == eff[k]:
+            k += 1
+        if k == len(eff):
+            continue  # 字面尾完好 (含 def 行自身)
+        i, last, junk = _tail_align(vis, j + k, eff[k:])
+        if i == len(eff) - k:
+            edits.append((j, last, eff))
+        elif junk > 0 or i > 0:
+            edits.append((j + k, j + k, eff[k:]))
+    return edits
+
+
+def cs_delim_tail_fix(  # noqa: C901, PLR0912 - def 扫面 × 逐 cs 分派, 每门即归因
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""``Use of \X doesn't match its definition`` → ``\def\X<lit>`` 字面尾补回。
+
+    机制 (5 cells 同族): 作者用 ``\def\c3h2{...}``/``\def\b0bmode{...}``/
+    ``\def\0cc{...}``/``\def\ch3oh{...}`` 造伪多名宏 —— TeX 解为 cs +
+    字面参数文本, 上游一切调用点 ``\X<lit>`` 合法; 译者把尾中字母段当
+    正文吃掉 (``\c3h2`` → ``\c3这是译文2``, ``\ch3oh`` → ``\ch3这是译文…``)
+    → 调用点不再带全尾 → def-match 断。修 = 站点字面尾补回:
+    蚀除域可证 (乱序对齐全命中) 时整域还原, 部分证据时插缺 (零删字)。
+    多 def 取站点前最近者 (``\def\b``→``\def\b0bmode`` 重定义序,
+    hep-ex/0408083 实证); def 在 .sty/.cls 时跨文件全局唯一尾回落
+    (astro-ph/0408446 ``0343.sty`` 实证) —— 同侪 .tex 的装载序不可考,
+    错补到沿用前义的站会静默改内容, 回落只信非 .tex def。包内
+    delimited 宏 (工程外 def 不可见) 无尾可查 → abstain。
+    """
+    del eng, payload
+    blob = (ctx.err_head or "") + "\n" + _fixloop_log(ctx)
+    names: list[str] = []
+    for m in _MISMATCH_ERR_RE.finditer(blob):
+        if m.group(1) not in names:
+            names.append(m.group(1))
+    if not names:
+        return False, "no cs in Use-of-doesn't-match error"
+
+    exts = tuple(
+        params.get("exts")
+        or (".tex", ".sty", ".cls", ".def", ".clo", ".bbl", ".inc", ".cfg")
+    )
+    files = ctx.tex_files(exts)
+    views: dict[Any, tuple[str, str]] = {}
+    defs: dict[str, dict[Any, list[tuple[int, str | None]]]] = {}
+    tails: dict[str, set[str]] = {}
+    nontex_def: set[str] = set()
+    for f in files:
+        t = ctx.read(f)
+        if t is None:
+            continue
+        vis = mask_tex(t)
+        views[f] = (t, vis)
+        for dm in _DEF_TAIL_RE.finditer(vis):
+            cs = dm.group(1)
+            if cs not in names:
+                continue
+            tail = dm.group(2).strip()
+            entry: str | None = None
+            if tail and not _TAIL_BAD_RE.search(tail):
+                entry = tail
+            defs.setdefault(cs, {}).setdefault(f, []).append((dm.start(), entry))
+            if entry:
+                tails.setdefault(cs, set()).add(entry)
+            if f.suffix.lower() != ".tex":
+                nontex_def.add(cs)
+
+    changed: list[str] = []
+    for cs in names:
+        per_file = defs.get(cs, {})
+        cst = tails.get(cs, set())
+        global_tail = next(iter(cst)) if len(cst) == 1 and cs in nontex_def else None
+        letter_cs = cs[:1].isalpha() or cs[:1] == "@"
+        site_rx = re.compile(
+            r"(?<!\\)\\" + re.escape(cs) + (r"(?![A-Za-z@])" if letter_cs else "")
+        )
+        for f, (t, vis) in views.items():
+            if site_rx.search(vis) is None:
+                continue
+            edits = _delim_sites(
+                vis, site_rx, per_file.get(f, []), global_tail, letter_cs=letter_cs
+            )
+            if not edits:
+                continue
+            out = t
+            for s, e, rep in reversed(edits):
+                out = out[:s] + rep + out[e:]
+            if out != t:
+                ctx.write(f, out)
+                changed.append(f"{f.name}(\\{cs} x{len(edits)})")
+    if not changed:
+        return False, "no doc-side delimited def or intact sites only"
+    return True, f"delim-tail restore in {', '.join(changed)}"

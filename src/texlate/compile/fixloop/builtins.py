@@ -41,6 +41,7 @@ from texlate.compile.fixloop._builtins_common import (
 )
 from texlate.compile.fixloop._builtins_csfix import (
     _allocated_cs_names,
+    cs_delim_tail_fix,
     cs_targeted_fix,
     ctlseq_undefine,
     if_phantom_protect,
@@ -197,6 +198,7 @@ __all__ = [
     "caret_utf8_fix",
     "cite_in_math_mbox",
     "citekey_sanitize",
+    "cs_delim_tail_fix",
     "cs_rebind",
     "cs_targeted_fix",
     "ctlseq_undefine",
@@ -299,6 +301,7 @@ TRANSFORM_FNS = {
     "strip_inputenc": strip_inputenc,
     "physics_stub_detach": physics_stub_detach,
     "undefine_for_redef": undefine_for_redef,
+    "cs_delim_tail_fix": cs_delim_tail_fix,
     "cs_targeted_fix": cs_targeted_fix,
     "ctlseq_undefine": ctlseq_undefine,
     "purge_corrupt_intermediates": purge_corrupt_intermediates,

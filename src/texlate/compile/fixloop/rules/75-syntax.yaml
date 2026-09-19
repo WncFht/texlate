@@ -1437,6 +1437,54 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/lane-endcsdiag/report.md §2; latex.ltx:18355/18718; babel.sty:4230"
 
+  # ─── csdefmismatch lane (task #214, 2026-09-19): delimited-macro 尾蚀除 ───
+  # "Use of \X doesn't match its definition" —— \def\X<lit>{...} 伪多名宏
+  #   (\c3h2/\b0bmode/\0cc/\ch3oh 化学物理速写): 译者把字面尾中字母段当正文
+  #   吃掉 → 调用点不再带全尾 → TeX 参文本失配, 兜底 `^.` 归 other (无
+  #   payload)。修 = cs_delim_tail_fix builtin: 全工程扫 \def\X<tail>
+  #   (前缀 \long/\outer/\protected/\global + [egx]def; 尾拒空/#/\/{ }),
+  #   逐站 fuzzy 对齐 —— 全命中 REPLACE 蚀除域 (乱序段锚定证明在尾内),
+  #   部分证据 INSERT 残余尾 (零内容损失), 零证据/包内 def 不收。
+  #   condition 用 ctx_suggests 而非 payload: 本签无 payload 组。
+  - id: cs_delim_tail_fix
+    description: "Use of \\X doesn't match its definition → \\def\\X<lit> 字面尾译文蚀除站补回 (全对齐 REPLACE / 部分证据 INSERT)"
+    phase: loop
+    order: 199.6 # babel_preclass_rawopts_seed(199) 之后, undefined_cs_guess(900) 之前; other 类签名稀疏无竞争
+    when: { category: other }
+    condition:
+      ctx_suggests: "doesn't match its definition"
+    action:
+      kind: builtin_transform
+      function: cs_delim_tail_fix
+    risk: low # REPLACE 仅当乱序 junk 锚定在两存尾字符间 (证明位于蚀除域内); 否则 INSERT 不删任何译文; def 前站/无 def 工程不收
+    known_gap: "包内 delimited 宏 (工程外 def) 无尾可查 → abstain; 全局多尾歧义不收; 同侪 .tex def 不跨文件回落 (装载序不可证); \\let 重定义序未建模; 尾含 #/\\/{} 的真参宏不收"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "1404.0519 (csdefmismatch census, loop3 residual)",
+          error: "Use of \\c doesn't match its definition. (\\def\\c3h2; \\c3这是译文 ×14)",
+        }
+      - {
+          corpus: "astro-ph/0408509",
+          error: "Use of \\c doesn't match its definition. (\\c3h2 蚀除 ×2)",
+        }
+      - {
+          corpus: "hep-ex/0408083",
+          error: "Use of \\b doesn't match its definition. (\\def\\b0bmode; \\b0这是译文 ×4)",
+        }
+      - {
+          corpus: "hep-th/0408133",
+          error: "Use of \\0 doesn't match its definition. (\\def\\0cc; \\0这是译文 ×5)",
+        }
+      - {
+          corpus: "astro-ph/0408446",
+          error: "Use of \\ch doesn't match its definition. (0343.sty \\def\\ch3oh → .tex \\ch3这是译文 ×43)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-csdefmismatch/report.md; tests/test_fixloop_delim_tail.py 10 测; 5-cell splice replay 实证 (1404.0519 xelatex → 13p PDF)"
+
   # ─── 兜底: 恒最后 ───
   - id: undefined_cs_guess
     description: "未定义控制序列 → cs→pkg 知识库长射 + LLM 兜底分析 (占位)"
