@@ -8,6 +8,7 @@ from typing import Any
 import pytest
 from conftest import mk_chunk, run_pipeline
 
+from texlate.validate.l0 import CACHE_VETO_RULES, Severity, validate_pair
 from texlate.xlat import pipeline as pl
 from texlate.xlat import prompts
 from texlate.xlat.client import AuthError
@@ -480,17 +481,95 @@ class TestCachePoisonGuard:
         assert r2[0].status == "ok"
         assert "\\fo[[MATH_1]]o" not in cache[key]  # 已改写为干净译文
 
-    def test_cache_store_rejects_all_three_nets(self) -> None:
-        """写入侧三网同拒：leftover_ph / ph_in_cs / bare_cs。"""
+    def test_cache_store_rejects_all_nets(self) -> None:
+        """写入侧注册表各网同拒：leftover_ph / ph_in_cs / bare_cs / residual_en。"""
         cache: dict[str, str] = {}
         pipe = pl.XlatPipeline(translator=pl.MockTranslator(), cache=cache)
         c = mk_chunk("src text [[MATH_1]]", "c")
         pipe._cache_store(c, "译 [[MATH_99]]")  # noqa: SLF001 -- leftover_ph
         pipe._cache_store(c, "译 \\fo[[MATH_1]]o")  # noqa: SLF001 -- ph_in_cs
         pipe._cache_store(c, "译 \\alpha 发射体")  # noqa: SLF001 -- bare_cs
+        pipe._cache_store(  # noqa: SLF001 -- residual_en（tier-B 混血长句臂）
+            c,
+            "前文。The quick brown fox jumps over the lazy dog "
+            "repeatedly near the barn. 后文。",
+        )
         assert cache == {}
         pipe._cache_store(c, "干净译文 [[MATH_1]]")  # noqa: SLF001
         assert len(cache) == 1
+
+
+class TestInterceptRegistry:
+    """升格拦截网注册表钉：唯一枚举面 + 三消费形同表 + l0 否决规则双向钉。"""
+
+    def test_registry_membership_pinned(self) -> None:
+        """注册表成员集钉——加网/除网必过本钉，防静默漂移。"""
+        assert {n.name for n in pl._INTERCEPT_NETS} == {  # noqa: SLF001
+            "leftover_ph",
+            "ph_in_cs",
+            "bare_cs",
+            "residual_en",
+        }
+
+    def test_l0_rule_set_matches_cache_veto(self) -> None:
+        """``l0_rule`` 集 ≡ l0 ``CACHE_VETO_RULES``——加网改镜像任一侧漏更即红。"""
+        assert {n.l0_rule for n in pl._INTERCEPT_NETS} == CACHE_VETO_RULES  # noqa: SLF001
+
+    def test_every_net_has_apply_wrapper(self) -> None:
+        """``_intercept_<name>`` 包装函存在钉——消费形经词根晚绑定取件，
+        缺席即 ``_net_apply_fn`` KeyError 的静默漏网。"""
+        for net in pl._INTERCEPT_NETS:  # noqa: SLF001
+            assert callable(getattr(pl, f"_intercept_{net.name}"))
+
+    @pytest.mark.parametrize(
+        ("net_name", "src", "zh"),
+        [
+            ("leftover_ph", "plain English sentence here.", "译文 [[MATH_9]] 尾"),
+            ("ph_in_cs", "plain English sentence here.", "译文 \\fo[[X_1]]o 尾"),
+            ("bare_cs", "alpha emitters in the lab.", "\\alpha 发射体"),
+            (
+                "residual_en",
+                (
+                    "Alpha intro sentence. The quick brown fox jumps over the "
+                    "lazy dog repeatedly near the barn. Tail part ends here."
+                ),
+                (
+                    "甲介绍句。The quick brown fox jumps over the lazy dog "
+                    "repeatedly near the barn. 尾部到此。"
+                ),
+            ),
+        ],
+    )
+    def test_net_detect_mirrors_l0_rule(self, net_name: str, src: str, zh: str) -> None:
+        """每网一对实证料：``net.detect`` 命中 ⇒ ``validate_pair`` 必报
+        ``net.l0_rule`` error——镜像关系语义钉而非仅名钉。"""
+        net = next(n for n in pl._INTERCEPT_NETS if n.name == net_name)  # noqa: SLF001
+        assert net.detect(src, zh)
+        rep = validate_pair(src, zh)
+        assert any(
+            i.rule == net.l0_rule and i.severity is Severity.ERROR for i in rep.issues
+        )
+
+    def test_retranslate_consumes_registry_late_binding(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """裸形 apply 臂与账本形同表晚绑定——补丁模块属性后 ``retranslate_chunk``
+        仍触达，第 5 网不会在本臂漏挂。"""
+        calls: list[str] = []
+        orig = pl._intercept_leftover_ph  # noqa: SLF001 -- 私有拦截网正是注入面
+
+        def _spy(r: pl.ChunkResult) -> None:
+            calls.append(r.chunk_id)
+            orig(r)
+
+        monkeypatch.setattr(pl, "_intercept_leftover_ph", _spy)
+        pipe = pl.XlatPipeline(translator=pl.MockTranslator())
+        r = asyncio.run(
+            pipe.retranslate_chunk(pl.ChunkIn("c", "plain src text", "para"), "err")
+        )
+        assert calls == ["c"]
+        assert r is not None
+        assert r.status == "ok"
 
 
 class TestValueContextInjection:

@@ -3,17 +3,18 @@
 契约（``xlat/pipeline.py`` ``_ledger_call`` 双档网 + ``_drain``/``run``
 序章尾两处收敛重抛）：
 
-- ``_collect`` 五个账本调用点（三条 interceptor + ``auth_gate.record`` +
-  ``_emit``）任一点抛 ``KeyboardInterrupt``/``SystemExit`` → 收 ``fatal``
-  账本，同结果内剩余调用点与后续结果照常入账，绝不外泄；
+- ``_collect`` 六个账本调用点（``_INTERCEPT_NETS`` 四条 interceptor +
+  ``auth_gate.record`` + ``_emit``）任一点抛 ``KeyboardInterrupt``/
+  ``SystemExit`` → 收 ``fatal`` 账本，同结果内剩余调用点与后续结果照常
+  入账，绝不外泄；
 - worker 不死：``fatal`` 已挂后剩余 item 排空 ``task_done``（不再发翻译
   请求）→ ``queue.join()`` 不锁；
 - ``_drain`` join 后 ``raise fatal[0]`` → ``run()`` 向外抛原异常实例；
-- 序章（``_load_resumed`` 三点 + ``_route_chunks`` 散文豁免臂五点）同款
+- 序章（``_load_resumed`` 四点 + ``_route_chunks`` 散文豁免臂六点）同款
   收账——``run()`` 在 ``state.start()``/队列编前排 ``raise fatal[0]``，
   翻译请求零发出。
 
-注入点选择说明：三条 ``_intercept_*`` 在 ``_one_chunk`` 内的调用由
+注入点选择说明：``_intercept_<name>`` 包装函在 ``_one_chunk`` 内的调用由
 worker 级 ``except BaseException`` 覆盖，序章两臂已并同款账本（见
 ``TestPrologueFatalLedger``）；``_collect`` 面 run 级注入走
 ``AuthGate.record`` 与 ``on_result``（``_emit`` 槽位）——散文块路径下
@@ -57,7 +58,7 @@ def _run(p: pl.XlatPipeline, chunks: list[pl.ChunkIn]) -> list[pl.ChunkResult]:
 
 
 class TestCollectLedgerUnit:
-    """单元面：直调 ``_collect``，三条 interceptor 逐点注入。"""
+    """单元面：直调 ``_collect``，interceptor 逐点注入。"""
 
     @pytest.mark.parametrize("exc_cls", [KeyboardInterrupt, SystemExit])
     def test_base_exception_ledgered_and_loop_continues(
@@ -173,8 +174,8 @@ class TestPrologueFatalLedger:
     """序章面：``_load_resumed``/``_route_chunks`` 与 ``_collect`` 同款收账。
 
     ``run()`` 在 ``state.start()``/队列编排之前摆统一账本——``_route_chunks``
-    散文豁免臂五点（3 interceptor + ``auth_gate.record`` + ``_emit``）与
-    ``_load_resumed`` 逐记录三点任一处抛 ``BaseException`` → 收 ``fatal``，
+    散文豁免臂六点（4 interceptor + ``auth_gate.record`` + ``_emit``）与
+    ``_load_resumed`` 逐记录四点任一处抛 ``BaseException`` → 收 ``fatal``，
     序章尾 ``raise fatal[0]``——先于 ``_drain``，故翻译请求零发出。
     """
 
@@ -248,7 +249,7 @@ class TestPrologueFatalLedger:
         assert [r.translation for r in out] == ["[[X_1]]"]  # 直落盘透传
 
     def test_route_chunks_unit_ledger(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """单元面：豁免臂首点收账后余四点照常触达，done_map 入账不丢。"""
+        """单元面：豁免臂首点收账后余五点照常触达，done_map 入账不丢。"""
         emitted: list[str] = []
         p = pl.XlatPipeline(
             pl.MockTranslator(), on_result=lambda r: emitted.append(r.chunk_id)
@@ -288,7 +289,7 @@ class TestPrologueFatalLedger:
         assert emitted == ["p1"]  # auth_gate.record(真件) + _emit 末点照常
 
     def test_load_resumed_unit_ledger(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """单元面：``_load_resumed`` 逐记录三点收账——KI 记账不外泄。"""
+        """单元面：``_load_resumed`` 逐记录四点收账——KI 记账不外泄。"""
         recs = {
             cid: pl.ChunkRecord(
                 chunk_id=cid, source=f"src {cid}", translation=f"zh {cid}"

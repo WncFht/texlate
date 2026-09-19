@@ -1170,6 +1170,15 @@ def _check_protocol_echo(src: str, zh: str, issues: list[Issue]) -> None:
 
 # ---------------------------------------------------------------- 主入口
 
+#: 缓存否决级规则 id 集——pipeline 升格拦截网（``xlat.pipeline._INTERCEPT_NETS``
+#: 各条 ``l0_rule`` 字段）镜像复判的 l0 规则集：段级缓存命中与续跑装载旁路
+#: ``validate_pair``，这四类 error 级签名由拦截网兜底防毒译出货
+#: （``placeholder`` 网只镜像 zh−src 净多出占位符臂——缺失/锚定臂归阶梯
+#: 修复管辖）。与注册表成员双向钉，漂移由 ``TestInterceptRegistry`` 拦截。
+CACHE_VETO_RULES: Final = frozenset(
+    {"placeholder", "ph_in_cs", "bare_cs", "residual_en"}
+)
+
 
 def validate_pair(src: str, zh: str) -> L0Report:
     """对 ``(src_chunk, zh_chunk)`` 跑全部 13 组检查，返回结构化 verdict。
@@ -1193,3 +1202,12 @@ def validate_pair(src: str, zh: str) -> L0Report:
     _check_protocol_echo(src, zh, rep.issues)
     _check_comment_eof(src, zh, rep.issues)
     return rep
+
+
+def pair_feedback(src: str, zh: str) -> str:
+    """``validate_pair(src, zh).feedback()``——pipeline.validator 签名对齐版。
+
+    四个调用臂（e2e/pipecore/worker×2）曾各手写同一 L0Report→str lambda
+    适配；反馈文本语义归本层。
+    """
+    return validate_pair(src, zh).feedback()
