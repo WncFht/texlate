@@ -1,0 +1,112 @@
+% texlate vendored stub — 原许可禁分发，最小兼容面
+% diagrams.tex 替身：Paul Taylor 交换图 DSL，"no redistribution"
+% 许可（TL 除名件）→ 不可 vendored 真件。服务面 = ``\input{diagrams}``
+% （math/0104250 main.tex:26 / math/0408052:3 实证——空 shim 落件后
+% "Environment diagram undefined" → env polyfill noop → 内体 & 炸
+% misplaced-&）。宏面与 vendor/stubs/diagrams.sty 同源逐点镜像，
+% 改一处须同步另一处；包壳全剥——\input 装入无选项面
+% （\usepackage[dvips] 调用走 .sty stub，选项吞闸在那侧）。
+% \input 装入件，@ 非字母须 \makeatletter 包裹（同 tcilatex/BoxedEPS
+% 先例）。本件在场则 shim_map diagrams.tex 条成死配置（vendored
+% 预检先于 missing_file 落件）。
+\message{texlate stub: diagrams.tex — commutative-diagram shim}
+\makeatletter
+
+% —— 两种调用式：\begin{diagram} 走 env 机制调 \diagram/\enddiagram；
+%    plain 式 \diagram…\enddiagram 同名直达。网格分隔符开真 \halign:
+%    体内 catcode-4 & 于外层 entry 扫描展开本宏时内层 halign 已开,
+%    天然作内层 tab, 不需任何 catcode/\let 操作 (0905.0946 {diagram}
+%    嵌 align* 实测成形); \\ 经 \def\\{\cr} 映行末——不可用
+%    \let\\=\cr: \let 源 token 的 cmd 若为 span/car_ret/对齐制表,
+%    外层 alignment entry 扫描器会当格/行终结符截获报 "Missing
+%    \endgroup"; \def 把 \cr 藏进宏体花括号躲过截获。preamble 首列
+%    \hfil$#$\hfil 其后各列带 \enskip 前距; \cr 直接作行末亦可。
+\def\diagram{\begingroup
+  \def\\{\cr}%
+  \ifmmode
+    \let\diagrams@disp=\relax \vcenter\bgroup
+  \else
+    \def\diagrams@disp{\]}\[\vcenter\bgroup
+  \fi
+  \halign\bgroup\hfil$##$\hfil&&\enskip\hfil$##$\hfil\cr}
+% {diagram} 可嵌进 {equation}/align* 等数学环境 —— 已处数学域不开
+% \[ (\vcenter 在 mmode 合法), \diagrams@disp 记 \relax; 否则 \[ 开域
+% + \] 供 \enddiagram 对称关域。\crcr 兜末行无 \cr 尾。
+\def\enddiagram{\crcr\egroup\egroup\diagrams@disp\endgroup}
+
+% —— Taylor 箭头族 → 真箭头映射 ——
+\providecommand{\rTo}{\to}
+\providecommand{\lTo}{\leftarrow}
+\providecommand{\uTo}{\uparrow}
+\providecommand{\dTo}{\downarrow}
+\providecommand{\hTo}{\to}
+\providecommand{\vTo}{\downarrow}
+\providecommand{\ruTo}{\nearrow}
+\providecommand{\rdTo}{\searrow}
+\providecommand{\luTo}{\nwarrow}
+\providecommand{\ldTo}{\swarrow}
+\providecommand{\rMapsto}{\mapsto}
+\providecommand{\rOnto}{\twoheadrightarrow}
+\providecommand{\rInto}{\rightarrowtail}
+\providecommand{\lOnto}{\twoheadleftarrow}
+\providecommand{\lInto}{\leftarrowtail}
+\providecommand{\rEquals}{=}
+\providecommand{\hEquals}{=}
+\providecommand{\uEar}{\uparrow}
+\providecommand{\dEar}{\downarrow}
+\providecommand{\rEar}{\to}
+\providecommand{\lEar}{\leftarrow}
+\providecommand{\hDots}{\cdots}
+\providecommand{\vDots}{\vdots}
+\providecommand{\uDots}{\vdots}
+\providecommand{\dDots}{\ddots}
+% —— Dashto 虚线箭头族 (0905.0946 实证: 真件内建默认箭头, 稿零
+%    \newarrow 自声明)。r/l/h 映 amssymb \dashrightarrow 系——用点
+%    \@ifundefined 判定: 稿未装 amssymb 时降实线, 保 defined 不炸;
+%    u/d/v 与对角四向真件有虚线形但数学字体无对应符 → 实线近似 ——
+\providecommand{\rDashto}{\@ifundefined{dashrightarrow}{\rightarrow}{\dashrightarrow}}
+\providecommand{\lDashto}{\@ifundefined{dashleftarrow}{\leftarrow}{\dashleftarrow}}
+\providecommand{\hDashto}{\@ifundefined{dashrightarrow}{\rightarrow}{\dashrightarrow}}
+\providecommand{\uDashto}{\uparrow}
+\providecommand{\dDashto}{\downarrow}
+\providecommand{\vDashto}{\downarrow}
+\providecommand{\ruDashto}{\nearrow}
+\providecommand{\rdDashto}{\searrow}
+\providecommand{\luDashto}{\nwarrow}
+\providecommand{\ldDashto}{\swarrow}
+% —— 结构杂项 ——
+\providecommand{\pile}[1]{\begin{array}{c}#1\end{array}}
+\providecommand{\eps}{\varepsilon}
+\providecommand{\eqalign}[1]{#1}
+% \spreadlines 延到 \begin{document} 才补——mathtools 的 spreadlines
+% 是 \newenvironment，stub 先定义会让包加载炸 "already defined"
+% (2105.03808 实证)；defer 后包侧定义恒赢，无包时落 noop。
+\AtBeginDocument{\providecommand{\spreadlines}[1]{}}
+\providecommand{\diagrams@activate}{}
+% \diagramstyle[settings] 真件为可选方括号参 (0905.0946
+% [labelstyle=\scriptstyle] 实证)——曾误作强制参, [ 被吃成参数后
+% 残留 settings] 流入文本域炸 Missing $
+\providecommand{\diagramstyle}[1][]{}
+
+% —— \newarrow{Name}<spec5>: Taylor 自定义箭头宏。spec 含 '='
+%    → 双线族 (Rightarrow 系), 否则单线 (to 系); r/l/u/d + h/v
+%    六枚一次定义 (1206.1835: \newarrow{Equalto}=====\r/dEqualto) ——
+\def\newarrow#1#2#3#4#5#6{%
+  \in@{=}{#2#3#4#5#6}%
+  \ifin@
+    \diagrams@defarrow{#1}\Rightarrow\Leftarrow\Uparrow\Downarrow
+  \else
+    \diagrams@defarrow{#1}\to\leftarrow\uparrow\downarrow
+  \fi}
+\def\diagrams@defarrow#1#2#3#4#5{%
+  \expandafter\def\csname r#1\endcsname{#2}%
+  \expandafter\def\csname l#1\endcsname{#3}%
+  \expandafter\def\csname u#1\endcsname{#4}%
+  \expandafter\def\csname d#1\endcsname{#5}%
+  \expandafter\def\csname h#1\endcsname{#2}%
+  \expandafter\def\csname v#1\endcsname{#5}}
+
+% —— xypic 串件：\xyoption{all} 只装特性包, stub 无特性可选 → 吞 ——
+\providecommand{\xyoption}[1]{}
+\makeatother
+\endinput
