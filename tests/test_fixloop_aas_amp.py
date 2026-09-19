@@ -14,13 +14,19 @@ r"""AAS 系 stub 书目区裸 `&` 宽容面回归钉 (aaspatch lane, 2026-09-19)
 
 机制: catcode-4 ``&`` 在参数读入时已 tokenize, 宏内无法事后消毒 ——
 唯一收法是让 ``&`` 在**读入时**就是 active char 再展开 ``\&``。
-补丁三件套同构: 装载时 ``\begingroup\catcode`\&=\active\gdef&{\&}\endgroup``
-把 active ``&`` 全局钉成 ``\&``; ``\AtBeginDocument`` 内
+补丁三件套同构: 装载时 ``\begingroup\catcode`\&=\active\gdef&{...}\endgroup``
+把 active ``&`` 全局钉住; ``\AtBeginDocument`` 内
 ``\global\let`` 存 ``\thebibliography`` 终版 + ``\gdef`` 外套
 ``\catcode`\&=\active`` (hook 自带组, 非 global 定义作废;
 延期捕获让后载 natbib ``\renewenvironment`` 版仍被罩到)。
 ``\begin..\end`` 自带组把激活域限在 env 内, 外部 tabular 不受影响。
 aasms4/aaspp4 的 ``\references`` env 同机理在 ``\bgroup`` 后激活。
+
+active ``&`` 本体是 ``\ifincsname\string&\else\&\fi`` (endcsresid 双修,
+test_fixloop_endcsresid 钉详面): csname 内 ``\string&`` 产 cat12-&
+字符 (与 doc 体 cat4-& 同字节 → ``b@<key>`` 名一致), 离开 csname
+仍 ``\&`` 保排版面 —— 单 ``\&`` 形会把 chardef 吞进 cite-key
+csname 炸 Missing \endcsname。
 
 真件对照: 真 aasms4.sty/aa.cls (corpus_v3 shipped copies) 均无 ``&``
 catcode 面 —— 原件原样也会炸 (期稿容错产物, PDF 照出), 本补丁是
@@ -70,9 +76,12 @@ def _code(body: str) -> str:
 
 @pytest.mark.parametrize("name", ["aasms4.sty", "aaspp4.sty", "aa.cls"])
 def test_amp_active_gdef_present(name: str) -> None:
-    r"""三件同构: active ``&`` 全局钉 ``\&`` + env 外套激活。"""
+    r"""三件同构: active ``&`` 全局钉 ifincsname 护臂形 + env 外套激活。"""
     code = _code((STUBS / name).read_text(encoding="utf-8"))
-    assert r"\begingroup\catcode`\&=\active\gdef&{\&}\endgroup" in code
+    assert (
+        r"\begingroup\catcode`\&=\active"
+        r"\gdef&{\ifincsname\string&\else\&\fi}\endgroup" in code
+    )
     assert r"\gdef\thebibliography{\catcode`\&=\active" in code
 
 

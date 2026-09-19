@@ -99,10 +99,33 @@
 \def\endreferences{\refpar\egroup}
 % thebibliography 同罩 (article 版 env 外套): label 内裸 & 收 \&。
 % AtBeginDocument+gdef 外套 —— hook 组内 \let/\def 须 global,
-% 且后载 natbib/稿自重义 env 后仍能捕获最终版
-\begingroup\catcode`\&=\active\gdef&{\&}\endgroup
+% 且后载 natbib/稿自重义 env 后仍能捕获最终版。
+% ifincsname 护臂 (endcsresid 3 格实证, aa.cls 同件): cite/bibitem key
+% 内裸 & (Rieke&Lebofsky, ADS bibcode) env 内读成 active-& → natbib 建
+% b@<key>\@extra@binfo csname 吞 \& (\char"26 chardef 不可展) →
+% Missing \endcsname。\ifincsname 下 \string& 产 cat12-& 字符与 doc
+% 体 cat4-& 同字节 → b@ 名一致; 离开 csname 仍 \& 保排版面。
+\begingroup\catcode`\&=\active\gdef&{\ifincsname\string&\else\&\fi}\endgroup
 \AtBeginDocument{\global\let\aas@thebibliography\thebibliography
 \gdef\thebibliography{\catcode`\&=\active\aas@thebibliography}}
+% aux 回读臂 (aa.cls 同件): \bibitem \write 把 key 内 active-& 烤成
+% 字面 \& → \bibcite{K\&K} 回读建 b@ csname 再吞 chardef → 同式
+% Missing \endcsname 自毒。读侧消洗件 \aas@sanl@bel: key 参内
+% \&→cat12-&/\protect→∅, label/data 参原样过。挂 begindocument/before:
+% kernel \@input{jobname.aux} 早于 begindocument hook, 且该点保证
+% 后载 natbib 的最终 \bibcite 版被捕。\@newl@bel 罩 kernel
+% \bibcite/\newlabel r@ 两路; \@testdef/\NAT@testdef 罩两系
+% enddocument 复读。
+\begingroup\catcode`\&=12 \gdef\aas@bibamp{&}\endgroup
+\def\aas@sanl@bel#1#2{%
+\begingroup\let\protect\@empty\let\&\aas@bibamp
+\edef\aas@tmp{\endgroup\noexpand#1{#2}}\aas@tmp}
+\AddToHook{begindocument/before}{%
+\global\let\aas@bibcite\bibcite \gdef\bibcite{\aas@sanl@bel\aas@bibcite}%
+\global\let\aas@newl@bel\@newl@bel \gdef\@newl@bel#1{\aas@sanl@bel{\aas@newl@bel#1}}%
+\global\let\aas@testdef\@testdef \gdef\@testdef#1{\aas@sanl@bel{\aas@testdef#1}}%
+\@ifundefined{NAT@testdef}{}{\global\let\aas@NAT@testdef\NAT@testdef
+\gdef\NAT@testdef{\aas@sanl@bel\aas@NAT@testdef}}}
 % \markcite/\reference 真身均单参 {key} (9910310 \markcite{Na_95}/
 % \reference{Al_96} 实证): 0-arg 版把 {key} 漏进正文流, _ 触发
 % Missing $ 级联 —— 收 key noop。

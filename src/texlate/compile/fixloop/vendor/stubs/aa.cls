@@ -19,10 +19,37 @@
 % (0104331 de Thije & Katgert misplaced-& 实证) —— env 组内
 % \catcode 激活即收, env 外 tabular 不受影响。
 % AtBeginDocument+gdef 外套 —— hook 组内 \let/\def 须 global,
-% 且能捕获 natbib \renewenvironment 后的最终 env 版
-\begingroup\catcode`\&=\active\gdef&{\&}\endgroup
+% 且能捕获 natbib \renewenvironment 后的最终 env 版。
+% ifincsname 护臂 (1003.0851/1003.4471/astro-ph/0103009 endcsresid 实证):
+% cite/bibitem key 内裸 & (Rieke&Lebofsky, ADS bibcode 1990A&A...231...19S)
+% 在 env 内读成 active-& → natbib 建 b@<key>\@extra@binfo csname 吞入
+% \& (\char"26 chardef 不可展) → Missing \endcsname。\ifincsname 下
+% \string& 产 cat12-& 字符, 与 doc 体 cat4-& 同字节 → b@ 名一致;
+% 离开 csname 仍 \& 保排版面。
+\begingroup\catcode`\&=\active\gdef&{\ifincsname\string&\else\&\fi}\endgroup
 \AtBeginDocument{\global\let\aa@thebibliography\thebibliography
 \gdef\thebibliography{\catcode`\&=\active\aa@thebibliography}}
+% aux 回读臂 (enddocument 与次轮 begindocument 两次 \@input 实证):
+% \bibitem 的 \write 把 key 内 active-& 烤成字面 \& → \bibcite{K\&K}
+% 回读建 b@ csname 再吞 chardef → 同式 Missing \endcsname 自毒。
+% 读侧消洗件 \aa@sanl@bel: key 参内 \&→cat12-& 字符/\protect→∅,
+% csname 收裸 & 字节; label/data 参原样过 —— aux 存形 {Rieke \& Lebo}
+% 排版面不回归。挂 begindocument/before: kernel \@input{jobname.aux}
+% 早于 begindocument hook (latex.ltx 9489<9512), AtBeginDocument 太晚;
+% 该点亦保证后载 natbib 的最终 \bibcite 版被捕。
+% \@newl@bel 罩 kernel \bibcite/\newlabel r@ 两路; \@testdef 罩
+% enddocument 复读 (\let\@newl@bel\@testdef); \NAT@testdef 罩 natbib
+% enddocument 复读 (\let\bibcite\NAT@testdef 收回本件包过的版本)。
+\begingroup\catcode`\&=12 \gdef\aa@bibamp{&}\endgroup
+\def\aa@sanl@bel#1#2{%
+\begingroup\let\protect\@empty\let\&\aa@bibamp
+\edef\aa@tmp{\endgroup\noexpand#1{#2}}\aa@tmp}
+\AddToHook{begindocument/before}{%
+\global\let\aa@bibcite\bibcite \gdef\bibcite{\aa@sanl@bel\aa@bibcite}%
+\global\let\aa@newl@bel\@newl@bel \gdef\@newl@bel#1{\aa@sanl@bel{\aa@newl@bel#1}}%
+\global\let\aa@testdef\@testdef \gdef\@testdef#1{\aa@sanl@bel{\aa@testdef#1}}%
+\@ifundefined{NAT@testdef}{}{\global\let\aa@NAT@testdef\NAT@testdef
+\gdef\NAT@testdef{\aa@sanl@bel\aa@NAT@testdef}}}
 \providecommand{\inst}[1]{\textsuperscript{\,#1}}
 \providecommand{\offprints}[1]{}
 \providecommand{\mail}[1]{}
