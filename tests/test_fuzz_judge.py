@@ -86,6 +86,7 @@ from texlate.compile.latex209 import (
     _MULTICOLS_SHIM,
     _PKG_OPTS,
     _PRE_CLASS_SHIM,
+    _REVTEX209_SHIM,
     _STD_CLASSES,
     COMPAT_SHIM,
     _ships_style,
@@ -875,7 +876,7 @@ class _Oracle209(NamedTuple):
     out: str
 
 
-def _oracle_209(  # noqa: C901 -- 分派链逐支重述
+def _oracle_209(  # noqa: C901, PLR0912 -- 分派链逐支重述
     tex: str, *, sty_stems: set[str], ds_at: set[str]
 ) -> _Oracle209:
     """独立重述 ``upgrade_209``——含输出全文重建（残token改名倒序回填）。"""
@@ -917,6 +918,8 @@ def _oracle_209(  # noqa: C901 -- 分派链逐支重述
         else f"\\documentclass{{{target}}}",
         COMPAT_SHIM,
     ]
+    if target == "revtex4-2":
+        lines.append(_REVTEX209_SHIM)
     if "multicol" in stripped:
         lines.append(_MULTICOLS_SHIM)
     if pkg_opts:
@@ -1048,6 +1051,7 @@ class TestLatex209:
                 assert set(exp.shipped) == set(exp.pkg_opts) - _PKG_OPTS, ctx
                 assert set(exp.stripped) <= _INCOMPAT_PKGS.get(exp.target, frozenset())
                 assert ("multicol" in exp.stripped) == (_MULTICOLS_SHIM in out), ctx
+                assert (exp.target == "revtex4-2") == (_REVTEX209_SHIM in out), ctx
                 if exp.pkg_opts:
                     # shim 必须先于路由出的 usepackage（2501.05407 实证）
                     assert out.index(COMPAT_SHIM) < out.index("\\usepackage{"), ctx

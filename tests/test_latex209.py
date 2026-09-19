@@ -391,3 +391,103 @@ def test_prepare_chinese_209(tmp_path: Path) -> None:
     assert "\\documentclass[12pt]{article}" in out
     assert "\\usepackage{nips}" in out
     assert CTEX_LINE in out
+
+
+def test_upgrade_revtex209_shim_only_on_revtex42() -> None:
+    r"""revtex4-2 目标才附 209 文稿面 polyfill——cls:4512/3912/2685 删除面 +
+    ``\collaboration@sw`` 未武装闸（failmine3 普查 twocolumn×28/collab@sw×8
+    实证）；非 revtex 目标不附。"""
+    out_r, _ = upgrade_209("\\documentstyle[aps]{revtex}\nx\n")
+    assert "\\frontmatter@init" in out_r
+    assert "\\providecommand{\\twocolumn}[1][]{#1}" in out_r
+    assert "\\@ifundefined{@makecol}" in out_r
+    assert "\\providecommand{\\wideabs}[1]{#1}" in out_r
+    assert "\\@ifundefined{abstract}" in out_r
+    assert "\\@ifundefined{endabstract}" in out_r
+    assert "\\AtBeginDocument{\\long\\def\\pacs#1" in out_r
+    out_d, _ = upgrade_209("\\documentstyle{revtex4-2}\nx\n")
+    assert "\\frontmatter@init" in out_d  # 直写 2e 类名同补
+    for cls in ("article", "mn", "amsart"):
+        out, _ = upgrade_209(f"\\documentstyle{{{cls}}}\nx\n")
+        assert "\\frontmatter@init" not in out
+        assert "\\providecommand{\\twocolumn}" not in out
+
+
+def test_upgrade_revtex209_shim_ordering() -> None:
+    r"""polyfill 块在 ``\documentclass`` 后（``\frontmatter@init`` 须见已装载
+    类）、``\usepackage`` 前；init 武装先于 ``\abstract`` 守护兜底——cls:3143
+    ``\let@environment`` 有机会先装真环境。"""
+    out, _ = upgrade_209("\\documentstyle[aps,epsfig]{revtex}\nx\n")
+    i_cls = out.index("\\documentclass[aps]{revtex4-2}")
+    i_init = out.index("\\frontmatter@init")
+    i_abs = out.index("\\@ifundefined{abstract}")
+    assert i_cls < i_init < i_abs < out.index("\\usepackage{epsfig}")
+
+
+def test_upgrade_compat_shim_209_surface() -> None:
+    r"""COMPAT_SHIM 209 序言面普查件——全 ``\@ifundefined`` 守护幂等。
+
+    ``\ifnfssone``（mn→mnras 序言 NFSS1 分支闸，astro-ph/9901066）；旧字体
+    开关 ``\rm``..``\sc`` 按 article.cls:490-496 逐字面（elsarticle 零声明、
+    aipproc.sty 体消费 ``\bf``/``\it``，astro-ph/0104245）；``\cal`` 取
+    latex209.def:290（amsart.cls:452 注释残留，math-ph/0408053）；
+    ``\tenrm``/``\*mi`` plain 字体系（hep-th/9901066、hep-th/9703214
+    ``\skewchar\fivmi``）；``\theorembodyfont``→``\thm@bodyfont`` 转寄
+    （math/9901046）；``\address``/``\collab``/``\abstracts`` 正文位透传
+    （gr-qc/9901019、hep-ex/9703017、hep-ph/0104302）。
+    """
+    out, _ = upgrade_209("\\documentstyle{article}\nx\n")
+    assert "\\@ifundefined{ifnfssone}{\\newif\\ifnfssone}{}" in out
+    # nfsstwo 亦置 false——mnras.cls:214-343 原生吸收全套模板宏，
+    # 任一支进真都 \newcommand 撞类定义（astro-ph/9901066 实证）
+    assert "\\@ifundefined{ifnfsstwo}{\\newif\\ifnfsstwo}{}" in out
+    # CUPmtlplainloaded 由 mnras.cls:1707 自携——守护只为覆盖无类补给的文稿
+    assert "\\@ifundefined{ifCUPmtlplainloaded}{\\newif\\ifCUPmtlplainloaded}{}" in out
+    for cs, fam, math in [
+        ("rm", "\\rmfamily", "\\mathrm"),
+        ("sf", "\\sffamily", "\\mathsf"),
+        ("tt", "\\ttfamily", "\\mathtt"),
+        ("bf", "\\bfseries", "\\mathbf"),
+        ("it", "\\itshape", "\\mathit"),
+        ("sl", "\\slshape", "\\@nomath\\sl"),
+        ("sc", "\\scshape", "\\@nomath\\sc"),
+    ]:
+        want = (
+            f"\\@ifundefined{{{cs}}}{{\\DeclareOldFontCommand{{\\{cs}}}"
+            f"{{\\normalfont{fam}}}{{{math}}}}}{{}}"
+        )
+        assert want in out, cs
+    assert "\\@ifundefined{cal}{\\DeclareSymbolFontAlphabet{\\cal}{symbols}}{}" in out
+    for cs, font in [
+        ("tenrm", "cmr10"),
+        ("fivmi", "cmmi5"),
+        ("tenmi", "cmmi10"),
+        ("twtymi", "cmmi10 scaled\\magstep4"),
+    ]:
+        assert f"\\@ifundefined{{{cs}}}{{\\font\\{cs}={font}}}{{}}" in out, cs
+    assert "\\@ifundefined{theorembodyfont}" in out
+    assert "\\thm@bodyfont" in out
+    assert "\\@ifundefined{address}{\\providecommand{\\address}[1]{#1}}{}" in out
+    assert "\\@ifundefined{collab}{\\providecommand{\\collab}[1]{#1}}{}" in out
+    assert "\\@ifundefined{abstracts}{\\providecommand{\\abstracts}[1]{#1}}{}" in out
+
+
+def test_upgrade_multicol_registers_in_compat_shim() -> None:
+    r"""multicol 机寄存器在通用 COMPAT_SHIM（全目标）——文稿自携 ``multicols``
+    定义不走剥包路也消费 ``\col@number``（revpre:262-273，cond-mat/9910148）；
+    ``\multicolsep`` 正文裸赋值（rnbc8.tex:314）；``\@kludgeins`` 被
+    revtex4-2.cls:5394 ``\@undefined``-let 后 multicol 输出例程仍引用。
+    209 类代供的草稿寄存器同块：prx.sty ``\@makethincaption`` 裸用
+    ``\@testboxa``/``\@testboxb``/``\outertabfalse``（cond-mat/9910148）。"""
+    out, _ = upgrade_209("\\documentstyle{article}\nx\n")
+    assert "\\@ifundefined{col@number}{\\newcount\\col@number}{}" in out
+    assert "\\@ifundefined{multicolsep}{\\newlength{\\multicolsep}}{}" in out
+    assert "\\@ifundefined{@kludgeins}{\\newinsert\\@kludgeins}{}" in out
+    assert "\\@ifundefined{@testboxa}{\\newbox\\@testboxa}{}" in out
+    assert "\\@ifundefined{@testboxb}{\\newbox\\@testboxb}{}" in out
+    assert "\\@ifundefined{ifoutertab}{\\newif\\ifoutertab}{}" in out
+    # 剥 multicol 后环境透传仍只含环境——寄存器不重复分配
+    out_r, info = upgrade_209("\\documentstyle[aps,multicol]{revtex}\nx\n")
+    assert info["stripped"] == ["multicol"]
+    assert "\\newenvironment{multicols}" in out_r
+    assert out_r.count("\\newcount\\col@number") == 1
