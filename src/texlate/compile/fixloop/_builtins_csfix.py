@@ -269,6 +269,9 @@ _ALREADY_DEF_CS_RE = re.compile(
 #: defined``, 非 ``\@ifdefinable``) —— ``\let\X\@undefined`` 清位有效。
 #: DeclareSymbolFontAlphabet 不收: 其守卫查的是 space-后缀伴生名
 #: ``\X␣`` (latex.ltx:13753-13763), 清 ``\X`` 本体是徒劳。
+#: ``\newfont{\X}{spec}`` (2.09/AMS 字体绑名, ``\@ifdefinable`` 恒拒
+#: 产 Command 签; astro-ph/0307459 ``\Bbb`` 实证) 亦收 —— 裸形
+#: ``\newfont\X`` 仍由 ``_ALLOC_CS_RE`` 分配名护栏剔出, 只花括号形入站点面。
 _SITE_DEF_CMDS: tuple[str, ...] = (
     "newcommand",
     "DeclareRobustCommand",
@@ -282,6 +285,7 @@ _SITE_DEF_CMDS: tuple[str, ...] = (
     "DeclareMathAccent",
     "DeclareMathRadical",
     "DeclareMathOperator",
+    "newfont",
 )
 #: ``\providecommand`` 族只收 end* 名站点: 非恒拒名撞名静默不产
 #: already_def (前置清位反夺 cls 先定义 —— 不入 _SITE_DEF_CMDS 之理);
@@ -309,6 +313,7 @@ _IFN_ROUTED_CMDS: frozenset[str] = frozenset(
         "providecommand",
         "DeclareRobustCommand",
         "DeclareMathOperator",
+        "newfont",
     }
 )
 #: ``\@ifdefinable`` 双恒拒名形之二 (latex.ltx:1301 ``\@qrelax`` 全名形):
@@ -353,7 +358,11 @@ def _redef_site_map(
     cls 先定义)。
     """
     out: dict[Any, set[str]] = {}
-    for f in ctx.tex_files((".tex", ".sty", ".cls")):
+    # .bbl 亦收: 用户件 shipped .bbl 内的 \newcommand 站是同款"名必须
+    # undefined"面 —— revtex4-1 rtx@thebibliography env-end \auto@bib@innerbib
+    # 把 \jobname.bbl 二次 input, bbl 自体双 input 撞名 (1907.10621 \enquote
+    # 实证); 锚在 \bibliography/\input 外侧的清位够不到 bbl 内互撞。
+    for f in ctx.tex_files((".tex", ".sty", ".cls", ".bbl")):
         t = ctx.read(f) or ""
         masked = mask_tex(t)
         names = (
@@ -426,7 +435,8 @@ def _undefine_sites(
     catcode 包裹按文件类分: ``.cls``/``.sty`` 内 ``@`` 本是 letter ——
     尾部 ``\makeatother`` 会把 @ 翻回 catcode-12, 插入点后全部 @-cs
     烂掉 (1706.00221 ``\define@key``→``\define``+``@key`` 级联实证) ——
-    裸 ``\let`` 不包裹; ``.tex`` 面才需 ``\makeatletter`` 对。
+    裸 ``\let`` 不包裹; ``.tex``/``.bbl`` 面才需 ``\makeatletter`` 对
+    (``.bbl`` 在文档面 input, ``@`` 是 catcode-12)。
     """
     n_files = 0
     for f in guilty:
@@ -438,7 +448,7 @@ def _undefine_sites(
             mask_tex(t),
             site_re,
             targets,
-            wrap=getattr(f, "suffix", "") == ".tex",
+            wrap=getattr(f, "suffix", "") in (".tex", ".bbl"),
         )
         if nt != t:
             ctx.write(f, nt)
@@ -528,7 +538,84 @@ def _undefine_pkg_sites(
     return n_sites, covered
 
 
-def undefine_for_redef(  # noqa: C901 - 三修形并施 + 护栏逐门, 分派即归因
+#: file:line 形 already_def 的归因行 —— ``path/<file>.<ext>:N:`` + Command 签。
+#: group(1)=基名茎 group(2)=扩展 group(3)=行号 group(4)=撞名。判 ``\AtBeginDocument``
+#: 钩内 deferred 定义者用: 钩体在 ``\begin{document}`` 执行期才跑, 其内定义撞名
+#: 的 file:line 归因恒落在 ``\begin{document}`` 所在行 (1706.00033 russianb.ldf
+#: ``\DeclareMathOperator{\sh}`` vs 用户 ``\def\sh`` 实证)。
+_ABD_ERR_FILE_RE = re.compile(
+    r"^[ \t]*\S*?([\w.+-]+)\."
+    r"(tex|sty|cls|bbl|ldf|def|clo|ltx|dtx|ins|fd):(\d+):"
+    r"\s*(?:LaTeX Error:\s*)?Command\s+[`'\"]?\\([A-Za-z@]+)[`'\"]?"
+    r"\s+already\s+defined",
+    re.IGNORECASE | re.MULTILINE,
+)
+
+
+def _abd_deferred(ctx: LoopCtx, blob: str) -> set[str]:
+    r"""归因行 = live ``\begin{document}`` 的 already_def 撞名集。
+
+    ``\AtBeginDocument`` 钩内 deferred 定义者 (包/类装载期注册, ``\begin{document}``
+    执行时才定义) 的专属判据: 钩执行期错误的 file:line 归因恒为钩所在文件的
+    ``\begin{document}`` 行。立即 ``\let`` (docclass 块/装载点前) 恒错序 ——
+    先于用户 preamble 定义跑完, 钩内定义者照样撞; 站点臂亦够不到包内钩体。
+    文件按基名匹配 wdir 件集, 归因行遮罩后须仍见 live ``\begin{document}``
+    (剔注释/verbatim 假行)。
+    """
+    files = {
+        f.name.lower(): f
+        for f in ctx.tex_files((".tex", ".sty", ".cls", ".bbl", ".ltx", ".dtx"))
+    }
+    out: set[str] = set()
+    for m in _ABD_ERR_FILE_RE.finditer(blob):
+        f = files.get(f"{m.group(1)}.{m.group(2)}".lower())
+        if f is None:
+            continue
+        t = ctx.read(f)
+        if t is None:
+            continue
+        lines = mask_tex(t).splitlines()
+        n = int(m.group(3))
+        if 1 <= n <= len(lines) and "\\begin{document}" in lines[n - 1]:
+            out.add(m.group(4))
+    return out
+
+
+def _abd_hook_clear(
+    ctx: LoopCtx, main_t: str, offenders: set[str], blob: str
+) -> set[str]:
+    r"""``\AtBeginDocument`` 迟延定义者臂 → 本轮钩内清位名集 (空 = 臂未接管)。
+
+    撞名归因行 = live ``\begin{document}`` → 后定义者在 pkg/cls 注册的钩体内
+    (babel .ldf ``\DeclareMathOperator`` 族), 一切立即 ``\let`` (docclass
+    块/装载点前) 恒错序 —— 钩执行晚于全部 preamble 行。修 = 声明点行前注
+    ``\AtBeginDocument{\let\X\@undefined}`` —— 钩按注册序 FIFO 执行, 先于一切
+    pkg/cls 钩注册 → 钩执行时先清位, 迟延定义者再定义赢 (1706.00033 ``\sh``
+    实证)。无任何声明点 → 不接管 (209 稿 ``\documentstyle`` 亦锚:
+    209-rewrite 换核后钩生效, 不换则死代码无害); ``_inject_before_docclass``
+    失败 (snippet 已在) 同样不接管。end* 名不入: 迟延定义者仍是
+    ``\@ifdefinable`` 恒拒, 钩内 ``\let`` 同样徒劳。已注册钩的名不重注
+    (本轮 ``main_t`` 文本复核)。
+    """
+    if not find_docclass_ends(main_t):
+        return set()
+    abd = [
+        n
+        for n in sorted(_abd_deferred(ctx, blob) & offenders)
+        if not _endstar_name(n)
+        and f"\\AtBeginDocument{{\\let\\{n}\\@undefined" not in main_t
+    ]
+    if not abd or not _inject_before_docclass(
+        ctx,
+        "\\makeatletter\\AtBeginDocument{"
+        + "".join(f"\\let\\{n}\\@undefined" for n in abd)
+        + "}\\makeatother % fixloop: deferred-definer clear",
+    ):
+        return set()
+    return set(abd)
+
+
+def undefine_for_redef(  # noqa: C901 - 四修形并施 + 护栏逐门, 分派即归因
     ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
 ) -> tuple[bool, str]:
     r"""``already_def`` → ``\let\X\@undefined`` 让位 (批量化 + 站点前置版)。
@@ -539,17 +626,19 @@ def undefine_for_redef(  # noqa: C901 - 三修形并施 + 护栏逐门, 分派�
     payload 非 cs 形或不在 log 撞名集 (Theorem-style 等非 Command 签名
     的 already_def payload) → 丢弃只信 log。
 
-    三修形并施:
-      1. 站点前置 —— 撞名站点所在文件 (guilty file) 内全部
-         ``_SITE_DEF_CMDS`` 站点前插 ``\makeatletter\let\X\@undefined
+    四修形并施:
+      1. 站点前置 —— 撞名站点所在文件 (guilty file, 含 shipped .bbl) 内
+         全部 ``_SITE_DEF_CMDS`` 站点前插 ``\makeatletter\let\X\@undefined
          \makeatother``。halt_on_error 每轮 log 只见首撞名, 站点簇扩
          才是一轮清场的机制 (1206.0299: 6 名连撞单轮全清); 未撞名站点
          前置是语义无操作 (undefine+define≡define)。盖 doc 内双定义与
          "包在 docclass 之后才定义"的窗口 (astro-ph/0408445
-         ``\DeclareMathAlphabet{\mathbfit}`` 撞 bm 包定义)。
-         end* 恒拒名形 (``\@ifdefinable`` ``\@qend`` 前缀拒, 与定义态
-         无关) 在 ``\@ifdefinable`` 路由命令站点换 ``\@rc@ifdefinable``
-         单发旁路; ``\providecommand`` 族站点只收该名形。
+         ``\DeclareMathAlphabet{\mathbfit}`` 撞 bm 包定义) 与 .bbl 自体
+         双 input 撞名 (revtex4-1 ``\auto@bib@innerbib`` 再 input
+         ``\jobname.bbl``, 1907.10621 ``\enquote``)。end* 恒拒名形
+         (``\@ifdefinable`` ``\@qend`` 前缀拒, 与定义态无关) 在
+         ``\@ifdefinable`` 路由命令站点换 ``\@rc@ifdefinable`` 单发旁路;
+         ``\providecommand`` 族站点只收该名形。
       2. 包装载点前置 —— file:line 形错误行抽肇事包茎, 其每个用户件
          ``\usepackage``/``\RequirePackage`` 装载点 (opts/逗号列/dup
          站全收) 前清位。报错包恒为后定义者 → 序恒正确, 修 docclass
@@ -557,11 +646,17 @@ def undefine_for_redef(  # noqa: C901 - 三修形并施 + 护栏逐门, 分派�
          (bbkresid: newtxmath→amssymb ``\Bbbk`` 同型 4 格)。end* 名
          不入此臂: ``\let\X\@undefined`` 对恒拒名徒劳, rc@ 旁路又不能
          跨包体前置 (会被包内首个 ``\@ifdefinable`` 调用消费错目标)。
-      3. docclass 块 —— 只对证实撞名集 (payload∪log 扫描, 不扩站点
+      3. ``\AtBeginDocument`` 钩臂 —— 错误归因行 = live ``\begin{document}``
+         → 后定义者在 pkg/cls 注册的钩体内 (babel .ldf
+         ``\DeclareMathOperator`` 族), 一切立即 ``\let`` 恒错序。声明点
+         行前注 ``\AtBeginDocument{\let\X\@undefined}`` —— 钩 FIFO, 先注册
+         先清位, 迟延定义者再定义赢 (1706.00033 ``\sh``)。无任何声明点
+         → 不接管。
+      4. docclass 块 —— 只对证实撞名集 (payload∪log 扫描, 不扩站点
          兄弟) 早清位, 兜无站点可指的撞名 (cls 内传递装载等)。装载点
-         前置已覆盖的名不入此块 (其清位序已是充分解); end* 名亦不入:
-         无站点可指时 ``\let\endX\@undefined`` 纯徒劳 (重定义侧
-         仍恒拒) 且毁既有义 —— 弃修交下位规则。
+         前置/钩臂已覆盖的名不入此块; end* 名亦不入: 无站点可指时
+         ``\let\endX\@undefined`` 纯徒劳 (重定义侧仍恒拒) 且毁既有义 ——
+         弃修交下位规则。
 
     ``params.min_batch`` (缺省 1) 门批量下限, 计数 = 撞名 ∪ guilty 文件
     站点名 (halt_on_error 下单撞名证据 + 同文件多站点即达批): order
@@ -632,11 +727,17 @@ def undefine_for_redef(  # noqa: C901 - 三修形并施 + 护栏逐门, 分派�
 
     main = ctx.main_path()
     main_t = (ctx.read(main) or "") if main is not None else ""
+    # \AtBeginDocument 迟延定义者臂 —— 机制见 _abd_hook_clear。
+    abd = _abd_hook_clear(ctx, main_t, offenders, (ctx.err_head or "") + "\n" + log)
+    if abd:
+        done.append(f"AtBeginDocument hook clears {len(abd)} deferred cs")
+
     fresh = [
         n
         for n in sorted(offenders)
         if not _endstar_name(n)
         and n not in pkg_covered
+        and n not in abd
         and f"\\let\\{n}\\@undefined" not in main_t
     ]
     if fresh:
