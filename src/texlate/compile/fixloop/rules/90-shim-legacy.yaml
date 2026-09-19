@@ -417,6 +417,10 @@ rules:
               % (TU 下 `_`/`^` 有真字形)。签名兼容 emulateapj \@dblarg 形:
               % \url{X} 与 \url[anchor]{X} 都排 X
               \renewcommand{\url}[2][]{\texttt{\detokenize{#2}}}
+              % \nolinkurl 同面 (2104.00028): hyperref-only cs, shim 语境
+              % 恒无 hyperref → 委托 shim \url 继承 detokenize 保护;
+              % provide 形 —— 稿后装真 hyperref 时自动让位
+              \providecommand{\nolinkurl}[1]{\url{#1}}
               \providecommand{\nocollaboration}[1]{}
               \providecommand{\facilities}[1]{\par\noindent\textbf{Facilities:} #1\par}
               \providecommand{\software}[1]{\par\noindent\textbf{Software:} #1\par}
@@ -2172,14 +2176,17 @@ rules:
               \endinput
           # crckapb.cls (Kluwer crckap 书章类): article 底 + opening env +
           # \institute 并入 author + AtBeginDocument 前置 \maketitle
-          # (9703198 实证 0 err/5pg)。
+          # (9703198 实证 0 err/5pg)。REPAIR shimfix-b 2026-09-19: 稿面
+          # \institute{#1} 自带 \\ (9901364 三行机构) —— 裸花括组囚 \\ 进
+          # article \@maketitle tabular{c} 格 → Missing} current-column;
+          # 内层 tabular 让 \\ 归内层行, \itshape ambient 覆全部行。
           crckapb.cls:
             body: |
               \NeedsTeXFormat{LaTeX2e}
               \ProvidesClass{crckapb}[2026/09/17 fixloop legacy shim -> article]
               \LoadClassWithOptions{article}
               \newenvironment{opening}{}{}
-              \def\institute#1{\g@addto@macro\@author{\\ {\normalsize\itshape #1}}}
+              \def\institute#1{\g@addto@macro\@author{\\ {\normalsize\itshape\begin{tabular}[t]{@{}c@{}}#1\end{tabular}}}}
               \def\runningtitle#1{}
               \def\runningauthor#1{}
               \AtBeginDocument{\maketitle}

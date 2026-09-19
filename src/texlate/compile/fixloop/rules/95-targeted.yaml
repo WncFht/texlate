@@ -143,18 +143,25 @@ rules:
           # 全家桶幂等注入; \n 前缀逃 docclass 行尾 % 注释吞注入
           # (1404.0346 %!PN 实证; _inject_after_docclass eol 缝点缺陷,
           # builtin 根治归 1d)。实证: 0905.0440/1003.0851 clean, 1404.0346 愈。
+          # REPAIR (shimfix-b 2026-09-19): 旧形 \\[1ex]{\small #1} 把稿面
+          # \authorblockA{#1} 自带 \\ 囚进对齐格内花括组 → Missing}
+          # current-column 级联 (0905.1990/1404.0346, shimdiag cluster-B)。
+          # 真件 IEEEtran V1.8a 自带 \IEEEauthorblockN/A (类源 :6310-6311
+          # 注释掉的 legacy 别名即此桥) —— 在场则 \let 直通真件机制
+          # (strut/interlinespace 全保真); 缺席 fallback 内层 tabular 兜住
+          # #1 内 \\ (内层行分组不触外层对齐, \small 随 ambient 覆全部行)。
           maketitle:
             {
-              polyfill: "\n\\providecommand{\\maketitle}{}\n\\providecommand{\\email}[1]{\\texttt{#1}}\n\\providecommand{\\authorblockN}[1]{#1}\n\\providecommand{\\authorblockA}[1]{\\\\[1ex]{\\small #1}}\n\\providecommand{\\authorrunning}[1]{}\n\\providecommand{\\titlerunning}[1]{}\n\\providecommand{\\inst}[1]{\\textsuperscript{#1}}\n\\providecommand{\\institute}[1]{}",
+              polyfill: "\n\\providecommand{\\maketitle}{}\n\\providecommand{\\email}[1]{\\texttt{#1}}\n\\ifdefined\\IEEEauthorblockN\\let\\authorblockN\\IEEEauthorblockN\\else\\providecommand{\\authorblockN}[1]{#1}\\fi\n\\ifdefined\\IEEEauthorblockA\\let\\authorblockA\\IEEEauthorblockA\\else\\providecommand{\\authorblockA}[1]{\\\\[1ex]{\\small\\begin{tabular}[t]{@{}c@{}}#1\\end{tabular}}}\\fi\n\\providecommand{\\authorrunning}[1]{}\n\\providecommand{\\titlerunning}[1]{}\n\\providecommand{\\inst}[1]{\\textsuperscript{#1}}\n\\providecommand{\\institute}[1]{}",
             }
           # 同块挂直接 payload 键 (\authorblockN 裸调顶层时 payload 直达)
           authorblockN:
             {
-              polyfill: "\n\\providecommand{\\email}[1]{\\texttt{#1}}\n\\providecommand{\\authorblockN}[1]{#1}\n\\providecommand{\\authorblockA}[1]{\\\\[1ex]{\\small #1}}",
+              polyfill: "\n\\providecommand{\\email}[1]{\\texttt{#1}}\n\\ifdefined\\IEEEauthorblockN\\let\\authorblockN\\IEEEauthorblockN\\else\\providecommand{\\authorblockN}[1]{#1}\\fi\n\\ifdefined\\IEEEauthorblockA\\let\\authorblockA\\IEEEauthorblockA\\else\\providecommand{\\authorblockA}[1]{\\\\[1ex]{\\small\\begin{tabular}[t]{@{}c@{}}#1\\end{tabular}}}\\fi",
             }
           authorblockA:
             {
-              polyfill: "\n\\providecommand{\\email}[1]{\\texttt{#1}}\n\\providecommand{\\authorblockN}[1]{#1}\n\\providecommand{\\authorblockA}[1]{\\\\[1ex]{\\small #1}}",
+              polyfill: "\n\\providecommand{\\email}[1]{\\texttt{#1}}\n\\ifdefined\\IEEEauthorblockN\\let\\authorblockN\\IEEEauthorblockN\\else\\providecommand{\\authorblockN}[1]{#1}\\fi\n\\ifdefined\\IEEEauthorblockA\\let\\authorblockA\\IEEEauthorblockA\\else\\providecommand{\\authorblockA}[1]{\\\\[1ex]{\\small\\begin{tabular}[t]{@{}c@{}}#1\\end{tabular}}}\\fi",
             }
           # 元数据宏裸调直达键 (aaspp4/svjour 系 preamble 散调)
           authorrunning:
@@ -427,6 +434,33 @@ rules:
           # amssymb 未载面 (\mathbb ×4 / \lesssim ×3 cells, §3 频率表)
           mathbb: { usepackage: amssymb }
           lesssim: { usepackage: amssymb }
+          # ── 2026-09-19 shimfix-a (#171 cluster-A, ~10 格) ──
+          # \url 缺位 ×3 (1306.0187/1404.6110/0806.0347): 稿把 hyperref
+          # 注释掉 / 类不提供 \url —— url.sty (TL 内) 真包补位。
+          url: { usepackage: url }
+          # \nolinkurl 是 hyperref-only (url.sty 亦无): aastex shim 语境下
+          # 装真 url.sty 会夺回 shim 的 detokenize 版 \url → 参内冻结
+          # catcode 炸面回归 (2104.00028 旁证) → 就地 detokenize+texttt
+          # 同形兜底 (与 90-shim-legacy aastex6x_body 同式, provide 让位
+          # 真 hyperref)。
+          nolinkurl:
+            {
+              polyfill: "\n\\providecommand{\\nolinkurl}[1]{\\texttt{\\detokenize{#1}}}",
+            }
+          # PoS.cls begindocument 钩序 bug ×6 (1306.6219/1803.00132/
+          # 1803.08873/1907.00279/2111.00020 .tex 面 + 2308.04222 .bbl 内):
+          # PoS 块 \auto@maketitle → output routine \normalcolor →
+          # \let\current@color\default@color 先于 color 块
+          # \let\default@color\current@color 快照 → current@color 毒化成
+          # undefined → \set@color/\@outputpage 级联。begindocument/before
+          # 钩先于一切 begindocument 块 → 双名兜底 gray 0 (kernel
+          # normalcolor 缺省值); \ifx\csname X\endcsname\relax 形 =
+          # \@ifundefined 零@同义 (undefined 与 \relax 两态都兜底, 且
+          # csname 触碰产的 \relax 被紧接 \gdef 覆写无害)。
+          current@color:
+            {
+              polyfill: "\n\\AddToHook{begindocument/before}{\\ifx\\csname default@color\\endcsname\\relax\\expandafter\\gdef\\csname default@color\\endcsname{gray 0}\\fi\\ifx\\csname current@color\\endcsname\\relax\\expandafter\\gdef\\csname current@color\\endcsname{gray 0}\\fi}",
+            }
         # 表外 fallback (2026-09-16): glue 残骸前缀拆分 —— payload 未命中
         # cs_table 时, 若 cs = 已知粘连头 + 残余 (大写起首或 ≤4 字符) 则合成
         # cs_map 拆回 "head rest" (replay 实证 rmPT 型新残骸仍零星冒头,

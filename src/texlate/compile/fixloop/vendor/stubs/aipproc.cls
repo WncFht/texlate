@@ -38,7 +38,7 @@
   \@ifnextchar\bgroup{\fixaip@author@kv{#1}}{\fixaip@author@plain{#1}}}
 \def\fixaip@author@kv#1#2{%
   \setkeys{fixaip@a}{#2}%
-  \fixaip@author@add{#1\ifx\fixaip@addr\@empty\else\\{\footnotesize\fixaip@addr}\fi}%
+  \fixaip@author@add{#1\ifx\fixaip@addr\@empty\else\\{\footnotesize\begin{tabular}[t]{@{}c@{}}\fixaip@addr\end{tabular}}\fi}%
   \def\fixaip@addr{}}
 \def\fixaip@author@plain#1{\fixaip@author@add{#1}}
 \def\fixaip@author@add#1{%
