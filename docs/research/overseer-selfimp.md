@@ -837,3 +837,12 @@
 - **csfix2 派 (文件锁 freed)**：_builtins_csfix.py 三活件——①pkg-load-site undefine (bbkresid 修形：抽 log `/<pkg>.sty:N` 包茎，prepend `\let\X\@undefined` 于 user 件 usepackage/RequirePackage 行前；opts/逗号列/dup 站全盖；transitive cls 内载→abstain) ②`\reserveinserts`→`\@gobble` (WileyNJD-v2:248, 2 格) ③`\numberwithin` 早载 (mystyle:33, 1 格——真 def vs gobble 由实站定)。**扫描器守卫降级 report-only**：unclosed_if_close 实现竟是 75-syntax.yaml:855+ 内联 python (非 _builtins_csfix.py)——isabelex 持锁，csfix2 只交建议 diff 由 leader 落。
 - roster 12：bticktax(fc9 prep)/hangulfont(impl 中)/shipwrap/tarmember/primarg/isabelex/kvdig/obeylines/braceval/csfix2。decmathsym/logcache 交付 + 入库后尸清。
 - 门：teammate 零 git✓；HEAD db79e2e+b67662c import 净；无活 detached 批 (run.log 全 >2h 旧)；clean% 31/32 维 (2003.03387 fc9 复查列)。
+
+## 2026-09-19 ~15:4x — hangulfont 入库 (77c8b88+f66a6ec) + tarmember 交付+docstrip 追加 + failmine3 派
+
+- **hangulfont (77c8b88, 联合交付)**：`hangul_font_fallback` order 28 新臂——谚文五段带表自 cjk 臂剔出 (FandolSong 无 hangul 块, 绑回=错字体谎报; 2403.00013×1341/2410.18001×545 双格根因)。`fallback_fonts` 有序候选探测 (`_fb_font_resolve`: 文件形→kpathsea+`install:true`补装 unfonts-core, 家族名→fc-list; 全灭诚实 decline 不谎报)。**潜伏 bug 修**：`font_not` 大小写敏感致 `[FandolSong*.otf]` 永不匹配 `fandol`→`re.IGNORECASE`。fandol+uming/ukai 刻意不收 (皆无 hangul=病灶)。**碰撞化解**：bticktax 双派撞单——其单字体版逊, 自删 order-26.5 重复臂保 hangulfont 设计, 加 e2e 双臂派发钉 (f66a6ec) + font_not uming/ukai trim (两 lane 收敛同语义)。13+1 测试, ruleset 125 规单臂。
+- **tarmember 交付 (_builtins_misc.py 未提交)**：tar 伪装件**先改名再抽**根治——旧序 blob 占自身槽位, 同名成员被 no-clobber 永跳, 改名后期待名彻底缺席→missing_file。`_slot_payload` 二扫补写: basename 任意深精确(rank2)>同 stem `.sty`兄弟仅填 `.cls` 槽(rank1, aipproc 实案向, 反向不开)。AMSbsy 无匹配不冒写 (真身走 texlive post-retirement)。8 测试+99 套绿; 0104007 实 replay 得真 1995 AIP 实现 (44KB 替 vendored stub)。**追加进行中**：docstrip `_texts` None-毒化缝 (logcache 同类)——`docstrip_generate` 只洗请求 hit, 同 `\generate` 兄弟出件留陈; 修形=mtime/existence 快照 diff 围 run_tool。
+- **dup-id 瞬态核销**：tarmember 报 `test_phase_ordering` 挂 dup `hangul_font_fallback`——实测为 hangulfont 编辑中瞬态; 提交态单 id 无 dup, ruleset 125 装载净。
+- **failmine3 派** (读-only 普查)：failmine2 后 ~15 规落, 残面已移——最新 records 全量重普查簇排 (category×mechanism×site), fired-but-unfixed vs 正拒鉴别, 喂 flipcheck9 后新波。
+- roster 10：bticktax(fc9 组波——hangul 插曲毕)/shipwrap/tarmember(docstrip 追加)/primarg(_builtins_shim+55-prim 在写)/isabelex(75-syntax+test 在写)/kvdig/obeylines/braceval/csfix2/failmine3。
+- 门：teammate 零 git✓；HEAD 77c8b88+f66a6ec 净；无 detached 批；clean% 31/32 维。
