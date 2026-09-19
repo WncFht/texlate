@@ -949,3 +949,12 @@
 - **loop3 中段**：compile 毕 606 (首过 103 clean/344 partial/159 fail) → fixloop 13/503 飞中 (~45-60min 余); hard 15th record 验=report 无改 (2211.13028 fail honest)。
 - roster 4：209batch(bg 在飞 `_REVTEX209_SHIM` hardening)/hexquote/tailbucket(para-census)/(subagent 面)——偏薄, loop3 harvest 前可再派 def-D(#143) 实装 lane。
 - 门：teammate 零 git✓；HEAD e2fc756 净 (pathspec-only×2)；规则库 129 load✓；外来 churn 未入库✓。
+
+## 2026-09-19 ~22:1x — roster 扩 11: 4 新派 (utf8census/cjkzero/aaspatch/driftdiag) + loop3 fixloop 108/503
+
+- **4 新派**：utf8census (read-only, warn_utf8|residual 11 格尸检→invalid_char_recode 输出侧 FFFD 扩臂建议); cjkzero (read-only, cjk_zero|no_zh 6 格——zh 流失点定位 xlat/splice/normalize/伪阳四分); aaspatch (impl, AAS `&`-biblabel 亚族 2 格 stub-patch 波——先剖后补, 前提错则报正); driftdiag (read-only, fc9 唯一负迁移 2003.03387 clean→acceptable_pdf 单格尸检——missing_char×2 机制判 真回归 vs 判词加严)。
+- **在飞继承**：hexquote (#138 inject.py)/tailbucket (#145 para-census 已领件)/defD (#143)/stucksem (#142 ## REVIEW 引擎语义)/pxnorm (#141)/operandcensus (operand 基类普查)/209batch (bg `_REVTEX209_SHIM` hardening)。
+- **mutex 表**：inject.py→hexquote; latex209.py+2 测→209batch; engine.py→stucksem; _builtins_csfix.py→defD; 75-syntax/40-install yaml 近 edit 区→leader; vendor/stubs aa*→aaspatch。#144 loop-sched 待 stucksem 释 engine.py 后派。
+- **外来 churn 定源确认**：peer texlate-bc+texlate-21 busy (5-7min 起)——formatter 扫荡同行。我方 pathspec-only 继续; ledger 23bf96c 意外卷入 autocorrect 全角化 38 行 (cosmetic, 已入档无害)。
+- **loop3**：fixloop 108/503 (~8s/格)——compile 段 606 毕 (103 clean/344 partial/159 fail 首过)。
+- 门：teammate 零 git✓；HEAD 23bf96c；规则库 129✓；sab-r5 escaped=0✓。
