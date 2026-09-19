@@ -1155,3 +1155,9 @@
 - **分派**: shimfix-a→shimdiag 本尊 (cs_table sortlist+current@color+url 三臂 ~14 格, 自诊自修); shimfixb 新派 (Missing} `\\`-in-group-in-align 多填缺, \bd inject 侧续封); statsync 新派 (74 规 fires=0 簿记再同步, firezero 副产品)。
 - roster 6: shimdiag(#180)/zhleakdiag(#172)/spacefactor(#179)/shimfixb(#181)/statsync(#182)/catchup(armed)。
 - 门: teammate 零 git✓; HEAD 99a9186f; wave-5 组 3/17 在飞 (loop2 组已记事故待 catchup); 裁决点 3 件仍待用户 (#10/ds@/verdict 排序); wave 毕→收 fixloop.jsonl 验靶翻+通知 texlate-bb。
+
+### 2026-09-19 ~13:0x tick — statsync 落地 + canon-ingest 风险勘误
+- **`c2785e3d` stats.fires 再同步 (13 yaml, 83 规 ±83 行)**: statsync #182 交付 74 规 fires=0→fires.json bucket_b 实测 (tar_blob_extract 765 逐项复核=per-ledger 分解和, 精确吻合); leader 顺手并入 9 条 under-counted 非 bucket 规 (static_precheck 22→1996 等, 新测值)。over-counted 7 条**保留原值**——yaml 存的是已清退账本的史, 改低=抹史。簿记语义: engine 只读 stats.status, fires/rescued_cells 是手工 census 回填; 账本是活的 (wave-5 持续 append), 12:40 快照 12:56 已漂 (765→1087), 接受为近似值非误差。stale 注释 2 处标记未动 (60-misschar:284/85-shim:308)。
+- **canon-ingest 风险排除 (catchup B1 前置验证)**: 读 stage_ingest.py+stagerun_lib.py 实证——`canon_id` 方向是 `--`→`/` (规范形=raw), select_ids/dedup_wids 产 raw pid → `CORPUS/astro-ph/0104108/extracted` 嵌套路径命中; workdir 由 safe_id 产 canon 平名。loop2 ids 文件 580 全 canon 形无碍——stagerun 内部归一。corpus_v3 布局实测: 0 个 `*--*` 平名目录, 10262 flat+2991 nested extracted。**早前 "canon 断 ingest" 假设证伪**, catchup.sh 无须改。
+- wave-5 组 ~10/17 (loop3-hard [12/13]); norecord 损失恒定 253 (=loop2 179+loop3 74) 全折入 armed catchup; rt1 组 32/32 毕。
+- roster 5: shimdiag(#180)/zhleakdiag(#172)/spacefactor(#179)/shimfixb(#181)/catchup(armed); statsync 已关。
