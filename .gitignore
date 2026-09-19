@@ -17,7 +17,7 @@ node_modules/
 bench/corpus_v3/*/
 bench/corpus_v3/progress_v2.json
 bench/corpus_v3/build_v2.log
-bench/corpus_daily/*/
+bench/corpus_daily/
 bench/corpus_iclr_pdf/
 bench/zh-store/*/
 bench/archive-*/*
