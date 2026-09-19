@@ -118,9 +118,12 @@ taxonomy:
     }
   - { id: hyphenation, scope: head, pattern: "Not a letter" }
   - {
+      # minted 缓存错配族：v3 "Missing definition for highlighting style"
+      # (doc 自带 v2 *.pygstyle + frozencache 禁再生 → styledef 落空, chronic347
+      # 普查 1803.00188 等 5 格实证) 与 v2 "Cannot find Pygments style" 同桶。
       id: minted_froz,
       scope: head,
-      pattern: "frozencache|Cannot highlight code",
+      pattern: "frozencache|Cannot highlight code|Missing definition for highlighting style|Cannot find Pygments style",
     }
   # —— 2026-09-16 新增 (compilebench-v3 失败构成): inputenc 对 Unicode
   # 引擎整包拒载 (inputenc.sty:164), xelatex 走 -file-line-error 形态时

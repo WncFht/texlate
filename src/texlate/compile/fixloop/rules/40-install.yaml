@@ -13,6 +13,39 @@ rules:
   # W79/W18/W102 孤儿裁决 (mechmap-2026-09-17): filemap 索引外的自产件。
   # 三条 order:9 窄谓词先于 install_file(10) 截流 —— 运行期生成件/包内
   # docstrip 件 install 必 miss 白烧轮次; 谓词不中 return False 不耗轮。
+  # 2026-09-19 covgap-B 补第四条 order:9 居族首 (failmine4 4 格):
+  # e-print 自带件在 wdir 但不在 TeX 解析位 (main 住子目录, compile
+  # cwd=main_dir 无 TEXINPUTS 根注入) —— install_file 探测 cwd=wdir
+  # 假命中 + filemap 无收录 (ifacconf/jmlr2e 实测 tlpdb 零命中)
+  # → fired-unfixed。真件 verbatim 拷贝优于 stub/generate, 居族首;
+  # builtin 自门 (main 未知/目标已在/瞬态扩展名/源不在 fileset 皆
+  # False) 不中零耗让位 rungen/docstrip/stub。
+  - id: fileset_relocate
+    mechanisms: [W19]
+    description: "稿自带件位错 (在 wdir 不在 main_dir 解析位) → 逐字节拷贝归位"
+    phase: loop
+    order: 9 # order:9 族首 —— 真件归位优于 generated_stub/docstrip/install_file
+    when:
+      any:
+        - { category: missing_file, payload_required: true }
+        - { category: missing_graphic, payload_required: true }
+    action:
+      kind: builtin_transform
+      function: fileset_relocate
+      params: {}
+    risk: low # 仅工程内既有件逐字节拷贝; 不触源码不改语义; 目标已在/源缺席即让位
+    known_gap: "payload 与盘上真身大小写不符且路径不同形时 basename 兜底可能命中同族异名件 (rank1); 多 main 工程取 main_rel 一件的解析位"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "failmine4 soak-2026-09-18 4 格 (2609.17927 ifacconf.cls@Artigo/ / 2609.19170 jmlr2e.sty@sections/ / 2609.19664 fairmeta.cls@templates/arxiv/ / 2609.20640 acronyms1.tex@IEEEtran/)",
+          error: "File `X' not found → install_file fired-unfixed —— 件在 wdir 根/旁枝, main 子目录 cwd 不可见",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-covgap/ (逐格 workdir 解剖; install-table 误诊纠正 —— tlpdb 实查零命中)"
+
   - id: rungen_stub
     mechanisms: [W79]
     description: "\\openout\\w=<name> 运行期生成件缺档 → wdir 空 stub 让本遍 \\input 过"

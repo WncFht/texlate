@@ -9,6 +9,7 @@ svjour .clo noop stub / pdfTeX 读取原语 polyfill / 期刊宏 ``\\providecomm
 from __future__ import annotations
 
 import re
+import shutil
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any
 
@@ -27,7 +28,7 @@ from texlate.compile.fixloop._builtins_common import (
     _mc_table,
 )
 from texlate.latex.tables import MATH_ENVS
-from texlate.textutil import DOCCLASS_OPTS_RX, mask_tex
+from texlate.textutil import DOCCLASS_OPTS_RX, mask_tex, safe_is_file
 
 if TYPE_CHECKING:
     from texlate.compile.fixloop.engine import Engine, LoopCtx
@@ -531,6 +532,131 @@ def generated_stub(
         # current/foreign/写败 —— 盘上已有(或写不进)则不占位, 交后续规则
         return False, done[1] if not done[0] else f"{fname} already on disk"
     return True, f"{hit}-stub {fname}"
+
+
+# ════════════════════════════════════════════════════════════════
+# 位错稿自带件归位 (failmine4-covgap: ifacconf/jmlr2e/fairmeta/acronyms1
+# 4 格) —— e-print 有件但不在 TeX 解析位 (compile cwd = main_dir,
+# 根部位件对子目录 main 不可见); install_file 探测 cwd=wdir 假命中
+# → fired-unfixed。真件 verbatim 拷贝优于任何 stub/install。
+# ════════════════════════════════════════════════════════════════
+
+#: 编译自产瞬态件扩展名 —— 缺位是上游病灶信号 (2609.20323 main.aux =
+#: unclosed ``\if`` 下游产物实证), 搬陈件会遮蔽真因, 不属「源档位错」面。
+_RELOCATE_TRANSIENT_EXTS = frozenset(
+    {
+        ".aux",
+        ".out",
+        ".toc",
+        ".lof",
+        ".lot",
+        ".bbl",
+        ".blg",
+        ".bcf",
+        ".log",
+        ".fls",
+        ".nav",
+        ".snm",
+        ".vrb",
+        ".idx",
+        ".ind",
+        ".ilg",
+        ".glo",
+        ".gls",
+        ".acn",
+        ".acr",
+        ".xdy",
+    }
+)
+#: 复合尾缀 (``suffix`` 只取末段, 按件名 endswitch 判)。
+_RELOCATE_TRANSIENT_NAME_EXTS = (".run.xml", ".synctex.gz", ".fdb_latexmk")
+
+
+def _find_relocate_src(ctx: LoopCtx, rel: PurePosixPath) -> Path | None:
+    r"""定位位错真身 —— wdir 内后缀路径匹配优先, basename 兜底, 浅者优先。
+
+    ``**/payload`` 形命中 (如 payload ``templates/arxiv/fairmeta.cls`` 对
+    深层同名位) 高于裸 basename; dot 段路径 (``./.git``/``.texmf`` 类)
+    剔除 —— 工程件不住隐藏目录。多命中取 (rank, 深度, 路径) 最小者,
+    确定性排序。
+    """
+    want_tail = tuple(p.lower() for p in rel.parts)
+    base = rel.name.lower()
+    cands: list[tuple[int, int, str, Path]] = []
+    for p in ctx.wdir.rglob("*"):
+        if not safe_is_file(p):
+            continue
+        parts = p.relative_to(ctx.wdir).parts
+        if any(part.startswith(".") for part in parts):
+            continue
+        pl = tuple(part.lower() for part in parts)
+        if pl[-len(want_tail) :] == want_tail:
+            rank = 0
+        elif p.name.lower() == base:
+            rank = 1
+        else:
+            continue
+        cands.append((rank, len(parts), str(p), p))
+    if not cands:
+        return None
+    return min(cands, key=lambda t: t[:3])[3]
+
+
+def fileset_relocate(  # noqa: PLR0911 - 逐门 decline note 即归因
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""稿自带件在 wdir 但不在 TeX 解析位 → 逐字节拷贝到 ``<main_dir>/<payload>``。
+
+    机理 (failmine4-covgap 4 格实证): e-print 把 ``\documentclass``/
+    ``\input``/``\includegraphics`` 目标件放工程根, main 却住子目录
+    (``Artigo/sbaconf.tex``/``sections/00_preamble.tex``/``IEEEtran/main.tex``
+    形) —— 编译 cwd = ``main_path().parent`` 且无 TEXINPUTS 根注入,
+    payload 按 cwd 解析 → missing_file/missing_graphic。``install_file``
+    探测以 wdir 为 cwd 假命中、filemap 亦无收录 (ifacconf/jmlr2e 实测
+    tlpdb 零命中) → fired-unfixed。修复不是装包而是归位: 目标
+    ``<main_dir>/<payload>`` (TeX 实际解析位), 源序 ``wdir/<payload>``
+    → ``_find_relocate_src`` rglob。序在 order:9 族首 —— 真件内容面
+    即 e-print 钦定, rungen_stub/docstrip 让位。
+
+    守卫: payload 非绝对/无 ``..``/无 ``\x00``; main 未知 → False
+    (解析位不可定); 目标已在 → False (payload 可达, 缺件另有真因);
+    瞬态扩展名 (``.aux/.bbl/.toc``…) 不搬 —— 编译自产件缺位是上游
+    病灶信号非源档问题, 搬陈件遮蔽真因; 源目标同路径 → False。
+    """
+    del eng, params
+    fname = (payload or "").strip().strip("'\"")
+    rel = PurePosixPath(fname)
+    if not fname or rel.is_absolute() or ".." in rel.parts or "\x00" in fname:
+        return False, f"unsafe relocate name {fname!r}"
+    name_l = rel.name.lower()
+    if rel.suffix.lower() in _RELOCATE_TRANSIENT_EXTS or name_l.endswith(
+        _RELOCATE_TRANSIENT_NAME_EXTS
+    ):
+        return False, f"{fname}: transient artifact — not a source file"
+    mp = ctx.main_path()
+    if mp is None:
+        return False, f"{fname}: main unknown — resolve site undetermined"
+    target = mp.parent / Path(*rel.parts)
+    try:
+        target.resolve().relative_to(ctx.wdir.resolve())
+    except ValueError:
+        return False, f"{fname}: escapes wdir"
+    if safe_is_file(target):
+        return False, f"{fname}: already at resolve site"
+    src = ctx.wdir / Path(*rel.parts)
+    if not safe_is_file(src) or src.resolve() == target.resolve():
+        src = _find_relocate_src(ctx, rel)
+    if src is None or src.resolve() == target.resolve():
+        return False, f"{fname}: not present in fileset"
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(src, target)
+        ctx.invalidate(target)
+    except OSError as e:
+        return False, f"{fname}: copy failed ({e})"
+    src_rel = src.relative_to(ctx.wdir).as_posix()
+    dst_rel = target.relative_to(ctx.wdir).as_posix()
+    return True, f"relocated {src_rel} → {dst_rel}"
 
 
 def shim_pkgs_in_use(ctx: LoopCtx, shim_map: dict[str, Any]) -> list[str]:

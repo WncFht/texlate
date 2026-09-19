@@ -24,10 +24,20 @@ payload=None (syntax 类不产 payload), dedup 键 ``{rule}:{None}`` 全族
     手术, 与原宏体版本无关 (免 body-copy 的版本漂移险)。嵌套组内
     ``\par`` 剥不到 —— 已知残面, 语料肇事均为顶层。
 
-注入位: aux 读在 ``\begin{document}`` 执行内 AtBeginDocument 钩之前 →
+注入位双缝: aux 读在 ``\begin{document}`` 执行内 AtBeginDocument 钩之前 →
 钩位注不了, 必须 preamble 落位; 包装载期 ``\let`` 再绑 (natbib
 ``\@citex`` → ``\NAT@citexnum``) 在 usepackage 期完成 → 缝前注入时序
 合法。
+  - preamble 调用点缝 (paraearly): wrap 表宏在 ``\begin{document}``
+    **之前**被调用 (``\author``/``\institute`` 族 frontmatter 面,
+    2112.00059/2112.00071 实证) 时 begindoc 缝到的太晚 → 落块改注
+    在最早 preamble 调用点的行首前 (调用点 = 遮盖视图 depth-0 live
+    命中且紧邻前缀非定义者尾缀; 装载期 .sty/.cls 件内调用恒属
+    preamble; 全 fileset 无 ``\begin{document}`` 的 2.09 稿取首个
+    live 命中)。``\ifdefined`` 闸使早落位天然安全。
+  - ``\begin{document}`` 缝 (原径): 无 preamble 调用点的宏不变 ——
+    aux 扫描器触发面无源码调用点, body 调用也统一由 preamble 末位
+    落块覆盖 (比逐调用点更靠前)。
 
 拒收面: 暂存/级联宏名单 (\bbl@temp* babel kv 暂存 = babel_opt 级联,
 \@tempa*/\@oparg 载体外的 amstex 暂存, \next/\do/\reserved@* 迭代暂存)
@@ -49,6 +59,8 @@ from texlate.compile.fixloop._builtins_common import (
 from texlate.textutil import iter_depth0, mask_tex
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from texlate.compile.fixloop.engine import Engine, LoopCtx
 
 
@@ -61,6 +73,23 @@ _DEF_EXTS = (".tex", ".sty", ".cls", ".def", ".clo", ".cfg")
 
 #: ``\begin{document}`` 锚 —— wrap 注入缝 (aux 读死线) 定位用。
 _BEGIN_DOC_RE = re.compile(r"\\begin\s*\{document\}")
+
+#: 装载期件后缀 —— .sty/.cls/.def/.clo/.cfg 经 ``\usepackage``/``\documentclass``
+#: 读入, 其内 ``\X`` 调用在执行序上恒属 preamble (无所谓件内 ``\begin{document}``
+#: 位置 —— 装载期件根本不会有活的)。
+_LOAD_EXTS = (".sty", ".cls", ".def", ".clo", ".cfg")
+
+#: ``\X`` 紧邻前缀的「定义者」尾缀判 —— ``\def\X``/``\let\X``/``\newcommand\X``
+#: 类是**定义点**不是调用点, 不能当 seam 锚。``{\X}``/``{name}`` 形 brace
+#: 深度 >0 已被 ``iter_depth0`` 排除, 此表只兜 depth-0 无括号形; ``*def``/
+#: ``*let`` 尾缀顺带覆盖 ``\gdef``/``\edef``/``\chardef``/``\futurelet`` 族。
+#: ``\Z`` 锚 (非 ``$``) —— 须贴死匹配起点, ``\def\n\author`` 不许误判。
+_DEF_TAIL_RX = re.compile(
+    r"(?:\\(?:long|outer|global|protected)[ \t]*)*"
+    r"\\(?:[A-Za-z@]*def|[A-Za-z@]*let|newcommand|renewcommand"
+    r"|providecommand|DeclareRobustCommand|DeclareMathOperator|newif)"
+    r"[ \t]*(?:\*[ \t]*)?(?:\[[0-9]+\][ \t]*)?\{?[ \t]*\Z"
+)
 
 #: wrap 签名表: cs 名 (无反斜杠) → (wrapper 捕获签名, 终级转发模板)。
 #: def_sig 逐字作 wrapper 形参 (定界符原样: ``[#1]``/``#1>``/``#1\\``);
@@ -181,6 +210,14 @@ def _longize_defs(t: str, name: str) -> tuple[str, int]:
     return t, len(edits)
 
 
+def _live_begin_pos(t: str, masked: str) -> int | None:
+    r"""首个活 ``\begin{document}`` 起点 offset; 遮盖区命中跳过, 无 → None。"""
+    for m in iter_depth0(_BEGIN_DOC_RE, masked):
+        if masked[m.start() : m.end()] == t[m.start() : m.end()]:
+            return m.start()
+    return None
+
+
 def _inject_before_begindoc(ctx: LoopCtx, snippet: str) -> bool:
     r"""主文件首个活 ``\begin{document}`` 行首前注入 snippet (幂等)。
 
@@ -194,14 +231,154 @@ def _inject_before_begindoc(ctx: LoopCtx, snippet: str) -> bool:
     t = ctx.read(main) or ""
     if snippet in t:
         return False
-    masked = mask_tex(t)
-    for m in iter_depth0(_BEGIN_DOC_RE, masked):
-        if masked[m.start() : m.end()] != t[m.start() : m.end()]:
-            continue  # 遮盖区命中 —— 注释/verbatim 假 \begin{document}
-        pos = t.rfind("\n", 0, m.start()) + 1
-        ctx.write(main, t[:pos] + snippet + "\n" + t[pos:])
-        return True
-    return False
+    bd = _live_begin_pos(t, mask_tex(t))
+    if bd is None:
+        return False
+    pos = t.rfind("\n", 0, bd) + 1
+    ctx.write(main, t[:pos] + snippet + "\n" + t[pos:])
+    return True
+
+
+def _depth0_line_start(masked: str, start: int) -> int:
+    r"""``start`` 回退到最近的 depth-0 行首。
+
+    ``start`` 自身在 depth 0 (``iter_depth0`` 保证) 但其**行首**可能仍在
+    前续行开启的 ``{`` 组内 —— 组内落块会把 ``\def``/``\let`` 锁成局部
+    定义, 组闭即失效 (静默死注)。行首→start 段内出现净 ``}`` (扫到 depth
+    <0) 即行首在组内 → 再退一行; ``\\`` 双字符跳过不吃配对 (同
+    ``iter_depth0`` 走查约定)。
+    """
+    pos = masked.rfind("\n", 0, start) + 1
+    while pos:
+        depth = 0
+        in_group = False
+        i = pos
+        while i < start:
+            c = masked[i]
+            if c == "\\":
+                i += 2
+                continue
+            if c == "{":
+                depth += 1
+            elif c == "}":
+                depth -= 1
+                if depth < 0:
+                    in_group = True
+                    break
+            i += 1
+        if not in_group:
+            break
+        pos = masked.rfind("\n", 0, pos - 1) + 1
+    return pos
+
+
+def _first_preamble_call(
+    name: str, texts: dict[Path, str], main: Path | None, *, has_bd: bool
+) -> tuple[Path, int] | None:
+    r"""Fileset 内 ``\name`` 最早 preamble 调用点 → (文件, 落块行首 offset)。
+
+    候选 = 遮盖视图 depth-0 live 命中且紧邻前缀非定义者尾缀 (``\def\X``
+    类是定义点非调用)。件域分判:
+      - 装载期件 (.sty/.cls/.def/.clo/.cfg): 执行序恒在 preamble → 全部
+        live 命中候选;
+      - .tex: 本件活 ``\begin{document}`` 之前的命中; 该件无 ``\begin{document}``
+        时仅当**全 fileset** 都无 (2.09 ``\documentstyle``/plain 稿) 才候选 ——
+        否则属 body 调用, ``\begin{document}`` 缝更靠前更划算 (aux 读面同罩)。
+    主档候选优先, 余按文件序; 行首经 ``_depth0_line_start`` 校正。
+    """
+    call_rx = re.compile(r"\\" + re.escape(name) + r"(?![A-Za-z@])")
+    ordered = list(texts)
+    if main is not None and main in texts:
+        ordered.remove(main)
+        ordered.insert(0, main)
+    for f in ordered:
+        t = texts.get(f) or ""
+        if not t:
+            continue
+        masked = mask_tex(t)
+        bd = _live_begin_pos(t, masked)
+        load_file = f.suffix.lower() in _LOAD_EXTS
+        if not load_file and bd is None and has_bd:
+            continue
+        for m in iter_depth0(call_rx, masked):
+            if masked[m.start() : m.end()] != t[m.start() : m.end()]:
+                continue
+            if not load_file and bd is not None and m.start() >= bd:
+                break
+            if _DEF_TAIL_RX.search(masked[: m.start()]):
+                continue
+            return f, _depth0_line_start(masked, m.start())
+    return None
+
+
+def _inject_at(ctx: LoopCtx, path: Path, pos: int, snippet: str) -> bool:
+    r"""``path`` 内 ``pos`` (depth-0 行首) 前注入 snippet (幂等)。"""
+    t = ctx.read(path) or ""
+    if snippet in t:
+        return False
+    ctx.write(path, t[:pos] + snippet + "\n" + t[pos:])
+    return True
+
+
+def _inject_sites(
+    ctx: LoopCtx,
+    sites: dict[tuple[Path, int], list[str]],
+    table: dict[str, tuple[str, str]],
+    texts: dict[Path, str],
+) -> list[str]:
+    r"""逐 (文件, 行首) 缝位落 wrap 块 → 实际注入宏名表。
+
+    同件多缝按位置倒序注 —— 前位落块不移后位 offset。
+    """
+    injected: list[str] = []
+    per_file: dict[Path, list[tuple[int, list[str]]]] = {}
+    for (f, pos), names in sites.items():
+        per_file.setdefault(f, []).append((pos, names))
+    for f, segs in per_file.items():
+        for pos, names in sorted(segs, key=lambda s: s[0], reverse=True):
+            block, done = _wrap_block(names, table, texts.get(f) or "")
+            if done and _inject_at(ctx, f, pos, block):
+                injected.extend(done)
+    return injected
+
+
+def _apply_wraps(
+    ctx: LoopCtx,
+    wrap_names: list[str],
+    table: dict[str, tuple[str, str]],
+    notes: list[str],
+) -> list[str]:
+    r"""Wrap 双缝分发 → 实际注入宏名表。
+
+    preamble 调用点缝优先 (块落最早调用行首前); 无候选者收
+    ``\begin{document}`` 缝 (aux 扫描器无源码调用点, body 调用亦由此缝
+    更靠前覆盖)。别名指纹 fileset 级查重 —— 跨件重注会把 ``\TL@pl@X``
+    重快照到 wrapper 自身, 造自指递归。
+    """
+    main = ctx.main_path()
+    texts = {f: ctx.read(f) or "" for f in ctx.tex_files(_DEF_EXTS)}
+    pool = "\n".join(texts.values())
+    has_bd = any(_live_begin_pos(t, mask_tex(t)) is not None for t in texts.values())
+    sites: dict[tuple[Path, int], list[str]] = {}
+    rest: list[str] = []
+    for name in wrap_names:
+        if "\\TL@pl@" + name in pool:
+            continue  # 别名指纹已在 fileset —— 跨件重注会造自指递归
+        site = _first_preamble_call(name, texts, main, has_bd=has_bd)
+        if site is None:
+            rest.append(name)
+        else:
+            sites.setdefault(site, []).append(name)
+    injected = _inject_sites(ctx, sites, table, texts)
+    if rest:
+        existing = texts.get(main) if main is not None else ""
+        block, done = _wrap_block(rest, table, existing or "")
+        if done:
+            if _inject_before_begindoc(ctx, block):
+                injected.extend(done)
+            else:
+                notes.append("wrap site missing (no live \\begin{document})")
+    return injected
 
 
 #: ``\par``-strip 共享原语 —— 每 wrap 块注入一次。
@@ -381,15 +558,9 @@ def para_longize(
             notes.append(note)
     injected: list[str] = []
     if wrap_names:
-        main = ctx.main_path()
-        existing = (ctx.read(main) or "") if main is not None else ""
-        block, todo = _wrap_block(wrap_names, table, existing)
-        if todo:
-            if _inject_before_begindoc(ctx, block):
-                injected = todo
-                notes.append(f"wrap x{len(todo)}: {','.join(todo)}")
-            else:
-                notes.append("wrap site missing (no live \\begin{document})")
+        injected = _apply_wraps(ctx, wrap_names, table, notes)
+        if injected:
+            notes.append(f"wrap x{len(injected)}: {','.join(injected)}")
     applied = bool(n_def or injected)
     if not applied and not notes:
         notes.append("nothing actionable")
