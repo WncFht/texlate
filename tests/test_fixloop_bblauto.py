@@ -5,10 +5,10 @@
 探测；裸 ``\\input`` 改写丢失该解除 → ``\\test@bbl@sw`` 在 ``\\vbox`` 中把
 ``\\bibitem`` 必需组 cite key 当正文排印（``_``/``&``/``$`` → Missing$ →
 invalid-in-math 级联；探测为真再三读 → 重复书目/Lonely \\item/env_mismatch）。
-emit-site 在 ``\\input`` 前补 disarm 行; ``\\@ifundefined``/``\\ifcsname``
-守卫使非 revtex 工程运行时零操作。fixloop ``bbl_stub_rewrite`` 侧已换
-csname-let 形 (零字面 ``@``, 2105.11398 def-体预读实证); normalize
-``use_bundled_bibliography`` 侧仍是 ``\\makeatletter`` 形 (互斥区未动)。
+emit-site 在 ``\\input`` 前补 disarm 行; ``\\ifcsname``
+守卫使非 revtex 工程运行时零操作。fixloop ``bbl_stub_rewrite`` 与
+normalize ``use_bundled_bibliography`` 双侧统一 csname-let 形
+(零字面 ``@``, 2105.11398 def-体预读实证)。
 """
 
 from pathlib import Path
@@ -17,16 +17,14 @@ from texlate.compile.fixloop._builtins_bib import bbl_stub_rewrite
 from texlate.compile.fixloop.engine import LoopCtx
 from texlate.compile.normalize import use_bundled_bibliography
 
-#: normalize.use_bundled_bibliography 侧 emit (互斥区未动 —— 仍是旧形)。
+#: 双侧统一 csname-let 形 (零字面 ``@``) —— normalize
+#: ``use_bundled_bibliography`` 与 fixloop ``bbl_stub_rewrite`` 同文。
 _DISARM_NORM = (
-    r"\makeatletter\@ifundefined{auto@bib}{}{\let\auto@bib\@empty}\makeatother"
-)
-#: _builtins_bib._AUTOBIB_DISARM —— csname 形零字面 ``@``。
-_DISARM_FIXLOOP = (
     r"\ifcsname auto@bib\endcsname"
     r"\expandafter\let\csname auto@bib\expandafter\endcsname"
     r"\csname @empty\endcsname\fi"
 )
+_DISARM_FIXLOOP = _DISARM_NORM
 
 
 def _doc(docclass: str = "revtex4-1") -> str:

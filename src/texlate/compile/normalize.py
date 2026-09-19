@@ -650,8 +650,14 @@ def normalize_legacy_cjk(text: str, engine: str) -> str:
 ## invalid-in-math 级联；探测为真再三读 → 重复书目 / Lonely \item /
 ## env_mismatch）。`\input` 改写同时补上等价解除；`\@ifundefined` 使
 ## 非 revtex 工程为零操作。
+## csname 形零字面 `@` —— `\bibliography` 站可落在已 tokenize 的 def
+## 体内 (2105.11398 `\newcommand{\showbib}` 实证: 旧 `\makeatletter`
+## `\@ifundefined` 形在 @=12 预读体里成 `\@`+裸字母 → 调用点 vmode
+## spacefactor 炸), csname 任意 catcode 同读 (同 _builtins_bib)。
 _AUTOBIB_DISARM = (
-    r"\makeatletter\@ifundefined{auto@bib}{}{\let\auto@bib\@empty}\makeatother"
+    r"\ifcsname auto@bib\endcsname"
+    r"\expandafter\let\csname auto@bib\expandafter\endcsname"
+    r"\csname @empty\endcsname\fi"
 )
 
 
