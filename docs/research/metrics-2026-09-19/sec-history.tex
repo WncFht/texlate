@@ -19,26 +19,26 @@
 \addplot+[fill=cA!70,draw=cA] coordinates {(09-14,9) (09-15,123) (09-16,306) (09-17,624) (09-18,265) (09-19,321)};
 \end{axis}
 \end{tikzpicture}
-\caption{commit 日吞吐（累计 1{,}648）。09-17 峰值 624 对应「波次战」（vendor shim/illegal\_unit/段修多车道并行收割）；全程为多代理车队协作模式（overseer 台账记 roster 峰值 $\sim$23 车道），commit 由 leader 会话统一落盘。}
+\caption{commit 日吞吐（累计 1{,}648）。09-17 峰值 624 对应「波次战」（离线宏包 shim/\texttt{illegal\_unit}/段修多车道并行收割）；全程为多代理车队协作模式（监督台账记名册峰值约 23 车道），commit 由主会话统一落盘。}
 \label{fig:commits}
 \end{figure}
 
-项目节奏呈「日主题」结构（图~\ref{fig:commits}、表~\ref{tab:days}）：D0 立项与八库横评定案、D1 产品骨架（七臂同日落地）、D2 v2 切换 + fixloop 接线（最大单日指标跃升）、D3 波次战收割残面、D4 selfimp 常驻环、D5 语料收官 + 全量综合测试。
+项目节奏呈「日主题」结构（图~\ref{fig:commits}、表~\ref{tab:days}）：D0 立项与八库横评定案、D1 产品骨架（七臂同日落地）、D2 v2 切换 + 修复循环接线（最大单日指标跃升）、D3 波次战收割残面、D4 自改进常驻环、D5 语料收官 + 全量综合测试。
 
 \begin{table}[htbp]
 \centering\small
 \caption{六日大事记（commit 考古，精选）}
 \label{tab:days}
-\begin{tabular}{@{}llp{9.2cm}@{}}
+\begin{tabular}{@{}ll>{\raggedright\arraybackslash}p{9.2cm}@{}}
 \toprule
 日 & 主题 & 标志事件 \\
 \midrule
-D0 09-14 & 立项定案 & 仓库初始化；\textbf{8 库横评}（39 篇 + 30 fixtures）——miniscanner 陷阱 32/32、identity 259/259 定案自研路线；技术栈 ADR 冻结 \\
-D1 09-15 & 产品骨架 & miniscanner 重写为 \texttt{texlate/latex} 九文件；Mouth+Gullet 展开机；compile/xlat/server/阅读器全套；\textbf{七臂同日落地}；fixloop 25 规则移植；语料 $\to$1{,}339 \\
-D2 09-16 & 切换+接线 & \textbf{v2 cutover}（splice 残留 1524$\to$0）；\textbf{fixloop 接线}（pdf $+18.9$pt）；expand+hot 层语料 $\to$5{,}410；loop1 $n$=5124 scorecard 97.89\%；qualbench 诞生 \\
-D3 09-17 & 波次战 & vendor 23 件翻 492 格；illegal\_unit 108 闭环；ReDoS 修复 pytest 48min$\to$3:46；xlat P0 封死错配通道；\textbf{realn200 98.5\% 真臂验收} \\
-D4 09-18 & selfimp 环 & 常驻改进环 23 车道发车；loop2 97.26\%/86.42\%；\textbf{dollar 族 leak 清零}；qualbase 92.9 建档；corpus\_daily 日更渠启动 \\
-D5 09-19 & 收官+全量 & \textbf{corpus\_v3 八层 13{,}266 篇}（dev/eval 分治）；完整性审计全绿；\textbf{12 臂综合测试同日落地}（本报告主体）；loop3 在飞 \\
+D0 09-14 & 立项定案 & 仓库初始化；\textbf{8 库横评}（39 篇 + 30 断言样例）——miniscanner 陷阱 32/32、逐字节一致 259/259 定案自研路线；技术栈选型冻结 \\
+D1 09-15 & 产品骨架 & miniscanner 重写为 \texttt{texlate/latex} 九文件；Mouth+Gullet 展开机；编译/翻译/服务端/阅读器全套；\textbf{七臂同日落地}；修复循环 25 条规则移植；语料 $\to$1{,}339 \\
+D2 09-16 & 切换+接线 & \textbf{v2 切换}（回填残留 1524$\to$0）；\textbf{修复循环接线}（出 PDF $+18.9$pt）；expand+hot 层语料 $\to$5{,}410；loop1 $n$=5124 计分卡 97.89\%；qualbench 诞生 \\
+D3 09-17 & 波次战 & 离线宏包 23 件翻 492 格；\texttt{illegal\_unit} 族 108 闭环；ReDoS 修复 pytest 48min$\to$3:46；翻译层 P0 封死错配通道；\textbf{realn200 98.5\% 真臂验收} \\
+D4 09-18 & 自改进环 & 常驻改进环 23 车道发车；loop2 97.26\%/86.42\%；\textbf{dollar 族泄漏清零}；qualbase 92.9 建档；corpus\_daily 日更渠启动 \\
+D5 09-19 & 收官+全量 & \textbf{corpus\_v3 八层 13{,}266 篇}（开发/评测分治）；完整性审计全绿；\textbf{12 臂综合测试同日落地}（本报告主体）；loop3 在飞 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -80,16 +80,16 @@ D5 09-19 & 收官+全量 & \textbf{corpus\_v3 八层 13{,}266 篇}（dev/eval �
   (2026-09-15,71.7) (2026-09-16,70.6) (2026-09-16,71.3) (2026-09-19,90.2)
 };
 \addplot+[color=cD,dashed] coordinates {(2026-09-15,90) (2026-09-19,90)};
-\legend{union pdf（scorecard）, clean（scorecard）, real 臂 union pdf, real 臂 clean, 裸编译 union pdf, M2 门 90\%}
+\legend{联合口径出 PDF（计分卡）, 纯净（计分卡）, 真实臂联合出 PDF, 真实臂纯净, 裸编译联合出 PDF, M2 门 90\%}
 \end{axis}
 \end{tikzpicture}
-\caption{编译健康度时间线。scorecard 线为 stagerun records 在代码演进下的重评（loop1 $n$=5124 $\to$ loop2 $n$=5219 $\to$ v3all 样本 $n$=80）；real 臂为真 LLM 翻译全链（realn200 $\to$ e2e-v3b $n$=60 终态）；方块为裸编译基线——注意\textbf{基线自身四天涨 $\sim$19pt}（71.7$\to$90.2）：vendored 宏包资产 + tlmgr usertree 积累使工具链整体成熟，「裸引擎撑死七成」的 09-15 结论已不适用今日地板。}
+\caption{编译健康度时间线。计分卡线为 stagerun 落盘记录在代码演进下的重评（loop1 $n$=5124 $\to$ loop2 $n$=5219 $\to$ v3all 样本 $n$=80）；真实臂为真 LLM 翻译全链（realn200 $\to$ e2e-v3b $n$=60 终态）；方块为裸编译基线——注意\textbf{基线自身四天涨约 19 个百分点}（71.7$\to$90.2）：离线宏包资产 + tlmgr usertree 积累使工具链整体成熟，「裸引擎撑死七成」的 09-15 结论已不适用今日地板。}
 \label{fig:health}
 \end{figure}
 
-三条叙事线（图~\ref{fig:health}）：\textbf{fixloop 是单一最大杠杆}——09-16 接产品链当日 union pdf $+18.9$pt（70.6$\to$89.5，同 n180 复跑）；\textbf{波次战把残面打成个位数}——vendor 波翻 492 格 fail 面、illegal\_unit 108/108 闭环、scorecard 一波 89.17$\to$97.89；\textbf{real 与 mock 打平}——realn200 union pdf 98.5\% 证明评测面非虚高，今日 e2e-v3b 终态 96.7\%（7 个 pipe-fail 全被 fixloop 救回、2 格 oversize 跳过）。未达标字面只剩 M2 clean $\geq90\%$（今 88.75\%，$-1.25$pt）。
+三条叙事线（图~\ref{fig:health}）：\textbf{修复循环是单一最大杠杆}——09-16 接产品链当日联合口径出 PDF $+18.9$ 个百分点（70.6$\to$89.5，同 180 篇复跑）；\textbf{波次战把残面打成个位数}——离线宏包波翻 492 格失败面、\texttt{illegal\_unit} 族 108/108 闭环、计分卡一波 89.17$\to$97.89；\textbf{真实臂与模拟臂打平}——realn200 联合出 PDF 98.5\% 证明评测面非虚高，今日 e2e-v3b 终态 96.7\%（7 个管线失败格全被修复循环救回、2 格超大工程跳过）。未达标项只剩 M2 纯净率 $\geq90\%$（今 88.75\%，差 1.25 个百分点）。
 
-\subsection{解析侧：identity 守住，leak 四天内归零再现身}
+\subsection{解析侧：一致率守住，泄漏四天内归零再现身}
 
 \begin{figure}[htbp]
 \centering
@@ -103,7 +103,7 @@ D5 09-19 & 收官+全量 & \textbf{corpus\_v3 八层 13{,}266 篇}（dev/eval �
   ymin=0, enlarge y limits={upper,value=0.2},
   symbolic x coords={09-15 核,09-17 核,09-18 核,09-19 全},
   xtick=data, x tick label style={font=\tiny,rotate=18},
-  ylabel={leak 命中数}, y label style={font=\small},
+  ylabel={泄漏命中数}, y label style={font=\small},
   nodes near coords, nodes near coords style={font=\scriptsize},
 ]
 \addplot+[fill=cB!70,draw=cB] coordinates {(09-15 核,58) (09-17 核,57) (09-18 核,0) (09-19 全,76)};
@@ -112,18 +112,18 @@ D5 09-19 & 收官+全量 & \textbf{corpus\_v3 八层 13{,}266 篇}（dev/eval �
   ymin=99.9, ymax=100.02,
   symbolic x coords={核心,补强,expand,全量},
   xtick=data, x tick label style={font=\tiny,rotate=18},
-  ylabel={identity \%}, y label style={font=\small},
+  ylabel={一致率 \%}, y label style={font=\small},
   ytick={99.9,99.95,100},
   nodes near coords, nodes near coords style={font=\scriptsize},
 ]
 \addplot+[fill=cA!70,draw=cA] coordinates {(核心,100) (补强,100) (expand,100) (全量,99.99)};
 \end{groupplot}
 \end{tikzpicture}
-\caption{解析侧演化。左：leak 命中数——dollar 族 58/57 条残留于 09-18 c2-dollar 车道清零（核心层口径），09-19 全量 28{,}904 文件上重现 76 条（1{,}845{,}338 chunk 中 0.004\%，新语料表面新案例，非回归）。右：strict identity 全测量期 $\geq$99.99\%（纵轴截断）。}
+\caption{解析侧演化。左：泄漏命中数——dollar 族 58/57 条残留于 09-18 c2-dollar 车道清零（核心层口径），09-19 全量 28{,}904 文件上重现 76 条（1{,}845{,}338 译段中占 0.004\%，新语料表面新案例，非回归）。右：逐字节一致率全测量期 $\geq$99.99\%（纵轴截断）。}
 \label{fig:parse}
 \end{figure}
 
-解析侧四天稳态（图~\ref{fig:parse}）：v2 Gullet+Segmenter cutover 当日 splice 残留占位符 1524$\to$0；leak 残留清一色 dollar 族，09-18 单类收口归零——但\textbf{归零是在 1{,}955 文件核心层上}，今日 8 倍体量全量复测重现 76 条命中，说明该族机制在长尾语料上未穷举，属于「已识别族的覆盖率问题」而非新机制。
+解析侧四天稳态（图~\ref{fig:parse}）：v2 展开机+切分器切换当日回填残留占位符 1524$\to$0；泄漏残留清一色 dollar 族，09-18 单类收口归零——但\textbf{归零是在 1{,}955 文件核心层上}，今日 8 倍体量全量复测重现 76 条命中，说明该族机制在长尾语料上未穷举，属于「已识别族的覆盖率问题」而非新机制。
 
 \subsection{翻译侧：硬契约与质量评分}
 
@@ -139,7 +139,7 @@ D5 09-19 & 收官+全量 & \textbf{corpus\_v3 八层 13{,}266 篇}（dev/eval �
   ymin=55, ymax=105,
   symbolic x coords={smoke 48,契约 80,全层 271},
   xtick=data, x tick label style={font=\tiny,rotate=18},
-  ylabel={hard\_ok \%}, y label style={font=\small},
+  ylabel={硬契约率 \%}, y label style={font=\small},
   nodes near coords, nodes near coords style={font=\scriptsize},
 ]
 \addplot+[fill=cA!70,draw=cA] coordinates {(smoke 48,64.6) (契约 80,98.8) (全层 271,93.7)};
@@ -148,13 +148,13 @@ D5 09-19 & 收官+全量 & \textbf{corpus\_v3 八层 13{,}266 篇}（dev/eval �
   ymin=88, ymax=96.6,
   symbolic x coords={qualbase,qualdrift,e2ereal},
   xtick=data, x tick label style={font=\tiny,rotate=18},
-  ylabel={judge mean}, y label style={font=\small},
+  ylabel={评审均分}, y label style={font=\small},
   nodes near coords, nodes near coords style={font=\scriptsize},
 ]
 \addplot+[fill=cD!70,draw=cD] coordinates {(qualbase,92.9) (qualdrift,92.8) (e2ereal,94.0)};
 \end{groupplot}
 \end{tikzpicture}
-\caption{翻译侧演化。左：swe-2-medium 硬契约率——09-15 smoke 期网关不稳（http\_err 17）压到 64.6\%，契约批 98.8\%，今日全层抽样 93.7\%（新校验口径 v\_err 27 条计入后更严）；右：ESA judge 均分 92.9$\to$94.0（swe-2-max 评审，contested 8.1\%$\to$5.5\% 下降）。}
+\caption{翻译侧演化。左：swe-2-medium 硬契约率——09-15 冒烟期网关不稳（http\_err 17）压到 64.6\%，契约批 98.8\%，今日全层抽样 93.7\%（新校验口径 v\_err 27 条计入后更严）；右：ESA 评审均分 92.9$\to$94.0（swe-2-max 初裁，争议率 8.1\%$\to$5.5\% 下降）。}
 \label{fig:xlatqual}
 \end{figure}
 
@@ -180,7 +180,7 @@ D5 09-19 & 收官+全量 & \textbf{corpus\_v3 八层 13{,}266 篇}（dev/eval �
   ybar, bar width=3.2mm, ymin=0,
   symbolic x coords={15,16,17,18,19},
   xtick=data, x tick label style={font=\tiny},
-  title={fixloop 规则}, title style={font=\tiny},
+  title={修复规则数}, title style={font=\tiny},
   nodes near coords, nodes near coords style={font=\tiny,rotate=90},
 ]
 \addplot+[fill=cB!70,draw=cB] coordinates {(15,31) (16,50) (17,71) (18,106) (19,143)};
@@ -188,7 +188,7 @@ D5 09-19 & 收官+全量 & \textbf{corpus\_v3 八层 13{,}266 篇}（dev/eval �
   ybar, bar width=3.2mm, ymin=0,
   symbolic x coords={15,16,17,18,19},
   xtick=data, x tick label style={font=\tiny},
-  title={src 文件数}, title style={font=\tiny},
+  title={源码文件数}, title style={font=\tiny},
   nodes near coords, nodes near coords style={font=\tiny,rotate=90},
 ]
 \addplot+[fill=cE!70,draw=cE] coordinates {(15,72) (16,89) (17,174) (18,355) (19,425)};
@@ -202,7 +202,7 @@ D5 09-19 & 收官+全量 & \textbf{corpus\_v3 八层 13{,}266 篇}（dev/eval �
 \addplot+[fill=cD!70,draw=cD] coordinates {(c39,0.039) (v2,0.139) (+cor,1.0) (+boo,1.2) (+hot,1.366) (+exp,5.232) (+dv4,13.266)};
 \end{groupplot}
 \end{tikzpicture}
-\caption{资产增长（git 历史抽样，同日口径一致）：pytest 798$\to$6{,}450、fixloop 规则 31$\to$143（16 分片）、src 72$\to$425 文件、语料 corpus39/v2 $\to$ v3 八层 13{,}266（另有 corpus\_daily 日更渠 $\sim$1{,}200 篇/日在库外增长）。}
+\caption{资产增长（git 历史抽样，同日口径一致）：pytest 用例 798$\to$6{,}450、修复规则 31$\to$143（16 分片）、源码 72$\to$425 文件、语料 corpus39/v2 $\to$ v3 八层 13{,}266（另有 corpus\_daily 日更渠约 1{,}200 篇/日在库外增长）。}
 \label{fig:assets}
 \end{figure}
 
@@ -212,27 +212,27 @@ D5 09-19 & 收官+全量 & \textbf{corpus\_v3 八层 13{,}266 篇}（dev/eval �
 \centering\small
 \caption{改动 $\to$ 指标位移归因（commit 级，摘自台账与各波报告）}
 \label{tab:attrib}
-\begin{tabular}{@{}llp{7.6cm}@{}}
+\begin{tabular}{@{}ll>{\raggedright\arraybackslash}p{7.5cm}@{}}
 \toprule
 日期 & 改动（commit） & 指标位移 \\
 \midrule
-09-14 & 8 库横评 + miniscanner spike & 主解析器路线定案（陷阱 32/32，identity 259/259） \\
-09-15 & corpus\_v3 core+booster + 双引擎基线 & 基线口径建立（union pdf 71.7\%/clean 39.4\%，n180） \\
-09-15 & fixloop yaml 引擎落地（\texttt{179f7e5b}） & 25 条规则移植，修复臂诞生 \\
-09-16 & fixloop 接产品链（\texttt{3d5de8f7}） & union pdf 70.6$\to$89.5\%（$+18.9$pt，同口径复跑） \\
-09-16 & v2 Gullet+Segmenter 默认切换（\texttt{f4616838}） & splice 残留占位符 1524$\to$0（cutover 硬门） \\
-09-16 & argspec.json 入包（\texttt{401e9bbf}） & 1820 条宏参规格零装载 GAP 闭合 \\
-09-16 & perf-tail 五修 & latex parse 长尾 $-48\%$（51476$\to$26723ms），identity 零回退 \\
-09-16 & stagerun loop1 全 DAG（$n$=5124） & scorecard 97.89\%/84.99\%；fixloop rescue 84.0\% \\
-09-17 & vendored\_fetch + vendor 23 件（\texttt{a90978ab}） & 绝版宏包缺件面 492 格 fail$\to$73.2\% clean，clean +101 格 \\
-09-17 & illegal\_unit 段修波（\texttt{d2c377bd}） & 108/108 闭环零回归，clean 84.76$\to$85.03\% \\
+09-14 & 8 库横评 + miniscanner 探针 & 主解析器路线定案（陷阱 32/32，逐字节一致 259/259） \\
+09-15 & corpus\_v3 core+booster + 双引擎基线 & 基线口径建立（联合出 PDF 71.7\%/纯净 39.4\%，180 篇） \\
+09-15 & 修复循环 yaml 引擎落地（\texttt{179f7e5b}） & 25 条规则移植，修复臂诞生 \\
+09-16 & 修复循环接产品链（\texttt{3d5de8f7}） & 联合出 PDF 70.6$\to$89.5\%（$+18.9$pt，同口径复跑） \\
+09-16 & v2 展开机+切分器切换（\texttt{f4616838}） & 回填残留占位符 1524$\to$0（切换硬门） \\
+09-16 & argspec.json 入包（\texttt{401e9bbf}） & 1820 条宏参规格零装载缺口闭合 \\
+09-16 & perf-tail 五修 & 解析长尾 $-48\%$（51476$\to$26723ms），一致率零回退 \\
+09-16 & stagerun loop1 全流水线（$n$=5124） & 计分卡 97.89\%/84.99\%；修复救回 84.0\% \\
+09-17 & \texttt{vendored\_fetch} 离线宏包 23 件（\texttt{a90978ab}） & 绝版宏包缺件面 492 格失败$\to$73.2\% 纯净，纯净 +101 格 \\
+09-17 & \texttt{illegal\_unit} 段修波（\texttt{d2c377bd}） & 108/108 闭环零回归，纯净率 84.76$\to$85.03\% \\
 09-17 & ReDoS 原子组修复（\texttt{746237fd}） & held6 卡死 30min+$\to$0.1s；pytest 全量 48min$\to$3:46 \\
-09-17 & xlat 非锚定 [n] parse 撤除（\texttt{164a9e0f}，P0） & 译文静默错配通道封死，同批核销 4 P1 \\
-09-17 & realn200 真臂验收（\texttt{f2847c33}） & union pdf 197/200=98.5\%，与 mock 打平 \\
-09-18 & c2-dollar 车道收口 & leak 57$\to$0/136{,}049 chunks（核心层口径单类清零） \\
-09-18 & gate\_scorecard schema v3 & loop1 复跑 97.89/84.99 分毫不差——评测器自证稳定 \\
-09-18 & qualbase esa2（$n$=1200） & 质量基线建档 mean 92.9 [92.4,93.3]，contested 8.1\% \\
-09-18 & loop2 冻结快照（$n$=5219） & scorecard 97.26\%/86.42\%（clean +1.43pt） \\
+09-17 & 非锚定 [n] 译文解析撤除（\texttt{164a9e0f}，P0） & 译文静默错配通道封死，同批核销 4 个 P1 \\
+09-17 & realn200 真臂验收（\texttt{f2847c33}） & 联合出 PDF 197/200=98.5\%，与模拟臂打平 \\
+09-18 & c2-dollar 车道收口 & 泄漏 57$\to$0/136{,}049 译段（核心层口径单类清零） \\
+09-18 & \texttt{gate\_scorecard} schema v3 & loop1 复跑 97.89/84.99 分毫不差——评测器自证稳定 \\
+09-18 & qualbase esa2（$n$=1200） & 质量基线建档 均分 92.9 [92.4,93.3]，争议率 8.1\% \\
+09-18 & loop2 冻结快照（$n$=5219） & 计分卡 97.26\%/86.42\%（纯净率 +1.43pt） \\
 09-19 & corpus 8 层扩层（\texttt{13c603cf}） & 语料 5232$\to$13{,}266，EVAL\_ONLY 治理落地 \\
 09-19 & 全量综合测试（本报告） & 12 臂同日落地；基线地板升至 90.2\%；stagerun 98.75\%/88.75\% \\
 \bottomrule

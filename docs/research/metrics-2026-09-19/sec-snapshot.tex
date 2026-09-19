@@ -6,29 +6,30 @@
 \centering\scriptsize
 \caption{2026-09-19 综合测试逐臂指标总表}
 \label{tab:snapshot}
-\begin{tabular}{@{}llp{6.4cm}p{3.0cm}@{}}
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}ll>{\raggedright\arraybackslash}p{6.4cm}>{\raggedright\arraybackslash}p{3.0cm}@{}}
 \toprule
 臂 & 规模 & 核心指标 & 门槛对比 \\
 \midrule
-完整性审计 & 13{,}266 cells & sha256 13{,}266/13{,}266，0 dup，0 missing；13 stub 为 B07 有意构造 & EVAL\_ONLY 生效 \\
-parsebench & 13{,}253 篇 / 28{,}904 .tex & parse ok \textbf{100.0\%}；identity \textbf{99.99\%}；leak \textbf{0.004\%}（76/1{,}845{,}338）；expand footprint strict 28105/norm 259/div 539；flatten 93.7\% & identity/leak PASS；\textbf{dead ph=3 FAIL}；\textbf{flatten FAIL} \\
-compilebench base & 500 格 $\times$2 & xelatex 56.3\% clean/80.3\% pdf；tectonic 38.6\%/62.4\%；联合 pdf \textbf{90.4\%} & --- \\
-compilebench zh & 500 格 & xelatex \textbf{72.4\%/85.4\%}（+16pt）；tectonic 45.7\%/59.8\% & --- \\
-fixloop（v2 40） & 80 格 & xelatex 34 FAIL$\to$\textbf{25 救回 74\%}；tectonic 1/16（eps\_route 主导） & --- \\
-alignbench & 812 对 & 门全过；765/812 对 named-dests$=0$，真实覆盖 42 对（retention p50 1.0） & 覆盖不足 \\
-e2e\_mock & corpus39 & pipe-xel \textbf{33/39 clean} vs base-xel 19/39；引入回归 3 & --- \\
-e2e\_real & n=24+60 & 58/58 翻译；chunk ok 6053/7580；splice 残留 \textbf{0}；pipe-xel clean 43/fail 7；fixloop 再救 13；\textbf{0 引入回归} & --- \\
-xlatbench & 271 样本 & hard\_ok \textbf{93.7\%}；http\_err 0；延迟 p50 4.2s/p95 29.7s & --- \\
-qualbench & 324 篇/1937 chunk & judge 均分 \textbf{94.0}，median 95；$\geq$90 占 90.6\%；contested 5.5\%；critical 1 & --- \\
-gullet & 200 文档 & 199/200 展开成功；median 39.6ms/19 steps & --- \\
-stagerun DAG & 80 篇跨层 & \textbf{union pdf 79/80=98.75\%}；clean 71/80=88.75\% & M2 pdf 门 \textbf{PASS} \\
+完整性审计 & 13{,}266 格 & sha256 13{,}266/13{,}266，0 重复、0 缺失；13 个 stub 为 B07 有意构造 & EVAL\_ONLY 生效 \\
+parsebench & 13{,}253 篇 / 28{,}904 .tex & 解析成功 \textbf{100.0\%}；一致率 \textbf{99.99\%}；泄漏 \textbf{0.004\%}（76/1{,}845{,}338）；expand 层足迹 strict 28105/norm 259/div 539；合平 93.7\% & 一致率/泄漏过门；\textbf{死占位符=3 未过}；\textbf{合平未过} \\
+compilebench 裸编 & 500 格 $\times$2 & xelatex 纯净 56.3\%/出 PDF 80.3\%；tectonic 38.6\%/62.4\%；联合出 PDF \textbf{90.4\%} & --- \\
+compilebench 中文链 & 500 格 & xelatex \textbf{72.4\%/85.4\%}（纯净 +16pt）；tectonic 45.7\%/59.8\% & --- \\
+修复循环（v2 40） & 80 格 & xelatex 34 格失败$\to$\textbf{25 救回 74\%}；tectonic 1/16（EPS 路由主导） & --- \\
+alignbench & 812 对 & 门全过；765/812 对无具名锚点，真实覆盖 42 对（保留率中位 1.0） & 覆盖不足 \\
+e2e\_mock & corpus39 & 管线 xel \textbf{33/39 纯净} vs 裸编 xel 19/39；引入回归 3 & --- \\
+e2e\_real & n=24+60 & 58/58 翻译；译段通过 6053/7580；回填残留 \textbf{0}；管线 xel 纯净 43/失败 7；修复循环再救 13；\textbf{0 引入回归} & --- \\
+xlatbench & 271 样本 & 硬契约 \textbf{93.7\%}；http 错误 0；延迟 p50 4.2s/p95 29.7s & --- \\
+qualbench & 324 篇/1937 译段 & 评审均分 \textbf{94.0}，中位 95；$\geq$90 占 90.6\%；争议率 5.5\%；critical 1 & --- \\
+gullet & 200 文档 & 199/200 展开成功；中位 39.6ms/19 步 & --- \\
+stagerun 流水线 & 80 篇跨层 & \textbf{联合出 PDF 79/80=98.75\%}；纯净 71/80=88.75\% & M2 出 PDF 门\textbf{过} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\subsection{全链漏斗：stagerun DAG}
+\subsection{全链漏斗：stagerun 五段流水线}
 
-五阶段批量驱动对 80 篇跨层样本的实测漏斗（图~\ref{fig:funnel}）：ingest 80 $\to$ parse 79 ok（1 reject）$\to$ xlat mock 臂 76 ok + 3 partial $\to$ compile zh 臂 61 clean + 13 partial + 5 fail + 1 skip $\to$ fixloop 在 21 格上动作（fail$\to$clean 5、partial$\to$clean 5、partial 保持 8、clean 复核 3）。union 终态 \textbf{clean 71 + partial 8 = pdf 79/80（98.75\%）}，过 M2 union-pdf $\geq90\%$ 门；clean 88.75\% 距 90\% 门差 1.25pt。同格对照臂 base（裸编译 50 clean + 19 partial + 10 fail）给出归因锚点：管线+fixloop 相对裸编译 \textbf{pdf +10 格（69$\to$79）、clean +21 格（50$\to$71）}。
+五段批量流水线对 80 篇跨层样本的实测漏斗（图~\ref{fig:funnel}）：获取 80 $\to$ 解析 79 通过（1 拒）$\to$ 翻译模拟臂 76 通过 + 3 带瑕 $\to$ 编译中文臂 61 纯净 + 13 带瑕 + 5 失败 + 1 跳过 $\to$ 修复循环在 21 格上动作（失败$\to$纯净 5、带瑕$\to$纯净 5、带瑕保持 8、纯净复核 3）。联合终态 \textbf{纯净 71 + 带瑕 8 = 出 PDF 79/80（98.75\%）}，过 M2 联合出 PDF $\geq90\%$ 门；纯净率 88.75\% 距 90\% 门差 1.25pt。同格对照臂裸编译（50 纯净 + 19 带瑕 + 10 失败）给出归因锚点：管线加修复循环相对裸编译 \textbf{出 PDF +10 格（69$\to$79）、纯净 +21 格（50$\to$71）}。
 
 \begin{figure}[htbp]
 \centering
@@ -41,7 +42,7 @@ stagerun DAG & 80 篇跨层 & \textbf{union pdf 79/80=98.75\%}；clean 71/80=88.
   width=7.0cm, height=4.6cm,
   xmin=0, xmax=95,
   xlabel={格数}, ytick=data,
-  yticklabels={union pdf,compile zh pdf,xlat ok,parse ok,ingest},
+  yticklabels={联合出 PDF,编译中文臂,翻译通过,解析通过,获取},
   y tick label style={font=\scriptsize},
   nodes near coords, nodes near coords style={font=\scriptsize},
   bar width=4.2mm,
@@ -52,24 +53,24 @@ stagerun DAG & 80 篇跨层 & \textbf{union pdf 79/80=98.75\%}；clean 71/80=88.
   ybar, bar width=5mm,
   width=5.4cm, height=4.6cm,
   ymin=0, ymax=90,
-  symbolic x coords={base 裸编,zh+fix 联合},
+  symbolic x coords={裸编译,中文链+修复},
   xtick=data, x tick label style={font=\scriptsize},
   ylabel={格数}, y label style={font=\small},
   legend style={at={(0.5,-0.26)},anchor=north,legend columns=2,font=\scriptsize},
   nodes near coords, nodes near coords style={font=\scriptsize},
 ]
-\addplot+[fill=cD!70,draw=cD] coordinates {(base 裸编,50) (zh+fix 联合,71)};
-\addplot+[fill=cC!75,draw=cC] coordinates {(base 裸编,19) (zh+fix 联合,8)};
-\legend{clean,partial（pdf\~{}）}
+\addplot+[fill=cD!70,draw=cD] coordinates {(裸编译,50) (中文链+修复,71)};
+\addplot+[fill=cC!75,draw=cC] coordinates {(裸编译,19) (中文链+修复,8)};
+\legend{纯净,带瑕}
 \end{groupplot}
 \end{tikzpicture}
-\caption{stagerun 五阶段漏斗与同格对照（80 篇跨层样本，xlat 为 mock 上游）。左：主流水线 zh 臂逐段存活数；右：同一 80 格上 base 裸编译 vs zh+fixloop union 终态——管线相对裸编译 pdf +10 格、clean +21 格（fixloop 救回 fail 5 格全升 clean、partial 5 格升 clean）。}
+\caption{stagerun 五段漏斗与同格对照（80 篇跨层样本，翻译上游为模拟臂）。左：主流水线中文臂逐段存活数；右：同一 80 格上裸编译 vs 中文链+修复循环联合终态——管线相对裸编译出 PDF +10 格、纯净 +21 格（修复循环把 5 格失败全救成纯净、5 格带瑕升纯净）。}
 \label{fig:funnel}
 \end{figure}
 
 \subsection{翻译质量：qualbench ESA 评分}
 
-swe-2-medium 译文对 324 篇论文 1{,}937 个 chunk 的 LLM-judge 评分（judge=swe-2-max，二裁 swe-2-high，contested 5.5\% 触发二裁）：mean 94.0 / median 95，$\geq$90 分占 90.6\%，critical 级缺陷仅 1 例（non-translation）。分数段与文类分布见图~\ref{fig:qual}：section\_title 最高（96.9），caption 93.2，para 92.2——长散文段仍是质量洼地。
+swe-2-medium 译文对 324 篇论文 1{,}937 个译段的 LLM 评审评分（初裁 swe-2-max，复核 swe-2-high，争议率 5.5\% 触发复核）：均分 94.0 / 中位 95，$\geq$90 分占 90.6\%，critical 级缺陷仅 1 例（漏译类）。分数段与文类分布见图~\ref{fig:qual}：节标题最高（96.9），图题 93.2，正文段 92.2——长散文段仍是质量洼地。
 
 \begin{figure}[htbp]
 \centering
@@ -83,28 +84,28 @@ swe-2-medium 译文对 324 篇论文 1{,}937 个 chunk 的 LLM-judge 评分（ju
   ymin=0, enlarge y limits={upper,value=0.15},
   symbolic x coords={$\geq$90,75--89,55--74,$<$55},
   xtick=data, x tick label style={font=\scriptsize},
-  ylabel={chunk 数}, y label style={font=\small},
+  ylabel={译段数}, y label style={font=\small},
   nodes near coords, nodes near coords style={font=\scriptsize},
 ]
 \addplot+[fill=cA!70,draw=cA] coordinates {($\geq$90,1756) (75--89,133) (55--74,41) ($<$55,7)};
 \nextgroupplot[
   ybar, bar width=5mm,
   ymin=88, ymax=98,
-  symbolic x coords={para,caption,sec\_title},
+  symbolic x coords={正文段,图题,节标题},
   xtick=data, x tick label style={font=\scriptsize,rotate=15},
-  ylabel={mean 分}, y label style={font=\small},
+  ylabel={均分}, y label style={font=\small},
   nodes near coords, nodes near coords style={font=\scriptsize},
 ]
-\addplot+[fill=cD!70,draw=cD] coordinates {(para,92.2) (caption,93.2) (sec\_title,96.9)};
+\addplot+[fill=cD!70,draw=cD] coordinates {(正文段,92.2) (图题,93.2) (节标题,96.9)};
 \end{groupplot}
 \end{tikzpicture}
-\caption{qualbench 评分分布（左：分数段；右：per-kind 均分）。1{,}756/1{,}937 chunk $\geq$90；para 类是主要拉低项（flag 榜：term\_inconsistency 229、grammar 197、mistranslation 132、hallucinated\_content 66）。}
+\caption{qualbench 评分分布（左：分数段；右：分类均分）。1{,}756/1{,}937 译段 $\geq$90；正文段是主要拉低项（缺陷榜前四：术语不一致 229、语法 197、误译 132、幻觉内容 66）。}
 \label{fig:qual}
 \end{figure}
 
-\subsection{编译臂：baseline vs zh 条件}
+\subsection{编译臂：裸编译 vs 中文链条件}
 
-500 格抽样双引擎对照（图~\ref{fig:compile}）：zh 条件（产品链 normalize + ctex 注入后编译）反而比裸编译高 16pt clean——normalize 顺带修复了源文件的编码/格式缺陷。tectonic 在 zh 臂 clean 升而 pdf 略降，EPS 图源是其死穴（见 \S\ref{sec:failures}）。
+500 格抽样双引擎对照（图~\ref{fig:compile}）：中文链条件（产品链规范化 + ctex 注入后编译）反而比裸编译高 16pt 纯净率——规范化顺带修复了源文件的编码/格式缺陷。tectonic 在中文臂纯净率升而出 PDF 略降，EPS 图源是其死穴（见 \S\ref{sec:failures}）。
 
 \begin{figure}[htbp]
 \centering
@@ -113,26 +114,26 @@ swe-2-medium 译文对 324 篇论文 1{,}937 个 chunk 的 LLM-judge 评分（ju
   ybar, bar width=6mm,
   width=11.5cm, height=5.4cm,
   ymin=0, ymax=100,
-  enlarge x limits={value=0.18,upper},
+  enlarge x limits=0.35,
   ylabel={\%}, y label style={font=\small},
-  symbolic x coords={xelatex clean,xelatex pdf,tectonic clean,tectonic pdf,union pdf},
-  xtick=data, x tick label style={font=\scriptsize},
-  legend style={at={(0.5,-0.22)},anchor=north,legend columns=2,font=\scriptsize},
+  symbolic x coords={xelatex 纯净,xelatex 出PDF,tectonic 纯净,tectonic 出PDF,联合出PDF},
+  xtick=data, x tick label style={font=\scriptsize,rotate=28,anchor=east},
+  legend style={at={(0.5,-0.36)},anchor=north,legend columns=2,font=\scriptsize},
   nodes near coords, nodes near coords style={font=\scriptsize},
 ]
-\addplot+[fill=black!45,draw=black!60] coordinates {(xelatex clean,56.3) (xelatex pdf,80.3) (tectonic clean,38.6) (tectonic pdf,62.4) (union pdf,90.4)};
-\addplot+[fill=cA!70,draw=cA] coordinates {(xelatex clean,72.4) (xelatex pdf,85.4) (tectonic clean,45.7) (tectonic pdf,59.8) (union pdf,0)};
-\legend{baseline（裸编译）, zh 条件（normalize+ctex 后）}
+\addplot+[fill=black!45,draw=black!60] coordinates {(xelatex 纯净,56.3) (xelatex 出PDF,80.3) (tectonic 纯净,38.6) (tectonic 出PDF,62.4) (联合出PDF,90.4)};
+\addplot+[fill=cA!70,draw=cA] coordinates {(xelatex 纯净,72.4) (xelatex 出PDF,85.4) (tectonic 纯净,45.7) (tectonic 出PDF,59.8) (联合出PDF,0)};
+\legend{裸编译基线, 中文链（规范化+ctex 后）}
 \end{axis}
 \end{tikzpicture}
-\caption{compilebench 500 格：baseline vs zh 条件。zh 臂 xelatex clean +16.1pt——normalize 修复了源级缺陷；union pdf 90.4\%（双引擎取优）。}
+\caption{compilebench 500 格：裸编译 vs 中文链条件。中文臂 xelatex 纯净率 +16.1pt——规范化顺带修复了源级缺陷；联合出 PDF 90.4\%（双引擎取优）。}
 \label{fig:compile}
 \end{figure}
 
 \subsection{翻译硬契约：xlatbench}
 
-271 个抽样上下文对 swe-2-medium 的硬契约测试：hard\_ok 254/271=93.7\%，http\_err 0。延迟 p50 4.2s / p90 16.2s / p95 29.7s / max 104.4s——bg 批量档 in-gate 排队在长尾可见。token 经济：tok\_in 77.4k / tok\_out 40.8k（均 285/150 per chunk），reasoning 均 93 tok，prompt 缓存命中 0\%（抽样源分散）。per-kind 契约率：stress 4/4、para 64/67、caption 62/67、item 61/66、footnote 58/60——footnote/item 类是短板。失败类：cs\_dropped$\times$8、ph\_miss$\times$5、validator$\times$3、ord\_hard$\times$1；ord\_soft 78 条软序告警（不改契约，但提示换序倾向）。
+271 个抽样上下文对 swe-2-medium 的硬契约测试：硬契约通过 254/271=93.7\%，http 错误 0。延迟 p50 4.2s / p90 16.2s / p95 29.7s / max 104.4s——批量档入闸排队在长尾可见。token 经济：输入 77.4k / 输出 40.8k（平均每译段 285/150），推理量均 93 tok，提示词缓存命中 0\%（抽样源分散）。按类契约率：压力样例 4/4、正文段 64/67、图题 62/67、条目 61/66、脚注 58/60——脚注/条目类是短板。失败类：\texttt{cs\_dropped}$\times$8、\texttt{ph\_miss}$\times$5、\texttt{validator}$\times$3、\texttt{ord\_hard}$\times$1；\texttt{ord\_soft} 78 条软换序告警（不破契约，但提示换序倾向）。
 
-\subsection{e2e 全链：mock 与 real 双臂}
+\subsection{端到端全链：模拟与真实双臂}
 
-e2e\_mock（corpus39）：pipe-xel 33/39 clean vs base-xel 19/39——管线净正，翻译+splice 步骤不损反而增益（normalize 修复）；3 格引入回归。e2e\_real n=60：58/58 翻译完成，chunk ok 6053/7580（partial 43/fault 8），splice 残留占位符 0（PASS），pipe-xel clean 43/fail 7/partial 6，fixloop 再救 13 格，\textbf{0 管线引入回归}。编译失败类：missing\_file$\times$7、missing\_graphic$\times$3、killed\_by\_signal$\times$3、driver\_fatal$\times$3——以语料源缺资产为主。
+模拟臂（corpus39）：管线 xel 33/39 纯净 vs 裸编 xel 19/39——管线净正，翻译+回填步骤不损反增（规范化顺带修复）；3 格引入回归。真实臂 n=60：58/58 翻译完成，译段通过 6053/7580（带瑕 43/故障 8），回填残留占位符 0（过门），管线 xel 纯净 43/失败 7/带瑕 6，修复循环再救 13 格，\textbf{0 管线引入回归}。编译失败类：缺文件$\times$7、缺图$\times$3、信号终止$\times$3、引擎崩溃$\times$3——以语料源缺资产为主。

@@ -2,25 +2,25 @@
 
 \subsection{这个项目做什么}
 
-TeXlate 是「幻觉翻译」(hjfy.top) 的开源复刻：输入一篇 arXiv 论文的 LaTeX 源码（e-print），输出一份重编译的中文 PDF，正文逐段替换为中文译文、数学公式/图表/参考文献结构原样保留，并提供双语对照阅读。链路上的每一段都由自研组件构成：
+TeXlate 是「幻觉翻译」(hjfy.top) 的开源复刻：输入一篇 arXiv 论文的 LaTeX 源包，输出一份重编译的中文 PDF，正文逐段替换为中文译文、数学公式/图表/参考文献结构原样保留，并提供双语对照阅读。链路上的每一段都由自研组件构成：
 
 \begin{itemize}
-  \item \textbf{获取层}：arXiv e-print 批量下载（IA bulk / export / OAI-PMH 三通道），钉版入库；
-  \item \textbf{解析层}：自研半解析器——不是完整 TeX 引擎，而是「逐字符扫描 $\to$ pieces $\to$ 占位符保护 $\to$ 区间 splice」的保真切分器，外加宏展开机（Gullet）把用户自定义宏就地展开；
-  \item \textbf{翻译层}：段落级 chunk 经 LLM 网关批量翻译（swe-2 系列模型），占位符协议保护公式与命令不被译文污染；
-  \item \textbf{校验层}：L0/L1/L2 三层校验（chunk 不变量、tree-sitter 结构、LLM judge）；
-  \item \textbf{编译层}：ctex 注入 + normalize + xelatex/tectonic 双引擎编译；
-  \item \textbf{修复层}：fixloop——143 条 YAML 规则驱动的自动修复循环（装包、改源、路由、polyfill），把编译失败的论文迭代救回；
-  \item \textbf{对齐层}：named-destination 锚点同步，滚动阅读时中英逐段对齐。
+  \item \textbf{获取层}：arXiv 源包批量下载（IA 批量档 / export / OAI-PMH 三通道），钉版入库；
+  \item \textbf{解析层}：自研半解析器——不是完整 TeX 引擎，而是「逐字符扫描 $\to$ 切片段 $\to$ 占位符保护 $\to$ 区间回填」的保真切分器，外加宏展开机（Gullet）把用户自定义宏就地展开；
+  \item \textbf{翻译层}：段落级译段经 LLM 网关批量翻译（swe-2 系列模型），占位符协议保护公式与命令不被译文污染；
+  \item \textbf{校验层}：L0/L1/L2 三层校验（译段不变量、tree-sitter 结构校验、LLM 评审）；
+  \item \textbf{编译层}：ctex 注入 + 规范化 + xelatex/tectonic 双引擎编译；
+  \item \textbf{修复层}：修复循环（fixloop）——143 条 YAML 规则驱动（装包、改源、路由、polyfill），把编译失败的论文迭代救回；
+  \item \textbf{对齐层}：PDF 具名锚点同步，滚动阅读时中英逐段对齐。
 \end{itemize}
 
 \subsection{为什么这件事难}
 
-\textbf{arXiv 源码是脏的真实世界数据}。语料横跨 LaTeX2.09（1990s）到 2026 年：混用 plain \TeX{} 原语与 LaTeX2.09 旧式、非 UTF-8 编码（Big5/GBK/Latin-1）、缺文件的残缺包、tar/gz 双格式、古早宏包（revtex4、aastex、psfig）。基线实测：裸编译（无修复）union pdf 仅 65--72\%，clean 22--40\%——三分之二的论文源码直接编译不出 PDF，最大失败类是 missing\_file（占裸失败 92.1\%）。
+\textbf{arXiv 源码是脏的真实世界数据}。语料横跨 LaTeX2.09（1990s）到 2026 年：混用 plain \TeX{} 原语与 LaTeX2.09 旧式、非 UTF-8 编码（Big5/GBK/Latin-1）、缺文件的残缺包、tar/gz 双格式、古早宏包（revtex4、aastex、psfig）。基线实测：裸编译（不做任何修复）能出 PDF 的仅 65--72\%，纯净出 PDF 的只有 22--40\%——三分之二的论文源码直接编译不出 PDF，最大失败类是缺文件（占裸编译失败的 92.1\%）。
 
-\textbf{宏展开是现成解析器的共同盲区}。95\% 的论文含自定义宏（中位 47 个/篇，最多 446），其中 12/39 篇手挑语料存在「宏体里藏 \verb|\begin/\end|」的结构性陷阱，49\% 的宏体藏 $>20$ 字母的可译文本。对 8 个第三方解析库（latex-utensils、unified-latex、tree-sitter-latex、TexSoup、plasTeX、pylatexenc、LaTeX.js、ieeA）的横评（原始报告随档 \texttt{refs/}）表明：陷阱断言全军覆没——最好成绩 24/26 vs 自研半解析器 32/32；「能 parse」不等于「parse 对」，pylatexenc 报 90/90 成功却是静默截断零报错。\textbf{无错误信号比崩溃更危险}，这决定了主解析器必须自研、校验器必须独立。
+\textbf{宏展开是现成解析器的共同盲区}。95\% 的论文含自定义宏（中位 47 个/篇，最多 446），其中 12/39 篇手挑语料存在「宏体里藏 \verb|\begin/\end|」的结构性陷阱，49\% 的宏体藏 $>20$ 字母的可译文本。对 8 个第三方解析库（latex-utensils、unified-latex、tree-sitter-latex、TexSoup、plasTeX、pylatexenc、LaTeX.js、ieeA）的横评（原始报告随档 \texttt{refs/}）表明：陷阱断言全军覆没——最好成绩 24/26 vs 自研半解析器 32/32；「能解析」不等于「解析对」，pylatexenc 报 90/90 成功却是静默截断零报错。\textbf{无错误信号比崩溃更危险}，这决定了主解析器必须自研、校验器必须独立。
 
-\textbf{翻译约束是结构性的}。chunk 边界纪律要求公式、命令、环境标签逐字节保留，译文只能在散文区间替换；术语表一致性、学术语域（register）、不可译段（参考文献/版权行）都要显式协议。编译侧中文需要 ctex 注入与 CJK 字体路由，修复侧要处理 EPS 图源、缺 sty/cls、bib 链路断点等 $\sim$260 类已建档机制。
+\textbf{翻译约束是结构性的}。译段边界纪律要求公式、命令、环境标签逐字节保留，译文只能在散文区间替换；术语表一致性、学术语域、不可译段（参考文献/版权行）都要显式协议。编译侧中文需要 ctex 注入与 CJK 字体路由，修复侧要处理 EPS 图源、缺 sty/cls、文献链路断点等 $\sim$260 类已建档机制。
 
 \subsection{管线架构}
 
@@ -38,11 +38,11 @@ TeXlate 是「幻觉翻译」(hjfy.top) 的开源复刻：输入一篇 arXiv 论
   node distance=5mm and 4mm
 ]
 % 主流水线
-\node[stage] (fetch) {arXiv\\e-print};
-\node[stage,right=of fetch] (parse) {flatten + 半解析\\mouth/gullet/segmenter};
-\node[stage,right=of parse] (xlat) {段落级翻译\\xlat 编排 + 网关};
+\node[stage] (fetch) {arXiv\\源包};
+\node[stage,right=of fetch] (parse) {合平 + 半解析\\mouth/gullet/segmenter};
+\node[stage,right=of parse] (xlat) {段落级翻译\\编排 + 网关};
 \node[stage,right=of xlat] (valid) {校验\\L0/L1/L2};
-\node[stage,right=of valid] (splice) {splice 重建\\+ ctex 注入};
+\node[stage,right=of valid] (splice) {回填重建\\+ ctex 注入};
 \node[stage,right=of splice] (comp) {编译\\xelatex / tectonic};
 \node[stage,right=of comp] (align) {锚点对齐\\+ 双语 PDF};
 \draw[arr] (fetch) -- (parse);
@@ -51,21 +51,21 @@ TeXlate 是「幻觉翻译」(hjfy.top) 的开源复刻：输入一篇 arXiv 论
 \draw[arr] (valid) -- (splice);
 \draw[arr] (splice) -- (comp);
 \draw[arr] (comp) -- (align);
-% fixloop 回环
-\node[stage,below=6mm of comp,fill=cB!10,draw=cB] (fix) {fixloop 修复循环\\143 条 YAML 规则};
+% 修复循环回环
+\node[stage,below=6mm of comp,fill=cB!10,draw=cB] (fix) {修复循环\\143 条 YAML 规则};
 \draw[arr,cB] (comp.south) -- (fix.north);
 \draw[arr,cB] (fix.west) -| (splice.south);
-% bench 标注
-\node[bench,below=4mm of parse] (b1) {B1 parsebench\\identity/leak/flatten};
+% 评测臂标注
+\node[bench,below=4mm of parse] (b1) {B1 parsebench\\一致/泄漏/合平};
 \node[bench,below=4mm of xlat] (b4) {B4 xlatbench + qualbench\\硬契约/延迟/ESA 评分};
-\node[bench,below=11mm of valid] (b6) {B6 validbench\\检出率/FP};
-\node[bench,below=4mm of fix] (b3) {B3 compilebench\\clean/pdf 率};
-\node[bench,below=4mm of align] (b7) {B7 alignbench\\named-dest 保留};
+\node[bench,below=11mm of valid] (b6) {B6 validbench\\检出率/误报};
+\node[bench,below=4mm of fix] (b3) {B3 compilebench\\纯净/出PDF率};
+\node[bench,below=4mm of align] (b7) {B7 alignbench\\锚点保留};
 \node[bench,above=4mm of xlat] (b5) {B5 e2ebench 全链漏斗};
 \draw[cC,dashed,-{Stealth[length=1.5mm]}] (b5.south) -- (xlat.north);
 \node[bench,above=4mm of parse] (b2) {B2 fixtures T01--T98};
 \end{tikzpicture}}%
-\caption{TeXlate 管线架构与 benchmark 臂对应关系。主流水线自左向右；fixloop 是编译段的自动修复回环；B1--B7 为七个评测臂（虚线框），另有 fixtures 陷阱断言集做解析段单元级测试。}
+\caption{TeXlate 管线架构与评测臂对应关系。主流水线自左向右；修复循环是编译段的自动修复回环；B1--B7 为七个评测臂（虚线框），另有 fixtures 陷阱断言集做解析段单元级测试。}
 \label{fig:pipeline}
 \end{figure}
 
@@ -75,21 +75,21 @@ TeXlate 是「幻觉翻译」(hjfy.top) 的开源复刻：输入一篇 arXiv 论
 后文所有指标沿用本节口径；遇到生词先查此表。
 
 \begin{itemize}
-  \item \textbf{cell / 格}：语料库中一篇论文的存储单元（\texttt{\{id\}/\{meta.json, raw.*, extracted/\}}）；benchmark 语境下也指一个被评对象（paper $\times$ engine 组合）。
-  \item \textbf{层 / layer}：corpus\_v3 的抽样分层（见 \S\ref{sec:corpus}），每层独立 manifest、独立抽样框。\textbf{EVAL\_ONLY 层}为评测专用，开发期采样一律经 \texttt{dev\_layers()} 排除。
-  \item \textbf{臂 / arm}：同一被测对象的不同处理条件——compile 的 base（裸编译）vs zh（产品链 normalize+ctex 后）；e2e/xlat 的 \textbf{mock}（确定性假翻译，零成本可复现）vs \textbf{real}（真 LLM 网关）；stagerun 的 base 为归因对照臂、zh 为产品链臂。编译条件记号：pipe-xel = 产品链后 xelatex 编译，pipe-fix = fixloop 修复后再编。
-  \item \textbf{chunk / piece}：piece 为解析器输出的片段（散文/公式/命令等类型）；chunk 为翻译最小单位（段落级，由 piece 聚合而来），本批语料均长 211 字符。
-  \item \textbf{flatten}：多文件论文（\verb|\input/\include| 树）合并为单一 .tex 的预处理；orphan tex 为不被主文档引用的附属文件（随附 preamble/poster 件），不计入 flatten 覆盖。
-  \item \textbf{splice / splice 残留}：重建步骤——把译文 chunk 按占位符区间替换回源文骨架；splice 残留 = 重建后仍残留的占位符数，正常应为 0。
-  \item \textbf{clean / partial（pdf\~{}）/ FAIL}：编译终态分级——clean 无 warning 出 PDF；partial/pdf\~{} 带可接受瑕疵出 PDF（records 记作 partial，报告行文写 pdf\~{}）；FAIL 无 PDF。\textbf{union pdf = clean + partial}。
-  \item \textbf{union 口径}：scorecard 的 union pdf 是「阶段并集」——每格取 compile 与 fixloop 两段较优终态；与之相对的 end-state 口径只看最末段状态。base 臂是归因基线，不入 union。
-  \item \textbf{identity / leak}：解析质量两轴——identity 为 reconstruct 逐字节一致率；leak 为受保护内容（公式/命令）漏进可译 chunk 的占比。
-  \item \textbf{dead / orphan}：解析侧两类零容缺——dead protect ph = 占位符未被任何 chunk 消费（死占位符）；orphan chunks = 译文 chunk 找不到回填位置。
-  \item \textbf{stagerun / scorecard}：stagerun 为五段批量驱动（ingest$\to$parse$\to$xlat$\to$compile$\to$fixloop，records append-only 逐格落盘）；scorecard 为 \texttt{gate\_scorecard} 对 records 的终态统计，M2 出口门 union pdf $\geq 90\%$、clean $\geq 90\%$。
-  \item \textbf{hard\_ok / 契约族}：xlatbench 的硬契约判定——占位符全还原（ph\_missing/ph\_invented）、控制序列保留（cs\_dropped）、结构校验通过（validator\_ok）。顺序类分 ord\_hard（破契约）与 ord\_soft（合法中文换序软告警，不计败）。
-  \item \textbf{ESA / contested}：qualbench 的 LLM-judge 协议——judge 按 ESA 错误分类打 0--100 分；judge 与二裁分歧的判例记 contested，由第二 judge 仲裁。
-  \item \textbf{named-dest}：PDF 具名锚点（hyperref \verb|\label| 位点）；alignbench 测双版锚点保留率实现逐段对齐。
-  \item \textbf{fixloop / 机制 / 车道}：fixloop 为 YAML 规则驱动的编译修复循环；mechanism 为机制台账（\texttt{mechanisms.jsonl}，快照随档 \texttt{refs/}）登记的已知缺陷模式（dollar 族泄漏、eps\_route 等），benchmark 发现 $\to$ 归因 $\to$ 规则沉淀的反馈环；车道/波次为多代理并行修一批同族缺陷的工作单元；\textbf{selfimp 环}（self-improvement loop）为 09-18 起常驻的多代理改进环（车队台账快照随档 \texttt{refs/}）。
-  \item \textbf{v2 cutover}：09-16 解析主路径从 v1 逐字符扫描器切到 v2 Gullet 展开机 + Segmenter 的事件，cutover 硬门为 splice 残留占位符清零。
-  \item \textbf{bg 档}：网关批量档——低优先级队列，in-gate 排队 $\sim$120s，bench 批跑默认档位，延迟读数含排队时间。
+  \item \textbf{格（cell）}：语料库中一篇论文的存储单元，目录为 \texttt{\{id\}/\{meta.json, raw.*, extracted/\}}；评测语境下也指一个被评对象（论文 $\times$ 引擎组合）。
+  \item \textbf{层（layer）}：corpus\_v3 的抽样分层（见 \S\ref{sec:corpus}），每层独立清单、独立抽样框。\textbf{EVAL\_ONLY 层}为评测专用，开发期采样一律经 \texttt{dev\_layers()} 排除。
+  \item \textbf{臂（arm）}：同一被测对象的不同处理条件——编译臂分裸编译（base）与中文链（zh，产品链规范化+ctex 注入后）；端到端/翻译臂分模拟（mock，确定性假翻译、零成本可复现）与真实（real，真 LLM 网关）；批量驱动的 base 为归因对照臂。编译条件记号：pipe-xel = 产品链后 xelatex 编译，pipe-fix = 修复循环后再编。
+  \item \textbf{译段（chunk）与片段（piece）}：piece 为解析器输出的最小片段（散文/公式/命令等类型）；chunk 为翻译最小单位（段落级，由 piece 聚合而来），本批语料译段均长 211 字符。
+  \item \textbf{合平（flatten）}：多文件论文（\verb|\input/\include| 树）合并为单一 .tex 的预处理；孤儿 tex 为不被主文档引用的附属文件（随附 preamble/poster 件），不计入合平覆盖。
+  \item \textbf{回填（splice）与回填残留}：把译文按占位符区间替换回源文骨架的重建步骤；回填残留 = 重建后仍残留的占位符数，正常应为 0。
+  \item \textbf{纯净（clean）/ 带瑕（pdf\~{}）/ 失败（FAIL）}：编译终态三级——纯净 = 无告警出 PDF；带瑕 = 带可接受瑕疵出 PDF（落盘记录记作 partial）；失败 = 无 PDF。\textbf{出 PDF 率 = 纯净 + 带瑕}。
+  \item \textbf{联合口径（union）}：计分卡的出 PDF 统计是「阶段并集」——每格取编译与修复循环两段的较优终态；与之相对的终末口径只看最末段状态。base 臂是归因基线，不计入联合。
+  \item \textbf{逐字节一致率（identity）与泄漏（leak）}：解析质量两轴——一致率为重建后逐字节相符的文件占比；泄漏为受保护内容（公式/命令）误入可译译段的占比。
+  \item \textbf{死占位符（dead ph）与孤儿译段（orphan）}：解析侧两类零容缺——占位符未被任何译段消费称死占位符；译文译段找不到回填位置称孤儿。
+  \item \textbf{批量驱动（stagerun）与计分卡（scorecard）}：stagerun 为五段批量驱动（获取$\to$解析$\to$翻译$\to$编译$\to$修复，逐格追加式落盘 records）；scorecard 为 \texttt{gate\_scorecard} 对记录的终态统计，M2 出口门出 PDF 率 $\geq 90\%$、纯净率 $\geq 90\%$。
+  \item \textbf{硬契约（hard\_ok）与契约族}：翻译臂的硬契约判定——占位符全还原（\texttt{ph\_missing}、\texttt{ph\_invented}）、控制序列保留（\texttt{cs\_dropped}）、结构校验通过（\texttt{validator\_ok}）。顺序类分硬换序（\texttt{ord\_hard}，破契约）与软换序（\texttt{ord\_soft}，合法中文换序告警，不计败）。
+  \item \textbf{ESA 评审与争议判例（contested）}：质量臂的 LLM 评审协议——评审模型按 ESA 错误分类打 0--100 分；初裁与复核分歧的判例记为争议，由第二评审仲裁。
+  \item \textbf{具名锚点（named-dest）}：PDF 具名锚点（hyperref \verb|\label| 位点）；对齐臂测双版锚点保留率实现逐段对齐。
+  \item \textbf{修复循环（fixloop）/ 机制（mechanism）/ 车道}：fixloop 为 YAML 规则驱动的编译修复循环；mechanism 为机制台账（\texttt{mechanisms.jsonl}，快照随档 \texttt{refs/}）登记的已知缺陷模式（dollar 族泄漏、eps\_route 等），是「benchmark 发现 $\to$ 归因 $\to$ 规则沉淀」反馈环的载体；车道/波次为多代理并行修一批同族缺陷的工作单元；\textbf{自改进环（selfimp）}为 09-18 起常驻的多代理改进环（车队台账快照随档 \texttt{refs/}）。
+  \item \textbf{v2 切换（cutover）}：09-16 解析主路径从 v1 逐字符扫描器切到 v2 展开机 + 切分器的事件，切换硬门为回填残留占位符清零。
+  \item \textbf{批量档（bg）}：网关批量档——低优先级队列，入闸排队约 120 秒，评测批跑默认档位，延迟读数含排队时间。
 \end{itemize}
