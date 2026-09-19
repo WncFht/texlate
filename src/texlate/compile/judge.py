@@ -384,7 +384,9 @@ def _timeout_verdict(v: Verdict, res: CompRes, log_text: str) -> Verdict:
     return v
 
 
-def judge(res: CompRes, *, expect_cjk: bool = False, log_text: str = "") -> Verdict:
+def judge(  # noqa: C901 — 判定树逐支平铺（tofu 否决为末位支）
+    res: CompRes, *, expect_cjk: bool = False, log_text: str = ""
+) -> Verdict:
     """CompRes → 终态判定。`expect_cjk` 打开中文渲染检查（zh 条件必开）。
 
     `log_text`：调用方若已读 log 全文可传入；否则读 res.log_path
@@ -449,6 +451,16 @@ def judge(res: CompRes, *, expect_cjk: bool = False, log_text: str = "") -> Verd
 
     if expect_cjk:
         _cjk_render_check(v, res)
+        # tofu 否决：出 pdf 但 0 中文字节是 zh 臂最坏静默失败（hep-th 8 页
+        # 英文残影；soak-2026-09-18 两格 \documentclass 藏一跳 \input 子件
+        # 未注入同型）。partial 在账本仍计可交付、bench onfail 也不派
+        # fixloop（_want_fix 只接 fail）——cjk_chars=0 必须落 fail。
+        # cjk=-1（pdftotext 缺席）不可测不否决；expect_cjk=False 的 0-chunk
+        # 编排壳 cjk_chars=0 是正确终态，到不了这层。
+        if v.cjk_chars == 0:
+            v.notes.append("tofu_veto")
+            v.status = "fail"
+            return v
 
     v.status = "clean" if not v.reasons else "partial"
     return v

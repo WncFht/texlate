@@ -38,6 +38,7 @@ from texlate.textutil import (
     clean_decl_name,
     decode_tex,
     iter_depth0,
+    safe_resolve,
 )
 
 from .latex209 import upgrade_209
@@ -659,42 +660,29 @@ def inject_cjk(  # noqa: C901 — ctex/xecjk 双模锚点分派+幂等校验平�
     return out, info
 
 
-def _input_hop_inject(
-    root: Path, main_path: Path, main_text: str, *, mode: str
-) -> tuple[str, dict] | None:
-    r"""``\documentclass`` 藏在一跳 ``\input`` 子文件形态的二探注入。
+def _input_hop_targets(
+    root: Path, decl_dir: Path, main_vis: str, *, before: int | None
+) -> list[tuple[Path, str, int]]:
+    r"""字面 ``\input`` 一跳目标收集：``(子件路径, 解码文本, \input 位)``。
 
-    main 本体无 dc 缝（``no-docline``）时按文档序逐条字面 ``\input``
-    目标做一跳解析（``_resolve_input`` 同口径：声明目录→工程根、
-    ``.tex``/``.ltx`` 补全、越根/伪装件拒），首个带 dc 缝的子文件跑
-    ``inject_cjk`` 并写回；返回 ``(new_main_text, info)``，info 加
-    ``input_hop`` 记携带者包内相对路径。无携带者 → ``None``（调用方
-    维持 ``no-docline`` 票面）。
-
-    字面参 only——宏实参/条件臂不解析；``\include``/``\InputIfFileExists``
-    目标非 preamble 载体不收；bd 之后的 ``\input`` 是 body 件，dc 落
-    此非 preamble 缝。一跳面任一文件已带 CJK 支持则整树记 ``already``
-    ——per-文件 already 判定盖不到兄弟件，先注入再撞兄弟 ctex =
-    option clash。main 有 bd 时 ``CJK_MATH_FALLBACK`` 不下进子件而
-    挪到 main 的 bd 前：mathgroup 余号语义要求 preamble 尾锚，子件
-    缝位在组合 preamble 里只是中段（W157-W161 机理）。
+    遮盖视图上按文档序扫 input 族命中（``_walk_inputs`` 同口径），逐条
+    ``_resolve_input`` 一跳解析（声明目录→工程根、``.tex``/``.ltx`` 补全、
+    越根/伪装件拒）。``before`` 截断位 = main 首个 bd——bd 后 ``\input``
+    是 body 件，dc 落此非 preamble 缝，不收。
     """
-    main_vis = visible_tex(main_text)
-    bd_positions = [m.start() for m in iter_depth0(BEGIN_DOC_RX, main_vis)]
-    first_bd = min(bd_positions) if bd_positions else None
-    hops: list[tuple[Path, str, int]] = []  # (子件路径, 解码文本, \input 位)
+    hops: list[tuple[Path, str, int]] = []
     for m in sorted(
         (*INPUT_BRACED_RX.finditer(main_vis), *INPUT_BARE_RX.finditer(main_vis)),
         key=lambda x: x.start(),
     ):
         if (m.groupdict().get("verb") or "input") != "input":
             continue  # \include/\InputIfFileExists 目标非 preamble 载体
-        if first_bd is not None and m.start() > first_bd:
+        if before is not None and m.start() > before:
             break  # 命中点按文档序——bd 后 \input 一律 body 件
         name = clean_decl_name(m["arg"])
         if name is None:
             continue
-        tgt = _resolve_input(root, main_path.parent, name)
+        tgt = _resolve_input(root, decl_dir, name)
         if tgt is None:
             continue
         try:
@@ -706,6 +694,39 @@ def _input_hop_inject(
         hops.append((tgt, decode_tex(blob), m.start()))
         if len(hops) >= _INPUT_HOP_CAP:
             break
+    return hops
+
+
+def _input_hop_inject(
+    root: Path, main_path: Path, main_text: str, *, mode: str
+) -> tuple[str, dict] | None:
+    r"""``\documentclass`` 藏在一跳 ``\input`` 子文件形态的二探注入。
+
+    main 本体无 dc 缝（``no-docline``）时按文档序逐条字面 ``\input``
+    目标做一跳解析（``_input_hop_targets`` 收集），首个带 dc 缝的子
+    文件跑 ``inject_cjk`` 并写回；返回 ``(new_main_text, info)``，info
+    加 ``input_hop`` 记携带者包内相对路径。无携带者 → ``None``（调用方
+    维持 ``no-docline`` 票面）。
+
+    字面参 only——宏实参/条件臂不解析；``\include``/``\InputIfFileExists``
+    目标非 preamble 载体不收。一跳面任一文件已带 CJK 支持则整树记
+    ``already``——per-文件 already 判定盖不到兄弟件，先注入再撞兄弟
+    ctex = option clash。main 有 bd 时 ``CJK_MATH_FALLBACK`` 不下进子件
+    而挪到 main 的 bd 前：mathgroup 余号语义要求 preamble 尾锚，子件
+    缝位在组合 preamble 里只是中段（W157-W161 机理）。
+    """
+    # 归一到绝对帧：``_resolve_input`` 产物是 safe_resolve 绝对路径，相对
+    # root 喂进 ``is_relative_to`` 恒假→零跳静默维持 no-docline——豆腐路
+    # 原位复发，不能靠调用方自觉传绝对路径。
+    rroot = safe_resolve(root)
+    mpath = safe_resolve(main_path)
+    if rroot is None or mpath is None:
+        return None
+    root, main_path = rroot, mpath
+    main_vis = visible_tex(main_text)
+    bd_positions = [m.start() for m in iter_depth0(BEGIN_DOC_RX, main_vis)]
+    first_bd = min(bd_positions) if bd_positions else None
+    hops = _input_hop_targets(root, main_path.parent, main_vis, before=first_bd)
     if not hops:
         return None
     for tgt, sub, _ipos in hops:
