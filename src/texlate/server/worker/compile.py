@@ -945,7 +945,10 @@ class _Compile:
         """
         try:
             pre = run_precheck(
-                work, self._fixloop_engine(ctx, eng), engine_name=ctx.engine_name
+                work,
+                self._fixloop_engine(ctx, eng),
+                engine_name=ctx.engine_name,
+                main_rel=ctx.main_rel,
             )
         except Exception as e:  # noqa: BLE001 -- 预检崩不拖垮编译段
             self._log(ctx, f"precheck crashed: {type(e).__name__}: {e}")
