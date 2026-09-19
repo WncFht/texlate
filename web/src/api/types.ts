@@ -289,7 +289,9 @@ export interface ReaderDoc {
     url: string;
 }
 
-export type ReaderView = "pdf" | "html" | "dom";
+// Kind 后缀避让同名组件 ReaderView（reader/ReaderView.tsx）——类型/组件撞名
+// 在 import 列表与类型位置并列时读性差
+export type ReaderViewKind = "pdf" | "html" | "dom";
 
 export interface ReadingState {
     positions?: Partial<Record<"original" | "translated", Pos>>;
@@ -307,7 +309,7 @@ export interface ReadingState {
 export type ReaderKeep = ReadingState;
 
 export interface ReaderInfo {
-    view?: ReaderView;
+    view?: ReaderViewKind;
     /** 哪侧缺哪侧不写：md_zip 路径必缺 translated，en_pdf 缺则 original 缺 */
     documents: {
         original?: ReaderDoc;
