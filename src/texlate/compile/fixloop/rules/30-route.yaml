@@ -218,7 +218,7 @@ rules:
           corpus: "1706.00240 (同 lane 副修): physics_stub_detach \\input 裸载缺 @-catcode",
           error: "Missing \\begin{document} at physics.sty:13 — \\@undefined 在 @=other 下碎裂 (见 _builtins_pkgload letter_wrap)",
         }
-    stats: { fires: 0, status: proposed }
+    stats: { fires: 765, status: proposed }
     source_ref: "tmp/lane-stybegindoc/ (loop2 cases.jsonl log_excerpt 取证)"
 
   # failmine3 lane (3 格: 2410.00111/2003.03508/2310.16788): 非主 .tex
@@ -295,7 +295,7 @@ rules:
         note: "bundle 没有的包 (自定义 sty) 仍值得预检 → 保留轻量版"
     provenance:
       - { corpus: "*", error: "冷 TEXMFHOME 下高频 missing_file" }
-    stats: { fires: 22, note: "22/22 格执行; 每格装 0-9 包" }
+    stats: { fires: 1996, note: "22/22 格执行; 每格装 0-9 包" }
     source_ref: "fixloop.py L594-618"
 
   # W58 孤儿裁决 (mechmap-2026-09-17, 低优先级信号收割): % arara:/!TEX
@@ -323,5 +323,5 @@ rules:
           corpus: "mechmap W58 (arara/TeXShop 指令头稿)",
           error: "构建需求写在注释里无人执行 (shell-escape/引擎指定)",
         }
-    stats: { fires: 0, status: proposed }
+    stats: { fires: 23, status: proposed }
     source_ref: "bench/corpus_v3/mechanisms.jsonl W58 verdict suggested_rules"

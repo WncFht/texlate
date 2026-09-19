@@ -116,7 +116,7 @@ rules:
           corpus: "*/ctex|zh (14格)",
           error: "File `zhnumber.sty' not found (ctex 注入链)",
         }
-    stats: { fires: 26, rescued_cells: 17 }
+    stats: { fires: 91, rescued_cells: 17 }
     source_ref: "fixloop.py L301-311, L264-276"
 
   # 2026-09-16 wave-2: babel_opt 类目原无消费规则 (纯死端)。机理=稿传
@@ -178,7 +178,7 @@ rules:
           corpus: "loop2-delta babel_opt×11 (+loop1 共 33)",
           error: "Package babel Error: Unknown option 'german'",
         }
-    stats: { fires: 0 }
+    stats: { fires: 43 }
     source_ref: "wave-2 落地: taxonomy babel_opt (:301) 首个消费规则"
 
   # 2026-09-17 wave-4: off-CTAN 件仓内 vendor 平移 (cbucket-scout 清点)。
@@ -205,7 +205,7 @@ rules:
           corpus: "cbucket-vendored-inventory (files 8 真件 + stubs 15)",
           error: "File `aastex.cls' not found (CTAN 下架/改名件)",
         }
-    stats: { fires: 0, status: proposed }
+    stats: { fires: 76, status: proposed }
     source_ref: "wave-4 落地: bench/results/cbucket-vendored-inventory/ dispositions"
 
   # 2026-09-18 nicematrix-lane: 装上件自检版本闸炸 (expl3 msg_critical
@@ -233,7 +233,7 @@ rules:
           corpus: "e2ereal 2308.12712 (+ corpus_v3 nicematrix 用稿同族)",
           error: "nicematrix.sty:39: Critical Package nicematrix Error: Your LaTeX release is too old",
         }
-    stats: { fires: 0, status: proposed }
+    stats: { fires: 8, status: proposed }
     source_ref: "nicematrix-lane 2026-09-18: vendor/files/nicematrix.sty v7.11c→v7.11a 钉档"
 
   # 2026-09-19 csvsub-lane: 反向版本错位 —— 稿自带过旧 csvsimple-l3.sty
@@ -274,7 +274,7 @@ rules:
           corpus: "corpus_v3 2112.00045 (stagerun-loop2 best_effort_pdf 残格)",
           error: "csvsimple-l3.sty:36: Missing number, treated as zero (v2.2.0 \\bool_const:Nn{1} vs expl3 收紧)",
         }
-    stats: { fires: 0, status: proposed }
+    stats: { fires: 2, status: proposed }
     source_ref: "csvsub-lane 2026-09-19: tmp/lane-csvsub 三臂实证 (orig 炸 / patch 过 / 2.7.0 过)"
 
   # 2026-09-19 pstadd-lane: 稿自带 pstricks-add 过旧对 (v2.32/2005-01-16)
@@ -322,7 +322,7 @@ rules:
           corpus: "corpus_v3 0707.4206 (stagerun flipcheck3 best_effort 残格, 12 错同根)",
           error: "pstricks-add.tex:1544: Undefined control sequence \\psset@@tickstyle (v2.32/2005 vs pst-node v1.45)",
         }
-    stats: { fires: 0, status: proposed }
+    stats: { fires: 1, status: proposed }
     source_ref: "pstadd-lane 2026-09-19: tmp/lane-multistrand/report.md + flipcheck3 work/0707.4206 实读"
 
   # 2026-09-19 mnras-retire lane (1206.0291, geomreverify #57 实证): 病件
@@ -416,7 +416,7 @@ rules:
           corpus: "corpus_v3 1206.0291 (geomreverify #57 stagerun 残格)",
           error: "_texmf/home/tex/latex/mnras/mnras.cls:114: LaTeX Error: \\RequirePackage or \\LoadClass in Options Section (上游 v3.2 \\ds@usegraphicx 内联 \\usepackage{graphicx})",
         }
-    stats: { fires: 0, status: proposed }
+    stats: { fires: 7, status: proposed }
     source_ref: "tmp/lane-geomverify/report.md + fixloop.jsonl r1 实读; drop 化裁定 = census 改设 (leader); 补丁件 = mnras-optpatch #51 vendor/files/mnras.cls"
 
   # 2026-09-19 draftsty-patch lane: 稿自带 .sty 内 abstract 体捕获花括号
@@ -492,7 +492,7 @@ rules:
           corpus: "corpus_v3 1706.00240 (iffalse-census #46 残格, 裁定 unfixable:other)",
           error: "Incomplete \\iffalse; all text was ignored after line 317 —— 稿自带 draft.sty \\protected@edef\\@tempa{\\ifnum`}=\\z@ 吞 `}` → edef 不闭 → 全文入 edef 扫描",
         }
-    stats: { fires: 0, status: proposed }
+    stats: { fires: 7, status: proposed }
     source_ref: "tmp/lane-iffalse/report.md (bt7.tex 复现链) + tmp/lane-draftsty 补丁实证 (xelatex repro2 题名+abstract 渲染全保)"
 
   # 2026-09-19 assetlane (failmine3 普查, 3 格: 0806.0246/0806.4130/1306.0294):
@@ -687,7 +687,7 @@ rules:
           corpus: "fixable-data adjudication (1003.2165)",
           error: "Package babel Error: Unknown option 'polutonikogreek' (src 写 greek.polutoniko, ini 弃名桩报错)",
         }
-    stats: { fires: 0 }
+    stats: { fires: 6 }
     source_ref: "scout-fail59 fixloop 杂项; babel_lang_ldf_install 残留格"
 
   # 2026-09-19 babel-lane (1206.0213): francais/frenchb 是 babel-french
@@ -739,7 +739,7 @@ rules:
           corpus: "corpus_v3 1206.0213 ([english,francais] + \\selectlanguage{francais}:123)",
           error: "Package babel Error: Unknown option 'francais'",
         }
-    stats: { fires: 0, status: proposed }
+    stats: { fires: 6, status: proposed }
     source_ref: "tmp/lane-babel/ 2026-09-19: babel-francais.tex/francais.ldf 皆 NOT-IN-TL (tlpdb 核实)"
 
   # 2026-09-19 babel-lane: babel_undef (语言本体未声明) 消费规则 —— 稿面
@@ -794,7 +794,7 @@ rules:
           corpus: "corpus_v3 0707.1325/1003.2165 ([german] ldf 装好后炸 \\iflanguage{ngerman} 钩)",
           error: "Package babel Error: You haven't defined the language 'ngerman' yet",
         }
-    stats: { fires: 0, status: proposed }
+    stats: { fires: 8, status: proposed }
     source_ref: "tmp/lane-babel/ 2026-09-19: babel.sty \\@nolanerr :942 + babel-german.def:739-740 实证"
 
   - id: install_tfm
@@ -863,5 +863,5 @@ rules:
           corpus: "loop1-dedup 2105.00102 ([english,greek] babel)",
           error: "greek.ldf:130 Missing \\endcsname inserted",
         }
-    stats: { fires: 0, status: proposed }
+    stats: { fires: 7, status: proposed }
     source_ref: "tmp/lane-c3-fixloop/ — C3 stats 驱动; greek.ldf:113-131 引擎分支实读"

@@ -25,7 +25,7 @@ rules:
       tectonic: { mode: same }
     provenance:
       - { corpus: "—", error: "Option clash for package X" }
-    stats: { fires: 0, status: proposed }
+    stats: { fires: 1, status: proposed }
     source_ref: "fixloop.py L459-494"
 
   # 2026-09-16 wave-2: option_clash 跨文件形态 (cls 先载 vs doc 后载) ——
@@ -91,7 +91,7 @@ rules:
           corpus: "loop2-delta option_clash (astro-ph/0501556)",
           error: "Option clash for package natbib (cls shim 先载 [], doc 要 [authoryear])",
         }
-    stats: { fires: 0 }
+    stats: { fires: 10 }
     source_ref: "wave-2: option_clash 跨文件形态语义选项面"
 
   # pkg_order 首规则 (2308.12712): bundled 老 acmart.cls
@@ -122,7 +122,7 @@ rules:
           corpus: "loop2-delta pkg_order (2308.12712)",
           error: "hyperxmp.sty:279 Package hyperxmp Error: hyperref must be loaded before hyperxmp",
         }
-    stats: { fires: 0 }
+    stats: { fires: 4 }
     source_ref: "wave-2: pkg_order 类目首个消费规则"
 
   - id: minted_frozencache
@@ -148,7 +148,7 @@ rules:
         fallback: advisory
     provenance:
       - { corpus: "—", error: "frozencache/Cannot highlight code" }
-    stats: { fires: 0, status: proposed }
+    stats: { fires: 2, status: proposed }
     source_ref: "fixloop.py L497-505"
 
   # 新增 (docs/08:270): xelatex 侧 minted v3 装包 × 工程自带 v2 frozencache
@@ -268,7 +268,7 @@ rules:
           corpus: "fixable-data adjudication (2211.13028, 2308.12612)",
           error: "hypdvips: Wrong hyperref driver `hxetex' / hyperref: Wrong driver option `pdftex'",
         }
-    stats: { fires: 0 }
+    stats: { fires: 29 }
     source_ref: "scout-fail59 fixable-data §4 驱动剥除 (1d 批准); taxonomy hyperref_driver 签名同期扩三形态"
 
   - id: docclass_post_option_normalize
@@ -312,7 +312,7 @@ rules:
           corpus: "loop1 unfixable:syntax (1206.2111 schulze.tex src l.1 `\\documentclass{article}[12pt]`)",
           error: "LaTeX Error: Missing \\begin{document} @ splice l.36 (孤儿 [12pt] 行)",
         }
-    stats: { fires: 0 }
+    stats: { fires: 2 }
     source_ref: "1206.2111 zh l.41 孤儿 [12pt] 在 inject 块后 preamble 内; src 原形 \\documentclass{article}[12pt] 同行后置"
 
   # 2026-09-18 C3 (stats 驱动, loop1 dedup 面): 老 pstricks.sty (稿自带,
@@ -352,7 +352,7 @@ rules:
           corpus: "loop1-dedup 0707.4206 (elsart.cls 工程, vendored_fetch 后残面)",
           error: "xcolor.sty:265 LaTeX Error: Unknown option 'override' for package xcolor",
         }
-    stats: { fires: 0, status: proposed }
+    stats: { fires: 5, status: proposed }
     source_ref: "tmp/lane-c3-fixloop/ — C3 stats 驱动; splice pstricks.sty:47 实读"
 
   # 2026-09-19 pstlane (stagerun-loop2 1003.2152 实读): pstcol 是 deprecated
@@ -391,7 +391,7 @@ rules:
           corpus: "1003.2152 (stagerun-loop2-2026-09-18)",
           error: "pstricks-add.tex:742 Undefined control sequence \\psset@pstricks-add@startColor->\\colorlet (pstcol→noxcolor→color-only)",
         }
-    stats: { fires: 0, status: proposed }
+    stats: { fires: 1, status: proposed }
     source_ref: "pstlane defect-B; pstcol.sty:22 noxcolor 实读 + splice main.log:605"
 
   # 2026-09-19 geomlane (stagerun-loop2 1206.0291 实读): option_clash 三规
@@ -478,7 +478,7 @@ rules:
           corpus: "0806.4088/1003.5014/1608.02624/astro-ph/0307059/cond-mat/0408234 (stagerun-loop1-2026-09-16 failmine)",
           error: "LaTeX Error: Unknown float option `H' @ \\begin{figure|table}[H]/[!Ht]/[Hb]/[H!tbp]",
         }
-    stats: { fires: 0, status: proposed }
+    stats: { fires: 7, status: proposed }
     source_ref: "failmine float_opt|H lane; corpus_v3 五格源实读混排形"
 
   # 2026-09-19 flushend lane (failmine2, stagerun-loop2-2026-09-18 五格实读):
@@ -554,5 +554,5 @@ rules:
           corpus: "1706.02725/1803.09012/2105.00097/2105.03814/2111.00082 (stagerun-loop2-2026-09-18 failmine2)",
           error: "flushend.sty:83 LaTeX Error: Unknown option `keeplastbox' for package `flushend'",
         }
-    stats: { fires: 0, status: proposed }
+    stats: { fires: 1, status: proposed }
     source_ref: "failmine2 flushend lane; corpus_v3 五格源实读全 \\usepackage[keeplastbox]{flushend} 直写形"

@@ -82,7 +82,7 @@ rules:
           corpus: "2211.13013 (aux-cjk-truncation 留档)",
           error: "Invalid UTF-8 byte → File ended while scanning use of \\@newl@bel",
         }
-    stats: { fires: 0, status: proposed }
+    stats: { fires: 1, status: proposed }
     source_ref: "docs/research/latex/2026-09-16-aux-cjk-truncation.md"
 
   # 2026-09-16 signature-mining: head 段 "Text line contains an invalid

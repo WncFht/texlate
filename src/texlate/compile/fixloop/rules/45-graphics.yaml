@@ -82,7 +82,7 @@ rules:
           corpus: "1404.5720 (realpostfix2 shim residuals, task#23)",
           error: "5× File `X.eps' not found 且 X.pdf 同目录在盘",
         }
-    stats: { fires: 0, status: proposed }
+    stats: { fires: 8, status: proposed }
 
   # 新增 (fixloop-v2 整改): log 确证的 PS 硬墙 → 先救后拒。
   # 实证: tectonic 对 .eps 工程分两类 —— 能出 pdf~ 的 (eps 引用未真正进
@@ -139,7 +139,7 @@ rules:
           corpus: "2105.00151 (pipecensus pipe/xbb 26 错格, 13 图全丢)",
           error: "Cannot run pipe command + Cannot determine size of graphic in X.xbb",
         }
-    stats: { fires: 0, status: proposed }
+    stats: { fires: 1, status: proposed }
     source_ref: "tmp/lane-pipecensus/cells.jsonl; graphics-def dvipdfmx.def:104-131"
 
   # 兜底拒: 转换工具缺席或全数失败时才拒 —— 替代原 precheck fileset 版,
@@ -286,7 +286,7 @@ rules:
           corpus: "1502.06541/1012.5273 (cbv4 other 拆家)",
           error: "figDY.pdf 合法但双引擎拒载 / zeromode.pdf 转换后仍拒载",
         }
-    stats: { fires: 0, status: proposed }
+    stats: { fires: 1, status: proposed }
     source_ref: "docs/research/product/2026-09-16-signature-mining.md §2.2"
 
   # xlinkobj lane 5 格普查 (1404.5668/1206.0148/1907.00277/2403.05523/
@@ -320,7 +320,7 @@ rules:
           corpus: "xlinkobj lane 5 格 (1404.5668/1206.0148/1907.00277/2403.05523/2412.19437)",
           error: 'xdvipdfmx:fatal: pdf_link_obj(): passed invalid object (伴 Didn''t find "endobj")',
         }
-    stats: { fires: 0, status: proposed }
+    stats: { fires: 5, status: proposed }
     source_ref: "tmp/lane-xlinkobj/; gs pdfwrite rewrite 5/5 bisect-verified"
 
   # astro-ph/9901081 实证 + core 层普查 (11 格 preamble 形): 2.09 老稿
@@ -366,5 +366,5 @@ rules:
           corpus: "astro-ph/9901081 (loop2 undefined_cs fail)",
           error: "epsfig.sty:46 Undefined control sequence \\define (\\input epsfig.sty 裸装载 @=12 裂 \\define@key)",
         }
-    stats: { fires: 0, status: proposed }
+    stats: { fires: 41, status: proposed }
     source_ref: "bench/results/stagerun-loop2-2026-09-18/cases.jsonl astro-ph/9901081"

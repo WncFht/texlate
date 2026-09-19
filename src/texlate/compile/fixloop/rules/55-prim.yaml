@@ -102,7 +102,7 @@ rules:
           corpus: "2105.03753 (41 recut; fixer-bblwall-2026-09-17 A3)",
           error: "Undefined control sequence \\pdfglyphtounicode (lipics-v2021.cls:510 \\IfFileExists 守卫开火 input 真文件)",
         }
-    stats: { fires: 0, status: proposed }
+    stats: { fires: 11, status: proposed }
     source_ref: "fixer-bblwall-2026-09-17 spec A3; \\pdfgentounicode 是 count 赋值形故 \\newcount"
 
   # ─── loop: 源码改写系 —— 按"保守→激进"排序 ───
@@ -141,7 +141,7 @@ rules:
           corpus: "1412.6980/*",
           error: "Undefined control sequence \\pdfoutput",
         }
-    stats: { fires: 3, rescued_cells: 3 }
+    stats: { fires: 11, rescued_cells: 3 }
     source_ref: "fixloop.py L344-361, L284-298"
 
   # 新增 (docs/08:268): guard 只管赋值型; 读取型 \ifnum\pdfoutput 要补定义
@@ -177,5 +177,5 @@ rules:
           corpus: "—",
           error: "Undefined control sequence (\\ifnum\\pdfoutput 读取型)",
         }
-    stats: { fires: 0, status: proposed }
+    stats: { fires: 13, status: proposed }
     source_ref: "docs/08-translate-compile.md L268"

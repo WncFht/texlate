@@ -489,7 +489,7 @@ rules:
         }
     # 2026-09-16 实跑: 1909.05039 xelatex headerps@out→剥 breakurl,
     # 上圈 unfixable:undefined_cs → clean (fixloop-v2-rules 对照)
-    stats: { fires: 1, rescued_cells: 1, status: validated }
+    stats: { fires: 95, rescued_cells: 1, status: validated }
     source_ref: "handoff-2026-09-15 §2.2 undefined_cs 无包映射项"
 
   # ═══ 2026-09-18 C-bucket 残面单格件 (stagerun-loop1-2026-09-16 wave,
@@ -529,7 +529,7 @@ rules:
           corpus: "0806.2574 (stagerun-loop1-2026-09-16 C-bucket)",
           error: "LaTeX Error: Unknown float option `,' @ \\begin{figure}[t,b]",
         }
-    stats: { fires: 0, status: proposed }
+    stats: { fires: 1, status: proposed }
     source_ref: "tmp/c-bucket-residual/routing.md §2 float_opt_comma"
 
   # 0806.2594: mathtext.sty 补丁 \DeclareFontEncoding → 附带
@@ -563,7 +563,7 @@ rules:
           corpus: "0806.2594 (stagerun-loop1-2026-09-16 C-bucket)",
           error: "LaTeX Error: Symbol font `TUletters' is not defined. @ \\begin{document}",
         }
-    stats: { fires: 0, status: proposed }
+    stats: { fires: 2, status: proposed }
     source_ref: "tmp/c-bucket-residual/routing.md §2 other_singles; mathtext.sty:103"
 
   # astro-ph/0408240: vendored aastex(authoryear) + 数字 bbl → natbib
@@ -599,7 +599,7 @@ rules:
           corpus: "astro-ph/0408240 (stagerun-loop1-2026-09-16 C-bucket)",
           error: "Package natbib Error: Bibliography not compatible with author-year citations. (aux \\NAT@force@numbers)",
         }
-    stats: { fires: 0, status: proposed }
+    stats: { fires: 22, status: proposed }
     source_ref: "tmp/c-bucket-residual/routing.md §2 other_singles; natbib.sty:974"
 
   # 1003.0067 (conm-p-l→acmart shim 面): 稿自义 \pdo=\Psi{\rm DO} 进
@@ -669,7 +669,7 @@ rules:
           corpus: "hep-ph/0111062 (stagerun-loop1-2026-09-16 C-bucket, ×2 dup)",
           error: "Illegal unit of measure @ \\vspace*{0.035truein} (粘连形)",
         }
-    stats: { fires: 0, status: proposed }
+    stats: { fires: 1, status: proposed }
     source_ref: "tmp/c-bucket-residual/routing.md §2 dimen_true_unit"
 
   # 1206.5304: citekey_sanitize(141) 的 _BIBITEM_KEY_RE opt-arg 段
@@ -801,7 +801,7 @@ rules:
           corpus: "1003.0067 (stagerun-loop1-2026-09-16 C-bucket)",
           error: "Missing { inserted. <to be read again> \\__um_group_begin: @ $$\\bar \\calA",
         }
-    stats: { fires: 0, status: proposed }
+    stats: { fires: 1, status: proposed }
     source_ref: "tmp/rtarget/ — pdo 修复后残面实跑发现"
 
   # 1003.0067 残面2: acmart 自载 setspace (acmart.cls:290) 并存
@@ -835,7 +835,7 @@ rules:
           corpus: "1003.0067 (stagerun-loop1-2026-09-16 C-bucket)",
           error: "Class acmart Error: An attempt to redefine \\baselinestretch detected. @ \\end{document}",
         }
-    stats: { fires: 0, status: proposed }
+    stats: { fires: 10, status: proposed }
     source_ref: "tmp/rtarget/ — um_accent 修复后残面实跑发现; acmart.cls:3627"
 
   # 2026-09-18 C3 (stats 驱动, loop1 dedup 面): undefined_cs 残留签名
@@ -878,5 +878,5 @@ rules:
           corpus: "loop1-dedup hep-ph/0104121",
           error: "Undefined control sequence \\firstfigfalse @ fixes.sty:41",
         }
-    stats: { fires: 0, status: proposed }
+    stats: { fires: 1, status: proposed }
     source_ref: "tmp/lane-c3-fixloop/ — C3 stats 驱动"

@@ -79,7 +79,7 @@ rules:
           corpus: "loop2-delta fontspec_missing (1706.00240)",
           error: "The font \"Noto Mono\" cannot be found (\\setmonofont, bundled font-termes.sty)",
         }
-    stats: { fires: 0 }
+    stats: { fires: 5 }
     source_ref: "wave-3: fontspec_missing 名替换面 (install_sysfont 兜底)"
 
   - id: missing_pfb_updmap
