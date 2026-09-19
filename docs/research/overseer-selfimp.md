@@ -1405,3 +1405,10 @@
 - **Orphan-check 1 fail = wrapromote 在飞 churn 非本次入库破**: `main_wrapper_promote` order 8.5 规则+注册+builtin 三件已在 worktree (40-install.yaml:21/builtins.py/_builtins_misc.py:730), test_phase_ordering loop[:7] 断言待其交付同步 — HEAD 侧 rule/reg 双 0 计数自洽, 1486 余绿。
 - **Roster**: missmath 关 → wrapromote/gfxrelax/cstablesweep/endcsresid/stucklatin/epsconv/micro2 = 7。
 - **门 vigilance**: ①-⑤ 维持绿 (本次入库 yaml-only 无 builtin 依赖, load 复验过)。
+
+### patrol ~20:15 — quiet tick; shared-index staged-deletion 观察
+
+- **Deliveries**: 无新 report.md/patch; 无新 run.log (l1-gate/autogloss-reg 旧批已结)。
+- **Roster 10 全活**: wrapromote(54m, 40-install.yaml+builtins+_builtins_misc+test_fixloop_rules.py 在飞)/gfxrelax/cstablesweep/endcsresid/stucklatin/epsconv/micro2(46-48m, census 脚本+repro 产出中)/renewguard/precheckmain/blxbbl(新派 4m)。
+- **门 vigilance — shared-index 暂存删除警报**: peer 会话于 ~19:50 后把 4 个已入库测试档 (test_fixloop_{delim_tail,gfxinclude,missmath,nfssfd}.py) + corpus_m1k 件在共享 index 暂存为 `D` —— 磁盘文件完好 (untracked `??` 同尺寸), HEAD blob 完好。若 peer 带着此 index 提交即重演 4509653d stale-sweep 删除。私有 index 纪律不受影响; 后续每次 harvest 续做 `git show HEAD:` marker 复验。
+- **在飞 diff (vs HEAD)**: 40-install.yaml+32 (wrapromote 规), 45-graphics.yaml+13 (gfx 系在飞), _builtins_misc+97, builtins.py+3, test_fixloop_rules+15 (wrapromote 断言同步中), test_fixloop_ruleset_validate+60, ruleset.py±154 + engine.py+6 (peer 改写面, 不碰)。
