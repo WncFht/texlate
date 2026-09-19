@@ -102,6 +102,98 @@ def test_pixel_dimensions_not_global() -> None:
     assert normalize_pixel_dimensions(tex) == tex
 
 
+# 4b. px → bp（空格分隔多值键；`\pdfpxdimen` 控制词吞分隔空格挤塌
+# `\Gread@parse@vp` 四参解析，只能落字面单位——2308.00148/2211.00113 实案）
+def test_pixel_dimensions_trim_braced_bp() -> None:
+    """2308.00148 cw-sup-content.tex 实形：braced trim 四值 → bp。"""
+    tex = (
+        "\\includegraphics[trim={0cm 128px 0cm 127px},clip,"
+        "width=\\textwidth,height=0.75\\textwidth]{#1}"
+    )
+    out = normalize_pixel_dimensions(tex)
+    assert "trim={0cm 128bp 0cm 127bp}" in out
+    assert "pdfpxdimen" not in out
+
+
+def test_pixel_dimensions_trim_unbraced_bp() -> None:
+    """2211.00113 introduction.tex 实形：无括号 trim=10px ×4 → 10bp ×4。"""
+    tex = (
+        "\\includegraphics[height=\\FigHeight mm, trim=10px 10px 10px 10px, "
+        "clip]{figure/x.png}"
+    )
+    out = normalize_pixel_dimensions(tex)
+    assert "trim=10bp 10bp 10bp 10bp" in out
+    assert "px" not in out.replace("pdfpxdimen", "")
+
+
+def test_pixel_dimensions_viewport_bb_bp() -> None:
+    """viewport/bb 同为四值空格分隔 → bp。"""
+    tex = "\\includegraphics[viewport=0 0 100px 200px,clip]{x.png}"
+    out = normalize_pixel_dimensions(tex)
+    assert "viewport=0 0 100bp 200bp" in out
+    tex = "\\includegraphics[bb=0 0 10px 20px]{x.png}"
+    out = normalize_pixel_dimensions(tex)
+    assert "bb=0 0 10bp 20bp" in out
+
+
+def test_pixel_dimensions_bb_scalar_pdfpxdimen() -> None:
+    """bbllx/bburx/natheight 等单值键走 \\pdfpxdimen（无空格分隔问题）。"""
+    tex = "\\includegraphics[bburx=30px,natheight=40px]{x.png}"
+    out = normalize_pixel_dimensions(tex)
+    assert r"bburx=30\pdfpxdimen" in out
+    assert r"natheight=40\pdfpxdimen" in out
+
+
+def test_pixel_dimensions_mixed_keys() -> None:
+    """同括号内 trim → bp 与 width → \\pdfpxdimen 并存。"""
+    tex = "\\includegraphics[trim={0 0 8px 0},width=5px]{x.png}"
+    out = normalize_pixel_dimensions(tex)
+    assert "trim={0 0 8bp 0}" in out
+    assert r"width=5\pdfpxdimen" in out
+
+
+def test_pixel_dimensions_nondim_keys_untouched() -> None:
+    """非尺寸键（scale/hiresbb/clip/非键名 xwidth）里的 px 不动。"""
+    tex = (
+        "\\includegraphics[scale=0.5,hiresbb=true,clip]{x.png}\n"
+        "\\includegraphics[xwidth=10px]{x.png}\n"
+        "trim={0cm 99px 0cm 99px}  % not in includegraphics bracket"
+    )
+    out = normalize_pixel_dimensions(tex)
+    assert out == tex
+
+
+def test_pixel_dimensions_commented_trim_masked() -> None:
+    """注释里的 trim px 在遮蔽面外——不动。"""
+    tex = (
+        "% \\includegraphics[trim={0cm 128px 0cm 127px}]{x}\n"
+        "\\includegraphics[trim={0cm 1px 0cm 1px}]{x}\n"
+    )
+    out = normalize_pixel_dimensions(tex)
+    assert "% \\includegraphics[trim={0cm 128px 0cm 127px}]{x}" in out
+    assert "trim={0cm 1bp 0cm 1bp}" in out
+
+
+def test_pixel_dimensions_idempotent() -> None:
+    """重写幂等：二遍 normalize 不再动已归一的 bp/\\pdfpxdimen。"""
+    tex = "\\includegraphics[trim={0cm 128px 0cm 127px},width=5px]{x.png}"
+    once = normalize_pixel_dimensions(tex)
+    assert normalize_pixel_dimensions(once) == once
+
+
+def test_pixel_block_in_subfile() -> None:
+    """子文件 \\input 场景：px 只在子件时子件自带 PIXEL 块（主件无注入面）。
+
+    实案面：cw-sup-content.tex/introduction.tex 类子文件含 px——has_document
+    闸曾把 PIXEL_COMPATIBILITY 限死在带 \\begin{document} 的文件，子件改出的
+    \\pdfpxdimen 无定义 → Undefined cs 级联（今 \\ifdefined 幂等闸随件落地）。
+    """
+    tex = "\\includegraphics[width=5px]{a.pdf}\n"
+    out = normalize_engine(tex, "xelatex")
+    assert PIXEL_COMPATIBILITY.strip() in out
+    assert out.index("pdfpxdimen") < out.index("width=5")
+
+
 # 5. 兼容前导块
 def test_compat_blocks_injected_once() -> None:
     tex = "\\documentclass{article}\n\\begin{document}\nx\n\\end{document}"

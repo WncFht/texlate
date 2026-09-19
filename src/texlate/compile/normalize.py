@@ -230,18 +230,38 @@ def normalize_pdftex_features(
 
 # ---------------------------------------------------------------- 4. px 像素单位
 def normalize_pixel_dimensions(text: str) -> str:
-    r"""`Npx` → `N\pdfpxdimen`，**仅限尺寸语境**，非全局 sed。
+    r"""`Npx` → `N\pdfpxdimen`（单值键）/ `Nbp`（多值键），**仅限尺寸语境**，非全局 sed。
 
-    语境：\includegraphics 的 width/height/totalheight、\setlength/\addtolength、
-    \hspace/\vspace、\rule、\hskip/\vskip/\kern/\hsize 等裸赋值。
+    语境：\includegraphics 的 width/height/totalheight 与
+    bbllx/bblly/bburx/bbury/natwidth/natheight（单值）、trim/viewport/bb
+    （空格分隔四值——`N\pdfpxdimen` 的控制词会吞掉分隔空格把
+    `\Gread@parse@vp` 四参挤塌，只能落字面 bp，1px=1bp 同 pdfTeX 缺省）、
+    \setlength/\addtolength、\hspace/\vspace、\rule、
+    \hskip/\vskip/\kern/\hsize 等裸赋值。
     """
     visible = visible_tex(text)
-    ranges = []
+    ranges = []  # (start, end, suffix)
     for match in re.finditer(r"\\includegraphics\*?\s*\[([^]]*)\]", visible):
         ranges.extend(
-            (match.start(1) + option.start(1), match.start(1) + option.end(1))
+            (
+                match.start(1) + option.start(1),
+                match.start(1) + option.end(1),
+                r"\pdfpxdimen",
+            )
             for option in re.finditer(
-                r"(?:width|height|totalheight)\s*=\s*([^,]+)", match[1]
+                r"(?<![a-zA-Z])(?:width|height|totalheight|bbllx|bblly|bburx|"
+                r"bbury|natwidth|natheight)\s*=\s*([^,]+)",
+                match[1],
+            )
+        )
+        ranges.extend(
+            (
+                match.start(1) + option.start(1),
+                match.start(1) + option.end(1),
+                "bp",
+            )
+            for option in re.finditer(
+                r"(?<![a-zA-Z])(?:trim|viewport|bb)\s*=\s*([^,]+)", match[1]
             )
         )
     patterns = [
@@ -257,19 +277,17 @@ def normalize_pixel_dimensions(text: str) -> str:
     for pattern in patterns:
         for match in re.finditer(pattern, visible):
             ranges.extend(
-                match.span(index)
+                (*match.span(index), r"\pdfpxdimen")
                 for index in range(1, len(match.groups()) + 1)
                 if match[index] is not None
             )
     edits = {}
-    for start, end in ranges:
+    for start, end, suffix in ranges:
         for match in re.finditer(
             r"(?<![A-Za-z\\])([+-]?(?:\d+(?:\.\d*)?|\.\d+))\s*px\b",
             visible[start:end],
         ):
-            edits[(start + match.start(), start + match.end())] = (
-                match[1] + r"\pdfpxdimen"
-            )
+            edits[(start + match.start(), start + match.end())] = match[1] + suffix
     return apply_edits(text, [(s, e, v) for (s, e), v in edits.items()])
 
 
@@ -904,11 +922,10 @@ def normalize_engine(
         if prologue:
             visible = visible_tex(text)
             has_document = BEGIN_DOC_RX.search(visible)
-            if (
-                r"\pdfpxdimen" in visible
-                and has_document
-                and PIXEL_COMPATIBILITY not in text
-            ):
+            if r"\pdfpxdimen" in visible and PIXEL_COMPATIBILITY not in text:
+                # 用 \pdfpxdimen 的文件就要带定义——子文件被 \input 进主文档时
+                # 主文档前导块不一定存在（px 只在子件时主件无注入面），
+                # \ifdefined 幂等闸保证多件重复注入也安全。
                 text = PIXEL_COMPATIBILITY + text
                 visible = visible_tex(text)
             if has_document and XETEX_COMPATIBILITY not in text:
