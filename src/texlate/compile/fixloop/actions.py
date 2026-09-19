@@ -546,6 +546,21 @@ def _requester_paths(ctx: LoopCtx, eng: Engine, rep: ErrReport) -> list[Path]:
     return out
 
 
+def _fd_case_variants(file: str) -> list[str]:
+    r"""``.fd`` 候选按内核 ``\try@load@fontshape`` 探测序: 小写名先、原名后。
+
+    filemap/kpsewhich 大小写敏感——``LGRcmr.fd`` 实档键是 ``lgrcmr.fd``
+    (cbfonts-fd), 混档 ``OT1Tempora-TLF.fd``→tempora 则原名才中; 双形
+    互补全收 (nfssfd-lane, ``No file X.fd.`` 签 payload=原名)。
+    非 ``.fd`` / 已小写名 → 原名单候选。
+    """
+    p = Path(file)
+    if p.suffix.lower() != ".fd":
+        return [file]
+    lower = str(p.with_name(p.name.lower()))
+    return [lower, file] if lower != file else [file]
+
+
 def _apply_install_file(
     ctx: LoopCtx, eng: Engine, params: dict[str, Any], rep: ErrReport
 ) -> tuple[bool, str]:
@@ -565,7 +580,7 @@ def _apply_install_file(
     if params.get("try_exts"):
         candidates += [params["file"] + e for e in params["try_exts"]]
     else:
-        candidates.append(params["file"])
+        candidates += _fd_case_variants(params["file"])
         if not Path(candidates[-1]).suffix:
             # `I can't find file `X'` 裸 payload (\input/openin 系报错) ——
             # TeX 语义实际找 X.tex; 裸名照试后补 .tex 变体 (epsf 实证:

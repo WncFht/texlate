@@ -175,6 +175,14 @@ def _is_err_line(ln: str) -> bool:
 #: 错误派发 (twinhead); 病态刷屏 log 的 '!' 行可上千, 截尾保内存。
 _ERRS_MAX = 32
 
+#: 首错行**之前**纳入 ``ErrReport.pre`` 的行数——``No file X.fd.`` 型签名
+#: 先于错误行落 log (NFSS ``\@input@`` \typeout 在 ``\@latex@error`` 前
+#: ~2 行), 前向 ctx8 窗天然够不着。仅 ``use_pre: true`` 的 taxonomy 条目
+#: 在 ``pre + head`` 拼接 blob 上检索 (``classify_head`` 实现), 其余条目
+#: 保持 head-only——pre 行内宽词 (``Missing``/``Illegal`` 等) 不扰既有
+#: 评估序, 不被 syntax 族抢签。
+_PRE_LINES = 4
+
 #: 输入侧 byte-level 警告 id——警告行文件栈顶即肇事文件, 按产生者归因
 #: (``invalid_utf8`` 是读入字节告警; ``loginfo._scan_error_lines`` 同口径,
 #: 两侧共用 texlog 归因原语)。输出侧警告 (``missing_char`` 缺字形——栈顶
@@ -190,6 +198,10 @@ class ErrReport:
 
     first: str | None = None  # 首个 '!' 行 (strip 后)
     ctx: str | None = None  # 首错行起 ≤8 行
+    #: 首错行**之前** ≤``_PRE_LINES`` 行 (log 原序)——``No file X.fd.`` 型
+    #: 签名先于错误行落盘, 前向 ctx 窗够不着; taxonomy ``use_pre: true``
+    #: 条目在 ``pre + head`` blob 上检索 (``classify_head(pre=...)``)。
+    pre: str = ""
     n_bang: int = 0  # '!' 行总数
     tail: str = ""  # 末 30 行
     line_no: int | None = None  # ctx 内 l.N 行号
@@ -294,6 +306,7 @@ def parse_text(
                 first_i = i
                 rep.first = ln.strip()
                 rep.ctx = "\n".join(lines[i : i + CTX_LINES])
+                rep.pre = "\n".join(lines[max(0, i - _PRE_LINES) : i])
     rep.tail = "\n".join(lines[-TAIL_LINES:])
     if rep.ctx:
         m = _LINE_NO_RE.search(rep.ctx)
@@ -498,7 +511,7 @@ class Taxonomy:
             if _is_runaway_output(rep.raw or rep.tail):
                 return "runaway_output", None
             return "timeout", None
-        head_hit = self.classify_head(rep.first, rep.ctx)
+        head_hit = self.classify_head(rep.first, rep.ctx, pre=rep.pre)
         if head_hit is not None:
             return self._tail_preempt(head_hit, rep)
         # —— 无 '!' 行: tail 段回溯 (交互式缺文件/Emergency) ——
@@ -514,19 +527,25 @@ class Taxonomy:
         return ("other" if rep.first else "clean"), None
 
     def classify_head(
-        self, first: str | None, ctx: str | None
+        self, first: str | None, ctx: str | None, *, pre: str | None = None
     ) -> tuple[str | None, str | None] | None:
         """单条错误 (err 行 + ctx blob) 的 head-scope 分类 → (cat, pay); 无命中 → None。
 
         ``classify`` 首错分类块原样抽出 (评估序/subclassify 收窄不变)——
         ``classify_errs``/``err_candidates`` 对 ``rep.errs`` 每条错误行
         独立分类时无 tail/warn 回溯面, 调用方决定落空兜底。
+
+        ``pre`` = 错误行之前的上下文 (``ErrReport.pre``): 仅 ``use_pre:
+        true`` 的条目在 ``pre + head`` 拼接 blob 上检索——签名先于错误
+        行落 log 的家族 (``No file X.fd.`` → NFSS 硬错) 由此可达; 其余
+        条目保持 head-only, pre 行内宽词不扰既有评估序。
         """
         if not first:
             return None
         head = first + ("\n" + ctx if ctx else "")
+        pre_head = (pre + "\n" + head) if pre else head
         for entry, pat in self.head:
-            m = pat.search(head)
+            m = pat.search(pre_head if entry.get("use_pre") else head)
             if not m:
                 continue
             scan = _PAYLOAD_SCANS.get(str(entry.get("payload_scan") or ""))

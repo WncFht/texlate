@@ -34,6 +34,27 @@ taxonomy:
       payload_group: 1,
       pattern: "Cannot find the file\\s+([\\w@.+-]+\\.[a-zA-Z0-9]+)",
     }
+  # 2026-09-19 nfssfd lane (loop2 普查 8 cells): NFSS .fd 缺档硬错——
+  # 内核 \try@load@fontshape 先 \InputIfFileExists{<小写名>} 再
+  # \@input@{<原名>}, 双探皆空 → \typeout 裸行 `No file X.fd.` 先于
+  # 错误行 ~2 行落 log, 在 ctx8 前向窗外 → 旧恒归 other|None 无路由。
+  # use_pre 把本条目检索面扩到首错前 _PRE_LINES 行 (pre+head blob,
+  # 仅本条目——他条目 head-only 不变)。双重约束防误签:
+  #   `^No file` 行首锚 —— `LaTeX Font Info:    No file X.fd.` 行内
+  #     形态 (可恢复字体替换 info, 非硬错) 与 `No file X.bbl/toc` 等
+  #     非 .fd 探测行天然排除;
+  #   `NFSS system isn't set up properly` 同窗 —— 可恢复 .fd 缺档
+  #     (内核 substitution 成功无后续硬错) 不误路由。
+  # payload=X.fd 原名 → install_file (font_related_exts 含 fd);
+  # 大小写桥在 _apply_install_file .fd 小写变体 (内核同序: 小写先探,
+  # filemap `lgrcmr.fd`→cbfonts-fd, `LGRcmr.fd` 原名无键)。
+  - {
+      id: missing_file,
+      scope: head,
+      payload_group: 1,
+      use_pre: true,
+      pattern: "(?m)^No file ([\\w@.+-]+\\.fd)\\.[ \\t]*\\n[\\s\\S]{0,600}?NFSS system isn't set up properly",
+    }
   # —— TFM 字体缺失 (抓字体名=文件名 → install_tfm) ——
   # payload 类须含 "-": SkakNew-Diagram 型名按 [a-zA-Z0-9]/\w 抓会在
   # 连字符处截断成 "Diagram" → filemap 必 miss (loop1-2211.12985 实证)。
