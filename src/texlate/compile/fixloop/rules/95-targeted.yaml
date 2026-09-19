@@ -226,8 +226,18 @@ rules:
             { polyfill: "\n\\providecommand{\\lefthead}[1]{\\markboth{#1}{}}" }
           righthead:
             { polyfill: "\n\\providecommand{\\righthead}[1]{\\markboth{}{#1}}" }
-          # epstopdf 包宏 (2104.00126) —— 稿依赖而 preamble 未装, 直接装包
-          epstopdfDeclareGraphicsRule: { usepackage: epstopdf }
+          # epstopdf 包宏 (2104.00126) —— 稿已 \usepackage{epstopdf} 但
+          # v2.11 在 xelatex "Drivers other than pdftex/luatex not
+          # supported" 装载即中止, 用户宏面零定义 → 装包臂保留 (无包稿面
+          # 仍装) + 全签名 gobble 补位。实参四参形:
+          # \epstopdfDeclareGraphicsRule{.tif}{png}{.png}{convert #1 \OutputFile}
+          # + \AppendGraphicsExtensions{.tif} 姊妹宏同站 (xelatex 读不了
+          # .tif, 剥扩展名即避 unknown-extension 次生错)
+          epstopdfDeclareGraphicsRule:
+            {
+              usepackage: epstopdf,
+              polyfill: "\n\\providecommand{\\epstopdfDeclareGraphicsRule}[4]{}\n\\providecommand{\\AppendGraphicsExtensions}[1]{}\n\\providecommand{\\PrependGraphicsExtensions}[1]{}",
+            }
           # 2.09 \eqnobysec (equation 按节重置) —— \@addtoreset 走
           # \csname 形零字面 @: 定义时刻/调用处 catcode 皆无关
           eqnobysec:
@@ -485,6 +495,93 @@ rules:
             {
               polyfill: "\n\\AddToHook{begindocument/before}{\\expandafter\\ifx\\csname default@color\\endcsname\\relax\\expandafter\\gdef\\csname default@color\\endcsname{gray 0}\\fi\\expandafter\\ifx\\csname current@color\\endcsname\\relax\\expandafter\\gdef\\csname current@color\\endcsname{gray 0}\\fi}",
             }
+          # ── 2026-09-19 cstablesweep lane (task #227, firedunfixed 19-cell
+          #    undefined_cs singles) —— 全表 polyfill 带 \n 前缀逃 docclass
+          #    行尾 % 注释缝 (1404.0346 实证) ──
+          # siamltex shim 后 proof 收尾 QED 标记 (1206.0593): end* 名恒拒
+          # \@ifdefinable (\@carcube 首 3 字符=end → \@notdefinable),
+          # \providecommand{\endproof} 产 already_def r1→r2 死循环 (W151
+          # 实证) —— 与 endlocaldefs 同走 \ifdefined..\else\def..\fi 守卫形
+          endproof:
+            {
+              polyfill: "\n\\ifdefined\\endproof\\else\\def\\endproof{\\leavevmode\\unskip\\penalty9999\\hfill\\hbox to.77778em{\\hfil\\vrule\\vbox to.675em{\\hrule width.6em\\vfil\\hrule}\\vrule}\\par\\medskip}\\fi",
+            }
+          # acm_proc_article-sp→acmart shim 后 {tikzpicture} env 已 polyfill
+          # 但 \tikzset{...} 裸调缺位 (1306.0281) —— key 设置宏吞参 noop;
+          # 同体 \node/\draw 属下一层 pgf 面 (见 lane 报告, 非本表形)
+          tikzset: { polyfill: "\n\\providecommand{\\tikzset}[1]{}" }
+          # appolb.cls shim 缺 \PACS 头注宏 (1306.1932) —— 与 keywords 同式
+          # 保文渲染而非丢文
+          PACS:
+            {
+              polyfill: "\n\\providecommand{\\PACS}[1]{\\par\\noindent\\textbf{PACS:} #1\\par}",
+            }
+          # aastexN deluxetable 声明句 (2104.00028): 小数点对齐开关, 无参
+          # 声明 → noop
+          decimalcolnumbers:
+            { polyfill: "\n\\providecommand{\\decimalcolnumbers}{}" }
+          # aastexN 附录计数重置宏 (2105.03750) —— emulate 计数面清零
+          # (真件另重定义 \the* 带附录字母, shim \the* 已含 section 文)
+          restartappendixnumbering:
+            {
+              polyfill: "\n\\providecommand{\\restartappendixnumbering}{\\setcounter{section}{0}\\setcounter{subsection}{0}\\setcounter{equation}{0}\\setcounter{figure}{0}\\setcounter{table}{0}}",
+            }
+          # aastexN \gridline{\fig{f}{w}{(a)}...} 排图对 (2403.00061) ——
+          # gridline 直通内容并排; \fig = includegraphics+面板字母近似,
+          # graphicx 装包臂兜未载面
+          gridline:
+            {
+              usepackage: graphicx,
+              polyfill: "\n\\providecommand{\\gridline}[1]{#1}\n\\providecommand{\\fig}[3]{\\includegraphics[width=#2]{#1}\\space(#3)}",
+            }
+          # kapproc.cls shim 缺版式开关 (astro-ph/0408466) —— 大小写声明句 noop
+          upperandlowercase:
+            { polyfill: "\n\\providecommand{\\upperandlowercase}{}" }
+          # thmsupp.tex shim 后 amsmath 缺载 (hep-th/9703079) —— 装真包为主,
+          # textstyle\frac 兜底 (与 text 行 usepackage+polyfill 双臂同构)
+          tfrac:
+            {
+              usepackage: amsmath,
+              polyfill: "\n\\providecommand{\\tfrac}[2]{{\\textstyle\\frac{#1}{#2}}}",
+            }
+          # \Zö 单发笔误 → \Z (1706.07495): xelatex 下 ö 是 letter, \Zö
+          # 是一整个 cs; 稿自 :213 \newcommand{\Z}{\mathbb{Z}} —— cs_map
+          # 拆笔误保真件; AtBeginDocument 延迟 provide 让稿自义先落位
+          # (docclass 缝直注会把 \newcommand{\Z} 站点顶成 already_def),
+          # 裸 \Z 缺位格由兜底接管; amssymb 供 \mathbb
+          Z:
+            {
+              usepackage: amssymb,
+              cs_map: { Zö: "Z" },
+              polyfill: "\n\\AtBeginDocument{\\providecommand{\\Z}{\\ensuremath{\\mathbb{Z}}}}",
+            }
+          # cas-common.sty expl3 调试宏 (1907.00144): 老 \msg_term:n 在现行
+          # l3msg 无单参形 → 重写 \iow_term:n (终端输出同义, ExplSyntaxOn
+          # 域内 :n 为 cs 名一部分; cs_map 覆盖 .tex/.sty 面)
+          msg: { cs_map: { msg_term: "iow_term" } }
+          # transparent.sty v1.6 xelatex 下 "Loading aborted" 静默中止后
+          # \transparent{0.5} 缺位 (2410.17904) —— 透明度语义不可达, 吞参
+          # noop 保编译 (装包臂无用: 载入即中止, 用户面零定义)
+          transparent: { polyfill: "\n\\providecommand{\\transparent}[1]{}" }
+          # hangcaption.sty 系悬挂缩进 caption (1404.5912, stub 落件但公共
+          # 面无此 cs) —— [short]{long} 两形兼收, hangindent emulate
+          hangcaption:
+            {
+              polyfill: "\n\\providecommand{\\hangcaption}[2][]{\\par\\smallskip\\noindent\\hangafter=1\\hangindent=1.5em #2\\par\\smallskip}",
+            }
+          # latex2html html.sty 链接宏 (1511.02851): hyperref 在场则真链,
+          # 缺席保锚文本不丢文
+          htmladdnormallink:
+            {
+              polyfill: "\n\\providecommand{\\htmladdnormallink}[2]{\\ifdefined\\href\\href{#2}{#1}\\else#1\\fi}",
+            }
+          # axodraw 时代 \Line(x,y)(x,y) (hep-ph/0111339): pict2e 原生
+          # \Line(#1,#2)(#3,#4) 全签名兼容 → 装真包实绘 (gobble stub 的
+          # 替代品; 同体 \LongArrow 属下一层 payload 见 lane 报告)
+          Line: { usepackage: pict2e }
+          # amstex 时代 \Bbb (q-alg/9703046, pkg_obsolete strip+amsmath 后
+          # 残面): 老黑板粗体名 = \mathbb —— cs_map 词界下 \Bbbk 不误伤
+          Bbb: { usepackage: amssymb, cs_map: { Bbb: "mathbb" } }
         # 表外 fallback (2026-09-16): glue 残骸前缀拆分 —— payload 未命中
         # cs_table 时, 若 cs = 已知粘连头 + 残余 (大写起首或 ≤4 字符) 则合成
         # cs_map 拆回 "head rest" (replay 实证 rmPT 型新残骸仍零星冒头,

@@ -104,6 +104,7 @@ PDFTEX_PRIMS = (
     "pdftexversion",
     "pdftexrevision",
     "pdfinclusionerrorlevel",
+    "pdfinclusioncopyfonts",  # 2403.15085: 稿面 \prim=1 写形, guard 包裹位
     "pdfsuppresswarningpagegroup",
 )
 

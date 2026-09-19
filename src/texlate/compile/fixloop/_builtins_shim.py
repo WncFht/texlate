@@ -58,6 +58,9 @@ _PRIM_COUNTISH = frozenset(
         "pdftracingfonts",
         "pdfdecimaldigits",
         "pdfinclusionerrorlevel",
+        # 2403.15085: \pdfinclusioncopyfonts=1 docclass 前写形 —— guard 表
+        # 扩名后整站包裹; 读形 (\ifnum) 归 count 寄存器臂全真接管
+        "pdfinclusioncopyfonts",
         "pdfsuppresswarningpagegroup",
         "pdfdraftmode",
         # 只读整数面 (\ifnum/\the 读取, 寄存器语义一致)
