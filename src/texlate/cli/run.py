@@ -161,6 +161,7 @@ def run(  # noqa: C901, PLR0913 -- CLI 选项面即参数面 + 本地/瘦客户�
             out=out,
             wait=1800.0 if wait is None else wait,
             front_matter=fm,
+            quiet=quiet > 0,
         )
         raise typer.Exit(code)
     if any(v is not None for v in (model, api_key, base_url, out, wait)):

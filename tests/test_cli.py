@@ -559,6 +559,135 @@ class TestThinRun:
         assert json.loads(result.stdout)["artifacts"] == {}
         assert not list(tmp_path.iterdir())
 
+    # ---------------------------------------------------------------- SSE 实况
+
+    @staticmethod
+    def _sse_bytes(frames: list[tuple[int, str, dict[str, object]]]) -> bytes:
+        """``(seq, event, data)`` 帧组 → SSE wire bytes。"""
+        return "".join(
+            f"id: {seq}\nevent: {ev}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+            for seq, ev, data in frames
+        ).encode()
+
+    def _sse_handler(
+        self, frames: list[tuple[int, str, dict[str, object]]]
+    ) -> Callable[[httpx.Request], httpx.Response]:
+        """Accept 分流背板：SSE 请求吃帧流，普通 GET 走 ``_handler_ok`` JSON 面。"""
+        ok = self._handler_ok(b"%PDF-zh", "f" * 64)
+
+        def handler(req: httpx.Request) -> httpx.Response:
+            if req.url.path == f"/api/task/{self._TASK}" and (
+                "text/event-stream" in req.headers.get("accept", "")
+            ):
+                return httpx.Response(
+                    200,
+                    headers={"content-type": "text/event-stream"},
+                    content=self._sse_bytes(frames),
+                )
+            return ok(req)
+
+        return handler
+
+    def test_sse_renders_frames_to_done(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """SSE 流：snapshot/stage/chunk/warning/done 逐型渲 stderr，终态取自 done 帧。"""
+        frames = [
+            (
+                0,
+                "snapshot",
+                {
+                    "status": "running",
+                    "stage": "translating",
+                    "progress": 30,
+                    "counters": {"done": 0, "total": 4, "failed": 0},
+                },
+            ),
+            (
+                1,
+                "stage",
+                {"stage": "translating", "progress": 30, "message": "翻译"},
+            ),
+            (2, "chunk", {"done": 2, "total": 4, "failed": 0, "items": []}),
+            (3, "chunk", {"done": 4, "total": 4, "failed": 1, "items": []}),
+            (4, "warning", {"code": "mock_engine", "message": "mock 引擎在跑"}),
+            (5, "done", {"status": "done", "artifacts": {}, "stats": {}}),
+        ]
+        _patch_httpx(monkeypatch, self._sse_handler(frames))
+        result = self._invoke()
+        assert result.exit_code == 0, result.output
+        assert json.loads(result.stdout)["status"] == "done"
+        err = result.stderr
+        assert "running/translating 30% chunks=0/4" in err
+        assert "translating 30% 翻译" in err
+        assert "chunks 4/4" in err
+        assert "warning mock_engine: mock 引擎在跑" in err
+        assert "回退" not in err
+
+    def test_sse_json_response_falls_back_to_poll(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """``/api/task`` 回 JSON（无 SSE 面）→ 回退提示 + 轮询通道到终态。"""
+        _patch_httpx(monkeypatch, self._handler_ok(b"%PDF", "f" * 64))
+        result = self._invoke()
+        assert result.exit_code == 0, result.output
+        assert "回退快照轮询" in result.stderr
+
+    def test_sse_early_eof_reconnects_with_last_event_id(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """流早夭（无 done 帧）→ ``Last-Event-ID`` 续放×2 → 尽后回退轮询。"""
+        sse_lei: list[str | None] = []
+        ok = self._handler_ok(b"%PDF", "f" * 64)
+
+        def handler(req: httpx.Request) -> httpx.Response:
+            if req.url.path == f"/api/task/{self._TASK}" and (
+                "text/event-stream" in req.headers.get("accept", "")
+            ):
+                sse_lei.append(req.headers.get("last-event-id"))
+                return httpx.Response(
+                    200,
+                    headers={"content-type": "text/event-stream"},
+                    content=self._sse_bytes(
+                        [(5, "snapshot", {"status": "running", "progress": 10})]
+                    ),
+                )
+            return ok(req)
+
+        _patch_httpx(monkeypatch, handler)
+        result = self._invoke()
+        assert result.exit_code == 0, result.output
+        # 首开无水位 → 两次重连均带 Last-Event-ID:5，尽后回退轮询
+        assert sse_lei == [None, "5", "5"]
+        assert "回退快照轮询" in result.stderr
+
+    def test_sse_resync_refetches_snapshot(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """``resync`` 缺口帧 → 拉新快照重置水位（普通 JSON GET）→ 续流到 done。"""
+        frames = [
+            (
+                1,
+                "stage",
+                {"stage": "translating", "progress": 30, "message": "翻译"},
+            ),
+            (9, "resync", {"gap_after": 0, "resume_from": 5}),
+            (10, "done", {"status": "done", "artifacts": {}, "stats": {}}),
+        ]
+        _patch_httpx(monkeypatch, self._sse_handler(frames))
+        result = self._invoke()
+        assert result.exit_code == 0, result.output
+        # resync 拉到的快照是 _handler_ok 的 done 行（非 SSE GET 通道）
+        assert "done/compile 100% chunks=5/5 failed=0" in result.stderr
+
+    def test_sse_quiet_uses_polling(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """``-q`` → 静默轮询通道：快照状态行不渲，SSE 面在场也不消费。"""
+        frames = [(1, "done", {"status": "done", "artifacts": {}, "stats": {}})]
+        _patch_httpx(monkeypatch, self._sse_handler(frames))
+        result = self._invoke("-q")
+        assert result.exit_code == 0, result.output
+        assert json.loads(result.stdout)["status"] == "done"
+        assert "chunks=" not in result.stderr  # 快照状态行全抑
+        assert "回退快照轮询" not in result.stderr
+
 
 def _mk_task_dir(data: Path, task_id: str = "t_thincli01") -> Path:
     """合成 ``<data>/tasks/<id>`` 产物 + ``texlate.db`` 任务行（share pack 前置）。"""
