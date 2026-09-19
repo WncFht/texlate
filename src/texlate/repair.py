@@ -39,7 +39,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from texlate.compile.cjkmap import embed_cjk_mappings
-from texlate.compile.fixloop.engine import Ruleset, fixloop
+from texlate.compile.fixloop.engine import Ruleset, fixloop, precheck_pass
 from texlate.compile.judge import judge
 from texlate.textutil import safe_is_file, safe_resolve
 
@@ -208,6 +208,24 @@ def run_fixloop(  # noqa: PLR0913 -- 开关面穿透两臂同一契约
         **kw,
     )
     return cell, proxy.last
+
+
+def run_precheck(
+    work: Path,
+    engine: Engine,
+    *,
+    engine_name: str,
+) -> dict[str, Any]:
+    """``precheck_pass`` 委托——编译链前的静态预检（两臂共享件）。
+
+    fixloop precheck 相独立跑一轮：scan_install 装缺件 / tar_blob_extract
+    解嵌套 tar / build_directive_harvest 收割构建 flag——全增量件不碰
+    .tex 源，对 L2 resplice 安全。缺包类失败在 L2 归因前就消掉
+    （``t_f74894ebc691aaf4`` algpseudocodex 实证：missing_file 进 L2
+    兜底只会把块拖去重译/回退）。无编译发生，不需 ``ResProxy``；
+    异常不吞——同 ``run_fixloop`` 契约，两臂各自决定兜底形态。
+    """
+    return precheck_pass(work, engine, engine_name=engine_name)
 
 
 def ruleset_with_baseline(baseline: Path) -> Ruleset:

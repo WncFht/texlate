@@ -141,6 +141,14 @@ class TestCacheKey:
         assert store.find_active_by_cache_key("ck3") is None
         assert store.find_reusable("ck3")["id"] == row["id"]
 
+    def test_find_reusable_excludes_partial(self, store: Store) -> None:
+        """partial 是降级交付不克隆——毒传播先例 t_f74894ebc691aaf4。"""
+        row = mk_task_row(store, cache_key="ckp")
+        store.transition(row["id"], "partial", force=True)
+        assert store.find_reusable("ckp") is None
+        store.transition(row["id"], "done", force=True)
+        assert store.find_reusable("ckp")["id"] == row["id"]
+
 
 def _chunk(seq: int) -> dict:
     return {

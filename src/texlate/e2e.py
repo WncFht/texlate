@@ -46,6 +46,7 @@ from texlate.pipecore import (
     delivered,
     fixloop_job,
     l2_repair_job,
+    precheck_job,
     probe_report,
     tail_dict,
     translate_tree_run,
@@ -178,7 +179,7 @@ def _baseline_snapshot(work: Path, *, enabled: bool) -> Iterator[Path | None]:
 # ---------------------------------------------------------------- 条件臂
 
 
-def _repair_chain(  # noqa: PLR0913 -- 修复链开关面穿透
+def _repair_chain(  # noqa: C901, PLR0913 -- 修复链开关面穿透 + 三级阶梯直铺
     rec: dict,
     job: PipeJob,
     run: TreeRun,
@@ -191,15 +192,46 @@ def _repair_chain(  # noqa: PLR0913 -- 修复链开关面穿透
     route_engines: list[str] | None,
     baseline_dir: Path | None = None,
 ) -> CompRes:
-    """非 clean 后的两级修复链：L2 回灌 → fixloop；reports 直写 ``rec``。
+    """非 clean 后的修复链：precheck 预检 → L2 回灌 → fixloop；reports 直写 ``rec``。
 
+    顺序是设计约束：precheck（装缺件，fixloop 第 0 招独立相）先消
+    missing_file 类基建失败——它们进 L2 归因面只会把块拖去重译/回退
+    （``t_f74894ebc691aaf4`` algpseudocodex 实证）；L2 回灌先于
+    fixloop——fixloop 的 regex_rewrite 会被 L2 resplice 冲掉。
     L2 崩不丢整条 rec（worker._l2_attempt 同款包）；fixloop 只在仍非
     clean 时跑。返回最新 ``CompRes`` 供 ToUnicode 注入判产物。
     ``engine_fn=engine_for`` 透传本模块全局——``e2e.engine_for`` 的
     monkeypatch 缝（conftest RecordingEngine）随件保活。
     """
+    fl = (
+        (not env_flag(ENV_NO_FIXLOOP, default=False))
+        if fixloop_on is None
+        else fixloop_on
+    )
     l2 = (not env_flag(ENV_NO_L2, default=False)) if l2_on is None else l2_on
-    if l2:
+
+    # —— 第 0 招: precheck 预检 (装缺件/解嵌套 tar/收割构建 flag) ——
+    # precheck 相全是增量件不碰 .tex 源——对 resplice 安全。装上缺件或
+    # 收割到 engine_flags 才重编 (空转省一发编译)；clean 即收工。
+    # reject:<rid> 不重编不跑 L2——路由拒绝交 fixloop 复现 + 跨引擎消费。
+    pre_reject = False
+    if fl:
+        pre = precheck_job(job, engine_fn=engine_for)
+        rec["precheck"] = pre
+        pre_reject = str(pre.get("verdict") or "").startswith("reject:")
+        pre_flags = [str(f) for f in pre.get("engine_flags") or []]
+        if not pre_reject and (pre.get("installed") or pre_flags):
+            tail0, res = compile_judge_tail(
+                job,
+                expect_cjk=expect_cjk,
+                flags=pre_flags or None,
+                engine_fn=engine_for,
+            )
+            rec.update(tail0)
+            if rec["status"] == "clean":
+                return res
+
+    if l2 and not pre_reject:
         try:
             l2_rep, res, tail2 = l2_repair_job(
                 job, run, res, l2_max_chunks, engine_fn=engine_for
@@ -210,14 +242,11 @@ def _repair_chain(  # noqa: PLR0913 -- 修复链开关面穿透
             rec["l2"] = l2_rep
             if tail2 is not None:
                 rec.update(tail2)
-    else:
+    elif not l2:
         rec["l2"] = {"enabled": False, "reason": ENV_NO_L2}
+    else:
+        rec["l2"] = {"enabled": False, "reason": "precheck_reject"}
 
-    fl = (
-        (not env_flag(ENV_NO_FIXLOOP, default=False))
-        if fixloop_on is None
-        else fixloop_on
-    )
     if rec["status"] != "clean" and fl:
         fl_rep, tail3, res = fixloop_job(
             job,

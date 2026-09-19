@@ -38,6 +38,7 @@ from texlate.repair import (
     log_text_of,
     ruleset_with_baseline,
     run_fixloop,
+    run_precheck,
 )
 from texlate.repair_l2 import (
     TreeRun,
@@ -88,6 +89,7 @@ __all__ = [
     "judge_res",
     "l2_repair",
     "l2_repair_job",
+    "precheck_job",
     "probe_report",
     "scan_tree",
     "tail_dict",
@@ -438,6 +440,30 @@ def tail_dict(res: CompRes, v: Verdict) -> dict:
     }
 
 
+def _texmf_wire(eng: Engine, wdir: Path) -> None:
+    """任务树 ``_texmf`` 装件对一次性引擎可见。
+
+    fixloop ``_wire_engine`` 的 texmfhome 接线只盖它手里那台引擎——
+    编译尾段/跨引擎重试每发新造的引擎 texmfhome=None，看不见 precheck/
+    fixloop 装进 ``wdir/_texmf`` 的缺件（装了个寂寞）。同款 None-only
+    语义：调用方预设即接管落点，不覆写显式接线。
+    """
+    if getattr(eng, "texmfhome", "unset") is None:
+        eng.texmfhome = wdir / "_texmf"  # type: ignore[attr-defined]
+
+
+def _texmf_eng(
+    eng_fn: Callable[..., Engine],
+    name: str,
+    wdir: Path,
+    **kw: Any,  # noqa: ANN401 -- 引擎构造旋钮透传，键集由引擎定
+) -> Engine:
+    """``eng_fn(name, **kw)`` + ``_texmf_wire``——make_engine 工厂位。"""
+    eng = eng_fn(name, **kw)
+    _texmf_wire(eng, wdir)
+    return eng
+
+
 def _compile_judge_job(
     job: PipeJob,
     *,
@@ -450,7 +476,9 @@ def _compile_judge_job(
     kw: dict[str, object] = (
         {"halt_on_error": False} if job.eng_name == "xelatex" else {}
     )
-    res = eng_fn(job.eng_name, **kw).compile(
+    eng = eng_fn(job.eng_name, **kw)
+    _texmf_wire(eng, job.work)
+    res = eng.compile(
         job.work,
         job.main_rel,
         timeout=job.timeout,
@@ -477,6 +505,39 @@ def compile_judge_tail(
         job, expect_cjk=expect_cjk, flags=flags, engine_fn=engine_fn
     )
     return tail_dict(res, v), res
+
+
+def precheck_job(
+    job: PipeJob,
+    *,
+    engine_fn: Callable[..., Engine] | None = None,
+) -> dict[str, Any]:
+    """L2/编译链前的静态预检（第 0 招）→ 摘要 dict。
+
+    fixloop precheck 相独立跑一轮：``scan_install`` 装缺件 /
+    ``tar_blob_extract`` 解嵌套 tar / ``build_directive_harvest`` 收割
+    构建 flag——全是增量件不碰 .tex 源，对 L2 resplice 安全。缺包类
+    失败在 L2 归因前就消掉（``t_f74894ebc691aaf4`` algpseudocodex
+    实证：missing_file 进 L2 兜底只会把块拖去重译/回退）。
+    ``reject:<rid>`` verdict 原样上报——路由拒绝交 fixloop 主循环
+    复现 + ``fixloop_flags_tail`` 跨引擎消费。引擎不带编译旋钮——
+    precheck 相无编译。
+    """
+    eng_fn = engine_for if engine_fn is None else engine_fn
+    try:
+        pre = run_precheck(job.work, eng_fn(job.eng_name), engine_name=job.eng_name)
+    except Exception as e:  # noqa: BLE001 -- 预检崩不毁主报告
+        return {"enabled": True, "error": f"{type(e).__name__}: {e}"}
+    return {
+        "enabled": True,
+        "verdict": pre.get("verdict"),
+        "reject_route": pre.get("reject_route"),
+        "installed": pre.get("installed") or [],
+        "engine_flags": pre.get("engine_flags") or [],
+        "engine_flags_dropped": pre.get("flags_dropped") or [],
+        "advisories": pre.get("advisories") or [],
+        "actions": pre.get("actions") or [],
+    }
 
 
 # ---------------------------------------------------------------- L2 回灌
@@ -734,7 +795,9 @@ def fixloop_job(  # noqa: PLR0913 -- 开关面穿透同 pipe_condition
         timeout=job.timeout,
         probe_flags=job.probe_flags,
         expect_cjk=expect_cjk,
-        make_engine=lambda: eng_fn("xelatex", halt_on_error=False),
+        make_engine=lambda: _texmf_eng(
+            eng_fn, "xelatex", job.work, halt_on_error=False
+        ),
     )
     if xr is not None and xr.adopted:
         tail, last_res = tail_dict(xr.res, xr.verdict), xr.res

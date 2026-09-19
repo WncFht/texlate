@@ -261,6 +261,9 @@ class TaskCtx:
     #: fixloop 跑过的压缩摘要（verdict/trace/installed）——_stage_compile
     #: 终态写 error_json / done 事件载荷用；None = 未跑
     fixloop: dict[str, Any] | None = None
+    #: 第 0 招预检摘要（verdict/installed/engine_flags）——同上进
+    #: error_json/done 载荷；None = 未跑（fixloop 关闭或首编 clean）
+    precheck: dict[str, Any] | None = None
     #: L2 回灌报告（归因 hits/重译/回落名单）——同上进 error_json/done 载荷
     l2: dict[str, Any] | None = None
     #: judge 的 expect_cjk：0-chunk 主文档（includepdf 壳等）cjk_chars=0

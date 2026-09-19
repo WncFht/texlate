@@ -15,6 +15,7 @@ L2 回灌机械（``_l2_parse``/``_expand_tokens``/``chunk_spans``/
 from __future__ import annotations
 
 import logging
+import re
 from contextlib import suppress
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -40,7 +41,6 @@ from texlate.validate import l2 as l2_mod
 from texlate.xlat import prompts as xlat_prompts
 
 if TYPE_CHECKING:
-    import re
     from collections.abc import Callable
 
     from texlate.compile.engine import CompRes
@@ -58,6 +58,106 @@ _L2_ATTR_WINDOW = 4000
 _L2_MAX_ERRORS = 50
 #: ``_expand_tokens`` 递归深度保险丝（自引用 token 不死循环）
 _EXPAND_MAX_DEPTH = 32
+#: 基建类错误签名——head+ctx 窗匹配（fixloop taxonomy ``scope:head``
+#: 同口径；签名内空格一律 ``\s+``——79 列折行能把短语切进 ctx 行）。
+#: 收录判据「译文内容是否可能造成该类错」：肇事者是环境/装载期
+#: 机关/工具链/收束签名（缺 .sty/字体/图片、引擎能力墙、包版本与
+#: 装载序机关、aux 回读劈断、Emergency 收束）而非译文内容——重译
+#: 造不出文件/选项/字体，归因只会白烧重译额度并把无辜块回退成原文
+#: （algpseudocodex 未装实证：main.tex 4 块 file 级兜底全灭 →
+#: partial）。``Fatal error`` 收紧为 ``Fatal error occurred``——
+#: head+ctx 窗比 fixloop 首错行宽，裸签会误中正文复述行
+#: （"a fatal error in their proof" 类）。与 ``rules/10-taxonomy.yaml``
+#: 的 missing_file/missing_tfm/missing_pfb/xetexglyph_tfm/
+#: fontspec_missing/missing_graphic/ps_image/inputenc_unicode/latex209/
+#: pkg_obsolete/option_clash/babel_opt/babel_undef/hyperref_driver/
+#: float_opt/pkg_order/key_unknown/cannot_patch_macro/toolchain_skew/
+#: pkg_version_skew/expl3_backend/aux_scan_eof/emergency/minted_froz/
+#: hyphenation/illegal_unit/pream_token/invalid_in_math/pdftex_prim
+#: 各段同源——两侧改动须对照同步。不收：undefined_cs（主战场，
+#: already_def/env_* 见 ``_STRUCT_ERR_RX``）/runaway_scan/capacity/
+#: soul_err/undefined_color/invalid_char/syntax/other——译文可直接
+#: 造成（幻觉 \cs、括号失衡、soul 内容敏感、色名参槽污染、控制
+#: 字符）；early_eof/``No pages of output`` 是尾段收束行，会混进
+#: 其他错误的 ctx 窗，豁免反误伤真错，不收。
+_INFRA_ERR_RX = re.compile(
+    # —— 文件缺失（含 cls/sty 求档 plea 与交互缺件提示）——
+    r"File\s+`[^']+\.[a-zA-Z0-9]+'\s+not\s+found"
+    r"|I\s+can't\s+find\s+file\s+`[^']+'"
+    r"|Cannot\s+find\s+the\s+file\s+[\w@.+-]+\.[a-zA-Z0-9]+"
+    r"|Enter\s+file\s+name"
+    r"|please\s+update\s+your\s+system"
+    r"|(?:download|install|get|need)\s+\S+\.(?:cls|sty|clo|tex|def|fd|map|cfg)"
+    # —— 字体/图片资源缺失 + 引擎能力墙 ——
+    r"|Font\s+\\?\S*?=?\s*[\w-]+\s+at\s+[0-9.]+pt\s+not\s+loadable"
+    r"|Metric\s+\(TFM\)\s+file"
+    r"|Cannot\s+proceed\s+without\s+\.vf|physical\s+font"
+    r"|Cannot\s+use\s+XeTeXglyph\s+with\s+\S+"
+    r"|font\s+[“\"][^”\"]+[”\"]\s+cannot\s+be\s+found"
+    r"|Unable\s+to\s+load\s+picture\s+or\s+PDF\s+file"
+    r"|image\s+inclusion\s+failed\s+for"
+    r"|PostScript\s+images\s+are\s+not\s+supported"
+    # —— 装载期/preamble 机关：选项表、装载序、源代际、包自检 ——
+    # （babel AtBeginDocument 钩/hyperref 驱动处理等常无 l.N 行号，
+    # 是文件级兜底误伤重灾区）
+    r"|inputenc\s+is\s+not\s+designed\s+for"
+    r"|\\documentstyle\b|LaTeX\s+2\.09\s+COMPATIBILITY\s+MODE"
+    r"|LaTeX2e\s+command[^\n]*\bin\s+LaTeX\s+2\.09|LaTeX\s+Version\s+2\.09"
+    r"|(?m:^[ \t]*Compatibility\s+mode)"
+    r"|Package\s+[`'][\w-]+'\s+is\s+obsolete"
+    r"|Option\s+clash\s+for\s+package"
+    r"|Package\s+babel\s+Error:\s+Unknown\s+(?:option|language)"
+    r"|You\s+haven't\s+defined\s+the\s+language"
+    r"|Wrong\s+(?:hyperref\s+driver|(?:DVI\s+mode\s+)?driver\s+option)"
+    r"|Unknown\s+float\s+option"
+    r"|Package\s+\w+\s+Error:\s+\w+\s+must\s+be\s+loaded\s+(?:before|after)"
+    r"|The\s+key\s+'[\w@./-]+'\s+is\s+unknown\s+and\s+is\s+being\s+ignored"
+    r"|Cannot\s+patch\s+(?:bibliography|citation)\s+macro"
+    r"|Not\s+a\s+letter"
+    r"|Illegal\s+unit\s+of\s+measure"
+    r"|Illegal\s+pream-token"
+    r"|frozencache|Cannot\s+highlight\s+code"
+    # —— 工具链/版本错配 + 后端请求 ——
+    r"|biblatex\s+control\s+file\s+version\s+[\d.]+,\s+expected\s+version\s+[\d.]+"
+    r"|(?:Package|Class)\s+[\w@*+-]+\s+Error[\s\S]{0,600}?too\s+old"
+    r"|Backend\s+request\s+inconsistent\s+with\s+engine"
+    # —— 源级正文机关：报错行可落块内但重译修不了 ——
+    # invalid_in_math 实证=natbib \@citex 未定义引用标记（gr-qc/9901082），
+    # 报错位在 thebibliography 正文块内——块内可归位的典型陷阱；
+    # pdftex_prim=undefined_cs 的 pdftex 原语子类（xelatex 能力墙）。
+    r"|LaTeX\s+Error:\s+Command\s+\\[a-zA-Z@]+\s+invalid\s+in\s+math\s+mode"
+    r"|Undefined\s+control\s+sequence[^\n]*\n[^\n]*\\pdf[a-zA-Z@]+"
+    # —— aux 回读劈断（CJK 8192B 写缓冲实证——译文邻接但重译产同文
+    # 再劈，本质不可由重译修）+ 收束签名 ——
+    r"|File\s+ended\s+while\s+scanning\s+use\s+of\s+\\?@?(?:newl@?bel|writefile|contentsline)"
+    r"|Emergency\s+stop|cannot\s+\\read|Fatal\s+error\s+occurred|job\s+aborted"
+)
+#: 结构位签名——报错行恒在块外结构位（env 标签/定义点），但译文
+#: 可向块内注入字面 ``\begin{X}``/``\end{X}``/``\newcommand`` 幻觉。
+#: 此类只认「报错行严格落在某块内」的含位归因（nearest-fallback 与
+#: 文件级兜底都不许）：源级 cls/装载机关（revtex4-2 abstract 仅
+#: frontmatter 期 let-bound 实证）走兜底只会把错贴给邻近无辜块；
+#: 幻觉注入的报错行在块内，照常归因重译。与 taxonomy 的
+#: env_undefined/env_mismatch/already_def 同源——两侧改动须对照
+#: 同步。
+_STRUCT_ERR_RX = re.compile(
+    r"Environment\s+[A-Za-z@*]+\s+undefined"
+    r"|begin\{[^}]*\}[^\n]*ended\s+by|Extra\s+\\end"
+    r"|Command\s+[`']?\\?[\w@]+'?\s+already\s+defined"
+    r"|Theorem\s+style\s+[\w@]+\s+already\s+defined"
+)
+#: 无行号错误的文件级兜底白名单——全块归因只在「块内容确能致错」
+#: 的签名上开火：undefined_cs（译文幻觉 \cs 无定位行）、capacity
+#: （爆栈可由内容暴走）、runaway/scanning 族（译文括号失衡/字面
+#: \par）。其余无行号错误位置信息为零，全块归因只是扫射烧块
+#: （algpseudocodex 同型毒化面）——不归因，留 fixloop 处理。
+_FILELEVEL_ERR_RX = re.compile(
+    r"Undefined\s+control\s+sequence"
+    r"|Command\s+[`']?\\[\w@]+'?\s+undefined"
+    r"|TeX\s+capacity\s+exceeded"
+    r"|Runaway\s+argument|Paragraph\s+ended\s+before"
+    r"|Forbidden\s+control\s+sequence"
+)
 #: env judge 输入截断（长 env 体只喂前 N 字符）
 _ENV_JUDGE_MAX_CHARS = 2000
 #: 环境开关
@@ -267,13 +367,17 @@ class L2Attr:
             self.texts[fidx], sres, self.run.trans.get(fidx) or {}
         )
 
-    def attribute(self, fidx: int, tex_line: int) -> int | None:
+    def attribute(
+        self, fidx: int, tex_line: int, *, nearest: bool = True
+    ) -> int | None:
         """行号 → 字节偏移 → 所在/最近 chunk.id。
 
         顺序读取不变量：TeX 报 ``l.NNN`` 时还没读到该行之后——起点落在
         错误行行尾之后的块不可能是肇事者（repro-2501：preamble 错被
         forward-fallback 错归给首个正文块）。runaway/EOF 类报的父文件
         续行位由 ``attr_error`` 的 ``eof_file`` 改派兜住，不经此路。
+        ``nearest=False``（``_STRUCT_ERR_RX`` 签名类）关掉最近块兜底——
+        结构签名报错行恒在块外，兜底只会把错贴给邻近无辜块。
         """
         offs = self.line_off[fidx]
         if not (1 <= tex_line <= len(offs) - 1):
@@ -287,15 +391,24 @@ class L2Attr:
             s, e = sp
             if s <= off < e:
                 return cid
-            if s >= line_end:
+            if not nearest or s >= line_end:
                 continue
             gap = max(s - off, off - e, 0)
             if gap < best_gap:
                 best_cid, best_gap = cid, gap
         return best_cid if best_gap <= _L2_ATTR_WINDOW else None
 
-    def attr_error(self, err: l2_mod.LogError) -> tuple[int, list[int]] | None:
+    def attr_error(  # noqa: PLR0911 -- 归因阶梯：豁免→结构→eof→白名单逐档直铺
+        self, err: l2_mod.LogError
+    ) -> tuple[int, list[int]] | None:
         """单条 log 错误 → (fidx, chunk.id 列表)；不可归因 → None。"""
+        blob = err.head + "\n" + "\n".join(err.ctx)
+        # 基建/资源缺失错永不归译文块——修归 fixloop install/filemap/
+        # toolchain 面；重译造不出 .sty/字体/图片，归了只会白烧块。
+        if _INFRA_ERR_RX.search(blob):
+            return None
+        # 结构位签名：只认报错行严格含于某块的归因——兜底会误伤邻近块
+        strict = _STRUCT_ERR_RX.search(blob) is not None
         # runaway/EOF 错（eof_file 非 None）：报位是父文件 ``\input`` 续行，
         # 真肇事文件是 ``)`` 刚弹出的那个——行号属父文件须丢弃，归肇事
         # 文件整体（块多时任归 EOF 侧末块——runaway 的参数起点在文件尾）
@@ -311,12 +424,18 @@ class L2Attr:
         self.file_state(fidx)
         sres = self.run.scans[fidx][1]
         if not eof and err.tex_line is not None:
-            cid = self.attribute(fidx, err.tex_line)
+            cid = self.attribute(fidx, err.tex_line, nearest=not strict)
             return (fidx, [cid] if cid is not None else [])
-        if len(sres.chunks) <= L2_MAX_CHUNKS:
-            return (fidx, [c.id for c in sres.chunks])
+        if strict:
+            return (fidx, [])  # 结构签名无可含位行 → 一切兜底都禁
         if eof and sres.chunks:
+            if len(sres.chunks) <= L2_MAX_CHUNKS:
+                return (fidx, [c.id for c in sres.chunks])
             return (fidx, [sres.chunks[-1].id])
+        # 无行号文件级错误：白名单签名才允许全块兜底——其余类位置
+        # 信息为零，全块归因是扫射烧块，不归因留 fixloop。
+        if len(sres.chunks) <= L2_MAX_CHUNKS and _FILELEVEL_ERR_RX.search(blob):
+            return (fidx, [c.id for c in sres.chunks])
         return (fidx, [])
 
 
@@ -330,8 +449,11 @@ def _l2_localize(
     **最内层**（``l.NNN`` 只对 TeX 正在读的文件有意义——栈里更深的
     ``.sty``/``.cls`` 错是基建问题，不归 chunk）。``tex_line`` → 字节偏移
     → 所在 chunk；不在任何块内则取最近块（≤ ``_L2_ATTR_WINDOW``，且起点
-    越过错误行行尾的块被顺序读取不变量排除）。无行号错误按文件级
-    归因——仅当该文件 chunk 数 ≤ ``L2_MAX_CHUNKS`` 才全收。
+    越过错误行行尾的块被顺序读取不变量排除）。三档豁免先于归因：
+    ``_INFRA_ERR_RX`` 基建签名永不归块；``_STRUCT_ERR_RX`` 结构签名只
+    认报错行严格含于块内（无最近块兜底/文件级兜底）；无行号错误走
+    ``_FILELEVEL_ERR_RX`` 白名单才允许文件级全块归因（且 chunk 数
+    ≤ ``L2_MAX_CHUNKS``）。
     """
     verdict = _l2_parse(res)
     if verdict.log_missing or not verdict.errors:

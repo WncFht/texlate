@@ -157,9 +157,16 @@ class TaskRepo:
         return dict(row) if row else None
 
     def find_reusable(self, cache_key: str) -> dict[str, Any] | None:
-        """同 cache_key 已完成（done/partial）任务——reuse 命中依据。"""
+        """同 cache_key 已完成任务——reuse 命中依据（仅 ``done``）。
+
+        ``partial`` 不收：partial 是降级交付（inject/route reject、修复链未
+        收敛），``_finish_reuse`` 会原样镜像其终态 + ``error_json``——把腐
+        产物克隆给后来者等于毒传播（``t_f74894ebc691aaf4`` 缺包 partial
+        被 reuse 克隆给 ``t_74d635d226e68251`` 实证）。partial 命中方请
+        走真跑（修复链可能收敛成 done）。
+        """
         row = self.conn.execute(
-            "SELECT * FROM tasks WHERE cache_key = ? AND status IN ('done','partial')"
+            "SELECT * FROM tasks WHERE cache_key = ? AND status = 'done'"
             " ORDER BY created_at DESC LIMIT 1",
             (cache_key,),
         ).fetchone()

@@ -37,6 +37,7 @@ from texlate.repair import (
     embed_tounicode_quiet,
     fixloop_cell_parts,
     log_text_of,
+    run_precheck,
 )
 from texlate.repair_l2 import (
     ENV_NO_L2,
@@ -162,7 +163,9 @@ class _Compile:
 
     # ------------------------------------------------------------ compiling
 
-    async def _stage_compile(self, ctx: TaskCtx, *, share: bool = False) -> None:
+    async def _stage_compile(  # noqa: C901 -- 编译段终态阶梯直铺
+        self, ctx: TaskCtx, *, share: bool = False
+    ) -> None:
         """compiling：en/zh 双侧编译 + zh-src.zip + dual.json + 终态。
 
         ``share=True``（share 导入链）：重编未出 pdf 不归 fault——共享包
@@ -193,6 +196,8 @@ class _Compile:
         if verdict.startswith("reject:") and not cross_adopted:
             await self._to_thread(ctx, self._build_md_zip)
             detail: dict[str, Any] = {}
+            if ctx.precheck:
+                detail["precheck"] = ctx.precheck
             if ctx.l2:
                 detail["l2"] = ctx.l2
             if ctx.fixloop:
@@ -218,6 +223,8 @@ class _Compile:
             }
             if ctx.share:
                 err["share"] = ctx.share
+            if ctx.precheck:
+                err["precheck"] = ctx.precheck
             if ctx.l2:
                 err["l2"] = ctx.l2
             if ctx.fixloop:
@@ -270,6 +277,8 @@ class _Compile:
         """
         await self._to_thread(ctx, self._build_md_zip)
         detail: dict[str, Any] = {}
+        if ctx.precheck:
+            detail["precheck"] = ctx.precheck
         if ctx.l2:
             detail["l2"] = ctx.l2
         if ctx.fixloop:
@@ -353,13 +362,25 @@ class _Compile:
                     zf.write(f, f.relative_to(ctx.zh_dir).as_posix())
         self._register(ctx, "zh_src_zip", "zh-src.zip")
 
+    def _task_texmf(self, ctx: TaskCtx, eng: Engine) -> Engine:
+        """任务级 ``ctx.root/_texmf`` 装件树接管（None-only 预设语义）。
+
+        fixloop ``_wire_engine`` 只在 texmfhome 为 None 时接线——此处预设
+        即接管落点：装件落任务根而非 ``build-zh/_texmf``（retry rmtree
+        不丢装件）；en/zh 编译与 precheck/fixloop 装件共享同树——zh 侧
+        装上的缺件对 en 编译可见（en 重试闸的前提）。
+        """
+        if getattr(eng, "texmfhome", "unset") is None:
+            eng.texmfhome = ctx.root / "_texmf"  # type: ignore[attr-defined]
+        return eng
+
     def _engine(self, ctx: TaskCtx) -> Engine:
         """按注入面/默认构造引擎（xelatex 走 best-effort nonstopmode）。"""
         eng = ctx.engine_name or "tectonic"
         if self._engine_factory is not None:
-            return self._engine_factory(eng)
+            return self._task_texmf(ctx, self._engine_factory(eng))
         kw: dict[str, Any] = {"halt_on_error": False} if eng == "xelatex" else {}
-        return seams.engine_for(eng, **kw)
+        return self._task_texmf(ctx, seams.engine_for(eng, **kw))
 
     def _probe_target(self, ctx: TaskCtx, work: Path) -> ProbeReport | None:
         r"""``target_probe`` best-effort 壳：编译前声明依赖预扫 + 信号播报。
@@ -516,8 +537,8 @@ class _Compile:
         if ctx.engine_name != "xelatex":
             return eng
         if self._engine_factory is not None:
-            return self._engine_factory("xelatex")
-        return seams.engine_for("xelatex", halt_on_error=True)
+            return self._task_texmf(ctx, self._engine_factory("xelatex"))
+        return self._task_texmf(ctx, seams.engine_for("xelatex", halt_on_error=True))
 
     def _repair_event(self, ctx: TaskCtx, etype: str, payload: dict[str, Any]) -> None:
         """修复链实况帧发布：``bus.publish`` 经 ``_on_loop`` 回弹 + BYOK 秘钥 scrub。
@@ -608,10 +629,11 @@ class _Compile:
             # retry 是交付路径终末重编（非轮内分类编译），nonstopmode
             # 续跑才能把 incumbent=fail 的树救成 partial（裁决见
             # tmp/b8-e2e/halt-on-error-ruling.md）
-            make_engine=lambda: (
+            make_engine=lambda: self._task_texmf(
+                ctx,
                 self._engine_factory("xelatex")
                 if self._engine_factory is not None
-                else seams.engine_for("xelatex", halt_on_error=False)
+                else seams.engine_for("xelatex", halt_on_error=False),
             ),
             should_cancel=ctx.cancel_flag.is_set,
         )
@@ -904,6 +926,64 @@ class _Compile:
 
         self._on_loop(_flush)
 
+    def _precheck_attempt(
+        self,
+        ctx: TaskCtx,
+        work: Path,
+        eng: Engine,
+        res: CompRes,
+        v: Verdict,
+    ) -> tuple[CompRes, Verdict]:
+        """第 0 招预检臂：fixloop precheck 相独立跑 + 装上件/收得 flag 后重编。
+
+        缺包类失败在 L2 归因前就消掉——missing_file 进 L2 兜底只会把块
+        拖去重译/回退（``t_f74894ebc691aaf4`` algpseudocodex 实证）。
+        预检引擎走 ``_fixloop_engine``（与 fixloop 轮内同机——precheck
+        无编译，halt_on_error 无关，要的是同一台接线对象）。
+        ``reject:<rid>`` 不重编——路由拒绝交 fixloop 复现 + 跨引擎消费。
+        """
+        try:
+            pre = run_precheck(
+                work, self._fixloop_engine(ctx, eng), engine_name=ctx.engine_name
+            )
+        except Exception as e:  # noqa: BLE001 -- 预检崩不拖垮编译段
+            self._log(ctx, f"precheck crashed: {type(e).__name__}: {e}")
+            return res, v
+        ctx.precheck = _scrub_deep(
+            {
+                "verdict": pre.get("verdict"),
+                "reject_route": pre.get("reject_route"),
+                "installed": pre.get("installed") or [],
+                "engine_flags": pre.get("engine_flags") or [],
+                "advisories": pre.get("advisories") or [],
+                "actions": pre.get("actions") or [],
+            },
+            ctx.secrets.api_key,
+        )
+        self._repair_event(ctx, "precheck", {"phase": "done", "report": ctx.precheck})
+        for a in pre.get("advisories") or []:
+            self._log(ctx, f"precheck advisory: {a}")
+        if pre.get("installed"):
+            self._log(ctx, f"precheck installed: {pre['installed']}")
+        if str(pre.get("verdict") or "").startswith("reject:"):
+            return res, v
+        flags = [str(f) for f in pre.get("engine_flags") or []]
+        if not (pre.get("installed") or flags):
+            return res, v  # 空转省一发编译
+        self._repair_event(
+            ctx, "precheck", {"phase": "progress", "message": "预检后重编"}
+        )
+        return compile_judge(
+            eng,
+            work,
+            ctx.main_rel,
+            timeout=self._compile_timeout,
+            flags=list(dict.fromkeys([*ctx.probe_flags, *flags])) or None,
+            expect_cjk=ctx.expect_cjk,
+            should_cancel=ctx.cancel_flag.is_set,
+            after_compile=lambda _r: self._abort_if_cancelled(ctx),
+        )
+
     def _l2_attempt(
         self,
         ctx: TaskCtx,
@@ -949,10 +1029,13 @@ class _Compile:
         return res2, (v2 if v2 is not None else v)
 
     def _compile_zh(self, ctx: TaskCtx) -> bool:
-        """zh.pdf：zh/ 拷贝编译 +（非 clean 时）L2 回灌 → fixloop + judge(expect_cjk)。
+        """zh.pdf：zh/ 拷贝编译 +（非 clean 时）precheck → L2 回灌 → fixloop + judge(expect_cjk)。
 
-        修复链顺序对齐 e2e ``pipe_condition``：L2（译文归因重译）先于
-        fixloop——L2 resplice 重写 workdir，规则修源在其后兜底。
+        修复链顺序对齐 e2e ``_repair_chain``：precheck 预检（装缺件，
+        fixloop 第 0 招独立相）先消 missing_file 类基建失败；L2（译文
+        归因重译）先于 fixloop——L2 resplice 重写 workdir，规则修源在
+        其后兜底。precheck ``reject:<rid>`` 跳过 L2——路由拒绝交
+        fixloop 复现 + 跨引擎消费。
         ``.compile-done`` 哨兵落 ``zh/`` 内：main 变更的 retry 会 rmtree
         ``zh/``，哨兵与 zh_pdf 记录同生共死；resume 见哨兵+pdf 即跳过重编。
         返回「终态不 fault」——有 pdf 即 partial 起步。
@@ -983,7 +1066,13 @@ class _Compile:
             should_cancel=ctx.cancel_flag.is_set,
             after_compile=_post,
         )
-        if v.status != "clean":
+        if v.status != "clean" and self._fixloop_enabled(ctx):
+            res, v = self._precheck_attempt(ctx, work, eng, res, v)
+            self._abort_if_cancelled(ctx)
+        pre_reject = str((ctx.precheck or {}).get("verdict") or "").startswith(
+            "reject:"
+        )
+        if v.status != "clean" and not pre_reject:
             res, v = self._l2_attempt(ctx, work, eng, res, v)
             self._abort_if_cancelled(ctx)
         if v.status != "clean" and self._fixloop_enabled(ctx):

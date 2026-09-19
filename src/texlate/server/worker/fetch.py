@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import shutil
 import sqlite3
 from pathlib import Path
@@ -242,7 +241,7 @@ class _Fetch:
         return n
 
     def _finish_reuse(self, ctx: TaskCtx, hit: dict[str, Any]) -> None:
-        """post-resolve dedup 收尾：终态镜像命中行 + done 事件（loop 线程）。
+        """post-resolve dedup 收尾：产物拷贝 + done 终态 + done 事件（loop 线程）。
 
         cancel 竞态守卫同 ``_fail``——行已入终态则整条跳过（cancel 路径
         已发 done），不复活用户取消的任务。
@@ -250,14 +249,8 @@ class _Fetch:
         if self._current_status(ctx) in TERMINAL_STATUSES:
             return
         self._log(ctx, f"reuse: 命中任务 {hit['id']} 产物（post-resolve dedup）")
-        status = "done" if hit["status"] == "done" else "partial"
-        err: dict[str, Any] | None = None
-        if status == "partial" and hit.get("error_json"):
-            try:
-                raw = json.loads(str(hit["error_json"]))
-                err = raw if isinstance(raw, dict) else None
-            except json.JSONDecodeError:
-                err = None
+        # find_reusable 只回 done 行（partial 降级交付不克隆——毒传播先例
+        # t_f74894ebc691aaf4）。终态恒 done，无 error_json 镜像。
         upd: dict[str, Any] = {"progress": 100}
         if hit.get("main_tex"):
             upd["main_tex"] = str(hit["main_tex"])
@@ -268,20 +261,19 @@ class _Fetch:
         # 取源落 .fetch-done 时摘除（标记只描述当前产物的来历）。
         upd["options_json"] = ctx.set_option("reuse_hit", str(hit["id"]))
         self.store.update_fields(ctx.task_id, **upd)
-        self._mark_terminal(ctx, status)
+        self._mark_terminal(ctx, "done")
         self.store.transition(
             ctx.task_id,
-            status,
+            "done",
             progress=100,
-            error=err,
             force=True,
-            message="完成" if status == "done" else "部分完成",
+            message="完成",
         )
         self.bus.publish(
             ctx.task_id,
             "done",
             {
-                "status": status,
+                "status": "done",
                 "artifacts": self._artifact_urls(ctx),
                 "stats": self._stats(ctx),
             },
