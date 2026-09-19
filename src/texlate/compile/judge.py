@@ -362,6 +362,17 @@ def _timeout_verdict(v: Verdict, res: CompRes, log_text: str) -> Verdict:
     if sentry_reason is not None:
         v.notes.append(f"sentry:{sentry_reason}")
         v.category = "runaway_output"
+        if res.log.errors:
+            # 洪前已分类错误构成落 error_cats/error_pay——runaway_output
+            # 不再遮蔽底层可修机理（killsem2：2311.04163 洪是上游
+            # undefined_cs 的下游症状，机理只在 error_* 字段可见）。
+            fcat, fpay = classify_error(
+                res.log.first_error,
+                res.log.error_ctx,
+                res.log.tail,
+                timed_out=False,
+            )
+            _error_composition(v, res, fcat, fpay)
         return v
     # 超时编译细分 category（taxonomy 单源）：\output 期 Overfull \vbox
     # 刷屏 → runaway_output（输出例程暴走），否则泛 timeout——triage/

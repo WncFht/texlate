@@ -56,12 +56,16 @@ __all__ = ["ErrReport", "Taxonomy", "parse_log", "parse_text"]
 #: 阈值内正常档过量告警永远够不着，病态档轻松过线几个量级。
 _RUNAWAY_VBOX_RX = re.compile(r"Overfull \\vbox[^\n]*while \\output is active")
 _RUNAWAY_VBOX_MIN = 30
-#: ``[N]`` shipout 页标——输出例程页产率签名（str 形供事后判据；活哨侧
-#: bytes 编译形 ``compile.proc._PAGE_MARK_RX`` 同词素两介质）。
+#: ``[N]`` shipout 页标候选——输出例程页产率签名（str 形供事后判据；
+#: 活哨侧 bytes 编译形 ``compile.proc._PAGE_MARK_RX`` 同词素两介质）。
+#: 匹配只找候选；是否计为 shipout 由消费侧的单调包络判定（见下）。
 _RUNAWAY_PAGE_RX = re.compile(r"\[\d+\]")
 #: 页产率硬顶——健康论文页数百级以下，病态输出例程 ~400 页/秒
-#: （gr-qc/0104075 ~97K 页/240s 实证）。计数制非 max 值：文本偶发的
-#: ``[12345]`` 引用/编号单发不误伤。
+#: （gr-qc/0104075 ~97K 页/240s 实证）。计数走**单调包络**：真 shipout
+#: 序号只增不减（2609.19748 实测 9623 标记全序、2608.09867 19084 全
+#: 序），仅 ``n >= 已计最大值`` 的页标入计——收敛文档打印万级非序
+#: 方括数字（索引/引用/``\typeout`` 阵列）至多贡献 ~ln(n) 个左向右
+#: 极大值，不再假触（killsem2 census 开放缺口）。
 _RUNAWAY_PAGE_MAX = 10_000
 #: vbox 密度闸——签名数须 > DENSITY × 页标数才判暴走：「逐页一条」的
 #: 慢性告警是良性排版溢出（1003.2165 实证：46 签名/46 页、36s 干净编译，
@@ -73,16 +77,27 @@ _RUNAWAY_VBOX_DENSITY = 4
 def _is_runaway_output(text: str) -> bool:
     r"""Log 输出例程暴走判据——与 ``proc._RunawaySentry`` 活哨同语义双臂。
 
-    - ``[N]`` 页标计数 ≥ ``_RUNAWAY_PAGE_MAX``：病态页产率（单调计数越阈
-      即返，不等全扫）；
+    - ``[N]`` 页标**单调包络计数** ≥ ``_RUNAWAY_PAGE_MAX``：病态页产率。
+      仅 ``n >= 已计最大值`` 的页标入计（真 shipout 序号只增不减，冻结
+      计数器暴走 ``[1][1]…`` 同页号仍计）——非序方括噪声只贡献左向右
+      极大值 ~ln(n) 个；越阈即返，不等全扫；
     - vbox 签名 ≥ ``_RUNAWAY_VBOX_MIN`` ∧ 签名数 > ``_RUNAWAY_VBOX_DENSITY``
-      × 页标数：无 shipout 空转签名。密度按**全文终值**评估——中途的高
-      密度前奏（告警先于页标落行）不抢判，逐页慢性告警文档永不误伤。
+      × 页标**原始总数**：无 shipout 空转签名。分母不走包络——噪声撑
+      大分母是豁免方向（保守），pagenumbering 复位档真 shipout 不漏计。
+      密度按**全文终值**评估——中途的高密度前奏（告警先于页标落行）
+      不抢判，逐页慢性告警文档永不误伤。
     """
     page_marks = 0
-    for page_marks, _m in enumerate(_RUNAWAY_PAGE_RX.finditer(text), 1):
-        if page_marks >= _RUNAWAY_PAGE_MAX:
-            return True
+    env = 0
+    last = -1
+    for m in _RUNAWAY_PAGE_RX.finditer(text):
+        page_marks += 1
+        n = int(m.group(0)[1:-1])
+        if n >= last:
+            env += 1
+            last = n
+            if env >= _RUNAWAY_PAGE_MAX:
+                return True
     vbox_hits = sum(1 for _m in _RUNAWAY_VBOX_RX.finditer(text))
     return (
         vbox_hits >= _RUNAWAY_VBOX_MIN

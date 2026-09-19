@@ -225,7 +225,8 @@ def _round_cat(
     str 形 ``timed_out``) —— 记录值优先于文本重扫, 直归 ``runaway_output``,
     ``sentry:<arm>`` 挂 payload 槽回吐 (镜像 judge ``_timeout_verdict``
     的 notes 形; 轮内无 notes 面, payload 即轮次归因载体, 落
-    ``entry["payload"]``/事件行 ``pay=`` 可查)。无记录原因的超时由
+    ``entry["payload"]``/事件行 ``pay=`` 可查); 洪前有可分类首错时
+    payload 追加 ``|<cat>``, 底层机理随归因可查。无记录原因的超时由
     ``Taxonomy.classify`` 直出 ``timeout``/``runaway_output`` —— 内部已扫
     ``rep.raw`` (= ``_report_of`` 喂入的 .log 全文, 与 judge
     ``_full_log_text`` 同源), 判泛 ``timeout`` 再补查 ``stdout_tail``;
@@ -246,7 +247,14 @@ def _round_cat(
     if sentry_reason is None and isinstance(timed_out, str):
         sentry_reason = timed_out
     if sentry_reason is not None:
-        return "runaway_output", f"sentry:{sentry_reason}"
+        pay = f"sentry:{sentry_reason}"
+        if rep.first:
+            # 洪前首错类追加 payload——runaway_output 标签不遮蔽底层可修
+            # 机理（killsem2：2311.04163 洪上游是 fixable undefined_cs）。
+            head = rs.taxonomy.classify_head(rep.first, rep.ctx, pre=rep.pre)
+            if head is not None and head[0]:
+                pay += f"|{head[0]}"
+        return "runaway_output", pay
     cat, pay = rs.taxonomy.classify(rep, timed_out=bool(timed_out))
     if cat == "timeout" and _is_runaway_output(getattr(res, "stdout_tail", "") or ""):
         # 活哨早杀的编译 .log 截断在签名刷屏之前——证据在 stdout_tail

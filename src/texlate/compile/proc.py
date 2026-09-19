@@ -16,8 +16,9 @@ sandbox-exec / bwrap 挂载与能力探测）留 ``sandbox.py``，runner 名经�
 - POSIX rlimits 纵深：exec 前经 preexec_fn 装 AS/NOFILE/CPU 软帽——失控
   TeX 吃不光宿主内存与 fd，自旋进程墙钟之外还有 SIGXCPU 第二闸。
 - ``\output`` 暴走活哨（``_RunawaySentry``）：排干环逐片喂签名计数
-  （logparse 事后判据同 regex 同阈值）——``[N]`` 页标计数 ≥10K 页洪
-  闸 + vbox 签名密度闸（签名 ≫ 页产才判暴走，逐页慢性告警不杀），
+  （logparse 事后判据同 regex 同阈值）——``[N]`` 页标单调包络计数
+  ≥10K 页洪闸 + vbox 签名密度闸（签名 ≫ 页产才判暴走，逐页慢性告
+  警不杀），
   越阈抛 ``TimeoutExpired`` 走既有 killpg 收树臂——病态编译不再烧满
   墙钟（gr-qc/0104075：96K+ 签名行 / ~97K 页烧 240s 实证）。截杀原因
   （``vbox_flood``/``page_flood``）经 ``timed_out`` 槽以 str 回吐——
@@ -107,8 +108,11 @@ _SENTRY_TAIL_CAP: Final = 65536
 _SENTRY_KEEP: Final = 4096
 #: 页标记闸（``[N]`` shipout 计数）——健康论文页数百级以下；gr-qc/0104075
 #: 暴走 ~240s 产 ~97K 页（~400 页/秒），10K 闸约 25s 截杀、距正常档两个
-#: 数量级。vbox 签名缺席的静默死循环由本闸兜住；计数制（非 max 值）免
-#: 被文本偶发的大数值括号（``[12345]`` 引用/编号）单发误伤。
+#: 数量级。vbox 签名缺席的静默死循环由本闸兜住。计数走**单调包络**——
+#: 真 shipout 序号只增不减（2609.19748 实测 9623 标记全序），仅
+#: ``n >= 已计最大值`` 入计；收敛文档万级非序方括数字（索引/引用阵
+#: 列）只贡献 ~ln(n) 个左向右极大值，不再假触（killsem2 census 开放缺
+#: 口——旧纯计数把任意 ``[\d+]`` 当页标）。
 #: 本对是 ``sandbox.py`` 再出口兼容面——权威 str 源与阈值已收敛在
 #: ``fixloop.logparse``（``_RUNAWAY_PAGE_RX``/``_RUNAWAY_PAGE_MAX``，
 #: 活哨经惰性 import 取真源），改动须同步两侧。
@@ -122,12 +126,15 @@ class _RunawaySentry:
     与 ``fixloop.logparse`` 事后判据同 regex 同阈值（str 模式源 ``encode``
     成 bytes 编译形，定义仍单源）：
 
-    - ``page_flood``：``[N]`` 页标计数 ≥ ``_RUNAWAY_PAGE_MAX``——病态页
-      产率（gr-qc/0104075 ~97K 页实证），vbox 签名缺席的静默死循环也兜住；
+    - ``page_flood``：``[N]`` 页标**单调包络计数** ≥ ``_RUNAWAY_PAGE_MAX``
+      ——病态页产率（gr-qc/0104075 ~97K 页实证），vbox 签名缺席的静默
+      死循环也兜住；非序方括数字不入计，万级良性 ``[\d+]`` 文本不误杀；
     - ``vbox_flood``：vbox 签名 ≥ ``_RUNAWAY_VBOX_MIN`` ∧ 签名数 >
-      ``_RUNAWAY_VBOX_DENSITY`` × 页标数——无 shipout 空转签名。「逐页
-      一条」的慢性告警是良性排版溢出（1003.2165：46 签名/46 页、36s 干净
-      编译，旧累计≥30 闸 ~15.6s 误杀），密度语义后不杀。
+      ``_RUNAWAY_VBOX_DENSITY`` × 页标**原始计数**——无 shipout 空转
+      签名。「逐页一条」的慢性告警是良性排版溢出（1003.2165：46 签名
+      /46 页、36s 干净编译，旧累计≥30 闸 ~15.6s 误杀），密度语义后不
+      杀；分母不走包络——非序噪声撑大分母是豁免方向（保守），复位
+      档页标也不漏计。
 
     越阈由排干环抛 ``TimeoutExpired`` 走 ``run_process`` 既有 killpg 收
     树臂；``reason`` 记截杀臂名，经 ``timed_out`` 槽回吐让
@@ -149,7 +156,15 @@ class _RunawaySentry:
         self._vbox_density = _RUNAWAY_VBOX_DENSITY
         self._page_max = _RUNAWAY_PAGE_MAX
         self._vbox_hits = 0
+        #: 页标原始总数——vbox 密度分母。分母走原始计数是保守方向：噪声
+        #: 只会撑大分母豁免 vbox 臂（签名 ≫ 页产才杀），永不反向假触；
+        #: pagenumbering 复位档的真 shipout 也全数入计，密度不失真。
         self._page_marks = 0
+        #: 单调包络计数——page_flood 闸专用：真 shipout 序号只增不减，
+        #: 仅 ``n >= _page_last`` 入计；非序方括噪声只贡献 ~ln(n) 个
+        #: 左向右极大值，万级良性 ``[\d+]`` 文本不再假触（killsem2）。
+        self._page_env = 0
+        self._page_last = -1
         self._tail = b""
         self.tripped = False
         #: 截杀臂名（``vbox_flood``/``page_flood``）；未越阈为 None。
@@ -175,8 +190,15 @@ class _RunawaySentry:
 
     def _scan(self, seg: bytes) -> None:
         self._vbox_hits += len(self._vbox_rx.findall(seg))
-        self._page_marks += len(self._page_rx.findall(seg))
-        if self._page_marks >= self._page_max:
+        for m in self._page_rx.finditer(seg):
+            self._page_marks += 1
+            n = int(m.group(0)[1:-1])
+            if n >= self._page_last:
+                self._page_env += 1
+                self._page_last = n
+                if self._page_env >= self._page_max:
+                    break
+        if self._page_env >= self._page_max:
             self.tripped = True
             self.reason = "page_flood"
         elif (
