@@ -96,7 +96,11 @@ from texlate.compile.fixloop._builtins_misc import (
 from texlate.compile.fixloop._builtins_misschar import (
     accent_mark_fix,
     font_fallback,
+    macro_glyph_fix,
     missing_char_fix,
+)
+from texlate.compile.fixloop._builtins_paralong import (
+    para_longize,
 )
 from texlate.compile.fixloop._builtins_pkgload import (
     _detach_physics_loads,
@@ -197,9 +201,11 @@ __all__ = [
     "journal_cs_polyfill",
     "keep_latin_tokens",
     "legacy_pkg_shim",
+    "macro_glyph_fix",
     "missing_char_fix",
     "non_utf8_recode",
     "option_clash_merge",
+    "para_longize",
     "pdf_asset_sanitize",
     "pdfstring_cs_disarm",
     "pdftex_prim_polyfill",
@@ -230,8 +236,12 @@ __all__ = [
 
 
 def px_to_bp(m: re.Match[str]) -> str:
-    """``N px`` → ``N*0.75 bp`` (CSS 96dpi 换算, spike L369-373)。"""
-    v = float(m.group(1)) * 0.75
+    r"""``N px`` → ``N bp`` —— pdfTeX 忠实换算.
+
+    缺省 ``\pdfpxdimen``=65782sp=1bp: 源档在 pdfTeX 下产出的尺寸即
+    1:1; normalize 侧同口径, 旧 CSS 96dpi ×0.75 是屏幕域语义错配。
+    """
+    v = float(m.group(1))
     s = f"{v:.2f}".rstrip("0").rstrip(".")
     return s + "bp"
 
@@ -269,6 +279,7 @@ TRANSFORM_FNS = {
     "ctlseq_undefine": ctlseq_undefine,
     "purge_corrupt_intermediates": purge_corrupt_intermediates,
     "missing_char_fix": missing_char_fix,
+    "macro_glyph_fix": macro_glyph_fix,
     "accent_mark_fix": accent_mark_fix,
     "font_fallback": font_fallback,
     "graphic_case_link": graphic_case_link,
@@ -293,4 +304,5 @@ TRANSFORM_FNS = {
     "xbb_pregen": xbb_pregen,
     "pdf_asset_sanitize": pdf_asset_sanitize,
     "shipped_sty_input_wrap": shipped_sty_input_wrap,
+    "para_longize": para_longize,
 }

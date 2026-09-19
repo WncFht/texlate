@@ -50,6 +50,38 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "peer1-residue-routes.md §2 簇; produced_by 键 = char_table 扩口; \\protected\\def 超 spec \\renewcommand 建议 (moving-arg 安全)"
 
+  # 姊妹臂 (misscharext #154 stage-B): cs_rebind 重绑回退字体保 cs 形,
+  # 本臂把"宏名产字"站点直接换成 \\ensuremath 等价 (\\texttildelow→
+  # \\sim/\\textlangle→\\langle/\\textrangle→\\rangle) —— 这些 cs 的语义
+  # 本体就是数学符, 换字体绑不回正确形。双闸: 缺字码位∈日志 ∧ 肇事 cs
+  # 仍在源 —— 防对无关工程烧 dedup 格。
+  - id: macro_glyph_fix
+    mechanisms: [W42, W43]
+    description: "宏名产缺字 (\\texttildelow/\\textlangle/\\textrangle) → 站点改写 \\ensuremath 等价"
+    phase: loop
+    order: 25.8 # cs_rebind(25.7) 后, font_fallback(26) 前 —— 同闸同域, 换形臂
+    when:
+      any:
+        - { category: warn_missing_char }
+        - { category: warn_utf8 }
+        - { category: invalid_in_math }
+    action:
+      kind: builtin_transform
+      function: macro_glyph_fix
+      params: { exts: [.tex, .bbl, .cls] }
+    risk: low # 站点级双闸 (码位∈日志 ∧ cs∈源); \\ensuremath 双模安全
+    known_gap: "\\let\\x\\textlangle 单 token 别名绑定不匹配; 表外 cs 产字 decline 交下轮"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "misscharext #154 (utf8census 派生): 2308.04265 U+02F7×2, 2403.00011 U+2329/232A×6",
+          error: "Missing character: There is no ˷/〈/〉 — \\texttildelow/\\textlangle/\\textrangle 站点产出",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "task #154 stage-B; tmp/lane-misscharext/report.md — 直换 \\ensuremath 非字面 (一轮达, \\qdist def 站是文本态序言而展开在数学)"
+
   - id: hyphenation_sane
     description: "\\hyphenation{} 参数混入非拉丁 token (中文) → 剥离, 只留 [a-zA-Z-]"
     phase: loop
@@ -909,6 +941,29 @@ rules:
         }
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/lane-pdo: t5 \\pdfstringdefDisableCommands{\\def\\times{}} 0 err 净出 PDF; 纯 acmart+xelatex 复现 → 上游脆弱性非 texlate 注入"
+
+  - id: para_longize
+    description: "Paragraph ended before \\X (runaway-arg) — fileset def-site 补 \\long/去星; 内核/包内宏 \\par-strip wrap 注入 \\begin{document} 前"
+    phase: loop
+    order: 194 # pdfstring_cs_disarm(193)/80-bib(195) 之间 —— syntax 类按序收
+    when: { category: syntax }
+    condition: { ctx_suggests: "Paragraph ended before" }
+    action:
+      kind: builtin_transform
+      function: para_longize
+      # params.wrap_table / deny / max_macros(默认8) 可扩 —— 未收内核名走 wrap_table 同形补
+    risk: medium # wrap 重定义内核/包宏 (\let 快照+签名转发, 零 body 拷贝免版本漂移); \par-strip 丢顶层段断 = 语义合意但非逐字; 嵌套组内 \par 剥不到是已知残面
+    known_gap: "嵌套花括号组内 \\par 不剥 (语料肇事均为顶层); deny 面 (\\bbl@temp*/\\@temp*/\\next 暂存/级联) 转上游臂; 表外且无 def-site 宏 decline 交下轮"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "para-census #145 (2026-09-19): ~60 cells live_macros; 4 target: 1012.5246/1206.1873/1404.0249/1502.01978",
+          error: "Paragraph ended before \\X was complete",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "task #155; tmp/lane-paralong/ repro 4/4 para 消除+PDF 产出"
 
   # 未闭合 \if* → 文件尾 \fi 注入双臂 (failmine item 4, 16 格)。
   # other 臂: `! Incomplete \iffalse/\ifnum` 首错 (taxonomy 无专属条目 →

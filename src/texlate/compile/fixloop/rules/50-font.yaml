@@ -139,7 +139,7 @@ rules:
     source_ref: "docs/08-translate-compile.md L275; ctanfetch-probe.md §3.5"
 
   - id: px_to_bp
-    description: "非法单位 px → bp 换算 (CSS 96dpi: 1px = 0.75bp)"
+    description: "非法单位 px → bp 换算 (pdfTeX 缺省忠实: 1px = 1bp)"
     phase: loop
     order: 60
     when: { category: illegal_unit }
@@ -149,7 +149,7 @@ rules:
         exts: [.tex, .sty]
         rewrites:
           - { pattern: "(\\d*\\.?\\d+)\\s*px\\b", function: px_to_bp }
-          # px_to_bp: repl = fmt(num*0.75, 去尾零) + "bp"
+          # px_to_bp: repl = fmt(num, 去尾零) + "bp" (pdfTeX 忠实 1:1)
     risk: low
     engines:
       xelatex: { mode: native }
