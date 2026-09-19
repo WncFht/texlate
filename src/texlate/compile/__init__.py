@@ -40,7 +40,6 @@ from .inject import (
     find_main_tex,
     inject_cjk,
     inject_float_sizing,
-    inject_preamble,
     inject_table_fitting,
     prepare_chinese,
 )
@@ -106,7 +105,6 @@ __all__ = [
     "group_end",
     "inject_cjk",
     "inject_float_sizing",
-    "inject_preamble",
     "inject_table_fitting",
     "install_tectonic",
     "judge",

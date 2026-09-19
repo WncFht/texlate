@@ -132,14 +132,6 @@ TECTONIC_FONT_COMPATIBILITY = r"""% texlate: vector double-stroke fonts; Tectoni
 """
 
 
-def inject_preamble(text: str, block: str) -> str:
-    r"""在 depth-0 `\begin{document}` 前插入前导块；找不到则原样返回。"""
-    marker = next(iter_depth0(BEGIN_DOC_RX, visible_tex(text)), None)
-    if not marker:
-        return text
-    return text[: marker.start()] + block + text[marker.start() :]
-
-
 # ---------------------------------------------------------------- 1. comment 环境行尾
 def normalize_comment_terminators(text: str) -> str:
     r"""剥掉 `\end{comment}` 行尾空白。

@@ -43,9 +43,6 @@ from texlate.textutil import (
 
 from .latex209 import upgrade_209
 from .mask import group_end, visible_tex
-from .normalize import (
-    inject_preamble,  # noqa: F401 -- re-export 经 compile/__init__ 外发
-)
 
 if TYPE_CHECKING:
     from collections.abc import Iterator, Mapping
