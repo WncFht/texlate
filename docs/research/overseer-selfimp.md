@@ -958,3 +958,11 @@
 - **外来 churn 定源确认**：peer texlate-bc+texlate-21 busy (5-7min 起)——formatter 扫荡同行。我方 pathspec-only 继续; ledger 23bf96c 意外卷入 autocorrect 全角化 38 行 (cosmetic, 已入档无害)。
 - **loop3**：fixloop 108/503 (~8s/格)——compile 段 606 毕 (103 clean/344 partial/159 fail 首过)。
 - 门：teammate 零 git✓；HEAD 23bf96c；规则库 129✓；sab-r5 escaped=0✓。
+
+## 2026-09-19 ~22:5x — 209batch 入库 (7bc4eb0, #127 毕) + peer 清扫落地 + loop3 213/503
+
+- **209batch (7bc4eb0, +251/-5)**：COMPAT_SHIM 209 序言面普查件全 `@ifundefined` 守——NFSS 三旗全 false (mnras 原生吸收, nfsstwotrue 反撞 `\newcommand\rmn`)、oldfont `\rm..\sc` DeclareOldFontCommand×7 (article.cls:490-496 逐字)、`\cal` SymbolFontAlphabet、plain 字体梯 `\tenrm`+`\fivmi..twtymi`、theorembodyfont 转寄、address/collab/abstracts 透传、plain-TeX 移植族 (supereject/hang/centerline/pageno/ninepoint + fivebf/sevenrm/tenbf 系)、`\<x>fam` newfam 三席 (bffam 带 script/scriptscript——dimcen quant-ph/9703040 50hits)、multicol 寄存器出闸入通用块 (自携 multicols 稿不过剥包路也消费——dimcen cond-mat/9910148 13hits)、209 类草稿寄存器 `@testboxa/b`+`\ifoutertab` (prx.sty:49-61 裸消费)。**`_REVTEX209_SHIM` revtex4-2-only**：`\frontmatter@init` 执行+自封 (collaboration@sw 内出生地), `\twocolumn`/`\@makecol`/`\wideabs` 兜底, `\abstract` 双位补 (shim 期 `@ifundefined` 兜前置 + `\appdef` 双挂 `\frontmatter@maketitle` **与** `\maketitle`——init 路由 `\let` 拷体, 补丁须挂调用名本身; cls:2702 hyperref 复位缝经 frontmatter 那份复得), `\pacs` AtBeginDocument `\long\def` 压闸门。oracle 双言断言 + 4 测; **72/72 绿**; agent 真 xelatex 12 格 rc=0 (含 dimcen 三件全决)。**残 3 格 doc-content 判出域** (`\SS` 核撞/`\vskip`-in-`\author`/`\table` 活 env 嵌 begin)。~129 undefined_cs 族大体覆盖——loop3 跑的是落地前快照, 翻格待下波 replay。
+- **peer 活动落地**：4f9278ee repo-wide format sweep + zotero 四连 (5efe114c/0c803a4e/735c1809/005fa959——eslint 豁免+blame-ignore+README 中译)——外来 churn 已入其史, 树净。**新观察**: `repair_l2.py` M = peer 实质在飞件——`_INFRA_ERR_RX` 基建错闸入 `attr_error` (缺件/字体/工具链错永不归译文块, fixloop 10-taxonomy 同源对照, algpseudocodex 实证)——texlate-13 系 L2/e2e 路在飞, 非我方 mutex 不碰。
+- **loop3**：fixloop 213/503 (~42%, ~8-12s/格); hard 批毕 (12/18 PDF)。
+- roster 10 全 running (hexquote/tailbucket-para/defD/stucksem/pxnorm/operandcensus/utf8census/cjkzero/aaspatch/driftdiag) + 209batch 交付退; mutex 全清无撞; peer 面 5 busy。
+- 门：teammate 零 git✓；HEAD 7bc4eb0 净 (pathspec-only×3)；规则库 129✓；oracle 断言 revtex4-2 排他✓。
