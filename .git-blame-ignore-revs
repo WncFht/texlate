@@ -2,3 +2,4 @@
 # 本地生效需执行一次：git config blame.ignoreRevsFile .git-blame-ignore-revs
 # GitHub 网页端自动识别本文件。
 dafb49926e1d5e2a8aa230e06d7fa0e747762067 # style: 全仓一次性格式化 (ruff format + prettier + autocorrect)
+0c803a4eaa1e09306ec88d1c0b090b79a7ce1fdf # style(zotero): apply full format+lint chain
