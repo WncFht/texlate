@@ -97,7 +97,7 @@ rules:
           corpus: "misscharcen #169 (loop3 残余普查): 1404.0578 U+000D ^^M×41 lmromancaps10",
           error: "Missing character: no ^^M (U+000D) — \\textsc{\\char13} OT1/cmcsc 槽位 13=fl 连字被读作码位",
         }
-    stats: { fires: 0, status: proposed }
+    stats: { fires: 19, rescued_cells: 9, status: active }
     source_ref: "task #154 stage-B; tmp/lane-misscharext/report.md — 直换 \\ensuremath 非字面 (一轮达, \\qdist def 站是文本态序言而展开在数学); #162/#169 扩表 tmp/lane-misscharcen/cells.json"
 
   - id: hyphenation_sane
@@ -150,7 +150,7 @@ rules:
       tectonic: { mode: same }
     provenance:
       - { corpus: "2005.11401/zh", error: "Package soul Error (6 errs 残留)" }
-    stats: { fires: 0, note: "唯一触发格 0 命中 → 已知覆盖缺口" }
+    stats: { fires: 1, rescued_cells: 1, status: active, note: "唯一触发格 0 命中 → 已知覆盖缺口" }
     source_ref: "fixloop.py L429-445"
 
   # ── 2026-09-19 citemath 匝道 (task #79; lane-citemath EVIDENCE) ──
@@ -589,7 +589,7 @@ rules:
           corpus: "2501.14787 (repro-2501-2026-09-16)",
           error: "Package xcolor Error: Undefined color `这是译文' ×4",
         }
-    stats: { fires: 0, status: proposed }
+    stats: { fires: 3, rescued_cells: 1, status: active }
     source_ref: "repro-2501-2026-09-16/README.md 缺陷B; 1e cross-session handoff"
 
   # ── 2026-09-17 partial-taxonomy 散件: acro v2→v3 键改名 ──
@@ -989,7 +989,7 @@ rules:
           corpus: "para-census #145 (2026-09-19): ~60 cells live_macros; 4 target: 1012.5246/1206.1873/1404.0249/1502.01978",
           error: "Paragraph ended before \\X was complete",
         }
-    stats: { fires: 0, status: proposed }
+    stats: { fires: 12, rescued_cells: 5, status: active }
     source_ref: "task #155; tmp/lane-paralong/ repro 4/4 para 消除+PDF 产出"
 
   # 未闭合 \if* → 文件尾 \fi 注入双臂 (failmine item 4, 16 格)。
@@ -1337,7 +1337,7 @@ rules:
           corpus: "corpus_v3 flipcheck7: 1206.0701 (amsproc \\footnote-in-\\author → \\shortauthors→\\markboth edef 链), 1306.0364 (myectaart \\bf-in-\\title → \\xdef\\@argi 链)",
           error: "Incomplete \\iffalse; all text was ignored after line N (源件字面平衡, unclosed_if_close 纯 noop)",
         }
-    stats: { fires: 0, status: proposed }
+    stats: { fires: 3, rescued_cells: 1, status: active }
     source_ref: "tmp/lane-ifclosegap: min8 (\\protected\\def\\footnote) + t2/m2 (\\protected\\def\\bf) 双臂 PDF 实证; min1-7 展开链 \\tracingifs 归因"
 
   # ── 2026-09-19 arraypream lane ──
@@ -1430,7 +1430,7 @@ rules:
           corpus: "0905.0664 (spacefactor census #178)",
           error: "\\newcommand\\makepapertitle{...\\@fnsymbol\\c@footnote...} 无 makeatletter",
         }
-    stats: { fires: 0, status: proposed }
+    stats: { fires: 3, rescued_cells: 2, status: active }
     source_ref: "tmp/lane-spacefactor/notes.md M3; svglov3.clo exact-restore idiom; _SHIP_WRAP_* 同款"
 
   # ─── endsfix lane (task #213, 2026-09-19): babel 预载 raw-opts 种子 ───
@@ -1470,7 +1470,7 @@ rules:
           corpus: "0806.3242 (endcsdiag census, loop1→loop3 持续)",
           error: "Missing \\endcsname inserted / babel.sty:4259 <to be read again> \\@raw@classoptionslist",
         }
-    stats: { fires: 0, status: proposed }
+    stats: { fires: 1, rescued_cells: 1, status: active }
     source_ref: "tmp/lane-endcsdiag/report.md §2; latex.ltx:18355/18718; babel.sty:4230"
 
   # ─── missmath lane (task #215, 2026-09-19): 4 条 Missing 族残件 ───

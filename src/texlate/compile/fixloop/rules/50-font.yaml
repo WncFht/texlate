@@ -247,5 +247,5 @@ rules:
           corpus: "1907.03923 (stagerun-loop3; \\pigpenfont 在 xymatrix 邻接符)",
           error: "xdvipdfmx:fatal: Sorry, pfa format not supported; please convert the font to pfb, e.g., with t1binary.",
         }
-    stats: { fires: 0, status: proposed }
+    stats: { fires: 3, rescued_cells: 1, status: active }
     source_ref: "tmp/lane-pfa/; kpsewhich TEXFONTMAPS/T1FONTS 遮蔽序实测"

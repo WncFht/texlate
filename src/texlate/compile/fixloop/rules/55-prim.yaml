@@ -113,6 +113,10 @@ rules:
   # xelatex 下 \Require<X>TeX 守卫两向都安全: 通过形 (XeTeX/TUTeX/eTeX) 与
   # \relax 同语义, 拉闸形 (PDFTeX/LuaTeX/pTeX/VTeX/AlephTeX/...) 中和即拆弹
   # —— 族级词形 \Require[A-Za-z]*TeX 一律换 \relax。
+  # 2026-09-19 aaai-guard 加固: def-target 位 (\def\RequirePDFTeX/
+  # \newcommand{\RequirePDFTeX}/\let 直跟形) 不换 —— 置换会成 \def\relax
+  # 重定义灾; lookbehind 变宽形 (regex 引擎支持) 豁免 def 族直跟站,
+  # use 站与宏体内裹站仍中和。族名补 pTeXng/HINT/Prote 非 TeX 尾闸。
   - id: iftex_engine_guard_neutralize
     description: "doc 伴船件内 iftex \\Require<X>TeX 引擎守卫 → xelatex 下 \\read Emergency stop → 中和 \\relax"
     phase: loop
@@ -132,13 +136,16 @@ rules:
       params:
         exts: [.tex, .sty, .cls]
         rewrites:
+          # def-target lookbehind: \def/\let/newcommand 族直跟的 \Require*TeX
+          # 是被定义位不是调用 —— 换 \relax 会成 \def\relax 灾 (regex 引擎
+          # 支持变宽 lookbehind); 定义残留为空转, use 站照常中和。
           - {
-              pattern: "\\\\Require[A-Za-z]*TeX\\b",
+              pattern: "(?<!\\\\(?:[gex]?def|let|newcommand|renewcommand|providecommand|DeclareRobustCommand|newrobustcmd|renewrobustcmd|providerobustcmd|DeclareTextCommand)\\s*\\*?\\s*\\{?\\s*)\\\\Require(?:[A-Za-z]*TeX|pTeXng|HINT|Prote)\\b",
               repl: "\\\\relax",
               match_surface: masked,
             }
     risk: low # 守卫唯一职能是错引擎拉闸; 通过形换 \relax 语义恒等
-    known_gap: "\\RequireHINT 等无 TeX 后缀守卫未盖; \\csname 构造形与 fileset 外 (texmf 系统件) 站点不可改写未盖; 中和后露出的 pdf 原语赋值站点 (aaai2027.sty \\pdfpagewidth/\\pdfpageheight) 归 pdftex_prim_guard/polyfill 链"
+    known_gap: "\\csname 构造形与 fileset 外 (texmf 系统件) 站点不可改写未盖; def-target 位 (\\def/\\let/\\newcommand 族直跟) 按定义语义豁免 —— 本地重定义闸变死定义不中和; 中和后露出的 pdf 原语赋值站点 (aaai2027.sty \\pdfpagewidth/\\pdfpageheight) 归 pdftex_prim_guard/polyfill 链"
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same } # XeTeX 内核同 \ifpdftex=false → 同拉闸
@@ -257,7 +264,7 @@ rules:
           corpus: "loop3-1206.0240 (^^@×179) + 1706.07495 (^^@×106): \\usepackage[pdftex]{graphicx,color}/{color,graphicx} 多包括号漏 normalize; 1306.0294 (^^A×20): vendored color.cfg/graphics.cfg \\ExecuteOptions{pdftex} + vendored 2007 pdftex.def",
           error: "Undefined control sequence \\pdfcolorstack → chardef 残值排字 missing_char",
         }
-    stats: { fires: 0, status: proposed }
+    stats: { fires: 13, rescued_cells: 8, status: active }
     source_ref: "c0diag C0-ctrl census; normalize.py _DRIVER_SCOPE_RX 单包括号面外漏网"
 
   - id: pdftex_prim_guard

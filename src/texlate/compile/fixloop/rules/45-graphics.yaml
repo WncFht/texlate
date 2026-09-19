@@ -344,7 +344,7 @@ rules:
           corpus: "failmine4-covgap v3all 6 格 (2501.01402/2501.01329/2509.14901/2501.01425/2603.08153/2604.03907)",
           error: "Unable to load picture or PDF file 'x.png' — xetex 图形域缺件措辞, missing_graphic 类目",
         }
-    stats: { fires: 0, status: proposed }
+    stats: { fires: 11, rescued_cells: 8, status: active }
     source_ref: "tmp/lane-failmine3/ (#164a); epsprobe 真编译臂 -no-shell-escape 验证; tmp/lane-covgap/ (二进制占位实证)"
 
   - id: graphic_repair

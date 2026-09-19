@@ -256,7 +256,7 @@ rules:
           corpus: "failmine3 loop3 3 格 (2410.00111/2003.03508/2310.16788)",
           error: "LaTeX Error: Can be used only in preamble. @subfile.tex:1 (\\input 子档自带 docclass)",
         }
-    stats: { fires: 0, status: proposed }
+    stats: { fires: 2121, rescued_cells: 1463, status: active }
     source_ref: "tmp/lane-failmine3/ (#164b); 与 #168 subfilegate 注入侧互补"
 
   - id: static_precheck

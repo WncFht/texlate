@@ -108,7 +108,7 @@ rules:
           corpus: "tmp/lane-zhleak census (~74 cells '这是译文' 族; 残余 csname/env-arg 6 cells)",
           error: "Undefined color '这是译文' / No counter 'ZH' / can't find file 'ZH' (机位实参被 zh 化)",
         }
-    stats: { fires: 0, status: proposed }
+    stats: { fires: 1379, rescued_cells: 1028, status: active }
     source_ref: "tmp/lane-zhleak/notes.md; judge.py _MACHINE_SLOT_RXS/_slot_args 配对机位面"
 
   # 新增 (fixloop-v2 整改): tectonic bundle 内建类太老遮蔽 —— 内置

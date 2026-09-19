@@ -425,5 +425,5 @@ rules:
           corpus: "2104.00026 (loop3 残余普查 tmp/lane-misscharcen/cells.json) master2020.bbl",
           error: 'Missing character: no ^^80 (U+0080)/^^93 (U+0093) ×4 lmroman9 —— bibtex 字节记法 ^^e2^^80^^93=en-dash / ^^c3^^bc=ü',
         }
-    stats: { fires: 0, status: proposed }
+    stats: { fires: 3, rescued_cells: 1, status: active }
     source_ref: "task #169 misscharcen wave-2; tmp/lane-misscharcen/cells.json ^^80/^^93 rows"

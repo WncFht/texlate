@@ -39,7 +39,7 @@ rules:
           corpus: "failmine4 soak-2026-09-18 2609.19170 (relocatemiss 诊断)",
           error: "*** (job aborted, no legal \\end found) —— sections/00_preamble.tex fragment 误判 main; 真入口 retd_jmlr_jmlr_candidate_20260828.tex 是根目录裸 \\input 编排壳, 无字面 \\documentclass 永不入池",
         }
-    stats: { fires: 0, status: proposed }
+    stats: { fires: 1, rescued_cells: 1, status: active }
     source_ref: "tmp/lane-relocatemiss/report.md 修议#2 (fixloop 收容臂); lane-wrapromote"
 
   # W79/W18/W102 孤儿裁决 (mechmap-2026-09-17): filemap 索引外的自产件。
@@ -75,7 +75,7 @@ rules:
           corpus: "failmine4 soak-2026-09-18 4 格 (2609.17927 ifacconf.cls@Artigo/ / 2609.19170 jmlr2e.sty@sections/ / 2609.19664 fairmeta.cls@templates/arxiv/ / 2609.20640 acronyms1.tex@IEEEtran/)",
           error: "File `X' not found → install_file fired-unfixed —— 件在 wdir 根/旁枝, main 子目录 cwd 不可见",
         }
-    stats: { fires: 0, status: proposed }
+    stats: { fires: 5, rescued_cells: 3, status: active }
     source_ref: "tmp/lane-covgap/ (逐格 workdir 解剖; install-table 误诊纠正 —— tlpdb 实查零命中)"
 
   - id: rungen_stub
@@ -595,7 +595,7 @@ rules:
           corpus: "failmine3 0806.0246/0806.4130/1306.0294 (stagerun-loop3)",
           error: "amsmath*.sty:2573 LaTeX Error: Unable to properly define \\@@leqno; primitive \\leqno no longer primitive (v2.13/2000 vs kernel)",
         }
-    stats: { fires: 0, status: proposed }
+    stats: { fires: 9, rescued_cells: 3, status: active }
     source_ref: "tmp/lane-assetlane/probe3 三臂实证 (amsmath-only/ams-cohort/full-snapshot → cohort 最优)"
 
   # 2026-09-19 assetlane (failmine3 普查, 3 格: 0806.3683/1511.06948/1706.00345):
@@ -641,7 +641,7 @@ rules:
           corpus: "failmine3 0806.3683/1511.06948/1706.00345 (stagerun-loop3)",
           error: "lamsarrow.sty:89 Font \\lamsfont@i=lams1 not loadable: Metric (TFM) file or installed font not found",
         }
-    stats: { fires: 0, status: proposed }
+    stats: { fires: 6, rescued_cells: 3, status: active }
     source_ref: "tmp/lane-assetlane/probe2 端到端实证 (tfm+mf → 真箭头 PDF); CTAN pb-diagram tfm/mf 件源"
 
   # 2026-09-19 revtexlane (census 3 格同机: 0806.4149/1003.0910/1907.00131):
