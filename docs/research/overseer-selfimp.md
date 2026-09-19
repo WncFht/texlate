@@ -926,3 +926,14 @@
 - **附带 fix**：test_fixloop_revtex209:61 + test_fixloop_pacs:19 断言 `\def\pacs`→`\long\def\pacs` (4d06d47, L0 sweep 抓——fold-in 断言滞后第二处)。
 - roster 8：bticktax(fc9 飞)/primguard(inputtail) + 209batch/dimcen/defcensus/envdiag/hard18 + mathchar 关/csfix2 关。
 - 门：teammate 零 git✓；HEAD ab7bcb9 净 (ruleset 129 规 load OK)；L0 2310+1(pacs 断言,已修)；clean% 31/32 维。
+
+## 2026-09-19 ~10:0x — ENOSPC 事故+fc9 恢复丰收 + sab-r5 门④ + inputtail 入库 (0697124) + 3 普查交付 + loop3 GO
+
+- **ENOSPC 事故 (已解)**：root `/` 100% (917G)——`~/.cache/go-build` 209G 纯重建缓存 rm → 77%。伤亡：fc9 中段崩 (compile.jsonl 截断@70/122, run_meta.json 0B 卡死每 stage `touch_run_meta` JSONDecodeError——"rc=0" echo 是无条件标记误诊两轮)；SendMessage×2 拒、Agent spawn ENOSPC、L0 5 格 OSError (暂态)。恢复：截 jsonl 至 70 净行 + rm run_meta → 三发 resume 净跑 (122×3 段 skip + compile 52 续)。**教训：resume 语义=非 skip/error 跳跑; 0B run_meta 必删后重发**。
+- **fc9 丰收 (122 ids, 9f3b416d-dirty 树含 ab7bcb9)**：terminal 口径 (fixloop_verdict 优先)——**clean 14→67 (+53 net; NO-REC×23+partial×14+acc×10+best_effort×2+unfix×4+fail×1 来源)**, PDF 产 32→82。负向仅 1: 2003.03387 clean→acceptable_pdf (判词标签漂移 missing_char×2, PDF 照产, WATCH)。规发实证: bm_extended_mathchar_wrap/premature_cs_guard/already_def_undefine/hangul+cjk_font_fallback/pdf_asset_sanitize(1907.00277 driver_fatal→真 clean, drvverdict veto 无需) 全中。capverd capacity→input_stack 重标签×2 如期。**if_phantom_protect 全哑** (196 fired 但凭据闸未开) → ifprotdiag 派 (#137)。新签: `\institute` 定界参 (0103289→unfixable:syntax, 209batch 族材), 0104303 latex209_reject, 5× ds@ reject (裁决输入)。门④ 净格探针 **31/31 clean**。
+- **sab-r5 门④ PASS**：39-id 池 383 events/1613 sabotaged/caught 2/recovered 1611/**escaped=0**——r4 跑 pre-wave (43bd606f), 本轮盖 csfix2 扫描守+inputtail 段件。
+- **inputtail (0697124)**：`_OPERAND_CS` 排 `INPUT_SCAN_CMDS∪{endinput}` 出 FACTOR/BASE cs 位 (xetex 实证不可展开 `\input` 止数扫——TeX 忠实非补丁; 2403.00100 `{file}` 孤儿裸译修复); pending.py COND 镜 3 块 (`_COND_GROUP_ARGS` 名槽 `["m"]*nslots` + grp-scan 吸收环, `{T}{F}` 支留掘)。13 新测+leader 复验 ruff/pytest 净。
+- **三普查交付**：hard18 (6 covered/6 needs-rule/6 stuck——wave-7 零签预言); envdiag (机制纠正: `diagram` env 已被 polyfill noop 定义非 undef——根=`\input` 服件路只解 .tex, 富 stub 够不着→ diagramstex 派 #140; AAS `&`-biblabel 亚族 aa/aasms4 2 格入 stub-patch 波); **dimcen** (61 格 162 站 591 hits——前提纠正: 三 stub "缺陷"全误归因, 无 vendor stub 发坏 dimen; 排序 A3 `"`-hex catcode 22hits/2格→**hexquote 派 #138**, A7 209 寄存器 ~63+→转 209batch, C1 px 54/2→pxnorm 队列 #141, A8 pdftex-prim→loop3 盖)。
+- **loop3+hard GO**：606+18 双 setsid 批; hard 已见翻转惊喜——1907.00131 clean (hard18 判 needs-rule!), nucl-th/0104064 clean, 1706.00240 acceptable_pdf (stuck→PDF)。main xlat 413/606。
+- roster ~7：209batch/defcensus + ifprotdiag/hexquote/tailbucket/diagramstex + (subagent 面)。关: hard18/bticktax/primguard/csfix2/dimcen(auto)/inputtail 交毕。
+- 门：teammate 零 git✓；HEAD 0697124 净 (inputtail 逐 hunk 对账后入, 209batch 三件在飞留树); sab-r5 0 escape✓；fc9 探针 31/31✓；在飞 latex209.py+test_fuzz_judge+test_latex209 (209batch `_REVTEX209_SHIM` 面)。
