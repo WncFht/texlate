@@ -122,6 +122,35 @@ def test_graphicx_tex_shim_fires(tmp_path: Path) -> None:
     assert stub.rstrip().endswith("\\endinput")
 
 
+# ------------------------------------------------------- psfig.tex 桥
+
+
+def test_psfig_tex_shim_gin_rdim_aliases() -> None:
+    r"""hep-lat/0501006 实证: epsfig ``\psfig`` 仿真把整 kv 串灌
+    ``\setkeys{Gin}`` —— psfig 专有 ``rheight``/``rwidth`` (reserved box
+    dims) Gin 无键 → ``Package keyval Error: rheight undefined``;
+    shim body 补 Gin 别名到 ``\Gin@eheight``/``\Gin@ewidth`` (graphicx
+    ``height``/``width`` 同宏, 与真身 r*→w/h 回落同语义)。``\input``
+    装载 @=12 → @-cs 段 ``\catcode 64`` save/restore 裹 (geom.sty
+    体同款惯例)。"""
+    body = _shim_params()["shim_map"]["psfig.tex"]["body"]
+    assert "\\define@key{Gin}{rheight}{\\def\\Gin@eheight{#1}}" in body
+    assert "\\define@key{Gin}{rwidth}{\\def\\Gin@ewidth{#1}}" in body
+    assert "\\catcode 64" in body  # @-cs 段 catcode save/restore
+
+
+def test_psfig_tex_shim_fires(tmp_path: Path) -> None:
+    """payload ``psfig.tex`` → 落 shim 件含 epsfig 桥 + Gin r* 别名。"""
+    ok, note = TRANSFORM_FNS["legacy_pkg_shim"](
+        _ctx(tmp_path), _Eng(), "psfig.tex", _shim_params()
+    )
+    assert ok, note
+    stub = (tmp_path / "psfig.tex").read_text()
+    assert "\\RequirePackage{epsfig}" in stub
+    assert "\\define@key{Gin}{rheight}" in stub
+    assert stub.rstrip().endswith("\\endinput")
+
+
 # ------------------------------------------------------- CJK 缺字路由钉
 
 

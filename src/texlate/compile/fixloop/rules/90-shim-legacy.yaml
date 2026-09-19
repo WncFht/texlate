@@ -40,6 +40,16 @@ rules:
             body: |
               % fixloop legacy shim: psfig.tex -> epsfig (官方 (e)psfig emulation)
               \RequirePackage{epsfig}
+              % psfig 专有 rheight/rwidth (reserved box dims, 真身默认回落到
+              % width/height) epsfig 仿真全 kv 灌 \setkeys{Gin} → Gin 无键
+              % Package keyval Error (hep-lat/0501006 实证) —— 补 Gin 别名
+              % 到 height/width 同宏。\input 装载 @=12 → catcode64
+              % save/restore 裹 (geom.sty 体同款惯例)。
+              \edef\psfigrestore{\catcode 64=\the\catcode 64\relax}
+              \catcode 64=11\relax
+              \define@key{Gin}{rheight}{\def\Gin@eheight{#1}}
+              \define@key{Gin}{rwidth}{\def\Gin@ewidth{#1}}
+              \psfigrestore
               \endinput
           # ── AAS v4 系 2.09 选项文件 (批七 + C-bucket 残盘 16 格并面) ──
           # \documentstyle[...,aas2pp4]{article} 经 legacy 重写成

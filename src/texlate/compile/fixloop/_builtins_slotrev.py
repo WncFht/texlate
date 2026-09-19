@@ -222,6 +222,16 @@ _SLOTREV_EXTRA_RXS: tuple[tuple[str, re.Pattern[str]], ...] = (
             + _ARG
         ),
     ),
+    # mathpartir/bussproofs \inferrule/\infer [*] [kv-opt] —— opt 位整
+    # kv 串即机位 (left/right/lab/vfraction 键表; 值可含 cs 调用
+    # ``left = \rlabel{Rec}`` 与空格 → spec 同域可打印 ASCII, 严格
+    # ident 拒)。kv 行不盖: premise/conclusion mand 参多层花括号跨行
+    # ``_ARG`` 吃不进致 opt 亦漏捕; 故 opt-only 行独立于 kv 表。
+    # 1708.07366 ``\inferrule*[这是译文 = \rlabel{Rec}]`` 实证锚点。
+    (
+        "inferkv",
+        re.compile(r"\\infer(?:rule)?" + CMD_BOUNDARY + r"\*?\s*" + _OPTC),
+    ),
     # \footnote/\footnotemark/\footnotetext [n] —— opt 标号机参
     # (mand 参是散文不碰)
     (
@@ -513,6 +523,10 @@ _IDENT_LOOSE_KINDS = frozenset({"font"})
 _IDENT_SPEC_RX = re.compile(r"[ -~]+")
 #: spec 系 kind 前缀 —— colspec/colspec_mc/colspec_nt/colspec_holder:*。
 _IDENT_SPEC_PREFIX = "colspec"
+#: spec 同域 (可打印 ASCII) 的散 kind —— inferkv: opt kv 值含 cs 调用
+#: (``\rlabel{Rec}``) 与空格, 严格/宽松 ident 均拒; 该位恒为
+#: mathpartir kv 键表机位, CJK 即译污。
+_IDENT_SPEC_KINDS = frozenset({"inferkv"})
 
 #: note 面站点/分歧条目封顶 (与 judge._MACHINE_SLOT_MAX 同量级)。
 _NOTE_CAP = 20
@@ -524,7 +538,7 @@ def _is_ident(arg: str, kind: str) -> bool:
     font 类用宽松名单 (字体名含空格), colspec 系用可打印 ASCII
     (spec/dimen 形), 其余严格。
     """
-    if kind.startswith(_IDENT_SPEC_PREFIX):
+    if kind.startswith(_IDENT_SPEC_PREFIX) or kind in _IDENT_SPEC_KINDS:
         return _IDENT_SPEC_RX.fullmatch(arg) is not None
     rx = _IDENT_LOOSE_RX if kind in _IDENT_LOOSE_KINDS else _IDENT_STRICT_RX
     return rx.fullmatch(arg) is not None
