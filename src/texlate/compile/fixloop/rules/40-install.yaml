@@ -1045,6 +1045,40 @@ rules:
     stats: { fires: 13, rescued_cells: 13 }
     source_ref: "fixloop.py L314-321"
 
+  # 2026-09-20 tfmhoist lane (tfmcen 普查 13 格全中机理): e-print 自带私有
+  # .tfm 驻子目录 (assets/optimistic.tfm / NVIDIA-Sans-Font-TTF/*.tfm /
+  # seed/bytesans.tfm / template/assets/tfss.tfm) —— TeX 侧经路径限定名可解,
+  # xdvipdfmx 按 \pdfmapline 裸名走 TFMFONTS 只认 compile cwd 扁平位 →
+  # "Unable to find TFM file" fatal + xelatex SIGPIPE (rc=141)。私有件非
+  # CTAN → install_tfm(20) filemap 必 miss benign-decline, 本臂同轮接住:
+  # builtin 定位 {payload}.tfm 所在目录后同目录 *.tfm 全量 hoist 到
+  # mp.parent (nvidia 7 兄弟逐轮单件烧轮次, relocate tree-mirror 同教训)。
+  - id: driver_tfm_hoist
+    description: "驱动层 'Unable to find TFM file X' → doc 自带子目录 *.tfm 全量提升到扁平解析位"
+    phase: loop
+    order: 21 # install_tfm(20) 后: CTAN 可解名先走真装, 私有名 decline 同轮接住
+    when: { category: missing_tfm, payload_required: true }
+    action:
+      kind: builtin_transform
+      function: driver_tfm_hoist
+      params: {}
+    risk: low # 只拷 .tfm 不改源; 目标已占逐件跳, 幂等复火
+    known_gap: "hoist 目标 mp.parent —— main_rel 在子目录时 tfm 落 sub/ 而 compile cwd 若仍在根则仍不可达 (13 格 main 全在树根, 零实证)"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same } # tectonic `error:` 形同签名 (2408.00714 实证)
+    provenance:
+      - {
+          corpus: "2606.02800/2503.15558 (NVIDIA-Sans-Font-TTF/), 2310.10325/2407.21783/2412.06264/2412.06769/2504.01017/2504.06256/2504.17789/2512.13564 (assets/optimistic.tfm), 2504.05118 (seed/bytesans.tfm), 2609.19770 (template/assets/tfss.tfm)",
+          error: 'xdvipdfmx:fatal: Unable to find TFM file "optimistic".',
+        }
+      - {
+          corpus: "2408.00714 (base-v3 tectonic)",
+          error: 'error: Unable to find TFM file "optimistic".',
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-tfmcen/census.md 2026-09-20: 13 格全中 doc 私有 .tfm 子目录机理"
+
   # 2026-09-18 C3 (stats 驱动, loop1 (id,arm) dedup 面): babel-greek 走 ldf
   # 路时 XeTeX 下 ldf 还要 greek-fontenc 的 tuenc-greek.def —— greek.ldf:118
   # \@ifl@aded{def}{tuenc-greek} 落空即 \bbl@error+\@@end 硬死 (ldf 注释

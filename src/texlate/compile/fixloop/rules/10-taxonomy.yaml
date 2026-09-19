@@ -95,6 +95,19 @@ taxonomy:
       payload_group: 1,
       pattern: "Metric \\(TFM\\) file[^\\n]*?([\\w-]+)\\.(tfm)",
     }
+  # 2026-09-20 tfmhoist lane (tfmcen 普查 13 格全中): 下游驱动按裸名走
+  # TFMFONTS 只认 compile cwd 扁平位, doc 自带私有 .tfm 在子目录够不到 →
+  # xdvipdfmx:fatal / tectonic `error:` 双形 (引号内裸名无 .tfm 缀)。TeX 侧
+  # 错清完后签名经 _report_of stdout_tail 归一 (! xdvipdfmx:fatal: …) 才落
+  # head 段——stacked-error 格语义正确: 上游错没清永远轮不到驱动层。
+  # 归 missing_tfm 非新类: install_tfm(20) 先尝 CTAN 可解名, 私有名 filemap
+  # 必 miss benign-decline → driver_tfm_hoist(21) 同轮接住归位。
+  - {
+      id: missing_tfm,
+      scope: head,
+      payload_group: 1,
+      pattern: "Unable to find TFM file\\s*\\\\?\"([\\w.-]+)",
+    }
   # —— fontspec 时代错配 / 系统字体缺失 ——
   - {
       id: xetexglyph_tfm,
