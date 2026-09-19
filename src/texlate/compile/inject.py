@@ -661,8 +661,10 @@ def find_main_tex(root: Path) -> Path | None:  # noqa: C901, PLR0912 — 候选�
     `\begin{document}` 允许落在本体的 `\input`/`\include` 传递闭包内——
     编排壳 main 只拉子文件、bd 在下游（cs/0408015、2105.00092 形态）。
 
-    排序：英文正文优先（多语种版本不靠 UTF-8 字节数排序——多字节文字
-    系统性吃亏）→ main/paper/ms 名 → 模板参档后置（``\documentclass``
+    排序：main/paper/ms 名 → 英文正文优先（多语种版本不靠 UTF-8 字节数
+    排序——多字节文字系统性吃亏；名先于语种——译后 splice 树主档变
+    CJK 众数，语种档会把真 main 输给 standalone 英文表档，
+    ds209diag #191 四格误选实证）→ 模板参档后置（``\documentclass``
     的 ``[...]`` 里含控制序列 = 类文档模板算选项，如 aipguide
     ``[\optionlist]{aipproc}``；真论文写字面选项——1206.0565 类发行
     捆绑包中 guide/check 档 body 量比正主还大，需在深度/量级前挡下）
@@ -744,8 +746,8 @@ def find_main_tex(root: Path) -> Path | None:  # noqa: C901, PLR0912 — 候选�
 
     candidates.sort(
         key=lambda p: (
-            language_rank(p),
             Path(p).name not in ("main.tex", "paper.tex", "ms.tex"),
+            language_rank(p),
             tpl[p],
             len(Path(p).parts),
             -len(str(masses[p])),
