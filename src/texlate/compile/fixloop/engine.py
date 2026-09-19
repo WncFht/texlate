@@ -30,7 +30,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol
 
-from texlate.compile.fixloop import ctan
+from texlate.compile import ctan
 from texlate.compile.fixloop._builtins_common import _mc_parse_log
 from texlate.compile.fixloop._builtins_misc import (
     _wdir_fingerprint,
@@ -433,13 +433,21 @@ class _CtxRound:
     err_cat: str | None = None
     err_pay: str | None = None
     err_head: str = ""  # 本轮错误 blob (ctx_suggests 条件用)
-    #: gate 评估只回 verdict 串——REJECT note 的 route= 令牌经此桥回 cell
-    #: (precheck/loop 两 site 有 note 在手直接写 cell["reject_route"])。
-    reject_route: str | None = None
     #: 本轮编译 log 的 missing-char 码位集 (``_mc_parse_log`` 同口径,
     #: nullfont 已滤)——error-cat 轮照记 (缺字警告与 ``!`` 错可同现,
     #: ``warn_missing_char`` 类别排他使族臂平时够不到这些轮)。
     mc_cps: frozenset[int] = frozenset()
+
+    def point(self, cat: str | None, pay: str | None, rep: ErrReport) -> None:
+        """重指当前派发目标 (主错/孪生): err_cat/err_pay/err_head 同写。
+
+        三字段的派发语义一体 (when 匹配读 cat/pay, ctx_suggests/llm_hook
+        读 head)——主循环与次级派发共用同一写点, 免分点写字段漂移
+        (写 head 忘写 pay 类)。err_head 恒为 ``rep.first + rep.ctx``
+        单行推导——公式单源在此, 调用点不再各开一行拼接。
+        """
+        self.err_cat, self.err_pay = cat, pay
+        self.err_head = (rep.first or "") + "\n" + (rep.ctx or "")
 
 
 @dataclass
@@ -478,7 +486,6 @@ _CTX_FIELD_GROUP = {
     "err_cat": "round",
     "err_pay": "round",
     "err_head": "round",
-    "reject_route": "round",
     "mc_cps": "round",
     "applied": "ledger",
     "declined": "ledger",
@@ -524,7 +531,6 @@ class LoopCtx:
         err_cat: str | None = None,
         err_pay: str | None = None,
         err_head: str = "",
-        reject_route: str | None = None,
         mc_cps: frozenset[int] = frozenset(),
         mc_seen: dict[str, set[int]] | None = None,
         _texts: dict[Path, str | None] | None = None,
@@ -540,7 +546,6 @@ class LoopCtx:
             err_cat=err_cat,
             err_pay=err_pay,
             err_head=err_head,
-            reject_route=reject_route,
             mc_cps=mc_cps,
         )
         self.ledger = _CtxLedger(
@@ -581,29 +586,30 @@ class LoopCtx:
 
     def read(self, f: Path) -> str | None:
         """utf-8 读文件 (进程内缓存, errors=replace); 不可读 → None。"""
-        if f not in self._texts:
+        texts = self.io._texts  # noqa: SLF001  # 组内缓存直读 (facade ``_texts`` 转读亦达, 省逐次 __getattr__ 一跳)
+        if f not in texts:
             try:
-                self._texts[f] = f.read_text(encoding="utf-8", errors="replace")
+                texts[f] = f.read_text(encoding="utf-8", errors="replace")
             except OSError:
-                self._texts[f] = None
-        return self._texts[f]
+                texts[f] = None
+        return texts[f]
 
     def write(self, f: Path, text: str) -> None:
         """utf-8 写文件并同步缓存。"""
         f.write_text(text, encoding="utf-8")
-        self._texts[f] = text
+        self.io._texts[f] = text  # noqa: SLF001  # 组内缓存同步
         self.io.written.add(f)
 
     def invalidate(self, f: Path) -> None:
         """外部改写过 (如字节级转码) 后失效缓存。"""
-        self._texts.pop(f, None)
+        self.io._texts.pop(f, None)  # noqa: SLF001
 
     def invalidate_suffixes(self, exts: Iterable[str]) -> int:
         """按扩展名集批量失效缓存条目 (compile/sweep 改盘件), 返回失效数。"""
         exts_t = {e.lower() for e in exts}
-        keys = [p for p in self._texts if p.suffix.lower() in exts_t]
+        keys = [p for p in self.io._texts if p.suffix.lower() in exts_t]  # noqa: SLF001
         for f in keys:
-            self._texts.pop(f, None)
+            self.io._texts.pop(f, None)  # noqa: SLF001
         return len(keys)
 
     def main_path(self) -> Path | None:
@@ -756,8 +762,13 @@ def _gate_eval(  # noqa: PLR0913, PLR0917  # 与 _match_apply 同签名面
     cat: str | None,
     pay: str | None,
     rep: ErrReport,
-) -> str | None:
-    """Gate phase 规则逐条评估; REJECT note → verdict ``reject:<rid>``。"""
+) -> tuple[str | None, str | None]:
+    """Gate phase 规则逐条评估; REJECT note → ``(reject:<rid>, route)``。
+
+    route 令牌在持有 note 的决策点即取即返 (``_precheck_phase`` 同一返回
+    通道)——不再经 ``ctx.round`` 过桥 (旧 ``reject_route`` 字段是
+    verdict-only 返回值时代的影子通道, 已删)。
+    """
     for rule in rs.phase("gate"):
         key = f"{rule.id}:{pay}"
         if key in ctx.ledger.applied:  # 非 REJECT 型 gate 已应用过 → 不重发不重记账
@@ -780,12 +791,11 @@ def _gate_eval(  # noqa: PLR0913, PLR0917  # 与 _match_apply 同签名面
             applied, note = False, f"gate crashed: {type(e).__name__}: {e}"
         _landing_sync(ctx, before, pre)
         if applied and note.startswith(_REJECT_PREFIX):
-            ctx.round.reject_route = _note_route(note)
-            return f"reject:{rule.id}"
+            return f"reject:{rule.id}", _note_route(note)
         if applied:
             ctx.ledger.applied.add(key)
             ctx.ledger.actions.append({"round": -1, "rule": rule.id, "detail": note})
-    return None
+    return None, None
 
 
 def _warn_family_due(
@@ -1182,8 +1192,7 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
                 f"(pdf={_res_has_pdf(res)} err={rep.n_bang} cat={cat})"
             )
         last_rep = rep
-        ctx.round.err_cat, ctx.round.err_pay = cat, pay
-        ctx.round.err_head = (rep.first or "") + "\n" + (rep.ctx or "")
+        ctx.round.point(cat, pay, rep)
         # 本轮 missing-char 码位面 (error-cat 轮同记)——缺字族 dedup
         # 增量豁免与 warn-preempt 勤勉闸的判据底账。
         ctx.round.mc_cps = (
@@ -1249,11 +1258,11 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
         if cat in (None, "clean"):
             cell["verdict"] = "clean" if pdf else "no_errors_no_pdf"
             break
-        v = _gate_eval(rs, ctx, eng, cat, pay, rep)
+        v, route = _gate_eval(rs, ctx, eng, cat, pay, rep)
         if v:
             cell["verdict"] = v
-            if ctx.round.reject_route:
-                cell["reject_route"] = ctx.round.reject_route
+            if route:
+                cell["reject_route"] = route
             break
         sig = f"{cat}:{pay}"
         sig_n = sig_n + 1 if sig == prev_sig else 1
@@ -1308,16 +1317,9 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
                 n_sec += 1
                 # ctx.round 重指孪生 (when/ctx_suggests/llm_hook 均见此面),
                 # dispatch rep 携孪生行位 (requester 锚/cases excerpt 用)。
-                ctx.round.err_cat, ctx.round.err_pay = c2, p2
-                ctx.round.err_head = eline + "\n" + eblob
-                rule, note = _match_apply_landing(
-                    rs,
-                    ctx,
-                    eng,
-                    c2,
-                    p2,
-                    ErrReport(first=eline, ctx=eblob, raw=cand_rep.raw),
-                )
+                twin_rep = ErrReport(first=eline, ctx=eblob, raw=cand_rep.raw)
+                ctx.round.point(c2, p2, twin_rep)
+                rule, note = _match_apply_landing(rs, ctx, eng, c2, p2, twin_rep)
                 if rule is not None:
                     sec_via = f"secondary:{c2}"
                     ctx.ledger.events.append(
@@ -1327,8 +1329,7 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
             if rule is None:
                 # 候选耗尽仍未命中——ctx.round 回指主错, 走原裁决路径;
                 # 探针结果入兜底槽 (同轮无 apply, 状态未变, 复用安全)。
-                ctx.round.err_cat, ctx.round.err_pay = cat, pay
-                ctx.round.err_head = (rep.first or "") + "\n" + (rep.ctx or "")
+                ctx.round.point(cat, pay, rep)
                 salvage_res, salvage_rep = probe_res, probe_rep
                 # warn-preempt (missdisp #189): error-cat 轮把轮次烧完、
                 # 裁决落 dirty/unfixable/stuck 前——残存 missing-char 码位
