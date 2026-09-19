@@ -2,6 +2,7 @@
 
 import { createSignal, onCleanup, onMount, Show, For } from "solid-js";
 import { settingsStore } from "../stores/settings";
+import { ENGINES, TARGET_LANGS } from "../options";
 import { t, langChoice, setLang, type LangChoice } from "../i18n";
 
 export default function Settings() {
@@ -245,7 +246,11 @@ export default function Settings() {
                         type="url"
                         placeholder="https://…/v1"
                         value={baseUrl()}
-                        onInput={(e) => setBaseUrl(e.currentTarget.value)}
+                        onInput={(e) => {
+                            setBaseUrl(e.currentTarget.value);
+                            // 手改 URL 即脱离预设——否则预设名下挂着别人的地址
+                            if (provider()) setProvider("");
+                        }}
                     />
                 </label>
                 <label>
@@ -284,10 +289,23 @@ export default function Settings() {
                 </label>
                 <label>
                     <span>{t.settings.targetLang}</span>
-                    <input
+                    <select
                         value={targetLang()}
-                        onInput={(e) => setTargetLang(e.currentTarget.value)}
-                    />
+                        onChange={(e) => setTargetLang(e.currentTarget.value)}
+                    >
+                        {/* 已存值越出白名单（旧配置/服务端扩列）保留可选，防静默改值 */}
+                        <Show
+                            when={
+                                targetLang() &&
+                                !TARGET_LANGS.includes(targetLang())
+                            }
+                        >
+                            <option value={targetLang()}>{targetLang()}</option>
+                        </Show>
+                        <For each={TARGET_LANGS}>
+                            {(l) => <option value={l}>{l}</option>}
+                        </For>
+                    </select>
                 </label>
                 <label>
                     <span>{t.settings.engine}</span>
@@ -295,9 +313,18 @@ export default function Settings() {
                         value={engine()}
                         onChange={(e) => setEngine(e.currentTarget.value)}
                     >
-                        <option value="auto">{t.home.engineAuto}</option>
-                        <option value="xelatex">xelatex</option>
-                        <option value="tectonic">tectonic</option>
+                        <Show
+                            when={engine() && !ENGINES.includes(engine())}
+                        >
+                            <option value={engine()}>{engine()}</option>
+                        </Show>
+                        <For each={ENGINES}>
+                            {(en) => (
+                                <option value={en}>
+                                    {en === "auto" ? t.home.engineAuto : en}
+                                </option>
+                            )}
+                        </For>
                     </select>
                 </label>
                 <label>
