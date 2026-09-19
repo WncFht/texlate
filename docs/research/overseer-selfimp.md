@@ -1219,3 +1219,10 @@
 - **ds209diag #191 二催**: idle 18m 无报告, 已 SendMessage 催办。
 - 门: L0 1542+147 绿✓; Ruleset.load()=139✓; 1706.02744 靶翻实证 (③); sab 0 (本 tick 无新跑, 前波 15/15 仍持)✓; clean% 单调 (83up+本格 up, 0 down)✓。裁决点 3 件仍待用户 (#10/ds@/verdict 排序)。
 - roster 3: injfix/envspec 跑道中; ds209diag 待报。c0diag 待关。
+
+### 2026-09-19 ~15:0x patrol tick — 批全毕零在飞 + 2 新派 + ds209diag 待报
+- **detached 批面**: 全数完成——最新 run.log=verify-wave1 14:03:55; l1-gate (post-W84, 09-18 21:43, 1955/1955 ok leak 0.0) 与 lane-autogloss-reg (gate on-vs-off rc=0, 09-18 22:52) 均归档态。无新增 lane-*/report.md 交付 (≥14:40 零件)。
+- **roster 处置**: c0diag 交付毕+idle → TaskStop 关。ds209diag idle + #191 marked completed 但报告未达, 盘无 report 文件——nudge 在箱, 待其回合。容量补派 2 道: `drvopt` (driver-opt [pdftex]→xelatex strip census+impl, 1206.0240 ^^@×179/1306.0294 ^^A×20 —— c0diag 实证的 chardef-N 排印族); `cp1252cen` (read-only census: ~15 格 U+0080–9F ^^XX mojibake 分桶, 判 cp1252 decode arm 值否)。在飞: injfix/envspec/pfafont/drvopt/cp1252cen。
+- **shared-index 再清**: 上轮 commit 后共享 index 留 7 件 MM 陈旧暂存 (peer stash 机件周期性重 stage 已 commit 内容的旧版) → `git reset` 清, 防他 session 经共享 index 把旧版烘进其 commit。零 D staged-deletion 本轮。
+- 门: clean% 单调 ✓ (83up+1706.02744 up, 0 down); sab escaped=0 ✓ (cleanprobe 15/15=sabotage 等价, 本段无新跑——mutex 持期 --rerun 波禁派); L1 仍 post-W84 档 ✓ (segmenter 未动——envspec 落地后须重门); teammate 零 git ✓ (巡检无违)。裁决点 3 件仍待用户 (#10/ds@/verdict 排序)。
+- roster 6: injfix/envspec/pfafont/drvopt/cp1252cen 跑道 + ds209diag idle 待报。
