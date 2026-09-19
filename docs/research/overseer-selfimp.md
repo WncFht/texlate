@@ -1428,3 +1428,7 @@
 - **在飞归因**: 45-graphics.yaml +13→+28 (gfx 系在写); actions.py +34 新面 (待认领); ruleset.py±154+engine.py+6+ruleset_validate+60 = peer tolerant-load 线 (engine 已调 `Ruleset.load(tolerant=True)`, 自洽不碰); 共享 index 测试档 staged-D 仍挂 (磁盘/HEAD 完好, wrapromote 新测档亦被列 —— 同 peer 污染)。
 - **HEAD markers 全在**: main_wrapper_promote(规1+注册3)/verdate_pad/missingdollar_blankline/graphics_include_strip/cs_delim_tail_fix。
 - **门**: ①-⑤ 维持; 无越权 git 观察 (teammate 全零 git, 污染皆 peer 交互会话)。
+
+### patrol ~21:20 — quiet hold
+
+- 无交付无新 run.log; roster 10 全活 (老五 ~1h15m, renewguard/precheckmain/blxbbl ~30m, vendorcwd/stucksig <5m)。门标记全在; 无新归因面。
