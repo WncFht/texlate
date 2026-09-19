@@ -21,8 +21,7 @@ from texlate.compile.fixloop.engine import LoopCtx, Rule
 from texlate.compile.fixloop.logparse import ErrReport, parse_text
 
 _VENDOR_DIR = (
-    Path(__file__).resolve().parent.parent
-    / "src/texlate/compile/fixloop/vendor/files"
+    Path(__file__).resolve().parent.parent / "src/texlate/compile/fixloop/vendor/files"
 )
 _RULE_ID = "pstricks_add_pair_retire"
 
@@ -274,7 +273,9 @@ def _proj(tmp_path: Path) -> Path:
     return tmp_path
 
 
-def _sh_runner(argv: list[str], timeout: int, wdir: Path) -> tuple[int, str, float, bool]:
+def _sh_runner(
+    argv: list[str], timeout: int, wdir: Path
+) -> tuple[int, str, float, bool]:
     """真跑 sh -c 的 runner (argv, timeout, wdir → rc,out,sec,to)。
 
     不仿真脚本语义 —— subprocess 原样执行, 指纹闸/`[ -f ]` 判空都走真件。

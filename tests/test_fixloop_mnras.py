@@ -19,8 +19,7 @@ usegraphicx 从 ``\\@classoptionslist`` 剔除 —— 本钉位补丁让真件�
 from pathlib import Path
 
 _VENDOR_DIR = (
-    Path(__file__).resolve().parent.parent
-    / "src/texlate/compile/fixloop/vendor"
+    Path(__file__).resolve().parent.parent / "src/texlate/compile/fixloop/vendor"
 )
 _MNRAS_CLS = _VENDOR_DIR / "files/mnras.cls"
 

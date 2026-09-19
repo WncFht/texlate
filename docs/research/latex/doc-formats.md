@@ -115,82 +115,131 @@ CONTAINER = "META-INF/container.xml"
 CNS = "{urn:oasis:names:tc:opendocument:xmlns:container}"
 OPF = "{http://www.idpf.org/2007/opf}"
 XHTML_MT = {"application/xhtml+xml", "text/html"}
-NON_CONTENT = {"script","style","head","title","template","svg","math"}
-RUBY_RT = {"rt","rp","rtc"}; EXCLUDE = {"sup","code"}  # 可配
-BLOCK = {"p","h1","h2","h3","h4","h5","h6","li","blockquote",
-         "figcaption","td","th","caption","dt","dd","div","section","aside"}
-SINGLETON = {"figcaption","caption","legend","summary"}
+NON_CONTENT = {"script", "style", "head", "title", "template", "svg", "math"}
+RUBY_RT = {"rt", "rp", "rtc"}
+EXCLUDE = {"sup", "code"}  # 可配
+BLOCK = {
+    "p",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+    "li",
+    "blockquote",
+    "figcaption",
+    "td",
+    "th",
+    "caption",
+    "dt",
+    "dd",
+    "div",
+    "section",
+    "aside",
+}
+SINGLETON = {"figcaption", "caption", "legend", "summary"}
 
-def load(path):                                   # ~60 行，含 rights.check 移植
-    if check_drm(path) == "drm": raise DrmError()
+
+def load(path):  # ~60 行，含 rights.check 移植
+    if check_drm(path) == "drm":
+        raise DrmError()
     zf = zipfile.ZipFile(path)
     members = {i.filename: zf.read(i) for i in zf.infolist()}
-    order = [i.filename for i in zf.infolist()]   # 保序用于回写
+    order = [i.filename for i in zf.infolist()]  # 保序用于回写
     container = etree.fromstring(members[CONTAINER])
     opf_path = container.find(f".//{CNS}rootfile").get("full-path")
     opf_dir = posixpath.dirname(opf_path)
     opf = etree.fromstring(members[opf_path])
-    manifest = {it.get("id"): (it.get("href"), it.get("media-type"),
-                               it.get("properties") or "")
-                for it in opf.iter(f"{OPF}item")}
+    manifest = {
+        it.get("id"): (it.get("href"), it.get("media-type"), it.get("properties") or "")
+        for it in opf.iter(f"{OPF}item")
+    }
     spine = [ir.get("idref") for ir in opf.iter(f"{OPF}itemref")]
-    docs = [posixpath.join(opf_dir, manifest[i][0])
-            for i in spine if manifest[i][1] in XHTML_MT]
+    docs = [
+        posixpath.join(opf_dir, manifest[i][0])
+        for i in spine
+        if manifest[i][1] in XHTML_MT
+    ]
     # spine 之外、manifest 里也是 xhtml 的 (如不在 spine 的 nav/封面)追加在尾
-    docs += [posixpath.join(opf_dir, h) for _id,(h,mt,_p) in manifest.items()
-             if mt in XHTML_MT and posixpath.join(opf_dir,h) not in docs]
+    docs += [
+        posixpath.join(opf_dir, h)
+        for _id, (h, mt, _p) in manifest.items()
+        if mt in XHTML_MT and posixpath.join(opf_dir, h) not in docs
+    ]
     return members, order, docs
 
-def iter_units(members, doc_paths):               # ~90 行:walk→跳过→切 run→marker
+
+def iter_units(members, doc_paths):  # ~90 行:walk→跳过→切 run→marker
     for di, path in enumerate(doc_paths):
         soup = bs(members[path], "html.parser")
-        for owner in soup.body.descendants:       # 伪代码：实际先收集 block
+        for owner in soup.body.descendants:  # 伪代码：实际先收集 block
             ...  # 对每个 block owner:收集 own 文本节点 (祖先不含 NON_CONTENT/
-                 #  RUBY_RT/EXCLUDE/hidden/display:none),遇嵌套 block/<br> 切 run;
-                 #  短保护内联 → 分配 ⟦tag{n}⟧ 占位并记 {token: element}
+            #  RUBY_RT/EXCLUDE/hidden/display:none),遇嵌套 block/<br> 切 run;
+            #  短保护内联 → 分配 ⟦tag{n}⟧ 占位并记 {token: element}
             text = normalize(run_text_with_markers)
-            if not text or is_special(text): continue
-            yield Unit(job_id=f"epub:{di}:{path}:{ni}:{sha256(text)[:16]}",
-                       text=text, owner=owner, run_nodes=nodes, markers=mk,
-                       soup=soup, doc_path=path)
+            if not text or is_special(text):
+                continue
+            yield Unit(
+                job_id=f"epub:{di}:{path}:{ni}:{sha256(text)[:16]}",
+                text=text,
+                owner=owner,
+                run_nodes=nodes,
+                markers=mk,
+                soup=soup,
+                doc_path=path,
+            )
 
-def insert_translation(unit, zh_text):            # ~60 行，§1.4 规则 1/2/3
+
+def insert_translation(unit, zh_text):  # ~60 行，§1.4 规则 1/2/3
     zh_text = reconcile_markers(unit.text, zh_text, unit.markers)
     el = unit.owner
     if el.name in SINGLETON or el.find_parent("nav"):
-        span = make_tag("span", **{"class":"texlate-zh"}); span.string = zh_text
-        host = nav_label_or(el); host.append(make_tag("br")); host.append(span)
+        span = make_tag("span", **{"class": "texlate-zh"})
+        span.string = zh_text
+        host = nav_label_or(el)
+        host.append(make_tag("br"))
+        host.append(span)
     else:
-        new_p = copy(el)                          # 克隆继承标签名+class(版式)
-        strip_ids(new_p); restamp_lang(new_p, "zh-CN")
+        new_p = copy(el)  # 克隆继承标签名+class(版式)
+        strip_ids(new_p)
+        restamp_lang(new_p, "zh-CN")
         new_p["class"] = (new_p.get("class") or []) + ["texlate-zh"]
-        new_p.clear(); new_p.string = zh_text     # 多 run owner 用锚定插
+        new_p.clear()
+        new_p.string = zh_text  # 多 run owner 用锚定插
         el.insert_after(new_p)
-    restore_markers(unit)                         # token→copy(源元素),epub_loader.py:2115
+    restore_markers(unit)  # token→copy(源元素),epub_loader.py:2115
 
-def save(path, members, order, soups):            # ~40 行
-    for p, soup in soups.items(): members[p] = soup.encode("utf-8")
-    inject_css(members)   # 见 2.4:每篇 <head> 内嵌 <style>,不动 manifest
+
+def save(path, members, order, soups):  # ~40 行
+    for p, soup in soups.items():
+        members[p] = soup.encode("utf-8")
+    inject_css(members)  # 见 2.4:每篇 <head> 内嵌 <style>,不动 manifest
     with zipfile.ZipFile(path, "w") as out:
-        out.writestr("mimetype", "application/epub+zip",
-                     compress_type=zipfile.ZIP_STORED)      # 首文件不压缩！
+        out.writestr(
+            "mimetype", "application/epub+zip", compress_type=zipfile.ZIP_STORED
+        )  # 首文件不压缩！
         for name in order:
-            if name == "mimetype": continue
-            out.writestr(name, members[name],
-                         compress_type=zipfile.ZIP_DEFLATED)
+            if name == "mimetype":
+                continue
+            out.writestr(name, members[name], compress_type=zipfile.ZIP_DEFLATED)
 
-def translate_epub(src, dst, orchestrator, resume=True):    # ~50 行
+
+def translate_epub(src, dst, orchestrator, resume=True):  # ~50 行
     members, order, docs = load(src)
-    ck = load_ckpt(src)                         # {job_ids:[], translations:[]}
+    ck = load_ckpt(src)  # {job_ids:[], translations:[]}
     units = list(iter_units(members, docs))
-    if ck and ck["job_ids"] != [u.job_id for u in units][:len(ck["job_ids"])]:
+    if ck and ck["job_ids"] != [u.job_id for u in units][: len(ck["job_ids"])]:
         raise ResumeError("EPUB 或过滤变了，删档重翻")
     soups = {}
     for i in range(len(ck["translations"]), len(units)):
-        u = units[i]; soups.setdefault(u.doc_path, u.soup)
-        zh = ck_get(i) or orchestrator.translate(u.text)   # 批量见 2.5
-        insert_translation(u, zh); ck_append(u.job_id, zh)
-        if i % 20 == 0: save_ckpt(src, ck)
+        u = units[i]
+        soups.setdefault(u.doc_path, u.soup)
+        zh = ck_get(i) or orchestrator.translate(u.text)  # 批量见 2.5
+        insert_translation(u, zh)
+        ck_append(u.job_id, zh)
+        if i % 20 == 0:
+            save_ckpt(src, ck)
     save(dst, members, order, soups)
 ```
 
@@ -208,9 +257,12 @@ bbm 的 pickle dict 换成 **JSONL**(纯文本、免 pickle 安全隐患、好 d
 ### 2.5 与 LLM 编排层的接口
 
 ```python
-Unit = {job_id: str, text: str,           # 送模型文本 (已含 ⟦⟧ 占位)
-        markers: {token: element},        # 写回用
-        context_group: str}               # = doc_path，上下文窗口按章分组
+Unit = {
+    job_id: str,
+    text: str,  # 送模型文本 (已含 ⟦⟧ 占位)
+    markers: {token: element},  # 写回用
+    context_group: str,
+}  # = doc_path，上下文窗口按章分组
 ```
 
 - `orchestrator.translate(text) -> str` / `translate_list(texts) -> list[str]`,批量契约与 LaTeX 侧同：`(n)` 编号 + `@@` 兜底 + BatchMismatch + 折半梯子，**编排层零改动复用**。
@@ -249,19 +301,19 @@ Unit = {job_id: str, text: str,           # 送模型文本 (已含 ⟦⟧ 占�
 
 ```python
 def insert_after(paragraph, zh_text):
-    new_ct_p = copy.deepcopy(paragraph._p)          # CT_P:pPr+runs 全拷
+    new_ct_p = copy.deepcopy(paragraph._p)  # CT_P:pPr+runs 全拷
     for child in list(new_ct_p):
-        if child.tag != qn('w:pPr'):                # 只留段落属性
+        if child.tag != qn("w:pPr"):  # 只留段落属性
             new_ct_p.remove(child)
-    paragraph._p.addnext(new_ct_p)                  # lxml addnext = insert_after
+    paragraph._p.addnext(new_ct_p)  # lxml addnext = insert_after
     p2 = Paragraph(new_ct_p, paragraph._parent)
     run = p2.add_run(zh_text)
-    src_rpr = paragraph._p.find(qn('w:r') + '/' + qn('w:rPr'))  # 取首个 run 的 rPr
+    src_rpr = paragraph._p.find(qn("w:r") + "/" + qn("w:rPr"))  # 取首个 run 的 rPr
     if src_rpr is not None:
-        run._r.insert(0, copy.deepcopy(src_rpr))    # 继承字体/字号
+        run._r.insert(0, copy.deepcopy(src_rpr))  # 继承字体/字号
     rpr = run._r.get_or_add_rPr()
-    rpr.get_or_add_rFonts().set(qn('w:eastAsia'), 'SimSun')   # 中文回退字体
-    run.font.color.rgb = RGBColor(0x55, 0x55, 0x55) # 双语区分色 (可配)
+    rpr.get_or_add_rFonts().set(qn("w:eastAsia"), "SimSun")  # 中文回退字体
+    run.font.color.rgb = RGBColor(0x55, 0x55, 0x55)  # 双语区分色 (可配)
 ```
 
 要点:pPr 深拷**连 numPr/缩进/段落样式 id 一起继承**——译文列表项拿到自己的编号、译文段挂同样式，这正是想要的。更进一步可在 `doc.styles` 建一个 `TeXlateZH` 段落样式 (基于源 style + eastAsia 字体 + 颜色),`p2.style = 'TeXlateZH'`,但列表编号不在 style 里而在 pPr,deepcopy 路线已覆盖，样式对象只做颜色/字体差分。

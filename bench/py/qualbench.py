@@ -621,8 +621,10 @@ def mock_judge(pair: Pair) -> dict:
             else 97
         )
     else:
-        stated = 100 - 10 * len(raw_errors) - (
-            15 if sig["ph_missing"] or sig["ph_invented"] else 0
+        stated = (
+            100
+            - 10 * len(raw_errors)
+            - (15 if sig["ph_missing"] or sig["ph_invented"] else 0)
         )
     return _norm_parsed(raw_errors, max(0, stated))
 
@@ -745,9 +747,7 @@ def shape_judged(parsed: dict, pair: Pair, sig: dict) -> dict:
         "score_delta": parsed["score_delta"],
         "errors": parsed["errors"],
         "n_errors": len(parsed["errors"]),
-        "n_span_unverified": sum(
-            1 for e in parsed["errors"] if not e["span_verified"]
-        ),
+        "n_span_unverified": sum(1 for e in parsed["errors"] if not e["span_verified"]),
         "sev_counts": {
             s: sum(1 for e in parsed["errors"] if e["severity"] == s)
             for s in SEV_WEIGHT
@@ -805,9 +805,7 @@ async def judge_pair(http, pair: Pair, args: argparse.Namespace) -> dict:
         if jm2 is None or jm2 == jm:
             out["judge2"] = {"judge2_error": "no_eligible_second"}
         else:
-            r2nd = await call_judge(
-                http, pair, jm2, max_tokens=args.judge_max_tokens
-            )
+            r2nd = await call_judge(http, pair, jm2, max_tokens=args.judge_max_tokens)
             if "content" in r2nd:
                 p2 = parse_esa_json(r2nd["content"])
                 if p2 is not None:
@@ -1102,9 +1100,7 @@ async def cmd_run(args: argparse.Namespace) -> None:
         if "key" in r and r.get("score") is not None
     }
     judge_label = "mock-judge" if args.mock_judge else args.judge_model
-    todo = [
-        p for p in pairs if f"{p.key}|{judge_label}|{PROTOCOL_V}" not in done
-    ]
+    todo = [p for p in pairs if f"{p.key}|{judge_label}|{PROTOCOL_V}" not in done]
     print(
         f"pairs={len(pairs)} done={len(done)} todo={len(todo)} "
         f"judge={judge_label} second={args.second_model} "
@@ -1232,9 +1228,7 @@ def cmd_report(args: argparse.Namespace) -> None:
 
 
 def _add_sampling_args(p: argparse.ArgumentParser) -> None:
-    p.add_argument(
-        "--source", choices=["state", "corpus", "manifest"], default="state"
-    )
+    p.add_argument("--source", choices=["state", "corpus", "manifest"], default="state")
     p.add_argument(
         "--manifest",
         default=None,
@@ -1275,9 +1269,7 @@ def main() -> None:
         default="swe-2-high",
         help="contested 二裁模型",
     )
-    p_run.add_argument(
-        "--no-second", action="store_true", help="关掉 contested 二裁"
-    )
+    p_run.add_argument("--no-second", action="store_true", help="关掉 contested 二裁")
     p_run.add_argument(
         "--base-url",
         default=os.environ.get("TEXLATE_BASE_URL", "http://127.0.0.1:3033"),

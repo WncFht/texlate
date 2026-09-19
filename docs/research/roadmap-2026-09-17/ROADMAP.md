@@ -18,12 +18,12 @@
 
 ### 1.1 波次
 
-| 波                     | 规模                   | 结果                                                                                                | 状态                                                                                                    |
-| ---------------------- | ---------------------- | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| C-bucket vendored-shim | 492 格（全 fail 起点） | **clean 360（73.2%）/ partial 127 / fail 5**；partial→clean 迁移 98；scorecard pdf +24 / clean +101 | 收线，records commit `1584851`；残面 postmortem 在飞（e8）                                              |
-| illegal_unit 深链      | 108 id                 | parse→xlat→compile→fixloop 全链重跑                                                                 | **108/108 闭环**：102 格 96c/6p/0f（`fff5578`）+ held6 ReDoS 修后直出 6 clean（`ddd7d7d`），零回归，unfixable 清零           |
-| M1-B 判别波            | 72 格（T1 58+T2 14）   | `--stage deep` 全链                                                                              | **72/72 收线：fixloop 终态 c53/p19/f0，end-state pdf 100%**（records `1d274bd`）；残余 19 格分簇路由 1d/peer1                |
-| n200 real 臂           | 200 id                 | union pdf 197/200=98.5%，real≈mock（clean 150v153，fail 24v24），fixloop 救回 23/24                 | 已收线（昨日）                                                                                          |
+| 波                     | 规模                   | 结果                                                                                                | 状态                                                                                                               |
+| ---------------------- | ---------------------- | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| C-bucket vendored-shim | 492 格（全 fail 起点） | **clean 360（73.2%）/ partial 127 / fail 5**；partial→clean 迁移 98；scorecard pdf +24 / clean +101 | 收线，records commit `1584851`；残面 postmortem 在飞（e8）                                                         |
+| illegal_unit 深链      | 108 id                 | parse→xlat→compile→fixloop 全链重跑                                                                 | **108/108 闭环**：102 格 96c/6p/0f（`fff5578`）+ held6 ReDoS 修后直出 6 clean（`ddd7d7d`），零回归，unfixable 清零 |
+| M1-B 判别波            | 72 格（T1 58+T2 14）   | `--stage deep` 全链                                                                                 | **72/72 收线：fixloop 终态 c53/p19/f0，end-state pdf 100%**（records `1d274bd`）；残余 19 格分簇路由 1d/peer1      |
+| n200 real 臂           | 200 id                 | union pdf 197/200=98.5%，real≈mock（clean 150v153，fail 24v24），fixloop 救回 23/24                 | 已收线（昨日）                                                                                                     |
 
 ### 1.2 当日落地（节选）
 
@@ -77,15 +77,15 @@
 
 ### 立即（本周，收线在飞 + 速赢）
 
-| #   | 项                                                                                                                                                                                         | 归属                | 修价     | 依据                 |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------- | -------- | -------------------- |
-| I1  | ~~illegal_unit 深波~~ 102 格**已收**（96c/6p/0f）；held6 ReDoS 修复补波（1d）→ M1-B 波（criteria 就绪：filtered 72，挂起等 ReDoS 修）                                                     | 1d→2f               | —        | 在飞                 |
-| I2  | ~~batch.py P0 五钉修复~~ **已落 `164a9e0`**（非锚定解析撤除+@@ 泄漏闸）                                                                                                                    | 1e                  | M        | defect-ledger P0     |
-| I3  | E2 分层倒置：~500 行 L2/env-judge 件下沉 repair/（保符号名、两侧改 import 源）+ D6 glossary 抽共享                                                                                         | 1e（batch-fix 后）  | M        | 已裁决               |
-| I4  | drift D 件修复（D1/D5/D8→e8 待 E2；D2/D3/D7→1e 在飞）                                                                                                                                      | e8/1e               | S-M each | drift-map            |
-| I5  | measurement 速赢四件：fixloop rec 落 `rules_fired`+`post.regressed`、triage 接 `n_actions==0→ruleset_gap` 分流、rundiff `--deep` same-status churn、dossier 消费 `metrics.taxonomy` 替自算 | peer1               | S each   | measurement §6.2-6.4 |
-| I6  | C-bucket 残面：5 fail 归因**已落** `6b75761`；orphan 机制立规评估（W31/W37/W49/W79/W102 等 11 件）+ vendored_fetch undefined_cs 触发缝评估                                                  | peer1               | —        | postmortem+mechmap   |
-| I7  | ~~`_ERR_FILELINE_RE` 文件名面收紧~~ **已落 `7ac59c6`**（共享 `_ERR_FNAME` 单源四面；strict-xfail 全仓清零）                                                                            | compile/fixloop     | S-M      | defect-ledger P1     |
+| #   | 项                                                                                                                                                                                         | 归属               | 修价     | 依据                 |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------ | -------- | -------------------- |
+| I1  | ~~illegal_unit 深波~~ 102 格**已收**（96c/6p/0f）；held6 ReDoS 修复补波（1d）→ M1-B 波（criteria 就绪：filtered 72，挂起等 ReDoS 修）                                                      | 1d→2f              | —        | 在飞                 |
+| I2  | ~~batch.py P0 五钉修复~~ **已落 `164a9e0`**（非锚定解析撤除+@@ 泄漏闸）                                                                                                                    | 1e                 | M        | defect-ledger P0     |
+| I3  | E2 分层倒置：~500 行 L2/env-judge 件下沉 repair/（保符号名、两侧改 import 源）+ D6 glossary 抽共享                                                                                         | 1e（batch-fix 后） | M        | 已裁决               |
+| I4  | drift D 件修复（D1/D5/D8→e8 待 E2；D2/D3/D7→1e 在飞）                                                                                                                                      | e8/1e              | S-M each | drift-map            |
+| I5  | measurement 速赢四件：fixloop rec 落 `rules_fired`+`post.regressed`、triage 接 `n_actions==0→ruleset_gap` 分流、rundiff `--deep` same-status churn、dossier 消费 `metrics.taxonomy` 替自算 | peer1              | S each   | measurement §6.2-6.4 |
+| I6  | C-bucket 残面：5 fail 归因**已落** `6b75761`；orphan 机制立规评估（W31/W37/W49/W79/W102 等 11 件）+ vendored_fetch undefined_cs 触发缝评估                                                 | peer1              | —        | postmortem+mechmap   |
+| I7  | ~~`_ERR_FILELINE_RE` 文件名面收紧~~ **已落 `7ac59c6`**（共享 `_ERR_FNAME` 单源四面；strict-xfail 全仓清零）                                                                                | compile/fixloop    | S-M      | defect-ledger P1     |
 
 ### 短期（1–2 周）
 

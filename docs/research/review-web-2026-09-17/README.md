@@ -1,8 +1,8 @@
 # Web 前后端三方审查汇总（2026-09-17）
 
-三个只读 reviewer 分头通读：`server/` API+基础设施层、`server/worker/` 编排层、`web/` SolidJS 前端。leader 抽验了前端 #1 属实（EventSource 首连无 Last-Event-ID → 重放旧 done → close）。已验证安全的面附在各层尾部，避免误报噪音。
+三个只读 reviewer 分头通读：`server/` API+ 基础设施层、`server/worker/` 编排层、`web/` SolidJS 前端。leader 抽验了前端 #1 属实（EventSource 首连无 Last-Event-ID → 重放旧 done → close）。已验证安全的面附在各层尾部，避免误报噪音。
 
-## 后端 API/基础设施层（app.py / store.py / settings.py / upload.py / events.py / staticfiles.py / babeldoc.py / __main__.py / share.py）
+## 后端 API/基础设施层（app.py / store.py / settings.py / upload.py / events.py / staticfiles.py / babeldoc.py / **main**.py / share.py）
 
 ### High
 
@@ -12,21 +12,21 @@
 
 2. **`share_import` 在事件循环上同步整包校验解包** — `app.py:1145-1153`：`write_bytes` + `unpack_share()`（80MB zip 逐成员 sha256 + 解压）同步跑在 async handler；同模块 `share_pack` 已用 `asyncio.to_thread`（app.py:1311）不对称。修：to_thread 卸载。
 3. **`task_retry` 破坏性清理在守卫迁移之前，双发可删活任务新鲜 chunks** — `app.py:1415-1473`：守卫读旧 status（1419）→ `DELETE FROM chunks`+`rmtree(base/zh/build-*)`（1453-1466）无条件执行 → `store.transition`（1469）才原子校验。并发 retry：A 转 queued 入队，B 照样 DELETE 抹掉 worker 重插的 chunks；且 B 的 options merge（1467）在 409 前已落库。修：先 transition（原子守卫）再清理再 enqueue。
-4. **`RedactFilter` 每条日志记录都 `settings_store.load()` 读盘+解析 JSON** — `app.py:524-528`、`settings.py:734-739`：filter 挂 logger+handler 两处，uvicorn.access 每请求至少 2 次 settings.json 读盘。修：key provider TTL 缓存，或先跑便宜正则命中再取 key。
+4. **`RedactFilter` 每条日志记录都 `settings_store.load()` 读盘 + 解析 JSON** — `app.py:524-528`、`settings.py:734-739`：filter 挂 logger+handler 两处，uvicorn.access 每请求至少 2 次 settings.json 读盘。修：key provider TTL 缓存，或先跑便宜正则命中再取 key。
 5. **server 形态跨租户 reuse 返回对方永远读不到的 task_id** — `app.py:797-799`：`find_reusable` 不带 tenant（设计如此），命中他租户行返回 200 + reader_url，但 `_get_task` tenant 检查使其全 404——存在性 oracle + 死链。修：命中时物化 `reuse_hit` 行，或 server 形态直出产物 URL。
 6. **`task_delete` 与 retry TOCTOU** — `app.py:1483-1497`：ACTIVE 检查基于旧读，并发 retry 可激活后再被删行+rmtree，dispatcher 出队 `store.get`→None 静默跳过而 retry 方已拿 202。修：`DELETE ... WHERE status NOT IN (active)` 条件写。
 
 ### Low
 
 7. 每请求 `settings_store.load()` 同步读盘（`app.py:665-676`）——mtime 缓存。
-8. `tasks_list` 无分页 + `SELECT *`（`store.py:350-365`）；`_clean_task_options` 不限 options 体积（80MB body 可落库）。修：选列+分页+入参尺寸上限。
+8. `tasks_list` 无分页 + `SELECT *`（`store.py:350-365`）；`_clean_task_options` 不限 options 体积（80MB body 可落库）。修：选列 + 分页 + 入参尺寸上限。
 9. `file_get` is_file→FileResponse TOCTOU 变裸 500（`app.py:985-1006`）。修：try OSError→404。
-10. `reader_get`/`reader_put` 在 loop 上同步读+解析数 MB dual.json（`app.py:1511`）。修：to_thread 或按版本缓存。
+10. `reader_get`/`reader_put` 在 loop 上同步读 + 解析数 MB dual.json（`app.py:1511`）。修：to_thread 或按版本缓存。
 11. 杂项：`recover_startup`（store.py:511-530）不清 stage/不写 finished_at，与 `transition` 终态清理不一致；`_read_body`（app.py:722）非 dict JSON 静默归 `{}`（`PUT /api/settings` 收 `[1]` 返 200 无操作）；upload blob 建行前落盘，崩溃留孤儿 `tasks/{id}/`；`cache_get` 每命中单独 commit；HTTPException 无 `code` 字段、IntegrityError 无专属 handler 裸 500。
 
 ### 已验证安全
 
-Host/Origin/Sec-Fetch-Site/Content-Type 四层 CSRF 闸自洽；multipart 字节闸盖 chunked 无 CL；unpack_share/unpack_zip 白名单+对账+tmp 隔离封死 zip-slip/炸弹；transition 单写者无插入窗；server_salt O_EXCL、atomic_json mkstemp+rename、babeldoc 0600 均无泄露窗；`_get_task` 三检 tenant 隔离全覆盖；`_replay_queued` 在 server 形态用部署方 key 重决议实际不可达（设计对但脆，值得注释）。
+Host/Origin/Sec-Fetch-Site/Content-Type 四层 CSRF 闸自洽；multipart 字节闸盖 chunked 无 CL；unpack_share/unpack_zip 白名单 + 对账+tmp 隔离封死 zip-slip/炸弹；transition 单写者无插入窗；server_salt O_EXCL、atomic_json mkstemp+rename、babeldoc 0600 均无泄露窗；`_get_task` 三检 tenant 隔离全覆盖；`_replay_queued` 在 server 形态用部署方 key 重决议实际不可达（设计对但脆，值得注释）。
 
 ## Worker 编排层（server/worker/ 全部 12 文件）
 
@@ -53,7 +53,7 @@ Host/Origin/Sec-Fetch-Site/Content-Type 四层 CSRF 闸自洽；multipart 字节
 
 ### 已验证安全
 
-单写者纪律贯彻（worker 线程 store/bus 全经 `_on_loop` 回弹）；`stream` subscribe-before-replay+seq 去重+终态兜底正确；recover_startup+_replay_queued+chunks 三级断点恢复完整；transition 守卫/put_file upsert/显式事务/run_babeldoc should_cancel+killpg/append_event 滚动截断均正确；secrets 不入库、scrub 面齐。
+单写者纪律贯彻（worker 线程 store/bus 全经 `_on_loop` 回弹）；`stream` subscribe-before-replay+seq 去重 + 终态兜底正确；recover_startup+_replay_queued+chunks 三级断点恢复完整；transition 守卫/put_file upsert/显式事务/run_babeldoc should_cancel+killpg/append_event 滚动截断均正确；secrets 不入库、scrub 面齐。
 
 ## 前端（web/ 全部）
 

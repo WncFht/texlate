@@ -136,8 +136,8 @@ class ScanResult:
 # macro_table.py
 @dataclass(slots=True)
 class MacroTable:
-    cmds: dict[str, MacroEntry]        # 命令名 → 条目
-    envs: dict[str, EnvEntry]          # 环境名 → 条目（spike "env:"+name 的显式化）
+    cmds: dict[str, MacroEntry]  # 命令名 → 条目
+    envs: dict[str, EnvEntry]  # 环境名 → 条目（spike "env:"+name 的显式化）
 ```
 
 ```python
@@ -145,9 +145,13 @@ class MacroTable:
 PH_RX = re.compile(r"\[\[([A-Z_]+)_(\d+)\]\]")
 CHUNK_RX = re.compile(r"\[\[CHUNK_(\d+)\]\]")
 
-class PlaceholderIssuer:               # spike _ctr list-hack 的扶正（miniscanner.py:434）
-    def __init__(self): self._n = 0
-    def new(self, typ: PhType, body: str, ph_map: dict) -> str: ...
+
+class PlaceholderIssuer:  # spike _ctr list-hack 的扶正（miniscanner.py:434）
+    def __init__(self):
+        self._n = 0
+
+    def new(self, typ: PhType, body: str, ph_map: dict) -> str:
+        ...
         # _n += 1; ph = f"[[{typ.name}_{self._n}]]"; ph_map[ph] = body; return ph
 ```
 
@@ -455,26 +459,35 @@ ieeA bug：注释剥离跑在 verbatim 识别前 → `\url{a%20b}` 被截断。�
 
 ```python
 # reconstruct.py
-def reconstruct(res: ScanResult,
-                translations: dict[int, str] | None = None) -> str:
+def reconstruct(res: ScanResult, translations: dict[int, str] | None = None) -> str:
     """按 pieces.splice + 占位符递归展开（DAG，无 fixpoint 轮次）。"""
-    trans = {} if translations is None else {
-        f"[[CHUNK_{k}]]": v for k, v in translations.items()}
+    trans = (
+        {}
+        if translations is None
+        else {f"[[CHUNK_{k}]]": v for k, v in translations.items()}
+    )
 
     memo: dict[str, str] = {}
-    def expand(token: str) -> str:                    # token 形如 [[X_n]]
-        if token in memo: return memo[token]
-        if token in trans:            body = trans[token]          # 译文优先
-        elif token in res.ph_map:     body = res.ph_map[token]     # 保护本体
-        else:                         body = chunk_content(token)  # CHUNK → 原文
+
+    def expand(token: str) -> str:  # token 形如 [[X_n]]
+        if token in memo:
+            return memo[token]
+        if token in trans:
+            body = trans[token]  # 译文优先
+        elif token in res.ph_map:
+            body = res.ph_map[token]  # 保护本体
+        else:
+            body = chunk_content(token)  # CHUNK → 原文
         # 单遍替换该体内的所有占位符（体内占位符编号>父级必经子扫描器发出，无环）
         memo[token] = PH_RX.sub(lambda m: expand(m.group(0)), body)
         return memo[token]
 
     out = []
-    for p in res.pieces:                               # 平铺不变式保证无缝
-        if p.kind is PieceKind.LITERAL:   out.append(p.text)
-        else:                             out.append(expand(p.text))
+    for p in res.pieces:  # 平铺不变式保证无缝
+        if p.kind is PieceKind.LITERAL:
+            out.append(p.text)
+        else:
+            out.append(expand(p.text))
     return "".join(out)
 ```
 

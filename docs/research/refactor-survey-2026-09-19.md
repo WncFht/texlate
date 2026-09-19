@@ -1,6 +1,6 @@
 # 全仓重构侦察 2026-09-19
 
-8 路只读子代理分域扫描（latex / compile+fixloop / server+顶层 / xlat+textutil / validate+arxiv / tests+bench / web / docs），本文件是汇总裁决。结论先行：**清偿顺序应从「同口径散落族」的 quick wins 开始，主菜是抽公共 pipeline core；v1 臂退役是最大的单笔政策决策**。整体结构债已是收尾期而非腐烂期——docs 在案的两轮审计+12-lane 修复波清掉了大拆分包级别的问题，剩下的是未完成的机械拆分、契约未收口和若干政策悬案。
+8 路只读子代理分域扫描（latex / compile+fixloop / server+ 顶层 / xlat+textutil / validate+arxiv / tests+bench / web / docs），本文件是汇总裁决。结论先行：**清偿顺序应从「同口径散落族」的 quick wins 开始，主菜是抽公共 pipeline core；v1 臂退役是最大的单笔政策决策**。整体结构债已是收尾期而非腐烂期——docs 在案的两轮审计 +12-lane 修复波清掉了大拆分包级别的问题，剩下的是未完成的机械拆分、契约未收口和若干政策悬案。
 
 ## 一、结构性主菜
 
@@ -18,21 +18,21 @@
 
 ## 二、「同口径」散落族——drift 是定时炸弹
 
-| 复制簇 | 位置 | 现状 |
-| --- | --- | --- |
-| 日志行词法 ×4 | `l2.py` ↔ `texlog` ↔ `compile/loginfo` ↔ `fixloop/logparse` | 只靠注释同步；drift 静默翻转 clean/dirty 判定。抽共享 log-lexicon 模块（texlog 是天然家） |
-| `glossary_hash` ×2 | `cli/share.py:_share_glossary_hash`（裸 expanduser + ShareError）↔ `worker/share.py:_share_glossary_hash`（`_glossary_path` confine + fallback） | 语义已分叉——同一任务 CLI/server 打包可出不同 share key。**correctness，最小修复最大收益** |
-| placeholder 语法 ×4 | `placeholder.py PH_RX` / `placeholders.py BARE_PH_RX` / `l0 PH_ANY_LIKE_RX` / `export/markers.py MARKER_RE` | 有意的超集关系但调用点无注记；另 `l0.py:KEY_CMD_RX` 字节级复制 textutil 正则、`l0.py:_check_ph_in_cs` 手写 Counter diff 而非调 `ph_in_cs_net` |
-| pipeline 拦截骨架 ×3 | `pipeline.py:_intercept_apply` `_intercept_*` + `pipeline.py:_ledger_call` ×3 | 已漂移：`"auth_gate.record"` vs `"auth_gate record"`；`_run_ledgers()` + 共享 passthrough-result builder |
-| client 传输样板 ×3 | `client.py:list_models` `panel_models`/`probe_model` | ~60 行同款 httpx→ChatError wrap；`_get_json`/`_post_json` |
-| translator 构造 ×3 | `worker/translate.py:_make_translator` / `worker/translate.py:_doc_translator` / `worker/compile.py:_llm_hook_pack` | env-force/api_key/model/retry_model 决策链三个变体；一个 `resolve_translator(ctx, kind)` |
-| 工具发现 ×2 | `sandbox.find_tool`（`toolchain.py:find_tool`）↔ `toolchain.resolve_tool`/`find_managed`（`toolchain.py:resolve_tool`/`toolchain.py:find_managed`） | PATH→macOS-dirs→managed-dir 语义重叠；归并到 toolchain |
-| ChunkResult 映射 ×3 | `pipeline.py:_emit`/`pipeline.py:_load_resumed`/`xlat/state.py:StateStore.record` 手抄 ~13 字段 | `ChunkRecord.from_result()`/`to_result()`/`as_dict` 单源 |
-| Home.tsx 上传 ×2 | `web/src/pages/Home.tsx:uploadOne` 两臂 | verbatim 重复；`uploadOne()` 抽取 ~60 行 |
+| 复制簇               | 位置                                                                                                                                                | 现状                                                                                                                                          |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| 日志行词法 ×4        | `l2.py` ↔ `texlog` ↔ `compile/loginfo` ↔ `fixloop/logparse`                                                                                         | 只靠注释同步；drift 静默翻转 clean/dirty 判定。抽共享 log-lexicon 模块（texlog 是天然家）                                                     |
+| `glossary_hash` ×2   | `cli/share.py:_share_glossary_hash`（裸 expanduser + ShareError）↔ `worker/share.py:_share_glossary_hash`（`_glossary_path` confine + fallback）    | 语义已分叉——同一任务 CLI/server 打包可出不同 share key。**correctness，最小修复最大收益**                                                     |
+| placeholder 语法 ×4  | `placeholder.py PH_RX` / `placeholders.py BARE_PH_RX` / `l0 PH_ANY_LIKE_RX` / `export/markers.py MARKER_RE`                                         | 有意的超集关系但调用点无注记；另 `l0.py:KEY_CMD_RX` 字节级复制 textutil 正则、`l0.py:_check_ph_in_cs` 手写 Counter diff 而非调 `ph_in_cs_net` |
+| pipeline 拦截骨架 ×3 | `pipeline.py:_intercept_apply` `_intercept_*` + `pipeline.py:_ledger_call` ×3                                                                       | 已漂移：`"auth_gate.record"` vs `"auth_gate record"`；`_run_ledgers()` + 共享 passthrough-result builder                                      |
+| client 传输样板 ×3   | `client.py:list_models` `panel_models`/`probe_model`                                                                                                | ~60 行同款 httpx→ChatError wrap；`_get_json`/`_post_json`                                                                                     |
+| translator 构造 ×3   | `worker/translate.py:_make_translator` / `worker/translate.py:_doc_translator` / `worker/compile.py:_llm_hook_pack`                                 | env-force/api_key/model/retry_model 决策链三个变体；一个 `resolve_translator(ctx, kind)`                                                      |
+| 工具发现 ×2          | `sandbox.find_tool`（`toolchain.py:find_tool`）↔ `toolchain.resolve_tool`/`find_managed`（`toolchain.py:resolve_tool`/`toolchain.py:find_managed`） | PATH→macOS-dirs→managed-dir 语义重叠；归并到 toolchain                                                                                        |
+| ChunkResult 映射 ×3  | `pipeline.py:_emit`/`pipeline.py:_load_resumed`/`xlat/state.py:StateStore.record` 手抄 ~13 字段                                                     | `ChunkRecord.from_result()`/`to_result()`/`as_dict` 单源                                                                                      |
+| Home.tsx 上传 ×2     | `web/src/pages/Home.tsx:uploadOne` 两臂                                                                                                             | verbatim 重复；`uploadOne()` 抽取 ~60 行                                                                                                      |
 
 ## 三、已开始的拆分收尾（C2–C4 mid-flight）
 
-1. `fixloop/builtins.py` facade 还住 ~700 行 graphics/EPS/SVG 实现（`_builtins_graphics.py:pstricks_dvips_preflight`、`eps_to_pdf`、`graphic_case_link`、`graphic_repair`、`includepdf_missing_stub`、`svg_prepare` + ~12 私helper）→ 抽 `_builtins_graphics.py` 完成 C3。
+1. `fixloop/builtins.py` facade 还住 ~700 行 graphics/EPS/SVG 实现（`_builtins_graphics.py:pstricks_dvips_preflight`、`eps_to_pdf`、`graphic_case_link`、`graphic_repair`、`includepdf_missing_stub`、`svg_prepare` + ~12 私 helper）→ 抽 `_builtins_graphics.py` 完成 C3。
 2. `_builtins_*` 叶间私名互借：`_builtins_bib.py`/`_builtins_shim.py` import `_fixloop_log`（`_builtins_common.py:_fixloop_log`）；`_builtins_shim.py` import `_FB_FONT`/`_MATH_SHIM_CS`/`_mc_*`（`_builtins_common.py`）→ 归位 `_builtins_common`。
 3. `fixloop/__init__` eager 链（顶层 `import fcntl`，POSIX-only）逼出 ~8 处 `# noqa: PLC0415` lazy import（engine×2/probe×2/loginfo×3/sandbox×1）→ PEP 562 `__getattr__` 或把 fcntl 收进函数。
 4. `compile/engine.py`（1371）= Protocol + XelatexEngine（`engine/_xelatex.py:XelatexEngine`）+ TectonicEngine（`engine/_tectonic.py:TectonicEngine`）+ routing（`engine/_route.py`）+ search-cache（`engine/_cache.py`）→ `engine/` 包（fixloop 同款模式）；`fixloop/engine.py:LoopCtx` ~52 字段分 sub-dataclass；`fixloop/engine.py:fixloop` 359 行状态机。
@@ -40,7 +40,7 @@
 6. `PipelineWorker` 9-mixin（`worker/__init__.py:PipelineWorker`）+ `__init__.py` ~40 个 re-export 纯测试 patch seam + 子模块 `import texlate.server.worker as _w` 运行期回查 → seam 收口到 `worker/seams.py` 或显式注入；是主菜 1 的前置。
 7. `app.py` `server/app.py:create_app` 1570 行单函数（~25 端点 + auth/quota 闭包 + 2 middleware）→ routers per domain + AppDeps dataclass；`server/http.py` 的 multipart/auth helpers 已是天然 `server/http/` 层。
 8. `store.py` Store 45 方法 × 8 聚合 → per-aggregate repos 共享 conn，Store 留组合 facade。
-9. `settings.py` 四关切 + 字段知识在写径 `server/settings.py:_normalize_updates` 与读径 `server/settings.py` `_load_*` 族双链重复 → 单字段 spec 表；auth/provider  probing 出模块。
+9. `settings.py` 四关切 + 字段知识在写径 `server/settings.py:_normalize_updates` 与读径 `server/settings.py` `_load_*` 族双链重复 → 单字段 spec 表；auth/provider probing 出模块。
 10. `cli.py` 1661 全命令+thin-client+doctor → `cli/` 包按命令组拆。
 11. `export/epub.py` 1370：sanitize 簇（`export/epub/sanitize.py`）是自含 XHTML sanitizer；load/units/insert/serialize 四相 → `export/epub/` 包（`test_fuzz_export.py` 1.9k 行兜底）。
 12. 杂项：`xlat/pipeline.py` 的 `MockTranslator`（`xlat/mock.py:MockTranslator` ~110 行）移 `xlat/mock.py`；`rules/90-shim-legacy.yaml` 2283 行占规则库 1/3（观察项）；`segmenter` god-class 按行数机械拆分（mainloop 触 67 个 `self._`），真解耦需显式 state 对象——收益低风险高，可只先归并 `_accent_cs`/`_inline_lit_cs` 两处 verbatim 重复到 `_common.py`。

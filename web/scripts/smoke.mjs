@@ -57,7 +57,9 @@ page.on("console", (m) => {
     if (m.type() !== "error") return;
     const loc = m.location()?.url ?? "";
     if (
-        CONSOLE_EXEMPT.some(([re, code]) => re.test(loc) && m.text().includes(code))
+        CONSOLE_EXEMPT.some(
+            ([re, code]) => re.test(loc) && m.text().includes(code),
+        )
     )
         return;
     if (m.text().includes("offsetParent is not set")) return;
@@ -303,10 +305,7 @@ check(
 );
 // tex/arxiv 行不应有行内下载链
 const arxivRow = page.locator(".task-wrap", { hasText: "2501.14787" }).first();
-check(
-    "arxiv 行无行内下载",
-    (await arxivRow.locator(".task-dl").count()) === 0,
-);
+check("arxiv 行无行内下载", (await arxivRow.locator(".task-dl").count()) === 0);
 // doc 任务详情面：reader 404 → 产物下载面板，不白屏不 fatal
 await page.goto(`${BASE}/#/reader/t_0000000000000a07`, {
     waitUntil: "networkidle",
@@ -316,10 +315,7 @@ check(
     "epub 任务出产物面板",
     await page.locator('.file-list a[href*="zh.epub"]').isVisible(),
 );
-check(
-    "产物面板非 fatal",
-    (await page.locator(".reader-fatal").count()) === 0,
-);
+check("产物面板非 fatal", (await page.locator(".reader-fatal").count()) === 0);
 await page.screenshot({ path: `${SHOTS}08b-doc-files.png` });
 
 // docx 上传：reader_url 缺席 → 仍落任务详情面

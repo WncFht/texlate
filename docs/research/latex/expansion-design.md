@@ -51,12 +51,12 @@ TeX 自身的三段式：mouth（字符→token）、gullet（token→展开后 
 ```python
 @dataclass(slots=True)
 class Tok:
-    kind: str      # 'cs' | 'lbrace' | 'rbrace' | 'mathshift' | 'param'
-                   # | 'space' | 'eol_par' | 'letter' | 'other' | 'active'
-    text: str      # cs→名字 (不含\)，其余→字符本体
-    pos: tuple     # (file_id, offset) —— 源 token 的字节位置；
-                   # 展开产物见 §2.3
-    gen: int = 0   # 展开代数：源 token=0，宏展开产物=触发者 gen+1
+    kind: str  # 'cs' | 'lbrace' | 'rbrace' | 'mathshift' | 'param'
+    # | 'space' | 'eol_par' | 'letter' | 'other' | 'active'
+    text: str  # cs→名字 (不含\)，其余→字符本体
+    pos: tuple  # (file_id, offset) —— 源 token 的字节位置；
+    # 展开产物见 §2.3
+    gen: int = 0  # 展开代数：源 token=0，宏展开产物=触发者 gen+1
 ```
 
 - `eol_par`：连续 `\n\n`（及 `\par`）折叠为一个段落边界 token —— plasTeX 用 `EscapeSequence('par')`（Tokenizer.py:388-408），我们把 `par` 也归一为 `eol_par`，分段器靠它切 chunk。
@@ -67,10 +67,11 @@ class Tok:
 ```python
 class Mouth:
     def __init__(self, text: str, file_id: int, cats: CatTable):
-        self.buf = text; self.i = 0
-        self.state = S_N            # N=行首 M=行中 S=吸空白
-        self.tokbuf: deque[Tok]   # 回压缓冲（pushTokens 落点）
-        self.cats = cats          # catcode 表引用（@ 可变）
+        self.buf = text
+        self.i = 0
+        self.state = S_N  # N=行首 M=行中 S=吸空白
+        self.tokbuf: deque[Tok]  # 回压缓冲（pushTokens 落点）
+        self.cats = cats  # catcode 表引用（@ 可变）
 
     def next(self) -> Tok | None: ...
 ```
@@ -104,14 +105,14 @@ class Mouth:
 
 ```python
 class Gullet:
-    inputs: list[Mouth]        # 输入栈 = TeX.inputs (TeX.py:72)
-    macros: MacroTable         # scope 链 (§8)
-    ifflags: dict[str, bool]   # \newif 旗标
-    math_depth: int            # $/\(/\[/math env 计数 → \ifmmode 求值
-    steps: int = 0             # 已展开步数
-    BUDGET = 100_000           # 每文档展开步数上限
-    MAX_GEN = 32               # token 代数上限
-    MAX_INPUTS = 8             # \input 嵌套深度（同 miniscanner.py:1366）
+    inputs: list[Mouth]  # 输入栈 = TeX.inputs (TeX.py:72)
+    macros: MacroTable  # scope 链 (§8)
+    ifflags: dict[str, bool]  # \newif 旗标
+    math_depth: int  # $/\(/\[/math env 计数 → \ifmmode 求值
+    steps: int = 0  # 已展开步数
+    BUDGET = 100_000  # 每文档展开步数上限
+    MAX_GEN = 32  # token 代数上限
+    MAX_INPUTS = 8  # \input 嵌套深度（同 miniscanner.py:1366）
 ```
 
 ### 3.2 原始流 `read()`（对应 `itertokens` TeX.py:249-279 + `pushTokens` TeX.py:441-467）
@@ -119,15 +120,16 @@ class Gullet:
 ```python
 def read(self) -> Tok | None:
     while self.inputs:
-        t = self.inputs[-1].next()       # 回压缓冲在 Mouth 内部优先
+        t = self.inputs[-1].next()  # 回压缓冲在 Mouth 内部优先
         if t is not None:
             return t
-        self.inputs.pop()                # 输入耗尽弹栈 = endInput (TeX.py:165-177)
+        self.inputs.pop()  # 输入耗尽弹栈 = endInput (TeX.py:165-177)
     return None
 
-def unread(self, toks: list[Tok]):       # pushTokens (TeX.py:455-467)
+
+def unread(self, toks: list[Tok]):  # pushTokens (TeX.py:455-467)
     if toks:
-        self.inputs[-1].push_tokens(toks)   # 压回当前 Mouth 的 tokbuf 前端
+        self.inputs[-1].push_tokens(toks)  # 压回当前 Mouth 的 tokbuf 前端
 ```
 
 读参（`readArgument`）一律走 `read()`——**参数读的是未展开 token**，与 plasTeX 用 `itertokens` 读参一致（TeX.py:704-714, 786-841）。
@@ -140,20 +142,20 @@ def next_expanded(self) -> Tok | None:
         t = self.read()
         if t is None:
             return None
-        if t.kind != 'cs' or t.name not in self.expandables():
-            return t                        # 普通 token/内建命令 → 直交分段器
+        if t.kind != "cs" or t.name not in self.expandables():
+            return t  # 普通 token/内建命令 → 直交分段器
         if t.gen >= self.MAX_GEN or self.steps >= self.BUDGET:
-            return t                        # 降级：未展开原样交出（gen>0 ⇒ 分段器按不透明宏调用保护）
+            return t  # 降级：未展开原样交出（gen>0 ⇒ 分段器按不透明宏调用保护）
         self.steps += 1
         try:
-            result = self.expand(t)         # None | [] | [Tok...] | MARKER
+            result = self.expand(t)  # None | [] | [Tok...] | MARKER
         except ExpandError:
-            return t                        # 展开失败降级（§3.5）
+            return t  # 展开失败降级（§3.5）
         if result is None:
-            return t                        # 命令自身即输出（本设计基本不用）
-        if isinstance(result, Tok):         # 副作用型原语（makeatletter 等）返回自身
+            return t  # 命令自身即输出（本设计基本不用）
+        if isinstance(result, Tok):  # 副作用型原语（makeatletter 等）返回自身
             return result
-        self.unread(result)                 # 展开结果推回前端 → 不动点
+        self.unread(result)  # 展开结果推回前端 → 不动点
         # 不 return —— 继续循环，新推入的 token 再判是否宏
 ```
 
@@ -197,27 +199,28 @@ plasTeX 无任何限制（`\def\x{\x}` 死循环——它靠外层 alarm 兜底�
 
 ```python
 @dataclass
-class Arg:                       # 参数槽（调用点读取顺序即列表序）
-    kind: str                    # 'm'      强制：{..}或单 token（TeX undelimited）
-                                 # 'o'      可选：[..]，缺席→default
-                                 # 'star'   字面*，bool
-                                 # 'eq'     可选=号（\let\a=\b）
-                                 # 'delim'  定界参数：读到 delim_toks 为止（不含）
-                                 # 'until_group'  #{ 型：读到 BGROUP 前，'{'回吐不消费
-    delim: list[Tok] | None      # kind='delim' 的定界 token 序列（逐 token 相等比较）
-    default: list[Tok] | None    # 'o' 的缺省值 token
-    name: str = ''               # 诊断用
+class Arg:  # 参数槽（调用点读取顺序即列表序）
+    kind: str  # 'm'      强制：{..}或单 token（TeX undelimited）
+    # 'o'      可选：[..]，缺席→default
+    # 'star'   字面*，bool
+    # 'eq'     可选=号（\let\a=\b）
+    # 'delim'  定界参数：读到 delim_toks 为止（不含）
+    # 'until_group'  #{ 型：读到 BGROUP 前，'{'回吐不消费
+    delim: list[Tok] | None  # kind='delim' 的定界 token 序列（逐 token 相等比较）
+    default: list[Tok] | None  # 'o' 的缺省值 token
+    name: str = ""  # 诊断用
+
 
 @dataclass
 class MacroDef:
     name: str
-    spec: list[Arg]              # 定界参数模板也在此
-    body: list[Tok]              # 替换文本（含 #n Parameter token）
-    kind: str                    # env_begin|env_end|opaque|transparent|literal|math
-    target_env: str = ''
+    spec: list[Arg]  # 定界参数模板也在此
+    body: list[Tok]  # 替换文本（含 #n Parameter token）
+    kind: str  # env_begin|env_end|opaque|transparent|literal|math
+    target_env: str = ""
     protect_args: tuple[bool, ...] = ()
-    scope: str = 'local'         # local|global（\gdef/\xdef/\global 前缀→global）
-    src: tuple = ()              # (file_id, def_start, def_end) 登记位置
+    scope: str = "local"  # local|global（\gdef/\xdef/\global 前缀→global）
+    src: tuple = ()  # (file_id, def_start, def_end) 登记位置
 ```
 
 参数代入产出 `params: dict[int, list[Tok]]`（1 基，`#i → params[i]`）。
@@ -263,13 +266,19 @@ class MacroDef:
 ### 5.1 三种基础读参原语（对应 plasTeX `readArgument` 族 TeX.py:587-908）
 
 ```python
-def read_undelimited(self) -> list[Tok] | None:   # readToken TeX.py:786-841
+def read_undelimited(self) -> list[Tok] | None:  # readToken TeX.py:786-841
     """跳过前置空白后：BGROUP→平衡组 (不含括号) | 单 token。"""
 
-def read_grouping(self, open_c, close_c) -> list[Tok] | None:  # readGrouping TeX.py:863-908
+
+def read_grouping(
+    self, open_c, close_c
+) -> list[Tok] | None:  # readGrouping TeX.py:863-908
     """[...] 类可选参：首 token 非 escape 且==open → 平衡读到 close。"""
 
-def read_delimited(self, delim: list[Tok]) -> list[Tok]:       # Definition.invoke __init__.py:1211-1219
+
+def read_delimited(
+    self, delim: list[Tok]
+) -> list[Tok]:  # Definition.invoke __init__.py:1211-1219
     """逐 token 读原始流直到 token==delim[0] 且后续==delim[1:]；delim 消费不入参。"""
 ```
 
@@ -317,31 +326,34 @@ spec = [ literal_match('['),
 
 ```python
 def invoke_def(m: MacroDef, tex: Gullet) -> list[Tok]:
-    if not m.spec: return m.body            # 无参宏直还体 (__init__.py:1171)
+    if not m.spec:
+        return m.body  # 无参宏直还体 (__init__.py:1171)
     params = {0: None}
-    pending  = None                          # 已见 #n 未读实参的槽
+    pending = None  # 已见 #n 未读实参的槽
     for arg in m.spec:
-        if arg.kind == 'literal_match':      # __init__.py:1221-1227
+        if arg.kind == "literal_match":  # __init__.py:1221-1227
             t = tex.read()
             if t != arg.delim[0]:
-                raise ArgMismatch           # → 调用点降级 (§3.5)
+                raise ArgMismatch  # → 调用点降级 (§3.5)
             continue
-        if pending is not None:              # 上一槽是 undelimited → 先补读
+        if pending is not None:  # 上一槽是 undelimited → 先补读
             params[len(params)] = tex.read_undelimited()
             pending = None
-        if arg.kind == 'm':
-            params[len(params)] = tex.read_undelimited()       # __init__.py:1184-1185
-        elif arg.kind == 'delim':
-            params[len(params)] = tex.read_delimited(arg.delim) # __init__.py:1211-1219
-        elif arg.kind == 'until_group':      # `#{` __init__.py:1196-1205
+        if arg.kind == "m":
+            params[len(params)] = tex.read_undelimited()  # __init__.py:1184-1185
+        elif arg.kind == "delim":
+            params[len(params)] = tex.read_delimited(arg.delim)  # __init__.py:1211-1219
+        elif arg.kind == "until_group":  # `#{` __init__.py:1196-1205
             param = []
             for t in tex.read_stream():
-                if t.kind == 'lbrace': tex.unread([t]); break   # '{' 回吐，留给 body 或后续
+                if t.kind == "lbrace":
+                    tex.unread([t])
+                    break  # '{' 回吐，留给 body 或后续
                 param.append(t)
             params[len(params)] = param
-    if pending is not None:                  # 尾随 undelimited __init__.py:1229-1231
+    if pending is not None:  # 尾随 undelimited __init__.py:1229-1231
         params[len(params)] = tex.read_undelimited()
-    return expandDef(m.body, params)         # __init__.py:1096-1127
+    return expandDef(m.body, params)  # __init__.py:1096-1127
 ```
 
 **踩坑备忘**（来自源阅读，移植时逐条对）：
@@ -358,9 +370,9 @@ def invoke_def(m: MacroDef, tex: Gullet) -> list[Tok]:
 ```python
 params = {0: None}
 if has_opt:
-    params[1] = tex.read_grouping('[',']') or m.opt_default   # __init__.py:1148-1150
+    params[1] = tex.read_grouping("[", "]") or m.opt_default  # __init__.py:1148-1150
 for i in range(mand_count):
-    params[len(params)+1] = tex.read_undelimited()            # __init__.py:1153-1155
+    params[len(params) + 1] = tex.read_undelimited()  # __init__.py:1153-1155
 return expandDef(m.body, params)
 ```
 
@@ -421,22 +433,27 @@ plasTeX 对每个 `\if*` 都 `processIfContent(bool)`（`Primitives.py:182-367`�
 ```python
 def process_if(self, which: bool | int):
     """收集未展开 token 到 \fi，按 \else/\or 分案例，推回选中案例。"""
-    cases = [[]]; nesting = 0
-    for t in self.read_stream():               # 原始流 itertokens (TeX.py:552)
-        name = t.name if t.kind == 'cs' else ''
-        if name == 'newif':                    # \newif\ifx 对要整对保留 (TeX.py:556-559)
-            cases[-1] += [t, self.read()]; continue
-        if name.startswith('if'):              # 任何 if* 计数嵌套 (TeX.py:560-562)
-            cases[-1].append(t); nesting += 1
-        elif name == 'fi':
-            if not nesting: break              # 收尾 \fi 本身不推回 (TeX.py:563-568)
-            cases[-1].append(t); nesting -= 1
-        elif not nesting and name in ('else', 'or'):
-            cases.append([])                   # 分新案例
+    cases = [[]]
+    nesting = 0
+    for t in self.read_stream():  # 原始流 itertokens (TeX.py:552)
+        name = t.name if t.kind == "cs" else ""
+        if name == "newif":  # \newif\ifx 对要整对保留 (TeX.py:556-559)
+            cases[-1] += [t, self.read()]
+            continue
+        if name.startswith("if"):  # 任何 if* 计数嵌套 (TeX.py:560-562)
+            cases[-1].append(t)
+            nesting += 1
+        elif name == "fi":
+            if not nesting:
+                break  # 收尾 \fi 本身不推回 (TeX.py:563-568)
+            cases[-1].append(t)
+            nesting -= 1
+        elif not nesting and name in ("else", "or"):
+            cases.append([])  # 分新案例
         else:
             cases[-1].append(t)
-    cases.append([])                           # 无 else 支的默认 (TeX.py:582)
-    self.unread(cases[which if isinstance(which,int) else (0 if which else 1)])
+    cases.append([])  # 无 else 支的默认 (TeX.py:582)
+    self.unread(cases[which if isinstance(which, int) else (0 if which else 1)])
 ```
 
 要点：`itertokens` 读原始流——被跳过支的宏**不展开**；`newif` 特例保证 `\ifx\newif\ify` 序列不被 `\ify` 误算嵌套。

@@ -43,21 +43,21 @@ TeXlate（hjfy.top 开源复刻）全部调研报告。**裁决与方案以 `doc
 
 ## corpus/ — 语料与 benchmark（当前主线）
 
-| 文件                            | 内容                                                                                                                    |
-| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `v3-plan.md`                    | **corpus_v3 数据管线定稿**：1,200 篇 = 1,000 核心 + 200 补强，30 簇 measure-then-sample                                 |
-| `parsebench-v1.md`              | parsebench 首轮报告：137 篇无偏语料 223/223 ok、identity 100%、泄漏 0.086%                                              |
-| `parse-metrics-literature.md`   | 解析评估指标文献：unarXive 漏斗/GROBID 三档/Wilson/UTB                                                                  |
-| `bench-construction-methods.md` | benchmark 语料构建方法学：20 个先例对比 + 抽样统计引证                                                                  |
-| `ia-pilot.md`                   | IA bulk 管线 pilot：成员三态/特征提取速率/zipsum 索引/成本实测                                                          |
-| `post2020-sourcing.md`          | post-2020 渠道裁决：TIGER-5T byte-exact 实证、scholarweave 有损定量                                                     |
-| `frame-and-allocation.md`       | 抽样 frame：3.16M 行分层表、30 簇清单、配额分配                                                                         |
-| `hf-latex-datasets.md`          | HF 上 LaTeX 语料数据集普查                                                                                              |
-| `datasets.md`                   | arXiv 开放数据集与批量渠道普查                                                                                          |
-| `labels.md`                     | 分层键与真值标签源（HF 快照/OpenAlex/license）                                                                          |
-| `corpus39-profile.md`           | bench/corpus 39 篇机器级统计画像                                                                                        |
-| `arxmliv-unarxive.md`           | arXMLiv/ar5iv/unarXive 学术发行物调研（结论：无源码不入料）                                                             |
-| `2026-09-15-parsebench-icc.md`  | parsebench 月间 ICC 信度分析（§7.2 统计口径行动项）                                                                     |
+| 文件                            | 内容                                                                                                                                                       |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `v3-plan.md`                    | **corpus_v3 数据管线定稿**：1,200 篇 = 1,000 核心 + 200 补强，30 簇 measure-then-sample                                                                    |
+| `parsebench-v1.md`              | parsebench 首轮报告：137 篇无偏语料 223/223 ok、identity 100%、泄漏 0.086%                                                                                 |
+| `parse-metrics-literature.md`   | 解析评估指标文献：unarXive 漏斗/GROBID 三档/Wilson/UTB                                                                                                     |
+| `bench-construction-methods.md` | benchmark 语料构建方法学：20 个先例对比 + 抽样统计引证                                                                                                     |
+| `ia-pilot.md`                   | IA bulk 管线 pilot：成员三态/特征提取速率/zipsum 索引/成本实测                                                                                             |
+| `post2020-sourcing.md`          | post-2020 渠道裁决：TIGER-5T byte-exact 实证、scholarweave 有损定量                                                                                        |
+| `frame-and-allocation.md`       | 抽样 frame：3.16M 行分层表、30 簇清单、配额分配                                                                                                            |
+| `hf-latex-datasets.md`          | HF 上 LaTeX 语料数据集普查                                                                                                                                 |
+| `datasets.md`                   | arXiv 开放数据集与批量渠道普查                                                                                                                             |
+| `labels.md`                     | 分层键与真值标签源（HF 快照/OpenAlex/license）                                                                                                             |
+| `corpus39-profile.md`           | bench/corpus 39 篇机器级统计画像                                                                                                                           |
+| `arxmliv-unarxive.md`           | arXMLiv/ar5iv/unarXive 学术发行物调研（结论：无源码不入料）                                                                                                |
+| `2026-09-15-parsebench-icc.md`  | parsebench 月间 ICC 信度分析（§7.2 统计口径行动项）                                                                                                        |
 | `2026-09-16-expand-layer.md`    | corpus_v3 expand 层 +3800（当时总 5072；现四层合计 5232——hot 166 + expand 新批后 3866，2026-09-18 时点）：故障率加权配额、新旧池选样、QC 全过 +60 良性超收 |
 
 ## gateway/ — LLM 网关与模型选型（本机存档，不入库）
@@ -93,14 +93,14 @@ TeXlate（hjfy.top 开源复刻）全部调研报告。**裁决与方案以 `doc
 
 ## 根目录散件
 
-| 文件                                  | 内容                                                                                                 |
-| ------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `overseer-2026-09-16.md`              | 车队作战台账：多会话协调的决策与落地逐条记录（2026-09-16 夜间冲刺起续记）                            |
-| `2026-09-16-loop1-status-and-next.md` | loop1 复盘 + 三方分派收敛（stagerun-loop1 n=5059 数字总账与在飞清单）                                |
-| `report-2026-09-17-final.md`          | 2026-09-17 全天作战终报：一页结论/波次总账/关键数字/缺陷账/排期摘要/决策点                           |
-| `reaudit-2026-09-18.md`               | 重构波后全仓重读审计：A 17 真 bug/安全 + B 13 单源债 + C 10 结构 + D 4 测试 + E 10 文档 + F 归属外表 |
-| `xlat-quality-eval-2026-09-18.md`    | 翻译质量评估方法论：MQM/ESA/GEMBA 文献核实 + qualbench 改造方案（ESA 式 span+score 两步、judge 路由、分层/锚定/CI） |
-| `xlat-selfimp-prompt-2026-09-18.md`  | selfimp-qual 环 leader prompt：dense-feedback 四层反馈 + 20 lane 三波次（协议落地→基线→假设改进环）全自动编排 |
+| 文件                                  | 内容                                                                                                                |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `overseer-2026-09-16.md`              | 车队作战台账：多会话协调的决策与落地逐条记录（2026-09-16 夜间冲刺起续记）                                           |
+| `2026-09-16-loop1-status-and-next.md` | loop1 复盘 + 三方分派收敛（stagerun-loop1 n=5059 数字总账与在飞清单）                                               |
+| `report-2026-09-17-final.md`          | 2026-09-17 全天作战终报：一页结论/波次总账/关键数字/缺陷账/排期摘要/决策点                                          |
+| `reaudit-2026-09-18.md`               | 重构波后全仓重读审计：A 17 真 bug/安全 + B 13 单源债 + C 10 结构 + D 4 测试 + E 10 文档 + F 归属外表                |
+| `xlat-quality-eval-2026-09-18.md`     | 翻译质量评估方法论：MQM/ESA/GEMBA 文献核实 + qualbench 改造方案（ESA 式 span+score 两步、judge 路由、分层/锚定/CI） |
+| `xlat-selfimp-prompt-2026-09-18.md`   | selfimp-qual 环 leader prompt：dense-feedback 四层反馈 + 20 lane 三波次（协议落地→基线→假设改进环）全自动编排       |
 
 ## lit/ — 文献原件
 

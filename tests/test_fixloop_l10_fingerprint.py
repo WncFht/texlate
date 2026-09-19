@@ -161,8 +161,8 @@ def test_vendored_fetch_legacy_stub_refreshed(tmp_path: Path) -> None:
     ok, note = _fetch(ctx, "espcrc2.sty", root)
     assert ok
     assert "refreshed" in note
-    assert (ctx.wdir / "espcrc2.sty").read_text(encoding="utf-8").endswith(
-        "% new stub\n"
+    assert (
+        (ctx.wdir / "espcrc2.sty").read_text(encoding="utf-8").endswith("% new stub\n")
     )
 
 
@@ -185,7 +185,9 @@ def test_vendored_fetch_foreign_never_clobbered(tmp_path: Path) -> None:
 
 def _shim_params() -> dict:
     return {
-        "shim_map": {"aa.cls": {"body": "\\LoadClassWithOptions{article}\n\\endinput\n"}}
+        "shim_map": {
+            "aa.cls": {"body": "\\LoadClassWithOptions{article}\n\\endinput\n"}
+        }
     }
 
 
@@ -193,9 +195,7 @@ def test_legacy_shim_foreign_protected(tmp_path: Path) -> None:
     ctx = _ctx(tmp_path)
     sentinel = "% author-shipped aa.cls\n"
     (tmp_path / "aa.cls").write_text(sentinel, encoding="utf-8")
-    ok, note = TRANSFORM_FNS["legacy_pkg_shim"](
-        ctx, _Eng(), "aa.cls", _shim_params()
-    )
+    ok, note = TRANSFORM_FNS["legacy_pkg_shim"](ctx, _Eng(), "aa.cls", _shim_params())
     assert not ok
     assert "foreign" in note
     assert (tmp_path / "aa.cls").read_text(encoding="utf-8") == sentinel

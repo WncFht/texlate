@@ -239,7 +239,9 @@ def _meta_invs(meta: dict, stage: str, *, upstream: str) -> list[tuple]:
     return out
 
 
-def _cover_max(invs: list[tuple], pid: str, *, rerun_only: bool = False) -> datetime | None:
+def _cover_max(
+    invs: list[tuple], pid: str, *, rerun_only: bool = False
+) -> datetime | None:
     cand = [
         t
         for t, rr, ids in invs
@@ -255,9 +257,7 @@ def _cover_first(invs: list[tuple], pid: str) -> datetime | None:
     return None
 
 
-def window_suspects(
-    meta: dict | None, ids, *, upstream: str = UPSTREAM
-) -> set[str]:
+def window_suspects(meta: dict | None, ids, *, upstream: str = UPSTREAM) -> set[str]:
     """compile(zh,upstream) 波次晚于 fixloop(同上游) 波次的 id 集 → csb 存疑。
 
     估计式（run_meta invocation 窗——records 无行级时戳）：
@@ -335,11 +335,7 @@ def _scan_file(
         "torn": pre != post,
         "tail_truncated": _tail_truncated(path) if post else False,
         "bad_lines": stats.get("bad_lines", 0),
-        "age_s": (
-            None
-            if post is None
-            else round(now.timestamp() - post[1] / 1e9, 1)
-        ),
+        "age_s": (None if post is None else round(now.timestamp() - post[1] / 1e9, 1)),
         "size": None if post is None else post[0],
     }
     return recs, stats, info

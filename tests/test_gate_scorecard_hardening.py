@@ -476,9 +476,7 @@ def test_main_json_scope_population(
     assert d["freeze"]["status"] in {"frozen", "partial"}
 
 
-def test_main_window_stale_drops(
-    tmp_path: Path, capsys: pytest.CaptureFixture
-) -> None:
+def test_main_window_stale_drops(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
     """端到端：compile 波晚于 fixloop 波 → legacy fix 按 window_stale 丢。"""
     meta = {
         "finished_at": "2026-09-18T00:00:00+00:00",
@@ -522,9 +520,7 @@ def test_main_window_stale_drops(
     assert d2["end_state"]["dist"] == {"fixloop:clean": 1}
 
 
-def test_main_partial_annotation(
-    tmp_path: Path, capsys: pytest.CaptureFixture
-) -> None:
+def test_main_partial_annotation(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
     """不加 --require-frozen 时 partial 仍记分但显式标注（文本+json 同源）。"""
     meta = {
         "finished_at": "2026-09-17T01:30:00+00:00",
@@ -562,7 +558,12 @@ def test_scan_records_population_conservation(tmp_path: Path) -> None:
         "{broken",
         "5",  # non_dict
         "",
-        {"id": "d", "arm": "zh", "status": "fail", "errors": [{"code": "arm_mismatch"}]},
+        {
+            "id": "d",
+            "arm": "zh",
+            "status": "fail",
+            "errors": [{"code": "arm_mismatch"}],
+        },
     ]
     p = tmp_path / "compile.jsonl"
     _write_jsonl(p, rows)

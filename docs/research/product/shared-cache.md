@@ -120,15 +120,15 @@ manifest.json schema:
 
 ## 8. 模块面（`src/texlate/share.py`）
 
-| API             | 签名                                                                                      | 职责                                                                             |
-| --------------- | ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| `share_key`     | `(arxiv_id, version, model, prompt_ver, target_lang, glossary_hash, pipeline_ver) -> str` | 寻址键派生；version 归一（`3`/`"v3"`/`None`）                                    |
-| `pack_share`    | `(work_dir, manifest, *, out_dir=None) -> Path`                                           | 三件套打包 + manifest 生成 + sha256 自校验字段                                   |
-| `unpack_share`  | `(path, dest) -> ShareManifest`                                                           | 解包 + 全量校验；坏包 `ShareError`                                               |
-| `index_append`  | `(index_path, manifest, url, package_bytes) -> dict`                                      | §7 index.jsonl 追加一行（share_key/url/key_parts/bytes/created_at/contributor）  |
+| API             | 签名                                                                                      | 职责                                                                                                                                            |
+| --------------- | ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `share_key`     | `(arxiv_id, version, model, prompt_ver, target_lang, glossary_hash, pipeline_ver) -> str` | 寻址键派生；version 归一（`3`/`"v3"`/`None`）                                                                                                   |
+| `pack_share`    | `(work_dir, manifest, *, out_dir=None) -> Path`                                           | 三件套打包 + manifest 生成 + sha256 自校验字段                                                                                                  |
+| `unpack_share`  | `(path, dest) -> ShareManifest`                                                           | 解包 + 全量校验；坏包 `ShareError`                                                                                                              |
+| `index_append`  | `(index_path, manifest, url, package_bytes) -> dict`                                      | §7 index.jsonl 追加一行（share_key/url/key_parts/bytes/created_at/contributor）                                                                 |
 | `index_lookup`  | `(index_path, share_key) -> dict \| None`                                                 | 线性扫 index，同 key 后写胜；malformed 行跳过、扫完一条 warning 带行号（`88ea4a5` 起——单行坏数据不毒死全索引）；整文件非 UTF-8 仍抛由调用方降级 |
-| `ShareManifest` | frozen dataclass                                                                          | 校验后 manifest 视图（fmt/share_key/key_parts/artifacts/contributor/created_at） |
-| `ShareError`    | Exception                                                                                 | 一切格式/校验失败                                                                |
+| `ShareManifest` | frozen dataclass                                                                          | 校验后 manifest 视图（fmt/share_key/key_parts/artifacts/contributor/created_at）                                                                |
+| `ShareError`    | Exception                                                                                 | 一切格式/校验失败                                                                                                                               |
 
 纯库层：不接 cli/app。接线现状：worker 完成钩已落地（`746e87f`——`options.share_pack` opt-in，`_stage_compile` 三终态出口，`pack_share`+`unpack_share` 回验后 `index_append` 进 `share_dir/index.jsonl`；`kind=="share"` 与 reuse_hit 永不自包）；`POST /api/task/{id}/share/pack` 事后打包端点同口径（`share_pack_manifest` 单一派生面，幂等 + 409/422 守卫阶梯）。消费侧 v1 = 显式导入：`POST /api/share/import`（`unpack_share` 机械校验 + key_parts 白名单 → `kind="share"` 任务，model/lang/arxiv_id/version 取 manifest 自描述值）→ worker `_run_share` 走 §5 全链（fetch→parse→`_stage_share_apply` `(src_file,en)` 对账回灌→compile，零 token——包内 zh-src.zip/zh.pdf 只作证据不解不进产物面）；web 端 `.share.zip` 上传自动路由此端点。translate 时自动查 index 的隐式命中仍未接线——挂点即任务创建 fetch 后（resolved_ver 已知，#74 post-resolve dedup `7cce5f9` 已落同点位）。
 

@@ -21,7 +21,7 @@
 
 > **现状列更新（2026-09-16 二校）**：B3 已产品化（compilebench_v3.py + fixloop_bench.py，v4+fixloop 臂联合 pdf 154/172=89.5%，`bench/results/compilebench-v4-2026-09-16/` + `base-v3-full-2026-09-16/` 全量基线在盘；**zh 条件臂已跑** `compilebench-v3-zh`/`fixloop-zh-cbv3`）；B4a 已扶正 xlatbench（硬契约基线 240 调用建档）+ B4b 质量臂 `qualbench.py` 已建（LLM-judge 六类 flag+1–5 分，`c81d695`）；B5 Mode A/D 已跑（e2e-real n100 chunk ok 99.97%），**Mode B/C 已实装** `e2e_mock_bench.py` pipeB-xel/pipeC-xel（`f4d9ec8`/`c187025`，`mock-sabotage-v3-2026-09-16/`）；B7 已扶正 alignbench + 已归因（xelatex ~100 错截断 `cite.*` 必死；ctex 共享计数器改 theorem 锚名是离群对根因）+ pipe-fix 产物复测 mean 0.9918（`b7-pipefix-2026-09-16/`）。逐门证据矩阵见 `research/audit-2026-09-16/spec0910.md`。
 >
-> **套件之外新件（同日批量层）**：`stagerun.py` 五阶段批量驱动（ingest/parse/xlat/compile/fixloop 子命令 + append records + (id,arm,upstream) resume + `--sem` 网关信号量，设计 `research/product/2026-09-16-batch-hardening-design.md`，操作单 `bench/py/runbook_loop.md`）；`triage.py` records→tickets.jsonl 聚类+趋势+报告；`translators_bench.py` xlat 臂工厂（mock/sabotage-b/c/perturb）；`preflight_batch.py` 批前一票闸。
+> **套件之外新件（同日批量层）**：`stagerun.py` 五阶段批量驱动（ingest/parse/xlat/compile/fixloop 子命令 + append records + (id,arm,upstream) resume + `--sem` 网关信号量，设计 `research/product/2026-09-16-batch-hardening-design.md`，操作单 `bench/py/runbook_loop.md`）；`triage.py` records→tickets.jsonl 聚类 + 趋势 + 报告；`translators_bench.py` xlat 臂工厂（mock/sabotage-b/c/perturb）；`preflight_batch.py` 批前一票闸。
 
 ## B1 · parsebench —— 解析段基准
 

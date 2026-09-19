@@ -19,4 +19,4 @@
 ## 勘误引用粒度
 
 - 行号锚点（`file.py:NNNN`）只是时点快照，拆包即失效——仅用于「当时取证」语境。
-- 规范勘误与长期引用写「模块+符号」粒度（如 `worker/compile.py::_probe_target`），不写裸行号。
+- 规范勘误与长期引用写「模块 + 符号」粒度（如 `worker/compile.py::_probe_target`），不写裸行号。

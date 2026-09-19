@@ -116,9 +116,7 @@ def test_requests_today_under_budget_untouched(tmp_path: Path) -> None:
     day = time.strftime("%Y-%m-%d", time.gmtime(clk.t))
     state = tmp_path / "rl.json"
     state.write_text(
-        json.dumps(
-            {"day": day, "requests_today": UNDER_BUDGET_REQUESTS, "buckets": {}}
-        )
+        json.dumps({"day": day, "requests_today": UNDER_BUDGET_REQUESTS, "buckets": {}})
     )
     rl = RateLimiter(state, clock=clk.now, sleep=clk.sleep)
     assert rl.requests_today == UNDER_BUDGET_REQUESTS

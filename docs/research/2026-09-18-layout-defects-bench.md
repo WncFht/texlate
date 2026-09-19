@@ -8,7 +8,7 @@
 
 ## 根因一（已修复）：ctex `zihao=5` 全局字号膨胀
 
-机制链已钉死到 ctex 源码：注入行 `\usepackage[fontset=fandol,UTF8]{ctex}` 不带字号选项时，默认 `scheme=chinese` 走 `ctex-scheme-chinese.def:53`——`\g__ctex_font_size_int` 仍为初值 −1 时被强设为 0 → 加载 `ctex-c5size.clo` → `\normalsize`…`\tiny` 全体按 `\ctex_set_font_size:Nnn` 重映射到中文字号 bp 尺寸（5号=10.5bp=**10.53937pt**，+5.4%）。实测 `\f@size=10.53937`、`\f@baselineskip=12.64725`（vs 类原生 10pt/12pt），数学字体同比例放大（`cmsy10 at 10.53937pt`），版式几何全面变宽变长。
+机制链已钉死到 ctex 源码：注入行 `\usepackage[fontset=fandol,UTF8]{ctex}` 不带字号选项时，默认 `scheme=chinese` 走 `ctex-scheme-chinese.def:53`——`\g__ctex_font_size_int` 仍为初值 −1 时被强设为 0 → 加载 `ctex-c5size.clo` → `\normalsize`…`\tiny` 全体按 `\ctex_set_font_size:Nnn` 重映射到中文字号 bp 尺寸（5 号=10.5bp=**10.53937pt**，+5.4%）。实测 `\f@size=10.53937`、`\f@baselineskip=12.64725`（vs 类原生 10pt/12pt），数学字体同比例放大（`cmsy10 at 10.53937pt`），版式几何全面变宽变长。
 
 触发条件是「`\documentclass` 未带全局 pt 字号选项」——类选项 `10pt/11pt/12pt` 会被 ctex 当作显式字号（`ctex.sty:302` 置 int=2 跳过重映射）。与文档类是否标准无关：`article` 裸写一样中招（此前「ctex 只祸害非标准类」的判断是错的，`\@ifclassloaded{article}` 那段只管 heading 方案，不管 zihao）。Mock 语料交叉验证：无字号选项的论文 2267 篇命中 zihao 尺寸、带字号选项的 1749 篇干净（110 篇例外主要是 features 抽取把子文件选项记到了主文档头上）。
 
@@ -31,11 +31,11 @@
 
 ## 证伪与归因
 
-- **CJK 落进 display math**：此前「34%」是朴素正则把 `$$`-close+散文+`$$`-open 误判；TeX 语义态机复扫真值 ≈0–1/301，非缺陷源。
+- **CJK 落进 display math**：此前「34%」是朴素正则把 `$$`-close+ 散文+`$$`-open 误判；TeX 语义态机复扫真值 ≈0–1/301，非缺陷源。
 - **对齐/公式 overfull 多为 en 固有**：36 篇 zh 超标里大部分 en 臂同坏或更坏（`0707.2318` 双臂同 74.8pt；`1003.4522` en 65.7 > zh 53.2）；真 zh 加重仅个位数，且大半由 zihao 膨胀解释。
 - **最大单点出血（`1502.02341` 686pt）是 biber/biblatex 版本错配**（`.bbl` 由异版 biber 生成→`\blx@dlist@type` 未定义→文献段整段塌方），en 臂同损 585pt——基础设施问题（tectonic biber mismatch，另案），不是版式缺陷。
 - **浮动体丢失 zh 新增 0 例**；`TeXlate-Float-Fit` 在 zh 臂触发 196 次（FLOAT_SIZING 机制在干活）。
-- mock 臂文本宽度损伤系统性高估：`这是译文` 等宽占位串与真实译文密度不同，多栏（`multicols`）论文的 overfull 主要是「窄行宽+不可断内容」同族，未见栏塌/逃逸级破坏。
+- mock 臂文本宽度损伤系统性高估：`这是译文` 等宽占位串与真实译文密度不同，多栏（`multicols`）论文的 overfull 主要是「窄行宽 + 不可断内容」同族，未见栏塌/逃逸级破坏。
 
 ## 残留缺陷清单（已知未修）
 

@@ -638,9 +638,6 @@ def test_pend_opaque_e_arg_tail() -> None:
 def test_pend_opaque_unregistered_probe() -> None:
     r"""保守面：未登记 ``\foo`` 仍走探针回落——``{aa}{bb}`` 双吸罩住
     （real-spec 行只兜 ``opaque``/``math`` 登记名，不扩大打击面）。"""
-    res = scan(
-        "\\newcommand{\\vv}{pre \\foo}\n"
-        "Text \\vv{aa}{bb} tail words here."
-    )
+    res = scan("\\newcommand{\\vv}{pre \\foo}\nText \\vv{aa}{bb} tail words here.")
     assert res.ph_map["[[CMD_1]]"] == "\\foo{aa}{bb}"
     assert "bb" not in blob(res)

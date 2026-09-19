@@ -716,8 +716,7 @@ def report(args):
                         f"{sum(1 for c in c3 if c.get('pdf')) / len(c3) * 100:.1f}% |"
                     )
             lines.append(
-                f"| 联合pdf | — | {len(pdf_by_id)}/{n_papers} = "
-                f"{pdf_pct:.1f}% |"
+                f"| 联合pdf | — | {len(pdf_by_id)}/{n_papers} = {pdf_pct:.1f}% |"
             )
             lines.append("")
         except Exception as e:

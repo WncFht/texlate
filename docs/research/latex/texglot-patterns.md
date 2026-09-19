@@ -90,9 +90,7 @@ for match in re.finditer(
 for match in re.finditer(r"\\pdfinfo\s*\{", visible):
     removals.append((match.start(), group_end(visible, match.end() - 1), "\n"))
 ...
-for match in reversed(
-    list(re.finditer(r"\\pdfoutput\s*=?\s*1\b", visible_tex(text)))
-):
+for match in reversed(list(re.finditer(r"\\pdfoutput\s*=?\s*1\b", visible_tex(text)))):
     text = text[: match.start()] + " " + text[match.end() :]
 ```
 
@@ -208,18 +206,21 @@ cache_path = folder / f"cache-{config_hash[:16]}.json"
 ### 3.2 段级缓存键（`Segment.key`，`app/latex.py:256-285`）
 
 ```python
-material = (
-    self.source if self.role == "paragraph" else self.role + "\0" + self.source
-)
+material = self.source if self.role == "paragraph" else self.role + "\0" + self.source
 if re.search(r"\\[\"'`^~=.]", self.source):
     material += "\0text-accents-v1"
 if any(re.search(r"\\" + name + r"\s*\{", self.source) for name in TEXT_DECLARATIONS):
     material += "\0text-declarations-v1"
-if any(re.fullmatch(NUMBER + MAGNITUDE, v) or re.fullmatch(NUMBER, v) and "," in v
-       for v in self.protected):
+if any(
+    re.fullmatch(NUMBER + MAGNITUDE, v) or re.fullmatch(NUMBER, v) and "," in v
+    for v in self.protected
+):
     material += "\0quantity-units-v1"
-used = [(v, self.literal_value(v)) for v in self.protected
-        if self.literal_value(v) is not None]
+used = [
+    (v, self.literal_value(v))
+    for v in self.protected
+    if self.literal_value(v) is not None
+]
 if used:
     material += "\0literal-macros-v1" + repr(used)
 material += "\0source-map-v1\0" + repr((self.masked, self.protected))
@@ -314,16 +315,26 @@ const loader = pdfjs.getDocument({
 
 ```python
 ASSETS = {
-    ("Windows", "x86_64"): ("x86_64-pc-windows-msvc.zip",
-        "f61ce51f0b0ade1015b7de7ef368541c5424e9756ecbd0d7af97d6d48030845f"),
-    ("Darwin", "arm64"): ("aarch64-apple-darwin.tar.gz",
-        "a3f1cac7c5678f01661a92212f58480ae3b0634115d880dbc59e2953ded45667"),
-    ("Darwin", "x86_64"): ("x86_64-apple-darwin.tar.gz",
-        "7c90ef5b6ddb1eb1937e4337add5237b79338e4b9676459fa91187d24d6cdf80"),
-    ("Linux", "x86_64"): ("x86_64-unknown-linux-musl.tar.gz",
-        "8533d07f9ccbd7a65824b9e0459041bca34af1eb33daba48f59215593753a3b7"),
-    ("Linux", "arm64"): ("aarch64-unknown-linux-musl.tar.gz",
-        "b10954a95404f3ab2328d2fa59a5ebab8e657f893fab096f98be8db7c0c979b8"),
+    ("Windows", "x86_64"): (
+        "x86_64-pc-windows-msvc.zip",
+        "f61ce51f0b0ade1015b7de7ef368541c5424e9756ecbd0d7af97d6d48030845f",
+    ),
+    ("Darwin", "arm64"): (
+        "aarch64-apple-darwin.tar.gz",
+        "a3f1cac7c5678f01661a92212f58480ae3b0634115d880dbc59e2953ded45667",
+    ),
+    ("Darwin", "x86_64"): (
+        "x86_64-apple-darwin.tar.gz",
+        "7c90ef5b6ddb1eb1937e4337add5237b79338e4b9676459fa91187d24d6cdf80",
+    ),
+    ("Linux", "x86_64"): (
+        "x86_64-unknown-linux-musl.tar.gz",
+        "8533d07f9ccbd7a65824b9e0459041bca34af1eb33daba48f59215593753a3b7",
+    ),
+    ("Linux", "arm64"): (
+        "aarch64-unknown-linux-musl.tar.gz",
+        "b10954a95404f3ab2328d2fa59a5ebab8e657f893fab096f98be8db7c0c979b8",
+    ),
 }
 ```
 

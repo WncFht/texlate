@@ -6,16 +6,16 @@
 
 ### 1.1 包体量（Python 行数，含子包；数据文件另列）
 
-| 包 | 行数 | 备注 |
-|---|---|---|
-| `latex/` | 7861 + segmenter 5683 = **13544** | 最大轴；另 `latex/data/argspec.json` 16851 行数据 |
-| `compile/` | 6209 + fixloop 5667 = **11876** | 另 `fixloop/rules.yaml` 4797 行数据 |
-| `server/` | 4729 + worker 4418 = **9147** | 另 `static/` 8.9MB vendored pdf.js |
-| 根模块 | **5483** | cli 1642 / textutil 1149 / e2e 1037 / share 553 / align 451 / texlog 247 / redlines 203 / repair 198 |
-| `xlat/` | **4145** | 另 `terms/*.csv` 术语表种子数据 |
-| `arxiv/` | **3010** | |
-| `export/` | **2489** | |
-| `validate/` | **2150** | 另 `ts/validator.js` L1 tree-sitter sidecar（package data 分发） |
+| 包          | 行数                              | 备注                                                                                                 |
+| ----------- | --------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `latex/`    | 7861 + segmenter 5683 = **13544** | 最大轴；另 `latex/data/argspec.json` 16851 行数据                                                    |
+| `compile/`  | 6209 + fixloop 5667 = **11876**   | 另 `fixloop/rules.yaml` 4797 行数据                                                                  |
+| `server/`   | 4729 + worker 4418 = **9147**     | 另 `static/` 8.9MB vendored pdf.js                                                                   |
+| 根模块      | **5483**                          | cli 1642 / textutil 1149 / e2e 1037 / share 553 / align 451 / texlog 247 / redlines 203 / repair 198 |
+| `xlat/`     | **4145**                          | 另 `terms/*.csv` 术语表种子数据                                                                      |
+| `arxiv/`    | **3010**                          |                                                                                                      |
+| `export/`   | **2489**                          |                                                                                                      |
+| `validate/` | **2150**                          | 另 `ts/validator.js` L1 tree-sitter sidecar（package data 分发）                                     |
 
 合计 98 个 py 文件 ≈ 51.8k 行。
 
@@ -31,15 +31,15 @@
 
 ### 2.1 >1500 行文件/巨类清单
 
-| 文件 | 行数 | 内部形态 |
-|---|---|---|
-| `latex/gullet.py` | 2794 | `Gullet` 单类 859→2795 ≈ 1936 行（宏展开器本质多分支，内聚尚可） |
-| `compile/fixloop/builtins.py` | 2535 | 24+ TRANSFORM_FNS + REWRITE_FNS 平铺（审计时 2401，仍在胀） |
-| `compile/engine.py` | 1835 | ≥4 关注点：log 模型+parse_log+taxonomy 适配（106-353）、依赖发现（354-544）、bwrap 沙箱机械（545-860，与 sandbox.py 同层分居）、Engine Protocol+双引擎+router（861-1835） |
-| `latex/scanner.py` | 1748 | v1 臂 `Scanner` 单类 156→1740 ≈ 1584 行；存废裁决未落地（v1 仍是 parsebench 对拍 oracle） |
-| `cli.py` | 1642 | 10+ 命令 + share_app + tools_app 单文件（审计时 1526，在胀） |
-| `server/app.py` | 1604 | `create_app` 工厂 473→1605 ≈ 1132 行、~24 路由闭包（审计裁决「端点面即规格表」有意平直，增长时再拆） |
-| `compile/fixloop/engine.py` | 1513 | Ruleset 装载/校验 + Rule 视图 + LoopCtx + _cond_ok 分派 + 主循环 5 关注点 |
+| 文件                          | 行数 | 内部形态                                                                                                                                                                   |
+| ----------------------------- | ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `latex/gullet.py`             | 2794 | `Gullet` 单类 859→2795 ≈ 1936 行（宏展开器本质多分支，内聚尚可）                                                                                                           |
+| `compile/fixloop/builtins.py` | 2535 | 24+ TRANSFORM_FNS + REWRITE_FNS 平铺（审计时 2401，仍在胀）                                                                                                                |
+| `compile/engine.py`           | 1835 | ≥4 关注点：log 模型+parse_log+taxonomy 适配（106-353）、依赖发现（354-544）、bwrap 沙箱机械（545-860，与 sandbox.py 同层分居）、Engine Protocol+ 双引擎+router（861-1835） |
+| `latex/scanner.py`            | 1748 | v1 臂 `Scanner` 单类 156→1740 ≈ 1584 行；存废裁决未落地（v1 仍是 parsebench 对拍 oracle）                                                                                  |
+| `cli.py`                      | 1642 | 10+ 命令 + share_app + tools_app 单文件（审计时 1526，在胀）                                                                                                               |
+| `server/app.py`               | 1604 | `create_app` 工厂 473→1605 ≈ 1132 行、~24 路由闭包（审计裁决「端点面即规格表」有意平直，增长时再拆）                                                                       |
+| `compile/fixloop/engine.py`   | 1513 | Ruleset 装载/校验 + Rule 视图 + LoopCtx + _cond_ok 分派 + 主循环 5 关注点                                                                                                  |
 
 阈值下沿：normalize.py 1463（13 个编号 normalize 关注点）、segmenter/args.py 1371（拆包后最大件）、export/epub.py 1317。
 
@@ -77,14 +77,14 @@ fixloop→xlat（llm_hook:38,371 经 Protocol/延迟）、export→xlat（14）�
 - **rules.yaml `capabilities:` 段 ↔ `Engine.caps` frozenset（engine.py:952/1429）零钉且形已分歧**：yaml 键集 {kpsewhich,tlmgr,updmap,shell_escape,bundle} vs 代码 frozenset {"kpsewhich","tlmgr","updmap","recorder"}/{"bundle"}——`recorder` 在 yaml 缺席、`shell_escape:partial` 在 caps 无对应。该段自称「审计文档」但无机制保证不漂。
 - **ScanWarning kind 无注册表**：19 种字面 kind 散落 latex/* 模块发射点，docs/07 还写 13——warning 消费者无法分辨契约面（审计 C3 已记，未修）。
 - **rules.yaml 头注计数、docs/08:251 计数、CLAUDE.md 头「36 规则」三处计数同漂**——属「生成即可消灭」的漂移类。
-- worker/__init__.py ~30 名 `# noqa: F401 -- test monkeypatch 面` 再导出 facade——是刻意的测试缝但属脆弱约定（改名断 patch）。
+- worker/**init**.py ~30 名 `# noqa: F401 -- test monkeypatch 面` 再导出 facade——是刻意的测试缝但属脆弱约定（改名断 patch）。
 - `share.py` share_key vs worker `cache_key_for`（_common.py:245）是文档化的有意独立（share.py:9-15），export/docx.py:80 与 epub.py:206 各自 `_PIPELINE_VERSION` 同理——这两条不算债。
 
 ## 5. 架构级演进建议（按还债收益排序）
 
 ### R1（收益最高）：拆 compile/engine.py 四关注点 + 掐断 fixloop↔engine 环边
 
-把 `_ERR_FILELINE_RE`/`_NONERR_FILELINE_RE` 等 log 行原语下移 `texlog.py`（log 格式件本就住那），fixloop/logparse.py:20 改指叶子层后，`engine.py:303-329` 等五处 lazy import 可全部提回顶层、环消失；同期把 106-353 log 模型+parse_log+taxonomy 适配切 `compile/loginfo.py`、545-860 `_bwrap_*`/`_apply_sandbox`/`_kpathsea_*` 并入 `sandbox.py`（同关注点现分居两文件）、354-544 依赖发现并入 probe.py 或 deps.py。残余 ~900 行（Protocol+双引擎+router）可选再按引擎拆。风险：低-中——纯代码位移，行为有 judge/engine 测试矩阵钉；唯一行为面是 import 次序。工作量：约 0.5-1 天含验证。
+把 `_ERR_FILELINE_RE`/`_NONERR_FILELINE_RE` 等 log 行原语下移 `texlog.py`（log 格式件本就住那），fixloop/logparse.py:20 改指叶子层后，`engine.py:303-329` 等五处 lazy import 可全部提回顶层、环消失；同期把 106-353 log 模型+parse_log+taxonomy 适配切 `compile/loginfo.py`、545-860 `_bwrap_*`/`_apply_sandbox`/`_kpathsea_*` 并入 `sandbox.py`（同关注点现分居两文件）、354-544 依赖发现并入 probe.py 或 deps.py。残余 ~900 行（Protocol+ 双引擎+router）可选再按引擎拆。风险：低 - 中——纯代码位移，行为有 judge/engine 测试矩阵钉；唯一行为面是 import 次序。工作量：约 0.5-1 天含验证。
 
 ### R2（收益高）：e2e.py 共享件扶正，消灭私有名跨包 import
 
@@ -92,7 +92,7 @@ worker/translate+compile/cli/bench/tests 现合计 import e2e 私有名 ≥15 �
 
 ### R3（收益中、防整类漂移）：TeX 词法常量层 + 计数类文档生成化
 
-新建 `latex/lexicon.py`（或并入 textutil）：DOCCLASS_RX 一处裁决 `@` 分歧（六站统一）、删 _DOC_BEGIN_RX ×3、_INPUT_* 三件套 probe/inject 共享、_DOCCLASS_OPTS_RE builtins/normalize 共享；ScanWarning 19 kind 建 WARNING_KINDS 注册表 + 测试 pin（docs/07:96 的 13 从此自动可见新旧）；rules.yaml capabilities 段二选一——加测试 pin `yaml caps ↔ Engine.caps` 或直接删段（现纯文档且已分歧）；rules.yaml 头注/CLAUDE.md/docs/08 三处规则计数改生成或删数。风险：极低。工作量：~0.5 天。收益是消灭已付过两次代价的漂移类（PH_FUZZY_RX、documentclass @）。
+新建 `latex/lexicon.py`（或并入 textutil）：DOCCLASS_RX 一处裁决 `@` 分歧（六站统一）、删 `_DOC_BEGIN_RX` ×3、`_INPUT_*` 三件套 probe/inject 共享、_DOCCLASS_OPTS_RE builtins/normalize 共享；ScanWarning 19 kind 建 WARNING_KINDS 注册表 + 测试 pin（docs/07:96 的 13 从此自动可见新旧）；rules.yaml capabilities 段二选一——加测试 pin `yaml caps ↔ Engine.caps` 或直接删段（现纯文档且已分歧）；rules.yaml 头注/CLAUDE.md/docs/08 三处规则计数改生成或删数。风险：极低。工作量：~0.5 天。收益是消灭已付过两次代价的漂移类（PH_FUZZY_RX、documentclass @）。
 
 ### 附：即刻可清的小事
 

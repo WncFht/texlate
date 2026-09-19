@@ -3,7 +3,7 @@
 目标：评测各语言 LaTeX 库对**真实 arXiv 源码**的处理能力，为"段落级提取 + 保护 + 重建"管线选型。
 
 > 分层契约：一个问题该在哪一层验证（fixture 秒级 → corpus 机制覆盖 → v3 子集回归 → 全量过夜集成）见 `bench/TIERS.md`。
-
+>
 > 注记（2026-09-15）：M0 后 `bench/py/parsebench.py` 是 `texlate.latex` 产品管线的正式评测器（parsebench v2，规格 docs/10 §B1，产出 `bench/results/parsebench-*` 三件套）；本协议的"逐库对比"层只适用于外部库选型期。
 
 ## 语料

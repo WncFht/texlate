@@ -20,16 +20,16 @@
 
 ### 1.1 端点表
 
-| 用途        | URL                                              | 备注                                                        |
-| ----------- | ------------------------------------------------ | ----------------------------------------------------------- |
-| 源码包      | `arxiv.org/src/{id}[vN]`（`/e-print/` 301 到此） | tar.gz / 单文件 .gz / PDF 直投三态                          |
-| HTML 版     | `arxiv.org/html/{id}[vN]`                        | 探 `{id}`（最新版）——实测存在 v1 404 而 v2 200 的边缘案；G1 起兼作取页臂（GET 经 `Fetcher.get_path` 跨镜像，与 e-print 同限流域/退避）     |
-| abs 页      | `arxiv.org/abs/{id}[vN]`                         | license 链接、替代版本（备用元数据源）                      |
-| PDF         | `arxiv.org/pdf/{id}[vN]`                         | PDF sidecar 输入                                            |
-| Atom 元数据 | `export.arxiv.org/api/query?id_list={id},…`      | 批量 id_list 一次拉多篇                                     |
-| OAI-PMH     | `oaipmh.arxiv.org/oai?verb=…`                    | 已迁出 export；独立第三限流桶                               |
-| 镜像下载桶  | `export.arxiv.org/{src,pdf,abs}/…`               | 全站镜像、行为一致——下载面容量 ×2 且互为故障转移            |
-| RSS         | `arxiv.org/rss/{cat}`（302→export）              | ~260 篇/日，含 license+announce_type+guid；每日预译种子首选 |
+| 用途        | URL                                              | 备注                                                                                                                                   |
+| ----------- | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
+| 源码包      | `arxiv.org/src/{id}[vN]`（`/e-print/` 301 到此） | tar.gz / 单文件 .gz / PDF 直投三态                                                                                                     |
+| HTML 版     | `arxiv.org/html/{id}[vN]`                        | 探 `{id}`（最新版）——实测存在 v1 404 而 v2 200 的边缘案；G1 起兼作取页臂（GET 经 `Fetcher.get_path` 跨镜像，与 e-print 同限流域/退避） |
+| abs 页      | `arxiv.org/abs/{id}[vN]`                         | license 链接、替代版本（备用元数据源）                                                                                                 |
+| PDF         | `arxiv.org/pdf/{id}[vN]`                         | PDF sidecar 输入                                                                                                                       |
+| Atom 元数据 | `export.arxiv.org/api/query?id_list={id},…`      | 批量 id_list 一次拉多篇                                                                                                                |
+| OAI-PMH     | `oaipmh.arxiv.org/oai?verb=…`                    | 已迁出 export；独立第三限流桶                                                                                                          |
+| 镜像下载桶  | `export.arxiv.org/{src,pdf,abs}/…`               | 全站镜像、行为一致——下载面容量 ×2 且互为故障转移                                                                                       |
+| RSS         | `arxiv.org/rss/{cat}`（302→export）              | ~260 篇/日，含 license+announce_type+guid；每日预译种子首选                                                                            |
 
 ### 1.2 请求纪律（硬约束）
 
@@ -117,6 +117,7 @@ candidates = { f ∈ *.{tex,latex,ltx,TEX,…}（扩展名大小写不敏感） 
 - 批量发现走 OAI-PMH `oaipmh.arxiv.org/oai`：`ListRecords` + `resumptionToken` 翻页；`metadataPrefix ∈ {oai_dc, arXiv, arXivOld, arXivRaw}`；**`<license>` 只在 OAI 系**（机读许可唯一来源），arXivRaw 独占版本史；183 set；错误以 200+body 返回。全库回填 ~2000 页 ≈ 2h@3s。
 
 > 勘误 2026-09-17：本节批量能力**无实现对应物**——`arxiv/meta.py` 实装仅单篇路径：Atom `id_list={id}`（`_atom_meta`，钉版透传 `id vN`）+ OAI `GetRecord` 兜底（`_oai_meta`）；`ListRecords`/`resumptionToken` 翻页属语料管线/远期设计。
+
 - DOI/版本史反查备用：DataCite `api.datacite.org/dois/10.48550/arxiv.{id}` 免 key 全量覆盖，`dates[]` 送 v1–vN。
 
 ### 3.2 Atom → meta schema

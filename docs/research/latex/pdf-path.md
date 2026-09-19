@@ -200,51 +200,67 @@ POST /jobs/{id}/abort → config.cancel_translation()（cancel_event 已在
 
 ```python
 translator = OpenAITranslator(
-    lang_in=..., lang_out=..., model=..., base_url=..., api_key=...,
-    send_temperature=job.send_temperature,          # 默认 False —— 坑①解法
-    ignore_cache=False,                             # 复用 babeldoc 自身缓存
+    lang_in=...,
+    lang_out=...,
+    model=...,
+    base_url=...,
+    api_key=...,
+    send_temperature=job.send_temperature,  # 默认 False —— 坑①解法
+    ignore_cache=False,  # 复用 babeldoc 自身缓存
 )
-term_translator = translator                        # 或独立小模型
-doc_layout = DocLayoutModel.load_onnx()             # 进程级单例，启动时预载
+term_translator = translator  # 或独立小模型
+doc_layout = DocLayoutModel.load_onnx()  # 进程级单例，启动时预载
 config = TranslationConfig(
-    input_file=job_pdf, output_dir=job_out,
-    working_dir=job_work,                           # 必传 → translate_tracking.json 落盘
-    translator=translator, term_extraction_translator=term_translator,
-    doc_layout_model=doc_layout, pages=job.pages,
-    no_dual=not job.dual, no_mono=not job.mono,
+    input_file=job_pdf,
+    output_dir=job_out,
+    working_dir=job_work,  # 必传 → translate_tracking.json 落盘
+    translator=translator,
+    term_extraction_translator=term_translator,
+    doc_layout_model=doc_layout,
+    pages=job.pages,
+    no_dual=not job.dual,
+    no_mono=not job.mono,
     use_alternating_pages_dual=job.alternating,
-    qps=job.qps, pool_max_workers=job.qps,
+    qps=job.qps,
+    pool_max_workers=job.qps,
     split_strategy=PageCountStrategy(job.max_pages_per_part),
     watermark_output_mode=WatermarkOutputMode.NoWatermark,
-    glossaries=loaded, auto_extract_glossary=job.auto_extract_glossary,
+    glossaries=loaded,
+    auto_extract_glossary=job.auto_extract_glossary,
     custom_system_prompt=job.custom_system_prompt,
     report_interval=0.5,
 )
 async for event in high_level.async_translate(config):
-    sse_push(job_id, event)                         # 原样转发
-    if event["type"] == "error":  fail(event["error"])
-    if event["type"] == "finish": result = event["translate_result"]
+    sse_push(job_id, event)  # 原样转发
+    if event["type"] == "error":
+        fail(event["error"])
+    if event["type"] == "finish":
+        result = event["translate_result"]
 ```
 
 ### fallback 检测（假成功拦截器）
 
 ```python
 def assess(job_work, result, translator):
-    tracking = json.loads((job_work/f"{stem}/translate_tracking.json").read_text())
+    tracking = json.loads((job_work / f"{stem}/translate_tracking.json").read_text())
     errs, fbs, total = [], [], 0
     for page in tracking["page"]:
         for p in page["paragraph"]:
             for t in p["llm_translate_trackers"]:
                 total += 1
-                if t["has_error"]:            errs.append(t["error_message"])
-                if t["fallback_to_translate"]: fbs.append(p["input"][:80])
+                if t["has_error"]:
+                    errs.append(t["error_message"])
+                if t["fallback_to_translate"]:
+                    fbs.append(p["input"][:80])
     status = "done"
-    if errs and len(errs) >= total * 0.5:           # 过半段落出错 → 判失败
-        status = "failed"; error = errs[0]
-    elif errs or fbs:                               # 有脏段落 → 降级交付
+    if errs and len(errs) >= total * 0.5:  # 过半段落出错 → 判失败
+        status = "failed"
+        error = errs[0]
+    elif errs or fbs:  # 有脏段落 → 降级交付
         status = "degraded"
     if translator.token_count.value == 0 and translator.translate_cache_call_count == 0:
-        status = "failed"; error = "zero_tokens"    # 一次 API 都没打出去
+        status = "failed"
+        error = "zero_tokens"  # 一次 API 都没打出去
     return status, errs, fbs
 ```
 

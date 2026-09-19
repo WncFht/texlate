@@ -8,17 +8,17 @@
 
 ## scout 交付总览
 
-| scout | 范围 | 条数 | 处置分布 |
-| --- | --- | --- | --- |
-| audit-latex-core | segmenter/gullet/mouth | 12+琐 | fixer-latex |
-| audit-latex-periph | scanner v1/macro_table/flatten/api/model/tables/init | 9+退役清单 | fixer-latex + deferred(v1 退役) |
-| audit-compile | compile 七件 | 10+附记 | routed 项目体验方式（engine.py），judge 小项 fixed |
-| audit-fixloop | fixloop 全件+接线 | 12 | fixer-fixloop + routed(rules.yaml) |
-| audit-xlat | xlat/*+接线面 | 11 | routed 1e(worker)/项目体验方式(pipeline)，client 项 fixer-e2e-misc |
-| audit-server-e2e | server/e2e/cli/align/export | 12 | routed 1e ×9，leader 侧 fixer-e2e-misc ×3 |
-| audit-tests-2 | tests/ 92 文件 | 10 | fixer-tests ×5 + routed 1e(staticfiles) |
-| audit-bench | bench/py 全件 | 10 | fixed(misschar P0) + fixer-triage + fixer-bench-hygiene |
-| audit-crosscut | TODO/docs/命名/依赖 | 7 | fixed 5583176（三件 doc 漂移+超集注释）+ deferred ×3 |
+| scout              | 范围                                                 | 条数        | 处置分布                                                            |
+| ------------------ | ---------------------------------------------------- | ----------- | ------------------------------------------------------------------- |
+| audit-latex-core   | segmenter/gullet/mouth                               | 12+ 琐      | fixer-latex                                                         |
+| audit-latex-periph | scanner v1/macro_table/flatten/api/model/tables/init | 9+ 退役清单 | fixer-latex + deferred(v1 退役)                                     |
+| audit-compile      | compile 七件                                         | 10+ 附记    | routed 项目体验方式（engine.py），judge 小项 fixed                  |
+| audit-fixloop      | fixloop 全件 + 接线                                  | 12          | fixer-fixloop + routed(rules.yaml)                                  |
+| audit-xlat         | xlat/*+接线面                                        | 11          | routed 1e(worker)/项目体验方式 (pipeline)，client 项 fixer-e2e-misc |
+| audit-server-e2e   | server/e2e/cli/align/export                          | 12          | routed 1e ×9，leader 侧 fixer-e2e-misc ×3                           |
+| audit-tests-2      | tests/ 92 文件                                       | 10          | fixer-tests ×5 + routed 1e(staticfiles)                             |
+| audit-bench        | bench/py 全件                                        | 10          | fixed(misschar P0) + fixer-triage + fixer-bench-hygiene             |
+| audit-crosscut     | TODO/docs/命名/依赖                                  | 7           | fixed 5583176（三件 doc 漂移 + 超集注释）+ deferred ×3              |
 
 ## P0 / 实证缺陷（已修）
 
@@ -32,8 +32,8 @@
 - **fixer-bench-hygiene**：死 spike 簇 ~2900 行验证删除（fixloop.py/fixloop_report/compile_bench/compile_report/rerun_xelatex/macro_scan）、`fixloop_bench` 模块级 RS IO 惰性化、`unpack_blob` 归并产品 `arxiv.unpack`。→ `36e195a`。
 - **fixer-tests**：pyproject `testpaths`/`norecursedirs`（裸 pytest INTERNALERROR）、`_HAS_RUN_DOC` 遗迹门、SSE `_FEED_DELAY` flake、`_StageError` code 覆盖、file:line 重复钉评估。→ `4a37980` + `pyproject.toml`。
 - **fixer-latex**：上列 P0 + `math_debt`/`math_depth` 死机制 + 切点链/input marker/env→PhType 三分收敛 + `FILENAME_CHARS` 单源 + `__init__` 24 死 re-export + `parse_file_v1` top_dir 转发 + `_cov_origin` 复现验证。→ `2f3fc67`（latex slice 346 绿）。
-- **fixer-e2e-misc**：e2e mock 臂 partial 译文准入对齐、cli `_thin_submit` KeyError+退出码表、align 错误路径 `heights` 缺席、export epub/docx 双驱同构评估、client 死公共 API 标注。→ `0fe05c1`。
-- **fixer-fixloop**：`_when_ok` fail-open→对称 fail-closed+键白名单、`regex_rewrite` 0 命中落 flags、`_gate_eval` dedup 前置、`CtanFetcher.index` 共享索引 mutate、`pdftex_prim` subclassify 误路由、`missing_char_fix` verbatim 防护、`timeout_sec` 消费+timeout 透传链、`stats_backfill` project/corpus 口径、llm_hook 我侧四调用点 opt-in 接线、加挂 vendored_sty_shadow tectonic advisory 档 + `l.N` 行首锚。→ `3c5aae2`（含 peer texmfhome hunk 带署名）。尾项收官：emulateapj/epsf shim-bypass = **裸 payload 机制 bug**（`I can't find file 'epsf'` 裸名 vs 全带扩展名的 filemap/shim_map/stub 键 → `_apply_install_file` 补 `.tex` 候选 + `legacy_pkg_shim` 归一 `X.tex`，随 `3c5aae2` 落）；emulateapj*.sty 实为 TL 内容缺口（只发 .cls）→ shim_map 扩列转 peer1（rules.yaml）；另揭 static_precheck scan_patterns 疑不覆盖 `\input` 裸名（同转）。
+- **fixer-e2e-misc**：e2e mock 臂 partial 译文准入对齐、cli `_thin_submit` KeyError+ 退出码表、align 错误路径 `heights` 缺席、export epub/docx 双驱同构评估、client 死公共 API 标注。→ `0fe05c1`。
+- **fixer-fixloop**：`_when_ok` fail-open→对称 fail-closed+ 键白名单、`regex_rewrite` 0 命中落 flags、`_gate_eval` dedup 前置、`CtanFetcher.index` 共享索引 mutate、`pdftex_prim` subclassify 误路由、`missing_char_fix` verbatim 防护、`timeout_sec` 消费+timeout 透传链、`stats_backfill` project/corpus 口径、llm_hook 我侧四调用点 opt-in 接线、加挂 vendored_sty_shadow tectonic advisory 档 + `l.N` 行首锚。→ `3c5aae2`（含 peer texmfhome hunk 带署名）。尾项收官：emulateapj/epsf shim-bypass = **裸 payload 机制 bug**（`I can't find file 'epsf'` 裸名 vs 全带扩展名的 filemap/shim_map/stub 键 → `_apply_install_file` 补 `.tex` 候选 + `legacy_pkg_shim` 归一 `X.tex`，随 `3c5aae2` 落）；emulateapj*.sty 实为 TL 内容缺口（只发 .cls）→ shim_map 扩列转 peer1（rules.yaml）；另揭 static_precheck scan_patterns 疑不覆盖 `\input` 裸名（同转）。
 
 ## 已路由 peer
 
@@ -45,12 +45,12 @@
 
 **texlate-1e**（worker/store/app/probe/web）：
 
-- worker：`ph_fragments` 主路径不武装（recover_copied_tokens 生产死臂）、cancel `run_task` 孤儿化、env_judge/L2 旁路丢 glossary+usage_sink 且污染共享缓存、`_run_fixloop` 不吃 `reject:*`/`engine_flags`（reject_at 缺 fixloop 档+跨引擎臂缺席）、`_build_dual` loop 线程跑 pypdf、cancel TOCTOU force 覆写、`unpack_zip` 单层 parent 检查、`_run_doc` fallback client 泄漏、`_iter_pdf_fonts` IndirectObject、两次 `asyncio.run` 跨 loop 开关 client。
+- worker：`ph_fragments` 主路径不武装（recover_copied_tokens 生产死臂）、cancel `run_task` 孤儿化、env_judge/L2 旁路丢 glossary+usage_sink 且污染共享缓存、`_run_fixloop` 不吃 `reject:*`/`engine_flags`（reject_at 缺 fixloop 档 + 跨引擎臂缺席）、`_build_dual` loop 线程跑 pypdf、cancel TOCTOU force 覆写、`unpack_zip` 单层 parent 检查、`_run_doc` fallback client 泄漏、`_iter_pdf_fonts` IndirectObject、两次 `asyncio.run` 跨 loop 开关 client。
 - store/app：`recover_startup` 僵尸 queued、`upload()` 孤儿目录、`chunk_counts["cached"]`/`warnings` 死字段、`staticfiles.py` 孤儿模块+SPA 挂载零测试。
 
 ## deferred / 决策项（leader 收敛）
 
-1. **v1 退役**：periph 给了完整切线清单（api/scanner/macro_table/model/tables/gullet/init + ~5 测试文件 + parsebench v1 臂 + TEXLATE_NO_EXPAND 语义）。`flatten_inputs` 与 model 字节原语 bench 承重必留。**判定输入**：v2 已默认且 corpus_v3 3937 全绿——退役收益=删 ~1653 行 scanner+~430 行专属机械+消双臂字段并集；成本=失回退臂。倾向：本轮先不退役（pipeline 仍在演化，回退臂保险费低），清单存档待 M3 前再决。
+1. **v1 退役**：periph 给了完整切线清单（api/scanner/macro_table/model/tables/gullet/init + ~5 测试文件 + parsebench v1 臂 + TEXLATE_NO_EXPAND 语义）。`flatten_inputs` 与 model 字节原语 bench 承重必留。**判定输入**：v2 已默认且 corpus_v3 3937 全绿——退役收益=删 ~1653 行 scanner+~430 行专属机械 + 消双臂字段并集；成本=失回退臂。倾向：本轮先不退役（pipeline 仍在演化，回退臂保险费低），清单存档待 M3 前再决。
 2. **e2e_real_bench↔stagerun real 臂双轨**：判分同义（同 judge+flb 配方），差异仅记录形状。倾向：e2e_real 退 lib、main 标 legacy；e2e_mock 保留（tectonic 臂+L2 回灌+Mode B/C 唯一事实源）；compilebench_v3 残值=分层抽样+tectonic base。
 3. **L2 编排环 e2e↔worker 双份**（`_l2_repair`↔`_l2_repair_zh`、`_env_judge_pass`↔`_env_judge_filter`）：底层原语已共享，编排环漂移中。抽注入 compile_fn/writeback_fn 的驱动函数——跨 1d/1e 边界，需与 1e 协商落点。
 4. **status 词表四套混用**（verdict clean/partial/fail+reject、段 ok/fault/skipped、inject already/no-docline/injected、job 11 态）：**已收口**——docs/08 §6 状态词表（20e7a8a）。
@@ -69,9 +69,9 @@
 - 依赖表/web package.json/默认引擎序/PH_RX 形状/TEXLATE_LIVE 门/平台门/conftest helper：核实健康。
 - fixloop 程序化交叉验证：36 规则 category 全由 taxonomy 产出、17 builtin+2 rewrite 全命中注册表、无 order 冲突/重复 id；8 taxonomy 无规则承接=刻意留白。
 - server 哨兵顺序/done 事件配对/单写者纪律/share 对账/dispatcher 死锁修复/L2 cache 跨线程接线：核实干净。
-- 观察项：`test_verbatim_policy_pct_inside_unclosed_group` 随机序下挂一次（KeyError `[[CMD_1]]`，隔离+串行全绿）——排序依赖/共享 argspec 态污染嫌疑，立 ticket 待复现 seed（不阻塞）。
+- 观察项：`test_verbatim_policy_pct_inside_unclosed_group` 随机序下挂一次（KeyError `[[CMD_1]]`，隔离 + 串行全绿）——排序依赖/共享 argspec 态污染嫌疑，立 ticket 待复现 seed（不阻塞）。
 
-## loop1 fixloop 结果分析（stagerun-loop1-2026-09-16；聚合报告 REPORT-fixloop-analysis.md 由项目体验方式执笔，本节为 leader 对账+补充）
+## loop1 fixloop 结果分析（stagerun-loop1-2026-09-16；聚合报告 REPORT-fixloop-analysis.md 由项目体验方式执笔，本节为 leader 对账 + 补充）
 
 数据：1310 格入闸（fail647+misschar663）→ clean 144 / acceptable 663 / best_effort 295 / unfixable ~208 / no_errors_no_pdf 15 / stuck 1，rescue 84.0%。迁移 fail→clean 181 / fail→partial 273 / partial→clean 8。**注意：本轮跑在 engine 修复 6b23435 之前**，环境杀伤需打折。
 
@@ -114,7 +114,7 @@ pst-node×11 / jheppub×9 / citesort×7 / diagrams×7 / axodraw×5 / pst-arrow×
 
 **fixer-gullet 交付 `ce1dc9f`**：裸 cs 体宏 → `transparent_expand`（`\nc{\be}{\begin{equation}}` 别名链执行，`\[` 开数学符真展开）+ `\newenvironment` body_role 数学角色推断（before 体尾形：mathshift/`\begin{X}`/cs 链解析，v1+v2 双臂对称）——0905.0795/1003.0112a 两格 miss×100/180 修复，9 新测试，全套 2107 绿。
 
-**1e realarm-repro 包**（12 基线真臂退化归因，`253caab`）：预测-fixed 3 格待 real-postfix A/B；新浮出两 bug 类——**bug-B 主路径 cs+latin 融合**（`\item FSU`→`\itemFSU`，5 格；`_cat_surf` `90aa823` 只修了 group 路径，主路径同款洞；`letters_cut` 只告警）→ fixer-slots 追加。bfuse-scout 定规模（`314af54`，`bench/results/bfuse-scout-2026-09-16/`）：**top-5 系统洞**——spec'd-13 触 48% 篇、宽类并集（`{\it X}` 字体声明组 75% 篇为最大头，bib 条目不译同走 writer 融合）触 **90.4%**、每篇 ~13 暴露点；修复面=通用「cs+latin 首 token」边界（\item-only 只买 35%）；cs+CJK 方向无害（cjk_glue_fix 已盖）；致命条件=译文保 latin 首字母（专名/缩写）；**bug-G elsart `\protect` 测盒 × xeCJK 绑定崩坏**（cond-mat/0307508 全文 4379 缺字，最小 repro `\def\protect{\noexpand\protect\noexpand}`+hbox CJK 通用陷阱）→ peer1 rules 车道，但 cjkfont `CJK_FIRST_USE_WARMUP` 疑似同根已兜（1003.5459 elsart 5485→0），peer1 复核中。gtrap-scout（`7896c7f`，报告 `bench/results/gtrap-scout-2026-09-16/report.md`）补面：**autart.cls 同载体**（`\proc@elem` 与 elsart 逐字节相同，corpus_v3 4 篇：1306.5836/1706.02495/2003.03498/2308.04287），Tier-A trap-live 全表 17 篇即本类验证集；升级标志=「warmup 后 miss 仍在」（接 misschar 判读口径）；若 warmup 有缺口，fixloop 反应式签名+主动 cls 扫描草案在报告 §c 已转 peer1。bug-E（0905.4907 caption 裸 `\alpha`）→ peer1 backstop/prompt。
+**1e realarm-repro 包**（12 基线真臂退化归因，`253caab`）：预测-fixed 3 格待 real-postfix A/B；新浮出两 bug 类——**bug-B 主路径 cs+latin 融合**（`\item FSU`→`\itemFSU`，5 格；`_cat_surf` `90aa823` 只修了 group 路径，主路径同款洞；`letters_cut` 只告警）→ fixer-slots 追加。bfuse-scout 定规模（`314af54`，`bench/results/bfuse-scout-2026-09-16/`）：**top-5 系统洞**——spec'd-13 触 48% 篇、宽类并集（`{\it X}` 字体声明组 75% 篇为最大头，bib 条目不译同走 writer 融合）触 **90.4%**、每篇 ~13 暴露点；修复面=通用「cs+latin 首 token」边界（\item-only 只买 35%）；cs+CJK 方向无害（cjk_glue_fix 已盖）；致命条件=译文保 latin 首字母（专名/缩写）；**bug-G elsart `\protect` 测盒 × xeCJK 绑定崩坏**（cond-mat/0307508 全文 4379 缺字，最小 repro `\def\protect{\noexpand\protect\noexpand}`+hbox CJK 通用陷阱）→ peer1 rules 车道，但 cjkfont `CJK_FIRST_USE_WARMUP` 疑似同根已兜（1003.5459 elsart 5485→0），peer1 复核中。gtrap-scout（`7896c7f`，报告 `bench/results/gtrap-scout-2026-09-16/report.md`）补面：**autart.cls 同载体**（`\proc@elem` 与 elsart 逐字节相同，corpus_v3 4 篇：1306.5836/1706.02495/2003.03498/2308.04287），Tier-A trap-live 全表 17 篇即本类验证集；升级标志=「warmup 后 miss 仍在」（接 misschar 判读口径）；若 warmup 有缺口，fixloop 反应式签名 + 主动 cls 扫描草案在报告 §c 已转 peer1。bug-E（0905.4907 caption 裸 `\alpha`）→ peer1 backstop/prompt。
 
 **fixer-utf8 交付 `673d8ce`**：normalize 四臂（系统包 kpsewhich 遮蔽 ≤8 轮闭包 / EPS `%`-行净化 / ps 驱动 token→xetex / catch-all 转码），真格 invalid_utf8=0；judge 按「警告来源是否工程文件」分流记档待裁。**fixer-209up 交付**：`upgrade_209` + inject 挂点 + 414 普查 **97.8% 过门**（405 格；reject 9 全 ds@ terminal），白名单 +15。**fixer-cjkfont phase-2 五项全落 `f7822a8`**（inject 包同 commit）：CJK_PRESENT_RE 包/类语境收紧灭三假阳 + find_docclass_ends 逐缝注入（depth>0 宏体命中跳过、`\if` 双臂幂等哨兵，真格 9/9）+ `_MISSING_CHAR_RE` tfm `("XXXX)` 分支（197 格解锁）+ `cjk_glyph` spec 字体门 + `font_fallback` builtin（西里尔/组合符/拉丁扩展→`\newunicodechar`+Libertinus Serif；rules.yaml order26 条目草案已转 peer1）。**B 桶 336 格连带治愈**：`CJK_MATH_FALLBACK` \Umathcode 九段重映与是否触发 fixloop 无关，数学内 CJK + texlatefb 兜底西里尔数学缺字——scout「不修」判词被机制性覆盖。
 
@@ -124,25 +124,25 @@ pst-node×11 / jheppub×9 / citesort×7 / diagrams×7 / axodraw×5 / pst-arrow×
 - **rundiff vs `5acb956`：improved 73 / degraded 0**——fail→clean 16 + fail→partial 57 全为缺文件簇救回；floor_restored 全格 False。
 - 残格归因三落：axessibility×6 → `axessibility_xetex_shadow` order157（`7037301`）；axodraw2×5 → CTAN overlay=tree 兜底 tlmgr non-relocatable rc=0 假成功（`9f08bf3`，同机理或覆盖其他 postaction 包）；pst-all×8 → **install_file 请求方扇出**（`8e6d442`：file:line 锚解要求方→`\RequirePackage` 全表一轮补装）。
 - **peer1 裁定回执**：bug-E 不立规则归 llm_hook（单格半径不值）；prim-guard 注释行命中接受不改；latex209 gate order:1 已 terminal 无需补；bug-G 终裁 warmup 10/10 治愈不落签名规则（autart 同构预期同治，real-postfix 复扫给终证）。
-- **方法论旗标（判读纪律）**：烤疤格=被已修 bug 写坏的 splice 跨 `--rerun` 永存（1306.0036 第30行 `\chardef\ifdefined\pdfoutput\pdfoutput=1\fi` 残行实证），需 pristine-tree 重跑见真值，rundiff 不计入规则退化。
+- **方法论旗标（判读纪律）**：烤疤格=被已修 bug 写坏的 splice 跨 `--rerun` 永存（1306.0036 第 30 行 `\chardef\ifdefined\pdfoutput\pdfoutput=1\fi` 残行实证），需 pristine-tree 重跑见真值，rundiff 不计入规则退化。
 
-### 定点重跑 34 格收官（peer1 补记7 `e769ebb`，全部先 `--rerun` 洗 pristine splice）
+### 定点重跑 34 格收官（peer1 补记 7 `e769ebb`，全部先 `--rerun` 洗 pristine splice）
 
 - axessibility×6 → **6/6 pdf**（shadow stub 实证）；axodraw2×5 → **5/5 pdf**（CTAN tree 兜底实证，含 real 臂 hep-ph/0501163）；pst-all×8 → **7/8 pdf**（请求方扇出一轮补全 11 成员实证；残 2105.11398 越过 missing_file 改判 illegal_unit——前进非退化）。
 - 烤疤格实锤：1306.0036 pristine 树 → best_effort（relax 格确为旧套娃残留）；1003.1717 → acceptable（`.rtx` 排除 + revtex4 guard 合流）。**partial→fail 清零**。
-- early_eof×13 → 全数脱离 unfixable；子机理两分：**(a)** `\end occurred when \ifx incomplete`（条件未闭合+稿自带 \errmessage）vs **(b)** `job aborted, no legal \end found`（输入截断/`\endinput` 吞 `\end`）——不同源，归下轮签名归因（rules.yaml peer1 面）。
+- early_eof×13 → 全数脱离 unfixable；子机理两分：**(a)** `\end occurred when \ifx incomplete`（条件未闭合 + 稿自带 \errmessage）vs **(b)** `job aborted, no legal \end found`（输入截断/`\endinput` 吞 `\end`）——不同源，归下轮签名归因（rules.yaml peer1 面）。
 - 终盘 unfixable：missing_file ~27（余皆 TL 真缺席 legacy 簇）、pdftex_prim 0、max_rounds 1、**early_eof 成最大残簇**。
 
 ## postfix 真臂 9 格管线引入退化归因（scout-realreg，`postfix-2026-09-16` n≈81 收尾中）
 
-| id | 归因 | 签名 |
-| --- | --- | --- |
-| 1012.1321 / 2003.10959 / 2105.03900 / 2211.04495 | **bug-B**（`\item`+latin 首词空格融合） | `\itemFSU`/`\itemNGA`/`\itemBalakrishnan`/`\itemOC` |
-| 1003.4522 | bug-B 换行屏障变体 | `\hline`+⏎→`\hlineCd`/`\hlineNb` |
-| 1206.1808 | bug-B `%`-EOL 屏障变体 | `\par`+`%`+⏎→`\pari)`/`\parii)` |
-| 0905.4907 | bug-E（模型直译 "alpha"→裸 `\alpha` 进 caption） | Missing $ ×4；pipe-fix acceptable 兜底 |
-| 0707.3950 | **新机理A**：用户 `\def\section` 替换体含 @-cs 被展开泄漏到非 makeatletter 语境 | `\@`→`\spacefactor` 40 err；pipe-fix best_effort 兜底 |
-| 1109.5963 | **新机理B**：caption 短参被塞进空行 → `\par` 撞 `\NR@gettitle` runaway + Extra } 级联 | l.362/364 五错级联 |
+| id                                               | 归因                                                                                   | 签名                                                  |
+| ------------------------------------------------ | -------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| 1012.1321 / 2003.10959 / 2105.03900 / 2211.04495 | **bug-B**（`\item`+latin 首词空格融合）                                                | `\itemFSU`/`\itemNGA`/`\itemBalakrishnan`/`\itemOC`   |
+| 1003.4522                                        | bug-B 换行屏障变体                                                                     | `\hline`+⏎→`\hlineCd`/`\hlineNb`                      |
+| 1206.1808                                        | bug-B `%`-EOL 屏障变体                                                                 | `\par`+`%`+⏎→`\pari)`/`\parii)`                       |
+| 0905.4907                                        | bug-E（模型直译 "alpha"→裸 `\alpha` 进 caption）                                       | Missing $ ×4；pipe-fix acceptable 兜底                |
+| 0707.3950                                        | **新机理 A**：用户 `\def\section` 替换体含 @-cs 被展开泄漏到非 makeatletter 语境       | `\@`→`\spacefactor` 40 err；pipe-fix best_effort 兜底 |
+| 1109.5963                                        | **新机理 B**：caption 短参被塞进空行 → `\par` 撞 `\NR@gettitle` runaway + Extra } 级联 | l.362/364 五错级联                                    |
 
 聚合：**bug-B 家族 6/9 是真臂头号杀手**（mock 四字译文 CJK 首字天然免疫，真臂 latin-token 保留才暴露）——修复面=cs+latin 边界的空格/换行/`%`-EOL 三屏障（已转 fixer-slots）。bug-G 残余 0/9 → warmup 真臂成立。新机理 A（含 @-token 宏不应展开/应回写调用形式）与 B（caption 短参空行）记 1d 队列。pipe-fix 仅 2/9 格有记录——`onfail` 覆盖语义已向 1e 求证。
 
@@ -150,25 +150,25 @@ pst-node×11 / jheppub×9 / citesort×7 / diagrams×7 / axodraw×5 / pst-arrow×
 
 ### scout-cjk0：`cjk_chars=0` 实为 28 格（旧账 14），splice/ph_map 丢失 = **0 bug**
 
-| 桶 | 格数 | 归因 | 处置 |
-| --- | --- | --- | --- |
-| A | 8 | inject 落死 `\if` 分支 | **已愈** `f7822a8` find_docclass_ends 逐缝注入 |
-| C | 7 | `CJK_PRESENT_RE` 假阳跳注入 | **已愈** `f7822a8` 包/类语境收紧 |
-| D | 1 | 1206.0294 dimen→中文（slots 腐蚀） | fixer-slots 机理覆盖 |
-| E | 1 | 1803.02985 standalone main 与论文正文章节 disjoint | **决策项**：main_rel 选取 vs 翻译集边界——无属主，记档 |
-| F | 11 | includepdf 壳文档本就零可译 chunk | **verdict 假阳**：0-chunk main 不该吃 `cjk_chars=0` partial → verdict-tune 项（判分侧，1d） |
+| 桶  | 格数 | 归因                                               | 处置                                                                                        |
+| --- | ---- | -------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| A   | 8    | inject 落死 `\if` 分支                             | **已愈** `f7822a8` find_docclass_ends 逐缝注入                                              |
+| C   | 7    | `CJK_PRESENT_RE` 假阳跳注入                        | **已愈** `f7822a8` 包/类语境收紧                                                            |
+| D   | 1    | 1206.0294 dimen→中文（slots 腐蚀）                 | fixer-slots 机理覆盖                                                                        |
+| E   | 1    | 1803.02985 standalone main 与论文正文章节 disjoint | **决策项**：main_rel 选取 vs 翻译集边界——无属主，记档                                       |
+| F   | 11   | includepdf 壳文档本就零可译 chunk                  | **verdict 假阳**：0-chunk main 不该吃 `cjk_chars=0` partial → verdict-tune 项（判分侧，1d） |
 
 附带实证：fixloop warmup 首编同样锚进死分支（pre-fix），`f7822a8` 后共用 find_docclass_ends 一并覆盖。**结论：splice 层无 cjk=0 缺陷，全为上游/判分侧伪影。**
 
 ### scout-pst：六家族逐格归因（pst 残链根因 = `\input` 裸名扫描盲区）
 
-| 家族 | 根因 | 处置 |
-| --- | --- | --- |
+| 家族               | 根因                                                                                                                                                     | 处置                                                                                                                                                        |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | pst-node/pst-arrow | pstricks-add.tex l.27-32 `\ifx\else \input stem \fi` **行内**裸名链——`_DEP_DECL_RE` 只认行首 RequirePackage/LoadClass/usepackage → 一轮暴露一个烧光 8 轮 | **已修 `ca0e748`**：`_dep_stems` 加行内 `\input` 扫描（注释切尾 + `\endinput` 不误伤）+ advisory 全败才落（裸名 miss→`.tex` fallback 常态路径不再污染归因） |
-| axodraw×5 | shim→axodraw2 non-relocatable usermode rc=0 假成功 | 已修 `6752bb0`/`9f08bf3`，定点 rerun 5/5 |
-| emulateapj | 6/7 noop stub 救回；残 = `emulateapj-rtx4.cls` 无 shim 键（1404.2351） | → peer1 shim_map 补键 |
-| citesort | 7/7 救回 | — |
-| revtex4-1.cls | **误标签非 missing_file**——filemap 可解恒装上；残 = capacity×2 + syntax（.rtx 污染，已修） | 签名归仍需按真错记 |
+| axodraw×5          | shim→axodraw2 non-relocatable usermode rc=0 假成功                                                                                                       | 已修 `6752bb0`/`9f08bf3`，定点 rerun 5/5                                                                                                                    |
+| emulateapj         | 6/7 noop stub 救回；残 = `emulateapj-rtx4.cls` 无 shim 键（1404.2351）                                                                                   | → peer1 shim_map 补键                                                                                                                                       |
+| citesort           | 7/7 救回                                                                                                                                                 | —                                                                                                                                                           |
+| revtex4-1.cls      | **误标签非 missing_file**——filemap 可解恒装上；残 = capacity×2 + syntax（.rtx 污染，已修）                                                               | 签名归仍需按真错记                                                                                                                                          |
 
 附带发现已落：precheck `scan_patterns` 扫 `\input` 裸名**不切注释**（`% \input x` 照装 x——本波测试实锤 `pst-notreal.tex` 被 precheck 装出）→ 小项转 peer1。
 
@@ -189,7 +189,7 @@ pst-node×11 / jheppub×9 / citesort×7 / diagrams×7 / axodraw×5 / pst-arrow×
 ### peer1 回执与二轮落地（`3010310` / 口头确认）
 
 - **lgrenc×3 已独立落地**：textgreek.sty:39 `\PackageError` 报 `Cannot find the file lgrenc.def`（无反引号对）逃出两条 head 签名，halt 后 tail 被 early_eof 抢路由——head 加第三 pattern `Cannot find the file\s+([\w@.+-]+\.[a-zA-Z0-9]+)` → greek-fontenc 通吃，重跑 3/3 best_effort。
-- **early_eof ×13 全格归因**（REPORT 补记7 修订）：missing_file 伪装 ×3（上条已愈）、`\read` 交互档 ×1（hep-ph/0111248 bundled aipcheck.tex:259，wdir stub 候选）、`no legal \end` ×4 四根各异（^^M 截断/`{` runaway/`\if` 缺 `\fi`/command-ignored Emergency——无统一规则面，逐格或 llm_hook）、错误帽 100 ×2（1608.06693/2308.12612 上游个案）、svjour 选项 errmessage ×1（0905.0193）、腐蚀 ×1（1404.0519 `\c{S}` 口音参数改写 → slots 超簇）、SIGKILL ×1（2211.13028 infra）。
+- **early_eof ×13 全格归因**（REPORT 补记 7 修订）：missing_file 伪装 ×3（上条已愈）、`\read` 交互档 ×1（hep-ph/0111248 bundled aipcheck.tex:259，wdir stub 候选）、`no legal \end` ×4 四根各异（^^M 截断/`{` runaway/`\if` 缺 `\fi`/command-ignored Emergency——无统一规则面，逐格或 llm_hook）、错误帽 100 ×2（1608.06693/2308.12612 上游个案）、svjour 选项 errmessage ×1（0905.0193）、腐蚀 ×1（1404.0519 `\c{S}` 口音参数改写 → slots 超簇）、SIGKILL ×1（2211.13028 infra）。
 - **peer1 接单**：shim 波二 ~20 名 + emulateapj-rtx4/JINST 键 + babel_opt×10 + hyperref-driver/expl3×4(含 hep-ph/9910403)/option_clash/already_def/pkg_order 小簇，顺序 shim→babel_opt→小簇。
 - **回弹我侧两项已落 `450b1ad`**：precheck `\input` 扫描逐行切注释（`_apply_scan_install` code-portion 化，pst-notreal 不再被装）；F 桶 verdict 修——`expect_cjk` 全 zh 臂调用点改由 translate chunks 派生（e2e/stagerun×2/e2e_real×2/e2e_mock；worker 侧已转 1e）。
 - **E 桶裁定 pipeline 面收**（peer1）：main_rel 选取加「`\begin{document}` 后实质 body」权重——落点 inject.py `find_main_tex`（1d，task #170）。
@@ -206,16 +206,16 @@ pst-node×11 / jheppub×9 / citesort×7 / diagrams×7 / axodraw×5 / pst-arrow×
 
 ### 路由项落库状态（09-17 凌晨收口，ledger 只记新事实）
 
-| 路由项 | 状态 | 落点 |
-| --- | --- | --- |
-| PH-in-cs L0 第 10 条（双侧夹持+净差，ERROR→重译非 fixloop） | **已落** | `607704e`+`9f96f8b`；pipeline 副层 spec→peer1 |
-| `\t` TS1→TU accent 提升 | **已落** | `ed7b9ac`（tuenc.def 15 项无 `\t` 实证） |
-| jpsj3 目标类可解析守卫 | **已落** | `9c381cf`（`_target_resolvable` rglob+kpsewhich fail-open → reject `latex209_no_target`） |
-| hyperref 驱动剥除 ×2 | 已裁已转 | peer1 rules.yaml（`\\usepackage[dvips\|pdftex]{hyperref}` 剥 key） |
-| aipcheck.tex bundled 覆写 ×2 | **已落** | `1e6ea75`（`JUNK_FILE_STUBS` 挂 normalize_project；maintex 附带：1206.0565 main=aipguide.tex 类指南非论文——E 桶 docs-vs-paper 同族） |
-| slots wave-2（#174/#175/#176 `_seg_join`+`_LATIN_ITEM_RX`） | **已落** | `d54eb74` + e2e 镜像 `7817aa1` |
-| #169 flake | **定案已修** | `1076086`（双闸 + 确定性回归钉） |
-| SLOT_MAX_CHARS / PhValidator（1e xlat-sweep 残余） | **已落** | `558c6c1` |
-| no_main_tex 75 格 | 在飞 | 2f 复验 parse 段回收率；探测改动仍 1d |
+| 路由项                                                        | 状态         | 落点                                                                                                                                 |
+| ------------------------------------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| PH-in-cs L0 第 10 条（双侧夹持 + 净差，ERROR→重译非 fixloop） | **已落**     | `607704e`+`9f96f8b`；pipeline 副层 spec→peer1                                                                                        |
+| `\t` TS1→TU accent 提升                                       | **已落**     | `ed7b9ac`（tuenc.def 15 项无 `\t` 实证）                                                                                             |
+| jpsj3 目标类可解析守卫                                        | **已落**     | `9c381cf`（`_target_resolvable` rglob+kpsewhich fail-open → reject `latex209_no_target`）                                            |
+| hyperref 驱动剥除 ×2                                          | 已裁已转     | peer1 rules.yaml（`\\usepackage[dvips\|pdftex]{hyperref}` 剥 key）                                                                   |
+| aipcheck.tex bundled 覆写 ×2                                  | **已落**     | `1e6ea75`（`JUNK_FILE_STUBS` 挂 normalize_project；maintex 附带：1206.0565 main=aipguide.tex 类指南非论文——E 桶 docs-vs-paper 同族） |
+| slots wave-2（#174/#175/#176 `_seg_join`+`_LATIN_ITEM_RX`）   | **已落**     | `d54eb74` + e2e 镜像 `7817aa1`                                                                                                       |
+| #169 flake                                                    | **定案已修** | `1076086`（双闸 + 确定性回归钉）                                                                                                     |
+| SLOT_MAX_CHARS / PhValidator（1e xlat-sweep 残余）            | **已落**     | `558c6c1`                                                                                                                            |
+| no_main_tex 75 格                                             | 在飞         | 2f 复验 parse 段回收率；探测改动仍 1d                                                                                                |
 
 **镜像漂移二次应验**（教训升级）：`short_arg` 之后 `_seg_join`/`_LATIN_ITEM_RX` 又一次漏镜像——`reconstruct` 译文侧任何字节变换（折叠/保险丝/接缝守卫）必须同查 `e2e._expand_tokens`/`_chunk_spans`，失配=find 失败→spans None→L2 丢块→partial→done 假愈。本波已加 `TestChunkSpansMirror` 回归钉把两类变换锁死。

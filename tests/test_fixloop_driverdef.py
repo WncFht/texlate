@@ -40,9 +40,7 @@ def _ctx(tmp_path: Path, err_head: str = _DRV_ERR) -> LoopCtx:
 
 
 def _rule() -> Rule:
-    return next(
-        r for r in load_ruleset().rules if r.id == "hyperref_driver_neutralize"
-    )
+    return next(r for r in load_ruleset().rules if r.id == "hyperref_driver_neutralize")
 
 
 def _apply(tmp_path: Path) -> tuple[bool, str]:
@@ -197,9 +195,7 @@ def test_driverdef_apply_whitespace_in_braces(tmp_path: Path) -> None:
     )
     ok, _ = _apply(tmp_path)
     assert ok
-    assert "\\def\\@drivername  {xetex}" in (
-        tmp_path / "main.tex"
-    ).read_text()
+    assert "\\def\\@drivername  {xetex}" in (tmp_path / "main.tex").read_text()
 
 
 def test_driverdef_ruleset_loads() -> None:

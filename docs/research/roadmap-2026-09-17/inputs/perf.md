@@ -8,18 +8,18 @@
 
 ## 2. 真实功占比（排队修正后）
 
-| stage | 真实功 | 单位量 | 注 |
-|---|---|---|---|
-| xlat | real 臂 ~24s/id inner；realn200 e2e 中位 77.7s、均值 111s = **单篇 e2e 墙钟 96.8%** | ~15.5s 有效网关延迟/次 | mock 臂 inner 2.3s/id 证机制本身便宜 |
-| fixloop | 97,946s / 7004 行 ≈ 14s/行（中位 9.1，p90 23.6） | 4.55s/round × 均 2.09 rounds + 复核编译 | 69% 引擎墙 + 31% post-verify 编译 + ~1% 外层 |
-| compile | 77,054s / 5043 ids ≈ 15.3s/id | 3.17 引擎调用/id、5.84 passes/id、4.58s 引擎/次 | 行 dur 的 94.7% 是 xelatex 本体；85% 行跑 2 passes |
-| parse | 32,823s / 15,779 ≈ 2.1s（中位 0.85） | — | 小头 |
-| ingest | ~0.5s | — | 可忽略 |
+| stage   | 真实功                                                                              | 单位量                                          | 注                                                 |
+| ------- | ----------------------------------------------------------------------------------- | ----------------------------------------------- | -------------------------------------------------- |
+| xlat    | real 臂 ~24s/id inner；realn200 e2e 中位 77.7s、均值 111s = **单篇 e2e 墙钟 96.8%** | ~15.5s 有效网关延迟/次                          | mock 臂 inner 2.3s/id 证机制本身便宜               |
+| fixloop | 97,946s / 7004 行 ≈ 14s/行（中位 9.1，p90 23.6）                                    | 4.55s/round × 均 2.09 rounds + 复核编译         | 69% 引擎墙 + 31% post-verify 编译 + ~1% 外层       |
+| compile | 77,054s / 5043 ids ≈ 15.3s/id                                                       | 3.17 引擎调用/id、5.84 passes/id、4.58s 引擎/次 | 行 dur 的 94.7% 是 xelatex 本体；85% 行跑 2 passes |
+| parse   | 32,823s / 15,779 ≈ 2.1s（中位 0.85）                                                | —                                               | 小头                                               |
+| ingest  | ~0.5s                                                                               | —                                               | 可忽略                                             |
 
 ## 3. Top-5 热点
 
 1. **网关翻译延迟 ≈ e2e 墙钟 97%**——分解为 `ceil(batches/concurrency) × ~15.5s`；realn200 中位 97.5 chunks → 49 batches，attempts/chunks 仅 1.013（重试非罪魁，裸延迟是）。**server 任务跑 concurrency=3**（`worker/translate.py:120`）而管线 `DEFAULT_CONCURRENCY=10`（`pipeline.py:66`）：49-batch 论文 server 侧 ≈ 17 波 ≈ 260s vs 10 并发 ≈ 5 波 ≈ 78s。杠杆：server 默认 3→10（多 batch 论文估 ~3×）、`batch_max_chars` 上调（调用数减）、供应商延迟。
-2. **xelatex 调用体量**——compile stage 引擎 72,989s / 15,948 次；85% 行吃 2 passes（TOC/refs 二遍）；fixloop 每行再补 ~4.3s post-verify 编译（合计 30,045s）实质重跑一遍引擎刚跑过的编译。杠杆：无 ref/toc delta 时单遍跳过；fix-end verdict 已 clean 时去重 post-verify；估 fail-path 群 −40~50% 引擎秒。
+2. **xelatex 调用体量**——compile stage 引擎 72,989s / 15,948 次；85% 行吃 2 passes（TOC/refs 二遍）；fixloop 每行再补 ~~4.3s post-verify 编译（合计 30,045s）实质重跑一遍引擎刚跑过的编译。杠杆：无 ref/toc delta 时单遍跳过；fix-end verdict 已 clean 时去重 post-verify；估 fail-path 群 −40~~50% 引擎秒。
 3. **fixloop 引擎墙**——67,121s、4.55s/round × 均 2.09 rounds；`unfixable:*` 行（437）仍烧完 rounds 才宣判。杠杆：已知不可修签名前置 category 预判跳轮。
 4. **xlat dur_s 度量件伪影**（§1）——堵住诚实 stage 核算；修 = t0 挪进 sem 或记 `queue_wait_s`。
 5. **重复 scan + O(n²) 状态写**——`_translate_tree` 每臂重跑 `e2e._scan_tree`（parse.json 已存在，xlat 重分整树，在未计时外区）；`StateStore.save_every=1`（`state.py:169-176`）每 chunk 重写整份 state.json（自注 O(n²)），`save_cache` 同模式按文件重写。有界未测；估秒级/篇非分钟级。

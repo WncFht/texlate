@@ -41,9 +41,7 @@ _XBB_ERR = "LaTeX Error: Cannot determine size of graphic in fig1.xbb (no Boundi
 _ERR_HEAD = _PIPE_ERR + "\n" + _XBB_ERR
 
 
-def _ctx(
-    tmp_path: Path, err_head: str = _ERR_HEAD, runner: object = None
-) -> LoopCtx:
+def _ctx(tmp_path: Path, err_head: str = _ERR_HEAD, runner: object = None) -> LoopCtx:
     ctx = LoopCtx(
         wdir=tmp_path, engine_name="xelatex", main_rel="main.tex", runner=runner
     )

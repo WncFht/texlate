@@ -408,9 +408,7 @@ def test_physics_input_chapter_forms_not_stub(tmp_path: Path) -> None:
 def test_physics_wrap_skips_sty_host(tmp_path: Path) -> None:
     """``.sty`` 宿主内 ``\\input{physics.sty}`` → @ 本即 letter 不包。"""
     _write_main(tmp_path, "\\usepackage{physics}")
-    (tmp_path / "helper.sty").write_text(
-        "\\input{physics.sty}\n", encoding="utf-8"
-    )
+    (tmp_path / "helper.sty").write_text("\\input{physics.sty}\n", encoding="utf-8")
     (tmp_path / "physics.sty").write_text(_STUB, encoding="utf-8")
     physics_stub_detach(_ctx(tmp_path), None, None, {})
     st = (tmp_path / "helper.sty").read_text(encoding="utf-8")

@@ -8,7 +8,7 @@
 
 **第二批（性能热点，可打包一次做）**：`all_chunks` 每任务 5~7 次全量物化（worker#2）；事件写路径双跳事务 + fixloop/babeldoc 日志逐行扇出合批（worker#3 = be#3 同发现）；translate 段 50ms `store.get` 降频（worker#4）；`_PerCallTranslator` 每 unit 建 client 改 loop 绑定缓存（worker#5）；`_emit_html_dom` 4 次全树解析→2 次（worker#6）；babeldoc 进度帧节流（worker#7）；fe-M4 单栏保存抹对侧位置（server positions 字段级合并）；fe-M7 `request()` 无超时；fe-M9 任务行引用重建换 keyed/Index。
 
-**第三批（UX 升级，用户最可感知）**：fe-U1 翻译中流式预览（chunks 实时预览或 arxiv.org 原文预读）；fe-U2 DomPane 加载 veil+失败重试；fe-U3 切栏重挂 PDF（display:none 保活）；fe-U4 HtmlPane content-visibility 分批渲染；fe-U5 任务搜索/筛选/批量管理；fe-U6 暗色主题（CSS 已全变量，~15 变量覆盖）；fe-U7 fatal 页重试钮；fe-U9 document.title 进度；fe-U10 完成通知；fe-U11 partial 嵌 ProgressGrid 显示失败格；fe-U12 html/dom 缩放死控件改 font-size 档；fe-U13 键盘面；fe-U14 小项打包（详见下）。
+**第三批（UX 升级，用户最可感知）**：fe-U1 翻译中流式预览（chunks 实时预览或 arxiv.org 原文预读）；fe-U2 DomPane 加载 veil+ 失败重试；fe-U3 切栏重挂 PDF（display:none 保活）；fe-U4 HtmlPane content-visibility 分批渲染；fe-U5 任务搜索/筛选/批量管理；fe-U6 暗色主题（CSS 已全变量，~15 变量覆盖）；fe-U7 fatal 页重试钮；fe-U9 document.title 进度；fe-U10 完成通知；fe-U11 partial 嵌 ProgressGrid 显示失败格；fe-U12 html/dom 缩放死控件改 font-size 档；fe-U13 键盘面；fe-U14 小项打包（详见下）。
 
 **第四批（重构/运维面，roadmap 级）**：Reader.tsx 1127 行拆分（texlate-2d 已认领，切口见 fe-R1）；client.ts 748 行拆 types/rest/sse/idem；`ctx.set_option` 收口 options 四步散落 5 处（worker#11）；TaskCtx 17 字段分组（worker#12）；app.py 1876 行拆 APIRouter（be#20）；store.conn 三处逃逸收口 + list_tasks 死代码（be#13）；并行槽位前置盘点（worker#8，改动面已摸清：`_current` 单槽→dict、实例态 per-run 化、编译独立 Semaphore）；产物 GC/TTL + index.jsonl 重建策略（be#15）；server 模式 health 深度 + metrics 面（be#16、worker#13 stage 耗时）。
 
@@ -36,7 +36,7 @@
 
 9. `_materialize_reuse` copyfile TOCTOU → 错配错误码（fetch.py:224-235，FileNotFoundError→parse fault 而非 reuse_dead 回退）；copyfile 包 try OSError→按缺失计。
 10. `_teardown_translate` 的 `suppress(CancelledError)` 吞二次 cancel（translate.py:193-194）；换 `run_task.cancel(); await asyncio.wait({run_task})`。
-11. options「读-改-写-同步 row」四步散落 5 处（fetch.py:80/129/265、parse.py:107、share.py:271/317/348）——`ctx.set_option` 单点封装。
+11. options「读 - 改-写 - 同步 row」四步散落 5 处（fetch.py:80/129/265、parse.py:107、share.py:271/317/348）——`ctx.set_option` 单点封装。
 12. TaskCtx 17 字段平铺隐式传递（_common.py:200-256）——namespace 分组或分节注释。
 13. 无每阶段耗时结构化度量——`run()` 在 `_stage` 进入点记 monotonic，done 载荷附 `stage_seconds`。
 14. `_compile_zh` 抛异常时无降级产物臂——`_build_dual` 可挪进异常臂。
@@ -63,7 +63,7 @@
 
 ### UX 提升（重点）
 
-- **U1（med-high）翻译中零可读内容** — 最长阶段只有格子+日志。a) `GET /api/task/{id}/chunks` + 进度页内嵌只读流式预览（后端小改）；b) 零成本版：iframe/新窗 arxiv.org/pdf/{id} 预读原文。
+- **U1（med-high）翻译中零可读内容** — 最长阶段只有格子 + 日志。a) `GET /api/task/{id}/chunks` + 进度页内嵌只读流式预览（后端小改）；b) 零成本版：iframe/新窗 arxiv.org/pdf/{id} 预读原文。
 - **U2（med）DomPane 拉取期全白、失败与空同文案** — 加 veil + 失败文案/重试钮。
 - **U3（med）split↔单栏切换重挂 PdfPane → 整份 PDF 重载** — 隐藏侧 display:none 保活（需实测）或先给预期提示。
 - **U4（med）HtmlPane 一次性同步渲染全部 chunks** — `.chunk{content-visibility:auto}` 一招先吃大半收益，或 IO 懒渲/rIC 分批。
@@ -76,7 +76,7 @@
 - **U11（low-med）partial 不指出哪些段失败** — ProgressGrid 嵌进 result-banner。
 - **U12（low-med）html/dom 缩放死控件** — font-size 档位让控件全域生效。
 - **U13（low-med）键盘面太薄** — `1/2/3` 模式、`s` 同步、`[`/`]` 翻页、`?` 帮助。
-- **U14（low）小项打包** — needs_auth 加 #/settings 链接；上传客户端预检+处理中不定态+批量拖放；渲染外链 target=_blank；toolbar arxiv.org/abs 直达；≤640px 默认单栏译文；切模式前批注将丢提示；PdfPane 错误 veil 重试钮；fmtRel 静态不刷新 60s tick；列表/reader 骨架屏；Settings providers preset 一键填；share_key 复制钮；分栏拖拽 divider。
+- **U14（low）小项打包** — needs_auth 加 #/settings 链接；上传客户端预检 + 处理中不定态 + 批量拖放；渲染外链 target=_blank；toolbar arxiv.org/abs 直达；≤640px 默认单栏译文；切模式前批注将丢提示；PdfPane 错误 veil 重试钮；fmtRel 静态不刷新 60s tick；列表/reader 骨架屏；Settings providers preset 一键填；share_key 复制钮；分栏拖拽 divider。
 - **U15（low）a11y 散点** — `.tp-bar` 无 progressbar 语义；auth-key-input 无 label；`.tb-menu` 无 roving；菜单关闭焦点不回触发源；Segmented 无 Home/End。
 
 ### 性能
@@ -85,7 +85,7 @@
 - P2 ProgressGrid 每帧 O(total)：mergeChunkItems slice+copy + cells() 全量重算——5000 段×5000 帧≈25M。
 - P3 capturePos 每滚动帧 `[...pages].reverse()`——反向索引遍历不复制。
 - P4 loadReader 串行——Promise.all 省 1 RTT。
-- P5 其余已干净：index.js 65KB 壳、pdf.worker 单份、lazy+预取在位。
+- P5 其余已干净：index.js 65KB 壳、pdf.worker 单份、lazy+ 预取在位。
 
 ### 重构
 
@@ -103,7 +103,7 @@ chunk seq 0-based 与 dense 合并自洽；事件 seq 单调不随 retry 重置�
 
 ### Med
 
-1. **loop 线程重 I/O 残余** — upload sniff+write_bytes ≤80MB（app.py:1239/1255）、share_pack manifest+index_lookup（app.py:1428/1446，worker 侧同面已 _to_thread 而 API 侧在 loop）、rmtree 任务目录（app.py:1643/1694/1272）。修：to_thread 包一层。
+1. **loop 线程重 I/O 残余** — upload sniff+write_bytes ≤80MB（app.py:1239/1255）、share_pack manifest+index_lookup（app.py:1428/1446，worker 侧同面已 `_to_thread` 而 API 侧在 loop）、rmtree 任务目录（app.py:1643/1694/1272）。修：to_thread 包一层。
 2. **quota 形同虚设 + key 轮转绕过** — incoming_bytes 只计 upload/share_import（app.py:843-871）；tenant=sha256(key) 换 key 即新桶。定位设计缺口：文档明示或加全局/每 IP 兜底。
 3. **事件写路径双跳事务**（同 worker#3）。
 4. **`options["share"]` 在 64KB 闸之后注入** — app.py:1328 闸后 :1330-1335 塞 share 载荷，manifest contributor 无字段上限 → options_json 可膨胀 ~1MB 拖累每次 store.get。修：`_manifest_checked` 加字段级上限或注入后重跑闸。
@@ -120,7 +120,7 @@ chunk seq 0-based 与 dense 合并自洽；事件 seq 单调不随 retry 重置�
 12. settings 标量字段不查类型——dict/list 被 str() 持久化成字面量（settings.py:281-303）。修：标量拒非 str。
 13. `store.conn` 三处逃逸（app.py:605/1640、runner.py:81）+ `list_tasks` 死代码——收口 + 删/改名。
 14. `SettingsStore.load()` 浅拷贝共享嵌套容器（settings.py:425-449）——deepcopy 或只读封装。
-15. 无产物 GC/TTL——tasks/{id}、translation_cache、share_dir、index.jsonl 只增不减；`_sweep_orphan_task_dirs` 仅启动时跑。TTL+周期 sweep；index.jsonl 可由包重派生。
+15. 无产物 GC/TTL——tasks/{id}、translation_cache、share_dir、index.jsonl 只增不减；`_sweep_orphan_task_dirs` 仅启动时跑。TTL+ 周期 sweep；index.jsonl 可由包重派生。
 16. server 模式 health 过度脱敏 + 无 metrics——保留 ok+db+queue_depth；无任务计数/排队时长暴露面。
 17. JSON 端点共享 80MB body 上限（app.py:807-841）——JSON 单独 cap 1-4MB。
 18. SSE 重放缺口无信号——last_id 落已淘汰区段静默跳过；检出 `first.seq > last_id+1` 补 resync 帧。
@@ -129,4 +129,4 @@ chunk seq 0-based 与 dense 合并自洽；事件 seq 单调不随 retry 重置�
 
 ### 已验证安全（be）
 
-zip 声明值硬截断+CRC 无 bomb 旁路；FileResponse Range+ETag 可用；幂等检查+insert 单进程原子；EventBus subscribe-before-replay+去重+_RESYNC 完整；单写者无死锁环；insert_chunks/flush_chunk_batch BEGIN IMMEDIATE 原子；unpack_share 对账+tmp→rename 零半包；一轮修复全复验在位；request_gate 四层自洽；_service_lock/thin client 正确。
+zip 声明值硬截断+CRC 无 bomb 旁路；FileResponse Range+ETag 可用；幂等检查+insert 单进程原子；EventBus subscribe-before-replay+ 去重+_RESYNC 完整；单写者无死锁环；insert_chunks/flush_chunk_batch BEGIN IMMEDIATE 原子；unpack_share 对账+tmp→rename 零半包；一轮修复全复验在位；request_gate 四层自洽；_service_lock/thin client 正确。

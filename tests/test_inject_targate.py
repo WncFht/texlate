@@ -115,7 +115,11 @@ def test_prepare_chinese_rejects_tar_main(tmp_path: Path) -> None:
 def test_ustar_text_no_false_positive(tmp_path: Path) -> None:
     """正文含 ``ustar`` 字样（恰落魔数偏移 257）：chksum 校验挡假阳。"""
     head = b"\\documentclass{article}\n"
-    blob = head + b"x" * (257 - len(head)) + b"ustar\n\\begin{document}\nx\n\\end{document}\n"
+    blob = (
+        head
+        + b"x" * (257 - len(head))
+        + b"ustar\n\\begin{document}\nx\n\\end{document}\n"
+    )
     assert blob[257:262] == b"ustar"  # 魔数落正位——纯文本照过闸
     (tmp_path / "main.tex").write_bytes(blob)
     assert find_main_tex(tmp_path) == tmp_path / "main.tex"

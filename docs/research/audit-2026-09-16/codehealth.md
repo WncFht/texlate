@@ -14,7 +14,7 @@ HEAD `f461683`，审计范围 `src/texlate/`（61 个 py 文件）。只读审�
 ### H1. `server/worker.py:840-848` — `options.main` 越界逃逸（真实漏洞）
 
 ```python
-cand = ctx.base_dir / override          # override 来自 retry body / upload form 字段
+cand = ctx.base_dir / override  # override 来自 retry body / upload form 字段
 ```
 
 无 confinement 检查：`override` 为绝对路径时 `Path / absolute` 直接丢弃 base_dir；`..` 串也能逃出任务目录。`is_file()` 通过后 `ctx.main_rel` 指向树外文件 → `compile()` 以 `cwd=parent`、`-output-directory=<parent>` 在树外写构建产物；`normalize`/`inject` 的 in-tree 假设被架空。server 模式下任意租户对自身任务即可触发，本机模式下是自伤。修复：`cand.resolve().is_relative_to(ctx.base_dir.resolve())` + 拒绝绝对路径。
@@ -24,7 +24,7 @@ cand = ctx.base_dir / override          # override 来自 retry body / upload fo
 `RedactFilter` docstring 自称"防线 #2"（logging filter 擦 api_key），但全库无任何 `addFilter`/`install` 调用——**从未挂载**。叠加 `xlat/client.py:161`：
 
 ```python
-msg = f"HTTP {status}: {body[:300]}"   # body = 远端响应体，攻击者可控
+msg = f"HTTP {status}: {body[:300]}"  # body = 远端响应体，攻击者可控
 ```
 
 该字符串进异常 → `worker._fail` → `error_json` 持久化到 SQLite + `log.exception` 进日志。恶意/被控网关可在响应体里回显 `Authorization: Bearer sk-...` 形状的串（或任何 secret 形态），写进 DB 与日志，直接击穿"key 绝不进 tasks/files/日志"的不变量。目前只有 `settings_test` 端点和 compile.log 调 `scrub()`。修复：app 启动时把 `RedactFilter` 挂到 root logger，且 `_fail` 前对 `str(e)` 做 `redact()`/`scrub()`。

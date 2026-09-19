@@ -117,14 +117,23 @@ class ScanResult:
 （勘误 2026-09-17：`ArgspecEntry`（model.py:ArgspecEntry）整类未记档——`data/argspec.json` 一行：CTAN 宏/环境包归属 + xparse `signature` + `arg_roles`（text/opt-text 可译，key/verbatim/skip 保护）+ `policy` 兜底（chunk-arg|transparent|key|verbatim|protect|boundary|literal；env 侧 `body_role`: text|verbatim|math|protect）+ `guessed`（族规则推断签名，可审计回滚）+ `also_in` 跨包重名登记。）
 
 ```python
-PH_RX    = re.compile(r"\[\[[A-Z_]+_\d+\]\]")   # 勘误 2026-09-17：无捕获组——findall 直接出整 token
+PH_RX = re.compile(
+    r"\[\[[A-Z_]+_\d+\]\]"
+)  # 勘误 2026-09-17：无捕获组——findall 直接出整 token
 CHUNK_RX = re.compile(r"\[\[CHUNK_(\d+)\]\]")
+
 
 class PlaceholderIssuer:  # 单一单调计数器，跨子扫描器共享（编号冲突教训的扶正）
     def new(typ, body, ph_map) -> str: ...
 
-class ScanState:          # 一切可变状态的共享容器（spawn 只共享这一个引用）
-    issuer; ph_map; chunks; macros; inputs; warnings
+
+class ScanState:  # 一切可变状态的共享容器（spawn 只共享这一个引用）
+    issuer
+    ph_map
+    chunks
+    macros
+    inputs
+    warnings
 ```
 
 ## 3. 扫描状态机
@@ -340,10 +349,10 @@ TeX 三段式借用前两段：Mouth（字符→token）→ Gullet（回压式�
 
 ```python
 class Tok:
-    kind: str    # cs|lbrace|rbrace|mathshift|param|space|eol_par|letter|other|active
-    text: str    # cs→名字 (不含\)，其余→字符本体
-    pos: tuple   # (file_id, offset)；展开产物 = 定义体区间 + gen>0
-    gen: int = 0 # 展开代数：源 token=0，宏展开产物=触发者 gen+1
+    kind: str  # cs|lbrace|rbrace|mathshift|param|space|eol_par|letter|other|active
+    text: str  # cs→名字 (不含\)，其余→字符本体
+    pos: tuple  # (file_id, offset)；展开产物 = 定义体区间 + gen>0
+    gen: int = 0  # 展开代数：源 token=0，宏展开产物=触发者 gen+1
 ```
 
 Mouth 行为（逐条对应 plasTeX Tokenizer）：回压缓冲 `tokbuf` 先空先出、`push_tokens` 逆序塞左端；三态 N/M/S 空白折叠；N 态 `\n`→`eol_par`（`\par` 归一）；**注释整行吞掉不产 token**（`\input`/`% \newcommand` 被注释即消失的保证）；`\`+字母串→cs、`\`+非字母→单字符 cs、cs 后随空白吸收；catcode 表 `cats` 共享可变（`\makeatletter` 翻 `@`——**必须拉取式 tokenize**，预 tokenize 无效；语料实测 14 区 median ~150 字符无害）。
@@ -354,15 +363,15 @@ Mouth 行为（逐条对应 plasTeX Tokenizer）：回压缓冲 `tokbuf` 先空�
 
 ```python
 class Gullet:
-    inputs: list[Mouth]     # 输入栈；read() 拉栈顶、耗尽弹栈
-    macros: ScopeMacroTable # scope 链（§8.5）
-    ifflags: dict[str,bool] # \newif 旗标
-    math_depth: int         # $/\(/\[/math env 计数 → \ifmmode 求值（勘误 2026-09-17：
-                            # impl 无此字段——`\ifmmode` 恒 False，gullet/cond.py:_eval_if；
-                            # 数学区由分段器 raw 拉取成 [[MATH]]，其内 \ifmmode 不经求值）
+    inputs: list[Mouth]  # 输入栈；read() 拉栈顶、耗尽弹栈
+    macros: ScopeMacroTable  # scope 链（§8.5）
+    ifflags: dict[str, bool]  # \newif 旗标
+    math_depth: int  # $/\(/\[/math env 计数 → \ifmmode 求值（勘误 2026-09-17：
+    # impl 无此字段——`\ifmmode` 恒 False，gullet/cond.py:_eval_if；
+    # 数学区由分段器 raw 拉取成 [[MATH]]，其内 \ifmmode 不经求值）
     steps: int = 0
-    BUDGET = 100_000        # 每文档展开步数上限
-    MAX_GEN = 32            # token 代数上限（正常宏嵌套 ≤4 代，8 倍余量）
+    BUDGET = 100_000  # 每文档展开步数上限
+    MAX_GEN = 32  # token 代数上限（正常宏嵌套 ≤4 代，8 倍余量）
     MAX_INPUTS = 8
 ```
 
@@ -420,10 +429,10 @@ ScopeMacroTable.scopes: list[dict]
 
 ### 8.6 `\if` 族两档策略（与 plasTeX 全求值的刻意分歧）
 
-| 档位         | 条件族                                                                                                                                                                                                                                     | 处理                                                                                                          |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
+| 档位         | 条件族                                                                                                                                                                                                                                                                                                                           | 处理                                                                                                          |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
 | **可求值**   | `\iftrue/\iffalse`；`\newif` 旗标；`\ifmmode`（math_depth——勘误 2026-09-17：impl 恒 False，gullet/cond.py:_eval_if，v2 不追踪数学深度实测未踩坑）；`\ifnum/\ifodd/\ifdim` 全字面量；`\ifdefined`；`\if/\ifcat`；`\ifx` 同 literal；`\ifcsname`；`\ifeof/\ifvoid/\ifhbox/\ifvbox/\ifinner`→恒 False；`\ifhmode/\ifvmode`→模式常量 | 读条件→`process_if(bool)`：case 收集只推回选中支（未选支 token 丢弃，其内 `\def` 不执行——TeX 语义一致）       |
-| **不可求值** | 带寄存器/内部量、`\ifx` 对宏、其余一切                                                                                                                                                                                                     | 条件部分按语法读掉；`\if/\else/\fi` 发结构界标 literal piece，**两分支都进分段器**——召回优先，编译端 TeX 自决 |
+| **不可求值** | 带寄存器/内部量、`\ifx` 对宏、其余一切                                                                                                                                                                                                                                                                                           | 条件部分按语法读掉；`\if/\else/\fi` 发结构界标 literal piece，**两分支都进分段器**——召回优先，编译端 TeX 自决 |
 
 `process_if`：`read_stream` 收集未展开 token 到 `\fi`，`\else/\or` 分案例，`\newif` 对整对保留（`\ifx\newif\ify` 序列特例），任何 `if*` 计嵌套，收尾 `\fi` 不推回，`unread(选中支)`。`\ifcase N`→`which=N`。
 
@@ -436,14 +445,17 @@ ScopeMacroTable.scopes: list[dict]
 ## 9. splice 重建
 
 ```python
-def reconstruct(res: ScanResult, translations: dict[int,str] | None) -> str:
+def reconstruct(res: ScanResult, translations: dict[int, str] | None) -> str:
     trans = {"[[CHUNK_k]]": v for k, v in (translations or {}).items()}
     memo = {}
-    def expand(token):                          # token 形如 [[X_n]]
-        if token in memo: return memo[token]
+
+    def expand(token):  # token 形如 [[X_n]]
+        if token in memo:
+            return memo[token]
         body = trans.get(token) or res.ph_map.get(token) or chunk_content(token)
         memo[token] = PH_RX.sub(lambda m: expand(m.group(0)), body)
         return memo[token]
+
     out = [p.text if p.kind is LITERAL else expand(p.text) for p in res.pieces]
     return "".join(out)
 ```

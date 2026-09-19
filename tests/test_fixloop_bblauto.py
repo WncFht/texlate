@@ -16,9 +16,7 @@ from texlate.compile.fixloop._builtins_bib import bbl_stub_rewrite
 from texlate.compile.fixloop.engine import LoopCtx
 from texlate.compile.normalize import use_bundled_bibliography
 
-_DISARM = (
-    r"\makeatletter\@ifundefined{auto@bib}{}{\let\auto@bib\@empty}\makeatother"
-)
+_DISARM = r"\makeatletter\@ifundefined{auto@bib}{}{\let\auto@bib\@empty}\makeatother"
 
 
 def _doc(docclass: str = "revtex4-1") -> str:

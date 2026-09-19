@@ -91,7 +91,7 @@ user_term (CLI --config user_term=xxx.csv)         → 独占加载，不走下�
 
 ```python
 for item in placeholder_list:
-    self.term_dict[item] = item   # ph → ph 恒等映射
+    self.term_dict[item] = item  # ph → ph 恒等映射
 ```
 
 即 `<PLACEHOLDER_CAP_1> → <PLACEHOLDER_CAP_1>` 作为术语条目进 glossary。由于 prompt 宣称 "glossary 是最高优先级规则"，**占位符保护从"请你别动"的软约束升级为"术语替换表规定它映射到自身"的硬约束**。零额外 token 成本（占位符本来就少），直接抄。
@@ -121,9 +121,20 @@ for item in placeholder_list:
 `process_latex.py:process_newcommands`：对每条 `\newcommand/\def` 定义，**仅当定义体 `content_all` 命中白名单子串时才在使用点展开**：
 
 ```python
-replace_newcommand_list = ['equation', 'array', 'displaymath', 'align',
-                           'multiple', 'gather', 'theorem', 'textcolor'] \
-                          + environment_list + command_list
+replace_newcommand_list = (
+    [
+        "equation",
+        "array",
+        "displaymath",
+        "align",
+        "multiple",
+        "gather",
+        "theorem",
+        "textcolor",
+    ]
+    + environment_list
+    + command_list
+)
 # environment_list = ['abstract','acknowledgments','itemize','enumerate',
 #                     'description','list','proof','quote','spacing']
 # command_list     = ['section','subsection','subsubsection','caption',
@@ -293,8 +304,8 @@ User 消息组装（照 `translator_agent.py:664`）：
 翻前准备阶段（glossary 物化时）：
 
 ```python
-for ph in all_placeholders_in_doc:      # [[MATH_n]] [[CITE_n]] ... + [[SL]] [[PL]]
-    glossary[ph] = ph                    # ph → ph 恒等映射, 优先级最低(不覆盖真术语)
+for ph in all_placeholders_in_doc:  # [[MATH_n]] [[CITE_n]] ... + [[SL]] [[PL]]
+    glossary[ph] = ph  # ph → ph 恒等映射, 优先级最低(不覆盖真术语)
 ```
 
 注入后 glossary 尾部追加到 system prompt（见 4.3）。占位符集合随文档物化一次性固定——顺序按 `TYPE` 字典序再按 `n` 数值序（**稳定排序是前缀缓存命中前提**）。

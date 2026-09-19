@@ -55,6 +55,8 @@ from pathlib import Path
 
 import pytest
 
+from texlate.compile.fixloop import load_ruleset
+
 STUBS = (
     Path(__file__).resolve().parent.parent / "src/texlate/compile/fixloop/vendor/stubs"
 )
@@ -440,8 +442,6 @@ def test_svglov3_clo_catcode_immune() -> None:
 
 
 def _shim_map() -> dict[str, dict]:
-    from texlate.compile.fixloop import load_ruleset
-
     rules = {r.id: r for r in load_ruleset().rules}
     return rules["legacy_pkg_shim"].action["params"]["shim_map"]
 
@@ -845,7 +845,9 @@ def test_vendor_stubs_provides_optional_arg_dated() -> None:
             continue
         for line in f.read_text(encoding="latin-1").splitlines():
             code = re.sub(r"(?<!\\)%.*", "", line)
-            for m in rx.finditer(code):
-                if not re.match(r"\s*\d{4}/\d{2}/\d{2}", m.group(1)):
-                    bad.append(f"{f.name}: {m.group(0)}")
+            bad.extend(
+                f"{f.name}: {m.group(0)}"
+                for m in rx.finditer(code)
+                if not re.match(r"\s*\d{4}/\d{2}/\d{2}", m.group(1))
+            )
     assert not bad, "undated \\Provides* optional args: " + "; ".join(bad)

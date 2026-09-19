@@ -1101,7 +1101,7 @@ QC 明细 `bench/work_v3/{layer}/qc.md`（id 唯一/跨层零撞/meta 齐/extrac
   ≤2412 e 带 item + `extract --topup`（quota−实收 差额补位，不动足额 cell）补满，
   残 deficit 6（d|eess 1 + d|hep-phys 5，池内真空）。
 - **recent 321**：sw 池余量切 eprint id 清单（2501+ 月分层均匀），`stratum_cell`
-  =`holdout|recent`；pdf_only/not_found 记 `recent_fail.jsonl`（33 条）。
+  \=`holdout|recent`；pdf_only/not_found 记 `recent_fail.jsonl`（33 条）。
 
 ### dev_vol —— 体量 dev 层（2,000 篇）
 

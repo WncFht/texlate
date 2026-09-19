@@ -224,11 +224,7 @@ def render_md(name_a, name_b, diffs, deep=False):
                 f"- 共有格 {common} · same {len(d['same'])}"
                 f" · improved {len(d['improved'])} · degraded {len(d['degraded'])}"
                 f" · added {len(d['added'])} · removed {len(d['removed'])}"
-                + (
-                    f" · same-status churn {len(d['churn'])}"
-                    if deep
-                    else ""
-                )
+                + (f" · same-status churn {len(d['churn'])}" if deep else "")
             ),
             "",
         ]
