@@ -80,4 +80,13 @@
 \providecommand{\righthead}[1]{\gdef\@oddhead{\reset@font\it\hfil\uppercase{#1}\hfil}}
 \providecommand{\lefthead}[1]{\gdef\@evenhead{\reset@font\it\hfil\uppercase{#1}\hfil}}
 \newenvironment{acknowledgments}{\section*{ACKNOWLEDGMENTS}}{\par}
+% \tablehead{cols}{align}{font}{text}：真件 aipproc 4 参表头助手
+% (cols 跨列 / align 对齐 / font 字母规格 'b'→bold / text 本体)；
+% stub 出 \multicolumn + csname 派发 (0905.0330 实证:
+% staub.tex:372 \tablehead{1}{r}{b}{Sample} 无 stub 提供 → undefined_cs)。
+% csname 派发无 delimited-arg——未登记字母 (含空/多字符 font 参) →
+% \relax no-op 出裸文; delimited-arg 派生曾咬死: @=letter 下
+% \relax@ 被扫成单 cs 名, @ 定界符永不到场 → runaway (th2 实证)。
+\providecommand{\tablehead}[4]{\multicolumn{#1}{#2}{\csname texlate@aipth@#3\endcsname{#4}}}
+\@namedef{texlate@aipth@b}{\textbf}
 \endinput

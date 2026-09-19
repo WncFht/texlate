@@ -232,31 +232,90 @@ rules:
   # failmine3 lane (8 格: 1206.0213/1404.6041/1511.06706/1706.02532/
   # 1803.00128/1803.00130/1907.00032/2003.10664): graphic_ext_relax(14)
   # 点火剥扩展名或 fileset 闸放行后, .eps 真缺件仍在 —— tar 内图档本就
-  # 未随稿 (arXiv 源缺图常态)。本规则在 wdir 落最小合法 EPS 占位件
+  # 未随稿 (arXiv 源缺图常态)。本规则在解析位落最小合法占位件
   # (BoundingBox + 灰框交叉线): xelatex xdvipdfmx gs distiller 直读不
   # 需 shell-escape (epsprobe -no-shell-escape 实证), tectonic 同链。
   # 选占位文件不改源 —— \epsfig{file=X.eps} kv 形与宏定义位 #1.eps
   # 引用正则够不着, 落盘文件统一可解。序在 includepdf_stub(17.5) 后:
-  # 缺件两臂 (pdf 页/eps 图) 各管各域。builtin 内置守卫: 非 PS 族
+  # 缺件两臂 (pdf 页/eps 图) 各管各域。builtin 内置守卫: 非图形族
   # 后缀拒、无扩展 payload 须有存活图形引用作证、.. 与出 wdir 拒。
+  # 2026-09-19 failmine4-covgap 扩臂 (6 格: 2501.01402/2501.01329/
+  # 2509.14901 +3): xetex "Unable to load picture or PDF file 'x.png'"
+  # 措辞走 missing_graphic 类目 —— 原 missing_file-only when 永不
+  # dispatch; when 加 missing_graphic 臂 + condition 加 xetex 措辞,
+  # builtin 同步按后缀分发真格式占位 (PNG/JPEG/PDF 二进制, 见
+  # _builtins_graphics _*_PLACEHOLDER), 落盘基址改 main_dir (TeX
+  # cwd 解析位 —— 子目录 main 时 wdir 根位不可见)。
+  # fmsingles census (failmine4 item5, 1012.1365): 随源 PoS.cls 是 dvips
+  # 时代 \\ifpdf 路由 —— else 支 ``\\DeclareGraphicsExtensions{.ps,.eps,.pstex}``
+  # 在 xelatex 下整表不可解 (normalize 的 \\ifpdf→\\iftrue 补丁只罩 breakurl
+  # 装载段, 裸 \\ifpdf 已复元) → 6 处无扩展引用全报 "File `X' not found"
+  # + "I could not locate the file with any of these extensions: .ps,.eps,.pstex"
+  # (PoSlogo + plots/*5 全部 .pdf 在盘)。签名归 other —— 无扩展名够不着
+  # missing_file 的 \\.ext 锚。修法 = PS-only 扩展表前置 .pdf/.png/.jpg/.jpeg
+  # (unicode 引擎原生可读格), 含 .pdf 的表不动。序在 placeholder(17.6) 前:
+  # 盘上有图时补表即解, 占位是缺件兜底不该先动。
+  - id: graphics_ext_pslist_repair
+    description: "unicode 引擎下 PS-only \\DeclareGraphicsExtensions 表 → 前置 .pdf/.png/.jpg/.jpeg"
+    phase: loop
+    order: 17.55 # graphic_ext_relax(14) 剥名后形如本签; placeholder(17.6) 前 —— 有件先解件
+    when:
+      any:
+        - { category: missing_file, payload_required: true }
+        - { category: missing_graphic, payload_required: true }
+        - { category: other }
+    condition:
+      ctx_suggests: "could not locate the file with any of these extensions"
+      source_contains: "\\\\DeclareGraphicsExtensions\\s*\\{(?![^}]*\\.pdf)"
+      engine_in: [xelatex, tectonic]
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty, .cls]
+        rewrites:
+          # 负前瞻锁"表内无 .pdf"才补 (PoS.cls 真支 {.pdf,.jpg,.jpeg} 不动);
+          # masked 面注释内声明不算位
+          - {
+              pattern: "(\\\\DeclareGraphicsExtensions\\s*\\{)(?![^}]*\\.pdf)([^}]*)\\}",
+              repl: "\\g<1>.pdf,.png,.jpg,.jpeg,\\g<2>}",
+              match_surface: masked,
+            }
+    risk: low # 只加候选扩展名; unicode 引擎下 .ps/.eps/.pstex 本不可读
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same } # bundled xdvipdfmx 同表语义
+    provenance:
+      - {
+          corpus: "1012.1365 (stagerun-loop2/loop3; failmine4 item5)",
+          error: "File `PoSlogo' not found + could not locate the file with any of these extensions: .ps,.eps,.pstex (PoS.cls \\ifpdf else 支)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-fmsingles/; PoS.cls:205-210 \\ifpdf 分支; normalize.py breakurl-scoped \\ifpdf patch"
+
   - id: graphic_missing_placeholder
     mechanisms: [W21]
-    description: "missing_file 的 .eps/.ps 图档真缺件 → wdir 落最小合法 EPS 占位文件"
+    description: "missing_file/missing_graphic 图档真缺件 → 解析位落最小合法格式占位 (EPS/PNG/JPEG/PDF 按后缀)"
     phase: loop
     order: 17.6 # includepdf_missing_stub(17.5) 后, graphic_repair(18) 前
-    when: { category: missing_file, payload_required: true }
+    when:
+      any:
+        - { category: missing_file, payload_required: true }
+        - { category: missing_graphic, payload_required: true }
     condition:
       any:
-        # raw 粗筛两臂: 带 PS 扩展名直中; 无扩展名 (ext_relax 剥后形态)
+        # raw 粗筛三臂: 带 PS 扩展名直中; 无扩展名 (ext_relax 剥后形态)
         # 进 builtin 内 live-ref 复核 (1803.00128: 剥后报错仍带 .eps,
-        # extless 形为 graphicx 全扩展试尽后的兜底签名)
+        # extless 形为 graphicx 全扩展试尽后的兜底签名); xetex 图形域
+        # "Unable to load" 措辞臂 (failmine4-covgap, missing_graphic 专属
+        # 签名, 对 missing_file 臂无害 —— 非图形后缀 builtin 内拒)
         - { ctx_suggests: "\\.(eps|ps|epsi|epsf)' not found" }
         - { ctx_suggests: "File `[^']+' not found" }
+        - { ctx_suggests: "Unable to load picture or PDF file" }
     action:
       kind: builtin_transform
       function: graphic_missing_placeholder
       params: {}
-    risk: low # 只加占位文件不改源; 非图域 payload builtin 内拒; 落盘留 %%Title 痕
+    risk: low # 只加占位文件不改源; 非图域 payload builtin 内拒; 落盘留 %%Title/COM 痕
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same } # bundled xdvipdfmx 同 gs distiller 链
@@ -265,8 +324,12 @@ rules:
           corpus: "failmine3 loop3 8 格 (1206.0213/1404.6041/1511.06706/1706.02532/1803.00128/1803.00130/1907.00032/2003.10664)",
           error: "File `X.eps' not found — graphic_ext_relax 已点火, tar 内图档真缺",
         }
+      - {
+          corpus: "failmine4-covgap v3all 6 格 (2501.01402/2501.01329/2509.14901/2501.01425/2603.08153/2604.03907)",
+          error: "Unable to load picture or PDF file 'x.png' — xetex 图形域缺件措辞, missing_graphic 类目",
+        }
     stats: { fires: 0, status: proposed }
-    source_ref: "tmp/lane-failmine3/ (#164a); epsprobe 真编译臂 -no-shell-escape 验证"
+    source_ref: "tmp/lane-failmine3/ (#164a); epsprobe 真编译臂 -no-shell-escape 验证; tmp/lane-covgap/ (二进制占位实证)"
 
   - id: graphic_repair
     description: "missing_graphic 在盘但拒载 → gs 重蒸馏就地覆盖, 败则 \\fbox 占位"

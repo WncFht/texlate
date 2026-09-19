@@ -22,6 +22,7 @@ from texlate.textutil import (
     _TAR_HEADER_LEN,
     CJK_RX,
     DOCCLASS_RX,
+    INPUT_BARE_RX,
     _tar_header_ok,
     mask_tex,
     safe_is_file,
@@ -587,11 +588,61 @@ def extract_tar_blobs(
 _BEGIN_DOC_RE = re.compile(r"\\begin\s*\{document\}")
 _END_DOC_RE = re.compile(r"\\end\s*\{document\}")
 
+#: 单参 input 族执行面 —— 这些命令真把目标文件吸进编译流
+#: (``\includegraphics`` 等非同族词干由 ``\s*\{`` 紧随约束排除)。
+_INPUT_EXEC1_RX = re.compile(
+    r"\\(?:input|include|subfile|subfileinclude|includestandalone"
+    r"|InputIfFileExists)\s*\{([^}]*)\}"
+)
+#: 双参 import 族 —— 第一参目录前缀, 第二参文件名。
+_INPUT_EXEC2_RX = re.compile(
+    r"\\(?:import|subimport|includefrom|subincludefrom|inputfrom)"
+    r"\s*\{([^}]*)\}\s*\{([^}]*)\}"
+)
+
+
+def _input_targets(arg: str) -> list[str]:
+    r"""input 族参数 → 候选相对路径 (空 = 构造名/宏名, 不可静态解析)。"""
+    a = arg.strip().strip('"').strip()
+    if not a or any(c in a for c in "{}\\"):
+        return []
+    if a.lower().endswith(".tex"):
+        return [a]
+    return [a, a + ".tex"]
+
+
+def _exec_referenced_paths(ctx: LoopCtx) -> set[Path]:
+    r"""全工程存活 input 族引用 → resolve 绝对路径集 (2409.00265 门)。
+
+    遮盖视图扫描全 .tex/.sty/.cls: 注释/verbatim 内引用不算位; 宏体
+    内引用过近似收 (宏可能永不被调 —— 宁多勿少, 漏引才是 2409.00265
+    式灾难方向)。
+    """
+    refs: set[Path] = set()
+    for src in ctx.tex_files((".tex", ".sty", ".cls")):
+        t = ctx.read(src)
+        if t is None:
+            continue
+        masked = mask_tex(t)
+        for m in _INPUT_EXEC1_RX.finditer(masked):
+            for cand in _input_targets(m.group(1)):
+                refs.add((src.parent / cand).resolve())
+        for m in _INPUT_EXEC2_RX.finditer(masked):
+            d = m.group(1).strip().strip('"')
+            if any(c in d for c in "{}\\"):
+                continue  # 目录参含宏/构造 —— 不可静态解析, 弃
+            for cand in _input_targets(m.group(2)):
+                refs.add((src.parent / d / cand).resolve())
+        for m in INPUT_BARE_RX.finditer(masked):
+            for cand in _input_targets(m.group("arg")):
+                refs.add((src.parent / cand).resolve())
+    return refs
+
 
 def subfile_docclass_strip(
     ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
 ) -> tuple[bool, str]:
-    r"""非主 ``.tex`` 含存活 ``\documentclass`` → 剥至 ``\begin..\end{document}`` 内文。
+    r"""被 input 族引用的非主 ``.tex`` 含存活 ``\documentclass`` → 剥至 body。
 
     inject 前导块 (``\PassOptionsToPackage{no-math}{fontspec}`` +
     ``\AddToHook`` 能力适配串) 逐文件打进全部 .tex —— 落在自带
@@ -610,12 +661,17 @@ def subfile_docclass_strip(
     不算位; ``DOCCLASS_RX`` 兼收 ``\documentstyle`` (2.09 子文档同机理)。
     无 ``\begin{document}`` 的异形制不动 (无可剥区)。主档经
     ``ctx.main_path()`` 排除 —— resolve 双端比对防路径形态差。
+
+    引用门 (2409.00265): 只剥被存活 input 族命令引用的文件 —— 无引用
+    的 docclass 持件 (独立第二文档, 或 main 误判下的真主档) 永远进不了
+    编译流, 剥它是纯害 (2409.00265: precheck 误选 Biography 为主档,
+    真主档 Main 被剥成 body → env_undefined|frontmatter + 1326 错级联)。
     """
     del eng, payload
     main = ctx.main_path()
     main_res = main.resolve() if main is not None else None
     exts = tuple(params.get("exts") or (".tex",))
-    changed = 0
+    cands: list[tuple[Path, str, re.Match[str], re.Match[str] | None]] = []
     for f in ctx.tex_files(exts):
         if main_res is not None and f.resolve() == main_res:
             continue
@@ -628,7 +684,14 @@ def subfile_docclass_strip(
         mb = _BEGIN_DOC_RE.search(masked)
         if mb is None:
             continue  # 无 body 区 —— 非输入式子文档, 不动
-        me = _END_DOC_RE.search(masked, mb.end())
+        cands.append((f, t, mb, _END_DOC_RE.search(masked, mb.end())))
+    if not cands:
+        return False, "no docclass-bearing non-main .tex"
+    referenced = _exec_referenced_paths(ctx)
+    changed = 0
+    for f, t, mb, me in cands:
+        if f.resolve() not in referenced:
+            continue  # 无存活引用 —— 独立第二文档/误判主档, 剥了也进不了编译流
         body = t[mb.end() : me.start() if me is not None else len(t)]
         ctx.write(
             f,
@@ -636,7 +699,7 @@ def subfile_docclass_strip(
         )
         changed += 1
     if not changed:
-        return False, "no docclass-bearing non-main .tex"
+        return False, "no input-referenced docclass-bearing non-main .tex"
     return True, f"body-only strip in {changed} file(s)"
 
 

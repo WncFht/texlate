@@ -5,6 +5,10 @@ failmine3 #164b (3 格): standalone/subfiles 子文档被 \\input/\\subimport
 剥至 \\begin..\\end{document} 内文是 \\subfile/\\includestandalone 包
 skip 机制的恒等语义, 也是裸 \\input 唯一可编译形。与 #168 subfilegate
 (normalize 注入侧门) 互补: 一侧挡新毒, 一侧清自带毒。
+
+引用门 (2409.00265): 只剥被存活 input 族命令 (\\input/\\include/
+\\subfile/\\import 族/\\InputIfFileExists) 引用的文件 —— 无引用的
+docclass 持件 (独立第二文档/误判主档下的真主档) 永不进编译流。
 """
 
 from __future__ import annotations
@@ -101,7 +105,11 @@ def test_multiple_subfiles_all_stripped(tmp_path: Path) -> None:
     ctx = _ctx(
         tmp_path,
         {
-            "main.tex": _MAIN,
+            # \\input{sub} braced + bare \\input a/app 两形引用臂同测
+            "main.tex": (
+                "\\documentclass{article}\n\\begin{document}\n"
+                "\\input{sub}\n\\input a/app\n\\end{document}\n"
+            ),
             "sub.tex": _SUB,
             "a/app.tex": _SUB.replace("Sub body", "Appendix body"),
         },
@@ -111,6 +119,51 @@ def test_multiple_subfiles_all_stripped(tmp_path: Path) -> None:
     assert "2 file(s)" in note
     assert "Sub body" in (tmp_path / "sub.tex").read_text(encoding="utf-8")
     assert "Appendix body" in (tmp_path / "a/app.tex").read_text(encoding="utf-8")
+
+
+def test_subimport_twoarg_reference(tmp_path: Path) -> None:
+    ctx = _ctx(
+        tmp_path,
+        {
+            "main.tex": (
+                "\\documentclass{article}\n\\begin{document}\n"
+                "\\subimport{a}{app}\n\\end{document}\n"
+            ),
+            "a/app.tex": _SUB,
+        },
+    )
+    ok, _note = subfile_docclass_strip(ctx, None, None, {"exts": [".tex"]})
+    assert ok
+    assert "Sub body" in (tmp_path / "a/app.tex").read_text(encoding="utf-8")
+
+
+def test_unreferenced_docclass_doc_untouched(tmp_path: Path) -> None:
+    # 2409.00265: 无存活 input 族引用的 docclass 持件 (独立第二文档/
+    # 误判主档下的真主档) 永不进编译流 —— 剥它是纯害, 门后跳过
+    ctx = _ctx(
+        tmp_path,
+        {
+            "main.tex": _MAIN,
+            "sub.tex": _SUB,
+            "Biography.tex": _SUB.replace("Sub body", "Bio body"),
+        },
+    )
+    ok, note = subfile_docclass_strip(ctx, None, None, {"exts": [".tex"]})
+    assert ok
+    assert "1 file(s)" in note
+    bio = (tmp_path / "Biography.tex").read_text(encoding="utf-8")
+    assert "documentclass" in bio
+    assert "Bio body" in bio
+
+
+def test_only_unreferenced_returns_false(tmp_path: Path) -> None:
+    ctx = _ctx(tmp_path, {"main.tex": _MAIN, "Biography.tex": _SUB})
+    ok, note = subfile_docclass_strip(ctx, None, None, {"exts": [".tex"]})
+    assert not ok
+    assert "input-referenced" in note
+    assert "documentclass" in (tmp_path / "Biography.tex").read_text(
+        encoding="utf-8"
+    )
 
 
 def test_rule_sits_between_tar_extract_and_precheck() -> None:

@@ -419,6 +419,111 @@ def physics_stub_detach(
     return True, "physics stub detached: " + "; ".join(parts)
 
 
+#: ``\\usepackage``/``\\RequirePackage`` 名单内含 ``siunitx`` 的装载点
+#: (元素级判定在站点收集后做——``{siunitx-blah}`` 这类 ``\\b`` 误命中由此滤掉)。
+_SIU_LIST_RE = re.compile(
+    r"\\(usepackage|RequirePackage)(\s*\[[^\]\n]*\])?\s*\{([^}]*)\}"
+)
+#: siunitx v3 ``\\__siunitx_load_check:n`` 的不兼容名单 —— 装载时全查,
+#: ``\\AtBeginDocument`` 复查前三 (SIunits/sistyle/units)。``ver@X.sty``
+#: 置 ``\\relax`` 即从 ``\\@ifpackageloaded`` 注销 (physics_stub_detach
+#: 同机理); 未载过的名 ``\\csname`` 展开本即 ``\\relax``, 幂等无害。
+_SIU_INCOMPAT_PKGS = ("SIunits", "sistyle", "units", "unitsdef", "fancyunits")
+#: 包裹对 —— exact-restore idiom 同 ``_SHIP_WRAP_*``: 宿主 @ 语境不可知,
+#: ``\\edef`` 存现值 ``=11`` 读本族 ``\\@ifundefined``, 尾段恒回原位
+#: (裸 ``\\makeatother`` 会把 @=letter 宿主的后续 @-cs 强翻回 12)。
+_SIU_PEACE_PRE = (
+    "% fixloop: siunitx incompatible-pkg evasion shim\n"
+    "\\edef\\TeXlateStyInRestore{\\catcode 64=\\the\\catcode 64\\relax}"
+    "\\catcode 64=11\\relax\n"
+    "\\@ifundefined{TeXlateSavedUnit}"
+    "{\\@ifundefined{unit}{}{\\let\\TeXlateSavedUnit\\unit\\let\\unit\\relax}}{}\n"
+    + "".join(
+        f"\\expandafter\\let\\csname ver@{p}.sty\\endcsname\\relax\n"
+        for p in _SIU_INCOMPAT_PKGS
+    )
+    + "\\TeXlateStyInRestore\n"
+)
+#: 载后复元 ``\\unit`` —— siunitx ``\\NewDocumentCommand\\unit``(sty:9494)
+#: 在 ``\\unit``=``\\relax`` 下当未定义处理正常落定义, 此处把 units 语义
+#: 装回 (units 的 ``\\unit[value]{unit}`` 与 siunitx ``O{} m`` 签名不兼容,
+#: 用 units 语法的文档必须复元, 2105.03729 ``\\unit[38]{mW}`` 实证)。
+_SIU_PEACE_POST = (
+    "\n\\edef\\TeXlateStyInRestore{\\catcode 64=\\the\\catcode 64\\relax}"
+    "\\catcode 64=11\\relax"
+    "\\@ifundefined{TeXlateSavedUnit}{}"
+    "{\\let\\unit\\TeXlateSavedUnit\\let\\TeXlateSavedUnit\\relax}"
+    "\\TeXlateStyInRestore"
+)
+
+
+def _siunitx_load_sites(t: str) -> list[tuple[int, int, bool]]:
+    r"""siunitx 装载命令顶层 live 站 → ``[(start, end, at_letter)]``。
+
+    ``_sty_input_sites`` 同骨架走查 (遮盖视图 + 深度 0 + ambient @ 栈),
+    宏体/组内 ``\\usepackage`` 不算 (延迟执行语境, 注入文本会在定义点
+    断 ``\\@`` 签名)。``end`` 即 match 本体尾 —— 名单 ``[^}]*`` 不含
+    ``}``, 命令括号已自闭。
+    """
+    vis = mask_tex(t)
+    depth = 0
+    at_letter = False
+    stack: list[bool] = []
+    pos = 0
+    out: list[tuple[int, int, bool]] = []
+    for m in _SIU_LIST_RE.finditer(vis):
+        while pos < m.start():
+            pos, ev = _scope_step(vis, pos)
+            if ev == "open":
+                depth += 1
+                stack.append(at_letter)
+            elif ev == "close":
+                depth -= 1
+                if stack:
+                    at_letter = stack.pop()
+            elif ev is not None:
+                at_letter = ev == "letter"
+        if depth != 0 or vis[m.start() : m.end()] != t[m.start() : m.end()]:
+            continue
+        pkgs = [p.strip() for p in m.group(3).split(",")]
+        if "siunitx" in pkgs:
+            out.append((m.start(), m.end(), at_letter))
+    return out
+
+
+def siunitx_incompat_peace(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""siunitx v3 不兼容名单 (SIunits/sistyle/units/unitsdef/fancyunits) → 注销续载。
+
+    实证 (2105.03729, stagerun-loop3): ``\\usepackage[loose]{units}`` 先于
+    ``\\usepackage{siunitx}`` —— siunitx ``\\__siunitx_load_check:n`` 对
+    ``\\@ifpackageloaded`` 硬报错 (装载时 + ``\\AtBeginDocument`` 双查),
+    且 ``\\NewDocumentCommand\\unit`` 撞 units 已定义 → already_def。
+    三步: 装载点前置 ``ver@X.sty=\\relax`` 注销全部不兼容名 + 存/摘
+    ``\\unit`` (``\\NewDocumentCommand`` 把 ``\\relax`` 当未定义) + 载后
+    复元 ``\\unit`` 为 units 语义。不兼容包本体仍载——只是对 siunitx
+    检查隐身 (``\\nicefrac``/``\\unit`` 语义全留)。
+    """
+    del eng, payload
+    exts = tuple(params.get("exts") or (".tex", ".sty", ".cls"))
+    changed: list[str] = []
+    for f in ctx.tex_files(exts):
+        t = ctx.read(f)
+        if t is None or "siunitx" not in t:
+            continue
+        sites = _siunitx_load_sites(t)
+        if not sites:
+            continue
+        out = t
+        for start, end, _at_letter in reversed(sites):
+            ls = t.rfind("\n", 0, start) + 1
+            out = out[:ls] + _SIU_PEACE_PRE + out[ls:end] + _SIU_PEACE_POST + out[end:]
+        ctx.write(f, out)
+        changed.append(f"{f.name}(x{len(sites)})")
+    return (bool(changed)), f"siunitx evasion shim in {', '.join(changed)}"
+
+
 def shipped_sty_input_wrap(
     ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
 ) -> tuple[bool, str]:

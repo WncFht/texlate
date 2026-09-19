@@ -378,6 +378,46 @@ rules:
     stats: { fires: 5, status: proposed }
     source_ref: "fixer-bblwall-2026-09-17 spec W3; fixer-apjbbx verification.txt L70-86"
 
+  # fmsingles census (failmine4 item5, 2105.03729 stagerun-loop3): siunitx v3
+  # \__siunitx_load_check:n 对不兼容名单 {SIunits,sistyle,units,unitsdef,
+  # fancyunits} 做 \@ifpackageloaded 硬报错 (装载时 + AtBeginDocument 复查
+  # 前三), 且 \NewDocumentCommand\unit 撞 units 已定义 → already_def。
+  # 该格三签名同机理: incompatible×2 (other) + \unit already_def +
+  # \close@column@grid 级联。修法 = 装载点前置 ver@X.sty=\relax 注销全部
+  # 不兼容名 (physics_stub_detach 同机理) + 存/摘 \unit 让 siunitx 落定义
+  # + 载后复元 units 语义 (\unit[38]{mW} units 语法实证, tmp/lane-fmsingles)。
+  - id: siunitx_incompat_peace
+    mechanisms: [W100]
+    description: "siunitx v3 不兼容名单 (units/SIunits 等) \\@ifpackageloaded 硬报错 → ver@ 注销续载 + \\unit 存复"
+    phase: loop
+    order: 163.5 # physics_stub_detach(163) 与 detab_end_scanlines(164) 之间 —— 同族 ver@ 脱注册
+    when:
+      any:
+        - { category: already_def }
+        - { category: other }
+    condition:
+      source_contains: "\\\\(?:usepackage|RequirePackage)\\s*(\\[[^\\]]*\\])?\\s*\\{[^}]*\\bsiunitx\\b"
+      any:
+        - { source_contains: "\\\\(?:usepackage|RequirePackage)\\s*(\\[[^\\]]*\\])?\\s*\\{[^}]*\\bSIunits\\b" }
+        - { source_contains: "\\\\(?:usepackage|RequirePackage)\\s*(\\[[^\\]]*\\])?\\s*\\{[^}]*\\bsistyle\\b" }
+        - { source_contains: "\\\\(?:usepackage|RequirePackage)\\s*(\\[[^\\]]*\\])?\\s*\\{[^}]*\\bunits\\b" }
+        - { source_contains: "\\\\(?:usepackage|RequirePackage)\\s*(\\[[^\\]]*\\])?\\s*\\{[^}]*\\bunitsdef\\b" }
+        - { source_contains: "\\\\(?:usepackage|RequirePackage)\\s*(\\[[^\\]]*\\])?\\s*\\{[^}]*\\bfancyunits\\b" }
+    action:
+      kind: builtin_transform
+      function: siunitx_incompat_peace
+    risk: medium # \unit 复元选 units 语义 —— siunitx 语法 \unit 调用形貌微调 (REVIEW)
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "2105.03729 (stagerun-loop3; failmine4 item5)",
+          error: "Package siunitx Error: The package 'units' is incompatible + Command \\unit already defined (units+siunitx 双载)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-fmsingles/t1.tex 实证 (xelatex 0 errors); siunitx.sty:55-67/9494"
+
   # shipclscen census (begindoccen 残件): 随源 .cls/.sty 内部裸 \input X.sty
   # 站 —— \input 以宿主当前 @ catcode 读件; 宿主自身经裸 \input/2.09 option
   # 链载入 (@=other) 时载入件内全部 @-cs 断名 → Missing \begin{document}

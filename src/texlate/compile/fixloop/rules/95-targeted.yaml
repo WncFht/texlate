@@ -128,6 +128,29 @@ rules:
             }
           # 期刊投稿注 \submitto{journal} → noop
           submitto: { polyfill: "\n\\providecommand{\\submitto}[1]{}" }
+          # ── fmsingles failmine4 残面 (2026-09-19, 机制确证单发) ──
+          # renew-on-undefined 族 (taxonomy "Command \X undefined" 内核签):
+          # 2609.20238 main.tex:191 \renewcommand*\backref[1]{…} —— hyperref
+          #   未开 backref 选项 → \backref 恒缺; provide 预置 → renew 接管
+          # math/0408290 macros.tex:227 \renewcommand{\U}{{\Upsilon}} ——
+          #   amsart+xelatex 下 \U 缺位 (稿内 $\U$ 高频); 同形预置
+          backref: { polyfill: "\n\\providecommand{\\backref}[1]{}" }
+          U: { polyfill: "\n\\providecommand{\\U}[1]{}" }
+          # 0806.3016: babel-russian v1.3m (2021) ldf 已不定义 \No (№ 号);
+          # \textnumero 内核文本符号零依赖
+          No: { polyfill: "\n\\providecommand{\\No}{\\textnumero}" }
+          # 1003.4727: OSA 版式宏 \ocis 被稿挪进 article 类 (osajnl 类
+          # shim 按类名够不到); 与 90-shim-legacy osajnl_body 同式
+          ocis:
+            {
+              polyfill: "\n\\providecommand{\\ocis}[1]{\\par\\noindent\\textbf{OCIS codes:} #1\\par}",
+            }
+          # 0806.4149: 随稿 emulateapj.cls 缺 \newbox\footbox 分配 (upstream
+          # 完整件有; \balance@two 双栏平衡钩 shipout 期调用) → 分配补位
+          footbox: { polyfill: "\n\\newbox\\footbox" }
+          # 0905.1299: ucs 在 unicode 引擎不定义 \PrerenderUnicode
+          # (pdftex-era 预渲件) —— 静默吞参即 unicode 下正确语义
+          PrerenderUnicode: { polyfill: "\n\\providecommand{\\PrerenderUnicode}[1]{}" }
           # \keywords{...} 渲染保留而非丢文 (article 系无此 cs)
           keywords:
             {

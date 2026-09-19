@@ -64,6 +64,10 @@
 \providecommand{\printead}{\@ifstar\texlate@ims@pe\texlate@ims@pe}
 \def\texlate@ims@pe{\@ifnextchar[{\texlate@ims@pea}{\texlate@ims@pea[]}}
 \def\texlate@ims@pea[#1]#2{}
+% \arxiv{id}：真件 imsart 有 arXiv 号位 (frontmatter 收)，stub 以
+% AtBeginDocument 包印 —— preamble/in-doc 双安全 (1003.1513 实证:
+% transductionPap1.tex:166 \arxiv{math.PR/0000512} 无 stub 提供 → undefined_cs)
+\providecommand{\arxiv}[1]{\AtBeginDocument{\par\noindent{\footnotesize arXiv:#1}\par}}
 % —— frontmatter/aug env：真件 \end{frontmatter} 隐含排版头块；stub
 %    begin 驯化 \and（作者块分隔符），end 吐 title/authors/address ——
 \newenvironment{frontmatter}{\let\and\relax}{\texlate@ims@emit}

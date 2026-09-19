@@ -10,10 +10,11 @@ from typing import Any
 
 import pytest
 
-from texlate.compile.fixloop import Ruleset, load_ruleset
+from texlate.compile.fixloop import Ruleset, actions, load_ruleset
 from texlate.compile.fixloop.actions import _cond_ok, _when_ok
 from texlate.compile.fixloop.engine import LoopCtx
 from texlate.compile.fixloop.logparse import (
+    ErrReport,
     Taxonomy,
     _ctx_tail_css,
     parse_log,
@@ -301,6 +302,26 @@ def test_undefined_color_kernel_issuer_reaches_fallback_rule(
     ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel="main.tex")
     ctx.err_head = log
     assert _when_ok(rule.when, cat, pay, ctx)
+
+
+def test_undefined_color_fallback_emits_braced_name(tmp_path: Path) -> None:
+    r"""0905.2120 实证回归钉: repl 须出 ``\definecolor{X}{rgb}`` 花括号形。
+
+    ``{payload}`` 占位含花括号, ``_substitute`` 连括号吞——旧 repl
+    ``\definecolor{payload}`` 实产 ``\definecolormygray`` 粘连非法 cs;
+    现 ``{{payload}}`` 双花括号外留一层。"""
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\nx\n\\end{document}\n"
+    )
+    rule = next(r for r in _rs().rules if r.id == "undefined_color_fallback")
+    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel="main.tex")
+    ok, note = actions._apply(  # noqa: SLF001 - 钉规则动作直驱
+        rule, ctx, None, "mygray", ErrReport()
+    )
+    assert ok, note
+    t = (tmp_path / "main.tex").read_text()
+    assert "\\definecolor{mygray}{rgb}{0,0,0}" in t
+    assert "\\definecolormygray" not in t
 
 
 def test_already_def_backtick_reaches_undefine_rule(tmp_path: Path) -> None:
