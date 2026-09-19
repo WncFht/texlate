@@ -30,9 +30,11 @@
 
 ## 工作流程
 
-### 1. 双臂普查
+### 1. 双臂普查 + 前情
 
 soak：`triage.py records` 出 tickets 榜 + `load_cases+triage` 出 case 队列。web：SQL 签名榜 + `fixloop-cases.jsonl` triage。合成一张签名榜（签名、count、代表 id、所在臂）。
+
+**先读前情再选题**：`git branch -a 'errsweep/*'` + 最近一份 `docs/research/errsweep/*-sweep.md`——已被未合并 errsweep 分支覆盖的签名跳过（不重复修）；昨日报告里 deferred/未决问题优先续作。
 
 ### 2. 选题（每 run ≤5 个签名）
 
@@ -61,8 +63,8 @@ soak：`triage.py records` 出 tickets 榜 + `load_cases+triage` 出 case 队列
 ### 5. 提交与报告
 
 - `errsweep/<date>` 分支上每逻辑修复一 commit，Conventional Commits + `Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>` 尾注；`git add` 只加显式文件；commit 前 `git status --porcelain` 自查只有自己碰过的文件。
-- 报告 `docs/research/errsweep/<date>-sweep.md`（随分支提交）**并**复制 `~/.local/state/texlate/errsweep-<date>-report.md`。
-- 报告内容：双臂签名榜、逐签名处置（rule/bugfix/deferred+原因）、三门验收证据、**retry/重跑候选名单**（web task_id 由人工 `POST /api/task/{id}/retry`；soak 格由人工重跑对应 stage——你不代发）、未决问题。
+- **报告骨架开工即落盘**、逐签名随时更新——中断/超时不得丢叙事。报告 `docs/research/errsweep/<date>-sweep.md`（随分支提交）**并**复制 `~/.local/state/texlate/errsweep-<date>-report.md`。
+- 报告内容：双臂签名榜、逐签名处置（rule/bugfix/deferred+原因）、**每条修复的三门验收证据（命令+输出摘要——自述不算数，launcher 后验 Ruleset.load 会另落一行客观证）**、**retry/重跑候选名单**（web task_id 由人工 `POST /api/task/{id}/retry`；soak 格由人工重跑对应 stage——你不代发）、未决问题、**watch 名单**（本次修复预期下次 soak 签名量下降哪些 sig_id——次日对照用）。
 
 ## 硬纪律（违反即失败）
 

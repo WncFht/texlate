@@ -58,14 +58,18 @@ cd "$WT" || exit 1
 # 嵌套会话防护：剥 CLAUDECODE 类 env 再起 headless 实例
 # prompt 必须紧跟 -p——--add-dir 是 variadic，会把后面的裸位置参当目录吞掉
 # --add-dir 双授权：~/.texlate（DB/workdir，只读语义）+ 主仓根（未入库 soak 结果）
-# --max-budget-usd：无人值守硬预算闸
-env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT claude -p \
+# timeout 6h 保险丝：模型免费不设预算闸，但防真卡死空转（正常一跑 <2h）
+timeout 6h env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT claude -p \
   "你是 texlate errsweep agent，今天是 $DATE，工作目录是分支 $BR 的隔离 worktree。完整工作指令在 docs/errsweep-runbook.md——先通读再开工。要点：soak 结果在主仓 $ROOT/bench/results/soak-*/ 下（worktree 里未必有，经 --add-dir 读）；回放副本放 $REPLAY_DIR；报告除随分支提交外复制一份到 $STATE/errsweep-$DATE-report.md。" \
   --dangerously-skip-permissions \
-  --max-budget-usd 15 \
   --add-dir "$HOME/.texlate" \
   --add-dir "$ROOT"
 
 rc=$?
+
+# 后验：agent 自述不算数——ruleset 能否加载是客观证（在 worktree 内跑，测的是分支态规则库）
+cd "$WT" && uv run python -c "from texlate.compile.fixloop.ruleset import Ruleset; Ruleset.load()" \
+  && echo "post-check: Ruleset.load OK" || echo "post-check: Ruleset.load FAIL"
+
 echo "===== errsweep done rc=$rc $(date '+%F %T %Z') ====="
 exit $rc
