@@ -916,3 +916,13 @@
 - **kvdig 关** (交付 ae685ff 已入)。
 - roster 9：bticktax(fc9 standby)/csfix2/primguard(inputtail) + mathchar/dimcen/209batch/defcensus/envdiag/hard18。
 - 门：teammate 零 git✓；HEAD dd7f8bb 净；在飞 csfix2 三件套+mathchar 三件套 (builtins.py 双 lane 分行无撞)；clean% 31/32 维。
+
+## 2026-09-19 ~19:5x — mathchar+csfix2 入库 (4926fb2/ab7bcb9) + fc9 GO (122 ids)
+
+- **mathchar (4926fb2)**：`bm_extended_mathchar_wrap`——bm.sty `\bm@test@token` 对实参 catcode-11/12 token 逐个 `\count@\mathcode`#1` 原子遍历, XeTeX 15-bit mathchar 操作数扫拒 >0xFF (xeCJK 值 0x05xxxxxx+码点; `\mathcode`Ω` 同炸非 CJK 专属)。修 = 序言守卫式 `\bm#1 → \TeXlateBM{{#1}}` 双花括号走 bm 自带 `\bm@gr@@p`→`\boldmath` 组路径 (遍历跳过+粗体经 math version 保), `\ifx` 重绑 `\let` 别名 `\boldsymbol`/`\heavysymbol`, `\ifdefined\TeXlateBM` 防自捕环。revpacs `\long\pacs` fold-in 落 _REVTEX209_POLYFILL:1066。~6 格 (hep-ph/0605174/1206.0485/2112.00003)。
+- **csfix2 (ab7bcb9, 四件)**：①pkg-装载点 undefine——`_pkg_err_stems` 抓 `pkg.sty:N: already defined` 肇事茎, `_undefine_pkg_sites` 每 live 用户件装载点前 `\let\X\@undefined` (bbkresid 4 格); ②`\reserveinserts` polyfill_pre + `_inject_before_docclass` (2 格); ③`premature_cs_guard`——`Missing \begin{document}` file:line 溯肇事 sty, 供方 `\usepackage` 前置消费方装载点 (2009.11053); ④扫描器双守——DEFCMD+`@boole@def` 消 aastex 5.2 假开 5 连, CONSUME `let` lookahead 消 elsarticle/IEEEtran `\let\sep=,` 假开 (sabotage 防护无直翻格)。
+- **原子落规新纪律生效**：csfix2 发现 yaml 引未注册 builtin = `RulesetError` 全 lane 破后, 自行 revert 并把注册+yaml 块交 leader 原子落——builtins.py:48/208/292 + 75-syntax.yaml:1502 order 196.7 同 commit。此模式入档为 builtin-规落地标准。
+- **fc9 GO (bticktax)**：122 ids (116+6 新波格: mathchar×3/csfix2×3 补登 lanes.json)。4 bbkresid 格 `pending-csfix2` 转 live——预期 pkg-site-undefine 臂翻。
+- **附带 fix**：test_fixloop_revtex209:61 + test_fixloop_pacs:19 断言 `\def\pacs`→`\long\def\pacs` (4d06d47, L0 sweep 抓——fold-in 断言滞后第二处)。
+- roster 8：bticktax(fc9 飞)/primguard(inputtail) + 209batch/dimcen/defcensus/envdiag/hard18 + mathchar 关/csfix2 关。
+- 门：teammate 零 git✓；HEAD ab7bcb9 净 (ruleset 129 规 load OK)；L0 2310+1(pacs 断言,已修)；clean% 31/32 维。
