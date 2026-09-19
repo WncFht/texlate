@@ -1420,3 +1420,11 @@
 - **新派**: vendorcwd (#237 impl — D1 落位修 main_dir 优先 + D2 no-op 不耗 dispatch 验证), stucksig (#238 impl — D3 签名归因修, 以末轮 (cat,payload) 为签)。#226 关 (micro2/blxbbl 吸收)。
 - **Backlog+1**: main_wrapper_promote 触发扩面 —— 同机理 root-wrapper 稿签名落 missing_file/other 级联 (非 emergency) 不火; 2609.19664 需 promote-on-cascade 变体 (≥N relocate 或 wrapper-detected 时试)。
 - **Roster**: gfxrelax/cstablesweep/endcsresid/epsconv/micro2/renewguard/precheckmain/blxbbl/vendorcwd/stucksig = 10。
+
+### patrol ~21:00 — quiet; in-flight 面增长归因
+
+- **Deliveries**: 无。run.log 无新 (wrapromote run.log 19:44 为其 replay 已收)。
+- **Roster 10 全活**: 老五 (gfxrelax/cstablesweep/endcsresid/epsconv/micro2 ~1h, census 爬 records 长时正常) + 新五 (renewguard/precheckmain/blxbbl ~30m, vendorcwd/stucksig 刚派)。
+- **在飞归因**: 45-graphics.yaml +13→+28 (gfx 系在写); actions.py +34 新面 (待认领); ruleset.py±154+engine.py+6+ruleset_validate+60 = peer tolerant-load 线 (engine 已调 `Ruleset.load(tolerant=True)`, 自洽不碰); 共享 index 测试档 staged-D 仍挂 (磁盘/HEAD 完好, wrapromote 新测档亦被列 —— 同 peer 污染)。
+- **HEAD markers 全在**: main_wrapper_promote(规1+注册3)/verdate_pad/missingdollar_blankline/graphics_include_strip/cs_delim_tail_fix。
+- **门**: ①-⑤ 维持; 无越权 git 观察 (teammate 全零 git, 污染皆 peer 交互会话)。
