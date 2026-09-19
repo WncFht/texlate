@@ -786,7 +786,13 @@ rules:
     order: 170 # undefined_color_fallback(166) 之后, undefined_cs_guess(900) 之前
     when: { category: syntax }
     condition:
-      source_contains: "\\\\documentclass\\s*(\\[[^\\]]*\\])?\\s*\\{revtex4"
+      # missmath (loop3): 闸扩至 LoadClass revtex4-1 的包装类 —— aastex63
+      # (2306.06307/2111.00046) 与 bundled aas.cls (1907.00128) 均内载
+      # revtex4-1 → 同款 Extra \or 但 docclass 字面无 revtex4, 原闸 3 格
+      # rules_declined。aastex6 前缀盖 6.x 全族 (6.x 起 base=revtex4-1);
+      # aas\b 精确老 aastex 命名 (aasms4/aastex 不误中; 非 revtex 基的
+      # 包装类上守卫为幂等 no-op)。revtex4-2 无此病, 误中同 no-op。
+      source_contains: "\\\\documentclass\\s*(\\[[^\\]]*\\])?\\s*\\{(revtex4|aastex6|aas\\b)"
       ctx_suggests: "Extra \\\\or"
     action:
       kind: regex_rewrite
@@ -1466,6 +1472,262 @@ rules:
         }
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/lane-endcsdiag/report.md §2; latex.ltx:18355/18718; babel.sty:4230"
+
+  # ─── missmath lane (task #215, 2026-09-19): 4 条 Missing 族残件 ───
+  # verdate_pad: \ProvidesX[..]/\filedate/请求日期的 YYYY/M/D 或 YYYY/MM/D
+  #   单位段 → kernel \@parse@version 第4参吞 \@nil → 三联
+  #   (Undefined cs \@nil → Missing = for \ifnum → Missing number), 报错行
+  #   一律落到 docclass 后第一 token (class 尾 \ifl@ter 比较跨界读流)。
+  #   aa.cls \def\filedate{2014/12/1} 两格实证 (1511.06717/1706.00225);
+  #   virgin xelatex 对 \documentclass{aa} 后任意 token 复现。修 = 三处
+  #   ver 消费位段补齐两位 (幂等, 良形不动)。
+  - id: verdate_pad
+    description: "\\ProvidesX/\\filedate/请求日期 YYYY/M/D 单位段 → \\@parse@version 吞 \\@nil 三联 → 段补两位"
+    phase: loop
+    order: 199.2 # babel_preclass_rawopts_seed(199) 之后, cs_delim_tail_fix(199.6) 之前
+    when:
+      any: [{ category: undefined_cs }, { category: syntax }]
+    condition:
+      ctx_suggests: "Missing = inserted for \\\\ifnum"
+      source_contains: "[0-9]{4}/[0-9]/|[0-9]{4}/[0-9]{2}/[0-9]([^0-9]|$)"
+      tool_available: python3
+    action:
+      kind: run_tool
+      params:
+        argv:
+          - python3
+          - -c
+          - |
+            from pathlib import Path
+            import re
+
+            # ver@ 消费日期三处: \ProvidesX[..]、\def\filedate{..}、
+            # \documentclass/usepackage/RequirePackage/LoadClass{..}[<date> ..]
+            DATE = re.compile(r"\d{4}/\d{1,2}/\d{1,2}")
+            CTX = [
+                re.compile(
+                    r"\\Provides(?:Class|Package|File|ExplPackage|ExplClass|ExplFile)"
+                    r"\s*\{[^}]*\}\s*\[[^\]]*\]"
+                ),
+                re.compile(r"\\(?:def|gdef|edef|xdef)\\filedate\s*\{[^}]*\}"),
+                re.compile(
+                    r"\\(?:documentclass|documentstyle|usepackage|RequirePackage|LoadClass)"
+                    r"\s*(?:\[[^\]]*\]\s*)?\{[^}]*\}\s*\[[^\]]*\]"
+                ),
+            ]
+
+            def _pad(m):
+                def pd(mm):
+                    y, mo, d = mm.group(0).split("/")
+                    return f"{y}/{int(mo):02d}/{int(d):02d}"
+                return DATE.sub(pd, m.group(0))
+
+            fixed = []
+            for ext in ("*.tex", "*.cls", "*.sty"):
+                for p in sorted(Path(".").rglob(ext)):
+                    if not p.is_file():
+                        continue
+                    try:
+                        t = p.read_text(encoding="utf-8", errors="replace")
+                    except OSError:
+                        continue
+                    nt = t
+                    for pat in CTX:
+                        nt = pat.sub(_pad, nt)
+                    if nt != t:
+                        p.write_text(nt, encoding="utf-8")
+                        fixed.append(p.name)
+            print("verdate-pad:", ", ".join(fixed) if fixed else "noop")
+    risk: low # 段补齐幂等; 只碰 ver 消费位 (Provides/filedate/请求尾括); 良形日期 int→02d 自同
+    known_gap: "日字段文字面跨行/含宏 (\\filedate 间接引用已收, \\year\\month 算式不收); 月单位段不误报但静默错比对 (本规一并补齐); 注释内日期不改写"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "1511.06717 + 1706.00225 (missmath census, loop3; 同一份 aa.cls doc-shipped)",
+          error: "Undefined control sequence <argument> \\@nil → Missing = inserted for \\ifnum → Missing number, treated as zero (均落 docclass 后首 token 行)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-missmath/repro: aa4.tex 对 \\begin{document} 同错复现; latex.ltx:18413 \\@ifl@ter/\\@parse@version 机制"
+
+  # endcomment_tail_split: verbatim.sty comment env 要 \end{comment} 独占
+  #   行 —— 同行尾被 verbatim 静默丢弃 (warning "Characters dropped
+  #   after `\end{comment}'")。splice 把 译文+\begin{env} 黏在其后 → env
+  #   失衡 Missing$ (1803.00136:679/680)。修 = 含控制序列的非 % 尾拆行
+  #   (纯散文尾不产生 Missing$, 拆出反改语义 → 不收)。
+  - id: endcomment_tail_split
+    description: "\\end{comment} 同行含 cs 的非 % 尾被 verbatim 丢弃 → 译文/\\begin{env} 吞没 env 失衡 → 尾拆行"
+    phase: loop
+    order: 199.3 # verdate_pad(199.2) 之后; Missing$ 双臂先后无竞争 (各自 condition 机制互斥)
+    when: { category: syntax }
+    condition:
+      ctx_suggests: "Missing \\$ inserted"
+      source_contains: "\\\\end\\{comment\\}[ \\t]*[^ \\t%\\n]"
+      tool_available: python3
+    action:
+      kind: run_tool
+      params:
+        argv:
+          - python3
+          - -c
+          - |
+            from pathlib import Path
+            import re
+
+            # \end{comment} 独占行才生效; 同行尾 verbatim 丢弃。
+            # 只拆含 \ 的尾 (吞掉的 env/cs 才产 Missing$); % 头与散文尾不动。
+            GLUE_RE = re.compile(r"(?m)^([ \t]*\\end\{comment\})[ \t]*(\S[^\n]*)$")
+            fixed = []
+            for p in sorted(Path(".").rglob("*.tex")):
+                if not p.is_file():
+                    continue
+                try:
+                    t = p.read_text(encoding="utf-8", errors="replace")
+                except OSError:
+                    continue
+                if "\\end{comment}" not in t:
+                    continue
+
+                def _sub(m):
+                    tail = m.group(2)
+                    if tail.lstrip().startswith("%") or "\\" not in tail:
+                        return m.group(0)
+                    return m.group(1) + "\n" + tail
+
+                nt = GLUE_RE.sub(_sub, t)
+                if nt != t:
+                    p.write_text(nt, encoding="utf-8")
+                    fixed.append(p.name)
+            print("endcomment-split:", ", ".join(fixed) if fixed else "noop")
+    risk: low # 拆行只恢复 verbatim 原应丢弃后作者本意; % 头/纯散文尾不动
+    known_gap: "尾黏在 \\end{comment} 前的变体不收; verbatim 派生 env (comment*) 不收; 更根的 segmenter 黏合修复属 splice 侧不在本规"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "1803.00136 (missmath census, loop3; splice 黏合 artifact)",
+          error: "Missing $ inserted (l.680) + verbatim warning 'Characters dropped after \\end{comment}' (l.679)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-missmath/census: verbatim.sty comment env 逐字行规约"
+
+  # missingdollar_blankline: 数学区 (eqnarray/matrix/array/\[) 内空白行
+  #   → \par → Missing$, file:NNN 报错行即空白行本身 (4 格实证:
+  #   1306.0006/math-0408122/hep-th-0104212/1404.0082)。修 = 报错行整段
+  #   连续空白注 %; 报错行非空白 (机制不符, 如 1803.00136 黏尾) 即 noop。
+  - id: missingdollar_blankline
+    description: "数学区内空白行 → \\par → Missing$ (file:NNN=空白行) → 连续空白段注 %"
+    phase: loop
+    order: 199.4 # endcomment_tail_split(199.3) 之后; 报错行非空白时 noop 交还
+    when: { category: syntax }
+    condition:
+      ctx_suggests: "Missing \\$ inserted"
+      tool_available: python3
+    action:
+      kind: run_tool
+      params:
+        argv:
+          - python3
+          - -c
+          - |
+            from pathlib import Path
+            import re
+
+            # file:NNN 站点逐帧收 —— TeX 在空白行产 \par, 行号即空白行。
+            ERR_RE = re.compile(
+                r"^[ \t]*(\S+?\.tex):(\d+): Missing \$ inserted", re.M
+            )
+            wdir = Path(".").resolve()
+            logs = sorted(wdir.glob("*.log"))
+            blob = "\n".join(
+                p.read_text(errors="replace") for p in logs
+            )
+            seen, sites = set(), []
+            for m in ERR_RE.finditer(blob):
+                name = Path(m.group(1)).name
+                ln = int(m.group(2))
+                for c in sorted(wdir.rglob(name)):
+                    if not c.is_file():
+                        continue
+                    real = c.resolve()
+                    if real.is_relative_to(wdir) and (str(real), ln) not in seen:
+                        seen.add((str(real), ln))
+                        sites.append((real, ln))
+                        break
+
+            fixed = []
+            for real, ln in sites:
+                try:
+                    t = real.read_text(encoding="utf-8", errors="replace")
+                except OSError:
+                    continue
+                lines = t.split("\n")
+                i = ln - 1
+                if i < 0 or i >= len(lines) or lines[i].strip():
+                    continue
+                lo = i
+                while lo > 0 and not lines[lo - 1].strip():
+                    lo -= 1
+                hi = i
+                while hi + 1 < len(lines) and not lines[hi + 1].strip():
+                    hi += 1
+                for j in range(lo, hi + 1):
+                    lines[j] = "% fixloop: blank line in math"
+                real.write_text("\n".join(lines), encoding="utf-8")
+                span = f"{lo + 1}-{hi + 1}" if hi > lo else str(lo + 1)
+                fixed.append(f"{real.name}:{span}")
+
+            print(
+                "blankline:",
+                ", ".join(fixed) if fixed else "noop (no blank at reported sites)",
+            )
+    risk: low # 报错行必须实测空白才动 —— 内容行零触碰; 连续段一并收 (dedup 单发)
+    known_gap: "bang 形 (非 file-line-error) 无站点不收; \\halign 行间空白不报错属正常面; 报错行非空白 (下游错误/黏尾) 转 endcomment 臂或 notes"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "1306.0006 + math/0408122 + hep-th/0104212 + 1404.0082 (missmath census, loop3; 上游稿数学区空行残留)",
+          error: "Missing $ inserted (file:NNN 报错行即空白行; 1404.0082 为 671-672 连续双行)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-missmath/census: 4/4 file:NNN 站点与空白行重合实证"
+
+  # ifnum_typeout_banner: \ifnum \typeout{} 草稿横幅 hack (会议模板逐字
+  #   两格: 0905.0664/1206.0445) —— \ifnum 遇不可展开 \typeout → 三错
+  #   恢复等价 \ifnum0=0 恒真横幅。修 = 字面预置 0=0, 三错清零输出不变。
+  - id: ifnum_typeout_banner
+    description: "\\ifnum \\typeout{} 横幅 hack → \\ifnum0=0 预置 (error-recovery 语义同形, 三联错清零)"
+    phase: loop
+    order: 199.5 # missingdollar_blankline(199.4) 之后, cs_delim_tail_fix(199.6) 之前
+    when: { category: syntax }
+    condition:
+      ctx_suggests: "Missing number"
+      source_contains: "\\\\ifnum[ \\t]+\\\\typeout"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex]
+        rewrites:
+          - {
+              pattern: "\\\\ifnum[ \\t]+(?=\\\\typeout)",
+              repl: "\\\\ifnum0=0 ",
+            }
+    risk: low # 恢复语义与预置恒真一致; lookahead 保 \typeout 原样; 已是 0=0 形不匹配
+    known_gap: "\\ifnum 跨行接 \\typeout / 非 \\typeout 型 hack 不收; 只收 [ \\t] 单空格变体 (两格逐字)"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "0905.0664 + 1206.0445 (missmath census, loop3; 同一 proceedings 模板逐字面)",
+          error: "Missing number, treated as zero (\\ifnum \\typeout{} — virgin xelatex 三联错复现)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-missmath/repro/ifnum.tex: \\ifnum \\typeout → 3 错, \\ifnum0=0 → 0 错同输出"
 
   # ─── csdefmismatch lane (task #214, 2026-09-19): delimited-macro 尾蚀除 ───
   # "Use of \X doesn't match its definition" —— \def\X<lit>{...} 伪多名宏
