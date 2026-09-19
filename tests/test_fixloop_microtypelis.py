@@ -152,6 +152,25 @@ def test_already_commented_no_refire(tmp_path: Path) -> None:
     assert (tmp_path / "x.cls").read_text() == src
 
 
+def test_nested_cls_copies_all_rewritten(tmp_path: Path) -> None:
+    """2609.19664 实形: wrapper-promote 残留的双层嵌套 fairmeta.cls 副本同愈。
+
+    ``templates/arxiv/fairmeta.cls`` 与 ``templates/arxiv/templates/arxiv/
+    fairmeta.cls`` 各携同签行 —— exts glob 按 rglob 全深度收集, 两处皆注释。
+    """
+    for sub in ["templates/arxiv", "templates/arxiv/templates/arxiv"]:
+        d = tmp_path / sub
+        d.mkdir(parents=True)
+        (d / "fairmeta.cls").write_text(
+            "\\RequirePackage{microtype}\n\\DisableLigatures[f]{family=sf*} \n",
+            encoding="utf-8",
+        )
+    ok, note = _apply(_rule("microtype_lig_off"), tmp_path, "")
+    assert ok, note
+    for p in tmp_path.rglob("fairmeta.cls"):
+        assert "%\\DisableLigatures[f]{family=sf*}" in p.read_text()
+
+
 def test_unrelated_cs_untouched(tmp_path: Path) -> None:
     """\\b 词界: \\DisableLigaturesX 等非目标 cs 不命中; 无命中 → applied=False。"""
     src = "\\newcommand{\\DisableLigaturesX}{}\n"
