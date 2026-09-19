@@ -22,9 +22,11 @@ from texlate.latex.segmenter import parse_tex_v2, scan_v2
 from texlate.textutil import _tar_disguised, decode_tex
 
 
-def parse_tex(tex: str) -> ScanResult:
+def parse_tex(
+    tex: str, *, front_matter: frozenset[str] = frozenset()
+) -> ScanResult:
     """主入口：单文件文本 → ``ScanResult``（v2 token 流）。"""
-    return parse_tex_v2(tex)
+    return parse_tex_v2(tex, front_matter=front_matter)
 
 
 def parse_file(
@@ -32,6 +34,7 @@ def parse_file(
     *,
     flatten: bool = True,
     top_dir: str | os.PathLike[str] | None = None,
+    front_matter: frozenset[str] = frozenset(),
 ) -> ScanResult:
     r"""文件入口：读盘 → v2 ``Gullet`` 路径。
 
@@ -40,6 +43,7 @@ def parse_file(
     e-print 顶层目录（缺省回落文件所在目录，``flatten_inputs`` 同序兜底）。
     ``flatten=False``：无路径无 root 的内存源——``\\input`` 恒不解析
     → 漏网 literal + ``inputs[]`` 记原始名（standalone 单文件语义）。
+    ``front_matter`` = preamble 前置发射白名单（ScanState 同义透传）。
     """
     main = Path(path).resolve()
     if not main.is_file():  # fifo/设备/检查时点消失——read_bytes 会悬挂或裸 OSError
@@ -59,7 +63,7 @@ def parse_file(
     else:
         g = Gullet()
         g.push_source(tex)
-    return scan_v2(g)
+    return scan_v2(g, front_matter=front_matter)
 
 
 # ------------------------------------------------------------------ 树扫描段
@@ -86,13 +90,17 @@ class TexTreeScan:
 
 
 def scan_tex_tree(
-    root: Path, *, on_file: Callable[[Path], None] | None = None
+    root: Path,
+    *,
+    on_file: Callable[[Path], None] | None = None,
+    front_matter: frozenset[str] = frozenset(),
 ) -> TexTreeScan:
     r"""枚举树内 ``.tex`` → 四级分流（e2e/worker 两臂共享的扫描段单源）。
 
     门序：dotfile 跳过 → ``.rtx.tex`` 跳过 → ``.code.tex`` 记 support →
     解析崩记 fault（不拖垮整树）→ 无散文记 support → 余者入 ``parsed``。
     ``on_file`` 逐文件回调——worker 取消轮询挂点，CLI/bench 臂缺省。
+    ``front_matter`` = preamble 前置发射白名单（透传 ``parse_file``）。
     """
     out = TexTreeScan()
     for f in sorted(
@@ -118,7 +126,7 @@ def scan_tex_tree(
             # 文本当散文送译、写回腐蚀 blob）；不入任何名单，逐字节原样保留
             continue
         try:
-            res = parse_file(f, flatten=False)
+            res = parse_file(f, flatten=False, front_matter=front_matter)
         except Exception as exc:  # noqa: BLE001 -- 单文件解析崩不拖垮整树
             out.fault.append((rel, exc))  # 记名可审计，该文件按原文保留
             continue

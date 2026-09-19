@@ -219,6 +219,10 @@ class ScanState:
         default_factory=set
     )  # 源文自带 [[X_n]] 形字面 → 签发避让
     pkgs: set[str] = field(default_factory=set)
+    #: preamble 前置发射白名单（{"abstract","title","author"} 子集）——
+    #: ``\begin{document}`` 前命中的项照常 emit chunk，未登记项维持
+    #: preamble 整段盖过（缺省空集 = 历史行为）。
+    front_matter: frozenset[str] = frozenset()
 
 
 # ---------------------------------------------------------------- 字符级原语

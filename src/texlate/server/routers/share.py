@@ -21,6 +21,7 @@ from fastapi import Request, Response  # noqa: TC002
 from fastapi.responses import JSONResponse
 
 from texlate.arxiv.fetch import normalize_arxiv_id, valid_id
+from texlate.pipecore import FRONT_MATTER_NAMES
 from texlate.server.http import (
     UploadPart,
     _accepted,
@@ -210,6 +211,18 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 端
                     "created_at": mf.created_at,
                     "key_parts": dict(parts),
                 }
+                # 任务 fm 锁定为包内容集——对账面要求本地扫描集与生产者
+                # 同料（多扫必 miss、少扫留 extra）；同时让 cache_key/
+                # 扫描/manifest 三面对同一显式 dict 自洽。调用方自带
+                # front_matter 在此被覆盖（∩NAMES 挡包内脏串）
+                bundle_fm = frozenset(
+                    x
+                    for x in str(parts.get("front_matter") or "").split(",")
+                    if x
+                ) & FRONT_MATTER_NAMES
+                options["front_matter"] = {
+                    k: k in bundle_fm for k in ("abstract", "title", "author")
+                }
                 _options_json_checked(options)
                 row, status, extra = deps.create_and_enqueue(
                     request,
@@ -227,6 +240,9 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 端
                         model=model,
                         target_lang=lang,
                         api_key=deps.auth(request).api_key,
+                        # 包内容随生产者 fm 定形——导入任务须与后续同 fm
+                        # 请求同桶（key_parts 缺键 = 前置全盖过的历史包）
+                        front_matter=bundle_fm,
                     ),
                     task_id=tid,
                     incoming_bytes=file.size,
@@ -324,6 +340,7 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 端
             str(manifest["target_lang"]),
             str(manifest["glossary_hash"]),
             str(manifest["pipeline_ver"]),
+            front_matter=str(manifest.get("front_matter") or ""),
         )
         out_dir = share_dir(deps.root)
         try:

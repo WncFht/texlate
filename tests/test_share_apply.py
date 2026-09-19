@@ -105,6 +105,9 @@ def _produce_pack(pa: TestClient, data_dir: Path, **kp_over: str) -> tuple[bytes
         "prompt_ver": PROMPT_VERSION,
         "target_lang": snap["target_lang"],
         "glossary_hash": "",
+        # 生产端默认 fm={abstract,title}——与 share_pack_manifest 实跑
+        # 还原口径一致，不带此键的包会被标成 ∅ 集（dedup 不同桶）
+        "front_matter": "abstract,title",
         "pipeline_ver": PIPELINE_VERSION,
     }
     parts.update(kp_over)
@@ -132,6 +135,8 @@ def _synth_bundle(tmp_path: Path, chunks: list[dict], **kp_over: str) -> bytes:
         "prompt_ver": PROMPT_VERSION,
         "target_lang": "zh-CN",
         "glossary_hash": "",
+        # 与默认产物包同口径（要 ∅ 标签的包传 front_matter="" 覆盖）
+        "front_matter": "abstract,title",
         "pipeline_ver": PIPELINE_VERSION,
     }
     parts.update(kp_over)

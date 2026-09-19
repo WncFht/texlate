@@ -80,6 +80,13 @@ beforeEach(() => {
         .mockResolvedValue({ task_id: "t1", seq: 0, status: "queued" });
 });
 
+// collectOptions 恒写 front_matter（UI 态即意图）——裸提交的 options 形
+const FM_OPTS = {
+    options: {
+        front_matter: { abstract: true, title: true, author: false },
+    },
+};
+
 // ---------- mergeLive：轮询页合并 ----------
 
 describe("mergeLive —— taskChunks 页增量合并", () => {
@@ -387,7 +394,7 @@ describe("Home —— #/arxiv/{id} 深链", () => {
         );
         expect(mocks.translate).toHaveBeenCalledWith(
             "2501.14787",
-            undefined,
+            FM_OPTS,
             undefined,
         );
         expect(
@@ -427,7 +434,7 @@ describe("Home —— #/arxiv/{id} 深链", () => {
         );
         expect(mocks.translate).toHaveBeenLastCalledWith(
             "cs/0501001",
-            undefined,
+            FM_OPTS,
             undefined,
         );
     });

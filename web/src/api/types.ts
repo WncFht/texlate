@@ -207,6 +207,12 @@ export interface TranslateOptions {
         source?: "eprint" | "html";
         /** 完成后打包 .share.zip 社区缓存包（shared-cache.md §6 opt-in） */
         share_pack?: boolean;
+        /** preamble 前置内容翻译开关（摘要/标题/作者各自独立） */
+        front_matter?: {
+            abstract?: boolean;
+            title?: boolean;
+            author?: boolean;
+        };
         /** 服务端白名单外键原样透传（try-html 克隆任务用） */
         [key: string]: unknown;
     };

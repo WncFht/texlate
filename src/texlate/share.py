@@ -138,6 +138,8 @@ def share_key(  # noqa: PLR0913, PLR0917 -- 七组分即寻址公式本身，参
     target_lang: str,
     glossary_hash: str,
     pipeline_ver: str,
+    *,
+    front_matter: str = "",
 ) -> str:
     """共享缓存寻址键：``sha256(id|ver|model|prompt_ver|lang|glossary|pipeline_ver)``。
 
@@ -146,22 +148,28 @@ def share_key(  # noqa: PLR0913, PLR0917 -- 七组分即寻址公式本身，参
     不用于回读寻址）。``glossary_hash`` 是术语表内容指纹（``""`` = 默认/
     无术语表）——自定义术语表改变译文内容，不进键会让不同术语表的译文
     串桶（段级 cfg 指纹 ``sha256(model|prompt_ver|lang|glossary)[:16]``
-    已含同成分，本键对齐其口径）。前六组分含 ``|`` 会破坏分隔 →
-    ShareError；``pipeline_ver`` 是末位组分，自身允许含 ``|``
-    （``worker.PIPELINE_VERSION = "texlate-{ver}|{prompt_ver}"`` 本就如此，
-    末位含分隔符无解析歧义）。各组分 strip 归一——与 ``_key_parts`` 的
-    manifest 侧归一同口径，边缘空白不进键（域内无意义）。
+    已含同成分，本键对齐其口径）。``front_matter`` = preamble 前置发射集
+    的逗号排序清单（``"abstract,title"`` 形）——改变扫描块集即改变包
+    内容，非空时作为组分插在 ``pipeline_ver`` 前；空串省略成分，
+    与前置全盖过的历史包同键（旧包重算口径不变）。前六组分含 ``|``
+    会破坏分隔 → ShareError；``pipeline_ver`` 是末位组分，自身允许含
+    ``|``（``worker.PIPELINE_VERSION = "texlate-{ver}|{prompt_ver}"``
+    本就如此，末位含分隔符无解析歧义）。各组分 strip 归一——与
+    ``_key_parts`` 的 manifest 侧归一同口径，边缘空白不进键（域内无意义）。
     """
     ver = _norm_version(version)
-    parts = (
+    parts = [
         arxiv_id.strip(),
         ver,
         model.strip(),
         prompt_ver.strip(),
         target_lang.strip(),
         glossary_hash.strip(),
-        pipeline_ver.strip(),
-    )
+    ]
+    fm = front_matter.strip()
+    if fm:
+        parts.append(fm)
+    parts.append(pipeline_ver.strip())
     for part in parts[:-1]:
         if "|" in part:
             msg = f"share_key component must not contain '|': {part!r}"
@@ -224,12 +232,14 @@ def glossary_content_hash(
 
 
 def _key_parts(manifest: Mapping[str, object]) -> dict[str, str]:
-    """七组分提取 + 归一；缺键/非空组分为空 → ShareError。
+    """七必选组分提取 + 归一；缺键/非空组分为空 → ShareError。
 
     键必须在场（七键格式契约）；``_EMPTY_OK`` 组分（version/glossary_hash）
     的 ``None`` 归一为 ``""``——与 ``_norm_version``/``share_key`` 的
     latest 别名口径一致，JSON ``null`` 与 ``""`` 同义；非可空组分 ``None``
-    仍按缺失拒。
+    仍按缺失拒。``front_matter`` 是可选组分（缺席 = 前置全盖过的
+    历史形态归一 ``""``）——``share_key`` 仅在其非空时拼入材料，
+    旧包（key_parts 无此键）重算口径不变。
     """
     parts: dict[str, str] = {}
     for field in KEY_PART_FIELDS:
@@ -251,11 +261,20 @@ def _key_parts(manifest: Mapping[str, object]) -> dict[str, str]:
             msg = f"manifest key part too large: {field} > {_MANIFEST_FIELD_MAX}B"
             raise ShareError(msg)
         parts[field] = value
+    fm_raw = manifest.get("front_matter")
+    fm = "" if fm_raw is None else str(fm_raw).strip()
+    if len(fm.encode("utf-8", "replace")) > _MANIFEST_FIELD_MAX:
+        msg = f"manifest key part too large: front_matter > {_MANIFEST_FIELD_MAX}B"
+        raise ShareError(msg)
+    if fm:
+        # 与 ``share_key`` 材料同口径——非空才记键，∅ 包 key_parts
+        # 与前置全盖过的历史包七组分形完全一致
+        parts["front_matter"] = fm
     return parts
 
 
 def _derive_key(parts: Mapping[str, str]) -> str:
-    """key_parts dict → share_key（组分序 = ``KEY_PART_FIELDS`` 序）。"""
+    """key_parts dict → share_key（组分序 = ``KEY_PART_FIELDS`` 序 + fm 选配）。"""
     return share_key(
         parts["arxiv_id"],
         parts["version"],
@@ -264,6 +283,7 @@ def _derive_key(parts: Mapping[str, str]) -> str:
         parts["target_lang"],
         parts["glossary_hash"],
         parts["pipeline_ver"],
+        front_matter=parts.get("front_matter") or "",
     )
 
 

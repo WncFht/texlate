@@ -34,6 +34,13 @@ import Home from "../pages/Home";
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
+// collectOptions 恒写 front_matter（UI 态即意图）——裸提交的 options 形
+const FM_OPTS = {
+    options: {
+        front_matter: { abstract: true, title: true, author: false },
+    },
+};
+
 let dispose: (() => void) | undefined;
 
 function mount() {
@@ -83,7 +90,7 @@ describe("Home 临时 API Key（per-request BYOK）", () => {
         await vi.waitFor(() => expect(mocks.translate).toHaveBeenCalled());
         await flush();
 
-        expect(mocks.translate).toHaveBeenCalledWith("2501.14787", undefined, {
+        expect(mocks.translate).toHaveBeenCalledWith("2501.14787", FM_OPTS, {
             apiKey: "sk-temp-1",
         });
         expect(nav).toHaveBeenCalledWith("#/reader/t_0000000000000f01");
@@ -97,7 +104,7 @@ describe("Home 临时 API Key（per-request BYOK）", () => {
         form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
         await vi.waitFor(() => expect(mocks.translate).toHaveBeenCalled());
 
-        expect(mocks.translate).toHaveBeenCalledWith("2501.14787", undefined, undefined);
+        expect(mocks.translate).toHaveBeenCalledWith("2501.14787", FM_OPTS, undefined);
     });
 
     it("纯空白 key 视同未填 → 不透传", async () => {
@@ -108,7 +115,7 @@ describe("Home 临时 API Key（per-request BYOK）", () => {
         form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
         await vi.waitFor(() => expect(mocks.translate).toHaveBeenCalled());
 
-        expect(mocks.translate).toHaveBeenCalledWith("2501.14787", undefined, undefined);
+        expect(mocks.translate).toHaveBeenCalledWith("2501.14787", FM_OPTS, undefined);
     });
 
     it("临时 key 不触碰 settings store（纯 per-request，不发 PUT）", async () => {

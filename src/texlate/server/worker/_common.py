@@ -349,7 +349,7 @@ def chunk_db_id(src_file: str, byte_start: int, byte_end: int) -> str:
     return h.hexdigest()[:24]
 
 
-def cache_key_for(  # noqa: PLR0913 -- 键材料五元组 + source 即 dedup 面
+def cache_key_for(  # noqa: PLR0913 -- 键材料五元组 + source/fm 即 dedup 面
     *,
     arxiv_id: str,
     version: int | None,
@@ -357,6 +357,7 @@ def cache_key_for(  # noqa: PLR0913 -- 键材料五元组 + source 即 dedup 面
     target_lang: str,
     api_key: str = "",
     source: str = "eprint",
+    front_matter: frozenset[str] | None = None,
 ) -> str:
     """产物级 dedup 键：``sha256(arxiv_id@ver|model|pipeline_ver|lang)``。
 
@@ -368,11 +369,17 @@ def cache_key_for(  # noqa: PLR0913 -- 键材料五元组 + source 即 dedup 面
     ``source`` = 获取渠道：eprint 默认（材料不变，存量缓存续命）；
     ``html`` 等异源追加 ``|src:`` 成分——同 id@ver 的 eprint 与 html
     任务产物链不同构，channel-blind 会串桶互喂错产物。
+
+    ``front_matter`` = preamble 前置发射集（调用方已按 options 缺省
+    归一）：改变扫描块集即改变产物，非空追加 ``|fm:`` 成分分桶；
+    空集/None = 前置全盖过的历史形态，材料不变续命存量缓存。
     """
     ver = f"v{version}" if version else ""
     material = f"{arxiv_id}@{ver}|{model}|{PIPELINE_VERSION}|{target_lang}"
     if source != "eprint":
         material += f"|src:{source}"
+    if front_matter:
+        material += f"|fm:{','.join(sorted(front_matter))}"
     if cache_scope() == "per_key":
         material += f"|k:{hashlib.sha256(api_key.encode()).hexdigest()[:16]}"
     return hashlib.sha256(material.encode()).hexdigest()

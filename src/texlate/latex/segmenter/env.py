@@ -298,6 +298,10 @@ class _Env:
             return
         for _ in range(self._env_pop(env, vspan.start)):
             src.scope_pop()
+        if not self._doc_opened and not self.env_stack:
+            # 前置发射 env（preamble abstract 等）弹空栈 → 回 preamble 档
+            # 直到 ``\begin{document}``；document 已开则永不回档。
+            self._preamble = True
 
     def _env_pop(self, env: str, vpos: int) -> int:
         r"""v1 ``_env_pop`` 移植：弹 env 栈，返回弹出数（= scope_pop 次数）。

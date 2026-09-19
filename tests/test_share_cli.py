@@ -19,6 +19,7 @@ from typer.testing import CliRunner
 
 from texlate.arxiv.fetch import normalize_arxiv_id
 from texlate.cli import app
+from texlate.pipecore import front_matter_of
 from texlate.server.store import DDL
 from texlate.server.worker import PIPELINE_VERSION, cache_key_for
 from texlate.share import MANIFEST_NAME, pack_share, share_key
@@ -64,10 +65,21 @@ def _mk_task(  # noqa: PLR0913 -- 任务行字段面即参数面
         (tdir / "zh.pdf").write_bytes(b"%PDF-1.4 fake pdf")
         with zipfile.ZipFile(tdir / "zh-src.zip", "w") as zf:
             zf.writestr("main.tex", _ZH_TEX)
+    # done 任务经 parse 写回 options.front_matter 显式集——fixture 模拟
+    # 该不变量（缺省解析 {abstract,title}），cache_key 同料进 fm 成分
+    eff_opts = dict(opts or {})
+    fm = front_matter_of(eff_opts)
+    eff_opts["front_matter"] = {k: k in fm for k in ("abstract", "title", "author")}
     if key is None and arxiv_id:
         base, _ver = normalize_arxiv_id(arxiv_id)
         # 请求未钉版形态（cache_key_for 进键用请求时 version=None）
-        key = cache_key_for(arxiv_id=base, version=None, model=model, target_lang=lang)
+        key = cache_key_for(
+            arxiv_id=base,
+            version=None,
+            model=model,
+            target_lang=lang,
+            front_matter=fm,
+        )
     conn = sqlite3.connect(str(data / "texlate.db"))
     try:
         conn.executescript(DDL)
@@ -84,7 +96,7 @@ def _mk_task(  # noqa: PLR0913 -- 任务行字段面即参数面
                 lang,
                 model,
                 json.dumps(cfg or {}),
-                json.dumps(opts or {}),
+                json.dumps(eff_opts),
                 key,
                 0.0,
                 0.0,
@@ -116,6 +128,7 @@ class TestSharePack:
             "prompt_ver": PROMPT_VERSION,
             "target_lang": "zh-CN",
             "glossary_hash": "",
+            "front_matter": "abstract,title",
             "pipeline_ver": PIPELINE_VERSION,
         }
         assert report["share_key"] == share_key(**kp)
@@ -184,6 +197,8 @@ class TestSharePack:
             version=1,
             model="deepseek-chat",
             target_lang="zh-CN",
+            # fixture options 带显式 fm dict（parse 写回形）——进键同料
+            front_matter=front_matter_of({}),
         )
         tdir = _mk_task(tmp_path / "data", key=key)
         res = _pack(tdir, "-o", str(tmp_path / "o"))

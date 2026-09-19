@@ -133,6 +133,11 @@ export default function Home(props: {
     const [optSource, setOptSource] = createSignal("eprint");
     const [optShare, setOptShare] = createSignal("");
     const [optMain, setOptMain] = createSignal("");
+    // preamble 前置内容翻译开关（服务端缺省 摘要+标题开/作者关——
+    // 这里显式带默认，提交即固定意图，不走 "follow settings" 空值语义）
+    const [optFmAbstract, setOptFmAbstract] = createSignal("on");
+    const [optFmTitle, setOptFmTitle] = createSignal("on");
+    const [optFmAuthor, setOptFmAuthor] = createSignal("off");
     // per-request BYOK：仅存组件 state，提交成功即清，不落 settings
     const [optKey, setOptKey] = createSignal("");
     let fileInput!: HTMLInputElement;
@@ -198,6 +203,12 @@ export default function Home(props: {
         if (pref === "reuse" || pref === "fresh") opts.prefer = pref;
         // 默认 eprint 不写字段——服务端按缺省 eprint，存量请求面零变化
         if (optSource() === "html") opts.source = "html";
+        // 前置三项恒显式写——UI 态即意图（服务端缺省与此初值一致）
+        opts.front_matter = {
+            abstract: optFmAbstract() === "on",
+            title: optFmTitle() === "on",
+            author: optFmAuthor() === "on",
+        };
         if (Object.keys(opts).length) o.options = opts;
         return o.model || o.target_lang || o.glossary || o.options
             ? o
@@ -415,6 +426,37 @@ export default function Home(props: {
             get: optGuidance,
             set: setOptGuidance,
             defaultLabel: () => t.home.optDefault,
+            choices: [
+                { value: "on", label: t.home.optOn },
+                { value: "off", label: t.home.optOff },
+            ],
+        },
+        {
+            kind: "select",
+            label: t.home.optFmAbstract,
+            get: optFmAbstract,
+            set: setOptFmAbstract,
+            choices: [
+                { value: "on", label: t.home.optOn },
+                { value: "off", label: t.home.optOff },
+            ],
+        },
+        {
+            kind: "select",
+            label: t.home.optFmTitle,
+            get: optFmTitle,
+            set: setOptFmTitle,
+            choices: [
+                { value: "on", label: t.home.optOn },
+                { value: "off", label: t.home.optOff },
+            ],
+        },
+        {
+            kind: "select",
+            label: t.home.optFmAuthor,
+            hint: t.home.optFmAuthorHint,
+            get: optFmAuthor,
+            set: setOptFmAuthor,
             choices: [
                 { value: "on", label: t.home.optOn },
                 { value: "off", label: t.home.optOff },

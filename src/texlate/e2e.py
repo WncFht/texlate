@@ -43,6 +43,7 @@ from texlate.compile.normalize import normalize_project
 from texlate.pipecore import (
     PipeJob,
     compile_judge_tail,
+    default_front_matter,
     delivered,
     fixloop_job,
     l2_repair_job,
@@ -85,19 +86,22 @@ def _translate_tree(
     translator: Translator | None = None,
     env_judge: bool = False,
     auto_glossary: bool = False,
+    front_matter: frozenset[str] | None = None,
 ) -> tuple[dict, TreeRun]:
     """目录树翻译 + splice 写回 → (stats, 运行态)——脊在 ``pipecore.translate_tree_run``。
 
     ``scan_fn``/``validator`` 显式透传本模块全局：``e2e._scan_tree``
     （fuzz spy）与 ``e2e.validate_pair``（test_e2e 钉）的 monkeypatch
-    缝随件保活——调用时查名才吃补丁。
+    缝随件保活——调用时查名才吃补丁。``front_matter`` = preamble 前置
+    发射集（None → ``TEXLATE_FRONT_MATTER``/缺省 ``abstract,title``）。
     """
+    fm = default_front_matter() if front_matter is None else front_matter
     stats, run, _results = translate_tree_run(
         root,
         translator=translator,
         env_judge=env_judge,
         auto_glossary=auto_glossary,
-        scan_fn=_scan_tree,
+        scan_fn=lambda r: _scan_tree(r, front_matter=fm),
         validator=lambda s, z: validate_pair(s, z).feedback(),
     )
     return stats, run
@@ -109,6 +113,7 @@ def translate_tree(
     translator: Translator | None = None,
     env_judge: bool | None = None,
     auto_glossary: bool | None = None,
+    front_matter: frozenset[str] | None = None,
 ) -> dict:
     """目录树内全部 .tex 走 XlatPipeline → splice 写回。
 
@@ -117,7 +122,8 @@ def translate_tree(
     ``translator`` 缺省 ``MockTranslator``（链路自检臂），可注入真网关
     Translator；``env_judge`` 缺省读 ``TEXLATE_ENV_JUDGE``（默认关——
     静态表外 env 的可译性 LLM 判定）；``auto_glossary`` 缺省读
-    ``TEXLATE_AUTO_GLOSSARY``（默认关）。
+    ``TEXLATE_AUTO_GLOSSARY``（默认关）；``front_matter`` = preamble
+    前置发射集（None → ``TEXLATE_FRONT_MATTER``/缺省 ``abstract,title``）。
     """
     ej = env_flag(ENV_ENV_JUDGE, default=False) if env_judge is None else env_judge
     ag = (
@@ -126,7 +132,11 @@ def translate_tree(
         else auto_glossary
     )
     stats, _run = _translate_tree(
-        root, translator=translator, env_judge=ej, auto_glossary=ag
+        root,
+        translator=translator,
+        env_judge=ej,
+        auto_glossary=ag,
+        front_matter=front_matter,
     )
     return stats
 
@@ -278,6 +288,7 @@ def pipe_condition(  # noqa: PLR0913 -- 修复链开关面（env 缺省，显式
     auto_glossary: bool | None = None,
     l2_max_chunks: int = L2_MAX_CHUNKS,
     route_engines: list[str] | None = None,
+    front_matter: frozenset[str] | None = None,
 ) -> dict:
     """跑 pipe 条件：normalize → 翻译 → ctex 注入 → 编译 → 判定 → 修复链。
 
@@ -304,7 +315,11 @@ def pipe_condition(  # noqa: PLR0913 -- 修复链开关面（env 缺省，显式
     )
     with _baseline_snapshot(work, enabled=fl) as baseline_dir:
         stats, run = _translate_tree(
-            work, translator=translator, env_judge=ej, auto_glossary=ag
+            work,
+            translator=translator,
+            env_judge=ej,
+            auto_glossary=ag,
+            front_matter=front_matter,
         )
         rec["translate"] = stats
         try:
@@ -373,11 +388,13 @@ def pipeline_run(  # noqa: PLR0913 -- 同上：开关面穿透到 pipe_condition
     l2_on: bool | None = None,
     fixloop_on: bool | None = None,
     l2_max_chunks: int = L2_MAX_CHUNKS,
+    front_matter: frozenset[str] | None = None,
 ) -> dict:
     """工程目录上的端到端全链（对齐 e2e_mock_bench 的 pipe 条件语义）。
 
     ``engine_opt``：``auto`` 取路由首选，或显式引擎名。返回结构化报告 dict
     （route/normalize/translate/inject/compile/verdict + 修复链 + 终态）。
+    ``front_matter`` = preamble 前置发射集（None → env/缺省）。
     """
     report: dict[str, object] = {"work": str(work)}
     route = route_project(work)
@@ -421,6 +438,7 @@ def pipeline_run(  # noqa: PLR0913 -- 同上：开关面穿透到 pipe_condition
             # _build_base 同口径：engines = route.engines if auto else
             # [opt_engine]，持久化进 options.route_engines）
             route_engines=route.engines if engine_opt == "auto" else [eng_name],
+            front_matter=front_matter,
         )
     )
     return report

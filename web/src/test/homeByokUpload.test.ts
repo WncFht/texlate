@@ -100,8 +100,21 @@ describe("Home 临时 API Key——上传两路", () => {
         await vi.waitFor(() => expect(mocks.upload).toHaveBeenCalled());
         await flush();
 
-        // 未开任务选项 → fields 参缺席；第四参是上传进度回调（XHR 路开关）
-        expect(mocks.upload).toHaveBeenCalledWith(f, undefined, { apiKey: "sk-up-1" }, expect.any(Function));
+        // front_matter 恒显式写（UI 态即意图）→ fields 恒在场；
+        // 第四参是上传进度回调（XHR 路开关）
+        expect(mocks.upload).toHaveBeenCalledWith(
+            f,
+            {
+                model: undefined,
+                target_lang: undefined,
+                main: undefined,
+                options: {
+                    front_matter: { abstract: true, title: true, author: false },
+                },
+            },
+            { apiKey: "sk-up-1" },
+            expect.any(Function),
+        );
         expect(mocks.shareImport).not.toHaveBeenCalled();
         expect(key.value).toBe("");
         expect(nav).toHaveBeenCalledWith("#/reader/t_0000000000000f01");
@@ -118,7 +131,7 @@ describe("Home 临时 API Key——上传两路", () => {
 
         expect(mocks.shareImport).toHaveBeenCalledWith(
             f,
-            undefined,
+            { front_matter: { abstract: true, title: true, author: false } },
             { apiKey: "sk-sh-1" },
             expect.any(Function),
         );
@@ -136,7 +149,14 @@ describe("Home 临时 API Key——上传两路", () => {
 
         expect(mocks.upload).toHaveBeenCalledWith(
             f,
-            undefined,
+            {
+                model: undefined,
+                target_lang: undefined,
+                main: undefined,
+                options: {
+                    front_matter: { abstract: true, title: true, author: false },
+                },
+            },
             undefined,
             expect.any(Function),
         );

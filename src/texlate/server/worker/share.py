@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from texlate.arxiv.fetch import normalize_arxiv_id
+from texlate.pipecore import ran_front_matter
 from texlate.server.settings import share_dir
 from texlate.share import (
     ShareError,
@@ -241,6 +242,7 @@ class _Share:
             str(manifest["target_lang"]),
             str(manifest["glossary_hash"]),
             str(manifest["pipeline_ver"]),
+            front_matter=str(manifest.get("front_matter") or ""),
         )
 
     def _share_lookup(self, ctx: TaskCtx) -> bool:  # noqa: C901, PLR0911 -- 守卫/回退阶梯平铺即 spec 的跳过面
@@ -425,6 +427,12 @@ class _Share:
                 cfg = {}
         except json.JSONDecodeError:
             cfg = {}
+        try:
+            opts = json.loads(str(row.get("options_json") or "{}"))
+            if not isinstance(opts, dict):
+                opts = {}
+        except json.JSONDecodeError:
+            opts = {}
         return {
             "arxiv_id": base,
             "version": f"v{ver}" if ver is not None else "",
@@ -432,6 +440,11 @@ class _Share:
             "prompt_ver": PROMPT_VERSION,
             "target_lang": str(row["target_lang"]),
             "glossary_hash": self._share_glossary_hash(ctx, cfg),
+            # 前置发射集进 key_parts——不同 fm 的任务产物不同包（与
+            # cache_key ``|fm:`` 成分同口径；∅ 记 "" 兼容旧包）。
+            # ran_front_matter = 实跑集还原：parse 写回后 done 行恒带
+            # 显式 dict；缺席 = pre-feature 行（实跑 ∅）不标缺省
+            "front_matter": ",".join(sorted(ran_front_matter(opts))),
             "pipeline_ver": PIPELINE_VERSION,
         }
 

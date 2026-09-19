@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any
 
 from fastapi import HTTPException, Request
 
+from texlate.pipecore import front_matter_of
 from texlate.server.http import _ApiError
 from texlate.server.settings import AuthContext, resolve_auth, server_mode
 from texlate.server.store import new_task_id, valid_task_id
@@ -224,6 +225,7 @@ class AppDeps:
                             target_lang=target_lang,
                             api_key=auth.api_key,
                             source=str(options.get("source") or "eprint"),
+                            front_matter=front_matter_of(options),
                         )
                 else:
                     return done, 200, {"reused": True}

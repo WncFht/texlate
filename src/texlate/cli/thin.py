@@ -28,7 +28,7 @@ _THIN_TERMINAL = frozenset(
 _THIN_POLL_S = 2.0
 
 
-def _thin_run(  # noqa: PLR0911, PLR0913 -- 与 run 的 --server 选项面一一对应
+def _thin_run(  # noqa: C901, PLR0911, PLR0913 -- 与 run 的 --server 选项面一一对应
     source: str,
     *,
     server: str,
@@ -38,6 +38,7 @@ def _thin_run(  # noqa: PLR0911, PLR0913 -- 与 run 的 --server 选项面一一
     base_url: str | None,
     out: Path | None,
     wait: float,
+    front_matter: frozenset[str] | None = None,
 ) -> int:
     """瘦客户端主流程：提交任务 → 轮询到终态 → 下载产物。返回退出码。"""
     if _is_dir(Path(source).expanduser()):
@@ -58,7 +59,13 @@ def _thin_run(  # noqa: PLR0911, PLR0913 -- 与 run 的 --server 选项面一一
         headers["x-texlate-key"] = api_key
     if base_url:
         headers["x-texlate-base-url"] = base_url
-    payload: dict[str, object] = {"options": {"engine": engine}}
+    opts: dict[str, object] = {"engine": engine}
+    if front_matter is not None:
+        # 显式三键 dict——未列名 = 关（不落服务端缺省，CLI 白名单语义）
+        opts["front_matter"] = {
+            k: k in front_matter for k in ("abstract", "title", "author")
+        }
+    payload: dict[str, object] = {"options": opts}
     if model:
         payload["model"] = model
 

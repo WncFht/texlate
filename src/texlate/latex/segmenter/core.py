@@ -285,6 +285,16 @@ class _Core:
                 )
             )
 
+    def _preamble_lit_flush(self) -> None:
+        """已盖未发的前缀 → 一条 LITERAL 密铺。
+
+        preamble 档 ``_cover_to`` 只记账不发 piece——档内首次 emit 前必须
+        先把覆盖前沿补一条 literal，否则 piece 平铺从中段起头、前缀静默丢。
+        """
+        start = self.pieces[-1].span.end if self.pieces else 0
+        if len(self.vt) > start:
+            self._emit(start, len(self.vt))
+
     def _emit_text(self, vstart: int, vend: int, text: str) -> None:
         """LITERAL piece（显式文本——含 ``[[X_n]]`` 的 ident 渲染）。"""
         if vend > vstart:
@@ -418,7 +428,13 @@ class _Core:
         if core_vs > rs:
             self._emit(rs, core_vs)
         gspan = Span(core_vs, core_ve)
-        context = "item" if force else "para"
+        context = (
+            "item"
+            if force
+            else "abstract"
+            if self.env_stack and self.env_stack[-1] == "abstract"
+            else "para"
+        )
         self._pending_settle(pending, s, register=True)
         refs = [
             self._new_chunk(part_s, context, Span(pvs, pve), part_i)

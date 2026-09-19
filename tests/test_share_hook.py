@@ -124,6 +124,8 @@ class TestOptInPack:
             "prompt_ver": PROMPT_VERSION,
             "target_lang": "zh-CN",
             "glossary_hash": "",
+            # parse 写回后实跑集入键——默认 fm={abstract,title}
+            "front_matter": "abstract,title",
             "pipeline_ver": PIPELINE_VERSION,
         }
         # 全产物包：zh-src.zip + dual.json + zh.pdf 三件套在 manifest

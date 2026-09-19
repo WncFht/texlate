@@ -1028,6 +1028,54 @@ class _Args:
         )
         self._emit(vclose.start, vclose.end)  # } 闭括号
 
+    def _preamble_chunk_arg(self, t: Tok, src: TokenSource, name: str) -> bool:
+        r"""``_handle_chunk_arg`` 的 preamble 档版：bail 一律 ``_cover_to``。
+
+        run 在 preamble 档永不中途冲刷——``_handle_chunk_arg`` 的 ``_rappend``
+        bail 会把 ``\title`` 挂进 run，EOF flush 时在已盖字面区里再发 piece
+        → 平铺破。此路径参数缺失/空参数全部回放+整调用字面盖过。
+        """
+        fid, _a, b = t.pos
+        pulled: list[Tok] = []
+        x = self._peek_nonspace(src, pulled)
+        if x is not None and x.kind == "other" and x.text == "*":
+            b = x.pos[2]
+        else:
+            src.unread([*pulled, *([x] if x is not None else [])])
+        spec_str, tidx = CHUNK_ARG_SPEC.get(name, ("om", 1))
+        spec = _chunk_spec_cached(spec_str)
+        args, _end = self._args_tok(src, fid, spec, b, allow_single_token=True)
+        target: _ArgTok | None = None
+        if tidx < len(args) and args[tidx].fe > args[tidx].fs:
+            target = args[tidx]
+        if (
+            target is None
+            or (target.cs, target.ce) == (target.fs, target.fe)
+            or self.gen >= MAX_GEN
+            or not self.file_texts[fid][target.cs : target.ce].strip()
+        ):
+            self._unread_args(src, args)
+            self._cover_to(fid, b)
+            return True
+        # 覆盖 gap+命令头一步 cover：`_cover_gap` 的 run 项在 preamble 档
+        # 永不中途冲刷（EOF flush 会在已盖字面区乱序发 piece）——preamble
+        # 内 emit 一律随覆盖即时发 literal 保持平铺。
+        vpre = self._cover_to(fid, target.cs)
+        self._emit(
+            self.pieces[-1].span.end if self.pieces else 0, vpre.end
+        )  # 前缀+``\title{`` literal
+        rendered = self._subscan_render(target)
+        vce = len(self.vt)
+        vclose = self._cover_to(fid, target.fe)
+        gspan = Span(vpre.end, vce)
+        refs = "".join(
+            self._new_chunk(part, name, gspan, part)
+            for part in self._split_rendered(rendered)
+        )
+        self.pieces.append(Piece(PieceKind.CHUNK_REF, gspan, refs, None))
+        self._emit(vce, vclose.end)  # } 闭括号
+        return True
+
     @staticmethod
     def _unread_args(src: TokenSource, args: list[_ArgTok]) -> None:
         """``_args_tok`` 放弃路径：全部 ``all_toks`` 按拉取序回放。"""

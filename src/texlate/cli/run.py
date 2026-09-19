@@ -20,6 +20,7 @@ from texlate.arxiv.fetch import AcquireStatus
 from texlate.cli._common import _CLI_PATH, _DEFAULT_CACHE, _is_dir, app
 from texlate.cli.fetch import _acquire, _echo_acquire
 from texlate.cli.thin import _thin_run
+from texlate.pipecore import FRONT_MATTER_NAMES
 from texlate.textutil import env_flag
 
 
@@ -86,6 +87,14 @@ def run(  # noqa: PLR0913 -- CLI 选项面即参数面 + 本地/瘦客户端双�
         float | None,
         typer.Option("--wait", help="--server 终态等待上限秒（缺省 1800）", min=0.0),
     ] = None,
+    front_matter: Annotated[
+        str | None,
+        typer.Option(
+            "--front-matter",
+            help="preamble 前置内容翻译白名单（逗号分隔 abstract,title,author；"
+            "未列即关。缺省走服务端/env 默认 abstract,title）",
+        ),
+    ] = None,
 ) -> None:
     """端到端：取源/本地目录 → normalize → mock 翻译 → ctex 注入 → 编译 → 判定。
 
@@ -120,6 +129,7 @@ def run(  # noqa: PLR0913 -- CLI 选项面即参数面 + 本地/瘦客户端双�
             f"unknown --engine {engine!r} (expect auto|xelatex|tectonic)", err=True
         )
         raise typer.Exit(2)
+    fm = _front_matter_opt(front_matter)
     if server is not None:
         code = _thin_run(
             source,
@@ -130,6 +140,7 @@ def run(  # noqa: PLR0913 -- CLI 选项面即参数面 + 本地/瘦客户端双�
             base_url=base_url,
             out=out,
             wait=1800.0 if wait is None else wait,
+            front_matter=fm,
         )
         raise typer.Exit(code)
     if any(v is not None for v in (model, api_key, base_url, out, wait)):
@@ -155,7 +166,9 @@ def run(  # noqa: PLR0913 -- CLI 选项面即参数面 + 本地/瘦客户端双�
     try:
         _populate_work_dir(src_dir, work)
         typer.echo(f"work dir: {work}", err=True)
-        verdict = _cli.mock_pipeline_run(work, engine, timeout)
+        verdict = _cli.mock_pipeline_run(
+            work, engine, timeout, front_matter=fm
+        )
         typer.echo(json.dumps(verdict, ensure_ascii=False, indent=2))
         status = verdict.get("status")
         if verdict.get("reject_at"):
@@ -165,6 +178,22 @@ def run(  # noqa: PLR0913 -- CLI 选项面即参数面 + 本地/瘦客户端双�
     finally:
         if not keep and work_dir is None:
             shutil.rmtree(work, ignore_errors=True)
+
+
+def _front_matter_opt(raw: str | None) -> frozenset[str] | None:
+    """``--front-matter`` 逗号清单 → frozenset 白名单；非法名 exit 2。"""
+    if raw is None:
+        return None
+    names = {x.strip() for x in raw.split(",") if x.strip()}
+    bad = names - FRONT_MATTER_NAMES
+    if bad:
+        typer.echo(
+            f"unknown --front-matter {sorted(bad)!r}"
+            f" (expect {sorted(FRONT_MATTER_NAMES)})",
+            err=True,
+        )
+        raise typer.Exit(2)
+    return frozenset(names)
 
 
 def _populate_work_dir(src_dir: Path, work: Path) -> None:

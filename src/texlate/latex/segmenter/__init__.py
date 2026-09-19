@@ -55,13 +55,19 @@ class Segmenter(_Core, _Group, _Pending, _MainLoop, _Env, _Args):
     r"""token 流 → pieces/chunks。单遍正向、绝不抛异常（铁律 1）。"""
 
 
-def scan_v2(g: Gullet) -> ScanResult:
+def scan_v2(
+    g: Gullet, *, front_matter: frozenset[str] = frozenset()
+) -> ScanResult:
     r"""v2 产品核：消费 ``g`` 的展开流 → ``ScanResult``。
 
     ``res.macros`` = gullet scope 链（平表 MacroTable 退役）；
     ``res.inputs`` = (vpos, path) 输入事件流（解析成功 = 绝对路径，
     漏网 = 原始文件名——``missing_input`` warning 同步登记）；
     ``gullet.warnings`` 尾并入（pos 已 fid 化前缀）。
+
+    ``front_matter`` = preamble 前置发射白名单（``"abstract"``/``"title"``/
+    ``"author"`` 子集）：命中项照常 emit chunk，未命中项维持整段盖过
+    （缺省空集 = 历史行为）。
     """
     state = ScanState(
         issuer=PlaceholderIssuer(),
@@ -70,6 +76,7 @@ def scan_v2(g: Gullet) -> ScanResult:
         macros=g.macros,
         inputs=[],
         warnings=[],
+        front_matter=front_matter,
     )
     # 源文自带 [[X_n]] 形字面 → 签发避让（v1 parse_tex 同检）：采样在
     # ``Segmenter.scan`` 主循环按 file_texts 懒增长增量进行——fid-0 与
@@ -93,10 +100,12 @@ def scan_v2(g: Gullet) -> ScanResult:
     )
 
 
-def parse_tex_v2(tex: str) -> ScanResult:
+def parse_tex_v2(
+    tex: str, *, front_matter: frozenset[str] = frozenset()
+) -> ScanResult:
     r"""``parse_tex`` 的 token 流版：内存源 Gullet。
 
     无路径无 root——``\\input`` 恒不解析。产品文件入口是
     ``api.parse_file``。
     """
-    return scan_v2(Gullet(tex))
+    return scan_v2(Gullet(tex), front_matter=front_matter)

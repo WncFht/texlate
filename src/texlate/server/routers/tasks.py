@@ -19,6 +19,7 @@ from fastapi.responses import JSONResponse
 from sse_starlette.sse import EventSourceResponse
 
 from texlate.arxiv.fetch import normalize_arxiv_id, valid_id
+from texlate.pipecore import front_matter_of
 from texlate.server.events import sse_frame
 from texlate.server.http import (
     _accepted,
@@ -90,16 +91,16 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 端
         # 也让本调用点对未带 source 形参的旧签名兼容）
         source = str(options.get("source") or "eprint")
         kind = "arxiv_html" if source == "html" else "arxiv"
-        ck_extra: dict[str, str] = {}
-        if source != "eprint":
-            ck_extra["source"] = source
+        # front_matter 改变扫描块集 → 进 dedup 材料分桶（∅ 不配成分，
+        # 与前置全盖过的存量缓存同桶——见 cache_key_for 文档）
         cache_key = cache_key_for(
             arxiv_id=base,
             version=ver,
             model=model,
             target_lang=target_lang,
             api_key=deps.auth(request).api_key,
-            **ck_extra,
+            source=source,
+            front_matter=front_matter_of(options),
         )
         row, status, extra = deps.create_and_enqueue(
             request,

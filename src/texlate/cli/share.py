@@ -117,16 +117,23 @@ def _share_fields(row: Mapping[str, Any]) -> tuple[str, int | None, str, str]:
     return base, ver, model, lang
 
 
-def _share_verify_pipeline(
-    row: Mapping[str, Any], base: str, ver: int | None, model: str, lang: str
+def _share_verify_pipeline(  # noqa: PLR0913, PLR0917 -- 键材料组与 manifest 同面
+    row: Mapping[str, Any],
+    base: str,
+    ver: int | None,
+    model: str,
+    lang: str,
+    options: Mapping[str, Any],
 ) -> None:
     """``cache_key`` 重算交叉验证——证明产物确实出自当前 ``PIPELINE_VERSION``。
 
     任务行 ``arxiv_id`` 存的是 resolved 钉版，而 ``cache_key_for`` 进键的是
     **请求时**版本（钉版请求 → ver、latest 请求 → None），两种形态都试。
     ``TEXLATE_CACHE_SCOPE=per_key`` 时材料含凭证指纹，无 key 无法重算 →
-    降级为 stderr 告警（不阻断）。
+    降级为 stderr 告警（不阻断）。``options`` = 任务 options_json 反序列化
+    ——``front_matter`` 是键成分（``|fm:``），重算必须同料。
     """
+    from texlate.pipecore import ran_front_matter  # noqa: PLC0415
     from texlate.server.settings import cache_scope  # noqa: PLC0415
     from texlate.server.worker import cache_key_for  # noqa: PLC0415
 
@@ -140,8 +147,16 @@ def _share_verify_pipeline(
             err=True,
         )
         return
+    # 实跑集还原（缺席 = pre-feature 行 ∅）——与 enqueue 侧进键同料
+    fm = ran_front_matter(options)
     expect = {
-        cache_key_for(arxiv_id=base, version=v, model=model, target_lang=lang)
+        cache_key_for(
+            arxiv_id=base,
+            version=v,
+            model=model,
+            target_lang=lang,
+            front_matter=fm,
+        )
         for v in (ver, None)
     }
     if stored not in expect:
@@ -248,6 +263,7 @@ def share_pack(
     ``prompt_ver``/``pipeline_ver`` 取本装管线常量、``glossary_hash`` 由
     自定义术语表层内容派生——取不到一律显式报错，不编造进键。
     """
+    from texlate.pipecore import ran_front_matter  # noqa: PLC0415
     from texlate.server.worker import PIPELINE_VERSION  # noqa: PLC0415
     from texlate.xlat.prompts import PROMPT_VERSION  # noqa: PLC0415
 
@@ -265,19 +281,20 @@ def share_pack(
         typer.echo(f"任务行不在库中: {task_dir.name} @ {db}", err=True)
         raise typer.Exit(1)
     base, ver, model, lang = _share_fields(row)
-    _share_verify_pipeline(row, base, ver, model, lang)
-    try:
-        cfg = json.loads(str(row.get("config_json") or "{}"))
-        if not isinstance(cfg, dict):
-            cfg = {}
-    except json.JSONDecodeError:
-        cfg = {}
     try:
         opts = json.loads(str(row.get("options_json") or "{}"))
         if not isinstance(opts, dict):
             opts = {}
     except json.JSONDecodeError:
         opts = {}
+    # options 解析先于 verify——``front_matter`` 是 cache_key 组分，重算同料
+    _share_verify_pipeline(row, base, ver, model, lang, opts)
+    try:
+        cfg = json.loads(str(row.get("config_json") or "{}"))
+        if not isinstance(cfg, dict):
+            cfg = {}
+    except json.JSONDecodeError:
+        cfg = {}
     try:
         manifest: dict[str, object] = {
             "arxiv_id": base,
@@ -286,6 +303,11 @@ def share_pack(
             "prompt_ver": PROMPT_VERSION,
             "target_lang": lang,
             "glossary_hash": _share_glossary_hash(task_dir, cfg, opts),
+            # 前置发射集进 key_parts——不同 fm 的任务产物不同包（∅ 记 ""
+            # 兼容旧包重算；与 worker share_pack_manifest 同口径）。
+            # 实跑集还原：done 行经 parse 写回恒带显式 dict；缺席 =
+            # pre-feature 行（实跑 ∅）不标缺省
+            "front_matter": ",".join(sorted(ran_front_matter(opts))),
             "pipeline_ver": PIPELINE_VERSION,
         }
         if contributor:
@@ -309,7 +331,9 @@ def share_pack(
                 "share_key": bundle.name.removesuffix(".share.zip"),
                 "path": str(final),
                 "task_id": task_dir.name,
-                "key_parts": {k: manifest[k] for k in KEY_PART_FIELDS},
+                "key_parts": {
+                    k: manifest[k] for k in (*KEY_PART_FIELDS, "front_matter")
+                },
             },
             ensure_ascii=False,
             indent=2,

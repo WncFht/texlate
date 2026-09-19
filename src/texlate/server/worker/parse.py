@@ -11,6 +11,7 @@ from texlate.compile.inject import (
 )
 from texlate.compile.normalize import normalize_project
 from texlate.latex.api import scan_tex_tree
+from texlate.pipecore import front_matter_of
 from texlate.xlat.pipeline import chunk_to_in
 from texlate.xlat.prompts import normalize_kind
 
@@ -128,8 +129,22 @@ class _Parse:
         四级分流单源 ``latex.api.scan_tex_tree``（e2e ``_scan_tree`` 同件）——
         ``on_file`` 挂逐文件取消轮询，fault 桶携异常记 log。
         """
+        fm = front_matter_of(ctx.options())
+        # 解析集显式写回 options——done 行 front_matter 恒在场：share
+        # 打包/cache_key 重算据此还原「实跑集」（ran_front_matter），
+        # 缺席即 pre-feature 行（∅）。与 engine_resolved/route_engines
+        # 同款来历持久化；resume 重跑写同值，幂等
+        options_json = ctx.set_option(
+            "front_matter",
+            {k: k in fm for k in ("abstract", "title", "author")},
+        )
+        self._on_loop(
+            self.store.update_fields, ctx.task_id, options_json=options_json
+        )
         tree = scan_tex_tree(
-            ctx.base_dir, on_file=lambda _p: self._abort_if_cancelled(ctx)
+            ctx.base_dir,
+            on_file=lambda _p: self._abort_if_cancelled(ctx),
+            front_matter=fm,
         )
         ctx.support_files = list(tree.support)
         ctx.fault_files = []

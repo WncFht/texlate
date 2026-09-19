@@ -85,6 +85,10 @@ _DISPATCH_FAMS: tuple[tuple[str, object], ...] = _fams(
     "unknown",  # row19：尾参扫→keyarg→argspec→探针→逐字
 )
 
+#: preamble 前置发射的 arg 命令集——`front_matter` 登记的名字在 preamble
+#: 档走 `_preamble_chunk_arg` 发射（`\title`/`\author`）。
+_FRONT_ARG_NAMES = frozenset({"title", "author"})
+
 
 class _MainLoop:
     # ------------------------------------------------------------ 主循环
@@ -254,6 +258,14 @@ class _MainLoop:
             return
         if self._preamble_doc_end(t, src, fid, b):
             return
+        if (
+            t.kind == "cs"
+            and t.gen == 0
+            and t.text in _FRONT_ARG_NAMES
+            and t.text in self.state.front_matter
+            and self._preamble_chunk_arg(t, src, t.text)
+        ):
+            return
         if t.kind == "cs" and t.text in _PKG_CMDS and t.gen == 0:
             # preamble 包声明：抽出 ``{pkg}`` 名单登记 argspec 门控；
             # 参数 token 回放照走 preamble 覆盖（含 \input 进来的声明）。
@@ -290,6 +302,17 @@ class _MainLoop:
             env, close_t, consumed = self._env_name(src)
             if env == "document":
                 end = close_t.pos[2]
+            elif env == "abstract" and env in self.state.front_matter:
+                # 前置 abstract env：名字回放后走正常 env_begin（\begin 行
+                # literal + env_stack/scope 推入），体 token 翻回主流
+                # dispatch 照常 emit——`\end{abstract}` 由 _handle_env_end
+                # 弹栈后回 preamble 档。已盖未发的档内前缀先补 literal，
+                # 否则 piece 从 \begin 行起头、前缀静默丢。
+                src.unread(consumed)
+                self._preamble_lit_flush()
+                self._handle_env_begin(t, src)
+                self._preamble = False
+                return True
             else:
                 src.unread(consumed)
                 self._cover_to(fid, b)

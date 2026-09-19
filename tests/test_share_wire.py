@@ -94,6 +94,9 @@ def _seed_index(pa: TestClient, pa_dir: Path, pb_dir: Path) -> dict:
         "prompt_ver": PROMPT_VERSION,
         "target_lang": snap["target_lang"],
         "glossary_hash": "",
+        # 生产端默认 fm={abstract,title}（parse 写回后 manifest 同口径）
+        # ——消费端键组分含 fm，seed 不带此键必 miss
+        "front_matter": "abstract,title",
         "pipeline_ver": PIPELINE_VERSION,
     }
     tdir = pa_dir / "tasks" / str(snap["task_id"])

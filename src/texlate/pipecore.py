@@ -48,7 +48,7 @@ from texlate.repair_l2 import (
     split_cid,
     unknown_env_of,
 )
-from texlate.textutil import PH_RX, env_flag
+from texlate.textutil import PH_RX, env_flag, env_str
 from texlate.validate.l0 import validate_pair
 from texlate.xlat.glossary import Glossary
 from texlate.xlat.pipeline import (
@@ -60,7 +60,7 @@ from texlate.xlat.pipeline import (
 from texlate.xlat.placeholders import collect_doc_placeholders
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable, Iterable
+    from collections.abc import Awaitable, Callable, Iterable, Mapping
     from pathlib import Path
 
     from texlate.chunk import ChunkIn
@@ -172,9 +172,53 @@ NULL_SINK: ReportSink = _NullSink()
 
 # ---------------------------------------------------------------- 扫描/翻译脊
 
+#: preamble 前置发射名全集——`options.front_matter`/`TEXLATE_FRONT_MATTER`
+#: 的合法键面。
+FRONT_MATTER_NAMES = frozenset({"abstract", "title", "author"})
+ENV_FRONT_MATTER = "TEXLATE_FRONT_MATTER"
+
+#: ``options.front_matter`` 各键缺省（摘要+标题开、作者关——既定产品默认）。
+_FRONT_MATTER_DEFAULT: dict[str, bool] = {
+    "abstract": True,
+    "title": True,
+    "author": False,
+}
+
+
+def default_front_matter() -> frozenset[str]:
+    """Env 缺省集：``TEXLATE_FRONT_MATTER`` 逗号清单，未设取 ``abstract,title``。"""
+    raw = env_str(ENV_FRONT_MATTER)
+    if not raw:
+        return frozenset({"abstract", "title"})
+    return frozenset(x.strip() for x in raw.split(",")) & FRONT_MATTER_NAMES
+
+
+def front_matter_of(options: dict[str, Any]) -> frozenset[str]:
+    """``options.front_matter`` dict → frozenset；缺键按 ``_FRONT_MATTER_DEFAULT``。"""
+    fm = options.get("front_matter")
+    if not isinstance(fm, dict):
+        return default_front_matter()
+    return frozenset(
+        k for k in FRONT_MATTER_NAMES if bool(fm.get(k, _FRONT_MATTER_DEFAULT[k]))
+    )
+
+
+def ran_front_matter(options: Mapping[str, Any]) -> frozenset[str]:
+    """任务**实跑**前置集还原：显式 dict → ``front_matter_of``；缺席 → ``frozenset()``。
+
+    与 ``front_matter_of`` 的分工：后者是**提交意图**解析（缺键落产品
+    缺省，enqueue/扫描用）；本函数是**事后归因**解析——parse 段把解析
+    集显式写回 ``options.front_matter``，故 done/partial 行的缺席即
+    pre-feature 产物（前置全盖过的历史形态，实跑 ∅）。share manifest
+    与 cache_key 重算据本函数还原实跑集，不给历史行错标缺省。
+    """
+    if not isinstance(options.get("front_matter"), dict):
+        return frozenset()
+    return front_matter_of(dict(options))
+
 
 def scan_tree(
-    root: Path,
+    root: Path, *, front_matter: frozenset[str] = frozenset()
 ) -> tuple[list[tuple[Path, ScanResult]], list[ChunkIn], list[str], list[str]]:
     """枚举树内 ``.tex`` → 四级分流 → 解析 + chunk 收集。
 
@@ -183,9 +227,10 @@ def scan_tree(
     记 ``fault_files`` → 无散文记 ``support_files``——pstricks/epsf/
     宏件/gnuplot 转储送译即腐蚀，按原文保留；与 fault 分流：有意跳过
     而非失败）。本壳只把 ``parsed`` 桶折成 ``(scans, chunks)``——
-    chunk_id ``{idx}:{c.id}`` 方案归本臂。
+    chunk_id ``{idx}:{c.id}`` 方案归本臂。``front_matter`` = preamble
+    前置发射白名单（透传 ``scan_tex_tree``）。
     """
-    tree = scan_tex_tree(root)
+    tree = scan_tex_tree(root, front_matter=front_matter)
     scans: list[tuple[Path, ScanResult]] = []
     chunks: list[ChunkIn] = []
     for f, _rel, res in tree.parsed:
@@ -261,6 +306,7 @@ def translate_tree_run(  # noqa: PLR0913 -- 注入面穿透（scan/validator 各
     ]
     | None = None,
     validator: Callable[[str, str], str] | None = None,
+    front_matter: frozenset[str] = frozenset(),
 ) -> tuple[dict[str, Any], TreeRun, list[ChunkResult]]:
     """目录树翻译 + splice 写回 → ``(stats, TreeRun, 逐块 results)``。
 
@@ -270,8 +316,13 @@ def translate_tree_run(  # noqa: PLR0913 -- 注入面穿透（scan/validator 各
     ``scan_fn`` 缺省走本模块 ``scan_tree`` 全局（patch 点随件迁）；
     ``validator`` 缺省 L0 ``validate_pair`` 全量规则——e2e/bench 显式
     透传自家模块全局，保 ``e2e.validate_pair`` 等 monkeypatch 缝。
+    ``front_matter`` = preamble 前置发射白名单（缺省 scan 臂生效）。
     """
-    scan = scan_tree if scan_fn is None else scan_fn
+    scan = (
+        (lambda r: scan_tree(r, front_matter=front_matter))
+        if scan_fn is None
+        else scan_fn
+    )
     scans, chunks, fault_files, support_files = scan(root)
 
     pipe = XlatPipeline(

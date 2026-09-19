@@ -51,6 +51,8 @@ KIND_ALIASES: dict[str, str] = {
     "subsect": "section_title",
     "abstract": "abstract",
     "abst": "abstract",
+    # ``\author{...}`` 前置发射的 context——人名/机构混合内容走 para 条款
+    "author": "para",
     "table_text": "table_text",
     "table": "table_text",
     "env_text": "env_text",

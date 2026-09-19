@@ -20,6 +20,7 @@ from texlate.arxiv.sniff import (
     sniff,
 )
 from texlate.arxiv.unpack import unpack_sniffed
+from texlate.pipecore import front_matter_of
 from texlate.server.store import TERMINAL_STATUSES
 from texlate.server.upload import (
     _looks_text,
@@ -181,6 +182,7 @@ class _Fetch:
             target_lang=str(ctx.row["target_lang"]),
             api_key=ctx.secrets.api_key,
             source=source,
+            front_matter=front_matter_of(ctx.options()),
         )
         if resolved_key == stored:
             return False

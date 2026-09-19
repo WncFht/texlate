@@ -167,9 +167,9 @@ def _scan_spy(
     """``mod._scan_tree`` 换成记录壳（from-import 绑定者须打自家模块属性）。"""
     calls: list[Path] = []
 
-    def spy(root: Path) -> object:
+    def spy(root: Path, **kw: object) -> object:
         calls.append(root)
-        return orig(root)
+        return orig(root, **kw)
 
     monkeypatch.setattr(mod, "_scan_tree", spy)
     return calls

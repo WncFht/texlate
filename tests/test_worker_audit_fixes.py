@@ -32,6 +32,7 @@ from texlate.arxiv.meta import PaperMeta
 from texlate.arxiv.unpack import UnpackError
 from texlate.compile.cjkmap import embed_cjk_mappings
 from texlate.compile.engine import CompRes, LogInfo
+from texlate.pipecore import front_matter_of
 from texlate.server.events import EventBus
 from texlate.server.settings import SettingsStore, server_salt, share_dir
 from texlate.server.store import ERROR_CODES, Store, StoreError, new_task_id
@@ -754,9 +755,15 @@ class TestPostResolveDedup:
         )
         if kind != "arxiv":
             ctx.row["kind"] = kind
-        # FakeFetcher 恒解析 v1——alias 键（ver=None）≠ 钉版键（ver=1）
+        # FakeFetcher 恒解析 v1——alias 键（ver=None）≠ 钉版键（ver=1）。
+        # enqueue 对缺省 options 也进 fm 成分（front_matter_of 解析缺省
+        # {abstract,title}）——fixture 与 enqueue 同料
         alias_key = cache_key_for(
-            arxiv_id="2401.00001", version=None, model="m", target_lang="zh-CN"
+            arxiv_id="2401.00001",
+            version=None,
+            model="m",
+            target_lang="zh-CN",
+            front_matter=front_matter_of({}),
         )
         store.update_fields(ctx.task_id, cache_key=alias_key)
         ctx.row["cache_key"] = alias_key
@@ -764,7 +771,11 @@ class TestPostResolveDedup:
 
     def _resolved_key(self) -> str:
         return cache_key_for(
-            arxiv_id="2401.00001", version=1, model="m", target_lang="zh-CN"
+            arxiv_id="2401.00001",
+            version=1,
+            model="m",
+            target_lang="zh-CN",
+            front_matter=front_matter_of({}),
         )
 
     def _hit_task(self, tmp_path: Path, store: Store) -> str:
