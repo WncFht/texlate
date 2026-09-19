@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import shutil
 import sys
@@ -263,10 +264,11 @@ def _fetch_done(status_fp: Path) -> dict[str, str]:
 
 
 def _materialize(pid: str, entry_dir: Path) -> None:
+    # 硬链接而非拷贝——缓存条目即语料内容，双视图零额外空间；缓存清理后语料仍持有数据
     dst = CORPUS_DAILY / pid
     if dst.exists():
         shutil.rmtree(dst)
-    shutil.copytree(entry_dir, dst)
+    shutil.copytree(entry_dir, dst, copy_function=os.link)
 
 
 def cmd_fetch(args: argparse.Namespace) -> int:
@@ -403,6 +405,38 @@ def cmd_report(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_prune(args: argparse.Namespace) -> int:
+    """清 clean 格的 work 目录——磁盘紧俏（单日 ~21G），失败/异常格保留供 triage。"""
+    results = ROOT / "bench" / "results" / f"soak-{args.date}"
+    records = results / "records"
+    work = results / "work"
+    if not records.is_dir() or not work.is_dir():
+        log(f"prune {args.date}: {results} 无 records/work——跳过")
+        return 0
+    clean_status = {"clean", "ok", "skip"}
+    keep: set[str] = set()
+    for fp in records.glob("*.jsonl"):
+        for line in fp.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            try:
+                r = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if r.get("status") not in clean_status:
+                keep.add(r["id"])
+    n_del, freed = 0, 0
+    for d in work.iterdir():
+        if not d.is_dir() or d.name in keep:
+            continue
+        sz = sum(f.stat().st_size for f in d.rglob("*") if f.is_file())
+        shutil.rmtree(d)
+        n_del += 1
+        freed += sz
+    log(f"prune {args.date}: 删 {n_del} 个 clean work 目录，留 {len(keep)} 个异常格，释放 {freed / 1e9:.1f}G")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="arXiv 日更全量枚举+取源（CS+math soak）")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -424,6 +458,8 @@ def main() -> int:
     p_b.add_argument("--feeds", default="cs,math")
     p_r = sub.add_parser("report", help="日度汇总")
     p_r.add_argument("--date", required=True)
+    p_p = sub.add_parser("prune", help="清 clean 格 work 目录（留异常格供 triage）")
+    p_p.add_argument("--date", required=True)
     args = ap.parse_args()
     WORK.mkdir(parents=True, exist_ok=True)
     if args.cmd == "enum":
@@ -434,6 +470,8 @@ def main() -> int:
         return cmd_backfill_list(args)
     if args.cmd == "report":
         return cmd_report(args)
+    if args.cmd == "prune":
+        return cmd_prune(args)
     return 1
 
 

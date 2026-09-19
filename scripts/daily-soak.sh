@@ -82,4 +82,7 @@ fi
 
 # 6. 日报
 uv run python bench/py/corpus/daily_arxiv.py report --date "$DATE" || true
+
+# 7. work 目录瘦身——单日 ~21G，clean 格删、异常格留供 triage（磁盘硬约束）
+uv run python bench/py/corpus/daily_arxiv.py prune --date "$DATE" || echo "prune rc=$?"
 echo "===== soak done $(date -u '+%F %T UTC') ====="
