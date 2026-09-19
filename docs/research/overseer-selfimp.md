@@ -1711,3 +1711,10 @@
 
 ### patrol ~07:35 — 心跳：无收割；roster 9 在飞（mathbd #311 收尾）；overnite 1285/2822
 - **vboxcheck 终判（tick 间追记）**：`sentry:vbox_flood` = **correctly-quiet 非死码**——61,767 记录 0 kill 真实（page_flood 同径归因证明管路通）；全 7,618 log 前缀模拟零命中（vbox≥30 群 20 档 max 密度 1.10，真洪皆 ~1:1）；可达域存在（dead-cycle \output 环密度≈25、≥30-warning 前缀爆）但 corpus 无此形。保臂；micro-item 入队：合成 dead-cycle log pin 测。
+
+### patrol ~08:10 — slotleak 收割+primgap 派出；roster 8；overnite 1323/2822
+
+- **slotleak 终判收割**（关 lane）：slotrevert **未覆**——残差双轴实证：①捕获组全在 {..}/[..]/\csname 体内，这三格是原语 cs 与 `{` 之间的 pre-brace CJK gap；②`\vadjust`/`\hbox`/`\leaders` 全不在两 rx 表。2609.19815 `\vadjust 这是译文{...}`（`pre` 关键词被译）3↔3 配对仍可用；2609.20633 `\leaders\hbox 这是译文{...}`×12（zh ~14 gap 点 vs src 1 → 序数配对发散 → 需 unique-src broadcast 回退）。**2609.19872 mis-bucket 出族**（base 臂同败，unicode-math 源固有）。
+- **primgap impl 派出**：_SLOTREV_EXTRA_RXS + `primgap` kind（19-cs 域 `\\(hbox|vbox|vtop|vadjust|insert|noalign|leaders|cleaders|xleaders|mark|uppercase|lowercase|message|errmessage|write|special|output|every\w+|toks)\s*([^{}\n]*?)\{`，printable-ASCII）+ _revert_file broadcast 回退；无 yaml 改（slot_arg_revert 乘 always:true precheck）。19815/20633 → wave-13 臂落后再 replay。
+- **门**：HEAD=1af6d7c8；ruleset 174；flipcheck-12 mutex 续持（mathbd/extless/drvstage/csfix8/primgap 在飞）；共享 index 他家污染依旧（勿动）。
+- **Roster 8**：mathbd(#311 收尾→#312 verify)、ctexbls、extless、drvstage、docsty、refclean、csfix8、primgap。
