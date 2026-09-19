@@ -495,6 +495,90 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/lane-iffalse/report.md (bt7.tex 复现链) + tmp/lane-draftsty 补丁实证 (xelatex repro2 题名+abstract 渲染全保)"
 
+  # 2026-09-19 assetlane (failmine3 普查, 3 格: 0806.0246/0806.4130/1306.0294):
+  # e-print 捆绑 pre-2019 amsmath*.sty (v2.13/2000) —— `\@saveprimitive\leqno\
+  # @@leqno` (:2573) 要求 \leqno 仍是 primitive, 2019-10 kernel 起 \leqno/\eqno
+  # 改为 \protected 宏 → "LaTeX Error: Unable to properly define \@@leqno;
+  # primitive \leqno no longer primitive" (cat=other)。现代 amsmath v2.17e+
+  # 已改 \let 直绑无此调用 → `\@saveprimitive` 对 leqno/eqno 的调用即旧件
+  # 指纹。vendored_sty_shadow(85-shim:150) 够不到: when 闸只收 undefined_cs|
+  # already_def, 且改名件 amsmath2.sty 无系统同名 probe 必 miss。
+  # builtin 双臂: (a) 指纹件 mv .fixloop-iso —— 本名 amsmath.sty 退役后系统
+  # /bundle/tlmgr 同名递补; 改名件 (amsmath2.sty) 写同名 delegate stub
+  # (\RequirePackage{amsmath} 接回系统件 —— stem==amsmath 不接, 自指即空包);
+  # (b) ams* 伴船 (amsgen/amstext/amsbsy/amsopn/amsthm/amsfonts/amssymb)
+  # 经 find_vendored_shadows ld<sd 确证同道退役 —— probe3 实证: amsmath-only
+  # 退役已过 leqno 墙, 但 2003/2025 ams 混栈是现代件新未定义面; 整片快照
+  # 退役 (含 pstricks/pst-node 半栈) 反而退步 → 只收 ams 族。
+  - id: amsmath_saveprimitive_retire
+    mechanisms: [B05]
+    description: "稿自带 pre-2019 amsmath*.sty \\@saveprimitive 撞非原语 \\leqno → 退役+改名件 delegate, ams* 伴船同道退役"
+    phase: loop
+    order: 11.96 # abstract_edef_capture_neutralize(11.95) 后, legacy_pkg_shim(12) 前 —— ship-retire 族尾
+    when: { category: other } # "LaTeX Error: Unable to properly define" 归 other
+    condition:
+      ctx_suggests: "no longer primitive" # \@saveprimitive 错误模板独有短语
+    action:
+      kind: builtin_transform
+      function: amsmath_family_retire
+      params: {} # suffix 缺省 .fixloop-iso
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same } # bundle amsmath 现行, 同名/委托件同式递补
+    provenance:
+      - {
+          corpus: "failmine3 0806.0246/0806.4130/1306.0294 (stagerun-loop3)",
+          error: "amsmath*.sty:2573 LaTeX Error: Unable to properly define \\@@leqno; primitive \\leqno no longer primitive (v2.13/2000 vs kernel)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-assetlane/probe3 三臂实证 (amsmath-only/ams-cohort/full-snapshot → cohort 最优)"
+
+  # 2026-09-19 assetlane (failmine3 普查, 3 格: 0806.3683/1511.06948/1706.00345):
+  # pb-diagram/lamsarrow.sty:89-93 `\font\lamsfont@i=lams1`…`@v=lams5` ——
+  # LamS 箭头字体 texlive 全不收录 (CTAN pb-diagram 只装 .sty 不装字体),
+  # 设计尺寸加载无 "at Npt"、消息无字面 .tfm → missing_tfm 两模式全不中,
+  # 落 other; install_tfm(20) 也够不到 (tlmgr 无此件)。修法 = vendor
+  # lams{1..5}.{tfm,mf} 字节平铺 wdir: .tfm 让 \font 载入过, .mf 供 mktexpk
+  # shipout 期 mf→gftopk 生 Type 3 字形 (probe2 实证: tfm-only 撞
+  # xdvipdfmx "Cannot proceed without .vf or physical font" 致命; tfm+mf
+  # 双全出真箭头 PDF)。件源 CTAN pb-diagram tfm/+mf/ 目录 (GPL), 逐字节
+  # 落 vendor/files/。
+  - id: lamsarrow_lams_fonts_drop
+    mechanisms: [B05]
+    description: "lamsarrow.sty \\font lamsN TFM 缺 → vendor lams{1..5}.{tfm,mf} 字节平铺 wdir (Type3 shipout)"
+    phase: loop
+    order: 11.97 # amsmath_saveprimitive_retire(11.96) 后 —— vendored 资产投递同族
+    when: { category: other } # 设计尺寸 font 加载错归 other (missing_tfm 两模式全不中)
+    condition:
+      ctx_suggests: "lamsarrow\\.sty|=lams[1-5]" # file-line 点名 + font spec 双口径
+    action:
+      kind: builtin_transform
+      function: vendored_fetch_multi
+      params:
+        files:
+          [
+            lams1.tfm,
+            lams2.tfm,
+            lams3.tfm,
+            lams4.tfm,
+            lams5.tfm,
+            lams1.mf,
+            lams2.mf,
+            lams3.mf,
+            lams4.mf,
+            lams5.mf,
+          ]
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same } # tectonic 同缺 lams TFM; cwd 平铺+mktexpk 同式
+    provenance:
+      - {
+          corpus: "failmine3 0806.3683/1511.06948/1706.00345 (stagerun-loop3)",
+          error: "lamsarrow.sty:89 Font \\lamsfont@i=lams1 not loadable: Metric (TFM) file or installed font not found",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-assetlane/probe2 端到端实证 (tfm+mf → 真箭头 PDF); CTAN pb-diagram tfm/mf 件源"
+
   # fixable-data 裁定 (1003.2165): polutonikogreek 是弃名, greek.polutoniko
   # 亦走 locale/invalid/ 弃名桩必炸。现行 ini 正形是 `greek.polytonic`
   # (locale/el/babel-polytonicgreek.tex 自证 "Provided: greek.polytonic";

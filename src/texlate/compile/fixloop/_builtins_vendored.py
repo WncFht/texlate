@@ -9,6 +9,7 @@ r"""_builtins_vendored — 工程内遮蔽探测/隔离 + 随包 vendored 件取
 from __future__ import annotations
 
 import re
+import shutil
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any
 
@@ -16,6 +17,7 @@ from texlate.compile.fixloop._builtins_common import (
     _FINGERPRINT_RE,
     _LEGACY_INJECTED_HEADS,
     _inject_write,
+    _mark_injected,
 )
 from texlate.textutil import safe_is_file
 
@@ -339,3 +341,105 @@ def vendored_fetch(
         True,
         f"vendored[{tier}] {src.name} {tag} {dst.relative_to(ctx.wdir)}",
     )
+
+
+#: pre-2019 amsmath 指纹——``\@saveprimitive`` 对 \leqno/\eqno 的调用在
+#: v2.17e (2019-11) 起被 ``\let\@@leqno\leqno`` 直绑取代 (kernel 把 \leqno
+#: 等改成 \protected 宏, 旧件的 primitive 判据必炸 "no longer primitive");
+#: 有此调用即旧件, 改名件 (amsmath2.sty v2.13) 同中——probe 探不到的改名
+#: 遮蔽靠它收网。
+_SAVEPRIM_CALL_RE = re.compile(r"\\@saveprimitive\s*\\(?:leqno|eqno)\b")
+
+#: 改名件 delegate——退役后同名件把载名接回系统/bundle amsmath。
+#: ``{stem}`` 槽留原名注册 (amsmath2 → \ProvidesPackage{amsmath2})。
+#: 尾部 \let-undef 两行: iopart.cls:778 ``\@namedef{equation*}{\[}`` 类
+#: 宿主类预占撞现代 amsmath ``\newenvironment{equation*}`` (:2941) ——
+#: 语义等价 (iopart 的 def 字面即 \[...\], amsmath equation* 就是 \[
+#: 的 env 形), 预清让 env 正名; 未定义件上 \let\@undefined 恒无害。
+_AMS_DELEGATE_TMPL = (
+    "\\NeedsTeXFormat{LaTeX2e}\n"
+    "\\ProvidesPackage{%s}[2026/09/19 fixloop delegate -> amsmath]\n"
+    "\\DeclareOption*{\\PassOptionsToPackage{\\CurrentOption}{amsmath}}\n"
+    "\\ProcessOptions\\relax\n"
+    "\\expandafter\\let\\csname equation*\\endcsname\\@undefined\n"
+    "\\expandafter\\let\\csname endequation*\\endcsname\\@undefined\n"
+    "\\RequirePackage{amsmath}\n"
+    "\\endinput\n"
+)
+
+
+def amsmath_family_retire(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""``\@saveprimitive`` 指纹 amsmath*.sty → mv ``.fixloop-iso`` + ams* 伴船退役。
+
+    pass 1 指纹直判 (不走 probe——改名件 amsmath2.sty 无系统同名, ld<sd
+    判据够不到): 本名 ``amsmath.sty`` 退役后系统/bundle/tlmgr 同名递补;
+    改名件 (stem != amsmath) 写 delegate stub 保持载名可解。pass 2 ams*
+    伴船复用 ``find_vendored_shadows`` ld<sd 确证 (同 snapshot 整族退役,
+    防 2003/2025 混栈); tectonic advisory 候选 (sd=None) 不动。
+    """
+    del payload
+    suffix = str(params.get("suffix") or ".fixloop-iso")
+    moved = []
+    for f in ctx.tex_files((".sty",)):
+        txt = ctx.read(f) or ""
+        if _SAVEPRIM_CALL_RE.search(txt) is None:
+            continue
+        f.rename(f.with_name(f.name + suffix))
+        if f.stem == "amsmath":
+            moved.append(f"{f.name} (saveprimitive-era, system serves)")
+        else:
+            ctx.write(f, _mark_injected(_AMS_DELEGATE_TMPL % f.stem))
+            moved.append(f"{f.name} (renamed copy -> amsmath delegate)")
+    for f, ld, sd, _prov in find_vendored_shadows(ctx, eng, (".sty",)):
+        if sd is None or not f.name.startswith("ams"):
+            continue
+        f.rename(f.with_name(f.name + suffix))
+        moved.append(f"{f.name} (cohort {ld} < {sd})")
+    if not moved:
+        return False, "无 saveprimitive 指纹 ams* 件"
+    return True, f"retire ams family: {', '.join(moved)}"
+
+
+def vendored_fetch_multi(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    """``params.files`` 名单 → vendor/{files,stubs} basename 字节平铺 wdir。
+
+    ``vendored_fetch`` 的文本指纹注入不适用二进制资产 (lams*.tfm 等:
+    utf-8 读+``%`` 指纹行头毁 TFM 二进制头) —— 本动作 ``shutil.copyfile``
+    字节级落盘; dst 在场 (稿自带/前轮已投) 跳过不覆 → 幂等。
+    """
+    del eng, payload
+    files = [str(x) for x in (params.get("files") or [])]
+    if not files:
+        return False, "params.files 空"
+    root = _vendor_root(params)
+    dropped, notes = [], []
+    for fname in files:
+        rel = PurePosixPath(fname)
+        if not fname or rel.is_absolute() or ".." in rel.parts or "\x00" in fname:
+            notes.append(f"{fname}: unsafe")
+            continue
+        src = _vendored_source(root, fname)
+        if src is None:
+            notes.append(f"{fname}: not vendored")
+            continue
+        dst = ctx.wdir / Path(*rel.parts)
+        if dst.exists():
+            notes.append(f"{fname}: present")
+            continue
+        try:
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(src, dst)
+        except OSError as e:
+            notes.append(f"{fname}: {e}")
+            continue
+        dropped.append(dst.relative_to(ctx.wdir).as_posix())
+    if not dropped:
+        return False, f"vendored drop 全落空: {'; '.join(notes)}"
+    note = f"vendored drop: {', '.join(dropped)}"
+    if notes:
+        note += f" (skip: {'; '.join(notes)})"
+    return True, note

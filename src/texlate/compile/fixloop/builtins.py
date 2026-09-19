@@ -130,8 +130,10 @@ from texlate.compile.fixloop._builtins_vendored import (
     _provides_date,
     _vendor_root,
     _vendored_source,
+    amsmath_family_retire,
     find_vendored_shadows,
     vendored_fetch,
+    vendored_fetch_multi,
     vendored_shadow_isolate,
 )
 
@@ -177,6 +179,7 @@ __all__ = [
     "_vendor_root",
     "_vendored_source",
     "accent_mark_fix",
+    "amsmath_family_retire",
     "bbl_regen",
     "bbl_stub_rewrite",
     "biber_biblatex_skew_route",
@@ -229,6 +232,7 @@ __all__ = [
     "undefine_for_redef",
     "undefined_env_polyfill",
     "vendored_fetch",
+    "vendored_fetch_multi",
     "vendored_shadow_isolate",
     "xbb_pregen",
 ]
@@ -292,6 +296,8 @@ TRANSFORM_FNS = {
     "restore_support_from_src": restore_support_from_src,
     "citekey_sanitize": citekey_sanitize,
     "vendored_fetch": vendored_fetch,
+    "vendored_fetch_multi": vendored_fetch_multi,
+    "amsmath_family_retire": amsmath_family_retire,
     "generated_stub": generated_stub,
     "docstrip_generate": docstrip_generate,
     "extract_tar_blobs": extract_tar_blobs,
