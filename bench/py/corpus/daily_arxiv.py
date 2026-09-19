@@ -41,16 +41,27 @@ import sys
 import time
 import urllib.error
 import urllib.request
-import xml.etree.ElementTree as ET
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+from defusedxml.ElementTree import fromstring as _safe_fromstring
+
+if TYPE_CHECKING:
+    import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "src"))
 
 from texlate.arxiv.cache import SourceCache
-from texlate.arxiv.fetch import ARXIV_HOST, EXPORT_HOST, AcquireStatus, Fetcher, acquire_source
+from texlate.arxiv.fetch import (
+    ARXIV_HOST,
+    EXPORT_HOST,
+    AcquireStatus,
+    Fetcher,
+    acquire_source,
+)
 from texlate.arxiv.ratelimit import RateLimiter, RatePolicy
 
 #: 日更抓取走 export 主站——bulk_data.md 明示「harvesting 请用 export.arxiv.org」，
@@ -62,7 +73,9 @@ WORK = ROOT / "bench" / "work_daily"
 CACHE = Path.home() / ".cache" / "texlate" / "src"
 RATE_STATE = WORK / "ratelimit.json"
 
-UA = {"User-Agent": "texlate-daily-soak/1.0 (research benchmark; mailto:bench@localhost)"}
+UA = {
+    "User-Agent": "texlate-daily-soak/1.0 (research benchmark; mailto:bench@localhost)"
+}
 RSS_BASE = "https://rss.arxiv.org/rss"
 LIST_BASE = "https://arxiv.org/list"
 DAILY_BUDGET = 8000
@@ -116,7 +129,7 @@ def _texts(el: ET.Element, tag: str) -> list[str]:
 
 def parse_feed(xml_bytes: bytes) -> tuple[str, list[dict]]:
     """RSS → (公告日 YYYY-MM-DD, items)。pubDate 取频道级。"""
-    root = ET.fromstring(xml_bytes)
+    root = _safe_fromstring(xml_bytes)
     chan = root.find("channel")
     assert chan is not None
     pub_raw = _text(chan, "pubDate")
@@ -291,21 +304,18 @@ def cmd_fetch(args: argparse.Namespace) -> int:
     if not todo:
         return 0
     cache = SourceCache(CACHE)
-    limiter = RateLimiter(
-        RATE_STATE, policy=RatePolicy(daily_budget=args.budget)
-    )
+    limiter = RateLimiter(RATE_STATE, policy=RatePolicy(daily_budget=args.budget))
     counts: dict[str, int] = {}
-    with status_fp.open("a", encoding="utf-8") as out, Fetcher(
-        limiter=limiter, hosts=FETCH_HOSTS
-    ) as fx:
+    with (
+        status_fp.open("a", encoding="utf-8") as out,
+        Fetcher(limiter=limiter, hosts=FETCH_HOSTS) as fx,
+    ):
         for i, row in enumerate(todo, 1):
             pid, ver = row["id"], row.get("ver")
             t0 = time.monotonic()
             try:
-                res = acquire_source(
-                    pid, version=ver, fetcher=fx, cache=cache
-                )
-            except Exception as e:  # noqa: BLE001 -- 逐篇记状态，不让单篇炸批
+                res = acquire_source(pid, version=ver, fetcher=fx, cache=cache)
+            except Exception as e:
                 res_status, detail, entry = "error", f"raise:{e}", None
             else:
                 res_status, detail, entry = res.status.value, res.detail, res.entry
@@ -346,7 +356,8 @@ def cmd_backfill_list(args: argparse.Namespace) -> int:
             if not day_secs and skip == 0:
                 # 兼容 "showing first 50 of N entries" 文案
                 day_secs = re.findall(
-                    r"<h3[^>]*>\s*\w{3}, (\d{1,2} \w{3} \d{4}) \(showing first \d+ of (\d+) entries", body
+                    r"<h3[^>]*>\s*\w{3}, (\d{1,2} \w{3} \d{4}) \(showing first \d+ of (\d+) entries",
+                    body,
                 )
             if not day_secs:
                 break
@@ -356,7 +367,12 @@ def cmd_backfill_list(args: argparse.Namespace) -> int:
                 dm = re.match(r"\s*\w{3}, (\d{1,2} \w{3} \d{4})", blk)
                 if not dm:
                     continue
-                day = datetime.strptime(dm.group(1), "%d %b %Y").date().isoformat()
+                day = (
+                    datetime.strptime(dm.group(1), "%d %b %Y")
+                    .replace(tzinfo=UTC)
+                    .date()
+                    .isoformat()
+                )
                 slot = found.setdefault(day, {})
                 for m in _ABS_RX.finditer(blk):
                     pid = m.group(1)
@@ -372,7 +388,11 @@ def cmd_backfill_list(args: argparse.Namespace) -> int:
 
 
 def cmd_report(args: argparse.Namespace) -> int:
-    rows = _load_manifest(args.date) if (CORPUS_DAILY / f"manifest_{args.date}.jsonl").exists() else []
+    rows = (
+        _load_manifest(args.date)
+        if (CORPUS_DAILY / f"manifest_{args.date}.jsonl").exists()
+        else []
+    )
     status_fp = WORK / f"fetch-{args.date}.jsonl"
     stats: dict[str, int] = {}
     n = 0
@@ -386,7 +406,9 @@ def cmd_report(args: argparse.Namespace) -> int:
     by_type: dict[str, int] = {}
     by_group: dict[str, int] = {}
     for r in rows:
-        by_type[r.get("announce_type", "?")] = by_type.get(r.get("announce_type", "?"), 0) + 1
+        by_type[r.get("announce_type", "?")] = (
+            by_type.get(r.get("announce_type", "?"), 0) + 1
+        )
         by_group[r.get("cat_group", "?")] = by_group.get(r.get("cat_group", "?"), 0) + 1
     rep = {
         "date": args.date,
@@ -400,7 +422,9 @@ def cmd_report(args: argparse.Namespace) -> int:
         else 0,
     }
     out = WORK / f"report-{args.date}.json"
-    out.write_text(json.dumps(rep, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    out.write_text(
+        json.dumps(rep, ensure_ascii=False, indent=1) + "\n", encoding="utf-8"
+    )
     print(json.dumps(rep, ensure_ascii=False, indent=1))
     return 0
 
@@ -433,7 +457,9 @@ def cmd_prune(args: argparse.Namespace) -> int:
         shutil.rmtree(d)
         n_del += 1
         freed += sz
-    log(f"prune {args.date}: 删 {n_del} 个 clean work 目录，留 {len(keep)} 个异常格，释放 {freed / 1e9:.1f}G")
+    log(
+        f"prune {args.date}: 删 {n_del} 个 clean work 目录，留 {len(keep)} 个异常格，释放 {freed / 1e9:.1f}G"
+    )
     return 0
 
 
