@@ -1724,3 +1724,11 @@
 - 无新 run.log/交付。lane 实证爬坡正常：drvstage probe4 复现中（xdvipdfmx 路）、csfix8 texput 探针、refclean 普查脚本就位、ctexbls census 三联件落盘待终判；mathbd 75-syntax +115 worktree 持续。
 - **dispatch ×2（上 tick 末）→ roster 10**：splicechk（2401.01624 `\I` splice 侧查证——cs_table polyfill 前先证 splice 无损）、auxeof34（34 格 aux_scan_eof 分桶——全 dispatch-gap vs 藏真族）。
 - **门**：HEAD=404976f3；ruleset 174；flipcheck-12 mutex 续持（mathbd/extless/drvstage/csfix8/primgap impl 在飞）；共享 index 他家污染依旧（勿动）；无 teammate git 越权。
+
+### patrol ~09:05 — ctexbls 收割：linespread=1.3 inject 缺陷确证 → **裁决旗**；roster 9
+
+- **ctexbls census 终判**（关 lane，leader 复核机制链全通）：CTEX_LINE `zihao=false` 未压 ctex scheme=chinese `linespread` NaN→1.3 自补（scheme .def:55-56 实证）→ zh \baselineskip ×1.3 于固定 \textheight。**爆面**：(a) 5 page_flood kills（3 确证 inflation-triggered：2404.14219/2609.19555/2003.10844；2 tcolorbox 上游不可断——linespread 独力或不拆）；(b) ~18 强 +~30 疑似 output-active Overfull \vbox 船出裁切，**109/143 是 clean-verdict 格——判分永不见**；(c) 页胀 ~4 确证；(d) 溢出形降级除 kills ~0。
+- **修复点已验证**：inject.py:59 CTEX_LINE += `linespread=1`——ctex.sty:152 fp keyval（value_required，init NaN）、:709-715 非 NaN 即 `\linespread{fp}`+footnotesep（同码路今义）；acmart 守卫 inject.py:61-73 + 95:1037 续留（\linespread{1} 仍 \def \baselinestretch）。测试 pin 走常量引用，结构安全。
+- **裁决旗 → 用户**：全局排版权衡——linespread=1 对齐 src 几何+修 ~57 格（含 109 静默裁切 clean 格，仅全局臂可达）；代价 = CJK 行距较 ctex CJK-文档惯例收紧。备选 = fixloop 门控臂，但够不到 clean-verdict 裁切轴。**leader 荐：全局落**（zihao=false 先例——src 对齐优于 CJK-文档默认；align.py 页对应是产品特性）。
+- **mutex 注**：overnite chaser 每 ~20min 跑 compile zh——inject.py 在 live-read 集，落点须等 mutex 窗（批后或 chaser 间隙批停）。
+- **门**：HEAD=44811521；ruleset 174；flipcheck-12 mutex 续持；roster 9（mathbd/extless/drvstage/docsty/refclean/csfix8/primgap/splicechk/auxeof34）。
