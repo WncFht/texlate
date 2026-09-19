@@ -5,7 +5,7 @@ r"""中文支持注入：ctex `[fontset=fandol,UTF8]` 默认路径 + xeCJK 降�
 （CJK 九段）/ Libertinus Serif（西里尔·组合符·拉丁扩展）符号字体补齐。
 
 docs/08 §3.3 注入缝：
-- 兼容块 → `\begin{document}` 前（normalize.py 的 inject_preamble）
+- 兼容块 → `\begin{document}` 前（本模块 _splice_before_document，depth-0 锚）
 - 字体系块 → `\documentclass{}` 后（本模块 find_docclass_ends：逐缝注入，
   `\ifpdf A \else B \fi` 分支选择形态每条臂各落一份幂等块）
 - `\documentstyle` → **禁止注入 + inject 层 reject**（ctex/xeCJK 与 2.09
@@ -43,7 +43,9 @@ from texlate.textutil import (
 
 from .latex209 import upgrade_209
 from .mask import group_end, visible_tex
-from .normalize import inject_preamble
+from .normalize import (
+    inject_preamble,  # noqa: F401 -- re-export 经 compile/__init__ 外发
+)
 
 if TYPE_CHECKING:
     from collections.abc import Iterator, Mapping
@@ -945,19 +947,26 @@ def _splice_after_seams(tex: str, hits: list[tuple[int, int, str]], block: str) 
     return out
 
 
-def _splice_before_document(tex: str, block: str, *, after: int = 0) -> str:
+def _splice_before_document(
+    tex: str, block: str, *, after: int = 0, sentinel: str = "TeXlateMathFB"
+) -> str:
     r"""``\begin{document}`` 前逐点 ``\n``+block 回填——preamble 尾锚。
 
     多 bd 形态（条件双 bd/坏档）逐点注入 + 幂等哨兵（与 docclass 多缝
     同款：活臂执行立哨，余点整块跳过）；右向左回填免 offset 簿记。
     只认 ``after``（首个 docclass 缝位）之后的 bd——先于缝位的 bd 不是
     preamble 尾，锚在那里会把声明放到 ``\documentclass`` 行之前。
+    bd 命中取 ``iter_depth0``：``\def\bd{\begin{document}}``/``\newcommand``
+    宏体内的 bd 字样不是真文档起点——裸 finditer 把注入块楔进 ``\def\bd{``
+    与 ``\begin{document}}`` 之间，宏体吞含 ``#1`` 的定义即 "Illegal
+    parameter number in definition of \bd"（hep-th/0307203、
+    hep-th/9910011、0905.0876 实案）；depth>0 一律不算锚点。
     无合格 bd 则原样返回（调用方负责退化路径）。
     """
     positions = sorted(
         {
             m.start()
-            for m in BEGIN_DOC_RX.finditer(visible_tex(tex))
+            for m in iter_depth0(BEGIN_DOC_RX, visible_tex(tex))
             if m.start() > after
         }
     )
@@ -965,9 +974,9 @@ def _splice_before_document(tex: str, block: str, *, after: int = 0) -> str:
         return tex
     if len(positions) > 1:
         block = (
-            "% texlate: math fallback (multi-bd idempotent)\n"
-            "\\ifdefined\\TeXlateMathFB\\else\n"
-            "\\def\\TeXlateMathFB{1}%\n" + block + "\\fi\n"
+            f"% texlate: {sentinel} (multi-bd idempotent)\n"
+            f"\\ifdefined\\{sentinel}\\else\n"
+            f"\\def\\{sentinel}{{1}}%\n" + block + "\\fi\n"
         )
     for pos in reversed(positions):
         tex = tex[:pos] + "\n" + block + tex[pos:]
@@ -1016,7 +1025,7 @@ def inject_cjk(  # noqa: C901 — ctex/xecjk 双模锚点分派+幂等校验平�
     # 用户字体包先行声明，注入字体取余号；bd 不在档（编排壳）维持缝位。
     # 合格锚 = 首个缝位之后的 bd；bd 全在缝位之前视同无 bd（回落缝位）。
     bd_in_main = any(
-        m.start() > hits[0][0] for m in BEGIN_DOC_RX.finditer(visible_tex(tex))
+        m.start() > hits[0][0] for m in iter_depth0(BEGIN_DOC_RX, visible_tex(tex))
     )
     if not bd_in_main:
         block += CJK_MATH_FALLBACK
@@ -1077,15 +1086,16 @@ def _float_sized(text: str) -> str:
     r"""单文件 FLOAT_SIZING 注入：dc 在档即收，返回改写后文本（未变=不注）。
 
     ``\AtBeginDocument`` 钩子只要求前导区位置——bd 在 ``\input`` 子文件的
-    编排壳 main（cs/0408015 形态）同权；有 bd 走 ``inject_preamble`` 锚，
+    编排壳 main（cs/0408015 形态）同权；有 bd 走 ``_splice_before_document``
+    depth-0 锚（宏体内 bd 字样不算——``\def\bd{\begin{document}}`` 简写形态），
     无 bd 落 docclass 缝后（多臂声明逐缝注入 + 哨兵兜双执行——
     ``\let\texlate@endfloatbox\@endfloatbox`` 二次捕获已补丁版本会自递归）。
     """
     vis = visible_tex(text)
     if FLOAT_SIZING.strip() in text or not DOCCLASS_RX.search(vis):
         return text
-    if BEGIN_DOC_RX.search(vis):
-        return inject_preamble(text, FLOAT_SIZING)
+    if next(iter_depth0(BEGIN_DOC_RX, vis), None) is not None:
+        return _splice_before_document(text, FLOAT_SIZING, sentinel="TeXlateFloatFit")
     hits = find_docclass_ends(text)
     if not hits:
         return text
@@ -1103,7 +1113,7 @@ def inject_table_fitting(tex: str) -> str:
     """TABLE_FITTING 前导块：工程含 threeparttable 时注入（调用方负责判据）。"""
     if TABLE_FITTING.strip() in tex:
         return tex
-    return inject_preamble(tex, TABLE_FITTING)
+    return _splice_before_document(tex, TABLE_FITTING, sentinel="TeXlateTableFit")
 
 
 def prepare_chinese(

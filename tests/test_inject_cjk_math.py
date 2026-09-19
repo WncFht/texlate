@@ -22,8 +22,12 @@ import pytest
 from texlate.compile.inject import (
     CJK_FIRST_USE_WARMUP,
     CJK_MATH_FALLBACK,
+    FLOAT_SIZING,
+    TABLE_FITTING,
     TIE_ACCENT_FIX,
+    _float_sized,
     inject_cjk,
+    inject_table_fitting,
 )
 
 DOC = (
@@ -153,3 +157,67 @@ def test_math_fallback_real_compile(tmp_path: Path) -> None:
     assert "texlatecjk" not in ctl
     ctl_log = _compile("ctl_nofallback", ctl)
     assert len(re.findall(r"Missing character", ctl_log)) > 0
+
+
+BD_DEF_DOC = (
+    "\\documentclass[10pt]{article}\n"
+    "\\let\\la=\\label \\let\\ci=\\cite\n"
+    "\\def\\nn{\\nonumber} \\def\\bd{\\begin{document}} \\def\\ed{\\end{document}}\n"
+    "\\def\\ds{\\documentstyle}\n"
+    "\\begin{document}\n"
+    "x $y_1$\n"
+    "\\end{document}\n"
+)
+
+BD_NEWCOMMAND_DOC = (
+    "\\documentclass{svjour2}\n"
+    "\\newcommand {\\bd}{\\begin{document}}\n"
+    "\\begin{document}\n"
+    "x\n"
+    "\\end{document}\n"
+)
+
+
+def test_bd_shorthand_def_not_split() -> None:
+    r"""``\def\bd{\begin{document}}`` 简写形态：宏体内 bd 字样不是注入锚。
+
+    hep-th/0307203、hep-th/9910011 实案——裸 finditer 把数学兜底块（含
+    ``#1`` 参数定义）楔进 ``\def\bd{`` 与 ``\begin{document}}`` 之间，
+    "Illegal parameter number in definition of \bd" 连级 ``undefined_cs``。
+    """
+    out, info = inject_cjk(BD_DEF_DOC, mode="ctex")
+    assert info["status"] == "injected"
+    needle = (
+        "\\def\\nn{\\nonumber} \\def\\bd{\\begin{document}} \\def\\ed{\\end{document}}"
+    )
+    assert needle in out
+    fb = out.index("\\DeclareSymbolFont{texlatecjk}")
+    assert out.index(needle) < fb < out.index("\\begin{document}\nx")
+    assert "multi-bd idempotent" not in out
+
+
+def test_bd_shorthand_newcommand_not_split() -> None:
+    r"""``\newcommand{\bd}{\begin{document}}`` 同构（0905.0876）：锚点仍只认 depth-0 bd。"""
+    out, info = inject_cjk(BD_NEWCOMMAND_DOC, mode="ctex")
+    assert info["status"] == "injected"
+    needle = "\\newcommand {\\bd}{\\begin{document}}"
+    assert needle in out
+    fb = out.index("\\DeclareSymbolFont{texlatecjk}")
+    assert out.index(needle) < fb < out.index("\\begin{document}\nx")
+    assert "multi-bd idempotent" not in out
+
+
+def test_float_table_fitting_skip_indef_bd() -> None:
+    r"""FLOAT_SIZING/TABLE_FITTING 同口径：不楔进 ``\def`` 宏体，落真 bd 前。"""
+    for block, inject in (
+        (FLOAT_SIZING, _float_sized),
+        (TABLE_FITTING, inject_table_fitting),
+    ):
+        out = inject(BD_DEF_DOC)
+        assert block.strip() in out
+        needle = "\\def\\bd{\\begin{document}}"
+        assert (
+            out.index(needle)
+            < out.index(block.strip())
+            < out.index("\\begin{document}\nx")
+        )
