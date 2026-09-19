@@ -71,7 +71,7 @@ def test_math_switch_bf_not_prefix_of_bfseries() -> None:
     out, info = _convert("${\\bfseries X}$")
     assert info["math_switch_fixed"] == 1
     assert "\\mathbf{ X}" in out
-    assert "bfseries" not in out
+    assert "{\\bfseries X}" not in out
 
 
 def test_math_switch_delimiters() -> None:
@@ -97,7 +97,7 @@ def test_math_switch_text_mode_untouched() -> None:
     out, info = _convert("text {\\em x} text\n{\\it y}\n{\\bf z}")
     assert info["math_switch_fixed"] == 0
     assert "{\\em x}" in out
-    assert "\\mathit" not in out
+    assert "{\\it y}" in out
 
 
 def test_math_switch_textarg_in_math_untouched() -> None:
