@@ -52,6 +52,16 @@ DOCCLASS_OPTS_RX: Final = re.compile(
     r"\\documentclass" + CMD_BOUNDARY + r"\s*(?:\[([^\]]*)\])?\s*\{"
 )
 
+#: ``\documentclass[..]{subfiles}`` —— subfiles 子档标记。母档 ``\subfile``
+#: 拉入时子件 ``\documentclass`` 起至 ``\begin{document}`` 区间被吞，声明行
+#: **之前**的文本却在母档 body 语境执行——前置块里 preamble-only cs
+#: （``\PassOptionsTo*``）落 body 即 "Can be used only in preamble"
+#: （2310.16788 birds_eye_view/side_view :1,14 实案）。消费侧同族约定：
+#: 遮盖/剥注释视图判定。
+SUBFILES_CHILD_RX: Final = re.compile(
+    r"\\documentclass" + CMD_BOUNDARY + r"\s*(?:\[[^\]]*\])?\s*\{\s*subfiles\s*\}"
+)
+
 #: 包/类加载命令名集——全仓各站现有集合的并集单源化（fixloop actions
 #: ``_DEP_DECL_RE`` / normalize ``_PACKAGE_USE_RX``·``_CLASS_USE_RX`` /
 #: probe ``_PKG_RE``·``_CLS_RE`` / inject / fixloop.builtins /

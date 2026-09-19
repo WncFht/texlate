@@ -47,6 +47,7 @@ from .decls import (
     INPUT_BARE_RX,
     INPUT_BRACED_RX,
     LOADER_CMDS,
+    SUBFILES_CHILD_RX,
     clean_decl_name,
 )
 
@@ -99,6 +100,7 @@ __all__ = [
     "MATH_CS",
     "PH_FUZZY_RX",
     "PH_RX",
+    "SUBFILES_CHILD_RX",
     "VERBATIM_ENVS",
     "EncodingVerdict",
     "bare_cs_net",

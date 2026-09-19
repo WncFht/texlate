@@ -30,9 +30,11 @@ from texlate.textutil import (
     BEGIN_DOC_RX,
     CMD_BOUNDARY,
     DOCCLASS_OPTS_RX,
+    SUBFILES_CHILD_RX,
     _tar_disguised,
     decode_tex,
     decode_tex_with,
+    iter_depth0,
     safe_is_file,
     safe_resolve,
 )
@@ -928,16 +930,27 @@ def normalize_engine(
                 # \ifdefined 幂等闸保证多件重复注入也安全。
                 text = PIXEL_COMPATIBILITY + text
                 visible = visible_tex(text)
-            if has_document and XETEX_COMPATIBILITY not in text:
+            # ``\documentclass[..]{subfiles}`` 子档：母档 ``\subfile`` 拉入时
+            # ``\documentclass`` 起至 bd 区间被吞，声明行**之前**的文本却在
+            # 母档 body 语境执行——前置块内 preamble-only ``\PassOptionsTo*``
+            # 落 body 即 "Can be used only in preamble"（2310.16788 实案：
+            # birds_eye_view/side_view :1,14）。``iter_depth0`` 与
+            # find_docclass_ends 同口径——宏体/实参内 depth>0 命中不算真
+            # 声明点。PIXEL 仅 \ifdefined/\newdimen（body 合法）且保子件
+            # \pdfpxdimen 覆盖，放行。
+            preamble_ok = bool(has_document) and not any(
+                iter_depth0(SUBFILES_CHILD_RX, visible)
+            )
+            if preamble_ok and XETEX_COMPATIBILITY not in text:
                 text = XETEX_COMPATIBILITY + text
             if (
                 engine == "tectonic"
-                and has_document
+                and preamble_ok
                 and TECTONIC_FONT_COMPATIBILITY not in text
             ):
                 text = TECTONIC_FONT_COMPATIBILITY + text
             if (
-                has_document
+                preamble_ok
                 and r"\PassOptionsToPackage{no-math}{fontspec}" not in visible_tex(text)
             ):
                 text = "\\PassOptionsToPackage{no-math}{fontspec}\n" + text
