@@ -938,3 +938,61 @@ rules:
         }
     stats: { fires: 1, status: proposed }
     source_ref: "tmp/lane-c3-fixloop/ — C3 stats 驱动"
+
+  # 2026-09-19 undef13 lane (1907.10349 + 2403.00097): pinlabel.sty
+  # \scan@header 的 .pdf 分支用 \pdfximage cropbox{file} 量 bbox
+  # (texmf 系统件, fileset 外) —— file-line 错误却归 splice 内
+  # \includegraphics 行 (fileset 内), err_outside_fileset=false; doc 源
+  # 无字面 \pdfximage, prim_read_form/source_contains 皆不见 → 既有
+  # guard(50)/polyfill(51) 条件够不到本站点, 是链上唯一盲区。且
+  # polyfill 的 _PRIM_ARGFUL["pdfximage"]="#1" 单参吞对 cropbox 关键字
+  # 形本就错误 (吞关键字残花括号组排字 + \pdfximagebbox 仍缺)。
+  # 本 arm 用 \XeTeXpdffile 量真实 PDF 自然尺寸进 \wd/\ht,
+  # \pdfximagebbox 按 pinlabel 四调用点 (1=llx/2=lly/3=urx/4=ury)
+  # 回 0bp/0bp/\wd/\ht —— cropbox 原点近似 (known_gap: 真 cropbox
+  # ll 非恒原点, pinlabel 只拿差值 \@bbw/\@bbh 算缩放, 差值全真)。
+  # payload 闸收窄: when 限 pdftex_prim + builtin 表查询只中本 overlay
+  # (_CS_FIX_TABLE 无 pdf* 键), cs_targeted_fix(165) 既有覆盖面零扰动。
+  - id: pinlabel_pdfximage_emulate
+    mechanisms: [W104]
+    description: "pinlabel \\scan@header pdf 分支 \\pdfximage cropbox 量 bbox → \\XeTeXpdffile 盒量仿真接管 (texmf 站点盲区)"
+    phase: loop
+    order: 50.5 # pdftex_prim_guard(50) 与 polyfill(51) 之间 —— pinlabel 格必须先中, generic 吞参形对 cropbox 关键字有害
+    when: { category: pdftex_prim, payload_required: true }
+    condition:
+      # 源证据 = doc 装载 pinlabel; 无 pinlabel 的 \\pdfximage 裸调用格
+      # 归 guard/polyfill 常链 (条件闸把本 arm 关在同签异机理格外)
+      source_contains: "pinlabel"
+    action:
+      kind: builtin_transform
+      function: cs_targeted_fix
+      params:
+        cs_table:
+          pdfximage:
+            polyfill_pre: |
+              \ifdefined\pdfximage\else
+              \newbox\texlatepdfximagebox
+              \def\pdfximage#1#{\texlatepdfximageload}
+              \def\texlatepdfximageload#1{%
+                \edef\texlatepdfximagedo{\noexpand\XeTeXpdffile"#1"\relax}%
+                \setbox\texlatepdfximagebox=\hbox{\texlatepdfximagedo}%
+                \chardef\pdflastximage=1\relax}
+              \def\pdfrefximage#1{\copy\texlatepdfximagebox}
+              \def\pdfximagebbox#1#2{\ifcase#2 0bp\or 0bp\or 0bp\or \the\wd\texlatepdfximagebox\or \the\ht\texlatepdfximagebox\fi}
+              \fi
+    risk: low # \ifdefined 幂等; 原语定义者存在时整块跳过零副作用
+    known_gap: "cropbox ll 原点近似 (llx=lly=0): pinlabel 只用差值算缩放故全真; 他包若依赖绝对原点会偏 —— 无实证; \\pdfximage 无花括号裸调用 (#1# 抓不到 { 时吞文) 无实证, pinlabel 唯一调用形是 cropbox{file}"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same } # XeTeX 内核同缺 pdf 原语, \XeTeXpdffile 同可用
+    provenance:
+      - {
+          corpus: "undef13 1907.10349 (holomorphic.tex:426 \\includegraphics[height=3.5cm]{noint})",
+          error: "Undefined control sequence \\pdfximage (pinlabel.sty:588 \\scan@header pdf 分支)",
+        }
+      - {
+          corpus: "undef13 2403.00097 (\\includegraphics{J-decomposition} l.657 同机理)",
+          error: "Undefined control sequence \\pdfximage",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-undef13/repro-1907/ — emulate5.tex 全真复现+翻正 (4 pinlabel 全落位)"
