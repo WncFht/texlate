@@ -64,6 +64,7 @@ corpus\_v3 是钉版批量语料：每个 cell 记录 \texttt{(channel, item, me
   xbar stacked,
   width=13cm, height=4.6cm,
   xmin=0, xmax=14000,
+  scaled x ticks=false,
   xlabel={千篇}, ytick=data,
   xtick={0,2000,4000,6000,8000,10000,12000,14000},
   xticklabels={0,2,4,6,8,10,12,14},
@@ -120,7 +121,7 @@ holdout & 3{,}020 & 留出评测层 & ia 2{,}159 + tiger 540 + eprint 321；EVAL
 \nextgroupplot[
   xbar, bar width=3.4mm,
   width=7.6cm, height=5.2cm,
-  xmin=0,
+  xmin=0, xmax=3450,
   symbolic y coords={nucl,quant-ph,eess-stat,cond-mat,astro-ph,cs,math,hep-phys},
   ytick=data, y tick label style={font=\scriptsize},
   xlabel={篇数}, x label style={font=\small},
@@ -130,13 +131,13 @@ holdout & 3{,}020 & 留出评测层 & ia 2{,}159 + tiger 540 + eprint 321；EVAL
 \nextgroupplot[
   ybar, bar width=4.4mm,
   width=7.2cm, height=5.2cm,
-  ymin=0,
-  symbolic x coords={a$<$07,b 07--11,c 12--16,d 17--20,e 21--25,sw 月带,flag/开发带},
-  xtick=data, x tick label style={font=\tiny,rotate=20},
+  ymin=0, enlarge y limits={upper,value=0.22},
+  symbolic x coords={a$<$07,b 07--11,c 12--16,d 17--20,e 21--25,sw,flag},
+  xtick=data, x tick label style={font=\tiny,rotate=28},
   ylabel={篇数}, y label style={font=\small},
   nodes near coords, nodes near coords style={font=\tiny},
 ]
-\addplot+[fill=cD!70,draw=cD] coordinates {(a$<$07,2039) (b 07--11,2047) (c 12--16,1936) (d 17--20,1726) (e 21--25,1817) (sw 月带,1065) (flag/开发带,2636)};
+\addplot+[fill=cD!70,draw=cD] coordinates {(a$<$07,2039) (b 07--11,2047) (c 12--16,1936) (d 17--20,1726) (e 21--25,1817) (sw,1065) (flag,2636)};
 \end{groupplot}
 \end{tikzpicture}
 \caption{corpus\_v3 构成两视图。左：学科组分布 top8（其余 470 篇未绘）；右：stratum 带分布——a--e 五时代带共 9{,}565 篇均匀打底，sw 月带 1{,}065，flag 机制带/dev 补/holdout recent 等合计 2{,}636。}

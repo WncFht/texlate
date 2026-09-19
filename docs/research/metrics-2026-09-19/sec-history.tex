@@ -10,7 +10,7 @@
 \begin{axis}[
   width=12.5cm, height=5cm,
   ybar, bar width=9mm,
-  ymin=0,
+  ymin=0, enlarge y limits={upper,value=0.15},
   symbolic x coords={09-14,09-15,09-16,09-17,09-18,09-19},
   xtick=data, x tick label style={font=\small},
   ylabel={commits/日}, y label style={font=\small},
@@ -55,7 +55,7 @@ D5 09-19 & 收官+全量 & \textbf{corpus\_v3 八层 13{,}266 篇}（dev/eval �
   x tick label style={font=\scriptsize},
   ymin=0, ymax=108,
   ylabel={\%}, y label style={font=\small},
-  legend style={at={(0.02,0.97)},anchor=north west,font=\scriptsize,legend columns=2},
+  legend style={at={(0.97,0.03)},anchor=south east,font=\scriptsize,legend columns=2},
   grid=major, grid style={black!15},
 ]
 % scorecard union pdf（stagerun records 重评）
@@ -100,23 +100,23 @@ D5 09-19 & 收官+全量 & \textbf{corpus\_v3 八层 13{,}266 篇}（dev/eval �
 ]
 \nextgroupplot[
   ybar, bar width=8mm,
-  ymin=0,
-  symbolic x coords={09-15 核 1955,09-17 核 1955,09-18 核 1955,09-19 全 28904},
+  ymin=0, enlarge y limits={upper,value=0.2},
+  symbolic x coords={09-15 核,09-17 核,09-18 核,09-19 全},
   xtick=data, x tick label style={font=\tiny,rotate=18},
   ylabel={leak 命中数}, y label style={font=\small},
   nodes near coords, nodes near coords style={font=\scriptsize},
 ]
-\addplot+[fill=cB!70,draw=cB] coordinates {(09-15 核 1955,58) (09-17 核 1955,57) (09-18 核 1955,0) (09-19 全 28904,76)};
+\addplot+[fill=cB!70,draw=cB] coordinates {(09-15 核,58) (09-17 核,57) (09-18 核,0) (09-19 全,76)};
 \nextgroupplot[
   ybar, bar width=8mm,
-  ymin=99.9, ymax=100.01,
-  symbolic x coords={核心 1955,补强 1388,expand 7229,全量 28904},
+  ymin=99.9, ymax=100.02,
+  symbolic x coords={核心,补强,expand,全量},
   xtick=data, x tick label style={font=\tiny,rotate=18},
   ylabel={identity \%}, y label style={font=\small},
   ytick={99.9,99.95,100},
   nodes near coords, nodes near coords style={font=\scriptsize},
 ]
-\addplot+[fill=cA!70,draw=cA] coordinates {(核心 1955,100) (补强 1388,100) (expand 7229,100) (全量 28904,99.99)};
+\addplot+[fill=cA!70,draw=cA] coordinates {(核心,100) (补强,100) (expand,100) (全量,99.99)};
 \end{groupplot}
 \end{tikzpicture}
 \caption{解析侧演化。左：leak 命中数——dollar 族 58/57 条残留于 09-18 c2-dollar 车道清零（核心层口径），09-19 全量 28{,}904 文件上重现 76 条（1{,}845{,}338 chunk 中 0.004\%，新语料表面新案例，非回归）。右：strict identity 全测量期 $\geq$99.99\%（纵轴截断）。}
@@ -137,21 +137,21 @@ D5 09-19 & 收官+全量 & \textbf{corpus\_v3 八层 13{,}266 篇}（dev/eval �
 \nextgroupplot[
   ybar, bar width=7mm,
   ymin=55, ymax=105,
-  symbolic x coords={09-15 smoke 48,09-15 contract 80,09-19 全层 271},
+  symbolic x coords={smoke 48,契约 80,全层 271},
   xtick=data, x tick label style={font=\tiny,rotate=18},
   ylabel={hard\_ok \%}, y label style={font=\small},
   nodes near coords, nodes near coords style={font=\scriptsize},
 ]
-\addplot+[fill=cA!70,draw=cA] coordinates {(09-15 smoke 48,64.6) (09-15 contract 80,98.8) (09-19 全层 271,93.7)};
+\addplot+[fill=cA!70,draw=cA] coordinates {(smoke 48,64.6) (契约 80,98.8) (全层 271,93.7)};
 \nextgroupplot[
   ybar, bar width=7mm,
-  ymin=88, ymax=96,
-  symbolic x coords={09-18 qualbase 1200,09-18 qualdrift 300,09-19 e2ereal 1937},
+  ymin=88, ymax=96.6,
+  symbolic x coords={qualbase,qualdrift,e2ereal},
   xtick=data, x tick label style={font=\tiny,rotate=18},
   ylabel={judge mean}, y label style={font=\small},
   nodes near coords, nodes near coords style={font=\scriptsize},
 ]
-\addplot+[fill=cD!70,draw=cD] coordinates {(09-18 qualbase 1200,92.9) (09-18 qualdrift 300,92.8) (09-19 e2ereal 1937,94.0)};
+\addplot+[fill=cD!70,draw=cD] coordinates {(qualbase,92.9) (qualdrift,92.8) (e2ereal,94.0)};
 \end{groupplot}
 \end{tikzpicture}
 \caption{翻译侧演化。左：swe-2-medium 硬契约率——09-15 smoke 期网关不稳（http\_err 17）压到 64.6\%，契约批 98.8\%，今日全层抽样 93.7\%（新校验口径 v\_err 27 条计入后更严）；右：ESA judge 均分 92.9$\to$94.0（swe-2-max 评审，contested 8.1\%$\to$5.5\% 下降）。}
@@ -166,6 +166,7 @@ D5 09-19 & 收官+全量 & \textbf{corpus\_v3 八层 13{,}266 篇}（dev/eval �
 \begin{groupplot}[
   group style={group size=4 by 1,horizontal sep=8mm},
   width=4.1cm, height=4.8cm,
+  enlarge y limits={upper,value=0.22},
 ]
 \nextgroupplot[
   ybar, bar width=3.2mm, ymin=0,
@@ -193,12 +194,12 @@ D5 09-19 & 收官+全量 & \textbf{corpus\_v3 八层 13{,}266 篇}（dev/eval �
 \addplot+[fill=cE!70,draw=cE] coordinates {(15,72) (16,89) (17,174) (18,355) (19,425)};
 \nextgroupplot[
   ybar, bar width=3.2mm, ymin=0,
-  symbolic x coords={c39,v2,+core,+boo,+hot,+exp,+dev4},
-  xtick=data, x tick label style={font=\tiny,rotate=28},
+  symbolic x coords={c39,v2,+cor,+boo,+hot,+exp,+dv4},
+  xtick=data, x tick label style={font=\tiny,rotate=45},
   title={语料篇数 /千篇（v3 分层累加）}, title style={font=\tiny},
   nodes near coords, nodes near coords style={font=\tiny,rotate=90},
 ]
-\addplot+[fill=cD!70,draw=cD] coordinates {(c39,0.039) (v2,0.139) (+core,1.0) (+boo,1.2) (+hot,1.366) (+exp,5.232) (+dev4,13.266)};
+\addplot+[fill=cD!70,draw=cD] coordinates {(c39,0.039) (v2,0.139) (+cor,1.0) (+boo,1.2) (+hot,1.366) (+exp,5.232) (+dv4,13.266)};
 \end{groupplot}
 \end{tikzpicture}
 \caption{资产增长（git 历史抽样，同日口径一致）：pytest 798$\to$6{,}450、fixloop 规则 31$\to$143（16 分片）、src 72$\to$425 文件、语料 corpus39/v2 $\to$ v3 八层 13{,}266（另有 corpus\_daily 日更渠 $\sim$1{,}200 篇/日在库外增长）。}

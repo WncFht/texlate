@@ -39,7 +39,7 @@ stagerun DAG & 80 篇跨层 & \textbf{union pdf 79/80=98.75\%}；clean 71/80=88.
 \nextgroupplot[
   xbar,
   width=7.0cm, height=4.6cm,
-  xmin=0, xmax=90,
+  xmin=0, xmax=95,
   xlabel={格数}, ytick=data,
   yticklabels={union pdf,compile zh pdf,xlat ok,parse ok,ingest},
   y tick label style={font=\scriptsize},
@@ -80,7 +80,7 @@ swe-2-medium 译文对 324 篇论文 1{,}937 个 chunk 的 LLM-judge 评分（ju
 ]
 \nextgroupplot[
   ybar, bar width=7mm,
-  ymin=0,
+  ymin=0, enlarge y limits={upper,value=0.15},
   symbolic x coords={$\geq$90,75--89,55--74,$<$55},
   xtick=data, x tick label style={font=\scriptsize},
   ylabel={chunk 数}, y label style={font=\small},
@@ -90,12 +90,12 @@ swe-2-medium 译文对 324 篇论文 1{,}937 个 chunk 的 LLM-judge 评分（ju
 \nextgroupplot[
   ybar, bar width=5mm,
   ymin=88, ymax=98,
-  symbolic x coords={para,caption,section\_title},
+  symbolic x coords={para,caption,sec\_title},
   xtick=data, x tick label style={font=\scriptsize,rotate=15},
   ylabel={mean 分}, y label style={font=\small},
   nodes near coords, nodes near coords style={font=\scriptsize},
 ]
-\addplot+[fill=cD!70,draw=cD] coordinates {(para,92.2) (caption,93.2) (section\_title,96.9)};
+\addplot+[fill=cD!70,draw=cD] coordinates {(para,92.2) (caption,93.2) (sec\_title,96.9)};
 \end{groupplot}
 \end{tikzpicture}
 \caption{qualbench 评分分布（左：分数段；右：per-kind 均分）。1{,}756/1{,}937 chunk $\geq$90；para 类是主要拉低项（flag 榜：term\_inconsistency 229、grammar 197、mistranslation 132、hallucinated\_content 66）。}
@@ -113,6 +113,7 @@ swe-2-medium 译文对 324 篇论文 1{,}937 个 chunk 的 LLM-judge 评分（ju
   ybar, bar width=6mm,
   width=11.5cm, height=5.4cm,
   ymin=0, ymax=100,
+  enlarge x limits={value=0.18,upper},
   ylabel={\%}, y label style={font=\small},
   symbolic x coords={xelatex clean,xelatex pdf,tectonic clean,tectonic pdf,union pdf},
   xtick=data, x tick label style={font=\scriptsize},

@@ -28,7 +28,7 @@ qualbench flag 榜（1{,}937 judged chunk，severity 分层）：term\_inconsist
 ]
 \nextgroupplot[
   xbar, bar width=3.6mm,
-  xmin=0,
+  xmin=0, enlarge x limits={upper,value=0.25},
   symbolic y coords={driver\_fatal,killed\_by\_signal,missing\_graphic,missing\_file},
   ytick=data, y tick label style={font=\scriptsize},
   xlabel={格数}, x label style={font=\small},
@@ -37,7 +37,7 @@ qualbench flag 榜（1{,}937 judged chunk，severity 分层）：term\_inconsist
 \addplot+[fill=cB!70,draw=cB] coordinates {(3,driver\_fatal) (3,killed\_by\_signal) (3,missing\_graphic) (7,missing\_file)};
 \nextgroupplot[
   xbar, bar width=3.6mm,
-  xmin=0,
+  xmin=0, enlarge x limits={upper,value=0.15},
   symbolic y coords={ord\_soft,ord\_hard,validator,ph\_miss,cs\_dropped},
   ytick=data, y tick label style={font=\scriptsize},
   xlabel={样本数}, x label style={font=\small},
