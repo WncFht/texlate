@@ -54,12 +54,14 @@ from .decls import (
 # 私有转口——tests/ 钉点经 ``from texlate.textutil import _x`` 与
 # ``textutil._x`` 属性面消费（各带 noqa: SLF001），拆分后口径不变。
 from .encoding import (  # noqa: F401
+    _TAR_HEADER_LEN,
     EncodingVerdict,
     _char_class,
     _declared_name,
     _decode_tex_with_memo,
     _eol_norm,
     _tar_disguised,
+    _tar_header_ok,
     decode_tex,
     decode_tex_with,
     sniff_tex_encoding,
