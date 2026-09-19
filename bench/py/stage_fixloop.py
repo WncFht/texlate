@@ -126,19 +126,19 @@ def _fixloop_one(
     idx = flb._index()
     if idx is not None:
         eng.filemap = idx.query
-    # restore_support_from_src 的 baseline_dir 是逐格运行时路径 (复跑继承
-    # pre-prose-gate 脏树才有存量腐蚀可修) —— params 在共享 flb.RS 上无法按
-    # pid 注入, 故每格 Ruleset.load() 后按 transform 名注入 src/ 原件树
-    # (同 worker.ruleset_with_baseline 契约)。
+    # baseline_dir 是逐格运行时路径 (复跑继承 pre-prose-gate 脏树才有存量
+    # 腐蚀可修) —— params 在共享 flb.RS 上无法按 pid 注入, 故每格
+    # Ruleset.load() 后按 transform 名注入 src/ 原件树 (同
+    # worker.ruleset_with_baseline 契约, 名集须与 repair.py 同步)。
     rs = flb.RS
     if (wid / "src").is_dir():
         rs = Ruleset.load()
         for rule in rs.rules:
             act = rule.raw.get("action") or {}
-            if (
-                act.get("kind") == "builtin_transform"
-                and act.get("function") == "restore_support_from_src"
-            ):
+            if act.get("kind") == "builtin_transform" and act.get("function") in {
+                "restore_support_from_src",
+                "slot_arg_revert",
+            }:
                 act.setdefault("params", {})["baseline_dir"] = str(wid / "src")
     try:
         # ResProxy 记末次 CompRes——与产品侧 run_fixloop (repair.py:207) 同式
