@@ -364,12 +364,13 @@ def test_find_main_tex_body_mass_input_cycle(tmp_path: Path) -> None:
 
 
 def test_find_main_tex_mass_same_bucket_keeps_size(tmp_path: Path) -> None:
-    r"""同量级 body 不由 mass 仲裁——supp 险胜正文的翻盘被位数桶拦住。
+    r"""同量级 body 不由 mass 仲裁——厚档险胜正文的翻盘被位数桶拦住。
 
-    1907.00012 形态：补充材料文档 body 比正文厚 ~1.8× 但同十进制位数桶 →
-    回退文件大小（注释填充令正文文件更大，mass 不计注释）。
+    1907.00012 形态：附件厚档 body 比正文厚 ~1.8× 但同十进制位数桶 →
+    回退文件大小（注释填充令正文文件更大，mass 不计注释）。附件族名
+    已由 ``_AUX_NAME_RX`` 沉底，本钉用中性名只保大小 tiebreak 面。
     """
-    (tmp_path / "supp_doc.tex").write_text(
+    (tmp_path / "extra_doc.tex").write_text(
         "\\documentclass{article}\n\\begin{document}\n"
         + "supplemental section content " * 80
         + "\\end{document}\n"
@@ -594,6 +595,79 @@ def test_find_main_tex_spaced_begin_document(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     assert find_main_tex(tmp_path) == tmp_path / "b.tex"
+
+
+def test_find_main_tex_aux_name_demoted(tmp_path: Path) -> None:
+    r"""2303.16206：``supp.tex`` 名命中附件族沉底——同量级桶平时文件大小
+    不再让整件补充材料压过薄壳编排 main（2609.19320 ``SI_Appendix.tex``、
+    2503.16248 ``old-main.tex`` 同族）。"""
+    (tmp_path / "sections.tex").write_text("real paper section body " * 60)
+    (tmp_path / "iclr2023_conference.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\n"
+        "\\input{sections}\n\\end{document}\n"
+    )
+    (tmp_path / "supp.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\n"
+        + "supplementary proofs and figures " * 80
+        + "\\end{document}\n"
+    )
+    assert find_main_tex(tmp_path) == tmp_path / "iclr2023_conference.tex"
+
+
+def test_find_main_tex_aux_title_demoted(tmp_path: Path) -> None:
+    r"""题名尾段 "- Supplementary" 自报附件——文件名不暴露时仍沉底；
+    真论文题中段裸词（"Dietary Supplement Use"）不误伤。两档同量级桶，
+    附件档文件更大——旧排序按大小选附件，新键按题名沉底。"""
+    (tmp_path / "paper_main.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\n"
+        + "real paper body " * 250
+        + "\\end{document}\n"
+    )
+    (tmp_path / "doc_a.tex").write_text(
+        "\\documentclass{article}\n\\title{Learning X - Supplementary}\n"
+        "\\begin{document}\n" + "proofs and lemmas " * 300 + "\\end{document}\n"
+    )
+    assert find_main_tex(tmp_path) == tmp_path / "paper_main.tex"
+
+    (tmp_path / "doc_a.tex").write_text(
+        "\\documentclass{article}\n\\title{Dietary Supplement Use in Adults}\n"
+        "\\begin{document}\n" + "proofs and lemmas " * 300 + "\\end{document}\n"
+    )
+    assert find_main_tex(tmp_path) == tmp_path / "doc_a.tex"
+
+
+def test_find_main_tex_pref_name_depth_scoped(tmp_path: Path) -> None:
+    r"""2210.03294：名加成只计候选最浅层——``4Num_Example/main.tex``
+    示例档不再抢名槽，根层编排壳 ``EoS_iclr2023.tex`` 当选。"""
+    sub = tmp_path / "4Num_Example"
+    sub.mkdir()
+    (sub / "main.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\n"
+        + "numerical example " * 30
+        + "\\end{document}\n"
+    )
+    (tmp_path / "sec_body.tex").write_text("real paper section body " * 80)
+    (tmp_path / "EoS_iclr2023.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\n"
+        "\\input{sec_body}\n\\end{document}\n"
+    )
+    assert find_main_tex(tmp_path) == tmp_path / "EoS_iclr2023.tex"
+
+
+def test_find_main_tex_pref_name_nested_all_same_depth(tmp_path: Path) -> None:
+    r"""全工程同嵌一层时名加成照存——``src/main.tex`` 仍胜同层厚档
+    （守护面：11 格 ``main.tex`` 正确压更大 supplement 档的形态）。"""
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "bigdoc.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\n"
+        + "thick standalone doc body " * 80
+        + "\\end{document}\n"
+    )
+    (src / "main.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\nx\n\\end{document}\n"
+    )
+    assert find_main_tex(tmp_path) == src / "main.tex"
 
 
 def test_prepare_chinese_already_cjk_gets_table_fitting(tmp_path: Path) -> None:

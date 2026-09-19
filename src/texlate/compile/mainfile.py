@@ -56,6 +56,41 @@ _FILECONTENTS_BEGIN_RX = re.compile(
 #: 才有闭包意义；超界即病态输入，成员表截断。
 _VIRTUAL_MEMBER_CAP = 256
 
+#: 排序键名加成白名单——``main.tex``/``paper.tex``/``ms.tex`` 是约定主档名。
+_PREF_BASENAMES = ("main.tex", "paper.tex", "ms.tex")
+
+#: 附件/存档件名指纹（``_-``/``.`` 词元边界，逐路径段匹配）：supp/appendix/si
+#: 补充材料族 + old/archive/backup 版本存档族。整件附件档与薄壳编排 main
+#: 同十进制量级桶时文件大小会反选——2303.16206 ``supp.tex`` 压
+#: ``iclr2023_conference.tex`` 壳、2503.16248 ``old-main.tex`` 压
+#: ``00_main.tex`` 壳、2609.19320 ``SI_Appendix.tex`` 压 ``root.tex`` 实证；
+#: 命中者沉底先于名加成裁决。短词元（si/sm/app/old/bak）只收边界整词——
+#: ``simulation``/``application`` 类真文档名不误伤。
+_AUX_NAME_RX = re.compile(
+    r"(?:^|[_\-.])(?:supp\w*|si|sm|esm|appendi\w*|app|support\w*|"
+    r"rebuttal|response|reply|old|archive\w*|backup|bak|prev\w*|obsolete)"
+    r"(?:[_\-.]|$)",
+    re.IGNORECASE,
+)
+
+#: ``\title`` 参数的附件自报指纹：整题即 "Supplementary Material" 类，或
+#: 尾段以 ``-``/``:`` 等分隔后接 supplement/appendix 族词
+#: （2303.16206 ``supp.tex`` 题 "… - Supplementary"）。中段裸词不算——
+#: "Dietary Supplement …" 类真论文题不误伤。
+_AUX_TITLE_RX = re.compile(
+    r"(?:^\s*(?:supplement(?:ary|s|al)?|supporting\s+information|"
+    r"appendi(?:x|ces))(?:\s+(?:material|information|document|file|online))?"
+    r"\s*\.?\s*$"
+    r"|[-–—:;(\[]\s*(?:supplement(?:ary|s|al)?|supporting\s+information|"
+    r"appendi(?:x|ces))[\w\s,.-]*$)",
+    re.IGNORECASE,
+)
+
+#: ``\title`` 参数抽取（一层嵌套内的前 400 字符面——附件判定只看题头）。
+_TITLE_ARG_RX = re.compile(
+    r"\\title\*?\s*(?:\[[^\]]*\])?\s*\{((?:[^{}]|\{[^{}]*\}){0,400})"
+)
+
 
 def _norm_virtual_key(name: str) -> str | None:
     r"""``filecontents`` 名 → 规范包内相对路径；逃逸/绝对/噪声 → ``None``。"""
@@ -256,7 +291,12 @@ def find_main_tex(root: Path) -> Path | None:  # noqa: C901, PLR0912 — 候选�
     `\begin{document}` 允许落在本体的 `\input`/`\include` 传递闭包内——
     编排壳 main 只拉子文件、bd 在下游（cs/0408015、2105.00092 形态）。
 
-    排序：main/paper/ms 名 → 英文正文优先（多语种版本不靠 UTF-8 字节数
+    排序：附件/存档件沉底（路径段词元命中 supp/appendix/archive 族或
+    ``\title`` 自报附件——同量级桶平时文件大小会让整件 supp/old 档
+    压过薄壳编排 main：2303.16206/2503.16248/2609.19320 实证）→
+    main/paper/ms 名（只在候选最浅层生效——子目录 ``main.tex`` 不再
+    全局抢槽，2210.03294 ``4Num_Example/main.tex`` 实证）→ 英文正文
+    优先（多语种版本不靠 UTF-8 字节数
     排序——多字节文字系统性吃亏；名先于语种——译后 splice 树主档变
     CJK 众数，语种档会把真 main 输给 standalone 英文表档，
     ds209diag #191 四格误选实证）→ 模板参档后置（``\documentclass``
@@ -293,6 +333,7 @@ def find_main_tex(root: Path) -> Path | None:  # noqa: C901, PLR0912 — 候选�
     candidates = []
     bodies = {}
     tpl: dict[str, bool] = {}
+    aux: dict[str, bool] = {}
 
     def _admit(rel: str, text: str) -> None:
         candidates.append(rel)
@@ -302,6 +343,13 @@ def find_main_tex(root: Path) -> Path | None:  # noqa: C901, PLR0912 — 候选�
         bodies[rel] = BEGIN_DOC_RX.split(text, maxsplit=1)[-1]
         dc = DOCCLASS_DECL_RX.search(text)
         tpl[rel] = bool(dc and dc.group(2) and "\\" in dc.group(2))
+        parts = Path(rel).parts
+        tm = _TITLE_ARG_RX.search(text)
+        aux[rel] = bool(
+            _AUX_NAME_RX.search(Path(rel).stem)
+            or any(_AUX_NAME_RX.search(seg) for seg in parts[:-1])
+            or (tm and _AUX_TITLE_RX.search(tm.group(1)))
+        )
 
     for p, rel, text in scanned:
         if not DOCCLASS_RX.search(text):
@@ -339,9 +387,15 @@ def find_main_tex(root: Path) -> Path | None:  # noqa: C901, PLR0912 — 候选�
         for rel in candidates
     }
 
+    # 名加成只计候选最浅层——任意深度 ``main.tex`` 全局抢名槽会让示例/
+    # 实验子目录的薄档压过根层真 main（2210.03294 ``4Num_Example/main.tex``
+    # 压 ``EoS_iclr2023.tex`` 壳实证）。
+    pref_depth = min(len(Path(rel).parts) for rel in candidates)
+
     candidates.sort(
         key=lambda p: (
-            Path(p).name not in ("main.tex", "paper.tex", "ms.tex"),
+            aux[p],
+            not (Path(p).name in _PREF_BASENAMES and len(Path(p).parts) <= pref_depth),
             language_rank(p),
             tpl[p],
             len(Path(p).parts),
