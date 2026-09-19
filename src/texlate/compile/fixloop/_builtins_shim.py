@@ -985,6 +985,10 @@ def cs_rebind(
     实证); ``\\ifmmode\\mbox`` 分支数学/文本双域兼容。回退族名
     ``params.fallback_cs`` (缺省 txlatefallback) 与 font_fallback 共享
     ``\\ifdefined`` 守卫面 —— 先后注入不互踩 ``\\newfontfamily``。
+    def 裹 ``\\AtBeginDocument`` 迟延: ctex+hyperref 宿主下 hyperref 在
+    ``begindocument/before`` 重声明 text-cs 族, 回卷 preamble 即时
+    ``\\protected\\def`` (1404.0332 ``\\i`` 垫在仍缺实证) —— top-level 钩
+    排在重声明后, 迟延绑定存活。
     """
     del eng, payload
     log = _fixloop_log(ctx)
@@ -1024,8 +1028,8 @@ def cs_rebind(
     for cp, cs in fresh:
         ch = _mc_chr(cp)
         lines.append(
-            rf"\protected\def\{cs}"
-            rf"{{\ifmmode\mbox{{\{fam} {ch}}}\else{{\{fam} {ch}}}\fi}}"
+            rf"\AtBeginDocument{{\protected\def\{cs}"
+            rf"{{\ifmmode\mbox{{\{fam} {ch}}}\else{{\{fam} {ch}}}\fi}}}}"
         )
     if not _inject_after_docclass(ctx, "\n".join(lines)):
         return False, "cs-rebind block already present"
