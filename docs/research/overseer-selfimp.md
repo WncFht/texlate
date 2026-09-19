@@ -1338,3 +1338,7 @@
 - **派波**: fixloop --rerun 2403.00013,2410.18001 @loop3 (pid 1152640, run.log tmp/lane-kotexfix/replay/) — gate③ flip 证据。
 - **解锁**: _builtins_misschar.py 已落净 — endsfix 补丁窗口开 (已通报)。
 - **Roster**: 9 — covgap, fmsingles, paraearly, endsfix, mintedstyle, csdefmismatch, missmath, docclsstack, firedunfixed。Closed: kotexfix。
+
+### gate③ flip evidence — ko-route 2/2 clean
+
+`fixloop --rerun --ids 2403.00013,2410.18001` post-`bce2c8d9`: **2403.00013 → clean (25s), 2410.18001 → clean (30s)**. 2410.18001 的 endcsname 残层同消 — 谚文码位全被路由臂认领后 newunicodechar 激活块不再发射, csname-ingest 路径消失 (endcsdiag item-1 在此格被 ko-route 顺带治愈; 2609.19944 仍待 endsfix 补丁)。
