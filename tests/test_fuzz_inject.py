@@ -78,6 +78,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 from texlate.compile.inject import (
+    ACM_BASELINESTRETCH_GUARD,
     CJK_FIRST_USE_WARMUP,
     CJK_MATH_FALLBACK,
     CJK_PRESENT_RE,
@@ -106,7 +107,11 @@ from texlate.textutil import BEGIN_DOC_RX
 
 def _block(mode: str, nseams: int, *, bd_tail: bool = False) -> str:
     """``inject_cjk`` 块组装的独立重演（docs/08 §3.3 注入缝规格 + W157 尾锚）。"""
-    blk = CTEX_LINE + "  % [texlate injected]" if mode == "ctex" else XECJK_BLOCK
+    blk = (
+        CTEX_LINE + "  % [texlate injected]" + ACM_BASELINESTRETCH_GUARD
+        if mode == "ctex"
+        else XECJK_BLOCK
+    )
     blk += (
         THEOREM_ANCHOR_SHIM
         + CJK_FIRST_USE_WARMUP
