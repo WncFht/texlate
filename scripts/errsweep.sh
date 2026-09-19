@@ -30,6 +30,10 @@ fi
 
 cd "$ROOT" || exit 1
 
+# 网关凭证——systemd --user 干净环境不继承会话 ANTHROPIC_*，必须显式 source
+# shellcheck disable=SC1091
+[ -f "$HOME/.config/texlate/errsweep.env" ] && . "$HOME/.config/texlate/errsweep.env"
+
 BR="errsweep/$DATE"
 WT="$STATE/errsweep-wt-$DATE"
 REPLAY_DIR="$STATE/replay-$DATE"
