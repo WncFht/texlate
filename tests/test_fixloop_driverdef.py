@@ -340,3 +340,218 @@ def test_pdftexopt_apply_leaves_non_driver_opts(tmp_path: Path) -> None:
     ok, _ = _opt_apply(tmp_path)
     assert not ok
     assert (tmp_path / "main.tex").read_text() == src
+
+
+# ────────────────────────────────────────────────────────────────
+# drvopt-ext (2026-09-19): opt_strip 词闸拓宽 (pdftex→驱动词表) +
+# def 臂 [Dd]river 大小写 + \\newcommand 族指派臂。
+# 实证面: aa.cls/webofc.cls \\newcommand\\<cs>driver{dvips|pdftex}
+# 条件选支 (~12 distinct cells); xcolor.sty \\def\\GinDriver{hypertex}
+# (3 cells); maple2e.sty \\edef\\Driver{dvips 系} (1 cell)。
+# ────────────────────────────────────────────────────────────────
+
+_AA_CLS = (
+    "\\ifx\\pdfoutput\\undefined\\newcount\\pdfoutput\\fi\n"
+    "\\ifnum\\pdfoutput=\\z@\n"
+    "  \\newcommand\\aa@driver{dvips}\n"
+    "\\else\n"
+    "  \\newcommand\\aa@driver{pdftex}\n"
+    "\\fi\n"
+    "\\RequirePackage[\\aa@driver,a4paper]{geometry}\n"
+)
+
+
+def test_pdftexopt_cond_passes_dvips_only_cell(tmp_path: Path) -> None:
+    """词闸拓宽: 无 pdftex 字样仅 dvips 的格 (hep-lat 形) 放行。"""
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\usepackage[dvips]{graphicx,color}\n"
+    )
+    ok, why = _opt_cond(tmp_path)
+    assert ok, why
+
+
+def test_pdftexopt_cond_passes_hypertex_only_cell(tmp_path: Path) -> None:
+    """词闸拓宽: xcolor.sty \\GinDriver{hypertex} 格 (0806.4130 形) 放行。"""
+    (tmp_path / "main.tex").write_text("\\documentclass{article}\n")
+    (tmp_path / "xcolor.sty").write_text("\\def\\GinDriver{hypertex}\n")
+    ok, why = _opt_cond(tmp_path)
+    assert ok, why
+
+
+def test_pdftexopt_cond_declines_driverless(tmp_path: Path) -> None:
+    """对照: 无任何驱动词 → 闸拒 (拓宽后仍守)。"""
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\usepackage[svgnames]{xcolor}\n"
+        "\\newcommand{\\mydriver}{custom}\n"
+    )
+    ok, _ = _opt_cond(tmp_path)
+    assert not ok
+
+
+def test_pdftexopt_apply_newcommand_both_branches(tmp_path: Path) -> None:
+    """aa.cls 形: \\newcommand\\aa@driver{dvips}/{pdftex} 两支全覆写 xetex。"""
+    (tmp_path / "aa.cls").write_text(_AA_CLS)
+    ok, note = _opt_apply(tmp_path)
+    assert ok, note
+    t = (tmp_path / "aa.cls").read_text()
+    assert "\\newcommand\\aa@driver{xetex}" in t
+    assert "{dvips}" not in t
+    assert "{pdftex}" not in t
+    assert "\\RequirePackage[\\aa@driver,a4paper]{geometry}" in t
+
+
+def test_pdftexopt_apply_newcommand_braced_cs(tmp_path: Path) -> None:
+    """primaldual 形: \\newcommand{\\mydriver}/{\\renewcommand} 花括号 cs 面。"""
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n"
+        "\\newcommand{\\mydriver}{hypertex}\n"
+        "\\renewcommand{\\mydriver}{pdftex}\n"
+    )
+    ok, _ = _opt_apply(tmp_path)
+    assert ok
+    t = (tmp_path / "main.tex").read_text()
+    assert "\\newcommand{\\mydriver}{xetex}" in t
+    assert "\\renewcommand{\\mydriver}{xetex}" in t
+
+
+def test_pdftexopt_apply_gindriver_capital(tmp_path: Path) -> None:
+    """xcolor.sty \\def\\GinDriver{hypertex}: [Dd]river 大写臂覆写。"""
+    (tmp_path / "xcolor.sty").write_text("\\def\\GinDriver{hypertex}\n")
+    ok, _ = _opt_apply(tmp_path)
+    assert ok
+    assert "\\def\\GinDriver{xetex}" in (tmp_path / "xcolor.sty").read_text()
+
+
+def test_pdftexopt_apply_edef_driver_capital(tmp_path: Path) -> None:
+    """maple2e.sty \\edef\\Driver{dvips}: edef+大写 Driver 同覆写。"""
+    (tmp_path / "maple2e.sty").write_text("\\edef\\Driver{dvips}\n")
+    ok, _ = _opt_apply(tmp_path)
+    assert ok
+    assert "\\edef\\Driver{xetex}" in (tmp_path / "maple2e.sty").read_text()
+
+
+def test_pdftexopt_apply_newcommand_non_driver_untouched(tmp_path: Path) -> None:
+    """保守面: \\newcommand\\driver{custom} 非驱动值不改写。"""
+    src = "\\documentclass{article}\n\\newcommand{\\mydriver}{custom}\n"
+    (tmp_path / "main.tex").write_text(src)
+    ok, _ = _opt_apply(tmp_path)
+    assert not ok
+    assert (tmp_path / "main.tex").read_text() == src
+
+
+# ────────────────────────────────────────────────────────────────
+# iftex_engine_guard_neutralize (55-prim order 47): doc 伴船 sty/tex
+# 内 \\Require<X>TeX iftex 引擎守卫 → xelatex \\read Emergency stop
+# (soak-2026-09-18 aaai2027.sty:59 ×15, unfixable:emergency)。
+# ────────────────────────────────────────────────────────────────
+
+
+def _guard_rule() -> Rule:
+    return next(
+        r for r in load_ruleset().rules if r.id == "iftex_engine_guard_neutralize"
+    )
+
+
+def _guard_apply(tmp_path: Path) -> tuple[bool, str]:
+    return actions._apply(  # noqa: SLF001 - 钉规则动作直驱
+        _guard_rule(), _ctx(tmp_path), _Eng(), None, ErrReport()
+    )
+
+
+def _guard_cond(tmp_path: Path) -> tuple[bool, str]:
+    rule = _guard_rule()
+    return actions._cond_ok(  # noqa: SLF001
+        rule.condition, rule, _ctx(tmp_path), _Eng(), None
+    )
+
+
+def test_iftexguard_rule_registered() -> None:
+    rule = _guard_rule()
+    assert rule.order == 47  # noqa: PLR2004 - 致死签先拆, opt_strip(48) 前
+    assert rule.action["kind"] == "regex_rewrite"
+
+
+def test_iftexguard_cond_passes_aaai_sty(tmp_path: Path) -> None:
+    """aaai2027.sty 形: \\RequirePDFTeX 在 .sty → 闸放行。"""
+    (tmp_path / "main.tex").write_text("\\documentclass{article}\n")
+    (tmp_path / "aaai2027.sty").write_text(
+        "\\RequirePackage{iftex}\n\\RequirePDFTeX\n"
+    )
+    ok, why = _guard_cond(tmp_path)
+    assert ok, why
+
+
+def test_iftexguard_cond_passes_tex_site(tmp_path: Path) -> None:
+    """主文件内 \\RequireLuaTeX 变体同放行 (族级词形)。"""
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\RequireLuaTeX\n"
+    )
+    ok, why = _guard_cond(tmp_path)
+    assert ok, why
+
+
+def test_iftexguard_cond_declines_no_guard(tmp_path: Path) -> None:
+    """无 \\Require<X>TeX 词形 → 闸拒。"""
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\usepackage{iftex}\n"
+    )
+    ok, _ = _guard_cond(tmp_path)
+    assert not ok
+
+
+def test_iftexguard_apply_neutralizes_pdftex(tmp_path: Path) -> None:
+    """主案: \\RequirePDFTeX → \\relax, 上下文行原样。"""
+    (tmp_path / "aaai2027.sty").write_text(
+        "\\RequirePackage{iftex}\n\\RequirePDFTeX\n\\RequirePackage{newtxtext}\n"
+    )
+    ok, note = _guard_apply(tmp_path)
+    assert ok, note
+    t = (tmp_path / "aaai2027.sty").read_text()
+    assert "\\relax" in t
+    assert "\\RequirePDFTeX" not in t
+    assert "\\RequirePackage{iftex}" in t
+    assert "\\RequirePackage{newtxtext}" in t
+
+
+def test_iftexguard_apply_family_members(tmp_path: Path) -> None:
+    """族级: LuaTeX/pTeX/VTeX 守卫同中和 (xelatex 下全拉闸)。"""
+    guards = ("LuaTeX", "pTeX", "VTeX")
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n" + "".join(f"\\Require{g}\n" for g in guards)
+    )
+    ok, _ = _guard_apply(tmp_path)
+    assert ok
+    t = (tmp_path / "main.tex").read_text()
+    for g in guards:
+        assert f"Require{g}" not in t
+    assert t.count("\\relax") == len(guards)
+
+
+def test_iftexguard_apply_passing_guard_same_semantics(tmp_path: Path) -> None:
+    """\\RequireXeTeX/\\RequireTUTeX (xelatex 下本通过) 换 \\relax 语义恒等。"""
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\RequireXeTeX\n"
+    )
+    ok, _ = _guard_apply(tmp_path)
+    assert ok
+    assert "\\relax" in (tmp_path / "main.tex").read_text()
+
+
+def test_iftexguard_apply_comment_only_declines(tmp_path: Path) -> None:
+    """masked 面: 仅注释内 \\RequirePDFTeX → applied=False。"""
+    src = "\\documentclass{article}\n%\\RequirePDFTeX\n"
+    (tmp_path / "main.tex").write_text(src)
+    ok, _ = _guard_apply(tmp_path)
+    assert not ok
+    assert (tmp_path / "main.tex").read_text() == src
+
+
+def test_iftexguard_apply_inline_midline(tmp_path: Path) -> None:
+    """行中嵌: \\A\\RequirePDFTeX\\B → \\relax 不伤邻 token。"""
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\RequirePackage{iftex}\\RequirePDFTeX\\relax\n"
+    )
+    ok, _ = _guard_apply(tmp_path)
+    assert ok
+    t = (tmp_path / "main.tex").read_text()
+    assert "\\RequirePackage{iftex}\\relax\\relax" in t

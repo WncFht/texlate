@@ -106,6 +106,50 @@ rules:
     source_ref: "fixer-bblwall-2026-09-17 spec A3; \\pdfgentounicode 是 count 赋值形故 \\newcount"
 
   # ─── loop: 源码改写系 —— 按"保守→激进"排序 ───
+  # 2026-09-19 drvopt-ext lane (soak-2026-09-18 aaai2027 ×15): doc 伴船
+  # aaai2027.sty:58-59 `\RequirePackage{iftex}` + `\RequirePDFTeX` —— iftex
+  # 引擎守卫在非目标引擎 \IFTEX@Require 拉 \read → nonstop 即 Emergency
+  # stop, file-line 错落 emergency 零规则可接 (unfixable:emergency ×15)。
+  # xelatex 下 \Require<X>TeX 守卫两向都安全: 通过形 (XeTeX/TUTeX/eTeX) 与
+  # \relax 同语义, 拉闸形 (PDFTeX/LuaTeX/pTeX/VTeX/AlephTeX/...) 中和即拆弹
+  # —— 族级词形 \Require[A-Za-z]*TeX 一律换 \relax。
+  - id: iftex_engine_guard_neutralize
+    description: "doc 伴船件内 iftex \\Require<X>TeX 引擎守卫 → xelatex 下 \\read Emergency stop → 中和 \\relax"
+    phase: loop
+    order: 47 # glyphtounicode_shadow(46)/opt_strip(48) 同档 —— 致死签先拆
+    when:
+      any:
+        - { category: emergency }
+        # belt: 守卫炸点非首错时落早终/散件签 (acro_v3_key_rename 同构兜底)
+        - { category: early_eof }
+        - { category: other }
+    condition:
+      # source_blob 见 \Require<X>TeX 词形才落 —— 站点必在 fileset 才可改写;
+      # \b 挡 \RequireTeXfoo 自定义名尾 (TeX cs 名后接字母不词界)
+      source_contains: "\\\\Require[A-Za-z]*TeX\\b"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty, .cls]
+        rewrites:
+          - {
+              pattern: "\\\\Require[A-Za-z]*TeX\\b",
+              repl: "\\\\relax",
+              match_surface: masked,
+            }
+    risk: low # 守卫唯一职能是错引擎拉闸; 通过形换 \relax 语义恒等
+    known_gap: "\\RequireHINT 等无 TeX 后缀守卫未盖; \\csname 构造形与 fileset 外 (texmf 系统件) 站点不可改写未盖; 中和后露出的 pdf 原语赋值站点 (aaai2027.sty \\pdfpagewidth/\\pdfpageheight) 归 pdftex_prim_guard/polyfill 链"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same } # XeTeX 内核同 \ifpdftex=false → 同拉闸
+    provenance:
+      - {
+          corpus: "soak-2026-09-18 aaai2027.sty ×15 (2609.19149/2609.19164/2609.17927/2609.19158/2609.19170/2609.19559 等)",
+          error: "aaai2027.sty:59 Emergency stop. (\\RequirePDFTeX iftex 守卫, unfixable:emergency, rounds=2 零相关规则)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "drvopt-ext lane: \\RequirePDFTeX emergency 15 同质格 (iftex.sty \\IFTEX@Require \\read 机制)"
+
   # 2026-09-19 driver-option strip lane (loop3-1206.0240/1706.07495/1306.0294):
   # [pdftex] 驱动选项残存进 zh 树 → xelatex 下装载 pdftex.def → \pdfcolorstack
   # 等原语 undefined → 错误恢复把 chardef 残值排进字流 (^^@×179/^^A×20
@@ -130,9 +174,12 @@ rules:
         # 无站点 applied=False 当场让位下条, 不耗轮
         - { category: other, payload_required: false }
     condition:
-      # source_blob 仅 .tex/.sty/.cls —— 宽松词级闸, 改写臂自带站点形状,
-      # vendored cfg 格靠 .sty 内 pdftex 字样 (geometry.sty \Gm@pdftex) 放行
-      source_contains: "\\bpdftex\\b"
+      # source_blob 仅 .tex/.sty/.cls —— 词级闸与改写臂词表同域 (剥谁放谁,
+      # \b 挡 dvipsnames 伪命中); vendored cfg 格靠 .sty 内 pdftex 字样
+      # (geometry.sty \Gm@pdftex) 放行; hypertex/dvips 独占格 (xcolor.sty
+      # \GinDriver{hypertex} / aa.cls \aa@driver{dvips} 支无 pdftex 字样)
+      # 同机制放行 —— 旧闸 \bpdftex\b 把改写臂盖得住的面拦在门外
+      source_contains: "\\b(?:pdftex|dvips|dvipsone|dviwindo|ps2pdf|hypertex|vtex|vtexpdfmark|textures|tex4ht|latex2html|oztex|dvipdfmx?)\\b"
     action:
       kind: regex_rewrite
       params:
@@ -172,9 +219,18 @@ rules:
               repl: "\\g<1>",
               match_surface: masked,
             }
-          # \\def\\<cs>driver<cs>{<drv>} 间接指派 → xetex (kaist-ucs.cls 形)
+          # \\def\\<cs>driver<cs>{<drv>} 间接指派 → xetex (kaist-ucs.cls 形;
+          # [Dd]river 大写面: xcolor.sty \GinDriver{hypertex}/maple2e \Driver)
           - {
-              pattern: "(\\\\[gex]?def\\s*\\\\[\\w@]*driver[\\w@]*\\s*\\{)\\s*(?:pdftex|dvips|dvipsone|dviwindo|ps2pdf|hypertex|vtex|vtexpdfmark|textures|tex4ht|latex2html|oztex|dvipdfmx?)\\s*\\}",
+              pattern: "(\\\\[gex]?def\\s*\\\\[\\w@]*[Dd]river[\\w@]*\\s*\\{)\\s*(?:pdftex|dvips|dvipsone|dviwindo|ps2pdf|hypertex|vtex|vtexpdfmark|textures|tex4ht|latex2html|oztex|dvipdfmx?)\\s*\\}",
+              repl: "\\g<1>xetex}",
+              match_surface: masked,
+            }
+          # \\newcommand 族同形指派 (aa.cls \\aa@driver / webofc.cls
+          # \\woc@driver / \\renewcommand{\mydriver}{pdftex} 条件选支;
+          # cs 名可裸可 {..} 包, 容忍 [n][default] 参槽)
+          - {
+              pattern: "(\\\\(?:newcommand|renewcommand|providecommand)\\s*\\{?\\s*\\\\[\\w@]*[Dd]river[\\w@]*\\s*\\}?\\s*(?:\\[\\d+\\]\\s*(?:\\[[^\\]]*\\]\\s*)?)?\\{)\\s*(?:pdftex|dvips|dvipsone|dviwindo|ps2pdf|hypertex|vtex|vtexpdfmark|textures|tex4ht|latex2html|oztex|dvipdfmx?)\\s*\\}",
               repl: "\\g<1>xetex}",
               match_surface: masked,
             }
@@ -192,7 +248,7 @@ rules:
               match_surface: masked,
             }
     risk: low # xetex 下这些驱动本就失效; masked 面只改写活代码, 注释/逐字不动
-    known_gap: "vendored pdftex.def/dvips.def 实体件仍留 wdir (选支换 xetex 后不再被载, 残留无害; 遮蔽退役属 vendored_shadow 面未覆盖 .cfg/.def —— backlog); .def/.clo 内驱动站点未盖 (无实证); 非 \\def 形指派 (\\let/\\newcommand) 与 \\hypersetup 驱动键未盖 (同 neutralize)"
+    known_gap: "vendored pdftex.def/dvips.def 实体件仍留 wdir (选支换 xetex 后不再被载, 残留无害; 遮蔽退役属 vendored_shadow 面未覆盖 .cfg/.def —— backlog); .def/.clo 内驱动站点未盖 (无实证); \\let 形指派与 \\hypersetup 驱动键未盖 (同 neutralize)"
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same } # XeTeX 内核同驱动面
