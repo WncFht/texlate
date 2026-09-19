@@ -1,0 +1,149 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1240" height="1150" viewBox="0 0 1240 1150" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#334155"/>
+    </marker>
+    <marker id="arrR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#dc2626"/>
+    </marker>
+  </defs>
+  <style>
+    .t   { font-size: 13px; fill: #1e293b; }
+    .ts  { font-size: 11.5px; fill: #334155; }
+    .tx  { font-size: 11px; fill: #64748b; }
+    .th  { font-size: 15px; font-weight: 700; }
+    .lbl { font-size: 11px; font-weight: 700; fill: #fff; }
+    .ann { font-size: 11px; fill: #b91c1c; }
+    .annb { font-size: 11px; fill: #1d4ed8; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  </style>
+
+  <text x="620" y="28" text-anchor="middle" class="th" fill="#0f172a">alphaXiv AI Overview 生成管线（逆向还原 · 2026-09-19）</text>
+  <text x="620" y="46" text-anchor="middle" class="tx">除「模型/prompt」黑盒外，全部中间产物已拆到字段级 —— 证据见 2026-09-19-alphaxiv-reverse.md</text>
+
+  <!-- arXiv source -->
+  <rect x="470" y="66" width="300" height="52" rx="8" fill="#e2e8f0" stroke="#64748b" stroke-width="1.5"/>
+  <text x="620" y="88" text-anchor="middle" class="t" font-weight="700">arXiv e-print + PDF</text>
+  <text x="620" y="106" text-anchor="middle" class="tx">LaTeX 源码 tar / pdfs.assets CDN</text>
+
+  <line x1="620" y1="118" x2="620" y2="140" stroke="#334155" stroke-width="1.8" marker-end="url(#arr)"/>
+
+  <!-- STAGE 0 -->
+  <rect x="60" y="140" width="780" height="150" rx="10" fill="#f1f5f9" stroke="#475569" stroke-width="2"/>
+  <rect x="60" y="140" width="150" height="24" rx="6" fill="#475569"/>
+  <text x="135" y="157" text-anchor="middle" class="lbl">STAGE 0 · INGEST</text>
+  <text x="76" y="184" class="t" font-weight="700">每个 paper_version 一次，产物全家共享（阅读器/搜索/MCP 同吃）</text>
+  <text x="76" y="208" class="ts">• full-text：  {pages:[{pageNumber,text}]}　本例 15 页 ≈ 40KB</text>
+  <text x="76" y="228" class="ts">• figures：  e-print 源图抽至 paper-assets CDN（保留源文件名 ModalNet-*.png）</text>
+  <text x="76" y="248" class="ts">• references resolver v5： 40 条 bibitem 定位+解析 → entries[] / byDestName / byDestPos</text>
+  <text x="76" y="268" class="ts">• sidecars：  ai-detection(windows=全文分窗打分) · abstract-citations · model-links</text>
+
+  <!-- sidecars note right -->
+  <rect x="880" y="168" width="330" height="96" rx="8" fill="#fff" stroke="#94a3b8" stroke-width="1.2" stroke-dasharray="5,4"/>
+  <text x="896" y="190" class="ts" font-weight="700">resolver 输出（=真引用图）</text>
+  <text x="896" y="210" class="tx">entry: {index,page,x,y,label,text,</text>
+  <text x="896" y="226" class="tx">  arxivId,paperGroupId,reason}</text>
+  <text x="896" y="246" class="tx">cite.&lt;bibkey&gt;→idx · page:x:y→idx</text>
+  <text x="896" y="262" class="tx">confirmed 31 · no-candidate 9</text>
+
+  <line x1="620" y1="290" x2="620" y2="314" stroke="#334155" stroke-width="1.8" marker-end="url(#arr)"/>
+  <text x="640" y="306" class="ts">full-text + figures + refs 喂入</text>
+
+  <!-- STAGE 1 -->
+  <rect x="60" y="314" width="780" height="128" rx="10" fill="#fef3c7" stroke="#b45309" stroke-width="2"/>
+  <rect x="60" y="314" width="190" height="24" rx="6" fill="#b45309"/>
+  <text x="155" y="331" text-anchor="middle" class="lbl">STAGE 1 · ANALYSIS</text>
+  <text x="76" y="360" class="t" font-weight="700">intermediateReport　——　固定六节英文分析报告，~25KB</text>
+  <text x="76" y="382" class="ts">1 Authors/Institutions · 2 Broader Landscape · 3 Objectives · 4 Methodology(6.2KB) · 5 Findings · 6 Significance</text>
+  <text x="76" y="404" class="ts">en/zh 负载中字节级相同 → 从不翻译；MCP get_paper_content 默认返回的正是它</text>
+  <text x="76" y="426" class="ts">= 他们的「论文理解」标准中间件，喂给下游 writer，也给 /overview/{id}.md 导出</text>
+
+  <!-- black-box badge stage1 -->
+  <rect x="880" y="336" width="330" height="84" rx="8" fill="#fef2f2" stroke="#dc2626" stroke-width="1.4" stroke-dasharray="6,4"/>
+  <text x="896" y="358" class="ann" font-weight="700">黑盒：模型 + prompt</text>
+  <text x="896" y="378" class="tx">服务端不可观测；单次 LLM pass 推断</text>
+  <text x="896" y="396" class="tx">（输入≈40KB 全文 → 输出 25KB 报告）</text>
+
+  <line x1="620" y1="442" x2="620" y2="466" stroke="#334155" stroke-width="1.8" marker-end="url(#arr)"/>
+  <text x="640" y="458" class="annb">触发：POST request-ai?preferredLanguage=　(auth · 409=已请求)</text>
+
+  <!-- STAGE 2 -->
+  <rect x="60" y="466" width="780" height="240" rx="10" fill="#ede9fe" stroke="#6d28d9" stroke-width="2"/>
+  <rect x="60" y="466" width="220" height="24" rx="6" fill="#6d28d9"/>
+  <text x="170" y="483" text-anchor="middle" class="lbl">STAGE 2 · AGENTIC WRITE</text>
+  <text x="76" y="512" class="t" font-weight="700">会读相关论文的写作者（UI 文案 + citations.justification 佐证多文档阅读）</text>
+
+  <rect x="76" y="524" width="356" height="168" rx="8" fill="#fff" stroke="#a78bfa" stroke-width="1.2"/>
+  <text x="90" y="546" class="ts" font-weight="700">输出① overview</text>
+  <text x="90" y="566" class="tx">动态结构 blog md（本例 7 节 9.5KB）</text>
+  <text x="90" y="584" class="tx">内嵌 ![](paper-assets 图) ×4 · $$公式×5</text>
+  <text x="90" y="602" class="tx">节标题因文而异（v1 曾固定九节模板）</text>
+  <text x="90" y="626" class="ts" font-weight="700">输出② summary 卡片</text>
+  <text x="90" y="646" class="tx">summary(479c) · originalProblem[3]</text>
+  <text x="90" y="664" class="tx">solution[3] · keyInsights[3] · results[3]</text>
+  <text x="90" y="682" class="tx">feedDescription</text>
+
+  <rect x="448" y="524" width="376" height="168" rx="8" fill="#fff" stroke="#a78bfa" stroke-width="1.2"/>
+  <text x="462" y="546" class="ts" font-weight="700">输出③ citations[4]（真引用的精选子集）</text>
+  <text x="462" y="566" class="tx">{title, fullCitation, justification,</text>
+  <text x="462" y="584" class="tx"> alphaxivLink} —— 4/4 落在 bib 表内</text>
+  <text x="462" y="602" class="tx">justification = 「为何相关」一句话</text>
+  <text x="462" y="626" class="ts" font-weight="700">输出④ UI strings</text>
+  <text x="462" y="646" class="tx">summarySectionTitles[6] ·</text>
+  <text x="462" y="664" class="tx">overviewSectionTitles[2] · aiTooltips</text>
+  <text x="462" y="682" class="tx">（也随语言一起翻）</text>
+
+  <!-- right annotations stage2 -->
+  <rect x="880" y="480" width="330" height="120" rx="8" fill="#fff" stroke="#94a3b8" stroke-width="1.2"/>
+  <text x="896" y="502" class="ts" font-weight="700">UI 阶段文案（bundle 明文）</text>
+  <text x="896" y="522" class="tx">Preparing AI overview</text>
+  <text x="896" y="540" class="tx">Reading the papers behind the answer</text>
+  <text x="896" y="558" class="tx">Weighing what the results agree on</text>
+  <text x="896" y="576" class="tx">Writing the overview</text>
+
+  <rect x="880" y="612" width="330" height="80" rx="8" fill="#fef2f2" stroke="#dc2626" stroke-width="1.4" stroke-dasharray="6,4"/>
+  <text x="896" y="634" class="ann" font-weight="700">黑盒：模型 + prompt + agent 步骤</text>
+  <text x="896" y="654" class="tx">旁证：WS ai-overview-v2 直播 ·</text>
+  <text x="896" y="672" class="tx">admin-agent-trace-tree（管理员可见）</text>
+
+  <!-- triggers -->
+  <line x1="60" y1="560" x2="30" y2="560" stroke="#1d4ed8" stroke-width="1.6" marker-end="url(#arr)" transform="rotate(180 45 560)"/>
+  <rect x="30" y="476" width="26" height="168" rx="6" fill="#eff6ff" stroke="#1d4ed8" stroke-width="1.2"/>
+  <text x="43" y="566" class="annb" font-weight="700" transform="rotate(-90 43 566)" text-anchor="middle">auth 触发</text>
+
+  <line x1="620" y1="706" x2="620" y2="732" stroke="#334155" stroke-width="1.8" marker-end="url(#arr)"/>
+  <text x="640" y="724" class="annb">overview 已存在→只走翻译：POST request-ai-translation/{lang}　否则先全量生成</text>
+
+  <!-- STAGE 3 -->
+  <rect x="60" y="732" width="780" height="160" rx="10" fill="#ccfbf1" stroke="#0f766e" stroke-width="2"/>
+  <rect x="60" y="732" width="230" height="24" rx="6" fill="#0f766e"/>
+  <text x="175" y="749" text-anchor="middle" class="lbl">STAGE 3 · TRANSLATION ×12</text>
+  <text x="76" y="778" class="t" font-weight="700">逐字段翻译（逐字段 diff 实测），单语言 10–35s = 一次快速模型调用</text>
+  <text x="76" y="802" class="ts" font-weight="700" fill="#166534">译：title · abstract · summary 五字段 · overview 全文(含节标题) · cit.title+justification · UI strings</text>
+  <text x="76" y="824" class="ts" font-weight="700" fill="#b91c1c">不译：intermediateReport(字节级相同) · fullCitation · 链接/图 URL</text>
+  <text x="76" y="848" class="ts">状态机：translations.&lt;lang&gt;.{state,requestedAt,updatedAt,error} —— 12 语言各自独立</text>
+  <text x="76" y="870" class="ts">懒触发：en/ru/de/es/fr/hi/ko 同秒批量回填；zh/ja/tr/bg 为用户点 tab 后按需生成</text>
+
+  <!-- right: timing + status -->
+  <rect x="880" y="744" width="330" height="100" rx="8" fill="#fff" stroke="#94a3b8" stroke-width="1.2"/>
+  <text x="896" y="766" class="ts" font-weight="700">实测延迟（status 时间戳）</text>
+  <text x="896" y="786" class="tx">tr 33.6s · ro 15.2s · bg 10.7s</text>
+  <text x="896" y="804" class="tx">states: pending/queued/running/</text>
+  <text x="896" y="822" class="tx">processing/extracting/generating→done</text>
+
+  <line x1="620" y1="892" x2="620" y2="918" stroke="#334155" stroke-width="1.8" marker-end="url(#arr)"/>
+
+  <!-- consumers -->
+  <rect x="60" y="918" width="1150" height="88" rx="10" fill="#f8fafc" stroke="#64748b" stroke-width="1.5"/>
+  <text x="76" y="944" class="ts" font-weight="700">消费面（全公开 GET，零鉴权）</text>
+  <text x="76" y="968" class="ts">REST /overview/{lang} · /overview/status · WS ai-overview-content/status 推送 · /abs|/overview/{id}.md 导出 · MCP get_paper_content · /$lang/abs SSR 页 · feed 卡片 summary</text>
+  <text x="76" y="990" class="tx">对 texlate：intermediateReport = 免费「论文理解」上下文；references = 现成引用图边表（M4 edges.jsonl 形状）；zh overview = 免费导读，但 ≠ 我们的全文重编译路线</text>
+
+  <!-- legend -->
+  <rect x="60" y="1026" width="1150" height="100" rx="10" fill="#fff" stroke="#cbd5e1" stroke-width="1.2"/>
+  <text x="76" y="1052" class="ts" font-weight="700">图例 / 逆向边界</text>
+  <rect x="76" y="1066" width="18" height="12" fill="#fef2f2" stroke="#dc2626" stroke-dasharray="4,3"/>
+  <text x="102" y="1076" class="tx">红虚线 = 服务端黑盒（模型/prompt/agent 内部步骤）——需 axv1_ key + 对未生成论文订阅 ai-overview-v2 才能看活的</text>
+  <rect x="76" y="1088" width="18" height="12" fill="#eff6ff" stroke="#1d4ed8"/>
+  <text x="102" y="1098" class="tx">蓝 = 需登录的写操作（触发生成/翻译）；其余一切含生成产物均为匿名可读</text>
+</svg>
