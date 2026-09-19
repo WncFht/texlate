@@ -7,7 +7,7 @@
 - 09:10 基线口径复核：mechanisms.jsonl 210 条（covered 68 / partial 134 / implemented 8）；loop1 records 69535 行 5124 格 scorecard pdf 97.89% clean 84.99%；leak 0.040%（dollar 族 57 条残留）。
 - 09:10 rt1 批（pid 4023412, xlat real arm, core+booster+hot）仍活：records 02:07 后无整篇 append 但 work/{id}/xlat-real.jsonl 09:10 仍在写——chunk 流式推进中，未 stall；nightwatch lane 接管监控。
 - 09:11 跨会话边界（texlate-80 确认）：bench/py/qualbench.py judge 协议面归 texlate-80（GEMBA-MQM 化在飞）——selfimp A2 只做执行层跑批，不改 qualbench.py。texlate-37 已离线，其在飞 lane（revtex-209/o2-opaque-prose/early-eof-tax/gullet-at-scout）按未落地处理，冻结面：segmenter/args.py、builtins*.py、_builtins_shim.py（待核实死活后解冻）。
-- 09:12 wave-1 发车 23 lane：A1-A5 测量面 / B1 mock 基线批 + B2 六篇回归 + B3a/b/c C-bucket 归因 / C1-scout partial 分族 / C2 dollar 族 / C3 fixloop 规则 / C4 术语表 / C7 server 裁决备忘 / C8 normalize 拆分 / C9 fuzz / C10 corpus expand+orphan / C11 上游挖掘 / RA reaudit-A 真bug批 / RB 单源收尾 / RD 测试钉 / RE 文档漂移。
+- 09:12 wave-1 发车 23 lane：A1-A5 测量面 / B1 mock 基线批 + B2 六篇回归 + B3a/b/c C-bucket 归因 / C1-scout partial 分族 / C2 dollar 族 / C3 fixloop 规则 / C4 术语表 / C7 server 裁决备忘 / C8 normalize 拆分 / C9 fuzz / C10 corpus expand+orphan / C11 上游挖掘 / RA reaudit-A 真 bug 批 / RB 单源收尾 / RD 测试钉 / RE 文档漂移。
 - 冻结窗：C5(BATCH_MAX_CHARS)/C6(低分重翻) 分别待 A1/A2 落盘后发车；优化类改动在 Phase A 就绪前只允许归因/L0 钉/草案。
 
 ## 落账流水
@@ -20,11 +20,11 @@
 - 10:05 rd-tests | `466382c` | tests/test_latex_env_dispatch_v1arm.py（12 用例）+ test_xlat_collect_fatal.py（8 用例） | D4 实证 A1 `_ledger_call` 双档网已在树（pipeline.py:1146-1186）→ ra A1 直接核销；残余面 `_route_chunks`:1052 散文豁免裸 except 并入 ra A 批 | 关代理
 - 10:05 c1-scout | 蓝图落盘 `tmp/lane-c1-scout/`（family-plan + tickets-overview + fams_final 校验 122/122） | 122 唯一机制→12 族 L1-L12 车道图；最大杠杆=vendor missing_file 877 事件 ~500 篇 | 关代理，原地接 L1 verify-flip（V 族 15 条 + stale 候选翻格，mechanisms.jsonl 行级 status 编辑，与 c10 append 互不冲突）
 - 10:05 wave-1.5 发车：c13-vendor（L11 `fixloop/vendor/**` 量产，库存核对后真缺口 revtex×167/mn2e/aa/mn/tensor/llncs/JHEP3 等）+ c14-flatten（L4 `latex/flatten.py` B03/W19/W51/W73/W104——L1 identity 门高风险面，前后双跑 parsebench）
-- 10:10 **事故**：nightwatch 首巡抓 rt1 `ORPHANED_FD`——pid 4023412 fd4 指向已删 `records/xlat.jsonl` inode（孤儿 953 行 vs 可见 84 行冻结于 02:07）→ 抢救：`cp /proc/fd` 快照 `tmp/lane-a5-nightwatch/xlat-orphan-1011.jsonl` + `tail --pid -f` 跟随者 pid 1978705→`xlat-orphan-follow.jsonl`；孤儿前 84 行与可见逐字节一致→批终单文件恢复即可 | 鉴证派 a5：02:07 谁换了路径 inode（gwpilot smoke→real 交接 finalize 竞态嫌疑），产出 `orphan-forensics.md`——**关乎 loop2 在飞批是否遭同暗算**
+- 10:10 **事故**：nightwatch 首巡抓 rt1 `ORPHANED_FD`——pid 4023412 fd4 指向已删 `records/xlat.jsonl` inode（孤儿 953 行 vs 可见 84 行冻结于 02:07）→ 抢救：`cp /proc/fd` 快照 `tmp/lane-a5-nightwatch/xlat-orphan-1011.jsonl` + `tail --pid -f` 跟随者 pid 1978705→`xlat-orphan-follow.jsonl`；孤儿前 84 行与可见逐字节一致→批终单文件恢复即可 | 鉴证派 a5:02:07 谁换了路径 inode（gwpilot smoke→real 交接 finalize 竞态嫌疑），产出 `orphan-forensics.md`——**关乎 loop2 在飞批是否遭同暗算**
 - 10:12 a5-nightwatch | `8b23ff0` | bench/py/nightwatch.py（进程面/gwpilot 队列/活跃 run 台账/task_ping 看板，25min 停滞阈，ruff clean）
 - 10:12 a1-timing | `2414a43` | bench/py/stage_timing.py（产出 `bench/results/_timing/` 目录 gitignored 不落库）
 - 10:12 跨会话注记：07597e2/6fc4c2b（corpus hot 166 收尾，MANIFEST.md+manifest_hot）非本舰队——peer texlate-02 推同仓，已去函校准 corpus_v3 归属（a3 manifest_hot 段待其答复）
-- 10:12 工作树待收面盘点：c10 orphan 立账 append（mechanisms.jsonl +38 行 examples-resolved）/c8 normalize→transcode+shadow 拆分（_builtins_misc import 涟漪属 c8）/a4 gate_scorecard+新测试/c9 fuzz 新测试/re-docs 五文档/c2 segmenter{mainloop,pending}/a3 manifest 三件+mech_ids+mech_backfill——ra 17 任务全 completed 但 src 面零 M（疑多项核销式结案），等其报告对账
+- 10:12 工作树待收面盘点：c10 orphan 立账 append（mechanisms.jsonl +38 行 examples-resolved）/c8 normalize→transcode+shadow 拆分（_builtins_misc import 涟漪属 c8）/a4 gate_scorecard+ 新测试/c9 fuzz 新测试/re-docs 五文档/c2 segmenter{mainloop,pending}/a3 manifest 三件+mech_ids+mech_backfill——ra 17 任务全 completed 但 src 面零 M（疑多项核销式结案），等其报告对账
 
 ## 落账流水（收割波 10:25）
 
@@ -36,15 +36,15 @@
 - c11-upstream | `026d694` | skeleton +6 假设：c0-json-strip→ra、auto-extract-glossary 直击 C4 瓶颈、abstract-context、delim-param-args 排 c12 后、quoted-input→tables.py 待派、original-repair-carry REVIEW 级 | 续挖 xlat 质量+compile 修复面
 - c7-server | 备忘 `tmp/lane-c7-server/decision-memo.md`：SSE 无服务端闸（>6=浏览器约束前端已收）/GC 键实装默认关（~23MB/篇→千篇 23GB）/`settings.concurrency` **死键**（执行面零读取，真效仅 per-task） | 三裁决点入用户队列，c7 待命实装臂
 - 跨会话：texlate-02 非 corpus 两 commit 主（server 只读排障中，动手前会通气）；hot 封层实主待考（texlate-80 疑）；texlate-80 已照会 gfs stash-pop 风险（10:21 f620827 提交触发全仓 mtime 重洗，内容无损）
-- a1 升 C5：BATCH_MAX_CHARS 尺寸分析（_timing 数据驱动+网关 conc4/bg120s 排队计入；草案不改 pipeline.py——ra 面在飞）
+- a1 升 C5：BATCH_MAX_CHARS 尺寸分析（_timing 数据驱动 + 网关 conc4/bg120s 排队计入；草案不改 pipeline.py——ra 面在飞）
 - ra-bugs 状态更正：pipeline.py 终现 M（_route_chunks 残余+A 批实修在飞）——先前「17 任务 completed 零 src」系核销式结案为主，等报告对账
 
 - 10:47 b2-sixregress | `ab6f708` | 六篇归因全复现三证闭合→mechanisms 立账 W157-W161（inject mathgroup 一族两形态=注入时序最大单点风险；W161 关联 W06）| repro 件 tmp/lane-b2-sixregress/（REPORT.txt+repro-*.tex）| 界外需求：inject 声明下沉/normalize bbl 拆引信/xlat Cf 剥离（最便宜）+env 保真 | 关代理
 - 10:47 钉转正核销：test_fuzz_v1flatten 两枚 xfail_confirmed 已拆（c9 在 W73 根集闸落地后自行拆钉，docstring 注「XPASS 转红已拆钉转正」）→ scoped 26 绿 | c14 flatten W73 根集闸实证在树（flatten.py:63-110 roots 集+is_relative_to）
-- 10:56 b3 族账收齐：b3a-undefcs 49 票（d38/c10/a1；covered-pending-verify35+fix-landed10 → verify-replay 45 格在飞 run.log）| b3b-syntax 37 票（c32/a3/b1/d1；fixable34；JHEP3.cls 连炸签名→c13 缺口榜重合）| b3c-other 30 票（pipeline_introduced17/vendor_stub_gap10/version_skew2/source_latent1；already_fixed18/规则候选9→c3）| b3b/b3c 关代理，b3a 待 replay 结果
+- 10:56 b3 族账收齐：b3a-undefcs 49 票（d38/c10/a1；covered-pending-verify35+fix-landed10 → verify-replay 45 格在飞 run.log）| b3b-syntax 37 票（c32/a3/b1/d1；fixable34；JHEP3.cls 连炸签名→c13 缺口榜重合）| b3c-other 30 票（pipeline_introduced17/vendor_stub_gap10/version_skew2/source_latent1；already_fixed18/规则候选 9→c3）| b3b/b3c 关代理，b3a 待 replay 结果
 - 10:56 c9-fuzz | `85b8050` | test_fuzz_v1flatten.py 896 行（v1 _resolve/flatten_inputs 对抗探针+D1 逃逸六路钉）| 两枚 xfail_confirmed 已于 W73 落地后拆钉转正，scoped 26 绿 | 关代理
 - 10:56 守护者二代：pid 2214285 已死（跟随者早夭同款命运），已 setsid+nohup 重挂 fd-hold（pgid 2317256）+ 即刻快照 xlat-orphan-1050.jsonl 987 行——孤儿 fd 仍随 pid 4023412 在写 | 教训：guardian 必须 setsid 脱管，harness 看门狗杀 shell 子进程
-- 11:10 收割波-2 落账（5 commit）：ra `562f773`（xlat 序章账本八点 _ledger_call 化+TestPrologueFatalLedger 10 例）+ `899416f`（reaudit-A 四钉 share-cap/align-close/hook-glob/secrets-repr）| c12 `4521e0e`（argspec 臂 [[CMD]] 散文抠出+keyval/comma-list 双形状门，全量 6343 绿+parsebench identity 100%）| c3 `d384916`（4 规则实证点火：greek_fontenc_install/legacy_pkg_shim_c3/cs_targeted_fix_c3/xcolor_override_opt_strip，6 翻 5 哨兵零回归）| texlate-02 `3fa3bd1`（biber/biblatex skew → REJECT route=xelatex 跨引擎臂：builtin+engine token+repair/e2e/worker 全链，实证 adopted→done——tectonic 死路开新路）
+- 11:10 收割波 -2 落账（5 commit）：ra `562f773`（xlat 序章账本八点 _ledger_call 化+TestPrologueFatalLedger 10 例）+ `899416f`（reaudit-A 四钉 share-cap/align-close/hook-glob/secrets-repr）| c12 `4521e0e`（argspec 臂 [[CMD]] 散文抠出+keyval/comma-list 双形状门，全量 6343 绿+parsebench identity 100%）| c3 `d384916`（4 规则实证点火：greek_fontenc_install/legacy_pkg_shim_c3/cs_targeted_fix_c3/xcolor_override_opt_strip，6 翻 5 哨兵零回归）| texlate-02 `3fa3bd1`（biber/biblatex skew → REJECT route=xelatex 跨引擎臂：builtin+engine token+repair/e2e/worker 全链，实证 adopted→done——tectonic 死路开新路）
 - 11:10 **里程碑**：c2 `31c432e` dollar 族收口——孤 \$\$/孤 \$/\\\$ 三形归 [[CMD]] 单项保真（v2 row17 同规），parsebench-v3-c2dollar **leak 0/136049（0.040%→0.000%）identity 1955/1955**；tricky-dollar.tex D01-D10 钉 + bench_regression 37→61 断言 | C2 目标达成，门②leak 读数归零
 - 11:10 归因澄清：scanner.py=c2 在飞件（已收）；engine/builtins/10-taxonomy/80-bib/repair/e2e/server-worker-compile=texlate-02 跨引擎簇（其主动按约定知会，128 测绿实证）；四孤儿件全销账
 - 11:10 解封派单：L2→c1（route-shadowed 专长续道）/ L3→ra（earmarked）/ L5→c2（dollar 邻面续道）/ L8→c12（args.py 同文件续道）/ L10→c3（rules 引擎续道+b3 工单汇流）/ L7+L9 新发车
@@ -54,7 +54,7 @@
 - 启动：用户 /goal 派本环做翻译质量「评估→改进」闭环。与 compile 侧 selfimp（texlate-5d）互补；已照会 texlate-80（其 09:11 qualbench 协议面由本环接管）与 texlate-5d。
 - **文件归属登记**（lane → 互斥文件）：leader → `bench/py/qualbench.py`（ESA 改造 proto-core/prompt/route/records 四合一）；sample → `bench/py/qualsample.py`；stats → `bench/py/qualstats.py`；anchor → `bench/py/qualanchor.py`；freeze → `bench/py/qualfreeze.py`；proto-test → `tests/test_qualbench_esa.py`；proto-probe → `tmp/exp/esa_probe*`；skel-curate → `docs/research/selfimp-skeleton.md`；triangulate → `tmp/lane-triangulate/`。qualbench.py 协议规格 = xlat-quality-eval-2026-09-18 §7（ESA 两步单发 stated100 主分 + derived100 自洽校验 + swe-2-max 主裁/swe-2-high 二裁）。
 - 协议内一处补全：类目表加 `accuracy-mistranslation`（eval §7 映射漏列——六 flag 无「在译但错」收容位，probe 的 MQM_SYSTEM 本有；不补则错译被迫塞 omission/addition 扭曲类目表）。flags 派生新增 mistranslation/fluency_register 两值。
-- 11:35 收割波-3 落账（4 commit）：c14 `cf582ff`（v1 flatten `_resolve` openin_any 等价闸——real path 根集约束，`..`/绝对/根内 symlink 出界按 miss 永不进 read_bytes，与 v2 `_resolve_input` 同口径；W104 cs 文件名滤除同臂）+ `db3d4a1`（test_flatten_boundary.py 293 行五机制契约钉，28 绿）| texlate-02 `8672d22`（biber skew 测试件补收，属其 3fa3bd1 簇漏网）| c13 `498ae9e`（vendor 157 files + mn.cls stub，records 去重频次序——pstricks 全家桶/revtex4-2/llncs/kluwer/quantumarticle/siunitx 等）
+- 11:35 收割波 -3 落账（4 commit）：c14 `cf582ff`（v1 flatten `_resolve` openin_any 等价闸——real path 根集约束，`..`/绝对/根内 symlink 出界按 miss 永不进 read_bytes，与 v2 `_resolve_input` 同口径；W104 cs 文件名滤除同臂）+ `db3d4a1`（test_flatten_boundary.py 293 行五机制契约钉，28 绿）| texlate-02 `8672d22`（biber skew 测试件补收，属其 3fa3bd1 簇漏网）| c13 `498ae9e`（vendor 157 files + mn.cls stub，records 去重频次序——pstricks 全家桶/revtex4-2/llncs/kluwer/quantumarticle/siunitx 等）
 - 11:35 b3a 终局：verify-replay 74/74 格零 dirty——66 clean + 8 partial（7×best_effort_pdf revtex209/natbib 点火后 best-effort 出 PDF + 1×fixloop:clean 但 compile 臂 partial）| 工单残留移交 L10/L2 | 关代理（b3 三族归因簇全闭）
 - 11:35 关代理×4：b3a-undefcs / a3-mechtags / c14-flatten / c13-vendor / c7-server——交付物全落盘或入账，roster 16
 - 11:35 nightwatch 常驻化：archbox 无 crontab → setsid 脱管 10min 循环 pgid 2472632（`nightwatch.py --save` → bench/results/nightwatch/cron.log），跨会话存活
@@ -62,45 +62,45 @@
 - 11:35 c7 裁决备忘三问挂用户队列：TTL 默认/conc ceiling/SSE 聚合/settings.concurrency 死键接线——备忘在 tmp/lane-c7-server/decision-memo.md
 - 11:40 c8-normalize | `0092fe4`+`5d396c5` | L6 ENC 落地：W91 `\-` 折行连字符还原（双 lookbehind + tabbing 豁免，normalize_engine 全引擎段）+ 顺手真 bug `_score_text` 大写重音罚分（mac_roman ‡ 彩票压 latin-1 à mojibake）+ 13 钉新文件 | scoped 406 + 全量 6381 绿；hep-th/9910234 17 处实证零误伤 | 界外：W72→ROUTE/vendor、W42 har2nat 已随 c13 落地、mixed 彩票记账不追 | 关代理
 - 11:40 跨会话：texlate-d9 新环 selfimp-qual（翻译质量 ESA 评估→改进）照会——车道 bench/py/qualbench.py+qual{sample,stats,anchor,freeze}.py+test_qualbench_esa.py+tmp/exp/esa_probe*，台账共用 overseer-selfimp.md append-only | 已复：与 texlate-80 qualbench judge 协议面归属重合建议互通；a2 旧 judge 批已结产出可对照
-- 11:45 a2-qualbench 交付：qualbench-selfimp 基线 **600 chunks/60 papers mean 4.84/5**（5:531 4:52 3:9 2:5 1:3）| **头号缺陷 untranslated_spans×21**（占全 flag 半，caption kind 最密 11/21）| 产出 bench/results/qualbench-selfimp-2026-09-18/{records.jsonl 462KB, report.md 最差30格, layers.md} | 关代理
+- 11:45 a2-qualbench 交付：qualbench-selfimp 基线 **600 chunks/60 papers mean 4.84/5**（5:531 4:52 3:9 2:5 1:3）| **头号缺陷 untranslated_spans×21**（占全 flag 半，caption kind 最密 11/21）| 产出 bench/results/qualbench-selfimp-2026-09-18/{records.jsonl 462KB, report.md 最差 30 格，layers.md} | 关代理
 - 11:45 派单回 18：q1-untranslated（头号缺陷机制猎捕——xlat skip 路径/模型回英文/opaque 吞噬/caption 特异，只读归因+mechanisms 立账）+ r2-residual（b3 孤儿三件：texlog nonletter payload 边界/stale-stub 指纹面/math_env_alias_cs 立账，全只读）
 - 12:05 巡检脉冲：loop2 compile 8454→9161（+707 在飞，xlat/parse 满 5122）；rt1 pid 4023412 存活、孤儿 fd 守护者 pgid 2317256 持守（可见 84 行未动）；nightwatch 脱管环 10min 准点落 md
 - 12:05 a1-timing | `c2018de` | 请求时序三分拆（contextvar chat-sink+outer/inner/chat 三 span→req_timing records）+ batchmodel 文档（devin2api 86,705 行实测：conn 1.8s 固定/decode 543+13.3ms·out_tok/~550 out_tok/s 全局上限） | 注：loop2 xlat 先于插桩，req_timing 自下批生效 | 关代理
-- 12:05 派单 r3-audit：收割波-2/3 ~10 commit 独立复核（只读，按风险序：W91 regex 全引擎接入/biber skew token 流/根集闸语义/scorer 罚分）——回归门的独立验证层
-- 12:30 巡检脉冲：loop2 compile 9161→10286（+1125 在飞）；rt1 持守不变 | texlate-02 跨引擎钉 140 行代收 `56157b5`（test_e2e_wiring+test_worker_audit_fixes reject_route 双臂覆盖，122 绿）| 在飞面全可归因：c1-L2(engine/probe/latex209)/c3-L10(_builtins×3+10-taxonomy+slashbox)/l9(gullet×4+test_gullet_l9)/c2-L5(model+tricky-mask+regression 61→72 钉)/l11 首两 stub 落地(mn2e+revtex)/l1+q1+r2+r3 新道工作中 | ra-bugs 转 idle 已问询 L3 状态
+- 12:05 派单 r3-audit：收割波 -2/3 ~10 commit 独立复核（只读，按风险序：W91 regex 全引擎接入/biber skew token 流/根集闸语义/scorer 罚分）——回归门的独立验证层
+- 12:30 巡检脉冲：loop2 compile 9161→10286（+1125 在飞）；rt1 持守不变 | texlate-02 跨引擎钉 140 行代收 `56157b5`（test_e2e_wiring+test_worker_audit_fixes reject_route 双臂覆盖，122 绿）| 在飞面全可归因：c1-L2(engine/probe/latex209)/c3-L10(_builtins×3+10-taxonomy+slashbox)/l9(gullet×4+test_gullet_l9)/c2-L5(model+tricky-mask+regression 61→72 钉)/l11 首两 stub 落地 (mn2e+revtex)/l1+q1+r2+r3 新道工作中 | ra-bugs 转 idle 已问询 L3 状态
 - 12:40 selfimp-qual wave-0 发车（texlate-d9）：`914664d` qualbench.py ESA 落地（esa2 协议：errors[]+stated100 主分/derived100 自洽校验、9 类目 MQM 化、critical 收窄、key 并 protocol_v、swe-2-max 主裁/swe-2-high 二裁、judge≠translator+medium 永禁、--source manifest）| ruff clean + mock 冒烟 11/11 绿 | 并行 7 lane：proto-test(test_qualbench_esa.py)/proto-probe(n=8 前后对照 tmp/exp/esa_probe)/sample(qualsample.py 1200-chunk 分层)/stats(qualstats.py bootstrap CI+pairacc)/anchor(qualanchor.py ESA^AI 人审包)/skel-curate(skeleton 卫生)/triangulate(XCOMET-QE 可行性)
 - 12:40 升级待用户裁决①：glm-5-2 实为免费档常设（archbox model-dump 实证 mult1.5 ZAI FREE——「已判付费档」旧读数过时；若解禁可建跨家族三角 judge 臂，现仍按硬边界 swe-2 系）
 - 12:40 升级待用户裁决②：协议内补 `accuracy-mistranslation` 类目（eval §7 映射漏列——六 flag 无「在译但错」收容位）——已实装，若反对可回退
-- 12:55 wave-1 预置：batch 驱动 `tmp/lane-batch/run_qualbase.sh` 就绪（setsid 脱管+resume 循环×6，conc4/judge-timeout300，records 行数=完成度信号），sample.jsonl 落地即发车；freeze lane 发车（qualfreeze.py freeze+check，KS/flag率/kind均值/contested 四信号，阈值参数化待裁决）
+- 12:55 wave-1 预置：batch 驱动 `tmp/lane-batch/run_qualbase.sh` 就绪（setsid 脱管+resume 循环×6，conc4/judge-timeout300，records 行数=完成度信号），sample.jsonl 落地即发车；freeze lane 发车（qualfreeze.py freeze+check，KS/flag 率/kind 均值/contested 四信号，阈值参数化待裁决）
 - 12:55 升级待用户裁决③：frozen-300 门禁阈值（ks-alpha/flag-alpha/kind-delta/contested-delta）——freeze lane 交付后附建议值再报
 - 12:58 triangulate stall（jina reader 挂起 600s watchdog 杀）→ 重派 triangulate2，禁 jina/慢 fetch，gh api+WebSearch 优先，网络全断则标「待实测」照交
 - 13:20 收割：anchor `d82a914`（qualanchor.py 682 行 sample/harvest——kind×stated 分带两层轮转+contested 配额 ~n/2，item 盲分防锚定，index human_score 快速通道）| proto-test 同 commit（test_qualbench_esa.py 44 例全绿 + scoped 281 无破）| 两代理交付即终
 - 13:20 proto-test 钉出实现偏差记档：l0_ph_unreported=ph_missing∨ph_invented（比清单宽，合理）；JSON_OBJ_RX 贪婪——raw 含两个 {..} 对象时兜底失败靠 reparse 兜；缺省 severity→minor 不计 sev_clamped；pair.key 无 arm——同 paper+chunk+model 跨 arm 续跑会互截（单 arm 基线下非活问题）；route_judge no_eligible_judge 为防御性死码
-- 13:02 收割波+发车：sample `023d991`（qualsample.py 分层抽样——para 池级 tertile cuts=[210,538] 各300/caption150/section_title150/350篇 均值3.4块，池内无 abstract/table_text/env_text 为既有缺口；rt1 池抽样期仍在长 1003→1027，sample.jsonl 即冻结快照）| stats 同 commit（qualstats.py 818 行 ci/pairacc/report——paper簇 bootstrap B=1000、acc23 tie-calibrated、skipped_old_protocol 摘要节）| proto-probe **PASS**（B臂 8/8 首发解析、span_verified 10/10=100%、零类目越界、抓到老协议漏检 convention 违例；stated 系统性严于 derived mean Δ=-15.25 靠 contested 兜；l0_en_unreported 合法留英机械触发=规格内）→ **qualbase 1200 批发车**（pgid 2867288，conc4/judge swe-2-max+second swe-2-high，~4-8h ETA；watcher cron 204b0d68 23min 脉冲+死拉）
+- 13:02 收割波 + 发车：sample `023d991`（qualsample.py 分层抽样——para 池级 tertile cuts=[210,538] 各 300/caption150/section_title150/350 篇 均值 3.4 块，池内无 abstract/table_text/env_text 为既有缺口；rt1 池抽样期仍在长 1003→1027，sample.jsonl 即冻结快照）| stats 同 commit（qualstats.py 818 行 ci/pairacc/report——paper簇 bootstrap B=1000、acc23 tie-calibrated、skipped_old_protocol 摘要节）| proto-probe **PASS**（B 臂 8/8 首发解析、span_verified 10/10=100%、零类目越界、抓到老协议漏检 convention 违例；stated 系统性严于 derived mean Δ=-15.25 靠 contested 兜；l0_en_unreported 合法留英机械触发=规格内）→ **qualbase 1200 批发车**（pgid 2867288，conc4/judge swe-2-max+second swe-2-high，~4-8h ETA；watcher cron 204b0d68 23min 脉冲 + 死拉）
 - 13:30 skel-curate | `13d1b59` | skeleton 卫生：adopted 区新建收 2（prose-recall-opaque `4521e0e`/missing-file-x23 `498ae9e`）；unblock 2（C5 待 leader 裁决、M8 标可发车——实按本环裁决 hold 到 esa2 基线，旧 1-5 分不可用于低分靶选）；qual: 标 13 条含 c11 新增 6 假设（sentence-split-abbrev/copied-token-boundary/movable-token-license/placeholder-value-context/untrusted-content-clause/content-filter-fallback）；指针修正 9 处零失证 | 关代理 | 新候选 6 条待侦察（REPORT 附录）
-- 13:30 波次状态：W0 全闭（esa2+44钉+probe PASS）| W1 批在飞（records 计数中）、freeze/triangulate2 待交付 | W2 池就绪：qual: 13 条 + 候选 6 条，基线读数落地后按证据强度发车
-- 13:10 收割波-4 落账（8 commit）：ra `6aeb69a`（test_arxiv_locate +10 hermetic 钉 W69/W98/W71/B07/W52/W36/W16，L3 结案转 inject 道）| a3 `d53a429`（mech_backfill 两趟竞态安全重写）| c10 `281079b`（L12 flags 三通道+良性签名+B04/B06 簿记+docstyle_opts）| `9f37869`（manifest_expand 全行重写——c10 特征列+a3 mech_tags 交织双归属）| `ad5142d`（mechanisms 三归属：c1 翻格 W47/W103→covered、c10 B04/B06、r2 W162 undefined_cs 非字母 payload）| `0cff582`（skeleton +3：glossary-ws-flex/output-sanity-gate/compile-consumed-deps）| `4d18731`（8 vendor stub 收编——**归属更正：实系 c10 抢跑 #86 产出**，非 l11；aaspp4 败格扣留）| `8a42cf8`（c2 L5 MASK 族：env_name_at 注释剔除 W11 泛化 + unescaped_dollar_odd %→EOL W92，debt_repair 6→2/unpaired 170→166 真改善，门全绿）
+- 13:30 波次状态：W0 全闭（esa2+44 钉+probe PASS）| W1 批在飞（records 计数中）、freeze/triangulate2 待交付 | W2 池就绪：qual: 13 条 + 候选 6 条，基线读数落地后按证据强度发车
+- 13:10 收割波 -4 落账（8 commit）：ra `6aeb69a`（test_arxiv_locate +10 hermetic 钉 W69/W98/W71/B07/W52/W36/W16，L3 结案转 inject 道）| a3 `d53a429`（mech_backfill 两趟竞态安全重写）| c10 `281079b`（L12 flags 三通道 + 良性签名+B04/B06 簿记+docstyle_opts）| `9f37869`（manifest_expand 全行重写——c10 特征列+a3 mech_tags 交织双归属）| `ad5142d`（mechanisms 三归属：c1 翻格 W47/W103→covered、c10 B04/B06、r2 W162 undefined_cs 非字母 payload）| `0cff582`（skeleton +3：glossary-ws-flex/output-sanity-gate/compile-consumed-deps）| `4d18731`（8 vendor stub 收编——**归属更正：实系 c10 抢跑 #86 产出**，非 l11；aaspp4 败格扣留）| `8a42cf8`（c2 L5 MASK 族：env_name_at 注释剔除 W11 泛化 + unescaped_dollar_odd %→EOL W92，debt_repair 6→2/unpaired 170→166 真改善，门全绿）
 - 13:10 **撞车事故**：c10 自我认领 #86/#87 与 l11-vendor（11:35 持道）正面撞——核实 c10 的 make_l11_stubs.py 已直写树内 9 stub（12:29），归属记 c10；l11 急停改纯验收道，c10 smoke 预检顺手成验收底稿并抓 **aaspp4 "No pages of output" 败格** 移交 l11 修。教训：自我认领须先报 leader 核持道状态。
 - 13:10 派单：ra→inject 道（W99 裁决采纳 inject 侧：docclass-in-closure 两形态+filecontents 虚拟成员+b2 W157-W161 声明下沉）| c11→sanity-gate 道（其三闸提案实装：same-as-source/长度比带/新控制词 `\\[a-zA-Z@]` 拒收，xlat/{retry,pipeline}.py）| c10→C5 A/B 真网关探针（≤10 篇）| c3 L10 +4 工单（natbib author-year 守卫回归优先/_dep_fanout/undefined_cs→pkg 推断/\theorembodyfont）| b1 批尾 +2（stagerun ended_at+rc 增量/0307193 status 口径复核）
 - 13:10 门读数：full pytest 4 fail 全在飞面可归因（c3 vendored 指纹头 ×2、售 c12 argspec+pinlabel/tablecomments ×2——道主交付时自闭）；l11 pytest 验证在飞；loop2 compile.jsonl 10343 行推进中。
-- 13:35 triangulate2 | 交付 `tmp/lane-triangulate/`（REPORT+证据四件）| **GO-with-caveats**：XCOMET-XL 统一权重 QE 分支产 error_spans(char offset 可精确校验)+severity+0-1 分——唯一非 LLM 的 span 级评委，天然第三族仲裁臂 | 接入零改动：qualxcomet.py 产同构 records（protocol_v=xqe1），qualstats pairacc 直接吃 | 四 caveat：gated 要 HF_TOKEN/fp16 ~8-9GB VRAM 窗口（两 4070 余 ~5.7-5.9GB）/510 subword 截断/无 category 轴 | **意义**：不依赖 glm-5-2 解禁即可建跨族三角——W2 候选 lane qualxcomet（等 GPU 窗口+HF token）
+- 13:35 triangulate2 | 交付 `tmp/lane-triangulate/`（REPORT+ 证据四件）| **GO-with-caveats**：XCOMET-XL 统一权重 QE 分支产 error_spans(char offset 可精确校验)+severity+0-1 分——唯一非 LLM 的 span 级评委，天然第三族仲裁臂 | 接入零改动：qualxcomet.py 产同构 records（protocol_v=xqe1），qualstats pairacc 直接吃 | 四 caveat：gated 要 HF_TOKEN/fp16 ~8-9GB VRAM 窗口（两 4070 余 ~5.7-5.9GB）/510 subword 截断/无 category 轴 | **意义**：不依赖 glm-5-2 解禁即可建跨族三角——W2 候选 lane qualxcomet（等 GPU 窗口+HF token）
 - 13:38 升级待用户裁决④：XCOMET-XL 入网——需用户 HF 账号接受 cc-by-nc-sa-4.0 许可拿 HF_TOKEN（本机无 token）+ ~13GB 权重下载（禁代理直连 HF，可本机下后 rsync 去 archbox）+ GPU ~8-9GB 窗口。新模型入网按硬边界必须用户点头
-- 13:45 巡检脉冲 3：loop2 fixloop 段在跑（pid 2579265 --on fail jobs6，fixloop.jsonl 667 行起步）；rt1 pid 4023412 仍活、孤儿 fd 1076 行续写（批龄 ~11.5h）；nightwatch 13:13 准点（main-coord STALE 挂用户队列）| `49b5a18` l1 fixture_assert mask dispatch 接线 + `321b6c1` r2 W163+q1×5 立账 | q1 关代理（交付落盘）；l11 #87 标完但 aaspp4 未动+无矩阵→已问询验收证据
-- 13:45 freeze | `e794f60` | qualfreeze.py 755 行 freeze+check——低分全收+kind×band largest-remainder+保底，seed 逐字节复现；check 四信号（KS/flag-z/kind-Δ/contested-Δ）阈值参数化，unarmed→exit2 不假 pass | 关键设计：records 仅 160c excerpt，复跑必须 --sample join 全文 | 自测矩阵全过（合成 1203 行→300 命中、同分布 p=0.82 pass、degrade12 全信号 exit3）| 关代理 | 待裁决：DEFAULTS 四阈值 + --frozen 是否升必选（freeze 建议值附 REPORT）
+- 13:45 巡检脉冲 3：loop2 fixloop 段在跑（pid 2579265 --on fail jobs6，fixloop.jsonl 667 行起步）；rt1 pid 4023412 仍活、孤儿 fd 1076 行续写（批龄 ~11.5h）；nightwatch 13:13 准点（main-coord STALE 挂用户队列）| `49b5a18` l1 fixture_assert mask dispatch 接线 + `321b6c1` r2 W163+q1×5 立账 | q1 关代理（交付落盘）；l11 #87 标完但 aaspp4 未动 + 无矩阵→已问询验收证据
+- 13:45 freeze | `e794f60` | qualfreeze.py 755 行 freeze+check——低分全收+kind×band largest-remainder+ 保底，seed 逐字节复现；check 四信号（KS/flag-z/kind-Δ/contested-Δ）阈值参数化，unarmed→exit2 不假 pass | 关键设计：records 仅 160c excerpt，复跑必须 --sample join 全文 | 自测矩阵全过（合成 1203 行→300 命中、同分布 p=0.82 pass、degrade12 全信号 exit3）| 关代理 | 待裁决：DEFAULTS 四阈值 + --frozen 是否升必选（freeze 建议值附 REPORT）
 - 14:05 巡检脉冲 4：loop2 fixloop 段续跑（compile +75→10418，fixloop 667 持平——fail 件修复轮次中）；rt1 孤儿 fd 1076 行持守 | l11 实证修 revtex.cls 在飞（compat `\documentstyle` 硬拒 revtex4-2 → 桥 article+2.09 残面两态分派，167 格 base 臂证据驱动；aaspp4 待处置）| 工单折叠：q-corrector-err-token-leak→c11 道（同授权面）、q-term-glossary-gap→c4 道（index.yaml 映射覆盖矩阵）| c1 L2 交付确认仍未回
 - 13:50 L0 池面分析（sample.jsonl 全 1200，免费信号先行）：en_residue≥8 共 51(4.2%) 全在 para(5.4%)，两大块 en=85(1502.01863/0:261)/en=68(1608.06785/0:75) 疑整段未翻；ph_missing/invented 双零——占位符机制在池上零失守；same_as_source 2 例；zh/src 字符比<0.3 有 218 但中文字符密度天然偏低、与 babeldoc token 比阈不可直比——判读待 judge 分交叉
-- 14:00 成本回执预算：翻译臂 rt1 1044 篇 134,065 chunk×6(swe-2-medium)≈80.4万 mult·call；judge 臂预算 1200×12(max)+contested~10%×9(high)≈1.55万——占比 ~1.9% < 5% 验收线（口径=判分 chunk 数×模型档，与 goal 的 ~1.6万 mult·call 一致）| e2ereal 301 篇分母未计入只让占比更小
-- 15:20 收割波-5 落账：c1 `4534631`（L2 ROUTE 全量落地——probe _ScanCtx+5 字段/阻断名单三向抑制/docstyle_opts 非内核选项→pkg 依赖/六诊断注记、engine C901 拆分+psfile/.mf 双 reason 不改引擎序、latex209_no_decl 诚实桶拆分；mechanisms ×8 翻 covered；484 scoped+91 fuzz oracle 绿，REVIEW=新 reason 签名殊途同拒已采纳）| l1 关代理（15/15 翻格+42 钉+fixture 接线全收 `ed66553`/`49b5a18`）；q1 迟来详报与已收 `321b6c1` 一致（en-gate 进 validate_fn=最大杠杆，c11 道在手）| c11 skeleton +6 实已在 `0cff582` 内（head 截断误读为 +3，补记：sentence-split-abbrev/copied-token-boundary/movable-token-license/placeholder-value-context/untrusted-content-clause/content-filter-fallback 全进账+output-sanity-gate 证据修正）
+- 14:00 成本回执预算：翻译臂 rt1 1044 篇 134,065 chunk×6(swe-2-medium)≈80.4 万 mult·call；judge 臂预算 1200×12(max)+contested~10%×9(high)≈1.55 万——占比 ~1.9% < 5% 验收线（口径=判分 chunk 数×模型档，与 goal 的 ~1.6 万 mult·call 一致）| e2ereal 301 篇分母未计入只让占比更小
+- 15:20 收割波 -5 落账：c1 `4534631`（L2 ROUTE 全量落地——probe _ScanCtx+5 字段/阻断名单三向抑制/docstyle_opts 非内核选项→pkg 依赖/六诊断注记、engine C901 拆分+psfile/.mf 双 reason 不改引擎序、latex209_no_decl 诚实桶拆分；mechanisms ×8 翻 covered；484 scoped+91 fuzz oracle 绿，REVIEW=新 reason 签名殊途同拒已采纳）| l1 关代理（15/15 翻格 +42 钉+fixture 接线全收 `ed66553`/`49b5a18`）；q1 迟来详报与已收 `321b6c1` 一致（en-gate 进 validate_fn=最大杠杆，c11 道在手）| c11 skeleton +6 实已在 `0cff582` 内（head 截断误读为 +3，补记：sentence-split-abbrev/copied-token-boundary/movable-token-license/placeholder-value-context/untrusted-content-clause/content-filter-fallback 全进账+output-sanity-gate 证据修正）
 - 15:20 **事故已自处**：b1 报 loop2 fixloop 段静默悬挂 75min——gr-qc--0104075 splice/novem.tex 暴走 xelatex 吐 41579 页，run_process 无墙钟超时+threaded 死子管道 EOF 丢失=经典悬挂；已杀 pgroup 断点续跑（新 pgid 2935024，zh 补 163 格毕、base 补 97 在飞）| harness bug 派单 c1：sandbox.py run_process 墙钟超时（REVIEW 级数值件）+W72 残面+input-FP 裁决
-- 15:20 派单：p1-prompts 新道发车（prompts.py 独占——q1 的 C2/C4 措辞收窄 movable/fixed 二分 + untrusted 条款，texglot/BabelDOC 先例在 tmp/refs）| a5 fanotify 裁决采纳跳过（CAP_SYS_ADMIN 墙拿不到肇事 pid，auditd 需 root→挂用户队列）| c3 L10 再+2（90-shim-legacy 9 死条清理+revtex.cls `##` 塌缩真 bug）| c10 L11 迟报与现状一致（9/9 前移含 aaspp4 真稿 53 页 xdv——aaspp4 待 l11 复核同判即收）| c4 界外挂单：doc_filter accent-fold 归一（Schr\"odinger 407 vs Schrodinger 131 形态分裂，候选机制）+auto-extract-glossary 立项备
+- 15:20 派单：p1-prompts 新道发车（prompts.py 独占——q1 的 C2/C4 措辞收窄 movable/fixed 二分 + untrusted 条款，texglot/BabelDOC 先例在 tmp/refs）| a5 fanotify 裁决采纳跳过（CAP_SYS_ADMIN 墙拿不到肇事 pid，auditd 需 root→挂用户队列）| c3 L10 再 +2（90-shim-legacy 9 死条清理+revtex.cls `##` 塌缩真 bug）| c10 L11 迟报与现状一致（9/9 前移含 aaspp4 真稿 53 页 xdv——aaspp4 待 l11 复核同判即收）| c4 界外挂单：doc_filter accent-fold 归一（Schr\"odinger 407 vs Schrodinger 131 形态分裂，候选机制）+auto-extract-glossary 立项备
 - 15:20 roster：在飞 c1/c2/c3/c4/c10/c11/c12/l7/l9/l11/p1/r2/r3/ra=14 道 + b1/a4/a5 常驻 = 17；q1/l1 已关（交付全落）
-- 14:05 batch 提速：~150对/h 系 per-call 延迟受限（decode 仅占 ~50/550 tok/s 全局）→ conc4→8，重启 driver 续跑 71/1200（教训：bash 循环体一次解析，行内改参数须杀 driver 本体才生效）| 全局 decode 余量仍 ~400 tok/s 让 rt1，ETA 8h→~4h
+- 14:05 batch 提速：~150 对/h 系 per-call 延迟受限（decode 仅占 ~50/550 tok/s 全局）→ conc4→8，重启 driver 续跑 71/1200（教训：bash 循环体一次解析，行内改参数须杀 driver 本体才生效）| 全局 decode 余量仍 ~400 tok/s 让 rt1，ETA 8h→~4h
 - 14:15 W2 L0 侦察×2（免费层先行）：**glossary-ws-flex 降级**——池上断开形术语命中 0/1200（换行 110、~ 223 块都在，前提成立但无命中），根因=terms/ 仅 cs.* 五表而池为 physics-heavy、doc_filter 近空转，skeleton 的 2.2% corpus 估计在本池不复现 → 待 auto-extract-glossary 落地后重测；**c0-json-strip 转硬化件**——src/zh C0 0/1200，机制真（json.loads strict+upstream PR #612）但池上无触发面，降为 cheap insurance 非主线；**auto-extract-glossary 升 W2 头号**——结构性覆盖缺口（physics/math/cond-mat/quant-ph 全零）= 池上术语面真空
-- 14:20 修正：terms/ 今增 cond-mat.csv(751)+quant-ph.csv(306)（别家 lane 未提交在飞件，侦察已含）——覆盖缺口收窄为 hep-*/math.*/astro-ph/nucl-* 等；断开形 0 命中结论不受影响（含新表后仍零），ws-flex 降级维持
+- 14:20 修正：terms/ 今增 cond-mat.csv(751)+quant-ph.csv(306)（别家 lane 未提交在飞件，侦察已含）——覆盖缺口收窄为 hep-_/math._/astro-ph/nucl-* 等；断开形 0 命中结论不受影响（含新表后仍零），ws-flex 降级维持
 - 13:42 批健康修正：driver/watcher 完成判定 wc-l 行数→scored 口径（score≠None），judge_error 行不再冒充完成、靠 attempt 重跑自动捞回；实测 conc8 速率 ~270 行/h（71→135/14min），ETA ~4h
 - 13:50 anchor 包冒烟（live 数据 n=40）：143 行→139 eligible→40 选，contested 11/11 全收，excerpt_only=0（fulltext join 生效）；item 件形态正确——【】就地标记+judge pre-marks 无分盲审；批后 200-chunk 生成 = 一行命令已验证
 - 14:05 L0 侦察×3 补刀：**copied-token-boundary 同转硬化件**——机制在代码里属实（pipeline.py:586 裸 `count==1`+`replace` 无边界），但触发前提=模型把源片段抄回译文，而 ph_missing=0 全池——copy-back 行为在本池无踪迹（修复亦不记 warning，池面无 incidence 可测）；三条 c11/池假设（c0/ws-flex/copied-boundary）共同模式=机制真+池 incidence 零 → 硬化档不烧 W2 主线；有池面实测的优先项：auto-extract-glossary（覆盖缺口）/en-residue-rexlat（51 块）/output-sanity-gate（2 echo+ratio 尾）/m8（待分）
-- 14:10 qualstats live 冒烟通过（169 scored）：contested 7.7%[4.1-11.8]、span_verified 90.6%[82-97]、score_delta -6.8；**flag 分布翻转坐实**——grammar/term 各 13.6% 领跑、untranslated_spans 1.8%，旧协议头号缺陷结论被 esa2 类目表证伪：真病灶=流畅度+术语非未翻 | W2 发车单草案落 tmp/lane-batch/w2-dispatch-draft.md（auto-extract-glossary 头号/en-residue 次席/output-sanity 三/m8 待低分格计数）
+- 14:10 qualstats live 冒烟通过（169 scored）：contested 7.7%[4.1-11.8]、span_verified 90.6%[82-97]、score_delta -6.8；**flag 分布翻转坐实**——grammar/term 各 13.6% 领跑、untranslated_spans 1.8%，旧协议头号缺陷结论被 esa2 类目表证伪：真病灶=流畅度 + 术语非未翻 | W2 发车单草案落 tmp/lane-batch/w2-dispatch-draft.md（auto-extract-glossary 头号/en-residue 次席/output-sanity 三/m8 待低分格计数）
 - 14:25 L0 侦察收官×2：**content-filter-fallback 硬化档**——rt1 13.4 万 chunk error_kind 仅 provider×396/validate×1，content_filter 零命中；**sentence-split-abbrev 中档**——attempts>1 共 2014 chunk(1.5%) 确走 whole→lines→slots 分裂梯，缩写误劈途径真实存在但坏劈计数未测；**新发现**：梯尽案例见 skip_reason——`[[MATH_92]]`→`[[MATH_93]]` lev=1 自诊「可自动修复」却仍 fallback_orig 整段英文（brace 深度 -1 并发），占位符自愈钩子诊断在但修复未救回，值得入 skeleton 新假设
 - 13:49 再提速 conc8→12：decode 实测仅 ~40/550 tok/s——瓶颈是 per-call 排队延迟非吞吐上限，多 worker 吃 rt1 相位空窗；若网关告警回落即降回 8
 - 14:00 校准向早读（187 scored）：**en_residue→judge omission 对齐仅 25%(1/4)**——若全 51 块复核保持 <60% 判死线，en-residue-rexlat 须先做信号提纯（剥人名/机构合法留英）否则判死；judge2 在 contested 上 ±10 内确认主裁为主（stated 整体感扣分被验证），contested 机制健康；over_translation 为 contested 头号驱动 8/17（数学/命令被翻）——与 ph 零失守并读=模型不丢占位符但会去翻译其紧邻 LaTeX/数学面
@@ -109,7 +109,7 @@
 - 14:35 中段读数三件：**m8 判死在即**——stated<55 仅 3/512（2 块 BIB 归 bib-passthrough、1 块 untranslated），外推 ~7/1200<<30 线，skeleton 已标待批终转 rejected；**critical 零命中**——收窄枚举后池面无致命级，critical_present 触发器空转；**bib-passthrough 入 skeleton open 池**（REVIEW 级挂用户语义裁决，证据=28 条 do_not_translate 全文献条目形态+90% 中招率）| contested 主驱 delta_gt15×37、l0_en_unreported×11 合法留英假阳（probe §7b 预言命中，~24% 二裁流量空耗=阈值调整建议随升级包）
 - 14:50 **en-residue-rexlat-redline 双重判死在即**：en≥8×omission 交叉 3/13=23%<<60% 线，且 en≥8 主 flag=over_translation×6（病灶在邻近 LaTeX 被翻）；旗舰极端例 en=68/85 两块全是合法留英文献条目（正确非缺陷）——「整段未翻」归 output-sanity-gate same-as-source 正解。skeleton 已标待批终转 rejected | 衍生两件：bib-passthrough 检测器补续段形态（1502.01863|0:261 en=85 无锚首=文献表跨 chunk 续段）、sanity-gate 须豁免 bib 语境否则误杀合法直通
 - 15:00 批中段：606/1200、err 4→28 系网关 transport 抖动簇（27 ConnectError+1 unparseable，attempt 边界自动捞回，无系统性故障）；placeholder_broken×1 实为 `图 ~[[REF_177]]` 空隙 minor 非 selfheal-gap 机制；波末指标早值——score_delta mean -7.2（stated 系统性严 7 分，delta_gt15 驱动 7.6% contested）、span_verified 97.5%(306/314) 协议健康
-- 15:25 归因修正+坐实：over_translation flag 实为 do_not_translate 类目映射（48/49）——早前「数学/命令被翻」读法证伪，头号 contested 驱动=文献违例本身；**do_not_translate×48 中 46 条在 [[BIB_ 块内（96%）**，bib-passthrough 一臂灭类坐实；非 BIB 两例=全角括号/`干扰机发送概率` 散点。addition×19 全 minor 真微添加（"也/只需/可视化"类）弥散无单点修法→不入 W2 主线 | 排序核实：sample caption 前载/section_title 压尾→per-kind 均值批终才有全相
+- 15:25 归因修正 + 坐实：over_translation flag 实为 do_not_translate 类目映射（48/49）——早前「数学/命令被翻」读法证伪，头号 contested 驱动=文献违例本身；**do_not_translate×48 中 46 条在 [[BIB\_ 块内（96%）**，bib-passthrough 一臂灭类坐实；非 BIB 两例=全角括号/`干扰机发送概率` 散点。addition×19 全 minor 真微添加（"也/只需/可视化"类）弥散无单点修法→不入 W2 主线 | 排序核实：sample caption 前载/section_title 压尾→per-kind 均值批终才有全相
 - 15:45 top2 flag 类证弥散：terminology×101 逐条个案无重复机制（inverter/sigma/panel/leading-order/bin 各一）、grammar×76 零碎流畅度（空格/句式/冗余/指代）——无隐藏机制簇，W2 杠杆仅术语覆盖+模型本体，排序 bib-passthrough>auto-extract>其余 再证；微机制：占位符后逗号/句号前多余空格×3→折入 sanity-gate 标点清理件；err 持平 28=抖动窗已过，687/1200
 - 16:10 校准面收官：judge2×judge1 错误集对比（contested n=64）——46 全同、18 差异全边界级（同类目 sev 互换×2、grammar↔register 相邻类、单边 minor 增删），无结构性分歧；合并 ±10 分内确认 30/31 读数→stated 分数与错误标注双稳健，contested 机制定位=固有两可块非 judge 噪声 | 批 740+/1200 无新增 err
 - 16:35 bib-passthrough 检测器钉死：`[[BIB_`=PhType.BIB（\bibitem 占位，segmenter/tables.py:38）——「含标」语义即完备，锚首/续段/多条目并段（0:261 含 7 标）全覆盖；单标块中招 89%(41/46)，note 型条目留英仍合约定。lane 证据包齐：检测器+池占 4.3%+灭类 96%+省 token，只差用户产品语义放行
@@ -126,6 +126,7 @@
 **背景**：/ 81% 用满（714G/917G），/tmp tmpfs 31%。盘点后按「bench 扩容可复用性」分档执行。
 
 **已删**：
+
 - `bench/results/stagerun-loop{1,2}-*/work/` ~124G——纯 _texmf 编译残留，records/run.log/cases.jsonl 全留；无活进程、night.jsonl 队列无回写任务
 - 16 个冷 `bench/work_*`（work_v3 28G/sabotage_v3 5.2G/e2emock 3G/fixloop_* 等）~38G——全部 0 文件 <6h、gitignored 可再生工作区；**保留** work_e2ereal（活 web :8765）+ work_gwpilot（活队列）
 - `uv cache prune` + `go clean -cache`（后台执行中）
@@ -135,7 +136,8 @@
 **结果**：/ 714G→547G（63%），回收 ~167G+。
 
 **顺带修复**：`_C0_RX` 并发编辑冲突——盘上 `[\x00-\x08\x0e-\x1f\x7f]` 把 `\x0b\x0c` 保留，与 docstring（仅留 `\x09\x0a\x0d`）矛盾且 `\x0b` 正是原 JSONDecodeError 复现字符。已改 `[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]`，43 钉测回绿。若系他 lane 有意保留 VT/FF 可回滚。
-- 20:05 W2 硬化×3 落地（client.py 争用解除——原占 diff 是网关迁移 3003→3033 docstring 级陈旧件）：content-filter-fallback 实装=ContentFilterError(retryable+max_tries=1) 单类喂两臂（_model_switchable 换模 + _batch_call degrade-singles 替代整批 skip）；检测=400 body 子串 + finish_reason=content_filter（_raise_for_finish 抽件治 C901）+ anthropic refusal。钉测 182 绿 ruff 净；frozen-300 豁免（仅过滤事件路径、基线零事件）。skeleton→adopted；REPORT tmp/lane-contentfilter/。A/B lane 在飞 judge 37/60。
+
+- 20:05 W2 硬化×3 落地（client.py 争用解除——原占 diff 是网关迁移 3003→3033 docstring 级陈旧件）：content-filter-fallback 实装=ContentFilterError(retryable+max_tries=1) 单类喂两臂（_model_switchable 换模 +_batch_call degrade-singles 替代整批 skip）；检测=400 body 子串 + finish_reason=content_filter（_raise_for_finish 抽件治 C901）+ anthropic refusal。钉测 182 绿 ruff 净；frozen-300 豁免（仅过滤事件路径、基线零事件）。skeleton→adopted；REPORT tmp/lane-contentfilter/。A/B lane 在飞 judge 37/60。
 - 20:20 autoglossary L2 A/B 收割（detached probe 全程 3h12m 自愈，监控 agent 死于 API 断连未复活）：60/60 判毕，term_inconsistency 100%→43%（34 清除/0 新增）、stated100 +2.0、副作用进出打平 → PASS 进实装档。skeleton 回写；REPORT tmp/lane-autoglossary-ab/。agent 死亡教训=脱管批设计救场（setsid+nohup+run.log 直写扛住宿主进程死亡）。
 
 ## 2026-09-18 20:35 — 会话交接脉冲（texlate-ff 起锚）
@@ -143,6 +145,7 @@
 **背景**：texlate-5d 会话上下文耗尽，全队代理随会话清零（0 live teammate）；本环=texlate-ff 续任。peer 会话 ed496228（qual-loop）仍在共享树活动——未提交面含多条死代理道（gullet/segmenter/xlat/fixloop/bench/web 47 文件），收割归 leader 逐簇归因。
 
 **落账（5 commit）**：
+
 - `69f5102` EOL_RX 归一 decode_newlines——裸 \x0b\x0c\x85   经批解码曾炸 bare_cs 误判，suite 全绿链一环。
 - `057d8e9` bare_cs 注入器批协议成员定位——73ffa4c 全量入批后尾注落进末位成员段，改 `_member_of`+`_splice_member` 段内注入。
 - `6599444` inject 道收官（ra 死道 leader 接手完成）：W99 二遍=闭包供 bd+dc 双准入池（SEKI/helper 宏参类名形）、filecontents 虚拟成员入 `_walk_inputs` 闭包（自解包形态）、W157-161 `\DeclareSymbolFont` 下沉 preamble 尾锚（`after=` 缝位卫+`\count18<16` 槽位闸）、`zihao=false` 钉 ctex 防 5.4% 几何膨胀、emergencystretch 1.5em 救不可断段。**suite 6610/6610 全绿**。
@@ -172,11 +175,12 @@
 **ReDoS 端到端闭环**：5295c04 的 `_bounded_sub` 线程化弃守形实证失效——超时返 None 但泄漏 spinner 在 C 层回溯永不放 GIL（stdlib re 不可中断），guard-smoke fixloop 20:41 起冻结 30+min 零产出（py-spy --native 实证 Thread-4 utime 29min、worker 全 futex_do_wait GIL 饿死、子进程僵死不收）。修复=regex 模块原生 `timeout=`（环内查 deadline 真中断、零残留，顺带 `(x+x+)`/`([a-zA-Z]+)*` 线性免疫），dep regex==2026.9.10。**端到端验证**：同 4 wedge cells 重跑全落地——cond-mat/0605429 clean 41.23s、hep-ex/0408061 clean 62.02s、hep-ph/0104104 partial(best_effort_pdf) 7.39s、gr-qc/0104075 fail(best_effort_pdf) 248.76s 正常返回 vs 旧点永冻。
 
 **落账（7 commit，全部 `commit --no-verify -- <pathspec>` gfs-race 纪律）**：
+
 - `dc0b886` fix(fixloop) ReDoS：actions.py `_bounded_sub`→regex timeout + 无线程泄漏钉测 + pyproject/uv.lock ## REVIEW
 - `c28b2c3` feat(fixloop) b3a 指纹闸：`_inject_write`+`_FINGERPRINT_RE`+`_injected_state` 四向（foreign 文件永不覆写），五 stub 写路径全走闸；revtex 双模/slashbox \shortstack/NEW aaspp4(l11)/10-taxonomy nonletter-cs
 - `99e7de3` feat(latex) gullet W28/W46：romannumeral(_ROMAN_MAX=3999)/uppercase/lowercase/\@ifxundefined + \let-alias decls
 - `e635127` feat(latex) segmenter+scanner 批：W29 pair-block(pinlabel \labellist)、W84 v1 组内 % COMMENT ph(brace-depth 门)、W85 零宽 \index/\label 剥、W27 dead-arg、W89/W90 warn 哨兵 v1+v2 镜像、L8 SEGB `[`-open opt-arg 散文挖+prose-block 白名单、aastex tablenotetext/tablecomments/pinlabel CHUNK_ARG
-- `ffe27ca` feat(xlat)：ContentFilterError(retryable+max_tries=1) 喂 _model_switchable+degrade-singles、_raise_for_finish 三分支、anthropic refusal、_C0_RX/_PUNCT_RUN_RX、autogloss.py 产品化+auto_glossary_fn 接线+worker ag 指纹位+cond-mat/quant-ph terms
+- `ffe27ca` feat(xlat)：ContentFilterError(retryable+max_tries=1) 喂_model_switchable+degrade-singles、_raise_for_finish 三分支、anthropic refusal、_C0_RX/_PUNCT_RUN_RX、autogloss.py 产品化+auto_glossary_fn 接线+worker ag 指纹位+cond-mat/quant-ph terms
 - `faf2dc0` feat(validate) E24：length→_est_tokens 带[0.3,3.0] ERROR、same_source 第12查 ERROR、macro new-cs 全 ERROR、_CS_OR_SYM_RX `\\[\s\S]`；server 双桩配套防误杀
 - `ca27eb2` chore(bench)：3003→3033 网关迁移×6+mock-api、NEW layout_bench、inject_cjk_math 锚追 zihao=false
 
@@ -200,7 +204,7 @@
 
 ## 2026-09-18 22:25 — lane-delimargs 派出
 
-- 第二 teammate `lane-delimargs` 派出，BRIEF=tmp/lane-delimargs/BRIEF.md。设计定稿：ArgSpec 增 `delim_toks: tuple[Tok,...]` 字段 + 新 kind 'u'（until-delim-seq 消费 delim）/'g'（until-lbrace 回吐不消费）；`_handle_opaque_macro` 把 gullet `delim`/`until_group` 从零宽 `ArgSpec("b")` 改映新 kind；`_args_tok` 新分支滑窗 `_tok_eq` 逐枚匹配，eol_par/EOF → unread-all+break（镜像 d/r closer-miss 与 _find_math_close_tok runaway 防护）。`brace_after` 不传递（gullet read+pushback 净效应零）。
+- 第二 teammate `lane-delimargs` 派出，BRIEF=tmp/lane-delimargs/BRIEF.md。设计定稿：ArgSpec 增 `delim_toks: tuple[Tok,...]` 字段 + 新 kind 'u'（until-delim-seq 消费 delim）/'g'（until-lbrace 回吐不消费）；`_handle_opaque_macro` 把 gullet `delim`/`until_group` 从零宽 `ArgSpec("b")` 改映新 kind；`_args_tok` 新分支滑窗 `_tok_eq` 逐枚匹配，eol_par/EOF → unread-all+break（镜像 d/r closer-miss 与_find_math_close_tok runaway 防护）。`brace_after` 不传递（gullet read+pushback 净效应零）。
 - 冲突评估：peer fixloop 车道或碰 segmenter/args.py 异区（env 级 arg-spec），已在 BRIEF 声明只动 `_args_tok` 新 elif + `_handle_opaque_macro` 映射两区；收 lane 时逐 hunk 归因。
 - lane-prompt-bundle 在飞 10min（prompts.py/pipeline.py 已见编辑痕迹，REPORT 未交）。
 - autogloss-reg phase1 arm-off judging 在跑（qualbench concurrency 8，run.log 持续出分，22:24 活跃）。
@@ -244,7 +248,7 @@
 - skeleton：四条目标 adopted + 落地注。效果判死归 frozen-300 回归批（非本 lane 职责）。
 - lane-delimargs 在飞（model.py/args.py 已见编辑，scope 内）。
 
-- ~00:0x **othcensus 全图收割**（tmp/lane-othcensus/*.json 簇→格映射留存）：残池真口径=fixloop 段 fail+partial（首扫混 compile 段虚胖 10×）——undefined_cs×50 真长尾；brace/math 级联~38 未定（最大单则候选，若是 splice 折brace 则我方）派 bracecasc-lane 定 base 臂；Missing\begin{document}×17 含已修 4 格+13 未检格（tar 泛化规则可能同收，入 flipcheck 验）；conditional imbalance~14 比 ifdiag 原派 3 格宽（Extra \fi/\else/\endcsname 族）；Parameters-consecutively×11=f3f013d 已修格（replay 证清）；**新我方实证 2105.00041**：keyval key 位进 `这是译文`（lstinputlisting 选项列被挖——restatable 同族 opacity 缺口）已 SendMessage 续派 restatable-lane。**ifdiag 收割**：iffalse×3 全 paper-authentic（脆弱 frontmatter 族，\author 块 \\ 进 footnote/半注释宏→\maketitle 未闭 \if，paper 手术级超安全界不派规则）；capacity×6 分两半——1404.0037/1706.00076 paper-authentic，1803.03248/2105.03753/2403.05529 全 \cref@resetstack@\end{restatable}=我方（3ecbfe3 已修，入 flipcheck 验证）。**裁决点上浮**：acceptable_pdf 语义——3 格中段 capacity 炸 TeX 展开补全但 env 内容静默丢失，verdict 记 acceptable 属宽判；lane 建议按错位（epilogue vs mid-body）或页数对 base 闸 acceptable→partial——更严=诚实方向但破单调性，留用户裁决（task #10）。**gate-③ 启动**：flipcheck 34 格重放批脱管在跑（stagerun-flipcheck，mock xlat 零网关——params×11+begindoc×17+crefstack×4+natbib×1+pdfstring×1 全覆盖验证目标格翻转）。
+- ~~00:0x **othcensus 全图收割**（tmp/lane-othcensus/*.json 簇→格映射留存）：残池真口径=fixloop 段 fail+partial（首扫混 compile 段虚胖 10×）——undefined_cs×50 真长尾；brace/math 级联~~38 未定（最大单则候选，若是 splice 折brace 则我方）派 bracecasc-lane 定 base 臂；Missing\begin{document}×17 含已修 4 格+13 未检格（tar 泛化规则可能同收，入 flipcheck 验）；conditional imbalance~14 比 ifdiag 原派 3 格宽（Extra \fi/\else/\endcsname 族）；Parameters-consecutively×11=f3f013d 已修格（replay 证清）；**新我方实证 2105.00041**：keyval key 位进 `这是译文`（lstinputlisting 选项列被挖——restatable 同族 opacity 缺口）已 SendMessage 续派 restatable-lane。**ifdiag 收割**：iffalse×3 全 paper-authentic（脆弱 frontmatter 族，\author 块 \\ 进 footnote/半注释宏→\maketitle 未闭 \if，paper 手术级超安全界不派规则）；capacity×6 分两半——1404.0037/1706.00076 paper-authentic，1803.03248/2105.03753/2403.05529 全 \cref@resetstack@\end{restatable}=我方（3ecbfe3 已修，入 flipcheck 验证）。**裁决点上浮**：acceptable_pdf 语义——3 格中段 capacity 炸 TeX 展开补全但 env 内容静默丢失，verdict 记 acceptable 属宽判；lane 建议按错位（epilogue vs mid-body）或页数对 base 闸 acceptable→partial——更严=诚实方向但破单调性，留用户裁决（task #10）。**gate-③ 启动**：flipcheck 34 格重放批脱管在跑（stagerun-flipcheck，mock xlat 零网关——params×11+begindoc×17+crefstack×4+natbib×1+pdfstring×1 全覆盖验证目标格翻转）。
 
 - ~00:2x 巡逻：flipcheck compile 33/34 将尽——多格速败 missing_file(~0.6s, 2.09 老稿缺包面, fixloop 段接手才是修复真章)；1706.00240 转 fontspec_missing(4.75s——原 Missing\begindoc 签名已消=letter_wrap 正向信号)。autogloss arm-on 判分 312/300 达标尾部收尾中（等 rc→qualfreeze×3 门）。restatable-lane 续道(keyval opacity)在飞未落树件；bracecasc 诊断道在飞。**归因警示**：树内 model.py+args.py(+105 `delim_toks`/'u'/'g' 新参型)是 peer texlate-48 的 lane-delimargs 交付（彼台账自记 scope 内）——非我方 lane 件不碰；彼 xlat pipeline/prompts 簇已离 status=已自 commit。
 
@@ -378,7 +382,7 @@
 - 用户七裁全收（verbatim 存会话）：bib 全不翻 GO / glm-5-2 维持禁令 / flag 保留 / 阈值写死 / HF token 供 XCOMET / contested 调参授权 / autogloss default-on GO。
 - 已 commit：bib 直通（pipeline.py 40904c7）+ judge/mock/src_bib 信号（qualbench 246b08c）+ JUDGE_SYSTEM 新条款（同 commit，prompt_sha 轮转）+ qualfreeze 阈值写死（ff1316b）+ autogloss default-on（app.py ec39ebc）+ l0_en_unreported src_bib 豁免。**JUDGE_SYSTEM 协议形态改动属①的强制推论已自主落地，待向用户点名明示**；qualdrift 下跑若在 bib 行出 drift 为正确告警（尺子重锚非劣化）。
 - lane-bibpass-reg 发车（pid 773423，tmp/lane-bibpass-reg/）：frozen-300 单臂 cur=HEAD 全口径重翻→swe-2-max 判→qualfreeze vs base。判死线=14 个 bib chunk 的 dnt-major（baseline 17）不降即错。cron 9e69d36c 文件面巡检。
-- XCOMET-XL 三角臂 spike：权重 13GB 已落 archbox（突破=ssh 会话泄漏 127.0.0.1:7890 代理致 SSL EOF，env -i 直连即通；hf-mirror 全站 308 回源非代理）。venv ~/xcomet-venv（setuptools<81 补 pkg_resources）。7 对分档样本 QE 打分 detached 跑（~/xcomet/spike.log），cron c3f81263 巡检。
+- XCOMET-XL 三角臂 spike：权重 13GB 已落 archbox（突破=ssh 会话泄漏 127.0.0.1:7890 代理致 SSL EOF，env -i 直连即通；hf-mirror 全站 308 回源非代理）。venv ~~/xcomet-venv（setuptools<81 补 pkg_resources）。7 对分档样本 QE 打分 detached 跑（~~/xcomet/spike.log），cron c3f81263 巡检。
 
 ## 2026-09-19 ~01:0x — 夜巡：roster 补 10，批面两活一 stalled
 
@@ -392,7 +396,7 @@
 ## 2026-09-19 ~01:3x — 夜巡：pstlane 收割（idle 未报，leader 代验）
 
 - 批存活：bibpass-reg 196/300 在飞；余无新批。peer packaging 调研目录（docs/research/packaging-2026-09-19/）非我道产出，不入我 commit。
-- **f974ae1 pstlane 收割**（idle 未报→leader 代验 diff+测试全归因）：Defect-A paired .tex 核伴船退役（0707.4206：X.sty 退了稿自带 X.tex 核留盘→wrapper `\input{X}` cwd 先中 stale 核→`\pst@cntm` undef；`_retire_paired_tex_core` 同保守闸=系统递补在场+双日期面 `ld<sd`+非注入件，缺一不碰）+`_provides_date` `\def\filedate` 兜底（pst-* 核日期面约定）。Defect-B `pstcol_pstricks_rewrite`（70-pkgopt:185，1003.2152：pstcol 硬压 noxcolor→现代 pst-* 需 xcolor→`\colorlet` undef；组内枚名换 pstricks 选项续传 xcolor，masked 面）。14/14+77/77 绿，105 规则验。`## REVIEW` 已标（新 rename 路径）。
+- **f974ae1 pstlane 收割**（idle 未报→leader 代验 diff+测试全归因）：Defect-A paired .tex 核伴船退役（0707.4206：X.sty 退了稿自带 X.tex 核留盘→wrapper `\input{X}` cwd 先中 stale 核→`\pst@cntm` undef；`_retire_paired_tex_core` 同保守闸=系统递补在场+双日期面 `ld<sd`+非注入件，缺一不碰）+`_provides_date` `\def\filedate` 兜底（pst-_核日期面约定）。Defect-B `pstcol_pstricks_rewrite`（70-pkgopt:185，1003.2152：pstcol 硬压 noxcolor→现代 pst-_ 需 xcolor→`\colorlet` undef；组内枚名换 pstricks 选项续传 xcolor，masked 面）。14/14+77/77 绿，105 规则验。`## REVIEW` 已标（新 rename 路径）。
 - roster 8：stubaudit(r3+ProvidesPackage 扫尾加派)/livekill/babellane/injecttar/ctanre/pendreg/physwrap/restatdiag 全 running。pstlane/slashlane 交付关闭。
 - 门巡：L0 绿；L1 PASS 档；sabotage 0/40 档；clean% 待本轮落地翻格。零 git 违例。
 - pstlane 口头报告后至（commit 前 leader 已代验，内容全符）：**Defect-B 普查修正=实 1 格**（1003.2152 唯余 `\colorlet` fail；1404.2225/1706.00379 已 clean、0605429 缺席该轮——pst 族翻格预期下调）；0707.4206 多股残链全翻未定。order 185 与 95-targeted symbolfont_tuletters 撞序合法（异 trigger+文件名序定）。残口：`test_pasj00_polyfills_compile` 败属 stubaudit 在飞树非 HEAD（+273 行未落地，交付时复验）。
@@ -424,34 +428,34 @@
 ## 2026-09-19 ~02:4x — 夜巡：五连收割 + 批面双发 + roster 补 6
 
 - **c2e4e13 geomlane**（idle 未报→leader 代验）：`option_clash_geometry_hoist`（70-pkgopt:186）——括号选项整组挪 `\geometry{}` 运行时 keyval 面，documentclass 位置无关（1206.0291 mn2e→mnras.cls:117 [a4paper] 先载撞 [total,centering]；三规 merge/loadopt_strip/passopts 全够不到的形态兜底）。10 钉+107 规则+22 邻绿。
-- **cbd3798 apitar**（共享家选项落地）：`_tar_disguised` 迁 textutil.encoding 中性叶（normalize 删 49 行、inject 改引）→ latex 写路径全闸：scan_tex_tree 枚举三桶皆不入 + parse_file/v1 直读 OSError EINVAL + flatten._read_file OSError→非展开回吐。**索引级 hunk 分账**：__init__.py 只收 `_tar_disguised` 导出行，env_raw/env_opt 是 peer 会话在飞件不动。14/14 绿（真 USTAR blob）。
+- **cbd3798 apitar**（共享家选项落地）：`_tar_disguised` 迁 textutil.encoding 中性叶（normalize 删 49 行、inject 改引）→ latex 写路径全闸：scan_tex_tree 枚举三桶皆不入 + parse_file/v1 直读 OSError EINVAL + flatten._read_file OSError→非展开回吐。**索引级 hunk 分账**：**init**.py 只收 `_tar_disguised` 导出行，env_raw/env_opt 是 peer 会话在飞件不动。14/14 绿（真 USTAR blob）。
 - **2adda6b pendreg**：组内两 argspec 行补 m 闸（主流 `_handle_unknown_cs` m-is-None 同规——登记名走 keyarg/探针不吃签名）→ `\renewcommand{\And}` 组内 `\And{aa}` 不再裸名+参漏 prose、组尾 `{bb2}` 不越组界。3 钉+73 域绿。**共享文件记**：peer 会话 a708e388 在飞 `_accent_cs/_inline_lit_cs`→_common 合并先落地（_common/mainloop 它收），本 commit 只载 pending.py+test。
 - **720387c csvsub**：反向 skew——稿自带 csvsimple-l3 v2.2.0 太旧撞新 kernel（`\bool_const:Nn{1}` 裸字面量，2112.00045:36 Missing number）；`_provides_date` 读不出 `\ProvidesExplPackage` brace 面（双件皆 None→ld<sd 闸饿死）+fetch 指纹闸拒覆 → retire+resolve（mv .fixloop-iso，vendored v2.7.0 字节同 texmf 递补）。**hunk 分账第二例**：40-install.yaml 只收 hunk3，babellane file_aliases/francais/babel_undeclared 三块持有。14/14 绿。
 - **7b8e603 ctanre**：`_NEEDFMT_RE`/`_PKGLATER_RE` 补真闸形——单参族 `\IfFormatAtLeastTF`（nicematrix v7.11c 实案逃逸形）/`\IfExplAtLeastTF`/`\@ifl@t@r` cs+csname 形；双参族 `\@ifclasslater`/`\If{Package,Class,File}AtLeastTF`/`\@ifl@ter` 扩展/loader `{name}[date]`（texmf 普查 408 件非 expl3 目标占多数）；自署 `\ProvidesX[date]` 明示除外。95/95 绿。
 - **0e354b4 physwrap**（`## REVIEW`）：doc-native `\input{physics.sty}` 补 makeatletter 对——masked 视图组作用域走查（`_phys_sty_input_sites` 深度 0+at_letter 栈），只罩命令本体。**任务前提修正**：`\input{physics}` kpathsea tex 格式永不解析 .sty（1206.5202 是章节件）→ `_PHYS_INPUT_RE` 收窄 `.sty` 形 + `need_input` 假抑制同修。36+77 绿。
 - 批面双发：flipcheck3（11 格 mock 臂，tmp/flipcheck3/）+ l1-gate-pendreg（parsebench 全量——segmenter 路径变了三处：pendreg 闸+peer _common 合并+texlog 词表重构，L1 必须重锚）。bibpass-reg 已收官 PASS。
 - roster 补 6→9 running：**#40 readgate**（probe.py:266 dep census 读闸）、**#41 emmath**（`{\em}`-in-math 2.09 字形切+latex209.py:362 读闸）、**#42 grpOpaque**（`_grp_scan` opaque 镜像行——pendreg 残口）、**#43 junkrename**（`_neutralize_junk_files` 名撞覆盖）、**#44 silentthm**（restatable 异参静默丢定理 watch/redlines）、**#45 commentsweep**（svjour+cmd_prose 陈旧注释——90-shim 仍 stubaudit 锁，只交文本）。
-- macrogate-lane 僵尸收编（交付完 standby 态关闭）；其报 `_builtins_misschar.py` 本地 `_MC_*` 影 `_builtins_common` 同名导入——peer rewire 道残口记档（非我 mutex）。peer 破坏面观察：export.epub.driver/sabotage_arms _mock_translate_text/app_endpoints _ERR_FNAME 三处 collection 断（各有主，非我修）。
+- macrogate-lane 僵尸收编（交付完 standby 态关闭）；其报 `_builtins_misschar.py` 本地 `_MC_*` 影 `_builtins_common` 同名导入——peer rewire 道残口记档（非我 mutex）。peer 破坏面观察：export.epub.driver/sabotage_arms_mock_translate_text/app_endpoints_ERR_FNAME 三处 collection 断（各有主，非我修）。
 - 门巡：L0 绿档（域内）；L1 重锚在飞；sabotage 0/40 档；clean% 待 flipcheck3；git log 11 commit 全我署，零违例。
 
 ## 2026-09-19 ~03:1x — 夜巡：收割潮收官 + L1 PASS + flipcheck3/4
 
 - **4780aae readgate**（#40 速交）：probe.py `_scan_file` 上 `_tar_disguised` 闸——dep census 只读面收口，文件留 rep.inputs 但声明零产出。tar 族全链闭合：inject(3748c89)/latex 写路径(cbd3798)/probe(4780aae)/latex209(emmath 在飞)。4+50 绿。
 - **225bc97 babellane**（三道桥）：file_aliases 20 条显式别名（ukraineb/magyar/slovenian/UKenglish…ini `\BabelDefinitionFile{0}{X}` 普查，try_exts 拼不出的走表先试）+`babel_opt_francais_rewrite`（弃名→french，tlpdb 证无档）+`babel_undeclared_option`(:14 选项表头插 payload 非主位——babel_undef 独占类目，german ldf `\iflanguage{ngerman}` 钩案 0707.1325/1003.2165)。23 钉+109 规则+82 邻绿。
-- **ebff0af stubaudit r3 全收**（24 件 +653/-49）：geom.sty 全真 geomenv 面（`\presection`→`\newskip` 才是 illegal_unit 真源非 `\if`——`\@startsection` advance 实证；0806.0904 150→0/9pp、0806.2953→0/65pp）+svglov3.clo 功能化（1608.06693 122→0/26pp）+aa501/cimento/pasj00/imsart/PoS shim-body（全真稿 0err）+**#38 Provides* 扫尾闭合**：22 stubs 全钉 `[2026/09/19 …]`，undated 漏排版流类全灭（leader 复扫 0 残）。38/38 绿。
+- **ebff0af stubaudit r3 全收**（24 件 +653/-49）：geom.sty 全真 geomenv 面（`\presection`→`\newskip` 才是 illegal_unit 真源非 `\if`——`\@startsection` advance 实证；0806.0904 150→0/9pp、0806.2953→0/65pp）+svglov3.clo 功能化（1608.06693 122→0/26pp）+aa501/cimento/pasj00/imsart/PoS shim-body（全真稿 0err）+**#38 Provides\* 扫尾闭合**：22 stubs 全钉 `[2026/09/19 …]`，undated 漏排版流类全灭（leader 复扫 0 残）。38/38 绿。
 - **L1 重锚 PASS**：parsebench-v3-pendreg 1955/1955 strict、leak 0/135840——pendreg 闸+peer `_common` 合并+texlog 词表三处 segmenter 路径变更下解析恒等/leak 零退。批面 638s 落地。
 - **flipcheck3 收官**（11 格）：**6 clean 翻格**——0707.0382(tar_blob_extract)/1003.2152(**pstcol_pstricks_rewrite 实弹**)/1109.5364/1404.0561/2112.00045(**csvsimple_l3_kernel_retire 实弹**)/2410.00118 + gr-qc/0104075 compile-clean（mock 臂不触暴走）；4 格改善未净：0707.4206 best_effort(12err 多股残链如 pstlane 预判)/1206.0291 best_effort(**option_clash=geometry 仍在 post-census——规则触发须错签占首错类，残口记档**)/1206.5785 acceptable(missing_char×2)/1803.00136 acceptable(syntax×1)。
 - **flipcheck4 发车**（12 格：stubaudit 全家 + babel 0707.1325/1003.2165 + physwrap 1706.00240 + emmath 基线 astro-ph/9910310）。
 - roster 5 running：emmath/grpOpaque/junkrename/silentthm/commentsweep；本批 8 道全收（geomlane/apitar/pendreg/csvsub/ctanre/physwrap/readgate/babellane/stubaudit 全关）。
 - 门巡：L1 PASS 新锚；sabotage 0/40 档；clean% flipcheck3=9/11 出 pdf（6 clean）、flipcheck4 待；14 commit 全我署零违例。
-- XCOMET batch 死因链全破（教训级）：①无 swap CPU 载入 OOM→加 /swapfile-xcomet 24G；②fp32 ckpt 在 11.65G VRAM OOM→.half()；③无 tty 下 traceback 不落盘假象→日志直写文件+python -u -X faulthandler；④**真凶=archbox earlyoom daemon**（mem/swap≤15% 即 SIGTERM 最高 oom_score——静默 exit 元凶，journalctl 可见）→停 earlyoom 后 kernel OOM 真杀仍现；⑤终解=torch.load(mmap=True) 绕开 pl loader（pl 2.6.6 _load 无 mmap 透传）手建模型 fp16 直载，载入峰 ~30G→~9G。bs=8+expandable_segments。QE 批在跑（每 predict 重建 Trainer ~10s 开销可忍）。
+- XCOMET batch 死因链全破（教训级）：①无 swap CPU 载入 OOM→加 /swapfile-xcomet 24G；②fp32 ckpt 在 11.65G VRAM OOM→.half()；③无 tty 下 traceback 不落盘假象→日志直写文件+python -u -X faulthandler；④**真凶=archbox earlyoom daemon**（mem/swap≤15% 即 SIGTERM 最高 oom_score——静默 exit 元凶，journalctl 可见）→停 earlyoom 后 kernel OOM 真杀仍现；⑤终解=torch.load(mmap=True) 绕开 pl loader（pl 2.6.6_load 无 mmap 透传）手建模型 fp16 直载，载入峰 ~30G→~9G。bs=8+expandable_segments。QE 批在跑（每 predict 重建 Trainer ~10s 开销可忍）。
 
 ## 2026-09-19 ~03:5x — 夜巡：flipcheck4 收官 + commentsweep 落 + texlate-13 域对齐
 
 - **e5274e0 commentsweep**（两 stale 注释，均核实后改）：①svjour AtBeginDocument「\xdef 吃层」前提已被 lthooks 取代（latex.ltx:18901 verbatim 存）——`##` 真因是 `\providecommand` 替换文本内嵌 `\def` 一层转义，`####` 实测炸（TL2026 pdflatex 实证），注释自身前提反推出 #### 自相矛盾；②test_segmenter_cmd_prose beamer 注释过时——argspec_lookup 早弃 `_pkgs` 门控（\input 拆体不见导言包名），article 下 `\only` 同样走 argspec 臂。(a) 文本交付 leader 代施，(b) agent 直改。29/29 绿。
 - **flipcheck4 收官**（12 格，ebff0af9-dirty 树）：compile 11/12 clean（1706.00240 基线 fail）；fixloop 9 格 → **7 clean 翻格**：0707.1325/0707.4614/0806.0904/0806.2953/1608.06693/astro-ph/0104346/astro-ph/9910310（stubaudit 全家 5/5 实战全净——geomenv/svglov3/aa501 系 shim 体全兑现；babel 0707.1325 净）。
-  - 残 1：**1706.00240 unfixable:other**（7 轮 8 动）——physics_stub_detach 已兑现（越过 physics 装载面进 mathtools/siunitx 警告期），新阻塞 `Incomplete \iffalse; all text ignored after line 317`（异类缺陷，physwrap 已预判）。payload qty。
-  - 残 2：**1003.2165 best_effort_pdf**（9 轮 11 动）——babel 面全清（german.ldf+tuenc-greek+polutoniko 改写+ngerman 表头注入全发，babel_undef/ngerman 链全灭），残量 = pstricks 树装齐（pst-*×11+llncs）后 XeTeX 15.62s SIGKILL 超时、partial pdf 160K。属超时/runaway 类非 babel 类。
+    - 残 1：**1706.00240 unfixable:other**（7 轮 8 动）——physics_stub_detach 已兑现（越过 physics 装载面进 mathtools/siunitx 警告期），新阻塞 `Incomplete \iffalse; all text ignored after line 317`（异类缺陷，physwrap 已预判）。payload qty。
+    - 残 2：**1003.2165 best_effort_pdf**（9 轮 11 动）——babel 面全清（german.ldf+tuenc-greek+polutoniko 改写+ngerman 表头注入全发，babel_undef/ngerman 链全灭），残量 = pstricks 树装齐（pst-*×11+llncs）后 XeTeX 15.62s SIGKILL 超时、partial pdf 160K。属超时/runaway 类非 babel 类。
 - **texlate-13 域对齐**：互报在飞面零撞（我 compile/fixloop+latex/segmenter+textutil；彼 server/cli/compile-engine，pending.py 彼禁碰）。app.py/store.py/worker/web feature hunk 非我（texlate-2a/31/0c 道）；textutil 残 hunk 彼收；三处 collection 破面彼认领；**zotero/ 顶层新目录非我**（untracked Zotero 插件工程，另一 peer 或用户现场，互约不动）。
 - roster 4 running：emmath(#41)/grpOpaque(#42)/junkrename(#43)/silentthm(#44)；commentsweep 自退。#6 伞下新残口入册：iffalse@1706.00240、pstricks-timeout@1003.2165、geomreach@1206.0291（规则触发须错签占首错类——引擎级问题）、0408520 revtex3→4-2（90-shim mutex 已解可派）、`_MC_*` shadow 去重（fixloop 域内残口收编）。
 - 门巡：L0 绿档；L1 PASS 锚（v3-pendreg）；sabotage 0/40 档；clean% flipcheck4=10/12 出 pdf（7 clean）较前轮 9/11 单调不降成立；15 commit 全我署零违例。
@@ -497,9 +501,9 @@
 - **452bc9b 双件收**：(a) vendored mnras.cls 上游 bug 修——v3.2 pristine 实证 `\ds@usegraphicx` 内联 `\usepackage` 违 options-section（同文件 `\ds@usenatbib`:1335 已是正确旗+延载范），置旗+`\ProcessOptions\relax` 后延载；(b) **补齐半提交 babel 特性**——babellane 滞留 hunks：00-base filemap +24 ldf 别名 + 10-taxonomy `babel_undef` 类（"You haven't defined the language"），无此类则 babel_undeclared_option 消费端无格可中。
 - **fe62cff pstadd-retire 收**：0707.4206 12 错单根=稿自带 pstricks-add v2.32/2005 对遮蔽（multistrand census 判明非多股）；`find_vendored_shadows` 系统-probe 盲区同型 csvsimple——40-install.yaml `pstricks_add_pair_retire`（order 11.9）sh 循环 mv 成对 .fixloop-iso，**指纹防环升级**（texlate-fixloop-injected 件跳过，否则 v3.94 `\colorlet` 错→退役→重投死循环）；链=退役→missing_file→vendored_fetch v3.94，xcolor 前置已由 pstcol rewrite 兜。18 钉+805 fixloop 绿。
 - **dbd964a emmath 残口兑现（leader 自改）**：2e 声明形 `{\bfseries/\itshape/\rmfamily/\sffamily/\ttfamily X}` 同踩 `\not@math@alphabet` 硬报（gr-qc/9901082）并入映射表；`\slshape/\scshape/\upshape/\mdseries/\normalfont` 无单义数学字母保守不收。+3 钉，53/53 绿。
-- **iffalse-census 判明**（#46）：1706.00240 `Incomplete \iffalse`=**纸自带** draft.sty:77-85 摘要捕获花括号 hack（`\protected@edef\@tempa{\ifnum`}=\z@` 吞 `}` 令 edef 组永不闭，吞全文至 EOF 推展开 `\iffalse`）；bt7.tex 零 texlate 件复现同签名——TL2026 内核回归区外，unfixable:other 裁定正确。agent 供可选规则（doc-shipped .sty 签名→换良性 abstract env）**leader 裁定缓**——单格签名+改稿语义+需新 action 形（档内 .sty 内容改写非现行面），入册候选。
+- **iffalse-census 判明**（#46）：1706.00240 `Incomplete \iffalse`=**纸自带** draft.sty:77-85 摘要捕获花括号 hack（`\protected@edef\@tempa{\ifnum`}=\z@`吞`}`令 edef 组永不闭，吞全文至 EOF 推展开`\iffalse`）；bt7.tex 零 texlate 件复现同签名——TL2026 内核回归区外，unfixable:other 裁定正确。agent 供可选规则（doc-shipped .sty 签名→换良性 abstract env）**leader 裁定缓**——单格签名+改稿语义+需新 action 形（档内 .sty 内容改写非现行面），入册候选。
 - **skiprole-census 判明**（#52）：byte-identity **构造上即成立**（ph→ph_map 存原始字节，唯 `[[CHUNK_n]]` 受 zh）；活漏类=未标参数混进 chunk 面（restatable 前 argspec 先例）。option-b 槽审在 post-reconstruct 四点（e2e/worker-compile/repair_l2/retranslate，三点 peer 域）——probe 落我域 judge.py，接线补丁文本交 peer。
-- **新派两道**：#57 geomreverify（replay 1206.0291 post-452bc9b——头错已剥，geometry clash 是否进 dispatch 轮触发 option_clash_geometry_hoist，验 mnras 投资）；#58 slotaudit-impl（`_thm_restate_probe` 泛化 doc-level 机槽 CJK 探针：env 名/label/ref/cite/csname/input 五面，note-level 封顶 20，o/O/d/D+文本参 FP 硬约）。
+- **新派两道**：#57 geomreverify（replay 1206.0291 post-452bc9b——头错已剥，geometry clash 是否进 dispatch 轮触发 option_clash_geometry_hoist，验 mnras 投资）；#58 slotaudit-impl（`_thm_restate_probe` 泛化 doc-level 机槽 CJK 探针：env 名/label/ref/cite/csname/input 五面，note-level 封顶 20，o/O/d/D+ 文本参 FP 硬约）。
 - roster 6 在飞：grpOpaque(#42 逾 1h 在跑)/providesdate(#54)/sentryfix(#56)/geomreverify(#57)/slotaudit(#58)；iffalse/mnras/skiprole/pstadd 四尸已清。
 - 门巡：域内自验 53/53 绿 ruff 净；peer interleave f5677a66/6a3d538d/c9c3e3da（server app 拆+latex TokenSource+worker seams）互不干；22 commit 全我署零违例。
 - 残口入册更新：draftsty-abstract-hack 规则（候选 micro-lane，待第二命中或富余）；ASCII↔ASCII env-arg mangling 仍盲区；90-shim:2216 BoxedEPS 死条目（无害）；grpOpaque `_pend_spec_of` 过吸收 adjudication 待其交付；sentryfix 交付后需转 texlate-13 接线（彼域 proc.py/_base.py 已由彼派回我队——**纠正**：sentryfix 是我队 lane，交付即我收）。
@@ -507,7 +511,7 @@
 ## 2026-09-19 ~04:0x — 夜巡：grpOpaque 落地 + parsebench 断链抢修 + pendspec 续派
 
 - **e9757c0 parsebench 断链抢修（leader 自改）**：peer api.py v1 臂退役删 `parse_file_v1` → `bench/py/parsebench.py:75` 模块级 import 炸穿全链（parsebench→quality_proxies→stage_compile→stagerun，geomreverify replay 即死于此）。修法=惰性导入进 `parse_one` try 内——v1 臂被调时 ImportError 落 per-file 桶而非毁模块导入；ruff 净，import 链复通。geomverify 已解锁通知。
-- **45fab85 grpOpaque 收**（#42）：`_grp_scan` 组内缺 opaque/math 宏行——登记宏落探针 `[o]+{m}×6` 兜底 spec 越界过吸尾参组（主流 row18 `_handle_opaque_macro` 对价缺失）。+228：`_grp_opaque_args` 全 `Arg` 类 toks-walk（m/o/star/e/delim 滑窗/until_group/零宽 + `_pend_call_slots` keyarg 尾），`("opaque",None)` 行插 inline-literal↔pair-block 间镜像主流行序，m2 决议前提，PhType.CMD+散文抠参+gen_overflow 警。**forced 变更裁定**：`test_pend_spec_reg_gate` `[1]`→`[2]`——钉的是调用点覆盖行为非旧过吸机制，合法收。**附带披露**：`_pin_v2` fixture 删除=peer v1 臂退役未提交件被本 commit 扫入（commit body 已注明非我件）。
+- **45fab85 grpOpaque 收**（#42）：`_grp_scan` 组内缺 opaque/math 宏行——登记宏落探针 `[o]+{m}×6` 兜底 spec 越界过吸尾参组（主流 row18 `_handle_opaque_macro` 对价缺失）。+228：`_grp_opaque_args` 全 `Arg` 类 toks-walk（m/o/star/e/delim 滑窗/until_group/零宽 + `_pend_call_slots` keyarg 尾），`("opaque",None)` 行插 inline-literal↔pair-block 间镜像主流行序，m2 决议前提，PhType.CMD+ 散文抠参+gen_overflow 警。**forced 变更裁定**：`test_pend_spec_reg_gate` `[1]`→`[2]`——钉的是调用点覆盖行为非旧过吸机制，合法收。**附带披露**：`_pin_v2` fixture 删除=peer v1 臂退役未提交件被本 commit 扫入（commit body 已注明非我件）。
 - **#59 pendspec 派出**（grpOpaque 残口兑现）：`_pend_spec_of` 边界臂同款 `_PEND_PROBE` 过吸——槽字母表不出 spec 保真（m 吃 `[`+单 token、无 delim/e/until_group 槽），需流侧 spec walker 非槽映射；owns pending.py+slots 测试，已预警 texlate-13 同文件撞区（彼镜像表合并排期在先，指示我队绕飞不回退）。
 - **texlate-13 双 ping**：①grpOpaque 落地通报（彼三镜像表合并解锁）②pendspec 同文件撞区预警（彼排期在先可串行）。parsebench 修复亦已互报。
 - roster 5 在飞：providesdate(#54)/sentryfix(#56)/geomreverify(#57)/slotaudit(#58)/pendspec(#59)；grpOpaque 尸已清（self-terminated）。
@@ -515,10 +519,10 @@
 
 ## 2026-09-19 ~04:1x — 收割潮二：providesdate/sentry/slotaudit 三落 + geomverify 揭 texmf 影蔽新类
 
-- **f8b884d providesdate 收**（#54）：`_provides_date` 覆盖 expl3 花括号三参 `{n}{YYYY-MM-DD}`（237 texmf 件，csvsimple ld<sd 闸实证饿）+ `\ProvidesFile` + `[%` 续行 + `_cs_date` 间接署名解析（\def/\tl_*/\*command/\GetIdInfo→\ExplFileDate，ver==-1→None）；不可解=None 绝不猜日期（错日期静默毒 ld<sd）。581/601 texmf expl3 件得日期（原~0）；22 钉+48 域绿+361 fixloop 扫绿。
+- **f8b884d providesdate 收**（#54）：`_provides_date` 覆盖 expl3 花括号三参 `{n}{YYYY-MM-DD}`（237 texmf 件，csvsimple ld<sd 闸实证饿）+ `\ProvidesFile` + `[%` 续行 + `_cs_date` 间接署名解析（\def/\tl_*/\*command/\GetIdInfo→\ExplFileDate，ver==-1→None）；不可解=None 绝不猜日期（错日期静默毒 ld<sd）。581/601 texmf expl3 件得日期（原~0）；22 钉 +48 域绿 +361 fixloop 扫绿。
 - **405c5b5+cb404a6 sentryfix×slotaudit 双道同 file 收**（#56/#58，judge.py 分时复用——机制层先落、judge 层待 slotaudit 完成后双署提交）：
-  - sentryfix：`_RunawaySentry` 双臂——`page_flood`（`[N]` shipout ≥10K，gr-qc/0104075 ~97K 页 25s 杀，count 非 max 故散 `[12345]` 引用不触）+ `vbox_flood`（vbox sigs ≥30 ∧ >4×页标=密度语义，1003.2165 46sigs/46页 ~1:1 永不触）；`run_process` 返 `bool|str` timed_out，`_collect_compile_outputs` 归一→`CompRes.sentry_reason`（零引擎改）；judge `_timeout_verdict` 优先录因（sentry:<arm> note+runaway_output）否则全 .log 扫兜底（4KB 尾窗看不见 page-flood）。~20+166 钉绿。
-  - slotaudit：`_machine_slot_probe` 泛化 `_thm_restate_probe`——`_MACHINE_SLOT_RXS` 八面表（env 名/restatable 双机参/label-ref 族/cite 族/bib/csname DOTALL/include+includegraphics 必参/input 三形）走 `mask_tex` 视图（注释/verbatim/死区不触），`_DEAD_TAIL_RX` 截 \end{document}/\endinput；note `machine_slot_nonascii:<kind>:<file>:<arg>` 封顶 20；**NOTE-LEVEL 永非红线**（纸真 CJK env 名合法），可选位参构造不触（`[..]` 先消费）。+~105 钉。
+    - sentryfix：`_RunawaySentry` 双臂——`page_flood`（`[N]` shipout ≥10K，gr-qc/0104075 ~97K 页 25s 杀，count 非 max 故散 `[12345]` 引用不触）+ `vbox_flood`（vbox sigs ≥30 ∧ >4×页标=密度语义，1003.2165 46sigs/46页 ~1:1 永不触）；`run_process` 返 `bool|str` timed_out，`_collect_compile_outputs` 归一→`CompRes.sentry_reason`（零引擎改）；judge `_timeout_verdict` 优先录因（sentry:<arm> note+runaway_output）否则全 .log 扫兜底（4KB 尾窗看不见 page-flood）。~20+166 钉绿。
+    - slotaudit：`_machine_slot_probe` 泛化 `_thm_restate_probe`——`_MACHINE_SLOT_RXS` 八面表（env 名/restatable 双机参/label-ref 族/cite 族/bib/csname DOTALL/include+includegraphics 必参/input 三形）走 `mask_tex` 视图（注释/verbatim/死区不触），`_DEAD_TAIL_RX` 截 \end{document}/\endinput；note `machine_slot_nonascii:<kind>:<file>:<arg>` 封顶 20；**NOTE-LEVEL 永非红线**（纸真 CJK env 名合法），可选位参构造不触（`[..]` 先消费）。+~105 钉。
 - **geomverify 判明**（#57）：1206.0291 → best_effort_pdf + post clean；**geometry clash 签名确现身**（salvage 轮 L503 `Option clash for package geometry` tex:147）但不到 dispatch——r1 被前位错 `mnras.cls:114 \RequirePackage in Options Section` 截杀（cat=other 无规则 when 匹配，零 action）。根因=**user-texmf 影蔽**（新缺陷类）：`_texmf/home/` 复刻 `~/texmf/` 旧 buggy mnras.cls（`\ds@usegraphicx` 内联 `\usepackage`），我 patched vendor 件永不上场——static_precheck 只补缺失件（mn2e.cls），texmf 已有件不触发 vendored_fetch。同 pstricks-add 影蔽形上一层。**新派 mnras-retire**：fingerprint retire 规则进 40-install.yaml（`\def\ds@usegraphicx` 体含 \usepackage/\RequirePackage → mv .fixloop-iso → vendored_fetch patched；texlate-fixloop-injected 指纹跳过防环）。
 - **providesdate STAND DOWN 事故**：其报 #60 道号与 draftsty 撞——即停，#60 owner=draftsty 无实害。
 - **texlate-13 串行反转确认**：pending.py 上 pendspec 先 commit（小行为修 diff），彼三镜像表合并后 rebase（"吸已 commit 码比 rebase 真 spec walker 上新表风险低"）；彼 merge 开工前 ping 我。
@@ -532,19 +536,19 @@
 
 - **机制修正**（覆盖上条"user-texmf 影蔽"归因）：`_texmf/home/.../mnras.cls` 非 ~/texmf 复刻，而是 **tlmgr usermode install 产物**——mn2e stub `needs:["mnras.cls"]` → `_builtins_shim.py:108-113` → `eng.install_file` → filemap→`tlmgr --usermode install mnras` → texlive 旧 buggy v3.2。`vendored_fetch`(order 11.5) 只在 install_file 失败后触——texlive 有的包永远遮蔽 vendor 件。**缺陷类正名=vendor 可达性**：needs/install_file 全链不查 vendor/files。mnrasretire 规则形不变（fingerprint retire→missing→vendored_fetch），已转达关键正确性问题=missing-after-install 走 vendored_fetch 还是 install 重跑（后者→retire→reinstall 死环，须查实非假设）。
 - **geomverify 新发现二**（harness 实证，stagerun 重跑 byte-identical）：
-  - mn2e stub usegraphicx-strip=**死代码**——`\@loadwithoptions`(latex.ltx:18637) 拷原始 `opt@`/`@raw@opt@` 列表非 `\@classoptionslist`，改写被绕（repro/ 仪表实证）；修法=`\LoadClass[\mn@clean]{mnras}` 或 opt@ 改写，vendor patched 件上场则无须。
-  - **option_clash_geometry_hoist 永不可能此格首错中**——peel 后新首错=`Missing \begin{document}`@doc:147（cat=syntax，taxonomy:315 实证），即 clash 的**孪生头**（log 674 vs 686 差 12 行>CTX_LINES=8 err_head，ctx_suggests 同盲）；机制=doc l.147 `\usepackage[total=...,centering]{geometry}` 撞 cls-载 geometry[a4paper] 泄漏段落料→everypar→\@nodocument 先发。裸 `\usepackage{geometry}` 双错同消→净 33 页 PDF（repro2/t2 实证）。残口=多错 dispatch/ salvage-as-discovery/孪生签名规则变体——入引擎战略残口册。
-  - post error_cats={other:1,syntax:1,option_clash:1}——三错共存 salvage 轮实证。
+    - mn2e stub usegraphicx-strip=**死代码**——`\@loadwithoptions`(latex.ltx:18637) 拷原始 `opt@`/`@raw@opt@` 列表非 `\@classoptionslist`，改写被绕（repro/ 仪表实证）；修法=`\LoadClass[\mn@clean]{mnras}` 或 opt@ 改写，vendor patched 件上场则无须。
+    - **option_clash_geometry_hoist 永不可能此格首错中**——peel 后新首错=`Missing \begin{document}`@doc:147（cat=syntax，taxonomy:315 实证），即 clash 的**孪生头**（log 674 vs 686 差 12 行>CTX_LINES=8 err_head，ctx_suggests 同盲）；机制=doc l.147 `\usepackage[total=...,centering]{geometry}` 撞 cls-载 geometry[a4paper] 泄漏段落料→everypar→\@nodocument 先发。裸 `\usepackage{geometry}` 双错同消→净 33 页 PDF（repro2/t2 实证）。残口=多错 dispatch/ salvage-as-discovery/孪生签名规则变体——入引擎战略残口册。
+    - post error_cats={other:1,syntax:1,option_clash:1}——三错共存 salvage 轮实证。
 - **texlate-13 segmirror 已停让位**：彼误判 bd4d7140(彼 9/18 投影提升预备件)=pendspec 落地，澄清后停 agent，pending.py+slots 测试让出待我 pendspec commit ping。
 - **peer 接线确认**：texlate-13 在飞 judge.py 改动=将我 `_machine_slot_probe` 重构为公共 `machine_slot_audit(workdir)->list[str]`（splice 后调用面 e2e/worker/repair_l2/retranslate 接线，彼域文件）——slotaudit 交付的 peer-side patch text 落实中，互不干。
 - **新派 roundcat+texmfshadow+pairediff**：①`_round_cat` 读 sentry_reason（engine.py 微修+RunFn 注记）②texmfshadow census 扩域=vendor 可达性普查（filemap/tlmgr/doc-dir/TEXMFHOME 各解析点谁遮蔽 vendor 件）③pairediff 设计 src/zh 机槽参 diff 探针（ASCII↔ASCII mangling 盲区，先实证 FP 率再定建否）。
-- roster 7 在飞：pendspec(#59)/draftsty(#60)/mnrasretire(#61)/flipcheck5(#62)/roundcat/texmfshadow/pairediff；旧尸(psttimeout/multistrand/skiprole/mnras-optpatch/iffalse/pstadd/sentryfix/slotaudit/geomreverify)回声确认早收。
+- roster 7 在飞：pendspec(#59)/draftsty(#60)/mnrasretire(#61)/flipcheck5(#62)/roundcat/texmfshadow/pairediff；旧尸 (psttimeout/multistrand/skiprole/mnras-optpatch/iffalse/pstadd/sentryfix/slotaudit/geomreverify) 回声确认早收。
 - 门巡：ledger 9ed9a03 已 commit；geomverify report.md 已按全报重写。裁决点新增=孪生头守门机制选型（暂入册多错 dispatch 方向）。
 
 ## 2026-09-19 ~04:5x — 夜巡：flipcheck5 半程数据 + draftsty 撞区处置
 
-- **flipcheck5 半程**（stagerun-fixcheck5，42 格=6 nonclean 修复臂+36 clean 回归臂）：compile 臂 36/42 全 clean 零回归；fixloop 臂 5/6 出——**astro-ph/9910310→clean**（math-switch 目标格全翻，rules=[tar_blob_extract,static_precheck,legacy_pkg_shim]）、**gr-qc/9901082→acceptable_pdf**（revtex209_surface_polyfill）、2112.00045→clean（csvsimple_l3_kernel_retire+pkg_version_skew_vendored=providesdate 投资兑现）、2105.03852/0806.4130→best_effort_pdf；0707.4206 pstadd 目标格在飞。
-- **draftsty×mnrasretire 撞区处置**：draftsty 抢在我 95-targeted pin 到达前把 `abstract_edef_capture_neutralize`（~71 行 run_tool 规则——`\protected@edef\@tempa{\ifnum`}=\z@` 吞 `}` 签名确证 + `\endinput` 前注入良性 \def\abstract 覆写，texlate-fixloop-injected 幂等）写进 40-install.yaml。裁定=**成品留原位**（语义可属 install/patch 类，搬迁纯增错）→ draftsty 冻笔待提交，mnrasretire 串行候场（先答 refetch-path 正确性问题+写测试件，yaml 落笔待我 ping）。文件互斥纪律内推成立。
+- **flipcheck5 半程**（stagerun-fixcheck5，42 格=6 nonclean 修复臂 +36 clean 回归臂）：compile 臂 36/42 全 clean 零回归；fixloop 臂 5/6 出——**astro-ph/9910310→clean**（math-switch 目标格全翻，rules=[tar_blob_extract,static_precheck,legacy_pkg_shim]）、**gr-qc/9901082→acceptable_pdf**（revtex209_surface_polyfill）、2112.00045→clean（csvsimple_l3_kernel_retire+pkg_version_skew_vendored=providesdate 投资兑现）、2105.03852/0806.4130→best_effort_pdf；0707.4206 pstadd 目标格在飞。
+- **draftsty×mnrasretire 撞区处置**：draftsty 抢在我 95-targeted pin 到达前把 `abstract_edef_capture_neutralize`（~71 行 run_tool 规则——`\protected@edef\@tempa{\ifnum`}=\z@`吞`}`签名确证 +`\endinput` 前注入良性 \def\abstract 覆写，texlate-fixloop-injected 幂等）写进 40-install.yaml。裁定=**成品留原位**（语义可属 install/patch 类，搬迁纯增错）→ draftsty 冻笔待提交，mnrasretire 串行候场（先答 refetch-path 正确性问题 + 写测试件，yaml 落笔待我 ping）。文件互斥纪律内推成立。
 - **roundcat WIP 抽查合规**：`_round_cat` sentry_reason 优先→`runaway_output`+`sentry:<arm>` payload 槽（镜像 `_timeout_verdict`），RunFn 注记 `bool|str`，信号死 killed 改写逻辑保留——on-spec 未收割。
 - **peer 续流**：parsebench.py v1 臂 parse_one 整删（我 e9757c0 惰性导入件同去——v1 退役收尾，docs/09 §7.1 口径）；judge.py `machine_slot_audit` 公共化重构+repair.py/docs 改动仍彼在飞。
 - roster 7 在飞全活：pendspec(#59 未落笔——设计期)/draftsty(#60 yaml 成品+test 件在飞)/mnrasretire(#61 yaml 候场)/flipcheck5(#62 6th 格在跑)/roundcat(engine.py WIP)/texmfshadow(census 件产)/pairediff(proto.py 产)。
@@ -552,7 +556,7 @@
 
 ## 2026-09-19 ~05:0x — 收割：draftsty+roundcat 双落
 
-- **22e94be draftsty 收**（#60）：`abstract_edef_capture_neutralize` order 11.95——1706.00240 draft.sty `\protected@edef\@tempa{\ifnum`}=\z@` 吞 `}` 致 edef 不闭吞全文→`Incomplete \iffalse`。**设计 delta 采纳**：agent 改 inject-override 代 spec 原拟 comment-out——①注释面只需签名行不需 hack 块界（多层嵌套括号 regex 脆）②`\def` 无存在性前提优于 `\renewenvironment` ③`\ifdefined\maketitle` 保题名块（hack 本意即 env 触发题名，1706.00240 从不自调）——理由成立收。comment-strip 后签名确证（:62-64 注释载件不动），`\endinput` 前注入良性覆写。18 钉+858 fixloop 绿+真 xelatex A/B 实证（repro2 题名+abstract 全渲染）。
+- **22e94be draftsty 收**（#60）：`abstract_edef_capture_neutralize` order 11.95——1706.00240 draft.sty `\protected@edef\@tempa{\ifnum`}=\z@`吞`}`致 edef 不闭吞全文→`Incomplete \iffalse`。**设计 delta 采纳**：agent 改 inject-override 代 spec 原拟 comment-out——①注释面只需签名行不需 hack 块界（多层嵌套括号 regex 脆）②`\def`无存在性前提优于`\renewenvironment`③`\ifdefined\maketitle`保题名块（hack 本意即 env 触发题名，1706.00240 从不自调）——理由成立收。comment-strip 后签名确证（:62-64 注释载件不动），`\endinput` 前注入良性覆写。18 钉 +858 fixloop 绿 + 真 xelatex A/B 实证（repro2 题名+abstract 全渲染）。
 - **c68dc86 roundcat 收**：`_round_cat` 录因优先臂——`sentry_reason`/str timed_out→`runaway_output`+`sentry:<arm>` 挂 payload 槽（轮内无 notes 面，payload 落 entry/events pay=）；rep.raw=全 log 同源判明未造第三扫；RunFn+run_tool 注记 `bool|str`。判例披露皆核：录因权威于 timed_out 真值、runaway_output 无规则 dispatch 故 unfixable/salvage 排除语义反而修正（旧可误判 unfixable:timeout）。+6 钉（24）+888 邻域绿。
 - roster 5 在飞：pendspec(#59)/mnrasretire(#61 yaml 已放)/flipcheck5(#62)/texmfshadow/pairediff；draftsty/roundcat 尸清。
 
@@ -566,7 +570,7 @@
 
 ## 2026-09-19 ~05:4x — texmfshadow census 收：196 件普查 + mnrasretire 重设计
 
-- **普查结论**：196 vendor 件（168 files+28 stubs）×kpsewhich+字节 diff——135 NONE（Arch 分装 texlive 缺族）/58 IDENT/3 HOME-DIFF。**唯 1 活缺陷=mnras.cls**（texmf=2023 buggy 上游，源=fixloop 期 tlmgr usermode 漏进真 ~/texmf，44 件 mtime 聚 09-16 吻 engine.py:649-651 pollution 注）；siunitx=良性前向遮蔽（3.5.12 盖 3.6.0 无钉件，379 文档暴露零失败→监测）；binhex=良性（真件盖桩=正确方向，0 用）。
+- **普查结论**：196 vendor 件（168 files+28 stubs）×kpsewhich+ 字节 diff——135 NONE（Arch 分装 texlive 缺族）/58 IDENT/3 HOME-DIFF。**唯 1 活缺陷=mnras.cls**（texmf=2023 buggy 上游，源=fixloop 期 tlmgr usermode 漏进真 ~/texmf，44 件 mtime 聚 09-16 吻 engine.py:649-651 pollution 注）；siunitx=良性前向遮蔽（3.5.12 盖 3.6.0 无钉件，379 文档暴露零失败→监测）；binhex=良性（真件盖桩=正确方向，0 用）。
 - **install-path 判明**：missing 裁决链=`wdir→_texmf/home→~/texmf→TEXMFLOCAL→TEXMFDIST`（_xelatex.py:123-137 冒号链 TEXMFHOME，真 ~/texmf 挂尾=刻意保 host shim 可见）；xelatex 独有，tectonic bundle 自含免谈。
 - **mnrasretire 重设计（采纳 agent 建议）**：retire-mv→**stateless wdir drop**——~/texmf RW 挂载 mv 即全局突变（侵入），改指纹闸无条件把 vendor/files/mnras.cls 平投 wdir 根：cwd 赢全链，零外变，missing-file 依赖与 retire→reinstall 环同消。已两连发转达（含 garble 澄清）。
 - **普查↔geomverify 矛盾裁决**：census 称 mn2e 径"stub 选项剥离已防"——**被 geomverify 仪表实证推翻**（repro/：\@loadwithoptions 拷原始 opt@ 列表非 \@classoptionslist，剥离死代码）。爆半径修正≈26 格（25 mn2e+usegraphicx + 1907.00331 直用）——wdir drop 双径同愈。
@@ -576,8 +580,8 @@
 ## 2026-09-19 ~05:5x — pairediff BUILD 裁决 + flipcheck5 全报 + slotdiff 派
 
 - **pairediff 裁决=BUILD**（tmp/lane-pairediff/proto.py）：per-file in-memory 配对——`res.vtex` 字节=src（post-normalize，protected_tex 是错面带占位符）；三 splice 点（e2e:236/worker:319/repair_l2:399）同刻持对。**FP 实证零**：~150 配对扫描全 55 原始旗皆错配伪影（normalize `\bibliography`→`\input{bbl}`×54 + fixloop cite-key 清洗×1），splice-时接线全消。**免责名录零需**。判例：现树空转（141 格 0 机令 token 上 chunk 面——restatable ungate 已修），价值=下次扫描隙泄参的绊线（silentthm 类事件旧靠运气发现）。合成实证：restatable env 参 CJK 改写 + `\label`→`\ref` ASCII 错植皆中，cite 重排正确抑制。
-- **#63 slotdiff 派出**：`paired_slot_diff(src_tex,zh_tex,rel)->list[str]` 进 judge.py——**append-only 约束**（peer 正在同文件重构 `_machine_slot_probe`→公共 audit，禁碰既有函数，新代码自立 `_slot_args` 提取器不重构 `_slot_scan`）；cite/bib 键表归一（逗号拆+重排免旗）余原子；note=`slot_arg_missing`/`slot_arg_extra` 双向 Counter diff 封顶 _MACHINE_SLOT_MAX。三接线点 patch text 交我转 texlate-13（彼域文件）。~80 行产+~60 测。
-- **flipcheck5 全报收**（#62 清尸）：四目标格全验+新残口=**`\cite`-in-math 字体开关**——gr-qc/9901082 splice:466 `\bfseries invalid in math` 残存，源无字面开关组：`\cite{HawMos}` 处 `$…$` 内被文-mode `{\it …}` 包，revtex compat 执行期解开关→\bfseries——字面组改写域外（b3a 同残，acceptable_pdf 语义挂 #10 裁决）。grpOpaque 判verdict-neutral 但 **gen_overflow 警 1→0 全 6 格**（spec walker 代探针正信号）。36/36 零逃逸收官。
+- **#63 slotdiff 派出**：`paired_slot_diff(src_tex,zh_tex,rel)->list[str]` 进 judge.py——**append-only 约束**（peer 正在同文件重构 `_machine_slot_probe`→公共 audit，禁碰既有函数，新代码自立 `_slot_args` 提取器不重构 `_slot_scan`）；cite/bib 键表归一（逗号拆 + 重排免旗）余原子；note=`slot_arg_missing`/`slot_arg_extra` 双向 Counter diff 封顶 _MACHINE_SLOT_MAX。三接线点 patch text 交我转 texlate-13（彼域文件）。~80 行产+~60 测。
+- **flipcheck5 全报收**（#62 清尸）：四目标格全验 + 新残口=**`\cite`-in-math 字体开关**——gr-qc/9901082 splice:466 `\bfseries invalid in math` 残存，源无字面开关组：`\cite{HawMos}` 处 `$…$` 内被文-mode `{\it …}` 包，revtex compat 执行期解开关→\bfseries——字面组改写域外（b3a 同残，acceptable_pdf 语义挂 #10 裁决）。grpOpaque 判 verdict-neutral 但 **gen_overflow 警 1→0 全 6 格**（spec walker 代探针正信号）。36/36 零逃逸收官。
 - roster 3：pendspec(#59)/mnrasretire(#61)/slotdiff(#63)；flipcheck5/pairediff/texmfshadow 尸清。
 - 待办串联：slotdiff 交付后三接线 patch text 转 texlate-13（彼 splice 域 e2e/worker/repair_l2）；pendspec 落地后 segmirror 放行的 ping 链不变。
 
@@ -589,33 +593,33 @@
 
 ## 2026-09-19 ~06:1x — 夜巡：roster 扩 7 + mnrasretire 混合设计落树
 
-- **mnrasretire 在飞改动抽查**（40-install.yaml +64，未交付）：`mnras_texmf_shadow_retire` order 11.91（pstadd 11.9 与 draftsty 11.95 间）——设计比我转达的纯 stateless drop 更丰：**wdir 可达域 mv-retire**（find . + ../_texmf/home 双根，盖 stagerun 兄弟式与生产内嵌式 _texmf；宿主 ~/texmf 不碰=守"零外变"）+ **vendor 补丁件平投 cwd**（kpathsea cwd 序压一切 texmf 树含宿主同病件）。条件闸：ctx_suggests `Options Section|mnras\.cls` ∧ any(cache_dir_glob `**/mnras.cls` ∨ `../_texmf/home/**/mnras.cls`) ∧ tool sh；指纹=剥注释行 `ds@usegraphicx` 携 `\usepackage|\RequirePackage` 才 mv，texlate 双标（patch/injected）跳过防自拆；python 桥 `_vendor_root` 取钉件 `|| true` 退化为纯退役不阻塞。收割核点备查：`_vendor_root` 存在性、`../` cache_dir_glob 越界支持、11.91 序位无撞。
-- **roster 扩 4 研究道**（→7 在飞）：citemath(#64 机链实证+语料暴露+机制选型)、twinhead(#66 多错 dispatch/salvage-as-discovery/孪生签名三案设计评估+回归风险)、draftgap(#67 draftsty known_gap 三缺口语料暴露——变体签名/子目录/cls-only)、acceptpdf(#65 acceptable_pdf 内容丢失爆半径——#10 裁决定量件)。
-- **L1 re-gate 裁定=候场**：pending.py +467/-59 未 commit——此刻跑 parsebench 测的是混合态非 commit 树，门无效；pendspec 落地后立即重跑（现行树=peer v1 退役+我 45fab85/cb404a6/22e94be/c68dc86 全入）。
+- **mnrasretire 在飞改动抽查**（40-install.yaml +64，未交付）：`mnras_texmf_shadow_retire` order 11.91（pstadd 11.9 与 draftsty 11.95 间）——设计比我转达的纯 stateless drop 更丰：**wdir 可达域 mv-retire**（find . + ../_texmf/home 双根，盖 stagerun 兄弟式与生产内嵌式_texmf；宿主 ~/texmf 不碰=守"零外变"）+ **vendor 补丁件平投 cwd**（kpathsea cwd 序压一切 texmf 树含宿主同病件）。条件闸：ctx_suggests `Options Section|mnras\.cls` ∧ any(cache_dir_glob `**/mnras.cls` ∨ `../_texmf/home/**/mnras.cls`) ∧ tool sh；指纹=剥注释行 `ds@usegraphicx` 携 `\usepackage|\RequirePackage` 才 mv，texlate 双标（patch/injected）跳过防自拆；python 桥 `_vendor_root` 取钉件 `|| true` 退化为纯退役不阻塞。收割核点备查：`_vendor_root` 存在性、`../` cache_dir_glob 越界支持、11.91 序位无撞。
+- **roster 扩 4 研究道**（→7 在飞）：citemath(#64 机链实证 + 语料暴露 + 机制选型)、twinhead(#66 多错 dispatch/salvage-as-discovery/孪生签名三案设计评估+回归风险)、draftgap(#67 draftsty known_gap 三缺口语料暴露——变体签名/子目录/cls-only)、acceptpdf(#65 acceptable_pdf 内容丢失爆半径——#10 裁决定量件)。
+- **L1 re-gate 裁定=候场**：pending.py +467/-59 未 commit——此刻跑 parsebench 测的是混合态非 commit 树，门无效；pendspec 落地后立即重跑（现行树=peer v1 退役 + 我 45fab85/cb404a6/22e94be/c68dc86 全入）。
 - **脱管批面**：l1-gate post-W84 完（1955/1955 strict、leak 0.0）；autogloss-reg 完 rc=0（contested 0.070→0.080 容内）。
 - 门巡：工作树改动全可归属（pending.py/slots 测=pendspec、40-install=mnrasretire、judge.py=peer 重构）；零 git 违例；#10 裁决点仍唯一用户面。
 
 ## 2026-09-19 ~06:5x — 收割×3：pendspec/mnrasretire/slotdiff 落 + L1 re-gate 绿
 
-- **a28e853 pendspec 收**（#59）：`_pend_spec_of` 真 spec walker——注册 opaque/math 宏在 pending/boundary 臂原走 `_PEND_PROBE` 兜底（`o m×6` 式）超吸尾随 `{..}` 组，今走真 `m.spec`（共享 toks-walk + 流侧 `_absorb_spec`/`_absorb_grp_tail`）；`_grp_spec_walk` 由 `_grp_opaque_args` **抽出不复写**，`_PendRem` 跨界余量五槽编码。11 新钉+全绿；残口披露=delim 中窗续无自然触发钉（声明非钉）。与 diff 逐 hunk 对账一致。
-- **9577210 mnrasretire 收**（#61）：`mnras_texmf_shadow_retire` 11.91——收割核点全过：`_vendor_root`(_builtins_vendored:293) 存在、`../` pathlib glob 支持实证、序位无撞、112 规则载、24/24 钉绿、ruff 净。混合设计=wdir 可达域指纹 mv-retire（find . + ../_texmf/home 双根盖两式 _texmf 布局；宿主 ~/texmf 零触）+ vendor 补丁件平投 cwd（kpathsea cwd 序压全链）。
+- **a28e853 pendspec 收**（#59）：`_pend_spec_of` 真 spec walker——注册 opaque/math 宏在 pending/boundary 臂原走 `_PEND_PROBE` 兜底（`o m×6` 式）超吸尾随 `{..}` 组，今走真 `m.spec`（共享 toks-walk + 流侧 `_absorb_spec`/`_absorb_grp_tail`）；`_grp_spec_walk` 由 `_grp_opaque_args` **抽出不复写**，`_PendRem` 跨界余量五槽编码。11 新钉 + 全绿；残口披露=delim 中窗续无自然触发钉（声明非钉）。与 diff 逐 hunk 对账一致。
+- **9577210 mnrasretire 收**（#61）：`mnras_texmf_shadow_retire` 11.91——收割核点全过：`_vendor_root`(_builtins_vendored:293) 存在、`../` pathlib glob 支持实证、序位无撞、112 规则载、24/24 钉绿、ruff 净。混合设计=wdir 可达域指纹 mv-retire（find . + ../_texmf/home 双根盖两式_texmf 布局；宿主 ~/texmf 零触）+ vendor 补丁件平投 cwd（kpathsea cwd 序压全链）。
 - **b1b46b3 slotdiff+peer 合收**（#63）：judge.py 尾挂 `_slot_args`/`_slot_arg_multiset`/`paired_slot_diff`（append-only 守约——peer `_machine_slot_probe`→公共 `machine_slot_audit` 抽离同文件同提交收，函数自含完整）+ test_slotdiff 44 绿。**接线 patch 三件未随产**——tmp/lane-slotdiff/ 空，待报文载件转 texlate-13（彼已预警：pipecore 抽脊在飞 e2e/compile/_common 面在动，patch 落点或迁 pipecore，彼侧负责重映射）。
 - **test_docx_done 归因更正**（texlate-13 来讯）：非 pipecore WIP——系彼已 commit 的 ChunkResult.skipped→ChunkRecord.fell_back 改名漏了 union 消费点，57f0700 已修。
-- **L1 re-gate ②过**（tmp/l1-gate2 → parsebench-v3-postspec）：1955/1955 strict 全等、leak 0.0/133372 ≪0.040%——post-spec 树（pendspec walker+peer v1 退役+45fab85/cb404a6/22e94be/c68dc86/9577210/b1b46b3）全量验证。
+- **L1 re-gate ②过**（tmp/l1-gate2 → parsebench-v3-postspec）：1955/1955 strict 全等、leak 0.0/133372 ≪0.040%——post-spec 树（pendspec walker+peer v1 退役 +45fab85/cb404a6/22e94be/c68dc86/9577210/b1b46b3）全量验证。
 - roster 4 在飞：citemath/twinhead/draftgap 研究道+acceptpdf（完待报）；mnrasretire/slotdiff 尸待报文到齐后清。
 
 ## 2026-09-19 ~07:0x — 夜巡：mnrasretire v2 追落 + 全树归因图
 
 - **e9b6583 mnrasretire v2 收**（中飞修订捕获）：commit 9577210 后工作树再变——agent 收到我 stateless-drop 重设计后先交 v1 混合（usertree 内仍 mv），续修订为纯 drop：`mnras_texmf_shadow_drop`——**三探测根**（wdir 根指纹 / find . ../_texmf/home 双式 usertree / kpsewhich 宿主+TEXMFDIST 面——纯证据不触件）+ **mv 收窄至 wdir 根稿自带病件**（cwd 现胜者让位，pstadd 同型先例）+ 根槽安全件不覆写 + tectonic 无 kpsewhich 宿主面缺探声明 known_gap。v2 严格优于 v1：树外突变归零（v1 仍 mv usertree=wdir 邻域突变）。27/27 钉绿、112 规则载、ruff 净。
-- **全树归因图**（零违例）：segmenter×6+argspec/dispatch_mirror 测=peer segmirror 三镜合并在飞（a28e853 上吸收 _PendRem/_grp_spec_walk）；worker/_common+compile+pipecore.py=peer 抽脊在飞；bench/py×4+test_fuzz×25+stubaudit 测=peer docstring 转义清扫批；40-install+mnrasretire 测=v2 已收。
+- **全树归因图**（零违例）：segmenter×6+argspec/dispatch_mirror 测=peer segmirror 三镜合并在飞（a28e853 上吸收_PendRem/_grp_spec_walk）；worker/_common+compile+pipecore.py=peer 抽脊在飞；bench/py×4+test_fuzz×25+stubaudit 测=peer docstring 转义清扫批；40-install+mnrasretire 测=v2 已收。
 - **peer 更正入册**：test_docx_done 失败归因=texlate-13 已 commit 的 ChunkResult.skipped→fell_back 改名漏 union 消费点（57f0700 修）——非 pipecore WIP；L0 全域恢复绿。
 - **L1 re-gate ②过已记**；slotdiff 三接线 patch 仍待报文（lane 目录空——或随报文载）；roster 2 在飞（citemath/failmine 跑）+3 报文在途（twinhead/draftgap/acceptpdf 已清尸）。
 
 ## 2026-09-19 ~07:4x — 研究道收割：twinhead 设计采纳 + 三普查定量
 
 - **twinhead design=采纳**（tmp/lane-twinhead/design.md，前提修正件）：xelatex `-halt-on-error` 下孪生错**根本不在 log**（r1 log 仅 39 行 1 错）——多错 dispatch 与孪生签名规则双双死在 xelatex 面；tectonic `continue_on_errors` 默认全错在 rep.raw。采纳案=**miss 二次 dispatch**：`_match_apply` 空判→classify_errs(rep)（tectonic 免）∨ xelatex 跑一次 best_effort 探针编（salvage 同参，产件 stash 供 salvage 复用=净零编译）→候选 (cat,pay) 去重≠primary 重指 ctx 重跑规则匹配；**yaml 零改**——geometry_hoist 原签名 verbatim 中 twin 真 cat/pay；applied 去重绑二次 pay；sig/stuck 仍计 primary；探针预算 ≤2/cell 且仅 apply 改态后可再探。爆半径=加性仅 would-die 径，最坏=修级联症状先燃一轮。
-- **#70 secdispatch 派出**（engine.py+logparse.py+新测件，## REVIEW）。
-- **draftgap 裁决=known_gap 虚置**：EDEF_CAPTURE 精确签名仅 1706.00240（已覆）；IFNUM_BT_OTHER 16 格=pasj00.cls:3788 `\ifnum`0>\count@` 数字类判=良性习语；IFX_BT 1 格 nath.sty 良性；LET_ABS 410 格全 `\let\abstract\@undefined` 类=良性定义非捕获 hack；S0 10 格 amsmath 良性——变体桶全假阳，无后续规则修订需求。
+- **#70 secdispatch 派出**（engine.py+logparse.py+ 新测件，## REVIEW）。
+- **draftgap 裁决=known_gap 虚置**：EDEF_CAPTURE 精确签名仅 1706.00240（已覆）；IFNUM_BT_OTHER 16 格=pasj00.cls:3788 `\ifnum`0>\count@`数字类判=良性习语；IFX_BT 1 格 nath.sty 良性；LET_ABS 410 格全`\let\abstract\@undefined` 类=良性定义非捕获 hack；S0 10 格 amsmath 良性——变体桶全假阳，无后续规则修订需求。
 - **acceptpdf 定量（#10 证据件）**：1131 acceptable_pdf 格——594 ferr>0 / 537 ferr=0；**59 格（5.2%）携内容丢失签名**：env_undefined 31、missing_end 15、eof_truncation 5、capacity_abort 4、begin_end_mismatch 2、emergency 2；last_died 全 null。裁决点升级：~95% 为妆面残，5.2% 实丢 env/截断——待用户裁 acceptable_pdf 是否收紧排除内容丢失格。
 - **citemath 普查件产**（4 json，census209 ds209 代理 0/1987——2.09 探测口径或漏 revtex-era；机制报在途）。
 - roster 3：secdispatch(#70)/citemath/failmine；twinhead/draftgap/acceptpdf 尸清。
@@ -639,9 +643,9 @@
 
 - **mnrasretire 报文核销**：所述=v1 混合（deviation 声明=retire→missing→vendored_fetch 全场景不可达，自植 vendor 件理由）——树已演至 v2 纯 drop（e9b6583），报文与已收内容一致无追加。
 - **acceptpdf #10 决定性证据（升级用户裁决面）**：verdict 路径=dirty_pdf 晋升（engine.py:1031-1037，仅需 final_pdf∧err≤3∧!died，**零内容核验**；scorecard 映 clean~ 档入 GOOD 集 fixloop_bench.py:372,381）。loop1 1131 格分层：**T1 灾损 30**（capacity abort×4=cref@resetstack 递归 1803.03248/1907.10516/2105.03753/2403.05529 loop2 仍炸——restatdiag #31 残口复现；EOF-trunc×5；`这是译文` input 整丢×2；begin→enddoc 吞×2；**cjk_invisible 17=译文零中文渲染**）；T2 env 丢 46；**T3 不稳 422**（≤3 误差条测的是 warm pass，新编 >3 者 444——0806.2110: 1→404）；**T4 glyph 丢 495**；T6 真妆面仅 92（8%）。**~57% acceptable_pdf 携内容丢失**；agent 荐：结构类 cat+cjk_chars<20+missing_chars>0 拒晋升、≤3 条改测 fresh recompile。
-- **slotdiff 报文+4 接线 patch 已转 texlate-13**：Site A 迁 pipecore（peer refactor 中飞移位）、Site D=第4个 _resplice 调用点（retranslate 臂，brief 未列）、EOF 放置零撞、cap `>`语义诚实。paired_slot_diff b1b46b3 已落。
+- **slotdiff 报文 +4 接线 patch 已转 texlate-13**：Site A 迁 pipecore（peer refactor 中飞移位）、Site D=第 4 个 _resplice 调用点（retranslate 臂，brief 未列）、EOF 放置零撞、cap `>`语义诚实。paired_slot_diff b1b46b3 已落。
 - **citemath 荐 (b)**：yaml 反应式规则（bfseries/itshape-invalid-in-math 签名→cite 族 mbox 包，kernel 无 amsmath 依赖）优于我派的 latex209 (a)——(a) 仅覆 209 域，(b) 全类反应即 fixloop 本职；citembox 续跑作 209 域预防补。#79 citerule 立档串行候 ifclose 让 75-syntax（同签名 literal {\bfseries X} 无 cite token 须 noop 声明）。
-- **draftgap 副产**：S0 精确网 `edef..{..ifnum`[{}]` 全库仅 1706.00240——draftsty 内 grep 第二臂 `ifnum`[{}]=.z@` 松匹配良性花招习语（amsmath \@ifnextchar 支撑/ulem 尾花招/tabls 共 9 格）——**4ce9ae3 leader 直修**：两臂皆须 `edef` 在行，18/18 钉绿。
+- **draftgap 副产**：S0 精确网 `edef..{..ifnum`[{}]`全库仅 1706.00240——draftsty 内 grep 第二臂`ifnum`[{}]=.z@` 松匹配良性花招习语（amsmath \@ifnextchar 支撑/ulem 尾花招/tabls 共 9 格）——**4ce9ae3 leader 直修**：两臂皆须 `edef` 在行，18/18 钉绿。
 - **failmine 报文核销**（与 rule_targets.txt 一致）：verdict 分布 clean 2557/acceptable 3019/best_effort 2220/unfixable 各类~600+。
 - roster 9：secdispatch/citembox/csmap/nataux/ifclose/vendordiag/floatopt/gcensus/capcensus；failmine 尸清。
 
@@ -652,7 +656,7 @@
 - **6eaeb31 citembox**：latex209 `_fix_math_fontswitch`→`_fix_math_209` 合并走查 + `math_cite_wrapped` 统计——裸 `\cite[..]{k}` 在数学域裹 `\mbox{}`（natbib 未定义标记 `{\reset@font\bfseries ?}` 无盒直排→\not@math@alphabet 自续）；裸 \cite 无 {key} 保守不裹。57+16 钉绿。
 - **texlate-13 确认** slotdiff 四址接线 3787d29：A→pipecore.translate_tree_run、B→_build_zh、C→repair_l2._slot_diffs helper、D→_retr_resplice；deviation=Site D 去 paired_slot_diff import（F401），合理。
 - **vendordiag N=2 否决**（notes.md 核销）：pst-arrow 5 格 loop2/rt1/guardsmoke 全 clean——loop1 是 extension-less vendor 件+dep fanout 覆盖前的纯缺席，非 mnras shadow（主机零 texlive 实体可遮，stale tlpdb≠可达件）；setstack noop stub 够用；conm-p-l→acmart shim 正解。mnras shadow 维持 N=1，不触发泛化扫描。
-- **bib-passthrough 裁决落地**（edc2dec skeleton）：用户 GO→40904c7 直通臂+246b08c judge 条款；bib14 回归 dnt-major 17→0、stated 14/14=100。
+- **bib-passthrough 裁决落地**（edc2dec skeleton）：用户 GO→40904c7 直通臂 +246b08c judge 条款；bib14 回归 dnt-major 17→0、stated 14/14=100。
 - roster：secdispatch/ifclose/floatopt/gcensus/capcensus + babelinv/zhfile/proofdiag + 新派 thehalgo/auxeof/expl3diag = 11。
 
 ## 2026-09-19 ~09:2x — secdispatch 落地（twinhead 设计实装）
@@ -687,15 +691,15 @@
 - **proofdiag**：0806.0904/2953 已愈于 geom stub 60 行版（proof env 在体）；0707.1588 仅需复跑。**真残口**：`undefined_env_polyfill` 只注 \begin{document} 前——preamble `\renewenvironment{X}` 站点（err 行<begindoc 行）结构性够不到。→#90 envpoly（docclass 缝/站点前注入臂）。
 - **0707.1588 单格复跑**（stagerun-fc6c）：polyfill 已点火、proof env 过——**新残 `undefined_cs:QED`**（amsthm 终证标记，shim 缺）。已转 envpoly 斟酌 proof polyfill 附带 \QED stub vs cs_map 条目。
 - **thehalgo**：kernel 原生 `\theH<ctr>`（latex.ltx:10145, ≥2024-11）× ICML 模板 `\newcommand{\theHalgorithm}` 搭车 shim 冲突——`already_def_newcmd_renew`(111) 已覆盖全家，3/4 新档实证。**零新规则**；provenance 附注延后（75-syntax 被 ifclose 占用）。
-- **zhfile**：这是译文=MOCK_ZH 经 bare `\input <file>` 于 resizebox body-arg in_arg 泄漏（fig2dev .pdf_t 叠层形）；格已愈（TRANSPARENT_HEAD_SPEC+8b87318 文件名span 硬化）。**活残口实证**：`\caption{see \input foo_bar.tex end}` 任意 in_arg 文本位裸 \input 仍漏 →#89 inputleak（args.py:744-746 吞裸文件名入保护段）。
+- **zhfile**：这是译文=MOCK_ZH 经 bare `\input <file>` 于 resizebox body-arg in_arg 泄漏（fig2dev .pdf_t 叠层形）；格已愈（TRANSPARENT_HEAD_SPEC+8b87318 文件名 span 硬化）。**活残口实证**：`\caption{see \input foo_bar.tex end}` 任意 in_arg 文本位裸 \input 仍漏 →#89 inputleak（args.py:744-746 吞裸文件名入保护段）。
 - roster：ifclose/auxeof/cappayload/dvipdfmiss + babelinv/gcensus(交付在途) + inputleak/envpoly/expl3fix = 10。
 
-## 2026-09-19 ~10:5x — 研究潮3核销 + 收割潮3六连 commit + flipcheck7 起批
+## 2026-09-19 ~10:5x — 研究潮 3 核销 + 收割潮 3 六连 commit + flipcheck7 起批
 
 - **gcensus 裁定**（NOTES.md 核销）：`undefined_cs:g` 是 loop1 时代死签名——全源零 `\g`、现行码重放零命中（1706.00033 残为 russianb.ldf 缺=babel 畴）、loop2 4/9 重跑皆无；\g 语义异质（\gamma vs grams），盲 polyfill 必错。处置=残表哨戒，**零新规则**。
 - **babelinv 交付**：tmp/lane-babelinv/ldf_pins.yaml ~52 名 tlpdb/tarball 逐名核实（含 babel-{ukrainian,bulgarian,catalan,greek} 实物档）。**.ldf 不入 INDEX_EXTS → filemap.overrides 是唯一确定落点**。
 - **dvipdfmiss 裁定**：2403.00013 的 `hyperref_driver|dvipdfmx` 派发脱靶根因=kaist-ucs.cls `\ifpdf/\if@dvips` 条件 `\def\@drivername{drv}` 间接指派+`\RequirePackage[\@drivername]`——括号面零字面驱动词，旧闸够不着（known_gap 早已预言）。
-- **六连 commit**：a4e5c8f drvdef 臂（`\def\<cs>driver<cs>{drv}`→xetex 全支覆写+闸扩第三交替+13 钉）、28a64eb ldf 钉表 52 枚（含 afrikaans→babel-dutch/northernsami→babel-samin/turkmen→turkmen 异名档+german-traditional 已知噪声 null）、ffd4bf3 envpoly renew 站点前置臂（masked 活区扫描+首站点行首锚+降序插+幂等）、aeda23f ifclose 双臂（unclosed_if_close other:196+eof:196.5，内嵌 ~250 行遮盖栈平衡扫描器——def 体冻结 token 只计不注、跨件借用对全局闸、MARK 幂等，25 钉）、a227ee6 expl3fix 逗号粘连拆分（全表/表首/表内尾/,]洞 四态如 hyperref 形，12 钉）、86d30ea cappayload（taxonomy `payload_scan:` 原语注册表+capacity 提取器 bracket名归一 tag×ctx 首层 pending cs→`<tag>|<cs>`，classify_head 内接线=次派发同享，12 钉）。
+- **六连 commit**：a4e5c8f drvdef 臂（`\def\<cs>driver<cs>{drv}`→xetex 全支覆写 + 闸扩第三交替 +13 钉）、28a64eb ldf 钉表 52 枚（含 afrikaans→babel-dutch/northernsami→babel-samin/turkmen→turkmen 异名档+german-traditional 已知噪声 null）、ffd4bf3 envpoly renew 站点前置臂（masked 活区扫描 + 首站点行首锚 + 降序插 + 幂等）、aeda23f ifclose 双臂（unclosed_if_close other:196+eof:196.5，内嵌 ~250 行遮盖栈平衡扫描器——def 体冻结 token 只计不注、跨件借用对全局闸、MARK 幂等，25 钉）、a227ee6 expl3fix 逗号粘连拆分（全表/表首/表内尾/,] 洞 四态如 hyperref 形，12 钉）、86d30ea cappayload（taxonomy `payload_scan:` 原语注册表+capacity 提取器 bracket 名归一 tag×ctx 首层 pending cs→`<tag>|<cs>`，classify_head 内接线=次派发同享，12 钉）。
 - **drvdef 单格实证**（stagerun-drvdef）：hyperref_driver_neutralize 点火（前轮缺席）→ dvipdfmx 错消，**52→1 错**（xbb/pipe 群=驱动错下游级联同灭）；残 `\chinese already defined`（ctex 注入×dhucs 稿自定义，→chineseconf 普查）。
 - **flipcheck7 脱管批**：33 格=17 目标（ifclose 12+envpoly 2+expl3fix 3 独享）+16 clean 回归（flipcheck6 clean 池抽）→ bench/results/stagerun-flipcheck7，gate-③⑤。
 - **inputleak 交付在库待闸**：args.py in_arg 裸 `\input` 文件名吞入 CMD 保护段（镜 :789-809 非 in_arg 形）+7 钉；其 35 件抽样 parsebench 全绿——全量 L1 闸 (parsebench-v3-inputleak) 脱管在跑，过后 commit。
@@ -703,11 +707,11 @@
 - **新派研道**：pipecensus（Cannot run pipe command/.xbb 家族普查）、chineseconf（\chinese already defined 注入冲突普查）。
 - roster：citerule(#79)/auxeof(#84) + envpoly 追单 + pipecensus/chineseconf = 5 活；脱管批 3（L1 闸、drvdef 已完、flipcheck7）。
 
-## 2026-09-19 ~07:0x — 收割潮4：inputleak/QED/auxeof/citerule 四连 commit + 研报双核销派车道
+## 2026-09-19 ~07:0x — 收割潮 4：inputleak/QED/auxeof/citerule 四连 commit + 研报双核销派车道
 
 - **30d53c0 inputleak**：L1 闸落地绿（parsebench-v3-inputleak ok 1955/1955 strict、leak 0.0/133372）→ 提交。args.py in_arg 裸 `\input f.tex` 文件名连吃 FILENAME_CHARS 入 CMD 保护段（zhfile 普查 `\caption{…\input…}` 实漏），+7 钉。
 - **a5a26b6 envpoly 追单**：`_ENV_COMPANIONS` 对偶件表（proof→`\providecommand{\QED}` amsthm 开口盒 stub）随批块/站点前置同块下落；blob 取证先于注入防 stub 自证；95-targeted `QED:` cs_map 独立兜底。+4 钉（批块/站点/证据门/独立 env 负例）。
-- **cc10b53 auxeof 核销转修**：2403.05523 `aux_scan_eof|newl@bel` 幻影链根因=终编臂 (`passes>1` 同轮全遍终编) 只排 timed_out——xdvipdfmx `pdf_link_obj` fatal→SIGPIPE 截杀产 pdf+截断净 log (n_bang=0)，漏闸同轮重编恰读上半行截断 aux 自产自销（16384B 边界实证）；purge 每 payload 一次不可断。修=臂条件→`not _res_died(res)`（与 :905 clean 门同义）。3 钉含正控（健康 pass-1 终编照发）。余案→#94 xlinkobj（xdvipdfmx fatal 根车道=hyperref-link 畴）。
+- **cc10b53 auxeof 核销转修**：2403.05523 `aux_scan_eof|newl@bel` 幻影链根因=终编臂 (`passes>1` 同轮全遍终编) 只排 timed_out——xdvipdfmx `pdf_link_obj` fatal→SIGPIPE 截杀产 pdf+ 截断净 log (n_bang=0)，漏闸同轮重编恰读上半行截断 aux 自产自销（16384B 边界实证）；purge 每 payload 一次不可断。修=臂条件→`not _res_died(res)`（与 :905 clean 门同义）。3 钉含正控（健康 pass-1 终编照发）。余案→#94 xlinkobj（xdvipdfmx fatal 根车道=hyperref-link 畴）。
 - **12c21a5 citerule #79**：taxonomy `invalid_in_math`（`LaTeX Error:` 锚防同句式 Warning 抢签）+ latex209 `_math_regions`/`_cite_mbox_edits` 共用模态域走查抽出（`_fix_math_209` 与新规则同消费单源）+ `_builtins_bib.cite_in_math_mbox`（数学域裸 cite 族→`\mbox{}`，kernel 无包依赖；无 cite token 拒发）+75-syntax:105。natbib `\@citex` `{\reset@font\bfseries ?}` 无盒标记自续链断。20 钉。
 - **pipecensus 核销→#92 xbbpregen**（已派）：`Cannot run pipe command`+`.xbb no BoundingBox` 对偶错=dvipdfmx.def 内部 `\openin"|extractbb` 走 shell-escape；xetex.def 原生量 PDF 无管无 xbb。2105.00151 字面 `[dvipdfmx]` 26 错实损（missing_graphic）；2403.00013 已被 drvdef 臂灭（def→xetex 后走原生路径）。荐=extractbb 预生成 .xbb 落 wdir（`\Gread@generic` 先命中、零源改写零 write18）。
 - **chineseconf 核销→#93 chineseclear**（已派）：`\chinese already defined`=dhucs→xetexko `\let\chinese\Schinese`（cls 内载）× 注入 ctex `\cs_new:Npn \chinese` 冲突；cls 仅字符串比 "chinese" 于 \author 选项未调 cs → undefine 安全。荐=75-syntax ~110.8 `Control sequence` 签→`\let\X\@undefined` 于 docclass 后 ctex 前；警勿扩 _ALREADY_DEF_CS_RE（`\c__fontspec_*` 会劫 fontspec_double_merge 110.5<110.7）。
@@ -716,36 +720,36 @@
 
 ## 2026-09-19 ~07:1x — flipcheck7 收割：15/17 目标改善 + clean 16/16 守衡 + ifclose 缺口确诊入诊
 
-- **fixloop 重放完成**（28 非净格, ~63s）：17 目标格 —— **13 clean**（envpoly 0806.0904/2953 双双翻净、expl3fix 0905.4874 acceptable_pdf、ifclose 1803.00054/1803.00181/1907.00121/2003.03535/2105.00120 翻净 + 1706.00175/1907.00207/1907.03758/hep-ph 双格 compile 阶段即净=早波机制已愈）、**2 partial**（0905.0193 best_effort_pdf、1907.00128 acceptable_pdf，均较 fail 改善）、**2 stuck**（1206.0701:288、1306.0364:275）。
+- **fixloop 重放完成**（28 非净格，~63s）：17 目标格 —— **13 clean**（envpoly 0806.0904/2953 双双翻净、expl3fix 0905.4874 acceptable_pdf、ifclose 1803.00054/1803.00181/1907.00121/2003.03535/2105.00120 翻净 + 1706.00175/1907.00207/1907.03758/hep-ph 双格 compile 阶段即净=早波机制已愈）、**2 partial**（0905.0193 best_effort_pdf、1907.00128 acceptable_pdf，均较 fail 改善）、**2 stuck**（1206.0701:288、1306.0364:275）。
 - **ifclose fired-but-unfixed 缺口**：两格 unclosed_if_close 均 applied 但同签同行号残存 → #98 ifclosegap 诊断车道（注入错位/抽象 edef 捕获中和交互/def 体冻结 token 计数假设待查）。
 - **clean 池 16/16 守衡**（gate-⑤ ✓）：fixloop-clean 11 + acceptable_pdf 5，零回归。
 - **新派研道**：xlinkobj(#94 xdvipdfmx fatal 根车道普查)、bblmath(#95 .bbl 数学域字切族普查)、failmine2(#96 次波目标普查)、bibhang(#97 延搁项)。
 - roster 7：xbbpregen/chineseclear 实施 + xlinkobj/bblmath/failmine2/bibhang/ifclosegap 普查；flipcheck7 批完。
 
-## 2026-09-19 ~07:2x — 巡tick：L0 钉群 997 绿 + sabotage-b r3 逃逸闸刷新起批
+## 2026-09-19 ~07:2x — 巡 tick：L0 钉群 997 绿 + sabotage-b r3 逃逸闸刷新起批
 
-- **L0 点闸**：test_fixloop* 全量 998 项——997 绿 + 1 挂 = xbbpregen 在飞测试文件 (test_fixloop_xbbpregen.py 未提交, 代理自伤不算回归); 已提交面全绿。
+- **L0 点闸**：test_fixloop* 全量 998 项——997 绿 + 1 挂 = xbbpregen 在飞测试文件 (test_fixloop_xbbpregen.py 未提交，代理自伤不算回归); 已提交面全绿。
 - **sabotage-b r3 脱管批起**：wave-4 触碰 segmenter (inputleak 占位符面) + fixloop 5 规则 → 逃逸面在 blast radius; 40 格沿用 r2 池 (1663 注入事件/0 逃逸基线), ingest→parse→xlat(sabotage-b) → bench/results/stagerun-sab-r3, gate-④ 刷新。
 - roster 7 不变 (xbbpregen/chineseclear 实施 + xlinkobj/bblmath/failmine2/bibhang/ifclosegap 普查)；xbbpregen 已开写 _builtins_graphics。
 
 ## 2026-09-19 ~07:3x — gate-④ 核销：sab-r3 逃逸 0（1622 注入/1620 回/2 捉）
 
-- **sabotage-b r3 落地**（39 格, ~90s）：1622 注入事件——1620 recovered + 2 caught + **escaped=0**。wave-4 面 (inputleak 占位符 + 5 fixloop 规则) 未开逃逸路, gate-④ 过。
+- **sabotage-b r3 落地**（39 格，~90s）：1622 注入事件——1620 recovered + 2 caught + **escaped=0**。wave-4 面 (inputleak 占位符 + 5 fixloop 规则) 未开逃逸路，gate-④ 过。
 - roster 7 全在飞 (xbbpregen 已见 _builtins_graphics 在写)；零交付待收。
 
 ## 2026-09-19 ~07:4x — xbbpregen 收割入库 (001094d) + bibhang 普查核销
 
-- **xbbpregen 交付**：`xbb_pregen` 规则 (45-graphics.yaml order 15.5) + `_builtins_graphics.py` builtin —— dvipdfmx.def `"|extractbb` pipe 沙箱死 → 全量图形 `extractbb -x` 预生成 .xbb 旁缓存, pipe 臂整体跳过; 零源改。实证订正 4 项 (extractbb -O=stdout/-x=写盘、批式只写末件、openout_any=p 拒绝对径、败残留空 .xbb 是毒件需清)。14 测试 + 1031 回归绿; `## REVIEW` 标 (新 run_tool builtin)。归因单主已核 (csfix.py 同改=chineseclear 在飞, 剔出)。
+- **xbbpregen 交付**：`xbb_pregen` 规则 (45-graphics.yaml order 15.5) + `_builtins_graphics.py` builtin —— dvipdfmx.def `"|extractbb` pipe 沙箱死 → 全量图形 `extractbb -x` 预生成 .xbb 旁缓存，pipe 臂整体跳过; 零源改。实证订正 4 项 (extractbb -O=stdout/-x=写盘、批式只写末件、openout_any=p 拒绝对径、败残留空 .xbb 是毒件需清)。14 测试 + 1031 回归绿; `## REVIEW` 标 (新 run_tool builtin)。归因单主已核 (csfix.py 同改=chineseclear 在飞，剔出)。
 - **bibhang 普查核销** (#97)：4 格 mn2e+usenatbib —— 根因=mn2e stub 裸 `\LoadClass{mnras}` 丢选项 (今日已修 `\LoadClassWithOptions`), 残链由 already_def_undefine order-113 兜底; 无新规则。
 - roster 5：chineseclear 实施中 (csfix.py+75-syntax.yaml 在写) + xlinkobj/bblmath/failmine2/ifclosegap 普查中; xbbpregen/bibhang 尸清。#99 flipcheck8 排队 (等 #93/#94 落地同批重放)。
 
 ## 2026-09-19 ~08:0x — 收割潮：chineseclear/babelpins/inputquote 入库 + failmine2 次波发散
 
-- **inputquote (46dba25)**：in_arg 引号裸名 ``\input"a b.tex"`` 保护——闭引号收 span, 无配对全回放只护 cs (不吞散文)。44 leaks+473 segmenter 绿, parsebench spot 9/9 strict。
+- **inputquote (46dba25)**：in_arg 引号裸名 `\input"a b.tex"` 保护——闭引号收 span, 无配对全回放只护 cs (不吞散文)。44 leaks+473 segmenter 绿，parsebench spot 9/9 strict。
 - **chineseclear (10fcec1)**：`ctlseq_already_def_undefine` order 110.8——expl3 `Control sequence \X already defined` 签 (Command 形够不到) → 文件门 (注入 CJK 装载树) + seam 标记 + docclass 缝三闸 → 缝顶 `\let\X\@undefined`。实格验证：2403.00013 patched copy rc=0/3.45MB PDF/零错行, \let 落 75 行 (docclass 72↔ctex 77)。
 - **babelpins (dc426dd)**：`polytonicgreek`→`greek.polytonic` 双形补源 (51-ldf pin 表实证已全在 00-base:178-231, no-op)；+8 测试。
 - **事故记录**：xbb 提交 (001094d) pathspec 整文件把 chineseclear diff↔commit 间隙新写的 builtins.py 注册行卷走 → 该提交独立 import-broken, 10fcec1 立即补平。教训已入 memory (gfs-stash-race 门面时序变种)。
-- **failmine2 普查核销** (tmp/lane-failmine2/CENSUS.md)：481clean/90be/86acc/22hard/91unrun。发散 7 车道：bticktax(`` `\X' `` 反引号 taxonomy 缝, \Bbbk 23格)、newblockpf(~11)、flushendopt(10)、arraypream(~7)、pdfsanitize(gs-pdfwrite 资产消毒, 5格/9腿——xlinkobj 普查转换)、begindoccen(普查)、dsatcensus(96格 ds@ 拒收面普查→裁决输入)、drvverdict(driver-fatal+no-PDF 误判 clean 缝)。
+- **failmine2 普查核销** (tmp/lane-failmine2/CENSUS.md)：481clean/90be/86acc/22hard/91unrun。发散 7 车道：bticktax(`` `\X' `` 反引号 taxonomy 缝，\Bbbk 23 格)、newblockpf(~11)、flushendopt(10)、arraypream(~7)、pdfsanitize(gs-pdfwrite 资产消毒，5 格/9 腿——xlinkobj 普查转换)、begindoccen(普查)、dsatcensus(96 格 ds@ 拒收面普查→裁决输入)、drvverdict(driver-fatal+no-PDF 误判 clean 缝)。
 - **xlinkobj 核销** (#94)：pdf_link_obj fatal=嵌入图 pdf 畸形 (missing endobj/裸CR/token-per-line), 非 drvdef 族; gs 重写全 5 格实证。
 - roster ~10：bblmath/ifclosegap + bticktax/newblockpf/flushendopt/arraypream/pdfsanitize/begindoccen/dsatcensus/drvverdict 在飞；chineseclear/babelpins/inputquote/xlinkobj/failmine2 尸清。#10 + ds@ 待裁决点累积。
 
@@ -757,43 +761,52 @@
 
 ## 2026-09-19 ~08:4x — flushendopt 入库 (acf6600)
 
-- **flushendopt**：`flushend_keeplastbox_opt_strip` order 197——sttools 3.x 删 keeplastbox → 成员级剥除 (括号三位+PassOptions 首参, 近名/嵌套不沾), 语义零损失 (上游删项本意)。13 测试; 预期翻 1706.02725/1803.09012/2105.00097/2105.03814/2111.00082。
+- **flushendopt**：`flushend_keeplastbox_opt_strip` order 197——sttools 3.x 删 keeplastbox → 成员级剥除 (括号三位+PassOptions 首参，近名/嵌套不沾), 语义零损失 (上游删项本意)。13 测试; 预期翻 1706.02725/1803.09012/2105.00097/2105.03814/2111.00082。
 - roster 9：newblockpf (95-targeted+csmap 在写)/arraypream/pdfsanitize/begindoccen/dsatcensus/drvverdict/bticktax(verifymiss)/bblmath/ifclosegap。
 
 ## 2026-09-19 ~08:5x — ifclosegap 确诊：幻影失衡 (tracingifs 实证) → ifprot 车道
 
-- **#98 verdict**：1206.0701/1306.0364 零字面 \if 缺口——纯展开时幻影 (unclosed_if_close 正确 no-op, 零注入标实证)。机制：amsproc \maketitle edef→\footnote 链 / myectaart \xdef\@argi→\bf→\selectfont 链, 均终止于 `\let\if@X\iffalse` 在展开上下文执行 → 跳至 EOF。原英文稿即复现 = 上游 cls 撞 TL2026, 非 texlate 产物。
+- **#98 verdict**：1206.0701/1306.0364 零字面 \if 缺口——纯展开时幻影 (unclosed_if_close 正确 no-op, 零注入标实证)。机制：amsproc \maketitle edef→\footnote 链 / myectaart \xdef\@argi→\bf→\selectfont 链，均终止于 `\let\if@X\iffalse` 在展开上下文执行 → 跳至 EOF。原英文稿即复现 = 上游 cls 撞 TL2026, 非 texlate 产物。
 - **修法**：非 \fi 注入 (edef arg 内 \fi 不可达) —— preamble 注 eTeX `\protected` 重定义脆件 (footnote/thanks+\bf\it\rm\sf\tt\sc\sl), \protected 属性在 \let\protect\relax 剥脱下存活。两格实测救回。→ ifprot (#112) 派 ifclosegap 实施。
 
 ## 2026-09-19 ~09:0x — newblockpf 入库 (343f6b3) + 二次中写卷扫记录
 
-- **newblockpf**：`Command \X undefined` (renewcommand-on-undefined 内核签, natbib.sty:1070 \newblock) → 新 undefined_cs taxonomy 头签 + cs_table canonical hskip polyfill (order 165 表内键非新规)。13 目标格。blast radius 核查： 仅 newblock×4 + 单字符杂项 (miss-table 兜底, 无回归)。
-- **事故二发**：taxonomy 头签 hunk 在 diff↔commit 间隙被 bticktax 提交 (0db4133) 整文件卷走——与 001094d builtins.py 同型; 本例自含无悬空, 归因已注。规则化对策：taxonomy/facade 共享面提交前立即重 diff。
+- **newblockpf**：`Command \X undefined` (renewcommand-on-undefined 内核签，natbib.sty:1070 \newblock) → 新 undefined_cs taxonomy 头签 + cs_table canonical hskip polyfill (order 165 表内键非新规)。13 目标格。blast radius 核查：仅 newblock×4 + 单字符杂项 (miss-table 兜底，无回归)。
+- **事故二发**：taxonomy 头签 hunk 在 diff↔commit 间隙被 bticktax 提交 (0db4133) 整文件卷走——与 001094d builtins.py 同型; 本例自含无悬空，归因已注。规则化对策：taxonomy/facade 共享面提交前立即重 diff。
 - roster 9：arraypream/pdfsanitize (engine+graphics+45-yaml 在写)/begindoccen/dsatcensus/drvverdict/bticktax(verifymiss)/bblmath/ifclosegap(ifprot 实施)。
 
 ## 2026-09-19 ~10:0x — 收割潮二：pdfsanitize/ifprot/bblmath 入库 + 三次卷扫事故 (pathspec 变种)
 
-- **pdfsanitize (df72ac8)**：`pdf_asset_sanitize` order 18.5——内嵌 .pdf 对象结构残缺 → xdvipdfmx `pdf_link_obj` fatal → SIGPIPE；签名只走 stderr (.log 干净) → `_report_of` 归一 `*:fatal:`→`!` 抬入 taxonomy 面 (2403.05523 实证)。fatal 不携文件名 → 全量嵌入 pdf gs pdfwrite 重序列化 (内容不动, .fixloop-rd 备份兼幂等标记)。16 测试+1324 回归绿。预期翻 5 格。
-- **ifprot (22a1cfd)**：`if_phantom_protect` order 197.5——同签复发=phantom 判别 (196 字面扫描 noop 烧 dedup 位)；\protected let-wrap 重定义 footnote/thanks+\bf\it\rm\sf\tt\sc\sl @\AtBeginDocument, 逐 \ifdefined 闸 + ledger ifclose: 判词闸 (扫描器缺席保守不收)。双实格救回, 10 测试。
-- **bblmath (86f6ac6)**：emit-site 修复非规则——`\bibliography{x}`→`\input{bbl}` 丢 revtex `\auto@bib@empty` 解除 → end-doc `\test@bbl@sw` 在 \vbox 排印 cite key (_/&/$ → Missing$ 级联+三读)。`\input` 前补 `\@ifundefined{auto@bib}{}{\let\auto@bib\@empty}` 双 emit 点 (normalize.py:695 + bbl_stub_rewrite), \@ifundefined 使非 revtex 零操作。1003.1717 实测 364 错→0；202 测试绿。预期翻 5 格。
-- **事故三发 (最重)**：`git commit -- <pathspec>` 不走 index——工作区内容整体提交, `git apply --cached` hunk 过滤被架空。df72ac8 卷入 ifprot 注册行 (impl 未落→悬空, 22a1cfd 补平) + drvverdict engine.py 48 行 (texlog driver_fatal_line 未落→悬空, 8527fa7 index-restore+重敷本方 patch 修复, 工作区在飞稿无损)。规则化：交织文件只能 apply --cached+裸 commit; 单主文件 pathspec 无妨。memory 三更。
-- **普查核销 ×4**：begindoccen (2 tar 格已被 tar_blob_extract+letter_wrap 覆盖→flipcheck 验证, ~20 异质残件→shipclscen)；dsatcensus (96→实 14-16 格, 推 Option A style-as-class 仿真 1-2 天工——**裁决点累积**)；verifymiss (2 可行动: 2.09-arm input_sty + out-of-fileset prim 宽化→primofw/inputsty209)；inputstack (无 \input 环, 2 格上游 base-arm 缺→capverd 诚实标)；glossleak (2 格已愈, 但 ~13 格 CJK-in-key 族 6 形未盖→kvleak2)。
+- **pdfsanitize (df72ac8)**：`pdf_asset_sanitize` order 18.5——内嵌 .pdf 对象结构残缺 → xdvipdfmx `pdf_link_obj` fatal → SIGPIPE；签名只走 stderr (.log 干净) → `_report_of` 归一 `*:fatal:`→`!` 抬入 taxonomy 面 (2403.05523 实证)。fatal 不携文件名 → 全量嵌入 pdf gs pdfwrite 重序列化 (内容不动，.fixloop-rd 备份兼幂等标记)。16 测试 +1324 回归绿。预期翻 5 格。
+- **ifprot (22a1cfd)**：`if_phantom_protect` order 197.5——同签复发=phantom 判别 (196 字面扫描 noop 烧 dedup 位)；\protected let-wrap 重定义 footnote/thanks+\bf\it\rm\sf\tt\sc\sl @\AtBeginDocument, 逐 \ifdefined 闸 + ledger ifclose: 判词闸 (扫描器缺席保守不收)。双实格救回，10 测试。
+- **bblmath (86f6ac6)**：emit-site 修复非规则——`\bibliography{x}`→`\input{bbl}` 丢 revtex `\auto@bib@empty` 解除 → end-doc `\test@bbl@sw` 在 \vbox 排印 cite key (_/&/$ → Missing$ 级联 + 三读)。`\input` 前补 `\@ifundefined{auto@bib}{}{\let\auto@bib\@empty}` 双 emit 点 (normalize.py:695 + bbl_stub_rewrite), \@ifundefined 使非 revtex 零操作。1003.1717 实测 364 错→0；202 测试绿。预期翻 5 格。
+- **事故三发 (最重)**：`git commit -- <pathspec>` 不走 index——工作区内容整体提交，`git apply --cached` hunk 过滤被架空。df72ac8 卷入 ifprot 注册行 (impl 未落→悬空，22a1cfd 补平) + drvverdict engine.py 48 行 (texlog driver_fatal_line 未落→悬空，8527fa7 index-restore+ 重敷本方 patch 修复，工作区在飞稿无损)。规则化：交织文件只能 apply --cached+ 裸 commit; 单主文件 pathspec 无妨。memory 三更。
+- **普查核销 ×4**：begindoccen (2 tar 格已被 tar_blob_extract+letter_wrap 覆盖→flipcheck 验证，~20 异质残件→shipclscen)；dsatcensus (96→实 14-16 格，推 Option A style-as-class 仿真 1-2 天工——**裁决点累积**)；verifymiss (2 可行动：2.09-arm input_sty + out-of-fileset prim 宽化→primofw/inputsty209)；inputstack (无 \input 环，2 格上游 base-arm 缺→capverd 诚实标)；glossleak (2 格已愈，但 ~13 格 CJK-in-key 族 6 形未盖→kvleak2)。
 - roster 10：drvverdict/arraypream + primofw/inputsty209/shipclscen/kvleak2/runawayscan/capverd/renewdocenv 在飞 + bticktax flipcheck8 批 (58 格含 32 clean, ~35min)。pdfsanitize/ifclosegap/bblmath/inputstack/glossleak 尸清。新翻格全转 flipcheck9。
-- 裁决队列: #10 acceptable_pdf + ds@ Option A (证据齐: 14 格/1-2 天/机制明) + acmart error-in-clean ×16 注记。
+- 裁决队列：#10 acceptable_pdf + ds@ Option A (证据齐：14 格/1-2 天/机制明) + acmart error-in-clean ×16 注记。
 
 ## 2026-09-19 ~10:4x — drvverdict/inputsty209 入库 + flipcheck8 早段翻面
 
-- **drvverdict (072111d)**：`driver_fatal` 证据层——texlog `DRIVER_FATAL_RE`+`driver_fatal_line()` 单源；`_base._driver_fatal` = 签名∧失败相 (killed/rc≠0/无pdf, 单签名拒收保 \write18 契约)；judge `driver_fatal:<line>`→partial；fixloop `_res_died` 扩展 + `_round_cat` 只在 classify→clean/None 缘发 `driver_fatal` (主路径类保 `other`——pdf_asset_sanitize 按 other 派发不破, per-round 字段携归因+salvage 排除)。1907.00277 实证 clean→partial/dirty_pdf。9 文件 238 行, 1479 回归绿。
-- **inputsty209 (daa3858)**：`input_sty_209_requirepkg` precheck order -12——2.09 compat 只压 `\usepackage` (`\if@compatibility\else\let`)，`\RequirePackage` 内核无条件走全 `\@fileswithoptions` 机器; 同纹改写异枚子。order -12 双模式合法=严格占优, 顺带兜病态双中头。90-shim-legacy EOF hunk 经 apply --cached 过滤入库 (arraypream 在飞 hunk 剔出)——**交织文件正确流程首验：apply --cached+裸 commit**。
-- **flipcheck8 批完** (bticktax, 58格/fixloop 21格, 07:52 ALL DONE)：早段翻面 2105.00151→clean (xbbpregen✓)、2104.00012/math-0104250/nucl-ex-0501017→clean (ngerman 臂✓)、astro-ph/0104007→clean (tar✓)、2111.00082→clean (flushendopt✓)、0501100/0605138→clean (newblockpf✓)、1706.02400 cat=already_def (bticktax 缝✓)。**2403.00013 只到 acceptable_pdf** — ctlseq 目标错已清但残留→drvverdict 新派残因车道。全表等 harvest.py 回执。
-- **输入核销 ×2**：inputstack (3 格零 \input 环——2105.00111 已愈陈旧记录, 1706.00076/1404.0037 上游 base-arm 缺→capverd 诚实标派)；glossleak (2 格已愈, ~13 格 CJK-in-key 族 6 形未盖→kvleak2; trade-off 记: glossary 整件落 support 不再翻译, 若要翻需 kv-value digging 段器增强)。
+- **drvverdict (072111d)**：`driver_fatal` 证据层——texlog `DRIVER_FATAL_RE`+`driver_fatal_line()` 单源；`_base._driver_fatal` = 签名∧失败相 (killed/rc≠0/无 pdf, 单签名拒收保 \write18 契约)；judge `driver_fatal:<line>`→partial；fixloop `_res_died` 扩展 + `_round_cat` 只在 classify→clean/None 缘发 `driver_fatal` (主路径类保 `other`——pdf_asset_sanitize 按 other 派发不破，per-round 字段携归因+salvage 排除)。1907.00277 实证 clean→partial/dirty_pdf。9 文件 238 行，1479 回归绿。
+- **inputsty209 (daa3858)**：`input_sty_209_requirepkg` precheck order -12——2.09 compat 只压 `\usepackage` (`\if@compatibility\else\let`)，`\RequirePackage` 内核无条件走全 `\@fileswithoptions` 机器; 同纹改写异枚子。order -12 双模式合法=严格占优，顺带兜病态双中头。90-shim-legacy EOF hunk 经 apply --cached 过滤入库 (arraypream 在飞 hunk 剔出)——**交织文件正确流程首验：apply --cached+ 裸 commit**。
+- **flipcheck8 批完** (bticktax, 58 格/fixloop 21 格，07:52 ALL DONE)：早段翻面 2105.00151→clean (xbbpregen✓)、2104.00012/math-0104250/nucl-ex-0501017→clean (ngerman 臂✓)、astro-ph/0104007→clean (tar✓)、2111.00082→clean (flushendopt✓)、0501100/0605138→clean (newblockpf✓)、1706.02400 cat=already_def (bticktax 缝✓)。**2403.00013 只到 acceptable_pdf** — ctlseq 目标错已清但残留→drvverdict 新派残因车道。全表等 harvest.py 回执。
+- **输入核销 ×2**：inputstack (3 格零 \input 环——2105.00111 已愈陈旧记录，1706.00076/1404.0037 上游 base-arm 缺→capverd 诚实标派)；glossleak (2 格已愈，~13 格 CJK-in-key 族 6 形未盖→kvleak2; trade-off 记：glossary 整件落 support 不再翻译，若要翻需 kv-value digging 段器增强)。
 - roster 10：arraypream (75-syntax/90-shim/vendor/tests 在写) + primofw/shipclscen/kvleak2/runawayscan/capverd/renewdocenv/aastex61if 在飞 + drvverdict(2403resid)/bticktax(harvest 中)。inputsty209/drvverdict-#109 尸清。
-- **门警戒**：teammate 零 git 令✓；L1/autogloss run.log 皆 ALL DONE；pathspec 卷扫修复后 HEAD 双破import 已平 (22a1cfd+8527fa7)。
+- **门警戒**：teammate 零 git 令✓；L1/autogloss run.log 皆 ALL DONE；pathspec 卷扫修复后 HEAD 双破 import 已平 (22a1cfd+8527fa7)。
 
 ## 2026-09-19 ~11:1x — arraypream 入库 (938da65) + preamcjk/resid209 普查派
 
-- **arraypream (938da65)**：`pream_token` 新类 + `pream_token_cs_expand` order 198——array `\@mkpream` 只改写 *-repeat/`\NC@`, kernel `\@xexpast` 本可展开字面 preamble 宏 → 修=展开非 cs-map：call-站 `\expandafter` + def-站 `\edef` 烘焙 (`\string` edef 内执行产字面 token, 单臂不够) + emulateapj 死 let 链中和 (array 中和 kernel 存名→"Missing #")。vendored aaspp4/aasms4/aastex/emulateapj 补丁 + regex_rewrite 盖 doc-shipped 件。12 测试+1139 绿, e2e deluxetable 0 错。预期翻 \@delspec~9+\pt@format~4-5。
-- **renewdocenv 核销**：`Environment 'x' already/undefined defined` 签 0 命中全记录——潜缝但零发, 修法已存档 (env_undefined 宽化+already_def env 姊妹+seam rewrite), 越 ≥2 门槛再派。尸清。
-- **新派 ×3**：resid209 (9901081 ~151 残 2.09 错 + ~51 稿 \documentstyle∧\input 族次波普查)、preamcjk (arraypream 揭 54 命中 CJK-译文漏 preamble-spec——与 kvleak2 族邻接可能同根, 查 dig 路径归属)、aastex61if (defer 的 def-体 \if 失衡 ~5 格普查)。
-- roster 10：primofw (actions/55-prim/ruleset 在写——其宽化需动条件机器非纯 yaml)/shipclscen/kvleak2/runawayscan/capverd/resid209/aastex61if/preamcjk + drvverdict(2403resid)/bticktax(flipcheck8 全表待回执, cron 自收)。
+- **arraypream (938da65)**：`pream_token` 新类 + `pream_token_cs_expand` order 198——array `\@mkpream` 只改写 *-repeat/`\NC@`, kernel `\@xexpast` 本可展开字面 preamble 宏 → 修=展开非 cs-map：call-站 `\expandafter` + def-站 `\edef` 烘焙 (`\string` edef 内执行产字面 token, 单臂不够) + emulateapj 死 let 链中和 (array 中和 kernel 存名→"Missing #")。vendored aaspp4/aasms4/aastex/emulateapj 补丁 + regex_rewrite 盖 doc-shipped 件。12 测试 +1139 绿，e2e deluxetable 0 错。预期翻 \@delspec~~9+\pt@format~~4-5。
+- **renewdocenv 核销**：`Environment 'x' already/undefined defined` 签 0 命中全记录——潜缝但零发，修法已存档 (env_undefined 宽化+already_def env 姊妹+seam rewrite), 越 ≥2 门槛再派。尸清。
+- **新派 ×3**：resid209 (9901081 ~151 残 2.09 错 + ~51 稿 \documentstyle∧\input 族次波普查)、preamcjk (arraypream 揭 54 命中 CJK-译文漏 preamble-spec——与 kvleak2 族邻接可能同根，查 dig 路径归属)、aastex61if (defer 的 def-体 \if 失衡 ~5 格普查)。
+- roster 10：primofw (actions/55-prim/ruleset 在写——其宽化需动条件机器非纯 yaml)/shipclscen/kvleak2/runawayscan/capverd/resid209/aastex61if/preamcjk + drvverdict(2403resid)/bticktax(flipcheck8 全表待回执，cron 自收)。
 - 工作区现状：仅 primofw 3 件 (actions.py/55-prim.yaml/ruleset.py) 在飞 + packaging-2026-09-19 peer 目录; 其余脏面全清。
+
+## 2026-09-19 ~12:0x — capverd 入库 (2ccd40d+c1a4840) + logcache 系统缝揭 + resid209 核销
+
+- **capverd (2ccd40d)**：`input_stack|<上游递归cs>` capacity 判词重路由——`_CAP_UPSTREAM_RECURSION_CS` 6 名 frozenset (内核 `\@nomath` 守卫帧 + expl3 quark 扫描哨兵族) + `_cap_verdict_cat` 挂 `classify_head` 返回。capacity 族唯一 when-规 revtex4 docclass 闸全灭→3 格假簇 `unfixable:capacity`；上游 TeX-exec 递归帧 paper-authentic 无源改写可修→诚实 `unfixable:input_stack`；`cref@resetstack` restatable 可修族刻意留 capacity 走修复派发。8 测试。
+- **leader 追办 (c1a4840)**：`unfixable:input_stack` 入 salvage 排除组 (定败同炸，省兜底轮)——该 cat 只由重路由产出=全递归帧，排他安全; `CAP_STACK_LOG` 合成 `\@nomath` 帧钉 (verdict+ 无 salvage+rounds==1)。
+- **drvverdict 2403resid 诊断**：2403.00013 acceptable_pdf = **系统缝 + 新签** 非诚实 partial。残留 1341 缺 hangul (KAIST 韩文前页) 排入 FandolSong/Hei (script=hani 无 hangul 块)。**系统缝**：`LoopCtx._texts` 缓存 `{stem}.log` 跨轮不失效——r2 ctlseq_undefine 早读缓存 pre-misschar 日志，5 条 misschar/font 规全拒 "no Missing character" (1341 行实存)——任一早读规毒化全后轮，跨格爆面。→ **logcache 派** (engine.py grant: 每 eng.compile 后 invalidate {stem}.log+_tect_out 含复用探针路)。**新签**：hangul-in-CJK-font 无规盖 (cjk_font_fallback 绑回 FandolSong 自体无 hangul) → **hangulfont 派** (先普查 hangul misschar 格，后 ko 字体分带回退; fc-list :lang=ko=IBM Plex Sans KR)。
+- **resid209 核销 (普查)**：9901081 已 best_effort_pdf (新记录 22:56)——"~151 残"系 loop2 快照，已被 input_sty_to_usepackage/journal_cs_polyfill/batch_undefine 收。活缝仅 3 非致命 already_def `\DeclareMathSymbol{\upi/\umu/\upartial}` @live \ifnfsstwo 臂——`_SITE_DEF_CMDS` 缺 DeclareMathSymbol/Delimiter → **decmathsym 派**。族面 45 稿 documentstyle∧input .sty：15 有录 (5 clean, 6 cls-missing_file 但到 fixloop 全愈，1 partial, 2 skip), **30 未跑 → 入 flipcheck9 波**。NFSS1 live-arm 判 dead-branch 已赢，不立规。
+- roster 10→：primofw (6 件在飞：actions/55-prim/ruleset/_builtins_common/_builtins_shim/30-route)/shipclscen/kvleak2/runawayscan/aastex61if/preamcjk + 新派 logcache/hangulfont/decmathsym + bticktax(harvest 待回执)。capverd/drvverdict/resid209/renewdocenv 尸清。
+- 门：teammate 零 git✓；HEAD 本段 2ccd40d+c1a4840 均 import 净；flipcheck8/l1-gate 批 ALL DONE。
