@@ -488,6 +488,18 @@ COMPAT_SHIM = r"""% texlate: LaTeX 2.09 compatibility shim
 \makeatother"""
 
 
+#: 2.09 内核浮体间距寄存器——latex209.def:167-168 在 compat 入口（类/样式
+#: 装载之前）分配；2e 内核不分配，209 时代类体在装载期就裸赋值消费
+#: （aipproc.sty:207/213 ``\@maxsep 20pt``/``\@dblmaxsep 20pt``,
+#: astro-ph/0104245）。必须在 ``\documentclass`` 之前执行——COMPAT_SHIM 落
+#: 在 docclass 行后，类装载缝已过，寄存器来不及定义。
+_PRE_CLASS_SHIM = r"""% texlate: LaTeX 2.09 kernel registers (pre-class)
+\makeatletter
+\@ifundefined{@maxsep}{\newdimen\@maxsep}{}
+\@ifundefined{@dblmaxsep}{\newdimen\@dblmaxsep}{}
+\makeatother"""
+
+
 #: ``multicols``/``multicols*`` 透传环境——multicol 被剥后正文 ``\begin{multicols}{n}``
 #: 仍需可解析（209 revtex 单栏时代作者常用它裹整个正文凑双栏；revtex4-2 的
 #: ltxgrid 已接管分页，列数参弃之）。``\newcount\col@number`` 置 0 中和
@@ -869,6 +881,7 @@ def upgrade_209(tex: str, *, root: Path | None = None) -> tuple[str, dict]:
         _split_opts(m.group(1)), spec, root, target
     )
     lines = [
+        _PRE_CLASS_SHIM,
         f"\\documentclass[{','.join(cls_opts)}]{{{target}}}"
         if cls_opts
         else f"\\documentclass{{{target}}}",

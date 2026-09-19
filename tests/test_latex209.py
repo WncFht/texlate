@@ -57,6 +57,23 @@ def test_upgrade_shim_before_usepackage() -> None:
     assert out.index("\\newlength{\\footheight}") < out.index("\\usepackage{epsfig}")
 
 
+def test_upgrade_maxsep_registers_before_docclass() -> None:
+    r"""2.09 浮体间距寄存器必须在 ``\documentclass`` 之前分配——latex209.def:167-168
+    的 ``\newdimen\@maxsep``/``\newdimen\@dblmaxsep`` 2e 内核不分配，209 类体在
+    装载期（COMPAT_SHIM 执行之前）就裸赋值消费（aipproc.sty:207/213
+    ``\@maxsep 20pt``/``\@dblmaxsep 20pt``，astro-ph/0104245 实证）。"""
+    out, info = upgrade_209("\\documentstyle{aipproc}\nx\n")
+    assert info["status"] == "converted"
+    assert "\\newdimen\\@maxsep" in out
+    assert "\\newdimen\\@dblmaxsep" in out
+    # 守护式——内核/宏包已提供时不重复分配寄存器
+    assert "\\@ifundefined{@maxsep}" in out
+    assert "\\@ifundefined{@dblmaxsep}" in out
+    # 类装载缝早于 COMPAT_SHIM——寄存器块必须落在 \documentclass 行之前
+    assert out.index("\\@ifundefined{@maxsep}") < out.index("\\documentclass{aipproc}")
+    assert out.index("\\documentclass{aipproc}") < out.index(COMPAT_SHIM)
+
+
 def test_upgrade_commented_documentstyle_ignored() -> None:
     r"""注释掉的 ``\documentstyle`` 不得命中（掩码视图定位）。"""
     tex = (

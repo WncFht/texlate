@@ -85,6 +85,7 @@ from texlate.compile.latex209 import (
     _KERNEL_OPTS,
     _MULTICOLS_SHIM,
     _PKG_OPTS,
+    _PRE_CLASS_SHIM,
     _STD_CLASSES,
     COMPAT_SHIM,
     _ships_style,
@@ -910,6 +911,7 @@ def _oracle_209(  # noqa: C901 -- 分派链逐支重述
         else:
             cls_opts.append(o)
     lines = [
+        _PRE_CLASS_SHIM,
         f"\\documentclass[{','.join(cls_opts)}]{{{target}}}"
         if cls_opts
         else f"\\documentclass{{{target}}}",
@@ -1096,7 +1098,7 @@ class TestLatex209:
         out2, info2 = upgrade_209("\\documentstyle{myx}\nx\n")
         assert info2["status"] == "converted"
         assert info2["target"] == "myx"
-        assert out2.startswith("\\documentclass{myx}\n")
+        assert out2.startswith(_PRE_CLASS_SHIM + "\n\\documentclass{myx}\n")
 
     def test_ds_at_classes_always_reject(self) -> None:
         """``_DS_AT_CLASSES`` 名硬拒——无树可调也拒（ias/jaa/julie）。"""
@@ -1140,7 +1142,9 @@ class TestLatex209:
         # 配平后可见
         out2, info2 = upgrade_209("x } { y\n\\documentstyle{article}\nx\n")
         assert info2["status"] == "converted"
-        assert out2.startswith("x } { y\n\\documentclass{article}\n")
+        assert out2.startswith(
+            "x } { y\n" + _PRE_CLASS_SHIM + "\n\\documentclass{article}\n"
+        )
 
     def test_post_brace_opts_inert(self) -> None:
         """观测语义钉：``{cls}[opts]`` 选项后置非 209 形态——留作正文文本。"""
