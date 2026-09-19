@@ -183,6 +183,32 @@ _CS_FIX_TABLE: dict[str, dict[str, Any]] = {
     # (.bcf 是 biber 专属), svjour shim 的同款读者又困在 missing_file 臂
     # 够不到 → 泛化成默认表 polyfill, 细节见 _SORTLIST_BBL_POLYFILL 头注。
     "sortlist": {"polyfill": _SORTLIST_BBL_POLYFILL},
+    # 2105.12363 main.tex:215 \def\And{...\rule{\z@}{24pt}} —— doc 体
+    # @=other catcode 下 \z@ 分词为 cs \z + 字符 @, 作者本意是 kernel
+    # 私有 \z@ (0pt 寄存器) 零宽竖线; \ificlr\else 臂恒活 → \z 裸缺
+    # + @ 字符残留触发 Missing number/Illegal unit 级联。@-分隔
+    # \def\z@{0pt} 让 \z 吞掉跟随的 @ 字面吐 0pt —— 与 kernel \z@
+    # 语义逐字符一致, 非 @ 场景永不触发 (裸 \z 调用形不存在)。
+    # \ifdefined 护: cls 已备 \z 时不抢名。
+    "z": {"polyfill": r"\ifdefined\z\else\def\z@{0pt}\fi"},
+    # 1503.00273 rjparticle.cls:316-317 \let\oldcr\\ 于 \affil 组内 +
+    # {\def\\{\oldcr \ignorespaces}\xdef\AB@temp{#2}} —— 2013 稿照抄
+    # authblk 97 年代形: 旧内核 \\ 是可展宏, \let 冻结含义进 xdef 安全;
+    # 现代内核 \\ 是 \protected → xdef 内不可展, \oldcr 字面嵌入
+    # \AB@affillist, \endgroup 后局部 let 蒸发 → \@author 排版期
+    # undefined (sinaia.log:564 l.561 \maketitle 实证)。全局 \newline
+    # 替身: 语义 = let 点想冻结的文本 \\ ({\centering\@author} 块内
+    # 换行); 不取 \\ 本体 —— 若同族稿 \def\\{\oldcr…} 重绑后 xdef
+    # 无 let 冻结, \oldcr→\\→\oldcr 自指死循环, \newline 恒免疫。
+    "oldcr": {"polyfill": r"\providecommand\oldcr{\newline}"},
+    # astro-ph/9612039 (fix_residuals): vendored aaspp4.sty:96-98
+    # \def\references{...\bgroup...\def\refpar{\par\hangindent=3em
+    # \hangafter=1}} —— \refpar 作用域锁死在 references env 组内
+    # (上游 aaspp4/aasms4 原构), 而稿在 thebibliography 裸调
+    # \reference{key}→\refpar (:133), env 外无定义 → undefined_cs
+    # (pfsd96_pp.tex:475 实证)。provide 同体全局替身: env 内局部
+    # \def 仍遮罩 (同体零语义差), env 外调用有兜底。
+    "refpar": {"polyfill": r"\providecommand\refpar{\par\hangindent=3em\hangafter=1}"},
 }
 
 
