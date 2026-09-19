@@ -187,8 +187,10 @@ export default function PdfPane(props: Props) {
 
     // usePDFSlick 无实例清理（§5.1）——卸载时亲手拆：unbindEvents 停
     // window/eventBus 监听，loadingTask.destroy() 杀 worker 解析态。
-    // document 未落地（在途加载）时订 store 首个 setState 补刀；
-    // 加载挂起则由超时释放订阅
+    // document 未落地（在途加载）时订 store 首个 setState 补刀——订阅
+    // 不设上限：slick 不暴露 loadingTask 句柄，这是捕获迟到文档的唯一
+    // 钩子；加载失败整条引用环（worker promise→store→listener→s）随
+    // promise 释放即可被 GC，超时退订反而留出「到得比超时晚」的泄漏窗
     onCleanup(() => {
         const s = pdfSlick();
         if (!s) return;
@@ -210,7 +212,6 @@ export default function PdfPane(props: Props) {
             unsub();
             destroyDoc();
         });
-        window.setTimeout(unsub, 300_000);
     });
 
     // 页码上报（pdfjs pagechanging → store.pageNumber）
