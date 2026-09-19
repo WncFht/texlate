@@ -103,6 +103,28 @@ def cjk_env_relax(
     return bool(changed), f"legacy CJK → xeCJK+group: {', '.join(changed)}"
 
 
+def _payload_purge_re(
+    payload: str | None, allow: object, pay_exts: set[str]
+) -> re.Pattern[bytes] | None:
+    r"""白名单放行的机械族 cs → 字节搜索式 (含 ``(?![A-Za-z@])`` 边界, ``\b`` 对 @ 失效)。"""
+    if not (payload and allow and pay_exts):
+        return None
+    name = str(payload).strip().lstrip("\\")
+    if not re.fullmatch(str(allow), name):
+        return None
+    pat = rb"\\" + re.escape(name.encode("utf-8")) + rb"(?![A-Za-z@])"
+    return re.compile(pat)
+
+
+def _corrupt_intermediate(raw: bytes) -> bool:
+    r"""Strict utf-8 解码失败, 或末行不完整 (TeX 写出的完整行必以 ``\n`` 收尾)。"""
+    try:
+        raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return True
+    return not raw.endswith(b"\n")
+
+
 def purge_corrupt_intermediates(
     ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
 ) -> tuple[bool, str]:
@@ -116,29 +138,46 @@ def purge_corrupt_intermediates(
     TeX 写出的完整行必以 \n 收尾)。健康件含 xr ``\externaldocument``
     外链 aux 一律保留; shipped 侧归 normalize 转码兜底, 本函数只管
     引擎自产件的运行时截断。
+
+    payload 锚定臂 (scaneof lane, m1k aux-malformed 簇): runaway_scan/
+    undefined_cs 时 payload 是 TeX 回读卡住的 cs —— 行界齐整、括号
+    闭合、utf-8 合法的 .aux 仍可为毒件 (旧宏包写端遗迹的版本错配:
+    aux 里 ``\abx@aux@cite{0}{key}`` 两实参对不上新版 biblatex 一元
+    arity, 第二组花括号吞行级联至 EOF; 或残留 ``\abx@*`` 已不被定义)。
+    损坏谓词整类放行这种件 → params ``payload_purge_cs`` 白名单内的
+    机械族 cs (abx@/blx@/zref@ 等) 命中即按内容删 ``payload_purge_exts``
+    件。通用内容 cs (bibcite/newlabel/\@writefile) 每个健康 aux 都有,
+    不入白名单 —— 防误删 xr 外链/shipped aux。
     """
-    del eng, payload
+    del eng
     exts = {str(e).lower() for e in (params.get("exts") or INTERMEDIATE_SUFFIXES)}
-    purged = []
+    pay_exts = {str(e).lower() for e in (params.get("payload_purge_exts") or ())}
+    pay_re = _payload_purge_re(payload, params.get("payload_purge_cs"), pay_exts)
+    purged, skewed = [], []
     for f in sorted(ctx.wdir.rglob("*")):
-        if not f.is_file() or f.suffix.lower() not in exts:
+        if not f.is_file():
+            continue
+        suf = f.suffix.lower()
+        if suf not in exts and not (pay_re and suf in pay_exts):
             continue
         try:
             raw = f.read_bytes()
         except OSError:
             continue
-        try:
-            raw.decode("utf-8")
-            corrupt = not raw.endswith(b"\n")
-        except UnicodeDecodeError:
-            corrupt = True
-        if not corrupt:
+        corrupt = suf in exts and _corrupt_intermediate(raw)
+        skew = bool(pay_re and suf in pay_exts and not corrupt and pay_re.search(raw))
+        if not (corrupt or skew):
             continue
         f.unlink()
         ctx.invalidate(f)
         ctx.io.written.add(f)  # 自产删除入 authored 账 —— 非外部落件, 不稀释 dedup
-        purged.append(str(f.relative_to(ctx.wdir)))
-    return (bool(purged)), f"purged corrupt intermediates: {', '.join(purged)}"
+        (purged if corrupt else skewed).append(str(f.relative_to(ctx.wdir)))
+    note = []
+    if purged:
+        note.append(f"purged corrupt intermediates: {', '.join(purged)}")
+    if skewed:
+        note.append(f"purged skewed aux (contains \\{payload}): {', '.join(skewed)}")
+    return (bool(purged or skewed)), "; ".join(note)
 
 
 # ════════════════════════════════════════════════════════════════

@@ -9,9 +9,9 @@ taxonomy ``aux_scan_eof`` 接 ``File ended while scanning use of \@newl@bel``
 from functools import lru_cache
 from pathlib import Path
 
-from texlate.compile.fixloop import Ruleset, load_ruleset
+from texlate.compile.fixloop import Ruleset, actions, load_ruleset
 from texlate.compile.fixloop.builtins import TRANSFORM_FNS
-from texlate.compile.fixloop.engine import LoopCtx, fixloop
+from texlate.compile.fixloop.engine import LoopCtx, Rule, fixloop
 from texlate.compile.fixloop.logparse import parse_text
 
 
@@ -178,3 +178,154 @@ def test_fixloop_aux_eof_no_corrupt_falls_through(tmp_path: Path) -> None:
     assert cell["verdict"] != "clean"
     assert (tmp_path / "main.aux").exists()
     assert all(a["rule"] != "aux_purge_regen" for a in cell["actions"])
+
+
+# ════════════════════════════════════════════════════════════════
+# scaneof 扩臂 (2026-09-20, m1k aux-malformed 簇 11 singles):
+# 同根三签名面 —— (b) runaway_scan 读端落 aux 书写族 cs;
+# (c) undefined_cs 站点直落 *.aux:N (良好字节形写端错配 →
+# payload 锚定内容删, 损坏谓词整类放行这种件)。
+# ════════════════════════════════════════════════════════════════
+
+_RUNAWAY_ABX_LOG = (
+    "(./root.aux\n! File ended while scanning use of \\abx@aux@cite.\n"
+    "<inserted text>\n                \\par\nl.5 \\begin{document}\n"
+)
+_UNDEF_AUX_LOG = (
+    "root.aux:67: Undefined control sequence.\nl.67 \\abx@aux@cite{0}{SAUMON20221}\n"
+)
+_PARAMS = {
+    "exts": [".aux", ".out", ".toc", ".lof", ".lot", ".nav", ".snm", ".vrb", ".ent"],
+    "payload_purge_cs": "^(abx|blx|zref|oddpage|abspage|lastpage|NAT|hyper)@[A-Za-z@]*$",
+    "payload_purge_exts": [".aux"],
+}
+
+
+def _rule() -> Rule:
+    return next(r for r in _rs().rules if r.id == "aux_purge_regen")
+
+
+def _dispatch(cat: str, pay: str | None, err_head: str, wdir: Path) -> bool:
+    """when+condition 联合判定 —— 与 pick_and_apply 同口径 (actions 原语直调)。"""
+    ctx = LoopCtx(wdir=wdir, engine_name="xelatex", err_head=err_head)
+    rule = _rule()
+    w_ok = actions._when_ok(rule.when, cat, pay, ctx)  # noqa: SLF001
+    c_ok = actions._cond_ok(rule.condition, rule, ctx, _Eng([]), pay)[0]  # noqa: SLF001
+    return w_ok and c_ok
+
+
+def _purge2(wdir: Path, payload: str | None) -> tuple[bool, str]:
+    ctx = LoopCtx(wdir=wdir, engine_name="xelatex")
+    return TRANSFORM_FNS["purge_corrupt_intermediates"](ctx, None, payload, _PARAMS)
+
+
+# ---------------------------------------------------------------- 派发臂
+def test_runaway_abx_arm_dispatches(tmp_path: Path) -> None:
+    """(b) runaway_scan|\\abx@aux@cite —— zh 2503.10110 实签名。"""
+    rep = parse_text(_RUNAWAY_ABX_LOG)
+    cat, pay = _rs().taxonomy.classify(rep)
+    assert (cat, pay) == ("runaway_scan", "\\abx@aux@cite")
+    head = (rep.first or "") + "\n" + (rep.ctx or "")
+    assert _dispatch(cat, pay, head, tmp_path)
+
+
+def test_undefined_cs_aux_site_dispatches(tmp_path: Path) -> None:
+    """(c) undefined_cs @ *.aux:N —— base 2503.10110 root.aux:67 实签名。"""
+    rep = parse_text(_UNDEF_AUX_LOG)
+    cat, pay = _rs().taxonomy.classify(rep)
+    assert (cat, pay) == ("undefined_cs", "abx@aux@cite")
+    head = (rep.first or "") + "\n" + (rep.ctx or "")
+    assert _dispatch(cat, pay, head, tmp_path)
+
+
+def test_runaway_non_aux_reader_rejected(tmp_path: Path) -> None:
+    """runaway_scan|\\next 等非 aux 读端不抢 —— 让位 163.5/164 规则。"""
+    rep = parse_text("! File ended while scanning use of \\next.\nl.9 x\n")
+    cat, pay = _rs().taxonomy.classify(rep)
+    assert cat == "runaway_scan"
+    head = (rep.first or "") + "\n" + (rep.ctx or "")
+    assert not _dispatch(cat, pay, head, tmp_path)
+
+
+def test_undefined_cs_tex_site_rejected(tmp_path: Path) -> None:
+    """undefined_cs @ .tex 站点不归本簇 —— cs_targeted_fix 等下游处理。"""
+    head = "main.tex:5: Undefined control sequence.\nl.5 \\myfoo\n"
+    assert not _dispatch("undefined_cs", "myfoo", head, tmp_path)
+
+
+def test_undefined_cs_no_payload_rejected(tmp_path: Path) -> None:
+    """payload_required —— 无 payload 的 undefined_cs 不进 (b)(c) 臂。"""
+    head = "root.aux:67: Undefined control sequence.\nl.67 x\n"
+    assert not _dispatch("undefined_cs", None, head, tmp_path)
+
+
+# ---------------------------------------------------------------- payload 锚定删
+def test_purge_skewed_aux_by_payload(tmp_path: Path) -> None:
+    """行界齐整/括号闭合/utf-8 合法的 .aux 含错配写端 cs → 锚定删。"""
+    (tmp_path / "root.aux").write_bytes(
+        b"\\relax\n\\abx@aux@cite{0}{SAUMON20221}\n\\abx@aux@segm{0}{0}{x}\n"
+    )
+    ok, note = _purge2(tmp_path, "\\abx@aux@cite")
+    assert ok
+    assert "skewed" in note
+    assert not (tmp_path / "root.aux").exists()
+
+
+def test_purge_payload_allowlist_blocks_universal_cs(tmp_path: Path) -> None:
+    """bibcite/newlabel 等通用件不入白名单 —— 健康 aux (xr 外链) 不误删。"""
+    (tmp_path / "main.aux").write_bytes(b"\\bibcite{k}{{1}{2020}{A}}\n")
+    ok, _ = _purge2(tmp_path, "\\bibcite")
+    assert not ok
+    assert (tmp_path / "main.aux").exists()
+
+
+def test_purge_payload_boundary_no_prefix_match(tmp_path: Path) -> None:
+    """(?![A-Za-z@]) 边界 —— \\abx@aux@citeXYZ 不算 \\abx@aux@cite 命中。"""
+    (tmp_path / "root.aux").write_bytes(b"\\abx@aux@citeXYZ{0}\n")
+    ok, _ = _purge2(tmp_path, "\\abx@aux@cite")
+    assert not ok
+    assert (tmp_path / "root.aux").exists()
+
+
+def test_purge_payload_non_aux_ext_skipped(tmp_path: Path) -> None:
+    """payload 臂只扫 payload_purge_exts —— .toc 含同款 cs 不删。"""
+    (tmp_path / "main.toc").write_bytes(b"\\abx@aux@cite{0}{k}\n")
+    ok, _ = _purge2(tmp_path, "\\abx@aux@cite")
+    assert not ok
+    assert (tmp_path / "main.toc").exists()
+
+
+def test_purge_corrupt_still_works_with_params(tmp_path: Path) -> None:
+    """原损坏谓词面在新 params 下不变 —— mid-macro 截断照删。"""
+    (tmp_path / "main.aux").write_bytes(b"\\newlabel{a}{{1}{1}{t\xe4\xb8")
+    ok, note = _purge2(tmp_path, "abx@aux@cite")
+    assert ok
+    assert "corrupt" in note
+
+
+# ---------------------------------------------------------------- 端到端
+def test_fixloop_runaway_bibcite_corrupt_roundtrip(tmp_path: Path) -> None:
+    """(b) runaway|\\bibcite + utf-8 劈断 aux (行界完整括号闭合 →
+    预清扫放行) → aux_purge_regen 兜底删, 下遍重生成。"""
+    (tmp_path / "main.tex").write_text(MAIN_TEX, encoding="utf-8")
+    (tmp_path / "main.aux").write_bytes(
+        b"\\bibcite{k}{{\xe4\xb8}}\n\\newlabel{a}{{1}{1}{ok}}\n"
+    )
+    log = "(./main.aux\n! File ended while scanning use of \\bibcite.\nl.5 x\n"
+    eng = _Eng([{"log": log, "pdf": False}, {"log": CLEAN_LOG, "pdf": True}])
+    cell = fixloop(tmp_path, eng, ruleset=_rs())
+    assert cell["verdict"] == "clean"
+    assert any(a["rule"] == "aux_purge_regen" for a in cell["actions"])
+    assert not (tmp_path / "main.aux").exists()
+
+
+def test_fixloop_undefined_cs_skewed_aux_roundtrip(tmp_path: Path) -> None:
+    """(c) undefined_cs @ root.aux:N + 良好形错配 aux → payload 锚定删。"""
+    (tmp_path / "main.tex").write_text(MAIN_TEX, encoding="utf-8")
+    (tmp_path / "root.aux").write_bytes(
+        b"\\relax\n\\abx@aux@cite{0}{SAUMON20221}\n\\abx@aux@segm{0}{0}{x}\n"
+    )
+    eng = _Eng([{"log": _UNDEF_AUX_LOG, "pdf": False}, {"log": CLEAN_LOG, "pdf": True}])
+    cell = fixloop(tmp_path, eng, ruleset=_rs())
+    assert any(a["rule"] == "aux_purge_regen" for a in cell["actions"])
+    assert not (tmp_path / "root.aux").exists()

@@ -64,16 +64,44 @@ rules:
   # 2026-09-16 compile-hard 新增 (2211.13013 闭环·引擎自产臂): aux_scan_eof
   # 命中 → 删「utf-8 解码失败 或 末行不完整」的 aux 族可再生件, 下遍
   # 引擎重生成; shipped 件归 normalize.INTERMEDIATE_SUFFIXES 转码兜底。
+  # 2026-09-20 scaneof 扩臂 (m1k aux-malformed 簇 11 singles): 同根
+  # (截断/错配 aux) 三签名面 —— (a) aux_scan_eof 原面; (b) runaway_scan
+  # 读端 cs 落 aux 书写族 (aux 被截/旧 arity 错配, TeX 回读扫到尾行宏);
+  # (c) undefined_cs 站点直落 *.aux:N (行界齐整但写端遗迹错配 ——
+  # 损坏谓词放行的健康字节形, 由 payload 锚定内容删补)。condition.any
+  # 三臂各复述签名实形, (a) 臂与 taxonomy 读端 pattern 同串 → 对
+  # aux_scan_eof 恒真, 原覆盖面零回归。
   - id: aux_purge_regen
-    description: "aux 族回读 EOF (中间件被 8192B 劈断) → 删除损坏可再生件后重跑"
+    description: "aux 族回读 EOF/读端 cs 崩 (中间件被劈断或写端错配) → 删除损坏可再生件后重跑"
     phase: loop
     order: 96
-    when: { category: aux_scan_eof }
+    when:
+      any:
+        - { category: aux_scan_eof }
+        - { category: runaway_scan, payload_required: true }
+        - { category: undefined_cs, payload_required: true }
+    condition:
+      any:
+        # (a) aux_scan_eof: taxonomy 读端 pattern 复述 —— 对该 cat 恒真
+        - { ctx_suggests: "File ended while scanning use of \\\\?@?(newl@?bel|writefile|contentsline)" }
+        # (b) runaway_scan 读端 = aux 书写族 cs (含 \\@writefile 直引)
+        - {
+            ctx_suggests: "scanning use of \\\\((abx|blx|zref|oddpage|abspage|lastpage|NAT|hyper)@[A-Za-z@]*|bibcite|citation|bibdata|bibstyle|newlabel|@writefile|@input|pgfsyspdfmark)",
+          }
+        # (c) undefined_cs 站点直落 .aux 行 (file:NN 误差行锚定)
+        - { ctx_suggests: "\\.aux:\\d+: Undefined control sequence" }
     action:
       kind: builtin_transform
       function: purge_corrupt_intermediates
-      params: { exts: [.aux, .out, .toc, .lof, .lot, .nav, .snm, .vrb, .ent] }
-    risk: low # 谓词自检损坏才删; 健康件 (xr \externaldocument 外链 aux) 保留
+      params:
+        {
+          exts: [.aux, .out, .toc, .lof, .lot, .nav, .snm, .vrb, .ent],
+          # payload 锚定臂: 良好字节形但含错配写端 cs 的 .aux —— 仅机械族
+          # cs 放行 (bibcite/newlabel 类通用件不入, 防误删健康/xr 外链 aux)
+          payload_purge_cs: "^(abx|blx|zref|oddpage|abspage|lastpage|NAT|hyper)@[A-Za-z@]*$",
+          payload_purge_exts: [.aux],
+        }
+    risk: low # 谓词自检损坏才删 + payload 白名单锚定; 健康件 (xr 外链 aux) 保留
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }
@@ -81,6 +109,14 @@ rules:
       - {
           corpus: "2211.13013 (aux-cjk-truncation 留档)",
           error: "Invalid UTF-8 byte → File ended while scanning use of \\@newl@bel",
+        }
+      - {
+          corpus: "m1k zh 2503.10110 / zh+base 2510.03388 (scaneof lane)",
+          error: "runaway_scan: File ended while scanning use of \\abx@aux@cite / \\bibcite",
+        }
+      - {
+          corpus: "m1k base 2503.10110 (scaneof lane)",
+          error: "undefined_cs: root.aux:67: Undefined control sequence (\\abx@* 写端错配)",
         }
     stats: { fires: 1, status: proposed }
     source_ref: "docs/research/latex/2026-09-16-aux-cjk-truncation.md; tmp/lane-scaneof/"
