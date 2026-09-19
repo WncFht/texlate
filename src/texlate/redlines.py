@@ -137,6 +137,17 @@ REDLINES: Final[tuple[RedLine, ...]] = (
         judge=LayerSpec("missing_character_nullfont", _MISSCHAR_NULLFONT_PROBE),
     ),
     RedLine(
+        id="missing_char_sweep",
+        # C0 测量扫掠（picinpar ``\computeilg`` ``\hbox{\char\tcl}``
+        # tcl=0..127 逐码位试排丢盒）——豁免判定是算法签名（同字体名下
+        # ≥25 条严格升序 C0+DEL 缺字消息链），单行 pattern 表达不了，
+        # 故各检索层无切片：engine 豁免内联在 loginfo ``missing_chars``
+        # 分支、judge 计数面在 ``count_missing_chars`` 内减除（两路同调
+        # ``texlog.misschar_sweep_hits``）。本行只登记 judge notes 词干
+        # ``missing_character_sweep×N``（与 nullfont×N 同形观察项）。
+        judge=LayerSpec("missing_character_sweep"),
+    ),
+    RedLine(
         id="missing_glyph_cjk",
         # l2 派生类：missing_glyph 命中按 ``_MISSING_CHAR_RX`` 码点
         # ``is_cjk_cp`` 细分（中文静默丢失信号），无独立 pattern。

@@ -42,6 +42,7 @@ __all__ = [
     "is_dos_eps",
     "is_project_file",
     "looks_like_input_file",
+    "misschar_sweep_hits",
     "patch_graphic_top",
     "update_file_stack",
 ]
@@ -313,6 +314,93 @@ def driver_fatal_line(text: str) -> str | None:
     """``text`` 里首个驱动 fatal 行（strip + ≤300 字符）；无则 ``None``。"""
     m = DRIVER_FATAL_RE.search(text)
     return m.group(1).strip()[:300] if m else None
+
+
+# ================================================================ 缺字扫掠豁免
+
+#: ``Missing character: There is no <what> (U+XXXX|("XXXX))? in font <font>``
+#: 消息级解析——与 fixloop ``_builtins_common._MISSING_CHAR_RE`` **同形双写**
+#: （builtins 冻结窗内不可外引；xetex/tectonic spec 字体带 ``(U+XXXX)``、tfm
+#: 字体带 ``("XXXX)`` 十六进制、pdftex 8-bit 给裸字符或 ``^^xx`` 记法）。
+_MISSCHAR_MSG_RX: Final = re.compile(
+    r"Missing character:\s*There is no (?P<what>.+?)"
+    r"(?:\s*\((?P<cp>U\+[0-9A-Fa-f]+|\"[0-9A-Fa-f]+)\))?\s*in font\s+(?P<font>[^\s!;]+)"
+)
+
+#: U+000A 缺字消息的自身折行——缺字本体是换行符：``There is no <\n>
+#: ``(U+000A) in font`` 被拆两行，``_MISSCHAR_MSG_RX`` 行内 ``.+?`` 够不到。
+#: 把 ``no`` 后纯空白折行 + ``(<hex>)`` 续行拼回单行再解析（tfm ``("0A)``
+#: 形同理覆盖）；非换行字形不触发（``no`` 与 ``\n`` 间只许空白）。
+_MISSCHAR_WRAP_RX: Final = re.compile(
+    r"(There is no)\s*\n(\s*\((?:U\+|\")[0-9A-Fa-f]+\))"
+)
+
+#: ``^^xx``/``^^^xxxx`` TeX 记法码位提取（``_builtins_common._CARET_HEX_RE``
+#: 同形双写）。
+_CARET_HEX_RX: Final = re.compile(r"\^{2,3}([0-9a-fA-F]{2,4})")
+
+#: ``^^X`` 单字符名记法（``^^@``=U+0000 … ``^^?``=U+007F）：TeX 规则
+#: X 码位 ≥64 减 64、<64 加 64。老引擎缺字行可裸 ``^^@`` 无 ``("XX)`` 十六
+#: 进制尾注——C0 扫掠在 pdftex log 正是此形。
+_CARET_NAME_RX: Final = re.compile(r"\^{2}(.)", re.DOTALL)
+
+#: C0 测量扫掠签名：同一字体名下 ≥ ``_SWEEP_RUN_MIN`` 条**严格升序**
+#: C0+DEL（U+0000–001F、U+007F）缺字消息 = 测量盒逐码位试排噪音
+#: （picinpar ``\computeilg``：``\loop\setbox\wbox=\hbox{\char\tcl}``，
+#: ``\tcl`` 0→127——丢盒不产生正文缺字）。corpus_v3 loop3 全量 splice log
+#: 实测：唯一命中 1003.0694（两字体各 33 成员升序链），其余 ~120 个含缺字
+#: log 零升序 C0 长链——真文档散 C0 缺字非升序、单码位重复（错误恢复
+#: 副产 U+0000×N）不破阈值。run 于码位回降/重复处截断，两段独立评估。
+_SWEEP_RUN_MIN: Final = 25
+
+
+def _misschar_cp(what: str, cp: str | None) -> int | None:
+    """``(U+XXXX)``/``("XXXX)``/``^^X``名/``^^xx``/裸字符 → 码位；不可判 → None。"""
+    if cp:
+        return int(cp[2:] if cp.startswith("U+") else cp[1:], 16)
+    w = what.strip()
+    if m := _CARET_NAME_RX.fullmatch(w):
+        o = ord(m.group(1))
+        return o - 64 if o >= 64 else o + 64  # noqa: PLR2004 - TeX ^^X 规则 64 界即规格
+    if m := _CARET_HEX_RX.fullmatch(w):
+        return int(m.group(1), 16)
+    if len(w) == 1:
+        return ord(w)
+    return None
+
+
+def misschar_sweep_hits(log_text: str) -> int:
+    """``Missing character`` 命中中属 C0 测量扫掠签名的消息数（门控豁免量）。
+
+    逐消息解析 ``(码位, 字体)``——nullfont 行本就门控豁免故跳过；不可判
+    码位跳过（保守留计）。按字体名归序后找严格升序 C0+DEL 段，长度
+    ≥``_SWEEP_RUN_MIN`` 的段全员记扫掠命中；段间其他字体/非 C0 缺字
+    不打断（过滤式子序列，多字体扫掠交错仍各自成链）。
+    """
+    text = _MISSCHAR_WRAP_RX.sub(r"\1 \2", log_text)
+    seqs: dict[str, list[int]] = {}
+    for m in _MISSCHAR_MSG_RX.finditer(text):
+        font = m.group("font").rstrip(".,;")
+        if font == "nullfont":
+            continue
+        cp = _misschar_cp(m.group("what"), m.group("cp"))
+        if cp is not None and (cp < 0x20 or cp == 0x7F):  # noqa: PLR2004 - C0+DEL 码位界即签名域
+            seqs.setdefault(font, []).append(cp)
+    hits = 0
+    for cps in seqs.values():
+        run = 0
+        prev = -1
+        for cp in cps:
+            if cp > prev:
+                run += 1
+            else:
+                if run >= _SWEEP_RUN_MIN:
+                    hits += run
+                run = 1
+            prev = cp
+        if run >= _SWEEP_RUN_MIN:
+            hits += run
+    return hits
 
 
 #: ``l.N`` 源码行号词素——严格行首形（消费端 strip 后用）；``*_SRC`` 片段

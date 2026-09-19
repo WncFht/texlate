@@ -29,6 +29,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from texlate.redlines import REDLINES_BY_ID, name_pattern
+from texlate.texlog import misschar_sweep_hits
 from texlate.textutil import CJK_RX, CMD_BOUNDARY, mask_tex
 
 from .engine import CompRes, _driver_fatal, classify_error
@@ -104,6 +105,9 @@ _MISSCHAR_GATE = name_pattern(REDLINES_BY_ID["missing_char"].judge)
 _MISSCHAR_NULLFONT = name_pattern(REDLINES_BY_ID["missing_char_nullfont"].judge)
 _MISSCHAR_GATE_RX = re.compile(_MISSCHAR_GATE[1])
 _MISSCHAR_NULLFONT_RX = re.compile(_MISSCHAR_NULLFONT[1])
+#: C0 测量扫掠豁免 notes 词干——pattern=None 的算法型登记行，只取 name
+#: （判定在 ``texlog.misschar_sweep_hits``，picinpar ``\computeilg`` 类）。
+_MISSCHAR_SWEEP = REDLINES_BY_ID["missing_char_sweep"].judge.name
 
 #: thm-restate ``restatable`` 观察探针（``restatable_loss`` 行，单源
 #: ``texlate.redlines``）：包加载痕迹 → notes。env-name 参被译 → 存体
@@ -180,19 +184,24 @@ _DEAD_TAIL_RX = re.compile(r"\\end\s*\{document\}|\\endinput\b")
 
 
 def count_missing_chars(log_text: str) -> int:
-    """统计 log 里 `Missing character` 行数（缺字形告警=中文静默丢失信号）。
+    r"""统计 log 里 `Missing character` 行数（缺字形告警=中文静默丢失信号）。
 
-    `in font nullfont` 命中不计入——良性试排吞字非正文丢字。
+    `in font nullfont` 命中不计入——良性试排吞字非正文丢字；同字体
+    ≥25 条严格升序 C0+DEL 缺字消息属测量盒扫掠（``misschar_sweep_hits``，
+    picinpar ``\computeilg`` tcl=0..127 逐码位试排丢盒），亦不计入。
     """
-    return len(_MISSCHAR_GATE_RX.findall(log_text))
+    return len(_MISSCHAR_GATE_RX.findall(log_text)) - misschar_sweep_hits(log_text)
 
 
 def _missing_char_check(v: Verdict, full_log: str, *, expect_cjk: bool) -> None:
-    """缺字形门控计数（nullfont 排除）+ nullfont 命中进 notes 观察项。"""
+    """缺字形门控计数（nullfont/扫掠双豁免）+ 良性命中进 notes 观察项。"""
     v.missing_chars = count_missing_chars(full_log)
     nf_misses = len(_MISSCHAR_NULLFONT_RX.findall(full_log))
     if nf_misses:
         v.notes.append(f"{_MISSCHAR_NULLFONT[0]}×{nf_misses}")
+    sweep = misschar_sweep_hits(full_log)
+    if sweep:
+        v.notes.append(f"{_MISSCHAR_SWEEP}×{sweep}")
     if expect_cjk and v.missing_chars > 0:
         v.reasons.append(f"{_MISSCHAR_GATE[0]}×{v.missing_chars}")
 

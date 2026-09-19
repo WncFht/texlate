@@ -25,6 +25,7 @@ from texlate.texlog import (
     NONERR_FILELINE_RE,
     is_dos_eps,
     is_project_file,
+    misschar_sweep_hits,
     patch_graphic_top,
     update_file_stack,
 )
@@ -143,13 +144,25 @@ def parse_log(log_text: str, *, project_root: Path | None = None) -> LogInfo:
                     info.error_line = int(m.group(1))
         info.error_ctx = "\n".join(ctx_lines)
     info.tail = "\n".join(lines[-30:])
+    _scan_warnings(info, log_text, utf8_proj=utf8_proj)
+    return info
+
+
+def _scan_warnings(info: LogInfo, log_text: str, *, utf8_proj: bool) -> None:
+    """红线 warning 扫描收口：invalid_utf8 按归因、missing_chars 扣扫掠。
+
+    C0 测量扫掠豁免（``texlog.misschar_sweep_hits`` 签名面）：gate 命中
+    全属扫掠成员时不发射——与 judge ``count_missing_chars`` 计数面同口径。
+    """
     for name, pat in WARNING_RED_LINES:
         if name == "invalid_utf8":
             if utf8_proj:
                 info.warnings_hit.append(name)
+        elif name == "missing_chars":
+            if (len(re.findall(pat, log_text)) - misschar_sweep_hits(log_text)) > 0:
+                info.warnings_hit.append(name)
         elif re.search(pat, log_text, re.MULTILINE):
             info.warnings_hit.append(name)
-    return info
 
 
 # ================================================================ 错误分类学
