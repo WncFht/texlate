@@ -323,6 +323,17 @@ def _sweep_bad_aux(wdir: Path) -> list[str]:
     return dropped
 
 
+#: 进程内 ``_texts`` 缓存对 TeX 每轮重写/清场件不安全: compile 落盘
+#: 重写 ``{stem}.log``/``.aux`` 族、aux-sweep 删截断件, 缓存照供旧文,
+#: 扫 log/aux 的下游规则吃残影 (2403.00013 实证: r1 早读 ``{stem}.log``
+#: 缓存 → r2 全部 misschar/font 规则在 pre-fix log 上判 "no Missing
+#: character" 拒修)。``.bbl``/``.bcf`` 可为 e-print 船货且不由 tex
+#: compile 重写, 不入此集——biber/docstrip 类 run_tool 产物由各调用
+#: 方自行 ``ctx.invalidate`` (bib_regen/docstrip 先例)。循环内每个
+#: ``eng.compile`` 后必失效此集 (含探针与兜底臂, 幂等)。
+_VOLATILE_EXTS = _AUX_WRITE_EXTS | {".log"}
+
+
 #: REJECT note 里的 ``route=<name>`` 令牌——``reject_route``/route 语义型
 #: builtin (plain_format_detect/biber_biblatex_skew_route) 同一拼写约定；
 #: 提出后落 ``cell["reject_route"]`` 供跨引擎臂消费（repair.consume_engine_flags）。
@@ -548,6 +559,14 @@ class LoopCtx:
     def invalidate(self, f: Path) -> None:
         """外部改写过 (如字节级转码) 后失效缓存。"""
         self._texts.pop(f, None)
+
+    def invalidate_suffixes(self, exts: Iterable[str]) -> int:
+        """按扩展名集批量失效缓存条目 (compile/sweep 改盘件), 返回失效数。"""
+        exts_t = {e.lower() for e in exts}
+        keys = [p for p in self._texts if p.suffix.lower() in exts_t]
+        for f in keys:
+            self._texts.pop(f, None)
+        return len(keys)
 
     def main_path(self) -> Path | None:
         """主文件绝对路径 (main_rel 未定 → None)。"""
@@ -864,6 +883,7 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
             flags=list(ctx.ledger.engine_flags),
             **compile_kw,
         )
+        ctx.invalidate_suffixes(_VOLATILE_EXTS)
         _note_dropped_flags(ctx, res)
         rep = _report_of(res, rs.warn_patterns)
         cat, pay = _round_cat(rs, rep, res)
@@ -892,6 +912,7 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
                 flags=list(ctx.ledger.engine_flags),
                 **compile_kw,
             )
+            ctx.invalidate_suffixes(_VOLATILE_EXTS)
             _note_dropped_flags(ctx, res)
             rep = _report_of(res, rs.warn_patterns)
             cat, pay = _round_cat(rs, rep, res)
@@ -999,6 +1020,7 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
                     flags=list(ctx.ledger.engine_flags),
                     **compile_kw,
                 )
+                ctx.invalidate_suffixes(_VOLATILE_EXTS)
                 sec_probes += 1
                 sec_probe_mark = len(ctx.ledger.actions)
                 _note_dropped_flags(ctx, probe_res)
@@ -1098,6 +1120,7 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
                 **compile_kw,
             )
         )
+        ctx.invalidate_suffixes(_VOLATILE_EXTS)
         _note_dropped_flags(ctx, sres)  # 复用探针已记录过——flags_dropped 去重幂等
         srep = (
             salvage_rep
