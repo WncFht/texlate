@@ -1,0 +1,43 @@
+% texlate vendored stub — 原许可禁分发，最小兼容面
+% aaai23.sty S1 替身：AAAI Press 2023 author kit，AAAI 直发不在 CTAN/TL
+% (tlmgr --file 零命中实证) → stub。族面照稿自带 aaai2026.sty 实件抄
+% (\affiliations/\equalcontrib/\nocopyright/\copyrighttext/\copyrightyear/
+% \pubnote/submission|draft 选项)。版式诉求 (twocolumn/titlebox/字号面)
+% 由宿主 class 原生能力担，本件只过 \usepackage[submission]{aaai23}
+% 加载门槛 + frontmatter 宏面 (2303.16206 supp.tex 实证)。
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{aaai23}[2026/09/20 texlate stub — original not redistributable]
+\PackageWarningNoLine{texlate-stub}{aaai23.sty is a compatibility shim}
+
+% —— 选项面: submission/draft 真件义为匿名+免版权块; 译文保真作者面,
+%    全选项吞 (submission 实参不追义) ——
+\DeclareOption*{ }
+\ProcessOptions\relax
+
+% —— 版权块族 (真件 submission 即关块; stub 本无版权输出 → noop) ——
+\providecommand{\nocopyright}{}
+\providecommand{\copyrighttext}[1]{}
+\providecommand{\copyrightyear}[1]{}
+% —— \pubnote{header}: 真件置 running head (markboth+myheadings);
+%    头版式对译文无价值 → 吞参 noop ——
+\providecommand{\pubnote}[1]{}
+% —— \affiliations{block}: 真件存值 \@maketitle 标题盒内 authors 下印;
+%    stub 附加进 \@author —— article \maketitle 把 \@author 排进
+%    tabular[t]{c} 单元。块内 \\ 断行不能裸放单元 ({\\} 跨组即
+%    "Missing }/{" 对齐错, 实证), 须套嵌 tabular 使 \\ 域化;
+%    \normalsize 外组包一层整效 (2303.16206: \affiliations 在
+%    \author 后调用, 序天然合) ——
+\providecommand{\affiliations}[1]{%
+  \g@addto@macro\@author{\\[2pt]{\normalsize\begin{tabular}[t]{@{}c@{}}#1\end{tabular}}%
+  }%
+}
+% —— \equalcontrib: 真件首个调用发 footnote "These authors contributed
+%    equally." 后随调用复用同一 footnotemark; stub 每调一记 \thanks —
+%    \author 参内 \thanks 入 \@thanks 由 \maketitle 排为脚注, 双格记
+%    两条同文脚注 (视觉面差异, 无语义损) ——
+\providecommand{\equalcontrib}{\thanks{These authors contributed equally.}}
+% —— \keywords{list} (aaai24+ 族面): 真件存值印 abstract 区; stub
+%    AtBeginDocument 印文首 —— preamble 调用缓出保文, doc 内调用
+%    即时印 (hook 迟注册即行) 双域内容不丢 ——
+\providecommand{\keywords}[1]{\AtBeginDocument{\par\noindent\textbf{Keywords:} #1\par}}
+\endinput
