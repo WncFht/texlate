@@ -1732,3 +1732,9 @@
 - **裁决旗 → 用户**：全局排版权衡——linespread=1 对齐 src 几何+修 ~57 格（含 109 静默裁切 clean 格，仅全局臂可达）；代价 = CJK 行距较 ctex CJK-文档惯例收紧。备选 = fixloop 门控臂，但够不到 clean-verdict 裁切轴。**leader 荐：全局落**（zihao=false 先例——src 对齐优于 CJK-文档默认；align.py 页对应是产品特性）。
 - **mutex 注**：overnite chaser 每 ~20min 跑 compile zh——inject.py 在 live-read 集，落点须等 mutex 窗（批后或 chaser 间隙批停）。
 - **门**：HEAD=44811521；ruleset 174；flipcheck-12 mutex 续持；roster 9（mathbd/extless/drvstage/docsty/refclean/csfix8/primgap/splicechk/auxeof34）。
+
+### patrol ~09:20 — 心跳：无收割；ctexbls 关；+vboxpin → roster 10；overnite 1414/2822
+
+- 无新交付（ctexbls 重复 idle 通知已收——内容同上 tick 收割）。
+- **dispatch vboxpin**：vbox_flood 臂合成 dead-cycle log pin 测（vboxcheck queued micro-item——覆盖臂唯一可达域：maxdeadcycles=25 强制船出 → 密度≈25>4）。roster 10。
+- **门**：HEAD=d1b51572；ruleset 174；flipcheck-12 mutex 续持；overnite 1414/2822 健康；无 teammate git 越权。
