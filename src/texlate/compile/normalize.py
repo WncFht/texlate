@@ -133,8 +133,8 @@ TECTONIC_FONT_COMPATIBILITY = r"""% texlate: vector double-stroke fonts; Tectoni
 
 
 def inject_preamble(text: str, block: str) -> str:
-    r"""在 `\begin{document}` 前插入前导块；找不到 document 环境则原样返回。"""
-    marker = BEGIN_DOC_RX.search(visible_tex(text))
+    r"""在 depth-0 `\begin{document}` 前插入前导块；找不到则原样返回。"""
+    marker = next(iter_depth0(BEGIN_DOC_RX, visible_tex(text)), None)
     if not marker:
         return text
     return text[: marker.start()] + block + text[marker.start() :]
