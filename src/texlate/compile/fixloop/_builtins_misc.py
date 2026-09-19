@@ -15,6 +15,7 @@ import shutil
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any
 
+from texlate.compile.inject import _walk_inputs
 from texlate.compile.transcode import INTERMEDIATE_SUFFIXES
 from texlate.latex.api import NAME_GATED_TEX_SUFFIXES, parse_file
 from texlate.latex.prose import file_has_prose
@@ -23,6 +24,7 @@ from texlate.textutil import (
     CJK_RX,
     DOCCLASS_RX,
     INPUT_BARE_RX,
+    _tar_disguised,
     _tar_header_ok,
     mask_tex,
     safe_is_file,
@@ -602,7 +604,7 @@ _INPUT_EXEC2_RX = re.compile(
 
 
 def _input_targets(arg: str) -> list[str]:
-    r"""input 族参数 → 候选相对路径 (空 = 构造名/宏名, 不可静态解析)。"""
+    r"""Input 族参数 → 候选相对路径 (空 = 构造名/宏名, 不可静态解析)。"""
     a = arg.strip().strip('"').strip()
     if not a or any(c in a for c in "{}\\"):
         return []
@@ -701,6 +703,99 @@ def subfile_docclass_strip(
     if not changed:
         return False, "no input-referenced docclass-bearing non-main .tex"
     return True, f"body-only strip in {changed} file(s)"
+
+
+# ════════════════════════════════════════════════════════════════
+# fragment 误判主档 → \input wrapper 提升 (2609.19170)
+# ════════════════════════════════════════════════════════════════
+
+
+def _closure_scan(ctx: LoopCtx, main: Path, masked_text: str) -> tuple[set[Path], bool]:
+    r"""收集 ``(main, 遮盖文本)`` 的 ``\input`` 传递闭包成员与 ``\end{document}`` 可达性。
+
+    inject ``_closure_has_document`` 的修复层镜像: 同一 ``_walk_inputs``
+    口径 (声明目录→工程根两跳、tar 伪装闸、环引 visited、规模上界
+    ``_MASS_FILE_CAP``); 种子本体计入成员集 (walk 只产下游目标)。
+    """
+    root = ctx.io.wdir.resolve()
+    members = {main.resolve()}
+    has_end = bool(_END_DOC_RE.search(masked_text))
+    for tgt, sub in _walk_inputs(root, [(main.resolve(), masked_text)]):
+        members.add(tgt)
+        if not has_end and _END_DOC_RE.search(sub):
+            has_end = True
+    return members, has_end
+
+
+def _wrapper_candidates(ctx: LoopCtx, main_res: Path) -> list[Path]:
+    r"""合格 wrapper: ``\input`` 闭包吞 ``main_res`` 且闭包达 ``\end{document}``。
+
+    候选种子的 tar 伪装闸 —— 成员字节可含 ``\input``/``\end{document}``
+    假信号 (inject scanned 同闸); 现主档自身经 resolve 比对排除。
+    """
+    winners: list[Path] = []
+    for f in ctx.tex_files((".tex", ".ltx")):
+        if f.resolve() == main_res:
+            continue
+        try:
+            if _tar_disguised(f.read_bytes()):
+                continue
+        except OSError:
+            continue
+        t = ctx.read(f)
+        if t is None:
+            continue
+        members, has_end = _closure_scan(ctx, f, mask_tex(t))
+        if main_res in members and has_end:
+            winners.append(f)
+    return winners
+
+
+def main_wrapper_promote(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""Fragment 误判主档收容: 把吞进现主档且闭包达 ``\end{document}`` 的 wrapper 提为 main。
+
+    ``find_main_tex`` pass-1 只收字面 ``\documentclass`` 件 —— 裸
+    ``\input`` 编排壳永不入池; 池内若只剩 fragment (无 ``\end{document}``
+    无 ``\input``) 即编译 ``*** (job aborted, no legal \end found)``
+    (2609.19170: ``sections/00_preamble.tex`` 止于 ``\maketitle``, 真入口
+    是根目录 9 行 ``\input`` 列表)。W99 闭包档因池非空被跳过 —— 修复层
+    直接换 main 比动 inject 探测面爆炸半径小。
+
+    提拨判据 (全经 ``_closure_scan`` 遮盖视图, 注释/verbatim 内不计):
+    候选 ``\input`` 传递闭包含现主档 **且** 闭包任一文件见字面
+    ``\end{document}``。守卫: 现主档自身闭包已达 ``\end{document}`` 时
+    非 fragment 误判让位; 恰一个合格 wrapper 才动 —— 零个无救, 多个
+    歧义让位。``ctx.io.main_rel`` 可变 (engine.py:611/1094 先例),
+    编译面逐轮活读 ``main_rel`` 无派生缓存要失效; 翻转落
+    ``ledger.advisories`` + 动作账本。
+    """
+    del eng, payload, params
+    main = ctx.main_path()
+    if main is None or not main.is_file():
+        return False, "no main"
+    text = ctx.read(main)
+    if text is None:
+        return False, "main unreadable"
+    main_res = main.resolve()
+    _, main_end = _closure_scan(ctx, main, mask_tex(text))
+    if main_end:
+        return False, "main closure already reaches \\end{document}"
+    winners = _wrapper_candidates(ctx, main_res)
+    if not winners:
+        return False, "no \\end{document}-reaching wrapper inputs current main"
+    if len(winners) > 1:
+        names = ", ".join(f.relative_to(ctx.io.wdir).as_posix() for f in winners)
+        return False, f"ambiguous wrappers: {names}"
+    rel = winners[0].relative_to(ctx.io.wdir).as_posix()
+    old = ctx.io.main_rel
+    ctx.io.main_rel = rel
+    ctx.ledger.advisories.append(
+        f"main_wrapper_promote: main_rel {old} -> {rel} "
+        "(fragment rescued by \\input wrapper)"
+    )
+    return True, f"main_rel {old} -> {rel}"
 
 
 # ════════════════════════════════════════════════════════════════

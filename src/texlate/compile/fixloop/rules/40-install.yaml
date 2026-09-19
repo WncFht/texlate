@@ -10,6 +10,38 @@ version: 1
 
 rules:
   # ─── loop: install 系 —— 环境缺失优先于源码改写 ───
+  # 2026-09-19 wrapromote (relocatemiss 诊断修议#2, 2609.19170):
+  # fragment 误判主档收容 —— find_main_tex pass-1 只收字面
+  # \documentclass 件, 裸 \input 编排壳永不入池; 池内若只剩 fragment
+  # (无 \end{document} 无 \input) 即编译 `*** (job aborted, no legal
+  # \end found)`。修复层翻 main_rel 比动 inject 探测面爆炸半径小;
+  # builtin 三重自门 (现 main 闭包已达 end=非 fragment 让位 / 零 wrapper
+  # 无救让位 / 多 wrapper 歧义让位)。order 8.5 居 fileset 族(9) 前:
+  # main 归位先于一切按 main 干的修复。
+  - id: main_wrapper_promote
+    description: "fragment 误判主档 → 闭包吞 main 且达 \\end{document} 的 \\input wrapper 提为 main_rel"
+    phase: loop
+    order: 8.5 # biber_biblatex_skew_route(8) 后, fileset 族(9) 前 —— main 归位先于按 main 修复
+    when: { category: emergency }
+    condition:
+      ctx_suggests: "no legal \\\\end found"
+    action:
+      kind: builtin_transform
+      function: main_wrapper_promote
+      params: {}
+    risk: low # 只翻 main_rel 不写文件; 恰一合格 wrapper 才动, 歧义/无救皆让位
+    known_gap: "wrapper 经 \\import/宏参 \\input 等非 _walk_inputs 两跳口径拉 fragment 时不收; macro 生成 \\end{document} (\\csname 形) 非字面命中; wrapper 闭包缺 \\begin{document} 时提升后仍会错 (别家规则接管)"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "failmine4 soak-2026-09-18 2609.19170 (relocatemiss 诊断)",
+          error: "*** (job aborted, no legal \\end found) —— sections/00_preamble.tex fragment 误判 main; 真入口 retd_jmlr_jmlr_candidate_20260828.tex 是根目录裸 \\input 编排壳, 无字面 \\documentclass 永不入池",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-relocatemiss/report.md 修议#2 (fixloop 收容臂); lane-wrapromote"
+
   # W79/W18/W102 孤儿裁决 (mechmap-2026-09-17): filemap 索引外的自产件。
   # 三条 order:9 窄谓词先于 install_file(10) 截流 —— 运行期生成件/包内
   # docstrip 件 install 必 miss 白烧轮次; 谓词不中 return False 不耗轮。

@@ -92,6 +92,7 @@ from texlate.compile.fixloop._builtins_misc import (
     extract_tar_blobs,
     graphics_include_strip,
     harvest_build_directives,
+    main_wrapper_promote,
     non_utf8_recode,
     pfa_to_pfb,
     plain_format_detect,
@@ -223,6 +224,7 @@ __all__ = [
     "keep_latin_tokens",
     "legacy_pkg_shim",
     "macro_glyph_fix",
+    "main_wrapper_promote",
     "missing_char_fix",
     "non_utf8_recode",
     "option_clash_merge",
@@ -346,4 +348,5 @@ TRANSFORM_FNS = {
     "slot_arg_revert": slot_arg_revert,
     "pfa_to_pfb": pfa_to_pfb,
     "graphics_include_strip": graphics_include_strip,
+    "main_wrapper_promote": main_wrapper_promote,
 }
