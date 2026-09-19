@@ -2,7 +2,7 @@ r"""请求纪律：按 host 限速桶 + (host, path) 断路器 + 日预算（doc
 
 - **限速**：每 host ≥3.05s 全局间隔、零并发（官方 ToU：≤1 req/3s、单连接）。
   arxiv.org / export.arxiv.org / oaipmh.arxiv.org 三个独立桶。
-- **断路器**：同 (host, path-class) 连续 2 次 429/406 → 按路径 park。实测
+- **断路器**：同 (host, path-class) 连续 2 次 429/406/403 → 按路径 park。实测
   限流按路径不按 host（export 的 /api 429 时 /src 照常 200）→ park 键带
   path-class；窗口实测 >30min、无 Retry-After → 初始 park 取 30min
   （docs/06 表内 15min 与其自身证据矛盾，export-probes.md 建议 30–60min
@@ -43,7 +43,7 @@ DAILY_BUDGET: Final = 180
 PARK_BASE_SECONDS: Final = 1800.0
 #: park 翻倍上限 2h（docs/06 §1.3）
 PARK_MAX_SECONDS: Final = 7200.0
-#: 断路器触发阈值：同 (host,path) 连续 N 次 429/406
+#: 断路器触发阈值：同 (host,path) 连续 N 次 429/406/403
 BREAKER_STRIKES: Final = 2
 #: park 时长 jitter 上限（jitter span 0.2 → 合法 park ≤ 1.2×park_max，取 1.25 余量）
 _PARK_JITTER_HI: Final = 1.25
@@ -267,8 +267,15 @@ class RateLimiter:
         parts = urlsplit(url)
         key = self._key(parts.netloc, path_class(parts.path))
         b = self._buckets.setdefault(key, _Bucket())
-        if status in (HTTPStatus.TOO_MANY_REQUESTS, HTTPStatus.NOT_ACCEPTABLE):
-            # 429=边缘限流；406=IP 配额惩罚窗口（实测 /src 分钟级 406）
+        if status in (
+            HTTPStatus.TOO_MANY_REQUESTS,
+            HTTPStatus.NOT_ACCEPTABLE,
+            HTTPStatus.FORBIDDEN,
+        ):
+            # 429=边缘限流；406=IP 配额惩罚窗口（实测 /src 分钟级 406）；
+            # 403=denied.html 机器人检测封禁（整 IP 连坐、~20min 自解，
+            # karpathy/arxiv-sanity#80 口径）——不 park 会把整段预算打在
+            # 已封 IP 上；park 窗恰好覆盖自解时间。
             b.consec_429 += 1
             if b.consec_429 >= BREAKER_STRIKES:
                 dur = min(
