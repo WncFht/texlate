@@ -6,7 +6,7 @@
 
 管线：`fetch`(arXiv e-print 钉版缓存) → `parse`(LaTeX 半解析 + 受限宏展开) → `xlat`(LLM 段落翻译，公式/引用/宏全占位符化) → `inject`(ctex 中文环境注入) → `compile`(tectonic/xelatex + fixloop 规则引擎自动修复) → `judge`(编译日志与 CJK 字数核验)。
 
-![texlate 管线全流程图：获取→半解析→翻译→注入→编译→判定→阅读，含降级链、独立校验器与修复循环回环，底部标注各评测臂读数](shots/bench-pipeline.png)
+![texlate 管线全流程图：获取→半解析→翻译→注入→编译→判定→双语 PDF，含降级链、L0/L1 校验门与 fixloop 修复回环，顶部标注各评测臂读数](shots/bench-pipeline.png)
 
 ## 安装
 
