@@ -14,7 +14,13 @@
   c) ``sentry_reason`` 链：run_process timed_out 槽 str →
      ``_collect_compile_outputs`` 归位 → judge category=runaway_output →
      fixloop ``_round_cat`` 同优先录因；
-  d) 无字段兜底：tail/全文密度判据新语义仍工作。
+  d) 无字段兜底：tail/全文密度判据新语义仍工作；
+  e) vbox_flood 可达形补钉（vboxcheck census：真语料零触发，可达区
+     只能靠合成 log 钉）——死循环「警告先行、页标滞后」真序与页
+     标散布警告间形即杀；恰 4:1 密度边界与 <30 签名放行；
+  f) 前缀语义：活哨在 feed 边界按累计计数评估——警告洪片先于页
+     标到达即锁存截杀，终值稀释不翻案（与事后判据全文终值语义
+     的分歧面在钉）。
 """
 
 from __future__ import annotations
@@ -111,6 +117,91 @@ def test_grqc_shape_page_flood() -> None:
     blob = b"".join(_VBOX_B + b"\n[%d]\n" % i for i in range(11_000))
     assert s.feed(blob) is True
     assert s.reason == "page_flood"
+
+
+# ------------------------------------------------------- 哨件单元：vbox_flood 可达形
+def test_deadcycle_interleaved_trips() -> None:
+    """pin e-死循环真序：``\\output`` 死循环每 ≤25 签名被 maxdeadcycles
+    强发一页标——「警告先行、页标滞后」的真实交错序，第二页块累计
+    50 签名/2 页标即越阈截杀（密度 ~25 ≫ 4）。"""
+    s = _RunawaySentry()
+    block = (_VBOX_B + b"\n") * 25
+    assert s.feed(block + b"[0]\n") is False  # 25 签名未达下限
+    assert s.feed(block + b"[1]\n") is True  # 50 签名/2 页标：50 > 4×2
+    assert s.reason == "vbox_flood"
+
+
+def test_deadcycle_marks_between_warns_trips() -> None:
+    """pin e-页标散布警告间：31 签名夹 7 页标——密度 ≫4 截杀，事后判据同。"""
+    s = _RunawaySentry()
+    blob = (
+        b"".join((_VBOX_B + b"\n") * 4 + b"[%d]\n" % i for i in range(7))
+        + (_VBOX_B + b"\n") * 3
+    )
+    assert s.feed(blob) is True  # 31 ≥ 30 ∧ 31 > 4×7=28
+    assert s.reason == "vbox_flood"
+    assert _is_runaway_output(blob.decode())
+
+
+def test_density_exactly_4to1_safe() -> None:
+    """pin e-严格边界：恰 4:1 密度（每页标 4 签名 ×10）不越阈——判据是
+    ``>`` 非 ``≥``，单页多次 ``\\output`` 的容忍带上沿守恒。"""
+    s = _RunawaySentry()
+    blob = b"".join((_VBOX_B + b"\n") * 4 + b"[%d]\n" % i for i in range(10))
+    assert s.feed(blob) is False  # 40 ≯ 4×10
+    assert s.reason is None
+
+
+def test_below_min_warnings_no_trip() -> None:
+    """pin e-下限之下：29 签名零页标——未达 ``_RUNAWAY_VBOX_MIN`` 放行。"""
+    s = _RunawaySentry()
+    assert s.feed((_VBOX_B + b"\n") * 29) is False
+    assert s.tripped is False
+    assert s.reason is None
+
+
+# ------------------------------------------------------- 哨件单元：前缀语义（活哨 vs 事后判据）
+def test_prefix_burst_trips_before_marks() -> None:
+    """pin f-前缀截杀：30 签名先于第 8 页标到达——活哨按 feed 边界累计
+    评估，警告洪片前缀即越阈（死循环警告先行序在真编译分片下必落此形）。"""
+    s = _RunawaySentry()
+    burst = (_VBOX_B + b"\n") * 30 + b"".join(b"[%d]\n" % i for i in range(7))
+    assert s.feed(burst) is True  # 30 > 4×7=28
+    assert s.reason == "vbox_flood"
+
+
+def test_prefix_trip_latches_despite_later_marks() -> None:
+    """pin f-锁存：前缀截杀不可逆——后续页标洪片到达不再翻案。
+
+    事后判据看全文终值（30 签名/57 页标 → 良性），而活哨已在前缀处
+    截杀——**活哨严格激进于 ``_is_runaway_output``**。被截杀的编译其
+    截断 log 只含前缀，事后重扫仍判 runaway（归因面守恒）；分歧只在
+    「若不杀会写成什么样」的假设全文上。
+    """
+    s = _RunawaySentry()
+    burst = (_VBOX_B + b"\n") * 30 + b"".join(b"[%d]\n" % i for i in range(7))
+    assert s.feed(burst) is True
+    later = b"".join(b"[%d]\n" % i for i in range(7, 57))
+    assert s.feed(later) is True  # tripped 锁存短路，不再扫描
+    assert s.reason == "vbox_flood"
+    assert not _is_runaway_output((burst + later).decode())  # 全文终值良性
+
+
+def test_feed_granularity_decides_prefix_eval() -> None:
+    """pin f-粒度依赖：同字节流整片喂入按终值评估、分片喂入按前缀评估。
+
+    活哨评估点 = ``feed`` 调用边界（drain 环 ``_READ_CHUNK`` 分片）：
+    30 签名 + 60 页标一片喂入 → 30 ≯ 240 放行；先喂签名片 → 前缀
+    30 签名/0 页标即杀。真编译 TeX 持续冲刷输出，警告先于页标的
+    死循环前缀必落到某读片边界被截——粒度依赖是既定语义而非巧合。
+    """
+    warns = (_VBOX_B + b"\n") * 30
+    marks = b"".join(b"[%d]\n" % i for i in range(60))
+    whole = _RunawaySentry()
+    assert whole.feed(warns + marks) is False  # 终值 30 ≯ 4×60
+    split = _RunawaySentry()
+    assert split.feed(warns) is True  # 前缀即杀
+    assert split.reason == "vbox_flood"
 
 
 # ---------------------------------------------------------------- 归因链：字段 → judge
@@ -344,3 +435,42 @@ def test_run_process_wallclock_still_bool(tmp_path: Path) -> None:
     )
     assert to is True
     assert rc == -signal.SIGKILL
+
+
+@pytest.mark.integration
+@requires_posix
+def test_run_process_deadcycle_shape_killed(tmp_path: Path) -> None:
+    """pin e 端到端：「25签名+[N]」死循环页块流 + 挂死 → vbox_flood 收树。"""
+    payload = "".join((_VBOX + "\n") * 25 + f"[{i}]\n" for i in range(4))
+    rc, _out, sec, to = run_process(
+        _emit_then_sleep(payload),
+        cwd=tmp_path,
+        env=child_env(),
+        timeout=60,
+    )
+    assert to == "vbox_flood"
+    assert rc == -signal.SIGKILL
+    assert sec < 30  # noqa: PLR2004 - 越阈即杀，远早于 60s 墙钟
+
+
+@pytest.mark.integration
+@requires_posix
+def test_run_process_prefix_burst_killed(tmp_path: Path) -> None:
+    """pin f 端到端：签名洪片先 flush、页标 2s 后才写——进程前缀即死，
+    稀释页标永不在 drain 面出现（活哨前缀语义的全链实证）。"""
+    warns = (_VBOX + "\n") * 30
+    marks = "".join(f"[{i}]\n" for i in range(60))
+    prog = (
+        f"import sys,time;sys.stdout.write({warns!r});sys.stdout.flush();"
+        f"time.sleep(2);sys.stdout.write({marks!r});sys.stdout.flush();"
+        "time.sleep(60)"
+    )
+    rc, _out, sec, to = run_process(
+        [sys.executable, "-c", prog],
+        cwd=tmp_path,
+        env=child_env(),
+        timeout=60,
+    )
+    assert to == "vbox_flood"
+    assert rc == -signal.SIGKILL
+    assert sec < 30  # noqa: PLR2004 - 前缀截杀早于页标落盘
