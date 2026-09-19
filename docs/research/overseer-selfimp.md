@@ -1066,3 +1066,11 @@
 - **7 新派全绿灯 (w2 毕即放 src 编)**: #162 misscharcen→char_table 17 格+macro_glyph 3cs; #163 sweepgate→judge C0 扫描排除 (新); #164 failmine3→eps stub+preamble-input; #165 assetlane→amsmath retire+lamsarrow TFM (新); #166 regrdiag→tar 闸+\institute 覆盖; #167 ifscanner→幻条件扫描盲斑 (新); #168 subfilegate→\subfile 子档免 inject (新, inject.py mutex 已释)。关毕: fontgate/operandcensus/rexlat3。
 - roster ~10：misscharcen(#162)/regrdiag(#166)/failmine3(#164)/loop4wave(#161 毕, 待下波)/loopsched(#144 静默 ~30min 催)/sweepgate/assetlane/ifscanner/subfilegate (4 新)。
 - 门：teammate 零 git✓；HEAD 2f4a905；L0 相关件全绿✓；L2 wave-2 **46 升 0 降**✓；sab-r6 escaped=0✓；L1 parsebench 在飞；clean% 门**大幅上行读数到手**；裁决点 3 件累积 (#10 语义 + ds@ Option A + verdict-semantics 排序)。
+
+## 2026-09-19 ~11:3x — **L1 门 PASS (leak 0.000% 历史新低)** + roster 10 全速
+
+- **L1 parsebench corpus_v3 毕 (477.4s, 1955 件)**: parse ok **1955/1955 (100%)**, strict identity **100.00%** CI [99.80,100.00], leak **0/128460 chunks = 0.000%** CI [0.000,0.003] (门槛 ≤0.15%), dead/orphan 全零, bug1 ph-tail 17 良性残。全门 PASS——**leak 从上轮 ≤0.040% 降到 0.000%**: operandfix 终止表把 log-payload/裸括号泄面归零; identity 守 100% 同时合并树 (fontgate+operandfix+peer segmenter 在飞编) 无回退。flatten 94.5% 照口径勘误 (orphan=语料随附件非实现漏跟, v3 实测 ~93%)。结果 bench/results/parsebench-corpus_v3-l1gate-2026-09-19/。
+- **在飞察**: 7 impl 道全 working (subfilegate/assetlane/failmine3 目录 11:26-11:28 活跃); loop4wave run5 para 波已派未建目录 (agent 在跑); loopsched 仍 running (静默 ~45min, 下 tick 升级); rexlat3 关毕 roster 清。
+- roster 10：misscharcen(#162)/sweepgate(#163)/failmine3(#164)/assetlane(#165)/regrdiag(#166)/ifscanner(#167)/subfilegate(#168)/loop4wave(#161 run5)/loopsched(#144 静默)/+1 余位。
+- 门：teammate 零 git✓；HEAD 476ea2a；L0 全绿✓；**L1 identity 100% + leak 0.000% PASS✓**；L2 wave-2 46升0降✓；sab-r6 escaped=0✓；clean% 单调上行✓。
+- 裁决点待报用户：#10 acceptable_pdf 语义 / ds@ Option A (~96格) / verdict-semantics 排序 (unfixable:* vs best_effort_pdf 同 artifact)。
