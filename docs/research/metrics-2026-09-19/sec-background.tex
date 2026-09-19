@@ -88,8 +88,8 @@ TeXlate 是「幻觉翻译」(hjfy.top) 的开源复刻：输入一篇 arXiv 论
   \item \textbf{stagerun / scorecard}：stagerun 为五段批量驱动（ingest$\to$parse$\to$xlat$\to$compile$\to$fixloop，records append-only 逐格落盘）；scorecard 为 \texttt{gate\_scorecard} 对 records 的终态统计，M2 出口门 union pdf $\geq 90\%$、clean $\geq 90\%$。
   \item \textbf{hard\_ok / 契约族}：xlatbench 的硬契约判定——占位符全还原（ph\_missing/ph\_invented）、控制序列保留（cs\_dropped）、结构校验通过（validator\_ok）。顺序类分 ord\_hard（破契约）与 ord\_soft（合法中文换序软告警，不计败）。
   \item \textbf{ESA / contested}：qualbench 的 LLM-judge 协议——judge 按 ESA 错误分类打 0--100 分；judge 与二裁分歧的判例记 contested，由第二 judge 仲裁。
-  \item \textbf{named-dest}：PDF 具名锚点（hyperref \verb|\label| 位点）；alignbench 测中英双版锚点保留率以实现逐段对齐。
-  \item \textbf{fixloop / 机制 / 车道}：fixloop 为 YAML 规则驱动的编译修复循环；mechanism 为 \texttt{mechanisms.jsonl} 台账（快照随档 \texttt{refs/}）登记的已知缺陷模式（dollar 族泄漏、eps\_route 等），benchmark 发现 $\to$ 归因 $\to$ 规则沉淀的反馈环；车道/波次为多代理并行修一批同族缺陷的工作单元；\textbf{selfimp 环}（self-improvement loop）为 09-18 起常驻的多代理改进环（车队台账快照随档 \texttt{refs/}）。
+  \item \textbf{named-dest}：PDF 具名锚点（hyperref \verb|\label| 位点）；alignbench 测双版锚点保留率实现逐段对齐。
+  \item \textbf{fixloop / 机制 / 车道}：fixloop 为 YAML 规则驱动的编译修复循环；mechanism 为机制台账（\texttt{mechanisms.jsonl}，快照随档 \texttt{refs/}）登记的已知缺陷模式（dollar 族泄漏、eps\_route 等），benchmark 发现 $\to$ 归因 $\to$ 规则沉淀的反馈环；车道/波次为多代理并行修一批同族缺陷的工作单元；\textbf{selfimp 环}（self-improvement loop）为 09-18 起常驻的多代理改进环（车队台账快照随档 \texttt{refs/}）。
   \item \textbf{v2 cutover}：09-16 解析主路径从 v1 逐字符扫描器切到 v2 Gullet 展开机 + Segmenter 的事件，cutover 硬门为 splice 残留占位符清零。
   \item \textbf{bg 档}：网关批量档——低优先级队列，in-gate 排队 $\sim$120s，bench 批跑默认档位，延迟读数含排队时间。
 \end{itemize}

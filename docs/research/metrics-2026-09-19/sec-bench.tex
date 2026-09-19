@@ -8,11 +8,12 @@ benchmark 套件按「每臂对准管线一段 + 一个组合层」设计，评�
 \centering\small
 \caption{七臂 benchmark 总览（B1--B7 + 辅助件）}
 \label{tab:arms}
+\setlength{\tabcolsep}{4pt}
 \begin{tabular}{@{}lllll@{}}
 \toprule
 \# & benchmark & 测哪段 & 底材 & 核心指标 \\
 \midrule
-B1 & parsebench & 解析段 & corpus\_v3 + corpus39 & ok / identity / leak / dead / flatten \\
+B1 & parsebench & 解析段 & corpus\_v3 + corpus39 & ok/identity/leak/dead/flatten \\
 B2 & fixtures & 解析段（单元级） & 手构陷阱 \texttt{.tex} 集（10 件） & 陷阱断言通过率（T01--T98） \\
 B3 & compilebench & 编译段 + fixloop & corpus\_v3 raw blob & clean/pdf\~{}/FAIL、救回率、规则谱 \\
 B4 & xlatbench & 翻译段 & corpus\_v3 chunk 抽样 & 硬契约率 / 延迟 / token 经济 \\
@@ -54,7 +55,7 @@ B7 & alignbench & 阅读体验 & en/zh 编译产物对 & named-dest 保留率 / 
 \subsection{语料分层构造}
 \label{sec:corpus}
 
-corpus\_v3 是钉版批量语料：每个 cell 记录 \texttt{(channel, item, member, blob\_sha256)} 四元组，渠道分 IA \texttt{arxiv-bulk} 月 chunk、e-print 单发、HF \texttt{arxiv-latex-5T}、scholarweave 脱水四种。八层构成见图~\ref{fig:corpus}：核心/补强/扩展/热层为早期层，2026-09-19 评测/开发分轨扩层后收至 13{,}266 篇。
+corpus\_v3 是钉版批量语料：每个 cell 记录 \texttt{(channel, item, member, blob\_sha256)} 四元组钉住字节级来源（\texttt{resolved\_version=null}），落地为 \texttt{\{id\}/} 目录（\texttt{meta.json}、\texttt{raw.*}、\texttt{extracted/}）。四条渠道各有明确分工：\texttt{ia} = IA \texttt{arxiv-bulk} 月度 chunk（a--d 时代带主力，覆盖至 2020-10）；\texttt{tiger} = HF \texttt{TIGER-Lab/arxiv-latex-5T}（e 带主力，成员截止 2412 月）；\texttt{arxiv\_eprint} = 单发 e-print 取源（走产品 \texttt{acquire\_source}，补 TIGER 截止后 2501+ 盲区）；\texttt{hf\_scholarweave} = scholarweave 脱水通道（\texttt{figures\_stripped} 有损源——解析/翻译段可用，编译段因缺图源排除）。全库 13{,}266 cell、raw blob 18.8GB（含 \texttt{extracted/} 解压树全库约 46GB）。八层构成见图~\ref{fig:corpus}、分层定位见表~\ref{tab:layers}：核心/补强/扩展/热层为早期层，2026-09-19 评测/开发分轨扩层后收至 13{,}266 篇。
 
 \begin{figure}[htbp]
 \centering
@@ -82,11 +83,134 @@ corpus\_v3 是钉版批量语料：每个 cell 记录 \texttt{(channel, item, me
 \legend{core 1000, booster 200, expand 3866, hot 166, dev\_vol 2000, dev\_recent 1514, dev\_failmine 1500, holdout 3020}
 \end{axis}
 \end{tikzpicture}
-\caption{corpus\_v3 八层构成（13{,}266 篇 / 46GB）。holdout 层为 EVAL\_ONLY 治理——\texttt{dev\_layers()} 实测排除，仅评测可读；dev\_* 三层与 expand 为开发期增量；core 为月度簇分层随机（30 簇，old 200/new 800）。}
+\caption{corpus\_v3 八层构成（13{,}266 篇，raw blob 18.8GB / 含 extracted 树 $\sim$46GB）。holdout 层为 EVAL\_ONLY 治理——\texttt{dev\_layers()} 实测排除，仅评测可读；dev\_* 三层与 expand 为开发期增量；core 为月度簇分层随机（30 簇，old 200/new 800）。}
 \label{fig:corpus}
 \end{figure}
 
-治理规则：holdout 层（3{,}020 篇）登记 \texttt{EVAL\_ONLY\_LAYERS}，所有开发期采样经 \texttt{dev\_layers()} 过滤；语料扩展只加层不删层；cell 数据 gitignored，入库物为 manifest + 选择报告 + 机制台账 \texttt{mechanisms.jsonl}（两者快照均随档 \texttt{refs/}；台账是 benchmark $\to$ 归因 $\to$ 规则沉淀的反馈环载体）。
+\begin{table}[htbp]
+\centering\small
+\caption{corpus\_v3 八层定位与抽样框（渠道缩写：ia=IA 月块 / tiger=HF arxiv-latex-5T / eprint=单发取源 / sw=scholarweave 脱水）}
+\label{tab:layers}
+\begin{tabular}{@{}llp{3.4cm}p{6.4cm}@{}}
+\toprule
+层 & 篇数 & 定位 & 渠道构成与抽样框 \\
+\midrule
+core & 1{,}000 & 核心随机层，评测主干 & ia 800 + tiger 200；30 个 IA 月簇分层随机（old 200 / new 800） \\
+booster & 200 & 机制策展层 & ia 162 + tiger 38；野外发现机制提名制（107/109 W exemplars，\texttt{nominations/} 留审计轨迹） \\
+expand & 3{,}866 & 体量扩展层 & ia 3{,}103 + tiger 697 + eprint 66；bulk 池 measure-then-sample \\
+hot & 166 & 近期高引层 & arxiv\_eprint 166；OpenAlex 高引近期，专打 2501+ 盲区 \\
+dev\_vol & 2{,}000 & 开发体量层 & ia 1{,}627 + tiger 373；3{,}671 tex $\cdot$ 2.76GB \\
+dev\_recent & 1{,}514 & 近期开发层 & sw 1{,}065 + eprint 449；TIGER 截止后盲区双通道 \\
+dev\_failmine & 1{,}500 & 机制挖掘层 & ia 1{,}500；FLAG\_RX 机制旗标定向挖 IA 94--15 年档陷阱 \\
+holdout & 3{,}020 & 留出评测层 & ia 2{,}159 + tiger 540 + eprint 321；EVAL\_ONLY，同构造规则独立抽样 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+抽样框是「时代带 + 机制旗标带」的二维结构：五个时代带 a\_pre2007 / b\_2007\_11 / c\_2012\_16 / d\_2017\_20 / e\_2021\_25 各 $\sim$1{,}700--2{,}050 篇均匀打底（时间跨度 1994--2026），上面叠机制旗标带定向覆盖已知陷阱族（\texttt{flag:deadpkg} 600、\texttt{flag:docstyle209} 300、\texttt{flag:epsfig}、\texttt{flag:babel}、\texttt{flag:pdftex}、\texttt{flag:pstricks} 等若干）与 \texttt{sw|yymm} 月度带 1{,}065。学科面随 arXiv 主力盘分布（图~\ref{fig:corpusdist} 左）：hep-phys 2{,}961、math 2{,}418、cs 2{,}393、astro-ph 1{,}826、cond-mat 1{,}729 为五大盘。
+
+物理形态与工程结构：tar 包 11{,}097、gz 单文件 2{,}144、single\_gz 12、stub 13（B07 有意构造的残缺件）；n\_files 中位 7 / p90 28 / 最大 3{,}047（一篇论文三千文件），n\_tex 均 2.2，多文件工程 2{,}115 篇（16\%）——flatten 与多文档路由不是边角料而是主场景之一。许可面：arxiv-nonexclusive 6{,}786、missing 3{,}335、CC 系合计 1{,}187。全库 70 个聚簇键（\texttt{cluster\_id}，月簇/渠道混合）支撑簇稳健 bootstrap；4{,}472 cell 带 B01--B07/W/T 机制标签——即「benchmark 发现 $\to$ 归因 $\to$ 策展回填」反馈环的载体。
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+\begin{groupplot}[
+  group style={group size=2 by 1,horizontal sep=18mm},
+]
+\nextgroupplot[
+  xbar, bar width=3.4mm,
+  width=7.6cm, height=5.2cm,
+  xmin=0,
+  symbolic y coords={nucl,quant-ph,eess-stat,cond-mat,astro-ph,cs,math,hep-phys},
+  ytick=data, y tick label style={font=\scriptsize},
+  xlabel={篇数}, x label style={font=\small},
+  nodes near coords, nodes near coords style={font=\tiny},
+]
+\addplot+[fill=cA!70,draw=cA] coordinates {(282,nucl) (552,quant-ph) (583,eess-stat) (1729,cond-mat) (1826,astro-ph) (2393,cs) (2418,math) (2961,hep-phys)};
+\nextgroupplot[
+  ybar, bar width=4.4mm,
+  width=7.2cm, height=5.2cm,
+  ymin=0,
+  symbolic x coords={a$<$07,b 07--11,c 12--16,d 17--20,e 21--25,sw 月带,flag/开发带},
+  xtick=data, x tick label style={font=\tiny,rotate=20},
+  ylabel={篇数}, y label style={font=\small},
+  nodes near coords, nodes near coords style={font=\tiny},
+]
+\addplot+[fill=cD!70,draw=cD] coordinates {(a$<$07,2039) (b 07--11,2047) (c 12--16,1936) (d 17--20,1726) (e 21--25,1817) (sw 月带,1065) (flag/开发带,2636)};
+\end{groupplot}
+\end{tikzpicture}
+\caption{corpus\_v3 构成两视图。左：学科组分布 top8（其余 470 篇未绘）；右：stratum 带分布——a--e 五时代带共 9{,}565 篇均匀打底，sw 月带 1{,}065，flag 机制带/dev 补/holdout recent 等合计 2{,}636。}
+\label{fig:corpusdist}
+\end{figure}
+
+治理规则：holdout 层（3{,}020 篇）登记 \texttt{EVAL\_ONLY\_LAYERS}，所有开发期采样经 \texttt{dev\_layers()} 过滤；语料扩展只加层不删层；cell 数据 gitignored，入库物为 manifest 八件与选样报告（\texttt{selection\_report.md}）；机制台账 \texttt{mechanisms.jsonl}、B04/B06 宇宙×语料覆盖簿记 \texttt{eval\_coverage.json}、补强层提名审计轨迹 \texttt{nominations/} 的快照均随档 \texttt{refs/}——台账是 benchmark $\to$ 归因 $\to$ 规则沉淀的反馈环载体。
+
+\subsection{逐臂详解}
+\label{sec:arms}
+
+\subsubsection{B1 parsebench —— 解析正确性}
+
+\textbf{测什么}：\texttt{texlate.latex} 半解析器对真实语料的正确性——能不能零崩溃、能不能逐字节还原、可译 chunk 里有没有漏进受保护内容。
+
+\textbf{harness}：逐文件 30s 超时，主文件定位 $\to$ flatten $\to$ \texttt{parse\_file} $\to$ \texttt{reconstruct()} 三连测——strict identity（逐字节一致）、空译文 fake-translate（dead/orphan 占位符探针）、占位译文（leak 探针）。\texttt{files.jsonl} 逐文件落盘，\texttt{papers.json} 逐篇聚合，产出路由标签（reject / xelatex / minted / non-utf8 / no-hyperref——\textbf{同时是 B3 的静态路由金标准}）与 flatten 覆盖、multi\_doc/rootless 标记。统计口径为核心层加权池化 + 宏平均双报、Wilson + 月簇稳健 bootstrap CI；另有 oracle 对拍探针（plasTeX 规范化文本流 vs chunks 的字符级 recall），仅作开发期召回探针不进 gate。异常逐条人工归因写回机制台账。
+
+\textbf{当前读数}：28{,}904 文件 parse ok 100.0\%、strict identity 99.99\%、leak 0.004\%（图~\ref{fig:parse}、表~\ref{tab:snapshot}）。
+
+\subsubsection{B2 fixtures —— 机制断言集}
+
+\textbf{测什么}：parsebench 测分布，fixtures 测机制——「这个具体的坑处理了吗」逐条断言。
+
+\textbf{底材}：10 件手构 \texttt{.tex}（tricky 主集 + 209 旧格式 + multi 多文件工程 + w/w73/wenc 野外机制件 + xlat-traps 翻译层），\texttt{@Tnn}（结构陷阱）/\texttt{@Wnn}（野外发现机制）/\texttt{@Xn}（翻译层）三族标记；\textbf{逐字节即语义}，永不格式化。\textbf{生长机制}：parsebench 归因与台账 \texttt{found-in-wild} 条目达到 covered 后提取 fixture 化——语料里每个真坑沉淀为永久断言，断言面只增不减。
+
+\textbf{当前读数}：98 用例 pytest 全绿（L0 层 CI 硬门，断言函数与 \texttt{fixture\_assert.py} 共享）；BUG1 ph 尾回归断言实测 0。
+
+\subsubsection{B3 compilebench —— 编译与 fixloop 救回}
+
+\textbf{测什么}：normalize + ctex 注入 + 引擎 + 修复循环的真实救回能力——hjfy $\sim$5{,}000 篇人肉沉淀护城河的对应物。
+
+\textbf{harness}：paper $\times$ condition $\times$ engine 网格——condition $\in$ \{base 原文 / zh 注入 / mock 译文\}，engine $\in$ \{xelatex, tectonic\}；路由预检先行（\texttt{documentstyle}$\to$reject、eps/pstricks$\to$xelatex、minted-frozencache$\to$tectonic）。每格 normalize $\to$ inject $\to$ 沙箱编译（$\leq$2 pass、240s）$\to$ fixloop $\to$ clean 判定三件套；逐格 verdict + 每轮 \texttt{\{cat,pay,rule,result\}} 落盘直灌机制台账。归因按首错 sig 聚类（verdict\_sig 口径：构成中计数最高的 cat 超过首错 cat 时改挂该众数 cat）。指标：clean 率（分 condition/引擎/时代带）、fail$\to$pdf 救回率、规则 fires/rescues、stuck 率、修复轮数分布。
+
+\textbf{门槛}：200 篇 zh 条件编译成功率 $\geq$90\%（hjfy 95\% 为渐近线）、reject 判定正确率 100\%（路由标签对拍）、无回归（clean 格不被规则改脏）。
+
+\textbf{当前读数}：n=500 联合 pdf 90.4\%（图~\ref{fig:compile}）；zh 臂 xelatex clean +16.1pt——normalize 顺带修复源缺陷，产品链成本转正收益。
+
+\subsubsection{B4 xlatbench / qualbench —— 翻译契约与质量}
+
+\textbf{B4a 硬契约层}：chunk $\times$ model $\times$ repeat 网格，chunk 按 kind 分层抽样（para、caption、item、footnote 外加 stress 压力样例——\verb|\bibitem| 前缀、\verb|\href| 等陷阱位）；每响应过 L0 validator，指标按序读——硬契约率（丢/造占位符、丢脆弱命令、validator error）$\to$ ord 软信号（合法中文换序不降权）$\to$ 延迟 $\to$ reasoning $\to$ token 经济。用途是模型选型/白名单刷新（免费集 promo 到期即重跑）与 prompt 措辞回归（bump prompt\_version 必跑）。
+
+\textbf{B4b qualbench 质量层}：LLM-judge（esa2 协议）对段对打 stated100 分 + 错误分类 $\times$ severity 三级（terminology/fluency/accuracy/convention/non-translation 五族九类 flag）；judge=swe-2-max，分歧判例记 contested 由 swe-2-high 二裁；产出 mean/median、分数段分布、per-kind/per-paper 细分。门槛 M1：100 篇真实翻译端到端 $\geq$85\%。
+
+\textbf{当前读数}：hard\_ok 93.7\%（254/271）、ESA mean 94.0 / contested 5.5\%（图~\ref{fig:qual}）。
+
+\subsubsection{B5 e2ebench —— 全链组合}
+
+\textbf{测什么}：单段绿不等于组合绿——逐环节成功率漏斗 + 终态分布。四模式：\textbf{Mode A} 位置忠实 mock（占位译文走全链验机械链路：PDF/identity/零残留占位；已知盲区：mock 只认 ASCII 散文 run，非 ASCII 散文原样回显会过估忠实度，真译臂不受影响）；\textbf{Mode B} 幻觉 mock（注入占位符丢失/幻觉破坏验校验链兜底——132 处破坏编译前 132/132 捕获，「出 PDF $\neq$ 成功」的实证来源）；\textbf{Mode C} 位置扰动 mock（随机移 $\sim$10\% 占位符量化 splice 鲁棒性）；\textbf{Mode D} 真实翻译接入（产品 SLA 观测点）。另有 \textbf{pipe-fix 救回臂}：pipe-xel 产物树进 fixloop 复判，union 取 pipe-xel/pipe-fix 较优者；\texttt{onfail} 语义经冒烟校准为 fail + misschar/error 级 partial（partial 已出 PDF，fixloop 的引擎重跑只会丢 PDF 救不了 warning），inject reject 不救。
+
+\textbf{当前读数}：mock 臂 pipe-xel 33/39 clean vs base 19/39（管线净正 +14）；real n=60 union pdf 96.7\%、splice 残留 0、0 管线引入回归。
+
+\subsubsection{B6 validbench —— 校验器自检}
+
+\textbf{测什么}：L0/L1 校验器对 LLM 破坏的检出能力——校验器本身必须被评测（实现期真抓到过校验器自身 bug）。
+
+\textbf{harness}：变异器对干净 chunk 施 10 类破坏（丢 \texttt{\}}、丢 \texttt{\$}、\verb|\end| 改名/删除、丢/拼错/多余占位符、\verb|\[| 不配对、幻觉宏、删 cite key）$\times$ ph/raw 两层生成 \texttt{cases.jsonl}；另加对抗手工探针（掉 \verb|\emph| 组、占位符换序、\verb|\cite {k}| 带空格、漏 key、全角占位符等合法改写的边界断言）。指标：检出率（按破坏类分列命中规则）、error-FP（干净对）、warn-only 率、延迟/对、lev$\leq$2 修复建议率；L1 tree-sitter 层同口径。B4 的真实失败案例反向喂 B6 沉淀新破坏类。
+
+\textbf{门槛}：10 类破坏 100\% 检出、干净对 0 error-FP、L0 $\leq$1ms/对。
+
+\textbf{当前读数}：corpus\_v2 1{,}503 对全绿（摊薄 0.374ms/对）——本批未重跑，列缺口清单第 7 项。
+
+\subsubsection{B7 alignbench —— 锚点保留}
+
+\textbf{测什么}：zh 重编译后 named-destination 锚点保留率——双语滚动同步的质量上限。
+
+\textbf{harness}：pypdf 提取双侧 named destinations $\to$ 同名锚点配对 $\to$ 保留率 + 最大权值单调链权重（section 12 / figure 10 / equation 4 / cite 2，\texttt{page.*} 权 0）。无 hyperref 工程（语料 $\sim$31\%）走退化路径断言不崩；\textbf{保留率 $<$95\% 本身可当 zh 编译完整性探针}（ctex 共享计数器改 theorem 锚名即由此捕获）。
+
+\textbf{门槛}：有 hyperref 对保留率 $\geq$95\%；无 hyperref 对退化路径不崩。
+
+\textbf{当前读数}：812 对门全过但覆盖薄——765 对 named-dests 为 0，有效读数仅 42 个 hyperref 对（retention p50=1.0），口径待复核（缺口清单第 3 项）。
+
+\subsubsection{辅助件}
+
+stagerun 五段批量 DAG（records append-only + \texttt{(id,arm,upstream)} resume + 网关信号量）与 \texttt{gate\_scorecard}（M2 出口门，union=compile$\cup$fixloop 阶段并集取优）；\texttt{translators\_bench} mock 臂工厂（mock / sabotage-b/c / perturb）；\texttt{gullet\_bench} 展开机实测（n=200 全展开 median 39.6ms/19 steps）；\texttt{triage}（records$\to$tickets 聚类）、\texttt{status\_panel}、\texttt{nightwatch}、\texttt{rundiff}、\texttt{wave}、\texttt{stage\_timing}、\texttt{preflight\_batch} 监控与批前闸。
 
 \subsection{门槛体系}
 

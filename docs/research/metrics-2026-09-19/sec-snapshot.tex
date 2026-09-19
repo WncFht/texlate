@@ -6,7 +6,7 @@
 \centering\scriptsize
 \caption{2026-09-19 综合测试逐臂指标总表}
 \label{tab:snapshot}
-\begin{tabular}{@{}llp{7.6cm}p{3.6cm}@{}}
+\begin{tabular}{@{}llp{6.4cm}p{3.0cm}@{}}
 \toprule
 臂 & 规模 & 核心指标 & 门槛对比 \\
 \midrule
@@ -34,14 +34,14 @@ stagerun DAG & 80 篇跨层 & \textbf{union pdf 79/80=98.75\%}；clean 71/80=88.
 \centering
 \begin{tikzpicture}
 \begin{groupplot}[
-  group style={group size=2 by 1,horizontal sep=14mm},
+  group style={group size=2 by 1,horizontal sep=10mm},
 ]
 \nextgroupplot[
   xbar,
-  width=8.6cm, height=4.6cm,
+  width=7.0cm, height=4.6cm,
   xmin=0, xmax=90,
   xlabel={格数}, ytick=data,
-  yticklabels={union pdf（71 clean+8 partial）,compile zh pdf（61+13）,xlat ok,parse ok,ingest},
+  yticklabels={union pdf,compile zh pdf,xlat ok,parse ok,ingest},
   y tick label style={font=\scriptsize},
   nodes near coords, nodes near coords style={font=\scriptsize},
   bar width=4.2mm,
@@ -49,17 +49,17 @@ stagerun DAG & 80 篇跨层 & \textbf{union pdf 79/80=98.75\%}；clean 71/80=88.
 ]
 \addplot+[fill=cA!70,draw=cA] coordinates {(79,0) (74,1) (76,2) (79,3) (80,4)};
 \nextgroupplot[
-  ybar, bar width=5.5mm,
-  width=6.4cm, height=4.6cm,
+  ybar, bar width=5mm,
+  width=5.4cm, height=4.6cm,
   ymin=0, ymax=90,
-  symbolic x coords={base 裸编译,zh+fixloop union},
+  symbolic x coords={base 裸编,zh+fix 联合},
   xtick=data, x tick label style={font=\scriptsize},
   ylabel={格数}, y label style={font=\small},
-  legend style={at={(0.5,-0.24)},anchor=north,legend columns=2,font=\scriptsize},
+  legend style={at={(0.5,-0.26)},anchor=north,legend columns=2,font=\scriptsize},
   nodes near coords, nodes near coords style={font=\scriptsize},
 ]
-\addplot+[fill=cD!70,draw=cD] coordinates {(base 裸编译,50) (zh+fixloop union,71)};
-\addplot+[fill=cC!75,draw=cC] coordinates {(base 裸编译,19) (zh+fixloop union,8)};
+\addplot+[fill=cD!70,draw=cD] coordinates {(base 裸编,50) (zh+fix 联合,71)};
+\addplot+[fill=cC!75,draw=cC] coordinates {(base 裸编,19) (zh+fix 联合,8)};
 \legend{clean,partial（pdf\~{}）}
 \end{groupplot}
 \end{tikzpicture}
