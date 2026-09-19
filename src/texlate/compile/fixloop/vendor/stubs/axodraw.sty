@@ -2,50 +2,94 @@
 % axodraw.sty S1 替身：Vermaseren 非商用许可（TL 除名件）→ 不可
 % vendored。费曼图 cs 全吞参 no-op；\Text 仍出文字（标签不丢）。
 % picture env 内调用安全；输出=空白位+文字标签，布局降级。
+% 签名按 corpus 真件 v1898 (hep-ph/0307200) 逐条对齐——吞参形状错位
+% 会吃掉调用点后的 token（弧族多吞 #3#4、Dash* 漏吞 {dash} 均有实证
+% 危害），故全族按真件参数形状重列（axodraw-lane 2026-09-19）。
 \NeedsTeXFormat{LaTeX2e}
 \ProvidesPackage{axodraw}[2026/09/19 texlate stub — original not redistributable]
 \PackageWarningNoLine{texlate-stub}{axodraw.sty is a compatibility shim}
 
-% —— 两点连线族 \X(x1,y1)(x2,y2) ——
+% —— 两点连线族 \X(x1,y1)(x2,y2)[{dash}] ——
 \def\Line(#1)(#2){}
-\def\DoubleLine(#1)(#2){}
-\def\DashLine(#1)(#2){}
 \def\ArrowLine(#1)(#2){}
-\def\ArrowDoubleLine(#1)(#2){}
-\def\DashArrowLine(#1)(#2){}
 \def\LongArrow(#1)(#2){}
-\def\DashLongArrow(#1)(#2){}
+\def\DashLine(#1)(#2)#3{}
+\def\DashArrowLine(#1)(#2)#3{}
+\def\DashLongArrow(#1)(#2)#3{}
+\def\DoubleLine(#1)(#2){}
+\def\ArrowDoubleLine(#1)(#2){}
 \def\ESO(#1)(#2){}
 % —— 粒子线族 \X(x1,y1)(x2,y2){放大}{分段} ——
 \def\Photon(#1)(#2)#3#4{}
 \def\Gluon(#1)(#2)#3#4{}
 \def\ZigZag(#1)(#2)#3#4{}
-\def\ArrowArcn(#1)(#2)#3#4{}
-% —— 圆弧/曲线族 \X(cx,cy)(r){起}{止} 近似签名 ——
-\def\ArrowArc(#1)(#2)#3#4{}
-\def\DashArrowArc(#1)(#2)#3#4{}
+% —— 弧族 \X(cx,cy)(r,起,止)[{dash}]——角参在第二括号组内，弧后仅
+% Dash*/GlueArc/PhotonArc 带尾随参；多吞会吃调用点下一 token ——
+\def\ArrowArc(#1)(#2){}
+\def\ArrowArcn(#1)(#2){}
+\def\LongArrowArc(#1)(#2){}
+\def\LongArrowArcn(#1)(#2){}
+\def\DashArrowArc(#1)(#2)#3{}
+\def\DashArrowArcn(#1)(#2)#3{}
 \def\GlueArc(#1)(#2)#3#4{}
-\def\CArc(#1)(#2)#3#4{}
-\def\DashCArc(#1)(#2)#3#4{}
+\def\PhotonArc(#1)(#2)#3#4{}
+\def\CArc(#1)(#2){}
+\def\DashCArc(#1)(#2)#3{}
+% —— 曲线族 \Curve{(x,y)…(x,y)} / \DashCurve{点列}{dash} ——
+\def\Curve#1{}
+\def\DashCurve#1#2{}
 \def\BSpline(#1)(#2){}
-% —— 顶点/圆：一point族 \X(x,y){..} ——
+% —— 顶点/圆/三角/椭圆 ——
 \def\Vertex(#1)#2{}
 \def\BCirc(#1)#2{}
 \def\GCirc(#1)#2#3{}
-% —— 盒：两point族 \X(x1,y1)(x2,y2) ——
+\def\CCirc(#1)#2#3#4{}
+\def\ETri(#1)(#2)(#3){}
+\def\BTri(#1)(#2)(#3){}
+\def\GTri(#1)(#2)(#3)#4{}
+\def\CTri(#1)(#2)(#3)#4#5{}
+\def\Oval(#1)(#2)(#3){}
+\def\GOval(#1)(#2)(#3)#4{}
+\def\COval(#1)(#2)(#3)#4#5{}
+% —— 盒族 ——
 \def\EBox(#1)(#2){}
 \def\BBox(#1)(#2){}
-\def\GBox(#1)(#2){}
-% —— 文字：一point + 内容照排 ——
-\def\Text(#1)#2{#2}
-\def\EText(#1)#2{#2}
+\def\GBox(#1)(#2)#3{}
+\def\CBox(#1)(#2)#3#4{}
+\def\Boxc(#1)(#2){}
+\def\BBoxc(#1)(#2){}
+\def\GBoxc(#1)(#2)#3{}
+\def\CBoxc(#1)(#2)#3#4{}
+% —— 轴族 \X(起)(止)(刻参) ——
+\def\LinAxis(#1)(#2)(#3){}
+\def\LogAxis(#1)(#2)(#3){}
+% —— 文字族：内容照排，位置/灰度/色参吞掉 ——
+% \Text(x,y)[pos]{t}——[pos] 真件语法上必现但可空；\@ifnextchar 容错无括号形
+\def\Text(#1){\@ifnextchar[{\axo@Text}{\axo@Text[]}}
+\def\axo@Text[#1]#2{#2}
 \def\BText(#1)#2{#2}
-\def\GText(#1)#2{#2}
-% —— 设定族 ——
+\def\GText(#1)#2#3{#3}
+\def\CText(#1)#2#3#4{#4}
+\def\EText(#1)#2{#2}
+\def\B2Text(#1)#2#3{#2 #3}
+\def\G2Text(#1)#2#3#4{#3 #4}
+\def\C2Text(#1)#2#3#4#5{#4 #5}
+% \PText(x,y)(page)[pos]{t} / \rText(x,y)[pos][rot]{t} —— 可选位同法
+\def\PText(#1)(#2){\@ifnextchar[{\axo@PText}{\axo@PText[]}}
+\def\axo@PText[#1]#2{#2}
+\def\rText(#1){\@ifnextchar[{\axo@rTi}{\axo@rTi[]}}
+\def\axo@rTi[#1]{\@ifnextchar[{\axo@rTii}{\axo@rTii[]}}
+\def\axo@rTii[#1]#2{#2}
+% —— 设定族 —— \SetOffset/\SetScaledOffset 真件是括号形 (x,y) 非花括号
 \providecommand{\SetScale}[1]{}
 \providecommand{\SetWidth}[1]{}
-\providecommand{\SetOffset}[2]{}
+\def\SetOffset(#1){}
+\def\SetScaledOffset(#1){}
+\providecommand{\SetPFont}[2]{}
 \providecommand{\AxoSeq}[1]{}
+% 真件内部尺度寄存宏（稿内偶见引用）——值任意，仅防 undefined
+\def\axoscale{1 }\def\axowidth{0.5 }
+\def\axoxoff{0 }\def\axoyoff{0 }\def\axoxo{0 }\def\axoyo{0 }
 % —— 色面（真件 \openin colordvi.sty 两臂取无 colordvi 臂语义）——
 % \SetColor 真件只记 \axocolor 供 PS specials，不染 TeX 文本色（区别于
 % axodraw2 的 \let\SetColor=\color）；绘图全 no-op 故记色无对象，取 no-op。

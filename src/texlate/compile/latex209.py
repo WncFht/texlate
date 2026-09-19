@@ -210,6 +210,10 @@ _PKG_OPTS = frozenset(
         "color",
         "pstricks",
         "rotate",
+        # axodraw 是真包（Vermaseren 非商用许可 → off-CTAN，vendor/stubs 有
+        # 替身）——209 选项位即装载语义，留类选项位则静默不加载，
+        # hep-ph/0111339 \LongArrow/\Line undefined_cs 实证（axodraw-lane）。
+        "axodraw",
         # AMS 族
         "amsmath",
         "amstex",
