@@ -15,7 +15,9 @@ refactor-audit-2026-09-17 ★1 收口：两臂各自保留编排（报告形状�
   fixloop 调用包装与 dropped ``engine_flags`` 的 tectonic→xelatex
   跨引擎重试取优；``ruleset_with_baseline`` 把运行时 baseline
   树注入 restore_support_from_src（worker ``ctx.base_dir`` /
-  e2e ``_baseline_snapshot`` 两源同一注入件）
+  e2e ``_baseline_snapshot`` 两源同一注入件）。``fixloop``/
+  ``precheck_pass`` 调用点经 ``compile.seams`` 查名——patch 打
+  ``seams.X`` 或 ``repair.X`` 旧锚同拦（回指语义见 seams docstring）
 - E2 批（2026-09-17 自 ``e2e`` 下沉）：glossary confine kernel
   ``resolve_glossary_path``（相对路径 + ``..`` 拒 + resolve-jail）
   留置本文件——两臂同一实现
@@ -38,8 +40,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from texlate.compile import seams
 from texlate.compile.cjkmap import embed_cjk_mappings
-from texlate.compile.fixloop.engine import Ruleset, fixloop, precheck_pass
+from texlate.compile.fixloop.engine import (
+    Ruleset,
+    fixloop,  # noqa: F401 -- repair.fixloop 旧锚位（seams.__getattr__ 回指面）
+    precheck_pass,  # noqa: F401 -- repair.precheck_pass 旧锚位（seams.__getattr__ 回指面）
+)
 from texlate.compile.judge import judge
 from texlate.textutil import safe_is_file, safe_resolve
 
@@ -201,7 +208,7 @@ def run_fixloop(  # noqa: PLR0913 -- 开关面穿透两臂同一契约
     ``fixloop`` 轮顶轮询 + ``ResProxy.compile`` 注入引擎进程级杀树。
     """
     proxy = ResProxy(engine, should_cancel)
-    cell = fixloop(
+    cell = seams.fixloop(
         work,
         proxy,
         engine_name=engine_name,
@@ -232,7 +239,7 @@ def run_precheck(
     以 ctx 主档判豁免，译后树自动探测会误选）。无编译发生，不需
     ``ResProxy``；异常不吞——同 ``run_fixloop`` 契约，两臂各自决定兜底形态。
     """
-    return precheck_pass(work, engine, engine_name=engine_name, main_rel=main_rel)
+    return seams.precheck_pass(work, engine, engine_name=engine_name, main_rel=main_rel)
 
 
 def ruleset_with_baseline(baseline: Path) -> Ruleset:
@@ -243,7 +250,7 @@ def ruleset_with_baseline(baseline: Path) -> Ruleset:
     ``_substitute`` 只展开 ``{payload}`` 模板，故按 transform 名直接
     改写加载后的规则 raw dict。规则行未落地时为空转 no-op。
     """
-    rs = Ruleset.load()
+    rs = Ruleset.load(tolerant=True)
     for rule in rs.rules:
         act = rule.raw.get("action") or {}
         if act.get("kind") == "builtin_transform" and act.get("function") in {
