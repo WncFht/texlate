@@ -149,6 +149,7 @@ def _fixloop_one(
             proxy,
             ruleset=rs,
             engine_name="xelatex",
+            main_rel=main_rel,
             corpus_id=pid,
             cond="fixloop",
             runner=flb._texmf_runner(texmf),

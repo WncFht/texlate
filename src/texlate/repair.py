@@ -184,6 +184,7 @@ def run_fixloop(  # noqa: PLR0913 -- 开关面穿透两臂同一契约
     engine: Engine,
     *,
     engine_name: str,
+    main_rel: str | None = None,
     llm_hook: LlmHook | None = None,
     compile_timeout: float | None = None,
     should_cancel: Callable[[], bool] | None = None,
@@ -191,17 +192,20 @@ def run_fixloop(  # noqa: PLR0913 -- 开关面穿透两臂同一契约
 ) -> tuple[dict[str, Any], CompRes | None]:
     """``ResProxy`` 包装 + ``fixloop()`` 调用 + 末次 ``CompRes`` 取回。
 
-    ``**kw`` 透传 fixloop 的其余开关面（``ruleset``/``corpus_id``/
-    ``cond``/``case_sink``/``on_round`` 等，worker 臂使用）。异常不吞——两臂各自
-    决定兜底形态（e2e 产 error dict、worker 记日志返回原 res）。
-    ``should_cancel`` 双落：``fixloop`` 轮顶轮询 + ``ResProxy.compile``
-    注入引擎进程级杀树。
+    ``main_rel`` 透传 fixloop 的指定主档——调用方已知正确主档时必须
+    显式给（译后树语种重排会让 ``find_main_tex`` 误选 standalone
+    英文档，ds209diag #191）；None 走内部双档探测。``**kw`` 透传其余
+    开关面（``ruleset``/``corpus_id``/``cond``/``case_sink``/``on_round``
+    等，worker 臂使用）。异常不吞——两臂各自决定兜底形态（e2e 产
+    error dict、worker 记日志返回原 res）。``should_cancel`` 双落：
+    ``fixloop`` 轮顶轮询 + ``ResProxy.compile`` 注入引擎进程级杀树。
     """
     proxy = ResProxy(engine, should_cancel)
     cell = fixloop(
         work,
         proxy,
         engine_name=engine_name,
+        main_rel=main_rel,
         llm_hook=llm_hook,
         compile_timeout=compile_timeout,
         should_cancel=should_cancel,
@@ -215,6 +219,7 @@ def run_precheck(
     engine: Engine,
     *,
     engine_name: str,
+    main_rel: str | None = None,
 ) -> dict[str, Any]:
     """``precheck_pass`` 委托——编译链前的静态预检（两臂共享件）。
 
@@ -222,10 +227,12 @@ def run_precheck(
     解嵌套 tar / build_directive_harvest 收割构建 flag——全增量件不碰
     .tex 源，对 L2 resplice 安全。缺包类失败在 L2 归因前就消掉
     （``t_f74894ebc691aaf4`` algpseudocodex 实证：missing_file 进 L2
-    兜底只会把块拖去重译/回退）。无编译发生，不需 ``ResProxy``；
-    异常不吞——同 ``run_fixloop`` 契约，两臂各自决定兜底形态。
+    兜底只会把块拖去重译/回退）。``main_rel`` 同 ``run_fixloop``——
+    调用方持有正确主档时透传（subfile_docclass_strip 等 precheck 规则
+    以 ctx 主档判豁免，译后树自动探测会误选）。无编译发生，不需
+    ``ResProxy``；异常不吞——同 ``run_fixloop`` 契约，两臂各自决定兜底形态。
     """
-    return precheck_pass(work, engine, engine_name=engine_name)
+    return precheck_pass(work, engine, engine_name=engine_name, main_rel=main_rel)
 
 
 def ruleset_with_baseline(baseline: Path) -> Ruleset:

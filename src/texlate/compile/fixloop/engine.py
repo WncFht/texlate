@@ -1004,6 +1004,7 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
     *,
     ruleset: Ruleset | None = None,
     engine_name: str | None = None,
+    main_rel: str | None = None,
     corpus_id: str | None = None,
     cond: str | None = None,
     llm_hook: LlmHook | None = None,
@@ -1018,6 +1019,12 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
     verdict ∈ clean / acceptable_pdf / dirty_pdf / best_effort_pdf /
     unfixable:<cat> / stuck / max_rounds / reject:<rid> /
     no_errors_no_pdf / no_main_tex[:<sub>]（``classify_no_main`` 细分）
+
+    ``main_rel`` 缺省时 ``find_main_tex`` 双档推导；调用方持有正确主档
+    时显式传入（译后 splice 树的语种重排会让 ``language_rank`` 把
+    CJK 主档输给 standalone 英文档——ds209diag #191 实证 4 格误选）。
+    指定档缺件/指树外则回退自动探测，落 ``cell["main_fallback"]`` 留痕；
+    ``cell["main"]`` 恒记实效主档。
 
     ``on_round`` 可选逐轮回调：每轮 ``cell["rounds"]`` 落新 entry 即同步
     调用（含 salvage 兜底轮），entry 与 cell 内同对象——server worker
@@ -1057,10 +1064,24 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
         # 的修复语义, verdict ``reject:<rid>`` 的结构化面。
         "gate_fired": [],
         "floor_restored": False,
+        # 调用方指定主档缺件/树外时的回退留痕——None = 无回退发生
+        "main_fallback": None,
     }
     ctx = LoopCtx(wdir=wdir, engine_name=engine_name, runner=runner, llm_hook=llm_hook)
 
-    main = find_main_tex(wdir)
+    main: Path | None = None
+    if main_rel is not None:
+        cand = wdir / main_rel
+        # 树外引用 (绝对路径/.. 逃逸) 与缺件同档处理——主档必须在工程树内
+        if cand.is_file() and cand.resolve().is_relative_to(wdir.resolve()):
+            main = cand
+        else:
+            cell["main_fallback"] = main_rel
+            ctx.ledger.advisories.append(
+                f"main_rel {main_rel} not in tree; fell back to find_main_tex"
+            )
+    if main is None:
+        main = find_main_tex(wdir)
     if main is None:
         sub = _classify_no_main(wdir)
         cell["verdict"] = f"no_main_tex:{sub}" if sub else "no_main_tex"

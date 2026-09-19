@@ -858,6 +858,50 @@ def test_find_main_tex_loose_tier_uppercase(tmp_path: Path) -> None:
     assert find_main_tex(tmp_path) == tmp_path / "BROKEN.TEX"
 
 
+# ---------------------------------------------------------------- main_rel 指定主档 (#191)
+def test_main_rel_overrides_language_demotion(tmp_path: Path) -> None:
+    r"""ds209diag #191: 译后 splice 树 CJK 主档被 ``language_rank`` 降权,
+    ``find_main_tex`` 误选 standalone 英文档——显式 ``main_rel`` 必须胜出。"""
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\n"
+        "你好世界你好世界你好世界\n\\end{document}\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "tab1.tex").write_text(
+        "\\documentclass{standalone}\n\\begin{document}\n"
+        "English table body\n\\end{document}\n",
+        encoding="utf-8",
+    )
+    eng = MockEngine([{"log": CLEAN_LOG, "pdf": True}])
+    # 自动探测复现误选 (CJK 主档输给 standalone 英文档)
+    assert find_main_tex(tmp_path) == tmp_path / "tab1.tex"
+    cell = fixloop(tmp_path, eng, main_rel="main.tex")
+    assert cell["main"] == "main.tex"
+    assert cell["main_fallback"] is None
+    assert cell["verdict"] == "clean"
+
+
+def test_main_rel_missing_falls_back(tmp_path: Path) -> None:
+    """指定主档缺件 → 回退 ``find_main_tex`` 且 ``main_fallback`` 留痕。"""
+    make_proj(tmp_path)
+    eng = MockEngine([{"log": CLEAN_LOG, "pdf": True}])
+    cell = fixloop(tmp_path, eng, main_rel="ghost.tex")
+    assert cell["main"] == "main.tex"
+    assert cell["main_fallback"] == "ghost.tex"
+    assert cell["verdict"] == "clean"
+    assert any("ghost.tex" in a for a in cell["advisories"])
+
+
+def test_main_rel_docclass_less_honored(tmp_path: Path) -> None:
+    r"""指定档无 ``\documentclass`` 也照用——缺 dc 正是待修形态, 信调用方。"""
+    make_proj(tmp_path)
+    (tmp_path / "frag.tex").write_text("broken body fragment\n", encoding="utf-8")
+    eng = MockEngine([{"log": CLEAN_LOG, "pdf": True}])
+    cell = fixloop(tmp_path, eng, main_rel="frag.tex")
+    assert cell["main"] == "frag.tex"
+    assert cell["verdict"] == "clean"
+
+
 def test_ctx_tex_files_case_insensitive(tmp_path: Path) -> None:
     r"""``LoopCtx.tex_files`` 扩展名匹配大小写不敏感——``.TEX`` 进 source_blob。"""
     (tmp_path / "PAPER.TEX").write_text("x", encoding="utf-8")
@@ -1253,8 +1297,7 @@ def test_detach_input_letter_wrap_per_host() -> None:
     assert n == 1
     assert (
         "\\edef\\TeXlateStyInRestore{\\catcode 64=\\the\\catcode 64\\relax}"
-        "\\catcode 64=11\\relax \\input{physics.sty} \\TeXlateStyInRestore"
-        in tex_out
+        "\\catcode 64=11\\relax \\input{physics.sty} \\TeXlateStyInRestore" in tex_out
     )
     assert "\\makeatletter" not in tex_out
     sty_out, _ = _detach_physics_loads(src, add_input=True, letter_wrap=False)
