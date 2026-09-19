@@ -111,12 +111,7 @@ class TaskRunner:
         for r in rows:
             self.enqueue(
                 str(r["id"]),
-                Secrets(
-                    api_key=auth.api_key,
-                    base_url=auth.base_url,
-                    model=str(r["model"]),
-                    source=auth.source,
-                ),
+                Secrets.from_auth(auth, model=str(r["model"])),
             )
         log.info("replayed %d queued task(s) after restart", len(rows))
 
@@ -201,6 +196,23 @@ class TaskRunner:
             self._current[2].cancel()
             return True
         return False
+
+    def inflight_task_ids(self) -> set[str]:
+        """在飞任务 id 集（队列暂存 + 排队中 + 当前跑）——清扫面跳过集。
+
+        终态任务在清扫枚举与落手之间被 retry/retranslate 翻活时，本集
+        兜底不瘦其目录。``asyncio.Queue`` 无公开快照——读内部 deque
+        只扫不摘，loop 单写者下无并发改形。
+        """
+        ids: set[str] = set()
+        sources: list[str | _RetranslateJob] = list(self._pending_enqueue)
+        if self._queue is not None:
+            sources.extend(self._queue._queue)  # noqa: SLF001 -- 无公开快照面
+        for item in sources:
+            ids.add(item.task_id if isinstance(item, _RetranslateJob) else item)
+        if self._current is not None:
+            ids.add(self._current[0])
+        return ids
 
     # ------------------------------------------------------------ 内部
 

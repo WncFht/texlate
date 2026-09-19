@@ -22,6 +22,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import shutil
+import time
 from contextlib import asynccontextmanager, suppress
 from typing import TYPE_CHECKING
 
@@ -31,6 +32,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette._utils import get_route_path  # 路由匹配同一条路径视图（剥 root_path）
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.middleware.gzip import GZipMiddleware
 
 from texlate import __version__
 from texlate.server.events import EventBus
@@ -49,6 +51,7 @@ from texlate.server.http import (
 )
 from texlate.server.routers import AppDeps, register_routers
 from texlate.server.settings import (
+    BYOK_FIELDS,
     SettingsStore,
     install_log_scrub,
     server_mode,
@@ -56,7 +59,16 @@ from texlate.server.settings import (
 )
 from texlate.server.settings import data_dir as default_data_dir
 from texlate.server.staticfiles import mount_spa
-from texlate.server.store import Store, StoreError, TransitionError, valid_task_id
+from texlate.server.store import (
+    ACTIVE_STATUSES,
+    TERMINAL_STATUSES,
+    Store,
+    StoreError,
+    TransitionError,
+    slim_task_dir,
+    valid_task_id,
+)
+from texlate.server.store._common import _dir_size
 from texlate.server.worker import (
     URL_KIND,
     PipelineWorker,
@@ -170,29 +182,94 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 装配阶梯+闭包面平铺
             n += 1
         return n
 
-    async def _retention_loop() -> None:
-        """产物保留策略周期 sweep（每 10min 一拍；``retention_*`` 全 0 = 关）。
+    tasks_dir = root / "tasks"
 
-        ``Store.sweep_retention`` 按 tasks/ 目录占用 + 行龄做淘汰；失败只
-        log——保留策略是后台清扫面，故障绝不拖垮服务。settings 每拍重读
-        （PUT 即生效，不用重启）。
+    async def _slim_terminal() -> None:
+        """瘦身段（无条件）：终态任务 ``tasks/{id}/`` 清未登记字节。
+
+        产物/记录全留；done/partial 追加 ``zh``/``base`` 整树——单块重
+        译（``_ensure_scans`` 重解析 base/ + resplice 写 zh/）与 share
+        打包的 glossary 指纹都读活树。DB 留 loop 线程，dir walk 逐任务
+        ``to_thread`` 卸载；retry 竞窗靠 runner 在飞集 + 逐任务状态复
+        核收窄（复核→walk 间翻活只丢一拍窗口，下拍再瘦）。
+        """
+        skip = runner.inflight_task_ids()
+        slim_freed = 0
+        slimmed = 0
+        for tid in store.terminal_task_ids():
+            if tid in skip:
+                continue
+            row = store.get(tid)
+            if row is None or str(row["status"]) not in TERMINAL_STATUSES:
+                continue
+            keep = {str(rec["path"]) for rec in store.files(tid).values()}
+            keep_dirs = (
+                ("zh", "base") if str(row["status"]) in ("done", "partial") else ()
+            )
+            freed = await asyncio.to_thread(
+                slim_task_dir, tasks_dir / tid, keep, keep_dirs
+            )
+            if freed:
+                slimmed += 1
+                slim_freed += freed
+        if slimmed:
+            log.info("slim sweep: %d task(s), freed %d B", slimmed, slim_freed)
+
+    async def _sweep_delete() -> None:  # noqa: C901 -- 两阶段淘汰阶梯平铺
+        """删除段：``retention_days``/``retention_max_gb`` 淘汰整任务（全 0 = 关）。
+
+        ``sweep_retention`` 的 loop-native 版——决策查询（``TaskRepo``
+        单侧化）+ ``delete_task_guard`` 条件写留在 loop，``_dir_size``/
+        ``rmtree`` 重 I/O 逐段 ``to_thread``。settings 每拍重读（PUT 即
+        生效，不用重启）。
+        """
+        st = settings_store.load()
+        days = int(st.get("retention_days") or 0)
+        max_gb = int(st.get("retention_max_gb") or 0)
+        if days <= 0 and max_gb <= 0:
+            return
+        removed: list[str] = []
+        freed_bytes = 0
+
+        async def _drop(tid: str) -> int:
+            """条件删行（loop）+ rmtree（thread）→ 目录字节数。"""
+            if not store.delete_task_guard(tid, blocked=ACTIVE_STATUSES):
+                return 0
+            sz = await asyncio.to_thread(_dir_size, tasks_dir / tid)
+            await asyncio.to_thread(shutil.rmtree, tasks_dir / tid, ignore_errors=True)
+            removed.append(tid)
+            return sz
+
+        if days > 0:
+            cutoff = time.time() - days * 86400
+            for tid in store.retention_candidates(cutoff):
+                freed_bytes += await _drop(tid)
+        if max_gb > 0:
+            cap = max_gb * (1 << 30)
+            total = await asyncio.to_thread(_dir_size, tasks_dir)
+            if total > cap:
+                for tid in store.terminal_oldest_first():
+                    if total <= cap:
+                        break
+                    sz = await _drop(tid)
+                    freed_bytes += sz
+                    total -= sz
+        if removed:
+            log.info(
+                "retention sweep: %s",
+                {"removed": removed, "freed_bytes": freed_bytes},
+            )
+
+    async def _retention_loop() -> None:
+        """产物保留策略周期 sweep（每 10min 一拍：瘦身 + retention 删除）。
+
+        失败只 log——保留策略是后台清扫面，故障绝不拖垮服务。
         """
         while True:
             await asyncio.sleep(600)
             try:
-                st = settings_store.load()
-                days = int(st.get("retention_days") or 0)
-                max_gb = int(st.get("retention_max_gb") or 0)
-                if days <= 0 and max_gb <= 0:
-                    continue
-                report = await asyncio.to_thread(
-                    store.sweep_retention,
-                    root / "tasks",
-                    max_age_s=float(days * 86400) if days > 0 else 0.0,
-                    max_total_bytes=max_gb * (1 << 30) if max_gb > 0 else 0,
-                )
-                if report.get("removed"):
-                    log.info("retention sweep: %s", report)
+                await _slim_terminal()
+                await _sweep_delete()
             except Exception as e:  # noqa: BLE001 -- 后台清扫失败只留 warning
                 log.warning("retention sweep failed: %s", e)
 
@@ -318,12 +395,15 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 装配阶梯+闭包面平铺
                     "content-type",
                     "idempotency-key",
                     "last-event-id",
-                    "x-texlate-key",
-                    "x-texlate-base-url",
-                    "x-texlate-model",
+                    # BYOK 头面与 ``BYOK_FIELDS`` 单源——加字段自动进 CORS
+                    *(spec.header for spec in BYOK_FIELDS),
                 ],
             )
     app.state.cors_origins = _origins
+
+    # gzip 出站压缩：最后挂即最外层（starlette 后加先跑），CORS/闸响应也
+    # 过它。server 形态远程访问 JSON 端点省 3-10x 流量；local 回环无感。
+    app.add_middleware(GZipMiddleware, minimum_size=1000)
 
     @app.exception_handler(_ApiError)
     async def _api_error(_req: Request, exc: _ApiError) -> JSONResponse:

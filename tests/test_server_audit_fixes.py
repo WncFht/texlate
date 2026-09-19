@@ -24,13 +24,22 @@ pytest.importorskip("fastapi", reason="server extra 未装")
 from conftest import mk_task_row
 
 from texlate.server.events import EventBus
-from texlate.server.settings import SettingsStore, resolve_auth
+from texlate.server.settings import (
+    _CONNECTION_SLOTS,
+    _MODEL_PROBE_FIELDS,
+    BYOK_FIELDS,
+    SettingsStore,
+    resolve_auth,
+)
 from texlate.server.store import (
     ACTIVE_STATUSES,
     ERROR_CODES,
     Store,
     new_task_id,
+    row_json,
+    slim_task_dir,
 )
+from texlate.server.worker import Secrets
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -211,6 +220,75 @@ class TestCrossSlotAuth:
         assert resolve_auth(_SETTINGS, salt="s").api_key == "sk-settings-1"
         bare = {"base_url": "", "model": "", "api_key": ""}
         assert resolve_auth(bare, salt="s").api_key == "sk-env-7"
+
+
+class TestByokFieldSpec:
+    """``BYOK_FIELDS`` 单源钉板：请求头面/settings 槽键/探活字段集同由表派生。"""
+
+    def test_wire_headers_and_attrs(self) -> None:
+        assert [s.attr for s in BYOK_FIELDS] == [
+            "api_key",
+            "base_url",
+            "model",
+            "dialect",
+        ]
+        assert [s.header for s in BYOK_FIELDS] == [
+            "x-texlate-key",
+            "x-texlate-base-url",
+            "x-texlate-model",
+            "x-texlate-dialect",
+        ]
+        assert [s.settings_key for s in BYOK_FIELDS] == [
+            "api_key",
+            "base_url",
+            "model",
+            "dialect",
+        ]
+
+    def test_derived_field_sets(self) -> None:
+        assert (
+            frozenset({"api_key", "base_url", "model", "dialect", "clear_api_key"})
+            == _MODEL_PROBE_FIELDS
+        )
+        assert _CONNECTION_SLOTS == ("api_key", "model", "dialect")
+
+    def test_headers_map_drives_resolution(self, clean_env: pytest.MonkeyPatch) -> None:
+        """``headers`` 头面按 spec 查名且覆盖 ``header_*`` kwarg。"""
+        del clean_env
+        ctx = resolve_auth(
+            _SETTINGS,
+            header_key="sk-kwarg",
+            headers={"x-texlate-key": "sk-h", "x-texlate-model": "m-h"},
+            salt="s",
+        )
+        assert (ctx.api_key, ctx.source) == ("sk-h", "header")
+        assert ctx.model == "m-h"
+
+    def test_secrets_from_auth(self) -> None:
+        """``Secrets.from_auth``：model 由调用面覆盖，其余随 AuthContext。"""
+        ctx = resolve_auth(_SETTINGS, header_key="sk-h", salt="s")
+        sec = Secrets.from_auth(ctx, model="m-row")
+        assert (
+            sec.api_key,
+            sec.base_url,
+            sec.model,
+            sec.dialect,
+            sec.source,
+        ) == ("sk-h", ctx.base_url, "m-row", ctx.dialect, "header")
+
+
+class TestRowJson:
+    """``store.row_json``——``*_json`` 列容错反序列化钉板。"""
+
+    def test_fault_tolerance(self) -> None:
+        assert row_json({}, "options_json") == {}
+        assert row_json({"options_json": "{bad"}, "options_json") == {}
+        assert row_json({"options_json": "[1, 2]"}, "options_json") == {}
+        assert row_json({"options_json": '"lit"'}, "options_json") == {}
+        assert row_json({"options_json": '{"a": 1}'}, "options_json") == {"a": 1}
+        assert row_json({"config_json": '{"glossary": "g.yaml"}'}, "config_json") == {
+            "glossary": "g.yaml"
+        }
 
 
 class TestSettingsLoadCache:
@@ -497,6 +575,23 @@ class TestChunksPage:
         rows, _ = store.chunks_page(tid, offset=99)
         assert rows == []
 
+    def test_by_seqs_picks_orders_and_keeps_total(self, store: Store) -> None:
+        """定点取块（增量轮询供）：乱序/重复 seq 归一去重升序，total 仍是全集。"""
+        tid = mk_task_row(store)["id"]
+        store.insert_chunks(tid, _mk_chunks(_N_CHUNKS))
+        store.flush_chunk_batch(
+            tid, [("c7", {"status": "ok", "translation": "译7"})], [], {}
+        )
+        rows, total = store.chunks_by_seqs(tid, [9, 0, 7, 7])
+        assert total == _N_CHUNKS
+        assert [r["seq"] for r in rows] == [0, 7, 9]
+        assert rows[1]["translation"] == "译7"
+        rows, total = store.chunks_by_seqs(tid, [])
+        assert rows == []
+        assert total == _N_CHUNKS
+        rows, _ = store.chunks_by_seqs(tid, [98, 99])
+        assert rows == []
+
 
 class TestAppendEventDropped:
     """be#8：已 DELETE 任务行的迟到 publish 静默丢弃，FK 不炸 worker。"""
@@ -612,6 +707,70 @@ class TestSweepRetention:
         out = store.sweep_retention(tdir, max_age_s=60.0, max_total_bytes=0)
         assert out == {"removed": [tid], "freed_bytes": 0}
         assert store.get(tid) is None
+
+
+class TestSlimTaskDir:
+    """``slim_task_dir``：白名单=登记路径，其余字节+空目录全清（幂等纯 FS）。"""
+
+    def test_keep_registered_and_prune(self, tmp_path: Path) -> None:
+        root = tmp_path / "t1"
+        (root / "build-zh" / "aux").mkdir(parents=True)
+        (root / "zh").mkdir()
+        (root / "zh.pdf").write_bytes(b"x" * 100)
+        (root / "build-zh" / "a.aux").write_bytes(b"x" * 50)
+        (root / "build-zh" / "aux" / "deep.log").write_bytes(b"x" * 30)
+        (root / "zh" / "main.tex").write_bytes(b"x" * 40)
+        (root / "orphan.txt").write_bytes(b"x" * 10)
+        freed = slim_task_dir(root, {"zh.pdf"}, ("zh",))
+        assert freed == 90  # noqa: PLR2004 -- 50+30+10：zh.pdf 与 zh/ 全树保留
+        assert (root / "zh.pdf").is_file()
+        assert (root / "zh" / "main.tex").is_file()
+        assert not (root / "build-zh").exists()
+        assert not (root / "orphan.txt").exists()
+        assert root.is_dir()  # 根目录本身保留
+
+    def test_idempotent_and_missing_dir(self, tmp_path: Path) -> None:
+        assert slim_task_dir(tmp_path / "nope", {"a"}, ()) == 0
+        root = tmp_path / "t2"
+        root.mkdir()
+        (root / "f.bin").write_bytes(b"x" * 7)
+        assert slim_task_dir(root, set(), ()) == 7  # noqa: PLR2004 -- 单文件字节
+        assert slim_task_dir(root, set(), ()) == 0
+        assert root.is_dir()
+
+    def test_keep_entry_traversal_rejected(self, tmp_path: Path) -> None:
+        """keep 项含 ``..``/绝对路径不生效——与 file_get confine 闸同口径。"""
+        root = tmp_path / "t3"
+        root.mkdir()
+        (root / "f.bin").write_bytes(b"x" * 9)
+        freed = slim_task_dir(root, {"../f.bin", "/abs/f.bin"}, ())
+        assert freed == 9  # noqa: PLR2004 -- 单文件字节
+        assert not (root / "f.bin").exists()
+
+    def test_symlink_unlinked_not_followed(self, tmp_path: Path) -> None:
+        root = tmp_path / "t4"
+        outside = tmp_path / "outside"
+        (root / "d").mkdir(parents=True)
+        outside.mkdir()
+        (outside / "real.bin").write_bytes(b"x" * 11)
+        (root / "d" / "link").symlink_to(outside / "real.bin")
+        freed = slim_task_dir(root, set(), ())
+        assert freed == 0  # symlink 不计字节（lstat 非 REG）
+        assert not (root / "d").exists()  # 摘链后 d 空被摘
+        assert (outside / "real.bin").is_file()  # 目标不动
+
+
+class TestTerminalTaskIds:
+    def test_terminal_only_and_tenant_filter(self, store: Store) -> None:
+        done = mk_task_row(store)["id"]
+        store.transition(done, "done", force=True)
+        fault = mk_task_row(store, tenant="other")["id"]
+        store.transition(fault, "fault", force=True)
+        active = mk_task_row(store)["id"]  # queued 原样
+        assert set(store.terminal_task_ids()) == {done, fault}
+        assert store.terminal_task_ids("local") == [done]
+        assert store.terminal_task_ids("other") == [fault]
+        assert active not in store.terminal_task_ids()
 
 
 class TestResyncGapFrame:

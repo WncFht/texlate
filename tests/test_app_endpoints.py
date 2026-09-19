@@ -1546,3 +1546,86 @@ class TestServerModeSettingsGate:
         """local 形态不受影响——PUT settings 正常合并。"""
         r = client.put("/api/settings", json={"concurrency": 4})
         assert r.status_code == HTTPStatus.OK
+
+
+class TestTasksSlim:
+    """POST /api/tasks/slim：终态任务 workdir 清未登记字节，产物/记录全留。"""
+
+    @staticmethod
+    def _seed(client: TestClient, tid: str) -> Path:
+        """造一个典型 workdir：登记产物 + zh/base 活树 + build 中间件。"""
+        tdir = client.app.state.data_dir / "tasks" / tid
+        for d in ("zh", "base", "build-zh"):
+            (tdir / d).mkdir(parents=True, exist_ok=True)
+        (tdir / "zh" / "main.tex").write_bytes(b"x" * 40)
+        (tdir / "base" / "main.tex").write_bytes(b"x" * 20)
+        (tdir / "build-zh" / "a.aux").write_bytes(b"x" * 50)
+        (tdir / "orphan.bin").write_bytes(b"x" * 10)
+        return tdir
+
+    def test_done_task_keeps_artifacts_and_live_trees(
+        self, client: TestClient
+    ) -> None:
+        tid = _mk_kind_task(client, "arxiv")
+        _force(client, tid, "done")
+        _reg_file(client, tid, "zh_pdf", "zh.pdf")
+        tdir = self._seed(client, tid)
+        r = client.post("/api/tasks/slim")
+        assert r.status_code == HTTPStatus.OK
+        body = r.json()
+        assert body["slimmed"] == 1
+        assert body["freed_bytes"] == 60  # noqa: PLR2004 -- a.aux 50 + orphan.bin 10
+        # 登记产物 + zh/base 活树（单块重译依赖）保留；build 中间件清空
+        assert (tdir / "zh.pdf").is_file()
+        assert (tdir / "zh" / "main.tex").is_file()
+        assert (tdir / "base" / "main.tex").is_file()
+        assert not (tdir / "build-zh").exists()
+        assert not (tdir / "orphan.bin").exists()
+        # 幂等：二刷零释放
+        r2 = client.post("/api/tasks/slim")
+        assert r2.json() == {"slimmed": 0, "freed_bytes": 0}
+
+    def test_non_done_terminal_drops_live_trees(
+        self, client: TestClient
+    ) -> None:
+        """fault 终态不可重译——zh/base 同中间件一并清，只留登记件。"""
+        tid = _mk_kind_task(client, "arxiv")
+        _force(client, tid, "fault")
+        _reg_file(client, tid, "compile_log", "compile.log")
+        tdir = self._seed(client, tid)
+        r = client.post("/api/tasks/slim")
+        assert r.status_code == HTTPStatus.OK
+        assert (tdir / "compile.log").is_file()
+        for d in ("zh", "base", "build-zh"):
+            assert not (tdir / d).exists()
+
+    def test_active_task_untouched(self, client: TestClient) -> None:
+        tid = _mk_kind_task(client, "arxiv")
+        _force(client, tid, "translating")
+        tdir = self._seed(client, tid)
+        r = client.post("/api/tasks/slim")
+        assert r.status_code == HTTPStatus.OK
+        assert r.json() == {"slimmed": 0, "freed_bytes": 0}
+        assert (tdir / "orphan.bin").is_file()
+
+    def test_dry_run_reports_without_deleting(
+        self, client: TestClient
+    ) -> None:
+        """``?dry=1``：同口径只算不删——UI 清理菜单的「约可释放 X」预估。"""
+        tid = _mk_kind_task(client, "arxiv")
+        _force(client, tid, "done")
+        _reg_file(client, tid, "zh_pdf", "zh.pdf")
+        tdir = self._seed(client, tid)
+        r = client.post("/api/tasks/slim?dry=1")
+        assert r.status_code == HTTPStatus.OK
+        assert r.json() == {"slimmed": 1, "freed_bytes": 60}
+        # 一个 bit 都没动——含空目录与孤儿文件
+        assert (tdir / "build-zh" / "a.aux").is_file()
+        assert (tdir / "orphan.bin").is_file()
+        # 再 dry 同值；真跑后 dry 归零——预估口径与执行口径一致
+        assert client.post("/api/tasks/slim?dry=1").json()["freed_bytes"] == 60
+        client.post("/api/tasks/slim")
+        assert client.post("/api/tasks/slim?dry=1").json() == {
+            "slimmed": 0,
+            "freed_bytes": 0,
+        }

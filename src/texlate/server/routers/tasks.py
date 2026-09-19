@@ -37,6 +37,8 @@ from texlate.server.store import (
     TERMINAL_STATUSES,
     StoreError,
     TransitionError,
+    row_json,
+    slim_task_dir,
 )
 from texlate.server.worker import cache_key_for
 
@@ -155,14 +157,32 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 端
         # 声明上限必须与 store 钳位同值——高于 CHUNKS_PAGE_MAX 的 limit
         # 会拿 200 却静默丢尾页（clamp 不回告）
         limit: Annotated[int, Query(ge=1, le=CHUNKS_PAGE_MAX)] = 200,
+        # 增量轮询：逗号分隔 seq 集定点取（web 端按 SSE 已知状态只拉脏 seq，
+        # 省掉每 2.5s 全窗几 MB 的重拉）；与 offset/limit 互斥，优先此参数
+        seqs: str = "",
     ) -> Response:
         """Chunk 窄列分页（翻译中流式预览面，fe-U1 配套）。
 
         返回 ``{chunks: [{seq, kind, status, en, zh}], total}``——pending
         块 ``zh`` 为空串；``total`` 是全集大小供前端翻页/进度条。
+        ``?seqs=1,2,3`` 定点模式：只回命中 seq 的行（个数 ≤CHUNKS_PAGE_MAX，
+        非整数/超限 400），total 语义不变。
         """
         deps.get_task(request, task_id)
-        rows, total = deps.store.chunks_page(task_id, offset=offset, limit=limit)
+        if seqs:
+            try:
+                wanted = {int(s) for s in seqs.split(",") if s.strip()}
+            except ValueError:
+                return _json_error(400, "seqs 须为逗号分隔整数", "invalid_request")
+            if len(wanted) > CHUNKS_PAGE_MAX:
+                return _json_error(
+                    400,
+                    f"seqs 个数 ≤{CHUNKS_PAGE_MAX}",
+                    "invalid_request",
+                )
+            rows, total = deps.store.chunks_by_seqs(task_id, sorted(wanted))
+        else:
+            rows, total = deps.store.chunks_page(task_id, offset=offset, limit=limit)
         return JSONResponse(
             {
                 "chunks": [
@@ -298,12 +318,7 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 端
             )
         if "options" in body and not isinstance(body["options"], dict):
             return _json_error(400, "retry options 须为 object", "invalid_request")
-        try:
-            opts = json.loads(row.get("options_json") or "{}")
-        except json.JSONDecodeError:
-            opts = {}
-        if not isinstance(opts, dict):
-            opts = {}
+        opts = row_json(row, "options_json")
         if isinstance(body.get("options"), dict):
             # 合并臂不注默认——``inject_defaults=False`` 只校验 body 真实
             # 出现的键，缺席的 ``source`` 不会被改回 ``eprint``（html 任务
@@ -450,3 +465,38 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 端
             shutil.rmtree, deps.root / "tasks" / task_id, ignore_errors=True
         )
         return JSONResponse({"task_id": task_id, "status": "deleted"})
+
+    @app.post("/api/tasks/slim")
+    async def tasks_slim(request: Request) -> Response:
+        """批量瘦身：终态任务 ``tasks/{id}/`` 清未登记字节，产物/记录全留。
+
+        白名单 = files 表登记路径（``file_get`` 可服务面）；done/partial
+        追加 ``zh``/``base`` 整树——单块重译（``_ensure_scans`` 重解析
+        base/ + resplice 写 zh/）与 share 打包的 glossary 指纹都读活树。
+        rmtree 级重 I/O 逐任务卸出 loop；retry 竞窗靠 runner 在飞集 +
+        逐任务状态复核收窄（复核→walk 间翻活只丢一拍窗口，下拍再瘦）。
+
+        ``?dry=1`` 同口径只算不删——给 UI 出「约可释放 X」预估。
+        """
+        tenant = deps.auth(request).tenant
+        dry = request.query_params.get("dry") in ("1", "true")
+        skip = deps.runner.inflight_task_ids()
+        freed = 0
+        slimmed = 0
+        for tid in deps.store.terminal_task_ids(tenant):
+            if tid in skip:
+                continue
+            row = deps.store.get(tid)
+            if row is None or str(row["status"]) not in TERMINAL_STATUSES:
+                continue
+            keep = {str(rec["path"]) for rec in deps.store.files(tid).values()}
+            keep_dirs = (
+                ("zh", "base") if str(row["status"]) in ("done", "partial") else ()
+            )
+            n = await asyncio.to_thread(
+                slim_task_dir, deps.root / "tasks" / tid, keep, keep_dirs, dry=dry
+            )
+            if n:
+                slimmed += 1
+                freed += n
+        return JSONResponse({"slimmed": slimmed, "freed_bytes": freed})

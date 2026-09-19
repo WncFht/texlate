@@ -242,6 +242,33 @@ class TestChunksLimitContract:
         rows, _ = s.chunks_page(tid, offset=0, limit=10**9)
         assert len(rows) == _CHUNK_EDGE
 
+    def test_seqs_point_fetch(self, client: TestClient) -> None:
+        """?seqs= 定点取块（增量轮询供）：乱序/重复归一升序，total 语义不变。"""
+        tid = mk_api_task(client, ARXIV)
+        client.portal.call(
+            partial(_insert_chunks, client.app.state.store, tid, _CHUNK_EDGE)
+        )
+        r = client.get(f"/api/task/{tid}/chunks?seqs=7,2,2")
+        assert r.status_code == HTTPStatus.OK
+        body = r.json()
+        assert [c["seq"] for c in body["chunks"]] == [2, 7]
+        assert body["total"] == _CHUNK_EDGE
+
+    def test_seqs_bad_input_rejected(self, client: TestClient) -> None:
+        """非整数 / 超 CHUNKS_PAGE_MAX 个数 → 400；未命中 seq → 200 空窗。"""
+        tid = mk_api_task(client, ARXIV)
+        client.portal.call(
+            partial(_insert_chunks, client.app.state.store, tid, _CHUNK_EDGE)
+        )
+        r = client.get(f"/api/task/{tid}/chunks?seqs=a,b")
+        assert r.status_code == HTTPStatus.BAD_REQUEST
+        many = ",".join(str(i) for i in range(501))  # >CHUNKS_PAGE_MAX=500
+        r = client.get(f"/api/task/{tid}/chunks?seqs={many}")
+        assert r.status_code == HTTPStatus.BAD_REQUEST
+        r = client.get(f"/api/task/{tid}/chunks?seqs=999")
+        assert r.status_code == HTTPStatus.OK
+        assert r.json()["chunks"] == []
+
 
 class TestParseOrigin:
     """D3：默认端口保留 → cors_origins 死配。"""
