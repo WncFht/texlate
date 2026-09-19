@@ -1091,3 +1091,10 @@
 - **续派 #169 misscharcen** (普查上下文持): wave-2 两 produced-not-literal 机制——`\char<dec>` TFM 槽改写 (2104.00026×41行, slot 11-15→ff/fi/fl/ffi/ffl) + `^^XX` bbl UTF-8 字节解码臂。
 - roster 8: regrdiag(#166 impl)/misscharcen(#169)/sweepgate(#163)/assetlane(#165)/failmine3(#164)/ifscanner(#167)/loop4wave(#161 run5 催)/loopsched(#144 卡-终警)。
 - 门: teammate 零 git✓; HEAD 67715ad; L0 相关测全绿✓; 40/40 新测; 裁决点 3 件仍待用户。
+
+## 2026-09-19 ~12:0x — #166 首臂落地 2df3a13 + encoding parity 续派
+
+- **tar gate 落地 2df3a13 (2件 +78/−5)**: `_tar_header_start` 双校验——magic+version@257 全宽 8B (POSIX `ustar\x0000`/GNU `ustar  \x00`, 文本 `ustar}`/`ustarh`/`ustar(` 永不中) + `_tar_checksum_ok` 真 POSIX 校验和 (148 域按空格计) + 读窗 +512 + **continue-scan-on-reject** (散文 ustar 在前不掩真头)。2410.17904 `\mustar` 宏名 FP 根除——真 `paper.tex` 改名 .tarblob→missing_file 实案闭。验证: 真伪装 tar 全保 (hdr=0/28), 3 FP blob 全 None; 12+122 测绿。
+- **续派同 lane**: (c) `latex/reconstruct.py` `_restore_linestarts` `(?<=.)`→`(?<=\S)` (2507.14695 根 emitter 伤——绿灯在飞中交叉, 重申); (d) `textutil/encoding.py:639-661` `_tar_disguised` parity——helper 提 textutil 层 (fixloop→textutil 单向 import), inject/probe 门同享双校验, 余留巧合 FP ("012345  " 表数据) 收。
+- roster 8 不变: regrdiag(#166 续)/misscharcen(#169)/sweepgate(#163)/assetlane(#165)/failmine3(#164)/ifscanner(#167)/loop4wave(#161 run5 未答)/loopsched(#144 未答-死线逼近)。
+- 门: teammate 零 git✓; HEAD 2df3a13; 新测全绿。
