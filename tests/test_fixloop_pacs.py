@@ -16,7 +16,9 @@ import re
 from texlate.compile.fixloop import load_ruleset
 from texlate.compile.fixloop._builtins_shim import _REVTEX209_POLYFILL
 
-_PACS_LINE = "\\AtBeginDocument{\\def\\pacs#1{\\par\\noindent\\textbf{PACS:} #1\\par}}"
+_PACS_LINE = (
+    "\\AtBeginDocument{\\long\\def\\pacs#1{\\par\\noindent\\textbf{PACS:} #1\\par}}"
+)
 
 
 def _shim_map() -> dict[str, dict[str, str]]:
