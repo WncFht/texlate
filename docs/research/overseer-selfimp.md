@@ -850,3 +850,10 @@
 ## 2026-09-19 ~15:5x — patrol 静持
 
 - roster 10 全 running 无僵尸；无 detached 批 (run.log 全 >30min 旧)；无新交付。tarmember docstrip 追加在飞 (_builtins_misc.py 持锁等双 hunk 同提)；primarg (test_fixloop_primarg.py 已现)/isabelex (test_fixloop_isabelex.py+75-syntax.yaml 在写) 推进中。HEAD f66a6ec+3d41344 净, clean% 31/32 维, teammate 零 git。
+
+## 2026-09-19 ~16:0x — isabelex 入库 (4046c5a) + csfix2 锁扩 75-syntax
+
+- **isabelex (4046c5a)**：`comment_csform_isabelle_env` order 163.5 新规——isabelle 稿 cs 形 comment env 对 `\isadelim*/\endisa*/\isatag*` → env 形 (comment.sty v3.8 行扫描器要字面行锚 `\end{<env>}` 哨兵, plain 分支删→`\fmtname` hack 死码; cs 形 begin 宏首步 `\endgroup` 吃 isabellebody 组次伤同愈)。pattern `isa(delim|tag)[A-Za-z]+` 盖 isabelletags 扩展; `\isafold*` 纯宏/`\isabelle*` 已 env 不动。**detab 签名闸**：`payload_required`+`ctx_suggests "\\next\b"`——原裸 category 对全 runaway payload 盲发去缩进白烧轮 (1206.0136 `\end{boxedminipage}`/eq 行; `\GetTitle`/`\@xdblarg` 同列)。17 测试, ruleset 126。预期翻 1206.0136 (37pp 实证)。
+- **csfix2 锁扩**：75-syntax.yaml isabelex 落地即空——item-4 扫描器双守 (caller-supplies-\fi 习语 + `\let\cs=<char>\fi` CONSUME=2 假开, aastex61if 证) 由 report-only 升直改, 授权已发。
+- roster 9+failmine3：bticktax(fc9)/shipwrap/tarmember(docstrip)/primarg/kvdig/obeylines/braceval/l0 在写)/csfix2(+75-syntax)/failmine3。
+- 门：teammate 零 git✓；HEAD 4046c5a 净 (126 规装载)；clean% 31/32 维。
