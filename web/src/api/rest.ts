@@ -23,8 +23,12 @@ import {
 const BASE = "/api";
 
 /** 默认请求超时——health 挂起→首页恒「检测中」之类的裸挂收敛到 15s。
- *  调用方传 init.signal 可覆盖（上传不走此路——xhrRequest 无超时）。 */
+ *  调用方传 init.signal 可覆盖（上传不走此路——xhrRequest 用自带
+ *  UPLOAD_TIMEOUT_MS，80MB 慢链要远比 15s 宽）。 */
 export const REQUEST_TIMEOUT_MS = 15_000;
+
+/** 上传 xhr 超时——10min：80MB 上限在 ~150KB/s 慢链约 9min 传完 */
+const UPLOAD_TIMEOUT_MS = 10 * 60_000;
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
     const res = await fetch(`${BASE}${path}`, {
@@ -56,7 +60,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 /**
  * XHR 版 request——fetch 无上传进度事件，带 onProgress 的 multipart
  * 提交走此路。响应解析口径与 request 一致（JSON 错误体 → ApiError，
- * 网络层失败 → TypeError：createRequest 按「未决」留 idem key）。
+ * 网络层失败/超时 → TypeError：createRequest 按「未决」留 idem key）。
  */
 function xhrRequest<T>(
     path: string,
@@ -102,6 +106,10 @@ function xhrRequest<T>(
         };
         xhr.onerror = () => reject(new TypeError("failed to fetch"));
         xhr.onabort = () => reject(new TypeError("upload aborted"));
+        // 上传裸挂（连接滞留）此前无超时——用户只能干等。TypeError 与
+        // onerror 同类：createRequest 按「未决」留 idem key，重试复用不双建
+        xhr.timeout = UPLOAD_TIMEOUT_MS;
+        xhr.ontimeout = () => reject(new TypeError("upload timeout"));
         // init.signal 接 abort——上传路此前丢 signal，取消语义传不进 XHR
         const sig = init.signal;
         if (sig) {
