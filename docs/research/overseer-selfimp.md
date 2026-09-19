@@ -1342,3 +1342,7 @@
 ### gate③ flip evidence — ko-route 2/2 clean
 
 `fixloop --rerun --ids 2403.00013,2410.18001` post-`bce2c8d9`: **2403.00013 → clean (25s), 2410.18001 → clean (30s)**. 2410.18001 的 endcsname 残层同消 — 谚文码位全被路由臂认领后 newunicodechar 激活块不再发射, csname-ingest 路径消失 (endcsdiag item-1 在此格被 ko-route 顺带治愈; 2609.19944 仍待 endsfix 补丁)。
+
+### patrol 17:20 — graphics 文件双道归因图 (45-graphics.yaml + _builtins_graphics.py)
+
+同文件两道在飞 (非冲突 — 引用协调): **covgap** = missing_eps 规则 `when:+missing_graphic` 臂 + condition xetex "Unable to load picture" 措辞 + `_PNG/_JPEG/_PDF_PLACEHOLDER` 真格式占位分发 (:915+73) + main_dir 落盘基址改 + "PS-family→known graphic ext" 改名 (epsplaceholder 测试红 = 其改名未同步 — 交付时并修); **fmsingles** = `graphics_ext_pslist_repair` @17.55 新规 (PoS.cls \ifpdf-else PS-only DeclareGraphicsExtensions → 前置 .pdf/.png/.jpg; 1012.1365 census 注释) + :1013 区 `_has_live_graphic_ref` 扩展。收割: 先到者按 hunk 过滤 staged, 或押后齐交整文。
