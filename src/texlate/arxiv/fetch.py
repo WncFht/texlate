@@ -19,6 +19,7 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import json
+import logging
 import math
 import re
 import time
@@ -49,6 +50,8 @@ from texlate.arxiv.unpack import (
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+log = logging.getLogger(__name__)
 
 ARXIV_HOST: Final = "arxiv.org"
 EXPORT_HOST: Final = "export.arxiv.org"
@@ -305,6 +308,20 @@ class Fetcher:
                     # Retry-After 要求不可兑现的等待（inf）——重试无意义，
                     # 归最后响应为终态（429 → 上层 ERROR/PARKED 分类）
                     break
+                why = (
+                    f"HTTP {last_resp.status_code}"
+                    if last_resp is not None
+                    else str(last_exc)
+                )
+                log.warning(
+                    "%s %s failed (%s) → retry %d/%d in %.0fs",
+                    method,
+                    url,
+                    why,
+                    attempt,
+                    len(RETRY_DELAYS),
+                    delay,
+                )
                 self._sleep(delay)
             try:
                 resp = self._request_once(method, url, headers)
@@ -339,6 +356,19 @@ class Fetcher:
                 delay = _retry_delay(url, attempt, last_resp)
                 if not math.isfinite(delay):
                     break
+                why = (
+                    f"HTTP {last_resp.status_code}"
+                    if last_resp is not None
+                    else str(last_exc)
+                )
+                log.warning(
+                    "GET %s failed (%s) → retry %d/%d in %.0fs",
+                    url,
+                    why,
+                    attempt,
+                    len(RETRY_DELAYS),
+                    delay,
+                )
                 self._sleep(delay)
             try:
                 self.limiter.acquire(url)
@@ -593,6 +623,7 @@ def _head_phase(
     """HEAD + 缓存 etag 比对。返回 (head, cached) 或短路 AcquireResult。"""
     err: AcquireResult | None = None
     head: HeadInfo | None = None
+    log.info("head %s", base)
     try:
         head = fetcher.head_src(base, ver_req)
     except ParkedError as e:
@@ -644,6 +675,7 @@ def _get_phase(
     ids: _Ids, head: HeadInfo, cached: CacheEntry | None, fetcher: Fetcher
 ) -> SrcResult | AcquireResult:
     """GET e-print；非 OK 映射成 AcquireResult 短路。"""
+    log.info("get %sv%s", ids.base, ids.ver)
     try:
         res = fetcher.get_src(
             ids.base,
@@ -681,6 +713,7 @@ def _commit_phase(
     ids: _Ids, res: SrcResult, head: HeadInfo, cache: SourceCache
 ) -> AcquireResult:
     """Staging 落盘：raw + unpack + manifest + locate + meta.json + 原子换入。"""
+    log.info("commit %sv%s", ids.base, ids.ver)
     s = res.sniffed
     if s is None or res.body is None:
         return AcquireResult(

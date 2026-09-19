@@ -18,7 +18,7 @@ import typer
 import texlate.cli as _cli
 from texlate.arxiv.fetch import AcquireStatus
 from texlate.cli._common import _CLI_PATH, _DEFAULT_CACHE, _is_dir, app
-from texlate.cli._output import CliSink, console
+from texlate.cli._output import CliSink, console, status
 from texlate.cli.fetch import _acquire, _echo_acquire
 from texlate.cli.thin import _thin_run
 from texlate.logsetup import configure_logging, level_from_flags
@@ -171,9 +171,10 @@ def run(  # noqa: C901, PLR0913 -- CLI 选项面即参数面 + 本地/瘦客户�
         )
         raise typer.Exit(2)
 
-    src_dir = _resolve_source(
-        source, cache, offline=offline or env_flag("TEXLATE_OFFLINE", default=False)
-    )
+    off = offline or env_flag("TEXLATE_OFFLINE", default=False)
+    if not _is_dir(Path(source).expanduser()) and not quiet:
+        status(f"fetch {source}" + (" (offline)" if off else ""))
+    src_dir = _resolve_source(source, cache, offline=off)
     if src_dir is None:
         raise typer.Exit(1)
 
@@ -195,10 +196,10 @@ def run(  # noqa: C901, PLR0913 -- CLI 选项面即参数面 + 本地/瘦客户�
             work, engine, timeout, front_matter=fm, sink=sink
         )
         typer.echo(json.dumps(verdict, ensure_ascii=False, indent=2))
-        status = verdict.get("status")
+        final = verdict.get("status")
         if verdict.get("reject_at"):
             raise typer.Exit(2)  # 策略拒绝 (status=partial+reject_at): 保持 exit 2
-        if status not in ("clean", "partial"):
+        if final not in ("clean", "partial"):
             raise typer.Exit(1)
     finally:
         if not keep and work_dir is None:
