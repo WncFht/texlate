@@ -74,9 +74,26 @@ _COMMA_LIST_RX = re.compile(r"\s*[\w@*.\-/]+\s*(?:,\s*[\w@*.\-/]+\s*)*,?\s*")
 _KV_COMMENT_RX = re.compile(r"(?<!\\)%[^\n\r]*")
 
 
-def _keyval_shaped(ftext: str, cs: int, ce: int) -> bool:
-    r"""``ftext[cs:ce]`` 剥注释后是否 ``key=``/``flag,key=`` 起头的 keyval 组。"""
-    return _KEYVAL_GROUP_RX.match(_KV_COMMENT_RX.sub(" ", ftext[cs:ce])) is not None
+# 键值/裸键逗号列判形（``_KEYVAL_GROUP_RX`` 的宽口径版）：tikz/pgf 键值列常
+# 裸键起头或全裸键——``[rectangle, draw, text width=8em, text centered,
+# rounded corners, minimum height=4em]``（2009.03715）、``[draw, -latex]``、
+# ``[black!10]``、``[orcid=,email=]``（2410.17963/2403.01255 实证）。逐项
+# 逗号切分后：任一项 ``key=`` 形（``text width=8em`` 的 ``width=``、
+# ``key =v`` 的空格皆中）即键值列；或全项皆机读键 token——``-latex``
+# 箭头名、``blue!50`` 色阶、``/`` 路径键、``.`` 缀名皆收——亦判键值列。
+# ``[see Fig. 1]``/``{散文}`` 单项含空格且无 ``=`` 不中；``_KEYVAL_GROUP_RX``
+# 锚定形被本判据完全覆盖（首项 ``key=`` 即任一项 ``key=`` 的特例）。
+_KEYVAL_ITEM_RX = re.compile(r"[\w@*.\-/!]+[ \t]*=")
+_KEY_TOKEN_RX = re.compile(r"[\w@*.\-/!]+")
+
+
+def _kv_list_shaped(ftext: str, cs: int, ce: int) -> bool:
+    r"""``ftext[cs:ce]`` 剥注释后是否键值/裸键逗号列（宽口径）。"""
+    items = _KV_COMMENT_RX.sub(" ", ftext[cs:ce]).split(",")
+    return any(_KEYVAL_ITEM_RX.search(it) for it in items) or all(
+        bool(it.strip()) and _KEY_TOKEN_RX.fullmatch(it.strip()) is not None
+        for it in items
+    )
 
 
 # 参内零宽命令整调用剥除——``\index``/``\label`` 不产生可见文本，但其
@@ -133,6 +150,50 @@ _PROSE_BLOCK_ARITY = {
     "address": 1,
     "institute": 1,
     "affiliation": 1,
+}
+
+#: ``if*`` 界标路径的名/表达式槽组数——etoolbox/boolexpr/biblatex 测试族
+#: 的首 N 个 ``{..}`` 是机器槽（toggle/bool/cs/field/比较元），不是散文；
+#: 吸收进界标覆盖后 ``{T}{F}`` 支仍留 surface 照译。``\newif`` 旗标
+#: （``\ifdraft``/``\ifmmode`` 等）与 ``\ifx`` 比较没有花括号参——不入表。
+_COND_GROUP_ARGS = {
+    "iftoggle": 1,
+    "ifbool": 1,
+    "ifboolexpr": 1,
+    "ifboolexpe": 1,
+    "ifthenelse": 1,
+    "ifcsdef": 1,
+    "ifcsundef": 1,
+    "ifcsempty": 1,
+    "ifcsvoid": 1,
+    "ifcsmacro": 1,
+    "ifstrempty": 1,
+    "ifblank": 1,
+    "ifnumodd": 1,
+    "ifundef": 1,
+    "ifdefempty": 1,
+    "ifdefvoid": 1,
+    "iffieldundef": 1,
+    "iflistundef": 1,
+    "ifnameundef": 1,
+    "ifentrytype": 1,
+    "ifentryseen": 1,
+    "ifkeyword": 1,
+    "ifcategory": 1,
+    "ifnodedefined": 1,
+    "ifundefined": 1,
+    "ifstrequal": 2,
+    "ifcsstring": 2,
+    "ifdefstring": 2,
+    "ifdefequal": 2,
+    "ifnumequal": 2,
+    "ifnumgreater": 2,
+    "ifnumless": 2,
+    "ifdimequal": 2,
+    "ifdimgreater": 2,
+    "ifdimless": 2,
+    "ifnumcomp": 3,
+    "ifdimcomp": 3,
 }
 
 
@@ -1085,29 +1146,39 @@ class _Args:
         return True
 
     def _keyval_tail_end(self, src: TokenSource, end: int) -> int:
-        r"""PROTECT_BLOCK 首个 ``{arg}`` 之后续吃 keyval 形 ``{..}`` 组 → 新 end。
+        r"""Protect 调用实参之后续吃键值形 ``{..}``/``[..]`` 组 → 新 end。
 
         aipproc ``\author{name}{address=..,email=..}`` 第二参是 keyval 签名
         ——只护首组会让 keyval 组裸进 chunk，``key=`` 键位被译成
         ``这是译文=``，splice 后 ``\setkeys`` 炸 ``Package keyval Error``
         （0905.0330/0905.2183/1012.1143/astro-ph/0408494/0605512 五格）。
-        形状门（``key=``/``flag,key=`` 起头才收）把 ``{散文}`` 误吞面压掉
-        ——非 keyval 组全量回放由主流重扫，与今日行为同。``eol_par`` 段界
-        不跨（``_peek_nonspace`` 内建）；跨 fid 组不收——字节异源没法切
-        片判形，回放是保守等价物。
+        同型 ``[kv]`` 尾参同收：ceurart/elsarticle ``\author[..]{n}[orcid=..,
+        email=..]``（2410.17963/2403.01255）、biblatex ``\printbibliography
+        [title={..},segment=1]``（2403.09125）、``\tikzstyle{n}=[rectangle,
+        draw,text width=8em,..]``/``\tikzstyle{n} = [draw, -latex]``
+        （2009.03715/2403.14735——``=`` 起头可选，并入试探列随败退回放）。
+        形状门（``_kv_list_shaped``——任一项 ``key=`` 或全项裸键 token）把
+        ``{散文}``/``[see Fig. 1]`` 误吞面压掉——非键值组全量回放由主流
+        重扫，与今日行为同。``eol_par`` 段界不跨（``_peek_nonspace`` 内建）；
+        跨 fid 组不收——字节异源没法切片判形，回放是保守等价物。
         """
         while True:
             pulled: list[Tok] = []
             x = self._peek_nonspace(src, pulled)
-            if x is None or x.kind != "lbrace":
+            if x is not None and x.kind == "other" and x.text == "=":
+                pulled.append(x)  # ``=`` 并入试探列——后非键值组随败退回放
+                x = self._peek_nonspace(src, pulled)
+            is_brace = x is not None and x.kind == "lbrace"
+            is_bracket = x is not None and x.kind == "other" and x.text == "["
+            if x is None or not (is_brace or is_bracket):
                 src.unread([*pulled, *([x] if x is not None else [])])
                 return end
-            hit = self._collect_group(src, x, brace=True)
+            hit = self._collect_group(src, x, brace=is_brace)
             if hit is None:
-                src.unread(pulled)  # 组 token 已回吐；ws 回放
+                src.unread(pulled)  # 组 token 已回吐；ws/``=`` 回放
                 return end
             inner, closer = hit
-            if closer.pos[0] != x.pos[0] or not _keyval_shaped(
+            if closer.pos[0] != x.pos[0] or not _kv_list_shaped(
                 self.file_texts[x.pos[0]], x.pos[2], closer.pos[1]
             ):
                 src.unread([*pulled, x, *inner, closer])
@@ -1387,6 +1458,25 @@ class _Args:
                 # 条件区 = [b, nxt.start)：gen>0/跨 fid 窥物不算（非本段字节）
                 if nxt.gen == 0 and nxt.pos[0] == fid:
                     end = nxt.pos[1]
+        for _ in range(_COND_GROUP_ARGS.get(name, 0)):
+            # 名/表达式槽 ``{..}`` 并入界标覆盖（``\iftoggle{proofs}`` 名槽
+            # 裸落 surface 会被译——1306.0026/1511.02547）；``{T}{F}`` 支
+            # 不在吸收数内，留主流照常进 chunk。跨 fid/gen>0 组不收——字节
+            # 异源判不了界，全量回放是保守等价物。
+            pulled: list[Tok] = []
+            x = self._peek_nonspace(src, pulled)
+            if x is None or x.kind != "lbrace" or x.gen != 0 or x.pos[0] != fid:
+                src.unread([*pulled, *([x] if x is not None else [])])
+                break
+            hit = self._collect_group(src, x, brace=True)
+            if hit is None:
+                src.unread(pulled)  # 组 token 已回吐；ws 回放
+                break
+            inner, closer = hit
+            if closer.gen != 0 or closer.pos[0] != fid:
+                src.unread([*pulled, x, *inner, closer])
+                break
+            end = closer.pos[2]
         if self.in_arg:
             self._cover_gap(fid, t.pos[1])
             vspan = self._cover_to(fid, end)
@@ -1466,6 +1556,7 @@ class _Args:
             vmark = len(self.vt)
             rendered = self._subscan_render(a)
             self._rappend(rendered, rendered, Span(vmark, len(self.vt)))
+        end = self._keyval_tail_end(src, end)  # 尾随 ``[kv]`` 选参并入 [[MACRO]] 覆盖
         vspan = self._cover_to(fid, end)
         self._rappend_ph(
             self._ph(PhType.MACRO, self.vt.slice(vspan.start, vspan.end)),
@@ -1500,6 +1591,8 @@ class _Args:
             return False  # ``{key=..}`` 组——键位非散文，整参保持 opaque
         if _COMMA_LIST_RX.fullmatch(stripped):
             return False  # 逗号名单（库/包/文件列）——机读槽位不挖
+        if _kv_list_shaped(self.file_texts[fid], a.cs, a.ce):
+            return False  # 裸键起头/全裸键键值列（``[rectangle,draw,..]`` 面）
         text = _ZERO_WIDTH_ARG_RX.sub(" ", content)
         text = _OPAQUE_ARG_STRIP_RX.sub(" ", text)
         for mm in _OPAQUE_ARG_PROSE_RX.finditer(text):
@@ -1634,6 +1727,7 @@ class _Args:
                 )
                 prose_args = []
             self._cover_gap(fid, t.pos[1])
+            end = self._keyval_tail_end(src, end)  # 尾随 ``[kv]`` 选参并入覆盖
             for a in prose_args:
                 vspan = self._cover_to(fid, a.cs)
                 self._rappend_ph(
@@ -1652,7 +1746,7 @@ class _Args:
         self._unread_args(src, args)
         self._rappend_tok(t)
 
-    def _handle_argspec_cs(  # noqa: C901, PLR0911, PLR0912 — policy 分派早退平铺，顺序即语义
+    def _handle_argspec_cs(  # noqa: C901, PLR0911, PLR0912, PLR0915 — policy 分派早退平铺，顺序即语义
         self, t: Tok, src: TokenSource, e: ArgspecEntry
     ) -> None:
         r"""Argspec 表命中分派：policy → literal/boundary/protect/chunk-arg。
@@ -1707,15 +1801,16 @@ class _Args:
         if not any(a.fe > a.fs for a in args):
             self._unread_args(src, args)
             if e.policy == "boundary" and not self.in_arg:
-                vspan = self._cover_to(fid, b)
+                vspan = self._cover_to(fid, self._keyval_tail_end(src, b))
                 self._flush_run(vspan.start)
                 self._emit(vspan.start, vspan.end)
                 return
             if e.policy in ("protect", "key"):
                 # 签名零参/参数缺席但本体仍要保护（\printindex 类）——
-                # 裸名进 run 会被译文面当真词处理
+                # 裸名进 run 会被译文面当真词处理；尾随 ``[kv]`` 选参同收
+                # （``\printbibliography[title={..},segment=1]`` 2403.09125）
                 self._cover_gap(fid, t.pos[1])
-                vspan = self._cover_to(fid, b)
+                vspan = self._cover_to(fid, self._keyval_tail_end(src, b))
                 self._rappend_ph(
                     self._ph(PhType.CMD, self.vt.slice(vspan.start, vspan.end)),
                     vspan,
@@ -1724,6 +1819,7 @@ class _Args:
             self._rappend_tok(t)
             return
         self._cover_gap(fid, t.pos[1])
+        end = self._keyval_tail_end(src, end)
         if e.policy == "boundary" and not self.in_arg:
             vspan = self._cover_to(fid, end)
             self._flush_run(vspan.start)
@@ -1788,6 +1884,7 @@ class _Args:
         if not consumed:
             self._rappend_tok(t)
             return
+        end = self._keyval_tail_end(src, end)  # 尾随 ``[kv]`` 选参并入末段字面
         text_k = {
             k
             for k, a in enumerate(args[:cut])
