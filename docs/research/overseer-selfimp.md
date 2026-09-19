@@ -1026,3 +1026,12 @@
 - **外来 churn 续观 (不碰)**：peer texlate-* 系 packaging-2026-09-19/ + alphaxiv-reverse.md + e2e/pipecore/repair*/server worker/test_l2*/test_en_fixloop/test_repair_chain_precheck 在飞; gencheck.py 属 tailbucket 已定源。
 - roster 8 全 running：tailbucket(#155)/operandcensus(#159)/regrdiag(#157)/rexlat3(#158 收尾)/fontgate(#156)/misscharcen(#160)/loop4wave(#161)/loopsched(#144 新领)。
 - 门：teammate 零 git✓ (c64d529 后零外来 commit)；HEAD c64d529；规则库 129✓；无新 verdict 波→clean% 门无读数; sab escaped=0 持。
+
+## 2026-09-19 ~10:55 — 巡逻: rexlat-2 #158 全绿毕 + loop4 波在飞 (ifprot 野外实证) + 2 新派满编
+
+- **rexlat3 #158 交付→毕 (report.md 已立)**：Part A 3 majority-lost 格真 xlat 全愈——0501018 5/168→**178/178** ok cjk31→33529 (545s)、0307021 9/140→**136/141**+5partial cjk89→11140 (898s)、0605204 39/84→**63/63** cjk3591→8300 (457s); 0 skipped/fault。Part B wave-1 三格真 xelatex verify: **3/3 CLEAN** (0501058 cjk=9407/0605206 cjk=5974/9703012 cjk=2820, 0 err)——splice 完整性实证强于 mock 门槛。**基建发现: 网关非流式 502 ~10:33 UTC 愈** (raw probe ok)——流桥保留 tmp/lane-rexlat*/ 作复发备援, memory 已更 resolved; 全 fleet 免桥。**跟进已批**: wave-2 三格 compile verdict 已陈 (0501018 有 cjk=31 伪 clean) → verify2.json 同 lane 补真判 (~1min)。
+- **loop4wave 波在飞 (160 格, setsid 脱管, jobs=4)**：--rerun 重建 splice (inject 时修 209/hexquote 作用于新树, loop3 原地突变不携入)。**早段实证 stucksem 修复野外生效**: 1003.0948 r2 `if_phantom_protect` 派发并 apply "protected 9 frontmatter cs"——旧闸正杀于此。~84/160 过 (~3min, 格均 ~6s 因档小 xelatex ~1s+早耗尽)——uniform `stuck` 系靶集本为残桶非短路 (2104.00028 记录实证: 5 轮 6 动作 tar_blob/shim/ifclose/**ifprot** 全发, 余 Incomplete\ifdefined:90 + emergency → exhaustion-settled stuck 正常结算)。哑规待 harvest 定量 (misschar stage-A 表 6 glyph 应翻对应格; macro_glyph_fix stage-B 仍挂未注册)。
+- **2 新派→roster 10**: failmine3 (records 驱动下波靶普查——全 stagerun records + loop4 run4 增量, 排已落规族, ≥3 格族机制假说+规形); sabcheck (**门④再武装**——sabotage-b 复跑同格集对 f9f7cc59 树, misscharext/warnattr/pxnorm/defD/stucksem/ifprot 落地后验零逃逸)。
+- **杂察**: fontgate gatetest.log "No pages of output" = \typeout 闸探针正常 (45 字体载入); tailbucket repro/ 活跃但根目录散件 (wraptest2/3+gencheck.py) 仍在——untracked 无入库险, 下 tick 再催; misscharcen cells/clusters.json 已产报告待; regrdiag repro-2404 挖中。
+- roster 10：tailbucket(#155)/operandcensus(#159)/regrdiag(#157)/rexlat3(#158 毕, verify2 跟进)/fontgate(#156)/misscharcen(#160)/loop4wave(#161)/loopsched(#144)/failmine3/sabcheck。
+- 门：teammate 零 git✓ (HEAD f9f7cc59 仅 leader ledger)；规则库 129✓；sab 再武装在飞；clean% 门待 loop4 harvest 读数。
