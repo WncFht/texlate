@@ -80,9 +80,12 @@ def test_phase_ordering() -> None:
     # biber_biblatex_skew_route (order:8) 殿前: 工具链硬墙先路由, 不陪跑
     # 可修类; C5: order:9 自产件窄谓词四件先于 install_file(10) ——
     # rungen(W79)/overlay(W18)/docstrip(W102) 在 40-install,
-    # svg_prepare(W31) 在 45-graphics, 同 order 稳定序按分片文件名序拼接
-    assert loop[:6] == [
+    # svg_prepare(W31) 在 45-graphics, 同 order 稳定序按分片文件名序拼接;
+    # covgap-B: fileset_relocate 居 order:9 族首 —— 位错真件归位先于一切
+    # stub/generate/install (e-print 自带件 verbatim 拷贝是钦定内容面)
+    assert loop[:7] == [
         "biber_biblatex_skew_route",
+        "fileset_relocate",
         "rungen_stub",
         "nonctan_input_stub",
         "docstrip_generate",

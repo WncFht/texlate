@@ -991,9 +991,14 @@ rules:
   # 造 Extra \fi), 只计不注; 跨文件借用对 (\if 开 A 件 \fi 闭 B 件) 由全局
   # opens>closes 闸兜住不注。扫描器即 phantom 判别器: draftsty 类展开态
   # \iffalse (包内 edef 吞文件) 源件字面平衡 → 纯 noop 不误伤。
+  # 2026-09-19 covgap-C 扩域 (2609.20323 实证): preamble 内开的 \if 若任
+  # file-end \fi 裹住整 body, false 臂把 \document (\@mainaux open) 一并
+  # 吞掉 → `I can't find file 'main.aux'` emergency 下游产物。脚本分两段:
+  # \begin{document} 前开的 \if 注在 begdoc 行头 (守卫域限 preamble);
+  # body 内开的仍注 boundary。坐标全部按原 text 计算后位先注。
   - id: unclosed_if_close
     mechanisms: [B05]
-    description: "doc 源件未闭合 \\if* → \\end{document}/\\endinput/EOF 前注入 \\fi (other 臂: Incomplete \\if 首错)"
+    description: "doc 源件未闭合 \\if* → preamble 开注 \\begin{document} 前 / body 开注 \\end{document}/\\endinput/EOF 前 (other 臂: Incomplete \\if 首错)"
     phase: loop
     order: 196 # pdfstring_cs_disarm(193)/80-bib(195) 之后, undefined_cs_guess(900) 之前; draftsty 补丁(11.95) 先拿 phantom
     when: { category: other }
@@ -1008,14 +1013,16 @@ rules:
           - -c
           - |
             from pathlib import Path
+            import re
 
             try:
-                from texlate.textutil import scan_ifs
+                from texlate.textutil import mask_tex, scan_ifs
             except Exception:
-                scan_ifs = None
+                mask_tex = scan_ifs = None
 
             MARK = "texlate-fixloop-injected"
             EXTS = {".tex", ".sty", ".cls"}
+            BEGDOC_RE = re.compile(r"\\begin\s*\{document\}")
 
             if scan_ifs is None:
                 print("ifclose: noop (texlate mask unavailable)")
@@ -1028,7 +1035,7 @@ rules:
                     continue
                 files.append(p)
             tot_opens = tot_closes = tot_phantom = 0
-            deficits = []  # (path, n_unclosed, boundary)
+            deficits = []  # (path, unclosed_live, boundary)
             for p in files:
                 try:
                     text = p.read_text(encoding="utf-8", errors="replace")
@@ -1041,7 +1048,7 @@ rules:
                 tot_closes += r.live_closes
                 tot_phantom += len(r.phantoms)
                 if r.unclosed_live:
-                    deficits.append((p, len(r.unclosed_live), r.boundary))
+                    deficits.append((p, r.unclosed_live, r.boundary))
             # noop if no deficit, or opens<=closes globally (cross-file borrowed
             # pair: \if in file A closed by \fi in \input'd file B works at runtime)
             if not deficits or tot_opens <= tot_closes:
@@ -1050,19 +1057,48 @@ rules:
                     f"deficits={len(deficits)} phantom={tot_phantom}"
                 )
             else:
-                for p, n, boundary in deficits:
+                for p, opens, boundary in deficits:
                     text = p.read_text(encoding="utf-8", errors="replace")
-                    line_start = text.rfind("\n", 0, boundary) + 1
-                    inject = (
-                        "\\fi" * n
-                        + f" % {MARK}: closed {n} unclosed \\if* at file end\n"
+                    # preamble 界注入 (covgap-C 2609.20323 实证): \begin{document}
+                    # 前开的 \if 若任 file-end \fi 裹住整 body, false 臂把
+                    # \document (\@mainaux open) 一并吞掉 → main.aux 缺件
+                    # emergency 下游产物。preamble open 注在 \begin{document}
+                    # 行前 (守卫域限 preamble); body 内 open 仍注 boundary。
+                    inserts = []  # (pos, frag) 原 text 坐标 — 后位先注保序
+                    masked = mask_tex(text)
+                    begdoc = BEGDOC_RE.search(masked)
+                    pre = post = []
+                    if begdoc is not None:
+                        begdoc_line = masked.count("\n", 0, begdoc.start()) + 1
+                        pre = [o for o in opens if o[1] < begdoc_line]
+                        post = [o for o in opens if o[1] >= begdoc_line]
+                    else:
+                        post = opens
+                    if pre:
+                        bl = text.rfind("\n", 0, begdoc.start()) + 1
+                        inserts.append(
+                            (
+                                bl,
+                                "\\fi" * len(pre)
+                                + f" % {MARK}: closed {len(pre)} unclosed preamble \\if* before \\begin{{document}}\n",
+                            )
+                        )
+                    if post:
+                        line_start = text.rfind("\n", 0, boundary) + 1
+                        inserts.append(
+                            (
+                                line_start,
+                                "\\fi" * len(post)
+                                + f" % {MARK}: closed {len(post)} unclosed \\if* at file end\n",
+                            )
+                        )
+                    for pos, frag in sorted(inserts, key=lambda t: -t[0]):
+                        text = text[:pos] + frag + text[pos:]
+                    p.write_text(text, encoding="utf-8")
+                    print(
+                        f"ifclose: injected into {p} "
+                        f"pre={len(pre)} post={len(post)} phantom={tot_phantom}"
                     )
-                    p.write_text(
-                        text[:line_start] + inject + text[line_start:],
-                        encoding="utf-8",
-                    )
-                    ln = text[:line_start].count("\n") + 1
-                    print(f"ifclose: injected \\fi x{n} into {p} @line~{ln} phantom={tot_phantom}")
         timeout: 30
     risk: low # 仅活区亏格件补 \fi (全局 opens>closes 才注); def 体 opens 只计不注 (file-end \fi 够不到冻结 token); 跨文件借用对/phantom 全局平衡 noop; 指纹幂等
     known_gap: "def 体内未闭合 open (aastex61.cls \\if@two@col 于 \\def\\endrotatetable* 体 —— 1706.00175 等 5 格真凶) 需 \\fi 注在体 `}` 前 (中段注入), 本规则按简报只做 file-end 注 → 记 def_unclosed 不修; \\if 开在 \toks/宏体寄存器赋值体 (\\mytoks={\\ifx}) 误计 live; 顶层外子目录经 rglob 已盖但 dot-dir 略过"
@@ -1081,9 +1117,12 @@ rules:
   # pages of output` → early_eof (pay=\ifx) —— 该签名无 `!` 行 → err_head
   # 空 → ctx_suggests 不可及, 故独立规则走 source_contains 门 +
   # payload_required (滤掉 generic no-pages 与 inside-a-group 变体)。
+  # 同 196 臂共享 covgap-C 两段注入: preamble 内开的 \if 注 \begin{document}
+  # 行头 (2609.20323 实证, false 臂吞 \document → main.aux 缺件 emergency),
+  # body 内开的仍注 boundary。
   - id: unclosed_if_close_eof
     mechanisms: [B05]
-    description: "doc 源件未闭合 \\if* → \\end{document}/\\endinput/EOF 前注入 \\fi (early_eof 臂: \\end occurred when \\ifX incomplete)"
+    description: "doc 源件未闭合 \\if* → preamble 开注 \\begin{document} 前 / body 开注 \\end{document}/\\endinput/EOF 前 (early_eof 臂: \\end occurred when \\ifX incomplete)"
     phase: loop
     order: 196.5 # unclosed_if_close(196) 同族姊妹臂; typein_neutralize(180) 抢早期 eof 首因先走
     when: { category: early_eof, payload_required: true }
@@ -1098,14 +1137,16 @@ rules:
           - -c
           - |
             from pathlib import Path
+            import re
 
             try:
-                from texlate.textutil import scan_ifs
+                from texlate.textutil import mask_tex, scan_ifs
             except Exception:
-                scan_ifs = None
+                mask_tex = scan_ifs = None
 
             MARK = "texlate-fixloop-injected"
             EXTS = {".tex", ".sty", ".cls"}
+            BEGDOC_RE = re.compile(r"\\begin\s*\{document\}")
 
             if scan_ifs is None:
                 print("ifclose: noop (texlate mask unavailable)")
@@ -1118,7 +1159,7 @@ rules:
                     continue
                 files.append(p)
             tot_opens = tot_closes = tot_phantom = 0
-            deficits = []  # (path, n_unclosed, boundary)
+            deficits = []  # (path, unclosed_live, boundary)
             for p in files:
                 try:
                     text = p.read_text(encoding="utf-8", errors="replace")
@@ -1131,7 +1172,7 @@ rules:
                 tot_closes += r.live_closes
                 tot_phantom += len(r.phantoms)
                 if r.unclosed_live:
-                    deficits.append((p, len(r.unclosed_live), r.boundary))
+                    deficits.append((p, r.unclosed_live, r.boundary))
             # noop if no deficit, or opens<=closes globally (cross-file borrowed
             # pair: \if in file A closed by \fi in \input'd file B works at runtime)
             if not deficits or tot_opens <= tot_closes:
@@ -1140,19 +1181,48 @@ rules:
                     f"deficits={len(deficits)} phantom={tot_phantom}"
                 )
             else:
-                for p, n, boundary in deficits:
+                for p, opens, boundary in deficits:
                     text = p.read_text(encoding="utf-8", errors="replace")
-                    line_start = text.rfind("\n", 0, boundary) + 1
-                    inject = (
-                        "\\fi" * n
-                        + f" % {MARK}: closed {n} unclosed \\if* at file end\n"
+                    # preamble 界注入 (covgap-C 2609.20323 实证): \begin{document}
+                    # 前开的 \if 若任 file-end \fi 裹住整 body, false 臂把
+                    # \document (\@mainaux open) 一并吞掉 → main.aux 缺件
+                    # emergency 下游产物。preamble open 注在 \begin{document}
+                    # 行前 (守卫域限 preamble); body 内 open 仍注 boundary。
+                    inserts = []  # (pos, frag) 原 text 坐标 — 后位先注保序
+                    masked = mask_tex(text)
+                    begdoc = BEGDOC_RE.search(masked)
+                    pre = post = []
+                    if begdoc is not None:
+                        begdoc_line = masked.count("\n", 0, begdoc.start()) + 1
+                        pre = [o for o in opens if o[1] < begdoc_line]
+                        post = [o for o in opens if o[1] >= begdoc_line]
+                    else:
+                        post = opens
+                    if pre:
+                        bl = text.rfind("\n", 0, begdoc.start()) + 1
+                        inserts.append(
+                            (
+                                bl,
+                                "\\fi" * len(pre)
+                                + f" % {MARK}: closed {len(pre)} unclosed preamble \\if* before \\begin{{document}}\n",
+                            )
+                        )
+                    if post:
+                        line_start = text.rfind("\n", 0, boundary) + 1
+                        inserts.append(
+                            (
+                                line_start,
+                                "\\fi" * len(post)
+                                + f" % {MARK}: closed {len(post)} unclosed \\if* at file end\n",
+                            )
+                        )
+                    for pos, frag in sorted(inserts, key=lambda t: -t[0]):
+                        text = text[:pos] + frag + text[pos:]
+                    p.write_text(text, encoding="utf-8")
+                    print(
+                        f"ifclose: injected into {p} "
+                        f"pre={len(pre)} post={len(post)} phantom={tot_phantom}"
                     )
-                    p.write_text(
-                        text[:line_start] + inject + text[line_start:],
-                        encoding="utf-8",
-                    )
-                    ln = text[:line_start].count("\n") + 1
-                    print(f"ifclose: injected \\fi x{n} into {p} @line~{ln} phantom={tot_phantom}")
         timeout: 30
     risk: low # 同 unclosed_if_close: 活区亏格件才注, 全局平衡/def体/借用对 noop, 指纹幂等; early_eof 臂额外有 payload_required 闸
     known_gap: "同 unclosed_if_close (def 体中段注入缺位); 另: 裸 no-pages early_eof (pay=None) 与 inside-a-group 变体 (pay=None) 被 payload_required 滤掉 —— 未闭合 \\if 致 no-pages 但无 \\end-occurred 行的形态漏收"
