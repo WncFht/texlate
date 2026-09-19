@@ -270,7 +270,14 @@ rules:
         - { category: missing_graphic, payload_required: true }
         - { category: other }
     condition:
-      ctx_suggests: "could not locate the file with any of these extensions"
+      any:
+        # rep.ctx 止于 l.N 回显行——"I could not locate ..." 帮助行在其后,
+        # 永不入 err_head (failmine4-a 实证 2105.00106/2203.00045 ctx 截断)。
+        # file:line 形态的 File-not-found 签名在 rep.first, 用无扩展名形
+        # ([^'.]+ 拒带点名——带点名 = 显式扩展绕过扩展表或真缺件, 不归本规)
+        - ctx_suggests: "File `[^'.]+' not found"
+        # 留旧臂兜任何会把帮助行纳入 ctx 窗的 issuer 形态
+        - ctx_suggests: "could not locate the file with any of these extensions"
       source_contains: "\\\\DeclareGraphicsExtensions\\s*\\{(?![^}]*\\.pdf)"
       engine_in: [xelatex, tectonic]
     action:
@@ -293,6 +300,10 @@ rules:
       - {
           corpus: "1012.1365 (stagerun-loop2/loop3; failmine4 item5)",
           error: "File `PoSlogo' not found + could not locate the file with any of these extensions: .ps,.eps,.pstex (PoS.cls \\ifpdf else 支)",
+        }
+      - {
+          corpus: "2105.00106 + 2203.00045 (stagerun-loop3; chronic347 item-a)",
+          error: "LaTeX Error: File `fig2_direct_indirect_small' not found (doc \\ifpdf else 支 {.eps}; figures/*.jpg 与 *.pdf 在盘)",
         }
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/lane-fmsingles/; PoS.cls:205-210 \\ifpdf 分支; normalize.py breakurl-scoped \\ifpdf patch"
