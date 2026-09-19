@@ -979,3 +979,12 @@
 - **loop3**：fixloop 391/503 (~78%, ~8-12s/格)——harvest 前主交付物在途。
 - roster 10：hexquote(#128)/tailbucket(para_longize #155)/defD/stucksem/pxnorm/operandcensus(待应)/rexlat3/misscharext/warnattr + aaspatch/driftdiag/cjkzero/utf8census 关毕。
 - 门：teammate 零 git✓；HEAD 0308eb1 (pathspec-only×2)；规则库 129✓；sab-r5 escaped=0✓；外来 repair_l2.py `_INFRA_ERR_RX`+csfix(defD)+normalize(pxnorm)+web×2(peer) 在飞不碰。
+
+## 2026-09-19 ~10:4x — **loop3 主收获: 271/606 →clean** + 7 负翻 regrdiag 派 + #126 毕
+
+- **loop3 fixloop 503/503 毕, harvest 跑完** (harvest.py vs terminal3 基线, tmp/lane-loop3/{report.md,harvest-out.txt})：**271 格翻 clean** (252 partial→clean + 19 partial_nofix→clean; 基线该批仅 ~4 clean), 320 partial 持, 4 clean→clean。快照口径注意: 跑的是落地前模块快照——209batch/aaspatch/hexquote/ifprot-A 的翻格归 loop4 replay 波。
+- **规效榜**：revtex_pacs_pair **9/9 全 clean**; ctlseq_already_def_undefine 10/16; already_def_family 6/12; babel_family 5/10; shipped_sty_input_wrap 22/53; undefined_cs_resid 57/119 (209batch 族待下波); syntax_resid 53/128; other_resid 56/143; **UNLANED 152 格 84 自净 (55%)**。bibhang 格 (1404.0385/1706.00106/1907.03726) 实证 csfix2 装载点臂; 1907.10410 pdftex_prim:pdfobj→clean; key_unknown:ceur 这是译文 格 (2410.17963) 自净 (#128 八格之一减一)。
+- **哑规**：hangul_font_fallback/hyperref_driver_neutralize/float_opt/aux_scan_eof/soul_err 发而未翻 (0 clean); if_phantom_protect 0-in-batch (e2fc756 闸是 dispatch-miss 修, 快照前无凭据轮)。
+- **7 负翻分诊 → regrdiag #157**：2404.14219+2003.10844 = **首过编译 runaway_output** (fixloop 未触已挂 → splice/inject 引入 TeX 死环, 真回归头等疑); 2410.17904 = acceptable_pdf 产出后 fixloop status=fail missing_file:paper.tex (件管理缺陷); 2310.16788 unfixable:missing_file; 1803.00222 env_mismatch→unfixable:emergency; 2507.14695 unfixable:syntax (para-census \institute 格); astro-ph/0104303 latex209_reject = ds@ 裁决桶 (held, 非回归)。
+- roster 10：hexquote(#128)/tailbucket(#155)/defD/stucksem/pxnorm/operandcensus(待应)/rexlat3/misscharext/warnattr/regrdiag(#157)。
+- 门：teammate 零 git✓；HEAD 1a8867e；规则库 129✓；sab escaped=0✓；clean% 门⑤ 本波大正 (+271)。
