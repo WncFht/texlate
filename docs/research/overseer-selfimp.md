@@ -846,3 +846,7 @@
 - **failmine3 派** (读-only 普查)：failmine2 后 ~15 规落, 残面已移——最新 records 全量重普查簇排 (category×mechanism×site), fired-but-unfixed vs 正拒鉴别, 喂 flipcheck9 后新波。
 - roster 10：bticktax(fc9 组波——hangul 插曲毕)/shipwrap/tarmember(docstrip 追加)/primarg(_builtins_shim+55-prim 在写)/isabelex(75-syntax+test 在写)/kvdig/obeylines/braceval/csfix2/failmine3。
 - 门：teammate 零 git✓；HEAD 77c8b88+f66a6ec 净；无 detached 批；clean% 31/32 维。
+
+## 2026-09-19 ~15:5x — patrol 静持
+
+- roster 10 全 running 无僵尸；无 detached 批 (run.log 全 >30min 旧)；无新交付。tarmember docstrip 追加在飞 (_builtins_misc.py 持锁等双 hunk 同提)；primarg (test_fixloop_primarg.py 已现)/isabelex (test_fixloop_isabelex.py+75-syntax.yaml 在写) 推进中。HEAD f66a6ec+3d41344 净, clean% 31/32 维, teammate 零 git。
