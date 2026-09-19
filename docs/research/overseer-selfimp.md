@@ -857,3 +857,14 @@
 - **csfix2 锁扩**：75-syntax.yaml isabelex 落地即空——item-4 扫描器双守 (caller-supplies-\fi 习语 + `\let\cs=<char>\fi` CONSUME=2 假开, aastex61if 证) 由 report-only 升直改, 授权已发。
 - roster 9+failmine3：bticktax(fc9)/shipwrap/tarmember(docstrip)/primarg/kvdig/obeylines/braceval/l0 在写)/csfix2(+75-syntax)/failmine3。
 - 门：teammate 零 git✓；HEAD 4046c5a 净 (126 规装载)；clean% 31/32 维。
+
+## 2026-09-19 ~16:3x — 三连入库 (1485527/85c99f4/29e6287) + primguard/maxsep209 派 + fc9 待发
+
+- **braceval (1485527)——前提纠正**：rt1 `\@xdblarg` runaway 族非括号缝——`_check_brace` 早存且四格 zh 全平衡；真机制=corrector 臂丢 chunk-尾 `[[COMMENT_n]]` 终结 `\n`→splice 把后随字面首行吞进注释→`}` 死字节化→`\caption{` 不闭。新 L0 第 12 规 `comment_eof` (`_tail_unterminated_comment`: `_lex` 末 token `cmt` + mask 视 `[[COMMENT_n]]` 尾 `[ \t]*`-to-EOF; src 同形豁免)。**勘定**：`validate_pair` 才是生产缝 (xlat 管线 validator 注入), `validate_translation` 仅占位符多重集喂测试——非生产闸。10 测试。4 格全 corrector-arm 覆盖。
+- **primarg (85c99f4)**：prim polyfill 5 路分派——`_PRIM_TOKSISH`(3)→`\newtoks`、`_PRIM_DIMENISH`(5)→`\newdimen` (spotcolor.sty:48 `\edef\prim={\the\prim}` 双形态全真; chardef 下 `={..}` 整串落正文)、`_PRIM_ARGFUL`(42)→`\protected\long\def<sig>{}` 吞参 noop (33×#1/3×#1#2/4×零参)、`pdfifprimitive`→csname 双写 `\let→\iffalse` (裸 let 在 `\ifdefined` 真臂跳扫吃 `\fi`——tmp/primarg 实测)。yaml 第三 cond 臂 `source_contains \\{payload}(?![a-zA-Z@])` 收 fileset 内无花括号取参站 (guard 包不到)。10 测试。**leader 裁决**：toksish/dimenish 超字面 brief→保 (同寄存器形原则同证据); @iffalse→保。
+- **shipwrap (29e6287)**：`shipped_sty_input_wrap` precheck -0.5——随源 .cls/.sty/frag.tex 内裸 `\input X.sty` 以宿主当前 @ 猫码读件, @=other 宿主全裂 @-cs→Missing\begindoc 级联 (~20 语料件, aipproc.cls:10 型)。svglov3 exact-restore idiom (`\edef\TeXlateStyInRestore` 存猫码→=11 读→复元; 裸 makeat 对会把 @=letter 宿主尾段强翻 12, 1608.06693 `15\p@` 前科)。doc 侧 input_sty 两臂 + fragment .tex 够不着全补位。facade 3 行 + ordering pin 2 行 (pinned-registry 必触已旗标)。**格判决 4/5 归他臂** (input_sty/amstex misreg); 0104245 真缝=`\@maxsep`/`\@dblmaxsep` 2.09 寄存器 COMPAT_SHIM 缺→maxsep209 派。LIVE-FIRE 双臂实证。12 测试。
+- **primguard 派 (sabotage 级)**：`pdftex_prim_guard` order 50 贪心 `[^\n]*\}` 吞单行 `\def\f{\pdfobj{<</N 1>>}}` 外层 `}`→`\fi` 落体外孤 `\fi`——primarg 旗标, 55-prim.yaml 落地即派。
+- **maxsep209 派**：COMPAT_SHIM (latex209.py:474-494) 补 `\@maxsep`/`\@dblmaxsep` \newdimen (latex209.def:167-168 镜), 0104245 锚。
+- **fc9 待发 (bticktax 组波毕, 84 目标+31 clean)**：ids.txt 115 id 全 corpus_v3 核, 17 lane-tag 归因——hold 等 csfix2 (bbkresid 4 格在列) + maxsep209 (0104245 在列); kvdig 7 格→fc10, obeylines 若先落加 2009.11130。
+- roster 10：bticktax(fc9 组毕待发)/csfix2(+75-syntax)/kvdig(args.py 在写)/obeylines/failmine3/primguard/maxsep209 + 3 新派内含。braceval/primarg/shipwrap 交付+入库尸清。
+- 门：teammate 零 git✓；HEAD 三连 import 净 (126 规+1 L0)；工作区仅 kvdig args.py+peer 件；clean% 31/32 维。
