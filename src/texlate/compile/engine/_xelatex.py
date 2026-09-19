@@ -276,11 +276,13 @@ class XelatexEngine:
     ) -> CompRes:
         """执行 xelatex ≤`passes` 遍；-recorder 产 .fls 供 compiled_dependencies。
 
-        ``passes=None``（缺省）= 自适应门：pass-1 后只在 log 出现 rerun
-        提示族（``_RERUN_HINT_RX``）时续跑，上限 ``MAX_PASSES``；显式 int
-        = 无条件 ≤N 遍。失败路径两口径同闸：超时/错误退出（rc>0 且非信号）
-        /exec 失败（rc=None）/无 pdf 即停——同输入重跑必同炸；信号死
-        （负 rc）是外部截杀非确定性败，留续趟重试通道。
+        ``passes=None``（缺省）= 自适应门：趟输出出现 rerun 提示族
+        （``_RERUN_HINT_RX``）即续跑，上限 ``MAX_PASSES``；显式 int =
+        无条件 ≤N 遍。停趟判据：超时/exec 失败（rc=None）/无 pdf 即停
+        ——同输入重跑必同炸；错误退出（rc>0 非信号）仅自适应档被 rerun
+        提示压过（提示即 LaTeX 自报 .aux 状态已变、pass-2 非同一输入），
+        钉死档与提示缺席照旧即停；信号死（负 rc）是外部截杀非确定性败，
+        留续趟重试通道。
         """
         res = CompRes(engine=self.name)
         res.flags_applied, res.flags_dropped = self._split_flags(flags)
@@ -330,22 +332,25 @@ class XelatexEngine:
                 cmd, cwd=cwd, env=env, timeout=per_pass, should_cancel=should_cancel
             )
             res.rc = rc
-            sig = _rc_to_signal(rc, res.sandbox_mode)
-            if sig is not None:
+            if (sig := _rc_to_signal(rc, res.sandbox_mode)) is not None:
                 res.killed_signal = sig
             res.seconds += sec
             res.timed_out = res.timed_out or to
             res.passes = p
             outputs.append(out_s)
-            # 停趟判据：超时 / exec 失败 / 确定性错误退出（rc>0 非信号）/ 无
-            # pdf；自适应档（passes=None）再补一条——log 无 rerun 提示族即收。
+            # 停趟判据：超时 / exec 失败 / 无 pdf 恒收。确定性错误退出
+            # （rc>0 非信号）仅被自适应档（passes=None）的 rerun 提示压过——
+            # 提示即 LaTeX 自报还要一趟：.aux 首趟陈态错（footmisc perpage
+            # 首趟 \@ctrerr Counter too large 一族）pass-2 自愈，不算同输入
+            # 重跑；提示缺席照旧即收。钉死档（passes=N）rc!=0 恒停、不吃提示。
             # 信号死（负 rc / 包裹层 128+N）是外部截杀非定败，留续趟通道。
+            hint = _RERUN_HINT_RX.search(out_s) is not None
             if (
                 to
                 or rc is None
-                or (rc != 0 and sig is None)
+                or (rc != 0 and sig is None and not (passes is None and hint))
                 or not pdf.exists()
-                or (passes is None and not _RERUN_HINT_RX.search(out_s))
+                or (passes is None and not hint)
             ):
                 break
         _collect_compile_outputs(res, outputs)

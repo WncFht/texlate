@@ -77,7 +77,7 @@ from texlate.texlog import file_stack_at, is_project_file
 
 if TYPE_CHECKING:
     import random
-    from collections.abc import Callable, Iterator
+    from collections.abc import Callable, Iterable, Iterator
 
 # ------------------------------------------------------------------ 通用件
 
@@ -192,6 +192,36 @@ def _tec_out(cmd: list[str]) -> Path:
 
 def _write_pdf(cmd: list[str], _cwd: Path, _n: int) -> None:
     (_xe_out(cmd) / "main.pdf").write_bytes(b"%PDF-fake")
+
+
+def _seq_run(
+    calls: list[dict[str, object]],
+    steps: Iterable[tuple[int | None, str, bool]],
+    *,
+    side: Callable[[list[str], Path, int], None] | None = _write_pdf,
+) -> Callable[..., tuple[int | None, str, float, bool]]:
+    """按步表回放 ``(rc, out, to)`` 的假 run_process——多趟异态脚本进程。"""
+    it = iter(steps)
+
+    def fake(  # noqa: PLR0913
+        cmd: list[str],
+        *,
+        cwd: Path,
+        env: dict[str, str],
+        timeout: float,
+        out_cap: int = 8 * 1024 * 1024,
+        should_cancel: Callable[[], bool] | None = None,
+    ) -> tuple[int | None, str, float, bool]:
+        del out_cap, should_cancel
+        calls.append(
+            {"cmd": list(cmd), "cwd": Path(cwd), "env": dict(env), "timeout": timeout}
+        )
+        rc, out, to = next(it)
+        if side is not None:
+            side(list(cmd), Path(cwd), len(calls))
+        return rc, out, 0.1, to
+
+    return fake
 
 
 # ================================================================ 路由 oracle
@@ -816,7 +846,7 @@ def test_compile_log_text_carried_no_reread(
 def test_xelatex_error_exit_short_circuits(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """C3：错误退出（rc>0）即停——哪怕已出 pdf 也不空烧第二趟；显式/自适应同闸。"""
+    """C3：错误退出（rc>0）+ 无 rerun 提示即停——已出 pdf 也不空烧第二趟；显式/自适应同闸。"""
     (tmp_path / "main.tex").write_text("x")
     for kw in ({"passes": 2}, {}):
         calls: list[dict[str, object]] = []
@@ -830,6 +860,109 @@ def test_xelatex_error_exit_short_circuits(
             **kw,  # type: ignore[arg-type]
         )
         assert len(calls) == 1 and res.rc == 1 and res.passes == 1, kw  # noqa: PT018
+
+
+#: rerun 提示行（命中 ``_RERUN_HINT_RX`` 的实测形态）——hintord 重排钉测试共用。
+_RERUN_HINT = (
+    "LaTeX Warning: Label(s) may have changed. Rerun to get cross-references right."
+)
+
+
+def test_xelatex_hint_overrides_rc_break(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """自适应档：rc=1 + rerun 提示 → 压过错误退出闸续趟。
+
+    hintord 重排（footmisc 实证）：perpage+fnsymbol 首趟 ``\\@ctrerr``
+    Counter too large（fresh .aux）rc=1 但 LaTeX 自报还要一趟——pass-2
+    陈态自愈、提示缺席即收。
+    """
+    calls: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        eng_mod,
+        "run_process",
+        _seq_run(calls, [(1, _RERUN_HINT, False), (0, "", False)]),
+    )
+    (tmp_path / "main.tex").write_text("x")
+    res = XelatexEngine(binary="/bin/true").compile(tmp_path, "main.tex", sandbox=False)
+    assert len(calls) == 2 and res.passes == 2 and res.rc == 0  # noqa: PLR2004, PT018
+    assert res.has_pdf
+
+
+def test_xelatex_rc_break_without_hint_unchanged(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """自适应档：rc=1 无 rerun 提示 → 仍首趟即收（错误退出闸语义不松）。"""
+    calls: list[dict[str, object]] = []
+    monkeypatch.setattr(eng_mod, "run_process", _seq_run(calls, [(1, "", False)]))
+    (tmp_path / "main.tex").write_text("x")
+    res = XelatexEngine(binary="/bin/true").compile(tmp_path, "main.tex", sandbox=False)
+    assert len(calls) == 1 and res.passes == 1 and res.rc == 1  # noqa: PT018
+
+
+def test_xelatex_hint_every_pass_bounded(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """自适应档：趟趟 rc=1+提示 → 跑满 ``MAX_PASSES`` 封顶——有提示也不空转。"""
+    calls: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        eng_mod,
+        "run_process",
+        _seq_run(calls, [(1, _RERUN_HINT, False), (1, _RERUN_HINT, False)]),
+    )
+    (tmp_path / "main.tex").write_text("x")
+    res = XelatexEngine(binary="/bin/true").compile(tmp_path, "main.tex", sandbox=False)
+    assert len(calls) == 2 and res.passes == 2 and res.rc == 1  # noqa: PLR2004, PT018
+
+
+def test_xelatex_pinned_passes_ignores_hint(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """钉死档（``passes=N``）：rc=1+提示仍首趟即收——提示只在自适应档生效。"""
+    calls: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        eng_mod,
+        "run_process",
+        _seq_run(calls, [(1, _RERUN_HINT, False), (0, "", False)]),
+    )
+    (tmp_path / "main.tex").write_text("x")
+    res = XelatexEngine(binary="/bin/true").compile(
+        tmp_path, "main.tex", passes=2, sandbox=False
+    )
+    assert len(calls) == 1 and res.passes == 1 and res.rc == 1  # noqa: PT018
+
+
+def test_xelatex_signal_death_hint_path_unchanged(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """信号死+提示：走既有信号通道（非 rc 闸）照续——重排不动这条路径。"""
+    calls: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        eng_mod,
+        "run_process",
+        _seq_run(calls, [(-13, _RERUN_HINT, False), (0, "", False)]),
+    )
+    (tmp_path / "main.tex").write_text("x")
+    res = XelatexEngine(binary="/bin/true").compile(tmp_path, "main.tex", sandbox=False)
+    assert len(calls) == 2 and res.killed_signal == 13 and res.rc == 0  # noqa: PLR2004, PT018
+
+
+def test_xelatex_hint_keeps_hard_breaks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """提示不抬三硬闸：超时 / exec 失败 / 无 pdf 有提示照收。"""
+    (tmp_path / "main.tex").write_text("x")
+    for steps, side in (
+        ([(0, _RERUN_HINT, True)], _write_pdf),  # 超时
+        ([(None, _RERUN_HINT, False)], _write_pdf),  # exec 失败
+        ([(0, _RERUN_HINT, False)], None),  # 无 pdf
+    ):
+        calls: list[dict[str, object]] = []
+        monkeypatch.setattr(eng_mod, "run_process", _seq_run(calls, steps, side=side))
+        res = XelatexEngine(binary="/bin/true").compile(
+            tmp_path, "main.tex", sandbox=False
+        )
+        assert len(calls) == 1 and res.passes == 1, (steps, side)  # noqa: PT018
 
 
 def test_xelatex_probe_memo_hit_and_miss(
