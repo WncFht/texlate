@@ -126,6 +126,33 @@ rules:
           - { id: boxdraw_2568, cps: [0x2568], replace: "-" }
           # PUA 私用区残留 (0905.1031) —— 同 pua_f047 剥除
           - { id: pua_f07a, cps: [0xF07A], replace: "{}" }
+          # ── misschars4 #190 补表 (loop3 残余普查 tmp/lane-misschar3, ~20 cells) ──
+          # tab → 空格; ├/boxdraw → 剥除; ﬁ 复拼 religate; ˵ → 双引号。
+          # 重音/修饰符走 accent 机制形 (无字体槽位依赖): ¯→\={} ǎ→\v{a}
+          # ˆ→\^{}; ‰/€ 落文本字体 (lmroman 有槽) → \textperthousand/\texteuro;
+          # ✓ → kernel 数学字形 \surd (免 amssymb 依赖); ₁₂ ∀∃∈∘∧∨∪⟨⟩
+          # 数学符号字面 → \ensuremath 双模无恙。
+          - { id: tab, cps: [0x0009], replace: " " }
+          - { id: permill, cps: [0x2030], replace: "\\mbox{\\textperthousand}" }
+          - { id: euro, cps: [0x20AC], replace: "\\mbox{\\texteuro}" }
+          - { id: checkmark, cps: [0x2713], replace: "\\ensuremath{\\surd}" }
+          - { id: macron, cps: [0x00AF], replace: "\\mbox{\\={}}" }
+          - { id: boxdraw_251c, cps: [0x251C], replace: "{}" }
+          - { id: acaron, cps: [0x01CE], replace: "\\mbox{\\v{a}}" }
+          - { id: fi_lig, cps: [0xFB01], replace: "fi" }
+          - { id: modcirc, cps: [0x02C6], replace: "\\mbox{\\^{}}" }
+          - { id: sub1, cps: [0x2081], replace: "\\ensuremath{_1}" }
+          - { id: sub2, cps: [0x2082], replace: "\\ensuremath{_2}" }
+          - { id: forall, cps: [0x2200], replace: "\\ensuremath{\\forall}" }
+          - { id: exists, cps: [0x2203], replace: "\\ensuremath{\\exists}" }
+          - { id: isin, cps: [0x2208], replace: "\\ensuremath{\\in}" }
+          - { id: composeop, cps: [0x2218], replace: "\\ensuremath{\\circ}" }
+          - { id: wedgeop, cps: [0x2227], replace: "\\ensuremath{\\wedge}" }
+          - { id: veeop, cps: [0x2228], replace: "\\ensuremath{\\vee}" }
+          - { id: cupop, cps: [0x222A], replace: "\\ensuremath{\\cup}" }
+          - { id: langle_27e8, cps: [0x27E8], replace: "\\ensuremath{\\langle}" }
+          - { id: rangle_27e9, cps: [0x27E9], replace: "\\ensuremath{\\rangle}" }
+          - { id: dblgrave, cps: [0x02F5], replace: "\\mbox{''}" }
     risk: low # 预热盒不可见; replace 只动缺字码位本身
     engines:
       xelatex: { mode: native }
@@ -154,6 +181,10 @@ rules:
       - {
           corpus: "misscharcen #162 (loop3 残余普查 tmp/lane-misscharcen/cells.json, 17 cells/35 lines)",
           error: "Missing character: ·²º´¼½ ≤⋅∼ ℤ thinsp ʼ ╨ PUA — cmr/zptmcm7t TFM 无槽 + lmroman 偶缺 → char_table 补 14 条",
+        }
+      - {
+          corpus: "misschars4 #190 (loop3 残余普查 tmp/lane-misschar3/census.json, ~20 cells)",
+          error: "Missing character: tab ‰ € ✓ ¯ ├ ǎ ﬁ ˆ ₁₂ ∀∃∈∘∧∨∪ ⟨⟩ ˵ — TFM/lmroman 无槽字面 → char_table 补 21 条",
         }
     stats: { fires: 40, status: proposed }
     source_ref: "spec 2026-09-16-batch-hardening-design §9 F4; scout-misschar-coverage findings.yaml §outband_coverage+cls_pretokenized"

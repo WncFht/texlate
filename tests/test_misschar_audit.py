@@ -435,3 +435,87 @@ def test_mc_parse_log_skips_nullfont() -> None:
     )
     assert 0x3B not in seen  # noqa: PLR2004 - 字面码位即语义
     assert seen[0x2260][1] == "cmr7"
+
+
+# ---------------------------------------------------------------- misschars4 #190
+def test_math_cs_shim_wrapped_atbegindocument(tmp_path: Path) -> None:
+    r"""shim let+def 走 ``\AtBeginDocument`` 迟延注册 —— hyperref 在
+    ``begindocument/before`` 预钩段重声明文本命令族, 导言区即时 ``\def``
+    会被复回 kernel 原义 (1404.0332 ``\i`` shim 在场仍缺字实证;
+    probe t4/t9 即时形失效 vs t7/t8 hook 迟延存活)。"""
+    _write_main(tmp_path, "Y$\\i$lmaz")
+    (tmp_path / "main.log").write_text(
+        _mc_log("Missing character: There is no ı (U+0131) in font cmmi10!\n"),
+        encoding="utf-8",
+    )
+    ok, note = font_fallback(_ctx(tmp_path), MockEngine([]), None, {})
+    assert ok, note
+    t = (tmp_path / "main.tex").read_text(encoding="utf-8")
+    assert (
+        r"\AtBeginDocument{\ifdefined\txlateoldi\else\let\txlateoldi\i\fi"
+        r"\protected\def\i{\ifmmode\mbox{\txlateoldi}\else\txlateoldi\fi}}" in t
+    )
+
+
+def test_math_cs_shim_th_thorn(tmp_path: Path) -> None:
+    r"""``$M_{\th}$`` 数学域产 þ(0xFE) → ``\th`` 无参 shim
+    (#190 ``_MATH_SHIM_CS`` produced_by 注册 ``\th``/``\TH``)。"""
+    _write_main(tmp_path, "ordinals $M_{\\th}$ tail")
+    (tmp_path / "main.log").write_text(
+        _mc_log("Missing character: There is no þ (U+00FE) in font cmmi10!\n"),
+        encoding="utf-8",
+    )
+    ok, note = font_fallback(_ctx(tmp_path), MockEngine([]), None, {})
+    assert ok, note
+    assert "math cs shim" in note
+    t = (tmp_path / "main.tex").read_text(encoding="utf-8")
+    assert (
+        r"\AtBeginDocument{\ifdefined\txlateoldth\else\let\txlateoldth\th\fi"
+        r"\protected\def\th{\ifmmode\mbox{\txlateoldth}\else\txlateoldth\fi}}" in t
+    )
+
+
+def test_math_cs_shim_arg_cs_ring(tmp_path: Path) -> None:
+    r"""带参 accent cs ``$\r{A}$`` 产 Å(0xC5) → ``\r#1`` 实参重花括透传
+    shim (0806.3530 ``$\r{A}$`` Å-in-cmmi9 实证; ``_MATH_SHIM_ARG_CS``
+    触发门 = 全预组面 C5/E5/16E/16F)。"""
+    _write_main(tmp_path, "radius $\\r{A}$ ngstrom")
+    (tmp_path / "main.log").write_text(
+        _mc_log("Missing character: There is no Å (U+00C5) in font cmmi9!\n"),
+        encoding="utf-8",
+    )
+    ok, note = font_fallback(_ctx(tmp_path), MockEngine([]), None, {})
+    assert ok, note
+    assert "math cs shim" in note
+    t = (tmp_path / "main.tex").read_text(encoding="utf-8")
+    assert (
+        r"\AtBeginDocument{\ifdefined\txlateoldr\else\let\txlateoldr\r\fi"
+        r"\protected\def\r#1{\ifmmode\mbox{\txlateoldr{#1}}"
+        r"\else\txlateoldr{#1}\fi}}" in t
+    )
+
+
+def test_math_cs_shim_arg_cs_text_only_skipped(tmp_path: Path) -> None:
+    r"""``\r{A}`` 只在文本域 → 不 shim (同无参臂双信号门: 站点须在数学 span)。"""
+    _write_main(tmp_path, "radius \\r{A}ngstrom")
+    (tmp_path / "main.log").write_text(
+        _mc_log("Missing character: There is no Å (U+00C5) in font cmmi9!\n"),
+        encoding="utf-8",
+    )
+    eng = MockEngine([], available={"newunicodechar.sty"})
+    ok, note = font_fallback(_ctx(tmp_path), eng, None, {})
+    assert ok, note  # 带内码位仍走 newunicodechar 兜底; 只断言不 shim
+    assert "math cs shim" not in note
+    assert "txlateoldr" not in (tmp_path / "main.tex").read_text(encoding="utf-8")
+
+
+def test_producer_map_th_thorn_registered() -> None:
+    r"""``_MATH_SHIM_CS`` ``\th``/``\TH`` → 0xFE/0xDE 同入 cs_rebind
+    ``_producer_map`` 产出表 —— produced_by 注册点 (共享表反转喂双臂)。"""
+    from texlate.compile.fixloop._builtins_shim import (  # noqa: PLC0415
+        _producer_map,
+    )
+
+    producers = _producer_map({})
+    assert producers[0xFE] == "th"
+    assert producers[0xDE] == "TH"

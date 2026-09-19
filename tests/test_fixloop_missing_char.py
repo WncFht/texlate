@@ -916,3 +916,80 @@ def test_loop_caret_utf8_end_to_end(tmp_path: Path) -> None:
     t = (proj / "main.bbl").read_text(encoding="utf-8")
     assert "für Physik" in t
     assert "121–187" in t
+
+
+# ════════════════════════════════════════════════════════════════
+# misschars4 #190 (2026-09-19, loop3 残余普查 tmp/lane-misschar3):
+# char_table 补 21 条 (tab ‰ € ✓ ¯ ├ ǎ ﬁ ˆ ₁₂ ∀∃∈∘∧∨∪ ⟨⟩ ˵)
+# ════════════════════════════════════════════════════════════════
+
+
+def test_loop_misschars4_char_table(tmp_path: Path) -> None:
+    r"""~20-cell 普查字面 → 替换/剥除 (misschars4 #190 签名批)。
+
+    文本族 (lmroman 有槽): ‰→``\textperthousand`` €→``\texteuro``
+    ˵→``''``; accent 机制形 (任意字体可排, 免再缺同码位):
+    ¯→``\={}`` ǎ→``\v{a}`` ˆ→``\^{}``; 数学族: ✓→``\surd``
+    (kernel 字形免 amssymb) ₁₂→``_1/_2`` ∀∃∈∘∧∨∪⟨⟩→同名 math cs;
+    ├ boxdraw→``{}`` 剥除; ﬁ→``fi`` religate; tab→空格
+    (1907.00144 lmroman10-italic ×2 实证)。
+    """
+    main = (
+        "\\documentclass{article}\n\\usepackage{ctex}\n"
+        "\\begin{document}\n"
+        "a\tb ‰pct €eur ✓ok ¯m ├x čǎ ﬁle ˆh ˵d "
+        "$x₁ y₂ ∀∃∈∘∧∨∪⟨φ⟩$\n"
+        "\\end{document}\n"
+    )
+    log = (
+        "Missing character: There is no ^^I (U+0009) in font "
+        "[lmroman10-regular]:mapping=tex-text;!\n"
+        "Missing character: There is no ‰ (U+2030) in font "
+        "[lmroman10-regular]:mapping=tex-text;!\n"
+        "Missing character: There is no € (U+20AC) in font "
+        "[lmroman10-regular]:mapping=tex-text;!\n"
+        "Missing character: There is no ✓ (U+2713) in font cmr10!\n"
+        "Missing character: There is no ¯ (U+00AF) in font "
+        "[lmroman10-regular]:mapping=tex-text;!\n"
+        'Missing character: There is no ├ ("251C) in font cmr12!\n'
+        "Missing character: There is no ǎ (U+01CE) in font "
+        "[lmroman10-regular]:mapping=tex-text;!\n"
+        "Missing character: There is no ﬁ (U+FB01) in font "
+        "[lmroman10-regular]:mapping=tex-text;!\n"
+        "Missing character: There is no ˆ (U+02C6) in font "
+        "[lmroman10-regular]:mapping=tex-text;!\n"
+        "Missing character: There is no ˵ (U+02F5) in font "
+        "[lmroman10-regular]:mapping=tex-text;!\n"
+        "Missing character: There is no ₁ (U+2081) in font cmr10!\n"
+        "Missing character: There is no ₂ (U+2082) in font cmr10!\n"
+        "Missing character: There is no ∀ (U+2200) in font cmr10!\n"
+        "Missing character: There is no ∃ (U+2203) in font cmr10!\n"
+        "Missing character: There is no ∈ (U+2208) in font cmr10!\n"
+        "Missing character: There is no ∘ (U+2218) in font cmr10!\n"
+        "Missing character: There is no ∧ (U+2227) in font cmr10!\n"
+        "Missing character: There is no ∨ (U+2228) in font cmr10!\n"
+        "Missing character: There is no ∪ (U+222A) in font cmr10!\n"
+        "Missing character: There is no ⟨ (U+27E8) in font cmr10!\n"
+        "Missing character: There is no ⟩ (U+27E9) in font cmr10!\n"
+        "Output written on main.pdf (1 page).\n"
+    )
+    eng = MockEngine([{"log": log, "pdf": True}, {"log": CLEAN_LOG, "pdf": True}])
+    cell = fixloop(make_proj(tmp_path, main), eng)
+    assert cell["verdict"] == "clean"
+    assert cell["rounds"][0]["category"] == "warn_missing_char"
+    t = (tmp_path / "main.tex").read_text(encoding="utf-8")
+    assert "a b \\mbox{\\textperthousand}pct" in t
+    assert "\\mbox{\\texteuro}eur" in t
+    assert "\\ensuremath{\\surd}ok" in t
+    assert "\\mbox{\\={}}m {}x" in t
+    assert "č\\mbox{\\v{a}}" in t
+    assert "file \\mbox{\\^{}}h" in t
+    assert "\\mbox{''}d" in t
+    assert "x\\ensuremath{_1}" in t
+    assert "y\\ensuremath{_2}" in t
+    assert (
+        "\\ensuremath{\\forall}\\ensuremath{\\exists}\\ensuremath{\\in}"
+        "\\ensuremath{\\circ}\\ensuremath{\\wedge}\\ensuremath{\\vee}"
+        "\\ensuremath{\\cup}" in t
+    )
+    assert "\\ensuremath{\\langle}φ\\ensuremath{\\rangle}" in t

@@ -261,6 +261,16 @@ def _in_spans(pos: int, spans: list[tuple[int, int]]) -> bool:
     return any(a <= pos < b for a, b in spans)
 
 
+#: 带一个实参的文本 cs —— 数学域内展开产预组字母缺字 (``\r{A}``→Å 类
+#: accent cs)。值 = 该 cs 的全部预组产出码位 (触发门), shim 形为
+#: ``\def\<cs>#1{...\txlateold<cs>{#1}...}`` 实参重花括透传 (0806.3530
+#: ``$\r{A}$`` Å-in-cmmi9 实证)。无参字母 cs 归 _MATH_SHIM_CS;
+#: cs_rebind 的无参 emit 形消费不到本表 (按设计, 含参站点不在其管面)。
+_MATH_SHIM_ARG_CS: dict[str, tuple[int, ...]] = {
+    "r": (0x00C5, 0x00E5, 0x016E, 0x016F),  # \r{AaUu} → ÅåŮů 全预组面
+}
+
+
 def _math_cs_shim_names(ctx: LoopCtx, seen: dict[int, tuple[str, str]]) -> list[str]:
     r"""缺字码位 ∩ cs 产出集 ∧ 源内 ``\\<cs>`` 现身数学 span → 待 shim 名单。
 
@@ -268,6 +278,9 @@ def _math_cs_shim_names(ctx: LoopCtx, seen: dict[int, tuple[str, str]]) -> list[
     数学内展开所产)——文本域 ``\i`` 缺字是 ambient 字体真缺字形, 不归此修。
     """
     cands = [cs for cs, cp in _MATH_SHIM_CS.items() if cp in seen]
+    cands += [
+        cs for cs, cps in _MATH_SHIM_ARG_CS.items() if any(cp in seen for cp in cps)
+    ]
     if not cands:
         return []
     masked = mask_tex(ctx.source_blob())
@@ -292,6 +305,12 @@ def _inject_math_cs_shims(ctx: LoopCtx, cses: Iterable[str]) -> list[str]:
     kernel 原语——不用 amsmath 的 ``\text``, 免包依赖。``\ifdefined``
     守卫 ``\let``: 重复注入时 ``\txlateold<cs>`` 若重绑到 shim 后的
     ``\<cs>`` 会自指死循环 (前一轮同 shim 或人工改写的场景)。
+
+    let+def 双双 ``\AtBeginDocument`` 迟延: hyperref 在 ``\begin{document}``
+    预钩段 (begindocument/before) 重声明文本命令族, 导言区即时 ``\def``
+    会被复回原义——1404.0332 ``\i``/1907.03882 ``\ss`` shim 在场仍缺字
+    实证 (probe: ctex+hyperref 下即时 def 失效, hook 迟延存活)。带参 cs
+    (``_MATH_SHIM_ARG_CS``, ``\r`` 类) 走 ``#1`` 重花括透传形。
     """
     cses = list(cses)
     if not cses:
@@ -299,10 +318,18 @@ def _inject_math_cs_shims(ctx: LoopCtx, cses: Iterable[str]) -> list[str]:
     lines = ["% fixloop: math-mode escape for text letter cses"]
     for cs in cses:
         old = f"\\txlateold{cs}"
-        lines += [
-            rf"\ifdefined{old}\else\let{old}\{cs}\fi",
-            rf"\protected\def\{cs}{{\ifmmode\mbox{{{old}}}\else{old}\fi}}",
-        ]
+        if cs in _MATH_SHIM_ARG_CS:
+            body = (
+                rf"\ifdefined{old}\else\let{old}\{cs}\fi"
+                rf"\protected\def\{cs}#1"
+                rf"{{\ifmmode\mbox{{{old}{{#1}}}}\else{old}{{#1}}\fi}}"
+            )
+        else:
+            body = (
+                rf"\ifdefined{old}\else\let{old}\{cs}\fi"
+                rf"\protected\def\{cs}{{\ifmmode\mbox{{{old}}}\else{old}\fi}}"
+            )
+        lines.append(rf"\AtBeginDocument{{{body}}}")
     if _inject_after_docclass(ctx, "\n".join(lines)):
         return list(cses)
     return []
