@@ -1388,3 +1388,12 @@
 - **Intel relay**: undef13 普查 → cstablesweep (19 singles 仅 epstopdfDeclareGraphicsRule 已在表 95-targeted:230; @nil+htmladdnormallink 双桶重叠 — @nil needs-autopsy 禁盲 polyfill; singletons.json 交叉档案)。
 - **文件归属预警**: gfxrelax 占 _builtins_graphics.py → epsconv/micro2 已被告知避同件 (misc/font 叶或 patch 投递); 75-syntax/builtins.py 竞争面 patch-artifact 惯例延续。
 - **门 vigilance**: ①-⑤ 全绿维持; peer 会话 18 个 (texlate-* 多数 idle), 无未授权 teammate git 活动观察 (本批 harvest 全走 leader private-index)。
+
+
+### ~19:35 — nfssfd harvest `f2abce2c` (NFSS pre-error window)
+
+- **Family**: `^No file X.fd.` 先于 NFSS 硬错落 first_i−2 → ctx8 前向盲区 → other|None 零派遣。8 格 (LGRcmr×7 + OT2lmr×1) 真 classify 实证, 比普查多 2 (原 6 格已被 babel_lang_ldf_install 愈后移)。
+- **修**: `ErrReport.pre`(≤4 行) + taxonomy `use_pre` opt-in 键 (仅 flagged 条目搜 pre+head blob — 宽词不劫签, 零爆半径设计) + `_fd_case_variants` 小写-then-verbatim kernel 探序。无新规则 — payload 走 install_file。OT2lmr unpackaged 体面 decline。
+- **回执注记**: 次位 NFSS (>ctx8 非首错) 仍 other — errs 无 pre (known_gap); lane 自报 cross-lane 在飞编辑致 450 transient test failures 复跑全绿 — replay-mutex-window 已知代价再添实证。
+- **入库**: 4 件批发 (无 foreign hunk)。`git show HEAD:` 复验全部 marker 在。
+- **Roster**: missmath/wrapromote/gfxrelax/cstablesweep/endcsresid/stucklatin/epsconv/micro2 = 8。
