@@ -1397,3 +1397,11 @@
 - **回执注记**: 次位 NFSS (>ctx8 非首错) 仍 other — errs 无 pre (known_gap); lane 自报 cross-lane 在飞编辑致 450 transient test failures 复跑全绿 — replay-mutex-window 已知代价再添实证。
 - **入库**: 4 件批发 (无 foreign hunk)。`git show HEAD:` 复验全部 marker 在。
 - **Roster**: missmath/wrapromote/gfxrelax/cstablesweep/endcsresid/stucklatin/epsconv/micro2 = 8。
+
+### patrol ~19:55 — missmath harvest `9a5cdb36` + wrapromote in-flight 观察
+
+- **Detached batches**: l1-gate (9/18 21:43 DONE, 1955/1955 leak 0.0) + autogloss-reg (9/18 22:52 rc=0) 均已结, 无新 run.log。
+- **Harvest `9a5cdb36` missmath** — 4 规 + 闸扩 (75-syntax +264): verdate_pad 199.2 (`\ProvidesX/\filedate/请求参` 单段日期 → `\@parse@version` 吞 `\@nil` 三联, aa.cls 2 格), endcomment_tail_split 199.3 (verbatim `\end{comment}` 同行尾静默丢 → splice 黏 env 失衡, 1803.00136), missingdollar_blankline 199.4 (file:NNN=空白行实测才注 %, 4 格), ifnum_typeout_banner 199.5 (`\ifnum \typeout` → `0=0` 预置, 会议模板逐字 2 格); revtex4_array_swap_guard 闸扩 `{(revtex4|aastex6|aas\b)` (包装类 LoadClass revtex4-1 同病, 3 格)。留档: hep-ph/0111117 + 1306.0396 孤件; 1706.00225 Missing-{ = splice `\institute` 空白 para_longize 已盖。tests 17/17 + ruleset_validate 18/18 + Ruleset.load()=155。
+- **Orphan-check 1 fail = wrapromote 在飞 churn 非本次入库破**: `main_wrapper_promote` order 8.5 规则+注册+builtin 三件已在 worktree (40-install.yaml:21/builtins.py/_builtins_misc.py:730), test_phase_ordering loop[:7] 断言待其交付同步 — HEAD 侧 rule/reg 双 0 计数自洽, 1486 余绿。
+- **Roster**: missmath 关 → wrapromote/gfxrelax/cstablesweep/endcsresid/stucklatin/epsconv/micro2 = 7。
+- **门 vigilance**: ①-⑤ 维持绿 (本次入库 yaml-only 无 builtin 依赖, load 复验过)。
