@@ -878,3 +878,10 @@
 - **修形发现**：`pdftex_prim_guard` 纯 yaml regex_rewrite (55-prim:109) → primguard 不需 _builtins_shim, 锁表无撞确认。misplaced-& 4+ 格根=diagrams.sty 缺 env (diagram/\! 族 env polyfill, 入下波候选)。already_def 尾 12 格 fired-unfixed → mini-census 候选。
 - roster 11：bticktax(fc9+sab 毕)/csfix2/kvdig/obeylines/primguard/maxsep209 + 4 新派 (revpacs/hxetex/mathchar/loop3prep)。failmine3 交付即关。
 - 门：teammate 零 git✓；sab-r4 0 escape✓；HEAD 43bd606 净；工作区 latex209.py+test_latex209.py (maxsep209 在写) + args.py (kvdig) + peer docs；clean% 31/32 维。
+
+## 2026-09-19 ~17:1x — patrol 静持 + dimcen 补派
+
+- failmine3 idle echo 复核簇表——#2 missing-number/dimen (~40 格 101 站) 漏派补 **dimcen** (read-only 站点拆分: vendor-stub 缺陷 svjour3:177/csvsimple-l3:36/pstricks-add:1544 vs doc 侧 dimen——喂 stub-patch 下波)。余 top-6 全覆盖: 209batch/keyval-leak 队列等 mutex, babel/amstex → loop3 复测核销。
+- 无 detached 批 (sab-r4 DONE)；无新交付；工作区 = maxsep209/kvdig(test_args_kvdig.py 新件=近交付)/obeylines(reconstruct+2 测试件=近交付)；csfix2 31min 无件触=诊断期 (三件套+75-syntax 内联扫描件, 次 tick 仍静则催)。
+- roster 11：bticktax(fc9 待发)/csfix2/kvdig/obeylines/primguard/maxsep209 + revpacs/hxetex/mathchar/loop3prep/dimcen。
+- 门：teammate 零 git✓ (log 全 wncfht)；HEAD e63d90b 净；clean% 31/32 维。
