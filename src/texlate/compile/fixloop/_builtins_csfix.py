@@ -224,7 +224,12 @@ _ALREADY_DEF_CS_RE = re.compile(
 #: (撞名才产 already_def): renewcommand/RenewDocumentCommand 要名已定义,
 #: 前置 ``\let\@undefined`` 反使其炸; providecommand 族撞名静默不报错,
 #: 清位反夺 cls 既有定义 —— 均不入列; ``\def``/``\newtheorem`` 系亦
-#: 不产 Command 签。
+#: 不产 Command 签。DeclareMath{Symbol,Delimiter,Accent,Radical} 四件
+#: 与 DeclareMathAlphabet 同走 ``\ifx\csname X\endcsname\relax`` 自有
+#: 守卫 (latex.ltx:13462/13511/13594/13696 ``Command `\X' already
+#: defined``, 非 ``\@ifdefinable``) —— ``\let\X\@undefined`` 清位有效。
+#: DeclareSymbolFontAlphabet 不收: 其守卫查的是 space-后缀伴生名
+#: ``\X␣`` (latex.ltx:13753-13763), 清 ``\X`` 本体是徒劳。
 _SITE_DEF_CMDS: tuple[str, ...] = (
     "newcommand",
     "DeclareRobustCommand",
@@ -233,6 +238,10 @@ _SITE_DEF_CMDS: tuple[str, ...] = (
     "DeclareMathAlphabet",
     "newmathalphabet",
     "NewMathAlphabet",
+    "DeclareMathSymbol",
+    "DeclareMathDelimiter",
+    "DeclareMathAccent",
+    "DeclareMathRadical",
     "DeclareMathOperator",
 )
 #: ``\providecommand`` 族只收 end* 名站点: 非恒拒名撞名静默不产
@@ -250,8 +259,11 @@ _PROVIDE_SITE_CMDS: tuple[str, ...] = ("providecommand",)
 #: ``\cs_if_exist`` 无 end 守卫 (``\__cmd_check_end`` 只服务 env copy/show);
 #: ``\DeclareMathAlphabet`` 族走自有 ``\ifx\csname X\endcsname\relax``
 #: (``\csname`` 把 undefined 名冻结成 ``\relax`` → ``\let\X\@undefined``
-#: 对其本就有效, fixprobe 实证) —— 均不食 ``\@ifdefinable``, 前置 rc@
-#: 会泄给下个用户 → 不入列。
+#: 对其本就有效, fixprobe 实证) —— DeclareMath{Symbol,Delimiter,Accent,
+#: Radical} 同此守卫 (latex.ltx:13505/13585/13455/13652 ``\expandafter
+#: \ifx\csname\@gobble\string#1\endcsname\relax`` 形), 且 end* 名无
+#: ``\@qend`` 拒径 (非 ``\@ifdefinable`` → 不查 ``\@qend``) —— 均不食
+#: ``\@ifdefinable``, 前置 rc@ 会泄给下个用户 → 不入列。
 _IFN_ROUTED_CMDS: frozenset[str] = frozenset(
     {
         "newcommand",
