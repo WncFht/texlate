@@ -308,9 +308,14 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/lane-fmsingles/; PoS.cls:205-210 \\ifpdf 分支; normalize.py breakurl-scoped \\ifpdf patch"
 
+  # 2026-09-20 haltsweep 扩面: halt_on_error 下每轮 log 只曝首个缺件,
+  # 逐 payload 补件在多缺件格烧穿轮次上限 (2501.01425 烧 8 轮余 3 件
+  # log 未触及) —— builtin 内 _enum_missing_graphics 源侧枚举全部活
+  # 图形引用缺件一轮补齐 (filedir/main_dir/wdir/\graphicspath 解析位 +
+  # kpathsea 树防 mwe 遮蔽; 非字面 arg 仍归 log 臂)。
   - id: graphic_missing_placeholder
     mechanisms: [W21]
-    description: "missing_file/missing_graphic 图档真缺件 → 解析位落最小合法格式占位 (EPS/PNG/JPEG/PDF 按后缀)"
+    description: "missing_file/missing_graphic 图档真缺件 → 解析位落最小合法格式占位 (EPS/PNG/JPEG/PDF 按后缀; 源侧枚举一轮补齐)"
     phase: loop
     order: 17.6 # includepdf_missing_stub(17.5) 后, graphic_repair(18) 前
     when:

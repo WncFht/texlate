@@ -1072,6 +1072,82 @@ _LOG_MISS_GFX_RE = re.compile(
     r"Unable to load picture or PDF file '([^']+)'|File `([^']+)' not found"
 )
 
+# ═══ 源侧枚举 (haltsweep): halt_on_error 下 log 只曝首件, log 扫不够 ═══
+
+#: ``\graphicspath{{d1/}{d2/}}`` 声明点 (遮盖视图; 多次声明取并集=保守超集)。
+_GRAPHICSPATH_RE = re.compile(r"\\graphicspath\s*\{((?:[^{}]|\{[^{}]*\})*)\}")
+_GSPATH_DIR_RE = re.compile(r"\{([^{}]*)\}")
+
+#: 枚举只收字面 arg —— 宏拼名/特殊字符形 (``\imgdir/x``) 静态不可判,
+#: 留在 log 驱动臂 (``_LOG_MISS_GFX_RE``) 的既有逐件路径。
+_ENUM_ARG_BAD_RE = re.compile(r"[\\%#~^&$'\"`\x00-\x1f]")
+
+
+def _graphicspath_dirs(ctx: LoopCtx) -> list[PurePosixPath]:
+    r"""全工程活 ``\graphicspath`` 目录并集 —— 超集只减误判 (不误占位真图)。"""
+    dirs: list[PurePosixPath] = []
+    for f in ctx.tex_files():
+        t = ctx.read(f)
+        if t is None or "\\graphicspath" not in t:
+            continue
+        for m in _live_matches(_GRAPHICSPATH_RE, t):
+            for raw in _GSPATH_DIR_RE.findall(m.group(1)):
+                d = _norm_graphic_name(raw).rstrip("/")
+                pp = PurePosixPath(d)
+                if (
+                    d
+                    and not pp.is_absolute()
+                    and ".." not in pp.parts
+                    and not _ENUM_ARG_BAD_RE.search(d)
+                    and pp not in dirs
+                ):
+                    dirs.append(pp)
+    return dirs
+
+
+def _enum_missing_graphics(ctx: LoopCtx, eng: Engine | None, base: Path) -> list[str]:
+    r"""源侧枚举存活图形引用的全部缺件名 —— halt_on_error 盲区补全。
+
+    fixloop 编译走 ``halt_on_error`` —— 每轮 log 只曝首个缺件
+    (``_LOG_MISS_GFX_RE`` 扫不出未达段), 逐 payload 补件在多缺件格
+    烧穿轮次上限 (v3all 2501.01425: 8 轮补 8 件, log 从未触及的第 9+
+    件仍在)。对每张 tex: 活 ``\includegraphics``/epsfig 族字面 arg →
+    解析位 (filedir / main_dir / wdir / ``\graphicspath`` 目录) 全 miss
+    即缺件候选; 带后缀 arg 再过 ``eng.probe_file`` (kpathsea texmf 树
+    —— 防占位遮蔽 texlive 随发图如 mwe ``example-image.pdf``; 无后缀
+    arg 免探: 同名 texmf 图按 ``\Gin@extensions`` 扩展序先中, 落盘
+    ``.eps`` 永不遮蔽)。非字面 arg 跳过 —— 静态不可判, 归 log 臂。
+    """
+    gspath = _graphicspath_dirs(ctx)
+    wants: list[str] = []
+    for f in ctx.tex_files():
+        t = ctx.read(f)
+        if t is None or not any(
+            k in t for k in ("\\includegraphics", "\\epsf", "\\psfig")
+        ):
+            continue
+        args = [m.group(2) for m in _live_matches(_INCLUDE_GFX_RE, t)]
+        for m in _live_matches(_EPS_KV_RE, t):
+            kv = _KV_FILE_RE.search(m.group(1))
+            args.append(kv.group(1) if kv else m.group(1))
+        for arg in args:
+            a = _norm_graphic_name(arg)
+            if not a or _ENUM_ARG_BAD_RE.search(a):
+                continue
+            pp = PurePosixPath(a)
+            if pp.is_absolute() or ".." in pp.parts:
+                continue
+            exts = ("",) if pp.suffix else ("", *_GRAPHIC_EXTS)
+            roots = [f.parent, base, ctx.wdir]
+            roots += [r / g for g in gspath for r in (f.parent, base, ctx.wdir)]
+            if any(safe_is_file(root / f"{a}{e}") for root in roots for e in exts):
+                continue
+            if pp.suffix and eng is not None and eng.probe_file(a, cwd=base):
+                continue  # texmf 树可解 (mwe 族) —— 占位会遮蔽真件, 跳过
+            if a not in wants:
+                wants.append(a)
+    return wants
+
 
 def _stub_graphic_at(  # noqa: C901, PLR0911, PLR0912 - 逐门 decline note 即归因
     ctx: LoopCtx, base: Path, want: str, *, rescue_check: bool
@@ -1155,8 +1231,13 @@ def graphic_missing_placeholder(
     micro2 扩面 (v3all 2501.01329/2501.01425): 本轮 log 全量枚举同签
     缺图一次补齐 —— nonstop 编译单趟已列全部, 逐轮单补在多缺件格
     烧穿轮次上限。log 缺席/单件时行为与旧逐件版等价。
+
+    haltsweep 扩面 (v3all 8 格普查): fixloop 编译走 halt_on_error —
+    每轮 log 只曝首个缺件, log 扫臂实际仍逐轮单补 (2501.01425 烧
+    8 轮, 余 3 件 log 从未触及)。补 ``_enum_missing_graphics`` 源侧
+    枚举 —— 全工程活引用静态解析, 一轮尽列已知缺件。
     """
-    del eng, params
+    del params
     want = _norm_graphic_name(payload or "")
     if not want:
         return False, "no graphic payload"
@@ -1167,6 +1248,9 @@ def graphic_missing_placeholder(
         w = _norm_graphic_name(m.group(1) or m.group(2))
         if w and w not in wants:
             wants.append(w)
+    for w in _enum_missing_graphics(ctx, eng, base):
+        if w not in wants:
+            wants.append(w)
     wrote: list[str] = []
     declined: list[str] = []
     for i, w in enumerate(wants):
@@ -1176,7 +1260,7 @@ def graphic_missing_placeholder(
         return False, declined[0] if declined else "no stub written"
     head = wrote[0]
     if len(wrote) > 1:
-        head += f" (+{len(wrote) - 1} log-swept)"
+        head += f" (+{len(wrote) - 1} swept)"
     if declined:
         head += f" | declined: {'; '.join(declined)}"
     return True, head
