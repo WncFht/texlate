@@ -7,7 +7,11 @@
 
 另加 rules/ ``warnings:`` 段扫描 (docs/08 §4.3 红线) → ``warnings`` 字段;
 ``invalid_utf8`` 命中在无 '!' 错时升级为 ``warn_utf8`` 伪类别 (v1.1 扩展,
-驱动 non_utf8_source 修复轮)。
+驱动 non_utf8_source 修复轮)。``_FILE_ATTRIBUTED_WARNS`` 的输入侧警告按
+警告行文件栈顶归因——系统 texmf/bundle 件与 DOS 魔数 EPS 源降
+``warnings_sys`` 观察项, 不再驱动 ``warn_*`` (loginfo ``warnings_hit``/
+``warnings_sys`` 裂口在本侧的镜像; utf8census 实证 sys 件坏字节曾使
+``warn_utf8`` 每轮空转再生, 污染 census)。
 """
 
 from __future__ import annotations
@@ -30,6 +34,10 @@ from texlate.texlog import (
     TAIL_LINES,
     WARN_MSG_SRC,
     file_stack_at,
+    is_dos_eps,
+    is_project_file,
+    patch_graphic_top,
+    update_file_stack,
 )
 
 __all__ = ["ErrReport", "Taxonomy", "parse_log", "parse_text"]
@@ -167,6 +175,14 @@ def _is_err_line(ln: str) -> bool:
 #: 错误派发 (twinhead); 病态刷屏 log 的 '!' 行可上千, 截尾保内存。
 _ERRS_MAX = 32
 
+#: 输入侧 byte-level 警告 id——警告行文件栈顶即肇事文件, 按产生者归因
+#: (``invalid_utf8`` 是读入字节告警; ``loginfo._scan_error_lines`` 同口径,
+#: 两侧共用 texlog 归因原语)。输出侧警告 (``missing_char`` 缺字形——栈顶
+#: 是排版执行位而非字源, 且缺字照样落 PDF) 与其余 warn id 刻意不归因,
+#: 走全文扫描原语义。归因按**行**进行: 收进本集的 id 其 pattern 须是行内
+#: 匹配形 (跨行 pattern 在本面不命中, 与全文 ``re.search`` 有语义差)。
+_FILE_ATTRIBUTED_WARNS = frozenset({"invalid_utf8"})
+
 
 @dataclass(slots=True)
 class ErrReport:
@@ -184,6 +200,11 @@ class ErrReport:
     #: 肇事候选（#78）。无错误/无弹栈 → 空。
     popped_files: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)  # 命中的 warning id
+    #: 系统源命中的输入侧警告 (``<warn_id>@<file>`` 形, loginfo
+    #: ``warnings_sys`` 同形同义)——``_FILE_ATTRIBUTED_WARNS`` 按警告行
+    #: 文件栈顶归因, 系统 texmf/bundle 件与 DOS 魔数 EPS 源 (``(dos-eps)``
+    #: 尾标) 降此观察项, 不进 ``warnings`` 故不驱动 ``warn_*`` 伪类别。
+    warnings_sys: list[str] = field(default_factory=list)
     raw: str = ""  # log 全文 (供 escalate_llm context / cases log_excerpt)
     #: 每条错误行 (strip 后 err_line, 其起 ≤CTX_LINES 行 ctx blob), 上限
     #: ``_ERRS_MAX``——次级错误派发 (twinhead) 的全错误面: 首错遮蔽可修
@@ -193,25 +214,73 @@ class ErrReport:
 
 
 def parse_log(
-    log_path: Path | None, warn_patterns: list[dict[str, Any]] | None = None
+    log_path: Path | None,
+    warn_patterns: list[dict[str, Any]] | None = None,
+    *,
+    project_root: Path | None = None,
 ) -> ErrReport:
-    """读 .log → ErrReport。log 不存在/不可读 → 全空 report (spike L50-55)。"""
+    """读 .log → ErrReport。log 不存在/不可读 → 全空 report (spike L50-55)。
+
+    ``project_root`` 透传 ``parse_text``——``_FILE_ATTRIBUTED_WARNS`` 的
+    警告归因根 (编译工作根 ``wdir``)。
+    """
     if log_path is None or not Path(log_path).exists():
         return ErrReport()
     try:
         text = Path(log_path).read_text(errors="replace")
     except OSError:
         return ErrReport()
-    return parse_text(text, warn_patterns)
+    return parse_text(text, warn_patterns, project_root=project_root)
+
+
+def _attribute_warns(
+    lines: list[str],
+    attr_pats: dict[str, re.Pattern[str]],
+    project_root: Path | None,
+) -> tuple[set[str], dict[str, set[str]]]:
+    """逐行扫归因型警告 → ``(工程源命中 id 集, {warn id: 系统源文件名集})``。
+
+    文件栈顶最内具名帧即产生者候选——DOS 魔数 EPS (``(dos-eps)`` 尾标)
+    与系统 texmf/bundle 件降 sys 观察项; 空栈/判不出归属保守归工程
+    (``loginfo._scan_error_lines`` 同口径, 共用 texlog 归因原语)。
+    """
+    proj: set[str] = set()
+    sys_hits: dict[str, set[str]] = {}
+    dos_eps_cache: dict[str, bool] = {}
+    stack: list[str | None] = []
+    for ln in lines:
+        update_file_stack(ln, stack)
+        patch_graphic_top(ln, stack)
+        for wid, rx in attr_pats.items():
+            if not rx.search(ln):
+                continue
+            inner = next((s for s in reversed(stack) if s), None)
+            if is_dos_eps(inner, project_root, dos_eps_cache):
+                name = Path(inner).name if inner else "?"
+                sys_hits.setdefault(wid, set()).add(f"{name}(dos-eps)")
+            elif is_project_file(inner, project_root):
+                proj.add(wid)
+            else:
+                sys_hits.setdefault(wid, set()).add(Path(inner).name if inner else "?")
+    return proj, sys_hits
 
 
 def parse_text(
-    text: str, warn_patterns: list[dict[str, Any]] | None = None
+    text: str,
+    warn_patterns: list[dict[str, Any]] | None = None,
+    *,
+    project_root: Path | None = None,
 ) -> ErrReport:
     """Log 文本 → ErrReport (tectonic stdout_tail 兜底也走这里)。
 
     错误行双格式: `^!` (spike 原语义) + `file:line:` (-file-line-error,
     impl-compile xelatex 命令行旗标; Warning 行不计入)。
+
+    ``project_root`` = 编译工作根 (``wdir``): ``_FILE_ATTRIBUTED_WARNS``
+    的警告按警告行文件栈顶归因——工程源命中进 ``warnings`` (驱动
+    ``warn_*`` 伪类别), 系统 texmf/bundle 件与 DOS 魔数 EPS 源降
+    ``warnings_sys``。缺席时绝对路径按 texmf 标记启发式、裸名保守归
+    工程 (``loginfo.parse_log`` 同口径——不可归因不掉红线)。
     """
     rep = ErrReport(raw=text)
     lines = text.splitlines()
@@ -234,10 +303,40 @@ def parse_text(
         popped: list[str | None] = []
         rep.file_stack = file_stack_at(lines, first_i, popped)
         rep.popped_files = [t for t in popped if t is not None]
-    for w in warn_patterns or []:
-        if re.search(w["pattern"], text, re.IGNORECASE | re.MULTILINE):
-            rep.warnings.append(w["id"])
+    _collect_warnings(rep, text, lines, warn_patterns, project_root)
     return rep
+
+
+def _collect_warnings(
+    rep: ErrReport,
+    text: str,
+    lines: list[str],
+    warn_patterns: list[dict[str, Any]] | None,
+    project_root: Path | None,
+) -> None:
+    """warn_patterns → ``rep.warnings``/``rep.warnings_sys`` (序 = 表序)。
+
+    ``_FILE_ATTRIBUTED_WARNS`` 成员只收工程源命中 (sys 件命中落
+    ``warnings_sys`` 观察项, 不驱 ``warn_*``); 其余 id 走全文扫描原语义。
+    """
+    attr_pats = {
+        w["id"]: re.compile(w["pattern"], re.IGNORECASE)
+        for w in warn_patterns or []
+        if w["id"] in _FILE_ATTRIBUTED_WARNS
+    }
+    attr_proj, attr_sys = (
+        _attribute_warns(lines, attr_pats, project_root) if attr_pats else (set(), {})
+    )
+    for w in warn_patterns or []:
+        wid = w["id"]
+        if wid in attr_pats:
+            if wid in attr_proj:
+                rep.warnings.append(wid)
+        elif re.search(w["pattern"], text, re.IGNORECASE | re.MULTILINE):
+            rep.warnings.append(wid)
+    rep.warnings_sys = [
+        f"{wid}@{name}" for wid in sorted(attr_sys) for name in sorted(attr_sys[wid])
+    ]
 
 
 def _payload(entry: dict[str, Any], m: re.Match[str]) -> str | None:

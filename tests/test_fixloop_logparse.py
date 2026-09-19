@@ -399,6 +399,101 @@ def test_warn_utf8_not_reached_when_bang() -> None:
     assert cat == "soul_err"
 
 
+# ---------------------------------------------------------------- warnings 归因
+def test_warn_utf8_sys_file_not_project() -> None:
+    """sys 件 invalid_utf8 (texmf 绝对路径栈顶) → ``warnings_sys`` 观察项,
+
+    不进 ``rep.warnings`` → ``warn_utf8`` 伪类别不点火 (stagerun-loop3
+    1907.00067 实证: ``_texmf`` 树 misccorr.sty 坏字节曾使 final_cat
+    =warn_utf8 每轮再生, judge 侧早已归 sys_warn note)。"""
+    log = (
+        "(./main.tex\n"
+        "(/usr/share/texmf-dist/tex/latex/t2/misccorr.sty\n"
+        "Invalid UTF-8 byte or sequence at line 29 replaced by U+FFFD.\n"
+        ")\n"
+        "Output written on main.pdf (1 page).\n"
+    )
+    rep = parse_text(log, _warn())
+    assert rep.warnings == []
+    assert rep.warnings_sys == ["invalid_utf8@misccorr.sty"]
+    assert classify(log) == ("clean", None)
+
+
+def test_warn_utf8_usertree_under_project_root(tmp_path: Path) -> None:
+    """root 内 ``_texmf`` usertree 件仍是系统语义 (fixloop 自装包落此树)。"""
+    log = (
+        "(./main.tex\n"
+        f"({tmp_path}/_texmf/home/tex/latex/t2/faktor.sty\n"
+        "Invalid UTF-8 byte or sequence at line 61 replaced by U+FFFD.\n"
+    )
+    rep = parse_text(log, _warn(), project_root=tmp_path)
+    assert rep.warnings == []
+    assert rep.warnings_sys == ["invalid_utf8@faktor.sty"]
+
+
+def test_warn_utf8_project_file_still_fires() -> None:
+    """工程文件帧顶的 invalid_utf8 照驱 ``warn_utf8`` (归因不吞真红线)。"""
+    log = (
+        "(./main.tex\n"
+        "(./sub/bad.tex\n"
+        "Invalid UTF-8 byte or sequence at line 9 replaced by U+FFFD.\n"
+    )
+    rep = parse_text(log, _warn())
+    assert rep.warnings == ["invalid_utf8"]
+    assert rep.warnings_sys == []
+    assert classify(log) == ("warn_utf8", None)
+
+
+def test_warn_utf8_mixed_sys_and_project() -> None:
+    """sys + 工程混合命中: sys 件降 ``warnings_sys``, 工程命中照驱 warn_utf8。"""
+    log = (
+        "(/usr/share/texmf-dist/tex/latex/t2/misccorr.sty\n"
+        "Invalid UTF-8 byte or sequence at line 29 replaced by U+FFFD.\n"
+        ")\n"
+        "(./main.tex\n"
+        "Invalid UTF-8 byte or sequence at line 5 replaced by U+FFFD.\n"
+    )
+    rep = parse_text(log, _warn())
+    assert rep.warnings == ["invalid_utf8"]
+    assert rep.warnings_sys == ["invalid_utf8@misccorr.sty"]
+    assert classify(log) == ("warn_utf8", None)
+
+
+def test_warn_utf8_dos_eps_tagged(tmp_path: Path) -> None:
+    """DOS 魔数 EPS 源降 sys 并打 ``(dos-eps)`` 尾标 (loginfo 同口径)。"""
+    (tmp_path / "fig.eps").write_bytes(b"\xc5\xd0\xd3\xc6%!PS-Adobe-3.0 EPSF")
+    log = (
+        "(./main.tex\n"
+        "(fig.eps\n"
+        "Invalid UTF-8 byte or sequence at line 1 replaced by U+FFFD.\n"
+    )
+    rep = parse_text(log, _warn(), project_root=tmp_path)
+    assert rep.warnings == []
+    assert rep.warnings_sys == ["invalid_utf8@fig.eps(dos-eps)"]
+
+
+def test_warn_utf8_unattributable_keeps_redline(tmp_path: Path) -> None:
+    """空栈/不可归因命中保守归工程——不可归因不掉红线 (loginfo 同口径)。"""
+    log = "Invalid UTF-8 byte or sequence at line 3 replaced by U+FFFD.\n"
+    rep = parse_text(log, _warn(), project_root=tmp_path)
+    assert rep.warnings == ["invalid_utf8"]
+    assert rep.warnings_sys == []
+
+
+def test_missing_char_not_attributed() -> None:
+    """``missing_char`` 输出侧警告不归因——sys 帧顶命中仍进 ``warnings``。
+
+    栈顶是排版执行位而非字源, 缺字照样落 PDF——刻意不套
+    ``_FILE_ATTRIBUTED_WARNS`` 过滤。"""
+    log = (
+        "(/usr/share/texmf-dist/tex/latex/t2/misccorr.sty\n"
+        "Missing character: There is no 中 in font cmr10\n"
+    )
+    rep = parse_text(log, _warn())
+    assert rep.warnings == ["missing_char"]
+    assert rep.warnings_sys == []
+
+
 def test_timeout_overrides() -> None:
     cat, _ = classify("! Emergency stop.\n", timed_out=True)
     assert cat == "timeout"
