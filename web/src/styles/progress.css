@@ -1,0 +1,210 @@
+/* ---------- 任务进行中视图 ---------- */
+
+.task-progress {
+    flex: 1;
+    overflow: auto;
+    max-width: 720px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 40px 24px;
+}
+
+.tp-title {
+    font-family: var(--font-serif);
+    font-size: 22px;
+    margin: 0 0 24px;
+}
+
+.stage-stepper {
+    display: flex;
+    list-style: none;
+    padding: 0;
+    margin: 0 0 18px;
+    gap: 4px;
+}
+
+.stage-stepper li {
+    flex: 1;
+    text-align: center;
+    font-size: 12px;
+    color: var(--ink-2);
+    padding: 8px 0;
+    border-bottom: 3px solid var(--line);
+}
+
+.stage-stepper li.done {
+    color: var(--pine);
+    border-color: var(--pine);
+}
+
+.stage-stepper li.on {
+    color: var(--cinnabar);
+    border-color: var(--cinnabar);
+    font-weight: 600;
+}
+
+.tp-bar {
+    height: 5px;
+    background: var(--paper-2);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 14px;
+}
+
+.tp-bar i {
+    display: block;
+    height: 100%;
+    background: var(--cinnabar);
+    transition: width 0.3s ease;
+}
+
+.warn-list {
+    font-size: 13px;
+    color: var(--ochre-deep);
+    padding-left: 18px;
+}
+
+.log-drawer {
+    margin-top: 18px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel);
+}
+
+.log-drawer summary {
+    padding: 8px 14px;
+    font-size: 13px;
+    color: var(--ink-2);
+    cursor: pointer;
+    user-select: none;
+    border-radius: 8px;
+}
+
+.log-drawer summary:hover {
+    color: var(--ink);
+}
+
+.log-drawer pre {
+    margin: 0;
+    padding: 10px 14px;
+    max-height: 280px;
+    overflow: auto;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    line-height: 1.5;
+    border-top: 1px solid var(--line);
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+.tp-actions {
+    margin-top: 20px;
+}
+
+/* ---------- 翻译中流式预览（U1，ChunkPreview） ---------- */
+
+.chunk-preview {
+    margin-top: 18px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel);
+    padding: 8px 14px;
+}
+
+.cp-head {
+    margin: 0 0 6px;
+    font-size: 12px;
+}
+
+.cp-list {
+    max-height: 320px;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-right: 4px;
+}
+
+.cp-item {
+    min-width: 0;
+}
+
+.cp-meta {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+}
+
+.cp-kind {
+    font-style: normal;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 0 4px;
+    font-size: 10px;
+    color: var(--ink-3);
+}
+
+.cp-text {
+    margin: 2px 0 0;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--ink);
+    overflow-wrap: break-word;
+}
+
+.warn-title {
+    margin: 14px 0 4px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ochre-deep);
+}
+
+/* ---------- 棋盘格 ---------- */
+
+.progress-grid-wrap {
+    margin-top: 18px;
+}
+
+.progress-grid-meta {
+    display: flex;
+    gap: 18px;
+    font-size: 12px;
+    color: var(--ink-2);
+    margin-bottom: 8px;
+    font-variant-numeric: tabular-nums;
+}
+
+.progress-grid-meta .bad {
+    color: var(--cinnabar-deep);
+}
+
+.progress-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(11px, 1fr));
+    gap: 3px;
+}
+
+.progress-grid i {
+    aspect-ratio: 1;
+    border-radius: 2px;
+    background: var(--paper-2);
+    border: 1px solid var(--line);
+}
+
+.progress-grid i.cell-ok {
+    background: var(--pine);
+    border-color: var(--pine);
+}
+
+.progress-grid i.cell-fallback {
+    background: var(--ochre);
+    border-color: var(--ochre);
+}
+
+.progress-grid i.cell-failed {
+    background: var(--cinnabar);
+    border-color: var(--cinnabar);
+}
+

@@ -1,0 +1,82 @@
+/* ---------- Settings ---------- */
+
+.settings {
+    flex: 1;
+    overflow: auto;
+    max-width: 560px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 36px 24px;
+}
+
+.settings h1 {
+    font-family: var(--font-serif);
+    font-size: 22px;
+    margin: 0 0 22px;
+}
+
+.settings-form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.settings-form label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.settings-form label em {
+    font-style: normal;
+    font-weight: 400;
+    font-size: 12px;
+    margin-left: 8px;
+}
+
+.settings-form input,
+.settings-form select,
+.settings-form textarea {
+    padding: 9px 12px;
+    font-size: 14px;
+    font-family: inherit;
+    background: var(--panel);
+    border: 1px solid var(--line-strong);
+    border-radius: 6px;
+    color: var(--ink);
+    outline: none;
+}
+
+.settings-form input:focus,
+.settings-form select:focus,
+.settings-form textarea:focus {
+    border-color: var(--cinnabar);
+    box-shadow: 0 0 0 3px rgb(178 58 31 / 12%);
+}
+
+.settings-form textarea {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    resize: vertical;
+}
+
+.settings-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 6px;
+}
+
+/* .key-row —— API Key 字段 + 清除按钮同行（按钮对齐输入框下缘） */
+.key-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+}
+
+.key-row > label {
+    flex: 1;
+    min-width: 0;
+}
+

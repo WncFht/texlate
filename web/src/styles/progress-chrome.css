@@ -1,0 +1,121 @@
+/* ---------- progress chrome：排队徽章 / ETA / 段耗时 / fixloop·L2 面板 / 日志命中 ---------- */
+
+.queue-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 10px;
+    margin: 0 0 12px;
+    border-radius: 999px;
+    font-size: 12px;
+    background: color-mix(in srgb, var(--ochre) 12%, transparent);
+    color: var(--ochre-deep);
+}
+
+.tp-eta {
+    margin: 0 0 4px;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+}
+
+.stage-timeline li .tl-dur {
+    flex: none;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    font-family: var(--font-mono);
+}
+
+.fx-panel {
+    margin-top: 14px;
+    padding: 8px 14px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel);
+    font-size: 13px;
+}
+
+.fx-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 6px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.fx-spin {
+    flex: none;
+    width: 10px;
+    height: 10px;
+    border: 2px solid var(--line-strong);
+    border-top-color: var(--cinnabar);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+.fx-rounds {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-2);
+}
+
+.fx-rounds li {
+    padding: 2px 0;
+}
+
+.fx-verdict {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 6px 0 0;
+}
+
+.fx-badge {
+    display: inline-block;
+    padding: 1px 8px;
+    font-size: 12px;
+    font-family: var(--font-mono);
+    border: 1px solid var(--line-strong);
+    border-radius: 6px;
+    background: var(--paper-2);
+    color: var(--ink);
+}
+
+.fx-floor {
+    font-size: 12px;
+    color: var(--ochre-deep);
+}
+
+.fx-note {
+    margin: 0;
+    font-variant-numeric: tabular-nums;
+}
+
+.log-line.hit {
+    background: color-mix(in srgb, var(--ochre) 30%, transparent);
+    border-radius: 2px;
+}
+
+/* ---------- 结果面板细分统计块 ---------- */
+
+.stage-secs {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 14px;
+    margin: 0;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+}
+
+.stage-secs .ss-label {
+    font-weight: 600;
+    color: var(--ink-2);
+}
+
+.stage-secs .ss-item {
+    white-space: nowrap;
+}
+

@@ -1,0 +1,34 @@
+/* ---------- 产物下载清单（doc 任务面板 / 有产物的非干净终态） ---------- */
+
+.file-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.file-list a {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    font-size: 13px;
+    color: var(--ink);
+    text-decoration: none;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+}
+
+.file-list a::before {
+    content: "⬇";
+    color: var(--ink-3);
+}
+
+.file-list a:hover {
+    border-color: var(--line-strong);
+    box-shadow: var(--shadow);
+}
+

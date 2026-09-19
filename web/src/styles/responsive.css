@@ -1,0 +1,56 @@
+/* ---------- 响应式 ---------- */
+
+@media (max-width: 720px) {
+    /* 窄屏 toolbar 折行时让位给控件;标题在页内已有 */
+    .tb-title {
+        display: none;
+    }
+}
+
+@media (max-width: 640px) {
+    /* 双栏纵排:每栏仍内部滚动,SyncEngine 用 scrollTop 不受影响 */
+    .panes {
+        flex-direction: column;
+    }
+
+    .panes.swapped {
+        flex-direction: column-reverse;
+    }
+
+    .panes .pane-slot + .pane-slot {
+        border-inline: 0;
+        border-block-start: 1px solid var(--line-strong);
+    }
+
+    .panes.swapped .pane-slot + .pane-slot {
+        border-block-start: 0;
+        border-block-end: 1px solid var(--line-strong);
+    }
+
+    .pane-html-body {
+        padding: 36px 20px 60vh;
+    }
+}
+
+@media (max-width: 560px) {
+    .home {
+        padding: 32px 20px;
+    }
+}
+
+@media (max-width: 520px) {
+    .arxiv-form {
+        flex-wrap: wrap;
+    }
+
+    .arxiv-input {
+        flex: 1 1 100%;
+    }
+}
+
+@media (max-width: 480px) {
+    .task-time {
+        display: none;
+    }
+}
+

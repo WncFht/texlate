@@ -1,0 +1,11 @@
+/* ---------- pdfjs viewer 微调（pdfslick pdf_viewer.css 之上） ---------- */
+
+.pdfSlickContainer {
+    background: var(--paper-2) !important;
+}
+
+.pdfSlickViewer .page {
+    box-shadow: var(--shadow);
+    border: 0 !important;
+}
+

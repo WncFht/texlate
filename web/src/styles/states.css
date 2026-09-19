@@ -1,0 +1,57 @@
+/* 路由级懒加载兜底（Reader 分包在飞） */
+.route-loading {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    color: var(--ink-2);
+    font-size: 13px;
+}
+
+/* 任务列表空态：邀请行动而不是一行裸文本 */
+.task-empty {
+    padding: 26px 20px;
+    text-align: center;
+    color: var(--ink-2);
+    border: 1px dashed var(--line-strong);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--panel) 60%, transparent);
+}
+
+/* 列表加载骨架行（U14）——替换裸「…」，尺寸对齐 .task-row 防跳动 */
+.skel-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.skel-rows i {
+    height: 62px;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    background: linear-gradient(
+        100deg,
+        var(--panel) 40%,
+        var(--paper-2) 50%,
+        var(--panel) 60%
+    );
+    background-size: 200% 100%;
+    animation: skel-sweep 1.4s ease-in-out infinite;
+}
+
+@keyframes skel-sweep {
+    from {
+        background-position: 120% 0;
+    }
+    to {
+        background-position: -80% 0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .skel-rows i {
+        animation: none;
+    }
+}
+

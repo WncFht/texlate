@@ -1,0 +1,366 @@
+/* ---------- 任务列表 ---------- */
+
+.home-tasks h2 {
+    font-family: var(--font-serif);
+    font-size: 17px;
+    letter-spacing: 0.08em;
+    border-bottom: 1px solid var(--line-strong);
+    padding-bottom: 8px;
+}
+
+/* 任务计数：h2 是衬线，数字回 UI 字体更像个计数器 */
+.task-count {
+    font-family: var(--font-ui);
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--ink-3);
+    margin-left: 8px;
+}
+
+.task-wrap {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.task-row {
+    flex: 1;
+    min-width: 0;
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    grid-template-areas: "title status time" "meta meta meta" "bar bar bar";
+    gap: 4px 14px;
+    text-align: left;
+    padding: 12px 14px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+}
+
+.task-del {
+    flex: none;
+    width: 26px;
+    height: 26px;
+    display: grid;
+    place-items: center;
+    font-size: 12px;
+    line-height: 1;
+    color: var(--ink-3);
+    background: transparent;
+    border: 1px solid var(--line-strong);
+    border-radius: 6px;
+    /* 破坏性操作收敛存在感：平时淡出，行 hover/聚焦才回来 */
+    opacity: 0.45;
+    transition: opacity 0.15s;
+}
+
+.task-wrap:hover .task-del:not(:disabled),
+.task-del:focus-visible {
+    opacity: 1;
+}
+
+.task-del:hover:not(:disabled) {
+    color: var(--cinnabar-deep);
+    border-color: var(--cinnabar);
+}
+
+.task-del:disabled {
+    opacity: 0.3;
+    cursor: default;
+}
+
+/* 本行删除在飞：保持可见表明「是我在删」 */
+.task-del.busy:disabled {
+    opacity: 0.8;
+    color: var(--ochre-deep);
+    border-color: var(--ochre);
+}
+
+/* 列表工具行（U5）：搜索 + 筛选 chips + 批量清理 */
+.task-tools {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.task-search {
+    flex: 1;
+    min-width: 180px;
+    padding: 6px 10px;
+    font-size: 13px;
+    color: var(--ink);
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+}
+
+.task-search:focus-visible {
+    outline: 2px solid var(--cinnabar);
+    outline-offset: 1px;
+    border-color: transparent;
+}
+
+.task-chips {
+    display: inline-flex;
+    gap: 4px;
+    padding: 2px;
+    background: var(--paper-2);
+    border-radius: 7px;
+}
+
+.task-chip {
+    padding: 3px 10px;
+    font-size: 12px;
+    color: var(--ink-2);
+    background: transparent;
+    border: 0;
+    border-radius: 5px;
+}
+
+.task-chip.on {
+    background: var(--panel);
+    color: var(--ink);
+    box-shadow: 0 1px 2px rgb(0 0 0 / 10%);
+}
+
+.task-clean {
+    padding: 5px 12px;
+    font-size: 12px;
+    color: var(--ink-2);
+    background: transparent;
+    border: 1px solid var(--line-strong);
+    border-radius: 6px;
+}
+
+.task-clean:hover:not(:disabled) {
+    color: var(--cinnabar-deep);
+    border-color: var(--cinnabar);
+}
+
+.task-clean:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+/* 行内快捷臂（U8）：⏻ 取消 / ↻ 重试 / ⚙ 设置链——与 .task-del 同一克制存在级 */
+.task-act {
+    flex: none;
+    width: 26px;
+    height: 26px;
+    display: grid;
+    place-items: center;
+    font-size: 13px;
+    line-height: 1;
+    color: var(--ink-3);
+    text-decoration: none;
+    background: transparent;
+    border: 1px solid var(--line-strong);
+    border-radius: 6px;
+    opacity: 0.45;
+    transition: opacity 0.15s;
+}
+
+.task-wrap:hover .task-act:not(:disabled),
+.task-act:focus-visible {
+    opacity: 1;
+}
+
+.task-act:hover:not(:disabled) {
+    color: var(--ink);
+    border-color: var(--ink-3);
+}
+
+.task-act:disabled {
+    opacity: 0.3;
+    cursor: default;
+}
+
+.task-del-err {
+    font-size: 12px;
+    color: var(--cinnabar-deep);
+    margin-top: 4px;
+}
+
+.task-meta {
+    grid-area: meta;
+    display: flex;
+    gap: 12px;
+    font-size: 12px;
+    color: var(--ink-2);
+    overflow: hidden;
+}
+
+.task-meta > * {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.task-meta .task-err {
+    color: var(--cinnabar-deep);
+}
+
+/* kind 徽标：doc 类（docx/epub 插译产物，无对照阅读器）松绿区分 tex 路 */
+.task-kind {
+    flex: none;
+    padding: 0 6px;
+    font-size: 11px;
+    line-height: 18px;
+    color: var(--ink-3);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+}
+
+.task-kind.k-doc {
+    color: var(--pine);
+    border-color: var(--pine);
+    background: rgb(47 111 79 / 8%);
+}
+
+/* 行内产物下载：折叠钮在行尾，直链清单作整宽抽屉落到行下横排 */
+.task-dlt {
+    flex: none;
+    width: 26px;
+    height: 26px;
+    display: grid;
+    place-items: center;
+    font-size: 12px;
+    line-height: 1;
+    color: var(--ink-3);
+    background: transparent;
+    border: 1px solid var(--line-strong);
+    border-radius: 6px;
+}
+
+.task-dlt:hover {
+    color: var(--ink);
+    border-color: var(--ink-3);
+}
+
+.task-dlt[aria-expanded="true"] {
+    color: var(--cinnabar);
+    border-color: var(--cinnabar);
+    background: color-mix(in srgb, var(--cinnabar) 8%, transparent);
+}
+
+.task-dl-empty {
+    font-size: 11px;
+    color: var(--ink-3);
+    padding: 2px 4px;
+}
+
+.task-dls {
+    order: 10;
+    flex-basis: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 2px 4px 4px;
+}
+
+.task-dl {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    font-size: 12px;
+    color: var(--ink-2);
+    text-decoration: none;
+    white-space: nowrap;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--panel);
+}
+
+.task-dl::before {
+    content: "⬇";
+    font-size: 11px;
+    color: var(--ink-3);
+}
+
+.task-dl:hover {
+    color: var(--ink);
+    border-color: var(--line-strong);
+    box-shadow: var(--shadow);
+}
+
+.task-row:hover {
+    border-color: var(--line-strong);
+    box-shadow: var(--shadow);
+}
+
+.task-title {
+    grid-area: title;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.task-status {
+    grid-area: status;
+    font-size: 12px;
+    padding: 1px 9px;
+    border-radius: 999px;
+    background: var(--paper-2);
+    color: var(--ink-2);
+}
+
+.task-status.st-done {
+    background: color-mix(in srgb, var(--pine) 14%, transparent);
+    color: var(--pine);
+}
+
+.task-status.st-fault,
+.task-status.st-partial {
+    background: color-mix(in srgb, var(--cinnabar) 12%, transparent);
+    color: var(--cinnabar-deep);
+}
+
+.task-status.st-translating,
+.task-status.st-compiling,
+.task-status.st-parsing,
+.task-status.st-fetching,
+.task-status.st-queued,
+.task-status.st-needs_auth {
+    background: color-mix(in srgb, var(--ochre) 14%, transparent);
+    color: var(--ochre-deep);
+}
+
+.task-time {
+    grid-area: time;
+    font-size: 12px;
+    color: var(--ink-2);
+}
+
+.task-bar {
+    grid-area: bar;
+    height: 3px;
+    background: var(--paper-2);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.task-bar i {
+    display: block;
+    height: 100%;
+    background: var(--ochre);
+    transition: width 0.4s ease;
+}
+
+.task-bar i.done {
+    background: var(--pine);
+}
+
+.task-bar i.fail {
+    background: var(--cinnabar);
+}
+
+.task-bar i.dead {
+    background: var(--ink-3);
+}
+

@@ -1,0 +1,77 @@
+/* ---------- Home 任务选项（details 折叠区，复用 log-drawer 骨架） ---------- */
+
+.task-opts {
+    margin-top: 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel);
+}
+
+.task-opts summary {
+    padding: 8px 14px;
+    font-size: 13px;
+    color: var(--ink-2);
+    cursor: pointer;
+    user-select: none;
+    border-radius: 8px;
+}
+
+.task-opts summary:hover {
+    color: var(--ink);
+}
+
+.opts-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px 14px;
+    padding: 4px 14px 14px;
+    border-top: 1px solid var(--line);
+}
+
+.opts-grid label {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ink);
+    padding-top: 8px;
+}
+
+.opts-grid label em {
+    font-style: normal;
+    font-weight: 400;
+    color: var(--ink-2);
+    margin-left: 6px;
+}
+
+.opts-grid .span2 {
+    grid-column: 1 / -1;
+}
+
+.opts-grid input,
+.opts-grid select,
+.opts-grid textarea {
+    padding: 8px 10px;
+    font-size: 13px;
+    font-family: inherit;
+    background: var(--paper);
+    border: 1px solid var(--line-strong);
+    border-radius: 6px;
+    color: var(--ink);
+    outline: none;
+}
+
+.opts-grid textarea {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    resize: vertical;
+}
+
+.opts-grid input:focus,
+.opts-grid select:focus,
+.opts-grid textarea:focus {
+    border-color: var(--cinnabar);
+    box-shadow: 0 0 0 3px rgb(178 58 31 / 12%);
+}
+

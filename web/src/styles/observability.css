@@ -1,0 +1,293 @@
+/* ---------- 可观测性:统计条 / 时间线 / 连接徽章 / 结果面板 ---------- */
+
+/* .stat-strip —— 进行中任务的指标行(done/cached/failed/tokens/elapsed) */
+.stat-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 24px;
+    padding: 12px 16px;
+    margin-top: 16px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    font-variant-numeric: tabular-nums;
+}
+
+.stat-strip .stat {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+}
+
+.stat-strip .stat dt {
+    font-size: 12px;
+    color: var(--ink-2);
+    order: 2;
+}
+
+.stat-strip .stat .stat-num {
+    font-size: 15px;
+    font-weight: 600;
+    margin: 0;
+    order: 1;
+}
+
+/* .stage-timeline —— 各阶段竖向时间线 */
+.stage-timeline {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 16px;
+    font-size: 13px;
+}
+
+.stage-timeline li {
+    position: relative;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-left: 6px;
+    padding: 5px 0 5px 18px;
+    border-left: 1px solid var(--line-strong);
+    color: var(--ink-2);
+}
+
+.stage-timeline li::before {
+    content: "";
+    position: absolute;
+    left: -5px;
+    top: 10px;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--paper);
+    border: 1px solid var(--line-strong);
+}
+
+.stage-timeline li.done {
+    color: var(--ink);
+}
+
+.stage-timeline li.done::before {
+    background: var(--pine);
+    border-color: var(--pine);
+}
+
+.stage-timeline li.on {
+    color: var(--ink);
+    font-weight: 600;
+}
+
+.stage-timeline li.on::before {
+    background: var(--cinnabar);
+    border-color: var(--cinnabar);
+}
+
+.stage-timeline li .tl-time {
+    font-size: 12px;
+    color: var(--ink-2);
+    font-variant-numeric: tabular-nums;
+    font-family: var(--font-mono);
+    min-width: 62px;
+}
+
+.stage-timeline li .tl-stage {
+    font-weight: 600;
+    color: var(--ink);
+}
+
+.stage-timeline li .tl-msg {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* .transport-badge —— SSE 连接徽章(live/reconnecting/closed) */
+.transport-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    background: var(--paper-2);
+    color: var(--ink-2);
+}
+
+.transport-badge::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentcolor;
+}
+
+.transport-badge.live {
+    background: color-mix(in srgb, var(--pine) 12%, transparent);
+    color: var(--pine);
+}
+
+/* connecting=首连在途（中性）；reconnecting=断线重连（警示色） */
+.transport-badge.connecting {
+    color: var(--ink-2);
+}
+
+.transport-badge.reconnecting {
+    background: color-mix(in srgb, var(--ochre) 14%, transparent);
+    color: var(--ochre-deep);
+}
+
+/* polling=降级轮询兜底——可工作但非实时的中间态 */
+.transport-badge.polling {
+    background: color-mix(in srgb, var(--ochre) 10%, transparent);
+    color: var(--ink-2);
+}
+
+.transport-badge.closed {
+    color: var(--ink-3);
+}
+
+/* .result-banner —— 阅读器内终态横幅(partial/fault 贴 toolbar 下) */
+.result-banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 14px;
+    font-size: 13px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--line);
+    color: var(--ink-2);
+}
+
+/* M1：结果横幅直接按任务态着色——st-* 与既有 warn/bad 修饰同规则复用 */
+.result-banner.warn,
+.result-banner.st-partial {
+    background: color-mix(in srgb, var(--ochre) 10%, var(--panel));
+    color: var(--ochre-deep);
+}
+
+.result-banner.bad,
+.result-banner.st-fault,
+.result-banner.st-cancelled,
+.result-banner.st-interrupted,
+.result-banner.st-needs_auth {
+    background: color-mix(in srgb, var(--cinnabar) 8%, var(--panel));
+    color: var(--cinnabar-deep);
+}
+
+.result-banner .act {
+    margin-left: auto;
+}
+
+/* 横幅里的结果主体收紧:嵌套的 stat-strip/warn-list 去掉外边距 */
+.result-banner .stat-strip {
+    margin-top: 0;
+    padding: 6px 10px;
+    border: 0;
+    background: transparent;
+}
+
+.result-banner .warn-list {
+    margin: 0;
+}
+
+.result-banner .rp-status {
+    font-family: var(--font-ui);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.result-panel-wrap {
+    flex: 1;
+    overflow: auto;
+    display: flex;
+}
+
+.result-panel-wrap .result-panel {
+    margin: auto;
+}
+
+/* .result-panel —— 无产物终态的整页结果卡(fault/cancelled/needs_auth…) */
+.result-panel {
+    margin: 80px auto;
+    max-width: 560px;
+    padding: 20px 22px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.result-panel.bad,
+.result-panel.st-fault,
+.result-panel.st-cancelled,
+.result-panel.st-interrupted,
+.result-panel.st-needs_auth {
+    border-color: color-mix(in srgb, var(--cinnabar) 35%, var(--line));
+}
+
+.result-panel.st-partial {
+    border-color: color-mix(in srgb, var(--ochre) 40%, var(--line));
+}
+
+.result-panel h2 {
+    font-family: var(--font-serif);
+    font-size: 17px;
+    margin: 0;
+}
+
+.rp-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+/* .share-pack —— §6 事后共享：终态面板/横幅内的打包按钮 + 结果态 */
+.share-pack {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.share-ok {
+    font-size: 13px;
+}
+
+.share-key {
+    font-family: var(--font-mono);
+    font-size: 12px;
+}
+
+.auth-key-input {
+    padding: 7px 12px;
+    font-size: 13px;
+    font-family: var(--font-mono);
+    background: var(--paper);
+    border: 1px solid var(--line-strong);
+    border-radius: 6px;
+    color: var(--ink);
+    outline: none;
+    min-width: 220px;
+}
+
+.auth-key-input:focus {
+    border-color: var(--cinnabar);
+    box-shadow: 0 0 0 3px rgb(178 58 31 / 12%);
+}
+
+/* .health.checking —— 三态健康指示的中间态(修加载期闪红) */
+.health.checking .dot {
+    background: var(--ink-3);
+    animation: hpulse 1.2s ease-in-out infinite;
+}
+
+@keyframes hpulse {
+    50% {
+        opacity: 0.35;
+    }
+}
+

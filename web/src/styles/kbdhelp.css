@@ -1,0 +1,56 @@
+/* ---------- 快捷键帮助浮层（U13，ReaderView） ---------- */
+
+.kbd-help {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: color-mix(in srgb, var(--ink) 35%, transparent);
+}
+
+.kbd-help-card {
+    background: var(--panel);
+    border: 1px solid var(--line-strong);
+    border-radius: 10px;
+    padding: 18px 22px;
+    min-width: 280px;
+    box-shadow: 0 12px 40px rgb(0 0 0 / 0.25);
+}
+
+.kbd-help-list {
+    margin: 12px 0 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.kbd-help-row {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    font-size: 13px;
+}
+
+.kbd-help-row dt {
+    flex: none;
+    width: 96px;
+    text-align: right;
+}
+
+.kbd-help-row dd {
+    margin: 0;
+    color: var(--ink-2);
+}
+
+.kbd-help-row kbd {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    border: 1px solid var(--line-strong);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    padding: 1px 5px;
+    background: var(--paper-2);
+}
+

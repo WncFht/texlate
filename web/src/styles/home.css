@@ -1,0 +1,205 @@
+/* ---------- Home ---------- */
+
+.home {
+    flex: 1;
+    overflow: auto;
+    max-width: 760px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 48px 24px;
+}
+
+.wordmark {
+    font-family: var(--font-serif);
+    font-size: 44px;
+    letter-spacing: 0.02em;
+    margin: 0 0 4px;
+}
+
+.wordmark .tagline {
+    display: block;
+    font-size: 15px;
+    font-weight: 400;
+    color: var(--ink-2);
+    /* 0.3em 会把 "arXiv" 拉丁字母拉散——只留温和间距 */
+    letter-spacing: 0.14em;
+    margin-top: 6px;
+}
+
+.hero {
+    padding: 24px 0 36px;
+}
+
+.arxiv-form {
+    display: flex;
+    gap: 10px;
+    margin-top: 28px;
+}
+
+.arxiv-input {
+    flex: 1;
+    padding: 10px 14px;
+    font-size: 15px;
+    font-family: var(--font-mono);
+    color: var(--ink);
+    background: var(--panel);
+    border: 1px solid var(--line-strong);
+    border-radius: 6px;
+    outline: none;
+}
+
+.arxiv-input:focus {
+    border-color: var(--cinnabar);
+    box-shadow: 0 0 0 3px rgb(178 58 31 / 12%);
+}
+
+.arxiv-input[aria-invalid="true"] {
+    border-color: var(--cinnabar);
+}
+
+/* 整页拖放：文件悬在 Home 上时表单区给虚线落点提示 */
+.home.drop-on .arxiv-form {
+    outline: 2px dashed var(--cinnabar);
+    outline-offset: 8px;
+    border-radius: 8px;
+}
+
+.drop-hint {
+    color: var(--ink-3);
+}
+
+.home.drop-on .drop-hint {
+    color: var(--cinnabar);
+}
+
+.btn-primary {
+    padding: 10px 22px;
+    background: var(--cinnabar);
+    color: #fff;
+    border: 1px solid var(--cinnabar-deep);
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.btn-primary:hover {
+    background: var(--cinnabar-deep);
+}
+
+.btn-primary:disabled {
+    opacity: 0.55;
+    cursor: default;
+}
+
+.btn-ghost {
+    padding: 10px 16px;
+    background: transparent;
+    color: var(--ink-2);
+    border: 1px solid var(--line-strong);
+    border-radius: 6px;
+    font-size: 14px;
+    white-space: nowrap;
+}
+
+.btn-ghost:hover:not(:disabled) {
+    color: var(--ink);
+    border-color: var(--ink-3);
+}
+
+.btn-ghost:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.up-progress {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.up-bar {
+    flex: 1;
+    height: 5px;
+    background: var(--paper-2);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.up-bar i {
+    display: block;
+    height: 100%;
+    background: var(--cinnabar);
+    transition: width 0.2s ease;
+}
+
+/* 不定态（上传进度事件未发/lengthComputable=false）：往返扫条 */
+.up-bar.indet i {
+    animation: up-indet 1.1s ease-in-out infinite;
+}
+
+@keyframes up-indet {
+    0% {
+        margin-left: -35%;
+    }
+    100% {
+        margin-left: 100%;
+    }
+}
+
+.up-label {
+    font-size: 12px;
+    color: var(--ink-2);
+    white-space: nowrap;
+}
+
+.form-error {
+    color: var(--cinnabar-deep);
+    font-size: 13px;
+    margin-top: 10px;
+}
+
+/* 非阻断警示（如 PUT 回执 ignored 字段）——与 form-error 同层级不同色 */
+.form-warn {
+    color: var(--ochre-deep);
+    font-size: 13px;
+    margin-top: 10px;
+}
+
+.form-msg {
+    color: var(--pine);
+    font-size: 13px;
+    align-self: center;
+}
+
+.form-msg.err {
+    color: var(--cinnabar-deep);
+}
+
+/* 内联在 form-error 里的重试钮——压紧凑 */
+.form-error .btn-ghost {
+    padding: 3px 12px;
+    font-size: 12px;
+}
+
+.health {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12px;
+    color: var(--ink-2);
+    margin-top: 14px;
+}
+
+.health .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--pine);
+}
+
+.health.bad .dot {
+    background: var(--cinnabar);
+}
+

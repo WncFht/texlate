@@ -1,0 +1,17 @@
+@media (prefers-reduced-motion: reduce) {
+    /* 加载圈只减速不停转——完全静止会被误读为卡死；fixloop 面板小圈同待遇 */
+    .spinner,
+    .fx-spin {
+        animation-duration: 2.4s;
+    }
+
+    .task-bar i,
+    .tp-bar i,
+    .up-bar i,
+    .health.checking .dot,
+    .task-del {
+        transition: none;
+        animation: none;
+    }
+}
+

@@ -1,0 +1,171 @@
+/* TeXlate —— 纸面书房基调：暖纸 / 墨色 / 朱砂点缀。
+   设计意图：学术对照阅读器，视觉重量让给 PDF 本身。 */
+
+:root {
+    --paper: #f5f1e8;
+    --paper-2: #ede7d9;
+    --panel: #fdfbf5;
+    --ink: #211b12;
+    --ink-2: #6e6454;
+    --ink-3: #9a8f7c;
+    --line: #ddd3c0;
+    --line-strong: #c9bda4;
+    --cinnabar: #b23a1f;
+    --cinnabar-deep: #8c2d17;
+    --pine: #2f6f4f;
+    --ochre: #a67c00;
+    /* ochre 文本用途:12-13px 小字压 14% tint 实测 3.15:1 不及格;deep 4.76:1 */
+    --ochre-deep: #7d5f00;
+    --shadow: 0 1px 2px rgb(33 27 18 / 8%), 0 4px 16px rgb(33 27 18 / 7%);
+    --font-ui:
+        "Inter", "PingFang SC", "Source Han Sans SC", "Noto Sans CJK SC",
+        system-ui, sans-serif;
+    --font-serif:
+        "Source Han Serif SC", "Noto Serif CJK SC", "Songti SC", Georgia, serif;
+    --font-mono: "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+}
+
+/* 暗色主题（U6）——html[data-theme] 由 settings store / index.html 预置脚本落；
+   auto 模式已解析成具体值，这里只承载确定态。文本用途色（deep）在暗底上
+   反而要调亮——对比度方向反转 */
+[data-theme="dark"] {
+    --paper: #17140f;
+    --paper-2: #1f1b15;
+    --panel: #26211a;
+    --ink: #e6ddcb;
+    --ink-2: #a89b85;
+    --ink-3: #7d7462;
+    --line: #3b342a;
+    --line-strong: #4d4436;
+    --cinnabar: #d45b41;
+    --cinnabar-deep: #ec8468;
+    --pine: #63a884;
+    --ochre: #cfa226;
+    --ochre-deep: #e0bc4d;
+    --shadow: 0 1px 2px rgb(0 0 0 / 35%), 0 4px 16px rgb(0 0 0 / 30%);
+    color-scheme: dark;
+}
+
+[data-theme="light"] {
+    color-scheme: light;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+    height: 100%;
+    margin: 0;
+}
+
+body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-ui);
+    font-size: 14px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+}
+
+.app {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+button {
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+}
+
+/* 全站统一焦点环:button 此前全靠 UA 默认 outline,风格不一且 Firefox 表现差 */
+:is(
+    .btn-primary,
+    .btn-ghost,
+    .tb-btn,
+    .segmented-item,
+    .task-row,
+    .jump-back,
+    .tb-menu a,
+    .log-drawer summary,
+    .tb-select,
+    .tb-page input,
+    .topnav a,
+    .rail-btn,
+    .fb-btn,
+    .fb-input,
+    .ol-caret,
+    .ol-item,
+    .att-item,
+    .thumb-btn,
+    .task-del,
+    .task-dlt
+):focus-visible {
+    outline: 2px solid var(--cinnabar);
+    outline-offset: 2px;
+}
+
+.task-row:focus-visible {
+    outline-offset: -2px;
+}
+
+::selection {
+    background: color-mix(in srgb, var(--cinnabar) 18%, transparent);
+}
+
+.muted {
+    color: var(--ink-2);
+}
+
+/* ---------- 顶导航 ---------- */
+
+.topnav {
+    display: flex;
+    align-items: baseline;
+    gap: 22px;
+    padding: 10px 22px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--line);
+}
+
+.topnav.hidden {
+    display: none;
+}
+
+.topnav .brand {
+    font-family: var(--font-serif);
+    font-size: 19px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: var(--ink);
+    text-decoration: none;
+}
+
+.topnav .brand::first-letter {
+    color: var(--cinnabar);
+}
+
+.topnav a {
+    color: var(--ink-2);
+    text-decoration: none;
+    font-size: 13px;
+    border-radius: 4px;
+}
+
+.topnav a:hover {
+    color: var(--ink);
+}
+
+.topnav a.on {
+    color: var(--ink);
+    font-weight: 600;
+    text-decoration: underline;
+    text-decoration-color: var(--cinnabar);
+    text-decoration-thickness: 2px;
+    text-underline-offset: 5px;
+}
+

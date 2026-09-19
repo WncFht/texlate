@@ -1,0 +1,271 @@
+/* ---------- 阅读器 ---------- */
+
+.reader {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.reader-fatal {
+    margin: 80px auto;
+    text-align: center;
+    color: var(--ink-2);
+}
+
+.reader-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 14px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--line);
+    flex-wrap: wrap;
+}
+
+.tb-title {
+    max-width: min(240px, 28vw);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 600;
+    font-size: 13px;
+}
+
+.tb-spacer {
+    flex: 1;
+}
+
+.tb-btn {
+    padding: 6px 12px;
+    font-size: 13px;
+    background: transparent;
+    color: var(--ink-2);
+    border: 1px solid var(--line-strong);
+    border-radius: 6px;
+    white-space: nowrap;
+}
+
+.tb-btn:hover:not(:disabled) {
+    color: var(--ink);
+}
+
+.tb-btn.on {
+    color: var(--cinnabar);
+    border-color: var(--cinnabar);
+    background: color-mix(in srgb, var(--cinnabar) 8%, transparent);
+}
+
+.tb-select {
+    padding: 6px 8px;
+    font-size: 13px;
+    background: var(--panel);
+    border: 1px solid var(--line-strong);
+    border-radius: 6px;
+    color: var(--ink);
+}
+
+.tb-select:focus,
+.tb-page input:focus {
+    border-color: var(--cinnabar);
+    box-shadow: 0 0 0 3px rgb(178 58 31 / 12%);
+    outline: none;
+}
+
+.tb-page {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--ink-2);
+    font-variant-numeric: tabular-nums;
+}
+
+.tb-page input {
+    width: 52px;
+    padding: 5px 6px;
+    text-align: right;
+    font-size: 13px;
+    font-family: var(--font-mono);
+    border: 1px solid var(--line-strong);
+    border-radius: 6px;
+    background: var(--panel);
+    color: var(--ink);
+}
+
+.tb-page input:disabled {
+    opacity: 0.5;
+}
+
+.tb-menu-wrap {
+    position: relative;
+}
+
+.tb-menu {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 6px);
+    min-width: 170px;
+    background: var(--panel);
+    border: 1px solid var(--line-strong);
+    border-radius: 8px;
+    box-shadow: var(--shadow);
+    padding: 5px;
+    z-index: 30;
+    display: flex;
+    flex-direction: column;
+}
+
+.tb-menu a {
+    padding: 7px 10px;
+    font-size: 13px;
+    color: var(--ink);
+    text-decoration: none;
+    border-radius: 5px;
+}
+
+.tb-menu a:hover {
+    background: var(--paper-2);
+}
+
+/* segmented */
+
+.segmented {
+    display: inline-flex;
+    background: var(--paper-2);
+    border: 1px solid var(--line-strong);
+    border-radius: 7px;
+    padding: 2px;
+}
+
+.segmented-item {
+    padding: 5px 14px;
+    font-size: 13px;
+    border: 0;
+    border-radius: 5px;
+    background: transparent;
+    color: var(--ink-2);
+}
+
+.segmented-item:hover:not(.on) {
+    color: var(--ink);
+}
+
+.segmented-item.on {
+    background: var(--panel);
+    color: var(--ink);
+    font-weight: 600;
+    box-shadow: 0 1px 2px rgb(33 27 18 / 12%);
+}
+
+/* ---------- 双栏 ---------- */
+
+.panes {
+    flex: 1;
+    display: flex;
+    min-height: 0;
+    background: var(--paper-2);
+}
+
+.panes.swapped {
+    flex-direction: row-reverse;
+}
+
+.pane-slot {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+    display: flex;
+}
+
+.panes:not(.single) .pane-slot + .pane-slot {
+    border-inline-start: 1px solid var(--line-strong);
+}
+
+.panes.swapped .pane-slot + .pane-slot {
+    border-inline-start: 0;
+    border-inline-end: 1px solid var(--line-strong);
+}
+
+/* 分栏拖拽条——几何尺寸在 ReaderView 内联钉死，这里只管可感底色 */
+.pane-divider {
+    background: transparent;
+    transition: background 0.15s ease;
+}
+
+.pane-divider:hover,
+.pane-divider:active {
+    background: color-mix(in srgb, var(--cinnabar) 45%, transparent);
+}
+
+.pane {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+}
+
+.pane.active::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--cinnabar);
+    z-index: 5;
+    pointer-events: none;
+}
+
+.pane-veil {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--paper-2);
+    color: var(--ink-2);
+    font-size: 13px;
+    z-index: 4;
+}
+
+.pane-veil.pane-error {
+    color: var(--cinnabar-deep);
+}
+
+.spinner {
+    width: 22px;
+    height: 22px;
+    border: 2px solid var(--line-strong);
+    border-top-color: var(--cinnabar);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* 跳回按钮：贴在窗格底部居中 */
+
+.jump-back {
+    position: absolute;
+    bottom: 22px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+    padding: 8px 18px;
+    background: var(--ink);
+    color: var(--paper);
+    border: 0;
+    border-radius: 999px;
+    font-size: 13px;
+    box-shadow: var(--shadow);
+}
+
+.jump-back:hover {
+    background: var(--cinnabar-deep);
+}
+
