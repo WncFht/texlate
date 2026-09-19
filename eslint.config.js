@@ -21,6 +21,10 @@ module.exports = [
             "**/.venv*/", // python venv 内的 js
             "tmp/", // gitignored 实验区——refs/ 里 clone 的嵌套 flat config 会拖崩 eslint
             "src/texlate/server/static/", // build-web.sh 产出的 SPA 打包物（gitignored）
+            "zotero/", // 插件子项目自带 eslint.config.mjs（@zotero-plugin 配置
+            // + Zotero 全局量）——同 web/ 取舍：不假设 node_modules 在场，lint
+            // 由 zotero 自己的 npm lint:check 把关；本配置的 commonjs sourceType
+            // 会在其 .mjs/ESM .js 上 parse-error。
             ".crossnote/", // 本机软链层，事实源在 ~/.agents
             ".claude/",
             "**/*.min.js",
