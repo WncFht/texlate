@@ -333,6 +333,35 @@ def _capacity_payload(first: str | None, ctx: str | None) -> str | None:
     return f"{tag}|{tok}" if tok else tag
 
 
+#: ``input_stack|<cs>`` pending cs 显式名单 → ``input_stack`` 类别重路由:
+#: 命中者全是上游 TeX-exec 宏递归帧 (内核 ``\@nomath`` 守卫帧 / expl3
+#: quark 扫描哨兵族), 非 ``\input`` 循环——无任何源改写可修
+#: (ifdiag-lane 2026-09-19: ``@nomath``@1404.0037 与
+#: ``__quark_if_recursion_tail:w``@1706.00076 base 臂同炸, paper-authentic)。
+#: verdict ``unfixable:{cat}`` 直挂 cat——独立 cat 让真递归帧不再混进
+#: ``unfixable:capacity`` 的可修假簇; texlate 可修面 (``cref@resetstack``
+#: restatable 族, restatdiag) 刻意不收, 留 ``capacity`` 走修复派发。
+_CAP_UPSTREAM_RECURSION_CS = frozenset(
+    {
+        "@nomath",
+        "q_recursion_tail",
+        "__quark_if_recursion_tail:w",
+        "__quark_if_recursion_tail_break:nN",
+        "__quark_if_recursion_tail_stop:n",
+        "__quark_if_recursion_tail_stop_do:nn",
+    }
+)
+
+
+def _cap_verdict_cat(entry_id: str, pay: str | None) -> str:
+    """Capacity ``input_stack|<cs>`` 且 cs 属上游递归帧 → ``input_stack`` 类。"""
+    if entry_id == "capacity" and pay is not None:
+        tag, _, cs = pay.partition("|")
+        if tag == "input_stack" and cs in _CAP_UPSTREAM_RECURSION_CS:
+            return "input_stack"
+    return entry_id
+
+
 #: taxonomy ``payload_scan:`` 键的 python 提取器注册表 (head-scope 专用,
 #: 签名 ``(first, ctx) -> pay``)。未收名静默回退 regex payload_group 取值
 #: —— taxonomy 段无键白名单校验, 与未知可选键同口径。
@@ -420,7 +449,7 @@ class Taxonomy:
                     )
                     if spay is not None and spay in allowed:
                         return sub["into"], spay
-            return entry["id"], pay
+            return _cap_verdict_cat(entry["id"], pay), pay
         return None
 
     def err_candidates(
