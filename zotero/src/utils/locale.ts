@@ -1,7 +1,16 @@
 import { config } from "../../package.json";
 import { FluentMessageId } from "../../typings/i10n";
 
-export { initLocale, getString, getLocaleID };
+export { initLocale, getString, getLocaleID, t };
+
+/**
+ * getString shorthand for programmatic callers — accepts plain string keys
+ * (dynamic ids like `phase-${key}` don't fit the generated FluentMessageId
+ * union, so the cast lives here once).
+ */
+function t(id: string, args?: Record<string, unknown>): string {
+  return getString(id as FluentMessageId, { args: args ?? {} });
+}
 
 /**
  * Initialize locale data

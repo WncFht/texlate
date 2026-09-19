@@ -12,6 +12,7 @@ import { FILES_GRACE_MS } from "./flow";
 import { computeMenuState } from "./menu";
 import { loadPrefs } from "./prefs";
 import { pollTask } from "./poller";
+import { fieldText, sleep } from "../utils/misc";
 
 /**
  * selftest.ts — e2e chain verification for dev-verify (RDP eval). Same modules
@@ -33,11 +34,7 @@ function errText(e: unknown): string {
 }
 
 function field(item: Zotero.Item, name: string): string {
-  try {
-    return String(item.getField(name) ?? "");
-  } catch {
-    return "";
-  }
+  return fieldText(item, name);
 }
 
 /** Attribute an extracted id to doi/url/archiveID/extra (substring probe). */
@@ -137,7 +134,7 @@ async function run(itemID: number, negative: boolean): Promise<SelftestResult> {
       const deadline = Date.now() + FILES_GRACE_MS;
       let arts = await fetchArts();
       while (Object.keys(arts).length === 0 && Date.now() < deadline) {
-        await new Promise((r) => setTimeout(r, 2000));
+        await sleep(2000);
         arts = await fetchArts();
       }
       if (Object.keys(arts).length === 0) {

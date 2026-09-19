@@ -9,6 +9,7 @@ import {
   type TaskSnapshot,
   type TexlateClient,
 } from "../contracts";
+import { sleep } from "../utils/misc";
 
 /**
  * poller.ts — setTimeout polling of GET /api/task/{id} until terminal status.
@@ -21,14 +22,7 @@ import {
 
 const MAX_CONSECUTIVE_FAILURES = 5;
 
-function sleep(ms: number): Promise<void> {
-  // Bare setTimeout is the real runtime function — Zotero.setTimeout is
-  // declared in zotero.d.ts but absent in Zotero 9 (dev-verify caught it:
-  // TypeError on the first poll sleep). Declared in typings/global.d.ts.
-  return new Promise((r) => setTimeout(r, ms));
-}
-
-function isRetryable(err: unknown): boolean {
+function isRetryableError(err: unknown): boolean {
   if (err instanceof NetworkError || err instanceof TimeoutError) return true;
   if (err instanceof ApiError) return err.status >= 500;
   return false;
@@ -54,7 +48,7 @@ export async function pollTask(
     try {
       snap = await client.getTask(taskId);
     } catch (err) {
-      if (!isRetryable(err)) throw err;
+      if (!isRetryableError(err)) throw err;
       consecutiveFailures += 1;
       if (consecutiveFailures > MAX_CONSECUTIVE_FAILURES) throw err;
       await sleep(opts.intervalMs);

@@ -6,6 +6,7 @@
  * `normalize_arxiv_id` owns parsing; we only find the candidate.
  * null = no arXiv trace (menu greys out).
  */
+import { fieldText } from "../utils/misc";
 
 /**
  * Cheap sanity check, NOT normalization:
@@ -19,20 +20,9 @@ const DOI_RE = /arxiv\.(.+)$/i;
 const URL_RE = /arxiv\.org\/(abs|pdf)\/([^?#\s]+)/i;
 const EXTRA_RE = /^\s*arXiv\s*[:：]\s*(\S+)/im;
 
-function asString(v: unknown): string | null {
-  return typeof v === "string" && v.trim() !== "" ? v : null;
-}
-
-/** getField tolerant of non-regular items (notes/attachments) and odd values. */
-function field(item: Zotero.Item, name: string): string | null {
-  try {
-    if (typeof item.getField !== "function") return null;
-    return asString(
-      item.getField(name as _ZoteroTypes.Item.ItemField) as unknown,
-    );
-  } catch {
-    return null;
-  }
+/** Field read tolerant of non-regular items; "" = absent (fails valid()). */
+function field(item: Zotero.Item, name: string): string {
+  return fieldText(item, name).trim();
 }
 
 function valid(candidate: string | null): string | null {
@@ -72,7 +62,7 @@ function fromUrl(item: Zotero.Item): string | null {
  */
 function fromArchiveID(item: Zotero.Item): string | null {
   const v = field(item, "archiveID");
-  if (v === null) return null;
+  if (v === "") return null;
   return valid(v.replace(/^\s*arXiv\s*:\s*/i, ""));
 }
 

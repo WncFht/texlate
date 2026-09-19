@@ -35,12 +35,19 @@ import {
 } from "../contracts";
 import { extractArxivId } from "./arxivId";
 import { createClient } from "./client";
-import { pollTask, phaseKey } from "./poller";
+import { pollTask } from "./poller";
 import { attachArtifacts, getTexlateMark, setTexlateMark } from "./attach";
 import { loadPrefs } from "./prefs";
-import { getString } from "../utils/locale";
-import type { FluentMessageId } from "../../typings/i10n";
-import type { ProgressWindowHelper } from "zotero-plugin-toolkit";
+import {
+  appendLine,
+  createProgress,
+  endProgress,
+  flashProgress,
+  setPhase,
+  type Progress,
+} from "./progress";
+import { t } from "../utils/locale";
+import { errText, fieldText, sleep } from "../utils/misc";
 
 /** Post-terminal retry window for /api/files visibility (design §二 竞态宽限). */
 export const FILES_GRACE_MS = 20000;
@@ -48,61 +55,8 @@ const FILES_GRACE_INTERVAL_MS = 2000;
 
 const inflight = new Set<number>();
 
-const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
-const errText = (e: unknown) => (e instanceof Error ? e.message : String(e));
-
-const t = (key: string, args?: Record<string, unknown>): string =>
-  getString(key as FluentMessageId, { args: args ?? {} });
-
-// ---- ProgressWindow (all calls best-effort: UI failure must not kill a flow)
-
-type PW = ProgressWindowHelper | null;
-
-function pwCreate(text: string): PW {
-  try {
-    const pw = new ztoolkit.ProgressWindow("TeXlate");
-    pw.createLine({ text, progress: 0 });
-    pw.show(-1);
-    return pw;
-  } catch {
-    return null;
-  }
-}
-
-function pwPhase(pw: PW, snap: TaskSnapshot): void {
-  try {
-    pw?.changeLine({
-      idx: 0,
-      text: `${t(`phase-${phaseKey(snap)}`)} ${Math.round(snap.progress)}%`,
-      progress: snap.progress,
-    });
-  } catch {
-    /* best-effort UI */
-  }
-}
-
-function pwEnd(pw: PW, type: "success" | "fail", text: string): void {
-  try {
-    pw?.changeLine({ idx: 0, type, text, progress: 100 });
-    pw?.startCloseTimer(8000);
-  } catch {
-    /* best-effort UI */
-  }
-}
-
-/** One-shot popup for results with no persistent progress window. */
-function flash(type: "success" | "fail", text: string): void {
-  try {
-    const pw = new ztoolkit.ProgressWindow("TeXlate");
-    pw.createLine({ type, text });
-    pw.show(6000);
-  } catch {
-    /* best-effort UI */
-  }
-}
-
 function fail(
-  pw: PW,
+  pw: Progress,
   itemID: number,
   error: string,
   ftlKey: string,
@@ -112,20 +66,9 @@ function fail(
     status?: TerminalStatus;
   } = {},
 ): FlowResult {
-  pwEnd(pw, "fail", t(ftlKey, opts.args));
+  endProgress(pw, "fail", t(ftlKey, opts.args));
   const { args: _a, ...rest } = opts;
   return { itemID, ok: false, error, ...rest };
-}
-
-// ---- flow internals
-
-function titleHint(item: Zotero.Item): string | undefined {
-  try {
-    const v = item.getField("title" as _ZoteroTypes.Item.ItemField);
-    return typeof v === "string" && v !== "" ? v : undefined;
-  } catch {
-    return undefined;
-  }
 }
 
 /**
@@ -156,7 +99,7 @@ async function awaitFiles(
 
 /** Terminal dispatch (design §二 状态映射). `snap.status` is terminal per pollTask. */
 async function finish(
-  pw: PW,
+  pw: Progress,
   item: Zotero.Item,
   client: TexlateClient,
   taskId: string,
@@ -175,7 +118,7 @@ async function finish(
           ? { attached: [], missing: [...prefs.attachKinds], failed: [] }
           : await attachArtifacts(item, client, taskId, {
               kinds: prefs.attachKinds,
-              titleHint: titleHint(item),
+              titleHint: fieldText(item, "title") || undefined,
             });
       // attached=0 is a failure only when something was actually wanted:
       // missing kinds or failed downloads. All-empty means every kind was
@@ -196,20 +139,18 @@ async function finish(
           { args: { detail: reasons }, ...at },
         );
       }
-      if (status === "partial") {
-        try {
-          pw?.createLine({ type: "default", text: t("flow-partial-warn") });
-        } catch {
-          /* best-effort UI */
-        }
-      }
+      if (status === "partial") appendLine(pw, t("flow-partial-warn"));
       // attachArtifacts owns the mark when it runs; when it was skipped
       // (empty artifacts) or nothing was requested, write it here so
       // "Open in Reader" still works.
       if (getTexlateMark(item) !== taskId) await setTexlateMark(item, taskId);
       const first =
         attach.attached.find((a) => a.kind === "zh.pdf") ?? attach.attached[0];
-      pwEnd(pw, "success", t("flow-done", { itemID: first?.itemID ?? itemID }));
+      endProgress(
+        pw,
+        "success",
+        t("flow-done", { itemID: first?.itemID ?? itemID }),
+      );
       return { itemID, ok: true, status, taskId, attach };
     }
     case "fault": {
@@ -251,7 +192,7 @@ async function run(item: Zotero.Item): Promise<FlowResult> {
 
   try {
     if (!item.isRegularItem()) {
-      flash("fail", t("flow-error-not-regular"));
+      flashProgress("fail", t("flow-error-not-regular"));
       return { itemID, ok: false, error: "not-regular-item" };
     }
   } catch {
@@ -259,16 +200,16 @@ async function run(item: Zotero.Item): Promise<FlowResult> {
   }
   const mark = getTexlateMark(item);
   if (mark) {
-    flash("success", t("flow-already-translated"));
+    flashProgress("success", t("flow-already-translated"));
     return { itemID, ok: true, taskId: mark };
   }
   const arxivId = extractArxivId(item);
   if (!arxivId) {
-    flash("fail", t("flow-error-no-arxiv-id"));
+    flashProgress("fail", t("flow-error-no-arxiv-id"));
     return { itemID, ok: false, error: "no-arxiv-id" };
   }
 
-  const pw = pwCreate(t("flow-start", { id: arxivId }));
+  const pw = createProgress(t("flow-start", { id: arxivId }));
   let taskId: string | undefined;
   try {
     const health = await client.health();
@@ -284,7 +225,7 @@ async function run(item: Zotero.Item): Promise<FlowResult> {
     const snap = await pollTask(client, accepted.task_id, {
       intervalMs: prefs.pollIntervalMs,
       timeoutMs: prefs.pollTimeoutMs,
-      onProgress: (s) => pwPhase(pw, s),
+      onProgress: (s) => setPhase(pw, s),
     });
     return await finish(pw, item, client, accepted.task_id, snap, prefs);
   } catch (e) {
@@ -327,7 +268,7 @@ async function run(item: Zotero.Item): Promise<FlowResult> {
 export async function translateItem(item: Zotero.Item): Promise<FlowResult> {
   const itemID = item.id;
   if (inflight.has(itemID)) {
-    flash("fail", t("flow-error-inflight"));
+    flashProgress("fail", t("flow-error-inflight"));
     return { itemID, ok: false, error: "already-inflight" };
   }
   inflight.add(itemID);
@@ -335,7 +276,7 @@ export async function translateItem(item: Zotero.Item): Promise<FlowResult> {
     return await run(item);
   } catch (e) {
     const m = errText(e);
-    flash("fail", t("flow-error-unexpected", { message: m }));
+    flashProgress("fail", t("flow-error-unexpected", { message: m }));
     return { itemID, ok: false, error: `unexpected: ${m}` };
   } finally {
     inflight.delete(itemID);
@@ -353,7 +294,7 @@ export async function translateItems(
     if (i < items.length - 1) await sleep(batchDelayMs);
   }
   const ok = results.filter((r) => r.ok).length;
-  flash(
+  flashProgress(
     ok === results.length ? "success" : "fail",
     t("flow-batch-summary", {
       ok,

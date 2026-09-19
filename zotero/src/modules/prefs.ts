@@ -27,22 +27,16 @@
  */
 import { config, homepage } from "../../package.json";
 import { SettingsDialogHelper } from "zotero-plugin-toolkit";
-import type { FluentMessageId } from "../../typings/i10n";
 import type { TexlatePrefs } from "../contracts";
 import { NetworkError } from "../contracts";
 import { createClient } from "./client";
-import { getString } from "../utils/locale";
+import { t } from "../utils/locale";
 import { getPref, setPref } from "../utils/prefs";
 
 type PrefKey = keyof _ZoteroTypes.Prefs["PluginPrefsMap"];
 
 const STATUS_ID = "texlate-health-status";
 const INPUT_STYLE = { minWidth: "28em" } as const;
-
-function t(id: string, args?: Record<string, unknown>): string {
-  const key = id as FluentMessageId;
-  return args === undefined ? getString(key) : getString(key, { args });
-}
 
 function num(v: unknown, fallback: number, min = 0): number {
   const n = Number(v);

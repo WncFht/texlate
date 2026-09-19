@@ -10,6 +10,7 @@
  * our `texlate:` line is rewritten, other lines kept byte-for-byte.
  */
 import type { AttachResult, TexlateClient } from "../contracts";
+import { errText, fieldText } from "../utils/misc";
 
 /** `texlate: t_xxx` mark line in Extra (full-width colon tolerated). */
 const MARK_RE = /^texlate\s*[:：]\s*(t_[a-z0-9]+)\s*$/im;
@@ -21,30 +22,15 @@ const KIND_LABELS: Record<string, string> = {
   "dual.pdf": "双语对照",
 };
 
-function errText(e: unknown): string {
-  return e instanceof Error ? e.message : String(e);
-}
-
 function readExtra(item: Zotero.Item): string {
-  try {
-    return item.getField("extra") || "";
-  } catch {
-    return "";
-  }
+  return fieldText(item, "extra");
 }
 
 function shortTitle(item: Zotero.Item, titleHint?: string): string {
-  let st = "";
-  try {
-    st =
-      item.getField("shortTitle") ||
-      // code-point slice — a raw .slice(40) can leave a lone surrogate
-      Array.from(item.getField("title") || "")
-        .slice(0, 40)
-        .join("");
-  } catch {
-    /* odd item */
-  }
+  const st =
+    fieldText(item, "shortTitle") ||
+    // code-point slice — a raw .slice(40) can leave a lone surrogate
+    Array.from(fieldText(item, "title")).slice(0, 40).join("");
   return st || titleHint || "untitled";
 }
 
