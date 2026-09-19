@@ -1,11 +1,31 @@
 {
     // 生成物与依赖不进 lint 扫描；规则本身在 .markdownlint.jsonc
     // bench/results/ 是脚本产出目录；corpus 子目录与 work_* 是 gitignored 重产物
+    // globs：裸跑 markdownlint-cli2（无参）时的默认文件集——无参扫 0 文件，
+    // npm lint:md 显式传 "**/*.md" 与此同口径
+    "globs": ["**/*.md"],
+    // ignores 与 .gitignore 对齐：本地 lint 视图 = CI 干净检出视图
+    // （corpus*/work_*/tmp/ 等 gitignored 数据/scratch 只存在于本机）
     "ignores": [
         "**/node_modules/**",
+        "tmp/**",
+        "dist/**",
+        ".claude/**",
+        ".crossnote/**",
+        "CLAUDE.md",
+        "src/texlate/server/static/**",
         "bench/results/**",
+        "bench/queue/**",
+        "bench/py/scratch/**",
         "bench/corpus/*/**",
+        "bench/corpus_v2/*/**",
+        "bench/corpus_v3/*/**",
         "bench/work_*/**",
+        "docs/research/preclean-2026-09-16/**",
+        "docs/research/gateway/**",
+        "docs/research/lit/**",
+        "docs/HANDOFF-*.md",
+        "scripts/gwcap/**",
         "**/.venv*/**",
     ],
 }

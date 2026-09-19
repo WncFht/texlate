@@ -28,7 +28,7 @@
 - `*.sh`：`shfmt -i 2`（gfs）+ `shellcheck -S warning`。zsh 脚本不在链内——两者都不支持 zsh，`scripts/fmt-shell.sh` 对 zsh shebang 原样透传。
 - `*.py`：`ruff format`（gfs）+ `ruff check`（`ruff.toml` 是 `select=ALL` + 逐条注明豁免）。
 - `*.js`/`*.json`：`prettier`（gfs）+ `eslint`（flat config，根目录是 CommonJS bench 脚本无 tsc；`web/` 是 TypeScript，走 `web/` 自己的 toolchain + CI web job——pre-commit eslint glob 只盖 `js/mjs/cjs`，web `.ts` 本地零 eslint 门是有意取舍：不假设 `web/node_modules` 在场，lint 由 web toolchain/CI 把关）。
-- `*.md`：`markdownlint-cli2 --fix` 原地改写（改写会 fail 一次，重新 `git add` 再提交）→ `autocorrect --stdin | prettier`（gfs）。
+- `*.md`：`markdownlint-cli2 --fix` 原地改写（改写会 fail 一次，重新 `git add` 再提交）→ md 内 python 栅栏 `ruff format`（文件名模式原位改写，同属 fail 一次 re-add 语义；gfs stdin 拿不到文件名识别不了栅栏）→ `autocorrect --stdin | prettier`（gfs）。裸跑 `markdownlint-cli2` 无参扫 0 文件——默认 globs 在 `.markdownlint-cli2.jsonc`，或显式传 `"**/*.md"`。
 - `*.yaml`/`*.yml`：`prettier`（gfs）。缩进规则：yaml 2 空格、md 4 空格，见 `.prettierrc` overrides。
 - `*.toml`：`taplo`（gfs）。
 - `.github/workflows/*`：`actionlint`（check）。

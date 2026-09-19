@@ -17,6 +17,15 @@ repos:
         types: [markdown]
         # --fix 是改写型，与 cli2 配置 ignores 同口径划出 bench/results
         exclude: "^bench/results/"
+      - id: ruff-format-md
+        name: ruff format (md python fences)
+        # CI `ruff format --check .` 连 md 内 python 栅栏一起查；gfs stdin
+        # 拿不到文件名识别不了栅栏，只能文件名模式原位改写——与
+        # markdownlint --fix 同属"改了就 fail 一次 re-add"语义
+        entry: ruff format
+        language: system
+        types: [markdown]
+        exclude: "^bench/results/"
       - id: prettier-md
         name: autocorrect + prettier (staged content)
         entry: ./node_modules/.bin/git-format-staged --formatter "autocorrect --stdin | ./node_modules/.bin/prettier --stdin-filepath {}"
