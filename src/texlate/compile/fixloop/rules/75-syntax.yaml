@@ -832,6 +832,20 @@ rules:
       function: undefined_env_polyfill
       params:
         deny: [document] # 不可 noop 化的环境名
+        # env→真包臂 (pgffix, 1306.0281 族): 图类 env 装真包替代 noop —
+        # noop 吞图体且体内 pgf cs (\node/\addplot) 连锁 undefined_cs
+        # 白烧轮次; cs_table 无条目者 (axis/tikzcd) 更是唯一活路。
+        # tikzpicture 的 polyfill 自带 \usepackage{tikz} 前缀: 注缝 LIFO
+        # 下裸 \usetikzlibrary 会落在 arm usepackage 行之前 → 新
+        # undefined_cs (与 cs_table tikz 族同机理, 见 95-targeted 头注)。
+        pkg_map:
+          tikzpicture:
+            {
+              usepackage: tikz,
+              polyfill: "\n\\usepackage{tikz}\n\\usetikzlibrary{arrows,positioning,shapes}",
+            }
+          axis: { usepackage: pgfplots }
+          tikzcd: { usepackage: tikz-cd }
     risk: medium # noop env 吞体不改版式但吃掉定理编号/交叉引用锚 —— 比整篇无 PDF 可接受
     known_gap: "env 体有语义结构 (proof/sidebar) 被 noop 吞 → 内容仍在样式空; \\newenvironment 含参形 ([n]) 不产"
     engines:

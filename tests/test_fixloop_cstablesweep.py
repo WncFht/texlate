@@ -66,7 +66,7 @@ _DOC = "\\documentclass{article}\n\\begin{document}\nx\n\\end{document}\n"
 #: 本批落表的 cs → 期望 spec 键 (epstopdf 为扩行, 非新行)。
 _EXPECTED_SPECS = {
     "endproof": {"polyfill"},
-    "tikzset": {"polyfill"},
+    "tikzset": {"usepackage", "polyfill"},
     "PACS": {"polyfill"},
     "decimalcolnumbers": {"polyfill"},
     "restartappendixnumbering": {"polyfill"},
@@ -219,15 +219,17 @@ def test_htmladdnormallink_href_or_text(tmp_path: Path) -> None:
 
 
 def test_refire_idempotent(tmp_path: Path) -> None:
-    """二轮重火: polyfill 已在 → applied nothing, 不重复注入。"""
+    """二轮重火: usepackage 判重 + polyfill snippet 判重 → 文件幂等;
+    arm probe 注记保 done 非空 → 返回 True 不落 guess (pgffix 升级后
+    ``tikzset`` 挂 ``usepackage: tikz`` 臂, 与 letltxmacro 同语义)。"""
     _proj(tmp_path, _DOC)
     ok1, _ = _fix(tmp_path, "tikzset")
     assert ok1
-    ok2, note2 = _fix(tmp_path, "tikzset")
-    assert not ok2
+    ok2, _ = _fix(tmp_path, "tikzset")
+    assert ok2
     text = (tmp_path / "main.tex").read_text(encoding="utf-8")
-    assert text.count("\\providecommand{\\tikzset}") == 1
-    assert "applied nothing" in note2
+    assert text.count("\\usetikzlibrary{arrows,positioning,shapes}") == 1
+    assert text.count("% fixloop: cs-fix") == 1
 
 
 def test_pdfinclusioncopyfonts_both_tables() -> None:

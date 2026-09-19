@@ -513,9 +513,14 @@ rules:
               polyfill: "\n\\ifdefined\\endproof\\else\\def\\endproof{\\leavevmode\\unskip\\penalty9999\\hfill\\hbox to.77778em{\\hfil\\vrule\\vbox to.675em{\\hrule width.6em\\vfil\\hrule}\\vrule}\\par\\medskip}\\fi",
             }
           # acm_proc_article-sp→acmart shim 后 {tikzpicture} env 已 polyfill
-          # 但 \tikzset{...} 裸调缺位 (1306.0281) —— key 设置宏吞参 noop;
-          # 同体 \node/\draw 属下一层 pgf 面 (见 lane 报告, 非本表形)
-          tikzset: { polyfill: "\n\\providecommand{\\tikzset}[1]{}" }
+          # 但 \tikzset{...} 裸调缺位 (1306.0281) —— 旧 noop 吞参会静默丢全篇
+          # style 定义 (mynode/myarrow 式), 升级装真包: 与下方 \node/\draw 族
+          # 同形 (自足 \usepackage{tikz}+\usetikzlibrary 块, 机理见该块头注)。
+          tikzset:
+            {
+              usepackage: tikz,
+              polyfill: "\n\\usepackage{tikz}\n\\usetikzlibrary{arrows,positioning,shapes}",
+            }
           # appolb.cls shim 缺 \PACS 头注宏 (1306.1932) —— 与 keywords 同式
           # 保文渲染而非丢文
           PACS:
@@ -599,6 +604,53 @@ rules:
           # \LetLtxMacroOpt 不存在 —— 不收)。
           LetLtxMacro: { usepackage: letltxmacro }
           GlobalLetLtxMacro: { usepackage: letltxmacro }
+          # pgf/tikz 缺载面 (1306.0281, pgffix lane): main.tex `%\usepackage{tikz}`
+          # 被作者注释, undefined_env_polyfill 吐空 tikzpicture 壳后 \node/\draw
+          # 族仍 undefined_cs。这些 cs 带 `[opts] (name) {content};` 括号+坐标尾,
+          # cs_map/gobble 无一能吞 —— 装真包是唯一正解 (tikz.sty 供 \node/\draw/
+          # \path/\coordinate/\fill/\filldraw/\matrix/\tikzset/tikzpicture;
+          # arrows+positioning+shapes 三库兜 `>=latex'`/`above right=of`/`mynode`
+          # 系常见库键)。polyfill 自带 \usepackage{tikz} 前缀: 注缝 LIFO 语义下
+          # 裸 \usetikzlibrary 会落在 arm 的 usepackage 行**之前** → 新
+          # undefined_cs (bad-order 实证); 自足块对死臂/注释载/稿后载全免疫,
+          # preamble 库键 \tikzset 调用面亦安全。dup `\usepackage{tikz}` 行
+          # (arm 注入 + polyfill 内联) 是 benign no-op —— LaTeX 重载同包零选项
+          # 静默跳过; arm 的 install_file/probe + refire done 非空语义照留。
+          node:
+            {
+              usepackage: tikz,
+              polyfill: "\n\\usepackage{tikz}\n\\usetikzlibrary{arrows,positioning,shapes}",
+            }
+          draw:
+            {
+              usepackage: tikz,
+              polyfill: "\n\\usepackage{tikz}\n\\usetikzlibrary{arrows,positioning,shapes}",
+            }
+          path:
+            {
+              usepackage: tikz,
+              polyfill: "\n\\usepackage{tikz}\n\\usetikzlibrary{arrows,positioning,shapes}",
+            }
+          coordinate:
+            {
+              usepackage: tikz,
+              polyfill: "\n\\usepackage{tikz}\n\\usetikzlibrary{arrows,positioning,shapes}",
+            }
+          fill:
+            {
+              usepackage: tikz,
+              polyfill: "\n\\usepackage{tikz}\n\\usetikzlibrary{arrows,positioning,shapes}",
+            }
+          filldraw:
+            {
+              usepackage: tikz,
+              polyfill: "\n\\usepackage{tikz}\n\\usetikzlibrary{arrows,positioning,shapes}",
+            }
+          matrix:
+            {
+              usepackage: tikz,
+              polyfill: "\n\\usepackage{tikz}\n\\usetikzlibrary{arrows,positioning,shapes}",
+            }
         # 表外 fallback (2026-09-16): glue 残骸前缀拆分 —— payload 未命中
         # cs_table 时, 若 cs = 已知粘连头 + 残余 (大写起首或 ≤4 字符) 则合成
         # cs_map 拆回 "head rest" (replay 实证 rmPT 型新残骸仍零星冒头,
