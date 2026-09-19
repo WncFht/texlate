@@ -18,7 +18,7 @@ import subprocess
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any
 
-from texlate.compile.fixloop._builtins_common import _live_matches
+from texlate.compile.fixloop._builtins_common import _fixloop_log, _live_matches
 from texlate.textutil import mask_tex, safe_is_file
 
 if TYPE_CHECKING:
@@ -269,15 +269,17 @@ _GRAPHIC_EXTS = (
 )
 
 #: ``\includegraphics`` 引用点: g1=可选 opts, g2=图像参数 (星号变体同收)。
+#: arg 捕获面收一层内层花括 (``dir/{stem}.ext``/``{file.png}`` 两形) ——
+#: ``[^}]*`` 在内层 ``}`` 处截断会漏 braced 实参 (1710.09412 micro2 实证)。
 _INCLUDE_GFX_RE = re.compile(
-    r"\\includegraphics\*?\s*(?:\[([^\]\n]*)\])?\s*\{([^}]*)\}"
+    r"\\includegraphics\*?\s*(?:\[([^\]\n]*)\])?\s*\{((?:[^{}]|\{[^{}]*\})*)\}"
 )
 
 #: ``\includepdf[opts]{file}`` (pdfpages) 引用点 —— W66 孤儿裁决面:
 #: 与 ``_INCLUDE_GFX_RE`` 分正则而非并表 —— graphic_repair 的 ``\fbox``
 #: stub 语义只适用图像件, includepdf 缺件占位是 ``\clearpage\null``。
 _INCLUDE_PDF_RE = re.compile(
-    r"\\includepdf(?![a-zA-Z])\s*(?:\[([^\]\n]*)\])?\s*\{([^}]*)\}"
+    r"\\includepdf(?![a-zA-Z])\s*(?:\[([^\]\n]*)\])?\s*\{((?:[^{}]|\{[^{}]*\})*)\}"
 )
 
 
@@ -378,6 +380,45 @@ def _rewrite_case_refs(ctx: LoopCtx, exts: tuple[str, ...], want: str, rel: str)
     return changed
 
 
+def _debrace_sweep(ctx: LoopCtx, exts: tuple[str, ...], base: Path) -> int:
+    r"""全工程 ``\includegraphics``/``\includepdf`` braced 参数去括改写。
+
+    ``dir/{stem}.ext``/``{file.png}`` 内层分组符 xetex 不剥按字面名寻档
+    (1710.09412 micro2 实证): 去括路径在解析位 (main_dir|filedir) 命中
+    即改写。braced 字面名在盘 (病态但合法) → 不动; 去括名也不在 → 不动
+    (真缺件留占位域)。一次点火全量扫 —— 逐 payload 版多 braced 名格
+    (1710.09412 ~16 名) 同样烧穿轮次上限。返回改写文件数。
+    """
+    changed = 0
+    for f in ctx.tex_files(exts):
+        t = ctx.read(f)
+        if t is None or ("\\includegraphics" not in t and "\\includepdf" not in t):
+            continue
+
+        def _sub(m: re.Match[str], _f: Path = f) -> str:
+            arg = m.group(2)
+            if "{" not in arg and "}" not in arg:
+                return m.group(0)
+            a = _norm_graphic_name(arg)
+            if safe_is_file(base / a) or safe_is_file(_f.parent / a):
+                return m.group(0)
+            d = _norm_graphic_name(a.replace("{", "").replace("}", ""))
+            if not d or not (safe_is_file(base / d) or safe_is_file(_f.parent / d)):
+                return m.group(0)
+            return (
+                m.group(0)[: m.start(2) - m.start()]
+                + d
+                + m.group(0)[m.end(2) - m.start() :]
+            )
+
+        nt = _INCLUDE_GFX_RE.sub(_sub, t)
+        nt = _INCLUDE_PDF_RE.sub(_sub, nt)
+        if nt != t:
+            ctx.write(f, nt)
+            changed += 1
+    return changed
+
+
 def graphic_case_link(
     ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
 ) -> tuple[bool, str]:
@@ -393,6 +434,17 @@ def graphic_case_link(
         return False, "no graphic payload"
     if safe_is_file(ctx.wdir / want):
         return False, f"{want} resolves verbatim — not a case mismatch"
+    # 1710.09412 (micro2 普查): ``dir/{stem}.ext`` 部分花括名 —— xetex 不剥
+    # 内层分组符按字面名寻档 (tmp/lane-micro2/repro2 实证), 盘上真身是去括名。
+    # braced payload 即文档惯用法证据 → 全量扫; 去括名不在盘的不动, 让位
+    # ci-glob/占位域。先于 ci-glob —— 精确路径级命中不该轮到占位件遮真图。
+    if "{" in want or "}" in want:
+        mp = ctx.main_path()
+        base = mp.parent if mp is not None else ctx.wdir
+        exts = tuple(params.get("exts") or (".tex", ".sty"))
+        changed = _debrace_sweep(ctx, exts, base)
+        if changed:
+            return True, f"de-brace {want}: swept refs in {changed} file(s)"
     real = _find_graphic_ci(ctx, want)
     if real is None:
         return False, f"no case-variant of {want} in project"
@@ -1010,32 +1062,27 @@ def _has_live_graphic_ref(ctx: LoopCtx, want: str) -> bool:
     return False
 
 
-def graphic_missing_placeholder(  # noqa: C901, PLR0911, PLR0912 - 逐门 decline note 即归因
-    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+#: 编译 log 全量枚举缺图签名的两形 —— nonstop 编译单趟即列全部缺件
+#: (``File `X' not found`` 兼中 pdftex.def ": using draft setting" 前缀与
+#: LaTeX Warning/Error 两阶; ``Unable to load picture or PDF file 'X'`` 是
+#: xetex 图形域专属)。多缺件格逐轮单补烧穿轮次上限 (v3all
+#: 2501.01329/2501.01425 实证: 8 轮逐件补, 末件占位写于末次编译后 →
+#: 差一轮翻 clean) —— 一次点火同签全补。
+_LOG_MISS_GFX_RE = re.compile(
+    r"Unable to load picture or PDF file '([^']+)'|File `([^']+)' not found"
+)
+
+
+def _stub_graphic_at(  # noqa: C901, PLR0911, PLR0912 - 逐门 decline note 即归因
+    ctx: LoopCtx, base: Path, want: str, *, rescue_check: bool
 ) -> tuple[bool, str]:
-    r"""图档真缺件 → ``<main_dir>/<payload>`` 落最小合法格式占位。
+    r"""单件缺图占位落盘 —— ``graphic_missing_placeholder`` 逐 payload 核。
 
-    graphic_ext_relax 残家 (failmine3 8 格) + xetex "Unable to load
-    picture or PDF file" 残家 (failmine4-covgap 6 格): sibling 不存在时
-    剥扩展名也救不了 —— 修复不是改源而是补档 (xbb_pregen 旁件同形)。
-    站点改写形盖不全调用面: ``\epsfig{file=X.eps}`` kv 形与宏体
-    ``#1.eps`` 间接名 (payload 是展开后真名, 源码字面不可锚) 只能由
-    「真名落盘」治; 子目录路径 (``FIGS/``/``images/``) mkdir 随行。
-
-    占位格式按 payload 扩展名分发 (xetex image-sniff 认格式字节):
-    ``.eps/.epsf/.epsi/.ps/.mps`` → 文本 EPS; ``.png/.jpg/.jpeg/.pdf``
-    → 同构图二进制占位; 无扩展名 (ext-relax 残家 vanilla 解析序) 须
-    先过 ``_has_live_graphic_ref`` 复核才补 ``.eps`` —— ``\input`` 系
-    裸缺件不落图占位。落盘基址 = ``main_path().parent`` (TeX 的
-    cwd 解析位; main 未知退回 wdir) —— main 住子目录时 wdir 根位
-    对 TeX 不可见。payload 是 log 派生路径 —— 双层守卫: ``..`` 段拒
-    + resolve 后仍须在 wdir 内 (防穿越写); 解析位已有档 (大小写
-    变体/前轮已补) → False 让路。
+    ``rescue_check=True`` (log 扫描补件): 去括名/ci-变体在盘 → decline
+    让路 case_link 下轮按真名修复 —— 占位是缺件兜底不该遮可救真图。
+    首错 payload 不做此检: case_link@17 本轮已先评 (含 kv 形引用
+    ``_INCLUDE_GFX_RE`` 够不着时占位落名仍是唯一编译救法)。
     """
-    del eng, params
-    want = _norm_graphic_name(payload or "")
-    if not want:
-        return False, "no graphic payload"
     suffix = PurePosixPath(want).suffix.lower()
     if suffix and suffix not in _GRAPHIC_EXTS:
         return False, f"{want}: not a known graphic ext"
@@ -1046,8 +1093,6 @@ def graphic_missing_placeholder(  # noqa: C901, PLR0911, PLR0912 - 逐门 declin
         suffix = ".eps"
     if ".." in PurePosixPath(want).parts:
         return False, f"{want}: path traversal rejected"
-    mp = ctx.main_path()
-    base = mp.parent if mp is not None else ctx.wdir
     f = base / want
     try:
         f.resolve().relative_to(ctx.wdir.resolve())
@@ -1055,6 +1100,12 @@ def graphic_missing_placeholder(  # noqa: C901, PLR0911, PLR0912 - 逐门 declin
         return False, f"{want}: escapes wdir"
     if safe_is_file(f):
         return False, f"{want}: resolved meanwhile"
+    if rescue_check:
+        d = want.replace("{", "").replace("}", "")
+        if d != want and safe_is_file(base / d):
+            return False, f"{want}: de-braced file on disk — case_link domain"
+        if _find_graphic_ci(ctx, want) is not None:
+            return False, f"{want}: ci-variant on disk — case_link domain"
     blob: str | bytes
     if suffix in _EPS_EXTS:
         blob = _EPS_PLACEHOLDER
@@ -1077,3 +1128,55 @@ def graphic_missing_placeholder(  # noqa: C901, PLR0911, PLR0912 - 逐门 declin
     except OSError as e:
         return False, f"{want}: write failed ({e})"
     return True, f"placeholder {suffix.lstrip('.').upper()} at {want}"
+
+
+def graphic_missing_placeholder(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""图档真缺件 → ``<main_dir>/<payload>`` 落最小合法格式占位。
+
+    graphic_ext_relax 残家 (failmine3 8 格) + xetex "Unable to load
+    picture or PDF file" 残家 (failmine4-covgap 6 格): sibling 不存在时
+    剥扩展名也救不了 —— 修复不是改源而是补档 (xbb_pregen 旁件同形)。
+    站点改写形盖不全调用面: ``\epsfig{file=X.eps}`` kv 形与宏体
+    ``#1.eps`` 间接名 (payload 是展开后真名, 源码字面不可锚) 只能由
+    「真名落盘」治; 子目录路径 (``FIGS/``/``images/``) mkdir 随行。
+
+    占位格式按 payload 扩展名分发 (xetex image-sniff 认格式字节):
+    ``.eps/.epsf/.epsi/.ps/.mps`` → 文本 EPS; ``.png/.jpg/.jpeg/.pdf``
+    → 同构图二进制占位; 无扩展名 (ext-relax 残家 vanilla 解析序) 须
+    先过 ``_has_live_graphic_ref`` 复核才补 ``.eps`` —— ``\input`` 系
+    裸缺件不落图占位。落盘基址 = ``main_path().parent`` (TeX 的
+    cwd 解析位; main 未知退回 wdir) —— main 住子目录时 wdir 根位
+    对 TeX 不可见。payload 是 log 派生路径 —— 双层守卫: ``..`` 段拒
+    + resolve 后仍须在 wdir 内 (防穿越写); 解析位已有档 (大小写
+    变体/前轮已补) → False 让路。
+
+    micro2 扩面 (v3all 2501.01329/2501.01425): 本轮 log 全量枚举同签
+    缺图一次补齐 —— nonstop 编译单趟已列全部, 逐轮单补在多缺件格
+    烧穿轮次上限。log 缺席/单件时行为与旧逐件版等价。
+    """
+    del eng, params
+    want = _norm_graphic_name(payload or "")
+    if not want:
+        return False, "no graphic payload"
+    mp = ctx.main_path()
+    base = mp.parent if mp is not None else ctx.wdir
+    wants = [want]
+    for m in _LOG_MISS_GFX_RE.finditer(_fixloop_log(ctx)):
+        w = _norm_graphic_name(m.group(1) or m.group(2))
+        if w and w not in wants:
+            wants.append(w)
+    wrote: list[str] = []
+    declined: list[str] = []
+    for i, w in enumerate(wants):
+        ok, note = _stub_graphic_at(ctx, base, w, rescue_check=i > 0)
+        (wrote if ok else declined).append(note)
+    if not wrote:
+        return False, declined[0] if declined else "no stub written"
+    head = wrote[0]
+    if len(wrote) > 1:
+        head += f" (+{len(wrote) - 1} log-swept)"
+    if declined:
+        head += f" | declined: {'; '.join(declined)}"
+    return True, head
