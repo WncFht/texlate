@@ -219,6 +219,24 @@ REDLINES: Final[tuple[RedLine, ...]] = (
         # ENGINE_RED_LINES/RULES_WARNINGS/L2_* 切片零贡献（``is not None``
         # 过滤天然豁免）。
     ),
+    RedLine(
+        id="perpage_fnsymbol_firstpass",
+        # perpage+fnsymbol 首遍计数器溢出（known-limitation 概念行，零层
+        # 切片）：footmisc[marginal,perpage,symbol] + starred
+        # ``\DefineFNsymbols*{dagfirst}`` 六符上限——fresh .aux 首遍按全局
+        # 编号，footnote 数 >6 即 ``\@ctrerr`` Counter too large；warm .aux
+        # 次遍 perpage 标签就位按页重置 → 自愈。footmisc census 实证
+        # 2105.03751 单格：wave-5 down-flip = splice_rebuilt fresh workdir
+        # 的 aux-freshness artifact（loop1 passes=2 clean / loop2,3
+        # passes=1 ctrerr），非规致、非文档缺陷。构造上限：首遍溢出属
+        # LaTeX 语义真错——引擎层 ``_xelatex`` rc!=0 break 先于
+        # rerun-hint check，无 hint 发射的硬错拿不到次遍（rerunhint
+        # census 另行评估普适受害面）。各层不挂判据：``\@ctrerr`` log 行
+        # 与真计数器溢出（非首遍 quirk）同形，行级 pattern 切不出子集；
+        # 真·判据 = .aux 新鲜度 + ``\DefineFNsymbols*`` 符数 vs footnote
+        # 计数——source/build-state 介质非 log regex 语义。登记只为归因
+        # 面留概念锚点，对 ENGINE_RED_LINES/RULES_WARNINGS/L2_* 零贡献。
+    ),
 )
 
 REDLINES_BY_ID: Final[dict[str, RedLine]] = {r.id: r for r in REDLINES}
