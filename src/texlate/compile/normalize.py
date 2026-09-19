@@ -386,8 +386,11 @@ _DRIVER_TOKEN_RX: Final = re.compile(
     r"(?:^|,)\s*(" + "|".join(_DRIVER_TOKENS) + r")\s*(?=,|$)"
 )
 _DRIVER_SCOPE_RX: Final = re.compile(
+    # 多包并列形 \usepackage[drv]{a,b}: lookahead 要求花括号表内含至少一枚
+    # 整词驱动敏感包 (\b 挡 colortbl/xcolorful 子串伪命中) —— 旧单名面漏此
+    # 形, 实测 12 格 dvips 驱动 token 漏网 (loop3 pasj00/ismdproc/aa.cls 系)
     r"\\(?:usepackage|RequirePackage)\s*\[([^]]+)\]"
-    r"\s*\{(?:hyperref|graphicx|graphics|color|xcolor)\}"
+    r"\s*\{(?=[^}]*\b(?:hyperref|graphicx|graphics|color|xcolor)\b)[^}]*\}"
     r"|\\documentclass\s*\[([^]]+)\]"
     r"|\\PassOptionsTo(?:Package|Class)\s*\{([^}]+)\}"
 )

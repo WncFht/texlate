@@ -275,6 +275,25 @@ def test_driver_option_unrelated_untouched() -> None:
     assert normalize_pdf_primitives(tex) == tex
 
 
+def test_driver_option_multipkg_to_xetex() -> None:
+    """多包并列面: [drv]{a,b} 表内含驱动敏感包 → token 改写 (pasj00/aa.cls 形)。"""
+    tex = (
+        "\\usepackage[dvips]{graphicx,color}\n"
+        "\\usepackage[pdftex]{epsfig,graphicx}\n"
+        "\\usepackage[dvips]{graphics, color}\n"
+    )
+    out = normalize_pdf_primitives(tex)
+    assert "[xetex]{graphicx,color}" in out
+    assert "[xetex]{epsfig,graphicx}" in out
+    assert "[xetex]{graphics, color}" in out
+
+
+def test_driver_option_multipkg_no_sensitive_untouched() -> None:
+    """多包面保守侧: 表内无驱动敏感包 → 原样 (\\b 挡 colortbl 子串伪命中)。"""
+    tex = "\\usepackage[dvips]{amsmath,amssymb}\n\\usepackage[pdftex]{colortbl}"
+    assert normalize_pdf_primitives(tex) == tex
+
+
 # 9. OT1/T1 → TU（project 级）
 def test_legacy_latin_fonts(tmp_path: Path) -> None:
     tex = (
