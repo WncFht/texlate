@@ -19,7 +19,11 @@ arm-B (pdftex-gated-codepath): ``\\if<letters>pdf`` 开关族与
 定义位成 already-defined; ``\\def``/``\\let``/``\\chardef`` 重绑无闸不收。
 """
 
+import shutil
+import subprocess
 from pathlib import Path
+
+import pytest
 
 from texlate.compile.fixloop import (
     Ruleset,
@@ -30,6 +34,9 @@ from texlate.compile.fixloop import (
 )
 from texlate.compile.fixloop.engine import LoopCtx, Rule
 from texlate.compile.fixloop.logparse import ErrReport
+
+_XELATEX = shutil.which("xelatex")
+_COMPILE = pytest.mark.skipif(_XELATEX is None, reason="xelatex not installed")
 
 _MAIN = (
     "\\documentclass{article}\n\\usepackage{somepkg}\n"
@@ -178,6 +185,48 @@ def test_arm_countish_default_init_one(tmp_path: Path) -> None:
     assert ok
     out = (tmp_path / "main.tex").read_text(encoding="utf-8")
     assert "\\newcount\\pdfcompresslevel\\pdfcompresslevel=1" in out
+
+
+def test_arm_pdftexversion_init_140(tmp_path: Path) -> None:
+    """``\\pdftexversion`` 初值 ``=140`` —— TL2025 pdftex 1.40.x 对齐。
+
+    缺省 ``=1`` 把 ``\\ifnum\\pdftexversion<120`` 版本探针翻成真臂:
+    microtype 系版本闸静默退役 (0812.1138 docsty 实证受害)。
+    """
+    ctx = _ctx(tmp_path)
+    ok, note = builtins.pdftex_prim_polyfill(ctx, None, "pdftexversion", {})
+    assert ok, note
+    out = (tmp_path / "main.tex").read_text(encoding="utf-8")
+    assert (
+        "\\ifdefined\\pdftexversion\\else\\newcount\\pdftexversion"
+        "\\pdftexversion=140\\fi" in out
+    )
+
+
+@_COMPILE
+def test_pdftexversion_ifnum_semantics_real_xelatex(tmp_path: Path) -> None:
+    """真 xelatex: 注入后 ``>120`` 探针走真臂、``<120`` 走假臂。"""
+    ctx = _ctx(
+        tmp_path,
+        "\\documentclass{article}\n\\begin{document}\n"
+        "\\ifnum\\pdftexversion>120 \\typeout{PRIMVERDICT-A yes}"
+        "\\else\\typeout{PRIMVERDICT-A no}\\fi\n"
+        "\\ifnum\\pdftexversion<120 \\typeout{PRIMVERDICT-B yes}"
+        "\\else\\typeout{PRIMVERDICT-B no}\\fi\n"
+        "x\n\\end{document}\n",
+    )
+    ok, note = builtins.pdftex_prim_polyfill(ctx, None, "pdftexversion", {})
+    assert ok, note
+    subprocess.run(  # noqa: S603 -- argv[0] 来自 shutil.which 绝对路径
+        [_XELATEX, "-interaction=nonstopmode", "main.tex"],
+        cwd=tmp_path,
+        capture_output=True,
+        timeout=120,
+        check=False,
+    )
+    log = (tmp_path / "main.log").read_text(encoding="utf-8", errors="replace")
+    assert "PRIMVERDICT-A yes" in log
+    assert "PRIMVERDICT-B no" in log
 
 
 # ---------------------------------------------------------------- dedup 收窄

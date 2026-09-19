@@ -121,8 +121,10 @@ _PRIM_BOXISH = frozenset({"pdf@box"})
 #: 定义即翻 else 臂 (0712.1016 自产缺陷: polyfill=1 把 texmf 内不可改写
 #: 的存在探针全翻成 pdftex 臂 → hyperref[pdftex] xetex GenericError);
 #: 值探针 ``\ifnum\pdfoutput>0`` 在 ``=0`` 下保持诚实假 —— 「非 pdfTeX」
-#: 是 xelatex 下两种探针的一致回答。
-_PRIM_INIT: dict[str, str] = {"pdfoutput": "0"}
+#: 是 xelatex 下两种探针的一致回答。``pdftexversion=140`` 对齐 TeX Live
+#: 2025 pdftex 1.40.x: 缺省 1 会把 ``\ifnum\pdftexversion<120`` 版本探针
+#: 翻成真臂 (microtype 系版本闸静默退役; 0812.1138 docsty 实证受害)。
+_PRIM_INIT: dict[str, str] = {"pdfoutput": "0", "pdftexversion": "140"}
 
 #: 取参型原语 —— ``\protected\def`` 吞参 noop (prim → 参数文本):
 #: ``\prim{dict}``/``\prim<num>``/``\prim\<reg>`` 站点在 chardef 下实参
