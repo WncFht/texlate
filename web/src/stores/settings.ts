@@ -76,7 +76,9 @@ export const settingsStore = {
 
     async save(patch: Settings) {
         const next = await api.putSettings(patch);
-        setSettings((cur) => ({ ...cur, ...next }));
+        // ignored 仅在有丢弃字段时才下发——浅合并会让上一轮的非空值挂留，
+        // 显式归一到本轮回执
+        setSettings((cur) => ({ ...cur, ...next, ignored: next.ignored ?? [] }));
         return next;
     },
 
