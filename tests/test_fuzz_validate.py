@@ -57,7 +57,12 @@ from _fuzzkit import (
 )
 
 from texlate.redlines import L2_REDLINE_CLASSES
-from texlate.textutil import bare_cs_net, is_cjk_cp, ph_in_cs_net
+from texlate.textutil import (
+    bare_cs_net,
+    is_cjk_cp,
+    ph_in_cs_net,
+    residual_en_net,
+)
 from texlate.validate.l0 import (
     STRUCT_CMDS,
     Issue,
@@ -87,6 +92,7 @@ _RULES = {
     "bare_cs",
     "protocol_echo",
     "comment_eof",
+    "residual_en",
 }
 
 # ------------------------------------------------------------------ 汤料
@@ -1144,9 +1150,54 @@ def test_fuzz_identity_pair_no_error() -> None:
     for x in cases:
         rep = validate_pair(x, x)
         echo = _o_same_source_hit(x, x)
-        assert rep.n_error == (1 if echo else 0), f"{x!r}\n{rep}"
-        allowed = {"math", "length"} | ({"same_source"} if echo else set())
+        resid = residual_en_net(x, x)
+        assert rep.n_error == (1 if echo else 0) + len(resid), f"{x!r}\n{rep}"
+        allowed = (
+            {"math", "length"}
+            | ({"same_source"} if echo else set())
+            | ({"residual_en"} if resid else set())
+        )
         assert {i.rule for i in rep.issues} <= allowed, f"{x!r}\n{rep}"
+
+
+def test_fuzz_residual_en_existence() -> None:
+    """residual_en 网与 l0 规则口径一致 fuzz：net 命中数 == issue 数。
+
+    钉档构造输入保证非 vacuous（ verbatim ⊆src Tier-A + 非 src 混血
+    Tier-B 各一）；soup fuzz 顺带压「命中即 ERROR、found 载 run」落形。
+    """
+    rng = fuzz_rng(20261023)
+    fixed = [
+        (
+            (
+                "Alpha intro. The quick brown fox jumps over the lazy dog "
+                "repeatedly near the barn. Tail."
+            ),
+            (
+                "甲。The quick brown fox jumps over the lazy dog repeatedly "
+                "near the barn. 乙。"
+            ),
+        ),
+        (
+            "src words here.",
+            "前文。This sentence was never present in the source at all. 后文。",
+        ),
+    ]
+    seen = 0
+    for src, zh in fixed:
+        rep = validate_pair(src, zh)
+        hits = [i for i in rep.issues if i.rule == "residual_en"]
+        assert hits, f"{src!r} / {zh!r}"  # 构造必命中——防口径漂移致 vacuous
+        seen += len(hits)
+    for _ in range(2000):
+        src = _soup(rng, _SOUP, 0, 14)
+        zh = _soup(rng, _SOUP, 0, 14)
+        rep = validate_pair(src, zh)
+        hits = [i for i in rep.issues if i.rule == "residual_en"]
+        assert len(hits) == len(residual_en_net(src, zh)), f"{src!r} / {zh!r}"
+        assert all(i.severity is Severity.ERROR for i in hits)
+        seen += len(hits)
+    assert seen > 0
 
 
 def test_identity_comment_ph_midline_tail_flagged() -> None:

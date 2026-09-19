@@ -4,6 +4,8 @@ import asyncio
 
 import pytest
 
+from texlate.textutil import residual_en_net
+from texlate.validate.l0 import validate_pair
 from texlate.xlat import retry as rt
 from texlate.xlat.client import (
     AuthError,
@@ -246,6 +248,96 @@ class TestLadder:
         assert res.stage == "lines"
         assert "[[MATH_1]]" in res.translation
         assert "[[CITE_2]]" in res.translation
+
+    def test_line_audit_retry_rescues(self) -> None:
+        """行应答丢 ``[[SP]]`` → 带 audit err 重试一次救回（seq-51 臂 1）。"""
+        src = "Alpha body text\\ second part stays long enough here. Tail sentence follows now."
+        calls: list[tuple[str, str]] = []
+
+        async def flaky(text: str, feedback: str) -> str:
+            calls.append((text, feedback))
+            if "second part" in text and "Tail" in text:
+                return "整段译文没有标记"  # 整段两试都丢 [[SP]]（audit 死）
+            if "Tail" in text:
+                return "尾句译文在此。"
+            if feedback:
+                return "甲体 [[SP]] 文本第二部分够长。"
+            return "甲体文本第二部分够长。"
+
+        res = asyncio.run(
+            rt.translate_with_ladder(
+                src, translate_fn=flaky, slots_fn=self._empty_slots
+            )
+        )
+        assert res.status == "recovered"
+        assert res.stage == "lines"
+        assert res.attempts == 5  # noqa: PLR2004 -- whole×2 + 行1×2 + 行2×1
+        assert "[[SP]]" in calls[3][1]
+
+    def test_line_validate_retry_rescues(self) -> None:
+        """行译文 validate 败 → 带 err 重试一次救回（seq-51 臂 2）。"""
+        src = "Alpha body [[MATH_1]] text here. Tail sentence follows now."
+
+        async def flaky(text: str, feedback: str) -> str:
+            if "Alpha" in text and "Tail" in text:
+                return "整段丢了标记"  # 整段两试都丢 [[MATH_1]]
+            if "Tail" in text:
+                return "尾句译文在此。"
+            if feedback:
+                return "甲体 [[MATH_1]] 文本。"
+            return "甲体文本没有标记。"
+
+        res = asyncio.run(
+            rt.translate_with_ladder(
+                src, translate_fn=flaky, slots_fn=self._empty_slots
+            )
+        )
+        assert res.status == "recovered"
+        assert res.stage == "lines"
+        assert "[[MATH_1]]" in res.translation
+        assert res.attempts == 5  # noqa: PLR2004 -- whole×2 + 行1×2 + 行2×1
+
+    def test_line_fallback_residual_en_reroutes_to_slots(self) -> None:
+        """seq-51 核心回归：行译文整句英文回显 → validate 败 → 重试仍回显 →
+        ``zh_l``（英文原句）装进装配体 → 真 ``validate_pair`` 的
+        ``residual_en`` 网整段拒收 → 升 slots 救回，不再静默出货。"""
+        src = (
+            "Lead in sentence. The quick brown fox jumps over the lazy dog "
+            "repeatedly near the barn every day."
+        )
+        barn_line = (
+            "The quick brown fox jumps over the lazy dog repeatedly near "
+            "the barn every day."
+        )
+
+        async def flaky(text: str, _feedback: str) -> str:
+            if "Lead" in text and "barn" in text:
+                return "整段 [[MATH_9]] 译文"  # whole×2 多余占位符死
+            if "Lead" in text:
+                return "引导句。"
+            return barn_line  # 行级整句英文回显（same_source 死，重试同形）
+
+        async def good_slots(slots: dict[str, str], _failures: str) -> dict[str, str]:
+            return dict.fromkeys(
+                slots, "引导句。敏捷的棕色狐狸每天都在谷仓附近反复跳过那只懒狗。"
+            )
+
+        def real_validate(s: str, z: str) -> str:
+            rep = validate_pair(s, z)
+            return "" if rep.ok else rep.feedback()
+
+        res = asyncio.run(
+            rt.translate_with_ladder(
+                src,
+                translate_fn=flaky,
+                slots_fn=good_slots,
+                validate_fn=real_validate,
+            )
+        )
+        assert res.status == "recovered"
+        assert res.stage == "slots"
+        assert residual_en_net(src, res.translation) == []
+        assert res.attempts == 6  # noqa: PLR2004 -- whole×2 + 行1×1 + 行2×2 + slots×1
 
     def test_slots_rescue(self) -> None:
         """整段+行级全败 → slots JSON 装配 → recovered/slots。"""

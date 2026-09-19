@@ -7,7 +7,7 @@ r"""L0 规则校验层 —— stdlib always-on，src↔zh 相对判定（规格 
 设计原则 = "译文不得比原文更坏"：每条检查都是 src↔zh 比较而非 zh 绝对判定，
 src 自带的不平衡/不一致不追责（继承容忍），只报 zh 相对 src 的新增损伤。
 
-十二条规则（docs/08 §2.1 表 + E21/E22 修订口径 + 注释区/粘合/回显/ph_in_cs/裸 cs/注释尾段补丁）：
+十三条规则（docs/08 §2.1 表 + E21/E22 修订口径 + 注释区/粘合/回显/ph_in_cs/裸 cs/注释尾段/残英补丁）：
 
   placeholder  ``[[TYPE_n]]``/``[[SL]]``/``[[PL]]`` multiset diff + lev≤2 修复建议；
                E22：严格序守恒降为 warn（``of X``→``X 的`` 合法换序占违例 ~95%），
@@ -27,6 +27,13 @@ src 自带的不平衡/不一致不追责（继承容忍），只报 zh 相对 s
   same_source  剥占位符/cs + 空白折叠 + 小写后 src==zh 整段回显 → error
                （``[[BIB_`` bib 直通/剥后 <10 token 短残段豁免——输出=输入
                是正确态；仅规范化等值比较，近似匹配会误伤邮箱/数学残段）。
+  residual_en  zh prose 按 CJK 切非 CJK run，verbatim ⊆src（est≥10）或
+               混血长句（≥8 词且 ≥40 拉丁字母）→ error（seq-49/51 实证：
+               行级修复原文回退/模型半译在中文段里留整句英文，same_source
+               只拦整段回显、length 的 CJK 占比 warn 不闸）；``[[BIB_`` 与
+               零 CJK zh 豁免归 same_source/length 管辖，人名/专名列
+               （≥70% 首字母大写）豁免。判定口径 = ``textutil.residual_en_net``，
+               与 pipeline ``_intercept_residual_en`` 逐字节一致。
   macro        zh 新增控制序列 diff=error（E24 全档拒收：texglot 同口径
                ``\\[a-zA-Z@]`` 控制词可携 prompt-injection 直进 .tex；
                ``\\.`` 转义族是 bs 类本不入 cs 计数天然豁免；含非 ASCII
@@ -67,12 +74,16 @@ from typing import Final
 from texlate.textutil import (
     CJK_RX,
     MATH_CS,
+    PH_ANY_LIKE_RX,
     PH_FUZZY_RX,
     bare_cs_net,
     lev_capped,
     mask_comments,
     ph_in_cs_net,
+    residual_en_net,
 )
+from texlate.textutil import est_tokens as _est_tokens
+from texlate.textutil import prose_text as _prose
 
 __all__ = [
     "Issue",
@@ -82,11 +93,6 @@ __all__ = [
 ]
 
 # ---------------------------------------------------------------- 常量
-
-#: ``[[TYPE_n]]`` 正规形 + ``[[SL]]``/``[[PL]]`` 无数字后缀结构标记。
-#: 刻意是 ``latex.placeholder.PH_RX`` 的超集——校验侧要认出"长得像占位符"
-#: 的一切 token（含 issuer 不会产出的畸形变体），故不能复用产品严格形。
-PH_ANY_LIKE_RX: Final = re.compile(r"\[\[[A-Z][A-Z0-9_]*(?:_\d+)?\]\]")
 
 #: 从模糊候选里剥出核心 token（去括号/空白），供 lev 配对。
 _PH_CORE_RX: Final = re.compile(r"[A-Za-z0-9_]+")
@@ -116,9 +122,6 @@ _BRACE_SEQ_RX: Final = re.compile(r"\{([^{}]*)\}")
 
 ENV_RX: Final = re.compile(r"\\(begin|end)\s*\{([^{}]*)\}")
 
-
-#: zh 内剥命令/占位符用。
-_CS_OR_SYM_RX: Final = re.compile(r"\\[a-zA-Z@]+\*?|\\[\s\S]")
 
 #: 非 ASCII 控制序列名 = 融合产物（`\ `+中文 → `\和`，未定义 cs 编译炸弹）。
 _NONASCII_RX: Final = re.compile(r"[^\x00-\x7f]")
@@ -798,24 +801,6 @@ def _check_math(src: str, zh: str, issues: list[Issue]) -> None:
         )
 
 
-def _prose(s: str) -> str:
-    """剥占位符 + 控制序列 + 空白折叠后的散文本体（长度比/回显共用口径）。"""
-    t = PH_ANY_LIKE_RX.sub(" ", s)
-    t = _CS_OR_SYM_RX.sub(" ", t)
-    return re.sub(r"\s+", " ", t).strip()
-
-
-def _est_tokens(s: str) -> float:
-    """Token 代理估计：CJK 1 字≈1 token，其余可见字符≈4/token。
-
-    无 tokenizer 依赖的标定口径——误差双侧对冲后 qualbase-2026-09-18
-    全池实测 zh/src 比 p0=0.76 / p50=1.18 / p99.5=1.80。
-    """
-    cjk = len(CJK_RX.findall(s))
-    nonws = sum(1 for c in s if not c.isspace())
-    return cjk + (nonws - cjk) / 4
-
-
 def _check_same_source(src: str, zh: str, issues: list[Issue]) -> None:
     """整段原文回显拒收（E24）：规范化等值 src==zh 且拉丁主导 → error。
 
@@ -876,6 +861,33 @@ def _check_length(src: str, zh: str, issues: list[Issue]) -> None:
                     f"(lat={lat} cjk={cjk}) — 疑似未翻译",
                 )
             )
+
+
+#: 残英 issue 消息的 run 展示截断。
+_RESID_EN_SHOW: Final = 80
+
+
+def _check_residual_en(src: str, zh: str, issues: list[Issue]) -> None:
+    """段内残英句拒收（seq-49/51 实证补网）：zh 夹未翻译英文 run → error。
+
+    ``_check_same_source`` 只拦整段回显、``_check_length`` CJK 占比是
+    warn 且要拉丁主导——行级修复把 audit 失败的行按原文装回、或模型
+    半译应答，都会在中文段里留下整句英文而两网全盲（阶梯 ``recovered``
+    落 DB ``ok`` 静默出货）。判定口径全在 ``textutil.residual_en_net``
+    （CJK 切 run / verbatim 子串 + 混血长句 / 人名豁免 / BIB 直通豁免），
+    与 pipeline ``_intercept_residual_en`` 逐字节一致。
+    """
+    issues.extend(
+        Issue(
+            "residual_en",
+            Severity.ERROR,
+            f"译文残留未翻译英文 run: {run[:_RESID_EN_SHOW]}"
+            f"{'…' if len(run) > _RESID_EN_SHOW else ''}"
+            "（行级修复原文回退/半译签名）",
+            found=run,
+        )
+        for run in residual_en_net(src, zh)
+    )
 
 
 def _cs_names(s: str) -> tuple[Counter[str], Counter[str]]:
@@ -1160,7 +1172,7 @@ def _check_protocol_echo(src: str, zh: str, issues: list[Issue]) -> None:
 
 
 def validate_pair(src: str, zh: str) -> L0Report:
-    """对 ``(src_chunk, zh_chunk)`` 跑全部 12 组检查，返回结构化 verdict。
+    """对 ``(src_chunk, zh_chunk)`` 跑全部 13 组检查，返回结构化 verdict。
 
     ``report.ok`` 为 True 即可送 L1/拼回；False 时 ``report.feedback()``
     的文本可直接进 corrector 的 ``previous_validation_error`` 字段。
@@ -1173,6 +1185,7 @@ def validate_pair(src: str, zh: str) -> L0Report:
     _check_math(src, zh, rep.issues)
     _check_same_source(src, zh, rep.issues)
     _check_length(src, zh, rep.issues)
+    _check_residual_en(src, zh, rep.issues)
     _check_macro(src, zh, rep.issues)
     _check_item_glue(src, zh, rep.issues)
     _check_ph_in_cs(src, zh, rep.issues)

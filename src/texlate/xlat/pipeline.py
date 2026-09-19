@@ -27,7 +27,12 @@ from typing import TYPE_CHECKING, Any, Protocol
 # 向上 import 本包）；转口保持 ``from texlate.xlat.pipeline import ChunkIn``
 # 钉点面守恒（repair_l2/e2e/worker/tests）。
 from texlate.chunk import ChunkIn
-from texlate.textutil import JSON_FENCE_RX, bare_cs_net, ph_in_cs_net
+from texlate.textutil import (
+    JSON_FENCE_RX,
+    bare_cs_net,
+    ph_in_cs_net,
+    residual_en_net,
+)
 
 from . import placeholders, prompts
 from .batch import (
@@ -291,23 +296,26 @@ def _leftover_ph_tokens(src: str, zh: str) -> list[str]:
 
 
 def _interceptable(src: str, zh: str) -> bool:
-    """升格拦截三网的合并判定——``zh`` 命中任一网即会被 ``_collect`` 降 fault。
+    """升格拦截四网的合并判定——``zh`` 命中任一网即会被 ``_collect`` 降 fault。
 
     ``_cache_store``/缓存命中路共用此口径：过不了拦截的译文既不入缓存、
     命中旧毒条目也清除重翻。
     """
     return bool(
-        _leftover_ph_tokens(src, zh) or ph_in_cs_net(src, zh) or bare_cs_net(src, zh)
+        _leftover_ph_tokens(src, zh)
+        or ph_in_cs_net(src, zh)
+        or bare_cs_net(src, zh)
+        or residual_en_net(src, zh)
     )
 
 
 def _intercept_guard(r: ChunkResult) -> bool:
-    """升格拦截三网共用守门——只扫 ok/partial（skipped/fault 的 translation 已是 source）。"""
+    """升格拦截四网共用守门——只扫 ok/partial（skipped/fault 的 translation 已是 source）。"""
     return r.status in ("ok", "partial")
 
 
 def _intercept_apply(r: ChunkResult, *, warn: str, reason: str) -> None:
-    """升格拦截三网共用落形：fallback_orig 同形（fault + skipped + 回退原文）。
+    """升格拦截四网共用落形：fallback_orig 同形（fault + skipped + 回退原文）。
 
     ``attempts>0`` 才记 ``error_kind=validate``——缓存命中没发请求，
     不充当 auth 闸的非-auth 证据。warning 仍按族名落 ``<net>:N`` 供计量。
@@ -384,6 +392,28 @@ def _intercept_bare_cs(r: ChunkResult) -> None:
         r,
         warn=f"bare_cs:{n}",
         reason=f"bare cs injected x{n}: {shown}",
+    )
+
+
+def _intercept_residual_en(r: ChunkResult) -> None:
+    r"""``residual_en`` 升格拦截：zh 段内夹未翻译英文 run → fault + 回退原文。
+
+    ``_intercept_bare_cs`` 同构副层——判定口径 = ``textutil.residual_en_net``
+    （与 l0 ``_check_residual_en`` 逐字节一致）。seq-49/51 实证：行级修复
+    把 audit 失败的行按 ``src_l`` 原文装回，装配 candidate 过 validator
+    时 same_source 只拦整段回显、CJK 占比 warn 不闸——``recovered`` 落
+    DB ``ok`` 静默出货。缓存命中/续跑旁路 validator 时本层是唯一闸。
+    """
+    if not _intercept_guard(r):
+        return
+    runs = residual_en_net(r.source, r.translation)
+    if not runs:
+        return
+    shown = ", ".join(r[:40] for r in runs[:3])
+    _intercept_apply(
+        r,
+        warn=f"residual_en:{len(runs)}",
+        reason=f"untranslated english run(s) in zh x{len(runs)}: {shown}",
     )
 
 
@@ -625,10 +655,11 @@ class XlatPipeline:
         return segment_key(c.content, c.kind, masked_snapshot=repr(ph_types))
 
     def _cache_store(self, c: ChunkIn, zh: str) -> None:
-        """段级缓存写入；过不了升格拦截三网的译文不入缓存——防毒化续跑。
+        """段级缓存写入；过不了升格拦截四网的译文不入缓存——防毒化续跑。
 
         缓存命中旁路校验：同一份污染译文若落缓存，每轮续跑反复命中、永远修不正。
-        判定口径 = ``_collect`` 三条 intercept（leftover_ph/ph_in_cs/bare_cs）。
+        判定口径 = ``_collect`` 四条 intercept
+        （leftover_ph/ph_in_cs/bare_cs/residual_en）。
         """
         if self.cache is None or _interceptable(c.content, zh):
             return
@@ -824,6 +855,7 @@ class XlatPipeline:
         _intercept_leftover_ph(r)  # L2 回灌同受拦截——fault 由调用方回落原文
         _intercept_ph_in_cs(r)
         _intercept_bare_cs(r)
+        _intercept_residual_en(r)
         return r
 
     # ------------------------------------------------------------ 批量路径
@@ -1225,10 +1257,11 @@ class XlatPipeline:
             fatal.append(e)
 
     def _ledger_intercepts(self, fatal: list[BaseException], r: ChunkResult) -> None:
-        """升格拦截三网的统一账本序列（``_load_resumed`` 与 ``_ledger_outcome`` 共用）。"""
+        """升格拦截四网的统一账本序列（``_load_resumed`` 与 ``_ledger_outcome`` 共用）。"""
         self._ledger_call(fatal, r, "leftover_ph intercept", _intercept_leftover_ph)
         self._ledger_call(fatal, r, "ph_in_cs intercept", _intercept_ph_in_cs)
         self._ledger_call(fatal, r, "bare_cs intercept", _intercept_bare_cs)
+        self._ledger_call(fatal, r, "residual_en intercept", _intercept_residual_en)
 
     def _ledger_outcome(self, fatal: list[BaseException], r: ChunkResult) -> None:
         """拦截 + auth 闸 + emit 的五点账本序列（``_route_chunks`` 与 ``_collect`` 共用）。"""

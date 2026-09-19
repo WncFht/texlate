@@ -58,6 +58,7 @@ import httpx
 import pytest
 from _fuzzkit import fuzz_rng
 
+from texlate.textutil import residual_en_net
 from texlate.validate.l0 import validate_pair
 from texlate.xlat import batch as xb
 from texlate.xlat import placeholders as ph
@@ -510,7 +511,11 @@ def _exp_single(content: str) -> _Exp:
         # 阶梯三振 fallback_orig——attempts 随 lines/slots 结构浮动不判
         return _Exp("fault", "validate", skipped=True, translation=content)
     enc = ph.encode_newlines(content)[0]
-    return _Exp("ok", translation=ph.decode_newlines(enc), attempts=1)
+    zh = ph.decode_newlines(enc)
+    if residual_en_net(content, zh):
+        # 残英升格拦截——ok 出口被第四网降 fault + 回退原文
+        return _Exp("fault", "validate", skipped=True, translation=content, attempts=1)
+    return _Exp("ok", translation=zh, attempts=1)
 
 
 def _simulate(  # noqa: C901, PLR0912 -- oracle 复刻编排路由，分支即语义面
@@ -536,13 +541,20 @@ def _simulate(  # noqa: C901, PLR0912 -- oracle 复刻编排路由，分支即�
         if len(pieces) > 1:
             # split 父块：逐片段单翻 + " " 合并；attempts 聚合各片段
             # （干净片段 echo 单翻恒 1 试 → len(pieces)）
-            exp[c.chunk_id] = _Exp(
-                "ok",
-                translation=" ".join(
-                    ph.decode_newlines(ph.encode_newlines(p)[0]) for p in pieces
-                ),
-                attempts=len(pieces),
+            merged = " ".join(
+                ph.decode_newlines(ph.encode_newlines(p)[0]) for p in pieces
             )
+            if residual_en_net(c.content, merged):
+                # 合并父块过 _collect 残英网 → fault + 回退原文
+                exp[c.chunk_id] = _Exp(
+                    "fault",
+                    "validate",
+                    skipped=True,
+                    translation=c.content,
+                    attempts=len(pieces),
+                )
+            else:
+                exp[c.chunk_id] = _Exp("ok", translation=merged, attempts=len(pieces))
             continue
         pending.append(c)
 
@@ -595,12 +607,24 @@ def _simulate(  # noqa: C901, PLR0912 -- oracle 复刻编排路由，分支即�
                         )
                     else:
                         enc = ph.encode_newlines(m.content)[0]
-                        exp[m.chunk_id] = _Exp(
-                            "ok",
-                            batched=True,
-                            translation=ph.decode_newlines(enc.strip()),
-                            attempts=1,
-                        )
+                        zh = ph.decode_newlines(enc.strip())
+                        if residual_en_net(m.content, zh):
+                            # 批成员同样过 _collect 残英网——batched/batch_id 不动
+                            exp[m.chunk_id] = _Exp(
+                                "fault",
+                                "validate",
+                                skipped=True,
+                                batched=True,
+                                translation=m.content,
+                                attempts=1,
+                            )
+                        else:
+                            exp[m.chunk_id] = _Exp(
+                                "ok",
+                                batched=True,
+                                translation=zh,
+                                attempts=1,
+                            )
     return exp
 
 

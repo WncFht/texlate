@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import time
 from functools import partial
 from http import HTTPStatus
@@ -41,6 +42,16 @@ if TYPE_CHECKING:
     from texlate.server.worker import TaskCtx
 
 _CHUNK_ID_LEN = 24  # sha256[:24]
+
+#: 假翻译应答的拉丁→中文映射——``[[X_n]]`` 占位符原样保留，其余拉丁词
+#: 变「文」（residual_en 网下合法的纯中文应答形）。
+_SINICIZE_RX = re.compile(r"(\[\[[A-Z][A-Z0-9_]*(?:_\d+)?\]\])|([A-Za-z]+)")
+
+
+def _sinicize(s: str) -> str:
+    """拉丁词→文、``[[X_n]]`` 原样——供 canned handler 产合规中文译文。"""
+    return _SINICIZE_RX.sub(lambda m: m.group(1) or "文", s)
+
 
 #: ≥3 段 tex——T2 auth 闸熔断需要连续 3 块 auth 失败
 _MULTI_TEX = (
@@ -249,9 +260,9 @@ class TestFaultPaths:
         """T4：ChatClient.usage_sink → task_usage 行 + snapshot.usage 出账。"""
 
         def handler(req: httpx.Request) -> httpx.Response:
-            # user 内容前加中文前缀——占位符全保留且非同文回显（E24 same_source
-            # 门槛下 verbatim echo 会被拒）；slots JSON 逐槽同形，批量/单翻
-            # 两侧校验都过
+            # user 内容拉丁词→文、占位符原样——中文前缀+英文回显的旧形会撞
+            # residual_en 网（E24 same_source 门槛的姊妹闸）；slots JSON 逐槽
+            # 同形，批量/单翻两侧校验都过
             body = json.loads(req.content)
             user = body["messages"][-1]["content"]
             try:
@@ -260,11 +271,15 @@ class TestFaultPaths:
                 slots = None
             content = (
                 json.dumps(
-                    {"slots": {k: "译文：" + str(v) for k, v in slots.items()}},
+                    {
+                        "slots": {
+                            k: "译文：" + _sinicize(str(v)) for k, v in slots.items()
+                        }
+                    },
                     ensure_ascii=False,
                 )
                 if isinstance(slots, dict)
-                else "译文：" + user
+                else "译文：" + _sinicize(user)
             )
             return httpx.Response(
                 HTTPStatus.OK,

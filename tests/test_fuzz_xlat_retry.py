@@ -527,7 +527,8 @@ class TestLadderInvariants:
     def test_chaos_fuzz_terminates_bounded(self) -> None:  # noqa: C901 -- chaos 分支即目的
         """乱注 chaos：translate_fn 回随机垃圾（含 echo/丢 token/空串），
         slots_fn 回随机 dict/非 dict/崩——阶梯必终止且 attempts 有界：
-        ``≤ 2 + nlines + 2·ceil(nslots/8)``。"""
+        ``≤ 2 + 3·nlines + 2·ceil(nslots/8)``（行级 audit/validate
+        各带 feedback 重试一次 → 单行上限 3 发）。"""
         rng = fuzz_rng(20260917)
         soup = [
             "Hello world. ",
@@ -546,7 +547,7 @@ class TestLadderInvariants:
             nlines = len(lines) if len(lines) > 1 else 0
             nslots = len(_make_slots(enc)[0])
             slot_groups = -(-nslots // rt.SLOTS_PER_BATCH)
-            bound = 2 + nlines + rt.SLOTS_MAX_ROUNDS * slot_groups
+            bound = 2 + 3 * nlines + rt.SLOTS_MAX_ROUNDS * slot_groups
 
             async def t_fn(_t: str, _f: str, _e: str = enc) -> str:
                 return rng.choice([*out_soup, _e])  # echo 是合法输出形态
@@ -748,7 +749,7 @@ class TestLadderInvariants:
         )
         assert res.status == "recovered"
         assert res.stage == "lines"
-        assert len(calls) == 4  # noqa: PLR2004 -- 整段 2 + 逐行 2
+        assert len(calls) == 6  # noqa: PLR2004 -- 整段 2 + 逐行 2×2（坏行各带 err 重试 1 发）
         assert "2 bad lines" in res.warnings[1]
         assert "[[MATH_1]]" in res.translation
         assert "[[CITE_2]]" in res.translation

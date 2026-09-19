@@ -13,8 +13,9 @@ r"""文本小件单源 —— 遮盖视图/校验签名/env 读取的跨层宿�
   ``decode_tex``/``decode_tex_with``/``EncodingVerdict``）。
 
 留在本 facade 的均属**跨域宿主件**——reaudit「注明跨域定位」方案：
-校验域知识（``bare_cs_net``/``ph_in_cs_net``/``cs_events_spans``/``MATH_CS``/
-``PH_FUZZY_RX``/``lev_capped``/``JSON_FENCE_RX``）的消费方在
+校验域知识（``bare_cs_net``/``ph_in_cs_net``/``residual_en_net``/
+``cs_events_spans``/``MATH_CS``/``PH_FUZZY_RX``/``PH_ANY_LIKE_RX``/
+``prose_text``/``est_tokens``/``lev_capped``/``JSON_FENCE_RX``）的消费方在
 validate/xlat/fixloop 层，迁往任何一层都会破坏 import 面（validate 不能
 import xlat 等），故宿于本层只注记不出叶；``env_flag``/``env_str``/
 ``env_float``/``data_root`` 与 ``safe_resolve``/``safe_is_file`` 是各层
@@ -86,6 +87,7 @@ __all__ = [
     "CJK_RANGES",
     "CJK_RX",
     "CMD_BOUNDARY",
+    "CS_OR_SYM_RX",
     "DEAD_ENVS",
     "DECL_NAME_RX",
     "DECL_TAIL",
@@ -102,6 +104,7 @@ __all__ = [
     "JSON_FENCE_RX",
     "LOADER_CMDS",
     "MATH_CS",
+    "PH_ANY_LIKE_RX",
     "PH_FUZZY_RX",
     "PH_RX",
     "SUBFILES_CHILD_RX",
@@ -121,12 +124,15 @@ __all__ = [
     "env_opt",
     "env_raw",
     "env_str",
+    "est_tokens",
     "is_cjk_cp",
     "iter_depth0",
     "lev_capped",
     "mask_comments",
     "mask_tex",
     "ph_in_cs_net",
+    "prose_text",
+    "residual_en_net",
     "safe_is_file",
     "safe_resolve",
     "scan_ifs",
@@ -345,6 +351,127 @@ def bare_cs_net(src: str, zh: str) -> Counter[str]:
         if pre is not None and any(c.isupper() for c in nme[len(pre) :]):
             out[nme] = n
     return out
+
+
+#: 带号/无号占位符剥皮——``[[TYPE_n]]`` 与 ``[[TYPE]]`` 整 token 形
+#: （``xlat.placeholders.ANY_PH_RX`` 的宽口径姊妹：那边按签发面逐型收口，
+#: 校验域只须"占位符样 token 全剥"一件——prose 口径/注释占位符共用本件；
+#: 原 l0 私有件下沉单源，placeholders.py 头注的「两处口径同步」所指即此）。
+PH_ANY_LIKE_RX: Final = re.compile(r"\[\[[A-Z][A-Z0-9_]*(?:_\d+)?\]\]")
+
+#: 控制序列/控制符号剥皮——``\cs名[*]`` 与 ``\`` 后随单字符（``\%``/``\,`` 族）。
+CS_OR_SYM_RX: Final = re.compile(r"\\[a-zA-Z@]+\*?|\\[\s\S]")
+
+
+def prose_text(s: str) -> str:
+    """剥占位符 + 控制序列 + 空白折叠后的散文本体（长度比/回显/残英共用口径）。"""
+    t = PH_ANY_LIKE_RX.sub(" ", s)
+    t = CS_OR_SYM_RX.sub(" ", t)
+    return re.sub(r"\s+", " ", t).strip()
+
+
+def est_tokens(s: str) -> float:
+    """Token 代理估计：CJK 1 字≈1 token，其余可见字符≈4/token。
+
+    无 tokenizer 依赖的标定口径——误差双侧对冲后 qualbase-2026-09-18
+    全池实测 zh/src 比 p0=0.76 / p50=1.18 / p99.5=1.80。
+    """
+    cjk = len(CJK_RX.findall(s))
+    nonws = sum(1 for c in s if not c.isspace())
+    return cjk + (nonws - cjk) / 4
+
+
+#: 残英 run 门槛（``residual_en_net``）——回显 Tier-A 的 est 下限沿用
+#: ``_MIN_PROSE_TOKENS`` 口径（纯占位符/短残段不判）；Tier-B 按词数+字符
+#: 双闸防短语/inline 术语误伤。
+_RESID_EN_MIN_EST: Final = 10
+_RESID_EN_MIN_WORDS: Final = 8
+_RESID_EN_MIN_LATIN: Final = 40
+#: 豁免：run 内 alpha token ≥3 且 ≥70% 落在「首字母大写词 + 邮箱/URL
+#: span」内视为人名/专名/地址列——C10 人名原样、邮箱/URL verbatim 同为
+#: 正确态（``John Smith, Jane Doe``/``D.Bukhvalov@science.ru.nl`` 不判）。
+_RESID_EN_NAME_MIN_TOKENS: Final = 3
+_RESID_EN_NAME_CAP_SHARE: Final = 0.70
+#: run 内 alpha 词形（连字符/撇号内连算一词——``closed-loop``/``teacher's``）。
+_RESID_EN_WORD_RX: Final = re.compile(r"[A-Za-z]+(?:[-'][A-Za-z]+)*")
+#: 地址类 span（邮箱/URL 字面）——span 内词计入豁免覆盖。
+_RESID_EN_ADDR_RX: Final = re.compile(
+    r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+|(?:https?://|www\.)[\w./?=&%#+:-]+"
+)
+
+#: run 边缘非标点剥离——CJK 切出的 run 会带 ``。，`` 等界标点，
+#: verbatim 回显的 src 子串判定须先剥边缘才不被界标点卡掉短回显。
+_RESID_EN_EDGE_RX: Final = re.compile(r"^[^A-Za-z0-9]+|[^A-Za-z0-9]+$")
+
+
+def _keep_verbatim_run(run: str) -> bool:
+    """Run 是否人名/专名/地址列签名。
+
+    ≥70% 词是首字母大写或落在邮箱/URL span 内即豁免——句子夹个把
+    名字/邮箱凑不够 70%，整句英文不误放。
+    """
+    wms = list(_RESID_EN_WORD_RX.finditer(run))
+    if len(wms) < _RESID_EN_NAME_MIN_TOKENS:
+        return False
+    spans = [m.span() for m in _RESID_EN_ADDR_RX.finditer(run)]
+    covered = sum(
+        1
+        for m in wms
+        if m.group(0)[:1].isupper() or any(s <= m.start() < e for s, e in spans)
+    )
+    return covered / len(wms) >= _RESID_EN_NAME_CAP_SHARE
+
+
+def residual_en_net(src: str, zh: str) -> list[str]:
+    r"""译文段内残留英文 run 检测（半译/原文回退的出货签名）。
+
+    行级修复把 audit 失败的行按 ``src_l`` 原文装回、或模型整段应答里夹了
+    未翻英文句——``same_source`` 只拦整段回显、``length`` CJK 占比只在
+    拉丁主导时 warn，段内单句英文两网全盲（t_84c406c2 seq-49/51 实证：
+    阶梯 ``recovered`` 落 DB ``ok`` 静默出货）。
+
+    口径：zh 剥注释/占位符/cs 成 prose 后**按 CJK 字符切极大非 CJK run**
+    （不按句号切——``English verbatim. 中文`` 混合段骗不过 run 切分）：
+
+    - **Tier-A 回显**：剥边缘后 ``est_tokens ≥ 10`` 且 run 是 src prose
+      子串——行级 ``src_l`` 回退/整句照抄的确切签名；
+    - **Tier-B 混血**：run 不在 src 且 alpha 词 ≥8 且拉丁字母 ≥40——
+      非照抄的整句英文（改写/漏翻长句）；
+    - **人名/地址豁免**：run 为近全大写人名/专名列、或词几乎全落在
+      邮箱/URL span 内（``_keep_verbatim_run``）不判。
+
+    门槛：``src`` 含 ``[[BIB_`` → ``[]``（文献直通留英合法，同
+    ``same_source`` 豁免口径）；zh prose 零 CJK → ``[]``（全英译文归
+    ``same_source``/``length`` 管辖，本网只收"中文里夹英文"）。
+    命中返回 run 列表（剥后形），L0 ``_check_residual_en`` 与 pipeline
+    ``_intercept_residual_en`` 共用本口径。
+    """
+    if "[[BIB_" in src:
+        return []
+    ss = prose_text(mask_comments(src))
+    sz = prose_text(mask_comments(zh))
+    if not CJK_RX.search(sz):
+        return []
+    hits: list[str] = []
+    for seg in CJK_RX.split(sz):
+        run = seg.strip()
+        core = _RESID_EN_EDGE_RX.sub("", run)
+        if not core:
+            continue
+        words = _RESID_EN_WORD_RX.findall(run)
+        if _keep_verbatim_run(run):
+            continue
+        if est_tokens(core) >= _RESID_EN_MIN_EST and core in ss:
+            hits.append(run)
+            continue
+        lat = sum(1 for c in core if c.isascii() and c.isalpha())
+        if (
+            core not in ss
+            and len(words) >= _RESID_EN_MIN_WORDS
+            and (lat >= _RESID_EN_MIN_LATIN)
+        ):
+            hits.append(run)
+    return hits
 
 
 def lev_capped(a: str, b: str, cap: int) -> int:

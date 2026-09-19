@@ -377,16 +377,33 @@ async def _stage_lines(ctx: _LadderCtx) -> str | None:
     fixed: list[str] = []
     bad_lines = 0
     for line in lines:
-        raw_l = await ctx.call(line)
         src_l = decode_newlines(line)
-        if bare_token_audit(line, raw_l):
-            # 锻造/丢 token 的行应答其 decode 产物不可信——该行回退原文进装配，
-            # 不让 ``\!``/``\:`` 等字面混进 candidate（行级修复本就 best-effort）
+        raw_l = await ctx.call(line)
+        audit = bare_token_audit(line, raw_l)
+        zh_l = ""
+        if audit:
+            # 锻造/丢 token 的行应答其 decode 产物不可信——带 audit err 作
+            # feedback 重试一次（``[[SP]]`` 族锻造是瞬时幻觉高发签名，
+            # seq-49/51 实证 +1 调用比升 slots 便宜且更可能整段救回）
+            raw_l = await ctx.call(line, audit)
+            audit = bare_token_audit(line, raw_l)
+        if audit:
+            # 重试仍锻造——该行回退原文进装配，不让 ``\!``/``\:`` 等字面
+            # 混进 candidate（行级修复本就 best-effort；装配体残英由
+            # residual_en 网兜底拒收升 slots，不再静默出货）
             bad_lines += 1
             fixed.append(src_l)
             continue
         zh_l = ctx.repair(src_l, decode_newlines(raw_l))
-        if ctx.validate_fn(src_l, zh_l):
+        err_l = ctx.validate_fn(src_l, zh_l)
+        if err_l:
+            raw_l = await ctx.call(line, err_l)
+            if not bare_token_audit(line, raw_l):
+                zh2_l = ctx.repair(src_l, decode_newlines(raw_l))
+                if not ctx.validate_fn(src_l, zh2_l):
+                    zh_l = zh2_l
+                    err_l = ""
+        if err_l:
             bad_lines += 1
         fixed.append(zh_l)
     candidate = ctx.repair(ctx.source, "\n".join(fixed))
