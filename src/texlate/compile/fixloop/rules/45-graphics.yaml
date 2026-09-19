@@ -57,20 +57,25 @@ rules:
     when: { category: missing_file, payload_required: true }
     condition:
       ctx_suggests: "\\.(eps|ps|epsi|epsf)' not found"
-      any:
-        - { fileset: { has_ext: [.pdf] } }
-        - { fileset: { has_ext: [.png] } }
-        - { fileset: { has_ext: [.jpg] } }
+      # gfxrelax #229 (firedunfixed): has_ext global-any 时代工程里随便一
+      # 张 .pdf 就放行 —— 真缺件 (tar 未随图) 也剥名白烧一轮才轮到 17.6
+      # 占位臂。sibling_exts 把闸收进 payload stem 域: 剥扩展名后的
+      # basename 在工程内存图形族交替件才点火。same-basename-anywhere
+      # 语义 (kpathsea TEXINPUTS 近似, 宁宽勿严) —— false-accept 亏一轮,
+      # false-abstain 会把盘上真图换成占位框。
+      fileset: { sibling_exts: [.pdf, .png, .jpg, .jpeg, .eps, .epsf, .epsi, .ps, .mps] }
     action:
       kind: regex_rewrite
       params:
         exts: [.tex, .sty]
         rewrites:
           # lookahead 锚定 payload (允许路径前缀, 须 \}-终止防词干误吃);
-          # \g<2> 保住 stem (含路径) 只剥扩展名
+          # \g<2> 保住 stem (含路径) 只剥扩展名; masked 面 —— 注释内
+          # \includegraphics 引用不算存活引用位、不改写不计命中
           - {
               pattern: "(\\\\includegraphics\\s*\\*?\\s*(?:\\[[^\\]]*\\])?\\s*\\{)(?=(?:[^{}/]*/)*{payload}\\})([^{}]*?)\\.(?:eps|ps|epsi|epsf)\\}",
               repl: '\g<1>\g<2>}',
+              match_surface: masked,
             }
     risk: low # 改写仅限 payload 精确引用; 无 sibling 时 fileset 闸拦住
     engines:

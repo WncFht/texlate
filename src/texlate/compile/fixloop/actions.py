@@ -118,6 +118,43 @@ def _err_site_outside(ctx: LoopCtx, rep: ErrReport | None) -> bool:
     return site is not None and not is_project_file(site, ctx.wdir)
 
 
+def _stem_sibling(ctx: LoopCtx, pay: str, exts: list[Any]) -> bool:
+    r"""``fileset.sibling_exts`` 实现: payload stem 查图形族交替件。
+
+    payload 剥末位扩展名后的 basename stem 在工程内存 ``exts`` 族交替件
+    → True。语义 = same-basename-anywhere (kpathsea TEXINPUTS 近似,
+    宁宽勿严): ``figs/a.eps`` 缺件时 ``other/a.pdf`` 也算 sibling——
+    false-accept 只亏一轮 (剥名后仍缺 → 下轮占位臂收), false-abstain
+    会把盘上真图换成占位框。stem 比对全小写; ``exts`` 各元带 ``.`` 前
+    缀对 ``p.suffix``。引擎/封装树不计存活面: ``.`` 前缀部件
+    (``.git``/``.fixloop-*``) 与顶层 ``_texmf``/``_tect_out``
+    (``_PDF_SANITIZE_SKIP_DIRS`` 同口径——texmfhome 面与 tectonic 产
+    物树非文档内嵌图件)。stem 空 → False。
+
+    ``<stem>-eps-converted-to.<ext>`` 归一为 ``<stem>`` 算 sibling:
+    epstopdf ``.eps`` graphics rule 以该命名直读转换件——2308.04278
+    实证 ``system-model.eps`` 缺件但 ``system-model-eps-converted-to.pdf``
+    在盘时剥名是真解 (而非占位置换), stem 严格相等会把这类格饿死。
+    """
+    stem = PurePosixPath(
+        builtins._norm_graphic_name(pay)  # noqa: SLF001 - graphics 名规整单源
+    ).stem.lower()
+    if not stem:
+        return False
+    pool = {str(e).lower() for e in exts}
+    skip_dirs = {"_texmf", "_tect_out"}
+    for p in ctx.wdir.rglob("*"):
+        if not p.is_file():
+            continue
+        parts = p.relative_to(ctx.wdir).parts
+        if any(part.startswith(".") for part in parts) or parts[0] in skip_dirs:
+            continue
+        s = p.stem.lower().removesuffix("-eps-converted-to")
+        if s == stem and p.suffix.lower() in pool:
+            return True
+    return False
+
+
 def _cond_ok(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0917  # 条件原语分派表, 每键一处
     cond: dict[str, Any],
     rule: Rule,
@@ -163,9 +200,12 @@ def _cond_ok(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0917  # 条件原语�
         elif key == "fileset":
             has = v.get("has_ext") or []
             lacks = v.get("lacks_ext") or []
+            sib = v.get("sibling_exts") or []
             names = {p.suffix for p in ctx.wdir.rglob("*") if p.is_file()}
             if any(e not in names for e in has) or any(e in names for e in lacks):
                 return False, "fileset 不满足"
+            if sib and not _stem_sibling(ctx, str(pay or ""), sib):
+                return False, f"payload stem 无 {sib} 族 sibling"
         elif key == "cache_dir_glob":
             if not any(ctx.wdir.glob(str(v))):
                 return False, f"无 {v} 匹配"
