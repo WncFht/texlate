@@ -579,6 +579,54 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/lane-assetlane/probe2 端到端实证 (tfm+mf → 真箭头 PDF); CTAN pb-diagram tfm/mf 件源"
 
+  # 2026-09-19 revtexlane (census 3 格同机: 0806.4149/1003.0910/1907.00131):
+  # e-print/user-texmf 自带 revtex4.cls v4.0a (2020/09/30) 内嵌 textcase
+  # v0.06 —— \MakeUppercase 绑死 \MakeTextUppercase→\@uclcnotmath
+  # (revtex4.cls:3737-3750), 内嵌 \protected@edef\reserved@a 现代 kernel
+  # 炸 "Illegal parameter number in definition of \reserved@a" (\Citeauthor
+  # →natbib \NAT@UP, 0806.4149 实测) / "Use of \@citex doesn't match"
+  # (thebibliography mark 机, 1003.0910/1907.00131 实测)。dispatch 缺口:
+  # revtex4_legacy_class_rewrite(75:182) 只见 .tex \documentclass——够不到
+  # emulateapj.cls \LoadClass{revtex4} 径与 cat=other/early_eof 签名;
+  # legacy_pkg_shim(12) shim_map 有 revtex4.cls 但 install_file(10) 先中
+  # (TL revtex4 包名在场)。指纹双锚: \ProvidesClass{revtex4} 本名精确
+  # (4-1/4-2/4b4 分署别名) ∧ \@uclcnotmath 内嵌机 (现代 textcase 同名机走
+  # expl3 分支不在此件)。builtin 双臂 (mnras-retire 裁定形):
+  # (a) 工程内 .cls mv .fixloop-iso + 同 stem delegate →revtex4-2
+  #     (本名件同写——系统无 revtex4 名递补, 缺 delegate 即 missing_file);
+  # (b) ~/texmf TEXMFHOME 链尾树外遮蔽——只读指纹探测, cwd 根 delegate
+  #     遮蔽 (树外不 mv, mv 反遭 install_file 回投同毒循环)。
+  # 递补闸: revtex4-2.cls probe/vendor 双空 → 拒动 (delegate 死路)。
+  - id: revtex_era_retire
+    mechanisms: [B05]
+    description: "revtex4.cls v4.0a 内嵌 textcase \\@uclcnotmath 撞现代 kernel → 工程件退役+delegate, texmf 遮蔽根 delegate"
+    phase: loop
+    order: 11.98 # lamsarrow_lams_fonts_drop(11.97) 后, legacy_pkg_shim(12) 前 —— ship/texmf-retire 族尾
+    when:
+      any: # \@citex 错归 other/syntax, reserved@a 归 other, 零页归 early_eof
+        - { category: syntax }
+        - { category: other }
+        - { category: early_eof, payload_required: false }
+        - { category: undefined_cs }
+    condition:
+      # 三签同机: reserved@a (illegal param) | @citex doesn't match | 点名件
+      # revtex4\.cls 字面带点 —— revtex4-1/revtex4-2 名不命中, 防错绑
+      ctx_suggests: "reserved@a|@citex doesn't match|revtex4\\.cls"
+    action:
+      kind: builtin_transform
+      function: revtex_era_retire
+      params: {} # suffix 缺省 .fixloop-iso; 递补件钉死 revtex4-2.cls
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same } # bundle revtex4-2 在场, 同名 delegate 同式递补
+    provenance:
+      - {
+          corpus: "revtexlane 0806.4149/1003.0910/1907.00131 (stagerun-loop3+loop1)",
+          error: "Illegal parameter number in definition of \\reserved@a (\\Citeauthor) / Use of \\@citex doesn't match its definition (thebibliography) — revtex4 v4.0a bundled textcase",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-revtex/repro/mini5.tex 端到端实证 (emulateapj+Citeauthor 二遍死); census tmp/lane-revtex/"
+
   # fixable-data 裁定 (1003.2165): polutonikogreek 是弃名, greek.polutoniko
   # 亦走 locale/invalid/ 弃名桩必炸。现行 ini 正形是 `greek.polytonic`
   # (locale/el/babel-polytonicgreek.tex 自证 "Provided: greek.polytonic";

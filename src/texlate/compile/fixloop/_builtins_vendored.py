@@ -402,6 +402,147 @@ def amsmath_family_retire(
     return True, f"retire ams family: {', '.join(moved)}"
 
 
+#: revtex4 v4.0a 双锚指纹——``\ProvidesClass{revtex4}`` 本名精确 (revtex4-1/
+#: 4-2/4b4 各自署 ``{revtex4-1}``/``{revtex4-2}``/``{revtex4b4}``, 唯 v4.0a
+#: 占本名) ∧ ``\@uclcnotmath`` (内嵌 textcase v0.06 大写机, :3737-3750;
+#: 现代 textcase.sty:49 有同名机但走 ``\AddToNoCaseChangeList`` expl3 分支
+#: 永不触此件 → uclc 单锚必误伤现代件, 双锚才确证 v4.0a)。
+_REVTEX40_NAME_RE = re.compile(r"\\ProvidesClass\s*\{revtex4\}")
+_REVTEX40_UCLC_RE = re.compile(r"\\@uclcnotmath")
+
+#: delegate——与 90-shim-legacy.yaml shim_map.revtex4.cls 同体 (revtex4-2
+#: 同名桥 + frontmatter 提前武装)。``{stem}`` 槽留原名注册: 本名件退笔名
+#: 接续, 改名件 (revtex4x.cls 等) 保 stem 可解。系统 TL 不署 ``revtex4``
+#: 包名 (唯 revtex4-2) —— 本名退役无 delegate 即 missing_file/再中毒。
+_REV_DELEGATE_TMPL = (
+    "\\NeedsTeXFormat{LaTeX2e}\n"
+    "\\ProvidesClass{%s}[2026/09/19 fixloop delegate -> revtex4-2]\n"
+    "\\LoadClassWithOptions{revtex4-2}\n"
+    "\\frontmatter@init\n"
+    "\\let\\frontmatter@init\\relax\n"
+    "\\endinput\n"
+)
+
+
+def _is_revtex40a(text: str) -> bool:
+    r"""v4.0a 双锚: 本名 ``{revtex4}`` ∧ 内嵌 ``\@uclcnotmath`` 机。"""
+    return (
+        _REVTEX40_NAME_RE.search(text) is not None
+        and _REVTEX40_UCLC_RE.search(text) is not None
+    )
+
+
+def _read_utf8(f: Path) -> str:
+    """utf-8 直读 (指纹探测用, 树外件不走 ctx 缓存); 不可读 → ``""``。"""
+    try:
+        return f.read_text(encoding="utf-8", errors="replace")
+    except (OSError, ValueError):
+        return ""
+
+
+def _retire_revtex40a_files(
+    ctx: LoopCtx, suffix: str, *, repl_ok: bool, moved: list[str]
+) -> None:
+    r"""Pass 1: 工程内 .cls 双锚直判 → mv ``suffix`` + 同 stem delegate。
+
+    ``_texmf`` 引擎 usermode 树跳过 (非稿自带, 由 pass 2 根 delegate 遮蔽);
+    本名件同写 delegate —— 系统 TL 无 ``revtex4`` 名递补, 裸退役即
+    missing_file/再中毒。本引擎注入件 (delegate/shim 亦署 {revtex4}) 经
+    指纹/旧代行头认亲排除。
+    """
+    for f in ctx.tex_files((".cls",)):
+        if "_texmf" in f.relative_to(ctx.wdir).parts:
+            continue
+        txt = ctx.read(f) or ""
+        if not _is_revtex40a(txt):
+            continue
+        head = txt.lstrip()[:200]
+        if _FINGERPRINT_RE.search(txt) or head.startswith(_LEGACY_INJECTED_HEADS):
+            continue
+        if not repl_ok:
+            adv = f"{f.name}: revtex4-2 递补源缺席, v4.0a 退役搁置"
+            if adv not in ctx.advisories:
+                ctx.advisories.append(adv)
+            continue
+        f.rename(f.with_name(f.name + suffix))
+        ctx.write(f, _mark_injected(_REV_DELEGATE_TMPL % f.stem))
+        moved.append(f"{f.name} (v4.0a -> revtex4-2 delegate)")
+
+
+def _revtex_shadowed_externally(ctx: LoopCtx, eng: Engine) -> bool:
+    """Pass 2 探测: wdir 外/``_texmf`` 内存在 v4.0a revtex4.cls 遮蔽件。"""
+    resolved = eng.probe_file("revtex4.cls")
+    if resolved:
+        try:
+            rpv = Path(resolved).resolve()
+            external = not rpv.is_relative_to(ctx.wdir.resolve())
+        except (OSError, RuntimeError, ValueError):
+            rpv = Path(resolved)
+            external = True
+        if external and _is_revtex40a(_read_utf8(rpv)):
+            return True
+    texmf = ctx.wdir / "_texmf"
+    if not texmf.is_dir():
+        return False
+    return any(
+        f.is_file() and _is_revtex40a(_read_utf8(f)) for f in texmf.rglob("revtex4.cls")
+    )
+
+
+def _drop_revtex_root_delegate(
+    ctx: LoopCtx, eng: Engine, *, repl_ok: bool, moved: list[str]
+) -> None:
+    r"""Pass 2: 树外 TEXMFHOME 遮蔽命中 → cwd 根 delegate (树外件只读不 mv)。
+
+    mnras-retire 裁定形: ``~/texmf`` 跨任务持久可写树, mv 是越界突变且
+    install_file(10) 会回投同毒成死循环 —— kpathsea cwd 序天然遮蔽,
+    根 delegate 即最小充分面。``./revtex4.cls`` 在场则 pass 1 已决断。
+    """
+    root = ctx.wdir / "revtex4.cls"
+    if root.exists() or not _revtex_shadowed_externally(ctx, eng):
+        return
+    if not repl_ok:
+        adv = "revtex4.cls: texmf 遮蔽命中但 revtex4-2 缺席, 搁置"
+        if adv not in ctx.advisories:
+            ctx.advisories.append(adv)
+        return
+    done, _state = _inject_write(
+        ctx, root, _REV_DELEGATE_TMPL % "revtex4", "revtex4.cls"
+    )
+    if done is None:
+        moved.append("revtex4.cls (texmf shadow -> root delegate)")
+    elif done[0]:
+        moved.append(done[1])
+    elif done[1] not in ctx.advisories:
+        ctx.advisories.append(done[1])
+
+
+def revtex_era_retire(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""v4.0a revtex4.cls (内嵌 textcase v0.06 ``\@uclcnotmath``) → 退役/遮蔽。
+
+    死因 (0806.4149/1003.0910/1907.00131 实证): v4.0a 把
+    ``\MakeUppercase`` 绑死 ``\MakeTextUppercase``→``\@uclcnotmath``,
+    内嵌 ``\protected@edef\reserved@a`` 在现代 kernel 上炸
+    ``Illegal parameter number in definition of \reserved@a`` /
+    ``Use of \@citex doesn't match`` (\Citeauthor/thebibliography/
+    sectionmark 三径同机)。递补闸: revtex4-2.cls probe/vendor 双空 →
+    拒动 (delegate 死路)。
+    """
+    del payload
+    suffix = str(params.get("suffix") or ".fixloop-iso")
+    repl_ok = bool(eng.probe_file("revtex4-2.cls")) or (
+        _vendored_source(_vendor_root(params), "revtex4-2.cls") is not None
+    )
+    moved: list[str] = []
+    _retire_revtex40a_files(ctx, suffix, repl_ok=repl_ok, moved=moved)
+    _drop_revtex_root_delegate(ctx, eng, repl_ok=repl_ok, moved=moved)
+    if not moved:
+        return False, "无 v4.0a revtex4 指纹件"
+    return True, f"retire revtex4-era: {', '.join(moved)}"
+
+
 def vendored_fetch_multi(
     ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
 ) -> tuple[bool, str]:
