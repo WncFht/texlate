@@ -1098,3 +1098,18 @@
 - **续派同 lane**: (c) `latex/reconstruct.py` `_restore_linestarts` `(?<=.)`→`(?<=\S)` (2507.14695 根 emitter 伤——绿灯在飞中交叉, 重申); (d) `textutil/encoding.py:639-661` `_tar_disguised` parity——helper 提 textutil 层 (fixloop→textutil 单向 import), inject/probe 门同享双校验, 余留巧合 FP ("012345  " 表数据) 收。
 - roster 8 不变: regrdiag(#166 续)/misscharcen(#169)/sweepgate(#163)/assetlane(#165)/failmine3(#164)/ifscanner(#167)/loop4wave(#161 run5 未答)/loopsched(#144 未答-死线逼近)。
 - 门: teammate 零 git✓; HEAD 2df3a13; 新测全绿。
+
+## 2026-09-19 — anchor200 人工评审豁免（用户裁决：懒得评审）
+
+- **L3 人工锚点面撤出**：anchor200 备样留档（bench/results/qualbase-2026-09-18/anchor200/），pairacc 校准线不再卡环。口径降级=judge **内部一致、未对人工校准**——不影响回归门（臂间对比同 judge 偏差抵消），只放弃"judge 与人工 pairacc≥0.65"的绝对校准宣称。
+- **兜底=leader 抽验**（非锚点、不夸大）：跨分段抽样 12 格，全部 span_verified=True、注解合理——2403.05500|4:9（judge=55 vs qe=0.761 分歧榜首）实证 judge 能抓 QE 盲区（"Normal→法向"语境误译），低分格 2/8 为旧协议 bib 误翻现已被直通修复。
+
+## 2026-09-19 ~13:0x — 三落地 (cfe2e7e/3263c22/54fc12e) + sab-r7 escaped=0 + roster 修剪至 5
+
+- **#166 regrdiag 二三臂落地**: `cfe2e7e` reconstruct `_restore_linestarts` `(?<=.)`→`(?<=\S)`——空白串中段 lookbehind 滑产孤空格行=\par (2507.14695 `\institute` 104err 根 emitter 伤, para_longize 是绷带); e2e 钉测全形 (空格/tab 缩进保+行中归位)。`54fc12e` textutil parity——`_tar_header_ok` 提 canonical 宿 encoding.py (name非NUL+magic+version 8B+512B checksum 三验), `_tar_disguised` 读窗+512 改双校验, `__init__` 转口; `_builtins_misc` 删本地副本改 import (与 failmine3 append 同文件不同域待并提)。inject/probe/latex209/api/flatten/gullet-input/normalize 八消费面零改继承。36/36+19/19+18/18 测绿。
+- **#163 sweepgate 落地 3263c22 (5件 +334/−5)**: C0 测量扫掠豁免——`misschar_sweep_hits` (texlog 叶, `_MISSCHAR_MSG_RX` 冻结墙双写互注+U+000A 自折拼回+`^^X` o-64 名法) 同字体 ≥25 严格升序 C0+DEL 链; judge `count_missing_chars` 减除+notes `missing_character_sweep×N`; loginfo `_scan_warnings` 抽函数 (C901) residue 分支; redlines pattern=None 算法行。**零翻格诚实报**——1003.0694 misschar 133→1 (真 − U+2212 cmr8 残留), 值=度量诚实: 102 格 misschar 普查曾被测量噪音灌水。110/110 自验+真 log e2e sweep=132→0。
+- **sab-r7 PASS escaped=0** (39格, 合并脏树): caught 同 r6 双格; 3 格 sabotaged 数移=operandfix 块图变化良性根因 (1706.02733 115→53/2105.00082 311→142/2105.00111 106→26 chunks——过切停止, 靶面同比缩); n_events jitter=种子抽签随块界内容漂, 非回归信号。关毕。
+- **fleet 处置**: regrdiag/sweepgate/loop4wave 三关毕 (交付皆落地/收获); **loopsched 活但静默**——`_landing_sync` 机制在树 (engine.py +80: 外部落件指纹 diff→invalidate+pre-landing dedup 键过期, 三派发点接线; `_wdir_fingerprint` 在 _builtins_misc; 297 行测) 但签名在飞churn (test 4-arg vs def 3-arg 瞬破), 无 lane 目录无报告=协议违, 已发 20min 死线。failmine3 双臂在树近全 (graphics+95/misc append/30-route+45-graphics yaml/test_fixloop_rules 字面已修) **缺行为测**——等报告。ifscanner/assetlane/misscharcen(#169) 在飞。
+- **run5 para 波搁置**: replay-mutex——peer segmenter 在飞编 (chunk/api/model/pipecore/segmenter/* 未提交, 彼 session 域), splice-重烘焙 replay 读活树必染, 等 mutex 清再派。
+- 门: teammate 零 git✓; HEAD 54fc12e; L0 相关测全绿✓; L1/L2/sab 全绿维持; 裁决点 3 件仍待用户 (#10/ds@/verdict 排序)。
+- roster 5: loopsched(#144 死线)/failmine3(#164 待报告)/assetlane(#165)/ifscanner(#167)/misscharcen(#169)。
