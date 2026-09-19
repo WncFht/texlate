@@ -8,6 +8,7 @@ from texlate.latex import reconstruct
 from texlate.latex.model import Chunk
 from texlate.latex.reconstruct import (
     cjk_glue_fix,
+    cjk_punct_close_guard,
     unicode_math_fix,
     validate_result,
     validate_translation,
@@ -325,3 +326,61 @@ def test_linestart_indented_cs_no_orphan_space_line() -> None:
     assert "\n         \\and\n" in out  # 空格缩进行首原样
     assert "\n\t\t\\and\n" in out  # tab 缩进行首原样
     assert "Inst Two\n\\and tail" in out  # 行中 \and 仍归位
+
+
+# --------------------------------------- xeCJK 标点前瞻护栏（cjk_punct_close_guard）
+
+
+def test_punct_close_guard_end_env() -> None:
+    r"""``。\end{sl}`` → ``。{}\end{sl}``：fake env ``\endsl`` undefined_cs
+    断链（0806.2915 W157，pipe 11 err/base clean）。空格/单换行分隔同样
+    踩——``\peek_remove_spaces`` 跳空格。"""
+    assert cjk_punct_close_guard("为常数。\\end{sl}") == "为常数。{}\\end{sl}"
+    assert cjk_punct_close_guard("为常数。  \\end{sl}") == "为常数。{}  \\end{sl}"
+    assert cjk_punct_close_guard("为常数。\n\\end{sl}") == "为常数。{}\n\\end{sl}"
+    assert cjk_punct_close_guard("为常数。 \n \\end{sl}") == "为常数。{} \n \\end{sl}"
+    # FullRight 族其余成员同机制
+    assert cjk_punct_close_guard("证毕，\\end{sl}") == "证毕，{}\\end{sl}"
+    assert cjk_punct_close_guard("引文”\\end{sl}") == "引文”{}\\end{sl}"
+
+
+def test_punct_close_guard_math_close() -> None:
+    r"""``\)``/``\]`` close-ish 跟随者同入白名单（语料 0 hits 纯保险）。"""
+    assert cjk_punct_close_guard("终。  \\)") == "终。{}  \\)"
+    assert cjk_punct_close_guard("终。\\)") == "终。{}\\)"
+    assert cjk_punct_close_guard("终。\n\\]") == "终。{}\n\\]"
+
+
+def test_punct_close_guard_negative() -> None:
+    r"""保守面：``\n\n``=``\par`` 天然断链不改；``\(``/字母 cs/``\endnote``
+    良性跟随者不改（1623/54k 良性 hits 不过度改写）。"""
+    assert cjk_punct_close_guard("。\n\n\\end{sl}") == "。\n\n\\end{sl}"
+    assert cjk_punct_close_guard("。 \\(") == "。 \\("
+    assert cjk_punct_close_guard("。 \\foo") == "。 \\foo"
+    assert cjk_punct_close_guard("。\\cite{a}") == "。\\cite{a}"
+    assert cjk_punct_close_guard("。\\endnote{x}") == "。\\endnote{x}"
+    # 无跟随者 → 逐字节
+    assert cjk_punct_close_guard("plain。 tail") == "plain。 tail"
+    assert cjk_punct_close_guard("ascii \\end{sl}") == "ascii \\end{sl}"
+
+
+def test_punct_close_guard_mask_immune() -> None:
+    r"""verbatim/comment 体内的 ``。\end`` 是字面内容，不插 ``{}``。"""
+    src = "\\begin{verbatim}。\\end{sl}\\end{verbatim}\nbody。\\end{sl}"
+    out = cjk_punct_close_guard(src)
+    assert "。\\end{sl}\\end{verbatim}" in out  # verbatim 不动
+    assert "body。{}\\end{sl}" in out  # 正文修了
+    src2 = "% comment 。\\end{sl}\nreal。\\end{sl}"
+    out2 = cjk_punct_close_guard(src2)
+    assert "% comment 。\\end{sl}\n" in out2  # 注释不动
+    assert "real。{}\\end{sl}" in out2
+
+
+def test_punct_close_guard_in_reconstruct() -> None:
+    r"""端到端：chunk 译文尾 ``。`` 贴展开后的 ``\end{sl}`` → ``。{}\end{sl}``
+    （0806.2915 实形）；identity 路径逐字节不启用。"""
+    body = "\\begin{sl}Some text here long enough to chunk.\\end{sl}"
+    res = scan_doc(body)
+    assert reconstruct(res) == DOC % body  # identity 不动
+    out = reconstruct(res, {res.chunks[0].id: "这是译文。"})
+    assert "这是译文。{}\\end{sl}" in out

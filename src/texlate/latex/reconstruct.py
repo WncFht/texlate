@@ -7,6 +7,8 @@ r"""splice 重建 + DAG 递归展开 + validate（docs/07 §9）。
   :func:`validate_translation` 校验缺失/幻觉占位符（由 translate 层消费）。
 - ``cjk_glue_fix``（``\\cmd这是`` → 插空格）是 post-reconstruct 全局修正一步，
   只在有译文时启用（identity 路径保持逐字节）。
+- ``cjk_punct_close_guard``（CJK 标点 + ``\end{``/``\)``/``\]`` → 标点后插
+  ``{}``）同位同门——xeCJK CheckFullRight 前瞻断链护栏。
 - ``_seg_join`` 接缝守卫（``\cs`` 尾 + 字母头 → 接缝插空格）在 expand/平铺
   两级生效，同样只随译文启用——latin 版不能用平铺正则（``\itemsep``/
   ``\parindent``/``\partial``/用户 camelCase 宏全是前缀撞名，语料万级
@@ -45,6 +47,39 @@ def cjk_glue_fix(s: str) -> str:
     hits = [m.end() for m in _CJK_RX.finditer(mask_tex(s))]
     for pos in reversed(hits):
         s = s[:pos] + " " + s[pos:]
+    return s
+
+
+#: FullRight 类 CJK 标点（xeCJK punct 类右半族）——与暴露面普查口径一致。
+_CJK_PUNCT_RIGHT = "，。、；：？！’”）】》〉」』〕〗"
+
+#: CJK 标点前瞻护栏命中形：``。\end{sl}`` → ``。{}\end{sl}``。
+#: xeCJK CheckFullRight（默认 on）对标点后 token 做 peek 前瞻，
+#: ``\peek_remove_spaces`` 跳空格——``。 \end`` 同样踩。前瞻把
+#: ``\end{env}`` 部分展开，fake env（``\end<env>`` 未定义，作者
+#: 速记宏对产物）时 ``\endsl`` 上抛 undefined_cs（0806.2915
+#: W157，pipe 11 err/base clean）。跟随者白名单只收 close-ish：
+#: ``\end{``/``\)``/``\]``——``\(``（1623 良性 hits）、``\cite``
+#: 类字母 cs（54k hits）前瞻不误伤，收入即过度改写。
+#: ``[ \t]*(?:\n[ \t]*)?`` 容 ≤1 换行（单 ``\n``≡空格 token，前瞻
+#: 照跳）；``\n\n``=``\par`` 天然断链，排除在匹配外。
+_CJK_PUNCT_CLOSE_RX = re.compile(
+    r"[" + _CJK_PUNCT_RIGHT + r"](?=[ \t]*(?:\n[ \t]*)?\\(?:end\{|\)|\]))"
+)
+
+
+def cjk_punct_close_guard(s: str) -> str:
+    r"""CJK 标点后贴 close-ish token → 标点后插 ``{}`` 断前瞻链。
+
+    ``{}`` 空组是恒等 token（无输出、非空格），peek 前瞻落在 ``{}``
+    上即断链，不再吞 ``\end``/``\)``/``\]``——可对全部暴露点无条件
+    适用，无需探测 ``\end<env>`` 是否有定义。命中点取 ``mask_tex``
+    视图（verbatim/comment 体字面不可编辑），原串逆序回放——与
+    ``cjk_glue_fix`` 同规。
+    """
+    hits = [m.end() for m in _CJK_PUNCT_CLOSE_RX.finditer(mask_tex(s))]
+    for pos in reversed(hits):
+        s = s[:pos] + "{}" + s[pos:]
     return s
 
 
@@ -314,6 +349,7 @@ def reconstruct(res: ScanResult, translations: dict[int, str] | None = None) -> 
         )
     if translations:
         result = cjk_glue_fix(result)
+        result = cjk_punct_close_guard(result)
     return result
 
 
