@@ -124,7 +124,10 @@ def web(
             " TEXLATE_MODE=server（X-Texlate-Key 鉴权）",
             err=True,
         )
+    from texlate.logsetup import configure_server_logging  # noqa: PLC0415
+
     try:
+        configure_server_logging(root)
         uvicorn.run(create_app(), host=host, port=port)
     except OSError as e:
         typer.echo(f"web 起服失败（{host}:{port}）: {e}", err=True)

@@ -689,6 +689,26 @@ class TestThinRun:
         assert "回退快照轮询" not in result.stderr
 
 
+class TestWeb:
+    """``web`` 命令：``configure_server_logging`` 接线——``<data_dir>/logs/`` 落盘。"""
+
+    def test_web_installs_file_logging(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """起服路径装 server 日志：``uvicorn.run`` 前 ``<data_dir>/logs/texlate.log`` 就位。"""
+        import uvicorn  # noqa: PLC0415 -- server extra（dev env 在场）
+
+        import texlate.server.app as sapp  # noqa: PLC0415
+
+        runs: list[tuple] = []
+        monkeypatch.setattr(uvicorn, "run", lambda *a, **k: runs.append((a, k)))
+        monkeypatch.setattr(sapp, "create_app", object)
+        result = _RUNNER.invoke(app, ["web", "--data-dir", str(tmp_path)])
+        assert result.exit_code == 0, result.output
+        assert runs  # uvicorn.run 真被调
+        assert (tmp_path / "logs" / "texlate.log").is_file()
+
+
 def _mk_task_dir(data: Path, task_id: str = "t_thincli01") -> Path:
     """合成 ``<data>/tasks/<id>`` 产物 + ``texlate.db`` 任务行（share pack 前置）。"""
     tdir = data / "tasks" / task_id

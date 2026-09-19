@@ -43,7 +43,9 @@ def main() -> None:
 
     import uvicorn  # noqa: PLC0415 -- server extra 延迟导入
 
+    from texlate.logsetup import configure_server_logging  # noqa: PLC0415
     from texlate.server.app import _loopback_bind, create_app  # noqa: PLC0415
+    from texlate.server.settings import data_dir as _data_dir  # noqa: PLC0415
     from texlate.server.settings import server_mode  # noqa: PLC0415
 
     if server_mode() != "server" and not _loopback_bind(args.host):
@@ -55,6 +57,7 @@ def main() -> None:
             " TEXLATE_MODE=server（X-Texlate-Key 鉴权）",
             file=sys.stderr,
         )
+    configure_server_logging(_data_dir())
     uvicorn.run(create_app(), host=args.host, port=args.port)
 
 
