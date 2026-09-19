@@ -237,6 +237,17 @@ REDLINES: Final[tuple[RedLine, ...]] = (
         # 计数——source/build-state 介质非 log regex 语义。登记只为归因
         # 面留概念锚点，对 ENGINE_RED_LINES/RULES_WARNINGS/L2_* 零贡献。
     ),
+    RedLine(
+        id="latex209_class_absent",
+        # LaTeX 2.09 文档类缺席类表（known-limitation 概念行，零层切片）：
+        # ``\documentstyle{X}`` 的 X 不在 latex209.py 类表（:181 amsart
+        # 等收录面）→ 引擎按能力边界正确 reject，非规致亦非文档缺陷。
+        # singles3 普查实证 math/0111109 ``\documentstyle{amsppt}`` 单格
+        # （amsppt = AMS preprint 类，从未入表）。各层不挂判据：reject
+        # 发生在编译前，log 面无事件行可检索；真·判据 = 类表成员核对
+        # （config/source 介质非 log regex 语义）。登记只为归因面留概念
+        # 锚点，对 ENGINE_RED_LINES/RULES_WARNINGS/L2_* 零贡献。
+    ),
 )
 
 REDLINES_BY_ID: Final[dict[str, RedLine]] = {r.id: r for r in REDLINES}
