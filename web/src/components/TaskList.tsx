@@ -9,6 +9,7 @@ import type { FileManifest, TaskError, TaskSnapshot } from "../api/client";
 import { api, isTerminal } from "../api/client";
 import { taskStore } from "../stores/tasks";
 import { downloadItems, isDocKind } from "../taskFiles";
+import { bindMenuDismiss, menuRoving, menuTriggerKey } from "./menuNav";
 import { t } from "../i18n";
 
 interface Props {
@@ -60,6 +61,55 @@ const RETRY_ENGINES: { key: string | null; label: string }[] = [
 ];
 
 /**
+ * ↻ 重试迷你菜单本体——仅打开期挂载，dismiss 监听（外点/Escape）随
+ * 组件生灭不占全局；roving/Tab 走 menuNav 共享契约。
+ * onPick(undefined)=裸重试、null=auto、字符串=指定引擎。
+ */
+function RetryMenu(props: {
+    wrap(): HTMLElement | undefined;
+    trigger(): HTMLElement | undefined;
+    onClose(): void;
+    onPick(engine?: string | null): void;
+}) {
+    bindMenuDismiss({
+        open: () => true,
+        close: () => props.onClose(),
+        wrap: () => props.wrap(),
+        trigger: () => props.trigger(),
+    });
+    return (
+        <span
+            class="retry-menu"
+            role="menu"
+            onKeyDown={(e) => menuRoving(e, props.onClose)}
+        >
+            <button
+                type="button"
+                role="menuitem"
+                tabIndex={-1}
+                class="retry-item"
+                onClick={() => props.onPick()}
+            >
+                {t.home.retry}
+            </button>
+            <For each={RETRY_ENGINES}>
+                {(eng) => (
+                    <button
+                        type="button"
+                        role="menuitem"
+                        tabIndex={-1}
+                        class="retry-item"
+                        onClick={() => props.onPick(eng.key)}
+                    >
+                        {t.home.retryAs.replace("{engine}", eng.label)}
+                    </button>
+                )}
+            </For>
+        </span>
+    );
+}
+
+/**
  * 终态任务行内产物下载：折叠钮展开直链清单。snapshot.artifacts（SSE
  * done 帧带过）优先；列表行缺 artifacts 时懒拉 files manifest——
  * 但只在用户意图明确后（悬停/聚焦预取，点开必然已发），避免列表
@@ -72,14 +122,17 @@ function TaskDownloads(props: { task: TaskSnapshot }) {
     const [fetching, setFetching] = createSignal(false);
     let tried = false;
 
-    /** 幂等懒拉：首悬停/聚焦即预热，点开时多半已就绪 */
+    /** 幂等懒拉：首悬停/聚焦即预热，点开时多半已就绪；失败不留死闸可重试 */
     const ensure = () => {
         if (tried || props.task.artifacts) return;
         tried = true;
         setFetching(true);
         api.files(props.task.task_id)
             .then(setManifest)
-            .catch(() => setManifest(null))
+            .catch(() => {
+                tried = false;
+                setManifest(null);
+            })
             .finally(() => setFetching(false));
     };
 
@@ -139,8 +192,11 @@ export default function TaskList(props: Props) {
     const [query, setQuery] = createSignal("");
     const [acting, setActing] = createSignal<string | null>(null);
     const [cleaning, setCleaning] = createSignal(false);
-    // ↻ 重试迷你菜单：打开的 task_id（null=全收）
+    // ↻ 重试迷你菜单：打开的 task_id（null=全收）；wrap/trigger ref 按行登记
+    // ——Escape 焦点回正确行的钮、外点判定圈在本行 span 内
     const [retryMenu, setRetryMenu] = createSignal<string | null>(null);
+    const retryWraps = new Map<string, HTMLElement>();
+    const retryBtns = new Map<string, HTMLButtonElement>();
     // fmtRel 60s tick——相对时间随墙钟刷新，不靠任务事件顺带更新
     const [now, setNow] = createSignal(Date.now());
     const tick = setInterval(() => setNow(Date.now()), 60_000);
@@ -397,10 +453,18 @@ export default function TaskList(props: Props) {
                             </a>
                         </Show>
                         <Show when={RETRYABLE.has(task.status)}>
-                            <span class="task-retry">
+                            <span
+                                class="task-retry"
+                                ref={(el) => {
+                                    retryWraps.set(task.task_id, el);
+                                }}
+                            >
                                 <button
                                     type="button"
                                     class="task-act"
+                                    ref={(el) => {
+                                        retryBtns.set(task.task_id, el);
+                                    }}
                                     disabled={acting() !== null}
                                     title={t.home.retryTip}
                                     aria-label={t.home.retry}
@@ -415,42 +479,31 @@ export default function TaskList(props: Props) {
                                                 : task.task_id,
                                         )
                                     }
+                                    onKeyDown={(e) =>
+                                        menuTriggerKey(
+                                            e,
+                                            () =>
+                                                setRetryMenu(task.task_id),
+                                            () =>
+                                                retryWraps.get(task.task_id),
+                                        )
+                                    }
                                 >
                                     ↻
                                 </button>
                                 <Show when={retryMenu() === task.task_id}>
-                                    <span class="retry-menu" role="menu">
-                                        <button
-                                            type="button"
-                                            role="menuitem"
-                                            class="retry-item"
-                                            onClick={() =>
-                                                void retryTask(task)
-                                            }
-                                        >
-                                            {t.home.retry}
-                                        </button>
-                                        <For each={RETRY_ENGINES}>
-                                            {(eng) => (
-                                                <button
-                                                    type="button"
-                                                    role="menuitem"
-                                                    class="retry-item"
-                                                    onClick={() =>
-                                                        void retryTask(
-                                                            task,
-                                                            eng.key,
-                                                        )
-                                                    }
-                                                >
-                                                    {t.home.retryAs.replace(
-                                                        "{engine}",
-                                                        eng.label,
-                                                    )}
-                                                </button>
-                                            )}
-                                        </For>
-                                    </span>
+                                    <RetryMenu
+                                        wrap={() =>
+                                            retryWraps.get(task.task_id)
+                                        }
+                                        trigger={() =>
+                                            retryBtns.get(task.task_id)
+                                        }
+                                        onClose={() => setRetryMenu(null)}
+                                        onPick={(eng) =>
+                                            void retryTask(task, eng)
+                                        }
+                                    />
                                 </Show>
                             </span>
                         </Show>

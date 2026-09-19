@@ -238,6 +238,7 @@ export const t = {
         cached: "Cache hit",
         failed: "Failed",
         doneChunks: "Done",
+        cellFailed: "Chunk {n} failed: {code}",
         tokens: "Tokens",
         elapsed: "Elapsed",
         reconnecting: "Connection lost, reconnecting…",

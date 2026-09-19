@@ -238,6 +238,7 @@ export const t = {
         cached: "缓存命中",
         failed: "失败",
         doneChunks: "已完成",
+        cellFailed: "第 {n} 段失败：{code}",
         tokens: "Tokens",
         elapsed: "已用时",
         reconnecting: "连接中断，正在重连…",

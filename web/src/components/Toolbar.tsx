@@ -4,12 +4,11 @@ import {
     createEffect,
     createSignal,
     For,
-    onCleanup,
-    onMount,
     Show,
     untrack,
 } from "solid-js";
 import Segmented from "./Segmented";
+import { bindMenuDismiss, menuRoving, menuTriggerKey } from "./menuNav";
 import type { FileKind, TaskStatus } from "../api/client";
 import { isTerminal } from "../api/client";
 import { t } from "../i18n";
@@ -37,8 +36,6 @@ interface Props {
     pageUnit?: string;
     /** false（HTML 视图）时禁用页码跳转 */
     canGotoPage?: boolean;
-    /** false 时禁用缩放选择 */
-    canZoom?: boolean;
     onMode(m: Mode): void;
     onSync(on: boolean): void;
     onZoom(z: string): void;
@@ -93,63 +90,15 @@ export default function Toolbar(props: Props) {
         }
     };
 
-    // 下载菜单：外部点击 / Escape 关闭（Escape 焦点回触发钮）
-    onMount(() => {
-        const onDown = (e: PointerEvent) => {
-            if (menuOpen() && !menuWrap.contains(e.target as Node))
-                setMenuOpen(false);
-        };
-        const onKey = (e: KeyboardEvent) => {
-            if (e.key === "Escape" && menuOpen()) {
-                setMenuOpen(false);
-                menuBtn?.focus();
-            }
-        };
-        document.addEventListener("pointerdown", onDown);
-        document.addEventListener("keydown", onKey);
-        onCleanup(() => {
-            document.removeEventListener("pointerdown", onDown);
-            document.removeEventListener("keydown", onKey);
-        });
+    // 下载菜单 dismiss：外部点击收 / Escape 收+焦点回触发钮（menuNav 共享件）
+    bindMenuDismiss({
+        open: menuOpen,
+        close: () => setMenuOpen(false),
+        wrap: () => menuWrap,
+        trigger: () => menuBtn,
     });
 
-    /** 菜单内方向键 roving（menuitem 间循环）；Tab 顺走自然收菜单 */
-    const onMenuKey = (e: KeyboardEvent) => {
-        const items = [
-            ...(e.currentTarget as HTMLElement).querySelectorAll<HTMLElement>(
-                "a[role='menuitem']",
-            ),
-        ];
-        if (!items.length) return;
-        const idx = items.indexOf(document.activeElement as HTMLElement);
-        let next: number;
-        if (e.key === "ArrowDown") next = idx < 0 ? 0 : (idx + 1) % items.length;
-        else if (e.key === "ArrowUp")
-            next = idx <= 0 ? items.length - 1 : idx - 1;
-        else if (e.key === "Home") next = 0;
-        else if (e.key === "End") next = items.length - 1;
-        else if (e.key === "Tab") {
-            setMenuOpen(false);
-            return;
-        } else return;
-        e.preventDefault();
-        items[next]?.focus();
-    };
-
-    /** 触发钮 ArrowDown：开菜单并聚焦首项（ARIA menu 钮模式） */
-    const onMenuBtnKey = (e: KeyboardEvent) => {
-        if (e.key !== "ArrowDown") return;
-        e.preventDefault();
-        setMenuOpen(true);
-        queueMicrotask(() =>
-            menuWrap
-                .querySelector<HTMLElement>("a[role='menuitem']")
-                ?.focus(),
-        );
-    };
-
     const noGoto = () => props.canGotoPage === false;
-    const noZoom = () => props.canZoom === false;
 
     return (
         <header class="reader-toolbar">
@@ -213,7 +162,6 @@ export default function Toolbar(props: Props) {
             <select
                 class="tb-select"
                 value={props.zoom}
-                disabled={noZoom()}
                 onChange={(e) => props.onZoom(e.currentTarget.value)}
                 aria-label={t.reader.zoom}
             >
@@ -286,7 +234,13 @@ export default function Toolbar(props: Props) {
                     aria-expanded={menuOpen()}
                     disabled={props.downloads.length === 0}
                     onClick={() => setMenuOpen((v) => !v)}
-                    onKeyDown={onMenuBtnKey}
+                    onKeyDown={(e) =>
+                        menuTriggerKey(
+                            e,
+                            () => setMenuOpen(true),
+                            () => menuWrap,
+                        )
+                    }
                 >
                     ⬇ {t.reader.download}
                 </button>
@@ -295,7 +249,7 @@ export default function Toolbar(props: Props) {
                         class="tb-menu"
                         role="menu"
                         onClick={() => setMenuOpen(false)}
-                        onKeyDown={onMenuKey}
+                        onKeyDown={(e) => menuRoving(e, () => setMenuOpen(false))}
                     >
                         <For each={props.downloads}>
                             {(d) => (

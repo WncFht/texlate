@@ -46,7 +46,7 @@ export default function ProgressGrid(props: Props) {
             </div>
             <div
                 class="progress-grid"
-                role="img"
+                role="group"
                 aria-label={`${t.progress.chunks} ${props.done}/${props.total}`}
             >
                 <Index each={idxs()}>
@@ -59,19 +59,38 @@ export default function ProgressGrid(props: Props) {
                                 ] ?? "cell-pending",
                         );
                         const failed = () => cls() === "cell-failed";
+                        // 失败格可点（retx 定位）→ 语义 button + 键盘可达；
+                        // role=img 会把子格压成纯呈现，容器只能用 group
+                        const clickable = () => failed() && !!props.onCellClick;
+                        const code = () =>
+                            props.items?.[i()]?.error_code ?? "failed";
+                        const fire = () => {
+                            if (clickable()) props.onCellClick?.(i());
+                        };
                         return (
                             <i
                                 class={cls()}
-                                classList={{ clickable: failed() && !!props.onCellClick }}
-                                title={
-                                    failed()
-                                        ? (props.items?.[i()]?.error_code ??
-                                          "failed")
+                                classList={{ clickable: clickable() }}
+                                role={clickable() ? "button" : undefined}
+                                tabIndex={clickable() ? 0 : undefined}
+                                aria-label={
+                                    clickable()
+                                        ? t.progress.cellFailed
+                                              .replace("{n}", String(i() + 1))
+                                              .replace("{code}", code())
                                         : undefined
                                 }
-                                onClick={() =>
-                                    failed() && props.onCellClick?.(i())
-                                }
+                                title={failed() ? code() : undefined}
+                                onClick={fire}
+                                onKeyDown={(e) => {
+                                    if (
+                                        clickable() &&
+                                        (e.key === "Enter" || e.key === " ")
+                                    ) {
+                                        e.preventDefault();
+                                        fire();
+                                    }
+                                }}
                             />
                         );
                     }}
