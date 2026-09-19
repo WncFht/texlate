@@ -12,7 +12,8 @@ export const t = {
         upload: "Upload file",
         uploading: "Uploading…",
         uploadPct: "Uploading… {n}%",
-        formats: "Supports .tex · .pdf · .docx · .epub · source archives (.tar/.gz/.zip)",
+        formats:
+            "Supports .tex · .pdf · .docx · .epub · source archives (.tar/.gz/.zip)",
         dropHint: "— or drag a file in",
         dropBusy: "Submission in progress — drop again later",
         tasks: "Task list",
@@ -41,7 +42,8 @@ export const t = {
         srcEprint: "LaTeX source (default)",
         srcHtml: "arXiv HTML (fallback when no source)",
         optShare: "Share package",
-        optShareHint: "Generate a .share.zip community cache package on completion",
+        optShareHint:
+            "Generate a .share.zip community cache package on completion",
         optMain: "Main file",
         optMainHint: "Entry .tex of a multi-file project (upload only)",
         optKey: "One-off API Key",
@@ -65,6 +67,10 @@ export const t = {
         search: "Search title / arXiv ID / task no.…",
         searchLabel: "Search tasks",
         searchEmpty: "No matching tasks",
+        axTitle: "Trending on alphaXiv",
+        axVia: "via alphaXiv",
+        axViews: "{n} views",
+        axSearchEmpty: "No matching papers on alphaXiv",
         fAll: "All",
         fActive: "Active",
         fDone: "Done",
@@ -77,8 +83,10 @@ export const t = {
         cancelTip: "Cancel this task — progress so far is kept; retry later",
         retryTip: "Retry this task",
         goSettings: "Go to settings",
-        authTip: "API Key required — configure it on the settings page and retry",
-        uploadTooBig: "File exceeds the 80MB limit — compress it or use an arXiv ID",
+        authTip:
+            "API Key required — configure it on the settings page and retry",
+        uploadTooBig:
+            "File exceeds the 80MB limit — compress it or use an arXiv ID",
         uploadBadExt: "Unsupported file type",
         processing: "Uploaded, processing…",
         // === progress chrome ===
@@ -142,7 +150,8 @@ export const t = {
         retryHintAuth: "API Key required — configure and retry",
         pageUnitChunk: "chunk",
         splitDivider: "Side-by-side divider",
-        splitDividerTip: "Drag to adjust the split ratio; double-click to reset",
+        splitDividerTip:
+            "Drag to adjust the split ratio; double-click to reset",
         arxivLink: "arXiv page",
         shareCopy: "Copy share key",
         copy: "Copy",
@@ -155,7 +164,8 @@ export const t = {
         helpHelp: "Open / close this help",
         retrying: "Retrying…",
         tryHtml: "Retry via the arXiv HTML channel",
-        tryHtmlHint: "This paper has no LaTeX source or fetching failed — try the HTML channel",
+        tryHtmlHint:
+            "This paper has no LaTeX source or fetching failed — try the HTML channel",
         retryable: "(retryable)",
         statsTokens: "Tokens",
         statsPrompt: "Input tokens",
@@ -169,12 +179,16 @@ export const t = {
         chunkEmpty: "(empty)",
         authKeyPlaceholder: "Enter API Key and retry",
         filesTitle: "Download artifacts",
-        filesHint: "This task produced a document-type translation with no online side-by-side view — download the artifacts directly",
+        filesHint:
+            "This task produced a document-type translation with no online side-by-side view — download the artifacts directly",
         shareBtn: "Share this translation",
         shareBtnTip:
             "Package a .share.zip into the server share directory — for other TeXlate instances to import",
         shareBusy: "Packaging…",
         shareBanner: "Share this translation to the community cache",
+        axDigest: "alphaXiv digest",
+        axFull: "Expand full digest",
+        axOpen: "alphaXiv page",
         shareOk: "Added to share directory: ",
         shareOkHint: "(other TeXlate instances can import this package)",
         shareErrState: "Task not in a final state",
@@ -204,7 +218,8 @@ export const t = {
         findNext: "Next",
         findClose: "Close find",
         annot: "Highlight",
-        annotTip: "Highlight — select text to mark; session-only, not written to the PDF",
+        annotTip:
+            "Highlight — select text to mark; session-only, not written to the PDF",
         annotOffTip: "Turn off highlighting",
         annotSave: "Download annotated copy",
         annotSaveEmpty: "No annotations yet — mark text with ✎ first",

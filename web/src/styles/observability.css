@@ -197,6 +197,130 @@
     font-weight: 600;
 }
 
+/* .ax-block —— alphaXiv 机会型横幅：OG 分享卡 + AI 导读（不可用时整块缺席） */
+.ax-block {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    padding: 10px 14px;
+    font-size: 13px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--line);
+    color: var(--ink-2);
+}
+
+.ax-og {
+    flex-shrink: 0;
+    width: 220px;
+    border-radius: 6px;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    display: block;
+}
+
+.ax-og img {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+
+.ax-ov {
+    flex: 1;
+    min-width: 0;
+}
+
+.ax-ov-head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 4px;
+}
+
+.ax-badge {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ochre-deep);
+}
+
+.ax-ov-head .ax-link {
+    margin-left: auto;
+    font-size: 12px;
+    color: var(--ink-3);
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.ax-ov-head .ax-link:hover {
+    color: var(--ink);
+}
+
+.ax-ov-title {
+    margin: 2px 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink);
+    line-height: 1.4;
+}
+
+.ax-ov-sum {
+    margin: 4px 0 0;
+    font-size: 13px;
+    line-height: 1.55;
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.ax-ov-full {
+    margin-top: 6px;
+    font-size: 13px;
+}
+
+.ax-ov-full summary {
+    cursor: pointer;
+    color: var(--ink-3);
+    font-size: 12px;
+}
+
+.ax-ov-full summary:hover {
+    color: var(--ink);
+}
+
+.ax-ov-body {
+    margin-top: 8px;
+    font-size: 13px;
+    line-height: 1.65;
+    color: var(--ink-2);
+    max-height: 420px;
+    overflow: auto;
+}
+
+.ax-ov-body img {
+    max-width: 100%;
+}
+
+.ax-ov-body h1,
+.ax-ov-body h2,
+.ax-ov-body h3 {
+    font-size: 14px;
+    margin: 12px 0 6px;
+}
+
+.ax-ov-body p {
+    margin: 6px 0;
+}
+
+@media (max-width: 640px) {
+    .ax-block {
+        flex-direction: column;
+    }
+    .ax-og {
+        width: 100%;
+        max-width: 320px;
+    }
+}
+
 .result-panel-wrap {
     flex: 1;
     overflow: auto;
@@ -290,4 +414,3 @@
         opacity: 0.35;
     }
 }
-

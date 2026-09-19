@@ -102,7 +102,8 @@ export interface StageEvent {
     at: number;
 }
 
-export type ChunkStatus = "ok" | "fallback_orig" | "failed" | "pending" | string;
+export type ChunkStatus =
+    "ok" | "fallback_orig" | "failed" | "pending" | string;
 
 export interface ChunkItem {
     seq: number;
@@ -389,6 +390,73 @@ export interface Health {
     version?: string;
     compilers?: Record<string, unknown>;
     data_dir?: string;
+}
+
+// ---------- discover：alphaXiv 公共面只读代理（机会型增强，字段以服务端实测为准） ----------
+
+/** feed/搜索共用的卡片形状（服务端透传 alphaxiv 原字段） */
+export interface DiscoverPaper {
+    id?: string;
+    paper_group_id?: string;
+    /** arXiv id —— 翻译入口与 alphaxiv 链接的锚 */
+    universal_paper_id?: string;
+    canonical_id?: string;
+    title?: string;
+    abstract?: string;
+    /** feed 卡一句话导读（en） */
+    feed_description?: string;
+    /** 首页缩略图（thumbnails.assets.alphaxiv.org） */
+    image_url?: string;
+    topics?: string[];
+    github_stars?: number;
+    github_url?: string;
+    publication_date?: string;
+    authors?: unknown;
+    organization_info?: unknown;
+    paper_summary?: { summary?: string; feedDescription?: string } & Record<
+        string,
+        unknown
+    >;
+    metrics?: {
+        visits_count?: { all?: number; last_7_days?: number };
+        total_votes?: number;
+        public_total_votes?: number;
+    } & Record<string, unknown>;
+}
+
+export interface DiscoverFeed {
+    papers?: DiscoverPaper[];
+    page?: number;
+}
+
+/** /api/discover/search 行——alphaxiv 快搜建议 */
+export interface DiscoverHit {
+    link?: string;
+    paperId?: string;
+    title?: string;
+    snippet?: string;
+}
+
+/**
+ * /api/discover/overview —— 机会型 AI 导读：未收录/未生成恒
+ * ``{available:false}``（非错误）；命中时 zh 优先 en 兜底。
+ */
+export interface AxOverview {
+    available: boolean;
+    lang?: string;
+    arxiv_id?: string;
+    alphaxiv_url?: string;
+    title?: string | null;
+    abstract?: string | null;
+    summary?:
+        | ({ summary?: string; feedDescription?: string } & Record<
+              string,
+              unknown
+          >)
+        | null;
+    /** 完整导读 blog markdown */
+    overview?: string | null;
+    citations?: unknown[] | null;
 }
 
 export class ApiError extends Error {

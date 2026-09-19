@@ -31,18 +31,21 @@ import { resolveReaderView } from "../reader/view";
 import ReaderView from "../reader/ReaderView";
 import TaskProgress from "../reader/TaskProgress";
 import ResultBody from "../reader/ResultBody";
+import AxBlock from "../reader/AxBlock";
 import ShareBlock, { createSharePack } from "../reader/ShareBlock";
-import {
-    createHtmlFallback,
-    createTaskRetry,
-} from "../reader/taskActions";
+import { createHtmlFallback, createTaskRetry } from "../reader/taskActions";
 import { t } from "../i18n";
 
-export default function Reader(props: { taskId: string; nav(to: string): void }) {
+export default function Reader(props: {
+    taskId: string;
+    nav(to: string): void;
+}) {
     const [task, setTask] = createSignal<TaskSnapshot | null>(null);
     const [info, setInfo] = createSignal<ReaderInfo | null>(null);
     // undefined = dual.json 未拉完；null = 无文件/拉取失败（view.ts 三态语义）
-    const [dual, setDual] = createSignal<DualJson | null | undefined>(undefined);
+    const [dual, setDual] = createSignal<DualJson | null | undefined>(
+        undefined,
+    );
     const [manifest, setManifest] = createSignal<FileManifest | null>(null);
     // 五个阅读态信号留在页面层：reading 恢复写它们，retry 后 Reader 不卸载、
     // 用户上次模式选择随之保留（ReaderView 经 props 读写同一份）
@@ -132,7 +135,12 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
         } catch (e) {
             // 终态任务无 reader 数据 → reader 404 属预期，交给结果/产物面板；其余仍 fatal
             const s = task()?.status;
-            if (e instanceof ApiError && e.status === 404 && s && isTerminal(s)) {
+            if (
+                e instanceof ApiError &&
+                e.status === 404 &&
+                s &&
+                isTerminal(s)
+            ) {
                 setReaderGone(true);
             } else {
                 setFatal(e instanceof Error ? e.message : String(e));
@@ -188,7 +196,9 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
     const computeTitle = () => {
         const s = task();
         if (!s) return baseTitle;
-        return activeTask() ? `${Math.round(s.progress)}% · ${title()}` : title();
+        return activeTask()
+            ? `${Math.round(s.progress)}% · ${title()}`
+            : title();
     };
 
     createEffect(() => {
@@ -230,7 +240,9 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
             document.title = computeTitle();
         };
         document.addEventListener("visibilitychange", onVis);
-        onCleanup(() => document.removeEventListener("visibilitychange", onVis));
+        onCleanup(() =>
+            document.removeEventListener("visibilitychange", onVis),
+        );
     });
 
     onCleanup(() => {
@@ -360,7 +372,11 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
                     <button type="button" class="tb-btn" onClick={reload}>
                         {t.reader.retry}
                     </button>
-                    <button type="button" class="btn-ghost" onClick={() => props.nav("#/")}>
+                    <button
+                        type="button"
+                        class="btn-ghost"
+                        onClick={() => props.nav("#/")}
+                    >
                         ← {t.reader.back}
                     </button>
                 </main>
@@ -407,19 +423,27 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
                     onCancel={() => void api.cancel(props.taskId)}
                     onBack={() => props.nav("#/")}
                     banner={
-                        // 有产物的非干净终态（partial 等）：横幅提示，不挡阅读
-                        <Show when={resultStatus()}>
-                            <section class={`result-banner st-${resultStatus()}`}>
-                                {renderResultBody(resultStatus()!)}
-                            </section>
-                        </Show>
+                        <>
+                            {/* 有产物的非干净终态（partial 等）：横幅提示，不挡阅读 */}
+                            <Show when={resultStatus()}>
+                                <section
+                                    class={`result-banner st-${resultStatus()}`}
+                                >
+                                    {renderResultBody(resultStatus()!)}
+                                </section>
+                            </Show>
+                            {/* alphaXiv 机会型：OG 卡恒出，导读仅命中时出 */}
+                            <AxBlock arxivId={task()?.arxiv_id} />
+                        </>
                     }
                     shareBanner={
                         // done 且无结果横幅：§6 完成后提示分享
                         // （partial 的分享钮在结果横幅内）
                         <Show when={task()?.status === "done" && canShare()}>
                             <section class="result-banner share-banner">
-                                <span class="rp-status">{t.reader.shareBanner}</span>
+                                <span class="rp-status">
+                                    {t.reader.shareBanner}
+                                </span>
                                 {renderShare()}
                             </section>
                         </Show>

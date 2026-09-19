@@ -4,7 +4,10 @@
 import { createFp, fileFp, intentKey, intentSettle } from "./idem";
 import {
     ApiError,
+    type AxOverview,
     type ByokHeaders,
+    type DiscoverFeed,
+    type DiscoverHit,
     type FileKind,
     type FileManifest,
     type Health,
@@ -34,9 +37,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     const res = await fetch(`${BASE}${path}`, {
         ...init,
         signal:
-            init?.signal ??
-            AbortSignal.timeout?.(REQUEST_TIMEOUT_MS) ??
-            null,
+            init?.signal ?? AbortSignal.timeout?.(REQUEST_TIMEOUT_MS) ?? null,
     });
     if (!res.ok) {
         let detail = res.statusText;
@@ -331,6 +332,31 @@ export const api = {
             keepalive: opts?.keepalive,
         });
     },
+
+    // ---------- discover：alphaXiv 代理面（上游挂 → 502，调用方整块隐藏） ----------
+    discoverFeed(opts?: {
+        sort?: string;
+        interval?: string;
+        page?: number;
+        pageSize?: number;
+    }) {
+        const q = new URLSearchParams();
+        if (opts?.sort) q.set("sort", opts.sort);
+        if (opts?.interval) q.set("interval", opts.interval);
+        if (opts?.page != null) q.set("page", String(opts.page));
+        if (opts?.pageSize != null) q.set("page_size", String(opts.pageSize));
+        const qs = q.toString();
+        return request<DiscoverFeed>(`/discover/feed${qs ? `?${qs}` : ""}`);
+    },
+    discoverSearch: (q: string) =>
+        request<DiscoverHit[]>(`/discover/search?q=${encodeURIComponent(q)}`),
+    discoverOverview: (arxivId: string) =>
+        request<AxOverview>(
+            `/discover/overview/${encodeURIComponent(arxivId)}`,
+        ),
+    /** OG 卡 PNG 直链（img src 用，不经 request——二进制非 JSON） */
+    discoverOgUrl: (arxivId: string) =>
+        `${BASE}/discover/og/${encodeURIComponent(arxivId)}`,
 
     getSettings: () => request<Settings>("/settings"),
     putSettings: (s: Settings) =>

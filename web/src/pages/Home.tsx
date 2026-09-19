@@ -13,6 +13,8 @@ import {
     api,
     ApiError,
     landingHash,
+    type DiscoverHit,
+    type DiscoverPaper,
     type Health,
     type TranslateOptions,
 } from "../api/client";
@@ -140,6 +142,15 @@ export default function Home(props: {
     const [optFmAuthor, setOptFmAuthor] = createSignal("off");
     // per-request BYOK：仅存组件 state，提交成功即清，不落 settings
     const [optKey, setOptKey] = createSignal("");
+    // discover：alphaXiv 机会型增强——feed 卡 + 输入框快搜建议。
+    // 上游挂 → feed=null 且 feedFailed=true，整块不渲染（不影响主流程）
+    const [feed, setFeed] = createSignal<DiscoverPaper[] | null>(null);
+    const [feedFailed, setFeedFailed] = createSignal(false);
+    // hits=null=未发起/已关；[]=搜过无匹配——三态驱动下拉显隐
+    const [hits, setHits] = createSignal<DiscoverHit[] | null>(null);
+    let searchTimer = 0;
+    // seq 防慢响应盖新查询（旧响应落地时输入早已变）
+    let searchSeq = 0;
     let fileInput!: HTMLInputElement;
     // 在飞请求不随卸载取消（幂等键保证服务端只收一单）——但落地后不得再
     // openRes 劫持用户已切走的路由；alive 守一切提交后副作用
@@ -164,12 +175,81 @@ export default function Home(props: {
             : window.setInterval(() => void checkHealth(), 30_000);
     };
 
+    /** alphaXiv 热榜——机会型：502/超时静默，整块 section 不渲染 */
+    const loadFeed = async () => {
+        try {
+            const res = await api.discoverFeed({
+                sort: "Hot",
+                interval: "7 Days",
+                pageSize: 12,
+            });
+            if (alive) setFeed(res.papers ?? []);
+        } catch {
+            if (alive) setFeedFailed(true);
+        }
+    };
+
+    /**
+     * 输入即搜：300ms 防抖打 alphaxiv 快搜。只在输入「不像 arXiv id」时
+     * 发起——能解析成 id 的输入是待提交态不是检索态。
+     */
+    const onIdInput = (v: string) => {
+        setArxivId(v);
+        // 格式错提示随编辑即消——用户在改，错误就不该挂着
+        if (idBad()) {
+            setIdBad(false);
+            setError("");
+        }
+        window.clearTimeout(searchTimer);
+        const q = v.trim();
+        if (!q || parseArxivId(q)) {
+            searchSeq++;
+            setHits(null);
+            return;
+        }
+        searchTimer = window.setTimeout(() => {
+            const seq = ++searchSeq;
+            api.discoverSearch(q)
+                .then((res) => {
+                    if (alive && seq === searchSeq) setHits(res);
+                })
+                .catch(() => {
+                    if (alive && seq === searchSeq) setHits(null);
+                });
+        }, 300);
+    };
+
+    /** 建议行点击 → 回填输入框（用户确认后再提交）；「翻译」直达深链 */
+    const pickHit = (h: DiscoverHit) => {
+        if (h.paperId) setArxivId(h.paperId);
+        setHits(null);
+    };
+
+    /** 卡 id 取 universal_paper_id（arXiv id），缺席回 canonical_id */
+    const cardId = (p: DiscoverPaper) =>
+        p.universal_paper_id || p.canonical_id || "";
+
+    const cardDesc = (p: DiscoverPaper) =>
+        p.feed_description ||
+        p.paper_summary?.feedDescription ||
+        p.paper_summary?.summary ||
+        "";
+
+    const cardVisits = (p: DiscoverPaper) => {
+        const v = p.metrics?.visits_count;
+        return v?.last_7_days ?? v?.all;
+    };
+
     onMount(() => {
         void taskStore.refresh();
         if (!settingsStore.loaded()) void settingsStore.refresh();
         void checkHealth();
+        void loadFeed();
     });
-    onCleanup(() => window.clearInterval(healthTimer));
+    onCleanup(() => {
+        window.clearInterval(healthTimer);
+        window.clearTimeout(searchTimer);
+    });
 
     /** health.compilers 可用数/总数（值 truthy 视为可用） */
     const compilersStat = () => {
@@ -323,7 +403,9 @@ export default function Home(props: {
     const runOne = async (
         f: File,
         snap: ReturnType<typeof uploadFields>,
-    ): Promise<{ res: Awaited<ReturnType<typeof uploadOne>> } | { err: string }> => {
+    ): Promise<
+        { res: Awaited<ReturnType<typeof uploadOne>> } | { err: string }
+    > => {
         const bad = precheck(f);
         if (bad) return { err: `${f.name}：${bad}` };
         setError("");
@@ -572,23 +654,74 @@ export default function Home(props: {
                         void submit();
                     }}
                 >
-                    <input
-                        class="arxiv-input"
-                        placeholder={t.home.arxivPlaceholder}
-                        aria-label={t.home.arxivLabel}
-                        aria-invalid={idBad()}
-                        autocapitalize="off"
-                        value={arxivId()}
-                        onInput={(e) => {
-                            setArxivId(e.currentTarget.value);
-                            // 格式错提示随编辑即消——用户在改，错误就不该挂着
-                            if (idBad()) {
-                                setIdBad(false);
-                                setError("");
-                            }
-                        }}
-                        spellcheck={false}
-                    />
+                    <div class="arxiv-field">
+                        <input
+                            class="arxiv-input"
+                            placeholder={t.home.arxivPlaceholder}
+                            aria-label={t.home.arxivLabel}
+                            aria-invalid={idBad()}
+                            autocapitalize="off"
+                            value={arxivId()}
+                            onInput={(e) => onIdInput(e.currentTarget.value)}
+                            onBlur={() => setHits(null)}
+                            onKeyDown={(e) => {
+                                if (e.key === "Escape") setHits(null);
+                            }}
+                            spellcheck={false}
+                        />
+                        <Show when={hits() !== null}>
+                            <ul class="ax-suggest" role="listbox">
+                                <Show
+                                    when={hits()!.length}
+                                    fallback={
+                                        <li class="ax-suggest-empty">
+                                            {t.home.axSearchEmpty}
+                                        </li>
+                                    }
+                                >
+                                    <For each={hits()!}>
+                                        {(h) => (
+                                            <li>
+                                                {/* mousedown 抢在 blur 前——阻止焦点转移
+                                                    保住 click；blur 本身管「点外面关」 */}
+                                                <button
+                                                    type="button"
+                                                    class="ax-suggest-item"
+                                                    onMouseDown={(e) =>
+                                                        e.preventDefault()
+                                                    }
+                                                    onClick={() => pickHit(h)}
+                                                >
+                                                    <span class="ax-suggest-title">
+                                                        {h.title ?? h.paperId}
+                                                    </span>
+                                                    <Show when={h.snippet}>
+                                                        <span class="ax-suggest-snippet">
+                                                            {h.snippet}
+                                                        </span>
+                                                    </Show>
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    class="btn-ghost ax-suggest-go"
+                                                    onMouseDown={(e) =>
+                                                        e.preventDefault()
+                                                    }
+                                                    onClick={() =>
+                                                        props.nav(
+                                                            `#/arxiv/${h.paperId}`,
+                                                        )
+                                                    }
+                                                >
+                                                    {t.home.translate}
+                                                </button>
+                                            </li>
+                                        )}
+                                    </For>
+                                </Show>
+                            </ul>
+                        </Show>
+                    </div>
                     <button type="submit" class="btn-primary" disabled={busy()}>
                         {busy() && !uploading()
                             ? t.home.submitting
@@ -713,6 +846,79 @@ export default function Home(props: {
                     </Show>
                 </p>
             </section>
+
+            {/* alphaXiv 热榜——机会型增强：上游失败/空结果整块不渲染 */}
+            <Show when={!feedFailed() && (feed()?.length ?? 0) > 0}>
+                <section class="home-discover">
+                    <h2>
+                        {t.home.axTitle}
+                        <span class="muted ax-via">{t.home.axVia}</span>
+                    </h2>
+                    <div class="ax-grid">
+                        <For each={feed()!}>
+                            {(p) => {
+                                const id = cardId(p);
+                                const visits = cardVisits(p);
+                                return (
+                                    <article class="ax-card">
+                                        <Show when={p.image_url}>
+                                            <img
+                                                class="ax-thumb"
+                                                src={p.image_url}
+                                                alt=""
+                                                loading="lazy"
+                                                onError={(e) => {
+                                                    e.currentTarget.style.display =
+                                                        "none";
+                                                }}
+                                            />
+                                        </Show>
+                                        <h3 class="ax-card-title">{p.title}</h3>
+                                        <Show when={cardDesc(p)}>
+                                            <p class="ax-card-desc">
+                                                {cardDesc(p)}
+                                            </p>
+                                        </Show>
+                                        <div class="ax-card-foot">
+                                            <Show when={visits != null}>
+                                                <span class="muted">
+                                                    {t.home.axViews.replace(
+                                                        "{n}",
+                                                        String(visits),
+                                                    )}
+                                                </span>
+                                            </Show>
+                                            <Show when={id}>
+                                                <span class="ax-foot-actions">
+                                                    <button
+                                                        type="button"
+                                                        class="btn-ghost ax-go"
+                                                        onClick={() =>
+                                                            props.nav(
+                                                                `#/arxiv/${id}`,
+                                                            )
+                                                        }
+                                                    >
+                                                        {t.home.translate}
+                                                    </button>
+                                                    <a
+                                                        class="ax-link"
+                                                        href={`https://www.alphaxiv.org/abs/${id}`}
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                    >
+                                                        alphaXiv ↗
+                                                    </a>
+                                                </span>
+                                            </Show>
+                                        </div>
+                                    </article>
+                                );
+                            }}
+                        </For>
+                    </div>
+                </section>
+            </Show>
 
             <section class="home-tasks">
                 <h2>

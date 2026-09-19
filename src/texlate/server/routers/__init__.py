@@ -2,8 +2,9 @@
 
 原 ``create_app`` ~25 端点按真实域聚类成叶：``tasks``（建任务+生命周期+
 SSE）、``compat``（hjfy 轮询协议面）、``files``、``upload``、``share``、
-``meta``（health）、``reader``、``settings``。共享装配经 ``deps.AppDeps``
-注入；请求层纯件（multipart/同源/错误面）在 ``texlate.server.http``。
+``meta``（health）、``reader``、``settings``、``discover``（alphaXiv
+公共面只读代理）。共享装配经 ``deps.AppDeps`` 注入；请求层纯件
+（multipart/同源/错误面）在 ``texlate.server.http``。
 """
 
 from __future__ import annotations
@@ -12,6 +13,7 @@ from typing import TYPE_CHECKING
 
 from texlate.server.routers import (
     compat,
+    discover,
     files,
     meta,
     reader,
@@ -42,3 +44,4 @@ def register_routers(app: FastAPI, deps: AppDeps) -> None:
     meta.register(app, deps)
     reader.register(app, deps)
     settings.register(app, deps)
+    discover.register(app, deps)
