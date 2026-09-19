@@ -1016,3 +1016,13 @@
 - roster 7：tailbucket(#155 待应)/operandcensus(#159)/regrdiag(#157)/rexlat3(#158 发令)/fontgate(#156)/misscharcen(#160)/loop4wave(#161)。关毕: pxnorm(交付)。
 - **mutex**: engine.py 全释 → **#144 loop-sched 解锁**; builtins.py 载 tailbucket paralong 注册 + 我方 px_to_bp hunk + misscharext stage-B 待入项——三宗归一原子 commit; inject.py→fontgate。
 - 门：teammate 零 git✓；HEAD bb8e4db (pathspec-only ×6)；规则库 129✓。
+
+## 2026-09-19 ~10:5x — 巡逻: rexlat-2 xlat 波毕 + roster 8 全 running + 散件纠纪
+
+- **rexlat-2 xlat 段毕 (tmp/lane-rexlat2/run.log, 10:48)**：3 majority-lost 格全真重翻——physics/0605204 ok=63/63 (457s), 0501018 ok=178/178 (545s), 0307021 ok=136/141 (898s); "source drifted → re-translate" 自愈链在跑 (recorded≠current 重译, 无害); skipped/fault=0。compile-verify 段 + inline 报告待。rexlat.py 流桥再证可用 (非流式仍 502)。
+- **loop4wave 建驱动中**：lane 目已建 (10:47), 靶集枚举阶段——预期 ~160+ 格 (209batch undefined_cs + warnattr 7 + misschar 4+2 + defD 3 + ifprot 栈 + aaspatch/hexquote 族)。
+- **paralong 在飞实证**：tailbucket repro/ + wraptest wrap-block 探针活跃 (setlength `\long\def` 包覆验证)——e2e rc=1 是已知坑在攻。
+- **纠纪**：tailbucket scratch 漏根目录 (wraptest*/gencheck.py)——untracked 无入库险, 已令其迁 lane 目; 铁律=scratch 只在 tmp/lane-*/。
+- **外来 churn 续观 (不碰)**：peer texlate-* 系 packaging-2026-09-19/ + alphaxiv-reverse.md + e2e/pipecore/repair*/server worker/test_l2*/test_en_fixloop/test_repair_chain_precheck 在飞; gencheck.py 属 tailbucket 已定源。
+- roster 8 全 running：tailbucket(#155)/operandcensus(#159)/regrdiag(#157)/rexlat3(#158 收尾)/fontgate(#156)/misscharcen(#160)/loop4wave(#161)/loopsched(#144 新领)。
+- 门：teammate 零 git✓ (c64d529 后零外来 commit)；HEAD c64d529；规则库 129✓；无新 verdict 波→clean% 门无读数; sab escaped=0 持。
