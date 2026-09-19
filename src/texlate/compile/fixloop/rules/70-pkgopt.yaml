@@ -127,17 +127,27 @@ rules:
 
   - id: minted_frozencache
     mechanisms: [W40, B05]
-    description: "minted frozencache 版本错配 → 有 pygmentize 则去 frozencache 选项 (需 -shell-escape)"
+    description: "minted frozencache 版本错配 → 去 frozencache 选项 + -shell-escape 让 minted 再生缓存"
     phase: loop
     order: 130
     when: { category: minted_froz }
-    condition: { tool_available: pygmentize } # 无 pygmentize → applied=False (L502-505)
+    # v3 styledef/highlight 再生走 latexminted 可执行体, v2 走 pygmentize——
+    # 任一在场即可放 rewrite+flag (缺另一工具时再生失败也不劣化: 错同族复发)。
+    condition:
+      any:
+        - { tool_available: latexminted }
+        - { tool_available: pygmentize }
     action:
       kind: regex_rewrite
       params:
         exts: [.tex]
         rewrites:
-          - { pattern: "frozencache\\s*,?\\s*", repl: "" }
+          # frozencache 选项剥除按逗号邻位三式序贯: 非首位吞前逗 →
+          # 首位吞后逗 → 孤项直删; (=true 值一并剥)。单式前后通吃会把
+          # [a,frozencache,b] 的两逗全吞成 [ab] 粘连。
+          - { pattern: ",\\s*\\bfrozencache\\b(?:\\s*=\\s*\\w+)?", repl: "" }
+          - { pattern: "\\bfrozencache\\b(?:\\s*=\\s*\\w+)?\\s*,", repl: "" }
+          - { pattern: "\\bfrozencache\\b(?:\\s*=\\s*\\w+)?", repl: "" }
         engine_flags: ["-shell-escape"]
     risk: medium
     engines:
