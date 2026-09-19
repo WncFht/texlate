@@ -131,7 +131,7 @@ THEOREM_ANCHOR_SHIM = r"""
 #: 本块把缺字码位 ``\Umathcode`` 重映为 ordinary 符号、指向专用符号字体：
 #: CJK 九段 → ``texlatecjk``（FandolSong 文件直载，与 fontset=fandol/xecjk
 #: 块同字体）；西里尔/组合符/拉丁扩展 → ``texlatefb``（Libertinus Serif，
-#: ``\IfFileExists`` 门——otf 缺席不挂）。normal+bold 两个 math version
+#: ``\IfFontExistsTF`` 门——otf 缺席不挂）。normal+bold 两个 math version
 #: 都挂。纯追加：无数学内缺字时零行为变化；非 XeTeX/LuaTeX 引擎
 #: （无 ``\Umathcode``）整块跳过。
 #:
@@ -180,9 +180,23 @@ CJK_MATH_FALLBACK = r"""
 \TeXlate@mathmap\symtexlatecjk 2A700-2EBEF;
 \fi
 % 非 CJK 带（西里尔人名 Ш/Д/Л、组合符、拉丁扩展）走 Libertinus Serif;
-% \IfFileExists 门——otf 缺席则整段不挂, 免把缺字升级成字体加载错误。
+% otf 缺席则整段不挂, 免把缺字升级成字体加载错误。
+% \IfFileExists 是死门: \openin 走 TEXINPUTS(texmf/tex/), 字体住
+% texmf/fonts/ 恒查不到; fontspec \IfFontExistsTF 走 kpathsea 字体树。
+% fontspec 由 ctex/xeCJK 块携带加载, \ifdefined 兜底裸贴场景=缺席同义。
+% 门本体必须是原语 \if——\IfFontExistsTF{..}{体}{} 的实参在读取时即完成
+% tokenize, 体里 \makeatletter/\catcode 守护来不及生效; 故先把判定
+% 收进 flag。flag 用 \chardef+\ifnum 而非 \let..\iftrue——被跳过的
+% 分支文本里出现裸 \iftrue/\iffalse token 会被条件扫描误计成开臂,
+% \fi 配对全崩 (Incomplete \ifdefined 实证)。
 % 00D7 ×/00F7 ÷ 是 binop 语义, 普通 ordinary 化会改距, 故带内挖掉。
-\IfFileExists{LibertinusSerif-Regular.otf}{%
+\ifdefined\IfFontExistsTF
+\IfFontExistsTF{LibertinusSerif-Regular.otf}{%
+  \chardef\TeXlateFBok=1\relax}{\chardef\TeXlateFBok=0\relax}%
+\else
+\chardef\TeXlateFBok=0\relax
+\fi
+\ifnum\TeXlateFBok=1\relax
 \DeclareFontFamily{TU}{texlatefb}{\hyphenchar\font\m@ne}
 \DeclareFontShape{TU}{texlatefb}{m}{n}{<->"[LibertinusSerif-Regular.otf]"}{}
 \DeclareFontShape{TU}{texlatefb}{b}{n}{<->"[LibertinusSerif-Bold.otf]"}{}
@@ -200,7 +214,8 @@ CJK_MATH_FALLBACK = r"""
 \TeXlate@mathmap\symtexlatefb 00C0-00D6;
 \TeXlate@mathmap\symtexlatefb 00D8-00F6;
 \TeXlate@mathmap\symtexlatefb 00F8-017F;
-\fi}{}
+\fi
+\fi
 \catcode`\"=\TeXlate@dqcat
 \makeatother
 \fi
@@ -257,7 +272,19 @@ TIE_ACCENT_FIX = r"""
 TEXT_8BIT_FALLBACK = r"""
 % texlate: CMU Serif fallback for 8-bit TFM coverage gaps (xetex only)
 \ifdefined\XeTeXversion
-\IfFileExists{cmunrm.otf}{%
+% 字体门: \IfFileExists 走 \openin/TEXINPUTS(texmf/tex/) 恒假死门——otf 住
+% texmf/fonts/; fontspec \IfFontExistsTF 走 kpathsea 字体树才查得到。
+% fontspec 由 ctex/xeCJK 块携带加载, \ifdefined 兜底裸贴场景=缺席同义。
+% 判定先收进 flag 再用原语 \if 门本体——宏实参会在读取时完成 tokenize,
+% 体内 \makeatletter/\catcode`\" 守护来不及生效(同 fb 臂)。flag 用
+% \chardef+\ifnum: 被跳过分支里的裸 \iftrue/\iffalse token 会被条件
+% 扫描误计成开臂, \fi 配对全崩。
+\ifdefined\IfFontExistsTF
+\IfFontExistsTF{cmunrm.otf}{\chardef\TeXlateCMUok=1\relax}{\chardef\TeXlateCMUok=0\relax}%
+\else
+\chardef\TeXlateCMUok=0\relax
+\fi
+\ifnum\TeXlateCMUok=1\relax
 \makeatletter
 % texlate: " is a valid hex prefix only at catcode 12 (same guard as mathmap)
 \chardef\TeXlate@dqcat=\the\catcode`\"\catcode`\"=12
@@ -310,12 +337,15 @@ TEXT_8BIT_FALLBACK = r"""
 \TeXlate@clsmap 20D0-2100;
 % Latin ligatures (ff/fi/fl …) in 8-bit slots
 \TeXlate@clsmap FB00-FB50;
-% 进出双向接线: 类 0..31 (xeCJK 占用带在内) + 边界 255 (+4095 新界)
+% 进出双向接线: 类 0..31 (xeCJK 占用带在内) + 边界 255 (+4095 新界)。
+% CMUclass 自身也落在 0..31——循环把 (自类→自类) 配成 Off, 同类相邻
+% 字符每对都复位字体, 一串西里尔只剩首字换族; 接线后清掉这对自环。
 \count@=\z@
 \@whilenum\count@<32 \do{%
   \XeTeXinterchartoks\count@\TeXlateCMUclass={\TeXlate@cmuOn}%
   \XeTeXinterchartoks\TeXlateCMUclass\count@={\TeXlate@cmuOff}%
   \advance\count@\@ne}
+\XeTeXinterchartoks\TeXlateCMUclass\TeXlateCMUclass={}
 \XeTeXinterchartoks 255 \TeXlateCMUclass={\TeXlate@cmuOn}
 \XeTeXinterchartoks\TeXlateCMUclass 255 ={\TeXlate@cmuOff}
 \ifdefined\XeTeXinterwordspaceshaping
@@ -325,7 +355,7 @@ TEXT_8BIT_FALLBACK = r"""
 \XeTeXinterchartokenstate=\@ne
 \catcode`\"=\TeXlate@dqcat
 \makeatother
-}{}
+\fi
 \fi
 """
 

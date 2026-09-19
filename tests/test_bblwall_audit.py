@@ -566,7 +566,7 @@ def test_text_8bit_fallback_ranges() -> None:
         assert rng in TEXT_8BIT_FALLBACK
     assert "4E00" not in TEXT_8BIT_FALLBACK  # CJK Unified 不派 class
     assert "\\ifdefined\\XeTeXversion" in TEXT_8BIT_FALLBACK
-    assert "\\IfFileExists{cmunrm.otf}" in TEXT_8BIT_FALLBACK
+    assert "\\IfFontExistsTF{cmunrm.otf}" in TEXT_8BIT_FALLBACK
 
 
 def test_transform_fns_registered() -> None:

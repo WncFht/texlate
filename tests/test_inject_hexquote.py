@@ -165,18 +165,18 @@ def test_mathmap_real_compile_poisoned_quote(tmp_path: Path) -> None:
 def test_clsmap_real_compile_poisoned_quote(tmp_path: Path) -> None:
     r"""TEXT_8BIT_FALLBACK 裸块贴进 ``"``=11 前导区——守护后 clsmap 正常执行。
 
-    注：块内 ``\\IfFileExists{cmunrm.otf}`` 在标准 kpathsea 布局下恒假
-    （``\\openin`` 走 TEXINPUTS=texmf/tex/，字体在 texmf/fonts/）——剥掉
-    这层休眠门才能实测到 ``\\TeXlate@clsmap`` 的 ``"``-hex 路径。
+    门已从 ``\\IfFileExists``（TEXINPUTS 死门）换成 ``\\IfFontExistsTF``
+    （kpathsea 字体树）——裸贴场景补 ``\\usepackage{fontspec}`` 令门真开，
+    才能实测到 ``\\TeXlate@clsmap`` 的 ``"``-hex 路径。
     """
     xelatex = shutil.which("xelatex")
     assert xelatex is not None
-    live_block = TEXT_8BIT_FALLBACK.replace(
-        "\\IfFileExists{cmunrm.otf}{%\n", ""
-    ).replace("\n}{}\n\\fi\n", "\n\\fi\n")
     doc = (
         "\\documentclass{article}\n"
-        '\\catcode`\\"=11\n' + live_block + "\\begin{document}\nx\\end{document}\n"
+        "\\usepackage{fontspec}\n"
+        '\\catcode`\\"=11\n'
+        + TEXT_8BIT_FALLBACK
+        + "\\begin{document}\nx\\end{document}\n"
     )
     p = tmp_path / "clsmap_cat11.tex"
     p.write_text(doc, encoding="utf-8")
