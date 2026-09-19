@@ -62,10 +62,10 @@ class Measured(Gullet):
             self.n_if_marker += 1
         return r
 
-    def process_if(self, which) -> None:
+    def process_if(self, which, *, trig, tail_tag=""):
         """包 ``process_if``：可求值档记录选中支（True/False/ifcase idx）。"""
         self.if_selected.append(which)
-        return super().process_if(which)
+        return super().process_if(which, trig=trig, tail_tag=tail_tag)
 
 
 def run_doc(ext: Path, arxiv_id: str) -> dict:
