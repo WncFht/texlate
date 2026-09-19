@@ -106,6 +106,12 @@ _PHYS_LOAD_RE = re.compile(
 #: section 件), 永远摸不到 ``physics.sty`` —— ``need_input`` 检测与
 #: ``\\makeatletter`` 包裹双侧都按 ``.sty`` 形收窄。
 _PHYS_INPUT_RE = re.compile(r"\\input\s*\{?\s*physics\.sty(?![\w.-])")
+#: 随源件内 ``\\input X.sty`` 站收集用的通用名单形 —— 与 ``_PHYS_INPUT_RE``
+#: 同骨架, 名位放开到任意 stem (允许路径前缀 ``sub/foo.sty``)。
+#: ``(?![\w.-])`` 防 ``.styx`` 半名误中。
+_SHIP_STY_INPUT_RE = re.compile(
+    r"\\input\s*\{?\s*[A-Za-z][A-Za-z0-9_./-]*\.sty(?![\w.-])"
+)
 #: ``\\makeatletter``/``\\makeatother`` 事件 —— 遮盖视图组作用域走查用。
 _MAKEAT_RE = re.compile(r"\\makeat(?:letter|other)(?![a-zA-Z])")
 #: stub 内 ``\\ProvidesPackage{physics}`` —— ``\\input`` 路径下它仍置
@@ -203,8 +209,8 @@ def _input_cmd_end(vis: str, m: re.Match[str]) -> int:
     return j + 1 if j < len(vis) and vis[j] == "}" else -1
 
 
-def _phys_sty_input_sites(t: str) -> list[tuple[int, int, bool]]:
-    r"""``\\input{physics.sty}`` 顶层 live 站收集 → ``[(start, end, at_letter)]``。
+def _sty_input_sites(t: str, input_re: re.Pattern[str]) -> list[tuple[int, int, bool]]:
+    r"""``\\input`` 顶层 live 站收集 → ``[(start, end, at_letter)]``。
 
     遮盖视图走查: 注释/verbatim 内假装载点不算 (``mask_tex`` 已遮),
     宏体等 ``{}`` 组内站点不算 (深度 0 限定——组内 ``\\input`` 是延迟或
@@ -212,7 +218,7 @@ def _phys_sty_input_sites(t: str) -> list[tuple[int, int, bool]]:
     语义入栈, ``at_letter`` = 站点处 @ 是否已是 letter。``end`` 对 ``{``
     形含随尾闭合 ``}`` (被注释隔断等未闭合的站点丢弃)。匹配本体不推
     游标 —— 下个命中前的走查把它当普通字符消费, 内部 ``{``/``}`` 照常
-    配对计深。
+    配对计深。``input_re`` 决定哪些 ``\\input`` 目标算装载点。
     """
     vis = mask_tex(t)
     depth = 0
@@ -220,7 +226,7 @@ def _phys_sty_input_sites(t: str) -> list[tuple[int, int, bool]]:
     stack: list[bool] = []
     pos = 0
     out: list[tuple[int, int, bool]] = []
-    for m in _PHYS_INPUT_RE.finditer(vis):
+    for m in input_re.finditer(vis):
         while pos < m.start():
             pos, ev = _scope_step(vis, pos)
             if ev == "open":
@@ -239,6 +245,35 @@ def _phys_sty_input_sites(t: str) -> list[tuple[int, int, bool]]:
     return out
 
 
+def _phys_sty_input_sites(t: str) -> list[tuple[int, int, bool]]:
+    r"""``\\input{physics.sty}`` 顶层 live 站 —— ``_sty_input_sites`` 的 phys 特例。"""
+    return _sty_input_sites(t, _PHYS_INPUT_RE)
+
+
+def _wrap_sites(
+    t: str, sites: list[tuple[int, int, bool]], pre: str, post: str
+) -> tuple[str, int]:
+    r"""站点序列原位套 ``pre``/``post`` 包裹 → (新文本, 包裹数)。
+
+    ``at_letter`` 站跳过 —— 外围 @ 已是 letter, 包裹纯负资产。
+    """
+    pieces: list[str] = []
+    prev, n = 0, 0
+    for start, end, at_letter in sites:
+        if at_letter:
+            continue
+        pieces.append(t[prev:start])
+        pieces.append(pre)
+        pieces.append(t[start:end])
+        pieces.append(post)
+        prev = end
+        n += 1
+    if not n:
+        return t, 0
+    pieces.append(t[prev:])
+    return "".join(pieces), n
+
+
 def _wrap_phys_sty_inputs(t: str) -> tuple[str, int]:
     r"""``\\input{physics.sty}`` 裸载点补 ``\\makeatletter`` 对 → (新文本, 包裹数)。
 
@@ -249,21 +284,38 @@ def _wrap_phys_sty_inputs(t: str) -> tuple[str, int]:
     ``\\makeatother`` 尾段会把外围 @ 强翻回 12, 已在 letter 区的站点不
     重包, 宏体内站点 (延迟执行语境) 不动。包裹只罩 ``\\input`` 命令本体。
     """
-    pieces: list[str] = []
-    prev, n = 0, 0
-    for start, end, at_letter in _phys_sty_input_sites(t):
-        if at_letter:
-            continue
-        pieces.append(t[prev:start])
-        pieces.append("\\makeatletter")
-        pieces.append(t[start:end])
-        pieces.append("\\makeatother")
-        prev = end
-        n += 1
-    if not n:
-        return t, 0
-    pieces.append(t[prev:])
-    return "".join(pieces), n
+    return _wrap_sites(t, _phys_sty_input_sites(t), "\\makeatletter", "\\makeatother")
+
+
+#: shipwrap 存复包裹对 —— ``vendor/stubs/svglov3.clo`` 同款 exact-restore
+#: idiom: ``\\edef`` 先存 ``\\catcode 64`` 现值, ``=11`` 读件, 尾段复元。
+#: 宿主 @ 语境不可知 (``\\documentclass``/``\\usepackage`` 载是 11, 裸
+#: ``\\input`` 载是 12) —— 存复形两语境皆回原位; 裸
+#: ``\\makeatletter``/``\\makeatother`` 对会把 @=letter 宿主的后续 @-cs
+#: 强翻回 12 (svglov3.clo 头注: 1608.06693 ``15\\p@`` 实证)。restore cs
+#: 名纯字母 —— 宿主可能正处 @=other, 名里带 ``@`` 自断签名。
+_SHIP_WRAP_PRE = (
+    r"\edef\TeXlateStyInRestore{\catcode 64=\the\catcode 64\relax}"
+    r"\catcode 64=11\relax "
+)
+_SHIP_WRAP_POST = r" \TeXlateStyInRestore"
+
+
+def _wrap_shipped_sty_inputs(t: str) -> tuple[str, int]:
+    r"""``\\input X.sty`` 顶层 live 站补 @ 存复包裹 → (新文本, 包裹数)。
+
+    随源 ``.cls``/``.sty`` 宿主面: 裸 ``\\input`` 以宿主当前 @ catcode
+    读件, @=other 下载入件内全部 @-cs 断名 → Missing ``\\begin{document}``
+    级联 (shipclscen census 族; aipproc.cls:10 ``\\input{aipproc.sty}`` 型)。
+    只包 ``_sty_input_sites`` 里未处 ``\\makeatletter`` 组的站点 ——
+    已在 letter 区的不重包, 宏体内站点 (延迟执行) 不动。
+    """
+    return _wrap_sites(
+        t,
+        _sty_input_sites(t, _SHIP_STY_INPUT_RE),
+        _SHIP_WRAP_PRE,
+        _SHIP_WRAP_POST,
+    )
 
 
 def _detach_in_tex_files(
@@ -326,9 +378,7 @@ def physics_stub_detach(
     # 顶层 live ``\\input{physics.sty}`` 站才算"已在载": 注释内/宏体内
     # (延迟执行, 未必触发) 命中不算 —— 漏载致命, 双载由 stub 守卫兜底。
     need_input = not _phys_sty_input_sites(ctx.source_blob())
-    changed, wrapped = _detach_in_tex_files(
-        ctx, stub, exts, need_input=need_input
-    )
+    changed, wrapped = _detach_in_tex_files(ctx, stub, exts, need_input=need_input)
     renamed = _PHYS_PROVIDES_RE.sub(r"\g<1>physics-stub\g<2>", st)
     neut = renamed
     if (changed or wrapped or neut != st) and _PHYS_GUARD_MARK not in neut:
@@ -347,6 +397,31 @@ def physics_stub_detach(
     if neut != renamed:
         parts.append("reload guard")
     return True, "physics stub detached: " + "; ".join(parts)
+
+
+def shipped_sty_input_wrap(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""随源 ``.cls``/``.sty``/``.tex`` 件内 ``\\input X.sty`` 站补 @ 存复包裹 (shipclscen)。
+
+    input_sty_to_usepackage/input_sty_209_requirepkg 两臂只管 doc 侧
+    ``.tex`` 导言区改写 —— 随源件内部裸 ``\\input`` 与前瞻闸够不着的
+    站点 (``\\begin{document}`` 缺席的 fragment .tex 等) 归本 builtin
+    补位。包裹是存复形 (``\\edef`` 存 ``\\catcode 64`` → ``=11`` 读件
+    → 复元), @=letter 宿主下是恒等变换, 语义保持。
+    """
+    del eng, payload
+    exts = tuple(params.get("exts") or (".cls", ".sty", ".tex"))
+    changed: list[str] = []
+    for f in ctx.tex_files(exts):
+        t = ctx.read(f)
+        if t is None or "\\input" not in t:
+            continue
+        nt, n = _wrap_shipped_sty_inputs(t)
+        if n and nt != t:
+            ctx.write(f, nt)
+            changed.append(f"{f.name}(x{n})")
+    return (bool(changed)), f"@catcode exact-restore wrap in {', '.join(changed)}"
 
 
 def font_sub_shim(

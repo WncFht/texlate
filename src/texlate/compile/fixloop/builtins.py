@@ -102,6 +102,7 @@ from texlate.compile.fixloop._builtins_pkgload import (
     font_sub_shim,
     option_clash_merge,
     physics_stub_detach,
+    shipped_sty_input_wrap,
     strip_inputenc,
 )
 from texlate.compile.fixloop._builtins_shim import (
@@ -207,6 +208,7 @@ __all__ = [
     "restore_support_from_src",
     "revtex209_surface_polyfill",
     "shim_pkgs_in_use",
+    "shipped_sty_input_wrap",
     "strip_inputenc",
     "svg_prepare",
     "svjour_clo_stub",
@@ -284,4 +286,5 @@ TRANSFORM_FNS = {
     "pdfstring_cs_disarm": pdfstring_cs_disarm,
     "xbb_pregen": xbb_pregen,
     "pdf_asset_sanitize": pdf_asset_sanitize,
+    "shipped_sty_input_wrap": shipped_sty_input_wrap,
 }

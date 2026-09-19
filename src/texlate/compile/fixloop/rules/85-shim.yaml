@@ -341,3 +341,36 @@ rules:
         }
     stats: { fires: 0, status: proposed }
     source_ref: "fixer-bblwall-2026-09-17 spec W3; fixer-apjbbx verification.txt L70-86"
+
+  # shipclscen census (begindoccen 残件): 随源 .cls/.sty 内部裸 \input X.sty
+  # 站 —— \input 以宿主当前 @ catcode 读件; 宿主自身经裸 \input/2.09 option
+  # 链载入 (@=other) 时载入件内全部 @-cs 断名 → Missing \begin{document}
+  # 级联 (aipproc.cls:10 \input{aipproc.sty} 型, 语料 ~20 随源件带此站)。
+  # input_sty_to_usepackage(-11)/input_sty_209_requirepkg(-12) 两臂只管
+  # doc 侧 .tex 导言区 (\begin{document} 前瞻闸 + \documentclass/style 门),
+  # 随源件内部站点与 fragment .tex 够不着 —— 本规则补位: \edef 存
+  # \catcode 64 现值 → =11 读件 → 复元 (svglov3.clo exact-restore idiom;
+  # 裸 \makeatletter/\makeatother 对会把 @=letter 宿主尾段强翻回 12,
+  # 1608.06693 15\p@ 实证), @=letter 宿主下恒等变换。
+  - id: shipped_sty_input_wrap
+    description: "随源 .cls/.sty/.tex 件内裸 \\input X.sty (@=other 载入 → @-cs 全裂) → exact-restore @ 包裹"
+    phase: precheck
+    order: -0.5 # input_sty 两臂 (-12/-11) 与 tar_blob_extract(-1) 之后, static_precheck(0) 前 —— doc 侧改写+冒名件解包落地后收网余下 live 站
+    when: { always: true }
+    condition:
+      # raw 粗筛 —— builtin 内 mask_tex 遮盖视图复核是权威
+      source_contains: "\\\\input\\s*\\{?\\s*[A-Za-z][A-Za-z0-9_./-]*\\.sty"
+    action:
+      kind: builtin_transform
+      function: shipped_sty_input_wrap
+    risk: low # 存复形包裹语义保持; 只罩 \input 命令本体, 遮盖视图确认 live 站
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same } # 源码改写天然可移植
+    provenance:
+      - {
+          corpus: "shipclscen census (Missing \\begin{document} @cls/sty 族; aipproc.cls:10 等 ~20 随源件)",
+          error: "Missing \\begin{document} / Undefined control sequence (\\input X.sty 裸装载 @=12 裂 @-cs)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-shipclscen/mbd_hits.json; vendor/stubs/svglov3.clo exact-restore idiom"
