@@ -1226,3 +1226,11 @@
 - **shared-index 再清**: 上轮 commit 后共享 index 留 7 件 MM 陈旧暂存 (peer stash 机件周期性重 stage 已 commit 内容的旧版) → `git reset` 清, 防他 session 经共享 index 把旧版烘进其 commit。零 D staged-deletion 本轮。
 - 门: clean% 单调 ✓ (83up+1706.02744 up, 0 down); sab escaped=0 ✓ (cleanprobe 15/15=sabotage 等价, 本段无新跑——mutex 持期 --rerun 波禁派); L1 仍 post-W84 档 ✓ (segmenter 未动——envspec 落地后须重门); teammate 零 git ✓ (巡检无违)。裁决点 3 件仍待用户 (#10/ds@/verdict 排序)。
 - roster 6: injfix/envspec/pfafont/drvopt/cp1252cen 跑道 + ds209diag idle 待报。
+
+### 2026-09-19 ~15:2x tick — #191 ds209diag 诊断到 + mainrel 车道派发
+- **#191 诊断结论 (框架修正)**: 4 down-flip 真链非"子档 \documentstyle 渗入主编译"——tab*.tex 是**独立 209 伴随档从不被 \input**。真链: `fixloop()` **无 main_rel 参** (engine.py:1001-1015) → 总在变异 splice 树上重跑 `find_main_tex` (:1063); 首排序键 `language_rank` (inject.py:732-736) 降 CJK 主体 → 译文主档输给英文/数字 tab 档 → fixloop 错选 tab1.tex/tab01.tex/table7.tex/SmithV.tab1.tex (cases.jsonl 4 证实) → tab 档编译撞 latex209 banner → `reject:latex209_reject`; `subfile_docclass_strip` (_builtins_misc.py:589-638) 再剥一切非主档 docclass 文件**含真转换主档** (splice/paper.tex 等带 `% fixloop: stripped to body` 标记) → post 编译 body-only 主档 112/347/453 undefined_cs。基线同错主但无 strip → clean。#164b strip 规武装了预存错主。
+- **census**: splice 活 \documentstyle loop2=2 (9910375/9901328) loop3=1 (0104303) flipcheck9=6 (1+5 上游 inject:null 未达 fixloop); ~44 注释命中。拒格须三合: 独立 docstyle 子档+fixloop 入+错主。
+- **fix 决策**: (a) upgrade209 扩全档=no-op (转换后 tab 仍是候选); (b) 209-compat 路由=错 (compat 核禁 \usepackage→无 CJK 注入); **采 (c)**: fixloop() 加 main_rel 参 (仿 precheck_pass :963) + `find_main_tex` 名层提前于 language_rank (:743-752)。subfile_docclass_strip \input-闭包限制判不必——正主即免疫 (strip 只碰非主档, 死档剥了无害)。
+- **派发**: `mainrel` = engine.py+repair.py+stage_fixloop.py 签名穿线+回归测 (worker/_fixloop_pass 属 en-fixloop 在飞域不碰, repair.run_fixloop kw passthrough 天然接通); inject.py 排序硬化 leader 自留 (injfix 同件在飞避争)。
+- roster 6 全跑: injfix/envspec/pfafont/drvopt/cp1252cen/mainrel。c0diag/ds209diag 交付毕关。
+- 门: 裁决点 3 件仍待用户 (#10/ds@/verdict 排序)——ds209diag 的 (c) 采纳属 leader 判决域非裁决点 (机制已证, 无产品语义变更)。
