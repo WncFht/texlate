@@ -1,92 +1,87 @@
 # zotero-texlate
 
-Zotero 7 plugin for [TeXlate](https://hjfy.top): right-click an arXiv item → **TeXlate: Translate to Chinese** → the texlate server fetches the paper's LaTeX source, translates it paragraph-level, and recompiles a Chinese PDF; the plugin polls the task to completion, attaches the generated `zh.pdf` to the item, and stamps a `texlate: <taskId>` mark into the item's Extra field. Translated items get a second entry — **TeXlate: Open in Reader** — which opens the live bilingual reader at `{serverUrl}/#/reader/{taskId}`.
+[TeXlate](https://hjfy.top) 的 Zotero 7 插件：右键 arXiv 条目 →「TeXlate：翻译为中文」→ texlate 服务器拉取论文 LaTeX 源码、段落级翻译、重编译中文 PDF；插件轮询任务到终态，把生成的 `zh.pdf` 挂为条目附件，并在 Extra 字段写入 `texlate: <taskId>` 幂等标记。已译条目出现第二个菜单项——「TeXlate：在阅读器打开」，打开 `{serverUrl}/#/reader/{taskId}` 双语对照阅读器。
 
-The plugin is a thin client: fetching, parsing, translating, and compiling all happen on the server. No LLM keys, no TeX engine, no Python inside Zotero.
+插件是瘦客户端：取源、解析、翻译、编译全在服务端。Zotero 里不需要 LLM key、TeX 引擎、Python。
 
-## Requirements
+## 依赖
 
-- **Zotero 7.0+** (`strict_min_version` 7.0, `strict_max_version` 10.*)
-- **A running texlate server**, local or remote:
+- **Zotero 7.0+**（`strict_min_version` 7.0，`strict_max_version` 10.*）
+- **一个跑起来的 texlate 服务**，本地或远端均可：
 
 ```bash
-uvx texlate web          # → http://127.0.0.1:8765 (in this repo: uv run texlate web)
+uvx texlate web          # → http://127.0.0.1:8765（本仓内：uv run texlate web）
 ```
 
-The server owns translator credentials (BYOK in its web Settings page, or `TEXLATE_*` env vars) — the plugin posts `POST /api/arxiv/{id}/translate` with an empty body; model, target language, and keys all come from server settings.
+翻译凭据归服务端管（web Settings 页 BYOK，或 `TEXLATE_*` 环境变量）——插件只发 `POST /api/arxiv/{id}/translate` 空体请求；模型、目标语言、key 全部来自服务端设置。
 
-## Install
+## 安装
 
 ```bash
 npm ci
 npx zotero-plugin build   # → .scaffold/build/texlate.xpi
 ```
 
-Then in Zotero: **Tools → Plugins → gear icon → Install Add-on From File…** → pick `.scaffold/build/texlate.xpi`.
+然后在 Zotero 里：**工具 → 插件 → 齿轮图标 → 从文件安装附加组件…** → 选 `.scaffold/build/texlate.xpi`。
 
-For the isolated-profile dev loop (mock server + fixtures + RDP-verified orchestration), see `dev/README.md`.
+隔离 profile 的开发回路（mock 服务 + fixture + RDP 验证编排）见 `dev/README.md`。
 
-## Configuration
+## 配置
 
-Zotero → Settings → **TeXlate** → "Open TeXlate Settings" opens the dialog. All preferences live under the `extensions.zotero.texlate` prefix (`addon/prefs.js`):
+Zotero → 设置 → **TeXlate** →「打开 TeXlate 设置」弹出对话框。全部偏好存在 `extensions.zotero.texlate` 前缀下（`addon/prefs.js`）：
 
-| Pref | Default | Meaning |
-| --- | --- | --- |
-| `serverUrl` | `http://127.0.0.1:8765` | texlate server base URL |
-| `apiKey` | _(empty)_ | `X-Texlate-Key` header — only needed for remote `TEXLATE_MODE=server` instances; local loopback needs none |
-| `attachZhPdf` | `true` | attach `zh.pdf` on completion |
-| `attachEnPdf` | `false` | attach `en.pdf` |
-| `attachDualPdf` | `false` | attach `dual.pdf` (bilingual side-by-side) |
-| `batchDelayMs` | `1000` | delay between items in a multi-select batch |
-| `pollIntervalMs` | `2000` | task-status poll interval |
-| `pollTimeoutMs` | `10800000` | give up polling after 3 h |
+| 偏好             | 默认值                  | 含义                                                                                  |
+| ---------------- | ----------------------- | ------------------------------------------------------------------------------------- |
+| `serverUrl`      | `http://127.0.0.1:8765` | texlate 服务 base URL                                                                 |
+| `apiKey`         | _（空）_                | `X-Texlate-Key` 请求头——只有远端 `TEXLATE_MODE=server` 实例需要；本机 loopback 不用填 |
+| `attachZhPdf`    | `true`                  | 完成后挂载 `zh.pdf`                                                                   |
+| `attachEnPdf`    | `false`                 | 挂载 `en.pdf`                                                                         |
+| `attachDualPdf`  | `false`                 | 挂载 `dual.pdf`（双语对照）                                                           |
+| `batchDelayMs`   | `1000`                  | 多选批处理条目间延迟                                                                  |
+| `pollIntervalMs` | `2000`                  | 任务状态轮询间隔                                                                      |
+| `pollTimeoutMs`  | `10800000`              | 轮询放弃时限（3 小时）                                                                |
 
-"Check connection" pings `GET /api/health` with the dialog's current values before saving.
+「检查连接」在保存前用对话框当前值 ping `GET /api/health`。
 
-The API key is stored **plaintext** in Zotero preferences — same as every Zotero plugin pref.
+API key 以**明文**存在 Zotero 偏好里——和所有 Zotero 插件偏好一样。
 
-## Behavior notes
+## 行为说明
 
-- **arXiv id extraction** — 4-level fallback `DOI → url → archiveID → extra` (`src/modules/arxivId.ts`). The raw id is passed through untouched — version suffix `v3` and old-format `hep-th/9901001` included; the server's `normalize_arxiv_id` owns parsing. An item with no arXiv trace can't be translated.
-- **Menu greying** — `computeMenuState(items)` (`src/modules/menu.ts`): *Translate* shows when ≥1 selected regular item has an extractable arXiv id AND no `texlate:` mark; *Open in Reader* shows when ≥1 selected item carries the mark; the submenu hides as a whole when neither applies. Multi-select translates every eligible item sequentially, `batchDelayMs` apart.
-- **Idempotent mark** — a `texlate: t_xxx` line in Extra is the single source of truth: re-translating a marked item short-circuits to "already translated" and the menu flips to the reader entry. Only our mark line is rewritten; other Extra lines are kept byte-for-byte.
-- **Attachments** — artifacts are downloaded to ASCII-only temp files, sha256-verified against the `/api/files` listing, `%PDF`-magic-checked, and imported as stored attachments titled `TeXlate {中文|英文原文|双语对照} - {short title}`. A task ending `partial` still attaches what exists and adds a warning line; `needs_auth` opens `{serverUrl}/#/settings` for BYOK sign-in.
-- **Progress** — the plugin sandbox has no EventSource/ReadableStream, so progress is `setTimeout` polling of `GET /api/task/{id}` mapped onto the 11-state machine (queued → fetching → parsing → translating → compiling → done / partial / fault / cancelled / interrupted / needs_auth). Transport failures retry up to 5 consecutive times — the server may restart mid-task; HTTP 4xx and unknown statuses fail fast.
+- **arXiv id 提取** — 四级回退 `DOI → url → archiveID → extra`（`src/modules/arxivId.ts`）。原始 id 原样透传——`v3` 版本后缀与旧格式 `hep-th/9901001` 都带；解析归服务端的 `normalize_arxiv_id`。没有 arXiv 痕迹的条目不可翻译。
+- **菜单置灰** — `computeMenuState(items)`（`src/modules/menu.ts`）：≥1 个选中普通条目有可提取 arXiv id 且无 `texlate:` 标记时显示「翻译为中文」；≥1 个选中条目带标记时显示「在阅读器打开」；两者都不满足时整个子菜单隐藏。多选时逐条顺序翻译，间隔 `batchDelayMs`。
+- **幂等标记** — Extra 里的 `texlate: t_xxx` 行是唯一事实源：已标记条目再翻译会短路为「已翻译」，菜单翻转成阅读器入口。只重写本插件的标记行；Extra 其他行逐字节保留。
+- **附件** — 产物下载到纯 ASCII 临时文件，对照 `/api/files` 清单校验 sha256、查 `%PDF` 魔数，再以 `TeXlate {中文|英文原文|双语对照} - {短标题}` 为名导入为存储附件。任务终态 `partial` 仍挂载已有产物并加警告行；`needs_auth` 打开 `{serverUrl}/#/settings` 做 BYOK 登录。
+- **进度** — 插件沙箱没有 EventSource/ReadableStream，进度靠 `setTimeout` 轮询 `GET /api/task/{id}` 映射到 11 态机（queued → fetching → parsing → translating → compiling → done / partial / fault / cancelled / interrupted / needs_auth）。传输层失败最多连重试 5 次——服务端可能中途重启；HTTP 4xx 与未知状态立即失败。
+- **去重收养** — 服务端对活跃任务按 cache_key 去重：重复翻译同一篇会拿到 `409 duplicate_active` 与现存 task_id。插件收养前先读该任务状态——若落在可重试终态（`fault`/`partial`/`cancelled`/`interrupted`/`needs_auth`，含占着去重槽位的 `interrupted`）先 `POST /api/task/{id}/retry` 复活再轮询，否则直接收养。
 
 ## Dev API
 
-Exposed on `Zotero.texlate` for the `dev/` verification toolchain (driven over RDP eval — see `dev/README.md`):
+挂在 `Zotero.texlate` 上供 `dev/` 验证工具链用（经 RDP eval 驱动——见 `dev/README.md`）：
 
 ```js
-await Zotero.texlate.selftest(itemID)          // full chain → SelftestResult {ok, steps[], taskId}
-await Zotero.texlate.selftestNonArxiv(itemID)  // negative path: extract→null + mark→none
-Zotero.texlate.api.computeMenuState(items)     // pure menu-visibility predicate → {translate, reader}
+await Zotero.texlate.selftest(itemID); // 全链 → SelftestResult {ok, steps[], taskId}
+await Zotero.texlate.selftestNonArxiv(itemID); // 负例路径：extract→null + mark→none
+Zotero.texlate.api.computeMenuState(items); // 菜单可见性纯谓词 → {translate, reader}
 ```
 
-`selftest` walks resolve-item → prefs → health → extract → already-marked → create → poll → files → download+attach → mark → attachments-verify → reader-url, recording attributable evidence per step; it never throws — failures land in `steps[i].detail` with `error` naming the first failed step.
+`selftest` 走 resolve-item → prefs → health → extract → already-marked → create → poll → files → download+attach → mark → attachments-verify → reader-url，每步记录可归因证据；绝不抛异常——失败落 `steps[i].detail`，`error` 字段点名首个失败步骤。
 
-## Development
+## 开发
 
 ```bash
-npm install     # toolchain
+npm install     # 工具链
 npm run build   # zotero-plugin build + tsc --noEmit → .scaffold/build/
-npm start       # scaffold serve (needs .env — see .env.example)
-npm test        # mocha inside a real Zotero
+npm start       # scaffold serve（需要 .env——见 .env.example）
+npm test        # 真 Zotero 里跑 mocha
 ```
 
-## Layout
+## 目录
 
-- `addon/` — static assets: manifest (Zotero 7.0–10.\*), bootstrap, prefs defaults, locales (en-US/zh-CN), preferences.xhtml
-- `src/` — `hooks.ts` only dispatches; logic lives in `src/modules/` (client / arxivId / poller / attach / prefs / menu / flow / selftest); shared signatures in `src/contracts.ts`
-- `typings/` — scaffold-generated d.ts
-- `dev/` — verification toolchain + research notes (`dev/README.md`)
-
-## 中文速览
-
-右键 arXiv 条目 →「TeXlate：翻译为中文」→ texlate 服务器取 LaTeX 源码、段落级翻译、重编译中文 PDF → 插件轮询任务完成后把 `zh.pdf` 挂为条目附件，并在 Extra 写入 `texlate: <taskId>` 幂等标记。已译条目菜单变为「TeXlate：在阅读器打开」，打开 `{serverUrl}/#/reader/{taskId}` 双语对照阅读器。
-
-需要 Zotero 7.0+ 和一个跑起来的 texlate 服务（`uvx texlate web`，默认 `http://127.0.0.1:8765`；BYOK/模型在服务端 Settings 配置，插件不碰 LLM 配置）。设置面板在 Zotero 设置 → TeXlate；无 arXiv 痕迹的条目菜单自动置灰。开发验证链见 `dev/README.md`。
+- `addon/` — 静态资源：manifest（Zotero 7.0–10.\*）、bootstrap、偏好默认值、locale（en-US/zh-CN）、preferences.xhtml
+- `src/` — `hooks.ts` 只做分发；逻辑全在 `src/modules/`（client / arxivId / poller / attach / prefs / menu / flow / selftest）；共享签名在 `src/contracts.ts`
+- `typings/` — scaffold 生成的 d.ts
+- `dev/` — 验证工具链 + research 笔记（`dev/README.md`）
 
 ## License
 
-Apache-2.0. Built on the [windingwind/zotero-plugin-template](https://github.com/windingwind/zotero-plugin-template) scaffold.
+Apache-2.0。基于 [windingwind/zotero-plugin-template](https://github.com/windingwind/zotero-plugin-template) 脚手架。
