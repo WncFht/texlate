@@ -23,17 +23,19 @@ from texlate.compile.probe import (
 from texlate.latex.placeholder import PH_RX
 from texlate.latex.reconstruct import reconstruct
 from texlate.pipecore import (
+    RepairPolicy,
     compile_judge,
     delivered_db,
     fixloop_flags_tail,
     fixloop_round,
     judge_res,
     l2_repair,
+    precheck_reject,
     probe_report,
+    reject_verdict,
 )
 from texlate.repair import (
     ENV_FIXLOOP_LLM,
-    ENV_NO_FIXLOOP,
     embed_tounicode_quiet,
     fixloop_cell_parts,
     log_text_of,
@@ -43,6 +45,8 @@ from texlate.repair_l2 import (
     ENV_NO_L2,
     L2_MAX_CHUNKS,
     TreeRun,
+    err_signatures,
+    err_signatures_text,
     retranslate_hits,
     split_cid,
 )
@@ -53,7 +57,8 @@ from texlate.server.upload import (
     pdf_pages,
 )
 from texlate.textutil import env_flag, env_str
-from texlate.validate.l0 import validate_pair
+from texlate.validate.l0 import pair_feedback
+from texlate.xlat.client import DEFAULT_MODEL
 from texlate.xlat.pipeline import (
     ChunkIn,
     PipelineConfig,
@@ -77,13 +82,13 @@ from ._common import (
     _tgt_lang,
     _translator_clients,
     chunk_db_id,
-    opt_bool,
 )
 from .share import (
     _share_sourced,
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
     from pathlib import Path
 
     from texlate.compile.engine import (
@@ -194,7 +199,7 @@ class _Compile:
         # 终态已按 xelatex 复判取优——策略拒绝让位给实际产物判定。
         verdict = str((ctx.fixloop or {}).get("verdict") or "")
         cross_adopted = bool((ctx.fixloop or {}).get("cross_engine", {}).get("adopted"))
-        if verdict.startswith("reject:") and not cross_adopted:
+        if reject_verdict(verdict) and not cross_adopted:
             await self._to_thread(ctx, self._build_md_zip)
             detail: dict[str, Any] = {}
             if ctx.precheck:
@@ -474,7 +479,12 @@ class _Compile:
             self._log(ctx, f"probe diff crashed: {type(e).__name__}: {e}")
 
     def _compile_en(self, ctx: TaskCtx) -> None:
-        """en.pdf：base/ 拷贝编译；失败只记 warning（不阻塞译文链）。"""
+        """en.pdf：base/ 拷贝编译 + fixloop 基建救援；失败只记 warning（不阻塞译文链）。
+
+        原文无译文伤——L2 不归此臂；不出 pdf 时 fixloop 修基建（缺包/字体/
+        工具链）再登记。修复只动 ``build-en`` 一次性树，不回灌 ``base/``
+        （``base`` 是 zh 重建与 fixloop baseline 的 pristine 源）。
+        """
         self._abort_if_cancelled(ctx)
         if self._has_pdf(ctx, "en_pdf"):
             return
@@ -483,7 +493,8 @@ class _Compile:
             shutil.rmtree(work)
         shutil.copytree(ctx.base_dir, work)
         rep = self._probe_target(ctx, work)
-        res = self._engine(ctx).compile(
+        eng = self._engine(ctx)
+        res = eng.compile(
             work,
             ctx.main_rel,
             timeout=self._compile_timeout,
@@ -494,6 +505,18 @@ class _Compile:
         # eng.compile 是原子段（无插桩点）——跑完即收敛，后续 diff/登记是白费
         self._abort_if_cancelled(ctx)
         self._probe_diff(ctx, rep, res)
+        # en 首编错误签名快照 → zh L2 归因基线：源生错签名不归 chunk
+        # （fixloop_en 前置取——救回前全量；救回修复的源生错 zh 侧同样
+        # 修得动，留在基线里不会误豁免译文伤）
+        ctx.en_err_sigs = err_signatures(res)
+        if not res.has_pdf and self._fixloop_enabled(ctx):
+            res = self._fixloop_en(
+                ctx,
+                work,
+                eng,
+                res,
+                probe_flags=[str(f) for f in (rep.flags if rep else [])],
+            )
         if res.has_pdf and res.pdf is not None:
             shutil.copyfile(res.pdf, ctx.root / "en.pdf")
             self._register(ctx, "en_pdf", "en.pdf")
@@ -519,13 +542,10 @@ class _Compile:
         """Fixloop 开关：``options.fixloop`` 显式 > ``TEXLATE_NO_FIXLOOP``（默认开）。
 
         与 ``_l2_enabled``/``_env_judge_enabled``/e2e 同序——显式参数优先；
-        曾 env 胜 options（相反序），同侧两开关不一致已统一。
+        曾 env 胜 options（相反序），同侧两开关不一致已统一。决议本体在
+        ``pipecore.RepairPolicy``（e2e/worker policy 单源）。
         """
-        return opt_bool(
-            ctx.options(),
-            "fixloop",
-            lambda: not env_flag(ENV_NO_FIXLOOP, default=False),
-        )
+        return RepairPolicy.resolve(ctx.options()).fixloop
 
     def _fixloop_engine(self, ctx: TaskCtx, eng: Engine) -> Engine:
         """Fixloop 轮内用引擎：xelatex 独立构造 ``halt_on_error=True``（e2e 权威口径）。
@@ -567,10 +587,82 @@ class _Compile:
         输入层文件回灌 ``zh/`` 并重打 zh-src.zip——让用户拿到的源码树真能
         编译。返回末次 ``CompRes``（fixloop 崩溃/未编译则原样回传）。
         """
+        res, summary, rescued = self._fixloop_pass(
+            ctx,
+            work,
+            eng,
+            first,
+            cond="zh",
+            expect_cjk=ctx.expect_cjk,
+            probe_flags=ctx.probe_flags,
+        )
+        if summary is not None:
+            ctx.fixloop = _scrub_deep(summary, ctx.secrets.api_key)
+        if rescued:
+            n = _sync_fixed_sources(work, ctx.zh_dir)
+            if n:
+                self._log(ctx, f"fixloop: {n} 个修复文件回灌 zh/，重打 zh-src.zip")
+                self._zip_zh(ctx)
+        return res
+
+    def _fixloop_en(
+        self,
+        ctx: TaskCtx,
+        work: Path,
+        eng: Engine,
+        first: CompRes,
+        *,
+        probe_flags: list[str],
+    ) -> CompRes:
+        """原文侧基建救援：同一 fixloop 引擎（cases 记 ``cond="en"``），不回灌 base。
+
+        摘要只记一行任务日志——``ctx.fixloop`` 是 zh 归账位（partial 判据
+        面），en 侧失败本来就只走 warning，不另建持久键。
+        """
+        res, summary, _rescued = self._fixloop_pass(
+            ctx,
+            work,
+            eng,
+            first,
+            cond="en",
+            expect_cjk=False,
+            probe_flags=probe_flags,
+        )
+        if summary is not None:
+            self._log(
+                ctx,
+                f"fixloop(en): verdict={summary.get('verdict')}"
+                f" installed={summary.get('installed')}",
+            )
+        return res
+
+    def _fixloop_pass(  # noqa: PLR0913 -- 开关面穿透两臂同一契约
+        self,
+        ctx: TaskCtx,
+        work: Path,
+        eng: Engine,
+        first: CompRes,
+        *,
+        cond: str,
+        expect_cjk: bool,
+        probe_flags: Iterable[str],
+    ) -> tuple[CompRes, dict[str, Any] | None, bool]:
+        """Fixloop 救援循环共享核 → ``(末次 CompRes, 摘要|None=崩溃, 救回标记)``。
+
+        zh/en 两臂同一引擎/实况面/cases 沉淀；``cond`` 只标 cases 来源，
+        ``expect_cjk`` 供 flags_tail 跨引擎复判（en 恒 False——原文编译
+        不受 CJK 判据约束）。摘要归账（``ctx.fixloop``）与源码回灌是
+        调用方决策，不进共享核。
+        """
         hook, hook_usage, hook_clients = self._llm_hook_pack(ctx)
+
+        def _evt(t: str, p: dict[str, Any]) -> None:
+            # en/zh 两臂同走 fixloop 事件型——cond 入帧供消费侧分辨来源
+            self._repair_event(ctx, t, {**p, "cond": cond} if t == "fixloop" else p)
+
         sink = _Sink(
             lambda m: self._log(ctx, m),
-            lambda t, p: self._repair_event(ctx, t, p),
+            _evt,
         )
         try:
             self._abort_if_cancelled(ctx)
@@ -587,7 +679,7 @@ class _Compile:
                 should_cancel=ctx.cancel_flag.is_set,
                 sink=sink,
                 corpus_id=ctx.task_id,
-                cond="zh",
+                cond=cond,
                 case_sink=CaseSink(self.data_dir / "fixloop-cases.jsonl"),
             )
         except Exception as e:  # noqa: BLE001 -- fixloop 崩不拖垮编译段
@@ -597,11 +689,12 @@ class _Compile:
                 "fixloop",
                 {
                     "phase": "done",
+                    "cond": cond,
                     "crashed": True,
                     "message": f"{type(e).__name__}: {e}",
                 },
             )
-            return first
+            return first, None, False
         finally:
             self._teardown_llm_hook(ctx, hook_usage, hook_clients)
         # fixloop 轮间无插桩（repair 属主面外）——出环即收敛
@@ -620,12 +713,12 @@ class _Compile:
             cell,
             engine_name=ctx.engine_name,
             route_engines=[str(e) for e in ctx.options().get("route_engines") or []],
-            status_of=lambda: judge_res(res, expect_cjk=ctx.expect_cjk).status,
+            status_of=lambda: judge_res(res, expect_cjk=expect_cjk).status,
             work=work,
             main_rel=ctx.main_rel,
             timeout=self._compile_timeout,
-            probe_flags=ctx.probe_flags,
-            expect_cjk=ctx.expect_cjk,
+            probe_flags=probe_flags,
+            expect_cjk=expect_cjk,
             # halt_on_error=False：与主编译/salvage 同口径 best-effort——
             # retry 是交付路径终末重编（非轮内分类编译），nonstopmode
             # 续跑才能把 incumbent=fail 的树救成 partial（裁决见
@@ -644,13 +737,7 @@ class _Compile:
             adopted_cross = True
         if note is not None:
             self._log(ctx, f"fixloop: {note}")
-        ctx.fixloop = _scrub_deep(summary, ctx.secrets.api_key)
-        if cell.get("final_pdf") or adopted_cross:
-            n = _sync_fixed_sources(work, ctx.zh_dir)
-            if n:
-                self._log(ctx, f"fixloop: {n} 个修复文件回灌 zh/，重打 zh-src.zip")
-                self._zip_zh(ctx)
-        return res
+        return res, summary, bool(cell.get("final_pdf")) or adopted_cross
 
     def _l2_enabled(self, ctx: TaskCtx) -> bool:
         """L2 回灌开关：``options.l2`` 显式优先，缺省读 ``TEXLATE_NO_L2``（默认开）。
@@ -660,9 +747,7 @@ class _Compile:
         """
         if _share_sourced(ctx):
             return False
-        return opt_bool(
-            ctx.options(), "l2", lambda: not env_flag(ENV_NO_L2, default=False)
-        )
+        return RepairPolicy.resolve(ctx.options()).l2
 
     def _llm_hook_pack(
         self, ctx: TaskCtx
@@ -698,7 +783,7 @@ class _Compile:
                 self._log(ctx, "llm_hook: 无 BYOK api_key——跳过 escalate_llm")
             return None, None, []
         usage, sink = _new_usage_meter()
-        model = ctx.secrets.model or "swe-2-medium"
+        model = ctx.secrets.model or DEFAULT_MODEL
         tr = self._resolve_translator(ctx, sink=sink, retry=False)
         return make_llm_hook(translator=tr, model=model), usage, []
 
@@ -758,7 +843,7 @@ class _Compile:
                 ctx,
                 placeholders=ctx.memo["doc_ph"],
             ),
-            validator=lambda s, z: validate_pair(s, z).feedback(),
+            validator=pair_feedback,
         )
         # 旁路 pipe 不经 run()——_doc_glossary 恒 {}，L2 重译 prompt 会
         # 丢术语块，须显式物化一次。不挂主链 SegmentCache：带
@@ -772,6 +857,25 @@ class _Compile:
             pipe=pipe,
         )
         return run, db_of
+
+    def _en_err_sigs(self, ctx: TaskCtx) -> set[str]:
+        """基线错误签名集（en 侧）——``_compile_en`` 已快照则直取，否则回扫 ``build-en`` 残存 .log。
+
+        resume/dedup 路径 en 不重编但签名仍要。
+        """
+        if ctx.en_err_sigs:
+            return ctx.en_err_sigs
+        work = ctx.root / "build-en"
+        if work.is_dir():
+            for lf in sorted(work.rglob("*.log")):
+                try:
+                    text = lf.read_text(errors="replace")
+                except OSError:
+                    continue
+                ctx.en_err_sigs = err_signatures_text(text, project_root=work)
+                if ctx.en_err_sigs:
+                    break
+        return ctx.en_err_sigs
 
     def _l2_repair_zh(
         self, ctx: TaskCtx, work: Path, eng: Engine, res: CompRes
@@ -837,6 +941,7 @@ class _Compile:
                     lambda m: self._log(ctx, m),
                     lambda t, p: self._repair_event(ctx, t, p),
                 ),
+                baseline_sigs=self._en_err_sigs(ctx),
             )
         finally:
             # L2 重译也烧 token——不入账就从 task_usage 里蒸发
@@ -970,7 +1075,7 @@ class _Compile:
             self._log(ctx, f"precheck advisory: {a}")
         if pre.get("installed"):
             self._log(ctx, f"precheck installed: {pre['installed']}")
-        if str(pre.get("verdict") or "").startswith("reject:"):
+        if reject_verdict(pre.get("verdict")):
             return res, v
         flags = [str(f) for f in pre.get("engine_flags") or []]
         if not (pre.get("installed") or flags):
@@ -1074,9 +1179,7 @@ class _Compile:
         if v.status != "clean" and self._fixloop_enabled(ctx):
             res, v = self._precheck_attempt(ctx, work, eng, res, v)
             self._abort_if_cancelled(ctx)
-        pre_reject = str((ctx.precheck or {}).get("verdict") or "").startswith(
-            "reject:"
-        )
+        pre_reject = precheck_reject(ctx.precheck)
         if v.status != "clean" and not pre_reject:
             res, v = self._l2_attempt(ctx, work, eng, res, v)
             self._abort_if_cancelled(ctx)

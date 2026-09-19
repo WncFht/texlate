@@ -293,6 +293,7 @@ class TestWorkerFixloopFrames:
         assert fix_evs == [
             {
                 "phase": "done",
+                "cond": "zh",
                 "crashed": True,
                 "message": "RuntimeError: fixloop exploded",
             }
