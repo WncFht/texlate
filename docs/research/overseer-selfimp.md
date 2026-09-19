@@ -1701,3 +1701,4 @@
 - 关 failmine4（buckets.json 已收割）；singles4 ping 终判（coverage.json 在手 40m 未报）。
 - **dispatch ×2 → roster 10**：vboxcheck（sentry:vbox_flood 零记录——死臂/不可达门/正确静默三判）+ refclean（hintord 旗的 ~1241 clean-verdict unresolved-refs 普查——doc-native vs transient 分桶，喂 warn-verdict 裁决）。
 - **门**：HEAD=d4886a16；ruleset 174；clean%/sabotage 待 flipcheck-12（mutex：mathbd/extless/drvstage impl 在飞）。
+- **singles4 终判交付后收**（tick 内追记）：13 格分诊——covered 3（1706.00066 → wave-13 replay-confirm；1706.02744 = cs_targeted_fix 未发的 dispatch-gap）、truly-uncovered 6 单 → **csfix8 bundle impl 派出**（@nil ctex zihao=false opt strip / bar·inputencoding·\red cs_table / cref@section aux-purge cleveref 门 / \+ gobble-或-decline）；needs-census 2401.01624 `\I` splice 侧先查入队；2105.03751 已裁决（ctrerr 单格 redlines 行已落）；decline quant-ph/0307189（normalize confusables 层）；queue-B ~15 无新臂。roster 仍 10。
