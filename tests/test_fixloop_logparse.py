@@ -233,11 +233,74 @@ def test_warn_patterns_scanned() -> None:
             None,
         ),
         ("! Missing $ inserted.", "syntax", None),
+        # 2026-09-19 colorquote: 真实发射是 `` `X' `` 引法 + 三发行方
+        # (ledger 实证; 原直引 pattern 零命中 ~44 cells 落 other)。
+        (
+            "! Package xcolor Error: Undefined color `MAROON'.",
+            "undefined_color",
+            "MAROON",
+        ),
+        (
+            "! LaTeX Error: Undefined color `mygray'.",
+            "undefined_color",
+            "mygray",
+        ),
+        (
+            "! Package color Error: Undefined color `White'.",
+            "undefined_color",
+            "White",
+        ),
+        # 直引形兼容收 (ledger 未见真实发射, 防回归)
+        (
+            "! Package xcolor Error: Undefined color 'red'.",
+            "undefined_color",
+            "red",
+        ),
+        # "Undefined color model `X'" 是另一错误 (模型名非色名),
+        # fallback 注 \\definecolor 修不了 → 不落 undefined_color。
+        (
+            "! Package xcolor Error: Undefined color model `cmyk7'.",
+            "other",
+            None,
+        ),
+        (
+            "! LaTeX Error: Undefined color model `这是译文'.",
+            "other",
+            None,
+        ),
         ("! Something utterly bizarre", "other", None),
     ],
 )
 def test_head_categories(log: str, cat: str, pay: str | None) -> None:
     assert classify(log) == (cat, pay)
+
+
+def test_undefined_color_backtick_reaches_fallback_rule(tmp_path: Path) -> None:
+    r"""端到端路由钉: ``Undefined color `X'`` → undefined_color|X 后,
+
+    ``undefined_color_fallback`` (75-syntax:166) 的 when
+    (category+payload_required) 通过 —— 扩收前该签落 other 无 payload,
+    规则不可达 (firezero ~44 cells)。"""
+    log = "! Package xcolor Error: Undefined color `MAROON'."
+    cat, pay = classify(log)
+    assert (cat, pay) == ("undefined_color", "MAROON")
+    rule = next(r for r in _rs().rules if r.id == "undefined_color_fallback")
+    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel="main.tex")
+    ctx.err_head = log
+    assert _when_ok(rule.when, cat, pay, ctx)
+
+
+def test_undefined_color_kernel_issuer_reaches_fallback_rule(
+    tmp_path: Path,
+) -> None:
+    r"""内核发行方同钉: ``LaTeX Error: Undefined color `X'`` 同样可达。"""
+    log = "! LaTeX Error: Undefined color `mygray'."
+    cat, pay = classify(log)
+    assert (cat, pay) == ("undefined_color", "mygray")
+    rule = next(r for r in _rs().rules if r.id == "undefined_color_fallback")
+    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel="main.tex")
+    ctx.err_head = log
+    assert _when_ok(rule.when, cat, pay, ctx)
 
 
 def test_already_def_backtick_reaches_undefine_rule(tmp_path: Path) -> None:

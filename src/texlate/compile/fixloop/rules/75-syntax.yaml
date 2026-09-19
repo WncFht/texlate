@@ -584,7 +584,7 @@ rules:
     provenance:
       - {
           corpus: "2501.14787 (repro-2501-2026-09-16)",
-          error: "Package xcolor Error: Undefined color '这是译文' ×4",
+          error: "Package xcolor Error: Undefined color `这是译文' ×4",
         }
     stats: { fires: 0, status: proposed }
     source_ref: "repro-2501-2026-09-16/README.md 缺陷B; 1e cross-session handoff"

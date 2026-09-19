@@ -276,11 +276,15 @@ taxonomy:
     }
   # 2026-09-16 repro-2501 缺陷B: 色名参槽被译文/mock 污染 ({blue}→'这是译文')
   # → (x)color Undefined color; payload=色名, 供 undefined_color_fallback 兜底。
+  # 2026-09-19 colorquote: 真实发射是 TeX 引法 `X' (ledger 实证 xcolor/color/
+  # 内核 LaTeX Error 三发行方; 直引形仅兼容收) —— 原直引 pattern 零命中 ~44
+  # cells 落 other。"Undefined color model `X'" 是另一错误 (模型名非色名),
+  # color 后随 m 不中引号类 → 天然排除。
   - {
       id: undefined_color,
       scope: head,
       payload_group: 1,
-      pattern: "Package (?:x)?color Error: Undefined color '([^']+)'",
+      pattern: "(?:Package (?:x)?color|LaTeX) Error: Undefined color [`']([^']+)'",
     }
   # 2026-09-17 fixer-acro-v3: l3keys "key unknown" 行 (acro v3 弃键等)
   # 此前无 head 签命中 → 落 tail early_eof 误判。payload=键名 (acro/X 形)。
