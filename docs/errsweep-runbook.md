@@ -75,7 +75,7 @@ soak：`triage.py records` 出 tickets 榜 + `load_cases+triage` 出 case 队列
 
 ## 运维（人类侧）
 
-- 凭证：`~/.config/texlate/errsweep.env`（0600，gitignore 外）——`ANTHROPIC_BASE_URL=http://127.0.0.1:3033` + `ANTHROPIC_AUTH_TOKEN` + `ANTHROPIC_MODEL=swe-2-max`（2026-09-19 裁决）+ `ANTHROPIC_SMALL_FAST_MODEL=swe-2-medium`。systemd 干净环境不继承会话 env，launcher 显式 source；换模型改这里。
+- 凭证：`~/.config/texlate/errsweep.env`（0600，gitignore 外）——`ANTHROPIC_BASE_URL=http://127.0.0.1:3033` + `ANTHROPIC_AUTH_TOKEN` + `ANTHROPIC_MODEL=claude-opus-4-6`（2026-09-19 裁决：与会话同款，不换 swe-2）。systemd 干净环境不继承会话 env，launcher 显式 source；换模型改这里。
 - 装 timer：`systemctl --user link ~/src/texlate/scripts/systemd/texlate-errsweep.service ~/src/texlate/scripts/systemd/texlate-errsweep.timer && systemctl --user daemon-reload && systemctl --user enable --now texlate-errsweep.timer`
 - 手动跑一次：`scripts/errsweep.sh`（flock 单实例；日志 `~/.local/state/texlate/errsweep-<date>.log`）
 - 审修复：`git log errsweep/<date>` + 报告 → merge/cherry-pick → `git worktree remove ~/.local/state/texlate/errsweep-wt-<date>` + `git branch -d errsweep/<date>`
