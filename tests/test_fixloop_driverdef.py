@@ -474,18 +474,14 @@ def test_iftexguard_rule_registered() -> None:
 def test_iftexguard_cond_passes_aaai_sty(tmp_path: Path) -> None:
     """aaai2027.sty 形: \\RequirePDFTeX 在 .sty → 闸放行。"""
     (tmp_path / "main.tex").write_text("\\documentclass{article}\n")
-    (tmp_path / "aaai2027.sty").write_text(
-        "\\RequirePackage{iftex}\n\\RequirePDFTeX\n"
-    )
+    (tmp_path / "aaai2027.sty").write_text("\\RequirePackage{iftex}\n\\RequirePDFTeX\n")
     ok, why = _guard_cond(tmp_path)
     assert ok, why
 
 
 def test_iftexguard_cond_passes_tex_site(tmp_path: Path) -> None:
     """主文件内 \\RequireLuaTeX 变体同放行 (族级词形)。"""
-    (tmp_path / "main.tex").write_text(
-        "\\documentclass{article}\n\\RequireLuaTeX\n"
-    )
+    (tmp_path / "main.tex").write_text("\\documentclass{article}\n\\RequireLuaTeX\n")
     ok, why = _guard_cond(tmp_path)
     assert ok, why
 
@@ -529,9 +525,7 @@ def test_iftexguard_apply_family_members(tmp_path: Path) -> None:
 
 def test_iftexguard_apply_passing_guard_same_semantics(tmp_path: Path) -> None:
     """\\RequireXeTeX/\\RequireTUTeX (xelatex 下本通过) 换 \\relax 语义恒等。"""
-    (tmp_path / "main.tex").write_text(
-        "\\documentclass{article}\n\\RequireXeTeX\n"
-    )
+    (tmp_path / "main.tex").write_text("\\documentclass{article}\n\\RequireXeTeX\n")
     ok, _ = _guard_apply(tmp_path)
     assert ok
     assert "\\relax" in (tmp_path / "main.tex").read_text()
@@ -555,3 +549,45 @@ def test_iftexguard_apply_inline_midline(tmp_path: Path) -> None:
     assert ok
     t = (tmp_path / "main.tex").read_text()
     assert "\\RequirePackage{iftex}\\relax\\relax" in t
+
+
+def test_iftexguard_apply_skips_def_target_sites(tmp_path: Path) -> None:
+    """def-target 位豁免: \\def\\RequirePDFTeX 不换 —— 置换会成 \\def\\relax 灾。"""
+    (tmp_path / "aaai2027.sty").write_text(
+        "\\RequirePackage{iftex}\n"
+        "\\def\\RequirePDFTeX{\\errmessage{need pdftex}\\endinput}\n"
+        "\\newcommand{\\RequireLuaTeX}{\\errmessage{need luatex}}\n"
+        "\\let\\RequireVTeX\\relax\n"
+    )
+    ok, note = _guard_apply(tmp_path)
+    assert not ok, note
+    t = (tmp_path / "aaai2027.sty").read_text()
+    assert "\\def\\RequirePDFTeX{" in t
+    assert "\\newcommand{\\RequireLuaTeX}" in t
+    assert "\\let\\RequireVTeX\\relax" in t
+
+
+def test_iftexguard_apply_def_body_use_site_neutralized(tmp_path: Path) -> None:
+    """def 体内裹站仍是 use 站: \\def\\myguard{\\RequirePDFTeX} → \\relax。"""
+    (tmp_path / "aaai2027.sty").write_text(
+        "\\RequirePackage{iftex}\n\\def\\myguard{\\RequirePDFTeX}\n"
+    )
+    ok, note = _guard_apply(tmp_path)
+    assert ok, note
+    t = (tmp_path / "aaai2027.sty").read_text()
+    assert "\\def\\myguard{\\relax}" in t
+    assert "\\RequirePDFTeX" not in t
+
+
+def test_iftexguard_apply_non_tex_suffix_family(tmp_path: Path) -> None:
+    """非 TeX 尾闸名: pTeXng/HINT/Prote 同中和。"""
+    guards = ("pTeXng", "HINT", "Prote")
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n" + "".join(f"\\Require{g}\n" for g in guards)
+    )
+    ok, _ = _guard_apply(tmp_path)
+    assert ok
+    t = (tmp_path / "main.tex").read_text()
+    for g in guards:
+        assert f"Require{g}" not in t
+    assert t.count("\\relax") == len(guards)
