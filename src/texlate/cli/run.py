@@ -206,6 +206,7 @@ def run(  # noqa: C901, PLR0913 -- CLI 选项面即参数面 + 本地/瘦客户�
         verdict = _cli.mock_pipeline_run(
             work, engine, timeout, front_matter=fm, sink=sink
         )
+        sink.event("verdict", verdict)
         typer.echo(json.dumps(verdict, ensure_ascii=False, indent=2))
         final = verdict.get("status")
         if verdict.get("reject_at"):

@@ -15,6 +15,7 @@ Console 抢同一 stderr 的 Live 刷新区会错乱。Console 不绑文件对�
 from __future__ import annotations
 
 import logging
+import re
 from collections import Counter
 from typing import TYPE_CHECKING, Any
 
@@ -29,6 +30,8 @@ from rich.progress import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from rich.progress import TaskID
 
 log = logging.getLogger(__name__)
@@ -57,6 +60,52 @@ _STAGE_LABELS = {
 def status(msg: str) -> None:
     """一行 ``→ msg`` 阶段提示（tty cyan，非 tty 纯文本）。"""
     console.print(f"→ {msg}", style="cyan")
+
+
+#: fixloop cell ``log`` 重放行里的逐规则/清扫噪音——逐条 ``cond skip``、
+#: 引擎不适用行、轮次小结（已由紧凑 round 帧渲染）与 aux-sweep 清扫账。
+#: 动作叙事行（``apply``/``warn-preempt``/``landing sync``/``wire`` 等）不在此列。
+_TRACE_NOISE_RE = re.compile(
+    r"cond skip|: skip \(|escalate skip|: (?:skip|unsupported) on "
+    r"|fixloop: r\d+:|aux-sweep"
+)
+
+
+def log_line_filtered(msg: str) -> bool:
+    """``log()`` 自由行是否该在终端隐去——噪音形状且 ``texlate`` logger 未到 DEBUG。
+
+    全量 trace 不失：``-vv``/``TEXLATE_LOG=debug`` 放行全部行；server 侧
+    任务日志抽屉/落盘文件本就收全量（过滤只是 CLI 呈现层的事）。
+    """
+    return not log.isEnabledFor(logging.DEBUG) and bool(_TRACE_NOISE_RE.search(msg))
+
+
+def fixloop_round_line(r: Mapping[str, Any]) -> str:
+    """单轮 dict → 紧凑一行 ``fixloop r1 missing_file:plex-sans.sty err=68 (15.7s)``。"""
+    bits = [f"fixloop r{r.get('round', '?')}"]
+    if r.get("salvage"):
+        bits.append("salvage")
+    cat, pay = r.get("category"), r.get("payload")
+    if cat:
+        bits.append(f"{cat}:{pay}" if pay else str(cat))
+    if r.get("n_errors") is not None:
+        bits.append(f"err={r['n_errors']}")
+    stack = r.get("file_stack") or []
+    if stack:
+        loc = str(stack[-1]).rsplit("/", 1)[-1]
+        bits.append(f"at={loc}:{r['line_no']}" if r.get("line_no") else f"at={loc}")
+    warns = [str(w) for w in (r.get("warnings") or []) if w]
+    if warns:
+        bits.append("warn=" + ",".join(warns))
+    if not r.get("pdf"):
+        bits.append("nopdf")
+    if r.get("died"):
+        bits.append("died")
+    if r.get("driver_fatal"):
+        bits.append(f"fatal:{r['driver_fatal']}")
+    if r.get("sec") is not None:
+        bits.append(f"({r['sec']}s)")
+    return " ".join(bits)
 
 
 def make_translate_progress() -> Progress:
@@ -92,7 +141,9 @@ class CliSink:
     # ---------------------------------------------------------------- 协议面
 
     def log(self, msg: str) -> None:
-        """自由日志行 → dim（fixloop 轮内消息等）。"""
+        """自由日志行 → dim（fixloop 轮内消息等）；trace 噪音行 DEBUG 级才放行。"""
+        if log_line_filtered(msg):
+            return
         console.print(msg, style="dim", highlight=False)
 
     def event(self, etype: str, payload: dict[str, Any]) -> None:
@@ -105,6 +156,8 @@ class CliSink:
             self._on_l2(payload)
         elif etype == "fixloop":
             self._on_fixloop(payload)
+        elif etype == "verdict":
+            self._on_verdict(payload)
         else:
             console.print(f"· {etype} {payload}", style="dim", highlight=False)
 
@@ -171,7 +224,27 @@ class CliSink:
     def _on_fixloop(self, p: dict[str, Any]) -> None:
         phase = p.get("phase")
         if phase == "round":
-            status(f"fixloop round {p.get('round')}")
+            r = p.get("round")
+            status(
+                fixloop_round_line(r) if isinstance(r, dict) else f"fixloop round {r}"
+            )
         elif phase == "done":
             cell = p.get("cell") or {}
-            status(f"fixloop done verdict={cell.get('verdict') or '—'}")
+            n = len(cell.get("rounds") or [])
+            status(f"fixloop done verdict={cell.get('verdict') or '—'} rounds={n}")
+
+    def _on_verdict(self, p: dict[str, Any]) -> None:
+        """终态 verdict dict → 一行收官摘要（JSON 报告前的可读句读）。"""
+        bits = [f"done {p.get('status') or '—'}"]
+        if p.get("reject_at"):
+            bits.append(f"reject@{p['reject_at']}")
+        v = p.get("verdict") or {}
+        if isinstance(v, dict):
+            if v.get("category"):
+                cat = str(v["category"])
+                bits.append(f"{cat}:{v['payload']}" if v.get("payload") else cat)
+            if v.get("n_errors"):
+                bits.append(f"errors={v['n_errors']}")
+            if v.get("missing_chars"):
+                bits.append(f"missing={v['missing_chars']}")
+        status(" ".join(bits))

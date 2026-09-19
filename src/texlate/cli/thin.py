@@ -15,7 +15,13 @@ import typer
 
 from texlate.arxiv.fetch import normalize_arxiv_id, valid_id
 from texlate.cli._common import _is_dir
-from texlate.cli._output import console, make_translate_progress, status
+from texlate.cli._output import (
+    console,
+    fixloop_round_line,
+    log_line_filtered,
+    make_translate_progress,
+    status,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -324,7 +330,9 @@ class _SseFollow:
         elif event == "chunk":
             self._on_chunk(payload)
         elif event == "log":
-            console.print(str(payload.get("line") or ""), style="dim", highlight=False)
+            line = str(payload.get("line") or "")
+            if not log_line_filtered(line):
+                console.print(line, style="dim", highlight=False)
         elif event == "warning":
             console.print(
                 f"warning {payload.get('code') or ''}: {payload.get('message') or ''}",
@@ -394,10 +402,14 @@ class _SseFollow:
         """``fixloop`` round/done 帧 → 行（``CliSink._on_fixloop`` 同口径）。"""
         phase = p.get("phase")
         if phase == "round":
-            status(f"fixloop round {p.get('round')}")
+            r = p.get("round")
+            status(
+                fixloop_round_line(r) if isinstance(r, dict) else f"fixloop round {r}"
+            )
         elif phase == "done":
             cell = p.get("cell") or {}
-            status(f"fixloop done verdict={cell.get('verdict') or '—'}")
+            n = len(cell.get("rounds") or [])
+            status(f"fixloop done verdict={cell.get('verdict') or '—'} rounds={n}")
 
     def _on_resync(self) -> None:
         """``resync`` 缺口帧 → 拉新快照重置水位线渲染（best-effort，失败静默续流）。"""

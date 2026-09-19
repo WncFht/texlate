@@ -688,6 +688,59 @@ class TestThinRun:
         assert "chunks=" not in result.stderr  # 快照状态行全抑
         assert "回退快照轮询" not in result.stderr
 
+    def test_sse_fixloop_compact_round_and_log_filter(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """``fixloop`` round dict → 紧凑行；``log`` trace 噪音缺省滤、叙事行透传。"""
+        import logging  # noqa: PLC0415
+
+        from texlate.cli import _output  # noqa: PLC0415
+
+        monkeypatch.setattr(_output.log, "level", logging.WARNING)  # 钉缺省过滤态
+        _output.log.manager._clear_cache()  # noqa: SLF001 -- isEnabledFor 有缓存
+        frames = [
+            (
+                1,
+                "fixloop",
+                {
+                    "phase": "round",
+                    "round": {
+                        "round": 1,
+                        "pdf": True,
+                        "n_errors": 68,
+                        "category": "missing_file",
+                        "payload": "plex-sans.sty",
+                        "warnings": ["missing_char"],
+                        "line_no": 94,
+                        "file_stack": ["main.tex", "phai.cls"],
+                        "sec": 15.7,
+                    },
+                },
+            ),
+            (2, "log", {"line": "fixloop: rule x: cond skip (y)"}),
+            (
+                3,
+                "log",
+                {"line": "fixloop: apply install_file: already-present a.sty"},
+            ),
+            (
+                4,
+                "fixloop",
+                {"phase": "done", "cell": {"verdict": "dirty_pdf", "rounds": [{}]}},
+            ),
+            (5, "done", {"status": "done", "artifacts": {}, "stats": {}}),
+        ]
+        _patch_httpx(monkeypatch, self._sse_handler(frames))
+        result = self._invoke()
+        assert result.exit_code == 0, result.output
+        err = result.stderr
+        assert "fixloop r1 missing_file:plex-sans.sty err=68" in err
+        assert "at=phai.cls:94" in err
+        assert "'pdf_bytes'" not in err  # 整 dict repr 不再泄漏
+        assert "cond skip" not in err
+        assert "apply install_file" in err
+        assert "fixloop done verdict=dirty_pdf rounds=1" in err
+
 
 class TestWeb:
     """``web`` 命令：``configure_server_logging`` 接线——``<data_dir>/logs/`` 落盘。"""
