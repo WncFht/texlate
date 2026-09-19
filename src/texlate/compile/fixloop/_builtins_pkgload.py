@@ -112,8 +112,16 @@ _PHYS_INPUT_RE = re.compile(r"\\input\s*\{?\s*physics\.sty(?![\w.-])")
 _SHIP_STY_INPUT_RE = re.compile(
     r"\\input\s*\{?\s*[A-Za-z][A-Za-z0-9_./-]*\.sty(?![\w.-])"
 )
-#: ``\\makeatletter``/``\\makeatother`` 事件 —— 遮盖视图组作用域走查用。
-_MAKEAT_RE = re.compile(r"\\makeat(?:letter|other)(?![a-zA-Z])")
+#: ambient @ 事件 —— ``\\makeatletter``/``\\makeatother``/``\\catcode`@=N``/
+#: ``\\catcode 64=N``/``\\catcode"40=N``/``\\catcode'100=N`` + 本族 restore cs
+#: (``_SHIP_WRAP_*``/``_AT_LETTER_*`` 的复元符; 只裹非 letter 站 → 复元恒
+#: other)。遮盖视图组作用域走查用 —— ``_SHIP_WRAP_*`` 自注的
+#: ``\\catcode 64=11`` 事件使域内站点天然 at_letter 跳过 (幂等)。
+_AMBIENT_AT_RE = re.compile(
+    r"\\makeat(letter|other)(?![a-zA-Z])"
+    r"|\\catcode\s*(?:`@|64|\"40|'100)\s*=\s*(\d+)"
+    r"|\\TeXlate(?:At|StyIn)Restore(?![a-zA-Z])"
+)
 #: stub 内 ``\\ProvidesPackage{physics}`` —— ``\\input`` 路径下它仍置
 #: ``ver@physics.sty`` → siunitx 的 ``\\@ifpackageloaded{physics}`` 照中。
 _PHYS_PROVIDES_RE = re.compile(r"(\\Provides(?:Expl)?Package\s*\{)physics(\s*\})")
@@ -157,7 +165,7 @@ def _detach_physics_loads(
         if need:
             need = False
             input_line = (
-                "\\makeatletter\\input{physics.sty}\\makeatother"
+                _SHIP_WRAP_PRE + "\\input{physics.sty}" + _SHIP_WRAP_POST
                 if letter_wrap
                 else "\\input{physics.sty}"
             )
@@ -184,13 +192,24 @@ def _scope_step(vis: str, pos: int) -> tuple[int, str | None]:
     r"""单步组作用域事件 → ``(新 pos, open/close/letter/other/None)``。
 
     ``\\X`` 双字符跳过 (``\\{`` 等转义不计深度); ``\\makeatletter``/
-    ``\\makeatother`` 是 letter/other 事件, 余字符不算事件。
+    ``\\makeatother``/``\\catcode`@=N``/``\\catcode 64=N``/restore cs 是
+    letter/other 事件, 余字符不算事件。
     """
     c = vis[pos]
     if c == "\\":
-        mm = _MAKEAT_RE.match(vis, pos)
+        mm = _AMBIENT_AT_RE.match(vis, pos)
         if mm is not None:
-            return mm.end(), "letter" if mm.group(0) == "\\makeatletter" else "other"
+            ev = (
+                ("letter" if mm.group(1) == "letter" else "other")
+                if mm.group(1) is not None
+                else (
+                    ("letter" if mm.group(2) == "11" else "other")
+                    if mm.group(2) is not None
+                    # 本族 restore cs —— 只裹非 letter 站, 复元恒 other
+                    else "other"
+                )
+            )
+            return mm.end(), ev
         return pos + 2, None
     if c == "{":
         return pos + 1, "open"
@@ -275,16 +294,17 @@ def _wrap_sites(
 
 
 def _wrap_phys_sty_inputs(t: str) -> tuple[str, int]:
-    r"""``\\input{physics.sty}`` 裸载点补 ``\\makeatletter`` 对 → (新文本, 包裹数)。
+    r"""``\\input{physics.sty}`` 裸载点补 @ 存复包裹 → (新文本, 包裹数)。
 
     doc-native ``\\input`` 不挂 @=letter: ``.tex`` 宿主 @ 是 catcode-12,
     stub 内 ``\\@undefined``/``\\@ifpackageloaded`` 族碎成 ``\\@``+裸字母
     → undefined_cs 级联 (``\\let\\Re\\@undefined`` 断签名)。只包
     ``_phys_sty_input_sites`` 里未处 ``\\makeatletter`` 组的站点 ——
-    ``\\makeatother`` 尾段会把外围 @ 强翻回 12, 已在 letter 区的站点不
-    重包, 宏体内站点 (延迟执行语境) 不动。包裹只罩 ``\\input`` 命令本体。
+    包裹用 ``_SHIP_WRAP_*`` exact-restore 形 (宿主直写 ``\\catcode`@=11``
+    绕过 ``\\makeatletter`` 时裸对尾段会强翻回 12, 存复形恒回原位),
+    宏体内站点 (延迟执行语境) 不动。包裹只罩 ``\\input`` 命令本体。
     """
-    return _wrap_sites(t, _phys_sty_input_sites(t), "\\makeatletter", "\\makeatother")
+    return _wrap_sites(t, _phys_sty_input_sites(t), _SHIP_WRAP_PRE, _SHIP_WRAP_POST)
 
 
 #: shipwrap 存复包裹对 —— ``vendor/stubs/svglov3.clo`` 同款 exact-restore

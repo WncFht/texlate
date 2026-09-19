@@ -13,6 +13,8 @@ from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any
 
 from texlate.compile.fixloop._builtins_common import (
+    _AT_LETTER_POST,
+    _AT_LETTER_PRE,
     _FB_FONT,
     _MATH_SHIM_CS,
     PDFTEX_PRIMS,
@@ -1047,7 +1049,9 @@ _REVTEX42_DOCCLASS_RE = re.compile(
 
 #: 注入面——与 90-shim-legacy.yaml ``shim_map.revtex.cls`` stub body 同义,
 #: 剥去 cls 装载件 (``\LoadClassWithOptions`` 已由升级稿 docclass 行完成),
-#: 补 ``\makeatletter`` 包装 (主文件语境 ``@`` 是 catcode-12, cls 内免费)。
+#: 补 exact-restore @=11 包装 (``_AT_LETTER_*``: ``\edef`` 存现值→=11 读
+#: →复元; @=letter 宿主恒等, 裸 ``\makeatletter`` 对会把 letter 宿主
+#: 尾段强翻回 12 —— 1803.02902 csfix 串实证)。
 #: ``\AtBeginDocument`` 参数内用单 ``#1``——hook 逐字存 token、
 #: ``\begin{document}`` 时才执行内层 ``\def``; ``##`` 只用于 def 嵌 def
 #: 的替换文本, 此处的 ``\def\pacs`` 不嵌在任何 def 里, 双写会字面留下
@@ -1055,8 +1059,8 @@ _REVTEX42_DOCCLASS_RE = re.compile(
 #: 两格实证, 2026-09-18)。
 _REVTEX209_POLYFILL = (
     "% fixloop: revtex 2.09 surface polyfill (upgraded doc on revtex4-2)\n"
-    "\\makeatletter\n"
-    "\\frontmatter@init\n"
+    + _AT_LETTER_PRE
+    + "\n\\frontmatter@init\n"
     "\\let\\frontmatter@init\\relax\n"
     "\\providecommand{\\twocolumn}[1][]{#1}\n"
     "\\@ifundefined{@makecol}"
@@ -1064,7 +1068,7 @@ _REVTEX209_POLYFILL = (
     # \long\def: \pacs 实参可含空行/\and (revpacs 残案 —— 非 \long 版
     # 撞 "Paragraph ended before \pacs"), 代价为零。
     "\\AtBeginDocument{\\long\\def\\pacs#1{\\par\\noindent\\textbf{PACS:} #1\\par}}\n"
-    "\\makeatother"
+    + _AT_LETTER_POST
 )
 
 

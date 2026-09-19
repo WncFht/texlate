@@ -23,9 +23,15 @@ from texlate.compile.fixloop._builtins_common import _fixloop_log
 #: 同 normalize._AUTOBIB_DISARM —— revtex 系 ``\bibliography`` 顺带解除
 #: end-doc ``\auto@bib`` 探测；裸 ``\input`` 改写必须补回，否则
 #: ``\test@bbl@sw`` 在 vbox 排印 cite key 必需组（_/&/$ → in-math 级联 +
-#: 三读重复书目）。``\@ifundefined`` 守卫使非 revtex 工程零操作。
+#: 三读重复书目）。``\ifcsname`` 守卫使非 revtex 工程零操作。
+#: csname 形零字面 ``@`` —— ``\bibliography`` 站可落在已 tokenize 的
+#: def 体内 (2105.11398 ``\newcommand{\showbib}`` 实证: 旧
+#: ``\makeatletter\@ifundefined`` 形在 @=12 预读体里成 ``\@``+裸字母
+#: → ``\showbib`` 调用点 vmode spacefactor 炸), csname 任意 catcode 同读。
 _AUTOBIB_DISARM = (
-    r"\makeatletter\@ifundefined{auto@bib}{}{\let\auto@bib\@empty}\makeatother"
+    r"\ifcsname auto@bib\endcsname"
+    r"\expandafter\let\csname auto@bib\expandafter\endcsname"
+    r"\csname @empty\endcsname\fi"
 )
 
 

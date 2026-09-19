@@ -205,11 +205,11 @@ rules:
             { polyfill: "\n\\providecommand{\\righthead}[1]{\\markboth{}{#1}}" }
           # epstopdf 包宏 (2104.00126) —— 稿依赖而 preamble 未装, 直接装包
           epstopdfDeclareGraphicsRule: { usepackage: epstopdf }
-          # 2.09 \eqnobysec (equation 按节重置) —— \@addtoreset 需
-          # makeatletter 包住定义时刻, 调用处 catcode 无关
+          # 2.09 \eqnobysec (equation 按节重置) —— \@addtoreset 走
+          # \csname 形零字面 @: 定义时刻/调用处 catcode 皆无关
           eqnobysec:
             {
-              polyfill: "\n\\makeatletter\\providecommand{\\eqnobysec}{\\@addtoreset{equation}{section}\\renewcommand{\\theequation}{\\thesection.\\arabic{equation}}}\\makeatother",
+              polyfill: "\n\\providecommand{\\eqnobysec}{\\csname @addtoreset\\endcsname{equation}{section}\\renewcommand{\\theequation}{\\thesection.\\arabic{equation}}}",
             }
           # \hboxto 作者笔误 (0707.4206 等 ~15 格): \hboxto5cm → \hbox to5cm
           hboxto: { cs_map: { hboxto: "hbox to" } }
@@ -454,12 +454,13 @@ rules:
           # \let\default@color\current@color 快照 → current@color 毒化成
           # undefined → \set@color/\@outputpage 级联。begindocument/before
           # 钩先于一切 begindocument 块 → 双名兜底 gray 0 (kernel
-          # normalcolor 缺省值); \ifx\csname X\endcsname\relax 形 =
-          # \@ifundefined 零@同义 (undefined 与 \relax 两态都兜底, 且
-          # csname 触碰产的 \relax 被紧接 \gdef 覆写无害)。
+          # normalcolor 缺省值)。守卫须 \expandafter\ifx\csname —
+          # \ifx 不展开操作数, 裸 \ifx\csname X\endcsname\relax 拿
+          # \csname 当名比恒假 (死码); expandafter 先产 \X 才 =
+          # \@ifundefined 零@同义 (undefined 与 \relax 两态都兜底)。
           current@color:
             {
-              polyfill: "\n\\AddToHook{begindocument/before}{\\ifx\\csname default@color\\endcsname\\relax\\expandafter\\gdef\\csname default@color\\endcsname{gray 0}\\fi\\ifx\\csname current@color\\endcsname\\relax\\expandafter\\gdef\\csname current@color\\endcsname{gray 0}\\fi}",
+              polyfill: "\n\\AddToHook{begindocument/before}{\\expandafter\\ifx\\csname default@color\\endcsname\\relax\\expandafter\\gdef\\csname default@color\\endcsname{gray 0}\\fi\\expandafter\\ifx\\csname current@color\\endcsname\\relax\\expandafter\\gdef\\csname current@color\\endcsname{gray 0}\\fi}",
             }
         # 表外 fallback (2026-09-16): glue 残骸前缀拆分 —— payload 未命中
         # cs_table 时, 若 cs = 已知粘连头 + 残余 (大写起首或 ≤4 字符) 则合成
@@ -621,7 +622,7 @@ rules:
         rewrites:
           - {
               pattern: "(\\\\begin\\{document\\})",
-              repl: "\\\\makeatletter\\\\ifdefined\\\\NAT@numberstrue\\\\NAT@numberstrue\\\\fi\\\\makeatother\n\\g<0>",
+              repl: "\\\\ifcsname NAT@numberstrue\\\\endcsname\\\\csname NAT@numberstrue\\\\endcsname\\\\fi\n\\g<0>",
               match_surface: masked,
             }
     risk: low
@@ -858,7 +859,7 @@ rules:
         rewrites:
           - {
               pattern: "(\\\\begin\\{document\\})",
-              repl: "\\g<0>\n\\\\makeatletter\\\\ifdefined\\\\ACM@origbaselinestretch\\\\let\\\\ACM@origbaselinestretch\\\\baselinestretch\\\\fi\\\\makeatother",
+              repl: "\\g<0>\n\\\\ifcsname ACM@origbaselinestretch\\\\endcsname\\\\expandafter\\\\let\\\\csname ACM@origbaselinestretch\\\\endcsname\\\\baselinestretch\\\\fi",
             }
     risk: low
     engines:

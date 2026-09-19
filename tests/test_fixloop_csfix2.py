@@ -96,7 +96,7 @@ def _read(tmp_path: Path, rel: str) -> str:
 
 
 def test_pkgloadsite_basic_prepend_before_usepackage(tmp_path: Path) -> None:
-    """肇事包 amssymb 的 ``\\usepackage`` 站前 ``\\makeatletter`` 包裹清位。"""
+    """肇事包 amssymb 的 ``\\usepackage`` 站前 csname 形清位 (免 makeatletter)。"""
     _proj(
         tmp_path,
         {
@@ -113,10 +113,13 @@ def test_pkgloadsite_basic_prepend_before_usepackage(tmp_path: Path) -> None:
     assert ok, note
     assert "pkg-load-site" in note
     text = _read(tmp_path, "main.tex")
-    ins = "\\makeatletter\\let\\Bbbk\\@undefined\\makeatother\n\\usepackage{amssymb}"
+    ins = (
+        "\\expandafter\\let\\csname Bbbk\\endcsname\\TeXlateUndefCs\n"
+        "\\usepackage{amssymb}"
+    )
     assert ins in text
-    # 装载点清位已覆盖 → docclass 块不再重发 (全件恰一处 \let)。
-    assert text.count("\\let\\Bbbk\\@undefined") == 1
+    # 装载点清位已覆盖 → docclass 块不再重发 (全件恰一处清位)。
+    assert text.count("\\csname Bbbk\\endcsname\\TeXlateUndefCs") == 1
     assert "% fixloop: batch undefine" not in text
     # 序: newtxmath (先定义者) < 清位 < amssymb (后定义者)。
     assert text.index("\\usepackage{newtxmath}") < text.index(ins)
@@ -139,7 +142,7 @@ def test_pkgloadsite_opts_and_comma_list(tmp_path: Path) -> None:
     assert ok
     text = _read(tmp_path, "main.tex")
     assert (
-        "\\makeatletter\\let\\Bbbk\\@undefined\\makeatother\n"
+        "\\expandafter\\let\\csname Bbbk\\endcsname\\TeXlateUndefCs\n"
         "\\usepackage[psamsfonts]{amssymb,amsfonts}" in text
     )
 
@@ -162,8 +165,8 @@ def test_pkgloadsite_requirepackage_and_dup_sites(tmp_path: Path) -> None:
     assert ok, note
     assert "2 usepackage site(s)" in note
     text = _read(tmp_path, "main.tex")
-    assert text.count("\\let\\Bbbk\\@undefined") == 2  # noqa: PLR2004 - dup 双站
-    assert text.count("\\makeatletter") == 2  # noqa: PLR2004 - 同上每站一对
+    assert text.count("\\csname Bbbk\\endcsname\\TeXlateUndefCs") == 2  # noqa: PLR2004 - dup 双站
+    assert "\\makeatletter" not in text  # csname 形全免 wrap
 
 
 def test_pkgloadsite_dead_site_falls_back_docclass(tmp_path: Path) -> None:
@@ -184,11 +187,13 @@ def test_pkgloadsite_dead_site_falls_back_docclass(tmp_path: Path) -> None:
     assert ok, note
     assert "pkg-load-site" not in note
     text = _read(tmp_path, "main.tex")
-    assert text.count("\\let\\Bbbk\\@undefined") == 1
+    assert text.count("\\csname Bbbk\\endcsname\\TeXlateUndefCs") == 1
     assert "% fixloop: batch undefine" in text
     # docclass 块在 docclass 后、无关 \usepackage 前不无谓前置。
-    assert text.index("\\let\\Bbbk\\@undefined") > text.index("\\documentclass")
-    assert text.index("\\let\\Bbbk\\@undefined") < text.index("\\usepackage{newtxmath}")
+    assert text.index("\\csname Bbbk\\endcsname") > text.index("\\documentclass")
+    assert text.index("\\csname Bbbk\\endcsname") < text.index(
+        "\\usepackage{newtxmath}"
+    )
 
 
 def test_pkgloadsite_no_user_site_docclass_fallback(tmp_path: Path) -> None:
@@ -208,12 +213,12 @@ def test_pkgloadsite_no_user_site_docclass_fallback(tmp_path: Path) -> None:
     assert ok, note
     assert "docclass block" in note
     text = _read(tmp_path, "main.tex")
-    assert text.count("\\let\\Bbbk\\@undefined") == 1
-    # 不往无关 \usepackage 前塞 no-op 清位。
-    assert (
-        "\\makeatletter\\let\\Bbbk\\@undefined\\makeatother\n\\usepackage{newtxmath}"
-        not in text
-    )
+    assert text.count("\\csname Bbbk\\endcsname\\TeXlateUndefCs") == 1
+    # 不往无关 \usepackage 前塞裸 no-op 清位 —— 唯一清位行在
+    # % fixloop: batch undefine 块内 (docclass 块兜底臂, 非 pkg-load-site 臂)。
+    assert "% fixloop: batch undefine" in text
+    clear_ln = next(ln for ln in text.splitlines() if "\\csname Bbbk\\endcsname" in ln)
+    assert "% fixloop: batch undefine" in text.split(clear_ln)[0].splitlines()[-1]
 
 
 def test_pkgloadsite_sty_file_bare_let(tmp_path: Path) -> None:
@@ -235,7 +240,10 @@ def test_pkgloadsite_sty_file_bare_let(tmp_path: Path) -> None:
     ok, _ = _UNDEF(_ctx(tmp_path), _EngStub(), "Bbbk", {})
     assert ok
     sty = _read(tmp_path, "mypkg.sty")
-    assert "\\let\\Bbbk\\@undefined\n\\RequirePackage{amssymb}" in sty
+    assert (
+        "\\expandafter\\let\\csname Bbbk\\endcsname\\TeXlateUndefCs\n"
+        "\\RequirePackage{amssymb}" in sty
+    )
     assert "\\makeatletter" not in sty
     # 主件只装 mypkg (非肇事茎) → 不动也无 docclass 块。
     main = _read(tmp_path, "main.tex")
@@ -267,7 +275,7 @@ def test_pkgloadsite_endstar_name_excluded(tmp_path: Path) -> None:
 
 
 def test_pkgloadsite_refire_idempotent(tmp_path: Path) -> None:
-    """二轮: 前缀窗见 ``\\let\\Bbbk\\@undefined`` → 跳过, docclass 块亦不重发。"""
+    """二轮: 前缀窗见 csname 清位串 → 跳过, docclass 块亦不重发。"""
     _proj(
         tmp_path,
         {
@@ -286,7 +294,10 @@ def test_pkgloadsite_refire_idempotent(tmp_path: Path) -> None:
     ok2, note2 = _UNDEF(ctx2, _EngStub(), "Bbbk", {})
     assert not ok2
     assert "already cleared" in note2
-    assert _read(tmp_path, "main.tex").count("\\let\\Bbbk\\@undefined") == 1
+    assert (
+        _read(tmp_path, "main.tex").count("\\csname Bbbk\\endcsname\\TeXlateUndefCs")
+        == 1
+    )
 
 
 def test_pkgloadsite_min_batch_gate(tmp_path: Path) -> None:
@@ -313,7 +324,10 @@ def test_pkgloadsite_min_batch_gate(tmp_path: Path) -> None:
     ok2, _ = _UNDEF(_ctx(tmp2), _EngStub(), "Bbbk", {"min_batch": 2})
     assert ok2
     text = _read(tmp2, "main.tex")
-    assert "\\let\\Bbbk\\@undefined\\let\\Foo\\@undefined" in text
+    assert (
+        "\\csname Bbbk\\endcsname\\TeXlateUndefCs"
+        "\\expandafter\\let\\csname Foo\\endcsname\\TeXlateUndefCs" in text
+    )
 
 
 def test_pkgloadsite_multi_err_stems_split(tmp_path: Path) -> None:
@@ -335,12 +349,12 @@ def test_pkgloadsite_multi_err_stems_split(tmp_path: Path) -> None:
     assert ok, note
     text = _read(tmp_path, "main.tex")
     assert (
-        "\\makeatletter\\let\\Bbbk\\@undefined\\makeatother\n\\usepackage{amssymb}"
-        in text
+        "\\expandafter\\let\\csname Bbbk\\endcsname\\TeXlateUndefCs\n"
+        "\\usepackage{amssymb}" in text
     )
     assert (
-        "\\makeatletter\\let\\mathscr\\@undefined\\makeatother\n\\usepackage{mathrsfs}"
-        in text
+        "\\expandafter\\let\\csname mathscr\\endcsname\\TeXlateUndefCs\n"
+        "\\usepackage{mathrsfs}" in text
     )
 
 

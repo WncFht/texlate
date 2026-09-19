@@ -388,7 +388,7 @@ rules:
         rewrites:
           - {
               pattern: "\\\\(?:usepackage|RequirePackage)(\\s*\\[[^\\]]*\\])?\\s*\\{ntheorem\\}",
-              repl: '\\makeatletter\\let\\th@{payload}\\@undefined\\makeatother\n\g<0>',
+              repl: '\\expandafter\\let\\csname th@{payload}\\endcsname\\TeXlateUndefCs\n\g<0>',
             }
     risk: medium # amsthm 的 th@X 样式被 ntheorem 定义覆盖 —— 作者装 ntheorem 即意图
     known_gap: "多包连环定义 th@X 时逐轮收敛; ntheorem 经 \\input 间接装载未锚"
@@ -792,7 +792,7 @@ rules:
         rewrites:
           - {
               pattern: "\\\\begin\\s*\\{document\\}",
-              repl: '\\makeatletter\n\\let\\TEXLATE@sv@mkpream\\@mkpream\n\\let\\TEXLATE@sv@insertcol\\insert@column\n\\AtBeginDocument{%\n\\let\\@mkpream\\TEXLATE@sv@mkpream\n\\let\\insert@column\\TEXLATE@sv@insertcol}%\n\\makeatother\n\g<0>',
+              repl: '\\expandafter\\let\\csname TEXLATE@sv@mkpream\\expandafter\\endcsname\\csname @mkpream\\endcsname\n\\expandafter\\let\\csname TEXLATE@sv@insertcol\\expandafter\\endcsname\\csname insert@column\\endcsname\n\\AtBeginDocument{%\n\\expandafter\\let\\csname @mkpream\\expandafter\\endcsname\\csname TEXLATE@sv@mkpream\\endcsname\n\\expandafter\\let\\csname insert@column\\expandafter\\endcsname\\csname TEXLATE@sv@insertcol\\endcsname}%\n\g<0>',
             }
     risk: low # 守卫幂等 no-op: array 未载/校验已通过时, 存回的就是当前值
     engines:
@@ -1285,6 +1285,44 @@ rules:
         }
     stats: { fires: 4, status: proposed }
     source_ref: "task #105; tmp/preamfix t2/t7/t8/t13 全链编译实证"
+
+  # ─── spacefactor lane (task #179, 2026-09-19): doc-latent @-def 包裹格 ───
+  # \@ = \spacefactor\@m 间距宏; @=12 下 \@cs 断名成 \@+裸字母 → 展开点
+  # \@ 执行 → "You can't use `\spacefactor' in vertical mode" / "in math
+  # mode" / "Improper \spacefactor" / "Package calc Error: `\spacefactor'
+  # invalid" 四头 (皆落 other 类)。M3 机制: 2.09-era 稿把 cls 内码抄进
+  # preamble def 体而无 \makeatletter (1206.0445 \renewcommand*\l@section
+  # :399-412 / 0905.0664 \newcommand\makepapertitle 族) —— 修 = def 站
+  # exact-restore 包裹 (svglov3 idiom: \edef 存 catcode 64 → =11 读域 →
+  # 复元)。\input 跨界件宿主 ambient 不可测时恒等安全; 裸 \makeatletter
+  # 对会把 letter 宿主尾段强翻回 12 (1803.02902 \widebar 实证)。dedup
+  # 键 {rule}:None 共位 → 单轮全 .tex 文件集扫净; 自注 \catcode 64=11
+  # 事件使复跑天然幂等。
+  - id: spacefactor_atdef_wrap
+    description: "doc-latent @-def 站 (\\renewcommand\\l@section 族) → exact-restore @=11 包裹 (宿主 @ catcode 双免)"
+    phase: loop
+    order: 198.5 # pream_token_cs_expand(198) 之后, undefined_cs_guess(900) 之前
+    when: { category: other }
+    condition: { ctx_suggests: "spacefactor" }
+    action:
+      kind: builtin_transform
+      function: spacefactor_atdef_wrap
+    risk: low # exact-restore 在 @=letter 宿主恒等变换; 包裹点外 catcode 零扰动
+    known_gap: "\\let/\\newif 等非体 def 不收 (断名产裸字母非 \\@); \\csname-形 def 本即免疫; 宏体内 def 由外层站一并罩住"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "1206.0445 (spacefactor census #178, loop3 secondary ×6)",
+          error: "Improper \\spacefactor / You can't use `\\spacefactor' in vertical mode — \\renewcommand*\\l@section[2] @=12 断名",
+        }
+      - {
+          corpus: "0905.0664 (spacefactor census #178)",
+          error: "\\newcommand\\makepapertitle{...\\@fnsymbol\\c@footnote...} 无 makeatletter",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-spacefactor/notes.md M3; svglov3.clo exact-restore idiom; _SHIP_WRAP_* 同款"
 
   # ─── 兜底: 恒最后 ───
   - id: undefined_cs_guess

@@ -40,6 +40,8 @@ import re
 from typing import TYPE_CHECKING, Any
 
 from texlate.compile.fixloop._builtins_common import (
+    _AT_LETTER_POST,
+    _AT_LETTER_PRE,
     _fixloop_log,
     _live_matches,
     _map_tex_files,
@@ -314,9 +316,9 @@ def _wrap_block(
     block = "\n".join(
         [
             "% fixloop: para_longize \\par-strip wrap",
-            "\\makeatletter",
+            _AT_LETTER_PRE,
             *lines,
-            "\\makeatother",
+            _AT_LETTER_POST,
         ]
     )
     return block, done

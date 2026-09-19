@@ -7,7 +7,7 @@ r"""chineseclear lane (task #93): ``ctlseq_already_def_undefine`` 规则 +
 expl3 ``\cs_if_exist`` 恒拒 → ``Control sequence \chinese already defined``
 (无 Command 关键字 → category=other payload=None, already_def_* 三家够不到)。
 
-修 = docclass 缝顶 (注入 ctex 行**之前**) ``\let\X\@undefined`` —— cls 先定义
+修 = docclass 缝顶 (注入 ctex 行**之前**) csname-let 清位 —— cls 先定义
 已跑、注入块后定义未跑的序位由 file 门 (错误文件 ∈ CJK 块装载树) + texlate
 注入标记双闸保证。
 """
@@ -106,18 +106,18 @@ def test_ctlseq_cond_declines_expl3_internal(tmp_path: Path) -> None:
 
 
 def test_ctlseq_apply_injects_before_ctex(tmp_path: Path) -> None:
-    r"""``\let\chinese\@undefined`` 落在 \documentclass 后、注入 ctex 行前。"""
+    r"""csname-let 清位串落在 \documentclass 后、注入 ctex 行前。"""
     _write_main(tmp_path)
     ok, note = _apply(tmp_path)
     assert ok, note
     t = (tmp_path / "main.tex").read_text()
-    assert "\\let\\chinese\\@undefined" in t
-    i_let = t.index("\\let\\chinese\\@undefined")
+    assert "\\csname chinese\\endcsname\\TeXlateUndefCs" in t
+    i_let = t.index("\\csname chinese\\endcsname")
     i_ctex = t.index("{ctex}")
     i_docclass = t.index("\\documentclass")
     assert i_docclass < i_let < i_ctex
-    assert "\\makeatletter" in t
-    assert "\\makeatother" in t
+    assert "\\makeatletter" not in t
+    assert "\\makeatother" not in t
 
 
 def test_ctlseq_apply_declines_foreign_file(tmp_path: Path) -> None:
@@ -129,7 +129,7 @@ def test_ctlseq_apply_declines_foreign_file(tmp_path: Path) -> None:
         "LaTeX Error: Control sequence \\chinese already defined.",
     )
     assert not ok
-    assert "\\let\\chinese\\@undefined" not in (tmp_path / "main.tex").read_text()
+    assert "\\csname chinese\\endcsname" not in (tmp_path / "main.tex").read_text()
 
 
 def test_ctlseq_apply_declines_cls_file(tmp_path: Path) -> None:
@@ -187,8 +187,8 @@ def test_ctlseq_apply_batch_multi_names(tmp_path: Path) -> None:
     ok, note = _apply(tmp_path, err)
     assert ok, note
     t = (tmp_path / "main.tex").read_text()
-    assert "\\let\\chinese\\@undefined" in t
-    assert "\\let\\CJKfontspec\\@undefined" in t
+    assert "\\csname chinese\\endcsname\\TeXlateUndefCs" in t
+    assert "\\csname CJKfontspec\\endcsname\\TeXlateUndefCs" in t
 
 
 def test_ctlseq_apply_skips_nonfamily_names_in_blob(tmp_path: Path) -> None:
@@ -203,8 +203,8 @@ def test_ctlseq_apply_skips_nonfamily_names_in_blob(tmp_path: Path) -> None:
     ok, _ = _apply(tmp_path, err)
     assert ok
     t = (tmp_path / "main.tex").read_text()
-    assert "\\let\\chinese\\@undefined" in t
-    assert "\\let\\pdfname\\@undefined" not in t
+    assert "\\csname chinese\\endcsname\\TeXlateUndefCs" in t
+    assert "\\csname pdfname\\endcsname" not in t
 
 
 def test_ctlseq_apply_idempotent_second_round(tmp_path: Path) -> None:
@@ -232,7 +232,7 @@ def test_ctlseq_apply_multi_seam(tmp_path: Path) -> None:
     ok, _ = _apply(tmp_path)
     assert ok
     t = (tmp_path / "main.tex").read_text()
-    assert t.count("\\let\\chinese\\@undefined") == 2  # noqa: PLR2004 - 双缝各一
+    assert t.count("\\csname chinese\\endcsname\\TeXlateUndefCs") == 2  # noqa: PLR2004 - 双缝各一
 
 
 def test_ctlseq_apply_at_name_internal_declined(tmp_path: Path) -> None:

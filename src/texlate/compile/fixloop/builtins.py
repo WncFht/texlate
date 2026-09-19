@@ -46,6 +46,7 @@ from texlate.compile.fixloop._builtins_csfix import (
     if_phantom_protect,
     pdfstring_cs_disarm,
     premature_cs_guard,
+    spacefactor_atdef_wrap,
     undefine_for_redef,
 )
 from texlate.compile.fixloop._builtins_graphics import (
@@ -233,6 +234,7 @@ __all__ = [
     "shim_pkgs_in_use",
     "shipped_sty_input_wrap",
     "slot_arg_revert",
+    "spacefactor_atdef_wrap",
     "strip_inputenc",
     "subfile_docclass_strip",
     "svg_prepare",
@@ -324,6 +326,7 @@ TRANSFORM_FNS = {
     "xbb_pregen": xbb_pregen,
     "pdf_asset_sanitize": pdf_asset_sanitize,
     "shipped_sty_input_wrap": shipped_sty_input_wrap,
+    "spacefactor_atdef_wrap": spacefactor_atdef_wrap,
     "para_longize": para_longize,
     "graphic_missing_placeholder": graphic_missing_placeholder,
     "subfile_docclass_strip": subfile_docclass_strip,

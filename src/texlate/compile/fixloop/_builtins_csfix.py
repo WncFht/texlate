@@ -11,11 +11,15 @@ import re
 from typing import TYPE_CHECKING, Any
 
 from texlate.compile.fixloop._builtins_common import (
+    _AT_LETTER_POST,
+    _AT_LETTER_PRE,
     PDFTEX_PRIMS,
     _drop_pkg_loads,
     _fixloop_log,
     _inject_after_docclass,
+    _let_cs,
     _map_tex_files,
+    _undefine_cs,
 )
 from texlate.compile.inject import find_docclass_ends
 from texlate.textutil import DOCCLASS_RX, iter_depth0, mask_tex
@@ -24,6 +28,8 @@ if TYPE_CHECKING:
     from collections.abc import Iterable
 
     from texlate.compile.fixloop.engine import Engine, LoopCtx
+
+
 
 
 #: undefined_cs → 定向修复表 (cs_targeted_fix 的默认表, rules/
@@ -333,17 +339,17 @@ def _endstar_name(name: str) -> bool:
 
 
 def _site_clear_line(cmd: str, name: str) -> str | None:
-    r"""站点前置串 (裸 ``\let`` 形, ``\makeatletter`` 包裹由调用方按文件类加)。
+    r"""站点前置串 (csname-let 形 —— 免 ``\makeatletter`` 对, 全宿主 catcode 安全)。
 
     None = 该 (命令, 名形) 组合不收站点 (``\providecommand`` 族非恒拒名)。
     ``\@ifdefinable`` 路由命令 × end* 名 → ``\@rc@ifdefinable`` 单发旁路;
-    其余 → ``\let\X\@undefined``。
+    其余 → ``\let\X\@undefined`` 等价 csname 形 (名可含 ``@``)。
     """
     if cmd in _PROVIDE_SITE_CMDS and not _endstar_name(name):
         return None
     if _endstar_name(name) and cmd in _IFN_ROUTED_CMDS:
-        return r"\let\@ifdefinable\@rc@ifdefinable"
-    return f"\\let\\{name}\\@undefined"
+        return _let_cs("@ifdefinable", "@rc@ifdefinable")
+    return _undefine_cs(name)
 
 
 def _redef_site_map(
@@ -385,14 +391,12 @@ def _prepend_sites_in_text(
     masked: str,
     site_re: re.Pattern[str],
     targets: set[str],
-    *,
-    wrap: bool,
 ) -> tuple[str, int]:
     r"""单文件内 ``targets`` 站点前置清位串 → (新文本, 前置数)。
 
     前置形态由 ``_site_clear_line`` 按 (命令, 名形) 分流; 遮盖命中文本
     逐字节复核剔死区 (``\iffalse``/verbatim), 上轮已 prepend 的站点按
-    64 字前缀窗幂等跳过。``wrap`` = ``.tex`` 面需 ``\makeatletter`` 对。
+    128 字前缀窗幂等跳过 (新 csname 形与旧 ``\let\X\@undefined`` 形双查)。
     """
     out: list[str] = []
     prev, n = 0, 0
@@ -405,10 +409,18 @@ def _prepend_sites_in_text(
             continue  # 非恒拒名 provide 站点 —— 同 _redef_site_map 过滤
         if masked[m.start() : m.end()] != t[m.start() : m.end()]:
             continue  # 跨遮盖区命中 —— 死代码内站点不数不动
-        if ins in t[max(0, m.start() - 64) : m.start()]:
+        window = t[max(0, m.start() - 128) : m.start()]
+        if (
+            ins in window
+            or f"\\let\\{name}\\@undefined" in window  # 上轮旧形 emit
+            or (
+                _endstar_name(name)
+                and "\\let\\@ifdefinable\\@rc@ifdefinable" in window
+            )
+        ):
             continue  # 上轮已 prepend 过的站点
         out.append(t[prev : m.start()])
-        out.append((f"\\makeatletter{ins}\\makeatother" if wrap else ins) + "\n")
+        out.append(ins + "\n")
         prev = m.start()
         n += 1
     if not n:
@@ -426,30 +438,23 @@ def _undefine_sites(
     r"""Guilty 文件内 ``targets`` 站点前置清位 → 改写文件数。
 
     前置形态按 (命令, 名形) 分流: ``\@ifdefinable`` 路由命令
-    (``_IFN_ROUTED_CMDS``) × end* 恒拒名 → ``\let\@ifdefinable
-    \@rc@ifdefinable`` 单发旁路 (``\let\X\@undefined`` 对恒拒名是徒劳:
-    重定义侧仍过 ``\@ifdefinable`` 炸同一 already_def 签名, W151);
-    其余站点 → ``\let\X\@undefined`` (ltcmd ``\cs_if_exist`` 与
-    mathalphabet ``\csname``-freeze 检查均认其为 undefined)。
+    (``_IFN_ROUTED_CMDS``) × end* 恒拒名 → ``\@rc@ifdefinable`` 单发旁路
+    (``\let\X\@undefined`` 对恒拒名是徒劳: 重定义侧仍过 ``\@ifdefinable``
+    炸同一 already_def 签名, W151); 其余站点 → undefine 等价 csname 形
+    (ltcmd ``\cs_if_exist`` 与 mathalphabet ``\csname``-freeze 检查均认
+    其为 undefined)。
 
-    catcode 包裹按文件类分: ``.cls``/``.sty`` 内 ``@`` 本是 letter ——
-    尾部 ``\makeatother`` 会把 @ 翻回 catcode-12, 插入点后全部 @-cs
-    烂掉 (1706.00221 ``\define@key``→``\define``+``@key`` 级联实证) ——
-    裸 ``\let`` 不包裹; ``.tex``/``.bbl`` 面才需 ``\makeatletter`` 对
-    (``.bbl`` 在文档面 input, ``@`` 是 catcode-12)。
+    csname 形零字面 ``@``, 全文件类统一裸前置 —— ``.cls``/``.sty`` 宿主
+    @=letter、``.tex``/``.bbl`` 宿主 @=other、doc 自带 ``\makeatletter``
+    区三语境同写; 旧 ``\makeatletter`` 对在 @=letter 宿主内会把尾段强翻
+    回 12 (1803.02902 ``\widebar`` 体 ``\@ne`` 级联实证), 已退役。
     """
     n_files = 0
     for f in guilty:
         t = ctx.read(f)
         if t is None:
             continue
-        nt, _n = _prepend_sites_in_text(
-            t,
-            mask_tex(t),
-            site_re,
-            targets,
-            wrap=getattr(f, "suffix", "") in (".tex", ".bbl"),
-        )
+        nt, _n = _prepend_sites_in_text(t, mask_tex(t), site_re, targets)
         if nt != t:
             ctx.write(f, nt)
             n_files += 1
@@ -494,9 +499,10 @@ def _undefine_pkg_sites(
 
     肇事包恒为后定义者 → 其每个 live 装载点 (opts/逗号列元素匹配茎名,
     dup 站全收) 前清位序恒正确; 遮盖复核剔注释/verbatim 死站, 上轮
-    已前置的 cs 按 256 字前缀窗幂等跳过。``.tex`` 面 ``\makeatletter``
-    对包裹, ``.sty``/``.cls`` 裸 ``\let`` (@ 本是 letter)。肇事茎无
-    用户件装载点 (cls 内传递装载) 的撞名不进返回集 → 调用方以
+    已前置的 cs 按 256 字前缀窗幂等跳过 (新 csname 形与旧
+    ``\let\X\@undefined`` 形双查)。csname 形零字面 ``@`` —— 全文件类
+    统一裸前置, 不再按 ``.tex``/``.sty`` 分 ``\makeatletter`` 对。
+    肇事茎无用户件装载点 (cls 内传递装载) 的撞名不进返回集 → 调用方以
     docclass 块兜底。
     """
     want = set().union(*cs_stems.values()) if cs_stems else set()
@@ -507,7 +513,6 @@ def _undefine_pkg_sites(
         if not t:
             continue
         masked = mask_tex(t)
-        wrap = getattr(f, "suffix", "") == ".tex"
         out: list[str] = []
         prev = 0
         for m in _LOAD_SITE_RE.finditer(masked):
@@ -520,13 +525,13 @@ def _undefine_pkg_sites(
             names = sorted(
                 cs
                 for cs, stems in cs_stems.items()
-                if stems & elems and f"\\let\\{cs}\\@undefined" not in window
+                if stems & elems
+                and f"\\let\\{cs}\\@undefined" not in window
+                and f"\\csname {cs}\\endcsname" not in window
             )
             if not names:
                 continue
-            ins = "".join(f"\\let\\{n}\\@undefined" for n in names)
-            if wrap:
-                ins = f"\\makeatletter{ins}\\makeatother"
+            ins = "".join(_undefine_cs(n) for n in names)
             out.append(t[prev : m.start()])
             out.append(ins + "\n")
             prev = m.start()
@@ -589,7 +594,7 @@ def _abd_hook_clear(
     撞名归因行 = live ``\begin{document}`` → 后定义者在 pkg/cls 注册的钩体内
     (babel .ldf ``\DeclareMathOperator`` 族), 一切立即 ``\let`` (docclass
     块/装载点前) 恒错序 —— 钩执行晚于全部 preamble 行。修 = 声明点行前注
-    ``\AtBeginDocument{\let\X\@undefined}`` —— 钩按注册序 FIFO 执行, 先于一切
+    ``\AtBeginDocument{<csname-let 清位串>}`` —— 钩按注册序 FIFO 执行, 先于一切
     pkg/cls 钩注册 → 钩执行时先清位, 迟延定义者再定义赢 (1706.00033 ``\sh``
     实证)。无任何声明点 → 不接管 (209 稿 ``\documentstyle`` 亦锚:
     209-rewrite 换核后钩生效, 不换则死代码无害); ``_inject_before_docclass``
@@ -603,13 +608,14 @@ def _abd_hook_clear(
         n
         for n in sorted(_abd_deferred(ctx, blob) & offenders)
         if not _endstar_name(n)
-        and f"\\AtBeginDocument{{\\let\\{n}\\@undefined" not in main_t
+        and f"\\let\\{n}\\@undefined" not in main_t
+        and f"\\csname {n}\\endcsname" not in main_t
     ]
     if not abd or not _inject_before_docclass(
         ctx,
-        "\\makeatletter\\AtBeginDocument{"
-        + "".join(f"\\let\\{n}\\@undefined" for n in abd)
-        + "}\\makeatother % fixloop: deferred-definer clear",
+        "\\AtBeginDocument{"
+        + "".join(_undefine_cs(n) for n in abd)
+        + "} % fixloop: deferred-definer clear",
     ):
         return set()
     return set(abd)
@@ -628,8 +634,8 @@ def undefine_for_redef(  # noqa: C901 - 四修形并施 + 护栏逐门, 分派�
 
     四修形并施:
       1. 站点前置 —— 撞名站点所在文件 (guilty file, 含 shipped .bbl) 内
-         全部 ``_SITE_DEF_CMDS`` 站点前插 ``\makeatletter\let\X\@undefined
-         \makeatother``。halt_on_error 每轮 log 只见首撞名, 站点簇扩
+         全部 ``_SITE_DEF_CMDS`` 站点前插 csname-let 清位串。halt_on_error
+         每轮 log 只见首撞名, 站点簇扩
          才是一轮清场的机制 (1206.0299: 6 名连撞单轮全清); 未撞名站点
          前置是语义无操作 (undefine+define≡define)。盖 doc 内双定义与
          "包在 docclass 之后才定义"的窗口 (astro-ph/0408445
@@ -739,12 +745,11 @@ def undefine_for_redef(  # noqa: C901 - 四修形并施 + 护栏逐门, 分派�
         and n not in pkg_covered
         and n not in abd
         and f"\\let\\{n}\\@undefined" not in main_t
+        and f"\\csname {n}\\endcsname" not in main_t
     ]
     if fresh:
-        block = (
-            "% fixloop: batch undefine for redefinition\n\\makeatletter\n"
-            + "\n".join(f"\\let\\{n}\\@undefined" for n in fresh)
-            + "\n\\makeatother"
+        block = "% fixloop: batch undefine for redefinition\n" + "\n".join(
+            _undefine_cs(n) for n in fresh
         )
         if _inject_after_docclass(ctx, block):
             done.append(f"docclass block clears {len(fresh)} cs")
@@ -924,13 +929,16 @@ def ctlseq_undefine(  # noqa: PLR0911 - 逐门 decline 注释即归因
         return False, "no texlate CJK block at docclass seam"
     if not find_docclass_ends(main_t):
         return False, "no docclass seam"  # 退文件头 = cls 前清位, 错序
-    fresh = [n for n in sorted(names) if f"\\let\\{n}\\@undefined" not in main_t]
+    fresh = [
+        n
+        for n in sorted(names)
+        if f"\\let\\{n}\\@undefined" not in main_t
+        and f"\\csname {n}\\endcsname" not in main_t
+    ]
     if not fresh:
         return False, "all offenders already cleared"
-    block = (
-        "% fixloop: ctlseq undefine before CJK block\n\\makeatletter\n"
-        + "\n".join(f"\\let\\{n}\\@undefined" for n in fresh)
-        + "\n\\makeatother"
+    block = "% fixloop: ctlseq undefine before CJK block\n" + "\n".join(
+        _undefine_cs(n) for n in fresh
     )
     if not _inject_after_docclass(ctx, block):
         return False, "docclass seam injection failed"
@@ -1223,3 +1231,223 @@ def premature_cs_guard(  # noqa: C901, PLR0912, PLR0915 - 双臂逐站分派 + s
     if missing:
         done.append(f"WARNING: {', '.join(missing)}.sty not found")
     return True, "; ".join(done)
+
+
+# ═══ doc-latent @-def 站 exact-restore 包裹格 (spacefactor lane, 1206.0445) ═══
+
+#: ``@``=catcode-12 宿主下 ``\@cs`` 断名成 ``\@``+裸字母 —— ``\@`` 即
+#: ``\spacefactor\@m`` 间距宏, 展开点执行 → ``You can't use '\spacefactor'
+#: in vertical mode`` / ``in math mode`` / ``Improper \spacefactor`` /
+#: ``Package calc Error: '\spacefactor' invalid`` 四头 (全落 other 类)。
+#: def 域内 ``\\[A-Za-z]*@[A-Za-z]`` 即肇事形 (``\l@section``/``\@secpenalty``
+#: /``\hb@xt@``/``\c@footnote``); 裸 ``\@ `` (句读间距宏) 不带后继字母, 不中。
+_AT_TOKEN_RE = re.compile(r"\\[A-Za-z]*@[A-Za-z]")
+
+#: ambient @ 事件 —— ``\makeatletter``/``\makeatother``/``\catcode`@=N``/
+#: ``\catcode 64=N``/``\catcode"40=N``/``\catcode'100=N``; 本族 restore cs
+#: (``_AT_LETTER_*`` 与 pkgload ``_SHIP_WRAP_*`` 的复元符) 只裹非 letter 站,
+#: 复元值恒为 other —— 走查直接建模。
+_ATDEF_EVENT_RE = re.compile(
+    r"\\makeat(letter|other)(?![A-Za-z])"
+    r"|\\catcode\s*(?:`@|64|\"40|'100)\s*=\s*(\d+)"
+    r"|\\TeXlate(?:At|StyIn)Restore(?![A-Za-z])"
+)
+
+#: def 命令面 —— 名+参+体跨域收 ``\@`` 站: ``\renewcommand*\l@section`` 名断
+#: (体随文执行) 与 ``\newcommand\foo{...\@x...}`` 体断同修; ``\def`` 族
+#: (``\long``/``\outer``/``\global``/``\protected`` 前缀任序) 走参数文本
+#: 扫描, 其余走 ``[opt]``/``{grp}`` 贪婪组列。``\let``/``\newif`` 无体
+#: def 不收 (断名产裸字母非 ``\@``)。
+_ATDEF_CMD_RE = re.compile(
+    r"\\(?:newcommand|renewcommand|providecommand|DeclareRobustCommand"
+    r"|NewDocumentCommand|DeclareDocumentCommand|RenewDocumentCommand"
+    r"|ProvideDocumentCommand|newenvironment|renewenvironment|newtheorem"
+    r"|newfont|newmathalphabet|NewMathAlphabet|DeclareMathAlphabet"
+    r"|DeclareMathOperator|DeclareMathSymbol|DeclareMathDelimiter"
+    r"|DeclareMathAccent|DeclareMathRadical)(?![A-Za-z])"
+    r"|(?:\\(?:long|outer|global|protected)(?![A-Za-z])[ \t]*)*"
+    r"\\(?:gdef|edef|xdef|def)(?![A-Za-z])"
+)
+
+#: ``\def`` 参数文本窗上限 —— 无 ``{`` 体 (残缺稿) 按名末截域, 不吞全文。
+_DEF_PARAM_MAX = 64
+
+#: ``\csname`` 形 def 名的随尾 ``\endcsname`` —— ``_def_extent`` 名位专用。
+_ENDCSNAME_RE = re.compile(r"\\endcsname(?![A-Za-z])")
+
+
+def _skip_ws(vis: str, pos: int) -> int:
+    while pos < len(vis) and vis[pos] in " \t":
+        pos += 1
+    return pos
+
+
+def _brace_end(vis: str, pos: int) -> int:
+    r"""``vis[pos]=='{'`` → 配对 ``}`` 后 offset; 未配对 → ``len(vis)``。"""
+    depth, j = 1, pos + 1
+    while j < len(vis) and depth:
+        c = vis[j]
+        if c == "\\":
+            j += 2
+            continue
+        if c == "{":
+            depth += 1
+        elif c == "}":
+            depth -= 1
+        j += 1
+    return j
+
+
+def _cs_end(vis: str, pos: int) -> int:
+    r"""``vis[pos]=='\\'`` → cs 名末 offset (字母+``@`` 连读; 单字符 cs 收一)。"""
+    j = pos + 1
+    if j < len(vis) and (vis[j].isalpha() or vis[j] == "@"):
+        while j < len(vis) and (vis[j].isalpha() or vis[j] == "@"):
+            j += 1
+        return j
+    return j + 1
+
+
+def _def_extent(vis: str, pos: int, is_def: bool) -> int:
+    r"""def 域末 offset: 可选 ``*`` → 名 (``{grp}``/``\cs``) → 参/体组列。
+
+    ``\def`` 族: 参数文本跑到首个 ``{`` (``\{`` 转义不算) 再收一组即停
+    (单体形); 参数文本超 ``_DEF_PARAM_MAX``/遇 ``\n\n``/无 ``{`` → 按名末
+    截域。其余族: ``[opt]``/``{grp}`` 贪婪连收 (``\newenvironment`` 的
+    beg/end 双组, ``\newtheorem`` 的 within opt 同形)。``\csname`` 名
+    (``\renewcommand\csname l@section\endcsname``) 吞到 ``\endcsname``
+    再续组列 —— 名本体免疫 catcode 但 ``{体}`` 内 ``\@`` 仍断名。
+    """
+    n = len(vis)
+    pos = _skip_ws(vis, pos)
+    if pos < n and vis[pos] == "*":
+        pos = _skip_ws(vis, pos + 1)
+    if pos < n and vis[pos] == "{":
+        pos = _brace_end(vis, pos)
+    elif pos < n and vis[pos] == "\\":
+        if vis.startswith("\\csname", pos) and (
+            pos + 7 >= n or not vis[pos + 7].isalpha()
+        ):
+            m = _ENDCSNAME_RE.search(vis, pos + 7)
+            pos = n if m is None else m.end()
+        else:
+            pos = _cs_end(vis, pos)
+    pos = _skip_ws(vis, pos)
+    if is_def:
+        j = pos
+        while j < n and vis[j] != "{":
+            if vis[j] == "\\":
+                j += 2
+                continue
+            if vis[j : j + 2] == "\n\n":
+                return pos
+            j += 1
+        if j >= n or j - pos > _DEF_PARAM_MAX:
+            return pos
+        return _brace_end(vis, j)
+    while pos < n:
+        if vis[pos] == "[":
+            k = vis.find("]", pos + 1)
+            pos = _skip_ws(vis, n if k < 0 else k + 1)
+        elif vis[pos] == "{":
+            pos = _skip_ws(vis, _brace_end(vis, pos))
+        else:
+            break
+    return pos
+
+
+def _atdef_sites(vis: str) -> list[tuple[int, int, bool]]:
+    r"""遮盖视图走查 def 站 → ``[(start, extent_end, at_letter)]``。
+
+    ``\makeatletter``/``\makeatother``/``\catcode`` 事件按组局部语义入栈 —
+    — ``{`` 推现值 ``}`` 复元 (bare 组内事件读侧执行, 组末自动回); def 域
+    整体跳过 (替换体在读侧惰性 —— 体内 ``\makeatletter`` 是调用期 token,
+    不影响后续顶读的 ambient; 域内站点由外层站的包裹一并罩住)。
+    """
+    sites: list[tuple[int, int, bool]] = []
+    at_letter = False
+    stack: list[bool] = []
+    pos, n = 0, len(vis)
+    while pos < n:
+        c = vis[pos]
+        if c == "\\":
+            ev = _ATDEF_EVENT_RE.match(vis, pos)
+            if ev is not None:
+                if ev.group(1) is not None:
+                    at_letter = ev.group(1) == "letter"
+                elif ev.group(2) is not None:
+                    at_letter = ev.group(2) == "11"
+                else:  # 本族 restore cs —— 只裹非 letter 站, 复元恒 other
+                    at_letter = False
+                pos = ev.end()
+                continue
+            d = _ATDEF_CMD_RE.match(vis, pos)
+            if d is not None:
+                end = _def_extent(
+                    vis, d.end(), d.group(0).rstrip().endswith("def")
+                )
+                sites.append((pos, end, at_letter))
+                pos = end
+                continue
+            pos += 2
+            continue
+        if c == "{":
+            stack.append(at_letter)
+            pos += 1
+            continue
+        if c == "}":
+            if stack:
+                at_letter = stack.pop()
+            pos += 1
+            continue
+        pos += 1
+    return sites
+
+
+def spacefactor_atdef_wrap(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""doc-latent @-def 站 exact-restore @=11 包裹 → ``\@cs`` 断名根修。
+
+    2.09-era 稿把 cls 内码抄进 preamble def 体而无 ``\makeatletter``:
+    ``\renewcommand*\l@section[2]{...\addpenalty\@secpenalty...\hb@xt@...}``
+    (1206.0445 :399-412), ``\newcommand\makepapertitle{...\renewcommand
+    \thefootnote{\@fnsymbol\c@footnote}...\@thanks}`` (0905.0664) —— 体在
+    @=12 下 tokenize → ``\@cs`` 断名成 ``\@``+裸字母 → def 站行或调用点
+    ``\@`` 执行 → ``\spacefactor`` vmode/math/Improper/calc 四头。
+
+    包裹取 svglov3.clo exact-restore idiom (``_AT_LETTER_PRE``/``_POST``):
+    ``\edef`` 存 ``\catcode 64`` 现值 → ``=11`` 读域 → 复元 —— ``\input``
+    跨界件宿主 ambient 不可测时恒等安全, 裸 ``\makeatletter`` 对会把
+    letter 宿主尾段强翻回 12 (1803.02902 ``\widebar`` 实证)。dedup 键
+    ``{rule}:None`` 全族共位 → 单轮全文件集扫净; 复跑时自注的
+    ``\catcode 64=11`` 事件使域内站点天然 at_letter 跳过 (幂等)。
+    ``params.exts`` 可覆写扫描面 (缺省 ``.tex`` —— ``.sty``/``.cls`` 装载
+    期 @ 本即 letter)。
+    """
+    del eng, payload
+    head = ctx.err_head or ""
+    log = _fixloop_log(ctx)
+    if "spacefactor" not in head and "spacefactor" not in log:
+        return False, "no spacefactor signature"
+    exts = tuple(params.get("exts") or (".tex",))
+    changed: list[str] = []
+    for f in ctx.tex_files(exts):
+        t = ctx.read(f)
+        if t is None or "@" not in t:
+            continue
+        vis = mask_tex(t)
+        edits = [
+            (s, e)
+            for s, e, al in _atdef_sites(vis)
+            if not al and _AT_TOKEN_RE.search(vis[s:e])
+        ]
+        if not edits:
+            continue
+        out = t
+        for s, e in reversed(edits):
+            out = out[:s] + _AT_LETTER_PRE + out[s:e] + _AT_LETTER_POST + out[e:]
+        if out != t:
+            ctx.write(f, out)
+            changed.append(f"{f.name}(x{len(edits)})")
+    return (bool(changed)), f"@def exact-restore wrap in {', '.join(changed)}"

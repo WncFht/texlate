@@ -115,6 +115,55 @@ _USE_RE = re.compile(
 
 
 # ════════════════════════════════════════════════════════════════
+# catcode-agnostic 注入形 (spacefactor lane, 2026-09-19)
+# ════════════════════════════════════════════════════════════════
+
+#: 永不定义的纯字母 cs —— ``\let\X\TeXlateUndefCs`` 的右操作数。
+#: ``\csname @undefined\endcsname`` 会把 ``\@undefined`` 冻结成 ``\relax``
+#: (csname 未定义名副作用), 产 ``\relax`` 值而非真 undefined ——
+#: ``\ifcsname``/expl3 ``\cs_if_exist`` 存在性检查下仍算 defined
+#: (freeze_test 实证)。纯字母名任何宿主 @ catcode 下成 token, 且不冻名。
+_UNDEF_MARK = "TeXlateUndefCs"
+
+
+def _let_cs(target: str, source: str) -> str:
+    r"""``\let\<target>\<source>`` 的 catcode-agnostic 形 (两侧均可含 ``@``)。
+
+    ``\csname`` 侧壳使 @ 名在任意宿主 catcode 下成 token —— 裸
+    ``\makeatletter``/``\makeatother`` 对的尾段会把 @=letter 宿主尾段
+    强翻回 12 (1803.02902 csfix 清位串实证), def 体内字面 ``\@`` 亦
+    无法重读 (@=12 下已成 ``\@``+裸字母 → spacefactor 签); csname 形
+    两语境皆免 catcode。
+    """
+    return (
+        rf"\expandafter\let\csname {target}\expandafter\endcsname"
+        rf"\csname {source}\endcsname"
+    )
+
+
+def _undefine_cs(name: str) -> str:
+    r"""``\let\<name>\@undefined`` 的 catcode-agnostic 形 → 清位串。
+
+    右操作数用 ``_UNDEF_MARK`` (永不定义纯字母名): 产**真** undefined,
+    ``\ifdefined``/``\cs_if_exist``/``\@ifdefinable`` 三代检查通吃;
+    ``\csname @undefined\endcsname`` 形只得 ``\relax`` 值, 存在性检查
+    下破防 (ctlseq_undefine 的 ``\cs_new`` 撞名格实证需求)。
+    """
+    return rf"\expandafter\let\csname {name}\endcsname\{_UNDEF_MARK}"
+
+
+#: 多 @-cs 注入块的宿主不可知 @=11 包裹对 (svglov3.clo exact-restore
+#: idiom, 同 _builtins_pkgload._SHIP_WRAP_*): ``\edef`` 存 ``\catcode 64``
+#: 现值 → ``=11`` 读块 → 复元; @=letter 宿主恒等变换, @=other 亦回原位。
+#: restore cs 名纯字母 —— 宿主正处 @=other 时名里带 ``@`` 自断签名。
+_AT_LETTER_PRE = (
+    r"\edef\TeXlateAtRestore{\catcode 64=\the\catcode 64\relax}"
+    r"\catcode 64=11\relax "
+)
+_AT_LETTER_POST = r" \TeXlateAtRestore"
+
+
+# ════════════════════════════════════════════════════════════════
 # 注入件指纹 (b3a 工单: 无版本/hash 闸, 留存旧 stub 无辨——
 # hep-ph/0408075 espcrc2 跨 rerun 实证)
 # ════════════════════════════════════════════════════════════════
@@ -467,6 +516,8 @@ _MATH_SHIM_CS: dict[str, int] = {
     "OE": 0x0152,
     "oe": 0x0153,
     "ss": 0x00DF,
+    "th": 0x00FE,
+    "TH": 0x00DE,
     "S": 0x00A7,
     "P": 0x00B6,
     "dag": 0x2020,

@@ -11,7 +11,8 @@
   pdftex_prim guard(50)/polyfill(51) 截 payload (2105.03753)。
 - A5 undefine_for_redef: already_def_undefine 升级 builtin —— 寄存器/盒型
   分配名 (``\\newbox\\splitbox`` 族) abstain, ``\\newcommand``/``\\def``
-  维持 ``\\let\\X\\@undefined`` (2211.04482 aastex62 实证)。
+  走 csname-let 清位 (``\\expandafter\\let\\csname X\\endcsname\\TeXlateUndefCs``,
+  2211.04482 aastex62 实证)。
 - A6 TEXT_8BIT_FALLBACK: inject_cjk 块追加 CMU Serif ``\\XeTeXinterchartoks``
   全谱回退 (ec-lmr/aer10 8-bit TFM 域西里尔/希腊/拉丁扩展漏字)。
 """
@@ -211,7 +212,10 @@ def test_physics_detach_existing_input_no_dup(tmp_path: Path) -> None:
     assert ok
     t = (tmp_path / "main.tex").read_text(encoding="utf-8")
     assert t.count("\\input{physics.sty}") == 1
-    assert "\\makeatletter\\input{physics.sty}\\makeatother" in t  # 裸载补 @ 包裹
+    assert (
+        "\\edef\\TeXlateStyInRestore{\\catcode 64=\\the\\catcode 64\\relax}"
+        "\\catcode 64=11\\relax \\input{physics.sty} \\TeXlateStyInRestore" in t
+    )  # 裸载补 @ 存复包裹
     assert "\\usepackage{amsmath}" in t
 
 
@@ -298,20 +302,24 @@ def test_detach_loads_helper_unit() -> None:
 def test_wrap_phys_sty_inputs_unit() -> None:
     r"""``_wrap_phys_sty_inputs`` 单测。
 
-    逐档: 裸载站包 ``\\makeatletter`` 对 / 已包站与开 letter 区幂等跳过 /
-    verbatim 与 ``\\input{physics}``·``\\input{physics.tex}`` 章节件
-    (kpathsea 只解析 ``.tex``) 不动 / 无花括号裸名形与行内嵌入站也包
-    (只罩 ``\\input`` 命令本体)。
+    逐档: 裸载站包 ``_SHIP_WRAP_*`` exact-restore 对 (``\\edef`` 存
+    ``\\catcode 64`` 现值 → ``=11`` 读件 → ``\\TeXlateStyInRestore`` 复元)
+    / 已包站与开 letter 区幂等跳过 / verbatim 与
+    ``\\input{physics}``·``\\input{physics.tex}`` 章节件 (kpathsea 只解析
+    ``.tex``) 不动 / 无花括号裸名形与行内嵌入站也包 (只罩 ``\\input``
+    命令本体)。restore cs 名纯字母 —— 宿主 @=other 下带 @ 的名自断签名。
     """
     from texlate.compile.fixloop._builtins_pkgload import (  # noqa: PLC0415
+        _SHIP_WRAP_POST,
+        _SHIP_WRAP_PRE,
         _wrap_phys_sty_inputs,
     )
 
     nt, n = _wrap_phys_sty_inputs("\\input{physics.sty}\n")
     assert n == 1
-    assert nt == "\\makeatletter\\input{physics.sty}\\makeatother\n"
+    assert nt == (_SHIP_WRAP_PRE + "\\input{physics.sty}" + _SHIP_WRAP_POST + "\n")
     _nt2, n2 = _wrap_phys_sty_inputs(
-        "\\makeatletter\\input{physics.sty}\\makeatother\n"
+        _SHIP_WRAP_PRE + "\\input{physics.sty}" + _SHIP_WRAP_POST + "\n"
     )
     assert n2 == 0
     _nt3, n3 = _wrap_phys_sty_inputs("\\makeatletter\n\\input{physics.sty}\n")
@@ -320,19 +328,19 @@ def test_wrap_phys_sty_inputs_unit() -> None:
         "\\begin{verbatim}\n\\input{physics.sty}\n\\end{verbatim}\n"
     )
     assert n4 == 0
-    assert "\\makeatletter" not in nt4
+    assert "\\catcode 64=11" not in nt4
     _nt5, n5 = _wrap_phys_sty_inputs("\\input{physics}\n\\input{physics.tex}\n")
     assert n5 == 0
     nt6, n6 = _wrap_phys_sty_inputs("\\input physics.sty\n")
     assert n6 == 1
-    assert "\\makeatletter\\input physics.sty\\makeatother" in nt6
+    assert _SHIP_WRAP_PRE + "\\input physics.sty" + _SHIP_WRAP_POST in nt6
     nt7, n7 = _wrap_phys_sty_inputs("x \\input{physics.sty} y\n")
     assert n7 == 1
-    assert "\\makeatletter\\input{physics.sty}\\makeatother" in nt7
+    assert _SHIP_WRAP_PRE + "\\input{physics.sty}" + _SHIP_WRAP_POST in nt7
 
 
 def test_physics_wrap_doc_native_input_sty(tmp_path: Path) -> None:
-    r"""doc-native ``\\input{physics.sty}`` 裸载 → 补 ``\\makeatletter`` 对。
+    r"""doc-native ``\\input{physics.sty}`` 裸载 → 补 @ 存复包裹。
 
     ``\\input`` 不挂 @=letter —— ``.tex`` 宿主文档级 @ 是 catcode-12,
     stub 内 ``\\@undefined`` 碎成 ``\\@``+裸字母 (``\\let\\Re\\@undefined``
@@ -344,7 +352,10 @@ def test_physics_wrap_doc_native_input_sty(tmp_path: Path) -> None:
     assert ok, note
     assert "@catcode wrap" in note
     t = (tmp_path / "main.tex").read_text(encoding="utf-8")
-    assert "\\makeatletter\\input{physics.sty}\\makeatother" in t
+    assert (
+        "\\edef\\TeXlateStyInRestore{\\catcode 64=\\the\\catcode 64\\relax}"
+        "\\catcode 64=11\\relax \\input{physics.sty} \\TeXlateStyInRestore" in t
+    )
 
 
 def test_physics_wrap_input_sty_inside_makeatletter(tmp_path: Path) -> None:
@@ -366,14 +377,20 @@ def test_physics_wrap_input_sty_commented_untouched(tmp_path: Path) -> None:
     physics_stub_detach(_ctx(tmp_path), None, None, {})
     t = (tmp_path / "main.tex").read_text(encoding="utf-8")
     assert line in t  # 注释原样保留
-    assert t.count("\\makeatletter\\input{physics.sty}\\makeatother") == 1
+    assert (
+        t.count(
+            "\\edef\\TeXlateStyInRestore{\\catcode 64=\\the\\catcode 64\\relax}"
+            "\\catcode 64=11\\relax \\input{physics.sty} \\TeXlateStyInRestore"
+        )
+        == 1
+    )
 
 
 def test_physics_wrap_input_sty_macro_body_untouched(tmp_path: Path) -> None:
     r"""宏体内 ``\\input{physics.sty}`` → 深度>0 不包。
 
-    ``\\makeatother`` 尾段会把外围 @ 强翻回 catcode-12 —— 延迟执行语境
-    (``\\newcommand`` 体) 内包裹会在 letter 区调用时翻车, 保守不包。
+    延迟执行语境 (``\\newcommand`` 体) 内包裹会在 letter 区调用时翻车,
+    保守不包。
     """
     body_def = "\\newcommand{\\loadphys}{\\input{physics.sty}}"
     _write_main(tmp_path, "\\usepackage{physics}\n" + body_def)
@@ -381,7 +398,10 @@ def test_physics_wrap_input_sty_macro_body_untouched(tmp_path: Path) -> None:
     physics_stub_detach(_ctx(tmp_path), None, None, {})
     t = (tmp_path / "main.tex").read_text(encoding="utf-8")
     assert body_def in t  # 宏体内原样
-    assert "\\makeatletter\\input{physics.sty}\\makeatother" in t  # 续载注入在
+    assert (
+        "\\edef\\TeXlateStyInRestore{\\catcode 64=\\the\\catcode 64\\relax}"
+        "\\catcode 64=11\\relax \\input{physics.sty} \\TeXlateStyInRestore" in t
+    )  # 续载注入在
 
 
 def test_physics_input_chapter_forms_not_stub(tmp_path: Path) -> None:
@@ -399,10 +419,13 @@ def test_physics_input_chapter_forms_not_stub(tmp_path: Path) -> None:
     ok, _note = physics_stub_detach(_ctx(tmp_path), None, None, {})
     assert ok
     t = (tmp_path / "main.tex").read_text(encoding="utf-8")
-    assert "\\makeatletter\\input{physics}\\makeatother" not in t
-    assert "\\makeatletter\\input{physics.tex}\\makeatother" not in t
+    assert "\\input{physics} \\TeXlateStyInRestore" not in t
+    assert "\\input{physics.tex} \\TeXlateStyInRestore" not in t
     # need_input 不被章节件压掉 —— usepackage 摘除后真续载照补
-    assert "\\makeatletter\\input{physics.sty}\\makeatother" in t
+    assert (
+        "\\edef\\TeXlateStyInRestore{\\catcode 64=\\the\\catcode 64\\relax}"
+        "\\catcode 64=11\\relax \\input{physics.sty} \\TeXlateStyInRestore" in t
+    )
 
 
 def test_physics_wrap_skips_sty_host(tmp_path: Path) -> None:
@@ -424,17 +447,20 @@ def test_undefine_newbox_abstains(tmp_path: Path) -> None:
     ok, note = undefine_for_redef(_ctx(tmp_path), None, "splitbox", {})
     assert not ok
     assert "allocated" in note
-    assert "\\@undefined" not in (tmp_path / "main.tex").read_text(encoding="utf-8")
+    assert "\\csname splitbox\\endcsname" not in (tmp_path / "main.tex").read_text(
+        encoding="utf-8"
+    )
 
 
 def test_undefine_newcommand_injects(tmp_path: Path) -> None:
-    """``\\newcommand`` 形撞名 → docclass 后 ``\\let\\X\\@undefined``。"""
+    """``\\newcommand`` 形撞名 → docclass 后 csname-let 清位串。"""
     _write_main(tmp_path, "\\newcommand{\\liningnums}{x}")
     ok, note = undefine_for_redef(_ctx(tmp_path), None, "liningnums", {})
     assert ok, note
     t = (tmp_path / "main.tex").read_text(encoding="utf-8")
-    assert "\\let\\liningnums\\@undefined" in t
-    assert t.index("\\let\\liningnums\\@undefined") < t.index("\\newcommand")
+    marker = "\\csname liningnums\\endcsname\\TeXlateUndefCs"
+    assert marker in t
+    assert t.index(marker) < t.index("\\newcommand")
 
 
 def test_undefine_newif_companion_abstains(tmp_path: Path) -> None:
@@ -474,8 +500,12 @@ def test_undefine_docclass_comment_eol_seam(tmp_path: Path) -> None:
     t = (tmp_path / "main.tex").read_text(encoding="utf-8")
     lines = t.splitlines()
     assert lines[0].endswith("%!TEX program=xelatex")
-    assert "\\@undefined" not in lines[0]
-    let_ln = next(i for i, ln in enumerate(lines) if "\\let\\foo\\@undefined" in ln)
+    assert "\\csname foo\\endcsname" not in lines[0]
+    let_ln = next(
+        i
+        for i, ln in enumerate(lines)
+        if "\\csname foo\\endcsname\\TeXlateUndefCs" in ln
+    )
     assert 0 < let_ln < lines.index("\\begin{document}")
 
 
