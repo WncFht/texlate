@@ -789,3 +789,11 @@
 - **输入核销 ×2**：inputstack (3 格零 \input 环——2105.00111 已愈陈旧记录, 1706.00076/1404.0037 上游 base-arm 缺→capverd 诚实标派)；glossleak (2 格已愈, ~13 格 CJK-in-key 族 6 形未盖→kvleak2; trade-off 记: glossary 整件落 support 不再翻译, 若要翻需 kv-value digging 段器增强)。
 - roster 10：arraypream (75-syntax/90-shim/vendor/tests 在写) + primofw/shipclscen/kvleak2/runawayscan/capverd/renewdocenv/aastex61if 在飞 + drvverdict(2403resid)/bticktax(harvest 中)。inputsty209/drvverdict-#109 尸清。
 - **门警戒**：teammate 零 git 令✓；L1/autogloss run.log 皆 ALL DONE；pathspec 卷扫修复后 HEAD 双破import 已平 (22a1cfd+8527fa7)。
+
+## 2026-09-19 ~11:1x — arraypream 入库 (938da65) + preamcjk/resid209 普查派
+
+- **arraypream (938da65)**：`pream_token` 新类 + `pream_token_cs_expand` order 198——array `\@mkpream` 只改写 *-repeat/`\NC@`, kernel `\@xexpast` 本可展开字面 preamble 宏 → 修=展开非 cs-map：call-站 `\expandafter` + def-站 `\edef` 烘焙 (`\string` edef 内执行产字面 token, 单臂不够) + emulateapj 死 let 链中和 (array 中和 kernel 存名→"Missing #")。vendored aaspp4/aasms4/aastex/emulateapj 补丁 + regex_rewrite 盖 doc-shipped 件。12 测试+1139 绿, e2e deluxetable 0 错。预期翻 \@delspec~9+\pt@format~4-5。
+- **renewdocenv 核销**：`Environment 'x' already/undefined defined` 签 0 命中全记录——潜缝但零发, 修法已存档 (env_undefined 宽化+already_def env 姊妹+seam rewrite), 越 ≥2 门槛再派。尸清。
+- **新派 ×3**：resid209 (9901081 ~151 残 2.09 错 + ~51 稿 \documentstyle∧\input 族次波普查)、preamcjk (arraypream 揭 54 命中 CJK-译文漏 preamble-spec——与 kvleak2 族邻接可能同根, 查 dig 路径归属)、aastex61if (defer 的 def-体 \if 失衡 ~5 格普查)。
+- roster 10：primofw (actions/55-prim/ruleset 在写——其宽化需动条件机器非纯 yaml)/shipclscen/kvleak2/runawayscan/capverd/resid209/aastex61if/preamcjk + drvverdict(2403resid)/bticktax(flipcheck8 全表待回执, cron 自收)。
+- 工作区现状：仅 primofw 3 件 (actions.py/55-prim.yaml/ruleset.py) 在飞 + packaging-2026-09-19 peer 目录; 其余脏面全清。
