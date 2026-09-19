@@ -1308,3 +1308,13 @@
 - **endsfix lane dispatched** — item1 as PATCH ARTIFACT (misschar file in flight by kotexfix — no same-file concurrent edits), item2 direct yaml+builtin.
 - **L0 full pytest**: 7621 passed / 1 flaky (`test_ioctl_failure_closes_fds` — pty fd timing, passes isolated) / 7 skipped — gate① effectively green post-batch.
 - **Roster**: covgap, kotexfix, chronic347, fmsingles (in flight) + paraearly, endsfix (new) = 6. Closed: pathqual, verifyfam, endcsdiag.
+
+## 2026-09-19 ~16:25 — chronic347 census + mintedstyle dispatched + 1803.03185 flip verified
+
+- **chronic347 re-census (report persisted)**: strict never-verdicted = only 9 cells (all verdicted: 6 clean/3 acc). 506 blocked cells post-rebuild: **327 clean (64.6%) / 115 acc / 56 best_effort / 2 dirty / 6 unfixable — zero still blocked**. Coverage on 179 non-clean: fired-but-unfixed 104, never-covered 75. Top never-covered: undefined_cs ×13, minted highlight-style ×5 (homogeneous), \CS-doesn't-match ×5, Missing-$ ×5, misc ×3s, dispatch-misses ×4.
+- **1803.03185 flip verified**: fixloop --rerun post-`6560d60d` → fail→**best_effort_pdf** (path-shim heals missing_file; residual = pre-regression already_def Bbbk partial). Gate③ regression evidence closed.
+- **mintedstyle dispatched** (5 homogeneous minted "Missing definition for highlighting style" cells — diagnose+rule).
+- **fmsingles scope-extended** (+3 micro: graphic_missing_placeholder dispatch-miss ×2, blx@bbl@data polyfill ×1, pfa→pfb t1binary ×1).
+- **fc9 "残 6 格" verdict**: 5 = `latex209_ds_at` rejects = the ds@ adjudication gate (~96-cell Option A decision) — NOT actionable pre-user-decision; splice rebuild can't pass a deliberate reject. Backlog item reclassified as adjudication-blocked.
+- **1907.03923**: still partial@loop3 (sortlist fixed, pfa driver-fatal next layer) — queued to fmsingles item (c).
+- **Roster**: covgap, kotexfix, fmsingles, paraearly, endsfix, mintedstyle = 6.
