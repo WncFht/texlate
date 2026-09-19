@@ -13,7 +13,8 @@ from typing import TYPE_CHECKING
 from conftest import DOC, scan_doc
 
 from texlate.compile.engine import CompRes
-from texlate.repair_l2 import TreeRun, _l2_localize
+from texlate.repair_l2 import TreeRun, _l2_localize, err_signature, err_signatures
+from texlate.validate.l2 import LogError
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -220,3 +221,125 @@ def test_non_infra_error_still_attributed(tmp_path: Path) -> None:
     )
     assert n_err == 1
     assert set(hits) == {f"0:{cid}" for cid in cids}
+
+
+def _localize_doc(
+    tmp_path: Path,
+    *,
+    file_text: str,
+    scan_body: str,
+    log: str,
+    trans: dict[int, dict[int, str]] | None = None,
+    baseline_sigs: set[str] | None = None,
+) -> tuple[dict[str, dict[str, object]], int, list[int]]:
+    """``_localize`` 变体：文件内容/扫描体/译文表可分离（译文引入 cs 用例要）。"""
+    main = tmp_path / "main.tex"
+    main.write_text(file_text, encoding="utf-8")
+    scan = scan_doc(scan_body)
+    run = TreeRun(
+        scans=[(main, scan)],
+        trans=trans or {},
+        chunk_ins={},
+        pipe=None,
+    )
+    res = CompRes(engine="fake", ok=False, workdir=tmp_path, log_text=log)
+    hits, n_err = _l2_localize(tmp_path, run, res, baseline_sigs=baseline_sigs)
+    return hits, n_err, [c.id for c in scan.chunks]
+
+
+def test_undef_cs_outside_chunk_exempt(tmp_path: Path) -> None:
+    r"""肇事 cs 出现在块外 verbatim 区（源携带）→ undefined_cs 豁免。
+
+    2505.17508 实证：xcolor[table] 选项冲突丢 ``\rowcolor``——``l.N`` 报错
+    行落非块表格区，最近块兜底曾把错贴给无辜块白烧 5 块重译额（未定义
+    根因在装载期，重译造不出定义）。
+    """
+    body = _BODY + "\n\\rowcolor{gray} x\n"
+    hits, _n, _c = _localize_doc(
+        tmp_path,
+        file_text=DOC % body,
+        scan_body=body,
+        log="(./main.tex\n! Undefined control sequence.\nl.6 \\rowcolor\n",
+    )
+    assert hits == {}
+
+
+def test_undef_cs_in_chunk_source_exempt(tmp_path: Path) -> None:
+    r"""cs 落块内但源 chunk content 含之（LLM 保留原用法）→ 同豁免。"""
+    body = (
+        "Para carrying \\rowcolor within the flow of a longer paragraph that should\n"
+        "definitely be segmented into at least one chunk for translation purposes.\n"
+    )
+    hits, _n, _c = _localize_doc(
+        tmp_path,
+        file_text=DOC % body,
+        scan_body=body,
+        log="(./main.tex\n! Undefined control sequence.\nl.3 \\rowcolor\n",
+    )
+    assert hits == {}
+
+
+def test_undef_cs_translation_introduced_attributed(tmp_path: Path) -> None:
+    r"""cs 落块内 span 且源 content 无之 → 译文新造，照常归因。"""
+    zh = (
+        "This is a \\badcs longer paragraph of English text that should definitely be\n"
+        "segmented into at least one chunk for translation purposes.\n"
+    )
+    hits, _n, cids = _localize_doc(
+        tmp_path,
+        file_text=DOC % zh,
+        scan_body=_BODY,
+        log="(./main.tex\n! Undefined control sequence.\nl.3 \\badcs\n",
+        trans={0: {0: zh}},
+    )
+    assert set(hits) == {f"0:{cid}" for cid in cids}
+
+
+def test_err_signature_keys_undef_cs_on_culprit() -> None:
+    r"""undefined_cs 签名键 = ``head|cs``——同 head 异 cs 不互豁免（否则
+    en 任一 undefined_cs 会误放 zh 全部译文幻觉 cs）；其余类 culprit 位留空。"""
+    e1 = LogError(
+        line_no=1, head="! Undefined control sequence.", ctx=("l.4 \\badcs",)
+    )
+    e2 = LogError(
+        line_no=2, head="! Undefined control sequence.", ctx=("l.4 \\othercs",)
+    )
+    assert err_signature(e1) != err_signature(e2)
+    assert err_signature(e1).endswith("|\\badcs")
+    e3 = LogError(line_no=3, head="! LaTeX Error: File `x.sty' not found.")
+    assert err_signature(e3).endswith("|")
+
+
+def test_baseline_sigs_filter_en_carried(tmp_path: Path) -> None:
+    r"""en 基线签名命中 → zh 同签名错误不进归因面。
+
+    en/zh 双编译同犯 ``\badcs``（源携带）时签名一致——基线过滤后仅剩
+    infra 豁免错，hits 为空；``n_err`` 仍报 log 全量（过滤只作用于归因）。
+    """
+    log = (
+        "(./main.tex\n! Undefined control sequence.\nl.4 \\badcs\n"
+        "! LaTeX Error: File `algpseudocodex.sty' not found.\n"
+    )
+    # 对照：无基线时 \badcs 照归全块
+    hits0, _n, cids = _localize_doc(
+        tmp_path, file_text=DOC % _BODY, scan_body=_BODY, log=log
+    )
+    assert set(hits0) == {f"0:{cid}" for cid in cids}
+    # 基线只含 undefined_cs 签名 → 过滤后 infra 错本不归因 → 空归因
+    sig = err_signatures(
+        CompRes(
+            engine="fake",
+            ok=False,
+            workdir=tmp_path,
+            log_text="(./main.tex\n! Undefined control sequence.\nl.4 \\badcs\n",
+        )
+    )
+    hits, n_err, _c = _localize_doc(
+        tmp_path,
+        file_text=DOC % _BODY,
+        scan_body=_BODY,
+        log=log,
+        baseline_sigs=sig,
+    )
+    assert hits == {}
+    assert n_err == 2

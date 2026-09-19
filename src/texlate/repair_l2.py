@@ -158,6 +158,66 @@ _FILELEVEL_ERR_RX = re.compile(
     r"|Runaway\s+argument|Paragraph\s+ended\s+before"
     r"|Forbidden\s+control\s+sequence"
 )
+#: ``Undefined control sequence`` 头签名——罪魁 cs 在 ctx 窗
+#: （``<recently read> \cs`` 优先，``l.N \cs`` 行首回退）。
+_UNDEF_CS_HEAD_RX = re.compile(r"Undefined control sequence")
+_UNDEF_CS_CULPRIT_RXS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"<\s*recently read\s*>\s*(\\[A-Za-z@]+|\\[^\sA-Za-z])"),
+    re.compile(r"(?m)^\s*l\.\d+\s*(\\[A-Za-z@]+|\\[^\sA-Za-z])"),
+)
+
+
+def _undef_cs_culprit(err: l2_mod.LogError) -> str | None:
+    """``Undefined control sequence`` 的肇事 cs 名（``\\rowcolor`` 形）。"""
+    blob = "\n".join(err.ctx)
+    for rx in _UNDEF_CS_CULPRIT_RXS:
+        if m := rx.search(blob):
+            return m.group(1)
+    return None
+
+
+def _sig_head(head: str) -> str:
+    """签名化 head：去 ``!`` 前缀 + 空白塌缩 + 数字归一（行号跨构不稳定）。"""
+    h = re.sub(r"\s+", " ", head.strip().lstrip("!").strip())
+    return re.sub(r"\d+", "#", h)
+
+
+def err_signature(err: l2_mod.LogError) -> str:
+    """错误签名——en/zh 双编译间稳定（``head|culprit`` 形）。
+
+    ``Undefined control sequence`` 头恒定、罪魁全在 ctx——签名键必须是
+    cs 名而非裸 head（否则 en 任一 undefined_cs 会豁免 zh 全部同类，
+    译文幻觉 ``\\cs`` 被误放）。其余类 head 自带区分度（包名/env 名/
+    宏名在文内），culprit 位留空。
+    """
+    culprit = ""
+    if _UNDEF_CS_HEAD_RX.search(err.head):
+        culprit = _undef_cs_culprit(err) or ""
+    return f"{_sig_head(err.head)}|{culprit}"
+
+
+def err_signatures(res: CompRes) -> set[str]:
+    """CompRes → 错误签名集（en 基线快照——worker 原文编译后取）。
+
+    签名在 en 侧出现 = 源生错（无译文时已犯）——zh 侧同签名错误不归
+    chunk（L2 归因面消费；基线缺席返回空集=无过滤）。
+    """
+    verdict = _l2_parse(res)
+    if verdict.log_missing or not verdict.errors:
+        return set()
+    return {err_signature(e) for e in verdict.errors}
+
+
+def err_signatures_text(log_text: str, *, project_root: Path | None = None) -> set[str]:
+    """log 文本 → 错误签名集——``build-en`` 残存 .log 回扫臂（resume 路径）。"""
+    if not log_text:
+        return set()
+    verdict = l2_mod.parse_log_text(log_text, project_root=project_root)
+    if verdict.log_missing or not verdict.errors:
+        return set()
+    return {err_signature(e) for e in verdict.errors}
+
+
 #: env judge 输入截断（长 env 体只喂前 N 字符）
 _ENV_JUDGE_MAX_CHARS = 2000
 #: 环境开关
@@ -398,6 +458,30 @@ class L2Attr:
                 best_cid, best_gap = cid, gap
         return best_cid if best_gap <= _L2_ATTR_WINDOW else None
 
+    def _cs_source_carried(self, fidx: int, cs: str, sres: ScanResult) -> bool:
+        """肇事 cs 是否确证源携带（非译文引入）——undefined_cs 归因豁免判据。
+
+        ① work 文本块外区出现 cs（块外 verbatim 复制源）→ 源携带；
+        ② cs 全落块内 span → 块 ``content``（源文本）含之即源携带
+        （LLM 保留原用法），不含即译文新造可归因；③ work 文本零出现
+        判不可豁免（无法证伪译文引入，罕见展开生成件归 fixloop 面）。
+        """
+        text = self.texts[fidx]
+        tail = r"(?![A-Za-z@])" if cs[-1:].isalpha() else ""
+        found_in_span = False
+        for m in re.finditer(re.escape(cs) + tail, text):
+            pos = m.start()
+            inside = any(
+                sp is not None and sp[0] <= pos < sp[1]
+                for sp in self.spans[fidx].values()
+            )
+            if not inside:
+                return True
+            found_in_span = True
+        if not found_in_span:
+            return False
+        return any(cs in (c.content or "") for c in sres.chunks)
+
     def attr_error(  # noqa: PLR0911 -- 归因阶梯：豁免→结构→eof→白名单逐档直铺
         self, err: l2_mod.LogError
     ) -> tuple[int, list[int]] | None:
@@ -423,6 +507,14 @@ class L2Attr:
             return None  # 肇事文件不在产物树——错怪父文件不如不归因
         self.file_state(fidx)
         sres = self.run.scans[fidx][1]
+        # undefined_cs 源内 cs 豁免：肇事 cs 是源携带的（块外 verbatim 区
+        # 出现/块源文本含之/展开生成件）——未定义根因是装载期（包未载/
+        # 选项丢失，xcolor[table] clash 丢 \rowcolor 实证），重译造不出
+        # 定义，归块只会白烧额度+回退原文（2505.17508 表格 5 块实证）。
+        if _UNDEF_CS_HEAD_RX.search(err.head):
+            cs = _undef_cs_culprit(err)
+            if cs is not None and self._cs_source_carried(fidx, cs, sres):
+                return None
         if not eof and err.tex_line is not None:
             cid = self.attribute(fidx, err.tex_line, nearest=not strict)
             return (fidx, [cid] if cid is not None else [])
@@ -440,7 +532,11 @@ class L2Attr:
 
 
 def _l2_localize(
-    work: Path, run: TreeRun, res: CompRes
+    work: Path,
+    run: TreeRun,
+    res: CompRes,
+    *,
+    baseline_sigs: set[str] | None = None,
 ) -> tuple[dict[str, dict[str, Any]], int]:
     """编译 log → ``{chunk_id: {file,line,head}}`` 归因表 + 错误总数。
 
@@ -449,18 +545,22 @@ def _l2_localize(
     **最内层**（``l.NNN`` 只对 TeX 正在读的文件有意义——栈里更深的
     ``.sty``/``.cls`` 错是基建问题，不归 chunk）。``tex_line`` → 字节偏移
     → 所在 chunk；不在任何块内则取最近块（≤ ``_L2_ATTR_WINDOW``，且起点
-    越过错误行行尾的块被顺序读取不变量排除）。三档豁免先于归因：
-    ``_INFRA_ERR_RX`` 基建签名永不归块；``_STRUCT_ERR_RX`` 结构签名只
-    认报错行严格含于块内（无最近块兜底/文件级兜底）；无行号错误走
-    ``_FILELEVEL_ERR_RX`` 白名单才允许文件级全块归因（且 chunk 数
-    ≤ ``L2_MAX_CHUNKS``）。
+    越过错误行行尾的块被顺序读取不变量排除）。豁免先于归因：
+    ``baseline_sigs`` 命中的 en 基线签名判源生不归块；``_INFRA_ERR_RX``
+    基建签名永不归块；undefined_cs 肇事 cs 在源 chunk 文本中同理豁免；
+    ``_STRUCT_ERR_RX`` 结构签名只认报错行严格含于块内（无最近块兜底/
+    文件级兜底）；无行号错误走 ``_FILELEVEL_ERR_RX`` 白名单才允许文件级
+    全块归因（且 chunk 数 ≤ ``L2_MAX_CHUNKS``）。
     """
     verdict = _l2_parse(res)
     if verdict.log_missing or not verdict.errors:
         return {}, verdict.n_errors
+    errs = verdict.errors
+    if baseline_sigs:
+        errs = [e for e in errs if err_signature(e) not in baseline_sigs]
     st = L2Attr(run, work)
     hits: dict[str, dict[str, Any]] = {}
-    for err in verdict.errors[:_L2_MAX_ERRORS]:
+    for err in errs[:_L2_MAX_ERRORS]:
         got = st.attr_error(err)
         if got is None:
             continue
@@ -550,6 +650,7 @@ def l2_repair_round(  # noqa: C901, PLR0913 -- 阶梯直铺：钩子面穿透两
     retranslate: Callable[[TreeRun, dict[str, dict[str, Any]], int], dict[str, Any]],
     recompile: Callable[[], tuple[CompRes, Verdict]],
     checkpoint: Callable[[], None] | None = None,
+    baseline_sigs: set[str] | None = None,
 ) -> tuple[dict[str, Any], CompRes, Verdict | None]:
     """L2 回灌一轮骨架：归因 → 重译 → resplice → 重编 → 余孽回落原文。
 
@@ -558,10 +659,12 @@ def l2_repair_round(  # noqa: C901, PLR0913 -- 阶梯直铺：钩子面穿透两
     worker 包 client aclose 同 loop 纪律 + ``eng.compile``+``judge``。
     ``checkpoint`` 是 cancel 轮询点（worker ``_abort_if_cancelled``
     同位三处：重译前/后、首编后），缺省无操作。
-    返回 (l2 报告, 最新 CompRes, 新 Verdict 或 None=未重编)。
+    ``baseline_sigs`` 是 en 基线错误签名集（``err_signatures`` 快照）——
+    命中判源生错不进归因面；两轮 localize（首归因 + 重编后余孽检测）
+    同口径过滤。返回 (l2 报告, 最新 CompRes, 新 Verdict 或 None=未重编)。
     """
     rep: dict[str, Any] = {"enabled": True, "cap": cap}
-    hits, n_err = _l2_localize(work, run, res)
+    hits, n_err = _l2_localize(work, run, res, baseline_sigs=baseline_sigs)
     rep["errors"] = n_err
     rep["hits"] = hits
     last_res = res
@@ -594,7 +697,7 @@ def l2_repair_round(  # noqa: C901, PLR0913 -- 阶梯直铺：钩子面穿透两
 
     # 重编仍不过：本轮"重译过且仍被点名"的块回落原文；
     # 其余归因（含已回落原文仍犯错的——那是源级问题）记名留 fixloop。
-    hits2, _ = _l2_localize(work, run, res2)
+    hits2, _ = _l2_localize(work, run, res2, baseline_sigs=baseline_sigs)
     still_bad = sorted(set(hits2) & adopted)
     rep["fallback_src"] = still_bad
     rep["unresolved"] = sorted(set(hits2) - adopted)

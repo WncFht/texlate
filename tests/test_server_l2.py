@@ -77,11 +77,15 @@ def _l2_env_pins(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 class L2FlakyEngine:
-    """按 wdir 计数的假引擎：前 ``n_fail`` 次 compile 出可归因 L2 错误 log。
+    """按 wdir 计数的假引擎：``build-zh`` 前 ``n_fail`` 次 compile 出可归因
+    L2 错误 log；``build-en`` 等其余目录恒净。
 
     ``n_fail=1`` → L2 重编即绿（验证 L2 修好就跳过 fixloop）；
     ``n_fail=2`` → L2 重编仍败 → 回落后**裸编验证**即绿；
     ``n_fail=3`` → 回落态验证仍败（验证 fixloop 在 L2 之后兜底）。
+    en 侧必须恒净——worker 以 en 编译错误签名作 zh 归因的源生基线，
+    en 同签名失败会把 zh 错误判源携带豁免掉（过滤语义本身正确，
+    本 fixture 的前提是「en 干净、错由译文引入」）。
     探测面对齐 fixloop 会触到的 Engine 鸭子型。
     """
 
@@ -128,9 +132,9 @@ class L2FlakyEngine:
         flags: list[str] | None = None,  # noqa: ARG002
         should_cancel: Callable[[], bool] | None = None,  # noqa: ARG002
     ) -> CompRes:
-        """同 wdir 前 n_fail 次写出错 log 无 pdf，其后出假 pdf。"""
+        """build-zh 同 wdir 前 n_fail 次写出错 log 无 pdf，其后出假 pdf。"""
         n = sum(1 for c in self.calls if c["wdir"] == str(wdir))
-        ok = n >= self.n_fail
+        ok = n >= self.n_fail or "build-zh" not in str(wdir)
         self.calls.append(
             {"wdir": str(wdir), "passes": passes, "best_effort": best_effort}
         )
@@ -276,8 +280,10 @@ class TestL2Repair:
             assert len(l2_done) == 1
             assert l2_done[0]["retranslated"]
             assert l2_done[0]["report"]["recompiled"] == "clean"
-            # L2 修好后 fixloop 不跑
-            assert not [e for e in evs if e["type"] == "fixloop"]
+            # L2 修好后 zh 侧 fixloop 不跑——en 臂帧（cond="en"）合法在流中
+            assert all(
+                e["data"].get("cond") == "en" for e in evs if e["type"] == "fixloop"
+            )
             # 重译真被调过（[compile_error] 反馈）
             assert any("[compile_error]" in call["user"] for call in translator.calls)
 
