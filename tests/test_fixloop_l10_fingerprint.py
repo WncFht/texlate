@@ -134,7 +134,11 @@ def _fetch(ctx: LoopCtx, payload: str, root: Path) -> tuple[bool, str]:
 
 
 def test_vendored_fetch_absent_then_current(tmp_path: Path) -> None:
-    """absent → 带指纹落盘; 同 payload 再投 → already current 不重写。"""
+    """absent → 带指纹落盘; 同 payload 再投 → already current 不重写。
+
+    current 翻 decline (vendorcwd): 零字节改动不算 apply —— True 会烧掉
+    本轮 dispatch 并挡住同签名低 order 候选 (2609.19664 实证)。
+    """
     root = _vendor(tmp_path)
     (root / "stubs" / "slashbox.sty").write_text("% stub\n", encoding="utf-8")
     ctx = _ctx(tmp_path / "w")
@@ -145,8 +149,9 @@ def test_vendored_fetch_absent_then_current(tmp_path: Path) -> None:
         (ctx.wdir / "slashbox.sty").read_text(encoding="utf-8")
     )
     ok, note = _fetch(ctx, "slashbox.sty", root)
-    assert ok
+    assert not ok
     assert "already current" in note
+    assert "no-op" in note
 
 
 def test_vendored_fetch_legacy_stub_refreshed(tmp_path: Path) -> None:

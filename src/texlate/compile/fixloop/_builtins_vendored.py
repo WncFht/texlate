@@ -485,6 +485,23 @@ def _vendored_source(root: Path, fname: str) -> Path | None:
     return None
 
 
+def _resolve_site(ctx: LoopCtx, rel: PurePosixPath) -> Path | None:
+    """落点 = kpathsea 解析位 ``main_dir/<rel>``; main 未知退 wdir 根。
+
+    编译 cwd = ``main_path().parent`` 且无 TEXINPUTS 根注入 —— 平铺
+    wdir 根对嵌套 main (``templates/arxiv/main.tex``) 不可见
+    (2609.19664 fired-unfixed 实证); fileset_relocate 同口径。
+    ``main_rel`` 怪径致目标逃出 wdir → None。
+    """
+    mp = ctx.main_path()
+    dst = (mp.parent if mp is not None else ctx.wdir) / Path(*rel.parts)
+    try:
+        dst.resolve().relative_to(ctx.wdir.resolve())
+    except (OSError, RuntimeError, ValueError):
+        return None
+    return dst
+
+
 def vendored_fetch(
     ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
 ) -> tuple[bool, str]:
@@ -503,13 +520,19 @@ def vendored_fetch(
     src = _vendored_source(_vendor_root(params), fname)
     if src is None:
         return False, f"{fname} not vendored"
-    dst = ctx.wdir / Path(*rel.parts)
+    dst = _resolve_site(ctx, rel)
+    if dst is None:
+        return False, f"{fname}: escapes wdir"
     tier = "files" if src.parent.name == "files" else "stubs"
     body = src.read_text(encoding="utf-8", errors="replace")
     # 指纹闸 (b3a): 同名片四分判——外来件(稿自带/真包)永不覆写; 旧代
     # 注入件 (无指纹但带 vendored/fixloop 行头标记) 覆写刷新。
     done, state = _inject_write(ctx, dst, body, fname)
     if done is not None:
+        if state == "current":
+            # 零字节改动不算 apply —— True 会烧掉本轮 dispatch 并把
+            # 同签名低 order 候选 (fileset_relocate 类) 挡在门外。
+            return False, f"{done[1]} (no-op)"
         return done
     tag = "refreshed (stale injected)" if state == "stale" else "->"
     return (
@@ -673,8 +696,8 @@ def _drop_revtex_root_delegate(
     install_file(10) 会回投同毒成死循环 —— kpathsea cwd 序天然遮蔽,
     根 delegate 即最小充分面。``./revtex4.cls`` 在场则 pass 1 已决断。
     """
-    root = ctx.wdir / "revtex4.cls"
-    if root.exists() or not _revtex_shadowed_externally(ctx, eng):
+    root = _resolve_site(ctx, PurePosixPath("revtex4.cls"))
+    if root is None or root.exists() or not _revtex_shadowed_externally(ctx, eng):
         return
     if not repl_ok:
         adv = "revtex4.cls: texmf 遮蔽命中但 revtex4-2 缺席, 搁置"
@@ -742,7 +765,10 @@ def vendored_fetch_multi(
         if src is None:
             notes.append(f"{fname}: not vendored")
             continue
-        dst = ctx.wdir / Path(*rel.parts)
+        dst = _resolve_site(ctx, rel)
+        if dst is None:
+            notes.append(f"{fname}: escapes wdir")
+            continue
         if dst.exists():
             notes.append(f"{fname}: present")
             continue
