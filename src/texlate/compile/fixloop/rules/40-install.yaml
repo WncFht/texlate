@@ -151,6 +151,71 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "bench/corpus_v3/mechanisms.jsonl W102 verdict suggested_rules"
 
+  # 2026-09-20 taxonfix lane: tikz 库缺档两臂——"I did not find the tikz
+  # library 'X'" 报的是**库名**非文件名, 裸 payload 走 install_file 必
+  # miss (filemap 无 quantikz 键); 按内核查找约定拼
+  # tikzlibrary{lib}.code.tex (现代名, ~192 条索引) 先探, miss 时
+  # pgflibrary{lib}.code.tex (~40 条 pgflibrary-only 库无 tikzlib 孪生)
+  # 同签兜底。ctx_suggests 签名闸把两臂钉死在 tikz-lib 错上; 族内自门
+  # 件 (fileset_relocate/stub/docstrip) 对库名 payload 天然全 decline。
+  - id: tikz_library_install
+    description: "tikz 库缺档 → tikzlibrary{lib}.code.tex filemap 装包"
+    phase: loop
+    order: 9 # install_file(10) 前截流——payload 是库名非文件名, 裸装必 miss
+    when: { category: missing_file, payload_required: true }
+    condition:
+      ctx_suggests: "did not find the tikz library"
+    action:
+      kind: install_file
+      params:
+        file: "tikzlibrary{payload}.code.tex"
+        verify: file_probe
+        already_present_ok: true
+    risk: low # filemap 查不到即 decline 不耗轮; 装错包面窄 (库名→TL 包一一对应)
+    engines:
+      xelatex:
+        { mode: native, via: "tlmgr search --file → tlmgr --usermode install" }
+      tectonic:
+        mode: degrade
+        degrade: ctan_fetch
+        fallback: advisory
+    provenance:
+      - {
+          corpus: "loop3-2308.00056 / soak-2026-09-18 2609.20331+2609.20771",
+          error: "Package tikz Error: I did not find the tikz library 'quantikz'/'quantikz2' —— 旧归 other 永不进 install 面; filemap: tikzlibraryquantikz[2].code.tex → quantikz",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "taxonfix lane (census 3 cells); tlpdb 索引 192 tikzlibrary 条实证"
+
+  - id: pgf_library_install
+    description: "tikz 库缺档 → pgflibrary{lib}.code.tex filemap 装包 (tikzlib 名 miss 兜底)"
+    phase: loop
+    order: 9 # 紧随 tikz_library_install——pgf 名是内核第二查找路径
+    when: { category: missing_file, payload_required: true }
+    condition:
+      ctx_suggests: "did not find the tikz library"
+    action:
+      kind: install_file
+      params:
+        file: "pgflibrary{payload}.code.tex"
+        verify: file_probe
+        already_present_ok: true
+    risk: low # 仅 tikzlib 名 miss 后到达; filemap 双 miss → 落 install_file 常规面
+    engines:
+      xelatex:
+        { mode: native, via: "tlmgr search --file → tlmgr --usermode install" }
+      tectonic:
+        mode: degrade
+        degrade: ctan_fetch
+        fallback: advisory
+    provenance:
+      - {
+          corpus: "tlpdb 索引普查 2026-09-20",
+          error: "~40 库仅出 pgflibraryX.code.tex 无 tikzlib 孪生 (ext.*/graphdrawing.*/timelines 族) —— 单 tikzlib 臂对这些库必 miss",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "taxonfix lane; filemap pgflibrary-only 名单实证"
+
   - id: install_file
     mechanisms: [W19, W47, W52, W98, W51, W21]
     description: "缺文件 (.sty/.cls/.fd/.def/…) → filemap 查包 → 安装 → 探测复核"

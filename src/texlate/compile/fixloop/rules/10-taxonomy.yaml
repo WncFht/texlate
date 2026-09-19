@@ -55,6 +55,18 @@ taxonomy:
       use_pre: true,
       pattern: "(?m)^No file ([\\w@.+-]+\\.fd)\\.[ \\t]*\\n[\\s\\S]{0,600}?NFSS system isn't set up properly",
     }
+  # 2026-09-20 taxonfix lane: tikz 库缺档自报 "I did not find the tikz
+  # library 'X'" (Package tikz Error, file-line 形) —— payload=库名 (非
+  # 文件名), tikz_library_install/pgf_library_install 两臂按命名约定
+  # 拼 tikzlibrary{lib}.code.tex / pgflibrary{lib}.code.tex 走 filemap
+  # (2308.00056 quantikz / 2609.20331+2609.20771 quantikz2 实证;
+  # 旧恒归 other 永远够不到 install 面)。
+  - {
+      id: missing_file,
+      scope: head,
+      payload_group: 1,
+      pattern: "did not find the tikz library '([^']+)'",
+    }
   # —— TFM 字体缺失 (抓字体名=文件名 → install_tfm) ——
   # payload 类须含 "-": SkakNew-Diagram 型名按 [a-zA-Z0-9]/\w 抓会在
   # 连字符处截断成 "Diagram" → filemap 必 miss (loop1-2211.12985 实证)。
@@ -172,10 +184,16 @@ taxonomy:
   # 命中空串、永不锚到行1。旧"空 l.N 行"变体被顶行抓取完全吞并。
   # cs 名分两支: [a-zA-Z@]+ 字母串 | 单字符 nonletter cs (\+/\~/\% 等,
   # TeX 规定 nonletter cs 恰一字符)——b3a texlog 实证 \+ payload=None。
+  # 2026-09-20 taxonfix lane: 提取移交 payload_scan python 提取器 (regex
+  # 仍作匹配门)——\GenericError-led ctx 顶行末位是内核错误渲染宏 (真
+  # 冒犯 cs 藏 #N 参内), 旧抓出 undefined_cs|GenericError 死 payload
+  # (0712.1016 \diagchar / 2105.03751 \footnote 实证); 提取器对内核
+  # 宏族回退 l.N 行末位非内核字母 cs → 中间展开层末位 cs。
   - id: undefined_cs
     scope: head
     pattern: "Undefined control sequence[^\\n]*\\n[^\\n]*\\\\([a-zA-Z@]+|[^\\s\\\\{}])[^\\\\\\n]*(?:\\n|$)"
     payload_group: 1
+    payload_scan: undefined_cs
     subclassify:
       { pattern: "\\\\(pdf[a-zA-Z@]+)", into: pdftex_prim, payload_group: 1 }
   - { id: undefined_cs, scope: head, pattern: "Undefined control sequence" }
