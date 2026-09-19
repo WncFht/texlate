@@ -1125,3 +1125,11 @@
 - **分派**: #171 shimdiag (dispatch-miss 双簇闸 vs 记录逐格对账) + #172 zhleakdiag (74 格泄位置桶+泄生阶段, 诊断-only 因 mutex) + colonslaner (1003.0694 `undefined_cs:_` 9err 族) + verifier164b (#170 三问裁决——格类归属/pre-docclass 执行面/post-撤除重编译); ifscanner #167 绿灯落中 (ifscan.py 提 textutil 叶+双 yaml 薄壳+ifprot phantom 闸, facade 导出列入落地要件)。
 - **关毕**: sabcheck3/assetlane/misscharcen/tailcensus; roster 5: ifscanner(#167 落)/colonslaner/verifier164b/shimdiag(#171)/zhleakdiag(#172)。
 - 门: teammate 零 git✓; HEAD 9456a777 (全 leader 署); L0 道测 94/94 合并树绿✓; sab-r8 escaped=0✓; 裁决点 3 件仍待用户 (#10/ds@ Option A/verdict 排序); 私 index 提交术续用零事故 (facade 三路交织经 blob-splice 分提)。
+
+## 2026-09-19 ~12:2x — 巡逻: colonslaner 幽灵判 + 3 新派 (revtex/arrayarg/firezero) + L0 一红=ifscanner 在飞churn
+
+- **colonslaner `:_` 判结 (免新规)**: `undefined_cs:_` 是 **logparse 幽灵**——taxonomy 正则锚 context 行首个反斜杠, `\__hook package/microtype/after ...` 的 expl3 名下 `_` 被捕为 payload; 真凶 `\MT@addto@setup`/`\MT@ltx@pickupfont` 在 `...` 截断尾窗无转义符打印→不可见。机理: 格 ship microtype v2.3b(2008) 影 v3.2d→xeCJK hook 炸 9 连; **vendored_sty_shadow loop3 已发→acceptable_pdf**, 脏签名是 pre-fixloop 陈记录 (freshest-wins 去重本就消化)。旁证 0812.1138 同 ship v2.3b 未编译。可选硬化: hook 语境捕 `...` 尾 token——记入机制库, 不单开规。关毕。
+- **3 新派**: revtexlane (revtex4.cls user-texmf shadow retire——同 amsmath/mnras 指纹退役族, census≥3 homogeneous 门槛先行防机爆半径); #175 arrayarg ("Illegal character in array arg" ×19——先证非 zhleak 未覆 postwave≥3 再动手, 与 arraypream "Illegal pream-token" 邻签名分清, 这-载荷格归 zhleakdiag 域); #176 firezero (fires=0 ∧ 零 ledger action 全扫——shimdiag 三族深挖的补全, stats-lag/dormant 分桶)。
+- **L0 扫 fixloop 全套**: 156 绿 **1 红 = test_scanner_both_copies_carry_guards**——pin 断旧内嵌扫描器字面 (@boole@def/let-lookahead), ifscanner 薄壳落件删之在飞=**预期 churn 非回归**; 已嘱同落地更新 pin (assert 薄壳形), 行为 e2e 测 (booledef/let-char/let-cs/real-deficit) 必须照过——过才是新扫描器行为等价的实证, 弱化=真回归须报。
+- roster 7: ifscanner(#167 落中)/verifier164b(#170)/shimdiag(#171)/zhleakdiag(#172)/revtexlane(#174)/arrayarg(#175)/firezero(#176)。peer texlate-bb/preamble-toggles 持 mutex (segmenter/inject 域), replay 波续封。
+- 门: teammate 零 git✓; HEAD f47a6ded; L0 1 红归因在飞 lane 非格退; sab-r8 escaped=0✓; 裁决点 3 件仍待用户。
