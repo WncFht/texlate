@@ -60,7 +60,9 @@
   % \pacs 全期容忍: revtex4-2 版在 \maketitle 后调 → ClassError
   % (revtex_pacs 5 格实证)。begin-doc 起改直印 —— 前置调用失去
   % frontmatter 注册但文本可见且不炸 (2.09 老稿多后置)。
-  \def\revtex@pacsflat#1{\par\noindent\textbf{PACS:} #1\par}
+  % \long: 老稿 \pacs 实参可含空行/\and 分段 (真 revtex 收段落级
+  % 内容), 非 \long 遇 \par 炸 "Paragraph ended before \pacs"。
+  \long\def\revtex@pacsflat#1{\par\noindent\textbf{PACS:} #1\par}
   \AtBeginDocument{\let\pacs\revtex@pacsflat}
 \fi
 \endinput

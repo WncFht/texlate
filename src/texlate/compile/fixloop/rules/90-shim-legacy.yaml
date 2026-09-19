@@ -80,7 +80,9 @@ rules:
               % frontmatter 注册但文本可见且不炸 (2.09 老稿多后置)。
               % hook 内 \def 用单 #——hook 逐字存 token, 双写则字面留下炸
               % 参数号 + \pacs 变定界宏撞 \par (loop2/rt1/guardsmoke 7 格实证)。
-              \AtBeginDocument{\def\pacs#1{\par\noindent\textbf{PACS:} #1\par}}
+              % \long: 老稿 \pacs 实参可含空行/\and 分段, 非 \long 遇 \par
+              % 炸 "Paragraph ended before \pacs" (revpacs 普查实证)。
+              \AtBeginDocument{\long\def\pacs#1{\par\noindent\textbf{PACS:} #1\par}}
               \endinput
           psfig.sty:
             needs: ["epsfig.sty"]
