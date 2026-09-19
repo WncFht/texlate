@@ -60,9 +60,14 @@ rules:
   # \\mbox{\\quotedblbase} + \\textacutedbl→\\mbox{''} (hep-ph/0605319
   # 作者 „...˝ 引号对, gravedbl 产 U+02F5 缺 ×12, acutedbl 键伴生 02F5
   # 使引号对成对归一为 „...")。
+  # misscharcen #169 再扩 (wave-2): \\char<dec> OT1/cmc 槽位原语臂 —
+  # Unicode 字体下 \\char13 产码位 13 而非 cmcsc 13 号 fl 连字
+  # (1404.0578 \\textsc{\\char13} lmromancaps10 ^^M ×41)。产码位=
+  # 实参值 → _OT1_CHAR_SLOTS 0-31 同闸改写; 槽位表对 TFM 语境亦
+  # 语义保持 (fl 字母重归连字槽) —— 门控失误零副作用。
   - id: macro_glyph_fix
     mechanisms: [W42, W43]
-    description: "宏名产缺字 (\\texttildelow/\\textlangle/\\textrangle/\\textendash/\\textgravedbl/\\textacutedbl) → 站点改写 \\ensuremath/\\mbox 等价"
+    description: "宏名/原语产缺字 (\\texttildelow 族 6 cs + \\char<dec> OT1 槽位表) → 站点改写双模安全等价"
     phase: loop
     order: 25.8 # cs_rebind(25.7) 后, font_fallback(26) 前 —— 同闸同域, 换形臂
     when:
@@ -75,7 +80,7 @@ rules:
       function: macro_glyph_fix
       params: { exts: [.tex, .bbl, .cls] }
     risk: low # 站点级双闸 (码位∈日志 ∧ cs∈源); \\ensuremath/\\mbox 双模安全
-    known_gap: "\\let\\x\\textlangle 单 token 别名绑定不匹配; 表外 cs 产字 decline 交下轮; \\textacutedbl 键伴生 U+02F5 触发 (引号对归一), 音标域 U+02DD 真缺字不触发"
+    known_gap: "\\let\\x\\textlangle 单 token 别名绑定不匹配; 表外 cs 产字 decline 交下轮; \\textacutedbl 键伴生 U+02F5 触发 (引号对归一), 音标域 U+02DD 真缺字不触发; \\char 槽表外 (≥32 ASCII 面) 与非数值实参 (\\char`a/\\char\\numexpr) 不收"
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }
@@ -88,8 +93,12 @@ rules:
           corpus: "misscharcen #162 (loop3 残余普查 tmp/lane-misscharcen/cells.json): 0806.2407 U+2013×40 cmr10, hep-ph/0605319 U+02F5×12 lmroman10/12",
           error: "Missing character: –(U+2013)/˵(U+02F5) — \\textendash/\\textgravedbl(+\\textacutedbl 引号对) 站点产出",
         }
+      - {
+          corpus: "misscharcen #169 (loop3 残余普查): 1404.0578 U+000D ^^M×41 lmromancaps10",
+          error: "Missing character: no ^^M (U+000D) — \\textsc{\\char13} OT1/cmcsc 槽位 13=fl 连字被读作码位",
+        }
     stats: { fires: 0, status: proposed }
-    source_ref: "task #154 stage-B; tmp/lane-misscharext/report.md — 直换 \\ensuremath 非字面 (一轮达, \\qdist def 站是文本态序言而展开在数学); #162 扩表 tmp/lane-misscharcen/cells.json"
+    source_ref: "task #154 stage-B; tmp/lane-misscharext/report.md — 直换 \\ensuremath 非字面 (一轮达, \\qdist def 站是文本态序言而展开在数学); #162/#169 扩表 tmp/lane-misscharcen/cells.json"
 
   - id: hyphenation_sane
     description: "\\hyphenation{} 参数混入非拉丁 token (中文) → 剥离, 只留 [a-zA-Z-]"

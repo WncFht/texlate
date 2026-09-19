@@ -10,7 +10,10 @@ from pathlib import Path
 from test_fixloop_loop import CLEAN_LOG, MockEngine, make_proj
 
 from texlate.compile.fixloop import fixloop
-from texlate.compile.fixloop._builtins_misschar import macro_glyph_fix
+from texlate.compile.fixloop._builtins_misschar import (
+    caret_utf8_fix,
+    macro_glyph_fix,
+)
 from texlate.compile.fixloop.builtins import (
     _inject_after_docclass,
     _mc_parse_log,
@@ -706,3 +709,210 @@ def test_builtin_macro_glyph_acutedbl_own_cp_not_keyed(tmp_path: Path) -> None:
     ok, _note = macro_glyph_fix(_ctx(tmp_path), None, None, {})
     assert ok is False
     assert "\\textacutedbl" in (tmp_path / "main.tex").read_text(encoding="utf-8")
+
+
+# ════════════════════════════════════════════════════════════════
+# misscharcen #169 (2026-09-19, misschar wave-2): macro_glyph_fix
+# +``\char<dec>`` OT1 槽位臂 (1404.0578) + caret_utf8_fix 新臂
+# (2104.00026 .bbl ``^^XX`` UTF-8 字节记法)
+# ════════════════════════════════════════════════════════════════
+
+
+def test_builtin_macro_glyph_char_slot_textsc_ligature(tmp_path: Path) -> None:
+    r"""``\textsc{\char13}`` OT1/cmcsc 槽位 13=fl 连字 → 字母串改写。
+
+    1404.0578 签名 (lmromancaps10 ``^^M`` U+000D ×41): Unicode 字体下
+    ``\char13`` 产码位 13 本身而非槽位字形 —— 槽位表还原连字本意;
+    写字母 ``fl`` 在 \textsc 上下文自动取小型大写形 (cmcsc 槽位原义)。
+    """
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\n"
+        "x \\textsc{\\char13} y \\char11 z \\char15 w\n"
+        "\\end{document}\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "main.log").write_text(
+        "Missing character: There is no ^^M (U+000D) in font "
+        "[lmromancaps10-regular]:mapping=tex-text;!\n"
+        "Missing character: There is no ^^K (U+000B) in font "
+        "[lmromancaps10-regular]:mapping=tex-text;!\n"
+        "Missing character: There is no ^^O (U+000F) in font "
+        "[lmromancaps10-regular]:mapping=tex-text;!\n",
+        encoding="utf-8",
+    )
+    ok, note = macro_glyph_fix(_ctx(tmp_path), None, None, {})
+    assert ok is True
+    assert "char" in note
+    t = (tmp_path / "main.tex").read_text(encoding="utf-8")
+    assert "\\textsc{fl}" in t
+    assert "y ff z ffl w" in t
+    assert "\\char" not in t
+
+
+def test_builtin_macro_glyph_char_slot_radices_and_greek(tmp_path: Path) -> None:
+    r"""八/十六进制实参同臂 (``\char'15``/``\char"D``) + 希腊槽位
+    (``\char1``→``\ensuremath{\Delta}``)。"""
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\n"
+        "a \\char'15 b \\char\"D c \\char1 d\n"
+        "\\end{document}\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "main.log").write_text(
+        "Missing character: There is no ^^M (U+000D) in font "
+        "[lmroman10-regular]:mapping=tex-text;!\n"
+        "Missing character: There is no ^^A (U+0001) in font "
+        "[lmroman10-regular]:mapping=tex-text;!\n",
+        encoding="utf-8",
+    )
+    ok, _note = macro_glyph_fix(_ctx(tmp_path), None, None, {})
+    assert ok is True
+    t = (tmp_path / "main.tex").read_text(encoding="utf-8")
+    assert "a fl b fl c \\ensuremath{\\Delta} d" in t
+
+
+def test_builtin_macro_glyph_char_slot_gate_bounds(tmp_path: Path) -> None:
+    r"""槽表内 dec∉seen → 站点不动 (``\char12`` 产 U+000C 未缺字);
+    表外 dec (≥32 ASCII 面) 本就不收。"""
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\n"
+        "a \\char99 b \\char12 c\n"
+        "\\end{document}\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "main.log").write_text(
+        "Missing character: There is no ^^M (U+000D) in font "
+        "[lmroman10-regular]:mapping=tex-text;!\n",
+        encoding="utf-8",
+    )
+    ok, note = macro_glyph_fix(_ctx(tmp_path), None, None, {})
+    assert ok is False
+    assert "no cs sites" in note
+    t = (tmp_path / "main.tex").read_text(encoding="utf-8")
+    assert "\\char99" in t
+    assert "\\char12" in t
+
+
+def test_loop_char_slot_end_to_end(tmp_path: Path) -> None:
+    r"""实装 ruleset 端到端: ``\textsc{\char13}`` → ``\textsc{fl}``
+    (1404.0578 单签 U+000D → 25.8 macro_glyph_fix 槽位臂)。"""
+    main = (
+        "\\documentclass{article}\n\\usepackage{ctex}\n"
+        "\\begin{document}\n这是译文\\textsc{\\char13}这是译文\n\\end{document}\n"
+    )
+    log = (
+        "Missing character: There is no ^^M (U+000D) in font "
+        "[lmromancaps10-regular]:mapping=tex-text;!\n"
+        "Output written on main.pdf (1 page).\n"
+    )
+    eng = MockEngine([{"log": log, "pdf": True}, {"log": CLEAN_LOG, "pdf": True}])
+    cell = fixloop(make_proj(tmp_path, main), eng)
+    assert cell["verdict"] == "clean"
+    assert cell["rounds"][0]["category"] == "warn_missing_char"
+    t = (tmp_path / "main.tex").read_text(encoding="utf-8")
+    assert "\\textsc{fl}" in t
+    assert "\\char" not in t
+
+
+def test_builtin_caret_utf8_bbl_decode(tmp_path: Path) -> None:
+    r""".bbl ``^^XX`` UTF-8 字节记法 → 解码还原字面量 (2104.00026 签名)。
+
+    ``f^^c3^^bcr`` = UTF-8 C3 BC = ``für``; ``^^e2^^80^^93`` = E2 80 93
+    = en-dash。C1 字节 (^^80/^^93) 是缺字指纹; ``^^c3^^bc`` 字节都落
+    Latin-1 有槽面产零缺字静默 mojibake —— 段级解码一并还原。
+    """
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\nx \\input{main.bbl}\n\\end{document}\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "main.bbl").write_text(
+        "Zeitschrift f^^c3^^bcr Physik "
+        "Knizhnik^^e2^^80^^93Zamolodchikov 121^^e2^^80^^93187\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "main.log").write_text(
+        "Missing character: There is no ^^80 (U+0080) in font "
+        "[lmroman9-italic]:mapping=tex-text;!\n"
+        "Missing character: There is no ^^93 (U+0093) in font "
+        "[lmroman9-regular]:mapping=tex-text;!\n",
+        encoding="utf-8",
+    )
+    ok, note = caret_utf8_fix(_ctx(tmp_path), None, None, {})
+    assert ok is True
+    assert "decoded" in note
+    t = (tmp_path / "main.bbl").read_text(encoding="utf-8")
+    assert "für Physik" in t
+    assert "Knizhnik–Zamolodchikov" in t
+    assert "121–187" in t
+    assert "^^" not in t
+
+
+def test_builtin_caret_utf8_bad_seq_and_singles_preserved(tmp_path: Path) -> None:
+    r"""单 token / 非 UTF-8 合法序列原样保留 —— 合法 TeX 记法与坏
+    mojibake 不误伤; 同段混入的合法序列照解。"""
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\n"
+        "keep ^^41 ^^0d bad ^^e2^^41^^80 surr ^^ed^^a0^^80 good ^^c3^^bc\n"
+        "\\end{document}\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "main.log").write_text(
+        "Missing character: There is no ^^80 (U+0080) in font "
+        "[lmroman9-regular]:mapping=tex-text;!\n",
+        encoding="utf-8",
+    )
+    ok, _note = caret_utf8_fix(_ctx(tmp_path), None, None, {})
+    assert ok is True
+    t = (tmp_path / "main.tex").read_text(encoding="utf-8")
+    assert "^^41" in t  # 单 token 合法记法不动
+    assert "^^0d" in t
+    assert "^^e2^^41^^80" in t  # E2 需 2 续字节 (41 非续) → 全回吐
+    assert "^^ed^^a0^^80" in t  # ED A0 80 = 代理区 → 严格校验回吐
+    assert "good ü" in t
+
+
+def test_builtin_caret_utf8_gate_requires_c1(tmp_path: Path) -> None:
+    r"""无 C1 缺字 → 指纹门不过 → 不动 (纯 ü 类零缺字 mojibake 不属
+    证据修复面, known_gap)。"""
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\n"
+        "Zeitschrift f^^c3^^bcr\n"
+        "\\end{document}\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "main.log").write_text(
+        "Missing character: There is no ≠ (U+2260) in font cmr7!\n",
+        encoding="utf-8",
+    )
+    ok, note = caret_utf8_fix(_ctx(tmp_path), None, None, {})
+    assert ok is False
+    assert "fingerprint" in note
+    assert "f^^c3^^bcr" in (tmp_path / "main.tex").read_text(encoding="utf-8")
+
+
+def test_loop_caret_utf8_end_to_end(tmp_path: Path) -> None:
+    r"""实装 ruleset 端到端: C1 缺字 → 25.9 caret_utf8_fix 解码 .bbl
+    → clean (2104.00026 签名复刻)。"""
+    proj = make_proj(
+        tmp_path,
+        "\\documentclass{article}\n\\usepackage{ctex}\n"
+        "\\begin{document}\nx \\input{main.bbl}\n\\end{document}\n",
+    )
+    (proj / "main.bbl").write_text(
+        "Zeitschrift f^^c3^^bcr Physik 121^^e2^^80^^93187\n",
+        encoding="utf-8",
+    )
+    log = (
+        "Missing character: There is no ^^80 (U+0080) in font "
+        "[lmroman9-italic]:mapping=tex-text;!\n"
+        "Missing character: There is no ^^93 (U+0093) in font "
+        "[lmroman9-regular]:mapping=tex-text;!\n"
+        "Output written on main.pdf (1 page).\n"
+    )
+    eng = MockEngine([{"log": log, "pdf": True}, {"log": CLEAN_LOG, "pdf": True}])
+    cell = fixloop(proj, eng)
+    assert cell["verdict"] == "clean"
+    assert cell["rounds"][0]["category"] == "warn_missing_char"
+    t = (proj / "main.bbl").read_text(encoding="utf-8")
+    assert "für Physik" in t
+    assert "121–187" in t

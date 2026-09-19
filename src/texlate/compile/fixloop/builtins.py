@@ -96,6 +96,7 @@ from texlate.compile.fixloop._builtins_misc import (
 )
 from texlate.compile.fixloop._builtins_misschar import (
     accent_mark_fix,
+    caret_utf8_fix,
     font_fallback,
     macro_glyph_fix,
     missing_char_fix,
@@ -181,6 +182,7 @@ __all__ = [
     "biber_biblatex_skew_route",
     "bm_mathchar_wrap",
     "bundled_class_shadow",
+    "caret_utf8_fix",
     "cite_in_math_mbox",
     "citekey_sanitize",
     "cs_rebind",
@@ -283,6 +285,7 @@ TRANSFORM_FNS = {
     "missing_char_fix": missing_char_fix,
     "macro_glyph_fix": macro_glyph_fix,
     "accent_mark_fix": accent_mark_fix,
+    "caret_utf8_fix": caret_utf8_fix,
     "font_fallback": font_fallback,
     "graphic_case_link": graphic_case_link,
     "graphic_repair": graphic_repair,

@@ -343,3 +343,37 @@ rules:
         }
     stats: { fires: 0, status: proposed }
     source_ref: "hangulfont lane census 2026-09-19 (tmp/hangulfont/census.json): 2 cells ×4 run-records"
+
+  # ─── F4f (misscharcen #169, loop3 残余普查): bibtex-era ``^^XX`` UTF-8
+  # 字节记法解码 —— 每 ``^^XX`` 在 xetex 下读作独立码位 U+00XX: 高位字节
+  # 产 C1 (U+0080-9F) 缺字, 低位字节产 â/¼ 等静默 mojibake。门控 = 日志
+  # 见 C1 缺字 (字节记法指纹); 解码面 = 全文 ``^^XX`` 段中严格合法 UTF-8
+  # 多字节序列 → 字面量还原 (2104.00026 master2020.bbl: ^^e2^^80^^93=
+  # en-dash ×4 + ^^c3^^bc=ü —— 后者字节都落 Latin-1 有槽面零缺字,
+  # 字节级 seen-门会漏这类不可见 mojibake, 段级解方一并还原)。
+  - id: caret_utf8_fix
+    mechanisms: [W42, W43]
+    description: ".bbl/.tex ``^^XX`` UTF-8 字节记法 → 解码还原字面量 (C1 缺字指纹门)"
+    phase: loop
+    order: 25.9 # 产出类站点臂簇尾 (accent 25.5/cs_rebind 25.7/macro_glyph 25.8 之后)
+    when:
+      any:
+        - { category: warn_missing_char }
+        - { category: warn_utf8 }
+    action:
+      kind: builtin_transform
+      function: caret_utf8_fix
+      params:
+        exts: [.tex, .bbl]
+    risk: low # 严格 UTF-8 校验, 非法序列原样回吐; 单 token ^^41/^^0d 合法记法不动
+    known_gap: "纯 Latin-1 面字节对 (^^c3^^bc 类零 C1 缺字) 不产指纹 → 不可见 mojibake 不属证据修复面; .aux/.toc 同机制未收 (零观测)"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "2104.00026 (loop3 残余普查 tmp/lane-misscharcen/cells.json) master2020.bbl",
+          error: 'Missing character: no ^^80 (U+0080)/^^93 (U+0093) ×4 lmroman9 —— bibtex 字节记法 ^^e2^^80^^93=en-dash / ^^c3^^bc=ü',
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "task #169 misscharcen wave-2; tmp/lane-misscharcen/cells.json ^^80/^^93 rows"
