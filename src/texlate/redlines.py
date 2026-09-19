@@ -88,6 +88,7 @@ class RedLine:
     l2: LayerSpec | None = None  # l2 _WARNING_RULES 行级类
     l2_redline: bool = False  # l2 类是否入 _REDLINE_CLASSES
     judge: LayerSpec | None = None  # judge 门控/探针 regex + reason 词干
+    concept_only: bool = False  # 零层切片概念锚点行（判据在 log regex 域外）
 
 
 #: 行序 = engine 发射序（invalid_utf8/fffd/missing_chars/missing_graphic/
@@ -218,6 +219,7 @@ REDLINES: Final[tuple[RedLine, ...]] = (
         # ``REDLINES_BY_ID`` 供 census/bucket 报告引 id，对
         # ENGINE_RED_LINES/RULES_WARNINGS/L2_* 切片零贡献（``is not None``
         # 过滤天然豁免）。
+        concept_only=True,
     ),
     RedLine(
         id="perpage_fnsymbol_firstpass",
@@ -236,6 +238,7 @@ REDLINES: Final[tuple[RedLine, ...]] = (
         # 真·判据 = .aux 新鲜度 + ``\DefineFNsymbols*`` 符数 vs footnote
         # 计数——source/build-state 介质非 log regex 语义。登记只为归因
         # 面留概念锚点，对 ENGINE_RED_LINES/RULES_WARNINGS/L2_* 零贡献。
+        concept_only=True,
     ),
     RedLine(
         id="latex209_class_absent",
@@ -247,6 +250,7 @@ REDLINES: Final[tuple[RedLine, ...]] = (
         # 发生在编译前，log 面无事件行可检索；真·判据 = 类表成员核对
         # （config/source 介质非 log regex 语义）。登记只为归因面留概念
         # 锚点，对 ENGINE_RED_LINES/RULES_WARNINGS/L2_* 零贡献。
+        concept_only=True,
     ),
 )
 

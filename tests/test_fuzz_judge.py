@@ -493,7 +493,7 @@ class TestRedlines:
         assert len(ids) == len(set(ids))
         for r in REDLINES:
             layers = [r.engine, r.rules, r.l2, r.judge]
-            assert any(spec is not None for spec in layers), r.id
+            assert any(spec is not None for spec in layers) or r.concept_only, r.id
             for spec in layers:
                 if spec is not None and spec.pattern is not None:
                     re.compile(spec.pattern)
