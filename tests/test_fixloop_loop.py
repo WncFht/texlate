@@ -1236,11 +1236,13 @@ def test_tar_blob_ustar_word_in_text_not_false_positive(tmp_path: Path) -> None:
 
 # ------------------------------------------------------- physics detach @catcode
 def test_detach_input_letter_wrap_per_host() -> None:
-    r"""``\\input{physics.sty}`` 在 .tex 宿主带 ``\\makeatletter`` 包裹——
+    r"""``\\input{physics.sty}`` 在 .tex 宿主带 @ 存复包裹——
 
     裸 ``\\input`` 不设 @=letter, stub 内 ``\\@undefined`` 碎成 ``\\@``+裸
     字母 → 排版文本泄 preamble 炸 Missing ``\\begin{document}`` (1706.00240
-    physics.sty:13 实证)。.sty/.cls 宿主 @ 本即 letter 走裸 ``\\input``。
+    physics.sty:13 实证)。包裹走 exact-restore (svglov3.clo idiom):
+    ``\\catcode 64=11`` 读件后 ``\\TeXlateStyInRestore`` 复原。
+    .sty/.cls 宿主 @ 本即 letter 走裸 ``\\input``。
     """
     from texlate.compile.fixloop._builtins_pkgload import (  # noqa: PLC0415
         _detach_physics_loads,
@@ -1249,7 +1251,12 @@ def test_detach_input_letter_wrap_per_host() -> None:
     src = "\\documentclass{article}\n\\usepackage{physics}\n"
     tex_out, n = _detach_physics_loads(src, add_input=True, letter_wrap=True)
     assert n == 1
-    assert "\\makeatletter\\input{physics.sty}\\makeatother" in tex_out
+    assert (
+        "\\edef\\TeXlateStyInRestore{\\catcode 64=\\the\\catcode 64\\relax}"
+        "\\catcode 64=11\\relax \\input{physics.sty} \\TeXlateStyInRestore"
+        in tex_out
+    )
+    assert "\\makeatletter" not in tex_out
     sty_out, _ = _detach_physics_loads(src, add_input=True, letter_wrap=False)
     assert "\\input{physics.sty}" in sty_out
-    assert "\\makeatletter" not in sty_out
+    assert "\\TeXlateStyInRestore" not in sty_out
