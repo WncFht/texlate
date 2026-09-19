@@ -214,3 +214,38 @@ rules:
         }
     stats: { fires: 0, status: proposed }
     source_ref: "fixloop.py L396-406"
+
+  # 1907.03923 (stagerun-loop3) 实证: ``\usepackage{pigpen}`` → dist 侧
+  # ``pigpen.map`` 行 ``pigpen <pigpen.pfa`` 折进 pdftex.map → xdvipdfmx
+  # 对 ASCII Type1 按扩展名硬拒 (只收 .pfb 二进制)。签名只走
+  # stderr→stdout_tail (.log 干净) —— ``_report_of`` 归一成 '!' 行使
+  # ``other`` 类目可见 (pdf_asset_sanitize 同族派发面)。修复 = 纯 python
+  # pfa→pfb 转换 (t1binary 等价, eexec 密文段原样 hex 解码不解密) 产物
+  # 落 usertree ``home/fonts/type1/`` + pdftex.map 改写副本落
+  # ``var/fonts/map/pdftex/updmap/`` (TEXMFVAR 位遮蔽系统树) + 源
+  # ``<pkg>.map`` 同路径遮蔽落 ``home/fonts/map/dvips/`` (updmap 再生
+  # 面保险) —— 全在格级 usertree, 不动宿主树, 幂等。
+  - id: pfa_to_pfb
+    description: "xdvipdfmx 'pfa format not supported' fatal → usertree 内 pfa→pfb 转换 + pdftex.map/源 .map 遮蔽"
+    phase: loop
+    order: 42 # missing_pfb_updmap(40)/font_sub_shim(45) 同族物理字体面
+    when: { category: other }
+    condition:
+      ctx_suggests: "pfa format not supported"
+    action:
+      kind: builtin_transform
+      function: pfa_to_pfb
+      params: {}
+    risk: low # 只写 usertree 遮蔽件不改源; 工程内 map 才就地改写
+    engines:
+      xelatex: { mode: native }
+      tectonic:
+        mode: unsupported # tectonic 无 usertree/updmap map 遮蔽面
+        fallback: escalate_llm # 建议路由回 xelatex 或人工
+    provenance:
+      - {
+          corpus: "1907.03923 (stagerun-loop3; \\pigpenfont 在 xymatrix 邻接符)",
+          error: "xdvipdfmx:fatal: Sorry, pfa format not supported; please convert the font to pfb, e.g., with t1binary.",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-pfa/; kpsewhich TEXFONTMAPS/T1FONTS 遮蔽序实测"

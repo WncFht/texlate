@@ -91,6 +91,7 @@ from texlate.compile.fixloop._builtins_misc import (
     extract_tar_blobs,
     harvest_build_directives,
     non_utf8_recode,
+    pfa_to_pfb,
     plain_format_detect,
     purge_corrupt_intermediates,
     restore_support_from_src,
@@ -222,6 +223,7 @@ __all__ = [
     "pdf_asset_sanitize",
     "pdfstring_cs_disarm",
     "pdftex_prim_polyfill",
+    "pfa_to_pfb",
     "physics_stub_detach",
     "plain_format_detect",
     "premature_cs_guard",
@@ -331,4 +333,5 @@ TRANSFORM_FNS = {
     "graphic_missing_placeholder": graphic_missing_placeholder,
     "subfile_docclass_strip": subfile_docclass_strip,
     "slot_arg_revert": slot_arg_revert,
+    "pfa_to_pfb": pfa_to_pfb,
 }

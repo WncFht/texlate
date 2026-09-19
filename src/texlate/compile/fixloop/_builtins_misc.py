@@ -28,6 +28,8 @@ from texlate.textutil import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from texlate.compile.fixloop.engine import Engine, LoopCtx
 
 
@@ -636,3 +638,199 @@ def subfile_docclass_strip(
     if not changed:
         return False, "no docclass-bearing non-main .tex"
     return True, f"body-only strip in {changed} file(s)"
+
+
+# ════════════════════════════════════════════════════════════════
+# xdvipdfmx .pfa 硬墙: ASCII Type1 → usertree .pfb + map 遮蔽 (1907.03923)
+# ════════════════════════════════════════════════════════════════
+
+#: eexec 段起始锚 —— ASCII 头/密文边界。
+_EEXEC_MARK_RX = re.compile(rb"currentfile eexec[ \t]*\r?\n")
+
+#: map 行内 ``<name.pfa``/``<<name.pfa`` 引用 token —— ``<`` 前缀锚定
+#: 免 stem 后缀误吃 (``<pen.pfa`` 不会中 ``<pigpen.pfa``); 扩展名大小写兼收。
+_MAP_PFA_RX = re.compile(r"<<?([^\s\"'<>]+\.pfa)\b", re.IGNORECASE)
+
+#: pdftex.map 分块源注释 ``% <pkg>.map`` —— updmap 合并逐块标源, 反查
+#: 字体条目所属 dvips map 名 (供 usertree 同位遮蔽)。头部 ``% /path/....map:``
+#: 注释带冒号尾/路径, ``\S+\.map`` 尾锚同排。
+_MAP_SRC_RX = re.compile(r"^%[ \t]+(\S+\.map)[ \t]*$")
+
+
+def _pfa_to_pfb_bytes(data: bytes) -> bytes | None:
+    r"""ASCII Type1 (.pfa) → PFB 三段包封; 非 eexec 形返回 None。
+
+    t1binary 的纯 python 等价: seg1 = 头到 ``currentfile eexec`` 行止
+    (ASCII), seg2 = eexec 密文 hex 解码原样 (PFB 段二存的就是密文本身,
+    无需解密), seg3 = ``cleartomark`` 前连 ``0`` 填充起的 ASCII 尾巴
+    (t1binary 同口径: 连 ``0`` run 属 ASCII 段)。帧 = ``0x80|01``
+    + LE32 + seg1, ``0x80|02`` + LE32 + seg2, ``0x80|01`` + LE32 + seg3,
+    ``0x80|03`` 收尾。
+    """
+    m = _EEXEC_MARK_RX.search(data)
+    if m is None:
+        return None
+    seg1 = data[: m.end()]
+    rest = data[m.end() :]
+    j = rest.find(b"cleartomark")
+    if j < 0:
+        return None
+    while j > 0 and rest[j - 1] in b"0 \t\r\n":
+        j -= 1
+    hexs = bytes(c for c in rest[:j] if c in b"0123456789abcdefABCDEF")
+    seg2 = bytes.fromhex(hexs.decode("ascii"))
+    seg3 = rest[j:]
+
+    def _frame(tag: int, blob: bytes) -> bytes:
+        return b"\x80" + bytes([tag]) + len(blob).to_bytes(4, "little") + blob
+
+    return _frame(1, seg1) + _frame(2, seg2) + _frame(1, seg3) + b"\x80\x03"
+
+
+def _safe_map_name(name: str) -> PurePosixPath | None:
+    """Map token 名卫: 拒绝对路径/``..``/空名 —— 只信 basename 级引用。"""
+    rel = PurePosixPath(name)
+    if rel.is_absolute() or ".." in rel.parts:
+        return None
+    return rel
+
+
+def _convert_map_pfas(
+    ctx: LoopCtx, probe: Callable[..., str | None], texmf: Path, names: list[str]
+) -> list[str]:
+    """Map 引用的 .pfa 逐个 probe+转换 → usertree ``home/fonts/type1/`` 落 .pfb。
+
+    返回转换成功的 token 名表 (保序); probe 不到/读不了/非 eexec 形跳过。
+    """
+    converted: list[str] = []
+    for name in names:
+        rel = _safe_map_name(name)
+        if rel is None:
+            continue
+        hit = probe(name, cwd=ctx.wdir)
+        if not hit:
+            continue
+        try:
+            pfb = _pfa_to_pfb_bytes(Path(hit).read_bytes())
+        except OSError:
+            continue
+        if pfb is None:
+            continue
+        dest = texmf / "home" / "fonts" / "type1" / rel.with_suffix(".pfb")
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        if not safe_is_file(dest) or dest.read_bytes() != pfb:
+            dest.write_bytes(pfb)
+        converted.append(name)
+    return converted
+
+
+def _shadow_src_maps(
+    ctx: LoopCtx,
+    probe: Callable[..., str | None],
+    texmf: Path,
+    map_text: str,
+    converted: list[str],
+) -> int:
+    r"""``% <pkg>.map`` 块注释反查各 .pfa 所属源 map → usertree 同路径遮蔽。
+
+    updmap 再生 pdftex.map 走 dvips map 面扫描 —— ``texmf/home/fonts/map/``
+    下同路径副本先于系统树被扫, 保后续 ``updmap-user`` run_tool 重建后
+    遮蔽仍生效 (missing_pfb_updmap 同波序保险)。返回落地遮蔽数。
+    """
+    src_of: dict[str, str] = {}
+    cur = ""
+    for ln in map_text.split("\n"):
+        if cm := _MAP_SRC_RX.match(ln):
+            cur = cm.group(1)
+        elif (pm := _MAP_PFA_RX.search(ln)) and cur:
+            src_of.setdefault(pm.group(1), cur)
+    shadows = 0
+    for src_name in sorted(set(src_of.values())):
+        hit = probe(src_name, cwd=ctx.wdir)
+        if not hit:
+            continue
+        sp = Path(hit)
+        try:
+            stext = sp.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        patched = stext
+        for name in converted:
+            if src_of.get(name) == src_name:
+                patched = patched.replace("<" + name, "<" + name[:-4] + ".pfb")
+        if patched == stext:
+            continue
+        posix = sp.as_posix()
+        i = posix.find("/fonts/map/")
+        rel = posix[i + len("/fonts/map/") :] if i >= 0 else "dvips/" + sp.name
+        dest = texmf / "home" / "fonts" / "map" / rel
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text(patched, encoding="utf-8")
+        ctx.invalidate(dest)
+        shadows += 1
+    return shadows
+
+
+def pfa_to_pfb(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""Xdvipdfmx ``pfa format not supported`` fatal → usertree .pfb + map 遮蔽。
+
+    xdvipdfmx 拒 ASCII Type1 按扩展名非内容嗅探 (1907.03923 pigpen 实证:
+    ``\\usepackage{pigpen}`` → ``pigpen.map`` 行 ``pigpen <pigpen.pfa``
+    折进 pdftex.map → fatal); fatal 行只落 stdout_tail (.log 干净) 归一
+    成 ``!`` 后按 ``other`` 派发, 字体名不随签名 —— 修面 = 解析到的
+    ``pdftex.map`` 全量 ``<X.pfa`` 引用。产物全落 usertree
+    (``eng.texmfhome``) 不动宿主树:
+
+    - 转换 .pfb → ``texmf/home/fonts/type1/<token 相对径>`` —— T1FONTS
+      usertree-home 先于系统树;
+    - 改写 ``pdftex.map`` → ``texmf/var/fonts/map/pdftex/updmap/`` ——
+      TEXFONTMAPS 的 TEXMFVAR 位先于 sysvar/dist (非 ``!!`` 段免 ls-R);
+      map 本体在工程内 (``.`` 首位) 则就地改写;
+    - 各 ``<X.pfa`` 所属源 ``<pkg>.map`` 同路径遮蔽 →
+      ``texmf/home/fonts/map/dvips/…`` (``_shadow_src_maps``)。
+
+    texmfhome/probe 缺席 / pdftex.map 不可解 / 无 .pfa 引用 / 全部转换
+    失败 → False 让位, 不消耗轮次。
+    """
+    del payload, params
+    texmf = getattr(eng, "texmfhome", None)
+    probe = getattr(eng, "probe_file", None)
+    if texmf is None or probe is None:
+        return False, "engine lacks texmfhome/probe_file usertree surface"
+    texmf = Path(texmf)
+    map_hit = probe("pdftex.map", cwd=ctx.wdir)
+    if not map_hit:
+        return False, "pdftex.map unresolvable"
+    map_path = Path(map_hit)
+    try:
+        text = map_path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return False, f"pdftex.map unreadable: {map_path}"
+    names = list(dict.fromkeys(m.group(1) for m in _MAP_PFA_RX.finditer(text)))
+    if not names:
+        return False, "no .pfa refs in resolved pdftex.map"
+    converted = _convert_map_pfas(ctx, probe, texmf, names)
+    if not converted:
+        return False, f"no convertible .pfa among {len(names)} ref(s)"
+    patched = text
+    for name in converted:
+        patched = patched.replace("<" + name, "<" + name[:-4] + ".pfb")
+    try:
+        in_wdir = map_path.resolve().is_relative_to(ctx.wdir.resolve())
+    except OSError:
+        in_wdir = False
+    dest_map = (
+        map_path
+        if in_wdir
+        else texmf / "var" / "fonts" / "map" / "pdftex" / "updmap" / "pdftex.map"
+    )
+    dest_map.parent.mkdir(parents=True, exist_ok=True)
+    dest_map.write_text(patched, encoding="utf-8")
+    ctx.invalidate(dest_map)
+    shadows = _shadow_src_maps(ctx, probe, texmf, text, converted)
+    return True, (
+        f"pfa->pfb {len(converted)} font(s): {', '.join(converted)} "
+        f"(map shadow +{shadows} src .map)"
+    )
