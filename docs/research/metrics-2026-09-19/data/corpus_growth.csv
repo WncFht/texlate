@@ -1,0 +1,13 @@
+date,layer,papers,cum_papers,source,note
+2026-09-14,corpus39,39,39,a7db4eee,手挑陷阱集 LaTeX2.09→2026
+2026-09-15,corpus_v2,139,178,648212c7,分层随机语料
+2026-09-15,v3-core,1000,1178,afb16217,核心随机层
+2026-09-15,v3-booster,200,1378,52d490e9,机制策展补强层 107/109 W exemplars
+2026-09-16,v3-hot,166,1544,7b6d83c7,OpenAlex 高引近期热层
+2026-09-16,v3-expand,3866,5410,e9bba9c8+06bdf4b,扩展层 3800→3866
+2026-09-18,corpus_daily,1160,,manifest_2026-09-18.jsonl,"日更 soak 新语料(持续增长,未入库)"
+2026-09-19,v3-dev_vol,2000,,4eae6362,dev 量层
+2026-09-19,v3-dev_recent,1514,,13c603cf,dev 近期层
+2026-09-19,v3-dev_failmine,1500,,13c603cf,dev 难例挖掘层
+2026-09-19,v3-holdout,3020,,13c603cf,EVAL_ONLY 留出层
+2026-09-19,corpus_v3 合计,13266,13266,13c603cf,8层 eval/dev 分治

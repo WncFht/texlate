@@ -1,0 +1,378 @@
+dir,date,arm,scale,headline
+_a1rt-smoke,,_a1rt,,
+_timing,,_timing,,
+align-sweep-2026-09-17,2026-09-17,align,,
+align-textutil-fuzz-2026-09-17,2026-09-17,align,,
+align-verify-2026-09-17,2026-09-17,align,n~1,附加：乱序锚被单调链正确丢弃；letter×a4 各自归一；单侧无锚/50% 截断→kind=pages 不崩。
+alignbench-e2ereal-2026-09-15,2026-09-15,alignbench,,
+alignbench-e2ereal-2026-09-16,2026-09-16,alignbench,,
+alignbench-e2ereal-2026-09-19,2026-09-19,alignbench,,
+alignbench-post-shim-2026-09-16,2026-09-16,alignbench,,
+alignbench-selftest-2026-09-15,2026-09-15,alignbench,,
+alignbench-selftest-2026-09-16,2026-09-16,alignbench,,
+api-cover-2026-09-16,2026-09-16,api,,
+apj-bib-scout-2026-09-17,2026-09-17,apj,,
+app-boundary-fix-2026-09-17,2026-09-17,app,,
+app-boundary-fuzz-2026-09-17,2026-09-17,app,,
+app-contracts-2026-09-17,2026-09-17,app,,
+argspec-verbatim-2026-09-16,2026-09-16,argspec,,
+armed-case-2026-09-16,2026-09-16,armed,,
+armed-metric-2026-09-16,2026-09-16,armed,n~3,
+armed-smoke-2026-09-16,2026-09-16,armed,,
+armed-smoke2-2026-09-16,2026-09-16,armed,,
+armed-synth-2026-09-16,2026-09-16,armed,,
+arxiv-fuzz-2026-09-17,2026-09-17,arxiv,,
+arxiv-resid-audit-2026-09-17,2026-09-17,arxiv,n~0,
+arxiv-stale-2026-09-17,2026-09-17,arxiv,,
+arxiv-sweep-2026-09-16,2026-09-16,arxiv,,
+arxiv-texlog-audit-2026-09-17,2026-09-17,arxiv,n~0,
+attrib-2211-2026-09-17,2026-09-17,attrib,,
+b7-attribution-2026-09-16,2026-09-16,b7,,
+b7-pipefix-2026-09-16,2026-09-16,b7,,
+babeldoc,,babeldoc,,
+babeldoc-e2e-2026-09-16,2026-09-16,babeldoc,,
+base-v3-full-2026-09-16,2026-09-16,base,n~5059,tectonic | 4984 | 1536 | 1436 | 2012 | 30.8% | 59.6% |
+basearm-wave-2026-09-17,2026-09-17,base,n~5124,build-base 覆盖 4994/5122 = 97.5%**（差 128 = reject 65 + skip 63 未起编格；凡起编必有 build-base 目）。
+bench-drift-fix-2026-09-17,2026-09-17,bench,,
+bench-harness-2026-09-17,2026-09-17,bench,n~5059,
+bench-harness-audit-2026-09-17,2026-09-17,bench,n~0,
+bench-hygiene-2026-09-17,2026-09-17,bench,,
+bfuse-scout-2026-09-16,2026-09-16,bfuse,,`\item` | 1787 | 35.4% | ~23.9k |
+capacity-scout-2026-09-17,2026-09-17,capacity,,
+cbucket-postmortem-2026-09-17,2026-09-17,cbucket,,vendored_fetch | 271 | 64 | 2 | 337 | 80.4% |
+cbucket-scout-2026-09-17,2026-09-17,cbucket,,只命中 on-CTAN 件的格：870** → clean 227 + acceptable 204 + best_effort 276（81% 收敛）/ unfixable 152 / max_rounds 9。
+cbucket-vendored-inventory,,cbucket,,
+citekeyverify-2026-09-17,2026-09-17,citekeyverify,,
+clean-clone-2026-09-16,2026-09-16,clean,,
+cli-audit-2026-09-17,2026-09-17,cli,n~0,
+cli-doctor-2026-09-16,2026-09-16,cli,,
+cli-fuzz-2026-09-17,2026-09-17,cli,,
+cli-smoke-2026-09-17,2026-09-17,cli,,
+cli-sweep-2026-09-16,2026-09-16,cli,,
+compile-core-audit-2026-09-17,2026-09-17,compile,,
+compilebench-corpusv2-2026-09-15,2026-09-15,compilebench,n~40,xelatex | 40 | 4 | 2 | 34 | 10% | 15% |
+compilebench-v3-2026-09-15,2026-09-15,compilebench,n~180,tectonic | 175 | 53 | 56 | 66 | 30.3% | 62.3% |
+compilebench-v3-2026-09-19,2026-09-19,compilebench,n~500,tectonic | 492 | 190 | 117 | 185 | 38.6% | 62.4% |
+compilebench-v3-zh-2026-09-16,2026-09-16,compilebench,n~180,tectonic | 175 | 62 | 40 | 60 | 35.4% | 58.3% |
+compilebench-v3-zh-2026-09-19,2026-09-19,compilebench,n~500,tectonic | 492 | 225 | 69 | 195 | 45.7% | 59.8% |
+compilebench-v4-2026-09-16,2026-09-16,compilebench,n~180,tectonic | 172 | 53 | 55 | 64 | 30.8% | 62.8% |
+corpus-edge-fix-2026-09-17,2026-09-17,corpus,,
+corpus-expand-qc-2026-09-16,2026-09-16,corpus,,
+corpus-pipeline-audit-2026-09-17,2026-09-17,corpus,,
+corrosion-rerun-2026-09-17,2026-09-17,corrosion,,pdf 4525/5059 = **89.44%**，距门 **+29**；fixloop:fail 池 40。
+crosscut-sweep-2026-09-17,2026-09-17,crosscut,,
+ctex-anchor-2026-09-16,2026-09-16,ctex,,
+dedupe-pass-2026-09-17,2026-09-17,dedupe,,
+demo-2026-09-16,2026-09-16,demo,,
+dep-audit-2026-09-17,2026-09-17,dep,,
+dist-smoke-2026-09-16,2026-09-16,dist,,
+doc-e2e-2026-09-16,2026-09-16,doc,,
+doc-polish-2026-09-16,2026-09-16,doc,,
+docker-smoke-2026-09-16,2026-09-16,docker,,
+docs-drift-2026-09-17,2026-09-17,docs,,
+docs-fixloop-sync-2026-09-17,2026-09-17,docs,,
+docs-ledger-2026-09-17,2026-09-17,docs,,
+docs-sec-sync-2026-09-17,2026-09-17,docs,,
+docs-sync-2026-09-17,2026-09-17,docs,,
+docx-sweep-2026-09-17,2026-09-17,docx,,
+e2e-hotfix-smoke-2026-09-16,2026-09-16,e2e,,
+e2e-mock-2026-09-19-2026-09-19,2026-09-19,e2e,,
+e2e-modes-2026-09-16,2026-09-16,e2e,,
+e2e-postcutover-n10-2026-09-15,2026-09-15,e2e,,
+e2e-real-n100-2026-09-15,2026-09-15,e2e,,
+e2e-real-n100-postcutover-2026-09-16,2026-09-16,e2e,,
+e2e-real-s40-2026-09-15,2026-09-15,e2e,,
+e2e-real-s40-r2-2026-09-15,2026-09-15,e2e,,
+e2e-real-v3-2026-09-19-2026-09-19,2026-09-19,e2e,,
+e2e-real-v3b-2026-09-19-2026-09-19,2026-09-19,e2e,,
+e2e-resid-audit-2026-09-17,2026-09-17,e2e,,
+e2e-residual-2026-09-17,2026-09-17,e2e,,
+e2e-verify-residue-2026-09-16,2026-09-16,e2e,,
+e2emock-corpus39-2026-09-15,2026-09-15,e2e,,
+e2emock-smoke-2026-09-15,2026-09-15,e2e,,
+e2emock-v2prod-smoke-2026-09-15,2026-09-15,e2e,,
+e2ereal-fix-2026-09-17,2026-09-17,e2e,,
+e2esmoke-2026-09-17,2026-09-17,e2e,,
+envarg-scout-2026-09-17,2026-09-17,envarg,,
+epub-nobody-2026-09-16,2026-09-16,epub,,
+export-align-audit-2026-09-17,2026-09-17,export,,
+export-fuzz-2026-09-17,2026-09-17,export,,
+export-realbook-2026-09-16,2026-09-16,export,,
+export-sweep-2026-09-16,2026-09-16,export,,
+export-verify-2026-09-16,2026-09-16,export,,
+export-verify-2026-09-17,2026-09-17,export,,
+fallback-unverified-scout-2026-09-17,2026-09-17,fallback,n~229,
+fbucket-scout-2026-09-17,2026-09-17,fbucket,,
+fetch-offline-2026-09-16,2026-09-16,fetch,,
+filemap-fix-2026-09-16,2026-09-16,filemap,,
+fixer-aastex-stub-2026-09-17,2026-09-17,fixer,,
+fixer-acro-v3-2026-09-17,2026-09-17,fixer,,
+fixer-alreadydef-2026-09-17,2026-09-17,fixer,,
+fixer-apjbbx-2026-09-17,2026-09-17,fixer,,
+fixer-bblwall-2026-09-17,2026-09-17,fixer,,
+fixer-filemap-2026-09-17,2026-09-17,fixer,,
+fixer-font-fallback-8bit-2026-09-17,2026-09-17,fixer,,
+fixer-legacy-acm-2026-09-17,2026-09-17,fixer,,
+fixer-machinery-2026-09-17,2026-09-17,fixer,n~0,
+fixer-polyfill-journal-2026-09-17,2026-09-17,fixer,,
+fixloop-cbv4-2026-09-16,2026-09-16,fixloop,,
+fixloop-corpusv2-2026-09-15,2026-09-15,fixloop,,
+fixloop-replay-baseline-2026-09-16,2026-09-16,fixloop,,
+fixloop-rules-2026-09-16,2026-09-16,fixloop,,
+fixloop-v2-rules-2026-09-15,2026-09-15,fixloop,,
+fixloop-v2-salvage-2026-09-16,2026-09-16,fixloop,,
+fixloop-v3-docstyle-2026-09-16,2026-09-16,fixloop,,
+fixloop-v3-docstyle-tec-r2-2026-09-16,2026-09-16,fixloop,,
+fixloop-v3-missing-file-2026-09-16,2026-09-16,fixloop,,
+fixloop-v3-missing-file-r2-2026-09-16,2026-09-16,fixloop,,
+fixloop-zh-cbv3-2026-09-16,2026-09-16,fixloop,,
+fixture-assert-check,,fixture,,
+fuzz-roundtrip-2026-09-17,2026-09-17,fuzz,,
+gate-redteam-2026-09-17,2026-09-17,gate,,
+gated-retire-2026-09-17,2026-09-17,gated,,
+gtrap-scout-2026-09-16,2026-09-16,gtrap,,所有被译论文都把 CJK 放进 `\title`/`\author` → trap-live 篇触发率 ≈100%。
+gullet-corpus-2026-09-15,2026-09-15,gullet,docs=202,
+gullet-v3-2026-09-19,2026-09-19,gullet,docs=200,
+gwpilot,,gwpilot,,
+illegal-unit-scout-2026-09-17,2026-09-17,illegal,,
+illegal-unit-wave-2026-09-17,2026-09-17,illegal,,
+inject-fuzz-2026-09-17,2026-09-17,inject,,
+integration-verify-2026-09-17,2026-09-17,integration,,管线信号干净：fault_chunks=0、leftover_ph=0；pipeB（~30% Mode B 破坏）verdict 与 pipe 一致 → 校验+fixloop 链完整兜住。fixloop 实证点火（vendored_sty_shadow 隔离旧版 .cls/.st
+intverify-2026-09-16,2026-09-16,intverify,,
+judge-redline-2026-09-16,2026-09-16,judge,,
+l0-guard-2026-09-16,2026-09-16,l0,,
+l2-attr-probe-2026-09-16,2026-09-16,l2,,
+l2edges-scout-2026-09-17,2026-09-17,l2edges,,
+l2fixtures-impl-2026-09-17,2026-09-17,l2fixtures,n~2,
+latex-audit-2026-09-17,2026-09-17,latex,,
+latex-audit-core-2026-09-17,2026-09-17,latex,,
+latex-audit-seg-2026-09-17,2026-09-17,latex,,
+latexml-spike-2026-09-17,2026-09-17,latexml,,覆盖率 | **35/36 = 97.2%**（36 id 探针，跨 1997–2026 全年代；唯一 404 = cond-mat/0501286 撤稿论文） |
+live-smoke-2026-09-16,2026-09-16,live,n~1,
+live-smoke2-2026-09-16,2026-09-16,live,n~2,
+logpipe-fuzz-2026-09-17,2026-09-17,logpipe,,
+m1-residue-scout-2026-09-17,2026-09-17,m1,,置信**：池内混 FP（bibtex `\bibfield` 组、数学残 `^{*}` 已滤但仍有余）——估计真阳率 30-60%，即 ~60-110 篇实受影响、每篇 1-3 格。id 集 `m1_cand_ids.txt`（185 篇）。
+m1b-criteria-scout-2026-09-17,2026-09-17,m1b,,
+m1b-residue-routes-2026-09-17,2026-09-17,m1b,,
+m3gap-scout-2026-09-17,2026-09-17,m3gap,,
+m3smoke-2026-09-17,2026-09-17,m3smoke,,`POST /api/arxiv/0707.0255/translate` | ✅ 202 → **partial** @100%，~3min | zh.pdf **578KB** + zh_src.zip 314KB + dual.json 102KB + compile.lo
+mask-fuzz-2026-09-17,2026-09-17,mask,,
+mechmap-2026-09-17,2026-09-17,mech,,
+mf-attr-2026-09-16,2026-09-16,mf,,
+mock-parity-2026-09-17,2026-09-17,mock,,
+mock-sabotage-v3-2026-09-16,2026-09-16,mock,,
+modeb-dirty-2026-09-16,2026-09-16,modeb,n~80,
+modeb-verify-2026-09-16,2026-09-16,modeb,n~80,
+modec-core-2026-09-16,2026-09-16,modec,,
+modec-expand-2026-09-16,2026-09-16,modec,,
+modec-misschar-2026-09-16,2026-09-16,modec,n~80,
+modec-postfix-2026-09-16,2026-09-16,modec,,
+modec-tail-2026-09-16,2026-09-16,modec,,
+modec-tec-v3-2026-09-16,2026-09-16,modec,,
+modec-v3-2026-09-16,2026-09-16,modec,,
+modec-v3-tailfix-2026-09-16,2026-09-16,modec,,
+nightwatch,,nightwatch,,
+no-main-tex-attr-2026-09-17,2026-09-17,no,,
+nopdf-regen-2026-09-17,2026-09-17,nopdf,,union pdf | 4527（89.48%，差 +28） | **4554（90.02%）PASS** |
+normalize-fuzz-2026-09-17,2026-09-17,normalize,,
+normalize-polish-2026-09-17,2026-09-17,normalize,,
+nullfont-scout-2026-09-17,2026-09-17,nullfont,,
+parse-v3-full-2026-09-16,2026-09-16,parse,n~1259,parse ok: **3937/3937** (100.0%)   errors: 0   measure_errors: 0
+parsebench-argspec-smoke-2026-09-16,2026-09-16,parsebench,n~35,parse ok: **36/36** (100.0%)   errors: 0   measure_errors: 0
+parsebench-audit-defnl-2026-09-15,2026-09-15,parsebench,n~1000,parse ok: **1955/1955** (100.0%)   errors: 0   measure_errors: 0
+parsebench-audit-final-2026-09-15,2026-09-15,parsebench,n~1000,parse ok: **1955/1955** (100.0%)   errors: 0   measure_errors: 0
+parsebench-audit-fix-2026-09-15,2026-09-15,parsebench,n~200,parse ok: **416/416** (100.0%)   errors: 0   measure_errors: 0
+parsebench-audit-full-2026-09-15,2026-09-15,parsebench,n~1187,parse ok: **3343/3343** (100.0%)   errors: 0   measure_errors: 0
+parsebench-corpus39-2026-09-15,2026-09-15,parsebench,n~39,parse ok: **256/256** (100.0%)   errors: 0   measure_errors: 0
+parsebench-corpus_v2-2026-09-15,2026-09-15,parsebench,n~138,parse ok: **224/224** (100.0%)   errors: 0   measure_errors: 0
+parsebench-corpus_v3-2026-09-15,2026-09-15,parsebench,n~1000,parse ok: **1955/1955** (100.0%)   errors: 0   measure_errors: 0
+parsebench-corpus_v3-booster-2026-09-15,2026-09-15,parsebench,n~187,parse ok: **1388/1388** (100.0%)   errors: 0   measure_errors: 0
+parsebench-corpus_v3-l1gate-2026-09-19,2026-09-19,parsebench,n~1000,parse ok: **1955/1955** (100.0%)   errors: 0   measure_errors: 0
+parsebench-corpus_v3-l1gate2-2026-09-19,2026-09-19,parsebench,,
+parsebench-corpus_v3-postf-2026-09-15,2026-09-15,parsebench,n~1000,parse ok: **1955/1955** (100.0%)   errors: 0   measure_errors: 0
+parsebench-corpus_v3-postf6-2026-09-15,2026-09-15,parsebench,n~1000,parse ok: **1955/1955** (100.0%)   errors: 0   measure_errors: 0
+parsebench-corpusv2-2026-09-15,2026-09-15,parsebench,n~137,parse ok: **223/223** (100.0%)   errors: 0
+parsebench-fixtures-2026-09-15,2026-09-15,parsebench,,
+parsebench-maskfix-probe-2026-09-15,2026-09-15,parsebench,n~2,parse ok: **3/3** (100.0%)   errors: 0   measure_errors: 0
+parsebench-spot-inputquote-2026-09-19,2026-09-19,parsebench,n~9,parse ok: **9/9** (100.0%)   errors: 0   measure_errors: 0
+parsebench-textutil-full-2026-09-15,2026-09-15,parsebench,n~1000,parse ok: **1955/1955** (100.0%)   errors: 0   measure_errors: 0
+parsebench-textutil-full2-2026-09-15,2026-09-15,parsebench,n~1000,parse ok: **1955/1955** (100.0%)   errors: 0   measure_errors: 0
+parsebench-textutil-verbatim-2026-09-15,2026-09-15,parsebench,n~1000,parse ok: **1955/1955** (100.0%)   errors: 0   measure_errors: 0
+parsebench-v2dual200-2026-09-15,2026-09-15,parsebench,n~170,parse ok: **214/214** (100.0%)   errors: 0   measure_errors: 0
+parsebench-v2full-s3b-2026-09-15,2026-09-15,parsebench,n~1000,parse ok: **1955/1955** (100.0%)   errors: 0   measure_errors: 0
+parsebench-v2full-s3c-2026-09-15,2026-09-15,parsebench,n~1000,parse ok: **1955/1955** (100.0%)   errors: 0   measure_errors: 0
+parsebench-v2full-s4-2026-09-15,2026-09-15,parsebench,n~1000,parse ok: **1955/1955** (100.0%)   errors: 0   measure_errors: 0
+parsebench-v2full1955-2026-09-16,2026-09-16,parsebench,n~1000,parse ok: **1955/1955** (100.0%)   errors: 0   measure_errors: 0
+parsebench-v2prod-cutover-2026-09-15,2026-09-15,parsebench,n~1000,parse ok: **1955/1955** (100.0%)   errors: 0   measure_errors: 0
+parsebench-v2prod-final-2026-09-15,2026-09-15,parsebench,n~1000,parse ok: **1955/1955** (100.0%)   errors: 0   measure_errors: 0
+parsebench-v2reg-s3grp-2026-09-15,2026-09-15,parsebench,n~138,parse ok: **224/224** (100.0%)   errors: 0   measure_errors: 0
+parsebench-v2reg-s3grp2-2026-09-15,2026-09-15,parsebench,n~138,parse ok: **224/224** (100.0%)   errors: 0   measure_errors: 0
+parsebench-v2textfix-2026-09-16,2026-09-16,parsebench,n~1000,parse ok: **1955/1955** (100.0%)   errors: 0   measure_errors: 0
+parsebench-v3-all-2026-09-19,2026-09-19,parsebench,n~13253,parse ok: **28903/28904** (100.0%)   errors: 1   measure_errors: 0
+parsebench-v3-c12probe-2026-09-18,2026-09-18,parsebench,n~1000,parse ok: **1955/1955** (100.0%)   errors: 0   measure_errors: 0
+parsebench-v3-c14base-2026-09-18,2026-09-18,parsebench,n~1000,parse ok: **1955/1955** (100.0%)   errors: 0   measure_errors: 0
+parsebench-v3-c14post-2026-09-18,2026-09-18,parsebench,n~1000,parse ok: **1955/1955** (100.0%)   errors: 0   measure_errors: 0
+parsebench-v3-c2dollar-2026-09-18,2026-09-18,parsebench,n~1000,parse ok: **1955/1955** (100.0%)   errors: 0   measure_errors: 0
+parsebench-v3-c2l5-2026-09-18,2026-09-18,parsebench,n~1000,parse ok: **1955/1955** (100.0%)   errors: 0   measure_errors: 0
+parsebench-v3-c2l5b-2026-09-18,2026-09-18,parsebench,n~1000,parse ok: **1955/1955** (100.0%)   errors: 0   measure_errors: 0
+parsebench-v3-deadanchor-2026-09-17,2026-09-17,parsebench,n~1000,parse ok: **1955/1955** (100.0%)   errors: 0   measure_errors: 0
+parsebench-v3-inputleak,,parsebench,n~1000,parse ok: **1955/1955** (100.0%)   errors: 0   measure_errors: 0
+parsebench-v3-iuwave-base-2026-09-17,2026-09-17,parsebench,n~1000,parse ok: **1955/1955** (100.0%)   errors: 0   measure_errors: 0
+parsebench-v3-iuwave-post-2026-09-17,2026-09-17,parsebench,n~1000,parse ok: **1955/1955** (100.0%)   errors: 0   measure_errors: 0
+parsebench-v3-l7sega-2026-09-18,2026-09-18,parsebench,n~1000,parse ok: **1955/1955** (100.0%)   errors: 0   measure_errors: 0
+parsebench-v3-l9gullet-2026-09-18,2026-09-18,parsebench,n~1000,parse ok: **1955/1955** (100.0%)   errors: 0   measure_errors: 0
+parsebench-v3-nkind-2026-09-17,2026-09-17,parsebench,n~1000,parse ok: **1955/1955** (100.0%)   errors: 0   measure_errors: 0
+parsebench-v3-pendreg,,parsebench,n~1000,parse ok: **1955/1955** (100.0%)   errors: 0   measure_errors: 0
+parsebench-v3-post-wfix-2026-09-15,2026-09-15,parsebench,n~1000,parse ok: **1955/1955** (100.0%)   errors: 0   measure_errors: 0
+parsebench-v3-postspec,,parsebench,n~1000,parse ok: **1955/1955** (100.0%)   errors: 0   measure_errors: 0
+parsebench-v3-postw84,,parsebench,n~1000,parse ok: **1955/1955** (100.0%)   errors: 0   measure_errors: 0
+parsebench-v3-postw84-expand,,parsebench,n~3866,parse ok: **7228/7229** (100.0%)   errors: 1   measure_errors: 0
+parsebench-v3-split-2026-09-17,2026-09-17,parsebench,n~1000,parse ok: **1955/1955** (100.0%)   errors: 0   measure_errors: 0
+parsebench-v3-ungate,,parsebench,n~1000,parse ok: **1955/1955** (100.0%)   errors: 0   measure_errors: 0
+partial-taxonomy-2026-09-17,2026-09-17,partial,,reject 414 全是 stale：当前 upgrade_209 实测 **converted 399(96%)**（
+payload-scout-2026-09-17,2026-09-17,payload,,
+perf-tail-2026-09-16,2026-09-16,perf,,
+postfix-2026-09-16,2026-09-16,postfix,,
+probe-audit-2026-09-17,2026-09-17,probe,,
+probe-fuzz-2026-09-17,2026-09-17,probe,,
+probe-wire-2026-09-16,2026-09-16,probe,n~2,
+qual-run-2026-09-16,2026-09-16,qual,,
+qualbase-2026-09-18,2026-09-18,qual,n~0,"contested=97 (8.1% CI [0.1, 0.1])"
+qualbench-2026-09-16,2026-09-16,qualbench,n~3,
+qualbench-e2ereal-2026-09-19,2026-09-19,qualbench,,source: state · seed=42 · papers=324 · judged=1937 chunks · judge_error=2 · contested=106 (5.5%)
+qualbench-selfimp-2026-09-18,2026-09-18,qualbench,n~0,CI: block bootstrap over paper clusters · B=1000 · seed=42 · 95% percentile（簇数小则 CI 退化/偏宽）
+qualdrift-2026-09-18,2026-09-18,qual,,source: manifest · seed=42 · papers=209 · judged=300 chunks · contested=20 (6.7%)
+qualreg-bibpass-2026-09-19,2026-09-19,qual,,source: manifest · seed=42 · papers=209 · judged=300 chunks · contested=12 (4.0%)
+qualreg-off-2026-09-18,2026-09-18,qual,,source: manifest · seed=42 · papers=1 · judged=304 chunks · judge_error=1 · contested=22 (7.2%)
+qualreg-on-2026-09-18,2026-09-18,qual,,source: manifest · seed=42 · papers=209 · judged=353 chunks · contested=28 (7.9%)
+realarm-repro-2026-09-16,2026-09-16,real,,
+realn200-2026-09-17,2026-09-17,realn,,
+realpostfix2-2026-09-16,2026-09-16,real,,
+recode-ext-2026-09-17,2026-09-17,recode,,
+recut-2026-09-17,2026-09-17,recut,n~5045,union pdf | 4869/5012 = 97.15% | **4925/5059 = 97.35%** | +56（分母 +47 real 队列并入） |
+recut2-join-2026-09-17,2026-09-17,recut2,,end-state pdf** | **431/438 = 98.4%** |
+replay-b3a-2026-09-18,2026-09-18,replay,,
+repro-0806-2026-09-16,2026-09-16,repro,n~0,
+repro-0806-head-2026-09-16,2026-09-16,repro,,
+repro-0806-textfix-2026-09-16,2026-09-16,repro,,
+repro-1306-2026-09-16,2026-09-16,repro,n~80,
+repro-2203-2026-09-16,2026-09-16,repro,,
+repro-2410b-2026-09-16,2026-09-16,repro,,
+repro-2501-2026-09-16,2026-09-16,repro,,
+routed-fixes-2026-09-17,2026-09-17,routed,,
+run-offline-2026-09-16,2026-09-16,run,,
+scorecard-fuzz-2026-09-17,2026-09-17,scorecard,,gate_scorecard.main**：Σ end == cells；pdf ≤ cells；clean ≤ pdf；90% 门边界 need 公式逐点正确（10格9pdf→PASS、10格8pdf→need+1、100格90pdf→PASS）。
+scout-ccsxml-2026-09-17,2026-09-17,scout,,
+scout-coreleak-2026-09-16,2026-09-16,scout,,
+scout-corrupt-2026-09-17,2026-09-17,scout,,
+scout-e2ereal-2026-09-17,2026-09-17,scout,,
+scout-l2fixtures-2026-09-17,2026-09-17,scout,,
+scout-misschar-coverage-2026-09-17,2026-09-17,scout,,
+scout-modec-resid-2026-09-16,2026-09-16,scout,n~80,
+scout-pf2fails-2026-09-17,2026-09-17,scout,,
+scout-pf2final-2026-09-17,2026-09-17,scout,n~100,pipe-xel：clean 76 / partial 10 / fail 14 → on-rail **86.0%**
+scout-realreg-2026-09-16,2026-09-16,scout,n~100,
+scout-shimfire-2026-09-17,2026-09-17,scout,,
+scout-spliceguard-2026-09-16,2026-09-16,scout,,
+scout-thmtwin-2026-09-17,2026-09-17,scout,,
+scout-token-prep-2026-09-17,2026-09-17,scout,n~100,2. 备选同池：`swe-2-high`（契约 99%，慢 70%）；修复器专座 `swe-2-max`。
+scout-triage-2026-09-17,2026-09-17,scout,,
+scripts-ci-2026-09-17,2026-09-17,scripts,,
+scripts-ci-audit-2026-09-17,2026-09-17,scripts,,
+server-deep-2026-09-17,2026-09-17,server,,
+server-persist-audit-2026-09-17,2026-09-17,server,,
+server-residual-2026-09-17,2026-09-17,server,,
+server-security-sweep-2026-09-17,2026-09-17,server,,
+server-sidecar-audit-2026-09-17,2026-09-17,server,,
+server-smoke-2026-09-16,2026-09-16,server,,
+server-sweep-2026-09-16,2026-09-16,server,,
+settings-infoleak-2026-09-17,2026-09-17,settings,,
+share-apply-2026-09-16,2026-09-16,share,,
+share-audit-2026-09-17,2026-09-17,share,,
+share-consume-2026-09-16,2026-09-16,share,,
+share-e2e-2026-09-17,2026-09-17,share,,
+share-hook-2026-09-16,2026-09-16,share,,
+share-live-2026-09-16,2026-09-16,share,,
+share-live2-2026-09-16,2026-09-16,share,,
+share-postpack-2026-09-16,2026-09-16,share,,
+share-residual-2026-09-17,2026-09-17,share,,
+share-texlog-audit-2026-09-17,2026-09-17,share,,
+share-wire-2026-09-16,2026-09-16,share,,
+share-wire-2026-09-17,2026-09-17,share,,
+sid8-2026-09-17,2026-09-17,sid8,,
+sidecar-fuzz-2026-09-17,2026-09-17,sidecar,,
+smoke-2026-09-15,2026-09-15,smoke,,
+soak-2026-09-18,2026-09-18,soak,,
+spec-compile-2026-09-17,2026-09-17,spec,,
+spec-xlat-2026-09-17,2026-09-17,spec,,
+stagerun-dailytest-2026-09-19,2026-09-19,stagerun,,
+stagerun-drvdef,,stagerun,,
+stagerun-fc6b,,stagerun,,
+stagerun-fc6c,,stagerun,,
+stagerun-flipcheck,,stagerun,,
+stagerun-flipcheck2,,stagerun,,
+stagerun-flipcheck3,,stagerun,,
+stagerun-flipcheck4,,stagerun,,
+stagerun-flipcheck5,,stagerun,,
+stagerun-flipcheck6,,stagerun,,
+stagerun-flipcheck7,,stagerun,,
+stagerun-flipcheck8,,stagerun,,
+stagerun-flipcheck9,,stagerun,,
+stagerun-guardsmoke,,stagerun,,
+stagerun-loop1-2026-09-16,2026-09-16,stagerun,,compile | zh | 2290 | 5108 | 44.8% | 543 |
+stagerun-loop2-2026-09-18,2026-09-18,stagerun,,
+stagerun-loop3,,stagerun,,
+stagerun-loop3-hard,,stagerun,,
+stagerun-rt1,,stagerun,,
+stagerun-sab-r2,,stagerun,,
+stagerun-sab-r3,,stagerun,,
+stagerun-sab-r4,,stagerun,,
+stagerun-sab-r5,,stagerun,,
+stagerun-sab-w84,,stagerun,,
+stagerun-sabsmoke-2026-09-16,2026-09-16,stagerun,,
+stagerun-smoke-2026-09-16,2026-09-16,stagerun,,compile | base | 3 | 3 | 100.0% | 0 |
+stagerun-tarrecheck,,stagerun,,
+stagerun-v3all-2026-09-19,2026-09-19,stagerun,,
+status-panel,,status,,
+stubsmoke-2026-09-17,2026-09-17,stubsmoke,,
+test-flake-fix-2026-09-17,2026-09-17,test,,
+test-hygiene-2026-09-17,2026-09-17,test,,
+texlog-popped-2026-09-17,2026-09-17,texlog,,
+texlog-sweep-2026-09-17,2026-09-17,texlog,,
+textutil-e2e-audit-2026-09-17,2026-09-17,text,,
+unpack-alias-fix-2026-09-17,2026-09-17,unpack,,
+upload-hardening-2026-09-17,2026-09-17,upload,,
+utf8-rerun-2026-09-17,2026-09-17,utf8,,compile 末条 clean 387/545（71%）**——抽样 30→22 clean（73%）与全集一致；
+v3-100-2026-09-15,2026-09-15,v3,,
+validate-audit-2026-09-17,2026-09-17,validate,,
+validate-fuzz-2026-09-17,2026-09-17,validate,,
+validbench-corpus_v2-2026-09-15,2026-09-15,validbench,n~137,gates**: corruption100%=✅ · 0errorFP=✅ · probes=✅ · L0≤1ms=✅ (摊薄 0.374ms/对 · 逐对 p50 0.2462 p95 1.0261 max 5.181)
+validbench-replay1636-2026-09-15,2026-09-15,validbench,n~7,gates**: corruption100%=✅ · 0errorFP=✅ · probes=✅ · L0≤1ms=✅ (摊薄 0.9987ms/对 · 逐对 p50 0.664 p95 2.8664 max 11.6274)
+verifier-batch8-2026-09-17,2026-09-17,verifier,,
+verify-csfix-2026-09-16,2026-09-16,verify,n~1,
+wave-review-2026-09-17,2026-09-17,wave,,
+wave2-review-2026-09-17,2026-09-17,wave,,
+web-authx-2026-09-16,2026-09-16,web,,
+web-docview-2026-09-16,2026-09-16,web,,
+web-followup-2026-09-16,2026-09-16,web,,
+web-i18n-2026-09-17,2026-09-17,web,,
+web-idem-2026-09-16,2026-09-16,web,,
+web-polish-2026-09-16,2026-09-16,web,,
+web-progress-2026-09-17,2026-09-17,web,,
+web-residual-2026-09-17,2026-09-17,web,,
+web-resmoke-2026-09-16,2026-09-16,web,,
+web-sharebtn-2026-09-16,2026-09-16,web,,
+web-tests-2026-09-17,2026-09-17,web,,
+worker-audit-2026-09-17,2026-09-17,worker,,
+worker-consistency-2026-09-17,2026-09-17,worker,,
+worker-followup-2026-09-16,2026-09-16,worker,,
+worker-fuzz-2026-09-17,2026-09-17,worker,,
+worker-resid-audit-2026-09-17,2026-09-17,worker,,
+worker-share-fix-2026-09-17,2026-09-17,worker,,
+xlat-audit-2026-09-17,2026-09-17,xlat,,
+xlat-store-fuzz-2026-09-17,2026-09-17,xlat,,
+xlat-sweep-2026-09-16,2026-09-16,xlat,,
+xlatbench-contract-2026-09-15,2026-09-15,xlatbench,,swe-2-high | 80 | 80 (100%) | 79 (99%) | 0 | 0 | 0 | 19 | 11.4/19.5s | 442/1301ch | 273 | 453 |
+xlatbench-v3-matrix-2026-09-15,2026-09-15,xlatbench,,swe-2-high | 74/74 100% | 0 | 0 | 0 | 20 | 10.3/20.5s |
+xlatbench-v3-smoke-2026-09-15,2026-09-15,xlatbench,,total** | **47/48 = 98%** |
+xlatbench-v3all-2026-09-19,2026-09-19,xlatbench,,

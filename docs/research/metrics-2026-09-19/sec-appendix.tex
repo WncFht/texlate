@@ -1,0 +1,40 @@
+\appendix
+\section{口径与数据说明}
+
+\subsection{统计口径纪律}
+
+\begin{itemize}
+  \item 每个数字标注规模 $n$ 与样本框；不同 $n$/口径的读数不连成同一演化线（图注注明口径切换点）。
+  \item scorecard 读数一律按 ingest 样本集过滤后计算——stagerun records 为 append-only，跨轮重跑会残留 stale 行，原始行计数会把未参与样本的 skip 计入分母。
+  \item clean/pdf 为编译终态分级：clean = 无 warning 出 PDF；pdf\~{} = 带可接受瑕疵出 PDF（acceptable/best\_effort/dirty 三档）；union pdf = clean + pdf\~{}。
+  \item 延迟为网关端到端秒；bg 批量档 in-gate 排队 $\sim$120s，拥塞期 p95 会被队列时间放大，读数与空闲档不可比。
+  \item qualbench 评分由 LLM judge（swe-2-max）产出，contested 判例经第二 judge（swe-2-high）仲裁；judge 自身偏差未做人工标定，分数应读作相对分布而非绝对正确率。
+\end{itemize}
+
+\subsection{结果目录索引（2026-09-19 批）}
+
+\begin{center}\small
+\begin{tabular}{@{}ll@{}}
+\toprule
+臂 & \texttt{bench/results/} 目录 \\
+\midrule
+parsebench 全量 & \texttt{parsebench-v3-all-2026-09-19/} \\
+compilebench baseline & \texttt{compilebench-v3-2026-09-19/} \\
+compilebench zh & \texttt{compilebench-v3-zh-2026-09-19/} \\
+xlatbench 全层 & \texttt{xlatbench-v3all-2026-09-19/} \\
+qualbench & \texttt{qualbench-e2ereal-2026-09-19/report.md} \\
+e2e\_real & \texttt{e2e-real-v3-2026-09-19-*/}（n=24）、\texttt{e2e-real-v3b-*（n=60）} \\
+e2e\_mock & \texttt{e2e-mock-2026-09-19-2026-09-19/} \\
+alignbench & \texttt{alignbench-e2ereal-2026-09-19/} \\
+gullet & \texttt{gullet-v3-2026-09-19/} \\
+stagerun DAG & \texttt{stagerun-v3all-2026-09-19/records/} \\
+fixloop & \texttt{fixloop-corpusv2-2026-09-15/} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+配套文档：本批 Markdown 版总表 \texttt{docs/research/2026-09-19-bench-metrics-corpusv3.md}；上一期指标复盘 \texttt{docs/research/review-2026-09-18/README.md}（含 metrics-timeline.svg）；评测器规格 \texttt{docs/10-benchmark-suite.md}；语料规格 \texttt{docs/09-benchmark-corpus.md}；机制台账 \texttt{bench/corpus\_v3/mechanisms.jsonl}。
+
+\subsection{过程事故记录（评测工具链教训）}
+
+本批测试记录的 harness 层教训，供后续批次回避：xlatbench 的 \texttt{manifest.parent} 必须等于语料根（跨目录 manifest 会 cell 解析失败）；\texttt{--per-kind} 是全局限额非分层配额；pgrep 监控须用 \texttt{[x]pattern} 括号形防自匹配；compilebench \texttt{--gen-sample} 为分段设计（采样后即返回，编译需无参二次调用）；e2e 同 \texttt{--tag} 冻结样本，重抽样须换 tag+seed；gullet \texttt{--out} 续跑保留 stale err 行须换新目录；stagerun 下游阶段须显式传 \texttt{--ids} 防跨层欠采；多会话共仓 commit 须走私有 \texttt{GIT\_INDEX\_FILE}（共享 index 有 sweep/reset 竞争窗）。

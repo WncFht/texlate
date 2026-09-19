@@ -1,0 +1,60 @@
+% TeXlate 评测体系与指标演化全景报告
+% 编译: latexmk -xelatex report.tex  (或 xelatex ×2)
+\documentclass[11pt,a4paper]{ctexart}
+
+\usepackage{geometry}
+\geometry{margin=2.4cm,top=2.6cm,bottom=2.6cm}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepgfplotslibrary{dateplot,groupplots,statistics}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta,shapes.geometric,fit,backgrounds,calc}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{caption}
+\captionsetup{font=small,labelfont=bf}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true,linkcolor=blue!60!black,urlcolor=blue!60!black,citecolor=blue!60!black}
+\usepackage{enumitem}
+\setlist{nosep,leftmargin=1.6em}
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small TeXlate 评测体系与指标演化}
+\fancyhead[R]{\small 2026-09-19}
+\fancyfoot[C]{\small\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% 图配色
+\definecolor{cA}{HTML}{1f6fb2}   % 主蓝
+\definecolor{cB}{HTML}{c0392b}   % 红
+\definecolor{cC}{HTML}{8a6d00}   % 棕
+\definecolor{cD}{HTML}{2e8b57}   % 绿
+\definecolor{cE}{HTML}{7d3c98}   % 紫
+\definecolor{cF}{HTML}{16a085}   % 青
+
+\title{\bfseries TeXlate 评测体系与指标演化全景报告\\[4pt]
+  \large 七臂 benchmark · corpus\_v3 全量综合测试 · 2026-09-19}
+\author{texlate bench 工作组}
+\date{2026 年 9 月 19 日}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\noindent 本文是 TeXlate 评测体系的全景报告：上半部分为不熟悉项目的读者提供背景（管线架构、为什么 arXiv LaTeX 翻译难、benchmark 设计），下半部分是数据——全部历史 commit 考古出的指标演化时间线、2026-09-19 在 corpus\_v3 全量 13{,}266 篇上的综合测试画像、失败归因图谱与已知缺口。全部数字可追溯：每个指标注明口径与结果目录，数据与图源文件随文档入库。
+\end{abstract}
+
+\vspace{1em}
+\tableofcontents
+\newpage
+
+\input{sec-background}   % 背景知识 + 管线架构
+\input{sec-bench}        % 评测体系设计（七臂 + 语料 + 门槛）
+\input{sec-history}      % 指标演化史（时间线图 + 归因表 + 大事记）
+\input{sec-snapshot}     % 2026-09-19 全量画像（逐臂 + 漏斗 + 分布）
+\input{sec-failures}     % 失败归因图谱 + 已知缺口
+\input{sec-appendix}     % 口径说明 + 结果目录索引
+
+\end{document}

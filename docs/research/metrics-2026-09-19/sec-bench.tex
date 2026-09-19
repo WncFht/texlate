@@ -1,0 +1,71 @@
+\section{评测体系设计}
+
+\subsection{七臂总览}
+
+benchmark 套件按「每臂对准管线一段 + 一个组合层」设计，规格冻结于 \texttt{docs/10-benchmark-suite.md}，共同底材为 corpus\_v3。表~\ref{tab:arms} 为总览。
+
+\begin{table}[htbp]
+\centering\small
+\caption{七臂 benchmark 总览（B1--B7 + 辅助件）}
+\label{tab:arms}
+\begin{tabular}{@{}lllll@{}}
+\toprule
+\# & benchmark & 测哪段 & 底材 & 核心指标 \\
+\midrule
+B1 & parsebench & 解析段 & corpus\_v3 + corpus39 & ok / identity / leak / dead / flatten \\
+B2 & fixtures & 解析段（单元级） & \texttt{bench/fixtures/*.tex} & 陷阱断言通过率（T01--T98） \\
+B3 & compilebench & 编译段 + fixloop & corpus\_v3 raw blob & clean/pdf\~{}/FAIL、救回率、规则谱 \\
+B4 & xlatbench & 翻译段 & corpus\_v3 chunk 抽样 & 硬契约率 / 延迟 / token 经济 \\
+B4b & qualbench & 翻译质量 & e2e state 配对 & LLM-judge ESA 评分 / flag 分类 \\
+B5 & e2ebench & 全链（组合） & corpus\_v3 子集 & 逐段漏斗 + 终态分布 + 引入回归 \\
+B6 & validbench & 校验段 & 合成破坏案例 & 检出率 / FP / 延迟 \\
+B7 & alignbench & 阅读体验 & en/zh 编译产物对 & named-dest 保留率 / 链权 \\
+\midrule
+\multicolumn{5}{@{}l}{辅助件：stagerun（五阶段批量 DAG）、gullet\_bench（展开机实测）、}\\
+\multicolumn{5}{@{}l}{gate\_scorecard（M2 出口门）、translators\_bench（mock 臂工厂）、nightwatch}\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+依赖序：corpus\_v3 $\to$ B1 $\to$ B4 $\to$ \{B3, B5\} $\to$ B7；B2/B6 以合成输入独立。
+
+\subsection{语料分层构造}
+\label{sec:corpus}
+
+corpus\_v3 是钉版批量语料：每个 cell 记录 \texttt{(channel, item, member, blob\_sha256)} 四元组，渠道分 IA \texttt{arxiv-bulk} 月 chunk、e-print 单发、HF \texttt{arxiv-latex-5T}、scholarweave 脱水四种。八层构成见图~\ref{fig:corpus}：核心/补强/扩展/热层为早期层，2026-09-19 评测/开发分轨扩层后收至 13{,}266 篇。
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  xbar stacked,
+  width=13cm, height=4.6cm,
+  xmin=0, xmax=14000,
+  xlabel={千篇}, ytick=data,
+  xtick={0,2000,4000,6000,8000,10000,12000,14000},
+  xticklabels={0,2,4,6,8,10,12,14},
+  yticklabels={corpus\_v3 八层},
+  legend style={at={(0.5,-0.28)},anchor=north,legend columns=4,font=\scriptsize},
+  bar width=8mm,
+  x label style={font=\small},
+]
+\addplot+[fill=cA!75,draw=cA] coordinates {(1000,0)};
+\addplot+[fill=cB!75,draw=cB] coordinates {(200,0)};
+\addplot+[fill=cD!75,draw=cD] coordinates {(3866,0)};
+\addplot+[fill=cE!75,draw=cE] coordinates {(166,0)};
+\addplot+[fill=cF!75,draw=cF] coordinates {(2000,0)};
+\addplot+[fill=cC!75,draw=cC] coordinates {(1514,0)};
+\addplot+[fill=cB!40,draw=cB] coordinates {(1500,0)};
+\addplot+[fill=black!35,draw=black!60] coordinates {(3020,0)};
+\legend{core 1000, booster 200, expand 3866, hot 166, dev\_vol 2000, dev\_recent 1514, dev\_failmine 1500, holdout 3020}
+\end{axis}
+\end{tikzpicture}
+\caption{corpus\_v3 八层构成（13{,}266 篇 / 46GB）。holdout 层为 EVAL\_ONLY 治理——\texttt{dev\_layers()} 实测排除，仅评测可读；dev\_* 三层与 expand 为开发期增量；core 为月度簇分层随机（30 簇，old 200/new 800）。}
+\label{fig:corpus}
+\end{figure}
+
+治理规则：holdout 层（3{,}020 篇）登记 \texttt{EVAL\_ONLY\_LAYERS}，所有开发期采样经 \texttt{dev\_layers()} 过滤；语料扩展只加层不删层；cell 数据 gitignored，入库物为 manifest + 选择报告 + 机制台账 \texttt{mechanisms.jsonl}（benchmark $\to$ 归因 $\to$ 规则沉淀的反馈环载体）。
+
+\subsection{门槛体系}
+
+各臂门槛（\texttt{docs/09} §8）：parsebench——parse ok 100\%、identity $\geq 99.5\%$、leak $\leq 0.15\%$、dead$\cdot$orphan $=0$、flatten $\geq 99\%$；M2 出口门（stagerun scorecard）——union pdf $\geq 90\%$、clean $\geq 90\%$。统计口径：核心层加权池化率 + 宏平均双报，Wilson + 月簇稳健 bootstrap CI。

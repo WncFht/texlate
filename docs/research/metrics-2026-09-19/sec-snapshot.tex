@@ -1,0 +1,120 @@
+\section{2026-09-19 全量画像}
+
+本节为 corpus\_v3 扩充收官（13{,}266 篇）后的首轮全量综合测试，12 个评测臂同日落地。总表见表~\ref{tab:snapshot}，逐节展开关键分布。
+
+\begin{table}[htbp]
+\centering\scriptsize
+\caption{2026-09-19 综合测试逐臂指标总表}
+\label{tab:snapshot}
+\begin{tabular}{@{}llp{7.6cm}p{3.6cm}@{}}
+\toprule
+臂 & 规模 & 核心指标 & 门槛对比 \\
+\midrule
+完整性审计 & 13{,}266 cells & sha256 13{,}266/13{,}266，0 dup，0 missing；13 stub 为 B07 有意构造 & EVAL\_ONLY 生效 \\
+parsebench & 13{,}253 篇 / 28{,}904 .tex & parse ok \textbf{100.0\%}；identity \textbf{99.99\%}；leak \textbf{0.004\%}（76/1{,}845{,}338）；expand footprint strict 28105/norm 259/div 539；flatten 93.7\% & identity/leak PASS；\textbf{dead ph=3 FAIL}；\textbf{flatten FAIL} \\
+compilebench base & 500 格 $\times$2 & xelatex 56.3\% clean/80.3\% pdf；tectonic 38.6\%/62.4\%；联合 pdf \textbf{90.4\%} & --- \\
+compilebench zh & 500 格 & xelatex \textbf{72.4\%/85.4\%}（+16pt）；tectonic 45.7\%/59.8\% & --- \\
+fixloop（v2 40） & 80 格 & xelatex 34 FAIL$\to$\textbf{25 救回 74\%}；tectonic 1/16（eps\_route 主导） & --- \\
+alignbench & 812 对 & 门全过；765/812 对 named-dests$=0$，真实覆盖 42 对（retention p50 1.0） & 覆盖不足 \\
+e2e\_mock & corpus39 & pipe-xel \textbf{33/39 clean} vs base-xel 19/39；引入回归 3 & --- \\
+e2e\_real & n=24+60 & 58/58 翻译；chunk ok 6053/7580；splice 残留 \textbf{0}；pipe-xel clean 43/fail 7；fixloop 再救 13；\textbf{0 引入回归} & --- \\
+xlatbench & 271 样本 & hard\_ok \textbf{94\%}；http\_err 0；延迟 p50 4.2s/p95 29.7s & --- \\
+qualbench & 324 篇/1937 chunk & judge 均分 \textbf{94.0}，median 95；$\geq$90 占 90.6\%；contested 5.5\%；critical 1 & --- \\
+gullet & 200 文档 & 199/200 展开成功；median 39.6ms/19 steps & --- \\
+stagerun DAG & 80 篇跨层 & \textbf{union pdf 79/80=98.75\%}；clean 71/80=88.75\% & M2 pdf 门 \textbf{PASS} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{全链漏斗：stagerun DAG}
+
+五阶段批量驱动对 80 篇跨层样本的实测漏斗（图~\ref{fig:funnel}）：ingest 80 $\to$ parse 79 ok（1 reject）$\to$ xlat zh 臂 76 ok + 3 partial $\to$ compile 50 clean + 19 partial + 10 fail $\to$ fixloop 对 21 个非 clean 格全数救回（13 升 clean + 8 partial）。联合口径 union pdf 98.75\%、clean 88.75\%，过 M2 union-pdf $\geq90\%$ 门；clean 距 90\% 门差 1.25pt。
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  xbar,
+  width=12.5cm, height=4.2cm,
+  xmin=0, xmax=90,
+  xlabel={格数}, ytick=data,
+  yticklabels={fixloop 后 pdf 计,fixloop 救回,compile clean,xlat ok,parse ok,ingest},
+  nodes near coords, nodes near coords style={font=\scriptsize},
+  bar width=4.5mm,
+  x label style={font=\small},
+]
+\addplot+[fill=cA!70,draw=cA] coordinates {(79,0) (21,1) (50,2) (79,3) (79,4) (80,5)};
+\end{axis}
+\end{tikzpicture}
+\caption{stagerun 五阶段漏斗（80 篇跨层样本，zh 臂 / mock 上游）。compile 产出 50 clean+19 partial+10 fail；fixloop 将 21 个非 clean 格全部推到 pdf 层（13 clean+8 partial），union pdf 79/80。}
+\label{fig:funnel}
+\end{figure}
+
+\subsection{翻译质量：qualbench ESA 评分}
+
+swe-2-medium 译文对 324 篇论文 1{,}937 个 chunk 的 LLM-judge 评分（judge=swe-2-max，二裁 swe-2-high，contested 5.5\% 触发二裁）：mean 94.0 / median 95，$\geq$90 分占 90.6\%，critical 级缺陷仅 1 例（non-translation）。分数段与文类分布见图~\ref{fig:qual}：section\_title 最高（96.9），caption 93.2，para 92.2——长散文段仍是质量洼地。
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+\begin{groupplot}[
+  group style={group size=2 by 1,horizontal sep=14mm},
+  width=7.2cm, height=5cm,
+]
+\nextgroupplot[
+  ybar, bar width=7mm,
+  ymin=0,
+  symbolic x coords={$\geq$90,75--89,55--74,$<$55},
+  xtick=data, x tick label style={font=\scriptsize},
+  ylabel={chunk 数}, y label style={font=\small},
+  nodes near coords, nodes near coords style={font=\scriptsize},
+]
+\addplot+[fill=cA!70,draw=cA] coordinates {($\geq$90,1756) (75--89,133) (55--74,41) ($<$55,7)};
+\nextgroupplot[
+  ybar, bar width=5mm,
+  ymin=88, ymax=98,
+  symbolic x coords={para,caption,section\_title},
+  xtick=data, x tick label style={font=\scriptsize,rotate=15},
+  ylabel={mean 分}, y label style={font=\small},
+  nodes near coords, nodes near coords style={font=\scriptsize},
+]
+\addplot+[fill=cD!70,draw=cD] coordinates {(para,92.2) (caption,93.2) (section\_title,96.9)};
+\end{groupplot}
+\end{tikzpicture}
+\caption{qualbench 评分分布（左：分数段；右：per-kind 均分）。1{,}756/1{,}937 chunk $\geq$90；para 类是主要拉低项（flag 榜：term\_inconsistency 229、grammar 197、mistranslation 132、hallucinated\_content 66）。}
+\label{fig:qual}
+\end{figure}
+
+\subsection{编译臂：baseline vs zh 条件}
+
+500 格抽样双引擎对照（图~\ref{fig:compile}）：zh 条件（产品链 normalize + ctex 注入后编译）反而比裸编译高 16pt clean——normalize 顺带修复了源文件的编码/格式缺陷。tectonic 在 zh 臂 clean 升而 pdf 略降，EPS 图源是其死穴（见 \S\ref{sec:failures}）。
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  ybar, bar width=6mm,
+  width=11.5cm, height=5.4cm,
+  ymin=0, ymax=100,
+  ylabel={\%}, y label style={font=\small},
+  symbolic x coords={xelatex clean,xelatex pdf,tectonic clean,tectonic pdf,union pdf},
+  xtick=data, x tick label style={font=\scriptsize},
+  legend style={at={(0.5,-0.22)},anchor=north,legend columns=2,font=\scriptsize},
+  nodes near coords, nodes near coords style={font=\scriptsize},
+]
+\addplot+[fill=black!45,draw=black!60] coordinates {(xelatex clean,56.3) (xelatex pdf,80.3) (tectonic clean,38.6) (tectonic pdf,62.4) (union pdf,90.4)};
+\addplot+[fill=cA!70,draw=cA] coordinates {(xelatex clean,72.4) (xelatex pdf,85.4) (tectonic clean,45.7) (tectonic pdf,59.8) (union pdf,0)};
+\legend{baseline（裸编译）, zh 条件（normalize+ctex 后）}
+\end{axis}
+\end{tikzpicture}
+\caption{compilebench 500 格：baseline vs zh 条件。zh 臂 xelatex clean +16.1pt——normalize 修复了源级缺陷；union pdf 90.4\%（双引擎取优）。}
+\label{fig:compile}
+\end{figure}
+
+\subsection{翻译硬契约：xlatbench}
+
+271 个抽样上下文对 swe-2-medium 的硬契约测试：hard\_ok 94\%，http\_err 0。延迟 p50 4.2s / p95 29.7s——bg 批量档 $\sim$120s in-gate 排队在长尾可见。失败类：cs\_dropped$\times$8、ph\_miss$\times$5、validator$\times$3、ord\_hard$\times$1；ord\_soft 78 条软序告警。
+
+\subsection{e2e 全链：mock 与 real 双臂}
+
+e2e\_mock（corpus39）：pipe-xel 33/39 clean vs base-xel 19/39——管线净正，翻译+splice 步骤不损反而增益（normalize 修复）；3 格引入回归。e2e\_real n=60：58/58 翻译完成，chunk ok 6053/7580（partial 43/fault 8），splice 残留占位符 0（PASS），pipe-xel clean 43/fail 7/partial 6，fixloop 再救 13 格，\textbf{0 管线引入回归}。编译失败类：missing\_file$\times$7、missing\_graphic$\times$3、killed\_by\_signal$\times$3、driver\_fatal$\times$3——以语料源缺资产为主。

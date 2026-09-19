@@ -1,0 +1,37 @@
+date,metric,value_pct,n,source,note
+2026-09-15,base_union_pdf,71.7,180,compilebench-v3-2026-09-15,n180 v3 sample
+2026-09-15,base_union_clean,39.4,180,compilebench-v3-2026-09-15,
+2026-09-15,base_xel_pdf,33.7,175,compilebench-v3-2026-09-15,
+2026-09-15,base_tec_pdf,62.3,175,compilebench-v3-2026-09-15,
+2026-09-16,base_union_pdf,70.6,180,compilebench-v4-2026-09-16,v4 rerun same sample
+2026-09-16,base_union_clean,38.3,180,compilebench-v4-2026-09-16,
+2026-09-16,base_union_pdf,71.3,5059,base-v3-full-2026-09-16,full dev corpus baseline
+2026-09-16,base_union_clean,40.2,5059,base-v3-full-2026-09-16,
+2026-09-16,base_xel_pdf,38.4,4984,base-v3-full-2026-09-16,
+2026-09-16,base_tec_pdf,59.6,4984,base-v3-full-2026-09-16,
+2026-09-16,zh_union_pdf,66.7,180,compilebench-v3-zh-2026-09-16,zh arm n180
+2026-09-16,zh_union_clean,44.4,180,compilebench-v3-zh-2026-09-16,
+2026-09-19,base_union_pdf,90.2,500,compilebench-v3-2026-09-19,n500 — toolchain matured
+2026-09-19,base_union_clean,73.2,500,compilebench-v3-2026-09-19,
+2026-09-19,base_xel_pdf,80.3,492,compilebench-v3-2026-09-19,
+2026-09-19,base_tec_pdf,62.4,492,compilebench-v3-2026-09-19,
+2026-09-19,base_xel_clean,56.3,492,compilebench-v3-2026-09-19,
+2026-09-19,zh_union_pdf,85.4,500,compilebench-v3-zh-2026-09-19,zh arm xel pdf
+2026-09-16,scorecard_union_pdf,97.89,5124,stagerun-loop1-2026-09-16,loop1 全dev层 mock臂
+2026-09-16,scorecard_clean,84.99,5124,stagerun-loop1-2026-09-16,
+2026-09-18,scorecard_union_pdf,97.26,5219,stagerun-loop2-2026-09-18,loop2 frozen snap
+2026-09-18,scorecard_clean,86.42,5219,stagerun-loop2-2026-09-18,
+2026-09-19,scorecard_union_pdf,99.17,606,stagerun-loop3,PARTIAL 在飞截面
+2026-09-19,scorecard_clean,80.69,606,stagerun-loop3,
+2026-09-19,scorecard_union_pdf,98.75,80,stagerun-v3all-2026-09-19,80篇跨层样本口径
+2026-09-19,scorecard_clean,88.75,80,stagerun-v3all-2026-09-19,
+2026-09-17,real_union_pdf,98.5,200,realn200-2026-09-17,realn200 真臂验收
+2026-09-17,real_clean,86.5,200,realn200-2026-09-17,
+2026-09-19,real_union_pdf,96.7,60,e2e-real-v3b-2026-09-19,58/60: 7 fail 全救回 2 skipped_oversize 无pdf
+2026-09-19,real_clean,86.7,60,e2e-real-v3b-2026-09-19,43 clean + 9 fixloop-clean end-state
+2026-09-17,scorecard_union_pdf,89.17,5124,review-2026-09-18 §1.1,loop1 首读
+2026-09-17,scorecard_union_pdf,95.99,5124,review-2026-09-18 §1.1,vendor波后
+2026-09-17,scorecard_union_pdf,97.35,5124,review-2026-09-18 §1.1,illegal_unit波后
+2026-09-17,scorecard_clean,57.2,5124,review-2026-09-18 §1.1,
+2026-09-17,scorecard_clean,68.91,5124,review-2026-09-18 §1.1,
+2026-09-17,scorecard_clean,82.76,5124,review-2026-09-18 §1.1,

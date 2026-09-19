@@ -1,0 +1,55 @@
+\section{失败归因图谱}
+\label{sec:failures}
+
+\subsection{编译侧失败类}
+
+e2e\_real n=60 的编译失败归因（图~\ref{fig:failclass} 左）：missing\_file$\times$7 与 missing\_graphic$\times$3 合计过半——语料源自身缺资产（arXiv e-print 打包不全），非管线引入；killed\_by\_signal$\times$3 为超时/资源类；driver\_fatal$\times$3 为引擎级崩溃。
+
+fixloop 救回矩阵（corpus\_v2 40 篇对照）：xelatex 34 个 FAIL 格救回 25（74\%），主力规则为 \texttt{install\_file}（14 触发，8 格出 pdf）、\texttt{install\_tfm}（12 触发，7 格）、\texttt{static\_precheck}（40 格全触发）；装包榜首位 subfigure.sty$\times$10、revtex4.cls$\times$9。tectonic 臂仅救 1/16——\textbf{eps\_route reject 是结构性死穴}（11 格全拒）：EPS 图源在 tectonic/xdvipdfmx 通路无解，唯一出路是路由 xelatex。另有 latex209\_reject 闸拦下 LaTeX2.09 古文 8 格（该类论文需 209$\to$2e 重写通道，非装包可救）。
+
+\subsection{翻译侧失败类}
+
+xlatbench 失败类分布（图~\ref{fig:failclass} 右，17 个 hard\_fail 全归因）：\textbf{cs\_dropped$\times$8 居首}——控制序列在译文中丢失（占位符协议被破坏的最常见形态）；ph\_miss$\times$5（占位符未还原）、validator$\times$3、ord\_hard$\times$1；另 ord\_soft 78 条为不破契约的 chunk 顺序软告警。qualbench flag 榜（1{,}937 judged chunk）：term\_inconsistency 229、grammar 197、mistranslation 132、fluency\_register 99、hallucinated\_content 66、untranslated\_spans 37、over\_translation 23、placeholder\_broken 8。
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+\begin{groupplot}[
+  group style={group size=2 by 1,horizontal sep=16mm},
+  width=7.4cm, height=5.2cm,
+]
+\nextgroupplot[
+  xbar, bar width=3.6mm,
+  xmin=0,
+  symbolic y coords={driver\_fatal,killed\_by\_signal,missing\_graphic,missing\_file},
+  ytick=data, y tick label style={font=\scriptsize},
+  xlabel={格数}, x label style={font=\small},
+  nodes near coords, nodes near coords style={font=\scriptsize},
+]
+\addplot+[fill=cB!70,draw=cB] coordinates {(3,driver\_fatal) (3,killed\_by\_signal) (3,missing\_graphic) (7,missing\_file)};
+\nextgroupplot[
+  xbar, bar width=3.6mm,
+  xmin=0,
+  symbolic y coords={ord\_soft,ord\_hard,validator,ph\_miss,cs\_dropped},
+  ytick=data, y tick label style={font=\scriptsize},
+  xlabel={样本数}, x label style={font=\small},
+  nodes near coords, nodes near coords style={font=\scriptsize},
+]
+\addplot+[fill=cC!75,draw=cC] coordinates {(78,ord\_soft) (1,ord\_hard) (3,validator) (5,ph\_miss) (8,cs\_dropped)};
+\end{groupplot}
+\end{tikzpicture}
+\caption{失败类分布。左：e2e\_real n=60 编译失败归因——语料源缺资产主导；右：xlatbench 271 样本翻译失败/告警类——cs\_dropped 为头号硬失败。}
+\label{fig:failclass}
+\end{figure}
+
+\subsection{门槛 FAIL 与已知缺口}
+
+\begin{enumerate}
+  \item \textbf{dead protect ph=3}（parsebench）：死占位符残留 3 例，门为 0——唯一 gate FAIL 项，值小但需逐例归因。
+  \item \textbf{flatten 93.7\% $<99\%$}：已知 errata，orphan tex 清单在 papers.json（多层语料中 \texttt{.tex} 不进主文档 flatten 面的占比）。
+  \item \textbf{alignbench 覆盖薄}：812 对中 765 对 named-dests 为零——保留率指标实际只在 42 个 hyperref 对上有意义，指标口径需复核（分母该是所有对还是仅 hyperref 对）。
+  \item \textbf{tectonic 短板}：eps\_route 无解 + biblatex$\leftrightarrow$biber 版本错配——EPS/bib 论文在 tectonic 下是先天缺省，路由层应前置判走 xelatex。
+  \item \textbf{cs\_dropped 归因待定}：prompt 侧约束不足 vs 网关侧截断，需在 xlatbench 加对照实验分辨。
+  \item \textbf{stagerun scorecard 口径}：records 混存首轮欠采的 stale skip 行会污染读数（本批 989 条把 union pdf 冲成 7.4\% 假象；按 ingest 样本口径重算 98.75\%）——工具层待加 \texttt{--since}/样本过滤参数。
+  \item \textbf{未测臂}：translators\_bench、validbench（B6）、nightwatch、rundiff、triage、stage\_timing、wave、status\_panel——监控/辅助工具为主，本轮未覆盖。
+\end{enumerate}
