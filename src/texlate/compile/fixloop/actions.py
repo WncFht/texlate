@@ -646,24 +646,57 @@ def _apply(  # noqa: C901, PLR0911  # action.kind 分派表, 每种一处
 # ════════════════════════════════════════════════════════════════
 
 
-def _match_apply(  # noqa: C901, PLR0912, PLR0913, PLR0917  # spike pick_and_apply 签名面
+def _is_misschar_rule(rule: Rule) -> bool:
+    """``when`` 覆盖 ``warn_missing_char`` = 缺字修复族成员判据。
+
+    缺字族 (missing_char_fix/accent/cs_rebind/macro_glyph/caret_utf8/
+    三类 font_fallback) 全臂 when 均含此类别; warn_utf8-only 的
+    non_utf8_source 不在族内。
+    """
+    when = rule.when or {}
+    return any(
+        isinstance(c, dict) and c.get("category") == "warn_missing_char"
+        for c in (when.get("any") or [when])
+    )
+
+
+def _mc_delta(rule: Rule, ctx: LoopCtx) -> bool:
+    r"""缺字族 dedup 豁免: 本轮 missing-char 码位含该臂未消费的新码位。
+
+    missdisp #189 (fired_late_surface): ``\\bibitem`` 细空格/.bbl 字形/
+    cs_rebind 重音等后浪缺字在臂起火**之后**才浮出——``applied`` 键只
+    记「此臂对此码位集消费过」, ``mc_cps - mc_seen[rid]`` 非空即放行
+    再派发。增量空 → 照常 dedup (同码位集不重火, 终止性靠此)。
+    """
+    if not _is_misschar_rule(rule):
+        return False
+    return bool(ctx.mc_cps - ctx.mc_seen.get(rule.id, frozenset()))
+
+
+def _match_apply(  # noqa: C901, PLR0912, PLR0913, PLR0915, PLR0917  # spike pick_and_apply 签名面
     rs: Ruleset,
     ctx: LoopCtx,
     eng: Engine,
     cat: str | None,
     pay: str | None,
     rep: ErrReport,
+    only: Callable[[Rule], bool] | None = None,
 ) -> tuple[Rule | None, str]:
     """Order 序找第一条 when+condition 过、mode 可行且应用成功的规则。
 
     ``unsupported`` + ``fallback: escalate_llm`` 不就地烧 LLM——记下首个
     待 escalate 规则继续扫描, 同 category 的廉价规则全耗尽后才调 hook
     (missing_pfb_updmap 原位评估会把后置的 font_sub_shim 饿死在 LLM 后面)。
+
+    ``only`` 可选族过滤器 (warn-preempt 的缺字族专场): 非 None 时只评
+    谓词为真的规则——``when: always`` 的域外规则不抢家族派发窗。
     """
     pending_esc: tuple[Rule, str] | None = None
     for rule in rs.phase("loop"):
+        if only is not None and not only(rule):
+            continue
         key = f"{rule.id}:{pay}"
-        if key in ctx.applied:
+        if key in ctx.applied and not _mc_delta(rule, ctx):
             continue
         if not _when_ok(rule.when, cat, pay, ctx):
             continue
@@ -689,6 +722,10 @@ def _match_apply(  # noqa: C901, PLR0912, PLR0913, PLR0917  # spike pick_and_app
             applied, note = False, f"rule crashed: {type(e).__name__}: {e}"
         if applied:
             ctx.applied.add(key)
+            if _is_misschar_rule(rule):
+                # 起火轮看见的码位集记消费账——后浪新码位不在账内,
+                # _mc_delta 增量豁免据此放行再派发 (missdisp #189)。
+                ctx.mc_seen.setdefault(rule.id, set()).update(ctx.mc_cps)
             return rule, note
         if note:
             ctx.events.append(f"rule {rule.id}: skip ({note})")

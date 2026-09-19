@@ -31,6 +31,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol
 
 from texlate.compile.fixloop import ctan
+from texlate.compile.fixloop._builtins_common import _mc_parse_log
 from texlate.compile.fixloop._builtins_misc import (
     _wdir_fingerprint,
 )
@@ -40,6 +41,7 @@ from texlate.compile.fixloop.actions import (
     _apply_scan_install,
     _cond_ok,
     _dep_stems,
+    _is_misschar_rule,
     _match_apply,
     _probe,
     _substitute,
@@ -434,6 +436,10 @@ class _CtxRound:
     #: gate 评估只回 verdict 串——REJECT note 的 route= 令牌经此桥回 cell
     #: (precheck/loop 两 site 有 note 在手直接写 cell["reject_route"])。
     reject_route: str | None = None
+    #: 本轮编译 log 的 missing-char 码位集 (``_mc_parse_log`` 同口径,
+    #: nullfont 已滤)——error-cat 轮照记 (缺字警告与 ``!`` 错可同现,
+    #: ``warn_missing_char`` 类别排他使族臂平时够不到这些轮)。
+    mc_cps: frozenset[int] = frozenset()
 
 
 @dataclass
@@ -441,6 +447,12 @@ class _CtxLedger:
     """跨轮累计账簿: 规则应用/动作/装包/事件/引擎 flag/拒修与建议记录。"""
 
     applied: set[str] = field(default_factory=set)  # "{rule_id}:{payload}"
+    #: 缺字族臂已消费码位账: ``{rule_id: {cp, ...}}``——臂**起火轮**看见
+    #: 的全集记其名下 (declined 不记——未消费的码位后浪重评估仍合法);
+    #: dedup 豁免按 ``mc_cps - mc_seen[rid]`` 增量判 (missdisp #189:
+    #: fired_late_surface——``\bibitem`` 细空格/.bbl 字形/cs_rebind
+    #: 重音后浪浮新码位, "fired" 不得把起火后才浮出的码位记消费)。
+    mc_seen: dict[str, set[int]] = field(default_factory=dict)
     #: "看见但拒修" 记录面: when 命中后 cond-skip/applied=False 的 ``{id}: {why}``
     #: ——events 有但 cases.jsonl 不落, 这里单收一份供 records 物化。
     declined: list[str] = field(default_factory=list)
@@ -467,8 +479,10 @@ _CTX_FIELD_GROUP = {
     "err_pay": "round",
     "err_head": "round",
     "reject_route": "round",
+    "mc_cps": "round",
     "applied": "ledger",
     "declined": "ledger",
+    "mc_seen": "ledger",
     "actions": "ledger",
     "installed": "ledger",
     "events": "ledger",
@@ -511,6 +525,8 @@ class LoopCtx:
         err_pay: str | None = None,
         err_head: str = "",
         reject_route: str | None = None,
+        mc_cps: frozenset[int] = frozenset(),
+        mc_seen: dict[str, set[int]] | None = None,
         _texts: dict[Path, str | None] | None = None,
     ) -> None:
         """平铺 kwargs → 四组子对象; ``None`` = 该组字段取默认值。"""
@@ -525,10 +541,12 @@ class LoopCtx:
             err_pay=err_pay,
             err_head=err_head,
             reject_route=reject_route,
+            mc_cps=mc_cps,
         )
         self.ledger = _CtxLedger(
             applied=applied if applied is not None else set(),
             declined=declined if declined is not None else [],
+            mc_seen=mc_seen if mc_seen is not None else {},
             actions=actions if actions is not None else [],
             installed=installed if installed is not None else [],
             events=events if events is not None else [],
@@ -720,12 +738,13 @@ def _match_apply_landing(  # noqa: PLR0913, PLR0917  # 与 _match_apply 同签�
     cat: str | None,
     pay: str | None,
     rep: ErrReport,
+    only: Callable[[Rule], bool] | None = None,
 ) -> tuple[Rule | None, str]:
     """``_match_apply`` + 落件同步——loop 相两处派发点共用。"""
     before = _wdir_fingerprint(ctx.io.wdir)
     pre = set(ctx.ledger.applied)
     ctx.io.written.clear()  # 本窗自产写从零计账
-    rule, note = _match_apply(rs, ctx, eng, cat, pay, rep)
+    rule, note = _match_apply(rs, ctx, eng, cat, pay, rep, only=only)
     _landing_sync(ctx, before, pre)
     return rule, note
 
@@ -767,6 +786,67 @@ def _gate_eval(  # noqa: PLR0913, PLR0917  # 与 _match_apply 同签名面
             ctx.ledger.applied.add(key)
             ctx.ledger.actions.append({"round": -1, "rule": rule.id, "detail": note})
     return None
+
+
+def _warn_family_due(
+    rs: Ruleset, ctx: LoopCtx, cat: str | None, pay: str | None
+) -> bool:
+    """接受裁决前的缺字族勤勉检: 本轮残存 missing-char 码位有臂未见。
+
+    「未见」双判缺一不可——``when`` 不匹配本轮 cat 的臂本轮根本没被
+    评估 (error-cat 轮全族皆然, ``invalid_in_math`` 轮只
+    macro_glyph_fix 评估过); 残存码位落在臂 ``mc_seen`` 消费账外
+    (never-fired ⇒ 账空 ⇒ 全集皆增量)。两条件同假的臂重扫同一
+    rep 必同判, 不算 due。``(cat, pay)`` 取调用方快照——派发窗内
+    ``ctx.round`` 已被强指 ``warn_missing_char``, 原 cat 须外传入。
+    """
+    cps = ctx.round.mc_cps
+    if not cps:
+        return False
+    for rule in rs.phase("loop"):
+        if not _is_misschar_rule(rule):
+            continue
+        if _when_ok(rule.when, cat, pay, ctx):
+            continue  # 本轮已在该 cat 下评估过此臂——同 rep 重扫是空转
+        if cps - ctx.ledger.mc_seen.get(rule.id, frozenset()):
+            return True
+    return False
+
+
+def _warn_preempt(
+    rs: Ruleset, ctx: LoopCtx, eng: Engine, rep: ErrReport
+) -> tuple[Rule | None, str]:
+    """Warn 家族补发一轮派发 (error-cat 轮裁决点/loop 退出点两 site 共用)。
+
+    ``ctx.round`` 暂指 ``warn_missing_char`` 让族臂 ``when`` 命中——与
+    次级错误派发的 twin 重指同机制, 返回后复元。``(None, "")`` =
+    残存缺字各臂均见过 (或本无缺字), 直走原裁决; REJECT note 经
+    ``note`` 原样冒泡由调用方落 ``reject:<rid>``。码位面 = 轮记
+    ``mc_cps`` ∪ 派发 rep 实解——次级探针编译后盘上 .log 是探针全
+    错误面, 族臂 apply 读的是它, 勤勉判据须同面 (``mc_seen`` 起火
+    记账亦落此并集)。
+    """
+    eff = ctx.round.mc_cps | frozenset(_mc_parse_log(rep.raw or ""))
+    if not eff:
+        return None, ""
+    cat, pay = ctx.round.err_cat, ctx.round.err_pay
+    keep_cps = ctx.round.mc_cps
+    ctx.round.err_cat, ctx.round.err_pay = "warn_missing_char", None
+    ctx.round.mc_cps = eff
+    try:
+        if not _warn_family_due(rs, ctx, cat, pay):
+            return None, ""
+        rule, note = _match_apply_landing(
+            rs, ctx, eng, "warn_missing_char", None, rep, only=_is_misschar_rule
+        )
+    finally:
+        ctx.round.err_cat, ctx.round.err_pay = cat, pay
+        ctx.round.mc_cps = keep_cps
+    if rule is None:
+        ctx.ledger.events.append(
+            f"warn-preempt: {len(eff)} residual cps, no arm applied"
+        )
+    return rule, note
 
 
 def _wire_filemap_overrides(
@@ -1081,6 +1161,13 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
         last_rep = rep
         ctx.round.err_cat, ctx.round.err_pay = cat, pay
         ctx.round.err_head = (rep.first or "") + "\n" + (rep.ctx or "")
+        # 本轮 missing-char 码位面 (error-cat 轮同记)——缺字族 dedup
+        # 增量豁免与 warn-preempt 勤勉闸的判据底账。
+        ctx.round.mc_cps = (
+            frozenset(_mc_parse_log(rep.raw or ""))
+            if "missing_char" in rep.warnings
+            else frozenset()
+        )
         pdf = _res_has_pdf(res)
         pdf_bytes = getattr(res, "pdf_bytes", None)
         if pdf and pdf_bytes is None:
@@ -1220,6 +1307,33 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
                 ctx.round.err_cat, ctx.round.err_pay = cat, pay
                 ctx.round.err_head = (rep.first or "") + "\n" + (rep.ctx or "")
                 salvage_res, salvage_rep = probe_res, probe_rep
+                # warn-preempt (missdisp #189): error-cat 轮把轮次烧完、
+                # 裁决落 dirty/unfixable/stuck 前——残存 missing-char 码位
+                # 若有族臂未见, 补发一轮 warn_missing_char 派发再言败
+                # (family_not_dispatched: 60/77 覆盖格从未拿到 warn 轮)。
+                # 派发送 cand_rep: 探针跑过时其全错误面才是族臂 apply
+                # 实读的盘上 .log。
+                wrule, wnote = _warn_preempt(rs, ctx, eng, cand_rep)
+                if wrule is not None:
+                    if wnote.startswith(_REJECT_PREFIX):
+                        cell["verdict"] = f"reject:{wrule.id}"
+                        if r := _note_route(wnote):
+                            cell["reject_route"] = r
+                        break
+                    cell["actions"].append(
+                        {
+                            "round": rnd,
+                            "rule": wrule.id,
+                            "detail": wnote,
+                            "via": "warn_preempt",
+                        }
+                    )
+                    ctx.ledger.events.append(
+                        f"r{rnd} warn-preempt -> {wrule.id} ({wnote})"
+                    )
+                    # apply 已落地——探针编译瞬间陈旧, 兜底槽必须弃用
+                    salvage_res = salvage_rep = None
+                    continue
                 # stuck 结算点移到派发耗尽后: 同签 streak ≥ stuck_sig_repeat
                 # 且本轮主+次级均无 apply → stuck。旧制在第 stuck_n 个同签轮
                 # 派发前预判——产出轮 (apply 发生) 同样计入 sig_n, 会把只
@@ -1260,6 +1374,29 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
     # ``unfixable:input_stack`` 同为定败——该 cat 只由 capacity 重路由产出,
     # 全属上游执行宏递归帧, nonstopmode 重跑同炸, 不救。
     v_now = str(cell["verdict"] or "")
+    # warn-preempt 退出点补位 (missdisp #189): loop 以 max_rounds/非拒绝
+    # verdict 收场且末轮残存 missing-char 码位有族臂未见 → 补一轮派发
+    # 再走 salvage/汇总。无 pdf 格的兜底编译天然充当验证编; max_rounds
+    # +pdf 格的 apply 落地后不复编 (低风险幂等件, 下游 post 编译验)。
+    if not v_now.startswith("reject:"):
+        wrule, wnote = _warn_preempt(rs, ctx, eng, last_rep or ErrReport())
+        if wrule is not None:
+            if wnote.startswith(_REJECT_PREFIX):
+                cell["verdict"] = f"reject:{wrule.id}"
+                if r := _note_route(wnote):
+                    cell["reject_route"] = r
+            else:
+                cell["actions"].append(
+                    {
+                        "round": "post",
+                        "rule": wrule.id,
+                        "detail": wnote,
+                        "via": "warn_preempt",
+                    }
+                )
+                ctx.ledger.events.append(f"post warn-preempt -> {wrule.id} ({wnote})")
+                salvage_res = salvage_rep = None
+            v_now = str(cell["verdict"] or "")
     if (
         v_now
         and not v_now.startswith("reject:")
