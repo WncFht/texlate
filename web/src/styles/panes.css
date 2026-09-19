@@ -443,6 +443,19 @@
     vertical-align: middle;
 }
 
+/* 掩码占位符降级 chip——ph map 缺席时 [[MATH_n]] 等露 kind 不露水印原形 */
+.ph-tok {
+    display: inline-block;
+    font-size: 0.78em;
+    line-height: 1.4;
+    font-family: var(--font-mono);
+    color: var(--ink-3);
+    background: var(--paper-2);
+    border-radius: 4px;
+    padding: 0 5px;
+    vertical-align: baseline;
+}
+
 /* 单段重译钮：贴段右上角，hover 才现（焦点同现——键盘可达） */
 .chunk-retx {
     position: absolute;

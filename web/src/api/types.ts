@@ -336,6 +336,10 @@ export interface DualChunk {
     kind?: string;
     /** 段状态（ok/fallback_orig/failed…）——新版 dual.json 起携带，旧文件缺席时按 zh 是否为空推断 */
     status?: string;
+    /** ``[[TYPE_n]]`` → 原文 LaTeX 体（eprint 链 dual.json 起携带）——
+     *  阅读面反查掩码渲真公式/引用；缺席（旧产物/html 链/live 轮询行）
+     *  时 token 降级成样式 chip */
+    ph?: Record<string, string>;
 }
 
 export interface DualJson {
@@ -356,6 +360,8 @@ export interface TaskChunkRow {
     status: string;
     en: string;
     zh: string;
+    /** DB 行暂不携带（ph 只进 dual.json）——类型留位，服务端补列即通 */
+    ph?: Record<string, string>;
 }
 
 export interface TaskChunksPage {

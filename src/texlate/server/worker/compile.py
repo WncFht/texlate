@@ -1135,8 +1135,24 @@ class _Compile:
             if en and zh
             else {"kind": "pages"}
         )
-        doc["chunks"] = [
-            {
+        # 占位符 → 原文体表：eprint 链 chunk 文本带 ``[[TYPE_n]]`` 掩码——
+        # 阅读面（HtmlPane md 渲染）要 ph 反查真实公式/引用再渲 KaTeX。
+        # scans 缺场（resume 直进编译段）尽力重解析；拿不到就缺省——
+        # 前端对无 ph 的 token 降级成样式 chip，不挡 dual 落盘。
+        if not ctx.scans:
+            try:
+                _rows, ctx.scans = self._parse_all(ctx)
+            except Exception as e:  # noqa: BLE001 -- 源已清/重解析失败不挡落盘
+                self._log(ctx, f"dual ph reparse failed: {e}")
+        frag_of: dict[str, dict[str, str]] = {}
+        if ctx.scans:
+            try:
+                frag_of = self._ph_frag_map(ctx)
+            except Exception as e:  # noqa: BLE001
+                self._log(ctx, f"dual ph frag map failed: {e}")
+        doc["chunks"] = []
+        for r in self._on_loop(self._all_chunks, ctx):
+            ch: dict[str, Any] = {
                 "seq": r["seq"],
                 "src_file": r["src_file"],
                 "en": r["src_text"],
@@ -1150,8 +1166,10 @@ class _Compile:
                 "kind": r["kind"],
                 "status": str(r["status"]),
             }
-            for r in self._on_loop(self._all_chunks, ctx)
-        ]
+            ph = frag_of.get(r["chunk_id"])
+            if ph:
+                ch["ph"] = ph
+            doc["chunks"].append(ch)
         atomic_json(ctx.root / "dual.json", doc)
         self._register(ctx, "dual_json", "dual.json")
 

@@ -16,7 +16,12 @@
 import { createEffect, createSignal, onCleanup, onMount } from "solid-js";
 import type { TaskChunksPage } from "../api/client";
 import { pollChunksOnce, subscribeChunks } from "./chunkPoll";
-import { chunkUntranslated, loadMdLibs, type MdLibs } from "./markdown";
+import {
+    chunkUntranslated,
+    loadMdLibs,
+    unmaskLatex,
+    type MdLibs,
+} from "./markdown";
 import { externalLinksBlank } from "./paneUtils";
 import { escapeHtml } from "./sanitize";
 import { raf } from "./sync";
@@ -28,6 +33,8 @@ export interface LiveChunk {
     status?: string;
     en?: string;
     zh?: string;
+    /** 掩码反查表（dual.json 起携带；DB 轮询行暂缺→token 降级 chip） */
+    ph?: Record<string, string>;
 }
 
 /**
@@ -56,6 +63,7 @@ export function mergeLive(
             status: r.status,
             en: r.en,
             zh: r.zh,
+            ph: r.ph ?? cur?.ph,
         });
         dirty.push(r);
     }
@@ -124,6 +132,7 @@ export default function LivePane(props: Props) {
         el.innerHTML = meta + badge + libs.mdToHtml(zh ? c.zh! : (c.en ?? ""));
         // marked 产物内的 http(s) 外链一律新窗——pane 内默认跳转会顶掉阅读器
         externalLinksBlank(el);
+        unmaskLatex(el, c.ph);
         libs.renderMath(el);
     };
 

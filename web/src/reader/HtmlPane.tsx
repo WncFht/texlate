@@ -25,6 +25,7 @@ import {
     chunkSideText,
     chunkUntranslated,
     loadMdLibs,
+    unmaskLatex,
     type MdLibs,
 } from "./markdown";
 import { externalLinksBlank } from "./paneUtils";
@@ -149,6 +150,7 @@ export default function HtmlPane(props: Props) {
         sec.replaceWith(fresh);
         // 重绘段含新外链——初始渲染挂过，就地重绘也要挂（与 mount 路径同口径）
         externalLinksBlank(fresh);
+        unmaskLatex(fresh, c.ph);
         libs?.renderMath(fresh);
         // childList 变化已排 MO 整绑——同步再绑一遍是纯重复，只清缓存
         geom.invalidate();
@@ -248,6 +250,7 @@ export default function HtmlPane(props: Props) {
                     const sec = tmp.firstElementChild as HTMLElement | null;
                     if (sec) {
                         externalLinksBlank(sec);
+                        unmaskLatex(sec, c.ph);
                         libs?.renderMath(sec);
                         bodyEl.append(sec);
                     }
