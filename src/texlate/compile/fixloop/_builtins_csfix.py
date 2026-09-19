@@ -150,7 +150,8 @@ _SORTLIST_BBL_POLYFILL = r"""
 
 #: undefined_cs → 定向修复表 (cs_targeted_fix 的默认表, rules/
 #: params.cs_table 可扩)。spec 键: strip_pkg / usepackage / cs_map /
-#: polyfill / engines{eng: 覆盖 spec} —— 组合语义见 cs_targeted_fix。
+#: guard / guard_pre / polyfill / polyfill_pre / engines{eng: 覆盖 spec}
+#: —— 组合语义见 cs_targeted_fix。
 _CS_FIX_TABLE: dict[str, dict[str, Any]] = {
     # 1909.05039: breakurl 的 shipout 钩调 \headerps@out —— 该宏只在
     # hyperref dvips/ps2pdf 驱动下有定义, xetex/tectonic 走 hdvipdfm →
@@ -287,13 +288,43 @@ def _inject_before_docclass(ctx: LoopCtx, snippet: str) -> bool:
     return True
 
 
-def cs_targeted_fix(  # noqa: C901 - spec 键序分派表, 每键一处
+#: cs_targeted_fix ``guard``/``guard_pre`` 值形归一 —— ``true`` → 零参空体;
+#: ``"[1]"`` 串 → argspec (空 body); dict ``{args, body}`` → 全形。
+#: emission 恒走 ``\csname`` 包裹: 裸 ``\providecommand\foo@bar`` 在 @=other
+#: 读面把名断成 ``\foo``+stray 字母 (静默错义 + ``Missing \begin{document}``
+#: 级联), ``\providecommand\csname`` 直写又把 ``\csname`` 当已定义名而
+#: 静默 no-op —— 双死形, ``\expandafter`` 先行展开是唯一通解
+#: (lane-renewguard forms/forms3.tex 全形实证)。``Command \X undefined``
+#: (renew-on-undefined 内核签) 与 ``\csname`` 派发/@-名 cs_table 条目
+#: 的本键一并收 —— provide 预置, doc 侧 ``\renewcommand`` 合法接管;
+#: body 即未 renew 时的 use-site 兜底, 语义同 polyfill 但名自表键出。
+def _guard_snippet(cs: str, guard: object) -> str | None:
+    r"""``guard`` spec → csname 形 ``\providecommand`` 预置 snippet; 不合法返回 None。"""
+    if guard is True:
+        args, body = "", ""
+    elif isinstance(guard, str):
+        args, body = guard, ""
+    elif isinstance(guard, dict):
+        args, body = str(guard.get("args") or ""), str(guard.get("body") or "")
+    else:
+        return None
+    if not cs or re.search(r"[\\{}\s]", cs):
+        return None
+    return (
+        "\\expandafter\\providecommand\\expandafter"
+        f"{{\\csname {cs}\\endcsname}}{args}{{{body}}}"
+    )
+
+
+def cs_targeted_fix(  # noqa: C901, PLR0912 - spec 键序分派表, 每键一处
     ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
 ) -> tuple[bool, str]:
     r"""undefined_cs 按 cs 修复表打靶 (handoff §2.2 cs→包表项)。
 
     spec 键组合序: ``strip_pkg`` 剥装载点 → ``usepackage`` 注入+装文件
-    → ``cs_map`` ``\old``→``\new`` 逐文件改写 → ``polyfill`` 注原始 TeX body
+    → ``cs_map`` ``\old``→``\new`` 逐文件改写 → ``guard``/``guard_pre``
+    csname 形 ``\providecommand`` 预置 (renew-on-undefined 与 @-名专用,
+    语义见 ``_guard_snippet`` 头注) → ``polyfill`` 注原始 TeX body
     (docclass 缝后) → ``polyfill_pre`` 同形注 docclass 行前 (cls 执行期
     调用面专用, ``\reserveinserts`` 类)。``engines.{eng_name}`` 子表整体
     覆盖顶层同名词 (引擎差异修, 如 bbm→dsfont)。payload 不在表 → 试
@@ -330,6 +361,17 @@ def cs_targeted_fix(  # noqa: C901 - spec 键序分派表, 每键一处
         n = _map_tex_files(ctx, (".tex", ".sty"), lambda t: _rewrite_cs_map(t, cmap))
         if n:
             done.append(f"cs_map in {n} files")
+    for gkey, pre in (("guard", False), ("guard_pre", True)):
+        if g := spec.get(gkey):
+            snip = _guard_snippet(cs, g)
+            if snip and (
+                _inject_before_docclass(ctx, snip)
+                if pre
+                else _inject_after_docclass(ctx, snip)
+            ):
+                done.append(
+                    "pre-docclass guard injected" if pre else "guard seed injected"
+                )
     if spec.get("polyfill") and _inject_after_docclass(ctx, str(spec["polyfill"])):
         done.append("polyfill injected")
     if spec.get("polyfill_pre") and _inject_before_docclass(

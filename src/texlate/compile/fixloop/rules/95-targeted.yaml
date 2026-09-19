@@ -134,8 +134,14 @@ rules:
           #   未开 backref 选项 → \backref 恒缺; provide 预置 → renew 接管
           # math/0408290 macros.tex:227 \renewcommand{\U}{{\Upsilon}} ——
           #   amsart+xelatex 下 \U 缺位 (稿内 $\U$ 高频); 同形预置
-          backref: { polyfill: "\n\\providecommand{\\backref}[1]{}" }
-          U: { polyfill: "\n\\providecommand{\\U}[1]{}" }
+          # 2026-09-19 renewguard: guard 键替手写 \providecommand 字面形
+          # (csname 包裹 emission, @-名/裸名通吃 —— 裸 \providecommand\foo@bar
+          # @=other 断名静默错义, \providecommand\csname 静默 no-op 双死)。
+          backref: { guard: "[1]" }
+          U: { guard: "[1]" }
+          # 1306.0124 arxiv-DCDSA-May2013.tex:58 \renewcommand{\C}{{\mathbb C}}
+          # —— \C 恒缺 (稿载 amssymb, renew 后 \mathbb 就位); 同族预置
+          C: { guard: true }
           # 0806.3016: babel-russian v1.3m (2021) ldf 已不定义 \No (№ 号);
           # \textnumero 内核文本符号零依赖
           No: { polyfill: "\n\\providecommand{\\No}{\\textnumero}" }
