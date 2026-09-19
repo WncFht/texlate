@@ -8,7 +8,55 @@
 \NeedsTeXFormat{LaTeX2e}
 \ProvidesClass{aa}[2026/09/19 texlate stub — original not redistributable]
 \ClassWarningNoLine{texlate-stub}{aa.cls is a compatibility shim -> article + A&A polyfills}
-\LoadClassWithOptions{article}
+% 选项机面补齐 (aafidelity 0905-0919 普查): 真身 aa.cls v6.1-v9.2
+% 默认 {a4paper,twoside,twocolumn,fleqn,final,10pt,runningheads}
+% —— 原 \LoadClassWithOptions 裸转发, 稿裸 \documentclass{aa}×44
+% + []×14 格吃 article 默认 onecolumn/oneside/letterpaper 栏型
+% 失真; referee×42 无双距稿面。参照件 bench/corpus_v3/
+% {0806.4088,1206.0403,2211.04497,2606.30286}/extracted +
+% corpus/1502.01589 五版选项节比对。
+% wrapper 机制 (latex.ltx \@process@ptions): cls 级
+% ProcessOptions 只查 \@curroptions 不带 \@classoptionslist
+% —— 全局选项不会自暨嵌套 \LoadClass, 一切用户选项须显式
+% 转发 (尾部 catch-all); 且 article 按声明序执行,
+% onecolumn/oneside/leqno 均先于默认侧声明 (article.cls
+% :96<:98/:84<:86/:99<:100) → 默认侧若与用户臂同入
+% article 选项表必败, 故默认经条件臂注入 (用户臂立 flag
+% 抑对应默认)。aa 专名 no-op 吞位消 Unused-option 警告
+% (不转 article —— 转了会被 article OptionNotUsed 重新
+% 记名); 未声明名经 catch-all 转 article 后仍由其
+% OptionNotUsed 记名警告 —— 与真身 bibyear/usenatbibs 等
+% 未声明名行为一致。referee 臂 = onecolumn + 双距 (真身
+% v7.0 :1334 \baselinestretch{1.5}+\onecolumn);
+% \linespread 须 AtBeginDocument 延后 —— article.cls:116
+% \renewcommand\baselinestretch{} 会抹掉 \LoadClass 前设置。
+\newif\ifaa@onecol \newif\ifaa@oneside \newif\ifaa@leqno
+\DeclareOption{onecolumn}{\aa@onecoltrue\PassOptionsToClass{onecolumn}{article}}
+\DeclareOption{oneside}{\aa@onesidetrue\PassOptionsToClass{oneside}{article}}
+\DeclareOption{leqno}{\aa@leqnotrue\PassOptionsToClass{leqno}{article}}
+\DeclareOption{referee}{\aa@onecoltrue\PassOptionsToClass{onecolumn}{article}%
+\AtBeginDocument{\linespread{1.5}\normalsize}}
+\DeclareOption{showoverfull}{\AtBeginDocument{\setlength\overfullrule{5pt}}}
+\DeclareOption{hideoverfull}{}
+\DeclareOption{letter}{}\DeclareOption{onlletter}{}
+\DeclareOption{online}{}\DeclareOption{contents}{}
+\DeclareOption{contentsAut}{}\DeclareOption{rnote}{}
+\DeclareOption{longauth}{}\DeclareOption{longfn}{}
+\DeclareOption{wideboxfn}{}\DeclareOption{oldversion}{}
+\DeclareOption{traditabstract}{}\DeclareOption{structabstract}{}
+\DeclareOption{runningheads}{}\DeclareOption{envcountreset}{}
+\DeclareOption{envcountsect}{}\DeclareOption{ascii}{}
+\DeclareOption{latin1}{}\DeclareOption{latin9}{}
+\DeclareOption{ansinews}{}\DeclareOption{applemac}{}
+\DeclareOption{utf8}{}\DeclareOption{cm}{}
+\DeclareOption{bibauthoryear}{}
+\DeclareOption*{\PassOptionsToClass{\CurrentOption}{article}}
+\ProcessOptions\relax
+\ifaa@onecol\else\PassOptionsToClass{twocolumn}{article}\fi
+\ifaa@oneside\else\PassOptionsToClass{twoside}{article}\fi
+\ifaa@leqno\else\PassOptionsToClass{fleqn}{article}\fi
+\PassOptionsToClass{a4paper}{article}
+\LoadClass{article}
 % 真身 aa.cls 内置 natbib (\citep/\citeyear 面, 2401.17274 实证)。
 % 默认 author-year 对空 \bibitem{} (0905.4439: 45 条无 label
 % 无引用的裸书目) 自写 aux 次轮回读炸 "Bibliography not
