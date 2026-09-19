@@ -1379,7 +1379,7 @@
 \global\pt@tabnoteminht=0pt%
 \newenvironment{deluxetable}[1]{%
  \maketitle
- \def\pt@format{\string#1}%
+ \edef\pt@format{\string#1}%
  \let\@acol\pt@tabacol%
  \let\@tabularcr\@ptabularcr%
  \let\@tablenotetext\@ptablenotetext%

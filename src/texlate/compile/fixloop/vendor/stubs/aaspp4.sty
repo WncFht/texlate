@@ -53,7 +53,7 @@
 \def\tablewidth#1{}
 \def\tablecolumns#1{}
 \def\tablecaption#1{\caption{#1}}
-\def\tablehead#1{\tabular{\@delspec}#1\\\hline}
+\def\tablehead#1{\expandafter\tabular\expandafter{\@delspec}#1\\\hline}
 \def\tabletail#1{}
 \def\tableheadfrac#1{}
 \def\startdata{}

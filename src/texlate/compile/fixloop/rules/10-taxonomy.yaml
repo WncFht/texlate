@@ -351,6 +351,22 @@ taxonomy:
       payload_group: 1,
       pattern: "LaTeX Error: Command \\\\([a-zA-Z@]+) invalid in math mode",
     }
+  # ── 2026-09-19 arraypream lane (arraypream-2026-09-19 普查) ──
+  # array.sty \@mkpream 拒收签名: "Illegal pream-token (\X): `c' used."
+  # (Package array Error 前缀, '!' 或 file-line 形皆有)。aastex 时代
+  # 列型宏 (\@delspec/\pt@format 族) 漏进 tabular 头——kernel \@xexpast
+  # 全展开能吃, array 重写只认 *-repeat 与 \NC@ 名, 其余宏留字面条目。
+  # payload=cs 名 (无反斜杠), 供 pream_token_cs_expand 改写 (def-站
+  # \edef 烘焙 + call-站 \expandafter + 类let 中和)。\\ 必带把 CJK
+  # 字面 token (这/是/译/文 系 ~54 条——译文漏进 preamble 的另一机制)
+  # 挡在本类之外落 syntax。
+  # 须在 syntax 前: syntax 交替含 "Illegal" 宽词会抢签。
+  - {
+      id: pream_token,
+      scope: head,
+      payload_group: 1,
+      pattern: "Illegal pream-token \\(\\\\([\\w@]+)\\)",
+    }
   # 2026-09-16 扩 syntax 族: Extra }/\\endgroup/\\right/\\middle/\\else/\\fi/\\or
   # 与 Forgotten \\endgroup —— 组/定界/条件多 token 错误归 syntax
   # (astro-ph/0306068 "Extra }, or forgotten $." 原是 other 兜底;

@@ -1391,6 +1391,61 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/lane-ifclosegap: min8 (\\protected\\def\\footnote) + t2/m2 (\\protected\\def\\bf) 双臂 PDF 实证; min1-7 展开链 \\tracingifs 归因"
 
+  # ── 2026-09-19 arraypream lane ──
+  # array.sty \@mkpream 只改写 *-repeat 与 \NC@ 名, 其余 preamble 宏留字面
+  # token → "Illegal pream-token (\X)" (kernel \@xexpast 全展开形原可吃,
+  # 差异即 array 装载面)。aastex 时代 deluxetable 复合面两族:
+  #   \@delspec 系 (aaspp4/aasms4 \tablehead → \tabular{\@delspec})
+  #   \pt@format 系 (aastex.cls/emulateapj \def\pt@format{\string#1}
+  #     + \pt@tabular/\@tabular{\pt@format} 调用站)
+  # 修复 = call-站 \expandafter 一阶展开 + def-站 \edef 烘焙 (\string 在
+  #   edef 内执行产字面 token; \expandafter 单展开 \string-bearing 宏留下
+  #   \string 字面 → 仍 illegal, 两臂缺一不可)。
+  # emulateapj \pt@tabular 另绑 array 中和掉的 kernel 存名
+  #   (\let\@classz\@tabclassz / \let\@classiv\@tabclassiv → "Missing #"),
+  #   臂3/4 整链删除 (连 \@acol 绑位一并——\@ptabacol 变种可能无定义,
+  #   留绑反生 Undefined cs; array 默认 \@acol 兜底)。\s* 收行间空白防
+  #   \par token 混入宏体。
+  - id: pream_token_cs_expand
+    mechanisms: [W86]
+    description: "array 装载面 preamble 宏 token → call-站 \\expandafter + def-站 \\edef 烘焙 + emulateapj 死绑 let 链中和"
+    phase: loop
+    order: 198 # undefined_cs_guess(900) 之前; pream_token 新类无竞争消费者
+    when: { category: pream_token, payload_required: true }
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty, .cls]
+        rewrites:
+          - {
+              pattern: "\\\\def(\\\\{payload}\\{\\\\string\\s*#1\\s*\\})",
+              repl: "\\\\edef\\g<1>",
+            }
+          - {
+              pattern: "\\\\(pt@tabular|@tabular|tabular)\\{\\s*\\\\{payload}\\s*\\}",
+              repl: "\\\\expandafter\\\\\\g<1>\\\\expandafter{\\\\{payload}}",
+            }
+          - {
+              pattern: "\\s*\\\\let\\\\@acol\\\\@ptabacol\\s*\\\\let\\\\@classz\\\\@tabclassz\\s*\\\\let\\\\@classiv\\\\@tabclassiv\\s*",
+              repl: " ",
+            }
+          - {
+              pattern: "\\s*\\\\let\\\\@classz\\\\@tabclassz\\s*\\\\let\\\\@classiv\\\\@tabclassiv\\s*",
+              repl: " ",
+            }
+    risk: low # 字面 spec 展开只益 preamble; \edef 烘焙幂等; 死绑 let 在 array 面恒为 \relax 删之无损失
+    known_gap: "CJK 字面 token (这/是/译/文 系 ~54 实例——译文漏 preamble 另一机制) 不落本类; 非 aastex 族 preamble 宏覆盖外; let 链序异/缺节变种 → 臂3 落空靠臂4, 皆空则 decline; \\gdef/\\xdef 形 def-站未覆盖"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "arraypream census 2026-09-19: records 内 cs-token 实例 \\@delspec×30/\\pt@format×11 (~7 cells: astro-ph/9901037/9901371 等)",
+          error: "Package array Error: Illegal pream-token (\\@delspec): `c' used.",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "task #105; tmp/preamfix t2/t7/t8/t13 全链编译实证"
+
   # ─── 兜底: 恒最后 ───
   - id: undefined_cs_guess
     description: "未定义控制序列 → cs→pkg 知识库长射 + LLM 兜底分析 (占位)"

@@ -826,9 +826,7 @@ REFERENCES}} \vspace{-5pt}]
     \global\pt@nlines\@tempdimb}
 
 
-\def\pt@tabular{\hbox \bgroup \pt@fontsize $\let\@acol\@ptabacol 
-   \let\@classz\@tabclassz
-   \let\@classiv\@tabclassiv \let\\\@tabularcr\@tabarray}
+\def\pt@tabular{\hbox \bgroup \pt@fontsize $ \let\\\@tabularcr\@tabarray}
 
 \def\@ptabacol{\edef\@preamble{\@preamble \hskip \tabcolsep\tabskip\fill}}
 
@@ -845,7 +843,7 @@ REFERENCES}} \vspace{-5pt}]
 \def\set@mkcaptioncont{\long\def\@makecaption##1##2{
     \center\sc##1\endcenter\vskip 1.5ex}}
 
-\newenvironment{deluxetable}[1]{\def\pt@format{\string#1}%
+\newenvironment{deluxetable}[1]{\edef\pt@format{\string#1}%
     \set@tblnotetext\global\pt@ncol=0\global\pt@column=0\global\pt@page=1%
     \def\pt@addcol{\global\advance\pt@ncol by\@ne}}%
     {%\crcr\noalign{\vskip .7ex}\hline\endtabular%
@@ -860,7 +858,7 @@ REFERENCES}} \vspace{-5pt}]
     \ifdim\pt@width>\z@\def\@halignto{to \pt@width}\else\def\@halignto{}\fi%
     \let\fnum@table=\fnum@ptable\set@mkcaption%
     \@dblfloat{table}\center\caption{\pt@caption}\leavevmode%
-    \setbox\pt@box=\pt@tabular{\pt@format}\pt@head}
+    \setbox\pt@box=\expandafter\pt@tabular\expandafter{\pt@format}\pt@head}
 \def\enddata{\crcr\noalign{\vskip .7ex}\hline\endtabular}
 
 \def\pt@nl{\global\advance\pt@line by\@ne%
@@ -875,7 +873,7 @@ REFERENCES}} \vspace{-5pt}]
     \@dblfloat{table}\center\caption{\pt@caption}\leavevmode%
     \global\pt@ncol=\pt@column%  Either 0 or value of \tablecolumns 
     \global\pt@line=0%
-    \setbox\pt@box=\pt@tabular{\pt@format}\pt@head%
+    \setbox\pt@box=\expandafter\pt@tabular\expandafter{\pt@format}\pt@head%
   \else\\
   \fi}
 
