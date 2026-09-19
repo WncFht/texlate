@@ -1285,3 +1285,48 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/lane-killsem/census.md"
     known_gap: "与 float_opt_h_pkgload(70-pkgopt) 零重叠——彼规在 float_opt|H unknown-option 签名补 missing \\usepackage{float}; 本格 float 已载, 失败模态是 [H] 钉死超高非浮体盒。ThreePartTable 包 longtable (2609.19748) 属同族但需 construct-specific 手术, 不在本面"
+
+  # ── failmine4 drvstage lane (2026-09-20): 驱动期缺图 ─────────────
+  # xdvipdfmx ``Image inclusion failed. Could not find file: X`` ——
+  # tex 趟净 (.xbb 旁件供 bbox / \special{psfile} 裸递串 / nonstop
+  # 先错已修后的残轮) 但驱动嵌入期缺档。签名只走合并 stdout 不进
+  # .log: ``_report_of`` 把 ``\w+:fatal:`` 归一成 ``!`` 行 → taxonomy
+  # 无头模归 ``other``; 归一化漏形由 ``_round_cat`` driver_fatal 臂
+  # 兜底 (payload=原始 fatal 行)。tex 侧 missing_graphic 臂群
+  # (45-graphics 17~18 区) 全够不到 —— 它们只吃 ``!`` 型签名。
+  # builtin 从 err_head/payload 抽名落占位 (与
+  # graphic_missing_placeholder 同 ``_stub_graphic_at`` 核)。序:
+  # pdf_asset_sanitize(18.5) 后 —— 同 driver-fatal other 派发面,
+  # 签名互斥无竞争。
+  - id: driver_missing_image_stub
+    description: "xdvipdfmx Image-inclusion 缺图 fatal → 驱动解析位落格式占位 (EPS/PNG/JPEG/PDF 按后缀)"
+    phase: loop
+    order: 18.6 # pdf_asset_sanitize(18.5) 后 —— driver-fatal 同面 other 派发族
+    when:
+      any:
+        - { category: other }
+        - { category: driver_fatal } # _round_cat 兜底臂残形: payload=原始 fatal 行
+    condition:
+      any:
+        - ctx_suggests: "Image inclusion failed\\. Could not find file"
+        - payload_pattern: "Image inclusion failed\\. Could not find file"
+    action:
+      kind: builtin_transform
+      function: driver_missing_image_stub
+      params: {}
+    risk: low # 只在驱动 fatal 签名在位时补件; _stub_graphic_at 全守卫 (ext 面/穿越拒/已在盘 decline)
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same } # bundled xdvipdfmx 同 fatal 词素
+    provenance:
+      - {
+          corpus: "2501.01611 (failmine4 drvstage)",
+          error: "xdvipdfmx:fatal: Image inclusion failed. Could not find file: image/shufflenet.png",
+        }
+      - {
+          corpus: "2502.00335 + 2504.06306 + 2505.07205 (failmine4 drvstage)",
+          error: "同签名: vInfComp.eps / figures/methodology.png — 上游 e-print 未带图档",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-drvstage/ — probe4 .xbb 旁件复现链 + cell1-3 stdout 实证"
+    known_gap: "驱动期 ci-变体 (盘存 vinfcomp.eps 要 vInfComp.eps) rescue_check 让位 —— tex 侧 case_link 派发面够不到驱动名, 真出此形需专用 copy-variant 臂; \\special{psfile=X} 无扩展名形无活图形引用作证亦让位"

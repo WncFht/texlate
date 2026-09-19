@@ -1410,3 +1410,69 @@ def raster_pdf_rename(
     if skipped:
         note += f"; skipped: {'; '.join(skipped)}"
     return True, note
+
+
+# ═══ xdvipdfmx 驱动期缺图域 (failmine4 drvstage lane 2026-09-20) ═══
+
+#: 驱动 fatal 行的缺图名捕获 —— ``Image inclusion failed. Could not
+#: find file: X`` 名字恒占行尾 (xdvipdfmx fatal 单行不折行, probe4
+#: 实证 120+col 路径仍整行)。
+_DRV_IMG_MISS_RE = re.compile(
+    r"Image inclusion failed\.\s*Could not find file:\s*([^\n]+)"
+)
+
+
+def driver_missing_image_stub(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""``Image inclusion failed`` 驱动期缺图 fatal → 解析位落占位件。
+
+    failmine4 drvstage 4 格 (2501.01611/2502.00335/2504.06306/
+    2505.07205): tex 趟净 (``.xbb`` 旁件供 bbox / ``\special{psfile}``
+    裸递串 / nonstop 先错已修后的残轮) 但 xdvipdfmx 嵌入期找不到
+    图档 —— ``*: fatal:`` 只走合并 stdout 不进 .log, ``_report_of``
+    归一成 ``!`` 行后 taxonomy 无头模 → ``other`` 类目派发; 归一化
+    漏形由 ``_round_cat`` driver_fatal 臂兜底 (payload=原始 fatal
+    行)。tex 侧 ``!`` 签名臂群 (graphic_missing_placeholder@17.6
+    等) 对此面零可见 —— 驱动名只在 stdout_tail/err_head/payload。
+
+    名源双面: ``other`` 轮读 ``ctx.err_head`` (归一 ``!`` 行+ctx),
+    ``driver_fatal`` 轮读 ``payload``。名经 ``_norm_graphic_name``
+    规整后逐件过 ``_stub_graphic_at`` 全守卫 (ext 白名单/``..`` 拒/
+    wdir 逃逸拒/已在盘 decline=幂等); ``rescue_check=True`` —— 去
+    括/ci 变体在盘时让位不落假图遮真件 (占位是缺件兜底; 驱动期
+    ci 残家属后续专用臂域, 非本臂假件理)。落盘基址同 tex 侧:
+    ``main_path().parent`` (xelatex cwd = main 所在目录)。
+
+    补 ``_enum_missing_graphics`` 源侧枚举 (haltsweep 同件): 驱动
+    每轮 fatal 只曝首件, 而 ``other`` 轮 ``applied`` dedup 键恒为
+    ``{rid}:None`` —— 单补一件即封再派发, 多缺件格 (2501.01611:
+    shufflenet+model 双缺) 会卡 stuck。一轮尽列已知缺件。
+    """
+    del params
+    blob = (payload or "") + "\n" + (ctx.err_head or "")
+    wants: list[str] = []
+    for m in _DRV_IMG_MISS_RE.finditer(blob):
+        w = _norm_graphic_name(m.group(1))
+        if w and w not in wants:
+            wants.append(w)
+    if not wants:
+        return False, "no driver missing-image name"
+    mp = ctx.main_path()
+    base = mp.parent if mp is not None else ctx.wdir
+    for w in _enum_missing_graphics(ctx, eng, base):
+        if w not in wants:
+            wants.append(w)
+    wrote: list[str] = []
+    declined: list[str] = []
+    for w in wants:
+        ok, note = _stub_graphic_at(ctx, base, w, rescue_check=True)
+        (wrote if ok else declined).append(note)
+    if not wrote:
+        return False, declined[0] if declined else "no stub written"
+    head = wrote[0]
+    if len(wrote) > 1:
+        head += f" (+{len(wrote) - 1} swept)"
+    if declined:
+        head += f" | declined: {'; '.join(declined)}"
+    return True, head
