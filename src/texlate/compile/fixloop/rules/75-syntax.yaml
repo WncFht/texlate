@@ -417,16 +417,82 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "peer1-residue-routes.md §3; AMS 命名 <size>mi/sy/ex/bf 谱 (amsfonts 2.x 上古档通用)"
 
+  # ── 2026-09-19 isabelex (lane-runawayscan census; 1206.0136 loop2 pay=\next) ──
+  # isabelle.sty \isakeeptag/\isadroptag/\isafoldtag 经 \includecomment/
+  # \excludecomment 产 isadelim<tag>/isatag<tag> comment env 对 (tag=
+  # theory/proof/ML/visible/invisible, isabelletags.sty 可扩)。Isabelle
+  # 生成稿以 cs 形调用 \isadelimtheory…\endisadelimtheory —— comment.sty
+  # v3.8 行扫描器逐行等值比字面 \end{<env>} 哨兵 (plain 分支已删,
+  # isabelle.sty \fmtname=plain hack 成死代码), cs 形终结行恒不中 →
+  # 扫描吞到 EOF "File ended while scanning use of \next"。cs 形另有
+  # 次伤: comment 系 begin 宏首步 \endgroup 是抵 \begin 开的组, 裸调用
+  # 吃掉 isabellebody 的组。修 = cs 形 → env 形 (end 侧恰产扫描器要的
+  # 字面哨兵; \begin 把 \endgroup 的组配对还上)。\isafold<tag> 是纯
+  # 宏非 env 不收; 已 env 形稿零命中天然幂等。
+  - id: comment_csform_isabelle_env
+    mechanisms: [W07]
+    description: "isabelle 稿 cs 形 comment env 对 (\\isadelim*/\\endisa*) → env 形 \\begin/\\end{} —— v3.8 行扫描器字面哨兵 + \\endgroup 组配对"
+    phase: loop
+    order: 163.5 # detab_end_scanlines(164) 前 —— 同 \\next runaway 族内 cs 形先收 (缩进形仍归 detab)
+    when: { category: runaway_scan, payload_required: true }
+    condition:
+      ctx_suggests: "scanning use of \\\\next\\b" # comment.sty 行扫描器 payload —— 其他 runaway cs 非本族
+      source_contains: "\\\\endisa(delim|tag)[A-Za-z]+" # cs 形终结符在源才点火 —— 已 env 形稿让位 detab
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex]
+        rewrites:
+          - {
+              pattern: "\\\\endisadelim([A-Za-z]+)",
+              repl: "\\\\end{isadelim\\g<1>}",
+              match_surface: masked,
+            }
+          - {
+              pattern: "\\\\endisatag([A-Za-z]+)",
+              repl: "\\\\end{isatag\\g<1>}",
+              match_surface: masked,
+            }
+          - {
+              pattern: "\\\\isadelim([A-Za-z]+)",
+              repl: "\\\\begin{isadelim\\g<1>}",
+              match_surface: masked,
+            }
+          - {
+              pattern: "\\\\isatag([A-Za-z]+)",
+              repl: "\\\\begin{isatag\\g<1>}",
+              match_surface: masked,
+            }
+    risk: low # env 化一次还 \\end 簿记+begin 组配对两账; masked 面不碰注释/verbatim 内字面 cs
+    known_gap: "行内 (非整行) \\endisa* 转 env 形仍非行锚哨兵 → runaway 持续 (与修前同败不更差); 非 isabelle 族 comment env cs 形 (\\<env>/\\end<env> 通用形) 无证据未收; isa* 前缀共享的非 env 自定义 cs (如 \\isadelimited) 命中即误转 —— 闸内极端罕见"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "1206.0136 (lane-runawayscan census 2026-09-19, loop2)",
+          error: "session.tex:3 File ended while scanning use of \\next —— Including 'isadelimtheory' comment 后吞到 EOF (Paper.tex cs 形 \\isadelimtheory/\\endisadelimtheory ×4 + \\isatagtheory/\\endisatagtheory ×2)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-runawayscan/report.md; comment.sty v3.8 \\CommentEndDef(哨兵串 \\end{<env>} 整行等值比)+\\includecomment begin 宏首步 \\endgroup 抵 \\begin 组; isabelle.sty \\isakeeptag/\\isadroptag 声明面; 手工 env 化 37pp PDF 实证"
+
   # 2026-09-17 fixer-filemap (1706.07911): comment.sty 排除扫描器逐行找
   # 顶格 `\end{<env>}`; 源生 tab/空格缩进的 \end 行不匹配 → 扫到 EOF
   # runaway。detab 全部 \end{ 行首: verbatim/minted 体内字面 \end 行
   # 会被去缩进 (显示位移, 可接受) —— 不修则整篇无 PDF。
+  # 2026-09-19 签名闸 (isabelex 同期): 原 when 裸 category 对全
+  # runaway payload 盲发 —— 1206.0136 (\next) 去缩进 \end{boxedminipage}/
+  # eq 行白烧一轮; 2009.11130 (\GetTitle)/1109.5754 (\@xdblarg) 同列。
+  # 本规则只对 comment.sty 行扫描器族 (\next payload) 有意义——其他
+  # runaway cs (edef 吞件/参数失衡/aux 回读族) 不进。
   - id: detab_end_scanlines
     mechanisms: [W07]
     description: "缩进 \\end{env} 行去前导空白 —— comment.sty 排除扫描器要求顶格终结行"
     phase: loop
     order: 164 # biblatex_bbx_rename(161) 与 cs_targeted_fix(165) 之间
-    when: { category: runaway_scan }
+    when: { category: runaway_scan, payload_required: true }
+    condition:
+      ctx_suggests: "scanning use of \\\\next\\b" # comment.sty 行扫描器族专收 —— \\next 外 payload 非本签名
     action:
       kind: regex_rewrite
       params:
