@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import logging
 import threading
 from http import HTTPStatus
@@ -42,6 +43,37 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
+#: ``run_stage`` 直驱白名单——键 = 私有段件去 ``_`` 前缀名。
+#: 段方法本体仍是内部件（mixin 间互调不经此表），本表只向测试/诊断
+#: 开「不走私有名」的单一入口；白名单外一律 ValueError。
+_DRIVABLE: frozenset[str] = frozenset(
+    {
+        # 段协程（async——返回值待 await/asyncio.run）
+        "stage_fetch",
+        "stage_parse",
+        "stage_translate",
+        "stage_share_apply",
+        "stage_compile",
+        "stage_emit_html",
+        # 链入口协程
+        "run_tex",
+        "run_share",
+        "run_pdf",
+        "run_doc",
+        "run_html",
+        # 子段编排件（sync/async 随实现而定）
+        "parse_all",
+        "ensure_scans",
+        "fetch_arxiv",
+        "run_fixloop",
+        "persist_usage",
+        "share_lookup",
+        "share_apply",
+        "teardown_translate",
+        "stage",
+    }
+)
+
 
 class _Core:
     """构造注入面 + ``run`` 编排 + ``_run_tex``/``_run_share`` 两链入口。"""
@@ -77,6 +109,27 @@ class _Core:
         #: ``mock_translator`` 告警按 task 去重（translate/env_judge/L2/doc 多处
         #: 调 ``_make_translator``，同一任务只留一条痕）
         self._mock_warned: set[str] = set()
+
+    # ------------------------------------------------------------ 段级直驱
+
+    def run_stage(self, ctx: TaskCtx, name: str, *args: object, **kw: object) -> object:
+        """段级直驱前门：``run_stage(ctx, "stage_compile")`` ≈ ``self._stage_compile(ctx)``。
+
+        ``name`` 取 ``_DRIVABLE`` 白名单键（私有段件去 ``_`` 前缀名），
+        ``*args``/``**kw`` 原样透传（如 ``run_stage(ctx, "stage_compile",
+        share=True)`` 的段内开关）。返回值随段性质——async 段回协程
+        （``await``/``asyncio.run`` 收），同步子段直回结果。
+        """
+        if name not in _DRIVABLE:
+            msg = f"unknown stage {name!r}——可选: {sorted(_DRIVABLE)}"
+            raise ValueError(msg)
+        fn = getattr(self, f"_{name}")
+        # ``ctx`` 在个别段件签名里是 keyword-only（如 _teardown_translate）——
+        # 按其声明位置注入，位置/关键字两形态一致直驱
+        ctx_param = inspect.signature(fn).parameters.get("ctx")
+        if ctx_param is not None and ctx_param.kind is inspect.Parameter.KEYWORD_ONLY:
+            return fn(*args, ctx=ctx, **kw)
+        return fn(ctx, *args, **kw)
 
     # ------------------------------------------------------------ 主入口
 

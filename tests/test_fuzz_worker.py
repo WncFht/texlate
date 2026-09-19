@@ -29,15 +29,19 @@ import sqlite3
 import threading
 import zipfile
 from pathlib import Path, PurePosixPath
-from typing import Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
+
+if TYPE_CHECKING:
+    from texlate.server.store import Store
 
 import pytest
 
 pytest.importorskip("fastapi", reason="server extra 未装")
 
+from _workerkit import mk_ctx
+
 from texlate.arxiv.unpack import UnpackError
 from texlate.server.events import _RESYNC, _SUB_QUEUE_MAX, EventBus
-from texlate.server.store import Store, new_task_id
 from texlate.server.worker import (
     DBStateBridge,
     PipelineWorker,
@@ -55,37 +59,6 @@ from texlate.server.worker import (
 )
 from texlate.share import share_key
 from texlate.xlat.state import ChunkRecord
-
-
-def _mk(
-    tmp_path: Path,
-    *,
-    options: dict[str, object] | None = None,
-    worker_kw: dict[str, object] | None = None,
-) -> tuple[TaskCtx, PipelineWorker, Store]:
-    """真实任务行 + TaskCtx + worker（段级直调面；conn 在主线程）。"""
-    store = Store(tmp_path / "t.db")
-    store.open()
-    bus = EventBus(store)
-    worker = PipelineWorker(store, bus, tmp_path, **(worker_kw or {}))  # type: ignore[arg-type]
-    task_id = new_task_id()
-    row = store.create_task(
-        task_id=task_id,
-        kind="arxiv",
-        target_lang="zh-CN",
-        model="m",
-        arxiv_id="2401.00001",
-        options=options or {},
-    )
-    ctx = TaskCtx(
-        store=store,
-        bus=bus,
-        task_id=task_id,
-        row=row,
-        secrets=Secrets(),
-        root=tmp_path / "tasks" / task_id,
-    )
-    return ctx, worker, store
 
 
 def _insert_chunk(  # noqa: PLR0913
@@ -371,10 +344,10 @@ class TestShareApply:
         )
 
     def test_zero_local_chunks_rejects_without_writes(self, tmp_path: Path) -> None:
-        ctx, worker, store = _mk(tmp_path)
+        ctx, worker, store = mk_ctx(tmp_path)
         self._put_dual(ctx, {"chunks": [{"src_file": "m", "en": "x", "zh": "译"}]})
         with pytest.raises(_ShareRejectError):
-            worker._share_apply(ctx)  # noqa: SLF001
+            worker.run_stage(ctx, "share_apply")
         assert not store.has_chunks(ctx.task_id)
 
     @pytest.mark.parametrize(
@@ -391,43 +364,43 @@ class TestShareApply:
         ],
     )
     def test_doc_shape_rejects(self, tmp_path: Path, payload: str) -> None:
-        ctx, worker, _store = _mk(tmp_path)
+        ctx, worker, _store = mk_ctx(tmp_path)
         self._put_dual(ctx, payload)
         with pytest.raises(_ShareRejectError):
-            worker._share_apply(ctx)  # noqa: SLF001
+            worker.run_stage(ctx, "share_apply")
 
     def test_nonstr_src_file_coerced_and_matched(self, tmp_path: Path) -> None:
         """src_file 直写成 int → str() 归一 → 与 share 条目 "7" 正常命中（非 TypeError）。"""
-        ctx, worker, store = _mk(tmp_path)
+        ctx, worker, store = mk_ctx(tmp_path)
         _insert_chunk(store, ctx.task_id)
         _sql(store, "UPDATE chunks SET src_file=7 WHERE task_id=?", ctx.task_id)
         self._put_dual(
             ctx, {"chunks": [{"src_file": "7", "en": "hello world", "zh": "译"}]}
         )
-        out = worker._share_apply(ctx)  # noqa: SLF001
+        out = worker.run_stage(ctx, "share_apply")
         assert out["matched"] == 1
         assert store.all_chunks(ctx.task_id)[0]["status"] == "ok"
 
     def test_nonstr_src_file_miss_clean_reject(self, tmp_path: Path) -> None:
         """非 str src_file 且 share 无对应键 → miss → 零命中干净拒。"""
-        ctx, worker, store = _mk(tmp_path)
+        ctx, worker, store = mk_ctx(tmp_path)
         _insert_chunk(store, ctx.task_id)
         _sql(store, "UPDATE chunks SET src_file=7 WHERE task_id=?", ctx.task_id)
         self._put_dual(
             ctx, {"chunks": [{"src_file": "m.tex", "en": "hello world", "zh": "译"}]}
         )
         with pytest.raises(_ShareRejectError):
-            worker._share_apply(ctx)  # noqa: SLF001
+            worker.run_stage(ctx, "share_apply")
         assert store.all_chunks(ctx.task_id)[0]["status"] == "pending"
 
     def test_resumed_ok_counts_as_matched(self, tmp_path: Path) -> None:
         """上轮已落库 ok 行 → ``resumed_ok`` 计 matched——重跑不误判零命中。"""
-        ctx, worker, store = _mk(tmp_path)
+        ctx, worker, store = mk_ctx(tmp_path)
         _insert_chunk(store, ctx.task_id, status="ok")
         store.update_chunk(ctx.task_id, "c1", {"translation": "旧译文"})
         store.conn.commit()
         self._put_dual(ctx, {"chunks": []})
-        out = worker._share_apply(ctx)  # noqa: SLF001
+        out = worker.run_stage(ctx, "share_apply")
         assert out["matched"] == 1
 
 
@@ -453,7 +426,7 @@ class TestShareLookupMarks:
         reuse_hit: str | None = None,
         with_chunks: bool = True,
     ) -> tuple[TaskCtx, PipelineWorker, Store]:
-        ctx, worker, store = _mk(tmp_path)
+        ctx, worker, store = mk_ctx(tmp_path)
         if with_chunks:
             _insert_chunk(store, ctx.task_id)
         worker.share_pack_manifest = lambda _c, _r: dict(self._KEY_PARTS)  # type: ignore[method-assign]
@@ -479,7 +452,7 @@ class TestShareLookupMarks:
         self, tmp_path: Path, marked: object
     ) -> None:
         ctx, worker, store = self._mk_marked(tmp_path, marked, dual=True)
-        assert worker._share_lookup(ctx) is False  # noqa: SLF001
+        assert worker.run_stage(ctx, "share_lookup") is False
         opts = json.loads(str(store.get(ctx.task_id)["options_json"]))
         assert "share" not in opts, "伪造 share 载荷必须摘除"
         assert not (ctx.root / "share").exists(), "解包现场必须清"
@@ -487,7 +460,7 @@ class TestShareLookupMarks:
     def test_right_key_no_dual_unmarks(self, tmp_path: Path) -> None:
         key = share_key(**self._KEY_PARTS)  # type: ignore[arg-type]
         ctx, worker, store = self._mk_marked(tmp_path, {"share_key": key}, dual=False)
-        assert worker._share_lookup(ctx) is False  # noqa: SLF001
+        assert worker.run_stage(ctx, "share_lookup") is False
         opts = json.loads(str(store.get(ctx.task_id)["options_json"]))
         assert "share" not in opts
 
@@ -495,7 +468,7 @@ class TestShareLookupMarks:
         """mark 完整 + dual.json 在场 + reuse_hit 被抹 → 补回 share: 来历并命中。"""
         key = share_key(**self._KEY_PARTS)  # type: ignore[arg-type]
         ctx, worker, store = self._mk_marked(tmp_path, {"share_key": key}, dual=True)
-        assert worker._share_lookup(ctx) is True  # noqa: SLF001
+        assert worker.run_stage(ctx, "share_lookup") is True
         opts = json.loads(str(store.get(ctx.task_id)["options_json"]))
         assert str(opts["reuse_hit"]).startswith("share:")
 
@@ -504,14 +477,14 @@ class TestShareLookupMarks:
         ctx, worker, _store = self._mk_marked(
             tmp_path, None, dual=False, reuse_hit="taskid-abc"
         )
-        assert worker._share_lookup(ctx) is False  # noqa: SLF001
+        assert worker.run_stage(ctx, "share_lookup") is False
 
     def test_fresh_prefer_skips(self, tmp_path: Path) -> None:
         ctx, worker, store = self._mk_marked(tmp_path, None, dual=False)
         opts = {"prefer": "fresh"}
         store.update_fields(ctx.task_id, options_json=json.dumps(opts))
         ctx.row["options_json"] = json.dumps(opts)
-        assert worker._share_lookup(ctx) is False  # noqa: SLF001
+        assert worker.run_stage(ctx, "share_lookup") is False
 
     def test_nul_url_row_degrades_to_miss(self, tmp_path: Path) -> None:
         """index 行 url 含 ``\\x00`` → 扁平检查拒、按 miss 回退——钉住与
@@ -525,7 +498,7 @@ class TestShareLookupMarks:
             json.dumps({"share_key": key, "url": "evil\x00name.share.zip"}) + "\n",
             encoding="utf-8",
         )
-        assert worker._share_lookup(ctx) is False  # noqa: SLF001
+        assert worker.run_stage(ctx, "share_lookup") is False
 
 
 # ---------------------------------------------------------------- store 腐化行 → 段函数
@@ -538,7 +511,7 @@ class TestDBStateBridgeLoad:
         return DBStateBridge(store, task_id).load()
 
     def test_clean_rows_roundtrip(self, tmp_path: Path) -> None:
-        ctx, _w, store = _mk(tmp_path)
+        ctx, _w, store = mk_ctx(tmp_path)
         _insert_chunk(store, ctx.task_id, status="ok")
         store.update_chunk(
             ctx.task_id,
@@ -552,7 +525,7 @@ class TestDBStateBridgeLoad:
         assert recs["c1"].warnings == ["w1"]
 
     def test_pending_and_unknown_status_skipped(self, tmp_path: Path) -> None:
-        ctx, _w, store = _mk(tmp_path)
+        ctx, _w, store = mk_ctx(tmp_path)
         _insert_chunk(store, ctx.task_id, "c1")  # pending
         _insert_chunk(store, ctx.task_id, "c2", seq=1)
         _sql(
@@ -568,7 +541,7 @@ class TestDBStateBridgeLoad:
         ["123", '"x"', "{}", "[1,2]"],  # 合法 JSON 非 list——容忍载入不崩
     )
     def test_warnings_nonlist_tolerated(self, tmp_path: Path, warnings: str) -> None:
-        ctx, _w, store = _mk(tmp_path)
+        ctx, _w, store = mk_ctx(tmp_path)
         _insert_chunk(store, ctx.task_id, status="ok")
         _sql(
             store,
@@ -582,7 +555,7 @@ class TestDBStateBridgeLoad:
 
     @pytest.mark.parametrize("corrupt", ["{bad json", "X'00FF'"])
     def test_corrupt_warnings_tolerated(self, tmp_path: Path, corrupt: str) -> None:
-        ctx, _w, store = _mk(tmp_path)
+        ctx, _w, store = mk_ctx(tmp_path)
         _insert_chunk(store, ctx.task_id, status="ok")
         if corrupt.startswith("X'"):
             _sql(
@@ -601,7 +574,7 @@ class TestDBStateBridgeLoad:
         assert completed == {"c1"}
 
     def test_corrupt_attempts_tolerated(self, tmp_path: Path) -> None:
-        ctx, _w, store = _mk(tmp_path)
+        ctx, _w, store = mk_ctx(tmp_path)
         _insert_chunk(store, ctx.task_id, status="ok")
         _sql(store, "UPDATE chunks SET attempts='abc' WHERE task_id=?", ctx.task_id)
         completed, _recs = self._load(store, ctx.task_id)
@@ -612,7 +585,7 @@ class TestBuildDualCorrupt:
     """``_build_dual`` 对腐化 chunks/files 行的容错面。"""
 
     def test_blob_translation_coerced(self, tmp_path: Path) -> None:
-        ctx, worker, store = _mk(tmp_path)
+        ctx, worker, store = mk_ctx(tmp_path)
         ctx.root.mkdir(parents=True, exist_ok=True)
         _insert_chunk(store, ctx.task_id, status="ok")
         _sql(
@@ -625,7 +598,7 @@ class TestBuildDualCorrupt:
         assert doc["chunks"], "BLOB 译文不得阻止 dual.json 落盘"
 
     def test_clean_dual_roundtrip(self, tmp_path: Path) -> None:
-        ctx, worker, store = _mk(tmp_path)
+        ctx, worker, store = mk_ctx(tmp_path)
         ctx.root.mkdir(parents=True, exist_ok=True)
         _insert_chunk(store, ctx.task_id, status="ok")
         store.update_chunk(ctx.task_id, "c1", {"translation": "译文🎉"})
@@ -670,7 +643,7 @@ class TestFlushTranslate:
         return state
 
     def test_happy_path_writes_rows_and_event(self, tmp_path: Path) -> None:
-        ctx, worker, store = _mk(tmp_path)
+        ctx, worker, store = mk_ctx(tmp_path)
         _insert_chunk(store, ctx.task_id)
         state = self._state_with(store, ctx.task_id)
         sse: list[dict[str, Any]] = [{"seq": 0, "status": "ok"}]
@@ -684,7 +657,7 @@ class TestFlushTranslate:
         assert "chunk" in types
 
     def test_empty_early_return(self, tmp_path: Path) -> None:
-        ctx, worker, store = _mk(tmp_path)
+        ctx, worker, store = mk_ctx(tmp_path)
         state = DBStateBridge(store, ctx.task_id)
         worker._flush_translate(ctx, state, _segcache(store), {}, [])  # noqa: SLF001
         assert store.events_since(ctx.task_id, 0) == []
@@ -692,7 +665,7 @@ class TestFlushTranslate:
     def test_flush_failure_retains_buffer(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        ctx, worker, store = _mk(tmp_path)
+        ctx, worker, store = mk_ctx(tmp_path)
         _insert_chunk(store, ctx.task_id)
         state = self._state_with(store, ctx.task_id)
 
@@ -710,7 +683,7 @@ class TestFlushTranslate:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """publish 在 commit 之后——事件丢失但 DB 已落（commit-first 设计钉样）。"""
-        ctx, worker, store = _mk(tmp_path)
+        ctx, worker, store = mk_ctx(tmp_path)
         _insert_chunk(store, ctx.task_id)
         state = self._state_with(store, ctx.task_id)
 
@@ -737,8 +710,9 @@ class TestTeardownTranslateCascade:
         pre_rows: dict[str, tuple[str, str]],
     ) -> None:
         asyncio.run(
-            worker._teardown_translate(  # noqa: SLF001
-                ctx=ctx,
+            worker.run_stage(  # run_stage 直驱
+                ctx,
+                "teardown_translate",
                 run_task=None,
                 state=state,
                 cache=cache,
@@ -751,7 +725,7 @@ class TestTeardownTranslateCascade:
         )
 
     def test_empty_teardown_noop(self, tmp_path: Path) -> None:
-        ctx, worker, store = _mk(tmp_path)
+        ctx, worker, store = mk_ctx(tmp_path)
         self._drive(
             worker, ctx, DBStateBridge(store, ctx.task_id), _segcache(store), [], {}
         )
@@ -759,7 +733,7 @@ class TestTeardownTranslateCascade:
     def test_flush_failure_still_invalidates_and_closes(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        ctx, worker, store = _mk(tmp_path)
+        ctx, worker, store = mk_ctx(tmp_path)
         _insert_chunk(store, ctx.task_id)
         ctx.zh_dir.mkdir(parents=True)
         sent = ctx.zh_dir / ".splice-done"
@@ -784,7 +758,7 @@ class TestTeardownTranslateCascade:
     def test_flush_failure_does_not_mask_original(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        ctx, worker, store = _mk(tmp_path)
+        ctx, worker, store = mk_ctx(tmp_path)
         _insert_chunk(store, ctx.task_id)
         state = DBStateBridge(store, ctx.task_id)
         state.buffer.append(
@@ -800,8 +774,9 @@ class TestTeardownTranslateCascade:
             try:
                 raise KeyError("original-auth-fail")  # noqa: EM101
             finally:
-                await worker._teardown_translate(  # noqa: SLF001
-                    ctx=ctx,
+                await worker.run_stage(  # run_stage 直驱
+                    ctx,
+                    "teardown_translate",
                     run_task=None,
                     state=state,
                     cache=_segcache(store),
@@ -826,20 +801,20 @@ class TestTerminalDoneEvent:
         return [e["type"] for e in store.events_since(task_id, 0)]
 
     def test_fail_publishes_done(self, tmp_path: Path) -> None:
-        ctx, worker, store = _mk(tmp_path)
+        ctx, worker, store = mk_ctx(tmp_path)
         worker._fail(ctx, "internal", "boom", retryable=False, stage="translating")  # noqa: SLF001
         assert store.get(ctx.task_id)["status"] == "fault"
         assert "done" in self._event_types(store, ctx.task_id)
 
     def test_corrupt_created_at_still_publishes_done(self, tmp_path: Path) -> None:
-        ctx, worker, store = _mk(tmp_path)
+        ctx, worker, store = mk_ctx(tmp_path)
         ctx.row["created_at"] = "abc"  # update_fields 无字段白名单可直写
         worker._fail(ctx, "internal", "boom", retryable=False, stage="translating")  # noqa: SLF001
         assert store.get(ctx.task_id)["status"] == "fault"
         assert "done" in self._event_types(store, ctx.task_id)
 
     def test_corrupt_created_at_reject_still_done(self, tmp_path: Path) -> None:
-        ctx, worker, store = _mk(tmp_path)
+        ctx, worker, store = mk_ctx(tmp_path)
         ctx.row["created_at"] = {"x": 1}  # float(dict) → TypeError
         worker._reject(ctx, "share_verify", "m", reject_at="share")  # noqa: SLF001
         assert store.get(ctx.task_id)["status"] == "partial"
@@ -853,7 +828,7 @@ class TestVerdictPersistence:
     """终态载荷（fixloop/l2/share 摘要）经 error_json 的 round-trip 面。"""
 
     def test_huge_nonascii_fixloop_roundtrip(self, tmp_path: Path) -> None:
-        ctx, worker, store = _mk(tmp_path)
+        ctx, worker, store = mk_ctx(tmp_path)
         big = {
             "verdict": "reject:r42",
             "trace": [
@@ -874,7 +849,7 @@ class TestVerdictPersistence:
 
     def test_transition_nonserializable_no_partial_write(self, tmp_path: Path) -> None:
         """error 载荷不可序列化 → transition 在 UPDATE 之前炸，行不被污染。"""
-        ctx, worker, store = _mk(tmp_path)  # noqa: RUF059
+        ctx, worker, store = mk_ctx(tmp_path)  # noqa: RUF059
         store.transition(ctx.task_id, "translating", force=True)
         with pytest.raises(TypeError):
             store.transition(
@@ -883,7 +858,7 @@ class TestVerdictPersistence:
         assert store.get(ctx.task_id)["status"] == "translating"
 
     def test_log_and_warning_scrub_secret(self, tmp_path: Path) -> None:
-        ctx, worker, store = _mk(tmp_path)
+        ctx, worker, store = mk_ctx(tmp_path)
         ctx.secrets = Secrets(api_key="sk-top-secret-1")
         worker._log(ctx, "line with sk-top-secret-1 inside")  # noqa: SLF001
         worker._warning(ctx, "w", "warn sk-top-secret-1 tail")  # noqa: SLF001
@@ -891,7 +866,7 @@ class TestVerdictPersistence:
             assert "sk-top-secret-1" not in json.dumps(e["data"])
 
     def test_stats_shape(self, tmp_path: Path) -> None:
-        ctx, worker, _store = _mk(tmp_path)
+        ctx, worker, _store = mk_ctx(tmp_path)
         ctx.fixloop = {"verdict": "clean"}
         ctx.l2 = {
             "enabled": True,
@@ -912,7 +887,7 @@ class TestEventFanoutBackpressure:
     """worker publish 时订阅者溢出：``_RESYNC`` 哨兵断流 + 落盘事件可重放。"""
 
     def test_overflow_cuts_stalled_subscriber(self, tmp_path: Path) -> None:
-        ctx, _worker, store = _mk(tmp_path)
+        ctx, _worker, store = mk_ctx(tmp_path)
         bus = EventBus(store)
         q = bus.subscribe(ctx.task_id)
         for i in range(_SUB_QUEUE_MAX + 5):
@@ -928,7 +903,7 @@ class TestEventFanoutBackpressure:
 
     def test_flush_publish_under_full_queue_no_raise(self, tmp_path: Path) -> None:
         """``_flush_translate`` 的 chunk 事件扇出到满队列不炸。"""
-        ctx, worker, store = _mk(tmp_path)
+        ctx, worker, store = mk_ctx(tmp_path)
         bus = worker.bus
         q = bus.subscribe(ctx.task_id)
         for i in range(_SUB_QUEUE_MAX):  # 灌满
@@ -952,12 +927,12 @@ class TestOnLoop:
     """``_on_loop`` 线程纪律：loop 线程直调、worker 线程回弹。"""
 
     def test_same_thread_direct(self, tmp_path: Path) -> None:
-        _ctx, worker, _store = _mk(tmp_path)
+        _ctx, worker, _store = mk_ctx(tmp_path)
         # _loop 未钉 → 直调
         assert worker._on_loop(lambda: 42) == 42  # noqa: SLF001, PLR2004
 
     def test_cross_thread_bounce(self, tmp_path: Path) -> None:
-        _ctx, worker, _store = _mk(tmp_path)
+        _ctx, worker, _store = mk_ctx(tmp_path)
         ran_on: list[int] = []
 
         async def drive() -> int:
@@ -1049,7 +1024,7 @@ class TestStoreDirectCorruption:
     """直写腐化的残余面（update_fields 无字段白名单——段函数须自身容错）。"""
 
     def test_options_corrupt_json_tolerated(self, tmp_path: Path) -> None:
-        ctx, _worker, store = _mk(tmp_path)
+        ctx, _worker, store = mk_ctx(tmp_path)
         store.update_fields(ctx.task_id, options_json="{bad")
         ctx.row["options_json"] = "{bad"
         assert ctx.options() == {}

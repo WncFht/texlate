@@ -24,6 +24,7 @@ import pytest
 pytest.importorskip("fastapi", reason="server extra 未装")
 pytest.importorskip("starlette.testclient", reason="server extra 未装")
 
+from _workerkit import mk_ctx, scan_base
 from conftest import MINI_TEX, FakeFetcher, RecordingEngine, make_targz
 
 import texlate.server.babeldoc as babeldoc_mod
@@ -89,45 +90,6 @@ _ENV_TEX = (
 )
 
 
-def _mk(
-    tmp_path: Path,
-    *,
-    options: dict[str, object] | None = None,
-    worker_kw: dict[str, object] | None = None,
-) -> tuple[TaskCtx, PipelineWorker, Store]:
-    """真实任务行 + TaskCtx + worker（stage 级直调面；conn 在主线程）。"""
-    store = Store(tmp_path / "t.db")
-    store.open()
-    bus = EventBus(store)
-    worker = PipelineWorker(store, bus, tmp_path, **(worker_kw or {}))  # type: ignore[arg-type]
-    task_id = new_task_id()
-    row = store.create_task(
-        task_id=task_id,
-        kind="arxiv",
-        target_lang="zh-CN",
-        model="m",
-        arxiv_id="2401.00001",
-        options=options or {},
-    )
-    ctx = TaskCtx(
-        store=store,
-        bus=bus,
-        task_id=task_id,
-        row=row,
-        secrets=Secrets(),
-        root=tmp_path / "tasks" / task_id,
-    )
-    return ctx, worker, store
-
-
-def _scan(ctx: TaskCtx, worker: PipelineWorker, store: Store, tex: str) -> None:
-    """main.tex 落 ``base/`` + 真解析 + chunks 入库。"""
-    ctx.base_dir.mkdir(parents=True, exist_ok=True)
-    (ctx.base_dir / "main.tex").write_text(tex, encoding="utf-8")
-    rows, ctx.scans = worker._parse_all(ctx)  # noqa: SLF001 -- 单测直驱
-    store.insert_chunks(ctx.task_id, rows)
-
-
 class TestPhFragments:
     """Fix1：主链 ChunkIn 带 ph_fragments——``_repair_fn``/``recover_copied_tokens`` 得武装。"""
 
@@ -137,8 +99,8 @@ class TestPhFragments:
         monkeypatch: pytest.MonkeyPatch,
         clean_env: pytest.MonkeyPatch,  # noqa: ARG002 -- fixture 副作用
     ) -> None:
-        ctx, worker, store = _mk(tmp_path)
-        _scan(ctx, worker, store, _MATH_TEX)
+        ctx, worker, store = mk_ctx(tmp_path)
+        scan_base(ctx, worker, store, _MATH_TEX)
         frag_of = worker._ph_frag_map(ctx)  # noqa: SLF001
         math_cid = next(cid for cid, m in frag_of.items() if "$x+y$" in m.values())
 
@@ -149,7 +111,7 @@ class TestPhFragments:
             return []
 
         monkeypatch.setattr(XlatPipeline, "run", fake_run)
-        asyncio.run(worker._stage_translate(ctx))  # noqa: SLF001
+        asyncio.run(worker.run_stage(ctx, "stage_translate"))
         math_in = next(c for c in captured if c.chunk_id == math_cid)
         assert math_in.ph_fragments == frag_of[math_cid]
         assert math_in.ph_fragments is not None
@@ -160,14 +122,14 @@ class TestGlossaryLayers:
     """Fix2：``_make_glossary`` 五层——categories（arxiv 分类）+ placeholders 恒等注入。"""
 
     def test_categories_layer(self, tmp_path: Path) -> None:
-        ctx, worker, _store = _mk(tmp_path, options={"arxiv_categories": ["cs.LG"]})
+        ctx, worker, _store = mk_ctx(tmp_path, options={"arxiv_categories": ["cs.LG"]})
         g = worker._make_glossary(ctx)  # noqa: SLF001
         assert g is not None
         cat_terms = {en for en, t in g.terms.items() if t.source == "category:cs.LG"}
         assert "Abstractive Summarization" in cat_terms
 
     def test_placeholders_layer(self, tmp_path: Path) -> None:
-        ctx, worker, _store = _mk(tmp_path)
+        ctx, worker, _store = mk_ctx(tmp_path)
         g = worker._make_glossary(  # noqa: SLF001
             ctx, placeholders=["[[MATH_2]]"]
         )
@@ -180,7 +142,7 @@ class TestGlossaryLayers:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """fetch_metadata → ``options.arxiv_categories`` 落库 + ctx.row 同步（resume 路径）。"""
-        ctx, worker, store = _mk(
+        ctx, worker, store = mk_ctx(
             tmp_path,
             worker_kw={
                 "fetcher": FakeFetcher(make_targz({"main.tex": MINI_TEX})),
@@ -197,7 +159,7 @@ class TestGlossaryLayers:
             ),
         )
         ctx.root.mkdir(parents=True, exist_ok=True)
-        worker._fetch_arxiv(ctx)  # noqa: SLF001
+        worker.run_stage(ctx, "fetch_arxiv")
         assert ctx.options()["arxiv_categories"] == ["cs.LG", "stat.ML"]
         db_opts = json.loads(str(store.get(ctx.task_id)["options_json"]))
         assert db_opts["arxiv_categories"] == ["cs.LG", "stat.ML"]
@@ -209,7 +171,7 @@ class TestGlossaryLayers:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """fetch_metadata 返回 None → 主链照样走（无 categories 键）。"""
-        ctx, worker, _store = _mk(
+        ctx, worker, _store = mk_ctx(
             tmp_path,
             worker_kw={
                 "fetcher": FakeFetcher(make_targz({"main.tex": MINI_TEX})),
@@ -221,7 +183,7 @@ class TestGlossaryLayers:
             lambda _id, *, fetcher: None,  # noqa: ARG005
         )
         ctx.root.mkdir(parents=True, exist_ok=True)
-        worker._fetch_arxiv(ctx)  # noqa: SLF001
+        worker.run_stage(ctx, "fetch_arxiv")
         assert "arxiv_categories" not in ctx.options()
         assert (ctx.src_dir / "main.tex").is_file()
 
@@ -230,7 +192,7 @@ class TestCancelOrphan:
     """Fix3：cancel 竞态后 run_task 不再孤儿化。"""
 
     def test_teardown_cancels_pending_run_task(self, tmp_path: Path) -> None:
-        ctx, worker, store = _mk(tmp_path)
+        ctx, worker, store = mk_ctx(tmp_path)
 
         async def drive() -> asyncio.Task[list]:
             async def never() -> list:
@@ -239,8 +201,9 @@ class TestCancelOrphan:
 
             t = asyncio.create_task(never())
             await asyncio.sleep(0)  # 让它先跑起来
-            await worker._teardown_translate(  # noqa: SLF001
-                ctx=ctx,
+            await worker.run_stage(  # run_stage 直驱
+                ctx,
+                "teardown_translate",
                 run_task=t,
                 state=DBStateBridge(store, ctx.task_id),
                 cache=SegmentCache(store, prefix="t", model="m", target_lang="zh-CN"),
@@ -281,12 +244,12 @@ class TestBypassArms:
 
     def test_env_judge_usage_recorded(self, tmp_path: Path) -> None:
         fake = _JudgeFake()
-        ctx, worker, store = _mk(
+        ctx, worker, store = mk_ctx(
             tmp_path,
             options={"env_judge": True},
             worker_kw={"translator_factory": lambda _ctx: fake},
         )
-        _scan(ctx, worker, store, _ENV_TEX)
+        scan_base(ctx, worker, store, _ENV_TEX)
         env_cid = next(
             chunk_db_id(rel, c.span.start, c.span.end)
             for rel, res in ctx.scans.items()
@@ -306,11 +269,11 @@ class TestBypassArms:
 
     def test_l2_pipe_glossary_materialized(self, tmp_path: Path) -> None:
         """L2 旁路 pipe：glossary 挂上 + ``_materialize`` 跑过 + 不共享主链段缓存。"""
-        ctx, worker, store = _mk(
+        ctx, worker, store = mk_ctx(
             tmp_path,
             worker_kw={"translator_factory": lambda _c: MockTranslator()},
         )
-        _scan(ctx, worker, store, _MATH_TEX)
+        scan_base(ctx, worker, store, _MATH_TEX)
         ph = next(
             t
             for res in ctx.scans.values()
@@ -328,7 +291,7 @@ class TestFixloopFix:
 
     def test_fixloop_reject_maps_partial(self, tmp_path: Path) -> None:
         assert "fixloop_reject" in ERROR_CODES
-        ctx, worker, store = _mk(tmp_path)
+        ctx, worker, store = mk_ctx(tmp_path)
         ctx.main_rel = "main.tex"
         ctx.engine_name = "tectonic"
         ctx.base_dir.mkdir(parents=True, exist_ok=True)
@@ -345,7 +308,7 @@ class TestFixloopFix:
         async def drive() -> None:
             worker._loop = asyncio.get_running_loop()  # noqa: SLF001
             worker._loop_tid = threading.get_ident()  # noqa: SLF001
-            await worker._stage_compile(ctx)  # noqa: SLF001
+            await worker.run_stage(ctx, "stage_compile")
 
         asyncio.run(drive())
         row = store.get(ctx.task_id)
@@ -365,7 +328,7 @@ class TestFixloopFix:
         def factory(name: str, **_kw: object) -> RecordingEngine:
             return {"xelatex": xeng, "tectonic": teng}[name]
 
-        ctx, worker, _store = _mk(
+        ctx, worker, _store = mk_ctx(
             tmp_path,
             options={
                 "engine_resolved": "tectonic",
@@ -389,7 +352,7 @@ class TestFixloopFix:
         }
         monkeypatch.setattr("texlate.repair.fixloop", lambda *_a, **_kw: cell)
         first = CompRes(engine="tectonic", ok=True, pdf=None, log=LogInfo(n_errors=2))
-        res = worker._run_fixloop(ctx, work, teng, first)  # noqa: SLF001
+        res = worker.run_stage(ctx, "run_fixloop", work, teng, first)
         assert xeng.calls, "xelatex 跨引擎臂应被触发"
         assert xeng.calls[0]["flags"] == ["-shell-escape"]
         assert res.engine == "xelatex"  # clean/partial > fail → 取优换臂
@@ -409,7 +372,7 @@ class TestFixloopFix:
         时经 ``engine_for`` 真路径构造，钉住旋钮方向。
         """
 
-        ctx, worker, _store = _mk(
+        ctx, worker, _store = mk_ctx(
             tmp_path,
             options={
                 "engine_resolved": "tectonic",
@@ -440,8 +403,8 @@ class TestFixloopFix:
         monkeypatch.setattr("texlate.repair.fixloop", lambda *_a, **_kw: cell)
         monkeypatch.setattr("texlate.server.worker.seams.engine_for", fake_engine_for)
         first = CompRes(engine="tectonic", ok=True, pdf=None, log=LogInfo(n_errors=2))
-        res = worker._run_fixloop(  # noqa: SLF001
-            ctx, work, RecordingEngine("tectonic"), first
+        res = worker.run_stage(
+            ctx, "run_fixloop", work, RecordingEngine("tectonic"), first
         )
         assert {"name": "xelatex", "halt_on_error": False} in built
         assert res.engine == "xelatex"  # 救回 partial/clean > fail → adopted
@@ -461,7 +424,7 @@ class TestFixloopFix:
         def factory(name: str, **_kw: object) -> RecordingEngine:
             return {"xelatex": xeng, "tectonic": teng}[name]
 
-        ctx, worker, _store = _mk(
+        ctx, worker, _store = mk_ctx(
             tmp_path,
             options={
                 "engine_resolved": "tectonic",
@@ -486,7 +449,7 @@ class TestFixloopFix:
         }
         monkeypatch.setattr("texlate.repair.fixloop", lambda *_a, **_kw: cell)
         first = CompRes(engine="tectonic", ok=True, pdf=None, log=LogInfo(n_errors=2))
-        res = worker._run_fixloop(ctx, work, teng, first)  # noqa: SLF001
+        res = worker.run_stage(ctx, "run_fixloop", work, teng, first)
         assert xeng.calls, "xelatex 跨引擎臂应被触发"
         assert res.engine == "xelatex"  # reject rank 0 → 任何 ≥fail 判定即 adopted
         assert ctx.fixloop is not None
@@ -499,7 +462,7 @@ class TestFixloopFix:
         _stage_compile 的 reject 短路只挡「未换臂」的死路拒绝；换编被采用
         代表终态已按 xelatex 复判取优，策略标签不应盖掉真实产物。
         """
-        ctx, worker, store = _mk(tmp_path)
+        ctx, worker, store = mk_ctx(tmp_path)
         ctx.main_rel = "main.tex"
         ctx.engine_name = "tectonic"
         ctx.base_dir.mkdir(parents=True, exist_ok=True)
@@ -520,7 +483,7 @@ class TestFixloopFix:
         async def drive() -> None:
             worker._loop = asyncio.get_running_loop()  # noqa: SLF001
             worker._loop_tid = threading.get_ident()  # noqa: SLF001
-            await worker._stage_compile(ctx)  # noqa: SLF001
+            await worker.run_stage(ctx, "stage_compile")
 
         asyncio.run(drive())
         row = store.get(ctx.task_id)
@@ -535,7 +498,7 @@ class TestBuildDualThread:
     ) -> None:
         import texlate.server.worker as worker_mod  # noqa: PLC0415
 
-        ctx, worker, store = _mk(tmp_path)
+        ctx, worker, store = mk_ctx(tmp_path)
         ctx.root.mkdir(parents=True, exist_ok=True)
         (ctx.root / "en.pdf").write_bytes(b"%PDF-1.4 fake")
         (ctx.root / "zh.pdf").write_bytes(b"%PDF-1.4 fake")
@@ -637,10 +600,10 @@ class TestStageTerminalGuard:
     """Fix8：cancel TOCTOU——``_stage`` 不再覆写终态。"""
 
     def test_stage_noop_after_terminal(self, tmp_path: Path) -> None:
-        ctx, worker, store = _mk(tmp_path)
+        ctx, worker, store = mk_ctx(tmp_path)
         store.transition(ctx.task_id, "cancelled")
         seq0 = store.last_seq(ctx.task_id)
-        worker._stage(ctx, "translating", "翻译中", 25)  # noqa: SLF001
+        worker.run_stage(ctx, "stage", "translating", "翻译中", 25)
         row = store.get(ctx.task_id)
         assert row["status"] == "cancelled"
         assert store.last_seq(ctx.task_id) == seq0, "终态后不许再发 stage 事件"
@@ -742,7 +705,7 @@ class TestPostResolveDedup:
         *,
         kind: str = "arxiv",
     ) -> tuple[TaskCtx, PipelineWorker, Store]:
-        ctx, worker, store = _mk(
+        ctx, worker, store = mk_ctx(
             tmp_path,
             worker_kw={
                 "fetcher": FakeFetcher(make_targz({"main.tex": MINI_TEX})),
@@ -799,7 +762,7 @@ class TestPostResolveDedup:
     async def _drive(self, worker: PipelineWorker, ctx: TaskCtx) -> None:
         worker._loop = asyncio.get_running_loop()  # noqa: SLF001
         worker._loop_tid = threading.get_ident()  # noqa: SLF001
-        await worker._run_tex(ctx)  # noqa: SLF001
+        await worker.run_stage(ctx, "run_tex")
 
     def test_second_dedup_hit(
         self,
@@ -828,7 +791,7 @@ class TestPostResolveDedup:
         """无命中 → 行 re-key 成钉版形（后来的 id@vN 请求 enqueue 即中）。"""
         ctx, worker, store = self._mk_alias(tmp_path, monkeypatch)
         ctx.root.mkdir(parents=True, exist_ok=True)
-        worker._fetch_arxiv(ctx)  # noqa: SLF001
+        worker.run_stage(ctx, "fetch_arxiv")
         assert store.get(ctx.task_id)["cache_key"] == self._resolved_key()
         assert ctx.reuse_hit is None
         assert (ctx.src_dir / "main.tex").is_file(), "未命中照常落源树"
@@ -845,7 +808,7 @@ class TestPostResolveDedup:
         ctx.row["options_json"] = json.dumps({"prefer": "fresh"})
         self._hit_task(tmp_path, store)
         ctx.root.mkdir(parents=True, exist_ok=True)
-        worker._fetch_arxiv(ctx)  # noqa: SLF001
+        worker.run_stage(ctx, "fetch_arxiv")
         assert ctx.reuse_hit is None
         assert store.get(ctx.task_id)["cache_key"] == ctx.row["cache_key"]
         assert (ctx.src_dir / "main.tex").is_file()
@@ -1031,7 +994,7 @@ class TestLlmHookShareGates:
         clean_env: pytest.MonkeyPatch,  # noqa: ARG002 -- fixture 副作用
     ) -> None:
         """kind=share 有真 api_key 也不给 llm_hook——零 token 是结构承诺。"""
-        ctx, worker, _store = _mk(tmp_path)
+        ctx, worker, _store = mk_ctx(tmp_path)
         ctx.row["kind"] = "share"
         ctx.secrets = Secrets(api_key="k", base_url="http://b", model="m")
         hook, usage, clients = worker._llm_hook_pack(ctx)  # noqa: SLF001
@@ -1045,7 +1008,7 @@ class TestLlmHookShareGates:
         clean_env: pytest.MonkeyPatch,  # noqa: ARG002 -- fixture 副作用
     ) -> None:
         """share 任务 options/env 全开也压不住——三处 LLM 面结构关。"""
-        ctx, worker, _store = _mk(
+        ctx, worker, _store = mk_ctx(
             tmp_path, options={"l2": True, "env_judge": True, "llm_hook": True}
         )
         ctx.row["kind"] = "share"
@@ -1062,7 +1025,7 @@ class TestLlmHookShareGates:
         """arxiv 任务带真 key → hook 建，translator 是 per-call BYOK 面。"""
         from texlate.server.worker import _PerCallTranslator  # noqa: PLC0415
 
-        ctx, worker, _store = _mk(tmp_path)
+        ctx, worker, _store = mk_ctx(tmp_path)
         ctx.secrets = Secrets(api_key="k", base_url="http://b", model="m9")
         hook, usage, clients = worker._llm_hook_pack(ctx)  # noqa: SLF001
         assert hook is not None
@@ -1077,7 +1040,7 @@ class TestLlmHookShareGates:
         clean_env: pytest.MonkeyPatch,  # noqa: ARG002 -- fixture 副作用
     ) -> None:
         """无 BYOK key → None（裸 env-key client 会绕开计费面）。"""
-        ctx, worker, _store = _mk(tmp_path)
+        ctx, worker, _store = mk_ctx(tmp_path)
         hook, usage, _c = worker._llm_hook_pack(ctx)  # noqa: SLF001
         assert hook is None
         assert usage is None
@@ -1088,7 +1051,7 @@ class TestLlmHookShareGates:
         clean_env: pytest.MonkeyPatch,  # noqa: ARG002 -- fixture 副作用
     ) -> None:
         """``options.llm_hook=False`` / ``TEXLATE_FIXLOOP_LLM=0`` 显式关。"""
-        ctx, worker, _store = _mk(tmp_path, options={"llm_hook": False})
+        ctx, worker, _store = mk_ctx(tmp_path, options={"llm_hook": False})
         ctx.secrets = Secrets(api_key="k", base_url="http://b", model="m")
         assert worker._llm_hook_pack(ctx)[0] is None  # noqa: SLF001
 
@@ -1143,7 +1106,7 @@ class TestDocEmitTerminalGuard:
     """#148：``_doc_emit`` 终态守卫——cancel 后孤儿 export thread 的迟到 emit 不落盘/扇出。"""
 
     def test_emit_noop_after_terminal(self, tmp_path: Path) -> None:
-        ctx, worker, store = _mk(tmp_path)
+        ctx, worker, store = mk_ctx(tmp_path)
         payload = {"done": 1, "total": 0, "cached": 0, "failed": 0, "items": []}
         worker._doc_emit(ctx, 1, 0, 10, payload)  # noqa: SLF001
         assert store.get(ctx.task_id)["done_chunks"] == 1
@@ -1162,12 +1125,12 @@ class TestShareLookupIndexDecode:
     def test_bad_index_bytes_falls_back(self, tmp_path: Path) -> None:
         from texlate.server.settings import share_dir  # noqa: PLC0415
 
-        ctx, worker, store = _mk(tmp_path)
-        _scan(ctx, worker, store, _MATH_TEX)
+        ctx, worker, store = mk_ctx(tmp_path)
+        scan_base(ctx, worker, store, _MATH_TEX)
         out_dir = share_dir(tmp_path)
         out_dir.mkdir(parents=True, exist_ok=True)
         (out_dir / "index.jsonl").write_bytes(b"\xff\xfe\x00bad")
-        assert worker._share_lookup(ctx) is False  # noqa: SLF001
+        assert worker.run_stage(ctx, "share_lookup") is False
 
 
 class TestPersistUsageReplace:
@@ -1183,17 +1146,17 @@ class TestPersistUsageReplace:
         }
 
     def test_replace_est(self, tmp_path: Path) -> None:
-        ctx, worker, store = _mk(tmp_path)
+        ctx, worker, store = mk_ctx(tmp_path)
         ctx.tokens_est = 100  # on_result 累积的字符估算钉样
-        worker._persist_usage(ctx, self._usage(), replace_est=True)  # noqa: SLF001
+        worker.run_stage(ctx, "persist_usage", self._usage(), replace_est=True)
         assert ctx.tokens_est == 8  # noqa: PLR2004 -- 5+3 真账，est 被替换不叠加
         assert store.get(ctx.task_id)["tokens"] == 8  # noqa: PLR2004
 
     def test_default_accumulates(self, tmp_path: Path) -> None:
         """旁路臂（env_judge/L2/llm_hook）保持累加——不抹主链真账。"""
-        ctx, worker, _store = _mk(tmp_path)
+        ctx, worker, _store = mk_ctx(tmp_path)
         ctx.tokens_est = 100  # 主链真账钉样
-        worker._persist_usage(ctx, self._usage())  # noqa: SLF001
+        worker.run_stage(ctx, "persist_usage", self._usage())
         assert ctx.tokens_est == 108  # noqa: PLR2004 -- 100+5+3
 
 
@@ -1203,7 +1166,7 @@ class TestParseEndCheckpoint:
     def test_cancel_during_parse_converges(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        ctx, worker, store = _mk(tmp_path)
+        ctx, worker, store = mk_ctx(tmp_path)
         ctx.base_dir.mkdir(parents=True, exist_ok=True)
         (ctx.base_dir / ".base-done").write_text("", encoding="utf-8")
 
@@ -1216,7 +1179,7 @@ class TestParseEndCheckpoint:
         async def drive() -> None:
             worker._loop = asyncio.get_running_loop()  # noqa: SLF001
             worker._loop_tid = threading.get_ident()  # noqa: SLF001
-            await worker._stage_parse(ctx)  # noqa: SLF001
+            await worker.run_stage(ctx, "stage_parse")
 
         with pytest.raises(asyncio.CancelledError):
             asyncio.run(drive())
@@ -1230,8 +1193,8 @@ class TestOffLoopHeavySegments:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """resume 形态（chunks 在库 + scans 空）：``_parse_all`` 必须在 worker 线程。"""
-        ctx, worker, store = _mk(tmp_path)
-        _scan(ctx, worker, store, _MATH_TEX)
+        ctx, worker, store = mk_ctx(tmp_path)
+        scan_base(ctx, worker, store, _MATH_TEX)
         ctx.scans = {}
         seen: list[int] = []
         real = worker._parse_all  # noqa: SLF001
@@ -1245,7 +1208,7 @@ class TestOffLoopHeavySegments:
         async def drive() -> int:
             worker._loop = asyncio.get_running_loop()  # noqa: SLF001
             worker._loop_tid = threading.get_ident()  # noqa: SLF001
-            await worker._ensure_scans(ctx)  # noqa: SLF001
+            await worker.run_stage(ctx, "ensure_scans")
             return threading.get_ident()
 
         loop_tid = asyncio.run(drive())
@@ -1257,8 +1220,8 @@ class TestOffLoopHeavySegments:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """``_build_md_zip`` 跑 worker 线程时 ``all_chunks`` 弹回 loop 线程。"""
-        ctx, worker, store = _mk(tmp_path)
-        _scan(ctx, worker, store, _MATH_TEX)
+        ctx, worker, store = mk_ctx(tmp_path)
+        scan_base(ctx, worker, store, _MATH_TEX)
         row = store.all_chunks(ctx.task_id)[0]
         store.update_chunk(
             ctx.task_id, row["chunk_id"], {"status": "ok", "translation": "译文"}
@@ -1289,7 +1252,7 @@ class TestPrepHarvestDirs:
 
     def test_prep_pdf_dirs(self, tmp_path: Path) -> None:
         """en.pdf 回登记 + 旧产物清理；en.pdf 在场不覆盖（retry 幂等）。"""
-        ctx, worker, store = _mk(tmp_path)
+        ctx, worker, store = mk_ctx(tmp_path)
         src = ctx.root / "upload" / "paper.pdf"
         src.parent.mkdir(parents=True, exist_ok=True)
         src.write_bytes(b"%PDF-1.4 up")
@@ -1311,7 +1274,7 @@ class TestPrepHarvestDirs:
         """mono/dual → zh.pdf/dual.pdf + 登记；tounicode 失败 best-effort。"""
         from texlate.server.babeldoc import BabeldocRun  # noqa: PLC0415
 
-        ctx, worker, store = _mk(tmp_path)
+        ctx, worker, store = mk_ctx(tmp_path)
         ctx.root.mkdir(parents=True, exist_ok=True)
         mono = ctx.root / "out" / "mono.pdf"
         dual = ctx.root / "out" / "dual.pdf"
@@ -1339,7 +1302,7 @@ class TestAcloseTolerated:
     ) -> None:
         import texlate.server.worker as worker_mod  # noqa: PLC0415
 
-        ctx, worker, _store = _mk(tmp_path)
+        ctx, worker, _store = mk_ctx(tmp_path)
 
         async def boom(_clients: list) -> None:
             msg = "aclose boom"
@@ -1354,10 +1317,10 @@ class TestParseAllUpperTex:
     """#148 追加：``_parse_all`` rglob 大小写盲区——``.TEX`` 主文件不再零块。"""
 
     def test_uppercase_tex_parsed(self, tmp_path: Path) -> None:
-        ctx, worker, _store = _mk(tmp_path)
+        ctx, worker, _store = mk_ctx(tmp_path)
         ctx.base_dir.mkdir(parents=True, exist_ok=True)
         (ctx.base_dir / "MAIN.TEX").write_text(_MATH_TEX, encoding="utf-8")
-        rows, scans = worker._parse_all(ctx)  # noqa: SLF001
+        rows, scans = worker.run_stage(ctx, "parse_all")
         assert "MAIN.TEX" in scans
         assert rows, "大写 .TEX 应产出 chunk"
 
@@ -1369,12 +1332,12 @@ class TestParseAllRtxSkip:
     """
 
     def test_rtx_dump_excluded(self, tmp_path: Path) -> None:
-        ctx, worker, _store = _mk(tmp_path)
+        ctx, worker, _store = mk_ctx(tmp_path)
         ctx.base_dir.mkdir(parents=True, exist_ok=True)
         (ctx.base_dir / "main.tex").write_text(_MATH_TEX, encoding="utf-8")
         (ctx.base_dir / "aps.rtx.tex").write_text(_MATH_TEX, encoding="utf-8")
         (ctx.base_dir / "UP.RTX.TEX").write_text(_MATH_TEX, encoding="utf-8")
-        rows, scans = worker._parse_all(ctx)  # noqa: SLF001
+        rows, scans = worker.run_stage(ctx, "parse_all")
         assert set(scans) == {"main.tex"}
         assert all(r["src_file"] == "main.tex" for r in rows)
 
@@ -1383,7 +1346,7 @@ class TestParseAllProseGate:
     """散文门：``.code.tex`` 机制件与无散文件分流 support 不送译（同 e2e 口径）。"""
 
     def test_code_tex_and_nonprose_to_support(self, tmp_path: Path) -> None:
-        ctx, worker, _store = _mk(tmp_path)
+        ctx, worker, _store = mk_ctx(tmp_path)
         ctx.base_dir.mkdir(parents=True, exist_ok=True)
         (ctx.base_dir / "main.tex").write_text(_MATH_TEX, encoding="utf-8")
         (ctx.base_dir / "tikzlibraryfoo.code.tex").write_text(
@@ -1392,7 +1355,7 @@ class TestParseAllProseGate:
         (ctx.base_dir / "macros.tex").write_text(
             "\\newcommand{\\foo}[1]{#1}\\def\\bar{baz}", encoding="utf-8"
         )
-        rows, scans = worker._parse_all(ctx)  # noqa: SLF001
+        rows, scans = worker.run_stage(ctx, "parse_all")
         assert set(scans) == {"main.tex"}
         assert all(r["src_file"] == "main.tex" for r in rows)
         assert set(ctx.support_files) == {
@@ -1402,12 +1365,12 @@ class TestParseAllProseGate:
 
     def test_support_files_reset_on_rerun(self, tmp_path: Path) -> None:
         """``_ensure_scans`` 会二次调 ``_parse_all``——support 清单须幂等。"""
-        ctx, worker, _store = _mk(tmp_path)
+        ctx, worker, _store = mk_ctx(tmp_path)
         ctx.base_dir.mkdir(parents=True, exist_ok=True)
         (ctx.base_dir / "main.tex").write_text(_MATH_TEX, encoding="utf-8")
         (ctx.base_dir / "x.code.tex").write_text("\\def\\a{1}", encoding="utf-8")
-        worker._parse_all(ctx)  # noqa: SLF001
-        worker._parse_all(ctx)  # noqa: SLF001
+        worker.run_stage(ctx, "parse_all")
+        worker.run_stage(ctx, "parse_all")
         assert ctx.support_files == ["x.code.tex"]
 
 
@@ -1415,7 +1378,7 @@ class TestOptIntTolerant:
     """#148 追加：存量 options_json 残留非数值 → 默认 + warning，不裸 int() 崩。"""
 
     def test_opt_int_values(self, tmp_path: Path) -> None:
-        ctx, worker, store = _mk(tmp_path)
+        ctx, worker, store = mk_ctx(tmp_path)
         assert worker._opt_int(ctx, {}, "qps", 4) == 4  # noqa: SLF001, PLR2004
         assert worker._opt_int(ctx, {"qps": "8"}, "qps", 4) == 8  # noqa: SLF001, PLR2004
         seq0 = store.last_seq(ctx.task_id)
@@ -1431,7 +1394,7 @@ class TestOptIntTolerant:
         clean_env: pytest.MonkeyPatch,  # noqa: ARG002 -- fixture 副作用
     ) -> None:
         """存量行 ``options.qps="abc"`` → job 落默认不 500。"""
-        ctx, worker, _store = _mk(tmp_path, options={"qps": "abc"})
+        ctx, worker, _store = mk_ctx(tmp_path, options={"qps": "abc"})
         ctx.secrets = Secrets(api_key="k")
         workdir = ctx.root / "bw"
         workdir.mkdir(parents=True, exist_ok=True)
@@ -1471,7 +1434,7 @@ class TestRegisterPrecomputed:
         """worker 线程调 ``_register``：读盘+sha256 在调用线程，put_file 仍在 loop。"""
         import hashlib  # noqa: PLC0415
 
-        ctx, worker, store = _mk(tmp_path)
+        ctx, worker, store = mk_ctx(tmp_path)
         ctx.root.mkdir(parents=True, exist_ok=True)
         (ctx.root / "big.bin").write_bytes(b"x" * 64)
         sha_tids: list[int] = []
@@ -1757,8 +1720,9 @@ class TestSpliceSentinelInvalidation:
         pre_rows: dict[str, tuple[str, str]],
     ) -> None:
         asyncio.run(
-            worker._teardown_translate(  # noqa: SLF001
-                ctx=ctx,
+            worker.run_stage(  # run_stage 直驱
+                ctx,
+                "teardown_translate",
                 run_task=None,
                 state=DBStateBridge(store, ctx.task_id),
                 cache=SegmentCache(store, prefix="t", model="m", target_lang="zh-CN"),
@@ -1771,8 +1735,8 @@ class TestSpliceSentinelInvalidation:
         )
 
     def test_changed_rows_drop_sentinel(self, tmp_path: Path) -> None:
-        ctx, worker, store = _mk(tmp_path)
-        _scan(ctx, worker, store, MINI_TEX)
+        ctx, worker, store = mk_ctx(tmp_path)
+        scan_base(ctx, worker, store, MINI_TEX)
         ctx.zh_dir.mkdir(parents=True)
         sent = ctx.zh_dir / ".splice-done"
         sent.write_text("", encoding="utf-8")
@@ -1788,8 +1752,8 @@ class TestSpliceSentinelInvalidation:
         assert not sent.exists(), "译文变更后 .splice-done 必须摘除"
 
     def test_unchanged_rows_keep_sentinel(self, tmp_path: Path) -> None:
-        ctx, worker, store = _mk(tmp_path)
-        _scan(ctx, worker, store, MINI_TEX)
+        ctx, worker, store = mk_ctx(tmp_path)
+        scan_base(ctx, worker, store, MINI_TEX)
         ctx.zh_dir.mkdir(parents=True)
         sent = ctx.zh_dir / ".splice-done"
         sent.write_text("", encoding="utf-8")
@@ -1802,7 +1766,7 @@ class TestCacheUserGlossarySig:
     """``_make_cache`` user 层按内容进指纹：同径换内容分桶、异径同内容合桶。"""
 
     def test_same_path_content_change_rekeys(self, tmp_path: Path) -> None:
-        ctx, worker, _store = _mk(tmp_path, options={"glossary": "g.yaml"})
+        ctx, worker, _store = mk_ctx(tmp_path, options={"glossary": "g.yaml"})
         ctx.base_dir.mkdir(parents=True, exist_ok=True)
         g = ctx.base_dir / "g.yaml"
         g.write_text("a: 甲\n", encoding="utf-8")
@@ -1812,7 +1776,7 @@ class TestCacheUserGlossarySig:
         assert p1 != p2
 
     def test_diff_path_same_content_shares(self, tmp_path: Path) -> None:
-        ctx, worker, _store = _mk(tmp_path, options={"glossary": "g.yaml"})
+        ctx, worker, _store = mk_ctx(tmp_path, options={"glossary": "g.yaml"})
         ctx.base_dir.mkdir(parents=True, exist_ok=True)
         (ctx.base_dir / "g.yaml").write_text("a: 甲\n", encoding="utf-8")
         p1 = worker._make_cache(ctx)._prefix  # noqa: SLF001
@@ -1832,7 +1796,7 @@ class TestCacheUserGlossarySig:
         ufile = udir / "glossary.yaml"
         ufile.write_text("x: 一\n", encoding="utf-8")
         monkeypatch.setattr(worker_mod.seams, "USER_GLOSSARY_PATH", ufile)
-        ctx, worker, _store = _mk(tmp_path)
+        ctx, worker, _store = mk_ctx(tmp_path)
         p1 = worker._make_cache(ctx)._prefix  # noqa: SLF001
         ufile.write_text("x: 二\n", encoding="utf-8")
         p2 = worker._make_cache(ctx)._prefix  # noqa: SLF001
@@ -1846,7 +1810,7 @@ class TestRunFixloopWiring:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         timeout = 7.5
-        ctx, worker, _store = _mk(tmp_path, worker_kw={"compile_timeout": timeout})
+        ctx, worker, _store = mk_ctx(tmp_path, worker_kw={"compile_timeout": timeout})
         captured: dict[str, object] = {}
 
         def fake_fixloop(*_a: object, **kw: object) -> dict:
@@ -1857,8 +1821,9 @@ class TestRunFixloopWiring:
         work = tmp_path / "build-zh"
         work.mkdir()
         first = object()
-        out = worker._run_fixloop(  # noqa: SLF001
+        out = worker.run_stage(  # run_stage 直驱
             ctx,
+            "run_fixloop",
             work,
             RecordingEngine("tectonic"),
             first,  # type: ignore[arg-type]
@@ -1899,7 +1864,7 @@ class TestRunFixloopWiring:
         import texlate.repair as repair_mod  # noqa: PLC0415
         import texlate.server.worker as worker_mod  # noqa: PLC0415
 
-        ctx, worker, _store = _mk(tmp_path)
+        ctx, worker, _store = mk_ctx(tmp_path)
         ctx.engine_name = "xelatex"
         built: list[dict[str, object]] = []
 
@@ -1918,7 +1883,7 @@ class TestRunFixloopWiring:
         work = tmp_path / "build-zh"
         work.mkdir()
         main_eng = RecordingEngine("xelatex")
-        worker._run_fixloop(ctx, work, main_eng, object())  # noqa: SLF001
+        worker.run_stage(ctx, "run_fixloop", work, main_eng, object())
         assert built == [{"name": "xelatex", "halt_on_error": True}]
         rec = captured["eng"]
         assert isinstance(rec, repair_mod.ResProxy)
@@ -1930,7 +1895,7 @@ class TestRunFixloopWiring:
         """tectonic 无 halt_on_error 旋钮——fixloop 仍用传入引擎，不重建。"""
         import texlate.server.worker as worker_mod  # noqa: PLC0415
 
-        ctx, worker, _store = _mk(tmp_path)
+        ctx, worker, _store = mk_ctx(tmp_path)
         captured: dict[str, object] = {}
 
         def fake_fixloop(_w: object, eng: object, **_kw: object) -> dict:
@@ -1945,7 +1910,7 @@ class TestRunFixloopWiring:
         work = tmp_path / "build-zh"
         work.mkdir()
         main_eng = RecordingEngine("tectonic")
-        worker._run_fixloop(ctx, work, main_eng, object())  # noqa: SLF001
+        worker.run_stage(ctx, "run_fixloop", work, main_eng, object())
         rec = captured["eng"]
         assert rec._inner is main_eng  # noqa: SLF001
 
@@ -1957,7 +1922,7 @@ class TestRunFixloopWiring:
         import texlate.server.worker as worker_mod  # noqa: PLC0415
 
         made: list[str] = []
-        ctx, worker, _store = _mk(
+        ctx, worker, _store = mk_ctx(
             tmp_path,
             worker_kw={
                 "engine_factory": lambda name: (
@@ -1979,7 +1944,7 @@ class TestRunFixloopWiring:
         monkeypatch.setattr(worker_mod.seams, "engine_for", forbidden)
         work = tmp_path / "build-zh"
         work.mkdir()
-        worker._run_fixloop(ctx, work, RecordingEngine("xelatex"), object())  # noqa: SLF001
+        worker.run_stage(ctx, "run_fixloop", work, RecordingEngine("xelatex"), object())
         assert made == ["xelatex"]
         rec = captured["eng"]
         assert isinstance(rec, repair_mod.ResProxy)
@@ -1992,14 +1957,14 @@ class TestFetcherOwnership:
         closed: list[bool] = []
         fake = FakeFetcher(make_targz({"main.tex": MINI_TEX}))
         fake.close = lambda: closed.append(True)  # type: ignore[attr-defined]
-        ctx, worker, _store = _mk(
+        ctx, worker, _store = mk_ctx(
             tmp_path,
             worker_kw={
                 "fetcher": fake,
                 "source_cache": SourceCache(tmp_path / "src-cache"),
             },
         )
-        worker._fetch_arxiv(ctx)  # noqa: SLF001 -- 单测直驱
+        worker.run_stage(ctx, "fetch_arxiv")
         assert closed == []
 
     def test_self_built_fetcher_closed(
@@ -2023,10 +1988,10 @@ class TestFetcherOwnership:
             "fetch_metadata",
             lambda _id, *, fetcher: None,  # noqa: ARG005
         )
-        ctx, worker, _store = _mk(
+        ctx, worker, _store = mk_ctx(
             tmp_path, worker_kw={"source_cache": SourceCache(tmp_path / "src-cache")}
         )
-        worker._fetch_arxiv(ctx)  # noqa: SLF001
+        worker.run_stage(ctx, "fetch_arxiv")
         assert closed == [True]
 
     def test_self_built_fetcher_closed_on_error(
@@ -2051,11 +2016,11 @@ class TestFetcherOwnership:
             "acquire_source",
             lambda *_a, **_kw: (_ for _ in ()).throw(OSError("boom")),
         )
-        ctx, worker, _store = _mk(
+        ctx, worker, _store = mk_ctx(
             tmp_path, worker_kw={"source_cache": SourceCache(tmp_path / "src-cache")}
         )
         with pytest.raises(OSError, match="boom"):
-            worker._fetch_arxiv(ctx)  # noqa: SLF001
+            worker.run_stage(ctx, "fetch_arxiv")
         assert closed == [True]
 
 
@@ -2157,14 +2122,14 @@ class TestLogTextOfFallback:
         )
 
     def test_empty_log_falls_back_to_tail(self, tmp_path: Path) -> None:
-        _ctx, worker, _store = _mk(tmp_path)
+        _ctx, worker, _store = mk_ctx(tmp_path)
         log = tmp_path / "empty.log"
         log.write_text("", encoding="utf-8")
         tail = "Missing character: There is no 中 in font cmr10!"
         assert worker._log_text_of(self._res(log, tail)) == tail  # noqa: SLF001
 
     def test_missing_and_unreadable_log_fall_back(self, tmp_path: Path) -> None:
-        _ctx, worker, _store = _mk(tmp_path)
+        _ctx, worker, _store = mk_ctx(tmp_path)
         tail = "tail-signal"
         assert (
             worker._log_text_of(self._res(tmp_path / "nonexistent.log", tail))  # noqa: SLF001
@@ -2175,7 +2140,7 @@ class TestLogTextOfFallback:
         assert worker._log_text_of(self._res(asdir, tail)) == tail  # noqa: SLF001
 
     def test_log_content_wins_and_no_logpath_uses_tail(self, tmp_path: Path) -> None:
-        _ctx, worker, _store = _mk(tmp_path)
+        _ctx, worker, _store = mk_ctx(tmp_path)
         log = tmp_path / "real.log"
         log.write_text("! real log line", encoding="utf-8")
         assert (
@@ -2202,7 +2167,7 @@ class TestFlushTranslateSync:
 
     def test_teardown_flushes_buffer_after_cancel(self, tmp_path: Path) -> None:
         """cancel 已投递后进 teardown：缓冲已完块仍落库（status/translation 真值）。"""
-        ctx, worker, store = _mk(tmp_path)
+        ctx, worker, store = mk_ctx(tmp_path)
         src = "A finished chunk buffered when cancellation landed."
         store.insert_chunks(
             ctx.task_id,
@@ -2229,8 +2194,9 @@ class TestFlushTranslateSync:
             me.get_loop().call_soon(me.cancel)  # 复刻 poll 循环 _check_cancelled 抛出点
             with contextlib.suppress(asyncio.CancelledError):
                 await asyncio.sleep(0)
-            await worker._teardown_translate(  # noqa: SLF001
-                ctx=ctx,
+            await worker.run_stage(  # run_stage 直驱
+                ctx,
+                "teardown_translate",
                 run_task=None,
                 state=state,
                 cache=SegmentCache(store, prefix="t", model="m", target_lang="zh-CN"),
@@ -2258,11 +2224,11 @@ class TestShareLookupExceptSurface:
 
     def test_index_oserror_degrades_to_miss(self, tmp_path: Path) -> None:
         """index.jsonl 是目录（IsADirectoryError ⊂ OSError）→ 仍按 miss 降级。"""
-        ctx, worker, store = _mk(tmp_path)
-        _scan(ctx, worker, store, MINI_TEX)  # has_chunks → 才走到 index_lookup
+        ctx, worker, store = mk_ctx(tmp_path)
+        scan_base(ctx, worker, store, MINI_TEX)  # has_chunks → 才走到 index_lookup
         idx = share_dir(worker.data_dir) / "index.jsonl"
         idx.mkdir(parents=True)
-        assert worker._share_lookup(ctx) is False  # noqa: SLF001
+        assert worker.run_stage(ctx, "share_lookup") is False
 
     def test_share_error_propagates(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -2270,15 +2236,15 @@ class TestShareLookupExceptSurface:
         """index_lookup 抛 ShareError → 传播（钉死 except 不含 ShareError）。"""
         import texlate.server.worker as worker_mod  # noqa: PLC0415
 
-        ctx, worker, store = _mk(tmp_path)
-        _scan(ctx, worker, store, MINI_TEX)
+        ctx, worker, store = mk_ctx(tmp_path)
+        scan_base(ctx, worker, store, MINI_TEX)
 
         def boom(*_a: object, **_kw: object) -> None:
             raise ShareError
 
         monkeypatch.setattr(worker_mod.seams, "index_lookup", boom)
         with pytest.raises(ShareError):
-            worker._share_lookup(ctx)  # noqa: SLF001
+            worker.run_stage(ctx, "share_lookup")
 
 
 class TestResidAuditLoops:
@@ -2358,7 +2324,7 @@ class TestResidAuditLoops:
     def test_heartbeat_survives_sqlite_error(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        ctx, worker, store = _mk(tmp_path)
+        ctx, worker, store = mk_ctx(tmp_path)
         store.update_fields(ctx.task_id, status="interrupted")  # 避开 replay
         runner = TaskRunner(store, EventBus(store), worker)
         calls = {"n": 0}
@@ -2394,12 +2360,12 @@ class TestResidAuditShareApply:
     """
 
     def test_bad_utf8_dual_rejects(self, tmp_path: Path) -> None:
-        ctx, worker, _store = _mk(tmp_path, options={})
+        ctx, worker, _store = mk_ctx(tmp_path, options={})
         ctx.row["kind"] = "share"
         (ctx.root / "share").mkdir(parents=True)
         (ctx.root / "share" / "dual.json").write_bytes(b'{"chunks": [\xff\xfe]}')
         with pytest.raises(_ShareRejectError):
-            worker._share_apply(ctx)  # noqa: SLF001
+            worker.run_stage(ctx, "share_apply")
 
 
 class TestResidAuditGlossary:
@@ -2407,7 +2373,7 @@ class TestResidAuditGlossary:
     （顶层非 mapping）与 yaml.YAMLError 皆回落 None，不许 fault 任务。"""
 
     def test_list_yaml_degrades_to_none(self, tmp_path: Path) -> None:
-        ctx, worker, _store = _mk(tmp_path)
+        ctx, worker, _store = mk_ctx(tmp_path)
         ctx.base_dir.mkdir(parents=True)
         (ctx.base_dir / "glossary.local.yaml").write_text(
             "- term_a\n- term_b\n", encoding="utf-8"
@@ -2415,7 +2381,7 @@ class TestResidAuditGlossary:
         assert worker._make_glossary(ctx) is None  # noqa: SLF001
 
     def test_bad_yaml_degrades_to_none(self, tmp_path: Path) -> None:
-        ctx, worker, _store = _mk(tmp_path)
+        ctx, worker, _store = mk_ctx(tmp_path)
         ctx.base_dir.mkdir(parents=True)
         (ctx.base_dir / "glossary.local.yaml").write_text(
             "key: [unclosed\n  bad: : :\n", encoding="utf-8"
@@ -2451,17 +2417,17 @@ class TestResidAuditSharePackGate:
         return calls
 
     def test_cancelled_not_published(self, tmp_path: Path) -> None:
-        ctx, worker, store = _mk(tmp_path, options={"share_pack": True})
+        ctx, worker, store = mk_ctx(tmp_path, options={"share_pack": True})
         store.transition(ctx.task_id, "cancelled")
         assert self._drive(ctx, worker) == 0
 
     def test_interrupted_not_published(self, tmp_path: Path) -> None:
-        ctx, worker, store = _mk(tmp_path, options={"share_pack": True})
+        ctx, worker, store = mk_ctx(tmp_path, options={"share_pack": True})
         store.transition(ctx.task_id, "interrupted", force=True)
         assert self._drive(ctx, worker) == 0
 
     def test_fault_still_published(self, tmp_path: Path) -> None:
-        ctx, worker, store = _mk(tmp_path, options={"share_pack": True})
+        ctx, worker, store = mk_ctx(tmp_path, options={"share_pack": True})
         store.transition(ctx.task_id, "fault", force=True)
         assert self._drive(ctx, worker) == 1
 
@@ -2471,7 +2437,7 @@ class TestSetOption:
     + row 快照同步的单点封装（落库键 ``options_json`` 由调用点回写）。"""
 
     def test_set_and_update_sync_row(self, tmp_path: Path) -> None:
-        ctx, _worker, store = _mk(tmp_path, options={"a": 1})
+        ctx, _worker, store = mk_ctx(tmp_path, options={"a": 1})
         out = ctx.set_option("b", "x")
         assert json.loads(out) == {"a": 1, "b": "x"}
         assert ctx.row["options_json"] == out, "row 快照必须同步"
@@ -2486,7 +2452,7 @@ class TestSetOption:
 
     def test_update_options_pop(self, tmp_path: Path) -> None:
         """删键形态也走同一封装（``reuse_hit`` 摘除臂同款）。"""
-        ctx, _worker, _store = _mk(tmp_path, options={"reuse_hit": "t1", "k": 1})
+        ctx, _worker, _store = mk_ctx(tmp_path, options={"reuse_hit": "t1", "k": 1})
         out = ctx.update_options(lambda o: o.pop("reuse_hit", None))
         assert "reuse_hit" not in json.loads(out)
         assert json.loads(out)["k"] == 1
@@ -2499,7 +2465,7 @@ class TestDBStateBridgeRows:
     def test_rows_param_skips_scan(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        _ctx, _worker, store = _mk(tmp_path)
+        _ctx, _worker, store = mk_ctx(tmp_path)
 
         def boom(_tid: str) -> list:
             pytest.fail("构造给了 rows——load 不许再 all_chunks")
@@ -2532,7 +2498,7 @@ class TestDBStateBridgeRows:
 
     def test_none_rows_falls_back_to_store(self, tmp_path: Path) -> None:
         """不传 rows 走既有 ``all_chunks`` 全扫（旧路径不回退）。"""
-        ctx, _worker, store = _mk(tmp_path)
+        ctx, _worker, store = mk_ctx(tmp_path)
         store.insert_chunks(
             ctx.task_id,
             [

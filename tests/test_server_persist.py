@@ -26,6 +26,7 @@ import pytest
 pytest.importorskip("fastapi", reason="server extra 未装")
 pytest.importorskip("starlette.testclient", reason="server extra 未装")
 
+from _workerkit import mk_ctx
 from conftest import mk_task_row
 
 from texlate.server.events import EventBus
@@ -130,19 +131,7 @@ class TestSpliceInvalidationArtifacts:
     """``_invalidate_splice`` 摘哨兵 → 派生产物行 + 磁盘件并清。"""
 
     def _ctx(self, tmp_path: Path) -> tuple[TaskCtx, PipelineWorker, Store]:
-        store = _mk_store(tmp_path)
-        bus = EventBus(store)
-        worker = PipelineWorker(store, bus, tmp_path)
-        row = mk_task_row(store, arxiv_id="2401.00001")
-        ctx = TaskCtx(
-            store=store,
-            bus=bus,
-            task_id=row["id"],
-            row=row,
-            secrets=Secrets(),
-            root=tmp_path / "tasks" / row["id"],
-        )
-        return ctx, worker, store
+        return mk_ctx(tmp_path)
 
     def _seed_artifacts(self, ctx: TaskCtx, store: Store) -> None:
         """上一轮产物现场：哨兵 + files 行 + 磁盘件。"""
@@ -174,8 +163,9 @@ class TestSpliceInvalidationArtifacts:
         pre_rows: dict[str, tuple[str, str]],
     ) -> None:
         asyncio.run(
-            worker._teardown_translate(  # noqa: SLF001 -- 单测直驱
-                ctx=ctx,
+            worker.run_stage(
+                ctx,
+                "teardown_translate",
                 run_task=None,
                 state=DBStateBridge(store, ctx.task_id),
                 cache=SegmentCache(store, prefix="t", model="m", target_lang="zh-CN"),

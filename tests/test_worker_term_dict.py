@@ -17,14 +17,10 @@ if TYPE_CHECKING:
 
 pytest.importorskip("fastapi", reason="server extra 未装")
 
-from texlate.server.events import EventBus
-from texlate.server.store import Store, new_task_id
-from texlate.server.worker import (
-    DBStateBridge,
-    PipelineWorker,
-    Secrets,
-    TaskCtx,
-)
+from _workerkit import mk_ctx, scan_base
+
+from texlate.server.store import Store
+from texlate.server.worker import DBStateBridge, PipelineWorker
 from texlate.xlat.pipeline import MockTranslator
 
 _TEX = (
@@ -37,42 +33,6 @@ _TEX = (
     "text that was written for this purpose.\n"
     "\\end{document}\n"
 )
-
-
-def _mk(
-    tmp_path: Path, *, worker_kw: dict[str, object] | None = None
-) -> tuple[TaskCtx, PipelineWorker, Store]:
-    """真实任务行 + TaskCtx + worker（stage 级直调面；conn 在主线程）。"""
-    store = Store(tmp_path / "t.db")
-    store.open()
-    bus = EventBus(store)
-    worker = PipelineWorker(store, bus, tmp_path, **(worker_kw or {}))  # type: ignore[arg-type]
-    task_id = new_task_id()
-    row = store.create_task(
-        task_id=task_id,
-        kind="arxiv",
-        target_lang="zh-CN",
-        model="m",
-        arxiv_id="2401.00001",
-        options={},
-    )
-    ctx = TaskCtx(
-        store=store,
-        bus=bus,
-        task_id=task_id,
-        row=row,
-        secrets=Secrets(),
-        root=tmp_path / "tasks" / task_id,
-    )
-    return ctx, worker, store
-
-
-def _scan(ctx: TaskCtx, worker: PipelineWorker, store: Store, tex: str) -> None:
-    """main.tex 落 ``base/`` + 真解析 + chunks 入库。"""
-    ctx.base_dir.mkdir(parents=True, exist_ok=True)
-    (ctx.base_dir / "main.tex").write_text(tex, encoding="utf-8")
-    rows, ctx.scans = worker._parse_all(ctx)  # noqa: SLF001 -- 单测直驱
-    store.insert_chunks(ctx.task_id, rows)
 
 
 class TestSaveMapsBridge:
@@ -103,11 +63,11 @@ class TestStageTranslateTermDict:
         tmp_path: Path,
         clean_env: pytest.MonkeyPatch,  # noqa: ARG002 -- fixture 副作用
     ) -> None:
-        ctx, worker, store = _mk(
+        ctx, worker, store = mk_ctx(
             tmp_path, worker_kw={"translator_factory": lambda _c: MockTranslator()}
         )
-        _scan(ctx, worker, store, _TEX)
-        asyncio.run(worker._stage_translate(ctx))  # noqa: SLF001
+        scan_base(ctx, worker, store, _TEX)
+        asyncio.run(worker.run_stage(ctx, "stage_translate"))
         out = ctx.root / "export-state" / "term_dict.json"
         assert out.is_file()
         term_dict = json.loads(out.read_text(encoding="utf-8"))
@@ -121,14 +81,14 @@ class TestStageTranslateTermDict:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """glossary=None 臂不落盘也不毁段（bench 的 ``if glossary is not None`` 守卫同式）。"""
-        ctx, worker, store = _mk(
+        ctx, worker, store = mk_ctx(
             tmp_path, worker_kw={"translator_factory": lambda _c: MockTranslator()}
         )
-        _scan(ctx, worker, store, _TEX)
+        scan_base(ctx, worker, store, _TEX)
         monkeypatch.setattr(
             PipelineWorker, "_make_glossary", lambda _self, _ctx, **_kw: None
         )
-        asyncio.run(worker._stage_translate(ctx))  # noqa: SLF001
+        asyncio.run(worker.run_stage(ctx, "stage_translate"))
         assert not (ctx.root / "export-state" / "term_dict.json").exists()
         # 段照常收工——chunks 全 ok
         counts = store.chunk_counts(ctx.task_id)

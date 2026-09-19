@@ -27,7 +27,7 @@ import pytest
 pytest.importorskip("fastapi", reason="server extra 未装")
 pytest.importorskip("starlette.testclient", reason="server extra 未装")
 
-from test_worker_audit_fixes import _mk
+from _workerkit import mk_ctx
 
 import texlate.server.worker.emit as worker_emit
 from texlate.server.events import EventBus
@@ -59,7 +59,7 @@ class TestToThreadProtocol:
     """``_to_thread``：旗标预查 + ``in_flight`` 登记生命周期。"""
 
     def test_flag_set_skips_new_section(self, tmp_path: Path) -> None:
-        ctx, worker, _store = _mk(tmp_path)
+        ctx, worker, _store = mk_ctx(tmp_path)
         ran = threading.Event()
 
         def fn(_c: TaskCtx) -> None:
@@ -75,7 +75,7 @@ class TestToThreadProtocol:
         asyncio.run(drive())
 
     def test_in_flight_registers_and_sets(self, tmp_path: Path) -> None:
-        ctx, worker, _store = _mk(tmp_path)
+        ctx, worker, _store = mk_ctx(tmp_path)
         started, release = threading.Event(), threading.Event()
 
         def slow(_c: TaskCtx) -> int:
@@ -97,7 +97,7 @@ class TestToThreadProtocol:
     def test_drain_threads_bounded_wait(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        ctx, worker, _store = _mk(tmp_path)
+        ctx, worker, _store = mk_ctx(tmp_path)
         monkeypatch.setattr(worker_emit, "_DRAIN_S", 0.2)
         gate = threading.Event()
 
@@ -120,7 +120,7 @@ class TestToThreadProtocol:
         asyncio.run(drive())
 
     def test_abort_if_cancelled_pure_memory(self, tmp_path: Path) -> None:
-        ctx, worker, _store = _mk(tmp_path)
+        ctx, worker, _store = mk_ctx(tmp_path)
         worker._abort_if_cancelled(ctx)  # noqa: SLF001 -- 未置位不抛
         ctx.cancel_flag.set()
         with pytest.raises(asyncio.CancelledError):
@@ -131,7 +131,7 @@ class TestTerminalGuards:
     """终态后非状态写全体守卫（孤儿线程迟到扇出不落盘/不发声）。"""
 
     def test_log_warning_progress_register_guarded(self, tmp_path: Path) -> None:
-        ctx, worker, store = _mk(tmp_path)
+        ctx, worker, store = mk_ctx(tmp_path)
         store.transition(ctx.task_id, "done", progress=100, force=True, message="完成")
         base = len(store.events_since(ctx.task_id, 0))
         worker._log(ctx, "late log")  # noqa: SLF001
@@ -145,7 +145,7 @@ class TestTerminalGuards:
         assert rec["bytes"] is None  # 同形 dict 返回
 
     def test_guarded_before_terminal_still_writes(self, tmp_path: Path) -> None:
-        ctx, worker, store = _mk(tmp_path)
+        ctx, worker, store = mk_ctx(tmp_path)
         worker._progress(ctx, 33)  # noqa: SLF001
         worker._log(ctx, "live log")  # noqa: SLF001
         assert ctx.log_buf == ["live log"], "非终态行先缓冲（合批契约）"
@@ -158,14 +158,14 @@ class TestCancelFlagProducers:
     """``_check_cancelled``/``cancel_running``/``stop`` 三点都置 cancel_flag。"""
 
     def test_check_cancelled_sets_flag(self, tmp_path: Path) -> None:
-        ctx, worker, store = _mk(tmp_path)
+        ctx, worker, store = mk_ctx(tmp_path)
         store.update_fields(ctx.task_id, status="cancelled")
         with pytest.raises(asyncio.CancelledError):
             worker._check_cancelled(ctx)  # noqa: SLF001
         assert ctx.cancel_flag.is_set()
 
     def test_cancel_running_sets_flag(self, tmp_path: Path) -> None:
-        ctx, worker, store = _mk(tmp_path)
+        ctx, worker, store = mk_ctx(tmp_path)
         runner = TaskRunner(store, EventBus(store), worker)
 
         async def drive() -> None:
@@ -181,7 +181,7 @@ class TestCancelFlagProducers:
         asyncio.run(drive())
 
     def test_stop_sets_flag(self, tmp_path: Path) -> None:
-        ctx, worker, store = _mk(tmp_path)
+        ctx, worker, store = mk_ctx(tmp_path)
         runner = TaskRunner(store, EventBus(store), worker)
 
         async def drive() -> None:
@@ -200,7 +200,7 @@ class TestDispatchFault:
     """dispatch 前置段失败：queued → fault + error/done 事件；非 queued 不覆盖。"""
 
     def test_queued_transitions_fault(self, tmp_path: Path) -> None:
-        ctx, worker, store = _mk(tmp_path)
+        ctx, worker, store = mk_ctx(tmp_path)
         runner = TaskRunner(store, EventBus(store), worker)
         runner._dispatch_fault(ctx.task_id)  # noqa: SLF001
         row = store.get(ctx.task_id)
@@ -213,7 +213,7 @@ class TestDispatchFault:
         assert "done" in types
 
     def test_non_queued_untouched(self, tmp_path: Path) -> None:
-        ctx, worker, store = _mk(tmp_path)
+        ctx, worker, store = mk_ctx(tmp_path)
         store.transition(ctx.task_id, "done", progress=100, force=True)
         runner = TaskRunner(store, EventBus(store), worker)
         runner._dispatch_fault(ctx.task_id)  # noqa: SLF001
@@ -225,7 +225,7 @@ class TestOptIntClamp:
     """``_opt_int`` ``hi`` 上限钳位 + bad_option warning 留痕。"""
 
     def test_hi_clamp_warns(self, tmp_path: Path) -> None:
-        ctx, worker, store = _mk(tmp_path)
+        ctx, worker, store = mk_ctx(tmp_path)
         got = worker._opt_int(  # noqa: SLF001
             ctx, {"concurrency": 99}, "concurrency", 3, hi=16
         )
@@ -250,7 +250,7 @@ class TestSegmentCachePrewarm:
     """prewarm 批查预载 + ``__delitem__`` 三面同清 + ``_written`` run 内续命。"""
 
     def test_prewarm_read_and_delete(self, tmp_path: Path) -> None:
-        ctx, worker, store = _mk(tmp_path)
+        ctx, worker, store = mk_ctx(tmp_path)
         del ctx, worker
         store.conn.execute(
             "INSERT INTO translation_cache"
@@ -354,7 +354,7 @@ class TestReuseZeroMaterialize:
     """#12：命中行产物被并发清空 → 零物化 → ``reuse_dead`` 熔断回退自跑。"""
 
     def test_materialize_empty_returns_zero(self, tmp_path: Path) -> None:
-        ctx, worker, store = _mk(tmp_path)
+        ctx, worker, store = mk_ctx(tmp_path)
         donor = store.create_task(
             task_id=new_task_id(),
             kind="arxiv",
@@ -369,7 +369,7 @@ class TestReuseZeroMaterialize:
     def test_post_resolve_dead_skips_lookup(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        ctx, worker, store = _mk(tmp_path)
+        ctx, worker, store = mk_ctx(tmp_path)
         ctx.reuse_dead = True
         store.update_fields(ctx.task_id, cache_key="alias-key")
         ctx.row["cache_key"] = "alias-key"
@@ -387,7 +387,7 @@ class TestReuseZeroMaterialize:
     def test_zero_materialize_refetches(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        ctx, worker, store = _mk(tmp_path)
+        ctx, worker, store = mk_ctx(tmp_path)
         donor = store.create_task(
             task_id=new_task_id(),
             kind="arxiv",
@@ -410,7 +410,7 @@ class TestReuseZeroMaterialize:
         async def drive() -> None:
             worker._loop = asyncio.get_running_loop()  # noqa: SLF001
             worker._loop_tid = threading.get_ident()  # noqa: SLF001
-            await worker._stage_fetch(ctx)  # noqa: SLF001
+            await worker.run_stage(ctx, "stage_fetch")
 
         asyncio.run(drive())
         assert calls["n"] == 2, "零物化必须回退重跑 fetch"  # noqa: PLR2004
@@ -423,7 +423,7 @@ class TestDocOnResultBatching:
     """#11：doc 路 ``on_result`` 按 ``_FLUSH_N``/``_FLUSH_MS`` 合批——不打满 EVENT_CAP。"""
 
     def test_batches_until_threshold_then_flush(self, tmp_path: Path) -> None:
-        ctx, worker, store = _mk(tmp_path)
+        ctx, worker, store = mk_ctx(tmp_path)
         counters = {"done": 0, "failed": 0}
         on_result, flush = worker._doc_on_result(ctx, counters)  # noqa: SLF001
         r = ChunkResult(chunk_id="c1", source="abcdef", translation="译文", kind="para")
@@ -513,7 +513,7 @@ class TestLogBatching:
         return [e for e in store.events_since(task_id, 0) if e["type"] == "log"]
 
     def test_n_lines_single_event(self, tmp_path: Path) -> None:
-        ctx, worker, store = _mk(tmp_path)
+        ctx, worker, store = mk_ctx(tmp_path)
         n = worker_emit._LOG_FLUSH_N  # noqa: SLF001
         for i in range(n):
             worker._log(ctx, f"l{i}")  # noqa: SLF001
@@ -523,7 +523,7 @@ class TestLogBatching:
         assert ctx.log_buf == []
 
     def test_time_threshold_flushes(self, tmp_path: Path) -> None:
-        ctx, worker, store = _mk(tmp_path)
+        ctx, worker, store = mk_ctx(tmp_path)
         worker._log(ctx, "a")  # noqa: SLF001
         assert ctx.log_buf == ["a"], "首行缓冲不立即发"
         ctx.log_last -= worker_emit._LOG_FLUSH_S + 0.01  # noqa: SLF001 -- 推过计时闸
@@ -533,11 +533,11 @@ class TestLogBatching:
         assert evs[0]["data"]["line"].splitlines() == ["a", "b"]
 
     def test_residual_flushed_at_stage_boundary(self, tmp_path: Path) -> None:
-        ctx, worker, store = _mk(tmp_path)
+        ctx, worker, store = mk_ctx(tmp_path)
         worker._log(ctx, "l1")  # noqa: SLF001
         worker._log(ctx, "l2")  # noqa: SLF001
         assert not self._logs(store, ctx.task_id), "未满批不得提前扇出"
-        worker._stage(ctx, "parsing", "解析", 9)  # noqa: SLF001
+        worker.run_stage(ctx, "stage", "parsing", "解析", 9)
         evs = self._logs(store, ctx.task_id)
         assert len(evs) == 1
         assert evs[0]["data"]["line"].splitlines() == ["l1", "l2"]
@@ -545,7 +545,7 @@ class TestLogBatching:
         assert types.index("log") < types.index("stage"), "log 不得越过 stage"
 
     def test_mark_terminal_flushes_and_drops(self, tmp_path: Path) -> None:
-        ctx, worker, store = _mk(tmp_path)
+        ctx, worker, store = mk_ctx(tmp_path)
         worker._mock_warned.add(ctx.task_id)  # noqa: SLF001
         worker._log(ctx, "tail")  # noqa: SLF001
         worker._mark_terminal(ctx, "done")  # noqa: SLF001
@@ -558,7 +558,7 @@ class TestLogBatching:
         assert ctx.log_buf == [], "terminal 置位后 _log 直接丢"
 
     def test_warning_orders_after_buffer(self, tmp_path: Path) -> None:
-        ctx, worker, store = _mk(tmp_path)
+        ctx, worker, store = mk_ctx(tmp_path)
         worker._log(ctx, "l1")  # noqa: SLF001
         worker._warning(ctx, "w1", "warn-msg")  # noqa: SLF001
         types = [e["type"] for e in store.events_since(ctx.task_id, 0)]
@@ -573,7 +573,7 @@ class TestMaterializeCopyfileToctou:
     ) -> None:
         import shutil  # noqa: PLC0415
 
-        ctx, worker, store = _mk(tmp_path)
+        ctx, worker, store = mk_ctx(tmp_path)
         donor = store.create_task(
             task_id=new_task_id(),
             kind="arxiv",
@@ -610,7 +610,7 @@ class TestBabeldocProgressThrottle:
         import texlate.server.worker.pdf as pdf_mod  # noqa: PLC0415
         from texlate.server.babeldoc import BabeldocRun  # noqa: PLC0415
 
-        ctx, worker, store = _mk(tmp_path, worker_kw={"babeldoc": "/bin/true"})
+        ctx, worker, store = mk_ctx(tmp_path, worker_kw={"babeldoc": "/bin/true"})
         ctx.secrets = Secrets(api_key="k", base_url="http://b", model="m")
         ctx.root.mkdir(parents=True)
         up = ctx.root / "upload"
@@ -637,7 +637,7 @@ class TestBabeldocProgressThrottle:
         async def drive() -> None:
             worker._loop = asyncio.get_running_loop()  # noqa: SLF001
             worker._loop_tid = threading.get_ident()  # noqa: SLF001
-            await worker._run_pdf(ctx)  # noqa: SLF001
+            await worker.run_stage(ctx, "run_pdf")
 
         asyncio.run(drive())
         assert 1 <= len(writes) <= ticks // 2, "0.4pt 步进的 tick 大多被节流"
@@ -690,17 +690,17 @@ class TestStageSeconds:
     """review2 worker#13：``_stage`` 首入点 monotonic → done 载荷 ``stage_seconds``。"""
 
     def test_stage_marks_first_touch(self, tmp_path: Path) -> None:
-        ctx, worker, _store = _mk(tmp_path)
+        ctx, worker, _store = mk_ctx(tmp_path)
         assert ctx.stage_marks == {}
-        worker._stage(ctx, "fetching", "取源", 3)  # noqa: SLF001
-        worker._stage(ctx, "parsing", "解析", 9)  # noqa: SLF001
+        worker.run_stage(ctx, "stage", "fetching", "取源", 3)
+        worker.run_stage(ctx, "stage", "parsing", "解析", 9)
         assert set(ctx.stage_marks) == {"fetching", "parsing"}
         first = ctx.stage_marks["fetching"]
-        worker._stage(ctx, "fetching", "取源完成", 8)  # noqa: SLF001
+        worker.run_stage(ctx, "stage", "fetching", "取源完成", 8)
         assert ctx.stage_marks["fetching"] == first, "setdefault 不覆写首入点"
 
     def test_stage_seconds_diff_and_done_payload(self, tmp_path: Path) -> None:
-        ctx, worker, store = _mk(tmp_path)
+        ctx, worker, store = mk_ctx(tmp_path)
         now = time.monotonic()
         ctx.stage_marks["fetching"] = now - 10.0
         ctx.stage_marks["parsing"] = now - 4.0
