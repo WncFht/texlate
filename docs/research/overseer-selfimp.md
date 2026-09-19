@@ -897,3 +897,12 @@
 - **fc9 门**：csfix2 独剩 (bbkresid 4 格); 2009.11130 已加 ids。
 - roster 10：bticktax(fc9)/csfix2/kvdig/primguard + mathchar/loop3prep/dimcen/209batch。hxetex/maxsep209/obeylines/revpacs 交付+入库尸清。
 - 门：teammate 零 git✓；HEAD 57dd8d9 净 (import 复核 4 提交)；在飞 args.py(kvdig)/55-prim+test_fixloop_primguard(primguard 等 a 修)；clean% 31/32 维。
+
+## 2026-09-19 ~18:1x — loop3 组波毕 + fc9 timebox + 2 普查派
+
+- **loop3prep STAGED (已关)**：ids 606 (624 raw - 18 flat/slash dupe) + ids-hard 18 分列; run.sh/run-hard.sh 与 fc9 byte-形同构 (--jobs 4 同 stage 序); harvest.py 直读 terminal3 基线 + `expect=` 标 (0104245 advances-to-next-error, BONUS/EXPECT-MISS 旗); 27 lanes 盖 454/606 + 23 规 watch。5 格 partial-flat-key-但-canon-已净留作 stay-clean 探针。GO=`setsid nohup bash tmp/lane-loop3/run.sh`——待本波落地。
+- **fc9 timebox 立**：csfix2 产线活 (_builtins_csfix +307, 75-syntax +16 扫描守已触)——(a) ~20min 内交付则 commit 后 GO; (b) 超时 as-is 发, 4 格预标 `pending-csfix2` (1803.03185/1907.00153/1907.03726/2003.10792) 不算回归, loop3 后翻。bticktax ack, 116 ids 全 tag。
+- **defcensus 派 (read-only)**：already_def 尾 12 格 fired-unfixed——逐格剖 arm-fired/definer-file:line/残类, 分 csfix2-covered vs 新亚机制 vs upstream-unfixable (bbkresid 同型=system 件定义者 `_redef_site_map` 只扫 user 件)。
+- **envdiag 派 (read-only)**：misplaced-& 4+ 格根=undefined diagram env——但 diagrams.sty 已在 vendor/stubs: stub-保真缝 vs 服件路缝 vs 机制误判, anchor math/0104250:417。
+- roster 9：bticktax(fc9 standby)/csfix2(扫描守收尾)/kvdig/primguard(a 修中) + mathchar/dimcen/209batch/defcensus/envdiag。
+- 门：teammate 零 git✓；无 detached 批；HEAD dbe8a3a 净；clean% 31/32 维。
