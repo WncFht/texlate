@@ -1007,3 +1007,12 @@
 - roster 8：tailbucket(#155)/operandcensus(#159)/regrdiag(#157)/rexlat3(#158)/fontgate(#156)/misscharcen(#160)/loop4wave(#161)/pxnorm(待应)。关毕: stucksem(交付)。
 - **mutex 更新**：engine.py 释→#144 loop-sched 解锁待派；builtins.py 仍载 tailbucket paralong 注册 (misscharext stage-B 原子波等其交付)；inject.py→fontgate。
 - 门：teammate 零 git✓；HEAD 1ca8163 (pathspec-only ×5)；规则库 129✓；sab escaped=0✓。
+
+## 2026-09-19 ~12:0x — pxnorm 入库 (bb8e4db, #141 毕) + px_to_bp 对齐裁决
+
+- **pxnorm 入库 (bb8e4db)**：前提纠正——**XeTeX 真拒 px** (实测 `Illegal unit`), pdfTeX 经 `\pdfpxdimen`=65782sp 收 1px=1bp。两洞: (a) `trim|viewport|bb` 多值键不在 normalize 键集 (2308.00148×16/2211.00113); (b) `\pdfpxdimen` 控制词吞空格塌 `\Gread@parse@vp` → 多值键落字面 `bp` (无 cs 需求), 单值键守 `\pdfpxdimen`。附带修 PIXEL 块 `has_document` 闸——`\input` 子件 px 改写后无定义块级联 (实测 main+sub)。9 新测/156 绿/真 xelatex e2e 0 错。**预期翻 2 格+波及 12 格** (corpus_v3 \includegraphics px 格: 新修 7 改善 5)。
+- **REVIEW 裁决 (leader)**: fixloop `px_to_bp` CSS ×0.75 → **×1.0 对齐** (pdfTeX 缺省忠实——源档 pdfTeX 产出即 1px=1bp, CSS 是屏幕域错配)——builtins.py:236 + 50-font.yaml 描述已改, 随 tailbucket 原子波同入 (文件载 paralong 注册在飞)。无测钉旧值。
+- **派遣**: #158 rexlat-2 → rexlat3 (正式发令——3 majority-lost + wave-1 三格 compile-verify, rexlat.py 桥 verbatim); tailbucket 催 #155 状态 (idle 通知疑交付或中歇)。
+- roster 7：tailbucket(#155 待应)/operandcensus(#159)/regrdiag(#157)/rexlat3(#158 发令)/fontgate(#156)/misscharcen(#160)/loop4wave(#161)。关毕: pxnorm(交付)。
+- **mutex**: engine.py 全释 → **#144 loop-sched 解锁**; builtins.py 载 tailbucket paralong 注册 + 我方 px_to_bp hunk + misscharext stage-B 待入项——三宗归一原子 commit; inject.py→fontgate。
+- 门：teammate 零 git✓；HEAD bb8e4db (pathspec-only ×6)；规则库 129✓。
