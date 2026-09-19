@@ -31,8 +31,9 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from texlate.compile import engine as _engine_mod
 from texlate.compile.cjkmap import embed_cjk_mappings
-from texlate.compile.engine import engine_for, route_project
+from texlate.compile.engine import route_project
 from texlate.compile.inject import (
     InjectRejectError,
     classify_no_main,
@@ -43,12 +44,14 @@ from texlate.compile.normalize import normalize_project
 from texlate.pipecore import (
     NULL_SINK,
     PipeJob,
+    RepairPolicy,
     compile_judge_tail,
     default_front_matter,
     delivered,
     fixloop_job,
     l2_repair_job,
     precheck_job,
+    precheck_reject,
     probe_report,
     tail_dict,
     translate_tree_run,
@@ -62,7 +65,7 @@ from texlate.validate.l0 import validate_pair
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
-    from texlate.compile.engine import CompRes
+    from texlate.compile.engine import CompRes, Engine
     from texlate.pipecore import ReportSink
     from texlate.repair_l2 import TreeRun
     from texlate.xlat.pipeline import Translator
@@ -77,6 +80,17 @@ ENV_AUTO_GLOSSARY = "TEXLATE_AUTO_GLOSSARY"
 # 由 test_e2e 直调、``_tail_dict`` 是 test_bench_harness 的 judge_dict 键集对拍面）
 _delivered = delivered
 _tail_dict = tail_dict
+
+
+def engine_for(name: str, **kw: object) -> Engine:
+    """``compile.engine.engine_for`` 调用时委托——同名同签名。
+
+    本模块全局是 ~8 处测试的 monkeypatch 面（``e2e.engine_for`` 钉
+    RecordingEngine 系假引擎）；经 ``_engine_mod.`` 属性解析转发让
+    ``texlate.compile.engine.engine_for`` 的补丁同样可截——worker
+    ``seams.*`` 同款调用时查名。
+    """
+    return _engine_mod.engine_for(name, **kw)
 
 
 # ---------------------------------------------------------------- 翻译树
@@ -221,12 +235,8 @@ def _repair_chain(  # noqa: C901, PLR0913 -- 修复链开关面穿透 + 三级�
     ``engine_fn=engine_for`` 透传本模块全局——``e2e.engine_for`` 的
     monkeypatch 缝（conftest RecordingEngine）随件保活。
     """
-    fl = (
-        (not env_flag(ENV_NO_FIXLOOP, default=False))
-        if fixloop_on is None
-        else fixloop_on
-    )
-    l2 = (not env_flag(ENV_NO_L2, default=False)) if l2_on is None else l2_on
+    policy = RepairPolicy.resolve(fixloop_on=fixloop_on, l2_on=l2_on)
+    fl, l2 = policy.fixloop, policy.l2
 
     # —— 第 0 招: precheck 预检 (装缺件/解嵌套 tar/收割构建 flag) ——
     # precheck 相全是增量件不碰 .tex 源——对 resplice 安全。装上缺件或
@@ -237,7 +247,7 @@ def _repair_chain(  # noqa: C901, PLR0913 -- 修复链开关面穿透 + 三级�
         sink.event("stage", {"stage": "precheck"})
         pre = precheck_job(job, engine_fn=engine_for)
         rec["precheck"] = pre
-        pre_reject = str(pre.get("verdict") or "").startswith("reject:")
+        pre_reject = precheck_reject(pre)
         pre_flags = [str(f) for f in pre.get("engine_flags") or []]
         if not pre_reject and (pre.get("installed") or pre_flags):
             tail0, res = compile_judge_tail(
@@ -319,11 +329,7 @@ def pipe_condition(  # noqa: PLR0913 -- 修复链开关面（env 缺省，显式
     rec["normalize"] = normalize_project(work, eng_name, main_rel)
     sink.event("stage", {"stage": "normalize"})
     ej = env_flag(ENV_ENV_JUDGE, default=False) if env_judge is None else env_judge
-    fl = (
-        (not env_flag(ENV_NO_FIXLOOP, default=False))
-        if fixloop_on is None
-        else fixloop_on
-    )
+    fl = RepairPolicy.resolve(fixloop_on=fixloop_on).fixloop
     ag = (
         env_flag(ENV_AUTO_GLOSSARY, default=False)
         if auto_glossary is None

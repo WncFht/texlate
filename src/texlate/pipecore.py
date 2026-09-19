@@ -13,7 +13,10 @@ r"""管线核心契约层——e2e / worker / bench 三臂共享的 policy 脊�
   + job 形 ``compile_judge_tail``/``l2_repair_job``/``fixloop_job``；
 - 修复链编排：``fixloop_round``（轮实况经 ``ReportSink`` 出口）+
   ``fixloop_flags_tail``（engine_flags/reject_route 消费尾）+
-  ``l2_repair``（done 帧同口）。
+  ``l2_repair``（done 帧同口）；开关决议 ``RepairPolicy``（显式 >
+  options > ``TEXLATE_NO_*`` env 缺省皆开）与 ``reject:<rid>`` 判词
+  （``reject_verdict``/``precheck_reject``）是 e2e/worker 两臂
+  修复链 policy 的单源。
 
 观测约定：e2e/bench 臂走 ``NULL_SINK`` 零事件面（报告经 rec dict 投影，
 与重构前一致）；worker 臂经 ``_Sink`` 绑 ``_log``/``_repair_event``——
@@ -33,6 +36,7 @@ from texlate.latex.api import scan_tex_tree
 from texlate.latex.reconstruct import reconstruct
 from texlate.repair import (
     ENV_FIXLOOP_LLM,
+    ENV_NO_FIXLOOP,
     consume_engine_flags,
     fixloop_cell_parts,
     log_text_of,
@@ -41,6 +45,7 @@ from texlate.repair import (
     run_precheck,
 )
 from texlate.repair_l2 import (
+    ENV_NO_L2,
     TreeRun,
     env_judge_all,
     l2_repair_round,
@@ -49,7 +54,8 @@ from texlate.repair_l2 import (
     unknown_env_of,
 )
 from texlate.textutil import PH_RX, env_flag, env_str
-from texlate.validate.l0 import validate_pair
+from texlate.validate.l0 import pair_feedback
+from texlate.xlat.client import DEFAULT_MODEL
 from texlate.xlat.glossary import Glossary
 from texlate.xlat.pipeline import (
     MockTranslator,
@@ -78,6 +84,7 @@ __all__ = [
     "PIPE_TO_DB",
     "CompileRunner",
     "PipeJob",
+    "RepairPolicy",
     "ReportSink",
     "compile_judge",
     "compile_judge_tail",
@@ -90,7 +97,9 @@ __all__ = [
     "l2_repair",
     "l2_repair_job",
     "precheck_job",
+    "precheck_reject",
     "probe_report",
+    "reject_verdict",
     "scan_tree",
     "tail_dict",
     "translate_tree_run",
@@ -255,7 +264,7 @@ def _auto_glossary_fn(
     client = getattr(translator, "client", None)
     if client is None:
         return None
-    model = str(getattr(translator, "model", "") or "swe-2-medium")
+    model = str(getattr(translator, "model", "") or DEFAULT_MODEL)
     memo: dict[str, dict[str, str]] = {}
 
     async def _fn(texts: list[str]) -> dict[str, str]:
@@ -357,7 +366,7 @@ def translate_tree_run(  # noqa: PLR0913 -- 注入面穿透（scan/validator/sin
         glossary=Glossary.load(
             placeholders=collect_doc_placeholders(c.content for c in chunks)
         ),
-        validator=validator or (lambda s, z: validate_pair(s, z).feedback()),
+        validator=validator or pair_feedback,
         cache={},
         on_result=_on_result,
     )
@@ -622,6 +631,75 @@ def precheck_job(
     }
 
 
+# ------------------------------------------------------------ 修复链 policy
+
+
+def _opt_switch(
+    options: Mapping[str, Any] | None,
+    key: str,
+    env_name: str,
+    *,
+    explicit: bool | None,
+) -> bool:
+    """修复链单开关决议：``explicit`` > ``options[key]`` > ``not env_flag``。
+
+    ``options`` 值容忍 bool 与 ``"0"/"false"/"no"/"off"`` 字符串 false 系
+    ——worker ``opt_bool`` 同口径；``TEXLATE_NO_*`` env 是「关」语义，
+    取反喂入故缺省皆开。e2e 只喂 explicit、worker 只喂 options——两臂
+    各自的两级闸是同一条优先级链上的不同入口，在此收口。
+    """
+    if explicit is not None:
+        return explicit
+    if options is not None:
+        v = options.get(key)
+        if v is not None:
+            if isinstance(v, bool):
+                return v
+            return str(v).strip().lower() not in ("0", "false", "no", "off")
+    return not env_flag(env_name, default=False)
+
+
+@dataclass(frozen=True)
+class RepairPolicy:
+    """修复链开关决议快照——precheck/L2/fixloop 三级链闸的 policy 单源。
+
+    e2e ``_repair_chain``（``fixloop_on``/``l2_on`` 显式闸）与 worker
+    ``_compile_zh``（``options.*`` 闸）此前各复写同一条「显式 > options >
+    ``TEXLATE_NO_*``（缺省皆开）」优先级链；``resolve`` 收成一处。
+    precheck 闸随 ``fixloop``；``l2`` 另吃 ``precheck_reject`` 拒门与
+    worker 侧 share 零 token 硬闸（臂内保留，不进本对象）。
+    """
+
+    fixloop: bool
+    l2: bool
+
+    @classmethod
+    def resolve(
+        cls,
+        options: Mapping[str, Any] | None = None,
+        *,
+        fixloop_on: bool | None = None,
+        l2_on: bool | None = None,
+    ) -> RepairPolicy:
+        """双闸同链决议：``*_on`` 显式 > ``options[键]`` > env 缺省开。"""
+        return cls(
+            fixloop=_opt_switch(
+                options, "fixloop", ENV_NO_FIXLOOP, explicit=fixloop_on
+            ),
+            l2=_opt_switch(options, "l2", ENV_NO_L2, explicit=l2_on),
+        )
+
+
+def reject_verdict(verdict: object) -> bool:
+    """``reject:<rid>`` verdict 判——precheck/fixloop 报告与终态合成同口径。"""
+    return str(verdict or "").startswith("reject:")
+
+
+def precheck_reject(rep: Mapping[str, Any] | None) -> bool:
+    """``precheck`` 报告的 ``reject:<rid>`` 判（报告缺席按非拒）。"""
+    return reject_verdict((rep or {}).get("verdict"))
+
+
 # ---------------------------------------------------------------- L2 回灌
 
 
@@ -636,6 +714,7 @@ def l2_repair(  # noqa: PLR0913 -- 阶梯钩子面穿透（与 l2_repair_round �
     recompile: CompileRunner,
     checkpoint: Callable[[], None] | None = None,
     sink: ReportSink = NULL_SINK,
+    baseline_sigs: set[str] | None = None,
 ) -> tuple[dict[str, Any], CompRes, Verdict | None]:
     """L2 回灌一轮 + done 实况帧（``sink.event`` 平铺统计键 + report 全量）。
 
@@ -643,7 +722,8 @@ def l2_repair(  # noqa: PLR0913 -- 阶梯钩子面穿透（与 l2_repair_round �
     （``recompile`` 归 ``CompileRunner`` 协议）与实况出口——done 帧
     平铺键 ``enabled/errors/retranslated/fallback`` 前端卡片直读，
     ``report`` 载全量 rep（worker 侧经 ``_repair_event`` scrub）。
-    返回 (l2 报告, 最新 CompRes, 新 Verdict 或 None=未重编)。
+    ``baseline_sigs`` 透传 ``l2_repair_round``——en 基线签名命中判源生
+    不进归因面。返回 (l2 报告, 最新 CompRes, 新 Verdict 或 None=未重编)。
     """
     rep, last_res, v = l2_repair_round(
         run,
@@ -654,6 +734,7 @@ def l2_repair(  # noqa: PLR0913 -- 阶梯钩子面穿透（与 l2_repair_round �
         retranslate=retranslate,
         recompile=recompile,
         checkpoint=checkpoint,
+        baseline_sigs=baseline_sigs,
     )
     sink.event(
         "l2",
@@ -864,7 +945,7 @@ def fixloop_job(  # noqa: PLR0913 -- 开关面穿透同 pipe_condition
     rep = _slim_cell(cell)
     last_res = fix_last or prev_res
     cell_verdict = str(cell.get("verdict") or "")
-    if cell_verdict.startswith("reject:"):
+    if reject_verdict(cell_verdict):
         # reject:<rid> = 策略拒绝 (走降级链) → 终态合成 partial, 理由串
         # 保留 reject 令牌供下游分流审计 (docs/08:185, spec §9 F3)。
         tail = tail_dict(last_res, Verdict(status="partial", reasons=[cell_verdict]))
