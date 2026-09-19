@@ -24,76 +24,12 @@ rules:
       function: legacy_pkg_shim
       params:
         shim_map:
-          # aastex→emulateapj 需自定义 body: emulateapj 的 deluxetable 重实现
-          # 明写 \rotate 不支持 (cls 注释 "too difficult to implement"),
-          # \providecommand 空宏保底 —— 表格竖排不换向, 内容全保 (1806.06690)。
           # \ProvidesClass 版本串必须日期开头, 否则 \@ifl@t@r 解析崩 \ifnum。
-          aastex.cls:
-            needs: ["emulateapj.cls"]
-            body: |
-              \NeedsTeXFormat{LaTeX2e}
-              \ProvidesClass{aastex}[2026/09/15 fixloop legacy shim -> emulateapj]
-              % emulateapj 内 \usepackage{emulateapj5} 自指递归爆栈
-              % (BeginEnvironment 包 \begin → input stack 10000) —— 预注册
-              % ver@/opt@ 令 \@ifl@aded 判已载, usepackage 成 no-op (1d 实证×2)
-              \expandafter\def\csname ver@emulateapj5.sty\endcsname{2026/09/17}
-              \expandafter\def\csname opt@emulateapj5.sty\endcsname{twocolumn,onecolumn}
-              \LoadClassWithOptions{emulateapj}
-              \providecommand{\rotate}{}
-              % aastex v5 前置元数据面 (6x body 同款, fixer-aastex-stub):
-              % revtex 链 \email 依赖 \@AF@join 武装会炸 → provide+renew
-              % no-op; slug-line 三元组保险; \paperid 稿号 slug revtex/
-              % emulateapj 皆无 (0707.1778 活调用 → 参数泄漏级联实证)。
-              \providecommand{\email}[1]{}
-              \renewcommand{\email}[1]{}
-              \providecommand{\received}[1]{}
-              \providecommand{\revised}[1]{}
-              \providecommand{\accepted}[1]{}
-              \providecommand{\paperid}[1]{}
-              \endinput
-          # revtex.cls (REVTeX 3.x 老名): 裸 loads 桥曾把 2.09 宏面丢给
-          # revtex4-2 的刻意删除面 (\twocolumn/\@makecol 被 \let\@undefined,
-          # frontmatter 机器 begin-doc 才武装) —— 13 格实证簇残面。
-          # 注: normalize/latex209 将 \documentstyle{revtex} 改写为
-          # {revtex4-2} → 那 13 格不走 missing_file, 本 shim 打不到;
-          # 已由 revtex209_surface_polyfill 规则 (本文件尾) 按
-          # COMPAT_SHIM 面包屑锚接。本体仍覆盖直写
-          # \documentclass{revtex} 的存量稿。
-          revtex.cls:
-            needs: ["revtex4-2.cls"]
-            body: |
-              \NeedsTeXFormat{LaTeX2e}
-              \ProvidesClass{revtex}[2026/09/18 fixloop legacy shim -> revtex4-2]
-              \LoadClassWithOptions{revtex4-2}
-              % frontmatter 机器提前武装 (同 prl/apl/revtex4 先例)
-              \frontmatter@init
-              \let\frontmatter@init\relax
-              % revtex4-2 故意 \let\twocolumn\@undefined; 2.09 稿
-              % \twocolumn[frontmatter块] 需回排式 polyfill —— 直接吐内容
-              % (noop 吞参会丢整页 frontmatter)
-              \providecommand{\twocolumn}[1][]{#1}
-              % \@makecol 同被删 (revtex3 output routine 内件); 回退
-              % 最简内核语义 (box 回写, 丢 float/footnote 处理但保编译)
-              \@ifundefined{@makecol}{\def\@makecol{\setbox\@outputbox\vbox{\unvbox\@cclv}}}{}
-              % \pacs 全期容忍: revtex4-2 版在 \maketitle 后调 → ClassError
-              % (revtex_pacs 5 格实证)。begin-doc 起改直印 —— 前置调用失去
-              % frontmatter 注册但文本可见且不炸 (2.09 老稿多后置)。
-              % hook 内 \def 用单 #——hook 逐字存 token, 双写则字面留下炸
-              % 参数号 + \pacs 变定界宏撞 \par (loop2/rt1/guardsmoke 7 格实证)。
-              % \long: 老稿 \pacs 实参可含空行/\and 分段, 非 \long 遇 \par
-              % 炸 "Paragraph ended before \pacs" (revpacs 普查实证)。
-              \AtBeginDocument{\long\def\pacs#1{\par\noindent\textbf{PACS:} #1\par}}
-              \endinput
-          psfig.sty:
-            needs: ["epsfig.sty"]
-            body: |
-              % 版本串必须日期开头 —— \@ifl@t@r 解析 ver@*.sty, 裸文字会
-              % 触发 "Missing = inserted for \ifnum" (halt-on-error 下致命)
-              \NeedsTeXFormat{LaTeX2e}
-              \ProvidesPackage{psfig}[2026/09/15 fixloop legacy shim -> epsfig]
-              \RequirePackage{epsfig}
-              \let\psfig\epsfig
-              \endinput
+          # (aastex.cls/revtex.cls/psfig.sty 槽已删: vendor/files·shims 有
+          #  真件/替身 stub —— vendored_fetch(11.5) 先于本规则(12)命中,
+          #  死配置。aastex→emulateapj/psfig→epsfig 旧论证与 revtex.cls 的
+          #  2.09 残面语义见 git 考古; revtex 系残面现由 vendor/shims/
+          #  revtex.cls + 文件尾 revtex209_surface_polyfill 承担)
           # \input psfig / \input{psfig.tex} 裸装载形 (批七 wave-final ×1):
           # 同桥 epsfig —— \input 语境必在导言区 (psfig 史前装载惯例),
           # \RequirePackage 合法; 若真有正文内 \input 会报 preamble-only 错
