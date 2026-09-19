@@ -22,9 +22,7 @@ from texlate.latex.segmenter import parse_tex_v2, scan_v2
 from texlate.textutil import _tar_disguised, decode_tex
 
 
-def parse_tex(
-    tex: str, *, front_matter: frozenset[str] = frozenset()
-) -> ScanResult:
+def parse_tex(tex: str, *, front_matter: frozenset[str] = frozenset()) -> ScanResult:
     """主入口：单文件文本 → ``ScanResult``（v2 token 流）。"""
     return parse_tex_v2(tex, front_matter=front_matter)
 
@@ -72,8 +70,8 @@ def parse_file(
 RTX_TEX_SUFFIX: Final = ".rtx.tex"
 #: ``.code.tex``（tikzlibrary 机制件）——散文门前置记 support，按原文保留。
 CODE_TEX_SUFFIX: Final = ".code.tex"
-#: 名闸并集——凭文件名即知非翻译内容件；fixloop ``_SUPPORT_SUFFIXES``
-#: （builtins.py）同表，待换指本常量。
+#: 名闸并集——凭文件名即知非翻译内容件；``.tex`` 名闸知识属 latex 层
+#: 单源——fixloop ``_SUPPORT_SUFFIXES``（``_builtins_misc``）已并指本常量。
 NAME_GATED_TEX_SUFFIXES: Final = (RTX_TEX_SUFFIX, CODE_TEX_SUFFIX)
 
 

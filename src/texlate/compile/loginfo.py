@@ -1,11 +1,12 @@
 r"""log 语义层：TeX ``.log`` → ``LogInfo`` + 错误分类学适配（docs/08 §2.3/§4.3）。
 
-行级词法原语（``(``/``)`` 文件栈、``file:line:``/``^!``/``l.NNN`` regex）
-在叶子层 ``texlog.py``；本模块持语义产物（错误计数/首错上下文/红线命中
-``warnings_hit`` 与 ``warnings_sys`` 归因）与 ``classify_error`` 薄适配——
-匹配语义（head/tail 有序评估、payload_group、``subclassify`` 收窄、tail
-``guard`` 复核）全部归 ``fixloop.logparse.Taxonomy``，分类表**单源** =
-``fixloop/rules/`` ``taxonomy:`` 段。
+行级词法原语（``(``/``)`` 文件栈、``file:line:``/``^!``/``l.NNN`` regex、
+单遍事件流 ``iter_log_events``）在叶子层 ``texlog.py``；本模块持语义产物
+（错误计数/首错上下文/红线命中 ``warnings_hit`` 与 ``warnings_sys``
+归因）与 ``classify_error`` 薄适配——匹配语义（head/tail 有序评估、
+payload_group、``subclassify`` 收窄、tail ``guard`` 复核）全部归
+``compile.logparse.Taxonomy``（C3 归位——旧 ``fixloop.logparse`` 路径
+经 shim 守恒），分类表**单源** = ``fixloop/rules/`` ``taxonomy:`` 段。
 """
 
 from __future__ import annotations
@@ -15,23 +16,17 @@ import re
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
-from typing import TYPE_CHECKING
 
+from texlate.compile._yamlish import load_yaml
+from texlate.compile.logparse import ErrReport, Taxonomy
 from texlate.redlines import ENGINE_RED_LINES, REDLINES_BY_ID, name_pattern
 from texlate.texlog import (
-    ERR_BANG_RE,
-    ERR_FILELINE_RE,
     L_NUM_RE,
-    NONERR_FILELINE_RE,
     is_dos_eps,
     is_project_file,
+    iter_log_events,
     misschar_sweep_hits,
-    patch_graphic_top,
-    update_file_stack,
 )
-
-if TYPE_CHECKING:
-    from texlate.compile.fixloop.logparse import ErrReport, Taxonomy
 
 log = logging.getLogger(__name__)
 
@@ -74,27 +69,28 @@ WARNING_RED_LINES: list[tuple[str, str]] = list(ENGINE_RED_LINES)
 def _scan_error_lines(
     lines: list[str], info: LogInfo, project_root: Path | None = None
 ) -> tuple[int, bool]:
-    """数 `^!`+`file:line:` 错误、记首错位置、追踪 `(` 文件栈。
+    """数 `^!`+`file:line:` 错误、记首错位置——单遍事件流投影（texlog）。
 
-    返回 ``(首错行号, 工程源 invalid_utf8 命中)``：逐行把栈顶最内文件
-    作产生者交 ``is_project_file`` 判定——系统件源名收进
-    ``info.warnings_sys``（``invalid_utf8@<file>``），工程源命中由
+    返回 ``(首错行号, 工程源 invalid_utf8 命中)``：逐事件把 ``ev.inner``
+    （栈顶最内具名帧）作产生者交 ``is_project_file`` 判定——系统件源名
+    收进 ``info.warnings_sys``（``invalid_utf8@<file>``），工程源命中由
     ``parse_log`` 收口进 ``warnings_hit``；DOS 魔数 EPS（normalize
     ``dos_eps_skipped`` 原样保留件）视同系统件降级，标 ``(dos-eps)``。
     """
     ctx_start = -1
-    stack: list[str | None] = []
-    #: 弹栈史全程累计——``)`` 先于错误行打印（runaway 报位在父文件续行），
-    #: 仅收集出错行会丢掉真肇事件；首错捕获点与 file_stack 同位快照。
+    #: 弹栈史累计到首错（含首错行自身弹栈——本侧是含行快照口径，与
+    #: logparse ``file_stack_at`` 排他栈是有意分歧不并）；``)`` 先于错误
+    #: 行打印（runaway 报位在父文件续行），仅收集出错行会丢真肇事件；
+    #: 首错捕获点与 file_stack 同位快照。
     popped: list[str | None] = []
     utf8_proj = False
     utf8_sys: set[str] = set()
     dos_eps_cache: dict[str, bool] = {}
-    for i, ln in enumerate(lines):
-        update_file_stack(ln, stack, popped)
-        patch_graphic_top(ln, stack)
-        if _UTF8_WARN_RE.search(ln):
-            inner = next((s for s in reversed(stack) if s), None)
+    for ev in iter_log_events(lines):
+        if info.first_error is None:
+            popped.extend(ev.popped)
+        if _UTF8_WARN_RE.search(ev.line):
+            inner = ev.inner
             if is_dos_eps(inner, project_root, dos_eps_cache):
                 # dos_eps_skipped 件：normalize 字节原样保留的二进制 EPS，
                 # 残余警告降 warnings_sys 并打 (dos-eps) 标便于台账对账。
@@ -104,15 +100,13 @@ def _scan_error_lines(
                 utf8_proj = True
             else:
                 utf8_sys.add(Path(inner).name if inner else "?")
-        if ERR_BANG_RE.match(ln) or (
-            ERR_FILELINE_RE.match(ln) and not NONERR_FILELINE_RE.match(ln)
-        ):
+        if ev.err is not None:
             info.n_errors += 1
-            info.errors.append(ln.strip()[:300])
+            info.errors.append(ev.err.head[:300])
             if info.first_error is None:
-                info.first_error = ln.strip()
-                ctx_start = i
-                info.file_stack = [s for s in stack if s]
+                info.first_error = ev.err.head
+                ctx_start = ev.i
+                info.file_stack = [s for s in ev.stack if s]
                 info.popped_files = [t for t in popped if t is not None]
     info.warnings_sys = [f"invalid_utf8@{n}" for n in sorted(utf8_sys)]
     return ctx_start, utf8_proj
@@ -175,9 +169,11 @@ def _scan_warnings(info: LogInfo, log_text: str, *, utf8_proj: bool) -> None:
 def _taxonomy() -> Taxonomy | None:
     """``rules/`` ``taxonomy:`` → 编译态 ``Taxonomy``（进程内一次）。
 
-    惰性载入：``fixloop/__init__`` 链（cases→fcntl 平台门、engine→
-    compile.inject）重且非全平台可 import；且引擎层在 ``rules/`` 缺席的
-    上下文（裁剪部署、bench 快照）仍须可 import、可分类。
+    惰性只剩 ``RULES_PATH``：``fixloop.ruleset`` 经 builtins 链（平台门
+    件）重且非全平台可 import；且引擎层在 ``rules/`` 缺席的上下文
+    （裁剪部署、bench 快照）仍须可 import、可分类。``Taxonomy``/
+    ``load_yaml`` 已归 compile 层（无 fixloop 依赖）故提升顶层——
+    C3 归位杀掉的正是这两条 fixloop 惰性引。
 
     装载失败**不**重建冻结副本——副本即下一份漂移源；降级 ``None`` 使
     classify 退化为 ``other``/``clean``，warning 记一次（同根因由 fixloop
@@ -185,14 +181,8 @@ def _taxonomy() -> Taxonomy | None:
     ``Ruleset.load``：rules 段校验失败（规则 schema 面）不应击穿分类。
     """
     try:
-        from texlate.compile.fixloop._yamlish import (  # noqa: PLC0415  # 延迟: fixloop/__init__ 链重+平台门
-            load_yaml,
-        )
-        from texlate.compile.fixloop.engine import (  # noqa: PLC0415  # 同上
+        from texlate.compile.fixloop.ruleset import (  # noqa: PLC0415  # 延迟: fixloop builtins 链重+平台门
             RULES_PATH,
-        )
-        from texlate.compile.fixloop.logparse import (  # noqa: PLC0415  # 同上
-            Taxonomy,
         )
 
         data = load_yaml(RULES_PATH)
@@ -211,10 +201,6 @@ def _taxonomy() -> Taxonomy | None:
 
 def _err_report(first: str | None, ctx: str | None, tail: str) -> ErrReport:
     """薄构造：``(err, ctx, tail)`` → ``logparse.ErrReport``。"""
-    from texlate.compile.fixloop.logparse import (  # noqa: PLC0415  # 延迟: 同上
-        ErrReport,
-    )
-
     return ErrReport(first=first, ctx=ctx, tail=tail)
 
 

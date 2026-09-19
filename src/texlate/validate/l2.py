@@ -29,15 +29,12 @@ from typing import Final
 from texlate.redlines import L2_REDLINE_CLASSES, L2_WARNING_RULES
 from texlate.texlog import (
     CTX_LINES,
-    ERR_BANG_RE,
-    ERR_FILELINE_ROW_RE,
     L_NUM_RE,
-    NONERR_MSG_RE,
     TAIL_LINES,
     is_dos_eps,
     is_project_file,
-    patch_graphic_top,
-    update_file_stack,
+    iter_log_events,
+    match_error_line,
 )
 from texlate.textutil import is_cjk_cp
 
@@ -57,13 +54,14 @@ __all__ = [
 #: ``.tikz``/``.end``/``.lof``/``.fgx`` 实测全为真错误，loop1 语料 7814
 #: log 全扫、扩展名白名单漏 586 行真错含 3 例整体 ok=True 假干净）。
 #: 行首 ``(``/``!`` 与 ``:``/空白内嵌仍排除（避免误吃普通行）。
-#: 词法单源 = ``texlog.ERR_FILELINE_ROW_RE``（msg 原样进组 3 不做 ``!``
-#: 剥离，``! LaTeX Warning`` 伪豁免面随之封死）；非错误形态行排除走
-#: ``texlog.NONERR_MSG_RE`` 消息面锚定（Warning/``==>`` 双腿单源）。
+#: 判定单源 = ``texlog.match_error_line``（``ERR_FILELINE_ROW_RE`` 捕获形
+#: 兼给 ``tex_file``/``tex_line``，msg 原样进组 3 不做 ``!`` 剥离，
+#: ``! LaTeX Warning`` 伪豁免面随之封死）；非错误形态行排除走
+#: ``NONERR_MSG_RE`` 消息面锚定（Warning/``==>`` 双腿单源）。
 
-#: 经典错误行 / ctx 内 ``l.NNN`` / 非错误消息面 / ctx·tail 窗宽——
-#: 全部词法单源 = ``texlog``（``ERR_BANG_RE``/``L_NUM_RE``/
-#: ``NONERR_MSG_RE``/``CTX_LINES``/``TAIL_LINES``）。
+#: ctx 内 ``l.NNN`` / ctx·tail 窗宽 / 单遍事件流——词法与栈走查单源 =
+#: ``texlog``（``L_NUM_RE``/``CTX_LINES``/``TAIL_LINES``/
+#: ``iter_log_events``）。
 
 #: log 首行引擎签名 ``This is XeTeX, Version ...``。
 _ENGINE_RX: Final = re.compile(r"^This is (\w+)")
@@ -318,7 +316,7 @@ def _mark_redline(  # noqa: PLR0913 - 归因三件套（栈/root/缓存）拆散
     cls: str,
     line: str,
     ws: WarningSummary,
-    stack: list[str | None],
+    stack: tuple[str | None, ...],
     *,
     project_root: Path | None,
     dos_eps_cache: dict[str, bool],
@@ -357,7 +355,7 @@ def _is_warning_form(ln: str) -> bool:
 def _record_hit(
     ws: WarningSummary,
     cls: str,
-    stack: list[str | None],
+    stack: tuple[str | None, ...],
     head: str,
     log_line: int,
 ) -> None:
@@ -374,7 +372,7 @@ def _record_hit(
 def _classify_warning(  # noqa: PLR0913 - 归因参数组与 _mark_redline 同形，拆散伤读
     line: str,
     ws: WarningSummary,
-    stack: list[str | None],
+    stack: tuple[str | None, ...],
     project_root: Path | None,
     dos_eps_cache: dict[str, bool],
     *,
@@ -424,13 +422,13 @@ def _tex_line_from_ctx(ctx: list[str]) -> int | None:
 
 
 def _match_error_line(ln: str) -> tuple[str, str | None] | None:
-    """``(head, file:line: 给的 tex_file)``；非错误行返回 None。"""
-    if ERR_BANG_RE.match(ln):
-        return ln.strip(), None
-    mf = ERR_FILELINE_ROW_RE.match(ln)
-    if mf is not None and not NONERR_MSG_RE.search(mf.group(3)):
-        return ln.strip(), mf.group(1)
-    return None
+    """``(head, file:line: 给的 tex_file)``；非错误行返回 None。
+
+    判定单源 = ``texlog.match_error_line``——bench ``extract_l2_fixture``
+    钉点经本私有名消费，薄 delegate 保旧签名。
+    """
+    hit = match_error_line(ln)
+    return (hit.head, hit.tex_file) if hit is not None else None
 
 
 def _eof_culprit(head: str, last_pop: tuple[int, str] | None, i: int) -> str | None:
@@ -481,7 +479,7 @@ def _misschar_next_ln(lines: list[str], i: int) -> str:
 
 
 def parse_log_text(text: str, *, project_root: Path | None = None) -> L2Verdict:
-    """解析 log 文本为 ``L2Verdict``（单遍扫描，文件栈增量维护）。
+    """解析 log 文本为 ``L2Verdict``（单遍事件流投影——``texlog.iter_log_events``）。
 
     ``project_root`` = 编译工作根：invalid_utf8 红线按产生文件归因，
     系统 texmf/bundle 源与 DOS 魔数 EPS（normalize ``dos_eps_skipped``
@@ -495,36 +493,29 @@ def parse_log_text(text: str, *, project_root: Path | None = None) -> L2Verdict:
         if m:
             v.engine = m.group(1)
 
-    stack: list[str | None] = []
-    popped: list[str | None] = []
     last_pop: tuple[int, str] | None = None  # (行 idx, 刚弹出的文件 token)
     dos_eps_cache: dict[str, bool] = {}
-    for i, ln in enumerate(lines):
-        popped.clear()
-        update_file_stack(ln, stack, popped)
-        patch_graphic_top(ln, stack)
-        for tok in popped:
+    for ev in iter_log_events(lines):
+        for tok in ev.popped:
             if tok is not None:
-                last_pop = (i, tok)
+                last_pop = (ev.i, tok)
 
-        # —— 错误行：双格式 ——
-        hit = _match_error_line(ln)
+        # —— 错误行：双格式（``ErrHit`` 捕获形兼给 tex_file/tex_line）——
+        hit = ev.err
         if hit is not None:
-            head, tex_file = hit
             v.n_errors += 1
-            ctx = _error_ctx(lines, i)
-            mf = ERR_FILELINE_ROW_RE.match(ln)
-            tex_line = int(mf.group(2)) if mf else None
+            ctx = _error_ctx(lines, ev.i)
+            tex_line = hit.tex_line
             if tex_line is None:
                 tex_line = _tex_line_from_ctx(ctx)
-            eof_file = _eof_culprit(head, last_pop, i)
+            eof_file = _eof_culprit(hit.head, last_pop, ev.i)
             err = LogError(
-                line_no=i + 1,
-                head=head,
-                tex_file=tex_file,
+                line_no=ev.i + 1,
+                head=hit.head,
+                tex_file=hit.tex_file,
                 tex_line=tex_line,
                 ctx=tuple(ctx),
-                file_stack=tuple(s for s in stack if s),
+                file_stack=tuple(s for s in ev.stack if s),
                 eof_file=eof_file,
             )
             if v.first_error is None:
@@ -534,13 +525,13 @@ def parse_log_text(text: str, *, project_root: Path | None = None) -> L2Verdict:
             continue
 
         _classify_warning(
-            ln,
+            ev.line,
             v.warnings,
-            stack,
+            ev.stack,
             project_root,
             dos_eps_cache,
-            log_line=i + 1,
-            next_ln=_misschar_next_ln(lines, i),
+            log_line=ev.i + 1,
+            next_ln=_misschar_next_ln(lines, ev.i),
         )
 
     v.tail = tuple(lines[-TAIL_LINES:])

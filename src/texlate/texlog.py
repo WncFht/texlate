@@ -2,8 +2,14 @@ r"""TeX ``.log`` 词法原语 —— engine/l2/fixloop 三处文件栈收敛的�
 
 错误行/warning/``l.N`` 词素（``ERR_*``/``NONERR_*``/``WARN_*``/
 ``FATAL_*``/``L_NUM_*``/``*_LINES``）亦居此层——l2/``compile/loginfo``/
-``fixloop/logparse`` 三消费面的共同单源（``logparse`` 由 ``*_SRC``
+``compile/logparse`` 三消费面的共同单源（``logparse`` 由 ``*_SRC``
 片段自拼 ctx 变体），叶子层定位使 fixloop→compile 模块级环边不再存在。
+
+单遍事件流（architecture-review-2026-09-19 §8）：``iter_log_events``
+把「文件栈增量维护 + 错误行判定」收成逐行 ``LogEvent``——三消费面原
+各自重放 ``update_file_stack``+``patch_graphic_top`` 对并各写一份
+``_is_err_line``/``_match_error_line``（词法等价，1504 log 语料零
+分歧），现改为在事件流上做投影，同一 log 不再走 ≥3 遍。
 
 ``(``/``)`` 开闭配对追踪：TeX log 用圆括号标记打开/关闭文件，行内可能混
 非文件括号（``.log`` 折行、参数转储），非文件 ``(`` 入栈 ``None`` 占位以
@@ -19,8 +25,12 @@ r"""TeX ``.log`` 词法原语 —— engine/l2/fixloop 三处文件栈收敛的�
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Final
+from typing import TYPE_CHECKING, Final
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable, Iterator
 
 __all__ = [
     "CTX_LINES",
@@ -38,10 +48,14 @@ __all__ = [
     "TAIL_LINES",
     "TEX_FILE_EXTS",
     "WARN_MSG_SRC",
+    "ErrHit",
+    "LogEvent",
     "file_stack_at",
     "is_dos_eps",
     "is_project_file",
+    "iter_log_events",
     "looks_like_input_file",
+    "match_error_line",
     "misschar_sweep_hits",
     "patch_graphic_top",
     "update_file_stack",
@@ -412,3 +426,80 @@ L_NUM_RE = re.compile(r"^" + L_NUM_SRC)
 #: knob，独改一侧即分歧）。
 CTX_LINES: Final = 8
 TAIL_LINES: Final = 30
+
+
+# ================================================================ 单遍事件流
+#: 错误行判定是「行级词法」而非「栈态投影」——独立于文件栈可单独判定；但三
+#: 消费面都把错误行判定与栈走查绑在同一遍里，故事件流把两者打包进 ``LogEvent``。
+
+
+@dataclass(frozen=True, slots=True)
+class ErrHit:
+    """``match_error_line`` 命中结果——头行 + ``file:line:`` 形可选捕获。
+
+    ``tex_file``/``tex_line`` 只 ``file:line:`` 形错误给出（``ERR_FILELINE_ROW_RE``
+    捕获）；``^!`` 形无文件名侧信息，两者为 ``None``，l.N 行号由消费端在
+    ctx 内另判（``L_NUM_RE``）。
+    """
+
+    head: str
+    tex_file: str | None = None
+    tex_line: int | None = None
+
+
+def match_error_line(ln: str) -> ErrHit | None:
+    """错误行判定单源——``^!`` 或 ``file:line:`` 非 Warning/``==>`` 复述形。
+
+    与三消费面原私有判定词法等价：``^!`` 无捕获；``file:line:`` 经
+    ``ERR_FILELINE_ROW_RE`` 捕获 ``(tex_file, tex_line)``，消息段锚定
+    ``NONERR_MSG_RE`` 的（Warning 同格式行/``==>`` 复述尾行）拒收。
+    """
+    if ERR_BANG_RE.match(ln):
+        return ErrHit(head=ln.strip())
+    if m := ERR_FILELINE_ROW_RE.match(ln):
+        if NONERR_MSG_RE.match(m.group(3)):
+            return None
+        return ErrHit(head=ln.strip(), tex_file=m.group(1), tex_line=int(m.group(2)))
+    return None
+
+
+@dataclass(frozen=True, slots=True)
+class LogEvent:
+    """``iter_log_events`` 逐行事件——栈快照/本行弹栈/inner 顶帧/错误命中。
+
+    ``stack``/``popped`` 与 ``update_file_stack`` 同口径含 ``None`` 配对帧
+    （滤除是消费端职责）；``inner`` 是最内具名帧（warning 归因/utf8 归因
+    共用的"产生文件"候选，栈空为 ``None``）；``err`` 非 ``None`` 即错误行。
+    """
+
+    i: int
+    line: str
+    stack: tuple[str | None, ...]
+    popped: tuple[str | None, ...]
+    inner: str | None
+    err: ErrHit | None
+
+
+def iter_log_events(lines: Iterable[str]) -> Iterator[LogEvent]:
+    """单遍扫 ``lines`` 发 ``LogEvent``——栈走查/错误判定在本层各做一次。
+
+    每行先 ``update_file_stack`` 增量维护 + 收集本行弹栈，再
+    ``patch_graphic_top`` 补 graphic 帧真名，最后快照/判定——顺序与三
+    消费面原各遍走查逐位一致。消费端注意口径：事件 ``stack`` 是本行
+    **处理后**的含行栈（l2/loginfo 原含行快照同此）；logparse 原
+    ``file_stack_at`` 回放是不含错误行自身的**排他**栈，投影时自维护
+    ``prev_stack`` 变量。
+    """
+    stack: list[str | None] = []
+    for i, ln in enumerate(lines):
+        popped: list[str | None] = []
+        update_file_stack(ln, stack, popped)
+        patch_graphic_top(ln, stack)
+        yield LogEvent(
+            i=i,
+            line=ln,
+            stack=tuple(stack),
+            popped=tuple(popped),
+            inner=next((s for s in reversed(stack) if s), None),
+            err=match_error_line(ln),
+        )
