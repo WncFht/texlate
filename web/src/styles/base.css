@@ -21,7 +21,8 @@
         "Inter", "PingFang SC", "Source Han Sans SC", "Noto Sans CJK SC",
         system-ui, sans-serif;
     --font-serif:
-        "Source Han Serif SC", "Noto Serif CJK SC", "Songti SC", Georgia, serif;
+        "Source Han Serif SC", "Noto Serif CJK SC", "Noto Serif SC",
+        "Songti SC", "STSong", "SimSun", Georgia, serif;
     --font-mono: "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
 }
 

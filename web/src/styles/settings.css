@@ -3,10 +3,7 @@
 .settings {
     flex: 1;
     overflow: auto;
-    max-width: 560px;
-    width: 100%;
-    margin: 0 auto;
-    padding: 36px 24px;
+    padding: 36px max(24px, calc((100% - 560px) / 2));
 }
 
 .settings h1 {
@@ -79,4 +76,3 @@
     flex: 1;
     min-width: 0;
 }
-

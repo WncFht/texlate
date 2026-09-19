@@ -31,7 +31,6 @@ import { resolveReaderView } from "../reader/view";
 import ReaderView from "../reader/ReaderView";
 import TaskProgress from "../reader/TaskProgress";
 import ResultBody from "../reader/ResultBody";
-import AxBlock from "../reader/AxBlock";
 import ShareBlock, { createSharePack } from "../reader/ShareBlock";
 import { createHtmlFallback, createTaskRetry } from "../reader/taskActions";
 import { t } from "../i18n";
@@ -59,6 +58,15 @@ export default function Reader(props: {
     const [readerGone, setReaderGone] = createSignal(false);
     // §6 事后共享：done/partial + 非 share 导入 + 有 arxiv 源 → 可打 .share.zip
     const share = createSharePack(() => props.taskId);
+    // 分享横幅全局可关：同一句提示每个 done 任务都顶一遍是噪音
+    const SHARE_DISMISS_KEY = "texlate.shareBanner.off";
+    const [shareDismissed, setShareDismissed] = createSignal(
+        localStorage.getItem(SHARE_DISMISS_KEY) === "1",
+    );
+    const dismissShare = () => {
+        localStorage.setItem(SHARE_DISMISS_KEY, "1");
+        setShareDismissed(true);
+    };
     // 终态编排（retry/HTML 换链）——reader/taskActions 工厂，信号内聚在件内
     const retry = createTaskRetry({
         taskId: () => props.taskId,
@@ -98,18 +106,21 @@ export default function Reader(props: {
     const loadReader = async () => {
         if (readerRequested) return;
         readerRequested = true;
-        // manifest 独立落地：doc 任务 reader 404 属预期，但下载清单必须
-        // 到位——曾与 reader 同 Promise.all，reader 先拒则 manifest 永不设置
-        void api
-            .files(props.taskId)
-            .then(setManifest)
-            .catch(() => undefined);
         try {
+            // manifest 先行：dual.json 的 sha256 在里面——带 ?version= 的
+            // 内容寻址 URL 可命中浏览器/中间缓存，重复打开不再全量重拉。
+            // manifest 失败则退无版本直拉（no_store 大文件，行为同旧版）
+            const m = await api.files(props.taskId).catch(() => null);
+            setManifest(m);
+            const dualSha = m?.artifacts["dual_json"]?.sha256;
+            const dualUrl = api.fileUrl(props.taskId, "dual.json", {
+                version: dualSha || undefined,
+            });
             // reader 与 dual.json 无相互依赖——并行省 1 RTT
             // （dual.json 同时提供 alignment 兜底与 chunks，HTML 视图必需）
             const [r, dj] = await Promise.all([
                 api.reader(props.taskId),
-                fetch(api.fileUrl(props.taskId, "dual.json"))
+                fetch(dualUrl)
                     .then((res) =>
                         res.ok ? (res.json() as Promise<DualJson>) : null,
                     )
@@ -389,6 +400,7 @@ export default function Reader(props: {
                     live={live()}
                     title={title()}
                     onCancel={() => void api.cancel(props.taskId)}
+                    onBack={() => props.nav("#/")}
                 />
             </Show>
 
@@ -423,28 +435,39 @@ export default function Reader(props: {
                     onCancel={() => void api.cancel(props.taskId)}
                     onBack={() => props.nav("#/")}
                     banner={
-                        <>
-                            {/* 有产物的非干净终态（partial 等）：横幅提示，不挡阅读 */}
-                            <Show when={resultStatus()}>
-                                <section
-                                    class={`result-banner st-${resultStatus()}`}
-                                >
-                                    {renderResultBody(resultStatus()!)}
-                                </section>
-                            </Show>
-                            {/* alphaXiv 机会型：OG 卡恒出，导读仅命中时出 */}
-                            <AxBlock arxivId={task()?.arxiv_id} />
-                        </>
+                        // 有产物的非干净终态（partial 等）：横幅提示，不挡阅读
+                        <Show when={resultStatus()}>
+                            <section
+                                class={`result-banner st-${resultStatus()}`}
+                            >
+                                {renderResultBody(resultStatus()!)}
+                            </section>
+                        </Show>
                     }
                     shareBanner={
                         // done 且无结果横幅：§6 完成后提示分享
-                        // （partial 的分享钮在结果横幅内）
-                        <Show when={task()?.status === "done" && canShare()}>
+                        // （partial 的分享钮在结果横幅内）；✕ 全局记忆关闭
+                        <Show
+                            when={
+                                task()?.status === "done" &&
+                                canShare() &&
+                                !shareDismissed()
+                            }
+                        >
                             <section class="result-banner share-banner">
                                 <span class="rp-status">
                                     {t.reader.shareBanner}
                                 </span>
                                 {renderShare()}
+                                <button
+                                    type="button"
+                                    class="banner-x"
+                                    aria-label={t.pane.close}
+                                    title={t.pane.close}
+                                    onClick={dismissShare}
+                                >
+                                    ✕
+                                </button>
                             </section>
                         </Show>
                     }

@@ -22,7 +22,8 @@ export interface PaneLike {
 
 const FOCUS_LINE = 0.2;
 
-const raf: (cb: FrameRequestCallback) => void =
+/** rAF 单发调度（无 rAF 环境退 16ms setTimeout——jsdom/SSR 兜底） */
+export const raf: (cb: FrameRequestCallback) => void =
     typeof requestAnimationFrame === "function"
         ? (cb) => requestAnimationFrame(cb)
         : (cb) => void setTimeout(() => cb(performance.now()), 16);
@@ -34,15 +35,16 @@ export function capturePos(pane: PaneLike): Pos {
     const h = el.clientHeight;
     const focus = t + h * FOCUS_LINE;
     const pages = pane.pages();
-    // 反向索引遍历——滚动每帧走到这，[...pages].reverse() 每帧复制整表是白烧
-    let p: PageGeom | undefined;
-    for (let i = pages.length - 1; i >= 0; i--) {
-        if (pages[i].top <= focus) {
-            p = pages[i];
-            break;
-        }
+    // pages 按 top 升序——二分最后一个 top<=focus；滚动每帧走到这，
+    // 线性扫在几千块文档上是 O(N)/帧。纯索引访问：pages 无迭代义务
+    let lo = 0;
+    let hi = pages.length;
+    while (lo < hi) {
+        const mid = (lo + hi) >>> 1;
+        if (pages[mid].top <= focus) lo = mid + 1;
+        else hi = mid;
     }
-    p ??= pages[0];
+    const p = pages[lo - 1] ?? pages[0];
     if (!p) return { page: 1, fraction: 0 };
     const y = Math.min(Math.max(focus, p.top), p.top + p.height);
     return {
@@ -56,7 +58,11 @@ export function capturePos(pane: PaneLike): Pos {
 export function scrollTopFor(pane: PaneLike, pos: Pos): number | null {
     const p = pane.pages().find((pg) => pg.page === pos.page);
     if (!p) return null;
-    return p.top + pos.fraction * p.height - (pos.viewport ?? 0) * pane.el.clientHeight;
+    return (
+        p.top +
+        pos.fraction * p.height -
+        (pos.viewport ?? 0) * pane.el.clientHeight
+    );
 }
 
 export function jumpTo(pane: PaneLike, pos: Pos): void {
@@ -67,13 +73,23 @@ export function jumpTo(pane: PaneLike, pos: Pos): void {
 
 /** [data-chunk] 窗格的几何缓存：滚动路径每事件 3 处调 pages()，
  *  querySelectorAll+逐元素 offsetTop 在大文档上是 O(N) 读写——缓存到
- *  尺寸/内容变化。RO 观察 scroller+body+每个 chunk 元素（含增减相抵的
- *  补偿变化）；MO 盯 body 直接子节点（innerHTML 整段替换 → 重绑锚集合）。
+ *  尺寸/内容变化。RO 只盯 scroller+body：块高变化必传导 body 高，
+ *  content-visibility 块进视口撑回真实高度时逐块回调是首轮滚动
+ *  风暴源（N 块 N 回调）；一次 body 回调已够失效缓存——罕见增减
+ *  相抵不传导的场景留待下一次变化/重绑自愈。失效是惰性的
+ *  （cache=null），重算只发生在下个读方帧，不在 RO 回调里同步算。
+ *  MO 盯 body 直接子节点（innerHTML 整段替换 → 重绑锚集合）。
  *  无 RO 的环境退回手动 rebind 失效。 */
 export interface ChunkGeom {
     pages(): PageGeom[];
     /** 内容写入/替换后调用：重绑观察目标并清缓存 */
     rebind(): void;
+    /**
+     * 局部内容改写（单段替换等）后调用：缓存即刻失效；锚集合刷新交给
+     *  MO——childList 变化本就触发整绑，无需调用方再同步重绑一遍。
+     *  无 MO 的环境退回整绑兜底（与 rebind 等价）。
+     */
+    invalidate(): void;
     dispose(): void;
 }
 
@@ -102,7 +118,6 @@ export function bindChunkGeom(
         ro?.disconnect();
         ro?.observe(scroller());
         ro?.observe(b);
-        for (const el of els) ro?.observe(el);
         mo?.disconnect();
         mo?.observe(b, { childList: true });
     }
@@ -116,6 +131,10 @@ export function bindChunkGeom(
             })));
         },
         rebind,
+        invalidate() {
+            cache = null;
+            if (!mo) rebind();
+        },
         dispose() {
             ro?.disconnect();
             mo?.disconnect();
@@ -139,7 +158,9 @@ export class SyncEngine {
         for (const p of [A, B]) {
             const listener = () => this.onScroll(p);
             p.el.addEventListener("scroll", listener, { passive: true });
-            this.disposers.push(() => p.el.removeEventListener("scroll", listener));
+            this.disposers.push(() =>
+                p.el.removeEventListener("scroll", listener),
+            );
         }
     }
 

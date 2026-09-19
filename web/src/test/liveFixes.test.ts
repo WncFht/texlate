@@ -171,9 +171,10 @@ describe("M6：SSE 服务端终结 → 探活定去留，不复活", () => {
         await vi.advanceTimersByTimeAsync(0);
         expect(taskStore.live("a1")!.transport).toBe("polling");
         expect(mocks.openTaskEvents).toHaveBeenCalledTimes(1); // 未复活
-        mocks.snapshot.mockClear();
+        // 非 pin 降级进共享列表轮询——下拍走 /api/tasks 而非逐任务 snapshot
+        mocks.tasks.mockClear();
         await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
-        expect(mocks.snapshot.mock.calls.map((c) => c[0])).toEqual(["a1"]);
+        expect(mocks.tasks).toHaveBeenCalled();
     });
 
     it("closed + 探活终态 → 收敛摘除（不再观测）", async () => {

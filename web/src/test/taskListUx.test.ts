@@ -145,14 +145,19 @@ describe("删除互斥", () => {
             document.body.querySelectorAll<HTMLButtonElement>(".task-del");
         expect(dels.length).toBe(2);
 
-        const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+        // 两击确认：第一击 arm（文字变「确认删除？」），第二击才执行
         dels[0].click();
         await flush();
+        const armed =
+            document.body.querySelectorAll<HTMLButtonElement>(".task-del");
+        expect(armed[0].classList.contains("arm")).toBe(true);
+        expect(mocks.deleteTask).not.toHaveBeenCalled();
 
+        armed[0].click();
+        await flush();
         const after =
             document.body.querySelectorAll<HTMLButtonElement>(".task-del");
         expect(after[0].disabled).toBe(true);
         expect(after[1].disabled).toBe(true);
-        confirm.mockRestore();
     });
 });

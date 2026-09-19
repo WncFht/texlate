@@ -1,10 +1,4 @@
-import {
-    createMemo,
-    createSignal,
-    For,
-    onCleanup,
-    Show,
-} from "solid-js";
+import { createMemo, createSignal, For, onCleanup, Show } from "solid-js";
 import type { FileManifest, TaskError, TaskSnapshot } from "../api/client";
 import { api, isTerminal } from "../api/client";
 import { taskStore } from "../stores/tasks";
@@ -35,7 +29,7 @@ function fmtRel(ts: number, now: number): string {
 
 type Filter = "all" | "active" | "done" | "failed";
 
-/** 「异常」筛选桶：终态里非 done 的全部 */
+/** 「未完成」筛选桶：终态里非 done 的全部 */
 const FAILED_SET = new Set([
     "fault",
     "partial",
@@ -45,12 +39,7 @@ const FAILED_SET = new Set([
 ]);
 
 /** 行内 ↻ 重试臂：终态可重跑的状态集（needs_auth 缺 key，走 ⚙ 设置链接） */
-const RETRYABLE = new Set([
-    "fault",
-    "partial",
-    "cancelled",
-    "interrupted",
-]);
+const RETRYABLE = new Set(["fault", "partial", "cancelled", "interrupted"]);
 
 /** ↻ 迷你菜单引擎子项：null=auto（options 不带 engine 键，后端按已存决议） */
 const RETRY_ENGINES: { key: string | null; label: string }[] = [
@@ -114,7 +103,7 @@ function RetryMenu(props: {
  * done 帧带过）优先；列表行缺 artifacts 时懒拉 files manifest——
  * 但只在用户意图明确后（悬停/聚焦预取，点开必然已发），避免列表
  * 挂载即每行一请求的 N 突发。
- * 锚点必须落在 .task-row <button> 之外——button 内嵌 interactive 非法。
+ * 快捷臂必须落在 .task-row <a> 之外——a 内嵌 interactive 非法。
  */
 function TaskDownloads(props: { task: TaskSnapshot }) {
     const [open, setOpen] = createSignal(false);
@@ -185,6 +174,9 @@ function TaskDownloads(props: { task: TaskSnapshot }) {
     );
 }
 
+/** 行内二次确认的 armed 键：task_id 或 CLEAN_KEY——单值天然互斥 */
+const CLEAN_KEY = "__clean";
+
 export default function TaskList(props: Props) {
     const [deleting, setDeleting] = createSignal<string | null>(null);
     const [delError, setDelError] = createSignal("");
@@ -192,6 +184,18 @@ export default function TaskList(props: Props) {
     const [query, setQuery] = createSignal("");
     const [acting, setActing] = createSignal<string | null>(null);
     const [cleaning, setCleaning] = createSignal(false);
+    // 删除两击确认：第一击 arm ~3.2s（超时自动复位），第二击才执行
+    const [arm, setArm] = createSignal<string | null>(null);
+    let armTimer = 0;
+    const armOnce = (key: string) => {
+        setArm(key);
+        window.clearTimeout(armTimer);
+        armTimer = window.setTimeout(() => setArm(null), 3200);
+    };
+    const disarm = () => {
+        window.clearTimeout(armTimer);
+        setArm(null);
+    };
     // ↻ 重试迷你菜单：打开的 task_id（null=全收）；wrap/trigger ref 按行登记
     // ——Escape 焦点回正确行的钮、外点判定圈在本行 span 内
     const [retryMenu, setRetryMenu] = createSignal<string | null>(null);
@@ -200,7 +204,10 @@ export default function TaskList(props: Props) {
     // fmtRel 60s tick——相对时间随墙钟刷新，不靠任务事件顺带更新
     const [now, setNow] = createSignal(Date.now());
     const tick = setInterval(() => setNow(Date.now()), 60_000);
-    onCleanup(() => clearInterval(tick));
+    onCleanup(() => {
+        clearInterval(tick);
+        window.clearTimeout(armTimer);
+    });
 
     const FILTERS: { value: Filter; label: string }[] = [
         { value: "all", label: t.home.fAll },
@@ -248,7 +255,11 @@ export default function TaskList(props: Props) {
 
     const confirmDelete = async (task: TaskSnapshot) => {
         if (!isTerminal(task.status) || deleting() !== null) return;
-        if (!window.confirm(t.home.delConfirm)) return;
+        if (arm() !== task.task_id) {
+            armOnce(task.task_id);
+            return;
+        }
+        disarm();
         setDeleting(task.task_id);
         setDelError("");
         try {
@@ -267,6 +278,7 @@ export default function TaskList(props: Props) {
     /** 行内 ⏻：取消在途任务——终态由 SSE/轮询回推，不做本地乐观写 */
     const cancelTask = async (task: TaskSnapshot) => {
         if (isTerminal(task.status) || acting() !== null) return;
+        if (!window.confirm(t.progress.cancelConfirm)) return;
         setActing(task.task_id);
         setDelError("");
         try {
@@ -301,10 +313,15 @@ export default function TaskList(props: Props) {
         }
     };
 
-    /** 批量清理已完成：逐行走 taskStore.remove（复用 404 容忍与 dropTask 清理） */
+    /** 批量清理已完成：逐行走 taskStore.remove（复用 404 容忍与 dropTask 清理）。
+     *  与行删除同一套两击确认——arm 键用 CLEAN_KEY 哨兵 */
     const cleanDone = async () => {
         if (cleaning() || deleting() !== null || acting() !== null) return;
-        if (!window.confirm(t.home.cleanDoneConfirm)) return;
+        if (arm() !== CLEAN_KEY) {
+            armOnce(CLEAN_KEY);
+            return;
+        }
+        disarm();
         setCleaning(true);
         setDelError("");
         try {
@@ -350,10 +367,20 @@ export default function TaskList(props: Props) {
                 <button
                     type="button"
                     class="task-clean"
+                    classList={{ arm: arm() === CLEAN_KEY }}
                     disabled={cleaning() || doneCount() === 0}
+                    title={
+                        arm() === CLEAN_KEY
+                            ? t.home.cleanDoneConfirm
+                            : undefined
+                    }
                     onClick={() => void cleanDone()}
                 >
-                    {cleaning() ? t.home.cleanDoneBusy : t.home.cleanDone}
+                    {arm() === CLEAN_KEY
+                        ? t.home.cleanDoneArm
+                        : cleaning()
+                          ? t.home.cleanDoneBusy
+                          : t.home.cleanDone}
                 </button>
             </div>
             <Show when={props.tasks.length === 0}>
@@ -363,189 +390,224 @@ export default function TaskList(props: Props) {
                 <p class="task-empty">{t.home.searchEmpty}</p>
             </Show>
             <For each={visible()}>
-                {(task) => (
-                    <div class="task-wrap">
-                        <button
-                            type="button"
-                            class="task-row"
-                            onClick={() => props.onOpen(task.task_id)}
-                        >
-                            <span class="task-title">
-                                {task.title || task.arxiv_id || task.task_id}
-                            </span>
-                            <span class={`task-status st-${task.status}`}>
-                                {t.status[task.status] ?? task.status}
-                            </span>
-                            <span class="task-time">
-                                {fmtRel(task.created_at, now())}
-                            </span>
-                            <span class="task-meta muted">
-                                <span
-                                    class="task-kind"
-                                    classList={{
-                                        "k-doc": isDocKind(task.kind),
-                                    }}
-                                >
-                                    {t.kind[task.kind] ?? task.kind}
-                                </span>
-                                <Show when={!isTerminal(task.status)}>
-                                    <span>
-                                        {t.status[task.stage ?? task.status] ??
-                                            task.stage ??
-                                            task.status}
-                                    </span>
-                                </Show>
-                                <Show when={errOf(task)}>
-                                    {(e) => (
-                                        <span
-                                            class="task-err"
-                                            title={e().message}
-                                        >
-                                            [{e().code}]
-                                        </span>
-                                    )}
-                                </Show>
-                            </span>
-                            <span
-                                class="task-bar"
-                                role="progressbar"
-                                aria-label={
-                                    task.title || task.arxiv_id || task.task_id
-                                }
-                                aria-valuenow={task.progress}
-                                aria-valuemin={0}
-                                aria-valuemax={100}
-                            >
-                                <i
-                                    style={{ width: `${task.progress}%` }}
-                                    classList={{
-                                        done: task.status === "done",
-                                        fail: task.status === "fault",
-                                        dead:
-                                            task.status === "cancelled" ||
-                                            task.status === "interrupted",
-                                    }}
-                                />
-                            </span>
-                        </button>
-                        {/* 行内快捷臂（U8）：在途 ⏻ 取消；可重试终态 ↻；
-                            needs_auth 缺 key——↻ 原地打转，给 ⚙ 设置入口 */}
-                        <Show when={!isTerminal(task.status)}>
-                            <button
-                                type="button"
-                                class="task-act"
-                                disabled={acting() !== null}
-                                title={t.home.cancelTip}
-                                aria-label={t.home.cancelTask}
-                                onClick={() => void cancelTask(task)}
-                            >
-                                ⏻
-                            </button>
-                        </Show>
-                        <Show when={task.status === "needs_auth"}>
+                {(task) => {
+                    // 行卸载（过滤/删除/整表收敛）即释放登记的行 DOM——
+                    // ref 只 set 不 delete 会把已移除行的元素挂在 Map 里
+                    onCleanup(() => {
+                        retryWraps.delete(task.task_id);
+                        retryBtns.delete(task.task_id);
+                    });
+                    return (
+                        <div class="task-wrap">
+                            {/* 真链接 href——中键/复制链接/新标签打开可用；
+                                onOpen 仍走 hash 路由（同值单 hashchange） */}
                             <a
-                                class="task-act"
-                                href="#/settings"
-                                title={t.home.authTip}
-                                aria-label={t.home.goSettings}
+                                class="task-row"
+                                href={`#/reader/${task.task_id}`}
+                                onClick={() => props.onOpen(task.task_id)}
                             >
-                                ⚙
+                                <span class="task-title">
+                                    {task.title ||
+                                        task.arxiv_id ||
+                                        task.task_id}
+                                </span>
+                                <span class={`task-status st-${task.status}`}>
+                                    {t.status[task.status] ?? task.status}
+                                </span>
+                                <span class="task-time">
+                                    {fmtRel(task.created_at, now())}
+                                </span>
+                                <span class="task-meta muted">
+                                    <span
+                                        class="task-kind"
+                                        classList={{
+                                            "k-doc": isDocKind(task.kind),
+                                        }}
+                                    >
+                                        {t.kind[task.kind] ?? task.kind}
+                                    </span>
+                                    <Show when={!isTerminal(task.status)}>
+                                        <span>
+                                            {t.status[
+                                                task.stage ?? task.status
+                                            ] ??
+                                                task.stage ??
+                                                task.status}
+                                        </span>
+                                    </Show>
+                                    {/* 同 arXiv id 重复任务靠 model 区分 */}
+                                    <Show when={task.model}>
+                                        <span class="task-model">
+                                            {task.model}
+                                        </span>
+                                    </Show>
+                                    <Show when={errOf(task)}>
+                                        {(e) => (
+                                            <span
+                                                class="task-err"
+                                                title={e().message}
+                                            >
+                                                [{e().code}]
+                                            </span>
+                                        )}
+                                    </Show>
+                                    {/* 窄屏换位副本：≤480px 时 .task-time 隐藏、
+                                    时间落到 meta 行保住可见（responsive.css） */}
+                                    <span class="task-time-m">
+                                        {fmtRel(task.created_at, now())}
+                                    </span>
+                                </span>
+                                <span
+                                    class="task-bar"
+                                    role="progressbar"
+                                    aria-label={
+                                        task.title ||
+                                        task.arxiv_id ||
+                                        task.task_id
+                                    }
+                                    aria-valuenow={task.progress}
+                                    aria-valuemin={0}
+                                    aria-valuemax={100}
+                                >
+                                    <i
+                                        style={{ width: `${task.progress}%` }}
+                                        classList={{
+                                            done: task.status === "done",
+                                            fail: task.status === "fault",
+                                            dead:
+                                                task.status === "cancelled" ||
+                                                task.status === "interrupted",
+                                        }}
+                                    />
+                                </span>
                             </a>
-                        </Show>
-                        <Show when={RETRYABLE.has(task.status)}>
-                            <span
-                                class="task-retry"
-                                ref={(el) => {
-                                    retryWraps.set(task.task_id, el);
-                                }}
-                            >
+                            {/* 行内快捷臂（U8）：在途 ⏻ 取消；可重试终态 ↻；
+                            needs_auth 缺 key——↻ 原地打转，给 ⚙ 设置入口 */}
+                            <Show when={!isTerminal(task.status)}>
                                 <button
                                     type="button"
                                     class="task-act"
-                                    ref={(el) => {
-                                        retryBtns.set(task.task_id, el);
-                                    }}
                                     disabled={acting() !== null}
-                                    title={t.home.retryTip}
-                                    aria-label={t.home.retry}
-                                    aria-haspopup="menu"
-                                    aria-expanded={
-                                        retryMenu() === task.task_id
-                                    }
-                                    onClick={() =>
-                                        setRetryMenu((v) =>
-                                            v === task.task_id
-                                                ? null
-                                                : task.task_id,
-                                        )
-                                    }
-                                    onKeyDown={(e) =>
-                                        menuTriggerKey(
-                                            e,
-                                            () =>
-                                                setRetryMenu(task.task_id),
-                                            () =>
-                                                retryWraps.get(task.task_id),
-                                        )
-                                    }
+                                    title={t.home.cancelTip}
+                                    aria-label={t.home.cancelTask}
+                                    onClick={() => void cancelTask(task)}
                                 >
-                                    ↻
+                                    ⏻
                                 </button>
-                                <Show when={retryMenu() === task.task_id}>
-                                    <RetryMenu
-                                        wrap={() =>
-                                            retryWraps.get(task.task_id)
+                            </Show>
+                            <Show when={task.status === "needs_auth"}>
+                                <a
+                                    class="task-act"
+                                    href="#/settings"
+                                    title={t.home.authTip}
+                                    aria-label={t.home.goSettings}
+                                >
+                                    ⚙
+                                </a>
+                            </Show>
+                            <Show when={RETRYABLE.has(task.status)}>
+                                <span
+                                    class="task-retry"
+                                    ref={(el) => {
+                                        retryWraps.set(task.task_id, el);
+                                    }}
+                                >
+                                    <button
+                                        type="button"
+                                        class="task-act"
+                                        ref={(el) => {
+                                            retryBtns.set(task.task_id, el);
+                                        }}
+                                        disabled={acting() !== null}
+                                        title={t.home.retryTip}
+                                        aria-label={t.home.retry}
+                                        aria-haspopup="menu"
+                                        aria-expanded={
+                                            retryMenu() === task.task_id
                                         }
-                                        trigger={() =>
-                                            retryBtns.get(task.task_id)
+                                        onClick={() =>
+                                            setRetryMenu((v) =>
+                                                v === task.task_id
+                                                    ? null
+                                                    : task.task_id,
+                                            )
                                         }
-                                        onClose={() => setRetryMenu(null)}
-                                        onPick={(eng) =>
-                                            void retryTask(task, eng)
+                                        onKeyDown={(e) =>
+                                            menuTriggerKey(
+                                                e,
+                                                () =>
+                                                    setRetryMenu(task.task_id),
+                                                () =>
+                                                    retryWraps.get(
+                                                        task.task_id,
+                                                    ),
+                                            )
                                         }
-                                    />
-                                </Show>
-                            </span>
-                        </Show>
-                        <Show when={task.artifacts?.share_zip}>
-                            <a
-                                class="task-act"
-                                href={api.fileUrl(
-                                    task.task_id,
-                                    "share.zip",
-                                    { download: true },
-                                )}
-                                download=""
-                                title={t.home.shareZipTip}
-                                aria-label={t.home.shareZip}
+                                    >
+                                        ↻
+                                    </button>
+                                    <Show when={retryMenu() === task.task_id}>
+                                        <RetryMenu
+                                            wrap={() =>
+                                                retryWraps.get(task.task_id)
+                                            }
+                                            trigger={() =>
+                                                retryBtns.get(task.task_id)
+                                            }
+                                            onClose={() => setRetryMenu(null)}
+                                            onPick={(eng) =>
+                                                void retryTask(task, eng)
+                                            }
+                                        />
+                                    </Show>
+                                </span>
+                            </Show>
+                            <Show when={task.artifacts?.share_zip}>
+                                <a
+                                    class="task-act"
+                                    href={api.fileUrl(
+                                        task.task_id,
+                                        "share.zip",
+                                        { download: true },
+                                    )}
+                                    download=""
+                                    title={t.home.shareZipTip}
+                                    aria-label={t.home.shareZip}
+                                >
+                                    ⤓
+                                </a>
+                            </Show>
+                            <Show when={isTerminal(task.status)}>
+                                <TaskDownloads task={task} />
+                            </Show>
+                            <button
+                                type="button"
+                                class="task-del"
+                                classList={{
+                                    busy: deleting() === task.task_id,
+                                    arm: arm() === task.task_id,
+                                }}
+                                disabled={
+                                    !isTerminal(task.status) ||
+                                    deleting() !== null
+                                }
+                                title={
+                                    arm() === task.task_id
+                                        ? t.home.delConfirm
+                                        : !isTerminal(task.status)
+                                          ? t.home.delBusy
+                                          : deleting() !== null
+                                            ? t.home.delWait
+                                            : t.home.delTip
+                                }
+                                aria-label={t.home.del}
+                                onClick={() => void confirmDelete(task)}
                             >
-                                ⤓
-                            </a>
-                        </Show>
-                        <Show when={isTerminal(task.status)}>
-                            <TaskDownloads task={task} />
-                        </Show>
-                        <button
-                            type="button"
-                            class="task-del"
-                            classList={{ busy: deleting() === task.task_id }}
-                            disabled={
-                                !isTerminal(task.status) || deleting() !== null
-                            }
-                            title={
-                                !isTerminal(task.status)
-                                    ? t.home.delBusy
-                                    : deleting() !== null
-                                      ? t.home.delWait
-                                      : t.home.delTip
-                            }
-                            aria-label={t.home.del}
-                            onClick={() => void confirmDelete(task)}
-                        >
-                            ✕
-                        </button>
-                    </div>
-                )}
+                                {arm() === task.task_id ? t.home.delArm : "✕"}
+                            </button>
+                        </div>
+                    );
+                }}
             </For>
             <Show when={delError()}>
                 <p class="task-del-err" role="alert">

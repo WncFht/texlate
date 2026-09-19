@@ -24,6 +24,7 @@
 }
 
 .tb-title {
+    min-width: 0; /* flex 可缩——窄屏 ellipsis 截断而非整项消失 */
     max-width: min(240px, 28vw);
     overflow: hidden;
     text-overflow: ellipsis;
@@ -50,10 +51,11 @@
     color: var(--ink);
 }
 
+/* toggle-on 态用松绿——朱砂是警示/品牌色，押在开关态上读作「出错」 */
 .tb-btn.on {
-    color: var(--cinnabar);
-    border-color: var(--cinnabar);
-    background: color-mix(in srgb, var(--cinnabar) 8%, transparent);
+    color: var(--pine);
+    border-color: var(--pine);
+    background: color-mix(in srgb, var(--pine) 10%, transparent);
 }
 
 .tb-select {
@@ -91,6 +93,15 @@
     border-radius: 6px;
     background: var(--panel);
     color: var(--ink);
+    /* 自带 spin 钮在 52px 框里白占地方 */
+    appearance: textfield;
+    -moz-appearance: textfield;
+}
+
+.tb-page input::-webkit-outer-spin-button,
+.tb-page input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
 }
 
 .tb-page input:disabled {
@@ -116,7 +127,8 @@
     flex-direction: column;
 }
 
-.tb-menu a {
+.tb-menu a,
+.tb-menu button {
     padding: 7px 10px;
     font-size: 13px;
     color: var(--ink);
@@ -124,8 +136,42 @@
     border-radius: 5px;
 }
 
-.tb-menu a:hover {
+.tb-menu button {
+    text-align: left;
+    background: transparent;
+    border: 0;
+}
+
+.tb-menu button.on {
+    color: var(--pine);
+    font-weight: 600;
+}
+
+.tb-menu a:hover,
+.tb-menu button:hover {
     background: var(--paper-2);
+}
+
+/* ⋯ 菜单内嵌控件行（缩放 select 不担 menuitem，roving 跳过） */
+.tb-menu-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 7px 10px;
+    font-size: 13px;
+    color: var(--ink-2);
+}
+
+.tb-menu-sep {
+    height: 1px;
+    background: var(--line);
+    margin: 4px 6px;
+}
+
+/* ⋯ 溢出钮宽屏藏——≤640px 由 responsive.css 翻出 */
+.tb-more-wrap {
+    display: none;
 }
 
 /* segmented */
@@ -268,4 +314,3 @@
 .jump-back:hover {
     background: var(--cinnabar-deep);
 }
-

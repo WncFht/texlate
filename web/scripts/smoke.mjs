@@ -48,10 +48,12 @@ const consoleErrors = [];
 // - /api/task/{id}/reader 404：doc 类任务无在线对照视图，前端转产物面板
 // - /api/files/{id}/dual.json 404：loadReader 探测对照数据，缺席走空窗格
 // - /api/files/{id}/*.pdf 404：非 done 任务窗格探针——真缺 pdf 时窗格断言先挂
+// - /api/discover/* 404：mock 不覆盖 alphaXiv 代理面——机会型增强缺席整块隐藏
 const CONSOLE_EXEMPT = [
     [/\/api\/task\/[^/]+\/reader$/, "404"],
     [/\/api\/files\/[^/]+\/dual\.json$/, "404"],
     [/\/api\/files\/[^/]+\/[^/]+$/, "404"],
+    [/\/api\/discover\//, "404"],
 ];
 page.on("console", (m) => {
     if (m.type() !== "error") return;
@@ -100,13 +102,13 @@ check("阶段步进器", (await page.locator(".stage-stepper li").count()) === 4
 // 等翻译中:棋盘格出现
 await page.waitForSelector(".progress-grid", { timeout: 15000 });
 
-// ChunkPreview：/api/task/{id}/chunks 端点出活——已译段随翻译生长。
+// LivePane 边译边读：/api/task/{id}/chunks 端点出活——已译段随翻译生长。
 // translating 窗口仅 ~4s（mock 350ms×12 tick），必须在累积等待之前断言
 await page
-    .waitForSelector(".chunk-preview .cp-item", { timeout: 8000 })
+    .waitForSelector(".live-pane [data-chunk]", { timeout: 8000 })
     .catch(() => null);
-const cpItems = await page.locator(".chunk-preview .cp-item").count();
-check("译文预览有已译段", cpItems > 0, `${cpItems} 段`);
+const liveChunks = await page.locator(".live-pane [data-chunk]").count();
+check("边译边读有已渲段", liveChunks > 0, `${liveChunks} 段`);
 
 await page.waitForTimeout(1500);
 await page.screenshot({ path: `${SHOTS}03-translating.png` });
@@ -124,10 +126,12 @@ const pendingCount = await page
     .count();
 check("棋盘格有 pending→ok 填充", okCount2 + pendingCount > 0);
 
-// 日志抽屉
+// 日志抽屉（收在「运行细节」折叠组内——先开组再开抽屉）
 const hasLogDrawer = await page.locator(".log-drawer").count();
 check("日志抽屉存在", hasLogDrawer === 1);
 if (hasLogDrawer) {
+    await page.click(".tp-details > summary");
+    await page.waitForTimeout(200);
     await page.click(".log-drawer summary");
     await page.waitForTimeout(400);
     await page.screenshot({ path: `${SHOTS}04-logs.png` });

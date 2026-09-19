@@ -21,6 +21,7 @@ import {
     onMount,
     Show,
     type JSX,
+    untrack,
 } from "solid-js";
 import {
     api,
@@ -38,6 +39,7 @@ import type { PaneHandle } from "./PdfPane";
 import type { HtmlPaneHandle } from "./HtmlPane";
 import type { DomPaneHandle } from "./DomPane";
 import PaneSlot, { type AnyHandle } from "./PaneSlot";
+import GuidePane from "./GuidePane";
 import type { ReaderViewState } from "./view";
 import { t } from "../i18n";
 
@@ -108,6 +110,9 @@ export default function ReaderView(props: Props) {
 
     let engine: SyncEngine | null = null;
     let pendingJump: { from: DocId; pos: Pos } | null = null;
+    /** 进 guide 时抓的活侧位置——隐藏期 scrollTop 读 0/写无效（实测 chromium），
+        出 guide 须用这张回程票对齐，不能吃 capturePos 的 0 值 */
+    let guideReturn: { from: DocId; pos: Pos } | null = null;
     const restoredSides = new Set<DocId>();
     let saveTimer = 0;
     let driftRaf = 0;
@@ -152,6 +157,9 @@ export default function ReaderView(props: Props) {
                 case "3":
                     planModeChange("original");
                     break;
+                case "4":
+                    planModeChange("guide");
+                    break;
                 case "s":
                 case "S":
                     setSync(!syncing());
@@ -185,6 +193,28 @@ export default function ReaderView(props: Props) {
         const onHide = () => saveNow({ keepalive: true });
         window.addEventListener("pagehide", onHide);
         onCleanup(() => window.removeEventListener("pagehide", onHide));
+    });
+
+    // pane 外窄区（分栏条/jump-back/占位 veil）的滚轮 → 活动窗格滚动口；
+    // pane 内 chrome 由 PdfPane 自己的 wheel 转发处理，guide/文档区走原生路径
+    onMount(() => {
+        const onWheel = (e: WheelEvent) => {
+            if (e.ctrlKey || e.metaKey) return;
+            const t = e.target as Element | null;
+            if (!t || t.closest(".pane") || t.closest(".guide")) return;
+            let el: HTMLElement | undefined;
+            try {
+                el = handles()[active()]?.el;
+            } catch {
+                return; // 拆解期 slick 已空
+            }
+            if (!el) return;
+            const k = e.deltaMode === 1 ? 16 : 1;
+            el.scrollTop += e.deltaY * k;
+            el.scrollLeft += e.deltaX * k;
+        };
+        panesEl.addEventListener("wheel", onWheel, { passive: true });
+        onCleanup(() => panesEl.removeEventListener("wheel", onWheel));
     });
 
     onCleanup(() => {
@@ -223,7 +253,8 @@ export default function ReaderView(props: Props) {
         ),
     );
 
-    /** split + 两侧 handle 就位 → 建引擎；否则销毁（handles() 是响应源） */
+    /** split + 两侧 handle 就位 → 建引擎；否则销毁（handles() 是响应源）。
+     *  syncing 不参与本 effect——开/关同步不再整台引擎重挂（滚动监听重绑是白烧） */
     createEffect(() => {
         engine?.dispose();
         engine = null;
@@ -232,9 +263,14 @@ export default function ReaderView(props: Props) {
         const b = handles().translated;
         if (!a || !b) return;
         const e = new SyncEngine(a, b, mapper());
-        e.syncing = syncing();
+        e.syncing = untrack(syncing);
         engine = e;
         onCleanup(() => e.dispose());
+    });
+
+    // syncing 只写运行中引擎的标志位（引擎缺席时由上面建机路径带初值）
+    createEffect(() => {
+        if (engine) engine.syncing = syncing();
     });
 
     const setSync = (on: boolean) => {
@@ -254,11 +290,34 @@ export default function ReaderView(props: Props) {
 
     const planModeChange = (next: Mode) => {
         if (next === mode()) return;
-        const src =
-            handles()[active()] ?? handles().original ?? handles().translated;
-        if (src) {
-            const from = src.side;
-            const pos = capturePos(src);
+        if (next === "guide") {
+            // 导读不是文档侧——不查 handles()[target]、不改 active；
+            // pendingJump 也不留脏值（位置职责由 guideReturn 接管）
+            if (!props.arxivId) return;
+            const src =
+                handles()[active()] ??
+                handles().original ??
+                handles().translated;
+            guideReturn =
+                src && paneVisible(src.side)
+                    ? { from: src.side, pos: capturePos(src) }
+                    : null;
+            pendingJump = null;
+            setMode(next);
+            persistPosition();
+            return;
+        }
+        // 出 guide 的回程票优先（隐藏期活侧 scrollTop 读 0——见 guideReturn 注释）
+        const ticket = mode() === "guide" ? guideReturn : null;
+        guideReturn = null;
+        const src = ticket
+            ? null
+            : (handles()[active()] ??
+              handles().original ??
+              handles().translated);
+        const from = ticket?.from ?? src?.side;
+        const pos = ticket?.pos ?? (src ? capturePos(src) : null);
+        if (from && pos) {
             // 目标侧：split → 当前隐藏的对侧；单栏 → next 对应侧
             const target: DocId =
                 next === "split"
@@ -458,7 +517,6 @@ export default function ReaderView(props: Props) {
         );
     };
 
-    const isDom = () => props.view === "dom";
     const isPdf = () => props.view !== "html" && props.view !== "dom";
 
     // ---------- 分栏拖拽 divider ----------
@@ -467,8 +525,9 @@ export default function ReaderView(props: Props) {
         e.preventDefault();
         const bar = e.currentTarget as HTMLElement;
         bar.setPointerCapture(e.pointerId);
+        // 拖拽全程 panesEl 几何不变——rect 只读一次，不随 pointermove 反复强制 layout
+        const r = panesEl.getBoundingClientRect();
         const move = (ev: PointerEvent) => {
-            const r = panesEl.getBoundingClientRect();
             if (r.width <= 0) return;
             const frac = (ev.clientX - r.left) / r.width;
             // DOM 序恒 original|divider|translated；swapped 仅视觉翻转
@@ -523,6 +582,7 @@ export default function ReaderView(props: Props) {
 
     const HELP_ITEMS: [string, string][] = [
         ["1 / 2 / 3", t.reader.helpModes],
+        ["4", t.reader.helpGuide],
         ["S", t.reader.helpSync],
         ["[ / ]", t.reader.helpPages],
         ["Ctrl+F", t.reader.helpFind],
@@ -553,7 +613,6 @@ export default function ReaderView(props: Props) {
                 downloads={props.downloads}
                 arxivId={props.arxivId}
                 pageUnit={isPdf() ? undefined : t.reader.pageUnitChunk}
-                canGotoPage={isPdf() || isDom()}
                 onMode={planModeChange}
                 onSync={setSync}
                 onZoom={applyZoom}
@@ -562,13 +621,18 @@ export default function ReaderView(props: Props) {
                 onRetry={() => props.onRetry()}
                 onCancel={() => props.onCancel()}
                 onBack={() => props.onBack()}
+                onHelp={() => setHelpOpen(true)}
             />
             {props.banner}
             {props.shareBanner}
             <div
                 class="panes"
                 ref={(el) => (panesEl = el)}
-                classList={{ swapped: swapped(), single: mode() !== "split" }}
+                classList={{
+                    swapped: swapped(),
+                    single: mode() !== "split",
+                    guide: mode() === "guide",
+                }}
             >
                 {renderSlot("original")}
                 <Show when={mode() === "split"}>
@@ -590,6 +654,9 @@ export default function ReaderView(props: Props) {
                     />
                 </Show>
                 {renderSlot("translated")}
+                <Show when={mode() === "guide"}>
+                    <GuidePane arxivId={props.arxivId} />
+                </Show>
             </div>
             <Show when={helpOpen()}>
                 <div

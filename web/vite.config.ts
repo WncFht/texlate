@@ -95,11 +95,29 @@ function pdfslickWorkerDedup(): Plugin {
     };
 }
 
+/**
+ * KaTeX 字体只留 woff2：katex.min.css 的 @font-face src 三格式并列且
+ * woff2 居首——现代浏览器命中即停，ttf/woff 两份资产从未被请求（~4MB
+ * dist 死重）。旧浏览器拿不到回退格式，但 es2022 目标本就放弃了它们。
+ */
+function katexWoff2Only(): Plugin {
+    return {
+        name: "texlate-katex-woff2-only",
+        apply: "build",
+        generateBundle(_opts, bundle) {
+            for (const key of Object.keys(bundle)) {
+                if (/KaTeX_.*\.(?:ttf|woff)$/.test(key)) delete bundle[key];
+            }
+        },
+    };
+}
+
 export default defineConfig({
     plugins: [
         solid(),
         pdfjsDevAssets(),
         pdfslickWorkerDedup(),
+        katexWoff2Only(),
         ...(useMock ? [mockApiPlugin()] : []),
         pdfjsAssetsPlugin(),
     ],
@@ -109,7 +127,24 @@ export default defineConfig({
         : {
               port: 5199,
               strictPort: true,
-              proxy: { "/api": "http://127.0.0.1:8765" },
+              proxy: {
+                  "/api": {
+                      target: "http://127.0.0.1:8765",
+                      changeOrigin: true,
+                      // 后端同源闸比 Origin netloc vs Host——浏览器 Origin
+                      // 带 vite 端口，不改写则 mutating API 一律 403。
+                      // headers 选项不覆盖已存在的 Origin——须走 proxyReq
+                      // 钩子在出向请求上 setHeader
+                      configure(proxy) {
+                          proxy.on("proxyReq", (req) => {
+                              req.setHeader(
+                                  "origin",
+                                  "http://127.0.0.1:8765",
+                              );
+                          });
+                      },
+                  },
+              },
           },
     build: {
         target: "es2022",

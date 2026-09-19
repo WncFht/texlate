@@ -274,6 +274,11 @@ export const api = {
             `/task/${taskId}/chunks${qs ? `?${qs}` : ""}`,
         );
     },
+    /** 按 seq 集定点取块——增量轮询只拉脏 seq（chunkPoll；≤CHUNKS_PAGE_MAX 个） */
+    taskChunksSeqs(taskId: string, seqs: number[]) {
+        const q = new URLSearchParams({ seqs: seqs.join(",") });
+        return request<TaskChunksPage>(`/task/${taskId}/chunks?${q}`);
+    },
     cancel: (taskId: string) =>
         request(`/task/${taskId}/cancel`, { method: "POST" }),
     deleteTask: (taskId: string) =>

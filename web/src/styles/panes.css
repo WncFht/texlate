@@ -24,6 +24,11 @@
     z-index: 6;
 }
 
+/* 对照模式只留激活侧 rail——非激活窗格的 rail 白吃 34px 还引误触 */
+.panes:not(.single) .pane:not(.active) .pane-rail {
+    display: none;
+}
+
 .rail-btn {
     width: 26px;
     height: 26px;
@@ -394,6 +399,10 @@
     position: relative; /* .chunk-retx 定位锚 */
     border-bottom: 1px dashed var(--line);
     padding: 4px 0 10px;
+    /* 屏外块跳过 layout+paint；auto 关键字记住渲染过的真实尺寸，
+       contain-intrinsic-size 只作未渲占位——scroll-sync 几何不漂移 */
+    content-visibility: auto;
+    contain-intrinsic-size: auto 300px;
 }
 
 .pane-html-body .chunk:last-child {
@@ -520,3 +529,25 @@
     font-size: 14px;
 }
 
+/* 段头元信息（原 ChunkPreview 的 #seq/kind 定位价值并入） */
+.live-pane .chunk-meta {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    margin-bottom: 2px;
+}
+
+.live-pane .chunk-seq {
+    color: var(--ink-3);
+}
+
+.live-pane .chunk-kind {
+    font-style: normal;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 0 4px;
+    font-size: 10px;
+    color: var(--ink-3);
+}

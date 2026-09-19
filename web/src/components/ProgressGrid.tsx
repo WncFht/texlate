@@ -31,6 +31,27 @@ export default function ProgressGrid(props: Props) {
         Array.from({ length: Math.max(0, props.total) }, (_, i) => i),
     );
 
+    /** 容器级委托：点击/键盘都只认 i.clickable 格——5000 格不再各绑两份处理器 */
+    const seqOf = (e: Event): number | null => {
+        if (!props.onCellClick) return null;
+        const cell = (e.target as HTMLElement).closest<HTMLElement>(
+            "i.clickable",
+        );
+        const s = cell?.dataset.seq;
+        return s === undefined ? null : Number(s);
+    };
+    const onGridClick = (e: MouseEvent) => {
+        const seq = seqOf(e);
+        if (seq !== null) props.onCellClick?.(seq);
+    };
+    const onGridKey = (e: KeyboardEvent) => {
+        if (e.key !== "Enter" && e.key !== " ") return;
+        const seq = seqOf(e);
+        if (seq === null) return;
+        e.preventDefault();
+        props.onCellClick?.(seq);
+    };
+
     return (
         <div class="progress-grid-wrap">
             <div class="progress-grid-meta">
@@ -48,6 +69,8 @@ export default function ProgressGrid(props: Props) {
                 class="progress-grid"
                 role="group"
                 aria-label={`${t.progress.chunks} ${props.done}/${props.total}`}
+                onClick={onGridClick}
+                onKeyDown={onGridKey}
             >
                 <Index each={idxs()}>
                     {(i) => {
@@ -64,11 +87,9 @@ export default function ProgressGrid(props: Props) {
                         const clickable = () => failed() && !!props.onCellClick;
                         const code = () =>
                             props.items?.[i()]?.error_code ?? "failed";
-                        const fire = () => {
-                            if (clickable()) props.onCellClick?.(i());
-                        };
                         return (
                             <i
+                                data-seq={i()}
                                 class={cls()}
                                 classList={{ clickable: clickable() }}
                                 role={clickable() ? "button" : undefined}
@@ -81,16 +102,6 @@ export default function ProgressGrid(props: Props) {
                                         : undefined
                                 }
                                 title={failed() ? code() : undefined}
-                                onClick={fire}
-                                onKeyDown={(e) => {
-                                    if (
-                                        clickable() &&
-                                        (e.key === "Enter" || e.key === " ")
-                                    ) {
-                                        e.preventDefault();
-                                        fire();
-                                    }
-                                }}
                             />
                         );
                     }}

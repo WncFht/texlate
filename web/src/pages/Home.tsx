@@ -31,13 +31,21 @@ const ARXIV_RE =
 const MAX_UPLOAD_BYTES = 80 * 1024 * 1024;
 const UPLOAD_EXT = /\.(pdf|tex|tar|gz|tgz|zip|docx|epub)$/i;
 
-/** options 表单行描述——label/hint/控件形/信号绑定数据驱动渲染 */
+/** 首页三路拉取的 TTL——reader 往返重挂载不再每趟全量重拉（手动刷新不受门） */
+const HOME_TTL_MS = 30_000;
+let lastRefreshAt = 0;
+let lastHealthAt = 0;
+let lastFeedAt = 0;
+
+/** options 表单行描述——label/hint/控件形/信号绑定数据驱动渲染；
+ *  adv=true 收进「高级」折叠组，缺省进常用组 */
 type OptRow = {
     label: string;
     hint?: string;
     get: () => string;
     set: (v: string) => void;
     span2?: boolean;
+    adv?: boolean;
 } & (
     | {
           kind: "input";
@@ -108,7 +116,7 @@ export function parseArxivId(raw: string): string | null {
 
 export default function Home(props: {
     nav(to: string): void;
-    /** #/arxiv/{id} 深链——预填输入框并自动提交一次 */
+    /** #/arxiv/{id} 深链——预填输入框 + 聚焦翻译钮，不自动提交 */
     arxivId?: string;
 }) {
     const [arxivId, setArxivId] = createSignal("");
@@ -148,6 +156,13 @@ export default function Home(props: {
     const [feedFailed, setFeedFailed] = createSignal(false);
     // hits=null=未发起/已关；[]=搜过无匹配——三态驱动下拉显隐
     const [hits, setHits] = createSignal<DiscoverHit[] | null>(null);
+    // 键盘导航 active 项（-1=无；↓↑ 与悬停同写一份，鼠标键盘不分裂）
+    const [activeHit, setActiveHit] = createSignal(-1);
+    /** 下拉开/关唯一出口——hits 变即复位 active */
+    const setSuggest = (v: DiscoverHit[] | null) => {
+        setHits(v);
+        setActiveHit(-1);
+    };
     let searchTimer = 0;
     // seq 防慢响应盖新查询（旧响应落地时输入早已变）
     let searchSeq = 0;
@@ -204,25 +219,58 @@ export default function Home(props: {
         const q = v.trim();
         if (!q || parseArxivId(q)) {
             searchSeq++;
-            setHits(null);
+            setSuggest(null);
             return;
         }
         searchTimer = window.setTimeout(() => {
             const seq = ++searchSeq;
             api.discoverSearch(q)
                 .then((res) => {
-                    if (alive && seq === searchSeq) setHits(res);
+                    if (alive && seq === searchSeq) setSuggest(res);
                 })
                 .catch(() => {
-                    if (alive && seq === searchSeq) setHits(null);
+                    if (alive && seq === searchSeq) setSuggest(null);
                 });
         }, 300);
     };
 
-    /** 建议行点击 → 回填输入框（用户确认后再提交）；「翻译」直达深链 */
+    /** 建议行点击/Enter 选中 → 回填输入框（用户确认后再提交）；「翻译」直达深链 */
     const pickHit = (h: DiscoverHit) => {
         if (h.paperId) setArxivId(h.paperId);
-        setHits(null);
+        setSuggest(null);
+    };
+
+    /**
+     * 建议下拉键盘契约：↓↑ 在选项间环绕移动 active 项，Enter 选中回填，
+     * Esc 关下拉。列表合上或未出条时全键放行（Enter 走表单提交）。
+     */
+    const onSuggestKey = (e: KeyboardEvent) => {
+        const list = hits();
+        if (e.key === "Escape") {
+            if (list !== null) {
+                e.preventDefault();
+                setSuggest(null);
+            }
+            return;
+        }
+        if (!list?.length) return;
+        if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+            e.preventDefault();
+            const n = list.length;
+            const next =
+                e.key === "ArrowDown"
+                    ? (activeHit() + 1) % n
+                    : (activeHit() - 1 + n) % n;
+            setActiveHit(next);
+            document
+                .getElementById(`ax-sug-${next}`)
+                ?.scrollIntoView({ block: "nearest" });
+            return;
+        }
+        if (e.key === "Enter" && activeHit() >= 0) {
+            e.preventDefault();
+            pickHit(list[activeHit()]);
+        }
     };
 
     /** 卡 id 取 universal_paper_id（arXiv id），缺席回 canonical_id */
@@ -241,10 +289,20 @@ export default function Home(props: {
     };
 
     onMount(() => {
-        void taskStore.refresh();
+        const now = Date.now();
+        if (now - lastRefreshAt > HOME_TTL_MS) {
+            lastRefreshAt = now;
+            void taskStore.refresh();
+        }
         if (!settingsStore.loaded()) void settingsStore.refresh();
-        void checkHealth();
-        void loadFeed();
+        if (now - lastHealthAt > HOME_TTL_MS) {
+            lastHealthAt = now;
+            void checkHealth();
+        }
+        if (now - lastFeedAt > HOME_TTL_MS) {
+            lastFeedAt = now;
+            void loadFeed();
+        }
     });
     onCleanup(() => {
         window.clearInterval(healthTimer);
@@ -332,19 +390,21 @@ export default function Home(props: {
         }
     };
 
-    // #/arxiv/{id} 深链：值出现即预填 + 自动提交一次——lastAuto 记已消费的
-    // 值防同值重入；清空（离开深链）复位，回到同 id 可再提；busy() 门兜并发
-    let lastAuto: string | undefined;
+    // #/arxiv/{id} 深链：预填输入框 + 聚焦翻译钮待用户拍板——分享链接落到
+    // 别人浏览器不该白烧任务。lastDeep 记已消费的值防同值重聚焦；
+    // 清空（离开深链）复位，回到同 id 可再预填
+    let submitBtn!: HTMLButtonElement;
+    let lastDeep: string | undefined;
     createEffect(() => {
         const a = props.arxivId;
         if (!a) {
-            lastAuto = undefined;
+            lastDeep = undefined;
             return;
         }
-        if (a === lastAuto) return;
-        lastAuto = a;
+        if (a === lastDeep) return;
+        lastDeep = a;
         setArxivId(a);
-        void submit();
+        submitBtn?.focus();
     });
 
     /** 客户端预检——返回错误文案或 null 放行（.share.zip 走 .zip 白名单） */
@@ -515,6 +575,7 @@ export default function Home(props: {
         },
         {
             kind: "select",
+            adv: true,
             label: t.home.optFmAbstract,
             get: optFmAbstract,
             set: setOptFmAbstract,
@@ -525,6 +586,7 @@ export default function Home(props: {
         },
         {
             kind: "select",
+            adv: true,
             label: t.home.optFmTitle,
             get: optFmTitle,
             set: setOptFmTitle,
@@ -535,6 +597,7 @@ export default function Home(props: {
         },
         {
             kind: "select",
+            adv: true,
             label: t.home.optFmAuthor,
             hint: t.home.optFmAuthorHint,
             get: optFmAuthor,
@@ -546,6 +609,7 @@ export default function Home(props: {
         },
         {
             kind: "select",
+            adv: true,
             label: t.home.optPrefer,
             get: optPrefer,
             set: setOptPrefer,
@@ -557,6 +621,7 @@ export default function Home(props: {
         },
         {
             kind: "select",
+            adv: true,
             label: t.home.optSource,
             get: optSource,
             set: setOptSource,
@@ -567,6 +632,7 @@ export default function Home(props: {
         },
         {
             kind: "select",
+            adv: true,
             label: t.home.optShare,
             hint: t.home.optShareHint,
             get: optShare,
@@ -579,6 +645,7 @@ export default function Home(props: {
         },
         {
             kind: "input",
+            adv: true,
             label: t.home.optMain,
             hint: t.home.optMainHint,
             get: optMain,
@@ -587,6 +654,7 @@ export default function Home(props: {
         },
         {
             kind: "textarea",
+            adv: true,
             label: t.home.optGlossary,
             hint: t.home.optGlossaryHint,
             get: optGlossary,
@@ -597,6 +665,7 @@ export default function Home(props: {
         {
             kind: "input",
             type: "password",
+            adv: true,
             label: t.home.optKey,
             hint: t.home.optKeyHint,
             get: optKey,
@@ -604,6 +673,23 @@ export default function Home(props: {
             span2: true,
         },
     ];
+
+    /** 常用组 = 未标 adv 的行（语言/模型/并发等高频）；其余收「高级」 */
+    const optCommon = optRows.filter((r) => !r.adv);
+    const optAdv = optRows.filter((r) => r.adv);
+
+    /** 单行 label+控件渲染——两组共用 */
+    const optRow = (row: OptRow) => (
+        <label classList={{ span2: !!row.span2 }}>
+            <span>
+                {row.label}
+                <Show when={row.hint}>
+                    <em class="muted">{row.hint}</em>
+                </Show>
+            </span>
+            {optControl(row)}
+        </label>
+    );
 
     /** 整页拖放上传：仅拦截文件拖拽（文本拖入输入框不受影响） */
     let dragDepth = 0;
@@ -660,33 +746,58 @@ export default function Home(props: {
                             placeholder={t.home.arxivPlaceholder}
                             aria-label={t.home.arxivLabel}
                             aria-invalid={idBad()}
+                            role="combobox"
+                            aria-autocomplete="list"
+                            aria-expanded={hits() !== null}
+                            aria-controls="ax-suggest"
+                            aria-activedescendant={
+                                activeHit() >= 0
+                                    ? `ax-sug-${activeHit()}`
+                                    : undefined
+                            }
                             autocapitalize="off"
                             value={arxivId()}
                             onInput={(e) => onIdInput(e.currentTarget.value)}
-                            onBlur={() => setHits(null)}
-                            onKeyDown={(e) => {
-                                if (e.key === "Escape") setHits(null);
-                            }}
+                            onBlur={() => setSuggest(null)}
+                            onKeyDown={onSuggestKey}
                             spellcheck={false}
                         />
                         <Show when={hits() !== null}>
-                            <ul class="ax-suggest" role="listbox">
+                            <ul
+                                class="ax-suggest"
+                                id="ax-suggest"
+                                role="listbox"
+                            >
                                 <Show
                                     when={hits()!.length}
                                     fallback={
-                                        <li class="ax-suggest-empty">
+                                        <li
+                                            class="ax-suggest-empty"
+                                            role="presentation"
+                                        >
                                             {t.home.axSearchEmpty}
                                         </li>
                                     }
                                 >
                                     <For each={hits()!}>
-                                        {(h) => (
-                                            <li>
+                                        {(h, i) => (
+                                            <li role="presentation">
                                                 {/* mousedown 抢在 blur 前——阻止焦点转移
                                                     保住 click；blur 本身管「点外面关」 */}
                                                 <button
                                                     type="button"
+                                                    id={`ax-sug-${i()}`}
+                                                    role="option"
+                                                    aria-selected={
+                                                        activeHit() === i()
+                                                    }
                                                     class="ax-suggest-item"
+                                                    classList={{
+                                                        on: activeHit() === i(),
+                                                    }}
+                                                    onPointerEnter={() =>
+                                                        setActiveHit(i())
+                                                    }
                                                     onMouseDown={(e) =>
                                                         e.preventDefault()
                                                     }
@@ -722,7 +833,12 @@ export default function Home(props: {
                             </ul>
                         </Show>
                     </div>
-                    <button type="submit" class="btn-primary" disabled={busy()}>
+                    <button
+                        type="submit"
+                        class="btn-primary"
+                        disabled={busy()}
+                        ref={(el) => (submitBtn = el)}
+                    >
                         {busy() && !uploading()
                             ? t.home.submitting
                             : t.home.translate}
@@ -797,20 +913,14 @@ export default function Home(props: {
                 <details class="task-opts">
                     <summary>{t.home.options}</summary>
                     <div class="opts-grid">
-                        <For each={optRows}>
-                            {(row) => (
-                                <label classList={{ span2: !!row.span2 }}>
-                                    <span>
-                                        {row.label}
-                                        <Show when={row.hint}>
-                                            <em class="muted">{row.hint}</em>
-                                        </Show>
-                                    </span>
-                                    {optControl(row)}
-                                </label>
-                            )}
-                        </For>
+                        <For each={optCommon}>{optRow}</For>
                     </div>
+                    <details class="opts-adv">
+                        <summary>{t.home.optsAdvanced}</summary>
+                        <div class="opts-grid">
+                            <For each={optAdv}>{optRow}</For>
+                        </div>
+                    </details>
                 </details>
                 <p
                     class="health"
@@ -847,7 +957,50 @@ export default function Home(props: {
                 </p>
             </section>
 
-            {/* alphaXiv 热榜——机会型增强：上游失败/空结果整块不渲染 */}
+            <section class="home-tasks">
+                <h2>
+                    {t.home.tasks}
+                    <Show
+                        when={
+                            taskStore.state.loaded &&
+                            taskStore.state.tasks.length > 0
+                        }
+                    >
+                        <span class="task-count">
+                            {taskStore.state.tasks.length}
+                        </span>
+                    </Show>
+                </h2>
+                <Show when={taskStore.state.loadError}>
+                    {(err) => (
+                        <p class="form-error">
+                            {t.home.loadFailed}：{err()}{" "}
+                            <button
+                                type="button"
+                                class="btn-ghost"
+                                onClick={() => void taskStore.refresh()}
+                            >
+                                {t.home.retry}
+                            </button>
+                        </p>
+                    )}
+                </Show>
+                <Show
+                    when={taskStore.state.loaded}
+                    fallback={
+                        <div class="skel-rows" aria-hidden="true">
+                            <i />
+                            <i />
+                            <i />
+                        </div>
+                    }
+                >
+                    <TaskList tasks={taskStore.state.tasks} onOpen={open} />
+                </Show>
+            </section>
+
+            {/* alphaXiv 热榜——机会型增强：上游失败/空结果整块不渲染。
+                降级为列表下方横滚条，不抢自己任务的版面 */}
             <Show when={!feedFailed() && (feed()?.length ?? 0) > 0}>
                 <section class="home-discover">
                     <h2>
@@ -919,48 +1072,6 @@ export default function Home(props: {
                     </div>
                 </section>
             </Show>
-
-            <section class="home-tasks">
-                <h2>
-                    {t.home.tasks}
-                    <Show
-                        when={
-                            taskStore.state.loaded &&
-                            taskStore.state.tasks.length > 0
-                        }
-                    >
-                        <span class="task-count">
-                            {taskStore.state.tasks.length}
-                        </span>
-                    </Show>
-                </h2>
-                <Show when={taskStore.state.loadError}>
-                    {(err) => (
-                        <p class="form-error">
-                            {t.home.loadFailed}：{err()}{" "}
-                            <button
-                                type="button"
-                                class="btn-ghost"
-                                onClick={() => void taskStore.refresh()}
-                            >
-                                {t.home.retry}
-                            </button>
-                        </p>
-                    )}
-                </Show>
-                <Show
-                    when={taskStore.state.loaded}
-                    fallback={
-                        <div class="skel-rows" aria-hidden="true">
-                            <i />
-                            <i />
-                            <i />
-                        </div>
-                    }
-                >
-                    <TaskList tasks={taskStore.state.tasks} onOpen={open} />
-                </Show>
-            </section>
         </main>
     );
 }

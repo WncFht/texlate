@@ -1353,13 +1353,34 @@ function handleApi(req: Req, res: Res, url: URL): boolean {
         const total = t.counters.total || TOTAL_CHUNKS;
         // 已译段数跟 counters.done（drive() 逐拍推进）；done 终态视作全量
         const doneN = t.status === "done" ? total : t.counters.done;
+        // ?seqs= 定点（增量轮询与真端点同形）；否则 offset/limit 分页
+        const seqsParam = url.searchParams.get("seqs");
+        let wanted: number[] | null = null;
+        if (seqsParam) {
+            wanted = [
+                ...new Set(
+                    seqsParam
+                        .split(",")
+                        .map((s) => Number(s))
+                        .filter((n) => Number.isInteger(n) && n >= 0),
+                ),
+            ].sort((a, b) => a - b);
+        }
         const off = Math.max(
             0,
             Number(url.searchParams.get("offset") ?? 0) || 0,
         );
         const lim = Number(url.searchParams.get("limit") ?? 0) || 60;
         const rows = [];
-        for (let i = off; i < Math.min(total, off + lim); i++) {
+        const seqRange =
+            wanted ??
+            [
+                ...Array(
+                    Math.max(0, Math.min(total, off + lim) - off),
+                ).keys(),
+            ].map((k) => k + off);
+        for (const i of seqRange) {
+            if (i >= total) continue;
             const src = mockChunks[i] ?? {
                 kind: "text",
                 en: `[mock] paragraph ${i + 1} source text.`,

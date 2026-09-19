@@ -214,7 +214,17 @@ export default function ResultBody(props: Props) {
                         </p>
                     )}
                 </Show>
-                <Show when={props.st === "needs_auth"}>
+                {/* retryError 已内联 retryHintAuth（L72-75）时不再重复——
+                    仅首访/非 auth 错误时补操作提示 */}
+                <Show
+                    when={
+                        props.st === "needs_auth" &&
+                        !(
+                            props.retryError?.status === 401 ||
+                            props.retryError?.code === "auth_required"
+                        )
+                    }
+                >
                     <span class="muted">{t.reader.retryHintAuth}</span>
                 </Show>
                 {props.share}

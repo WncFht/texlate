@@ -2,7 +2,7 @@
 // Tab 顺走收菜单、外部 pointerdown 收、Escape 收+焦点回触发钮、触发钮
 // ArrowDown 开菜单聚焦首项。Toolbar 下载菜单与 TaskList ↻ 重试菜单共用。
 
-import { onCleanup, onMount } from "solid-js";
+import { createEffect, onCleanup } from "solid-js";
 
 const ITEMS = "[role='menuitem']";
 
@@ -48,8 +48,8 @@ export function menuTriggerKey(
 
 /**
  * dismiss 监听（须在组件作用域调用）：菜单打开时外部 pointerdown 收；
- * Escape 收且焦点回触发钮。监听随组件生灭——只想活在打开期的调用方
- * 把本件挂进「开才挂载」的菜单子组件。
+ * Escape 收且焦点回触发钮。监听只在 open() 期间挂——菜单从不打开的
+ * 组件不再为 document 级 listener 付全生命周期成本。
  */
 export function bindMenuDismiss(opts: {
     open(): boolean;
@@ -57,14 +57,14 @@ export function bindMenuDismiss(opts: {
     wrap(): HTMLElement | undefined;
     trigger(): HTMLElement | undefined;
 }): void {
-    onMount(() => {
+    createEffect(() => {
+        if (!opts.open()) return;
         const onDown = (e: PointerEvent) => {
             const w = opts.wrap();
-            if (opts.open() && w && !w.contains(e.target as Node))
-                opts.close();
+            if (w && !w.contains(e.target as Node)) opts.close();
         };
         const onKey = (e: KeyboardEvent) => {
-            if (e.key === "Escape" && opts.open()) {
+            if (e.key === "Escape") {
                 opts.close();
                 opts.trigger()?.focus();
             }

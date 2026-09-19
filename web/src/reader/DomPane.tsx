@@ -11,7 +11,14 @@
 //     sanitize + 兜底把漏网的相对 URL 补到 arxiv.org origin
 //   - 拉取期 veil + 失败态重试钮（不再与真空态同文案）
 
-import { createEffect, createSignal, onCleanup, onMount, Show, untrack } from "solid-js";
+import {
+    createEffect,
+    createSignal,
+    onCleanup,
+    onMount,
+    Show,
+    untrack,
+} from "solid-js";
 
 import type { DocId, Pos } from "./alignment";
 import { sanitizeDomHtml } from "./sanitize";
@@ -20,6 +27,7 @@ import {
     bindChunkGeom,
     capturePos,
     jumpTo,
+    raf,
     scrollTopFor,
     type PageGeom,
     type PaneLike,
@@ -48,12 +56,17 @@ interface Props {
 
 /** 服务端 absolutize 的漏网兜底——相对路径一律归 arxiv.org origin。 */
 const ARXIV_ORIGIN = "https://arxiv.org";
+/** 分片落地时间盒——与 HtmlPane 挂载同口径，片间让帧保对侧窗格可交互 */
+const MOUNT_SLICE_MS = 40;
 
 function fixupRelativeUrls(root: HTMLElement): void {
-    for (const el of root.querySelectorAll<HTMLElement>("[src^='/'], [href^='/']")) {
+    for (const el of root.querySelectorAll<HTMLElement>(
+        "[src^='/'], [href^='/']",
+    )) {
         for (const attr of ["src", "href"] as const) {
             const v = el.getAttribute(attr);
-            if (v?.startsWith("/")) el.setAttribute(attr, `${ARXIV_ORIGIN}${v}`);
+            if (v?.startsWith("/"))
+                el.setAttribute(attr, `${ARXIV_ORIGIN}${v}`);
         }
     }
 }
@@ -61,7 +74,9 @@ function fixupRelativeUrls(root: HTMLElement): void {
 export default function DomPane(props: Props) {
     let scrollEl!: HTMLDivElement;
     let bodyEl!: HTMLDivElement;
-    const [phase, setPhase] = createSignal<"loading" | "ready" | "error">("loading");
+    const [phase, setPhase] = createSignal<"loading" | "ready" | "error">(
+        "loading",
+    );
     const [errMsg, setErrMsg] = createSignal("");
     const geom = bindChunkGeom(
         () => scrollEl,
@@ -110,14 +125,37 @@ export default function DomPane(props: Props) {
             const doc = new DOMParser().parseFromString(raw, "text/html");
             const page = doc.querySelector(".ltx_page_main") ?? doc.body;
             if (disposed) return;
-            bodyEl.innerHTML = sanitizeDomHtml(page.innerHTML);
-            fixupRelativeUrls(bodyEl);
-            externalLinksBlank(bodyEl);
+            const tmp = document.createElement("div");
+            tmp.innerHTML = sanitizeDomHtml(page.innerHTML);
+            // 修复管道在 detached tmp 上整跑一遍——querySelectorAll 不覆盖
+            // 根自身，改到落地后逐片跑会漏顶层节点
+            fixupRelativeUrls(tmp);
+            externalLinksBlank(tmp);
+            // 分片落地：1-3MB 产物一次 innerHTML 冻结主线程数百 ms——顶层
+            // 节点按时间盒分批 append，首片落地撤 veil，余下后台续渲，
+            // 全部落完才 rebind（锚集合此时才完整）
+            const nodes = [...tmp.childNodes];
+            bodyEl.replaceChildren();
+            let i = 0;
+            while (i < nodes.length && !disposed && !ctl.signal.aborted) {
+                const deadline = performance.now() + MOUNT_SLICE_MS;
+                do {
+                    bodyEl.append(nodes[i++]);
+                } while (i < nodes.length && performance.now() < deadline);
+                setPhase("ready"); // 首片落地即撤 veil
+                if (i < nodes.length) {
+                    await new Promise<void>((r) => raf(() => r()));
+                }
+            }
+            if (disposed || ctl.signal.aborted) return;
             geom.rebind();
             setPhase("ready");
         } catch (e) {
             // 重试先 abort 在途——旧请求的回包不再落盘
-            if (disposed || (e instanceof DOMException && e.name === "AbortError"))
+            if (
+                disposed ||
+                (e instanceof DOMException && e.name === "AbortError")
+            )
                 return;
             setErrMsg(e instanceof Error ? e.message : String(e));
             setPhase("error");
@@ -156,7 +194,11 @@ export default function DomPane(props: Props) {
             <div ref={(el) => (bodyEl = el)} class="pane-html-body" />
             <Show when={phase() === "loading"}>
                 <div class="pane-veil">
-                    <div class="spinner" role="status" aria-label={t.pane.loading} />
+                    <div
+                        class="spinner"
+                        role="status"
+                        aria-label={t.pane.loading}
+                    />
                 </div>
             </Show>
             <Show when={phase() === "error"}>

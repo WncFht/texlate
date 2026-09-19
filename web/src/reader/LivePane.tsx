@@ -1,26 +1,25 @@
-// LivePane —— 翻译进行中的「边译边读」面板：chunkPoll 共享轮询（与
-// ChunkPreview 同拍同请求）累积段落到本地 map，已译段走 HtmlPane 同一条
-// marked → DOMPurify → KaTeX 管线全渲染；未译段（status!=ok 或 zh 空）
-// 显原文 + 「未翻译」徽标。
+// LivePane —— 翻译进行中的「边译边读」面板：chunkPoll 共享轮询累积段落到
+// 本地 map，已译段走 HtmlPane 同一条 marked → DOMPurify → KaTeX 管线全渲染；
+// 未译段（status!=ok 或 zh 空）显原文 + 「未翻译」徽标。每段头带 #seq/kind
+// 元信息（原 ChunkPreview 的段定位价值并入此处）。
 //
 // 增量 DOM 补丁：seq → <section> 映射 + 有序插入，每拍只重绘变化段，
 // 滚动位置与已渲染公式不动。折叠容器恒挂载（display 自门控），
 // 首段到达即自动可用；再大任务也限 CHUNKS_PAGE_MAX 窗内。
 //
+// 折叠免绘制：details 合上期间 onPage 只把脏 seq 记进 pendingSeqs，
+// marked+KaTeX 不做；重新展开时按 acc 最新快照 backfill 补渲。
+//
 // frozen（compiling 段，chunks 已冻结）：补最后一拍抓齐末批写入后退订——
 // 不挂着空轮询。
 
-import {
-    createEffect,
-    createSignal,
-    onCleanup,
-    onMount,
-} from "solid-js";
+import { createEffect, createSignal, onCleanup, onMount } from "solid-js";
 import type { TaskChunksPage } from "../api/client";
 import { pollChunksOnce, subscribeChunks } from "./chunkPoll";
 import { chunkUntranslated, loadMdLibs, type MdLibs } from "./markdown";
 import { externalLinksBlank } from "./paneUtils";
 import { escapeHtml } from "./sanitize";
+import { raf } from "./sync";
 import { t } from "../i18n";
 
 export interface LiveChunk {
@@ -69,7 +68,11 @@ interface Props {
     frozen?: boolean;
 }
 
+/** 重绘时间盒——一拍几十段全 marked+KaTeX 会卡帧，切片跨帧让出主线程 */
+const PAINT_SLICE_MS = 40;
+
 export default function LivePane(props: Props) {
+    let detEl!: HTMLDetailsElement;
     let bodyEl!: HTMLDivElement;
     const acc = new Map<number, LiveChunk>();
     const els = new Map<number, HTMLElement>();
@@ -83,14 +86,19 @@ export default function LivePane(props: Props) {
     let alive = true;
     let unsubscribe: (() => void) | undefined;
     let froze = false;
+    /** 面板开合态（初值对应 JSX 的 open 属性），toggle 事件同步 */
+    let isOpen = true;
+    /** 折叠期间积下的脏 seq——重开时按 acc 快照补渲（paint 内逐 seq 摘除） */
+    const pendingSeqs = new Set<number>();
     onCleanup(() => {
         alive = false;
         unsubscribe?.();
     });
 
-    /** 单段 → section 元素内 HTML（徽标 + 译文/原文渲染）；新建按 seq 序插入 */
+    /** 单段 → section 元素内 HTML（seq/kind 元信息 + 徽标 + 译文/原文渲染） */
     const paint = (c: LiveChunk) => {
         if (!libs) return;
+        pendingSeqs.delete(c.seq);
         let el = els.get(c.seq);
         if (!el) {
             el = document.createElement("section");
@@ -105,10 +113,15 @@ export default function LivePane(props: Props) {
             els.set(c.seq, el);
         }
         const zh = (c.zh ?? "").trim();
+        const meta =
+            `<div class="chunk-meta muted">` +
+            `<span class="chunk-seq">#${c.seq + 1}</span>` +
+            (c.kind ? `<i class="chunk-kind">${escapeHtml(c.kind)}</i>` : "") +
+            `</div>`;
         const badge = chunkUntranslated(c)
             ? `<span class="chunk-badge">${escapeHtml(t.live.untranslated)}</span>`
             : "";
-        el.innerHTML = badge + libs.mdToHtml(zh ? c.zh! : (c.en ?? ""));
+        el.innerHTML = meta + badge + libs.mdToHtml(zh ? c.zh! : (c.en ?? ""));
         // marked 产物内的 http(s) 外链一律新窗——pane 内默认跳转会顶掉阅读器
         externalLinksBlank(el);
         libs.renderMath(el);
@@ -119,6 +132,44 @@ export default function LivePane(props: Props) {
         let ok = 0;
         for (const c of acc.values()) if (!chunkUntranslated(c)) ok++;
         setOkN(ok);
+    };
+
+    /** 待绘队列——onPage 只入队，rAF 分片刷出（首拍几百段不再单帧全渲） */
+    const paintQueue: LiveChunk[] = [];
+    let paintScheduled = false;
+    const flushPaints = () => {
+        paintScheduled = false;
+        if (!alive) {
+            paintQueue.length = 0;
+            return;
+        }
+        // 合上的瞬间：未绘部分转 pending，不白做 marked+KaTeX
+        if (!isOpen) {
+            for (const c of paintQueue) pendingSeqs.add(c.seq);
+            paintQueue.length = 0;
+            return;
+        }
+        const deadline = performance.now() + PAINT_SLICE_MS;
+        while (paintQueue.length && performance.now() < deadline) {
+            paint(paintQueue.shift()!);
+        }
+        if (paintQueue.length) {
+            paintScheduled = true;
+            raf(flushPaints);
+        }
+    };
+    const enqueuePaints = (rows: LiveChunk[]) => {
+        if (!rows.length) return;
+        paintQueue.push(...rows);
+        if (!paintScheduled) {
+            paintScheduled = true;
+            raf(flushPaints);
+        }
+    };
+    /** 开则入队即绘；合则记 seq 等 backfill */
+    const queueOrDefer = (rows: LiveChunk[]) => {
+        if (isOpen) enqueuePaints(rows);
+        else for (const c of rows) pendingSeqs.add(c.seq);
     };
 
     const onPage = (page: TaskChunksPage) => {
@@ -132,7 +183,7 @@ export default function LivePane(props: Props) {
             recount();
             return;
         }
-        for (const c of dirty) paint(c);
+        queueOrDefer(dirty);
         recount();
     };
 
@@ -150,7 +201,9 @@ export default function LivePane(props: Props) {
         if (!alive) return;
         // libs 晚于首拍到达：只补绘尚未建段的（els 内的皆已带公式渲染，
         // 重绘会让 auto-render 对已渲染 span 二次加工）
-        for (const c of acc.values()) if (!els.has(c.seq)) paint(c);
+        const missed: LiveChunk[] = [];
+        for (const c of acc.values()) if (!els.has(c.seq)) missed.push(c);
+        queueOrDefer(missed);
         recount();
     };
 
@@ -182,6 +235,20 @@ export default function LivePane(props: Props) {
         <details
             class="live-pane"
             open
+            ref={(el) => (detEl = el)}
+            on:toggle={() => {
+                isOpen = detEl.open;
+                // 展开 backfill：pendingSeqs 按 acc 最新快照补渲，
+                // paint() 内逐 seq 摘除；libs 未到则由 ensureLibs 的
+                // missed 补绘兜底（acc 未建段的都在其中）
+                if (!isOpen || !libs || pendingSeqs.size === 0) return;
+                const rows: LiveChunk[] = [];
+                for (const s of pendingSeqs) {
+                    const c = acc.get(s);
+                    if (c) rows.push(c);
+                }
+                enqueuePaints(rows);
+            }}
             style={{ display: shown() > 0 ? "" : "none" }}
         >
             <summary>

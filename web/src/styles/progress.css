@@ -3,16 +3,18 @@
 .task-progress {
     flex: 1;
     overflow: auto;
-    max-width: 720px;
-    width: 100%;
-    margin: 0 auto;
-    padding: 40px 24px;
+    padding: 40px max(24px, calc((100% - 720px) / 2));
 }
 
 .tp-title {
     font-family: var(--font-serif);
     font-size: 22px;
     margin: 0 0 24px;
+}
+
+/* 返回钮：进度页唯一 UI 出口（topnav 在 reader 路由下隐藏） */
+.tp-nav {
+    margin: -8px 0 16px;
 }
 
 .stage-stepper {
@@ -55,7 +57,7 @@
     display: block;
     height: 100%;
     background: var(--cinnabar);
-    transition: width 0.3s ease;
+    /* 不做 width 过渡——SSE 帧每拍重启动画，持续动个不停；直跳更稳 */
 }
 
 .warn-list {
@@ -101,57 +103,64 @@
     margin-top: 20px;
 }
 
-/* ---------- 翻译中流式预览（U1，ChunkPreview） ---------- */
+/* ---------- 运行细节折叠组（时间线/fixloop/L2/警告/日志） ---------- */
 
-.chunk-preview {
+.tp-details {
     margin-top: 18px;
     border: 1px solid var(--line);
     border-radius: 8px;
     background: var(--panel);
-    padding: 8px 14px;
+    padding: 0 14px;
 }
 
-.cp-head {
-    margin: 0 0 6px;
-    font-size: 12px;
-}
-
-.cp-list {
-    max-height: 320px;
-    overflow: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    padding-right: 4px;
-}
-
-.cp-item {
-    min-width: 0;
-}
-
-.cp-meta {
-    display: flex;
-    align-items: baseline;
-    gap: 6px;
-    font-size: 11px;
-    font-variant-numeric: tabular-nums;
-}
-
-.cp-kind {
-    font-style: normal;
-    border: 1px solid var(--line);
-    border-radius: 4px;
-    padding: 0 4px;
-    font-size: 10px;
-    color: var(--ink-3);
-}
-
-.cp-text {
-    margin: 2px 0 0;
+.tp-details > summary {
+    padding: 9px 0;
     font-size: 13px;
-    line-height: 1.6;
+    color: var(--ink-2);
+    cursor: pointer;
+    user-select: none;
+}
+
+.tp-details > summary:hover {
     color: var(--ink);
-    overflow-wrap: break-word;
+}
+
+/* 组内二级件去盒子化——hairline 分节，避免嵌套框中框 */
+.tp-details .stage-timeline {
+    margin: 4px 0 12px;
+}
+
+.tp-details .fx-panel {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    margin-top: 0;
+    padding: 8px 0;
+    border-top: 1px solid var(--line);
+}
+
+.tp-details .warn-title {
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid var(--line);
+}
+
+.tp-details .warn-list {
+    margin-bottom: 12px;
+}
+
+.tp-details .log-drawer {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    margin-top: 0;
+    margin-bottom: 10px;
+    border-top: 1px solid var(--line);
+}
+
+.tp-details .log-drawer > summary {
+    padding: 8px 0;
+    border-radius: 0;
 }
 
 .warn-title {
@@ -207,4 +216,3 @@
     background: var(--cinnabar);
     border-color: var(--cinnabar);
 }
-

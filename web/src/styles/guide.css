@@ -1,0 +1,408 @@
+/* GuidePane —— 「导读」模式窗格：alphaXiv overview 的文档级版面。
+   .panes 的 flex 子件，自身是滚动容器（.guide-scroll）——
+   取代旧 .ax-block 横幅的 420px scroll-in-scroll。 */
+
+.guide {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--paper);
+}
+
+.guide-scroll {
+    flex: 1;
+    overflow: auto;
+    padding: 30px 40px 72px;
+}
+
+/* ---------- 骨架 ---------- */
+
+.guide-skel {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    max-width: 720px;
+    margin: 24px auto;
+}
+
+.guide-skel i {
+    height: 16px;
+    border-radius: 4px;
+    background: linear-gradient(
+        100deg,
+        var(--panel) 40%,
+        var(--paper-2) 50%,
+        var(--panel) 60%
+    );
+    background-size: 200% 100%;
+    animation: guide-sweep 1.4s ease-in-out infinite;
+}
+
+.guide-skel i:first-child {
+    height: 26px;
+}
+
+@keyframes guide-sweep {
+    from {
+        background-position: 120% 0;
+    }
+    to {
+        background-position: -80% 0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .guide-skel i {
+        animation: none;
+    }
+}
+
+/* ---------- 空态 ---------- */
+
+.guide-empty {
+    margin: 96px auto;
+    max-width: 420px;
+    text-align: center;
+    color: var(--ink-2);
+}
+
+.guide-empty .tb-btn {
+    display: inline-block;
+    margin-top: 14px;
+    text-decoration: none;
+}
+
+/* ---------- 头部 ---------- */
+
+.guide-head {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    max-width: 720px;
+    margin: 0 auto 6px;
+}
+
+.guide-badge {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--ochre-deep);
+}
+
+.guide-ax {
+    margin-left: auto;
+    font-size: 12px;
+    color: var(--ink-3);
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.guide-ax:hover {
+    color: var(--cinnabar);
+}
+
+.guide-title {
+    max-width: 720px;
+    margin: 6px auto 4px;
+    font-family: var(--font-serif);
+    font-size: 24px;
+    font-weight: 700;
+    line-height: 1.35;
+    color: var(--ink);
+}
+
+.guide-feed {
+    max-width: 720px;
+    margin: 8px auto 0;
+    font-size: 14px;
+    line-height: 1.65;
+    color: var(--ink-2);
+}
+
+/* ---------- 字段四卡 ---------- */
+
+.guide-cards {
+    max-width: 720px;
+    margin: 18px auto 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.guide-card {
+    padding: 12px 14px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--ink-2);
+}
+
+.guide-card h2 {
+    margin: 0 0 6px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    color: var(--cinnabar);
+}
+
+.guide-card ul {
+    margin: 0;
+    padding-left: 18px;
+}
+
+.guide-card li + li {
+    margin-top: 5px;
+}
+
+/* ---------- 导语 ---------- */
+
+.guide-lead {
+    max-width: 720px;
+    margin: 18px auto 0;
+    padding: 12px 16px;
+    font-size: 14px;
+    line-height: 1.75;
+    color: var(--ink);
+    background: color-mix(in srgb, var(--ochre) 7%, var(--panel));
+    border-inline-start: 3px solid var(--ochre);
+    border-radius: 0 8px 8px 0;
+}
+
+/* ---------- 正文 + 节锚 TOC ---------- */
+/* margin-note 布局：正文恒在 720 中轴，TOC 负边距挂进左margin、sticky 跟随；
+   无 TOC 时正文位置不变（对照上方 title/cards 同一轴线） */
+
+.guide-cols {
+    max-width: 720px;
+    margin: 22px auto 0;
+}
+
+.guide-toc {
+    float: left;
+    width: 176px;
+    margin-left: -208px;
+    position: sticky;
+    top: 8px;
+    font-size: 12px;
+    color: var(--ink-3);
+}
+
+.guide-toc h2 {
+    margin: 0 0 8px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+}
+
+.guide-toc ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border-inline-start: 1px solid var(--line);
+}
+
+.guide-toc button {
+    display: block;
+    width: 100%;
+    padding: 4px 0 4px 12px;
+    border: 0;
+    background: none;
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+    line-height: 1.45;
+}
+
+.guide-toc button:hover {
+    color: var(--cinnabar);
+}
+
+.guide-body {
+    max-width: 720px;
+    font-size: 15px;
+    line-height: 1.75;
+    color: var(--ink);
+}
+
+.guide-body h1 {
+    margin: 26px 0 10px;
+    font-size: 21px;
+    font-weight: 700;
+    line-height: 1.4;
+}
+
+.guide-body h2 {
+    margin: 28px 0 10px;
+    padding-top: 10px;
+    font-size: 19px;
+    font-weight: 700;
+    line-height: 1.4;
+    border-top: 1px solid var(--line);
+    scroll-margin-top: 12px;
+}
+
+.guide-body h3 {
+    margin: 18px 0 8px;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.guide-body p {
+    margin: 10px 0;
+}
+
+.guide-body a {
+    color: var(--cinnabar);
+}
+
+.guide-body img {
+    display: block;
+    margin: 14px auto;
+    max-width: 100%;
+    max-height: 64vh;
+    object-fit: contain;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--panel);
+}
+
+.guide-body ul,
+.guide-body ol {
+    margin: 10px 0;
+    padding-left: 24px;
+}
+
+.guide-body li + li {
+    margin-top: 4px;
+}
+
+.guide-body blockquote {
+    margin: 12px 0;
+    padding: 2px 14px;
+    border-inline-start: 3px solid var(--line-strong);
+    color: var(--ink-2);
+}
+
+.guide-body table {
+    margin: 14px 0;
+    border-collapse: collapse;
+    font-size: 13px;
+    max-width: 100%;
+}
+
+.guide-body th,
+.guide-body td {
+    padding: 6px 10px;
+    border: 1px solid var(--line-strong);
+    text-align: left;
+}
+
+.guide-body th {
+    background: var(--paper-2);
+    font-weight: 600;
+}
+
+.guide-body pre {
+    margin: 12px 0;
+    padding: 10px 14px;
+    background: var(--paper-2);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    overflow: auto;
+    font-size: 13px;
+}
+
+.guide-body code {
+    font-family: var(--font-mono);
+    font-size: 0.92em;
+}
+
+.guide-body hr {
+    margin: 22px 0;
+    border: 0;
+    border-top: 1px solid var(--line);
+}
+
+/* ---------- 引用页脚 ---------- */
+
+.guide-cites {
+    max-width: 720px;
+    margin: 34px auto 0;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+}
+
+.guide-cites h2 {
+    margin: 0 0 10px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink);
+}
+
+.guide-cites ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.guide-cites li {
+    padding: 10px 12px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    font-size: 13px;
+}
+
+.guide-cites li + li {
+    margin-top: 8px;
+}
+
+.guide-cites a,
+.guide-cite-title {
+    font-weight: 600;
+    color: var(--ink);
+    text-decoration: none;
+    line-height: 1.5;
+}
+
+.guide-cites a:hover {
+    color: var(--cinnabar);
+    text-decoration: underline;
+}
+
+.guide-cites p {
+    margin: 5px 0 0;
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--ink-2);
+}
+
+/* ---------- 响应式 ---------- */
+
+/* 720 正文 + 两侧各 208 才放得下 TOC——窄于 1150px 隐藏 */
+@media (max-width: 1150px) {
+    .guide-toc {
+        display: none;
+    }
+}
+
+@media (max-width: 640px) {
+    .guide-scroll {
+        padding: 20px 16px 56px;
+    }
+
+    .guide-cards {
+        grid-template-columns: 1fr;
+    }
+
+    .guide-title {
+        font-size: 20px;
+    }
+}

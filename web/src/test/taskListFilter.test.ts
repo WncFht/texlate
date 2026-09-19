@@ -76,7 +76,6 @@ beforeEach(() => {
     mocks.remove.mockReset().mockResolvedValue(undefined);
     mocks.resetLive.mockReset();
     mocks.refresh.mockReset();
-    vi.spyOn(window, "confirm").mockReturnValue(true);
 });
 
 afterEach(() => {
@@ -139,7 +138,8 @@ describe("U5：搜索 + 筛选 + 活动置顶", () => {
 });
 
 describe("U8：行内快捷臂", () => {
-    it("在途行有 ⏻ 取消钮 → api.cancel", async () => {
+    it("在途行有 ⏻ 取消钮 → confirm 确认后 api.cancel", async () => {
+        vi.spyOn(window, "confirm").mockReturnValue(true);
         renderList();
         const row = [...root.querySelectorAll(".task-wrap")].find((w) =>
             w.textContent?.includes("active alpha"),
@@ -149,6 +149,17 @@ describe("U8：行内快捷臂", () => {
         click(btn);
         await flush();
         expect(mocks.cancel).toHaveBeenCalledWith("a1");
+    });
+
+    it("⏻ confirm 拒绝 → 不调 api.cancel", async () => {
+        vi.spyOn(window, "confirm").mockReturnValue(false);
+        renderList();
+        const row = [...root.querySelectorAll(".task-wrap")].find((w) =>
+            w.textContent?.includes("active alpha"),
+        )!;
+        click(row.querySelector(".task-act") as HTMLButtonElement);
+        await flush();
+        expect(mocks.cancel).not.toHaveBeenCalled();
     });
 
     it("fault 行有 ↻ 重试钮 → 迷你菜单选「重试」→ api.retry + resetLive 重订阅", async () => {
@@ -161,7 +172,8 @@ describe("U8：行内快捷臂", () => {
         click(btn);
         await flush();
         const items = [...row.querySelectorAll(".retry-item")];
-        const retryAs = (eng: string) => t.home.retryAs.replace("{engine}", eng);
+        const retryAs = (eng: string) =>
+            t.home.retryAs.replace("{engine}", eng);
         expect(items.map((x) => x.textContent)).toEqual([
             t.home.retry,
             retryAs(t.home.engineAuto),
@@ -220,10 +232,13 @@ describe("U8：行内快捷臂", () => {
 });
 
 describe("U5：批量清理已完成", () => {
-    it("清理钮只删 done 行", async () => {
+    it("清理钮只删 done 行（两击确认）", async () => {
         renderList();
         const btn = root.querySelector(".task-clean") as HTMLButtonElement;
         expect(btn.disabled).toBe(false);
+        click(btn);
+        await flush();
+        expect(mocks.remove).not.toHaveBeenCalled();
         click(btn);
         await flush();
         expect(mocks.remove.mock.calls.map((c) => c[0]).sort()).toEqual([

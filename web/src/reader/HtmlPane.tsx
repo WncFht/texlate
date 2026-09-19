@@ -33,6 +33,7 @@ import {
     bindChunkGeom,
     capturePos,
     jumpTo,
+    raf,
     scrollTopFor,
     type PageGeom,
     type PaneLike,
@@ -44,6 +45,8 @@ import { t } from "../i18n";
 const RETX_POLL_MS = 2000;
 const RETX_TIMEOUT_MS = 60_000;
 const RETX_TOAST_MS = 4500;
+/** 挂载分片的时间盒——marked+KaTeX 每段数 ms，40ms/帧保对侧窗格可交互 */
+const MOUNT_SLICE_MS = 40;
 
 export interface HtmlPaneHandle extends PaneLike {
     gotoPage?(n: number): void;
@@ -147,7 +150,8 @@ export default function HtmlPane(props: Props) {
         // 重绘段含新外链——初始渲染挂过，就地重绘也要挂（与 mount 路径同口径）
         externalLinksBlank(fresh);
         libs?.renderMath(fresh);
-        geom.rebind();
+        // childList 变化已排 MO 整绑——同步再绑一遍是纯重复，只清缓存
+        geom.invalidate();
     };
 
     /** 202 入队 → 轮询该 seq 所在 chunks 窗（offset=seq 直取），zh 变化即就地更新 */
@@ -228,12 +232,32 @@ export default function HtmlPane(props: Props) {
     onMount(async () => {
         libs = await loadMdLibs().catch(() => null);
         if (disposed) return;
-        // 库加载失败仍出转义原文——比永远停在 veil  spinner 强
-        bodyEl.innerHTML =
-            props.chunks.map(sectionHtml).join("") ||
-            `<p class="chunk-empty">${t.reader.chunkEmpty}</p>`;
-        externalLinksBlank(bodyEl);
-        libs?.renderMath(bodyEl);
+        if (!props.chunks.length) {
+            // 库加载失败仍出转义原文——比永远停在 veil spinner 强
+            bodyEl.innerHTML = `<p class="chunk-empty">${t.reader.chunkEmpty}</p>`;
+        } else {
+            // 几百段一次 innerHTML + 全文 KaTeX 会连卡主线程数秒——按时间盒
+            // 分片挂载、片间 rAF 让帧；onReady 仍待全部落 DOM，保证同步几何完整
+            const tmp = document.createElement("div");
+            let i = 0;
+            while (i < props.chunks.length && !disposed) {
+                const deadline = performance.now() + MOUNT_SLICE_MS;
+                do {
+                    const c = props.chunks[i++];
+                    tmp.innerHTML = sectionHtml(c);
+                    const sec = tmp.firstElementChild as HTMLElement | null;
+                    if (sec) {
+                        externalLinksBlank(sec);
+                        libs?.renderMath(sec);
+                        bodyEl.append(sec);
+                    }
+                } while (i < props.chunks.length && performance.now() < deadline);
+                if (i < props.chunks.length) {
+                    await new Promise<void>((r) => raf(() => r()));
+                }
+            }
+            if (disposed) return;
+        }
         bodyEl.addEventListener("click", onBodyClick);
         geom.rebind();
         setReady(true);

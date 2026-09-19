@@ -1,12 +1,11 @@
 /* ---------- Home ---------- */
 
+/* 滚动容器占满全宽、内容用侧 padding 居中——margin:auto 居中容器会把
+   两侧留白变成滚轮死区；scrollbar 也随之贴到视口边缘 */
 .home {
     flex: 1;
     overflow: auto;
-    max-width: 760px;
-    width: 100%;
-    margin: 0 auto;
-    padding: 48px 24px;
+    padding: 48px max(24px, calc((100% - 760px) / 2));
 }
 
 .wordmark {
@@ -257,7 +256,9 @@
     cursor: pointer;
 }
 
-.ax-suggest-item:hover {
+/* 键盘 active（.on）与悬停同高亮——两套导航视觉一致 */
+.ax-suggest-item:hover,
+.ax-suggest-item.on {
     background: var(--paper-2);
 }
 
@@ -293,10 +294,10 @@
     color: var(--ink-3);
 }
 
-/* ---------- alphaXiv 热榜 ---------- */
+/* ---------- alphaXiv 热榜（降级到任务列表下方的横滚条） ---------- */
 
 .home-discover {
-    margin-top: 8px;
+    margin-top: 28px;
 }
 
 .home-discover h2 {
@@ -314,12 +315,17 @@
 }
 
 .ax-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    display: flex;
     gap: 12px;
+    overflow-x: auto;
+    padding-bottom: 10px;
+    scroll-snap-type: x proximity;
+    scrollbar-width: thin;
 }
 
 .ax-card {
+    flex: 0 0 216px;
+    scroll-snap-align: start;
     display: flex;
     flex-direction: column;
     background: var(--panel);

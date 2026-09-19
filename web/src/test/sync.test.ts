@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { capturePos, jumpTo, scrollTopFor, SyncEngine, type PaneLike } from "../reader/sync";
+import {
+    capturePos,
+    jumpTo,
+    scrollTopFor,
+    SyncEngine,
+    type PaneLike,
+} from "../reader/sync";
 import type { Pos } from "../reader/alignment";
 
 /** 假滚动容器：scrollTop/clientHeight + EventTarget 语义的最小实现 */
@@ -23,7 +29,11 @@ class FakeEl {
     }
 }
 
-function fakePane(side: "original" | "translated", pageTops: number[], pageH = 800): PaneLike & { fel: FakeEl } {
+function fakePane(
+    side: "original" | "translated",
+    pageTops: number[],
+    pageH = 800,
+): PaneLike & { fel: FakeEl } {
     const fel = new FakeEl();
     return {
         fel,
@@ -31,7 +41,8 @@ function fakePane(side: "original" | "translated", pageTops: number[], pageH = 8
         get el() {
             return fel as unknown as HTMLElement;
         },
-        pages: () => pageTops.map((top, i) => ({ page: i + 1, top, height: pageH })),
+        pages: () =>
+            pageTops.map((top, i) => ({ page: i + 1, top, height: pageH })),
     };
 }
 
@@ -63,7 +74,7 @@ describe("capturePos / jumpTo", () => {
         expect(p.fel.scrollTop).toBe(900);
     });
 
-    it("capture：反向索引遍历——pages 数组不可迭代也正常工作（不复制整表）", () => {
+    it("capture：纯索引访问二分——pages 数组不可迭代也正常工作（不复制整表）", () => {
         const geoms = [
             { page: 1, top: 0, height: 800 },
             { page: 2, top: 800, height: 800 },

@@ -25,7 +25,6 @@ vi.mock("../api/client", async (importOriginal) => {
 });
 
 import {
-    ApiError,
     type TaskChannel,
     type TaskEventHandlers,
     type TaskSnapshot,
@@ -85,7 +84,7 @@ afterEach(() => {
 });
 
 describe("taskStore SSE 窗口（MAX_SSE_TASKS）", () => {
-    it("refresh：非终态任务超窗口——前 N 个开 SSE，其余降级 snapshot 轮询", async () => {
+    it("refresh：非终态任务超窗口——前 N 个开 SSE，其余降级共享列表轮询", async () => {
         // updated_at 新→旧排序占槽
         mocks.tasks.mockResolvedValue([
             snap("w1", "translating", 50),
@@ -99,18 +98,15 @@ describe("taskStore SSE 窗口（MAX_SSE_TASKS）", () => {
 
         expect(mocks.openTaskEvents).toHaveBeenCalledTimes(MAX_SSE_TASKS);
         expect(openedFor()).toEqual(["w1", "w2", "w3"]);
-        // 溢出两任务轮询（startPoll 首轮立即 tick）
-        expect(mocks.snapshot.mock.calls.map((c) => c[0]).sort()).toEqual([
-            "w4",
-            "w5",
-        ]);
+        // 溢出两任务由共享列表轮询覆盖——不再逐任务开 snapshot 轮询
+        expect(mocks.snapshot).not.toHaveBeenCalled();
+        // refresh 一拍 + 轮询器立补一拍
+        expect(mocks.tasks.mock.calls.length).toBeGreaterThanOrEqual(2);
 
-        mocks.snapshot.mockClear();
+        mocks.tasks.mockClear();
         await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
-        expect(mocks.snapshot.mock.calls.map((c) => c[0]).sort()).toEqual([
-            "w4",
-            "w5",
-        ]);
+        expect(mocks.tasks).toHaveBeenCalled();
+        expect(mocks.snapshot).not.toHaveBeenCalled();
     });
 
     it("watch（pin）抢占 SSE 槽：原槽尾降级为轮询", async () => {
@@ -124,15 +120,15 @@ describe("taskStore SSE 窗口（MAX_SSE_TASKS）", () => {
         await taskStore.refresh();
         expect(openedFor()).toEqual(["p1", "p2", "p3"]);
 
-        mocks.snapshot.mockClear(); // 清掉 refresh 阶段 p4 的首轮 tick
         taskStore.watch("p4"); // reader 聚焦——pin 最优先
         expect(mocks.openTaskEvents).toHaveBeenCalledTimes(4);
         expect(openedFor().at(-1)).toBe("p4");
         expect(channelOf(2).close).toHaveBeenCalled(); // p3 被挤下 SSE
-        await vi.advanceTimersByTimeAsync(0);
-        expect(mocks.snapshot.mock.calls.map((c) => c[0]).sort()).toEqual([
-            "p3",
-        ]);
+        // p3 非 pin——降级进共享列表轮询：下拍 /api/tasks 覆盖而非 snapshot
+        mocks.tasks.mockClear();
+        await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
+        expect(mocks.tasks).toHaveBeenCalled();
+        expect(mocks.snapshot).not.toHaveBeenCalled();
     });
 
     it("done 终态让位：腾出 SSE 槽给轮询任务；live 收敛释放 logs/stages", async () => {
@@ -144,7 +140,9 @@ describe("taskStore SSE 窗口（MAX_SSE_TASKS）", () => {
         ]);
         used.push("d1", "d2", "d3", "d4");
         await taskStore.refresh();
-        expect(mocks.snapshot.mock.calls.map((c) => c[0])).toEqual(["d4"]);
+        // d4 由共享列表轮询覆盖（refresh 一拍 + 轮询补拍），无逐任务 snapshot
+        expect(mocks.snapshot).not.toHaveBeenCalled();
+        expect(mocks.tasks.mock.calls.length).toBeGreaterThanOrEqual(2);
 
         const h = handlersOf(0); // d1
         h.log?.({ line: "x" });
@@ -165,41 +163,42 @@ describe("taskStore SSE 窗口（MAX_SSE_TASKS）", () => {
         expect(openedFor().at(-1)).toBe("d4");
     });
 
-    it("轮询任务回终态 snapshot——摘除观测且不再轮询", async () => {
-        mocks.tasks.mockResolvedValue([
-            snap("q1", "translating", 50),
-            snap("q2", "translating", 40),
-            snap("q3", "translating", 30),
-            snap("q4", "translating", 20),
-        ]);
-        used.push("q1", "q2", "q3", "q4");
-        mocks.snapshot.mockImplementation((id: string) =>
-            Promise.resolve(snap(id, id === "q4" ? "done" : "translating")),
+    it("轮询任务回终态——摘除观测且不再轮询", async () => {
+        let q4status: TaskSnapshot["status"] = "translating";
+        mocks.tasks.mockImplementation(() =>
+            Promise.resolve([
+                snap("q1", "translating", 50),
+                snap("q2", "translating", 40),
+                snap("q3", "translating", 30),
+                snap("q4", q4status, 20),
+            ]),
         );
+        used.push("q1", "q2", "q3", "q4");
         await taskStore.refresh();
-        await vi.advanceTimersByTimeAsync(0);
+
+        q4status = "done";
+        await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
         expect(taskStore.task("q4")!.status).toBe("done");
 
-        mocks.snapshot.mockClear();
+        mocks.tasks.mockClear();
         await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS * 2);
-        expect(mocks.snapshot.mock.calls.map((c) => c[0])).toEqual([]); // q4 不再被轮询，且无新待轮任务
+        // q4 摘除、轮询集清空——共享定时器也随之停摆
+        expect(mocks.tasks).not.toHaveBeenCalled();
     });
 
-    it("轮询 404——任务行已删：本地移除且停止观测", async () => {
-        mocks.tasks.mockResolvedValue([
+    it("轮询任务从列表消失——按已删收敛：本地移除且停止观测", async () => {
+        const all = [
             snap("r1", "translating", 50),
             snap("r2", "translating", 40),
             snap("r3", "translating", 30),
             snap("r4", "translating", 20),
-        ]);
+        ];
+        mocks.tasks.mockImplementation(() => Promise.resolve(all));
         used.push("r1", "r2", "r3", "r4");
-        mocks.snapshot.mockImplementation((id: string) =>
-            id === "r4"
-                ? Promise.reject(new ApiError(404, "gone"))
-                : Promise.resolve(snap(id, "translating")),
-        );
         await taskStore.refresh();
-        await vi.advanceTimersByTimeAsync(0);
+
+        all.length = 3; // r4 从 tenant 列表消失 = 已删（与轮询 404 同收敛）
+        await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
         expect(taskStore.task("r4")).toBeUndefined();
         expect(taskStore.live("r4")).toBeUndefined();
     });

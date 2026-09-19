@@ -27,6 +27,11 @@ export default function FindBar(props: Props) {
     const [entireWord, setEntireWord] = createSignal(false);
     const [matchDiac, setMatchDiac] = createSignal(false);
 
+    // 击键搜索防抖：PDFFindController 每次 find 全文档重扫，逐字符派发在长文档上打字卡
+    let debTimer = 0;
+    const DEBOUNCE_MS = 250;
+    onCleanup(() => window.clearTimeout(debTimer));
+
     const emit = (type?: string, findPrevious = false) => {
         const s = props.slick();
         if (!s || !props.open) return;
@@ -40,6 +45,12 @@ export default function FindBar(props: Props) {
             matchDiacritics: matchDiac(),
             findPrevious,
         });
+    };
+
+    /** 输入路径走防抖；Enter/选项变更/again 仍即时 emit */
+    const emitDebounced = () => {
+        window.clearTimeout(debTimer);
+        debTimer = window.setTimeout(() => emit(), DEBOUNCE_MS);
     };
 
     // 计数/状态回填；findbarclose 后 highlightMatches 清空、状态回 FOUND
@@ -102,7 +113,7 @@ export default function FindBar(props: Props) {
                         value={query()}
                         onInput={(e) => {
                             setQuery(e.currentTarget.value);
-                            emit();
+                            emitDebounced();
                         }}
                         onKeyDown={onKeyDown}
                     />

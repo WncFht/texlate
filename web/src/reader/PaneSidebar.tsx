@@ -7,7 +7,15 @@
 // 隐藏期 PDFThumbnailView 的 div 照常进 DOM，只是不渲染图；再次显示时
 // 组件内 resize observer → forceRendering → 补渲可见缩略图。
 
-import { createEffect, createSignal, For, onCleanup, Show, untrack } from "solid-js";
+import {
+    createEffect,
+    createSignal,
+    For,
+    type JSX,
+    onCleanup,
+    Show,
+    untrack,
+} from "solid-js";
 import { AnnotationEditorType } from "pdfjs-dist";
 import type {
     PDFSlick,
@@ -35,7 +43,10 @@ interface Props {
 }
 
 /** 递归大纲节点：caret 折叠 + 标题点击跳 dest / 开外链 */
-function OutlineItem(props: { item: TPDFDocumentOutline[number]; slick: PDFSlick | null }) {
+function OutlineItem(props: {
+    item: TPDFDocumentOutline[number];
+    slick: PDFSlick | null;
+}) {
     const item = untrack(() => props.item);
     const [open, setOpen] = createSignal(true);
     const kids = () => item.items ?? [];
@@ -49,7 +60,9 @@ function OutlineItem(props: { item: TPDFDocumentOutline[number]; slick: PDFSlick
         }
         if (item.dest) {
             // dest 为命名串或显式数组；linkService 负责解析与跳转
-            void props.slick?.linkService.goToDestination(item.dest).catch(() => undefined);
+            void props.slick?.linkService
+                .goToDestination(item.dest)
+                .catch(() => undefined);
         }
     };
 
@@ -84,7 +97,9 @@ function OutlineItem(props: { item: TPDFDocumentOutline[number]; slick: PDFSlick
             <Show when={kids().length && open()}>
                 <ul class="ol-list">
                     <For each={kids()}>
-                        {(child) => <OutlineItem item={child} slick={props.slick} />}
+                        {(child) => (
+                            <OutlineItem item={child} slick={props.slick} />
+                        )}
                     </For>
                 </ul>
             </Show>
@@ -103,12 +118,15 @@ export default function PaneSidebar(props: Props) {
         props.slick()?.openOrDownloadData(a.content, a.filename);
 
     // 高亮批注开关：store.annotationEditorMode 由 setAnnotationEditorMode 回写，可直接读
-    const annotOn = () => props.store.annotationEditorMode === AnnotationEditorType.HIGHLIGHT;
+    const annotOn = () =>
+        props.store.annotationEditorMode === AnnotationEditorType.HIGHLIGHT;
     const toggleAnnot = () =>
         props
             .slick()
             ?.setAnnotationEditorMode(
-                annotOn() ? AnnotationEditorType.NONE : AnnotationEditorType.HIGHLIGHT,
+                annotOn()
+                    ? AnnotationEditorType.NONE
+                    : AnnotationEditorType.HIGHLIGHT,
             );
 
     const [hasAnnot, setHasAnnot] = createSignal(false);
@@ -120,21 +138,28 @@ export default function PaneSidebar(props: Props) {
         const s = props.slick();
         // pdf.js 类型把该钩子字段声明为 null，实为可赋值 callback——收窄成本地形状
         const storage = props.store.numPages
-            ? (s?.document?.annotationStorage as unknown as {
-                  onAnnotationEditor: ((type: string | null) => void) | null;
-              } | undefined)
+            ? (s?.document?.annotationStorage as unknown as
+                  | {
+                        onAnnotationEditor:
+                            ((type: string | null) => void) | null;
+                    }
+                  | undefined)
             : undefined;
         if (!storage) return;
         const cb = (type: string | null) => setHasAnnot(type !== null);
         storage.onAnnotationEditor = cb;
         onCleanup(() => {
-            if (storage.onAnnotationEditor === cb) storage.onAnnotationEditor = null;
+            if (storage.onAnnotationEditor === cb)
+                storage.onAnnotationEditor = null;
         });
     });
 
     const annotFile = () => {
         if (props.annotName) return props.annotName;
-        const base = (props.store.filename ?? "document").replace(/\.pdf$/i, "");
+        const base = (props.store.filename ?? "document").replace(
+            /\.pdf$/i,
+            "",
+        );
         return `${base}-annotated.pdf`;
     };
 
@@ -151,10 +176,60 @@ export default function PaneSidebar(props: Props) {
         }
     };
 
-    const TABS: { key: SideTab; icon: string; label: string }[] = [
-        { key: "thumbs", icon: "▦", label: t.pane.thumbs },
-        { key: "outline", icon: "☰", label: t.pane.outline },
-        { key: "attach", icon: "⧉", label: t.pane.attach },
+    // rail 图标用 inline SVG——⧉⌕ 等冷僻 unicode 在缺字形字体下出 tofu。
+    // feather 风格：24 网格 stroke=currentColor，尺寸内联不需要 CSS 配合。
+    const RI = (props: { children: JSX.Element }) => (
+        <svg
+            viewBox="0 0 24 24"
+            width="15"
+            height="15"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+        >
+            {props.children}
+        </svg>
+    );
+
+    const TABS: { key: SideTab; icon: JSX.Element; label: string }[] = [
+        {
+            key: "thumbs",
+            icon: (
+                <RI>
+                    <rect x="3" y="3" width="7" height="7" rx="1" />
+                    <rect x="14" y="3" width="7" height="7" rx="1" />
+                    <rect x="14" y="14" width="7" height="7" rx="1" />
+                    <rect x="3" y="14" width="7" height="7" rx="1" />
+                </RI>
+            ),
+            label: t.pane.thumbs,
+        },
+        {
+            key: "outline",
+            icon: (
+                <RI>
+                    <line x1="8" y1="6" x2="21" y2="6" />
+                    <line x1="8" y1="12" x2="21" y2="12" />
+                    <line x1="8" y1="18" x2="21" y2="18" />
+                    <line x1="3" y1="6" x2="3.01" y2="6" />
+                    <line x1="3" y1="12" x2="3.01" y2="12" />
+                    <line x1="3" y1="18" x2="3.01" y2="18" />
+                </RI>
+            ),
+            label: t.pane.outline,
+        },
+        {
+            key: "attach",
+            icon: (
+                <RI>
+                    <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+                </RI>
+            ),
+            label: t.pane.attach,
+        },
     ];
 
     return (
@@ -184,7 +259,10 @@ export default function PaneSidebar(props: Props) {
                     aria-label={t.pane.find}
                     onClick={() => props.onOpenFind()}
                 >
-                    ⌕
+                    <RI>
+                        <circle cx="11" cy="11" r="8" />
+                        <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                    </RI>
                 </button>
                 <button
                     type="button"
@@ -210,7 +288,9 @@ export default function PaneSidebar(props: Props) {
                     type="button"
                     class="rail-btn"
                     disabled={!hasAnnot() || saving()}
-                    title={hasAnnot() ? t.pane.annotSave : t.pane.annotSaveEmpty}
+                    title={
+                        hasAnnot() ? t.pane.annotSave : t.pane.annotSaveEmpty
+                    }
                     aria-label={t.pane.annotSave}
                     onClick={() => void saveAnnot()}
                 >
@@ -219,15 +299,23 @@ export default function PaneSidebar(props: Props) {
             </nav>
             {/* aside 常驻 DOM（hidden 控显隐），保证 thumbs 容器在构造期已就位 */}
             <aside class="pane-side" hidden={!tab()}>
-                <div class="side-fill side-thumbs" classList={{ off: tab() !== "thumbs" }}>
-                    <props.Thumbs thumbsRef={props.thumbsRef} store={props.store}>
+                <div
+                    class="side-fill side-thumbs"
+                    classList={{ off: tab() !== "thumbs" }}
+                >
+                    <props.Thumbs
+                        thumbsRef={props.thumbsRef}
+                        store={props.store}
+                    >
                         {(th) => (
                             <button
                                 type="button"
                                 class="thumb-btn"
                                 classList={{ loaded: th.loaded }}
                                 page-number={th.pageNumber}
-                                onClick={() => props.slick()?.gotoPage(th.pageNumber)}
+                                onClick={() =>
+                                    props.slick()?.gotoPage(th.pageNumber)
+                                }
                             >
                                 <Show
                                     when={th.src}
@@ -250,7 +338,9 @@ export default function PaneSidebar(props: Props) {
                                         />
                                     )}
                                 </Show>
-                                <span class="thumb-num">{th.pageLabel ?? th.pageNumber}</span>
+                                <span class="thumb-num">
+                                    {th.pageLabel ?? th.pageNumber}
+                                </span>
                             </button>
                         )}
                     </props.Thumbs>
@@ -260,13 +350,20 @@ export default function PaneSidebar(props: Props) {
                         <Show
                             when={outline()?.length ? outline() : null}
                             keyed
-                            fallback={<p class="side-empty muted">{t.pane.noOutline}</p>}
+                            fallback={
+                                <p class="side-empty muted">
+                                    {t.pane.noOutline}
+                                </p>
+                            }
                         >
                             {(items) => (
                                 <ul class="ol-list ol-root">
                                     <For each={items}>
                                         {(item) => (
-                                            <OutlineItem item={item} slick={props.slick()} />
+                                            <OutlineItem
+                                                item={item}
+                                                slick={props.slick()}
+                                            />
                                         )}
                                     </For>
                                 </ul>
@@ -279,7 +376,11 @@ export default function PaneSidebar(props: Props) {
                         <Show
                             when={attachments().length ? attachments() : null}
                             keyed
-                            fallback={<p class="side-empty muted">{t.pane.noAttach}</p>}
+                            fallback={
+                                <p class="side-empty muted">
+                                    {t.pane.noAttach}
+                                </p>
+                            }
                         >
                             {(list) => (
                                 <ul class="att-list">
@@ -290,11 +391,17 @@ export default function PaneSidebar(props: Props) {
                                                     type="button"
                                                     class="att-item"
                                                     title={a.filename}
-                                                    onClick={() => downloadAtt(a)}
+                                                    onClick={() =>
+                                                        downloadAtt(a)
+                                                    }
                                                 >
-                                                    <span class="att-name">{a.filename}</span>
+                                                    <span class="att-name">
+                                                        {a.filename}
+                                                    </span>
                                                     <span class="att-size muted">
-                                                        {fmtBytes(a.content.length)}
+                                                        {fmtBytes(
+                                                            a.content.length,
+                                                        )}
                                                     </span>
                                                 </button>
                                             </li>

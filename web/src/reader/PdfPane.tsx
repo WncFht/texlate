@@ -6,13 +6,26 @@
 // thumbs 容器常驻 DOM 是硬约束——usePDFSlick 构造期 untrack 读 thumbs 元素，
 // 晚挂载则 thumbnailViewer 永不创建（pdfslick#136，见 PaneSidebar 头注）。
 
-import { createEffect, createSignal, onCleanup, Show, untrack } from "solid-js";
+import {
+    createEffect,
+    createSignal,
+    onCleanup,
+    onMount,
+    Show,
+    untrack,
+} from "solid-js";
 import { usePDFSlick } from "@pdfslick/solid";
 import type { PDFSlick } from "@pdfslick/core";
 import "@pdfslick/solid/dist/pdf_viewer.css";
 
 import type { DocId, Pos } from "./alignment";
-import { capturePos, jumpTo, scrollTopFor, type PageGeom, type PaneLike } from "./sync";
+import {
+    capturePos,
+    jumpTo,
+    scrollTopFor,
+    type PageGeom,
+    type PaneLike,
+} from "./sync";
 import { ensurePdfjsWorker } from "../pdfjs";
 import PaneSidebar from "./PaneSidebar";
 import FindBar from "./FindBar";
@@ -65,20 +78,24 @@ export default function PdfPane(props: Props) {
         error,
     } =
         // url 刻意非追踪：组件按 doc.version keyed 重挂，绝不在位换 url（§5.1）
-        usePDFSlick(untrack(() => props.url), {
-            scaleValue: "page-width",
-            getDocumentParams: {
-                cMapUrl: "/pdfjs/cmaps/",
-                cMapPacked: true,
-                standardFontDataUrl: "/pdfjs/standard_fonts/",
-                wasmUrl: "/pdfjs/wasm/",
+        usePDFSlick(
+            untrack(() => props.url),
+            {
+                scaleValue: "page-width",
+                getDocumentParams: {
+                    cMapUrl: "/pdfjs/cmaps/",
+                    cMapPacked: true,
+                    standardFontDataUrl: "/pdfjs/standard_fonts/",
+                    wasmUrl: "/pdfjs/wasm/",
+                },
             },
-        });
+        );
 
     const viewer = () => pdfSlick()?.viewer;
 
     const [findOpen, setFindOpen] = createSignal(false);
     const [infoOpen, setInfoOpen] = createSignal(false);
+    let paneEl!: HTMLDivElement;
     let findInput: HTMLInputElement | undefined;
     // findbar 关闭焦点回触发源（rail ⌕ 钮；Ctrl+F 开时同样是它承接，一致可预期）
     let findBtn: HTMLButtonElement | undefined;
@@ -113,10 +130,17 @@ export default function PdfPane(props: Props) {
         },
         pages(): PageGeom[] {
             if (geomCache) return geomCache;
-            const views = (viewer() as unknown as { _pages?: PdfPageViewLike[] })?._pages ?? [];
+            const views =
+                (viewer() as unknown as { _pages?: PdfPageViewLike[] })
+                    ?._pages ?? [];
             const out: PageGeom[] = [];
             views.forEach((v, i) => {
-                if (v?.div) out.push({ page: i + 1, top: v.div.offsetTop, height: v.div.offsetHeight });
+                if (v?.div)
+                    out.push({
+                        page: i + 1,
+                        top: v.div.offsetTop,
+                        height: v.div.offsetHeight,
+                    });
             });
             geomCache = out;
             return out;
@@ -151,7 +175,9 @@ export default function PdfPane(props: Props) {
         if (!isDocumentLoaded() || readyNotified) return;
         const waitPages = () => {
             const s = pdfSlick();
-            const views = (s?.viewer as unknown as { _pages?: PdfPageViewLike[] })?._pages;
+            const views = (
+                s?.viewer as unknown as { _pages?: PdfPageViewLike[] }
+            )?._pages;
             if (s && views?.length && views.every((v) => v?.div)) {
                 readyNotified = true;
                 props.onReady?.(handle);
@@ -169,7 +195,12 @@ export default function PdfPane(props: Props) {
         const s = pdfSlick();
         if (!s) return;
         const bus = s.eventBus;
-        for (const ev of ["scalechanging", "rotationchanging", "pagesinit", "pagesdestroy"]) {
+        for (const ev of [
+            "scalechanging",
+            "rotationchanging",
+            "pagesinit",
+            "pagesdestroy",
+        ]) {
             bus.on(ev, invalidateGeom);
         }
         const ro =
@@ -178,7 +209,12 @@ export default function PdfPane(props: Props) {
                 : null;
         ro?.observe(s.viewer.container);
         onCleanup(() => {
-            for (const ev of ["scalechanging", "rotationchanging", "pagesinit", "pagesdestroy"]) {
+            for (const ev of [
+                "scalechanging",
+                "rotationchanging",
+                "pagesinit",
+                "pagesdestroy",
+            ]) {
                 bus.off(ev, invalidateGeom);
             }
             ro?.disconnect();
@@ -217,7 +253,8 @@ export default function PdfPane(props: Props) {
     // 页码上报（pdfjs pagechanging → store.pageNumber）
     createEffect(() => {
         const n = pdfSlickStore.pageNumber;
-        if (typeof n === "number") props.onPageChange?.(n, pdfSlickStore.numPages ?? 0);
+        if (typeof n === "number")
+            props.onPageChange?.(n, pdfSlickStore.numPages ?? 0);
     });
 
     // 用户滚动 → 上层做位置持久化/漂移检测（同步引擎自己在容器上挂监听）
@@ -230,8 +267,46 @@ export default function PdfPane(props: Props) {
         onCleanup(() => el.removeEventListener("scroll", l));
     });
 
+    // rail/侧栏/浮层等窗格 chrome 区的滚轮转给文档滚动口——滚轮语义
+    // 是「滚动本窗格文档」，不该死在 34px 窄条上。命中的侧件自身可滚
+    // （thumbs/outline/docinfo）时让给它，滚到头再链回文档；
+    // ctrl/meta+wheel 是缩放语义不抢。转发写 scrollTop 会触发容器
+    // scroll 事件——持久化/漂移/同步引擎走同一条路径，语义一致。
+    onMount(() => {
+        const onWheel = (e: WheelEvent) => {
+            if (e.ctrlKey || e.metaKey) return;
+            const container = viewer()?.container;
+            if (!container) return;
+            let node = e.target as Element | null;
+            if (!node || container.contains(node)) return;
+            while (node && node !== paneEl) {
+                if (node instanceof HTMLElement) {
+                    const oy = getComputedStyle(node).overflowY;
+                    if (
+                        (oy === "auto" || oy === "scroll") &&
+                        node.scrollHeight > node.clientHeight + 1
+                    ) {
+                        const room = node.scrollHeight - node.clientHeight;
+                        if (
+                            (e.deltaY > 0 && node.scrollTop < room - 1) ||
+                            (e.deltaY < 0 && node.scrollTop > 1)
+                        )
+                            return;
+                    }
+                }
+                node = node.parentElement;
+            }
+            const k = e.deltaMode === 1 ? 16 : 1; // Firefox 行单位滚轮
+            container.scrollTop += e.deltaY * k;
+            container.scrollLeft += e.deltaX * k;
+        };
+        paneEl.addEventListener("wheel", onWheel, { passive: true });
+        onCleanup(() => paneEl.removeEventListener("wheel", onWheel));
+    });
+
     return (
         <div
+            ref={(el) => (paneEl = el)}
             class="pane pane-pdf"
             classList={{ active: !!props.active }}
             data-side={props.side}
@@ -256,11 +331,18 @@ export default function PdfPane(props: Props) {
                     onClose={closeFind}
                 />
                 <Show when={infoOpen()}>
-                    <DocInfo store={pdfSlickStore} onClose={() => setInfoOpen(false)} />
+                    <DocInfo
+                        store={pdfSlickStore}
+                        onClose={() => setInfoOpen(false)}
+                    />
                 </Show>
                 <Show when={!isDocumentLoaded() && !error()}>
                     <div class="pane-veil">
-                        <div class="spinner" role="status" aria-label={t.pane.pdfLoading} />
+                        <div
+                            class="spinner"
+                            role="status"
+                            aria-label={t.pane.pdfLoading}
+                        />
                     </div>
                 </Show>
                 <Show when={error()}>

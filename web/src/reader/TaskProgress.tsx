@@ -1,13 +1,12 @@
 // TaskProgress —— 进行中任务的整页进度视图：transport 徽标 + 排队位次 +
-// 阶段步进 + 进度条 + ETA + 统计条 + 阶段时间线（含每段耗时）+ 段落棋盘格 +
-// fixloop/L2 面板 + 警告/错误 + 日志抽屉 + 取消。
+// 阶段步进 + 进度条 + ETA + 统计条 + 段落棋盘格 + LivePane 边译边读 +
+// 「运行细节」折叠组（阶段时间线/fixloop/L2/警告/日志抽屉）+ 错误 + 取消。
 // 纯展示件：数据全走 props，秒表（elapsed 走时源）为组件私态。
 
 import { createEffect, createSignal, For, onCleanup, Show } from "solid-js";
 import type { TaskSnapshot, TaskStage } from "../api/client";
 import type { TaskLive } from "../stores/tasks";
 import ProgressGrid from "../components/ProgressGrid";
-import ChunkPreview from "./ChunkPreview";
 import LivePane from "./LivePane";
 import { fmtClock, fmtElapsed } from "./timefmt";
 import { t } from "../i18n";
@@ -21,6 +20,8 @@ interface Props {
     live: TaskLive | undefined;
     title: string;
     onCancel(): void;
+    /** 返回任务列表——进度页此前无 UI 出口（只剩浏览器后退/取消） */
+    onBack?(): void;
 }
 
 export default function TaskProgress(props: Props) {
@@ -68,6 +69,7 @@ export default function TaskProgress(props: Props) {
 
     let logPre: HTMLPreElement | undefined;
     let logDrawer: HTMLDetailsElement | undefined;
+    let tpDetails: HTMLDetailsElement | undefined;
     // 棋盘格失败格点击 → 日志命中行号（null=无命中/未跳转）
     const [logHit, setLogHit] = createSignal<number | null>(null);
     const scrollLog = () => {
@@ -101,7 +103,9 @@ export default function TaskProgress(props: Props) {
     createEffect(() => {
         const i = logHit();
         if (i == null) return;
-        logPre?.querySelectorAll(".log-line")[i]?.scrollIntoView({
+        // pre 的子元素即 For 产的 .log-line 序列——children[i] 直取，
+        // 不用 qSA 整表物化
+        (logPre?.children[i] as HTMLElement | undefined)?.scrollIntoView({
             block: "center",
         });
     });
@@ -125,8 +129,18 @@ export default function TaskProgress(props: Props) {
         const lines = props.live?.logs ?? [];
         const hit = lines.findIndex((l) => re.test(l.line));
         setLogHit(hit >= 0 ? hit : null);
+        // 日志抽屉收在「运行细节」组内——跳转须连父组一起展开
+        if (tpDetails) tpDetails.open = true;
         if (logDrawer) logDrawer.open = true;
     };
+
+    /** 「运行细节」组出场闸——时间线/fixloop/L2/警告/日志任一在场即给 */
+    const hasDetails = () =>
+        (props.live?.stages.length ?? 0) > 0 ||
+        props.live?.fixloop != null ||
+        props.live?.l2 != null ||
+        (props.live?.warnings.length ?? 0) > 0 ||
+        (props.live?.logs.length ?? 0) > 0;
 
     // transport 四态徽标（connecting/polling 由 fe-live 侧 transport 契约扩展；
     // live 正常不显示）。宽转 string——契约字段落地前后都能编
@@ -145,6 +159,18 @@ export default function TaskProgress(props: Props) {
 
     return (
         <main class="task-progress">
+            <Show when={props.onBack}>
+                <div class="tp-nav">
+                    <button
+                        type="button"
+                        class="tb-btn"
+                        onClick={() => props.onBack?.()}
+                        title={t.reader.back}
+                    >
+                        ← {t.reader.back}
+                    </button>
+                </div>
+            </Show>
             <h1 class="tp-title">{props.title}</h1>
             <Show
                 when={props.live?.transport && props.live!.transport !== "live"}
@@ -228,39 +254,6 @@ export default function TaskProgress(props: Props) {
                     <dd class="stat-num">{fmtElapsed(elapsed())}</dd>
                 </div>
             </dl>
-            <Show when={(props.live?.stages.length ?? 0) > 0}>
-                <ol class="stage-timeline">
-                    <For each={props.live!.stages}>
-                        {(e, i) => {
-                            // 相邻事件 .at 相减得段耗时；末段随秒表走 live elapsed
-                            const dur = () => {
-                                const ss = props.live?.stages ?? [];
-                                const nxt = ss[i() + 1];
-                                const end = nxt ? nxt.at : now() / 1000;
-                                return Math.max(0, end - e.at);
-                            };
-                            return (
-                                <li>
-                                    <time class="tl-time">
-                                        {fmtClock(e.at)}
-                                    </time>
-                                    <span class="tl-stage">
-                                        {t.status[e.stage] ?? e.stage}
-                                    </span>
-                                    <span class="tl-dur muted">
-                                        {fmtElapsed(dur())}
-                                    </span>
-                                    <Show when={e.message}>
-                                        <span class="tl-msg muted">
-                                            {e.message}
-                                        </span>
-                                    </Show>
-                                </li>
-                            );
-                        }}
-                    </For>
-                </ol>
-            </Show>
             <Show when={props.live?.chunk}>
                 {(c) => (
                     <ProgressGrid
@@ -272,15 +265,6 @@ export default function TaskProgress(props: Props) {
                         onCellClick={jumpLog}
                     />
                 )}
-            </Show>
-            {/* 翻译段流式预览：已译 chunk 只读列表（taskChunks 轮询，
-                组件未随阶段离开即停） */}
-            <Show
-                when={
-                    props.task?.status === "translating" && props.task.task_id
-                }
-            >
-                {(id) => <ChunkPreview taskId={id()} />}
             </Show>
             {/* === live reading === 边译边读：已译段全渲染面板（LivePane 经
                 chunkPoll 共享轮询累积补丁；compiling 段 chunks 已冻结——
@@ -299,93 +283,6 @@ export default function TaskProgress(props: Props) {
                     />
                 )}
             </Show>
-            {/* fixloop 修复循环：compiling 段帧起即见——逐轮增量 + done 后
-                verdict 徽标 + floor_restored 提示（终态面板复看同一 live 面） */}
-            <Show when={props.live?.fixloop}>
-                {(f) => (
-                    <section class="fx-panel" aria-label={t.progress.fixloop}>
-                        <p class="fx-title muted">
-                            {t.progress.fixloop}
-                            <Show when={!f().done}>
-                                <span class="fx-spin" aria-hidden="true" />
-                                {t.progress.fxRunning}
-                            </Show>
-                        </p>
-                        <ol class="fx-rounds">
-                            <For each={f().rounds}>
-                                {(r) => (
-                                    <li>
-                                        {t.progress.fxRound.replace(
-                                            "{n}",
-                                            String(r.round),
-                                        )}
-                                        {r.n_errors != null &&
-                                            ` · ${t.progress.fxErrors.replace("{n}", String(r.n_errors))}`}
-                                        {r.category != null &&
-                                            ` · ${r.category}`}
-                                        {r.sec != null &&
-                                            ` · ${r.sec.toFixed(1)}s`}
-                                        {r.died === true &&
-                                            ` · ${t.progress.fxDied}`}
-                                    </li>
-                                )}
-                            </For>
-                        </ol>
-                        <Show when={f().done}>
-                            <p class="fx-verdict">
-                                <span class="fx-badge">
-                                    {f().verdict ?? "—"}
-                                </span>
-                                <Show when={f().floor_restored}>
-                                    <span class="fx-floor muted">
-                                        {t.progress.fxFloor}
-                                    </span>
-                                </Show>
-                            </p>
-                        </Show>
-                    </section>
-                )}
-            </Show>
-            {/* L2 校验重译：start/progress 帧 → 进行态行；done 帧 → 统计行 */}
-            <Show when={props.live?.l2}>
-                {(l) => (
-                    <section class="fx-panel" aria-label={t.progress.l2}>
-                        <p class="fx-title muted">
-                            {t.progress.l2}
-                            <Show when={l().phase !== "done"}>
-                                <span class="fx-spin" aria-hidden="true" />
-                            </Show>
-                        </p>
-                        <Show
-                            when={l().phase === "done"}
-                            fallback={
-                                <p class="fx-note muted">
-                                    {l().message ?? t.progress.l2Running}
-                                </p>
-                            }
-                        >
-                            <p class="fx-note muted">
-                                {t.progress.l2Errors} {l().errors ?? 0} ·{" "}
-                                {t.progress.l2Retranslated}{" "}
-                                {l().retranslated ?? 0} ·{" "}
-                                {t.progress.l2Fallback} {l().fallback ?? 0}
-                            </p>
-                        </Show>
-                    </section>
-                )}
-            </Show>
-            <Show when={(props.live?.warnings.length ?? 0) > 0}>
-                <p class="warn-title muted">{t.progress.warnings}</p>
-                <ul class="warn-list">
-                    <For each={props.live!.warnings}>
-                        {(w) => (
-                            <li>
-                                [{w.code}] {w.message}
-                            </li>
-                        )}
-                    </For>
-                </ul>
-            </Show>
             <Show when={props.live?.error}>
                 {(e) => (
                     <p class="form-error">
@@ -393,30 +290,181 @@ export default function TaskProgress(props: Props) {
                     </p>
                 )}
             </Show>
-            <details
-                class="log-drawer"
-                ref={(el) => (logDrawer = el)}
-                onToggle={scrollLog}
-            >
-                <summary>{t.progress.log}</summary>
-                <pre ref={(el) => (logPre = el)}>
-                    <For each={props.live?.logs ?? []}>
-                        {(l, i) => (
-                            <span
-                                class="log-line"
-                                classList={{ hit: i() === logHit() }}
+            {/* 运行细节：次级观测件收进折叠组（阶段时间线 + fixloop + L2 +
+                警告 + 日志抽屉）——主区只留态势件；失败格跳转会连本组一起展开 */}
+            <Show when={hasDetails()}>
+                <details class="tp-details" ref={(el) => (tpDetails = el)}>
+                    <summary>{t.progress.details}</summary>
+                    <Show when={(props.live?.stages.length ?? 0) > 0}>
+                        <ol class="stage-timeline">
+                            <For each={props.live!.stages}>
+                                {(e, i) => {
+                                    // 相邻事件 .at 相减得段耗时；末段随秒表走
+                                    // live elapsed
+                                    const dur = () => {
+                                        const ss = props.live?.stages ?? [];
+                                        const nxt = ss[i() + 1];
+                                        const end = nxt ? nxt.at : now() / 1000;
+                                        return Math.max(0, end - e.at);
+                                    };
+                                    return (
+                                        <li>
+                                            <time class="tl-time">
+                                                {fmtClock(e.at)}
+                                            </time>
+                                            <span class="tl-stage">
+                                                {t.status[e.stage] ?? e.stage}
+                                            </span>
+                                            <span class="tl-dur muted">
+                                                {fmtElapsed(dur())}
+                                            </span>
+                                            <Show when={e.message}>
+                                                <span class="tl-msg muted">
+                                                    {e.message}
+                                                </span>
+                                            </Show>
+                                        </li>
+                                    );
+                                }}
+                            </For>
+                        </ol>
+                    </Show>
+                    {/* fixloop 修复循环：compiling 段帧起即见——逐轮增量 +
+                        done 后 verdict 徽标 + floor_restored 提示（终态面板
+                        复看同一 live 面） */}
+                    <Show when={props.live?.fixloop}>
+                        {(f) => (
+                            <section
+                                class="fx-panel"
+                                aria-label={t.progress.fixloop}
                             >
-                                {l.line + "\n"}
-                            </span>
+                                <p class="fx-title muted">
+                                    {t.progress.fixloop}
+                                    <Show when={!f().done}>
+                                        <span
+                                            class="fx-spin"
+                                            aria-hidden="true"
+                                        />
+                                        {t.progress.fxRunning}
+                                    </Show>
+                                </p>
+                                <ol class="fx-rounds">
+                                    <For each={f().rounds}>
+                                        {(r) => (
+                                            <li>
+                                                {t.progress.fxRound.replace(
+                                                    "{n}",
+                                                    String(r.round),
+                                                )}
+                                                {r.n_errors != null &&
+                                                    ` · ${t.progress.fxErrors.replace("{n}", String(r.n_errors))}`}
+                                                {r.category != null &&
+                                                    ` · ${r.category}`}
+                                                {r.sec != null &&
+                                                    ` · ${r.sec.toFixed(1)}s`}
+                                                {r.died === true &&
+                                                    ` · ${t.progress.fxDied}`}
+                                            </li>
+                                        )}
+                                    </For>
+                                </ol>
+                                <Show when={f().done}>
+                                    <p class="fx-verdict">
+                                        <span class="fx-badge">
+                                            {f().verdict ?? "—"}
+                                        </span>
+                                        <Show when={f().floor_restored}>
+                                            <span class="fx-floor muted">
+                                                {t.progress.fxFloor}
+                                            </span>
+                                        </Show>
+                                    </p>
+                                </Show>
+                            </section>
                         )}
-                    </For>
-                </pre>
-            </details>
+                    </Show>
+                    {/* L2 校验重译：start/progress 帧 → 进行态行；done 帧 →
+                        统计行 */}
+                    <Show when={props.live?.l2}>
+                        {(l) => (
+                            <section
+                                class="fx-panel"
+                                aria-label={t.progress.l2}
+                            >
+                                <p class="fx-title muted">
+                                    {t.progress.l2}
+                                    <Show when={l().phase !== "done"}>
+                                        <span
+                                            class="fx-spin"
+                                            aria-hidden="true"
+                                        />
+                                    </Show>
+                                </p>
+                                <Show
+                                    when={l().phase === "done"}
+                                    fallback={
+                                        <p class="fx-note muted">
+                                            {l().message ??
+                                                t.progress.l2Running}
+                                        </p>
+                                    }
+                                >
+                                    <p class="fx-note muted">
+                                        {t.progress.l2Errors} {l().errors ?? 0}{" "}
+                                        · {t.progress.l2Retranslated}{" "}
+                                        {l().retranslated ?? 0} ·{" "}
+                                        {t.progress.l2Fallback}{" "}
+                                        {l().fallback ?? 0}
+                                    </p>
+                                </Show>
+                            </section>
+                        )}
+                    </Show>
+                    <Show when={(props.live?.warnings.length ?? 0) > 0}>
+                        <p class="warn-title muted">{t.progress.warnings}</p>
+                        <ul class="warn-list">
+                            <For each={props.live!.warnings}>
+                                {(w) => (
+                                    <li>
+                                        [{w.code}] {w.message}
+                                    </li>
+                                )}
+                            </For>
+                        </ul>
+                    </Show>
+                    <Show when={(props.live?.logs.length ?? 0) > 0}>
+                        <details
+                            class="log-drawer"
+                            ref={(el) => (logDrawer = el)}
+                            onToggle={scrollLog}
+                        >
+                            <summary>{t.progress.log}</summary>
+                            <pre ref={(el) => (logPre = el)}>
+                                <For each={props.live?.logs ?? []}>
+                                    {(l, i) => (
+                                        <span
+                                            class="log-line"
+                                            classList={{
+                                                hit: i() === logHit(),
+                                            }}
+                                        >
+                                            {l.line + "\n"}
+                                        </span>
+                                    )}
+                                </For>
+                            </pre>
+                        </details>
+                    </Show>
+                </details>
+            </Show>
             <div class="tp-actions">
                 <button
                     type="button"
                     class="btn-ghost"
-                    onClick={() => props.onCancel()}
+                    onClick={() => {
+                        if (window.confirm(t.progress.cancelConfirm))
+                            props.onCancel();
+                    }}
                 >
                     {t.reader.cancel}
                 </button>

@@ -1,13 +1,16 @@
 /* ---------- 响应式 ---------- */
-
-@media (max-width: 720px) {
-    /* 窄屏 toolbar 折行时让位给控件;标题在页内已有 */
-    .tb-title {
-        display: none;
-    }
-}
+/* .tb-title 不再 display:none——base min-width:0 + ellipsis 截断保住标题可见 */
 
 @media (max-width: 640px) {
+    /* 工具栏瘦身：次级控件（同步/互换/缩放/arXiv/下载/帮助）收进 ⋯ 菜单 */
+    .reader-toolbar .tb-opt {
+        display: none;
+    }
+
+    .reader-toolbar .tb-more-wrap {
+        display: block;
+    }
+
     /* 双栏纵排:每栏仍内部滚动,SyncEngine 用 scrollTop 不受影响 */
     .panes {
         flex-direction: column;
@@ -49,8 +52,13 @@
 }
 
 @media (max-width: 480px) {
+    /* 时间不丢——标题列让位，meta 行副本翻出 */
     .task-time {
         display: none;
     }
-}
 
+    .task-time-m {
+        display: inline;
+        flex: none;
+    }
+}

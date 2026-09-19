@@ -3,6 +3,7 @@
 //（wanted/SSE 槽/轮询/探活）在 taskTransport.ts——本层是状态面与门面：
 // tasks 行 reconcile/patch、TaskLive 写入、终态收敛、公开 API。
 
+import { batch } from "solid-js";
 import { createStore, produce, reconcile } from "solid-js/store";
 import {
     api,
@@ -10,6 +11,7 @@ import {
     forgetTaskEvents,
     isTerminal,
     liveSeqWatermark,
+    type ChunkItem,
     type TaskChannel,
     type TaskSnapshot,
 } from "../api/client";
@@ -25,10 +27,7 @@ import { createTransport } from "./taskTransport";
 // 门面再导出：live 面类型与传输调参常量是 store 公开面的一部分——
 // 消费方（TaskProgress/tests）从 tasks.ts 单点拿，不追内部文件布局
 export type { TaskLive } from "./liveFrames";
-export {
-    MAX_SSE_TASKS,
-    POLL_INTERVAL_MS,
-} from "./taskTransport";
+export { MAX_SSE_TASKS, POLL_INTERVAL_MS } from "./taskTransport";
 
 interface TasksState {
     tasks: TaskSnapshot[];
@@ -67,6 +66,27 @@ function upsertTask(snap: TaskSnapshot) {
         return;
     }
     setState("tasks", i, reconcile(snap));
+}
+
+/**
+ * /api/tasks 列表行是 TaskSnapshot 子集（缺 artifacts/warnings/usage/
+ * queue_position/options/glossary）——reconcile 快照语义会把缺席键清
+ * undefined，从现行行继承防清缺（refresh 与共享列表轮询共用）。
+ */
+function inheritRich(
+    s: TaskSnapshot,
+    cur: TaskSnapshot | undefined,
+): TaskSnapshot {
+    if (!cur) return s;
+    return {
+        ...s,
+        artifacts: s.artifacts ?? cur.artifacts,
+        warnings: s.warnings ?? cur.warnings,
+        usage: s.usage ?? cur.usage,
+        queue_position: s.queue_position ?? cur.queue_position,
+        options: s.options ?? cur.options,
+        glossary: s.glossary ?? cur.glossary,
+    };
 }
 
 /** 终态收敛：释放 append-only 缓冲（logs/stages 会话内单调增长）；
@@ -121,11 +141,40 @@ function dropTask(taskId: string) {
 const tp = createTransport({
     tasks: () => state.tasks,
     ensureLive,
-    setTransport: (taskId, s) =>
-        setState("live", taskId, "transport", s),
+    setTransport: (taskId, s) => setState("live", taskId, "transport", s),
     upsertTask,
     onTerminal: convergeTerminal,
     onDrop: dropTask,
+    // 非 pin 观测面共享列表轮询：一拍 /api/tasks 归并——与 refresh 同
+    // 水位口径（现行行更新则列表旧读不回退），消失=已删按轮询 404 收敛
+    pollListWanted: async (ids) => {
+        const list = await api.tasks();
+        const byId = new Map(list.map((t) => [t.task_id, t]));
+        const curById = new Map(state.tasks.map((r) => [r.task_id, r]));
+        let dirty = false;
+        for (const id of ids) {
+            if (!tp.wanted.has(id)) continue; // 拍间被摘除——迟到响应不回写
+            const s = byId.get(id);
+            if (!s) {
+                dropTask(id);
+                dirty = true;
+                continue;
+            }
+            const cur = curById.get(id);
+            if (
+                cur !== undefined &&
+                Math.max(liveSeqWatermark(id), cur.last_seq ?? 0) >
+                    (s.last_seq ?? 0)
+            )
+                continue;
+            upsertTask(inheritRich(s, cur));
+            if (isTerminal(s.status)) {
+                convergeTerminal(id, s);
+                dirty = true;
+            }
+        }
+        if (dirty) tp.rebalance();
+    },
     clearChunkLive: (taskId) => {
         setState("live", taskId, "chunk", undefined);
         setState("live", taskId, "chunkItems", []);
@@ -139,36 +188,58 @@ const tp = createTransport({
             }
         },
         stage: (e) => {
-            setState("live", taskId, "stage", e);
-            setState("live", taskId, "stages", (ss) => [...ss, e]);
-            // 字段级补丁——行引用不变，<For> 不整行重挂（M9）
-            const i = state.tasks.findIndex((t) => t.task_id === taskId);
-            if (i >= 0) {
-                setState("tasks", i, "status", e.stage);
-                setState("tasks", i, "stage", e.stage);
-                setState("tasks", i, "progress", e.progress);
-                setState("tasks", i, "message", e.message);
-            }
+            batch(() => {
+                setState("live", taskId, "stage", e);
+                setState("live", taskId, "stages", (ss) => [...ss, e]);
+                // 字段级补丁——行引用不变，<For> 不整行重挂（M9）
+                const i = state.tasks.findIndex((t) => t.task_id === taskId);
+                if (i >= 0) {
+                    setState("tasks", i, "status", e.stage);
+                    setState("tasks", i, "stage", e.stage);
+                    setState("tasks", i, "progress", e.progress);
+                    setState("tasks", i, "message", e.message);
+                }
+            });
         },
         chunk: (e) => {
-            setState("live", taskId, "chunk", e);
-            // 增量写：只动帧携带的 seq——ProgressGrid 按格订阅，
-            // 免每帧 slice+全量重建（P2）；越界空洞补 pending 占位
-            const cap = chunkCap(e.total);
-            for (const it of e.items) {
-                if (!chunkItemOk(it, cap)) continue;
-                const len = state.live[taskId]?.chunkItems.length ?? 0;
-                for (let s = len; s < it.seq; s++) {
-                    setState("live", taskId, "chunkItems", s, {
-                        seq: s,
-                        status: "pending",
-                    });
-                }
-                setState("live", taskId, "chunkItems", it.seq, it);
+            batch(() => {
+                setState("live", taskId, "chunk", e);
+                // 一帧一次 produce：空洞补齐+落位先在 draft 上算完再统一
+                // 落盘——跳到 seq=N 时逐格 setState 是 N 笔写（seq 上限
+                // 100k 即病态放大）；produce 仍只触达被写 index 的订阅，
+                // ProgressGrid 按格订阅的 P2 语义不破
+                const cap = chunkCap(e.total);
+                setState(
+                    "live",
+                    taskId,
+                    "chunkItems",
+                    produce((items: ChunkItem[]) => {
+                        for (const it of e.items) {
+                            if (!chunkItemOk(it, cap)) continue;
+                            while (items.length < it.seq)
+                                items.push({
+                                    seq: items.length,
+                                    status: "pending",
+                                });
+                            items[it.seq] = it;
+                        }
+                    }),
+                );
+            });
+        },
+        log: (e) => {
+            // 追加写不拷全表（编译爆发期逐条派发，slice(-499) 每条 O(500)
+            // 分配+For 全表 diff）；满 600 才一次性截回 500，摊薄截断成本
+            const len = state.live[taskId]?.logs.length ?? 0;
+            if (len >= 600) {
+                setState("live", taskId, "logs", (ls) => [
+                    ...ls.slice(-499),
+                    e,
+                ]);
+            } else {
+                setState("live", taskId, "logs", len, e);
             }
         },
-        log: (e) =>
-            setState("live", taskId, "logs", (ls) => [...ls.slice(-499), e]),
         warning: (e) =>
             setState("live", taskId, "warnings", (ws) => [...ws, e]),
         error: (e) => setState("live", taskId, "error", e),
@@ -184,17 +255,19 @@ const tp = createTransport({
                 tp.rebalance();
                 return;
             }
-            setState("live", taskId, "done", e);
-            const status = e.status;
-            const i = state.tasks.findIndex((t) => t.task_id === taskId);
-            if (i >= 0) {
-                setState("tasks", i, "status", status);
-                setState("tasks", i, "progress", 100);
-                // 拷一份——e.artifacts 已随 live.done 入 store，同对象入
-                // 第二路径会共用节点，后续 reconcile 会改穿 live.done
-                setState("tasks", i, "artifacts", { ...e.artifacts });
-            }
-            settleLive(taskId);
+            const status = e.status; // 窄化在闭包外——batch 内不继承 narrowing
+            batch(() => {
+                setState("live", taskId, "done", e);
+                const i = state.tasks.findIndex((t) => t.task_id === taskId);
+                if (i >= 0) {
+                    setState("tasks", i, "status", status);
+                    setState("tasks", i, "progress", 100);
+                    // 拷一份——e.artifacts 已随 live.done 入 store，同对象入
+                    // 第二路径会共用节点，后续 reconcile 会改穿 live.done
+                    setState("tasks", i, "artifacts", { ...e.artifacts });
+                }
+                settleLive(taskId);
+            });
             tp.unwant(taskId);
             tp.rebalance();
         },
@@ -225,7 +298,7 @@ export const taskStore = {
                             cur.last_seq ?? 0,
                         ) > (t.last_seq ?? 0)
                         ? cur
-                        : t,
+                        : inheritRich(t, cur),
                 );
             }
             // reconcile 按 task_id 匹配：在册行字段级合并（引用不变，

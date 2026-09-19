@@ -303,7 +303,9 @@ export type ReaderViewKind = "pdf" | "html" | "dom";
 export interface ReadingState {
     positions?: Partial<Record<"original" | "translated", Pos>>;
     active?: "original" | "translated";
-    mode?: "original" | "translated" | "split";
+    /** guide 不出现在持久化值里（guide 态 positions 恒空、saveNow 不写），
+        但 saveNow 组装本类型时 mode() 取值域含它——类型面同步放宽 */
+    mode?: "original" | "translated" | "split" | "guide";
     zoom?: string;
     sync?: boolean;
     /** 双栏左右互换（reader 布局态，随阅读位置同持久化） */
@@ -437,6 +439,27 @@ export interface DiscoverHit {
     snippet?: string;
 }
 
+/** overview.summary 六件套卡（实测字段；feedDescription 可为 null） */
+export interface AxSummary {
+    summary?: string;
+    feedDescription?: string | null;
+    originalProblem?: string[];
+    solution?: string[];
+    keyInsights?: string[];
+    results?: string[];
+    [k: string]: unknown;
+}
+
+/** overview.citations 行——带 justification 的相关论文（alphaxiv 图内已解析） */
+export interface AxCitation {
+    title?: string;
+    /** 未翻译字段（en 原样） */
+    fullCitation?: string;
+    justification?: string;
+    alphaxivLink?: string;
+    [k: string]: unknown;
+}
+
 /**
  * /api/discover/overview —— 机会型 AI 导读：未收录/未生成恒
  * ``{available:false}``（非错误）；命中时 zh 优先 en 兜底。
@@ -448,15 +471,10 @@ export interface AxOverview {
     alphaxiv_url?: string;
     title?: string | null;
     abstract?: string | null;
-    summary?:
-        | ({ summary?: string; feedDescription?: string } & Record<
-              string,
-              unknown
-          >)
-        | null;
+    summary?: AxSummary | null;
     /** 完整导读 blog markdown */
     overview?: string | null;
-    citations?: unknown[] | null;
+    citations?: AxCitation[] | null;
 }
 
 export class ApiError extends Error {

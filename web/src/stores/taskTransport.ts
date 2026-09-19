@@ -30,6 +30,11 @@ export interface TransportHooks {
     onTerminal(taskId: string, s: TaskSnapshot): void;
     /** 任务已删（本地 remove/deleted 帧/轮询 404/探活 404）：状态面全清 */
     onDrop(taskId: string): void;
+    /**
+     * 非 pin 观测面的共享列表轮询一拍——store 侧一次 /api/tasks 归并
+     * （水位防回退 + 终态收敛 + 消失即删），替代每任务各开 snapshot 轮询
+     */
+    pollListWanted(ids: readonly string[]): Promise<void>;
     /** resync 帧清 chunk 派生态——水位线已被 client 重置，累积值不可信 */
     clearChunkLive(taskId: string): void;
     /**
@@ -57,6 +62,13 @@ export interface TaskTransport {
 export function createTransport(hooks: TransportHooks): TaskTransport {
     const channels = new Map<string, TaskChannel>();
     const pollers = new Map<string, ReturnType<typeof setInterval>>();
+    /**
+     * 非 pin 观测面共享列表轮询集——槽外任务不再每任务各开 snapshot
+     * 轮询（N 任务 N 请求/3s），归并成一拍 /api/tasks 由 store 侧归并
+     */
+    const listPolled = new Set<string>();
+    let listPollTimer: ReturnType<typeof setInterval> | undefined;
+    let listInFlight = false;
     /** 观测意愿集：pin=显式 watch（reader 聚焦）优先占 SSE 槽 */
     const wanted = new Map<string, { pin: boolean }>();
     /**
@@ -87,10 +99,45 @@ export function createTransport(hooks: TransportHooks): TaskTransport {
         }
     }
 
+    async function tickList() {
+        if (listInFlight) return;
+        const ids = [...listPolled];
+        if (!ids.length) return;
+        listInFlight = true;
+        try {
+            await hooks.pollListWanted(ids);
+        } catch {
+            /* 抖动下拍再试——与 per-task tick 同策略 */
+        } finally {
+            listInFlight = false;
+        }
+    }
+
+    /** 集合非空才挂共享定时器；首个任务入集即补一拍（与原 startPoll 的 void tick() 同语义） */
+    function syncListPoll() {
+        if (listPolled.size && listPollTimer === undefined) {
+            listPollTimer = setInterval(() => void tickList(), POLL_INTERVAL_MS);
+            void tickList();
+        } else if (!listPolled.size && listPollTimer !== undefined) {
+            clearInterval(listPollTimer);
+            listPollTimer = undefined;
+        }
+    }
+
+    /** 非 pin 任务入共享列表轮询（ensureLive/transport 标 polling 与 startPoll 同口径） */
+    function listPoll(taskId: string) {
+        stopPoll(taskId);
+        hooks.ensureLive(taskId);
+        hooks.setTransport(taskId, "polling");
+        listPolled.add(taskId);
+    }
+
     function unwant(taskId: string) {
         wanted.delete(taskId);
+        listPolled.delete(taskId);
         closeChannel(taskId);
         stopPoll(taskId);
+        syncListPoll();
     }
 
     function drop(taskId: string) {
@@ -129,23 +176,18 @@ export function createTransport(hooks: TransportHooks): TaskTransport {
 
     /**
      * SSE 被服务端终结（探活兜底，M6）：snapshot 一次定去留——
-     * 404 → 行已删 drop；终态 → 收敛摘除；仍在跑 → 降级轮询接着盯
-     * （SSE 不再复活）；探活本身失败 → 轮询让 tick 侧慢慢判。
+     * 404 → 行已删 drop；终态 → 收敛摘除；仍在跑/探活失败 → 交尾部
+     * rebalance 降级（pin 走独轮询，非 pin 进共享列表轮询；SSE 不复活）。
      */
     async function probeAfterClose(taskId: string) {
         try {
             const s = await api.snapshot(taskId);
             if (!wanted.has(taskId)) return;
             hooks.upsertTask(s);
-            if (isTerminal(s.status)) {
-                hooks.onTerminal(taskId, s);
-            } else {
-                startPoll(taskId);
-            }
+            if (isTerminal(s.status)) hooks.onTerminal(taskId, s);
         } catch (e) {
             if (!wanted.has(taskId)) return;
             if (e instanceof ApiError && e.status === 404) hooks.onDrop(taskId);
-            else startPoll(taskId);
         }
         rebalance();
     }
@@ -179,15 +221,23 @@ export function createTransport(hooks: TransportHooks): TaskTransport {
                 for (const id of ids) {
                     if (!wanted.has(id)) continue; // 派发中被摘除
                     if (sseIds.has(id) && !sseDead.has(id)) {
+                        listPolled.delete(id);
                         stopPoll(id);
                         ensureChannel(id);
                     } else {
-                        // 槽外 / SSE 已被服务端终结——轮询通道
+                        // 槽外 / SSE 已被服务端终结——pin 走每任务独轮询
+                        // （聚焦面要 404→drop 精度），非 pin 进共享列表轮询
                         closeChannel(id);
-                        startPoll(id);
+                        if (wanted.get(id)?.pin) {
+                            listPolled.delete(id);
+                            startPoll(id);
+                        } else {
+                            listPoll(id);
+                        }
                     }
                 }
             } while (rebalanceDirty);
+            syncListPoll();
         } finally {
             rebalancing = false;
         }

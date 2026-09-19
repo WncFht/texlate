@@ -5,7 +5,7 @@
 //  - parseHash        #/arxiv/{id} 深链分支
 //  - LivePane         轮询累积渲染（未译段徽标+原文，zh 落地更新，卸载停轮询）
 //  - HtmlPane         译文侧徽标 / 单段重译流（202→轮询→就地重绘+toast）
-//  - Home             arxivId prop → 预填 + 自动提交一次
+//  - Home             arxivId prop → 预填 + 聚焦翻译钮，不自动提交
 // marked/auto-render 桩掉——管线行为在 htmlPane.test.ts 已覆盖，这里测逻辑。
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -221,6 +221,56 @@ describe("LivePane —— 边译边读", () => {
         ).toBeNull();
     });
 
+    it("折叠期间只记不绘，展开按最新快照补渲", async () => {
+        mocks.taskChunks.mockResolvedValue({
+            total: 3,
+            chunks: [
+                { seq: 0, kind: "text", status: "ok", en: "e0", zh: "译文0" },
+            ],
+        });
+        dispose = render(() => LivePane({ taskId: "t_fold" }), document.body);
+        await vi.waitFor(() =>
+            expect(document.body.querySelectorAll("[data-chunk]").length).toBe(
+                1,
+            ),
+        );
+
+        // 合上 → 后续拍新段不上屏
+        const det =
+            document.body.querySelector<HTMLDetailsElement>(
+                "details.live-pane",
+            )!;
+        det.open = false;
+        det.dispatchEvent(new Event("toggle"));
+        mocks.taskChunks.mockResolvedValue({
+            total: 3,
+            chunks: [
+                { seq: 0, kind: "text", status: "ok", en: "e0", zh: "译文0" },
+                { seq: 1, kind: "text", status: "ok", en: "e1", zh: "译文1" },
+            ],
+        });
+        // 轮询 2.5s 一拍——等下一拍真落地再断言（调用数 > 首拍）
+        const calls0 = mocks.taskChunks.mock.calls.length;
+        await vi.waitFor(
+            () =>
+                expect(mocks.taskChunks.mock.calls.length).toBeGreaterThan(
+                    calls0,
+                ),
+            { timeout: 4000 },
+        );
+        await flush();
+        expect(document.body.querySelector('[data-chunk="1"]')).toBeNull();
+
+        // 展开 → 补渲到位（acc 最新快照，含折叠期积下的段）
+        det.open = true;
+        det.dispatchEvent(new Event("toggle"));
+        await vi.waitFor(() =>
+            expect(
+                document.body.querySelector('[data-chunk="1"]')?.textContent,
+            ).toContain("译文1"),
+        );
+    });
+
     it("卸载即停轮询", async () => {
         dispose = render(() => LivePane({ taskId: "t_stop" }), document.body);
         await vi.waitFor(() => expect(mocks.taskChunks).toHaveBeenCalled());
@@ -380,15 +430,32 @@ describe("HtmlPane —— 单段重译", () => {
     });
 });
 
-// ---------- Home：arxivId prop 深链自动提交 ----------
+// ---------- Home：arxivId prop 深链预填（不自动提交） ----------
 
 describe("Home —— #/arxiv/{id} 深链", () => {
-    it("arxivId prop → 预填输入框 + 自动提交一次", async () => {
+    it("arxivId prop → 预填输入框 + 聚焦翻译钮，用户拍板才提交", async () => {
         const nav = vi.fn();
         dispose = render(
             () => Home({ nav, arxivId: "2501.14787" }),
             document.body,
         );
+        await flush();
+        // 不自动烧任务——输入框预填、焦点落翻译钮待命
+        expect(mocks.translate).not.toHaveBeenCalled();
+        expect(
+            document.body.querySelector<HTMLInputElement>(".arxiv-input")
+                ?.value,
+        ).toBe("2501.14787");
+        const submit =
+            document.body.querySelector<HTMLButtonElement>(".btn-primary")!;
+        expect(document.activeElement).toBe(submit);
+
+        // 用户确认（Enter 隐式提交同路）才发出 translate
+        document.body
+            .querySelector("form")!
+            .dispatchEvent(
+                new Event("submit", { bubbles: true, cancelable: true }),
+            );
         await vi.waitFor(() =>
             expect(mocks.translate).toHaveBeenCalledTimes(1),
         );
@@ -397,15 +464,9 @@ describe("Home —— #/arxiv/{id} 深链", () => {
             FM_OPTS,
             undefined,
         );
-        expect(
-            document.body.querySelector<HTMLInputElement>(".arxiv-input")
-                ?.value,
-        ).toBe("2501.14787");
-        await flush();
-        expect(mocks.translate).toHaveBeenCalledTimes(1); // 不重入
     });
 
-    it("无 arxivId 不自动提交；prop 变化到新 id 才再提", async () => {
+    it("无 arxivId 不预填不提交；prop 变化到新 id 再预填", async () => {
         const nav = vi.fn();
         const [aid, setAid] = createSignal<string | undefined>(undefined);
         // JSX props 编译成 getter——直调组件要保持反应性须手写 getter
@@ -418,24 +479,22 @@ describe("Home —— #/arxiv/{id} 深链", () => {
         dispose = render(() => Home(props), document.body);
         await flush();
         expect(mocks.translate).not.toHaveBeenCalled();
+        const input = () =>
+            document.body.querySelector<HTMLInputElement>(".arxiv-input")!;
 
-        setAid("2501.14787");
-        await vi.waitFor(() =>
-            expect(mocks.translate).toHaveBeenCalledTimes(1),
-        );
-        // 同值再置不触发（effect 守卫 + signal 同值不重新跑）
         setAid("2501.14787");
         await flush();
-        expect(mocks.translate).toHaveBeenCalledTimes(1);
+        expect(input().value).toBe("2501.14787");
+        expect(mocks.translate).not.toHaveBeenCalled();
+
+        // 同值再置不重聚焦（effect 守卫）
+        setAid("2501.14787");
+        await flush();
+        expect(input().value).toBe("2501.14787");
 
         setAid("cs/0501001");
-        await vi.waitFor(() =>
-            expect(mocks.translate).toHaveBeenCalledTimes(2),
-        );
-        expect(mocks.translate).toHaveBeenLastCalledWith(
-            "cs/0501001",
-            FM_OPTS,
-            undefined,
-        );
+        await flush();
+        expect(input().value).toBe("cs/0501001");
+        expect(mocks.translate).not.toHaveBeenCalled();
     });
 });

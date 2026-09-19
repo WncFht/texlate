@@ -37,6 +37,15 @@
     background: var(--panel);
     border: 1px solid var(--line);
     border-radius: 8px;
+    /* <a> 化（可新标签打开/复制链接）——压掉 UA 链接样 */
+    color: inherit;
+    text-decoration: none;
+}
+
+/* 同 id 重复任务的模型徽标 */
+.task-model {
+    color: var(--ink-3);
+    font-size: 11px;
 }
 
 .task-del {
@@ -76,6 +85,24 @@
     opacity: 0.8;
     color: var(--ochre-deep);
     border-color: var(--ochre);
+}
+
+/* 两击确认 armed 态：✕ 图标钮撑成文字药丸，整钮转警示色 */
+.task-del.arm {
+    width: auto;
+    padding: 0 8px;
+    font-size: 11px;
+    white-space: nowrap;
+    color: var(--cinnabar-deep);
+    border-color: var(--cinnabar);
+    background: color-mix(in srgb, var(--cinnabar) 8%, transparent);
+    opacity: 1;
+}
+
+.task-clean.arm {
+    color: var(--cinnabar-deep);
+    border-color: var(--cinnabar);
+    background: color-mix(in srgb, var(--cinnabar) 8%, transparent);
 }
 
 /* 列表工具行（U5）：搜索 + 筛选 chips + 批量清理 */
@@ -335,6 +362,12 @@
     grid-area: time;
     font-size: 12px;
     color: var(--ink-2);
+    white-space: nowrap;
+}
+
+/* 窄屏换位副本（meta 行内）：宽屏藏，≤480px 由 responsive.css 翻出 */
+.task-time-m {
+    display: none;
 }
 
 .task-bar {
@@ -349,7 +382,7 @@
     display: block;
     height: 100%;
     background: var(--ochre);
-    transition: width 0.4s ease;
+    /* 无 width 过渡——SSE 高频进度帧下过渡每帧重启动画反而更顿 */
 }
 
 .task-bar i.done {
@@ -363,4 +396,3 @@
 .task-bar i.dead {
     background: var(--ink-3);
 }
-
