@@ -99,6 +99,11 @@ const q = <T extends Element>(sel: string) => document.body.querySelector<T>(sel
 const shareBtn = () => q<HTMLButtonElement>(".share-btn");
 const clickShare = () =>
     shareBtn()?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+// 分享块住工具栏弹层里——先点 .tb-share 开层，.share-btn 才在 DOM
+const openShare = () =>
+    q<HTMLButtonElement>(".tb-share")?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+    );
 
 beforeEach(() => {
     for (const m of Object.values(mocks)) m.mockReset();
@@ -132,7 +137,7 @@ describe("分享钮渲染门——补充状态组合", () => {
         await settle();
         expect(q(".task-progress")).not.toBeNull();
         expect(shareBtn()).toBeNull();
-        expect(q(".share-banner")).toBeNull();
+        expect(q(".tb-share")).toBeNull();
     });
 
     it("cancelled + pdf 视图 → 结果横幅挂 rp-actions 但无分享钮", async () => {
@@ -159,6 +164,7 @@ describe("分享错误码映射——补充分支", () => {
         );
         mount();
         await settle();
+        openShare();
         clickShare();
         await settle();
         const err = q(".share-err")?.textContent ?? "";
@@ -171,6 +177,7 @@ describe("分享错误码映射——补充分支", () => {
         mocks.sharePack.mockRejectedValue(new ApiError(500, "db locked", "internal"));
         mount();
         await settle();
+        openShare();
         clickShare();
         await settle();
         const err = q(".share-err")?.textContent ?? "";
@@ -183,6 +190,7 @@ describe("分享错误码映射——补充分支", () => {
         mocks.sharePack.mockRejectedValue(new ApiError(502, "bad gateway"));
         mount();
         await settle();
+        openShare();
         clickShare();
         await settle();
         expect(q(".share-err")?.textContent).toContain("[share_pack] bad gateway");
@@ -192,6 +200,7 @@ describe("分享错误码映射——补充分支", () => {
         mocks.sharePack.mockRejectedValue(new TypeError("network down"));
         mount();
         await settle();
+        openShare();
         clickShare();
         await settle();
         expect(q(".share-err")?.textContent).toContain("[share_pack] network down");
@@ -201,6 +210,7 @@ describe("分享错误码映射——补充分支", () => {
         mocks.sharePack.mockRejectedValue(new ApiError(409, "仍在 translating"));
         mount();
         await settle();
+        openShare();
         clickShare();
         await settle();
         const err = q(".share-err")?.textContent ?? "";
@@ -214,6 +224,7 @@ describe("分享错误码映射——补充分支", () => {
         );
         mount();
         await settle();
+        openShare();
         clickShare();
         await settle();
         const err = q(".share-err")?.textContent ?? "";
@@ -231,6 +242,7 @@ describe("分享 busy 态与失败后重试", () => {
         );
         mount();
         await settle();
+        openShare();
         clickShare();
         await settle();
         const btn = shareBtn();
@@ -248,6 +260,7 @@ describe("分享 busy 态与失败后重试", () => {
             .mockResolvedValue({ share_key: "s-retry-2", url: "u", bytes: 1 });
         mount();
         await settle();
+        openShare();
         clickShare();
         await settle();
         expect(q(".share-err")).not.toBeNull();

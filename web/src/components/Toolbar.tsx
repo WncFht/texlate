@@ -38,6 +38,10 @@ interface Props {
     onBack(): void;
     /** 「?」快捷键帮助钮（ReaderView 开浮层） */
     onHelp?(): void;
+    /** done 态分享钮——父层给 onShare 才出；弹层在 ReaderView（.tb-host 内） */
+    onShare?(): void;
+    shareOpen?: boolean;
+    shareBtnRef?(el: HTMLButtonElement): void;
 }
 
 const ZOOMS = [
@@ -125,6 +129,138 @@ export default function Toolbar(props: Props) {
             <span class="tb-title" title={props.title}>
                 {props.title}
             </span>
+
+            {/* ⋯ 溢出菜单——≤640px 由 responsive.css 翻出，收纳 .tb-opt 控件。
+                DOM 位置紧贴 title：移动端与返回同行居右上，桌面 display:none 无布局影响 */}
+            <div class="tb-menu-wrap tb-more-wrap" ref={(el) => (moreWrap = el)}>
+                <button
+                    type="button"
+                    class="tb-btn"
+                    ref={(el) => (moreBtn = el)}
+                    aria-haspopup="menu"
+                    aria-expanded={moreOpen()}
+                    aria-label={t.reader.more}
+                    title={t.reader.more}
+                    onClick={() => setMoreOpen((v) => !v)}
+                    onKeyDown={(e) =>
+                        menuTriggerKey(
+                            e,
+                            () => setMoreOpen(true),
+                            () => moreWrap,
+                        )
+                    }
+                >
+                    ⋯
+                </button>
+                <Show when={moreOpen()}>
+                    <div
+                        class="tb-menu"
+                        role="menu"
+                        onKeyDown={(e) =>
+                            menuRoving(e, () => setMoreOpen(false))
+                        }
+                    >
+                        <Show when={props.mode === "split"}>
+                            <button
+                                type="button"
+                                role="menuitem"
+                                tabIndex={-1}
+                                classList={{ on: props.syncing }}
+                                onClick={() => {
+                                    props.onSync(!props.syncing);
+                                    setMoreOpen(false);
+                                }}
+                            >
+                                ⇅ {t.reader.sync}
+                            </button>
+                            <button
+                                type="button"
+                                role="menuitem"
+                                tabIndex={-1}
+                                onClick={() => {
+                                    props.onSwap();
+                                    setMoreOpen(false);
+                                }}
+                            >
+                                ⇄ {t.reader.swap}
+                            </button>
+                        </Show>
+                        <label class="tb-menu-row">
+                            {t.reader.zoom}
+                            <select
+                                class="tb-select"
+                                value={props.zoom}
+                                onChange={(e) =>
+                                    props.onZoom(e.currentTarget.value)
+                                }
+                            >
+                                <For each={ZOOMS}>
+                                    {(z) => (
+                                        <option value={z}>
+                                            {ZOOM_LABEL[z] ?? z}
+                                        </option>
+                                    )}
+                                </For>
+                            </select>
+                        </label>
+                        <Show when={props.arxivId}>
+                            {(id) => (
+                                <a
+                                    role="menuitem"
+                                    tabIndex={-1}
+                                    href={`https://arxiv.org/abs/${id()}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={() => setMoreOpen(false)}
+                                >
+                                    arXiv ↗
+                                </a>
+                            )}
+                        </Show>
+                        <Show when={props.onShare}>
+                            <button
+                                type="button"
+                                role="menuitem"
+                                tabIndex={-1}
+                                onClick={() => {
+                                    props.onShare?.();
+                                    setMoreOpen(false);
+                                }}
+                            >
+                                ⇧ {t.reader.share}
+                            </button>
+                        </Show>
+                        <Show when={props.downloads.length > 0}>
+                            <div class="tb-menu-sep" />
+                            <For each={props.downloads}>
+                                {(d) => (
+                                    <a
+                                        href={d.url}
+                                        download=""
+                                        role="menuitem"
+                                        tabIndex={-1}
+                                        onClick={() => setMoreOpen(false)}
+                                    >
+                                        {d.label}
+                                    </a>
+                                )}
+                            </For>
+                        </Show>
+                        <div class="tb-menu-sep" />
+                        <button
+                            type="button"
+                            role="menuitem"
+                            tabIndex={-1}
+                            onClick={() => {
+                                props.onHelp?.();
+                                setMoreOpen(false);
+                            }}
+                        >
+                            ? {t.reader.helpTitle}
+                        </button>
+                    </div>
+                </Show>
+            </div>
             <Show when={props.arxivId}>
                 {(id) => (
                     <a
@@ -231,6 +367,20 @@ export default function Toolbar(props: Props) {
                 </button>
             </Show>
 
+            <Show when={props.onShare}>
+                <button
+                    type="button"
+                    class="tb-btn tb-opt tb-share"
+                    ref={(el) => props.shareBtnRef?.(el)}
+                    aria-haspopup="dialog"
+                    aria-expanded={!!props.shareOpen}
+                    title={t.reader.shareBtnTip}
+                    onClick={() => props.onShare?.()}
+                >
+                    ⇧ {t.reader.share}
+                </button>
+            </Show>
+
             <button
                 type="button"
                 class="tb-btn tb-opt"
@@ -284,124 +434,6 @@ export default function Toolbar(props: Props) {
                                 </a>
                             )}
                         </For>
-                    </div>
-                </Show>
-            </div>
-
-            {/* ⋯ 溢出菜单——≤640px 由 responsive.css 翻出，收纳 .tb-opt 控件 */}
-            <div class="tb-menu-wrap tb-more-wrap" ref={(el) => (moreWrap = el)}>
-                <button
-                    type="button"
-                    class="tb-btn"
-                    ref={(el) => (moreBtn = el)}
-                    aria-haspopup="menu"
-                    aria-expanded={moreOpen()}
-                    aria-label={t.reader.more}
-                    title={t.reader.more}
-                    onClick={() => setMoreOpen((v) => !v)}
-                    onKeyDown={(e) =>
-                        menuTriggerKey(
-                            e,
-                            () => setMoreOpen(true),
-                            () => moreWrap,
-                        )
-                    }
-                >
-                    ⋯
-                </button>
-                <Show when={moreOpen()}>
-                    <div
-                        class="tb-menu"
-                        role="menu"
-                        onKeyDown={(e) =>
-                            menuRoving(e, () => setMoreOpen(false))
-                        }
-                    >
-                        <Show when={props.mode === "split"}>
-                            <button
-                                type="button"
-                                role="menuitem"
-                                tabIndex={-1}
-                                classList={{ on: props.syncing }}
-                                onClick={() => {
-                                    props.onSync(!props.syncing);
-                                    setMoreOpen(false);
-                                }}
-                            >
-                                ⇅ {t.reader.sync}
-                            </button>
-                            <button
-                                type="button"
-                                role="menuitem"
-                                tabIndex={-1}
-                                onClick={() => {
-                                    props.onSwap();
-                                    setMoreOpen(false);
-                                }}
-                            >
-                                ⇄ {t.reader.swap}
-                            </button>
-                        </Show>
-                        <label class="tb-menu-row">
-                            {t.reader.zoom}
-                            <select
-                                class="tb-select"
-                                value={props.zoom}
-                                onChange={(e) =>
-                                    props.onZoom(e.currentTarget.value)
-                                }
-                            >
-                                <For each={ZOOMS}>
-                                    {(z) => (
-                                        <option value={z}>
-                                            {ZOOM_LABEL[z] ?? z}
-                                        </option>
-                                    )}
-                                </For>
-                            </select>
-                        </label>
-                        <Show when={props.arxivId}>
-                            {(id) => (
-                                <a
-                                    role="menuitem"
-                                    tabIndex={-1}
-                                    href={`https://arxiv.org/abs/${id()}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    onClick={() => setMoreOpen(false)}
-                                >
-                                    arXiv ↗
-                                </a>
-                            )}
-                        </Show>
-                        <Show when={props.downloads.length > 0}>
-                            <div class="tb-menu-sep" />
-                            <For each={props.downloads}>
-                                {(d) => (
-                                    <a
-                                        href={d.url}
-                                        download=""
-                                        role="menuitem"
-                                        tabIndex={-1}
-                                        onClick={() => setMoreOpen(false)}
-                                    >
-                                        {d.label}
-                                    </a>
-                                )}
-                            </For>
-                        </Show>
-                        <div class="tb-menu-sep" />
-                        <button
-                            type="button"
-                            role="menuitem"
-                            tabIndex={-1}
-                            onClick={() => {
-                                props.onHelp?.();
-                                setMoreOpen(false);
-                            }}
-                        >
-                            ? {t.reader.helpTitle}
-                        </button>
                     </div>
                 </Show>
             </div>

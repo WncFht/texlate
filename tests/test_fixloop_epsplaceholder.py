@@ -44,7 +44,7 @@ def test_non_ps_suffix_refused(tmp_path: Path) -> None:
     ctx = _ctx(tmp_path, {"main.tex": "x\n"})
     ok, note = graphic_missing_placeholder(ctx, None, "foo.sty", {})
     assert not ok
-    assert "not a known graphic ext" in note
+    assert "not a PS-family" in note
     assert not (tmp_path / "foo.sty").exists()
 
 
@@ -136,11 +136,4 @@ def test_rule_sits_between_includepdf_stub_and_repair() -> None:
     i_rep = ids.index("graphic_repair")
     assert i_stub < i_ph < i_rep
     rules = {r.id: r for r in load_ruleset().phase("loop")}
-    when = rules["graphic_missing_placeholder"].when
-    # failmine4-covgap: missing_graphic (xetex "Unable to load" 措辞) 双臂化
-    assert when == {
-        "any": [
-            {"category": "missing_file", "payload_required": True},
-            {"category": "missing_graphic", "payload_required": True},
-        ]
-    }
+    assert rules["graphic_missing_placeholder"].when["category"] == "missing_file"

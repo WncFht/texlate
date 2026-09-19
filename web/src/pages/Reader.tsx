@@ -58,15 +58,6 @@ export default function Reader(props: {
     const [readerGone, setReaderGone] = createSignal(false);
     // §6 事后共享：done/partial + 非 share 导入 + 有 arxiv 源 → 可打 .share.zip
     const share = createSharePack(() => props.taskId);
-    // 分享横幅全局可关：同一句提示每个 done 任务都顶一遍是噪音
-    const SHARE_DISMISS_KEY = "texlate.shareBanner.off";
-    const [shareDismissed, setShareDismissed] = createSignal(
-        localStorage.getItem(SHARE_DISMISS_KEY) === "1",
-    );
-    const dismissShare = () => {
-        localStorage.setItem(SHARE_DISMISS_KEY, "1");
-        setShareDismissed(true);
-    };
     // 终态编排（retry/HTML 换链）——reader/taskActions 工厂，信号内聚在件内
     const retry = createTaskRetry({
         taskId: () => props.taskId,
@@ -263,7 +254,14 @@ export default function Reader(props: {
 
     // ---------- 页面流转派生 ----------
 
-    const title = () => task()?.title || task()?.arxiv_id || props.taskId;
+    // 顶栏标题兜底链：task.title → PDF metadata Title → arxiv_id → taskId
+    const [docTitles, setDocTitles] = createSignal<
+        Partial<Record<DocId, string>>
+    >({});
+    const pdfTitle = () =>
+        docTitles().original || docTitles().translated || "";
+    const title = () =>
+        task()?.title || pdfTitle() || task()?.arxiv_id || props.taskId;
     // html 视图需 dual.json chunks 到位才成立；登记 html 却无渲染材料 → empty 空态；
     // readerGone（doc 类任务）→ files 产物面板
     const view = () => resolveReaderView(info(), dual(), readerGone());
@@ -380,15 +378,15 @@ export default function Reader(props: {
             <Show when={fatal()}>
                 <main class="reader-fatal">
                     <p>{fatal()}</p>
-                    <button type="button" class="tb-btn" onClick={reload}>
-                        {t.reader.retry}
-                    </button>
                     <button
                         type="button"
-                        class="btn-ghost"
+                        class="tb-btn"
                         onClick={() => props.nav("#/")}
                     >
                         ← {t.reader.back}
+                    </button>
+                    <button type="button" class="btn-ghost" onClick={reload}>
+                        {t.reader.retry}
                     </button>
                 </main>
             </Show>
@@ -434,6 +432,9 @@ export default function Reader(props: {
                     onRetry={() => void retry.run()}
                     onCancel={() => void api.cancel(props.taskId)}
                     onBack={() => props.nav("#/")}
+                    onDocTitle={(side, ti) =>
+                        setDocTitles((m) => ({ ...m, [side]: ti }))
+                    }
                     banner={
                         // 有产物的非干净终态（partial 等）：横幅提示，不挡阅读
                         <Show when={resultStatus()}>
@@ -444,32 +445,17 @@ export default function Reader(props: {
                             </section>
                         </Show>
                     }
-                    shareBanner={
-                        // done 且无结果横幅：§6 完成后提示分享
-                        // （partial 的分享钮在结果横幅内）；✕ 全局记忆关闭
-                        <Show
-                            when={
-                                task()?.status === "done" &&
-                                canShare() &&
-                                !shareDismissed()
-                            }
-                        >
-                            <section class="result-banner share-banner">
-                                <span class="rp-status">
+                    sharePanel={
+                        // done 专属分享弹层（partial 的分享钮在结果横幅内）：
+                        // 有值 → ReaderView 出工具栏分享钮 + 弹层
+                        task()?.status === "done" && canShare() ? (
+                            <>
+                                <p class="share-pop-text">
                                     {t.reader.shareBanner}
-                                </span>
+                                </p>
                                 {renderShare()}
-                                <button
-                                    type="button"
-                                    class="banner-x"
-                                    aria-label={t.pane.close}
-                                    title={t.pane.close}
-                                    onClick={dismissShare}
-                                >
-                                    ✕
-                                </button>
-                            </section>
-                        </Show>
+                            </>
+                        ) : undefined
                     }
                 />
             </Show>

@@ -93,6 +93,11 @@ const q = <T extends Element>(sel: string) => document.body.querySelector<T>(sel
 const shareBtn = () => q<HTMLButtonElement>(".share-btn");
 const clickShare = () =>
     shareBtn()?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+// 分享块住工具栏弹层里——先点 .tb-share 开层，.share-btn 才在 DOM
+const openShare = () =>
+    q<HTMLButtonElement>(".tb-share")?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+    );
 
 beforeEach(() => {
     for (const m of Object.values(mocks)) m.mockReset();
@@ -118,10 +123,12 @@ afterEach(() => {
 });
 
 describe("Reader「分享本译文」渲染门", () => {
-    it("done + arxiv 源 + pdf 视图 → 分享横幅与按钮出现", async () => {
+    it("done + arxiv 源 + pdf 视图 → 工具栏分享钮，点开弹层出打包钮", async () => {
         mount();
         await settle();
-        expect(q(".share-banner")).not.toBeNull();
+        expect(q(".tb-share")).not.toBeNull();
+        openShare();
+        expect(q(".share-pop")).not.toBeNull();
         expect(shareBtn()?.textContent).toContain(t.reader.shareBtn);
     });
 
@@ -130,8 +137,9 @@ describe("Reader「分享本译文」渲染门", () => {
         mount();
         await settle();
         expect(q(".result-banner .rp-actions .share-btn")).not.toBeNull();
-        // done 专属横幅不出（partial 的分享在结果横幅里）
-        expect(q(".share-banner")).toBeNull();
+        // done 专属弹层不出（partial 的分享在结果横幅里）
+        expect(q(".tb-share")).toBeNull();
+        expect(q(".share-pop")).toBeNull();
     });
 
     it("done + reader 404（doc 类任务）→ 产物面板内出现分享钮", async () => {
@@ -142,12 +150,12 @@ describe("Reader「分享本译文」渲染门", () => {
         expect(q(".result-panel .share-btn")).not.toBeNull();
     });
 
-    it("kind=share → 无分享钮也无横幅（导入产物不自包）", async () => {
+    it("kind=share → 无分享钮也无弹层（导入产物不自包）", async () => {
         mocks.snapshot.mockResolvedValue(snap({ kind: "share" }));
         mount();
         await settle();
         expect(shareBtn()).toBeNull();
-        expect(q(".share-banner")).toBeNull();
+        expect(q(".tb-share")).toBeNull();
     });
 
     it("无 arxiv_id → 无分享钮（不参与共享寻址）", async () => {
@@ -155,7 +163,7 @@ describe("Reader「分享本译文」渲染门", () => {
         mount();
         await settle();
         expect(shareBtn()).toBeNull();
-        expect(q(".share-banner")).toBeNull();
+        expect(q(".tb-share")).toBeNull();
     });
 
     it("fault + files 视图 → 结果面板无分享钮", async () => {
@@ -177,6 +185,7 @@ describe("Reader「分享本译文」调用与结果态", () => {
         });
         mount();
         await settle();
+        openShare();
         clickShare();
         // 成功前补点：busy 门拦截，仍只调一次
         clickShare();
@@ -193,6 +202,7 @@ describe("Reader「分享本译文」调用与结果态", () => {
         );
         mount();
         await settle();
+        openShare();
         clickShare();
         await settle();
         expect(q(".share-err")?.textContent).toContain(t.reader.shareErrState);
@@ -205,6 +215,7 @@ describe("Reader「分享本译文」调用与结果态", () => {
         );
         mount();
         await settle();
+        openShare();
         clickShare();
         await settle();
         expect(q(".share-err")?.textContent).toContain(t.reader.shareErrRejected);
@@ -216,6 +227,7 @@ describe("Reader「分享本译文」调用与结果态", () => {
         );
         mount();
         await settle();
+        openShare();
         clickShare();
         await settle();
         const err = q(".share-err")?.textContent ?? "";

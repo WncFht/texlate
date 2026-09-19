@@ -32,6 +32,7 @@ import {
     type TaskStatus,
 } from "../api/client";
 import Toolbar, { type DownloadItem, type Mode } from "../components/Toolbar";
+import { bindMenuDismiss } from "../components/menuNav";
 import { createPositionMapper, type DocId, type Pos } from "./alignment";
 import { annotFileName, zoomToFontPx } from "./paneUtils";
 import { capturePos, jumpTo, scrollTopFor, SyncEngine } from "./sync";
@@ -76,11 +77,13 @@ interface Props {
     onSwap(): void;
     /** 非干净终态横幅（ResultBody 槽，自门控） */
     banner?: JSX.Element;
-    /** done 态分享提示横幅（自门控） */
-    shareBanner?: JSX.Element;
+    /** done 态分享弹层内容（调用方判定可分享才给——有值即出工具栏分享钮） */
+    sharePanel?: JSX.Element;
     onRetry(): void;
     onCancel(): void;
     onBack(): void;
+    /** 窗格 PDF metadata Title 上报（Reader 层拼顶栏兜底标题） */
+    onDocTitle?(side: DocId, title: string): void;
 }
 
 export default function ReaderView(props: Props) {
@@ -106,7 +109,10 @@ export default function ReaderView(props: Props) {
         Partial<Record<DocId, AnyHandle>>
     >({});
     const [helpOpen, setHelpOpen] = createSignal(false);
+    const [shareOpen, setShareOpen] = createSignal(false);
     const [splitPct, setSplitPct] = createSignal(0.5);
+    let sharePop: HTMLDivElement | undefined;
+    let shareBtnEl: HTMLButtonElement | undefined;
 
     let engine: SyncEngine | null = null;
     let pendingJump: { from: DocId; pos: Pos } | null = null;
@@ -117,6 +123,14 @@ export default function ReaderView(props: Props) {
     let saveTimer = 0;
     let driftRaf = 0;
     let panesEl!: HTMLDivElement;
+
+    // 分享弹层 dismiss：外部 pointerdown 收 / Escape 收+焦点回分享钮（menuNav 共享件）
+    bindMenuDismiss({
+        open: shareOpen,
+        close: () => setShareOpen(false),
+        wrap: () => sharePop,
+        trigger: () => shareBtnEl,
+    });
 
     const stepPage = (d: number) => {
         const cur = pageNums()[active()] ?? 1;
@@ -577,6 +591,7 @@ export default function ReaderView(props: Props) {
             onActivate={() => setActive(side)}
             onScroll={() => onUserScroll(side)}
             onJumpBack={() => jumpBack(side)}
+            onDocTitle={(ti) => props.onDocTitle?.(side, ti)}
         />
     );
 
@@ -602,29 +617,47 @@ export default function ReaderView(props: Props) {
     return (
         <>
             {/* 终态阅读器（左右互换走 CSS row-reverse，逻辑侧不变） */}
-            <Toolbar
-                title={props.title}
-                status={props.status}
-                mode={mode()}
-                syncing={syncing()}
-                zoom={zoom()}
-                page={pageNums()[active()]}
-                numPages={pageCounts()[active()]}
-                downloads={props.downloads}
-                arxivId={props.arxivId}
-                pageUnit={isPdf() ? undefined : t.reader.pageUnitChunk}
-                onMode={planModeChange}
-                onSync={setSync}
-                onZoom={applyZoom}
-                onGotoPage={gotoPage}
-                onSwap={() => props.onSwap()}
-                onRetry={() => props.onRetry()}
-                onCancel={() => props.onCancel()}
-                onBack={() => props.onBack()}
-                onHelp={() => setHelpOpen(true)}
-            />
+            <div class="tb-host">
+                <Toolbar
+                    title={props.title}
+                    status={props.status}
+                    mode={mode()}
+                    syncing={syncing()}
+                    zoom={zoom()}
+                    page={pageNums()[active()]}
+                    numPages={pageCounts()[active()]}
+                    downloads={props.downloads}
+                    arxivId={props.arxivId}
+                    pageUnit={isPdf() ? undefined : t.reader.pageUnitChunk}
+                    onMode={planModeChange}
+                    onSync={setSync}
+                    onZoom={applyZoom}
+                    onGotoPage={gotoPage}
+                    onSwap={() => props.onSwap()}
+                    onRetry={() => props.onRetry()}
+                    onCancel={() => props.onCancel()}
+                    onBack={() => props.onBack()}
+                    onHelp={() => setHelpOpen(true)}
+                    onShare={
+                        props.sharePanel
+                            ? () => setShareOpen((v) => !v)
+                            : undefined
+                    }
+                    shareOpen={shareOpen()}
+                    shareBtnRef={(el) => (shareBtnEl = el)}
+                />
+                <Show when={shareOpen()}>
+                    <div
+                        class="share-pop"
+                        ref={(el) => (sharePop = el)}
+                        role="dialog"
+                        aria-label={t.reader.shareBtn}
+                    >
+                        {props.sharePanel}
+                    </div>
+                </Show>
+            </div>
             {props.banner}
-            {props.shareBanner}
             <div
                 class="panes"
                 ref={(el) => (panesEl = el)}

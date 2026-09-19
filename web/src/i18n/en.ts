@@ -184,6 +184,7 @@ export const t = {
         filesTitle: "Download artifacts",
         filesHint:
             "This task produced a document-type translation with no online side-by-side view — download the artifacts directly",
+        share: "Share",
         shareBtn: "Share this translation",
         shareBtnTip:
             "Package a .share.zip into the server share directory — for other TeXlate instances to import",

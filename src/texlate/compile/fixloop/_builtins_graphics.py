@@ -11,7 +11,6 @@ builtins.py 门面的同名回引只是再导出, patch 它不生效。
 
 from __future__ import annotations
 
-import base64
 import re
 import shutil
 import subprocess
@@ -915,73 +914,6 @@ _EPS_PLACEHOLDER = (
     "%%EOF\n"
 )
 
-# ════════════════════════════════════════════════════════════════
-# xetex 图形域二进制占位 (failmine4-covgap: "Unable to load picture or
-# PDF file" 臂 6 格) —— 扩展名决定 xetex image-sniff 路径, EPS 文本写进
-# .png/.jpg/.pdf 件名被格式探测拒载, 须真格式字节。三件同构 200x150
-# 灰底+边框+对角线 (EPS 占位的像素版), Title/COM 段同痕可辨「图缺」。
-# 字节产物经 identify/pdfinfo/gs 结构验证 + xetex \includegraphics
-# 真编译实证; 生成器存档 tmp/lane-covgap/gen_ph.py (PNG zlib 程序化
-# 合成 / PDF 手写 xref / JPEG magick 生成+手注 COM 段)。
-# ════════════════════════════════════════════════════════════════
-
-#: 200x150 RGB PNG (zlib IDAT, tEXt Title 留痕)。
-_PNG_PLACEHOLDER = base64.b64decode(
-    "iVBORw0KGgoAAAANSUhEUgAAAMgAAACWCAIAAAAUvlBOAAAAN3RFWHRUaXRsZQBmaXhsb29wIHBs"
-    "YWNlaG9sZGVyIChncmFwaGljIGFic2VudCBmcm9tIGUtcHJpbnQpfeIzqwAAA4JJREFUeNrt3UFu"
-    "4zAMBVDdH3PIHGV2RafINLEjSiL5/qpAF7E+X9HEsezxRyQgQwWyAtZD5Faew/r+Cx3JbVVfP4/v"
-    "mNiSD1U9h4WXfELqBSy25LaqF7DYknuqXsPCS+6ReAsWW3IVw7uw2JJLDC7Awgupq07GJStsURUC"
-    "iy2qomDhhVQgLLaoioLFFlVRsPBCKhAWW1RFwWKLqihYeCEVCIut5qoCYbHVWVUsLLx6kloEi62G"
-    "qhbBYqubqnWw8OpDagMstpqo2gCLrQ6q9sDCqzapzbDYql3yTlhsFa53Myy8qlZ6BCy26pV5Ciy2"
-    "itV4ECy8KlV3HCy2apR2Iiy2CtR1KCy8sld0NCy28pZzOiy2ktaSABZeGatIA4utXCVkgsVWouUn"
-    "g9WWV7olp4TVzVbGxWaF1cdW0mUmhlWeV+qlpYdV1Vb2RVWAVc9WgeUUgVVsHmVmMcr8uRd4X1Jp"
-    "EMP/EYcNVrU5Ff7wMUp+Yk/0ZW3V8odTQQ4PrArzK/+1QQtYjyN3sHQofPjSjSqwss614RUZo9Xl"
-    "TRtv69Ot5OG6OarAyjTvttdSt4b1WHKv887FDjsUPJgDrNN52aYG1nwQVIE1nwVVYE32gRRY86FQ"
-    "BdZ8W1SBNZkXUmDNt0UVWPNtUQVWCC9dgQUWWHlUqQssb97BcroBLKrYAiuEFF5gxapiC6xYImyB"
-    "FSgDL7CiQLAFVhQFtmz/sv0LrISDt2G13eKXjbynLTcFqfyiYLUYsNsYUcUWWAkn6laRVLEFVrYR"
-    "1rblAQIOEqyiA/PIE6occFdYHisHlsFUtlUHVrGR1BiHh41bFFg9Pq7XeL+YFVaT89d5R5MPVsMr"
-    "BTIOaDjrY8ndYTW/2DfXmHLAsvUlUQlpYFGVq4ocsKhKV8jpsJBKWs7RsKjKW9G5sKhKXdSJsJAq"
-    "UNpxsKiqUd1ZsKgqU+ApsJAqVuYRsKiqV+l+WFSVLHYnLKQKl7wNFlW1q94Di6rytlbDQqoJr6Ww"
-    "qOpjax0sqlrZWgELqYa8wmFR1dNWLCyq2tqKgoVUc14hsKhiaz4sqtiaDAspvObDooqt+bCoYmsy"
-    "LKTwmg+LKrbmw6KKrcmwkMJrPiyq2JoPiyq2LlF5DQspuYThLVhUyVUSr2FRJTdg/AYLKbnN67+w"
-    "qJJPbD2HRZV8aOsnLKRkCq9/YFEls2w9hyUyJWBJSP4CIWwCxuF8Zi8AAAAASUVORK5CYII="
-)
-#: 单页 PDF 1.4 (5 obj, MediaBox[0 0 200 150], 边框+X stream, Info/Title)。
-_PDF_PLACEHOLDER = base64.b64decode(
-    "JVBERi0xLjQKJSBmaXhsb29wIHBsYWNlaG9sZGVyIChncmFwaGljIGFic2VudCBmcm9tIGUtcHJp"
-    "bnQpCjEgMCBvYmoKPDwvVHlwZS9DYXRhbG9nL1BhZ2VzIDIgMCBSPj4KZW5kb2JqCjIgMCBvYmoK"
-    "PDwvVHlwZS9QYWdlcy9LaWRzWzMgMCBSXS9Db3VudCAxPj4KZW5kb2JqCjMgMCBvYmoKPDwvVHlw"
-    "ZS9QYWdlL1BhcmVudCAyIDAgUi9NZWRpYUJveFswIDAgMjAwIDE1MF0vQ29udGVudHMgNCAwIFIv"
-    "UmVzb3VyY2VzPDw+Pj4+CmVuZG9iago0IDAgb2JqCjw8L0xlbmd0aCA2Nj4+CnN0cmVhbQowLjU1"
-    "IGcgMS41IHcKMSAxIDE5OCAxNDggcmUgUwoxIDEgbSAxOTkgMTQ5IGwgUwoxOTkgMSBtIDEgMTQ5"
-    "IGwgUwplbmRzdHJlYW0KZW5kb2JqCjUgMCBvYmoKPDwvVGl0bGUoZml4bG9vcCBwbGFjZWhvbGRl"
-    "cikvUHJvZHVjZXIoZml4bG9vcCk+PgplbmRvYmoKeHJlZgowIDYKMDAwMDAwMDAwMCA2NTUzNSBm"
-    "IAowMDAwMDAwMDYxIDAwMDAwIG4gCjAwMDAwMDAxMDYgMDAwMDAgbiAKMDAwMDAwMDE1NyAwMDAw"
-    "MCBuIAowMDAwMDAwMjUxIDAwMDAwIG4gCjAwMDAwMDAzNjQgMDAwMDAgbiAKdHJhaWxlcgo8PC9T"
-    "aXplIDYvUm9vdCAxIDAgUi9JbmZvIDUgMCBSPj4Kc3RhcnR4cmVmCjQyOQolJUVPRgo="
-)
-#: 200x150 灰阶 baseline JPEG (SOI 后手注 FF FE COM 段留痕)。
-_JPEG_PLACEHOLDER = base64.b64decode(
-    "/9j//gAzZml4bG9vcCBwbGFjZWhvbGRlciAoZ3JhcGhpYyBhYnNlbnQgZnJvbSBlLXByaW50Kf/g"
-    "ABBKRklGAAEBAAABAAEAAP/bAEMACAYGBwYFCAcHBwkJCAoMFA0MCwsMGRITDxQdGh8eHRocHCAk"
-    "LicgIiwjHBwoNyksMDE0NDQfJzk9ODI8LjM0Mv/AAAsIAJYAyAEBIgD/xAAYAAEBAQEBAAAAAAAA"
-    "AAAAAAAABwYFA//EACkQAQAAAwgDAQEAAgMAAAAAAAABAwQCBQcXM1R0sZOU0QYREmFxgeH/2gAI"
-    "AQEAAD8A8/2n7So/MVcIxhUTrM6dMswhZnxs/wCP8j/6yucM3aVftx+GcM3aVftx+GcM3aVftx+G"
-    "cM3aVftx+GcM3aVftx+GcM3aVftx+GcM3aVftx+GcM3aVftx+GcM3aVftx+GcM3aVftx+GcM3aVf"
-    "tx+GcM3aVftx+GcM3aVftx+GcM3aVftx+GcM3aVftx+GcM3aVftx+GcM3aVftx+GcM3aVftx+GcM"
-    "3aVftx+GcM3aVftx+GcM3aVftx+GcM3aVftx+GcM3aVftx+NV+L/AGlR+nq4xhCok2ZM6XZjC1Pj"
-    "a/y/sY/GVxh16bkTu4JaAAAAAAAKlg9r1XIk9xMYdem5E7uCWgAAAAAACpYPa9VyJPcTGHXpuRO7"
-    "gloAAAAAAAqWD2vVciT3Exh16bkTu4JaAAAAAAAKlg9r1XIk9xMYdem5E7uCWgAAAAAACpYPa9Vy"
-    "JPcTGHXpuRO7gloAAAAAAAqWD2vVciT3Exh16bkTu4JaAAAAAAAKlg9r1XIk9xMYdem5E7uCWgAA"
-    "AAAACpYPa9VyJPcTGHXpuRO7gloAAAAAAAqWD2vVciT3Exh16bkTu4JaAAAAAAAKlg9r1XIk9xMY"
-    "dem5E7uCWgAAAAAACpYPa9VyJPcTGHXpuRO7gloAAAAAAAqWD2vVciT3Exh16bkTu4JaAAAAAAAK"
-    "lg9r1XIk9xMYdem5E7uCWgAAAAAACpYPa9VyJPcTGHXpuRO7gloAAAAAAAqWD2vVciT3Exh16bkT"
-    "u4JaAAAAAAAKlg9r1XIk9xMYdem5E7uCWgAAAAAACpYPa9VyJPcVJv38NJvyst2q2VTz7FibbtS4"
-    "WrduH8/sf9f8QcnKi6NhSeWYZUXRsKTyzDKi6NhSeWYZUXRsKTyzDKi6NhSeWYZUXRsKTyzDKi6N"
-    "hSeWYZUXRsKTyzDKi6NhSeWYZUXRsKTyzDKi6NhSeWYZUXRsKTyzDKi6NhSeWYZUXRsKTyzDKi6N"
-    "hSeWY6txfhpNxVVm3QyqeTZtTLFqZCzbtx/v8j/v/t//2Q=="
-)
-
 #: ``\epsfig{file=X.eps, scale=..}`` / ``\psfig{figure=X}`` / ``\epsfbox{X}``
 #: kv/裸参引用点 —— ``_INCLUDE_GFX_RE`` 吃不到 kv 形, 独立一柄。
 _EPS_KV_RE = re.compile(r"\\(?:epsfig|psfig|epsffile|epsfbox)\s*\{([^}]*)\}")
@@ -1010,70 +942,46 @@ def _has_live_graphic_ref(ctx: LoopCtx, want: str) -> bool:
     return False
 
 
-def graphic_missing_placeholder(  # noqa: C901, PLR0911, PLR0912 - 逐门 decline note 即归因
+def graphic_missing_placeholder(  # noqa: PLR0911 - 逐门 decline note 即归因
     ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
 ) -> tuple[bool, str]:
-    r"""图档真缺件 → ``<main_dir>/<payload>`` 落最小合法格式占位。
+    r"""missing_file 的 PS 族图档真缺件 → ``wdir/<payload>`` 落最小合法 EPS。
 
-    graphic_ext_relax 残家 (failmine3 8 格) + xetex "Unable to load
-    picture or PDF file" 残家 (failmine4-covgap 6 格): sibling 不存在时
-    剥扩展名也救不了 —— 修复不是改源而是补档 (xbb_pregen 旁件同形)。
-    站点改写形盖不全调用面: ``\epsfig{file=X.eps}`` kv 形与宏体
-    ``#1.eps`` 间接名 (payload 是展开后真名, 源码字面不可锚) 只能由
-    「真名落盘」治; 子目录路径 (``FIGS/``/``images/``) mkdir 随行。
+    graphic_ext_relax 残家 (failmine3 8 格): sibling 不存在时剥扩展名也
+    救不了 —— 修复不是改源而是补档 (xbb_pregen 旁件同形)。站点改写形
+    盖不全调用面: ``\epsfig{file=X.eps}`` kv 形与宏体 ``#1.eps`` 间接名
+    (payload 是展开后真名, 源码字面不可锚) 只能由「真名落盘」治;
+    子目录路径 (``FIGS/``/``images/``) mkdir 随行。
 
-    占位格式按 payload 扩展名分发 (xetex image-sniff 认格式字节):
-    ``.eps/.epsf/.epsi/.ps/.mps`` → 文本 EPS; ``.png/.jpg/.jpeg/.pdf``
-    → 同构图二进制占位; 无扩展名 (ext-relax 残家 vanilla 解析序) 须
-    先过 ``_has_live_graphic_ref`` 复核才补 ``.eps`` —— ``\input`` 系
-    裸缺件不落图占位。落盘基址 = ``main_path().parent`` (TeX 的
-    cwd 解析位; main 未知退回 wdir) —— main 住子目录时 wdir 根位
-    对 TeX 不可见。payload 是 log 派生路径 —— 双层守卫: ``..`` 段拒
-    + resolve 后仍须在 wdir 内 (防穿越写); 解析位已有档 (大小写
-    变体/前轮已补) → False 让路。
+    payload 是 log 派生路径 —— 双层守卫: ``..`` 段拒 + resolve 后仍须
+    在 wdir 内 (防穿越写)。无扩展名 payload (ext-relax 残家 vanilla
+    解析序) 须先过 ``_has_live_graphic_ref`` 复核才补 ``.eps`` ——
+    ``\input`` 系裸缺件不落图占位。盘上已有档 (大小写变体/前轮已补)
+    → False 让路。
     """
     del eng, params
     want = _norm_graphic_name(payload or "")
     if not want:
         return False, "no graphic payload"
     suffix = PurePosixPath(want).suffix.lower()
-    if suffix and suffix not in _GRAPHIC_EXTS:
-        return False, f"{want}: not a known graphic ext"
+    if suffix and suffix not in _EPS_EXTS:
+        return False, f"{want}: not a PS-family graphic"
     if not suffix:
         if not _has_live_graphic_ref(ctx, want):
             return False, f"{want}: no live graphic ref — not graphic domain"
         want += ".eps"
-        suffix = ".eps"
     if ".." in PurePosixPath(want).parts:
         return False, f"{want}: path traversal rejected"
-    mp = ctx.main_path()
-    base = mp.parent if mp is not None else ctx.wdir
-    f = base / want
+    f = ctx.wdir / want
     try:
         f.resolve().relative_to(ctx.wdir.resolve())
     except ValueError:
         return False, f"{want}: escapes wdir"
     if safe_is_file(f):
         return False, f"{want}: resolved meanwhile"
-    blob: str | bytes
-    if suffix in _EPS_EXTS:
-        blob = _EPS_PLACEHOLDER
-    elif suffix == ".pdf":
-        blob = _PDF_PLACEHOLDER
-    elif suffix == ".png":
-        blob = _PNG_PLACEHOLDER
-    elif suffix in (".jpg", ".jpeg"):
-        blob = _JPEG_PLACEHOLDER
-    else:
-        # _GRAPHIC_EXTS 日后扩面时的保守缺省 —— 格式不符的占位即废件
-        return False, f"{want}: no placeholder asset for {suffix}"
     try:
         f.parent.mkdir(parents=True, exist_ok=True)
-        if isinstance(blob, str):
-            ctx.write(f, blob)
-        else:
-            f.write_bytes(blob)
-            ctx.invalidate(f)
+        ctx.write(f, _EPS_PLACEHOLDER)
     except OSError as e:
         return False, f"{want}: write failed ({e})"
-    return True, f"placeholder {suffix.lstrip('.').upper()} at {want}"
+    return True, f"placeholder EPS at {want}"

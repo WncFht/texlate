@@ -23,6 +23,31 @@
     flex-wrap: wrap;
 }
 
+/* 分享弹层定位锚——包住 header 让 .share-pop 顶住工具栏下沿（无论几行） */
+.tb-host {
+    position: relative;
+}
+
+/* 分享弹层：不是 .tb-menu（内容是块不是清单）——贴右缘、限宽 */
+.share-pop {
+    position: absolute;
+    top: 100%;
+    right: 12px;
+    z-index: 40;
+    width: min(340px, calc(100vw - 24px));
+    padding: 12px 14px;
+    font-size: 13px;
+    color: var(--ink-2);
+    background: var(--panel);
+    border: 1px solid var(--line-strong);
+    border-radius: 8px;
+    box-shadow: var(--shadow);
+}
+
+.share-pop-text {
+    margin: 0 0 8px;
+}
+
 .tb-title {
     min-width: 0; /* flex 可缩——窄屏 ellipsis 截断而非整项消失 */
     max-width: min(240px, 28vw);

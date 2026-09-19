@@ -177,6 +177,7 @@ export const t = {
         authKeyPlaceholder: "输入 API Key 后重试",
         filesTitle: "下载产物",
         filesHint: "该任务产出文档类译文，无在线对照视图——直接下载产物",
+        share: "分享",
         shareBtn: "分享本译文",
         shareBtnTip:
             "打包 .share.zip 写入服务端共享目录——供其他 TeXlate 实例导入",

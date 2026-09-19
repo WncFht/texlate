@@ -57,6 +57,8 @@ interface Props {
     onPageChange?(page: number, numPages: number): void;
     onActivate?(): void;
     onScroll?(): void;
+    /** PDF metadata Title 上报——Reader 层作顶栏/document.title 兜底 */
+    onDocTitle?(title: string): void;
     /** 加载失败 veil 的重试——调用方换 key 整体重挂（url 不可在位换，§5.1） */
     onReload?(): void;
 }
@@ -248,6 +250,13 @@ export default function PdfPane(props: Props) {
             unsub();
             destroyDoc();
         });
+    });
+
+    // 文档标题上报：store.title 由 _parseDocumentInfo 落定（metadata.info.Title）——
+    // 空串不上报，调用方留 arxiv_id 兜底
+    createEffect(() => {
+        const title = pdfSlickStore.title;
+        if (title) props.onDocTitle?.(title);
     });
 
     // 页码上报（pdfjs pagechanging → store.pageNumber）

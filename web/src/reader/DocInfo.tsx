@@ -57,7 +57,8 @@ export default function DocInfo(props: Props) {
                     s.modificationDate ? fmtDate(s.modificationDate) : undefined,
                 ],
             ] as [string, string | undefined][]
-        ).map(([k, v]) => [k, v || "—"]);
+            // 空字段整行不渲染——多数 PDF 元数据稀，一屏「—」比少几行更乱
+        ).filter(([, v]) => !!v) as [string, string][];
     };
 
     return (

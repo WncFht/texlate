@@ -11,6 +11,15 @@
         display: block;
     }
 
+    /* 两行收口：gap/分段钮内边距收紧，seg+页码与 ⋯ 不抢行 */
+    .reader-toolbar {
+        gap: 6px;
+    }
+
+    .segmented-item {
+        padding: 4px 9px;
+    }
+
     /* 双栏纵排:每栏仍内部滚动,SyncEngine 用 scrollTop 不受影响 */
     .panes {
         flex-direction: column;

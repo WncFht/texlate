@@ -47,6 +47,8 @@ interface Props {
     onActivate(): void;
     onScroll(): void;
     onJumpBack(): void;
+    /** PDF metadata Title 上报（仅 pdf 视图） */
+    onDocTitle?(title: string): void;
 }
 
 export default function PaneSlot(props: Props) {
@@ -125,6 +127,7 @@ export default function PaneSlot(props: Props) {
                                 onPageChange={(p) => props.onPageChange(p)}
                                 onActivate={() => props.onActivate()}
                                 onScroll={() => props.onScroll()}
+                                onDocTitle={(ti) => props.onDocTitle?.(ti)}
                                 onReload={() => bumpPdfNonce((n) => n + 1)}
                             />
                         )}
