@@ -868,3 +868,13 @@
 - **fc9 待发 (bticktax 组波毕, 84 目标+31 clean)**：ids.txt 115 id 全 corpus_v3 核, 17 lane-tag 归因——hold 等 csfix2 (bbkresid 4 格在列) + maxsep209 (0104245 在列); kvdig 7 格→fc10, obeylines 若先落加 2009.11130。
 - roster 10：bticktax(fc9 组毕待发)/csfix2(+75-syntax)/kvdig(args.py 在写)/obeylines/failmine3/primguard/maxsep209 + 3 新派内含。braceval/primarg/shipwrap 交付+入库尸清。
 - 门：teammate 零 git✓；HEAD 三连 import 净 (126 规+1 L0)；工作区仅 kvdig args.py+peer 件；clean% 31/32 维。
+
+## 2026-09-19 ~17:0x — failmine3 全普查 + sab-r4 门④过 + 4 新派 (revpacs/hxetex/mathchar/loop3prep)
+
+- **failmine3 终态普查 (5285 格, 已关)**：clean 4525 (85.6%) · partial 624 (acceptable 331/best_effort 268/compile-partial 25) · hard 18 · reject 16 · skip 102。**最大杠杆=~400/624 partial 判 stale (pre-loop2)——批量 replay (loop3) 单点最大**, babel_opt/pdftex_prim/arraypream/env_undefined/newblock 簇多 covered-stale 只待复测。hard-18: unfixable 3 + stuck 2 (ifprot 已落待 replay) + capacity 2 + runaway 3 + 单件 7。
+- **簇→派路由**：revtex stub `\pacs` arg 形 9 格 (同 id 集 "par ended before \pacs"+"params numbered consecutively" 成对, HIGH 可修) → **revpacs 派** (vendor/stubs/revtex.cls:63 widen \long/分隔参)。hxetex.def 5 格 → **hxetex 派** (vendor/files/ add-only——vendored_fetch basename 服件零规改; 系统 texlive 取真件)。Extended mathchar ~6 格 (hep-ph/0605174 GLUON.tex:464, >xFFFF) → **mathchar 派** (_builtins_shim+85-shim+facade, 先断后修)。**loop3prep 派**：tmp/lane-loop3/ 组波 ids=全 624 partial (hard 另列), fc9 机械形复制 → stagerun-loop3, 本波落地后 GO。
+- **队列** (mutex 等)：209-era undefined_cs **~129 格** (twocolumn 28/begin-end ~10/sortlist 5/ifnfssone 5/collaboration@sw+wideabs+headerps@out ~20/current@color 6/maketitle 系 ~10+单件 ~30——extend latex209 COMPAT_SHIM 表; twocolumn 日志已清需 1 复现 diag) → **209batch 待 maxsep209 释 latex209.py**。`这是译文` 落机器参 (keys/labels) 8 格 keyval-error 形 → segmenter/inject 侧非 fixloop, **kvdig 已询 overlap 判**, 落后续派。
+- **sab-r4 门④ PASS**：40-id 池复用, 383 sabotage events **0 escape** (r3 基线 379/0)——波 6/7 ~10 规无漏。bticktax 持 fc9 等 csfix2+maxsep209。
+- **修形发现**：`pdftex_prim_guard` 纯 yaml regex_rewrite (55-prim:109) → primguard 不需 _builtins_shim, 锁表无撞确认。misplaced-& 4+ 格根=diagrams.sty 缺 env (diagram/\! 族 env polyfill, 入下波候选)。already_def 尾 12 格 fired-unfixed → mini-census 候选。
+- roster 11：bticktax(fc9+sab 毕)/csfix2/kvdig/obeylines/primguard/maxsep209 + 4 新派 (revpacs/hxetex/mathchar/loop3prep)。failmine3 交付即关。
+- 门：teammate 零 git✓；sab-r4 0 escape✓；HEAD 43bd606 净；工作区 latex209.py+test_latex209.py (maxsep209 在写) + args.py (kvdig) + peer docs；clean% 31/32 维。
