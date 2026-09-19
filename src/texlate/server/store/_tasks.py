@@ -206,6 +206,37 @@ class TaskRepo:
         rows = self.conn.execute("SELECT id FROM tasks").fetchall()
         return [str(r["id"]) for r in rows]
 
+    def terminal_task_ids(self, tenant: str | None = None) -> list[str]:
+        """终态任务 id（``tenant`` 可选过滤）——瘦身/清扫候选面。"""
+        qmarks = ",".join("?" * len(TERMINAL_STATUSES))
+        sql = f"SELECT id FROM tasks WHERE status IN ({qmarks})"  # noqa: S608 -- '?' 占位符拼接，值全走绑定参数
+        args: tuple[str, ...] = tuple(sorted(TERMINAL_STATUSES))
+        if tenant is not None:
+            sql += " AND tenant = ?"
+            args += (tenant,)
+        rows = self.conn.execute(sql, args).fetchall()
+        return [str(r["id"]) for r in rows]
+
+    def retention_candidates(self, cutoff: float) -> list[str]:
+        """终态且 ``COALESCE(finished_at, updated_at) < cutoff``——retention 龄期候选。"""
+        qmarks = ",".join("?" * len(TERMINAL_STATUSES))
+        rows = self.conn.execute(
+            f"SELECT id FROM tasks WHERE status IN ({qmarks})"  # noqa: S608 -- 同上
+            " AND COALESCE(finished_at, updated_at) < ?",
+            (*sorted(TERMINAL_STATUSES), cutoff),
+        ).fetchall()
+        return [str(r["id"]) for r in rows]
+
+    def terminal_oldest_first(self) -> list[str]:
+        """终态按完成时间升序——retention 容量阶段 oldest-first 候选序。"""
+        qmarks = ",".join("?" * len(TERMINAL_STATUSES))
+        rows = self.conn.execute(
+            f"SELECT id FROM tasks WHERE status IN ({qmarks})"  # noqa: S608 -- 同上
+            " ORDER BY COALESCE(finished_at, updated_at), id",
+            tuple(sorted(TERMINAL_STATUSES)),
+        ).fetchall()
+        return [str(r["id"]) for r in rows]
+
     def queued_rows(self) -> list[dict[str, Any]]:
         """库内残留 ``queued`` 行（header 源除外）——``TaskRunner`` 重启补放面。
 

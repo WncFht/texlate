@@ -8,9 +8,12 @@ from __future__ import annotations
 
 import contextlib
 import secrets
+import stat as stat_mod
+from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
     from pathlib import Path
 
 #: §3.2 DDL（可直接执行；外键 + 部分唯一索引压实 reuse 语义）
@@ -241,6 +244,68 @@ def _dir_size(d: Path) -> int:
     except OSError:
         pass
     return total
+
+
+def slim_task_dir(
+    task_root: Path,
+    keep: set[str],
+    keep_dirs: tuple[str, ...] = (),
+    *,
+    dry: bool = False,
+) -> int:
+    """删 ``task_root`` 内未登记路径 + 摘空目录 → 释放字节数（幂等、纯 FS）。
+
+    ``dry=True`` 只走同一口径核算将释放的字节——不 unlink 不 rmdir，
+    供 API 端给 UI 出「约可释放 X」预估。
+
+    ``keep`` = files 表登记的相对路径集（posix 分隔）——``file_get`` 的
+    可服务面即白名单：产物字节一个不动，管线脚手架（build 目录/展开
+    源码/tar 包外的中间件）全删。``keep_dirs`` = 整棵保留的子树
+    （如 done/partial 的 ``zh``/``base``——单块重译与 share 打包的
+    glossary 指纹都读活树），其内文件不走白名单逐件判。
+
+    lexically 非法的 keep 项（绝对路径/含 ``..``）不生效——与
+    ``file_get`` 的 resolve+is_relative_to 闸同口径，本就不可服务。
+    symlink 特殊件一律 unlink（不跟随目标、不计字节）；空目录自底
+    向上摘除，根目录本身保留。
+
+    竞删/缺席按 OSError 吞——清扫面撞上并发 rmtree 不炸；在飞任务的
+    排除是调用方职责（runner ``inflight_task_ids``）。
+    """
+    if task_root.is_symlink() or not task_root.is_dir():
+        return 0
+
+    def _norm(rels: Iterable[str]) -> set[str]:
+        return {
+            pp.as_posix()
+            for rel in rels
+            if not (pp := PurePosixPath(rel)).is_absolute() and ".." not in pp.parts
+        }
+
+    keep_norm = _norm(keep)
+    prefixes = tuple(d + "/" for d in _norm(keep_dirs))
+    freed = 0
+    dirs: list[Path] = []
+    with contextlib.suppress(OSError):
+        for p in task_root.rglob("*"):
+            # symlink 先于 is_dir 判定——dir 型 symlink 不递归不登记，直接摘链
+            if not p.is_symlink() and p.is_dir():
+                dirs.append(p)
+                continue
+            rel = p.relative_to(task_root).as_posix()
+            if rel in keep_norm or rel.startswith(prefixes):
+                continue
+            with contextlib.suppress(OSError):
+                st = p.lstat()
+                if stat_mod.S_ISREG(st.st_mode):
+                    freed += st.st_size
+                if not dry:
+                    p.unlink()
+    if not dry:
+        for d in sorted(dirs, key=lambda x: len(x.parts), reverse=True):
+            with contextlib.suppress(OSError):
+                d.rmdir()
+    return freed
 
 
 def new_task_id() -> str:

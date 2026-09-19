@@ -114,6 +114,29 @@ class ChunkRepo:
         )
         return [dict(r) for r in rows], total
 
+    def chunks_by_seqs(
+        self, task_id: str, seqs: list[int]
+    ) -> tuple[list[dict[str, Any]], int]:
+        """按 seq 集定点取块（增量轮询供：web 端按 SSE 已知状态只拉脏 seq）。
+
+        ``(rows, total)``——rows 仅命中 seq，seq 升序；total 仍是全集大小
+        （与 ``chunks_page`` 同契约，前端分页计数不换语义）。空 seqs 短路。
+        """
+        total = int(
+            self.conn.execute(
+                "SELECT COUNT(*) AS c FROM chunks WHERE task_id = ?", (task_id,)
+            ).fetchone()["c"]
+        )
+        if not seqs:
+            return [], total
+        marks = ",".join("?" for _ in seqs)
+        rows = self.conn.execute(
+            "SELECT seq, chunk_id, kind, status, src_text, translation"  # noqa: S608 -- 下行 IN 占位符全为参数化生成
+            f" FROM chunks WHERE task_id = ? AND seq IN ({marks}) ORDER BY seq",
+            (task_id, *seqs),
+        ).fetchall()
+        return [dict(r) for r in rows], total
+
     def update_chunk(self, task_id: str, chunk_id: str, fields: dict[str, Any]) -> None:
         """单块状态更新（由批量 flush 事务调用，不单独 commit）。"""
         sets = ", ".join(f"{k} = ?" for k in fields)

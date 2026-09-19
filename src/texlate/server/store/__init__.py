@@ -39,6 +39,7 @@ from texlate.server.store._common import (
     TransitionError,
     _dir_size,
     new_task_id,
+    slim_task_dir,
     valid_task_id,
 )
 from texlate.server.store._events import EventRepo
@@ -62,8 +63,22 @@ __all__ = [
     "StoreError",
     "TransitionError",
     "new_task_id",
+    "slim_task_dir",
     "valid_task_id",
 ]
+
+
+def row_json(row: dict[str, Any], key: str) -> dict[str, Any]:
+    """任务行 ``*_json`` 文本列容错反序列化——坏 JSON/非 dict 一律 ``{}``。
+
+    ``options_json``/``config_json`` 列共享口径：行可经直写腐化，单格
+    坏值不许拖垮消费点（snapshot/retry/share 打包/worker 同款防护）。
+    """
+    try:
+        data = json.loads(str(row.get(key) or "{}"))
+    except json.JSONDecodeError:
+        return {}
+    return data if isinstance(data, dict) else {}
 
 
 class Store:
@@ -211,29 +226,16 @@ class Store:
             removed.append(tid)
             return sz
 
-        now = time.time()
-        term = sorted(TERMINAL_STATUSES)
-        qmarks = ",".join("?" * len(term))
         if max_age_s > 0:
-            rows = self.conn.execute(
-                f"SELECT id FROM tasks WHERE status IN ({qmarks})"  # noqa: S608 -- '?' 占位符拼接，值全走绑定参数
-                " AND COALESCE(finished_at, updated_at) < ?",
-                (*term, now - max_age_s),
-            ).fetchall()
-            for r in rows:
-                freed += _drop(str(r["id"]))
+            for tid in self.retention_candidates(time.time() - max_age_s):
+                freed += _drop(tid)
         if max_total_bytes > 0:
             total = _dir_size(tasks_dir)
             if total > max_total_bytes:
-                rows = self.conn.execute(
-                    f"SELECT id FROM tasks WHERE status IN ({qmarks})"  # noqa: S608 -- 同上
-                    " ORDER BY COALESCE(finished_at, updated_at), id",
-                    term,
-                ).fetchall()
-                for r in rows:
+                for tid in self.terminal_oldest_first():
                     if total <= max_total_bytes:
                         break
-                    sz = _drop(str(r["id"]))
+                    sz = _drop(tid)
                     freed += sz
                     total -= sz
         return {"removed": removed, "freed_bytes": freed}
@@ -291,23 +293,16 @@ class Store:
         return snap
 
     @staticmethod
-    def _snapshot_user_fields(row: sqlite3.Row, snap: dict[str, Any]) -> None:
+    def _snapshot_user_fields(row: dict[str, Any], snap: dict[str, Any]) -> None:
         """用户入参 options/glossary 回显（前端 try-html/克隆任务透传源）。
 
         内部审计键（share/reuse_hit/engine_resolved 等 worker 写入面）与
         一次性 idempotency_key 不回显：传过去会污染新任务的 dedup/对账面。
         """
-        try:
-            opts = json.loads(str(row.get("options_json") or "{}"))
-        except json.JSONDecodeError:
-            opts = {}
-        if isinstance(opts, dict):
-            user_opts = {k: v for k, v in opts.items() if k not in _SNAPSHOT_OPTS_DROP}
-            if user_opts:
-                snap["options"] = user_opts
-        try:
-            cfg = json.loads(str(row.get("config_json") or "{}"))
-        except json.JSONDecodeError:
-            cfg = {}
-        if isinstance(cfg, dict) and cfg.get("glossary"):
+        opts = row_json(row, "options_json")
+        user_opts = {k: v for k, v in opts.items() if k not in _SNAPSHOT_OPTS_DROP}
+        if user_opts:
+            snap["options"] = user_opts
+        cfg = row_json(row, "config_json")
+        if cfg.get("glossary"):
             snap["glossary"] = cfg["glossary"]
