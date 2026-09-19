@@ -60,6 +60,7 @@ from texlate.compile.fixloop import load_ruleset
 STUBS = (
     Path(__file__).resolve().parent.parent / "src/texlate/compile/fixloop/vendor/stubs"
 )
+SHIMS = STUBS.parent / "shims"  # .cls 替身 stub 归位层 (F2)
 VENDOR_FILES = STUBS.parent / "files"
 
 _XELATEX = shutil.which("xelatex")
@@ -88,7 +89,7 @@ def _n_err(log: str) -> int:
 def test_mn_family_uses_loadclasswithoptions() -> None:
     """mn2e/mn 转发链 pin：裸 \\LoadClass{mnras} 不得回潮。"""
     for name in ("mn2e.cls", "mn.cls"):
-        body = (STUBS / name).read_text(encoding="utf-8")
+        body = (SHIMS / name).read_text(encoding="utf-8")
         code = "\n".join(
             ln for ln in body.splitlines() if not ln.lstrip().startswith("%")
         )
@@ -116,7 +117,7 @@ def test_iface_requires_present() -> None:
     for pkg in ("amsthm", "amsmath", "amssymb", "graphicx", "hyperref", "wrapfig"):
         assert f"\\RequirePackage{{{pkg}}}" in jinstpub
     assert "\\RequirePackage[numbers,sort&compress]{natbib}" in jinstpub
-    aipproc = (STUBS / "aipproc.cls").read_text(encoding="utf-8")
+    aipproc = (SHIMS / "aipproc.cls").read_text(encoding="utf-8")
     for pkg in ("calc", "ifthen", "url"):
         assert f"\\RequirePackage{{{pkg}}}" in aipproc
     assert "\\RequirePackage[final]{graphicx}" in aipproc
@@ -124,7 +125,7 @@ def test_iface_requires_present() -> None:
 
 def test_svjour3_natbib_option_declared() -> None:
     """svjour3 natbib 类选项 pin：真件 AtEndOfClass 装 natbib+版式参数。"""
-    body = (STUBS / "svjour3.cls").read_text(encoding="utf-8")
+    body = (SHIMS / "svjour3.cls").read_text(encoding="utf-8")
     assert "\\DeclareOption{natbib}" in body
     assert "\\AtEndOfClass{\\RequirePackage{natbib}" in body
 
@@ -180,7 +181,7 @@ def test_boxedeps_iface_present() -> None:
 def test_aipproc_author_dual_signature_and_references() -> None:
     r"""aipproc \author 双签名 + references env pin（0104007 :250
     keyval 爆 + env_undefined/\@listctr×12 实证）。"""
-    code = _code_lines((STUBS / "aipproc.cls").read_text(encoding="utf-8"))
+    code = _code_lines((SHIMS / "aipproc.cls").read_text(encoding="utf-8"))
     assert "\\renewcommand{\\author}[1]" in code
     assert "\\@ifnextchar\\bgroup{\\fixaip@author@kv" in code
     assert "\\renewcommand{\\author}[2]" not in code
@@ -195,7 +196,7 @@ def test_aipproc_author_dual_signature_and_references() -> None:
 @_COMPILE
 def test_mn2e_usenatbib_loads_natbib(tmp_path: Path) -> None:
     """mn2e stub + usenatbib → mnras \\ds@usenatbib 点火 → \\citealt 定义。"""
-    shutil.copy(STUBS / "mn2e.cls", tmp_path / "mn2e.cls")
+    shutil.copy(SHIMS / "mn2e.cls", tmp_path / "mn2e.cls")
     shutil.copy(VENDOR_FILES / "mnras.cls", tmp_path / "mnras.cls")
     log = _run(
         tmp_path,
@@ -214,7 +215,7 @@ text \citealt{key}
 @_COMPILE
 def test_mn_usenatbib_loads_natbib(tmp_path: Path) -> None:
     """mn stub 同体转发 (mn.cls→mnras 同路径)。"""
-    shutil.copy(STUBS / "mn.cls", tmp_path / "mn.cls")
+    shutil.copy(SHIMS / "mn.cls", tmp_path / "mn.cls")
     shutil.copy(VENDOR_FILES / "mnras.cls", tmp_path / "mnras.cls")
     log = _run(
         tmp_path,
@@ -274,7 +275,7 @@ text \citep{{key}}
 @_COMPILE
 def test_svjour3_natbib_option(tmp_path: Path) -> None:
     """\\documentclass[natbib]{svjour3} → natbib 装载 (真件选项面)。"""
-    shutil.copy(STUBS / "svjour3.cls", tmp_path / "svjour3.cls")
+    shutil.copy(SHIMS / "svjour3.cls", tmp_path / "svjour3.cls")
     log = _run(
         tmp_path,
         r"""\documentclass[natbib]{svjour3}
@@ -291,7 +292,7 @@ text \citep{key}
 @_COMPILE
 def test_aipproc_provides_graphicx_url(tmp_path: Path) -> None:
     """aipproc stub 镜像真件装载面: graphicx/url 由类提供。"""
-    shutil.copy(STUBS / "aipproc.cls", tmp_path / "aipproc.cls")
+    shutil.copy(SHIMS / "aipproc.cls", tmp_path / "aipproc.cls")
     log = _run(
         tmp_path,
         r"""\documentclass{aipproc}
@@ -383,7 +384,7 @@ fig2: \BoxedEPSF{fig2.eps}
 def test_aipproc_one_arg_author_and_references(tmp_path: Path) -> None:
     r"""REVTeX3 式 \author{names} + \address{} + references env
     （0104007 实证面）：不吞 \address、\bibitem 在 list 内工作。"""
-    shutil.copy(STUBS / "aipproc.cls", tmp_path / "aipproc.cls")
+    shutil.copy(SHIMS / "aipproc.cls", tmp_path / "aipproc.cls")
     log = _run(
         tmp_path,
         r"""\documentclass{aipproc}
@@ -407,7 +408,7 @@ text \cite{Moore00}.
 @_COMPILE
 def test_aipproc_two_arg_author_kept(tmp_path: Path) -> None:
     r"""新 keyval 双参 \author{Name}{address={..}} 不回潮（1306.2177 面）。"""
-    shutil.copy(STUBS / "aipproc.cls", tmp_path / "aipproc.cls")
+    shutil.copy(SHIMS / "aipproc.cls", tmp_path / "aipproc.cls")
     log = _run(
         tmp_path,
         r"""\documentclass{aipproc}
@@ -832,7 +833,7 @@ $\Bbb R^2$ \prooftag {\raggedcenter x}
 
 
 def test_vendor_stubs_provides_optional_arg_dated() -> None:
-    r"""vendor/stubs 全件 ``\Provides{Package,Class,File,ExplPackage}{n}[o]``
+    r"""vendor/stubs + vendor/shims 全件 ``\Provides{Package,Class,File,ExplPackage}{n}[o]``
     可选参必须 ``YYYY/MM/DD`` 前缀——裸文本经 ``\@parse@version@`` 把版本串
     漏进排版流 → ``Missing \begin{document}``（slashlane 实证, slashbox
     de1ba13 同工钉）。"""
@@ -840,7 +841,7 @@ def test_vendor_stubs_provides_optional_arg_dated() -> None:
         r"\\Provides(?:Package|Class|File|ExplPackage)\{[^}]*\}\s*\[([^\]]*)\]"
     )
     bad = []
-    for f in sorted(STUBS.iterdir()):
+    for f in sorted(STUBS.iterdir()) + sorted(SHIMS.iterdir()):
         if not f.is_file():
             continue
         for line in f.read_text(encoding="latin-1").splitlines():

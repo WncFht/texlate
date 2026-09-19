@@ -12,7 +12,7 @@ current alignment" 级联:
   ``tabular`` 兜住 #1 内 \\\\。
 - astro-ph/9901364 (crckapb shim): ``\\institute`` def
   ``\\\\ {\\normalsize\\itshape #1}`` 同型 → 内层 tabular 修形。
-- vendor/stubs/aipproc.cls ``\\fixaip@addr`` 同形潜在面同修。
+- vendor/shims/aipproc.cls ``\\fixaip@addr`` 同形潜在面同修。
 
 不变式: 发射体中 #1 (稿面可携 \\\\) 若在花括组内, 必须在
 ``\\begin{tabular}..\\end{tabular}`` 跨距内 —— \\\\ 归内层对齐行。
@@ -137,7 +137,7 @@ def test_crckapb_institute_arg_alignment_safe() -> None:
 
 def test_aipproc_addr_inner_tabular() -> None:
     """aipproc.cls ``\\\\{...addr...}`` 组内 \\fixaip@addr 必在内层 tabular。"""
-    stub = (VENDOR / "stubs" / "aipproc.cls").read_text(encoding="utf-8")
+    stub = (VENDOR / "shims" / "aipproc.cls").read_text(encoding="utf-8")
     m = re.search(r"\\\\\{", stub)
     assert m, "addr 前缀 \\\\{ 组不在"
     grp = _enclosing_group(stub, m.end())

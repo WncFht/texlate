@@ -44,6 +44,7 @@ import pytest
 STUBS = (
     Path(__file__).resolve().parent.parent / "src/texlate/compile/fixloop/vendor/stubs"
 )
+SHIMS = STUBS.parent / "shims"  # .cls 替身 stub 归位层 (F2)
 
 _XELATEX = shutil.which("xelatex")
 _COMPILE = pytest.mark.skipif(_XELATEX is None, reason="xelatex not installed")
@@ -125,11 +126,10 @@ def test_sanitize_edefs_key_arg_only(name: str, ns: str) -> None:
 
 def test_aipproc_author_peeks_second_group() -> None:
     r"""``\author`` = 单参 + ``\@ifnextchar\bgroup`` peek 双签名岔路。"""
-    code = _code((STUBS / "aipproc.cls").read_text(encoding="utf-8"))
+    code = _code((SHIMS / "aipproc.cls").read_text(encoding="utf-8"))
     assert r"\renewcommand{\author}[1]{%" in code
     assert (
-        r"\@ifnextchar\bgroup{\fixaip@author@kv{#1}}{\fixaip@author@plain{#1}}"
-        in code
+        r"\@ifnextchar\bgroup{\fixaip@author@kv{#1}}{\fixaip@author@plain{#1}}" in code
     )
     assert r"\def\fixaip@author@plain#1" in code
     assert r"\providecommand{\address}[1]" in code
@@ -198,7 +198,7 @@ See \citep{{Rieke&Lebofsky}} and \citep{{1990A&A...231...19S}}.
 def test_aipproc_onearg_author_address(tmp_path: Path) -> None:
     r"""astro-ph/0104007 型: 单参 ``\author`` + 散调 ``\address`` 不炸;
     双参 keyval 形共存。"""
-    shutil.copy(STUBS / "aipproc.cls", tmp_path / "aipproc.cls")
+    shutil.copy(SHIMS / "aipproc.cls", tmp_path / "aipproc.cls")
     log = _run(
         tmp_path,
         r"""\documentclass{aipproc}

@@ -1,9 +1,9 @@
 r"""_builtins_vendored — 工程内遮蔽探测/隔离 + 随包 vendored 件取放 (C3 拆分)。
 
 ``\\ProvidesX`` 日期面比对确证工程内 .sty/.cls 更旧遮蔽系统件;
-``vendor/`` 随包件 (files/ 真件 + stubs/ 最小宏面) 平铺救 off-CTAN
-绝版宏。``_vendor_root``/``_vendored_source`` 被 engine.vendored 查件
-复用 (同语义 basename 查件)。
+``vendor/`` 随包件 (files/ 真件 + stubs/ 最小宏面 + shims/ .cls 替身)
+平铺救 off-CTAN 绝版宏。``_vendor_root``/``_vendored_source`` 被
+engine.vendored 查件复用 (同语义 basename 查件)。
 """
 
 from __future__ import annotations
@@ -464,8 +464,9 @@ def vendored_shadow_isolate(
 
 
 #: repo 随发 vendored 件子层 —— ``files/`` 真件 (许可逐件核过) 先于
-#: ``stubs/`` 最小宏面 stub; disposition 路由在 inventory 侧已结清。
-_VENDOR_SUBDIRS = ("files", "stubs")
+#: ``stubs/`` 最小宏面 stub; ``shims/`` 收 .cls 替身 stub (aa.cls 暂寄
+#: stubs/)。basename 跨层唯一, 序只文档义。
+_VENDOR_SUBDIRS = ("files", "stubs", "shims")
 
 
 def _vendor_root(params: dict[str, Any]) -> Path:
@@ -475,7 +476,7 @@ def _vendor_root(params: dict[str, Any]) -> Path:
 
 
 def _vendored_source(root: Path, fname: str) -> Path | None:
-    """Basename 查件: files/ → stubs/ 序; 命中返回源路径否则 None。"""
+    """Basename 查件: files/ → stubs/ → shims/ 序; 命中返回源路径否则 None。"""
     base = PurePosixPath(fname).name
     if not base:
         return None
@@ -507,7 +508,7 @@ def vendored_fetch(
     dst = _resolve_site(ctx, rel)
     if dst is None:
         return False, f"{fname}: escapes wdir"
-    tier = "files" if src.parent.name == "files" else "stubs"
+    tier = src.parent.name  # files/stubs/shims 三层 note 标源——cls 替身记 shims
     body = src.read_text(encoding="utf-8", errors="replace")
     # 指纹闸 (b3a): 同名片四分判——外来件(稿自带/真包)永不覆写; 旧代
     # 注入件 (无指纹但带 vendored/fixloop 行头标记) 覆写刷新。
@@ -728,7 +729,7 @@ def revtex_era_retire(
 def vendored_fetch_multi(
     ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
 ) -> tuple[bool, str]:
-    """``params.files`` 名单 → vendor/{files,stubs} basename 字节平铺 wdir。
+    """``params.files`` 名单 → vendor/{files,stubs,shims} basename 字节平铺 wdir。
 
     ``vendored_fetch`` 的文本指纹注入不适用二进制资产 (lams*.tfm 等:
     utf-8 读+``%`` 指纹行头毁 TFM 二进制头) —— 本动作 ``shutil.copyfile``

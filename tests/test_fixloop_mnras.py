@@ -11,7 +11,7 @@ Section 内 ``\\usepackage``/``\\RequirePackage``/``\\LoadClass`` 直接炸
 \\ds@usegraphicx 只置 ``\\@usegraphicxtrue``, ``\\ProcessOptions`` 后
 ``\\if@usegraphicx\\usepackage{graphicx}\\fi`` 补装, 语义等价零绕行。
 
-旁证: vendor/stubs/mn.cls + mn2e.cls (mn2e/mn → mnras 桥) 早已各自把
+旁证: vendor/shims/mn.cls + mn2e.cls (mn2e/mn → mnras 桥) 早已各自把
 usegraphicx 从 ``\\@classoptionslist`` 剔除 —— 本钉位补丁让真件路径
 (直书 ``\\documentclass[usegraphicx]{mnras}`` / stub 剔除面外) 同样免疫。
 """
@@ -68,7 +68,7 @@ def test_usenatbib_idiom_unchanged() -> None:
 def test_mn_alias_stubs_still_strip_usegraphicx() -> None:
     """mn.cls/mn2e.cls stub 剔除面不变 —— 双路径免疫 (stub 剔除 + 真件补丁)。"""
     for name in ("mn.cls", "mn2e.cls"):
-        body = (_VENDOR_DIR / "stubs" / name).read_text(encoding="utf-8")
+        body = (_VENDOR_DIR / "shims" / name).read_text(encoding="utf-8")
         assert "\\@classoptionslist" in body
         assert "usegraphicx" in body
         assert "\\LoadClassWithOptions{mnras}" in body
