@@ -7,10 +7,12 @@
 @import "./base.css"; /* 设计 token / 暗色主题 / 焦点环 / 顶导航 */
 @import "./home.css"; /* Home：hero / 表单 / 上传进度 / 健康指示 */
 @import "./tasklist.css"; /* 任务列表：行 / 工具行 / 快捷臂 / 行内下载 */
+@import "./discover.css"; /* 发现页：alphaXiv 榜单网格 / 快搜结果行 */
 @import "./progress.css"; /* 进行中视图 / 流式预览 / 棋盘格 */
 @import "./reader.css"; /* 阅读器壳 / segmented / 双栏 / 拖拽条 / 跳回 */
 @import "./panes.css"; /* PDF 侧件（rail/侧栏/findbar/信息）+ HTML 降级视图 + 边译边读 */
 @import "./settings.css"; /* Settings 表单 */
+@import "./select.css"; /* .tx-select 弹层皮肤（base-select 渐进增强） */
 @import "./pdfjs.css"; /* pdfjs viewer 微调（pdfslick pdf_viewer.css 之上） */
 @import "./observability.css"; /* 统计条 / 时间线 / 连接徽章 / 结果面板 / share / health */
 @import "./taskopts.css"; /* Home 任务选项 details 折叠区 */

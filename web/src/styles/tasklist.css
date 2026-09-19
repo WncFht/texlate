@@ -1,14 +1,6 @@
 /* ---------- 任务列表 ---------- */
 
-.home-tasks h2 {
-    font-family: var(--font-serif);
-    font-size: 17px;
-    letter-spacing: 0.08em;
-    border-bottom: 1px solid var(--line-strong);
-    padding-bottom: 8px;
-}
-
-/* 任务计数：h2 是衬线，数字回 UI 字体更像个计数器 */
+/* 任务计数：页标题是衬线，数字回 UI 字体更像个计数器 */
 .task-count {
     font-family: var(--font-ui);
     font-size: 13px;
@@ -99,13 +91,7 @@
     opacity: 1;
 }
 
-.task-clean.arm {
-    color: var(--cinnabar-deep);
-    border-color: var(--cinnabar);
-    background: color-mix(in srgb, var(--cinnabar) 8%, transparent);
-}
-
-/* 列表工具行（U5）：搜索 + 筛选 chips + 批量清理 */
+/* 列表工具行（U5）：搜索 + 筛选 chips + 「清理 ▾」维护菜单 */
 .task-tools {
     display: flex;
     flex-wrap: wrap;
@@ -151,7 +137,14 @@
 .task-chip.on {
     background: var(--panel);
     color: var(--ink);
-    box-shadow: 0 1px 2px rgb(0 0 0 / 10%);
+    box-shadow: var(--shadow-sm);
+}
+
+/* chip 内计数：标签之外的弱读数（筛选桶容量 / 榜单无此件） */
+.chip-n {
+    margin-left: 5px;
+    font-size: 11px;
+    color: var(--ink-3);
 }
 
 .task-clean {
@@ -171,6 +164,109 @@
 .task-clean:disabled {
     opacity: 0.4;
     cursor: default;
+}
+
+/* 「清理 ▾」维护菜单：锚定在触发钮下（皮肤复用 .retry-menu） */
+.task-maint {
+    position: relative;
+    flex: none;
+}
+
+.maint-menu {
+    min-width: 250px;
+}
+
+/* 菜单项内联弱注记：预估字节 / 范围计数 */
+.menu-hint {
+    margin-left: 8px;
+    font-size: 11px;
+    color: var(--ink-3);
+}
+
+.retry-item:disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+
+/* 破坏项常驻弱警示色——与安全项分档（GitHub danger-zone 惯例） */
+.retry-item.danger {
+    color: var(--cinnabar-deep);
+}
+
+.retry-item.danger:hover:not(:disabled) {
+    color: var(--cinnabar-deep);
+    background: color-mix(in srgb, var(--cinnabar) 10%, transparent);
+}
+
+/* 删除已结束确认框（alertdialog）——veil 配比同 .kbd-help */
+.purge-veil {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: color-mix(in srgb, var(--ink) 35%, transparent);
+}
+
+.purge-box {
+    width: min(400px, calc(100vw - 48px));
+    padding: 18px 20px;
+    background: var(--panel);
+    border: 1px solid var(--line-strong);
+    border-radius: 10px;
+    box-shadow: var(--shadow-modal);
+}
+
+.purge-title {
+    font-family: var(--font-serif);
+    font-size: 16px;
+}
+
+.purge-desc {
+    margin-top: 8px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--ink-2);
+}
+
+.purge-opts {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 14px;
+}
+
+.purge-opt {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--ink);
+}
+
+.purge-opt input {
+    accent-color: var(--cinnabar);
+}
+
+.purge-foot {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 18px;
+}
+
+.purge-foot .btn-primary,
+.purge-foot .btn-ghost {
+    padding: 7px 14px;
+    font-size: 13px;
+}
+
+/* 瘦身结果行（非错误，与 .task-del-err 同级呈现） */
+.task-note {
+    font-size: 12px;
+    color: var(--ink-2);
+    margin-top: 4px;
 }
 
 /* 行内快捷臂（U8）：⏻ 取消 / ↻ 重试 / ⚙ 设置链——与 .task-del 同一克制存在级 */
@@ -245,7 +341,7 @@
 .task-kind.k-doc {
     color: var(--pine);
     border-color: var(--pine);
-    background: rgb(47 111 79 / 8%);
+    background: color-mix(in srgb, var(--pine) 8%, transparent);
 }
 
 /* 行内产物下载：折叠钮在行尾，直链清单作整宽抽屉落到行下横排 */

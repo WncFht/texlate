@@ -13,6 +13,7 @@
     font-size: 44px;
     letter-spacing: 0.02em;
     margin: 0 0 4px;
+    text-align: center;
 }
 
 .wordmark .tagline {
@@ -25,8 +26,11 @@
     margin-top: 6px;
 }
 
+/* 纯入口页：hero 是全场唯一主角——620px 栏宽居中、上移让首屏即表单 */
 .hero {
-    padding: 24px 0 36px;
+    max-width: 620px;
+    margin: 7vh auto 0;
+    padding: 0 0 36px;
 }
 
 .arxiv-form {
@@ -37,8 +41,8 @@
 
 .arxiv-input {
     flex: 1;
-    padding: 10px 14px;
-    font-size: 15px;
+    padding: 12px 16px;
+    font-size: 16px;
     font-family: var(--font-mono);
     color: var(--ink);
     background: var(--panel);
@@ -49,7 +53,7 @@
 
 .arxiv-input:focus {
     border-color: var(--cinnabar);
-    box-shadow: 0 0 0 3px rgb(178 58 31 / 12%);
+    box-shadow: 0 0 0 3px var(--ring);
 }
 
 .arxiv-input[aria-invalid="true"] {
@@ -74,7 +78,7 @@
 .btn-primary {
     padding: 10px 22px;
     background: var(--cinnabar);
-    color: #fff;
+    color: var(--on-accent);
     border: 1px solid var(--cinnabar-deep);
     border-radius: 6px;
     font-size: 14px;
@@ -226,7 +230,7 @@
     background: var(--panel);
     border: 1px solid var(--line-strong);
     border-radius: 8px;
-    box-shadow: 0 8px 28px rgb(0 0 0 / 18%);
+    box-shadow: var(--shadow-pop);
     max-height: 320px;
     overflow: auto;
 }
@@ -294,105 +298,46 @@
     color: var(--ink-3);
 }
 
-/* ---------- alphaXiv 热榜（降级到任务列表下方的横滚条） ---------- */
+/* ---------- 进行中提示行（入口页 → #/tasks 的导航线索） ---------- */
 
-.home-discover {
-    margin-top: 28px;
-}
-
-.home-discover h2 {
-    font-size: 15px;
-    font-weight: 600;
-    margin: 0 0 12px;
+.home-active {
     display: flex;
     align-items: baseline;
-    gap: 8px;
-}
-
-.ax-via {
-    font-size: 12px;
-    font-weight: 400;
-}
-
-.ax-grid {
-    display: flex;
-    gap: 12px;
-    overflow-x: auto;
-    padding-bottom: 10px;
-    scroll-snap-type: x proximity;
-    scrollbar-width: thin;
-}
-
-.ax-card {
-    flex: 0 0 216px;
-    scroll-snap-align: start;
-    display: flex;
-    flex-direction: column;
-    background: var(--panel);
-    border: 1px solid var(--line-strong);
-    border-radius: 8px;
-    overflow: hidden;
-}
-
-.ax-thumb {
-    width: 100%;
-    aspect-ratio: 16 / 9;
-    object-fit: cover;
-    display: block;
-    background: var(--paper-2);
-}
-
-.ax-card-title {
+    gap: 10px;
+    max-width: 620px;
+    margin: 26px auto 0;
+    padding-top: 14px;
+    border-top: 1px solid var(--line);
     font-size: 13px;
-    font-weight: 600;
-    line-height: 1.4;
-    margin: 10px 12px 0;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-}
-
-.ax-card-desc {
-    font-size: 12px;
     color: var(--ink-2);
-    line-height: 1.5;
-    margin: 6px 12px 0;
-    display: -webkit-box;
-    -webkit-line-clamp: 3;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-}
-
-.ax-card-foot {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    margin: auto 12px 10px;
-    padding-top: 10px;
-    font-size: 12px;
-}
-
-.ax-foot-actions {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.ax-go {
-    padding: 4px 12px;
-    font-size: 12px;
-}
-
-.ax-link {
-    font-size: 12px;
-    color: var(--ink-3);
     text-decoration: none;
-    white-space: nowrap;
 }
 
-.ax-link:hover {
+.home-active:hover {
     color: var(--ink);
-    text-decoration: underline;
+}
+
+.home-active-first {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--ink-3);
+}
+
+.home-active-more {
+    flex: none;
+    color: var(--ink-3);
+}
+
+.home-active:hover .home-active-more {
+    color: var(--cinnabar-deep);
+}
+
+/* 居中 hero 下的小字行（支持格式 / 健康指示）与 wordmark 对齐中轴 */
+.upload-formats,
+.health {
+    justify-content: center;
+    text-align: center;
 }

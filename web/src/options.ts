@@ -8,3 +8,11 @@ export const TARGET_LANGS: string[] = ["zh-CN", "zh-TW", "en"];
 
 /** 编译引擎选项——auto=交给服务端 engine_resolved 决议 */
 export const ENGINES: string[] = ["auto", "xelatex", "tectonic"];
+
+/** LLM 网关方言（server API_DIALECTS 同集）——auto=按端点 host 推导 */
+export const API_DIALECTS: string[] = [
+    "auto",
+    "openai",
+    "anthropic",
+    "responses",
+];

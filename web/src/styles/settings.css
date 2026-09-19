@@ -18,7 +18,8 @@
     gap: 16px;
 }
 
-.settings-form label {
+.settings-form label,
+.settings-field {
     display: flex;
     flex-direction: column;
     gap: 6px;
@@ -26,7 +27,14 @@
     font-weight: 600;
 }
 
-.settings-form label em {
+/* segmented 不作表单控件撑满整行——inline-flex 自宽,靠左排 */
+.settings-field .segmented {
+    align-self: flex-start;
+    font-weight: 400;
+}
+
+.settings-form label em,
+.settings-field em {
     font-style: normal;
     font-weight: 400;
     font-size: 12px;
@@ -50,7 +58,7 @@
 .settings-form select:focus,
 .settings-form textarea:focus {
     border-color: var(--cinnabar);
-    box-shadow: 0 0 0 3px rgb(178 58 31 / 12%);
+    box-shadow: 0 0 0 3px var(--ring);
 }
 
 .settings-form textarea {

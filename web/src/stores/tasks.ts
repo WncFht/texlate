@@ -274,8 +274,21 @@ const tp = createTransport({
     }),
 });
 
+let lastFreshAt = 0;
+
 export const taskStore = {
     state,
+
+    /**
+     * TTL 门下的 refresh：多页（Home 进行中提示/Tasks 列表/App 徽标）
+     * 挂载时都调——同一资源一处 TTL，路由往返不再各页各拉一份。
+     * 时间戳先落再 await：并发挂载只放一马；refresh 失败同样记时防连打。
+     */
+    async ensureFresh(ttlMs = 30_000) {
+        if (Date.now() - lastFreshAt < ttlMs) return;
+        lastFreshAt = Date.now();
+        await taskStore.refresh();
+    },
 
     async refresh() {
         try {

@@ -28,7 +28,8 @@
     border-top: 1px solid var(--line);
 }
 
-.opts-grid label {
+.opts-grid label,
+.opts-grid .opt-cell {
     display: flex;
     flex-direction: column;
     gap: 5px;
@@ -38,11 +39,18 @@
     padding-top: 8px;
 }
 
-.opts-grid label em {
+.opts-grid label em,
+.opts-grid .opt-cell em {
     font-style: normal;
     font-weight: 400;
     color: var(--ink-2);
     margin-left: 6px;
+}
+
+/* segmented 不作表单控件撑满整行——自宽靠左排 */
+.opts-grid .opt-cell .segmented {
+    align-self: flex-start;
+    font-weight: 400;
 }
 
 .opts-grid .span2 {
@@ -50,7 +58,6 @@
 }
 
 .opts-grid input,
-.opts-grid select,
 .opts-grid textarea {
     padding: 8px 10px;
     font-size: 13px;
@@ -69,10 +76,9 @@
 }
 
 .opts-grid input:focus,
-.opts-grid select:focus,
 .opts-grid textarea:focus {
     border-color: var(--cinnabar);
-    box-shadow: 0 0 0 3px rgb(178 58 31 / 12%);
+    box-shadow: 0 0 0 3px var(--ring);
 }
 
 /* 「高级」子折叠：常用组直展，低频项收进第二层 */

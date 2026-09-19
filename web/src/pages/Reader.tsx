@@ -16,6 +16,7 @@ import {
     api,
     ApiError,
     isTerminal,
+    REQUEST_TIMEOUT_MS,
     type DualJson,
     type FileManifest,
     type ReaderInfo,
@@ -111,7 +112,9 @@ export default function Reader(props: {
             // （dual.json 同时提供 alignment 兜底与 chunks，HTML 视图必需）
             const [r, dj] = await Promise.all([
                 api.reader(props.taskId),
-                fetch(dualUrl)
+                fetch(dualUrl, {
+                    signal: AbortSignal.timeout?.(REQUEST_TIMEOUT_MS) ?? null,
+                })
                     .then((res) =>
                         res.ok ? (res.json() as Promise<DualJson>) : null,
                     )

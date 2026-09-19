@@ -95,7 +95,7 @@
 .tb-select:focus,
 .tb-page input:focus {
     border-color: var(--cinnabar);
-    box-shadow: 0 0 0 3px rgb(178 58 31 / 12%);
+    box-shadow: 0 0 0 3px var(--ring);
     outline: none;
 }
 
@@ -226,7 +226,7 @@
     background: var(--panel);
     color: var(--ink);
     font-weight: 600;
-    box-shadow: 0 1px 2px rgb(33 27 18 / 12%);
+    box-shadow: var(--shadow-sm);
 }
 
 /* ---------- 双栏 ---------- */

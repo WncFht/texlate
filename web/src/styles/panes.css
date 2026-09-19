@@ -269,7 +269,7 @@
 
 .fb-input:focus {
     border-color: var(--cinnabar);
-    box-shadow: 0 0 0 3px rgb(178 58 31 / 12%);
+    box-shadow: 0 0 0 3px var(--ring);
 }
 
 .fb-input.notfound {

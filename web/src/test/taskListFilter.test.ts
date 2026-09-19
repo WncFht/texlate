@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// TaskList U5/U8：搜索 + 筛选 chips + 活动置顶分组 + 批量清理已完成；
+// TaskList U5/U8：搜索 + 筛选 chips + 活动置顶分组 + 批量瘦身/删除已结束；
 // 行内 ⏻ 取消（在途）/ ↻ 重试（可重试终态）/ ⚙ 设置链（needs_auth）。
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
     cancel: vi.fn(),
     retry: vi.fn(),
     files: vi.fn(),
+    slimTasks: vi.fn(),
     remove: vi.fn(),
     resetLive: vi.fn(),
     refresh: vi.fn(),
@@ -22,6 +23,7 @@ vi.mock("../api/client", async (importOriginal) => {
             cancel: mocks.cancel,
             retry: mocks.retry,
             files: mocks.files,
+            slimTasks: mocks.slimTasks,
         },
     };
 });
@@ -73,6 +75,9 @@ beforeEach(() => {
     mocks.cancel.mockReset().mockResolvedValue({ task_id: "x" });
     mocks.retry.mockReset().mockResolvedValue({ task_id: "x" });
     mocks.files.mockReset().mockResolvedValue({ artifacts: {} });
+    mocks.slimTasks
+        .mockReset()
+        .mockResolvedValue({ slimmed: 2, freed_bytes: 1_500_000 });
     mocks.remove.mockReset().mockResolvedValue(undefined);
     mocks.resetLive.mockReset();
     mocks.refresh.mockReset();
@@ -109,7 +114,7 @@ describe("U5：搜索 + 筛选 + 活动置顶", () => {
         renderList();
         const chip = (label: string) =>
             [...root.querySelectorAll(".task-chip")].find(
-                (b) => b.textContent === label,
+                (b) => b.textContent?.startsWith(label),
             )!;
         click(chip(t.home.fActive));
         await flush();
@@ -231,26 +236,111 @@ describe("U8：行内快捷臂", () => {
     });
 });
 
-describe("U5：批量清理已完成", () => {
-    it("清理钮只删 done 行（两击确认）", async () => {
+describe("U5：清理菜单 + 删除确认框", () => {
+    const openMenu = async () => {
+        click(root.querySelector(".task-clean") as HTMLElement);
+        await flush();
+    };
+
+    it("开菜单即 dry-run 预估，菜单项内联可释放量", async () => {
         renderList();
-        const btn = root.querySelector(".task-clean") as HTMLButtonElement;
-        expect(btn.disabled).toBe(false);
-        click(btn);
+        await openMenu();
+        expect(mocks.slimTasks).toHaveBeenCalledWith({ dry: true });
+        expect(
+            root.querySelector(".maint-slim .menu-hint")?.textContent,
+        ).toBe(t.home.maintSlimEst.replace("{size}", "1.4 MB"));
+        expect(root.querySelector(".maint-purge .menu-hint")?.textContent).toBe(
+            t.home.purgeN.replace("{n}", "4"),
+        );
+    });
+
+    it("「清理中间文件」实跑 POST /tasks/slim 并回显释放量", async () => {
+        renderList();
+        await openMenu();
+        mocks.slimTasks.mockClear();
+        click(root.querySelector(".maint-slim") as HTMLElement);
         await flush();
+        expect(mocks.slimTasks).toHaveBeenCalledTimes(1);
+        expect(mocks.slimTasks.mock.calls[0]?.[0]?.dry).toBeFalsy();
         expect(mocks.remove).not.toHaveBeenCalled();
-        click(btn);
+        expect(root.querySelector(".task-note")?.textContent).toBe(
+            t.home.slimFreed.replace("{size}", "1.4 MB"),
+        );
+    });
+
+    it("freed_bytes=0 时回显无可清", async () => {
+        renderList();
+        await openMenu();
+        mocks.slimTasks.mockClear();
+        mocks.slimTasks.mockResolvedValue({ slimmed: 0, freed_bytes: 0 });
+        click(root.querySelector(".maint-slim") as HTMLElement);
         await flush();
+        expect(root.querySelector(".task-note")?.textContent).toBe(
+            t.home.slimNone,
+        );
+    });
+
+    it("「删除已结束」出确认框，确认后删全部终态行", async () => {
+        renderList();
+        await openMenu();
+        click(root.querySelector(".maint-purge") as HTMLElement);
+        await flush();
+        expect(root.querySelector(".purge-box")).not.toBeNull();
+        expect(root.querySelector(".maint-menu")).toBeNull();
+        click(root.querySelector(".purge-confirm") as HTMLElement);
+        await flush();
+        // a2/a5 done + a3 fault + a4 needs_auth——终态全口径
         expect(mocks.remove.mock.calls.map((c) => c[0]).sort()).toEqual([
             "a2",
+            "a3",
+            "a4",
             "a5",
+        ]);
+        expect(root.querySelector(".purge-box")).toBeNull();
+        expect(root.querySelector(".task-note")?.textContent).toBe(
+            t.home.purgeDone.replace("{n}", "4"),
+        );
+    });
+
+    it("确认框取消勾选「已完成」→ 只删未完成", async () => {
+        renderList();
+        await openMenu();
+        click(root.querySelector(".maint-purge") as HTMLElement);
+        await flush();
+        const cb = root.querySelector(
+            ".purge-opt input",
+        ) as HTMLInputElement;
+        cb.checked = false;
+        cb.dispatchEvent(new Event("change", { bubbles: true }));
+        await flush();
+        expect(
+            (root.querySelector(".purge-confirm") as HTMLButtonElement)
+                .textContent,
+        ).toBe(t.home.purgeDo.replace("{n}", "2"));
+        click(root.querySelector(".purge-confirm") as HTMLElement);
+        await flush();
+        expect(mocks.remove.mock.calls.map((c) => c[0]).sort()).toEqual([
+            "a3",
+            "a4",
         ]);
     });
 
-    it("无 done 行时清理钮 disabled", () => {
+    it("确认框取消钮关框不删", async () => {
+        renderList();
+        await openMenu();
+        click(root.querySelector(".maint-purge") as HTMLElement);
+        await flush();
+        click(root.querySelector(".purge-cancel") as HTMLElement);
+        await flush();
+        expect(root.querySelector(".purge-box")).toBeNull();
+        expect(mocks.remove).not.toHaveBeenCalled();
+    });
+
+    it("无终态行时 purge 菜单项 disabled", async () => {
         renderList([snap("b1", { status: "translating", progress: 10 })]);
+        await openMenu();
         expect(
-            (root.querySelector(".task-clean") as HTMLButtonElement).disabled,
+            (root.querySelector(".maint-purge") as HTMLButtonElement).disabled,
         ).toBe(true);
     });
 });

@@ -223,6 +223,7 @@ export interface ByokHeaders {
     apiKey?: string;
     baseUrl?: string;
     model?: string;
+    dialect?: string;
     idempotencyKey?: string;
 }
 
@@ -242,6 +243,13 @@ export interface SharePackResponse {
     /** 服务端共享目录内的扁平包文件名——非可点 URL，给其他实例 import 用 */
     url: string;
     bytes: number;
+}
+
+/** POST /tasks/slim 200 体——瘦身只删未登记字节，产物/记录全留 */
+export interface SlimReport {
+    /** 实际有字节释放的任务数 */
+    slimmed: number;
+    freed_bytes: number;
 }
 
 export type FileKind =
@@ -375,6 +383,8 @@ export interface Settings {
     clear_api_key?: boolean;
     base_url?: string;
     model?: string;
+    /** LLM 网关方言：auto（按 host 推导）|openai|anthropic|responses */
+    dialect?: string;
     target_lang?: string;
     glossary?: string;
     engine?: string;

@@ -278,7 +278,7 @@
 
 .auth-key-input:focus {
     border-color: var(--cinnabar);
-    box-shadow: 0 0 0 3px rgb(178 58 31 / 12%);
+    box-shadow: 0 0 0 3px var(--ring);
 }
 
 /* .health.checking —— 三态健康指示的中间态(修加载期闪红) */

@@ -1,8 +1,17 @@
-import { createMemo, createSignal, For, onCleanup, Show } from "solid-js";
+import {
+    createEffect,
+    createMemo,
+    createSignal,
+    For,
+    onCleanup,
+    onMount,
+    Show,
+} from "solid-js";
 import type { FileManifest, TaskError, TaskSnapshot } from "../api/client";
 import { api, isTerminal } from "../api/client";
 import { taskStore } from "../stores/tasks";
 import { downloadItems, isDocKind } from "../taskFiles";
+import { fmtBytes } from "../reader/paneUtils";
 import { bindMenuDismiss, menuRoving, menuTriggerKey } from "./menuNav";
 import { t } from "../i18n";
 
@@ -174,12 +183,114 @@ function TaskDownloads(props: { task: TaskSnapshot }) {
     );
 }
 
-/** 行内二次确认的 armed 键：task_id 或 CLEAN_KEY——单值天然互斥 */
-const CLEAN_KEY = "__clean";
+/**
+ * 「删除已结束任务」确认框——docker prune 式：明说删什么、可选范围、
+ * 显式确认，替代旧的工具行两击臂（按钮文案当确认太隐晦）。
+ * 焦点默认落取消钮防 Enter 误触；busy 期禁取消（删除已在飞）。
+ */
+function PurgeDialog(props: {
+    doneCount: number;
+    failedCount: number;
+    busy: boolean;
+    onCancel(): void;
+    onConfirm(sel: { done: boolean; failed: boolean }): void;
+}) {
+    const [selDone, setSelDone] = createSignal(true);
+    const [selFailed, setSelFailed] = createSignal(true);
+    const n = () =>
+        (selDone() ? props.doneCount : 0) +
+        (selFailed() ? props.failedCount : 0);
+    let cancelBtn: HTMLButtonElement | undefined;
+    onMount(() => {
+        cancelBtn?.focus();
+        const esc = (e: KeyboardEvent) => {
+            if (e.key === "Escape" && !props.busy) props.onCancel();
+        };
+        document.addEventListener("keydown", esc);
+        onCleanup(() => document.removeEventListener("keydown", esc));
+    });
+    return (
+        <div
+            class="purge-veil"
+            onClick={(e) => {
+                if (e.target === e.currentTarget && !props.busy) {
+                    props.onCancel();
+                }
+            }}
+        >
+            <div
+                class="purge-box"
+                role="alertdialog"
+                aria-modal="true"
+                aria-label={t.home.purgeTitle}
+            >
+                <h2 class="purge-title">{t.home.purgeTitle}</h2>
+                <p class="purge-desc">{t.home.purgeDesc}</p>
+                <div class="purge-opts">
+                    <label class="purge-opt">
+                        <input
+                            type="checkbox"
+                            checked={selDone()}
+                            disabled={props.busy || props.doneCount === 0}
+                            onChange={(e) =>
+                                setSelDone(e.currentTarget.checked)
+                            }
+                        />
+                        {t.home.purgeScopeDone.replace(
+                            "{n}",
+                            String(props.doneCount),
+                        )}
+                    </label>
+                    <label class="purge-opt">
+                        <input
+                            type="checkbox"
+                            checked={selFailed()}
+                            disabled={props.busy || props.failedCount === 0}
+                            onChange={(e) =>
+                                setSelFailed(e.currentTarget.checked)
+                            }
+                        />
+                        {t.home.purgeScopeFailed.replace(
+                            "{n}",
+                            String(props.failedCount),
+                        )}
+                    </label>
+                </div>
+                <div class="purge-foot">
+                    <button
+                        type="button"
+                        class="btn-ghost purge-cancel"
+                        ref={(el) => (cancelBtn = el)}
+                        disabled={props.busy}
+                        onClick={() => props.onCancel()}
+                    >
+                        {t.home.cancel}
+                    </button>
+                    <button
+                        type="button"
+                        class="btn-primary purge-confirm"
+                        disabled={props.busy || n() === 0}
+                        onClick={() =>
+                            props.onConfirm({
+                                done: selDone(),
+                                failed: selFailed(),
+                            })
+                        }
+                    >
+                        {props.busy
+                            ? t.home.purgeBusy
+                            : t.home.purgeDo.replace("{n}", String(n()))}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
 
 export default function TaskList(props: Props) {
     const [deleting, setDeleting] = createSignal<string | null>(null);
     const [delError, setDelError] = createSignal("");
+    const [notice, setNotice] = createSignal("");
     const [filter, setFilter] = createSignal<Filter>("all");
     const [query, setQuery] = createSignal("");
     const [acting, setActing] = createSignal<string | null>(null);
@@ -201,6 +312,26 @@ export default function TaskList(props: Props) {
     const [retryMenu, setRetryMenu] = createSignal<string | null>(null);
     const retryWraps = new Map<string, HTMLElement>();
     const retryBtns = new Map<string, HTMLButtonElement>();
+    // 「清理 ▾」维护菜单 + 删除确认框；estBytes=slim dry-run 预估（开菜单懒拉）
+    const [maintOpen, setMaintOpen] = createSignal(false);
+    const [purgeOpen, setPurgeOpen] = createSignal(false);
+    const [estBytes, setEstBytes] = createSignal<number | null>(null);
+    let estTried = false;
+    let maintWrap: HTMLSpanElement | undefined;
+    let maintBtn: HTMLButtonElement | undefined;
+    bindMenuDismiss({
+        open: maintOpen,
+        close: () => setMaintOpen(false),
+        wrap: () => maintWrap,
+        trigger: () => maintBtn,
+    });
+    createEffect(() => {
+        if (!maintOpen() || estTried) return;
+        estTried = true;
+        api.slimTasks({ dry: true })
+            .then((r) => setEstBytes(r.freed_bytes))
+            .catch(() => setEstBytes(null));
+    });
     // fmtRel 60s tick——相对时间随墙钟刷新，不靠任务事件顺带更新
     const [now, setNow] = createSignal(Date.now());
     const tick = setInterval(() => setNow(Date.now()), 60_000);
@@ -215,6 +346,17 @@ export default function TaskList(props: Props) {
         { value: "done", label: t.home.fDone },
         { value: "failed", label: t.home.fFailed },
     ];
+
+    /** 各筛选桶容量——chip 计数徽（扫一眼知有没有活） */
+    const counts = createMemo(() => {
+        const c = { all: props.tasks.length, active: 0, done: 0, failed: 0 };
+        for (const x of props.tasks) {
+            if (!isTerminal(x.status)) c.active++;
+            if (x.status === "done") c.done++;
+            if (FAILED_SET.has(x.status)) c.failed++;
+        }
+        return c;
+    });
 
     /**
      * 可见行 = 筛选桶 ∩ 搜索子串；活动任务恒置顶（pin 分组），组内按
@@ -243,8 +385,8 @@ export default function TaskList(props: Props) {
         });
     });
 
-    const doneCount = createMemo(
-        () => props.tasks.filter((x) => x.status === "done").length,
+    const termCount = createMemo(
+        () => props.tasks.filter((x) => isTerminal(x.status)).length,
     );
 
     // 终态 fault/partial 的 error 徽标内容
@@ -254,7 +396,9 @@ export default function TaskList(props: Props) {
     };
 
     const confirmDelete = async (task: TaskSnapshot) => {
-        if (!isTerminal(task.status) || deleting() !== null) return;
+        if (!isTerminal(task.status) || deleting() !== null || cleaning()) {
+            return;
+        }
         if (arm() !== task.task_id) {
             armOnce(task.task_id);
             return;
@@ -313,28 +457,56 @@ export default function TaskList(props: Props) {
         }
     };
 
-    /** 批量清理已完成：逐行走 taskStore.remove（复用 404 容忍与 dropTask 清理）。
-     *  与行删除同一套两击确认——arm 键用 CLEAN_KEY 哨兵 */
-    const cleanDone = async () => {
+    /** 清理中间文件：POST /tasks/slim——只清 workdir 未登记字节
+     *  （产物/记录全留），非破坏操作不需要确认；结果落 notice 行。 */
+    const slimAll = async () => {
         if (cleaning() || deleting() !== null || acting() !== null) return;
-        if (arm() !== CLEAN_KEY) {
-            armOnce(CLEAN_KEY);
-            return;
-        }
-        disarm();
         setCleaning(true);
         setDelError("");
+        setNotice("");
+        try {
+            const r = await api.slimTasks();
+            setEstBytes(0); // 预估失效——刚清完下拍近乎为 0
+            setNotice(
+                r.freed_bytes > 0
+                    ? t.home.slimFreed.replace("{size}", fmtBytes(r.freed_bytes))
+                    : t.home.slimNone,
+            );
+        } catch (e) {
+            setDelError(e instanceof Error ? e.message : String(e));
+        } finally {
+            setCleaning(false);
+        }
+    };
+
+    /** 删除已结束：确认框选定范围后逐行走 taskStore.remove（复用 404 容忍
+     *  与 dropTask 清理）。删的是产物+记录本身，非瘦身——busy 期对话框
+     *  保持开着让用户看见在删，结束才收。 */
+    const purge = async (sel: { done: boolean; failed: boolean }) => {
+        if (cleaning() || deleting() !== null || acting() !== null) return;
+        setCleaning(true);
+        setDelError("");
+        setNotice("");
+        let n = 0;
         try {
             for (const task of props.tasks) {
-                if (task.status !== "done") continue;
+                const hit =
+                    (task.status === "done" && sel.done) ||
+                    (FAILED_SET.has(task.status) && sel.failed);
+                if (!hit) continue;
                 try {
                     await taskStore.remove(task.task_id);
+                    n++;
                 } catch {
                     setDelError(t.home.delFailed);
                 }
             }
+            if (n) {
+                setNotice(t.home.purgeDone.replace("{n}", String(n)));
+            }
         } finally {
             setCleaning(false);
+            setPurgeOpen(false);
         }
     };
 
@@ -360,28 +532,87 @@ export default function TaskList(props: Props) {
                                 onClick={() => setFilter(f.value)}
                             >
                                 {f.label}
+                                <span class="chip-n">{counts()[f.value]}</span>
                             </button>
                         )}
                     </For>
                 </div>
-                <button
-                    type="button"
-                    class="task-clean"
-                    classList={{ arm: arm() === CLEAN_KEY }}
-                    disabled={cleaning() || doneCount() === 0}
-                    title={
-                        arm() === CLEAN_KEY
-                            ? t.home.cleanDoneConfirm
-                            : undefined
-                    }
-                    onClick={() => void cleanDone()}
-                >
-                    {arm() === CLEAN_KEY
-                        ? t.home.cleanDoneArm
-                        : cleaning()
-                          ? t.home.cleanDoneBusy
-                          : t.home.cleanDone}
-                </button>
+                {/* 「清理 ▾」维护菜单——安全项（清中间文件）直接跑并出结果，
+                    破坏项（删已结束）收进确认框；预估字节开菜单时 dry-run 懒拉 */}
+                <span class="task-maint" ref={(el) => (maintWrap = el)}>
+                    <button
+                        type="button"
+                        class="task-clean"
+                        ref={(el) => (maintBtn = el)}
+                        aria-haspopup="menu"
+                        aria-expanded={maintOpen()}
+                        title={t.home.maintTip}
+                        onClick={() => setMaintOpen((v) => !v)}
+                        onKeyDown={(e) =>
+                            menuTriggerKey(
+                                e,
+                                () => setMaintOpen(true),
+                                () => maintWrap,
+                            )
+                        }
+                    >
+                        {t.home.maint} ▾
+                    </button>
+                    <Show when={maintOpen()}>
+                        <span
+                            class="retry-menu maint-menu"
+                            role="menu"
+                            onKeyDown={(e) =>
+                                menuRoving(e, () => setMaintOpen(false))
+                            }
+                        >
+                            <button
+                                type="button"
+                                role="menuitem"
+                                tabIndex={-1}
+                                class="retry-item maint-slim"
+                                disabled={cleaning()}
+                                title={t.home.slimTip}
+                                onClick={() => {
+                                    setMaintOpen(false);
+                                    void slimAll();
+                                }}
+                            >
+                                {cleaning()
+                                    ? t.home.slimBusy
+                                    : t.home.maintSlim}
+                                <Show when={!cleaning() && (estBytes() ?? 0) > 0}>
+                                    <span class="menu-hint">
+                                        {t.home.maintSlimEst.replace(
+                                            "{size}",
+                                            fmtBytes(estBytes()!),
+                                        )}
+                                    </span>
+                                </Show>
+                            </button>
+                            <button
+                                type="button"
+                                role="menuitem"
+                                tabIndex={-1}
+                                class="retry-item danger maint-purge"
+                                disabled={termCount() === 0 || cleaning()}
+                                title={t.home.purgeTip}
+                                onClick={() => {
+                                    setMaintOpen(false);
+                                    setPurgeOpen(true);
+                                }}
+                            >
+                                {t.home.maintPurge}
+                                <span class="menu-hint">
+                                    {t.home.purgeN.replace(
+                                        "{n}",
+                                        String(termCount()),
+                                    )}
+                                </span>
+                            </button>
+                        </span>
+                    </Show>
+                </span>
             </div>
             <Show when={props.tasks.length === 0}>
                 <p class="task-empty">{t.home.empty}</p>
@@ -589,7 +820,8 @@ export default function TaskList(props: Props) {
                                 }}
                                 disabled={
                                     !isTerminal(task.status) ||
-                                    deleting() !== null
+                                    deleting() !== null ||
+                                    cleaning()
                                 }
                                 title={
                                     arm() === task.task_id
@@ -613,6 +845,18 @@ export default function TaskList(props: Props) {
                 <p class="task-del-err" role="alert">
                     {delError()}
                 </p>
+            </Show>
+            <Show when={notice()}>
+                <p class="task-note">{notice()}</p>
+            </Show>
+            <Show when={purgeOpen()}>
+                <PurgeDialog
+                    doneCount={counts().done}
+                    failedCount={counts().failed}
+                    busy={cleaning()}
+                    onCancel={() => setPurgeOpen(false)}
+                    onConfirm={(sel) => void purge(sel)}
+                />
             </Show>
         </div>
     );

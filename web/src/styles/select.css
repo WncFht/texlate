@@ -1,0 +1,90 @@
+/* ---------- select 弹层皮肤（appearance: base-select 渐进增强） ----------
+ * Chrome/Edge 135+、Safari 27+ 生效：弹层进 top-layer 变可样式化 DOM。
+ * 不支持引擎（Firefox 转正前）整个 @supports 块被跳过，原生弹层原样渲染——
+ * 闭合控件外观由 settings.css/taskopts.css/reader.css 的盒模型规则提供，两路一致。 */
+
+@supports (appearance: base-select) {
+    select.tx-select,
+    select.tx-select::picker(select) {
+        appearance: base-select;
+    }
+
+    /* 弹层面板：与 .tb-menu/.kbd-help 同套 token（panel + 强线 + 圆角 + pop 阴影）。
+     * min-inline-size 保证至少与闭合控件同宽（anchor-size 参照锚点自身）；
+     * flip-* 回退覆盖上下/左右溢出（避开 Firefox 尚未支持的 position-try-order） */
+    select.tx-select::picker(select) {
+        margin-block: 4px;
+        padding: 4px;
+        font: inherit;
+        color: var(--ink);
+        background: var(--panel);
+        border: 1px solid var(--line-strong);
+        border-radius: 8px;
+        box-shadow: var(--shadow-pop);
+        min-inline-size: anchor-size(self-inline);
+        position-try-fallbacks: flip-block, flip-inline;
+        transition:
+            opacity 0.14s ease,
+            transform 0.14s ease,
+            overlay 0.14s allow-discrete,
+            display 0.14s allow-discrete;
+    }
+
+    /* 出场终态 + 入场初态（top-layer 离散动画套路） */
+    select.tx-select:not(:open)::picker(select) {
+        opacity: 0;
+        transform: translateY(-3px);
+    }
+
+    @starting-style {
+        select.tx-select:open::picker(select) {
+            opacity: 0;
+            transform: translateY(-3px);
+        }
+    }
+
+    select.tx-select option {
+        padding: 6px 10px;
+        border-radius: 5px;
+        color: var(--ink);
+        background: transparent;
+        /* Settings 的 select 住在 font-weight:600 的 label 里——清单项归回正文字重 */
+        font-weight: 400;
+    }
+
+    select.tx-select option:hover,
+    select.tx-select option:focus-visible {
+        background: var(--paper-2);
+    }
+
+    /* 选中项：朱砂淡底 + 行尾勾 */
+    select.tx-select option:checked {
+        background: color-mix(in srgb, var(--cinnabar) 10%, transparent);
+        font-weight: 600;
+    }
+
+    /* checkmark 伪盒对所有 option 都在（未选中为空）——order 排到文本后，
+     * auto 外边距把它推到行尾；不加 order 时它在文本前，把整行文字挤右对齐 */
+    select.tx-select option::checkmark {
+        order: 1;
+        margin-inline-start: auto;
+        color: var(--cinnabar);
+        font-weight: 700;
+    }
+
+    /* chevron 降存在感到 ink-3，开合翻转 */
+    select.tx-select::picker-icon {
+        color: var(--ink-3);
+        transition: rotate 0.15s ease;
+    }
+
+    select.tx-select:open::picker-icon {
+        rotate: 180deg;
+    }
+
+    /* 展开中的闭合控件保持聚焦框（焦点在弹层里，控件不该显得失焦） */
+    select.tx-select:open {
+        border-color: var(--cinnabar);
+        box-shadow: 0 0 0 3px var(--ring);
+    }
+}

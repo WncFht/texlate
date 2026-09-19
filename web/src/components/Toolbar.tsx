@@ -188,7 +188,7 @@ export default function Toolbar(props: Props) {
                         <label class="tb-menu-row">
                             {t.reader.zoom}
                             <select
-                                class="tb-select"
+                                class="tb-select tx-select"
                                 value={props.zoom}
                                 onChange={(e) =>
                                     props.onZoom(e.currentTarget.value)
@@ -304,7 +304,7 @@ export default function Toolbar(props: Props) {
             </Show>
 
             <select
-                class="tb-select tb-opt"
+                class="tb-select tb-opt tx-select"
                 value={props.zoom}
                 onChange={(e) => props.onZoom(e.currentTarget.value)}
                 aria-label={t.reader.zoom}

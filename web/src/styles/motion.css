@@ -1,3 +1,16 @@
+/* 主题切换瞬时换肤会闪——.theme-anim 只在 setTheme/系统切换后 200ms 内挂上,
+   让底色/文字/描边同色过渡;首绘不挂(见 settings.ts applyTheme 的 boot 门) */
+@media (prefers-reduced-motion: no-preference) {
+    html.theme-anim,
+    html.theme-anim * {
+        transition:
+            background-color 0.18s ease,
+            border-color 0.18s ease,
+            color 0.18s ease,
+            box-shadow 0.18s ease !important;
+    }
+}
+
 @media (prefers-reduced-motion: reduce) {
     /* 加载圈只减速不停转——完全静止会被误读为卡死；fixloop 面板小圈同待遇 */
     .spinner,

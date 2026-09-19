@@ -27,10 +27,36 @@ const darkQuery = () =>
         ? window.matchMedia("(prefers-color-scheme: dark)")
         : null;
 
+// 首绘 applyTheme 由 index.html 预置脚本先行——模块内第一次调用属复述,
+// 不触发过渡;之后(用户切换/系统翻转)才挂 .theme-anim 做 200ms 同色过渡
+let themeBooted = false;
+let themeAnimTimer = 0;
+
+const THEME_COLOR: Record<"light" | "dark", string> = {
+    light: "#f5f1e8", // --paper
+    dark: "#17140f",
+};
+
 function applyTheme(choice: ThemeChoice) {
     if (typeof document === "undefined") return;
-    const dark = choice === "dark" || (choice === "auto" && !!darkQuery()?.matches);
-    document.documentElement.dataset.theme = dark ? "dark" : "light";
+    const dark =
+        choice === "dark" || (choice === "auto" && !!darkQuery()?.matches);
+    const resolved = dark ? "dark" : "light";
+    const root = document.documentElement;
+    if (themeBooted && root.dataset.theme !== resolved) {
+        root.classList.add("theme-anim");
+        window.clearTimeout(themeAnimTimer);
+        themeAnimTimer = window.setTimeout(
+            () => root.classList.remove("theme-anim"),
+            240,
+        );
+    }
+    themeBooted = true;
+    root.dataset.theme = resolved;
+    // 移动/PWA 浏览器外壳着色跟随实际主题而非系统媒体查询
+    document
+        .querySelector('meta[name="theme-color"]')
+        ?.setAttribute("content", THEME_COLOR[resolved]);
 }
 
 const [theme, setThemeSig] = createSignal<ThemeChoice>(readTheme());

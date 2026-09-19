@@ -16,7 +16,7 @@
     border-radius: 10px;
     padding: 18px 22px;
     min-width: 280px;
-    box-shadow: 0 12px 40px rgb(0 0 0 / 0.25);
+    box-shadow: var(--shadow-modal);
 }
 
 .kbd-help-list {

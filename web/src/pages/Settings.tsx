@@ -2,13 +2,15 @@
 
 import { createSignal, onCleanup, onMount, Show, For } from "solid-js";
 import { settingsStore } from "../stores/settings";
-import { ENGINES, TARGET_LANGS } from "../options";
+import Segmented from "../components/Segmented";
+import { API_DIALECTS, ENGINES, TARGET_LANGS } from "../options";
 import { t, langChoice, setLang, type LangChoice } from "../i18n";
 
 export default function Settings() {
     const [apiKey, setApiKey] = createSignal("");
     const [baseUrl, setBaseUrl] = createSignal("");
     const [model, setModel] = createSignal("");
+    const [dialect, setDialect] = createSignal("auto");
     const [targetLang, setTargetLang] = createSignal("zh-CN");
     const [glossary, setGlossary] = createSignal("");
     const [engine, setEngine] = createSignal("auto");
@@ -37,6 +39,7 @@ export default function Settings() {
         }
         setBaseUrl(s.base_url ?? "");
         setModel(s.model ?? "");
+        setDialect(s.dialect ?? "auto");
         // 回填后反查预设：base_url 命中即归位，否则落「自定义」
         setProvider(
             settingsStore.providers().find((p) => p.base_url === s.base_url)
@@ -73,6 +76,7 @@ export default function Settings() {
         const patch: Record<string, unknown> = {
             base_url: baseUrl().trim(),
             model: model().trim(),
+            dialect: dialect(),
             target_lang: targetLang().trim(),
             glossary: glossary(),
             engine: engine(),
@@ -123,6 +127,7 @@ export default function Settings() {
             const r = await settingsStore.test({
                 base_url: baseUrl(),
                 model: model(),
+                dialect: dialect(),
                 ...(apiKey() ? { api_key: apiKey() } : {}),
             });
             if (r.ok) flash(t.settings.testOk);
@@ -224,6 +229,7 @@ export default function Settings() {
                     <label>
                         <span>{t.settings.provider}</span>
                         <select
+                            class="tx-select"
                             value={provider()}
                             onChange={(e) =>
                                 pickProvider(e.currentTarget.value)
@@ -269,6 +275,7 @@ export default function Settings() {
                         }
                     >
                         <select
+                            class="tx-select"
                             name="model"
                             value={model()}
                             onChange={(e) => setModel(e.currentTarget.value)}
@@ -287,46 +294,64 @@ export default function Settings() {
                         </select>
                     </Show>
                 </label>
-                <label>
+                <div class="settings-field">
+                    <span>
+                        {t.settings.dialect}
+                        <em class="muted">{t.settings.dialectHint}</em>
+                    </span>
+                    {/* 已存值越出白名单（旧配置/服务端扩列）prepend 保留可选，防静默改值 */}
+                    <Segmented
+                        options={[
+                            ...(dialect() && !API_DIALECTS.includes(dialect())
+                                ? [{ value: dialect(), label: dialect() }]
+                                : []),
+                            ...API_DIALECTS.map((d) => ({
+                                value: d,
+                                label:
+                                    d === "auto" ? t.settings.dialectAuto : d,
+                            })),
+                        ]}
+                        value={dialect()}
+                        onChange={setDialect}
+                        ariaLabel={t.settings.dialect}
+                    />
+                </div>
+                <div class="settings-field">
                     <span>{t.settings.targetLang}</span>
-                    <select
+                    {/* 同 dialect：越表旧值 prepend 保留 */}
+                    <Segmented
+                        options={[
+                            ...(targetLang() &&
+                            !TARGET_LANGS.includes(targetLang())
+                                ? [{ value: targetLang(), label: targetLang() }]
+                                : []),
+                            ...TARGET_LANGS.map((l) => ({
+                                value: l,
+                                label: l,
+                            })),
+                        ]}
                         value={targetLang()}
-                        onChange={(e) => setTargetLang(e.currentTarget.value)}
-                    >
-                        {/* 已存值越出白名单（旧配置/服务端扩列）保留可选，防静默改值 */}
-                        <Show
-                            when={
-                                targetLang() &&
-                                !TARGET_LANGS.includes(targetLang())
-                            }
-                        >
-                            <option value={targetLang()}>{targetLang()}</option>
-                        </Show>
-                        <For each={TARGET_LANGS}>
-                            {(l) => <option value={l}>{l}</option>}
-                        </For>
-                    </select>
-                </label>
-                <label>
+                        onChange={setTargetLang}
+                        ariaLabel={t.settings.targetLang}
+                    />
+                </div>
+                <div class="settings-field">
                     <span>{t.settings.engine}</span>
-                    <select
+                    <Segmented
+                        options={[
+                            ...(engine() && !ENGINES.includes(engine())
+                                ? [{ value: engine(), label: engine() }]
+                                : []),
+                            ...ENGINES.map((en) => ({
+                                value: en,
+                                label: en === "auto" ? t.home.engineAuto : en,
+                            })),
+                        ]}
                         value={engine()}
-                        onChange={(e) => setEngine(e.currentTarget.value)}
-                    >
-                        <Show
-                            when={engine() && !ENGINES.includes(engine())}
-                        >
-                            <option value={engine()}>{engine()}</option>
-                        </Show>
-                        <For each={ENGINES}>
-                            {(en) => (
-                                <option value={en}>
-                                    {en === "auto" ? t.home.engineAuto : en}
-                                </option>
-                            )}
-                        </For>
-                    </select>
-                </label>
+                        onChange={setEngine}
+                        ariaLabel={t.settings.engine}
+                    />
+                </div>
                 <label>
                     <span>
                         {t.settings.concurrency}
@@ -340,19 +365,21 @@ export default function Settings() {
                         onInput={(e) => setConcurrency(e.currentTarget.value)}
                     />
                 </label>
-                <label>
+                <div class="settings-field">
                     <span>
                         {t.settings.contextGuidance}
                         <em class="muted">{t.settings.contextGuidanceHint}</em>
                     </span>
-                    <select
+                    <Segmented
+                        options={[
+                            { value: "on", label: t.home.optOn },
+                            { value: "off", label: t.home.optOff },
+                        ]}
                         value={guidance()}
-                        onChange={(e) => setGuidance(e.currentTarget.value)}
-                    >
-                        <option value="on">{t.home.optOn}</option>
-                        <option value="off">{t.home.optOff}</option>
-                    </select>
-                </label>
+                        onChange={setGuidance}
+                        ariaLabel={t.settings.contextGuidance}
+                    />
+                </div>
                 <label>
                     <span>
                         {t.settings.glossary}
@@ -364,37 +391,32 @@ export default function Settings() {
                         onInput={(e) => setGlossary(e.currentTarget.value)}
                     />
                 </label>
-                <label>
+                <div class="settings-field">
                     <span>{t.settings.theme}</span>
-                    <select
+                    <Segmented
+                        options={[
+                            { value: "auto", label: t.settings.themeAuto },
+                            { value: "light", label: t.settings.themeLight },
+                            { value: "dark", label: t.settings.themeDark },
+                        ]}
                         value={settingsStore.theme()}
-                        onChange={(e) =>
-                            settingsStore.setTheme(
-                                e.currentTarget.value as
-                                    | "auto"
-                                    | "light"
-                                    | "dark",
-                            )
-                        }
-                    >
-                        <option value="auto">{t.settings.themeAuto}</option>
-                        <option value="light">{t.settings.themeLight}</option>
-                        <option value="dark">{t.settings.themeDark}</option>
-                    </select>
-                </label>
-                <label>
+                        onChange={(v) => settingsStore.setTheme(v)}
+                        ariaLabel={t.settings.theme}
+                    />
+                </div>
+                <div class="settings-field">
                     <span>{t.settings.lang}</span>
-                    <select
+                    <Segmented
+                        options={[
+                            { value: "auto", label: t.settings.langAuto },
+                            { value: "zh", label: t.settings.langZh },
+                            { value: "en", label: t.settings.langEn },
+                        ]}
                         value={langChoice()}
-                        onChange={(e) =>
-                            setLang(e.currentTarget.value as LangChoice)
-                        }
-                    >
-                        <option value="auto">{t.settings.langAuto}</option>
-                        <option value="zh">{t.settings.langZh}</option>
-                        <option value="en">{t.settings.langEn}</option>
-                    </select>
-                </label>
+                        onChange={(v) => setLang(v as LangChoice)}
+                        ariaLabel={t.settings.lang}
+                    />
+                </div>
                 <div class="settings-actions">
                     <button
                         type="submit"

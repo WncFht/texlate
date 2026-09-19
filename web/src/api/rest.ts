@@ -16,6 +16,7 @@ import {
     type ReaderKeep,
     type Settings,
     type SharePackResponse,
+    type SlimReport,
     type TaskChunksPage,
     type TaskSnapshot,
     type TranslateOptions,
@@ -129,6 +130,7 @@ function byokHeaders(byok?: ByokHeaders): Record<string, string> {
     if (byok?.apiKey) h["X-Texlate-Key"] = byok.apiKey;
     if (byok?.baseUrl) h["X-Texlate-Base-URL"] = byok.baseUrl;
     if (byok?.model) h["X-Texlate-Model"] = byok.model;
+    if (byok?.dialect) h["X-Texlate-Dialect"] = byok.dialect;
     if (byok?.idempotencyKey) h["Idempotency-Key"] = byok.idempotencyKey;
     return h;
 }
@@ -283,6 +285,12 @@ export const api = {
         request(`/task/${taskId}/cancel`, { method: "POST" }),
     deleteTask: (taskId: string) =>
         request<void>(`/task/${taskId}`, { method: "DELETE" }),
+    /** 批量瘦身：终态任务 workdir 清未登记字节——产物/记录全留，非破坏；
+     *  dry=true 只算不删，给清理 UI 出「约可释放 X」预估 */
+    slimTasks: (opts?: { dry?: boolean }) =>
+        request<SlimReport>(`/tasks/slim${opts?.dry ? "?dry=1" : ""}`, {
+            method: "POST",
+        }),
     // needs_auth 任务重试必须重带 X-Texlate-Key（BYOK 经 headers 透传）
     retry: (
         taskId: string,

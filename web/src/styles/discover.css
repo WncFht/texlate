@@ -1,0 +1,331 @@
+/* ---------- Discover：alphaXiv 榜单/快搜全页面 ---------- */
+/* 卡网格：auto-fill + minmax(--ax-min) ——密度步进调卡宽（每行 2..6 张，
+   默认 3 张预览可读），窄屏/缩放自动降列；rank 编号保榜单序列感。 */
+
+/* 控制行：sort chips + interval chips + 密度步进 + 右置搜索框
+   （复用任务页 .task-chip 族） */
+.disc-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+/* 密度步进：− n +，与 chips 同高同线的联排小控件 */
+.ax-density {
+    flex: none;
+    display: flex;
+    align-items: center;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+}
+
+.ax-den-btn {
+    padding: 5px 10px;
+    font-size: 13px;
+    line-height: 1;
+    color: var(--ink-2);
+    background: none;
+    border: none;
+    cursor: pointer;
+}
+
+.ax-den-btn:hover:not(:disabled) {
+    color: var(--ink);
+}
+
+.ax-den-btn:disabled {
+    opacity: 0.35;
+    cursor: default;
+}
+
+.ax-den-btn:focus-visible {
+    outline: 2px solid var(--cinnabar);
+    outline-offset: -2px;
+    border-radius: 5px;
+}
+
+.ax-den-n {
+    min-width: 15px;
+    text-align: center;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-3);
+}
+
+.disc-search {
+    margin-left: auto;
+    min-width: 200px;
+    padding: 6px 10px;
+    font-size: 13px;
+    color: var(--ink);
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+}
+
+.disc-search:focus-visible {
+    outline: 2px solid var(--cinnabar);
+    outline-offset: 1px;
+    border-color: transparent;
+}
+
+/* 页标题内的来源注记——衬线标题旁回 UI 字体小字 */
+.ax-via {
+    font-family: var(--font-ui);
+    font-size: 12px;
+    font-weight: 400;
+    letter-spacing: 0;
+    color: var(--ink-3);
+    margin-left: 8px;
+}
+
+/* ---- 卡网格 ---- */
+.ax-grid {
+    display: grid;
+    grid-template-columns: repeat(
+        auto-fill,
+        minmax(var(--ax-min, 316px), 1fr)
+    );
+    gap: 14px;
+}
+
+.ax-card {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.ax-card:hover {
+    border-color: var(--line-strong);
+}
+
+/* 卡体整区成链（可新标签打开/复制）——预览图出血到卡边；动作留
+   在 foot 链外，不套交互元素 */
+.ax-card-top {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    color: inherit;
+    text-decoration: none;
+}
+
+/* 预览：全宽出血 + 16:9；源图是竖版首页（816×1056）——cover + 顶锚
+   露出 标题/作者/摘要开头 而不是页面中段；onLoad 翻 opacity 淡入 */
+.ax-thumb {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
+    object-position: top;
+    display: block;
+    background: var(--paper-2);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.ax-card-head {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    min-width: 0;
+    padding: 10px 12px 0;
+}
+
+/* rank 编号：衬线页码数字——榜单真序列，不是装饰 */
+.ax-rank {
+    flex: none;
+    font-family: var(--font-serif);
+    font-size: 13px;
+    color: var(--ink-3);
+}
+
+.ax-card-title {
+    font-family: var(--font-serif);
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.4;
+    margin: 0;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.ax-card-desc {
+    font-size: 12.5px;
+    color: var(--ink-2);
+    line-height: 1.55;
+    margin: 6px 0 0;
+    padding: 0 12px;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.ax-card-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: auto;
+    padding: 10px 12px 12px;
+    font-size: 12px;
+}
+
+/* meta 行（浏览·日期·stars 拼串）：让位动作组，自身截断 */
+.ax-meta {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ax-foot-actions {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.ax-go {
+    padding: 4px 12px;
+    font-size: 12px;
+}
+
+.ax-link {
+    font-size: 12px;
+    color: var(--ink-3);
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.ax-link:hover {
+    color: var(--ink);
+    text-decoration: underline;
+}
+
+/* ---- 骨架：卡占位（与实件同解剖防跳动） ---- */
+.ax-skel .sk-img,
+.ax-skel .sk-line,
+.disc-hit.skel {
+    display: block;
+    background: linear-gradient(
+        100deg,
+        var(--panel) 40%,
+        var(--paper-2) 50%,
+        var(--panel) 60%
+    );
+    background-size: 200% 100%;
+    animation: skel-sweep 1.4s ease-in-out infinite;
+}
+
+.ax-skel .sk-img {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+}
+
+.ax-skel .sk-line {
+    height: 13px;
+    border-radius: 4px;
+    margin: 12px 12px 0;
+}
+
+.ax-skel .sk-line.short {
+    width: 46%;
+    margin-bottom: 12px;
+}
+
+/* 快搜结果骨架行：与 .disc-hit 等高 */
+.disc-hit.skel {
+    height: 56px;
+    padding: 0;
+}
+
+/* 窄屏：卡内动作组只留主按钮 */
+@media (max-width: 640px) {
+    .ax-card-foot .ax-link {
+        display: none;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ax-thumb {
+        transition: none;
+    }
+
+    .ax-skel .sk-img,
+    .ax-skel .sk-line,
+    .disc-hit.skel {
+        animation: none;
+    }
+}
+
+/* 翻页/空态/失败态 */
+.disc-more {
+    display: flex;
+    justify-content: center;
+    padding: 18px 0 8px;
+}
+
+.disc-empty {
+    text-align: center;
+    padding: 44px 0;
+}
+
+.disc-fail {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 44px 0;
+}
+
+.disc-fail .form-error {
+    margin-top: 0;
+}
+
+/* 快搜结果行：替代榜单区的整页结果列表 */
+.disc-hits {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.disc-hit {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+}
+
+.disc-hit-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.disc-hit-title {
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.disc-hit-snippet {
+    font-size: 12px;
+    color: var(--ink-3);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
