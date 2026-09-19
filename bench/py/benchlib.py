@@ -191,11 +191,40 @@ def errors_sig(errors: list[dict]) -> str:
     return f"{cat}:{pay}".rstrip(":")
 
 
+def fixloop_attr(rounds, fv=None, final_cat=None):
+    """fixloop 归因 (cat, pay) = verdict 所结算的末个正规轮。
+
+    salvage 哨兵 (``"salvage": true``；旧 schema 无标——尾巴 cat 空且
+    verdict 非 clean 系即哨兵，因 clean/no_errors_no_pdf 之外的 verdict
+    只在非空 cat 轮结算) 不占归因槽。末轮 pay 空不回填旧轮——回填会把
+    已修轮的签名贴上来 (2609.19664: r2 latin 已装, r3-r5 ``other:None``
+    streak 触 stuck, 回填 latin 成 ``stuck:latin`` 误桶)。
+    """
+    rds = [rd for rd in (rounds or []) if isinstance(rd, dict)]
+    last = rds[-1] if rds else {}
+    if len(rds) > 1 and (
+        last.get("salvage")
+        or (
+            not (last.get("category") or last.get("cat"))
+            and str(fv or "") not in {"clean", "no_errors_no_pdf"}
+        )
+    ):
+        last = rds[-2]
+    fcat = last.get("category") or last.get("cat") or final_cat
+    fpay = last.get("pay") or last.get("payload") or ""
+    return fcat, fpay
+
+
 def fixloop_sig(fv, fcat=None, fpay=None) -> str:
-    """fixloop verdict → 记录 sig：裸 ``unfixable:`` 补 final_cat，再拼末轮非空
-    payload（stagerun._fixloop_one / triage.legacy_records 同源两处）。"""
+    """fixloop verdict → 记录 sig：裸 ``unfixable:``/终态词补 final_cat，
+    再拼归因轮 payload（stagerun._fixloop_one / triage.legacy_records
+    同源两处；fcat/fpay 口径 ``fixloop_attr``）。"""
     sig = str(fv)
-    if sig.startswith("unfixable:") and fcat and str(fcat) not in sig:
+    if sig.startswith("unfixable:"):
+        if fcat and str(fcat) not in sig:
+            sig = f"{sig}:{fcat}"
+    elif sig in TERMINAL_WORDS and fcat:
+        # stuck streak 签 {cat}:{pay} 的头半——cat 进桶键分 stuck 机制面
         sig = f"{sig}:{fcat}"
     if fpay:
         sig = f"{sig}:{fpay}"

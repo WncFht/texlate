@@ -189,13 +189,8 @@ def _fixloop_one(
     tail = benchlib.judge_dict(res, expect_cjk=expect_cjk)
 
     rounds = cell.get("rounds") or []
-    fcat = cell.get("final_cat") or (rounds[-1].get("category") if rounds else None)
-    fpay = ""
-    for rd in reversed(rounds):
-        if rd and (rd.get("pay") or rd.get("payload")):
-            fpay = rd.get("pay") or rd.get("payload")
-            break
     fv = str(cell.get("verdict") or "?")
+    fcat, fpay = benchlib.fixloop_attr(rounds, fv, cell.get("final_cat"))
     v = tail["verdict"]
     rec["status"] = v["status"]
     csb = comp_rec.get("status")

@@ -275,6 +275,78 @@ def test_judge_dict_has_payload() -> None:
     assert "payload" in tail["verdict"]
 
 
+# ---------------------------------------------------------------- fixloop 归因签名
+def test_fixloop_attr_last_regular_round() -> None:
+    """归因 = 末个正规轮 (cat, pay)：salvage 哨兵不占槽、pay 空不回填旧轮。
+
+    2609.19664 实证：r2 babel_opt|latin 已装，r3-r5 ``other:None`` streak
+    触 stuck——旧回填走成 ``stuck:latin`` 误桶。
+    """
+    rounds = [
+        {"round": 1, "cat": "missing_file", "pay": "fairmeta.cls"},
+        {"round": 2, "cat": "babel_opt", "pay": "latin"},
+        {"round": 3, "cat": "other", "pay": None},
+        {"round": 4, "cat": "other", "pay": None},
+        {"round": 5, "cat": "other", "pay": None},
+        {"round": 6, "cat": None, "pay": None},  # 旧 schema salvage 哨兵无标
+    ]
+    assert benchlib.fixloop_attr(rounds, "stuck") == ("other", "")
+    # 新 schema "salvage": true 同回退
+    rounds[-1]["salvage"] = True
+    assert benchlib.fixloop_attr(rounds, "stuck") == ("other", "")
+    # 非 salvage 末轮真实签名照取（streak 有 payload 时保留）
+    assert benchlib.fixloop_attr(rounds[:2], "stuck") == ("babel_opt", "latin")
+    # clean 系 verdict 的 cat=None 末轮是正规轮——不回退
+    assert benchlib.fixloop_attr(
+        [{"cat": "other"}, {"cat": None}], "no_errors_no_pdf"
+    ) == (None, "")
+    assert benchlib.fixloop_attr([], "stuck") == (None, "")
+
+
+def test_fixloop_sig_terminal_cat() -> None:
+    """终态词 sig 拼归因 cat：stuck streak 签 {cat}:{pay} 的头半进桶键。"""
+    assert benchlib.fixloop_sig("stuck", "other", "") == "stuck:other"
+    assert (
+        benchlib.fixloop_sig("stuck", "babel_opt", "latin") == "stuck:babel_opt:latin"
+    )
+    assert benchlib.fixloop_sig("max_rounds", "syntax", "x") == "max_rounds:syntax:x"
+    assert benchlib.fixloop_sig("stuck", None, "") == "stuck"
+    assert (
+        benchlib.fixloop_sig("unfixable:missing_file", "missing_file", "a.cls")
+        == "unfixable:missing_file:a.cls"
+    )
+    # cat 化终态 sig 仍归 core（引擎/taxonomy 缺口），不落 rule 人工归因
+    assert triage.classify("stuck:other", {})[0] == "core"
+
+
+def test_legacy_records_stuck_attr(tmp_path: Path) -> None:
+    """legacy_records 同口径：salvage 尾 + other streak → ``stuck:other``。"""
+    doc = {
+        "a": {
+            "id": "a",
+            "pipe-fix": {
+                "fixloop": {
+                    "verdict": "stuck",
+                    "final_cat": None,
+                    "rounds": [
+                        {"cat": "missing_file", "pay": "fairmeta.cls"},
+                        {"cat": "babel_opt", "pay": "latin"},
+                        {"cat": "other", "pay": None},
+                        {"cat": "other", "pay": None},
+                        {"cat": "other", "pay": None},
+                        {"cat": None, "pay": None},
+                    ],
+                }
+            },
+        }
+    }
+    (tmp_path / "results.json").write_text(json.dumps(doc))
+    recs = triage.legacy_records(tmp_path)
+    sigs = {r["sig"] for r in recs}
+    assert "stuck:other" in sigs
+    assert "stuck:latin" not in sigs
+
+
 # ---------------------------------------------------------------- run_meta 墙钟
 def test_run_meta_started_finished(tmp_path: Path) -> None:
     stagerun: types.ModuleType = pytest.importorskip("stagerun")

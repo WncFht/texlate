@@ -275,7 +275,7 @@ def classify(sig, rep):
             "wontfix",
             "LaTeX2.09 路由层拒绝 (F3: verdict 语义 reject→partial, 非缺陷)",
         )
-    if sig.startswith("unfixable:") or sig in TERMINAL_WORDS:
+    if sig.startswith("unfixable:") or sig.split(":", 1)[0] in TERMINAL_WORDS:
         return "core", "fixloop 终态 → 规则面外的引擎/taxonomy 缺口"
     return "rule", "待人工归因"
 
@@ -411,14 +411,8 @@ def legacy_records(results_dir):
             if not isinstance(rounds, list):
                 rounds = []
             rounds = [rd for rd in rounds if isinstance(rd, dict)]
-            last = (rounds[-1] or {}) if rounds else {}
-            fcat = fl.get("final_cat") or last.get("category") or last.get("cat")
-            fpay = ""  # 取最末一个非空 pay (末轮常为 null)
-            for rd in reversed(rounds):
-                if rd and (rd.get("pay") or rd.get("payload")):
-                    fpay = rd.get("pay") or rd.get("payload")
-                    break
             fv = str(fl["verdict"])
+            fcat, fpay = benchlib.fixloop_attr(rounds, fv, fl.get("final_cat"))
             sig = benchlib.fixloop_sig(fv, fcat, fpay)
             status = (
                 "ok"
@@ -517,7 +511,7 @@ def _is_unfixable(rec):
         st.startswith("unfixable")
         or st in TERMINAL_WORDS | {"fail"}
         or sig.startswith("unfixable:")
-        or sig in TERMINAL_WORDS
+        or sig.split(":", 1)[0] in TERMINAL_WORDS
     )
 
 
