@@ -66,9 +66,8 @@ def non_utf8_recode(
             pass
         for enc in ("cp1252", "latin-1"):
             with contextlib.suppress(UnicodeDecodeError):
-                f.write_text(raw.decode(enc), encoding="utf-8")
+                ctx.write(f, raw.decode(enc))
                 recoded.append(f"{f.name}({enc})")
-                ctx.invalidate(f)
                 break
     return (bool(recoded)), f"recode to utf-8: {', '.join(recoded)}"
 
@@ -106,6 +105,7 @@ def purge_corrupt_intermediates(
             continue
         f.unlink()
         ctx.invalidate(f)
+        ctx.io.written.add(f)  # 自产删除入 authored 账 —— 非外部落件, 不稀释 dedup
         purged.append(str(f.relative_to(ctx.wdir)))
     return (bool(purged)), f"purged corrupt intermediates: {', '.join(purged)}"
 
