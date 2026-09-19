@@ -1710,6 +1710,156 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/lane-missmath/census: 4/4 file:NNN 站点与空白行重合实证"
 
+  # missingdollar_underscore: 文本域裸 _ → Missing$ (file:NNN 报错行即含 _ 行)
+  #   —— zh 臂 LLM 把 \doi{10.x/y_z} 改写成字面 doi: 10.x/y_z, 下划线裸露在
+  #   水平模式 (2305.11278/2609.19853 实证, base 臂原文 \doi{} 包裹零错)。
+  #   修 = file:NNN 站点只收簇首 (同文件行距 >2 才开新簇; 级联站随主站清除,
+  #   数学区 \partial_a 类 cs 下标免于误伤), 簇首行在 thebibliography 内或
+  #   含 doi/pmid/isbn/arxiv/url 关键词 → 行内裸 _ 改写 \_ ($..$/verb/\url
+  #   族/注释域及 \cs 下标形不动)。两站转义后 xelatex 零 Missing$。
+  - id: missingdollar_underscore
+    description: "文本域裸 _ → Missing$ (file:NNN=含 _ 行) → 簇首站 bib/doi 域内 _ 转 \\_"
+    phase: loop
+    order: 199.45 # missingdollar_blankline(199.4) 之后, ifnum_typeout_banner(199.5) 之前; 级联站与数学下标由簇首+cs 门控 noop
+    when: { category: syntax }
+    condition:
+      ctx_suggests: "Missing \\$ inserted"
+      tool_available: python3
+    action:
+      kind: run_tool
+      params:
+        argv:
+          - python3
+          - -c
+          - |
+            from pathlib import Path
+            import re
+
+            # file:NNN 站点逐帧收 (与 missingdollar_blankline 同骨架; 补 .bbl —— DOI 居所)
+            ERR_RE = re.compile(
+                r"^[ \t]*(\S+?\.(?:tex|bbl)):(\d+): Missing \$ inserted", re.M
+            )
+            VERB_RE = re.compile(
+                r"\\verb(?P<c>[^a-zA-Z]).*?(?P=c)"
+                r"|\\(?:url|path)(?P<d>[^a-zA-Z{]).*?(?P=d)"
+                r"|\\(?:url|doi|path|href|email)\{[^{}]*\}"
+            )
+            BIBKW_RE = re.compile(
+                r"\bdoi\b|\bpmid\b|\bisb[nn]\b|\barxiv\b|https?://", re.I
+            )
+
+            wdir = Path(".").resolve()
+            logs = sorted(wdir.glob("*.log"))
+            blob = "\n".join(
+                p.read_text(errors="replace") for p in logs
+            )
+            seen, sites = set(), []
+            for m in ERR_RE.finditer(blob):
+                name = Path(m.group(1)).name
+                ln = int(m.group(2))
+                for c in sorted(wdir.rglob(name)):
+                    if not c.is_file():
+                        continue
+                    real = c.resolve()
+                    if real.is_relative_to(wdir) and (str(real), ln) not in seen:
+                        seen.add((str(real), ln))
+                        sites.append((real, ln))
+                        break
+
+            # 簇首过滤: Missing$ 级联站 (recovery 失同步衍生的下游错) 随主站
+            # 清除, 只在簇首动刀 —— 同文件行距 <=2 视为同簇。
+            prev, heads = {}, []
+            for real, ln in sites:
+                key = str(real)
+                p = prev.get(key)
+                if p is None or ln - p > 2:
+                    heads.append((real, ln))
+                prev[key] = ln
+
+            def esc_line(s):
+                r"""行内文本域裸 _ → \_; $..$/verb/url 族/注释域/\cs 下标形不动。"""
+                protected = set()
+                for m in VERB_RE.finditer(s):
+                    protected.update(range(*m.span()))
+                out, in_math, i = [], False, 0
+                while i < len(s):
+                    ch = s[i]
+                    if i in protected:
+                        out.append(ch)
+                        i += 1
+                        continue
+                    if ch == "%":  # 注释域: 其后 _ 不报错也不动
+                        out.append(s[i:])
+                        break
+                    if ch == "\\":  # 控制序列/已转义对整吞 (\_ 原样)
+                        out.append(s[i : i + 2])
+                        i += 2
+                        continue
+                    if ch == "$":
+                        in_math = not in_math
+                        out.append(ch)
+                        i += 1
+                        continue
+                    if ch == "_" and not in_math:
+                        j = i - 1
+                        while j >= 0 and s[j].isalpha():
+                            j -= 1
+                        if j >= 0 and s[j] == "\\":  # \partial_a 形: cs 下标不动
+                            out.append(ch)
+                            i += 1
+                            continue
+                        out.append("\\_")
+                        i += 1
+                        continue
+                    out.append(ch)
+                    i += 1
+                return "".join(out)
+
+            fixed = []
+            for real, ln in heads:
+                try:
+                    t = real.read_text(encoding="utf-8", errors="replace")
+                except OSError:
+                    continue
+                lines = t.split("\n")
+                i = ln - 1
+                if i < 0 or i >= len(lines) or not lines[i].strip():
+                    continue
+                blo = bhi = None
+                for k, l in enumerate(lines):
+                    if "\\begin{thebibliography}" in l:
+                        blo = k
+                    if "\\end{thebibliography}" in l:
+                        bhi = k
+                in_bib = blo is not None and blo <= i <= (
+                    bhi if bhi is not None else len(lines)
+                )
+                if not (in_bib or BIBKW_RE.search(lines[i])):
+                    continue
+                newl = esc_line(lines[i])
+                if newl == lines[i]:
+                    continue
+                lines[i] = newl
+                real.write_text("\n".join(lines), encoding="utf-8")
+                fixed.append(f"{real.name}:{ln}")
+
+            print(
+                "underscore:",
+                ", ".join(fixed) if fixed else "noop (no text-mode _ at cluster heads)",
+            )
+    risk: low # 簇首 + bib/doi 关键词双门控: 数学区级联站 (\partial_a/空白行) 不进场; 行内再限裸 _ 文本域
+    known_gap: "裸 ^/数学域外行级联 >2 行距的 _ 站不收; thebibliography 外无 doi/url 关键词的裸 _ 行不收; \\verb 定界符为字母形不收"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "2305.11278 + 2609.19853 (m1kcensus2 Missing-$ 残留; zh 臂 \\doi{} 被译写成字面 doi: 裸 _)",
+          error: "Missing $ inserted (file:NNN 报错行即 doi 行; 转义后双站 xelatex 零错)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-missdollar2: 2/2 DOI 站转义实证 + hep-th 簇首门控 noop 验证"
+
   # ifnum_typeout_banner: \ifnum \typeout{} 草稿横幅 hack (会议模板逐字
   #   两格: 0905.0664/1206.0445) —— \ifnum 遇不可展开 \typeout → 三错
   #   恢复等价 \ifnum0=0 恒真横幅。修 = 字面预置 0=0, 三错清零输出不变。

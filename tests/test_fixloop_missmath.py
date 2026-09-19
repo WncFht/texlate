@@ -12,6 +12,9 @@ r"""missmath 道 (task #215, 2026-09-19): Missing-$/{/number + Extra-\or 钉。
 - ``missingdollar_blankline``: 数学区空白行 → ``\par`` → Missing$,
   file:NNN 报错行即空白行 (1306.0006/math-0408122/hep-th-0104212/
   1404.0082, 4/4 实证)。
+- ``missingdollar_underscore``: 文本域裸 ``_`` → Missing$, file:NNN
+  报错行即含 ``_`` 行 (zh 臂 ``\doi{}`` 被译写成字面 doi:;
+  2305.11278/2609.19853, 2/2 实证)。簇首 + bib/doi 关键词双门控。
 - ``ifnum_typeout_banner``: ``\ifnum \typeout{}`` 横幅 hack → error-
   recovery 等价 ``\ifnum0=0`` (0905.0664/1206.0445 同模板逐字)。
 """
@@ -69,6 +72,7 @@ def test_rules_registered() -> None:
         "verdate_pad": 199.2,
         "endcomment_tail_split": 199.3,
         "missingdollar_blankline": 199.4,
+        "missingdollar_underscore": 199.45,
         "ifnum_typeout_banner": 199.5,
     }.items():
         rule = _rule(rid)
@@ -105,8 +109,7 @@ def test_verdate_any_category() -> None:
 def test_verdate_pads_single_digit_fields(tmp_path: Path) -> None:
     """日/月单段补两位: filedate 定义位 + Provides 尾括 + 请求尾括。"""
     (tmp_path / "aa.cls").write_text(
-        "\\def\\filedate{2014/12/1}\n"
-        "\\ProvidesClass{aa}[\\filedate{} v1.0 cls]\n"
+        "\\def\\filedate{2014/12/1}\n\\ProvidesClass{aa}[\\filedate{} v1.0 cls]\n"
     )
     (tmp_path / "main.tex").write_text(
         "\\documentclass{aa}\n"
@@ -124,9 +127,7 @@ def test_verdate_pads_single_digit_fields(tmp_path: Path) -> None:
 
 def test_verdate_idempotent(tmp_path: Path) -> None:
     """良形日期 int→02d 自同 —— 二跑零改写。"""
-    (tmp_path / "x.sty").write_text(
-        "\\ProvidesPackage{x}[2020/01/02 v1 ok]\n"
-    )
+    (tmp_path / "x.sty").write_text("\\ProvidesPackage{x}[2020/01/02 v1 ok]\n")
     rule = _rule("verdate_pad")
     _apply(rule, tmp_path)
     before = (tmp_path / "x.sty").read_text()
@@ -144,9 +145,7 @@ def test_endcomment_condition_gate(tmp_path: Path) -> None:
     )
     ok, _ = _cond(rule, tmp_path, "Missing $ inserted.\nl.5 x")
     assert not ok
-    (tmp_path / "main.tex").write_text(
-        "\\end{comment}译文 \\begin{align}\n"
-    )
+    (tmp_path / "main.tex").write_text("\\end{comment}译文 \\begin{align}\n")
     ok, why = _cond(rule, tmp_path, "Missing $ inserted.\nl.680 x")
     assert ok, why
 
@@ -166,8 +165,7 @@ def test_endcomment_splits_cs_tail(tmp_path: Path) -> None:
 def test_endcomment_leaves_comment_and_prose_tails(tmp_path: Path) -> None:
     """% 头注释尾与纯散文尾不动 (verbatim 丢弃它们无 Missing$ 产出)。"""
     (tmp_path / "main.tex").write_text(
-        "\\end{comment} % keep this comment\n"
-        "\\end{comment} trailing prose\n"
+        "\\end{comment} % keep this comment\n\\end{comment} trailing prose\n"
     )
     _apply(_rule("endcomment_tail_split"), tmp_path)
     t = (tmp_path / "main.tex").read_text()
@@ -210,7 +208,8 @@ def test_blankline_contiguous_run(tmp_path: Path) -> None:
     _apply(_rule("missingdollar_blankline"), tmp_path)
     lines = (tmp_path / "main.tex").read_text().split("\n")
     assert lines[1:4] == ["% fixloop: blank line in math"] * 3
-    assert lines[0] == "x" and lines[4] == "y"
+    assert lines[0] == "x"
+    assert lines[4] == "y"
 
 
 def test_blankline_nonblank_site_noop(tmp_path: Path) -> None:
@@ -226,6 +225,75 @@ def test_blankline_no_log_noop(tmp_path: Path) -> None:
     (tmp_path / "main.tex").write_text("x\n\ny\n")
     _apply(_rule("missingdollar_blankline"), tmp_path)
     assert (tmp_path / "main.tex").read_text() == "x\n\ny\n"
+
+
+# ─────────────────────────── missingdollar_underscore ───────────────────────────
+def _mk_doi_cell(tmp_path: Path) -> None:
+    (tmp_path / "main.tex").write_text(
+        "\\begin{thebibliography}{9}\n"
+        "\\bibitem{zhao2017} Zhao and Park.\n"
+        "\\newblock doi: 10.1162/neco_a_00953.\n"
+        "\n"
+        "\\end{thebibliography}\n"
+    )
+    (tmp_path / "main.log").write_text(
+        "./main.tex:3: Missing $ inserted.\n<inserted text>\n $\nl.3 doi\n"
+        "./main.tex:4: Missing $ inserted.\n<inserted text>\n $\nl.4\n"
+    )
+
+
+def test_underscore_escapes_doi_line(tmp_path: Path) -> None:
+    """thebibliography 内裸 _ 行 → 全 _ 转 \\_ (2305.11278 实证形)。"""
+    _mk_doi_cell(tmp_path)
+    ok, note = _apply(_rule("missingdollar_underscore"), tmp_path)
+    assert ok, note
+    lines = (tmp_path / "main.tex").read_text().split("\n")
+    assert lines[2] == "\\newblock doi: 10.1162/neco\\_a\\_00953."
+    assert lines[3] == ""  # 级联空白站不动 (blankline 道职责)
+
+
+def test_underscore_cascade_follower_untouched(tmp_path: Path) -> None:
+    """级联站 (行距<=2) 的 \\_ 不吃 —— \\partial_a 类数学下标保命。"""
+    (tmp_path / "main.tex").write_text(
+        "\\begin{thebibliography}{9}\n"
+        "\\bibitem{x} x.\n"
+        "\n"
+        " \\partial_a {\\cal F}_{ab}=0\n"
+        "\\end{thebibliography}\n"
+    )
+    (tmp_path / "main.log").write_text(
+        "./main.tex:3: Missing $ inserted.\n./main.tex:4: Missing $ inserted.\n"
+    )
+    _apply(_rule("missingdollar_underscore"), tmp_path)
+    t = (tmp_path / "main.tex").read_text()
+    assert " \\partial_a {\\cal F}_{ab}=0" in t
+
+
+def test_underscore_keyword_gate_outside_bib(tmp_path: Path) -> None:
+    """thebibliography 外含 doi 关键词行同收; 无关键词簇首行 noop。"""
+    (tmp_path / "main.tex").write_text(
+        "see doi: 10.1/x_y for details\na\nb\nc\nplain text x_y mention\n"
+    )
+    (tmp_path / "main.log").write_text(
+        "./main.tex:1: Missing $ inserted.\n./main.tex:5: Missing $ inserted.\n"
+    )
+    _apply(_rule("missingdollar_underscore"), tmp_path)
+    lines = (tmp_path / "main.tex").read_text().split("\n")
+    assert lines[0] == "see doi: 10.1/x\\_y for details"
+    assert lines[4] == "plain text x_y mention"  # bib 外无关键词簇首不收
+
+
+def test_underscore_math_and_verb_masked(tmp_path: Path) -> None:
+    """$..$/\\url{}/已转义 \\_ 域不动, 行尾文本域 _ 照转。"""
+    (tmp_path / "main.tex").write_text(
+        "note $x_i$ and \\url{http://a_b} plus y_i end\n"
+    )
+    (tmp_path / "main.log").write_text("./main.tex:1: Missing $ inserted.\n")
+    _apply(_rule("missingdollar_underscore"), tmp_path)
+    t = (tmp_path / "main.tex").read_text()
+    assert "$x_i$" in t
+    assert "\\url{http://a_b}" in t
+    assert "y\\_i" in t
 
 
 # ─────────────────────────── ifnum_typeout_banner ───────────────────────────
@@ -257,9 +325,7 @@ def test_ifnum_rewrites_to_zero_eq_zero(tmp_path: Path) -> None:
 
 def test_ifnum_leaves_wellformed(tmp_path: Path) -> None:
     """已有操作数的 \\ifnum 不动。"""
-    (tmp_path / "main.tex").write_text(
-        "\\ifnum\\value{page}>0 \\typeout{x}\\fi\n"
-    )
+    (tmp_path / "main.tex").write_text("\\ifnum\\value{page}>0 \\typeout{x}\\fi\n")
     _apply(_rule("ifnum_typeout_banner"), tmp_path)
     assert "\\ifnum\\value{page}>0" in (tmp_path / "main.tex").read_text()
 
@@ -282,8 +348,6 @@ def test_or_guard_gate_wrapper_classes(tmp_path: Path) -> None:
 def test_or_guard_gate_option_brackets(tmp_path: Path) -> None:
     """带选项的 \\documentclass[opt]{aastex631} 同过。"""
     rule = _rule("revtex4_array_swap_guard")
-    (tmp_path / "main.tex").write_text(
-        "\\documentclass[twocolumn]{aastex631}\n"
-    )
+    (tmp_path / "main.tex").write_text("\\documentclass[twocolumn]{aastex631}\n")
     ok, why = _cond(rule, tmp_path, "Extra \\or.\nl.10 x")
     assert ok, why
