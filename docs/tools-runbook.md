@@ -22,7 +22,7 @@ BYOK 环境直配（免 settings.json）：`TEXLATE_BASE_URL` / `TEXLATE_API_KEY
 
 离线总闸：`TEXLATE_OFFLINE=1` 等效 `fetch`/`run` 的 `--offline`——取源只查本地 src-cache（钉版精确查 `{id}v{ver}`、未钉版取已缓存最高版），无缓存报 `offline_no_cache` 退出 1，不静默降级联网。
 
-日志与实况：`texlate` logger 挂 RichHandler 走 stderr（stdout 只留 JSON 契约面）。级别：`TEXLATE_LOG=debug\|info\|warning\|error\|off` > 旗标 > 缺省 WARNING；旗标 `-v`=INFO、`-vv`=DEBUG、`-q`=ERROR、`-qq`=CRITICAL——`-v`/`-q` 既可写子命令前（全局 callback 位）也可写 `run` 后（子命令位，覆盖全局）；`fetch -v` 是 `--version` 不是 verbose。取源瞬时故障（429/406/5xx/传输错，如代理断流）退避重试打 WARNING 行（缺省可见，`-q` 关），`-v` 另见 head/get/commit 各 phase INFO。日志文件：`TEXLATE_LOG_FILE=<path>` 指定、`=off` 关；server 入口（`web`/`python -m texlate.server`）缺省落 `<data_dir>/logs/texlate.log`（4MB×3 轮转、DEBUG 级、RedactFilter 脱敏）。
+日志与实况：`texlate` logger 挂 RichHandler 走 stderr（stdout 只留 JSON 契约面）。级别：`TEXLATE_LOG=debug\|info\|warning\|error\|off` > 旗标 > 缺省 WARNING；旗标 `-v`=INFO、`-vv`=DEBUG、`-q`=ERROR、`-qq`=CRITICAL——`-v`/`-q` 既可写子命令前（全局 callback 位）也可写 `run` 后（子命令位，覆盖全局）；`fetch -v` 是 `--version` 不是 verbose。取源瞬时故障（429/406/5xx/传输错，如代理断流）退避重试打 WARNING 行（缺省可见，`-q` 关）；env 有代理且全 host 传输层失败时自动切 `trust_env=False` 直连臂单发兜底（探通即粘住本次取源），`-v` 另见 head/get/commit 各 phase INFO。日志文件：`TEXLATE_LOG_FILE=<path>` 指定、`=off` 关；server 入口（`web`/`python -m texlate.server`）缺省落 `<data_dir>/logs/texlate.log`（4MB×3 轮转、DEBUG 级、RedactFilter 脱敏）。
 
 ## 2. scripts/ — 运维脚本
 

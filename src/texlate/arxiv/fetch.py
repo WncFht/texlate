@@ -21,6 +21,7 @@ import hashlib
 import json
 import logging
 import math
+import os
 import re
 import time
 from dataclasses import dataclass, field, replace
@@ -246,6 +247,32 @@ def _retry_delay(url: str, attempt: int, resp: httpx.Response | None) -> float:
     return delay
 
 
+def _make_client(*, trust_env: bool) -> httpx.Client:
+    """Fetcher 默认 client 构型；``trust_env=False`` 即绕 env 代理的直连臂。"""
+    return httpx.Client(
+        headers={"User-Agent": DEFAULT_UA, "Accept": "*/*"},
+        timeout=httpx.Timeout(connect=10.0, read=90.0, write=30.0, pool=10.0),
+        follow_redirects=True,
+        limits=httpx.Limits(max_connections=1, max_keepalive_connections=1),
+        trust_env=trust_env,
+    )
+
+
+def _env_proxy_set() -> bool:
+    """Env 有正向代理（https/all 任一）且未被 ``no_proxy=*`` 全豁免。
+
+    粗判——只为「传输层全灭时值得直连兜底」提供开关；host 级 no_proxy
+    豁免不精确展开（那种情况直连臂只是白探一次单发，代价有界）。
+    """
+    if not any(
+        os.environ.get(k)
+        for k in ("https_proxy", "HTTPS_PROXY", "all_proxy", "ALL_PROXY")
+    ):
+        return False
+    noproxy = os.environ.get("no_proxy") or os.environ.get("NO_PROXY") or ""
+    return "*" not in {p.strip() for p in noproxy.split(",")}
+
+
 class Fetcher:
     """带限速纪律的 arXiv 客户端。所有请求过 limiter（pacing+断路器+预算）。"""
 
@@ -261,16 +288,22 @@ class Fetcher:
         self.limiter = limiter or RateLimiter()
         self.hosts = hosts
         self._sleep = sleep
-        self.client = client or httpx.Client(
-            headers={"User-Agent": DEFAULT_UA, "Accept": "*/*"},
-            timeout=httpx.Timeout(connect=10.0, read=90.0, write=30.0, pool=10.0),
-            follow_redirects=True,
-            limits=httpx.Limits(max_connections=1, max_keepalive_connections=1),
-        )
+        self._owns_client = client is None
+        self.client = client or _make_client(trust_env=True)
+        self._direct_client: httpx.Client | None = None
+        self._attempts = len(RETRY_DELAYS) + 1
 
     def close(self) -> None:
         """关内建 ``httpx.Client`` 连接池（幂等——重复调用安全）。"""
         self.client.close()
+        if self._direct_client is not None:
+            self._direct_client.close()
+
+    def _open_direct(self) -> httpx.Client | None:
+        """惰性直连臂：env 有代理且 client 是内建（注入件不参与）才开。"""
+        if self._direct_client is None and self._owns_client and _env_proxy_set():
+            self._direct_client = _make_client(trust_env=False)
+        return self._direct_client
 
     def __enter__(self) -> Self:
         """进上下文返回自身——``with Fetcher() as f`` 出块自动 ``close()``。"""
@@ -301,7 +334,7 @@ class Fetcher:
         """
         last_exc: Exception | None = None
         last_resp: httpx.Response | None = None
-        for attempt in range(len(RETRY_DELAYS) + 1):
+        for attempt in range(self._attempts):
             if attempt:
                 delay = _retry_delay(url, attempt, last_resp)
                 if not math.isfinite(delay):
@@ -311,7 +344,7 @@ class Fetcher:
                 why = (
                     f"HTTP {last_resp.status_code}"
                     if last_resp is not None
-                    else str(last_exc)
+                    else (str(last_exc) or type(last_exc).__name__)
                 )
                 log.warning(
                     "%s %s failed (%s) → retry %d/%d in %.0fs",
@@ -351,7 +384,7 @@ class Fetcher:
         """
         last_exc: Exception | None = None
         last_resp: httpx.Response | None = None
-        for attempt in range(len(RETRY_DELAYS) + 1):
+        for attempt in range(self._attempts):
             if attempt:
                 delay = _retry_delay(url, attempt, last_resp)
                 if not math.isfinite(delay):
@@ -359,7 +392,7 @@ class Fetcher:
                 why = (
                     f"HTTP {last_resp.status_code}"
                     if last_resp is not None
-                    else str(last_exc)
+                    else (str(last_exc) or type(last_exc).__name__)
                 )
                 log.warning(
                     "GET %s failed (%s) → retry %d/%d in %.0fs",
@@ -388,7 +421,12 @@ class Fetcher:
         raise httpx.TransportError(msg) from last_exc
 
     def _across_hosts[T](self, fn: Callable[[str], T]) -> T:
-        """按 hosts 序尝试，跳过被 park 的 host；全 park 抛首个 ParkedError。"""
+        """按 hosts 序尝试，跳过被 park 的 host；全 park 抛首个 ParkedError。
+
+        全 host 传输层失败且 env 代理在链 → 切 ``trust_env=False`` 直连臂
+        单发重探一轮（代理抽风/断流自救；``self.client is direct`` 防重入，
+        必走代理的环境最坏损失每 host 一次 connect 超时）。
+        """
         first_park: ParkedError | None = None
         last_err: Exception | None = None
         for host in self.hosts:
@@ -399,6 +437,25 @@ class Fetcher:
                     first_park = e
             except (httpx.RequestError, OSError) as e:
                 last_err = e
+        if (
+            last_err is not None
+            and first_park is None
+            and (direct := self._open_direct()) is not None
+            and self.client is not direct
+        ):
+            log.warning("all hosts transport-failed → direct retry (bypass env proxy)")
+            prev_client, prev_attempts = self.client, self._attempts
+            self.client, self._attempts = direct, 1
+            try:
+                result = self._across_hosts(fn)
+            except Exception:
+                # 直连也不通 → 恢复代理臂，原异常继续上抛
+                self.client, self._attempts = prev_client, prev_attempts
+                raise
+            # 直连探通 → client 粘住余下生命周期（代理臂已证死，head+get 不再各
+            # 挨一轮代理重试）；attempts 恢复正常退避
+            self._attempts = prev_attempts
+            return result
         if last_err is not None and first_park is None:
             raise last_err
         if first_park is not None:

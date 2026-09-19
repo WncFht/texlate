@@ -162,6 +162,81 @@ def test_failover_to_export_host() -> None:
     assert "export.arxiv.org" in calls
 
 
+def test_env_proxy_transport_failure_falls_back_direct(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """env 代理全 host 传输失败 → ``trust_env=False`` 直连臂兜底并粘住。"""
+    monkeypatch.setenv("https_proxy", "http://127.0.0.1:9")
+    proxied: list[str] = []
+    direct: list[str] = []
+
+    def dead(request: httpx.Request) -> httpx.Response:
+        proxied.append(request.url.host)
+        msg = "conn refused"
+        raise httpx.ConnectError(msg, request=request)
+
+    def live(request: httpx.Request) -> httpx.Response:
+        direct.append(request.method)
+        if request.method == "HEAD":
+            return httpx.Response(
+                HTTP_OK, headers=_head_headers("2001.00001", 1, ".tar.gz", '"E1"')
+            )
+        return httpx.Response(HTTP_OK, content=TINY_TAR_GZ)
+
+    def fake_make(*, trust_env: bool) -> httpx.Client:
+        handler = dead if trust_env else live
+        return httpx.Client(
+            transport=httpx.MockTransport(handler), follow_redirects=True
+        )
+
+    monkeypatch.setattr(fetch_mod, "_make_client", fake_make)
+    clk = _Clock()
+    f = Fetcher(
+        RateLimiter(clock=clk.now, sleep=clk.sleep),
+        hosts=("arxiv.org", "export.arxiv.org"),
+        sleep=clk.sleep,
+    )
+    try:
+        res = acquire_source("2001.00001", fetcher=f, cache=SourceCache(tmp_path))
+        assert res.status is AcquireStatus.OK
+        assert len(proxied) == (len(fetch_mod.RETRY_DELAYS) + 1) * len(f.hosts)
+        assert direct == ["HEAD", "GET"]  # GET 走粘住的直连臂
+    finally:
+        f.close()
+
+
+def test_no_env_proxy_no_direct_fallback(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """无 env 代理：传输全灭直接报错，不开直连臂。"""
+    for k in ("https_proxy", "HTTPS_PROXY", "all_proxy", "ALL_PROXY"):
+        monkeypatch.delenv(k, raising=False)
+
+    def dead(request: httpx.Request) -> httpx.Response:
+        msg = "conn refused"
+        raise httpx.ConnectError(msg, request=request)
+
+    monkeypatch.setattr(
+        fetch_mod,
+        "_make_client",
+        lambda **_: httpx.Client(
+            transport=httpx.MockTransport(dead), follow_redirects=True
+        ),
+    )
+    clk = _Clock()
+    f = Fetcher(
+        RateLimiter(clock=clk.now, sleep=clk.sleep),
+        hosts=("arxiv.org",),
+        sleep=clk.sleep,
+    )
+    try:
+        res = acquire_source("2001.00001", fetcher=f, cache=SourceCache(tmp_path))
+        assert res.status is AcquireStatus.ERROR
+        assert f._direct_client is None  # noqa: SLF001 -- 断言兜底臂未建
+    finally:
+        f.close()
+
+
 def test_acquire_end_to_end_and_cache_hit(tmp_path: Path) -> None:
     def handler(req: httpx.Request) -> httpx.Response:
         if req.method == "HEAD":
