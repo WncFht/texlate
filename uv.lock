@@ -681,6 +681,7 @@ dependencies = [
     { name = "python-docx" },
     { name = "pyyaml" },
     { name = "regex" },
+    { name = "rich" },
     { name = "typer" },
 ]
 
@@ -710,6 +711,7 @@ requires-dist = [
     { name = "python-multipart", marker = "extra == 'server'", specifier = ">=0.0.9" },
     { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "regex", specifier = ">=2026.9.10" },
+    { name = "rich", specifier = ">=13" },
     { name = "sse-starlette", marker = "extra == 'server'", specifier = ">=2.1" },
     { name = "typer", specifier = ">=0.12" },
     { name = "uvicorn", marker = "extra == 'server'", specifier = ">=0.30" },
