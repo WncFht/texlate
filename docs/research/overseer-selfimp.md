@@ -1044,3 +1044,13 @@
 - **在飞察**: regrdiag repro-2404 真件复现中 (sty/figure/pdf 齐); tailbucket repro/ 多测试目录迭代 (citex-wrapclean/citex/addcl 真编译); loopsched lane 空 ~10min 观察中; misscharcen clusters.json 已产 (顶族=20 格 C0 控制字 text 站 uncovered——sanitize 规候选) 报告待。
 - roster 9：tailbucket(#155)/operandcensus(#159 impl)/regrdiag(#157)/rexlat3(verify2 跟进)/fontgate(#156 修复在验)/misscharcen(#160)/loop4wave(#161 污染 harvest)/loopsched(#144)/failmine3。关毕: sabcheck(交付)。
 - 门：teammate 零 git✓；HEAD 3f15335；规则库 129✓；**sab-r6 escaped=0✓ 当日再武装**；clean% 门读数等净树重跑波。
+
+## 2026-09-19 ~11:1x — **原子落地 18d8fc7 (131 规)** + tailbucket 关毕 + verify2 同污染弃件
+
+- **原子 commit 18d8fc7 落地 (5 件 +782/−4)**：三宗归一——(a) **para_longize 入库** (tailbucket #155): `_builtins_paralong.py` 新叶 394 行 + 注册 + 75-syntax.yaml order 194 + 15 测; 双臂=def-site 补 `\long`/去星 + 内核宏 `\par`-strip wrap (`\TL@pl@strip` 顶层递归)——**spec 偏离实证采信**: 裸 `\let`-wrap 可证无效 (别名重扫同炸), 另查得 `\ifx` 真支 CONT 抢 `\fi` 前执行吞 `\else` → `\expandafter` 修 (undelimited-arg 续体 `\@citex` #3 实证+钉测); 25 席签表全对上游 def 站验, 拒收面暂存/级联名单。(b) **macro_glyph_fix stage-B** (misscharext #154): `\texttildelow/\textlangle/\textrangle`→`\ensuremath` 站点改写, order 25.8 (25.7 已被 cs_rebind 占——同 W42/W43 族邻臂异形: 换字体绑 vs 换形义), 双闸 cp∈log∧cs∈源。(c) **px_to_bp ×1.0** (leader): pdfTeX `\pdfpxdimen`=1bp 忠实, CSS×0.75 错域。ruleset 131 规加载✓, fixloop 扫 1355 绿/2skip, ruff 净 (我方 docstring 3 误随修)。tailbucket 关毕, report.md 立。
+- **verify2 弃件 (同污染窗)**: rexlat3 wave-2 三格 compile-verify 10:55 跑——正烙中段破损版 inject.py → 3/3 全 `Incomplete \ifdefined+Emergency` (与 loop4 152 格同签名)。已令弃件等 fontgate 落地重跑; 格 zh 无恙 (178/178 ok 早证)。
+- **fontgate 收敛中**: livetest6.pdf 11:06 产出真页 (vs 早前 "No pages of output" 探针)——`\chardef+\ifnum` 修形编译实证; inject.py +37/−7, 交付待。
+- **re-run 波预置**: loop4wave 受命扩靶集——para 4 名靶仅 1502.01978 在 160 内, 补 1012.5246/1206.1873/1404.0249 + para-census live_macros 族 (expected_rule=para_longize); 污染 run4 harvest 照跑存档标 INVALID; 绿灯=fontgate 落地后净树 run5。
+- **在飞察**: operandcensus _common.py +386 行实装扫描终止表; misscharcen repro/ 验证簇假说; regrdiag 2404 复现中; failmine3 挖 records; loopsched 催后仍静默 (~20min, 再观)。
+- roster 8：operandcensus(#159 impl)/regrdiag(#157)/rexlat3(verify2 弃件待重跑)/fontgate(#156 收尾)/misscharcen(#160)/loop4wave(#161 扩靶预置)/loopsched(#144 静默)/failmine3。关毕: tailbucket(交付落地)。
+- 门：teammate 零 git✓；HEAD 18d8fc7 (pathspec-only ×5)；规则库 **131**✓；sab-r6 escaped=0✓；L0 1355 绿✓。
