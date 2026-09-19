@@ -11,7 +11,7 @@
 miniscanner spike(1176 行,单次正向逐字符扫描→pieces→占位符保护→区间 splice 重建)在 256 文件语料上:
 
 | 指标 | miniscanner | 最好第三方 | ieeA |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | 陷阱断言 | **32/32 全过** | 24/26 (latex-utensils) | 16/3/7 |
 | 泄漏率 | **0.11%** | ~需要+40行策略才接近 | 10.24% |
 | identity 重建 | **259/259 字节一致** | 62/89 (TexSoup) | 0/93 |
@@ -27,11 +27,11 @@ miniscanner spike(1176 行,单次正向逐字符扫描→pieces→占位符保�
 ## 1. 解析库能力矩阵(全部实测,非文档宣称)
 
 | 库 | 语料成功 | 陷阱(过/半/败) | 泄漏率 | identity | 速度 | 对我们的价值 |
-|---|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- | --- |
 | **miniscanner (自研)** | 259/259 | **32/0/0** | **0.11%** | **259/259** | 1.3ms | **主解析器** |
 | latex-utensils (TS) | 89/90 | 24/2/0 | 低(需策略) | — | 4.56ms | 命令族表/签名参考;错误位置不可信(PEG farthest-failure) |
 | unified-latex (TS) | 90/90 | 19/4/3 | 中 | 差 | 43ms | **CTAN 签名表(404宏+128环境)+受限展开参考实现**;interval 重建思路 |
-| tree-sitter-latex (TS) | 90/90 不崩 | 灾难性 ERROR | — | — | **1.15ms** | **译文校验器**(ERROR/MISSING+~35行 CST env 配对);`\verb|a%b|` 静默错 |
+| tree-sitter-latex (TS) | 90/90 不崩 | 灾难性 ERROR | — | — | **1.15ms** | **译文校验器**(ERROR/MISSING+~35行 CST env 配对);`\verb | a%b | ` 静默错 |
 | TexSoup (PY) | 84→89/90 | 4 fails | 中 | 62/89 | 69ms | tokenizer 内核 + 4 处手术参考 |
 | plasTeX (PY) | ~75/90 诚实 | — | — | — | 29ms | **展开层设计 oracle**(mouth/gullet+UnrecognizedMacro);真.sty 加载=静默截断,须屏蔽 |
 | pylatexenc (PY) | 假 90/90 | 静默截断 | — | — | — | **REJECTED**:M1 组内`\begin`吞至EOF 97.9%、M2 `%`吃`}` 99.7%损失,零报错 |
@@ -49,7 +49,7 @@ miniscanner spike(1176 行,单次正向逐字符扫描→pieces→占位符保�
 ## 2. 宏展开层 — 必要性量化(macro-stats,39 篇实测)
 
 | 事实 | 数 | 含义 |
-|---|---|---|
+| --- | --- | --- |
 | 论文含宏定义 | **95%** (median 47/篇,max 446) | 不展开=普遍失明 |
 | `\be` 模式(体含`\begin/\end`) | **12/39 篇 / 180 个** | 结构性陷阱真实普遍 |
 | 宏体含数学命令 | 79% 论文 / 1790 个 | `\dR` 类数学宏必保护 |
@@ -64,7 +64,7 @@ miniscanner spike(1176 行,单次正向逐字符扫描→pieces→占位符保�
 ## 3. 编译层 — 修复循环 spike(fixloop,12项目×3条件)
 
 | 口径 | 数 | 率 |
-|---|---|---|
+| --- | --- | --- |
 | 原始 xelatex 即失败(冷环境) | 16/22 | |
 | **循环救回 pdf** | **16/16** | **100%** |
 | 救回且 clean(≤3错) | 15 | 94% |
@@ -79,7 +79,7 @@ miniscanner spike(1176 行,单次正向逐字符扫描→pieces→占位符保�
 ## 4. 覆盖率与降级链(arxiv-coverage,60 篇实测抽样)
 
 | 层 | 覆盖 | 说明 |
-|---|---|---|
+| --- | --- | --- |
 | e-print LaTeX 源码 | **86.7%** | 主管线;84.6% 多文件 tar(中位7文件),38.5% 自带 .cls/.sty,**42.5% 有.bbl无.bib→编译直接消费.bbl** |
 | arXiv HTML | **=源码覆盖** | LaTeXML 从源码生成,救不了 PDF 直投;作同覆盖下异构降级(扛怪宏) |
 | 仅 PDF(PDF直投) | **13.3%** | 唯一救星=PDF 通路(BabelDOC/MinerU) |
@@ -96,7 +96,7 @@ miniscanner spike(1176 行,单次正向逐字符扫描→pieces→占位符保�
 ## 6. 最终组件选型(修订 docs/01)
 
 | 组件 | 选型 | 依据 |
-|---|---|---|
+| --- | --- | --- |
 | 主解析器 | **自研 miniscanner 路线**(Python) | 唯一过 T01+32/32+0.11%+identity 100%;所有现成库在宏展开上全灭 |
 | 宏表/展开参考 | plasTeX(设计)+ unified-latex(签名表) | mouth/gullet+UnrecognizedMacro;404宏+128环境 CTAN argspec |
 | 命令族表 | miniscanner ~150行表 + latex-utensils/unified-latex 签名交叉验证 | 词族匹配优于白名单 |

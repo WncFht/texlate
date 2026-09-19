@@ -5,7 +5,7 @@
 ## D0 · 2026-09-14 立项日
 
 | 日期 | 来源 | 事件 | 指标影响 |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | 09-14 | 7da5e8be | init：research & planning phase | 仓库起点 |
 | 09-14 | a7db4eee | **解析/编译/覆盖率大对比**(20 报告，39 篇 corpus39+30 fixtures) | 定案：自研半解析器路线。miniscanner 陷阱 32/32、identity 259/259、leak 0.11%——8 个第三方库全灭 |
 | 09-14 | c93cc6f4 | tech stack ADR + architecture + roadmap | 技术栈冻结 |
@@ -14,7 +14,7 @@
 ## D1 · 2026-09-15 产品骨架日（全七臂同日落地）
 
 | 日期 | 来源 | 事件 | 指标影响 |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | 09-15 | c3431f66 | miniscanner 重写为 `texlate/latex` 九文件正式实现 | 解析器产品化 |
 | 09-15 | d22b56b8 | Mouth+Gullet 展开机（plasTeX 移植层，未接线） | v2 引擎就位 |
 | 09-15 | 866ca279+bf313773+f730dc0a | segmenter S1→S4 骨架→分派→展开语义→if 界标 | v2 分块器就位 |
@@ -36,7 +36,7 @@
 ## D2 · 2026-09-16 v2 切换 + fixloop 接线（最大单日指标跃升）
 
 | 日期 | 来源 | 事件 | 指标影响 |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | 09-16 | **f4616838** | **v2 产品面切换：parse_tex/parse_file 默认走 Gullet+Segmenter** | splice 残留占位符 1524→0(cutover 硬门） |
 | 09-16 | **3d5de8f7** | **fixloop 接线 e2e+worker 两臂 + L2 重译回灌** | union pdf 70.6→89.5%(+18.9pt,n180 同口径复跑） |
 | 09-16 | 401e9bbf | argspec.json 入包 + res.macros union | 1820 条宏参规格零装载 GAP 闭合 |
@@ -53,7 +53,7 @@
 ## D3 · 2026-09-17 波次战（残面打成个位数）
 
 | 日期 | 来源 | 事件 | 指标影响 |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | 09-17 | a90978ab | **vendor corpus 落地**(files 10+stubs 13,vendored_fetch) | 绝版宏包缺件面 492 格 fail→73.2% clean;scorecard clean +101 格 |
 | 09-17 | d2c377bd+1bbc4fb5 | illegal_unit 段修波（tail-arg 扫尾+env argspec) | 108/108 闭环零回归；clean 84.76→85.03% |
 | 09-17 | 746237fd | ReDoS 原子组修复（_WS_NOPAR) | held6 卡死 30min+→<0.1s;pytest 全量 48min→3:46 |
@@ -66,7 +66,7 @@
 ## D4 · 2026-09-18 selfimp 常驻环（23+ 车道并行）
 
 | 日期 | 来源 | 事件 | 指标影响 |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | 09-18 | 6d7c4a38 | **selfimp loop 启动**:overseer 台账+R1 报告+假设骨架 | 多代理常驻改进环成形；wave-1 23 lane 发车 |
 | 09-18 | stagerun-loop2 | 5,135 格冻结快照全 DAG(6d7c4a3) | scorecard union pdf 97.26%/clean **86.42%**(clean +1.43pt vs loop1) |
 | 09-18 | c2-dollar 车道 | dollar 族跨边界失配收口 | leak 57→**0**/136,049 chunks（核心层口径）——四年债单类清零 |
@@ -79,7 +79,7 @@
 ## D5 · 2026-09-19 全量综合测试日
 
 | 日期 | 来源 | 事件 | 指标影响 |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | 09-19 | 13c603cf | **corpus_v3 eval/dev split 扩到 8 层 13,266 篇** | dev_vol 2000/dev_recent 1514/dev_failmine 1500/holdout 3020 落地 |
 | 09-19 | 完整性审计 | 13,266 cell sha256 全量核验 | 13,266/13,266 通过，0 dup,EVAL_ONLY 治理生效 |
 | 09-19 | parsebench-v3-all | **全量 28,904 .tex / 13,253 篇** | parse ok 100.0%/strict identity **99.99%**/leak **0.004%**(76/1,845,338) |

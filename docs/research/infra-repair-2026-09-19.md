@@ -5,6 +5,7 @@
 「基建类编译错误被 L2 误归因 / 毒化修复链」类问题的综合治理。实证事故 `t_f74894ebc691aaf4`：工程缺 `algpseudocodex.sty`（missing_file 基建错），进入 L2 归因面后文件级兜底把 `main.tex` 4 个块拖去重译/回退，终态 `partial`；该 partial 行又被 reuse 池克隆给 `t_74d635d226e68251`——腐产物毒传播。
 
 根因三层：
+
 1. L2 归因把基建错（缺包/嵌套 tar/构建 flag）错算成译文伤，resplice 拖垮干净块。
 2. fixloop 的 `static_precheck` 相（装缺件/解 tar/收 flag）原来捆在 fixloop 内、跑在 L2 之后——本可在归因前消掉的错被 L2 先误处理。
 3. reuse 池 `find_reusable` 把 `done`/`partial` 同列返回，`_finish_reuse` 原样镜像终态——partial 降级交付被克隆给后来者。
@@ -28,6 +29,7 @@
 ### 2. precheck 相独立入口（engine.py / repair.py / pipecore.py）
 
 `static_precheck` 相从 fixloop 抽出为可独立预跑：
+
 - `engine._precheck_phase` — 逐规则评估 precheck 相（engine_spec mode 检查/cond/_apply），REJECT → `(reject:<rid>, route)`。
 - `engine.precheck_pass` — 公开入口（LoopCtx + find_main_tex + _wire_engine → 摘要 dict）。
 - `repair.run_precheck` / `pipecore.precheck_job` — 薄委托/结构化摘要（crash → `{"enabled": True, "error"}` 不毁主报告）。
@@ -68,6 +70,7 @@
 ## 交付文件清单
 
 产品码：
+
 - `src/texlate/repair_l2.py` — `_INFRA_ERR_RX`/`_STRUCT_ERR_RX`/`_FILELEVEL_ERR_RX` 三档归因。
 - `src/texlate/repair.py` — `run_precheck` 薄委托。
 - `src/texlate/pipecore.py` — `precheck_job`、`_texmf_wire`/`_texmf_eng`。
@@ -80,6 +83,7 @@
 - `src/texlate/server/worker/compile.py` — `_task_texmf`/`_precheck_attempt`（+ 并发会话 `_fixloop_en`/`_fixloop_pass`）。
 
 测试：
+
 - `tests/test_l2_infra_attr.py`（新建）
 - `tests/test_repair_chain_precheck.py`（新建）
 - `tests/test_server_store.py`（+1 用例）

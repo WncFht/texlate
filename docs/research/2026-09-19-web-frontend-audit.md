@@ -5,7 +5,7 @@
 ## 一、卡顿实测数据（真数据）
 
 | 场景 | 测量 | 结论 |
-|---|---|---|
+| --- | --- | --- |
 | wheel 滚动（split + 同步开，PDF 双栏） | 150 帧采样：p50=17ms，**p95=67ms，max=100ms，28% 帧 >33ms** | 真掉帧，源在联动侧 pdf.js 被迫连续渲新页 |
 | 模式切换（对照→单栏→对照） | 401ms / 801ms | 隐藏侧 display:none→visible 触发 pdf.js 重排重渲 |
 | 导读展开 | ax-ov-body 实测 6073px/955 节点塞进 420px `overflow:auto` 盒 | scroll-in-scroll + 巨型图（1520×2239 渲到 1178px 宽） |
