@@ -119,6 +119,35 @@ def test_sink_record_and_load(tmp_path: Path) -> None:
     assert cases[0]["actions"][0]["rule"] == "install_file"
 
 
+L209_TEX = "\\documentstyle{article}\n\\begin{document}\nhi\n\\end{document}\n"
+L209_LOG = (
+    "! LaTeX Error: \\documentstyle not supported outside compatibility mode.\n"
+    "l.1 \\documentstyle{article}\n"
+)
+
+
+def test_gate_reject_records_gate_fired(tmp_path: Path) -> None:
+    """gate 相 REJECT 不进 ``actions``——``gate_fired`` 单列载拒绝规则。
+
+    rules_fired 是「动作跑过」面; REJECT 是终止决策不跑动作列 (gate/loop
+    相 append 在判 REJECT 之后), ``gate_fired`` 是 census/stats 的互补面。
+    """
+    (tmp_path / "main.tex").write_text(L209_TEX)
+    sink = CaseSink(tmp_path / "cases.jsonl")
+    cell = fixloop(tmp_path, _Eng([(L209_LOG, False)]), ruleset=_rs(), case_sink=sink)
+    assert cell["verdict"] == "reject:latex209_reject"
+    assert cell["reject_route"] == "latex+dvips"
+    assert cell["gate_fired"] == ["latex209_reject"]
+    fired = [a["rule"] for a in cell["actions"]]
+    assert "latex209_reject" not in fired
+    case = load_cases(tmp_path / "cases.jsonl")[0]
+    assert case["gate_fired"] == ["latex209_reject"]
+    # 非拒绝格: gate_fired 恒在、为空
+    sink2 = CaseSink(tmp_path / "c2.jsonl")
+    sink2.record(_cell("clean"))
+    assert load_cases(tmp_path / "c2.jsonl")[0]["gate_fired"] == []
+
+
 def test_load_cases_missing_file(tmp_path: Path) -> None:
     assert load_cases(tmp_path / "nope.jsonl") == []
 

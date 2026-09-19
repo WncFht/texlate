@@ -904,7 +904,7 @@ def precheck_pass(  # noqa: PLR0913 -- 与 fixloop 同契约的注入面
     ctx = LoopCtx(wdir=wdir, engine_name=engine_name, main_rel=main_rel, runner=runner)
     _wire_engine(eng, rs, wdir, ctx)
     verdict, route = _precheck_phase(rs, ctx, eng)
-    return {
+    pre = {
         "actions": ctx.ledger.actions,
         "installed": ctx.ledger.installed,
         "engine_flags": [str(f) for f in ctx.ledger.engine_flags],
@@ -914,6 +914,8 @@ def precheck_pass(  # noqa: PLR0913 -- 与 fixloop 同契约的注入面
         "verdict": verdict,
         "reject_route": route,
     }
+    pre["gate_fired"] = _gate_fired_of(pre)
+    return pre
 
 
 def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spike 状态机
@@ -970,6 +972,10 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
         "rounds": [],
         "actions": [],
         "verdict": None,
+        # reject 决策名单: gate/loop 相 REJECT 不经 actions 列 (precheck 相
+        # append 在先判 REJECT 在后, 双栖) —— 单列物化, 不混 rules_fired
+        # 的修复语义, verdict ``reject:<rid>`` 的结构化面。
+        "gate_fired": [],
         "floor_restored": False,
     }
     ctx = LoopCtx(wdir=wdir, engine_name=engine_name, runner=runner, llm_hook=llm_hook)
@@ -1004,6 +1010,7 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
     p_verdict, p_route = _precheck_phase(rs, ctx, eng)
     if p_verdict is not None:
         cell["verdict"] = p_verdict
+        cell["gate_fired"] = _gate_fired_of(cell)
         if p_route:
             cell["reject_route"] = p_route
         _record_case(
@@ -1379,10 +1386,17 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
     if swept:
         ctx.ledger.events.append(f"final aux-sweep: {', '.join(swept)}")
         cell["log"] = ctx.ledger.events  # 上方已赋值的同一 list 引用, 显式重挂防漂移
+    cell["gate_fired"] = _gate_fired_of(cell)
     _record_case(
         case_sink, cell, corpus_id=corpus_id, cond=cond, engine_name=engine_name
     )
     return cell
+
+
+def _gate_fired_of(cell: dict[str, Any]) -> list[str]:
+    """``reject:<rid>`` verdict → 拒绝规则名单; 其余 verdict → ``[]``。"""
+    v = str(cell.get("verdict") or "")
+    return [v.split(":", 1)[1]] if v.startswith("reject:") else []
 
 
 def _record_case(

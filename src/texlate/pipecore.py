@@ -682,6 +682,7 @@ def _slim_cell(cell: dict[str, Any]) -> dict[str, Any]:
         "engine_flags": cell.get("engine_flags") or [],
         "engine_flags_dropped": cell.get("engine_flags_dropped") or [],
         "reject_route": cell.get("reject_route"),
+        "gate_fired": cell.get("gate_fired") or [],
         "log_excerpt": cell.get("log_excerpt"),
     }
 

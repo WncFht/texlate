@@ -97,6 +97,9 @@ class CaseSink:
             # 「看见/拒修」面: actions/rules_fired 的互补——when 命中但
             # cond/applied 败阵的规则 (loop 相; precheck 败阵本就在 actions)。
             "rules_declined": cell.get("rules_declined") or [],
+            # REJECT 决策面: gate/loop 相 REJECT 不进 actions 列——verdict
+            # ``reject:<rid>`` 的结构化名单, 与 rules_fired 分工不重叠。
+            "gate_fired": cell.get("gate_fired") or [],
             "decline_notes": cell.get("decline_notes") or [],
             "advisories": cell.get("advisories") or [],
             "log_excerpt": cell.get("log_excerpt") or "",

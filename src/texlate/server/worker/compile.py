@@ -110,6 +110,7 @@ def _fixloop_summary(cell: dict[str, Any]) -> dict[str, Any]:
     return {
         "verdict": cell.get("verdict"),
         "reject_route": cell.get("reject_route"),
+        "gate_fired": cell.get("gate_fired") or [],
         "main": cell.get("main"),
         "engine": cell.get("engine"),
         "log_excerpt": cell.get("log_excerpt"),
@@ -953,6 +954,7 @@ class _Compile:
             {
                 "verdict": pre.get("verdict"),
                 "reject_route": pre.get("reject_route"),
+                "gate_fired": pre.get("gate_fired") or [],
                 "installed": pre.get("installed") or [],
                 "engine_flags": pre.get("engine_flags") or [],
                 "advisories": pre.get("advisories") or [],

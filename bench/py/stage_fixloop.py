@@ -220,6 +220,9 @@ def _fixloop_one(
             "rules_fired": list(
                 dict.fromkeys(str(a["rule"]) for a in actions if a.get("rule"))
             ),
+            # REJECT 决策面: gate/loop 相 REJECT 不经 actions —— rules_fired
+            # 互补名单, census/stats 取「规则接触过本格」须两列并集。
+            "gate_fired": list(cell.get("gate_fired") or []),
             "installed": cell.get("installed") or [],
             "floor_restored": bool(cell.get("floor_restored")),
             "fixloop_wall_s": cell_wall,
