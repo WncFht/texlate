@@ -1777,3 +1777,8 @@
 - l1-gate/autogloss-reg run.log 早已收官（无新写）；overnite 1709/2822 健康，ph=0 常态。
 - 无新 report.md。csfix8 1h+ 在飞——lane dir 07:49 后静默但仍在 real-xelatex 逐行 repro 合理窗口（8 行 bundle×~100-500s/编译）；下 tick 仍无声则 ping。singtail 26m 普查爬坡正常；8 新 lanes ~1min 均 running。
 - **门**：HEAD=ceb4f46d；ruleset 178（worktree）；wave-13 mutex 续持（csfix8+bibimpl 在飞——engine.py live-read）；共享 index 他家污染依旧（勿动）；无 teammate git 越权。
+
+### patrol ~07:53 — 心跳：无收割；roster 10 全 running；overnite 1715/2822
+
+- 无新 report.md（列出的均上轮自写）。csfix8 lane dir 07:49 有活写（cref/ repro）非停——8 行 bundle 逐行 real-compile 仍在合理窗；singtail 读态普查 28m 正常。
+- **门**：HEAD=55e31dcb；ruleset 178（worktree）；wave-13 mutex 续持（csfix8+bibimpl）；共享 index 勿动；无 teammate git 越权。
