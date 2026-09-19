@@ -32,10 +32,12 @@ from .engine import (
     route_project,
 )
 from .inject import (
+    ACM_BASELINESTRETCH_GUARD,
     CTEX_LINE,
     XECJK_BLOCK,
     InjectRejectError,
     classify_no_main,
+    demote_wrapfloats,
     find_docclass_end,
     find_main_tex,
     inject_cjk,
@@ -70,6 +72,7 @@ from .sandbox import child_env, find_tool, run_process, sandbox_wrap
 from .toolchain import ensure_tectonic, install_tectonic, resolve_tool
 
 __all__ = [
+    "ACM_BASELINESTRETCH_GUARD",
     "CLEAN_ERR_MAX",
     "CTEX_LINE",
     "PIXEL_COMPATIBILITY",
@@ -95,6 +98,7 @@ __all__ = [
     "compiled_dependencies",
     "count_missing_chars",
     "decode_tex",
+    "demote_wrapfloats",
     "dep_seen",
     "deps_diff",
     "engine_for",
