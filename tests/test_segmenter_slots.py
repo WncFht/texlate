@@ -227,6 +227,32 @@ def test_slot_supertabular_preamble() -> None:
     assert "cc}" not in blob(res)
 
 
+def test_slot_translatedabstract_lang_arg() -> None:
+    r"""``\begin{translatedabstract}{french}``：argspec env ``m`` + ``key``
+    角色 → ``{french}`` 随 begin 行字面件，体散文照常成 chunk——
+    2401.14887 babel 语言选择子实证（``{这是译文}`` 机位泄漏）。"""
+    res = scan(
+        "\\begin{translatedabstract}{french}Body words here enough text."
+        "\\end{translatedabstract}\nTail words here."
+    )
+    assert any(
+        p.kind is PieceKind.LITERAL and "\\begin{translatedabstract}{french}" in p.text
+        for p in res.pieces
+    )
+    assert "french" not in blob(res)
+
+
+def test_slot_mizar_verbatim_env() -> None:
+    r"""``\begin{Mizar}{x,Y,A}``：``\lstnewenvironment`` 不走 doc 注册 →
+    argspec env ``m`` + ``body_role=verbatim`` 兜底，整段 ``[[VERB]]``，
+    关键词表参不进 surface——2410.00065 实证泄漏。"""
+    res = scan("\\begin{Mizar}{x,Y,A}let x be set;\\end{Mizar}\nTail words here.")
+    assert res.ph_map["[[VERB_1]]"] == (
+        "\\begin{Mizar}{x,Y,A}let x be set;\\end{Mizar}"
+    )
+    assert "x,Y,A" not in blob(res)
+
+
 # ------------------------------------------------------------- 展开组内镜像
 # ``_group_surface`` 对 ``_dispatch`` 的同构复刻：展开体里的同一批形态
 # 也必须出占位——组内没有 LITERAL piece，一切走 ph。

@@ -14531,6 +14531,16 @@
             "policy": "protect",
             "source": ["miniscanner math-env / inMathMode", "no-signature"]
         },
+        "Mizar": {
+            "name": "Mizar",
+            "kind": "env",
+            "package": "manual",
+            "signature": "m",
+            "arg_roles": ["key"],
+            "body_role": "verbatim",
+            "policy": "protect",
+            "source": ["manual-env", "zhleakdiag:2410.00065"]
+        },
         "NiceArray": {
             "name": "NiceArray",
             "kind": "env",
@@ -16910,6 +16920,16 @@
             "body_role": "protect",
             "policy": "protect",
             "source": ["ctan:tikz", "miniscanner protected-env (挖 caption)"]
+        },
+        "translatedabstract": {
+            "name": "translatedabstract",
+            "kind": "env",
+            "package": "acmart",
+            "signature": "m",
+            "arg_roles": ["key"],
+            "body_role": "text",
+            "policy": "text",
+            "source": ["manual-env", "zhleakdiag:2401.14887"]
         },
         "trivlist": {
             "name": "trivlist",
