@@ -885,3 +885,15 @@
 - 无 detached 批 (sab-r4 DONE)；无新交付；工作区 = maxsep209/kvdig(test_args_kvdig.py 新件=近交付)/obeylines(reconstruct+2 测试件=近交付)；csfix2 31min 无件触=诊断期 (三件套+75-syntax 内联扫描件, 次 tick 仍静则催)。
 - roster 11：bticktax(fc9 待发)/csfix2/kvdig/obeylines/primguard/maxsep209 + revpacs/hxetex/mathchar/loop3prep/dimcen。
 - 门：teammate 零 git✓ (log 全 wncfht)；HEAD e63d90b 净；clean% 31/32 维。
+
+## 2026-09-19 ~17:4x — 四连入库 (74b581f/3a3df49/2a81b84/57dd8d9) + 209batch 派 + primguard 裁决
+
+- **hxetex (74b581f, 前提纠正)**：5 格非 missing_file——hypdvips.sty:43 拒 hxetex 驱动 (`hyperref_driver` 族), `hyperref_driver_neutralize`(181) 已盖, 仅因 partial 态被 `--on fail` 跳 → **loop3 复测即翻**。vendored hxetex.def 照收 (texlive 逐字节 md5 同, LPPL 头全, 与系统 hyperref v7.01p 同版对)——真 missing-driver 环境的库存, 零风险。
+- **maxsep209 (3a3df49, 结构发现)**：COMPAT_SHIM 落 docclass 后——aipproc.cls:10 类载期 `\input{aipproc.sty}` 在 `:207/:213` 裸赋值 `\@maxsep 20pt`, shim 来不及执行 (实证)。`_PRE_CLASS_SHIM` 新常量 `\@ifundefined`-guard `\newdimen` 双寄存器, 作 lines[0] 先 `\documentclass` 发——latex209.def:167-168 忠实镜。0104245 推进至下一残 (oldfontcmd `\it`/`\bf` 族) → handoff 入 209batch。32+142+7504 测绿。
+- **obeylines (2a81b84)**：`_restore_linestarts`——chunk 内容渲把 ` \Title\n<text>\n \ShortTitle` 折单行 (段切块渲缝, 先于 reconstruct), zh 回显丢行首 `\cs`, `^^M` 定界参扫描奔 EOF (2009.11130)。采源 span 行首 cs 名, 译文行中 `[ \t]+\X`→`\n\X` 只对该名集——普 catcode 恒等 (`\n`≡空格), 无需识 obeylines 域。`isinstance(k,int)` 敌键卫 (fuzz 抓)。23+537 测绿。**残族**：0812.0162/1503.00494 纯文本 obeylines 饰接无扫描错——要 segmenter 侧 opaque 标 (kvdig 域, 记 keyval-leak 后续)。
+- **revpacs (57dd8d9, 前提纠正)**：9 格真因=旧 `##`-转义 polyfill payload (字面 `#` 定界参号错 + `\pacs` 变定界宏吃至 `\par`)——树内已修 (`_builtins_shim:1064`+yaml:83 单 `#`), 格走 stub 2e 分支从未触发 → **loop3 翻**。stub `\long\def\revtex@pacsflat` 补潜伏刚化; yaml:83 同款 leader 直修; `_builtins_shim:1064` 第三处→折 mathchar grant。
+- **primguard 裁决 (option-a 批)**：递归平衡括号 `(?&bal)` 修双臂贪心 (单行 def 外 `}` 被吞→`\fi` 落体外, 双臂实证); 但 `test_shipped_rewrites_repl_escapes_valid` 用 stdlib `re` 编译全 shipped pattern——`re` 无递归。**潜伏引擎错配**：生产 actions.py:292 本就是 `regex`——授其测试件换 `regex` (保持镜生产, 不削 pattern 到有界深)。
+- **209batch 派 (mutex 释即派)**：209-era undefined_cs ~129 格 (twocolumn 28 最大 sig——`_REVTEX209_POLYFILL` 已有 `\twocolumn` providecommand, 先断 revtex-路 vs 通需; 日志清需 1 复现) + maxsep209 oldfontcmd handoff (\bf/\it/\rm/\sl——2e 类经 `\DeclareOldFontCommand` 得, 薄 .cls 壳不声明, 0104245 实证)。全证据绑, 禁臆造 define。
+- **fc9 门**：csfix2 独剩 (bbkresid 4 格); 2009.11130 已加 ids。
+- roster 10：bticktax(fc9)/csfix2/kvdig/primguard + mathchar/loop3prep/dimcen/209batch。hxetex/maxsep209/obeylines/revpacs 交付+入库尸清。
+- 门：teammate 零 git✓；HEAD 57dd8d9 净 (import 复核 4 提交)；在飞 args.py(kvdig)/55-prim+test_fixloop_primguard(primguard 等 a 修)；clean% 31/32 维。
