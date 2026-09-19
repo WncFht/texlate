@@ -9,8 +9,12 @@ r"""_builtins_slotrev — zh 机位实参 revert (slotrevert lane, task#188)。
 序号对齐配对 —— baseline 参纯 ASCII 标识符 ∧ zh 参含 CJK ∧ 两侧
 相异 → zh 参位字节换回 baseline 参。``\section{标题}`` 等文位结构上
 不在机位表内永不被碰; 某 kind 双侧命中数分歧 → 该 kind 整跳防错位
-回写 (LLM 臆造/丢参时错位 revert 比不复原更糟); ``baseline_dir``
-缺席/非目录 → False 空转 (standalone precheck 挂点不注入 baseline)。
+回写 (LLM 臆造/丢参时错位 revert 比不复原更糟), 唯 ``primgap`` kind
+(原语 cs 与 ``{``-组之间 gap —— ``\vadjust 这是译文{``/``\leaders\hbox
+这是译文{`` 面) 分歧时先判 unique-src 广播: src 全 gap 值唯一 ∧ 过
+ident → 写进 zh 全部 CJK gap 站 (宏展开把 def 站机位倍增到调用站);
+``baseline_dir`` 缺席/非目录 → False 空转 (standalone precheck 挂点
+不注入 baseline)。
 """
 
 from __future__ import annotations
@@ -510,6 +514,29 @@ _SLOTREV_EXTRA_RXS: tuple[tuple[str, re.Pattern[str]], ...] = (
             + _ARG
         ),
     ),
+    # ── 2026-09-20 primgap: 原语 cs 与 ``{``-组之间 gap 机位 ──
+    # 捕获面与全表其他 kind 正交 —— 既有行捕获组全在 ``{}``/``[]``/
+    # ``\csname`` 体内, 此 kind 收 ``\vadjust 这是译文{\vskip 1pt}``
+    # (2609.19815) / ``\leaders\hbox 这是译文{...}`` (2609.20633 ×12)
+    # 形: 译面把原语 keyword/dimen 尾巴 (``pre``/``to .55em``/
+    # ``spread 2pt``/``16``/``12``) 落上 chunk → 写在 cs 与 ``{``
+    # 之间 (tmp/lane-slotleak/verdict.md)。域 = 必需下接 ``{`` 的
+    # 原语族; gap 域 spec ident (可打印 ASCII, 含空格/反斜杠)。
+    # ``\leaders\hbox to .55em{`` 复合站 finditer 不重叠 → 单命中,
+    # gap 值即 ``\hbox to .55em`` 整串。空 gap (``\hbox{``) 双侧
+    # 同形无害; zh 侧宏展开倍增调用站致计数分歧 → unique-src 广播
+    # (``_BROADCAST_KINDS``)。
+    (
+        "primgap",
+        re.compile(
+            r"\\(?:hbox|vbox|vtop|vadjust|insert|noalign|leaders|cleaders|"
+            r"xleaders|marks|mark|uppercase|lowercase|message|errmessage|"
+            r"write|special|output|everypar|everymath|everydisplay|"
+            r"everyhbox|everyvbox|everyjob|everycr|everyeof|toks)"
+            + CMD_BOUNDARY
+            + r"\s*([^{}\n]*?)\{"
+        ),
+    ),
 )
 
 #: 严格 ident 白名单 —— 机位实参 (键/名/路径/kv 串/csv) 的字符域。
@@ -525,8 +552,17 @@ _IDENT_SPEC_RX = re.compile(r"[ -~]+")
 _IDENT_SPEC_PREFIX = "colspec"
 #: spec 同域 (可打印 ASCII) 的散 kind —— inferkv: opt kv 值含 cs 调用
 #: (``\rlabel{Rec}``) 与空格, 严格/宽松 ident 均拒; 该位恒为
-#: mathpartir kv 键表机位, CJK 即译污。
-_IDENT_SPEC_KINDS = frozenset({"inferkv"})
+#: mathpartir kv 键表机位, CJK 即译污。primgap: 原语 pre-``{`` gap
+#: 含空格/反斜杠 (``to .55em``/``\hbox to .55em``/``spread 2pt``)。
+_IDENT_SPEC_KINDS = frozenset({"inferkv", "primgap"})
+
+#: unique-src 广播适用 kind —— 计数分歧时若 src 侧该 kind 全部 gap 值
+#: 唯一且过 ident, 广播至 zh 侧全部含 CJK gap 站 (宏展开把单一 def 站
+#: 机位倍增到调用站: 2609.20633 ``\tocdots`` def 1 站 ``\hbox to .55em``
+#: vs zh ``\leaders\hbox`` 字面量调用站 ×14 实证)。仅 gap 恒为 TeX
+#: keyword/dimen 机料的 primgap 启用 —— 其余 kind 计数分歧仍整跳
+#: (错位 revert 比不复原更糟); src 多值/空集 → 同样整跳。
+_BROADCAST_KINDS = frozenset({"primgap"})
 
 #: note 面站点/分歧条目封顶 (与 judge._MACHINE_SLOT_MAX 同量级)。
 _NOTE_CAP = 20
@@ -626,6 +662,22 @@ def _by_kind(hits: list[tuple[str, int, int]]) -> dict[str, list[tuple[int, int]
     return d
 
 
+def _broadcast_value(kind: str, ss: list[tuple[int, int]], src: str) -> str | None:
+    """unique-src 广播值 → 唯一 gap 值 或 None。
+
+    ``_BROADCAST_KINDS`` 内 kind 计数分歧时调用: src 侧全部命中值唯一
+    ∧ 过 ``_is_ident`` → 返回该值供 zh 侧 CJK gap 广播; 多值/空集/非
+    机料 → None (维持整跳, 错位 revert 比不复原更糟)。
+    """
+    if kind not in _BROADCAST_KINDS or not ss:
+        return None
+    vals = {src[s:e] for s, e in ss}
+    if len(vals) != 1:
+        return None
+    (val,) = vals
+    return val if _is_ident(val, kind) else None
+
+
 def _revert_file(
     src: str, zh: str, rxs: tuple[tuple[str, re.Pattern[str]], ...]
 ) -> tuple[str, int, list[str]]:
@@ -634,8 +686,11 @@ def _revert_file(
     per-kind 序号对齐: k-th zh 命中 ↔ k-th src 命中; 三条件全中才改 —
     双侧相异 ∧ zh 参含 CJK ∧ src 参纯 ident (ASCII 白名单)。改集按
     起始位降序右→左应用, 同位/重叠第二刀跳 (envarg↔restatable 等同位
-    多行扫重)。kind 双侧命中数分歧 → 该 kind 整跳记入 ``分歧项``。
-    spec-holder 动态行由 ``src`` def 体逐文件现查 (``_holder_rxs``)。
+    多行扫重)。kind 双侧命中数分歧 → 该 kind 整跳记入 ``分歧项``;
+    ``_BROADCAST_KINDS`` 内 kind (primgap) 先经 ``_broadcast_value``
+    判 unique-src 广播 —— src gap 值唯一则写进 zh 全部 CJK gap 站,
+    多值/空集才回退整跳。spec-holder 动态行由 ``src`` def 体逐文件
+    现查 (``_holder_rxs``)。
     """
     rxs = (*rxs, *_holder_rxs(src))
     src_by = _by_kind(_slot_spans(src, rxs))
@@ -648,7 +703,12 @@ def _revert_file(
     for kind in kinds:
         ss, zs = src_by.get(kind, []), zh_by.get(kind, [])
         if len(ss) != len(zs):
-            skipped.append(f"{kind}({len(ss)}!={len(zs)})")
+            val = _broadcast_value(kind, ss, src)
+            if val is None:
+                skipped.append(f"{kind}({len(ss)}!={len(zs)})")
+                continue
+            edits.extend((z0, z1, val) for z0, z1 in zs if CJK_RX.search(zh[z0:z1]))
+            skipped.append(f"{kind}({len(ss)}→{len(zs)} broadcast)")
             continue
         for (s0, s1), (z0, z1) in zip(ss, zs, strict=True):
             sarg, zarg = src[s0:s1], zh[z0:z1]
