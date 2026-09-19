@@ -346,7 +346,11 @@ def _note_route(note: str) -> str | None:
     return m.group(1) if m else None
 
 
-def _report_of(res: CompResLike, warn_patterns: list[dict[str, Any]]) -> ErrReport:
+def _report_of(
+    res: CompResLike,
+    warn_patterns: list[dict[str, Any]],
+    project_root: Path | None = None,
+) -> ErrReport:
     """CompRes → ErrReport: 优先 .log 文件; 缺席/空错误时 stdout_tail 兜底。
 
     tectonic 有时不写 .log (impl engine.py:1083-1090、:1146-1150 同策略); stderr 的
@@ -355,21 +359,28 @@ def _report_of(res: CompResLike, warn_patterns: list[dict[str, Any]]) -> ErrRepo
     ``_salvage_driver_fatal`` 同词素双臂: xelatex 被驱动 fatal 的 SIGPIPE
     带走时签名只存于 stdout_tail (.log 干净), 不捞则 ``pdf_link_obj`` 类
     签名对整个条件面不可见 (2403.05523 实证)。
+
+    ``project_root`` = ``wdir``: 输入侧警告 (``_FILE_ATTRIBUTED_WARNS``)
+    按文件栈归因——sys 件命中降 ``rep.warnings_sys`` 不再驱动 ``warn_*``。
     """
     log_path = getattr(res, "log_path", None)
     # CompRes.log_text = 引擎编译期已读的 .log 原文 —— 复用免二次开文件
     # (B14 fix#10); 假值 (老调用方/test double 不填) 走原文件读路径。
     text = getattr(res, "log_text", "") or ""
     if text:
-        rep = parse_text(text, warn_patterns)
+        rep = parse_text(text, warn_patterns, project_root=project_root)
     else:
-        rep = parse_log(Path(log_path) if log_path else None, warn_patterns)
+        rep = parse_log(
+            Path(log_path) if log_path else None,
+            warn_patterns,
+            project_root=project_root,
+        )
     if rep.n_bang == 0:
         tail = getattr(res, "stdout_tail", "") or ""
         if tail:
             norm = re.sub(r"(?m)^error:\s*", "! ", tail)
             norm = re.sub(r"(?m)^\s*(\w+:\s*fatal:)", r"! \1", norm)
-            alt = parse_text(norm, warn_patterns)
+            alt = parse_text(norm, warn_patterns, project_root=project_root)
             if alt.n_bang or rep.raw == "":
                 rep = alt
     return rep
@@ -745,6 +756,86 @@ def _wire_engine(eng: Engine, rs: Ruleset, wdir: Path, ctx: LoopCtx) -> None:
         ctx.ledger.advisories.append(f"ctan_fetch wire failed: {type(e).__name__}: {e}")
 
 
+def _precheck_phase(
+    rs: Ruleset, ctx: LoopCtx, eng: Engine
+) -> tuple[str | None, str | None]:
+    """Precheck 相逐规则评估 (第 0 招装包 + 静态路由)。
+
+    全程不编译——规则面是 scan_install/builtin_transform 等增量件，
+    对 resplice 安全 (改件不碰 .tex 源)。REJECT note →
+    ``(reject:<rid>, route)``；跑完无拒绝 → ``(None, None)``。
+    """
+    dummy_rep = parse_log(None, rs.warn_patterns)
+    for rule in rs.phase("precheck"):
+        if not _when_ok(rule.when, None, None, ctx):
+            continue
+        spec = rule.engine_spec(ctx.deps.engine_name)
+        mode = spec.get("mode")
+        if mode in ("skip", "unsupported") or (
+            mode == "degrade" and spec.get("degrade") == "skip"
+        ):
+            ctx.ledger.events.append(
+                f"precheck {rule.id}: {mode} on {ctx.deps.engine_name}"
+            )
+            continue
+        ok, why = _cond_ok(rule.condition, rule, ctx, eng, None)
+        if not ok:
+            ctx.ledger.events.append(f"precheck {rule.id}: cond skip ({why})")
+            continue
+        try:
+            applied, note = _apply(rule, ctx, eng, None, dummy_rep)
+        except Exception as e:  # noqa: BLE001
+            applied, note = False, f"precheck crashed: {type(e).__name__}: {e}"
+        ctx.ledger.actions.append(
+            {"round": 0, "rule": rule.id, "detail": note, "applied": applied}
+        )
+        if applied and note.startswith(_REJECT_PREFIX):
+            return f"reject:{rule.id}", _note_route(note)
+    return None, None
+
+
+def precheck_pass(  # noqa: PLR0913 -- 与 fixloop 同契约的注入面
+    proj: Path | str,
+    eng: Engine,
+    *,
+    ruleset: Ruleset | None = None,
+    engine_name: str | None = None,
+    main_rel: str | None = None,
+    runner: RunFn | None = None,
+) -> dict[str, Any]:
+    """编译链前的静态预检——fixloop precheck 相的独立入口。
+
+    与 ``fixloop()`` 内嵌预检同一 ``_precheck_phase``：装缺包/解嵌套
+    tar/收割构建指令，不修 .tex 源，对 L2 resplice 安全。e2e/worker
+    两臂在 L2 回灌前调它——缺件类失败在归因前就消掉 (algpseudocodex
+    型 missing_file 不再进 L2 兜底面)。
+
+    ``main_rel`` 缺省时 ``find_main_tex`` 宽松档推导；无主档置空串
+    （预检的 source_contains/扫描原语只读工程树，不依赖主档存在）。
+    """
+    rs = ruleset or Ruleset.load()
+    engine_name = engine_name or getattr(
+        eng, "name", rs.meta.get("engine_default", "xelatex")
+    )
+    wdir = Path(proj)
+    if main_rel is None:
+        main = find_main_tex(wdir)
+        main_rel = str(main.relative_to(wdir)) if main is not None else ""
+    ctx = LoopCtx(wdir=wdir, engine_name=engine_name, main_rel=main_rel, runner=runner)
+    _wire_engine(eng, rs, wdir, ctx)
+    verdict, route = _precheck_phase(rs, ctx, eng)
+    return {
+        "actions": ctx.ledger.actions,
+        "installed": ctx.ledger.installed,
+        "engine_flags": [str(f) for f in ctx.ledger.engine_flags],
+        "flags_dropped": ctx.ledger.flags_dropped,
+        "advisories": ctx.ledger.advisories,
+        "events": ctx.ledger.events,
+        "verdict": verdict,
+        "reject_route": route,
+    }
+
+
 def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spike 状态机
     proj: Path | str,
     eng: Engine,
@@ -830,36 +921,15 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
             ctx.ledger.advisories.append(f"floor snapshot: {e}")
 
     # —— precheck phase (第 0 招; 静态路由也在这里) ——
-    dummy_rep = parse_log(None, rs.warn_patterns)
-    for rule in rs.phase("precheck"):
-        if not _when_ok(rule.when, None, None, ctx):
-            continue
-        spec = rule.engine_spec(engine_name)
-        mode = spec.get("mode")
-        if mode in ("skip", "unsupported") or (
-            mode == "degrade" and spec.get("degrade") == "skip"
-        ):
-            ctx.ledger.events.append(f"precheck {rule.id}: {mode} on {engine_name}")
-            continue
-        ok, why = _cond_ok(rule.condition, rule, ctx, eng, None)
-        if not ok:
-            ctx.ledger.events.append(f"precheck {rule.id}: cond skip ({why})")
-            continue
-        try:
-            applied, note = _apply(rule, ctx, eng, None, dummy_rep)
-        except Exception as e:  # noqa: BLE001
-            applied, note = False, f"precheck crashed: {type(e).__name__}: {e}"
-        cell["actions"].append(
-            {"round": 0, "rule": rule.id, "detail": note, "applied": applied}
+    p_verdict, p_route = _precheck_phase(rs, ctx, eng)
+    if p_verdict is not None:
+        cell["verdict"] = p_verdict
+        if p_route:
+            cell["reject_route"] = p_route
+        _record_case(
+            case_sink, cell, corpus_id=corpus_id, cond=cond, engine_name=engine_name
         )
-        if applied and note.startswith(_REJECT_PREFIX):
-            cell["verdict"] = f"reject:{rule.id}"
-            if r := _note_route(note):
-                cell["reject_route"] = r
-            _record_case(
-                case_sink, cell, corpus_id=corpus_id, cond=cond, engine_name=engine_name
-            )
-            return cell
+        return cell
 
     prev_sig, sig_n = "", 0
     last_rep: ErrReport | None = None
@@ -885,7 +955,7 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
         )
         ctx.invalidate_suffixes(_VOLATILE_EXTS)
         _note_dropped_flags(ctx, res)
-        rep = _report_of(res, rs.warn_patterns)
+        rep = _report_of(res, rs.warn_patterns, wdir)
         cat, pay = _round_cat(rs, rep, res)
         round_sec = float(getattr(res, "seconds", getattr(res, "sec", 0.0)))
         if (  # pass-1 判收敛 → 同轮全遍终编定稿: rungen_stub 类机制靠
@@ -914,7 +984,7 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
             )
             ctx.invalidate_suffixes(_VOLATILE_EXTS)
             _note_dropped_flags(ctx, res)
-            rep = _report_of(res, rs.warn_patterns)
+            rep = _report_of(res, rs.warn_patterns, wdir)
             cat, pay = _round_cat(rs, rep, res)
             round_sec += float(getattr(res, "seconds", getattr(res, "sec", 0.0)))
             ctx.ledger.events.append(
@@ -946,6 +1016,9 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
             "category": cat,
             "payload": pay,
             "warnings": list(rep.warnings),
+            # 系统源输入侧警告 (``<warn_id>@<file>``)——不驱 warn_* 但留
+            # 归因证据供 census 对账 (loginfo warnings_sys 同形)。
+            "warnings_sys": list(rep.warnings_sys),
             "line_no": rep.line_no,
             "file_stack": rep.file_stack,
             "sec": round(round_sec, 1),
@@ -988,9 +1061,9 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
         sig = f"{cat}:{pay}"
         sig_n = sig_n + 1 if sig == prev_sig else 1
         prev_sig = sig
-        if sig_n >= stuck_n:
-            cell["verdict"] = "stuck"
-            break
+        # sig_n = 同签连续 streak——只记账不判负: stuck verdict 移到下方
+        # 派发耗尽点结算 (streak≥stuck_n 且本轮无 apply), 同签后位规则
+        # 不再被「第 N 轮先判 stuck」抢掉派发窗口。
         # —— loop 规则匹配 + 应用 ——
         rule, note = _match_apply(rs, ctx, eng, cat, pay, rep)
         sec_via: str | None = None
@@ -1024,7 +1097,7 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
                 sec_probes += 1
                 sec_probe_mark = len(ctx.ledger.actions)
                 _note_dropped_flags(ctx, probe_res)
-                probe_rep = _report_of(probe_res, rs.warn_patterns)
+                probe_rep = _report_of(probe_res, rs.warn_patterns, wdir)
                 cand_rep = probe_rep
                 ctx.ledger.events.append(
                     f"r{rnd} secondary probe: err={probe_rep.n_bang}"
@@ -1060,7 +1133,20 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
                 ctx.round.err_cat, ctx.round.err_pay = cat, pay
                 ctx.round.err_head = (rep.first or "") + "\n" + (rep.ctx or "")
                 salvage_res, salvage_rep = probe_res, probe_rep
-                cell["verdict"] = f"unfixable:{cat}" if not pdf else "dirty_pdf"
+                # stuck 结算点移到派发耗尽后: 同签 streak ≥ stuck_sig_repeat
+                # 且本轮主+次级均无 apply → stuck。旧制在第 stuck_n 个同签轮
+                # 派发前预判——产出轮 (apply 发生) 同样计入 sig_n, 会把只
+                # 在第 N+1 轮才够得到的规则 (凭据门 if_phantom_protect 类)
+                # 永久抢死在窗口外 (1206.0701/1306.0364: r1/r2 各有 apply,
+                # r3 未派发即断)。新制下同签轮只有「本轮无产出」才结算
+                # stuck——apply 轮次只续窗口, 真耗尽格烧轮止于派发枯竭。
+                cell["verdict"] = (
+                    "stuck"
+                    if sig_n >= stuck_n
+                    else f"unfixable:{cat}"
+                    if not pdf
+                    else "dirty_pdf"
+                )
                 break
         if note.startswith(_REJECT_PREFIX):
             cell["verdict"] = f"reject:{rule.id}"
@@ -1125,7 +1211,7 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
         srep = (
             salvage_rep
             if salvage_rep is not None
-            else _report_of(sres, rs.warn_patterns)
+            else _report_of(sres, rs.warn_patterns, wdir)
         )
         spdf = _res_has_pdf(sres)
         sentry = {
@@ -1139,6 +1225,7 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
             "category": None,
             "payload": None,
             "warnings": list(srep.warnings),
+            "warnings_sys": list(srep.warnings_sys),
             "line_no": srep.line_no,
             "file_stack": srep.file_stack,
             "sec": round(float(getattr(sres, "seconds", 0.0)), 1),

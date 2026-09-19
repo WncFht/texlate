@@ -454,9 +454,11 @@ rules:
           }
       # 派发闸: sty 体须真载 edef 捕获式 —— 无件空发会烧同签名轮次,
       # 挤掉同 sig 后位规则的派发窗口 (if_phantom_protect 实证
-      # dispatch-miss: r1 被本条空吃 → r3 stuck 断在 197.5 可派发前)
-      source_contains: "protected@edef.*ifnum.*}=.z@|edef.*ifnum`[{}]=.z@"
+      # dispatch-miss: r1 被本条空吃 → r3 stuck 断在 197.5 可派发前)。
+      # cache_dir_glob 先评 (廉价 glob 先于内容 grep): 无 sty 件直接
+      # cond-skip, why 落在 glob 上 (test_cond_skip_when_no_sty 钉)。
       cache_dir_glob: "*.sty"
+      source_contains: "protected@edef.*ifnum.*}=.z@|edef.*ifnum`[{}]=.z@"
       tool_available: sh
     action:
       kind: run_tool

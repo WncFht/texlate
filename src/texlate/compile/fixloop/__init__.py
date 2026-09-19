@@ -43,6 +43,7 @@ if TYPE_CHECKING:
         find_main_tex,
         fixloop,
         load_ruleset,
+        precheck_pass,
     )
     from texlate.compile.fixloop.logparse import ErrReport, Taxonomy, parse_log
 
@@ -72,6 +73,7 @@ _SUBMODULE_EXPORTS: dict[str, tuple[str, ...]] = {
         "find_main_tex",
         "fixloop",
         "load_ruleset",
+        "precheck_pass",
     ),
     "logparse": ("ErrReport", "Taxonomy", "parse_log"),
 }
@@ -102,6 +104,7 @@ __all__ = [
     "load_cases",
     "load_ruleset",
     "parse_log",
+    "precheck_pass",
     "replay_all",
     "replay_case",
     "stats_backfill",

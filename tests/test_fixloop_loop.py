@@ -584,7 +584,7 @@ def test_stuck_after_sig_repeat_3(tmp_path: Path) -> None:
     # salvage 兜底轮挂 rounds 尾 (salvage=True 标记), 不占地正式轮数
     non_salvage = [r for r in cell["rounds"] if not r.get("salvage")]
     assert len(non_salvage) == 3  # noqa: PLR2004 - sig×3 触发线
-    # 第 3 轮在 match 前就判 stuck: 只应有 2 条 apply 记录
+    # 第 3 轮派发后结算 stuck (fix1/fix2 均 dedup → miss): 只应有 2 条 apply 记录
     applied = [
         a for a in cell["actions"] if isinstance(a.get("round"), int) and a["round"] > 0
     ]

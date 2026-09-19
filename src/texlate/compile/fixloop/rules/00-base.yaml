@@ -62,7 +62,7 @@ meta:
     max_rounds: 8 # spike L40
     one_rule_per_round: true # 每轮只应用一条成功规则, 便于归因 (L549-565)
     dedup_key: "{rule_id}:{payload}" # ctx.applied, 同规则同负载不重复 (L552,561)
-    stuck_sig_repeat: 3 # 同 category:payload 连续 3 轮 → verdict=stuck (L756-761)
+    stuck_sig_repeat: 3 # 同 category:payload 连续 ≥3 轮且末轮派发耗尽(主+次级无 apply) → verdict=stuck; 结算点移派发后——产出轮只续窗口不占判负 (L756-761 旧制在派发前预判, 会抢掉同签后位规则)
     clean_err_max: 3 # pdf 且 '!' 错 ≤3 → acceptable (L41, L786-791)
     compile_passes: 2 # 终编臂开关 (>1 启用) + 遍数语义: ≤2 → 引擎自适应门 (rerun-hint 才升遍); >2 → 显式无条件遍数透传 (L628-630)
     timeout_sec: 120
