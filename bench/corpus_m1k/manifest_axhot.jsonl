@@ -1,0 +1,247 @@
+{"id": "2609.19519", "layer": "axhot", "cat_group": "cs", "title": "An Architecture for Long-Horizon Agents: Levels, Ticks and Cascaded Intelligence", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2312.00752", "layer": "axhot", "cat_group": "cs", "title": "Mamba: Linear-Time Sequence Modeling with Selective State Spaces", "src": "alphaxiv:Views/All time;Likes/All time"}
+{"id": "2504.10462", "layer": "axhot", "cat_group": "cs", "title": "The Scalability of Simplicity: Empirical Analysis of Vision-Language  Learning with a Single Transformer", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.20586", "layer": "axhot", "cat_group": "cs", "title": "CoRef-GS: Cooperative Referring Gaussian Splatting for Multi-Agent Scene Understanding", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2411.04539", "layer": "axhot", "cat_group": "cs", "title": "Best Practices for Distilling Large Language Models into BERT for Web Search Ranking", "src": "alphaxiv:Views/All time"}
+{"id": "2503.21223", "layer": "axhot", "cat_group": "cs", "title": "Unlocking Graph Structure Learning with Tree-Guided Large Language Models", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.15810", "layer": "axhot", "cat_group": "cs", "title": "VC-Attention: Value Smoothing and Softmax Casting for Low-bit Attention", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2503.09516", "layer": "axhot", "cat_group": "cs", "title": "Search-R1: Training LLMs to Reason and Leverage Search Engines with Reinforcement Learning", "src": "alphaxiv:Views/All time"}
+{"id": "2504.20571", "layer": "axhot", "cat_group": "cs", "title": "Reinforcement Learning for Reasoning in Large Language Models with One Training Example", "src": "alphaxiv:Likes/All time"}
+{"id": "2412.06264", "layer": "axhot", "cat_group": "cs", "title": "Flow Matching Guide and Code", "src": "alphaxiv:Views/All time"}
+{"id": "2512.24880", "layer": "axhot", "cat_group": "cs", "title": "mHC: Manifold-Constrained Hyper-Connections", "src": "alphaxiv:Views/All time;Likes/All time"}
+{"id": "2609.19883", "layer": "axhot", "cat_group": "cs", "title": "PetriBench: Benchmarking LLM Reasoning over Dynamic State Spaces", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2407.12818", "layer": "axhot", "cat_group": "cs", "title": "\"I understand why I got this grade\": Automatic Short Answer Grading with Feedback", "src": "alphaxiv:Views/All time"}
+{"id": "2503.18366", "layer": "axhot", "cat_group": "cs", "title": "Reinforcement Learning for Adaptive Planner Parameter Tuning: A  Perspective on Hierarchical Architecture", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.20566", "layer": "axhot", "cat_group": "cs", "title": "OmniMimic: Dynamics-completed Motion Augmentation for Multi-style Omnidirectional Quadruped Locomotion", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2504.16078", "layer": "axhot", "cat_group": "cs", "title": "LLMs are Greedy Agents: Effects of RL Fine-tuning on Decision-Making  Abilities", "src": "alphaxiv:Views/All time"}
+{"id": "2503.10968", "layer": "axhot", "cat_group": "cs", "title": "Combinatorial Optimization for All: Using LLMs to Aid Non-Experts in Improving Optimization Algorithms", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.19463", "layer": "axhot", "cat_group": "cs", "title": "ParticleSplat: Self-supervised Object-centric Latent Particle Splatting", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2406.10759", "layer": "axhot", "cat_group": "cs", "title": "Humanoid Parkour Learning", "src": "alphaxiv:Views/All time"}
+{"id": "2511.21631", "layer": "axhot", "cat_group": "cs", "title": "Qwen3-VL Technical Report", "src": "alphaxiv:Views/All time;Likes/All time"}
+{"id": "2609.20135", "layer": "axhot", "cat_group": "hep-ex", "title": "A heterogeneous and vectorized sequence for the HL-LHC full tracking reconstruction of the CMS experiment", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2505.04588", "layer": "axhot", "cat_group": "cs", "title": "ZeroSearch: Incentivize the Search Capability of LLMs without Searching", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.20537", "layer": "axhot", "cat_group": "quant-ph", "title": "Coherent error threshold for quantum LDPC codes", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2504.06479", "layer": "axhot", "cat_group": "cs", "title": "Holistic Fusion: Task- and Setup-Agnostic Robot Localization and State Estimation with Factor Graphs", "src": "alphaxiv:Views/All time"}
+{"id": "2504.09037", "layer": "axhot", "cat_group": "cs", "title": "A Survey of Frontiers in LLM Reasoning: Inference Scaling, Learning to Reason, and Agentic Systems", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.19814", "layer": "axhot", "cat_group": "quant-ph", "title": "Long-horizon autoformalization of a core theorem underlying MIP* = RE", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2006.11239", "layer": "axhot", "cat_group": "cs", "title": "Denoising Diffusion Probabilistic Models", "src": "alphaxiv:Views/All time"}
+{"id": "2502.21321", "layer": "axhot", "cat_group": "cs", "title": "LLM Post-Training: A Deep Dive into Reasoning Large Language Models", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.20823", "layer": "axhot", "cat_group": "quant-ph", "title": "Environment Alignment and Redundant Record Formation in Imperfect-CNOT Quantum Darwinism", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2503.10518", "layer": "axhot", "cat_group": "physics", "title": "Why the Brain Cannot Be a Digital Computer: History-Dependence and the  Computational Limits of Consciousness", "src": "alphaxiv:Views/All time"}
+{"id": "2503.20783", "layer": "axhot", "cat_group": "cs", "title": "Understanding R1-Zero-Like Training: A Critical Perspective", "src": "alphaxiv:Views/All time;Likes/All time"}
+{"id": "2609.20812", "layer": "axhot", "cat_group": "cs", "title": "Quantifying Overclaiming Propensity in Frontier LLM Agents", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2504.07951", "layer": "axhot", "cat_group": "cs", "title": "Scaling Laws for Native Multimodal Models", "src": "alphaxiv:Views/All time"}
+{"id": "2504.13958", "layer": "axhot", "cat_group": "cs", "title": "ToolRL: Reward is All Tool Learning Needs", "src": "alphaxiv:Views/All time;Likes/All time"}
+{"id": "2106.09685", "layer": "axhot", "cat_group": "cs", "title": "LoRA: Low-Rank Adaptation of Large Language Models", "src": "alphaxiv:Views/All time"}
+{"id": "2507.10524", "layer": "axhot", "cat_group": "cs", "title": "Mixture-of-Recursions: Learning Dynamic Recursive Depths for Adaptive Token-Level Computation", "src": "alphaxiv:Views/All time;Likes/All time"}
+{"id": "2609.20779", "layer": "axhot", "cat_group": "cs", "title": "Harm Laundering in GPT Models: Evidence That Gender Discrimination Is Transformed Rather Than Reduced Across Safety-Trained Generations", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2502.13923", "layer": "axhot", "cat_group": "cs", "title": "Qwen2.5-VL Technical Report", "src": "alphaxiv:Views/All time;Likes/All time"}
+{"id": "2503.13323", "layer": "axhot", "cat_group": "econ", "title": "Difference-in-Differences Designs: A Practitioner's Guide", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.18514", "layer": "axhot", "cat_group": "cs", "title": "ActiveScale: Scaling Active Perception for Robots across Model, Data, and Hardware", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2505.14674", "layer": "axhot", "cat_group": "cs", "title": "Reward Reasoning Model", "src": "alphaxiv:Views/All time;Likes/All time"}
+{"id": "2504.17192", "layer": "axhot", "cat_group": "cs", "title": "Paper2Code: Automating Code Generation from Scientific Papers in Machine Learning", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.20063", "layer": "axhot", "cat_group": "cs", "title": "Robust Workflow Generation via Adversarial Learning for Audio Deepfake Detection", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2003.05620", "layer": "axhot", "cat_group": "cs", "title": "CC2Vec: Distributed Representations of Code Changes", "src": "alphaxiv:Views/All time"}
+{"id": "2505.09568", "layer": "axhot", "cat_group": "cs", "title": "BLIP3-o: A Family of Fully Open Unified Multimodal Models-Architecture,  Training and Dataset", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.19529", "layer": "axhot", "cat_group": "stat", "title": "Next-token functional estimation", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2503.18866", "layer": "axhot", "cat_group": "cs", "title": "Reasoning to Learn from Latent Thoughts", "src": "alphaxiv:Views/All time"}
+{"id": "2504.13055", "layer": "axhot", "cat_group": "cs", "title": "NoisyRollout: Reinforcing Visual Reasoning with Data Augmentation", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.17524", "layer": "axhot", "cat_group": "cs", "title": "Modality-Autoregressive World-Action Models", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2603.15031", "layer": "axhot", "cat_group": "cs", "title": "Attention Residuals", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.19868", "layer": "axhot", "cat_group": "cs", "title": "Zarya: A Hybrid Autoregressive--Masked Diffusion Language Model with Flexible Training and Dual-Mode Inference", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2503.01785", "layer": "axhot", "cat_group": "cs", "title": "Visual-RFT: Visual Reinforcement Fine-Tuning", "src": "alphaxiv:Views/All time;Likes/All time"}
+{"id": "2512.13564", "layer": "axhot", "cat_group": "cs", "title": "Memory in the Age of AI Agents", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.18197", "layer": "axhot", "cat_group": "cs", "title": "WholeBodyWAM: Learning Whole-Body World Action Models with Scalable Motion Priors", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2409.09337", "layer": "axhot", "cat_group": "eess", "title": "Wave-U-Mamba: An End-To-End Framework For High-Quality And Efficient  Speech Super Resolution", "src": "alphaxiv:Views/All time"}
+{"id": "2504.17789", "layer": "axhot", "cat_group": "cs", "title": "Token-Shuffle: Towards High-Resolution Image Generation with  Autoregressive Models", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.19801", "layer": "axhot", "cat_group": "cs", "title": "DeliveryGym: An RL Environment for Long-Horizon Embodied Agent Planning with Adaptive Curriculum", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2305.18290", "layer": "axhot", "cat_group": "cs", "title": "Direct Preference Optimization: Your Language Model is Secretly a Reward\n  Model", "src": "alphaxiv:Views/All time;Likes/All time"}
+{"id": "2504.15933", "layer": "axhot", "cat_group": "cs", "title": "Low-Rank Adaptation of Neural Fields", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.20022", "layer": "axhot", "cat_group": "astro-ph", "title": "Rapid Dark Growth of Seed Black Holes in Self-Interacting Dark Matter", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2404.01331", "layer": "axhot", "cat_group": "cs", "title": "LLaVA-Gemma: Accelerating Multimodal Foundation Models with a Compact\n  Language Model", "src": "alphaxiv:Views/All time"}
+{"id": "2501.19393", "layer": "axhot", "cat_group": "cs", "title": "s1: Simple test-time scaling", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.20633", "layer": "axhot", "cat_group": "cs", "title": "Refinement Is Inherently Editable: Training-Free Prompt-to-Prompt Image Editing with Generative Refinement Network", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2411.08745", "layer": "axhot", "cat_group": "cs", "title": "Separating Tongue from Thought: Activation Patching Reveals Language-Agnostic Concept Representations in Transformers", "src": "alphaxiv:Views/All time"}
+{"id": "2503.15558", "layer": "axhot", "cat_group": "cs", "title": "Cosmos-Reason1: From Physical Common Sense To Embodied Reasoning", "src": "alphaxiv:Views/All time;Likes/All time"}
+{"id": "2609.16995", "layer": "axhot", "cat_group": "cs", "title": "PaperDoctor: Evidence-Grounded and Actionable Feedback for Scientific Papers in Progress", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2504.15585", "layer": "axhot", "cat_group": "cs", "title": "A Comprehensive Survey in LLM(-Agent) Full Stack Safety: Data, Training  and Deployment", "src": "alphaxiv:Views/All time;Likes/All time"}
+{"id": "2505.11409", "layer": "axhot", "cat_group": "cs", "title": "Visual Planning: Let's Think Only with Images", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.19765", "layer": "axhot", "cat_group": "eess", "title": "Multimodal Conversational Context for LLM-Based ASR: Data Construction, Training, and Benchmark", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2504.13171", "layer": "axhot", "cat_group": "cs", "title": "Sleep-time Compute: Beyond Inference Scaling at Test-time", "src": "alphaxiv:Views/All time"}
+{"id": "2503.16430", "layer": "axhot", "cat_group": "cs", "title": "Bridging Continuous and Discrete Tokens for Autoregressive Visual Generation", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.20155", "layer": "axhot", "cat_group": "astro-ph", "title": "Thermal Evolution of Lava Planets Across System Ages: Predictions for Hell of a Survey", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2210.03629", "layer": "axhot", "cat_group": "cs", "title": "ReAct: Synergizing Reasoning and Acting in Language Models", "src": "alphaxiv:Views/All time"}
+{"id": "2504.15777", "layer": "axhot", "cat_group": "cs", "title": "Tina: Tiny Reasoning Models via LoRA", "src": "alphaxiv:Views/All time;Likes/All time"}
+{"id": "2609.19976", "layer": "axhot", "cat_group": "cs", "title": "Compliance for Free: Learning Identifiable Impedance via Bilateral Teleoperation", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2504.03871", "layer": "axhot", "cat_group": "cs", "title": "HeterMoE: Efficient Training of Mixture-of-Experts Models on  Heterogeneous GPUs", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.19252", "layer": "axhot", "cat_group": "hep-th", "title": "Cosmological Correlators from Scattering Amplitudes: A Review", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2104.09864", "layer": "axhot", "cat_group": "cs", "title": "RoFormer: Enhanced Transformer with Rotary Position Embedding", "src": "alphaxiv:Views/All time;Likes/All time"}
+{"id": "2504.07086", "layer": "axhot", "cat_group": "cs", "title": "A Sober Look at Progress in Language Model Reasoning: Pitfalls and Paths to Reproducibility", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.20589", "layer": "axhot", "cat_group": "cs", "title": "RawSLAM: Online HDR Gaussian SLAM from Linear Radiance", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2407.21783", "layer": "axhot", "cat_group": "cs", "title": "The Llama 3 Herd of Models", "src": "alphaxiv:Views/All time"}
+{"id": "2503.23674", "layer": "axhot", "cat_group": "cs", "title": "Large Language Models Pass the Turing Test", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.19962", "layer": "axhot", "cat_group": "cs", "title": "Hybrid Residual Reinforcement Learning for Contact-Rich Robotic Book Insertion", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2504.00206", "layer": "axhot", "cat_group": "cs", "title": "SPRING: Systematic Profiling of Randomly Interconnected Neural Networks  Generated by HLS", "src": "alphaxiv:Views/All time"}
+{"id": "2503.13709", "layer": "axhot", "cat_group": "cs", "title": "Multi-modal Time Series Analysis: A Tutorial and Survey", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.18232", "layer": "axhot", "cat_group": "cs", "title": "UMI-Bridge: Action-Anchored Latent Alignment across Human and Robot Manipulation Data", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2502.11089", "layer": "axhot", "cat_group": "cs", "title": "Native Sparse Attention: Hardware-Aligned and Natively Trainable Sparse  Attention", "src": "alphaxiv:Views/All time;Likes/All time"}
+{"id": "2510.04871", "layer": "axhot", "cat_group": "cs", "title": "Less is More: Recursive Reasoning with Tiny Networks", "src": "alphaxiv:Views/All time;Likes/All time"}
+{"id": "2609.19445", "layer": "axhot", "cat_group": "cs", "title": "From Models to Systems: A Comprehensive Survey of Efficient Multimodal Learning", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2504.05118", "layer": "axhot", "cat_group": "cs", "title": "VAPO: Efficient and Reliable Reinforcement Learning for Advanced  Reasoning Tasks", "src": "alphaxiv:Views/All time"}
+{"id": "2012.04327", "layer": "axhot", "cat_group": "cs", "title": "Settling the complexity of Nash equilibrium in congestion games", "src": "alphaxiv:Likes/All time"}
+{"id": "2010.11929", "layer": "axhot", "cat_group": "cs", "title": "An Image is Worth 16x16 Words: Transformers for Image Recognition at\n  Scale", "src": "alphaxiv:Views/All time"}
+{"id": "2504.04022", "layer": "axhot", "cat_group": "cs", "title": "Rethinking Reflection in Pre-Training", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.15309", "layer": "axhot", "cat_group": "cs", "title": "When Agents Slow Down: Understanding LLM Agents' Test-Time Strategies via Elo-per-token Analysis", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2504.16054", "layer": "axhot", "cat_group": "cs", "title": "$π_{0.5}$: a Vision-Language-Action Model with Open-World  Generalization", "src": "alphaxiv:Views/All time"}
+{"id": "2502.17437", "layer": "axhot", "cat_group": "cs", "title": "Fractal Generative Models", "src": "alphaxiv:Views/All time;Likes/All time"}
+{"id": "2609.16182", "layer": "axhot", "cat_group": "math", "title": "GPU-Accelerated Presolving for Linear Programming", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2504.21463", "layer": "axhot", "cat_group": "cs", "title": "RWKV-X: A Linear Complexity Hybrid Language Model", "src": "alphaxiv:Views/All time"}
+{"id": "2504.05304", "layer": "axhot", "cat_group": "cs", "title": "Gaussian Mixture Flow Matching Models", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.20789", "layer": "axhot", "cat_group": "cs", "title": "Mutual Evaluation and Supervision without Peers", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2502.03387", "layer": "axhot", "cat_group": "cs", "title": "LIMO: Less is More for Reasoning", "src": "alphaxiv:Views/All time"}
+{"id": "2503.23829", "layer": "axhot", "cat_group": "cs", "title": "Crossing the Reward Bridge: Expanding RL with Verifiable Rewards Across  Diverse Domains", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.20769", "layer": "axhot", "cat_group": "cs", "title": "FlowSGS: Improving Flow Matching Priors for Inverse Imaging with Stochastic Interpolants", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "1910.10683", "layer": "axhot", "cat_group": "cs", "title": "Exploring the Limits of Transfer Learning with a Unified Text-to-Text\n  Transformer", "src": "alphaxiv:Views/All time"}
+{"id": "2504.08334", "layer": "axhot", "cat_group": "cs", "title": "Efficient Architecture for RISC-V Vector Memory Access", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.20039", "layer": "axhot", "cat_group": "physics", "title": "When higher-order interactions matter: reducibility, parsimony, and microscopic organization", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2410.18037", "layer": "axhot", "cat_group": "quant-ph", "title": "Quantum optomechanical control of long-lived bulk acoustic phonons", "src": "alphaxiv:Views/All time"}
+{"id": "2512.24601", "layer": "axhot", "cat_group": "cs", "title": "Recursive Language Models", "src": "alphaxiv:Views/All time;Likes/All time"}
+{"id": "2212.09748", "layer": "axhot", "cat_group": "cs", "title": "Scalable Diffusion Models with Transformers", "src": "alphaxiv:Views/All time"}
+{"id": "2503.22674", "layer": "axhot", "cat_group": "cs", "title": "QuestBench: Can LLMs ask the right question to acquire information in reasoning tasks?", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.20398", "layer": "axhot", "cat_group": "cs", "title": "Schema-Anchored Latent Reasoning for Semantic Parsing-Based Knowledge Base Question Answering", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2210.15097", "layer": "axhot", "cat_group": "cs", "title": "Contrastive Decoding: Open-ended Text Generation as Optimization", "src": "alphaxiv:Views/All time"}
+{"id": "2504.03160", "layer": "axhot", "cat_group": "cs", "title": "DeepResearcher: Scaling Deep Research via Reinforcement Learning in  Real-world Environments", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.19927", "layer": "axhot", "cat_group": "cs", "title": "DirtyMoCap: Robust Motion Capture from Unconstrained Markers", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2412.06769", "layer": "axhot", "cat_group": "cs", "title": "Training Large Language Models to Reason in a Continuous Latent Space", "src": "alphaxiv:Views/All time;Likes/All time"}
+{"id": "2505.06111", "layer": "axhot", "cat_group": "cs", "title": "UniVLA: Learning to Act Anywhere with Task-centric Latent Actions", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.20733", "layer": "axhot", "cat_group": "math", "title": "Robust Multi-Task Learning for Principal Component Analysis", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2510.04618", "layer": "axhot", "cat_group": "cs", "title": "Agentic Context Engineering: Evolving Contexts for Self-Improving Language Models", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.20355", "layer": "axhot", "cat_group": "astro-ph", "title": "Exoplanet detection through photometric orbital phase modulations", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2406.09246", "layer": "axhot", "cat_group": "cs", "title": "OpenVLA: An Open-Source Vision-Language-Action Model", "src": "alphaxiv:Views/All time;Likes/All time"}
+{"id": "2504.14870", "layer": "axhot", "cat_group": "cs", "title": "Acting Less is Reasoning More! Teaching Model to Act Efficiently", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.20693", "layer": "axhot", "cat_group": "quant-ph", "title": "TetrisCNN for interpretable detection of phases of matter from experimental quantum simulator data", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2503.13657", "layer": "axhot", "cat_group": "cs", "title": "Why Do Multi-Agent LLM Systems Fail?", "src": "alphaxiv:Views/All time"}
+{"id": "2503.23278", "layer": "axhot", "cat_group": "cs", "title": "Model Context Protocol (MCP): Landscape, Security Threats, and Future Research Directions", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.14708", "layer": "axhot", "cat_group": "cs", "title": "Lightning Weave: Improving the Accuracy-Efficiency Frontier of Reasoning Models through Capability Composition", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2505.04180", "layer": "axhot", "cat_group": "cs", "title": "Towards Large-scale Generative Ranking", "src": "alphaxiv:Views/All time"}
+{"id": "2504.07448", "layer": "axhot", "cat_group": "cs", "title": "LoRI: Reducing Cross-Task Interference in Multi-Task Low-Rank Adaptation", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.20666", "layer": "axhot", "cat_group": "physics", "title": "Molecular Geometry Understanding Has Unintendedly Emerged in Frontier Large Language Models", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2505.05522", "layer": "axhot", "cat_group": "cs", "title": "Continuous Thought Machines", "src": "alphaxiv:Views/All time;Likes/All time"}
+{"id": "2607.05147", "layer": "axhot", "cat_group": "cs", "title": "DSpark: Confidence-Scheduled Speculative Decoding with Semi-Autoregressive Generation", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.20632", "layer": "axhot", "cat_group": "math", "title": "Physical and emergent nonpairwise interactions in oscillator networks: from higher-order phase reduction to coupling design", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "1806.07366", "layer": "axhot", "cat_group": "cs", "title": "Neural Ordinary Differential Equations", "src": "alphaxiv:Views/All time"}
+{"id": "2505.19590", "layer": "axhot", "cat_group": "cs", "title": "Learning to Reason without External Rewards", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.20582", "layer": "axhot", "cat_group": "cs", "title": "V2-STRep: VLM-Grounded Structured Task Representations for Reusable Robot Skills Acquired from Generated Videos", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2503.23463", "layer": "axhot", "cat_group": "cs", "title": "OpenDriveVLA: Towards End-to-end Autonomous Driving with Large Vision Language Action Model", "src": "alphaxiv:Views/All time"}
+{"id": "2504.19678", "layer": "axhot", "cat_group": "cs", "title": "From LLM Reasoning to Autonomous AI Agents: A Comprehensive Review", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.18259", "layer": "axhot", "cat_group": "cs", "title": "M2Tok: Multi-head Multi-codebook Discrete Action Tokenization for Vision-Language-Action Models", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2401.18079", "layer": "axhot", "cat_group": "cs", "title": "KVQuant: Towards 10 Million Context Length LLM Inference with KV Cache  Quantization", "src": "alphaxiv:Views/All time"}
+{"id": "2504.11456", "layer": "axhot", "cat_group": "cs", "title": "DeepMath-103K: A Large-Scale, Challenging, Decontaminated, and  Verifiable Mathematical Dataset for Advancing Reasoning", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.19729", "layer": "axhot", "cat_group": "cs", "title": "Recency Forcing: Bridging the Long-Horizon Gap in Autoregressive Video Generation", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2410.11758", "layer": "axhot", "cat_group": "cs", "title": "Latent Action Pretraining from Videos", "src": "alphaxiv:Views/All time"}
+{"id": "2504.15228", "layer": "axhot", "cat_group": "cs", "title": "A Self-Improving Coding Agent", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.19261", "layer": "axhot", "cat_group": "hep-th", "title": "Schwarzschild Black Hole in Uniform Magnetic Field in Einstein-Maxwell-Dilaton Theories", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2503.16248", "layer": "axhot", "cat_group": "cs", "title": "Real AI Agents with Fake Memories: Fatal Context Manipulation Attacks on Web3 Agents", "src": "alphaxiv:Views/All time"}
+{"id": "2509.20328", "layer": "axhot", "cat_group": "cs", "title": "Video models are zero-shot learners and reasoners", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.20553", "layer": "axhot", "cat_group": "math", "title": "Conductor-Discriminant Inequality for Tamely Ramified Cyclic Covers I", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2504.13173", "layer": "axhot", "cat_group": "cs", "title": "It's All Connected: A Journey Through Test-Time Memorization,  Attentional Bias, Retention, and Online Optimization", "src": "alphaxiv:Views/All time"}
+{"id": "2504.10483", "layer": "axhot", "cat_group": "cs", "title": "REPA-E: Unlocking VAE for End-to-End Tuning with Latent Diffusion Transformers", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.19418", "layer": "axhot", "cat_group": "econ", "title": "Stable Policy Learning", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2505.00949", "layer": "axhot", "cat_group": "cs", "title": "Llama-Nemotron: Efficient Reasoning Models", "src": "alphaxiv:Views/All time;Likes/All time"}
+{"id": "2609.20399", "layer": "axhot", "cat_group": "math", "title": "SIPHy: Sparse identification of port-Hamiltonian systems from noisy data", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2505.17667", "layer": "axhot", "cat_group": "cs", "title": "QwenLong-L1: Towards Long-Context Large Reasoning Models with  Reinforcement Learning", "src": "alphaxiv:Views/All time;Likes/All time"}
+{"id": "2603.10165", "layer": "axhot", "cat_group": "cs", "title": "OpenClaw-RL: Train Any Agent Simply by Talking", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.19610", "layer": "axhot", "cat_group": "cs", "title": "SIMLIFE: Pattern Understanding for Long-Horizon Human-Agent Partnership", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2501.00663", "layer": "axhot", "cat_group": "cs", "title": "Titans: Learning to Memorize at Test Time", "src": "alphaxiv:Views/All time"}
+{"id": "2503.21776", "layer": "axhot", "cat_group": "cs", "title": "Video-R1: Reinforcing Video Reasoning in MLLMs", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.20493", "layer": "axhot", "cat_group": "hep-th", "title": "Four-Point Yang-Mills Correlators in AdS$_4$ from All-Line Recursion: All-Plus, Single-Minus and MHV", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2503.17856", "layer": "axhot", "cat_group": "cs", "title": "ClaraVid: A Holistic Scene Reconstruction Benchmark From Aerial Perspective With Delentropy-Based Complexity Profiling", "src": "alphaxiv:Views/All time"}
+{"id": "2606.30534", "layer": "axhot", "cat_group": "cs", "title": "Orca: The World is in Your Mind", "src": "alphaxiv:Likes/All time"}
+{"id": "2505.22954", "layer": "axhot", "cat_group": "cs", "title": "Darwin Godel Machine: Open-Ended Evolution of Self-Improving Agents", "src": "alphaxiv:Views/All time;Likes/All time"}
+{"id": "2504.05979", "layer": "axhot", "cat_group": "cs", "title": "An Empirical Study of GPT-4o Image Generation Capabilities", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.19582", "layer": "axhot", "cat_group": "cs", "title": "OmniCalib: Target-Free, Task-Structured Self-Calibration for Humanoid Robots", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2504.21801", "layer": "axhot", "cat_group": "cs", "title": "DeepSeek-Prover-V2: Advancing Formal Mathematical Reasoning via Reinforcement Learning for Subgoal Decomposition", "src": "alphaxiv:Views/All time;Likes/All time"}
+{"id": "2504.06256", "layer": "axhot", "cat_group": "cs", "title": "Transfer between Modalities with MetaQueries", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.20464", "layer": "axhot", "cat_group": "quant-ph", "title": "Neutral atom quantum computing for materials science and quantum chemistry", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2505.05410", "layer": "axhot", "cat_group": "cs", "title": "Reasoning Models Don't Always Say What They Think", "src": "alphaxiv:Views/All time"}
+{"id": "2503.09573", "layer": "axhot", "cat_group": "cs", "title": "Block Diffusion: Interpolating Between Autoregressive and Diffusion  Language Models", "src": "alphaxiv:Views/All time;Likes/All time"}
+{"id": "2506.09250", "layer": "axhot", "cat_group": "cs", "title": "Comment on The Illusion of Thinking: Understanding the Strengths and  Limitations of Reasoning Models via the Lens of Problem Complexity", "src": "alphaxiv:Views/All time;Likes/All time"}
+{"id": "2601.19897", "layer": "axhot", "cat_group": "cs", "title": "Self-Distillation Enables Continual Learning", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.20442", "layer": "axhot", "cat_group": "astro-ph", "title": "ELUCID. IX. Recovering the Substructures and History of the Coma Cluster", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2503.18945", "layer": "axhot", "cat_group": "cs", "title": "Aether: Geometric-Aware Unified World Modeling", "src": "alphaxiv:Views/All time"}
+{"id": "2504.09897", "layer": "axhot", "cat_group": "cs", "title": "TAMP: Token-Adaptive Layerwise Pruning in Multimodal Large Language  Models", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.20012", "layer": "axhot", "cat_group": "cs", "title": "GRF-Recon: Global Ray-Field Optimization for Long-Sequence Feed-forward Reconstruction", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2405.14093", "layer": "axhot", "cat_group": "cs", "title": "A Survey on Vision-Language-Action Models for Embodied AI", "src": "alphaxiv:Views/All time"}
+{"id": "2504.01017", "layer": "axhot", "cat_group": "cs", "title": "Scaling Language-Free Visual Representation Learning", "src": "alphaxiv:Views/All time"}
+{"id": "2511.13720", "layer": "axhot", "cat_group": "cs", "title": "Back to Basics: Let Denoising Generative Models Denoise", "src": "alphaxiv:Views/All time;Likes/All time"}
+{"id": "2504.03598", "layer": "axhot", "cat_group": "cs", "title": "EnrichIndex: Using LLMs to Enrich Retrieval Indices Offline", "src": "alphaxiv:Likes/All time"}
+{"id": "2412.15115", "layer": "axhot", "cat_group": "cs", "title": "Qwen2.5 Technical Report", "src": "alphaxiv:Views/All time"}
+{"id": "2504.11741", "layer": "axhot", "cat_group": "cs", "title": "Climbing the Ladder of Reasoning: What LLMs Can-and Still Can't-Solve after SFT?", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.19988", "layer": "axhot", "cat_group": "cs", "title": "Equivalence Between Nested Gibbs Measures and Log-Linear Combinations of Gibbs Measures", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2409.06289", "layer": "axhot", "cat_group": "q-fin", "title": "Automate Strategy Finding with LLM in Quant Investment", "src": "alphaxiv:Views/All time"}
+{"id": "2603.28052", "layer": "axhot", "cat_group": "cs", "title": "Meta-Harness: End-to-End Optimization of Model Harnesses", "src": "alphaxiv:Views/All time;Likes/All time"}
+{"id": "2210.02747", "layer": "axhot", "cat_group": "cs", "title": "Flow Matching for Generative Modeling", "src": "alphaxiv:Views/All time"}
+{"id": "2503.16219", "layer": "axhot", "cat_group": "cs", "title": "Reinforcement Learning for Reasoning in Small LLMs: What Works and What Doesn't", "src": "alphaxiv:Likes/All time"}
+{"id": "2201.11903", "layer": "axhot", "cat_group": "cs", "title": "Chain-of-Thought Prompting Elicits Reasoning in Large Language Models", "src": "alphaxiv:Views/All time"}
+{"id": "2502.09992", "layer": "axhot", "cat_group": "cs", "title": "Large Language Diffusion Models", "src": "alphaxiv:Likes/All time"}
+{"id": "2504.16053", "layer": "axhot", "cat_group": "cs", "title": "LongMamba: Enhancing Mamba's Long Context Capabilities via Training-Free  Receptive Field Enlargement", "src": "alphaxiv:Views/All time"}
+{"id": "2302.00487", "layer": "axhot", "cat_group": "cs", "title": "A Comprehensive Survey of Continual Learning: Theory, Method and\n  Application", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.20801", "layer": "axhot", "cat_group": "hep-ph", "title": "The axion mass in the post-inflationary scenario in a minimal scaling model", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2501.07263", "layer": "axhot", "cat_group": "physics", "title": "Sensing with near-infrared laser trapped fluorescent nanodiamonds", "src": "alphaxiv:Views/All time"}
+{"id": "2504.13161", "layer": "axhot", "cat_group": "cs", "title": "Nemotron-CLIMB: CLustering-based Iterative Data Mixture Bootstrapping for Language Model Pre-training", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.20791", "layer": "axhot", "cat_group": "cs", "title": "StageGuard: Learning Stage Transitions for Long-Horizon Robot Tasks via Agentic Distillation", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2503.07565", "layer": "axhot", "cat_group": "cs", "title": "Inductive Moment Matching", "src": "alphaxiv:Views/All time"}
+{"id": "2508.21038", "layer": "axhot", "cat_group": "cs", "title": "On the Theoretical Limitations of Embedding-Based Retrieval", "src": "alphaxiv:Views/All time;Likes/All time"}
+{"id": "2609.20790", "layer": "axhot", "cat_group": "math", "title": "Generic Uniqueness of Isoperimetric Regions in Arbitrary Dimension", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2504.11343", "layer": "axhot", "cat_group": "cs", "title": "A Minimalist Approach to LLM Reasoning: from Rejection Sampling to  Reinforce", "src": "alphaxiv:Views/All time"}
+{"id": "2505.00551", "layer": "axhot", "cat_group": "cs", "title": "100 Days After DeepSeek-R1: A Survey on Replication Studies and More  Directions for Reasoning Language Models", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.20788", "layer": "axhot", "cat_group": "hep-th", "title": "Looking inside a quantum black hole", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2503.15485", "layer": "axhot", "cat_group": "cs", "title": "TULIP: Towards Unified Language-Image Pretraining", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.19744", "layer": "axhot", "cat_group": "math", "title": "Chow Vanishing and Motives of Cluster Varieties", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2504.13079", "layer": "axhot", "cat_group": "cs", "title": "Retrieval-Augmented Generation with Conflicting Evidence", "src": "alphaxiv:Views/All time"}
+{"id": "2503.09572", "layer": "axhot", "cat_group": "cs", "title": "Plan-and-Act: Improving Planning of Agents for Long-Horizon Tasks", "src": "alphaxiv:Views/All time;Likes/All time"}
+{"id": "2609.20759", "layer": "axhot", "cat_group": "physics", "title": "Is higher-order physics different?", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2502.07345", "layer": "axhot", "cat_group": "cs", "title": "Advanced Zero-Shot Text-to-Speech for Background Removal and  Preservation with Controllable Masked Speech Prediction", "src": "alphaxiv:Views/All time"}
+{"id": "2510.11690", "layer": "axhot", "cat_group": "cs", "title": "Diffusion Transformers with Representation Autoencoders", "src": "alphaxiv:Likes/All time"}
+{"id": "2504.18458", "layer": "axhot", "cat_group": "cs", "title": "Fast-Slow Thinking GRPO for Large Vision-Language Model Reasoning", "src": "alphaxiv:Views/All time;Likes/All time"}
+{"id": "2609.19613", "layer": "axhot", "cat_group": "cs", "title": "TacSushi: Tactile-Grounded World-Action Modeling for Dexterous Sushi Manipulation", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2404.19756", "layer": "axhot", "cat_group": "cs", "title": "KAN: Kolmogorov-Arnold Networks", "src": "alphaxiv:Views/All time"}
+{"id": "2601.07372", "layer": "axhot", "cat_group": "cs", "title": "Conditional Memory via Scalable Lookup: A New Axis of Sparsity for Large Language Models", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.18805", "layer": "axhot", "cat_group": "cs", "title": "ProgramDistill: From Interactive Web Apps to Verifiable Reference-Guided SWE Tasks", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2502.12110", "layer": "axhot", "cat_group": "cs", "title": "A-MEM: Agentic Memory for LLM Agents", "src": "alphaxiv:Views/All time"}
+{"id": "2609.20723", "layer": "axhot", "cat_group": "cs", "title": "PixelFlow: Token-Level Workload Management for Efficient Distributed DiT Serving", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "1710.09829", "layer": "axhot", "cat_group": "cs", "title": "Dynamic Routing Between Capsules", "src": "alphaxiv:Views/All time"}
+{"id": "2504.15280", "layer": "axhot", "cat_group": "cs", "title": "Seeing from Another Perspective: Evaluating Multi-View Understanding in  MLLMs", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.20720", "layer": "axhot", "cat_group": "cs", "title": "What Parents Can See: Divergent Accounts of Youth AI Companion Use in Parenting and Teenager Subreddits", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2504.08528", "layer": "axhot", "cat_group": "cs", "title": "On The Landscape of Spoken Language Models: A Comprehensive Survey", "src": "alphaxiv:Views/All time"}
+{"id": "2504.16891", "layer": "axhot", "cat_group": "cs", "title": "AIMO-2 Winning Solution: Building State-of-the-Art Mathematical  Reasoning Models with OpenMathReasoning dataset", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.20701", "layer": "axhot", "cat_group": "math", "title": "Stable Movement for Nondual Lipschitz Convex Optimization: Efficiency and Nearly Optimal Oracle Rates", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2502.20824", "layer": "axhot", "cat_group": "cs", "title": "MFSR-GAN: Multi-Frame Super-Resolution with Handheld Motion Modeling", "src": "alphaxiv:Views/All time"}
+{"id": "2606.02800", "layer": "axhot", "cat_group": "cs", "title": "Cosmos 3: Omnimodal World Models for Physical AI", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.20690", "layer": "axhot", "cat_group": "math", "title": "A counterexample to the quantum Hedetniemi conjecture", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2609.20687", "layer": "axhot", "cat_group": "math", "title": "The First-Order Oracle Complexity of Lipschitz Convex Optimization in Nondual Settings", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2507.15855", "layer": "axhot", "cat_group": "cs", "title": "Winning Gold at IMO 2025 with a Model-Agnostic Verification-and-Refinement Pipeline", "src": "alphaxiv:Views/All time;Likes/All time"}
+{"id": "2504.17068", "layer": "axhot", "cat_group": "cs", "title": "In-Context Learning can distort the relationship between sequence  likelihoods and biological fitness", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.19875", "layer": "axhot", "cat_group": "cs", "title": "BINDER: A Latent Variable Model for Probabilistic Medical Image Registration", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2503.20314", "layer": "axhot", "cat_group": "cs", "title": "Wan: Open and Advanced Large-Scale Video Generative Models", "src": "alphaxiv:Views/All time"}
+{"id": "2103.00020", "layer": "axhot", "cat_group": "cs", "title": "Learning Transferable Visual Models From Natural Language Supervision", "src": "alphaxiv:Likes/All time"}
+{"id": "2501.07800", "layer": "axhot", "cat_group": "cs", "title": "BioPose: Biomechanically-accurate 3D Pose Estimation from Monocular Videos", "src": "alphaxiv:Views/All time"}
+{"id": "2503.18892", "layer": "axhot", "cat_group": "cs", "title": "SimpleRL-Zoo: Investigating and Taming Zero Reinforcement Learning for Open Base Models in the Wild", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.20100", "layer": "axhot", "cat_group": "cs", "title": "A Smaller Transformer in Your Transformer", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2410.06940", "layer": "axhot", "cat_group": "cs", "title": "Representation Alignment for Generation: Training Diffusion Transformers  Is Easier Than You Think", "src": "alphaxiv:Views/All time"}
+{"id": "2503.24377", "layer": "axhot", "cat_group": "cs", "title": "Harnessing the Reasoning Economy: A Survey of Efficient Reasoning for Large Language Models", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.20663", "layer": "axhot", "cat_group": "gr-qc", "title": "Entropy, area, and the choice of regulator during gravitational collapse", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2112.10752", "layer": "axhot", "cat_group": "cs", "title": "High-Resolution Image Synthesis with Latent Diffusion Models", "src": "alphaxiv:Views/All time"}
+{"id": "2503.19312", "layer": "axhot", "cat_group": "cs", "title": "ImageGen-CoT: Enhancing Text-to-Image In-context Learning with  Chain-of-Thought Reasoning", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.18242", "layer": "axhot", "cat_group": "cs", "title": "ForceDelta-VLA: Distilling Force-Conditioned ActionCorrections for Contact-Rich Manipulation", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2504.07491", "layer": "axhot", "cat_group": "cs", "title": "Kimi-VL Technical Report", "src": "alphaxiv:Views/All time"}
+{"id": "2505.13379", "layer": "axhot", "cat_group": "cs", "title": "Thinkless: LLM Learns When to Think", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.20638", "layer": "axhot", "cat_group": "cs", "title": "PROVIA: Procedure State Tracking for Online Mistake Detection in Egocentric Videos", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2505.00687", "layer": "axhot", "cat_group": "eess", "title": "GuideSR: Rethinking Guidance for One-Step High-Fidelity Diffusion-Based  Super-Resolution", "src": "alphaxiv:Views/All time"}
+{"id": "2504.05419", "layer": "axhot", "cat_group": "cs", "title": "Reasoning Models Know When They're Right: Probing Hidden States for  Self-Verification", "src": "alphaxiv:Likes/All time"}
+{"id": "2404.04211", "layer": "axhot", "cat_group": "cs", "title": "Robust Gaussian Splatting", "src": "alphaxiv:Views/All time"}
+{"id": "2608.09867", "layer": "axhot", "cat_group": "cs", "title": "Stealing Reasoning Traces from Proprietary LLM APIs", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.15903", "layer": "axhot", "cat_group": "cs", "title": "Discrete Beckmann Transport Models for One-Step Language Modeling and Reasoning", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
+{"id": "2505.05470", "layer": "axhot", "cat_group": "cs", "title": "Flow-GRPO: Training Flow Matching Models via Online RL", "src": "alphaxiv:Views/All time;Likes/All time"}
+{"id": "2606.19348", "layer": "axhot", "cat_group": "cs", "title": "DeepSeek-V4: Towards Highly Efficient Million-Token Context Intelligence", "src": "alphaxiv:Likes/All time"}
+{"id": "2609.16676", "layer": "axhot", "cat_group": "math", "title": "When can a power series be analytically continued?", "src": "alphaxiv:Hot/90 Days;Hot/30 Days"}
