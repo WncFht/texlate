@@ -188,6 +188,51 @@ rules:
     stats: { fires: 4, rescued_cells: 4 }
     source_ref: "fixloop.py L378-393"
 
+  # 2026-09-20 microtypelis lane (soak-2026-09-18 普查 5 格同签):
+  # ICLR-2027 系 doc-shipped cls (applemlr/onethree/style/technical_report)
+  # 模板段 ``\DisableLigatures[f]{family=sf*}`` —— microtype 该 cs 仅
+  # pdfTeX≥1.30/LuaTeX 可达, XeTeX 族 (xelatex/tectonic) 下抛可恢复
+  # \PackageError "Disabling ligatures of a font is only possible with
+  # pdftex version 1.30 or newer. Ignoring \DisableLigatures." —— PDF 照出
+  # 但 error 计数使 verdict 落 best_effort_pdf。file-line 形签名归 other;
+  # 与 microtype_off 的 xetexglyph_tfm 主场分臂 (触发面与动作皆异——
+  # 同改 usepackage 行会顺带关 protrusion/expansion, 超出本错所需)。
+  # 修 = 行注释中和: microtype 自报 "Ignoring" 即本引擎下该调用本就空转,
+  # 注释零语义差; masked 面挡 verbatim/已注释行重复点火。
+  - id: microtype_lig_off
+    description: "microtype \\DisableLigatures (pdfTeX/LuaTeX 专属 cs) → XeTeX 族下注释中和"
+    phase: loop
+    order: 71 # microtype_off(70) 同族邻位; other+ctx 臂与 xetexglyph_tfm 臂互不抢签
+    when: { category: other }
+    condition:
+      ctx_suggests: "Disabling ligatures"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty, .cls]
+        rewrites:
+          - {
+              pattern: "^[ \\t]*\\\\DisableLigatures\\b[^\\n]*",
+              repl: "%\\g<0>",
+              flags: [MULTILINE],
+              match_surface: masked,
+            }
+    risk: low # 本引擎下该调用恒被 microtype Ignoring, 注释即其自身语义
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same } # tectonic XeTeX 血统同不可达该 cs
+    provenance:
+      - {
+          corpus: "soak-2026-09-18 (2609.19356/19911/20511/20581/20804; ICLR-2027 系 doc-shipped cls)",
+          error: "Package microtype Error: Disabling ligatures of a font is only possible with pdftex version 1.30 or newer",
+        }
+      - {
+          corpus: "stagerun-m1k-2026-09-19 (2412.06264/2504.01017) + soak-2026-09-18 (2609.19664); fairmeta.cls 同签第二容器",
+          error: "fairmeta.cls:25: Package microtype Error: Disabling ligatures ... (同 ICLR 簇 \\DisableLigatures[f]{family=sf*})",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "microtype.sty \\DisableLigatures pdfTeX/LuaTeX 引擎闸; tmp/lane-microtypelis/"
+
   - id: times_to_newtx
     description: "times/mathptmx/mathptm (T1 TFM 字体族) → newtxtext/newtxmath (OTF)"
     phase: loop
