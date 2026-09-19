@@ -525,3 +525,83 @@ def accent_mark_fix(
             n = _inject_fallback_lines(ctx, sorted(map(ord, composed)), font)
             done.append(f"self-injected newunicodechar fallback x{n}")
     return True, "; ".join(done)
+
+
+# ════════════════════════════════════════════════════════════════
+# macro_glyph_fix: 宏生成缺字 cs → 站点级源改写 (F4e)
+# ════════════════════════════════════════════════════════════════
+
+#: 无参符号 cs → (产出码位, 双模安全替换串): 字形由 cs 展开所产非输入
+#: 字符 —— char_table ``replace`` 字面替换与 ``\newunicodechar`` 活动字符
+#: 绑定都够不到 (utf8census rebucket-misschar-site-rewrite ×2 实证):
+#: ``\texttildelow`` 产 U+02F7 (2308.04265 ``\raisebox{0.5ex}{\texttildelow}``
+#: 文本域站点, lmroman10 无槽); ``\textlangle``/``\textrangle`` 产
+#: U+2329/232A (2403.00011 ``\qdist`` 宏体在文本域定义、数学域展开,
+#: zptmcmr 无槽 + invalid-in-math warning)。替换串一律 ``\ensuremath``
+#: 双模: 定义点与展开点可分居两域, 站点域判不准, 双模串两侧恒正。
+_MACRO_GLYPH_CS: dict[str, tuple[int, str]] = {
+    "texttildelow": (0x02F7, "\\ensuremath{\\sim}"),
+    "textlangle": (0x2329, "\\ensuremath{\\langle}"),
+    "textrangle": (0x232A, "\\ensuremath{\\rangle}"),
+}
+
+
+def _macro_glyph_fix_text(t: str, sites: dict[str, str]) -> tuple[str, int]:
+    r"""``\\<cs>`` 站点逐改写 → (新文本, 改写站点数)。
+
+    遮盖视图取 offset 回原文回放 —— verbatim/失活环境/注释内同名 cs 不动;
+    ``(?![a-zA-Z@])`` 尾界防 ``\textlangleX`` 长名误吃。
+    """
+    masked = mask_tex(t)
+    edits: list[tuple[int, int, str]] = []
+    for cs, rep in sites.items():
+        edits.extend(
+            (m.start(), m.end(), rep)
+            for m in re.compile(rf"\\{re.escape(cs)}(?![a-zA-Z@])").finditer(masked)
+        )
+    if not edits:
+        return t, 0
+    edits.sort()
+    out: list[str] = []
+    prev = 0
+    for s, e, r in edits:
+        out.append(t[prev:s])
+        out.append(r)
+        prev = e
+    out.append(t[prev:])
+    return "".join(out), len(edits)
+
+
+def macro_glyph_fix(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""宏生成缺字 → cs 站点改写双模安全替换串 (F4e)。
+
+    双门触发: 缺字码位 ∈ ``_MACRO_GLYPH_CS`` 产出表 ∧ cs 站点在源 ——
+    字形由 cs 展开所产, 字面替换/newunicodechar 皆不可达; 字体真有该
+    字形的站点 (产出码位不进缺字表) 静默不动。``params.exts`` 覆盖文件
+    面 (缺省 .tex/.bbl/.cls)。
+    """
+    del eng, payload
+    log = _compile_log_text(ctx)
+    if not log:
+        return False, "no compile log with Missing character found"
+    seen = _mc_parse_log(log)
+    sites = {cs: rep for cs, (cp, rep) in _MACRO_GLYPH_CS.items() if cp in seen}
+    if not sites:
+        return False, "no macro-generated missing chars"
+    exts = tuple(params.get("exts") or (".tex", ".bbl", ".cls"))
+    n_sites = 0
+    n_files = 0
+    for f in ctx.tex_files(exts):
+        t = ctx.read(f)
+        if t is None:
+            continue
+        nt, n = _macro_glyph_fix_text(t, sites)
+        if n and nt != t:
+            ctx.write(f, nt)
+            n_sites += n
+            n_files += 1
+    if not n_sites:
+        return False, "macro-generated cps missing but no cs sites in source"
+    return True, f"macro glyph sites rewritten: {n_sites} in {n_files} file(s)"

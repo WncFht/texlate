@@ -57,6 +57,7 @@ rules:
           - { id: divide, cps: [0x00F7], replace: "\\ensuremath{\\div}" }
           - { id: ij_lig, cps: [0x0133], replace: "\\mbox{\\ij}" }
           - { id: ij_lig_up, cps: [0x0132], replace: "\\mbox{\\IJ}" }
+          - { id: hyphen, cps: [0x2010], replace: "\\mbox{-}" }
           - { id: endash, cps: [0x2013], replace: "\\mbox{--}" }
           - { id: emdash, cps: [0x2014], replace: "\\mbox{---}" }
           - { id: lsquo, cps: [0x2018], replace: "\\mbox{`}" }
@@ -70,9 +71,14 @@ rules:
           # ── outband 覆盖 (scout-misschar-coverage 2026-09-17, ×13 pids) ──
           # FFFD 替换符 = 源 mojibake 破折号 (bibitem 页码 '2481–2508') → 连字符
           - { id: fffd_repl, cps: [0xFFFD], replace: "-" }
-          # C1 控制符 / LRM / ZWSP / BOM —— 零宽不可见, 空组剥除
+          # C1 控制符 / LRM / ZWSP / BOM —— 零宽不可见, 空组剥除;
+          # misscharext 补完 200B-200F Cf 块 (2410.00026 ZWNJ bib→bbl)
           - { id: c1_ctrl, ranges: [[0x80, 0x9F]], replace: "{}" }
-          - { id: zero_width, cps: [0x200B, 0x200E, 0xFEFF], replace: "{}" }
+          - {
+              id: zero_width,
+              cps: [0x200B, 0x200C, 0x200D, 0x200E, 0x200F, 0xFEFF],
+              replace: "{}",
+            }
           - { id: pua_f047, cps: [0xF047], replace: "{}" }
           - { id: boxdraw_252c, cps: [0x252C], replace: "{}" }
           # 数学/标点散字 → \ensuremath 双模无恙
@@ -82,6 +88,18 @@ rules:
           - { id: sumop_2211, cps: [0x2211], replace: "\\ensuremath{\\sum}" }
           # M1-B 残余 (1502.06189): .bbl 字面 ℓ 落 lmroman9 无槽
           - { id: ell, cps: [0x2113], replace: "\\ensuremath{\\ell}" }
+          # ── utf8census→misscharext 补表 (2026-09-19, loop3 ×5 格) ──
+          # ¡ 数学内 TFM 字面 (1206.0663 n$¡ã$ txr): !` TFM 连字产 ¡;
+          # 码位带外 (<_FB_RANGES 起点 0x00C0) —— latin-1 标点一律
+          # 走表语义替换, 不扩回退带 (见本文件 font_fallback 注)
+          - { id: excldown, cps: [0x00A1], replace: "\\mbox{!`}" }
+          # ™ shipped .bbl 字面 (1811.10109 aer8)
+          - { id: trademark, cps: [0x2122], replace: "\\mbox{\\texttrademark}" }
+          # U+02F7 低 tilde / U+2329-232A 角括号字面量; cs 展开产出面
+          # (\texttildelow/\textlangle/\textrangle) 归 macro_glyph_fix
+          - { id: lowtilde, cps: [0x02F7], replace: "\\ensuremath{\\sim}" }
+          - { id: langle_br, cps: [0x2329], replace: "\\ensuremath{\\langle}" }
+          - { id: rangle_br, cps: [0x232A], replace: "\\ensuremath{\\rangle}" }
     risk: low # 预热盒不可见; replace 只动缺字码位本身
     engines:
       xelatex: { mode: native }
@@ -98,6 +116,14 @@ rules:
       - {
           corpus: "0806.2630 jetpl.cls (scout-misschar-coverage-2026-09-17)",
           error: "cls 预 token 化西里尔 → exts 扩列; outband FFFD/C1/LRM/PUA/2044/2032/2217/2211/252C → char_table 补 9 条",
+        }
+      - {
+          corpus: "1206.0663 / 1811.10109 / 2410.00026 (loop3, utf8census rebucket-misschar)",
+          error: 'Missing character: ¡("A1)txr / ™("2122)aer8 / ZWNJ(U+200C)lmroman8 → char_table 补 5 条 + Cf 块补完; 02F7/2329/232A 字面侧同补',
+        }
+      - {
+          corpus: "2003.03387 (loop3, driftdiag: revtex4+ae aer9 bib-passthrough 暴露源 U+2010×2)",
+          error: 'Missing character: ‐("2010) in aer9 → char_table 补 hyphen',
         }
     stats: { fires: 0, status: proposed }
     source_ref: "spec 2026-09-16-batch-hardening-design §9 F4; scout-misschar-coverage findings.yaml §outband_coverage+cls_pretokenized"

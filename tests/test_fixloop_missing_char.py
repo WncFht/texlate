@@ -10,6 +10,7 @@ from pathlib import Path
 from test_fixloop_loop import CLEAN_LOG, MockEngine, make_proj
 
 from texlate.compile.fixloop import fixloop
+from texlate.compile.fixloop._builtins_misschar import macro_glyph_fix
 from texlate.compile.fixloop.builtins import (
     _inject_after_docclass,
     _mc_parse_log,
@@ -366,3 +367,162 @@ def test_font_fallback_idempotent(tmp_path: Path) -> None:
     ok, note = font_fallback(ctx, eng, None, {})
     assert ok is False
     assert "already present" in note
+
+
+# ════════════════════════════════════════════════════════════════
+# misscharext (2026-09-19, utf8census rebucket ×5):
+# char_table 扩列 (¡/™/ZWNJ-ZWJ-RLM/02F7/2329/232A/2010) + macro_glyph_fix
+# ════════════════════════════════════════════════════════════════
+
+
+def test_loop_latin1_tm_zwnj_char_table(tmp_path: Path) -> None:
+    r"""¡/™/ZWNJ 字面缺字 → 实装 char_table 字面替换 (60-misschar.yaml 扩列)。
+
+    1811.10109 实证 (™ in shipped .bbl, aer8 TFM ``("2122)``);
+    2410.00026 实证 (ZWNJ U+200C bib→bbl, lmroman8);
+    1206.0663 实证 (¡ in math ``n$¡$``, txr TFM ``("A1)`` —— ``!`` 连字产 ¡);
+    2003.03387 实证 (U+2010 HYPHEN×2 bib-passthrough, revtex4+ae aer9)。
+    """
+    main = (
+        "\\documentclass{article}\n\\usepackage{ctex}\n"
+        "\\begin{document}\nn$¡$ Bitcoin™ off‌load co‐op\n\\end{document}\n"
+    )
+    log = (
+        'Missing character: There is no ¡ ("A1) in font txr!\n'
+        'Missing character: There is no ™ ("2122) in font aer8!\n'
+        "Missing character: There is no ‌ (U+200C) in font "
+        "[lmroman8-regular]:mapping=tex-text;!\n"
+        'Missing character: There is no ‐ ("2010) in font aer9!\n'
+        "Output written on main.pdf (1 page).\n"
+    )
+    eng = MockEngine([{"log": log, "pdf": True}, {"log": CLEAN_LOG, "pdf": True}])
+    cell = fixloop(make_proj(tmp_path, main), eng)
+    assert cell["verdict"] == "clean"
+    assert cell["rounds"][0]["category"] == "warn_missing_char"
+    t = (tmp_path / "main.tex").read_text(encoding="utf-8")
+    assert "n$\\mbox{!`}$" in t
+    assert "Bitcoin\\mbox{\\texttrademark}" in t
+    assert "off{}load" in t  # ZWNJ 剥除
+    assert "co\\mbox{-}op" in t  # U+2010 → 连字符
+
+
+def test_font_fallback_latin1_boundary(tmp_path: Path) -> None:
+    r"""¡ U+00A1 不归 font_fallback —— _FB_RANGES 起点 0x00C0 边界决策钉死。
+
+    latin-1 标点全有 TeX 原生命令形 (char_table 语义替换 > 字体替换),
+    扩带会让未补条目静默绑 Libertinus 而非以 unmatched 露面 → 带不扩。
+    """
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\nn$¡$\n\\end{document}\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "main.log").write_text(
+        'Missing character: There is no ¡ ("A1) in font txr!\n',
+        encoding="utf-8",
+    )
+    eng = MockEngine([], available={"newunicodechar.sty"})
+    ok, note = font_fallback(_ctx(tmp_path), eng, None, {})
+    assert ok is False
+    assert "no missing chars in fallback bands" in note
+
+
+def test_builtin_macro_glyph_tildelow(tmp_path: Path) -> None:
+    r"""``\texttildelow`` 产 U+02F7 缺字 (2308.04265 文本域站点) → 站点改写。"""
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\n"
+        "rate of \\raisebox{0.5ex}{\\texttildelow}80\\% x\n"
+        "\\end{document}\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "main.log").write_text(
+        "Missing character: There is no ˷ (U+02F7) in font "
+        "[lmroman10-regular]:mapping=tex-text;!\n",
+        encoding="utf-8",
+    )
+    ok, note = macro_glyph_fix(_ctx(tmp_path), None, None, {})
+    assert ok is True
+    assert "1" in note
+    t = (tmp_path / "main.tex").read_text(encoding="utf-8")
+    assert "\\raisebox{0.5ex}{\\ensuremath{\\sim}}80\\%" in t
+    assert "\\texttildelow" not in t
+
+
+def test_builtin_macro_glyph_textangle_newcommand(tmp_path: Path) -> None:
+    r"""``\textlangle``/``\textrangle`` 产 U+2329/232A (2403.00011 宏体站点)。
+
+    ``\qdist`` 宏体在文本域定义、数学域展开 —— 双模 ``\ensuremath`` 串
+    两侧恒正 (定义点域判不准); ``Command \X invalid in math mode``
+    warning 同灭。
+    """
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n"
+        "\\newcommand{\\qdist}[1]{\\textlangle#1\\textrangle}\n"
+        "\\begin{document}\n$\\qdist{x}$ and $\\qdist{y}$\n\\end{document}\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "main.log").write_text(
+        "LaTeX Warning: Command \\textlangle invalid in math mode on input line 5.\n"
+        'Missing character: There is no 〈 ("2329) in font zptmcmr!\n'
+        'Missing character: There is no 〉 ("232A) in font zptmcmr!\n',
+        encoding="utf-8",
+    )
+    ok, _note = macro_glyph_fix(_ctx(tmp_path), None, None, {})
+    assert ok is True
+    t = (tmp_path / "main.tex").read_text(encoding="utf-8")
+    assert (
+        "\\newcommand{\\qdist}[1]{\\ensuremath{\\langle}#1\\ensuremath{\\rangle}}" in t
+    )
+
+
+def test_builtin_macro_glyph_declines_without_cp(tmp_path: Path) -> None:
+    """产出码位不在缺字表 → cs 站点不动 (字体真有字形的不误伤)。"""
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\n\\textlangle x\\textrangle\n\\end{document}\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "main.log").write_text(
+        "Missing character: There is no ≠ (U+2260) in font cmr7!\n",
+        encoding="utf-8",
+    )
+    ok, note = macro_glyph_fix(_ctx(tmp_path), None, None, {})
+    assert ok is False
+    assert "no macro-generated" in note
+    assert "\\textlangle" in (tmp_path / "main.tex").read_text(encoding="utf-8")
+
+
+def test_builtin_macro_glyph_masked_protection(tmp_path: Path) -> None:
+    r"""verbatim/注释内同名 cs 不改写 (遮盖面)。"""
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\n"
+        "% \\texttildelow dead\n"
+        "\\begin{verbatim}\\texttildelow\\end{verbatim}\n"
+        "\\texttildelow\n\\end{document}\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "main.log").write_text(
+        "Missing character: There is no ˷ (U+02F7) in font "
+        "[lmroman10-regular]:mapping=tex-text;!\n",
+        encoding="utf-8",
+    )
+    ok, _note = macro_glyph_fix(_ctx(tmp_path), None, None, {})
+    assert ok is True
+    t = (tmp_path / "main.tex").read_text(encoding="utf-8")
+    assert "% \\texttildelow dead" in t
+    assert "\\begin{verbatim}\\texttildelow\\end{verbatim}" in t
+    assert t.count("\\ensuremath{\\sim}") == 1
+
+
+def test_builtin_macro_glyph_cs_sites_absent(tmp_path: Path) -> None:
+    """码位在缺字表但源内无 cs 站点 → decline (字面量归 char_table 臂)。"""
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\nx\n\\end{document}\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "main.log").write_text(
+        "Missing character: There is no ˷ (U+02F7) in font "
+        "[lmroman10-regular]:mapping=tex-text;!\n",
+        encoding="utf-8",
+    )
+    ok, note = macro_glyph_fix(_ctx(tmp_path), None, None, {})
+    assert ok is False
+    assert "no cs sites" in note
