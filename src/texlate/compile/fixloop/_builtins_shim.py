@@ -744,6 +744,70 @@ def _mirror_relocate_tree(
     return n
 
 
+def driver_tfm_hoist(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""``Unable to find TFM file "X"`` → 子目录稿自带 ``*.tfm`` 提升到扁平解析位。
+
+    机理 (2606.02800 nvidiatechreport.cls / 2504.05118 bytedance_seed.cls
+    residchk 面): 私有字体 e-print 自带 ``.tfm`` 在子目录 —— TeX 侧经
+    路径限定字体名 (``\\DeclareFontShape`` ``seed/bytesans`` 形) 找得到;
+    下游驱动 (xdvipdfmx 等) 按 ``\\pdfmapline`` 裸名走 TFMFONTS 查找,
+    只认 ``.`` = compile cwd (``main_dir``) 的扁平位, 子目录够不到 →
+    ``*: fatal:``。私有件非 CTAN → install_tfm filemap 必 miss, 归位
+    是唯一真修。payload 触发名定位 font 目录后同目录 ``*.tfm`` 全量
+    hoist (nvidia 7/seed 2 —— 逐轮单件烧轮次, 同 relocate tree-mirror
+    教训); ``\\pdfmapline`` 的 ``.ttf`` 路径限定引用本来可达, 不搬。
+
+    守卫同 relocate 系: payload 无 ``/`` ``\\`` ``..`` ``\\x00`` 非点前缀;
+    main 未知 → False; ``{payload}.tfm`` 已扁平在解析位 → False (缺件
+    另有真因); fileset 无同名 → False; 目标名已占逐件跳 (幂等复火)。
+    """
+    del eng, params
+    name = (payload or "").strip().strip("'\"")
+    if (
+        not name
+        or name.startswith(".")
+        or any(tok in name for tok in ("/", "\\", "..", "\x00"))
+    ):
+        return False, f"unsafe tfm name {name!r}"
+    mp = ctx.main_path()
+    if mp is None:
+        return False, "main unknown — driver resolve site undetermined"
+    dst_dir = mp.parent
+    dst_res = dst_dir.resolve()
+    want = f"{name}.tfm"
+    if safe_is_file(dst_dir / want):
+        return False, f"{want}: already at driver resolve site"
+    hits = [
+        p
+        for p in sorted(ctx.wdir.rglob(want))
+        if safe_is_file(p)
+        and not any(part.startswith(".") for part in p.relative_to(ctx.wdir).parts)
+        and p.parent.resolve() != dst_res
+    ]
+    if not hits:
+        return False, f"{want}: not present in fileset"
+    src_dir = hits[0].parent
+    hoisted = []
+    for src in sorted(src_dir.glob("*.tfm")):
+        if not safe_is_file(src):
+            continue
+        target = dst_dir / src.name
+        if safe_is_file(target):
+            continue
+        try:
+            shutil.copyfile(src, target)
+            ctx.invalidate(target)
+        except OSError:
+            continue
+        hoisted.append(src.name)
+    if not hoisted:
+        return False, f"{name}.tfm: all resolve-site targets occupied"
+    dst_rel = dst_dir.relative_to(ctx.wdir).as_posix()
+    return True, f"hoisted {len(hoisted)} tfm → {dst_rel}: {', '.join(hoisted)}"
+
+
 # ════════════════════════════════════════════════════════════════
 # doc 引用但 e-print 未带的 .tex 片段 (m1kcensus2 衍生, covgap-C #205
 # 复核): fileset 真无件 + filemap/vendor 无供 → 版本缀 sibling 搬真件,
