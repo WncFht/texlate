@@ -15,6 +15,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import regex
+
 from texlate.compile.fixloop import builtins
 from texlate.compile.fixloop._yamlish import load_yaml
 from texlate.compile.fixloop.logparse import Taxonomy
@@ -51,13 +53,57 @@ class RulesetError(ValueError):
     """``rules/`` 规则库结构校验失败。"""
 
 
+def _str_list(v: Any) -> bool:  # noqa: ANN401  # yaml 值天然 Any
+    """值形判据: ``list[str]`` (exts/engine_in/fileset 各键共用)。"""
+    return isinstance(v, list) and all(isinstance(x, str) for x in v)
+
+
+def _rx_problems(pat: Any, label: str) -> list[str]:  # noqa: ANN401  # 同上
+    """正则值校验: str 且 ``regex`` 可编译。
+
+    ``_cond_ok``/``_compile_rewrites``/``_scan_names`` 的 compile/search
+    都在 try 外——病 pattern 装载期拦, 不再穿透点火面炸整格。
+    """
+    if not isinstance(pat, str):
+        return [f"{label} 必须是 str"]
+    try:
+        regex.compile(pat)
+    except regex.error as e:
+        return [f"{label} 正则不可编译: {e}"]
+    return []
+
+
+def _when_item_problems(item: dict[str, Any], label: str, tag: str) -> list[str]:
+    """单个 when 候选 (顶层 map 或 ``any[]`` 子项) 的值形校验。
+
+    与 ``_when_ok`` 逐键消费形对齐: ``category`` 与 cat 做 ``!=``
+    比对 (str 或 str 表两形), ``payload_required`` 真值 (bool),
+    ``main_head_contains`` ``in`` 子串 (str——非 str 触发 TypeError,
+    _when_ok 在 try 外, 装载期拦)。
+    """
+    probs: list[str] = []
+    if "category" in item and not (
+        isinstance(item["category"], str) or _str_list(item["category"])
+    ):
+        probs.append(f"rule {tag}: {label}.category 必须是 str 或 list[str]")
+    if "payload_required" in item and not isinstance(item["payload_required"], bool):
+        probs.append(f"rule {tag}: {label}.payload_required 必须是 bool")
+    if "main_head_contains" in item and not isinstance(item["main_head_contains"], str):
+        probs.append(f"rule {tag}: {label}.main_head_contains 必须是 str")
+    return probs
+
+
 def _when_problems(when: Any, tag: str) -> list[str]:  # noqa: ANN401  # yaml 值天然 Any
-    """``when`` 段键名白名单校验 (typo 键在旧 _when_ok 下是 fail-open 面)。"""
+    """``when`` 段校验: 键白名单 + 值形 (typo 键在旧 _when_ok 下是 fail-open 面)。"""
     if when is None:
         return []
     if not isinstance(when, dict):
         return [f"rule {tag}: when 必须是 map"]
     probs = [f"rule {tag}: when 未知键 {k!r}" for k in when if k not in _WHEN_KEYS]
+    if "always" in when and not isinstance(when["always"], bool):
+        probs.append(f"rule {tag}: when.always 必须是 bool")
+    # 顶层 map 自身即隐式候选 (``when.get("any") or [when]``)——同过值形。
+    probs.extend(_when_item_problems(when, "when", tag))
     anys = when.get("any")
     if anys is not None:
         if not isinstance(anys, list):
@@ -72,18 +118,252 @@ def _when_problems(when: Any, tag: str) -> list[str]:  # noqa: ANN401  # yaml �
                         for k in c
                         if k not in _WHEN_ITEM_KEYS
                     )
+                    probs.extend(_when_item_problems(c, f"when.any[{j}]", tag))
     return probs
 
 
+def _cond_value_problems(key: str, val: Any, tag: str) -> list[str]:  # noqa: ANN401, C901, PLR0911, PLR0912  # yaml 值天然 Any; 与 _cond_ok 分派同形, 每键一处
+    """``condition`` 单键值形校验——与 ``_cond_ok`` 分派表的消费形逐键对齐。
+
+    旗标键 (vendored_shadow/err_outside_fileset/shim_known) 的值不被
+    消费 (键在即启), 不检; ``any``/``fileset``/``package_version_ge``
+    是结构性子形; ``engine_in`` 限 ``list[str]``——str 在 ``not in``
+    下退成子串匹配 (footgun, ``xelatex in "xelatextex"`` 式误中)。
+    """
+    if key == "any":
+        if not isinstance(val, list):
+            return [f"rule {tag}: condition.any 必须是 list"]
+        return []
+    if key in _COND_REGEX_KEYS:
+        return _rx_problems(val, f"rule {tag}: condition.{key}")
+    if key in _COND_STR_KEYS:
+        if not isinstance(val, str):
+            return [f"rule {tag}: condition.{key} 必须是 str"]
+        return []
+    if key == "engine_in":
+        if not _str_list(val):
+            return [f"rule {tag}: condition.engine_in 必须是 list[str]"]
+        return []
+    if key == "fileset":
+        if not isinstance(val, dict):
+            return [f"rule {tag}: condition.fileset 必须是 map"]
+        probs = [
+            f"rule {tag}: condition.fileset 未知键 {k!r}"
+            for k in val
+            if k not in _FILESET_KEYS
+        ]
+        probs.extend(
+            f"rule {tag}: condition.fileset.{k} 必须是 list[str]"
+            for k, v in val.items()
+            if k in _FILESET_KEYS and not _str_list(v)
+        )
+        return probs
+    if key == "package_version_ge":
+        if not isinstance(val, dict):
+            return [f"rule {tag}: condition.package_version_ge 必须是 map"]
+        probs = []
+        if not isinstance(val.get("file"), str):
+            probs.append(f"rule {tag}: condition.package_version_ge.file 必须是 str")
+        try:
+            int(val.get("version", 0))
+        except (TypeError, ValueError):
+            probs.append(
+                f"rule {tag}: condition.package_version_ge.version 必须可转 int"
+            )
+        return probs
+    return []
+
+
 def _cond_problems(cond: Any, tag: str) -> list[str]:  # noqa: ANN401  # yaml 值天然 Any
-    """``condition`` 段键名白名单 (``any`` 子表递归); 与 _cond_ok 分派同源。"""
+    """``condition`` 段校验: 键白名单 + 逐键值形 (``any`` 子表递归); 与 _cond_ok 分派同源。"""
     if cond is None:
         return []
     if not isinstance(cond, dict):
         return [f"rule {tag}: condition 必须是 map"]
     probs = [f"rule {tag}: condition 未知键 {k!r}" for k in cond if k not in _COND_KEYS]
-    for j, sub in enumerate(cond.get("any") or []):
-        probs.extend(_cond_problems(sub, f"{tag}.any[{j}]"))
+    for key, val in cond.items():
+        probs.extend(_cond_value_problems(key, val, tag))
+    anys = cond.get("any")
+    if isinstance(anys, list):  # 非 list 已在上方略行拦; enumerate(5) 旧崩面
+        for j, sub in enumerate(anys):
+            probs.extend(_cond_problems(sub, f"{tag}.any[{j}]"))
+    return probs
+
+
+def _scan_pattern_problems(sp: Any, label: str, tag: str) -> list[str]:  # noqa: ANN401  # yaml 值天然 Any
+    """``scan_patterns[]`` 单条校验——``_scan_names`` 实读 ``regex``(必)/split/suffix。"""
+    if not isinstance(sp, dict):
+        return [f"rule {tag}: {label} 必须是 map"]
+    probs = [
+        f"rule {tag}: {label} 未知键 {k!r}" for k in sp if k not in _SCAN_PATTERN_KEYS
+    ]
+    if "regex" not in sp:
+        probs.append(f"rule {tag}: {label} 缺 regex")
+    else:
+        probs.extend(_rx_problems(sp["regex"], f"rule {tag}: {label}.regex"))
+    probs.extend(
+        f"rule {tag}: {label}.{k} 必须是 str"
+        for k in ("split", "suffix")
+        if k in sp and not isinstance(sp[k], str)
+    )
+    return probs
+
+
+def _rewrite_flag_bit(fl: str) -> int | None:
+    """Flag 名 → ``regex``/``re`` 属性位; 解析不出 = None。
+
+    与 ``_compile_rewrites`` 同序 fallback——该处在找不到时静默按 0
+    处理 (``MULTILINEE`` 类 typo 悄悄丢旗), 装载期拦成显式错误。
+    """
+    bit = getattr(regex, fl, getattr(re, fl, None))
+    return bit if isinstance(bit, int) else None
+
+
+def _rewrite_item_problems(rw: Any, j: int, tag: str) -> list[str]:  # noqa: ANN401, C901, PLR0912  # yaml 值天然 Any; 校验项逐条即分支
+    """``rewrites[]`` 单条校验——``_compile_rewrites`` 实读面。
+
+    ``pattern`` 无条件下标取 (rw["pattern"]) → 必填 str 且按解析后
+    flags 可编译; ``function`` 在 REWRITE_FNS 注册 (与 ``repl`` 互斥,
+    并存时 function 胜出、repl 是死配置); ``repl`` 喂 ``m.expand``
+    须 str; ``flags`` 逐名可解析。
+    """
+    label = f"params.rewrites[{j}]"
+    if not isinstance(rw, dict):
+        return [f"rule {tag}: {label} 必须是 map"]
+    probs = [f"rule {tag}: {label} 未知键 {k!r}" for k in rw if k not in _REWRITE_KEYS]
+    flags = 0
+    flv = rw.get("flags")
+    if flv is not None:
+        if not _str_list(flv):
+            probs.append(f"rule {tag}: {label}.flags 必须是 list[str]")
+        else:
+            for fl in flv:
+                bit = _rewrite_flag_bit(fl)
+                if bit is None:
+                    probs.append(f"rule {tag}: {label}.flags 未知旗 {fl!r}")
+                else:
+                    flags |= bit
+    pat = rw.get("pattern")
+    if not isinstance(pat, str):
+        probs.append(f"rule {tag}: {label}.pattern 缺或必须是 str")
+    else:
+        try:
+            regex.compile(pat, flags)
+        except regex.error as e:
+            probs.append(f"rule {tag}: {label}.pattern 正则不可编译: {e}")
+    fn = rw.get("function")
+    if fn is not None:
+        if not isinstance(fn, str):
+            probs.append(f"rule {tag}: {label}.function 必须是 str")
+        elif fn not in builtins.REWRITE_FNS:
+            probs.append(f"rule {tag}: 未知 rewrite function {fn!r}")
+        if "repl" in rw:
+            probs.append(f"rule {tag}: {label} function/repl 并存 (repl 死配置)")
+    if "repl" in rw and not isinstance(rw["repl"], str):
+        probs.append(f"rule {tag}: {label}.repl 必须是 str")
+    ms = rw.get("match_surface")
+    if ms is not None and (not isinstance(ms, str) or ms not in _MATCH_SURFACES):
+        probs.append(f"rule {tag}: match_surface 非法 {ms!r}")
+    return probs
+
+
+def _action_params_problems(kind: Any, params: dict[str, Any], tag: str) -> list[str]:  # noqa: ANN401, C901, PLR0912, PLR0915  # yaml 值天然 Any; 校验项逐条即分支
+    """``action.params`` 按 kind 校验——键词表 + 必填项 + 值形。
+
+    词表 = ``actions.py`` 实读名 ∪ 出厂注解键 (``verify``/``batch``/
+    ``once_per_payload``/``hint``/``context`` 是不消费的文档性键,
+    仍收录)。``builtin_transform`` 的 params 词表随 TRANSFORM_FNS
+    逐函数定义 (各 ``_builtins_*`` 叶自查), 此处不限键名不检值。
+    """
+    probs: list[str] = []
+    vocab = _ACTION_PARAM_KEYS.get(kind)
+    if vocab is not None:
+        probs.extend(
+            f"rule {tag}: params 未知键 {k!r} (kind={kind})"
+            for k in params
+            if k not in vocab
+        )
+    if kind == "scan_install":
+        sps = params.get("scan_patterns")
+        if not isinstance(sps, list) or not sps:
+            probs.append(
+                f"rule {tag}: params.scan_patterns 缺或非空 list (scan_install 必填)"
+            )
+        else:
+            for j, sp in enumerate(sps):
+                probs.extend(
+                    _scan_pattern_problems(sp, f"params.scan_patterns[{j}]", tag)
+                )
+        if "noise_filter" in params:
+            probs.extend(
+                _rx_problems(params["noise_filter"], f"rule {tag}: params.noise_filter")
+            )
+        if "vendored" in params and not isinstance(params["vendored"], bool):
+            probs.append(f"rule {tag}: params.vendored 必须是 bool")
+        if "dir" in params and not isinstance(params["dir"], str):
+            probs.append(f"rule {tag}: params.dir 必须是 str")
+    elif kind == "install_file":
+        file_v = params.get("file")
+        if not isinstance(file_v, str) or not file_v:
+            probs.append(
+                f"rule {tag}: params.file 缺或非空 str (install_file 必填, "
+                "params['file'] 直取下标)"
+            )
+        probs.extend(
+            f"rule {tag}: params.{k} 必须是 list[str]"
+            for k in ("try_exts", "font_related_exts")
+            if k in params and not _str_list(params[k])
+        )
+        fa = params.get("file_aliases")
+        if fa is not None:
+            if not isinstance(fa, dict):
+                probs.append(f"rule {tag}: params.file_aliases 必须是 map")
+            else:
+                probs.extend(
+                    f"rule {tag}: params.file_aliases[{k!r}] 必须是 list[str]"
+                    for k, v in fa.items()
+                    if not _str_list(v)
+                )
+        probs.extend(
+            f"rule {tag}: params.{k} 必须是 bool"
+            for k in ("font_related", "already_present_ok")
+            if k in params and not isinstance(params[k], bool)
+        )
+    elif kind == "run_tool":
+        argv = params.get("argv")
+        if not _str_list(argv) or not argv:
+            probs.append(
+                f"rule {tag}: params.argv 缺或非空 list[str] (run_tool 必填, "
+                "空 argv 崩 subprocess)"
+            )
+        if "timeout" in params:
+            try:
+                int(params["timeout"])
+            except (TypeError, ValueError):
+                probs.append(f"rule {tag}: params.timeout 必须可转 int")
+    elif kind == "regex_rewrite":
+        rws = params.get("rewrites")
+        if not isinstance(rws, list) or not rws:
+            probs.append(
+                f"rule {tag}: params.rewrites 缺或非空 list (regex_rewrite 必填)"
+            )
+        else:
+            for j, rw in enumerate(rws):
+                probs.extend(_rewrite_item_problems(rw, j, tag))
+        probs.extend(
+            f"rule {tag}: params.{k} 必须是 list[str]"
+            for k in ("exts", "engine_flags")
+            if k in params and not _str_list(params[k])
+        )
+    elif kind == "reject_route":
+        route_v = params.get("route")
+        if not isinstance(route_v, str) or not route_v:
+            probs.append(
+                f"rule {tag}: params.route 缺或非空 str (reject_route 必填, "
+                "空 route 产无令牌 REJECT note)"
+            )
+        if "reason" in params and not isinstance(params["reason"], str):
+            probs.append(f"rule {tag}: params.reason 必须是 str")
     return probs
 
 
@@ -129,6 +409,61 @@ _MODES = {"native", "same", "degrade", "unsupported", "skip"}
 #: 可选声明字段 ``mechanisms:`` 的 mech_id 形 (corpus_v3 注册表值域
 #: B/T/W 族; 注册表成员核验在 bench/py/report/mech_ids.py --validate)。
 _MECH_ID_RX = re.compile(r"^[BTW]\d+$")
+#: ``action`` 段合法键——``_apply`` 只读 kind/function/params, 其他键
+#: 是死配置 (``param:`` 类 typo 与 ``categry:`` 同型 fail-open 面)。
+_ACTION_KEYS = frozenset({"kind", "function", "params"})
+#: 各 action.kind 的 ``params`` 合法键——``actions.py`` 实读名 ∪ 出厂
+#: 注解键 (verify/batch/once_per_payload/hint/context 不消费但收)。
+#: ``builtin_transform`` 缺席有意: 词表随 TRANSFORM_FNS 逐函数定义,
+#: 各 ``_builtins_*`` 叶自持, 此处不做总表白名单 (造约束)。
+_ACTION_PARAM_KEYS: dict[str, frozenset[str]] = {
+    "scan_install": frozenset(
+        {"scan_patterns", "noise_filter", "vendored", "dir", "batch", "verify"}
+    ),
+    "install_file": frozenset(
+        {
+            "file",
+            "try_exts",
+            "font_related",
+            "font_related_exts",
+            "file_aliases",
+            "already_present_ok",
+            "verify",
+        }
+    ),
+    "run_tool": frozenset({"argv", "timeout", "once_per_payload"}),
+    "regex_rewrite": frozenset({"rewrites", "exts", "engine_flags"}),
+    "reject_route": frozenset({"route", "reason"}),
+    "escalate_llm": frozenset({"hint", "context"}),
+}
+#: ``scan_patterns[]`` 条目合法键——``_scan_names``/``_apply_scan_install``
+#: 实读面。
+_SCAN_PATTERN_KEYS = frozenset({"regex", "split", "suffix"})
+#: ``rewrites[]`` 条目合法键——``_compile_rewrites`` 实读面。
+_REWRITE_KEYS = frozenset({"pattern", "repl", "function", "flags", "match_surface"})
+#: ``condition`` 取 str 值的键——``_cond_ok`` 分派里 ``str(v)``/``in``/
+#: ``re.escape`` 均以 str 为前提 (非 str 静默变形或炸)。
+_COND_STR_KEYS = frozenset(
+    {
+        "tool_available",
+        "cap_available",
+        "main_head_contains",
+        "cache_dir_glob",
+        "prim_read_form",
+    }
+)
+#: _COND_STR_KEYS 外取值当正则用的 condition 键 (``regex.search``)——
+#: 装载期先编译。
+_COND_REGEX_KEYS = frozenset({"source_contains", "ctx_suggests"})
+#: ``condition.fileset`` 子键——与 ``_cond_ok`` fileset 分派同源。
+_FILESET_KEYS = frozenset({"has_ext", "lacks_ext", "sibling_exts"})
+#: ``engines.<name>`` 合法引擎名——``ctx.deps.engine_name`` 值域 =
+#: 静态路由二引擎 (cli/run.py 同源); 未知名是永不命中的死 spec。
+_ENGINE_NAMES = frozenset({"xelatex", "tectonic"})
+#: ``engines.<name>`` spec 合法键——mode/degrade/fallback 由
+#: ``_match_apply``/``_gate_eval``/``_precheck_phase`` 实读, via/note
+#: 是文档性注解。
+_ENGINE_SPEC_KEYS = frozenset({"mode", "degrade", "fallback", "via", "note"})
 #: ``when:`` 段合法键 (顶层) / ``any:`` 子项键 —— 键名 typo (``categry:``)
 #: 旧行为是对全 category 点火 (fail-open), 白名单 load 期拦 + _when_ok
 #: 对无可识别键的候选 fail-closed, 与 _cond_ok 未知键语义对称。
@@ -313,8 +648,15 @@ class Ruleset:
         return probs
 
     @staticmethod
-    def _rule_problems(r: Any, tag: str) -> list[str]:  # noqa: ANN401  # yaml 值天然 Any; 校验项逐条即分支
-        """单条规则的校验项——tolerant 模式下命中即整条弃用。"""
+    def _rule_problems(r: Any, tag: str) -> list[str]:  # noqa: ANN401, C901, PLR0912, PLR0915  # yaml 值天然 Any; 校验项逐条即分支
+        """单条规则的校验项——tolerant 模式下命中即整条弃用。
+
+        spec 子语言 schema: ``when``/``condition``/``action``(含 params)/
+        ``engines`` 各段的键白名单 + 值形 + 互需字段, 全与
+        actions.py/engine.py 实读面对齐 (详各 helper 注)。非 map 段先拦
+        再按 ``{}`` 续扫——``.get``/``.items`` 旧崩面 (AttributeError/
+        TypeError 穿透装载) 不再发生。
+        """
         probs: list[str] = []
         if not isinstance(r, dict):
             return [f"rule {tag}: 必须是 map"]
@@ -323,26 +665,44 @@ class Ruleset:
             for k in ("id", "phase", "when", "action")
             if k not in r
         )
-        if r.get("phase") not in _PHASES:
-            probs.append(f"rule {tag}: phase 非法 {r.get('phase')!r}")
+        if "id" in r and not isinstance(r["id"], str):
+            probs.append(f"rule {tag}: id 必须是 str")
+        phase = r.get("phase")
+        if not isinstance(phase, str) or phase not in _PHASES:
+            probs.append(f"rule {tag}: phase 非法 {phase!r}")
+        if "order" in r:
+            try:
+                float(r["order"])
+            except (TypeError, ValueError):
+                probs.append(f"rule {tag}: order 必须可转 float")
         probs.extend(_when_problems(r.get("when"), tag))
         probs.extend(_cond_problems(r.get("condition"), tag))
-        kind = (r.get("action") or {}).get("kind")
-        if kind not in _ACTION_KINDS:
-            probs.append(f"rule {tag}: action.kind 非法 {kind!r}")
-        fn = (r.get("action") or {}).get("function")
-        if kind == "builtin_transform" and fn not in builtins.TRANSFORM_FNS:
-            probs.append(f"rule {tag}: 未知 builtin_transform {fn!r}")
-        rewrites = ((r.get("action") or {}).get("params") or {}).get("rewrites") or []
+        action = r.get("action")
+        if action is not None and not isinstance(action, dict):
+            probs.append(f"rule {tag}: action 必须是 map")
+            action = None
+        action = action if isinstance(action, dict) else {}
         probs.extend(
-            f"rule {tag}: 未知 rewrite function {rw['function']!r}"
-            for rw in rewrites
-            if "function" in rw and rw["function"] not in builtins.REWRITE_FNS
+            f"rule {tag}: action 未知键 {k!r}" for k in action if k not in _ACTION_KEYS
         )
+        kind = action.get("kind")
+        if not isinstance(kind, str) or kind not in _ACTION_KINDS:
+            probs.append(f"rule {tag}: action.kind 非法 {kind!r}")
+        fn = action.get("function")
+        if kind == "builtin_transform" and (
+            not isinstance(fn, str) or fn not in builtins.TRANSFORM_FNS
+        ):
+            probs.append(f"rule {tag}: 未知 builtin_transform {fn!r}")
+        if fn is not None and kind != "builtin_transform":
+            probs.append(f"rule {tag}: function 仅 builtin_transform 消费")
+        params = action.get("params")
+        if params is not None and not isinstance(params, dict):
+            probs.append(f"rule {tag}: params 必须是 map")
+            params = None
         probs.extend(
-            f"rule {tag}: match_surface 非法 {rw['match_surface']!r}"
-            for rw in rewrites
-            if "match_surface" in rw and rw["match_surface"] not in _MATCH_SURFACES
+            _action_params_problems(
+                kind, params if isinstance(params, dict) else {}, tag
+            )
         )
         mechs = r.get("mechanisms")
         if mechs is not None and not (
@@ -350,9 +710,23 @@ class Ruleset:
             and all(isinstance(m, str) and _MECH_ID_RX.match(m) for m in mechs)
         ):
             probs.append(f"rule {tag}: mechanisms 必须是 [BTW]\\d+ 形标签列表")
-        for eng_name, spec in (r.get("engines") or {}).items():
-            mode = (spec or {}).get("mode")
-            if mode not in _MODES:
+        engines = r.get("engines")
+        if engines is not None and not isinstance(engines, dict):
+            probs.append(f"rule {tag}: engines 必须是 map")
+            engines = None
+        for eng_name, spec in (engines if isinstance(engines, dict) else {}).items():
+            if eng_name not in _ENGINE_NAMES:
+                probs.append(f"rule {tag}: engines.{eng_name} 未知引擎")
+            if not isinstance(spec, dict):
+                probs.append(f"rule {tag}: engines.{eng_name} 必须是 map")
+                continue
+            probs.extend(
+                f"rule {tag}: engines.{eng_name} 未知键 {k!r}"
+                for k in spec
+                if k not in _ENGINE_SPEC_KEYS
+            )
+            mode = spec.get("mode")
+            if not isinstance(mode, str) or mode not in _MODES:
                 probs.append(f"rule {tag}: engines.{eng_name}.mode 非法 {mode!r}")
         return probs
 

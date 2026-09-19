@@ -86,8 +86,9 @@ def test_phase_ordering() -> None:
     # 在 40-install, svg_prepare(W31) 在 45-graphics, 同 order 稳定序按分片
     # 文件名序拼接; covgap-B: fileset_relocate 居 order:9 族首 —— 位错
     # 真件归位先于一切 stub/generate/install (e-print 自带件 verbatim
-    # 拷贝是钦定内容面)
-    assert loop[:9] == [
+    # 拷贝是钦定内容面); taxonfix: tikz/pgf_library_install 入 order:9 族
+    # (40-install 同 order 稳定序在 45-graphics 之前)
+    assert loop[:11] == [
         "biber_biblatex_skew_route",
         "main_wrapper_promote",
         "eps_converted_alias",
@@ -95,6 +96,8 @@ def test_phase_ordering() -> None:
         "rungen_stub",
         "nonctan_input_stub",
         "docstrip_generate",
+        "tikz_library_install",
+        "pgf_library_install",
         "svg_prepare",
         "install_file",
     ]
@@ -237,7 +240,7 @@ def test_mechanisms_field_optional_validated() -> None:
         "id": "x",
         "phase": "loop",
         "when": {},
-        "action": {"kind": "run_tool"},
+        "action": {"kind": "run_tool", "params": {"argv": ["true"]}},
         "mechanisms": ["W45", "B01"],
     }
     rs = Ruleset({"version": 1, "rules": [good]})

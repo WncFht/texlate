@@ -24,10 +24,12 @@ from texlate.compile.fixloop import Ruleset, RulesetError, load_ruleset
 from texlate.compile.fixloop.engine import _dep_stems
 
 _RULE_A = (
-    "{id: a, phase: loop, order: 1, when: {always: true}, action: {kind: run_tool}}"
+    "{id: a, phase: loop, order: 1, when: {always: true},"
+    " action: {kind: run_tool, params: {argv: ['true']}}}"
 )
 _RULE_B = (
-    "{id: b, phase: loop, order: 1, when: {always: true}, action: {kind: run_tool}}"
+    "{id: b, phase: loop, order: 1, when: {always: true},"
+    " action: {kind: run_tool, params: {argv: ['true']}}}"
 )
 _RULE_BAD_BUILTIN = (
     "{id: bad, phase: loop, order: 2, when: {always: true},"
@@ -240,3 +242,482 @@ def test_fontspec_double_merge_repl_output() -> None:
     assert "\\AddToHook{package/fontspec/before}" in out
     assert "\\AddToHook{package/fontspec/after}" in out
     assert out.rstrip().endswith("\\documentclass{arximspdf}")
+
+
+# ------------------------------------------------------------ spec 子语言 schema
+# 深度校验 (键白名单 + 值形 + 互需字段)——与 actions.py/engine.py 实读面对齐。
+# 每行 = 一条 schema 违规规则 + 期望报错关键词; 严格面 raise, tolerant 面弃条。
+
+_GOOD = (
+    "{id: ok, phase: loop, order: 1, when: {category: missing_file},"
+    " action: {kind: regex_rewrite,"
+    " params: {rewrites: [{pattern: 'x', repl: 'y'}]}}}"
+)
+
+_SCHEMA_BAD_RULES = [
+    # —— when 段值形 ——
+    (
+        (
+            "{id: w1, phase: loop, when: {always: 5},"
+            " action: {kind: run_tool, params: {argv: ['x']}}}"
+        ),
+        "always",
+    ),
+    (
+        (
+            "{id: w2, phase: loop, when: {category: 5},"
+            " action: {kind: run_tool, params: {argv: ['x']}}}"
+        ),
+        "category",
+    ),
+    (
+        (
+            "{id: w3, phase: loop, when: {payload_required: 1},"
+            " action: {kind: run_tool, params: {argv: ['x']}}}"
+        ),
+        "payload_required",
+    ),
+    (
+        (
+            "{id: w4, phase: loop, when: {main_head_contains: 5},"
+            " action: {kind: run_tool, params: {argv: ['x']}}}"
+        ),
+        "main_head_contains",
+    ),
+    (
+        (
+            "{id: w5, phase: loop, when: {any: {category: x}},"
+            " action: {kind: run_tool, params: {argv: ['x']}}}"
+        ),
+        "when.any",
+    ),
+    (
+        (
+            "{id: w6, phase: loop, when: {any: [5]},"
+            " action: {kind: run_tool, params: {argv: ['x']}}}"
+        ),
+        "必须是 map",
+    ),
+    (
+        (
+            "{id: w7, phase: loop, when: {any: [{category: 5}]},"
+            " action: {kind: run_tool, params: {argv: ['x']}}}"
+        ),
+        "category",
+    ),
+    # —— condition 段值形/结构 ——
+    (
+        (
+            "{id: c1, phase: loop, when: {always: true}, condition: {any: 5},"
+            " action: {kind: run_tool, params: {argv: ['x']}}}"
+        ),
+        "condition.any",
+    ),
+    (
+        (
+            "{id: c2, phase: loop, when: {always: true}, condition: {any: [5]},"
+            " action: {kind: run_tool, params: {argv: ['x']}}}"
+        ),
+        "必须是 map",
+    ),
+    (
+        (
+            "{id: c3, phase: loop, when: {always: true},"
+            " condition: {source_contains: '['},"
+            " action: {kind: run_tool, params: {argv: ['x']}}}"
+        ),
+        "正则不可编译",
+    ),
+    (
+        (
+            "{id: c4, phase: loop, when: {always: true}, condition: {ctx_suggests: 5},"
+            " action: {kind: run_tool, params: {argv: ['x']}}}"
+        ),
+        "ctx_suggests",
+    ),
+    (
+        (
+            "{id: c5, phase: loop, when: {always: true},"
+            " condition: {engine_in: xelatex},"
+            " action: {kind: run_tool, params: {argv: ['x']}}}"
+        ),
+        "engine_in",
+    ),
+    (
+        (
+            "{id: c6, phase: loop, when: {always: true}, condition: {fileset: 5},"
+            " action: {kind: run_tool, params: {argv: ['x']}}}"
+        ),
+        "fileset",
+    ),
+    (
+        (
+            "{id: c7, phase: loop, when: {always: true},"
+            " condition: {fileset: {has_ext: '.tex'}},"
+            " action: {kind: run_tool, params: {argv: ['x']}}}"
+        ),
+        "has_ext",
+    ),
+    (
+        (
+            "{id: c8, phase: loop, when: {always: true},"
+            " condition: {fileset: {bogus: []}},"
+            " action: {kind: run_tool, params: {argv: ['x']}}}"
+        ),
+        "未知键 'bogus'",
+    ),
+    (
+        (
+            "{id: c9, phase: loop, when: {always: true},"
+            " condition: {package_version_ge: {file: 5}},"
+            " action: {kind: run_tool, params: {argv: ['x']}}}"
+        ),
+        "file 必须是 str",
+    ),
+    (
+        (
+            "{id: c10, phase: loop, when: {always: true},"
+            " condition: {package_version_ge: {file: 'a.sty', version: 'x'}},"
+            " action: {kind: run_tool, params: {argv: ['x']}}}"
+        ),
+        "可转 int",
+    ),
+    (
+        (
+            "{id: c11, phase: loop, when: {always: true},"
+            " condition: {tool_available: 5},"
+            " action: {kind: run_tool, params: {argv: ['x']}}}"
+        ),
+        "必须是 str",
+    ),
+    # —— action 段形状/键 ——
+    ("{id: a1, phase: loop, when: {always: true}, action: 5}", "action 必须是 map"),
+    (
+        (
+            "{id: a2, phase: loop, when: {always: true},"
+            " action: {kind: run_tool, param: {}}}"
+        ),
+        "action 未知键 'param'",
+    ),
+    (
+        (
+            "{id: a3, phase: loop, when: {always: true},"
+            " action: {kind: run_tool, params: 5}}"
+        ),
+        "params 必须是 map",
+    ),
+    (
+        (
+            "{id: a4, phase: loop, when: {always: true},"
+            " action: {kind: run_tool, function: f, params: {argv: ['x']}}}"
+        ),
+        "仅 builtin_transform",
+    ),
+    (
+        (
+            "{id: a5, phase: loop, when: {always: true},"
+            " action: {kind: builtin_transform, function: 5}}"
+        ),
+        "未知 builtin_transform",
+    ),
+    # —— params 按 kind 词表/必填/值形 ——
+    (
+        (
+            "{id: p1, phase: loop, when: {always: true},"
+            " action: {kind: run_tool, params: {bogus: 1}}}"
+        ),
+        "params 未知键 'bogus'",
+    ),
+    (
+        (
+            "{id: p2, phase: loop, when: {always: true},"
+            " action: {kind: run_tool, params: {}}}"
+        ),
+        "argv 缺或非空",
+    ),
+    (
+        (
+            "{id: p3, phase: loop, when: {always: true},"
+            " action: {kind: run_tool, params: {argv: 'x'}}}"
+        ),
+        "argv 缺或非空",
+    ),
+    (
+        (
+            "{id: p4, phase: loop, when: {always: true},"
+            " action: {kind: run_tool, params: {argv: ['x'], timeout: 'x'}}}"
+        ),
+        "timeout 必须可转 int",
+    ),
+    (
+        (
+            "{id: p5, phase: loop, when: {always: true},"
+            " action: {kind: install_file, params: {}}}"
+        ),
+        "file 缺或非空",
+    ),
+    (
+        (
+            "{id: p6, phase: loop, when: {always: true},"
+            " action: {kind: install_file,"
+            " params: {file: '{payload}', try_exts: '.sty'}}}"
+        ),
+        "try_exts",
+    ),
+    (
+        (
+            "{id: p7, phase: loop, when: {always: true},"
+            " action: {kind: install_file,"
+            " params: {file: '{payload}', file_aliases: {a: 'b'}}}}"
+        ),
+        "file_aliases",
+    ),
+    (
+        (
+            "{id: p8, phase: loop, when: {always: true},"
+            " action: {kind: install_file,"
+            " params: {file: '{payload}', font_related: 1}}}"
+        ),
+        "font_related",
+    ),
+    (
+        (
+            "{id: p9, phase: loop, when: {always: true},"
+            " action: {kind: regex_rewrite, params: {}}}"
+        ),
+        "rewrites 缺或非空",
+    ),
+    (
+        (
+            "{id: p10, phase: loop, when: {always: true},"
+            " action: {kind: regex_rewrite, params: {rewrites: [5]}}}"
+        ),
+        "必须是 map",
+    ),
+    (
+        (
+            "{id: p11, phase: loop, when: {always: true},"
+            " action: {kind: regex_rewrite, params: {rewrites: [{repl: 'x'}]}}}"
+        ),
+        "pattern 缺",
+    ),
+    (
+        (
+            "{id: p12, phase: loop, when: {always: true},"
+            " action: {kind: regex_rewrite, params: {rewrites: [{pattern: '['}]}}}"
+        ),
+        "正则不可编译",
+    ),
+    (
+        (
+            "{id: p13, phase: loop, when: {always: true},"
+            " action: {kind: regex_rewrite,"
+            " params: {rewrites: [{pattern: 'x', flags: ['MULTILINEE']}]}}}"
+        ),
+        "未知旗",
+    ),
+    (
+        (
+            "{id: p14, phase: loop, when: {always: true},"
+            " action: {kind: regex_rewrite,"
+            " params: {rewrites: [{pattern: 'x', flags: 'M'}]}}}"
+        ),
+        "flags 必须是",
+    ),
+    (
+        (
+            "{id: p15, phase: loop, when: {always: true},"
+            " action: {kind: regex_rewrite,"
+            " params: {rewrites: [{pattern: 'x', function: px_to_bp, repl: 'y'}]}}}"
+        ),
+        "并存",
+    ),
+    (
+        (
+            "{id: p16, phase: loop, when: {always: true},"
+            " action: {kind: regex_rewrite, params: {rewrites: [{pattern: 'x'}],"
+            " exts: '.tex'}}}"
+        ),
+        "exts 必须是",
+    ),
+    (
+        (
+            "{id: p17, phase: loop, when: {always: true},"
+            " action: {kind: reject_route, params: {}}}"
+        ),
+        "route 缺或非空",
+    ),
+    (
+        (
+            "{id: p18, phase: loop, when: {always: true},"
+            " action: {kind: reject_route, params: {route: 'manual', reason: 5}}}"
+        ),
+        "reason 必须是 str",
+    ),
+    (
+        (
+            "{id: p19, phase: loop, when: {always: true},"
+            " action: {kind: escalate_llm, params: {bogus: 1}}}"
+        ),
+        "params 未知键",
+    ),
+    (
+        (
+            "{id: p20, phase: loop, when: {always: true},"
+            " action: {kind: scan_install, params: {}}}"
+        ),
+        "scan_patterns 缺或非空",
+    ),
+    (
+        (
+            "{id: p21, phase: loop, when: {always: true},"
+            " action: {kind: scan_install,"
+            " params: {scan_patterns: [{regex: '['}]}}}"
+        ),
+        "正则不可编译",
+    ),
+    (
+        (
+            "{id: p22, phase: loop, when: {always: true},"
+            " action: {kind: scan_install,"
+            " params: {scan_patterns: [{regex: 'x', bogus: 1}]}}}"
+        ),
+        "未知键 'bogus'",
+    ),
+    (
+        (
+            "{id: p23, phase: loop, when: {always: true},"
+            " action: {kind: scan_install,"
+            " params: {scan_patterns: [{regex: 'x'}], noise_filter: 5}}}"
+        ),
+        "noise_filter",
+    ),
+    (
+        (
+            "{id: p24, phase: loop, when: {always: true},"
+            " action: {kind: scan_install,"
+            " params: {scan_patterns: [{regex: 'x'}], vendored: 5}}}"
+        ),
+        "vendored",
+    ),
+    (
+        (
+            "{id: p25, phase: loop, when: {always: true},"
+            " action: {kind: scan_install,"
+            " params: {scan_patterns: [{regex: 'x'}], dir: 5}}}"
+        ),
+        "dir 必须是 str",
+    ),
+    # —— engines 段 ——
+    (
+        (
+            "{id: e1, phase: loop, when: {always: true},"
+            " action: {kind: run_tool, params: {argv: ['x']}}, engines: 5}"
+        ),
+        "engines 必须是 map",
+    ),
+    (
+        (
+            "{id: e2, phase: loop, when: {always: true},"
+            " action: {kind: run_tool, params: {argv: ['x']}},"
+            " engines: {xelate: {mode: native}}}"
+        ),
+        "未知引擎",
+    ),
+    (
+        (
+            "{id: e3, phase: loop, when: {always: true},"
+            " action: {kind: run_tool, params: {argv: ['x']}},"
+            " engines: {xelatex: 5}}"
+        ),
+        "必须是 map",
+    ),
+    (
+        (
+            "{id: e4, phase: loop, when: {always: true},"
+            " action: {kind: run_tool, params: {argv: ['x']}},"
+            " engines: {xelatex: {mode: native, bogus: 1}}}"
+        ),
+        "未知键 'bogus'",
+    ),
+    (
+        (
+            "{id: e5, phase: loop, when: {always: true},"
+            " action: {kind: run_tool, params: {argv: ['x']}},"
+            " engines: {xelatex: {mode: bogus}}}"
+        ),
+        "mode 非法",
+    ),
+    # —— 顶层字段值形 ——
+    (
+        (
+            "{id: 5, phase: loop, when: {always: true},"
+            " action: {kind: run_tool, params: {argv: ['x']}}}"
+        ),
+        "id 必须是 str",
+    ),
+    (
+        (
+            "{id: t1, phase: loop, order: 'x', when: {always: true},"
+            " action: {kind: run_tool, params: {argv: ['x']}}}"
+        ),
+        "order 必须可转 float",
+    ),
+    (
+        (
+            "{id: t2, phase: [loop], when: {always: true},"
+            " action: {kind: run_tool, params: {argv: ['x']}}}"
+        ),
+        "phase 非法",
+    ),
+]
+
+
+@pytest.mark.parametrize(("rule_yaml", "match"), _SCHEMA_BAD_RULES)
+def test_schema_violation_rejected_strict(
+    tmp_path: Path, rule_yaml: str, match: str
+) -> None:
+    """schema 违规在严格面 raise——消息带具体违规点 (逐键一处 probs.append)。"""
+    shard = tmp_path / "a.yaml"
+    shard.write_text(_shard(rule_yaml), encoding="utf-8")
+    with pytest.raises(RulesetError, match=match):
+        Ruleset.load(shard)
+
+
+@pytest.mark.parametrize(("rule_yaml", "match"), _SCHEMA_BAD_RULES)
+def test_schema_violation_dropped_tolerant(
+    tmp_path: Path, rule_yaml: str, match: str
+) -> None:
+    """同一批违规规则在 tolerant 面只弃肇事条——``skipped_rules`` 记违规点,
+    合法规则照常进库 (rule 级问题不击穿整条修复臂)。"""
+    shard = tmp_path / "a.yaml"
+    shard.write_text(_shard(_GOOD, rule_yaml), encoding="utf-8")
+    rs = Ruleset.load(shard, tolerant=True)
+    assert [r.id for r in rs.rules] == ["ok"]
+    assert rs.skipped_rules
+    assert any(match in p for p in rs.skipped_rules)
+
+
+def test_schema_valid_rule_passes_both_modes(tmp_path: Path) -> None:
+    """良构规则 (含 condition/fileset/engines 各段) 双面都过——schema 不误伤。"""
+    good = (
+        "{id: ok2, phase: loop, order: 1.5,"
+        " when: {any: [{category: missing_file, payload_required: true}]},"
+        " condition: {engine_in: [xelatex], fileset: {has_ext: ['.tex']}},"
+        " action: {kind: install_file, params: {file: '{payload}',"
+        " try_exts: ['.sty'], font_related: false}},"
+        " engines: {xelatex: {mode: native},"
+        " tectonic: {mode: degrade, degrade: skip, fallback: advisory}}}"
+    )
+    shard = tmp_path / "a.yaml"
+    shard.write_text(_shard(_GOOD, good), encoding="utf-8")
+    assert [r.id for r in Ruleset.load(shard).rules] == ["ok", "ok2"]
+    rs = Ruleset.load(shard, tolerant=True)
+    assert [r.id for r in rs.rules] == ["ok", "ok2"]
+    assert not rs.skipped_rules
+
+
+def test_shipped_ruleset_passes_schema() -> None:
+    """出厂 rules/ 全量过新 schema——深度校验上线对现态零误伤 (acceptance a)。"""
+    rs = Ruleset.load()
+    assert rs.rules
