@@ -90,10 +90,18 @@
 \setcounter{equation}{\value{cureqno}}}
 \def\eqnum#1{\def\theequation{#1}\let\@currentlabel\theequation\addtocounter{equation}{\m@ne}}
 % ── references 环境 + \reference→\refpar (9910131×47 实证大户) ──
+% 书目区裸 & 期稿惯例 (0111599 \bibitem[.. & ..]×2 misplaced-& 实证):
+% env 组内 \catcode 激活 &→\&, env 外 tabular 不受影响
 \def\references{\subsection*{References}%
-\bgroup\parindent=\z@\parskip=\itemsep
+\bgroup\catcode`\&=\active\parindent=\z@\parskip=\itemsep
 \def\refpar{\par\hangindent=3em\hangafter=1}}
 \def\endreferences{\refpar\egroup}
+% thebibliography 同罩 (article 版 env 外套): label 内裸 & 收 \&。
+% AtBeginDocument+gdef 外套 —— hook 组内 \let/\def 须 global,
+% 且后载 natbib/稿自重义 env 后仍能捕获最终版
+\begingroup\catcode`\&=\active\gdef&{\&}\endgroup
+\AtBeginDocument{\global\let\aas@thebibliography\thebibliography
+\gdef\thebibliography{\catcode`\&=\active\aas@thebibliography}}
 % \markcite/\reference 真身均单参 {key} (同 aaspp4, 9910310 实证):
 % 0-arg 版把 {key} 漏进正文流 —— 收 key noop。
 \def\markcite#1{}

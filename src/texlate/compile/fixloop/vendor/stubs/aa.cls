@@ -15,6 +15,14 @@
 % compatible with author-year citations"; numbers 模式对
 % author-year 形与裸形 bibitem 通吃 → shim 取宽容侧
 \RequirePackage[numbers]{natbib}
+% thebibliography 内 &→\&: 期稿 \bibitem[.. & ..] 裸 & 惯例
+% (0104331 de Thije & Katgert misplaced-& 实证) —— env 组内
+% \catcode 激活即收, env 外 tabular 不受影响。
+% AtBeginDocument+gdef 外套 —— hook 组内 \let/\def 须 global,
+% 且能捕获 natbib \renewenvironment 后的最终 env 版
+\begingroup\catcode`\&=\active\gdef&{\&}\endgroup
+\AtBeginDocument{\global\let\aa@thebibliography\thebibliography
+\gdef\thebibliography{\catcode`\&=\active\aa@thebibliography}}
 \providecommand{\inst}[1]{\textsuperscript{\,#1}}
 \providecommand{\offprints}[1]{}
 \providecommand{\mail}[1]{}
