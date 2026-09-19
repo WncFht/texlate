@@ -588,6 +588,17 @@ rules:
           # amstex 时代 \Bbb (q-alg/9703046, pkg_obsolete strip+amsmath 后
           # 残面): 老黑板粗体名 = \mathbb —— cs_map 词界下 \Bbbk 不误伤
           Bbb: { usepackage: amssymb, cs_map: { Bbb: "mathbb" } }
+          # 2403.15085 (letltxmacro lane): atlasdoc 系稿 preamble 裸调
+          # \LetLtxMacro{\oldcite}{\cite} —— atlasdoc/atlasphysics 链不传递
+          # 载 letltxmacro (osajnl/socg-lipics 等 cls 均自 \RequirePackage,
+          # 故 cls 内调用面从未炸)。\cite 在 biblatex 下是 robust cs
+          # (\protected + \@protected@testopt 可选参壳) —— 朴素 \let 丢壳
+          # 即错义修, cs_map/gobble 一律拒收; 装真包 (Heiko letltxmacro,
+          # TL 全集 + tectonic bundle/ctan_fetch 三路可达) 是唯一正解。
+          # \GlobalLetLtxMacro 同包同件 (v1.6 公共面仅此二名,
+          # \LetLtxMacroOpt 不存在 —— 不收)。
+          LetLtxMacro: { usepackage: letltxmacro }
+          GlobalLetLtxMacro: { usepackage: letltxmacro }
         # 表外 fallback (2026-09-16): glue 残骸前缀拆分 —— payload 未命中
         # cs_table 时, 若 cs = 已知粘连头 + 残余 (大写起首或 ≤4 字符) 则合成
         # cs_map 拆回 "head rest" (replay 实证 rmPT 型新残骸仍零星冒头,
