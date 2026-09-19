@@ -79,6 +79,25 @@ export default function TaskProgress(props: Props) {
         void props.live?.logs.length;
         scrollLog();
     });
+    // 命中行越出日志面（resetLive 清空/截断）→ 释放 autoscroll
+    createEffect(() => {
+        const i = logHit();
+        if (i != null && i >= (props.live?.logs.length ?? 0)) setLogHit(null);
+    });
+    // 用户手动滚回底部 → 命中使命完成，恢复贴底跟随
+    createEffect(() => {
+        const el = logPre;
+        if (!el) return;
+        const onScroll = () => {
+            if (
+                logHit() !== null &&
+                el.scrollTop + el.clientHeight >= el.scrollHeight - 4
+            )
+                setLogHit(null);
+        };
+        el.addEventListener("scroll", onScroll, { passive: true });
+        onCleanup(() => el.removeEventListener("scroll", onScroll));
+    });
     createEffect(() => {
         const i = logHit();
         if (i == null) return;
@@ -99,10 +118,12 @@ export default function TaskProgress(props: Props) {
             `#${seq}`,
         ];
         if (code) needles.push(code);
+        // 边界匹配：needle 尾部是数字——后随数字即他人 seq（"seq=1" 不得
+        // 命中 "seq=12"/"seq=100"）
+        const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const re = new RegExp(`(?:${needles.map(esc).join("|")})(?!\\d)`);
         const lines = props.live?.logs ?? [];
-        const hit = lines.findIndex((l) =>
-            needles.some((n) => l.line.includes(n)),
-        );
+        const hit = lines.findIndex((l) => re.test(l.line));
         setLogHit(hit >= 0 ? hit : null);
         if (logDrawer) logDrawer.open = true;
     };
@@ -261,8 +282,9 @@ export default function TaskProgress(props: Props) {
             >
                 {(id) => <ChunkPreview taskId={id()} />}
             </Show>
-            {/* === live reading === 边译边读：已译段全渲染面板（LivePane 自轮询
-                taskChunks 累积补丁；translating/compiling 期可读，终态切走即卸） */}
+            {/* === live reading === 边译边读：已译段全渲染面板（LivePane 经
+                chunkPoll 共享轮询累积补丁；compiling 段 chunks 已冻结——
+                frozen 补末拍后退订停轮询；终态切走即卸） */}
             <Show
                 when={
                     (props.task?.status === "translating" ||
@@ -270,7 +292,12 @@ export default function TaskProgress(props: Props) {
                     props.task.task_id
                 }
             >
-                {(id) => <LivePane taskId={id()} />}
+                {(id) => (
+                    <LivePane
+                        taskId={id()}
+                        frozen={props.task?.status === "compiling"}
+                    />
+                )}
             </Show>
             {/* fixloop 修复循环：compiling 段帧起即见——逐轮增量 + done 后
                 verdict 徽标 + floor_restored 提示（终态面板复看同一 live 面） */}
