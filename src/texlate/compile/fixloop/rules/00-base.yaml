@@ -112,7 +112,7 @@ filemap:
     # 继续作显式钉与已知噪声登记 (signature-mining 2026-09-16 §2.1;
     # overrides 是 basename→pkg 直表, 不经 runfiles 过滤)。
     "epsf.tex": "epsf" # 1706.02568; 真身 tex/generic/epsf/epsf.tex ∈ epsf 包
-    "tcilatex.tex": null # physics/0307021; TL 无 (TCI 私有) → 已知噪声, 走 shim_map stub
+    "tcilatex.tex": null # physics/0307021; TL 无 (TCI 私有) → 已知噪声, 走 vendor stub
     # graphicx.tex: TL 有真身但命中的是 tex/plain/graphics/ miniltx 包装 —
     # xelatex LaTeX 语境 \zap@space 无限递归爆 input stack
     # (nucl-ex/0408018 实证 61 错 1 页 stub)。已知毒件 → 走 shim_map 桥。

@@ -155,7 +155,8 @@ rules:
         body: |
           \NeedsTeXFormat{LaTeX2e}
           \ProvidesClass{aastex}[2026/09/15 fixloop bundle shadow -> emulateapj]
-          % emulateapj5 自指递归保险 —— ver@/opt@ 预注册同 shim_map aastex.cls 条
+          % emulateapj5 自指递归保险 —— ver@/opt@ 预注册同 shim_map aastex61.cls 条
+          % (原 aastex.cls 槽已删: vendored 先中)
           \expandafter\def\csname ver@emulateapj5.sty\endcsname{2026/09/17}
           \expandafter\def\csname opt@emulateapj5.sty\endcsname{twocolumn,onecolumn}
           \LoadClassWithOptions{emulateapj}
@@ -277,7 +278,8 @@ rules:
   # stub (\endinput), InputIfFileExists 走真臂置 \journalopt 即过; 盘上
   # 真 .clo 不覆盖。taxonomy 无专类: '!' 行落 other, 尾部 \stop 抢签时
   # 归 emergency —— ctx_suggests 正则 err_head 两类归属下都判别。
-  # 与 shim_map svjour.cls 条不冲突: 那条管缺类, 这条管有类缺 clo。
+  # 与 vendored svjour.cls 不冲突 (shim_map 槽已删): vendored_fetch 管缺类,
+  # 这条管有类缺 clo。
   - id: svjour_clo_stub
     mechanisms: [B05]
     description: "svjour.cls 在场但零 .clo 伴船 → 按 docclass 选项写 sv<opt>.clo noop stub"

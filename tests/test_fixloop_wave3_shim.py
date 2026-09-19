@@ -64,23 +64,29 @@ def _ctx(tmp_path: Path) -> LoopCtx:
 # ------------------------------------------------------- aa.cls \abstract
 
 
+_AA_STUB = (
+    Path(__file__).resolve().parent.parent
+    / "src/texlate/compile/fixloop/vendor/stubs/aa.cls"
+)
+
+
 def test_aa_shim_abstract_single_arg_with_absorb() -> None:
-    """``\\abstract`` 必须 [1]+absorb —— [5] 在旧稿上吞结构 cs 炸 endcsname。"""
-    body = _shim_params()["shim_map"]["aa.cls"]["body"]
+    """``\\abstract`` 必须 [1]+absorb —— [5] 在旧稿上吞结构 cs 炸 endcsname。
+    routeclean 2026-09-20: shim_map aa.cls 槽删 → vendored stub 实件钉。"""
+    body = _AA_STUB.read_text(encoding="utf-8")
     assert re.search(r"\\renewcommand\{\\abstract\}\[1\]", body)
     assert "\\aa@absorb" in body  # 续组并入 peek 机制在场
     assert "[5]" not in re.search(r"\\renewcommand\{\\abstract\}[^\n]*", body).group(0)
 
 
 def test_aa_shim_stub_writes(tmp_path: Path) -> None:
-    """transform 落盘 + 续组 absorb 定义随 stub 落 wdir。"""
-    ok, note = TRANSFORM_FNS["legacy_pkg_shim"](
-        _ctx(tmp_path), _Eng(), "aa.cls", _shim_params()
+    """vendored_fetch 落盘面: 替身 stub 物化 wdir + absorb 机制随件。"""
+    (tmp_path / "aa.cls").write_text(
+        _AA_STUB.read_text(encoding="utf-8"), encoding="utf-8"
     )
-    assert ok, note
     stub = (tmp_path / "aa.cls").read_text()
     assert "\\aa@absorb" in stub
-    assert "\\LoadClassWithOptions{article}" in stub
+    assert "\\LoadClass{article}" in stub
 
 
 # ------------------------------------------------------- graphicx.tex 桥

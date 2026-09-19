@@ -35,8 +35,9 @@
 \providecommand{\address}[2][]{\g@addto@macro\@imsaddr{\par{\footnotesize #2}}}
 \providecommand{\affiliation}[1]{\gdef\@affiliation{#1}}
 \providecommand{\email}[1]{\gdef\@email{#1}}
-\providecommand{\keyword}[1]{\gdef\@keywords{#1}}
-\providecommand{\keywords}[1]{\keyword{#1}}
+% \keyword 名归 keyword env (真件 imsart 只有 env 形, \kwd 项入内);
+% \keywords 命令形留存 (amsart 系习惯调用面)。
+\providecommand{\keywords}[1]{\gdef\@keywords{#1}}
 \providecommand{\amsclass}[1]{\gdef\@amsclass{#1}}
 \providecommand{\received}[1]{}
 \providecommand{\revised}[1]{}
@@ -68,6 +69,10 @@
 % AtBeginDocument 包印 —— preamble/in-doc 双安全 (1003.1513 实证:
 % transductionPap1.tex:166 \arxiv{math.PR/0000512} 无 stub 提供 → undefined_cs)
 \providecommand{\arxiv}[1]{\AtBeginDocument{\par\noindent{\footnotesize arXiv:#1}\par}}
+% \kwd{kw}/keyword env：真件关键词块 (1003.1513 实证面 —
+% \begin{keyword}\kwd{..} 列)；列印走 \par 段, 无版式承诺。
+\providecommand{\kwd}[1]{#1\par}
+\newenvironment{keyword}{\par\noindent\textbf{Keywords:}\enspace}{\par}
 % —— frontmatter/aug env：真件 \end{frontmatter} 隐含排版头块；stub
 %    begin 驯化 \and（作者块分隔符），end 吐 title/authors/address ——
 \newenvironment{frontmatter}{\let\and\relax}{\texlate@ims@emit}

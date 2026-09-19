@@ -447,8 +447,22 @@ def _shim_map() -> dict[str, dict]:
     return rules["legacy_pkg_shim"].action["params"]["shim_map"]
 
 
+def _vendor_file(name: str) -> Path | None:
+    """shim_map 槽已删名 (routeclean 2026-09-20) → vendored_fetch 实件。"""
+    for layer in (SHIMS, STUBS, VENDOR_FILES):
+        vend = layer / name
+        if vend.is_file():
+            return vend
+    return None
+
+
 def _shim_body(name: str) -> str:
-    spec = _shim_map()[name]
+    spec = _shim_map().get(name)
+    if spec is None:
+        vend = _vendor_file(name)
+        if vend is not None:
+            return vend.read_text(encoding="utf-8")
+        raise KeyError(name)
     assert "body" in spec, f"{name} 无 body 键"
     return spec["body"]
 
@@ -527,16 +541,17 @@ def test_imsart_arxiv_thanksref() -> None:
         "\\providecommand{\\thanksref}[1]",
         "\\providecommand{\\kwd}[1]",
         "\\providecommand{\\ead}[2][]",
-        "\\providecommand{\\printead}[1]",
-        "\\providecommand{\\address}[1]",
+        "\\providecommand{\\printead}",
+        "\\providecommand{\\address}[2][]",
         "\\newenvironment{frontmatter}",
         "\\newenvironment{aug}",
         "\\newenvironment{keyword}",
         "\\maketitle",
     ):
         assert frag in body, f"imsart 缺 {frag}"
-    # \address 单参实证 (1003.1513 :29)——旧 2 参形吞后随 token 回潮禁。
-    assert "\\providecommand{\\address}[2]" not in body
+    # \address 单参实证 (1003.1513 :29)——裸 2 必参形吞后随 token 回潮禁;
+    # vendored 件取 [2][] opt+mand 形 (真件签名, 单参调用兼容)。
+    assert "\\providecommand{\\address}[2]{" not in body
 
 
 def test_aa501_loads_aa_needs_aa() -> None:
@@ -560,8 +575,15 @@ def test_flushrt_shim_present() -> None:
 
 def _write_shim(wdir: Path, name: str) -> None:
     r"""把 shim_map body (或 loads 模板) 物化成 wdir/<name>——复刻
-    ``_builtins_shim`` 的 emit 面, 编译钉直打真实生成物。"""
-    spec = _shim_map()[name]
+    ``_builtins_shim`` 的 emit 面, 编译钉直打真实生成物。槽已删名
+    改物化 vendored_fetch 实件 (同服务物)。"""
+    spec = _shim_map().get(name)
+    if spec is None:
+        vend = _vendor_file(name)
+        if vend is None:
+            raise KeyError(name)
+        (wdir / name).write_text(vend.read_text(encoding="utf-8"), encoding="utf-8")
+        return
     body = spec.get("body")
     if body is None:
         loads = spec["loads"]

@@ -1402,7 +1402,8 @@ _REVTEX42_DOCCLASS_RE = re.compile(
     r"\\documentclass\s*(?:\[[^\]]*\])?\s*\{\s*revtex4-2\s*\}"
 )
 
-#: 注入面——与 90-shim-legacy.yaml ``shim_map.revtex.cls`` stub body 同义,
+#: 注入面——与 ``vendor/shims/revtex.cls`` 替身 stub 面同义
+#: (90-shim-legacy.yaml ``shim_map.revtex.cls`` 槽已删: vendored 先中),
 #: 剥去 cls 装载件 (``\LoadClassWithOptions`` 已由升级稿 docclass 行完成),
 #: 补 exact-restore @=11 包装 (``_AT_LETTER_*``: ``\edef`` 存现值→=11 读
 #: →复元; @=letter 宿主恒等, 裸 ``\makeatletter`` 对会把 letter 宿主

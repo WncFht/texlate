@@ -12,6 +12,7 @@ shim_map body 扫 ``\AtBeginDocument`` 顶层 ``##`` (嵌套 def 体内的 ``##`
 """
 
 import re
+from pathlib import Path
 
 from texlate.compile.fixloop import load_ruleset
 from texlate.compile.fixloop._builtins_shim import _REVTEX209_POLYFILL
@@ -63,10 +64,17 @@ def _top_level_double_hash(arg: str) -> str | None:
     return None
 
 
+_REVTEX_STUB = (
+    Path(__file__).resolve().parent.parent
+    / "src/texlate/compile/fixloop/vendor/shims/revtex.cls"
+)
+
+
 def test_revtex_cls_pacs_single_hash() -> None:
-    r"""``revtex.cls`` stub body: ``\pacs`` polyfill 单 ``#`` 形, 无 ``##``。"""
-    body = _shim_map()["revtex.cls"]["body"]
-    assert _PACS_LINE in body
+    r"""``revtex.cls`` stub: ``\pacs`` 覆盖在场且全件无 ``##`` 定界宏陷阱。
+    routeclean 2026-09-20: shim_map 槽删 → vendored shims 实件钉。"""
+    body = _REVTEX_STUB.read_text(encoding="utf-8")
+    assert "\\pacs" in body
     assert "##" not in body
 
 
@@ -83,12 +91,11 @@ def test_shim_map_no_top_level_double_hash_in_hooks() -> None:
 
 
 def test_polyfill_emits_agree_on_pacs() -> None:
-    r"""两条 emit 链同义钉: 内建 ``_REVTEX209_POLYFILL`` 与 yaml stub body
-    的 ``\pacs`` 行逐字一致 (注释声明同义, 漂移即本测试拦)。"""
+    r"""两条 emit 链同义钉: 内建 ``_REVTEX209_POLYFILL`` 单 ``#`` 形钉住,
+    vendored revtex.cls 替身 (routeclean 后服务物) ``\pacs`` 覆盖且无
+    ``##`` ——两链机制已异构 (def-in-hook vs 外 def+内 let), 钉语义面。"""
     builtin_line = next(ln for ln in _REVTEX209_POLYFILL.splitlines() if "\\pacs" in ln)
-    yaml_line = next(
-        ln.strip()
-        for ln in _shim_map()["revtex.cls"]["body"].splitlines()
-        if re.search(r"\\AtBeginDocument.*\\pacs", ln)
-    )
-    assert builtin_line.strip() == yaml_line
+    assert "##" not in builtin_line
+    body = _REVTEX_STUB.read_text(encoding="utf-8")
+    assert "\\pacs" in body
+    assert "##" not in body

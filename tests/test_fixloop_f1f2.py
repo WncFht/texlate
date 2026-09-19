@@ -154,8 +154,9 @@ def test_shim_map_elsart_siblings_body_form(tmp_path: Path, payload: str) -> Non
 
 
 def test_shim_map_elsart_body_form(tmp_path: Path) -> None:
-    """elsart.cls 为 body 形 (cpcauth 需 \\eqntopsep 等私有 dimen) → 桥 elsarticle。"""
-    spec = _shim_map()["elsart.cls"]
+    """elsart 家 body 形锚 (cpcauth 需 \\eqntopsep 等私有 dimen) → 桥 elsarticle。
+    routeclean 2026-09-20: elsart.cls 槽删→vendor/files 真件; 锚由 elsart1p 持。"""
+    spec = _shim_map()["elsart1p.cls"]
     assert "loads" not in spec
     for cs in ("\\eqntopsep", "\\eqnarraycolsep"):  # 赋值含 \@plus/\@minus 胶 → skip
         assert f"\\newskip{cs}" in spec["body"]
@@ -163,26 +164,25 @@ def test_shim_map_elsart_body_form(tmp_path: Path) -> None:
     for cs in ("\\@maxlistdepth", "\\if@TwoColumn", "\\if@ussrhead", "\\if@Elproofing"):
         assert cs in spec["body"]
     ctx, eng = _ctx(tmp_path), _Eng()
-    ok, note = TRANSFORM_FNS["legacy_pkg_shim"](ctx, eng, "elsart.cls", _shim_params())
+    ok, note = TRANSFORM_FNS["legacy_pkg_shim"](
+        ctx, eng, "elsart1p.cls", _shim_params()
+    )
     assert ok, note
-    stub = (tmp_path / "elsart.cls").read_text()
+    stub = (tmp_path / "elsart1p.cls").read_text()
     assert "\\LoadClassWithOptions{elsarticle}" in stub
 
 
 @pytest.mark.parametrize(
     ("payload", "needs"),
     [
-        ("aa.cls", ["natbib.sty"]),
+        # routeclean 2026-09-20: aa/aipproc/iopart*/iopams 槽删→vendored 实件,
+        # vendored 面无 needs 元数据 (install 依赖由 stub 内联自给)
         ("aastex61.cls", ["emulateapj.cls", "epsf.sty"]),
         ("aastex63.cls", ["emulateapj.cls", "epsf.sty"]),
         ("AASTeX62.cls", ["emulateapj.cls", "epsf.sty"]),
         ("prl.cls", ["revtex4-2.cls"]),
         ("apl.cls", ["revtex4-2.cls"]),
         ("revtex4.cls", ["revtex4-2.cls"]),
-        ("aipproc.cls", ["keyval.sty"]),
-        ("iopart10.clo", ["size10.clo"]),
-        ("iopart12.clo", ["size12.clo"]),
-        ("iopams.sty", ["amsbsy.sty", "amssymb.sty"]),
         ("scrpage.sty", ["scrlayer-scrpage.sty"]),
         ("scrpage2.sty", ["scrlayer-scrpage.sty"]),
         ("doublespace.sty", ["setspace.sty"]),

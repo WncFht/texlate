@@ -67,6 +67,19 @@ taxonomy:
       payload_group: 1,
       pattern: "did not find the tikz library '([^']+)'",
     }
+  # 2026-09-20 routeclean: jabbrv.sty 自报缺伴档两措辞 (PackageError 形,
+  # file-line 头) —— e-print 只带 jabbrv.sty 不带 .ldf 伴档 (jabbrv ∉ TL
+  # 无包可装, install_file 索引恒 miss), 恒归 other 永远够不到 vendor
+  # 面。payload=.ldf 名 → vendored_fetch 递 vendor/files 真档 (ltwa-all/
+  # ltwa-en/jabbrv.sty 三件套随包, 语料 4 独立稿逐字节同档; 2507.10677
+  # "master abbreviation language file `X' was not found" / "Abbreviation
+  # language `X' not found" 双形实证)。
+  - {
+      id: missing_file,
+      scope: head,
+      payload_group: 1,
+      pattern: "breviation language(?: file)? `([^']+\\.ldf)' (?:was )?not found",
+    }
   # —— TFM 字体缺失 (抓字体名=文件名 → install_tfm) ——
   # payload 类须含 "-": SkakNew-Diagram 型名按 [a-zA-Z0-9]/\w 抓会在
   # 连字符处截断成 "Diagram" → filemap 必 miss (loop1-2211.12985 实证)。
