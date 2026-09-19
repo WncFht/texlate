@@ -62,6 +62,7 @@ from texlate.textutil import (
 
 if TYPE_CHECKING:
     from texlate.latex.gullet import (
+        Arg,
         EnvDef,
         ScopeMacroTable,
     )
@@ -679,8 +680,10 @@ _TAIL_CAP = 512
 # ``\def\r{\ref}``+``\r{key}``：``\ref`` 是展开产物（pos=定义体、origin=
 # 调用区间），``{key}`` 是 gen=0 调用点 token（pos==origin 末——`_in_group`
 # 的 ``a < o[2]`` 开区间把它挡在组外）→ 无吸纳则 ``{key}`` 落 chunk 被译。
-# 槽形 = ``_grp_call_end``/``_grp_probe_end``/``_grp_spec_args_end`` 各步的
-# 通用化（组内列扫 ``_slots_walk_toks``、流侧拉取 ``_absorb_slots`` 共用）：
+# 槽形字母 → ``_slot_elem`` 归一投影成 ``_WSpec``——列扫走参本体只有一份
+# （``group._walk_spec_toks``：``_slots_walk_toks``/``_grp_call_end``/
+# ``_grp_probe_end``/``_grp_spec_args_end``/``_grp_spec_walk`` 共用）；
+# 流侧拉取对价是 ``pending._absorb_slots``（read/unread 账本不同构，不统一）：
 #   s   = 紧邻 ``*``（不跳 ws——``\ref *{k}`` 的星不是星参，call_end 同规）
 #   o   = ws + ``[..]`` 平衡组（可选——失配过给下一槽）
 #   m   = ws + ``{..}`` 平衡组（失配即调用终止）
@@ -696,7 +699,7 @@ _PEND_CALL2 = ("s", "o", "o", "o", "m", "m")  # inputminted 双 ``{m}``
 _PEND_PROBE = ("o", "m", "m", "m", "m", "m", "m")  # ``_grp_probe_end`` 形
 _SLOT_PAIR_LEN = 3  # ``dXY`` 槽宽（d + 开/闭定界符）
 _SLOT_TEST_LEN = 2  # ``tC`` 槽宽（t + 测试字符）
-# 字符串宏体尾 cs 提取（``_keyarg_tail`` 的 MacroEntry 臂）
+# 字符串宏体尾 cs 提取（``_keyarg_tail`` 的 str-body 臂）
 _KEYARG_TAIL_RX = re.compile(r"\\([a-zA-Z@]+)\s*$")
 _KEYARG_TAIL_DEPTH = 4  # ``\a``→``\b``→``\ref`` 别名链递归上限（防环）
 
@@ -842,6 +845,148 @@ def _pend_slot_of(s: ArgSpec) -> str | None:  # noqa: PLR0911 — 槽字母各�
     if k in ("d", "D", "r", "R") and s.delim:
         return "d" + s.delim[0] + s.delim[-1]
     return None
+
+
+# ------------------------------------------------- 归一走参元（_walk_spec_toks）
+# 物化 token 列上的 spec 走参曾是五份平行实现（``_slots_walk_toks`` 槽字母、
+# ``_grp_call_end``/``_grp_probe_end`` 定形槽列、``_grp_spec_args_end`` argspec、
+# ``_grp_spec_walk`` gullet Arg+ka 尾段）——三字母表到 ``_WSpec`` 的投影单源
+# 化后，走参本体只剩 ``group._walk_spec_toks`` 一份。流侧（read/unread 账本）
+# 对价仍是 ``_absorb_slots``/``_absorb_spec``/``_args_tok``——拉取/回放语义
+# 不同构（fid/gen 界、ws 计入消费位），不做强行统一。
+
+
+class _WSpec(NamedTuple):
+    r"""归一走参元——三字母表（slot/``ArgSpec``/gullet ``Arg``）的公共槽型。
+
+    ``kind``：``star``=``*`` 可选修饰、``opt``=``[..]`` 可选组、``mand``=
+    ``{..}`` 强制组、``egrp``=``{..}``|``[..]`` 任选强制组（slot ``e``/
+    hyperref 首参形）、``name``=cs 单 token 或组（``n`` 裸名参）、``marg``=
+    ``m``/``v``（组或单 token、cs 止）、``bsbs``=``\\`` 的 ``[dimen]``
+    （内容闸）、``accent``=``\c{c}`` 单参、``test``=``t`` 测试字符、
+    ``dpair``=``d/D/r/R`` 定界对、``embell``=``e{^_}`` 逐枚修饰参、
+    ``dseq``=滑窗定界参、``ugroup``=``#{`` 读到 ``lbrace`` 不消费、
+    ``zero``=零宽位。
+    """
+
+    kind: str
+    ws: bool = True  # 前置 space 跳读——slot ``s``/``_grp_call_end`` ``*`` 唯 False
+    req: bool = False  # ``dpair`` r/R 强制位：开符失配即整走终止（d/D/槽 d 过槽）
+    single_ok: bool = True  # ``marg`` 单 token 参闸（主流 ``allow_single_token``）
+    role: str = "skip"  # ``text``/``opt-text`` → 不消费停界（主流回吐同位）
+    env: str | None = None  # ``opt``/``dpair`` 的 ``env_opt_is_format`` 闸
+    cont_ok: bool = (
+        False  # 组未闭 → ``_grp_open_tail`` 跨界续扫态（spec_walk/ka-``o`` 面）
+    )
+    no_cs: bool = False  # ``test`` 的 cs 禁配——slot ``tC`` 有、``_grp_spec_args_end`` 无（原判差保留）
+    open_c: str = ""
+    close_c: str = ""
+    test_c: str = ""
+    e_chars: tuple[str, ...] = ()  # ``embell`` 修饰符表（``e{^_}`` 的逐枚序）
+    delim_toks: tuple[Tok, ...] = ()  # ``dseq`` 滑窗目标列（gullet ``Arg.delim`` 原样）
+
+
+class _WalkRes(NamedTuple):
+    r"""``_walk_spec_toks`` 走参结果——三列扫面各自投影自身约定。"""
+
+    end: int  # 实消费后界
+    cand: list[
+        tuple[int, int, int]
+    ]  # (实参序, ``{``/``[`` 位, 闭后位)——``opt``/``marg``/``bsbs`` 组参
+    rem: int | None  # toks 走尽/真跨界时未完元下标；``None`` = 走完或失配终止
+    cont: (
+        tuple | None
+    )  # 跨界续扫态 ``("grp",族,残深)``/``("delim",尾列)``/``("e-arg",)``
+    e_rest: tuple[str, ...] | None  # ``embell`` 走尽残符列（``_PendRem`` ``e`` 残件料）
+
+
+_SLOT_ELEMS: dict[tuple[str, bool], _WSpec] = {}
+
+
+def _slot_elem(s: str, *, cont_ok: bool = False) -> _WSpec:  # noqa: C901 — 槽字母各一分支，平铺即映射表
+    r"""待绑参槽字母 → ``_WSpec``（上方槽形表的归一投影；``(槽, cont_ok)`` 缓存）。
+
+    ``cont_ok`` 只给 ``_grp_spec_walk`` 的 ka-``o`` 槽——``[`` 组未闭承
+    ``_grp_open_tail`` 跨界续收态；``_slots_walk_toks`` 面未闭即终止。
+    """
+    key = (s, cont_ok)
+    el = _SLOT_ELEMS.get(key)
+    if el is None:
+        if s == "s":
+            el = _WSpec("star", ws=False)
+        elif s == "o":
+            el = _WSpec("opt", cont_ok=cont_ok)
+        elif s == "b":
+            el = _WSpec("bsbs")
+        elif s == "m":
+            el = _WSpec("mand", cont_ok=cont_ok)
+        elif s == "n":
+            el = _WSpec("name")
+        elif s == "e":
+            el = _WSpec("egrp", cont_ok=cont_ok)
+        elif s == "a":
+            el = _WSpec("accent")
+        elif s.startswith("d") and len(s) == _SLOT_PAIR_LEN:
+            el = _WSpec("dpair", open_c=s[1], close_c=s[2])
+        elif s.startswith("t") and len(s) == _SLOT_TEST_LEN:
+            el = _WSpec("test", test_c=s[1], no_cs=True)
+        else:
+            el = _WSpec("zero")  # 未识槽字母——保守零宽（不产生消费）
+        _SLOT_ELEMS[key] = el
+    return el
+
+
+def _aspec_elem(  # noqa: PLR0911 — 字母各一分支，平铺即映射表
+    s: ArgSpec, role: str, env: str | None, *, single_ok: bool
+) -> _WSpec:
+    r"""``ArgSpec`` → ``_WSpec``（``_grp_spec_args_end`` 归一投影）。
+
+    ``e``/``b``/``u``/``g``/无 delim 形 → ``zero``——组内不消费的原判
+    （这些字母只在 ``_args_tok`` 流侧有对价）。
+    """
+    k = s.kind
+    if k in ("m", "v"):
+        return _WSpec("marg", single_ok=single_ok, role=role)
+    if k == "n":
+        return _WSpec("name", role=role)
+    if k in ("o", "O"):
+        return _WSpec("opt", role=role, env=env)
+    if k == "s":
+        return _WSpec("star")
+    if k == "t" and s.delim:
+        return _WSpec("test", test_c=s.delim[0])
+    if k in ("d", "D", "r", "R") and s.delim:
+        return _WSpec(
+            "dpair",
+            req=k in ("r", "R"),
+            open_c=s.delim[0],
+            close_c=s.delim[-1],
+            role=role,
+            env=env if s.delim != "<>" else None,  # ``d<>`` 叠层恒版式——原判豁免
+        )
+    return _WSpec("zero")
+
+
+def _gspec_elem(a: Arg) -> _WSpec:  # noqa: PLR0911 — 字母各一分支，平铺即映射表
+    r"""Gullet ``Arg`` → ``_WSpec``（``_grp_spec_walk`` 归一投影）。
+
+    ``literal_match``/``eq``/空 delim/``brace_after`` 形 → ``zero``。
+    ``m``/``o`` 组未闭承 ``_grp_open_tail`` 跨界续收态（``cont_ok``）。
+    """
+    k = a.kind
+    if k == "m":
+        return _WSpec("marg", cont_ok=True)
+    if k == "o":
+        return _WSpec("opt", cont_ok=True)
+    if k == "star":
+        return _WSpec("star")
+    if k == "e" and a.delim:
+        return _WSpec("embell", e_chars=tuple(dict.fromkeys(d.text for d in a.delim)))
+    if k == "delim" and a.delim:
+        return _WSpec("dseq", delim_toks=tuple(a.delim))
+    if k == "until_group":
+        return _WSpec("ugroup")
+    return _WSpec("zero")
 
 
 def _env_ph_type(
@@ -1164,7 +1309,7 @@ class _EnvDeadTok(NamedTuple):
 
 @dataclass(slots=True)
 class _ArgTok:
-    """token 版 ``ArgSpan``：content/full 的文件区间 + 去括号内容 token。
+    """token 版参数区间记录：content/full 的文件区间 + 去括号内容 token。
 
     ``all_toks`` = 本参数消费的全部 token（含括号/定界符）——调用方放弃
     参数路径时整体 ``unread`` 回放（字节版 ``pos`` 不前进的等价物）。

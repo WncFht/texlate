@@ -87,15 +87,6 @@ class Chunk:
     placeholders: list[str] = field(default_factory=list)
 
 
-@dataclass(slots=True)
-class ArgSpan:
-    """一次参数读取的结果（替代 spike 的匿名四元组 ``(cs,ce,fs,fe)``）。"""
-
-    content: Span  # 去括号内容区间
-    full: Span  # 含括号整段（单 token 参数时 content==full）
-    spec: ArgSpec | None = None
-
-
 class MacroKind(Enum):
     """宏三分类（登记时一次判定，调用点零分析）。"""
 
@@ -114,29 +105,6 @@ class ArgSpec:
     delim: str = ""  # d/D/r/R/t 的定界符（'<>'）或 e 的 token 表（'^_'）
     default: str | None = None  # O/D/R 的默认值
     delim_toks: tuple[Tok, ...] = ()  # 'u' 专用：gullet ``Arg.delim`` 原样携带
-
-
-@dataclass(slots=True)
-class MacroEntry:
-    """宏表条目（spike ``Macro`` 的 argspec 化扶正）。"""
-
-    name: str
-    spec: list[ArgSpec] = field(default_factory=list)
-    kind: MacroKind = MacroKind.TRANSPARENT
-    target_env: str = ""  # ENV_BEGIN/ENV_END 专用
-    protect_args: tuple[bool, ...] = ()  # TRANSPARENT：参数位 → [[KEY]]
-    body: str = ""
-    def_site: int = -1  # 定义点偏移（全局，调试/审计用）
-
-
-@dataclass(slots=True)
-class EnvEntry:
-    r"""``\newenvironment`` 登记（spike ``env:`` 前缀死代码的扶正，W6）。"""
-
-    name: str
-    nargs: int = 0
-    kind: str = "transparent"  # "protected" | "transparent"（启发式）
-    body_role: str = ""  # "": 散文体 | "math"（before 尾开数学推断）
 
 
 @dataclass(frozen=True, slots=True)
@@ -192,13 +160,6 @@ class ScanResult:
     # 进 protected_tex——validate_result 据此豁免 dangling_ph/chunk_ref
     # 误报（S2：只活在 ScanState 时消费方区分不了保留字面与真悬空）。
     ph_reserved: set[str] = field(default_factory=set)
-
-
-class ScanMode(Enum):
-    """扫描模式。"""
-
-    NORMAL = auto()
-    MINED_ONLY = auto()  # 保护环境/参数内部：run 全 literal，只挖 chunk-arg
 
 
 @dataclass(slots=True)

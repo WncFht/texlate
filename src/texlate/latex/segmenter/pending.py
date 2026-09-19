@@ -59,10 +59,13 @@ from ._common import (
     _cite_ref_type,
     _env_ph_type,
     _fams,
+    _gspec_elem,
     _inline_lit_cs,
     _ListSource,
     _pend_call_slots,
     _pend_slot_of,
+    _slot_elem,
+    _WSpec,
 )
 from .args import (
     _COMMA_LIST_RX,
@@ -150,127 +153,29 @@ class _PendRem(NamedTuple):
 
 
 class _Pending:
-    def _slots_walk_toks(  # noqa: C901, PLR0911, PLR0912, PLR0915 — 槽字母各一分支，平铺即 _grp_call_end 通用化
+    def _slots_walk_toks(
         self, toks: list[Tok], j: int, slots: list[str] | tuple[str, ...]
     ) -> list[str] | None:
         r"""槽形在组内 token 列上的推行 → 剩余槽列 / ``None``。
 
+        走参本体 = ``_walk_spec_toks``（槽字母经 ``_slot_elem`` 归一）。
         ``toks`` 耗尽而槽未尽 → 返回剩余槽列（调用点界外有待绑参——
         ``_absorb_slots`` 从流里拉回）；中途失配/``eol_par``/组未闭 →
         调用已完结，``None``。可选槽（s/o/b/d/t）失配过给下一槽；强制
         槽（m/e/a）失配 = 终止。
         """
-        n = len(toks)
-        si = 0
-        while si < len(slots):
-            s = slots[si]
-            k = j
-            if s != "s":  # ``*`` 槽不跳 ws（``\ref *{k}`` 的星非星参）
-                while k < n and toks[k].kind == "space":
-                    k += 1
-            if k >= n:
-                return list(slots[si:])
-            x = toks[k]
-            if x.kind == "eol_par":
-                return None  # 段界即终止——不定界参数不跨 \par
-            if s == "s":
-                if x.kind == "other" and x.text == "*":
-                    j = k + 1
-                si += 1
-                continue
-            if s == "o":
-                if x.kind == "other" and x.text == "[":
-                    e = self._grp_bal(toks, k, brace=False)
-                    if e is None:
-                        return None
-                    j = e
-                si += 1
-                continue
-            if s == "b":
-                if x.kind == "other" and x.text == "[":
-                    e = self._grp_bal(toks, k, brace=False)
-                    if e is None or not _GRP_BSBS_CONTENT_RX.fullmatch(
-                        self._grp_surfs(toks[k + 1 : e - 1])
-                    ):
-                        return None
-                    j = e
-                si += 1
-                continue
-            if s == "m":
-                if x.kind != "lbrace":
-                    return None
-                e = self._grp_bal(toks, k, brace=True)
-                if e is None:
-                    return None
-                j = e
-                si += 1
-                continue
-            if s == "n":
-                # 裸名参：cs 单 token 或 {..}/[..] 组（强制——失配终止）
-                if x.kind == "cs":
-                    j = k + 1
-                elif x.kind == "lbrace" or (x.kind == "other" and x.text == "["):
-                    e = self._grp_bal(toks, k, brace=x.kind == "lbrace")
-                    if e is None:
-                        return None
-                    j = e
-                else:
-                    return None
-                si += 1
-                continue
-            if s == "e":
-                if x.kind != "lbrace" and not (x.kind == "other" and x.text == "["):
-                    return None
-                e = self._grp_bal(toks, k, brace=x.kind == "lbrace")
-                if e is None:
-                    return None
-                j = e
-                si += 1
-                continue
-            if s == "a":
-                if x.kind == "lbrace":
-                    e = self._grp_bal(toks, k, brace=True)
-                    if e is None:
-                        return None
-                    j = e
-                elif x.kind in ("letter", "other") or (
-                    x.kind == "cs" and len(x.text) == 1
-                ):
-                    j = k + 1
-                else:
-                    return None
-                si += 1
-                continue
-            if s.startswith("d") and len(s) == _SLOT_PAIR_LEN:
-                if x.text == s[1]:
-                    k2 = k + 1
-                    while (
-                        k2 < n and toks[k2].text != s[2] and toks[k2].kind != "eol_par"
-                    ):
-                        k2 += 1
-                    if k2 >= n:
-                        return list(slots[si:])  # 定界闭符在界外——同槽待绑
-                    if toks[k2].kind == "eol_par":
-                        return None
-                    j = k2 + 1
-                si += 1
-                continue
-            if s.startswith("t") and len(s) == _SLOT_TEST_LEN:
-                if x.kind != "cs" and x.text == s[1]:
-                    j = k + 1
-                si += 1
-                continue
-            si += 1  # 未识槽字母——保守跳过（不产生消费）
-        return None
+        res = self._walk_spec_toks(toks, j, [_slot_elem(s) for s in slots])
+        return list(slots[res.rem :]) if res.rem is not None else None
 
-    def _absorb_slots(  # noqa: C901, PLR0912, PLR0915 — 槽字母各一分支，平铺即流侧 _slots_walk_toks 对价
+    def _absorb_slots(  # noqa: C901, PLR0912, PLR0915 — 槽字母各一分支，平铺即流侧列扫对价
         self, src: TokenSource, fid: int, slots: list[str]
     ) -> list[Tok]:
         r"""槽形从 ``read()`` 流吸参 → 已消费 token 列（拉取序，可空）。
 
-        ``_slots_walk_toks`` 的源侧对价。失配 token 与其前的 ws 全量
-        ``unread`` 回放（``_protect_cs`` ``pulled`` 约定同款）；
-        ``eol_par``/异 fid/``gen>0`` token 是参扫边界（回放、不消费）。
+        ``_slots_walk_toks``（``_walk_spec_toks`` 列扫投影）的源侧对价——
+        拉取契约不同构不入归一：失配 token 与其前的 ws 全量 ``unread``
+        回放（``_protect_cs`` ``pulled`` 约定同款）；``eol_par``/异
+        fid/``gen>0`` token 是参扫边界（回放、不消费）。
         """
         pulled: list[Tok] = []
         committed = 0
@@ -473,7 +378,8 @@ class _Pending:
     ) -> list[Tok]:
         r"""Gullet ``Arg`` spec 从 ``read()`` 流吸参 → 已消费 token 列（可空）。
 
-        ``_grp_spec_walk`` 的源侧对价（``_absorb_slots`` 同款拉取规）：
+        ``_grp_spec_walk``（``_walk_spec_toks`` 列扫投影）的源侧对价
+        （``_absorb_slots`` 同款拉取规——拉取契约不同构不入归一）：
         ``cont`` 承 ``_PendRem.cont`` 首参续扫态（``("grp",族,残深)`` 已开
         组续收/``("delim",尾列)`` 滑窗续扫/``("e-arg",)`` 已吃 ``X`` 的尾
         位续决）；界 token（``eol_par``/``gen>0``/异 fid）与未提交 ws 全量
@@ -687,7 +593,7 @@ class _Pending:
         r"""宏体尾 cs 解析到 key-arg 名（``\def\x{..\label}`` 形）→ 名 / ``None``。
 
         ``MacroDef.body`` = token 列（尾 cs = 最后非空白 token——``{..}``
-        结尾即体尾是组不是 cs，不算待绑）；``MacroEntry.body`` = 字符串
+        结尾即体尾是组不是 cs，不算待绑）；``body: str`` 登记体 = 字符串
         （``_KEYARG_TAIL_RX``）；``\\let`` 快照 ``Tok``/原语名 ``str`` 直取。
         尾 cs 再登记成宏 → 递归一层（``\\a``→``\\b``→``\\ref`` 别名链，
         深 ≤4 防环）。
@@ -1021,21 +927,18 @@ class _Pending:
                 return None
         return ("grp", brace, depth) if depth else None
 
-    def _grp_spec_walk(  # noqa: C901, PLR0912, PLR0915 — spec 字母各一分支，平铺即 _args_tok 组内镜像
+    def _grp_spec_walk(
         self, toks: list[Tok], i: int, m: object
     ) -> tuple[int, list[tuple[int, int, int]], _PendRem | None]:
         r"""Opaque/math 宏 ``m.spec`` + 体尾 key-arg 槽的组内位序走参。
 
         → ``(参末位, 散文候选界列, 跨界余量)``。``_handle_opaque_macro``+
-        ``_args_tok`` 的组内 toks 对价：gullet ``Arg`` 逐位消费——``m``→
-        ``{..}``/``[..]`` 组或单 token（cs 止）、``o``→``[..]``、``star``→
-        ``*``、``e``→逐枚 ``X{arg}``/``X<tok>``、``delim``→滑窗 ``_tok_eq``
-        序列（lbrace 组整收、``eol_par``/未闭 = runaway 止）、
-        ``until_group``→读到 ``lbrace`` 不消费、其余（``literal_match``/
-        ``eq``/空 delim/``brace_after``）→零宽位；每参前置 ws 跳读，
-        ``eol_par`` 即参扫终界。体尾 key-arg cs（``\def\r{\ref}`` 形）续
-        按 ``_pend_call_slots`` 槽形吸调用点 ``{key}``——``_absorb_slots``
-        的组内同位，缺席/未闭即终止不追。
+        ``_args_tok`` 的组内 toks 对价。走参本体 = ``_walk_spec_toks``
+        （gullet ``Arg`` 经 ``_gspec_elem`` 归一）——``m``/``o`` 组未闭
+        承 ``_grp_open_tail`` 跨界续扫态（``cont_ok``）。体尾 key-arg cs
+        （``\def\r{\ref}`` 形）续按 ``_pend_call_slots`` 槽形吸调用点
+        ``{key}``——同机第二段走参（ka-``o`` 未闭承续收态、``s``/``m``
+        失配即终止不追）。
 
         余量 ``None`` = 调用在组内完结/失配终止；``_PendRem`` = toks 走尽
         而调用未竟（``_grp_pending`` 臂消费）：``spec`` 未走 ``Arg`` 尾段
@@ -1043,195 +946,35 @@ class _Pending:
         ``ka_cont``/``ka`` = key-arg 剩余槽、``[`` 组续收态与告警名——
         流侧对价 = ``_absorb_spec`` + ``_absorb_slots``。
         """
-        n = len(toks)
-        end = i + 1
-        cand: list[tuple[int, int, int]] = []  # (实参序, ``{``/``[`` 位, 闭后位)
-        nth = 0
-        rem: _PendRem | None = None
         ka = self._keyarg_tail(m, _ListSource([]))
         ka_slots = _pend_call_slots(ka) if ka is not None else []
         spec = list(getattr(m, "spec", []))
-        for ai, a in enumerate(spec):
-            k = end
-            while k < n and toks[k].kind == "space":
-                k += 1
-            if k >= n:
-                rem = _PendRem(spec[ai:], None, ka_slots, None, ka or "")
-                break  # toks 走尽而参未竟——界外待绑
-            if toks[k].kind == "eol_par":
-                break  # 参扫终界（``_peek_nonspace`` None 同位）
-            x = toks[k]
-            start = end
-            if a.kind == "m":
-                if x.kind == "lbrace" or (x.kind == "other" and x.text == "["):
-                    e = self._grp_bal(toks, k, brace=x.kind == "lbrace")
-                    if e is None:
-                        hit = self._grp_open_tail(toks, k, brace=x.kind == "lbrace")
-                        if hit is not None:
-                            rem = _PendRem(spec[ai:], hit, ka_slots, None, ka or "")
-                        break  # eol_par 穿组 = 调用止；真越界 = 待绑续收
-                    cand.append((nth, k, e))
-                    end = e
-                elif x.kind == "cs":
-                    break  # 单 token 参不跨 '\'（BUG1 同规）
-                else:
-                    end = k + 1
-            elif a.kind == "o":
-                if x.kind == "other" and x.text == "[":
-                    e = self._grp_bal(toks, k, brace=False)
-                    if e is None:
-                        hit = self._grp_open_tail(toks, k, brace=False)
-                        if hit is not None:
-                            rem = _PendRem(spec[ai:], hit, ka_slots, None, ka or "")
-                        break
-                    cand.append((nth, k, e))
-                    end = e
-            elif a.kind == "star":
-                if x.kind == "other" and x.text == "*":
-                    end = k + 1
-            elif a.kind == "e" and a.delim:
-                # 修饰参 ``e{^_}``：逐枚试吃 ``X{arg}``/``X<tok>``——cs/
-                # ``eol_par``/符表外即停（主流 cs 不作参、缺席只留符同规）
-                rest = list(dict.fromkeys(d.text for d in a.delim))
-                tail_pend = False  # 已吃 ``X``、``{arg}``/``<tok>`` 尾位未决
-                stop = False
-                while rest:
-                    k2 = end
-                    while k2 < n and toks[k2].kind == "space":
-                        k2 += 1
-                    if k2 >= n:
-                        stop = True
-                        break
-                    if toks[k2].kind in ("cs", "eol_par") or toks[k2].text not in rest:
-                        break
-                    rest.remove(toks[k2].text)
-                    end = k2 + 1
-                    tail_pend = True
-                    k2 = end
-                    while k2 < n and toks[k2].kind == "space":
-                        k2 += 1
-                    if k2 >= n:
-                        continue  # 尾位未决——下轮符扫统一出 pending
-                    tail_pend = False
-                    if toks[k2].kind == "lbrace":
-                        e = self._grp_bal(toks, k2, brace=True)
-                        if e is not None:
-                            end = e
-                    elif toks[k2].kind not in ("cs", "eol_par"):
-                        end = k2 + 1
-                if stop:
-                    resid = Arg(
-                        "e", delim=[Tok("other", c, (-1, -1, -1)) for c in rest]
-                    )
-                    rem = _PendRem(
-                        [resid, *spec[ai + 1 :]],
-                        ("e-arg",) if tail_pend else None,
-                        ka_slots,
-                        None,
-                        ka or "",
-                    )
-                    break
-            elif a.kind == "delim" and a.delim:
-                # ``#1<seq>`` 定界参：滑窗 ``_tok_eq`` 比对 delim 序列——
-                # lbrace 组整收（组内定界符不参与滑窗）；``eol_par``/组未闭
-                # 先至 = runaway 整调用止；toks 走尽 = 窗尾带已吃列待绑续扫
-                kk = len(a.delim)
-                seq: list[int] = []
-                k2 = k
-                runaway = False
-                if x.kind == "lbrace":
-                    e = self._grp_bal(toks, k2, brace=True)
-                    if e is None:
-                        runaway = True
-                    else:
-                        seq.extend(range(k2, e))
-                        k2 = e
-                else:
-                    seq.append(k2)
-                    k2 += 1
-                matched = False
-                pend_mid = False
-                while not runaway and not matched and not pend_mid:
-                    if len(seq) >= kk and all(
-                        _tok_eq(toks[seq[len(seq) - kk + j2]], a.delim[j2])
-                        for j2 in range(kk)
-                    ):
-                        matched = True
-                    elif k2 >= n:
-                        pend_mid = True
-                    elif toks[k2].kind == "eol_par":
-                        runaway = True
-                    elif toks[k2].kind == "lbrace":
-                        e = self._grp_bal(toks, k2, brace=True)
-                        if e is None:
-                            runaway = True
-                        else:
-                            seq.extend(range(k2, e))
-                            k2 = e
-                    else:
-                        seq.append(k2)
-                        k2 += 1
-                if pend_mid:
-                    ctx = [toks[j] for j in seq[max(0, len(seq) - (kk - 1)) :]]
-                    rem = _PendRem(spec[ai:], ("delim", ctx), ka_slots, None, ka or "")
-                    break
-                if not matched:
-                    break
-                end = k2
-            elif a.kind == "until_group":
-                # ``#{`` 形：读到 ``lbrace`` 不消费——``{`` 留主流组自行分流；
-                # ``eol_par`` 先至 = 参失配整调用止；toks 走尽 = 同参续扫
-                k2 = k
-                while (
-                    k2 < n and toks[k2].kind != "lbrace" and toks[k2].kind != "eol_par"
-                ):
-                    k2 += 1
-                if k2 >= n:
-                    rem = _PendRem(spec[ai:], None, ka_slots, None, ka or "")
-                    break
-                if toks[k2].kind == "eol_par":
-                    break
-                end = k2
-            # 其余（literal_match/eq/空 delim/brace_after 形）→ 零宽位不消费
-            if end > start:
-                nth += 1  # 实消费参占序——``_prose_args_of`` 序数同口径
-        if rem is None and ka is not None:
-            # 体尾 key-arg 槽列（``_slots_walk_toks`` 形在组内 toks 上的同位
-            # 推行）：``{key}`` 随调用罩住不裸进 surface——``*``/``[opt]`` 可
-            # 缺省、``{m}`` 强制失配即调用终止；toks 走尽 = 槽尾待绑。
-            for si, s in enumerate(ka_slots):
-                k = end
-                if s != "s":  # ``*`` 槽不跳 ws（``\ref *{k}`` 的星非星参）
-                    while k < n and toks[k].kind == "space":
-                        k += 1
-                if s == "s":
-                    if k >= n:
-                        rem = _PendRem([], None, ka_slots[si:], None, ka)
-                        break
-                    if toks[k].kind == "other" and toks[k].text == "*":
-                        end = k + 1
-                    continue
-                if k >= n:
-                    rem = _PendRem([], None, ka_slots[si:], None, ka)
-                    break
-                if toks[k].kind == "eol_par":
-                    break
-                if s == "o":
-                    if toks[k].kind == "other" and toks[k].text == "[":
-                        e = self._grp_bal(toks, k, brace=False)
-                        if e is None:
-                            hit = self._grp_open_tail(toks, k, brace=False)
-                            if hit is not None:
-                                rem = _PendRem([], None, ka_slots[si:], hit, ka)
-                            break
-                        end = e
-                    continue
-                if toks[k].kind != "lbrace":  # ``m`` 槽强制——失配即终止
-                    break
-                e = self._grp_bal(toks, k, brace=True)
-                if e is None:
-                    break
-                end = e
+        res = self._walk_spec_toks(toks, i + 1, [_gspec_elem(a) for a in spec])
+        end, cand = res.end, res.cand
+        rem: _PendRem | None = None
+        if res.rem is not None:
+            if res.e_rest is not None:
+                resid = Arg(
+                    "e", delim=[Tok("other", c, (-1, -1, -1)) for c in res.e_rest]
+                )
+                rem = _PendRem(
+                    [resid, *spec[res.rem + 1 :]],
+                    res.cont,
+                    ka_slots,
+                    None,
+                    ka or "",
+                )
+            else:
+                rem = _PendRem(spec[res.rem :], res.cont, ka_slots, None, ka or "")
+        elif ka is not None:
+            kres = self._walk_spec_toks(
+                toks,
+                end,
+                [_slot_elem(s, cont_ok=s == "o") for s in ka_slots],
+            )
+            end = kres.end
+            if kres.rem is not None:
+                rem = _PendRem([], None, ka_slots[kres.rem :], kres.cont, ka)
         return end, cand, rem
 
     def _grp_opaque_args(
@@ -1432,20 +1175,11 @@ class _Pending:
                 continue
             if name == "hyperref":
                 # argspec m m（key,text）的组内对价：首个参组（{key} 或
-                # [label]）随命令进 [[CMD]]，{text} 余参留 surface 续扫
-                j = i + 1
-                if j < n and toks[j].kind == "other" and toks[j].text == "*":
-                    j += 1
-                k = j
-                while k < n and toks[k].kind == "space":
-                    k += 1
-                if k < n and (
-                    toks[k].kind == "lbrace"
-                    or (toks[k].kind == "other" and toks[k].text == "[")
-                ):
-                    e = self._grp_bal(toks, k, brace=toks[k].kind == "lbrace")
-                    if e is not None:
-                        j = e
+                # [label]）随命令进 [[CMD]]，{text} 余参留 surface 续扫——
+                # 走参 = ``["s","e"]`` 槽列（``_pend_spec_of`` hyperref 行同形）
+                j = self._walk_spec_toks(
+                    toks, i + 1, [_slot_elem("s"), _slot_elem("e")]
+                ).end
                 self._cat_surf(
                     out, self._grp_ph(PhType.CMD, self._grp_surfs(toks[i:j]))
                 )
@@ -1456,17 +1190,10 @@ class _Pending:
                 # 的 ``_COND_GROUP_ARGS`` 组内对价）——``\iftoggle{tag}`` 的
                 # ``{tag}`` 机器槽留 surface 被译；``{T}{F}`` 支不在吸收数
                 # 内，留 surface 续扫照译。表外名无槽形（``{`` 是分支散文）。
-                j = i + 1
-                for _ in range(_COND_GROUP_ARGS.get(name, 0)):
-                    k = j
-                    while k < n and toks[k].kind == "space":
-                        k += 1
-                    if k < n and toks[k].kind == "lbrace":
-                        e = self._grp_bal(toks, k, brace=True)
-                        if e is not None:
-                            j = e
-                            continue
-                    break
+                # 走参 = ``["m"]×nslots`` 槽列（``_pend_spec_of`` COND 行同形）
+                j = self._walk_spec_toks(
+                    toks, i + 1, [_slot_elem("m")] * _COND_GROUP_ARGS.get(name, 0)
+                ).end
                 self._cat_surf(
                     out, self._grp_ph(PhType.COND, self._grp_surfs(toks[i:j]))
                 )
@@ -1548,11 +1275,9 @@ class _Pending:
                 # 名不再裸落译文面）。可译槽缺席/非 ``{..}`` 组 → 名逐字回落
                 # （主流 bail→``_rappend_tok`` 同规）；空参 → 整调用逐字。
                 spec_s, tidx = CHUNK_ARG_SPEC.get(name, ("om", 1))
-                k = i + 1
-                while k < n and toks[k].kind == "space":
-                    k += 1
-                if k < n and toks[k].kind == "other" and toks[k].text == "*":
-                    k += 1
+                # ``*``? 前缀 = ``star`` 走参元（ws 前跳——组面 ``*`` 可隔空，
+                # 与槽 ``s`` 的 ws=False 原位判不同，原判保留）
+                k = self._walk_spec_toks(toks, i + 1, [_WSpec("star")]).end
                 j2 = self._grp_spec_args_end(
                     toks, k, _chunk_spec_cached(spec_s)[:tidx], (), None
                 )
@@ -1658,20 +1383,9 @@ class _Pending:
             if _accent_cs(name):
                 # accent 单参保护（主流 _handle_accent 对价）：{x} 组或
                 # 单 token 参随 cs 进 [[CMD]]——参字母裸落 surface 会被
-                # 翻译（0806.3144 同族，花括号形前由探针兜底、裸参形是洞）
-                j = i + 1
-                while j < n and toks[j].kind == "space":
-                    j += 1
-                if j < n and toks[j].kind == "lbrace":
-                    e2 = self._grp_bal(toks, j, brace=True)
-                    j = e2 if e2 is not None else i + 1
-                elif j < n and (
-                    toks[j].kind in ("letter", "other")
-                    or (toks[j].kind == "cs" and len(toks[j].text) == 1)
-                ):
-                    j += 1
-                else:
-                    j = i + 1
+                # 翻译（0806.3144 同族，花括号形前由探针兜底、裸参形是洞）。
+                # 走参 = ``["a"]`` 槽列（``_pend_spec_of`` accent 行同形）
+                j = self._walk_spec_toks(toks, i + 1, [_slot_elem("a")]).end
                 if j > i + 1:
                     self._cat_surf(
                         out,

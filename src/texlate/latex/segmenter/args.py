@@ -306,6 +306,12 @@ class _Args:
         ``end`` = 最后消费位。每参前置 ws token 记进 ``pulled``——命中并入
         ``all_toks``（放弃路径 ``_unread_args`` 一并回放，与 v1「pos 不动
         全量重扫」等价）；未中连同目标 token 一起 ``unread``。
+
+        组内列扫对价 = ``_walk_spec_toks``（``_aspec_elem`` 归一）——本
+        面是拉取/回放契约（``pulled``/``committed``/``all_toks`` 账本 +
+        逐参 ``_ArgTok`` 记录），TokenSource 无索引游标、ws 计入消费位，
+        不同构不入归一。判据差留意：``t``/``d`` 位本面有 cs 禁配，列扫
+        ``_grp_spec_args_end`` 无（原判保留在 ``_WSpec.no_cs``）。
         """
         items = [ArgSpec("m")] * spec if isinstance(spec, int) else list(spec)
         if has_opt:

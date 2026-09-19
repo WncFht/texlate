@@ -8,6 +8,9 @@ from bisect import (
 from typing import TYPE_CHECKING
 
 import texlate.latex.tables as _tables
+from texlate.latex.gullet import (
+    _tok_eq,
+)
 from texlate.latex.model import (
     ArgSpec,
     PhType,
@@ -30,7 +33,12 @@ from ._common import (
     _GRP_BSBS_CONTENT_RX,
     _GRP_SCAN_CAP,
     _GRP_TAIL_CAP,
+    _PEND_PROBE,
+    _aspec_elem,
     _chunk_spec_cached,
+    _slot_elem,
+    _WalkRes,
+    _WSpec,
 )
 from .args import (
     _KEYVAL_GROUP_RX,
@@ -260,35 +268,270 @@ class _Group:
                         return j + 1
         return None
 
-    def _grp_call_end(self, toks: list[Tok], i: int, mand: int) -> int:
-        r"""Cs + ``*``? + ``[opt]``≤3 + ``{arg}``≤mand → j_end（``_protect_cs`` 镜像）。"""
+    def _walk_spec_toks(  # noqa: C901, PLR0911, PLR0912, PLR0915 — 归一槽型各一分支，平铺即三字母表语义并集
+        self, toks: list[Tok], pos: int, elems: list[_WSpec] | tuple[_WSpec, ...]
+    ) -> _WalkRes:
+        r"""物化 token 列上的归一 spec 走参 → ``_WalkRes``。
+
+        列扫走参的单源：``_slots_walk_toks``/``_grp_call_end``/
+        ``_grp_probe_end``/``_grp_spec_args_end``/``_grp_spec_walk``（+体尾
+        key-arg 槽段）与 ``_grp_bsbs``/``_grp_env_args_end``/``_grp_scan``
+        内嵌臂（hyperref ``s+e``/COND ``m``×N/chunk-arg ``*``/accent ``a``）
+        全部投影本机——``_WSpec`` 把 slot 字母（``_common``
+        槽形表）、argspec ``ArgSpec``、gullet ``Arg`` 三字母表归一到公共
+        槽型（归一投影 = ``_slot_elem``/``_aspec_elem``/``_gspec_elem``）。
+
+        语义轴（各面原判一律保留）：``eol_par`` 即参扫终界；``ws``=False
+        唯 slot ``s``/``_grp_call_end`` 的 ``*`` 不跳前置 space；可选位
+        （``star``/``opt``/``test``/``dpair``-``req``=False）失配过给下
+        一元，强制位（``mand``/``egrp``/``name``/``marg``/``dpair``-rR）
+        失配整走终止；``role``=``text``/``opt-text`` 不消费停界；
+        ``env`` 非空时 ``opt``/``dpair`` 过 ``env_opt_is_format`` 闸
+        （``d<>`` 恒版式豁免在归一侧）；``cont_ok`` 的组未闭承
+        ``_grp_open_tail`` 跨界续扫态。
+
+        结果投影：``end`` 各面通用；``cand`` 仅 ``opt``/``marg``/``bsbs``
+        组参记录（``_grp_spec_walk`` 的散文候选界、``_grp_bsbs`` 的中/未
+        中区分）；``rem``=toks 走尽/真跨界
+        时未完元下标（``_slots_walk_toks`` 的剩余槽列、``_PendRem`` 的
+        ``spec``/``ka_slots`` 切片料）；``cont``/``e_rest`` 是跨界续扫态
+        与 ``e`` 残件料。流侧拉取对价（``_absorb_slots``/``_absorb_spec``/
+        ``_args_tok`` 的 read/unread 账本）不同构，不走本机。
+        """
         n = len(toks)
-        j = i + 1
-        if j < n and toks[j].kind == "other" and toks[j].text == "*":
-            j += 1
-        for _ in range(3):
-            k = j
-            while k < n and toks[k].kind == "space":
-                k += 1
-            if k < n and toks[k].kind == "other" and toks[k].text == "[":
-                e = self._grp_bal(toks, k, brace=False)
-                if e is None:
+        end = pos
+        cand: list[tuple[int, int, int]] = []
+        nth = 0
+        for ei, el in enumerate(elems):
+            k = end
+            if el.ws:
+                while k < n and toks[k].kind == "space":
+                    k += 1
+            if k >= n:
+                return _WalkRes(end, cand, ei, None, None)  # toks 走尽而参未竟
+            x = toks[k]
+            if x.kind == "eol_par":
+                break  # 参扫终界——不定界参数不跨 \par
+            start = end
+            kind = el.kind
+            if kind == "star":  # ``*`` 可选修饰
+                if x.kind == "other" and x.text == "*":
+                    end = k + 1
+            elif kind == "opt":  # ``[..]`` 可选组
+                if x.kind == "other" and x.text == "[":
+                    e = self._grp_bal(toks, k, brace=False)
+                    if e is None:
+                        if el.cont_ok:
+                            hit = self._grp_open_tail(toks, k, brace=False)
+                            if hit is not None:
+                                return _WalkRes(end, cand, ei, hit, None)
+                        break
+                    if el.role in ("text", "opt-text"):
+                        break
+                    if el.env is not None and not env_opt_is_format(
+                        el.env, self._grp_surfs(toks[k + 1 : e - 1])
+                    ):
+                        break  # 定理标题正文不收——回吐随主流（F6 同规）
+                    cand.append((nth, k, e))
+                    end = e
+            elif kind == "mand":  # ``{..}`` 强制组（slot ``m``/call/probe 同形）
+                if x.kind != "lbrace":
                     break
-                j = e
-                continue
-            break
-        for _ in range(mand):
-            k = j
-            while k < n and toks[k].kind == "space":
-                k += 1
-            if k < n and toks[k].kind == "lbrace":
                 e = self._grp_bal(toks, k, brace=True)
                 if e is None:
+                    if el.cont_ok:
+                        hit = self._grp_open_tail(toks, k, brace=True)
+                        if hit is not None:
+                            return _WalkRes(end, cand, ei, hit, None)
                     break
-                j = e
-                continue
-            break
-        return j
+                end = e
+            elif kind == "egrp":  # ``{..}``|``[..]`` 任选强制组（slot ``e``）
+                if x.kind != "lbrace" and not (x.kind == "other" and x.text == "["):
+                    break
+                e = self._grp_bal(toks, k, brace=x.kind == "lbrace")
+                if e is None:
+                    if el.cont_ok:
+                        hit = self._grp_open_tail(toks, k, brace=x.kind == "lbrace")
+                        if hit is not None:
+                            return _WalkRes(end, cand, ei, hit, None)
+                    break
+                end = e
+            elif kind == "name":  # ``n`` 裸名参：cs 单 token 或 ``{..}``/``[..]`` 组
+                if x.kind == "cs":
+                    end = k + 1
+                elif x.kind == "lbrace" or (x.kind == "other" and x.text == "["):
+                    e = self._grp_bal(toks, k, brace=x.kind == "lbrace")
+                    if e is None or el.role in ("text", "opt-text"):
+                        break
+                    end = e
+                else:
+                    break
+            elif kind == "marg":  # ``m``/``v``：组或单 token（cs 止）
+                if x.kind == "lbrace" or (x.kind == "other" and x.text == "["):
+                    e = self._grp_bal(toks, k, brace=x.kind == "lbrace")
+                    if e is None:
+                        if el.cont_ok:
+                            hit = self._grp_open_tail(toks, k, brace=x.kind == "lbrace")
+                            if hit is not None:
+                                return _WalkRes(end, cand, ei, hit, None)
+                        break
+                    if el.role in ("text", "opt-text"):
+                        break
+                    cand.append((nth, k, e))
+                    end = e
+                elif x.kind == "cs":
+                    break  # 单 token 参不跨 '\'（BUG1 同规）
+                elif not el.single_ok or el.role in ("text", "opt-text"):
+                    break
+                else:
+                    end = k + 1
+            elif kind == "bsbs":  # ``\\`` 的 ``[dimen]``（``_grp_bsbs`` 内容闸同判据）
+                if x.kind == "other" and x.text == "[":
+                    e = self._grp_bal(toks, k, brace=False)
+                    if e is None or not _GRP_BSBS_CONTENT_RX.fullmatch(
+                        self._grp_surfs(toks[k + 1 : e - 1])
+                    ):
+                        break
+                    cand.append((nth, k, e))  # 记 cand——``_grp_bsbs`` 取中/未中区分
+                    end = e
+            elif kind == "accent":  # ``\c{c}``/``\~n`` 单参
+                if x.kind == "lbrace":
+                    e = self._grp_bal(toks, k, brace=True)
+                    if e is None:
+                        break
+                    end = e
+                elif x.kind in ("letter", "other") or (
+                    x.kind == "cs" and len(x.text) == 1
+                ):
+                    end = k + 1
+                else:
+                    break
+            elif kind == "test":  # ``t`` 测试字符（``no_cs`` 承字母表原判差）
+                if x.text == el.test_c and not (el.no_cs and x.kind == "cs"):
+                    end = k + 1
+            elif kind == "dpair":  # ``d``/``D``/``r``/``R`` 定界对
+                if x.text != el.open_c:
+                    if el.req:
+                        break
+                else:
+                    k2 = k + 1
+                    while (
+                        k2 < n
+                        and toks[k2].text != el.close_c
+                        and toks[k2].kind != "eol_par"
+                    ):
+                        k2 += 1
+                    if k2 >= n:
+                        return _WalkRes(end, cand, ei, None, None)
+                    if toks[k2].kind == "eol_par":
+                        break
+                    if el.role in ("text", "opt-text"):
+                        break
+                    if el.env is not None and not env_opt_is_format(
+                        el.env, self._grp_surfs(toks[k + 1 : k2])
+                    ):
+                        break
+                    end = k2 + 1
+            elif kind == "embell":  # ``e``：逐枚 ``X{arg}``/``X<tok>``（xparse 修饰参）
+                rest = list(el.e_chars)
+                tail_pend = False  # 已吃 ``X``、``{arg}``/``<tok>`` 尾位未决
+                stop = False
+                while rest:
+                    k2 = end
+                    while k2 < n and toks[k2].kind == "space":
+                        k2 += 1
+                    if k2 >= n:
+                        stop = True
+                        break
+                    if toks[k2].kind in ("cs", "eol_par") or toks[k2].text not in rest:
+                        break
+                    rest.remove(toks[k2].text)
+                    end = k2 + 1
+                    tail_pend = True
+                    k2 = end
+                    while k2 < n and toks[k2].kind == "space":
+                        k2 += 1
+                    if k2 >= n:
+                        continue  # 尾位未决——下轮符扫统一出 pending
+                    tail_pend = False
+                    if toks[k2].kind == "lbrace":
+                        e = self._grp_bal(toks, k2, brace=True)
+                        if e is not None:
+                            end = e
+                    elif toks[k2].kind not in ("cs", "eol_par"):
+                        end = k2 + 1
+                if stop:
+                    return _WalkRes(
+                        end, cand, ei, ("e-arg",) if tail_pend else None, tuple(rest)
+                    )
+            elif kind == "dseq":  # ``#1<seq>`` 定界参：滑窗 ``_tok_eq`` 比对
+                kk = len(el.delim_toks)
+                seq: list[int] = []
+                k2 = k
+                runaway = False
+                if x.kind == "lbrace":
+                    e = self._grp_bal(toks, k2, brace=True)
+                    if e is None:
+                        runaway = True
+                    else:
+                        seq.extend(range(k2, e))
+                        k2 = e
+                else:
+                    seq.append(k2)
+                    k2 += 1
+                matched = False
+                pend_mid = False
+                while not runaway and not matched and not pend_mid:
+                    if len(seq) >= kk and all(
+                        _tok_eq(toks[seq[len(seq) - kk + j2]], el.delim_toks[j2])
+                        for j2 in range(kk)
+                    ):
+                        matched = True
+                    elif k2 >= n:
+                        pend_mid = True
+                    elif toks[k2].kind == "eol_par":
+                        runaway = True
+                    elif toks[k2].kind == "lbrace":
+                        e = self._grp_bal(toks, k2, brace=True)
+                        if e is None:
+                            runaway = True
+                        else:
+                            seq.extend(range(k2, e))
+                            k2 = e
+                    else:
+                        seq.append(k2)
+                        k2 += 1
+                if pend_mid:
+                    ctx = [toks[j] for j in seq[max(0, len(seq) - (kk - 1)) :]]
+                    return _WalkRes(end, cand, ei, ("delim", ctx), None)
+                if not matched:
+                    break  # runaway = 整调用止
+                end = k2
+            elif kind == "ugroup":  # ``#{`` 形：读到 ``lbrace`` 不消费
+                k2 = k
+                while (
+                    k2 < n and toks[k2].kind != "lbrace" and toks[k2].kind != "eol_par"
+                ):
+                    k2 += 1
+                if k2 >= n:
+                    return _WalkRes(end, cand, ei, None, None)
+                if toks[k2].kind == "eol_par":
+                    break
+                end = k2
+            # ``zero`` 及其余 → 零宽位不消费
+            if end > start:
+                nth += 1  # 实消费参占序——``_prose_args_of`` 序数同口径
+        return _WalkRes(end, cand, None, None, None)
+
+    def _grp_call_end(self, toks: list[Tok], i: int, mand: int) -> int:
+        r"""Cs + ``*``? + ``[opt]``≤3 + ``{arg}``≤mand → j_end（``_protect_cs`` 镜像）。
+
+        走参本体 = ``_walk_spec_toks``——``("s","o","o","o")+("m")*mand``
+        槽列（``_PEND_CALL1``/``_PEND_CALL2`` 同形）。
+        """
+        elems = [_slot_elem(s) for s in ("s", "o", "o", "o")]
+        elems.extend(_slot_elem("m") for _ in range(mand))
+        return self._walk_spec_toks(toks, i + 1, elems).end
 
     def _grp_keyval_tail_end(self, toks: list[Tok], j: int) -> int:
         r"""``_keyval_tail_end`` 的组内对价——keyval 形 ``{..}`` 组续吃。
@@ -409,23 +652,14 @@ class _Group:
         r"""组内 ``\\`` 的可选 dimen 参 → j_end；``\\[5pt]``/``\\*[2em]`` 命中。
 
         ``_BSBS_OPT_RX`` 的 token 版：``*``? + ``[atom]``——内容非 dimen
-        （``\\[x]`` 形）→ None 回落逐字。
+        （``\\[x]`` 形）→ None 回落逐字。走参本体 = ``_walk_spec_toks``
+        （``["s","b"]`` 槽列同 ``_pend_spec_of`` ``\\`` 行）；cand 命中 =
+        ``[dimen]`` 实消费（单 ``*`` 不算）。
         """
-        n = len(toks)
-        j = i + 1
-        if j < n and toks[j].kind == "other" and toks[j].text == "*":
-            j += 1
-        while j < n and toks[j].kind == "space":
-            j += 1
-        if j < n and toks[j].kind == "other" and toks[j].text == "[":
-            e = self._grp_bal(toks, j, brace=False)
-            if e is not None and _GRP_BSBS_CONTENT_RX.fullmatch(
-                self._grp_surfs(toks[j + 1 : e - 1])
-            ):
-                return e
-        return None
+        res = self._walk_spec_toks(toks, i + 1, [_slot_elem("s"), _slot_elem("b")])
+        return res.end if res.cand else None
 
-    def _grp_spec_args_end(  # noqa: C901, PLR0912, PLR0913, PLR0915 — argspec 字母各一支，平铺即 _eat_env_args_spec 组内镜像
+    def _grp_spec_args_end(  # noqa: PLR0913 — 签名同参照原（argspec 走参五参数集）
         self,
         toks: list[Tok],
         j: int,
@@ -437,109 +671,29 @@ class _Group:
     ) -> int:
         r"""Argspec 位序走参的组内 token 版（``_eat_env_args_spec`` 镜像）。
 
-        返回连续消费的非文本参后界——``text``/``opt-text`` 角色或参数缺席
-        处停（其后 token 留 surface 主流，同 ``_unread_args`` 语义）。
-        ``env`` 非空时可选位过 ``env_opt_is_format`` 闸（定理标题不收——
-        F6 同规）；None 则可选位照常消费（命令可选参无标题歧义）。
+        走参本体 = ``_walk_spec_toks``（``_aspec_elem`` 逐位归一）。返回连
+        续消费的非文本参后界——``text``/``opt-text`` 角色或参数缺席处停
+        （其后 token 留 surface 主流，同 ``_unread_args`` 语义）。``env``
+        非空时可选位过 ``env_opt_is_format`` 闸（定理标题不收——F6 同
+        规）；None 则可选位照常消费（命令可选参无标题歧义）。
         ``allow_single_token=False``（探针/thead 路同主流
         ``_args_tok`` 同参）：``m``/``v`` 位不吃裸单 token——
         ``\textcolor red`` 的 ``red`` 是散文不是参。text 位单 token
         恒停（主流 ``_emit_argspec_chunks`` 截停回吐的对价）——
         ``\emph p`` 吃掉 ``p`` 会让 ``ost`` 落 surface 而 ``p`` 隐入
-        [[CMD]]（签名面看不见的散字母偷吃）。
+        [[CMD]]（签名面看不见的散字母偷吃）。``e``/``b``/``u``/``g``
+        位组内不消费（原判保留——``_args_tok`` 流侧才有对价）。
         """
-        n = len(toks)
-        end = j
-        k = j
-        for si, s in enumerate(spec):
-            role = roles[si] if si < len(roles) else "skip"
-            while k < n and toks[k].kind == "space":
-                k += 1
-            if k >= n or toks[k].kind == "eol_par":
-                break
-            x = toks[k]
-            if s.kind in ("m", "v"):
-                if x.kind == "lbrace" or (x.kind == "other" and x.text == "["):
-                    # ``m`` 认 ``[`` 定界组（``_args_tok`` :3955 同规）——
-                    # ``restatable[N]{t}{c}`` 的 ``[N]`` 参组内不被 ``m``
-                    # 吃掉则 ``]{t}{c}`` 漏进 surface
-                    e = self._grp_bal(toks, k, brace=x.kind == "lbrace")
-                    if e is None:
-                        break
-                    if role in ("text", "opt-text"):
-                        break  # 文本参停界——k 不前推（主流 unread 同位）
-                    k = end = e
-                    continue
-                if x.kind == "cs":
-                    break  # 单 token 参不跨 '\'（BUG1 同规）
-                if not allow_single_token or role in ("text", "opt-text"):
-                    break
-                k += 1  # 非文本位单 token 参（env 路同规）
-                end = k
-                continue
-            if s.kind == "n":
-                # 裸 cs 名参（``\setlength\parskip{4pt}``）：cs token 直收
-                # 或 ``{..}``/``[..]`` 组——其余形失配即终止（强制参同 m）
-                if x.kind == "cs":
-                    k += 1
-                    end = k
-                    continue
-                if x.kind == "lbrace" or (x.kind == "other" and x.text == "["):
-                    e = self._grp_bal(toks, k, brace=x.kind == "lbrace")
-                    if e is None:
-                        break
-                    if role in ("text", "opt-text"):
-                        break
-                    k = end = e
-                    continue
-                break
-            if s.kind in ("o", "O"):
-                if x.kind == "other" and x.text == "[":
-                    e = self._grp_bal(toks, k, brace=False)
-                    if e is None:
-                        break
-                    if role in ("text", "opt-text"):
-                        break
-                    if env is not None and not env_opt_is_format(
-                        env, self._grp_surfs(toks[k + 1 : e - 1])
-                    ):
-                        break  # 定理标题正文不收——回吐随主流
-                    k = end = e
-                continue
-            if s.kind == "s":
-                if x.kind == "other" and x.text == "*":
-                    k += 1
-                    end = k
-                continue
-            if s.kind == "t" and s.delim:
-                if x.text == s.delim[0]:
-                    k += 1
-                    end = k
-                continue
-            if s.kind in ("d", "D", "r", "R") and s.delim:
-                op, cl = s.delim[0], s.delim[-1]
-                if x.text != op:
-                    if s.kind in ("r", "R"):
-                        break
-                    continue
-                k2 = k + 1
-                while k2 < n and toks[k2].text != cl and toks[k2].kind != "eol_par":
-                    k2 += 1
-                if k2 >= n or toks[k2].kind == "eol_par":
-                    break
-                if role in ("text", "opt-text"):
-                    break
-                if (
-                    env is not None
-                    and s.delim != "<>"
-                    and not env_opt_is_format(env, self._grp_surfs(toks[k + 1 : k2]))
-                ):
-                    break
-                k = k2 + 1
-                end = k
-                continue
-            # 'e'/'b'/无 delim：不消费
-        return end
+        elems = [
+            _aspec_elem(
+                s,
+                roles[si] if si < len(roles) else "skip",
+                env,
+                single_ok=allow_single_token,
+            )
+            for si, s in enumerate(spec)
+        ]
+        return self._walk_spec_toks(toks, j, elems).end
 
     def _argspec_env(self, env: str, reg: object | None) -> ArgspecEntry | None:
         r"""Argspec env 条目查询——``_handle_env_begin`` 族表门控同集。"""
@@ -554,7 +708,7 @@ class _Group:
             return None
         return _tables.argspec_lookup_env(env, self.state.pkgs)
 
-    def _grp_env_args_end(  # noqa: C901, PLR0912 — opt/mand/colspec 三段参数尾扫平铺即行序
+    def _grp_env_args_end(
         self,
         toks: list[Tok],
         j: int,
@@ -573,31 +727,17 @@ class _Group:
             return self._grp_spec_args_end(
                 toks, j, _chunk_spec_cached(ae.signature), ae.arg_roles, env
             )
-        n = len(toks)
-        k = j
-        while k < n and toks[k].kind == "space":
-            k += 1
-        if k < n and toks[k].kind == "other" and toks[k].text == "[":
-            e = self._grp_bal(toks, k, brace=False)
-            if e is not None and env_opt_is_format(
-                env, self._grp_surfs(toks[k + 1 : e - 1])
-            ):
-                j = e
         mand = 1 if env in ENV_MANDATORY_ARG else 0
         if reg is not None:
             mand = max(mand, sum(1 for a in getattr(reg, "spec", ()) if a.kind == "m"))
-        for _ in range(mand):
-            k = j
-            while k < n and toks[k].kind == "space":
-                k += 1
-            if k >= n or toks[k].kind != "lbrace":
-                break
-            e = self._grp_bal(toks, k, brace=True)
-            if e is None:
-                break
-            j = e
+        # 版式 ``[opt]``（``env_opt_is_format`` 闸）+ ``{m}``×mand——归一走
+        # 参元列（``[opt]`` 未闭/闸败即停：mand 位从原位同判 ``[`` 失配）
+        j = self._walk_spec_toks(
+            toks, j, [_WSpec("opt", env=env), *([_WSpec("mand")] * mand)]
+        ).end
         if mand == 0:
             # 列型前导 peek 的组内镜像（R3）——首 ``{..}`` 形似列参即吃进
+            n = len(toks)
             k = j
             while k < n and toks[k].kind == "space":
                 k += 1
@@ -612,31 +752,11 @@ class _Group:
     def _grp_probe_end(self, toks: list[Tok], i: int) -> int | None:
         r"""未知命令探针的组内版（``_handle_unknown_cs``：``[opt]``? + ``{m}``×6、禁单 token 参）。
 
-        任一参数命中 → j_end；全缺席 → None。
+        任一参数命中 → j_end；全缺席 → None。走参本体 =
+        ``_walk_spec_toks``——``_PEND_PROBE`` 槽列同形。
         """
-        n = len(toks)
-        j = i + 1
-        hit = False
-        k = j
-        while k < n and toks[k].kind == "space":
-            k += 1
-        if k < n and toks[k].kind == "other" and toks[k].text == "[":
-            e = self._grp_bal(toks, k, brace=False)
-            if e is not None:
-                j = e
-                hit = True
-        for _ in range(6):
-            k = j
-            while k < n and toks[k].kind == "space":
-                k += 1
-            if k >= n or toks[k].kind != "lbrace":
-                break
-            e = self._grp_bal(toks, k, brace=True)
-            if e is None:
-                break
-            j = e
-            hit = True
-        return j if hit else None
+        res = self._walk_spec_toks(toks, i + 1, [_slot_elem(s) for s in _PEND_PROBE])
+        return res.end if res.end > i + 1 else None
 
     def _grp_arg_prose(self, inner: list[Tok]) -> bool:
         r"""组内 ``{..}`` 参内容的散文判据——``_opaque_arg_prose`` 的 token 级对价。
