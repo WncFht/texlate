@@ -1757,3 +1757,17 @@
 - **csfix8 范围 +2**：`\I`（2401.01624，MULEenc \def\I{I} 镜像）+ `\SEKImasterusepackages`（0905.2435/4369，pdf.tex:2-3 `{\usepackage{times}}` 镜像）→ 8 行 bundle。
 - **关 3**（auxeof34/refclean/extless）。**Roster 4**：mathbd/drvstage/csfix8/auxprobe → dispatch 补足 ≥10。
 - **门**：HEAD=b7daae4f；ruleset 178（worktree）；overnite 健康；flipcheck-12 mutex 续持（mathbd/drvstage/csfix8 impl 在飞）；共享 index 他家污染依旧（勿动）；无 teammate git 越权。
+
+### patrol ~10:45 — 收割潮：mathbd/drvstage/primnit/stats75 落地；auxprobe 93% 翻转；failmine5 普查；bibpass 设计；roster 2→10
+
+- **mathbd 落地 0283c48e**（+408/−3，3 文件）：Bundle A 75-syntax 三臂——soul_cs_mbox@102（soul 修饰 cs→\mbox 包，2210.03629）、math_alphabet_209_revert@190（\mathit 等→{\it 全局回退，DeclareOldFontCommand 模式感知，q-alg/9703043）、bm_symbfit_alias@191（Improper-alphabetic+\mit cond × \bm 源证→\ifdefined\symbfit 别名块，2609.20524）。Bundle B normalize.py `_strip_lead_junk`（4KiB 窗行锚前缀剥除+NUL 门+lead_junk_stripped stat，cond-mat/0003309）。16 pins。
+- **drvstage 落地 35dee7b1**（+384，4 文件）：driver_missing_image_stub——xdvipdfmx `Image inclusion failed. Could not find file: X` 双面（_report_of 规范化→other 主面 + _round_cat driver_fatal 边面）；order 18.6、首个 driver_fatal 类目 yaml 消费者；`_enum_missing_graphics` 扫荡破 `{rid}:None` 单发 dedup；复用 _stub_graphic_at 全守卫栈+rescue_check。17 pins + e2e。
+- **primnit 落地 3a0cfa9b**（+53/−2）：_PRIM_INIT += pdftexversion:"140"（未播默认 1 翻转 `\ifnum<120` 探针→microtype 类门静默关；0812.1138 实证）。残：pdftexrevision 是 string prim 不能 newcount 播（known_gap）。
+- **stats75 落地 ba4e5eaa**：26 条持留 statsync3 更新 rule-id 键控应用（单/双行 stats 形、note 字段保全；纯 stats diff 核证）。
+- **auxprobe 终判**（先收）：aux_scan_eof 探针 **13/14 partial→clean（93%）、0 回归**——graphic_missing_placeholder 14/14 燃；aux_purge_regen 从未燃（截断 aux 疤归 engine `_sweep_bad_aux` pre-compile 所有）。残 2508.04813 inkscape `\input{*.pdf_tex}` 缺席（出 placeholder ext 表）+ missing_file:None payload 提取 nit。**partial-inclusive dispatch 裁决旗最强证据**（无 content-loss 伪净、无 halt-masking——对比 partdisp smk）。
+- **cleansab 终判**（收）：36 hard-clean 格 wave-13 sabotage 选毕（36 docclass 分层、排除 fc9-12+wave13+ctexbls109；soft[]=0、l2_warn_n 梯度）。
+- **failmine5 终判**（收）：zh nonclean 1041、未覆非排除 **41**（was 45）；other|None 17 + syntax|None 13 机理异质。真簇：unknown-option ~4（ucs mathletters×2/luainputenc/bxcjkjatype）、tcb-zh-leak×2、Missing-\endcsname×2、Missing-number×2、\Hy@tempa 非法参×2、brace 三、\@citex pair、float_opt pair、sty/cls resid ~8、pdf_tex 单。覆盖胜：missing_graphic 臂捕 380 ext-less payload；drvstage 臂盖 3 格外格。early-warning GREEN。
+- **bibpass 设计终判**（收）：bibtex/biber 补 pass 入 `XelatexEngine.compile()` 门控——非 fixloop 规（stagerun 臂同源继承）。live 实证 2609.19150 bibtex 33ms→undef cites 32→0；**须 3 pass**（MAX_PASSES +1 on bib_ran）。爆面 ~1,840 records/~1,130 papers ≈ 7.6% clean 格得真引用。门：bcf→biber|aux \citation+\bibdata ∧ .bbl 缺席（永不覆 bundled bbl）。`## REVIEW`：numeric+arch。
+- **flipsel manifest**（收）：wave-13 **53 格**（28 ready + 11 pending + 14 preverified）；sabotage 换 cleansab 36；drvstage 4 落毕转 ready；ctexbls 2404.14219 仍 adjudication 持。
+- **dispatch ×8 → roster 10**：unkopt（impl：unknown-option ~4）、tcbchk（verify：tcb-zh-leak vs keyval#128）、residtail（verify：~8 resid 逐格）、pdfex（census：pdf_tex 族+payload nit）、dedupchk（census：{rid}:None dedup 盲点泛化）、stuckmine（census：stuck/budget-churn）、bibimpl（impl：bibpass 设计，engine.py——live-read 集→mutex 延）、primcen（census：string-prim/未播 engine-identity 族）。csfix8+singtail 续飞；failmine5 对簇 relay→singtail。
+- **门**：HEAD=ba4e5eaa；ruleset 178（worktree）；overnite 1699/2822 健康；flipcheck-12/wave-13 mutex 续持（csfix8+bibimpl impl 在飞）；共享 index 他家污染依旧（勿动）；无 teammate git 越权。
