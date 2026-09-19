@@ -225,3 +225,70 @@ def test_latin_glue_identity_untouched() -> None:
     r"""identity 路径逐字节——接缝守卫只在有译文时启用。"""
     res = scan_doc("Text \\parindent=3pt \\itemsep2pt end.")
     assert reconstruct(res) == DOC % "Text \\parindent=3pt \\itemsep2pt end."
+
+
+# ------------------------------------------------- 行首 \cs 归位（_restore_linestarts）
+
+#: ``\obeylines``+``\gdef`` 定界参数样板（2009.11130 ``\GetTitle`` 同构）。
+_OBEYLINES_BODY = (
+    "\\newbox\\TheTitle{\\obeylines\\gdef\\GetTitle #1\n"
+    " \\ShortTitle  #2\n"
+    " \\Author      #3\n"
+    " \\EndTitle\n"
+    " {\\setbox\\TheTitle=\\vbox{x}}\\def\\Title{\\obeylines\\GetTitle}\n"
+    "\n"
+    " \\Title\n"
+    "A Long Enough English Title Line To Chunk Here\n"
+    " \\ShortTitle\n"
+    "WtF\n"
+    " \\Author\n"
+    " Firstname Lastname\n"
+    " \\EndTitle\n"
+)
+
+
+def test_linestart_cs_restored_obeylines() -> None:
+    r"""``\obeylines`` 定界参数族：段切把 `` \Title\n<t>\n \ShortTitle\n<t>``
+    折成单行 chunk，译文面把行首 ``\X`` 定界符归位（``\n``≡空格恒等改写，
+    ``\obeylines`` 下才兑现结构）——2009.11130 ``\GetTitle`` runaway。"""
+    res = scan_doc(_OBEYLINES_BODY)
+    assert reconstruct(res) == DOC % _OBEYLINES_BODY  # identity 逐字节
+    para = next(c for c in res.chunks if "ShortTitle" in c.content)
+    assert "\n" not in para.content  # 段切确实折成单行（机制前提）
+    trans = {c.id: "译文" for c in res.chunks}
+    trans[para.id] = (
+        para.content.replace(
+            "A Long Enough English Title Line To Chunk Here", "长标题译文"
+        )
+        .replace("WtF", "短题")
+        .replace("Firstname Lastname", "作者名")
+    )
+    out = reconstruct(res, trans)
+    for cs in ("ShortTitle", "Author", "EndTitle"):
+        assert re.search(rf"(?m)^\\{cs}\b", out)  # 定界 cs 回行首 → ^^M\X 复原
+    assert "长标题译文\n\\ShortTitle 短题\n\\Author 作者名\n\\EndTitle" in out
+    # ``\gdef`` 参数区是字面段——逐字节不动（行首空格保留）
+    assert (
+        "\\gdef\\GetTitle #1\n \\ShortTitle  #2\n \\Author      #3\n \\EndTitle\n"
+        in out
+    )
+
+
+def test_linestart_cs_already_linestart_and_foreign_untouched() -> None:
+    r"""保守面：译文里已在行首的 ``\X`` 不再插 ``\n``（空行=``\par`` 语义变）；
+    源 span 内非行首的 ``\X`` 不动。"""
+    res = scan_doc(_OBEYLINES_BODY)
+    para = next(c for c in res.chunks if "ShortTitle" in c.content)
+    trans = {c.id: "译文" for c in res.chunks}
+    trans[para.id] = (
+        para.content.replace(
+            "A Long Enough English Title Line To Chunk Here", "长标题译文"
+        )
+        .replace("  \\ShortTitle", "\n\\ShortTitle")  # 已在行首 → 不得再添 \n
+        .replace("WtF", "短题")
+        .replace("Firstname Lastname", "作者名 \\vbox 尾")  # \vbox 非行首 → 不动
+    )
+    out = reconstruct(res, trans)
+    assert "\n\n\\ShortTitle" not in out
+    assert re.search(r"(?m)^\\ShortTitle\b", out)
+    assert "作者名 \\vbox 尾" in out  # 行中 ``\vbox`` 保持行中

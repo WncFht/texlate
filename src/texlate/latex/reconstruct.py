@@ -22,7 +22,7 @@ import re
 from collections import Counter
 from dataclasses import dataclass, field
 
-from texlate.latex.model import Chunk, ScanResult, ScanWarning
+from texlate.latex.model import Chunk, ScanResult, ScanWarning, Span
 from texlate.latex.placeholder import CHUNK_RX, PH_RX
 from texlate.textutil import CJK_RANGES, mask_tex
 
@@ -60,6 +60,34 @@ _CS_TAIL_RX = re.compile(r"\\[a-zA-Z@]*[a-zA-Z]\Z")
 #: 先例（bfuse 普查），``\itemsep`` 类小写前缀撞名天然避开。只打译文体：
 #: 源文侧 ``\cs<letter>`` 本就是一个 cs token，不构成该形。
 _LATIN_ITEM_RX = re.compile(r"\\item(?=[A-Z])")
+
+#: 行首控制字采集：``\obeylines``/``^^M``-delimited 参数等换行语义域里
+#: ``\X``-at-line-start 是定界 token（2009.11130 ``\GetTitle`` runaway——
+#: para 段切把 `` \Title\n<text>\n \ShortTitle\n<text>`` 折成单行，
+#: 译文回显后 ``^^M\X`` 定界符被吞，扫描奔到 EOF）。行首 ``\cs`` 归位
+#: 在普通 catcode 下 ``\n``≡空格是恒等改写，只在换行语义域才兑现结
+#: 构——所以无需识别 ``\obeylines`` 作用域，全量 chunk 统一适用。
+_LINESTART_CS_RX = re.compile(r"(?m)^[ \t]*\\([a-zA-Z@]+)")
+
+
+def _restore_linestarts(vtex: str, span: Span, zh: str) -> str:
+    r"""行首 ``\cs`` 归位：源 span 内行首控制字若在译文里被压回行中，插 ``\n`` 复位。
+
+    只在译文本面打 ``text␣\X`` → ``text\n\X``——``(?<=.)`` 要求行内前置非
+    换行字符：已在行首（``\n ␣\X`` 形）或串首的 ``\X`` 不动（补 ``\n``
+    会多产空行即 ``\par``）。占位符 token 无 ``\`` 天然豁免，受保护体
+    内部不进本层（ph 展开在其后）。行中无空格黏合的 ``text\X`` 不改——
+    插 ``\n`` 会凭空多出一个空格 token，语义不再恒等。
+    """
+    names = {m.group(1) for m in _LINESTART_CS_RX.finditer(vtex, span.start, span.end)}
+    if not names:
+        return zh
+    rx = re.compile(
+        r"(?m)(?<=.)[ \t]+(\\(?:"
+        + "|".join(sorted((re.escape(n) for n in names), key=len, reverse=True))
+        + r")(?![a-zA-Z@]))"
+    )
+    return rx.sub(r"\n\g<1>", zh)
 
 
 def _seg_join(segs: list[str]) -> str:
@@ -181,7 +209,14 @@ def reconstruct(res: ScanResult, translations: dict[int, str] | None = None) -> 
         {}
         if translations is None
         else {
-            f"[[CHUNK_{k}]]": _LATIN_ITEM_RX.sub(r"\\item ", unicode_math_fix(v))
+            f"[[CHUNK_{k}]]": _LATIN_ITEM_RX.sub(
+                r"\\item ",
+                unicode_math_fix(
+                    _restore_linestarts(res.vtex, res.chunks[k].span, v)
+                    if isinstance(k, int) and 0 <= k < len(res.chunks)
+                    else v
+                ),
+            )
             for k, v in translations.items()
         }
     )
