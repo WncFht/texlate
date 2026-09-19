@@ -1378,3 +1378,13 @@
 - **2404.14219 needs-adjudication — SELF-INFLECTED 优先件**: ctex 注入抬 `\baselineskip` 13.6→17.68pt vs 固定 `\textheight` 541.4pt → EN 合页 unbreakable boxes zh 下超页 → page_flood (65161p)。EN src clean / xeCJK-only clean — **我方 preamble 选项缺陷**, inject.py ctex 选项面修。backlog 提级。
 - **Adjudication backlog (report-only, 9)**: #10 acceptable_pdf; ds@ Option A; verdict-semantics ordering; covgap REVIEW-2; `~/texmf` pstricks shadow `\pst@cntm`; `_closure_has_end` inject.py admission gate; osajnl.cls makeatother vendor-shadow; amsart opt-arg size-decl sanitize; ctex baselineskip 注入负效应。
 - **Roster**: missmath (#215/#221 未收闸扩在 tree), nfssfd (#220), wrapromote (#228 new) = 3。
+
+
+### patrol ~19:15 — batch liveness + roster refill 5→9
+
+- **Detached batches all DONE**: l1gate3 parsebench rc=0 (1955/1955 identity, strict 1955, leak 0.0/135840); l0full 7259+1 flake (test_server_worker usage_sink — isolated-green, 非破); sab-r7 40/40 ok ph=0 escaped=0; wave10 replays 4/4 dirs DONE (loop3 8/8, clean 32/32, v3all 6/6, soak 6/6); autogloss-reg gate on-vs-off rc=0 (contested_rate 0.070→0.080 ok)。
+- **No new deliveries**: recent tmp/lane-* files = leader-written report.md (csdef/docclsstack/relocatemiss/fmsingles/undef13) + missmath repro 素材 (在飞)。
+- **Roster refill 5→9**: 派 endcsresid (#230 read-only, ~16 endcsname 族外残件 bucketing), stucklatin (#231 read-only, 2609.19664 stuck:latin 预算诊断 — relocate 无罪的第二现场), epsconv (#232 impl, -eps-converted-to.pdf 资产族 2-3 格), micro2 (#233 impl, F-graphics dispatch-miss + pfa→pfb 残件)。在飞: missmath/nfssfd/wrapromote/gfxrelax/cstablesweep + 新 4。
+- **Intel relay**: undef13 普查 → cstablesweep (19 singles 仅 epstopdfDeclareGraphicsRule 已在表 95-targeted:230; @nil+htmladdnormallink 双桶重叠 — @nil needs-autopsy 禁盲 polyfill; singletons.json 交叉档案)。
+- **文件归属预警**: gfxrelax 占 _builtins_graphics.py → epsconv/micro2 已被告知避同件 (misc/font 叶或 patch 投递); 75-syntax/builtins.py 竞争面 patch-artifact 惯例延续。
+- **门 vigilance**: ①-⑤ 全绿维持; peer 会话 18 个 (texlate-* 多数 idle), 无未授权 teammate git 活动观察 (本批 harvest 全走 leader private-index)。
