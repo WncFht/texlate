@@ -1021,7 +1021,7 @@ _IFPROT_FAMILY: tuple[str, ...] = (
 _IFPROT_SCANNER_RULE = "unclosed_if_close"
 
 
-def if_phantom_protect(
+def if_phantom_protect(  # noqa: PLR0911 - 逐门 decline 即归因
     ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
 ) -> tuple[bool, str]:
     r"""Phantom ``Incomplete \if`` → 脆弱前稿 cs 族 ``\protected`` let-wrap 重定义。
@@ -1043,12 +1043,20 @@ def if_phantom_protect(
     fam = tuple(str(c).lstrip("\\") for c in (params.get("cs") or _IFPROT_FAMILY))
     if not fam:
         return False, "empty cs family"
-    seen = any(
-        a.get("rule") == _IFPROT_SCANNER_RULE and "ifclose:" in str(a.get("detail"))
-        for a in ctx.actions
-    )
-    if not seen:
+    seen = None
+    for a in ctx.actions:
+        if a.get("rule") == _IFPROT_SCANNER_RULE and "ifclose:" in str(a.get("detail")):
+            seen = str(a.get("detail"))  # 最新一轮判词为准
+    if seen is None:
         return False, "literal if-scanner verdict not on ledger — abstain"
+    m = re.search(r"phantom=(\d+)", seen)
+    if m is not None and int(m.group(1)) > 0:
+        # 跳读形嫌疑在场 (\let operand/名位/def 参位内 \if-token + 活条件
+        # 帧) —— \protected 域不含此机制, 注了修不到 → abstain。
+        return (
+            False,
+            f"skip-phantom suspects on ledger (phantom={m.group(1)}) — abstain",
+        )
     main = ctx.main_path()
     if main is None:
         return False, "no main file"

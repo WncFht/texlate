@@ -83,7 +83,7 @@ def test_rule_other_arm_wired() -> None:
     assert argv[:2] == ["python3", "-c"]
     script = argv[2]
     assert "texlate-fixloop-injected" in script
-    assert "mask_tex" in script  # 注释/verb 剥离面
+    assert "scan_ifs" in script  # 扫描器在 textutil.ifscan (注释/verb 经 mask_tex 剥)
     assert "\\\\fi" in script or "\\fi" in script
 
 

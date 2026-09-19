@@ -66,6 +66,7 @@ from .encoding import (  # noqa: F401
     decode_tex_with,
     sniff_tex_encoding,
 )
+from .ifscan import IfScan, scan_ifs
 from .mask import (  # noqa: F401
     _MEMO_MAX_INPUT,
     _VERBATIM_BEGIN_RX,
@@ -105,6 +106,7 @@ __all__ = [
     "SUBFILES_CHILD_RX",
     "VERBATIM_ENVS",
     "EncodingVerdict",
+    "IfScan",
     "bare_cs_net",
     "clean_decl_name",
     "cs_events_spans",
@@ -126,6 +128,7 @@ __all__ = [
     "ph_in_cs_net",
     "safe_is_file",
     "safe_resolve",
+    "scan_ifs",
     "sniff_tex_encoding",
 ]
 

@@ -30,6 +30,7 @@ from texlate.compile.fixloop._builtins_csfix import premature_cs_guard
 from texlate.compile.fixloop.builtins import TRANSFORM_FNS
 from texlate.compile.fixloop.engine import LoopCtx, Rule
 from texlate.compile.fixloop.logparse import ErrReport
+from texlate.textutil import ifscan
 
 _UNDEF = TRANSFORM_FNS["undefine_for_redef"]
 _TARGETED = TRANSFORM_FNS["cs_targeted_fix"]
@@ -618,12 +619,12 @@ def _scan(tmp_path: Path, rid: str = "unclosed_if_close") -> tuple[bool, str]:
 
 
 def test_scanner_both_copies_carry_guards() -> None:
-    """196/196.5 双拷贝均带 ``@boole@def`` + ``let`` lookahead 特判。"""
+    """196/196.5 双拷贝共用 ``textutil.ifscan`` —— ``@boole@def`` + ``let`` lookahead 特判在模块表。"""
     for rid in _IFCLOSE_IDS:
         script = _rule(rid).action["params"]["argv"][2]
-        assert '"@boole@def"' in script, rid
-        assert 'if cs == "let"' in script, rid
-        assert '"let":' not in script.split("CONSUME")[1].split("}")[0], rid
+        assert "scan_ifs" in script, rid
+    assert "@boole@def" in ifscan.DEFCMD
+    assert "let" not in ifscan.CONSUME
 
 
 def test_scanner_booledef_idiom_no_false_open(tmp_path: Path) -> None:
