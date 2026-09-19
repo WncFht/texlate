@@ -19,6 +19,7 @@ import regex
 
 from texlate.compile.fixloop import builtins
 from texlate.compile.fixloop.ruleset import _WHEN_ITEM_KEYS
+from texlate.texlog import is_project_file
 from texlate.textutil import mask_tex
 
 if TYPE_CHECKING:
@@ -99,20 +100,43 @@ def _package_version(eng: Engine, fname: str) -> int | None:
     return int(m.group(1)) if m else None
 
 
-def _cond_ok(  # noqa: C901, PLR0911, PLR0912  # 条件原语分派表, 每键一处
+def _err_site_outside(ctx: LoopCtx, rep: ErrReport | None) -> bool:
+    """``err_outside_fileset`` 条件实现: 报错文件栈内层帧判工程外。
+
+    ``rep.file_stack[-1]`` = TeX ``l.N`` 报错所在文件 (内层帧); runaway
+    空栈回退 ``popped_files[-1]`` (最近关闭帧肇事口径, 与
+    ``_requester_paths`` 同)。``is_project_file`` 与红线归因同口径——
+    相对帧/``root`` 内 = 工程 (fileset 可 patch), texmf/bundle 帧 =
+    工程外 (fileset 够不到, 仅 wdir 无关 arm 可治)。无栈帧证据
+    (``rep=None`` 的直驱/旧调用面) → False (fail-closed)。
+    """
+    if rep is None:
+        return False
+    site = rep.file_stack[-1] if rep.file_stack else None
+    if site is None and rep.popped_files:
+        site = rep.popped_files[-1]
+    return site is not None and not is_project_file(site, ctx.wdir)
+
+
+def _cond_ok(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0917  # 条件原语分派表, 每键一处
     cond: dict[str, Any],
     rule: Rule,
     ctx: LoopCtx,
     eng: Engine,
     pay: str | None,
+    rep: ErrReport | None = None,
 ) -> tuple[bool, str]:
-    """Condition 全部键 AND; ``any`` 子键 OR。未知键 fail-closed。"""
+    """Condition 全部键 AND; ``any`` 子键 OR。未知键 fail-closed。
+
+    ``rep`` 仅 ``err_outside_fileset`` 消费 (报错文件栈判站点归属);
+    缺省 ``None`` 时该键 fail-closed, 其余键语义不变。
+    """
     for key, val in cond.items():
         v = _substitute(val, pay)
         if key == "any":
             subs = v if isinstance(v, list) else []
             ok = any(
-                _cond_ok(sub, rule, ctx, eng, pay)[0]
+                _cond_ok(sub, rule, ctx, eng, pay, rep)[0]
                 for sub in subs
                 if isinstance(sub, dict)
             )
@@ -156,6 +180,9 @@ def _cond_ok(  # noqa: C901, PLR0911, PLR0912  # 条件原语分派表, 每键�
             prim = re.escape(str(v))
             if not re.search(rf"\\if[a-zA-Z@]*\s*\\{prim}\b", ctx.source_blob()):
                 return False, f"无 \\if*\\{v} 读取语境"
+        elif key == "err_outside_fileset":
+            if not _err_site_outside(ctx, rep):
+                return False, "报错站点可归工程 fileset"
         elif key == "shim_known":
             shim_map = ((rule.action.get("params") or {}).get("shim_map")) or {}
             if not builtins.shim_pkgs_in_use(ctx, shim_map):
@@ -649,7 +676,7 @@ def _match_apply(  # noqa: C901, PLR0912, PLR0913, PLR0917  # spike pick_and_app
                 pending_esc = (rule, key)
             ctx.advisories.append(f"{rule.id} unsupported on {ctx.engine_name}")
             continue
-        ok, why = _cond_ok(rule.condition, rule, ctx, eng, pay)
+        ok, why = _cond_ok(rule.condition, rule, ctx, eng, pay, rep)
         if not ok:
             ctx.events.append(f"rule {rule.id}: cond skip ({why})")
             d = f"{rule.id}: cond skip ({why})"

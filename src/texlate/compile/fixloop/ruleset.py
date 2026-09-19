@@ -147,6 +147,7 @@ _COND_KEYS = frozenset(
         "tool_available",
         "cap_available",
         "engine_in",
+        "err_outside_fileset",
         "main_head_contains",
         "source_contains",
         "ctx_suggests",

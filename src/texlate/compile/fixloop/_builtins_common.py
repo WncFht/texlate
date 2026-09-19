@@ -25,7 +25,9 @@ if TYPE_CHECKING:
 PDFTEX_PRIMS = (
     "pdfoutput",
     "pdfminorversion",
+    "pdfoptionpdfminorversion",  # axessibility.sty:350 实证 (旧拼形整参)
     "pdfcompresslevel",
+    "pdfobjcompresslevel",  # 同族整参 (老包常与 pdfcompresslevel 连写)
     "pdfinfo",
     "pdfpagewidth",
     "pdfpageheight",

@@ -77,7 +77,12 @@ rules:
         - { category: pdftex_prim, payload_required: true }
         - { category: undefined_cs, payload_required: true }
     condition:
-      source_contains: "glyphtounicode" # 源/cls 确有 \input 引用链才落 stub
+      any:
+        - { source_contains: "glyphtounicode" } # 源/cls 确有 \input 引用链才落 stub
+        ## REVIEW 拓宽: 报错站点在 fileset 外 (axessibility.sty 型系统
+        ## texmf 件 \input{glyphtounicode}) —— stub 落 wdir 由 TeX 文件
+        ## 解析序 (cwd 先) 截获, 与站点文件归属无关, arm 不需源证据。
+        - { err_outside_fileset: true }
     action:
       kind: builtin_transform
       function: bundled_class_shadow
@@ -137,7 +142,14 @@ rules:
     phase: loop
     order: 51 # 与 guard 同 trigger; dedup 后第二轮轮到它
     when: { category: pdftex_prim, payload_required: true }
-    condition: { prim_read_form: "{payload}" } # 源码确有 \\if*\\<prim> 读取语境才注入
+    condition:
+      any:
+        - { prim_read_form: "{payload}" } # 源码确有 \\if*\\<prim> 读取语境才注入
+        ## REVIEW 拓宽: fileset 外站点 (axessibility.sty:349 型系统 texmf
+        ## 写型/读型原语) —— 主文件头注入与源证据无关; guard(50) 仍正确
+        ## 弃守 (patch 不了看不见的件), polyfill 接住。写型站点由 arm
+        ## 内 \newcount 形全真接管 (见 _PRIM_COUNTISH)。
+        - { err_outside_fileset: true }
     action:
       kind: builtin_transform
       function: pdftex_prim_polyfill

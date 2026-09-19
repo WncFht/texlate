@@ -16,7 +16,8 @@ version: 1
 # condition 原语: tool_available / cap_available / engine_in /
 #   main_head_contains / source_contains / ctx_suggests / fileset /
 #   vendored_shadow / package_version_ge / prim_read_form /
-#   shim_known / cache_dir_glob / any:[...]  (未知键 → 规则跳过, fail-closed)
+#   err_outside_fileset / shim_known / cache_dir_glob / any:[...]
+#   (未知键 → 规则跳过, fail-closed)
 # ════════════════════════════════════════════════════════════════
 
 rules:

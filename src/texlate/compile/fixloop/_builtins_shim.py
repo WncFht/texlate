@@ -31,22 +31,71 @@ if TYPE_CHECKING:
     from texlate.compile.fixloop.engine import Engine, LoopCtx
 
 
+#: 整数值 pdfTeX 原语 (寄存器形) —— ``\newcount`` polyfill 全真接管:
+#: 赋值型 ``\prim=val`` 落成合法寄存器赋值并保作者意图值, 读取型
+#: ``\ifnum\prim`` 读初值 1 与旧 ``\chardef=1`` 同义。集合外原语
+#: (dimen ``\pdfpagewidth`` 系 / 取参族 ``\pdfobj`` / 展开族 ``\pdfstrcmp``)
+#: 留 ``\chardef`` 旧形——寄存器化反而更伤 (``=210mm`` 非法单位 /
+#: ``{...}`` 实参变 Missing number)。lane-primofw 实证:
+#: ``\chardef\pdfcompresslevel`` + axessibility.sty:349 裸写
+#: ``\pdfcompresslevel=0`` → chardef cs 变排版字符 + ``=0`` 文本,
+#: Missing \begin{document} 转嫁错类; ``\newcount`` 同点合法过编译。
+_PRIM_COUNTISH = frozenset(
+    {
+        # 可赋整型参数 (write-form \prim=val)
+        "pdfoutput",
+        "pdfminorversion",
+        "pdfoptionpdfminorversion",
+        "pdfcompresslevel",
+        "pdfobjcompresslevel",
+        "pdfgentounicode",
+        "pdfsuppressptexinfo",
+        "pdfadjustspacing",
+        "pdfprotrudechars",
+        "pdftracingfonts",
+        "pdfdecimaldigits",
+        "pdfinclusionerrorlevel",
+        "pdfsuppresswarningpagegroup",
+        "pdfdraftmode",
+        # 只读整数面 (\ifnum/\the 读取, 寄存器语义一致)
+        "pdflastxpos",
+        "pdflastypos",
+        "pdflastobj",
+        "pdflastxform",
+        "pdflastximage",
+        "pdflastannot",
+        "pdffontobjnum",
+        "pdfpageref",
+        "pdftexversion",
+        "pdfrandomseed",
+        "pdfelapsedtime",
+        "pdffilesize",
+    }
+)
+
+
 def pdftex_prim_polyfill(
     ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
 ) -> tuple[bool, str]:
-    r"""读取型 pdfTeX 原语补定义: ``\\ifdefined\\<prim>\\else\\chardef\\<prim>=1\\fi``。
+    r"""对 pdfTeX 原语补定义: ``\\ifdefined\\<prim>\\else\\newcount|chardef\\<prim>\\fi``。
 
-    guard 规则只管 ``\\pdfX=val``/``\\pdfX{..}`` 赋值型; ``\\ifnum\\pdfoutput``
-    这类读取型需要原语已定义 (docs/08:268)。注入点恒在主文件头——
-    cls/sty 内部读取发生在 ``\\documentclass`` 加载期间, 类行后注入太晚
-    (2410.00012: ieeeaccess.cls:128 内 ``\\pdfobj``); ``ifdefined``
-    前缀天然幂等。
+    guard 规则只管 ``\\pdfX=val``/``\\pdfX{..}`` 赋值型且在 fileset 内;
+    ``\\ifnum\\pdfoutput`` 读取型与 fileset 外 (系统 texmf sty/cls) 站点
+    都要原语已定义 (docs/08:268 + verifymiss axessibility.sty:349 实证)。
+    整数值原语 (``_PRIM_COUNTISH``) 走 ``\\newcount`` —— 赋值型站点
+    ``\\prim=val`` 全真接管; 非整型留 ``\\chardef=1`` 旧形 (读取型兼容)。
+    注入点恒在主文件头——cls/sty 内部使用发生在 ``\\documentclass``
+    加载期间, 类行后注入太晚 (2410.00012: ieeeaccess.cls:128 内
+    ``\\pdfobj``); ``ifdefined`` 前缀天然幂等。
     """
     del eng  # 签名面统一; 注入发生在主文件源文本
     prim = str(params.get("prim") or payload or "")
     if prim not in PDFTEX_PRIMS:
         return False, f"{prim} not in pdfTeX prim list"
-    guard = f"\\ifdefined\\{prim}\\else\\chardef\\{prim}=1\\fi"
+    if prim in _PRIM_COUNTISH:
+        guard = f"\\ifdefined\\{prim}\\else\\newcount\\{prim}\\{prim}=1\\fi"
+    else:
+        guard = f"\\ifdefined\\{prim}\\else\\chardef\\{prim}=1\\fi"
     main = ctx.main_path()
     if main is None:
         return False, "no main tex"
