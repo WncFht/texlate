@@ -518,7 +518,7 @@ _UNDEF_KERNEL_CS = frozenset(
 )
 
 
-def _undefined_cs_payload(_first: str | None, ctx: str | None) -> str | None:
+def _undefined_cs_payload(first: str | None, ctx: str | None) -> str | None:
     r"""``Undefined control sequence`` → 冒犯 cs 名; 内核渲染宏占位时向 ``l.N`` 行回退。
 
     主抓取与条目 regex 同语义: marker 行的下一行 (ctx 顶行) 末位 cs。
@@ -529,9 +529,15 @@ def _undefined_cs_payload(_first: str | None, ctx: str | None) -> str | None:
     ``l.N`` 行无获再扫中间展开层各行末位 cs (pending 位), 仍无 → None。
     ``l.N`` 先于中间层评估: 中间层末位可为 ``\endgroup`` 等渲染机残片,
     ``l.N`` 行字母 cs 是更稳的冒犯指征。
+
+    ctx 缺席或无 marker 时退回 ``first`` 同构扫描——head 内嵌整段
+    (``! ...`` + ``l.N`` 同块, 调用方不拆 ctx) 的直调面由此可达。
     """
     lines = (ctx or "").splitlines()
-    i = next((k for k, ln in enumerate(lines) if _UNDEF_MARK in ln), 0)
+    i = next((k for k, ln in enumerate(lines) if _UNDEF_MARK in ln), -1)
+    if i < 0:
+        lines = (first or "").splitlines()
+        i = next((k for k, ln in enumerate(lines) if _UNDEF_MARK in ln), 0)
     rest = lines[i + 1 :]
     if not rest:
         return None
