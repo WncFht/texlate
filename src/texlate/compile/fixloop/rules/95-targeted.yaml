@@ -1110,3 +1110,69 @@ rules:
         }
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/lane-undef13/repro-1907/ — emulate5.tex 全真复现+翻正 (4 pinlabel 全落位)"
+
+  # 2026-09-19 blxdlist lane (task #239, census tmp/lane-blxbbl/):
+  # 1502.02341 捆绑 biblatex v2.3 时代 .bbl —— 裸 \entry 记录顶层排,
+  # 无 \datalist 包裹; backend=bibtex → 不产 .bcf → bbl_regen(158) 的
+  # has_ext:.bcf 门恒拒。TL biblatex 3.21 中 \blx@dlist@type/@name 唯一
+  # 定义者是 \datalist→\blx@bbl@dlist (biblatex.sty:9280-83); 而
+  # \blx@bbl@entry 的 \edef\blx@bbl@data (:8687) 与 \blx@bbl@endentry
+  # 双 \ifstrequal (:8707/:8720) 全踩未定义名 → 实测 164 错 =
+  # 54×dlist@name + 108×dlist@type + \lossort/\endlossort 对 (v2.3
+  # 排序尾标, 3.21 亦无定义)。polyfill 同 sortlist 时序 ——
+  # begindocument/before 钩先于 biblatex 标块的 \blx@bblinput
+  # (biblatex.sty:16617 \AtBeginDocument), 又在整段 preamble 后 →
+  # biblatex 装载面已就位, \blx@refcontext@context 已有值。
+  # \blx@dlist@name→\csname blx@refcontext@context\endcsname 懒展开:
+  # edef 期落真 refcontext 串, \printbibliography 按
+  # blx@dlist@entry@<sec>@<ctx> (:9895) 读表同名命中 —— 恢复真书目
+  # 输出而非纯压错; refcontext 缺席时 \csname 退化 \relax 字面仍零错。
+  # \ifx 守卫使真 \datalist 执行时自带组内 \def 覆盖 —— 混合格/已定义
+  # 格零副作用; B3 族 payload (blx@citeargs@iii/blx@lbx/blx@*file 等)
+  # 无表键 builtin 自拒, 不越界。四键同一 polyfill 块 (yaml 锚点):
+  # 错误分解同格并发, 任一 payload 先派发整块落, snippet-in-text
+  # 幂等使后续键让位。\endlossort 不走 \providecommand —— \@ifdefinable
+  # 拒一切 end* 前缀名 (latex.ltx:1296 \@carcube 取前三字符比 \@qend),
+  # "Command \endlossort already defined. Or name \end... illegal" 实炸,
+  # 只能 ifx-guarded \def (xelatex 本地 repro 实证)。
+  - id: blx_dlist_polyfill
+    description: "pre-dlist 裸 \\entry .bbl × biblatex 3.21 → \\blx@dlist@name/@type ifx-guarded 补 + \\lossort 对 no-op (backend=bibtex 无 .bcf 臂)"
+    phase: loop
+    order: 166.5 # cs_targeted_fix_c3(166) 后, acro_v3_key_rename(167) 前; bbl_regen(158) .bcf 门天然先行 —— biber 格 regen 恒先中
+    when: { category: undefined_cs, payload_required: true }
+    action:
+      kind: builtin_transform
+      function: cs_targeted_fix
+      params:
+        cs_table:
+          blx@dlist@name:
+            polyfill: &blx_dlist_polyfill |
+              \AddToHook{begindocument/before}{%
+              \expandafter\ifx\csname blx@dlist@type\endcsname\relax
+                \expandafter\def\csname blx@dlist@type\endcsname{entry}\fi
+              \expandafter\ifx\csname blx@dlist@name\endcsname\relax
+                \expandafter\def\csname blx@dlist@name\endcsname
+                  {\csname blx@refcontext@context\endcsname}\fi
+              \providecommand\lossort{}%
+              \expandafter\ifx\csname endlossort\endcsname\relax
+                \expandafter\def\csname endlossort\endcsname{}\fi
+              }
+          blx@dlist@type: { polyfill: *blx_dlist_polyfill }
+          lossort: { polyfill: *blx_dlist_polyfill }
+          endlossort: { polyfill: *blx_dlist_polyfill }
+    risk: low # \ifx/providecommand 守卫幂等; biblatex 自定义在场时整块让位
+    known_gap: "v2.3/v1.7 \\entry{key}{type}{} 三参形 vs 3.21 \\blx@bbl@entry 四参 (#4=citecount 丢弃位): #4 会吞掉条目体首个域宏 (\\name/\\list), 残余 {key}{n}{}{...} 域值裸排 —— 零错但书目首页前留杂字, content-loss 待 replay 判定"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same } # TL biblatex 3.21 同不载旧读者; 钩/csname 皆内核件
+    provenance:
+      - {
+          corpus: "stagerun-loop3 1502.02341 (bbl v2.3, backend=bibtex 无 .bcf)",
+          error: "Undefined control sequence \\blx@dlist@name / \\blx@dlist@type / \\lossort ×164 (54+108+2)",
+        }
+      - {
+          corpus: "stagerun-loop3 1502.06277 (bbl v1.7 同机理, biber → bbl_regen 已覆盖, 本表仅在 regen 让位时兜底)",
+          error: "Undefined control sequence \\blx@dlist@name",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-blxbbl/census.md — biblatex.sty:8687/8707-8722/9280-9283/16617"
