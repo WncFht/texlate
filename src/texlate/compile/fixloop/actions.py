@@ -29,7 +29,7 @@ from texlate.compile.fixloop._builtins_common import (
 from texlate.compile.fixloop._builtins_graphics import _PDF_SANITIZE_SKIP_DIRS
 from texlate.compile.fixloop.ruleset import _WHEN_ITEM_KEYS
 from texlate.texlog import is_project_file
-from texlate.textutil import mask_tex
+from texlate.textutil import mask_tex, safe_is_file
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Iterator
@@ -757,7 +757,67 @@ def _fd_case_variants(file: str) -> list[str]:
     return [lower, file] if lower != file else [file]
 
 
-def _apply_install_file(  # noqa: C901  # 候选序×font_related×复核三分支即参数面
+def _relink_misplaced(  # noqa: C901  # 目录/文件链分派决策树, 拆则形合实离
+    ctx: LoopCtx, fname: str, present: str
+) -> Path | None:
+    """工程内错位件 → 链进 TeX 解析位; 非工程件/已在解析位 → None。
+
+    编译 cwd = main 所在目录: 带目录 payload 只走 ``main_dir/fname`` 字面
+    解析 (kpathsea 对 dir 分量无裸名递补), 裸名走 ``main_dir`` + TEXINPUTS
+    —— 两形态下工程内错位件都够不到, 而 already-present 探测以 ``wdir``
+    为基会误报 (soak-2026-09-18 fairmeta/acronyms1: install_file 报
+    already-present 但 TeX 照旧 missing_file)。
+    """
+    wdir = ctx.wdir
+    main_rel = ctx.main_rel
+    main_dir = (wdir / main_rel).parent if main_rel else wdir
+    hit = Path(present)
+    hit_abs = hit if hit.is_absolute() else wdir / hit
+    try:
+        hit_abs.resolve().relative_to(wdir.resolve())
+    except (OSError, ValueError):
+        return None  # texmf 命中/归属判不出 —— TEXINPUTS 可达, 无 relink 面
+    parts = PurePosixPath(fname).parts
+    if len(parts) > 1:
+        # 目录形 payload: wdir/<首段> 是目录且非 main_dir 祖先 → 目录级
+        # 软链罩住整枝 (Content/* 链式缺件一轮收口); 首段恰是祖先
+        # (templates/arxiv/main 引 templates/arxiv/fairmeta) 或解析位
+        # 已有真目录/活链 → 落文件级链 (防目录环/不覆盖现场)。
+        top = wdir / parts[0]
+        try:
+            top_resolved = top.resolve()
+            if top_resolved.is_dir() and not main_dir.resolve().is_relative_to(
+                top_resolved
+            ):
+                link = main_dir / parts[0]
+                if not (link.is_symlink() or link.exists()):
+                    try:
+                        link.symlink_to(top_resolved, target_is_directory=True)
+                    except OSError:
+                        pass
+                    else:
+                        return link
+        except OSError:
+            pass
+    expected = main_dir / fname
+    if expected.is_symlink():
+        if expected.exists():
+            return None  # 活链已占位 —— 视为已在解析位
+        expected.unlink()  # 死链换新
+    elif safe_is_file(expected):
+        return None  # 解析位已有真件 —— 真 already-present/名冲突, 不覆盖
+    try:
+        expected.parent.mkdir(parents=True, exist_ok=True)
+        expected.symlink_to(hit_abs.resolve())
+    except OSError:
+        try:
+            shutil.copy2(hit_abs, expected)
+        except OSError:
+            return None
+    return expected
+
+
+def _apply_install_file(  # noqa: C901, PLR0912  # 候选序×font_related×复核×relink 分支即参数面
     ctx: LoopCtx, eng: Engine, params: dict[str, Any], rep: ErrReport
 ) -> tuple[bool, str]:
     """缺文件 → probe → install_file → 复核; font_related → rebuild_fontmaps (spike L264-276)。"""
@@ -788,6 +848,9 @@ def _apply_install_file(  # noqa: C901  # 候选序×font_related×复核三分�
         # probe 带 cwd=wdir: 工程内文件/ctan_fetch 平铺落盘均算命中
         # (tectonic probe_file 无 cwd 恒 None, 复核必败)
         if present := _probe(eng, fname, cwd=ctx.wdir):
+            if (link := _relink_misplaced(ctx, fname, present)) is not None:
+                _install_dep_closure(ctx, eng, fname, present)
+                return True, f"relinked {fname} -> {link}{fanout_note}"
             _install_dep_closure(ctx, eng, fname, present)
             if params.get("already_present_ok", True):
                 return True, f"already-present {fname}{fanout_note}"
