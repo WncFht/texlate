@@ -958,8 +958,10 @@ rules:
                 "ifinlist", "ifinlistcs", "ifthenelse", "ifnextchar",
             }
             # cs whose next N cs-tokens are name/arg positions (not live opens)
+            # —— "let" 不在此列: 第二 token 是否为名取决于赋值对象形,
+            # 由 dispatch 内 lookahead 特判 (\let\sep=, 形第二 cs 是 live)
             CONSUME = {
-                "newif": 1, "let": 2, "futurelet": 3, "string": 1, "meaning": 1,
+                "newif": 1, "futurelet": 3, "string": 1, "meaning": 1,
                 "newcount": 1, "newdimen": 1, "newbox": 1, "newskip": 1,
                 "newmuskip": 1, "newtoks": 1, "newread": 1, "newwrite": 1,
                 "newfam": 1, "newinsert": 1, "newlanguage": 1, "chardef": 1,
@@ -969,6 +971,10 @@ rules:
             # cs that scan name+params until {body}; body tokens are frozen (def-tag)
             DEFCMD = {
                 "def", "gdef", "edef", "xdef",
+                # aastex.cls 5.2 caller-supplies-\fi 习语: \@boole@def\@ifx#1{\ifx#1}
+                # —— 内层 \ifx 在 def-参组内展开期平衡 (caller 供 \fi), 非 live open;
+                # 走 def_params→def 组即按冻结计, 消 5 连假开 (aastex61if census)
+                "@boole@def",
                 "everypar", "everymath", "everydisplay", "everyhbox", "everyvbox",
                 "everyjob", "everycr", "everyeof", "output", "toks",
                 "write", "special", "pdfliteral", "directlua",
@@ -1052,6 +1058,33 @@ rules:
                         continue  # \def name/params position
                     if pending and pending[0] == "name":
                         pending.pop(0)  # \newcommand\foo bare cs name
+                        continue
+                    if cs == "let":
+                        # \let<name><sp*><=><sp*><tok>: name 是紧邻 cs 才吃
+                        # (字符名形如 \let a=b 则不吃远处 cs); 第二 cs 仅在
+                        # gap 纯空白+可选 '=' 时才为赋值对象 —— \let\sep=,
+                        # 赋的是字符 ',', 其后的 \fi 是 live close 非名
+                        # (elsarticle/IEEEtran CONSUME=2 假开实证)。
+                        nm = TOKEN.search(vis, tm.end())
+                        consume = 0
+                        if (
+                            nm is not None
+                            and nm.group(1) is not None
+                            and re.fullmatch(
+                                r"[ \t]*\n?[ \t]*", vis[tm.end() : nm.start()]
+                            )
+                        ):
+                            consume = 1
+                            nm2 = TOKEN.search(vis, nm.end())
+                            if (
+                                nm2 is not None
+                                and nm2.group(1) is not None
+                                and re.fullmatch(
+                                    r"[ \t]*\n?[ \t]*=?[ \t]*\n?[ \t]*",
+                                    vis[nm.end() : nm2.start()],
+                                )
+                            ):
+                                consume = 2
                         continue
                     if cs in CONSUME:
                         consume = CONSUME[cs]
@@ -1212,8 +1245,10 @@ rules:
                 "ifinlist", "ifinlistcs", "ifthenelse", "ifnextchar",
             }
             # cs whose next N cs-tokens are name/arg positions (not live opens)
+            # —— "let" 不在此列: 第二 token 是否为名取决于赋值对象形,
+            # 由 dispatch 内 lookahead 特判 (\let\sep=, 形第二 cs 是 live)
             CONSUME = {
-                "newif": 1, "let": 2, "futurelet": 3, "string": 1, "meaning": 1,
+                "newif": 1, "futurelet": 3, "string": 1, "meaning": 1,
                 "newcount": 1, "newdimen": 1, "newbox": 1, "newskip": 1,
                 "newmuskip": 1, "newtoks": 1, "newread": 1, "newwrite": 1,
                 "newfam": 1, "newinsert": 1, "newlanguage": 1, "chardef": 1,
@@ -1223,6 +1258,10 @@ rules:
             # cs that scan name+params until {body}; body tokens are frozen (def-tag)
             DEFCMD = {
                 "def", "gdef", "edef", "xdef",
+                # aastex.cls 5.2 caller-supplies-\fi 习语: \@boole@def\@ifx#1{\ifx#1}
+                # —— 内层 \ifx 在 def-参组内展开期平衡 (caller 供 \fi), 非 live open;
+                # 走 def_params→def 组即按冻结计, 消 5 连假开 (aastex61if census)
+                "@boole@def",
                 "everypar", "everymath", "everydisplay", "everyhbox", "everyvbox",
                 "everyjob", "everycr", "everyeof", "output", "toks",
                 "write", "special", "pdfliteral", "directlua",
@@ -1306,6 +1345,33 @@ rules:
                         continue  # \def name/params position
                     if pending and pending[0] == "name":
                         pending.pop(0)  # \newcommand\foo bare cs name
+                        continue
+                    if cs == "let":
+                        # \let<name><sp*><=><sp*><tok>: name 是紧邻 cs 才吃
+                        # (字符名形如 \let a=b 则不吃远处 cs); 第二 cs 仅在
+                        # gap 纯空白+可选 '=' 时才为赋值对象 —— \let\sep=,
+                        # 赋的是字符 ',', 其后的 \fi 是 live close 非名
+                        # (elsarticle/IEEEtran CONSUME=2 假开实证)。
+                        nm = TOKEN.search(vis, tm.end())
+                        consume = 0
+                        if (
+                            nm is not None
+                            and nm.group(1) is not None
+                            and re.fullmatch(
+                                r"[ \t]*\n?[ \t]*", vis[tm.end() : nm.start()]
+                            )
+                        ):
+                            consume = 1
+                            nm2 = TOKEN.search(vis, nm.end())
+                            if (
+                                nm2 is not None
+                                and nm2.group(1) is not None
+                                and re.fullmatch(
+                                    r"[ \t]*\n?[ \t]*=?[ \t]*\n?[ \t]*",
+                                    vis[nm.end() : nm2.start()],
+                                )
+                            ):
+                                consume = 2
                         continue
                     if cs in CONSUME:
                         consume = CONSUME[cs]
@@ -1421,6 +1487,35 @@ rules:
         }
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/lane-failmine/rule_targets.txt item4; err_head 空无 `!` 行 → 与 other 臂分离独立 gating"
+
+  # Missing \begin{document} @件装载: 随源 .sty 装载期调 \numberwithin 类
+  # 排版 cs, 供方包 (amsmath) 却在更靠后的 \usepackage 行才装 → kernel
+  # 对 preamble 期排版动作报 Missing \begin{document}。修 = 供方
+  # \usepackage 前置到肇事 sty 的每个 live 消费方装载点; tex 肇事件
+  # (main/\input) 无 usepackage 锚点 → docclass 缝顶补供方; cls/def/clo
+  # 系 cls 内传递装载, 缝位鞭长莫及 → abstain (csfix2 lane)。
+  - id: premature_cs_guard
+    description: "Missing \\begin{document} @件装载 → 肇事 cs 供方包前置到消费方 \\usepackage 装载点 (\\numberwithin→amsmath)"
+    phase: loop
+    order: 196.7
+    when: { category: syntax }
+    condition:
+      ctx_suggests: "Missing \\\\begin\\{document\\}"
+    action:
+      kind: builtin_transform
+      function: premature_cs_guard
+    risk: low # 供方 usepackage 前置语义保持 (kernel 幂等去重, 同文件先装站跳过); 无锚点 abstain
+    known_gap: "cls/def/clo 肇事件无 usepackage 锚点 → abstain; \\input 装载消费件不收; cs_pkg 表外 cs decline; 非 file-line-error log 不定界不收"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "2009.11053 (shipclscen; stagerun-rt1)",
+          error: "mystyle.sty:33 Missing \\begin{document} — l.33 \\numberwithin 先于 ms.tex:48 amsmath",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-bbkresid/report.md csfix-batch2 queue; csfix2 lane"
 
   # phantom 臂: `Incomplete \if` 签名在同签下轮复发 = unclosed_if_close(196)
   # 字面扫描 noop 过——源件 \if*/\fi 平衡, 真凶是展开态 conditional:

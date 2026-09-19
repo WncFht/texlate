@@ -18,7 +18,7 @@ from texlate.compile.fixloop._builtins_common import (
     _map_tex_files,
 )
 from texlate.compile.inject import find_docclass_ends
-from texlate.textutil import mask_tex
+from texlate.textutil import DOCCLASS_RX, iter_depth0, mask_tex
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -46,6 +46,13 @@ _CS_FIX_TABLE: dict[str, dict[str, Any]] = {
             }
         },
     },
+    # 2308.04212/2403.00111: WileyNJD-v2.cls:248 \reserveinserts{28} ——
+    # LaTeX2e<2015 kernel 原语 (旧式 insert 寄存器预留); etex.sty 在新
+    # 内核下整段跳过 → 名未定义。cls 在 \documentclass 内执行, 缝后
+    # 注入鞭长莫及 → polyfill_pre 落 docclass 行前。新内核分配器本就
+    # 免预留 → providecommand 一参 gobble 语义无损 (\@gobble 形需
+    # @-letter 语境, providecommand 形在 .tex 顶零依赖)。
+    "reserveinserts": {"polyfill_pre": r"\providecommand\reserveinserts[1]{}"},
 }
 
 
@@ -125,16 +132,44 @@ def _split_glued_cs(cs: str, heads: Iterable[str], guard: Iterable[str]) -> str 
     return None
 
 
-def cs_targeted_fix(
+def _inject_before_docclass(ctx: LoopCtx, snippet: str) -> bool:
+    r"""主文件首个活 ``\documentclass`` 行首前注入 snippet (幂等)。
+
+    cls 内调用面专用: ``\documentclass`` 执行期的 undefined_cs ——
+    halt_on_error 下缝后注入永远够不到。首个 depth-0 docclass token
+    的行首前落位; 无 depth-0 docclass (宏代理形/残缺稿) 退文件头,
+    preamble 顶仍先于一切 cls 执行。多臂 ``\if..\else..\fi`` 分支
+    docclass 是已知残余 (注进首臂, 不烂义)。
+    """
+    main = ctx.main_path()
+    if main is None:
+        return False
+    t = ctx.read(main) or ""
+    if snippet in t:
+        return False
+    masked = mask_tex(t)
+    pos = 0
+    for m in iter_depth0(DOCCLASS_RX, masked):
+        if masked[m.start() : m.end()] != t[m.start() : m.end()]:
+            continue  # 跨遮盖区命中 —— verbatim/死臂内假 docclass
+        pos = t.rfind("\n", 0, m.start()) + 1
+        break
+    ctx.write(main, t[:pos] + snippet + "\n" + t[pos:])
+    return True
+
+
+def cs_targeted_fix(  # noqa: C901 - spec 键序分派表, 每键一处
     ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
 ) -> tuple[bool, str]:
     r"""undefined_cs 按 cs 修复表打靶 (handoff §2.2 cs→包表项)。
 
     spec 键组合序: ``strip_pkg`` 剥装载点 → ``usepackage`` 注入+装文件
-    → ``cs_map`` ``\old``→``\new`` 逐文件改写 → ``polyfill`` 注原始 TeX body。
-    ``engines.{eng_name}`` 子表整体覆盖顶层同名词 (引擎差异修, 如 bbm→dsfont)。
-    payload 不在表 → 试 ``split_heads`` glue-残骸前缀拆分 (合成 cs_map 项);
-    仍不中 → False 落 undefined_cs_guess。
+    → ``cs_map`` ``\old``→``\new`` 逐文件改写 → ``polyfill`` 注原始 TeX body
+    (docclass 缝后) → ``polyfill_pre`` 同形注 docclass 行前 (cls 执行期
+    调用面专用, ``\reserveinserts`` 类)。``engines.{eng_name}`` 子表整体
+    覆盖顶层同名词 (引擎差异修, 如 bbm→dsfont)。payload 不在表 → 试
+    ``split_heads`` glue-残骸前缀拆分 (合成 cs_map 项); 仍不中 → False
+    落 undefined_cs_guess。
     """
     table = dict(_CS_FIX_TABLE)
     table.update(params.get("cs_table") or {})
@@ -168,6 +203,10 @@ def cs_targeted_fix(
             done.append(f"cs_map in {n} files")
     if spec.get("polyfill") and _inject_after_docclass(ctx, str(spec["polyfill"])):
         done.append("polyfill injected")
+    if spec.get("polyfill_pre") and _inject_before_docclass(
+        ctx, str(spec["polyfill_pre"])
+    ):
+        done.append("pre-docclass polyfill injected")
     if not done:
         return False, f"cs-fix spec for {cs} applied nothing"
     return True, "; ".join(done)
@@ -407,7 +446,89 @@ def _undefine_sites(
     return n_files
 
 
-def undefine_for_redef(
+#: file:line 形 already_def 错误的肇事包定位 —— ``path/<pkg>.sty:N:
+#: LaTeX Error: Command `\X' already defined`` 同时给出肇事包茎与撞名。
+#: 报错包在执行序上恒为后定义者 (先定义者无论在哪都已跑完), 故其
+#: 每个用户件装载点前清位序恒正确 —— 与 docclass 块互补: 缝位在
+#: preamble 先定义者 (``\usepackage{newtxmath}`` 类) 尚未执行时
+#: ``\let`` 是纯 no-op (bbkresid 4 格同型实证), 装载点前清位才
+#: 落在先/后定义者之间。``.cls`` 不收: 类文件无 usepackage 装载点
+#: 可锚 (其内互撞归站点臂/abstain)。
+_PKG_ERR_FILE_RE = re.compile(
+    r"^[ \t]*\S*?([\w.+-]+)\.sty:\d+:\s*LaTeX Error:"
+    r"\s*Command\s+[`'\"]?\\([A-Za-z@]+)[`'\"]?\s+already\s+defined",
+    re.MULTILINE,
+)
+
+
+def _pkg_err_stems(log: str) -> dict[str, set[str]]:
+    r"""file:line 形 already_def 行扫 → ``{撞名: {肇事包 sty 茎 (小写)}}``。"""
+    out: dict[str, set[str]] = {}
+    for m in _PKG_ERR_FILE_RE.finditer(log):
+        out.setdefault(m.group(2), set()).add(m.group(1).lower())
+    return out
+
+
+#: ``\usepackage``/``\RequirePackage`` 装载点 —— group(1)=花括内逗号列
+#: 元素串 (``[opts]`` 跳过)。无行首锚: ``\if..\RequirePackage..\fi``
+#: 单行条件形也收, 前置在 token 前序位恒正确。
+_LOAD_SITE_RE = re.compile(
+    r"\\(?:usepackage|RequirePackage)\s*(?:\[[^\]\n]*\])?\s*\{([^}]*)\}"
+)
+
+
+def _undefine_pkg_sites(
+    ctx: LoopCtx, cs_stems: dict[str, set[str]]
+) -> tuple[int, set[str]]:
+    r"""肇事包茎的用户件装载点前 ``\let\X\@undefined`` → (前置站数, 覆盖撞名集)。
+
+    肇事包恒为后定义者 → 其每个 live 装载点 (opts/逗号列元素匹配茎名,
+    dup 站全收) 前清位序恒正确; 遮盖复核剔注释/verbatim 死站, 上轮
+    已前置的 cs 按 256 字前缀窗幂等跳过。``.tex`` 面 ``\makeatletter``
+    对包裹, ``.sty``/``.cls`` 裸 ``\let`` (@ 本是 letter)。肇事茎无
+    用户件装载点 (cls 内传递装载) 的撞名不进返回集 → 调用方以
+    docclass 块兜底。
+    """
+    want = set().union(*cs_stems.values()) if cs_stems else set()
+    covered: set[str] = set()
+    n_sites = 0
+    for f in ctx.tex_files((".tex", ".sty", ".cls")):
+        t = ctx.read(f)
+        if not t:
+            continue
+        masked = mask_tex(t)
+        wrap = getattr(f, "suffix", "") == ".tex"
+        out: list[str] = []
+        prev = 0
+        for m in _LOAD_SITE_RE.finditer(masked):
+            if masked[m.start() : m.end()] != t[m.start() : m.end()]:
+                continue  # 跨遮盖区命中 —— 注释/verbatim 内死站不锚
+            elems = {e.strip().lower() for e in m.group(1).split(",") if e.strip()}
+            if not (elems & want):
+                continue
+            window = t[max(0, m.start() - 256) : m.start()]
+            names = sorted(
+                cs
+                for cs, stems in cs_stems.items()
+                if stems & elems and f"\\let\\{cs}\\@undefined" not in window
+            )
+            if not names:
+                continue
+            ins = "".join(f"\\let\\{n}\\@undefined" for n in names)
+            if wrap:
+                ins = f"\\makeatletter{ins}\\makeatother"
+            out.append(t[prev : m.start()])
+            out.append(ins + "\n")
+            prev = m.start()
+            covered.update(names)
+            n_sites += 1
+        if out:
+            out.append(t[prev:])
+            ctx.write(f, "".join(out))
+    return n_sites, covered
+
+
+def undefine_for_redef(  # noqa: C901 - 三修形并施 + 护栏逐门, 分派即归因
     ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
 ) -> tuple[bool, str]:
     r"""``already_def`` → ``\let\X\@undefined`` 让位 (批量化 + 站点前置版)。
@@ -418,7 +539,7 @@ def undefine_for_redef(
     payload 非 cs 形或不在 log 撞名集 (Theorem-style 等非 Command 签名
     的 already_def payload) → 丢弃只信 log。
 
-    双修形并施:
+    三修形并施:
       1. 站点前置 —— 撞名站点所在文件 (guilty file) 内全部
          ``_SITE_DEF_CMDS`` 站点前插 ``\makeatletter\let\X\@undefined
          \makeatother``。halt_on_error 每轮 log 只见首撞名, 站点簇扩
@@ -429,9 +550,17 @@ def undefine_for_redef(
          end* 恒拒名形 (``\@ifdefinable`` ``\@qend`` 前缀拒, 与定义态
          无关) 在 ``\@ifdefinable`` 路由命令站点换 ``\@rc@ifdefinable``
          单发旁路; ``\providecommand`` 族站点只收该名形。
-      2. docclass 块 —— 只对证实撞名集 (payload∪log 扫描, 不扩站点
-         兄弟) 早清位, 兜无站点可指的撞名 (包内互撞等)。end* 名不入
-         此块: 无站点可指时 ``\let\endX\@undefined`` 纯徒劳 (重定义侧
+      2. 包装载点前置 —— file:line 形错误行抽肇事包茎, 其每个用户件
+         ``\usepackage``/``\RequirePackage`` 装载点 (opts/逗号列/dup
+         站全收) 前清位。报错包恒为后定义者 → 序恒正确, 修 docclass
+         块鞭长莫及的 "preamble 包先定义, 后载包再定义" 互撞
+         (bbkresid: newtxmath→amssymb ``\Bbbk`` 同型 4 格)。end* 名
+         不入此臂: ``\let\X\@undefined`` 对恒拒名徒劳, rc@ 旁路又不能
+         跨包体前置 (会被包内首个 ``\@ifdefinable`` 调用消费错目标)。
+      3. docclass 块 —— 只对证实撞名集 (payload∪log 扫描, 不扩站点
+         兄弟) 早清位, 兜无站点可指的撞名 (cls 内传递装载等)。装载点
+         前置已覆盖的名不入此块 (其清位序已是充分解); end* 名亦不入:
+         无站点可指时 ``\let\endX\@undefined`` 纯徒劳 (重定义侧
          仍恒拒) 且毁既有义 —— 弃修交下位规则。
 
     ``params.min_batch`` (缺省 1) 门批量下限, 计数 = 撞名 ∪ guilty 文件
@@ -487,12 +616,28 @@ def undefine_for_redef(
                 f"site-prepend guards in {n_sites} file(s) for {len(expanded)} cs"
             )
 
+    cs_stems = {
+        n: s
+        for n, s in _pkg_err_stems(log).items()
+        if n in offenders and not _endstar_name(n)
+    }
+    pkg_covered: set[str] = set()
+    if cs_stems:
+        n_load, pkg_covered = _undefine_pkg_sites(ctx, cs_stems)
+        if n_load:
+            done.append(
+                f"pkg-load-site clears {len(pkg_covered)} cs "
+                f"at {n_load} usepackage site(s)"
+            )
+
     main = ctx.main_path()
     main_t = (ctx.read(main) or "") if main is not None else ""
     fresh = [
         n
         for n in sorted(offenders)
-        if not _endstar_name(n) and f"\\let\\{n}\\@undefined" not in main_t
+        if not _endstar_name(n)
+        and n not in pkg_covered
+        and f"\\let\\{n}\\@undefined" not in main_t
     ]
     if fresh:
         block = (
@@ -821,3 +966,151 @@ def if_phantom_protect(
     if not _inject_after_docclass(ctx, snippet):
         return False, "protected re-defs already injected"
     return True, f"protected {len(fam)} frontmatter cs ({', '.join(fam)})"
+
+
+# ═══ premature provider-cs: Missing \begin{document} @件装载补供格 (2009.11053) ═══
+
+#: file:line 形 ``Missing \begin{document}`` —— ``path/<file>.<ext>:N:``
+#: 前缀给出肇事执行文件 (随源 .sty 常见), ``l.N`` 上下文行给出肇事 cs。
+_MBD_ERR_RE = re.compile(
+    r"^[ \t]*\S*?([\w.+-]+)\.(sty|cls|tex|def|clo):\d+:"
+    r"\s*LaTeX Error:\s*Missing \\begin\{document\}",
+    re.MULTILINE,
+)
+#: ``l.N`` 上下文行 —— TeX 行内截到炸点, 最后一个 cs 即肇事者。
+_L_CTX_LINE_RE = re.compile(r"(?m)^l\.\d+[^\n]*")
+_L_CTX_CS_RE = re.compile(r"\\([A-Za-z@]+)")
+
+#: 肇事 cs → 供方包 (``params.cs_pkg`` 可扩) —— 供方先装载即真 def
+#: 就位; gobble/空 polyfill 会静默吞掉计数器重编号语义, 只收真实供方。
+_PREMATURE_CS_PKG: dict[str, str] = {
+    # 2009.11053: mystyle.sty:33 \numberwithin —— amsmath 在 ms.tex:48
+    # 逗号列才装, 供方晚于消费方 → 前置到 \usepackage{mystyle} 前。
+    "numberwithin": "amsmath",
+}
+
+
+def _mbd_pairs(blob: str) -> list[tuple[str, str, str]]:
+    r"""``Missing \begin{document}`` 行与 ``l.N`` 上下文配对 → [(肇事茎, 扩展名, cs)]。
+
+    错误行后首个 ``l.N`` 行即本错上下文 (TeX 序: 错误行→help→l.行);
+    行内最后一个 cs 是炸点肇事者 (左到右执行序)。
+    """
+    out = []
+    for em in _MBD_ERR_RE.finditer(blob):
+        lm = _L_CTX_LINE_RE.search(blob, em.end())
+        if lm is None:
+            continue
+        css = _L_CTX_CS_RE.findall(lm.group(0))
+        if not css:
+            continue
+        out.append((em.group(1), em.group(2), css[-1]))
+    return out
+
+
+def premature_cs_guard(  # noqa: C901, PLR0912, PLR0915 - 双臂逐站分派 + seen 幂等, 逐门 decline 即归因
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""``Missing \begin{document}`` @件装载 → 供方包前置到消费方装载点。
+
+    触发面: 随源 .sty 在装载期调 ``\numberwithin`` 类排版 cs, 而供方包
+    (amsmath) 由更靠后的 ``\usepackage`` 行才装 —— kernel 对 preamble
+    期排版动作报 ``Missing \begin{document}`` (级联签, syntax 类)。
+    修 = 供方 ``\usepackage`` 前置到肇事 sty 的每个 live 用户件装载点
+    之前 (供方先跑, 消费方整件覆盖, 真 def 语义无损 —— 非 gobble);
+    同文件内已先装供方的站跳过 (含上轮自注行, 天然幂等)。肇事文件是
+    .tex (main/``\input`` 件) 无 usepackage 锚点 → docclass 缝顶补供方
+    (先于一切 preamble 行); 肇事 ``.cls``/``.def``/``.clo`` 系 cls/包
+    内传递装载, 缝位对 cls 执行期鞭长莫及 → abstain 交下位。
+    """
+    del payload
+    table = dict(_PREMATURE_CS_PKG)
+    table.update(params.get("cs_pkg") or {})
+    stem_provs: dict[str, set[str]] = {}
+    seam_provs: set[str] = set()
+    blob = (ctx.err_head or "") + "\n" + _fixloop_log(ctx)
+    for stem, ext, cs in _mbd_pairs(blob):
+        prov = table.get(cs)
+        if prov is None:
+            continue  # 表外肇事 cs —— 供方不可考, 不收
+        if ext == "tex":
+            seam_provs.add(prov)
+        elif ext == "sty":
+            stem_provs.setdefault(stem.lower(), set()).add(prov)
+        # cls/def/clo 系传递装载无用户件锚点 —— abstain
+    if not stem_provs and not seam_provs:
+        return False, "no premature-cs pair in Missing-\\begin{document} error"
+
+    done: list[str] = []
+    n_sites = 0
+    if stem_provs:
+        for f in ctx.tex_files((".tex", ".sty", ".cls")):
+            t = ctx.read(f)
+            if not t:
+                continue
+            masked = mask_tex(t)
+            seen: set[str] = set()
+            out: list[str] = []
+            prev = 0
+            for m in _LOAD_SITE_RE.finditer(masked):
+                if masked[m.start() : m.end()] != t[m.start() : m.end()]:
+                    continue  # 死区装载点
+                elems = {e.strip().lower() for e in m.group(1).split(",") if e.strip()}
+                provs = sorted(
+                    {
+                        p
+                        for stem, ps in stem_provs.items()
+                        if stem in elems
+                        for p in ps
+                        if p not in seen
+                    }
+                )
+                seen.update(elems)  # 本文件先装供方 → 后站免前置 (幂等)
+                if not provs:
+                    continue
+                ins = "".join(
+                    f"\\usepackage{{{p}}} % fixloop: premature provider\n"
+                    for p in provs
+                )
+                out.append(t[prev : m.start()])
+                out.append(ins)
+                prev = m.start()
+                seen.update(provs)
+                n_sites += 1
+            if out:
+                out.append(t[prev:])
+                ctx.write(f, "".join(out))
+    if n_sites:
+        done.append(f"provider prepend at {n_sites} load site(s)")
+
+    if seam_provs:
+        main = ctx.main_path()
+        main_t = (ctx.read(main) or "") if main is not None else ""
+        masked_main = mask_tex(main_t)
+        loaded = {
+            e.strip().lower()
+            for m in _LOAD_SITE_RE.finditer(masked_main)
+            if masked_main[m.start() : m.end()] == main_t[m.start() : m.end()]
+            for e in m.group(1).split(",")
+            if e.strip()
+        }
+        todo = sorted(p for p in seam_provs if p not in loaded)
+        if todo and _inject_after_docclass(
+            ctx,
+            "\n".join(
+                f"\\usepackage{{{p}}} % fixloop: premature provider" for p in todo
+            ),
+        ):
+            done.append(f"docclass-seam provider {', '.join(todo)}")
+
+    if not done:
+        return False, "no reachable consumer load site — abstain"
+    provs = sorted({p for ps in stem_provs.values() for p in ps} | seam_provs)
+    missing = [
+        p
+        for p in provs
+        if not (eng.probe_file(f"{p}.sty") or eng.install_file(f"{p}.sty"))
+    ]
+    if missing:
+        done.append(f"WARNING: {', '.join(missing)}.sty not found")
+    return True, "; ".join(done)

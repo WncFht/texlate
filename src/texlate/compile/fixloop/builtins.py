@@ -45,6 +45,7 @@ from texlate.compile.fixloop._builtins_csfix import (
     ctlseq_undefine,
     if_phantom_protect,
     pdfstring_cs_disarm,
+    premature_cs_guard,
     undefine_for_redef,
 )
 from texlate.compile.fixloop._builtins_graphics import (
@@ -204,6 +205,7 @@ __all__ = [
     "pdftex_prim_polyfill",
     "physics_stub_detach",
     "plain_format_detect",
+    "premature_cs_guard",
     "pstricks_dvips_preflight",
     "purge_corrupt_intermediates",
     "px_to_bp",
@@ -287,6 +289,7 @@ TRANSFORM_FNS = {
     "cs_rebind": cs_rebind,
     "revtex209_surface_polyfill": revtex209_surface_polyfill,
     "pdfstring_cs_disarm": pdfstring_cs_disarm,
+    "premature_cs_guard": premature_cs_guard,
     "xbb_pregen": xbb_pregen,
     "pdf_asset_sanitize": pdf_asset_sanitize,
     "shipped_sty_input_wrap": shipped_sty_input_wrap,
