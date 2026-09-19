@@ -454,7 +454,7 @@ _COND_STR_KEYS = frozenset(
 )
 #: _COND_STR_KEYS 外取值当正则用的 condition 键 (``regex.search``)——
 #: 装载期先编译。
-_COND_REGEX_KEYS = frozenset({"source_contains", "ctx_suggests"})
+_COND_REGEX_KEYS = frozenset({"source_contains", "ctx_suggests", "payload_pattern"})
 #: ``condition.fileset`` 子键——与 ``_cond_ok`` fileset 分派同源。
 _FILESET_KEYS = frozenset({"has_ext", "lacks_ext", "sibling_exts"})
 #: ``engines.<name>`` 合法引擎名——``ctx.deps.engine_name`` 值域 =
@@ -491,6 +491,7 @@ _COND_KEYS = frozenset(
         "vendored_shadow",
         "package_version_ge",
         "prim_read_form",
+        "payload_pattern",
         "shim_known",
     }
 )

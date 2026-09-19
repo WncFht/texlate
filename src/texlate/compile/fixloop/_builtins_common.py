@@ -106,6 +106,44 @@ PDFTEX_PRIMS = (
     "pdfinclusionerrorlevel",
     "pdfinclusioncopyfonts",  # 2403.15085: 稿面 \prim=1 写形, guard 包裹位
     "pdfsuppresswarningpagegroup",
+    # `pdf@` 包内别名族 (breakurl/pdfmark.def/pdftexcmds 系包体在 pdftex
+    # 下自导原语绑定, xelatex 下全族裸缺) —— @-名只能存在于 @=11 包体
+    # 语境, pdftex_prim|<@名> 报错定义上即包内宏展开帧 (file_stack 归
+    # doc 侧, err_outside_fileset 不见), 主文件头补定义是唯一治法。
+    "pdf@box",  # breakurl.sty \sbox\pdf@box scratch box (2502.03387 colm)
+    "pdf@toks",
+    "pdf@defaulttoks",
+    "pdf@draftmode",
+    "pdf@inclusionerrorlevel",
+    "pdf@lastxpos",
+    "pdf@lastypos",
+    "pdf@lastxform",
+    "pdf@lastximage",
+    "pdf@addtoks",
+    "pdf@addtoksx",
+    "pdf@docset",
+    "pdf@linktype",
+    "pdf@majorminor",
+    "pdf@objdef",
+    "pdf@rect",
+    "pdf@type",
+    "pdf@xform",
+    "pdf@refxform",
+    "pdf@ximage",
+    "pdf@refximage",
+    "pdf@escapestring",
+    "pdf@escapename",
+    "pdf@escapehex",
+    "pdf@unescapehex",
+    "pdf@filemoddate",
+    "pdf@filedump",
+    "pdf@filesize",
+    "pdf@mdfivesum",
+    "pdf@pageref",
+    "pdf@lastmatch",
+    "pdf@strcmp",
+    "pdf@match",
+    "pdf@ifdraftmode",
 )
 
 

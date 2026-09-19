@@ -285,11 +285,11 @@ rules:
           # → Extra/Incomplete \fi 破坏级缺陷 (primarg 期审计实证, primguard
           # 修)。孤 { 兜底吃字面量: 不可闭合 { 维持旧"整行吞", xetex 跳过面干净。
           - {
-              pattern: "(?<![\\\\a-zA-Z])(\\\\@pdftex_prims)(\\s*=\\s*(?:\\\\[{}%]|(?<bal>\\{(?:\\\\[{}%]|%[^\\n]*|(?&bal)|[^{}])*\\})|[^{}\\n%]|\\{)*)",
+              pattern: "(?<![\\\\a-zA-Z])(\\\\@pdftex_prims)(?![a-zA-Z@])(\\s*=\\s*(?:\\\\[{}%]|(?<bal>\\{(?:\\\\[{}%]|%[^\\n]*|(?&bal)|[^{}])*\\})|[^{}\\n%]|\\{)*)",
               repl: '\\ifdefined\g<1>\g<0>\\fi',
             }
           - {
-              pattern: "(?<![\\\\a-zA-Z])(\\\\@pdftex_prims)(\\s*(?<bal>\\{(?:\\\\[{}%]|%[^\\n]*|(?&bal)|[^{}])*\\}))",
+              pattern: "(?<![\\\\a-zA-Z])(\\\\@pdftex_prims)(?![a-zA-Z@])(\\s*(?<bal>\\{(?:\\\\[{}%]|%[^\\n]*|(?&bal)|[^{}])*\\}))",
               repl: '\\ifdefined\g<1>\g<0>\\fi',
             }
     risk: low # lookbehind 排除 cs 名紧邻 (\<prim> 前接字母/反斜杠 = ifdefined/chardef/ifnum/let 定义语境 + 自输出第二枚), 幂等; loop1-1306.0036 实证旧 (?<!ifdefined) 会把 polyfill 注入的 \chardef\pdfoutput=1 再套娃改写
@@ -325,6 +325,13 @@ rules:
         ## \ifdefined 幂等无害 (braced/赋值站点已被 guard 包过的不会回来
         ## 报错; 回来即确有未包站点)。
         - { source_contains: "\\\\{payload}(?![a-zA-Z@])" }
+        ## pdfprim 车道 arm-A: `pdf@` 别名族 (breakurl/pdfmark/pdftexcmds
+        ## 系包体自导原语绑定) —— @-名定义上即 @=11 包内宏, 报错站点必在
+        ## 包体宏展开帧 (file_stack 归 doc .tex → err_outside_fileset 不中;
+        ## 2502.03387 colm 实证 breakurl.sty:149 \sbox\pdf@box 报在 doc 侧)。
+        ## fileset .sty 内字面站点已由 source_contains 臂覆盖; 本臂直放行 —
+        ## 主文件头注定义 (AT_LETTER 包裹内 \ifdefined 形) 是唯一治法。
+        - { payload_pattern: "@" }
     action:
       kind: builtin_transform
       function: pdftex_prim_polyfill
@@ -340,3 +347,79 @@ rules:
         }
     stats: { fires: 13, status: proposed }
     source_ref: "docs/08-translate-compile.md L268"
+
+  # 2026-09-20 singlesweep pdfprim 车道 arm-B (pdftex-gated-codepath ×4):
+  # pdf 模式门把能装代码段锁进死臂 —— \ifCLASSINFOpdf (1706.07613: 真臂
+  # 装 graphicx[pdftex]+\graphicspath+\DeclareGraphicsExtensions, else 臂
+  # 全注释 → \includegraphics undef), \ifpdf (2609.20238 dtrt.sty:226/237
+  # 门 hyperref[pagebackref]+\dtbookmark → \backref undef, base+zh 双臂),
+  # \ifx\pdfoutput\undefined (0712.1016 自产缺陷实证: snc.tex:25
+  # `\ifhepph\else\ifx\pdfoutput\undefined\else<\pdfcompresslevel=9 +
+  # hyperref[pdftex]>\fi\fi` —— polyfill 定义 \pdfoutput 后探针翻 else 臂,
+  # hyperref[pdftex] 在 xetex 下 GenericError)。塌陷到编译期恒定臂:
+  # \if<letters>pdf 族 → \iftrue (pdf 臂 = 能力臂, 残存 [pdftex] 驱动词
+  # 归 pdftex_driver_opt_strip(48) 收); \ifx 存在探针 → \iftrue (undefined
+  # 真臂 = 非 pdftex = xetex 诚实臂, 门消解后对 polyfill 注入的 \pdfoutput
+  # 定义免疫 —— 自产缺陷根修)。\ifdefined/\ifcsname/\ifnum 值探针不改写:
+  # 存在探针在 polyfill 落地后自然翻真、值探针经 _PRIM_INIT pdfoutput=0
+  # 保持诚实假, 塌与不塌同义 —— 且躲开 guard/polyfill 自注入的
+  # \ifdefined\<prim>\else 惯形 (塌它会把刚注的定义变死)。
+  - id: pdftex_gate_collapse
+    description: "pdf 模式条件门 (\\if*pdf 族 + \\ifx\\pdfoutput 存在探针) 塌陷编译期恒定臂 → 死臂能力段复活"
+    phase: loop
+    order: 52 # polyfill(51) 后: guard/polyfill 先落自注入 \ifdefined 惯形不互踩; 门致 undefined_cs/other 格本规则先接
+    when:
+      any:
+        - { category: undefined_cs, payload_required: false }
+        - { category: pdftex_prim, payload_required: false }
+        # file-line 错归 other 的失守面 (hyperref[pdftex] GenericError 型)
+        - { category: other, payload_required: false }
+    condition:
+      # fileset 源确有可塌门才动 —— 门不在则零改写弃守不耗轮;
+      # \if<letters>pdf 词尾 pdf 收 \ifpdf/\ifCLASSINFOpdf/\if@pdf 族,
+      # 天然排除 \ifpdftrue/\ifpdffalse (词尾非 pdf) 与 \ifpdftex/
+      # \ifpdfoutput/\ifpdfmode (pdf 后接字母被 (?![a-zA-Z@]) 挡)
+      source_contains: "\\\\if[a-zA-Z@]*[pP][dD][fF](?![a-zA-Z@])|\\\\ifx\\s*\\\\pdfoutput\\s*\\\\(?:undefined|@undefined|relax)(?![a-zA-Z@])|\\\\ifx\\s*\\\\(?:undefined|@undefined|relax)\\s*\\\\pdfoutput(?![a-zA-Z@])"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty, .cls]
+        rewrites:
+          # \if<letters>pdf 开关门 → \iftrue。def-target/操作数位 lookbehind:
+          # \newif\ifpdf/\def\ifpdf/\let\ifpdf/\newcommand{\ifpdf} 是被定义位
+          # 不是求值 —— 改写会成重定义灾; \ifx\ifpdf/\ifcat\ifpdf/
+          # \ifdefined\ifpdf 操作数位 (探针右操作数) 语义随门存废, 不同塌。
+          # (?:\\[a-zA-Z@]+\s*)? 段护 \let\x\<门> RHS 与注入的
+          # \let\ifpdf\iftrue 钩文本; \def\f{\ifpdf..} 门在宏体照常塌 (body
+          # 非定义位 —— lookbehind 只消费一枚中间 cs 后遇 { 即失配放行)。
+          - {
+              pattern: "(?<!\\\\(?:[gex]?def|let|newif|newcount|newbox|newdimen|newtoks|newskip|newmuskip|newlength|newsavebox|newcommand|renewcommand|providecommand|DeclareRobustCommand|newrobustcmd|renewrobustcmd|providerobustcmd|DeclareTextCommand|newenvironment|ifx|ifcat|ifdefined)\\s*\\*?\\s*(?:\\{?\\s*|\\\\[a-zA-Z@]+\\s*)?)\\\\if[a-zA-Z@]*[pP][dD][fF](?![a-zA-Z@])",
+              repl: "\\\\iftrue",
+              match_surface: masked,
+            }
+          # \ifx\pdfoutput\<undef> 存在探针 → \iftrue (undefined 真臂是
+          # xetex 诚实臂; 塌陷后 polyfill 注入的 \pdfoutput 定义翻不动门 —
+          # 0712.1016 自产缺陷即此探针被 =1 初值翻 else 臂)
+          - {
+              pattern: "\\\\ifx\\s*\\\\pdfoutput\\s*\\\\(?:undefined|@undefined|relax)(?![a-zA-Z@])",
+              repl: "\\\\iftrue",
+              match_surface: masked,
+            }
+          # 反向操作数形 \ifx\<undef>\pdfoutput 同义同塌
+          - {
+              pattern: "\\\\ifx\\s*\\\\(?:undefined|@undefined|relax)\\s*\\\\pdfoutput(?![a-zA-Z@])",
+              repl: "\\\\iftrue",
+              match_surface: masked,
+            }
+    risk: low # 两臂皆编译期恒定真 —— 消门不消结构, \else/\fi 配对完整; 塌错向: pdf 臂在 xetex 下露出的 pdftex 残留归 prim guard/polyfill/driver-strip 链收
+    known_gap: "texmf 内门不可改写未盖 (值探针由 _PRIM_INIT pdfoutput=0 保持非 pdf 臂); \\ifpdf\\ifpdf 嵌套内层按操作数位豁免不塌 (罕见惯形, 外层塌后内层动态探针若 \\ifpdf 未定义下轮 undefined_cs 接); \\unless\\ifx 形与 \\ifnum\\pdfoutput 值探针不改写 (后者经 =0 初值保持诚实假); csname 构造门 (\\csname ifpdf\\endcsname) 无字面不中; \\ifx 探针 lookbehind 不设 —— \\let\\f\\ifx\\pdfoutput\\undefined 原文在 xetex 下本就裸奔 \\pdfoutput 报错, 改写不劣化"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same } # XeTeX 内核同缺 pdf 原语, 门语义一致
+    provenance:
+      - {
+          corpus: "singlesweep pdftex-gated-codepath ×4 (1706.07613 \\ifCLASSINFOpdf→graphicx[pdftex]→\\includegraphics; 2609.20238 dtrt.sty \\ifpdf→hyperref[pagebackref]→\\backref; 0712.1016 \\ifx\\pdfoutput 自产缺陷 GenericError)",
+          error: "Undefined control sequence \\includegraphics / \\backref / GenericError (pdf 臂能力件被门死臂锁死)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "lane-pdfprim arm-B: 门死臂能力段复活 + polyfill 翻转存在探针的自产缺陷根修"

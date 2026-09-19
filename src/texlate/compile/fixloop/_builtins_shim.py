@@ -78,6 +78,13 @@ _PRIM_COUNTISH = frozenset(
         "pdfrandomseed",
         "pdfelapsedtime",
         "pdffilesize",
+        # `pdf@` 包内别名族的寄存器形成员 (镜像同名裸原语的整数语义)
+        "pdf@draftmode",
+        "pdf@inclusionerrorlevel",
+        "pdf@lastxpos",
+        "pdf@lastypos",
+        "pdf@lastxform",
+        "pdf@lastximage",
     }
 )
 
@@ -85,7 +92,16 @@ _PRIM_COUNTISH = frozenset(
 #: ``\the\prim`` 读型皆合法 (spotcolor.sty:48 ``\edef\act{\noexpand
 #: \pdfpageresources={\the\pdfpageresources...}}`` 双形态同句实证;
 #: chardef 下 ``\the`` 读出 char code、``={..}`` 整串落正文)。
-_PRIM_TOKSISH = frozenset({"pdfpageresources", "pdfpageattr", "pdfpagesattr"})
+_PRIM_TOKSISH = frozenset(
+    {
+        "pdfpageresources",
+        "pdfpageattr",
+        "pdfpagesattr",
+        # `pdf@` 族 toks 寄存器 (pdfmark.def 系 ``\pdf@toks={..}`` 写形)
+        "pdf@toks",
+        "pdf@defaulttoks",
+    }
+)
 
 #: dimen 寄存器形原语 —— ``\newdimen`` 全真接管 (``\prim=210mm`` 对
 #: ``\newcount`` 是非法单位、对 ``\newdimen`` 全真)。pdfpagewidth/
@@ -93,6 +109,20 @@ _PRIM_TOKSISH = frozenset({"pdfpageresources", "pdfpageattr", "pdfpagesattr"})
 _PRIM_DIMENISH = frozenset(
     {"pdfpagewidth", "pdfpageheight", "pdfhorigin", "pdfvorigin", "pdfpxdimen"}
 )
+
+#: box 寄存器形原语 —— ``\newbox`` 全真接管 (``\sbox\<prim>{..}``/
+#: ``\setbox\<prim>=``/``\wd\<prim>`` 各面合法)。2502.03387 colm 实证:
+#: breakurl.sty:149 ``\sbox\pdf@box`` 在 pdftex 下自导绑定, xelatex 全缺;
+#: chardef 下 ``\sbox`` 读不到 box 号 → Missing number 转嫁错类。
+_PRIM_BOXISH = frozenset({"pdf@box"})
+
+#: count 寄存器初值 —— 缺省 ``=1`` (读型 ``\ifnum\<prim>`` 与旧 chardef
+#: 同义)。``pdfoutput=0`` 有意为之: 存在探针 ``\ifx\pdfoutput\undefined``
+#: 定义即翻 else 臂 (0712.1016 自产缺陷: polyfill=1 把 texmf 内不可改写
+#: 的存在探针全翻成 pdftex 臂 → hyperref[pdftex] xetex GenericError);
+#: 值探针 ``\ifnum\pdfoutput>0`` 在 ``=0`` 下保持诚实假 —— 「非 pdfTeX」
+#: 是 xelatex 下两种探针的一致回答。
+_PRIM_INIT: dict[str, str] = {"pdfoutput": "0"}
 
 #: 取参型原语 —— ``\protected\def`` 吞参 noop (prim → 参数文本):
 #: ``\prim{dict}``/``\prim<num>``/``\prim\<reg>`` 站点在 chardef 下实参
@@ -157,7 +187,91 @@ _PRIM_ARGFUL: dict[str, str] = {
     "pdfcreationdate": "",
     # 条件原语 —— ``\let→\iffalse`` 哨兵 (非 ``\def`` 形)
     "pdfifprimitive": "@iffalse",
+    # `pdf@` 包内别名族 —— 形参镜像同名裸原语签名; 未知 arity 一律
+    # ``#1`` 吞单 token/花括号组 (pdftexcmds/pdfmark 系成员多是带参宏)。
+    "pdf@addtoks": "#1",
+    "pdf@addtoksx": "#1",
+    "pdf@docset": "#1",
+    "pdf@linktype": "#1",
+    "pdf@majorminor": "#1",
+    "pdf@objdef": "#1",
+    "pdf@rect": "#1",
+    "pdf@type": "#1",
+    "pdf@xform": "#1",
+    "pdf@refxform": "#1",
+    "pdf@ximage": "#1",
+    "pdf@refximage": "#1",
+    "pdf@escapestring": "#1",
+    "pdf@escapename": "#1",
+    "pdf@escapehex": "#1",
+    "pdf@unescapehex": "#1",
+    "pdf@filemoddate": "#1",
+    "pdf@filedump": "#1",
+    "pdf@filesize": "#1",
+    "pdf@mdfivesum": "#1",
+    "pdf@pageref": "#1",
+    "pdf@lastmatch": "#1",
+    "pdf@strcmp": "#1#2",
+    "pdf@match": "#1#2",
+    "pdf@ifdraftmode": "@iffalse",
 }
+
+
+#: ``\@ifdefinable`` 系定义位扫描 —— doc 侧已有活 ``\newX\<prim>``/
+#: ``\newcommand{\<prim>}`` 定义时头注 ``\newcount`` 会把稿自带定义位
+#: 撞成 already-defined 错 (守卫内嵌语义的逆风险: 注入先行于稿内定义位
+#: 执行, 稿内 ``\newcount\pdfoutput`` 撞我们注的寄存器)。``\def``/``\let``/
+#: ``\edef``/``\chardef``/``\countdef`` 重绑无 already-defined 闸不收 —
+#: 稿自带死定义位撞名只是无声覆盖, 拒注反而丢真修。``renewcommand``/
+#: ``providecommand`` 对未定义名不报错也不拒 (前者本就要求已定义)。
+_PRIM_ALLOC_DEF_RE = (
+    r"\\(?:newcount|newdimen|newtoks|newbox|newskip|newmuskip|newread|"
+    r"newwrite|newlength|newsavebox|newif|newcommand|newenvironment|"
+    r"DeclareRobustCommand|newrobustcmd|DeclareTextCommand|DeclareMathSymbol)"
+    r"\s*\*?\s*\{?\s*\\"
+)
+
+
+def _prim_alloc_defined(prim: str, t: str) -> bool:
+    r"""遮盖视图内存在 ``\\<alloc>\<prim>`` 活定义位 → True (拒注入)。"""
+    pat = _PRIM_ALLOC_DEF_RE + re.escape(prim) + r"(?![a-zA-Z@])"
+    return re.search(pat, mask_tex(t)) is not None
+
+
+def _prim_guard_text(prim: str) -> str:
+    r"""Payload prim → ``\\ifdefined\\<prim>\\else<def形>\\fi`` 守卫文本。
+
+    分派: countish ``\\newcount\\{prim}={_PRIM_INIT|1}`` / toksish
+    ``\\newtoks`` / dimenish ``\\newdimen`` / boxish ``\\newbox`` / argful
+    ``\\protected\\def<sig>`` (``@iffalse`` 哨兵→csname-let ``\\iffalse``) /
+    余项 ``\\chardef=1``。
+    """
+    if prim in _PRIM_COUNTISH:
+        init = _PRIM_INIT.get(prim, "1")
+        body = f"\\newcount\\{prim}\\{prim}={init}"
+    elif prim in _PRIM_TOKSISH:
+        body = f"\\newtoks\\{prim}"
+    elif prim in _PRIM_DIMENISH:
+        body = f"\\newdimen\\{prim}"
+    elif prim in _PRIM_BOXISH:
+        body = f"\\newbox\\{prim}"
+    elif (sig := _PRIM_ARGFUL.get(prim)) is None:
+        body = f"\\chardef\\{prim}=1"
+    elif sig == "@iffalse":  # 条件原语: 绑 \iffalse 走 else 臂
+        # csname 双写裸 \let 不可用: \ifdefined 真臂时 else 臂被跳过,
+        # 跳扫把裸 \prim(已定义为 if 类)/\iffalse 计入嵌套 → \fi 被吃成
+        # Incomplete \ifdefined (tmp/primarg/skip1.tex 实测); csname 形
+        # 跳扫面全是非条件 token, 执行面 \expandafter 链正确绑
+        # (skip2/skip3 双路实测: 定义路径过扫, 未定义路径绑 iff→else)。
+        body = (
+            f"\\expandafter\\let\\csname {prim}\\expandafter\\endcsname"
+            f"\\csname iffalse\\endcsname"
+        )
+    elif sig:
+        body = f"\\protected\\long\\def\\{prim}{sig}{{}}"
+    else:
+        body = f"\\protected\\def\\{prim}{{}}"  # 零参原语
+    return f"\\ifdefined\\{prim}\\else{body}\\fi"
 
 
 def pdftex_prim_polyfill(
@@ -170,51 +284,39 @@ def pdftex_prim_polyfill(
     与 fileset 外 (系统 texmf sty/cls) 站点都要原语已定义 (docs/08:268
     + verifymiss axessibility.sty:349 实证)。arm 按原语签名分派:
     整数值原语 (``_PRIM_COUNTISH``) 走 ``\\newcount`` —— 赋值型站点
-    ``\\prim=val`` 全真接管; toks/dimen 寄存器各走 ``\\newtoks``/
-    ``\\newdimen`` (``\\prim={..}``/``\\prim=<dimen>`` 双形态全真);
-    取参族 (``_PRIM_ARGFUL``) 走 ``\\protected\\def\\<prim><sig>{}``
-    吞参 noop —— 实参按主导形消费, 不落排版文本; 余项留
-    ``\\chardef=1`` 旧形 (读取型兼容)。注入点恒在主文件头——cls/sty
-    内部使用发生在 ``\\documentclass`` 加载期间, 类行后注入太晚
-    (2410.00012: ieeeaccess.cls:128 内 ``\\pdfobj``);
-    ``ifdefined`` 前缀天然幂等。
+    ``\\prim=val`` 全真接管, 初值查 ``_PRIM_INIT`` (``pdfoutput=0``:
+    值探针 ``\\ifnum\\pdfoutput>0`` 诚实假, 存在探针定义即翻的坑由
+    pdftex_gate_collapse 先塌); toks/dimen/box 寄存器各走 ``\\newtoks``/
+    ``\\newdimen``/``\\newbox``; 取参族 (``_PRIM_ARGFUL``) 走
+    ``\\protected\\def\\<prim><sig>{}`` 吞参 noop —— 实参按主导形消费,
+    不落排版文本; 余项留 ``\\chardef=1`` 旧形 (读取型兼容)。
+    ``pdf@`` 别名族 (breakurl/pdfmark/pdftexcmds 系包内自导绑定, @=11
+    包体语境限定) 注入文本裹 ``_AT_LETTER_PRE/POST`` exact-restore
+    @=11 对 —— 裸 ``\ifdefined\pdf@box`` 在 @=12 宿主下读成 ``\ifdefined
+    \pdf``+残字 ``@box``; ``\csname``/``\ifcsname`` 形不可用 (未定义名
+    冻结成 ``\relax``, 后随 ``\@ifdefinable`` 闸的 ``\newbox``/``\newcount``
+    报 already-defined)。注入点恒在主文件头——cls/sty 内部使用发生在
+    ``\\documentclass`` 加载期间, 类行后注入太晚 (2410.00012:
+    ieeeaccess.cls:128 内 ``\\pdfobj``); ``ifdefined`` 前缀天然幂等。
     """
     del eng  # 签名面统一; 注入发生在主文件源文本
     prim = str(params.get("prim") or payload or "")
     if prim not in PDFTEX_PRIMS:
         return False, f"{prim} not in pdfTeX prim list"
-    if prim in _PRIM_COUNTISH:
-        guard = f"\\ifdefined\\{prim}\\else\\newcount\\{prim}\\{prim}=1\\fi"
-    elif prim in _PRIM_TOKSISH:
-        guard = f"\\ifdefined\\{prim}\\else\\newtoks\\{prim}\\fi"
-    elif prim in _PRIM_DIMENISH:
-        guard = f"\\ifdefined\\{prim}\\else\\newdimen\\{prim}\\fi"
-    elif (sig := _PRIM_ARGFUL.get(prim)) is not None:
-        if sig == "@iffalse":  # 条件原语: 绑 \iffalse 走 else 臂
-            # csname 双写裸 \let 不可用: \ifdefined 真臂时 else 臂被跳过,
-            # 跳扫把裸 \prim(已定义为 if 类)/\iffalse 计入嵌套 → \fi 被吃成
-            # Incomplete \ifdefined (tmp/primarg/skip1.tex 实测); csname 形
-            # 跳扫面全是非条件 token, 执行面 \expandafter 链正确绑
-            # (skip2/skip3 双路实测: 定义路径过扫, 未定义路径绑 iff→else)。
-            guard = (
-                f"\\ifdefined\\{prim}\\else\\expandafter\\let"
-                f"\\csname {prim}\\expandafter\\endcsname"
-                f"\\csname iffalse\\endcsname\\fi"
-            )
-        elif sig:
-            guard = (
-                f"\\ifdefined\\{prim}\\else\\protected\\long\\def\\{prim}{sig}{{}}\\fi"
-            )
-        else:  # 零参原语
-            guard = f"\\ifdefined\\{prim}\\else\\protected\\def\\{prim}{{}}\\fi"
-    else:
-        guard = f"\\ifdefined\\{prim}\\else\\chardef\\{prim}=1\\fi"
+    guard = _prim_guard_text(prim)
+    if "@" in prim:
+        # @-名注入文本在任意宿主 catcode 下自证: exact-restore @=11 包裹
+        # (restore 放 \fi 后, 两臂执行路径都复元 catcode); csname 形不可替
+        # —— \ifcsname 把未定义名冻结成 \relax, \@ifdefinable 闸即炸。
+        guard = _AT_LETTER_PRE + guard + _AT_LETTER_POST
     main = ctx.main_path()
     if main is None:
         return False, "no main tex"
     t = ctx.read(main) or ""
-    if f"\\ifdefined\\{prim}" in t:
+    if f"\\ifdefined\\{prim}" in t or f"\\ifcsname {prim}\\endcsname" in t:
         return False, f"{prim} already guarded"
+    if _prim_alloc_defined(prim, t):
+        return False, f"{prim} already defined"
     ctx.write(main, guard + " % fixloop polyfill\n" + t)
     return True, f"polyfill \\{prim} at file head"
 

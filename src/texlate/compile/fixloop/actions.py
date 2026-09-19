@@ -242,6 +242,11 @@ def _cond_ok(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0917  # 条件原语�
             prim = re.escape(str(v))
             if not re.search(rf"\\if[a-zA-Z@]*\s*\\{prim}\b", ctx.source_blob()):
                 return False, f"无 \\if*\\{v} 读取语境"
+        elif key == "payload_pattern":
+            # payload 词形谓词 —— ``pdf@`` 别名族报错定义上即包内宏展开帧
+            # (err_outside_fileset/source_contains 双臂都看不见), 按词形直放。
+            if not regex.search(str(v), str(pay or "")):
+                return False, f"payload 无 {v} pattern"
         elif key == "err_outside_fileset":
             if not _err_site_outside(ctx, rep):
                 return False, "报错站点可归工程 fileset"
