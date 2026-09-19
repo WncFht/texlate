@@ -15,7 +15,7 @@ matplotlib.use("Agg")
 import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
-from matplotlib.patches import FancyArrowPatch, Rectangle
+from matplotlib.patches import FancyArrowPatch, FancyBboxPatch, Rectangle
 
 HERE = pathlib.Path(__file__).resolve().parent
 REPO = HERE.parents[2]
@@ -284,7 +284,7 @@ def fig_parse_libs():
     plt.close(fig)
 
 
-# ============================== A2: assets growth ==============================
+# ============================== A2: assets growth (2x2) ==============================
 def fig_assets():
     days = ["09-14", "09-15", "09-16", "09-17", "09-18", "09-19"]
     panels = [
@@ -293,28 +293,159 @@ def fig_assets():
         ("源码文件", [0, 72, 89, 174, 355, 425], CE),
         ("评测语料（篇）", [39, 1378, 5410, 5410, 5410, 13266], CD),
     ]
-    fig, axes = plt.subplots(1, 4, figsize=(10.4, 2.6), dpi=200)
+    fig, axes = plt.subplots(2, 2, figsize=(9.4, 4.6), dpi=200)
     x = range(len(days))
-    for ax, (title, vals, color) in zip(axes, panels):
-        ax.bar(x, vals, width=0.62, color=color, alpha=0.85, zorder=3)
+    for ax, (title, vals, color) in zip(axes.flat, panels):
+        ax.bar(x, vals, width=0.6, color=color, alpha=0.85, zorder=3)
         last = vals[-1]
         ax.text(len(days) - 1, last, f"{last:,}",
-                ha="right", va="bottom", fontsize=10, fontweight="bold",
+                ha="right", va="bottom", fontsize=11.5, fontweight="bold",
                 color=color)
-        ax.set_title(title, fontsize=10, pad=4)
+        ax.set_title(title, fontsize=11, pad=4)
         ax.set_xticks(list(x))
-        ax.set_xticklabels([d[3:] for d in days], fontsize=8)
-        ax.set_ylim(0, last * 1.18)
+        ax.set_xticklabels([d[3:] for d in days], fontsize=8.5)
+        ax.set_ylim(0, last * 1.2)
         ax.set_yticks([])
         despine(ax, keep=("bottom",))
         ax.tick_params(length=0)
-    fig.text(0.5, 0.965, "六天评测资产增长（09-14 → 09-19）",
-             ha="center", fontsize=11.5, fontweight="bold")
-    fig.text(0.008, 0.02,
-             "同日口径抽样自 git 历史：规则库 16 分片 yaml；语料为 corpus_v3 钉版层累加（另 corpus_daily 日更渠 ~1,200 篇/日在库外增长）。",
+    fig.suptitle("六天评测资产增长（09-14 → 09-19）", fontsize=12.5,
+                 fontweight="bold", y=0.985)
+    fig.text(0.008, 0.012,
+             "同日口径抽样自 git 历史：规则库为 16 分片 yaml；语料为 corpus_v3 钉版层累加（另 corpus_daily 日更渠 ~1,200 篇/日在库外增长）。",
              fontsize=8, color="#8a8a8a")
-    fig.tight_layout(rect=(0, 0.07, 1, 0.9), w_pad=1.6)
+    fig.tight_layout(rect=(0, 0.045, 1, 0.95), h_pad=1.8, w_pad=2.0)
     fig.savefig(OUT / "bench-assets.png")
+    plt.close(fig)
+
+
+# ============================== pipeline flowchart ==============================
+def fig_pipeline():
+    fig, ax = plt.subplots(figsize=(12.6, 6.3), dpi=200)
+    ax.set_xlim(0, 140)
+    ax.set_ylim(0, 72)
+    ax.axis("off")
+
+    def stage(x, w, title, items, h=30, y=34, title_c=CA):
+        ax.add_patch(FancyBboxPatch(
+            (x, y), w, h, boxstyle="round,pad=0.6,rounding_size=1.6",
+            facecolor="white", edgecolor="#b9c6d2", lw=1.2, zorder=3))
+        ax.add_patch(FancyBboxPatch(
+            (x, y + h - 5.2), w, 5.2, boxstyle="round,pad=0.6,rounding_size=1.6",
+            facecolor=title_c, edgecolor="none", zorder=4))
+        ax.add_patch(Rectangle((x, y + h - 5.2), w, 2.2,
+                               facecolor=title_c, edgecolor="none", zorder=4))
+        ax.text(x + w / 2, y + h - 2.6, title, ha="center", va="center",
+                fontsize=10.5, fontweight="bold", color="white", zorder=5)
+        for i, it in enumerate(items):
+            ax.text(x + 1.5, y + h - 8.3 - i * 3.35, it, ha="left", va="center",
+                    fontsize=8.6, color=INK, zorder=5)
+        return (x, y, w, h)
+
+    def arrow(x1, x2, y=49, color="#8a8a8a", lw=1.6):
+        ax.annotate("", xy=(x2, y), xytext=(x1, y),
+                    arrowprops=dict(arrowstyle="-|>", color=color, lw=lw))
+
+    # ---- main chain ----
+    stage(1.5, 15.5, "fetch 获取", [
+        "arXiv ID → e-print",
+        "版本四元组钉版",
+        "源包缓存 ~/.cache",
+        "解压源树",
+    ])
+    stage(21.5, 19.5, "parse 半解析", [
+        "main.tex 定位",
+        "多文件合平 flatten",
+        "gullet 展开机·宏表",
+        "segmenter 切分 pieces",
+        "译段 + 占位符保护",
+        "→ chunks.jsonl",
+    ])
+    stage(45.5, 18.5, "xlat 翻译", [
+        "段级并发编排",
+        "LLM 网关 BYOK",
+        "mock 假译臂自检",
+        "SQLite 段缓存",
+    ])
+    stage(68.5, 15, "inject 注入", [
+        "译文回填 pieces",
+        "ctex 中文环境",
+        "normalize 规范化",
+        "路由预检·引擎分流",
+    ])
+    stage(88, 19, "compile 编译", [
+        "xelatex / tectonic",
+        "沙箱 ≤2 轮·240s",
+        "texlog 日志栈解析",
+        "fixloop: taxonomy",
+        "→ yaml 规则·重试",
+    ])
+    stage(111.5, 14.5, "judge 判定", [
+        "纯净/带瑕/失败",
+        "CJK 字数核验",
+        "named-dest 锚点",
+        "→ 双语 PDF",
+    ])
+    stage(130.5, 9.5, "web 阅读", [
+        "SSE 进度",
+        "锚点同步",
+        "滚动对照",
+    ], title_c=CD)
+
+    for x1, x2 in [(17, 21.5), (41, 45.5), (64, 68.5), (83.5, 88), (107, 111.5), (126, 130.5)]:
+        arrow(x1, x2)
+
+    # ---- fixloop feedback arc: judge fail -> back into compile ----
+    ax.annotate("", xy=(97.5, 33.4), xytext=(118.5, 33.4),
+                arrowprops=dict(arrowstyle="-|>", color=CB, lw=1.5,
+                                connectionstyle="arc3,rad=0.35"))
+    ax.text(108, 27.5, "失败格 → fixloop 修复 → 重编译", ha="center",
+            fontsize=8.8, color=CB)
+
+    # ---- fallback chain (dashed, under fetch/parse) ----
+    ax.add_patch(FancyBboxPatch(
+        (1.5, 15.5), 41.5, 12.5, boxstyle="round,pad=0.6,rounding_size=1.6",
+        facecolor="#fafafa", edgecolor="#a08a5a", lw=1.1, ls=(0, (4, 3)), zorder=2))
+    ax.text(3.2, 25.3, "降级链（无 LaTeX 源时）", fontsize=8.8, color="#8a6d00",
+            fontweight="bold")
+    ax.text(3.2, 21.6, "e-print 无源 → arXiv HTML（同覆盖异构）",
+            fontsize=8.6, color="#6b5d3a")
+    ax.text(3.2, 18.1, "→ 仅 PDF → BabelDOC sidecar（AGPL 隔离）",
+            fontsize=8.6, color="#6b5d3a")
+    ax.annotate("", xy=(9, 33.4), xytext=(9, 28.4),
+                arrowprops=dict(arrowstyle="-|>", color="#a08a5a", lw=1.2,
+                                ls=(0, (4, 3))))
+
+    # ---- validators chip (under xlat) ----
+    ax.add_patch(FancyBboxPatch(
+        (45.5, 17.5), 37, 9.5, boxstyle="round,pad=0.6,rounding_size=1.6",
+        facecolor="#f4f0f8", edgecolor=CE, lw=1.1, zorder=2))
+    ax.text(47.2, 24.4, "校验器（独立成臂）", fontsize=8.8, color=CE, fontweight="bold")
+    ax.text(47.2, 20.2, "L0 占位符多重集 diff·brace/env/cite-key；L1 tree-sitter", fontsize=8.4,
+            color="#5b4a70")
+    ax.annotate("", xy=(55, 33.4), xytext=(55, 27.8),
+                arrowprops=dict(arrowstyle="-|>", color=CE, lw=1.2))
+
+    # ---- bench badges along the bottom ----
+    badges = [
+        (9.2, "corpus_v3\n13,266 篇·8 层钉版"),
+        (31, "parsebench\n一致率 99.99%·泄漏 0.004%"),
+        (54.5, "xlat/qualbench\n硬契约 93.7%·ESA 94.0"),
+        (77.5, "validbench\n1,503 对·100% 检出"),
+        (97.5, "compilebench\n联合出 PDF 90.4%"),
+        (118.5, "e2e/stagerun\n98.75%·0 引入回归"),
+    ]
+    for cx, txt in badges:
+        w = 17.4
+        ax.add_patch(FancyBboxPatch(
+            (cx - w / 2, 3.5), w, 9.5, boxstyle="round,pad=0.5,rounding_size=1.4",
+            facecolor="#f2f2f2", edgecolor="#c9c9c9", lw=0.9, zorder=2))
+        ax.text(cx, 8.25, txt, ha="center", va="center", fontsize=8,
+                color="#5a5a5a", linespacing=1.45)
+
+    fig.text(0.5, 0.975, "texlate 管线与评测对应关系",
+             ha="center", fontsize=12.5, fontweight="bold")
+    fig.tight_layout(rect=(0, 0.005, 1, 0.955))
+    fig.savefig(OUT / "bench-pipeline.png")
     plt.close(fig)
 
 
@@ -323,4 +454,5 @@ if __name__ == "__main__":
     fig_pipeline_vs_bare()
     fig_parse_libs()
     fig_assets()
+    fig_pipeline()
     print("wrote:", *sorted(p.name for p in OUT.glob("bench-*.png")), sep="\n  ")
