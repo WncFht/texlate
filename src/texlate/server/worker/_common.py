@@ -22,6 +22,7 @@ from texlate.server.settings import (
     cache_scope,
     scrub,
 )
+from texlate.server.store import row_json
 from texlate.textutil import env_float
 from texlate.xlat.client import (
     ChatClient,
@@ -44,6 +45,7 @@ if TYPE_CHECKING:
         ScanResult,
     )
     from texlate.server.events import EventBus
+    from texlate.server.settings import AuthContext
     from texlate.server.store import Store
     from texlate.xlat.pipeline import Translator
 
@@ -209,7 +211,19 @@ class Secrets:
     api_key: str = field(default="", repr=False)
     base_url: str = ""
     model: str = ""
+    dialect: str = "auto"
     source: str = "none"
+
+    @classmethod
+    def from_auth(cls, auth: AuthContext, *, model: str = "") -> Secrets:
+        """``AuthContext`` → 运行时 ``Secrets``——``model`` 由任务行/请求面覆盖。"""
+        return cls(
+            api_key=auth.api_key,
+            base_url=auth.base_url,
+            model=model,
+            dialect=auth.dialect,
+            source=auth.source,
+        )
 
 
 @dataclass(slots=True)
@@ -277,6 +291,9 @@ class TaskCtx:
     #: ``rep.flags`` 直连；L2 重编/cross-engine 重试经此续传（e2e
     #: ``job.probe_flags`` 同式，缺了重试臂在另一套条件下编译）
     probe_flags: list[str] = field(default_factory=list)
+    #: en 首编错误签名集（``repair_l2.err_signatures``）——L2 归因
+    #: 基线：原文已出现的错误签名判源生（译文不可能造成），不归块
+    en_err_sigs: set[str] = field(default_factory=set)
 
     # ---- 运行态：取消/排空/终态旗标/日志合批/阶段计时/备忘 ----
     #: 线程级取消旗标：``cancel_running``/``stop``/``run()`` 取消臂置位。
@@ -319,12 +336,12 @@ class TaskCtx:
         return self.root / "zh"
 
     def options(self) -> dict[str, Any]:
-        """任务 options_json 反序列化。"""
-        try:
-            data = json.loads(self.row.get("options_json") or "{}")
-        except json.JSONDecodeError:
-            return {}
-        return data if isinstance(data, dict) else {}
+        """任务 ``options_json`` 反序列化。"""
+        return row_json(self.row, "options_json")
+
+    def config(self) -> dict[str, Any]:
+        """任务 ``config_json`` 反序列化（``options()`` 同口径容错读）。"""
+        return row_json(self.row, "config_json")
 
     def update_options(self, fn: Callable[[dict[str, Any]], None]) -> str:
         """options「读-改-序列化-同步 row 快照」单点；返回新 options_json。
@@ -770,7 +787,7 @@ class _PerCallTranslator:
     primary 同 loop client（同 endpoint+key）。
     """
 
-    def __init__(
+    def __init__(  # noqa: PLR0913 -- BYOK 凭证面平铺（url/key/model/dialect + retry + sink）
         self,
         base_url: str,
         api_key: str,
@@ -778,11 +795,13 @@ class _PerCallTranslator:
         sink: Callable[[UsageRecord], None],
         *,
         retry_model: str = "",
+        dialect: str = "auto",
     ) -> None:
         self._base_url = base_url
         self._api_key = api_key
         self._model = model
         self._retry_model = retry_model
+        self._dialect = dialect
         self._sink = sink
         self._clients: dict[asyncio.AbstractEventLoop, ChatClient] = {}
 
@@ -798,7 +817,12 @@ class _PerCallTranslator:
             del self._clients[dead]
         client = self._clients.get(loop)
         if client is None:
-            client = ChatClient(self._base_url, self._api_key, usage_sink=self._sink)
+            client = ChatClient(
+                self._base_url,
+                self._api_key,
+                usage_sink=self._sink,
+                dialect=self._dialect,
+            )
             self._clients[loop] = client
         return client
 

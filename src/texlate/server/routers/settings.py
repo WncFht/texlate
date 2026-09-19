@@ -19,8 +19,9 @@ from texlate.server.settings import (
     scrub,
     server_mode,
     validate_base_url,
+    validate_dialect,
 )
-from texlate.xlat.client import ChatClient, ChatError
+from texlate.xlat.client import ChatClient
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
@@ -108,19 +109,25 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901 -- 端点面平
         base_url = str(body.get("base_url") or cur["base_url"])
         api_key = str(body.get("api_key") or cur["api_key"])
         model = str(body.get("model") or cur["model"])
+        dialect = str(body.get("dialect") or cur.get("dialect") or "auto")
         try:
             base_url = validate_base_url(base_url)
+            dialect = validate_dialect(dialect)
         except ValueError as e:
             return _json_error(400, str(e), "invalid_request")
-        client = ChatClient(base_url, api_key)
+        client = ChatClient(base_url, api_key, dialect=dialect)
         try:
             models = await client.list_models()
-        except ChatError as e:
-            detail = scrub(str(e), api_key)
-            return JSONResponse({"ok": False, "detail": detail})
         except Exception as e:  # noqa: BLE001 -- 探活失败面收敛为 ok:false
-            detail = scrub(str(e), api_key)
-            return JSONResponse({"ok": False, "detail": detail})
+            # ``GET /v1/models`` 缺席（responses-only 反代等异形端点）≠ 配置坏
+            # ——按生效方言做一次最小 chat 探活兜底，探活也败才报失败
+            fm = await client.probe_model(model)
+            if not fm.probe_ok:
+                detail = scrub(fm.probe_error or str(e), api_key)
+                return JSONResponse({"ok": False, "detail": detail})
+            return JSONResponse(
+                {"ok": True, "models": [], "model": model, "probe": True}
+            )
         finally:
             await client.aclose()
         return JSONResponse({"ok": True, "models": models[:50], "model": model})

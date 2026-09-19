@@ -384,7 +384,8 @@ class TestProbeModel:
         c = _client(lambda _r: _json({"e": 1}, status=429))
         fm = asyncio.run(c.probe_model("m1"))
         assert not fm.probe_ok
-        assert fm.probe_error == "HTTP 429"
+        # probe 走 _chat_once——classify_status 口径带 body 摘要
+        assert fm.probe_error.startswith("HTTP 429:")
 
     def test_probe_empty_content(self) -> None:
         c = _client(lambda _r: _json(_chat_payload("")))
@@ -453,7 +454,7 @@ class TestDiscoverFreeModels:
         assert by_uid["free-ok"].probe_ok
         assert by_uid["free-ok"].probe_error == ""
         assert not by_uid["free-dead"].probe_ok
-        assert by_uid["free-dead"].probe_error == "HTTP 500"
+        assert by_uid["free-dead"].probe_error.startswith("HTTP 500:")
         # panel 元数据搬进 FreeModel
         assert by_uid["free-ok"].promo_end == "2026-10-01"
         assert by_uid["free-ok"].context_tokens == 131072  # noqa: PLR2004

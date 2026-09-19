@@ -328,7 +328,7 @@ class LlmFixer:
     ``translator`` 满足 :class:`~texlate.xlat.pipeline.Translator` 协议
     (MockTranslator 即测件); None 走默认网关路 —— 每次调用在驱动线程的
     loop 里新建 ``ChatClient`` (env ``TEXLATE_BASE_URL``/``TEXLATE_API_KEY``
-    /``TEXLATE_MODEL`` 解析), 不跨 loop 复用 httpx 池。
+    /``TEXLATE_MODEL``/``TEXLATE_DIALECT`` 解析), 不跨 loop 复用 httpx 池。
     """
 
     def __init__(  # noqa: PLR0913  # endpoint/key/model/timeout/预算全是独立旋钮
@@ -338,6 +338,7 @@ class LlmFixer:
         base_url: str | None = None,
         api_key: str | None = None,
         model: str | None = None,
+        dialect: str | None = None,
         timeout_s: float = DEFAULT_TIMEOUT_S,
         temperature: float = 0.2,
         max_tokens: int = DEFAULT_MAX_TOKENS,
@@ -348,6 +349,7 @@ class LlmFixer:
         self.base_url = base_url or env_raw("TEXLATE_BASE_URL") or DEFAULT_BASE_URL
         self.api_key = api_key if api_key is not None else env_raw("TEXLATE_API_KEY")
         self.model = model or env_raw("TEXLATE_MODEL") or DEFAULT_MODEL
+        self.dialect = dialect or env_raw("TEXLATE_DIALECT") or "auto"
         self.timeout_s = timeout_s
         self.temperature = temperature
         self.max_tokens = max_tokens
@@ -375,7 +377,9 @@ class LlmFixer:
             {"role": "system", "content": system},
             {"role": "user", "content": user},
         ]
-        async with ChatClient(self.base_url, self.api_key, timeout=timeout) as c:
+        async with ChatClient(
+            self.base_url, self.api_key, timeout=timeout, dialect=self.dialect
+        ) as c:
             r = await c.chat(
                 self.model,
                 msgs,

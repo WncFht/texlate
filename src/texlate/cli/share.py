@@ -13,6 +13,7 @@ import typer
 
 from texlate.arxiv.fetch import normalize_arxiv_id
 from texlate.cli._common import _CLI_FILE, _CLI_PATH, _is_dir, _is_file, app
+from texlate.server.store import row_json
 from texlate.share import (
     KEY_PART_FIELDS,
     ShareError,
@@ -281,20 +282,10 @@ def share_pack(
         typer.echo(f"任务行不在库中: {task_dir.name} @ {db}", err=True)
         raise typer.Exit(1)
     base, ver, model, lang = _share_fields(row)
-    try:
-        opts = json.loads(str(row.get("options_json") or "{}"))
-        if not isinstance(opts, dict):
-            opts = {}
-    except json.JSONDecodeError:
-        opts = {}
+    opts = row_json(row, "options_json")
     # options 解析先于 verify——``front_matter`` 是 cache_key 组分，重算同料
     _share_verify_pipeline(row, base, ver, model, lang, opts)
-    try:
-        cfg = json.loads(str(row.get("config_json") or "{}"))
-        if not isinstance(cfg, dict):
-            cfg = {}
-    except json.JSONDecodeError:
-        cfg = {}
+    cfg = row_json(row, "config_json")
     try:
         manifest: dict[str, object] = {
             "arxiv_id": base,

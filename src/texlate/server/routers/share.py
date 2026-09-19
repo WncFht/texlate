@@ -37,7 +37,7 @@ from texlate.server.settings import (
     share_dir,
     validate_model,
 )
-from texlate.server.store import new_task_id
+from texlate.server.store import new_task_id, row_json
 from texlate.server.worker import (
     Secrets,
     TaskCtx,
@@ -215,11 +215,12 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 端
                 # 同料（多扫必 miss、少扫留 extra）；同时让 cache_key/
                 # 扫描/manifest 三面对同一显式 dict 自洽。调用方自带
                 # front_matter 在此被覆盖（∩NAMES 挡包内脏串）
-                bundle_fm = frozenset(
-                    x
-                    for x in str(parts.get("front_matter") or "").split(",")
-                    if x
-                ) & FRONT_MATTER_NAMES
+                bundle_fm = (
+                    frozenset(
+                        x for x in str(parts.get("front_matter") or "").split(",") if x
+                    )
+                    & FRONT_MATTER_NAMES
+                )
                 options["front_matter"] = {
                     k: k in bundle_fm for k in ("abstract", "title", "author")
                 }
@@ -298,11 +299,8 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 端
                 f"kind={row['kind']} 任务不打共享包（产物形态不参与共享寻址）",
                 "share_pack_rejected",
             )
-        try:
-            opts = json.loads(str(row.get("options_json") or "{}"))
-        except json.JSONDecodeError:
-            opts = {}
-        if isinstance(opts, dict) and opts.get("reuse_hit"):
+        opts = row_json(row, "options_json")
+        if opts.get("reuse_hit"):
             return _json_error(
                 422,
                 f"reuse 命中任务（产物物化自 {opts['reuse_hit']}）不打共享包",

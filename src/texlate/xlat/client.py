@@ -1,4 +1,4 @@
-"""LLM 客户端：OpenAI 兼容 + Anthropic messages 方言、免费集动态发现、错误分类。
+"""LLM 客户端：OpenAI/Anthropic/Responses 三方言、免费集发现、错误分类。
 
 规格 docs/08 §1.6–1.7：
 
@@ -14,6 +14,11 @@
 现状注记（2026-09-17）：发现链已接入生产——``chat`` 在内置免费网关上
 附带模型降级臂（``fallback_candidates`` 惰性发现 + memoize，BYOK/公网
 端点零探测短路）；``chat_stream`` 仍仅 bench/test/网关 smoke 消费。
+
+方言面（2026-09-19）：``dialect`` ∈ ``auto|openai|anthropic|responses``——
+``auto``（默认）按 host 推导（仅 ``api.anthropic.com`` 落 anthropic）；
+显式值面向 BYOK 异形端点（responses-only 反代、anthropic 兼容代理等
+host 识别不了的形态），settings/header/env 三面同源。
 """
 
 from __future__ import annotations
@@ -31,6 +36,8 @@ from typing import TYPE_CHECKING, Any, Self, TypedDict
 from urllib.parse import urlsplit
 
 import httpx
+
+from texlate.textutil import env_raw
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Callable
@@ -415,10 +422,52 @@ PROVIDER_KEY_ENV: dict[str, str] = {
     "custom": "TEXLATE_API_KEY",
 }
 
+
+def env_credentials() -> tuple[str, str, str, str]:
+    """``TEXLATE_*`` 凭证四件套统一读法 → ``(base_url, api_key, model, dialect)``。
+
+    ``api_key`` 按 provider 映射兜底：``TEXLATE_API_KEY`` 优先、空则按
+    ``PROVIDER_KEY_ENV`` 的 host 专名 env 再读——server ``env_key_for``
+    与 cli/llm_hook 裸读曾在此分叉（BYOK 专名 env 在非 server 臂读不到）。
+    model/dialect 原样透传——校验归各调用面边界（``validate_*``）。
+    """
+    base_url = env_raw("TEXLATE_BASE_URL")
+    api_key = env_raw("TEXLATE_API_KEY")
+    if not api_key:
+        env_name = PROVIDER_KEY_ENV.get(provider_for_url(base_url), "TEXLATE_API_KEY")
+        api_key = env_raw(env_name)
+    return (
+        base_url,
+        api_key,
+        env_raw("TEXLATE_MODEL"),
+        env_raw("TEXLATE_DIALECT"),
+    )
+
+
 #: provider → 请求方言（"openai" = /v1/chat/completions；"anthropic" = /v1/messages）
 _PROVIDER_DIALECT: dict[str, str] = {
     "anthropic": "anthropic",
 }
+#: 显式方言值（settings/header/env/ctor 白名单；"auto" = 按 host 推导）
+_DIALECT_VALUES = frozenset({"openai", "anthropic", "responses"})
+#: settings 写径枚举——含 ``auto`` 缺省值；``ChatClient(dialect=)`` 同款
+API_DIALECTS = frozenset({"auto"} | _DIALECT_VALUES)
+
+
+def _dialect_for(provider: str, dialect: str | None) -> str:
+    """生效方言：``auto``/空 → provider 映射；显式值校验原样，非法 ValueError。"""
+    if dialect in (None, "", "auto"):
+        return _PROVIDER_DIALECT.get(provider, "openai")
+    if dialect in _DIALECT_VALUES:
+        return dialect
+    msg = f"unknown dialect {dialect!r}（expect {sorted(API_DIALECTS)}）"
+    raise ValueError(msg)
+
+
+def dialect_for_url(base_url: str, dialect: str | None = None) -> str:
+    """按 base_url + 配置值推生效方言——``ChatClient`` 外的展示面（doctor 等）共用。"""
+    return _dialect_for(provider_for_url(base_url), dialect)
+
 
 _LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
 #: tailnet CGNAT 段（与 ``settings._is_plaintext_ok_host`` 同信任域——
@@ -486,6 +535,23 @@ def _usage_int(value: object) -> int:
         raise MalformedResponseError(msg) from e
 
 
+def _resp_has_refusal(resp: dict[str, Any]) -> bool:
+    """Responses 终帧 ``response`` 对象是否含 refusal 块（``_sse_responses_data`` 用）。"""
+    output = resp.get("output")
+    if not isinstance(output, list):
+        return False
+    for item in output:
+        if not isinstance(item, dict):
+            continue
+        content = item.get("content")
+        if not isinstance(content, list):
+            continue
+        for blk in content:
+            if isinstance(blk, dict) and blk.get("type") == "refusal":
+                return True
+    return False
+
+
 def _transport_error(e: Exception) -> ChatError:
     """HTTP 传输族异常 → ChatError 分类：``httpx.InvalidURL``→``ChatError``（非重试），其余→``RetryableHTTPError``。"""
     if isinstance(e, httpx.InvalidURL):
@@ -513,21 +579,27 @@ class ChatClient:
             r = await c.chat("your-model", messages, temperature=0.2, max_tokens=8192)
     """
 
-    def __init__(  # noqa: PLR0913 -- endpoint/key + provider/timeout/http + usage_sink 全是独立旋钮
+    def __init__(  # noqa: PLR0913 -- endpoint/key + provider/dialect/timeout/http + usage_sink 全是独立旋钮
         self,
         base_url: str,
         api_key: str = "",
         *,
         provider: str | None = None,
+        dialect: str | None = None,
         timeout: httpx.Timeout | None = None,
         http: httpx.AsyncClient | None = None,
         usage_sink: Callable[[UsageRecord], None] | None = None,
     ) -> None:
-        """按 base_url 自动识别 provider/方言；`http` 传入外部 client 时不自持。"""
+        """按 base_url 自动识别 provider/方言；`http` 传入外部 client 时不自持。
+
+        ``dialect``：``None``/``""``/``"auto"`` → 按 provider 推导；显式值
+        （``_DIALECT_VALUES``）面向 host 识别不了的 BYOK 异形端点——
+        responses-only 反代、非 ``api.anthropic.com`` 的 anthropic 兼容代理。
+        """
         self.base_url = normalize_base_url(base_url)
         self.api_key = api_key
         self.provider = provider or provider_for_url(base_url)
-        self.dialect = _PROVIDER_DIALECT.get(self.provider, "openai")
+        self.dialect = _dialect_for(self.provider, dialect)
         self._own = http is None
         self._http = http or httpx.AsyncClient(
             timeout=timeout or DEFAULT_TIMEOUT,
@@ -739,6 +811,186 @@ class ChatClient:
             latency_s=round(latency, 3),
         )
 
+    # ------------------------------------------------------------ Responses 方言
+
+    @staticmethod
+    def _responses_body(
+        model: str,
+        messages: list[dict[str, str]],
+        options: ChatOptions,
+        *,
+        stream: bool,
+    ) -> dict[str, Any]:
+        """Responses 请求体：system→``instructions``；会话角色→``input`` message items。
+
+        ``max_tokens``→``max_output_tokens``；``response_format``→``text.format``
+        原样透传（``{"type": "json_object"}`` 等形状两家同构）。
+        """
+        instructions = "\n".join(
+            m["content"] for m in messages if m["role"] == "system"
+        )
+        items: list[dict[str, Any]] = []
+        for m in messages:
+            if m["role"] == "system":
+                continue
+            ctype = "output_text" if m["role"] == "assistant" else "input_text"
+            items.append(
+                {
+                    "type": "message",
+                    "role": m["role"],
+                    "content": [{"type": ctype, "text": m["content"]}],
+                }
+            )
+        body: dict[str, Any] = {"model": model, "input": items}
+        if instructions:
+            body["instructions"] = instructions
+        if options.temperature is not None:
+            body["temperature"] = options.temperature
+        if options.max_tokens is not None:
+            body["max_output_tokens"] = options.max_tokens
+        if options.response_format is not None:
+            body["text"] = {"format": options.response_format}
+        if stream:
+            body["stream"] = True
+        if options.extra:
+            body.update(options.extra)
+        return body
+
+    @staticmethod
+    def _list_field(value: object, what: str) -> list[Any]:
+        """Responses ``payload`` 列表字段形状闸——非 list 一律 ``MalformedResponseError``。"""
+        if isinstance(value, list):
+            return value
+        msg = f"{what} field is not a list"
+        raise MalformedResponseError(msg)
+
+    @staticmethod
+    def _str_field(blk: dict[str, Any], key: str, what: str) -> str:
+        """Responses 块标量字段形状闸——非 str 一律 ``MalformedResponseError``。"""
+        v = blk.get(key) or ""
+        if not isinstance(v, str):
+            msg = f"{what} value is not a string"
+            raise MalformedResponseError(msg)
+        return v
+
+    @staticmethod
+    def _responses_message_blocks(
+        item: dict[str, Any], texts: list[str], refusals: list[str]
+    ) -> None:
+        """``message`` item 的 content 块 → texts/refusals 累加（形状闸同 ``_list/_str_field``）。"""
+        for blk in ChatClient._list_field(item.get("content") or [], "message content"):
+            if not isinstance(blk, dict):
+                msg = "content block is not an object"
+                raise MalformedResponseError(msg)
+            bt = blk.get("type")
+            if bt == "output_text":
+                texts.append(ChatClient._str_field(blk, "text", "output_text"))
+            elif bt == "refusal":
+                refusals.append(ChatClient._str_field(blk, "refusal", "refusal"))
+
+    @staticmethod
+    def _responses_reasoning_blocks(item: dict[str, Any], thinks: list[str]) -> None:
+        """``reasoning`` item 的 summary 块 → thinks 累加。"""
+        for s in ChatClient._list_field(item.get("summary") or [], "reasoning summary"):
+            if not isinstance(s, dict):
+                msg = "summary item is not an object"
+                raise MalformedResponseError(msg)
+            if s.get("type") == "summary_text":
+                thinks.append(ChatClient._str_field(s, "text", "summary_text"))
+
+    @staticmethod
+    def _responses_blocks(payload: dict[str, Any]) -> tuple[str, str, list[str]]:
+        """``output`` items → (text 合, reasoning summary 合, refusal 列)；形状不符一律 ``MalformedResponseError``。"""
+        texts: list[str] = []
+        thinks: list[str] = []
+        refusals: list[str] = []
+        for item in ChatClient._list_field(payload.get("output") or [], "output"):
+            if not isinstance(item, dict):
+                msg = "output item is not an object"
+                raise MalformedResponseError(msg)
+            it = item.get("type")
+            if it == "message":
+                ChatClient._responses_message_blocks(item, texts, refusals)
+            elif it == "reasoning":
+                ChatClient._responses_reasoning_blocks(item, thinks)
+        return "".join(texts), "".join(thinks), refusals
+
+    def _responses_status_gate(
+        self, payload: dict[str, Any], status: str, content: str, refusals: list[str]
+    ) -> None:
+        """``status``/refusal 终态闸——异常态全在此抛错（``_parse_responses`` 分支减压）。
+
+        映射：refusal 块→``ContentFilterError``；``failed``/``cancelled``→
+        ``ChatError``；``incomplete``→reason 分 ``content_filter``/``length``
+        （其余 reason 一律 length——产出未完的归约与 ``finish_reason=length``
+        同族）；``queued``/``in_progress`` 等非终态→``MalformedResponseError``
+        （非 background 模式不应出现）。
+        """
+        if refusals:
+            detail = redact(" ".join(refusals), self.api_key)
+            msg = f"responses refusal block: {detail[:200]}"
+            raise ContentFilterError(msg)
+        if status in ("failed", "cancelled"):
+            err = payload.get("error") or {}
+            if not isinstance(err, dict):
+                msg = "error field is not an object"
+                raise MalformedResponseError(msg)
+            detail = redact(str(err.get("message") or status), self.api_key)
+            msg = f"responses status={status}: {detail}"
+            raise ChatError(msg)
+        if status == "incomplete":
+            det = payload.get("incomplete_details") or {}
+            if not isinstance(det, dict):
+                msg = "incomplete_details field is not an object"
+                raise MalformedResponseError(msg)
+            reason = str(det.get("reason") or "")
+            if reason == "content_filter":
+                msg = f"responses incomplete: {reason}"
+                raise ContentFilterError(msg)
+            msg = f"responses incomplete: {reason or 'unknown'}"
+            raise LengthTruncatedError(msg, partial_content=content)
+        if status != "completed":
+            msg = f"unexpected response status {status!r}"
+            raise MalformedResponseError(msg)
+
+    def _parse_responses(self, payload: dict[str, Any], latency: float) -> ChatResult:
+        """Responses 200 体 → ``ChatResult``；``finish_reason`` 归一成 openai 词表。"""
+        if payload.get("type") == "error":
+            err = payload.get("error") or {}
+            if not isinstance(err, dict):
+                msg = "error field is not an object"
+                raise MalformedResponseError(msg)
+            detail = redact(str(err.get("message") or ""), self.api_key)
+            msg = f"responses error {err.get('code')}: {detail}"
+            raise ChatError(msg)
+        content, reasoning, refusals = self._responses_blocks(payload)
+        status = str(payload.get("status") or "completed")
+        self._responses_status_gate(payload, status, content, refusals)
+        if not content.strip():
+            msg = "empty content in response"
+            raise EmptyContentError(msg)
+        usage_raw = payload.get("usage") or {}
+        if not isinstance(usage_raw, dict):
+            msg = "usage field is not an object"
+            raise MalformedResponseError(msg)
+        details = usage_raw.get("input_tokens_details") or {}
+        if not isinstance(details, dict):
+            msg = "usage.input_tokens_details is not an object"
+            raise MalformedResponseError(msg)
+        return ChatResult(
+            content=content,
+            reasoning=reasoning,
+            finish_reason="stop",
+            usage=Usage(
+                prompt_tokens=_usage_int(usage_raw.get("input_tokens")),
+                completion_tokens=_usage_int(usage_raw.get("output_tokens")),
+                cached_tokens=_usage_int(details.get("cached_tokens")),
+                raw=usage_raw,
+            ),
+            model=payload.get("model") or "",
+            latency_s=round(latency, 3),
+        )
+
     # ------------------------------------------------------------ 公开 API
 
     async def chat(
@@ -775,27 +1027,59 @@ class ChatClient:
                 last = e
         raise last
 
+    def _request_plan(
+        self,
+        model: str,
+        messages: list[dict[str, str]],
+        opts: ChatOptions,
+        *,
+        stream: bool,
+    ) -> tuple[str, dict[str, str], dict[str, Any]]:
+        """方言 → (url, headers, body) 三元组——``_chat_once``/``chat_stream`` 同源。"""
+        if self.dialect == "anthropic":
+            return (
+                f"{self.base_url}/v1/messages",
+                self._anthropic_headers(),
+                self._anthropic_body(model, messages, opts, stream=stream),
+            )
+        if self.dialect == "responses":
+            return (
+                f"{self.base_url}/v1/responses",
+                self._openai_headers(),
+                self._responses_body(model, messages, opts, stream=stream),
+            )
+        return (
+            f"{self.base_url}/v1/chat/completions",
+            self._openai_headers(),
+            self._openai_body(model, messages, opts, stream=stream),
+        )
+
+    def _parse_payload(self, payload: dict[str, Any], latency: float) -> ChatResult:
+        """方言 → 解析器分发。"""
+        if self.dialect == "anthropic":
+            return self._parse_anthropic(payload, latency)
+        if self.dialect == "responses":
+            return self._parse_responses(payload, latency)
+        return self._parse_openai(payload, latency)
+
     async def _chat_once(
         self,
         model: str,
         messages: list[dict[str, str]],
         opts: ChatOptions,
+        *,
+        req_timeout: httpx.Timeout | None = None,
     ) -> ChatResult:
-        """单模型单次 chat 往返。错误已按 `classify_status` 分类；length/empty 也抛错。"""
+        """单模型单次 chat 往返。错误已按 `classify_status` 分类；length/empty 也抛错。
+
+        ``req_timeout`` 为单次请求覆盖（探活收紧用）；None = 跟随 client 默认——
+        绝不传 ``None`` 进 ``post()``（httpx 的 None 是「关超时」而非「默认」）。
+        """
         t0 = time.monotonic()
+        kw: dict[str, Any] = {"timeout": req_timeout} if req_timeout is not None else {}
+        url, headers, body = self._request_plan(model, messages, opts, stream=False)
         try:
-            if self.dialect == "anthropic":
-                resp = await self._http.post(
-                    f"{self.base_url}/v1/messages",
-                    headers=self._anthropic_headers(),
-                    json=self._anthropic_body(model, messages, opts, stream=False),
-                )
-            else:
-                resp = await self._http.post(
-                    f"{self.base_url}/v1/chat/completions",
-                    headers=self._openai_headers(),
-                    json=self._openai_body(model, messages, opts, stream=False),
-                )
+            resp = await self._http.post(url, headers=headers, json=body, **kw)
         except (
             httpx.InvalidURL,
             httpx.TransportError,
@@ -817,10 +1101,7 @@ class ChatClient:
         if not isinstance(payload, dict):
             msg = f"non-object JSON response: {redact(resp.text[:200], self.api_key)}"
             raise MalformedResponseError(msg)
-        if self.dialect == "anthropic":
-            result = self._parse_anthropic(payload, latency)
-        else:
-            result = self._parse_openai(payload, latency)
+        result = self._parse_payload(payload, latency)
         sink = self.usage_sink
         if sink is not None:
             try:
@@ -881,7 +1162,7 @@ class ChatClient:
         *,
         options: ChatOptions | None = None,
     ) -> AsyncIterator[StreamEvent]:
-        """SSE 流式（仅 OpenAI 方言）：逐 delta yield StreamEvent，`[DONE]` 收 done。
+        """SSE 流式：逐 delta yield StreamEvent，终帧收 done（三方言各自事件族）。
 
         B4a 实测注意：swe-2 系是假流式——上游缓存后转发，delta 全挤在末 ~0.3s，
         TTFT≈总时长，stream 不能当进度信号；仅剩价值是 `stream_options.
@@ -890,12 +1171,13 @@ class ChatClient:
         现状：无生产调用方（仅 tests/bench 消费，见模块 docstring 注记）。
         """
         opts = options or ChatOptions()
+        url, headers, body = self._request_plan(model, messages, opts, stream=True)
         try:
             async with self._http.stream(
                 "POST",
-                f"{self.base_url}/v1/chat/completions",
-                headers=self._openai_headers(),
-                json=self._openai_body(model, messages, opts, stream=True),
+                url,
+                headers=headers,
+                json=body,
             ) as resp:
                 if resp.status_code != HTTP_OK:
                     await resp.aread()
@@ -903,7 +1185,7 @@ class ChatClient:
                         resp.status_code, redact(resp.text, self.api_key), resp.headers
                     )
                 async for line in resp.aiter_lines():
-                    events, done = self._sse_events(line)
+                    events, done = self._sse_line_events(line)
                     for ev in events:
                         yield ev
                     if done:
@@ -915,6 +1197,117 @@ class ChatClient:
             ssl.SSLError,
         ) as e:
             raise _transport_error(e) from e
+
+    def _sse_line_events(self, line: str) -> tuple[list[StreamEvent], bool]:
+        """一行 SSE → (events, done?)——按方言分发 payload 解析。
+
+        openai 走 ``_sse_events``（choices/[DONE] 族）；anthropic/responses
+        的 ``event:`` 行冗余（``data:`` payload 自带 ``type`` 字段），
+        只解 ``data:`` JSON 分发。
+        """
+        if self.dialect == "openai":
+            return self._sse_events(line)
+        events: list[StreamEvent] = []
+        done = False
+        if line.startswith("data:"):
+            try:
+                chunk = json.loads(line[5:].strip())
+            except (json.JSONDecodeError, RecursionError):
+                chunk = None
+            if isinstance(chunk, dict):
+                if self.dialect == "anthropic":
+                    events, done = self._sse_anthropic_data(chunk)
+                elif self.dialect == "responses":
+                    events, done = self._sse_responses_data(chunk)
+        return events, done
+
+    def _sse_anthropic_data(
+        self, chunk: dict[str, Any]
+    ) -> tuple[list[StreamEvent], bool]:
+        """Anthropic SSE payload → (events, done?)；``error`` 帧抛 ``ChatError``。"""
+        t = chunk.get("type")
+        events: list[StreamEvent] = []
+        done = False
+        if t == "content_block_delta":
+            d = chunk.get("delta") or {}
+            if isinstance(d, dict):
+                if d.get("type") == "text_delta" and d.get("text"):
+                    events.append(StreamEvent("content", str(d["text"])))
+                elif d.get("type") == "thinking_delta" and d.get("thinking"):
+                    events.append(StreamEvent("reasoning", str(d["thinking"])))
+        elif t == "message_delta":
+            d = chunk.get("delta") or {}
+            stop = d.get("stop_reason") if isinstance(d, dict) else None
+            if stop:
+                events.append(StreamEvent("done", finish_reason=str(stop)))
+                done = True
+        elif t == "message_stop":
+            events.append(StreamEvent(kind="done"))
+            done = True
+        elif t == "error":
+            err = chunk.get("error") or {}
+            detail = err.get("message") if isinstance(err, dict) else str(chunk)
+            msg = f"anthropic stream error: {redact(str(detail), self.api_key)}"
+            raise ChatError(msg)
+        return events, done
+
+    def _sse_responses_data(
+        self, chunk: dict[str, Any]
+    ) -> tuple[list[StreamEvent], bool]:
+        """Responses SSE payload → (events, done?)；``error``/``response.failed`` 帧抛 ``ChatError``。
+
+        终帧 ``finish_reason`` 归一到 openai 词表：completed→stop；
+        incomplete→reason 分 content_filter/length（refusal 块同判 filter）；
+        ``response.completed``/``incomplete`` 带完整 response 对象——refusal
+        只在终帧层查，逐 ``refusal.delta`` 不单独成事件（与非流式
+        ``_parse_responses`` 同口径）。
+        """
+        t = chunk.get("type")
+        events: list[StreamEvent] = []
+        done = False
+        if t in (
+            "response.output_text.delta",
+            "response.reasoning_text.delta",
+            "response.reasoning_summary_text.delta",
+        ):
+            delta = chunk.get("delta")
+            if isinstance(delta, str) and delta:
+                kind = "content" if t == "response.output_text.delta" else "reasoning"
+                events.append(StreamEvent(kind, delta))
+        elif t in ("response.completed", "response.incomplete"):
+            events.append(
+                StreamEvent(
+                    "done",
+                    finish_reason=self._responses_stream_finish(
+                        chunk.get("response"), incomplete=t == "response.incomplete"
+                    ),
+                )
+            )
+            done = True
+        elif t in ("response.failed", "error"):
+            resp = chunk.get("response") or chunk
+            err = resp.get("error") or {} if isinstance(resp, dict) else {}
+            detail = err.get("message") if isinstance(err, dict) else str(chunk)
+            msg = f"responses stream error: {redact(str(detail), self.api_key)}"
+            raise ChatError(msg)
+        return events, done
+
+    @staticmethod
+    def _responses_stream_finish(resp: object, *, incomplete: bool) -> str:
+        """Responses 终帧 ``response`` 对象 → openai 词表 finish_reason。
+
+        completed→stop；incomplete→reason 分 content_filter/length；
+        refusal 块任何终态都判 content_filter。
+        """
+        if not isinstance(resp, dict):
+            return "length" if incomplete else "stop"
+        if _resp_has_refusal(resp):
+            return "content_filter"
+        if not incomplete:
+            return "stop"
+        det = resp.get("incomplete_details") or {}
+        reason = det.get("reason") if isinstance(det, dict) else None
+        return "content_filter" if reason == "content_filter" else "length"
 
     async def _get_json(self, path: str) -> tuple[Any, str]:
         """``GET {base_url}{path}`` → (parsed JSON, 脱敏 body 摘要)。
@@ -972,35 +1365,18 @@ class ChatClient:
         return []
 
     async def probe_model(self, uid: str) -> FreeModel:
-        """探活单模型：一次最小 chat 往返，要求 200 + 非空 content。"""
+        """探活单模型：一次最小 chat 往返（方言随 ``self.dialect``），要求非空 content。
+
+        复用 ``_chat_once``——request 组装/响应解析/错误分类三方口径一致，
+        ``PROBE_TIMEOUT`` 经其单次请求覆盖收紧。
+        """
         t0 = time.monotonic()
         try:
-            resp = await self._http.post(
-                f"{self.base_url}/v1/chat/completions",
-                headers=self._openai_headers(),
-                json={
-                    "model": uid,
-                    "messages": [{"role": "user", "content": "Reply with exactly: OK"}],
-                    "max_tokens": PROBE_MAX_TOKENS,
-                },
-                timeout=PROBE_TIMEOUT,
-            )
-            latency = time.monotonic() - t0
-            if resp.status_code != HTTP_OK:
-                return FreeModel(
-                    uid=uid,
-                    probe_ok=False,
-                    probe_error=f"HTTP {resp.status_code}",
-                    probe_latency_s=round(latency, 2),
-                )
-            ch = (resp.json().get("choices") or [{}])[0]
-            content = ((ch.get("message") or {}).get("content") or "").strip()
-            ok = bool(content) and ch.get("finish_reason") in (None, "stop")
-            return FreeModel(
-                uid=uid,
-                probe_ok=ok,
-                probe_error="" if ok else "empty content or bad finish",
-                probe_latency_s=round(latency, 2),
+            r = await self._chat_once(
+                uid,
+                [{"role": "user", "content": "Reply with exactly: OK"}],
+                ChatOptions(max_tokens=PROBE_MAX_TOKENS),
+                req_timeout=PROBE_TIMEOUT,
             )
         except Exception as e:  # noqa: BLE001 -- 探活对任意失败都返回不可用，绝不抛出
             return FreeModel(
@@ -1009,6 +1385,20 @@ class ChatClient:
                 probe_error=redact(str(e), self.api_key)[:200],
                 probe_latency_s=round(time.monotonic() - t0, 2),
             )
+        ok = bool(r.content.strip()) and r.finish_reason in (
+            "",
+            "stop",
+            "end_turn",
+            "stop_sequence",
+        )
+        return FreeModel(
+            uid=uid,
+            probe_ok=ok,
+            probe_error=""
+            if ok
+            else f"empty content or bad finish ({r.finish_reason})",
+            probe_latency_s=round(r.latency_s, 2),
+        )
 
     async def discover_free_models(
         self, *, probe: bool = True, max_probe: int = 12

@@ -10,7 +10,12 @@ from __future__ import annotations
 import ipaddress
 from urllib.parse import urlsplit
 
-from texlate.xlat.client import _LOOPBACK_HOSTS, _TAILNET_V4, normalize_base_url
+from texlate.xlat.client import (
+    _LOOPBACK_HOSTS,
+    _TAILNET_V4,
+    API_DIALECTS,
+    normalize_base_url,
+)
 
 #: 模型名长度上限（防滥用长串）
 MODEL_MAX_LEN = 200
@@ -69,5 +74,14 @@ def validate_model(value: str) -> str:
     v = value.strip()
     if not v or len(v) > MODEL_MAX_LEN or not v.isprintable():
         msg = "invalid model（空/超 200 字符/含控制字符）"
+        raise ValueError(msg)
+    return v
+
+
+def validate_dialect(value: str) -> str:
+    """方言枚举闸：``auto|openai|anthropic|responses``——settings/header/env 三面同源。"""
+    v = value.strip().lower()
+    if v not in API_DIALECTS:
+        msg = f"invalid dialect（expect {'|'.join(sorted(API_DIALECTS))}）"
         raise ValueError(msg)
     return v

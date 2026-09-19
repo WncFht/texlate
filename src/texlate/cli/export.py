@@ -14,7 +14,7 @@ import typer
 
 import texlate.cli as _cli
 from texlate.cli._common import _CLI_PATH, app
-from texlate.textutil import env_raw, env_str
+from texlate.textutil import env_str
 
 if TYPE_CHECKING:
     from texlate.xlat.pipeline import Translator
@@ -86,17 +86,25 @@ def _export_translator(model: str | None, *, mock: bool) -> Translator:
     """worker._make_translator 的无 ctx 版：env/key → 网关，否则 Mock。
 
     ``TEXLATE_TRANSLATOR`` 白名单 ``mock|gateway``——其他非空值（typo 形）
-    exit 2 显式拒，不静默按 auto 回落；``gateway`` 无 ``TEXLATE_API_KEY``
-    同样 exit 2（缺 key 的网关调用必败，不静默回落 Mock 产占位译文）；
-    无 key 隐式回落 Mock 时打 stderr 提示——占位译文当真译文是真实踩坑面。
+    exit 2 显式拒，不静默按 auto 回落；``gateway`` 无 key 同样 exit 2
+    （缺 key 的网关调用必败，不静默回落 Mock 产占位译文）；无 key 隐式
+    回落 Mock 时打 stderr 提示——占位译文当真译文是真实踩坑面。凭证
+    四件套走 ``env_credentials``（``TEXLATE_API_KEY`` 优先 + provider
+    专名 env 兜底，与 server ``env_key_for`` 同口径）。
     """
+    from texlate.xlat.client import (  # noqa: PLC0415 -- 重依赖延迟导入
+        DEFAULT_BASE_URL,
+        DEFAULT_MODEL,
+        ChatClient,
+        env_credentials,
+    )
     from texlate.xlat.pipeline import (  # noqa: PLC0415
         GatewayTranslator,
         MockTranslator,
     )
 
     force = env_str("TEXLATE_TRANSLATOR")
-    api_key = env_raw("TEXLATE_API_KEY")
+    env_url, api_key, env_model, env_dialect = env_credentials()
     if mock or force == "mock":
         return MockTranslator()  # 显式干跑优先于 env 矛盾检查
     if force not in ("", "gateway"):
@@ -117,13 +125,11 @@ def _export_translator(model: str | None, *, mock: bool) -> Translator:
             err=True,
         )
         return MockTranslator()
-    from texlate.server.settings import (  # noqa: PLC0415
-        DEFAULT_BASE_URL,
-        DEFAULT_MODEL,
-    )
-    from texlate.xlat.client import ChatClient  # noqa: PLC0415
-
     return GatewayTranslator(
-        ChatClient(env_raw("TEXLATE_BASE_URL") or DEFAULT_BASE_URL, api_key),
-        model or env_raw("TEXLATE_MODEL") or DEFAULT_MODEL,
+        ChatClient(
+            env_url or DEFAULT_BASE_URL,
+            api_key,
+            dialect=env_dialect,
+        ),
+        model or env_model or DEFAULT_MODEL,
     )

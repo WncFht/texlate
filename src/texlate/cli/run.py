@@ -24,6 +24,7 @@ from texlate.cli.thin import _thin_run
 from texlate.logsetup import configure_logging, level_from_flags
 from texlate.pipecore import FRONT_MATTER_NAMES, NULL_SINK
 from texlate.textutil import env_flag
+from texlate.xlat.client import API_DIALECTS
 
 
 @app.command()
@@ -79,6 +80,14 @@ def run(  # noqa: C901, PLR0913 -- CLI 选项面即参数面 + 本地/瘦客户�
         str | None,
         typer.Option(
             "--base-url", help="上游 LLM 网关（仅 --server，x-texlate-base-url）"
+        ),
+    ] = None,
+    dialect: Annotated[
+        str | None,
+        typer.Option(
+            "--dialect",
+            help="LLM 网关方言 auto|openai|anthropic|responses"
+            "（仅 --server，x-texlate-dialect）",
         ),
     ] = None,
     out: Annotated[
@@ -149,6 +158,7 @@ def run(  # noqa: C901, PLR0913 -- CLI 选项面即参数面 + 本地/瘦客户�
             f"unknown --engine {engine!r} (expect auto|xelatex|tectonic)", err=True
         )
         raise typer.Exit(2)
+    dialect = _dialect_opt(dialect)
     fm = _front_matter_opt(front_matter)
     if server is not None:
         code = _thin_run(
@@ -158,15 +168,16 @@ def run(  # noqa: C901, PLR0913 -- CLI 选项面即参数面 + 本地/瘦客户�
             model=model,
             api_key=api_key,
             base_url=base_url,
+            dialect=dialect,
             out=out,
             wait=1800.0 if wait is None else wait,
             front_matter=fm,
             quiet=quiet > 0,
         )
         raise typer.Exit(code)
-    if any(v is not None for v in (model, api_key, base_url, out, wait)):
+    if any(v is not None for v in (model, api_key, base_url, dialect, out, wait)):
         typer.echo(
-            "--model/--api-key/--base-url/--out/--wait 仅配合 --server 使用",
+            "--model/--api-key/--base-url/--dialect/--out/--wait 仅配合 --server 使用",
             err=True,
         )
         raise typer.Exit(2)
@@ -204,6 +215,14 @@ def run(  # noqa: C901, PLR0913 -- CLI 选项面即参数面 + 本地/瘦客户�
     finally:
         if not keep and work_dir is None:
             shutil.rmtree(work, ignore_errors=True)
+
+
+def _dialect_opt(raw: str | None) -> str | None:
+    """``--dialect`` 白名单校验；非法值 exit 2。"""
+    if raw is None or raw in API_DIALECTS:
+        return raw
+    typer.echo(f"unknown --dialect {raw!r} (expect {sorted(API_DIALECTS)})", err=True)
+    raise typer.Exit(2)
 
 
 def _front_matter_opt(raw: str | None) -> frozenset[str] | None:

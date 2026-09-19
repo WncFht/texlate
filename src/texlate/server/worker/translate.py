@@ -19,8 +19,8 @@ from texlate.server.settings import (
     validate_model,
 )
 from texlate.textutil import env_flag, env_str
-from texlate.validate.l0 import validate_pair
-from texlate.xlat.client import ChatClient, UsageRecord
+from texlate.validate.l0 import pair_feedback
+from texlate.xlat.client import DEFAULT_MODEL, ChatClient, UsageRecord
 from texlate.xlat.glossary import (
     LOCAL_GLOSSARY_NAME,
     Glossary,
@@ -128,7 +128,7 @@ class _Translate:
             ),
             glossary=prep["glossary"],
             state=state,  # type: ignore[arg-type] -- StateStore 鸭子型
-            validator=lambda s, z: validate_pair(s, z).feedback(),
+            validator=pair_feedback,
             cache=cache,  # type: ignore[arg-type] -- MutableMapping 鸭子型
             on_result=on_result,
         )
@@ -562,7 +562,7 @@ class _Translate:
         if force == "mock":
             return MockTranslator()
         if force == "gateway" or ctx.secrets.api_key:
-            model = ctx.secrets.model or "swe-2-medium"
+            model = ctx.secrets.model or DEFAULT_MODEL
             retry_model = self._retry_model_of(ctx, model) if retry else ""
             if sink is not None:
                 return _PerCallTranslator(
@@ -571,8 +571,13 @@ class _Translate:
                     model,
                     sink,
                     retry_model=retry_model,
+                    dialect=ctx.secrets.dialect,
                 )
-            client = ChatClient(ctx.secrets.base_url, ctx.secrets.api_key)
+            client = ChatClient(
+                ctx.secrets.base_url,
+                ctx.secrets.api_key,
+                dialect=ctx.secrets.dialect,
+            )
             primary = GatewayTranslator(client, model)
             if retry_model:
                 return _FallbackTranslator(
@@ -664,10 +669,7 @@ class _Translate:
         mkey = ("glossary", frozenset(placeholders))
         if mkey in ctx.memo:
             return ctx.memo[mkey]
-        try:
-            cfg = json.loads(str(ctx.row.get("config_json") or "{}"))
-        except json.JSONDecodeError:
-            cfg = {}
+        cfg = ctx.config()
         gpath = str(cfg.get("glossary") or ctx.options().get("glossary") or "")
         local = self._local_glossary(ctx)
         cats = self._arxiv_categories(ctx)
@@ -700,13 +702,13 @@ class _Translate:
         """``auto_glossary`` option 开时接 ``autogloss.extract_terms``。
 
         抽取臂与翻译同模（``ctx.secrets.model``——BYOK 端点名字网关私有，
-        硬编 swe-2-medium 会在非公网端点上 404）。ctx.memo 备忘防 resume
+        硬编公网模型名会在非公网端点上 404）。ctx.memo 备忘防 resume
         重抽——同一 task 的二次 ``pipe.run`` 复用首轮结果。
         """
         if not ctx.options().get("auto_glossary") or not clients:
             return None
         client = clients[0]
-        model = str(ctx.secrets.model or "swe-2-medium")
+        model = str(ctx.secrets.model or DEFAULT_MODEL)
         memo_key = "autogloss_terms"
 
         async def _fn(texts: list[str]) -> dict[str, str]:
@@ -722,10 +724,7 @@ class _Translate:
 
     def _make_cache(self, ctx: TaskCtx) -> SegmentCache:
         """段缓存门面（cfg 指纹前缀含 model/prompt_ver/lang[/key 指纹]）。"""
-        try:
-            cfg_row = json.loads(str(ctx.row.get("config_json") or "{}"))
-        except json.JSONDecodeError:
-            cfg_row = {}
+        cfg_row = ctx.config()
         glossary = str(cfg_row.get("glossary") or ctx.options().get("glossary") or "")
         local = self._local_glossary(ctx)
         local_sig = ""

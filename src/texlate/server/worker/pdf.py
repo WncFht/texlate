@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import logging
 import shutil
 import time
@@ -66,10 +65,7 @@ class _Pdf:
         术语表复用主链 ``_make_glossary``（confine 规则同款），写成
         babeldoc ``--glossary-files`` CSV。
         """
-        try:
-            cfg = json.loads(str(ctx.row.get("config_json") or "{}"))
-        except json.JSONDecodeError:
-            cfg = {}
+        cfg = ctx.config()
         options = ctx.options()
         glossary_csv = None
         glossary = self._make_glossary(ctx)

@@ -1,8 +1,11 @@
 """BYOK 凭证决议簇 —— header/settings/env 三级回落 + 租户指纹（§4.3）。
 
-key 入口优先级（高→低）：请求头 ``X-Texlate-*`` > ``settings.json``（0600）
-> 环境变量。key 只进内存任务对象，绝不进 tasks/files/日志；``tenant`` 用
-``sha256(key+server_salt)[:12]`` 指纹隔离（单机模式恒 ``local``）。
+``api_key`` 入口优先级（高→低）：请求头 ``X-Texlate-*`` > ``settings.json``
+（0600）> 环境变量；``base_url``/``model``/``dialect`` 走 header > env >
+settings——env 是操作员逃生舱，不落盘即可整端覆盖（``resolve_auth``
+docstring 同口径）。key 只进内存任务对象，绝不进 tasks/files/日志；
+``tenant`` 用 ``sha256(key+server_salt)[:12]`` 指纹隔离（单机模式恒
+``local``）。
 """
 
 from __future__ import annotations
@@ -16,9 +19,14 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from collections.abc import Callable, Mapping
     from pathlib import Path
 
-from texlate.server.validate import validate_base_url, validate_model
+from texlate.server.validate import (
+    validate_base_url,
+    validate_dialect,
+    validate_model,
+)
 from texlate.textutil import env_raw
 from texlate.xlat.client import (
     DEFAULT_BASE_URL,
@@ -53,6 +61,65 @@ def env_model() -> str:
     """
     v = env_raw("TEXLATE_MODEL")
     return validate_model(v) if v else ""
+
+
+def env_dialect() -> str:
+    """``TEXLATE_DIALECT`` env 兜底——非空值过 ``validate_dialect``（同 env_model 口径）。"""
+    v = env_raw("TEXLATE_DIALECT")
+    return validate_dialect(v) if v else ""
+
+
+@dataclass(frozen=True, slots=True)
+class _ByokField:
+    """BYOK 单字段决议知识单源——请求头/env/settings 三面同源。
+
+    ``env`` 读件签名 ``(base_url) -> str``——入参是已决议端点（仅
+    ``api_key`` 的 provider 兜底链消费；其余字段的 env 与端点无关，入参
+    忽略）。``validate=None`` 仅 ``api_key``：key 是自由形，任何形态都
+    原样透传不校验。
+    """
+
+    attr: str  # ``AuthContext`` 属性名
+    header: str  # ``X-Texlate-*`` 请求头名（小写——starlette Headers 大小写不敏感）
+    env: Callable[[str], str]
+    settings_key: str  # ``settings.json`` 键名（connections 分槽键同源）
+    validate: Callable[[str], str] | None
+    default: str
+
+
+#: BYOK 字段表——deps 请求头读取、``resolve_auth`` 逐项回落、settings
+#: ``_MODEL_PROBE_FIELDS``/connections 分槽键集、app CORS
+#: ``allow_headers`` 全部由本表派生；字段增删只改这里。
+BYOK_FIELDS: tuple[_ByokField, ...] = (
+    _ByokField("api_key", "x-texlate-key", env_key_for, "api_key", None, ""),
+    _ByokField(
+        "base_url",
+        "x-texlate-base-url",
+        lambda _url: env_base_url(),
+        "base_url",
+        validate_base_url,
+        DEFAULT_BASE_URL,
+    ),
+    _ByokField(
+        "model",
+        "x-texlate-model",
+        lambda _url: env_model(),
+        "model",
+        validate_model,
+        DEFAULT_MODEL,
+    ),
+    _ByokField(
+        "dialect",
+        "x-texlate-dialect",
+        lambda _url: env_dialect(),
+        "dialect",
+        validate_dialect,
+        "auto",
+    ),
+)
+
+#: ``BYOK_FIELDS`` 按 ``attr`` 的索引——``resolve_auth`` 逐字段取 spec。
+_BYOK_SPEC = {spec.attr: spec for spec in BYOK_FIELDS}
 
 
 #: ``server_salt`` 首调序列化（进程内）；跨进程由 ``O_EXCL`` 原子创建兜。
@@ -116,9 +183,30 @@ class AuthContext:
     api_key: str = ""
     base_url: str = DEFAULT_BASE_URL
     model: str = DEFAULT_MODEL
+    dialect: str = "auto"
     source: str = "none"
     tenant: str = "local"
     settings: dict[str, Any] = field(default_factory=dict)
+
+
+def _resolve_field(
+    spec: _ByokField,
+    header_value: str,
+    settings: dict[str, Any],
+    base_url: str = "",
+) -> str:
+    """非 key 字段三级回落：header > env > settings（逐项独立）。
+
+    env 值统一再过一遍 ``spec.validate``——``env_base_url`` 裸读不自校验；
+    ``env_model``/``env_dialect`` 已自校验，``validate_*`` 幂等重跑无副作用。
+    """
+    assert spec.validate is not None  # noqa: S101 -- api_key 专径不走本臂，表内约定
+    if header_value:
+        return spec.validate(header_value)
+    env = spec.env(base_url)
+    if env:
+        return spec.validate(env)
+    return str(settings.get(spec.settings_key) or spec.default)
 
 
 def tenant_for(api_key: str, *, mode: str, salt: str) -> str:
@@ -131,16 +219,18 @@ def tenant_for(api_key: str, *, mode: str, salt: str) -> str:
     return "k_" + hashlib.sha256((api_key + salt).encode()).hexdigest()[:12]
 
 
-def resolve_auth(  # noqa: PLR0913 -- header/base_url/model/mode/salt 即决议面
+def resolve_auth(  # noqa: PLR0913 -- header 四槽/headers/mode/salt 即决议面
     settings: dict[str, Any],
     *,
     header_key: str = "",
     header_base_url: str = "",
     header_model: str = "",
+    header_dialect: str = "",
+    headers: Mapping[str, str] | None = None,
     mode: str = "local",
     salt: str = "",
 ) -> AuthContext:
-    """三级回落：header > settings > env（每项独立回落，texglot 同款）。
+    """逐项独立回落：``api_key`` 走 header > settings > env；其余字段走 header > env > settings。
 
     ``auth_source`` 由 key 的来源决定（key 才是重启续跑的关键物）；
     header key 校验失败后不落 settings 兜底——显式覆盖语义。
@@ -151,22 +241,32 @@ def resolve_auth(  # noqa: PLR0913 -- header/base_url/model/mode/salt 即决议�
     凭证只回灌给自己的槽位（settings key ↔ settings.base_url、env key
     ↔ env 端点）；异槽一律匿名——防本地任意进程把部署方 key 引到
     自选端点（exfil oracle）。
+    ``headers`` 是请求头面（deps 直传 ``request.headers``）——查名按
+    ``BYOK_FIELDS`` 单源；给定时覆盖全部 ``header_*`` kwarg，kwarg 面
+    保留给单字段直调/测试。
     """
-    base_url = str(settings["base_url"] or DEFAULT_BASE_URL)
-    env_url = env_base_url()
-    if not header_base_url and env_url:
-        base_url = validate_base_url(env_url)
-    if header_base_url:
-        base_url = validate_base_url(header_base_url)
+    if headers is not None:
+        header_in = {
+            spec.attr: str(headers.get(spec.header) or "") for spec in BYOK_FIELDS
+        }
+    else:
+        header_in = {
+            "api_key": header_key,
+            "base_url": header_base_url,
+            "model": header_model,
+            "dialect": header_dialect,
+        }
+    url_spec = _BYOK_SPEC["base_url"]
+    base_url = _resolve_field(url_spec, header_in["base_url"], settings)
+    env_url = url_spec.env("")
+    model = _resolve_field(_BYOK_SPEC["model"], header_in["model"], settings, base_url)
+    dialect = _resolve_field(
+        _BYOK_SPEC["dialect"], header_in["dialect"], settings, base_url
+    )
 
-    model = settings["model"] or DEFAULT_MODEL
-    if header_model:
-        model = validate_model(header_model)
-    elif env_model():
-        model = env_model()
-
-    if header_key:
-        api_key, source = header_key, "header"
+    key_spec = _BYOK_SPEC["api_key"]
+    if header_in["api_key"]:
+        api_key, source = header_in["api_key"], "header"
     elif mode == "server":
         api_key, source = "", "none"
     else:
@@ -175,23 +275,24 @@ def resolve_auth(  # noqa: PLR0913 -- header/base_url/model/mode/salt 即决议�
         # settings.base_url 时放行，env key 只在复指 env 端点时放行；
         # 异槽 → 匿名。否则本地任意可发请求的进程都能把部署方 key
         # 引到攻击者端点（settings_test「覆盖 base_url 须同给 key」同口径）。
-        settings_ok = not header_base_url or base_url == normalize_base_url(
-            str(settings["base_url"] or DEFAULT_BASE_URL)
+        settings_ok = not header_in["base_url"] or base_url == normalize_base_url(
+            str(settings.get(url_spec.settings_key) or url_spec.default)
         )
-        env_ok = not header_base_url or (
+        env_ok = not header_in["base_url"] or (
             bool(env_url) and base_url == validate_base_url(env_url)
         )
         api_key, source = "", "none"
-        if settings_ok and settings.get("api_key"):
-            api_key, source = str(settings["api_key"]), "settings"
+        if settings_ok and settings.get(key_spec.settings_key):
+            api_key, source = str(settings[key_spec.settings_key]), "settings"
         elif env_ok:
-            api_key = env_key_for(base_url)
+            api_key = key_spec.env(base_url)
             source = "env" if api_key else "none"
 
     return AuthContext(
         api_key=api_key,
         base_url=base_url,
         model=model,
+        dialect=dialect,
         source=source,
         tenant=tenant_for(api_key, mode=mode, salt=salt),
         settings=settings,

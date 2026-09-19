@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any
 from texlate.arxiv.fetch import normalize_arxiv_id
 from texlate.pipecore import ran_front_matter
 from texlate.server.settings import share_dir
+from texlate.server.store import row_json
 from texlate.share import (
     ShareError,
     glossary_content_hash,
@@ -421,18 +422,8 @@ class _Share:
         base, ver = normalize_arxiv_id(str(row.get("arxiv_id") or ""))
         if not base:
             return None
-        try:
-            cfg = json.loads(str(row.get("config_json") or "{}"))
-            if not isinstance(cfg, dict):
-                cfg = {}
-        except json.JSONDecodeError:
-            cfg = {}
-        try:
-            opts = json.loads(str(row.get("options_json") or "{}"))
-            if not isinstance(opts, dict):
-                opts = {}
-        except json.JSONDecodeError:
-            opts = {}
+        cfg = row_json(row, "config_json")
+        opts = row_json(row, "options_json")
         return {
             "arxiv_id": base,
             "version": f"v{ver}" if ver is not None else "",

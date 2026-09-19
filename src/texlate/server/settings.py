@@ -1,7 +1,9 @@
 """BYOK 与本地设置层（web-layer.md §4）。
 
-key 入口优先级（高→低）：请求头 ``X-Texlate-*`` > ``settings.json``（0600）
-> 环境变量。key 只进内存任务对象，绝不进 tasks/files/日志；``tenant`` 用
+``api_key`` 入口优先级（高→低）：请求头 ``X-Texlate-*`` > ``settings.json``
+（0600）> 环境变量；``base_url``/``model``/``dialect`` 走 header > env >
+settings——env 是操作员逃生舱，不落盘即可整端覆盖。key 只进内存任务
+对象，绝不进 tasks/files/日志；``tenant`` 用
 ``sha256(key+server_salt)[:12]`` 指纹隔离（单机模式恒 ``local``）。
 
 四关切拆叶（本文件留 SettingsStore 本体与字段 spec 单源）：
@@ -41,9 +43,11 @@ if TYPE_CHECKING:
 
 from texlate.server.auth import (  # noqa: F401 -- auth 关切出叶，属性面守恒
     _SALT_LOCK,
+    BYOK_FIELDS,
     SALT_FILE,
     AuthContext,
     env_base_url,
+    env_dialect,
     env_key_for,
     env_model,
     resolve_auth,
@@ -66,10 +70,11 @@ from texlate.server.validate import (  # noqa: F401 -- 边界校验出叶
     MODEL_MAX_LEN,
     _is_plaintext_ok_host,
     validate_base_url,
+    validate_dialect,
     validate_model,
 )
 from texlate.textutil import data_root, env_flag, env_raw, env_str
-from texlate.xlat.client import DEFAULT_BASE_URL, DEFAULT_MODEL
+from texlate.xlat.client import API_DIALECTS, DEFAULT_BASE_URL, DEFAULT_MODEL
 from texlate.xlat.state import atomic_json
 
 log = logging.getLogger(__name__)
@@ -100,8 +105,18 @@ COMPILE_TIMEOUT_MAX_S = 86400.0
 #: 探活清单 TTL——同 endpoint 连续 ``save`` 不重复打 ``/models``
 _MODEL_PROBE_CACHE_TTL_S = 20.0
 
-#: ``save`` 里触发模型可用性重估的字段（凭证/端点/模型任一变更才可能改变可达性）
-_MODEL_PROBE_FIELDS = frozenset({"base_url", "model", "api_key", "clear_api_key"})
+#: ``save`` 里触发模型可用性重估的字段（凭证/端点/模型/方言任一变更才可能
+#: 改变可达性）——BYOK 槽位由 ``BYOK_FIELDS`` 单源派生 + ``clear_api_key``
+#: 写径动词
+_MODEL_PROBE_FIELDS = frozenset(
+    {spec.settings_key for spec in BYOK_FIELDS} | {"clear_api_key"}
+)
+
+#: ``connections.json`` 分槽值键集——``base_url`` 是槽主键不进值面；与
+#: ``BYOK_FIELDS`` 同源，加 BYOK 字段自动进槽
+_CONNECTION_SLOTS = tuple(
+    spec.settings_key for spec in BYOK_FIELDS if spec.attr != "base_url"
+)
 
 
 def data_dir() -> Path:
@@ -385,6 +400,12 @@ _FIELD_SPECS: tuple[_FieldSpec, ...] = (
         lambda v: _load_str(v, DEFAULT_MODEL),
         lambda v: validate_model(str(v)),
     ),
+    _FieldSpec(
+        "dialect",
+        str,
+        lambda v: _load_enum(v, API_DIALECTS, "auto"),
+        _check_enum("dialect", API_DIALECTS),
+    ),
     _FieldSpec("api_key", str, lambda v: _load_str(v, ""), None),
     _FieldSpec(
         "target_lang",
@@ -468,7 +489,8 @@ def _normalize_updates(values: dict[str, Any]) -> None:
 class SettingsStore:
     """``settings.json``（0600）+ ``connections.json`` 分槽 key 池。
 
-    ``connections.json`` 按 base_url 分槽存 ``{api_key, model}``——切
+    ``connections.json`` 按 base_url 分槽存 ``{api_key, model, dialect}``
+    （槽键集 ``_CONNECTION_SLOTS`` 由 ``BYOK_FIELDS`` 派生）——切
     endpoint 时各自的 key 都能找回（texglot 模式）。settings 本体不落
     key 进日志/出参；``public()`` 只给 ``has_api_key``。
     """
@@ -557,15 +579,19 @@ class SettingsStore:
             merged["api_key"] = (
                 self.connections().get(str(merged["base_url"]), {}).get("api_key") or ""
             )
+        if "dialect" not in values and merged["base_url"] != old["base_url"]:
+            # 换 endpoint 未带 dialect → 找回新槽位历史值（缺槽归 auto）——
+            # 方言是端点属性，残留旧值会把 openai 请求打向 responses-only 端点
+            merged["dialect"] = (
+                self.connections().get(str(merged["base_url"]), {}).get("dialect")
+                or "auto"
+            )
         if clear_key:
             merged["api_key"] = ""
         conns = self.connections()
         for cfg in (old, merged):
             conns.pop(cfg["base_url"], None)
-            conns[cfg["base_url"]] = {
-                "api_key": cfg["api_key"],
-                "model": cfg["model"],
-            }
+            conns[cfg["base_url"]] = {slot: cfg[slot] for slot in _CONNECTION_SLOTS}
         # 预检：任一值不可 UTF-8 编码（孤 surrogate）时 atomic_json 会在
         # connections 已写、settings 未写之间炸 → 文件对半更新。先序列化
         # 探雷，炸了按非法更新处理，磁盘零写。
@@ -591,7 +617,7 @@ class SettingsStore:
         return merged
 
     def connections(self) -> dict[str, dict[str, str]]:
-        """``connections.json`` → ``{base_url: {api_key, model}}``。"""
+        """``connections.json`` → ``{base_url: {api_key, model, dialect}}``。"""
         if not self.connections_path.exists():
             return {}
         try:

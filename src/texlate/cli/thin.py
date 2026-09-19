@@ -43,6 +43,7 @@ def _thin_run(  # noqa: C901, PLR0911, PLR0913 -- 与 run 的 --server 选项面
     model: str | None,
     api_key: str | None,
     base_url: str | None,
+    dialect: str | None,
     out: Path | None,
     wait: float,
     front_matter: frozenset[str] | None = None,
@@ -67,6 +68,8 @@ def _thin_run(  # noqa: C901, PLR0911, PLR0913 -- 与 run 的 --server 选项面
         headers["x-texlate-key"] = api_key
     if base_url:
         headers["x-texlate-base-url"] = base_url
+    if dialect:
+        headers["x-texlate-dialect"] = dialect
     opts: dict[str, object] = {"engine": engine}
     if front_matter is not None:
         # 显式三键 dict——未列名 = 关（不落服务端缺省，CLI 白名单语义）

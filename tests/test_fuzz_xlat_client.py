@@ -596,24 +596,32 @@ class TestSseEvents:
         events = asyncio.run(collect())
         assert [e.delta for e in events if e.kind == "content"] == ["a", "b"]
 
-    def test_stream_dialect_ignored_observed(self) -> None:
-        """观测语义：``chat_stream`` 恒走 OpenAI 方言——anthropic client 也
-        打 ``/v1/chat/completions`` + Bearer 头（docstring 已声明仅 OpenAI）。"""
+    def test_stream_dialect_routed(self) -> None:
+        """``chat_stream`` 按生效方言路由——anthropic client 打 ``/v1/messages``
+        + ``x-api-key``，消费 anthropic SSE 事件族（不再恒走 OpenAI 方言）。"""
         reqs: list[httpx.Request] = []
 
         def handler(r: httpx.Request) -> httpx.Response:
             reqs.append(r)
-            return httpx.Response(200, content=b"data: [DONE]\n\n")
+            sse = (
+                b'data: {"type":"content_block_delta","delta":'
+                b'{"type":"text_delta","text":"hi"}}\n\n'
+                b'data: {"type":"message_stop"}\n\n'
+            )
+            return httpx.Response(200, content=sse)
 
         c = _mock(handler, base_url=_ANTHROPIC)
 
         async def collect() -> list[cl.StreamEvent]:
             return [ev async for ev in c.chat_stream("m", _MSGS)]
 
-        asyncio.run(collect())
-        assert reqs[0].url.path == "/v1/chat/completions"
-        assert reqs[0].headers["authorization"] == f"Bearer {_KEY}"
-        assert "x-api-key" not in reqs[0].headers
+        events = asyncio.run(collect())
+        assert reqs[0].url.path == "/v1/messages"
+        assert reqs[0].headers["x-api-key"] == _KEY
+        assert "authorization" not in reqs[0].headers
+        assert json.loads(reqs[0].content)["stream"] is True
+        assert [e.delta for e in events if e.kind == "content"] == ["hi"]
+        assert events[-1].kind == "done"
 
 
 # ---------------------------------------------------------------- _parse_openai / _parse_anthropic
@@ -1442,14 +1450,17 @@ class TestProbeFuzz:
             assert fm.probe_latency_s >= 0
             if status != 200:  # noqa: PLR2004
                 assert not fm.probe_ok
-                assert fm.probe_error == f"HTTP {status}"
+                # probe 复用 _chat_once——错误是 classify_status 口径带 body 摘要
+                assert fm.probe_error.startswith(f"HTTP {status}:")
             elif fm.probe_ok:
-                # oracle：content 非空白 ∧ finish ∈ {None, "stop"}
+                # oracle：content 非空白 ∧ finish 归一后 ∈ {"", stop, end_turn,
+                # stop_sequence}（_parse_openai `or ""` 归一 + probe 接受集）
                 choices = payload.get("choices")
                 ch = choices[0] if isinstance(choices, list) and choices else {}
                 content = (ch.get("message") or {}).get("content") or ""
                 assert content.strip()
-                assert ch.get("finish_reason") in (None, "stop")
+                fin = ch.get("finish_reason") or ""
+                assert fin in ("", "stop", "end_turn", "stop_sequence")
             else:
                 assert fm.probe_error
 

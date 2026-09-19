@@ -54,12 +54,13 @@ class AppDeps:
     ip_quota: OrderedDict[str, list[int]] = field(default_factory=OrderedDict)
 
     def auth(self, request: Request) -> AuthContext:
-        """Header > settings > env 三级决议（§4.1）；非法 header 值 → 400。
+        """BYOK 逐项决议（§4.1）：key 走 header > settings > env，其余 header > env > settings；非法 header 值 → 400。
 
-        每请求缓存到 ``request.state``：一次请求内 header 与 settings
-        快照都不变，而 ``load()`` 每次都读盘解析——translate 单链决议
-        3+ 次（model 回落/cache_key/_create_and_enqueue），缓存只读
-        一次。失败不缓存（重试同路径重炸 400）。
+        头面直传 ``request.headers``——查名按 ``BYOK_FIELDS`` 单源，本层
+        不再枚举 ``X-Texlate-*`` 字面量。每请求缓存到 ``request.state``：
+        一次请求内 header 与 settings 快照都不变，而 ``load()`` 每次都
+        读盘解析——translate 单链决议 3+ 次（model 回落/cache_key/
+        _create_and_enqueue），缓存只读一次。失败不缓存（重试同路径重炸 400）。
         """
         cached = getattr(request.state, "auth_ctx", None)
         if isinstance(cached, AuthContext):
@@ -67,9 +68,7 @@ class AppDeps:
         try:
             auth = resolve_auth(
                 self.settings_store.load(),
-                header_key=request.headers.get("x-texlate-key", ""),
-                header_base_url=request.headers.get("x-texlate-base-url", ""),
-                header_model=request.headers.get("x-texlate-model", ""),
+                headers=request.headers,
                 mode=server_mode(),
                 salt=self.salt,
             )
@@ -88,12 +87,7 @@ class AppDeps:
     def secrets_for(self, request: Request, row: dict[str, Any]) -> Secrets:
         """重决议凭证 → 内存 ``Secrets``（retry/enqueue 用）。"""
         auth = self.auth(request)
-        return Secrets(
-            api_key=auth.api_key,
-            base_url=auth.base_url,
-            model=str(row["model"]),
-            source=auth.source,
-        )
+        return Secrets.from_auth(auth, model=str(row["model"]))
 
     def check_quota(
         self, auth: AuthContext, incoming_bytes: int, peer: str = ""
@@ -292,11 +286,6 @@ class AppDeps:
             )
         self.runner.enqueue(
             tid,
-            Secrets(
-                api_key=auth.api_key,
-                base_url=auth.base_url,
-                model=model,
-                source=auth.source,
-            ),
+            Secrets.from_auth(auth, model=model),
         )
         return row, 202, {"cache": "miss"}

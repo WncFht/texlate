@@ -215,9 +215,14 @@ def _doc_gateway() -> _Check:
         DEFAULT_BASE_URL,
         SettingsStore,
         env_base_url,
+        env_dialect,
         env_key_for,
+        validate_dialect,
     )
-    from texlate.xlat.client import normalize_base_url  # noqa: PLC0415
+    from texlate.xlat.client import (  # noqa: PLC0415
+        dialect_for_url,
+        normalize_base_url,
+    )
 
     store = SettingsStore(toolchain.data_root())
     raw = _doc_settings_raw(store)
@@ -233,8 +238,24 @@ def _doc_gateway() -> _Check:
             "（或 TEXLATE_BASE_URL/TEXLATE_API_KEY）",
         )
     base_url = normalize_base_url(base_url or DEFAULT_BASE_URL)
+    # env > settings（同 resolve_auth 序）——非 openai 方言的 /v1/models
+    # 缺席属端点形态而非配置坏，输出要带方言语境才不误诊
+    try:
+        dialect = env_dialect() or validate_dialect(str(raw.get("dialect") or "auto"))
+        eff = dialect_for_url(base_url, dialect)
+    except ValueError as e:
+        return _Check("gateway", "warn", f"dialect 配置非法：{e}")
+    tag = f"，dialect={eff}" if eff != "openai" else ""
     url = f"{base_url}/v1/models"
-    headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+    if api_key:
+        # 鉴权头随生效方言：anthropic 走 x-api-key，openai/responses 走 Bearer
+        headers = (
+            {"x-api-key": api_key}
+            if eff == "anthropic"
+            else {"Authorization": f"Bearer {api_key}"}
+        )
+    else:
+        headers = {}
     try:
         r = httpx.get(
             url,
@@ -253,14 +274,19 @@ def _doc_gateway() -> _Check:
         if isinstance(data, dict) and isinstance(data.get("data"), list):
             n = f"，{len(data['data'])} models"
         suffix = "" if api_key else "（无 key 探活）"
-        return _Check("gateway", "ok", f"GET {url} → {r.status_code}{n}{suffix}")
+        return _Check("gateway", "ok", f"GET {url} → {r.status_code}{n}{suffix}{tag}")
     if r.status_code in (HTTPStatus.UNAUTHORIZED, HTTPStatus.FORBIDDEN):
         return _Check(
             "gateway",
             "warn",
-            f"GET {url} → {r.status_code}——网关可达但鉴权被拒，查 BYOK key",
+            f"GET {url} → {r.status_code}——网关可达但鉴权被拒，查 BYOK key{tag}",
         )
-    return _Check("gateway", "warn", f"GET {url} → {r.status_code}")
+    hint = (
+        "——该方言端点可能本就不提供 /v1/models，能翻译即配置无恙"
+        if eff != "openai"
+        else ""
+    )
+    return _Check("gateway", "warn", f"GET {url} → {r.status_code}{tag}{hint}")
 
 
 def _doc_data_dir() -> _Check:
