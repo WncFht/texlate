@@ -202,6 +202,23 @@ REDLINES: Final[tuple[RedLine, ...]] = (
             r"thm-restate\.sty|Package: thm-restate\b",
         ),
     ),
+    RedLine(
+        id="upstream_asset_absent",
+        # 上游资产缺席（known-limitation 概念行，零层切片）：文档引用而
+        # arXiv e-print tarball 根本没 ship 的图档——singlesweep mech_buckets
+        # 21 格实证（``fig/plot2 (1).png``/``Figs/tikz_two_event.pdf`` 等
+        # payload，``missing_graphic|<path>`` 签名 + tarball 清单核对归因，
+        # bucket 名 ``upstream-asset-absent``）。构造上不可修：任何 fixloop
+        # arm 都变不出上游从未 ship 的字节——占位图出残页即诚实上限。
+        # 各层不挂的判据：log 面信号与可修 missing_graphic（路径打错、改名
+        # 漂移、ext 不匹配）逐字节同形，无任何行级 pattern 能切出本子集；
+        # 真·判据 = e-print 清单核对（source/offline 介质），不属任一层
+        # log regex 语义（judge LayerSpec 语义=log regex，同 restatable_loss
+        # 行注——源面信号不入本表）。登记只为归因面留概念锚点：
+        # ``REDLINES_BY_ID`` 供 census/bucket 报告引 id，对
+        # ENGINE_RED_LINES/RULES_WARNINGS/L2_* 切片零贡献（``is not None``
+        # 过滤天然豁免）。
+    ),
 )
 
 REDLINES_BY_ID: Final[dict[str, RedLine]] = {r.id: r for r in REDLINES}
