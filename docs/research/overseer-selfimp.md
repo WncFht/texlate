@@ -1702,3 +1702,8 @@
 - **dispatch ×2 → roster 10**：vboxcheck（sentry:vbox_flood 零记录——死臂/不可达门/正确静默三判）+ refclean（hintord 旗的 ~1241 clean-verdict unresolved-refs 普查——doc-native vs transient 分桶，喂 warn-verdict 裁决）。
 - **门**：HEAD=d4886a16；ruleset 174；clean%/sabotage 待 flipcheck-12（mutex：mathbd/extless/drvstage impl 在飞）。
 - **singles4 终判交付后收**（tick 内追记）：13 格分诊——covered 3（1706.00066 → wave-13 replay-confirm；1706.02744 = cs_targeted_fix 未发的 dispatch-gap）、truly-uncovered 6 单 → **csfix8 bundle impl 派出**（@nil ctex zihao=false opt strip / bar·inputencoding·\red cs_table / cref@section aux-purge cleveref 门 / \+ gobble-或-decline）；needs-census 2401.01624 `\I` splice 侧先查入队；2105.03751 已裁决（ctrerr 单格 redlines 行已落）；decline quant-ph/0307189（normalize confusables 层）；queue-B ~15 无新臂。roster 仍 10。
+
+### patrol ~07:20 — 心跳：无收割；roster 10 全在飞；overnite 1252/2822
+
+- 无新交付。mathbd 在飞实证：75-syntax.yaml worktree +115（Bundle A 三臂写作中）；其余 lanes 4-20min 龄正常爬坡。
+- **门**：HEAD=2f3fc576；ruleset 174；flipcheck-12 mutex 续持；共享 index 他家污染依旧（勿动）。
