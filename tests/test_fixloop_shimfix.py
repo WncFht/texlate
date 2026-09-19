@@ -110,7 +110,8 @@ def test_sortlist_polyfill_zero_raw_at(tmp_path: Path) -> None:
 
 def test_sortlist_polyfill_bbl_surface(tmp_path: Path) -> None:
     """bbl-2.8 面全收: sortlist/entry/name/list/field/strng/endentry/
-    verb/endverb/endsortlist + keyval 名解族。"""
+    verb/endverb/endsortlist + keyval 名解族 + blx@bbl@data scratch 指针
+    (真 ``\\entry`` 不设时 ``\\true``/``\\false`` ``\\csgappto`` 写经)。"""
     ctx = _ctx(tmp_path)
     ok, _ = _TARGETED(ctx, _Eng(), "sortlist", {})
     assert ok
@@ -126,6 +127,8 @@ def test_sortlist_polyfill_bbl_surface(tmp_path: Path) -> None:
         "\\def\\verb",
         "\\def\\endverb",
         "\\csname define@key\\endcsname",
+        "\\csname blx@bbl@data\\endcsname{blx@data@tlsv}",
+        "\\csname blx@data@tlsv\\endcsname{}",
         "\\tlsvverbdecide",
         "\\tlsvverbread",
         "\\tlsvnwalk",

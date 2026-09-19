@@ -53,6 +53,13 @@ if TYPE_CHECKING:
 #: 敏感, gobble 保编译不渲染)。``\keyw`` 同理须组内 gobble: biblatex
 #: ``\blx@bblstart`` 绑的 ``\keyw`` 展开 ``\abx@field@entrykey``, 该内部
 #: 名只在真 ``\entry`` 处理器下设 (live 实证 undefined_cs 级联)。
+#: ``\true``/``\false`` 同族但 gobble 不适用: ``\blx@bblstart`` 把它们
+#: ``\let`` 到 ``\blx@bbl@booltrue/false`` (biblatex.sty:9018-19),
+#: 其 ``\csgappto`` 写经 ``\blx@bbl@data`` —— 该 csname 指针宏由真
+#: ``\blx@bbl@entry`` 在自己组内 ``\edef`` (:8687), 我们的 gobble
+#: ``\entry`` 不设 → 组内补一个 scratch 指针 + 预建空目标宏,
+#: ``\csgappto`` 写入即被吸收, 对一切写经此指针的 handler 通吃
+#: (1706.02744 ``\true{moreauthor}`` 实证)。
 #: ``\ifx\csname`` 须 ``\expandafter`` 先展开 ``\csname`` —— ``\ifx``
 #: 不展开操作数, 裸写恒假 (守卫死码)。
 _SORTLIST_BBL_POLYFILL = r"""
@@ -132,6 +139,8 @@ _SORTLIST_BBL_POLYFILL = r"""
   \def\field##1##2{\tlsvfldemit{##1}{##2}}%
   \def\verb{\futurelet\tlsvnt\tlsvverbdecide}%
   \def\endverb{}%
+  \expandafter\def\csname blx@bbl@data\endcsname{blx@data@tlsv}%
+  \expandafter\def\csname blx@data@tlsv\endcsname{}%
 }%
 \expandafter\ifx\csname endsortlist\endcsname\relax
   \expandafter\def\csname endsortlist\endcsname{\par\endgroup}\fi
