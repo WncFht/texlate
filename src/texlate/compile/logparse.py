@@ -198,6 +198,16 @@ _ERRS_MAX = 32
 #: 评估序, 不被 syntax 族抢签。
 _PRE_LINES = 4
 
+#: 首错 ctx8 窗**之后**纳入 ``ErrReport.post`` 的行数——错误块的滞后
+#: 落盘签名: graphicx ``File `X' not found`` 的 ``I could not locate the
+#: file with any of these extensions:`` errhelp 恒居错误行 +8, 恰出 ctx8
+#: 右缘 (extless lane failmine4 9-cell 实录); ``l.N`` 回显行折行时 errhelp
+#: 可再后移 1-2 行, 6 行余量覆盖。仅 ``use_post: true`` 的 taxonomy
+#: 条目在 ``head + post`` 拼接 blob 上检索 (``classify_head`` 实现)——
+#: per-err ctx blob 不带 post (``err_candidates`` 面同 ``use_pre`` 先例:
+#: 扩展窗特征仅首错 ``classify()`` 可达)。
+_POST_LINES = 6
+
 #: 输入侧 byte-level 警告 id——警告行文件栈顶即肇事文件, 按产生者归因
 #: (``invalid_utf8`` 是读入字节告警; ``loginfo._scan_error_lines`` 同口径,
 #: 两侧共用 texlog 归因原语)。输出侧警告 (``missing_char`` 缺字形——栈顶
@@ -248,6 +258,12 @@ class ErrReport:
     #: 签名先于错误行落盘, 前向 ctx 窗够不着; taxonomy ``use_pre: true``
     #: 条目在 ``pre + head`` blob 上检索 (``classify_head(pre=...)``)。
     pre: str = ""
+    #: 首错 ctx8 窗**之后** ≤``_POST_LINES`` 行 (log 原序)——错误块滞后
+    #: 落盘签名 (graphicx ``I could not locate ... extensions:`` errhelp
+    #: 恒居错误行 +8, 恰出 ctx8 右缘) 由此可达; taxonomy ``use_post:
+    #: true`` 条目在 ``head + post`` blob 上检索
+    #: (``classify_head(post=...)``)。
+    post: str = ""
     n_bang: int = 0  # '!' 行总数
     tail: str = ""  # 末 30 行
     line_no: int | None = None  # ctx 内 l.N 行号
@@ -342,6 +358,9 @@ def parse_text(
                 rep.first = ev.err.head
                 rep.ctx = "\n".join(lines[ev.i : ev.i + CTX_LINES])
                 rep.pre = "\n".join(lines[max(0, ev.i - _PRE_LINES) : ev.i])
+                rep.post = "\n".join(
+                    lines[ev.i + CTX_LINES : ev.i + CTX_LINES + _POST_LINES]
+                )
                 rep.file_stack = [s for s in prev_stack if s]
                 rep.popped_files = [t for t in popped_hist if t is not None]
         if first_i is None:
@@ -609,7 +628,7 @@ class Taxonomy:
             if _is_runaway_output(rep.raw or rep.tail):
                 return "runaway_output", None
             return "timeout", None
-        head_hit = self.classify_head(rep.first, rep.ctx, pre=rep.pre)
+        head_hit = self.classify_head(rep.first, rep.ctx, pre=rep.pre, post=rep.post)
         if head_hit is not None:
             return self._tail_preempt(head_hit, rep)
         # —— 无 '!' 行: tail 段回溯 (交互式缺文件/Emergency) ——
@@ -625,7 +644,12 @@ class Taxonomy:
         return ("other" if rep.first else "clean"), None
 
     def classify_head(
-        self, first: str | None, ctx: str | None, *, pre: str | None = None
+        self,
+        first: str | None,
+        ctx: str | None,
+        *,
+        pre: str | None = None,
+        post: str | None = None,
     ) -> tuple[str | None, str | None] | None:
         """单条错误 (err 行 + ctx blob) 的 head-scope 分类 → (cat, pay); 无命中 → None。
 
@@ -637,13 +661,25 @@ class Taxonomy:
         true`` 的条目在 ``pre + head`` 拼接 blob 上检索——签名先于错误
         行落 log 的家族 (``No file X.fd.`` → NFSS 硬错) 由此可达; 其余
         条目保持 head-only, pre 行内宽词不扰既有评估序。
+
+        ``post`` = ctx8 窗之后的上下文 (``ErrReport.post``): 仅 ``use_post:
+        true`` 的条目在 ``head + post`` 拼接 blob 上检索——错误块的滞后
+        落盘签名 (graphicx ``File `X' not found`` 的 ``I could not locate
+        the file with any of these extensions:`` errhelp 恒居错误行 +8,
+        恰出 ctx8 右缘) 由此可达; 与 ``use_pre`` 同例, per-err 分类面
+        (``err_candidates``) 不带 post, 扩展窗特征仅首错 ``classify()``
+        可达。
         """
         if not first:
             return None
         head = first + ("\n" + ctx if ctx else "")
-        pre_head = (pre + "\n" + head) if pre else head
         for entry, pat in self.head:
-            m = pat.search(pre_head if entry.get("use_pre") else head)
+            blob = head
+            if pre and entry.get("use_pre"):
+                blob = pre + "\n" + blob
+            if post and entry.get("use_post"):
+                blob = blob + "\n" + post
+            m = pat.search(blob)
             if not m:
                 continue
             scan = _PAYLOAD_SCANS.get(str(entry.get("payload_scan") or ""))

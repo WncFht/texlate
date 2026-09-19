@@ -269,6 +269,154 @@ def test_warn_patterns_scanned() -> None:
             "other",
             None,
         ),
+        # ── 2026-09-20 extless lane (failmine4 9-cell): graphicx \Gin@i
+        # 对无扩展名 \includegraphics{X} 落 `File `X' not found.` (裸
+        # basename——前列 missing_file 臂要 \.ext 够不着, 原落 other)。
+        # 定证 = errhelp "I could not locate ... extensions:" 恒居错误行
+        # +8, 恰出 ctx8 → use_post 扩展窗。下行实录自 2501.01277
+        # (file-line 头 + l.N 回显折行, `...hics` 截断无完整 cs ——
+        # cs 旁证够不着, errhelp 是唯一定证; payload 带路径原样)。
+        (
+            (
+                "./introduction.tex:42: LaTeX Error: File `Figures/scope' not found.\n"
+                "\n"
+                "See the LaTeX manual or LaTeX Companion for explanation.\n"
+                "Type  H <return>  for immediate help.\n"
+                " ...\n"
+                "\n"
+                "l.42 ...hics[width=0.6\\columnwidth]{Figures/scope}\n"
+                "\n"
+                "I could not locate the file with any of these extensions:\n"
+                ".pdf,.png,.jpg,.eps\n"
+            ),
+            "missing_graphic",
+            "Figures/scope",
+        ),
+        # bang 头形态 (file-line 关掉的档) + l.N 回显完整 cs + errhelp。
+        (
+            (
+                "! LaTeX Error: File `fig1' not found.\n"
+                "\n"
+                "See the LaTeX manual or LaTeX Companion for explanation.\n"
+                "Type  H <return>  for immediate help.\n"
+                " ...\n"
+                "\n"
+                "l.42 \\includegraphics{fig1}\n"
+                "\n"
+                "I could not locate the file with any of these extensions:\n"
+                ".ps,.eps,.pstex\n"
+            ),
+            "missing_graphic",
+            "fig1",
+        ),
+        # PoSlogo 钩形态 (0812.0404 实录): \AtBeginDocument 装载缺失
+        # logo, l.N 回显 `\begin{document}` —— 回显无 graphic cs,
+        # errhelp 仍是定证。
+        (
+            (
+                "./proc_brauner.tex:303: LaTeX Error: File `PoSlogo' not found.\n"
+                "\n"
+                "See the LaTeX manual or LaTeX Companion for explanation.\n"
+                "Type  H <return>  for immediate help.\n"
+                " ...\n"
+                "\n"
+                "l.303 \\begin{document}\n"
+                "\n"
+                "I could not locate the file with any of these extensions:\n"
+                ".ps,.eps,.pstex\n"
+            ),
+            "missing_graphic",
+            "PoSlogo",
+        ),
+        # 参数折行截断形态 (2505.06480 实录): l.N 回显停在宏参数中段,
+        # 无 cs —— `fig:pipeline_abstract` 的 `:` 不触发 file:line 闸。
+        (
+            (
+                "./main_text.tex:68: LaTeX Error: File `01-abstract' not found.\n"
+                "\n"
+                "See the LaTeX manual or LaTeX Companion for explanation.\n"
+                "Type  H <return>  for immediate help.\n"
+                " ...\n"
+                "\n"
+                "l.68 ...tenna (green line)}{fig:pipeline_abstract}\n"
+                "\n"
+                "I could not locate the file with any of these extensions:\n"
+                ".pdf,.png,.jpg,.eps\n"
+            ),
+            "missing_graphic",
+            "01-abstract",
+        ),
+        # errhelp 缺席 (非 graphicx producer 或截断 log): l.N 回显的
+        # graphic cs 为同窗旁证 —— per-err err_candidates 面 (无 post)
+        # 也靠此支路。
+        (
+            (
+                "! LaTeX Error: File `plot-a' not found.\n"
+                "\n"
+                "See the LaTeX manual or LaTeX Companion for explanation.\n"
+                "Type  H <return>  for immediate help.\n"
+                " ...\n"
+                "\n"
+                "l.12 \\includegraphics{plot-a}\n"
+            ),
+            "missing_graphic",
+            "plot-a",
+        ),
+        # 保守面: 无 errhelp 且无 graphic cs 的 ext-less File-not-found
+        # (\lstinputlisting/\verbatiminput 型 producer 发不出 graphicx
+        # errhelp) → 维持 other|None, taxonfix GenericError 语义不扰。
+        (
+            (
+                "! LaTeX Error: File `snippet' not found.\n"
+                "\n"
+                "See the LaTeX manual or LaTeX Companion for explanation.\n"
+                "Type  H <return>  for immediate help.\n"
+                " ...\n"
+                "\n"
+                "l.30 \\lstinputlisting{snippet}\n"
+            ),
+            "other",
+            None,
+        ),
+        # tempered 前瞻闸: chunk1 (非图形 producer 短块) 不得跨后续错
+        # 误起点 (`:9: ` file:line 前缀/`Error:`/`File ` 三重闸) 借
+        # fig2 的证据 —— fig2 自有签名在位重命中, payload 归 fig2
+        # 而非 chunk1 即闸生效。
+        (
+            (
+                "! LaTeX Error: File `chunk1' not found.\n"
+                "l.5 \\usechunk{chunk1}\n"
+                "./main.tex:9: LaTeX Error: File `fig2' not found.\n"
+                "\n"
+                "See the LaTeX manual or LaTeX Companion for explanation.\n"
+                "Type  H <return>  for immediate help.\n"
+                " ...\n"
+                "\n"
+                "l.9 \\includegraphics{fig2}\n"
+                "\n"
+                "I could not locate the file with any of these extensions:\n"
+            ),
+            "missing_graphic",
+            "fig2",
+        ),
+        # 带扩展名 File-not-found + errhelp: 前列 missing_file 臂
+        # (\.[a-zA-Z0-9]+) 评估序先签 —— 既有 eps-strip 路由不扰。
+        (
+            (
+                "! LaTeX Error: File `plot.eps' not found.\n"
+                "\n"
+                "See the LaTeX manual or LaTeX Companion for explanation.\n"
+                "Type  H <return>  for immediate help.\n"
+                " ...\n"
+                "\n"
+                "l.7 \\includegraphics{plot}\n"
+                "\n"
+                "I could not locate the file with any of these extensions:\n"
+                ".ps,.eps\n"
+            ),
+            "missing_file",
+            "plot.eps",
+        ),
         ("! Something utterly bizarre", "other", None),
     ],
 )

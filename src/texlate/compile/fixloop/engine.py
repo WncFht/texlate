@@ -251,7 +251,9 @@ def _round_cat(
         if rep.first:
             # 洪前首错类追加 payload——runaway_output 标签不遮蔽底层可修
             # 机理（killsem2：2311.04163 洪上游是 fixable undefined_cs）。
-            head = rs.taxonomy.classify_head(rep.first, rep.ctx, pre=rep.pre)
+            head = rs.taxonomy.classify_head(
+                rep.first, rep.ctx, pre=rep.pre, post=rep.post
+            )
             if head is not None and head[0]:
                 pay += f"|{head[0]}"
         return "runaway_output", pay

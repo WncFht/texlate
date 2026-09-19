@@ -304,6 +304,31 @@ taxonomy:
       scope: head,
       pattern: "Unable to load picture or PDF file '([^']+)'|image inclusion failed for \"([^\"]+\\.(?:pdf|png|jpe?g))\"",
     }
+  # 2026-09-20 extless lane (failmine4 9-cell 实录: 0812.0404/0812.0413/
+  # 2501.01277/2501.01445/2502.00504/2504.06300/2504.06571/2504.06813/
+  # 2505.06480): \includegraphics{X}/\fig{..}{X} 无扩展名引用, 资产在所
+  # 有试扩名下缺席 → graphicx \Gin@i 经 \@latex@error 落
+  # `File `X' not found.` (裸 basename——前列 missing_file 臂要
+  # `\.[a-zA-Z0-9]+` 扩展名够不着, 原落 other|None 零规则可派发)。
+  # 图形证据 = errhelp `I could not locate the file with any of these
+  # extensions:` —— 仅 graphicx \Gin@i 错误路径落盘, 恒居错误行 +8
+  # (恰出 ctx8 右缘) → 走 use_post 扩展窗; l.N 回显行的 graphic cs
+  # (\includegraphics/\includepdf/\epsfig/\pgfimage) 为同窗旁证——
+  # PoSlogo 钩 (\AtBeginDocument 装载, l.N 回显 `\begin{document}`) 与
+  # 参数折行截断形态下回显无 cs, errhelp 仍是定证。无证据保守落 other:
+  # \lstinputlisting/\verbatiminput 型 ext-less producer 发不出该
+  # errhelp, taxonfix GenericError 语义不扰。tempered 前瞻禁跨后续错误
+  # 块借 errhelp (File `/Error:/! /file:line: 新错起点即截断)。带扩展名
+  # 的 File-not-found 恒被前列 missing_file 臂先签 (评估序), 本臂只见
+  # 裸名 → payload=basename 直供 graphic_missing_placeholder/
+  # graphics_ext_pslist_repair。
+  - {
+      id: missing_graphic,
+      scope: head,
+      payload_group: 1,
+      use_post: true,
+      pattern: "File `([^'\\n]+)' not found(?:(?!File `|Error:|! |:[0-9]+: )[\\s\\S]){0,1500}?(?:I could not locate the file with any of these extensions|\\\\includegraphics|\\\\includepdf|\\\\epsfig|\\\\pgfimage)",
+    }
   - {
       id: babel_opt,
       scope: head,
