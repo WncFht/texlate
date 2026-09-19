@@ -138,7 +138,7 @@ rules:
 
   # 新增 (docs/08:268): guard 只管赋值型; 读取型 \ifnum\pdfoutput 要补定义
   - id: pdftex_prim_polyfill
-    description: "读取型 pdfTeX 原语 (\\ifnum\\pdfoutput 等) → 前导注入 \\ifdefined..\\else\\chardef=1\\fi"
+    description: "pdfTeX 原语补定义 (读取型/取参型/fileset 外站点) → 前导注入 \\ifdefined..\\else<寄存器|吞参noop|chardef>\\fi"
     phase: loop
     order: 51 # 与 guard 同 trigger; dedup 后第二轮轮到它
     when: { category: pdftex_prim, payload_required: true }
@@ -150,6 +150,12 @@ rules:
         ## 弃守 (patch 不了看不见的件), polyfill 接住。写型站点由 arm
         ## 内 \newcount 形全真接管 (见 _PRIM_COUNTISH)。
         - { err_outside_fileset: true }
+        ## primarg 拓宽: fileset 内但 guard 包不到的取参站点 —— guard 两
+        ## 形只要 \prim= / \prim{, \pdfrefobj\thecolor 型 (prim+cs token,
+        ## spotcolor.sty:40 实证) 漏网; 源内见 \prim 即补定义, 吞参 noop
+        ## \ifdefined 幂等无害 (braced/赋值站点已被 guard 包过的不会回来
+        ## 报错; 回来即确有未包站点)。
+        - { source_contains: "\\\\{payload}(?![a-zA-Z@])" }
     action:
       kind: builtin_transform
       function: pdftex_prim_polyfill
