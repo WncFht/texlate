@@ -1718,3 +1718,9 @@
 - **primgap impl 派出**：_SLOTREV_EXTRA_RXS + `primgap` kind（19-cs 域 `\\(hbox|vbox|vtop|vadjust|insert|noalign|leaders|cleaders|xleaders|mark|uppercase|lowercase|message|errmessage|write|special|output|every\w+|toks)\s*([^{}\n]*?)\{`，printable-ASCII）+ _revert_file broadcast 回退；无 yaml 改（slot_arg_revert 乘 always:true precheck）。19815/20633 → wave-13 臂落后再 replay。
 - **门**：HEAD=1af6d7c8；ruleset 174；flipcheck-12 mutex 续持（mathbd/extless/drvstage/csfix8/primgap 在飞）；共享 index 他家污染依旧（勿动）。
 - **Roster 8**：mathbd(#311 收尾→#312 verify)、ctexbls、extless、drvstage、docsty、refclean、csfix8、primgap。
+
+### patrol ~08:55 — 心跳：无收割；roster 10 全在飞；overnite 1353/2822
+
+- 无新 run.log/交付。lane 实证爬坡正常：drvstage probe4 复现中（xdvipdfmx 路）、csfix8 texput 探针、refclean 普查脚本就位、ctexbls census 三联件落盘待终判；mathbd 75-syntax +115 worktree 持续。
+- **dispatch ×2（上 tick 末）→ roster 10**：splicechk（2401.01624 `\I` splice 侧查证——cs_table polyfill 前先证 splice 无损）、auxeof34（34 格 aux_scan_eof 分桶——全 dispatch-gap vs 藏真族）。
+- **门**：HEAD=404976f3；ruleset 174；flipcheck-12 mutex 续持（mathbd/extless/drvstage/csfix8/primgap impl 在飞）；共享 index 他家污染依旧（勿动）；无 teammate git 越权。
