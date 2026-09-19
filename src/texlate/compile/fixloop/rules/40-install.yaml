@@ -818,6 +818,38 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/lane-failmine4/report.md (fresh 15 格同质桶) + tmp/lane-aaaiguard/"
 
+  # 2026-09-20 docabsent lane (m1kcensus2 衍生, covgap-C #205 候选逐格复核):
+  # doc \input/\include 引用但 e-print 未带的 .tex 片段 —— fileset 真无件
+  # (relocate 够不到), filemap/vendor/shim 面亦无供 (非 CTAN 件)。两臂:
+  # (a) 版本缀漂移 sibling 唯一命中搬真件 (12step_dynamics_new↔
+  # 12step_dynamics, 2210.03294 —— 真内容优于 stub); (b) 解析位 minimal
+  # 空 stub —— 丢该段保其余, 优于整格 unfixable。闸内自证缺席
+  # (wdir 全树零命中才 stub); 瞬态扩展名拒 (.aux/.bbl = 上游病灶信号,
+  # stub 遮蔽真因 —— 2609.20323 main.aux 裁决沿); 非 .tex 让位
+  # (.cls/.sty 走 install/shim 域)。
+  - id: doc_absent_stub
+    mechanisms: [W19]
+    description: "doc 引用但 e-print 未带 .tex → 版本缀 sibling 唯一命中搬真件, 否则解析位空 stub"
+    phase: loop
+    order: 12.95 # 全真件臂后末位兜底: install(10)/vendored(11.5)/shim(12/12.9) 皆 decline 才 stub —— pst-tools.tex 实证 .tex payload 可以是真 CTAN 件
+    when: { category: missing_file, payload_required: true }
+    action:
+      kind: builtin_transform
+      function: doc_absent_stub
+      params: {}
+    risk: low # 空 stub 仅丢该 \input 段; sibling 救援限同目录唯一版本缀命中; 指纹闸不覆外来件; 瞬态件/非 .tex/逃逸名全让位
+    known_gap: "stub 段内宏定义 (其余段依赖的 \\newcommand) 缺席 → 下游 undefined_cs 转嫁 (诚实降级); 版本缀表外的纯改名漂移只能空 stub"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "m1k 2210.03294 (4Num_Example/12step_dynamics_new.tex e-print 未带, 同目录 12step_dynamics.tex 漂移件在)",
+          error: "File `4Num_Example/12step_dynamics_new.tex' not found — doc \\input 活引用, e-print 缺档",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-docabsent/ (covgap-C #205 候选复核: agent.tex=幻影 ref / fairmeta+Content=relocate 域 / main.aux=瞬态拒 / pst-tools.tex=CTAN install 域)"
+
   # fixable-data 裁定 (1003.2165): polutonikogreek 是弃名, greek.polutoniko
   # 亦走 locale/invalid/ 弃名桩必炸。现行 ini 正形是 `greek.polytonic`
   # (locale/el/babel-polytonicgreek.tex 自证 "Provided: greek.polytonic";

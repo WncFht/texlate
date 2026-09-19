@@ -674,7 +674,179 @@ def fileset_relocate(  # noqa: PLR0911 - 逐门 decline note 即归因
         return False, f"{fname}: copy failed ({e})"
     src_rel = src.relative_to(ctx.wdir).as_posix()
     dst_rel = target.relative_to(ctx.wdir).as_posix()
-    return True, f"relocated {src_rel} → {dst_rel}"
+    n_tree = _mirror_relocate_tree(ctx, rel, mp.parent, target)
+    note = f"relocated {src_rel} → {dst_rel}"
+    if n_tree:
+        note += f" (+{n_tree} tree files)"
+    return True, note
+
+
+def _mirror_tree_skip(
+    p: Path, pparts: tuple[str, ...], dst_top_res: Path, target_res: Path
+) -> bool:
+    """镜像源件逐项跳闸 —— 瞬态件/dot 段/目标自身/已处归位树内 (防递归)。"""
+    if any(part.startswith(".") for part in pparts):
+        return True
+    if p.suffix.lower() in _RELOCATE_TRANSIENT_EXTS or p.name.lower().endswith(
+        _RELOCATE_TRANSIENT_NAME_EXTS
+    ):
+        return True
+    pres = p.resolve()
+    if pres == target_res:
+        return True
+    try:
+        pres.relative_to(dst_top_res)
+    except ValueError:
+        return False
+    return True  # 已处归位树内 (嵌套镜像副本) —— 防 top/top/top 递归
+
+
+def _mirror_relocate_tree(
+    ctx: LoopCtx, rel: PurePosixPath, main_dir: Path, target: Path
+) -> int:
+    """Payload 顶层目录在 wdir 根成树 → 整树镜像到 ``<main_dir>/<top>/``。
+
+    doc 按 e-print 坐标引用同前缀整族件 (``Content/a.tex``/``Content/b.tex``
+    轮轮各缺一件) —— 逐轮一件归位烧轮次 (2609.20640 单件/轮 ×8 实证)。
+    首个 payload 归位成功后同树镜像一次铺全; ``main_dir`` 与 ``<top>``
+    同径时源恒在目标树下 → 全员跳过, 天然幂等。
+    """
+    if not rel.parent.parts:
+        return 0
+    top = rel.parts[0]
+    src_top = ctx.wdir / top
+    dst_top = main_dir / top
+    if not src_top.is_dir() or src_top.resolve() == dst_top.resolve():
+        return 0
+    try:
+        dst_top_res = dst_top.resolve()
+        dst_top_res.relative_to(ctx.wdir.resolve())
+    except ValueError:
+        return 0
+    target_res = target.resolve()
+    n = 0
+    for p in sorted(src_top.rglob("*")):
+        if not safe_is_file(p):
+            continue
+        pparts = p.relative_to(ctx.wdir).parts
+        if _mirror_tree_skip(p, pparts, dst_top_res, target_res):
+            continue
+        dst = dst_top / Path(*pparts[1:])
+        if safe_is_file(dst):
+            continue
+        try:
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(p, dst)
+            ctx.invalidate(dst)
+            n += 1
+        except OSError:
+            continue
+    return n
+
+
+# ════════════════════════════════════════════════════════════════
+# doc 引用但 e-print 未带的 .tex 片段 (m1kcensus2 衍生, covgap-C #205
+# 复核): fileset 真无件 + filemap/vendor 无供 → 版本缀 sibling 搬真件,
+# 否则解析位空 stub —— 丢该 \input 段保其余, 优于整格 unfixable。
+# ════════════════════════════════════════════════════════════════
+
+#: stem 尾部版本缀剥离形 —— ``12step_dynamics_new``→``12step_dynamics``
+#: (2210.03294: doc 活引用 ``_new`` 件, e-print 只带改名件)。
+_DOCABSENT_SUFFIX_RE = re.compile(
+    r"^(?P<base>.+?)[_-](?:new|old|orig|final|draft|updated?|backup|bak|v\d+)$",
+    re.IGNORECASE,
+)
+#: stem 加缀候选 —— doc 引旧名 e-print 带改名新件的反向漂移。
+_DOCABSENT_SUFFIXES = ("_new", "_old", "_final", "_draft", "-new", "-old", "_v2", "_v1")
+
+
+def _docabsent_sibling(ctx: LoopCtx, rel: PurePosixPath) -> Path | None:
+    """Payload stem ± 版本缀的同目录唯一命中件 → 搬真件候选。
+
+    搜索域 = ``wdir/<rel.parent>`` (e-print 坐标下同目录 —— sibling 语义
+    即「引用件应在的位置的旁枝」)。剥缀形与加缀形双向候选, 同名件按
+    文件名去重; 唯一文件名才返回 —— 多异名命中 = 版本族并存, 择一
+    搬运是猜, 让位空 stub。
+    """
+    stems = {rel.stem}
+    if m := _DOCABSENT_SUFFIX_RE.match(rel.stem):
+        stems.add(m.group("base"))
+    stems.update(rel.stem + s for s in _DOCABSENT_SUFFIXES)
+    stems.discard(rel.stem)  # 同名件归 relocate/fileset —— 这里只看漂移形
+    if not stems:
+        return None
+    base_dir = ctx.wdir / Path(*rel.parent.parts) if rel.parent.parts else ctx.wdir
+    if not base_dir.is_dir():
+        return None
+    hits: dict[str, Path] = {}
+    for p in base_dir.iterdir():
+        if (
+            safe_is_file(p)
+            and p.suffix.lower() == rel.suffix.lower()
+            and p.stem in stems
+        ):
+            hits.setdefault(p.name, p)
+    if len(hits) != 1:
+        return None
+    return next(iter(hits.values()))
+
+
+def doc_absent_stub(  # noqa: PLR0911 - 逐门 decline note 即归因
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""Doc 引用但 e-print 未带的 .tex → 版本缀 sibling 搬真件, 否则空 stub。
+
+    机理 (m1kcensus2, covgap-C #205 逐格复核): ``\input``/``\include``
+    目标在 e-print 里根本不存在 (作者本地件未打包/改名漂移) ——
+    relocate 够不到 (fileset 无件), install/vendored/shim 亦无供
+    (非 CTAN 件)。序在全真件臂后 (``pst-tools.tex`` 实证 .tex payload
+    可以是真 CTAN 件, stub 必须是缺席实锤后的末位兜底)。
+
+    两臂: (a) ``_docabsent_sibling`` 版本缀漂移唯一命中搬真件到解析位
+    (真内容优于 stub); (b) 空 stub 落 ``_resolve_site`` —— 丢该
+    ``\input`` 段保其余, 优于整格 unfixable。闸: 非 .tex 扩展名让位
+    (.cls/.sty 走 install/shim 域); 瞬态件拒 (.aux/.bbl 缺位 = 上游
+    病灶信号, stub 遮蔽真因 —— 2609.20323 main.aux 裁决沿); fileset
+    内有同名件 → False (relocate 域防御性复核, dispatch 序漂移时仍
+    安全); 外来同名件指纹闸不覆写。
+    """
+    del eng
+    fname = (payload or "").strip().strip("'\"")
+    rel = PurePosixPath(fname)
+    if not fname or rel.is_absolute() or ".." in rel.parts or "\x00" in fname:
+        return False, f"unsafe stub name {fname!r}"
+    if rel.suffix.lower() in _RELOCATE_TRANSIENT_EXTS or rel.name.lower().endswith(
+        _RELOCATE_TRANSIENT_NAME_EXTS
+    ):
+        return False, f"{fname}: transient artifact — not a source file"
+    exts = {str(e).lower() for e in (params.get("exts") or (".tex",))}
+    if rel.suffix.lower() not in exts:
+        return False, f"{fname}: not a doc-fragment ext"
+    target = _resolve_site(ctx, rel)
+    if target is None:
+        return False, f"{fname}: escapes wdir"
+    if safe_is_file(ctx.wdir / Path(*rel.parts)) or (
+        _find_relocate_src(ctx, rel) is not None
+    ):
+        return False, f"{fname}: present in fileset — relocate domain"
+    sib = _docabsent_sibling(ctx, rel)
+    if sib is not None and sib.resolve() != target.resolve():
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(sib, target)
+            ctx.invalidate(target)
+        except OSError as e:
+            return False, f"{fname}: sibling copy failed ({e})"
+        s_rel = sib.relative_to(ctx.wdir).as_posix()
+        d_rel = target.relative_to(ctx.wdir).as_posix()
+        return True, f"rename-rescue {s_rel} → {d_rel}"
+    body = f"% fixloop: doc-absent stub for {rel.name}\n"
+    # 指纹闸: 外来件/稿自带件永不覆写; 旧代注入 stub 覆写刷新。
+    done, _state = _inject_write(ctx, target, body, fname)
+    if done is not None:
+        # current/foreign/写败 —— 盘上已有(或写不进)则不占位, 交后续规则
+        return False, done[1] if not done[0] else f"{fname} already on disk"
+    return True, f"doc-absent stub {fname}"
 
 
 def shim_pkgs_in_use(ctx: LoopCtx, shim_map: dict[str, Any]) -> list[str]:
