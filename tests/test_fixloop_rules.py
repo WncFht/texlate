@@ -69,6 +69,9 @@ def test_phase_ordering() -> None:
         "subfile_docclass_strip",
         # shipclscen: 随源 .cls/.sty 内裸 \input X.sty → exact-restore @ 包裹
         "shipped_sty_input_wrap",
+        # slotrevert (#188): zh 化机位实参按 baseline 配对还原 —— 还原的
+        # \usepackage{真名} 供 static_precheck 装包扫描收
+        "slot_arg_revert",
         "static_precheck",
         # C5 (W58): arara/!TEX 注释指令收割殿后
         "build_directive_harvest",

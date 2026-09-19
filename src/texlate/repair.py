@@ -229,7 +229,7 @@ def run_precheck(
 
 
 def ruleset_with_baseline(baseline: Path) -> Ruleset:
-    """加载默认 ruleset 并把 ``baseline`` 注入 restore_support_from_src 的 params。
+    """加载默认 ruleset 并把 ``baseline`` 注入 baseline 消费型 transform 的 params。
 
     ``baseline_dir`` 是运行时路径（任务级 pristine base 树——worker 传
     ``ctx.base_dir``，e2e 传 ``_baseline_snapshot`` 的译前快照），
@@ -239,10 +239,10 @@ def ruleset_with_baseline(baseline: Path) -> Ruleset:
     rs = Ruleset.load()
     for rule in rs.rules:
         act = rule.raw.get("action") or {}
-        if (
-            act.get("kind") == "builtin_transform"
-            and act.get("function") == "restore_support_from_src"
-        ):
+        if act.get("kind") == "builtin_transform" and act.get("function") in {
+            "restore_support_from_src",
+            "slot_arg_revert",
+        }:
             act.setdefault("params", {})["baseline_dir"] = str(baseline)
     return rs
 

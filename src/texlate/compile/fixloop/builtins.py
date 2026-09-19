@@ -127,6 +127,9 @@ from texlate.compile.fixloop._builtins_shim import (
     svjour_clo_stub,
     undefined_env_polyfill,
 )
+from texlate.compile.fixloop._builtins_slotrev import (
+    slot_arg_revert,
+)
 from texlate.compile.fixloop._builtins_vendored import (
     _provides_date,
     _vendor_root,
@@ -229,6 +232,7 @@ __all__ = [
     "revtex_era_retire",
     "shim_pkgs_in_use",
     "shipped_sty_input_wrap",
+    "slot_arg_revert",
     "strip_inputenc",
     "subfile_docclass_strip",
     "svg_prepare",
@@ -323,4 +327,5 @@ TRANSFORM_FNS = {
     "para_longize": para_longize,
     "graphic_missing_placeholder": graphic_missing_placeholder,
     "subfile_docclass_strip": subfile_docclass_strip,
+    "slot_arg_revert": slot_arg_revert,
 }

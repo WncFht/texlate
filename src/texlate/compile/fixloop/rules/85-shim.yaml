@@ -75,6 +75,42 @@ rules:
     stats: { fires: 4, status: proposed }
     source_ref: "builtins.py restore_support_from_src (c47e844) + worker 挂点 (2f1daf5)"
 
+  # ── 2026-09-19 slotrevert lane (tmp/lane-zhleak + task#188) ──
+  # segmenter 把未注册机位实参 (csname 体/未注册 env 尾随参等) 放上
+  # chunk 翻译字面量面 → zh 化后 splice 写回机位 → "Undefined color
+  # '这是译文'"/"No counter"/"can't find file" 族 (~74 cells 历史签名)。
+  # builtin 用 judge._MACHINE_SLOT_RXS + 扩展表在 mask_tex 视图上定位
+  # 机位实参, 对 baseline_dir pristine 树逐文件 per-kind 序号对齐配对:
+  # baseline 参纯 ASCII 标识符 ∧ zh 参含 CJK ∧ 相异 → zh 参位换回
+  # baseline 字节。序在 shipped_sty_input_wrap(-0.5) 之后、
+  # static_precheck(0) 之前 —— 还原的 \usepackage{真名} 供装包扫描
+  # 收; 亦是 L2 resplice 后首个耐写入点 (早于它的改写会被 resplice
+  # 冲掉)。baseline_dir 缺席 (standalone precheck 不注入) → False
+  # 空转。双侧命中数分歧 → 该 kind 整跳防错位回写。
+  - id: slot_arg_revert
+    description: "zh 化机位实参 (csname/env 参/色名/计数名/kv/文件名等) → 按 baseline 配对还原 ASCII 标识符"
+    phase: precheck
+    order: -0.4 # shipped_sty_input_wrap(-0.5) 后, static_precheck(0) 前
+    when: { always: true }
+    condition:
+      # 零 CJK 树 (en 臂/未翻工程) 一条 raw 粗筛即空转省电; builtin 内
+      # mask_tex 遮盖视图 + baseline 配对是权威。
+      source_contains: "[\\u3400-\\u4dbf\\u4e00-\\u9fff\\uf900-\\ufaff\\u3007]"
+    action:
+      kind: builtin_transform
+      function: slot_arg_revert # params.baseline_dir 由调用侧注入 (ruleset_with_baseline)
+    risk: low # 双侧序号对齐 + ASCII ident 白名单 + CJK 谓词三重闸; 分歧即整 kind 跳
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same } # 源字节还原与引擎无关
+    provenance:
+      - {
+          corpus: "tmp/lane-zhleak census (~74 cells '这是译文' 族; 残余 csname/env-arg 6 cells)",
+          error: "Undefined color '这是译文' / No counter 'ZH' / can't find file 'ZH' (机位实参被 zh 化)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-zhleak/notes.md; judge.py _MACHINE_SLOT_RXS/_slot_args 配对机位面"
+
   # 新增 (fixloop-v2 整改): tectonic bundle 内建类太老遮蔽 —— 内置
   # aastex 5.0rc3.1 (1999) 缺 \actaa/deluxetable 宏族, missing_file 打不到
   # (bundle 能解析), 只能 undefined_cs 确证后往 wdir 注 stub 遮蔽换 emulateapj
