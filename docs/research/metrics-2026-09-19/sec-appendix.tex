@@ -11,29 +11,23 @@
   \item qualbench 评分由 LLM judge（swe-2-max）产出，contested 判例经第二 judge（swe-2-high）仲裁；judge 自身偏差未做人工标定，分数应读作相对分布而非绝对正确率。
 \end{itemize}
 
-\subsection{结果目录索引（2026-09-19 批）}
+\subsection{随档清单与原始产物索引}
+
+本报告自包含：所有图表由随档 \texttt{data/} 原始数据生成，引用源文档的时点快照在随档 \texttt{refs/}，不依赖本目录以外的路径。
 
 \begin{center}\small
-\begin{tabular}{@{}ll@{}}
+\begin{tabular}{@{}lp{10.6cm}@{}}
 \toprule
-臂 & \texttt{bench/results/} 目录 \\
+目录 & 内容 \\
 \midrule
-parsebench 全量 & \texttt{parsebench-v3-all-2026-09-19/} \\
-compilebench baseline & \texttt{compilebench-v3-2026-09-19/} \\
-compilebench zh & \texttt{compilebench-v3-zh-2026-09-19/} \\
-xlatbench 全层 & \texttt{xlatbench-v3all-2026-09-19/} \\
-qualbench & \texttt{qualbench-e2ereal-2026-09-19/report.md} \\
-e2e\_real & \texttt{e2e-real-v3-2026-09-19-*/}（n=24）、\texttt{e2e-real-v3b-*（n=60）} \\
-e2e\_mock & \texttt{e2e-mock-2026-09-19-2026-09-19/} \\
-alignbench & \texttt{alignbench-e2ereal-2026-09-19/} \\
-gullet & \texttt{gullet-v3-2026-09-19/} \\
-stagerun DAG & \texttt{stagerun-v3all-2026-09-19/records/} \\
-fixloop & \texttt{fixloop-corpusv2-2026-09-15/} \\
+\texttt{data/} & 五条时间线 CSV（scorecard / parse / corpus / rules-tests / qual-xlat）；\texttt{arms\_history.csv} 377 行评测流水（含各轮 run 目录名、样本量、头条读数）；\texttt{commits.json} 1{,}648 commit 全录；\texttt{milestones.md} D0--D5 大事记 \\
+\midrule
+\texttt{refs/} & \texttt{10-benchmark-suite.md}（评测器规格：七臂定义/门槛）；\texttt{09-benchmark-corpus.md}（语料规格：层构造/治理）；\texttt{PROTOCOL.md}（逐库横评协议）；\texttt{TIERS.md}（验证分层契约 L0--L3）；\texttt{corpus\_v3-MANIFEST.md}（层语义/EVAL\_ONLY）；\texttt{mechanisms.jsonl}（机制台账快照 263 条）；\texttt{00-grand-comparison.md}（8 库横评，D0 定案证据）；\texttt{bench-metrics-corpusv3-2026-09-19.md}（本批 Markdown 总表）；\texttt{review-2026-09-18.md} + \texttt{metrics-timeline.svg} + \texttt{assets-growth.svg}（上一期复盘）；\texttt{overseer-selfimp-snapshot.md}（车队台账 09-19 时点快照） \\
 \bottomrule
 \end{tabular}
 \end{center}
 
-配套文档：本批 Markdown 版总表 \texttt{docs/research/2026-09-19-bench-metrics-corpusv3.md}；上一期指标复盘 \texttt{docs/research/review-2026-09-18/README.md}（含 metrics-timeline.svg）；评测器规格 \texttt{docs/10-benchmark-suite.md}；语料规格 \texttt{docs/09-benchmark-corpus.md}；机制台账 \texttt{bench/corpus\_v3/mechanisms.jsonl}。
+各臂原始评测产物（编译工作区、译文 jsonl、PDF 中间件）为大体量文件不入档；溯源时按 \texttt{data/arms\_history.csv} 的 run 目录名在评测产物存档区查找对应轮次。
 
 \subsection{过程事故记录（评测工具链教训）}
 

@@ -1,15 +1,23 @@
 \section{失败归因图谱}
 \label{sec:failures}
 
+\subsection{解析侧失败面}
+
+全量 28{,}904 文件仅 1 个 parse 错误（语料源怪癖：伪装成 \texttt{.tex} 的 tar 包）与 1 个 identity diverged 文件——硬失败面已枯竭，残面转移为 warning 谱（不挡 parse 但值得跟踪的形态）：stray\_end 3{,}007、missing\_input 2{,}757、unpaired\_dollar 383、expand\_tail\_dropped 313、unclosed\_env 223、def\_parse\_fail 140、cite\_range\_key 62、env\_mismatch 27 等。leak 76 条命中构成 dollar$\times$75 + ref\_family$\times$1——dollar 族长尾未穷举（演化史见图~\ref{fig:parse}）。
+
 \subsection{编译侧失败类}
 
 e2e\_real n=60 的编译失败归因（图~\ref{fig:failclass} 左）：missing\_file$\times$7 与 missing\_graphic$\times$3 合计过半——语料源自身缺资产（arXiv e-print 打包不全），非管线引入；killed\_by\_signal$\times$3 为超时/资源类；driver\_fatal$\times$3 为引擎级崩溃。
 
-fixloop 救回矩阵（corpus\_v2 40 篇对照）：xelatex 34 个 FAIL 格救回 25（74\%），主力规则为 \texttt{install\_file}（14 触发，8 格出 pdf）、\texttt{install\_tfm}（12 触发，7 格）、\texttt{static\_precheck}（40 格全触发）；装包榜首位 subfigure.sty$\times$10、revtex4.cls$\times$9。tectonic 臂仅救 1/16——\textbf{eps\_route reject 是结构性死穴}（11 格全拒）：EPS 图源在 tectonic/xdvipdfmx 通路无解，唯一出路是路由 xelatex。另有 latex209\_reject 闸拦下 LaTeX2.09 古文 8 格（该类论文需 209$\to$2e 重写通道，非装包可救）。
+compilebench n=500 裸编译首错归因（fixloop F 命名）：xelatex 侧 \textbf{missing\_file$\times$94 居首}（代表 \texttt{psfig.sty}——古早宏包缺件）$>$ other$\times$48 $>$ driver\_fatal$\times$13；tectonic 侧 \textbf{ps\_image$\times$142 一家独大}（EPS 图源）。路由收益有实证：\texttt{eps/pstricks$\to$xel 优先}带 162 篇，xel 出 pdf 90/24/47 vs tec 4/22/135；\texttt{latex209\_suspect} 带 65 篇呈反向互补（xel FAIL 43 vs tec pdf\~{} 36——古文在 tectonic 下更易出带瑕疵 PDF），\texttt{non\_utf8} 带 37 篇。学科面难度分层明显：cs 最易（xel pdf 83/86）、math 次之（79/87）、astro-ph 最难（41/64）。
+
+fixloop 救回矩阵（corpus\_v2 40 篇对照）：xelatex 34 个 FAIL 格救回 25（74\%），主力规则为 \texttt{install\_file}（14 触发，8 格出 pdf）、\texttt{install\_tfm}（12 触发，7 格）、\texttt{static\_precheck}（40 格全触发）；装包榜首位 subfigure.sty$\times$10、revtex4.cls$\times$9。tectonic 臂仅救 1/16——\textbf{eps\_route reject 是结构性死穴}（11 格全拒）：EPS 图源在 tectonic/xdvipdfmx 通路无解，唯一出路是路由 xelatex。另有 latex209\_reject 闸拦下 LaTeX2.09 古文 8 格（该类论文需 209$\to$2e 重写通道，非装包可救）。本批 stagerun 中 fixloop 动作谱更轻量：21 格上触发 \texttt{tar\_blob\_extract}、\texttt{subfile\_docclass\_strip}、\texttt{static\_precheck} 标准三件套全命中，外加 \texttt{missing\_char\_fix}、\texttt{vendored\_fetch}、\texttt{legacy\_pkg\_shim} 等 10 条各 1--4 次。
 
 \subsection{翻译侧失败类}
 
-xlatbench 失败类分布（图~\ref{fig:failclass} 右，17 个 hard\_fail 全归因）：\textbf{cs\_dropped$\times$8 居首}——控制序列在译文中丢失（占位符协议被破坏的最常见形态）；ph\_miss$\times$5（占位符未还原）、validator$\times$3、ord\_hard$\times$1；另 ord\_soft 78 条为不破契约的 chunk 顺序软告警。qualbench flag 榜（1{,}937 judged chunk）：term\_inconsistency 229、grammar 197、mistranslation 132、fluency\_register 99、hallucinated\_content 66、untranslated\_spans 37、over\_translation 23、placeholder\_broken 8。
+xlatbench 失败类分布（图~\ref{fig:failclass} 右，17 个 hard\_fail 全归因）：\textbf{cs\_dropped$\times$8 居首}——控制序列在译文中丢失，且高度集中为脆弱间距命令（\verb|\ |、\verb|\,|、\verb|~| 被中文熔合吞掉，占 8 中 7 条）；ph\_miss$\times$5（占位符未还原，其中一格连丢 \texttt{CMD\_77}--\texttt{CMD\_85} 九个占位符——单 chunk 级联性丢失而非均匀散布）、comment\_eof$\times$2（译文尾段注释未终结吞掉下一行字面量，可致 splice 后 runaway）、validator$\times$3、ord\_hard$\times$1；另 ord\_soft 78 条为不破契约的 chunk 顺序软告警（合法中文换序的常见形态）。
+
+qualbench flag 榜（1{,}937 judged chunk，severity 分层）：term\_inconsistency 229、grammar 197、mistranslation 132、fluency\_register 99、hallucinated\_content 66、untranslated\_spans 37、over\_translation 23、placeholder\_broken 8。按 category$\times$severity 看结构：terminology 263 条（231 minor/32 major）是最大缺陷类但多为轻症；\textbf{convention-do\_not\_translate 25 条中 23 条 major}——不该译的内容被译（参考文献/命令名），是少量但系统性的协议违例；critical 仅 non-translation 1 例。
 
 \begin{figure}[htbp]
 \centering
@@ -45,8 +53,8 @@ xlatbench 失败类分布（图~\ref{fig:failclass} 右，17 个 hard\_fail 全�
 \subsection{门槛 FAIL 与已知缺口}
 
 \begin{enumerate}
-  \item \textbf{dead protect ph=3}（parsebench）：死占位符残留 3 例，门为 0——唯一 gate FAIL 项，值小但需逐例归因。
-  \item \textbf{flatten 93.7\% $<99\%$}：已知 errata，orphan tex 清单在 papers.json（多层语料中 \texttt{.tex} 不进主文档 flatten 面的占比）。
+  \item \textbf{dead protect ph=3}（parsebench）：死占位符残留 3 例，门为 0——唯一 gate FAIL 项，值小但需逐例归因。全量 28{,}904 文件中唯一 parse 错误为「伪装成 \texttt{.tex} 的 tar 包」（\texttt{2211.00110} 内 \texttt{affinity\_mat.tex}）——语料源怪癖而非解析器缺陷；identity 唯一 diverged 文件同待逐例归因。
+  \item \textbf{flatten 93.7\% $<99\%$}：已知 errata——多层语料中附属 \texttt{.tex}（孤儿文件，不被主文档引用）不进 flatten 面的占比，口径而非缺陷。
   \item \textbf{alignbench 覆盖薄}：812 对中 765 对 named-dests 为零——保留率指标实际只在 42 个 hyperref 对上有意义，指标口径需复核（分母该是所有对还是仅 hyperref 对）。
   \item \textbf{tectonic 短板}：eps\_route 无解 + biblatex$\leftrightarrow$biber 版本错配——EPS/bib 论文在 tectonic 下是先天缺省，路由层应前置判走 xelatex。
   \item \textbf{cs\_dropped 归因待定}：prompt 侧约束不足 vs 网关侧截断，需在 xlatbench 加对照实验分辨。

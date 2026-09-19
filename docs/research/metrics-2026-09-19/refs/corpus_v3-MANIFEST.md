@@ -1,0 +1,1133 @@
+# Corpus v3 Manifest — arXiv 月度簇分层抽样源码语料
+
+渠道钉版批量语料：a–d 带 IA `arxiv-bulk` 月 chunk / e 带 HF `TIGER-Lab/arxiv-latex-5T`（成员四元组 `(channel,item,member,blob_sha256)` 钉版，`resolved_version=null`）。
+数据在本目录 `{id}/` 子目录（gitignored），入库的有此清单、`manifest.jsonl`（核心 1000）、`manifest_booster.jsonl`（补强 200）、`manifest_expand.jsonl`（扩展 3866）、`manifest_hot.jsonl`（热层 166，OpenAlex 高引近期 e-print 渠道）、`manifest_dev_failmine.jsonl`（机制挖掘 1500）、`manifest_dev_vol.jsonl`（体量层 2000）、`manifest_dev_recent.jsonl`（近期 dev 层，scholarweave+eprint 双通道）、`manifest_holdout.jsonl`（留出评测层，EVAL_ONLY 治理见末节）、`mechanisms.jsonl`、`booster_selection.jsonl`、`select_booster.py`、`selection_report.md`、`eval_coverage.json`（B04/B06 宇宙×语料覆盖簿记，L12 EVAL）、`nominations/`（提名审计轨迹，见补强层节），管线脚本在 `bench/py/corpus/build_corpus_v3.py`（core/booster）+ `build_corpus_expand.py`（expand）+ `build_hot_layer.py`（hot）+ `build_corpus_layers.py`（holdout/dev_vol/dev_failmine bulk + 各层 recent eprint 臂）+ `build_sw_layer.py`（scholarweave 脱水通道 → dev_recent）。
+抽样管线见 `docs/09-benchmark-corpus.md` S0–S5；旧式 ID 按 `archive/name` 嵌套。
+
+> 追记（2026-09-17）：四层合计 **5232 篇**。expand 层（3866）与 hot 层（166）为增补层——expand 明细见 `manifest_expand.jsonl` + QC `bench/results/corpus-expand-qc-2026-09-16/`；hot 层口径见 `docs/09` §4.3 增补注记与 `docs/research/product/2026-09-16-e2e-pipefix-hotlayer.md`。（勘误 2026-09-18：hot 层当日收官为 166 篇、expand 新批后 3866、合计 5232；本注记原写 133/合计 5133 系时点旧值。再勘误 2026-09-19：评测/开发分轨扩层收官后八层合计 **13,266 篇**，见末节。）
+
+- 入库 **1000** 篇（核心层）· 1955 个 .tex · 原始包共 1603M
+- 打包形式：{'tar': 831, 'gz': 169}
+- 年代：{'old': 200, 'new': 800} · 渠道：{'ia': 800, 'tiger': 200}
+- 簇：30 个，每簇 33–34 篇
+
+| ID               | era | yymm | 簇  | cat_group     | license            | 格式 | .tex |
+| ---------------- | --- | ---- | --- | ------------- | ------------------ | ---- | ---- |
+| astro-ph/9703134 | old | 9703 | C01 | astro-ph      | missing            | tar  | 1    |
+| astro-ph/9703152 | old | 9703 | C01 | astro-ph      | missing            | tar  | 1    |
+| astro-ph/9703185 | old | 9703 | C01 | astro-ph      | missing            | tar  | 1    |
+| astro-ph/9703198 | old | 9703 | C01 | astro-ph      | missing            | tar  | 1    |
+| astro-ph/9703201 | old | 9703 | C01 | astro-ph      | missing            | gz   | 1    |
+| chao-dyn/9703017 | old | 9703 | C01 | hep-phys      | missing            | tar  | 1    |
+| cond-mat/9703021 | old | 9703 | C01 | cond-mat      | missing            | tar  | 1    |
+| cond-mat/9703161 | old | 9703 | C01 | cond-mat      | missing            | gz   | 1    |
+| cond-mat/9703176 | old | 9703 | C01 | cond-mat      | missing            | tar  | 1    |
+| cond-mat/9703220 | old | 9703 | C01 | cond-mat      | missing            | tar  | 1    |
+| cond-mat/9703221 | old | 9703 | C01 | cond-mat      | missing            | tar  | 1    |
+| cond-mat/9703223 | old | 9703 | C01 | cond-mat      | missing            | tar  | 1    |
+| hep-ph/9703202   | old | 9703 | C01 | hep-phys      | missing            | tar  | 1    |
+| hep-ph/9703228   | old | 9703 | C01 | hep-phys      | missing            | tar  | 1    |
+| hep-ph/9703272   | old | 9703 | C01 | hep-phys      | missing            | gz   | 1    |
+| hep-ph/9703300   | old | 9703 | C01 | hep-phys      | missing            | tar  | 1    |
+| hep-ph/9703402   | old | 9703 | C01 | hep-phys      | missing            | tar  | 1    |
+| hep-th/9703013   | old | 9703 | C01 | hep-phys      | missing            | gz   | 1    |
+| hep-th/9703073   | old | 9703 | C01 | hep-phys      | missing            | gz   | 1    |
+| hep-th/9703086   | old | 9703 | C01 | hep-phys      | missing            | gz   | 1    |
+| hep-th/9703099   | old | 9703 | C01 | hep-phys      | missing            | gz   | 1    |
+| hep-th/9703117   | old | 9703 | C01 | hep-phys      | missing            | gz   | 1    |
+| hep-th/9703173   | old | 9703 | C01 | hep-phys      | missing            | tar  | 1    |
+| hep-th/9703180   | old | 9703 | C01 | hep-phys      | missing            | gz   | 1    |
+| hep-th/9703203   | old | 9703 | C01 | hep-phys      | missing            | gz   | 1    |
+| math/9703222     | old | 9703 | C01 | math          | missing            | gz   | 1    |
+| nucl-th/9703003  | old | 9703 | C01 | nucl          | missing            | tar  | 1    |
+| nucl-th/9703017  | old | 9703 | C01 | nucl          | missing            | tar  | 1    |
+| physics/9703012  | old | 9703 | C01 | hep-phys      | missing            | tar  | 1    |
+| q-alg/9703036    | old | 9703 | C01 | math          | missing            | tar  | 1    |
+| q-alg/9703046    | old | 9703 | C01 | math          | missing            | tar  | 1    |
+| quant-ph/9703040 | old | 9703 | C01 | quant-ph      | missing            | tar  | 2    |
+| solv-int/9703005 | old | 9703 | C01 | hep-phys      | missing            | gz   | 1    |
+| solv-int/9703010 | old | 9703 | C01 | hep-phys      | missing            | gz   | 1    |
+| astro-ph/9910044 | old | 9910 | C02 | astro-ph      | missing            | gz   | 1    |
+| astro-ph/9910131 | old | 9910 | C02 | astro-ph      | missing            | tar  | 1    |
+| astro-ph/9910280 | old | 9910 | C02 | astro-ph      | missing            | tar  | 1    |
+| astro-ph/9910297 | old | 9910 | C02 | astro-ph      | missing            | tar  | 1    |
+| astro-ph/9910309 | old | 9910 | C02 | astro-ph      | missing            | gz   | 1    |
+| astro-ph/9910332 | old | 9910 | C02 | astro-ph      | missing            | tar  | 1    |
+| astro-ph/9910488 | old | 9910 | C02 | astro-ph      | missing            | tar  | 1    |
+| chao-dyn/9910021 | old | 9910 | C02 | hep-phys      | missing            | tar  | 2    |
+| cond-mat/9910002 | old | 9910 | C02 | cond-mat      | missing            | tar  | 1    |
+| cond-mat/9910116 | old | 9910 | C02 | cond-mat      | missing            | tar  | 1    |
+| cond-mat/9910214 | old | 9910 | C02 | cond-mat      | missing            | tar  | 1    |
+| cond-mat/9910246 | old | 9910 | C02 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| cond-mat/9910284 | old | 9910 | C02 | cond-mat      | missing            | tar  | 1    |
+| cond-mat/9910395 | old | 9910 | C02 | cond-mat      | missing            | tar  | 1    |
+| cond-mat/9910442 | old | 9910 | C02 | cond-mat      | missing            | tar  | 1    |
+| hep-ph/9910332   | old | 9910 | C02 | hep-phys      | missing            | tar  | 1    |
+| hep-ph/9910335   | old | 9910 | C02 | hep-phys      | missing            | gz   | 1    |
+| hep-ph/9910373   | old | 9910 | C02 | hep-phys      | missing            | gz   | 1    |
+| hep-ph/9910403   | old | 9910 | C02 | hep-phys      | missing            | tar  | 1    |
+| hep-ph/9910443   | old | 9910 | C02 | hep-phys      | missing            | tar  | 1    |
+| hep-ph/9910488   | old | 9910 | C02 | hep-phys      | missing            | tar  | 1    |
+| hep-th/9910028   | old | 9910 | C02 | hep-phys      | missing            | gz   | 1    |
+| hep-th/9910044   | old | 9910 | C02 | hep-phys      | missing            | tar  | 1    |
+| hep-th/9910113   | old | 9910 | C02 | hep-phys      | missing            | gz   | 1    |
+| hep-th/9910156   | old | 9910 | C02 | hep-phys      | missing            | tar  | 1    |
+| hep-th/9910215   | old | 9910 | C02 | hep-phys      | missing            | gz   | 1    |
+| math-ph/9910046  | old | 9910 | C02 | math          | missing            | tar  | 1    |
+| math/9910113     | old | 9910 | C02 | math          | missing            | gz   | 1    |
+| math/9910177     | old | 9910 | C02 | math          | missing            | tar  | 2    |
+| nucl-ex/9910015  | old | 9910 | C02 | nucl          | missing            | tar  | 1    |
+| quant-ph/9910018 | old | 9910 | C02 | quant-ph      | missing            | gz   | 1    |
+| quant-ph/9910059 | old | 9910 | C02 | quant-ph      | missing            | tar  | 1    |
+| solv-int/9910006 | old | 9910 | C02 | hep-phys      | missing            | gz   | 1    |
+| astro-ph/0111038 | old | 0111 | C03 | astro-ph      | missing            | tar  | 1    |
+| astro-ph/0111094 | old | 0111 | C03 | astro-ph      | missing            | tar  | 1    |
+| astro-ph/0111197 | old | 0111 | C03 | astro-ph      | missing            | tar  | 1    |
+| astro-ph/0111213 | old | 0111 | C03 | astro-ph      | missing            | tar  | 1    |
+| astro-ph/0111323 | old | 0111 | C03 | astro-ph      | missing            | tar  | 1    |
+| astro-ph/0111411 | old | 0111 | C03 | astro-ph      | missing            | tar  | 1    |
+| cond-mat/0111036 | old | 0111 | C03 | cond-mat      | missing            | tar  | 1    |
+| cond-mat/0111097 | old | 0111 | C03 | cond-mat      | missing            | tar  | 1    |
+| cond-mat/0111297 | old | 0111 | C03 | cond-mat      | missing            | tar  | 1    |
+| cond-mat/0111300 | old | 0111 | C03 | cond-mat      | missing            | tar  | 1    |
+| cond-mat/0111406 | old | 0111 | C03 | cond-mat      | missing            | tar  | 1    |
+| cond-mat/0111543 | old | 0111 | C03 | cond-mat      | missing            | tar  | 1    |
+| cs/0111043       | old | 0111 | C03 | cs            | missing            | tar  | 1    |
+| hep-lat/0111009  | old | 0111 | C03 | hep-phys      | missing            | tar  | 1    |
+| hep-lat/0111059  | old | 0111 | C03 | hep-phys      | missing            | tar  | 1    |
+| hep-ph/0111050   | old | 0111 | C03 | hep-phys      | missing            | tar  | 1    |
+| hep-ph/0111218   | old | 0111 | C03 | hep-phys      | missing            | tar  | 1    |
+| hep-ph/0111245   | old | 0111 | C03 | hep-phys      | missing            | tar  | 1    |
+| hep-ph/0111248   | old | 0111 | C03 | hep-phys      | missing            | tar  | 2    |
+| hep-ph/0111281   | old | 0111 | C03 | hep-phys      | missing            | tar  | 1    |
+| hep-ph/0111383   | old | 0111 | C03 | hep-phys      | missing            | tar  | 1    |
+| hep-ph/0111415   | old | 0111 | C03 | hep-phys      | missing            | tar  | 1    |
+| hep-th/0111076   | old | 0111 | C03 | hep-phys      | missing            | gz   | 1    |
+| hep-th/0111079   | old | 0111 | C03 | hep-phys      | missing            | tar  | 1    |
+| math/0111203     | old | 0111 | C03 | math          | missing            | tar  | 1    |
+| math/0111235     | old | 0111 | C03 | math          | missing            | gz   | 1    |
+| math/0111275     | old | 0111 | C03 | math          | missing            | tar  | 1    |
+| math/0111324     | old | 0111 | C03 | math          | missing            | gz   | 1    |
+| nucl-th/0111058  | old | 0111 | C03 | nucl          | missing            | tar  | 1    |
+| physics/0111119  | old | 0111 | C03 | hep-phys      | missing            | tar  | 3    |
+| physics/0111206  | old | 0111 | C03 | hep-phys      | missing            | gz   | 1    |
+| quant-ph/0111094 | old | 0111 | C03 | quant-ph      | missing            | tar  | 2    |
+| quant-ph/0111127 | old | 0111 | C03 | quant-ph      | missing            | tar  | 1    |
+| astro-ph/0307007 | old | 0307 | C04 | astro-ph      | missing            | tar  | 1    |
+| astro-ph/0307009 | old | 0307 | C04 | astro-ph      | missing            | tar  | 1    |
+| astro-ph/0307042 | old | 0307 | C04 | astro-ph      | missing            | tar  | 1    |
+| astro-ph/0307059 | old | 0307 | C04 | astro-ph      | missing            | tar  | 1    |
+| astro-ph/0307121 | old | 0307 | C04 | astro-ph      | missing            | tar  | 1    |
+| astro-ph/0307344 | old | 0307 | C04 | astro-ph      | missing            | tar  | 1    |
+| cond-mat/0307035 | old | 0307 | C04 | cond-mat      | missing            | tar  | 1    |
+| cond-mat/0307193 | old | 0307 | C04 | cond-mat      | missing            | tar  | 2    |
+| cond-mat/0307206 | old | 0307 | C04 | cond-mat      | missing            | tar  | 1    |
+| cond-mat/0307221 | old | 0307 | C04 | cond-mat      | missing            | tar  | 1    |
+| cond-mat/0307508 | old | 0307 | C04 | cond-mat      | missing            | tar  | 1    |
+| cond-mat/0307578 | old | 0307 | C04 | cond-mat      | missing            | tar  | 1    |
+| cond-mat/0307655 | old | 0307 | C04 | cond-mat      | missing            | tar  | 1    |
+| cond-mat/0307744 | old | 0307 | C04 | cond-mat      | missing            | tar  | 1    |
+| cs/0307009       | old | 0307 | C04 | cs            | missing            | tar  | 1    |
+| hep-ph/0307118   | old | 0307 | C04 | hep-phys      | missing            | gz   | 1    |
+| hep-ph/0307177   | old | 0307 | C04 | hep-phys      | missing            | tar  | 2    |
+| hep-ph/0307234   | old | 0307 | C04 | hep-phys      | missing            | tar  | 1    |
+| hep-ph/0307255   | old | 0307 | C04 | hep-phys      | missing            | tar  | 2    |
+| hep-th/0307008   | old | 0307 | C04 | hep-phys      | missing            | gz   | 1    |
+| hep-th/0307148   | old | 0307 | C04 | hep-phys      | missing            | tar  | 1    |
+| hep-th/0307152   | old | 0307 | C04 | hep-phys      | missing            | gz   | 1    |
+| hep-th/0307203   | old | 0307 | C04 | hep-phys      | missing            | tar  | 1    |
+| hep-th/0307279   | old | 0307 | C04 | hep-phys      | missing            | gz   | 1    |
+| hep-th/0307296   | old | 0307 | C04 | hep-phys      | missing            | gz   | 1    |
+| math/0307077     | old | 0307 | C04 | math          | missing            | tar  | 1    |
+| math/0307107     | old | 0307 | C04 | math          | missing            | tar  | 1    |
+| math/0307197     | old | 0307 | C04 | math          | missing            | gz   | 1    |
+| math/0307301     | old | 0307 | C04 | math          | missing            | tar  | 1    |
+| math/0307402     | old | 0307 | C04 | math          | missing            | tar  | 1    |
+| nucl-th/0307063  | old | 0307 | C04 | nucl          | missing            | tar  | 1    |
+| physics/0307021  | old | 0307 | C04 | hep-phys      | missing            | tar  | 1    |
+| quant-ph/0307197 | old | 0307 | C04 | quant-ph      | missing            | tar  | 1    |
+| quant-ph/0307209 | old | 0307 | C04 | quant-ph      | missing            | tar  | 1    |
+| astro-ph/0501073 | old | 0501 | C05 | astro-ph      | missing            | gz   | 1    |
+| astro-ph/0501080 | old | 0501 | C05 | astro-ph      | missing            | tar  | 1    |
+| astro-ph/0501398 | old | 0501 | C05 | astro-ph      | missing            | tar  | 1    |
+| astro-ph/0501439 | old | 0501 | C05 | astro-ph      | missing            | tar  | 1    |
+| astro-ph/0501590 | old | 0501 | C05 | astro-ph      | missing            | tar  | 1    |
+| astro-ph/0501599 | old | 0501 | C05 | astro-ph      | missing            | tar  | 1    |
+| astro-ph/0501608 | old | 0501 | C05 | astro-ph      | missing            | tar  | 1    |
+| cond-mat/0501109 | old | 0501 | C05 | cond-mat      | missing            | tar  | 1    |
+| cond-mat/0501128 | old | 0501 | C05 | cond-mat      | missing            | gz   | 1    |
+| cond-mat/0501293 | old | 0501 | C05 | cond-mat      | missing            | tar  | 1    |
+| cond-mat/0501437 | old | 0501 | C05 | cond-mat      | missing            | tar  | 1    |
+| cond-mat/0501475 | old | 0501 | C05 | cond-mat      | missing            | tar  | 1    |
+| cond-mat/0501478 | old | 0501 | C05 | cond-mat      | missing            | tar  | 1    |
+| cond-mat/0501604 | old | 0501 | C05 | cond-mat      | missing            | tar  | 2    |
+| cs/0501020       | old | 0501 | C05 | cs            | missing            | tar  | 1    |
+| hep-ex/0501017   | old | 0501 | C05 | hep-phys      | missing            | tar  | 1    |
+| hep-ex/0501022   | old | 0501 | C05 | hep-phys      | missing            | tar  | 1    |
+| hep-ph/0501163   | old | 0501 | C05 | hep-phys      | missing            | tar  | 1    |
+| hep-th/0501153   | old | 0501 | C05 | hep-phys      | missing            | gz   | 1    |
+| hep-th/0501161   | old | 0501 | C05 | hep-phys      | missing            | gz   | 1    |
+| hep-th/0501177   | old | 0501 | C05 | hep-phys      | missing            | gz   | 1    |
+| hep-th/0501195   | old | 0501 | C05 | hep-phys      | missing            | tar  | 1    |
+| hep-th/0501198   | old | 0501 | C05 | hep-phys      | missing            | gz   | 1    |
+| hep-th/0501238   | old | 0501 | C05 | hep-phys      | missing            | gz   | 1    |
+| math-ph/0501022  | old | 0501 | C05 | math          | missing            | tar  | 1    |
+| math/0501060     | old | 0501 | C05 | math          | missing            | tar  | 1    |
+| math/0501104     | old | 0501 | C05 | math          | missing            | gz   | 1    |
+| math/0501227     | old | 0501 | C05 | math          | missing            | tar  | 1    |
+| math/0501396     | old | 0501 | C05 | math          | missing            | gz   | 1    |
+| math/0501428     | old | 0501 | C05 | math          | missing            | gz   | 1    |
+| nucl-th/0501044  | old | 0501 | C05 | nucl          | missing            | tar  | 1    |
+| quant-ph/0501054 | old | 0501 | C05 | quant-ph      | missing            | tar  | 1    |
+| quant-ph/0501111 | old | 0501 | C05 | quant-ph      | missing            | tar  | 1    |
+| astro-ph/0605290 | old | 0605 | C06 | astro-ph      | missing            | tar  | 1    |
+| astro-ph/0605325 | old | 0605 | C06 | astro-ph      | missing            | tar  | 1    |
+| astro-ph/0605352 | old | 0605 | C06 | astro-ph      | missing            | tar  | 5    |
+| astro-ph/0605355 | old | 0605 | C06 | astro-ph      | missing            | tar  | 1    |
+| astro-ph/0605361 | old | 0605 | C06 | astro-ph      | missing            | tar  | 1    |
+| astro-ph/0605441 | old | 0605 | C06 | astro-ph      | missing            | tar  | 1    |
+| cond-mat/0605032 | old | 0605 | C06 | cond-mat      | missing            | tar  | 1    |
+| cond-mat/0605100 | old | 0605 | C06 | cond-mat      | missing            | tar  | 1    |
+| cond-mat/0605196 | old | 0605 | C06 | cond-mat      | missing            | tar  | 2    |
+| cond-mat/0605249 | old | 0605 | C06 | cond-mat      | missing            | tar  | 1    |
+| cond-mat/0605308 | old | 0605 | C06 | cond-mat      | missing            | tar  | 1    |
+| cond-mat/0605429 | old | 0605 | C06 | cond-mat      | missing            | tar  | 1    |
+| cs/0605043       | old | 0605 | C06 | cs            | missing            | tar  | 8    |
+| gr-qc/0605005    | old | 0605 | C06 | hep-phys      | missing            | tar  | 1    |
+| hep-ex/0605086   | old | 0605 | C06 | hep-phys      | missing            | tar  | 1    |
+| hep-ph/0605135   | old | 0605 | C06 | hep-phys      | missing            | tar  | 1    |
+| hep-ph/0605149   | old | 0605 | C06 | hep-phys      | missing            | tar  | 2    |
+| hep-ph/0605178   | old | 0605 | C06 | hep-phys      | missing            | gz   | 1    |
+| hep-ph/0605288   | old | 0605 | C06 | hep-phys      | missing            | tar  | 1    |
+| hep-th/0605038   | old | 0605 | C06 | hep-phys      | missing            | tar  | 1    |
+| hep-th/0605233   | old | 0605 | C06 | hep-phys      | missing            | gz   | 1    |
+| math/0605135     | old | 0605 | C06 | math          | missing            | tar  | 1    |
+| math/0605144     | old | 0605 | C06 | math          | missing            | tar  | 1    |
+| math/0605267     | old | 0605 | C06 | math          | missing            | tar  | 1    |
+| math/0605301     | old | 0605 | C06 | math          | missing            | tar  | 1    |
+| math/0605340     | old | 0605 | C06 | math          | missing            | tar  | 1    |
+| math/0605628     | old | 0605 | C06 | math          | missing            | gz   | 1    |
+| math/0605790     | old | 0605 | C06 | math          | missing            | gz   | 1    |
+| nucl-th/0605055  | old | 0605 | C06 | nucl          | missing            | tar  | 1    |
+| physics/0605204  | old | 0605 | C06 | hep-phys      | missing            | tar  | 1    |
+| physics/0605206  | old | 0605 | C06 | hep-phys      | missing            | tar  | 1    |
+| quant-ph/0605071 | old | 0605 | C06 | quant-ph      | missing            | tar  | 1    |
+| quant-ph/0605205 | old | 0605 | C06 | quant-ph      | missing            | tar  | 1    |
+| 0707.0005        | new | 0707 | C07 | hep-phys      | missing            | gz   | 1    |
+| 0707.0476        | new | 0707 | C07 | cs            | missing            | tar  | 1    |
+| 0707.0687        | new | 0707 | C07 | nucl          | missing            | tar  | 1    |
+| 0707.0795        | new | 0707 | C07 | math          | missing            | gz   | 1    |
+| 0707.1255        | new | 0707 | C07 | hep-phys      | missing            | tar  | 1    |
+| 0707.1345        | new | 0707 | C07 | astro-ph      | missing            | tar  | 1    |
+| 0707.1511        | new | 0707 | C07 | quant-ph      | missing            | tar  | 1    |
+| 0707.1626        | new | 0707 | C07 | math          | missing            | gz   | 1    |
+| 0707.1778        | new | 0707 | C07 | astro-ph      | missing            | tar  | 1    |
+| 0707.2108        | new | 0707 | C07 | math          | missing            | tar  | 1    |
+| 0707.2125        | new | 0707 | C07 | math          | missing            | gz   | 1    |
+| 0707.2152        | new | 0707 | C07 | cond-mat      | missing            | tar  | 1    |
+| 0707.2234        | new | 0707 | C07 | cond-mat      | missing            | tar  | 1    |
+| 0707.2318        | new | 0707 | C07 | hep-phys      | missing            | tar  | 1    |
+| 0707.2680        | new | 0707 | C07 | astro-ph      | missing            | tar  | 1    |
+| 0707.2833        | new | 0707 | C07 | cs            | missing            | tar  | 2    |
+| 0707.2897        | new | 0707 | C07 | hep-phys      | missing            | tar  | 1    |
+| 0707.2951        | new | 0707 | C07 | astro-ph      | missing            | tar  | 1    |
+| 0707.3086        | new | 0707 | C07 | cond-mat      | missing            | gz   | 1    |
+| 0707.3223        | new | 0707 | C07 | astro-ph      | missing            | tar  | 1    |
+| 0707.3247        | new | 0707 | C07 | hep-phys      | missing            | tar  | 1    |
+| 0707.3283        | new | 0707 | C07 | hep-phys      | missing            | tar  | 1    |
+| 0707.3379        | new | 0707 | C07 | hep-phys      | missing            | tar  | 1    |
+| 0707.3434        | new | 0707 | C07 | quant-ph      | missing            | tar  | 1    |
+| 0707.3889        | new | 0707 | C07 | cond-mat      | missing            | tar  | 1    |
+| 0707.3950        | new | 0707 | C07 | math          | missing            | gz   | 1    |
+| 0707.4134        | new | 0707 | C07 | math          | missing            | tar  | 1    |
+| 0707.4363        | new | 0707 | C07 | cond-mat      | missing            | tar  | 1    |
+| 0707.4407        | new | 0707 | C07 | cond-mat      | missing            | tar  | 1    |
+| 0707.4451        | new | 0707 | C07 | math          | missing            | gz   | 1    |
+| 0707.4465        | new | 0707 | C07 | hep-phys      | missing            | tar  | 1    |
+| 0707.4481        | new | 0707 | C07 | astro-ph      | missing            | tar  | 1    |
+| 0707.4577        | new | 0707 | C07 | hep-phys      | missing            | tar  | 1    |
+| 0707.4643        | new | 0707 | C07 | eess-stat-etc | arxiv-nonexclusive | tar  | 1    |
+| 0806.0027        | new | 0806 | C08 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 0806.0433        | new | 0806 | C08 | math          | arxiv-nonexclusive | tar  | 1    |
+| 0806.0463        | new | 0806 | C08 | math          | arxiv-nonexclusive | tar  | 1    |
+| 0806.0489        | new | 0806 | C08 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 0806.0588        | new | 0806 | C08 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 0806.0627        | new | 0806 | C08 | astro-ph      | arxiv-nonexclusive | tar  | 6    |
+| 0806.0645        | new | 0806 | C08 | math          | arxiv-nonexclusive | tar  | 1    |
+| 0806.0880        | new | 0806 | C08 | math          | arxiv-nonexclusive | gz   | 1    |
+| 0806.0899        | new | 0806 | C08 | eess-stat-etc | arxiv-nonexclusive | gz   | 1    |
+| 0806.0904        | new | 0806 | C08 | math          | arxiv-nonexclusive | tar  | 1    |
+| 0806.0982        | new | 0806 | C08 | quant-ph      | arxiv-nonexclusive | tar  | 1    |
+| 0806.1019        | new | 0806 | C08 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 0806.1079        | new | 0806 | C08 | math          | arxiv-nonexclusive | gz   | 1    |
+| 0806.1274        | new | 0806 | C08 | nucl          | arxiv-nonexclusive | tar  | 1    |
+| 0806.1406        | new | 0806 | C08 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 0806.1498        | new | 0806 | C08 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 0806.1562        | new | 0806 | C08 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 0806.1589        | new | 0806 | C08 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 0806.1602        | new | 0806 | C08 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 0806.1839        | new | 0806 | C08 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 0806.1867        | new | 0806 | C08 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 0806.3824        | new | 0806 | C08 | math          | arxiv-nonexclusive | gz   | 1    |
+| 0806.4088        | new | 0806 | C08 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 0806.4146        | new | 0806 | C08 | quant-ph      | arxiv-nonexclusive | gz   | 1    |
+| 0806.4301        | new | 0806 | C08 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 0806.4436        | new | 0806 | C08 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 0806.4446        | new | 0806 | C08 | math          | arxiv-nonexclusive | tar  | 1    |
+| 0806.4458        | new | 0806 | C08 | hep-phys      | arxiv-nonexclusive | gz   | 1    |
+| 0806.4544        | new | 0806 | C08 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 0806.4589        | new | 0806 | C08 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 0806.4779        | new | 0806 | C08 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 0806.4858        | new | 0806 | C08 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 0806.4948        | new | 0806 | C08 | hep-phys      | arxiv-nonexclusive | gz   | 1    |
+| 0905.1426        | new | 0905 | C09 | math          | arxiv-nonexclusive | gz   | 1    |
+| 0905.1675        | new | 0905 | C09 | math          | arxiv-nonexclusive | gz   | 1    |
+| 0905.1680        | new | 0905 | C09 | math          | arxiv-nonexclusive | gz   | 1    |
+| 0905.1757        | new | 0905 | C09 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 0905.1767        | new | 0905 | C09 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 0905.1807        | new | 0905 | C09 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 0905.2055        | new | 0905 | C09 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 0905.2090        | new | 0905 | C09 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 0905.2095        | new | 0905 | C09 | hep-phys      | arxiv-nonexclusive | gz   | 1    |
+| 0905.2110        | new | 0905 | C09 | hep-phys      | arxiv-nonexclusive | gz   | 1    |
+| 0905.2137        | new | 0905 | C09 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 0905.2231        | new | 0905 | C09 | math          | arxiv-nonexclusive | gz   | 1    |
+| 0905.2328        | new | 0905 | C09 | math          | arxiv-nonexclusive | gz   | 1    |
+| 0905.2394        | new | 0905 | C09 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 0905.2486        | new | 0905 | C09 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 0905.4010        | new | 0905 | C09 | math          | arxiv-nonexclusive | tar  | 1    |
+| 0905.4208        | new | 0905 | C09 | nucl          | arxiv-nonexclusive | tar  | 1    |
+| 0905.4294        | new | 0905 | C09 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 0905.4316        | new | 0905 | C09 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 0905.4371        | new | 0905 | C09 | math          | arxiv-nonexclusive | tar  | 2    |
+| 0905.4380        | new | 0905 | C09 | hep-phys      | arxiv-nonexclusive | gz   | 1    |
+| 0905.4427        | new | 0905 | C09 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 0905.4439        | new | 0905 | C09 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 0905.4476        | new | 0905 | C09 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 0905.4503        | new | 0905 | C09 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 0905.4556        | new | 0905 | C09 | quant-ph      | arxiv-nonexclusive | tar  | 1    |
+| 0905.4656        | new | 0905 | C09 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 0905.4781        | new | 0905 | C09 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 0905.4793        | new | 0905 | C09 | eess-stat-etc | arxiv-nonexclusive | tar  | 1    |
+| 0905.4796        | new | 0905 | C09 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 0905.4873        | new | 0905 | C09 | quant-ph      | arxiv-nonexclusive | gz   | 1    |
+| 0905.4874        | new | 0905 | C09 | math          | arxiv-nonexclusive | tar  | 1    |
+| 0905.4907        | new | 0905 | C09 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1003.1122        | new | 1003 | C10 | math          | arxiv-nonexclusive | tar  | 1    |
+| 1003.1273        | new | 1003 | C10 | math          | arxiv-nonexclusive | gz   | 1    |
+| 1003.1318        | new | 1003 | C10 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 1003.1383        | new | 1003 | C10 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 1003.1464        | new | 1003 | C10 | math          | arxiv-nonexclusive | tar  | 1    |
+| 1003.1717        | new | 1003 | C10 | astro-ph      | arxiv-nonexclusive | tar  | 3    |
+| 1003.1735        | new | 1003 | C10 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 1003.1741        | new | 1003 | C10 | cs            | arxiv-nonexclusive | tar  | 6    |
+| 1003.1752        | new | 1003 | C10 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 1003.1906        | new | 1003 | C10 | math          | arxiv-nonexclusive | tar  | 1    |
+| 1003.2091        | new | 1003 | C10 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 1003.2152        | new | 1003 | C10 | math          | arxiv-nonexclusive | gz   | 1    |
+| 1003.2182        | new | 1003 | C10 | hep-phys      | arxiv-nonexclusive | tar  | 2    |
+| 1003.4383        | new | 1003 | C10 | nucl          | arxiv-nonexclusive | tar  | 1    |
+| 1003.4522        | new | 1003 | C10 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 1003.4523        | new | 1003 | C10 | hep-phys      | arxiv-nonexclusive | gz   | 1    |
+| 1003.4527        | new | 1003 | C10 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 1003.4562        | new | 1003 | C10 | cs            | arxiv-nonexclusive | tar  | 2    |
+| 1003.4720        | new | 1003 | C10 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1003.4727        | new | 1003 | C10 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1003.4807        | new | 1003 | C10 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1003.5011        | new | 1003 | C10 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 1003.5014        | new | 1003 | C10 | quant-ph      | arxiv-nonexclusive | tar  | 1    |
+| 1003.5141        | new | 1003 | C10 | math          | arxiv-nonexclusive | tar  | 1    |
+| 1003.5240        | new | 1003 | C10 | math          | arxiv-nonexclusive | tar  | 1    |
+| 1003.5306        | new | 1003 | C10 | math          | arxiv-nonexclusive | gz   | 1    |
+| 1003.5338        | new | 1003 | C10 | eess-stat-etc | arxiv-nonexclusive | gz   | 1    |
+| 1003.5394        | new | 1003 | C10 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1003.5474        | new | 1003 | C10 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 1003.5486        | new | 1003 | C10 | quant-ph      | arxiv-nonexclusive | tar  | 1    |
+| 1003.5495        | new | 1003 | C10 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1003.5531        | new | 1003 | C10 | math          | arxiv-nonexclusive | gz   | 1    |
+| 1003.5534        | new | 1003 | C10 | hep-phys      | arxiv-nonexclusive | tar  | 26   |
+| 1003.5546        | new | 1003 | C10 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 1012.1124        | new | 1012 | C11 | quant-ph      | arxiv-nonexclusive | gz   | 1    |
+| 1012.1143        | new | 1012 | C11 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 1012.1149        | new | 1012 | C11 | math          | arxiv-nonexclusive | gz   | 1    |
+| 1012.1167        | new | 1012 | C11 | nucl          | arxiv-nonexclusive | tar  | 1    |
+| 1012.1177        | new | 1012 | C11 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 1012.1195        | new | 1012 | C11 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1012.1206        | new | 1012 | C11 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 1012.1303        | new | 1012 | C11 | math          | arxiv-nonexclusive | tar  | 1    |
+| 1012.1321        | new | 1012 | C11 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 1012.1334        | new | 1012 | C11 | cs            | arxiv-nonexclusive | tar  | 2    |
+| 1012.1389        | new | 1012 | C11 | math          | arxiv-nonexclusive | gz   | 1    |
+| 1012.1395        | new | 1012 | C11 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 1012.1584        | new | 1012 | C11 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 1012.1738        | new | 1012 | C11 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1012.1739        | new | 1012 | C11 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1012.1740        | new | 1012 | C11 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 1012.1814        | new | 1012 | C11 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 1012.1816        | new | 1012 | C11 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 1012.1830        | new | 1012 | C11 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1012.2012        | new | 1012 | C11 | math          | arxiv-nonexclusive | tar  | 1    |
+| 1012.5057        | new | 1012 | C11 | math          | arxiv-nonexclusive | gz   | 1    |
+| 1012.5068        | new | 1012 | C11 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1012.5086        | new | 1012 | C11 | cond-mat      | cc0-pd             | tar  | 1    |
+| 1012.5145        | new | 1012 | C11 | hep-phys      | arxiv-nonexclusive | tar  | 3    |
+| 1012.5197        | new | 1012 | C11 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 1012.5220        | new | 1012 | C11 | math          | arxiv-nonexclusive | tar  | 1    |
+| 1012.5273        | new | 1012 | C11 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1012.5491        | new | 1012 | C11 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1012.5538        | new | 1012 | C11 | math          | cc-by              | gz   | 1    |
+| 1012.5612        | new | 1012 | C11 | math          | arxiv-nonexclusive | tar  | 1    |
+| 1012.5773        | new | 1012 | C11 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1012.5832        | new | 1012 | C11 | eess-stat-etc | cc-by              | tar  | 1    |
+| 1012.5842        | new | 1012 | C11 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 1109.1664        | new | 1109 | C12 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1109.1677        | new | 1109 | C12 | math          | arxiv-nonexclusive | gz   | 1    |
+| 1109.1707        | new | 1109 | C12 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1109.1708        | new | 1109 | C12 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 1109.1773        | new | 1109 | C12 | math          | arxiv-nonexclusive | gz   | 1    |
+| 1109.1792        | new | 1109 | C12 | math          | arxiv-nonexclusive | gz   | 1    |
+| 1109.1801        | new | 1109 | C12 | math          | arxiv-nonexclusive | tar  | 3    |
+| 1109.1822        | new | 1109 | C12 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 1109.1872        | new | 1109 | C12 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 1109.1915        | new | 1109 | C12 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1109.2053        | new | 1109 | C12 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 1109.2059        | new | 1109 | C12 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 1109.2205        | new | 1109 | C12 | hep-phys      | arxiv-nonexclusive | tar  | 3    |
+| 1109.2247        | new | 1109 | C12 | cs            | arxiv-nonexclusive | tar  | 16   |
+| 1109.2316        | new | 1109 | C12 | math          | arxiv-nonexclusive | gz   | 1    |
+| 1109.2475        | new | 1109 | C12 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1109.5232        | new | 1109 | C12 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 1109.5307        | new | 1109 | C12 | math          | arxiv-nonexclusive | gz   | 1    |
+| 1109.5364        | new | 1109 | C12 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1109.5404        | new | 1109 | C12 | eess-stat-etc | arxiv-nonexclusive | gz   | 1    |
+| 1109.5481        | new | 1109 | C12 | quant-ph      | arxiv-nonexclusive | tar  | 1    |
+| 1109.5522        | new | 1109 | C12 | cs            | arxiv-nonexclusive | tar  | 15   |
+| 1109.5631        | new | 1109 | C12 | astro-ph      | arxiv-nonexclusive | tar  | 6    |
+| 1109.5682        | new | 1109 | C12 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1109.5705        | new | 1109 | C12 | math          | arxiv-nonexclusive | tar  | 1    |
+| 1109.5754        | new | 1109 | C12 | nucl          | arxiv-nonexclusive | tar  | 1    |
+| 1109.5757        | new | 1109 | C12 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 1109.5931        | new | 1109 | C12 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 1109.5940        | new | 1109 | C12 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 1109.5963        | new | 1109 | C12 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1109.6007        | new | 1109 | C12 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 1109.6012        | new | 1109 | C12 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 1109.6050        | new | 1109 | C12 | math          | arxiv-nonexclusive | gz   | 1    |
+| 1206.1631        | new | 1206 | C13 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 1206.1634        | new | 1206 | C13 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 1206.1653        | new | 1206 | C13 | cs            | arxiv-nonexclusive | tar  | 8    |
+| 1206.1808        | new | 1206 | C13 | math          | arxiv-nonexclusive | gz   | 1    |
+| 1206.1901        | new | 1206 | C13 | eess-stat-etc | arxiv-nonexclusive | tar  | 1    |
+| 1206.1940        | new | 1206 | C13 | math          | arxiv-nonexclusive | gz   | 1    |
+| 1206.1993        | new | 1206 | C13 | math          | arxiv-nonexclusive | tar  | 1    |
+| 1206.2015        | new | 1206 | C13 | hep-phys      | arxiv-nonexclusive | gz   | 1    |
+| 1206.2018        | new | 1206 | C13 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1206.2036        | new | 1206 | C13 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 1206.2072        | new | 1206 | C13 | math          | arxiv-nonexclusive | gz   | 1    |
+| 1206.2111        | new | 1206 | C13 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 1206.2156        | new | 1206 | C13 | nucl          | arxiv-nonexclusive | tar  | 1    |
+| 1206.2194        | new | 1206 | C13 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 1206.2231        | new | 1206 | C13 | math          | arxiv-nonexclusive | tar  | 1    |
+| 1206.2233        | new | 1206 | C13 | math          | arxiv-nonexclusive | tar  | 1    |
+| 1206.2250        | new | 1206 | C13 | cond-mat      | arxiv-nonexclusive | gz   | 1    |
+| 1206.5202        | new | 1206 | C13 | cond-mat      | arxiv-nonexclusive | tar  | 10   |
+| 1206.5217        | new | 1206 | C13 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 1206.5375        | new | 1206 | C13 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1206.5428        | new | 1206 | C13 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1206.5536        | new | 1206 | C13 | astro-ph      | cc-by              | tar  | 1    |
+| 1206.5595        | new | 1206 | C13 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1206.5602        | new | 1206 | C13 | math          | arxiv-nonexclusive | tar  | 1    |
+| 1206.5620        | new | 1206 | C13 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 1206.5628        | new | 1206 | C13 | math          | arxiv-nonexclusive | tar  | 1    |
+| 1206.5646        | new | 1206 | C13 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 1206.5673        | new | 1206 | C13 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 1206.5702        | new | 1206 | C13 | quant-ph      | arxiv-nonexclusive | tar  | 1    |
+| 1206.5762        | new | 1206 | C13 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 1206.5796        | new | 1206 | C13 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1206.5832        | new | 1206 | C13 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1206.5852        | new | 1206 | C13 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 1206.5921        | new | 1206 | C13 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1306.1932        | new | 1306 | C14 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1306.2067        | new | 1306 | C14 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1306.2148        | new | 1306 | C14 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 1306.2165        | new | 1306 | C14 | math          | arxiv-nonexclusive | gz   | 1    |
+| 1306.2177        | new | 1306 | C14 | nucl          | arxiv-nonexclusive | tar  | 1    |
+| 1306.2183        | new | 1306 | C14 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 1306.2280        | new | 1306 | C14 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1306.2289        | new | 1306 | C14 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1306.2356        | new | 1306 | C14 | cs            | arxiv-nonexclusive | tar  | 20   |
+| 1306.2365        | new | 1306 | C14 | eess-stat-etc | arxiv-nonexclusive | tar  | 1    |
+| 1306.2498        | new | 1306 | C14 | math          | arxiv-nonexclusive | tar  | 1    |
+| 1306.5694        | new | 1306 | C14 | hep-phys      | arxiv-nonexclusive | gz   | 1    |
+| 1306.5717        | new | 1306 | C14 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 1306.5749        | new | 1306 | C14 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 1306.5771        | new | 1306 | C14 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 1306.5799        | new | 1306 | C14 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 1306.5813        | new | 1306 | C14 | quant-ph      | arxiv-nonexclusive | tar  | 1    |
+| 1306.5826        | new | 1306 | C14 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 1306.5846        | new | 1306 | C14 | astro-ph      | arxiv-nonexclusive | tar  | 2    |
+| 1306.5866        | new | 1306 | C14 | math          | arxiv-nonexclusive | tar  | 1    |
+| 1306.5977        | new | 1306 | C14 | math          | arxiv-nonexclusive | tar  | 2    |
+| 1306.5997        | new | 1306 | C14 | hep-phys      | arxiv-nonexclusive | gz   | 1    |
+| 1306.6078        | new | 1306 | C14 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 1306.6139        | new | 1306 | C14 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 1306.6147        | new | 1306 | C14 | quant-ph      | arxiv-nonexclusive | tar  | 1    |
+| 1306.6161        | new | 1306 | C14 | math          | arxiv-nonexclusive | tar  | 1    |
+| 1306.6164        | new | 1306 | C14 | math          | cc-by-nc-sa        | tar  | 1    |
+| 1306.6198        | new | 1306 | C14 | cs            | arxiv-nonexclusive | tar  | 3    |
+| 1306.6219        | new | 1306 | C14 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1306.6222        | new | 1306 | C14 | math          | cc-by-nc-sa        | tar  | 1    |
+| 1306.6224        | new | 1306 | C14 | cs            | arxiv-nonexclusive | tar  | 15   |
+| 1306.6253        | new | 1306 | C14 | math          | arxiv-nonexclusive | tar  | 1    |
+| 1306.6270        | new | 1306 | C14 | math          | arxiv-nonexclusive | gz   | 1    |
+| 1404.2112        | new | 1404 | C15 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 1404.2121        | new | 1404 | C15 | math          | arxiv-nonexclusive | gz   | 1    |
+| 1404.2137        | new | 1404 | C15 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1404.2164        | new | 1404 | C15 | astro-ph      | arxiv-nonexclusive | tar  | 2    |
+| 1404.2225        | new | 1404 | C15 | math          | arxiv-nonexclusive | gz   | 1    |
+| 1404.2230        | new | 1404 | C15 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 1404.2259        | new | 1404 | C15 | cs            | arxiv-nonexclusive | tar  | 7    |
+| 1404.2362        | new | 1404 | C15 | math          | arxiv-nonexclusive | gz   | 1    |
+| 1404.2384        | new | 1404 | C15 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 1404.2402        | new | 1404 | C15 | math          | arxiv-nonexclusive | gz   | 1    |
+| 1404.2528        | new | 1404 | C15 | math          | arxiv-nonexclusive | gz   | 1    |
+| 1404.5668        | new | 1404 | C15 | cs            | arxiv-nonexclusive | tar  | 2    |
+| 1404.5685        | new | 1404 | C15 | cond-mat      | arxiv-nonexclusive | tar  | 2    |
+| 1404.5697        | new | 1404 | C15 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1404.5720        | new | 1404 | C15 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1404.5780        | new | 1404 | C15 | math          | arxiv-nonexclusive | gz   | 1    |
+| 1404.5830        | new | 1404 | C15 | nucl          | cc-by-nc-sa        | tar  | 1    |
+| 1404.5834        | new | 1404 | C15 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1404.5841        | new | 1404 | C15 | math          | arxiv-nonexclusive | tar  | 1    |
+| 1404.5881        | new | 1404 | C15 | quant-ph      | arxiv-nonexclusive | gz   | 1    |
+| 1404.5889        | new | 1404 | C15 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 1404.5900        | new | 1404 | C15 | math          | arxiv-nonexclusive | tar  | 1    |
+| 1404.5912        | new | 1404 | C15 | eess-stat-etc | arxiv-nonexclusive | tar  | 1    |
+| 1404.5936        | new | 1404 | C15 | math          | arxiv-nonexclusive | gz   | 1    |
+| 1404.5940        | new | 1404 | C15 | quant-ph      | arxiv-nonexclusive | gz   | 1    |
+| 1404.5949        | new | 1404 | C15 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 1404.5993        | new | 1404 | C15 | hep-phys      | arxiv-nonexclusive | gz   | 1    |
+| 1404.6031        | new | 1404 | C15 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 1404.6037        | new | 1404 | C15 | cs            | arxiv-nonexclusive | tar  | 3    |
+| 1404.6133        | new | 1404 | C15 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1404.6147        | new | 1404 | C15 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 1404.6154        | new | 1404 | C15 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 1404.6180        | new | 1404 | C15 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1502.01820       | new | 1502 | C16 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1502.01845       | new | 1502 | C16 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1502.01857       | new | 1502 | C16 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 1502.01863       | new | 1502 | C16 | math          | arxiv-nonexclusive | gz   | 1    |
+| 1502.01959       | new | 1502 | C16 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 1502.02141       | new | 1502 | C16 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1502.02155       | new | 1502 | C16 | cs            | arxiv-nonexclusive | tar  | 14   |
+| 1502.02163       | new | 1502 | C16 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1502.02190       | new | 1502 | C16 | math          | arxiv-nonexclusive | tar  | 1    |
+| 1502.02236       | new | 1502 | C16 | cs            | arxiv-nonexclusive | tar  | 14   |
+| 1502.02247       | new | 1502 | C16 | math          | arxiv-nonexclusive | gz   | 1    |
+| 1502.02268       | new | 1502 | C16 | cs            | arxiv-nonexclusive | tar  | 2    |
+| 1502.02285       | new | 1502 | C16 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1502.02333       | new | 1502 | C16 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 1502.02338       | new | 1502 | C16 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 1502.06013       | new | 1502 | C16 | math          | arxiv-nonexclusive | tar  | 1    |
+| 1502.06096       | new | 1502 | C16 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 1502.06126       | new | 1502 | C16 | hep-phys      | arxiv-nonexclusive | gz   | 1    |
+| 1502.06131       | new | 1502 | C16 | math          | arxiv-nonexclusive | tar  | 1    |
+| 1502.06245       | new | 1502 | C16 | math          | arxiv-nonexclusive | gz   | 1    |
+| 1502.06256       | new | 1502 | C16 | eess-stat-etc | arxiv-nonexclusive | tar  | 1    |
+| 1502.06281       | new | 1502 | C16 | quant-ph      | arxiv-nonexclusive | tar  | 1    |
+| 1502.06284       | new | 1502 | C16 | math          | arxiv-nonexclusive | tar  | 16   |
+| 1502.06342       | new | 1502 | C16 | math          | arxiv-nonexclusive | gz   | 1    |
+| 1502.06406       | new | 1502 | C16 | eess-stat-etc | arxiv-nonexclusive | tar  | 1    |
+| 1502.06421       | new | 1502 | C16 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 1502.06426       | new | 1502 | C16 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 1502.06459       | new | 1502 | C16 | quant-ph      | arxiv-nonexclusive | tar  | 1    |
+| 1502.06500       | new | 1502 | C16 | math          | arxiv-nonexclusive | gz   | 1    |
+| 1502.06527       | new | 1502 | C16 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 1502.06541       | new | 1502 | C16 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1502.06608       | new | 1502 | C16 | astro-ph      | arxiv-nonexclusive | tar  | 2    |
+| 1502.06611       | new | 1502 | C16 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 1502.06612       | new | 1502 | C16 | astro-ph      | arxiv-nonexclusive | tar  | 3    |
+| 1511.02567       | new | 1511 | C17 | math          | arxiv-nonexclusive | tar  | 1    |
+| 1511.02659       | new | 1511 | C17 | math          | arxiv-nonexclusive | tar  | 1    |
+| 1511.02672       | new | 1511 | C17 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1511.02676       | new | 1511 | C17 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1511.02683       | new | 1511 | C17 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 1511.02686       | new | 1511 | C17 | math          | arxiv-nonexclusive | gz   | 1    |
+| 1511.02730       | new | 1511 | C17 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 1511.02761       | new | 1511 | C17 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1511.02799       | new | 1511 | C17 | cs            | arxiv-nonexclusive | tar  | 7    |
+| 1511.02818       | new | 1511 | C17 | math          | arxiv-nonexclusive | gz   | 1    |
+| 1511.02820       | new | 1511 | C17 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 1511.02825       | new | 1511 | C17 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 1511.02858       | new | 1511 | C17 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1511.02862       | new | 1511 | C17 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 1511.02908       | new | 1511 | C17 | hep-phys      | arxiv-nonexclusive | gz   | 1    |
+| 1511.02930       | new | 1511 | C17 | eess-stat-etc | arxiv-nonexclusive | tar  | 1    |
+| 1511.02943       | new | 1511 | C17 | quant-ph      | arxiv-nonexclusive | tar  | 1    |
+| 1511.06628       | new | 1511 | C17 | math          | arxiv-nonexclusive | gz   | 1    |
+| 1511.06689       | new | 1511 | C17 | math          | arxiv-nonexclusive | gz   | 1    |
+| 1511.06706       | new | 1511 | C17 | cond-mat      | arxiv-nonexclusive | tar  | 19   |
+| 1511.06725       | new | 1511 | C17 | math          | arxiv-nonexclusive | gz   | 1    |
+| 1511.06740       | new | 1511 | C17 | hep-phys      | arxiv-nonexclusive | tar  | 2    |
+| 1511.06744       | new | 1511 | C17 | cs            | arxiv-nonexclusive | tar  | 21   |
+| 1511.06763       | new | 1511 | C17 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 1511.06765       | new | 1511 | C17 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 1511.06783       | new | 1511 | C17 | cs            | arxiv-nonexclusive | tar  | 5    |
+| 1511.06847       | new | 1511 | C17 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 1511.06857       | new | 1511 | C17 | math          | arxiv-nonexclusive | gz   | 1    |
+| 1511.06865       | new | 1511 | C17 | math          | arxiv-nonexclusive | gz   | 1    |
+| 1511.06879       | new | 1511 | C17 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 1511.06943       | new | 1511 | C17 | eess-stat-etc | arxiv-nonexclusive | tar  | 1    |
+| 1511.06963       | new | 1511 | C17 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1511.06971       | new | 1511 | C17 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 1608.02289       | new | 1608 | C18 | cs            | arxiv-nonexclusive | tar  | 12   |
+| 1608.02314       | new | 1608 | C18 | math          | arxiv-nonexclusive | gz   | 1    |
+| 1608.02317       | new | 1608 | C18 | math          | arxiv-nonexclusive | gz   | 1    |
+| 1608.02331       | new | 1608 | C18 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1608.02354       | new | 1608 | C18 | math          | arxiv-nonexclusive | gz   | 1    |
+| 1608.02390       | new | 1608 | C18 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 1608.02516       | new | 1608 | C18 | math          | cc-by              | gz   | 1    |
+| 1608.02550       | new | 1608 | C18 | math          | arxiv-nonexclusive | tar  | 1    |
+| 1608.02556       | new | 1608 | C18 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1608.02611       | new | 1608 | C18 | cs            | arxiv-nonexclusive | tar  | 13   |
+| 1608.02631       | new | 1608 | C18 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 1608.02645       | new | 1608 | C18 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 1608.02651       | new | 1608 | C18 | hep-phys      | arxiv-nonexclusive | gz   | 1    |
+| 1608.02680       | new | 1608 | C18 | cs            | arxiv-nonexclusive | tar  | 28   |
+| 1608.02685       | new | 1608 | C18 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 1608.06646       | new | 1608 | C18 | math          | arxiv-nonexclusive | gz   | 1    |
+| 1608.06693       | new | 1608 | C18 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 1608.06705       | new | 1608 | C18 | math          | arxiv-nonexclusive | gz   | 1    |
+| 1608.06723       | new | 1608 | C18 | eess-stat-etc | arxiv-nonexclusive | tar  | 1    |
+| 1608.06760       | new | 1608 | C18 | hep-phys      | arxiv-nonexclusive | tar  | 10   |
+| 1608.06769       | new | 1608 | C18 | eess-stat-etc | arxiv-nonexclusive | tar  | 1    |
+| 1608.06785       | new | 1608 | C18 | math          | arxiv-nonexclusive | gz   | 1    |
+| 1608.06793       | new | 1608 | C18 | math          | arxiv-nonexclusive | gz   | 1    |
+| 1608.06833       | new | 1608 | C18 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1608.06845       | new | 1608 | C18 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 1608.06896       | new | 1608 | C18 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1608.06914       | new | 1608 | C18 | quant-ph      | arxiv-nonexclusive | tar  | 1    |
+| 1608.06992       | new | 1608 | C18 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 1608.07013       | new | 1608 | C18 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 1608.07022       | new | 1608 | C18 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 1608.07066       | new | 1608 | C18 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1608.07077       | new | 1608 | C18 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 1608.07091       | new | 1608 | C18 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 1706.02360       | new | 1706 | C19 | math          | arxiv-nonexclusive | tar  | 1    |
+| 1706.02372       | new | 1706 | C19 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1706.02424       | new | 1706 | C19 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1706.02457       | new | 1706 | C19 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 1706.02477       | new | 1706 | C19 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1706.02532       | new | 1706 | C19 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 1706.02550       | new | 1706 | C19 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 1706.02567       | new | 1706 | C19 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 1706.02568       | new | 1706 | C19 | math          | arxiv-nonexclusive | tar  | 1    |
+| 1706.02588       | new | 1706 | C19 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1706.02609       | new | 1706 | C19 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 1706.02630       | new | 1706 | C19 | quant-ph      | arxiv-nonexclusive | tar  | 1    |
+| 1706.02656       | new | 1706 | C19 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 1706.02657       | new | 1706 | C19 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1706.02671       | new | 1706 | C19 | math          | arxiv-nonexclusive | tar  | 1    |
+| 1706.02694       | new | 1706 | C19 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 1706.02695       | new | 1706 | C19 | eess-stat-etc | arxiv-nonexclusive | tar  | 1    |
+| 1706.02729       | new | 1706 | C19 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 1706.02730       | new | 1706 | C19 | math          | arxiv-nonexclusive | tar  | 1    |
+| 1706.02733       | new | 1706 | C19 | cs            | arxiv-nonexclusive | tar  | 6    |
+| 1706.07493       | new | 1706 | C19 | math          | arxiv-nonexclusive | tar  | 1    |
+| 1706.07510       | new | 1706 | C19 | eess-stat-etc | arxiv-nonexclusive | tar  | 5    |
+| 1706.07519       | new | 1706 | C19 | cs            | arxiv-nonexclusive | tar  | 12   |
+| 1706.07613       | new | 1706 | C19 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 1706.07670       | new | 1706 | C19 | math          | arxiv-nonexclusive | tar  | 1    |
+| 1706.07675       | new | 1706 | C19 | math          | arxiv-nonexclusive | tar  | 1    |
+| 1706.07676       | new | 1706 | C19 | math          | arxiv-nonexclusive | gz   | 1    |
+| 1706.07690       | new | 1706 | C19 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 1706.07704       | new | 1706 | C19 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 1706.07773       | new | 1706 | C19 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1706.07871       | new | 1706 | C19 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 1706.07886       | new | 1706 | C19 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 1706.07924       | new | 1706 | C19 | math          | arxiv-nonexclusive | gz   | 1    |
+| 1706.07927       | new | 1706 | C19 | cs            | arxiv-nonexclusive | tar  | 2    |
+| 1803.02897       | new | 1803 | C20 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1803.02918       | new | 1803 | C20 | eess-stat-etc | arxiv-nonexclusive | tar  | 1    |
+| 1803.02921       | new | 1803 | C20 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 1803.02993       | new | 1803 | C20 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 1803.02994       | new | 1803 | C20 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 1803.03001       | new | 1803 | C20 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1803.03014       | new | 1803 | C20 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 1803.03036       | new | 1803 | C20 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 1803.03082       | new | 1803 | C20 | math          | arxiv-nonexclusive | tar  | 1    |
+| 1803.03090       | new | 1803 | C20 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 1803.03106       | new | 1803 | C20 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 1803.03110       | new | 1803 | C20 | math          | arxiv-nonexclusive | gz   | 1    |
+| 1803.03111       | new | 1803 | C20 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1803.03191       | new | 1803 | C20 | eess-stat-etc | cc-by-nc-sa        | tar  | 1    |
+| 1803.03210       | new | 1803 | C20 | math          | arxiv-nonexclusive | tar  | 1    |
+| 1803.03212       | new | 1803 | C20 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1803.03235       | new | 1803 | C20 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1803.03248       | new | 1803 | C20 | cs            | arxiv-nonexclusive | tar  | 8    |
+| 1803.03249       | new | 1803 | C20 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 1803.03254       | new | 1803 | C20 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 1803.08836       | new | 1803 | C20 | eess-stat-etc | arxiv-nonexclusive | tar  | 1    |
+| 1803.08846       | new | 1803 | C20 | math          | arxiv-nonexclusive | tar  | 1    |
+| 1803.08870       | new | 1803 | C20 | math          | arxiv-nonexclusive | tar  | 1    |
+| 1803.08873       | new | 1803 | C20 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1803.08883       | new | 1803 | C20 | quant-ph      | arxiv-nonexclusive | tar  | 1    |
+| 1803.08927       | new | 1803 | C20 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 1803.08946       | new | 1803 | C20 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 1803.08959       | new | 1803 | C20 | math          | arxiv-nonexclusive | tar  | 1    |
+| 1803.09008       | new | 1803 | C20 | math          | arxiv-nonexclusive | gz   | 1    |
+| 1803.09012       | new | 1803 | C20 | cs            | arxiv-nonexclusive | tar  | 2    |
+| 1803.09046       | new | 1803 | C20 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 1803.09056       | new | 1803 | C20 | math          | arxiv-nonexclusive | tar  | 1    |
+| 1803.09074       | new | 1803 | C20 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 1811.03412       | new | 1811 | C21 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 1811.03459       | new | 1811 | C21 | math          | arxiv-nonexclusive | tar  | 1    |
+| 1811.03472       | new | 1811 | C21 | math          | arxiv-nonexclusive | tar  | 1    |
+| 1811.03483       | new | 1811 | C21 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 1811.03495       | new | 1811 | C21 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 1811.03517       | new | 1811 | C21 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1811.03539       | new | 1811 | C21 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 1811.03553       | new | 1811 | C21 | math          | arxiv-nonexclusive | gz   | 1    |
+| 1811.03558       | new | 1811 | C21 | eess-stat-etc | arxiv-nonexclusive | tar  | 1    |
+| 1811.03559       | new | 1811 | C21 | math          | arxiv-nonexclusive | tar  | 1    |
+| 1811.03569       | new | 1811 | C21 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 1811.03588       | new | 1811 | C21 | eess-stat-etc | arxiv-nonexclusive | tar  | 1    |
+| 1811.03607       | new | 1811 | C21 | cond-mat      | arxiv-nonexclusive | tar  | 18   |
+| 1811.03615       | new | 1811 | C21 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1811.03619       | new | 1811 | C21 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 1811.03624       | new | 1811 | C21 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 1811.03697       | new | 1811 | C21 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 1811.03722       | new | 1811 | C21 | quant-ph      | cc-by              | tar  | 1    |
+| 1811.03728       | new | 1811 | C21 | cs            | arxiv-nonexclusive | tar  | 15   |
+| 1811.09974       | new | 1811 | C21 | cs            | arxiv-nonexclusive | tar  | 7    |
+| 1811.10012       | new | 1811 | C21 | nucl          | arxiv-nonexclusive | tar  | 1    |
+| 1811.10026       | new | 1811 | C21 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 1811.10029       | new | 1811 | C21 | hep-phys      | cc-by-nc-sa        | tar  | 1    |
+| 1811.10050       | new | 1811 | C21 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 1811.10086       | new | 1811 | C21 | math          | arxiv-nonexclusive | gz   | 1    |
+| 1811.10103       | new | 1811 | C21 | cs            | cc-by              | tar  | 1    |
+| 1811.10148       | new | 1811 | C21 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 1811.10189       | new | 1811 | C21 | math          | arxiv-nonexclusive | tar  | 1    |
+| 1811.10195       | new | 1811 | C21 | eess-stat-etc | cc-by-nc-sa        | tar  | 2    |
+| 1811.10208       | new | 1811 | C21 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1811.10235       | new | 1811 | C21 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1811.10239       | new | 1811 | C21 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1811.10271       | new | 1811 | C21 | math          | arxiv-nonexclusive | tar  | 1    |
+| 1907.03592       | new | 1907 | C22 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 1907.03601       | new | 1907 | C22 | math          | arxiv-nonexclusive | gz   | 1    |
+| 1907.03602       | new | 1907 | C22 | quant-ph      | arxiv-nonexclusive | tar  | 1    |
+| 1907.03607       | new | 1907 | C22 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1907.03650       | new | 1907 | C22 | math          | arxiv-nonexclusive | gz   | 1    |
+| 1907.03665       | new | 1907 | C22 | eess-stat-etc | arxiv-nonexclusive | tar  | 1    |
+| 1907.03697       | new | 1907 | C22 | eess-stat-etc | arxiv-nonexclusive | tar  | 1    |
+| 1907.03735       | new | 1907 | C22 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 1907.03745       | new | 1907 | C22 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1907.03750       | new | 1907 | C22 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 1907.03815       | new | 1907 | C22 | nucl          | cc-by              | tar  | 1    |
+| 1907.03816       | new | 1907 | C22 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 1907.03821       | new | 1907 | C22 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 1907.03824       | new | 1907 | C22 | math          | arxiv-nonexclusive | gz   | 1    |
+| 1907.03850       | new | 1907 | C22 | cs            | arxiv-nonexclusive | tar  | 3    |
+| 1907.03868       | new | 1907 | C22 | cs            | arxiv-nonexclusive | tar  | 12   |
+| 1907.03923       | new | 1907 | C22 | math          | arxiv-nonexclusive | tar  | 1    |
+| 1907.10324       | new | 1907 | C22 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1907.10343       | new | 1907 | C22 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 1907.10345       | new | 1907 | C22 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 1907.10351       | new | 1907 | C22 | math          | arxiv-nonexclusive | tar  | 1    |
+| 1907.10373       | new | 1907 | C22 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1907.10378       | new | 1907 | C22 | math          | arxiv-nonexclusive | tar  | 1    |
+| 1907.10382       | new | 1907 | C22 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 1907.10392       | new | 1907 | C22 | math          | arxiv-nonexclusive | tar  | 1    |
+| 1907.10434       | new | 1907 | C22 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 1907.10440       | new | 1907 | C22 | hep-phys      | arxiv-nonexclusive | tar  | 9    |
+| 1907.10453       | new | 1907 | C22 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 1907.10454       | new | 1907 | C22 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 1907.10457       | new | 1907 | C22 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 1907.10480       | new | 1907 | C22 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 1907.10515       | new | 1907 | C22 | eess-stat-etc | arxiv-nonexclusive | tar  | 1    |
+| 1907.10522       | new | 1907 | C22 | math          | arxiv-nonexclusive | gz   | 1    |
+| 1907.10567       | new | 1907 | C22 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 2003.03387       | new | 2003 | C23 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 2003.03388       | new | 2003 | C23 | astro-ph      | arxiv-nonexclusive | tar  | 2    |
+| 2003.03423       | new | 2003 | C23 | cs            | arxiv-nonexclusive | tar  | 12   |
+| 2003.03430       | new | 2003 | C23 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 2003.03437       | new | 2003 | C23 | math          | arxiv-nonexclusive | tar  | 1    |
+| 2003.03462       | new | 2003 | C23 | eess-stat-etc | arxiv-nonexclusive | tar  | 2    |
+| 2003.03463       | new | 2003 | C23 | cs            | arxiv-nonexclusive | tar  | 11   |
+| 2003.03479       | new | 2003 | C23 | cs            | cc-by-nc-sa        | tar  | 9    |
+| 2003.03485       | new | 2003 | C23 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 2003.03503       | new | 2003 | C23 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 2003.03508       | new | 2003 | C23 | eess-stat-etc | cc-by              | tar  | 14   |
+| 2003.03510       | new | 2003 | C23 | math          | arxiv-nonexclusive | tar  | 1    |
+| 2003.03512       | new | 2003 | C23 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 2003.03526       | new | 2003 | C23 | math          | arxiv-nonexclusive | tar  | 1    |
+| 2003.03533       | new | 2003 | C23 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 2003.03545       | new | 2003 | C23 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 2003.03579       | new | 2003 | C23 | hep-phys      | arxiv-nonexclusive | gz   | 1    |
+| 2003.10673       | new | 2003 | C23 | quant-ph      | arxiv-nonexclusive | tar  | 1    |
+| 2003.10721       | new | 2003 | C23 | math          | arxiv-nonexclusive | gz   | 1    |
+| 2003.10723       | new | 2003 | C23 | math          | arxiv-nonexclusive | tar  | 1    |
+| 2003.10727       | new | 2003 | C23 | math          | arxiv-nonexclusive | tar  | 3    |
+| 2003.10741       | new | 2003 | C23 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 2003.10754       | new | 2003 | C23 | math          | arxiv-nonexclusive | tar  | 1    |
+| 2003.10792       | new | 2003 | C23 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 2003.10818       | new | 2003 | C23 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 2003.10830       | new | 2003 | C23 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 2003.10868       | new | 2003 | C23 | eess-stat-etc | cc-by              | tar  | 1    |
+| 2003.10897       | new | 2003 | C23 | eess-stat-etc | arxiv-nonexclusive | tar  | 1    |
+| 2003.10906       | new | 2003 | C23 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 2003.10917       | new | 2003 | C23 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 2003.10925       | new | 2003 | C23 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 2003.10959       | new | 2003 | C23 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 2003.10969       | new | 2003 | C23 | hep-phys      | arxiv-nonexclusive | tar  | 2    |
+| 2009.03605       | new | 2009 | C24 | math          | arxiv-nonexclusive | gz   | 1    |
+| 2009.03627       | new | 2009 | C24 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 2009.03641       | new | 2009 | C24 | math          | arxiv-nonexclusive | gz   | 1    |
+| 2009.03670       | new | 2009 | C24 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 2009.03672       | new | 2009 | C24 | math          | arxiv-nonexclusive | gz   | 1    |
+| 2009.03673       | new | 2009 | C24 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 2009.03681       | new | 2009 | C24 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 2009.03685       | new | 2009 | C24 | math          | arxiv-nonexclusive | gz   | 1    |
+| 2009.03686       | new | 2009 | C24 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 2009.03699       | new | 2009 | C24 | eess-stat-etc | arxiv-nonexclusive | tar  | 6    |
+| 2009.03701       | new | 2009 | C24 | math          | arxiv-nonexclusive | tar  | 1    |
+| 2009.03707       | new | 2009 | C24 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 2009.03736       | new | 2009 | C24 | math          | arxiv-nonexclusive | tar  | 1    |
+| 2009.03743       | new | 2009 | C24 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 2009.03750       | new | 2009 | C24 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 2009.03767       | new | 2009 | C24 | eess-stat-etc | cc-by-nc-nd        | tar  | 1    |
+| 2009.03781       | new | 2009 | C24 | math          | arxiv-nonexclusive | gz   | 1    |
+| 2009.03783       | new | 2009 | C24 | eess-stat-etc | arxiv-nonexclusive | tar  | 1    |
+| 2009.03805       | new | 2009 | C24 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 2009.03810       | new | 2009 | C24 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 2009.10925       | new | 2009 | C24 | astro-ph      | arxiv-nonexclusive | tar  | 2    |
+| 2009.10977       | new | 2009 | C24 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 2009.10990       | new | 2009 | C24 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 2009.11002       | new | 2009 | C24 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 2009.11013       | new | 2009 | C24 | cs            | arxiv-nonexclusive | tar  | 3    |
+| 2009.11016       | new | 2009 | C24 | cs            | arxiv-nonexclusive | tar  | 2    |
+| 2009.11026       | new | 2009 | C24 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 2009.11040       | new | 2009 | C24 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 2009.11042       | new | 2009 | C24 | cs            | arxiv-nonexclusive | tar  | 9    |
+| 2009.11053       | new | 2009 | C24 | hep-phys      | arxiv-nonexclusive | tar  | 18   |
+| 2009.11072       | new | 2009 | C24 | cs            | cc-by              | tar  | 6    |
+| 2009.11090       | new | 2009 | C24 | eess-stat-etc | arxiv-nonexclusive | tar  | 2    |
+| 2009.11125       | new | 2009 | C24 | quant-ph      | arxiv-nonexclusive | tar  | 1    |
+| 2105.03729       | new | 2105 | C25 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 2105.03730       | new | 2105 | C25 | hep-phys      | cc-by-nc-nd        | tar  | 1    |
+| 2105.03733       | new | 2105 | C25 | cs            | arxiv-nonexclusive | tar  | 8    |
+| 2105.03740       | new | 2105 | C25 | cond-mat      | cc-by              | tar  | 1    |
+| 2105.03750       | new | 2105 | C25 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 2105.03753       | new | 2105 | C25 | cs            | cc-by              | tar  | 8    |
+| 2105.03772       | new | 2105 | C25 | hep-phys      | cc-by              | tar  | 1    |
+| 2105.03779       | new | 2105 | C25 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 2105.03798       | new | 2105 | C25 | math          | arxiv-nonexclusive | tar  | 1    |
+| 2105.03806       | new | 2105 | C25 | eess-stat-etc | arxiv-nonexclusive | tar  | 1    |
+| 2105.03808       | new | 2105 | C25 | math          | arxiv-nonexclusive | tar  | 1    |
+| 2105.03813       | new | 2105 | C25 | cs            | cc-by-nc-sa        | tar  | 1    |
+| 2105.03827       | new | 2105 | C25 | cs            | cc-by-sa           | tar  | 2    |
+| 2105.03835       | new | 2105 | C25 | cs            | arxiv-nonexclusive | tar  | 2    |
+| 2105.03858       | new | 2105 | C25 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 2105.03883       | new | 2105 | C25 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 2105.03900       | new | 2105 | C25 | math          | cc-by              | gz   | 1    |
+| 2105.03922       | new | 2105 | C25 | math          | cc-by              | gz   | 1    |
+| 2105.03923       | new | 2105 | C25 | cs            | arxiv-nonexclusive | tar  | 9    |
+| 2105.03934       | new | 2105 | C25 | cs            | cc-by-nc-sa        | tar  | 1    |
+| 2105.03940       | new | 2105 | C25 | math          | cc-by              | tar  | 1    |
+| 2105.03943       | new | 2105 | C25 | cs            | cc-by-sa           | tar  | 1    |
+| 2105.03955       | new | 2105 | C25 | math          | cc-by-sa           | gz   | 1    |
+| 2105.11393       | new | 2105 | C25 | cond-mat      | cc0-pd             | tar  | 1    |
+| 2105.11398       | new | 2105 | C25 | eess-stat-etc | arxiv-nonexclusive | tar  | 1    |
+| 2105.11413       | new | 2105 | C25 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 2105.11432       | new | 2105 | C25 | eess-stat-etc | cc-by-sa           | tar  | 1    |
+| 2105.11438       | new | 2105 | C25 | cs            | cc-by              | tar  | 2    |
+| 2105.11462       | new | 2105 | C25 | hep-phys      | cc-by              | tar  | 1    |
+| 2105.11479       | new | 2105 | C25 | cs            | cc-by-sa           | gz   | 1    |
+| 2105.11481       | new | 2105 | C25 | astro-ph      | cc-by              | tar  | 1    |
+| 2105.11487       | new | 2105 | C25 | math          | arxiv-nonexclusive | gz   | 1    |
+| 2105.11488       | new | 2105 | C25 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 2105.11495       | new | 2105 | C25 | quant-ph      | cc-by-nc-nd        | tar  | 1    |
+| 2203.04298       | new | 2203 | C26 | cs            | cc-by-nc-sa        | tar  | 1    |
+| 2203.04333       | new | 2203 | C26 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 2203.04336       | new | 2203 | C26 | astro-ph      | cc-by              | tar  | 1    |
+| 2203.04341       | new | 2203 | C26 | eess-stat-etc | cc-by              | tar  | 3    |
+| 2203.04345       | new | 2203 | C26 | math          | cc-by              | gz   | 1    |
+| 2203.04361       | new | 2203 | C26 | quant-ph      | cc-by              | tar  | 1    |
+| 2203.04376       | new | 2203 | C26 | cs            | cc-by              | tar  | 1    |
+| 2203.04381       | new | 2203 | C26 | eess-stat-etc | cc-by              | tar  | 1    |
+| 2203.04383       | new | 2203 | C26 | cs            | cc-by              | tar  | 7    |
+| 2203.04385       | new | 2203 | C26 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 2203.04392       | new | 2203 | C26 | math          | cc-by              | tar  | 1    |
+| 2203.12983       | new | 2203 | C26 | cs            | cc-by              | tar  | 1    |
+| 2203.12991       | new | 2203 | C26 | cond-mat      | cc-by              | tar  | 1    |
+| 2203.12997       | new | 2203 | C26 | cs            | arxiv-nonexclusive | tar  | 28   |
+| 2203.12999       | new | 2203 | C26 | cs            | cc-by              | tar  | 2    |
+| 2203.13007       | new | 2203 | C26 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 2203.13012       | new | 2203 | C26 | hep-phys      | arxiv-nonexclusive | tar  | 4    |
+| 2203.13024       | new | 2203 | C26 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 2203.13026       | new | 2203 | C26 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 2203.13031       | new | 2203 | C26 | cs            | cc-by-nc-sa        | tar  | 1    |
+| 2203.13039       | new | 2203 | C26 | math          | cc-by              | gz   | 1    |
+| 2203.13055       | new | 2203 | C26 | cs            | cc-by              | tar  | 8    |
+| 2203.13058       | new | 2203 | C26 | math          | arxiv-nonexclusive | gz   | 1    |
+| 2203.13060       | new | 2203 | C26 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 2203.13064       | new | 2203 | C26 | cs            | cc-by              | tar  | 1    |
+| 2203.13079       | new | 2203 | C26 | eess-stat-etc | cc-by              | tar  | 1    |
+| 2203.13085       | new | 2203 | C26 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 2203.13087       | new | 2203 | C26 | hep-phys      | cc-by              | tar  | 1    |
+| 2203.13095       | new | 2203 | C26 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 2203.13102       | new | 2203 | C26 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 2203.13107       | new | 2203 | C26 | hep-phys      | cc-by              | tar  | 1    |
+| 2203.13109       | new | 2203 | C26 | math          | cc-by              | gz   | 1    |
+| 2203.13113       | new | 2203 | C26 | math          | cc-by              | gz   | 1    |
+| 2211.04441       | new | 2211 | C27 | hep-phys      | cc-by              | tar  | 1    |
+| 2211.04445       | new | 2211 | C27 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 2211.04450       | new | 2211 | C27 | math          | cc-by              | gz   | 1    |
+| 2211.04452       | new | 2211 | C27 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 2211.04453       | new | 2211 | C27 | cond-mat      | cc-by              | tar  | 2    |
+| 2211.04456       | new | 2211 | C27 | quant-ph      | cc-by              | tar  | 3    |
+| 2211.04457       | new | 2211 | C27 | hep-phys      | cc-by              | tar  | 2    |
+| 2211.04462       | new | 2211 | C27 | cs            | arxiv-nonexclusive | tar  | 14   |
+| 2211.04467       | new | 2211 | C27 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 2211.04473       | new | 2211 | C27 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 2211.04495       | new | 2211 | C27 | astro-ph      | cc-by              | tar  | 12   |
+| 2211.04503       | new | 2211 | C27 | astro-ph      | cc-by              | tar  | 4    |
+| 2211.04509       | new | 2211 | C27 | cs            | cc-by-nc-nd        | tar  | 1    |
+| 2211.04515       | new | 2211 | C27 | cs            | cc-by-nc-nd        | tar  | 1    |
+| 2211.04517       | new | 2211 | C27 | cs            | cc-by              | tar  | 4    |
+| 2211.04533       | new | 2211 | C27 | cs            | cc-by              | tar  | 1    |
+| 2211.04534       | new | 2211 | C27 | cs            | arxiv-nonexclusive | tar  | 8    |
+| 2211.04539       | new | 2211 | C27 | cs            | arxiv-nonexclusive | tar  | 2    |
+| 2211.04559       | new | 2211 | C27 | math          | arxiv-nonexclusive | gz   | 1    |
+| 2211.04574       | new | 2211 | C27 | astro-ph      | cc-by              | tar  | 2    |
+| 2211.12986       | new | 2211 | C27 | eess-stat-etc | arxiv-nonexclusive | tar  | 1    |
+| 2211.12990       | new | 2211 | C27 | cs            | cc-by              | tar  | 2    |
+| 2211.12997       | new | 2211 | C27 | math          | cc-by              | tar  | 3    |
+| 2211.13004       | new | 2211 | C27 | cs            | cc-by              | tar  | 11   |
+| 2211.13012       | new | 2211 | C27 | eess-stat-etc | cc-by-nc-nd        | tar  | 1    |
+| 2211.13013       | new | 2211 | C27 | hep-phys      | cc-by              | tar  | 1    |
+| 2211.13019       | new | 2211 | C27 | math          | cc-by-nc-nd        | tar  | 2    |
+| 2211.13022       | new | 2211 | C27 | cond-mat      | cc-by              | gz   | 1    |
+| 2211.13033       | new | 2211 | C27 | math          | arxiv-nonexclusive | gz   | 1    |
+| 2211.13040       | new | 2211 | C27 | hep-phys      | cc-by-nc-sa        | tar  | 1    |
+| 2211.13041       | new | 2211 | C27 | cs            | cc-by-nc-sa        | tar  | 1    |
+| 2211.13046       | new | 2211 | C27 | math          | arxiv-nonexclusive | tar  | 1    |
+| 2211.13053       | new | 2211 | C27 | eess-stat-etc | cc-by              | tar  | 1    |
+| 2308.04153       | new | 2308 | C28 | astro-ph      | cc-by              | tar  | 1    |
+| 2308.04174       | new | 2308 | C28 | math          | cc-by              | gz   | 1    |
+| 2308.04188       | new | 2308 | C28 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 2308.04189       | new | 2308 | C28 | cs            | cc-by              | tar  | 1    |
+| 2308.04193       | new | 2308 | C28 | math          | arxiv-nonexclusive | tar  | 1    |
+| 2308.04194       | new | 2308 | C28 | astro-ph      | cc-by              | tar  | 1    |
+| 2308.04199       | new | 2308 | C28 | quant-ph      | cc-by-nc-nd        | gz   | 1    |
+| 2308.04212       | new | 2308 | C28 | eess-stat-etc | arxiv-nonexclusive | tar  | 1    |
+| 2308.04217       | new | 2308 | C28 | hep-phys      | arxiv-nonexclusive | tar  | 3    |
+| 2308.04223       | new | 2308 | C28 | eess-stat-etc | arxiv-nonexclusive | tar  | 1    |
+| 2308.04250       | new | 2308 | C28 | cond-mat      | cc-by              | tar  | 1    |
+| 2308.04265       | new | 2308 | C28 | cs            | cc-by              | tar  | 8    |
+| 2308.04273       | new | 2308 | C28 | hep-phys      | cc-by              | tar  | 1    |
+| 2308.04278       | new | 2308 | C28 | eess-stat-etc | arxiv-nonexclusive | tar  | 1    |
+| 2308.04280       | new | 2308 | C28 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 2308.04282       | new | 2308 | C28 | astro-ph      | cc-by-nc-sa        | tar  | 1    |
+| 2308.04287       | new | 2308 | C28 | math          | cc-by-nc-nd        | tar  | 1    |
+| 2308.12594       | new | 2308 | C28 | math          | cc-by              | tar  | 1    |
+| 2308.12597       | new | 2308 | C28 | hep-phys      | cc-by              | tar  | 2    |
+| 2308.12600       | new | 2308 | C28 | cs            | cc-by              | tar  | 1    |
+| 2308.12608       | new | 2308 | C28 | cs            | arxiv-nonexclusive | tar  | 22   |
+| 2308.12610       | new | 2308 | C28 | cs            | cc-by              | tar  | 1    |
+| 2308.12612       | new | 2308 | C28 | cs            | arxiv-nonexclusive | tar  | 10   |
+| 2308.12641       | new | 2308 | C28 | math          | cc-by              | tar  | 6    |
+| 2308.12647       | new | 2308 | C28 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 2308.12649       | new | 2308 | C28 | cs            | cc-by-nc-nd        | tar  | 2    |
+| 2308.12655       | new | 2308 | C28 | hep-phys      | cc-by-nc-nd        | tar  | 1    |
+| 2308.12657       | new | 2308 | C28 | cond-mat      | arxiv-nonexclusive | tar  | 2    |
+| 2308.12661       | new | 2308 | C28 | cs            | arxiv-nonexclusive | tar  | 2    |
+| 2308.12667       | new | 2308 | C28 | math          | arxiv-nonexclusive | gz   | 1    |
+| 2308.12669       | new | 2308 | C28 | hep-phys      | cc-by              | tar  | 1    |
+| 2308.12707       | new | 2308 | C28 | cs            | arxiv-nonexclusive | tar  | 5    |
+| 2308.12711       | new | 2308 | C28 | cs            | arxiv-nonexclusive | tar  | 29   |
+| 2308.12712       | new | 2308 | C28 | cs            | arxiv-nonexclusive | tar  | 2    |
+| 2403.05441       | new | 2403 | C29 | eess-stat-etc | cc-by-nc-sa        | tar  | 1    |
+| 2403.05444       | new | 2403 | C29 | cond-mat      | cc-by-nc-nd        | tar  | 3    |
+| 2403.05449       | new | 2403 | C29 | quant-ph      | arxiv-nonexclusive | gz   | 1    |
+| 2403.05454       | new | 2403 | C29 | math          | arxiv-nonexclusive | tar  | 1    |
+| 2403.05456       | new | 2403 | C29 | math          | arxiv-nonexclusive | tar  | 2    |
+| 2403.05463       | new | 2403 | C29 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 2403.05475       | new | 2403 | C29 | math          | arxiv-nonexclusive | tar  | 1    |
+| 2403.05477       | new | 2403 | C29 | cs            | arxiv-nonexclusive | tar  | 8    |
+| 2403.05497       | new | 2403 | C29 | eess-stat-etc | cc-by              | tar  | 5    |
+| 2403.05500       | new | 2403 | C29 | cs            | cc-by-nc-sa        | tar  | 15   |
+| 2403.05509       | new | 2403 | C29 | cond-mat      | cc-by              | tar  | 1    |
+| 2403.05532       | new | 2403 | C29 | cs            | cc-by              | tar  | 1    |
+| 2403.05550       | new | 2403 | C29 | cs            | cc-by-nc-nd        | tar  | 1    |
+| 2403.05553       | new | 2403 | C29 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 2403.15075       | new | 2403 | C29 | cs            | cc-by              | tar  | 7    |
+| 2403.15078       | new | 2403 | C29 | cs            | cc-by              | tar  | 10   |
+| 2403.15079       | new | 2403 | C29 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 2403.15085       | new | 2403 | C29 | hep-phys      | cc-by              | tar  | 2    |
+| 2403.15089       | new | 2403 | C29 | cs            | cc-by              | tar  | 1    |
+| 2403.15093       | new | 2403 | C29 | hep-phys      | cc-by              | tar  | 2    |
+| 2403.15096       | new | 2403 | C29 | math          | cc-by              | gz   | 1    |
+| 2403.15098       | new | 2403 | C29 | cs            | arxiv-nonexclusive | tar  | 4    |
+| 2403.15102       | new | 2403 | C29 | cs            | cc-by-nc-nd        | tar  | 8    |
+| 2403.15111       | new | 2403 | C29 | eess-stat-etc | cc-by-nc-nd        | tar  | 1    |
+| 2403.15118       | new | 2403 | C29 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 2403.15119       | new | 2403 | C29 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 2403.15126       | new | 2403 | C29 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 2403.15129       | new | 2403 | C29 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 2403.15149       | new | 2403 | C29 | cs            | arxiv-nonexclusive | tar  | 17   |
+| 2403.15156       | new | 2403 | C29 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 2403.15160       | new | 2403 | C29 | math          | arxiv-nonexclusive | gz   | 1    |
+| 2403.15162       | new | 2403 | C29 | math          | cc-by-nc-nd        | gz   | 1    |
+| 2403.15170       | new | 2403 | C29 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 2410.05957       | new | 2410 | C30 | cond-mat      | cc-by              | tar  | 1    |
+| 2410.05959       | new | 2410 | C30 | hep-phys      | cc-by              | tar  | 1    |
+| 2410.05969       | new | 2410 | C30 | cs            | arxiv-nonexclusive | tar  | 11   |
+| 2410.05972       | new | 2410 | C30 | eess-stat-etc | cc-by              | tar  | 1    |
+| 2410.05981       | new | 2410 | C30 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 2410.05985       | new | 2410 | C30 | cs            | arxiv-nonexclusive | tar  | 10   |
+| 2410.05995       | new | 2410 | C30 | quant-ph      | cc-by              | tar  | 1    |
+| 2410.05999       | new | 2410 | C30 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 2410.06004       | new | 2410 | C30 | eess-stat-etc | arxiv-nonexclusive | tar  | 1    |
+| 2410.06007       | new | 2410 | C30 | cs            | cc-by              | tar  | 28   |
+| 2410.06025       | new | 2410 | C30 | cs            | cc-by              | tar  | 18   |
+| 2410.06028       | new | 2410 | C30 | cs            | cc-by-nc-nd        | tar  | 3    |
+| 2410.06035       | new | 2410 | C30 | math          | arxiv-nonexclusive | gz   | 1    |
+| 2410.06040       | new | 2410 | C30 | cs            | cc-by-sa           | tar  | 33   |
+| 2410.17902       | new | 2410 | C30 | math          | cc-by-nc-nd        | tar  | 1    |
+| 2410.17903       | new | 2410 | C30 | math          | arxiv-nonexclusive | tar  | 1    |
+| 2410.17916       | new | 2410 | C30 | astro-ph      | arxiv-nonexclusive | tar  | 1    |
+| 2410.17923       | new | 2410 | C30 | hep-phys      | arxiv-nonexclusive | tar  | 1    |
+| 2410.17931       | new | 2410 | C30 | cs            | cc-by              | tar  | 9    |
+| 2410.17941       | new | 2410 | C30 | cs            | cc-by-nc-sa        | tar  | 4    |
+| 2410.17949       | new | 2410 | C30 | math          | arxiv-nonexclusive | tar  | 1    |
+| 2410.17952       | new | 2410 | C30 | cs            | cc-by              | tar  | 15   |
+| 2410.17958       | new | 2410 | C30 | cs            | cc-by              | tar  | 11   |
+| 2410.17961       | new | 2410 | C30 | cs            | arxiv-nonexclusive | tar  | 27   |
+| 2410.17967       | new | 2410 | C30 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 2410.17978       | new | 2410 | C30 | math          | arxiv-nonexclusive | tar  | 1    |
+| 2410.17983       | new | 2410 | C30 | cs            | cc-by-nc-nd        | tar  | 17   |
+| 2410.17984       | new | 2410 | C30 | astro-ph      | cc-by              | tar  | 1    |
+| 2410.17992       | new | 2410 | C30 | quant-ph      | cc-by              | tar  | 1    |
+| 2410.17998       | new | 2410 | C30 | cs            | arxiv-nonexclusive | tar  | 1    |
+| 2410.18001       | new | 2410 | C30 | cs            | cc-by              | tar  | 1    |
+| 2410.18015       | new | 2410 | C30 | cond-mat      | arxiv-nonexclusive | tar  | 1    |
+| 2410.18024       | new | 2410 | C30 | eess-stat-etc | cc-by              | tar  | 4    |
+
+## 补强层（booster）—— 200 篇机制策展
+
+与核心层同目录共存（`{id}/`，meta.json `layer="booster"` 区分，两层 id 不相交）。
+入库清单 `manifest_booster.jsonl`；选择器 `select_booster.py`（`booster_selection.jsonl` +
+`selection_report.md` 为产出）；机制台账 `mechanisms.jsonl`（2026-09-18 时点 255 条：B01–07 配额 +
+T 系 fixture 34 条 + W 系野例 205 条，W 池至 W156 含复数例证——expand 新批续增中，条目数以文件实数为准）；提名审计轨迹 `nominations/{agent}.jsonl`（558 条 +
+`{agent}.mechs.jsonl` 113 条，5 curator 分带阅读 + 3 hunter 定向狩猎）。
+
+- **200** 篇 · 1388 个 .tex · 打包形式 {'tar': 154, 'gz': 33, 'stub': 13}
+- 带分布 {a: 43, b: 45, c: 21, d: 53, e: 38}
+- B 配额地板全达成：B01–B04 各 30、B05 33、B06 20、B07 26（地板 30/30/30/30/25/20/25）
+- W 机制覆盖：103/109 池内有代表；W41/W42/W51/W63 例证在核心层；W108/W109 池内真空（hunter exhausted）（选样时点池口径——W 池后经 scout/expand 波续扩至 W156，见上段台账计数）
+- 13 篇 stub/pdf 成员（B07 归因材料，raw 留存不解包，无 extracted/）
+
+## 热层（hot）—— OpenAlex 高引近期论文（2026-09-16 起）
+
+核心层是三十年均匀抽样（IA 月块 ≤2020-10 + TIGER ≤2412），长尾覆盖正确但与真实
+用户负载分布不匹配——hjfy 类产品压倒性服务近期高热度论文。hot 层补这条轴，
+**扩展而非替换**：均匀层/booster 层原样保留。入库清单 `manifest_hot.jsonl`，
+管线脚本 `bench/py/corpus/build_hot_layer.py`（candidates → fetch → report 三子命令，
+fetch 可重入续跑）。
+
+两个子层（meta.json `stratum_cell` = `hot|hot-cite` / `hot|hot-recent`，
+`cluster_id="HOT"`，`channel="arxiv_eprint"` 走产品取源 `acquire_source`
+钉版，含 `cited_by_count`/`title`/`field` 等 OpenAlex 字段）：
+
+- **hot-cite**（目标 120）：OpenAlex `locations.source.id=S4306400194`（arXiv）
+    - `from_publication_date≥2024-01-01`，按 `cited_by_count` 降序取头——需求轴
+      （BatchNorm/Attention/LLM survey/YOLO/KAN 级别的高负载论文）。
+- **hot-recent**（目标 40）：同源 2025-06-01+ `sample=` 随机抽——引用尚未积累的
+  最新 LaTeX 惯用法兜底。
+
+限流护栏：取源走 arxiv.org e-print（3.05s/发、日预算 ~180 发 → 每篇 HEAD+GET
+2 发，单轮 `--limit 85` 封顶，次日续跑）。`pdf_only`（无 TeX 源）记
+`bench/work_v3/hot/fetch_fail.jsonl` 跳过。
+
+首日（2026-09-16）取源 85 发：**入库 72 篇**（全 hot-cite，594 个 .tex ·
+671MB；yymm {15:2, 16:3, 17:2, 20:1, 23:5, 24:47, 25:11, 26:1}，CS 37/72≈51%
+——核心层 CS 仅 18%），13 篇 `pdf_only` 跳过（含 1110.3193 等无 TeX 源
+高引论文——真实负载分布的固有类）。余 75 候选（hot-cite 尾部 +
+全部 hot-recent）次日续。
+
+次日（2026-09-17）续取 85 发：**入库 61 篇**（hot-cite 25 + hot-recent 36，
+累计 97/36；当日 +209 个 .tex · +241MB；当日 yymm {15:1, 23:1, 24:22, 25:17,
+26:20}），24 发 `pdf_only`——含首日 13 篇重试再确认（`fetch_fail.jsonl`
+37 条 / 去重 24 篇）。累计 **133/160**，余 3 候选第三日续。
+
+当日傍晚收官续取：drain +2（hot-recent，2607.10569/2601.10668）→ 全层 **135 篇**
+（hot-cite 97 + hot-recent 38；Σ 816 .tex · 916MB；`fetch_fail.jsonl` 62 条含重试）。
+候选 regen 扩池（`--n-cite 160 --n-recent 60`）被 OpenAlex 429 打断，原 160 池
+耗尽量级收尾，扩池次日再试。
+
+第三日（2026-09-18）收官：原池余 25 候选重试**全数 `pdf_only` 再确认**（0 入库，
+`fetch_fail.jsonl` +25）；同日扩池 regen 成功（`--n-cite 160 --n-recent 60` →
+新池 194 条：hot-cite 160 + hot-recent 34（4 轮 sample 封顶未满 60 配额），
+去重 vs 5156 已有 id；新池 cite 头部 23/40 为旧池 pdf_only 复发——同序再抽的
+固有回捞）。分两臂补尾：hot-recent 先取 5 发 +4
+（2609.15294/2608.13496/2511.05810/2602.18413）→ **42/40** 达标；hot-cite 续取
+55 发 **+27**（28 发 pdf_only 跳过，含头部 ~23 发复发再确认）→ **124/120** 达标。
+全层 **166 篇**收线（hot-cite 124 + hot-recent 42；Σ 993 .tex · 1136MB；
+yymm {15:3, 16:3, 17:2, 20:1, 21:1, 23:7, 24:89, 25:32, 26:28}；
+`fetch_fail.jsonl` 116 条全 pdf_only）。两子层均越设计配额（120/40），层收官
+不再排续跑；新池余 ~134 未取候选（`bench/work_v3/hot/candidates.jsonl`，
+gitignored）留作后备，再扩须重立项。
+
+## 2026-09-19 评测/开发分轨扩层 —— holdout + dev 三层（+8,034）
+
+M2/M3 推进把语料用途分岔为「评测」与「dev 训练/调试」两轴——核心均匀层继续独任
+池化估计来源，本批四层各管一段。**加层不删层**不变；入库清单
+`manifest_{holdout,dev_failmine,dev_vol,dev_recent}.jsonl`，管线
+`bench/py/corpus/build_corpus_layers.py`（plan/scan/extract/qc/recent 五子命令，bulk 臂走
+IA/TIGER 月块 measure-then-sample 同核心层，recent 臂走 arxiv e-print
+`acquire_source` 同 hot 层）+ `bench/py/corpus/build_sw_layer.py`（scholarweave 脱水通道）。
+QC 明细 `bench/work_v3/{layer}/qc.md`（id 唯一/跨层零撞/meta 齐/extracted 非空
+全绿）。八层时点合计 **13,266 篇 · 46GB**。
+
+### holdout —— 留出评测层（EVAL_ONLY，3,020 篇）
+
+治理：`benchlib.EVAL_ONLY_LAYERS={"holdout"}`——`dev_layers()` 枚举自动排除、dev
+侧管线摸不到；评测侧须显式 `--layers holdout`。`corpus_ids()` 仍含全层供跨层去重。
+
+- **bulk 2,699**：frame `year_band×cat_group` 38 cell **flat 配额**（核心口径 ×2.7），
+  `exclude_cluster_months` 剔除核心 30 簇月 → 评测/开发月间零泄漏；`cluster_id` 前缀
+  `HO`；渠道 ia 2,159 + tiger 540。e 带曾饿 186（候选池被排除规则吃薄）→ 追投 8 个
+  ≤2412 e 带 item + `extract --topup`（quota−实收 差额补位，不动足额 cell）补满，
+  残 deficit 6（d|eess 1 + d|hep-phys 5，池内真空）。
+- **recent 321**：sw 池余量切 eprint id 清单（2501+ 月分层均匀），`stratum_cell`
+  \=`holdout|recent`；pdf_only/not_found 记 `recent_fail.jsonl`（33 条）。
+
+### dev_vol —— 体量 dev 层（2,000 篇）
+
+`fbias` 配额：cell 权重 = flat × 该 cell 历史 parse 失败率偏置（bias=1.0）——训练
+样本往「爱挂的底材」倾斜；不排除核心簇月（dev 层允许分布重叠），`cluster_id` 前缀
+`DV`。ia 1,627 + tiger 373；3,671 tex · 2.76GB；38 cell 残 deficit 39。
+
+### dev_failmine —— 机制挖掘 dev 层（1,500 篇）
+
+`flags` 配额：FLAG_RX 机制旗标定向挖旧时代陷阱（全 IA 94–15 年档）——deadpkg 600 /
+docstyle209 300 / epsfig 150 / pdftex_prim 103 / pstricks 52 / babel_german 6 +
+failmine_fill 289 兜底（minted 0、babel/pstricks/pdftex_prim 欠配 = 池内真空非 bug，
+fill 即设计回补路径）；`cluster_id` 前缀 `DF`；1,901 tex · 342MB。
+
+### dev_recent —— 近期 dev 层（1,514 篇）
+
+2501+ 盲区（TIGER 2412 截止后）双通道：
+
+- **scholarweave 脱水 1,065**：`build_sw_layer.py` footers→pool→assign→rehydrate——
+  47 parquet 分片行组级 range-read 只拉 latex 列，`==== FILE:` 拆包重打 raw.tar.gz；
+  `channel=hf_scholarweave`、`stratum_cell=sw|{yymm}`、`figures_stripped:true`
+  （有损源只进 dev 层，不进评测/池化——docs/09 §0.3 口径延续）。HF CDN 三次重试
+  后弃 3 行组（thrift 页截断）→ 比计划 1,200 少 135。
+- **eprint 449**：sw 池余量切 id 清单走 `acquire_source` 钉版，
+  `stratum_cell=dev_recent|recent`。
+
+并发事故留痕：两份 supp 清单生成时互没去重（380/400 重叠）+ `cmd_recent`
+cell-adoption 路径不分 layer → 5 id 跨层双落；已按 cell meta 归属清账（ho 删 3 /
+dr 删 2），管线修 `e7dc8f96`（异层 cell 只 skip 不克隆 + fetch 后 meta 复查）。

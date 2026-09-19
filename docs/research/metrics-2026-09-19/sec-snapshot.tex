@@ -18,7 +18,7 @@ fixloop（v2 40） & 80 格 & xelatex 34 FAIL$\to$\textbf{25 救回 74\%}；tect
 alignbench & 812 对 & 门全过；765/812 对 named-dests$=0$，真实覆盖 42 对（retention p50 1.0） & 覆盖不足 \\
 e2e\_mock & corpus39 & pipe-xel \textbf{33/39 clean} vs base-xel 19/39；引入回归 3 & --- \\
 e2e\_real & n=24+60 & 58/58 翻译；chunk ok 6053/7580；splice 残留 \textbf{0}；pipe-xel clean 43/fail 7；fixloop 再救 13；\textbf{0 引入回归} & --- \\
-xlatbench & 271 样本 & hard\_ok \textbf{94\%}；http\_err 0；延迟 p50 4.2s/p95 29.7s & --- \\
+xlatbench & 271 样本 & hard\_ok \textbf{93.7\%}；http\_err 0；延迟 p50 4.2s/p95 29.7s & --- \\
 qualbench & 324 篇/1937 chunk & judge 均分 \textbf{94.0}，median 95；$\geq$90 占 90.6\%；contested 5.5\%；critical 1 & --- \\
 gullet & 200 文档 & 199/200 展开成功；median 39.6ms/19 steps & --- \\
 stagerun DAG & 80 篇跨层 & \textbf{union pdf 79/80=98.75\%}；clean 71/80=88.75\% & M2 pdf 门 \textbf{PASS} \\
@@ -28,25 +28,42 @@ stagerun DAG & 80 篇跨层 & \textbf{union pdf 79/80=98.75\%}；clean 71/80=88.
 
 \subsection{全链漏斗：stagerun DAG}
 
-五阶段批量驱动对 80 篇跨层样本的实测漏斗（图~\ref{fig:funnel}）：ingest 80 $\to$ parse 79 ok（1 reject）$\to$ xlat zh 臂 76 ok + 3 partial $\to$ compile 50 clean + 19 partial + 10 fail $\to$ fixloop 对 21 个非 clean 格全数救回（13 升 clean + 8 partial）。联合口径 union pdf 98.75\%、clean 88.75\%，过 M2 union-pdf $\geq90\%$ 门；clean 距 90\% 门差 1.25pt。
+五阶段批量驱动对 80 篇跨层样本的实测漏斗（图~\ref{fig:funnel}）：ingest 80 $\to$ parse 79 ok（1 reject）$\to$ xlat mock 臂 76 ok + 3 partial $\to$ compile zh 臂 61 clean + 13 partial + 5 fail + 1 skip $\to$ fixloop 在 21 格上动作（fail$\to$clean 5、partial$\to$clean 5、partial 保持 8、clean 复核 3）。union 终态 \textbf{clean 71 + partial 8 = pdf 79/80（98.75\%）}，过 M2 union-pdf $\geq90\%$ 门；clean 88.75\% 距 90\% 门差 1.25pt。同格对照臂 base（裸编译 50 clean + 19 partial + 10 fail）给出归因锚点：管线+fixloop 相对裸编译 \textbf{pdf +10 格（69$\to$79）、clean +21 格（50$\to$71）}。
 
 \begin{figure}[htbp]
 \centering
 \begin{tikzpicture}
-\begin{axis}[
+\begin{groupplot}[
+  group style={group size=2 by 1,horizontal sep=14mm},
+]
+\nextgroupplot[
   xbar,
-  width=12.5cm, height=4.2cm,
+  width=8.6cm, height=4.6cm,
   xmin=0, xmax=90,
   xlabel={格数}, ytick=data,
-  yticklabels={fixloop 后 pdf 计,fixloop 救回,compile clean,xlat ok,parse ok,ingest},
+  yticklabels={union pdf（71 clean+8 partial）,compile zh pdf（61+13）,xlat ok,parse ok,ingest},
+  y tick label style={font=\scriptsize},
   nodes near coords, nodes near coords style={font=\scriptsize},
-  bar width=4.5mm,
+  bar width=4.2mm,
   x label style={font=\small},
 ]
-\addplot+[fill=cA!70,draw=cA] coordinates {(79,0) (21,1) (50,2) (79,3) (79,4) (80,5)};
-\end{axis}
+\addplot+[fill=cA!70,draw=cA] coordinates {(79,0) (74,1) (76,2) (79,3) (80,4)};
+\nextgroupplot[
+  ybar, bar width=5.5mm,
+  width=6.4cm, height=4.6cm,
+  ymin=0, ymax=90,
+  symbolic x coords={base 裸编译,zh+fixloop union},
+  xtick=data, x tick label style={font=\scriptsize},
+  ylabel={格数}, y label style={font=\small},
+  legend style={at={(0.5,-0.24)},anchor=north,legend columns=2,font=\scriptsize},
+  nodes near coords, nodes near coords style={font=\scriptsize},
+]
+\addplot+[fill=cD!70,draw=cD] coordinates {(base 裸编译,50) (zh+fixloop union,71)};
+\addplot+[fill=cC!75,draw=cC] coordinates {(base 裸编译,19) (zh+fixloop union,8)};
+\legend{clean,partial（pdf\~{}）}
+\end{groupplot}
 \end{tikzpicture}
-\caption{stagerun 五阶段漏斗（80 篇跨层样本，zh 臂 / mock 上游）。compile 产出 50 clean+19 partial+10 fail；fixloop 将 21 个非 clean 格全部推到 pdf 层（13 clean+8 partial），union pdf 79/80。}
+\caption{stagerun 五阶段漏斗与同格对照（80 篇跨层样本，xlat 为 mock 上游）。左：主流水线 zh 臂逐段存活数；右：同一 80 格上 base 裸编译 vs zh+fixloop union 终态——管线相对裸编译 pdf +10 格、clean +21 格（fixloop 救回 fail 5 格全升 clean、partial 5 格升 clean）。}
 \label{fig:funnel}
 \end{figure}
 
@@ -113,7 +130,7 @@ swe-2-medium 译文对 324 篇论文 1{,}937 个 chunk 的 LLM-judge 评分（ju
 
 \subsection{翻译硬契约：xlatbench}
 
-271 个抽样上下文对 swe-2-medium 的硬契约测试：hard\_ok 94\%，http\_err 0。延迟 p50 4.2s / p95 29.7s——bg 批量档 $\sim$120s in-gate 排队在长尾可见。失败类：cs\_dropped$\times$8、ph\_miss$\times$5、validator$\times$3、ord\_hard$\times$1；ord\_soft 78 条软序告警。
+271 个抽样上下文对 swe-2-medium 的硬契约测试：hard\_ok 254/271=93.7\%，http\_err 0。延迟 p50 4.2s / p90 16.2s / p95 29.7s / max 104.4s——bg 批量档 in-gate 排队在长尾可见。token 经济：tok\_in 77.4k / tok\_out 40.8k（均 285/150 per chunk），reasoning 均 93 tok，prompt 缓存命中 0\%（抽样源分散）。per-kind 契约率：stress 4/4、para 64/67、caption 62/67、item 61/66、footnote 58/60——footnote/item 类是短板。失败类：cs\_dropped$\times$8、ph\_miss$\times$5、validator$\times$3、ord\_hard$\times$1；ord\_soft 78 条软序告警（不改契约，但提示换序倾向）。
 
 \subsection{e2e 全链：mock 与 real 双臂}
 

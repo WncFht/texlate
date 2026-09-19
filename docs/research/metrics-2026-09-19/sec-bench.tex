@@ -2,7 +2,7 @@
 
 \subsection{七臂总览}
 
-benchmark 套件按「每臂对准管线一段 + 一个组合层」设计，规格冻结于 \texttt{docs/10-benchmark-suite.md}，共同底材为 corpus\_v3。表~\ref{tab:arms} 为总览。
+benchmark 套件按「每臂对准管线一段 + 一个组合层」设计，评测器规格冻结件随档于 \texttt{refs/}（\texttt{10-benchmark-suite.md}），共同底材为 corpus\_v3。表~\ref{tab:arms} 为总览。
 
 \begin{table}[htbp]
 \centering\small
@@ -13,7 +13,7 @@ benchmark 套件按「每臂对准管线一段 + 一个组合层」设计，规�
 \# & benchmark & 测哪段 & 底材 & 核心指标 \\
 \midrule
 B1 & parsebench & 解析段 & corpus\_v3 + corpus39 & ok / identity / leak / dead / flatten \\
-B2 & fixtures & 解析段（单元级） & \texttt{bench/fixtures/*.tex} & 陷阱断言通过率（T01--T98） \\
+B2 & fixtures & 解析段（单元级） & 手构陷阱 \texttt{.tex} 集（10 件） & 陷阱断言通过率（T01--T98） \\
 B3 & compilebench & 编译段 + fixloop & corpus\_v3 raw blob & clean/pdf\~{}/FAIL、救回率、规则谱 \\
 B4 & xlatbench & 翻译段 & corpus\_v3 chunk 抽样 & 硬契约率 / 延迟 / token 经济 \\
 B4b & qualbench & 翻译质量 & e2e state 配对 & LLM-judge ESA 评分 / flag 分类 \\
@@ -28,6 +28,28 @@ B7 & alignbench & 阅读体验 & en/zh 编译产物对 & named-dest 保留率 / 
 \end{table}
 
 依赖序：corpus\_v3 $\to$ B1 $\to$ B4 $\to$ \{B3, B5\} $\to$ B7；B2/B6 以合成输入独立。
+
+\subsection{评测现场：\texttt{bench/} 的构成}
+
+所有评测资产集中在仓库 \texttt{bench/} 树，入口文档为 \texttt{PROTOCOL.md}（逐库横评协议）与 \texttt{TIERS.md}（验证分层契约，均随档 \texttt{refs/}）。后者定义「一个问题该在哪一级被抓住」：L0 单测/fixture 断言（秒级，CI 硬门）$\to$ L1 corpus 机制覆盖（分钟级）$\to$ L2 stagerun 子集回归（分钟–小时，机制台账定向重放）$\to$ L3 全层全臂过夜集成（里程碑门）；规则是「能低不高」——低层能钉的不许只在批量上撞见，批量发现的真坑要沉淀回 L0。本报告 B1--B7 属 L1--L3 层读数。布局与职能：
+
+\begin{table}[htbp]
+\centering\small
+\caption{\texttt{bench/} 现场布局（不熟悉仓库的读者对照此表读结果目录名）}
+\label{tab:benchlayout}
+\begin{tabular}{@{}lp{10.8cm}@{}}
+\toprule
+路径 & 内容 \\
+\midrule
+\texttt{bench/py/} & 37 个评测脚本，分四簇——\textbf{批量驱动}：\texttt{stagerun.py} + \texttt{stage\_\{ingest,parse,xlat,compile,fixloop\}}（五段 DAG，records 逐格 append-only 落盘）；\textbf{七臂 harness}：\texttt{parsebench}、\texttt{compilebench\_v3}、\texttt{xlatbench}、\texttt{qualbench}、\texttt{e2e\_mock\_bench}、\texttt{e2e\_real\_bench}、\texttt{fixloop\_bench}、\texttt{alignbench}、\texttt{validbench}、\texttt{gullet\_bench}、\texttt{fixture\_assert}；\textbf{门禁监控}：\texttt{gate\_scorecard}（M2 出口门）、\texttt{status\_panel}、\texttt{nightwatch}、\texttt{rundiff}、\texttt{triage}、\texttt{wave}、\texttt{stage\_timing}；\textbf{支撑件}：\texttt{benchlib} 公共库、\texttt{translators\_bench}（mock 翻译厂）、\texttt{corpus/} 语料构建管线、\texttt{iclr\_*} 对照语料渠、\texttt{report/} 一次性审计、\texttt{scratch/} 探针 \\
+\texttt{bench/ts/} & JS 侧三库横评 harness（latex-utensils/unified-latex/tree-sitter-latex），D0 选型证据产地 \\
+\texttt{bench/corpus*} & 语料族：\texttt{corpus} 39 篇手挑陷阱、\texttt{corpus\_v2} 139 篇分层、\texttt{corpus\_v3} 13{,}266 篇八层钉版（\S\ref{sec:corpus}）、\texttt{corpus\_daily} RSS 日更渠（$\sim$1{,}200 篇/日）、\texttt{corpus\_iclr*} ICLR 对照渠 \\
+\texttt{bench/fixtures/} & 10 件手构陷阱 \texttt{.tex}（\texttt{@Tnn}/\texttt{@Wnn}/\texttt{@Xn} 断言标记：T 为结构陷阱、W 为野外发现机制、X 为翻译层；逐字节即语义，不做任何格式化） \\
+\texttt{bench/results/} & 评测产物区：每次运行一个日期目录（377+ 轮累积），含 records/summary/jsonl/PDF 中间件；大体量不入档，本报告读数全部由其抽取进 \texttt{data/} \\
+\texttt{bench/work\_*/} & 编译/fixloop 逐格工作区（解压源树、aux、PDF；重产物 gitignored） \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \subsection{语料分层构造}
 \label{sec:corpus}
@@ -64,8 +86,8 @@ corpus\_v3 是钉版批量语料：每个 cell 记录 \texttt{(channel, item, me
 \label{fig:corpus}
 \end{figure}
 
-治理规则：holdout 层（3{,}020 篇）登记 \texttt{EVAL\_ONLY\_LAYERS}，所有开发期采样经 \texttt{dev\_layers()} 过滤；语料扩展只加层不删层；cell 数据 gitignored，入库物为 manifest + 选择报告 + 机制台账 \texttt{mechanisms.jsonl}（benchmark $\to$ 归因 $\to$ 规则沉淀的反馈环载体）。
+治理规则：holdout 层（3{,}020 篇）登记 \texttt{EVAL\_ONLY\_LAYERS}，所有开发期采样经 \texttt{dev\_layers()} 过滤；语料扩展只加层不删层；cell 数据 gitignored，入库物为 manifest + 选择报告 + 机制台账 \texttt{mechanisms.jsonl}（两者快照均随档 \texttt{refs/}；台账是 benchmark $\to$ 归因 $\to$ 规则沉淀的反馈环载体）。
 
 \subsection{门槛体系}
 
-各臂门槛（\texttt{docs/09} §8）：parsebench——parse ok 100\%、identity $\geq 99.5\%$、leak $\leq 0.15\%$、dead$\cdot$orphan $=0$、flatten $\geq 99\%$；M2 出口门（stagerun scorecard）——union pdf $\geq 90\%$、clean $\geq 90\%$。统计口径：核心层加权池化率 + 宏平均双报，Wilson + 月簇稳健 bootstrap CI。
+各臂门槛（语料规格 §8，随档 \texttt{refs/}）：parsebench——parse ok 100\%、identity $\geq 99.5\%$、leak $\leq 0.15\%$、dead$\cdot$orphan $=0$、flatten $\geq 99\%$；M2 出口门（stagerun scorecard）——union pdf $\geq 90\%$、clean $\geq 90\%$。统计口径：核心层加权池化率 + 宏平均双报，Wilson + 月簇稳健 bootstrap CI。
