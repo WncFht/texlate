@@ -13,6 +13,7 @@ CJK——字节探测必须先判定编码族再解码，判定依据逐文件�
 from __future__ import annotations
 
 import codecs
+import logging
 import re
 from bisect import bisect_right
 from dataclasses import dataclass
@@ -21,6 +22,8 @@ from typing import Final
 
 from .cjk import _in_ranges, _merge_ranges, is_cjk_cp
 from .mask import _MEMO_MAX_INPUT, _MEMO_MAXSIZE, mask_tex
+
+log = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------- 编码判定
 #: ``\usepackage[<opt>]{inputenc}`` / ``\inputencoding{<opt>}`` / 魔数注释
@@ -582,6 +585,86 @@ def _eol_norm(text: str) -> str:
     return text.replace("\r\n", "\n").replace("\r", "\n")
 
 
+#: cp1252 印刷面映射——``0x80–0x9F`` 有槽字节 → 排版符。cp1252 空洞
+#: （81/8D/8F/90/9D 无定义）不落表，``_scrub_c1_mojibake`` 查表落空即剥除。
+_CP1252_C1: Final = {
+    0x80: "€",
+    0x82: "‚",
+    0x83: "ƒ",
+    0x84: "„",
+    0x85: "…",
+    0x86: "†",
+    0x87: "‡",
+    0x88: "ˆ",
+    0x89: "‰",
+    0x8A: "Š",
+    0x8B: "‹",
+    0x8C: "Œ",
+    0x8E: "Ž",
+    0x91: "‘",
+    0x92: "’",
+    0x93: "“",
+    0x94: "”",
+    0x95: "•",
+    0x96: "–",
+    0x97: "—",
+    0x98: "˜",
+    0x99: "™",
+    0x9A: "š",
+    0x9B: "›",
+    0x9C: "œ",
+    0x9E: "ž",
+    0x9F: "Ÿ",
+}
+#: 单 C1（U+0080–009F）命中面——run 守卫与反转验收共用。
+_C1_RX: Final = re.compile(r"[\u0080-\u009f]")
+#: U+0080–00FF 高字节 run 匹配面——含 C1 才进还原，纯拉丁 run 原样不动。
+_HIGH_RUN_RX: Final = re.compile(r"[\u0080-\u00ff]+")
+
+
+def _scrub_c1_mojibake(text: str) -> str:
+    r"""解码面 C1/mojibake 清洗：含 C1 的 U+0080–00FF run 还原排版符。
+
+    U+0080–009F 是 C1 控制码——arXiv 源解码面出现即烘焙乱码、永非合法
+    TeX 文本（真 cp1252 文件经 cp1252 codec 解码直接产印刷符，C1 落不到
+    解码产物）。两种烘焙形态：(a) 裸 C1 = cp1252 字节被 latin-1 直通抬升
+    （``O\x92Brien`` → ``O'Brien``）；(b) UTF-8 序列被逐字节抬成
+    Latin-1 面（``dâ\x80\x99un`` → ``d'un``）。整 run latin-1 回字节
+    再 UTF-8 重解可还原 (b) 及更长链；失败或产物仍含 C1/FFFD 则逐字
+    回退 ``_CP1252_C1`` 印刷面。哨兵即 C1 在场——run 内 U+00A0–00FF
+    拉丁字母两路均原样、无 C1 的 run 整体不动：``café``/``naïve``
+    合法文本免误伤；产物零 C1 故天然幂等。
+    """
+    if not _C1_RX.search(text):
+        return text
+    out: list[str] = []
+    pos = 0
+    scrubbed = 0
+    for match in _HIGH_RUN_RX.finditer(text):
+        run = match[0]
+        if not _C1_RX.search(run):
+            continue
+        out.append(text[pos : match.start()])
+        pos = match.end()
+        try:
+            fixed = run.encode("latin-1").decode("utf-8")
+        except UnicodeDecodeError:
+            fixed = ""
+        if fixed and not _C1_RX.search(fixed) and "\ufffd" not in fixed:
+            out.append(fixed)
+        else:
+            out.append(
+                "".join(
+                    ch if ord(ch) > _C1_HI else _CP1252_C1.get(ord(ch), "")
+                    for ch in run
+                )
+            )
+        scrubbed += 1
+    out.append(text[pos:])
+    log.debug("c1-mojibake scrub: %d run(s)", scrubbed)
+    return "".join(out)
+
+
 def decode_tex_with(blob: bytes) -> tuple[str, EncodingVerdict]:
     """``decode_tex`` + 判定归因。永不抛——latin-1 兜底。"""
     if len(blob) > _MEMO_MAX_INPUT:
@@ -592,22 +675,20 @@ def decode_tex_with(blob: bytes) -> tuple[str, EncodingVerdict]:
 def _decode_tex_with(blob: bytes) -> tuple[str, EncodingVerdict]:
     verdict = sniff_tex_encoding(blob)
     if verdict.encoding == "utf-8-mixed":
-        return _eol_norm(_decode_mixed(blob)[0]), verdict
-    try:
-        return _eol_norm(blob.decode(verdict.encoding)), verdict
-    except UnicodeDecodeError:
-        # 判定族正确但含零星坏点（SJIS 孤立半对尾）——replace 保住
-        # 95% 正确字符，远好于 latin-1 全毁。
-        return (
-            _eol_norm(blob.decode(verdict.encoding, errors="replace")),
-            verdict,
-        )
-    except LookupError:
-        pass
-    return (
-        _eol_norm(blob.decode("latin-1")),
-        EncodingVerdict("latin-1", "fallback", verdict.declared, "decode failed"),
-    )
+        text = _decode_mixed(blob)[0]
+    else:
+        try:
+            text = blob.decode(verdict.encoding)
+        except UnicodeDecodeError:
+            # 判定族正确但含零星坏点（SJIS 孤立半对尾）——replace 保住
+            # 95% 正确字符，远好于 latin-1 全毁。
+            text = blob.decode(verdict.encoding, errors="replace")
+        except LookupError:
+            verdict = EncodingVerdict(
+                "latin-1", "fallback", verdict.declared, "decode failed"
+            )
+            text = blob.decode("latin-1")
+    return _scrub_c1_mojibake(_eol_norm(text)), verdict
 
 
 _decode_tex_with_memo = lru_cache(maxsize=_MEMO_MAXSIZE)(_decode_tex_with)

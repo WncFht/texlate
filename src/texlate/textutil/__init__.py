@@ -60,6 +60,7 @@ from .encoding import (  # noqa: F401
     _declared_name,
     _decode_tex_with_memo,
     _eol_norm,
+    _scrub_c1_mojibake,
     _tar_disguised,
     _tar_header_ok,
     decode_tex,

@@ -8,6 +8,7 @@
 from texlate.textutil import (
     CJK_RANGES,
     _char_class,
+    _scrub_c1_mojibake,
     decode_tex,
     decode_tex_with,
     is_cjk_cp,
@@ -235,3 +236,72 @@ def test_char_class_boundaries() -> None:
     }
     for cp, want in cases.items():
         assert _char_class(chr(cp)) == want, hex(cp)
+
+
+# ---------------------------------------------------------------- C1/mojibake 清洗
+def test_scrub_bare_c1_cp1252_map() -> None:
+    """裸 C1 = cp1252 字节被 latin-1 抬升——``O\\x92Brien`` → ``O'Brien``。"""
+    assert _scrub_c1_mojibake("O\x92Brien") == "O’Brien"
+    assert _scrub_c1_mojibake("\x96Fasc.") == "–Fasc."
+
+
+def test_scrub_utf8_triple_reversal() -> None:
+    """UTF-8 序列逐字节抬升三连——``dâ\\x80\\x99un`` → ``d'un``。"""
+    assert _scrub_c1_mojibake("dâ\x80\x99un") == "d’un"
+    # E2 80 93 utf-8 = –（en-dash）
+    assert _scrub_c1_mojibake("3420â\x80\x933449") == "3420–3449"
+
+
+def test_scrub_non_c1_latin_passthrough() -> None:
+    """无 C1 的 run 整体不动——合法重音文本免误伤（哨兵守卫实证）。"""
+    for s in ("café", "naïve", "Ångström"):
+        assert _scrub_c1_mojibake(s) == s
+
+
+def test_scrub_ascii_cjk_unchanged() -> None:
+    for s in ("plain ascii", "干涉仪相位灵敏度分析", ""):
+        assert _scrub_c1_mojibake(s) == s
+
+
+def test_scrub_mixed_runs_both_fixed() -> None:
+    """ASCII 隔开的两个含 C1 run 各自修复。"""
+    assert _scrub_c1_mojibake("1234\x92abc\x96def") == "1234’abc–def"
+
+
+def test_scrub_cp1252_hole_dropped() -> None:
+    """cp1252 空洞（0x81 无槽位）剥除；0x99 → ™。"""
+    assert _scrub_c1_mojibake("a\x81b") == "ab"
+    assert _scrub_c1_mojibake("X'\x99") == "X'™"
+
+
+def test_scrub_run_reversible_plus_residual() -> None:
+    """混合 run：整段反转被尾 C1 卡死 → 非 C1 原样 + C1 逐字映射。"""
+    # ``â\x80\x99\x92``：E2 80 99 本可反 '，尾 \x92 使整段反转失败
+    assert _scrub_c1_mojibake("â\x80\x99\x92") == "â€™’"
+
+
+def test_scrub_idempotent() -> None:
+    """产物零 C1 → 天然幂等。"""
+    for s in ("O\x92Brien", "dâ\x80\x99un", "â\x80\x99\x92", "a\x81b", "café"):
+        once = _scrub_c1_mojibake(s)
+        assert _scrub_c1_mojibake(once) == once
+
+
+def test_decode_tex_scrubs_baked_c1() -> None:
+    """端到端：strict UTF-8 件内烘焙 C1 解码后清洗（cp1252cen 普查形）。"""
+    text, _v = decode_tex_with(b"O\xc2\x92Brien\n" + ASCII_TEX)
+    assert "O’Brien" in text
+
+
+def test_decode_tex_scrubs_utf8_triple() -> None:
+    """端到端：``â\\x80\\x99``/``â\\x80\\x93`` 三连经 strict 档还原。"""
+    blob = "pages 3420â\x80\x933449 dâ\x80\x99un\n".encode() + ASCII_TEX
+    text, _v = decode_tex_with(blob)
+    assert "3420–3449" in text
+    assert "d’un" in text
+
+
+def test_decode_tex_scrub_preserves_legit_latin() -> None:
+    """端到端不误伤：合法 é/ü/à 文本无 C1 哨兵整体通过。"""
+    text, _v = decode_tex_with("café naïve Ångström\n".encode() + ASCII_TEX)
+    assert "café naïve Ångström" in text
