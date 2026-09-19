@@ -579,8 +579,7 @@ def _prepend_sites_in_text(
             ins in window
             or f"\\let\\{name}\\@undefined" in window  # 上轮旧形 emit
             or (
-                _endstar_name(name)
-                and "\\let\\@ifdefinable\\@rc@ifdefinable" in window
+                _endstar_name(name) and "\\let\\@ifdefinable\\@rc@ifdefinable" in window
             )
         ):
             continue  # 上轮已 prepend 过的站点
@@ -1548,9 +1547,7 @@ def _atdef_sites(vis: str) -> list[tuple[int, int, bool]]:
                 continue
             d = _ATDEF_CMD_RE.match(vis, pos)
             if d is not None:
-                end = _def_extent(
-                    vis, d.end(), d.group(0).rstrip().endswith("def")
-                )
+                end = _def_extent(vis, d.end(), d.group(0).rstrip().endswith("def"))
                 sites.append((pos, end, at_letter))
                 pos = end
                 continue

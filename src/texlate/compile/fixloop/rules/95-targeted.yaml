@@ -896,7 +896,7 @@ rules:
     stats: { fires: 1, status: proposed }
     source_ref: "tmp/c-bucket-residual/routing.md §2 dimen_true_unit"
 
-  # 1206.5304: citekey_sanitize(141) 的 _BIBITEM_KEY_RE opt-arg 段
+  # 1206.5304: citekey_sanitize(141) 的 BIBITEM_KEY_RE opt-arg 段
   # [^\]\n]* 跨不了折行 —— 本 bbl 每条 \bibitem[折行 opt]{Name_NN} 全漏,
   # .tex 侧已被 builtin 改写而 .bbl 侧仍裸 _ → Missing $ 残留 + 引用
   # 断链。同签 mop-up: 条目在 _patch_files 一遍内顺序执行, 列两遍兜

@@ -188,9 +188,10 @@ rules:
     stats: { fires: 4, rescued_cells: 4 }
     source_ref: "fixloop.py L378-393"
 
-  # 2026-09-20 microtypelis lane (soak-2026-09-18 普查 5 格同签):
-  # ICLR-2027 系 doc-shipped cls (applemlr/onethree/style/technical_report)
-  # 模板段 ``\DisableLigatures[f]{family=sf*}`` —— microtype 该 cs 仅
+  # 2026-09-20 microtypelis lane (soak-2026-09-18 普查 5 格同签 +
+  # wave-10 后续 3 格 fairmeta.cls 同签第二容器):
+  # ICLR-2027 系 doc-shipped cls (applemlr/onethree/style/technical_report/
+  # fairmeta) 模板段 ``\DisableLigatures[f]{family=sf*}`` —— microtype 该 cs 仅
   # pdfTeX≥1.30/LuaTeX 可达, XeTeX 族 (xelatex/tectonic) 下抛可恢复
   # \PackageError "Disabling ligatures of a font is only possible with
   # pdftex version 1.30 or newer. Ignoring \DisableLigatures." —— PDF 照出
