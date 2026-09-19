@@ -157,6 +157,43 @@ def test_displaced_magic_variant_writes_expected(tmp_path: Path) -> None:
     assert (tmp_path / "aipproc.cls.tarblob").is_file()
 
 
+# --------------------------------------------- ustar 字样假阳 (2410.17904)
+def test_ustar_macro_name_not_renamed(tmp_path: Path) -> None:
+    r"""宏名内 ``ustar`` 字样假阳实案: ``\mustar``/``\mustarh`` 回推 257
+    落文本非 NUL → 旧闸误改 ``paper.tex``→.tarblob → missing_file。
+    魔数+版本域全宽 8B 校验首关即拒。"""
+    tex = (
+        "\\documentclass{article}\n% "
+        + "x" * 400
+        + "\n\\newcommand{\\mustar}{\\mu^\\star}\n"
+        + "\\newcommand{\\mustarh}{\\mu^{\\star h}}\n"
+        + "\\begin{document}\n$\\mustar(x,a)+\\mustarh(x,a)$\n\\end{document}\n"
+    )
+    (tmp_path / "paper.tex").write_bytes(tex.encode())
+    ok, note = _extract(tmp_path)
+    assert not ok, note
+    assert (tmp_path / "paper.tex").is_file()
+    assert not (tmp_path / "paper.tex.tarblob").exists()
+
+
+def test_ustar_magic_field_bad_checksum_not_renamed(tmp_path: Path) -> None:
+    """校验和层独测: 文本内嵌 POSIX 魔数+版本全形 ``ustar\\0`` + ``00``
+    且 chksum 位恰呈八进制形 (``012345␣␣``)——值不等于头余字节和仍拒。"""
+    body = (
+        b"% "
+        + b"y" * 190
+        + b"012345  "  # 恰落 hdr+148: 八进制形态正确但值必不等于头校验和
+        + b"y" * 101
+        + b"ustar\x0000"
+        + b"z" * 400
+    )
+    (tmp_path / "fake.tex").write_bytes(body)
+    ok, note = _extract(tmp_path)
+    assert not ok, note
+    assert (tmp_path / "fake.tex").is_file()
+    assert not (tmp_path / "fake.tex.tarblob").exists()
+
+
 # ------------------------------------------- docstrip 兄弟产出缓存失效 (logcache 病族)
 def _docstrip(ctx: LoopCtx, payload: str) -> tuple[bool, str]:
     return builtins.TRANSFORM_FNS["docstrip_generate"](

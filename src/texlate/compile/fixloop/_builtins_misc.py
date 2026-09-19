@@ -376,6 +376,19 @@ _TAR_MAGIC = b"ustar"
 #: 前 64KB 扫描兼容原生与变异 blob。
 _TAR_SCAN_WINDOW = 65536
 
+#: offset-257 魔数+版本域全宽 8B: POSIX ``ustar\0`` + ``00``, GNU
+#: ``ustar`` + 2 空格 + ``\0``。``ustar}``/``ustarh``/``ustar(`` 等文本
+#: 命中永不过此关 (2410.17904 ``\mustar``/``\mustarh`` 宏名假阳实案——
+#: 真 ``paper.tex`` 被改名 .tarblob → missing_file)。
+_TAR_MAGIC_LEN = 8
+_TAR_MAGIC_FIELDS = frozenset({b"ustar\x0000", b"ustar  \x00"})
+
+#: tar chksum 字段 (头内偏移 148, 8B)——存值须等于 512B 头余字节按
+#: 空格计之和; 文本同名段凑不出, 与魔数域双校验后假阳率近零。
+_TAR_CHKSUM_OFF = 148
+_TAR_CHKSUM_LEN = 8
+_TAR_HEADER_LEN = 512
+
 #: 伪装判定扩展名集——tar blob 只在文本类名下才有害 (二进制件 .eps/.pdf
 #: 不查；``.tarblob`` 是本方改名件, 重扫须免再命中)。
 _TARBLOB_EXTS = frozenset(
@@ -397,22 +410,45 @@ _TARBLOB_EXTS = frozenset(
 )
 
 
+def _tar_checksum_ok(head: bytes, hdr: int) -> bool:
+    """512B tar 头校验和——chksum 域 (148, 8B) 存值须为头余字节按空格计之和。"""
+    blk = head[hdr : hdr + _TAR_HEADER_LEN]
+    if len(blk) < _TAR_HEADER_LEN:
+        return False
+    field = blk[_TAR_CHKSUM_OFF : _TAR_CHKSUM_OFF + _TAR_CHKSUM_LEN]
+    digits = field.split(b"\x00")[0].strip()
+    if not digits or any(c not in b"01234567" for c in digits):
+        return False
+    return int(digits, 8) == (
+        sum(blk[:_TAR_CHKSUM_OFF])
+        + _TAR_CHKSUM_LEN * 0x20
+        + sum(blk[_TAR_CHKSUM_OFF + _TAR_CHKSUM_LEN :])
+    )
+
+
 def _tar_header_start(f: Path) -> int | None:
-    """Tar 头起点探测——前 ``_TAR_SCAN_WINDOW`` 内找 ``ustar``, 回推 257 得头起点。
+    r"""Tar 头起点探测——前 ``_TAR_SCAN_WINDOW`` 内找 ``ustar``, 回推 257 得头起点。
 
     None = 非 tar; 0 = 原生 tar; >0 = 被前置注入推位的变异 tar
-    (注入件仍以 tar 为主体, 同须退役)。轻校验: 头起点 name 字段首字节
-    非 NUL, 免注释/文本里 ``ustar`` 字样误中。
+    (注入件仍以 tar 为主体, 同须退役)。双校验: 魔数+版本域全宽 8B 匹配
+    + 512B 头校验和——免 ``\mustar``/``\mustarh`` 类宏名内 ``ustar``
+    字样误中真 .tex (2410.17904 ``paper.tex``→missing_file 实案)。
+    多读 ``_TAR_HEADER_LEN`` 让窗尾命中仍见全头。
     """
     try:
         with f.open("rb") as fh:
-            head = fh.read(_TAR_SCAN_WINDOW)
+            head = fh.read(_TAR_SCAN_WINDOW + _TAR_HEADER_LEN)
     except OSError:
         return None
     p = head.find(_TAR_MAGIC)
     while p != -1:
         hdr = p - _TAR_MAGIC_OFF
-        if hdr >= 0 and head[hdr] != 0:
+        if (
+            hdr >= 0
+            and head[hdr] != 0
+            and head[p : p + _TAR_MAGIC_LEN] in _TAR_MAGIC_FIELDS
+            and _tar_checksum_ok(head, hdr)
+        ):
             return hdr
         p = head.find(_TAR_MAGIC, p + 1)
     return None
