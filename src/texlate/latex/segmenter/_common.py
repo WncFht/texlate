@@ -156,12 +156,25 @@ _WS_NOPAR = r"(?>[^\S\n]|%[^\n]*|\n(?![ \t\n]*\n))"
 # ``\multiply\ione by 10`` 族）。两硬界：项间零间隙（邻接才成链——
 # ``\vskip1em \section`` 的空格断链防误吃下行命令）；NUMUNIT 必为链尾
 # （物理单位后 TeX 只续 plus/minus——``2pt\foo`` 的 ``\foo`` 不收）。
-_OPERAND_FACTOR = r"(?:\\[a-zA-Z@]+(?![a-zA-Z@])|" + _DIMEN_NUM + r")"
+# ``\input`` 族文件参命令永不作操作数 cs——TeX 数/胶扫遇不可展开
+# ``\input`` 即止（xetex 实证 ``\count0=5000\input{f}``：数=5000、
+# ``\input`` 随后照常执行），吃进 FACTOR/BASE 会把 ``{file}`` 组孤儿
+# 化裸落 surface 被译（2403.00100 ``\clubpenalty=5000\input{...}``）。
+# ``\include``/``\import``/``\subfile``/``\@input`` 等同带文件参族全排；
+# ``\endinput`` 同类（换源哨兵语义亦不可被操作数吞掉）。
+_OPERAND_CS = (
+    r"\\(?!(?:"
+    + "|".join(sorted(INPUT_SCAN_CMDS | {"endinput"}, key=len, reverse=True))
+    + r")(?![a-zA-Z@]))[a-zA-Z@]+(?![a-zA-Z@])"
+)
+_OPERAND_FACTOR = r"(?:" + _OPERAND_CS + "|" + _DIMEN_NUM + r")"
 _OPERAND_BASE = (
     _DIMEN_NUM
     + r"[ \t]*"
     + _DIMEN_UNIT
-    + r"|'[0-7]+|\"[0-9A-Fa-f]+|\\[a-zA-Z@]+(?![a-zA-Z@])|"
+    + r"|'[0-7]+|\"[0-9A-Fa-f]+|"
+    + _OPERAND_CS
+    + r"|"
     + _DIMEN_NUM
 )
 _TAIL_OPERAND = (

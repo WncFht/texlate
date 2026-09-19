@@ -66,6 +66,7 @@ from ._common import (
 )
 from .args import (
     _COMMA_LIST_RX,
+    _COND_GROUP_ARGS,
     _DEAD_ARG_NAMES,
     _DEAD_TAIL_NAMES,
     _KEYVAL_GROUP_RX,
@@ -768,7 +769,12 @@ class _Pending:
         if name == "hyperref":
             return ["s", "e"], ""
         if COND_RX.match(name):
-            return None, ""
+            # ``\iftoggle`` 族名/表达式槽是强制 ``{..}`` 参——组尾未绑时
+            # 跨界吸回（主流 ``_handle_cond`` 的 ``_COND_GROUP_ARGS`` 白名单
+            # 对价）；表外 ``\ifx``/``\else``/``\fi``/``\newif`` 旗标无花括号
+            # 名参，``{..}`` 是分支散文非名槽——维持无槽形。
+            nslots = _COND_GROUP_ARGS.get(name, 0)
+            return (["m"] * nslots if nslots else None), ""
         if name in INPUT_SCAN_CMDS:
             return (list(_PEND_CALL2) if name in _IMPORT2 else list(_PEND_CALL1)), ""
         m = self._resolve_macro(src, name)
@@ -1446,8 +1452,25 @@ class _Pending:
                 i = j
                 continue
             if COND_RX.match(name):
-                self._cat_surf(out, self._grp_ph(PhType.COND, self._tok_surface(t)))
-                i += 1
+                # 名/表达式槽 ``{..}`` 并入 [[COND]]（主流 ``_handle_cond``
+                # 的 ``_COND_GROUP_ARGS`` 组内对价）——``\iftoggle{tag}`` 的
+                # ``{tag}`` 机器槽留 surface 被译；``{T}{F}`` 支不在吸收数
+                # 内，留 surface 续扫照译。表外名无槽形（``{`` 是分支散文）。
+                j = i + 1
+                for _ in range(_COND_GROUP_ARGS.get(name, 0)):
+                    k = j
+                    while k < n and toks[k].kind == "space":
+                        k += 1
+                    if k < n and toks[k].kind == "lbrace":
+                        e = self._grp_bal(toks, k, brace=True)
+                        if e is not None:
+                            j = e
+                            continue
+                    break
+                self._cat_surf(
+                    out, self._grp_ph(PhType.COND, self._grp_surfs(toks[i:j]))
+                )
+                i = j
                 continue
             if name in INPUT_SCAN_CMDS:
                 # \input 族漏网（主版 row10）：{file}/import 双参/裸名三形
