@@ -890,3 +890,98 @@ def pdf_asset_sanitize(
     if failed:
         note += f"; failed: {'; '.join(failed)}"
     return True, note
+
+
+# ════════════════════════════════════════════════════════════════
+# missing_file 的 PS 族图档真缺件 → wdir 落占位 EPS (failmine3 #164a)
+# ════════════════════════════════════════════════════════════════
+
+#: 最小合法 EPS 占位: epsfig/graphics 两系 bbox 解析都吃 ``%%BoundingBox``,
+#: xdvipdfmx 走内嵌 gs 蒸馏 (沙箱 ``-no-shell-escape`` 下仍通——epsprobe
+#: 实测 ``File: ph.eps Graphic file (type eps)`` 载入出 PDF); tectonic 侧
+#: .eps 是 ps_image 墙, 占位件是真 EPS 可由 eps_to_pdf(15) 的 gs 照常转换。
+#: 边框+对角线让读者可辨「图缺」占位而非空白; 200x150bp 近常见插图比例,
+#: 调用点 ``width=``/``scale=`` 照常缩放。
+_EPS_PLACEHOLDER = (
+    "%!PS-Adobe-3.0 EPSF-3.0\n"
+    "%%BoundingBox: 0 0 200 150\n"
+    "%%Title: fixloop placeholder (graphic absent from e-print)\n"
+    "%%EndComments\n"
+    "0.55 setgray 1.2 setlinewidth\n"
+    "newpath 0 0 moveto 200 0 lineto 200 150 lineto 0 150 lineto closepath stroke\n"
+    "newpath 0 0 moveto 200 150 lineto stroke\n"
+    "newpath 200 0 moveto 0 150 lineto stroke\n"
+    "%%EOF\n"
+)
+
+#: ``\epsfig{file=X.eps, scale=..}`` / ``\psfig{figure=X}`` / ``\epsfbox{X}``
+#: kv/裸参引用点 —— ``_INCLUDE_GFX_RE`` 吃不到 kv 形, 独立一柄。
+_EPS_KV_RE = re.compile(r"\\(?:epsfig|psfig|epsffile|epsfbox)\s*\{([^}]*)\}")
+#: kv 形大括号串内的 ``file=``/``figure=`` 值。
+_KV_FILE_RE = re.compile(r"(?:file|figure)\s*=\s*([^,\s}]+)")
+
+
+def _has_live_graphic_ref(ctx: LoopCtx, want: str) -> bool:
+    r"""存活图形调用点 arg 与 want 命中复核 (``_graphic_ref_hit`` 三口径)。
+
+    ``\includegraphics``/epsfig/psfig 族全覆盖 —— 无扩展名 payload 的
+    图形域证据面 (``\input`` 系裸缺件没有图形调用点, 不落占位)。
+    """
+    for f in ctx.tex_files((".tex", ".sty")):
+        t = ctx.read(f)
+        if t is None:
+            continue
+        for m in _live_matches(_INCLUDE_GFX_RE, t):
+            if _graphic_ref_hit(m.group(2), want):
+                return True
+        for m in _live_matches(_EPS_KV_RE, t):
+            kv = _KV_FILE_RE.search(m.group(1))
+            arg = kv.group(1) if kv else m.group(1)
+            if _graphic_ref_hit(arg, want):
+                return True
+    return False
+
+
+def graphic_missing_placeholder(  # noqa: PLR0911 - 逐门 decline note 即归因
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""missing_file 的 PS 族图档真缺件 → ``wdir/<payload>`` 落最小合法 EPS。
+
+    graphic_ext_relax 残家 (failmine3 8 格): sibling 不存在时剥扩展名也
+    救不了 —— 修复不是改源而是补档 (xbb_pregen 旁件同形)。站点改写形
+    盖不全调用面: ``\epsfig{file=X.eps}`` kv 形与宏体 ``#1.eps`` 间接名
+    (payload 是展开后真名, 源码字面不可锚) 只能由「真名落盘」治;
+    子目录路径 (``FIGS/``/``images/``) mkdir 随行。
+
+    payload 是 log 派生路径 —— 双层守卫: ``..`` 段拒 + resolve 后仍须
+    在 wdir 内 (防穿越写)。无扩展名 payload (ext-relax 残家 vanilla
+    解析序) 须先过 ``_has_live_graphic_ref`` 复核才补 ``.eps`` ——
+    ``\input`` 系裸缺件不落图占位。盘上已有档 (大小写变体/前轮已补)
+    → False 让路。
+    """
+    del eng, params
+    want = _norm_graphic_name(payload or "")
+    if not want:
+        return False, "no graphic payload"
+    suffix = PurePosixPath(want).suffix.lower()
+    if suffix and suffix not in _EPS_EXTS:
+        return False, f"{want}: not a PS-family graphic"
+    if not suffix:
+        if not _has_live_graphic_ref(ctx, want):
+            return False, f"{want}: no live graphic ref — not graphic domain"
+        want += ".eps"
+    if ".." in PurePosixPath(want).parts:
+        return False, f"{want}: path traversal rejected"
+    f = ctx.wdir / want
+    try:
+        f.resolve().relative_to(ctx.wdir.resolve())
+    except ValueError:
+        return False, f"{want}: escapes wdir"
+    if safe_is_file(f):
+        return False, f"{want}: resolved meanwhile"
+    try:
+        f.parent.mkdir(parents=True, exist_ok=True)
+        ctx.write(f, _EPS_PLACEHOLDER)
+    except OSError as e:
+        return False, f"{want}: write failed ({e})"
+    return True, f"placeholder EPS at {want}"

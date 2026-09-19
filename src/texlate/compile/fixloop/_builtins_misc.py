@@ -18,7 +18,14 @@ from typing import TYPE_CHECKING, Any
 from texlate.compile.transcode import INTERMEDIATE_SUFFIXES
 from texlate.latex.api import NAME_GATED_TEX_SUFFIXES, parse_file
 from texlate.latex.prose import file_has_prose
-from texlate.textutil import CJK_RX, DOCCLASS_RX, mask_tex, safe_is_file
+from texlate.textutil import (
+    _TAR_HEADER_LEN,
+    CJK_RX,
+    DOCCLASS_RX,
+    _tar_header_ok,
+    mask_tex,
+    safe_is_file,
+)
 
 if TYPE_CHECKING:
     from texlate.compile.fixloop.engine import Engine, LoopCtx
@@ -376,19 +383,6 @@ _TAR_MAGIC = b"ustar"
 #: 前 64KB 扫描兼容原生与变异 blob。
 _TAR_SCAN_WINDOW = 65536
 
-#: offset-257 魔数+版本域全宽 8B: POSIX ``ustar\0`` + ``00``, GNU
-#: ``ustar`` + 2 空格 + ``\0``。``ustar}``/``ustarh``/``ustar(`` 等文本
-#: 命中永不过此关 (2410.17904 ``\mustar``/``\mustarh`` 宏名假阳实案——
-#: 真 ``paper.tex`` 被改名 .tarblob → missing_file)。
-_TAR_MAGIC_LEN = 8
-_TAR_MAGIC_FIELDS = frozenset({b"ustar\x0000", b"ustar  \x00"})
-
-#: tar chksum 字段 (头内偏移 148, 8B)——存值须等于 512B 头余字节按
-#: 空格计之和; 文本同名段凑不出, 与魔数域双校验后假阳率近零。
-_TAR_CHKSUM_OFF = 148
-_TAR_CHKSUM_LEN = 8
-_TAR_HEADER_LEN = 512
-
 #: 伪装判定扩展名集——tar blob 只在文本类名下才有害 (二进制件 .eps/.pdf
 #: 不查；``.tarblob`` 是本方改名件, 重扫须免再命中)。
 _TARBLOB_EXTS = frozenset(
@@ -410,30 +404,15 @@ _TARBLOB_EXTS = frozenset(
 )
 
 
-def _tar_checksum_ok(head: bytes, hdr: int) -> bool:
-    """512B tar 头校验和——chksum 域 (148, 8B) 存值须为头余字节按空格计之和。"""
-    blk = head[hdr : hdr + _TAR_HEADER_LEN]
-    if len(blk) < _TAR_HEADER_LEN:
-        return False
-    field = blk[_TAR_CHKSUM_OFF : _TAR_CHKSUM_OFF + _TAR_CHKSUM_LEN]
-    digits = field.split(b"\x00")[0].strip()
-    if not digits or any(c not in b"01234567" for c in digits):
-        return False
-    return int(digits, 8) == (
-        sum(blk[:_TAR_CHKSUM_OFF])
-        + _TAR_CHKSUM_LEN * 0x20
-        + sum(blk[_TAR_CHKSUM_OFF + _TAR_CHKSUM_LEN :])
-    )
-
-
 def _tar_header_start(f: Path) -> int | None:
     r"""Tar 头起点探测——前 ``_TAR_SCAN_WINDOW`` 内找 ``ustar``, 回推 257 得头起点。
 
     None = 非 tar; 0 = 原生 tar; >0 = 被前置注入推位的变异 tar
-    (注入件仍以 tar 为主体, 同须退役)。双校验: 魔数+版本域全宽 8B 匹配
-    + 512B 头校验和——免 ``\mustar``/``\mustarh`` 类宏名内 ``ustar``
-    字样误中真 .tex (2410.17904 ``paper.tex``→missing_file 实案)。
-    多读 ``_TAR_HEADER_LEN`` 让窗尾命中仍见全头。
+    (注入件仍以 tar 为主体, 同须退役)。逐候选过 textutil
+    ``_tar_header_ok`` 双校验 (name 非 NUL + 魔数+版本域 + 512B 校验和)
+    ——免 ``\mustar``/``\mustarh`` 类宏名内 ``ustar`` 字样误中真 .tex
+    (2410.17904 ``paper.tex``→missing_file 实案)。多读
+    ``_TAR_HEADER_LEN`` 让窗尾命中仍见全头。
     """
     try:
         with f.open("rb") as fh:
@@ -443,12 +422,7 @@ def _tar_header_start(f: Path) -> int | None:
     p = head.find(_TAR_MAGIC)
     while p != -1:
         hdr = p - _TAR_MAGIC_OFF
-        if (
-            hdr >= 0
-            and head[hdr] != 0
-            and head[p : p + _TAR_MAGIC_LEN] in _TAR_MAGIC_FIELDS
-            and _tar_checksum_ok(head, hdr)
-        ):
+        if hdr >= 0 and _tar_header_ok(head, hdr):
             return hdr
         p = head.find(_TAR_MAGIC, p + 1)
     return None
@@ -601,3 +575,64 @@ def extract_tar_blobs(
         extracted = _extract_members(ctx, blob, hdr, expected=f)
         done.append(f"{f.name}({extracted} members)")
     return (bool(done)), f"tar blobs extracted: {', '.join(done)}"
+
+
+# ════════════════════════════════════════════════════════════════
+# standalone/subfiles 子文档导言剥除 (failmine3 #164b)
+# ════════════════════════════════════════════════════════════════
+
+#: document 环境边界 —— ``\begin{document}``/``\end{document}`` (遮盖视图定位)。
+_BEGIN_DOC_RE = re.compile(r"\\begin\s*\{document\}")
+_END_DOC_RE = re.compile(r"\\end\s*\{document\}")
+
+
+def subfile_docclass_strip(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""非主 ``.tex`` 含存活 ``\documentclass`` → 剥至 ``\begin..\end{document}`` 内文。
+
+    inject 前导块 (``\PassOptionsToPackage{no-math}{fontspec}`` +
+    ``\AddToHook`` 能力适配串) 逐文件打进全部 .tex —— 落在自带
+    ``\documentclass`` 的 standalone/subfiles 类子文档头上时, 包的
+    preamble-skip 机制 (``\includestandalone``/``\subfile``) 只中和
+    ``\documentclass``..``\begin{document}`` 区间, 注入行在其前 = 正文区
+    活代码 → ``Can be used only in preamble`` @子文件:1 (2410.00111/
+    2003.03508/2310.16788 三格同机理, splice 面逐格核实)。
+
+    剥至纯 body 区后语义: ``\subfile``/``\includestandalone`` 包机制
+    本就跳过整个 preamble 区 (恒等); ``\subimport``/裸 ``\input`` 得
+    唯一可编译形。子文档 preamble 里的 ``\usepackage``/``\newcommand``
+    在载入语义下本就够不着 body, 剥离无功能损失。
+
+    遮盖视图复核: 注释/verbatim 内的 ``\documentclass``/``\begin{document}``
+    不算位; ``DOCCLASS_RX`` 兼收 ``\documentstyle`` (2.09 子文档同机理)。
+    无 ``\begin{document}`` 的异形制不动 (无可剥区)。主档经
+    ``ctx.main_path()`` 排除 —— resolve 双端比对防路径形态差。
+    """
+    del eng, payload
+    main = ctx.main_path()
+    main_res = main.resolve() if main is not None else None
+    exts = tuple(params.get("exts") or (".tex",))
+    changed = 0
+    for f in ctx.tex_files(exts):
+        if main_res is not None and f.resolve() == main_res:
+            continue
+        t = ctx.read(f)
+        if t is None:
+            continue
+        masked = mask_tex(t)
+        if not DOCCLASS_RX.search(masked):
+            continue  # 无存活 docclass —— 普通被 input 件, 不动
+        mb = _BEGIN_DOC_RE.search(masked)
+        if mb is None:
+            continue  # 无 body 区 —— 非输入式子文档, 不动
+        me = _END_DOC_RE.search(masked, mb.end())
+        body = t[mb.end() : me.start() if me is not None else len(t)]
+        ctx.write(
+            f,
+            "% fixloop: stripped to body (docclass-bearing subfile)\n" + body,
+        )
+        changed += 1
+    if not changed:
+        return False, "no docclass-bearing non-main .tex"
+    return True, f"body-only strip in {changed} file(s)"

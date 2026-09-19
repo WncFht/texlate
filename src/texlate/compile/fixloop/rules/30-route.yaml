@@ -221,6 +221,39 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/lane-stybegindoc/ (loop2 cases.jsonl log_excerpt 取证)"
 
+  # failmine3 lane (3 格: 2410.00111/2003.03508/2310.16788): 非主 .tex
+  # 自带 \documentclass (standalone/subfiles 子文档或整篇子稿) 被
+  # \input/\subimport 进正文 —— preamble-only cs 在 doc body 执行 →
+  # "Can be used only in preamble" @子文件:1。normalize #168 门只挡
+  # 注入侧 prepend (subfiles 类), 文件自带导言行仍是毒: 剥至
+  # \begin..\end{document} 内文是 \subfile/\includestandalone 包
+  # skip 机制的恒等语义, 也是 \subimport/裸 \input 唯一可编译形。
+  # builtin 内遮盖视图复核 (注释/verbatim 内 docclass 不算位) +
+  # ctx.main_path() 排除主档; 无 \begin{document} 异形制不动。
+  # 序在 tar_blob_extract(-1) 后: 解包落地的子档同收; static_precheck(0)
+  # 前剥掉子档导言免得死 \usepackage 触发无效装包。与 #168
+  # subfilegate (normalize 注入侧) 互补: 一侧挡新毒, 一侧清自带毒。
+  - id: subfile_docclass_strip
+    description: "非主 .tex 含存活 \\documentclass → 剥至 \\begin..\\end{document} 内文"
+    phase: precheck
+    order: -0.7 # tar_blob_extract(-1) 后, static_precheck(0) 前
+    when: { always: true }
+    action:
+      kind: builtin_transform
+      function: subfile_docclass_strip
+      params: { exts: [.tex] }
+    risk: medium # 整段剥 preamble+docclass 区; 仅 docclass-bearing 非主档中位
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "failmine3 loop3 3 格 (2410.00111/2003.03508/2310.16788)",
+          error: "LaTeX Error: Can be used only in preamble. @subfile.tex:1 (\\input 子档自带 docclass)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-failmine3/ (#164b); 与 #168 subfilegate 注入侧互补"
+
   - id: static_precheck
     mechanisms: [W11, W47, W61, B05, W80]
     description: "静态扫全部源码的 \\usepackage|\\RequirePackage|\\documentclass → 探测缺失 → filemap 批量装包 (一次装好, 省 N 轮循环)"
