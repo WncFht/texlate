@@ -134,10 +134,21 @@ THEOREM_ANCHOR_SHIM = r"""
 #: ``\IfFileExists`` 门——otf 缺席不挂）。normal+bold 两个 math version
 #: 都挂。纯追加：无数学内缺字时零行为变化；非 XeTeX/LuaTeX 引擎
 #: （无 ``\Umathcode``）整块跳过。
+#:
+#: ``"`` 仅 catcode-12 是合法 hex 前缀——bd 锚在用户宏包之后，读到本块时
+#: ``"`` 可能已被改写：quotes.sty ``\global\catcode`\"\active``（1012.1303
+#: spidersweb:208，``<to be read again> \let``——active ``"`` 在数字扫描中
+#: 展开）、fundus-cyr 链置 catcode-11（1206.1631 gamma_d:186-194，
+#: ``<to be read again> "``）——``\count@="4E00`` 全体 Missing number +
+#: Missing \begin{document}（dimcen A3，22 hits/2 cells）。守护区间：
+#: ``\TeXlate@dqcat`` 存值 + ``\catcode`\"=12``，区间内 ``\def`` 体、
+#: 调用点实参与字体名引号全按 12 读入，尾端精确还原原 catcode。
 CJK_MATH_FALLBACK = r"""
 % texlate: math fallback via dedicated symbol fonts
 \ifdefined\Umathcode
 \makeatletter
+% texlate: " is a valid hex prefix only at catcode 12 (quotes->active, cyr->11)
+\chardef\TeXlate@dqcat=\the\catcode`\"\catcode`\"=12
 \DeclareFontFamily{TU}{texlatecjk}{\hyphenchar\font\m@ne}
 \DeclareFontShape{TU}{texlatecjk}{m}{n}{<->"[FandolSong-Regular.otf]"}{}
 \DeclareFontShape{TU}{texlatecjk}{b}{n}{<->"[FandolSong-Bold.otf]"}{}
@@ -190,6 +201,7 @@ CJK_MATH_FALLBACK = r"""
 \TeXlate@mathmap\symtexlatefb 00D8-00F6;
 \TeXlate@mathmap\symtexlatefb 00F8-017F;
 \fi}{}
+\catcode`\"=\TeXlate@dqcat
 \makeatother
 \fi
 """
@@ -221,10 +233,13 @@ CJK_FIRST_USE_WARMUP = r"""
 #: TU 下该 cs 回落 TS1 ``\accent`` 原语，绕开 xeCJK interchartoks → 被饰
 #: CJK 字符落进拉丁字体丢字（2003.10723 实证）。补一条 TU 声明即回到
 #: 普通文本命令路径；非 TU 引擎（无 ``\UnicodeEncodingName``）整块跳过。
+#: 码位实参写十进制 ``865``——``"``-hex 仅在 catcode-12 合法（dimcen A3
+#: 机理，见 CJK_MATH_FALLBACK 守护），``\add@unicode@accent`` 下游就是
+#: ``\char`` 数字扫描，十进制语义恒等且对 ``"`` 改写免疫。
 TIE_ACCENT_FIX = r"""
 % texlate: \t absent from tuenc.def -> TS1 \accent bypasses xeCJK
 \ifdefined\UnicodeEncodingName
-\DeclareUnicodeAccent{\t}{"0361}
+\DeclareUnicodeAccent{\t}{865}
 \fi
 """
 
@@ -236,11 +251,16 @@ TIE_ACCENT_FIX = r"""
 #: 字符不触发过渡, 字体稳持; 不碰 CJK 码位 (xeCJK 的 class 分配不受影响,
 #: 且本块不接 ucharclasses——它给 CJKUnified 也派 class, 会盖掉 xeCJK)。
 #: 0..31 类对全接线: xeCJK 类 → CMU 类相邻 (人名汉字混排) 也要换族。
+#: ``\TeXlate@clsmap`` 的 ``"``-hex 与 CJK_MATH_FALLBACK 同机理——缝位在
+#: ``\documentclass`` 后（正常 ``"``=12），类文件若自身投毒 ``"`` 仍中招；
+#: 同款守护: ``\TeXlate@dqcat`` 存值 → ``\catcode`\"=12`` → 尾端还原。
 TEXT_8BIT_FALLBACK = r"""
 % texlate: CMU Serif fallback for 8-bit TFM coverage gaps (xetex only)
 \ifdefined\XeTeXversion
 \IfFileExists{cmunrm.otf}{%
 \makeatletter
+% texlate: " is a valid hex prefix only at catcode 12 (same guard as mathmap)
+\chardef\TeXlate@dqcat=\the\catcode`\"\catcode`\"=12
 \DeclareFontFamily{TU}{texlatecmu}{\hyphenchar\font\m@ne}
 \DeclareFontShape{TU}{texlatecmu}{m}{n}{<->"[cmunrm.otf]"}{}
 \DeclareFontShape{TU}{texlatecmu}{b}{n}{<->"[cmunbx.otf]"}{}
@@ -303,6 +323,7 @@ TEXT_8BIT_FALLBACK = r"""
 \XeTeXinterchartoks\TeXlateCMUclass 4095 ={\TeXlate@cmuOff}
 \fi
 \XeTeXinterchartokenstate=\@ne
+\catcode`\"=\TeXlate@dqcat
 \makeatother
 }{}
 \fi
@@ -399,6 +420,7 @@ def _resolve_virtual(
             if body is not None:
                 return root / key, body
     return None
+
 
 #: FLOAT_SIZING 仅在有 figure/table 时注入（docs/08 §3.3）。
 FLOAT_SIZING = r"""% texlate: fit complete oversized float boxes v1
