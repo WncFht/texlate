@@ -153,7 +153,22 @@ rules:
           - { id: langle_27e8, cps: [0x27E8], replace: "\\ensuremath{\\langle}" }
           - { id: rangle_27e9, cps: [0x27E9], replace: "\\ensuremath{\\rangle}" }
           - { id: dblgrave, cps: [0x02F5], replace: "\\mbox{''}" }
-    risk: low # 预热盒不可见; replace 只动缺字码位本身
+        # ── hangul 路由臂 ko 字体候选 (kotexfix #196) ──
+        # 谚文缺字 + 源内 xeCJK/kotex 系机制 → \begin{document} 前注路由件:
+        # xeCJK AutoFallBack + \setCJKfallbackfamilyfont (rm/sf/tt) 逐字
+        # \iffontchar 回退; xetexko \setmainhangulfont 族定 HG 类谚文字体。
+        # xetexko 把 AC00-D7A3 catcode 重置 12 → newunicodechar 死件, 故本臂
+        # 在 missing_char_fix 内预分诊抢占, 认领码位出表 (暖盒/unmatched 不再
+        # 误收); 无机制 decline → 码位留表, hangul_font_fallback(28) 末位臂
+        # 照常接管 (无 kotex 时 newunicodechar 是活路)。候选序与
+        # hangul_font_fallback.fallback_fonts 同源同步维护。
+        ko_fonts:
+          - { name: "UnDotum.ttf", install: true } # TL unfonts-core (collection-langkorean)
+          - "Noto Sans CJK KR"
+          - "IBM Plex Sans KR"
+          - "Nanum Gothic"
+          - "Malgun Gothic"
+    risk: low # 预热盒不可见; replace 只动缺字码位本身; 路由件 ifdefined 守, 无 ko 机制不注
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }
@@ -185,6 +200,10 @@ rules:
       - {
           corpus: "misschars4 #190 (loop3 残余普查 tmp/lane-misschar3/census.json, ~20 cells)",
           error: "Missing character: tab ‰ € ✓ ¯ ├ ǎ ﬁ ˆ ₁₂ ∀∃∈∘∧∨∪ ⟨⟩ ˵ — TFM/lmroman 无槽字面 → char_table 补 21 条",
+        }
+      - {
+          corpus: "2403.00013 (kaist-ucs.cls+kotex, hangul×1355 in FandolSong script=hani) / 2410.18001 (article+ctex+kotex, hangul×544 in lmroman) — kotexfix #196",
+          error: "谚文落无 hangul 字体: xetexko catcode-12 杀 newunicodechar + HG 类暖盒无效 → 路由臂 AutoFallBack+hangulfont",
         }
     stats: { fires: 40, status: proposed }
     source_ref: "spec 2026-09-16-batch-hardening-design §9 F4; scout-misschar-coverage findings.yaml §outband_coverage+cls_pretokenized"
