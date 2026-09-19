@@ -1782,3 +1782,11 @@
 
 - 无新 report.md（列出的均上轮自写）。csfix8 lane dir 07:49 有活写（cref/ repro）非停——8 行 bundle 逐行 real-compile 仍在合理窗；singtail 读态普查 28m 正常。
 - **门**：HEAD=55e31dcb；ruleset 178（worktree）；wave-13 mutex 续持（csfix8+bibimpl）；共享 index 勿动；无 teammate git 越权。
+
+### patrol ~07:56 — singtail 收割：13 簇（2 top-impl + pair-bundle + inject-queue + wave-13 adds）；dispatch ×3 → roster 12
+
+- **singtail 终判**（关 lane）：33 singles + 2 SEKI 残 → 13 簇。Top-3：①zh-machine-arg-leak ×4（/tcb/ kv+xltabular colspec+pgfplots data——base 净 3 格 zh-only，REPLAY-FIRST slotrevert#188+keyval#128，tcbchk 侧查 /tcb/ 对）；②nfss-encoding-under-TU ×3（textprime-TU/T2A/T1+ptm →other|None 分类隙）；③vendor-stub-fidelity ×4+1weak（option-tolerance/counter/bib-group stub 补钉）。
+- **新簇决策**：0712.0866 实证 inject 缺陷（doc 未闭 \makeatletter 被 inject 平衡 \makeatother 杀→catcode 恢复）+0812.0615 preamble-before-docclass+inject-hygiene 对 → 全入 **inject.py 队列**（与 linespread=1 同 mutex 域，chaser live-read）。
+- **wave-13 +=**：stale-verdict replay ×6（HaranoAji 已装）+ zh-leak replay-first ×4。
+- **dispatch ×3**：nfsstu（nfss-TU impl：新行+T-enc→TU relax/unicode-polyfill+taxonomy 臂评）、stubfid（vendor stub fidelity 补钉 ×4）、pairbun（float_opt cls-level×2/\Hy@tempa×2/endcsname-gfx-keys×2/seki-para-nonlong×2）。decline ×4 记录；psfig→epsfig+mainrel 两单 deferred。
+- **门**：HEAD=d0a00665；ruleset 178（worktree）；overnite 1724/2822；wave-13 mutex 扩持（csfix8/bibimpl/nfsstu/stubfid/pairbun impl 在飞）；无 teammate git 越权。
