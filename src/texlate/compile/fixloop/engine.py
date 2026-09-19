@@ -31,6 +31,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol
 
 from texlate.compile.fixloop import ctan
+from texlate.compile.fixloop._builtins_misc import (
+    _wdir_fingerprint,
+)
 from texlate.compile.fixloop.actions import (
     _REJECT_PREFIX,
     _apply,
@@ -403,6 +406,11 @@ class _CtxIO:
     wdir: Path
     main_rel: str | None = None
     _texts: dict[Path, str | None] = field(default_factory=dict, repr=False)
+    #: 本派发窗内 ``ctx.write`` 经手写件集 —— 窗开始处清零 (集差分认不出
+    #: 对既有件的重写, run 级积累会把规则自改误判成外部落件); 落件同步
+    #: 区分规则自改 (经缓存的 accounted 写) 与外部落件 (install/run_tool
+    #: 裸写, 绕过 ``_texts``) 用。
+    written: set[Path] = field(default_factory=set, repr=False)
 
 
 @dataclass
@@ -566,6 +574,7 @@ class LoopCtx:
         """utf-8 写文件并同步缓存。"""
         f.write_text(text, encoding="utf-8")
         self._texts[f] = text
+        self.io.written.add(f)
 
     def invalidate(self, f: Path) -> None:
         """外部改写过 (如字节级转码) 后失效缓存。"""
@@ -658,6 +667,69 @@ def find_main_tex(proj: Path) -> Path | None:
     return Path(cands[0][2])
 
 
+def _landing_sync(
+    ctx: LoopCtx,
+    before: dict[Path, tuple[int, int]],
+    pre_applied: set[str],
+) -> int:
+    """动作落件同步: 外部落件指纹 diff → ``_texts`` 失效 + 落件前烧键过期。
+
+    规则动作可改写盘面 (``scan_install``/``install_file``/vendored 落件、
+    ``run_tool``/docstrip 产物、builtin 直写)。``written`` 在派发窗开始
+    时清空, 窗内经 ``ctx.write`` 落账的写件即本窗自产编辑; ``before``
+    基线后的变化件分两档:
+
+      - **规则自改** —— ``written`` 在账的 ``ctx.write`` 改写/新建
+        (regex_rewrite/站点前置/shim 新建件): 写件已在 ``_texts`` 同步,
+        键面不动——派发链的自产编辑不该稀释 dedup (stucksem 实证: 无
+        差别过期会让先火规则非幂等重派, 抢走凭据门后位规则的派发窗)。
+      - **外部落件** —— 绕 ``ctx.write`` 的新件/改写/删除 (install/
+        vendor/run_tool 裸写): 全 invalidate (覆盖写与 miss→None 毒化
+        条目同 logcache 病族, 下轮 ``ctx.read``/site-map 读新文), 并把
+        ``pre_applied`` 基线前烧录的 ``{rule}:{pay}`` dedup 键整体过
+        期——落件把新站点引进 fileset 后, 同签轮应允许同规则重派
+        (defcensus E-route 病族: mid-loop install 后 already_def 臂
+        按旧烧键跳过, 残签滞留)。基线后新烧键 (``applied - pre_applied``)
+        保留——刚派发的规则不因自身落件立刻重派。
+
+    返回外部落件数 (0 = 无外部落件, 键面不动)。
+    """
+    after = _wdir_fingerprint(ctx.io.wdir)
+    authored = ctx.io.written
+    external = [
+        p
+        for p in set(before) | set(after)
+        if before.get(p) != after.get(p) and p not in authored
+    ]
+    for p in external:
+        ctx.invalidate(p)
+    if not external:
+        return 0
+    ctx.ledger.applied.intersection_update(ctx.ledger.applied - pre_applied)
+    ctx.ledger.events.append(
+        f"landing sync: {len(external)} external landing(s) — "
+        "pre-landing dedup keys expired"
+    )
+    return len(external)
+
+
+def _match_apply_landing(  # noqa: PLR0913, PLR0917  # 与 _match_apply 同签名面
+    rs: Ruleset,
+    ctx: LoopCtx,
+    eng: Engine,
+    cat: str | None,
+    pay: str | None,
+    rep: ErrReport,
+) -> tuple[Rule | None, str]:
+    """``_match_apply`` + 落件同步——loop 相两处派发点共用。"""
+    before = _wdir_fingerprint(ctx.io.wdir)
+    pre = set(ctx.ledger.applied)
+    ctx.io.written.clear()  # 本窗自产写从零计账
+    rule, note = _match_apply(rs, ctx, eng, cat, pay, rep)
+    _landing_sync(ctx, before, pre)
+    return rule, note
+
+
 def _gate_eval(  # noqa: PLR0913, PLR0917  # 与 _match_apply 同签名面
     rs: Ruleset,
     ctx: LoopCtx,
@@ -680,10 +752,14 @@ def _gate_eval(  # noqa: PLR0913, PLR0917  # 与 _match_apply 同签名面
         if not ok:
             ctx.ledger.events.append(f"gate {rule.id}: cond skip ({why})")
             continue
+        before = _wdir_fingerprint(ctx.io.wdir)
+        pre = set(ctx.ledger.applied)
+        ctx.io.written.clear()
         try:
             applied, note = _apply(rule, ctx, eng, pay, rep)
         except Exception as e:  # noqa: BLE001
             applied, note = False, f"gate crashed: {type(e).__name__}: {e}"
+        _landing_sync(ctx, before, pre)
         if applied and note.startswith(_REJECT_PREFIX):
             ctx.round.reject_route = _note_route(note)
             return f"reject:{rule.id}"
@@ -782,10 +858,14 @@ def _precheck_phase(
         if not ok:
             ctx.ledger.events.append(f"precheck {rule.id}: cond skip ({why})")
             continue
+        before = _wdir_fingerprint(ctx.io.wdir)
+        pre = set(ctx.ledger.applied)
+        ctx.io.written.clear()
         try:
             applied, note = _apply(rule, ctx, eng, None, dummy_rep)
         except Exception as e:  # noqa: BLE001
             applied, note = False, f"precheck crashed: {type(e).__name__}: {e}"
+        _landing_sync(ctx, before, pre)
         ctx.ledger.actions.append(
             {"round": 0, "rule": rule.id, "detail": note, "applied": applied}
         )
@@ -1065,7 +1145,7 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
         # 派发耗尽点结算 (streak≥stuck_n 且本轮无 apply), 同签后位规则
         # 不再被「第 N 轮先判 stuck」抢掉派发窗口。
         # —— loop 规则匹配 + 应用 ——
-        rule, note = _match_apply(rs, ctx, eng, cat, pay, rep)
+        rule, note = _match_apply_landing(rs, ctx, eng, cat, pay, rep)
         sec_via: str | None = None
         if rule is None:
             # 次级错误派发 (twinhead): 首错无规则可修时, 同 log 后续错误行
@@ -1113,7 +1193,7 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
                 # dispatch rep 携孪生行位 (requester 锚/cases excerpt 用)。
                 ctx.round.err_cat, ctx.round.err_pay = c2, p2
                 ctx.round.err_head = eline + "\n" + eblob
-                rule, note = _match_apply(
+                rule, note = _match_apply_landing(
                     rs,
                     ctx,
                     eng,
