@@ -1318,3 +1318,12 @@
 - **fc9 "残 6 格" verdict**: 5 = `latex209_ds_at` rejects = the ds@ adjudication gate (~96-cell Option A decision) — NOT actionable pre-user-decision; splice rebuild can't pass a deliberate reject. Backlog item reclassified as adjudication-blocked.
 - **1907.03923**: still partial@loop3 (sortlist fixed, pfa driver-fatal next layer) — queued to fmsingles item (c).
 - **Roster**: covgap, kotexfix, fmsingles, paraearly, endsfix, mintedstyle = 6.
+
+## 2026-09-19 ~16:55 — 3 lanes dispatched vs chronic347 never-covered backlog
+
+- **csdefmismatch** — "Use of \X doesn't match its definition" ×5 (\c 1404.0519/astro-ph/0408509, \b hep-ex/0408083, \0 hep-th/0408133, \ch astro-ph/0408446); real-mechanism-first, accent-cs family likely.
+- **missmath** — 4 math-adjacent mini-families: Missing-$ ×5 (enumerated), Missing-{ ×3, Missing number ×3, Extra \or ×3 (membership self-enumerated from loop3 records); impl only on homogeneous ≥2 sub-families.
+- **docclsstack** — diagnostic trio: Missing-\begin{document}-in-.cls/.eps ×2, unfixable:input_stack ×2, sentry:page_flood dirty ×2; fix only on clean mechanism.
+- **Contended-file protocol this round**: misschar/paralong/graphics/pkgload/shim/builtins/engine/ruleset/repair*/5 yaml shards dirty (peer lanes + my in-flight) — new lanes get clean-leaf edit rights (_builtins_csfix/_misc/_common/_bib + 75-syntax/95-targeted/70-pkgopt/30-route/50-font/65-encoding/80-bib yaml) + patch-artifact fallback for contended files.
+- **Patrol**: staged `D` on test_fixloop_pathqual/enguard + metrics refs = peer `git rm --cached` sweep; files intact, private-index unaffected. HEAD moved to 16e6724c (peer metrics-figure fix).
+- **Roster**: 9 — covgap, kotexfix, fmsingles, paraearly, endsfix, mintedstyle + csdefmismatch, missmath, docclsstack.
