@@ -28,6 +28,7 @@ import {
     type MdLibs,
 } from "./markdown";
 import { externalLinksBlank } from "./paneUtils";
+import { CHUNK_WINDOW } from "./chunkPoll";
 import {
     bindChunkGeom,
     capturePos,
@@ -143,6 +144,8 @@ export default function HtmlPane(props: Props) {
         const fresh = tmp.firstElementChild as HTMLElement | null;
         if (!fresh) return;
         sec.replaceWith(fresh);
+        // 重绘段含新外链——初始渲染挂过，就地重绘也要挂（与 mount 路径同口径）
+        externalLinksBlank(fresh);
         libs?.renderMath(fresh);
         geom.rebind();
     };
@@ -174,8 +177,17 @@ export default function HtmlPane(props: Props) {
             await new Promise((r) => window.setTimeout(r, RETX_POLL_MS));
             if (disposed) break;
             try {
-                const page = await api.taskChunks(taskId, seq, 1);
-                const row = page.chunks.find((r) => r.seq === seq);
+                // 快径 offset=seq 直取一行（chunks 页按 seq 升序、seq 0 基
+                // 连续的服务端契约）；未命中退整窗扫描——offset 语义漂移
+                // （稀疏 seq/行序变化）时仍找得到
+                let row = (
+                    await api.taskChunks(taskId, seq, 1)
+                ).chunks.find((r) => r.seq === seq);
+                if (!row) {
+                    row = (
+                        await api.taskChunks(taskId, 0, CHUNK_WINDOW)
+                    ).chunks.find((r) => r.seq === seq);
+                }
                 if (row && row.zh !== before) {
                     const base =
                         overrides.get(seq) ??
