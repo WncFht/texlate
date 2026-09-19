@@ -127,6 +127,7 @@ from texlate.compile.fixloop._builtins_pkgload import (
     shipped_sty_input_wrap,
     siunitx_incompat_peace,
     strip_inputenc,
+    xy_option_load,
 )
 from texlate.compile.fixloop._builtins_shim import (
     bm_mathchar_wrap,
@@ -279,6 +280,7 @@ __all__ = [
     "vendored_fetch_multi",
     "vendored_shadow_isolate",
     "xbb_pregen",
+    "xy_option_load",
 ]
 
 
@@ -379,6 +381,7 @@ TRANSFORM_FNS = {
     "eps_converted_alias": eps_converted_alias,
     "raster_pdf_rename": raster_pdf_rename,
     "cjk_env_relax": cjk_env_relax,
+    "xy_option_load": xy_option_load,
     "tcolorbox_breakable_inject": tcolorbox_breakable_inject,
     "float_h_demote": float_h_demote,
 }

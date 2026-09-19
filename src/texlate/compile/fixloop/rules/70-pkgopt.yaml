@@ -260,7 +260,7 @@ rules:
         # (source_contains 既有守卫兜爆半径)
         - { category: other, payload_required: false }
     condition:
-      source_contains: "hypdvips|\\[[^\\]]*\\b(?:pdftex|dvips|dvipsone|dviwindo|ps2pdf|hypertex|vtex|textures|tex4ht|latex2html|oztex|dvipdfmx?)\\b|\\\\[gex]?def\\s*\\\\[\\w@]*driver[\\w@]*\\s*\\{\\s*(?:pdftex|dvips|dvipsone|dviwindo|ps2pdf|hypertex|vtex|vtexpdfmark|textures|tex4ht|latex2html|oztex|dvipdfmx?)\\s*\\}"
+      source_contains: "hypdvips|\\[[^\\]]*\\b(?:pdftex|dvips|dvipsone|dviwindo|ps2pdf|hypertex|vtex|textures|tex4ht|latex2html|oztex|dvipdfmx?)\\b|\\\\(?:[gex]?def|(?:(?:new|renew|provide)command|DeclareRobustCommand)\\*?)\\s*\\{?\\s*\\\\[\\w@]*driver[\\w@]*\\s*\\}?\\s*\\{\\s*(?:pdftex|dvips|dvipsone|dviwindo|ps2pdf|hypertex|vtex|vtexpdfmark|textures|tex4ht|latex2html|oztex|dvipdfmx?)\\s*\\}"
     action:
       kind: regex_rewrite
       params:
@@ -299,12 +299,22 @@ rules:
               pattern: "(\\\\PassOptionsTo(?:Package|Class)\\s*\\{[^}]*?)(?:,\\s*(?:pdftex|dvips|dvipsone|dviwindo|ps2pdf|hypertex|vtex|vtexpdfmark|textures|tex4ht|latex2html|oztex|dvipdfmx?)\\s*)+(?=,|\\})",
               repl: "\\g<1>",
             }
-          # \\def\\<cs>driver<cs>{<drv>} 间接指派 → xetex (kaist-ucs.cls 形:
+          # \\def/\\newcommand 族 \\<cs>driver<cs>{<drv>} 间接指派 → xetex
+          # (kaist-ucs.cls \\def 形 + webofc.cls:154 \\newcommand 形;
           # \\ifpdf/\\if@dvips 条件选支, 括号面零驱动词故旧闸够不着;
           # 全支同覆写——xetex 家族下任一支命中都须是 xetex)
           - {
-              pattern: "(\\\\[gex]?def\\s*\\\\[\\w@]*driver[\\w@]*\\s*\\{)\\s*(?:pdftex|dvips|dvipsone|dviwindo|ps2pdf|hypertex|vtex|vtexpdfmark|textures|tex4ht|latex2html|oztex|dvipdfmx?)\\s*\\}",
+              pattern: "(\\\\(?:[gex]?def|(?:(?:new|renew|provide)command|DeclareRobustCommand)\\*?)\\s*\\{?\\s*\\\\[\\w@]*driver[\\w@]*\\s*\\}?\\s*\\{)\\s*(?:pdftex|dvips|dvipsone|dviwindo|ps2pdf|hypertex|vtex|vtexpdfmark|textures|tex4ht|latex2html|oztex|dvipdfmx?)\\s*\\}",
               repl: "\\g<1>xetex}",
+            }
+          # 选项括号内 \\if* 双支裸驱动词条件 → xetex, (webofc.cls:178 形:
+          # [\\ifnum\\pdfoutput=\\z@ dvips,\\else pdftex,\\fi unicode,...] —
+          # 驱动词无逗号前驱故括号三套够不着; `[^\\]]` 锚未闭合 [ 段使
+          # bracket 外同形排版条件够不着; 支为非驱动键 (bookmarks/colorlinks/
+          # breaklinks) 与无 \\else 单支/\\or 多支条件皆不收)
+          - {
+              pattern: "(\\[[^\\]]*?)\\\\if[a-zA-Z@]+\\s*(?:(?!\\\\(?:else|fi)\\b)[\\s\\S])*?\\b(?:pdftex|dvips|dvipsone|dviwindo|ps2pdf|hypertex|vtex|vtexpdfmark|textures|tex4ht|latex2html|oztex|dvipdfmx?)\\b\\s*,?\\s*\\\\else\\s*\\b(?:pdftex|dvips|dvipsone|dviwindo|ps2pdf|hypertex|vtex|vtexpdfmark|textures|tex4ht|latex2html|oztex|dvipdfmx?)\\b\\s*,?\\s*\\\\fi",
+              repl: "\\g<1>xetex,",
             }
           # 空括号清扫: \usepackage[]{x} → \usepackage{x}
           - {
@@ -312,7 +322,7 @@ rules:
               repl: "\\g<1>",
             }
     risk: low # xetex 下这些驱动本就失效; 自侦即作者意图
-    known_gap: "doc 若用 hypdvips 专属 cs (嵌入 PS 钩子) 会前进到 undefined_cs → cs_targeted_fix; \\hypersetup 内驱动键、非 \\def 形指派 (\\let/\\newcommand) 未覆盖"
+    known_gap: "doc 若用 hypdvips 专属 cs (嵌入 PS 钩子) 会前进到 undefined_cs → cs_targeted_fix; \\hypersetup 内驱动键、\\let 形指派、无 \\else 单支与 \\or 多支 \\if 驱动条件未覆盖"
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same } # XeTeX 内核同驱动面
@@ -609,3 +619,44 @@ rules:
         }
     stats: { fires: 1, status: proposed }
     source_ref: "failmine2 flushend lane; corpus 五格源实读全 \\usepackage[keeplastbox]{flushend} 直写形"
+
+  # 2026-09-20 optfix lane (singlesweep xypic-curve-ext 机理, 2607.14648
+  # zh+base 双格): Xy-pic ``<ext> extension/feature not loaded`` ——
+  # 稿群载 ``\\usepackage{amsmath,...,xypic}`` 未开扩展, ``\\ar@/_1pc/[rr]``
+  # 等钩形炸 "only available when curve extension loaded" (file-line 归
+  # other)。``[curve]{xypic}`` 选项形加不上: 群载选项全包共享、元素不可
+  # 拆出独载 (per-pkg 选项在 LaTeX 名单语法下无解)。``\\xyoption{<ext>}``
+  # 是 xy.tex:1944 原生扩展请求宏 (``\\xyinputorelse@{xy<ext>}`` →
+  # ``\\input{xy<ext>.tex}``) —— xy.sty ``\\DeclareOption*`` catch-all
+  # 落的也是同一通路, 装载点后插调用即官方选项语义等效。builtin 从
+  # err_head∪log 抽扩展名 (curve/arrow + matrix/poly/arc 双句式),
+  # 首个 live ``{..,xy|xypic,..}`` 装载点后插 ``\\xyoption{<ext>}``,
+  # live 同名调用幂等。
+  - id: xy_option_load
+    description: "Xy-pic '<ext> extension/feature not loaded' → 装载点后插 \\xyoption{<ext>}"
+    phase: loop
+    order: 198 # 选项面尾位; other+ctx 臂
+    when:
+      any:
+        - { category: other, payload_required: false }
+        - { category: syntax, payload_required: false }
+    condition:
+      ctx_suggests: "extension loaded|feature not loaded"
+      source_contains: "\\b(?:xypic|xy)\\b"
+    action:
+      kind: builtin_transform
+      function: xy_option_load
+      params:
+        exts: [.tex, .sty, .cls]
+    risk: low # \\xyoption 是原生扩展请求宏, 与官方 [curve] 选项同通路
+    known_gap: "裸 \\input{xy.sty}/\\xypic 直载面未覆盖 (无名单装载点可挂); '<driver> not loaded' (\\xybug@ 驱动面) 句式未抽; 扩展名不在 err/log 抽出集 → applied=False"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "stagerun-m1k-2026-09-19 (2607.14648 zh+base; singlesweep xypic-curve-ext)",
+          error: "largeaffinesymplectic.tex:2401: Xy-pic error: Forms @/.../, @(...), and @`{...}, only available when curve extension loaded",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-singlesweep/mech_buckets.json xypic-curve-ext; xyarrow.tex:527/xygraph.tex:163-186 句式实读"

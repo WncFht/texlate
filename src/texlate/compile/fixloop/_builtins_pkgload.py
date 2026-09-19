@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any
 from texlate.compile.fixloop._builtins_common import (
     _USE_RE,
     _drop_pkg_loads,
+    _fixloop_log,
     _live_matches,
 )
 from texlate.textutil import mask_tex
@@ -594,3 +595,97 @@ def font_sub_shim(
             ctx.write(f, nt)
             changed.append(f.name)
     return (bool(changed)), f"font shim applied in {', '.join(changed)}"
+
+
+#: Xy-pic 扩展缺失句式 → 扩展名抽取 (err_head ∪ fixloop log 双扫面):
+#: A ``only available when <ext> extension loaded`` —— xyarrow.tex:527
+#:   curve/arrow 钩族 (``@/.../``/``@(...)``/``@`{...}`` 形);
+#: B ``<word> feature not loaded`` —— xygraph.tex:163/182/186 的
+#:   ``matrix``/``poly(gon)``/``(ellipse+)arc`` 形, 括号段是注释性修饰,
+#:   真扩展名 = 剥 ``(...)`` 后的残余词 (poly/arc/matrix); 词首括号注释
+#:   ``(ellipse+)`` 的 ``+`` 断捕获, 捕获从失衡 ``)`` 起 → 归一时再剥残余
+#:   裸括号。
+#: 词间 ``\s+``: TeX 日志 max_print_line=79 折行, "curve\nextension"
+#: 跨行是常态 (2607.14648 实证 err_head 原文折行)。
+_XY_EXT_ERR_RES = (
+    re.compile(r"only available when ([A-Za-z]+)\s+extension\s+loaded"),
+    re.compile(r"([A-Za-z()]+)\s+feature\s+not\s+loaded"),
+)
+
+#: ``\\usepackage``/``\\RequirePackage`` 名单装载点 —— 元素级 xy/xypic
+#: 判定在站点收集后做 (``_SIU_LIST_RE`` 同骨架; ``xypic.sty`` 是
+#: ``\\input{xy.sty}``+``\\xyoption{v2}`` 薄壳, ``xy`` 直载 ``xy.sty``)。
+_XY_LOAD_RE = re.compile(
+    r"\\(usepackage|RequirePackage)(\s*\[[^\]\n]*\])?\s*\{([^}]*)\}"
+)
+
+
+def _xy_ext_names(ctx: LoopCtx) -> list[str]:
+    r"""err_head → 全日志序扫缺失 Xy-pic 扩展名 (去重保序)。
+
+    dedup 键 ``{rule}:None`` 全族共位 —— 一次应用必须把本轮日志里报
+    出的扩展全收, 否则同签残错下轮重复点火。
+    """
+    out: list[str] = []
+    for src in (ctx.err_head or "", _fixloop_log(ctx)):
+        for rx in _XY_EXT_ERR_RES:
+            for m in rx.finditer(src):
+                ext = re.sub(r"\([^)]*\)", "", m.group(1))
+                ext = re.sub(r"[()]", "", ext)
+                if re.fullmatch(r"[a-z]+", ext) and ext not in out:
+                    out.append(ext)
+    return out
+
+
+def _xy_missing_loads(t: str, exts: list[str]) -> tuple[str, int]:
+    r"""文件内首个 live ``{..,xy|xypic,..}`` 装载点后插 ``\\xyoption{<ext>}``。
+
+    遮盖视图命中 + span 回切 (``_live_matches``) —— 注释/verbatim 内假
+    装载点不动。幂等只认 live ``\\xyoption{<ext>}``: 注释里躺着的同名
+    死调用不挡活注入 (``_live_matches`` 同面收集已载扩展集)。
+    """
+    loaded = {
+        m.group(1)
+        for m in _live_matches(re.compile(r"\\xyoption\s*\{\s*([A-Za-z]+)\s*\}"), t)
+    }
+    need = [e for e in exts if e not in loaded]
+    if not need:
+        return t, 0
+    for m in _live_matches(_XY_LOAD_RE, t):
+        pkgs = [p.strip() for p in m.group(3).split(",")]
+        if not ({"xy", "xypic"} & set(pkgs)):
+            continue
+        ins = "".join(rf"\xyoption{{{e}}}" for e in need)
+        return t[: m.end()] + "\n" + ins + t[m.end() :], len(need)
+    return t, 0
+
+
+def xy_option_load(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""Xy-pic ``<ext> extension/feature not loaded`` → 装载点后插 ``\\xyoption{<ext>}``。
+
+    实证 (2607.14648 zh+base, stagerun-m1k-2026-09-19): 群载
+    ``\\usepackage{amsmath,...,xypic}`` 未开 curve 扩展, ``\\ar@/_1pc/[rr]``
+    钩形炸 "only available when curve extension loaded" (file-line 归
+    other)。``[curve]{xypic}`` 形加不上 —— 群载选项全包共享且元素不可
+    拆 (per-pkg 选项无解); ``\\xyoption{<ext>}`` 是 xy.tex:1944 原生请求
+    宏 (``\\xyinputorelse@{xy<ext>}`` → ``\\input{xy<ext>.tex}``), 装载点
+    后任意 preamble 位调用即补载, 语义同官方 ``[curve]`` 选项通路
+    (``\\DeclareOption*`` catch-all 落的也是它)。
+    """
+    del eng, payload
+    exts = _xy_ext_names(ctx)
+    if not exts:
+        return False, "no xy extension names in err_head/log"
+    file_exts = tuple(params.get("exts") or (".tex", ".sty", ".cls"))
+    changed: list[str] = []
+    for f in ctx.tex_files(file_exts):
+        t = ctx.read(f)
+        if t is None or "xy" not in t:
+            continue
+        nt, n = _xy_missing_loads(t, exts)
+        if n and nt != t:
+            ctx.write(f, nt)
+            changed.append(f"{f.name}(+{','.join(exts)})")
+    return (bool(changed)), f"xyoption inject in {', '.join(changed)}"

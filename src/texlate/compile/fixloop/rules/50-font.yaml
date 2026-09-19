@@ -234,6 +234,60 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "microtype.sty \\DisableLigatures pdfTeX/LuaTeX 引擎闸; tmp/lane-microtypelis/"
 
+  # 2026-09-20 optfix lane (singlesweep microtype-xetex 机理, 2310.02541
+  # base): microtype ``expansion`` 族在 XeTeX 下恒不工作
+  # (microtype-xetex.def:874 \\MT@error —— protrusion 支持, expansion
+  # 不支持), ``\\usepackage[...,expansion=true,...]{microtype}`` (多行
+  # 括号) → file-line "Package microtype Error: Font expansion does not
+  # work with xetex" 归 other。修 = microtype 附着括号/PassOptions 首参内
+  # expansion 键值翻 false + activate 键 (protrusion+expansion 复合开关)
+  # 无显式 expansion 键时尾补 `,expansion=false` —— 只关 expansion,
+  # protrusion 等其余键全留。masked 面挡注释内候选配置 (该文档常并排
+  # 注释多套 usepackage 备选, 2310.02541:215-216 实证)。
+  - id: microtype_expansion_off
+    description: "microtype expansion/activate 开 (XeTeX 不支持 expansion) → 附着括号内翻 false"
+    phase: loop
+    order: 72 # microtype_off(70)/microtype_lig_off(71) 同族邻位; other+ctx 臂
+    when: { category: other }
+    condition:
+      ctx_suggests: "expansion does not work"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty, .cls]
+        rewrites:
+          # \\usepackage[..,expansion=<非false>,..]{microtype} → expansion=false
+          - {
+              pattern: "(\\\\(?:usepackage|RequirePackage)\\s*\\[[^\\]]*?\\bexpansion\\s*=\\s*)(?!false\\b)[\\w-]+([^\\]]*\\]\\s*\\{microtype\\})",
+              repl: "\\g<1>false\\g<2>",
+              match_surface: masked,
+            }
+          # \\PassOptionsToPackage{..,expansion=<非false>,..}{microtype} 同形
+          - {
+              pattern: "(\\\\PassOptionsToPackage\\s*\\{[^}]*?\\bexpansion\\s*=\\s*)(?!false\\b)[\\w-]+([^}]*\\}\\s*\\{microtype\\})",
+              repl: "\\g<1>false\\g<2>",
+              match_surface: masked,
+            }
+          # activate={..}/activate=<v> 且括号内无显式 expansion 键 → 尾补
+          # `,expansion=false` (activate 复合含 expansion; keyval 后写键赢)
+          - {
+              pattern: "(\\\\(?:usepackage|RequirePackage)\\s*\\[(?![^\\]]*\\bexpansion\\s*=)[^\\]]*\\bactivate\\s*=\\s*(?:\\{[^}]*\\}|[^\\s,\\]]+)[^\\]]*)\\](\\s*\\{microtype\\})",
+              repl: "\\g<1>,expansion=false]\\g<2>",
+              match_surface: masked,
+            }
+    risk: low # expansion 在 XeTeX 下本即不可达, 关断即 microtype 自报语义
+    known_gap: "\\microtypesetup{expansion=...} 载后配置面与 \\DeclareMicrotypeSet 家族未覆盖"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same } # XeTeX 内核同不支持 expansion
+    provenance:
+      - {
+          corpus: "stagerun-m1k-2026-09-19 (2310.02541/base; singlesweep microtype-xetex)",
+          error: "main.tex:323: Package microtype Error: Font expansion does not work with xetex (\\usepackage[protrusion=true,expansion=true,final,babel]{microtype})",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-singlesweep/mech_buckets.json microtype-xetex; microtype-xetex.def:874 \\MT@error"
+
   - id: times_to_newtx
     description: "times/mathptmx/mathptm (T1 TFM 字体族) → newtxtext/newtxmath (OTF)"
     phase: loop
