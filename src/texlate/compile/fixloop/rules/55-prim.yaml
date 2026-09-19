@@ -157,6 +157,50 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "drvopt-ext lane: \\RequirePDFTeX emergency 15 同质格 (iftex.sty \\IFTEX@Require \\read 机制)"
 
+  # 2026-09-19 errsweep lane (soak-2026-09-18 2609.19664 fairmeta):
+  # fairmeta.cls:25 `\DisableLigatures[f]{family=sf*}` 无引擎守卫 ——
+  # microtype 该 cs 是 pdftex≥1.30/luatex 限定件, xelatex 下定义为
+  # 报错+忽略 (file-line `Package microtype Error: Disabling ligatures
+  # ... only possible` → halt-on-error 每轮必停, 'other' 签 stuck)。
+  # 中和即语义恒等: xelatex 下 microtype 本就忽略此调用, 连可选参
+  # ([<lig>]) 与字体参 ({<spec>}) 一并吃掉换 \relax —— 换 bare
+  # cs 名会留 [f]{family=sf*} 残字排进正文。
+  - id: microtype_disableligatures_neutralize
+    description: "microtype \\DisableLigatures (pdftex 限定件) 无守卫调用 → xelatex PackageError → 连参中和 \\relax"
+    phase: loop
+    order: 47 # iftex_engine_guard_neutralize(47) 同档 —— 引擎假定致死签先拆
+    when:
+      any:
+        - { category: other }
+        - { category: emergency }
+    condition:
+      # 双闸: fileset 见该 cs 才改写 ∧ 本轮错误面确实是 microtype 拦停
+      # (同名自定义宏不在 fileset 的格不误伤)
+      source_contains: "\\\\DisableLigatures(?![a-zA-Z@])"
+      ctx_suggests: "Disabling ligatures|microtype"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty, .cls]
+        rewrites:
+          - {
+              pattern: "\\\\DisableLigatures(?![a-zA-Z@])(\\s*\\[[^\\]\\n]*\\])?(\\s*\\{[^}\\n]*\\})?",
+              repl: "\\\\relax ",
+              match_surface: masked,
+            }
+    risk: low # xelatex 下该 cs 唯一行为是报错+忽略; 移除调用不改变任何输出
+    known_gap: "\\SetProtrusion/\\SetExpansion/\\SetTracking 等同族 pdftex 限定声明未盖 (soak 未见, 见再扩); \\DisableLigatures 跨行参 ([\\n]/{\\n}) 不吃"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same } # XeTeX 内核同错
+    provenance:
+      - {
+          corpus: "soak-2026-09-18 2609.19664 fairmeta (relink 后露出的二级签)",
+          error: "fairmeta.cls:25 Package microtype Error: Disabling ligatures of a font is only possible with pdftex version 1.30 or newer ('other' 签, 4 轮 stuck)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "errsweep-2026-09-19: missing_file relink 通路验证中揭示的下游签名"
+
   # 2026-09-19 driver-option strip lane (loop3-1206.0240/1706.07495/1306.0294):
   # [pdftex] 驱动选项残存进 zh 树 → xelatex 下装载 pdftex.def → \pdfcolorstack
   # 等原语 undefined → 错误恢复把 chardef 残值排进字流 (^^@×179/^^A×20
