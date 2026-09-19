@@ -352,6 +352,42 @@ rules:
     stats: { fires: 11, rescued_cells: 8, status: active }
     source_ref: "tmp/lane-failmine3/ (#164a); epsprobe 真编译臂 -no-shell-escape 验证; tmp/lane-covgap/ (二进制占位实证)"
 
+  # singlesweep mislabeled-raster-as-pdf (6 格: 1607.00405/2310.01082/
+  # 2504.15280): e-print 船货 X.pdf 实为 PNG/JPEG 字节 —— 引擎按后缀走
+  # pdf 链拒载, xetex 报 "Unable to load picture or PDF file 'X.pdf'"
+  # 归 missing_graphic (file IS in tree, 与真缺件域全异)。修复 =
+  # magic 嗅探改名真扩展名 (X.png/X.jpg) + 存活 \includegraphics 显式
+  # .pdf arg 后缀改写; 无扩展名 arg ({fig5}) 经 \Gin@extensions 自解
+  # 不动 (1607.00405 实证)。序在 placeholder(17.6) 后 repair(18) 前
+  # —— repair 的 gs 重蒸馏对光栅字节必败落 \fbox stub 丢真图, 改名
+  # 改写是全救。builtin 全量扫一次点火 (2504.15280 双伪装件实证,
+  # halt_on_error 每轮只曝首件); \includepdf arg 不改 —— pdfpages
+  # 只收真 pdf, 改名后由 includepdf_missing_stub 落 \clearpage\null
+  # 诚实降级 (伪装件本就不能页级内嵌)。
+  - id: raster_pdf_rename
+    description: ".pdf 名实为 PNG/JPEG 字节 → magic 改名真扩展名 + \\includegraphics .pdf arg 后缀改写"
+    phase: loop
+    order: 17.7 # graphic_missing_placeholder(17.6) 后, graphic_repair(18) 前 —— 伪装件真图抢救先于 stub 末路
+    when:
+      any:
+        - { category: missing_graphic, payload_required: true }
+        - { category: missing_file, payload_required: true }
+    action:
+      kind: builtin_transform
+      function: raster_pdf_rename
+      params: {}
+    risk: low # 只动 magic 确证的伪装件名 + 指向件的 arg 尾缀; 无伪装件即 decline
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same } # bundled xdvipdfmx 同 image-sniff 链
+    provenance:
+      - {
+          corpus: "singlesweep 6 格 (1607.00405 fig5.pdf=PNG / 2310.01082 mlp_noise.pdf=JPEG / 2504.15280 fig0-all-angles+fig2-question 双 PNG)",
+          error: "Unable to load picture or PDF file 'X.pdf' — 字节非 %PDF 按后缀拒载",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-singlesweep/mech_buckets.json mislabeled-raster-as-pdf; tmp/lane-rasterpdf/"
+
   - id: graphic_repair
     description: "missing_graphic 在盘但拒载 → gs 重蒸馏就地覆盖, 败则 \\fbox 占位"
     phase: loop

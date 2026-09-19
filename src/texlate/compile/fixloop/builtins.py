@@ -85,6 +85,7 @@ from texlate.compile.fixloop._builtins_graphics import (
     includepdf_missing_stub,
     pdf_asset_sanitize,
     pstricks_dvips_preflight,
+    raster_pdf_rename,
     svg_prepare,
     xbb_pregen,
 )
@@ -247,6 +248,7 @@ __all__ = [
     "pstricks_dvips_preflight",
     "purge_corrupt_intermediates",
     "px_to_bp",
+    "raster_pdf_rename",
     "restore_support_from_src",
     "revtex209_surface_polyfill",
     "revtex_era_retire",
@@ -360,4 +362,5 @@ TRANSFORM_FNS = {
     "graphics_include_strip": graphics_include_strip,
     "main_wrapper_promote": main_wrapper_promote,
     "eps_converted_alias": eps_converted_alias,
+    "raster_pdf_rename": raster_pdf_rename,
 }
