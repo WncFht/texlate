@@ -998,3 +998,12 @@
 - **派遣/催件**：#159 operandfix → operandcensus (扫描终止表——box 族+setbox/message/write/immediate/special/mark/noalign/vadjust/insert/read*/halign/cr/pdf* prim/upper-lowercase/unexpanded/detok/scantok + PROTECT 文件参+结构 cs; 守 registers/font/codes/number 族; 目标 493hits/216papers `\setbox=\boxcs` 孤儿族); stucksem 告共享件+催 #142 交付; pxnorm 催 #141 报告 (diff 在树无文)。
 - roster 8：stucksem(#142 收尾)/tailbucket(#155)/pxnorm(待应)/operandcensus(#159 领)/regrdiag(#157)/rexlat3(#158)/fontgate(#156 在飞?——inject.py 已释) + operandcensus 新领。关毕: defD/hexquote/misscharext/warnattr。
 - 门：teammate 零 git✓；HEAD 44baeb4 (pathspec-only ×4 全对账)；规则库 129✓；引擎族测复绿 (stucksem 自愈后)；sab escaped=0✓。
+
+## 2026-09-19 ~11:4x — stucksem 入库 (1ca8163, #142 毕) + engine.py 双归因落地 + 3 新派
+
+- **stucksem 入库 (1ca8163)**：exhaustion-settled stuck 语义——`sig_n` 仍全计同签轮但 stuck 结算移到派发耗尽点 (streak≥3 且主+次级双 miss); apply 轮续窗口不终止。1206.0701/1306.0364 实回放: r3 `if_phantom_protect` 派发并 apply "protected 9 frontmatter cs"——旧预判制正杀于此。census 20 stageruns/8643 格: 7 stuck 格, 零浪费轮。同件: `_precheck_phase` 抽取 + `precheck_pass` 公共入口 (e2e/worker L2 预检面, `__init__` 导出)。**engine.py 一单双归因**: warnattr 布线 (:349/:960/:989/:1102/:1214/:1023/:1228) 随入——共享件解决。
+- **leader 修复折入**：`40-install.yaml` `cache_dir_glob`/`source_contains` 键序换回 (e2fc756 引入序回归 → `test_cond_skip_when_no_sty` why 断言; glob 廉价先评)。127 测绿 (含 bblwall e2e——`_precheck_phase` NameError 窗全愈), agent fixloop 全扫 1345 pass/2skip, ruff 净。
+- **3 新派**：fontgate (#156 impl, inject.py mutex——`\IfFileExists{*.otf}` kpathsea 永假 → `\IfFontExistsTF`, math fb+TEXT_8BIT 全臂死代码复活); misscharcen (#160 read-only, 102 格 missing_char 桶按 glyph×font×site 聚类 vs 已落覆盖→下波靶单); loop4wave (#161, 后落地格 replay 波——209batch/aaspatch/hexquote/ifprot 栈/defD/warnattr/misschar 表 ~160+ 格, setsid 脱管+harvest 翻转)。
+- roster 8：tailbucket(#155)/operandcensus(#159)/regrdiag(#157)/rexlat3(#158)/fontgate(#156)/misscharcen(#160)/loop4wave(#161)/pxnorm(待应)。关毕: stucksem(交付)。
+- **mutex 更新**：engine.py 释→#144 loop-sched 解锁待派；builtins.py 仍载 tailbucket paralong 注册 (misscharext stage-B 原子波等其交付)；inject.py→fontgate。
+- 门：teammate 零 git✓；HEAD 1ca8163 (pathspec-only ×5)；规则库 129✓；sab escaped=0✓。
