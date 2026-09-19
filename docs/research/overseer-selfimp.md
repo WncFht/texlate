@@ -1693,3 +1693,11 @@
 - **singles4 coverage.json 落盘**（13 格×{when=26,cond=7,spec=6} 全同宽——每 payload 已挂 6 specific 规则；agent 仍在跑待终判）。
 - **关 3**（hintord/twocen/statsync3 落地后）。**Roster 9**：mathbd/singles4/failmine4（待终判）/dispbreak/ctexbls/extless/drvstage/docsty/slotleak。
 - **门**：HEAD=af48ab5c；ruleset 174 绿；无 teammate git 越权；共享 index 仍他家污染（勿动）；overnite ~1098+/2822 健康；flipcheck-12 仍 mutex 持（mathbd + 新 impl lanes 在飞——extless 碰 logparse.py、drvstage 碰 95-targeted+builtins facade，均不与 mathbd 同文件）。
+
+### patrol ~07:05 — 无新收割；failmine4 关；phantom-delete 复核；+2 census lanes → roster 10
+
+- overnite 1213/2822 健康；无新 run.log。
+- **phantom-delete 复核**：`git diff HEAD` 现 81 文件 −32286（他家会话 staged-D 经共享 index 透出——vendor jabbrv×3+aaai23 stub、tests、web、.agents）；worktree `ls` 全在——确证 staged-only，勿动共享 index。我 lanes 目标文件（logparse/95-targeted/75-syntax/builtins/normalize/_xelatex）全 intact。
+- 关 failmine4（buckets.json 已收割）；singles4 ping 终判（coverage.json 在手 40m 未报）。
+- **dispatch ×2 → roster 10**：vboxcheck（sentry:vbox_flood 零记录——死臂/不可达门/正确静默三判）+ refclean（hintord 旗的 ~1241 clean-verdict unresolved-refs 普查——doc-native vs transient 分桶，喂 warn-verdict 裁决）。
+- **门**：HEAD=d4886a16；ruleset 174；clean%/sabotage 待 flipcheck-12（mutex：mathbd/extless/drvstage impl 在飞）。
