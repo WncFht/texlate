@@ -17,6 +17,7 @@ from texlate.compile.fixloop._builtins_common import (
     _FINGERPRINT_RE,
     _LEGACY_INJECTED_HEADS,
     _inject_write,
+    _live_matches,
     _mark_injected,
 )
 from texlate.textutil import safe_is_file
@@ -241,13 +242,179 @@ def _retire_paired_tex_core(  # noqa: PLR0911  # 保守闸逐条一处, 缺一�
     if ld is None or sd is None or ld >= sd:
         return None  # 无日期面确证新旧——盲删必死, 保留
     core.rename(core.with_name(core.name + suffix))
-    return f"{core.name} (paired core {ld} < {sd})"
+    note = f"{core.name} (paired core {ld} < {sd})"
+    shim = _path_shim_for(ctx, eng, core, str(rp))
+    if shim:
+        note += f"; {shim}"
+    return note
+
+
+#: 路径限定装载点扫描面——可含 ``\usepackage``/``\input`` 等装载命令的
+#: tex 系文件 (主稿/子件/宏包互载)。``.fixloop-iso`` 件后缀不入集, 天然跳过。
+_SITE_SCAN_EXTS = (
+    ".tex",
+    ".ltx",
+    ".dtx",
+    ".ins",
+    ".sty",
+    ".cls",
+    ".def",
+    ".cfg",
+    ".clo",
+)
+
+#: 一参装载命令——变元为文件名 (``\usepackage`` 族逗号分枚, 逐枚再拆)。
+#: 覆盖 paper 见过的全部形: ``./x``/``x/y``/``x\y`` 三族路径限定 +
+#: documentclass/LoadClass (.cls 同机退役)。
+_PATHQUAL_LOAD1_RE = re.compile(
+    r"\\(?:usepackage|RequirePackage|RequirePackageWithOptions|documentclass"
+    r"|LoadClass|LoadClassWithOptions|input|include|InputIfFileExists"
+    r"|IfFileExists|subfile)\s*(?:\[[^\]\n]*\]\s*)?\{([^{}\n]*)\}"
+)
+#: import 族二参形——``\import{dir}{file}``/``\inputfrom``/``\includefrom``
+#: dir 对 cwd 解; ``\subimport``/``\subincludefrom`` dir 对源文件目录解。
+_PATHQUAL_IMPORT_CWD_RE = re.compile(
+    r"\\(?:import|inputfrom|includefrom)\s*\{([^{}\n]*)\}\s*\{([^{}\n]*)\}"
+)
+_PATHQUAL_IMPORT_SUB_RE = re.compile(
+    r"\\sub(?:import|includefrom)\s*\{([^{}\n]*)\}\s*\{([^{}\n]*)\}"
+)
+
+
+def _norm_load_path(arg: str, base: str = "") -> str | None:
+    """装载变元 → 词法归一 posix 相对径; 绝对径/逃逸 ``..``/空 → ``None``。
+
+    引号/反斜杠/``./`` 前缀/``a/./b``/``a/../b`` 全归一。``base`` 仅
+    subimport 族用 (源文件目录)——kpathsea 其余相对径恒对 cwd (=wdir) 解。
+    """
+    a = arg.strip().strip('"').strip().replace("\\", "/")
+    if not a or a.startswith("/") or ":" in a:
+        return None
+    parts = [p for p in base.split("/") if p and p != "."]
+    for seg in a.split("/"):
+        if seg in ("", "."):
+            continue
+        if seg == "..":
+            if not parts:
+                return None
+            parts.pop()
+        else:
+            parts.append(seg)
+    return "/".join(parts) if parts else None
+
+
+def _pathqual_hit(ctx: LoopCtx, rel: str) -> bool:
+    r"""工程内存在指向 ``rel`` (wdir 相对 posix) 的路径限定装载点。
+
+    判定径: 遮盖视图下扫一参装载/import 族变元——变元须带显式目录分量
+    (``/``/``\``; 裸名走 texmf 序天然有递补, 不算)。归一后与 ``rel`` 及
+    去缀 stem 比对 (``./style/x`` ≡ ``style/x.sty``)。
+    """
+    suffix = PurePosixPath(rel).suffix
+    stem_rel = rel[: -len(suffix)] if suffix else rel
+    targets = (rel, stem_rel)
+    for src in ctx.tex_files(_SITE_SCAN_EXTS):
+        txt = ctx.read(src)
+        if not txt:
+            continue
+        src_dir = src.relative_to(ctx.wdir).parent.as_posix()
+        base = "" if src_dir == "." else src_dir
+        for m in _live_matches(_PATHQUAL_LOAD1_RE, txt):
+            for item in m.group(1).split(","):
+                if ("/" in item or "\\" in item) and (_norm_load_path(item) in targets):
+                    return True
+        for m in _live_matches(_PATHQUAL_IMPORT_CWD_RE, txt):
+            if _norm_load_path(m.group(1) + "/" + m.group(2)) in targets:
+                return True
+        for m in _live_matches(_PATHQUAL_IMPORT_SUB_RE, txt):
+            if _norm_load_path(m.group(1) + "/" + m.group(2), base) in targets:
+                return True
+    return False
+
+
+def _probe_external(ctx: LoopCtx, eng: Engine, name: str) -> str | None:
+    """``probe_file(name)`` 命中 wdir 外系统副本 → 路径串; 否则 ``None``。"""
+    resolved = eng.probe_file(name)
+    if not resolved:
+        return None
+    try:
+        if Path(resolved).resolve().is_relative_to(ctx.wdir.resolve()):
+            return None  # 命中工程内件——shim 转发即再中毒
+    except (OSError, RuntimeError, ValueError):
+        return None
+    return str(resolved)
+
+
+def _write_path_shim(ctx: LoopCtx, f: Path, sys_path: str) -> str:
+    r"""原径回填薄 shim: ``\input`` 直指已解析系统副本 → note 段。
+
+    ``\input{<abs>}`` 不经 kpathsea 复解——根位自指/TEXINPUTS 歧义/另一
+    vendored 撞名件三径全免 (``\RequirePackage{stem}`` 三径全中)。
+    ``\ProvidesX{stem}`` 与原载名一致, 选项经 ``opt@<stem>.<ext>`` 自动续传。
+    """
+    try:
+        abs_s = Path(sys_path).resolve().as_posix()
+    except (OSError, RuntimeError, ValueError):
+        abs_s = str(sys_path)
+    ext = f.suffix.lower()
+    # 选项由 \@fileswith@ptions 按 filename@parse 裸名挂 ``opt@<stem>.<ext>``
+    # ——内层真件 \ProcessOptions 同键直读, 无需 DeclareOption 续传 (e2e 实
+    # 证: 续传把 opt 表复制两份 → 未声明项双报)。shim 与内层真件的
+    # \ProvidesX{stem} 对全限定请求名各出一条 requested/provides mismatch
+    # 警告——与退役前稿自带件产出的警告同文 (妆饰级, 无功能面差)。
+    if ext == ".cls":
+        head = (
+            "\\NeedsTeXFormat{LaTeX2e}\n"
+            f"\\ProvidesClass{{{f.stem}}}[2026/09/19 fixloop path-shim]\n"
+        )
+    elif ext == ".sty":
+        head = (
+            "\\NeedsTeXFormat{LaTeX2e}\n"
+            f"\\ProvidesPackage{{{f.stem}}}[2026/09/19 fixloop path-shim]\n"
+        )
+    else:
+        head = "% fixloop path-shim\n"
+    body = f"{head}\\input{{{abs_s}}}\n\\endinput\n"
+    ctx.write(f, _mark_injected(body))
+    return f"{f.name} (path-shim -> {abs_s})"
+
+
+def _path_shim_for(
+    ctx: LoopCtx, eng: Engine, f: Path, sys_path: str | None
+) -> str | None:
+    """``f`` 刚 rename 隔离; 路径限定装载点命中 ∧ 有递补源 → 原径回填 shim。"""
+    try:
+        rel = f.relative_to(ctx.wdir).as_posix()
+    except ValueError:
+        return None
+    if not _pathqual_hit(ctx, rel):
+        return None
+    sp = sys_path or _probe_external(ctx, eng, f.name)
+    if sp is None:
+        return None
+    return _write_path_shim(ctx, f, sp)
+
+
+def _isolate_cohort_sib(ctx: LoopCtx, eng: Engine, sib: Path, suffix: str) -> list[str]:
+    """单伴船件隔离 → note 表; 路径限定命中但系统无递补 → 保留 + advisory。"""
+    srel = sib.relative_to(ctx.wdir).as_posix()
+    if _pathqual_hit(ctx, srel):
+        sp = _probe_external(ctx, eng, sib.name)
+        if sp is None:
+            adv = f"{srel}: 路径限定装载但系统无递补, 保留"
+            if adv not in ctx.advisories:
+                ctx.advisories.append(adv)
+            return []
+        sib.rename(sib.with_name(sib.name + suffix))
+        return [f"{srel} (cohort)", _write_path_shim(ctx, sib, sp)]
+    sib.rename(sib.with_name(sib.name + suffix))
+    return [f"{srel} (cohort)"]
 
 
 def vendored_shadow_isolate(
     ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
 ) -> tuple[bool, str]:
-    """确证更旧的工程内 .sty/.cls → rename ``<f>.fixloop-iso`` 隔离 (docs/08:269)。
+    r"""确证更旧的工程内 .sty/.cls → rename ``<f>.fixloop-iso`` 隔离 (docs/08:269)。
 
     ``sd=None`` 的 tectonic 索引候选是 advisory 级 —— 无日期面确证新旧,
     不 rename, 记 ``bundle provides <pkg>`` advisory (幂等去重)。
@@ -259,6 +426,12 @@ def vendored_shadow_isolate(
 
     wrapper+core 一体件 (pst-* 族 X.sty/X.tex): 退役 wrapper 后同 stem
     稿自带 .tex 核同道闸确证一并退役 (``_retire_paired_tex_core``)。
+
+    路径限定装载点回填 (``_path_shim_for``): ``\\usepackage{./style/x}``
+    形只对字面相对径解析, texmf 裸名递补够不到 —— rename 后原径留薄
+    shim ``\\input`` 直指系统副本 (1803.03185 实证: optidef.sty 隔离 →
+    ``File './style/optidef.sty' not found`` → unfixable)。伴船件路径限
+    定命中但系统无递补 → 不 rename 直保留 (rename 即造 missing_file)。
     """
     del payload
     exts = tuple(params.get("exts") or (".sty", ".cls"))
@@ -273,6 +446,9 @@ def vendored_shadow_isolate(
             continue
         f.rename(f.with_name(f.name + suffix))
         moved.append(f"{f.name} ({ld} < {sd})")
+        shim = _path_shim_for(ctx, eng, f, prov)
+        if shim:
+            moved.append(shim)
         paired = _retire_paired_tex_core(ctx, eng, f, suffix)
         if paired:
             moved.append(paired)
@@ -280,8 +456,7 @@ def vendored_shadow_isolate(
             for sib in ctx.wdir.rglob(str(pat)):
                 if not sib.is_file() or sib.name.endswith(suffix) or sib == f:
                     continue
-                sib.rename(sib.with_name(sib.name + suffix))
-                moved.append(f"{sib.relative_to(ctx.wdir)} (cohort)")
+                moved.extend(_isolate_cohort_sib(ctx, eng, sib, suffix))
     if not moved:
         return False, "无确证更旧的可隔离遮蔽"
     return True, f"isolate vendored: {', '.join(moved)}"

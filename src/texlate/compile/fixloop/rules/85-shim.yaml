@@ -14,7 +14,7 @@ rules:
   # 按 \\ProvidesPackage 日期比较, 盲删必死 (同目录 cls 可能是唯一来源)
   - id: vendored_sty_shadow
     mechanisms: [W100, B05]
-    description: "工程自带旧 .sty/.cls 比系统新装版本旧 → rename 隔离 (.fixloop-iso)"
+    description: "工程自带旧 .sty/.cls 比系统新装版本旧 → rename 隔离 (.fixloop-iso); 路径限定装载点 (./x/y 形) 命中 → 原径回填 \\input 系统副本 shim"
     phase: loop
     order: 150
     when:
