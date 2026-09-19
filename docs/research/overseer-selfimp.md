@@ -1327,3 +1327,14 @@
 - **Contended-file protocol this round**: misschar/paralong/graphics/pkgload/shim/builtins/engine/ruleset/repair*/5 yaml shards dirty (peer lanes + my in-flight) — new lanes get clean-leaf edit rights (_builtins_csfix/_misc/_common/_bib + 75-syntax/95-targeted/70-pkgopt/30-route/50-font/65-encoding/80-bib yaml) + patch-artifact fallback for contended files.
 - **Patrol**: staged `D` on test_fixloop_pathqual/enguard + metrics refs = peer `git rm --cached` sweep; files intact, private-index unaffected. HEAD moved to 16e6724c (peer metrics-figure fix).
 - **Roster**: 9 — covgap, kotexfix, fmsingles, paraearly, endsfix, mintedstyle + csdefmismatch, missmath, docclsstack.
+
+## 2026-09-19 ~17:10 — kotexfix #196 committed `bce2c8d9` (hangul route arm)
+
+- **机制**: 3 层叠杀 — xetexko catcode-12 重置杀 newunicodechar (hangul_font_fallback@28 死件); kaist-ucs.cls 预记号化宏体封死活绑定; xeCJK 把 AC00-D7AF 圈入 CJK 类 → 谚文落 FandolSong(script=hani)/lmroman 无块。
+- **修法**: `_mc_apply_hangul_route` 在 `_mc_plan` 前预分诊, `_KO_MECH_RE` 探到 ko 机制时 `\ifdefined` 守双臂 (xeCJK AutoFallBack+\setCJKfallbackfamilyfont rm/sf/tt + \setmainhangulfont 族), `_inject_before_begindoc` masked 锚首行活 `\begin{document}`; claim-on-present 防 warmup 自匹配, decline 不动 `seen` 留 28 号臂接管。ko_fonts 5 候选 (UnDotum install-first→Noto KR→Plex KR→Nanum→Malgun)。
+- **验证**: +11 测; misschar+hangul+pathqual 81/81 绿; ruff 净; Ruleset.load()=147 (peer yaml 在飞 +4); 真 xelatex smoke 双臂 9→0 missing。预期覆盖 2403.00013 (kaist-ucs, 1355 谚文缺) + 2410.18001 (ctex+kotex, ~544; 同格还叠 endcsdiag item-1 endcsname — 双残待 endsfix)。
+- **REVIEW 语义标注**: AutoFallBack 会 mask 仍缺字形的 Missing-character 签名 (warn_missing_char 转盲 — 输出与 decline 等价, 只认领探明 ko 字体携带的码位)。
+- **外族失败**: test_fixloop_epsplaceholder::test_non_ps_suffix_refused — peer 改 graphics.py 消息词 "PS-family"→"known graphic ext" 未同步测试; HEAD 版测试绿, 非本提交携带。
+- **派波**: fixloop --rerun 2403.00013,2410.18001 @loop3 (pid 1152640, run.log tmp/lane-kotexfix/replay/) — gate③ flip 证据。
+- **解锁**: _builtins_misschar.py 已落净 — endsfix 补丁窗口开 (已通报)。
+- **Roster**: 9 — covgap, fmsingles, paraearly, endsfix, mintedstyle, csdefmismatch, missmath, docclsstack, firedunfixed。Closed: kotexfix。
