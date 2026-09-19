@@ -7,7 +7,7 @@ r"""L0 规则校验层 —— stdlib always-on，src↔zh 相对判定（规格 
 设计原则 = "译文不得比原文更坏"：每条检查都是 src↔zh 比较而非 zh 绝对判定，
 src 自带的不平衡/不一致不追责（继承容忍），只报 zh 相对 src 的新增损伤。
 
-十一条规则（docs/08 §2.1 表 + E21/E22 修订口径 + 注释区/粘合/回显/ph_in_cs/裸 cs 补丁）：
+十二条规则（docs/08 §2.1 表 + E21/E22 修订口径 + 注释区/粘合/回显/ph_in_cs/裸 cs/注释尾段补丁）：
 
   placeholder  ``[[TYPE_n]]``/``[[SL]]``/``[[PL]]`` multiset diff + lev≤2 修复建议；
                E22：严格序守恒降为 warn（``of X``→``X 的`` 合法换序占违例 ~95%），
@@ -47,6 +47,10 @@ src 自带的不平衡/不一致不追责（继承容忍），只报 zh 相对 s
                回显行里 ``[[COMMENT_n]]`` splice 出 ``%`` 吞掉同行结构 ``}``
                实测 early_eof）。词表与 bench ``DIRTY_SIGS`` 同款同序；
                ``[这是译文]``/``[word]`` 合法产出不在表内不误伤。
+  comment_eof  zh 尾段未终结注释（``[[COMMENT_n]]``/字面 ``%`` 到 EOF 无
+               ``\n``）→ error（stagerun-rt1 ``\@xdblarg`` runaway 族 ×4
+               cell 同形：corrector 臂丢注释终结换行，splice 接缝把 ``}``
+               吞进 ``%`` 行）；src 尾段同形豁免。
 
 实测基线（tmp/exp/rule-validator，cases.jsonl 1636 例）：10 类破坏 100% 检出、
 313 干净对 0 error-FP。
@@ -1077,6 +1081,54 @@ def _check_bare_cs(src: str, zh: str, issues: list[Issue]) -> None:
         )
 
 
+def _tail_unterminated_comment(s: str) -> str | None:
+    r"""文本尾段未终结注释的签名（字面 ``%`` → ``"%"``、``[[COMMENT_n]]`` → token）；无 → ``None``。
+
+    ``%`` 展开吞到 EOL——尾段注释未终结时，splice 后随字面首行被接进注释行。
+    字面 ``%`` 走 ``_lex`` 末 token 判（``\%`` 转义天然豁免）；``[[COMMENT_n]]``
+    形在遮盖视图上判——token 后只剩 ``[ \t]*`` 到 EOF 即未终结（``\n`` 是注释
+    终结符；后随非空白属 ``_check_ph_anchor`` 混入判据，此处不重复报）。
+    """
+    toks = _lex(s)
+    if toks and toks[-1][0] == "cmt":
+        return "%"
+    sm = mask_comments(s)
+    # 末个 ``[[COMMENT_`` 前缀位即候选——若非良形 token，则任一更早 token 的
+    # 尾段都含该残码（非空白）必非未终结，无需往前再扫。
+    i = sm.rfind("[[COMMENT_")
+    if i < 0:
+        return None
+    m = COMMENT_PH_RX.match(sm, i)
+    if m is not None and not sm[m.end() :].strip(" \t"):
+        return m.group(0)
+    return None
+
+
+def _check_comment_eof(src: str, zh: str, issues: list[Issue]) -> None:
+    r"""译文尾段未终结注释 → error（rt1 ``\@xdblarg`` runaway 族实证，4 cell 同形）。
+
+    ``[[COMMENT_n]]``/字面 ``%`` 到 zh EOF 无 ``\n``：splice 接缝把 chunk 后
+    字面首行吞进注释——``\caption{`` 的 ``}`` 落进 ``%`` 行 → ``\@xdblarg``
+    runaway（1109.5754/0905.1718/1306.5799/2003.10917：corrector 臂丢尾
+    ``\n``，``bare_token_audit`` 对未编码 src 的 ``[[SL]]`` 基线恒 0 看不见）。
+    src 尾段同形豁免——源 chunk 以未终结注释收尾时后随字面本就以该注释的
+    ``\n`` 终结符起头，zh 同形即忠实复现。
+    """
+    tok = _tail_unterminated_comment(zh)
+    if tok is None or _tail_unterminated_comment(src) is not None:
+        return
+    issues.append(
+        Issue(
+            "comment_eof",
+            Severity.ERROR,
+            f"译文尾段注释未终结到行尾: {tok}"
+            f"（splice 后紧随字面首行被注释吞掉——}} 类结构字节死字节化，"
+            f"\\caption{{ 类参数不闭合 → runaway）",
+            found=tok,
+        )
+    )
+
+
 def _check_protocol_echo(src: str, zh: str, issues: list[Issue]) -> None:
     r"""协议回显守卫：zh 净多出 corrector/L0 协议字面 → error。
 
@@ -1126,4 +1178,5 @@ def validate_pair(src: str, zh: str) -> L0Report:
     _check_ph_in_cs(src, zh, rep.issues)
     _check_bare_cs(src, zh, rep.issues)
     _check_protocol_echo(src, zh, rep.issues)
+    _check_comment_eof(src, zh, rep.issues)
     return rep

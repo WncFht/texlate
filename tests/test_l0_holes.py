@@ -1,4 +1,4 @@
-"""L0 校验洞补丁测试：item_glue 粘合签名 + 注释区占位符逃逸。
+"""L0 校验洞补丁测试：item_glue 粘合签名 + 注释区占位符逃逸 + 注释尾段。
 
 实证背景：
 - item_glue：译文把 ``\\item`` 与后随词粘成 ``\\itemFSU``/``\\itemNGA``/
@@ -8,6 +8,11 @@
 - 注释区占位符：``_check_placeholder`` 对双侧 mask_comments 后比 multiset，
   ``%`` 行内臆造 ``[[MATH_966]]`` 不可见 → 放行 → splice 字面残留
   （mock-sabotage 实测逃逸 1012.5411 chunk 7:1）→ zh 注释区净多出计 error。
+- comment_eof：stagerun-rt1 ``\\@xdblarg`` runaway 族 ×4 cell 同形
+  （1109.5754/0905.1718/1306.5799/2003.10917）——corrector 臂丢 chunk 尾
+  ``[[COMMENT_n]]`` 的终结 ``\\n``，splice 把后随字面首行（含 ``\\caption{``
+  的 ``}``）吞进注释行 → ``\\caption{`` 不闭合。``bare_token_audit`` 对
+  未编码 src 的 ``[[SL]]`` 基线恒 0 看不见 → zh 尾段未终结注释计 error。
 """
 
 import pytest
@@ -273,3 +278,108 @@ def test_comment_zh_new_bracket_tag_is_residue() -> None:
     rep = validate_pair(src, zh)
     assert not rep.ok
     assert any("[RS80]" in i.message for i in _issues(rep, "placeholder"))
+
+
+# ------------------------------------------------------- comment_eof 注释尾段
+
+
+def test_comment_eof_rt1_shape_caught() -> None:
+    """rt1 实证形态：src 尾 ``[[COMMENT_n]]\\n``、zh 尾丢 ``\\n`` → error。
+
+    stagerun-rt1 1109.5754 chunk 0:6：corrector 二试把 chunk 尾注释的终结
+    换行丢掉——placeholder multiset 吻合（token 本身在），brace/env 全平衡，
+    唯独 splice 后紧随字面行被注释吞掉。
+    """
+    src = "如图 [[MATH_1]] 所示。% see note\n[[COMMENT_1]]\n"
+    zh = "如图 [[MATH_1]] 所示。% 见注释\n[[COMMENT_1]]"
+    rep = validate_pair(src, zh)
+    assert not rep.ok
+    hits = _issues(rep, "comment_eof")
+    assert len(hits) == 1, str(rep)
+    assert hits[0].severity is Severity.ERROR
+    assert hits[0].found == "[[COMMENT_1]]"
+
+
+def test_comment_eof_terminated_clean() -> None:
+    """zh 尾 ``[[COMMENT_n]]\\n`` 终结正常 → 不报。"""
+    src = "文 [[MATH_1]]。[[COMMENT_1]]\n"
+    zh = "文 [[MATH_1]]。[[COMMENT_1]]\n"
+    rep = validate_pair(src, zh)
+    assert not _issues(rep, "comment_eof"), str(rep)
+
+
+def test_comment_eof_trailing_space_still_unterminated() -> None:
+    """``[[COMMENT_n]]`` 后只余空格/制表符 → 仍未终结（空白非注释终结符）。"""
+    src = "文 [[MATH_1]]。[[COMMENT_1]]\n"
+    for tail in (" ", "\t", "  "):
+        zh = f"文 [[MATH_1]]。[[COMMENT_1]]{tail}"
+        rep = validate_pair(src, zh)
+        hits = _issues(rep, "comment_eof")
+        assert hits, repr(tail)
+        assert hits[0].severity is Severity.ERROR
+
+
+def test_comment_eof_trailing_newline_then_space_clean() -> None:
+    """``[[COMMENT_n]]\\n  `` —— ``\\n`` 已终结注释，尾随空白无害。"""
+    src = "文 [[MATH_1]]。[[COMMENT_1]]\n"
+    zh = "文 [[MATH_1]]。[[COMMENT_1]]\n  "
+    rep = validate_pair(src, zh)
+    assert not _issues(rep, "comment_eof"), str(rep)
+
+
+def test_comment_eof_literal_percent_caught() -> None:
+    r"""字面 ``%`` 注释延伸到 zh EOF 无换行 → error（``_lex`` 末 token 判）。"""
+    src = "文 [[MATH_1]]。\n% a note\n"
+    zh = "文 [[MATH_1]]。\n% 中文注释"
+    rep = validate_pair(src, zh)
+    hits = _issues(rep, "comment_eof")
+    assert len(hits) == 1, str(rep)
+    assert hits[0].found == "%"
+
+
+def test_comment_eof_escaped_percent_not_comment() -> None:
+    r"""zh 尾 ``\%`` 是转义 bs token 非注释 → 不报。"""
+    src = "占比 50\\%\n"
+    zh = "占比 50\\%"
+    rep = validate_pair(src, zh)
+    assert not _issues(rep, "comment_eof"), str(rep)
+
+
+def test_comment_eof_src_same_shape_exempt() -> None:
+    """src 尾段同形未终结注释 → zh 复现不追责（继承容忍，防恒等对 FP）。
+
+    源 chunk 以未终结注释收尾时，其后随字面本就以该注释的 ``\\n`` 终结符
+    起头——zh 同形即忠实复现该 seam。
+    """
+    src = "文 [[MATH_1]]。[[COMMENT_1]]"
+    zh = "文 [[MATH_1]]。[[COMMENT_1]]"
+    rep = validate_pair(src, zh)
+    assert not _issues(rep, "comment_eof"), str(rep)
+
+
+def test_comment_eof_src_literal_percent_exempt() -> None:
+    """src/zh 双尾皆为未终结字面 ``%`` → 豁免。"""
+    src = "文 [[MATH_1]]。% tail note"
+    zh = "文 [[MATH_1]]。% 尾注"
+    rep = validate_pair(src, zh)
+    assert not _issues(rep, "comment_eof"), str(rep)
+
+
+def test_comment_eof_ph_then_text_is_anchor_domain() -> None:
+    """``[[COMMENT_n]]foo`` 尾段：token 后随非空白 → 非本规则判据。
+
+    ``%`` 展开吞到 EOL 而后随文本仍在同一注释行——属 ``_check_ph_anchor``
+    的 COMMENT 整行锚定混入判据，此处不重复报。
+    """
+    src = "文 [[MATH_1]]。[[COMMENT_1]]\n"
+    zh = "文 [[MATH_1]]。[[COMMENT_1]]混入行"
+    rep = validate_pair(src, zh)
+    assert not _issues(rep, "comment_eof"), str(rep)
+
+
+def test_comment_eof_midbody_comment_then_text_clean() -> None:
+    """注释在行中、其后还有正文行 → 尾段无未终结注释，不报。"""
+    src = "% note\n文 [[MATH_1]]。"
+    zh = "% 注\n文 [[MATH_1]]。"
+    rep = validate_pair(src, zh)
+    assert not _issues(rep, "comment_eof"), str(rep)
