@@ -292,3 +292,36 @@ def test_linestart_cs_already_linestart_and_foreign_untouched() -> None:
     assert "\n\n\\ShortTitle" not in out
     assert re.search(r"(?m)^\\ShortTitle\b", out)
     assert "作者名 \\vbox 尾" in out  # 行中 ``\vbox`` 保持行中
+
+
+def test_linestart_indented_cs_no_orphan_space_line() -> None:
+    r"""2507.14695 实案回归: ``\institute`` 内缩进行首 ``\and`` (9 空格
+    缩进) 译文原样保留 → 旧 ``(?<=.)`` 从空白串中段起步, ``\n   \and``
+    被拆成 ``\n ␣\n\and``——孤儿空格行即空行即 ``\par`` →
+    ``Paragraph ended before \institute`` 104 err。``(?<=\S)`` 要求
+    空白串前置非空白字符: 行首缩进串逐位置皆 ``\n``/空白在前, 不命中;
+    行中 ``text \and`` 仍归位 ``\n\and``。"""
+    body = (
+        "\\title{Some Title}\n"
+        "\\institute{Inst One\n"
+        "         \\and\n"
+        "         Inst Two}\n"
+        "Body paragraph text here long enough to matter."
+    )
+    res = scan_doc(body)
+    assert reconstruct(res) == DOC % body  # identity 不受影响
+    para = next(c for c in res.chunks if "\\and" in c.content)
+    trans = {c.id: "译文" for c in res.chunks}
+    trans[para.id] = (
+        "\\institute{Inst One\n"
+        "         \\and\n"  # 空格缩进行首 —— 原样保留
+        "\t\t\\and\n"  # tab 缩进行首 —— 原样保留
+        "         Inst Two   \\and tail\n"  # 行中 \and —— 归位 \n\and
+        "}\n正文段落译文。"
+    )
+    out = reconstruct(res, trans)
+    assert "\n \n\\and" not in out  # 孤儿空格行 —— 旧闸产出物
+    assert "\n\t\n\\and" not in out  # 孤儿 tab 行同族
+    assert "\n         \\and\n" in out  # 空格缩进行首原样
+    assert "\n\t\t\\and\n" in out  # tab 缩进行首原样
+    assert "Inst Two\n\\and tail" in out  # 行中 \and 仍归位

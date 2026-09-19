@@ -73,17 +73,20 @@ _LINESTART_CS_RX = re.compile(r"(?m)^[ \t]*\\([a-zA-Z@]+)")
 def _restore_linestarts(vtex: str, span: Span, zh: str) -> str:
     r"""行首 ``\cs`` 归位：源 span 内行首控制字若在译文里被压回行中，插 ``\n`` 复位。
 
-    只在译文本面打 ``text␣\X`` → ``text\n\X``——``(?<=.)`` 要求行内前置非
-    换行字符：已在行首（``\n ␣\X`` 形）或串首的 ``\X`` 不动（补 ``\n``
-    会多产空行即 ``\par``）。占位符 token 无 ``\`` 天然豁免，受保护体
-    内部不进本层（ph 展开在其后）。行中无空格黏合的 ``text\X`` 不改——
-    插 ``\n`` 会凭空多出一个空格 token，语义不再恒等。
+    只在译文本面打 ``text␣\X`` → ``text\n\X``——``(?<=\S)`` 要求空白串
+    前置非空白字符：已在行首（``\n ␣\X`` 形）的 ``\X`` 不动——其缩进
+    空白串每个位置前都是 ``\n`` 或空白，匹配无从起步（旧 ``(?<=.)``
+    能从空白串中段起步：``\n   ␣\X`` → ``\n ␣\n\X`` 孤儿空格行即
+    ``\par``，2507.14695 ``\institute`` 104 err 实案）。占位符 token
+    无 ``\`` 天然豁免，受保护体内部不进本层（ph 展开在其后）。行中
+    无空格黏合的 ``text\X`` 不改——插 ``\n`` 会凭空多出一个空格
+    token，语义不再恒等。
     """
     names = {m.group(1) for m in _LINESTART_CS_RX.finditer(vtex, span.start, span.end)}
     if not names:
         return zh
     rx = re.compile(
-        r"(?m)(?<=.)[ \t]+(\\(?:"
+        r"(?m)(?<=\S)[ \t]+(\\(?:"
         + "|".join(sorted((re.escape(n) for n in names), key=len, reverse=True))
         + r")(?![a-zA-Z@]))"
     )
