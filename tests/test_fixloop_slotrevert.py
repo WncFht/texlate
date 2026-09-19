@@ -292,3 +292,114 @@ def test_idempotent_second_run(tmp_path: Path) -> None:
 def test_slot_arg_revert_registered() -> None:
     """注册进 TRANSFORM_FNS (rules.yaml ``function:`` 面)。"""
     assert builtins.TRANSFORM_FNS["slot_arg_revert"] is slot_arg_revert
+
+
+# ------------------------------------------------- arrayresid: 列 spec 机位 (2026-09-19)
+
+
+def test_colspec_env_arg_reverted(tmp_path: Path) -> None:
+    """``\\begin{tabular}{|c|}`` spec 参 zh 化 —— envarg 同位但严格
+    ident 拒收 ``|``/空格 → colspec kind 可打印 ASCII ident 还原。"""
+    work, base = _trees(tmp_path)
+    src = "\\begin{tabular}{| cc | l |}\na&b\\\\\n\\end{tabular}\n"
+    zh = "\\begin{tabular}{| 这是译文 |}\na&b\\\\\n\\end{tabular}\n"
+    _pair(work, base, "main.tex", src, zh)
+    ok, _note = _run(work, base)
+    assert ok
+    assert (work / "main.tex").read_text(encoding="utf-8") == src
+
+
+def test_colspec_two_arg_env(tmp_path: Path) -> None:
+    """``\\begin{tabularx}{dimen}{spec}`` 双参全机位 —— dimen 参含
+    反斜杠 (``\\textwidth``) 严格 ident 拒收, colspec 收。"""
+    work, base = _trees(tmp_path)
+    src = "\\begin{tabularx}{\\textwidth}{|X|X|}\na&b\\\\\n\\end{tabularx}\n"
+    zh = "\\begin{tabularx}{这是译文}{这是译文}\na&b\\\\\n\\end{tabularx}\n"
+    _pair(work, base, "main.tex", src, zh)
+    ok, _note = _run(work, base)
+    assert ok
+    assert (work / "main.tex").read_text(encoding="utf-8") == src
+
+
+def test_colspec_multicolumn(tmp_path: Path) -> None:
+    """``\\multicolumn{n}{spec}{text}`` n+spec 还原, text 散文不碰。"""
+    work, base = _trees(tmp_path)
+    src = "\\multicolumn{8}{c|}{Head}\n"
+    zh = "\\multicolumn{这是译文}{这是译文}{标题译文}\n"
+    _pair(work, base, "main.tex", src, zh)
+    ok, _note = _run(work, base)
+    assert ok
+    out = (work / "main.tex").read_text(encoding="utf-8")
+    assert "\\multicolumn{8}{c|}{标题译文}" in out  # text 参保留 zh
+
+
+def test_colspec_holder_betb(tmp_path: Path) -> None:
+    """1502.01845 实证锚点: ``\\betb`` = ``\\begin{center}\\begin{tabular}``
+    doc 自定义 spec-holder → def 体尾部 spec-env ``\\begin`` 断言发现,
+    调用站 zh 化 spec 还原; 纯字母 spec 双侧一致不动。"""
+    work, base = _trees(tmp_path)
+    src = (
+        "\\newcommand\\betb{\\begin{center}\\begin{tabular}}\n"
+        "\\betb{cccc|ccc}\nx\n"
+        "\\betb{| cc cc  cc  cc | lc lc lc lc| }\ny\n"
+    )
+    zh = (
+        "\\newcommand\\betb{\\begin{center}\\begin{tabular}}\n"
+        "\\betb{cccc|ccc}\nx\n"
+        "\\betb{| 这是译文 | 这是译文| }\ny\n"
+    )
+    _pair(work, base, "main.tex", src, zh)
+    ok, _note = _run(work, base)
+    assert ok
+    assert (work / "main.tex").read_text(encoding="utf-8") == src
+
+
+def test_colspec_holder_def_site_not_counted(tmp_path: Path) -> None:
+    """def 行 ``\\betb{body}`` 体含花括号天然不匹配调用站 rx ——
+    src/zh 双侧计数只算真调用站。"""
+    work, base = _trees(tmp_path)
+    src = (
+        "\\def\\mytab{\\begin{array}}\n\\mytab{cc}\n"
+        "\\def\\other{not-a-spec}\n\\other{intro}\n"
+    )
+    zh = (
+        "\\def\\mytab{\\begin{array}}\n\\mytab{译文}\n"
+        "\\def\\other{not-a-spec}\n\\other{这是译文散文}\n"
+    )
+    _pair(work, base, "main.tex", src, zh)
+    ok, _note = _run(work, base)
+    assert ok
+    out = (work / "main.tex").read_text(encoding="utf-8")
+    assert "\\mytab{cc}" in out  # array-holder 还原
+    assert "\\other{这是译文散文}" in out  # 非 holder 散文位不碰
+
+
+def test_colspec_holder_argc_macro_skipped(tmp_path: Path) -> None:
+    """带 ``[n]`` 形参表的宏不是 holder (实参被 #n 消费不进流)。"""
+    work, base = _trees(tmp_path)
+    src = "\\newcommand\\ftab[1]{\\begin{tabular}}\n\\ftab{cc}\n"
+    zh = "\\newcommand\\ftab[1]{\\begin{tabular}}\n\\ftab{译文}\n"
+    _pair(work, base, "main.tex", src, zh)
+    ok, _note = _run(work, base)
+    assert not ok
+    assert (work / "main.tex").read_text(encoding="utf-8") == zh
+
+
+def test_colspec_no_false_revert_clean_spec(tmp_path: Path) -> None:
+    """spec 双侧一致 → 不动; holder 散文位不存在的负向核验。"""
+    work, base = _trees(tmp_path)
+    src = "\\begin{tabular}{|c|c|}\nx\n\\end{tabular}\n"
+    _pair(work, base, "main.tex", src, src)
+    ok, _note = _run(work, base)
+    assert not ok
+
+
+def test_colspec_divergent_counts_skip(tmp_path: Path) -> None:
+    """zh 侧多一个 ``\\begin{tabular}`` → colspec kind 整跳 (分歧保护)。"""
+    work, base = _trees(tmp_path)
+    src = "\\begin{tabular}{cc}\nx\n\\end{tabular}\n"
+    zh = "\\begin{tabular}{译文}\nx\n\\end{tabular}\n\\begin{tabular}{cc}\ny\n\\end{tabular}\n"
+    _pair(work, base, "main.tex", src, zh)
+    ok, note = _run(work, base)
+    assert not ok
+    assert "divergent" in note

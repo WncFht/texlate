@@ -449,6 +449,58 @@ _SLOTREV_EXTRA_RXS: tuple[tuple[str, re.Pattern[str]], ...] = (
             r"\\newfloat" + CMD_BOUNDARY + r"\s*" + _ARG + r"\s*" + _ARG + r"\s*" + _ARG
         ),
     ),
+    # ── 2026-09-19 arrayresid lane: 列 spec 机位 ──
+    # envarg 同位收 spec 参但严格 ident 拒收真实 spec (|/空格/\@/</>/!/*
+    # 全不在白名单; \textwidth 含反斜杠同理) —— 1502.01845 ``\betb``
+    # 实证外, env-arg 位 zh 化 spec 是本族结构性盲区。spec-env 的参位
+    # 即机位断言 (该位恒为机参, 内核拒 CJK → 参含 CJK 必为译污),
+    # ident 放宽到可打印 ASCII。``\begin{tabular}`` 系首参 spec;
+    # tabularx/tabulary/xtabular/tabular*/array* 系 ``{dimen}{spec}``
+    # 双参全机位 (dimen 被译同样炸)。
+    (
+        "colspec",
+        re.compile(
+            r"\\begin\s*\{(?:tabular|array|deluxetable|smalldeluxetable|"
+            r"sidewaysdeluxetable|sidewaystable|supertabular|longtable)\*?\}"
+            + _GAP
+            + r"(?:"
+            + _OPT
+            + _GAP
+            + r")?"
+            + _ARG
+        ),
+    ),
+    (
+        "colspec",
+        re.compile(
+            r"\\begin\s*\{(?:tabularx|tabulary|xtabular|tabular\*|array\*)\}"
+            + _GAP
+            + r"(?:"
+            + _OPT
+            + _GAP
+            + r")?"
+            + _ARG
+            + _GAP
+            + _ARG
+        ),
+    ),
+    # \multicolumn{n}{spec}{text} —— n+spec 双机位 (text 散文不碰)
+    (
+        "colspec_mc",
+        re.compile(r"\\multicolumn\*?" + CMD_BOUNDARY + r"\s*" + _ARG + r"\s*" + _ARG),
+    ),
+    # \newcolumntype{name}[n]{spec} —— spec 参 (name 参 envdecl 已盖;
+    # spec 内 ``>{...}`` 花括号结构 ``_ARG`` 吃不进, 只护无括号形)
+    (
+        "colspec_nt",
+        re.compile(
+            r"\\newcolumntype\*?"
+            + CMD_BOUNDARY
+            + r"\s*"
+            + r"\{[^{}\n]*\}\s*(?:\[[^\]\n]*\]\s*)?"
+            + _ARG
+        ),
+    ),
 )
 
 #: 严格 ident 白名单 —— 机位实参 (键/名/路径/kv 串/csv) 的字符域。
@@ -456,15 +508,77 @@ _IDENT_STRICT_RX = re.compile(r"[A-Za-z0-9@._/:+*!,=~-]+")
 #: 宽松 ident —— 仅 font kind: 字体名含空格/'/()/& ("Times New Roman")。
 _IDENT_LOOSE_RX = re.compile(r"[A-Za-z0-9@._/:+*!,=~ '()&-]+")
 _IDENT_LOOSE_KINDS = frozenset({"font"})
+#: spec ident —— 列 spec/dimen 参的字符域: 可打印 ASCII (| 空格
+#: @ < > ! * 反斜杠全收; {} 结构上 ``_ARG`` 已排)。spec 位自带
+#: 机位断言, 不复用严格白名单 (1502.01845 实证: 真 spec 恒被它拒)。
+_IDENT_SPEC_RX = re.compile(r"[ -~]+")
+#: spec 系 kind 前缀 —— colspec/colspec_mc/colspec_nt/colspec_holder:*。
+_IDENT_SPEC_PREFIX = "colspec"
 
 #: note 面站点/分歧条目封顶 (与 judge._MACHINE_SLOT_MAX 同量级)。
 _NOTE_CAP = 20
 
 
 def _is_ident(arg: str, kind: str) -> bool:
-    """机位标识符谓词: font 类用宽松名单 (字体名含空格), 其余严格。"""
+    """机位标识符谓词。
+
+    font 类用宽松名单 (字体名含空格), colspec 系用可打印 ASCII
+    (spec/dimen 形), 其余严格。
+    """
+    if kind.startswith(_IDENT_SPEC_PREFIX):
+        return _IDENT_SPEC_RX.fullmatch(arg) is not None
     rx = _IDENT_LOOSE_RX if kind in _IDENT_LOOSE_KINDS else _IDENT_STRICT_RX
     return rx.fullmatch(arg) is not None
+
+
+#: doc 自定义 spec-holder 宏探测 —— def 体以 spec-env ``\begin`` 收尾
+#: 即 ``\X{spec}`` 等价 ``\begin{ENV}{spec}`` (1502.01845 ``\betb``
+#: = ``\begin{center}\begin{tabular}`` 实证, 参被译 → kernel "Illegal
+#: character in array arg.")。[n] 形参表宏不收 (带参宏 {} 实参被 #n
+#: 消费不进 token 流); ``\newcommand{\cs}``/``\newcommand\cs`` 双形 +
+#: def/edef/gdef/xdef 族同盖。体一层花括号嵌套封顶 (``{center}``/
+#: ``{tabular}`` 内层组)。
+_HOLDER_DEF_RX = re.compile(
+    r"\\(?:newcommand\*?|renewcommand\*?|providecommand\*?|"
+    r"DeclareRobustCommand\*?|def|gdef|edef|xdef)"
+    r"\s*\{?\\([A-Za-z@]+)\}?\s*"
+    r"\{((?:[^{}]|\{[^{}]*\})*)\}"
+)
+#: def 体尾部 spec-env ``\begin`` 断言 (可带 ``[pos]`` 尾巴)。
+_HOLDER_TAIL_RX = re.compile(
+    r"\\begin\s*\{(?:tabular|array|deluxetable|smalldeluxetable|"
+    r"sidewaysdeluxetable|sidewaystable|supertabular|longtable|"
+    r"tabularx|tabulary|xtabular)\*?\}\s*(?:\[[^\]\n]*\]\s*)?$"
+)
+#: 每文件 spec-holder 名发现上限 (防宏农场文 noise kinds 刷屏)。
+_HOLDER_CAP = 8
+
+
+def _holder_rxs(src: str) -> tuple[tuple[str, re.Pattern[str]], ...]:
+    r"""``src`` 文内 spec-holder 宏 → per-name ``(colspec_holder:X, rx)`` 表。
+
+    ``mask_tex`` 视图扫描 (注释/逐字内 def 不算); 调用站 rx 吃可选
+    ``[opt]`` 后首 ``{}`` 参 —— def 自体因体含花括号天然不匹配
+    (``_ARG`` 吃不进 ``{}`` 体)。
+    """
+    view = mask_tex(src)
+    dead = _DEAD_TAIL_RX.search(view)
+    if dead is not None:
+        view = view[: dead.start()]
+    out: list[tuple[str, re.Pattern[str]]] = []
+    seen: set[str] = set()
+    for m in _HOLDER_DEF_RX.finditer(view):
+        name, body = m.group(1), m.group(2)
+        if name in seen or not _HOLDER_TAIL_RX.search(body):
+            continue
+        seen.add(name)
+        rx = re.compile(
+            r"\\" + re.escape(name) + CMD_BOUNDARY + r"\s*(?:\[[^\]\n]*\]\s*)?" + _ARG
+        )
+        out.append((f"colspec_holder:{name}", rx))
+        if len(out) >= _HOLDER_CAP:
+            break
+    return tuple(out)
 
 
 def _slot_spans(
@@ -508,7 +622,9 @@ def _revert_file(
     双侧相异 ∧ zh 参含 CJK ∧ src 参纯 ident (ASCII 白名单)。改集按
     起始位降序右→左应用, 同位/重叠第二刀跳 (envarg↔restatable 等同位
     多行扫重)。kind 双侧命中数分歧 → 该 kind 整跳记入 ``分歧项``。
+    spec-holder 动态行由 ``src`` def 体逐文件现查 (``_holder_rxs``)。
     """
+    rxs = (*rxs, *_holder_rxs(src))
     src_by = _by_kind(_slot_spans(src, rxs))
     zh_by = _by_kind(_slot_spans(zh, rxs))
     if not zh_by:
