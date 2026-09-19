@@ -1738,3 +1738,12 @@
 - 无新交付（ctexbls 重复 idle 通知已收——内容同上 tick 收割）。
 - **dispatch vboxpin**：vbox_flood 臂合成 dead-cycle log pin 测（vboxcheck queued micro-item——覆盖臂唯一可达域：maxdeadcycles=25 强制船出 → 密度≈25>4）。roster 10。
 - **门**：HEAD=d1b51572；ruleset 174；flipcheck-12 mutex 续持；overnite 1414/2822 健康；无 teammate git 越权。
+
+### patrol ~09:40 — primgap 落地 9e83a4d6；splicechk+docsty 收割；csfix8 +2 行；phantom 复核净
+
+- **primgap 落地 9e83a4d6**（_builtins_slotrev +74/−7，test +114）：_SLOTREV_EXTRA_RXS `primgap` kind（26-cs 域 + CMD_BOUNDARY 防 mark→marks/\hboxx 误伤）+ `_BROADCAST_KINDS`={primgap} + `_broadcast_value()`（src gap 唯一值 ∧ ident 门 → zh 全 CJK gap 广播；多值/空集回退整跳）。真格 dry-run：2609.19815 3 还原 0 残、2609.20633 broadcast 1→17 0 残。leader 复验 41 测绿+ruff 净+ruleset 177（含 mathbd 3 条 worktree 规）。→ wave-13 += 19815/20633。
+- **splicechk 终判**（关）：2401.01624 `\I` **非 splice 损**——inject CJK→xeCJK 改写丢 MULEenc `\def\I{I}`（CJK.sty:30→MULEenc.sty:206 链实证；token src:453≡splice:361≡zh:333 字节一致）。→ csfix8 行 `\providecommand{\I}{I}`（MULEenc 义，勿 \Iiota/İ）。
+- **docsty 终判**（关，落地树复核）：doc-sty 族收敛至 1 cs 非 dissolved——0812.1138 全机理覆（pdftexversion∈_PRIM_COUNTISH :77 链）纯 dispatch-gap（third hit of fail-only-dispatch 盲点 → partial-inclusive 裁决旗加一票）；0905.2435+0905.4369 `\SEKImasterusepackages` 真未覆（def 仅存替代母版 pdf.tex:2-3 `{\usepackage{times}}`，leader 对 corpus 双格核证）。→ csfix8 行镜像 def。机理类爆面 5（另 3 已覆）。
+- **queued micro**：_PRIM_INIT 缺 pdftexversion → init=1 → `\ifnum<120` 误真 → microtype 静默关；荐 init "140"。docsty 残料：\@tempa brace 级联（SEKI×2）、\edcorr runaway（2435）。
+- **phantom 复核**：`git diff HEAD` 报 12 tests 文件 −2916——`ls` 全在（peer staged-D 经共享 index 透出），勿动共享 index；test_sentry_rate ±8 是 vboxpin 真活（pin e/f dead-cycle+prefix 语义已在写）。
+- **门**：HEAD=9e83a4d6；ruleset 177（worktree）；overnite ~1450+/2822；roster 8（mathbd/extless/drvstage/refclean/csfix8/vboxpin/auxeof34 + 1 槽）。
