@@ -436,3 +436,46 @@ rules:
         }
     stats: { fires: 41, status: proposed }
     source_ref: "bench/results/stagerun-loop2-2026-09-18/cases.jsonl astro-ph/9901081"
+
+  # firedunfixed 普查 item5 (2403.05444/2308.04278, epsconv lane):
+  # e-print 随带 X-eps-converted-to.pdf (上游 epstopdf 产物) 而 X.eps 不随稿,
+  # 稿面未载 epstopdf —— 显式 {X.eps} 归 missing_file|X.eps (graphic_ext_relax
+  # sibling 闸收进 stem 域后 conv 件 X-eps-converted-to ≠ X 不再放行剥名),
+  # 裸 {X} 报无扩展名 File `X' not found 归 other|None 死路 (taxonomy 要求
+  # \.\w+)。资产侧别名修复: 存活引用全扫 + payload/err_head 提名 → conv 件
+  # 在盘则 copyfile 落 <cwd>/<refdir>/<stem>.pdf (裸名 .pdf 补全即解) +
+  # eps 族显式引用剥名接管 (eps_to_pdf 转换+改写同 builtin 先例)。
+  # order 8.6 = main_wrapper_promote(8.5) 后、fileset 族(9) 前 —— conv 件随稿
+  # 家一轮全愈必须先拿派发窗: 2403.05444 实证 fileset_relocate(9) 逐轮搬一张
+  # .eps (arvix/→cwd), 13 图 > 8 轮预算耗尽在 Fig8。cache_dir_glob 把本臂限在
+  # 随稿 conv 家, 家外 decline 透传不抢 relocate/install_file 真件归位;
+  # eps_to_pdf(15)/占位(17.6) 仍在后殿 —— 随稿真件字节优于外部转换与占位框。
+  - id: eps_converted_alias
+    mechanisms: [W21]
+    description: "File `X(.eps)' not found 且 X-eps-converted-to.pdf 随稿 → 解析位落 X.pdf 别名 + eps 族引用剥名"
+    phase: loop
+    order: 8.6 # fileset_relocate(9) 前 —— conv 家一轮全愈, 防逐轮搬迁饿死
+    when:
+      any:
+        - { category: missing_file, payload_required: true }
+        - { category: missing_graphic, payload_required: true }
+        - { category: ps_image, payload_required: true }
+        - { category: other } # 裸名缺件 File `X' not found 无 ext 归此类无 payload
+    condition:
+      ctx_suggests: "File `[^']+' not found|Unable to load picture or PDF file|image inclusion failed"
+      cache_dir_glob: "**/*-eps-converted-to.pdf"
+    action:
+      kind: builtin_transform
+      function: eps_converted_alias
+      params: {}
+    risk: low # 只落引用解析位 .pdf 别名 (随稿转换件字节) + eps 族剥名; 字面可解引用不触
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same } # bundled xdvipdfmx 同 \Gin@extensions 补全序
+    provenance:
+      - {
+          corpus: "2403.05444/2308.04278 (firedunfixed census item5)",
+          error: "File `Fig1' not found / File `system-model' not found — 随稿只有 FigN-eps-converted-to.pdf",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-firedunfixed/report.md item5; tmp/lane-epsconv/"

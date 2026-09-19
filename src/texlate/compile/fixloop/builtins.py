@@ -89,6 +89,7 @@ from texlate.compile.fixloop._builtins_graphics import (
 )
 from texlate.compile.fixloop._builtins_misc import (
     docstrip_generate,
+    eps_converted_alias,
     extract_tar_blobs,
     graphics_include_strip,
     harvest_build_directives,
@@ -205,6 +206,7 @@ __all__ = [
     "cs_targeted_fix",
     "ctlseq_undefine",
     "docstrip_generate",
+    "eps_converted_alias",
     "eps_to_pdf",
     "extract_tar_blobs",
     "fileset_relocate",
@@ -349,4 +351,5 @@ TRANSFORM_FNS = {
     "pfa_to_pfb": pfa_to_pfb,
     "graphics_include_strip": graphics_include_strip,
     "main_wrapper_promote": main_wrapper_promote,
+    "eps_converted_alias": eps_converted_alias,
 }
