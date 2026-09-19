@@ -1074,3 +1074,12 @@
 - roster 10：misscharcen(#162)/sweepgate(#163)/failmine3(#164)/assetlane(#165)/regrdiag(#166)/ifscanner(#167)/subfilegate(#168)/loop4wave(#161 run5)/loopsched(#144 静默)/+1 余位。
 - 门：teammate 零 git✓；HEAD 476ea2a；L0 全绿✓；**L1 identity 100% + leak 0.000% PASS✓**；L2 wave-2 46升0降✓；sab-r6 escaped=0✓；clean% 单调上行✓。
 - 裁决点待报用户：#10 acceptable_pdf 语义 / ds@ Option A (~96格) / verdict-semantics 排序 (unfixable:* vs best_effort_pdf 同 artifact)。
+
+## 2026-09-19 ~11:4x — 巡逻: 双绿灯 (#166 闸+emitter 根修 / #168 subfile 门) + 两 lane 卡壳处置
+
+- **#166 regrdiag 双绿灯**: (a) tar_blob FP 坐实——2410.17904 三 rename 全打中 `\mustar`/`\mustarh` 宏内 "ustar" 字节 (RL 论文 mu-star 策略), `_tar_header_start` 加 magic+version@257 (POSIX `ustar\x0000`/GNU `ustar  \x00`) + 512B checksum@148 —— 散文不可伪造, 真伪装 tar 全保 (AMSbsy/aipproc hdr=0, mutated fixture hdr=28)。(b) `\institute` 撤案——para_longize `_WRAP_TABLE` 已覆 (institute:78), loop3 格跑在落地前纯属时序, 下波自愈。(c) **根 emitter 缺陷**在共享件: `_restore_linestarts` (reconstruct.py:73-90) `(?m)(?<=.)[ \t]+(\\cs)` lookbehind 漏 mid-run——`\n         \and` 缩进行在空格 2 位过 `(?<=.)` → 孤空格行→\par→104err。修 `(?<=\S)` 6 例验——**para_longize 只是绷带, 这才是 2507.14695 真伤**。mutex 扩 grant 准同 lane 落+钉测。
+- **#168 subfilegate 绿灯**: 机制实锤——`\subfile` 子档吞 `\documentclass→\begin{document}`, normalize_engine 三处 pre-docclass prepend (`\PassOptionsToPackage`/`XETEX_COMPATIBILITY`) 落 master body 语境 → :1,:14 两错/件 (2310.16788 4 错源)。修=textutil SUBFILES_CHILD_RX + normalize `preamble_ok = has_document ∧ ¬depth0(subfiles-class)`; PIXEL 保 (\newdimen body-legal+护 pdfpxdimen); standalone-class 不门 (可为 legit main); post-docclass 注入不门 (gobbled 无害)。8 测 sim-verified。
+- **misscharcen EOF 自愈**: API EOF 后复跑——#162 char_table 17 格+macro_glyph 3cs 编在树 (_builtins_misschar+60-yaml+test 11:33)。
+- **两卡壳**: loopsched #144 **50min 零产物** (无 lane 目录无件) ——终警告已发, 下 tick 无应即 TaskStop 重派; loop4wave run5 para 波 15min 零产物——催报 (a 备/b 跑哪/c 卡)。
+- roster 9: regrdiag(#166 impl)/misscharcen(#162 impl)/subfilegate(#168 impl)/sweepgate(#163)/assetlane(#165)/failmine3(#164)/ifscanner(#167)/loop4wave(#161 run5?)/loopsched(#144 卡)。peer stagerun-v3all 批在飞 (彼域)。
+- 门: teammate 零 git✓ (HEAD c7bf2c1 全 leader/peer-leader 署); index 净; L0/L1/L2/sab 全绿维持; 裁决点 3 件仍待用户。
