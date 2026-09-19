@@ -282,6 +282,34 @@ def harvest_build_directives(
 _DOCSTRIP_DRIVERS = ("latex", "pdflatex", "xelatex", "tex")
 
 
+def _wdir_fingerprint(wdir: Path) -> dict[Path, tuple[int, int]]:
+    """工作树文件 ``(mtime_ns, size)`` 指纹——``run_tool`` 改盘面快照 diff 用。"""
+    fp: dict[Path, tuple[int, int]] = {}
+    for p in wdir.rglob("*"):
+        try:
+            st = p.stat()
+        except OSError:
+            continue
+        if p.is_file():
+            fp[p] = (st.st_mtime_ns, st.st_size)
+    return fp
+
+
+def _invalidate_changed(ctx: LoopCtx, before: dict[Path, tuple[int, int]]) -> int:
+    """快照后新增/改写/删除路径全 invalidate → 失效数。
+
+    docstrip 类 ``run_tool`` 一次写多件的通用补: 请求件之外的兄弟产出
+    同步失效 ``_texts``——pre-run 读过缺件会缓存 miss→None 毒化条目,
+    产出落地后缓存仍答 None, 下游规则当缺件 (同 logcache 病族)。
+    不触 ``_texts`` 私有面, 指纹 diff 即全覆盖 (真写必换指纹)。
+    """
+    after = _wdir_fingerprint(ctx.wdir)
+    changed = [p for p in set(before) | set(after) if before.get(p) != after.get(p)]
+    for p in changed:
+        ctx.invalidate(p)
+    return len(changed)
+
+
 def docstrip_generate(
     ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
 ) -> tuple[bool, str]:
@@ -292,6 +320,10 @@ def docstrip_generate(
     nonstopmode <ins>`` 跑抽取 (bbl_regen ``run_tool`` 先例; web2c 会把主
     输入件所在目录并入搜索路径, ins/dtx 同目录自然可解), 复核 payload
     落盘后 applied; 生成失败 → False 同轮续扫落 install_file(10) 装 TL 版。
+
+    每发 ``run_tool`` 前后走 ``_invalidate_changed`` 指纹 diff——docstrip
+    一抽多件 (``.sty``/``.cls``/``.cfg`` 同批出), 请求件外兄弟产出与
+    miss→None 毒化条目同步失效 ``_texts`` (同 logcache 病族)。
     """
     del eng
     want = (payload or "").strip()
@@ -314,10 +346,12 @@ def docstrip_generate(
     timeout = int(params.get("timeout", 60))
     for ins in cands:
         rel_ins = ins.relative_to(ctx.wdir).as_posix()
+        before = _wdir_fingerprint(ctx.wdir)
         rc, _out, to = ctx.run_tool(
             [driver, "-interaction=nonstopmode", rel_ins], timeout
         )
         ctx.events.append(f"docstrip {rel_ins} -> rc={rc}{' TIMEOUT' if to else ''}")
+        _invalidate_changed(ctx, before)
         hit = ctx.wdir / Path(*rel.parts)
         if not safe_is_file(hit):
             alt = next((p for p in ctx.wdir.rglob(rel.name) if p.is_file()), None)
@@ -397,11 +431,67 @@ def _safe_member_name(name: str) -> PurePosixPath | None:
     return rel
 
 
-def _extract_members(ctx: LoopCtx, f: Path, hdr_start: int) -> int:
-    """抽 tar ``f`` (头起点 ``hdr_start``) 的 regular-file 成员补缺 → 落地数。
+def _slot_hit(rel: PurePosixPath, expected: Path) -> int:
+    r"""成员对期待槽位 ``expected`` 的命中级: 0 无 / 1 stem 兄弟 / 2 basename 精确。
+
+    stem 兄弟限 ``.cls`` 槽位 ← ``.sty`` 成员——2.09 时代 class 本体就以
+    .sty 发行, ``\\documentstyle``/compat ``\\documentclass`` 读本名槽位
+    (astro-ph/0104007 ``aipproc.cls`` tar 内含 ``aipproc.sty`` 实案);
+    反向 (.cls 成员冒写 .sty 槽位) 不开——class 件不是 package 实现。
+    """
+    if rel.name.lower() == expected.name.lower():
+        return 2
+    sib = (
+        expected.suffix.lower() == ".cls"
+        and rel.suffix.lower() == ".sty"
+        and rel.stem.lower() == expected.stem.lower()
+    )
+    return int(sib)
+
+
+def _slot_payload(f: Path, hdr_start: int, expected: Path) -> bytes | None:
+    """二扫 tar 成员找期待槽位 ``expected`` 的补写字节 (basename 精确 > stem 兄弟)。
+
+    独立 BytesIO 重扫——成员字节已在盘内 tar 里, 扫序同一遍损坏边界,
+    确定性等价。``hit > best_rank`` 让后到的精确件盖过先到的兄弟件。
+    """
+    import io  # noqa: PLC0415
+    import tarfile  # noqa: PLC0415
+
+    best_rank = 0
+    payload: bytes | None = None
+    try:
+        stream = io.BytesIO(f.read_bytes()[hdr_start:])
+        with tarfile.open(fileobj=stream) as tf:
+            for m in tf:
+                if not m.isreg():
+                    continue
+                rel = _safe_member_name(m.name)
+                if rel is None:
+                    continue
+                hit = _slot_hit(rel, expected)
+                if hit <= best_rank:
+                    continue
+                src = tf.extractfile(m)
+                if src is not None:
+                    best_rank, payload = hit, src.read()
+    except (tarfile.TarError, OSError):
+        pass
+    return payload
+
+
+def _extract_members(
+    ctx: LoopCtx, f: Path, hdr_start: int, expected: Path | None = None
+) -> int:
+    r"""抽 tar ``f`` (头起点 ``hdr_start``) 的 regular-file 成员补缺 → 落地数。
 
     顺序迭代 (非 getmembers 全扫)——变异 tar 内层被 recode 改写可能中段
     损坏, 顺序读让头部完好成员先落地, 遇坏头即收。
+
+    ``expected`` = 伪装件原名槽位 (blob 已先改名让出): 与槽位同名成员
+    (任意深度 basename) 自然落地即占槽位; 槽位仍缺则由 ``_slot_payload``
+    二扫补写——basename 命中或同 stem ``.sty`` 兄弟件, 让 class/``\\input``
+    解析拿到 tar 内真实实现而非落入 missing_file→stub。
     """
     import io  # noqa: PLC0415 — 冷路径: 命中伪装件才用, 不污染常规启动
     import tarfile  # noqa: PLC0415
@@ -428,6 +518,12 @@ def _extract_members(ctx: LoopCtx, f: Path, hdr_start: int) -> int:
                 extracted += 1
     except (tarfile.TarError, OSError):
         pass
+    if expected is not None and not expected.exists():
+        payload = _slot_payload(f, hdr_start, expected)
+        if payload is not None:
+            expected.write_bytes(payload)
+            ctx.invalidate(expected)
+            extracted += 1
     return extracted
 
 
@@ -448,8 +544,11 @@ def extract_tar_blobs(
     命中 tar 魔数即改名 ``{name}.tarblob`` 退役 (移出 TeX 解析路径、
     留现场可审计)——tar 归档在 ``.sty``/``.cls`` 名下绝不是合法 TeX,
     0 新成员 (=语料已带全部成员, 0707.0382 实案) 或魔数被前置注入推位
-    的变异件也必须退役。抽取按头起点切片喂 tarfile, 顺序迭代容忍
-    变异件中段损坏 (头段完好成员照补)。
+    的变异件也必须退役。**先改名再抽**——blob 让出原名槽位后, 与槽位
+    同名或同 stem 的 ``.sty`` 兄弟成员才能补写回 ``{name}`` 本身
+    (旧序先抽后改: 槽位被 tar 本体占着, 同名成员永远被 no-clobber
+    跳过, 改名后期待文件名彻底缺席 → missing_file)。抽取按头起点切片
+    喂 tarfile, 顺序迭代容忍变异件中段损坏 (头段完好成员照补)。
     """
     del eng, payload
     exts = {str(e).lower() for e in (params.get("exts") or _TARBLOB_EXTS)}
@@ -460,9 +559,9 @@ def extract_tar_blobs(
         hdr = _tar_header_start(f)
         if hdr is None:
             continue
-        extracted = _extract_members(ctx, f, hdr)
-        blob_name = f.name + ".tarblob"
-        f.rename(f.with_name(blob_name))
+        blob = f.with_name(f.name + ".tarblob")
+        f.rename(blob)
         ctx.invalidate(f)
+        extracted = _extract_members(ctx, blob, hdr, expected=f)
         done.append(f"{f.name}({extracted} members)")
     return (bool(done)), f"tar blobs extracted: {', '.join(done)}"
