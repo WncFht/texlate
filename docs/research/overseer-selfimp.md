@@ -1104,7 +1104,7 @@
 - **L3 人工锚点面撤出**：anchor200 备样留档（bench/results/qualbase-2026-09-18/anchor200/），pairacc 校准线不再卡环。口径降级=judge **内部一致、未对人工校准**——不影响回归门（臂间对比同 judge 偏差抵消），只放弃"judge 与人工 pairacc≥0.65"的绝对校准宣称。
 - **兜底=leader 抽验**（非锚点、不夸大）：跨分段抽样 12 格，全部 span_verified=True、注解合理——2403.05500|4:9（judge=55 vs qe=0.761 分歧榜首）实证 judge 能抓 QE 盲区（"Normal→法向"语境误译），低分格 2/8 为旧协议 bib 误翻现已被直通修复。
 
-## 2026-09-19 ~13:0x — 三落地 (cfe2e7e/3263c22/54fc12e) + sab-r7 escaped=0 + roster 修剪至 5
+## 2026-09-19 ~11:5x — 三落地 (cfe2e7e/3263c22/54fc12e) + sab-r7 escaped=0 + roster 修剪至 5
 
 - **#166 regrdiag 二三臂落地**: `cfe2e7e` reconstruct `_restore_linestarts` `(?<=.)`→`(?<=\S)`——空白串中段 lookbehind 滑产孤空格行=\par (2507.14695 `\institute` 104err 根 emitter 伤, para_longize 是绷带); e2e 钉测全形 (空格/tab 缩进保+行中归位)。`54fc12e` textutil parity——`_tar_header_ok` 提 canonical 宿 encoding.py (name非NUL+magic+version 8B+512B checksum 三验), `_tar_disguised` 读窗+512 改双校验, `__init__` 转口; `_builtins_misc` 删本地副本改 import (与 failmine3 append 同文件不同域待并提)。inject/probe/latex209/api/flatten/gullet-input/normalize 八消费面零改继承。36/36+19/19+18/18 测绿。
 - **#163 sweepgate 落地 3263c22 (5件 +334/−5)**: C0 测量扫掠豁免——`misschar_sweep_hits` (texlog 叶, `_MISSCHAR_MSG_RX` 冻结墙双写互注+U+000A 自折拼回+`^^X` o-64 名法) 同字体 ≥25 严格升序 C0+DEL 链; judge `count_missing_chars` 减除+notes `missing_character_sweep×N`; loginfo `_scan_warnings` 抽函数 (C901) residue 分支; redlines pattern=None 算法行。**零翻格诚实报**——1003.0694 misschar 133→1 (真 − U+2212 cmr8 残留), 值=度量诚实: 102 格 misschar 普查曾被测量噪音灌水。110/110 自验+真 log e2e sweep=132→0。
