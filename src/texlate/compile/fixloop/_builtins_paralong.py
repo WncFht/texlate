@@ -127,6 +127,37 @@ _WRAP_TABLE: dict[str, tuple[str, str]] = {
     "mathbfit": ("#1", "{#1}"),
     "mathbfss": ("#1", "{#1}"),
     "org@markboth": ("#1#2", "{#1}{#2}"),
+    # ── institutesig wave-7 普查 (117 cells/31 cs → 19 表外格) —— 逐条上游实档核签 ──
+    "abstract": (
+        "#1",
+        "{#1}",
+    ),  # aa.cls:271 \let\abstract=\aaabstract 别名 (无 \def\abstract 定义点)
+    "@titleone": ("#1", "{#1}"),  # mn2e.cls:1197
+    "@affil@match": ("#1#2#3#4#5", "{#1}{#2}{#3}{#4}{#5}"),  # revtex4-2.cls:2317
+    "add@AUCO@grp": ("#1#2#3#4", "{#1}{#2}{#3}{#4}"),  # revtex4-2.cls:2184
+    "@sect@ltx": (
+        "#1#2#3#4#5#6[#7]#8",
+        "{#1}{#2}{#3}{#4}{#5}{#6}[#7]{#8}",
+    ),  # ltxutil.sty:810 / revtex4-1:794 / revtex4-2:815
+    "MT@is@char": (
+        '#1\\CHAR"#2#3#4\\relax',
+        '#1\\CHAR"{#2}{#3}#4\\relax',
+    ),  # microtype.sty:1819
+    "verbatim@start": ("#1", "{#1}"),  # verbatim.sty:107
+    "ltx@def@footproc": (
+        "#1[#2]",
+        "{#1}[#2]",
+    ),  # ltxutil.sty:455 / revtex4-1:439 / revtex4-2:460
+    "@float@HH": ("#1[H]", "{#1}[H]"),  # float.sty:78
+    "TP@textblock": ("[#1,#2](#3,#4)", "[#1,#2](#3,#4)"),  # textpos.sty:253
+    "pgffor@var@add": (
+        "#1#2\\pgffor@stop",
+        "{#1}#2\\pgffor@stop",
+    ),  # pgffor.code.tex:75
+    "caption@prepareanchor": ("#1#2", "{#1}{#2}"),  # caption*.sty:319 \newcommand*[2]
+    # pictex 非 \long \put (现行档 pictexwd.tex:2310 已 \long, 老档非; 签名
+    # 含字面 " at " 与空格定界 —— 定界参裸转发, 尾空格是 #4 定界符不可省)。
+    "put": ("#1#2 at #3 #4 ", "{#1}#2 at #3 #4 "),
 }
 
 #: 暂存/级联宏拒收名单 —— 定义随用随覆写或属上游错级联, wrap 无意义。
@@ -150,6 +181,8 @@ _DENY_NAMES: frozenset[str] = frozenset(
         "if",
         "else",
         "fi",
+        # abraces.sty:172,187 \let-派发暂存 (\abrace@next=\@abrace@is@arg@fully@used@/\relax)
+        "abrace@next",
     }
 )
 
