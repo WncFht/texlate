@@ -452,6 +452,10 @@ rules:
         - {
             ctx_suggests: "File ended while scanning use of \\\\protected@edef",
           }
+      # 派发闸: sty 体须真载 edef 捕获式 —— 无件空发会烧同签名轮次,
+      # 挤掉同 sig 后位规则的派发窗口 (if_phantom_protect 实证
+      # dispatch-miss: r1 被本条空吃 → r3 stuck 断在 197.5 可派发前)
+      source_contains: "protected@edef.*ifnum.*}=.z@|edef.*ifnum`[{}]=.z@"
       cache_dir_glob: "*.sty"
       tool_available: sh
     action:
