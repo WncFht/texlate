@@ -15,7 +15,7 @@ import shutil
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any
 
-from texlate.compile.fixloop._builtins_common import _live_matches
+from texlate.compile.fixloop._builtins_common import _live_matches, _map_tex_files
 from texlate.compile.fixloop._builtins_graphics import (
     _EPS_EXTS,
     _EPS_KV_RE,
@@ -1369,3 +1369,300 @@ def eps_converted_alias(  # noqa: C901, PLR0912, PLR0915  # 逐门 decline note 
     if edited:
         note.append(f"eps-ext stripped: {', '.join(edited)}")
     return True, "; ".join(note)
+
+
+# ════════════════════════════════════════════════════════════════
+# runaway_output 修复面: 不可断盒 > \textheight → \output 空页死循环
+# (killsem census 单机理族: sentry:page_flood SIGKILL 前泛洪签名)
+# ════════════════════════════════════════════════════════════════
+
+
+def _brace_end(t: str, i: int) -> int | None:
+    r"""``t[i] == "{"`` → 配对 ``}`` 位 (``\{`` 转义不算)。"""
+    depth = 0
+    j = i
+    while j < len(t):
+        c = t[j]
+        if c == "\\":
+            j += 2
+            continue
+        if c == "{":
+            depth += 1
+        elif c == "}":
+            depth -= 1
+            if depth == 0:
+                return j
+        j += 1
+    return None
+
+
+def _bracket_end(t: str, i: int) -> int | None:
+    """``t[i] == "["`` → 配对 ``]`` 位; ``{…}`` 嵌套内与转义的 ``]`` 不收。"""
+    brace = 0
+    j = i
+    while j < len(t):
+        c = t[j]
+        if c == "\\":
+            j += 2
+            continue
+        if c == "{":
+            brace += 1
+        elif c == "}":
+            if brace:
+                brace -= 1
+        elif c == "]" and brace == 0:
+            return j
+        j += 1
+    return None
+
+
+def _skip_ws(t: str, j: int) -> int:
+    """空白/换行跳过 → 首个非空格位。"""
+    while j < len(t) and t[j] in " \t\n":
+        j += 1
+    return j
+
+
+def _skip_bracket(t: str, j: int) -> int | None:
+    """``t[j] == "["`` → 配对组后空白归位; 非 ``[`` → ``j`` 原样; 未配对 → None。"""
+    if j >= len(t) or t[j] != "[":
+        return j
+    e = _bracket_end(t, j)
+    return None if e is None else _skip_ws(t, e + 1)
+
+
+#: ``\begin{tcolorbox}`` env 站。
+_TCB_BEGIN_RX = re.compile(r"\\begin\s*\{tcolorbox\}")
+#: ``\newtcolorbox`` 定义站。
+_TCB_DEF_RX = re.compile(r"\\newtcolorbox\b")
+#: tcolorbox 装载点 (usepackage/RequirePackage; 选项组/包名单组)。
+_TCB_LOAD_RX = re.compile(
+    r"\\(?:usepackage|RequirePackage)\s*(?:\[([^\]\n]*)\])?\s*\{([^}]*)\btcolorbox\b[^}]*\}"
+)
+#: ``\tcbuselibrary{…}`` 库声明点。
+_TCB_LIB_RX = re.compile(r"\\tcbuselibrary\s*\{([^}]*)\}")
+#: 含 breakable 的库名单 token——many/most/all 是 bundles
+#: (tcolorbox.sty ``\tcb@add@library@style``: many→…breakable…, most/all→many)。
+_TCB_BREAKABLE_LIBS = frozenset({"breakable", "many", "most", "all"})
+#: 选项组内 breakable 键探测 (``unbreakable`` 前缀不沾——``\b`` 挡 ``n``)。
+_TCB_BREAKABLE_KEY_RX = re.compile(r"\bbreakable\b")
+#: 否定形键——``breakable=false``/``unbreakable`` 在泛洪格是肇事者, 翻正。
+_TCB_NEG_KEY_RX = re.compile(r"\bbreakable\s*=\s*false\b|\bunbreakable\b")
+
+
+def _tcb_lib_state(ctx: LoopCtx) -> tuple[bool, tuple[Path, int] | None]:
+    r"""``(breakable 库已载, tcolorbox 装载点 (file, match_end))`` —— 遮盖视图。
+
+    装载点用于 ``\tcbuselibrary{breakable}`` 注入缝 (须在包载后);
+    usepackage 选项组与 ``\tcbuselibrary`` 参数的逗号成员级 token 判定。
+    """
+    loaded = False
+    site: tuple[Path, int] | None = None
+    for f in ctx.tex_files((".tex", ".sty", ".cls")):
+        t = ctx.read(f)
+        if t is None:
+            continue
+        masked = mask_tex(t)
+        for m in _TCB_LOAD_RX.finditer(masked):
+            if site is None:
+                site = (f, m.end())
+            libs = {x.strip() for x in (m.group(1) or "").split(",")}
+            if libs & _TCB_BREAKABLE_LIBS:
+                loaded = True
+        for m in _TCB_LIB_RX.finditer(masked):
+            if site is None:
+                site = (f, m.end())
+            libs = {x.strip() for x in m.group(1).split(",")}
+            if libs & _TCB_BREAKABLE_LIBS:
+                loaded = True
+    return loaded, site
+
+
+def _tcb_opts_edits(start: int, inner: str) -> tuple[int, int, str] | None:
+    """选项组 ``inner`` → breakable 化编辑 ``(s, e, new)``; 无需动 → None。"""
+    new_inner = _TCB_NEG_KEY_RX.sub("breakable", inner)
+    if new_inner != inner:
+        return (start + 1, start + 1 + len(inner), new_inner)
+    if _TCB_BREAKABLE_KEY_RX.search(inner):
+        return None
+    return (start + 1, start + 1, "breakable,")
+
+
+def _tcb_def_opts_span(t: str, i: int) -> tuple[int, int] | None:
+    r"""``\newtcolorbox`` 签名的末位 ``{options}`` 组 ``(start, end)``。
+
+    形: ``\newtcolorbox[init]{name}[num][default]{options}`` —— 首个 ``[``
+    组与 ``{name}`` 后零或多个 ``[`` 组跳过, 余下首个 ``{`` 即 options。
+    """
+    j = _skip_bracket(t, _skip_ws(t, i))  # [init]
+    if j is None:
+        return None
+    if t[j : j + 1] != "{":  # {name}
+        return None
+    e = _brace_end(t, j)
+    if e is None:
+        return None
+    j = _skip_ws(t, e + 1)
+    while t[j : j + 1] == "[":  # [num][default]…
+        j = _skip_bracket(t, j)
+        if j is None:
+            return None
+    if t[j : j + 1] != "{":  # {options}
+        return None
+    e = _brace_end(t, j)
+    return None if e is None else (j, e)
+
+
+def _tcb_edits(t: str) -> list[tuple[int, int, str]]:
+    """单文件 tcolorbox env/def 选项组补 ``breakable`` 的编辑表 (遮盖视图定位)。"""
+    edits: list[tuple[int, int, str]] = []
+    for m in _live_matches(_TCB_BEGIN_RX, t):
+        j = m.end()
+        while j < len(t) and t[j] in " \t\n":
+            j += 1
+        if j < len(t) and t[j] == "[":
+            e = _bracket_end(t, j)
+            if e is None:
+                continue
+            if ed := _tcb_opts_edits(j, t[j + 1 : e]):
+                edits.append(ed)
+        else:
+            edits.append((m.end(), m.end(), "[breakable]"))
+    for m in _live_matches(_TCB_DEF_RX, t):
+        span = _tcb_def_opts_span(t, m.end())
+        if span is None:
+            continue
+        s, e = span
+        if ed := _tcb_opts_edits(s, t[s + 1 : e]):
+            edits.append(ed)
+    return edits
+
+
+def _tcb_patch_text(t: str) -> tuple[str, int]:
+    """``_map_tex_files`` 适配: ``_tcb_edits`` 逆序落盘 → (新文本, 编辑数)。"""
+    edits = _tcb_edits(t)
+    for s, e, new in sorted(edits, reverse=True):
+        t = t[:s] + new + t[e:]
+    return t, len(edits)
+
+
+def tcolorbox_breakable_inject(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""``\begin{tcolorbox}``/``\newtcolorbox`` 选项组补 ``breakable`` (runaway_output 臂)。
+
+    killsem census 双格实证 (2311.04163 zh→57p rc=0; 2504.11741 zh→47p):
+    不可断 tcolorbox 超 ``\textheight`` 卡死 ``\output`` → page_flood。
+    ``breakable`` 键把整盒翻为多页可断盒, 能放下的盒排版零变。
+
+    键生效前提是 breakable 库已载——库探测按 ``_tcb_lib_state``:
+    ``breakable``/``many``/``most``/``all`` 成员级 token (bundles 含
+    breakable, texmf tcolorbox.sty 实证)。未载则须见 tcolorbox 装载点
+    才能补 ``\tcbuselibrary{breakable}`` —— 无装载点 (cls 内载等)
+    时补键会产 unknown-key 新错, 整体让位。已带 ``breakable`` 的站
+    幂等跳过; ``breakable=false``/``unbreakable`` 否定形翻正
+    (泛洪格否定键即肇事者)。遮盖视图定位——注释/verbatim 内
+    ``\begin{tcolorbox}``/``\newtcolorbox`` 不算站。
+    """
+    del eng, payload
+    exts = tuple(params.get("exts") or (".tex",))
+    if not any(
+        _tcb_edits(t) for f in ctx.tex_files(exts) if (t := ctx.read(f)) is not None
+    ):
+        return False, "no unbreakable tcolorbox env/def sites"
+    lib_loaded, site = _tcb_lib_state(ctx)
+    if not lib_loaded and site is None:
+        return False, "breakable lib absent and no tcolorbox load site to attach"
+    lib_note = ""
+    if not lib_loaded:
+        f, pos = site
+        t = ctx.read(f) or ""
+        ctx.write(f, t[:pos] + "\n\\tcbuselibrary{breakable} % fixloop\n" + t[pos:])
+        lib_note = f" +\\tcbuselibrary{{breakable}} in {f.name}"
+    n = _map_tex_files(ctx, exts, _tcb_patch_text)
+    return True, f"breakable opts in {n} file(s){lib_note}"
+
+
+#: ``[H]`` 降级的默认浮体 env 面 (params.envs 可扩)——kernel 浮体
+#: figure/table (+星形) 与常见具名浮体 algorithm (algorithm/algorithm2e
+#: 包)/listing (minted); ``H`` 是 float 宏包给一切浮体的锚。
+_FLOAT_H_ENVS = (
+    "figure",
+    "table",
+    "figure*",
+    "table*",
+    "algorithm",
+    "algorithm*",
+    "listing",
+)
+#: 合法浮体 placement 字符集——组内出现他字符即非纯 placement 表, 不动。
+_FLOAT_OPT_CHARS = frozenset("!htbpH")
+
+
+def _float_demote_opts(inner: str) -> str | None:
+    r"""浮体选项组 ``inner`` 含 ``H`` → 降级形; 非纯 placement 表/无 H → None。
+
+    ``H`` = float 宏包绝对锚 (退化为非浮体盒, 超高即卡 page builder)。
+    降级 = 去 ``H`` + ``!`` 前缀 (放宽浮体参数限——超高盒靠它才进
+    float page) + 保证 ``p`` (超高盒唯一可靠落点) + 无 h/t/b 时补
+    ``ht`` 保近位意图。``[H]``→``[!htp]``, ``[H!tbp]``→``[!tbp]``,
+    ``[Hb]``→``[!bp]``。
+    """
+    if "H" not in inner or any(c not in _FLOAT_OPT_CHARS for c in inner):
+        return None
+    body = inner.replace("H", "").replace("!", "")
+    if not any(c in body for c in "htb"):
+        body += "ht"
+    if "p" not in body:
+        body += "p"
+    return "!" + body
+
+
+def _float_h_edits(t: str, rx: re.Pattern[str]) -> list[tuple[int, int, str]]:
+    r"""单文件 ``\begin{<env>}[<opts 含 H>]`` 降级编辑表 (遮盖视图定位)。"""
+    edits: list[tuple[int, int, str]] = []
+    for m in _live_matches(rx, t):
+        j = _skip_ws(t, m.end())
+        if t[j : j + 1] != "[":
+            continue
+        e = _bracket_end(t, j)
+        if e is None:
+            continue
+        if (new := _float_demote_opts(t[j + 1 : e])) is not None:
+            edits.append((j, e + 1, "[" + new + "]"))
+    return edits
+
+
+def float_h_demote(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""浮体 ``[H]`` 系选项组降级为 ``!``+placement (runaway_output 臂)。
+
+    与 ``float_opt_h_pkgload`` (70-pkgopt, float_opt|H 签名补
+    ``\usepackage{float}``) 零重叠: 该格 float 已载, 失败模态是
+    ``[H]`` 把超高内容钉成非浮体不可断盒 → page builder 死循环
+    (2608.09867 base: figure[H]+~755pt 图 > ~731pt \textheight)。
+    降级翻回真浮体即交给 float page 出盒 (超限也落 overfull 而非死循环)。
+
+    遮盖视图定位 ``\begin{<env>}\s*[`` 站, 组内容限 ``!htbpH`` 字符
+    (placement 表白名单——含他字符的括号组非浮体选项, 不动); 无 H
+    即幂等跳过。env 面默认 ``_FLOAT_H_ENVS``, ``params.envs`` 可扩。
+    """
+    del eng, payload
+    envs = tuple(str(x) for x in (params.get("envs") or _FLOAT_H_ENVS))
+    rx = re.compile(r"\\begin\s*\{(?:" + "|".join(re.escape(x) for x in envs) + r")\}")
+    exts = tuple(params.get("exts") or (".tex",))
+    changed = 0
+    for f in ctx.tex_files(exts):
+        t = ctx.read(f)
+        if t is None:
+            continue
+        edits = _float_h_edits(t, rx)
+        for s, e, new in sorted(edits, reverse=True):
+            t = t[:s] + new + t[e:]
+        if edits:
+            ctx.write(f, t)
+            changed += 1
+    if not changed:
+        return False, "no [H] float option sites"
+    return True, f"[H] demoted in {changed} file(s)"

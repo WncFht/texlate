@@ -94,6 +94,7 @@ from texlate.compile.fixloop._builtins_misc import (
     docstrip_generate,
     eps_converted_alias,
     extract_tar_blobs,
+    float_h_demote,
     graphics_include_strip,
     harvest_build_directives,
     latex209_upgrade,
@@ -104,6 +105,7 @@ from texlate.compile.fixloop._builtins_misc import (
     purge_corrupt_intermediates,
     restore_support_from_src,
     subfile_docclass_strip,
+    tcolorbox_breakable_inject,
 )
 from texlate.compile.fixloop._builtins_misschar import (
     accent_mark_fix,
@@ -223,6 +225,7 @@ __all__ = [
     "extract_tar_blobs",
     "fileset_relocate",
     "find_vendored_shadows",
+    "float_h_demote",
     "font_cs_shim",
     "font_fallback",
     "font_sub_shim",
@@ -269,6 +272,7 @@ __all__ = [
     "subfile_docclass_strip",
     "svg_prepare",
     "svjour_clo_stub",
+    "tcolorbox_breakable_inject",
     "undefine_for_redef",
     "undefined_env_polyfill",
     "vendored_fetch",
@@ -375,4 +379,6 @@ TRANSFORM_FNS = {
     "eps_converted_alias": eps_converted_alias,
     "raster_pdf_rename": raster_pdf_rename,
     "cjk_env_relax": cjk_env_relax,
+    "tcolorbox_breakable_inject": tcolorbox_breakable_inject,
+    "float_h_demote": float_h_demote,
 }

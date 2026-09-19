@@ -156,7 +156,8 @@ rules:
           footbox: { polyfill: "\n\\newbox\\footbox" }
           # 0905.1299: ucs 在 unicode 引擎不定义 \PrerenderUnicode
           # (pdftex-era 预渲件) —— 静默吞参即 unicode 下正确语义
-          PrerenderUnicode: { polyfill: "\n\\providecommand{\\PrerenderUnicode}[1]{}" }
+          PrerenderUnicode:
+            { polyfill: "\n\\providecommand{\\PrerenderUnicode}[1]{}" }
           # \keywords{...} 渲染保留而非丢文 (article 系无此 cs)
           keywords:
             {
@@ -1228,3 +1229,59 @@ rules:
         }
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/lane-blxbbl/census.md — biblatex.sty:8687/8707-8722/9280-9283/16617"
+
+  # ── runaway_output 修复面 (killsem census 单机理族) ────────────────
+  # sentry:page_flood 谱: 不可断盒 > \textheight 进 page builder → \output
+  # 永空页。sentry-killed 轮 err_head 为空 → ctx_suggests 不可用, 门全走
+  # source_contains 粗筛 + builtin 内 masked 扫描实判。runaway_output 类目
+  # 由 _round_cat 产出 (sentry_reason/timeout+killed 三路), 到正常 rule
+  # 分派; payload=sentry:<reason> 或 None → 不设 payload_required。
+  - id: tcolorbox_breakable_inject
+    description: "runaway_output + tcolorbox env/def → 选项组补 breakable (库缺席时先补 \\tcbuselibrary{breakable})"
+    phase: loop
+    order: 199.7 # cs_delim_tail_fix(199.6) 后, undefined_cs_guess(900) 前; runaway_output 类目独占无竞争
+    when: { category: runaway_output }
+    condition:
+      source_contains: "\\\\begin\\s*\\{tcolorbox\\}|\\\\newtcolorbox\\b"
+    action:
+      kind: builtin_transform
+      function: tcolorbox_breakable_inject
+    risk: low # per-env 键与实证 diff 一致; 库缺席且无装载点时整体让位, 不产 unknown-key 新错
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same } # 源码改写引擎无关; bundled tcolorbox 同键语义
+    provenance:
+      - {
+          corpus: "killsem 2311.04163 zh arm",
+          error: "sentry:page_flood — unbreakable tcolorbox envs (arxiv_appendix.tex); +breakable replay → 57p clean rc=0",
+        }
+      - {
+          corpus: "killsem 2504.11741 zh arm",
+          error: "sentry:page_flood — tcolorbox envs; [many,breakable] lib 已载但 per-env 键未设; +breakable replay → 47p",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-killsem/census.md"
+    known_gap: "\\tcbset 全局注入臂未做 (per-env 形即实证 diff); breakable 库缺席且无 \\usepackage{tcolorbox} 装载点 (cls 内载) 时让位; \\newtcolorbox 自定义 env 的 begin 站不在面内"
+
+  - id: float_h_demote
+    description: "runaway_output + 浮体 [H] 系选项 → 降级 !+placement ([H]→[!htp])"
+    phase: loop
+    order: 199.8 # tcolorbox_breakable_inject(199.7) 后; 同类目同机理族
+    when: { category: runaway_output }
+    condition:
+      source_contains: "\\\\begin\\{(figure|table|algorithm|listing)\\*?\\}\\s*\\[[^\\]\\n]*H"
+    action:
+      kind: builtin_transform
+      function: float_h_demote
+    risk: low # placement 表白名单外不动; 降级恢复真浮体语义, 超高盒落 float page 而非死循环
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "killsem 2608.09867 base",
+          error: "sentry:page_flood — figure[H]+~755pt 内容 > ~731pt \\textheight (19,507 marks/75s replay 实证 flood; demote 形未实测)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-killsem/census.md"
+    known_gap: "与 float_opt_h_pkgload(70-pkgopt) 零重叠——彼规在 float_opt|H unknown-option 签名补 missing \\usepackage{float}; 本格 float 已载, 失败模态是 [H] 钉死超高非浮体盒。ThreePartTable 包 longtable (2609.19748) 属同族但需 construct-specific 手术, 不在本面"
