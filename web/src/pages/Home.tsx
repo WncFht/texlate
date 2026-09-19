@@ -19,13 +19,11 @@ import {
 import { taskStore } from "../stores/tasks";
 import { settingsStore } from "../stores/settings";
 import TaskList from "../components/TaskList";
+import { ENGINES, TARGET_LANGS } from "../options";
 import { t } from "../i18n";
 
 const ARXIV_RE =
     /^(?:\d{4}\.\d{4,5}(?:v\d+)?|[a-z-]+(?:\.[A-Z][a-zA-Z]+)?\/\d{7}(?:v\d+)?)$/i;
-
-const TARGET_LANGS = ["zh-CN", "zh-TW", "en"];
-const ENGINES = ["auto", "xelatex", "tectonic"];
 
 /** 上传客户端预检（U14）：80MB 上限 + 扩展名白名单——早于 XHR 失败给出本地错 */
 const MAX_UPLOAD_BYTES = 80 * 1024 * 1024;
@@ -145,14 +143,28 @@ export default function Home(props: {
         alive = false;
     });
 
+    // 健康复查：不健康态 30s 一拍自动复测（服务重启后页面自愈，不用手刷）；
+    // ok 即停摆不空打端点。手动「重试」钮走同一路径。
+    let healthTimer = 0;
+    const checkHealth = async () => {
+        try {
+            setHealth(await api.health());
+        } catch {
+            setHealth(null);
+        }
+        setHealthPending(false);
+        window.clearInterval(healthTimer);
+        healthTimer = health()?.ok
+            ? 0
+            : window.setInterval(() => void checkHealth(), 30_000);
+    };
+
     onMount(() => {
         void taskStore.refresh();
         if (!settingsStore.loaded()) void settingsStore.refresh();
-        api.health()
-            .then(setHealth)
-            .catch(() => setHealth(null))
-            .finally(() => setHealthPending(false));
+        void checkHealth();
     });
+    onCleanup(() => window.clearInterval(healthTimer));
 
     /** health.compilers 可用数/总数（值 truthy 视为可用） */
     const compilersStat = () => {
@@ -644,6 +656,18 @@ export default function Home(props: {
                             v{health()!.version ?? "?"} · {t.home.compilers}{" "}
                             {compilersStat()}
                         </span>
+                    </Show>
+                    <Show when={!healthPending() && !health()?.ok}>
+                        <button
+                            type="button"
+                            class="btn-ghost health-retry"
+                            onClick={() => {
+                                setHealthPending(true);
+                                void checkHealth();
+                            }}
+                        >
+                            {t.home.retry}
+                        </button>
                     </Show>
                 </p>
             </section>
