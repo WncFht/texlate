@@ -67,14 +67,15 @@ export default function ShareBlock(props: Props) {
     const [copied, setCopied] = createSignal(false);
     const copyKey = async () => {
         const key = props.result?.share_key;
-        if (!key) return;
+        // 非安全上下文（http://LAN）无 clipboard——不写也不装已复制，
+        // key 已在屏可手选
+        if (!key || !navigator.clipboard) return;
         try {
-            // 非安全上下文（http://LAN）无 clipboard——静默失败，key 已在屏可手选
-            await navigator.clipboard?.writeText(key);
+            await navigator.clipboard.writeText(key);
             setCopied(true);
             window.setTimeout(() => setCopied(false), 1500);
         } catch {
-            /* 同上 */
+            /* 写入被拒（权限/失焦）——不装已复制 */
         }
     };
     return (
