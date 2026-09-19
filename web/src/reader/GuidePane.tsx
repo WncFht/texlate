@@ -7,6 +7,7 @@ import { createEffect, createSignal, For, onCleanup, Show } from "solid-js";
 import { api, type AxOverview } from "../api/client";
 import { t } from "../i18n";
 import { loadMdLibs, type MdLibs } from "./markdown";
+import { externalLinksBlank } from "./paneUtils";
 
 type State = "loading" | "empty" | "content";
 
@@ -48,12 +49,11 @@ export default function GuidePane(props: { arxivId?: string }) {
                 }
                 setOv(res);
                 setState("content");
-                // overview markdown 在才付 marked+katex 懒加载成本
-                if (res.overview) {
-                    void loadMdLibs().then((l) => {
-                        if (alive) setLibs(l);
-                    });
-                }
+                // 卡片/lead/feed 纯文本字段也带 $...$——available 即加载，
+                // 无 overview 时靠根级 auto-render 救卡片公式
+                void loadMdLibs().then((l) => {
+                    if (alive) setLibs(l);
+                });
             })
             .catch(() => {
                 if (alive) setState("empty");
@@ -69,6 +69,7 @@ export default function GuidePane(props: { arxivId?: string }) {
         const md = ov()?.overview;
         if (!l || !md || !bodyEl) return;
         bodyEl.innerHTML = l.mdToHtml(md);
+        externalLinksBlank(bodyEl); // overview 内 alphaxiv/外链新窗，不顶掉阅读器
         l.renderMath(bodyEl);
         setToc(
             [...bodyEl.querySelectorAll("h2")].map((h, i) => {
@@ -78,13 +79,27 @@ export default function GuidePane(props: { arxivId?: string }) {
         );
     });
 
+    // 卡片/feed/lead/justification 是纯文本字段——$...$ 就地交给
+    // auto-render（guide 根级一次扫，.katex 防与 bodyEl 重扫叠渲）
+    let rootEl: HTMLElement | undefined;
+    createEffect(() => {
+        const l = libs();
+        void ov(); // ov 更新重建卡片 DOM——新文本节点要重扫
+        if (!l || !rootEl || state() !== "content") return;
+        l.renderMath(rootEl);
+    });
+
     const cardItems = (key: CardKey) => {
         const v = ov()?.summary?.[key];
         return (v ?? []).filter((x) => x?.trim());
     };
 
     return (
-        <section class="guide" aria-label={t.reader.axDigest}>
+        <section
+            class="guide"
+            aria-label={t.reader.axDigest}
+            ref={(el) => (rootEl = el)}
+        >
             <div class="guide-scroll">
                 <Show when={state() === "loading"}>
                     <div class="guide-skel" aria-hidden="true">

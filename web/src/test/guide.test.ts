@@ -133,6 +133,19 @@ describe("GuidePane", () => {
         expect(el.querySelectorAll(".guide-cites li").length).toBe(2);
     });
 
+    it("纯文本字段也过 auto-render——卡片/lead 的 $...$ 不裸露", async () => {
+        mocks.discoverOverview.mockResolvedValue({ ...OV, overview: null });
+        const el = mount("1706.03762v7");
+        await vi.waitFor(() =>
+            expect(el.querySelectorAll(".guide-card").length).toBe(3),
+        );
+        await vi.waitFor(() =>
+            expect(mocks.renderMath).toHaveBeenCalledWith(
+                el.querySelector(".guide"),
+            ),
+        );
+    });
+
     it("请求失败 → empty 态", async () => {
         mocks.discoverOverview.mockRejectedValue(new Error("upstream"));
         const el = mount("1706.03762v7");
