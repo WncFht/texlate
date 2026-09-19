@@ -47,7 +47,7 @@ rules:
           corpus: "physics/9901057 (同上)",
           error: 'no ø ("F8) in font cmr9 ×2 — \o 在 \markboth/\bibitem 内产出',
         }
-    stats: { fires: 87, status: proposed }
+    stats: { fires: 98, rescued_cells: 84, status: active }
     source_ref: "peer1-residue-routes.md §2 簇; produced_by 键 = char_table 扩口; \\protected\\def 超 spec \\renewcommand 建议 (moving-arg 安全)"
 
   # 姊妹臂 (misscharext #154 stage-B): cs_rebind 重绑回退字体保 cs 形,
@@ -97,7 +97,7 @@ rules:
           corpus: "misscharcen #169 (loop3 残余普查): 1404.0578 U+000D ^^M×41 lmromancaps10",
           error: "Missing character: no ^^M (U+000D) — \\textsc{\\char13} OT1/cmcsc 槽位 13=fl 连字被读作码位",
         }
-    stats: { fires: 19, rescued_cells: 9, status: active }
+    stats: { fires: 29, rescued_cells: 9, status: active }
     source_ref: "task #154 stage-B; tmp/lane-misscharext/report.md — 直换 \\ensuremath 非字面 (一轮达, \\qdist def 站是文本态序言而展开在数学); #162/#169 扩表 tmp/lane-misscharcen/cells.json"
 
   - id: hyphenation_sane
@@ -296,7 +296,7 @@ rules:
           corpus: "astro-ph/0408445 (同上 mathalpha_redef)",
           error: 'PolarShapelets.tex:342/344 Command `\mathbfit''/`\mathbfss'' already defined (bm 包后定义窗口 → 站点前置修形)',
         }
-    stats: { fires: 47, status: proposed }
+    stats: { fires: 122, rescued_cells: 47, status: active }
     source_ref: "peer1-residue-routes.md §2; undefine_for_redef 批量化 (site_cmds 表可扩)"
 
   # ─── o2-builtin-cs (wontfix-scout 裁决1, wontfix→rule 改判): fontspec
@@ -335,7 +335,7 @@ rules:
           corpus: "0806.3286/1003.5240/1206.0576 (arximspdf.cls:227) + 1012.1161 (arxstspdf.cls:181)",
           error: "fontspec-xetex.sty:4166 Control sequence \\c__fontspec_shape_{it_sc,sc_it,scit_it,scit_n}_tl already defined ×4",
         }
-    stats: { fires: 12, status: proven } # 6638b4c 修复后 4-cell 回放实证 (tmp/fontspec-reprobe)
+    stats: { fires: 16, rescued_cells: 6, status: proven }
     source_ref: "tmp/wontfix-scout/verdict.md 裁决1 + work/fixprobe.tex 实测 0 错"
 
   # ─── chineseclear (2403.00013 residual): expl3 ``Control sequence \X
@@ -370,7 +370,7 @@ rules:
           corpus: "2403.00013 (chineseclear; tmp/lane-chineseconf/census2.txt + stagerun-drvdef/loop2 fixloop.jsonl)",
           error: "ctex.sty:500 LaTeX Error: Control sequence \\chinese already defined (kaist-ucs.cls→dhucs→xetexko.sty:364 \\let\\chinese\\Schinese 先定义)",
         }
-    stats: { fires: 3, status: proposed }
+    stats: { fires: 12, rescued_cells: 1, status: active }
     source_ref: "task #93; drvdef fixloop.jsonl 2403.00013 best_effort_pdf 残 n_errors=1"
 
   # 2026-09-16 wave-2: already_def 泛化 (1003.0344/cond-mat-0501638) ——
@@ -406,7 +406,7 @@ rules:
           corpus: "thehalgo census 2026-09-19 (already_def|theHalgorithm ×4)",
           error: "kernel ≥2024-11 \\@definecounter 自产 \\theH<ctr> (latex.ltx:10145) 撞 ICML 模板 \\newcommand{\\theHalgorithm} 搭车 shim——本规则全家覆盖, 3/4 新档实证",
         }
-    stats: { fires: 4 }
+    stats: { fires: 5, rescued_cells: 4, status: active }
     source_ref: "wave-2: already_def 类目首个泛化消费规则"
 
   # ── 2026-09-17 partial-taxonomy 包间撞名中性化 ──
@@ -445,7 +445,7 @@ rules:
           corpus: "1306.0281 复跑 (fixer-alreadydef-2026-09-17)",
           error: "修复前 repl 吞 usepackage 行 → undefined_cs:g 103 错; 修复后 already_def 清除, 残 undefined_cs:numberofauthors",
         }
-    stats: { fires: 2, status: verified }
+    stats: { fires: 9, rescued_cells: 1, status: verified }
     source_ref: "partial-taxonomy-2026-09-17 散件; ntheorem.sty L515-522 自检; fixer-alreadydef 复跑订正 \\g<0>"
 
   - id: already_def_undefine
@@ -476,7 +476,7 @@ rules:
           corpus: "2211.04482 (fixer-bblwall-2026-09-17 A5)",
           error: "aastex62.cls \\newbox\\splitbox 被 undefine → adjustbox 占名 → 类内 \\setbox\\splitbox Missing number",
         }
-    stats: { fires: 44, status: verified }
+    stats: { fires: 80, rescued_cells: 32, status: verified }
     source_ref: "partial-taxonomy-2026-09-17 散件; \\let\\X\\@undefined 两代检查通吃; fixer-bblwall A5 升级 builtin (eol+1 缝 + 寄存器护栏)"
 
   # ─── o2-builtin-cs (m1b-residue-routes-2026-09-17 §3): AMS 上古字体 cs ──
@@ -564,7 +564,7 @@ rules:
           corpus: "1206.0136 (lane-runawayscan census 2026-09-19, loop2)",
           error: "session.tex:3 File ended while scanning use of \\next —— Including 'isadelimtheory' comment 后吞到 EOF (Paper.tex cs 形 \\isadelimtheory/\\endisadelimtheory ×4 + \\isatagtheory/\\endisatagtheory ×2)",
         }
-    stats: { fires: 2, status: proposed }
+    stats: { fires: 4, rescued_cells: 1, status: active }
     source_ref: "tmp/lane-runawayscan/report.md; comment.sty v3.8 \\CommentEndDef(哨兵串 \\end{<env>} 整行等值比)+\\includecomment begin 宏首步 \\endgroup 抵 \\begin 组; isabelle.sty \\isakeeptag/\\isadroptag 声明面; 手工 env 化 37pp PDF 实证"
 
   # 2026-09-17 fixer-filemap (1706.07911): comment.sty 排除扫描器逐行找
@@ -598,7 +598,7 @@ rules:
           corpus: "1706.07911 (stagerun-loop1; fixer-filemap-2026-09-17)",
           error: "File ended while scanning use of \\next (comment.sty CCSXML 排除 env, 源生 tab 缩进 \\end{CCSXML})",
         }
-    stats: { fires: 4, status: proposed }
+    stats: { fires: 6, rescued_cells: 2, status: active }
     source_ref: "fixer-filemap-2026-09-17 minimal-repro (顶格过/tab 挂)"
 
   # repro-2501 缺陷B 规则侧兜底: 色名参被段切漏保 (TRANSPARENT_NAMES 遮蔽
@@ -671,7 +671,7 @@ rules:
           corpus: "1706.00240 复跑 (fixer-acro-v3-2026-09-17)",
           error: "规则原 when=other|emergency 永不可达 (错落 early_eof); key_unknown 签+when 扩类后点火, \\acsetup{short-format=}→{format/short=} 逐字节核对",
         }
-    stats: { fires: 5, status: verified }
+    stats: { fires: 7, rescued_cells: 1, status: verified }
     source_ref: "acro v3.8 acro.sty deprecated-key 表 (L5988+); format/short 实编通过; fixer-acro-v3 路由修复"
 
   # 2026-09-17 wave-final 批七: legacy-rewrite 副产品 ×47 —— \documentstyle
@@ -730,7 +730,7 @@ rules:
           corpus: "hep-ph/0104029 (wiring-2026-09-17, verify/ 两遍 xelatex rc=0 20页)",
           error: "Undefined control sequence \\abstract (209 裸对 + \\input{abstract} 跨文件后置)",
         }
-    stats: { fires: 74, status: proposed }
+    stats: { fires: 74, rescued_cells: 52, status: active }
     source_ref: "revtex4-2.cls:2685/3143 frontmatter@abstract let-bound; 47/47 格 maketitle-then-abstract 序逐格核验; tmp/hepph-0104029/wiring.md 建议3"
 
   # 2026-09-17 B4 wiring (tmp/hepph-0104029/wiring.md 建议2): 209 稿
@@ -768,7 +768,7 @@ rules:
           corpus: "hep-ph/0104029 (wiring-2026-09-17, verify/ 两遍 xelatex rc=0 20页)",
           error: "LaTeX Error: Not in outer par mode (开对 56,57/196,197、闭对 83,84/352,353)",
         }
-    stats: { fires: 1, status: proposed }
+    stats: { fires: 4, rescued_cells: 1, status: active }
     source_ref: "tmp/hepph-0104029/wiring.md 建议2; \\table≡\\begin{table} 209 内建等价"
 
   # 2026-09-17 B4 wiring §遗留 (nlin/0104012): revtex4-2 的 \pacs/\keywords/
@@ -853,7 +853,7 @@ rules:
           corpus: "1306.0067 (modec-expand-2026-09-16, expand layer)",
           error: "Extra \\or. l.150 \\begin{tabular}{>{\\centering\\arraybackslash}m{1.25in}...} — revtex4-1+dcolumn(array v2.6n) 签名失配",
         }
-    stats: { fires: 6, status: proposed }
+    stats: { fires: 22, rescued_cells: 14, status: active }
     source_ref: "bench/results/repro-1306-2026-09-16/ (probe-* 全矩阵 + e2e 7页实证); draft revtex4-array-guard.yaml (1e, d2d82e8)"
 
   # ─── o2-builtin-cs (m1b-residue-routes-2026-09-17 §2): env_undefined
@@ -905,7 +905,7 @@ rules:
           corpus: "math/0104275 (同上)",
           error: "tcilatex 族 \\ifnfssone 死块内 env 定义不执行",
         }
-    stats: { fires: 37, status: proposed }
+    stats: { fires: 103, rescued_cells: 37, status: active }
     source_ref: "peer1-residue-routes.md §2 env_stub_gap 面; MATH_ENVS 数学环表"
 
   # 上古 REVTeX 4 系 (v4.0rc ~/texmf 阴影件 / revtex4b* TL 缺席) vs 现代内核:
@@ -948,7 +948,7 @@ rules:
           corpus: "loop1 unfixable cluster (1109.2144/1109.2205/1109.5313/1012.1830/hep-ph--0605134 均 slac_one|slac_two+revtex4; physics/0104031 revtex4b4)",
           error: "Illegal parameter number in definition of \\reserved@a / File `revtex4b4.cls' not found / TeX capacity exceeded",
         }
-    stats: { fires: 9 }
+    stats: { fires: 19, rescued_cells: 13, status: active }
     source_ref: "manual bisect 1109.2205: revtex4+ctex+title+maketitle+section 充要, 纯 en 同炸 → 类文件/内核不兼容; revtex4-2 替换 6/6 出 pdf"
 
   # 2026-09-16 wave-3: early_eof 交互档 (hep-ph/0111248 bundled
@@ -989,7 +989,7 @@ rules:
           corpus: "loop2-delta early_eof (hep-ph/0111248)",
           error: "aipcheck.tex \\typein{* Type <return> to continue ...} → \\end occurred, 0 pages",
         }
-    stats: { fires: 0 }
+    stats: { fires: 1, rescued_cells: 1, status: active }
     source_ref: "wave-3: early_eof 类目首个消费规则 (交互面)"
 
   # ── 2026-09-20 mathbd lane (singles3 bundle A; q-alg/9703043 zh) ──
@@ -1101,7 +1101,7 @@ rules:
           corpus: "2607.10569 (loop2+rt1 双池, tmp/lane-pdo/t1-t5 复现)",
           error: "Improper alphabetic constant. <to be read again> \\times @ \\maketitle (acmart+hyperref \\pdfstringdef)",
         }
-    stats: { fires: 2, status: proposed }
+    stats: { fires: 9, rescued_cells: 4, status: active }
     source_ref: "tmp/lane-pdo: t5 \\pdfstringdefDisableCommands{\\def\\times{}} 0 err 净出 PDF; 纯 acmart+xelatex 复现 → 上游脆弱性非 texlate 注入"
 
   - id: para_longize
@@ -1124,7 +1124,7 @@ rules:
           corpus: "para-census #145 (2026-09-19): ~60 cells live_macros; 4 target: 1012.5246/1206.1873/1404.0249/1502.01978",
           error: "Paragraph ended before \\X was complete",
         }
-    stats: { fires: 12, rescued_cells: 5, status: active }
+    stats: { fires: 14, rescued_cells: 7, status: active }
     source_ref: "task #155; tmp/lane-paralong/ repro 4/4 para 消除+PDF 产出"
 
   # 未闭合 \if* → 文件尾 \fi 注入双臂 (failmine item 4, 16 格)。
@@ -1254,7 +1254,7 @@ rules:
           corpus: "corpus failmine-4: 1206.0701/1306.0364 (loop2 \\iffalse), 0905.0193+1706.00175 等 (loop1 \\ifx)",
           error: "Incomplete \\iffalse; all text was ignored after line N (首错 `!` 形 → other); \\end occurred when \\ifx on line N was incomplete → early_eof",
         }
-    stats: { fires: 6, status: proposed }
+    stats: { fires: 172, rescued_cells: 2, status: active }
     source_ref: "tmp/lane-failmine/rule_targets.txt item4; 12 格抽样全字面平衡 (phantom 主导) —— 扫描器即判别器, 修复面兜底真亏格稿"
 
   # early_eof 臂: `\end occurred when \ifx on line N was incomplete` + `No
@@ -1407,7 +1407,7 @@ rules:
           corpus: "2009.11053 (shipclscen; stagerun-rt1)",
           error: "mystyle.sty:33 Missing \\begin{document} — l.33 \\numberwithin 先于 ms.tex:48 amsmath",
         }
-    stats: { fires: 2, status: proposed }
+    stats: { fires: 5, rescued_cells: 1, status: active }
     source_ref: "tmp/lane-bbkresid/report.md csfix-batch2 queue; csfix2 lane"
 
   # \\include/\\input{*.<gfx>} 笔误臂: input 族单参命令把目标当 TeX 源吸进
@@ -1472,7 +1472,7 @@ rules:
           corpus: "corpus flipcheck7: 1206.0701 (amsproc \\footnote-in-\\author → \\shortauthors→\\markboth edef 链), 1306.0364 (myectaart \\bf-in-\\title → \\xdef\\@argi 链)",
           error: "Incomplete \\iffalse; all text was ignored after line N (源件字面平衡, unclosed_if_close 纯 noop)",
         }
-    stats: { fires: 3, rescued_cells: 1, status: active }
+    stats: { fires: 160, rescued_cells: 1, status: active }
     source_ref: "tmp/lane-ifclosegap: min8 (\\protected\\def\\footnote) + t2/m2 (\\protected\\def\\bf) 双臂 PDF 实证; min1-7 展开链 \\tracingifs 归因"
 
   # ── 2026-09-19 arraypream lane ──
@@ -1527,7 +1527,7 @@ rules:
           corpus: "arraypream census 2026-09-19: records 内 cs-token 实例 \\@delspec×30/\\pt@format×11 (~7 cells: astro-ph/9901037/9901371 等)",
           error: "Package array Error: Illegal pream-token (\\@delspec): `c' used.",
         }
-    stats: { fires: 4, status: proposed }
+    stats: { fires: 9, rescued_cells: 3, status: active }
     source_ref: "task #105; tmp/preamfix t2/t7/t8/t13 全链编译实证"
 
   # ─── spacefactor lane (task #179, 2026-09-19): doc-latent @-def 包裹格 ───
@@ -1683,7 +1683,7 @@ rules:
           corpus: "1511.06717 + 1706.00225 (missmath census, loop3; 同一份 aa.cls doc-shipped)",
           error: "Undefined control sequence <argument> \\@nil → Missing = inserted for \\ifnum → Missing number, treated as zero (均落 docclass 后首 token 行)",
         }
-    stats: { fires: 0, status: proposed }
+    stats: { fires: 1, rescued_cells: 1, status: active }
     source_ref: "tmp/lane-missmath/repro: aa4.tex 对 \\begin{document} 同错复现; latex.ltx:18413 \\@ifl@ter/\\@parse@version 机制"
 
   # endcomment_tail_split: verbatim.sty comment env 要 \end{comment} 独占
@@ -1828,7 +1828,7 @@ rules:
           corpus: "1306.0006 + math/0408122 + hep-th/0104212 + 1404.0082 (missmath census, loop3; 上游稿数学区空行残留)",
           error: "Missing $ inserted (file:NNN 报错行即空白行; 1404.0082 为 671-672 连续双行)",
         }
-    stats: { fires: 0, status: proposed }
+    stats: { fires: 3, rescued_cells: 3, status: active }
     source_ref: "tmp/lane-missmath/census: 4/4 file:NNN 站点与空白行重合实证"
 
   # missingdollar_underscore: 文本域裸 _ → Missing$ (file:NNN 报错行即含 _ 行)
@@ -1978,7 +1978,7 @@ rules:
           corpus: "2305.11278 + 2609.19853 (m1kcensus2 Missing-$ 残留; zh 臂 \\doi{} 被译写成字面 doi: 裸 _)",
           error: "Missing $ inserted (file:NNN 报错行即 doi 行; 转义后双站 xelatex 零错)",
         }
-    stats: { fires: 0, status: proposed }
+    stats: { fires: 2, rescued_cells: 2, status: active }
     source_ref: "tmp/lane-missdollar2: 2/2 DOI 站转义实证 + hep-th 簇首门控 noop 验证"
 
   # ifnum_typeout_banner: \ifnum \typeout{} 草稿横幅 hack (会议模板逐字
