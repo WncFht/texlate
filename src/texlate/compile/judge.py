@@ -30,7 +30,7 @@ from typing import TYPE_CHECKING
 
 from texlate.redlines import REDLINES_BY_ID, name_pattern
 from texlate.texlog import misschar_sweep_hits
-from texlate.textutil import CJK_RX, CMD_BOUNDARY, mask_tex
+from texlate.textutil import CITE_FAMILY_RE, CJK_RX, CMD_BOUNDARY, mask_tex
 
 from .engine import CompRes, _driver_fatal, classify_error
 from .sandbox import find_tool, run_process
@@ -238,11 +238,7 @@ def machine_slot_audit(workdir: Path) -> list[str]:
     ``repair_l2._resplice``）留污染证据。note 形与探针同：
     ``machine_slot_nonascii:<kind>:<file>:<arg>`` + ``capped`` 截断标记。
     """
-    from texlate.compile.fixloop._builtins_bib import (  # noqa: PLC0415  # 延迟: fixloop 链重
-        _CITE_FAMILY_RE,
-    )
-
-    rxs = (*_MACHINE_SLOT_RXS, ("cite", _CITE_FAMILY_RE))
+    rxs = (*_MACHINE_SLOT_RXS, ("cite", CITE_FAMILY_RE))
     hits: list[str] = []
     for tex in sorted(workdir.rglob("*.tex")):
         try:
@@ -516,11 +512,7 @@ def paired_slot_diff(src_tex: str, zh_tex: str, rel: str) -> list[str]:
     当前 chunk 面零机位 token 使本探针日常空转——价值在捕获下一个扫描
     缺口把机位参漏上 LLM 面（silentthm 事故类）+ 重建侧参字节腐烂。
     """
-    from texlate.compile.fixloop._builtins_bib import (  # noqa: PLC0415  # 延迟: fixloop 链重
-        _CITE_FAMILY_RE,
-    )
-
-    rxs = (*_MACHINE_SLOT_RXS, ("cite", _CITE_FAMILY_RE))
+    rxs = (*_MACHINE_SLOT_RXS, ("cite", CITE_FAMILY_RE))
     src_ms = _slot_arg_multiset(src_tex, rxs)
     zh_ms = _slot_arg_multiset(zh_tex, rxs)
     notes = [

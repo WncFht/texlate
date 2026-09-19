@@ -11,7 +11,12 @@ import re
 from typing import TYPE_CHECKING, Any
 
 from texlate.compile.latex209 import wrap_math_cites
-from texlate.textutil import mask_tex
+from texlate.textutil import (
+    AUX_CITEKEY_RE,
+    BIBITEM_KEY_RE,
+    CITE_FAMILY_RE,
+    mask_tex,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -142,14 +147,9 @@ def bbl_regen(
     return True, "; ".join(parts)
 
 
-#: ``\cite`` 族命令（\cite/\citet/\citep/\nocite/\citeauthor…）可选参后键表组。
-_CITE_FAMILY_RE = re.compile(
-    r"\\[a-zA-Z@]*cite[a-zA-Z@]*\*?\s*(?:\[[^\]\n]*\]\s*)*\{([^}]*)\}"
-)
-#: ``\bibitem[<opt>]{key}`` —— .bbl 键定义点。
-_BIBITEM_KEY_RE = re.compile(r"\\bibitem\s*(?:\[[^\]]*\]\s*)?\{([^}]*)\}")
-#: .aux 残留 ``\bibcite{key}{..}``/``\citation{keys}`` —— 陈旧键同源改写。
-_AUX_CITEKEY_RE = re.compile(r"\\(?:bibcite|citation)\s*\{([^}]*)\}")
+#: cite/bib 键面词法单源已并 ``texlate.textutil`` (``CITE_FAMILY_RE``/
+#: ``BIBITEM_KEY_RE``/``AUX_CITEKEY_RE`` 顶名直引)——judge/slotrev 借调
+#: 本叶私名面的分层倒置随 F2 解清。
 
 
 def _rewrite_keylists(
@@ -188,16 +188,16 @@ def citekey_sanitize(
     del eng, payload
     tex_exts = tuple(params.get("tex_exts") or (".tex",))
     gen_map = (
-        (".bbl", _BIBITEM_KEY_RE),
-        (".bbl", _CITE_FAMILY_RE),
-        (".aux", _AUX_CITEKEY_RE),
+        (".bbl", BIBITEM_KEY_RE),
+        (".bbl", CITE_FAMILY_RE),
+        (".aux", AUX_CITEKEY_RE),
     )
     changed: list[str] = []
     for f in ctx.tex_files(tex_exts):
         t = ctx.read(f)
         if t is None:
             continue
-        nt, n = _rewrite_keylists(t, _CITE_FAMILY_RE, masked=True)
+        nt, n = _rewrite_keylists(t, CITE_FAMILY_RE, masked=True)
         if n:
             ctx.write(f, nt)
             changed.append(f"{f.name}({n})")

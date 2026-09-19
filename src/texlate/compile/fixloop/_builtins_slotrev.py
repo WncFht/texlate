@@ -19,8 +19,7 @@ import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from texlate.compile.fixloop._builtins_bib import _CITE_FAMILY_RE
-from texlate.textutil import CJK_RX, CMD_BOUNDARY, mask_tex
+from texlate.textutil import CITE_FAMILY_RE, CJK_RX, CMD_BOUNDARY, mask_tex
 
 if TYPE_CHECKING:
     from texlate.compile.fixloop.engine import Engine, LoopCtx
@@ -659,7 +658,7 @@ def _full_rxs() -> tuple[tuple[str, re.Pattern[str]], ...]:
         _MACHINE_SLOT_RXS,
     )
 
-    return (*_MACHINE_SLOT_RXS, ("cite", _CITE_FAMILY_RE), *_SLOTREV_EXTRA_RXS)
+    return (*_MACHINE_SLOT_RXS, ("cite", CITE_FAMILY_RE), *_SLOTREV_EXTRA_RXS)
 
 
 def _revert_tree(
