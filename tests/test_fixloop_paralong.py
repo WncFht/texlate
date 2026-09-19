@@ -125,6 +125,35 @@ def test_kernel_wrap_injected(tmp_path: Path) -> None:
     assert "\\ifdefined\\NR@gettitle" in t
 
 
+def test_caption_prepareanchor_wrap(tmp_path: Path) -> None:
+    r"""``\caption@prepareanchor`` (caption*.sty ``\newcommand*[2]``) 双参形 —
+    zh splice 空行漏进参槽触 para_ended (2201.11528/2211.01288 watch 格);
+    ``#1#2``/``{#1}{#2}`` wrap 注入, 续级 ``@si`` stage 剥第二参。"""
+    main = _write(
+        tmp_path,
+        "main.tex",
+        "\\documentclass{article}\n\\usepackage{caption}\n"
+        "\\begin{document}\nx\n\\end{document}\n",
+    )
+    ctx = _ctx(
+        tmp_path,
+        "main.tex:4: Paragraph ended before \\caption@prepareanchor was complete.",
+    )
+    ok, note = para_longize(ctx, _Eng(), None, {})
+    assert ok, note
+    t = main.read_text()
+    assert "\\let\\TL@pl@caption@prepareanchor\\caption@prepareanchor" in t
+    assert (
+        "\\long\\def\\caption@prepareanchor#1#2{\\TL@pl@strip{#1}"
+        "{\\TL@pl@caption@prepareanchor@si{#2}}}" in t
+    )
+    assert (
+        "\\long\\def\\TL@pl@caption@prepareanchor@sii#1#2"
+        "{\\TL@pl@caption@prepareanchor{#1}{#2}}" in t
+    )
+    assert t.index("\\catcode 64=11") < t.index("\\begin{document}")
+
+
 def test_wrap_idempotent(tmp_path: Path) -> None:
     """复火不重注 —— 别名指纹已在件即跳。"""
     main = _write(
@@ -213,6 +242,8 @@ def test_wrap_table_fwd_braces() -> None:
         "@citex",
         "@providesfile",
         "setlength",
+        "author",
+        "caption@prepareanchor",  # watchimpl para-ended-nonlong-cs 族 (zh splice 空行漏)
     ):
         assert name in _WRAP_TABLE
     for name, (sig, fwd) in _WRAP_TABLE.items():
