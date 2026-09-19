@@ -18,14 +18,16 @@ import typer
 import texlate.cli as _cli
 from texlate.arxiv.fetch import AcquireStatus
 from texlate.cli._common import _CLI_PATH, _DEFAULT_CACHE, _is_dir, app
+from texlate.cli._output import CliSink, console
 from texlate.cli.fetch import _acquire, _echo_acquire
 from texlate.cli.thin import _thin_run
-from texlate.pipecore import FRONT_MATTER_NAMES
+from texlate.logsetup import configure_logging, level_from_flags
+from texlate.pipecore import FRONT_MATTER_NAMES, NULL_SINK
 from texlate.textutil import env_flag
 
 
 @app.command()
-def run(  # noqa: PLR0913 -- CLI 选项面即参数面 + 本地/瘦客户端双模分流
+def run(  # noqa: C901, PLR0913 -- CLI 选项面即参数面 + 本地/瘦客户端双模分流
     source: Annotated[str, typer.Argument(help="arXiv id 或本地工程目录")],
     *,
     engine: Annotated[
@@ -95,6 +97,24 @@ def run(  # noqa: PLR0913 -- CLI 选项面即参数面 + 本地/瘦客户端双�
             "未列即关。缺省走服务端/env 默认 abstract,title）",
         ),
     ] = None,
+    verbose: Annotated[
+        int,
+        typer.Option(
+            "--verbose",
+            "-v",
+            count=True,
+            help="日志加噪：-v=INFO -vv=DEBUG（覆盖 callback 位同名旗标）",
+        ),
+    ] = 0,
+    quiet: Annotated[
+        int,
+        typer.Option(
+            "--quiet",
+            "-q",
+            count=True,
+            help="降噪：-q=ERROR 且关实况进度（-qq=CRITICAL）",
+        ),
+    ] = 0,
 ) -> None:
     """端到端：取源/本地目录 → normalize → mock 翻译 → ctex 注入 → 编译 → 判定。
 
@@ -166,8 +186,12 @@ def run(  # noqa: PLR0913 -- CLI 选项面即参数面 + 本地/瘦客户端双�
     try:
         _populate_work_dir(src_dir, work)
         typer.echo(f"work dir: {work}", err=True)
+        # 子命令位 -v/-q 覆盖 callback 已装的级别；未给时保留全局/缺省态。
+        if verbose or quiet:
+            configure_logging(level=level_from_flags(verbose, quiet), console=console)
+        sink = NULL_SINK if quiet else CliSink()
         verdict = _cli.mock_pipeline_run(
-            work, engine, timeout, front_matter=fm
+            work, engine, timeout, front_matter=fm, sink=sink
         )
         typer.echo(json.dumps(verdict, ensure_ascii=False, indent=2))
         status = verdict.get("status")

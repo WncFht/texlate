@@ -294,7 +294,7 @@ def _env_judge_pass(
     return {"enabled": True, "asked": len(targets), "reverted": reverted}
 
 
-def translate_tree_run(  # noqa: PLR0913 -- 注入面穿透（scan/validator 各臂缝）
+def translate_tree_run(  # noqa: PLR0913 -- 注入面穿透（scan/validator/sink 各臂缝）
     root: Path,
     *,
     translator: Translator | None = None,
@@ -307,6 +307,7 @@ def translate_tree_run(  # noqa: PLR0913 -- 注入面穿透（scan/validator 各
     | None = None,
     validator: Callable[[str, str], str] | None = None,
     front_matter: frozenset[str] = frozenset(),
+    sink: ReportSink = NULL_SINK,
 ) -> tuple[dict[str, Any], TreeRun, list[ChunkResult]]:
     """目录树翻译 + splice 写回 → ``(stats, TreeRun, 逐块 results)``。
 
@@ -317,6 +318,9 @@ def translate_tree_run(  # noqa: PLR0913 -- 注入面穿透（scan/validator 各
     ``validator`` 缺省 L0 ``validate_pair`` 全量规则——e2e/bench 显式
     透传自家模块全局，保 ``e2e.validate_pair`` 等 monkeypatch 缝。
     ``front_matter`` = preamble 前置发射白名单（缺省 scan 臂生效）。
+    ``sink`` 收 ``translate`` 实况帧：scan 后 ``start``（载 total/files，
+    CLI 靠它建进度条——裸 ``on_result`` 拿不到总量）、逐块 ``chunk``
+    （done/total/status/chunk_id）、splice 后 ``done``（载 stats）。
     """
     scan = (
         (lambda r: scan_tree(r, front_matter=front_matter))
@@ -324,6 +328,26 @@ def translate_tree_run(  # noqa: PLR0913 -- 注入面穿透（scan/validator 各
         else scan_fn
     )
     scans, chunks, fault_files, support_files = scan(root)
+    total = len(chunks)
+    sink.event(
+        "translate",
+        {"phase": "start", "total": total, "files": len(scans)},
+    )
+    _n_done = 0
+
+    def _on_result(r: ChunkResult) -> None:
+        nonlocal _n_done
+        _n_done += 1
+        sink.event(
+            "translate",
+            {
+                "phase": "chunk",
+                "done": _n_done,
+                "total": total,
+                "status": r.status,
+                "chunk_id": r.chunk_id,
+            },
+        )
 
     pipe = XlatPipeline(
         translator or MockTranslator(),
@@ -335,6 +359,7 @@ def translate_tree_run(  # noqa: PLR0913 -- 注入面穿透（scan/validator 各
         ),
         validator=validator or (lambda s, z: validate_pair(s, z).feedback()),
         cache={},
+        on_result=_on_result,
     )
     results = asyncio.run(pipe.run(chunks))
     by_file: dict[int, dict[int, str]] = {}
@@ -387,6 +412,7 @@ def translate_tree_run(  # noqa: PLR0913 -- 注入面穿透（scan/validator 各
         chunk_ins={c.chunk_id: c for c in chunks},
         pipe=pipe,
     )
+    sink.event("translate", {"phase": "done", "stats": stats})
     return stats, run, results
 
 
@@ -643,19 +669,20 @@ def l2_repair(  # noqa: PLR0913 -- 阶梯钩子面穿透（与 l2_repair_round �
     return rep, last_res, v
 
 
-def l2_repair_job(
+def l2_repair_job(  # noqa: PLR0913 -- 注入面穿透（编译件/上限/sink 同契）
     job: PipeJob,
     run: TreeRun,
     res: CompRes,
     cap: int,
     *,
     engine_fn: Callable[..., Engine] | None = None,
+    sink: ReportSink = NULL_SINK,
 ) -> tuple[dict, CompRes, dict | None]:
     """L2 回灌一轮（e2e 口径）→ (l2 报告, 最新 CompRes, 新尾段或 None)——原 e2e ``_l2_repair``。
 
     注入 e2e 编译件（``_compile_judge_job``，``engine_fn`` 保
     ``e2e.engine_for`` monkeypatch 缝）并把末态 Verdict 换回 tail dict
-    报告形。
+    报告形。``sink`` 透传 ``l2_repair``——CLI 臂收 done 实况帧。
     """
     rep, last_res, v = l2_repair(
         run,
@@ -665,6 +692,7 @@ def l2_repair_job(
         cap,
         retranslate=lambda r, h, c: asyncio.run(retranslate_hits(r, h, c)),
         recompile=lambda: _compile_judge_job(job, expect_cjk=True, engine_fn=engine_fn),
+        sink=sink,
     )
     tail = tail_dict(last_res, v) if v is not None else None
     return rep, last_res, tail
@@ -800,6 +828,7 @@ def fixloop_job(  # noqa: PLR0913 -- 开关面穿透同 pipe_condition
     expect_cjk: bool = True,
     baseline_dir: Path | None = None,
     engine_fn: Callable[..., Engine] | None = None,
+    sink: ReportSink = NULL_SINK,
 ) -> tuple[dict, dict | None, CompRes]:
     """跑 fixloop + 消费 engine_flags → (报告, 新尾段或 None, 最新 CompRes)——原 e2e ``_run_fixloop``。
 
@@ -828,6 +857,7 @@ def fixloop_job(  # noqa: PLR0913 -- 开关面穿透同 pipe_condition
             main_rel=job.main_rel,
             llm_hook=llm_hook,
             compile_timeout=timeout,
+            sink=sink,
         )
     except Exception as e:  # noqa: BLE001 -- 修复臂崩不毁主报告
         return ({"enabled": True, "error": f"{type(e).__name__}: {e}"}, None, prev_res)

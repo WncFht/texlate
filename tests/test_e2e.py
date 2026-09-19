@@ -209,6 +209,53 @@ def test_pipeline_run_happy(
     assert eng.calls[0]["timeout"] == 60.0  # noqa: PLR2004 -- timeout 透传
 
 
+def test_pipeline_run_sink_events(
+    tmp_path: Path,
+    fake_engine: dict[str, RecordingEngine],  # noqa: ARG001 -- fixture 副作用（换引擎）
+) -> None:
+    """``sink`` 实况帧：stage 边界序列 + translate start/chunk/done 帧序。"""
+    events: list[tuple[str, dict]] = []
+
+    class _Sink:
+        def log(self, msg: str) -> None:
+            events.append(("log", {"msg": msg}))
+
+        def event(self, etype: str, payload: dict) -> None:
+            events.append((etype, payload))
+
+    work = _project(tmp_path / "p")
+    report = e2e.pipeline_run(work, "auto", timeout=60.0, sink=_Sink())
+
+    assert report["status"] == "clean"
+    stages = [p["stage"] for t, p in events if t == "stage"]
+    assert stages == [
+        "route",
+        "normalize",
+        "translate",
+        "inject",
+        "compile",
+        "tounicode",
+    ]
+    trans = [p for t, p in events if t == "translate"]
+    assert trans[0]["phase"] == "start"
+    assert trans[0]["total"] == report["translate"]["chunks"]
+    chunk_frames = [p for p in trans if p.get("phase") == "chunk"]
+    assert [p["done"] for p in chunk_frames] == list(range(1, len(chunk_frames) + 1))
+    assert all(p["total"] == trans[0]["total"] for p in chunk_frames)
+    assert trans[-1]["phase"] == "done"
+    assert trans[-1]["stats"]["chunks"] == report["translate"]["chunks"]
+
+
+def test_pipeline_run_default_sink_silent(
+    tmp_path: Path,
+    fake_engine: dict[str, RecordingEngine],  # noqa: ARG001 -- fixture 副作用（换引擎）
+) -> None:
+    """缺省 ``NULL_SINK`` 不炸——e2e/bench 臂零事件面契约。"""
+    work = _project(tmp_path / "p")
+    report = e2e.pipeline_run(work, "auto", timeout=60.0)
+    assert report["status"] == "clean"
+
+
 def test_pipeline_run_xelatex_halt_flag(
     tmp_path: Path, fake_engine: dict[str, RecordingEngine]
 ) -> None:

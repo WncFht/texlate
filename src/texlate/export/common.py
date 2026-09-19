@@ -249,8 +249,11 @@ def drive_pipeline(  # noqa: PLR0913 -- 骨架即双驱共享参数面（chunks/
         }
         try:
             save_fn(apply_fn(partial).translated)
-        except Exception:
-            log.exception("partial export save failed")
+        except Exception as e:
+            # salvage 失败给用户一行 warning 就够；traceback 细节留 DEBUG
+            # （CLI stderr 面不再接受裸 traceback——_clean oracle 钉死）
+            log.warning("partial export save failed: %s", e)
+            log.debug("partial export save detail", exc_info=True)
         raise
     counts = apply_fn(results)
     save_fn(counts.translated)

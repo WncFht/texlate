@@ -41,6 +41,7 @@ from texlate.compile.inject import (
 )
 from texlate.compile.normalize import normalize_project
 from texlate.pipecore import (
+    NULL_SINK,
     PipeJob,
     compile_judge_tail,
     default_front_matter,
@@ -62,6 +63,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
 
     from texlate.compile.engine import CompRes
+    from texlate.pipecore import ReportSink
     from texlate.repair_l2 import TreeRun
     from texlate.xlat.pipeline import Translator
 
@@ -80,13 +82,14 @@ _tail_dict = tail_dict
 # ---------------------------------------------------------------- 翻译树
 
 
-def _translate_tree(
+def _translate_tree(  # noqa: PLR0913 -- 注入面穿透（translator/开关/sink 各臂缝）
     root: Path,
     *,
     translator: Translator | None = None,
     env_judge: bool = False,
     auto_glossary: bool = False,
     front_matter: frozenset[str] | None = None,
+    sink: ReportSink = NULL_SINK,
 ) -> tuple[dict, TreeRun]:
     """目录树翻译 + splice 写回 → (stats, 运行态)——脊在 ``pipecore.translate_tree_run``。
 
@@ -94,6 +97,7 @@ def _translate_tree(
     （fuzz spy）与 ``e2e.validate_pair``（test_e2e 钉）的 monkeypatch
     缝随件保活——调用时查名才吃补丁。``front_matter`` = preamble 前置
     发射集（None → ``TEXLATE_FRONT_MATTER``/缺省 ``abstract,title``）。
+    ``sink`` 透传 ``translate_tree_run`` 的 ``translate`` 实况帧。
     """
     fm = default_front_matter() if front_matter is None else front_matter
     stats, run, _results = translate_tree_run(
@@ -103,17 +107,19 @@ def _translate_tree(
         auto_glossary=auto_glossary,
         scan_fn=lambda r: _scan_tree(r, front_matter=fm),
         validator=lambda s, z: validate_pair(s, z).feedback(),
+        sink=sink,
     )
     return stats, run
 
 
-def translate_tree(
+def translate_tree(  # noqa: PLR0913 -- 同上：注入面穿透到 _translate_tree
     root: Path,
     *,
     translator: Translator | None = None,
     env_judge: bool | None = None,
     auto_glossary: bool | None = None,
     front_matter: frozenset[str] | None = None,
+    sink: ReportSink = NULL_SINK,
 ) -> dict:
     """目录树内全部 .tex 走 XlatPipeline → splice 写回。
 
@@ -137,6 +143,7 @@ def translate_tree(
         env_judge=ej,
         auto_glossary=ag,
         front_matter=front_matter,
+        sink=sink,
     )
     return stats
 
@@ -201,6 +208,7 @@ def _repair_chain(  # noqa: C901, PLR0913 -- 修复链开关面穿透 + 三级�
     l2_max_chunks: int,
     route_engines: list[str] | None,
     baseline_dir: Path | None = None,
+    sink: ReportSink = NULL_SINK,
 ) -> CompRes:
     """非 clean 后的修复链：precheck 预检 → L2 回灌 → fixloop；reports 直写 ``rec``。
 
@@ -226,6 +234,7 @@ def _repair_chain(  # noqa: C901, PLR0913 -- 修复链开关面穿透 + 三级�
     # reject:<rid> 不重编不跑 L2——路由拒绝交 fixloop 复现 + 跨引擎消费。
     pre_reject = False
     if fl:
+        sink.event("stage", {"stage": "precheck"})
         pre = precheck_job(job, engine_fn=engine_for)
         rec["precheck"] = pre
         pre_reject = str(pre.get("verdict") or "").startswith("reject:")
@@ -242,9 +251,10 @@ def _repair_chain(  # noqa: C901, PLR0913 -- 修复链开关面穿透 + 三级�
                 return res
 
     if l2 and not pre_reject:
+        sink.event("stage", {"stage": "l2"})
         try:
             l2_rep, res, tail2 = l2_repair_job(
-                job, run, res, l2_max_chunks, engine_fn=engine_for
+                job, run, res, l2_max_chunks, engine_fn=engine_for, sink=sink
             )
         except Exception as e:  # noqa: BLE001 -- L2 崩不丢整条 rec（含首编 verdict）
             rec["l2"] = {"enabled": True, "error": f"{type(e).__name__}: {e}"}
@@ -258,6 +268,7 @@ def _repair_chain(  # noqa: C901, PLR0913 -- 修复链开关面穿透 + 三级�
         rec["l2"] = {"enabled": False, "reason": "precheck_reject"}
 
     if rec["status"] != "clean" and fl:
+        sink.event("stage", {"stage": "fixloop"})
         fl_rep, tail3, res = fixloop_job(
             job,
             route_engines or [job.eng_name],
@@ -266,6 +277,7 @@ def _repair_chain(  # noqa: C901, PLR0913 -- 修复链开关面穿透 + 三级�
             expect_cjk=expect_cjk,
             baseline_dir=baseline_dir,
             engine_fn=engine_for,
+            sink=sink,
         )
         rec["fixloop"] = fl_rep
         if tail3 is not None:
@@ -289,6 +301,7 @@ def pipe_condition(  # noqa: PLR0913 -- 修复链开关面（env 缺省，显式
     l2_max_chunks: int = L2_MAX_CHUNKS,
     route_engines: list[str] | None = None,
     front_matter: frozenset[str] | None = None,
+    sink: ReportSink = NULL_SINK,
 ) -> dict:
     """跑 pipe 条件：normalize → 翻译 → ctex 注入 → 编译 → 判定 → 修复链。
 
@@ -299,9 +312,12 @@ def pipe_condition(  # noqa: PLR0913 -- 修复链开关面（env 缺省，显式
     缺省 ``[eng_name]``（bench 直调不跨界）。fixloop 启用时翻译前先抓
     baseline 快照（worker ``ctx.base_dir`` 同位——e2e 原地翻译，snapshot
     即 pristine 源），供 restore_support_from_src 复原被写脏的 support 件。
+    ``sink`` 收 ``stage`` 边界帧 + ``translate``/``l2``/``fixloop`` 实况
+    （CLI ``CliSink`` 渲染；bench/测试臂 NULL 静默同重构前）。
     """
     rec: dict[str, object] = {"engine": eng_name}
     rec["normalize"] = normalize_project(work, eng_name, main_rel)
+    sink.event("stage", {"stage": "normalize"})
     ej = env_flag(ENV_ENV_JUDGE, default=False) if env_judge is None else env_judge
     fl = (
         (not env_flag(ENV_NO_FIXLOOP, default=False))
@@ -314,14 +330,17 @@ def pipe_condition(  # noqa: PLR0913 -- 修复链开关面（env 缺省，显式
         else auto_glossary
     )
     with _baseline_snapshot(work, enabled=fl) as baseline_dir:
+        sink.event("stage", {"stage": "translate"})
         stats, run = _translate_tree(
             work,
             translator=translator,
             env_judge=ej,
             auto_glossary=ag,
             front_matter=front_matter,
+            sink=sink,
         )
         rec["translate"] = stats
+        sink.event("stage", {"stage": "inject"})
         try:
             rec["inject"] = prepare_chinese(work, main_rel)
         except InjectRejectError as e:
@@ -340,6 +359,7 @@ def pipe_condition(  # noqa: PLR0913 -- 修复链开关面（env 缺省，显式
         # 0-chunk 主文档 (includepdf 壳等) 无译文产出 → 不期待 CJK 渲染,
         # cjk_chars=0 是其正确终态而非静默失败 (scout-cjk0 F 桶 11 格假阳)
         expect_cjk = stats.get("chunks") != 0
+        sink.event("stage", {"stage": "compile", "engine": eng_name})
         tail, res = compile_judge_tail(job, expect_cjk=expect_cjk, engine_fn=engine_for)
         rec.update(tail)
 
@@ -355,10 +375,12 @@ def pipe_condition(  # noqa: PLR0913 -- 修复链开关面（env 缺省，显式
                 l2_max_chunks=l2_max_chunks,
                 route_engines=route_engines,
                 baseline_dir=baseline_dir,
+                sink=sink,
             )
         # ToUnicode 注入在修复链收敛之后——L2 重编/fixloop 换编都会重写同一
         # <stem>.pdf，只对最终落盘产物注一次（worker _embed_tounicode 同位）
         if res.has_pdf and res.pdf is not None:
+            sink.event("stage", {"stage": "tounicode"})
             rec["tounicode_fonts"] = _embed_tounicode(res.pdf)
     return rec
 
@@ -389,12 +411,15 @@ def pipeline_run(  # noqa: PLR0913 -- 同上：开关面穿透到 pipe_condition
     fixloop_on: bool | None = None,
     l2_max_chunks: int = L2_MAX_CHUNKS,
     front_matter: frozenset[str] | None = None,
+    sink: ReportSink = NULL_SINK,
 ) -> dict:
     """工程目录上的端到端全链（对齐 e2e_mock_bench 的 pipe 条件语义）。
 
     ``engine_opt``：``auto`` 取路由首选，或显式引擎名。返回结构化报告 dict
     （route/normalize/translate/inject/compile/verdict + 修复链 + 终态）。
     ``front_matter`` = preamble 前置发射集（None → env/缺省）。
+    ``sink`` 收 ``stage``/``translate``/``l2``/``fixloop`` 实况帧——CLI
+    ``run`` 挂 ``CliSink``，bench/测试臂 NULL 静默（与重构前一致）。
     """
     report: dict[str, object] = {"work": str(work)}
     route = route_project(work)
@@ -405,6 +430,14 @@ def pipeline_run(  # noqa: PLR0913 -- 同上：开关面穿透到 pipe_condition
         "non_utf8": route.non_utf8,
         "latex209_suspect": route.latex209_suspect,
     }
+    sink.event(
+        "stage",
+        {
+            "stage": "route",
+            "engines": route.engines,
+            "message": f"reject: {route.reject}" if route.reject else "",
+        },
+    )
     if route.reject:
         report["status"] = "partial"  # 策略拒绝 → partial (F3), reject_at 审计
         report["reject_at"] = "route"
@@ -439,6 +472,7 @@ def pipeline_run(  # noqa: PLR0913 -- 同上：开关面穿透到 pipe_condition
             # [opt_engine]，持久化进 options.route_engines）
             route_engines=route.engines if engine_opt == "auto" else [eng_name],
             front_matter=front_matter,
+            sink=sink,
         )
     )
     return report

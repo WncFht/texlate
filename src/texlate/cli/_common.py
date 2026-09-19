@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import re
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Annotated
 
 import typer
 from typer.models import TyperPath
@@ -70,5 +70,32 @@ def _is_file(p: Path) -> bool:
 
 
 @app.callback()
-def _main() -> None:
-    """texlate。"""
+def _main(
+    verbose: Annotated[
+        int,
+        typer.Option(
+            "--verbose",
+            "-v",
+            count=True,
+            help="日志加噪：-v=INFO -vv=DEBUG（子命令前；TEXLATE_LOG 等效）",
+        ),
+    ] = 0,
+    quiet: Annotated[
+        int,
+        typer.Option(
+            "--quiet",
+            "-q",
+            count=True,
+            help="日志降噪：-q=ERROR -qq=CRITICAL（覆盖 -v）",
+        ),
+    ] = 0,
+) -> None:
+    """texlate。
+
+    ``-v/-q`` 只调 ``texlate.*`` 日志级别（stderr 实况/JSON stdout 契约
+    不受影响）；``run`` 另有子命令位同名旗标（写子命令后）覆盖本层。
+    """
+    from texlate.cli._output import console as _cli_console  # noqa: PLC0415
+    from texlate.logsetup import configure_logging, level_from_flags  # noqa: PLC0415
+
+    configure_logging(level=level_from_flags(verbose, quiet), console=_cli_console)
