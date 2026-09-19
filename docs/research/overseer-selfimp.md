@@ -1198,3 +1198,15 @@
 - 门: Ruleset.load()=139 双端绿✓; 车道测 68+17+146+1 绿✓; L1/sab 无新跑 (无 inject/segmenter 动); 裁决点 3 件仍待用户 (#10/ds@/verdict 排序)。
 - **verify-after-replay 队更新**: sortlist 5 格 (1907.03923/1706.00220/1706.00324/1706.02744/1803.03145), arg-cs 3 格 (0806.3530/1404.0332/1907.03882), char_table ~20 格 (lane-misschar3 census), missdisp 111 格 (77 family_not_dispatched+34 fired_late_surface) —— 全待下波。
 - roster: shimdiag/missdisp/misschars4 全交付毕, 关。#191 (upgrade209×子档 documentstyle, 4 格) diag 车道派发中——inject 域 fix 需 texlate-bb mutex 协调, diag 只读无碍。
+
+### 2026-09-19 ~14:1x tick — verify-wave1 收割 83up/0down + cs_rebind e1ec5fb0 + probe 选择器教训
+- **verify-wave1 ALL DONE 14:03:55** (108 loop3 nonclean + rt1 5 + flipcheck9 6 + flipcheck6/7/v3all 单格 + cleanprobe 15; ~9min)。收割 (per-id 末条=波记, 前跳 poison: harness:*/rerun_no_zh/dur_s=0/skip): **83 up-flips / 0 down-flips**——partial→clean 57+9+7+7+1+1; 门 ③④⑤ 全绿 (靶翻实证+零逃逸+单调)。
+- **车道归因**: arg-cs 3/3→clean (0806.3530/1404.0332/1907.03882——`\r`/`\i`/`\ss` AtBeginDocument 迟延终证); sortlist 3/5→clean (1706.00220/1706.00324/1803.03145); misschar3-census 76 up (family_not_dispatched/fired_late_surface 桶主体——missdisp 补派+cp-delta 实效); spacefactor-M3 1 up (1206.0445); cleanprobe 15/15 复收敛 clean (slotrev 真火零伤=sabotage 等价物); zhleak 2401.14887 clean→clean。
+- **`e1ec5fb0` cs_rebind AtBeginDocument 迟延** (leader 直改, misschars4 cross-lane flag): `_builtins_shim.py:1027` `\protected\def\<cs>` 即时 def 同款 hyperref-clobber (begindocument/before 重声明回卷导言区 def) → 裹 `\AtBeginDocument{}`; :1013 幂等 grep 子串仍中; 1544 全 fixloop 扫绿。
+- **probe 选择器教训**: `--on clean` 谓词读 **compile** 档 status——我抽的 "clean" 是 fixloop 档 clean (compile 面全 partial/fail) → 首跑 0 格。fixloop-clean 复收敛探针正确选择器=`--on nonclean`。已重跑 15/15 clean。
+- **非回归残余 3 格**: 1109.2354 NO-REC=rt1 compile 本 clean 谓词正排 (slotrev 靶作废); 1706.02744 sortlist 已修→下一层 `undefined_cs:blx@bbl@data` 浮面 (bbl-2.8 reader polyfill 覆盖缺口, 扩 gobble/派发表候选); 1907.03923 sortlist 已修→`xdvipdfmx pfa format not supported` driver fatal 浮面 (t1binary pfa→pfb 新规候选)。两格皆"修复推进暴露次层错误"非规退。
+- **stage_fixloop baseline 修复实证**: 全波 fired 列带 `slot_arg_revert`——0144b798 前 stagerun replay 全 no-op, 今首真火; cleanprobe 15/15 证其无害。
+- **shared-index 险情**: peer stash 机件在共享 index 留 `D` staged-deletion (test_fixloop_missdisp/shimfix——HEAD/worktree 俱在) → `git reset` 清; 若彼 session 经共享 index commit 会把删除并入, 属 gfs-stash-race 次生面, 注意巡检。
+- 门: L0 1544 绿✓; L1 N/A (无 parse 面动); ③83up✓; ④sab 0 逃逸 (15/15+0down)✓; ⑤单调✓。裁决点 3 件仍待用户 (#10/ds@/verdict 排序)。
+- **backlog 增**: blx@bbl@data polyfill 扩 (1 格实证), pfa→pfb t1binary 规 (1 格), kaist-ucs pretokenized binding (2403.00013 flag-only), missing_char_fix cjk_warmup kotex 误派 condition 注, .lean exts 外 (2105.00041 flag)。
+- roster 2: ds209diag(#191)/c0diag(C0 残面 census——misschar3 flagged 1003.0694 族)。
