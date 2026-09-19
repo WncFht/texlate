@@ -26,7 +26,9 @@ from texlate.compile.fixloop._builtins_common import (
     _mc_chr,
     _mc_parse_log,
     _mc_table,
+    _resolve_site,
 )
+from texlate.compile.fixloop._builtins_csfix import _ensure_usepackage
 from texlate.latex.tables import MATH_ENVS
 from texlate.textutil import DOCCLASS_OPTS_RX, mask_tex, safe_is_file
 
@@ -266,12 +268,18 @@ def legacy_pkg_shim(
         return False, f"shim spec for {payload} has neither body nor loads"
     missing = []
     for dep in spec.get("needs") or []:
-        if ctx.wdir.joinpath(dep).is_file():
-            continue
-        if eng.probe_file(dep) or eng.install_file(dep):
+        dep_site = _resolve_site(ctx, PurePosixPath(dep))
+        if (
+            (dep_site is not None and dep_site.is_file())
+            or eng.probe_file(dep)
+            or eng.install_file(dep)
+        ):
             continue
         missing.append(dep)
-    done, state = _inject_write(ctx, ctx.wdir / fname, stub, f"stub {fname}")
+    site = _resolve_site(ctx, PurePosixPath(fname))
+    if site is None:
+        return False, f"{fname}: escapes wdir"
+    done, state = _inject_write(ctx, site, stub, f"stub {fname}")
     if done is not None:
         return done
     note = f"stub {fname} {'refreshed (stale injected)' if state == 'stale' else 'injected'}"
@@ -322,7 +330,9 @@ def svjour_clo_stub(
     for opt in dict.fromkeys(opts):
         if "/" in opt or "\\" in opt:
             continue  # 防选项里的路径分隔符穿出 wdir / write_text 炸 OSError
-        target = ctx.wdir / f"sv{opt}.clo"
+        target = _resolve_site(ctx, PurePosixPath(f"sv{opt}.clo"))
+        if target is None:
+            continue  # main_rel 怪径逃出 wdir —— 不落件也不炸
         # 指纹闸: 外来 .clo (稿自带) 永不覆写; 旧代注入件覆写刷新。
         done, _state = _inject_write(ctx, target, body, target.name)
         if done is not None:
@@ -446,14 +456,17 @@ def bundled_class_shadow(
         return False, f"{payload} not in bundle-shadow set"
     missing = []
     for dep in params.get("needs") or []:
+        dep_site = _resolve_site(ctx, PurePosixPath(dep))
         if (
-            ctx.wdir.joinpath(dep).is_file()
+            (dep_site is not None and dep_site.is_file())
             or eng.probe_file(dep)
             or eng.install_file(dep)
         ):
             continue
         missing.append(dep)
-    t = ctx.wdir / str(target)
+    t = _resolve_site(ctx, PurePosixPath(str(target)))
+    if t is None:
+        return False, f"{target}: escapes wdir"
     # 指纹闸: 稿自带同名件不覆写; 旧代注入件覆写刷新。
     done, state = _inject_write(ctx, t, str(body), f"shadow {target}")
     if done is not None:
@@ -527,7 +540,9 @@ def generated_stub(
             hit = "overlay"
     if hit is None:
         return False, f"{fname} not a generated/overlay target"
-    target = ctx.wdir / Path(*rel.parts)
+    target = _resolve_site(ctx, rel)
+    if target is None:
+        return False, f"{fname}: escapes wdir"
     body = f"% fixloop: stub for runtime-generated {rel.name}\n"
     # 指纹闸: 外来生成件/稿自带覆盖层永不覆写; 旧代注入 stub 覆写刷新。
     done, _state = _inject_write(ctx, target, body, fname)
@@ -864,7 +879,29 @@ def _prepend_env_renew_sites(
     return done
 
 
-def undefined_env_polyfill(
+def _serve_env_pkg_map(
+    ctx: LoopCtx,
+    eng: Engine,
+    proven: set[str],
+    pkg_map: dict[str, Any],
+) -> tuple[set[str], list[str]]:
+    """env→pkg 臂: 表内 proven env 装真包/注 polyfill → (served, notes)。"""
+    notes: list[str] = []
+    served: set[str] = set()
+    for e in sorted(proven & set(pkg_map)):
+        spec = pkg_map.get(e) or {}
+        dones: list[str] = []
+        if use := spec.get("usepackage"):
+            dones.extend(_ensure_usepackage(ctx, eng, str(use)))
+        if spec.get("polyfill") and _inject_after_docclass(ctx, str(spec["polyfill"])):
+            dones.append("pkg polyfill injected")
+        if dones:
+            notes.append(f"{e}→pkg {'; '.join(dones)}")
+            served.add(e)
+    return served, notes
+
+
+def undefined_env_polyfill(  # noqa: C901  # pkg_map/站点/对偶件/批扩多臂 dispatcher
     ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
 ) -> tuple[bool, str]:
     r"""``Environment X undefined`` → ``\begin{document}`` 前 ``\newenvironment`` noop。
@@ -877,6 +914,17 @@ def undefined_env_polyfill(
     修复面: svjour/siamltex/aasms4 等老类不产现内核定理环境, 或定义躺
     ``\\ifnfssone``/``\\doit{0}`` 死条件块 (math/0104275 tcilatex 族)。
     ``params.deny`` (缺省 ``document``) 排不可 noop 化的环境名。
+
+    env→pkg 臂 (``params.pkg_map``, 1306.0281 tikzpicture 族): 表内
+    proven env 装真包替代 noop —— noop 吞整个图体且体内 pgf cs
+    (``\node``/``\draw``/``\addplot``) 连锁 undefined_cs 白烧轮次,
+    cs_table 无对应条目者 (axis/tikzcd) 更是唯一活路。spec 复用
+    cs_targeted_fix 键形: ``usepackage`` 走 ``_ensure_usepackage``
+    (注入+装文件); ``polyfill`` 注 docclass 缝后且须自足
+    ``\usepackage{pkg}`` 前缀 —— 注缝 LIFO 下裸 ``\usetikzlibrary``
+    会落在 arm usepackage 行之前 → 新 undefined_cs (95-targeted
+    cs_table tikz 族头注同机理)。命中 env 出 noop/站点/批扩全池:
+    真包就位后 ``\ifcsname`` 守卫自然死化, 双份注入无谓。
 
     站点前置臂 (0806.0904/0806.2953): proven env 若带 live
     ``\renewenvironment{X}`` 站点 (序言或正文皆可), 在站点行首前置同款
@@ -891,7 +939,6 @@ def undefined_env_polyfill(
     缺 proof env 的稿多伴此标记); 独立 ``undefined_cs:QED`` (proof 已
     定义稿) 由 cs_targeted_fix ``cs_table.QED`` polyfill 兜。
     """
-    del eng
     proven: set[str] = set()
     if payload and re.fullmatch(r"[A-Za-z@*]+", payload):
         proven.add(payload)
@@ -903,6 +950,8 @@ def undefined_env_polyfill(
     # blob 须在注入前取 —— 对偶件证据 (``\QED`` 在用) 与 defined 判
     # 都不能看见自己即将注入的行 (stub 文本含 ``\QED`` 字面会自证)。
     blob = mask_tex(ctx.source_blob())
+    served, notes = _serve_env_pkg_map(ctx, eng, proven, params.get("pkg_map") or {})
+    proven -= served
     companions = {
         e: _ENV_COMPANIONS[e][1]
         for e in proven
@@ -914,15 +963,16 @@ def undefined_env_polyfill(
     site_envs = _prepend_env_renew_sites(ctx, proven, companions)
     used = set(_ENV_USE_RE.findall(blob)) - deny
     if not (proven & used) and not site_envs:
+        if notes:
+            return True, "; ".join(notes)
         return False, f"env(s) {sorted(proven)} not \\begin-used in source"
     defined = {n for m in _ENV_DEF_RE.finditer(blob) for n in m.groups() if n}
-    targets = (proven & used) | (used - defined - _KERNEL_ENVS)
+    targets = (proven & used) | (used - defined - _KERNEL_ENVS) - served
     main = ctx.main_path()
     main_masked = mask_tex(ctx.read(main) or "") if main is not None else ""
     fresh = [
         e for e in sorted(targets) if f"\\ifcsname {e}\\endcsname" not in main_masked
     ]
-    notes: list[str] = []
     if site_envs:
         notes.append(f"pre-renew noop: {', '.join(sorted(site_envs))}")
     if fresh:

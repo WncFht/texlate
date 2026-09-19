@@ -408,14 +408,17 @@ rules:
   # vendor 补丁件平铺 ./mnras.cls —— kpathsea cwd 序压过 usertree+宿主
   # 同遮, 零树外突变零 missing 依赖。指纹: 剥注释后 \ds@usegraphicx 行
   # 内联 \usepackage|\RequirePackage; texlate patch / texlate-fixloop-
-  # injected 双标跳过防自拆。探测三根: wdir 根 + find . ../_texmf/home
+  # injected 双标跳过防自拆。探测三根: {main_dir} 解析位 (run_tool
+  # argv 占位, 编译 cwd=main_dir 对嵌套 main 才可见 —— 平铺 wdir 根
+  # 对 templates/arxiv/main.tex 式稿是死角, 2609.19664 fired-unfixed
+  # 实证; main_rel 怪径逃出 wdir 退 '.') + find . ../_texmf/home
   # (内嵌/兄弟两式 usertree) + kpsewhich (宿主 ~/texmf/TEXMFDIST 面);
-  # wdir 根稿自带病件 (cwd 现胜者) mv .fixloop-iso 让位 —— wdir 内退役
-  # pstadd 同型先例; 根槽被安全件占 → 不覆写 (已是胜者无妨)。python 桥
-  # 缺席 → `|| true` 纯探测不阻塞。
+  # 解析位稿自带病件 (cwd 现胜者) mv .fixloop-iso 让位 —— wdir 内退役
+  # pstadd 同型先例; 解析位槽被安全件占 → 不覆写 (已是胜者无妨)。
+  # python 桥缺席 → `|| true` 纯探测不阻塞。
   - id: mnras_texmf_shadow_drop
     mechanisms: [B05]
-    description: "可达 mnras.cls 选项段内联 \\usepackage 病 → vendor 补丁件平铺 ./mnras.cls cwd 遮蔽 (根病件退役让位), 零树外突变"
+    description: "可达 mnras.cls 选项段内联 \\usepackage 病 → vendor 补丁件平铺 main_dir/mnras.cls 遮蔽 (解析位病件退役让位), 零树外突变"
     phase: loop
     order: 11.91 # pstricks_add_pair_retire(11.9) 后, abstract_edef_capture_neutralize(11.95) 前 —— texmf 驻留遮蔽同族
     when:
@@ -437,12 +440,13 @@ rules:
           - sh
           - -c
           - |
+            md="{main_dir}"
             buggy=
-            if [ -f ./mnras.cls ] && ! grep -qE 'texlate-fixloop-injected|texlate patch' ./mnras.cls && grep -vE '^[[:space:]]*%' ./mnras.cls | grep 'ds@usegraphicx' | grep -qE '\\usepackage|\\RequirePackage'; then
+            if [ -f "$md/mnras.cls" ] && ! grep -qE 'texlate-fixloop-injected|texlate patch' "$md/mnras.cls" && grep -vE '^[[:space:]]*%' "$md/mnras.cls" | grep 'ds@usegraphicx' | grep -qE '\\usepackage|\\RequirePackage'; then
               buggy=1
             fi
             if [ -z "$buggy" ]; then
-              buggy=$(find . ../_texmf/home -name mnras.cls -type f ! -path './mnras.cls' 2>/dev/null | while IFS= read -r f; do
+              buggy=$(find . ../_texmf/home -name mnras.cls -type f ! -path "./$md/mnras.cls" 2>/dev/null | while IFS= read -r f; do
                 grep -qE 'texlate-fixloop-injected|texlate patch' "$f" && continue
                 if grep -vE '^[[:space:]]*%' "$f" | grep 'ds@usegraphicx' | grep -qE '\\usepackage|\\RequirePackage'; then
                   echo 1
@@ -462,17 +466,17 @@ rules:
               esac
             fi
             if [ -n "$buggy" ]; then
-              if [ -f ./mnras.cls ] && ! grep -qE 'texlate-fixloop-injected|texlate patch' ./mnras.cls && grep -vE '^[[:space:]]*%' ./mnras.cls | grep 'ds@usegraphicx' | grep -qE '\\usepackage|\\RequirePackage'; then
-                mv -f ./mnras.cls ./mnras.cls.fixloop-iso
+              if [ -f "$md/mnras.cls" ] && ! grep -qE 'texlate-fixloop-injected|texlate patch' "$md/mnras.cls" && grep -vE '^[[:space:]]*%' "$md/mnras.cls" | grep 'ds@usegraphicx' | grep -qE '\\usepackage|\\RequirePackage'; then
+                mv -f "$md/mnras.cls" "$md/mnras.cls.fixloop-iso"
               fi
-              if [ ! -f ./mnras.cls ]; then
-                python -c "import shutil; from texlate.compile.fixloop._builtins_vendored import _vendor_root; shutil.copyfile(str(_vendor_root({})/'files'/'mnras.cls'), 'mnras.cls')" 2>/dev/null || python3 -c "import shutil; from texlate.compile.fixloop._builtins_vendored import _vendor_root; shutil.copyfile(str(_vendor_root({})/'files'/'mnras.cls'), 'mnras.cls')" 2>/dev/null || true
+              if [ ! -f "$md/mnras.cls" ]; then
+                python -c "import shutil; from texlate.compile.fixloop._builtins_vendored import _vendor_root; shutil.copyfile(str(_vendor_root({})/'files'/'mnras.cls'), '$md/mnras.cls')" 2>/dev/null || python3 -c "import shutil; from texlate.compile.fixloop._builtins_vendored import _vendor_root; shutil.copyfile(str(_vendor_root({})/'files'/'mnras.cls'), '$md/mnras.cls')" 2>/dev/null || true
               fi
             fi
             exit 0
         timeout: 30
-    risk: low # 零树外突变: usertree/宿主件只遮蔽不动; 退役仅及 wdir 根稿自带病件 (pstadd 同型先例); 平铺件是 vendor 钉版补丁副本可逆
-    known_gap: "病件原位保留靠 cwd 平铺遮蔽而非移除; 根槽被安全外来件占时平铺缺省 (该件已是 cwd 胜者无遮蔽需求); python 缺席 → 仅探测不投件; tectonic 无 kpsewhich → 宿主面缺探, wdir/兄弟面仍盖"
+    risk: low # 零树外突变: usertree/宿主件只遮蔽不动; 退役仅及解析位稿自带病件 (pstadd 同型先例); 平铺件是 vendor 钉版补丁副本可逆
+    known_gap: "病件原位保留靠 main_dir 平铺遮蔽而非移除; 解析位槽被安全外来件占时平铺缺省 (该件已是 cwd 胜者无遮蔽需求); main_rel 怪径逃出 wdir → {main_dir} 退 '.' 平铺回 wdir 根 (对嵌套 main 不可见, DECLINE 口径); python 缺席 → 仅探测不投件; tectonic 无 kpsewhich → 宿主面缺探, wdir/兄弟面仍盖"
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }

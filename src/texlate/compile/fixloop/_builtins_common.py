@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING
 
 from texlate.compile.inject import find_docclass_ends
@@ -16,7 +17,6 @@ from texlate.textutil import mask_tex
 
 if TYPE_CHECKING:
     from collections.abc import Callable
-    from pathlib import Path
     from typing import Any
 
     from texlate.compile.fixloop.engine import LoopCtx
@@ -226,6 +226,23 @@ def _inject_write(
     except OSError as e:
         return (False, f"{name} write failed: {e}"), state
     return None, state
+
+
+def _resolve_site(ctx: LoopCtx, rel: PurePosixPath) -> Path | None:
+    """落点 = kpathsea 解析位 ``main_dir/<rel>``; main 未知退 wdir 根。
+
+    编译 cwd = ``main_path().parent`` 且无 TEXINPUTS 根注入 —— 平铺
+    wdir 根对嵌套 main (``templates/arxiv/main.tex``) 不可见
+    (2609.19664 fired-unfixed 实证); fileset_relocate 同口径。
+    ``main_rel`` 怪径致目标逃出 wdir → None。
+    """
+    mp = ctx.main_path()
+    dst = (mp.parent if mp is not None else ctx.wdir) / Path(*rel.parts)
+    try:
+        dst.resolve().relative_to(ctx.wdir.resolve())
+    except (OSError, RuntimeError, ValueError):
+        return None
+    return dst
 
 
 def _live_matches(rx: re.Pattern[str], t: str) -> list[re.Match[str]]:

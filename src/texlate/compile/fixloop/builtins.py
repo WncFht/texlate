@@ -38,6 +38,7 @@ from texlate.compile.fixloop._builtins_common import (
     _mc_hit,
     _mc_parse_log,
     _mc_plan,
+    _resolve_site,
 )
 from texlate.compile.fixloop._builtins_csfix import (
     _allocated_cs_names,
@@ -180,6 +181,7 @@ __all__ = [
     "_norm_graphic_name",
     "_opt_dim",
     "_provides_date",
+    "_resolve_site",
     "_rewrite_case_refs",
     "_rewrite_eps_refs",
     "_rewrite_includesvg",

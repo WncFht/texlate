@@ -19,6 +19,7 @@ from texlate.compile.fixloop._builtins_common import (
     _inject_write,
     _live_matches,
     _mark_injected,
+    _resolve_site,
 )
 from texlate.textutil import safe_is_file
 
@@ -483,23 +484,6 @@ def _vendored_source(root: Path, fname: str) -> Path | None:
         if safe_is_file(cand):
             return cand
     return None
-
-
-def _resolve_site(ctx: LoopCtx, rel: PurePosixPath) -> Path | None:
-    """落点 = kpathsea 解析位 ``main_dir/<rel>``; main 未知退 wdir 根。
-
-    编译 cwd = ``main_path().parent`` 且无 TEXINPUTS 根注入 —— 平铺
-    wdir 根对嵌套 main (``templates/arxiv/main.tex``) 不可见
-    (2609.19664 fired-unfixed 实证); fileset_relocate 同口径。
-    ``main_rel`` 怪径致目标逃出 wdir → None。
-    """
-    mp = ctx.main_path()
-    dst = (mp.parent if mp is not None else ctx.wdir) / Path(*rel.parts)
-    try:
-        dst.resolve().relative_to(ctx.wdir.resolve())
-    except (OSError, RuntimeError, ValueError):
-        return None
-    return dst
 
 
 def vendored_fetch(

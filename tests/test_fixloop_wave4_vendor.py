@@ -226,20 +226,26 @@ def _scan_params(root: Path, **kw: object) -> dict:
 
 
 def test_scan_install_vendored_fallback(tmp_path: Path) -> None:
-    """static_precheck vendored 臂: install 全链败 → basename 查件落 wdir。
+    """static_precheck vendored 臂: install 全链败 → basename 查件落解析位。
 
     round-0 预检落件不依赖 first-error 序位 (hep-ph/0104121 机制缝:
-    doc-local fixes.sty 的 undefined_cs 抢在 missing_file 前)。
+    doc-local fixes.sty 的 undefined_cs 抢在 missing_file 前)。嵌套
+    main 稿的解析位 = main_dir (编译 cwd) —— 平铺 wdir 根不可见,
+    ``_resolve_site`` 口径 (2609.19664 fired-unfixed 实证)。
     """
-    (tmp_path / "main.tex").write_text(
+    paper = tmp_path / "paper"
+    paper.mkdir()
+    (paper / "main.tex").write_text(
         "\\documentclass{article}\n\\usepackage{eqsecnum}\n"
     )
     root = _vendor(tmp_path)
     (root / "stubs" / "eqsecnum.sty").write_text("\\ProvidesPackage{eqsecnum}\n")
-    ctx, eng = _ctx(tmp_path), _EngNoInstall()
+    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel="paper/main.tex")
+    eng = _EngNoInstall()
     ok, note = _apply_scan_install(ctx, eng, _scan_params(root))
     assert ok
-    assert (tmp_path / "eqsecnum.sty").is_file()
+    assert (paper / "eqsecnum.sty").is_file()
+    assert not (tmp_path / "eqsecnum.sty").exists()
     assert "eqsecnum.sty" in ctx.installed
     assert "vendored ['eqsecnum.sty']" in note
 

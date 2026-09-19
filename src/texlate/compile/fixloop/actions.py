@@ -47,14 +47,36 @@ def _probe(eng: Engine, fname: str, cwd: Path | None = None) -> str | None:
 # ════════════════════════════════════════════════════════════════
 
 
-def _substitute(v: Any, payload: str | None) -> Any:  # noqa: ANN401  # yaml 值天然 Any
-    """Params 值里的 ``{payload}`` 占位替换。"""
+def _main_dir_rel(ctx: LoopCtx | None) -> str:
+    """``{main_dir}`` 占位值: main_dir 相对 wdir 的 posix 径; 未知/逃逸 → ``.``。
+
+    run_tool argv 内的落点占位——编译 cwd = main_dir (kpathsea 解析位),
+    wdir 根对嵌套 main 不可见; ``main_rel`` 怪径致 main_dir 逃出 wdir
+    时退 ``.`` (wdir 根) 与 _resolve_site DECLINE 口径一致。
+    """
+    mp = ctx.main_path() if ctx is not None else None
+    if mp is None:
+        return "."
+    try:
+        return mp.parent.resolve().relative_to(ctx.wdir.resolve()).as_posix()
+    except (OSError, RuntimeError, ValueError):
+        return "."
+
+
+def _substitute(
+    v: Any,  # noqa: ANN401  # yaml 值天然 Any
+    payload: str | None,
+    ctx: LoopCtx | None = None,
+) -> Any:  # noqa: ANN401  # 同上 (递归返回 yaml 值)
+    """Params 值里的 ``{payload}``/``{main_dir}`` 占位替换。"""
     if isinstance(v, str):
+        if "{main_dir}" in v:
+            v = v.replace("{main_dir}", _main_dir_rel(ctx))
         return v.replace("{payload}", payload or "")
     if isinstance(v, dict):
-        return {k: _substitute(x, payload) for k, x in v.items()}
+        return {k: _substitute(x, payload, ctx) for k, x in v.items()}
     if isinstance(v, list):
-        return [_substitute(x, payload) for x in v]
+        return [_substitute(x, payload, ctx) for x in v]
     return v
 
 
@@ -169,7 +191,7 @@ def _cond_ok(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0917  # 条件原语�
     缺省 ``None`` 时该键 fail-closed, 其余键语义不变。
     """
     for key, val in cond.items():
-        v = _substitute(val, pay)
+        v = _substitute(val, pay, ctx)
         if key == "any":
             subs = v if isinstance(v, list) else []
             ok = any(
@@ -420,7 +442,9 @@ def _scan_vendored(
         src = builtins._vendored_source(root, fname)  # noqa: SLF001 - 同上
         if src is None:
             continue
-        dst = ctx.wdir / Path(*rel.parts)
+        dst = builtins._resolve_site(ctx, rel)  # noqa: SLF001 - 落位口径单源
+        if dst is None:
+            continue
         try:
             dst.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(src, dst)
@@ -661,7 +685,7 @@ def _apply(  # noqa: C901, PLR0911  # action.kind 分派表, 每种一处
     """按 action.kind 分派执行一条规则 → (applied, note)。"""
     action = rule.action
     kind = action.get("kind")
-    params = _substitute(action.get("params") or {}, pay)
+    params = _substitute(action.get("params") or {}, pay, ctx)
     if kind == "scan_install":
         return _apply_scan_install(ctx, eng, params)
     if kind == "install_file":
