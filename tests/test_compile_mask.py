@@ -121,3 +121,31 @@ def test_visible_tex_cr_comment() -> None:
 def test_mask_tex_cr_comment() -> None:
     tex = "x %note\ry"
     assert mask_tex(tex).endswith("y")
+
+
+def test_visible_tex_env_begin_inside_braces_not_live() -> None:
+    r"""花括号内 ``\begin{comment}`` 不开环境——宏定义/参数字面非活开。
+
+    corpus_daily 2609.20015 实证：``\newcommand{\bc}{\begin{comment}}``
+    的 ``\begin{comment}`` 曾开失活环境、行锚 ``\end{comment}`` 缺席 →
+    遮盖吞到 EOF → ``\begin{document}`` 不可见 → no_main_tex 误拒。
+    """
+    tex = (
+        "\\documentclass{amsart}\n"
+        "\\newcommand{\\bc}{\\begin{comment}}\n"
+        "\\newcommand{\\ec}{\\end{comment}}\n"
+        "\\begin{document}\nbody\n\\end{document}\n"
+    )
+    vis = visible_tex(tex)
+    assert "\\begin{document}" in vis
+    assert "body" in vis
+    # 定义体内的字面序列原样可见（未开环境即无遮盖）
+    assert "\\begin{comment}" in vis
+
+
+def test_visible_tex_depth0_comment_env_still_masks() -> None:
+    r"""深度 0 的活 ``\begin{comment}`` 遮盖不变——深度门只挡花括号内。"""
+    tex = "x\n\\begin{comment}\ndead \\documentclass\n\\end{comment}\nLIVE"
+    vis = visible_tex(tex)
+    assert "dead" not in vis
+    assert "LIVE" in vis

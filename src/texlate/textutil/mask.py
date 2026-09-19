@@ -200,6 +200,10 @@ def mask_tex(text: str, *, mask_dead: bool = True, keep_verbatim: bool = False) 
     offset/行号与原文字节级对齐（``\n`` 保留）。顺序敏感：先吃逐字环境
     （``\verb|%|`` 里的 ``%`` 不是注释），再遮行内 ``%``。
 
+    ``\begin{env}`` 只在花括号深度 0 开环境——宏定义体/参数内的字面
+    ``\begin{comment}``/``\begin{verbatim}`` 不执行（``\bc``/``\ec`` 别名
+    形态），误开会吞到 EOF。
+
     ``mask_dead=False`` 供 comment.sty 手术自身——``\end{comment}`` 行尾
     空白修复需要看见 comment 环境内部。
     ``keep_verbatim=True`` 供检测类消费（arxiv 定位/嗅探）——逐字环境体
@@ -210,7 +214,9 @@ def mask_tex(text: str, *, mask_dead: bool = True, keep_verbatim: bool = False) 
     return _mask_tex_memo(text, mask_dead=mask_dead, keep_verbatim=keep_verbatim)
 
 
-def _mask_tex(text: str, *, mask_dead: bool = True, keep_verbatim: bool = False) -> str:
+def _mask_tex(  # noqa: C901 -- 深度门新增两分支即语义面
+    text: str, *, mask_dead: bool = True, keep_verbatim: bool = False
+) -> str:
     chars = list(text)
 
     def mask(start: int, stop: int) -> None:
@@ -218,12 +224,21 @@ def _mask_tex(text: str, *, mask_dead: bool = True, keep_verbatim: bool = False)
 
     i = 0
     n = len(text)
+    depth = 0
     while i < n:
         if text[i] == "%":
             nl = _NL_RX.search(text, i)
             stop = n if nl is None else nl.start()
             mask(i, stop)
             i = stop
+            continue
+        if text[i] == "{":
+            depth += 1
+            i += 1
+            continue
+        if text[i] == "}":
+            depth = max(depth - 1, 0)
+            i += 1
             continue
         if text[i] != "\\":
             i += 1
@@ -232,7 +247,11 @@ def _mask_tex(text: str, *, mask_dead: bool = True, keep_verbatim: bool = False)
         is_verbatim = env is not None
         if env is None and mask_dead:
             env = _DEAD_BEGIN_RX.match(text, i)
-        if env:
+        # 花括号内 ``\begin{env}`` 不是活环境开——宏定义/参数体内的字面
+        # 序列（verbatim 本就不能进参；``\newcommand{\bc}{\begin{comment}}``
+        # 别名形态若误开环境且无行锚 ``\end{comment}`` 会吞到 EOF，
+        # corpus_daily 2609.20015 ``no_main_tex`` 实证）。
+        if env is not None and depth == 0:
             stop = _env_stop(text, env[1], env.end(), dead=not is_verbatim)
             if not (keep_verbatim and is_verbatim):
                 mask(i, stop)

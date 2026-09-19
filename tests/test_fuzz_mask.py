@@ -172,7 +172,7 @@ def _oracle_span(
     return (tag, pos, end, pos, end)
 
 
-def _oracle_mask_tex(
+def _oracle_mask_tex(  # noqa: C901, PLR0915 -- oracle 复刻 mask 事件流，分支即规格面
     text: str, *, mask_dead: bool = True, keep_verbatim: bool = False
 ) -> str:
     """事件流状态机 oracle：先占先得的区间认领，与 mask_tex 结构不同构。"""
@@ -198,8 +198,43 @@ def _oracle_mask_tex(
             j -= 1
         return run % 2 == 0
 
+    def depth_at(pos: int) -> int:
+        """pos 处花括号深度——逆走配对：``}`` 暂存、``{`` 先消暂存再计深度。
+
+        认领土内与 ``\\{``/``\\}`` 命令食的括号不计（随字符被前一奇数
+        ``\\`` run 吃掉）；env 事件在深度 >0 不存活——花括号内
+        ``\\begin{env}`` 是宏定义/参数字面而非活环境开。
+        """
+        depth = 0
+        pend = 0
+        j = pos - 1
+        while j >= 0:
+            if claimed(j):
+                j -= 1
+                continue
+            c = text[j]
+            if c in "{}":
+                run = 0
+                k = j - 1
+                while k >= 0 and text[k] == "\\" and not claimed(k):
+                    run += 1
+                    k -= 1
+                if run % 2 == 1:
+                    j -= 1
+                    continue
+                if c == "}":
+                    pend += 1
+                elif pend:
+                    pend -= 1
+                else:
+                    depth += 1
+            j -= 1
+        return depth
+
     for pos, kind, m in events:
         if claimed(pos) or not live(pos):
+            continue
+        if kind == "env" and depth_at(pos) > 0:
             continue
         hit = _oracle_span(text, pos, kind, m, keep_verbatim=keep_verbatim)
         if hit is None:
