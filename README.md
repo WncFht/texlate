@@ -98,7 +98,7 @@ docker run --rm texlate fetch 1706.03762                    # 其他子命令同
 
 **中文链反而更纯净**：规范化顺带修复源级缺陷，中文臂 xelatex 纯净率 +16.1pt；裸编双引擎联合口径 90.4%。
 
-![管线 vs 裸编译：中文链条件各引擎纯净率/出 PDF 率全面高于裸编译](shots/bench-pipeline-vs-bare.png)
+![管线 vs 裸编译 dumbbell：中文链纯净率两引擎全面高于裸编（xelatex +16.1pt、tectonic +7.1pt），出 PDF 率 xelatex +5.1pt、tectonic -2.6pt](shots/bench-pipeline-vs-bare.png)
 
 ![六天评测资产增长：pytest 798→6450、修复规则 31→143、源码文件 72→425、语料 39→13266](shots/bench-assets.png)
 

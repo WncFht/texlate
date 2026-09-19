@@ -2,10 +2,14 @@
 """README figures — regenerate with: uv run --with matplotlib python make_readme_figs.py
 
 Reads the local data/ CSVs (self-contained) and writes PNGs to <repo>/shots/.
-Style: Chinese labels (Noto Sans CJK SC), report palette, 200 dpi.
+Style: dataviz-method marks on the diagram-design token system (paper/ink/muted/
+accent/link) so all README figures share one visual identity. Chinese labels
+(Noto Sans CJK SC), 200 dpi.
+
+bench-pipeline.png is NOT generated here — its source of truth is the
+diagram-design HTML (bench-pipeline.html, exported via playwright).
 """
 
-import csv
 import datetime as dt
 import pathlib
 
@@ -15,21 +19,38 @@ matplotlib.use("Agg")
 import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
-from matplotlib.patches import FancyArrowPatch, FancyBboxPatch, Rectangle
+from matplotlib.patches import PathPatch, Rectangle
+from matplotlib.path import Path
 
 HERE = pathlib.Path(__file__).resolve().parent
 REPO = HERE.parents[2]
 OUT = REPO / "shots"
 OUT.mkdir(exist_ok=True)
 
-# ---- palette (same as report.tex) ----
-CA = "#1f6fb2"  # blue
-CB = "#c0392b"  # red
-CD = "#2e8b57"  # green
-CE = "#7d3c98"  # purple
-GRAY = "#8a8a8a"
-INK = "#222222"
-TRACK = "#ececec"
+# ---- diagram-design token system ----
+PAPER = "#f5f5f5"
+INK = "#2d3142"
+MUTED = "#4f5d75"
+SOFT = "#7a8399"
+ACCENT = "#eb6c36"
+LINK = "#2e5aa8"
+CRIT = "#d03b3b"
+
+def _rgba(h, a):
+    h = h.lstrip("#")
+    return tuple(int(h[i:i + 2], 16) / 255 for i in (0, 2, 4)) + (a,)
+
+
+GRID = _rgba(INK, 0.10)
+SPINE = _rgba(INK, 0.30)
+RAIL = _rgba(INK, 0.05)
+ACCENT_TRACK = _rgba(ACCENT, 0.10)
+ACCENT_PART = _rgba(ACCENT, 0.38)
+SLATE_PART = _rgba(MUTED, 0.32)
+FOOT = _rgba(INK, 0.42)
+DIM = _rgba(INK, 0.20)
+
+KAPPA = 0.5523
 
 plt.rcParams.update(
     {
@@ -37,14 +58,15 @@ plt.rcParams.update(
         "font.sans-serif": ["Noto Sans CJK SC", "DejaVu Sans"],
         "axes.unicode_minus": False,
         "text.color": INK,
-        "axes.edgecolor": "#9a9a9a",
+        "axes.edgecolor": SPINE,
         "axes.labelcolor": INK,
-        "xtick.color": "#555555",
-        "ytick.color": "#555555",
-        "axes.linewidth": 0.9,
-        "figure.facecolor": "white",
-        "axes.facecolor": "white",
-        "savefig.facecolor": "white",
+        "xtick.color": MUTED,
+        "ytick.color": MUTED,
+        "axes.linewidth": 0.8,
+        "figure.facecolor": PAPER,
+        "axes.facecolor": PAPER,
+        "savefig.facecolor": PAPER,
+        "legend.frameon": False,
     }
 )
 
@@ -54,14 +76,101 @@ def despine(ax, keep=("left", "bottom")):
         ax.spines[side].set_visible(side in keep)
 
 
-def ygrid(ax):
-    ax.grid(axis="y", color="#c9c9c9", alpha=0.45, linewidth=0.7)
+def ygrid(ax, axis="y"):
+    ax.grid(axis=axis, color=GRID, linewidth=0.8, linestyle="-")
     ax.set_axisbelow(True)
+
+
+def eyebrow(fig, text):
+    fig.text(0.008, 0.975, text, fontsize=7.5, color=SOFT,
+             family="DejaVu Sans Mono", va="top")
+
+
+def footnote(fig, text, rect=(0, 0.045, 1, 0.93)):
+    fig.text(0.008, 0.008, text, fontsize=8, color=FOOT, va="bottom",
+             linespacing=1.5)
+    fig.tight_layout(rect=rect)
+
+
+def _px_to_data(ax, px):
+    """Device px → data units per axis (needs a prior canvas draw)."""
+    bb = ax.get_window_extent()
+    (x0, x1), (y0, y1) = ax.get_xlim(), ax.get_ylim()
+    return px * (x1 - x0) / bb.width, px * (y1 - y0) / bb.height
+
+
+def _patch(ax, verts, codes, color, zorder):
+    ax.add_patch(PathPatch(Path(verts, codes), facecolor=color,
+                           edgecolor="none", zorder=zorder))
+
+
+def hbar_rail(ax, x0, x1, y, h, rx, ry, color, zorder=1):
+    """Capsule rail — both ends rounded."""
+    rx = min(rx, (x1 - x0) / 2)
+    ry = min(ry, h / 2)
+    cx, cy = KAPPA * rx, KAPPA * ry
+    yb, yt = y - h / 2, y + h / 2
+    verts = [
+        (x0 + rx, yb), (x1 - rx, yb),
+        (x1 - rx + cx, yb), (x1, yb + ry - cy), (x1, yb + ry),
+        (x1, yt - ry),
+        (x1, yt - ry + cy), (x1 - rx + cx, yt), (x1 - rx, yt),
+        (x0 + rx, yt),
+        (x0 + rx - cx, yt), (x0, yt - ry + cy), (x0, yt - ry),
+        (x0, yb + ry),
+        (x0, yb + ry - cy), (x0 + rx - cx, yb), (x0 + rx, yb),
+    ]
+    codes = [Path.MOVETO, Path.LINETO, Path.CURVE4, Path.CURVE4, Path.CURVE4,
+             Path.LINETO, Path.CURVE4, Path.CURVE4, Path.CURVE4,
+             Path.LINETO, Path.CURVE4, Path.CURVE4, Path.CURVE4,
+             Path.LINETO, Path.CURVE4, Path.CURVE4, Path.CURVE4]
+    _patch(ax, verts, codes, color, zorder)
+
+
+def hbar_end(ax, x0, x1, y, h, rx, ry, color, zorder=3):
+    """Bar square at baseline (x0), rounded at data end (x1)."""
+    if x1 <= x0:
+        return
+    rx = min(rx, (x1 - x0))
+    ry = min(ry, h / 2)
+    cx, cy = KAPPA * rx, KAPPA * ry
+    yb, yt = y - h / 2, y + h / 2
+    verts = [
+        (x0, yb), (x1 - rx, yb),
+        (x1 - rx + cx, yb), (x1, yb + ry - cy), (x1, yb + ry),
+        (x1, yt - ry),
+        (x1, yt - ry + cy), (x1 - rx + cx, yt), (x1 - rx, yt),
+        (x0, yt), (x0, yb),
+    ]
+    codes = [Path.MOVETO, Path.LINETO, Path.CURVE4, Path.CURVE4, Path.CURVE4,
+             Path.LINETO, Path.CURVE4, Path.CURVE4, Path.CURVE4,
+             Path.LINETO, Path.CLOSEPOLY]
+    _patch(ax, verts, codes, color, zorder)
+
+
+def vbar_top(ax, xc, y1, w, rx, ry, color, zorder=3):
+    """Column square at baseline, rounded top."""
+    x0, x1 = xc - w / 2, xc + w / 2
+    rx = min(rx, w / 2)
+    ry = min(ry, y1 / 2)
+    cx, cy = KAPPA * rx, KAPPA * ry
+    verts = [
+        (x0, 0), (x0, y1 - ry),
+        (x0, y1 - ry + cy), (x0 + rx - cx, y1), (x0 + rx, y1),
+        (x1 - rx, y1),
+        (x1 - rx + cx, y1), (x1, y1 - ry + cy), (x1, y1 - ry),
+        (x1, 0), (x0, 0),
+    ]
+    codes = [Path.MOVETO, Path.LINETO, Path.CURVE4, Path.CURVE4, Path.CURVE4,
+             Path.LINETO, Path.CURVE4, Path.CURVE4, Path.CURVE4,
+             Path.LINETO, Path.CLOSEPOLY]
+    _patch(ax, verts, codes, color, zorder)
 
 
 # ============================== A1: compile-health timeline ==============================
 def fig_timeline():
-    fig, ax = plt.subplots(figsize=(9.8, 4.7), dpi=200)
+    fig, ax = plt.subplots(figsize=(9.8, 4.9), dpi=200)
+    eyebrow(fig, "TEXLATE · COMPILE HEALTH")
 
     d = lambda s: dt.date.fromisoformat(s)
 
@@ -75,134 +184,149 @@ def fig_timeline():
     # real-LLM arm, union
     real = [(d("2026-09-17"), 98.5), (d("2026-09-19"), 96.7)]
 
-    ax.plot(*zip(*scorecard_union), color=CA, lw=2.2, marker="o", ms=5.5,
-            zorder=5, label="计分卡 · 联合口径出 PDF（模拟臂）")
-    ax.plot(*zip(*scorecard_clean), color=CB, lw=2.2, marker="o", ms=5.5,
+    ax.plot(*zip(*scorecard_union), color=ACCENT, lw=1.8, marker="o", ms=6,
+            markeredgecolor=PAPER, markeredgewidth=1.4,
+            zorder=6, label="计分卡 · 联合口径出 PDF（模拟臂）")
+    ax.plot(*zip(*scorecard_clean), color=LINK, lw=1.8, marker="o", ms=6,
+            markeredgecolor=PAPER, markeredgewidth=1.4,
             zorder=5, label="计分卡 · 纯净率")
-    ax.plot(*zip(*bare), color=GRAY, lw=0, marker="s", ms=6.5,
+    ax.plot(*zip(*bare), color=SOFT, lw=1.1, ls=(0, (2, 2)), marker="s", ms=5.5,
+            markeredgecolor=PAPER, markeredgewidth=1.2,
             zorder=4, label="裸编译基线 · 联合口径出 PDF")
-    ax.plot(*zip(*real), color=CE, lw=0, marker="^", ms=8.5,
-            markeredgecolor="white", markeredgewidth=0.9,
-            zorder=6, label="真实臂 · 联合口径出 PDF")
+    ax.plot(*zip(*real), color=ACCENT, lw=0, marker="^", ms=8,
+            markerfacecolor=PAPER, markeredgecolor=ACCENT, markeredgewidth=1.6,
+            zorder=7, label="真实臂 · 联合口径出 PDF")
 
-    # M2 gate
-    ax.axhline(90, color=CD, lw=1.4, ls=(0, (5, 3)), zorder=2)
+    # M2 gate — threshold treatment (dashed hairline + label)
+    ax.axhline(90, color=MUTED, lw=1.1, ls=(0, (5, 3)), zorder=2)
     ax.text(d("2026-09-15") - dt.timedelta(days=0.15), 90.9, "M2 出口门 ≥90%",
-            color=CD, fontsize=9.5, ha="left", va="bottom", fontweight="bold")
+            color=MUTED, fontsize=9, ha="left", va="bottom", fontweight="bold")
 
-    # endpoint value labels
-    ax.annotate("98.75", (d("2026-09-19"), 98.75), xytext=(6, 5),
-                textcoords="offset points", color=CA, fontsize=10, fontweight="bold")
-    ax.annotate("88.75", (d("2026-09-19"), 88.75), xytext=(6, -2),
-                textcoords="offset points", color=CB, fontsize=10, fontweight="bold")
-    ax.annotate("90.2", (d("2026-09-19"), 90.2), xytext=(-8, 4),
-                textcoords="offset points", color="#6e6e6e",
-                fontsize=9.5, fontweight="bold", ha="right")
+    # endpoint value labels (selective: last point of each series)
+    ax.annotate("98.75", (d("2026-09-19"), 98.75), xytext=(7, 4),
+                textcoords="offset points", color=INK, fontsize=10.5,
+                fontweight="bold")
+    ax.annotate("88.75", (d("2026-09-19"), 88.75), xytext=(7, -3),
+                textcoords="offset points", color=INK, fontsize=10.5,
+                fontweight="bold")
+    ax.annotate("96.7", (d("2026-09-19"), 96.7), xytext=(8, -11),
+                textcoords="offset points", color=INK, fontsize=9,
+                fontweight="bold")
+    ax.annotate("90.2", (d("2026-09-19"), 90.2), xytext=(-2, 7),
+                textcoords="offset points", color=SOFT, fontsize=9,
+                fontweight="bold", ha="right")
 
     # milestone annotations
-    ax.annotate("修复循环接线\n+18.9pt（同集复跑）",
+    ax.annotate("修复循环接线 +18.9pt（同集复跑）",
                 xy=(d("2026-09-16") + dt.timedelta(days=0.55), 93.5),
-                xytext=(d("2026-09-15") + dt.timedelta(days=0.35), 96.8),
+                xytext=(d("2026-09-15") + dt.timedelta(days=0.15), 97.6),
                 fontsize=9, color=INK,
-                arrowprops=dict(arrowstyle="-|>", color="#777777", lw=1.1,
+                arrowprops=dict(arrowstyle="-|>", color=SOFT, lw=1.0,
                                 connectionstyle="arc3,rad=-0.18"))
     ax.text(d("2026-09-17") + dt.timedelta(days=0.12), 92.4, "波次战收残面",
-            fontsize=9, color="#555555", ha="left", va="center")
+            fontsize=9, color=MUTED, ha="left", va="center")
 
     # baseline drift honesty note
-    ax.annotate("基线自身亦 +19pt\n（离线宏包/工具链成熟）",
+    ax.annotate("基线自身亦 +19pt（离线宏包/工具链成熟）",
                 xy=(d("2026-09-19"), 90.2),
-                xytext=(d("2026-09-17") + dt.timedelta(days=0.45), 76.5),
-                fontsize=9, color="#6e6e6e",
-                arrowprops=dict(arrowstyle="-|>", color="#a5a5a5", lw=1.0,
+                xytext=(d("2026-09-17") + dt.timedelta(days=0.4), 76.0),
+                fontsize=9, color=MUTED,
+                arrowprops=dict(arrowstyle="-|>", color=SOFT, lw=1.0,
                                 connectionstyle="arc3,rad=0.2"))
 
     ax.set_ylim(52, 104)
-    ax.set_xlim(d("2026-09-14") - dt.timedelta(days=0.4), d("2026-09-19") + dt.timedelta(days=1.0))
+    ax.set_xlim(d("2026-09-14") - dt.timedelta(days=0.4),
+                d("2026-09-19") + dt.timedelta(days=1.0))
     ax.set_xticks([d(f"2026-09-{day}") for day in range(15, 20)])
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%m-%d"))
-    ax.set_ylabel("出 PDF / 纯净率 %", fontsize=10.5)
+    ax.set_ylabel("出 PDF / 纯净率 %", fontsize=10)
     ygrid(ax)
     despine(ax)
-    ax.tick_params(labelsize=9.5)
+    ax.tick_params(labelsize=9)
 
-    ax.legend(loc="lower right", fontsize=9, frameon=False, ncol=2,
-              columnspacing=1.4, handlelength=1.8, borderaxespad=0.1)
+    ax.legend(loc="lower right", fontsize=8.8, ncol=2,
+              columnspacing=1.3, handlelength=1.7, borderaxespad=0.1)
 
-    fig.text(0.008, 0.012,
-             "口径：计分卡为 stagerun 落盘记录在代码演进下的重评（loop1 n=5124 → loop2 n=5219 → v3all 跨层样本 n=80）；裸编基线为 compilebench 联合口径（n=180/5059/500）。",
-             fontsize=8, color="#8a8a8a")
-    fig.tight_layout(rect=(0, 0.035, 1, 1))
+    footnote(fig,
+             "口径：计分卡为 stagerun 落盘记录在代码演进下的重评（loop1 n=5124 → loop2 n=5219 → v3all 跨层样本 n=80）；\n"
+             "裸编基线为 compilebench 联合口径（n=180/5059/500）。",
+             rect=(0, 0.065, 1, 0.93))
     fig.savefig(OUT / "bench-timeline.png")
     plt.close(fig)
 
 
-# ============================== B1: pipeline vs bare compile ==============================
+# ============================== B1: pipeline vs bare compile (dumbbell) ==============================
 def fig_pipeline_vs_bare():
-    fig, ax = plt.subplots(figsize=(8.6, 4.4), dpi=200)
+    fig, ax = plt.subplots(figsize=(9.8, 4.2), dpi=200)
+    eyebrow(fig, "TEXLATE · PIPELINE vs BARE COMPILE")
 
-    groups = [("xelatex", "纯净率", 56.3, 72.4), ("xelatex", "出 PDF 率", 80.3, 85.4),
-              ("tectonic", "纯净率", 38.6, 45.7), ("tectonic", "出 PDF 率", 62.4, 59.8)]
-    x = list(range(len(groups)))
-    w = 0.36
-    base = [g[2] for g in groups]
-    zh = [g[3] for g in groups]
+    # (label, bare, zh)
+    rows = [
+        ("xelatex · 纯净率", 56.3, 72.4),
+        ("xelatex · 出 PDF 率", 80.3, 85.4),
+        ("tectonic · 纯净率", 38.6, 45.7),
+        ("tectonic · 出 PDF 率", 62.4, 59.8),
+    ]
+    ys = [3, 2, 1, 0]
 
-    b1 = ax.bar([i - w / 2 for i in x], base, width=w, color="#9d9d9d",
-                label="裸编译基线", zorder=3)
-    b2 = ax.bar([i + w / 2 for i in x], zh, width=w, color=CA,
-                label="中文链（规范化 + ctex 注入后）", zorder=3)
+    for y, (name, b, z) in zip(ys, rows):
+        ax.plot([b, z], [y, y], color=DIM, lw=2.2,
+                zorder=2, solid_capstyle="round")
+        ax.plot(b, y, "o", color=SOFT, ms=8, markeredgecolor=PAPER,
+                markeredgewidth=1.5, zorder=4)
+        ax.plot(z, y, "o", color=ACCENT, ms=8, markeredgecolor=PAPER,
+                markeredgewidth=1.5, zorder=5)
+        lo, hi = (b, z) if b < z else (z, b)
+        # value labels on the outer side of each dot
+        ax.text(lo - 1.6, y, f"{min(b, z)}", ha="right", va="center",
+                fontsize=9.5, color=MUTED if min(b, z) == b else INK,
+                fontweight="normal" if min(b, z) == b else "bold")
+        ax.text(hi + 1.6, y, f"{max(b, z)}", ha="left", va="center",
+                fontsize=9.5, color=MUTED if max(b, z) == b else INK,
+                fontweight="normal" if max(b, z) == b else "bold")
+        delta = z - b
+        dtxt = f"+{delta:.1f}pt" if delta > 0 else f"{delta:.1f}pt"
+        ax.text(103, y, dtxt, ha="right", va="center", fontsize=10.5,
+                color=ACCENT if delta > 10 else INK,
+                fontweight="bold")
 
-    for bars, vals in ((b1, base), (b2, zh)):
-        for rect, v in zip(bars, vals):
-            ax.text(rect.get_x() + rect.get_width() / 2, v + 1.6, f"{v}",
-                    ha="center", va="bottom", fontsize=9.5,
-                    color="#5f5f5f" if bars is b1 else CA,
-                    fontweight="bold" if bars is b2 else "normal")
+    ax.set_yticks(ys)
+    ax.set_yticklabels([r[0] for r in rows], fontsize=10.5, color=INK)
+    ax.axhline(1.5, color=GRID, lw=0.8, zorder=1)
 
-    # +16.1pt bracket on group 0 — stubs stop just above each bar's value label
-    y0 = 80
-    ax.plot([-w / 2, -w / 2], [base[0] + 6, y0], color=CB, lw=1.1, zorder=4)
-    ax.plot([w / 2, w / 2], [zh[0] + 5.5, y0], color=CB, lw=1.1, zorder=4)
-    ax.plot([-w / 2, w / 2], [y0, y0], color=CB, lw=1.1, zorder=4)
-    ax.text(0, y0 + 1.8, "+16.1pt", ha="center", va="bottom",
-            color=CB, fontsize=11, fontweight="bold", zorder=4)
+    ax.set_xlim(0, 105)
+    ax.set_ylim(-0.7, 3.7)
+    ax.set_xticks([0, 20, 40, 60, 80, 100])
+    ax.set_xlabel("%", fontsize=10)
+    ax.grid(axis="x", color=GRID, linewidth=0.8)
+    ax.set_axisbelow(True)
+    despine(ax, keep=("bottom",))
+    ax.tick_params(axis="x", labelsize=9)
+    ax.tick_params(axis="y", length=0)
 
-    # union-pdf reference line (bare arm, best-of-two-engines)
-    ax.axhline(90.4, color=CD, lw=1.3, ls=(0, (5, 3)), zorder=2)
-    ax.text(3.62, 90.4, "裸编双引擎\n联合口径 90.4%", color=CD, fontsize=8.8,
-            ha="left", va="center", linespacing=1.3)
+    handles = [
+        Line2D([0], [0], marker="o", color="none", markerfacecolor=SOFT,
+               markeredgecolor=PAPER, markeredgewidth=1.2, ms=8,
+               label="裸编译基线"),
+        Line2D([0], [0], marker="o", color="none", markerfacecolor=ACCENT,
+               markeredgecolor=PAPER, markeredgewidth=1.2, ms=8,
+               label="中文链（规范化 + ctex 注入后）"),
+    ]
+    ax.legend(handles=handles, loc="lower left", bbox_to_anchor=(0.0, 1.0),
+              ncol=2, fontsize=9.5, columnspacing=1.6, handlelength=1.0)
 
-    ax.set_xticks(x)
-    ax.set_xticklabels([g[1] for g in groups], fontsize=10)
-    # engine group labels — second row, centered under each pair
-    for cx, name in ((0.5, "xelatex"), (2.5, "tectonic")):
-        ax.text(cx, -17, name, ha="center", va="top", fontsize=10.5,
-                color="#444444", fontweight="bold")
-    ax.plot([], [])  # keep layout
-    for sep in (1.5,):
-        ax.axvline(sep, color="#d5d5d5", lw=0.9, zorder=1)
-
-    ax.set_ylim(0, 104)
-    ax.set_xlim(-0.62, 3.62)
-    ax.set_ylabel("%", fontsize=10.5)
-    ygrid(ax)
-    despine(ax)
-    ax.tick_params(axis="x", pad=7, length=0)
-    ax.legend(loc="lower left", bbox_to_anchor=(0.0, 1.005), ncol=2,
-              fontsize=9.5, frameon=False, columnspacing=1.6, handlelength=1.6)
-
-    fig.text(0.008, 0.012,
-             "compilebench 500 格抽样：同一批源包，裸编对照 vs 产品链（规范化 + ctex 中文注入）条件。规范化顺带修复源级缺陷——中文臂纯净率不降反升。",
-             fontsize=8, color="#8a8a8a")
-    fig.tight_layout(rect=(0, 0.055, 1, 1))
+    footnote(fig,
+             "compilebench 500 格抽样：同一批源包，裸编对照 vs 产品链（规范化 + ctex 中文注入）条件。\n"
+             "规范化顺带修复源级缺陷——中文臂纯净率不降反升；裸编双引擎联合口径出 PDF 90.4%。",
+             rect=(0, 0.07, 1, 0.93))
     fig.savefig(OUT / "bench-pipeline-vs-bare.png")
     plt.close(fig)
 
 
 # ============================== B2: 8-library parse comparison ==============================
 def fig_parse_libs():
-    fig, ax = plt.subplots(figsize=(9.8, 5.2), dpi=200)
+    fig, ax = plt.subplots(figsize=(9.8, 5.4), dpi=200)
+    eyebrow(fig, "TEXLATE · PARSEBENCH 8-LIB")
 
     # (name, pass, partial, total, note)
     scored = [
@@ -219,67 +343,78 @@ def fig_parse_libs():
         ("LaTeX.js (TS)", "无宏展开，非真 TeX"),
     ]
 
+    fig.canvas.draw()
+    rx, ry = _px_to_data(ax, 3.5)
+
     n_scored = len(scored)
-    # scored rows y = 9..5, section header at y=4, unscoreable y = 3..0
     ys_scored = list(range(9, 9 - n_scored, -1))
     ys_unsc = list(range(3, 3 - len(unscoreable), -1))
-    barh = 0.56
+    barh = 0.52
+    gap, _ = _px_to_data(ax, 2)
 
     for y, (name, p, part, tot, note) in zip(ys_scored, scored):
-        pct = 100.0 * (p + part) / tot
-        ax.add_patch(Rectangle((0, y - barh / 2), 100, barh,
-                               facecolor=TRACK, edgecolor="none", zorder=1))
-        c_main = CA if tot == 32 else "#7fa8cc"
-        ax.barh(y, 100 * p / tot, height=barh, color=c_main, zorder=3)
+        is_self = tot == 32
+        track = ACCENT_TRACK if is_self else RAIL
+        fill = ACCENT if is_self else MUTED
+        pfill = ACCENT_PART if is_self else SLATE_PART
+        p_pct, part_pct = 100 * p / tot, 100 * part / tot
+        hbar_rail(ax, 0, 100, y, barh, rx, ry, track, zorder=1)
+        end = p_pct + part_pct
         if part:
-            ax.barh(y, 100 * part / tot, left=100 * p / tot, height=barh,
-                    color="#c7d6e5", zorder=3)
+            hbar_end(ax, p_pct + gap / 2, end, y, barh, rx, ry, pfill, zorder=3)
+        hbar_rail(ax, 0, p_pct, y, barh, rx, ry, fill, zorder=3)
         lbl = f"{p}(+{part})/{tot}" if part else f"{p}/{tot}"
-        ax.text(97.6, y, lbl, fontsize=9.5, va="center", ha="right",
-                color="white" if tot == 32 else INK,
-                fontweight="bold" if tot == 32 else "normal", zorder=5)
-        ax.text(0.8, y, name, fontsize=10, va="center", ha="left",
-                color=INK, fontweight="bold" if tot == 32 else "normal", zorder=6,
-                bbox=dict(facecolor="white", edgecolor="none", alpha=0.85, pad=1.2))
-        ax.text(103.5, y, note, fontsize=8.8, va="center", ha="left", color="#8a8a8a")
+        ax.text(p_pct - 1.8, y, lbl, fontsize=9.5, va="center", ha="right",
+                color="white",
+                fontweight="bold" if is_self else "normal", zorder=5)
+        ax.text(1.2, y, name, fontsize=10, va="center", ha="left",
+                color=INK, fontweight="bold" if is_self else "normal",
+                zorder=6,
+                bbox=dict(facecolor=PAPER, edgecolor="none",
+                          alpha=0.92, pad=1.4))
+        ax.text(103.5, y, note, fontsize=8.8, va="center", ha="left",
+                color=SOFT)
 
     # section divider + header for the unscoreable group
-    ax.axhline(4.55, color="#c9c9c9", lw=0.9, ls=(0, (2, 2)))
-    ax.text(0.8, 4.0, "无法计分（机制性失败，非断言数不足）",
-            fontsize=8.8, color="#8a8a8a", va="center", style="italic")
+    ax.axhline(4.55, color=GRID, lw=0.9, ls=(0, (2, 2)))
+    ax.text(1.2, 4.0, "无法计分（机制性失败，非断言数不足）",
+            fontsize=8.8, color=SOFT, va="center", style="italic")
 
     for y, (name, note) in zip(ys_unsc, unscoreable):
-        ax.text(0.8, y, name, fontsize=10, va="center", ha="left", color="#555555")
-        ax.text(34, y, "× " + note, fontsize=9.2, va="center", ha="left", color="#a0483c")
+        ax.text(1.2, y, name, fontsize=10, va="center", ha="left", color=MUTED)
+        ax.text(34, y, "×", fontsize=10.5, va="center", ha="left",
+                color=CRIT, fontweight="bold")
+        ax.text(36.5, y, note, fontsize=9.2, va="center", ha="left", color=MUTED)
 
     # T01 moat annotation
-    ax.text(50, -1.15, "宏展开陷阱 T01（\\be→\\begin{equation}）：八库全灭，唯自研通过",
-            fontsize=10, color=CB, ha="center", fontweight="bold")
+    ax.text(50, -1.35,
+            "宏展开陷阱 T01（\\be→\\begin{equation}）：八库全灭，唯自研通过",
+            fontsize=10, color=INK, ha="center", fontweight="bold")
 
     ax.set_xlim(0, 100)
-    ax.set_ylim(-1.7, 9.7)
+    ax.set_ylim(-2.6, 9.7)
     ax.set_yticks([])
     ax.set_xlabel("陷阱断言通过率（过 + 半过 / 断言数）%", fontsize=10)
     ax.xaxis.set_major_formatter(lambda v, _: f"{v:.0f}")
-    ax.grid(axis="x", color="#c9c9c9", alpha=0.45, linewidth=0.7)
+    ax.grid(axis="x", color=GRID, linewidth=0.8)
     ax.set_axisbelow(True)
     despine(ax, keep=("bottom",))
-    ax.tick_params(axis="x", labelsize=9.5)
+    ax.tick_params(axis="x", labelsize=9)
 
-    # legend for pass/partial
     handles = [
-        Rectangle((0, 0), 1, 1, facecolor=CA, label="断言通过"),
-        Rectangle((0, 0), 1, 1, facecolor="#c7d6e5", label="半过"),
-        Rectangle((0, 0), 1, 1, facecolor=TRACK, label="失败/未过"),
+        Rectangle((0, 0), 1, 1, facecolor=ACCENT, label="通过 · 自研"),
+        Rectangle((0, 0), 1, 1, facecolor=MUTED, label="通过 · 第三方"),
+        Rectangle((0, 0), 1, 1, facecolor=SLATE_PART, label="半过"),
+        Rectangle((0, 0), 1, 1, facecolor=RAIL, label="失败/未过"),
     ]
-    ax.legend(handles=handles, loc="lower right", fontsize=9, frameon=False,
-              ncol=3, bbox_to_anchor=(1.0, -0.02), handlelength=1.4,
+    ax.legend(handles=handles, loc="lower right", fontsize=9,
+              ncol=4, bbox_to_anchor=(1.0, 0.0), handlelength=1.3,
               columnspacing=1.2)
 
-    fig.text(0.008, 0.012,
-             "D0 八库横评（corpus39 256 文件 + fixtures 断言集，同口径 PROTOCOL）：第三方断言集 25–26 条；自研 32 条全过。pylatexenc 式「无错误信号的静默截断」比崩溃更危险——校验器因此独立成臂。",
-             fontsize=8, color="#8a8a8a")
-    fig.tight_layout(rect=(0, 0.04, 1, 1))
+    footnote(fig,
+             "D0 八库横评（corpus39 256 文件 + fixtures 断言集，同口径 PROTOCOL）：第三方断言集 25–26 条；自研 32 条全过。\n"
+             "pylatexenc 式「无错误信号的静默截断」比崩溃更危险——校验器因此独立成臂。",
+             rect=(0, 0.065, 1, 0.93))
     fig.savefig(OUT / "bench-parse-libs.png")
     plt.close(fig)
 
@@ -288,164 +423,38 @@ def fig_parse_libs():
 def fig_assets():
     days = ["09-14", "09-15", "09-16", "09-17", "09-18", "09-19"]
     panels = [
-        ("pytest 用例", [0, 798, 1920, 4333, 5261, 6450], CA),
-        ("修复规则", [0, 31, 50, 71, 106, 143], CB),
-        ("源码文件", [0, 72, 89, 174, 355, 425], CE),
-        ("评测语料（篇）", [39, 1378, 5410, 5410, 5410, 13266], CD),
+        ("pytest 用例", [0, 798, 1920, 4333, 5261, 6450]),
+        ("修复规则", [0, 31, 50, 71, 106, 143]),
+        ("源码文件", [0, 72, 89, 174, 355, 425]),
+        ("评测语料（篇）", [39, 1378, 5410, 5410, 5410, 13266]),
     ]
-    fig, axes = plt.subplots(2, 2, figsize=(9.4, 4.6), dpi=200)
+    fig, axes = plt.subplots(2, 2, figsize=(9.4, 4.8), dpi=200)
+    eyebrow(fig, "TEXLATE · BENCH ASSETS")
     x = range(len(days))
-    for ax, (title, vals, color) in zip(axes.flat, panels):
-        ax.bar(x, vals, width=0.6, color=color, alpha=0.85, zorder=3)
+    for ax, (title, vals) in zip(axes.flat, panels):
+        ax.set_xlim(-0.6, len(days) - 0.4)
+        ax.set_ylim(0, max(vals) * 1.25)
+        fig.canvas.draw()
+        rx, ry = _px_to_data(ax, 2.5)
+        for xi, v in zip(x, vals):
+            if v > 0:
+                vbar_top(ax, xi, v, 0.58, rx, ry, ACCENT, zorder=3)
         last = vals[-1]
-        ax.text(len(days) - 1, last, f"{last:,}",
-                ha="right", va="bottom", fontsize=11.5, fontweight="bold",
-                color=color)
-        ax.set_title(title, fontsize=11, pad=4)
+        ax.text(len(days) - 1, last * 1.045, f"{last:,}",
+                ha="right", va="bottom", fontsize=13, fontweight="bold",
+                color=INK)
+        ax.set_title(title, fontsize=11, pad=5, color=INK, loc="left",
+                     fontweight="bold")
         ax.set_xticks(list(x))
         ax.set_xticklabels([d[3:] for d in days], fontsize=8.5)
-        ax.set_ylim(0, last * 1.2)
         ax.set_yticks([])
         despine(ax, keep=("bottom",))
         ax.tick_params(length=0)
-    fig.suptitle("六天评测资产增长（09-14 → 09-19）", fontsize=12.5,
-                 fontweight="bold", y=0.985)
-    fig.text(0.008, 0.012,
-             "同日口径抽样自 git 历史：规则库为 16 分片 yaml；语料为 corpus_v3 钉版层累加（另 corpus_daily 日更渠 ~1,200 篇/日在库外增长）。",
-             fontsize=8, color="#8a8a8a")
-    fig.tight_layout(rect=(0, 0.045, 1, 0.95), h_pad=1.8, w_pad=2.0)
+    footnote(fig,
+             "同日口径抽样自 git 历史（2026-09-14 → 09-19）：规则库为 16 分片 yaml；\n"
+             "语料为 corpus_v3 钉版层累加（另 corpus_daily 日更渠 ~1,200 篇/日在库外增长）。",
+             rect=(0, 0.065, 1, 0.9))
     fig.savefig(OUT / "bench-assets.png")
-    plt.close(fig)
-
-
-# ============================== pipeline flowchart ==============================
-def fig_pipeline():
-    fig, ax = plt.subplots(figsize=(12.6, 6.3), dpi=200)
-    ax.set_xlim(0, 140)
-    ax.set_ylim(0, 72)
-    ax.axis("off")
-
-    def stage(x, w, title, items, h=30, y=34, title_c=CA):
-        ax.add_patch(FancyBboxPatch(
-            (x, y), w, h, boxstyle="round,pad=0.6,rounding_size=1.6",
-            facecolor="white", edgecolor="#b9c6d2", lw=1.2, zorder=3))
-        ax.add_patch(FancyBboxPatch(
-            (x, y + h - 5.2), w, 5.2, boxstyle="round,pad=0.6,rounding_size=1.6",
-            facecolor=title_c, edgecolor="none", zorder=4))
-        ax.add_patch(Rectangle((x, y + h - 5.2), w, 2.2,
-                               facecolor=title_c, edgecolor="none", zorder=4))
-        ax.text(x + w / 2, y + h - 2.6, title, ha="center", va="center",
-                fontsize=10.5, fontweight="bold", color="white", zorder=5)
-        for i, it in enumerate(items):
-            ax.text(x + 1.5, y + h - 8.3 - i * 3.35, it, ha="left", va="center",
-                    fontsize=8.6, color=INK, zorder=5)
-        return (x, y, w, h)
-
-    def arrow(x1, x2, y=49, color="#8a8a8a", lw=1.6):
-        ax.annotate("", xy=(x2, y), xytext=(x1, y),
-                    arrowprops=dict(arrowstyle="-|>", color=color, lw=lw))
-
-    # ---- main chain ----
-    stage(1.5, 15.5, "fetch 获取", [
-        "arXiv ID → e-print",
-        "版本四元组钉版",
-        "源包缓存 ~/.cache",
-        "解压源树",
-    ])
-    stage(21.5, 19.5, "parse 半解析", [
-        "main.tex 定位",
-        "多文件合平 flatten",
-        "gullet 展开机·宏表",
-        "segmenter 切分 pieces",
-        "译段 + 占位符保护",
-        "→ chunks.jsonl",
-    ])
-    stage(45.5, 18.5, "xlat 翻译", [
-        "段级并发编排",
-        "LLM 网关 BYOK",
-        "mock 假译臂自检",
-        "SQLite 段缓存",
-    ])
-    stage(68.5, 15, "inject 注入", [
-        "译文回填 pieces",
-        "ctex 中文环境",
-        "normalize 规范化",
-        "路由预检·引擎分流",
-    ])
-    stage(88, 19, "compile 编译", [
-        "xelatex / tectonic",
-        "沙箱 ≤2 轮·240s",
-        "texlog 日志栈解析",
-        "fixloop: taxonomy",
-        "→ yaml 规则·重试",
-    ])
-    stage(111.5, 14.5, "judge 判定", [
-        "纯净/带瑕/失败",
-        "CJK 字数核验",
-        "named-dest 锚点",
-        "→ 双语 PDF",
-    ])
-    stage(130.5, 9.5, "web 阅读", [
-        "SSE 进度",
-        "锚点同步",
-        "滚动对照",
-    ], title_c=CD)
-
-    for x1, x2 in [(17, 21.5), (41, 45.5), (64, 68.5), (83.5, 88), (107, 111.5), (126, 130.5)]:
-        arrow(x1, x2)
-
-    # ---- fixloop feedback arc: judge fail -> back into compile ----
-    ax.annotate("", xy=(97.5, 33.4), xytext=(118.5, 33.4),
-                arrowprops=dict(arrowstyle="-|>", color=CB, lw=1.5,
-                                connectionstyle="arc3,rad=0.35"))
-    ax.text(108, 27.5, "失败格 → fixloop 修复 → 重编译", ha="center",
-            fontsize=8.8, color=CB)
-
-    # ---- fallback chain (dashed, under fetch/parse) ----
-    ax.add_patch(FancyBboxPatch(
-        (1.5, 15.5), 41.5, 12.5, boxstyle="round,pad=0.6,rounding_size=1.6",
-        facecolor="#fafafa", edgecolor="#a08a5a", lw=1.1, ls=(0, (4, 3)), zorder=2))
-    ax.text(3.2, 25.3, "降级链（无 LaTeX 源时）", fontsize=8.8, color="#8a6d00",
-            fontweight="bold")
-    ax.text(3.2, 21.6, "e-print 无源 → arXiv HTML（同覆盖异构）",
-            fontsize=8.6, color="#6b5d3a")
-    ax.text(3.2, 18.1, "→ 仅 PDF → BabelDOC sidecar（AGPL 隔离）",
-            fontsize=8.6, color="#6b5d3a")
-    ax.annotate("", xy=(9, 33.4), xytext=(9, 28.4),
-                arrowprops=dict(arrowstyle="-|>", color="#a08a5a", lw=1.2,
-                                ls=(0, (4, 3))))
-
-    # ---- validators chip (under xlat) ----
-    ax.add_patch(FancyBboxPatch(
-        (45.5, 17.5), 37, 9.5, boxstyle="round,pad=0.6,rounding_size=1.6",
-        facecolor="#f4f0f8", edgecolor=CE, lw=1.1, zorder=2))
-    ax.text(47.2, 24.4, "校验器（独立成臂）", fontsize=8.8, color=CE, fontweight="bold")
-    ax.text(47.2, 20.2, "L0 占位符多重集 diff·brace/env/cite-key；L1 tree-sitter", fontsize=8.4,
-            color="#5b4a70")
-    ax.annotate("", xy=(55, 33.4), xytext=(55, 27.8),
-                arrowprops=dict(arrowstyle="-|>", color=CE, lw=1.2))
-
-    # ---- bench badges along the bottom ----
-    badges = [
-        (9.2, "corpus_v3\n13,266 篇·8 层钉版"),
-        (31, "parsebench\n一致率 99.99%·泄漏 0.004%"),
-        (54.5, "xlat/qualbench\n硬契约 93.7%·ESA 94.0"),
-        (77.5, "validbench\n1,503 对·100% 检出"),
-        (97.5, "compilebench\n联合出 PDF 90.4%"),
-        (118.5, "e2e/stagerun\n98.75%·0 引入回归"),
-    ]
-    for cx, txt in badges:
-        w = 17.4
-        ax.add_patch(FancyBboxPatch(
-            (cx - w / 2, 3.5), w, 9.5, boxstyle="round,pad=0.5,rounding_size=1.4",
-            facecolor="#f2f2f2", edgecolor="#c9c9c9", lw=0.9, zorder=2))
-        ax.text(cx, 8.25, txt, ha="center", va="center", fontsize=8,
-                color="#5a5a5a", linespacing=1.45)
-
-    fig.text(0.5, 0.975, "texlate 管线与评测对应关系",
-             ha="center", fontsize=12.5, fontweight="bold")
-    fig.tight_layout(rect=(0, 0.005, 1, 0.955))
-    fig.savefig(OUT / "bench-pipeline.png")
     plt.close(fig)
 
 
@@ -454,5 +463,4 @@ if __name__ == "__main__":
     fig_pipeline_vs_bare()
     fig_parse_libs()
     fig_assets()
-    fig_pipeline()
     print("wrote:", *sorted(p.name for p in OUT.glob("bench-*.png")), sep="\n  ")
