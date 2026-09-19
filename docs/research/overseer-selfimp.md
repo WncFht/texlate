@@ -1522,3 +1522,164 @@
 - **residchk 续派 texmfrecheck**（#284，复用引擎接线上下文）：8 残留格跑 FULL fixloop——covered ≠ verified，验证 pdftex_prim×4（含 axessibility.sty:349 texmf-dist 内站点，#113 widened 恰为此形）/hyperref_driver×2/minted_frozencache×1 真触发翻转；doc-font×1 预期 decline 不白烧。不触发=condition-gap 报 file:line。
 - **Roster 10**: flipcheck11/csfix7/routeclean/singlesweep/docabsent/pdfbytes/mainrelcen/warnveto/soakmine2-partdisp/texmfrecheck-residchk。
 - **门**: ①-⑤ 维持；HEAD=1251b2eb；无 teammate git 越权。
+
+### patrol ~02:35 — peer 3 commits 落地（web/docs/gitignore 域）；ruleset strict 绿
+
+- **HEAD eac3b852**（peer）：feat(web) tasks/discover+select popup+tasklist rework、docs metrics refs refresh、gitignore corpus_daily 覆盖——全 peer 域，零 fixloop/rules/tests 触碰，gate 面无影响。本家 1251b2eb 落后 3 commit 无 rebase 需要。
+- **Batches**: 无在飞（texmfrecheck run.log 01:41 是完结批的边界 stat）。**Deliveries**: 无新 report.md。
+- **MM 状态注记**: 90-shim-legacy.yaml + 4 arxiv/e2e test 现 index+worktree 双改——peer git add 扫到在飞件的正常共享 index 污染；私 index 提交走 worktree 内容不受影响。
+- **Ruleset.load strict 162 rules 绿**——routeclean 在飞 yaml 编辑中态合法。
+- **Roster 10 全 running**: flipcheck11(24m)/csfix7/routeclean/singlesweep/docabsent/texmfrecheck-residchk/pdfbytes/mainrelcen/warnveto/soakmine2-partdisp。
+- **门**: ①-⑤ 维持；无 teammate git 越权；clean% 待 flipcheck11。
+
+### patrol ~02:45 — warnveto 交付：warn-only partial 占 partials 65%，missing_chars 占 92% —— 裁决输入就绪
+
+- **warnveto #282 交付**（tmp/lane-warncen/）：130 jsonl/208k verdict 行 → dedup 42k → latest-per-cell 13,813 格。partial 1,945 中 **warn-only 1,259（65%）= 全格 9.1%**；zh 147（零错 warn-only 115，~5 acmart 裁决格在此集）。top 信号 missing_chars 族 1,156 / invalid_utf8 308 / fffd_glyph 213。
+- **判读（lane 推荐，leader 复核同意）**：blanket footnote 会放走 1,259 格，但 **92% 携 missing_chars = 真内容丢失**（zh 臂掉 CJK 字形即 hep-th tofu 教训本体的同一信号——tofu_veto 刚为它立 veto）。**建议分裂政策：missing_chars 在 zh 臂保持 blocking；invalid_utf8/fffd_glyph 可 footnote**——翻 ~16 zh + 数百 base。→ 裁决输入 #7 就绪待用户定夺。
+- **副产出**：warn:missing_chars（引擎红线扫）与 missing_character×N（zh 臂 judge 门）双计同一 log 行——reason 归因面轻度重复记账，非错但影响统计口径。
+- **关 warnveto**（交付落盘）。**Roster 9**：flipcheck11/csfix7/routeclean/singlesweep/docabsent/pdfbytes/mainrelcen/soakmine2-partdisp/texmfrecheck-residchk。
+- **门**: ①-⑤ 维持；HEAD=eac3b852（peer）；无 teammate git 越权。
+
+### patrol ~02:55 — partdisp 波毕：4/4 partial 翻 clean 零回退；kvcen 新派补 roster 10
+
+- **partdisp 波毕**（run.log 全绿面）：4/4 partial 全部翻转——1705.05733 verdate_pad 真触发 rounds=2→clean（covered-undispatched 假说坐实）、1708.07366/2002.05660/0812.4521 经 precheck 链+missing_char_fix→acceptable_pdf-clean；**floor_restored=0 regressed=0**——历史 partial→fail 事故未复现。astro-ph/9702045 reject→fail `reject:latex209_upgrade`——升级臂真触发但 lamuphys \documentstyle 属不可转形态，拒收归因细化（设计语义保全）。**裁决输入 #6 实质就绪：--on nonclean 默认值现安全可荐**（floor 护栏工作）。
+- **工作区在飞面**：_builtins_shim.py/builtins.py/30-route/40-install/45-graphics/aa.cls/test_bench_regression/test_catcode_scope/test_latex_audit 新增 M——routeclean(shim 域)+docabsent(vendor)+pin tests 领地内，收割时逐 hunk 归因。
+- **keyval 缝内联普查 → 新 lane**：smk 单格 `Package keyval Error` 落 `other|None` 不可 dispatch——扫 archive+work 全量账得 **33 格**携此 phrasing（部分即 zh 臂这是译文 machine-arg leak 的不可派发面）。派 **kvcen #285** 分桶：sole-sig vs 伴随/zh-leak vs source-side/覆盖度，荐 keyval_error taxonomy+arm 是否过 ≥3 bar。
+- **Roster 10**: flipcheck11/csfix7/routeclean/singlesweep/docabsent/pdfbytes/mainrelcen/soakmine2-partdisp(收尾)/texmfrecheck-residchk/kvcen。
+- **门**: ①-⑤ 维持；HEAD=eac3b852；无 teammate git 越权；clean% 待 flipcheck11。
+
+### patrol ~03:05 — singlesweep 收割派 6 impl lane；partdisp 细报推翻 #6 乐观判；residchk 零缝；EDQUOT 瞬断
+
+- **⚠ #6 裁决输入反转**：partdisp 细报揭示 fake-clean 类——1708.07366 partial→clean 但 PDF 45p→8p 截断（slot_arg_revert `\eda` 宏体 keyval 这是译文 leak 非机器槽位=覆盖缝）；2002.05660 经 halt_on_error 测量不对称"改善"（fixloop 首错即停 vs compile 臂全扫）。**`--on nonclean` 非无条件安全 → 闸于 #10 acceptable_pdf 语义裁决**（pgdrop 喂 blast radius+gate 设计）。更正 02:55 的乐观判。
+- **singlesweep #277 收割**（tmp/lane-singlesweep/{census.md,mech_buckets.json,singles.json,evidence.json}）：156 ≤2 singles → 40 机制；**13 个 ≥3-bar 实装面机制 ~110 格**：era-cls-absent-vendor(21)/aux-malformed-scaneof(11)/undefined-cs-polyfill(10)/obsolete-sty-absent(8)/pdftex-prim-under-xetex(8)/font-not-installed(7)/babel-ldf-absent(7 replay-only)/mislabeled-raster-as-pdf(6)/para-ended-nonlong-cs(6)/workdir-layout-miss(5)/pdftex-gated-codepath(4)/fontenc-def-absent(3)/killed-process-semantics(4)。非目标：upstream-asset-absent(21)/texlive-midinstall-drift(14)。
+- **dispatch 波**：scaneof→singlesweep 复用（65-encoding aux_purge_regen）、mainrelfix→mainrelcen 复用（find_main_tex sort-tail：supp-penalty+depth-scoped name-pref，验收=1234 树恰好 4 翻且 name-pref 救的 11 格不动）、eracls(vendor .cls stub)、pdfprim(55-prim payload+\pdfoutput=0 门——zh 臂 `\pdfoutput=1` 翻 \ifpdf 致 hyperref[pdftex] 错驱动 0712.1016)、fontfb(60-misschar font_fallback+fontenc-def)、rasterpdf(45-graphics magic-byte sniff——注意该 shard 有 peer 机械改写，hunk 须内容可分)、pgdrop(#10 输入)、watchimpl 第 4 项追加 xdvipdfmx-TFM 分类缝。held：layoutmiss 待 docabsent 40-install 交付+babel-ldf/drift 待下波 replay。
+- **residchk #284 交付**：**零 condition-gap**——8 格全覆盖族真触发：2609.18259 五轮链→clean（pdftex_prim texmf-dist 站 #113 臂+glyph_shadow+misschar）、2308.04192/2308.00056→clean（hyperref_driver_neutralize）、2603.15031→clean（minted_frozencache）。**新未盖族**：`xdvipdfmx:fatal: Unable to find TFM` 文档自带私有字体（2606.02800 NVIDIASans_It/2504.05118 bytesans）——taxonomy missing_tfm 不映射此 phrasing→cat=other；install_tfm 路由错（tfm 在 doc 树、字体非 CTAN）。候选：fileset *.tfm→root relocate 或 TFMFONTS env。
+- **⚠ 基建事故+恢复**：~03:00-03:10 /tmp usrquota tmpfs EDQUOT 复发——全会话 Bash 全灭 exit 1（连 echo 都不起，harness 写不了命令脚本），Read/Edit/Write 正常。13 lane 广播"Read/Write 续走、验证标 UNVERIFIED"；~03:15 自愈（13G 空闲）已撤回报。flipcheck11 replay 被抓到前台跑死（62/106 records，无 run.log 无活进程）——令其 setsid 脱管续剩 44 格。
+- **关 texmfrecheck**（residchk 交付落盘）。**Roster ~15**：flipcheck11/csfix7/docabsent/routeclean/pdfbytes/mainrelcen-mainrelfix/kvcen/singlesweep-scaneof/eracls/pdfprim/fontfb/rasterpdf/watchimpl/pgdrop + soakmine2(收尾)。
+- **门**: ①-⑤ 维持；HEAD=eac3b852；无 teammate git 越权；clean% 待 flipcheck11 续跑。
+
+### patrol ~03:35 — 收割潮毕 10 commits 落地（f0197090→ca12afa7）；flipcheck11 门全绿；roster 削至 4
+
+- **Harvest 波全落地**（私 index 逐 lane 归因提交）：f0197090 csfix7 polyfill +3（z/oldcr/refpar）、1f812b07 docabsent stub+fileset_relocate tree-mirror、cecab364 mainrelfix（find_main_tex aux-demote+depth-scoped name-pref）、9c862170 routeclean（30 死 shim_map slot→vendored_fetch 路由，90-shim-legacy.yaml −837，jabbrv ldf vendor 3 件）、c1e36588 rasterpdf（_RASTER_MAGICS magic-byte sniff）、b52a81ff cjkchar（cjk_env_relax+invalid_char taxonomy）、21296215 eracls（aaai23.sty stub）、c0cf7d1f breakurl（ifpdf_hook AddToHook 对）、e006032a paralong pins、ca12afa7 scaneof（aux_purge_regen 3-arm+payload_purge_cs allowlist）。L0 门：committed 测试面 57/57 绿；Ruleset.load strict 绿贯穿。
+- **flipcheck11 完结**：sabotage 32/32 clean（门④ escaped=0）；目标格翻转全 good、零 clean→nonclean 负翻（门③⑤过）；latex209_upgrade 20/21 clean。replay-mutex 窗口关闭——fraginject 可派。
+- **#10 裁决输入双臂就绪**：pgdrop（463 improved runs/226 ids 判于截断 halt_on_error log；真截断 2：1708.07366 45→8p、0905.1202 43→18p；Guard A=log_truncated 阻 clean/acceptable 晋级、Guard B=content-ratio<0.5×floor→dirty_pdf）+ pdfbytes（2609.19579 anomaly=同 splice 两次编译相隔 22min——zh 臂 xelatex FORMAT UNDUMP 死 rc=1 faithful vs fixloop 重编 9 页 clean；真缝=observability：stdout_tail 未持久化、be05c287 早于 _driver_fatal/_salvage_driver_fatal）。→ 待用户裁决，不自定。
+- **kvcen 结论**：NO keyval_error taxonomy class——33 格普查 3 残留×3 机制 < ≥3 bar。micro-fixes 已续派 kvcen（inferrule→slotrev kv 白名单；psfig rheight→height 修进 vendored vendor/files/psfig.sty——post-routeclean 落点修正）。
+- **watchimpl 收关**：mech_buckets watch 三件全落地（nonlong-cs 验证零新代码、breakurl hook、cjkchar taxonomy+arm）。
+- **filtered-blob 教训三条**（复用级）：①leak-check 断言须打在 lane 的 ADDED 行而非 HEAD 已存名（invalid_char 在 HEAD:357 已存、_corrupt_intermediate 是 purge_corrupt_intermediates 子串、TRANSFORM_FNS 行名出现两次/行）；②多 lane 共面 facade（builtins.py）须行级 keep-predicate 非 hunk 级；③同 insert-block 双 lane 时正则抽函数体重建 HEAD+import+func。
+- **phantom-deletion 再证**：csfix7/jabbrv 文件 `git diff HEAD` 报 deleted file mode 而 worktree 完好（peer index 暂存删除所致）——判删前一律 `ls` 交叉。
+- **关 10 lanes**（交付落盘即关）：watchimpl/routeclean/rasterpdf/eracls/csfix7/flipcheck11/pgdrop/pdfbytes/mainrelcen/singlesweep。**Roster 4**：docabsent→layoutmiss recensus（tree-mirror 对剩余 workdir-layout-miss 覆盖度）、kvcen→micro-fixes impl、pdfprim、fontfb（60-misschar.yaml +92 残未交，在飞件）。
+- **门**: ①L0 绿（57/57 committed 面）④sabotage 0 escaped ③⑤翻转+clean% 单调过 ②L1 待下波 parsebench；无 teammate git 越权；HEAD=ca12afa7。
+- **待办队列**：fraginject（mutex 已开）；babel-ldf(7)+drift(14) replay-verify→下波 flipcheck；upstream-asset-absent(21)→redlines；#296 xdvipdfmx-TFM taxonomy+arm 决策（residchk 新族：doc 私有 TFM，install_tfm 错路由，候选 fileset relocate/TFMFONTS）。
+
+### patrol ~04:00 — fontfb 落地 2383a992；roster 重建至 9；overnite 3000-格批发现；stale-report 教训
+
+- **fontfb #293 收割提交 2383a992**（5 文件 +771/−1 全归因）：`fontspec_clone_sub`（60-misschar.yaml order 30.5，install→clone→LM sandwich——`_CLONE_TABLE` 全 file-form 名、`eng.probe_file` 探 kpathsea 同路径、weight siblings 自发现）+ `fontenc_enc_relax`（order 11.995，real-file 臂→strip→shim）+ `_builtins_misschar.py` +345 + `_xelatex.py` +3（truetype fontconfig——`LoopCtx.run_tool` 无 FONTCONFIG_FILE 注入、fc-list 探不到 texmf 字体，故 family-name 代换不可验证、表项全 file-form）。Replay 6 格：4 clean（Nimbus Roman/Tinos/lgrenc/t2aenc）、Amiri 正确拒修（无 clone 拒错代换）、FontAwesome 自愈。
+- **dispatch 波 ×6 + 重派 ×2**：fraginject（standalone 图件 prologue 门——`normalize_engine` preamble_ok 只排 `{subfiles}` 不排 `{standalone}`，XETEX/FONT compat 块落 `\documentclass[tikz]{standalone}` 子文档 line 1 → input 进 body 炸 "only in preamble"；格 2609.19210/2609.20069；注意 PIXEL_COMPATIBILITY body-legal 须续注）、tfmcen（#296 xdvipdfmx-TFM 普查）、obsty（obsolete-sty 8 格再分诊）、killsem（killed-process 4 格）、optfix（5 个 ≤2 格 option/driver 机制聚合 ~8 格 bundle）、redln（upstream-asset-absent 21→redlines 登记）；docabsent→layoutmiss recensus 续走（census_layout.json 03:53 新）、kvcen→micro-fixes 续走。
+- **⚠ stale-report 陷阱**（新教训）：lane dir 跨任务复用——`tmp/lane-docabsent/report.md`(02:29) 是 #275 旧交非新交付、`kvcen/report.md`(03:22) 是 #285 旧交。**report.md 必 stat mtime 对任务开始时刻，否则收假交付**。docabsent 的 census_layout.json(03:53) 才是新产出。
+- **overnite 批发现**：`tmp/overnite/run.log`——"===== overnite run 2026-09-19 18:49:08 UTC ids=3000 ====="，stagerun ingest 3000 ids，03:58 在 203/2822 格（~164s/格，多日批）活跑中。harvest 待完结后 soakmine 式普查 lane。
+- **held**：babel-ldf(7)+drift(14) replay-verify 续押——impl lane 正在改 fixloop .py/yaml，replay 读活树会撞半态（replay-mutex 窗口）。
+- **Roster 9**：fraginject/tfmcen/obsty/killsem/optfix/redln/docabsent/kvcen/pdfprim。
+- **门**：Ruleset.load 168 绿（MM 面=多 lane 在飞正常态）；HEAD=2383a992；无 teammate git 越权；clean%/L1/L2 待下波。
+
+### harvest ~04:10 — fraginject+redln+kvcen 三连收（ced26df6/a8c3c214/82df039f）；roster 6
+
+- **fraginject 落地 ced26df6**（4 文件 +71/−22）：`SUBFILES_CHILD_RX`→`SUBDOC_CHILD_RX` 拓宽 `{subfiles|standalone}`+改名——单码消费者（normalize.py:943 preamble_ok），改名对陈旧 import 响 fail。standalone 类独立编译件失前导块=已记 tradeoff（作主档罕见）。PIXEL 续注（body-legal）。下游 belt 确认：subfile_docclass_strip（_builtins_misc.py:769）本可事后救，上游门直接防错且保子档 preamble。实件 repro：2609.19210/2609.20069 两图 docclass 回 :1 零前导，xelatex+tectonic 双验。
+- **redln 落地 a8c3c214**（redlines.py +17）：`upstream_asset_absent` 零切片概念行——21 格 e-print 未 ship 资产族不可修登记，log 面与可修 missing_graphic 逐字节同形、真判据=tarball 清单核对（source/offline 介质非 log-regex 层），`REDLINES_BY_ID` 给归因面 id 锚点。
+- **kvcen 落地 82df039f**（4 文件 +120/−1）：`inferkv` opt-only kind（kv kind 单行 {mand} tail 吃不了 \inferrule 多行嵌套 premise、strict ident 拒 cs-call opt 值；新 kind + `_IDENT_SPEC_KINDS` printable-ASCII 域同 colspec）——1708.07366 实对 21 opt 位 15 个 `这是译文 = \rlabel{...}` 全 revert、revert 后 opt 表与 src 逐字节同。psfig.tex shim 补 `\define@key{Gin}{rheight/rwidth}`→`\Gin@eheight/\ewidth`（真 psfig r*→w/h 回落语义，catcode64 save/restore 裹——\input 装载 @=12），hep-lat/0501006。zelta→blx-skew 按 routing 跳过。
+- **验证**：subfile_gate 12+redlines 10+slotrevert/wave3_shim 45 leader 重跑全绿；Ruleset.load 168 贯穿；grep SUBFILES_CHILD_RX 零残留引用。
+- **关 3**（fraginject/redln/kvcen 交付落盘）。**Roster 6**：docabsent（layoutmiss recensus）/pdfprim（#292）/tfmcen（#296）/obsty/killsem/optfix。
+- **门**：HEAD=82df039f；无 teammate git 越权；clean% 单调（本波非 replay 格面无判据，待下波 flipcheck）。
+
+### patrol ~04:25 — tfmcen 普查收割→tfmimpl 接线派出；overnite 306/2822；4 只读 prep lane 补齐 roster 10
+
+- **tfmcen #296 收割**（tmp/lane-tfmcen/{census.md,cells.jsonl}）：**13 格全中机制 (a)**——doc 私有 `.tfm` 在子目录，TeX 侧路径限定名可解但 xdvipdfmx 裸名走 TFMFONTS 只认 `.`（compile cwd 顶层）→ fatal+SIGPIPE(rc=141)。桶 (b)(c)(d) 全空；"NVIDIASans_It 不可修"假设被证伪。**关键发现：`driver_tfm_hoist` 已存在但孤儿**（_builtins_shim.py:747，语义逐条吻合）——facade 三处未注册+yaml 无引用=死代码；ruleset.py:695 拒认未注册 builtin。接线法（census 定案）：facade 三处注册 → 10-taxonomy.yaml missing_tfm 组加 head 条目（pattern 锚 `Unable to find TFM file`，payload_group 1）→ 规则 `when: missing_tfm+payload_required` order>20 接 install_tfm 后（CTAN 名先真修、私有名 benign decline→hoist 同轮接住）。2504.06479 不属本族排除。
+- **dispatch**：tfmimpl（orphan arm 接线+pins；碰撞护栏：pdfprim 占 actions/_builtins_common/_builtins_shim/55-prim/ruleset、optfix 占 jabbrv vendor——禁碰；_builtins_shim 本体要改只能报不能改）。另 4 只读 prep lane（零碰撞）：**flip12prep**（flipcheck-12 manifest——读 lane report 滤掉已 lane-side replay 格、≥30 sabotage）、**driftprep**（babel-ldf 7+drift 14 两桶 replay-ready 普查：kpsewhich 现可解性）、**singles3**（余 ~16 ≤2 桶 covered/impl/decline 分诊→下 bundle 规约）、**killsem2**（kill 语义 verdict 忠实度——查 killsem 先、互补延展）。
+- **⚠ killsem 在 mutex 窗口跑 replay**：replay-2608.09867/replay-2504.11741-zh 目录 04:11-04:19——kill 语义观测对 fixloop 半态敏感度低（观 kill 信号非 arm 成败），记档接受但其 replay 结论须以落地后复验为准。
+- **overnite**：306/2822 @04:18（03:58 起 ~103 格/20min≈12s/格），活跑。l1-gate/autogloss-reg 均早已完结无新 run.log。
+- **ruleset 169 绿**（pdfprim/optfix 在飞已 +1 规则）；HEAD=82df039f；无 teammate git 越权。
+- **Roster 10**：docabsent/pdfprim/obsty/killsem/optfix/tfmimpl/flip12prep/driftprep/singles3/killsem2。
+
+### patrol ~04:50 — 静默 tick；overnite 338/2822；在飞文件面零扩张
+
+- **overnite**：338/2822（~19s/格均值，进程健康）；无新 run.log。l1-gate/autogloss-reg 旧完结无变化。
+- **零交付**：10 lane 全在飞，无新 report/SendMessage。tfmcen 已关。
+- **在飞文件面**（git diff HEAD src/）：pdfprim 占 actions/_builtins_common/_builtins_shim/55-prim/ruleset；optfix|obsty 占 jabbrv-ltwa-*.ldf/jabbrv.sty/vendor/stubs/aaai23.sty——面与上 tick 一致无扩张。
+- **ruleset 169 绿**；HEAD=82df039f；门①-⑤维持；无 teammate git 越权。
+- **新挂 task #298**（triage 17 ≤2 singles——singles3 lane 自登记，属其在飞范围）。
+
+### harvest ~05:05 — docabsent/obsty 普查收割：layout-miss 族关闭、obsolete-sty 8 格全覆盖转 replay；roster 再补 10
+
+- **docabsent 再普查结论：layout-miss 残族 EMPTY**——267 格 missing_* 签名全审（66 cases.jsonl/35441 行，latest-ts）：15 残格=14 absent-from-eprint（install/vendor 域，revtex.cls×5 属 pre-vendor 期旧账、mncite.sty 0 filemap、aaai23 已 vendor）+1 ext_variant（graphics 域）。48 条 relocate decline note 全树证正确。**族关闭无 impl 候选**；cosmetic watch：root-relative payload 带 main_dir 前缀拷成 doubled-path（TeX 可解、观测格全过，非 gap）。
+- **obsty 再分诊结论：8 格全 COVERED-NOW**——gr-qc/0104023 psfig.sty→vendored_fetch（真 1.10）、hep-th/0103176 tcilatex.tex→filemap null→stub、2105.03808 diagrams.sty→stub、2609.19711 alphabeta→filemap greek-fontenc 已实证 clean（09-19 败因=texlive midinstall churn 非机制缝）。无 ≥3 stub 候选；**6 格转下波 replay-verify**（已 SendMessage relay 给 flip12prep manifest）。
+- **tfmcen 交付重到**（SendMessage 版）——内容与先收 census.md 一致，tfmimpl 已在飞，无新动作。
+- **关 2**（docabsent/obsty）。**dispatch ×2 裁决输入 lane**：footmisc（2105.03751 ctrerr 证据普查）+ xecjkspec（xeCJK `\)`-re-robustify arm shape 设计稿）——均只读零碰撞。
+- **Roster 10**：pdfprim/killsem/optfix/tfmimpl/flip12prep/driftprep/singles3/killsem2/footmisc/xecjkspec。
+- **门**：HEAD=82df039f；ruleset 169 绿；无 teammate git 越权；clean% 待 flipcheck-12。
+
+### harvest ~04:40 — killsem 普查收割：verdict 全诚实 + 发现 repair 面 → floodfix 派出；roster 10
+
+- **killsem census 落地**（tmp/lane-killsem/{census.md,cells.jsonl}+replay-* 实证）：4 格=单根机制——**不可断 box 高于 \textheight 进 page builder → \output 空页无限重试 → sentry:page_flood kill**。verdict 语义全诚实（(a) 真 runaway，非慢收敛；reasons:[timeout] vs sentry kill 仅 cosmetic 标签缝）。**但 repair 面存在**：`tcolorbox_breakable` 2/4 格实证翻 clean（2311.04163→57p rc=0、2504.11741→47p，两档均已 load breakable library）；`[H]`-demote 盖 2608.09867（figure[H]+超高图——与已落 `float_opt_h_pkgload` 不撞：那臂只补缺失 `\usepackage{float}`，此档 float 已载、败在超高内容）；2609.19748 ThreePartTable 裹 longtable 无通用臂→honest fail。runaway_output 目前 detection-only 短路——fixloop 对 zh 格跑过 rounds 但无臂可用。
+- **dispatch floodfix**（impl）：`tcolorbox_breakable_inject` + `float_h_demote` 双臂（≥3-bar 家族聚合 2 实证+1）；护栏避开 pdfprim 五件+70-pkgopt(optfix)+jabbrv/aaai23 vendor；builtin 落 _builtins_misc.py。
+- **killsem2 rescope**：verdict-忠实度半题已被 killsem 定案 → 改派 family sizing——全 records `sentry:page_flood` 签名扫、flood construct 分桶（tcolorbox/[H]/ThreePartTable/other），喂 floodfix 臂 sizing（#48/#157 runaway 或同族）。
+- **关 killsem**（交付在盘）。**Roster 10**：pdfprim/optfix/driftprep/flip12prep/singles3/killsem2/tfmimpl/footmisc/xecjkspec/floodfix。
+- **overnite**：364/2822 @~04:30。l1-gate/autogloss 旧完结。无新 run.log。
+- **门**：HEAD=82df039f；ruleset 169 绿；无 teammate git 越权；peer sessions 10 个 idle（无干扰面）。
+
+### patrol ~04:40 — tfmimpl 接线在飞（facade+taxonomy+install shard 已脏）；overnite 432/2822
+
+- **在飞面扩张=预期**：builtins.py+10-taxonomy.yaml+40-install.yaml 脏——tfmimpl 正按 census 定案接线（facade 三处→taxonomy head→规则）；ruleset **170** 绿（taxonomy/规则已入加载面）。pdfprim 五件 + optfix jabbrv/aaai23 四件不变。
+- **overnite**：432/2822 @04:39（9min +67 格，批速回升）；无新 run.log；零交付此 tick。
+- **门**：HEAD=82df039f；ruleset 170 绿；无 teammate git 越权。
+
+### harvest ~04:45 — tfmimpl 落地 b1b1aa0c；#296 闭环
+
+- **tfmimpl 接线提交**（4 文件 +196）：facade 三处注册 + 10-taxonomy missing_tfm head 条目（`Unable to find TFM file` 锚、payload=裸名双形盖）+ 40-install 规则 order 21 接 install_tfm 后（CTAN 名先真装、私有名 decline 同轮 hoist 接住）+ test_fixloop_tfmhoist.py 7 pins（含 e2e stdout_tail→同轮链）。known_gap 记档（mp.parent vs 子目录 main_rel，13 格 main 全在根）。census 报 :747 stale——实件 :841 同语义零改。
+- **关 tfmimpl**。**Roster 9**：pdfprim/optfix/driftprep/flip12prep/singles3/killsem2/footmisc/xecjkspec/floodfix。
+- **门**：HEAD=b1b1aa0c；ruleset 170 绿；无 teammate git 越权。
+
+### harvest ~04:55 — driftprep+killsem2 双只读收割；两 held 桶全数转 replay manifest；roster 7
+
+- **driftprep 结论：两 held 桶全部 replay-ready，无需新臂**——texlive-midinstall-drift 14/14 resolves-now（payload 全 kpsewhich-hit；注意 2504.05118 下一错面=doc-cls `\pdfoutput=1` undef-cs 属 pdfprim 族=预期非回归、2609.16676 t1lmr.fd NFSS 自愈）。babel-ldf 7 格 resolves-now 0/7 但 arm-coverage 7/7（post-run babel_lang_ldf_install+filemap pins+francais rewrite）——likely 翻 4 格（2210.15097/2407.21783/0806.3425/1607.00268）；**预期新残**（非回归）：colm2024 双格 2502.13923+2511.21631 plain-`greek` option→greek.ldf XeTeX 硬拒（40-install.yaml:857）→ prospective arm=plain-greek→polytonic attr 改写仿 polutoniko 臂，replay 实证后再立。watch 格 2507.10677 vendored jabbrv-ltwa-all.ldf 已盖。**21 格全 relay flip12prep manifest**。
+- **killsem2 结论：4/4 verdict 忠实**（flood 全真：2609.19748 on-disk log 9623 连续 shipout marks ~2470p/s 实证）。**全账本扫**：rc=-9+timed_out 67 条全 fail 零 too-good；rc=141 ~200 条中 3 条 clean 全在 stagerun-loop1-2026-09-16（pre-_rc_to_signal wrapper-decode 时代）——**clean-on-killed 洞现行码下已闭**。OPEN 设计缝（低危无受害者）：page_flood 纯计数 `_RUNAWAY_PAGE_RX=r"\[\d+\]"`（logparse.py:61-65）——收敛档打 >10K 正常方括号即误触；vbox 已有 density 语义 page_flood 未跟进。修点 logparse.py:61-65+proc.py:146-147/176-187 锁步（行锚或单调游程）。optional：sentry early-return 可携 pre-flood first_error cat 作 payload（judge.py:362-365+engine.py:248-249）。
+- **关 2**（driftprep/killsem2）。**Roster 7**：pdfprim/optfix/flip12prep/singles3/footmisc/xecjkspec/floodfix。
+- **overnite**：519/2822 @04:54（~18%，活跑）。
+- **门**：HEAD=b1b1aa0c；ruleset 170 绿；无 teammate git 越权；clean% 待 flipcheck-12。
+
+### harvest ~05:05 — ⚠ HEAD 断裂事故+修复；pdfprim 落地 26177a29；footmisc 普查=裁决输入；roster 8
+
+- **⚠ b1b1aa0c 是断提交**（重大教训）：tfmimpl 接线的 `driver_tfm_hoist` 函数体是**孤儿 worktree 代码从未入库**——facade import/__all__/TRANSFORM_FNS + 40-install.yaml 引用全在 HEAD，函数定义不在 → 干净 checkout import 即炸。收割时 `git diff HEAD` 对 shim 文件露出 +64 uncommitted 块才抓到。**修复 5070cf78**：filtered-blob 补提函数体（HEAD 文件+函数，保留 worktree 空行规约）。**新守卫**：①"orphan code 可能未入库"——接线 census 报的既有代码必须 `git show HEAD:file | grep` 验证；②commit 后验证不能只看 worktree Ruleset.load——须审 HEAD 树自洽（facade imports 全 resolve + yaml function: refs ⊆ TRANSFORM_FNS，本次审计脚本已跑：71/71，唯一 mismatch `xy_option_load` 属 optfix 在飞双侧未提自洽）。
+- **pdfprim 落地 26177a29**（6 文件 +782/−39，notes.md 全归因）：**pdf@-alias prim 族**——`payload_pattern` 新 condition key（actions._cond_ok + ruleset._COND_KEYS/_COND_REGEX_KEYS）按 payload 词形派发（`pdf@*` 报在 texmf 宏帧 err_outside_fileset/source_contains 双盲）；PDFTEX_PRIMS +=34；@-名注入裹 exact-restore catcode64=11 对（@=12 宿主裸 `\ifdefined\pdf@box` 读成 `\ifdefined\pdf`→`\csname` 冻结 `\relax` 毒）；`\pdfoutput=0` 初值保 `\ifnum` 诚实假；dedup 收窄至 `\@ifdefinable` 闸定义位。**pdftex_gate_collapse** 新规则 order 52——`\if<letters>pdf`+`\ifx\pdfoutput\<undefined>` 双向塌 `\iftrue`（masked 面 .tex/.sty/.cls，def/操作数位 lookbehind 豁免）→ hyperref[pdftex]/graphicx[pdftex] 臂激活。路由序 guard50→polyfill51→collapse52。复放 4 格实证+真机 xelatex 冒烟。
+- **footmisc 裁决输入（非规致实锤）**：2105.03751 ctrerr = **1 格 doc quirk 非规致**（base 臂同败）——footmisc[marginal,perpage,symbol]+`\DefineFNsymbols*{dagfirst}`6 符上限，fresh .aux 全局编号 footnote#7→`\fnsymbol{7}`→\@ctrerr；warm .aux→perpage reset→clean。wave-5 down-flip 是 splice_rebuilt fresh-workdir 的 aux-freshness artifact。**机制面缝**：_xelatex.py:343-349 rc!=0 break 先于 rerun-hint check——任何 hint-emitting pass-1 错都丢 pass-2（本格 ctrerr 无 hint 但排序面有普适受害可能）。family=1（ctrerr 无他格，26 perpage 稿另 2 格不可溢出）。disposition 建议 redlines `perpage_fnsymbol_firstpass` 零切片行（<≥3 bar 无臂）。另纠正旧记：`记录 first_error=undef-cs:GenericError` 字面真但掩机制（ctrerr 落 other 桶、无 counter_overflow 类目）；`\iea` 不在 footnote。
+- **关 2**（pdfprim/footmisc）。**dispatch ×3**：sentryhx（impl——page_flood 单调游程化，logparse.py:61-65+proc.py:146-147/176-187 锁步；optional sentry-payload 携 first_error cat）、floodsiz（普查——全 records page_flood 构面分桶 tcolorbox/[H]/wrap/other 喂 floodfix 臂覆盖率）、rerunhint（普查——_xelatex break-order 丢 pass-2 格数 + hint 模式清单）。
+- **Roster 8**：optfix/flip12prep/singles3/xecjkspec/floodfix/sentryhx/floodsiz/rerunhint。
+- **门**：HEAD=26177a29；ruleset 172 绿（+2 规则本段）；ruff 全净；无 teammate git 越权；overnite ~520+/2822。
+
+### harvest ~05:20 — singles3/xecjkspec/flip12prep 三收；redlines 行落地 3cd1c03d；dispatch mathbd+twocen+xecjkfix；roster 8
+
+- **singles3 triage 落地**（17 ≤2 桶全诊）：covered 6/impl 4/decline 4/needs-census 2/owned-elsewhere 1。→ **mathbd impl lane**（Bundle A 三 yaml 臂 zh math-text boundary：soul-cjk `\hl{\model}` cs-arg CJK 裹 `\mbox`、mathit-209 `{\it 中文}` 裹臂、improper-alphabetic `\boldsymbol`→`\symbfit/\symbf` alias 注——95-targeted 属 floodfix 禁碰；Bundle B normalize.py `_normalize_tex_files` byte 段剥 Mac binary 前缀 2 格）+ **twocen 普查**（extra-or-revtex4-newcol 1901.00154 gate 应中却败 fired-vs-miss 诊；illegal-param-reserveda 0806.4149 `\Citeauthor`/`\@citex` csmap 嫌疑）。decline 桶含 209-amsppt-reject 正确边界（可选 redlines 行）。
+- **xecjkspec spec 落地**（tmp/lane-xecjkspec/spec.md）：`cjk_punct_close_guard`——**splice 层 masked rewrite**（reconstruct.py cjk_glue_fix 同槽 if translations: gate）`[FullRight-punct](?=[ \t]*(\n[ \t]*)?\\(end\{|\)|\]))` 后插 `{}` 惰性 token 断 xeCJK CheckFullRight `\peek_remove_spaces` 链。≤275 splice 文件/980 hits 全 identity；实证 1 格 0806.2915（W157 11 err `\endsl`）；follower 白名单窄 close-only（`\(` 排 1623 benign、letter-cs 排 54343 benign）。层选择有据（机制实证+语义惰性）→ **xecjkfix impl** 派出，下波裁决报告标注。
+- **flip12prep manifest 落地**（tmp/lane-flip12/）：**59 targets+32 sabotage**——per-commit 归到 b1b1aa0c+wave12-pdfprim 11 格；fraginject 2 格 fc11 已 clean 经 belt=hold check；2303.16206 双机制（aaai23+mainrelfix）；engine 全 xelatex 故 sabotage 多样性走 id-era spread。持 mutex 开（impl 在飞 ×5）。
+- **redlines 行 3cd1c03d**（redlines.py +18）：`perpage_fnsymbol_firstpass` 零切片概念行——footmisc 建议 disposition 落地；10/10 redlines pins+ruff 净。
+- **关 3**（singles3/xecjkspec/flip12prep）。**Roster 8**：optfix/floodfix/sentryhx/floodsiz/rerunhint/mathbd/twocen/xecjkfix。
+- **门**：HEAD=3cd1c03d；ruleset 172 绿；无 teammate git 越权；overnite 668/2822 @~05:15。
+
+### harvest ~05:45 — floodfix 落地 e4ed65a4（filtered-blob 避 optfix 夹带）；amsppt 行 ce59c408；dispatch ×3→roster 10
+
+- **floodfix 落地 e4ed65a4**（4 文件 +688/−2，逐 hunk 归因）：`tcolorbox_breakable_inject`（95-targeted 序 199.7——env+`\newtcolorbox` def 选项组补 breakable；lib 缺席先注 `\tcbuselibrary{breakable}` 于首装载点）+ `float_h_demote`（199.8——`[H]`→`[!htp]`，`!` 为过顶盒上浮动页所需，无 h/t/b 强补 ht）；`when:{category:runaway_output}`+source_contains 粗门（sentry 杀轮 err_head 空→ctx_suggests 不可用）。`_map_tex_files` 导入补（HEAD 引用未导→新路径必 NameError，代理报告属实）。**builtins.py filtered-blob**：同文件混 optfix `xy_option_load` 行——HEAD `_builtins_pkgload.py` 无此名，照提即重演 b1b1aa0c 悬空 import → 私 index 提 4 hunk 剔 xy（db1c2e25），optfix 行留其自收。19 pins+Ruleset.load 174+HEAD 树审（73 TFN 全 imported、72 yaml refs ⊆、零 orphan、xy 正确缺席）。偏差受领：def-opts 超集（custom env 否则不可补）、ThreePartTable 2609.19748 诚实败。yaml :159 PrerenderUnicode 是 HEAD 既有 prettier 债（tmp 校验空命中误判）——gfs 等价 wrap 已并提。
+- **amsppt redlines ce59c408**（+11）：`latex209_class_absent` 零切片概念行——singles3 可选 disposition 落地；类表成员核判属 config/source 介质非 log regex。
+- **队列关闭核查**：kvcen 结论=33 格仅 3 残各异机理、明确**不立 keyval_error taxonomy 类**（<3 同质）——闭档无派；greek.ldf 残（colm2024 双格）已入 flip12 manifest→等 replay 实证再立臂，无需预派；soakmine2 全 n=1 无 ≥3 桶。
+- **dispatch ×3 → roster 10**：singles4（read-only 三微队：undef13 11 singletons 分诊[@nil 禁盲 polyfill/bbl 域先查 blxdlist]、cp1252 ^^XX 重普查新旧格、1706.02744 blx@bbl@data 对 blxdlist 覆盖检）、failmine4（全 stagerun records 下波靶普查——排 flip12 59 格+在飞 lane 靶+已裁决族；兼 overnite 早期预警扫）、statsync3（read-only fires 簿记漂移提案——自 #251 后新臂+旧漂移，提案式不落盘）。
+- **关 1**（floodfix）。**Roster 10**：optfix/sentryhx/floodsiz/rerunhint/mathbd/twocen/xecjkfix/singles4/failmine4/statsync3。
+- **门**：HEAD=ce59c408；ruleset 174 绿；pins 19+10 绿；无 teammate git 越权；overnite 735/2822 @~05:35 健康；flipcheck-12 仍 mutex 持（impl 在飞 ×4：optfix/sentryhx/mathbd/xecjkfix）。
+
+### harvest ~06:15 — 三收齐落（xecjkfix 2c7a0962 / sentryhx b5b51a6b / optfix 76a031ce）+ concept_only 13c9c23f；dispatch hintord；roster 7
+
+- **concept_only 修复 13c9c23f**（redlines.py +4/test +1）：sentryhx 外域失败旗实锤——我 3 条零切片概念行撞 "每条至少挂一层" 注册表不变量（test_fuzz_judge:494-496 早于概念行存在）。`RedLine.concept_only: bool` 字段 + 3 行标记 + assert 放宽 `or r.concept_only`——真行不变量继续生效。46 pins 绿。
+- **xecjkfix 落地 2c7a0962**（2 文件 +95）：`cjk_punct_close_guard` reconstruct.py:51-89——FullRight 标点前瞻 `[ \t]*(\n[ \t]*)?` + close-ish 白名单（`\end{`/`\)`/`\]`）→ 标点后插 `{}` 断 xeCJK CheckFullRight `\peek_remove_spaces` 链；mask_tex 视图找命中、原串逆序回放（verbatim/comment 免疫），wired `if translations:` gate。regex 已修正 spec 误写（`\\\)` 永不中→`\\(?:end\{|\)|\])`）。**⚠ spec 低估 17×**：spec ≤275 文件/980 hits，实普查 **1880 文件/16595 hits**——spec 漏 `。\n\end{` 行尾形（~96%）；仍 inert+identity-safe 但爆半径大增→裁决旗。5 pins+29 绿+ruff 净。
+- **sentryhx 落地 b5b51a6b**（5 文件 +344/−24）：`_RunawaySentry` 双计数器——`_page_env`/`_page_last` 单调包络（page_flood 闸专用，`n>=已计最大` 入计，非序方括噪声只贡献 ~ln(n) 左向右极大值）+ `_page_marks` 原始计数（vbox 密度分母——噪声撑大分母=豁免方向保守；pagenumbering 复位档真 shipout 不漏计）。logparse `_is_runaway_output` :77-105 同语义重写锁步。**sentry 载荷携底层机理**：judge `_timeout_verdict` 对 sentry 杀轮且 log.errors 非空 → `classify_error`+`_error_composition` 落 error_cats/error_pay；engine `_round_cat` payload `sentry:<arm>|<cat>`——runaway_output 不再遮蔽上游可修机理（2311.04163 洪上游 fixable undefined_cs 实证）。16 pins+37 绿+ruff 净。
+- **optfix 落地 76a031ce**（5 文件 +618/−4，atomic builtin+registration+yaml 同交）：`hyperref_driver_neutralize` 拓宽——def-rewrite 臂 `\gex?def`→`+new|renew|providecommand|DeclareRobustCommand`（webofc.cls:154 \newcommand 形）+ **新 bracket-anchored `\if* DRV \else DRV \fi` 塌 `xetex,` 臂**（webofc.cls:178——驱动词无逗号前驱，括号三套全漏）；`microtype_expansion_off` 新规则 50-font order 72（expansion=<v>→false + activate-无-expansion 尾补 `,expansion=false`——XeTeX expansion 恒不支持 microtype-xetex.def:874）；`xy_option_load` 新 builtin+规则 order 198（err_head∪log 双句式抽扩展名 curve/arrow+matrix/poly/arc，`\s+` 容 79 列折行，`(ellipse+)arc` 裸括号归一，首 live xy 装载点后插 `\xyoption{<ext>}` live 幂等）。**RUF022 claim 核实=零外编**——floodfix 落位本就排序正确，diff vs HEAD 纯 xy +3 行。Ruleset.load 174（4 新 id 全在）；22 pins 绿；2 D403 确证 HEAD 既有（siunitx :462/:498 未动）。HEAD 树审：74 TFNS 全 imported、73 yaml refs ⊆。
+- **floodsiz 普查交付**（read-only 关 lane）：62 SIGKILL 分诊——**14 records/8 格 page_flood**；48 records/13 格非洪（pre-shipout hang/error-loop/slow）。floodfix 双臂覆盖 5/8；未覆：2609.19748 ThreePartTable 诚实败 + 2003.10844/gr-qc/0104075 over-tall displaymath（需 `\allowdisplaybreaks` 类第三臂——**2 格 <≥3 bar** 入候选等第三格或 bundle 论证）。**新信号**：①2404.14219 根因=inject 侧缺陷（ctex \baselineskip 13.6→17.68pt @fixed \textheight，EN clean zh-only 洪）——真修在 inject.py ctex 选项侧非 fixloop→裁决项；②2211.13028 hypdvips+1803.08879 hyperref wrong-driver 挂——optfix 拓宽臂（hypdvips 在 source_contains）现可覆盖→wave-13 replay 候选；③0812.0640 pstricks psline emit loop 新族单格；④全 14 洪记录携 `reasons:[timeout]` 美容错标——sentry payload 修复后向可追；⑤`sentry:vbox_flood` 自 1003.2165 率修后零记录（安静=好或死未验）。
+- **dispatch hintord impl**：_xelatex.py:343-350 rerun-hint 前于 rc-break 重排（rerunhint 普查裁决执行——`rc!=0` 断先于 hint 评，~5 确认丢判全 .aux-freshness 类含 footmisc ctrerr 族；hint suppress rc-break 仅 adaptive passes=None，pinned 逐字节不变；自限=错残留 hint 缺席下趟断）。
+- **关 4**（xecjkfix/sentryhx/optfix/floodsiz）。**Roster 7**：mathbd/twocen/singles4/failmine4/statsync3/hintord +（singles4/failmine4/statsync3 read-only）。
+- **共享 index 再污染**：git status 现全仓 staged-D+?? 成对（他家会话在飞 staged 半态——cleanup-A corpus reorg 形）；私有 index 流不受影响，`git diff HEAD` 归因仍真源。**勿动共享 index**。
+- **门**：HEAD=76a031ce；ruleset 174 绿；pins 22+16+29+46 绿；无 teammate git 越权；overnite ~113/2085 现阶段（活跑 run.sh+monitor.sh）；flipcheck-12 仍 mutex 持（mathbd/hintord 在飞）——wave-13 候选累计：tcolorbox 2311.04163/2504.11741、float_h 2608.09867、optfix 2607.14648/2310.02541/2609.20135/2105.00033/2509.13676、xecjkfix 0806.2915、floodsiz wrong-driver 2211.13028/1803.08879、2404.14219(部分- AIbox 臂)。
