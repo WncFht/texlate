@@ -1291,3 +1291,11 @@
 - **Dispatched**: fmsingles (siunitx+units/PoSlogo/frontmatter-env/~14 undefined_cs singles), endcsdiag (\endcsname ×2 诊断 read-only), chronic347 (347 chronic-blocked 重普查 read-only)。
 - **Closed**: aaaiguard, arrayresid (segmenter 上游修 declined — 1 活格 precheck revert 已盖, L1 重门不值), drvext。
 - **Roster**: pathqual (regression, priority), covgap, kotexfix, verifyfam (read-only) + fmsingles, endcsdiag, chronic347 = 7。
+
+## 2026-09-19 ~16:45 — sab-r6 gate④ PASS (escaped=0) + mojidec 6/6 clean
+
+- **sab-r6 gate④** (40 fresh-clean pool, seed-42 sample from loop2+loop3 latest-clean, chained ingest→parse→xlat sabotage-b): 619 events / 1626 sabotaged / caught=0 / moved=0 / recovered=1626 / **escaped=0 — GATE HOLDS**. All sabotage reverted by slot-diff machinery; nothing reached compile.
+- **mojidec wave** (6 cp1252 replay targets, chained ingest→parse→xlat mock→compile zh→fixloop): xlat 5 ok/1 partial (1706.00145 fault=1), compile 4 clean/2 partial (0806.2690+1706.00145 both cat=clean — upstream-side partials), fixloop --on nonclean flipped both → **6/6 clean**. Post-scrub re-decode verified end-to-end.
+- **Gotchas worth persisting**: ① `--ids` splits on commas ONLY — space-separated ids.txt silently becomes one giant id blob (n=1, `File name too long` inside ingest/parse, xlat error); both waves burned a run each before CSV rewrite. ② stage_fixloop candidates come ONLY from `records/compile.jsonl` (arm=zh, canon id ∈ want_ids, --xlat-arm matches rec.upstream) — fresh dirs need `stagerun.py compile` BEFORE fixloop selects anything; explains why rebuild-loop2 (old dir, records present) worked but mojidec didn't.
+- **Roster**: 7 in flight — pathqual (vendored_sty_shadow `./`-prefix regression, priority, editing _builtins_vendored.py+tests), covgap (A missing_graphic phrasing / B install-table ifacconf+jmlr2e / C doc-absent stub census), kotexfix (hangul misschar, quiet), verifyfam (4 post-replay families read-only), fmsingles, endcsdiag, chronic347.
+- Gates this round: ④ escaped=0 ✓; ⑤ clean% monotonic ✓ (cleanaudit zero clean→nonclean, all waves --on nonclean).
