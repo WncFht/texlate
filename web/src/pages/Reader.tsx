@@ -16,7 +16,6 @@ import {
     api,
     ApiError,
     isTerminal,
-    landingHash,
     type DualJson,
     type FileManifest,
     type ReaderInfo,
@@ -31,8 +30,12 @@ import type { DocId } from "../reader/alignment";
 import { resolveReaderView } from "../reader/view";
 import ReaderView from "../reader/ReaderView";
 import TaskProgress from "../reader/TaskProgress";
-import ResultBody, { type RetryError } from "../reader/ResultBody";
+import ResultBody from "../reader/ResultBody";
 import ShareBlock, { createSharePack } from "../reader/ShareBlock";
+import {
+    createHtmlFallback,
+    createTaskRetry,
+} from "../reader/taskActions";
 import { t } from "../i18n";
 
 export default function Reader(props: { taskId: string; nav(to: string): void }) {
@@ -51,14 +54,37 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
     const [fatal, setFatal] = createSignal("");
     // reader 404 于终态任务：doc 类任务无 dual.json（设计如此）→ 产物下载面板
     const [readerGone, setReaderGone] = createSignal(false);
-    const [retrying, setRetrying] = createSignal(false);
-    const [retryError, setRetryError] = createSignal<RetryError | null>(null);
-    // needs_auth 结果面板的内联 API Key 输入（重试随 X-Texlate-Key 透传）
-    const [authKey, setAuthKey] = createSignal("");
-    const [htmlBusy, setHtmlBusy] = createSignal(false);
-    const [htmlErr, setHtmlErr] = createSignal("");
     // §6 事后共享：done/partial + 非 share 导入 + 有 arxiv 源 → 可打 .share.zip
     const share = createSharePack(() => props.taskId);
+    // 终态编排（retry/HTML 换链）——reader/taskActions 工厂，信号内聚在件内
+    const retry = createTaskRetry({
+        taskId: () => props.taskId,
+        nav: (to) => props.nav(to),
+        onAccepted: (status) => {
+            // 同 id 重跑：清产物快照 + 清上一轮 SSE 痕迹，界面回到进度视图；
+            // pendingJump/restoredSides 随 ReaderView 卸载自然销毁，无需手清
+            setInfo(null);
+            setDual(undefined);
+            setManifest(null);
+            setReaderGone(false);
+            readerRequested = false;
+            setTask((cur) =>
+                cur
+                    ? {
+                          ...cur,
+                          status,
+                          stage: undefined,
+                          message: undefined,
+                          error: null,
+                          progress: 0,
+                      }
+                    : cur,
+            );
+            // 重跑换产物——上一轮打包结果作废
+            share.reset();
+        },
+    });
+    const html = createHtmlFallback({ task, nav: (to) => props.nav(to) });
 
     // loadReader 一次性闸：readerGone/无 reader 数据的终态任务上，SSE
     // effect 每次 store 更新都重入——标志位挡住（onRetry 复位后重开）
@@ -94,8 +120,7 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
                 if (rd.sync !== undefined) setSyncing(rd.sync);
                 if (rd.zoom) setZoom(rd.zoom);
                 if (rd.active) setActive(rd.active);
-                const rds = rd as typeof rd & { swapped?: boolean };
-                if (typeof rds.swapped === "boolean") setSwapped(rds.swapped);
+                if (typeof rd.swapped === "boolean") setSwapped(rd.swapped);
             }
             // 窄屏（≤640px）无已存偏好 → 默认单栏译文（U14；分栏在手机上不可读）
             if (
@@ -227,11 +252,14 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
 
     const downloads = createMemo<DownloadItem[]>(() => {
         const m = manifest();
-        if (!m) return [];
-        // manifest.artifacts → db kind→url 同形状，排序/标签/直链走 taskFiles
-        return downloadItems(
-            Object.fromEntries(Object.entries(m.artifacts).map(([k, e]) => [k, e.url])),
-        );
+        // manifest 拉取失败（loadReader 吞错置 null）时退 done.artifacts/
+        // 快照 artifacts——三者同形状（db kind→url），缺一层不该让下载清单全空
+        const arts: Record<string, string> = m
+            ? Object.fromEntries(
+                  Object.entries(m.artifacts).map(([k, e]) => [k, e.url]),
+              )
+            : (live()?.done?.artifacts ?? task()?.artifacts ?? {});
+        return downloadItems(arts);
     });
 
     /** 终态非 done → 结果面板/横幅的状态键；done 或进行中 → null */
@@ -243,110 +271,6 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
     /** 结果面板统计：done.stats 优先 + 快照 counters/usage 兜底（taskStats.ts） */
     const resultStats = () =>
         mergeResultStats(live()?.done?.stats, task()?.counters, task()?.usage);
-
-    // ---------- 重试（终态 → 同 id 重入队，§3.3） ----------
-
-    const onRetry = async () => {
-        if (retrying()) return;
-        setRetrying(true);
-        setRetryError(null);
-        try {
-            // needs_auth：重试必须重带 X-Texlate-Key（server 401 auth_required）
-            const res = await api.retry(
-                props.taskId,
-                undefined,
-                authKey() ? { apiKey: authKey() } : undefined,
-            );
-            if (res.task_id !== props.taskId) {
-                props.nav(`#/reader/${res.task_id}`);
-                return;
-            }
-            // 同 id 重跑：清产物快照 + 清上一轮 SSE 痕迹，界面回到进度视图；
-            // pendingJump/restoredSides 随 ReaderView 卸载自然销毁，无需手清
-            setInfo(null);
-            setDual(undefined);
-            setManifest(null);
-            setReaderGone(false);
-            readerRequested = false;
-            setTask((cur) =>
-                cur
-                    ? {
-                          ...cur,
-                          status: res.status,
-                          stage: undefined,
-                          message: undefined,
-                          error: null,
-                          progress: 0,
-                      }
-                    : cur,
-            );
-            // 先于 resetLive 补丁列表行——否则 SSE 生效前 effect 会用旧终态回盖 task()
-            taskStore.patch(props.taskId, {
-                status: res.status,
-                stage: undefined,
-                message: undefined,
-                error: null,
-                progress: 0,
-            });
-            taskStore.resetLive(props.taskId);
-            setAuthKey(""); // 已用毕即弃，不留在组件态
-            // 重跑换产物——上一轮打包结果作废
-            share.reset();
-        } catch (e) {
-            const ae = e instanceof ApiError ? e : null;
-            setRetryError({
-                status: ae?.status ?? 0,
-                code: ae?.code,
-                message: ae?.detail ?? (e instanceof Error ? e.message : String(e)),
-            });
-        } finally {
-            setRetrying(false);
-        }
-    };
-
-    // ---------- arXiv HTML 通道降级（F 桶取源失败 → 换链新任务） ----------
-
-    // 取源段失败才可换链：编译/翻译段故障 html 链救不了，误示好过滥示。
-    // 新任务而非 retry：kind 是建行定死的列字段，retry 端点不换 kind——
-    // 换链必须新任务（kind 不同 cache_key 不同，不与原任务撞 dedup）
-    const HTML_FALLBACK_CODES: ReadonlySet<string> = new Set([
-        "arxiv_fetch",
-        "no_latex_source",
-        "pdf_wrapper",
-    ]);
-    const canTryHtml = () => {
-        const s = task();
-        return (
-            s?.kind === "arxiv" &&
-            !!s.arxiv_id &&
-            HTML_FALLBACK_CODES.has(s.error?.code ?? "")
-        );
-    };
-    const onTryHtml = async () => {
-        const s = task();
-        if (!s?.arxiv_id || htmlBusy()) return;
-        setHtmlBusy(true);
-        setHtmlErr("");
-        try {
-            // M10：原任务 options/glossary 全量透传（glossary/concurrency/
-            // guidance/prefer…），只改 source——idempotency_key 摘除（服务端
-            // 按它 dedup，带过去会把新任务吞成旧任务命中）。
-            const options: Record<string, unknown> = { ...(s.options ?? {}) };
-            delete options.idempotency_key;
-            options.source = "html";
-            const res = await api.translate(s.arxiv_id, {
-                model: s.model,
-                target_lang: s.target_lang,
-                glossary: s.glossary,
-                options,
-            });
-            props.nav(landingHash(res));
-        } catch (e) {
-            setHtmlErr(e instanceof ApiError ? e.detail : String(e));
-        } finally {
-            setHtmlBusy(false);
-        }
-    };
 
     // ---------- 事后共享打包（POST /task/{id}/share/pack，§6） ----------
 
@@ -394,15 +318,15 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
         <ResultBody
             st={st}
             task={task()}
-            retryError={retryError()}
-            retrying={retrying()}
-            authKey={authKey()}
-            onAuthKey={setAuthKey}
-            onRetry={() => void onRetry()}
-            canTryHtml={canTryHtml()}
-            htmlBusy={htmlBusy()}
-            htmlErr={htmlErr()}
-            onTryHtml={() => void onTryHtml()}
+            retryError={retry.retryError()}
+            retrying={retry.retrying()}
+            authKey={retry.authKey()}
+            onAuthKey={retry.setAuthKey}
+            onRetry={() => void retry.run()}
+            canTryHtml={html.can()}
+            htmlBusy={html.htmlBusy()}
+            htmlErr={html.htmlErr()}
+            onTryHtml={() => void html.run()}
             stats={resultStats()}
             grid={gridSlot()}
             share={renderShare()}
@@ -479,7 +403,7 @@ export default function Reader(props: { taskId: string; nav(to: string): void })
                     setActive={setActive}
                     swapped={swapped()}
                     onSwap={() => setSwapped((v) => !v)}
-                    onRetry={() => void onRetry()}
+                    onRetry={() => void retry.run()}
                     onCancel={() => void api.cancel(props.taskId)}
                     onBack={() => props.nav("#/")}
                     banner={
