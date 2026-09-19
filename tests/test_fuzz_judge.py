@@ -285,12 +285,18 @@ def _oracle_judge(  # noqa: C901, PLR0912 -- 判定树逐支重述，压平伤�
                 reasons.append("cjk_unverified+missing_chars")
             else:
                 notes.append("cjk_unverified(pdftotext absent)")
-    status = "clean" if not reasons else "partial"
+    if expect_cjk and cjk_chars == 0:
+        # tofu 否决：出 pdf 但 0 中文字节 → fail（partial 不算交付面，
+        # bench onfail _want_fix 只接 fail；impl 末位同判）。
+        notes.append("tofu_veto")
+        status = "fail"
+    else:
+        status = "clean" if not reasons else "partial"
     return _Expect(status, reasons, notes, missing, cjk_chars, cat, pay)
 
 
 def _assert_composition_invariants(
-    v: Verdict, res: CompRes, before: CompRes, ctx: str
+    v: Verdict, res: CompRes, before: CompRes, ctx: str, *, expect_cjk: bool
 ) -> None:
     """verdict 组合结构不变量：账本一致性 + status 三分位 + 非变异。"""
     assert v.n_errors == res.log.n_errors, ctx
@@ -300,9 +306,10 @@ def _assert_composition_invariants(
     assert sum(v.error_cats.values()) == exp_cats, ctx
     assert set(v.error_pay) <= set(v.error_cats), ctx
     assert all(isinstance(p, str) and p for p in v.error_pay.values()), ctx
-    # status 三分位互斥且由 reasons/has_pdf 完全决定
+    # status 三分位互斥且由 reasons/has_pdf/tofu 否决完全决定
+    vetoed = expect_cjk and v.cjk_chars == 0
     assert v.status in {"clean", "partial", "fail"}
-    assert (v.status == "fail") == (res.timed_out or not res.has_pdf), ctx
+    assert (v.status == "fail") == (res.timed_out or not res.has_pdf or vetoed), ctx
     assert (v.status == "clean") == (res.has_pdf and not v.reasons), ctx
     # 非变异
     assert res == before, ctx
@@ -366,7 +373,7 @@ class TestJudge:
             assert v.cjk_chars == exp.cjk_chars, ctx
             assert v.category == exp.category, ctx
             assert v.payload == exp.payload, ctx
-            _assert_composition_invariants(v, res, before, ctx)
+            _assert_composition_invariants(v, res, before, ctx, expect_cjk=expect_cjk)
             v2 = judge(res, expect_cjk=expect_cjk, log_text=log_arg)
             assert dataclasses.asdict(v2) == dataclasses.asdict(v), ctx
 

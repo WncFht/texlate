@@ -410,11 +410,12 @@ def _judge_mod() -> ModuleType:
 
 
 def test_judge_cjk_zero_dirty(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """hep-th 教训：有 pdf 但 0 中文字节 → dirty。"""
+    """hep-th 教训：有 pdf 但 0 中文字节 → tofu 否决 fail（非 partial 交付）。"""
     monkeypatch.setattr(_judge_mod(), "pdf_cjk_chars", lambda _p: 0)
     v = judge(_res(tmp_path, pdf=True), expect_cjk=True)
-    assert v.status == "partial"
+    assert v.status == "fail"
     assert "cjk_chars=0" in v.reasons
+    assert "tofu_veto" in v.notes
 
 
 def test_judge_cjk_rendered_clean(
