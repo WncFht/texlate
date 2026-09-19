@@ -1234,3 +1234,14 @@
 - **派发**: `mainrel` = engine.py+repair.py+stage_fixloop.py 签名穿线+回归测 (worker/_fixloop_pass 属 en-fixloop 在飞域不碰, repair.run_fixloop kw passthrough 天然接通); inject.py 排序硬化 leader 自留 (injfix 同件在飞避争)。
 - roster 6 全跑: injfix/envspec/pfafont/drvopt/cp1252cen/mainrel。c0diag/ds209diag 交付毕关。
 - 门: 裁决点 3 件仍待用户 (#10/ds@/verdict 排序)——ds209diag 的 (c) 采纳属 leader 判决域非裁决点 (机制已证, 无产品语义变更)。
+
+### 2026-09-19 ~15:5x tick — injfix/mainrel/drvopt/cp1252fix/envspec 全落 + #191/drvopt 实证闭环
+- **6 commit 落盘** (私 index): `f6a6a095` injfix \bd 深度0锚 + `f8b9fa60` mainrel 穿线 (engine/repair/stage_fixloop) + `cc3d137e` drvopt 规 (55-prim.yaml order 48) + `c5dd08d0` find_main_tex 名层提前 + `207de39b` pipecore main_rel 贯通 + `6a8cec0f` cp1252 C1 清洗 (textutil decode 单出口) + `7ec591e5` envspec argspec 双 env (Mizar verbatim/translatedabstract key)。
+- **#191 悖论解=陈旧档非缺陷**: 13:37 verify 波 `code=d2ba563d-dirty` 早于 mainrel 落盘 (14:29)——`main=tab1.tex` 是旧码正常行为。committed 码重跑 3 格全翻: 9910375 clean (main=paper.tex) / 9901328 clean (ifpap.tex) / 0104303 acceptable_pdf (ms.tex); subfile_docclass_strip 剥全 4 非主 docstyle 档 → 全 blob 零 \documentstyle → gate 不火。mainrel+排序+strip 链实证闭合。
+- **drvopt 实证**: 3 格 `pdftex_driver_opt_strip` round-1/3 火——1206.0240 **best_effort→clean 升档** (splice [pdftex] 清零), 1706.07495/1306.0294 acceptable_pdf。前波"空 fired"为 13:57 预落盘档误读 (cases 无 rules_fired 键, 规则名在 actions[].rule)。
+- **injfix \bd 实证** (前波, dirty 在树期已验): 0905.0876/hep-th/0307203/hep-th/9910011 全 partial/best_effort_pdf (undefined_cs fail→flip)。
+- **cp1252fix**: encoding.py `_scrub_c1_mojibake` + 11 测全绿 + ruff clean + orphan-assert 1529 绿——decode 面 C1 哨兵 run 反转/cp1252 表回退, 无 C1 拉丁 run 免误伤。
+- **envspec**: argspec.json +2 env (Mizar body_role=verbatim arg=key, translatedabstract arg=key body=text) + 2 segmenter 测绿——zhleakdiag 2410.00065/2401.14887 机位泄漏补。segmenter 数据面已动, L1 parsebench 重门待排。
+- **roster 处置**: injfix/mainrel/drvopt/cp1252fix/cp1252cen/envspec 交付毕关 (6 关); pfafont (#193) 独跑。texlate-bb mutex ping 待发 (inject/normalize/segmenter 全落, 无在飞波 → 全 mutex 释)。
+- 门: L0 30+1529 绿✓; Ruleset.load() 前波 139 验 (drvopt yaml 已含)✓; ③靶翻 6/6 (\bd 3 + drvopt 3 + #191 3 全翻, 0 down)✓; sab escaped=0 (本段无新跑, 前波持)✓; clean% 单调✓。裁决点 3 件仍待用户 (#10/ds@/verdict 排序)。
+- **backlog**: L1 parsebench post-argspec 重门; normalize.py:137 inject_preamble 零 caller 残件; flipcheck9 残 6 格 splice 重建; drvopt vendored .def/.cfg 退役扩; 1907.03923 待 pfafont。
