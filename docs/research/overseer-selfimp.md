@@ -1254,3 +1254,22 @@
 - **In flight**: loop3 117-cell fixloop rerun (jobs 4, real verdicts flowing: acceptable_pdf/best_effort upgrades), flipcheck batch fc5→fc9 sequential (jobs 2), rebuild-loop2 detached.
 - **Roster**: failmine4 (records census), verifyfam (4 post-replay families), kotexfix (hangul misschar cond impl), drvext (drvopt residue + vendor .def/.cfg), arrayresid (CJK pream-payload gap), mojiverify (cp1252+envspec live evidence). Mid-wave edit ban reiterated: inject/normalize/latex/textutil frozen until waves drain.
 - **Stale-record discipline paid off again**: #191 "paradox" was a pre-commit record (`code: d2ba563d-dirty`); all 3 cells flip clean on committed code. Rule stands: check `code`/ts vs commit time before concluding failure.
+
+## 2026-09-19 ~15:30 — failmine4 census + loop3/flipcheck harvest
+
+- **loop3 rerun harvest (117 cells)**: 28 clean / 50 acceptable_pdf / 46 best_effort_pdf / 2 dirty_pdf / 1 stuck / 1 unfixable:missing_file — every re-run cell emits a PDF, zero regressions observed.
+- **flipcheck batch (21 cells, fc5/7/8/9)**: partials upgraded to acceptable/best_effort; residual fails = upstream defects (input_stack, missing_file), not fixloop-addressable.
+- **failmine4 census (2443 deduped cells, report persisted)**: top never-covered target = `aaai2027.sty` `\RequirePDFTeX` guard → unfixable:emergency ×15 homogeneous (soak-09-18, growing — AAAI-27 season). Dispatched **aaaiguard** (guard-strip per draftsty precedent, strip not pdftex-route) + **covgap** (missing_graphic xetex phrasing ×6 dispatch-miss; ifacconf/jmlr2e install-table adds; doc-absent stub census).
+- **Hidden mass**: 347 chronic upstream-blocked cells (no real verdict since loop1) resurface as rebuild re-materializes zh/ — re-census at wave drain.
+- **rebuild-loop2**: fixloop stage ~535/619 in flight; early cells flipping clean at high rate.
+- **pipecore main_rel wire**: verified already forwarding at :727 (mainrel's flag was stale).
+
+## 2026-09-19 ~15:45 — rebuild-loop2 DRAINED: 526/619 clean-status (85%)
+
+- **Wave final (619 purged-workdir cells, chained ingest→parse→xlat mock→fixloop)**: run-log fixloop verdicts = 411 clean / 137 acceptable_pdf / 63 best_effort_pdf / 2 dirty / 6 unfixable-class (input_stack×2, killed, missing_file, other, timeout). Record-status rejudge: **526 clean / 85 partial / 8 fail** — zero rerun_no_zh residue (heal complete).
+- **Impact**: these were ALL loop1-vintage fail/partial cells never post-wave-verified — the accumulated ruleset flips ~85% to clean-status. Biggest-lever item (#173.1) delivered.
+- **Gate ⑤ audit (cleanaudit, report persisted)**: PASS — zero clean→nonclean in all 6 dirs (structural: waves only touch `--on nonclean`). Per-dir nets: loop2 +75 (62 p→c,13 f→c at audit time), loop3 +28, fc5 +1, fc7 +1, fc8 +2, fc9 +1.
+- **1 REAL regression caught**: 1803.03185 partial→fail — `vendored_sty_shadow` (_builtins_vendored.py:~250, 85-shim.yaml) renamed `style/optidef.sty` but paper loads `\usepackage{./style/optidef}` path-qualified; texmf can't shadow `./`-prefixed paths → fatal missing_file. **pathqual lane dispatched** (back-fill shim preferred > skip-shadow).
+- **mojiverify VERIFIED both features**: cp1252 scrub — 80 files fire, post_C1=0 all, idempotent, utf-8-verdict-gated only, clean accented untouched (58 ids affected; 7 replay targets need upstream re-decode, 1 in rebuild scope). argspec envs — Mizar×7 PROTECTED / translatedabstract key-binding confirmed load-bearing on real sources.
+- **Mid-wave edit ban LIFTED** (broadcast to all impl lanes): inject/normalize/latex/textutil editable again.
+- **Roster**: pathqual (regression, priority), aaaiguard, covgap, kotexfix, drvext, arrayresid, leanext impls + verifyfam read-only. Closed: failmine4, mojiverify, cleanaudit.
