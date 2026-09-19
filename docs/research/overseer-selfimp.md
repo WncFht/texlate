@@ -1279,3 +1279,15 @@
 - **leanext closed**: `.lean` matches no tex-candidate extension set anywhere (6 sites enumerated — _texutil/inject/mask/api/locate-graph/probe-dep all exact-suffix, none admit .lean). Only 1 corpus paper carries .lean files (2105.00041 — below ≥2 gate); they are legit `\lstinputlisting`/`\input` targets — an exclusion blacklist would turn resolvable deps into phantom missing_file.
 - **Redirect note**: the only 2 `.lean` record mentions are real font gaps (Lean unicode ∀ λ ∘ ⟨ ⟩ absent from lmroman9) — belongs in fixloop font rules if ever warranted, not extension sets. Report persisted at tmp/lane-leanext/report.md; agent closed.
 - **Roster**: 7 active — pathqual (regression, priority), aaaiguard, covgap, kotexfix, drvext, arrayresid impls + verifyfam read-only.
+
+## 2026-09-19 ~16:25 — 3-lane harvest: enguard + slotrev-colspec + drvext (4 commits)
+
+- **aaaiguard `engine_guard_strip`** `5d7583ac` — 40-install.yaml @11.99: aaai2027.sty iftex `\RequirePDFTeX` 独占行删 (emergency, 3-证闸: ctx+glob+source); 真实 cell 2609.19158 剥后 xelatex 出 11 页 PDF; 24 测。
+- **arrayresid slotrev colspec 扩展** `f51d9d28` — _builtins_slotrev +118: colspec env 参行 (1-arg+{dimen}{spec} 族 + \multicolumn + \newcolumntype) + `[ -~]+` spec ident (kind 前缀路由) + `_holder_rxs` mask_tex def-体 spec-holder 宏现查 (cap 8/文件)。1502.01845 实证 holders=[betb] 2 revert。段内唯一 "Illegal character in array arg" 活残格被 precheck revert 收。
+- **drvext 双件** `7d1dfbec`+`19f78a3a` — iftex_engine_guard_neutralize @47 (`\Require[A-Za-z]*TeX`→`\relax` masked, emergency+early_eof+other) + opt_strip 3 扩 (词闸 \bpdftex\b→全驱动词表; [Dd]river 大小写; \newcommand 族指派臂 aa.cls\aa@driver 双支实证) + normalize.py `_DRIVER_SCOPE_RX` arm-1 lookahead 拓宽 (多包 [drv]{a,b} 漏网 12 格全 clean — hygiene, 零 flip 值)。
+- **REVIEW 裁定: 双规同族保留** — engine_guard_strip @11.99 (独占行删, emergency-only 3-证) 与 iftex_neutralize @47 (token 换 \relax, 3 cat) 互补: strip 先吃观测族, neutralize 收 strip known_gap 的非独占/inline 形 + early_eof/other 呈现。排序保证不双火。
+- **Gates**: Ruleset.load()=143; orphan-assert `test_fixloop_*` 1578 绿; driverdef 40 绿; compile_normalize+driverdef 161 绿; ruff 全净 (leader 补 1 PLR2004)。
+- **Waves launched**: sab-r6 gate④ (40 格 rebuild 新 clean 池, sabotage-b arm, detached pid 935978); mojidec 6 格上游重解码 (cp1252 replay 目标, ingest→parse→xlat mock→fixloop, pid 968651)。
+- **Dispatched**: fmsingles (siunitx+units/PoSlogo/frontmatter-env/~14 undefined_cs singles), endcsdiag (\endcsname ×2 诊断 read-only), chronic347 (347 chronic-blocked 重普查 read-only)。
+- **Closed**: aaaiguard, arrayresid (segmenter 上游修 declined — 1 活格 precheck revert 已盖, L1 重门不值), drvext。
+- **Roster**: pathqual (regression, priority), covgap, kotexfix, verifyfam (read-only) + fmsingles, endcsdiag, chronic347 = 7。
