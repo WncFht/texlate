@@ -1083,3 +1083,11 @@
 - **两卡壳**: loopsched #144 **50min 零产物** (无 lane 目录无件) ——终警告已发, 下 tick 无应即 TaskStop 重派; loop4wave run5 para 波 15min 零产物——催报 (a 备/b 跑哪/c 卡)。
 - roster 9: regrdiag(#166 impl)/misscharcen(#162 impl)/subfilegate(#168 impl)/sweepgate(#163)/assetlane(#165)/failmine3(#164)/ifscanner(#167)/loop4wave(#161 run5?)/loopsched(#144 卡)。peer stagerun-v3all 批在飞 (彼域)。
 - 门: teammate 零 git✓ (HEAD c7bf2c1 全 leader/peer-leader 署); index 净; L0/L1/L2/sab 全绿维持; 裁决点 3 件仍待用户。
+
+## 2026-09-19 ~11:5x — 双交付落地 af62769+67715ad + misscharcen 续派 wave-2
+
+- **#168 subfilegate 落地 af62769 (4件 +143/−3)**: `SUBFILES_CHILD_RX` (decls.py:61, masked view) + `preamble_ok = has_document ∧ ¬depth0(subfiles-class)` 门 normalize 三处 pre-docclass prepend。机制实锤: `\subfile` 吞 docclass→bd, 前置块 preamble-only cs 落 master body → :1,:14 错 (2310.16788 4错源)。PIXEL 放行 (\newdimen body-legal 保 pdfpxdimen 覆盖); standalone-class 不门 (legit main); post-docclass 注入不门 (gobbled 无害)。8 测+305 回归绿。关毕。
+- **#162 misscharcen 落地 67715ad (4件 +237/−7, 原子对)**: char_table +14 (17格/35行, 全 TFM-safe 形——\textXxx 在 TU 下产同码位再缺字故走 \ensuremath/\mbox; ╨=CP437 连字符 mojibake→"-", ℤ→\mathbb{Z} amssymb 依赖注记) + macro_glyph +3 (textendash→\mbox{--} ket记号×40; **textacutedbl 键伴生 02F5** — „…˝ 引号对原子归一, 纯 02DD 音标域不触发, known_gap 注)。两 spec 修正皆实件证+文内注。32+110 测绿, ruleset 120 规载。
+- **续派 #169 misscharcen** (普查上下文持): wave-2 两 produced-not-literal 机制——`\char<dec>` TFM 槽改写 (2104.00026×41行, slot 11-15→ff/fi/fl/ffi/ffl) + `^^XX` bbl UTF-8 字节解码臂。
+- roster 8: regrdiag(#166 impl)/misscharcen(#169)/sweepgate(#163)/assetlane(#165)/failmine3(#164)/ifscanner(#167)/loop4wave(#161 run5 催)/loopsched(#144 卡-终警)。
+- 门: teammate 零 git✓; HEAD 67715ad; L0 相关测全绿✓; 40/40 新测; 裁决点 3 件仍待用户。
