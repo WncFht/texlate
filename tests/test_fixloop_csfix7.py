@@ -122,3 +122,57 @@ def test_unknown_cs_still_declines(tmp_path: Path) -> None:
     ok, note = _fix(tmp_path, "xyzzyqq")
     assert not ok
     assert "not in cs-fix table" in note
+
+
+# ────────────────────────── breakurl_ifpdf_hook (task #289) ──────────────────────────
+# breakurl v1.40 在 \ifpdf=false 支做 \@ifpackageloaded{hyperref} 硬检;
+# 稿把 breakurl 排在 hyperref 前或根本不载 → PackageError+\endinput。
+# 断臂 = ifpdf 钩 (非 strip/非 hyperref 前移): strip orphan \burl;
+# hyperref 前移激活 DVI 支 \headerps@out 病理。snippet 与
+# normalize.XETEX_COMPATIBILITY:98-103 逐字同源。
+
+import regex  # noqa: E402
+
+from texlate.compile.fixloop import load_ruleset  # noqa: E402
+from texlate.compile.fixloop.ruleset import Rule  # noqa: E402
+
+_HOOK_BEFORE = (
+    "\\AddToHook{package/breakurl/before}{\\RequirePackage{xkeyval,ifpdf}"
+    "\\let\\TeXlateSavedIfpdf\\ifpdf\\let\\ifpdf\\iftrue}"
+)
+_HOOK_AFTER = "\\AddToHook{package/breakurl/after}{\\let\\ifpdf\\TeXlateSavedIfpdf}"
+
+
+def _breakurl_rule() -> Rule:
+    return next(r for r in load_ruleset().rules if r.id == "breakurl_ifpdf_hook")
+
+
+def test_breakurl_rule_shape() -> None:
+    """when=other (depends-on 措辞不落 pkg_order), ctx_suggests 收窄到 breakurl。"""
+    rule = _breakurl_rule()
+    assert rule.when == {"category": "other"}
+    assert "breakurl depends on hyperref" in rule.condition["ctx_suggests"]
+    assert rule.action["kind"] == "regex_rewrite"
+
+
+def test_breakurl_ctx_suggests_match() -> None:
+    """真错行文命中; 别包同措辞 (foo depends on hyperref) 不误中。"""
+    pat = _breakurl_rule().condition["ctx_suggests"]
+    err = "breakurl.sty:62: Package breakurl Error: The breakurl depends on hyperref package."
+    assert regex.search(pat, err)
+    assert not regex.search(
+        pat, "foo.sty:9: Package foo Error: The foo depends on hyperref package."
+    )
+
+
+def test_breakurl_hook_injected_before_docclass() -> None:
+    """rewrite 在 \\documentclass 行前注 hook 对 —— 与 normalize snippet 同体。"""
+    rw = _breakurl_rule().action["params"]["rewrites"][0]
+    flags = regex.M if "M" in rw.get("flags", []) else 0
+    out = regex.sub(rw["pattern"], rw["repl"], _DOC, flags=flags)
+    assert _HOOK_BEFORE in out
+    assert _HOOK_AFTER in out
+    assert out.index(_HOOK_BEFORE) < out.index("\\documentclass")
+    assert "fixloop: breakurl ifpdf guard" in out
+    # 无 docclass 锚的碎片 → 原文不动 (applied=False 诚实 decline 路径)。
+    assert regex.sub(rw["pattern"], rw["repl"], "x\n", flags=flags) == "x\n"

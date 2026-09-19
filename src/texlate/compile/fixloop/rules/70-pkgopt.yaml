@@ -125,6 +125,49 @@ rules:
     stats: { fires: 4 }
     source_ref: "wave-2: pkg_order 类目首个消费规则"
 
+  # pkg_order 旁族 (soak-2026-09-18 base 面 7 cells: 2504.03871/2609.19233/
+  # 2609.20069/2609.20263/2609.20370/2609.20532/2609.20614 + m1k/loop1-2
+  # 1907.00204/2112.00142): breakurl v1.40 在 \ifpdf=false 支
+  # \@ifpackageloaded{hyperref} 硬检 —— 稿把 breakurl 排在 hyperref 前
+  # (usenix.sty:41<:44) 或根本不载 hyperref → PackageError+\endinput;
+  # xelatex \ifpdf 恒 false 必踩。断臂裁决 = ifpdf 钩, 非 strip 亦非
+  # hyperref 前移: 剥装载点 orphan \burl/\burlalt 须另配 polyfill;
+  # hyperref 前移则激活 DVI 支 \headerps@out shipout 钩 (1909.05039
+  # 另一已知 breakurl 病理, cs_table headerps@out→strip_pkg 正为修它)
+  # —— 唯 \ifpdf→\iftrue 使走内建 pdf 降级支 (\burl≡\url 同义,
+  # \endinput 在依赖检之前) 双病俱免。snippet 与
+  # normalize.XETEX_COMPATIBILITY:98-103 逐字同源 (fix 臂注入面实证),
+  # 本规则补 prologue=False/未注入边缘面。
+  - id: breakurl_ifpdf_hook
+    description: "breakurl 先于 hyperref 装载 (或无 hyperref) → \\documentclass 前注 package/breakurl before/after hook 对强走 pdf 降级支"
+    phase: loop
+    order: 124
+    when: { category: other } # file-line 形 PackageError "depends on" 措辞不落 pkg_order (must be loaded) taxonomy
+    condition:
+      ctx_suggests: "breakurl depends on hyperref"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex]
+        rewrites:
+          - {
+              pattern: "^[ \\t]*\\\\documentclass",
+              flags: [M],
+              repl: '\\AddToHook{package/breakurl/before}{\\RequirePackage{xkeyval,ifpdf}\\let\\TeXlateSavedIfpdf\\ifpdf\\let\\ifpdf\\iftrue}\n\\AddToHook{package/breakurl/after}{\\let\\ifpdf\\TeXlateSavedIfpdf} % fixloop: breakurl ifpdf guard\n\g<0>',
+            }
+    risk: low # hook 仅罩 breakurl 装载段: before 存真 \ifpdf→\iftrue, after 还原; breakurl 不载则 hook 空挂
+    known_gap: "无 \\documentclass 锚的碎片档 → applied=False; cls 在 \\documentclass 内 \\RequirePackage{breakurl} 仍可达 (hook 先于类载入注册)"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "soak-2026-09-18 base ×7 + m1k/loop1-2 (2504.03871, 2609.20614)",
+          error: "breakurl.sty:62: Package breakurl Error: The breakurl depends on hyperref package.",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "normalize.py:98-103 XETEX_COMPATIBILITY breakurl 段同 snippet; tmp/lane-csfix7/"
+
   - id: minted_frozencache
     mechanisms: [W40, B05]
     description: "minted frozencache 版本错配 → 去 frozencache 选项 + -shell-escape 让 minted 再生缓存"
