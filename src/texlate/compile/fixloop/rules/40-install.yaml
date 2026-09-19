@@ -627,6 +627,63 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/lane-revtex/repro/mini5.tex 端到端实证 (emulateapj+Citeauthor 二遍死); census tmp/lane-revtex/"
 
+  # 2026-09-19 aaaiguard lane (failmine4 普查, 15 格全 fresh soak-09-18
+  # 2609.*): 稿自带 aaai2027.sty (4 md5 变体) 内置引擎闸 ——
+  # \RequirePackage{iftex} 后 `\RequirePDFTeX` 独占行 (:14/:43/:59/:62
+  # 变体位); xelatex 下 iftex 横幅 "pdfTeX is required to compile this
+  # document" → file-line 形 `aaai2027.sty:N: Emergency stop` + `l.N
+  # \RequirePDFTeX` 回显 (err_head 实读 2609.19158 main.log)。
+  # 剥面 = 同族 `\Require{PDFTeX,LuaTeX,LuaMetaTeX}` —— xelatex 下全灭
+  # 子集 (\RequireXeTeX/\RequireETeX/\RequireTeXXeT 本机通过不在剥面);
+  # iftex 载留无害, 不路由 pdftex (zh 管线定死 xelatex+ctex, pdftex 破
+  # CJK)。闸面三证: err ctx 回显 guard cs ∧ 顶层 *.sty/*.cls 在场 ∧
+  # 源 blob 含 guard cs; 脚本逐件剥注释行后按独占行形确证再删行 (行尾
+  # 允许空白/% 注释), 尾注 texlate-fixloop-injected 幂等。下游 T1
+  # fontenc/newtx 退化属 acceptable_pdf 面 —— leader 裁定 acceptable_pdf
+  # 优于 unfixable:emergency 死格。
+  - id: engine_guard_strip
+    mechanisms: [B05]
+    description: "稿自带 .sty/.cls \\Require{PDF,Lua,LuaMeta}TeX 引擎闸 (xelatex Emergency stop) → 删独占闸行"
+    phase: loop
+    order: 11.99 # revtex_era_retire(11.98) 后, legacy_pkg_shim(12) 前 —— 稿自带件病灶族尾
+    when: { category: emergency }
+    condition:
+      ctx_suggests: "\\\\Require(PDFTeX|LuaTeX|LuaMetaTeX)"
+      any:
+        - { cache_dir_glob: "*.sty" }
+        - { cache_dir_glob: "*.cls" }
+      source_contains: "\\\\Require(PDFTeX|LuaTeX|LuaMetaTeX)"
+      tool_available: sh
+    action:
+      kind: run_tool
+      params:
+        argv:
+          - sh
+          - -c
+          - |
+            for f in *.sty *.cls; do
+              [ -f "$f" ] || continue
+              grep -q 'texlate-fixloop-injected' "$f" && continue
+              grep -vE '^[[:space:]]*%' "$f" | grep -qE '^[[:space:]]*\\Require(PDFTeX|LuaTeX|LuaMetaTeX)[[:space:]]*(%.*)?$' || continue
+              grep -vE '^[[:space:]]*\\Require(PDFTeX|LuaTeX|LuaMetaTeX)[[:space:]]*(%.*)?$' "$f" > "$f.fixloop-tmp"
+              printf '%s\n' '% texlate-fixloop-injected: engine guard \Require{PDF,Lua,LuaMeta}TeX stripped (xelatex pipeline)' >> "$f.fixloop-tmp"
+              mv -f "$f.fixloop-tmp" "$f"
+            done
+            exit 0
+        timeout: 30
+    risk: low # 仅删 wdir 顶层稿自带件独占闸行; 若闸非死因 (别家 emergency) 删行也无害 —— xelatex 下闸本必死
+    known_gap: "闸 cs 非独占行 (\\ifx 行内/多 cs 同行) 指纹不中漏收; 子目录 sty/cls 漏收 (顶层 glob, 同 draftsty); 系统件不经手 (只扫 wdir)"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "failmine4 soak-2026-09-18 15 fresh cells (2609.19149/2609.19158/2609.19990 +12, 4 sty md5 变体)",
+          error: "aaai2027.sty:{14,43,59,62}: Emergency stop —— \\RequirePackage{iftex}+\\RequirePDFTeX 引擎闸, 'pdfTeX is required to compile this document'",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-failmine4/report.md (fresh 15 格同质桶) + tmp/lane-aaaiguard/"
+
   # fixable-data 裁定 (1003.2165): polutonikogreek 是弃名, greek.polutoniko
   # 亦走 locale/invalid/ 弃名桩必炸。现行 ini 正形是 `greek.polytonic`
   # (locale/el/babel-polytonicgreek.tex 自证 "Provided: greek.polytonic";
