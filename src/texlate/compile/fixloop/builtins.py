@@ -93,7 +93,6 @@ from texlate.compile.fixloop._builtins_misc import (
     plain_format_detect,
     purge_corrupt_intermediates,
     restore_support_from_src,
-    subfile_docclass_strip,
 )
 from texlate.compile.fixloop._builtins_misschar import (
     accent_mark_fix,
@@ -223,7 +222,6 @@ __all__ = [
     "shim_pkgs_in_use",
     "shipped_sty_input_wrap",
     "strip_inputenc",
-    "subfile_docclass_strip",
     "svg_prepare",
     "svjour_clo_stub",
     "undefine_for_redef",
@@ -310,5 +308,4 @@ TRANSFORM_FNS = {
     "shipped_sty_input_wrap": shipped_sty_input_wrap,
     "para_longize": para_longize,
     "graphic_missing_placeholder": graphic_missing_placeholder,
-    "subfile_docclass_strip": subfile_docclass_strip,
 }
