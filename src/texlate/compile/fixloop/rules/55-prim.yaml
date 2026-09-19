@@ -106,6 +106,104 @@ rules:
     source_ref: "fixer-bblwall-2026-09-17 spec A3; \\pdfgentounicode 是 count 赋值形故 \\newcount"
 
   # ─── loop: 源码改写系 —— 按"保守→激进"排序 ───
+  # 2026-09-19 driver-option strip lane (loop3-1206.0240/1706.07495/1306.0294):
+  # [pdftex] 驱动选项残存进 zh 树 → xelatex 下装载 pdftex.def → \pdfcolorstack
+  # 等原语 undefined → 错误恢复把 chardef 残值排进字流 (^^@×179/^^A×20
+  # missing_char 族)。normalize 括号面只认单包 {graphicx} 形, 多包
+  # {graphicx,color}/{color,graphicx} 与 vendored cfg \ExecuteOptions{pdftex}
+  # 漏网 (1306.0294 vendored color.cfg/graphics.cfg + 2007 pdftex.def 实案:
+  # .eps 成 Unknown graphics extension → \includegraphics 错 → \subfloat 恢复
+  # 级联)。guard(50)/polyfill(51) 只守卫/补定义——pdftex.def 仍载, chardef
+  # token 照样排字 (polyfill 的 "pdfcolorstack":"#1" 臂回声同 token, 治不了
+  # 泄漏) —— 剥选项必须排在它们之前。改写组与 hyperref_driver_neutralize
+  # (70-pkgopt) 同构: 括号/PassOptions/def-driver 三套剥词 + 空括号清扫,
+  # 另加 ExecuteOptions 驱动词换 xetex 臂 (cfg 驱动选支形, 剥空会丢同括号
+  # 兄弟选项故取显式换写)。
+  - id: pdftex_driver_opt_strip
+    description: "[pdftex] 驱动选项残存 (多包括号/vendored cfg 漏网面) → 驱动词剥除/ExecuteOptions 换 xetex, pdftex.def 不载"
+    phase: loop
+    order: 48 # guard(50)/polyfill(51) 之前 —— 根修先于症状补丁; polyfill 落地后 pdftex_prim 签名消失, 再没机会
+    when:
+      any:
+        - { category: pdftex_prim, payload_required: false }
+        # file-line 错归 other 的失守面 (hyperref_driver_neutralize 同构);
+        # 无站点 applied=False 当场让位下条, 不耗轮
+        - { category: other, payload_required: false }
+    condition:
+      # source_blob 仅 .tex/.sty/.cls —— 宽松词级闸, 改写臂自带站点形状,
+      # vendored cfg 格靠 .sty 内 pdftex 字样 (geometry.sty \Gm@pdftex) 放行
+      source_contains: "\\bpdftex\\b"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty, .cls, .cfg]
+        rewrites:
+          # 全驱动括号: [pdftex] / [pdftex,dvips] → [] (括号可跨行)
+          - {
+              pattern: "\\[\\s*(?:(?:pdftex|dvips|dvipsone|dviwindo|ps2pdf|hypertex|vtex|vtexpdfmark|textures|tex4ht|latex2html|oztex|dvipdfmx?)\\s*,?\\s*)+\\]",
+              repl: "[]",
+              match_surface: masked,
+            }
+          # 括号首位驱动词: [pdftex,opt] → [opt]
+          - {
+              pattern: "\\[\\s*(?:(?:pdftex|dvips|dvipsone|dviwindo|ps2pdf|hypertex|vtex|vtexpdfmark|textures|tex4ht|latex2html|oztex|dvipdfmx?)\\s*,\\s*)+",
+              repl: "[",
+              match_surface: masked,
+            }
+          # 中段/末位驱动词: [opt,pdftex,opt2] / [opt,pdftex] → [opt,opt2]/[opt]
+          - {
+              pattern: "(\\[[^\\]]*?)(?:,\\s*(?:pdftex|dvips|dvipsone|dviwindo|ps2pdf|hypertex|vtex|vtexpdfmark|textures|tex4ht|latex2html|oztex|dvipdfmx?)\\s*)+(?=,|\\])",
+              repl: "\\g<1>",
+              match_surface: masked,
+            }
+          # PassOptionsToPackage/Class 首参同三套 (大括号形)
+          - {
+              pattern: "(\\\\PassOptionsTo(?:Package|Class)\\s*\\{)\\s*(?:(?:pdftex|dvips|dvipsone|dviwindo|ps2pdf|hypertex|vtex|vtexpdfmark|textures|tex4ht|latex2html|oztex|dvipdfmx?)\\s*,?\\s*)+\\}",
+              repl: "\\g<1>}",
+              match_surface: masked,
+            }
+          - {
+              pattern: "(\\\\PassOptionsTo(?:Package|Class)\\s*\\{)\\s*(?:(?:pdftex|dvips|dvipsone|dviwindo|ps2pdf|hypertex|vtex|vtexpdfmark|textures|tex4ht|latex2html|oztex|dvipdfmx?)\\s*,\\s*)+",
+              repl: "\\g<1>",
+              match_surface: masked,
+            }
+          - {
+              pattern: "(\\\\PassOptionsTo(?:Package|Class)\\s*\\{[^}]*?)(?:,\\s*(?:pdftex|dvips|dvipsone|dviwindo|ps2pdf|hypertex|vtex|vtexpdfmark|textures|tex4ht|latex2html|oztex|dvipdfmx?)\\s*)+(?=,|\\})",
+              repl: "\\g<1>",
+              match_surface: masked,
+            }
+          # \\def\\<cs>driver<cs>{<drv>} 间接指派 → xetex (kaist-ucs.cls 形)
+          - {
+              pattern: "(\\\\[gex]?def\\s*\\\\[\\w@]*driver[\\w@]*\\s*\\{)\\s*(?:pdftex|dvips|dvipsone|dviwindo|ps2pdf|hypertex|vtex|vtexpdfmark|textures|tex4ht|latex2html|oztex|dvipdfmx?)\\s*\\}",
+              repl: "\\g<1>xetex}",
+              match_surface: masked,
+            }
+          # \\ExecuteOptions{...drv...} 驱动词 → xetex (变宽 lookbehind 逐词;
+          # vendored color.cfg/graphics.cfg 驱动选支形, 剥空丢兄弟选项故换写)
+          - {
+              pattern: "(?<=\\\\ExecuteOptions\\s*\\{[^{}]*)\\b(?:pdftex|dvips|dvipsone|dviwindo|ps2pdf|hypertex|vtex|vtexpdfmark|textures|tex4ht|latex2html|oztex|dvipdfmx?)\\b",
+              repl: "xetex",
+              match_surface: masked,
+            }
+          # 空括号清扫: \usepackage[]{x} → \usepackage{x}
+          - {
+              pattern: "(\\\\(?:documentclass|usepackage|RequirePackage))\\s*\\[\\s*\\]",
+              repl: "\\g<1>",
+              match_surface: masked,
+            }
+    risk: low # xetex 下这些驱动本就失效; masked 面只改写活代码, 注释/逐字不动
+    known_gap: "vendored pdftex.def/dvips.def 实体件仍留 wdir (选支换 xetex 后不再被载, 残留无害; 遮蔽退役属 vendored_shadow 面未覆盖 .cfg/.def —— backlog); .def/.clo 内驱动站点未盖 (无实证); 非 \\def 形指派 (\\let/\\newcommand) 与 \\hypersetup 驱动键未盖 (同 neutralize)"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same } # XeTeX 内核同驱动面
+    provenance:
+      - {
+          corpus: "loop3-1206.0240 (^^@×179) + 1706.07495 (^^@×106): \\usepackage[pdftex]{graphicx,color}/{color,graphicx} 多包括号漏 normalize; 1306.0294 (^^A×20): vendored color.cfg/graphics.cfg \\ExecuteOptions{pdftex} + vendored 2007 pdftex.def",
+          error: "Undefined control sequence \\pdfcolorstack → chardef 残值排字 missing_char",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "c0diag C0-ctrl census; normalize.py _DRIVER_SCOPE_RX 单包括号面外漏网"
+
   - id: pdftex_prim_guard
     description: "pdfTeX 原语裸用 (@pdftex_prims 族 token, load 期展开成 PDFTEX_PRIMS 交替) → \\ifdefined 守卫, xelatex 下静默跳过"
     phase: loop

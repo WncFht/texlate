@@ -201,3 +201,142 @@ def test_driverdef_apply_whitespace_in_braces(tmp_path: Path) -> None:
 def test_driverdef_ruleset_loads() -> None:
     rs = load_ruleset()
     assert len(rs.rules) >= 113  # noqa: PLR2004 - 库规模断言
+
+
+# ────────────────────────────────────────────────────────────────
+# pdftex_driver_opt_strip (55-prim order 48): [pdftex] 驱动选项残存 →
+# xelatex 载 pdftex.def → \pdfcolorstack undefined → chardef 残值排字
+# (loop3-1206.0240 ^^@×179 / 1706.07495 ^^@×106 多包括号面;
+# 1306.0294 vendored cfg \ExecuteOptions{pdftex} 形 ^^A×20)。
+# ────────────────────────────────────────────────────────────────
+
+
+def _opt_rule() -> Rule:
+    return next(r for r in load_ruleset().rules if r.id == "pdftex_driver_opt_strip")
+
+
+def _opt_apply(tmp_path: Path) -> tuple[bool, str]:
+    return actions._apply(  # noqa: SLF001 - 钉规则动作直驱
+        _opt_rule(), _ctx(tmp_path), _Eng(), "pdfcolorstack", ErrReport()
+    )
+
+
+def _opt_cond(tmp_path: Path) -> tuple[bool, str]:
+    rule = _opt_rule()
+    return actions._cond_ok(  # noqa: SLF001
+        rule.condition, rule, _ctx(tmp_path), _Eng(), "pdfcolorstack"
+    )
+
+
+def test_pdftexopt_rule_registered() -> None:
+    rule = _opt_rule()
+    assert rule.order == 48  # noqa: PLR2004 - 先于 guard(50)/polyfill(51) 根修
+    assert rule.action["kind"] == "regex_rewrite"
+    rw_pats = [rw["pattern"] for rw in rule.action["params"]["rewrites"]]
+    assert any("ExecuteOptions" in p for p in rw_pats)
+    exts = rule.action["params"]["exts"]
+    assert ".cfg" in exts  # vendored color.cfg/graphics.cfg 站点面
+
+
+def test_pdftexopt_cond_passes_usepackage_site(tmp_path: Path) -> None:
+    """1206.0240 形: \\usepackage[pdftex]{graphicx,color} → 闸放行。"""
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\usepackage[pdftex]{graphicx,color}\n"
+    )
+    ok, why = _opt_cond(tmp_path)
+    assert ok, why
+
+
+def test_pdftexopt_cond_passes_sty_mention_for_cfg_cell(tmp_path: Path) -> None:
+    """1306.0294 形: source_blob(.sty 可见) 内 pdftex 字样放行 cfg 改写面。"""
+    (tmp_path / "main.tex").write_text("\\documentclass{article}\n")
+    (tmp_path / "geometry.sty").write_text("\\def\\Gm@pdftex{pdftex}\n")
+    ok, why = _opt_cond(tmp_path)
+    assert ok, why
+
+
+def test_pdftexopt_cond_declines_no_pdftex(tmp_path: Path) -> None:
+    """源内无 pdftex 字样 → 闸拒。"""
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\usepackage[svgnames]{xcolor}\n"
+    )
+    ok, _ = _opt_cond(tmp_path)
+    assert not ok
+
+
+def test_pdftexopt_apply_strips_multipkg_bracket(tmp_path: Path) -> None:
+    """多包括号主案: [pdftex]{graphicx,color} → 裸装载 (graphicx 自侦 xetex)。"""
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\usepackage[pdftex]{graphicx,color}\n"
+    )
+    ok, note = _opt_apply(tmp_path)
+    assert ok, note
+    t = (tmp_path / "main.tex").read_text()
+    assert "\\usepackage{graphicx,color}" in t
+    assert "pdftex" not in t
+
+
+def test_pdftexopt_apply_strips_mid_bracket(tmp_path: Path) -> None:
+    """括号中段: [hyperindex, pdftex,colorlinks] → 驱动词独剥。"""
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n"
+        "\\usepackage[hyperindex, pdftex,colorlinks=true,backref]{hyperref}\n"
+    )
+    ok, _ = _opt_apply(tmp_path)
+    assert ok
+    t = (tmp_path / "main.tex").read_text()
+    assert "pdftex" not in t
+    assert "hyperindex" in t
+    assert "colorlinks=true" in t
+
+
+def test_pdftexopt_apply_executeoptions_cfg(tmp_path: Path) -> None:
+    """vendored cfg 选支: \\ExecuteOptions{pdftex} → {xetex} (兄弟选项保全)。"""
+    cfg = (
+        "\\@ifundefined{pdfoutput}%\n"
+        "  {\\let\\pdfoutput\\@undefined\n   \\ExecuteOptions{dvips}}%\n"
+        "  {\\ifcase\\pdfoutput\n      \\ExecuteOptions{dvips}%\n"
+        "   \\else\n      \\ExecuteOptions{pdftex}%\n   \\fi}%\n"
+    )
+    (tmp_path / "main.tex").write_text("\\documentclass{article}\n")
+    (tmp_path / "color.cfg").write_text(cfg)
+    (tmp_path / "geometry.sty").write_text("\\def\\Gm@pdftex{pdftex}\n")
+    ok, note = _opt_apply(tmp_path)
+    assert ok, note
+    t = (tmp_path / "color.cfg").read_text()
+    assert "\\ExecuteOptions{xetex}" in t
+    assert "pdftex" not in t
+    # .sty 内非选项面 pdftex 字样 (\def\Gm@pdftex{pdftex}) 不在改写形内 → 原样
+    assert "\\def\\Gm@pdftex{pdftex}" in (tmp_path / "geometry.sty").read_text()
+
+
+def test_pdftexopt_apply_comment_only_site_declines(tmp_path: Path) -> None:
+    """masked 面: 仅注释内 [pdftex] → 不改写不耗火 (applied=False)。"""
+    src = "\\documentclass{article}\n%\\usepackage[pdftex]{graphicx}\n"
+    (tmp_path / "main.tex").write_text(src)
+    ok, _ = _opt_apply(tmp_path)
+    assert not ok
+    assert (tmp_path / "main.tex").read_text() == src
+
+
+def test_pdftexopt_apply_passopts_brace_form(tmp_path: Path) -> None:
+    """PassOptionsToPackage{pdftex}{graphicx} 首参剥词。"""
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\PassOptionsToPackage{pdftex}{graphicx}\n"
+    )
+    ok, _ = _opt_apply(tmp_path)
+    assert ok
+    t = (tmp_path / "main.tex").read_text()
+    assert "\\PassOptionsToPackage{}{graphicx}" in t
+
+
+def test_pdftexopt_apply_leaves_non_driver_opts(tmp_path: Path) -> None:
+    """对照: 非驱动选项 [svgnames] 与无括号装载原样。"""
+    src = (
+        "\\documentclass{article}\n"
+        "\\usepackage[svgnames]{xcolor}\n\\usepackage{graphicx}\n"
+    )
+    (tmp_path / "main.tex").write_text(src)
+    ok, _ = _opt_apply(tmp_path)
+    assert not ok
+    assert (tmp_path / "main.tex").read_text() == src
