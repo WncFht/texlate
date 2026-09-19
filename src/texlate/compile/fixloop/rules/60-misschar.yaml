@@ -100,6 +100,32 @@ rules:
           - { id: lowtilde, cps: [0x02F7], replace: "\\ensuremath{\\sim}" }
           - { id: langle_br, cps: [0x2329], replace: "\\ensuremath{\\langle}" }
           - { id: rangle_br, cps: [0x232A], replace: "\\ensuremath{\\rangle}" }
+          # ── misscharcen #162 补表 (loop3 残余普查, 17 cells/35 lines) ──
+          # 全部字面在源 (.tex 或 shipped .bbl), 缺字体 cmr*/zptmcm7t TFM
+          # 无槽或 lmroman 偶缺。cmr 上下文须走数学族替换——TFM 字体没有
+          # latin-1/符号槽位, \textXxx 在 TU 下产出同码位仍缺字 ——
+          # ´/¼/½/≤/·/⋅/∼ 一律 \ensuremath; º/ʼ 落文本字体 (lmroman 有槽)。
+          - { id: middot, cps: [0x00B7], replace: "\\ensuremath{\\cdot}" }
+          - { id: sup2, cps: [0x00B2], replace: "\\ensuremath{^2}" }
+          # ´ 观测点是数学内伪 prime (1003.1105 ``k'\tau´``) —— ' 产 ′
+          # 双模皆活; TFM 下 \textasciiacute 会再缺同码位故不用
+          - { id: acute_sp, cps: [0x00B4], replace: "\\ensuremath{'}" }
+          - { id: frac14, cps: [0x00BC], replace: "\\ensuremath{\\frac{1}{4}}" }
+          - { id: frac12, cps: [0x00BD], replace: "\\ensuremath{\\frac{1}{2}}" }
+          - { id: ordmasc, cps: [0x00BA], replace: "\\mbox{\\textordmasculine}" }
+          - { id: leq, cps: [0x2264], replace: "\\ensuremath{\\leq}" }
+          - { id: dotop, cps: [0x22C5], replace: "\\ensuremath{\\cdot}" }
+          - { id: tildeop, cps: [0x223C], replace: "\\ensuremath{\\sim}" }
+          # ℤ shipped .bbl 字面 (1803.03082) —— \mathbb 依赖 amssymb,
+          # 观测格已载; 无 amssymb 的假想格会把 warn 转 undefined_cs
+          - { id: dblz, cps: [0x2124], replace: "\\ensuremath{\\mathbb{Z}}" }
+          - { id: thinsp, cps: [0x2009], replace: "\\," }
+          - { id: modapos, cps: [0x02BC], replace: "\\mbox{'}" }
+          # ╨ = CP437-era 连字符 mojibake (1404.0389 shipped .bbl
+          # ``silicone╨based``/``live╨cell``) → 还原连字符, 非剥除
+          - { id: boxdraw_2568, cps: [0x2568], replace: "-" }
+          # PUA 私用区残留 (0905.1031) —— 同 pua_f047 剥除
+          - { id: pua_f07a, cps: [0xF07A], replace: "{}" }
     risk: low # 预热盒不可见; replace 只动缺字码位本身
     engines:
       xelatex: { mode: native }
@@ -124,6 +150,10 @@ rules:
       - {
           corpus: "2003.03387 (loop3, driftdiag: revtex4+ae aer9 bib-passthrough 暴露源 U+2010×2)",
           error: 'Missing character: ‐("2010) in aer9 → char_table 补 hyphen',
+        }
+      - {
+          corpus: "misscharcen #162 (loop3 残余普查 tmp/lane-misscharcen/cells.json, 17 cells/35 lines)",
+          error: "Missing character: ·²º´¼½ ≤⋅∼ ℤ thinsp ʼ ╨ PUA — cmr/zptmcm7t TFM 无槽 + lmroman 偶缺 → char_table 补 14 条",
         }
     stats: { fires: 0, status: proposed }
     source_ref: "spec 2026-09-16-batch-hardening-design §9 F4; scout-misschar-coverage findings.yaml §outband_coverage+cls_pretokenized"

@@ -531,18 +531,29 @@ def accent_mark_fix(
 # macro_glyph_fix: 宏生成缺字 cs → 站点级源改写 (F4e)
 # ════════════════════════════════════════════════════════════════
 
-#: 无参符号 cs → (产出码位, 双模安全替换串): 字形由 cs 展开所产非输入
+#: 无参符号 cs → (触发码位, 双模安全替换串): 字形由 cs 展开所产非输入
 #: 字符 —— char_table ``replace`` 字面替换与 ``\newunicodechar`` 活动字符
 #: 绑定都够不到 (utf8census rebucket-misschar-site-rewrite ×2 实证):
 #: ``\texttildelow`` 产 U+02F7 (2308.04265 ``\raisebox{0.5ex}{\texttildelow}``
 #: 文本域站点, lmroman10 无槽); ``\textlangle``/``\textrangle`` 产
 #: U+2329/232A (2403.00011 ``\qdist`` 宏体在文本域定义、数学域展开,
-#: zptmcmr 无槽 + invalid-in-math warning)。替换串一律 ``\ensuremath``
-#: 双模: 定义点与展开点可分居两域, 站点域判不准, 双模串两侧恒正。
+#: zptmcmr 无槽 + invalid-in-math warning)。替换串一律 ``\ensuremath``/
+#: ``\mbox`` 双模: 定义点与展开点可分居两域, 站点域判不准, 双模串两侧恒正。
 _MACRO_GLYPH_CS: dict[str, tuple[int, str]] = {
     "texttildelow": (0x02F7, "\\ensuremath{\\sim}"),
     "textlangle": (0x2329, "\\ensuremath{\\langle}"),
     "textrangle": (0x232A, "\\ensuremath{\\rangle}"),
+    # misscharcen #162 (loop3 残余普查): \textendash 在数学态 ket 记号内
+    # 产 U+2013 (0806.2407 ``$i_{13/2}\textendash\frac{3}{2}$``, cmr10
+    # 无槽 ×40) —— \mbox{--} 与 char_table endash 同形, TFM 连字双模安全。
+    "textendash": (0x2013, "\\mbox{--}"),
+    # hep-ph/0605319 ``\textgravedbl X\textacutedbl`` 作者 „...˝ 引号对:
+    # tuenc gravedbl→U+02F5 缺 ×12 (lmroman 无槽), acutedbl→U+02DD 有槽
+    # 不缺字。gravedbl→\quotedblbase „ 保引号语义; acutedbl 键在伴生
+    # 02F5 而非自产 02DD —— 引号对成对归一为 „..." (改半对留 „...˝
+    # 混搭); 音标域 02DD 真缺字场景不触发, '' 不误伤语义。
+    "textgravedbl": (0x02F5, "\\mbox{\\quotedblbase}"),
+    "textacutedbl": (0x02F5, "\\mbox{''}"),
 }
 
 

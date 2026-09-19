@@ -526,3 +526,183 @@ def test_builtin_macro_glyph_cs_sites_absent(tmp_path: Path) -> None:
     ok, note = macro_glyph_fix(_ctx(tmp_path), None, None, {})
     assert ok is False
     assert "no cs sites" in note
+
+
+# ════════════════════════════════════════════════════════════════
+# misscharcen #162 (2026-09-19, loop3 残余普查 tmp/lane-misscharcen):
+# char_table 补 14 条 (·²´¼½º≤⋅∼ℤ thinsp ʼ ╨ PUA —— 17 cells/35 lines)
+# + _MACRO_GLYPH_CS 扩 \\textendash/\\textgravedbl/\\textacutedbl
+# ════════════════════════════════════════════════════════════════
+
+
+def test_loop_misscharcen162_tfm_replaces(tmp_path: Path) -> None:
+    r"""TFM 无槽字面 → ``\ensuremath``/TFM 自有槽系替换 (17-cell 普查签名)。
+
+    缺字体全是 cmr*/zptmcm7t/cmmi7 TFM —— ``\textXxx`` 在 TU 下产出同
+    码位会再缺, 一律走数学族/TFM 连字形:
+    ``´``→``'`` (1003.1105 ``k'\tau´`` 数学内伪 prime),
+    ``¼½``→``\frac{1}{4|2}`` (physics/0408068 数学系数),
+    ``≤``→``\leq`` (1811.10179 ``≤\leq`` 并列), ``²``→``^2``
+    (1306.0373 ``X²``/2608.25702), ``·``→``\cdot`` (0707.2570/
+    physics--0408068/2410.00043), ``º``→``\textordmasculine``
+    (0905.1202 ``K_º`` cmmi7 数学下标 —— \mbox 落文本字体 lmroman 有槽)。
+    """
+    main = (
+        "\\documentclass{article}\n\\usepackage{ctex}\n"
+        "\\begin{document}\n"
+        "$k'\\tau´$ $½+¼$ $≤\\leq\\delta$ $X²$ $K_º$ mid·dot ² tail\n"
+        "\\end{document}\n"
+    )
+    log = (
+        'Missing character: There is no ´ ("B4) in font cmr10!\n'
+        'Missing character: There is no ½ ("BD) in font cmr12!\n'
+        'Missing character: There is no ¼ ("BC) in font cmr12!\n'
+        'Missing character: There is no ≤ ("2264) in font cmr12!\n'
+        'Missing character: There is no ² ("B2) in font cmr8!\n'
+        'Missing character: There is no º ("BA) in font cmmi7!\n'
+        'Missing character: There is no · ("B7) in font cmr12!\n'
+        'Missing character: There is no · ("B7) in font zptmcm7t!\n'
+        "Output written on main.pdf (1 page).\n"
+    )
+    eng = MockEngine([{"log": log, "pdf": True}, {"log": CLEAN_LOG, "pdf": True}])
+    cell = fixloop(make_proj(tmp_path, main), eng)
+    assert cell["verdict"] == "clean"
+    assert cell["rounds"][0]["category"] == "warn_missing_char"
+    t = (tmp_path / "main.tex").read_text(encoding="utf-8")
+    assert "\\tau\\ensuremath{'}" in t
+    assert "\\ensuremath{\\frac{1}{2}}+\\ensuremath{\\frac{1}{4}}" in t
+    assert "\\ensuremath{\\leq}\\leq" in t
+    assert "X\\ensuremath{^2}" in t
+    assert "K_\\mbox{\\textordmasculine}" in t
+    assert "mid\\ensuremath{\\cdot}dot" in t
+    assert " \\ensuremath{^2} tail" in t
+
+
+def test_loop_misscharcen162_bbl_lmroman(tmp_path: Path) -> None:
+    r"""spec 字体 (lmroman*) 缺字 + shipped .bbl 字面 → 替换/剥除。
+
+    ``∼``→``\sim`` (1803.00056 .bbl ``Gaussian∼09`` lmromancaps10),
+    ``ℤ``→``\mathbb{Z}`` (1803.03082 .bbl lmroman10-italic, 格载 amssymb),
+    ``ʼ``→``'`` (1404.0261 .bbl ``kasteleynʼs``),
+    thinsp→``\,`` (1608.02573/1803.00030/2505.13884),
+    ``╨``→``-`` (1404.0389 .bbl ``silicone╨based`` CP437-era 连字符
+    mojibake —— 还原连字符非剥除), PUA U+F07A→``{}`` (0905.1031)。
+    """
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\usepackage{ctex}\n"
+        "\\begin{document}\nx \\input{main.bbl}\n\\end{document}\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "main.bbl").write_text(
+        "Gaussian∼09 kasteleynʼs 50 km silicone╨based ℤ-set pua\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "main.log").write_text(
+        "Missing character: There is no ∼ (U+223C) in font "
+        "[lmromancaps10-regular]:mapping=tex-text;!\n"
+        "Missing character: There is no ʼ (U+02BC) in font "
+        "[lmroman10-regular]:mapping=tex-text;!\n"
+        "Missing character: There is no   (U+2009) in font "
+        "[lmroman9-regular]:mapping=tex-text;!\n"
+        "Missing character: There is no ╨ (U+2568) in font "
+        "[lmroman12-regular]:mapping=tex-text;!\n"
+        "Missing character: There is no ℤ (U+2124) in font "
+        "[lmroman10-italic]:mapping=tex-text;!\n"
+        "Missing character: There is no  (U+F07A) in font "
+        "[lmroman10-regular]:mapping=tex-text;!\n",
+        encoding="utf-8",
+    )
+    ok, note = missing_char_fix(_ctx(tmp_path), None, None, _missing_char_fix_params())
+    assert ok is True, note
+    t = (tmp_path / "main.bbl").read_text(encoding="utf-8")
+    assert "Gaussian\\ensuremath{\\sim}09" in t
+    assert "kasteleyn\\mbox{'}s" in t
+    assert "50\\,km" in t
+    assert "silicone-based" in t
+    assert "\\ensuremath{\\mathbb{Z}}-set" in t
+    assert "pua{}" in t
+
+
+def _missing_char_fix_params() -> dict:
+    """落地 ruleset 里 ``missing_char_fix`` 的真 params (测 yaml 条目本身)。"""
+    from texlate.compile.fixloop.ruleset import (  # noqa: PLC0415 - 延迟 import
+        load_ruleset,
+    )
+
+    for r in load_ruleset().phase("loop"):
+        if r.id == "missing_char_fix":
+            return r.action.get("params") or {}
+    msg = "missing_char_fix rule not found"
+    raise AssertionError(msg)
+
+
+def test_builtin_macro_glyph_textendash_math(tmp_path: Path) -> None:
+    r"""``\textendash`` 数学态 ket 记号内产 U+2013 → ``\mbox{--}``。
+
+    0806.2407 签名 (``$i_{13/2}\textendash\frac{3}{2}$``, cmr10 ×40):
+    ``--`` TFM 连字产 en-dash, \mbox 双模安全 —— 与 char_table endash
+    字面臂同形。
+    """
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\n"
+        "$0.784|6i_{13/2}\\textendash\\frac{3}{2}\\rangle$\n"
+        "\\end{document}\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "main.log").write_text(
+        'Missing character: There is no – ("2013) in font cmr10!\n',
+        encoding="utf-8",
+    )
+    ok, _note = macro_glyph_fix(_ctx(tmp_path), None, None, {})
+    assert ok is True
+    t = (tmp_path / "main.tex").read_text(encoding="utf-8")
+    assert "|6i_{13/2}\\mbox{--}\\frac{3}{2}\\rangle" in t
+    assert "\\textendash" not in t
+
+
+def test_builtin_macro_glyph_dblquote_pair(tmp_path: Path) -> None:
+    r"""``\textgravedbl X\textacutedbl`` „...˝ 引号对 → „...\" 成对归一。
+
+    hep-ph/0605319 签名 (tuenc: gravedbl→U+02F5 缺 ×12, acutedbl→
+    U+02DD 有槽不缺)。acutedbl 键伴生 02F5 —— gravedbl 触发时整对
+    改写 ``\quotedblbase``+``''``, 免留 „...˝ 混搭。
+    """
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\n"
+        "\\textgravedbl quoted\\textacutedbl done\n"
+        "\\end{document}\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "main.log").write_text(
+        "Missing character: There is no ˵ (U+02F5) in font "
+        "[lmroman12-regular]:mapping=tex-text;!\n",
+        encoding="utf-8",
+    )
+    ok, _note = macro_glyph_fix(_ctx(tmp_path), None, None, {})
+    assert ok is True
+    t = (tmp_path / "main.tex").read_text(encoding="utf-8")
+    assert "\\mbox{\\quotedblbase} quoted\\mbox{''} done" in t
+    assert "\\textgravedbl" not in t
+    assert "\\textacutedbl" not in t
+
+
+def test_builtin_macro_glyph_acutedbl_own_cp_not_keyed(tmp_path: Path) -> None:
+    r"""acutedbl 自产 U+02DD 缺字不触发 ``''`` —— 音标域语义不误伤。
+
+    键位是伴生 02F5 引号对触发而非自产码位: 只有 02DD 缺字 (无
+    02F5) 时 ``\textacutedbl`` 站点原样保留, 交下轮/字体回退。
+    """
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\begin{document}\n"
+        "phon \\textacutedbl mark\n"
+        "\\end{document}\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "main.log").write_text(
+        "Missing character: There is no ˝ (U+02DD) in font "
+        "[lmroman10-regular]:mapping=tex-text;!\n",
+        encoding="utf-8",
+    )
+    ok, _note = macro_glyph_fix(_ctx(tmp_path), None, None, {})
+    assert ok is False
+    assert "\\textacutedbl" in (tmp_path / "main.tex").read_text(encoding="utf-8")
