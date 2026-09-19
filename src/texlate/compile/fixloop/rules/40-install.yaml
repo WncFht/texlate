@@ -689,7 +689,7 @@ rules:
           corpus: "revtexlane 0806.4149/1003.0910/1907.00131 (stagerun-loop3+loop1)",
           error: "Illegal parameter number in definition of \\reserved@a (\\Citeauthor) / Use of \\@citex doesn't match its definition (thebibliography) — revtex4 v4.0a bundled textcase",
         }
-    stats: { fires: 0, status: proposed }
+    stats: { fires: 8, rescued_cells: 7, status: active }
     source_ref: "tmp/lane-revtex/repro/mini5.tex 端到端实证 (emulateapj+Citeauthor 二遍死); census tmp/lane-revtex/"
 
   # 2026-09-19 aaaiguard lane (failmine4 普查, 15 格全 fresh soak-09-18
