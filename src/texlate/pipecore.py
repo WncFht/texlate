@@ -576,7 +576,12 @@ def precheck_job(
     """
     eng_fn = engine_for if engine_fn is None else engine_fn
     try:
-        pre = run_precheck(job.work, eng_fn(job.eng_name), engine_name=job.eng_name)
+        pre = run_precheck(
+            job.work,
+            eng_fn(job.eng_name),
+            engine_name=job.eng_name,
+            main_rel=job.main_rel,
+        )
     except Exception as e:  # noqa: BLE001 -- 预检崩不毁主报告
         return {"enabled": True, "error": f"{type(e).__name__}: {e}"}
     return {
@@ -719,6 +724,7 @@ def fixloop_round(  # noqa: PLR0913 -- 开关面穿透两臂同一契约
             ruleset_with_baseline(baseline_dir) if baseline_dir is not None else None
         ),
         engine_name=engine_name,
+        main_rel=main_rel,
         llm_hook=llm_hook,
         compile_timeout=compile_timeout,
         should_cancel=should_cancel,
