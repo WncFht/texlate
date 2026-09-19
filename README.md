@@ -82,7 +82,25 @@ docker run --rm texlate fetch 1706.03762                    # 其他子命令同
 - **编译修复是壁垒**——fixloop：日志解析 → taxonomy 分类 → yaml 规则（`compile/fixloop/rules/` 分片）逐条修复重试；`vendor/` 收 off-CTAN 绝版宏包的真件（许可允许者）与净室 stub（禁分发者，见 NOTICE）。
 - **译文缓存**——SQLite 按 arXiv ID+ 版本 + 模型指纹命中秒回；`texlate share` 互通。
 
-实测底数（详见 `docs/`）：corpus_v3 核心层 identity 100%、占位符泄漏 0.040%（parsebench）；validbench 7867 用例破坏 100% 检出零误报；编译+fixloop 联合臂 pdf 率 ~89.5%。
+## 实测指标
+
+六天开发历程与 2026-09-19 全量画像（口径与全部原始数据：[metrics 报告](docs/research/metrics-2026-09-19/report.pdf)，自包含 `data/` + `refs/`）：
+
+**编译健康度**：联合口径出 PDF 89.17→98.75%（M2 门 ≥90% 过线），真实臂 96.7% 与模拟臂打平；注意裸编译基线自身 +19pt——离线宏包与工具链同步成熟。
+
+![六天编译健康度时间线：计分卡联合出 PDF 与纯净率上行，真实臂三角点与模拟臂打平，裸编译基线方块同步抬升，M2 90% 门过线](shots/bench-timeline.png)
+
+**解析壁垒**：D0 八库横评定案自研——宏展开陷阱 T01（`\be→\begin{equation}`）八库全灭，唯自研全过；pylatexenc 式「无错误信号的静默截断」比崩溃更危险，校验器因此独立成臂。
+
+![八库解析横评：自研 32/32 断言全过，最好第三方 24/26，四库机制性失败无法计分](shots/bench-parse-libs.png)
+
+**中文链反而更纯净**：规范化顺带修复源级缺陷，中文臂 xelatex 纯净率 +16.1pt；裸编双引擎联合口径 90.4%。
+
+![管线 vs 裸编译：中文链条件各引擎纯净率/出 PDF 率全面高于裸编译](shots/bench-pipeline-vs-bare.png)
+
+![六天评测资产增长：pytest 798→6450、修复规则 31→143、源码文件 72→425、语料 39→13266](shots/bench-assets.png)
+
+其余底数：corpus_v3 全量 28,904 文件解析成功率 100%、逐字节一致率 99.99%、占位符泄漏 0.004%（76/1,845,338）；validbench 1,503 对破坏 100% 检出零误报；翻译硬契约 93.7%、LLM 评审均分 94.0；纯净率 88.75% 距 M2 纯净门差 1.25pt。
 
 ## 仓库布局
 
