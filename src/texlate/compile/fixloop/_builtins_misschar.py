@@ -144,6 +144,11 @@ _FB_RANGES: tuple[tuple[int, int], ...] = (
     (0x00C0, 0x017F),
 )
 
+#: ``fallback_fonts`` 候选名按扩展名分流探测: 字体文件名 (otf/ttf/ttc)
+#: → kpathsea ``probe_file`` (fontspec 文件形解析同一通路); 家族名 →
+#: ``fc-list`` fontconfig 探测 (fontspec 家族名解析同一通路)。
+_FONT_FILE_RE = re.compile(r"\.(?:otf|ttf|ttc|pfb|dfont)$", re.IGNORECASE)
+
 
 def _fb_snippet_lines(
     cps: Iterable[int], font: str, cs: str = "txlatefallback"
@@ -191,6 +196,43 @@ def _inject_fallback_lines(
     if not _inject_after_docclass(ctx, "\n".join(_fb_snippet_lines(fresh, font, cs))):
         return 0
     return len(fresh)
+
+
+def _fb_font_resolve(
+    ctx: LoopCtx, eng: Engine, params: dict[str, Any]
+) -> tuple[str | None, str]:
+    """``fallback_fonts`` 有序候选 → 首个可解析字体名; 全灭 → (None, 原因)。
+
+    条目为名字符串或 ``{name, install}`` 映射: 文件形名 (``_FONT_FILE_RE``
+    命中) 经 ``eng.probe_file`` 探测, ``install: true`` 时 miss 先
+    ``eng.install_file`` 再复核 (texmf 树外字体包如 unfonts-core 可补装);
+    家族名经 ``fc-list <name> family`` 非空输出探测 (fc-list 缺席/查无此族
+    → 下一候选)。未给 ``fallback_fonts`` 时走 ``fallback_font``/``_FB_FONT``
+    单值旧路——不探测, 保持既有臂行为不变。
+    """
+    cands = params.get("fallback_fonts")
+    if not cands:
+        return str(params.get("fallback_font") or _FB_FONT), ""
+    tried: list[str] = []
+    for c in cands:
+        if isinstance(c, str):
+            name, install = c, False
+        else:
+            name = str(c.get("name") or "")
+            install = bool(c.get("install"))
+        if not name:
+            continue
+        if _FONT_FILE_RE.search(name):
+            if eng.probe_file(name) or (
+                install and eng.install_file(name) and eng.probe_file(name)
+            ):
+                return name, ""
+        else:
+            rc, out, _to = ctx.run_tool(["fc-list", name, "family"], timeout=15)
+            if rc == 0 and out.strip():
+                return name, ""
+        tried.append(name)
+    return None, f"no fallback font resolvable ({', '.join(tried)})"
 
 
 #: ``\begin{数学env}`` 起锚 —— ``$..$``/``\(\)`` 之外的数学体 (重音 cs 改写
@@ -279,6 +321,11 @@ def font_fallback(
     字面量靠 ``\ifmmode`` 模板逃 ``\mbox`` (见 _fb_snippet_lines); 无参字母
     cs (``\i``/``\L``/``\AA`` 族) 在数学内展开产文本字形 → ``_inject_math_cs_shims``
     prologue shim。shim 不依赖 newunicodechar.sty, 包缺席也独立成立。
+
+    ``params.fallback_fonts`` 有序候选表 (文件形名/家族名混排, ``_fb_font_resolve``
+    按扩展名分流 kpathsea/fontconfig 探测, ``{name, install}`` 条目带补装)
+    存在时首个可解析者胜出; 全灭 → decline 不谎报。未给表时旧
+    ``fallback_font``/``_FB_FONT`` 单值路径不探测原样使用。
     """
     del payload
     log = _compile_log_text(ctx)
@@ -304,7 +351,7 @@ def font_fallback(
         for cp, (_what, font) in seen.items()
         if cp not in taken
         and any(lo <= cp <= hi for lo, hi in bands)
-        and not (font_not and re.search(str(font_not), font))
+        and not (font_not and re.search(str(font_not), font, re.IGNORECASE))
     ]
     if not chars:
         if done:
@@ -316,7 +363,11 @@ def font_fallback(
         if done:
             done.append("newunicodechar.sty unavailable")
         return bool(done), "; ".join(done) or "newunicodechar.sty unavailable"
-    font = str(params.get("fallback_font") or _FB_FONT)
+    font, why = _fb_font_resolve(ctx, eng, params)
+    if font is None:
+        if done:
+            done.append(why)
+        return bool(done), "; ".join(done) if done else why
     if n := _inject_fallback_lines(ctx, chars, font, fb_cs):
         done.append(f"font_fallback: {n} char(s) -> {font}")
     return (

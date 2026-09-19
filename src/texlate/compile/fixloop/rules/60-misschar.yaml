@@ -189,6 +189,9 @@ rules:
       function: font_fallback
       params:
         # 与 _MC_TABLE cjk_glyph 同款 CJK 段表 (语义超集, 勿回退 textutil.CJK_RANGES)
+        # 谚文段 [0xAC00,0xD7AF] 已剔出——FandolSong 无 hangul 块, 绑了
+        # 仍缺字 (2403.00013×1341/2410.18001×545 实证); hangul 归
+        # hangul_font_fallback(28) 专臂绑 ko 字体。
         fallback_ranges:
           - [0x2E80, 0x303F]
           - [0x3040, 0x30FF]
@@ -197,7 +200,6 @@ rules:
           - [0x3400, 0x4DBF]
           - [0x4E00, 0x9FFF]
           - [0xA000, 0xA4CF]
-          - [0xAC00, 0xD7AF]
           - [0xF900, 0xFAFF]
           - [0xFE30, 0xFE4F]
           - [0xFF00, 0xFFEF]
@@ -225,3 +227,63 @@ rules:
         }
     stats: { fires: 0, status: proposed } # 当前波面零活例 —— inject 已根治
     source_ref: "fixer-font-fallback-8bit-2026-09-17 fragment; builtin params=A2 (827674d fixer-misschar 迟交付)"
+
+  # ─── hangul 缺字专臂 (hangulfont lane 2026-09-19) ───
+  # 谚文码位落在无 hangul 块的字体: KAIST 韩文论文 2403.00013 ×1341
+  # (FandolSong/Hei script=hani —— ctex 路由只认 CJK 家族, Fandol 本无
+  # hangul) + 2410.18001 ×545 (lmroman)。cjk_font_fallback 旧带表含
+  # [AC00,D7AF] 会把谚文绑回 FandolSong = 错字体谎报 → 已剔出, 谚文归
+  # 本臂绑 ko 覆盖字体。候选序: TL 内 unfonts-core UnDotum.ttf 文件形
+  # (scheme-full 的 collection-langkorean; 缺包 install_file 补) 优先,
+  # fontconfig 家族名 (noto-cjk/plex-kr/nanum/malgun 常见 OS 件) 兜底;
+  # 全灭 → decline 诚实 unfixable, 不发错字体声明。
+  - id: hangul_font_fallback
+    mechanisms: [W42, W43]
+    description: "谚文缺字落无 hangul 字体 → newunicodechar 逐字回退 ko 覆盖字体 (候选探测式)"
+    phase: loop
+    order: 28 # cjk_font_fallback(27) 之后; 谚文段已自 cjk 带表剔出, 两臂带互不重叠
+    when:
+      any:
+        - { category: warn_missing_char }
+        - { category: warn_utf8 } # 同 missing_char_fix —— 类别排他 quirk 补漏
+    action:
+      kind: builtin_transform
+      function: font_fallback
+      params:
+        # hangul 五段: 字母 jamo / 兼容 jamo / ext-B / 谚文音节 / ext-C
+        fallback_ranges:
+          - [0x1100, 0x11FF]
+          - [0x3130, 0x318F]
+          - [0xA960, 0xA97C]
+          - [0xAC00, 0xD7A3]
+          - [0xD7B0, 0xD7FB]
+        # 有序候选: 文件形名走 kpathsea 探测 (+install 补装), 家族名走
+        # fc-list 探测 —— 首个可解析者胜出 (builtins _fb_font_resolve)。
+        fallback_fonts:
+          - { name: "UnDotum.ttf", install: true } # TL unfonts-core (collection-langkorean)
+          - "Noto Sans CJK KR" # OS noto-cjk 包 (debian/arch/macos 常见)
+          - "IBM Plex Sans KR"
+          - "Nanum Gothic"
+          - "Malgun Gothic"
+        # 独立 cs 名 —— 与 txlatefallback/txlatecjkfb 并存不撞
+        fallback_cs: txlatekofb
+        # 缺字字体名已具 hangul 覆盖 → 真缺字形不归本臂 (防自回环)。
+        # fandol/texlatecjk 刻意不收——Fandol 系无 hangul 块正是病灶;
+        # uming/ukai (IPA 日系) 亦无 hangul 块 → 不收, 落其上的谚文照认领。
+        font_not: "noto.*(cjk|kr|korean)|source.?han|sarasa|hanazono|nanum|malgun|kopub|plex.*kr|apple|batang|dotum|gulim|gungsuh|myeongjo|dinaru|un(batang|dotum|graphic|pilgi|gungseo|dinaru|shinmun|yetgul|pen|taza|vada|park|jamo|bom|yeti|sora)|hcr|hamchorom|jamo|baekmuk|droid.*fallback|wqy|lxgw"
+    risk: low # newunicodechar 逐字绑; 候选探测不过即 decline 不注入
+    known_gap: "死 \\selectfont 上下文内无效 (同 cjk 臂); 无 fontconfig 且 texmf 无 unfonts 的极简环境 decline; tectonic probe_file 只查工程内文件 —— texmf 文件形候选恒 miss, 实走 fontconfig 家族名臂"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "2403.00013 (drvverdict resid, KAIST 韩文论文; stagerun-drvdef/flipcheck8)",
+          error: "Missing character: hangul ×1341 in [FandolSong/Hei*.otf]/OT:script=hani —— CJK 字体无 hangul 块",
+        }
+      - {
+          corpus: "2410.18001 (stagerun-rt1/flipcheck)",
+          error: "Missing character: hangul ×545 in lmroman —— 谚文路由未达 CJK 机制",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "hangulfont lane census 2026-09-19 (tmp/hangulfont/census.json): 2 cells ×4 run-records"
