@@ -1273,3 +1273,9 @@
 - **mojiverify VERIFIED both features**: cp1252 scrub — 80 files fire, post_C1=0 all, idempotent, utf-8-verdict-gated only, clean accented untouched (58 ids affected; 7 replay targets need upstream re-decode, 1 in rebuild scope). argspec envs — Mizar×7 PROTECTED / translatedabstract key-binding confirmed load-bearing on real sources.
 - **Mid-wave edit ban LIFTED** (broadcast to all impl lanes): inject/normalize/latex/textutil editable again.
 - **Roster**: pathqual (regression, priority), aaaiguard, covgap, kotexfix, drvext, arrayresid, leanext impls + verifyfam read-only. Closed: failmine4, mojiverify, cleanaudit.
+
+## 2026-09-19 ~16:05 — leanext verdict: NO FLAG (investigated/no-op)
+
+- **leanext closed**: `.lean` matches no tex-candidate extension set anywhere (6 sites enumerated — _texutil/inject/mask/api/locate-graph/probe-dep all exact-suffix, none admit .lean). Only 1 corpus paper carries .lean files (2105.00041 — below ≥2 gate); they are legit `\lstinputlisting`/`\input` targets — an exclusion blacklist would turn resolvable deps into phantom missing_file.
+- **Redirect note**: the only 2 `.lean` record mentions are real font gaps (Lean unicode ∀ λ ∘ ⟨ ⟩ absent from lmroman9) — belongs in fixloop font rules if ever warranted, not extension sets. Report persisted at tmp/lane-leanext/report.md; agent closed.
+- **Roster**: 7 active — pathqual (regression, priority), aaaiguard, covgap, kotexfix, drvext, arrayresid impls + verifyfam read-only.
