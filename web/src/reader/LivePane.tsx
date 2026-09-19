@@ -1,15 +1,25 @@
-// LivePane —— 翻译进行中的「边译边读」面板：api.taskChunks 轮询（2.5s
-// 一拍，照 ChunkPreview 模式，组件卸载即停）累积段落到本地 map，已译段
-// 走 HtmlPane 同一条 marked → DOMPurify → KaTeX 管线全渲染；未译段
-// （status!=ok 或 zh 空）显原文 + 「未翻译」徽标。
+// LivePane —— 翻译进行中的「边译边读」面板：chunkPoll 共享轮询（与
+// ChunkPreview 同拍同请求）累积段落到本地 map，已译段走 HtmlPane 同一条
+// marked → DOMPurify → KaTeX 管线全渲染；未译段（status!=ok 或 zh 空）
+// 显原文 + 「未翻译」徽标。
 //
 // 增量 DOM 补丁：seq → <section> 映射 + 有序插入，每拍只重绘变化段，
 // 滚动位置与已渲染公式不动。折叠容器恒挂载（display 自门控），
 // 首段到达即自动可用；再大任务也限 CHUNKS_PAGE_MAX 窗内。
+//
+// frozen（compiling 段，chunks 已冻结）：补最后一拍抓齐末批写入后退订——
+// 不挂着空轮询。
 
-import { createSignal, onCleanup, onMount } from "solid-js";
-import { api, type TaskChunksPage } from "../api/client";
+import {
+    createEffect,
+    createSignal,
+    onCleanup,
+    onMount,
+} from "solid-js";
+import type { TaskChunksPage } from "../api/client";
+import { pollChunksOnce, subscribeChunks } from "./chunkPoll";
 import { chunkUntranslated, loadMdLibs, type MdLibs } from "./markdown";
+import { externalLinksBlank } from "./paneUtils";
 import { escapeHtml } from "./sanitize";
 import { t } from "../i18n";
 
@@ -53,12 +63,10 @@ export function mergeLive(
     return dirty;
 }
 
-const POLL_MS = 2500;
-/** 段窗上限——与 server CHUNKS_PAGE_MAX（500）同值，一页拉全量段 */
-const WINDOW = 500;
-
 interface Props {
     taskId: string;
+    /** true=源数据已冻结（compiling 段）——补末拍后退订停轮询 */
+    frozen?: boolean;
 }
 
 export default function LivePane(props: Props) {
@@ -73,8 +81,11 @@ export default function LivePane(props: Props) {
     const [okN, setOkN] = createSignal(0);
     let libs: MdLibs | null = null;
     let alive = true;
+    let unsubscribe: (() => void) | undefined;
+    let froze = false;
     onCleanup(() => {
         alive = false;
+        unsubscribe?.();
     });
 
     /** 单段 → section 元素内 HTML（徽标 + 译文/原文渲染）；新建按 seq 序插入 */
@@ -98,38 +109,71 @@ export default function LivePane(props: Props) {
             ? `<span class="chunk-badge">${escapeHtml(t.live.untranslated)}</span>`
             : "";
         el.innerHTML = badge + libs.mdToHtml(zh ? c.zh! : (c.en ?? ""));
+        // marked 产物内的 http(s) 外链一律新窗——pane 内默认跳转会顶掉阅读器
+        externalLinksBlank(el);
         libs.renderMath(el);
     };
 
-    const tick = async () => {
-        if (!alive) return;
-        if (!libs) {
-            try {
-                libs = await loadMdLibs();
-            } catch {
-                return; // 库加载失败——下拍再试
-            }
-            if (!alive) return;
-        }
-        let page: TaskChunksPage;
-        try {
-            page = await api.taskChunks(props.taskId, 0, WINDOW);
-        } catch {
-            return; // 网络抖动/端点未就位——下拍再试
-        }
-        if (!alive) return;
-        setTotal(page.total);
-        for (const c of mergeLive(acc, page.chunks)) paint(c);
+    const recount = () => {
         setShown(acc.size);
         let ok = 0;
         for (const c of acc.values()) if (!chunkUntranslated(c)) ok++;
         setOkN(ok);
     };
 
+    const onPage = (page: TaskChunksPage) => {
+        if (!alive) return;
+        setTotal(page.total);
+        const dirty = mergeLive(acc, page.chunks);
+        if (!libs) {
+            // 库未就位时 acc 照积——每拍顺带重试加载（与旧 tick 路同节奏），
+            // libs 落地后 backfill 补绘，页面不丢
+            void ensureLibs();
+            recount();
+            return;
+        }
+        for (const c of dirty) paint(c);
+        recount();
+    };
+
+    let libsLoading = false;
+    const ensureLibs = async () => {
+        if (libs || libsLoading) return;
+        libsLoading = true;
+        try {
+            libs = await loadMdLibs();
+        } catch {
+            libsLoading = false;
+            return;
+        }
+        libsLoading = false;
+        if (!alive) return;
+        // libs 晚于首拍到达：只补绘尚未建段的（els 内的皆已带公式渲染，
+        // 重绘会让 auto-render 对已渲染 span 二次加工）
+        for (const c of acc.values()) if (!els.has(c.seq)) paint(c);
+        recount();
+    };
+
+    // compiling 冻结：translating→compiling 切换沿可能漏末批 chunk 写入——
+    // 补一拍（在飞 tick 会归并等待，分发完成后）退订，共享轮询随归零自停
+    const freeze = () => {
+        if (froze || !unsubscribe) return;
+        froze = true;
+        void (async () => {
+            await pollChunksOnce(props.taskId);
+            unsubscribe?.();
+            unsubscribe = undefined;
+        })();
+    };
+
     onMount(() => {
-        void tick();
-        const id = window.setInterval(() => void tick(), POLL_MS);
-        onCleanup(() => window.clearInterval(id));
+        void ensureLibs();
+        unsubscribe = subscribeChunks(props.taskId, onPage);
+        if (props.frozen) freeze(); // frozen 先于订阅到达的边角
+    });
+
+    createEffect(() => {
+        if (props.frozen) freeze();
     });
 
     // details 恒挂（bodyEl 始终存在——Show 门控会让首拍 paint 落空）；

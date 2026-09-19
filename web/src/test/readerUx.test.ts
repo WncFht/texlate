@@ -85,7 +85,8 @@ describe("ChunkPreview（api.taskChunks 数据流）", () => {
         expect(metas[0]).toContain("#1");
         expect(metas[1]).toContain("#3");
         expect(document.querySelectorAll(".cp-kind")).toHaveLength(2);
-        expect(mocks.taskChunks).toHaveBeenCalledWith("t1", 0, 60);
+        // 共享轮询（chunkPoll）按 CHUNK_WINDOW 整窗拉——预览显示侧仍切头 60 段
+        expect(mocks.taskChunks).toHaveBeenCalledWith("t1", 0, 500);
     });
 
     it("端点报错 → 静默缺席不炸（下拍再试）", async () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mergeChunkItems } from "../stores/tasks";
+import { mergeChunkItems } from "../stores/liveFrames";
 import type { ChunkItem } from "../api/client";
 
 const it_ = (seq: number, status = "ok"): ChunkItem => ({ seq, status });
