@@ -1035,3 +1035,12 @@
 - **杂察**: fontgate gatetest.log "No pages of output" = \typeout 闸探针正常 (45 字体载入); tailbucket repro/ 活跃但根目录散件 (wraptest2/3+gencheck.py) 仍在——untracked 无入库险, 下 tick 再催; misscharcen cells/clusters.json 已产报告待; regrdiag repro-2404 挖中。
 - roster 10：tailbucket(#155)/operandcensus(#159)/regrdiag(#157)/rexlat3(#158 毕, verify2 跟进)/fontgate(#156)/misscharcen(#160)/loop4wave(#161)/loopsched(#144)/failmine3/sabcheck。
 - 门：teammate 零 git✓ (HEAD f9f7cc59 仅 leader ledger)；规则库 129✓；sab 再武装在飞；clean% 门待 loop4 harvest 读数。
+
+## 2026-09-19 ~11:0x — **loop4 波污染判无效** + sab-r6 门④再武装 PASS + operandcensus 普查交付
+
+- **sabcheck 交付→关**: sabotage-b 复跑 HEAD f9f7cc59 —— **escaped=0 PASS**, 与 r5 基线全同 (1613 sabotaged/383 events/caught=2/escaped=0, blake2s 决定论复现)。今日落地规 (misscharext/warnattr/pxnorm/defD/stucksem/ifprot) 零逃逸面。artifacts tmp/lane-sabcheck/stagerun-sab-r6/。
+- **loop4 波完成但判 INVALID——中途编辑污染实证**: 160/160 跑完, 表面 154 stuck/3 best_effort/1 acceptable/2 unfixable + 仅 1 clean (2211.12985)。逐格验靶: **靶伤实愈** (misschar 格 miss=0, warnattr 格 warns=[]) 但 **152/160 格死同一残尾** `Incomplete \ifdefined`+Emergency——非格态是注入件缺陷。根因: `--rerun` 10:52 重建 splice 读**活工作树**, 烙进 fontgate #156 的**中段破损版** TEXT_8BIT_FALLBACK (`\let\TeXlateCMUok\iftrue` 裸 flag + `\ifdefined\XeTeXversion` 外门失 \fi——被跳分支的 \iftrue/\iffalse token 乱条件扫描, \fi 配对全崩)。fontgate 已自愈转 `\chardef+\ifnum` 正确式 (inject.py:282-287, 注释自证悟出同险)——**污染窗=build 时刻, 非提交态**。**机制教训→纪律条**: splice-重烘焙 replay 波必须等 inject-路径 mutex 全释 (或钉 committed rev)——波序排在 mutex 件落地后。已令 loop4wave 照跑 harvest4 (污染面证据) 但判词标 INVALID; 真翻格数据待 fontgate 落地后净树重跑。
+- **operandcensus 普查交付 (report.md)**: `_OPERAND_CS` 扫描终止表——无镜像 gap (group.py/pending.py 复用同一编译正则); `\setbox0=\hbox{` 邻接必孤 (493hits/216papers), message/write 族 log-payload 高危 ~0 命中; keep registers/font/codes/number。已澄清 #159 域=census+实现一肩挑, 令其实装命名表+测试。
+- **在飞察**: regrdiag repro-2404 真件复现中 (sty/figure/pdf 齐); tailbucket repro/ 多测试目录迭代 (citex-wrapclean/citex/addcl 真编译); loopsched lane 空 ~10min 观察中; misscharcen clusters.json 已产 (顶族=20 格 C0 控制字 text 站 uncovered——sanitize 规候选) 报告待。
+- roster 9：tailbucket(#155)/operandcensus(#159 impl)/regrdiag(#157)/rexlat3(verify2 跟进)/fontgate(#156 修复在验)/misscharcen(#160)/loop4wave(#161 污染 harvest)/loopsched(#144)/failmine3。关毕: sabcheck(交付)。
+- 门：teammate 零 git✓；HEAD 3f15335；规则库 129✓；**sab-r6 escaped=0✓ 当日再武装**；clean% 门读数等净树重跑波。
