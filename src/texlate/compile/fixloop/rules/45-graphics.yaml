@@ -42,7 +42,7 @@ rules:
           error: "Package svg Error / File `*_svg-tex.pdf' not found",
         }
     stats: { fires: 0, status: proposed }
-    source_ref: "bench/corpus_v3/mechanisms.jsonl W31 verdict suggested_rules"
+    source_ref: "bench/corpus/mechanisms.jsonl W31 verdict suggested_rules"
 
   # 1404.5720 实证: \includegraphics{feedforward.eps} 缺件但同 stem .pdf 在盘
   # (arXiv 源常图文不配套)。签名归 missing_file 非 missing_graphic —— 图链
@@ -232,7 +232,7 @@ rules:
           error: "File `supp.pdf' not found / Unable to load picture (includepdf 链)",
         }
     stats: { fires: 0, status: proposed }
-    source_ref: "bench/corpus_v3/mechanisms.jsonl W66 verdict suggested_rules"
+    source_ref: "bench/corpus/mechanisms.jsonl W66 verdict suggested_rules"
 
   # failmine3 lane (8 格: 1206.0213/1404.6041/1511.06706/1706.02532/
   # 1803.00128/1803.00130/1907.00032/2003.10664): graphic_ext_relax(14)

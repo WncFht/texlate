@@ -17,4 +17,4 @@
 
 - 要中文译文文本 → `zh/`；要成品双语 PDF → `splice/<main>.pdf`
 - replay/修复播种 → 整 `{id}/` 拷回 `work/{id}/` 即可续跑 compile+fixloop
-- 语料原件 → `bench/corpus_v3/{canon_id}/`（统一物理根）
+- 语料原件 → `bench/corpus/{canon_id}/`（统一物理根）

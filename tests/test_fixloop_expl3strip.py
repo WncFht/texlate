@@ -6,7 +6,7 @@ documentclass 全局驱动选项 (dvips/pdftex 系) 灌进 expl3 后端探测 �
 ``,?driver,?`` 双吃两侧逗号, 中段剥除把邻项粘成幻影选项
 (``[final,pdftex,reqno,...]`` → ``[finalreqno,...]``)。修复 = 表首/
 表内/表尾三态拆分 (hyperref_driver_neutralize 形, 锚消费单遍);
-corpus_v3 普查驱动词恒单枚, 残余面=同表非连排多驱动词 (known_gap)。
+corpus 普查驱动词恒单枚, 残余面=同表非连排多驱动词 (known_gap)。
 """
 
 from pathlib import Path
@@ -138,7 +138,7 @@ def test_expl3strip_multiple_drivers_all_stripped(tmp_path: Path) -> None:
 
 
 def test_expl3strip_corpus_shapes(tmp_path: Path) -> None:
-    """corpus_v3 普查实证形: sn-* / lineno / 长尾中段 / 名单尾位。"""
+    """corpus 普查实证形: sn-* / lineno / 长尾中段 / 名单尾位。"""
     cases = {
         "\\documentclass[pdflatex,sn-basic]{svjour3}": "\\documentclass[sn-basic]{svjour3}",
         "\\documentclass[lineno,pdflatex,sn-basic]{svjour3}": (

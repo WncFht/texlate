@@ -1,4 +1,4 @@
-# corpus_v3: manifest/台账/提名审计轨迹入库, 论文数据 gitignored (docs/09 §6)
+# corpus: manifest/台账/提名审计轨迹入库, 论文数据 gitignored (docs/09 §6)
 *
 !.gitignore
 !MANIFEST.md
@@ -6,6 +6,7 @@
 !manifest.jsonl
 !manifest_*.jsonl
 !mechanisms.jsonl
+!eval_coverage.json
 !nominations/
 !nominations/**
 !select_booster.py

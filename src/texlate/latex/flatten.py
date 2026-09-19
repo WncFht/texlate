@@ -121,7 +121,7 @@ def _resolve(  # noqa: C901 — 根集装配 + 三段候选循环平铺即查找
     cands = (
         [fname]
         if fname.lower().endswith(".tex")
-        else [fname, fname + ".tex", fname + ".TEX"]  # 野存在大写扩展名（corpus_v3）
+        else [fname, fname + ".tex", fname + ".TEX"]  # 野存在大写扩展名（corpus）
     )
     for d in dirs:
         for c in cands:

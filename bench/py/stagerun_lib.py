@@ -33,7 +33,7 @@ sys.path.insert(0, os.environ.get("TEXLATE_SRC", str(ROOT / "src")))
 import benchlib
 
 #: TEXLATE_CORPUS 可换语料根（日更 soak 用 bench/corpus_daily；默认钉版 v3）。
-CORPUS = Path(os.environ.get("TEXLATE_CORPUS", str(ROOT / "bench/corpus_v3")))
+CORPUS = Path(os.environ.get("TEXLATE_CORPUS", str(ROOT / "bench/corpus")))
 
 #: resume 终态集（单源 benchlib）——记了这些 status 的 (id,arm,upstream)
 #: 不再跑；skip（上游门）与 error（harness 崩）属可重试类。

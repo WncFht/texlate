@@ -28,7 +28,7 @@ test_fixloop_endcsresid 钉详面): csname 内 ``\string&`` 产 cat12-&
 仍 ``\&`` 保排版面 —— 单 ``\&`` 形会把 chardef 吞进 cite-key
 csname 炸 Missing \endcsname。
 
-真件对照: 真 aasms4.sty/aa.cls (corpus_v3 shipped copies) 均无 ``&``
+真件对照: 真 aasms4.sty/aa.cls (corpus shipped copies) 均无 ``&``
 catcode 面 —— 原件原样也会炸 (期稿容错产物, PDF 照出), 本补丁是
 stub 宽容面而非真件镜像; aastex61/62 的 ``&``-active 仅限其
 deluxetable 机制内部, 与书目区无关。

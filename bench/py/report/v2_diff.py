@@ -1,6 +1,6 @@
 """v1↔v2 双跑 diff harness——``parse_tex``(scanner) vs ``parse_tex_v2``(segmenter)。
 
-对 corpus_v3 稳定抽样 N 篇主文件，**同一 tex 输入**两侧各跑一遍，逐文件记录：
+对 corpus 稳定抽样 N 篇主文件，**同一 tex 输入**两侧各跑一遍，逐文件记录：
 
 - identity：``reconstruct(res)`` 对基准逐字节（v1 基准=源 tex；v2 基准=
   ``res.vtex``——vtex 是展开后叙事序坐标系）。三档 strict/normalized/diverged。
@@ -51,7 +51,7 @@ except Exception as exc:
     parse_tex_v2 = None
     V2_IMPORT_ERR = f"{type(exc).__name__}: {exc}"
 
-CORPUS = REPO / "bench" / "corpus_v3"
+CORPUS = REPO / "bench" / "corpus"
 MANIFEST = CORPUS / "manifest.jsonl"
 
 _DOCCLASS = re.compile(r"\\(documentclass|documentstyle)\s*(?:\[[^\]]*\])?\s*\{")
@@ -224,7 +224,7 @@ def summarize(rows: list[dict], md_path: Path, meta: dict) -> dict:
     ]
 
     lines = [
-        "# v1↔v2 dual-run diff — corpus_v3 main-file sample",
+        "# v1↔v2 dual-run diff — corpus main-file sample",
         "",
         (
             f"- date: {meta['date']}   seed: {meta['seed']}   "

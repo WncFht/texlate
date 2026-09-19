@@ -3,7 +3,7 @@ r"""
 compilebench_v2.py — B3 compilebench 扩展基线: corpus_v2 分层样本 × baseline × 双引擎.
 
 LEGACY（refactor-audit F12 定调）：v3（``compilebench_v3.py`` + ``fixloop_bench.py``
-corpus_v3 口径）已代——新测量一律走 v3；本文件留存仅作 corpus_v2 时代
+corpus 口径）已代——新测量一律走 v3；本文件留存仅作 corpus_v2 时代
 基线报告的复算入口（--report），其残值（分层抽样名单/tectonic base 口径）
 已并入 v3。另注意 ``ROOT`` 为硬编路径，异地运行静默指错树。
 
@@ -55,7 +55,7 @@ from pathlib import Path
 import benchlib
 
 ROOT = Path("~/src/texlate").expanduser().resolve()
-CORPUS = ROOT / "bench/corpus_v3"
+CORPUS = ROOT / "bench/corpus"
 WORK = ROOT / "bench/work_compile_v2"
 OUT = ROOT / "bench/results/compilebench-corpusv2-2026-09-15"
 MANIFEST = CORPUS / "manifest_v2.jsonl"
@@ -601,7 +601,7 @@ def run_paper(p):
         paper["engines"][eng] = r
         cases.append(
             {
-                "corpus": "corpus_v3",
+                "corpus": "corpus",
                 "cond": "baseline",
                 "paper_id": pid,
                 "band": p["band"],
@@ -679,7 +679,7 @@ def report():
     lines.append("")
     lines.append(f"- 日期: {meta['date']}")
     lines.append(
-        f"- 语料: `bench/corpus_v3/` v2 层 extracted/ 分层样本 n={len(papers)} (sample.json, seed={SEED})"
+        f"- 语料: `bench/corpus/` v2 层 extracted/ 分层样本 n={len(papers)} (sample.json, seed={SEED})"
     )
     lines.append(f"- 条件: baseline 原文直编, 不注入不修复; 超时 {TIMEOUT}s")
     lines.append(f"- xelatex: `{meta['xelatex']}` — nonstopmode ≤2 pass, 冷 TEXMF 沙箱")

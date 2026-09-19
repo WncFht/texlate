@@ -1,7 +1,7 @@
 """L1 verify-flip 钉测：15 条「规则/修复已落地」机制的活性核验。
 
 车道 L1（tmp/lane-c1-scout/family-plan.md §L1）：verdict=rule/covered
-机制逐一最小复现 —— 活则钉死，防回退。语料无关（corpus_v3 数据
+机制逐一最小复现 —— 活则钉死，防回退。语料无关（corpus 数据
 gitignored），全部 tmp_path 合成源，干净 clone 全绿。
 
 机制 → 落点对照：

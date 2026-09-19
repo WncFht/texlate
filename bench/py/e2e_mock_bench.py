@@ -24,13 +24,13 @@ fault_chunks/leftover_ph 即管线 bug 信号（应零）。
 用法:
   uv run python bench/py/e2e_mock_bench.py [--only SUBSTR] [--conditions base-xel,...]
       [--limit N] [--timeout SEC] [--tag NAME]
-      [--corpus bench/corpus_v3] [--layers core,hot] [--sample N --seed S]
+      [--corpus bench/corpus] [--layers core,hot] [--sample N --seed S]
       [--ids id1,id2]
 产出: bench/results/e2emock-<tag>-<date>/{records.jsonl,results.json,matrix.md,summary.md,sample.json}
 工作区: bench/work_e2emock/<cond>/<safe_id>/（gitignored 重产物；
   非默认 corpus 时隔离到 work_e2emock/<corpus名>/ 下防跨语料同 id 互踩）
 
---corpus 两种布局自动识别：bench/corpus 两级叶目录（默认）| corpus_v3
+--corpus 两种布局自动识别：bench/corpus 两级叶目录（默认）| corpus
 manifest*.jsonl + {id}/extracted/（有 manifest 即走 v3 枚举，只收 extracted
 在盘条目；--layers 过滤层，默认全部在盘层）。
 """
@@ -82,7 +82,7 @@ from texlate.xlat.placeholders import (
     is_placeholder_only,
 )
 
-CORPUS = ROOT / "bench/corpus_v3"
+CORPUS = ROOT / "bench/corpus"
 WORK = ROOT / "bench/work_e2emock"
 RESULTS_DIR_DEFAULT = "e2emock-corpus39"
 
@@ -525,7 +525,7 @@ def run_condition(
 
 
 def _v3_layers(corpus: Path) -> list[str]:
-    """corpus_v3 dev 可枚举层——benchlib.dev_layers 单源（holdout 仅评测层排除，
+    """corpus dev 可枚举层——benchlib.dev_layers 单源（holdout 仅评测层排除，
     评测走显式 --layers）。"""
     return benchlib.dev_layers(corpus)
 
@@ -536,7 +536,7 @@ def list_projects(
     """工程枚举。
 
     corpus39 布局（默认）：直接含 .tex 的顶层目，或 hep-th/math 下的二级目。
-    corpus_v3 布局（manifest*.jsonl 存在）：manifest 条目里 extracted/ 在盘者，
+    corpus 布局（manifest*.jsonl 存在）：manifest 条目里 extracted/ 在盘者，
     ``--layers`` 可过滤层（默认全部在盘层）。
     """
     corpus = CORPUS if corpus is None else corpus
@@ -581,7 +581,7 @@ def run_project(
     work = WORK if work is None else work
     src = corpus / rel
     if (src / "extracted").is_dir():
-        src = src / "extracted"  # corpus_v3 布局：{id}/extracted/ 是源码根
+        src = src / "extracted"  # corpus 布局：{id}/extracted/ 是源码根
     sid = safe_id(rel)
     rec: dict = {"id": rel}
     meta_p = src.parent / "meta.json" if src.name == "extracted" else None
@@ -772,12 +772,12 @@ def main() -> None:
     ap.add_argument(
         "--corpus",
         default=str(CORPUS),
-        help="语料根：bench/corpus 两级叶目录 | corpus_v3（manifest+{id}/extracted）",
+        help="语料根：bench/corpus 两级叶目录 | corpus（manifest+{id}/extracted）",
     )
     ap.add_argument(
         "--layers",
         default=None,
-        help="corpus_v3 层过滤，逗号分隔（默认全部在盘 manifest 层）",
+        help="corpus 层过滤，逗号分隔（默认全部在盘 manifest 层）",
     )
     ap.add_argument("--ids", default=None, help="显式 id 逗号列表（跳过枚举 + 抽样）")
     ap.add_argument("--sample", type=int, default=None, help="枚举内 seed 随机抽 N 篇")

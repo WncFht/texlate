@@ -39,11 +39,11 @@ from texlate.xlat.pipeline import (
 )
 from texlate.xlat.prompts import all_kinds, normalize_kind
 
-CORPUS = Path(__file__).resolve().parents[1] / "bench" / "corpus_v3"
+CORPUS = Path(__file__).resolve().parents[1] / "bench" / "corpus"
 
 needs_corpus = pytest.mark.skipif(
     not any(CORPUS.rglob("*.tex")),
-    reason="bench/corpus_v3 数据层不在场（gitignored 重产物）",
+    reason="bench/corpus 数据层不在场（gitignored 重产物）",
 )
 
 #: (paper_dir, 主文件) —— 覆盖多文件 /input、宏重 preamble、脆弱间距（~x.

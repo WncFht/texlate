@@ -12,7 +12,7 @@
 % 默认 {a4paper,twoside,twocolumn,fleqn,final,10pt,runningheads}
 % —— 原 \LoadClassWithOptions 裸转发, 稿裸 \documentclass{aa}×44
 % + []×14 格吃 article 默认 onecolumn/oneside/letterpaper 栏型
-% 失真; referee×42 无双距稿面。参照件 bench/corpus_v3/
+% 失真; referee×42 无双距稿面。参照件 bench/corpus/
 % {0806.4088,1206.0403,2211.04497,2606.30286}/extracted +
 % corpus/1502.01589 五版选项节比对。
 % wrapper 机制 (latex.ltx \@process@ptions): cls 级

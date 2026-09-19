@@ -39,7 +39,7 @@ import benchlib
 
 BENCH = Path(__file__).resolve().parents[2]
 RESULTS = BENCH / "results"
-CORPUS_V3 = BENCH / "corpus_v3"
+CORPUS_V3 = BENCH / "corpus"
 VENDORED_INV = RESULTS / "cbucket-vendored-inventory" / "inventory.jsonl"
 
 try:  # 读侧 taxonomy 复用——uv run 下可用；系统 python 降级

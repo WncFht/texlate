@@ -119,7 +119,7 @@ def test_route_pstricks_comments_not_routed(tmp_path: Path) -> None:
 
 def test_route_ps_macro_shadows_not_routed(tmp_path: Path) -> None:
     """宏定义里的 \\psline/\\psframe 残影（无包声明/环境/\\psset）不命中——
-    裸 \\ps* 族已从识别面移除（corpus_v3 全扫零独立命中）。"""
+    裸 \\ps* 族已从识别面移除（corpus 全扫零独立命中）。"""
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n"
         "\\newcommand{\\fakeps}{\\psline(0,0)(1,1)\\psframe(2,2)(3,3)}\n"

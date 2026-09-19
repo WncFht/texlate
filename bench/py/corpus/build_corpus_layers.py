@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 r"""build_corpus_layers.py — 2026-09 扩库层构建器（holdout / dev_vol / dev_failmine / eprint recent 臂）。
 
-背景：dev==eval 污染——全部 bench 都采 corpus_v3，fixloop 规则对着同一批论文调。
-本构建器落三层新料（均在 corpus_v3，加层不删层）：
+背景：dev==eval 污染——全部 bench 都采 corpus，fixloop 规则对着同一批论文调。
+本构建器落三层新料（均在 corpus，加层不删层）：
 
   holdout       仅评测层（benchlib.EVAL_ONLY_LAYERS 闸住 dev 枚举）：
                 2700 bulk 分层（cell 配额 = core 配比 ×2.7，月份与 30 个 core
@@ -60,7 +60,7 @@ import build_corpus_expand as bx
 import build_corpus_v3 as b3
 
 REPO = Path(__file__).resolve().parents[3]
-CORPUS = REPO / "bench" / "corpus_v3"
+CORPUS = REPO / "bench" / "corpus"
 WORK = REPO / "bench" / "work_v3"
 IA_INDEX = b3.FRAME / "item-index.csv"
 TIGER_INDEX = b3.FRAME / "tiger-files.csv"
@@ -581,7 +581,7 @@ def offsets_for(item: str, layer: str) -> dict[str, tuple[int, int]]:
 
 
 def materialize(rec: dict, blob: bytes, sha: str, layer: str, profile: dict) -> dict:
-    """blob → corpus_v3/{id}/ + manifest 行（layer=本层）。"""
+    """blob → corpus/{id}/ + manifest 行（layer=本层）。"""
     pid = rec["id"]
     dest = CORPUS / pid
     dest.mkdir(parents=True, exist_ok=True)

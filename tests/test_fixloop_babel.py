@@ -1,6 +1,6 @@
 r"""babel-lane (2026-09-19): babel 语言选项系修复钉。
 
-格面: corpus_v3 0707.1325/1003.2165 ([german] → ldf 装好后炸
+格面: corpus 0707.1325/1003.2165 ([german] → ldf 装好后炸
 ``\iflanguage{ngerman}`` AtBeginDocument 钩, Arch 格式零非英 \l@*)、
 1206.0213 ([english,francais] 弃名)、1306.0435 ([ukrainian,russian] 选项名
 ≠实档名)。机制三件: ``file_aliases`` 候选桥 (ini

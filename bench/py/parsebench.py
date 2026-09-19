@@ -13,14 +13,14 @@ non-utf8/no-hyperref——B3 静态路由金标准)、孤儿 tex 清单、stratu
 cluster_id/权重 (供 docs/09 §7.2 统计与事后分层).
 
 统计口径 (docs/09 §7.2, §8 门槛): 加权池化率 (事后分层权重 w_cell =
-frame_cell/sample_cell, stratum_cell 来自 corpus_v3 manifest, frame 宇宙计数
+frame_cell/sample_cell, stratum_cell 来自 corpus manifest, frame 宇宙计数
 来自 bench/frame/strata-era-cat.csv) + 宏平均 (逐篇等权, olmOCR 式) +
 raw pooled 三口径并列; Wilson 95% CI (iid 近似) + 月簇稳健 bootstrap CI
 (cluster_id‖yymm 重抽样, 无簇键时退化为逐篇 iid bootstrap). 无 stratum_cell
 的语料 (corpus39/corpus_v2) 加权列退化为等权 = raw pooled, 报告中注明.
 
 用法:
-  uv run python bench/py/parsebench.py --corpus bench/corpus_v3 [--out DIR]
+  uv run python bench/py/parsebench.py --corpus bench/corpus [--out DIR]
   python3 bench/py/parsebench.py --corpus corpus_daily --limit 20   # src shim 兜底
 
 产出 (docs/10 统一产出契约): OUT/files.jsonl + OUT/papers.json + OUT/summary.md,
@@ -457,7 +457,7 @@ def file_metrics(
 
 def is_tex(p: Path) -> bool:
     """大小写不敏感 .tex 判定——野语料存在 .TEX 古早文件
-    (corpus_v3 实测: 0707.2108/pmeyerxi.TEX, 0806.0433/*.TEX)."""
+    (corpus 实测: 0707.2108/pmeyerxi.TEX, 0806.0433/*.TEX)."""
     return p.is_file() and p.suffix.lower() == ".tex"
 
 
@@ -1139,7 +1139,7 @@ def main() -> None:
         "--corpus",
         required=True,
         type=Path,
-        help="语料目录 (bench/corpus_v3|corpus_daily; 裸名按 bench/ 下解析)",
+        help="语料目录 (bench/corpus|corpus_daily; 裸名按 bench/ 下解析)",
     )
     ap.add_argument(
         "--manifest",
@@ -1223,7 +1223,7 @@ def main() -> None:
     if manifest:
         n_meta = sum(1 for p in prec_map.values() if "meta" in p)
         print(f"  manifest matched: {n_meta}/{len(prec_map)} papers")
-        # manifest 即抽样框：只评 manifest 列出的论文（corpus_v3 核心/补强
+        # manifest 即抽样框：只评 manifest 列出的论文（corpus 核心/补强
         # 两层同目录共存，层间切换靠 --manifest 指向对应 jsonl）
         keep = {pid for pid in prec_map if pid.removesuffix("/extracted") in manifest}
         n_drop = len(prec_map) - len(keep)

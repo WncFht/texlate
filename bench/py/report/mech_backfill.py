@@ -14,7 +14,7 @@
              （同 select_booster.derive 口径：examples + evidence 正则，
              notes 不取——交叉评论易误归因）
   feature    可求值谓词子集在 features 记录上求值；features 缺目时经
-             --compute-missing-features 对 corpus_v3/<id>/raw.tar.gz 跑
+             --compute-missing-features 对 corpus/<id>/raw.tar.gz 跑
              build_corpus_v3.blob_features 补算（同一生成码，口径一致）
 
 feature 谓词表（台账 evidence 自然语言 → 可执行口径，歧义处回生成源）：
@@ -47,7 +47,7 @@ from collections import defaultdict
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent.parent.parent
-CORPUS = ROOT / "bench" / "corpus_v3"
+CORPUS = ROOT / "bench" / "corpus"
 FEATS_DIR = ROOT / "bench" / "work_v3" / "features"
 sys.path.insert(0, str(ROOT / "bench" / "py" / "corpus"))
 
@@ -209,7 +209,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    ap.add_argument("manifest", help="bench/corpus_v3/ 下 manifest 文件名")
+    ap.add_argument("manifest", help="bench/corpus/ 下 manifest 文件名")
     ap.add_argument(
         "--compute-missing-features",
         metavar="CACHE.jsonl",

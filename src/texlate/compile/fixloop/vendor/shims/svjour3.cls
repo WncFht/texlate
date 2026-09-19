@@ -7,7 +7,7 @@
 \ProvidesClass{svjour3}[2026/09/19 texlate stub — original not redistributable]
 \ClassWarningNoLine{texlate-stub}{svjour3.cls is a compatibility shim}
 
-% 真件 natbib 类选项面 (corpus_v3/1811.03539 实证 svjour3.cls:67-74):
+% 真件 natbib 类选项面 (corpus/1811.03539 实证 svjour3.cls:67-74):
 % \documentclass[natbib]{svjour3} → AtEndOfClass 装 natbib+版式参数;
 % 星号转发会把 natbib 当未知 option 丢给 article 静默吞掉 → \citep
 % undefined。先于星号声明, 照真件抄值。

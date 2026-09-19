@@ -48,7 +48,7 @@ BITMAP_FONT_PKG_NAMES: Final = frozenset(
 #: 精确（pstricks / pstricks-add / pst-* 家族——元素边界防 `{notpstricks}`
 #: 类子串误中）+ `pspicture` 环境 + `\psset` 配置宏（vendored/传递装载的
 #: 兜底信号，0905.2435/0905.4369 实证）。裸 `\psline`/`\psframe` 族不收——
-#: polyfill 守卫与自定义宏残影假命中（corpus_v3 全扫零独立命中；新口径
+#: polyfill 守卫与自定义宏残影假命中（corpus 全扫零独立命中；新口径
 #: 68 vs 旧 61，反增收 `{amsmath,pstricks}` 非首元素声明）。
 _PSTRICKS_RE = re.compile(
     r"\\(?:usepackage|RequirePackage)\s*(?:\[[^\]]*\])?\s*"

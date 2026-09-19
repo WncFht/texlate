@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-r"""build_hot_layer.py — corpus_v3 hot 层：OpenAlex 高引近期论文 → 产品取源 → 语料落盘。
+r"""build_hot_layer.py — corpus hot 层：OpenAlex 高引近期论文 → 产品取源 → 语料落盘。
 
-动机（2026-09-16 立项）：corpus_v3 是 arXiv 三十年均匀抽样（IA 月块 ≤2020-10 +
+动机（2026-09-16 立项）：corpus 是 arXiv 三十年均匀抽样（IA 月块 ≤2020-10 +
 TIGER ≤2412），长尾覆盖正确但与真实用户负载分布不匹配——hjfy 类产品压倒性服务
 近期高热度论文。hot 层补这条轴：**扩展而非替换**，均匀层/booster 层原样保留。
 
@@ -14,9 +14,9 @@ TIGER ≤2412），长尾覆盖正确但与真实用户负载分布不匹配—�
 取源走产品路径 ``acquire_source``（arxiv.org/src 钉版），不绕过限流——
 每篇 = HEAD+GET 2 请求，日预算 ~180 发 → 单轮 ~85 篇封顶，次日 --resume 续。
 
-产出（对 corpus_v3 惯例）：
-  bench/corpus_v3/{id}/{meta.json,raw.*,extracted/}   （gitignored 数据）
-  bench/corpus_v3/manifest_hot.jsonl                  （入库清单）
+产出（对 corpus 惯例）：
+  bench/corpus/{id}/{meta.json,raw.*,extracted/}   （gitignored 数据）
+  bench/corpus/manifest_hot.jsonl                  （入库清单）
   bench/work_v3/hot/candidates.jsonl                  （候选审计轨迹，gitignored）
 
 用法:
@@ -52,7 +52,7 @@ import benchlib
 from texlate.arxiv.cache import SourceCache
 from texlate.arxiv.fetch import AcquireStatus, Fetcher, acquire_source
 
-CORPUS = ROOT / "bench" / "corpus_v3"
+CORPUS = ROOT / "bench" / "corpus"
 WORK = ROOT / "bench" / "work_v3" / "hot"
 CANDIDATES = WORK / "candidates.jsonl"
 MANIFEST_HOT = CORPUS / "manifest_hot.jsonl"
@@ -204,7 +204,7 @@ def cmd_candidates(args: argparse.Namespace) -> None:
 
 
 def _merge_meta(entry_dir: Path, cand: dict, dest: Path) -> dict:
-    """产品 meta.json + 语料层字段合并 → corpus_v3 风格 meta。"""
+    """产品 meta.json + 语料层字段合并 → corpus 风格 meta。"""
     meta = json.loads((entry_dir / "meta.json").read_text(encoding="utf-8"))
     yymm = (cand["id"].split(".")[0])[:4]
     locate_main = ((meta.get("locate") or {}).get("main")) or None
@@ -263,7 +263,7 @@ def _manifest_row(cand: dict, meta: dict, dest: Path) -> dict:
 
 
 def cmd_fetch(args: argparse.Namespace) -> None:
-    """候选 → acquire_source → corpus_v3/{id}/ + manifest_hot.jsonl（可重入续跑）。"""
+    """候选 → acquire_source → corpus/{id}/ + manifest_hot.jsonl（可重入续跑）。"""
     if not CANDIDATES.exists():
         sys.exit("先跑 candidates 子命令")
     cands = benchlib.read_jsonl(CANDIDATES)

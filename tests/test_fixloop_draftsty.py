@@ -1,6 +1,6 @@
 """稿自带 .sty abstract-edef 捕获 hack 中和链单测 (签名件原位补丁, 非退役)。
 
-实证背景 (corpus_v3 1706.00240, iffalse-census #46 残格, unfixable:other):
+实证背景 (corpus 1706.00240, iffalse-census #46 残格, unfixable:other):
 e-print 自带 draft.sty 载 ``\\protected@edef\\@tempa{\\ifnum`}=\\z@`` —
 — `` `} `` 被 ``\\ifnum`` 当字符码操作数吞掉 (125≠0 假值整段空) →
 edef 的 ``{`` 失去配对 ``}`` 永不闭合 → abstract 体 + ``\\endabstract``

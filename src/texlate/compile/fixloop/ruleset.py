@@ -406,7 +406,7 @@ _ACTION_KINDS = {
 }
 _PHASES = {"gate", "precheck", "loop"}
 _MODES = {"native", "same", "degrade", "unsupported", "skip"}
-#: 可选声明字段 ``mechanisms:`` 的 mech_id 形 (corpus_v3 注册表值域
+#: 可选声明字段 ``mechanisms:`` 的 mech_id 形 (corpus 注册表值域
 #: B/T/W 族; 注册表成员核验在 bench/py/report/mech_ids.py --validate)。
 _MECH_ID_RX = re.compile(r"^[BTW]\d+$")
 #: ``action`` 段合法键——``_apply`` 只读 kind/function/params, 其他键
@@ -519,7 +519,7 @@ class Rule:
 
     @property
     def mechanisms(self) -> list[str]:
-        """声明式机制标签 (corpus_v3 mech_id 表; 缺省 [])。"""
+        """声明式机制标签 (corpus mech_id 表; 缺省 [])。"""
         return list(self.raw.get("mechanisms") or [])
 
     @property

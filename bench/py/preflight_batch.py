@@ -2,7 +2,7 @@
 r"""preflight_batch.py — loop 批前置自检（stagerun 大批量前一票闸）。
 
 仿 e2e_real_bench.preflight 的「src 全量 import walk + 无网 mock 链」，
-加批量特有的资源面：磁盘余量 / corpus_v3 manifest / TeX 工具链 / 网关认证。
+加批量特有的资源面：磁盘余量 / corpus manifest / TeX 工具链 / 网关认证。
 stagerun 启动时自带的 preflight 只含前两项，本脚本是其超集。
 
     uv run python bench/py/preflight_batch.py                 # 全项（含网关）
@@ -31,7 +31,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, os.environ.get("TEXLATE_SRC", str(ROOT / "src")))
 
 BENCH = ROOT / "bench"
-CORPUS = BENCH / "corpus_v3"
+CORPUS = BENCH / "corpus"
 GATEWAY_DEFAULT = os.environ.get("TEXLATE_BASE_URL", "http://127.0.0.1:3033")
 TOOLS = ("xelatex", "tectonic", "pdftotext")
 

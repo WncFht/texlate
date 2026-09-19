@@ -5,19 +5,19 @@
 
 ## 0. 总览：七个 benchmark
 
-每个 benchmark 对准管线一段 + 一个"组合层"。共同底材 = corpus_v3（docs/09），合成破坏案例各自生成。
+每个 benchmark 对准管线一段 + 一个"组合层"。共同底材 = corpus（docs/09），合成破坏案例各自生成。
 
 | #   | benchmark        | 测哪段           | 底材                              | 核心指标                                  | 现状                         |
 | --- | ---------------- | ---------------- | --------------------------------- | ----------------------------------------- | ---------------------------- |
-| B1  | **parsebench**   | 解析段           | corpus_v3 + corpus39              | ok / identity / leak / dead·orphan / 漏斗 | ✅ 已有（spike 级），升级 v3 |
+| B1  | **parsebench**   | 解析段           | corpus + corpus39              | ok / identity / leak / dead·orphan / 漏斗 | ✅ 已有（spike 级），升级 v3 |
 | B2  | **fixtures**     | 解析段（单元级） | `bench/fixtures/*.tex` 手造       | 陷阱断言通过率                            | ✅ 已建成（T01–T29）         |
-| B3  | **compilebench** | 编译段 + fixloop | corpus_v3 raw blob                | clean/pdf~/FAIL、救回率、规则触发谱       | spike 已验证，需产品化       |
-| B4  | **xlatbench**    | 翻译段           | corpus_v3 chunk 抽样              | 硬契约率 / 延迟 / token 经济 / 质量抽样   | gwbench 雏形已验证           |
-| B5  | **e2ebench**     | 全链（组合）     | corpus_v3 子集                    | 每环节成功率漏斗 + 终态分布               | mock 管线已验证（16/16）     |
+| B3  | **compilebench** | 编译段 + fixloop | corpus raw blob                | clean/pdf~/FAIL、救回率、规则触发谱       | spike 已验证，需产品化       |
+| B4  | **xlatbench**    | 翻译段           | corpus chunk 抽样              | 硬契约率 / 延迟 / token 经济 / 质量抽样   | gwbench 雏形已验证           |
+| B5  | **e2ebench**     | 全链（组合）     | corpus 子集                    | 每环节成功率漏斗 + 终态分布               | mock 管线已验证（16/16）     |
 | B6  | **validbench**   | 校验段           | 生成的破坏案例（语料 chunk 变异） | 检出率 / FP / 延迟                        | exp 已验证（100%/0FP）       |
 | B7  | **alignbench**   | 阅读体验（锚点） | en/zh 编译产物对（B3/B5 产出）    | named-dest 保留率 / 链权                  | probe 已验证（保留 ~100%）   |
 
-依赖序：`corpus_v3 → B1 → B4 → {B3, B5} → B7`；B2/B6 独立（合成输入）。
+依赖序：`corpus → B1 → B4 → {B3, B5} → B7`；B2/B6 独立（合成输入）。
 
 > **现状列更新（2026-09-16 二校）**：B3 已产品化（compilebench_v3.py + fixloop_bench.py，v4+fixloop 臂联合 pdf 154/172=89.5%，`bench/results/compilebench-v4-2026-09-16/` + `base-v3-full-2026-09-16/` 全量基线在盘；**zh 条件臂已跑** `compilebench-v3-zh`/`fixloop-zh-cbv3`）；B4a 已扶正 xlatbench（硬契约基线 240 调用建档）+ B4b 质量臂 `qualbench.py` 已建（LLM-judge 六类 flag+1–5 分，`c81d695`）；B5 Mode A/D 已跑（e2e-real n100 chunk ok 99.97%），**Mode B/C 已实装** `e2e_mock_bench.py` pipeB-xel/pipeC-xel（`f4d9ec8`/`c187025`，`mock-sabotage-v3-2026-09-16/`）；B7 已扶正 alignbench + 已归因（xelatex ~100 错截断 `cite.*` 必死；ctex 共享计数器改 theorem 锚名是离群对根因）+ pipe-fix 产物复测 mean 0.9918（`b7-pipefix-2026-09-16/`）。逐门证据矩阵见 `research/audit-2026-09-16/spec0910.md`。
 >
@@ -25,11 +25,11 @@
 
 ## B1 · parsebench —— 解析段基准
 
-**状态（2026-09-15）**：已落地 `bench/py/parsebench.py`（v2，texlate.latex 产品管线评测器）。首轮：corpus_v3 核心层 1955 文件 parse 100%/strict identity 100%/leak 0.04%/dead 0（coverage 94.4%†）；补强层 187 篇 1388 文件同指标全过（coverage 72.5%）。manifest 非空时即抽样框（`--manifest manifest_booster.jsonl` 切层）。结果 `bench/results/parsebench-*-2026-09-15/`。
+**状态（2026-09-15）**：已落地 `bench/py/parsebench.py`（v2，texlate.latex 产品管线评测器）。首轮：corpus 核心层 1955 文件 parse 100%/strict identity 100%/leak 0.04%/dead 0（coverage 94.4%†）；补强层 187 篇 1388 文件同指标全过（coverage 72.5%）。manifest 非空时即抽样框（`--manifest manifest_booster.jsonl` 切层）。结果 `bench/results/parsebench-*-2026-09-15/`。
 
 **测什么**：`texlate.latex` 对真实语料的解析正确性——能不能零崩溃、能不能逐字节还原、可译 chunk 里有没有漏进受保护内容。
 
-**底材**：corpus_v3 全部 `extracted/`（~1,200 篇 / ~2,000+ .tex）+ corpus39 手挑陷阱集（对拍基线）+ corpus_v2（渠道敏感性）。
+**底材**：corpus 全部 `extracted/`（~1,200 篇 / ~2,000+ .tex）+ corpus39 手挑陷阱集（对拍基线）+ corpus_v2（渠道敏感性）。
 
 **构建方法**（harness 已存在：`bench/py/parsebench.py`，扶正为 `bench/parsebench/` 或 `src/texlate/bench/`）：
 
@@ -57,13 +57,13 @@
 2. **生长机制**：parsebench 归因（B1-4）和 mechanisms.jsonl 的 `found-in-wild` 条目达到 `covered` 后 → fixture 化（最小复现提取 + `@Tnn` 登记）——语料里每个真坑沉淀为永久断言。
 3. 断言写在 `tests/test_bench_regression.py`（spike `miniscanner_test.py` 移植，import 换 `texlate.latex`）。（勘误 2026-09-17：原文路径 `tests/latex/` 为误记——实装平铺在 `tests/` 根，§B2 状态行已写真名。）
 
-**门槛**：33/33 dict 断言全过（勘误 2026-09-15：原文 32/32 是旧口径——实际断言面 = tricky 26 + 209 三项 + multi T14×4 = 33，加 209 parse_ok 行共 34），新增断言只增不减；BUG1 类回归断言（"ph 尾 `\letters`+后继字母"=0）随修复入列——该指标首测分布：corpus39 5333 / corpus_v2 578 / corpus_v3 10487，rewrite 后实测 0。
+**门槛**：33/33 dict 断言全过（勘误 2026-09-15：原文 32/32 是旧口径——实际断言面 = tricky 26 + 209 三项 + multi T14×4 = 33，加 209 parse_ok 行共 34），新增断言只增不减；BUG1 类回归断言（"ph 尾 `\letters`+后继字母"=0）随修复入列——该指标首测分布：corpus39 5333 / corpus_v2 578 / corpus 10487，rewrite 后实测 0。
 
 ## B3 · compilebench —— 编译段 + fixloop 基准
 
 **测什么**：归一化 + 注入 + 引擎 + 修复循环的真实救回能力。这是 hjfy 用 ~5000 篇人肉沉淀护城河的对应物。
 
-**底材**：corpus_v3 `raw.*` blob（**必须字节级保真渠道**——图/.bst/.bbl 全在才能编译，scholarweave 有损源在此被排除的根因）+ B1 产出的路由标签作静态路由金标准。
+**底材**：corpus `raw.*` blob（**必须字节级保真渠道**——图/.bst/.bbl 全在才能编译，scholarweave 有损源在此被排除的根因）+ B1 产出的路由标签作静态路由金标准。
 
 **构建方法**：
 
@@ -86,7 +86,7 @@
 
 **B4a 硬契约层**（harness 已有：`tmp/exp/gwbench/bench_free.py` + `aggregate.py` 扶正）：
 
-1. chunk 抽样：corpus_v3 chunks 按 kind 分层抽样（含 `\bibitem` 前缀 / `\href` / `\` 压力样例陷阱集——bench/fixtures 增 xlat 类）。
+1. chunk 抽样：corpus chunks 按 kind 分层抽样（含 `\bibitem` 前缀 / `\href` / `\` 压力样例陷阱集——bench/fixtures 增 xlat 类）。
 2. 网格：`chunk × model × repeat`；每响应过 L0 validator。
 3. 指标排序管线：**硬契约率**（丢/造占位符 + 丢脆弱命令 + validator error）→ ord 软信号（合法中文换序不降权）→ 延迟 p50/p95 → reasoning 开销 → token 经济。338 调用大样本实证此方法有效（swe-2-medium 100% 全场第一）。
 4. 用途：模型选型/白名单刷新（免费集 promo 到期即重跑）+ prompt 措辞回归（bump prompt_version 必跑）。
@@ -95,7 +95,7 @@
 
 > 落地注记（2026-09-16）：`bench/py/qualbench.py` 已建（`c81d695`）——LLM-judge 对段对打 1–5 分 + 六类 flag（漏译/错译/术语不一致/格式破坏/幻觉/语言混杂），对应本条第 3 项；首跑 `bench/results/qual-run-2026-09-16/`。第 1/2 项（真译文进编译网格、占位符扰动）由 e2e_real_bench `--fixloop`/`--base` 臂与 e2e_mock_bench pipeC 部分覆盖。
 
-1. 整篇真实翻译 corpus_v3 抽样子集（~100 篇）→ 译文进 B3 编译网格测"翻译对编译的实际影响"（中文长句撑爆 `\hbox`、罕见字缺字形、bibtex 多遍收敛——E10 未覆盖项）。
+1. 整篇真实翻译 corpus 抽样子集（~100 篇）→ 译文进 B3 编译网格测"翻译对编译的实际影响"（中文长句撑爆 `\hbox`、罕见字缺字形、bibtex 多遍收敛——E10 未覆盖项）。
 2. 占位符位置敏感性：mock C（随机挪动 ~10% 占位符）量化 splice 鲁棒性（e2e pipeline 已留接口）。
 3. 质量抽样：段对抽取 → 人工/LLM-judge 评流畅度与术语一致性（三级术语表的实际提升测量点）。
 
@@ -105,7 +105,7 @@
 
 **测什么**：全链组合后的逐环节成功率——单段绿不等于组合绿（E10 实证价值）。
 
-**底材**：corpus_v3 子集（先 ~50 篇，后全量）。
+**底材**：corpus 子集（先 ~50 篇，后全量）。
 
 **构建方法**（harness 已扶正为 `src/texlate/e2e.py`——`mock_translate_tree`/`pipe_condition`/`base_condition`/`mock_pipeline_run`，CLI `texlate run` 与 `bench/py/e2e_mock_bench.py` 共用；勘误 2026-09-15：原写 `tmp/exp/e2e/pipeline.py` 扶正，实际落地为产品模块而非 bench 脚本，翻译走 XlatPipeline(MockTranslator)+L0 校验器全产品 API。勘误 2026-09-17：`e2e_mock_bench` 的 translate_tree 已改为单源调 `e2e._scan_tree`、fixloop 参数对齐产品签名（`d240b43`）——harness 不再自持第二份扫描实现。勘误 2026-09-17：`e2e_real_bench.translate_tree` 同收敛至 `e2e._scan_tree`（`a08dda3`）——此前 real 臂零文件闸送译 support 件，**n200 run（含）之前的 chunks/src_chars/ok 率等体积类指标与修复后新 run 口径断点不可直接比**（终态类指标不受影响；详见 `bench/results/realn200-2026-09-17/report.md` §4）：
 

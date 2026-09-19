@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-r"""build_corpus_expand.py — corpus_v3 扩库管线: +~3740 篇 → 总 ~5000.
+r"""build_corpus_expand.py — corpus 扩库管线: +~3740 篇 → 总 ~5000.
 
 在 build_corpus_v3.py 建库成果上做增量扩充（不改写既有三个 manifest）:
 
@@ -11,7 +11,7 @@ r"""build_corpus_expand.py — corpus_v3 扩库管线: +~3740 篇 → 总 ~5000.
             → work_v3/expand/{members,features}/{item}.jsonl（逐成员 append,
             断点续扫）→ .done 后删 tar（成员级 Range-GET 回取，不留整包）
   extract   全局选样：旧池（已扫 56 chunk, 本地 tar 随机读）按 --reuse-frac
-            摊 + 新池 Range-GET → corpus_v3/{id}/{raw.*,extracted/,meta.json}
+            摊 + 新池 Range-GET → corpus/{id}/{raw.*,extracted/,meta.json}
             → manifest_expand.jsonl（逐行 append, id 幂等）
   fetch-ids 定点补强：--ids-file 清单（mechanisms 台账回收的 orphan id 等
             未扫成员）→ 产品 acquire_source /src 钉版 → corpus cell +
@@ -56,7 +56,7 @@ import benchlib
 import build_corpus_v3 as b3
 
 REPO = Path(__file__).resolve().parents[3]
-CORPUS = REPO / "bench" / "corpus_v3"
+CORPUS = REPO / "bench" / "corpus"
 WORK = REPO / "bench" / "work_v3"
 EXP = WORK / "expand"  # 扩库工作区（features/members/tars/记录全在这下）
 ETARS = EXP / "tars"
@@ -689,7 +689,7 @@ def fetch_blob(rec: dict, old_tars: dict[str, Path], offs: dict[str, dict]) -> b
 
 
 def materialize(rec: dict, blob: bytes, sha: str) -> dict:
-    """blob → corpus_v3/{id}/ + manifest 行（shape 同 booster + layer=expand）."""
+    """blob → corpus/{id}/ + manifest 行（shape 同 booster + layer=expand）."""
     pid = rec["id"]
     dest = CORPUS / pid
     dest.mkdir(parents=True, exist_ok=True)

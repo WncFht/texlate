@@ -167,7 +167,7 @@ _WS_NOPAR = r"(?>[^\S\n]|%[^\n]*|\n(?![ \t\n]*\n))"
 # ``\endinput`` 同类（换源哨兵语义亦不可被操作数吞掉）。本表推广到
 # 全部扫描终止符：TeX 数/胶扫遇**不可展开命令**即止，下列 cs 永不
 # 是操作数值——吃进只把其后随参孤儿化：``{file}``/``{key}`` 机器参
-# （``\setbox0=\hbox{`` 盒体 corpus_v3 493 命中/216 篇、``\message{``
+# （``\setbox0=\hbox{`` 盒体 corpus 493 命中/216 篇、``\message{``
 # 日志载荷、``\end{env}`` 环境名破对）、断链裸尾（``\vskip3pt
 # plus1pt`` 的 ``plus1pt``、``\setlength\parskip{3pt}`` 的 ``{3pt}``）、
 # 结构子（``\par``/``\item``/``\fi``/``\begin``）。排除后各 cs 回本族

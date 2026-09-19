@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-r"""build_corpus_v3.py — corpus_v3 P2 管线: 簇下载→成员扫描→配额抽样→组装→自检.
+r"""build_corpus_v3.py — corpus P2 管线: 簇下载→成员扫描→配额抽样→组装→自检.
 
 docs/09 S1–S5 实现. 30 月簇 (cluster_pick.json): a–d 带走 IA arxiv-bulk
 月 chunk, e 带走 HF TIGER-Lab/arxiv-latex-5T. 零 arxiv.org 请求.
@@ -17,10 +17,10 @@ docs/09 S1–S5 实现. 30 月簇 (cluster_pick.json): a–d 带走 IA arxiv-bul
   frame-lookup  frame.parquet → frame_lookup.tsv.gz (本子命令需 pyarrow)
   sample        S3a 核心层: cell 内随机配额抽样 → sample_core.json +
                 booster_pool.json (B01–B07 候选预筛)
-  extract       S4: 中选成员 → bench/corpus_v3/{id}/{meta.json,raw.*,extracted/}
+  extract       S4: 中选成员 → bench/corpus/{id}/{meta.json,raw.*,extracted/}
                 + manifest.jsonl + MANIFEST.md
   extract-booster 补强层同款: booster_selection.jsonl 中选成员 →
-                corpus_v3/{id}/ + manifest_booster.jsonl
+                corpus/{id}/ + manifest_booster.jsonl
   qc            S5 自检: 配额达成/去重/stub/pdf_only/账目
 
 用法: bench/work_v3/.venv/bin/python bench/py/corpus/build_corpus_v3.py <cmd> [args]
@@ -56,7 +56,7 @@ import benchlib
 REPO = Path(__file__).resolve().parents[3]
 WORK = REPO / "bench" / "work_v3"
 TARS = WORK / "tars"
-CORPUS = REPO / "bench" / "corpus_v3"
+CORPUS = REPO / "bench" / "corpus"
 FRAME = REPO / "bench" / "frame"  # 规划资产固化区（原 tmp/exp/frame，tmp 可清故迁出）
 CHUNKS_JSON = WORK / "chunks.json"
 SEED = 42
@@ -1516,7 +1516,7 @@ def cmd_extract() -> None:
                         "bytes": len(blob),
                     }
                 )
-        log(f"extract {tag}: {len(members)} members -> corpus_v3")
+        log(f"extract {tag}: {len(members)} members -> corpus")
 
     benchlib.atomic_write_text(
         CORPUS / "manifest.jsonl",
@@ -1716,7 +1716,7 @@ def cmd_extract_booster() -> None:
                         "pick_reason": s.get("pick_reason"),
                     }
                 )
-        log(f"extract_booster {item}: {len(members)} members -> corpus_v3")
+        log(f"extract_booster {item}: {len(members)} members -> corpus")
 
     out = CORPUS / "manifest_booster.jsonl"
     benchlib.atomic_write_text(
@@ -1769,7 +1769,7 @@ def cmd_qc() -> None:
             incomplete.append(top.name)
     orphans = sorted(disk_ids - all_ids)
     lines = [
-        "# corpus_v3 P2 自检",
+        "# corpus P2 自检",
         "",
         f"- 核心层入库: **{len(manifest)}** / 目标 1000",
         f"- id 重复: {sorted(dup) or '无'}",

@@ -2,7 +2,7 @@
 
 依据 `docs/research/product/2026-09-16-batch-hardening-design.md`（§6 文件协议 / §7 规模并发 / §10.3 首轮范围）写成，命令参数按 `bench/py/stagerun.py` 2026-09-16 落盘版实际 CLI（各子命令 `--help` 可查）。
 
-**批次定义**：corpus_v3 全层（core+booster+hot）跑 mock 全 stage + real n=50 子集 + sabotage 两臂 → 首版 tickets.jsonl。存量 1259（13 篇 withdrawn stub 记 reject）；若扩库层已并入 manifest（目标 ~5000），同套命令自动覆盖，估时按 §7.3 放大——本单表格给存量量级，扩库后量级见各步注记。
+**批次定义**：corpus 全层（core+booster+hot）跑 mock 全 stage + real n=50 子集 + sabotage 两臂 → 首版 tickets.jsonl。存量 1259（13 篇 withdrawn stub 记 reject）；若扩库层已并入 manifest（目标 ~5000），同套命令自动覆盖，估时按 §7.3 放大——本单表格给存量量级，扩库后量级见各步注记。
 **结果目录**：`bench/results/stagerun-loop1-<date>/`（本单统一 `--tag loop1`；`--date` 默认当天，跨天续跑用 `--dir` 钉住）。
 
 ## 0. 前置检查（按序，任一不过先修再开批）

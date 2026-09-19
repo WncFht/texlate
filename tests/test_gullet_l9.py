@@ -1,4 +1,4 @@
-r"""L9 GULLET 族机制钉测（corpus_v3 mechanisms.jsonl T25/W14/W23/W28/W41/
+r"""L9 GULLET 族机制钉测（corpus mechanisms.jsonl T25/W14/W23/W28/W41/
 W45/W46/W81/W83/W94/W105）：展开层语义的逐机制回归面。
 
 覆盖判定：已覆盖机制钉「行为不回归」；本批修复钉「活缺口已合」——

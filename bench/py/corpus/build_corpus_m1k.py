@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
-r"""build_corpus_m1k.py — m1k 评测语料构建：4 源抽样 → 物化 → corpus_v3/（m1k-* 层）。
+r"""build_corpus_m1k.py — m1k 评测语料构建：4 源抽样 → 物化 → corpus/（m1k-* 层）。
 
 语料组成（1000 篇，设计见本文件尾 + work_m1k/report.md）：
   recent 300  corpus_daily 2026-09-18 层 announce_type∈{new,cross} 已物化池
   axhot  250  alphaXiv /papers/v3/feed（Hot 30d+90d + Views/Likes All）
   iclr   200  work_iclr/map.jsonl 已映射 arXiv id，年份加权抽样
-  v3     250  corpus_v3 dev 层（holdout 除外——评测贞操层不烧 QA 跑）
+  v3     250  corpus dev 层（holdout 除外——评测贞操层不烧 QA 跑）
 
-物化优先级：本地已有（corpus_daily/corpus_v3/corpus_iclr）→ copytree；
+物化优先级：本地已有（corpus_daily/corpus/corpus_iclr）→ copytree；
 否则 acquire_source（钉版 HEAD+GET+unpack）3.05s 串行纪律，与
 daily_arxiv/iclr_fetch 同 RatePolicy 独立预算账。
 
 子命令：
   select       抽样 + 去重 + cat_group 补全 → work_m1k/selection.jsonl
-  materialize  selection → corpus_v3/{pid}/{meta.json,raw.*,extracted/}
-  emit         物化成功集 → corpus_v3/manifest_m1k-{layer}.jsonl + report.md
+  materialize  selection → corpus/{pid}/{meta.json,raw.*,extracted/}
+  emit         物化成功集 → corpus/manifest_m1k-{layer}.jsonl + report.md
   all          以上一把梭（断点续跑：selection 已有即跳过抽样）
 
 用法:
@@ -47,11 +47,11 @@ from texlate.arxiv.fetch import ARXIV_HOST, EXPORT_HOST, AcquireStatus, Fetcher,
 from texlate.arxiv.ratelimit import RateLimiter, RatePolicy
 
 FETCH_HOSTS = (EXPORT_HOST, ARXIV_HOST)
-CORPUS = ROOT / "bench" / "corpus_v3"  # 2026-09-20 起 m1k 层并入统一根
+CORPUS = ROOT / "bench" / "corpus"  # 2026-09-20 起 m1k 层并入统一根
 WORK = ROOT / "bench" / "work_m1k"
 DAILY = ROOT / "bench" / "corpus_daily"
-V3 = ROOT / "bench" / "corpus_v3"
-ICLR_CORPUS = V3  # corpus_iclr 已并入 corpus_v3
+V3 = ROOT / "bench" / "corpus"
+ICLR_CORPUS = V3  # corpus_iclr 已并入 corpus
 ICLR_MAP = ROOT / "bench" / "work_iclr" / "map.jsonl"
 ICLR_ACCEPTED = ROOT / "bench" / "work_iclr" / "accepted.jsonl"
 CACHE = Path.home() / ".cache" / "texlate" / "src"
@@ -294,7 +294,7 @@ def cmd_select(args: argparse.Namespace) -> int:
             "layer": "v3",
             "cat_group": r.get("cat_group") or "",
             "title": "",
-            "src": f"corpus_v3/{r.get('layer', layer)}",
+            "src": f"corpus/{r.get('layer', layer)}",
         }
         n_v3 += 1
     log(f"v3: pool={len(pool)} picked={n_v3}")

@@ -1,6 +1,6 @@
 """Gullet corpus bench —— M1 接线前实测门（leader 单 2026-09-15）。
 
-对 corpus_v3 主文档跑 ``Gullet(tex, root_dir=extracted/)`` 抽干展开流，
+对 corpus 主文档跑 ``Gullet(tex, root_dir=extracted/)`` 抽干展开流，
 逐文件记录：耗时 / steps / 输出 token 数 / warnings 分类（gen_overflow,
 expansion_overflow, def_parse_fail, missing_input, if_unterminated）/
 ArgMismatch 回吐次数 / ``\\if`` 两档（可求值 vs 界标，选中支分布）/
@@ -34,7 +34,7 @@ from texlate.arxiv.locate import locate
 from texlate.latex.gullet import ArgMismatch, Gullet, _tok_eq
 from texlate.textutil import decode_tex
 
-MANIFEST = REPO / "bench" / "corpus_v3" / "manifest.jsonl"
+MANIFEST = REPO / "bench" / "corpus" / "manifest.jsonl"
 
 
 class Measured(Gullet):
@@ -159,7 +159,7 @@ def main() -> None:
         for k, e in enumerate(entries):
             if e["id"] in done:
                 continue
-            ext = REPO / "bench" / "corpus_v3" / e["id"] / "extracted"
+            ext = REPO / "bench" / "corpus" / e["id"] / "extracted"
             row = run_doc(ext, e["id"])
             row["stratum"] = e.get("stratum_cell", "")
             rows.append(row)

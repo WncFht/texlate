@@ -58,7 +58,7 @@ import benchlib
 
 RESULTS = ROOT / "bench/results"
 CORPORA = [
-    ROOT / "bench/corpus_v3",
+    ROOT / "bench/corpus",
     ROOT / "bench/corpus_daily",
 ]
 WRAP_RX = re.compile(rb"\\begin\s*\{wrap(?:figure|table|float)\*?\}")

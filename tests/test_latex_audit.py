@@ -187,7 +187,7 @@ def test_audit_flatten_lstinline_opt_prefix(tmp_path: Path) -> None:
 
 
 def test_audit_flatten_endinput_truncates() -> None:
-    r"""``\\endinput`` 丢弃当前文件余下内容（TeX 语义；corpus_v3 24 文件在用）。"""
+    r"""``\\endinput`` 丢弃当前文件余下内容（TeX 语义；corpus 24 文件在用）。"""
     out = flatten_inputs("keep \\endinput discarded", "definitely-no-such-dir")
     assert "discarded" not in out
     assert "keep" in out
@@ -340,7 +340,7 @@ def test_audit_fuzz_random_bytes() -> None:
 
 # ---------------------------------------------------------------- corpus property
 
-_CORPUS = Path(__file__).resolve().parent.parent / "bench" / "corpus_v3"
+_CORPUS = Path(__file__).resolve().parent.parent / "bench" / "corpus"
 
 
 def _corpus_mains() -> list[Path]:
@@ -364,10 +364,10 @@ def _corpus_mains() -> list[Path]:
 @pytest.mark.slow
 @pytest.mark.skipif(
     not any(_CORPUS.rglob("meta.json")),
-    reason="bench/corpus_v3 数据不在本地（gitignored 数据层）",
+    reason="bench/corpus 数据不在本地（gitignored 数据层）",
 )
 def test_audit_corpus_pieces_tiling_sample() -> None:
-    """corpus_v3 抽样：pieces 平铺 + protected_tex 自洽 + reconstruct 无异常。"""
+    """corpus 抽样：pieces 平铺 + protected_tex 自洽 + reconstruct 无异常。"""
     mains = _corpus_mains()
     rng = fuzz_rng(1)
     for f in rng.sample(mains, min(60, len(mains))):

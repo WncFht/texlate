@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """corpus_v2 builder: download arXiv e-print source packages for the
 stratified id lists, unpack per arxiv-layer.md §3, and lay down
-bench/corpus_v3/{id}/ + manifest_v2.jsonl + MANIFEST_v2.md
-(2026-09-20 起 v2 层并入统一根 corpus_v3).
+bench/corpus/{id}/ + manifest_v2.jsonl + MANIFEST_v2.md
+(2026-09-20 起 v2 层并入统一根 corpus).
 
 Deps: stdlib only (system python3).
 
@@ -38,9 +38,9 @@ ROOT = os.path.dirname(  # bench/py/corpus/build_corpus_v2.py → repo root
         os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     )
 )
-DATA = os.path.join(ROOT, "bench/corpus_v3")
-BENCH_CORPUS = DATA  # v1 已并入 corpus_v3（2026-09-20 七库合一）
-MANIFEST_MD = os.path.join(ROOT, "bench/corpus_v3/MANIFEST_v2.md")
+DATA = os.path.join(ROOT, "bench/corpus")
+BENCH_CORPUS = DATA  # v1 已并入 corpus（2026-09-20 七库合一）
+MANIFEST_MD = os.path.join(ROOT, "bench/corpus/MANIFEST_v2.md")
 PROGRESS = os.path.join(DATA, "progress_v2.json")
 MANIFEST_JSONL = os.path.join(DATA, "manifest_v2.jsonl")
 LOG = os.path.join(DATA, "build_v2.log")

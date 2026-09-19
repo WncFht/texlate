@@ -1193,7 +1193,7 @@ def test_bundled_style_clean_utf8_untouched(tmp_path: Path) -> None:
 def test_epsi_routed_to_ps_comment_sanitize(tmp_path: Path) -> None:
     r"""``.epsi`` 归 PS 臂：注释行坏字节净化、数据行字节即语义——不再整件转码。
 
-    注释行形态取 corpus_v3 cond-mat/9901072 ``fig2.epsf`` 实件
+    注释行形态取 corpus cond-mat/9901072 ``fig2.epsf`` 实件
     （``%%Copyright \xa9 1988-91`` latin-1）；catch-all 旧道会把数据行
     ``\xe9`` 一并改写腐件，本测试钉死新分派。
     """

@@ -879,7 +879,7 @@ def main() -> None:
     ap.add_argument(
         "--corpus",
         type=Path,
-        default=BENCH / "corpus_v3",
+        default=BENCH / "corpus",
         help="--rescue-en 的 extracted/ 来源",
     )
     ap.add_argument(

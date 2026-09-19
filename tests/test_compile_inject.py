@@ -401,7 +401,7 @@ def test_find_main_tex_depth_above_mass(tmp_path: Path) -> None:
 @pytest.mark.parametrize("name", ["MAIN.TEX", "main.Tex", "Paper.TEX"])
 def test_find_main_tex_uppercase_ext(tmp_path: Path, name: str) -> None:
     r"""大写/混写扩展名主文件入候选——``rglob("*.tex")`` 大小写盲点修复
-    （corpus_v3 loop1 6 cells parse reject ``no_main_tex``）。"""
+    （corpus loop1 6 cells parse reject ``no_main_tex``）。"""
     (tmp_path / name).write_text(
         "\\documentclass{article}\n\\begin{document}\nx\n\\end{document}"
     )

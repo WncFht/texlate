@@ -361,7 +361,7 @@ _CARET_NAME_RX: Final = re.compile(r"\^{2}(.)", re.DOTALL)
 #: C0 测量扫掠签名：同一字体名下 ≥ ``_SWEEP_RUN_MIN`` 条**严格升序**
 #: C0+DEL（U+0000–001F、U+007F）缺字消息 = 测量盒逐码位试排噪音
 #: （picinpar ``\computeilg``：``\loop\setbox\wbox=\hbox{\char\tcl}``，
-#: ``\tcl`` 0→127——丢盒不产生正文缺字）。corpus_v3 loop3 全量 splice log
+#: ``\tcl`` 0→127——丢盒不产生正文缺字）。corpus loop3 全量 splice log
 #: 实测：唯一命中 1003.0694（两字体各 33 成员升序链），其余 ~120 个含缺字
 #: log 零升序 C0 长链——真文档散 C0 缺字非升序、单码位重复（错误恢复
 #: 副产 U+0000×N）不破阈值。run 于码位回降/重复处截断，两段独立评估。

@@ -1,4 +1,4 @@
-# 09 · Benchmark 语料构建规格（corpus_v3）
+# 09 · Benchmark 语料构建规格（corpus）
 
 > 最终技术方案 · ~1,200 篇分层 benchmark 语料的构建管线与统计口径。
 > 证据基础：`docs/research/corpus/v3-plan.md`（定稿计划）、`frame-and-allocation.md`（frame+30 簇 + 配额）、`ia-pilot.md`（IA 管道实测）、`post2020-sourcing.md`（渠道裁决）、`bench-construction-methods.md`（方法学引证）、`parsebench-v1.md`（指标口径）、`parse-metrics-literature.md`。
@@ -88,7 +88,7 @@ d/e 带每簇取间隔 2 块扩候选池（成员按 id 连续 → 类目轻度�
 
 脚本 flag 只做"已知签名"候选预筛；真正的机制覆盖靠**机制台账 + agent 定向狩猎**。
 
-**机制台账** `bench/corpus_v3/mechanisms.jsonl`——每行一机制：
+**机制台账** `bench/corpus/mechanisms.jsonl`——每行一机制：
 
 ```json
 {"mech_id": "...", "title": "...",
@@ -118,9 +118,9 @@ d/e 带每簇取间隔 2 块扩候选池（成员按 id 连续 → 类目轻度�
 
 基础配额锚点（最小保障非上限）：B01 2.09 遗存 30 / B02 非 UTF-8 30 / B03 深多文件 30 / B04 低 TeX 密度类目（cs/econ/eess，d/e 带）30 / B05 宏包机制（minted/pstricks/psfrag/vendored cls）25 / B06 大字节 >2MB 20 / B07 边缘形态（单 gz/pdf_only，记丢弃原因）25。
 
-> 勘误 2026-09-15（P3 已执行）：台账 143 条（W01–W109 野例 + T/B 种子；2026-09-17 勘误：台账为 append-only jsonl 且含 verdict 批注行，行数以 `bench/corpus_v3/mechanisms.jsonl` 实文件为准）；5 curator + 3 hunter 共产出 544 条验证提名（`nominations/*.jsonl` 审计轨迹入库）；`select_booster.py` 选出 200 篇（B 地板全达成、W 覆盖 107/109——W108/W109 池内无例证即 hunter exhausted 记录），明细 `booster_selection.jsonl` + `selection_report.md`。
+> 勘误 2026-09-15（P3 已执行）：台账 143 条（W01–W109 野例 + T/B 种子；2026-09-17 勘误：台账为 append-only jsonl 且含 verdict 批注行，行数以 `bench/corpus/mechanisms.jsonl` 实文件为准）；5 curator + 3 hunter 共产出 544 条验证提名（`nominations/*.jsonl` 审计轨迹入库）；`select_booster.py` 选出 200 篇（B 地板全达成、W 覆盖 107/109——W108/W109 池内无例证即 hunter exhausted 记录），明细 `booster_selection.jsonl` + `selection_report.md`。
 >
-> 增补 2026-09-16（**hot 层**，第三层、扩展不替换）：核心均匀层回答「成功率多少」、补强层回答「坑处理了吗」，但两者抽样框都不是真实用户负载——hjfy 类产品压倒性服务近期高引论文，且核心层止于 2412（TIGER 截止）。hot 层补**需求轴 + 时近轴**：`hot-cite`（OpenAlex `locations.source.id=S4306400194` + `from_publication_date≥2024-01-01` 按 `cited_by_count` 降序取头 120）+ `hot-recent`（同源 2025-06-01+ `sample=` 随机 40）。取源走产品路径 `acquire_source`（arxiv e-print 钉版，3.05s/发、日预算 ~180 → `--limit 85`/日续跑），入库 `manifest_hot.jsonl`，管线 `bench/py/corpus/build_hot_layer.py`（candidates/fetch/report）。不进池化估计（frame 非均匀），按 `stratum_cell=hot|*` 单独报。首日 85 发：入库 72 + `pdf_only` 跳过 13（高引论文无 TeX 源是真实负载固有类）。证据 `research/product/2026-09-16-e2e-pipefix-hotlayer.md`。（勘误 2026-09-18：hot 层当日收官全层 **166 篇**——hot-cite 124 + hot-recent 42，均超计划配额 120/40；收线明细 `bench/corpus_v3/MANIFEST.md` 热层节。）
+> 增补 2026-09-16（**hot 层**，第三层、扩展不替换）：核心均匀层回答「成功率多少」、补强层回答「坑处理了吗」，但两者抽样框都不是真实用户负载——hjfy 类产品压倒性服务近期高引论文，且核心层止于 2412（TIGER 截止）。hot 层补**需求轴 + 时近轴**：`hot-cite`（OpenAlex `locations.source.id=S4306400194` + `from_publication_date≥2024-01-01` 按 `cited_by_count` 降序取头 120）+ `hot-recent`（同源 2025-06-01+ `sample=` 随机 40）。取源走产品路径 `acquire_source`（arxiv e-print 钉版，3.05s/发、日预算 ~180 → `--limit 85`/日续跑），入库 `manifest_hot.jsonl`，管线 `bench/py/corpus/build_hot_layer.py`（candidates/fetch/report）。不进池化估计（frame 非均匀），按 `stratum_cell=hot|*` 单独报。首日 85 发：入库 72 + `pdf_only` 跳过 13（高引论文无 TeX 源是真实负载固有类）。证据 `research/product/2026-09-16-e2e-pipefix-hotlayer.md`。（勘误 2026-09-18：hot 层当日收官全层 **166 篇**——hot-cite 124 + hot-recent 42，均超计划配额 120/40；收线明细 `bench/corpus/MANIFEST.md` 热层节。）
 >
 > 增补 2026-09-19（**评测/开发分轨扩层**，再加四层 8,034）：M2/M3 把语料用途分岔为「评测」与「dev 训练/调试」两轴——核心均匀层仍是池化估计唯一来源。**holdout 层 3,020**（evaluate-only 治理：`benchlib.EVAL_ONLY_LAYERS={"holdout"}`，`dev_layers()` 枚举自动排除、评测须显式指定，`corpus_ids()` 仍含全层供跨层去重；bulk 2,699 = 38 cell flat 配额×2.7 + `exclude_cluster_months` 剔除核心 30 簇月→评测/开发月间零泄漏 + eprint recent 321）+ **dev_vol 2,000**（`fbias` 配额：flat×cell 历史失败率偏置，样本往「爱挂的底材」倾斜）+ **dev_failmine 1,500**（`flags` 配额：FLAG_RX 机制旗标定向挖旧时代——deadpkg/docstyle209/epsfig/pdftex_prim/pstricks/babel + fill 兜底）+ **dev_recent 1,514**（2501+ 盲区：scholarweave 脱水 1,065 + eprint 449）。scholarweave 沿用「有损源不进评测/池化」口径——`figures_stripped` 记账、只供 dev 层；eprint 臂 `acquire_source` 钉版同 hot 层。管线 `bench/py/corpus/build_corpus_layers.py`（plan/scan/extract/qc/recent 五子命令）+ `bench/py/corpus/build_sw_layer.py`（HF parquet 行组脱水）；QC 各层 `bench/work_v3/{layer}/qc.md`；收线明细见 `MANIFEST.md` 末节。八层时点合计 **13,266 篇**。
 
@@ -146,7 +146,7 @@ S0 frame 构建（✅ 已产出 frame.parquet）
 ## 6. 语料库布局
 
 ```
-bench/corpus_v3/                 # manifest 入库，数据 gitignored
+bench/corpus/                 # manifest 入库，数据 gitignored
   MANIFEST.md                    # 人类可读清单（生成）
   manifest.jsonl                 # 每篇一行（S4 schema）
   manifest_booster.jsonl         # 补强层清单（S3b）

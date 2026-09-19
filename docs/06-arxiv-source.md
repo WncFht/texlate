@@ -94,7 +94,7 @@ bytes[0:4] == "%PDF"         → PDF 直投（无源码 → sidecar）
 ```
 candidates = { f ∈ *.{tex,latex,ltx,TEX,…}（扩展名大小写不敏感） | strip_comments(f) 含 \documentclass 或 \documentstyle }
 # 勘误 2026-09-15：候选扩展名原文仅 *.tex；corpus_v2 实证 article.latex（nucl-ex/0203009
-# 唯一主文件）、corpus_v3 命中 .TEX×2——匹配须大小写不敏感且覆盖 .latex/.ltx。
+# 唯一主文件）、corpus 命中 .TEX×2——匹配须大小写不敏感且覆盖 .latex/.ltx。
 ```
 
 1. **先剥注释再匹配**（`\documentclass` 选项可被注释穿插；注释剥离须 `\%` 转义与 verbatim 感知）。

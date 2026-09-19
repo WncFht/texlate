@@ -952,7 +952,7 @@ rules:
               \endinput
           osajnl2.cls: { body: *osa_body }
           # SISSA 高能类 (JHEP/JHEP3/jhep/jcap 作者包, 不在 TL) —— article +
-          # 真 JHEP3.cls 面 (corpus_v3/0806.2278 随稿件): 导言区全收集制
+          # 真 JHEP3.cls 面 (corpus/0806.2278 随稿件): 导言区全收集制
           # (\abstract/\author/\email/\keywords/\preprint/\received/\revised/
           # \accepted/\dedicated/\JHEPspecialurl 皆 PRE 调用 → 存值,
           # \AtBeginDocument 自动 emit —— 真件 \auto@maketitle 同款;
@@ -1499,7 +1499,7 @@ rules:
           svjour2.cls: { body: *svjour_body }
           # EPL epl2.cls (Europhysics Letters, 期刊外发): 旧体 \abstract/
           # \pacs/\institute 即时排版 → 导言区调用 no_begindoc (0905.1214
-          # 双格实证)。全真件 epl2.cls 结构 (corpus_v3/1206.2258 随稿):
+          # 双格实证)。全真件 epl2.cls 结构 (corpus/1206.2258 随稿):
           # PRE 收集制 (\abstract/\pacs/\institute 存值, \maketitle 吐),
           # bbl-struct 宏族抄真件 L1312-1344 (\Name/\Review/\REVIEW/\Book/
           # \Publ/\Vol/\Year/\Page/\Pages/\Editor/\Section/\SAME +
@@ -2270,11 +2270,11 @@ rules:
       tectonic: { mode: same } # 注入与引擎无关
     provenance:
       - {
-          corpus: "corpus_v3 revtex209_surface 8 格 (chao-dyn/9901009, cond-mat/0104108, cond-mat/0307206, cond-mat/9901292, gr-qc/9901082, hep-ex/9910040 ×2, patt-sol/9910002)",
+          corpus: "corpus revtex209_surface 8 格 (chao-dyn/9901009, cond-mat/0104108, cond-mat/0307206, cond-mat/9901292, gr-qc/9901082, hep-ex/9910040 ×2, patt-sol/9910002)",
           error: "Undefined control sequence \\twocolumn/\\collaboration@sw/\\@makecol — latex209 改写 \\documentclass{revtex4-2} 后踩其刻意删除面",
         }
       - {
-          corpus: "corpus_v3 revtex_pacs 5 格 (astro-ph/9901028, cond-mat/0307221, hep-ph/0104104, hep-th/9910106, nlin/0104012)",
+          corpus: "corpus revtex_pacs 5 格 (astro-ph/9901028, cond-mat/0307221, hep-ph/0104104, hep-th/9910106, nlin/0104012)",
           error: "revtex4-2 ClassError: \\pacs must be called before \\maketitle (2.09 稿惯后置)",
         }
     stats: { fires: 56, status: proposed }
@@ -2372,7 +2372,7 @@ rules:
           error: "epsfig.sty:46 Undefined control sequence \\define (\\documentstyle{mn} 下 \\input epsfig.sty @=12 裂 \\define@key)",
         }
       - {
-          corpus: "corpus_v3 raw-grep 家族 ~51 篇 (\\documentstyle ∧ \\input .sty): astro-ph/0003034 \\input{epsf,psfig}.sty, astro-ph/0103007 \\input psfig.sty 等 mn 簇",
+          corpus: "corpus raw-grep 家族 ~51 篇 (\\documentstyle ∧ \\input .sty): astro-ph/0003034 \\input{epsf,psfig}.sty, astro-ph/0103007 \\input psfig.sty 等 mn 簇",
           error: "同机制——2.09 稿裸 \\input .sty 全裂 @-cs",
         }
     stats: { fires: 4, status: proposed }

@@ -1,6 +1,6 @@
 """pstricks-add 成对退役修复链单测 (稿自带过旧 .tex/.sty 对 → 退役换系统/vendor 新件)。
 
-实证背景 (corpus_v3 0707.4206, stagerun flipcheck3 best_effort 残格):
+实证背景 (corpus 0707.4206, stagerun flipcheck3 best_effort 残格):
 e-print 捆绑 pstricks-add.tex v2.32 (2005/01/16) + pstricks-add.sty 对,
 ``\\usepackage{pst-all}`` → texlive pst-all.sty ``\\RequirePackage{pstricks-add}``
 走 kpathsea cwd 序中稿自带对 → 12 错同根 (dx/dy 键自 pst-node v1.45 移除、

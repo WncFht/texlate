@@ -11,7 +11,7 @@ scholarweave 是唯一免费的 2025+ 批量 LaTeX 源（docs/research/arxiv/bul
   assign    三层分流：dev_recent_sw 选 ~1 行组/月整组抓取 + 组内采样；
             holdout/dev_recent 各切 eprint 臂 id 清单（全池均匀分层）
   rehydrate 行组级下载 latex 列 → FILE: 拆包 → 重打包 raw.tar.gz →
-            corpus_v3/{id}/ cells + manifest_dev_recent.jsonl
+            corpus/{id}/ cells + manifest_dev_recent.jsonl
 
 单元契约（sw cell）：channel=hf_scholarweave, item=分片名, member=id,
 raw.tar.gz=重水化文本树, meta figures_stripped:true（无二进制图——编译臂
@@ -47,7 +47,7 @@ import benchlib
 import build_corpus_v3 as b3
 
 REPO = Path(__file__).resolve().parents[3]
-CORPUS = REPO / "bench" / "corpus_v3"
+CORPUS = REPO / "bench" / "corpus"
 WORK = REPO / "bench" / "work_v3"
 SW = WORK / "sw"
 MANIFEST_OUT = CORPUS / "manifest_dev_recent.jsonl"

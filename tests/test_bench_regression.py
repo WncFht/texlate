@@ -7,7 +7,7 @@ r"""B2 fixtures 陷阱断言回归（docs/10 §B2）——spike ``miniscanner_te
 - ``tricky-multi/``：T14 ``\input/\include`` 展平 4 条；
 - ``xlat-traps.tex``：xlat 契约压力形 4 条（``@Xn``——产品遮蔽口径
   ``[[BIB_n]]``/``\href[[HREF_n]]``/``[[URL_n]]``，与 xlatbench SYNTHETIC S1–S4 同源）；
-- ``tricky-w.tex``：W 系列野机制 11 条（``@Wnn`` ↔ corpus_v3 mechanisms.jsonl 台账行，
+- ``tricky-w.tex``：W 系列野机制 11 条（``@Wnn`` ↔ corpus mechanisms.jsonl 台账行，
   infix-over/unbraced-args/arg-next-line/eol-pct-join/range-cite/discretionary/
   pct-comment/comment-macro/spaced-env/enddoc-tail/usepackage-comment）；
 - ``tricky-w73/``：``\input{../...}`` 路径逃逸两向断言（gullet C1 openin_any 等价闸）——
@@ -17,7 +17,7 @@ r"""B2 fixtures 陷阱断言回归（docs/10 §B2）——spike ``miniscanner_te
   走 ``decode_tex`` 单码选定路径——identity 基准同源改用 ``decode_tex`` 而非
   ``errors="replace"``，断言只锁 latin1 侧 ``café``（单码不可救的 utf8 侧形态留给
   normalize 分档层演进）；
-- ``tricky-dollar.tex``：D 系列 dollar 族 10 条（``@Dnn`` ↔ corpus_v3 ``$``-leak
+- ``tricky-dollar.tex``：D 系列 dollar 族 10 条（``@Dnn`` ↔ corpus ``$``-leak
   归因亚型——散文 ``\$`` 转义、``\section``/``\textit``/``\item``/footnote 组参内 ``\$``、
   ``$$..env..`` 区内空行照常配对、孤 ``$$``/孤 ``$`` → CMD ph + ``unpaired_dollar``、
   ``\$`` 与 ``$x$`` 同行混排 CMD+MATH 双路）；
@@ -649,7 +649,7 @@ def assert_wenc(res: ScanResult | None) -> dict[str, dict[str, str]]:
 def assert_dollar(
     res: ScanResult | None, recon: str, recon_fake: str
 ) -> dict[str, dict[str, str]]:
-    """tricky-dollar.tex D 系列逐条断言（corpus_v3 ``$``-leak 归因亚型钉）。"""
+    """tricky-dollar.tex D 系列逐条断言（corpus ``$``-leak 归因亚型钉）。"""
     if res is None:
         return {"_meta": {"status": "info", "detail": "parse failed"}}
     chunks = chunks_blob(res)
@@ -968,7 +968,7 @@ XLAT_IDS = [
     "@X3-verbatim-pct",
     "@X4-dense-math",
 ]
-# tricky-w.tex 的断言全集（Wnn ↔ bench/corpus_v3/mechanisms.jsonl 台账行）
+# tricky-w.tex 的断言全集（Wnn ↔ bench/corpus/mechanisms.jsonl 台账行）
 W_IDS = [
     "W11",
     "W15",
@@ -987,7 +987,7 @@ W73_IDS = [
     "W73_beyond_root_escape",
 ]
 WENC_IDS = ["W72_mixed_decoded"]
-# tricky-dollar.tex 的断言全集（@Dnn ↔ corpus_v3 $-leak 归因亚型钉）
+# tricky-dollar.tex 的断言全集（@Dnn ↔ corpus $-leak 归因亚型钉）
 D_IDS = [f"D{n:02d}" for n in range(1, 11)]
 # tricky-mask.tex 的断言全集（@Mnn ↔ W07/W11/W84/W92 机制钉）
 M_IDS = [f"M{n:02d}" for n in range(1, 12)]

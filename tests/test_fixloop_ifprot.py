@@ -1,6 +1,6 @@
 r"""if_phantom_protect 内建 —— phantom Incomplete \if → 前稿 cs 族 \protected 重定义。
 
-实证簇 (corpus_v3 flipcheck7): 1206.0701 (amsproc ``\footnote``-in-``\author``
+实证簇 (corpus flipcheck7): 1206.0701 (amsproc ``\footnote``-in-``\author``
 → ``\shortauthors``→``\markboth`` ``\edef`` 链 → ``\@nmbrlistfalse`` 替换体
 ``\if@nmbrlist`` 执行), 1306.0364 (myectaart ``\bf``-in-``\title`` →
 ``\xdef\@argi`` 链 → ``\@forced@seriesfalse`` 同理)。两稿源件字面

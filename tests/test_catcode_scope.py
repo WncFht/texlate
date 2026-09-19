@@ -1,6 +1,6 @@
 r"""catcode 组作用域回归 —— ``\catcode``/``\makeatletter`` 写组局部化钉版。
 
-取证现场 ``bench/corpus_v3/0707.4206/extracted/pstricks.tex``：
+取证现场 ``bench/corpus/0707.4206/extracted/pstricks.tex``：
 ``{\catcode`\p=12 ...}`` 的写曾泄出 ``}``——cat 表是平表、组不记账，
 ``p``/``t`` 永久落 12 → ``\psset@border`` 整名被斩成 ``\p``+字面
 ``sset@border``，宏表长出 ``p``/``t``/``new``/``@@`` 碎名，chunk 里
@@ -26,7 +26,7 @@ from conftest import DOC, blob, check_invariants
 from texlate.latex import parse_file, parse_tex
 from texlate.latex.model import ScanResult
 
-CORPUS_V3 = Path(__file__).resolve().parent.parent / "bench" / "corpus_v3"
+CORPUS_V3 = Path(__file__).resolve().parent.parent / "bench" / "corpus"
 PSTRICKS = CORPUS_V3 / "0707.4206" / "extracted" / "pstricks.tex"
 
 # 斩名指纹：``\p ``/``\t `` 裸单字母 cs——残段串 ``st@``/``sk@``/``sunit``
@@ -120,7 +120,7 @@ def test_bgroup_egroup_scope_pair() -> None:
 # ------------------------------------------------------------ 实文件回归
 
 
-@pytest.mark.skipif(not PSTRICKS.exists(), reason="corpus_v3 数据不在场（gitignored）")
+@pytest.mark.skipif(not PSTRICKS.exists(), reason="corpus 数据不在场（gitignored）")
 def test_pstricks_no_chopped_cs_fragments() -> None:
     r"""pstricks.tex 整文：``\psset@border{0pt}`` 整调用罩 ph，无 ``\p `` 斩名残段。"""
     res = parse_file(str(PSTRICKS), flatten=False)

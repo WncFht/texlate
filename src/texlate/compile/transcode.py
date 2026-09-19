@@ -51,7 +51,7 @@ INTERMEDIATE_SUFFIXES = {
 #: 内含绝对字节偏移）整件跳过。姊妹臂 ``_resolve_atend_bbox``：
 #: ``(atend)`` 占位头行强制全件扫描，trailer 实值搬回头行后扫描
 #: 在头行即停，数据行坏字节不再入扫。
-#: ``.epsi/.epsf/.mps`` 同族归队：corpus_v3 全量 48 件皆 ``%!PS``
+#: ``.epsi/.epsf/.mps`` 同族归队：corpus 全量 48 件皆 ``%!PS``
 #: 文本形态（epsi=EPS Interchange、epsf=EPSF、mps=MetaPost 输出），
 #: 真实非 UTF-8 坏点均在 ``%%`` 注释行（cond-mat/9901072
 #: ``fig2.epsf`` ``%%Copyright \xa9`` latin-1、0806.2219

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 r"""iclr_sections.py — arXiv 源码 → 章节级词数/字符数统计（ICLR 章节长度研究）.
 
-语料目录形态与 corpus_v3 一致: ``{corpus}/{id}/extracted/`` (+ ``meta.json``)。
+语料目录形态与 corpus 一致: ``{corpus}/{id}/extracted/`` (+ ``meta.json``)。
 对每篇: find_main_tex 定位主档 → ``\input``/``\include`` 流内展开 →
 剥注释 → 裁 ``\begin{document}`` 正文 → 按 ``\section`` 边界切分 →
 detex 计词数（数学/浮动体/引用剥离，caption 单列）→ 章节名归一 bucket。
@@ -10,7 +10,7 @@ detex 计词数（数学/浮动体/引用剥离，caption 单列）→ 章节名
 纯离线：只吃盘上语料，不发网络请求。uv run python bench/py/iclr_sections.py
 
 用法:
-  uv run python bench/py/iclr_sections.py --corpus bench/corpus_v3 \
+  uv run python bench/py/iclr_sections.py --corpus bench/corpus \
       --out bench/work_iclr/sections_corpusv3.jsonl [--ids file] [--limit N]
 """
 

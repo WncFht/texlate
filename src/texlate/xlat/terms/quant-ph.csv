@@ -1,5 +1,5 @@
 # quant-ph 术语表（量子信息/量子计算/量子光学）
-# 来源法：corpus_v3 quant-ph 层 149 篇 TeX 源码高频短语统计（tmp/lane-c4-terms/cand-quant-ph.txt）
+# 来源法：corpus quant-ph 层 149 篇 TeX 源码高频短语统计（tmp/lane-c4-terms/cand-quant-ph.txt）
 #   + 领域公认术语人工审定；仅收中译有公认定名的条目，拿不准不收。
 # 双形态条目：corpus 实测 TeX 命令拼写占优者（R\'enyi 323 次 > Renyi 186）给双行，
 #   doc_filter 按词边界逐字匹配，两种写法各自命中各自文本。

@@ -18,7 +18,7 @@ from texlate.arxiv.unpack import (
     write_manifest,
 )
 
-CORPUS = Path(__file__).resolve().parent.parent / "bench" / "corpus_v3"
+CORPUS = Path(__file__).resolve().parent.parent / "bench" / "corpus"
 _MANIFEST_V2 = CORPUS / "manifest_v2.jsonl"
 
 BLOBS = (
@@ -37,7 +37,7 @@ def _warn_kinds(warnings: list[str]) -> set[str]:
 
 
 @pytest.mark.slow
-@pytest.mark.skipif(not BLOBS, reason="corpus_v3 not present")
+@pytest.mark.skipif(not BLOBS, reason="corpus not present")
 @pytest.mark.parametrize("blob", BLOBS, ids=[b.parent.name for b in BLOBS])
 def test_unpack_corpus(blob: Path, tmp_path: Path) -> None:
     """139 个真实包全量解包：零逃逸 + mtree 清单与落盘字节 sha256 逐一对拍。"""

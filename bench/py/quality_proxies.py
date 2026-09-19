@@ -4,7 +4,7 @@ r"""quality_proxies.py — S5 质量面代理指标后算器（verdict-proxy-spe
 对既有 stagerun run 目录纯后算，零改码零重跑：
 
 - ``leak_*``（xlat 记录）：送译 chunk ``source`` 命中六族展开残留正则的比率
-  ——单源复用 ``parsebench.LEAK_PATTERNS``（corpus_v3 0.040% 官方口径同套）。
+  ——单源复用 ``parsebench.LEAK_PATTERNS``（corpus 0.040% 官方口径同套）。
   输入 ``work/{id}/xlat-state/{arm}/state.json`` 的 ``results[]``，按
   ``chunk_id`` 末条胜去重（重试行 source 相同，去重幂等）。两臂同义——
   leak 是上游 parse/gullet 质量面，mock/real 都有效。
@@ -434,7 +434,7 @@ def main(argv: list[str] | None = None) -> int:
         type=Path,
         action="append",
         default=None,
-        help="manifest jsonl（可多次）；缺省 glob bench/corpus_v3/manifest*.jsonl",
+        help="manifest jsonl（可多次）；缺省 glob bench/corpus/manifest*.jsonl",
     )
     ap.add_argument("--jobs", type=int, default=8)
     ap.add_argument("--limit", type=int, default=0, help="最多处理格数（冒烟用）")
@@ -446,7 +446,7 @@ def main(argv: list[str] | None = None) -> int:
 
     run_dir = args.run_dir.resolve()
     manifests = args.manifest or sorted(
-        (ROOT / "bench/corpus_v3").glob("manifest*.jsonl")
+        (ROOT / "bench/corpus").glob("manifest*.jsonl")
     )
     cat_groups = _load_cat_groups(manifests)
     only = {sl.canon_id(i) for i in args.ids.split(",") if i.strip()} or None

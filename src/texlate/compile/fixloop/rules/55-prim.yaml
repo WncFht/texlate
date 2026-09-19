@@ -15,7 +15,7 @@ rules:
   # 于 ctex→expl3 装载点炸。xelatex 自决 xdvipdfmx, 驱动选项纯属死重 →
   # 从 \documentclass[..] 剥除。旧单正则 `,?driver,?` 双吃两侧逗号,
   # 中段剥除把邻项粘成幻影选项 (finalreqno) —— 拆 表首/表内/表尾
-  # 三态 (同 hyperref_driver_neutralize 形)。corpus_v3 普查: 驱动词
+  # 三态 (同 hyperref_driver_neutralize 形)。corpus 普查: 驱动词
   # 恒单枚出现 (多枚形无实证); \b 词界挡 dvipsnames 伪命中。
   - id: expl3_driver_opt_strip
     description: "documentclass 驱动选项 (dvips/pdftex 系) 与 xelatex 后端冲突 → 剥除"
@@ -48,7 +48,7 @@ rules:
               repl: "\\g<1>]",
             }
     risk: low # 剥错向: dvipdfmx 名义上与 xetex 自决同路, 剥了不亏
-    known_gap: "同一括号内非连排多驱动词 (a,D,b,D2) 只剥首个连排段——锚消费形单遍限制, 与 hyperref_driver_neutralize 同; corpus_v3 无多驱动词实证"
+    known_gap: "同一括号内非连排多驱动词 (a,D,b,D2) 只剥首个连排段——锚消费形单遍限制, 与 hyperref_driver_neutralize 同; corpus 无多驱动词实证"
     engines:
       xelatex: { mode: native }
       tectonic:

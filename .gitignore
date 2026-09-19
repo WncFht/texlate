@@ -14,9 +14,9 @@ node_modules/
 /src/texlate/server/static/
 
 # bench 重产物 (可重建,不入库)
-bench/corpus_v3/*/
-bench/corpus_v3/progress_v2.json
-bench/corpus_v3/build_v2.log
+bench/corpus/*/
+bench/corpus/progress_v2.json
+bench/corpus/build_v2.log
 bench/corpus_daily/
 bench/corpus_iclr_pdf/
 bench/zh-store/*/

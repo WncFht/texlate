@@ -208,7 +208,7 @@ class TestExplicitNonTexExt:
         r"""裸名 ``\input{contr}`` 只有 ``contr.latex`` → 不补全（TeX 同语义）。
 
         引擎对无扩展名 ``\input`` 只追加 ``.tex``——补 ``.ltx/.latex`` 会
-        偏离引擎真实行为；corpus_v3 全量零裸名→.ltx 案例实证无需此面。
+        偏离引擎真实行为；corpus 全量零裸名→.ltx 案例实证无需此面。
         """
         _w(tmp_path, "contr.latex", "NO-LTX-COMPLETION")
         warns: list[ScanWarning] = []

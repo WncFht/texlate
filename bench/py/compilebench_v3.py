@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 r"""
-compilebench_v3.py — corpus_v3 base-arm 编译基线: 分层抽样 × 原文直编 × 双引擎.
+compilebench_v3.py — corpus base-arm 编译基线: 分层抽样 × 原文直编 × 双引擎.
 
-底材: bench/corpus_v3/{id}/extracted/(== raw.* 解包树; id 可含 archive 前缀如
+底材: bench/corpus/{id}/extracted/(== raw.* 解包树; id 可含 archive 前缀如
 astro-ph/0111038). baseline 条件 = 原文直编, 不注入不修复 —— 回答
 "语料源文件本身多大比例能编出 PDF"(M2 pipe 臂天花板基准).
 
@@ -54,7 +54,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 import benchlib
 
-CORPUS_DEFAULT = ROOT / "bench/corpus_v3"
+CORPUS_DEFAULT = ROOT / "bench/corpus"
 WORK_DEFAULT = ROOT / "bench/work_compile_v3"
 RESULTS_DEFAULT = f"compilebench-v3-{time.strftime('%Y-%m-%d')}"
 V2_CELLS_DEFAULT = ROOT / "bench/results/compilebench-corpusv2-2026-09-15/cells.json"
@@ -373,7 +373,7 @@ def run_paper(p, corpus: Path, work: Path, engines: list[str], cond: str = "base
 
 def _case_base(p, pid, eng_name, main_rel, cond="baseline"):
     return {
-        "corpus": "corpus_v3",
+        "corpus": "corpus",
         "cond": cond,
         "paper_id": pid,
         "band": p["band"],
@@ -493,7 +493,7 @@ def report(args):
 
     cond_lbl = cases[0].get("cond", "baseline") if cases else "baseline"
     lines = []
-    lines.append(f"# compilebench v3 — corpus_v3 {cond_lbl} × 双引擎")
+    lines.append(f"# compilebench v3 — corpus {cond_lbl} × 双引擎")
     lines.append("")
     lines.append(f"- 日期: {meta['date']}")
     lines.append(
@@ -695,7 +695,7 @@ def report(args):
                     v2_cases[eng][p["id"]] = r
             lines.append("## 6. 与 corpus_v2 基线对比 (v2: n=40 分层, 同冷沙箱口径)")
             lines.append("")
-            lines.append("| 指标 | corpus_v2 (n=40) | corpus_v3 (本轮) |")
+            lines.append("| 指标 | corpus_v2 (n=40) | corpus (本轮) |")
             lines.append("|---|---|---|")
             for eng in engines:
                 r2 = list(v2_cases.get(eng, {}).values())

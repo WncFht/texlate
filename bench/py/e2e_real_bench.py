@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-r"""e2e real bench — corpus_v3 抽样 → 真实网关翻译 → ctex 注入 → xelatex 编译基线。
+r"""e2e real bench — corpus 抽样 → 真实网关翻译 → ctex 注入 → xelatex 编译基线。
 
 docs/10 §B5 Mode B（真实翻译 E2E）。与 e2e_mock_bench 同产出契约
 （results.json + matrix.md + summary.md），差异只在翻译器：
@@ -20,7 +20,7 @@ pipe 条件因翻译是 async 在本文件内联同款流程）。
   base-xel : 原样 copy → xelatex（默认 **仅当 pipe-xel 非 clean 时补跑**，
              归因"原文就挂 vs 管线引入"；--base always 可强制全跑）
 
-抽样：`--seed` 对 corpus_v3 manifest.jsonl（core 层，1000 篇）有放回不放乱序
+抽样：`--seed` 对 corpus manifest.jsonl（core 层，1000 篇）有放回不放乱序
 随机抽 `--n` 篇；`--layers core,booster` 可并入 booster 层
 （manifest_booster.jsonl）。只收 `extracted/` 存在的条目。
 断点续跑：StateStore 落 bench/work_e2ereal/_state/{sid}/（跨 copy 存活），
@@ -100,7 +100,7 @@ from texlate.xlat.state import StateStore
 if TYPE_CHECKING:
     from texlate.compile.fixloop.engine import LlmHook
 
-CORPUS = ROOT / "bench/corpus_v3"
+CORPUS = ROOT / "bench/corpus"
 WORK = ROOT / "bench/work_e2ereal"
 STATE = WORK / "_xlat_state"
 RESULTS_DIR_DEFAULT = "e2e-real"
@@ -128,7 +128,7 @@ async def preflight() -> list[str]:
 
 # ---------------------------------------------------------------- 语料抽样
 def load_manifest(layers: set[str]) -> list[dict]:
-    """corpus_v3 manifest → [{id, layer, bytes}]；layer 缺失默认所在层。"""
+    """corpus manifest → [{id, layer, bytes}]；layer 缺失默认所在层。"""
     return benchlib.load_manifest_rows(CORPUS, sorted(layers))
 
 

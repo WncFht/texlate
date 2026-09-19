@@ -1130,7 +1130,7 @@ rules:
       tectonic: { mode: same }
     provenance:
       - {
-          corpus: "corpus_v3 failmine-4: 1206.0701/1306.0364 (loop2 \\iffalse), 0905.0193+1706.00175 等 (loop1 \\ifx)",
+          corpus: "corpus failmine-4: 1206.0701/1306.0364 (loop2 \\iffalse), 0905.0193+1706.00175 等 (loop1 \\ifx)",
           error: "Incomplete \\iffalse; all text was ignored after line N (首错 `!` 形 → other); \\end occurred when \\ifx on line N was incomplete → early_eof",
         }
     stats: { fires: 6, status: proposed }
@@ -1254,7 +1254,7 @@ rules:
       tectonic: { mode: same }
     provenance:
       - {
-          corpus: "corpus_v3 failmine-4 loop1 格 (0905.0193/1706.00175/1803.00054/1907.00128 等, taxonomy pay=\\ifx)",
+          corpus: "corpus failmine-4 loop1 格 (0905.0193/1706.00175/1803.00054/1907.00128 等, taxonomy pay=\\ifx)",
           error: "(\\end occurred when \\ifx on line N was incomplete) + No pages of output → early_eof",
         }
     stats: { fires: 0, status: proposed }
@@ -1348,7 +1348,7 @@ rules:
       tectonic: { mode: same }
     provenance:
       - {
-          corpus: "corpus_v3 flipcheck7: 1206.0701 (amsproc \\footnote-in-\\author → \\shortauthors→\\markboth edef 链), 1306.0364 (myectaart \\bf-in-\\title → \\xdef\\@argi 链)",
+          corpus: "corpus flipcheck7: 1206.0701 (amsproc \\footnote-in-\\author → \\shortauthors→\\markboth edef 链), 1306.0364 (myectaart \\bf-in-\\title → \\xdef\\@argi 链)",
           error: "Incomplete \\iffalse; all text was ignored after line N (源件字面平衡, unclosed_if_close 纯 noop)",
         }
     stats: { fires: 3, rescued_cells: 1, status: active }

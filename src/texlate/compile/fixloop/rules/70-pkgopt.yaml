@@ -489,7 +489,7 @@ rules:
           error: "LaTeX Error: Unknown float option `H' @ \\begin{figure|table}[H]/[!Ht]/[Hb]/[H!tbp]",
         }
     stats: { fires: 7, status: proposed }
-    source_ref: "failmine float_opt|H lane; corpus_v3 五格源实读混排形"
+    source_ref: "failmine float_opt|H lane; corpus 五格源实读混排形"
 
   # 2026-09-19 flushend lane (failmine2, stagerun-loop2-2026-09-18 五格实读):
   # sttools 3.x flushend.sty 删 keeplastbox 选项 (1.x 时代 \lastbox 冲刷保留
@@ -565,4 +565,4 @@ rules:
           error: "flushend.sty:83 LaTeX Error: Unknown option `keeplastbox' for package `flushend'",
         }
     stats: { fires: 1, status: proposed }
-    source_ref: "failmine2 flushend lane; corpus_v3 五格源实读全 \\usepackage[keeplastbox]{flushend} 直写形"
+    source_ref: "failmine2 flushend lane; corpus 五格源实读全 \\usepackage[keeplastbox]{flushend} 直写形"

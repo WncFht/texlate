@@ -1267,7 +1267,7 @@ def revtex209_surface_polyfill(
     宏面: ``\twocolumn``/``\@makecol`` 被 ``\let\@undefined`` (cls:4512/
     3912), frontmatter 机原生 ``\begin{document}`` 才武装而序言 ``\author``
     先炸 (``\collaboration@sw`` 生于 ``\frontmatter@init``, cls:2145),
-    ``\pacs`` 在 ``\maketitle`` 后 ClassError (cls:2530)。corpus_v3 13 格
+    ``\pacs`` 在 ``\maketitle`` 后 ClassError (cls:2530)。corpus 13 格
     实证簇: revtex209_surface 8 格 (undefined_cs 首错) + revtex_pacs 5 格
     (other 首错)。
 

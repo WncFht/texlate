@@ -2,7 +2,7 @@
 
 > 对照 `PROTOCOL.md`（逐库评测协议）、`TIERS.md`（验证分层）、`py/runbook_loop.md`（L3 操作单，含 `work/{id}/` 目录布局）、`stagerun.py` 模块 docstring（DAG 契约）。那几份定义**目录里有什么**，本文定义**每样东西活多久、按什么谓词删**。
 
-> **2026-09-20 终态 —— results 归零重启 + 兼容壳拆除**：旧 run 全部 458 项已删（账本在 `archive-2026-09-20/`）；real 臂 LLM 资产提取至 **`bench/zh-store/`**（2247 id + 30 重译副本 / 26.1G，含 zh+splice+provenance，见库内 README）；语料唯一物理根 `corpus_v3` 54.9G，四源库 symlink 兼容壳同日拆除（原 MANIFEST 折存 `corpus_v3/MANIFEST_{v1,v2,m1k}.md`，版本冲突落选树存 `corpus_v3/_alt-versions/`）；results/ 现仅 `soak-2026-09-18`（活工单，结清后删）与 `stagerun-smk-unified-2026-09-19`（新基座冒烟）——nightwatch 快照循环已停删。bench/ 总重 ~104G。
+> **2026-09-20 终态 —— results 归零重启 + 兼容壳拆除**：旧 run 全部 458 项已删（账本在 `archive-2026-09-20/`）；real 臂 LLM 资产提取至 **`bench/zh-store/`**（2247 id + 30 重译副本 / 26.1G，含 zh+splice+provenance，见库内 README）；语料唯一物理根 `corpus` 54.9G，四源库 symlink 兼容壳同日拆除（原 MANIFEST 折存 `corpus/MANIFEST_{v1,v2,m1k}.md`，版本冲突落选树存 `corpus/_alt-versions/`）；results/ 现仅 `soak-2026-09-18`（活工单，结清后删）与 `stagerun-smk-unified-2026-09-19`（新基座冒烟）——nightwatch 快照循环已停删。bench/ 总重 ~104G。
 
 ## results/ 结构分类（2026-09-19 时点，387 项）
 
@@ -31,7 +31,7 @@
 
 ## 删除谓词（A 档先例，`tmp/cleanup-a/clean_a.py`）
 
-1. **corpus 覆盖**：`{id}` 经 canon 归一（`--`↔`/` 双拼写都试）在 `corpus`/`corpus_v2`/`corpus_v3`/`corpus_daily`/`corpus_m1k`/`corpus_iclr` 任一根下有目录，才准删 `src/`、`build-base/`；否则保留（它可能是唯一副本）。
+1. **corpus 覆盖**：`{id}` 经 canon 归一（`--`↔`/` 双拼写都试）在 `corpus`/`corpus_v2`/`corpus`/`corpus_daily`/`corpus_m1k`/`corpus_iclr` 任一根下有目录，才准删 `src/`、`build-base/`；否则保留（它可能是唯一副本）。
 2. **在飞跳过**：进程活着的 run 整目录跳过（pgrep stagerun；当时 m1k 在跑即被跳过）；`work/{id}` 顶层 mtime <1h 也跳。
 3. **dry-run 先行**：脚本默认 dry-run，`--apply` 才执行；protected/fresh-skip 名单要过一眼再动手。
 

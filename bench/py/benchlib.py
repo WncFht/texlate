@@ -1,4 +1,4 @@
-r"""bench 共享小件——records jsonl 读写 / corpus_v3 manifest / 编译侧公共常量。
+r"""bench 共享小件——records jsonl 读写 / corpus manifest / 编译侧公共常量。
 
 设计约束：**纯 stdlib、模块级零 IO**——import 本文件不依赖 texlate.*
 （judge_dict 内延迟 import），system python3 与 `uv run` 下皆可载。
@@ -320,7 +320,7 @@ def meta_window(meta: dict):
 
 # ---------------------------------------------------------------- manifest
 def manifest_paths(corpus: Path, layers) -> list[tuple[str, Path]]:
-    """corpus_v3 分层 manifest → [(layer, path)]：core→manifest.jsonl，
+    """corpus 分层 manifest → [(layer, path)]：core→manifest.jsonl，
     其余→manifest_{layer}.jsonl；不存在的层跳过。"""
     out = []
     for layer in layers:

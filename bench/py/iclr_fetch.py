@@ -2,11 +2,11 @@
 r"""iclr_fetch.py — ICLR 映射表 → arXiv e-print 批量取源 → corpus_iclr 物化.
 
 镜像 daily_arxiv.py fetch 模式：acquire_source 钉版 HEAD+GET+unpack，
-corpus_iclr/{id}/{meta.json,raw.*,extracted/} 布局同 corpus_v3/daily。
+corpus_iclr/{id}/{meta.json,raw.*,extracted/} 布局同 corpus/daily。
 串行 3.05s 单连接纪律不变（日更 soak 同口径），RatePolicy 预算独立账。
 
 输入: bench/work_iclr/map.jsonl（match!=no_arxiv 且 arxiv_id 非空行）
-输出: bench/corpus_v3/{id}/ + bench/work_iclr/fetch.jsonl 状态账（终态跳过重入）
+输出: bench/corpus/{id}/ + bench/work_iclr/fetch.jsonl 状态账（终态跳过重入）
 
 用法: setsid nohup uv run python bench/py/iclr_fetch.py \
       > bench/work_iclr/fetch.log 2>&1 &   # 脱管批
@@ -40,7 +40,7 @@ from texlate.arxiv.ratelimit import RateLimiter, RatePolicy
 
 FETCH_HOSTS = (EXPORT_HOST, ARXIV_HOST)
 WORK = ROOT / "bench" / "work_iclr"
-CORPUS = ROOT / "bench" / "corpus_v3"
+CORPUS = ROOT / "bench" / "corpus"
 MAP = WORK / "map.jsonl"
 STATUS = WORK / "fetch.jsonl"
 CACHE = Path.home() / ".cache" / "texlate" / "src"

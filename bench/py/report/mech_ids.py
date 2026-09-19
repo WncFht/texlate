@@ -29,7 +29,7 @@ from collections import defaultdict
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent.parent.parent
-CORPUS = ROOT / "bench" / "corpus_v3"
+CORPUS = ROOT / "bench" / "corpus"
 RULES_DIR = ROOT / "src" / "texlate" / "compile" / "fixloop" / "rules"
 
 ARXIV_ID_RX = re.compile(
@@ -45,7 +45,7 @@ def load_jsonl(path):
 
 
 def manifest_paths() -> list[Path]:
-    """corpus_v3 全部 manifest 层（expand 含在内——回填后可解析）。"""
+    """corpus 全部 manifest 层（expand 含在内——回填后可解析）。"""
     return sorted(CORPUS.glob("manifest*.jsonl"))
 
 

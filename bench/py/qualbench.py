@@ -13,7 +13,7 @@ chunk 对来源（--source）：
           stagerun 的 ``work/{id}/xlat-state/{arm}/``；翻译模型取
           ``meta.model``（stagerun 臂名记进 ``arm`` 字段）。只评
           ok/partial 且译文≠原文的块；skipped/fault 计数进 meta 不送 judge。
-  corpus  干净机自检臂：corpus_v3 ``{id}/extracted/*.tex`` 按空行切段、
+  corpus  干净机自检臂：corpus ``{id}/extracted/*.tex`` 按空行切段、
           内置确定性 mock 翻译（占位符/控制序列原位保留，散文 run →
           固定中文串），不 import texlate.* 也能把全链跑通。
 
@@ -75,7 +75,7 @@ import benchlib
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_STATE_ROOT = ROOT / "bench/work_e2ereal/_xlat_state"
-DEFAULT_CORPUS = ROOT / "bench/corpus_v3"
+DEFAULT_CORPUS = ROOT / "bench/corpus"
 
 # ---------------------------------------------------------------- 常量
 
@@ -388,7 +388,7 @@ def _mock_translate(text: str) -> str:
 
 
 def collect_corpus_pairs(args: argparse.Namespace) -> tuple[list[Pair], dict]:
-    """corpus_v3 extracted/*.tex 空行切段 + 内置 mock 翻译 → 待评对。"""
+    """corpus extracted/*.tex 空行切段 + 内置 mock 翻译 → 待评对。"""
     corpus = Path(args.corpus_root)
     rng = random.Random(args.seed)
     want_ids = (

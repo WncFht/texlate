@@ -1,6 +1,6 @@
 r"""revtex209_surface_polyfill 内建 —— 209 升级稿踩 revtex4-2 删除面整块补。
 
-实证簇 (corpus_v3 残面 13 格): ``upgrade_209`` 把 ``\documentstyle{revtex}``
+实证簇 (corpus 残面 13 格): ``upgrade_209`` 把 ``\documentstyle{revtex}``
 改写成 ``\documentclass{revtex4-2}`` + COMPAT_SHIM——改写稿不经 revtex.cls
 stub (90-shim-legacy ``legacy_pkg_shim`` 只答 ``missing_file``), 却踩
 revtex4-2 刻意删除的 2.09 宏面: ``\twocolumn``/``\@makecol`` 被

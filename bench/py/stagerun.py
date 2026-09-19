@@ -4,7 +4,7 @@ r"""stagerun.py — 分阶段批量驱动（batch-hardening §3 执行层）。
 每阶段一子命令、独立 executor、append 式 records jsonl、按 (id, arm, upstream)
 resume。论文流过 DAG 靠 ``work/{id}/`` 中间产物树而非内存对象。
 
-    stagerun.py ingest  --layers core,booster        # corpus_v3 已物化副本 → work/{id}/src/
+    stagerun.py ingest  --layers core,booster        # corpus 已物化副本 → work/{id}/src/
     stagerun.py parse   --n 3 --tag smoke            # → records/parse.jsonl + work/{id}/parse.json + zh/
     stagerun.py xlat    --arm mock --n 3 --tag smoke # → records/xlat.jsonl + zh/(译) + xlat-{arm}.jsonl
     stagerun.py compile --arm zh --n 3 --tag smoke   # → records/compile.jsonl + splice/
@@ -13,7 +13,7 @@ resume。论文流过 DAG 靠 ``work/{id}/`` 中间产物树而非内存对象�
 
 work/{id}/ 契约（``--tag T`` → ``bench/results/stagerun-T-<date>/``）：
 
-    src/              ingest：corpus_v3/{id}/extracted/ 原样副本（永不改——
+    src/              ingest：corpus/{id}/extracted/ 原样副本（永不改——
                       compile --arm base 的「原文直编」归因基准）
     zh/               parse：src/ 副本 + route + normalize + 逐文件 parse_file
                       （归一化英文树）；xlat：就地翻译写回（splice 含在

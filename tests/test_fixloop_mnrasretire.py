@@ -1,6 +1,6 @@
 """mnras texmf 遮蔽 stateless-drop 修复链单测 (可达病件指纹确证 → vendor 补丁件平铺 ./mnras.cls)。
 
-实证背景 (corpus_v3 1206.0291, geomreverify #57 stagerun 残格):
+实证背景 (corpus 1206.0291, geomreverify #57 stagerun 残格):
 mn2e stub ``needs:["mnras.cls"]`` → ``eng.install_file`` → ``tlmgr
 --usermode install mnras`` → 上游 v3.2 病件落 usertree
 ``_texmf/home/tex/latex/mnras/`` —— ``\\def\\ds@usegraphicx{\\@usegraphicxtrue

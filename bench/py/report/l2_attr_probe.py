@@ -8,7 +8,7 @@
   `*.log`（pipe 条件无 fixloop 改盘，文件即编译时所见）。
 - `bench/work_e2ereal/_xlat_state/<id>/state.json` —— 真实译文账
   （`{"fidx:cid": {source, translation, status}}`）。
-- `bench/corpus_v3/<id>/extracted/` —— 原始英文源（喂 `parse_file` 复现
+- `bench/corpus/<id>/extracted/` —— 原始英文源（喂 `parse_file` 复现
   ScanResult 的 chunks/ph_map）。
 
 方法：对每条 log 错误复跑**真** `_l2_localize` 路径（`L2Attr` +
@@ -49,7 +49,7 @@ if TYPE_CHECKING:
 ROOT = Path(__file__).resolve().parents[3]
 WORK = ROOT / "bench/work_e2ereal/pipe-xel"
 STATE = ROOT / "bench/work_e2ereal/_xlat_state"
-SRC = ROOT / "bench/corpus_v3"
+SRC = ROOT / "bench/corpus"
 RESULTS_JSON = ROOT / "bench/results/e2e-real-n100-postcutover-2026-09-16/results.json"
 OUT = ROOT / "bench/results/l2-attr-probe-2026-09-16"
 

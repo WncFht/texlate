@@ -1,6 +1,6 @@
 """csvsimple 反向版本错位修复链单测 (稿自带过旧件 → 退役换系统/vendor 新件)。
 
-实证背景 (corpus_v3 2112.00045, stagerun-loop2 best_effort_pdf 残格):
+实证背景 (corpus 2112.00045, stagerun-loop2 best_effort_pdf 残格):
 e-print 捆绑 csvsimple-l3.sty v2.2.0 (2021), ``\\bool_const:Nn { 1 }``
 裸数字字面量撞 expl3 收紧 → ``csvsimple-l3.sty:36: Missing number,
 treated as zero`` → ``Missing \\begin{document}`` 级联。两既有机制均

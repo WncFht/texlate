@@ -3,7 +3,7 @@ r"""``_OPERAND_SCAN_STOP`` 扫描终止符表 + arith 裸 ``=`` 臂（operandfix
 inputtail（0697124）只排 ``INPUT_SCAN_CMDS``∪``{endinput}``——operandcensus
 普查把同形孤儿面量出：TeX 数/胶扫遇**不可展开命令**即止，被
 ``_OPERAND_FACTOR``/``_OPERAND_BASE`` 吃进的命令 cs 只把其后随参孤儿化：
-``\setbox0=\hbox{`` 盒体（corpus_v3 493 命中/216 篇）、``\message{`` 日志
+``\setbox0=\hbox{`` 盒体（corpus 493 命中/216 篇）、``\message{`` 日志
 载荷、``\end{env}`` 环境名、``\vskip3pt plus1pt`` 的 ``plus1pt``、
 ``\setlength\parskip{3pt}`` 的 ``{3pt}``。修复双臂：
 

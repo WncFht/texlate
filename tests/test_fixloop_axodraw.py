@@ -1,6 +1,6 @@
 """axodraw 替身 stub + ``_PKG_OPTS`` 提升链单测 (axodraw lane, 2026-09-19)。
 
-实证背景 (corpus_v3 hep-ph/0111339, stagerun-loop2/loop3/lane-loop4
+实证背景 (corpus hep-ph/0111339, stagerun-loop2/loop3/lane-loop4
 fixloop.jsonl 三源): ``\\documentstyle[preprint,aps,epsfig,axodraw]{revtex}``
 ——``axodraw`` 不在 ``_PKG_OPTS`` → ``_route_opts`` 落类选项位 → revtex4-2
 不认识、静默不加载 → 正文 ``\\Line``×5/``\\LongArrow``×1 undefined_cs 残面。

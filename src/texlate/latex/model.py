@@ -389,7 +389,7 @@ def env_opt_is_format(env: str, content: str) -> bool:
     r"""``\begin{env}[opt]`` 的 ``[opt]``：版式参（吃掉）还是标题正文（放行）。
 
     scanner-audit F6：docs/07 §3.5 原规格无条件吞 ``[opt]`` → theorem/
-    lemma/proof 类环境标题永不进 chunk（corpus_v3 命中 8.3%，召回缺口）。
+    lemma/proof 类环境标题永不进 chunk（corpus 命中 8.3%，召回缺口）。
     判定（corpus 实测分布校准）：
 
     - 列表容器 env（itemize/enumerate 等）的 opt 恒为版式

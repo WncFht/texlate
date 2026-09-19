@@ -1,4 +1,4 @@
-r"""stage_ingest.py — stagerun ``ingest`` stage：corpus_v3 物化副本 → work/{id}/src/。
+r"""stage_ingest.py — stagerun ``ingest`` stage：corpus 物化副本 → work/{id}/src/。
 
 已物化条目 copytree；未物化记 stub 记录（IA 拉取实现归数据侧——可拉取相
 记 skip `ia_fetch_unwired` 下轮重试，stub/pdf/error 格式或无 item 记
@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 
 
 def _ingest_copy(pid: str, out_dir: Path) -> dict:
-    """已物化条目：corpus_v3/{id}/extracted/ → work/{id}/src/。"""
+    """已物化条目：corpus/{id}/extracted/ → work/{id}/src/。"""
     t0 = time.monotonic()
     rec = sl.base_rec(pid, "ingest", "-")
     src_corp = sl.CORPUS / pid / "extracted"

@@ -13,7 +13,7 @@
 | `06-arxiv-source.md`        | arXiv 源获取层：在线端点/解包/缓存/降级/批量渠道                        | **现行规范**                                      |
 | `07-latex-pipeline.md`      | LaTeX 半解析器 + 展开层全规范                                           | **现行规范**                                      |
 | `08-translate-compile.md`   | 翻译编排 + 校验链 + 归一化 + 引擎 + fixloop                             | **现行规范**                                      |
-| `09-benchmark-corpus.md`    | corpus_v3 语料构建管线（底材）                                          | **现行规范**                                      |
+| `09-benchmark-corpus.md`    | corpus 语料构建管线（底材）                                          | **现行规范**                                      |
 | `10-benchmark-suite.md`     | 评测器套件 B1–B7（评测器）                                              | **现行规范**                                      |
 | `original.md`               | hjfy.top 实现原文（知乎链接 + 内容摘要，目标系统参照）                  | 归档指引（原文归作者所有，见站内链接）            |
 | `research/`                 | 调研/审计报告档案 + `research/README.md` 索引                           | 证据档案                                          |

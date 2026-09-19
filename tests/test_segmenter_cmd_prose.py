@@ -4,7 +4,7 @@ r"""``[[CMD]]`` 臂散文参挖掘钉版 —— ``_handle_unknown_cs`` 探针臂
 背景：宏表/argspec 表双未中的未知命令走投机探针（``[o]{m}``×6、禁单
 token 参），任一参消费即整调用折进单个 ``[[CMD_n]]``——花括号参里的
 散文整块蒸发不进 chunk（1803.00127 ``\@maketitle{\begin{figure}…
-\caption{…}`` 标题块 555B 全灭；corpus_v3 扫描另见 ``\acks``/
+\caption{…}`` 标题块 555B 全灭；corpus 扫描另见 ``\acks``/
 ``\titlerunning``/``\texorpdfstring``/``\shortstack`` 同型）。argspec
 签名臂同型：``\marginpar``/``\abstract``/``\frame``/``\only`` 等 protect
 条目的散文参同塌缩。

@@ -1,6 +1,6 @@
 % texlate vendored stub — 原许可禁分发，最小兼容面
 % JHEP3.cls 替身：SISSA 高能类（© SISSA/IOP，不在 TL）→ article +
-% 真 JHEP3.cls 面（corpus_v3/0806.2278 随稿件抄值）。自 shim_map JHEP3.cls
+% 真 JHEP3.cls 面（corpus/0806.2278 随稿件抄值）。自 shim_map JHEP3.cls
 % 条迁移（sissa_body 共享体：\author 单参多调用累积 \long 宏；
 % \auto@maketitle 的 \AtBeginDocument emit 同款；0905.1170 amssymb 实证）。
 % 与 JHEP.cls stub 同体。

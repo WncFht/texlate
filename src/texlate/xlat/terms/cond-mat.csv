@@ -1,5 +1,5 @@
 # cond-mat 术语表（凝聚态：强关联/超导/拓扑/介观/软物质/统计物理）
-# 来源法：corpus_v3 cond-mat 层 148 篇 TeX 源码高频短语统计（tmp/lane-c4-terms/cand-cond-mat.txt）
+# 来源法：corpus cond-mat 层 148 篇 TeX 源码高频短语统计（tmp/lane-c4-terms/cand-cond-mat.txt）
 #   + 领域公认术语人工审定；仅收中译有公认定名的条目，拿不准不收。
 # 双形态条目：corpus 实测 TeX 命令拼写占优者（Schr\"odinger 407 次 > Schrodinger 131）给双行，
 #   doc_filter 按词边界逐字匹配，两种写法各自命中各自文本。

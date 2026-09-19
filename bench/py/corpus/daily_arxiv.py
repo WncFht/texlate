@@ -10,7 +10,7 @@ r"""daily_arxiv.py — arXiv 日更全量枚举+取源：RSS 公告集 → corpu
   fetch    对 manifest_{date} 行（默认 announce_type∈new,cross）走产品
            ``acquire_source``（钉版 HEAD+GET+unpack+locate），状态逐篇记
            work_daily/fetch-{date}.jsonl，OK 条目物化 corpus_daily/{id}/
-           （meta.json+raw.*+extracted/，同 corpus_v3 布局）。断点续跑：
+           （meta.json+raw.*+extracted/，同 corpus 布局）。断点续跑：
            fetch jsonl 已有 ok/pdf_only/… 终态的 id 跳过。
   report   汇总 enum+fetch 状态 → 终端 + work_daily/report-{date}.json。
 
@@ -157,7 +157,7 @@ def parse_feed(xml_bytes: bytes) -> tuple[str, list[dict]]:
 
 
 def cat_group(primary: str) -> str:
-    """主类目 → cat_group slug（corpus_v3 口径：archive 前缀）。"""
+    """主类目 → cat_group slug（corpus 口径：archive 前缀）。"""
     return primary.split(".", 1)[0] if primary else "other"
 
 
