@@ -374,3 +374,36 @@ rules:
         }
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/lane-shipclscen/mbd_hits.json; vendor/stubs/svglov3.clo exact-restore idiom"
+
+  # mathchar census (failmine3, ~6 格): 译稿把 CJK 放进 \bm{...} 实参,
+  # xelatex/tectonic 下炸 "Extended mathchar used as mathchar (<0x05xxxxxx>)"
+  # —— bm.sty \bm@test@token 原子遍历对实参内每个 catcode-11/12 token 做
+  # \count@\mathcode`#1, XeTeX 的 \mathcode 旧式 15-bit 操作数扫描对 >0xFF
+  # 字符 (xeCJK CJK 字/扩展 mathcode) 必炸 (tmp/mathchar 实证: \mathcode`这
+  # operand scan 即炸, \mathcode`Ω 同炸非 CJK 专属; 裸 $这$/{\rm}/\tilde/
+  # 上下标全不炸 —— 触发面只锁 \bm 族实参)。taxonomy 无专类归 other,
+  # ctx_suggests 锁错误签名。修法 = 序言守卫式重定义: \bm#1 → \bmorig{{#1}}
+  # 双花括号走 bm 自带 group 路径 (\bm@gr@@p→\boldmath), 遍历被跳过且粗体
+  # 语义保留; \b/\unit 等 \newcommand 别名调用点重展开 \bm 同愈;
+  # \boldsymbol/\heavysymbol (\let 别名) 经 \ifx 等义复核后重绑。
+  - id: bm_extended_mathchar_wrap
+    description: "\\bm{<CJK>} 撞 Extended mathchar 墙 → 守卫式 \\bm 族重定义走 group 路径"
+    phase: loop
+    order: 162 # biblatex_bbx_rename(161) 与 physics_stub_detach(163) 之间: 源级补丁同档
+    when: { category: other } # "Extended mathchar" 归 other (taxonomy `^.` 兜底)
+    condition:
+      ctx_suggests: "Extended mathchar used as mathchar"
+    action:
+      kind: builtin_transform
+      function: bm_mathchar_wrap
+    risk: low # \ifdefined 守卫 + bm 自带组路径; 无 \bm 稿纯空转
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same } # XeTeX 内核同一 mathchar 扫描墙
+    provenance:
+      - {
+          corpus: "hep-ph/0605174 GLUON.tex:464 + 1206.0485 + 2112.00003 (loop1 stagerun)",
+          error: "Extended mathchar used as mathchar (83922905=0x05008FD9=这 等 4 值循环, \\bm{这是译文} 原子遍历)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/mathchar/ repro (t1-t6/probe4-5/fix4); bm.sty \\bm@test@token \\count@\\mathcode`#1 walk"

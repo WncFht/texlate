@@ -1061,7 +1061,9 @@ _REVTEX209_POLYFILL = (
     "\\providecommand{\\twocolumn}[1][]{#1}\n"
     "\\@ifundefined{@makecol}"
     "{\\def\\@makecol{\\setbox\\@outputbox\\vbox{\\unvbox\\@cclv}}}{}\n"
-    "\\AtBeginDocument{\\def\\pacs#1{\\par\\noindent\\textbf{PACS:} #1\\par}}\n"
+    # \long\def: \pacs 实参可含空行/\and (revpacs 残案 —— 非 \long 版
+    # 撞 "Paragraph ended before \pacs"), 代价为零。
+    "\\AtBeginDocument{\\long\\def\\pacs#1{\\par\\noindent\\textbf{PACS:} #1\\par}}\n"
     "\\makeatother"
 )
 
@@ -1104,3 +1106,75 @@ def revtex209_surface_polyfill(
     if not _inject_after_docclass(ctx, _REVTEX209_POLYFILL):
         return False, "polyfill block already present"
     return True, "revtex 2.09 surface polyfill injected after docclass"
+
+
+# ════════════════════════════════════════════════════════════════
+# bm 族宏 atom-walk 撞 XeTeX 15-bit mathchar 扫描墙 (failmine3 census)
+# ════════════════════════════════════════════════════════════════
+
+#: bm 族守卫式重定义注入块 —— bm.sty ``\bm@test@token`` 对实参内每个
+#: catcode-11/12 token 做 ``\count@\mathcode`#1`` 原子遍历; XeTeX 的
+#: ``\mathcode`` 旧式操作数扫描对 >0xFF 字符 (xeCJK CJK 字/扩展 mathcode)
+#: 必炸 "Extended mathchar used as mathchar" (hep-ph/0605174 GLUON.tex:464
+#: 四值循环 83922905=0x05008FD9=这 / 83912239=是 / 83921873=译 /
+#: 83912071=文; tmp/mathchar/probe4.tex 实证 ``\count@=\mathcode`这`` 文本
+#: 态同炸、``\the\mathcode`` 读取不炸; t1-t6 实证裸 ``$这$``/``{\rm 这}``/
+#: ``\tilde``/上下标全不炸 —— 修复面只锁 ``\bm`` 族)。
+#: ``\bm#1 → \bmorig{{#1}}`` 双花括号把实参改走 bm 自带 ``\bm@gr@@p``→
+#: ``\boldmath`` 组路径 (遍历被跳过且粗体语义保留; fix3/fix4 全形零错)。
+#: ``\b``/``\unit`` 等 ``\newcommand`` 别名调用点重展开 ``\bm`` 自动受益;
+#: ``\boldsymbol``/``\heavysymbol`` 是 bm.sty 末行 ``\let`` 别名,
+#: ``\ifx`` 等义复核后才重绑新 ``\bm``/``\hm`` (amsbsy 自带 ``\boldsymbol``
+#: 非 bm 别名不误伤)。``\ifdefined\TeXlateBM`` 幂等防自捕环 (若 ``\let``
+#: 重捕到新 ``\bm``, ``\TeXlateBM{{#1}}`` 无穷递归)。
+_BM_MATHCHAR_WRAP = (
+    "% fixloop: bm-family atom-walk reads \\mathcode of every char token —\n"
+    "% XeTeX 15-bit mathchar scan rejects >0xFF chars (CJK/extended mathcodes).\n"
+    "% Re-route the argument through bm's own group path (\\bm@group->\\boldmath).\n"
+    "\\ifdefined\\bm\n"
+    "  \\ifdefined\\TeXlateBM\\else\n"
+    "    \\let\\TeXlateBM\\bm\n"
+    "    \\protected\\def\\bm#1{\\TeXlateBM{{#1}}}\n"
+    "    \\ifx\\boldsymbol\\TeXlateBM\\let\\boldsymbol\\bm\\fi\n"
+    "  \\fi\n"
+    "\\fi\n"
+    "\\ifdefined\\hm\n"
+    "  \\ifdefined\\TeXlateHM\\else\n"
+    "    \\let\\TeXlateHM\\hm\n"
+    "    \\protected\\def\\hm#1{\\TeXlateHM{{#1}}}\n"
+    "    \\ifx\\heavysymbol\\TeXlateHM\\let\\heavysymbol\\hm\\fi\n"
+    "  \\fi\n"
+    "\\fi"
+)
+
+#: bm 族在用量粗探 —— ``\bm``/``\hm``/``\boldsymbol``/``\heavysymbol`` 字面。
+#: ``\b``/``\unit`` 等 ``\newcommand`` 别名定义体内含 ``\bm`` 字面同中;
+#: ``\let``-别名调用点不含字面但本修也够不到 (旧 ``\bm`` 快照不走新定义)。
+_BM_FAMILY_USE_RE = re.compile(r"\\(?:bm|hm|boldsymbol|heavysymbol)(?![a-zA-Z@])")
+
+
+def bm_mathchar_wrap(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""``\bm{<CJK>}`` 撞 Extended mathchar 墙 → 序言守卫式 ``\bm`` 族重定义。
+
+    实证根因 (failmine3 census ~6 格, hep-ph/0605174 + 1206.0485 +
+    2112.00003 全 ``\usepackage{bm}``): bm.sty 原子遍历对实参内 catcode-11
+    token 逐个 ``\count@\mathcode`#1`` —— >0xFF 字符在 XeTeX legacy
+    mathchar 扫描位必炸 (probe5.tex 实证 ``\mathcode`Ω``=31458217 同炸,
+    非 CJK 专属)。``\bm{arg} → \bm{{arg}}`` 双花括号改走 bm 自带组路径
+    (``\bm@group`` 分支 ``\bm@mchoice``→``\boldmath`` 直排不遍历, 粗体经
+    math version 照常生效)。
+
+    注入点 ``_inject_before_begindoc``: 全部 ``\usepackage``/cls 装载已毕,
+    ``\ifdefined\bm``/``\ifdefined\hm`` 守卫对未用 bm.sty 的稿纯空转;
+    ``\b``/``\unit`` 宏别名运行时重展开 ``\bm`` 同愈。遮盖源无 bm 族字面
+    → False (别名缺口见 ``_BM_FAMILY_USE_RE`` 注); ``snippet in t`` +
+    ``\ifdefined\TeXlateBM`` 双幂等。
+    """
+    del eng, payload, params
+    if not _BM_FAMILY_USE_RE.search(mask_tex(ctx.source_blob())):
+        return False, "no bm-family macro use in source"
+    if not _inject_before_begindoc(ctx, _BM_MATHCHAR_WRAP):
+        return False, "bm wrap block already present"
+    return True, "bm-family group-wrap polyfill injected"

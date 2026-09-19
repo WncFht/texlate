@@ -106,6 +106,7 @@ from texlate.compile.fixloop._builtins_pkgload import (
     strip_inputenc,
 )
 from texlate.compile.fixloop._builtins_shim import (
+    bm_mathchar_wrap,
     bundled_class_shadow,
     cs_rebind,
     font_cs_shim,
@@ -172,6 +173,7 @@ __all__ = [
     "bbl_regen",
     "bbl_stub_rewrite",
     "biber_biblatex_skew_route",
+    "bm_mathchar_wrap",
     "bundled_class_shadow",
     "cite_in_math_mbox",
     "citekey_sanitize",
@@ -249,6 +251,7 @@ TRANSFORM_FNS = {
     "bbl_stub_rewrite": bbl_stub_rewrite,
     "bbl_regen": bbl_regen,
     "biber_biblatex_skew_route": biber_biblatex_skew_route,
+    "bm_mathchar_wrap": bm_mathchar_wrap,
     "cite_in_math_mbox": cite_in_math_mbox,
     "svjour_clo_stub": svjour_clo_stub,
     "font_sub_shim": font_sub_shim,
