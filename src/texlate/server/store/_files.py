@@ -10,24 +10,14 @@ import hashlib
 import time
 from typing import TYPE_CHECKING, Any
 
+from texlate.server.store._common import _Repo
+
 if TYPE_CHECKING:
-    import sqlite3
     from pathlib import Path
 
-    from texlate.server.store import Store
 
-
-class FileRepo:
+class FileRepo(_Repo):
     """files 表聚合。构造只存门面回指——连接在 ``open()`` 后才可用。"""
-
-    def __init__(self, store: Store) -> None:
-        """回指门面（conn 惰性经 ``store.conn`` 取，断言即未 open 契约）。"""
-        self._s = store
-
-    @property
-    def conn(self) -> sqlite3.Connection:
-        """门面共享连接——repo 不持有独立连接（单写者纪律由 Store 持有）。"""
-        return self._s.conn
 
     def put_file(  # noqa: PLR0913 -- 登记面五元组 + 可选预算值即 spec 定案字段
         self,

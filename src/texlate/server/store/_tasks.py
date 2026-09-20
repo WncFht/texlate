@@ -17,25 +17,55 @@ from texlate.server.store._common import (
     TERMINAL_STATUSES,
     StoreError,
     TransitionError,
+    _Repo,
 )
 
 if TYPE_CHECKING:
     import sqlite3
+    from collections.abc import Iterable, Sized
 
-    from texlate.server.store import Store
+
+# ------------------------------------------------------------ 共享底料
+# ``_Repo`` 基类已上抬 ``_common.py`` 作六 repo 单源；本节余下的是
+# tasks 聚合自用的占位符/SQL 拼块件。
+
+#: cache_key 占用态集 = ``ACTIVE_STATUSES ∪ {"interrupted"}``——与
+#: ``_common.DDL`` 的 ``uq_tasks_cachekey_active`` 部分唯一索引谓词
+#: 同集**且同序**。查询侧渲染字面量 IN 列表（``_sql_str_list``）而非
+#: 绑定参数：SQLite 只对字面量逐项全同的 IN 列表认部分索引蕴涵——
+#: 同集异序或 ``IN (?,?,…)`` 参数化都丢 ``uq_tasks_cachekey_active``
+#: 资格回退 ``idx_tasks_cachekey``（实证）。序按已部署 DDL 钉死：
+#: ``IF NOT EXISTS`` 不重建老库索引，序漂移 = 存量库永久丢索引。
+_CACHE_KEY_HELD_STATUSES = (
+    "queued",
+    "fetching",
+    "parsing",
+    "translating",
+    "compiling",
+    "interrupted",
+)
+assert frozenset(_CACHE_KEY_HELD_STATUSES) == ACTIVE_STATUSES | {  # noqa: S101 -- 集合契约：与 ACTIVE_STATUSES∪interrupted 锁步，漂移即坏 DDL/查询两侧同集前提
+    "interrupted"
+}
 
 
-class TaskRepo:
+def _qmarks(items: Sized) -> str:
+    """IN 占位符串（``?,?,…``）——只产占位符，值全走绑定参数。"""
+    return ",".join("?" * len(items))
+
+
+def _set_clause(fields: dict[str, Any]) -> str:
+    """UPDATE SET 子句（``k = ?`` 逗号串）——键名全为调用方内部白名单。"""
+    return ", ".join(f"{k} = ?" for k in fields)
+
+
+def _sql_str_list(items: Iterable[str]) -> str:
+    """渲染 SQL 字符串字面量列表（``'a','b'``）——仅染内部枚举常量，外部输入禁入。"""
+    return ",".join(f"'{s}'" for s in items)
+
+
+class TaskRepo(_Repo):
     """tasks 表聚合。构造只存门面回指——连接在 ``open()`` 后才可用。"""
-
-    def __init__(self, store: Store) -> None:
-        """回指门面（conn 惰性经 ``store.conn`` 取，断言即未 open 契约）。"""
-        self._s = store
-
-    @property
-    def conn(self) -> sqlite3.Connection:
-        """门面共享连接——repo 不持有独立连接（单写者纪律由 Store 持有）。"""
-        return self._s.conn
 
     def create_task(  # noqa: PLR0913 -- 列即参数面，构造任务行的全字段
         self,
@@ -147,10 +177,14 @@ class TaskRepo:
         return rows, total
 
     def find_active_by_cache_key(self, cache_key: str) -> dict[str, Any] | None:
-        """同 cache_key 的 ACTIVE/interrupted 任务（部分唯一索引覆盖集）。"""
+        """同 cache_key 的 ACTIVE/interrupted 任务（部分唯一索引覆盖集）。
+
+        IN 列表渲染字面量（``_CACHE_KEY_HELD_STATUSES``，与 DDL 谓词同集）
+        而非绑定参数——参数化丢部分索引资格，见常量注。
+        """
         row = self.conn.execute(
-            "SELECT * FROM tasks WHERE cache_key = ? AND status IN"
-            " ('queued','fetching','parsing','translating','compiling','interrupted')"
+            "SELECT * FROM tasks WHERE cache_key = ? AND status IN"  # noqa: S608 -- 状态集为内部枚举字面量渲染，cache_key 仍走绑定
+            f" ({_sql_str_list(_CACHE_KEY_HELD_STATUSES)})"
             " ORDER BY created_at DESC LIMIT 1",
             (cache_key,),
         ).fetchone()
@@ -208,7 +242,7 @@ class TaskRepo:
 
     def terminal_task_ids(self, tenant: str | None = None) -> list[str]:
         """终态任务 id（``tenant`` 可选过滤）——瘦身/清扫候选面。"""
-        qmarks = ",".join("?" * len(TERMINAL_STATUSES))
+        qmarks = _qmarks(TERMINAL_STATUSES)
         sql = f"SELECT id FROM tasks WHERE status IN ({qmarks})"  # noqa: S608 -- '?' 占位符拼接，值全走绑定参数
         args: tuple[str, ...] = tuple(sorted(TERMINAL_STATUSES))
         if tenant is not None:
@@ -219,7 +253,7 @@ class TaskRepo:
 
     def retention_candidates(self, cutoff: float) -> list[str]:
         """终态且 ``COALESCE(finished_at, updated_at) < cutoff``——retention 龄期候选。"""
-        qmarks = ",".join("?" * len(TERMINAL_STATUSES))
+        qmarks = _qmarks(TERMINAL_STATUSES)
         rows = self.conn.execute(
             f"SELECT id FROM tasks WHERE status IN ({qmarks})"  # noqa: S608 -- 同上
             " AND COALESCE(finished_at, updated_at) < ?",
@@ -229,7 +263,7 @@ class TaskRepo:
 
     def terminal_oldest_first(self) -> list[str]:
         """终态按完成时间升序——retention 容量阶段 oldest-first 候选序。"""
-        qmarks = ",".join("?" * len(TERMINAL_STATUSES))
+        qmarks = _qmarks(TERMINAL_STATUSES)
         rows = self.conn.execute(
             f"SELECT id FROM tasks WHERE status IN ({qmarks})"  # noqa: S608 -- 同上
             " ORDER BY COALESCE(finished_at, updated_at), id",
@@ -263,7 +297,7 @@ class TaskRepo:
     def delete_task_guard(self, task_id: str, *, blocked: frozenset[str]) -> bool:
         """条件删除：status ∈ blocked 或行不存在 → False 不删；否则删行返 True。"""
         if blocked:
-            qmarks = ",".join("?" * len(blocked))
+            qmarks = _qmarks(blocked)
             cur = self.conn.execute(
                 f"DELETE FROM tasks WHERE id = ? AND status NOT IN ({qmarks})",  # noqa: S608 -- '?' 占位符拼接，值全走绑定参数
                 (task_id, *blocked),
@@ -332,7 +366,7 @@ class TaskRepo:
             fields["stage"] = None
             fields["error_json"] = None
             fields["finished_at"] = None
-        sets = ", ".join(f"{k} = ?" for k in fields)
+        sets = _set_clause(fields)
         self.conn.execute(
             f"UPDATE tasks SET {sets} WHERE id = ?",  # noqa: S608 -- 键名全为内部白名单
             (*fields.values(), task_id),
@@ -345,7 +379,7 @@ class TaskRepo:
     def _set_fields(self, task_id: str, fields: dict[str, Any]) -> None:
         """UPDATE tasks 不 commit（flush 事务内复用）。"""
         fields = {**fields, "updated_at": time.time()}
-        sets = ", ".join(f"{k} = ?" for k in fields)
+        sets = _set_clause(fields)
         self.conn.execute(
             f"UPDATE tasks SET {sets} WHERE id = ?",  # noqa: S608 -- 键名全为内部白名单
             (*fields.values(), task_id),
@@ -373,7 +407,7 @@ class TaskRepo:
     def recover_startup(self) -> dict[str, int]:
         """启动恢复（§3.4.4）：遗留 ACTIVE → interrupted；header 源 → needs_auth。"""
         active = tuple(ACTIVE_STATUSES - {"queued"})
-        qmarks = ",".join("?" * len(active))
+        qmarks = _qmarks(active)
         rows = self.conn.execute(
             f"SELECT id, auth_source FROM tasks WHERE status IN ({qmarks})",  # noqa: S608 -- '?' 占位符拼接，值全走绑定参数
             active,

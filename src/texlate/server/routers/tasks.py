@@ -24,6 +24,7 @@ from texlate.server._common import slim_terminal_tasks
 from texlate.server.events import sse_frame
 from texlate.server.http import (
     _accepted,
+    _ApiError,
     _clean_task_options,
     _json_error,
     _options_json_checked,
@@ -50,6 +51,34 @@ if TYPE_CHECKING:
 _ALL_STATUSES = ACTIVE_STATUSES | TERMINAL_STATUSES
 
 
+def _resolve_model_lang(
+    request: Request, deps: AppDeps, model_raw: str, lang_raw: str
+) -> tuple[str, str]:
+    """``model``/``target_lang`` 入参决议 + 校验 → ``(model, target_lang)``。
+
+    空值回落 ``deps.auth(request)`` 快照（``.model`` /
+    ``settings["target_lang"]``）——一次 auth 决议同时供两侧回落；
+    违例 → ``_ApiError(400, invalid_request)``（upload.py
+    ``_upload_fields`` 同款口径；待 hoist 至 ``AppDeps.resolve_model_lang``
+    两域共吃）。
+    """
+    auth = deps.auth(request)
+    try:
+        model = validate_model(model_raw or auth.model)
+    except ValueError as e:
+        raise _ApiError(400, {"detail": str(e), "code": "invalid_request"}) from e
+    target_lang = lang_raw or str(auth.settings["target_lang"])
+    if target_lang not in TARGET_LANGS:
+        raise _ApiError(
+            400,
+            {
+                "detail": f"target_lang ∈ {sorted(TARGET_LANGS)}",
+                "code": "invalid_request",
+            },
+        )
+    return model, target_lang
+
+
 def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 端点面平铺
     """挂载任务域端点（§2.1/§2.2/§2.5 + retranslate）。"""
     # ------------------------------------------------------------ §2.1 arxiv
@@ -70,17 +99,13 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 端
                 400, "options 须为 object 或 KV 对列表", "invalid_request"
             )
         options = _clean_task_options(options)
-        try:
-            model = validate_model(str(body.get("model") or deps.auth(request).model))
-        except ValueError as e:
-            return _json_error(400, str(e), "invalid_request")
-        target_lang = str(
-            body.get("target_lang") or deps.auth(request).settings["target_lang"]
+        # ``_ApiError`` 直抛——app 级 handler 出 ``_json_error`` 同形 400
+        model, target_lang = _resolve_model_lang(
+            request,
+            deps,
+            str(body.get("model") or ""),
+            str(body.get("target_lang") or ""),
         )
-        if target_lang not in TARGET_LANGS:
-            return _json_error(
-                400, f"target_lang ∈ {sorted(TARGET_LANGS)}", "invalid_request"
-            )
         if body.get("glossary"):
             options["glossary"] = str(body["glossary"])
         prefer = str(options.get("prefer") or "reuse")

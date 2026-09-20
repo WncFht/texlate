@@ -43,6 +43,7 @@ from texlate.server.http import (
     _STARTED_AT,
     _ApiError,
     _clean_task_options,
+    _exposed_bind_warning,
     _host_only,
     _json_error,
     _loopback_bind,
@@ -97,12 +98,130 @@ __all__ = [
     "_STARTED_AT",
     "_ApiError",
     "_clean_task_options",
+    "_exposed_bind_warning",
     "_loopback_bind",
     "_probe_git_commit",
     "create_app",
+    "retention_loop",
+    "sweep_once",
 ]
 
 log = logging.getLogger(__name__)
+
+
+def _sweep_orphan_task_dirs(store: Store, root: Path) -> int:
+    """启动清扫：``tasks/{id}`` 无对应 DB 行的孤儿目录 → 清扫数。
+
+    upload/share_import 在建行前落盘 blob——进程在写盘与 INSERT 之间
+    被杀会留孤儿目录。只在启动窗口跑（尚无并发建行）；名字非法或不
+    是 task-id 形态的条目不碰。
+    """
+    tasks_root = root / "tasks"
+    if not tasks_root.is_dir():
+        return 0
+    known = set(store.task_ids())
+    n = 0
+    for d in tasks_root.iterdir():
+        if not (valid_task_id(d.name) and d.name not in known):
+            continue
+        if d.is_dir() and not d.is_symlink():
+            shutil.rmtree(d, ignore_errors=True)
+        else:
+            with suppress(OSError):
+                d.unlink()
+        n += 1
+    return n
+
+
+async def _slim_terminal(store: Store, runner: TaskRunner, tasks_dir: Path) -> None:
+    """瘦身段（无条件）：终态任务 ``tasks/{id}/`` 清未登记字节。
+
+    扫描体单源在 ``server/_common.slim_terminal_tasks``（与
+    ``POST /api/tasks/slim`` 同口径）；本段只管 sweep 语义——
+    不区分 tenant（本地库即全集），瘦出量进 log。
+    """
+    slimmed, slim_freed = await slim_terminal_tasks(
+        store, tasks_dir, skip=runner.inflight_task_ids()
+    )
+    if slimmed:
+        log.info("slim sweep: %d task(s), freed %d B", slimmed, slim_freed)
+
+
+async def _sweep_delete(  # noqa: C901 -- 两阶段淘汰阶梯平铺
+    store: Store, settings_store: SettingsStore, tasks_dir: Path
+) -> None:
+    """删除段：``retention_days``/``retention_max_gb`` 淘汰整任务（全 0 = 关）。
+
+    ``sweep_retention`` 的 loop-native 版——决策查询（``TaskRepo``
+    单侧化）+ ``delete_task_guard`` 条件写留在 loop，``_dir_size``/
+    ``rmtree`` 重 I/O 逐段 ``to_thread``。settings 每拍重读（PUT 即
+    生效，不用重启）。
+    """
+    st = settings_store.load()
+    days = int(st.get("retention_days") or 0)
+    max_gb = int(st.get("retention_max_gb") or 0)
+    if days <= 0 and max_gb <= 0:
+        return
+    removed: list[str] = []
+    freed_bytes = 0
+
+    async def _drop(tid: str) -> int:
+        """条件删行（loop）+ rmtree（thread）→ 目录字节数。"""
+        if not store.delete_task_guard(tid, blocked=ACTIVE_STATUSES):
+            return 0
+        sz = await asyncio.to_thread(_dir_size, tasks_dir / tid)
+        await asyncio.to_thread(shutil.rmtree, tasks_dir / tid, ignore_errors=True)
+        removed.append(tid)
+        return sz
+
+    if days > 0:
+        cutoff = time.time() - days * 86400
+        for tid in store.retention_candidates(cutoff):
+            freed_bytes += await _drop(tid)
+    if max_gb > 0:
+        cap = max_gb * (1 << 30)
+        total = await asyncio.to_thread(_dir_size, tasks_dir)
+        if total > cap:
+            for tid in store.terminal_oldest_first():
+                if total <= cap:
+                    break
+                sz = await _drop(tid)
+                freed_bytes += sz
+                total -= sz
+    if removed:
+        log.info(
+            "retention sweep: %s",
+            {"removed": removed, "freed_bytes": freed_bytes},
+        )
+
+
+async def sweep_once(
+    store: Store,
+    settings_store: SettingsStore,
+    runner: TaskRunner,
+    tasks_dir: Path,
+) -> None:
+    """Retention sweep 一拍：终态瘦身 + 保留策略淘汰（可测单元）。"""
+    await _slim_terminal(store, runner, tasks_dir)
+    await _sweep_delete(store, settings_store, tasks_dir)
+
+
+async def retention_loop(
+    store: Store,
+    settings_store: SettingsStore,
+    runner: TaskRunner,
+    tasks_dir: Path,
+) -> None:
+    """产物保留策略周期 sweep（每 10min 一拍：瘦身 + retention 删除）。
+
+    失败只 log——保留策略是后台清扫面，故障绝不拖垮服务。
+    """
+    while True:
+        await asyncio.sleep(600)
+        try:
+            await sweep_once(store, settings_store, runner, tasks_dir)
+        except Exception as e:  # noqa: BLE001 -- 后台清扫失败只留 warning
+            log.warning("retention sweep failed: %s", e)
 
 
 def create_app(  # noqa: C901, PLR0913, PLR0915 -- 装配阶梯+闭包面平铺
@@ -158,102 +277,6 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 装配阶梯+闭包面平铺
         keys.extend(s.api_key for s in runner.secrets.values())
         return [k for k in keys if k]
 
-    def _sweep_orphan_task_dirs() -> int:
-        """启动清扫：``tasks/{id}`` 无对应 DB 行的孤儿目录 → 清扫数。
-
-        upload/share_import 在建行前落盘 blob——进程在写盘与 INSERT 之间
-        被杀会留孤儿目录。只在启动窗口跑（尚无并发建行）；名字非法或不
-        是 task-id 形态的条目不碰。
-        """
-        tasks_root = root / "tasks"
-        if not tasks_root.is_dir():
-            return 0
-        known = set(store.task_ids())
-        n = 0
-        for d in tasks_root.iterdir():
-            if not (valid_task_id(d.name) and d.name not in known):
-                continue
-            if d.is_dir() and not d.is_symlink():
-                shutil.rmtree(d, ignore_errors=True)
-            else:
-                with suppress(OSError):
-                    d.unlink()
-            n += 1
-        return n
-
-    tasks_dir = root / "tasks"
-
-    async def _slim_terminal() -> None:
-        """瘦身段（无条件）：终态任务 ``tasks/{id}/`` 清未登记字节。
-
-        扫描体单源在 ``server/_common.slim_terminal_tasks``（与
-        ``POST /api/tasks/slim`` 同口径）；本段只管 sweep 语义——
-        不区分 tenant（本地库即全集），瘦出量进 log。
-        """
-        slimmed, slim_freed = await slim_terminal_tasks(
-            store, tasks_dir, skip=runner.inflight_task_ids()
-        )
-        if slimmed:
-            log.info("slim sweep: %d task(s), freed %d B", slimmed, slim_freed)
-
-    async def _sweep_delete() -> None:  # noqa: C901 -- 两阶段淘汰阶梯平铺
-        """删除段：``retention_days``/``retention_max_gb`` 淘汰整任务（全 0 = 关）。
-
-        ``sweep_retention`` 的 loop-native 版——决策查询（``TaskRepo``
-        单侧化）+ ``delete_task_guard`` 条件写留在 loop，``_dir_size``/
-        ``rmtree`` 重 I/O 逐段 ``to_thread``。settings 每拍重读（PUT 即
-        生效，不用重启）。
-        """
-        st = settings_store.load()
-        days = int(st.get("retention_days") or 0)
-        max_gb = int(st.get("retention_max_gb") or 0)
-        if days <= 0 and max_gb <= 0:
-            return
-        removed: list[str] = []
-        freed_bytes = 0
-
-        async def _drop(tid: str) -> int:
-            """条件删行（loop）+ rmtree（thread）→ 目录字节数。"""
-            if not store.delete_task_guard(tid, blocked=ACTIVE_STATUSES):
-                return 0
-            sz = await asyncio.to_thread(_dir_size, tasks_dir / tid)
-            await asyncio.to_thread(shutil.rmtree, tasks_dir / tid, ignore_errors=True)
-            removed.append(tid)
-            return sz
-
-        if days > 0:
-            cutoff = time.time() - days * 86400
-            for tid in store.retention_candidates(cutoff):
-                freed_bytes += await _drop(tid)
-        if max_gb > 0:
-            cap = max_gb * (1 << 30)
-            total = await asyncio.to_thread(_dir_size, tasks_dir)
-            if total > cap:
-                for tid in store.terminal_oldest_first():
-                    if total <= cap:
-                        break
-                    sz = await _drop(tid)
-                    freed_bytes += sz
-                    total -= sz
-        if removed:
-            log.info(
-                "retention sweep: %s",
-                {"removed": removed, "freed_bytes": freed_bytes},
-            )
-
-    async def _retention_loop() -> None:
-        """产物保留策略周期 sweep（每 10min 一拍：瘦身 + retention 删除）。
-
-        失败只 log——保留策略是后台清扫面，故障绝不拖垮服务。
-        """
-        while True:
-            await asyncio.sleep(600)
-            try:
-                await _slim_terminal()
-                await _sweep_delete()
-            except Exception as e:  # noqa: BLE001 -- 后台清扫失败只留 warning
-                log.warning("retention sweep failed: %s", e)
-
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         # §4.2 第二道防线：uvicorn log config 此时已就绪，filter 落到
@@ -261,7 +284,7 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 装配阶梯+闭包面平铺
         install_log_scrub(_key_provider)
         store.open()
         recovered = store.recover_startup()
-        orphans = _sweep_orphan_task_dirs()
+        orphans = _sweep_orphan_task_dirs(store, root)
         # 上传 spool 目录只收流式落盘的临时件——进程被杀留的残骸启动即清
         spool_dir.mkdir(parents=True, exist_ok=True)
         for stale in spool_dir.iterdir():
@@ -271,7 +294,9 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 装配阶梯+闭包面平铺
             log.info("startup recovery: %s", recovered)
         if orphans:
             log.info("swept %d orphan task dir(s)", orphans)
-        retention = asyncio.create_task(_retention_loop())
+        retention = asyncio.create_task(
+            retention_loop(store, settings_store, runner, root / "tasks")
+        )
         if start_worker:
             runner.start()
         try:

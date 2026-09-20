@@ -40,8 +40,9 @@ from collections import deque
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from texlate.textutil import env_float
-from texlate.xlat.client import redact
+from texlate.server.settings import TARGET_LANGS
+from texlate.textutil import env_float, filtered_env
+from texlate.xlat.client import normalize_base_url, redact
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -75,9 +76,46 @@ _ERR_TAIL_CHARS = 500
 #: （层级③单段异常吞没不进 tracking，唯一旁证是产物文本本身）
 _CJK_MIN_RATIO = 0.10
 
-#: target_lang → ``--lang-out``；zh-TW 让字体族选 TW（embedding_assets_metadata
-#: get_font_family 按 CN/TW/HK 子串分），未知值原样透传
-_LANG_OUT = {"zh-CN": "zh-CN", "zh-TW": "zh-TW", "en": "en"}
+#: 子进程 env 白名单（**非黑名单**）：``dict(os.environ)`` 全量继承会把
+#: ``TEXLATE_API_KEY``/``OPENAI_API_KEY`` 等 secret 灌进第三方子进程及其
+#: multiprocessing 孙链（``/proc/<pid>/environ``、崩溃转储均可见）——与
+#: ``validate/l1._ENV_PASS_*``/``compile/sandbox._ENV_PASS_*`` 同一惯例。
+#: babeldoc 凭证走 ``write_config`` 的 0600 TOML，env 面只放行运行必需项：
+#: PATH/HOME/locale、代理族两形（httpx 拉 HF 字体/cmap/onnx 与 github 资产）、
+#: CA-bundle（corp-TLS）、``HF_ENDPOINT``（hf-mirror）、tmpdir、Windows
+#: MSVCRT 必需 SystemRoot/WINDIR。
+#: ``FAKE_BABELDOC_MODE`` 是 e2e 假 CLI 舵向 seam（tests/test_server_babeldoc.py
+#: 经父进程 env 注入）——不入白名单则 ~6 个 e2e 的 mode 开关全灭。
+_ENV_PASS_EXACT = frozenset(
+    {
+        "HOME",
+        "PATH",
+        "TMPDIR",
+        "TEMP",
+        "TMP",
+        "LANG",
+        "TERM",  # pty 模式 rich 需要；缺省 ``_child_env`` setdefault 兜底
+        "SystemRoot",
+        "WINDIR",
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "ALL_PROXY",
+        "NO_PROXY",
+        "http_proxy",
+        "https_proxy",
+        "all_proxy",
+        "no_proxy",
+        "SSL_CERT_FILE",
+        "REQUESTS_CA_BUNDLE",
+        "CURL_CA_BUNDLE",
+        "HF_ENDPOINT",  # hf-mirror 部署
+        "OMP_NUM_THREADS",  # 显式调优值透传；缺省 setdefault 4
+        "FAKE_BABELDOC_MODE",
+    }
+)
+
+#: env 白名单前缀面（locale 家族）。
+_ENV_PASS_PREFIX = ("LC_",)
 
 #: babeldoc stderr 信号面
 _ANSI_RE = re.compile(
@@ -123,8 +161,13 @@ _AUTH_RE = re.compile(
 
 
 def lang_out_for(target_lang: str) -> str:
-    """产品 ``target_lang`` → babeldoc ``--lang-out``（未知 → ``zh-CN``）。"""
-    return _LANG_OUT.get(target_lang, "zh-CN")
+    """产品 ``target_lang`` → babeldoc ``--lang-out``（白名单外 → ``zh-CN``）。
+
+    成员判定吃 ``settings.TARGET_LANGS`` 单源白名单——新增 target_lang
+    透传放行（zh-TW 让字体族选 TW，embedding_assets_metadata
+    get_font_family 按 CN/TW/HK 子串分），不再第三处拷贝成员表。
+    """
+    return target_lang if target_lang in TARGET_LANGS else "zh-CN"
 
 
 def default_timeout() -> float:
@@ -198,12 +241,10 @@ def _openai_sdk_root(base_url: str) -> str:
 
     babeldoc 把 ``--openai-base-url`` 直接喂 ``openai.OpenAI(base_url=…)``，
     SDK 在其上拼 ``chat/completions``——缺版本段会打 ``/chat/completions``
-    被网关 404；与 ``ChatClient`` 的 ``{root}/v1/chat/completions`` 约定对齐。
+    被网关 404；与 ``ChatClient`` 的 ``{root}/v1/chat/completions`` 约定
+    对齐（后缀剥除同吃 ``normalize_base_url`` 单源）。
     """
-    v = base_url.strip().rstrip("/")
-    for suffix in ("/v1/chat/completions", "/chat/completions", "/v1"):
-        v = v.removesuffix(suffix)
-    return f"{v}/v1"
+    return f"{normalize_base_url(base_url)}/v1"
 
 
 def build_argv(job: BabeldocJob, binary: str) -> list[str]:
@@ -611,6 +652,22 @@ def _judge_run(  # noqa: C901, PLR0913, PLR0911 -- 退出码判定表平铺即 �
     return "ok", None, "", True
 
 
+def _child_env() -> dict[str, str]:
+    """babeldoc 子进程 env：白名单透传 + setdefault/强制三键。
+
+    ``dict(os.environ)`` 全量继承会把 ``TEXLATE_API_KEY``/``OPENAI_API_KEY``
+    等 secret 灌进第三方子进程及其 multiprocessing 孙链——白名单表见
+    ``_ENV_PASS_*``（``validate/l1``/``compile/sandbox`` 同一惯例；过滤
+    骨架共用 ``textutil.filtered_env``）。凭证不走 env——
+    ``write_config`` 的 0600 TOML 单通道。
+    """
+    env = filtered_env(_ENV_PASS_EXACT, _ENV_PASS_PREFIX)
+    env.setdefault("OMP_NUM_THREADS", "4")
+    env.setdefault("TERM", "xterm")  # pty 模式下 rich 需要
+    env["PYTHONUNBUFFERED"] = "1"
+    return env
+
+
 async def _spawn(
     argv: list[str],
 ) -> tuple[asyncio.subprocess.Process, int]:
@@ -627,10 +684,7 @@ async def _spawn(
     multiprocessing 孙进程（pdf_creater.py 字体子集化/clean-save）
     不留孤儿还占着 pty 写端把泵吊死。
     """
-    env = dict(os.environ)
-    env.setdefault("OMP_NUM_THREADS", "4")
-    env.setdefault("TERM", "xterm")  # pty 模式下 rich 需要
-    env["PYTHONUNBUFFERED"] = "1"
+    env = _child_env()
     read_fd: int | None = None
     write_fd: int | None = None
     if pty is not None:

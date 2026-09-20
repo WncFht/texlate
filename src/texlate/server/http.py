@@ -17,7 +17,6 @@ import secrets
 import shutil
 import subprocess
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlsplit
@@ -30,7 +29,9 @@ try:
 except ModuleNotFoundError:  # pragma: no cover -- 旧式包名回落（同 starlette）
     import multipart as _pymp  # type: ignore[no-redef]
 
-from texlate.server.settings import UPLOAD_CAP
+from texlate.compile.engine import ENGINE_NAMES
+from texlate.server.settings import UPLOAD_CAP, server_mode
+from texlate.textutil import utc_now
 from texlate.xlat.client import _LOOPBACK_HOSTS
 
 if TYPE_CHECKING:
@@ -66,7 +67,7 @@ def _probe_git_commit() -> str:
 #: ``/api/health`` 构建面：进程加载的代码 commit + 进程启动时刻
 #: （长驻 ``texlate web`` 服旧码的 stale-实例识别——M3 smoke B3）
 _BUILD_COMMIT = _probe_git_commit()
-_STARTED_AT = datetime.now(UTC).isoformat(timespec="seconds")
+_STARTED_AT = utc_now()
 
 
 class _ApiError(Exception):
@@ -77,6 +78,21 @@ class _ApiError(Exception):
         self.status = status
         self.body = body
         super().__init__(str(body.get("detail", status)))
+
+
+def _api_error(
+    status: int, detail: str, code: str | None = None, **fields: Any
+) -> _ApiError:
+    """``raise`` 侧统一错误面——``_json_error`` 的 raise 孪生。
+
+    body 形状同 ``_json_error``：``{"detail": …, "code"?}``；``**fields``
+    并入 body 承载附加字段（409 带 ``task_id`` 之类）。
+    """
+    body: dict[str, Any] = {"detail": detail}
+    if code:
+        body["code"] = code
+    body.update(fields)
+    return _ApiError(status, body)
 
 
 @dataclass(frozen=True, slots=True)
@@ -118,13 +134,7 @@ def _spool_part(src: BinaryIO, dst: Path, budget: int) -> int:
         raise
     if written > budget:
         dst.unlink(missing_ok=True)
-        raise _ApiError(
-            413,
-            {
-                "detail": f"upload > {UPLOAD_CAP}B",
-                "code": "upload_too_large",
-            },
-        )
+        raise _api_error(413, f"upload > {UPLOAD_CAP}B", "upload_too_large")
     return written
 
 
@@ -154,10 +164,7 @@ def _cap_request_body(request: Request, cap: int, code: str, label: str) -> None
         msg = await inner()
         seen += len(msg.get("body", b""))
         if seen > cap:
-            raise _ApiError(
-                413,
-                {"detail": f"{label} > {cap}B", "code": code},
-            )
+            raise _api_error(413, f"{label} > {cap}B", code)
         return msg
 
     request._receive = capped  # noqa: SLF001 -- 同上：替换实例 receive 通道
@@ -178,9 +185,7 @@ async def _parse_multipart(
     """
     clen = request.headers.get("content-length", "")
     if clen.isdigit() and int(clen) > UPLOAD_CAP + _MULTIPART_OVERHEAD:
-        raise _ApiError(
-            413, {"detail": f"upload > {UPLOAD_CAP}B", "code": "upload_too_large"}
-        )
+        raise _api_error(413, f"upload > {UPLOAD_CAP}B", "upload_too_large")
     _cap_request_body(
         request, UPLOAD_CAP + _MULTIPART_OVERHEAD, "upload_too_large", "upload"
     )
@@ -206,9 +211,8 @@ async def _parse_multipart(
     except _pymp.exceptions.ParseError as e:
         # python-multipart 引擎错（boundary 不符/伪 boundary 行/参数畸形）——
         # starlette 只包自家回调侧 MultiPartException，引擎错直穿成 500
-        raise _ApiError(
-            400,
-            {"detail": f"malformed multipart: {e}", "code": "invalid_request"},
+        raise _api_error(
+            400, f"malformed multipart: {e}", "invalid_request"
         ) from e
     out: dict[str, str | UploadPart] = {}
     file_bytes = 0
@@ -247,28 +251,19 @@ async def _read_body(request: Request) -> dict[str, Any]:
         return {}
     ctype = request.headers.get("content-type", "").split(";", 1)[0].strip()
     if ctype.lower() != "application/json":
-        raise _ApiError(
-            415,
-            {
-                "detail": "Content-Type 须为 application/json",
-                "code": "unsupported_media_type",
-            },
+        raise _api_error(
+            415, "Content-Type 须为 application/json", "unsupported_media_type"
         )
     try:
         data = json.loads(raw)
     except (ValueError, RecursionError) as e:
         # ValueError 含 JSONDecodeError 与巨 int 字面量（int↔str 上限）；
         # RecursionError 是超深嵌套——不入网即 500
-        raise _ApiError(
-            400, {"detail": f"bad json: {e}", "code": "invalid_request"}
-        ) from e
+        raise _api_error(400, f"bad json: {e}", "invalid_request") from e
     if not isinstance(data, dict):
         # 非 object JSON（[1]/"x"/null）——静默当 {} 会让 PUT settings 等
         # 端点 200 无操作，调用方无从察觉体被整个丢弃
-        raise _ApiError(
-            400,
-            {"detail": "json body 须为 object", "code": "invalid_request"},
-        )
+        raise _api_error(400, "json body 须为 object", "invalid_request")
     return data
 
 
@@ -283,8 +278,8 @@ _RESERVED_OPTION_KEYS = frozenset(
 )
 
 #: options.engine 白名单（settings ``_normalize_updates`` 同口径——
-#: ``engine_for`` 只认两台真机 + auto 路由）。
-_ENGINE_NAMES = frozenset({"auto", "xelatex", "tectonic"})
+#: ``engine_for`` 只认两台真机 + auto 路由；单源 ``compile.engine.ENGINE_NAMES``）。
+_ENGINE_NAMES = ENGINE_NAMES
 
 #: ``options`` 落库序列化上限——body 闸放到 UPLOAD_CAP 级，options_json
 #: 是无 schema 自由 KV，巨型 blob 会原样进 ``tasks.options_json``
@@ -298,17 +293,12 @@ def _options_json_checked(options: dict[str, Any]) -> str:
     try:
         raw = json.dumps(options, ensure_ascii=False)
     except (TypeError, ValueError) as e:
-        raise _ApiError(
-            400,
-            {"detail": f"options 须可 JSON 序列化: {e}", "code": "invalid_request"},
+        raise _api_error(
+            400, f"options 须可 JSON 序列化: {e}", "invalid_request"
         ) from e
     if len(raw.encode()) > _OPTIONS_JSON_CAP:
-        raise _ApiError(
-            400,
-            {
-                "detail": f"options 序列化超 {_OPTIONS_JSON_CAP}B",
-                "code": "invalid_request",
-            },
+        raise _api_error(
+            400, f"options 序列化超 {_OPTIONS_JSON_CAP}B", "invalid_request"
         )
     return raw
 
@@ -332,25 +322,15 @@ def _clean_task_options(
         options.pop(k, None)
     engine = str(options.get("engine") or "auto")
     if engine not in _ENGINE_NAMES:
-        raise _ApiError(
-            400,
-            {
-                "detail": f"options.engine ∈ {sorted(_ENGINE_NAMES)}",
-                "code": "invalid_request",
-            },
+        raise _api_error(
+            400, f"options.engine ∈ {sorted(_ENGINE_NAMES)}", "invalid_request"
         )
     # 取源闸：eprint（默认，e-print tar 链）| html（ar5iv DOM 链）——
     # 与 arxiv 获取层「取源」同词；值规范化回写，worker 侧恒可读
     if inject_defaults or "source" in options:
         source = str(options.get("source") or "eprint")
         if source not in ("eprint", "html"):
-            raise _ApiError(
-                400,
-                {
-                    "detail": "options.source ∈ eprint|html",
-                    "code": "invalid_request",
-                },
-            )
+            raise _api_error(400, "options.source ∈ eprint|html", "invalid_request")
         options["source"] = source
     if inject_defaults:
         options.setdefault("auto_glossary", True)
@@ -358,12 +338,8 @@ def _clean_task_options(
         try:
             options["concurrency"] = max(1, min(16, int(options["concurrency"])))
         except (TypeError, ValueError):
-            raise _ApiError(
-                400,
-                {
-                    "detail": "options.concurrency 须为整数（clamp 1–16）",
-                    "code": "invalid_request",
-                },
+            raise _api_error(
+                400, "options.concurrency 须为整数（clamp 1–16）", "invalid_request"
             ) from None
     _options_json_checked(options)
     return options
@@ -418,6 +394,23 @@ def _loopback_bind(host: str) -> bool:
     except ValueError:
         h = _host_only(host)
         return h in _LOOPBACK_HOSTS or h.endswith(".localhost")
+
+
+def _exposed_bind_warning(host: str) -> str | None:
+    """非回环绑定 + local 形态 → 警告文案；否则 ``None``。
+
+    local 形态 API 无鉴权（Host 闸只防 DNS rebinding）——非回环绑定把
+    建任务/PUT settings/读产物暴露给整个可达网段。返文案不自带输出：
+    两入口各走自己的 stderr 通道（``cli.web`` 用 ``typer.echo``；
+    ``__main__`` 无 typer 依赖用 ``print``）。
+    """
+    if server_mode() == "server" or _loopback_bind(host):
+        return None
+    return (
+        f"警告：--host {host} 非回环绑定，local 形态 API 无鉴权——"
+        "可达网段内任何人可建任务/改 settings；多租户部署请用"
+        " TEXLATE_MODE=server（X-Texlate-Key 鉴权）"
+    )
 
 
 def _same_origin(request: Request, origin: str) -> bool:

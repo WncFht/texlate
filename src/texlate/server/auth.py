@@ -31,21 +31,16 @@ from texlate.textutil import env_raw
 from texlate.xlat.client import (
     DEFAULT_BASE_URL,
     DEFAULT_MODEL,
-    PROVIDER_KEY_ENV,
+    env_key_for_url,
     normalize_base_url,
-    provider_for_url,
 )
 
 SALT_FILE = "server_salt"
 
 
 def env_key_for(base_url: str) -> str:
-    """按 provider 映射读 env key：``TEXLATE_API_KEY`` 优先，然后按 host 兜底。"""
-    direct = env_raw("TEXLATE_API_KEY")
-    if direct:
-        return direct
-    env_name = PROVIDER_KEY_ENV.get(provider_for_url(base_url), "TEXLATE_API_KEY")
-    return env_raw(env_name)
+    """按 provider 映射读 env key——委托 ``xlat.client.env_key_for_url`` 单源。"""
+    return env_key_for_url(base_url)
 
 
 def env_base_url() -> str:

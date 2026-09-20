@@ -41,6 +41,7 @@ from texlate.repair import (
     embed_tounicode_quiet,
     fixloop_cell_parts,
     log_text_of,
+    merge_flags,
 )
 from texlate.repair_l2 import (
     ENV_NO_L2,
@@ -83,6 +84,7 @@ from ._common import (
     _tgt_lang,
     _translator_clients,
     chunk_db_id,
+    zh_slot,
 )
 from .share import (
     _share_sourced,
@@ -165,12 +167,39 @@ def _sync_fixed_sources(work: Path, zh: Path) -> int:
     return n
 
 
+def _repair_detail(ctx: TaskCtx, *, include_share: bool = False) -> dict[str, Any]:
+    """修复摘要归集：precheck/l2/fixloop 三段入 detail/err 的同一装配。
+
+    ``include_share`` 时 ``share`` 键排最前——partial err 原手装序
+    （share→precheck→l2→fixloop）经 ``err.update`` 逐字保留。
+    """
+    detail: dict[str, Any] = {}
+    if include_share and ctx.share:
+        detail["share"] = ctx.share
+    if ctx.precheck:
+        detail["precheck"] = ctx.precheck
+    if ctx.l2:
+        detail["l2"] = ctx.l2
+    if ctx.fixloop:
+        detail["fixloop"] = ctx.fixloop
+    return detail
+
+
+def _delivered_map(rows: Iterable[dict[str, Any]]) -> dict[str, str]:
+    """``all_chunks`` 行 → ``{chunk_id: 译文}`` 交付映射（``delivered_db`` 口径）。"""
+    return {
+        r["chunk_id"]: r["translation"]
+        for r in rows
+        if delivered_db(r["status"], r["translation"])
+    }
+
+
 class _Compile:
     """compiling 段 mixin：探测/编译/fixloop/L2/双语产物。"""
 
     # ------------------------------------------------------------ compiling
 
-    async def _stage_compile(  # noqa: C901 -- 编译段终态阶梯直铺
+    async def _stage_compile(  # 编译段终态阶梯直铺
         self, ctx: TaskCtx, *, share: bool = False
     ) -> None:
         """compiling：en/zh 双侧编译 + zh-src.zip + dual.json + 终态。
@@ -202,19 +231,12 @@ class _Compile:
         cross_adopted = bool((ctx.fixloop or {}).get("cross_engine", {}).get("adopted"))
         if reject_verdict(verdict) and not cross_adopted:
             await self._to_thread(ctx, self._build_md_zip)
-            detail: dict[str, Any] = {}
-            if ctx.precheck:
-                detail["precheck"] = ctx.precheck
-            if ctx.l2:
-                detail["l2"] = ctx.l2
-            if ctx.fixloop:
-                detail["fixloop"] = ctx.fixloop
             self._reject(
                 ctx,
                 "fixloop_reject",
                 f"fixloop policy reject: {verdict}",
                 reject_at="fixloop",
-                detail=detail or None,
+                detail=_repair_detail(ctx) or None,
             )
             await self._maybe_share_pack(ctx)
             return
@@ -228,14 +250,7 @@ class _Compile:
                 "message": "有 pdf 但判据未全绿或块级失败",
                 "retryable": True,
             }
-            if ctx.share:
-                err["share"] = ctx.share
-            if ctx.precheck:
-                err["precheck"] = ctx.precheck
-            if ctx.l2:
-                err["l2"] = ctx.l2
-            if ctx.fixloop:
-                err["fixloop"] = ctx.fixloop
+            err.update(_repair_detail(ctx, include_share=True))
         else:
             await self._no_pdf_finish(ctx, share=share)
             await self._maybe_share_pack(ctx)
@@ -283,20 +298,14 @@ class _Compile:
         error_json 落库供 triage。
         """
         await self._to_thread(ctx, self._build_md_zip)
-        detail: dict[str, Any] = {}
-        if ctx.precheck:
-            detail["precheck"] = ctx.precheck
-        if ctx.l2:
-            detail["l2"] = ctx.l2
-        if ctx.fixloop:
-            detail["fixloop"] = ctx.fixloop
+        detail = _repair_detail(ctx) or None
         if share:
             self._reject(
                 ctx,
                 "share_verify",
                 "share zh compile: no pdf",
                 reject_at="share_verify",
-                detail=detail or None,
+                detail=detail,
             )
             return
         self._fail(
@@ -305,7 +314,7 @@ class _Compile:
             "zh compile: no pdf",
             retryable=True,
             stage="compiling",
-            detail=detail or None,
+            detail=detail,
         )
 
     def _has_pdf(self, ctx: TaskCtx, kind: str) -> bool:
@@ -321,12 +330,7 @@ class _Compile:
             shutil.rmtree(ctx.zh_dir)
         shutil.copytree(ctx.base_dir, ctx.zh_dir)
         rows = self._on_loop(self._all_chunks, ctx)
-        trans = {
-            r["chunk_id"]: r["translation"]
-            for r in rows
-            if delivered_db(r["status"], r["translation"])
-        }
-        trans = self._env_judge_filter(ctx, trans, rows)
+        trans = self._env_judge_filter(ctx, _delivered_map(rows), rows)
         n_files = 0
         for rel, res in ctx.scans.items():
             self._abort_if_cancelled(ctx)  # 逐文件 reconstruct——大工程秒级段
@@ -381,13 +385,17 @@ class _Compile:
             eng.texmfhome = ctx.root / "_texmf"  # type: ignore[attr-defined]
         return eng
 
+    def _new_engine(self, ctx: TaskCtx, name: str, **kw: object) -> Engine:
+        """引擎构造单点：factory 注入优先，否则 ``seams.engine_for``——两路都过 ``_task_texmf``。"""
+        if self._engine_factory is not None:
+            return self._task_texmf(ctx, self._engine_factory(name))
+        return self._task_texmf(ctx, seams.engine_for(name, **kw))
+
     def _engine(self, ctx: TaskCtx) -> Engine:
         """按注入面/默认构造引擎（xelatex 走 best-effort nonstopmode）。"""
         eng = ctx.engine_name or "tectonic"
-        if self._engine_factory is not None:
-            return self._task_texmf(ctx, self._engine_factory(eng))
         kw: dict[str, Any] = {"halt_on_error": False} if eng == "xelatex" else {}
-        return self._task_texmf(ctx, seams.engine_for(eng, **kw))
+        return self._new_engine(ctx, eng, **kw)
 
     def _probe_target(self, ctx: TaskCtx, work: Path) -> ProbeReport | None:
         r"""``target_probe`` best-effort 壳：编译前声明依赖预扫 + 信号播报。
@@ -558,9 +566,7 @@ class _Compile:
         """
         if ctx.engine_name != "xelatex":
             return eng
-        if self._engine_factory is not None:
-            return self._task_texmf(ctx, self._engine_factory("xelatex"))
-        return self._task_texmf(ctx, seams.engine_for("xelatex", halt_on_error=True))
+        return self._new_engine(ctx, "xelatex", halt_on_error=True)
 
     def _repair_event(self, ctx: TaskCtx, etype: str, payload: dict[str, Any]) -> None:
         """修复链实况帧发布：``bus.publish`` 经 ``_on_loop`` 回弹 + BYOK 秘钥 scrub。
@@ -724,11 +730,8 @@ class _Compile:
             # retry 是交付路径终末重编（非轮内分类编译），nonstopmode
             # 续跑才能把 incumbent=fail 的树救成 partial（裁决见
             # tmp/b8-e2e/halt-on-error-ruling.md）
-            make_engine=lambda: self._task_texmf(
-                ctx,
-                self._engine_factory("xelatex")
-                if self._engine_factory is not None
-                else seams.engine_for("xelatex", halt_on_error=False),
+            make_engine=lambda: self._new_engine(
+                ctx, "xelatex", halt_on_error=False
             ),
             should_cancel=ctx.cancel_flag.is_set,
         )
@@ -793,19 +796,21 @@ class _Compile:
         ctx: TaskCtx,
         usage: dict[str, Any] | None,
         clients: list[ChatClient],
+        *,
+        tag: str = "llm_hook",
     ) -> None:
-        """escalate_llm 旁路收尾：已发调用落账 + factory 路径 client 关闭。"""
-        # escalate_llm 烧的是 BYOK token——崩溃/早退也把已发调用落账
+        """LLM 旁路臂收尾：已发调用落账 + factory 路径 client 关闭（``tag`` 标来源臂）。"""
+        # 各旁路臂烧的都是 BYOK token——崩溃/早退也把已发调用落账
         if usage is not None:
             try:
                 self._persist_usage(ctx, usage)
             except Exception:
-                log.debug("llm_hook usage persist failed", exc_info=True)
+                log.debug("%s usage persist failed", tag, exc_info=True)
         if clients:
             try:
                 asyncio.run(seams._aclose_clients(clients))  # noqa: SLF001 -- seams 缝
             except Exception:
-                log.debug("llm_hook client aclose failed", exc_info=True)
+                log.debug("%s client aclose failed", tag, exc_info=True)
 
     def _l2_run_state(self, ctx: TaskCtx, work: Path) -> tuple[TreeRun, dict[str, str]]:
         """``repair_l2.TreeRun`` 形态重建：scans 指向 work 内文件 + trans/chunk_ins。
@@ -814,11 +819,7 @@ class _Compile:
         ``db_of`` 是 ``"fidx:cid"`` → chunks.chunk_id 的 DB 回写映射。
         """
         self._abort_if_cancelled(ctx)
-        ok = {
-            r["chunk_id"]: r["translation"]
-            for r in self._on_loop(self._all_chunks, ctx)
-            if delivered_db(r["status"], r["translation"])
-        }
+        ok = _delivered_map(self._on_loop(self._all_chunks, ctx))
         rels = sorted(ctx.scans)
         trans: dict[int, dict[int, str]] = {}
         chunk_ins: dict[str, ChunkIn] = {}
@@ -945,18 +946,10 @@ class _Compile:
                 baseline_sigs=self._en_err_sigs(ctx),
             )
         finally:
-            # L2 重译也烧 token——不入账就从 task_usage 里蒸发
-            try:
-                self._persist_usage(ctx, usage)
-            except Exception:
-                log.debug("l2 usage persist failed", exc_info=True)
-            if clients:
-                # 未走到 _retr 的早退（localize 即崩）——未用 client 在新
-                # loop 上关是平凡路径；_retr 跑过的已自清清单跳过
-                try:
-                    asyncio.run(seams._aclose_clients(clients))  # noqa: SLF001 -- seams 缝
-                except Exception:
-                    log.debug("l2 client aclose failed", exc_info=True)
+            # L2 重译也烧 token——不入账就从 task_usage 里蒸发；clients
+            # 非空=未走到 _retr 的早退（localize 即崩），_retr 跑过的已
+            # clear 由 helper 内 ``if clients`` 跳过
+            self._teardown_llm_hook(ctx, usage, clients, tag="l2")
         if v2 is not None:
             self._l2_writeback(ctx, run, db_of, rep)
             n = _sync_fixed_sources(work, ctx.zh_dir)
@@ -1093,7 +1086,7 @@ class _Compile:
             work,
             ctx.main_rel,
             timeout=self._compile_timeout,
-            flags=list(dict.fromkeys([*ctx.probe_flags, *flags])) or None,
+            flags=merge_flags(ctx.probe_flags, flags),
             expect_cjk=ctx.expect_cjk,
             should_cancel=ctx.cancel_flag.is_set,
             after_compile=lambda _r: self._abort_if_cancelled(ctx),
@@ -1271,9 +1264,7 @@ class _Compile:
                 # 不让单格 atomic_json TypeError 挡掉 dual.json 落盘；
                 # 非 ok 行（fallback_orig 装的是 en 原文回写）zh 位留空——
                 # 原文进 zh 槽会让 share 对账把英文当译文 ok 落库续传
-                "zh": r["translation"]
-                if r["status"] == "ok" and isinstance(r["translation"], str)
-                else "",
+                "zh": zh_slot(r),
                 "kind": r["kind"],
                 "status": str(r["status"]),
             }
@@ -1294,11 +1285,9 @@ class _Compile:
         """
         self._abort_if_cancelled(ctx)
         rows = self._on_loop(self._all_chunks, ctx)
-        # 同 dual.json zh 位口径——非 ok 行（fallback_orig/failed 装 en
-        # 原文回写）不算译文载荷，全非 ok 即「零译文不产」
-        if not rows or not any(
-            delivered_db(r["status"], r["translation"]) for r in rows
-        ):
+        # 同 dual.json zh 位口径——非 ok/非 str 译文行不算译文载荷，
+        # zh 槽全空即「零译文不产」
+        if not rows or not any(zh_slot(r) for r in rows):
             return
         by_file: dict[str, list[dict[str, Any]]] = {}
         for r in rows:
@@ -1309,7 +1298,7 @@ class _Compile:
                 parts = [
                     f"<!-- chunk:{r['seq']} kind:{r['kind']} -->\n\n"
                     f"{r['src_text']}\n\n---\n\n"
-                    f"{r['translation'] if r['status'] == 'ok' and isinstance(r['translation'], str) else ''}\n"
+                    f"{zh_slot(r)}\n"
                     for r in sorted(by_file[src_file], key=lambda x: int(x["seq"]))
                 ]
                 zf.writestr(_md_member(src_file, seen), "\n".join(parts))

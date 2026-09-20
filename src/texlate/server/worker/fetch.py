@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import shutil
 import sqlite3
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from texlate.arxiv.cache import (
     SourceCache,
@@ -36,6 +37,11 @@ from ._common import (
     _StageError,
     cache_key_for,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+
+    from texlate.arxiv.fetch import Fetcher
 
 
 class _Fetch:
@@ -87,13 +93,14 @@ class _Fetch:
         """``acquire_source`` → extracted → ``src/``；raw blob → ``src.tar``。"""
         self._abort_if_cancelled(ctx)
         arxiv_id = str(ctx.row["arxiv_id"])
-        cache = self._src_cache or SourceCache(self.data_dir / "src-cache")
-        own_fetcher = self._fetcher is None
-        fetcher = self._fetcher or seams.Fetcher(
-            RateLimiter(cache.root / "ratelimit.json")
-        )
-        try:
-            res = seams.acquire_source(arxiv_id, fetcher=fetcher, cache=cache)
+        with self._borrow_fetcher() as (fetcher, cache):
+            res = seams.acquire_source(
+                arxiv_id,
+                fetcher=fetcher,
+                # 注入 fetcher 臂 yield 的 cache 可 None——acquire_source
+                # 必用实体 SourceCache，惰性兜底（html 臂不取即零构造）
+                cache=cache or self._source_cache(),
+            )
             self._abort_if_cancelled(ctx)  # 网络段跑完先收敛——拷贝/登记是白费
             if res.status not in (AcquireStatus.OK, AcquireStatus.HIT):
                 code = (
@@ -113,22 +120,7 @@ class _Fetch:
                 "arxiv_id": f"{entry.arxiv_id}v{entry.resolved_version}",
                 "title": str(entry.meta.get("title") or ""),
             }
-            # cache meta.json 无 categories——单独 Atom/OAI 拉一次喂
-            # glossary category 层；best-effort，挂了只丢该层术语
-            try:
-                meta = seams.fetch_metadata(arxiv_id, fetcher=fetcher)
-            except Exception as e:  # noqa: BLE001 -- 元数据臂不拦主链
-                self._log(ctx, f"arxiv meta: {type(e).__name__}: {e}")
-                meta = None
-            if meta is not None:
-                cats = [
-                    c
-                    for c in dict.fromkeys([meta.primary_category, *meta.categories])
-                    if c
-                ]
-                if cats:
-                    # set_option 同步 ctx.row 内存面——防 _build_base 写回丢键
-                    fields["options_json"] = ctx.set_option("arxiv_categories", cats)
+            fields.update(self._arxiv_meta_fields(ctx, arxiv_id, fetcher=fetcher))
             self._on_loop(self.store.update_fields, ctx.task_id, **fields)
             if self._post_resolve_reuse(ctx, entry.arxiv_id, entry.resolved_version):
                 return  # 钉版键命中已完成任务——产物物化由 _stage_fetch 接管
@@ -142,10 +134,67 @@ class _Fetch:
                 self._register(ctx, "src_tar", "src.tar")
             for w in res.warnings:
                 self._log(ctx, f"fetch warn: {w}")
+
+    def _source_cache(self) -> SourceCache:
+        """``self._src_cache`` 缺省 ``data_dir/src-cache``——惰性建并回填。
+
+        首调建默认实例并回填 ``self._src_cache``，后调同实例复用——
+        ``RateLimiter`` 状态文件与 ``acquire_source`` 钉版缓存同根。
+        """
+        if self._src_cache is None:
+            self._src_cache = SourceCache(self.data_dir / "src-cache")
+        return self._src_cache
+
+    @contextmanager
+    def _borrow_fetcher(self) -> Iterator[tuple[Fetcher, SourceCache | None]]:
+        """Fetch 臂 fetcher/cache 借还：yield ``(fetcher, cache)``。
+
+        ``self._fetcher`` 注入时归调用方所有——出块不 ``close``，此时
+        ``cache`` 原样回 ``self._src_cache``（可 ``None``：html 臂唯一
+        cache 用途是自建 fetcher 的 RateLimiter 状态文件，注入时建默认
+        SourceCache 是死构造——``acquire_source`` 臂按需
+        ``_source_cache()`` 自取）。未注入则自建
+        ``seams.Fetcher(RateLimiter(cache.root/"ratelimit.json"))``，
+        出块随任务关连接池（own/close 纪律同原双臂——
+        ``TestFetcherOwnership``）。
+        """
+        own = self._fetcher is None
+        cache = self._src_cache
+        fetcher = self._fetcher
+        if own:
+            cache = self._source_cache()
+            fetcher = seams.Fetcher(RateLimiter(cache.root / "ratelimit.json"))
+        try:
+            yield fetcher, cache
         finally:
             # 自建实例随任务关连接池；注入的 self._fetcher 归调用方所有
-            if own_fetcher:
+            if own:
                 fetcher.close()
+
+    def _arxiv_meta_fields(
+        self, ctx: TaskCtx, arxiv_id: str, *, fetcher: Fetcher
+    ) -> dict[str, Any]:
+        """``fetch_metadata`` → ``arxiv_categories`` 的 ``options_json`` 增量字段。
+
+        cache meta.json 无 categories——单独 Atom/OAI 拉一次喂 glossary
+        category 层；best-effort：挂了/meta 空/cats 空一律 ``{}``，只丢
+        该层术语不拦主链（eprint/html 两臂同口径）。命中经 ``set_option``
+        同步 ``ctx.row`` 内存面——防 ``_build_base`` 写回丢键；落库
+        ``update_fields`` 归调用点（``fields`` 合并其它列一笔写）。
+        """
+        try:
+            meta = seams.fetch_metadata(arxiv_id, fetcher=fetcher)
+        except Exception as e:  # noqa: BLE001 -- 元数据臂不拦主链
+            self._log(ctx, f"arxiv meta: {type(e).__name__}: {e}")
+            return {}
+        if meta is None:
+            return {}
+        cats = [
+            c for c in dict.fromkeys([meta.primary_category, *meta.categories]) if c
+        ]
+        if not cats:
+            return {}
+        return {"options_json": ctx.set_option("arxiv_categories", cats)}
 
     def _post_resolve_reuse(
         self,

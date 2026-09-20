@@ -6,9 +6,10 @@
 from __future__ import annotations
 
 import argparse
-import os
 import sys
 from pathlib import Path
+
+from texlate.textutil import DEFAULT_BIND_HOST, DEFAULT_BIND_PORT, set_data_dir
 
 #: TCP 端口上限
 _PORT_MAX = 65535
@@ -30,8 +31,8 @@ def _port(s: str) -> int:
 def main() -> None:
     """解析参数 → ``uvicorn.run(create_app(...))``。"""
     parser = argparse.ArgumentParser(prog="texlate.server")
-    parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=_port, default=8765)
+    parser.add_argument("--host", default=DEFAULT_BIND_HOST)
+    parser.add_argument("--port", type=_port, default=DEFAULT_BIND_PORT)
     parser.add_argument(
         "--data-dir",
         default="",
@@ -39,22 +40,18 @@ def main() -> None:
     )
     args = parser.parse_args()
     if args.data_dir:
-        os.environ["TEXLATE_DATA_DIR"] = str(Path(args.data_dir).expanduser())
+        set_data_dir(Path(args.data_dir))
 
     import uvicorn  # noqa: PLC0415 -- server extra 延迟导入
 
     from texlate.logsetup import configure_server_logging  # noqa: PLC0415
-    from texlate.server.app import _loopback_bind, create_app  # noqa: PLC0415
+    from texlate.server.app import _exposed_bind_warning, create_app  # noqa: PLC0415
     from texlate.server.settings import data_dir as _data_dir  # noqa: PLC0415
-    from texlate.server.settings import server_mode  # noqa: PLC0415
 
-    if server_mode() != "server" and not _loopback_bind(args.host):
-        # local 形态 API 无鉴权（Host 闸只防 DNS rebinding）——非回环绑定
-        # 把建任务/PUT settings/读产物暴露给整个可达网段
+    warning = _exposed_bind_warning(args.host)
+    if warning is not None:
         print(  # noqa: T201 -- __main__ 无 typer 依赖，stderr 直写
-            f"警告：--host {args.host} 非回环绑定，local 形态 API 无鉴权——"
-            "可达网段内任何人可建任务/改 settings；多租户部署请用"
-            " TEXLATE_MODE=server（X-Texlate-Key 鉴权）",
+            warning,
             file=sys.stderr,
         )
     configure_server_logging(_data_dir())

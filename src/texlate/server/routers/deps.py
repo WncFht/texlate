@@ -8,6 +8,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import shutil
 import sqlite3
 from collections import OrderedDict
 from dataclasses import dataclass, field
@@ -19,7 +21,7 @@ from texlate.pipecore import front_matter_of
 from texlate.server.http import _ApiError
 from texlate.server.settings import AuthContext, resolve_auth, server_mode
 from texlate.server.store import new_task_id, valid_task_id
-from texlate.server.worker import Secrets, cache_key_for
+from texlate.server.worker import Secrets, artifact_urls, cache_key_for
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -88,6 +90,22 @@ class AppDeps:
         """重决议凭证 → 内存 ``Secrets``（retry/enqueue 用）。"""
         auth = self.auth(request)
         return Secrets.from_auth(auth, model=str(row["model"]))
+
+    def task_dir(self, task_id: str) -> Path:
+        """任务产物目录 ``root/tasks/<task_id>``——单源防各叶手拼漂移。"""
+        return self.root / "tasks" / task_id
+
+    async def drop_task_dir(self, task_id: str) -> None:
+        """任务目录 rmtree（``ignore_errors``）——GB 级产物树重 I/O 卸出 loop。"""
+        await asyncio.to_thread(
+            shutil.rmtree, self.task_dir(task_id), ignore_errors=True
+        )
+
+    def snapshot(self, task_id: str) -> dict[str, Any]:
+        """§2.2 快照 + 产物 URL 映射——``store.snapshot`` 与 ``artifact_urls`` 的固定组合。"""
+        return self.store.snapshot(
+            task_id, artifacts=artifact_urls(self.store, task_id)
+        )
 
     def check_quota(
         self, auth: AuthContext, incoming_bytes: int, peer: str = ""
@@ -241,21 +259,22 @@ class AppDeps:
             "engine": str(options.get("engine") or "auto"),
             "concurrency": int(options.get("concurrency") or 3),
         }
+        kw: dict[str, Any] = {
+            "task_id": tid,
+            "kind": kind,
+            "target_lang": target_lang,
+            "model": model,
+            "arxiv_id": arxiv_id,
+            "source_name": source_name,
+            "title": title,
+            "config": config,
+            "options": options,
+            "auth_source": auth.source,
+            "tenant": auth.tenant,
+            "cache_key": cache_key,
+        }
         try:
-            row = store.create_task(
-                task_id=tid,
-                kind=kind,
-                target_lang=target_lang,
-                model=model,
-                arxiv_id=arxiv_id,
-                source_name=source_name,
-                title=title,
-                config=config,
-                options=options,
-                auth_source=auth.source,
-                tenant=auth.tenant,
-                cache_key=cache_key,
-            )
+            row = store.create_task(**kw)
         except sqlite3.IntegrityError:
             if prefer != "fresh":
                 # 检查-建行之间并发插入撞 ACTIVE 唯一索引——归 duplicate_active
@@ -270,20 +289,8 @@ class AppDeps:
                     body["task_id"] = active["id"]
                 raise _ApiError(409, body) from None
             # fresh：cache_key 撞活跃行——放弃 dedup 键强行新建（§2.1）
-            row = store.create_task(
-                task_id=tid,
-                kind=kind,
-                target_lang=target_lang,
-                model=model,
-                arxiv_id=arxiv_id,
-                source_name=source_name,
-                title=title,
-                config=config,
-                options=options,
-                auth_source=auth.source,
-                tenant=auth.tenant,
-                cache_key=None,
-            )
+            kw["cache_key"] = None
+            row = store.create_task(**kw)
         self.runner.enqueue(
             tid,
             Secrets.from_auth(auth, model=model),

@@ -7,27 +7,13 @@ from __future__ import annotations
 
 import json
 import time
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
-from texlate.server.store._common import _WARNINGS_CAP, EVENT_CAP
-
-if TYPE_CHECKING:
-    import sqlite3
-
-    from texlate.server.store import Store
+from texlate.server.store._common import _WARNINGS_CAP, EVENT_CAP, _Repo
 
 
-class EventRepo:
+class EventRepo(_Repo):
     """task_events 表聚合。构造只存门面回指——连接在 ``open()`` 后才可用。"""
-
-    def __init__(self, store: Store) -> None:
-        """回指门面（conn 惰性经 ``store.conn`` 取，断言即未 open 契约）。"""
-        self._s = store
-
-    @property
-    def conn(self) -> sqlite3.Connection:
-        """门面共享连接——repo 不持有独立连接（单写者纪律由 Store 持有）。"""
-        return self._s.conn
 
     def append_event(self, task_id: str, etype: str, data: dict[str, Any]) -> int:
         """事件落盘 → 分配递增 seq；同事务滚动截断到 EVENT_CAP。

@@ -47,6 +47,13 @@ from texlate.server.worker import seams
 #: × KB 级段文本 ≈ 个位数 MB）仍有数倍余量，超此即按坏包拒。
 _DUAL_JSON_MAX = 32 << 20
 
+#: options/settings 布尔读共用的 false 系词表——``""`` 含内（opt-in 闸
+#: 空串按关判才安全；``settings._load_bool`` 同向）。``_common.opt_bool``
+#: /``pipecore._opt_switch``/``_llm_hook_pack`` 现漏 ``""`` 待统一——
+#: 单源目标位 ``texlate.textutil.osutil``（``_TRUE_WORDS`` 邻居），
+#: 上移前暂落本模块。
+OPTION_FALSE_WORDS = frozenset({"", "0", "false", "no", "off"})
+
 
 def _share_pool(raw: list[object]) -> dict[tuple[str, str], deque[str]]:
     """包内 dual chunks → ``(src_file, en)`` → zh 队列（重复段按序消费）。
@@ -375,18 +382,23 @@ class _Share:
     # ------------------------------------------------------------ share 打包钩
 
     def _share_pack_opt_in(self, ctx: TaskCtx) -> bool:
-        """``options.share_pack`` 真值判定（bool 直读；字符串按 ``0/false/no/off`` 系判假）。"""
+        """``options.share_pack`` 真值判定（bool 直读；字符串按 ``OPTION_FALSE_WORDS`` 判假——``""`` 含内）。
+
+        ``opt_bool`` 统一 ``""`` 判假后可塌缩成
+        ``opt_bool(ctx.options(), "share_pack", lambda: False)``——当前
+        两臂对 ``""`` 判定相反，直委托会把 opt-in 闸开回去。
+        """
         v = ctx.options().get("share_pack")
         if v is None or isinstance(v, bool):
             return bool(v)
-        return str(v).strip().lower() not in ("", "0", "false", "no", "off")
+        return str(v).strip().lower() not in OPTION_FALSE_WORDS
 
     def _share_glossary_hash(self, ctx: TaskCtx, cfg: Mapping[str, Any]) -> str:
         """``glossary_hash`` 组分：翻译时**生效**的自定义术语层内容复合指纹。
 
         口径对齐 ``_make_glossary``：配置的 ``glossary`` 路径经
         ``_glossary_path`` confine——拒/缺席即与翻译时同态回落
-        ``USER_GLOSSARY_PATH``（``Glossary.load`` 的缺省 user 层）；
+        ``user_glossary_path``（``Glossary.load`` 的缺省 user 层）；
         local 层 ``base/glossary.local.yaml`` 恒进指纹。category/default
         内建层随 ``pipeline_ver`` 走不进指纹（cli ``_share_glossary_hash``
         同口径）。无自定义层 → ``""``。指纹口径单源在
@@ -404,7 +416,7 @@ class _Share:
         return glossary_content_hash(
             user_layer=gfile,
             local_layer=local,
-            fallback_user=seams.USER_GLOSSARY_PATH,
+            fallback_user=seams.user_glossary_path(),
             strict_layers=frozenset(f for f in (gfile, local) if f is not None),
         )
 

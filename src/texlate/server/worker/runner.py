@@ -7,6 +7,7 @@ import logging
 import secrets as secrets_mod
 import time
 from dataclasses import dataclass
+from functools import partial
 from typing import TYPE_CHECKING
 
 from texlate.server.settings import (
@@ -20,6 +21,9 @@ from ._common import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Callable, Coroutine
+    from typing import Any
+
     from texlate.server.events import EventBus
     from texlate.server.store import Store
     from texlate.server.worker import PipelineWorker
@@ -230,32 +234,17 @@ class TaskRunner:
                 if row is None or row["status"] != "queued":
                     self.secrets.pop(task_id, None)
                     continue
-                sec = self.secrets.get(task_id) or Secrets(model=str(row["model"]))
-                ctx = TaskCtx(
-                    store=self.store,
-                    bus=self.bus,
-                    task_id=task_id,
-                    row=row,
-                    secrets=sec,
-                    root=self.worker.data_dir / "tasks" / task_id,
-                )
+                sec = self.secrets.get(task_id)
                 self.store.claim(task_id, self.worker_id)
-                task = asyncio.create_task(
-                    self.worker.run(ctx), name=f"texlate-task-{task_id}"
-                )
-                self._current = (task_id, ctx, task)
                 try:
-                    await task
-                except asyncio.CancelledError:
-                    # 子任务 cancel（cancel_running/stop 撤 _current）正常吞;
-                    # dispatcher 自身被 cancel 必须重抛——否则循环回
-                    # queue.get() 死等,stop() 的 await dispatcher 永久挂起
-                    if asyncio.current_task().cancelling() > 0:
-                        raise
-                except Exception:
-                    log.exception("worker escaped for %s", task_id)
+                    await self._run_slot(
+                        task_id,
+                        row,
+                        sec,
+                        self.worker.run,
+                        f"texlate-task-{task_id}",
+                    )
                 finally:
-                    self._current = None
                     self.secrets.pop(task_id, None)
             except Exception:
                 # 前置段（store.get/claim/ctx 构造）的 DB/IO 异常——透出会把
@@ -318,6 +307,41 @@ class TaskRunner:
         except Exception:
             log.exception("dispatch fault transition failed for %s", task_id)
 
+    async def _run_slot(
+        self,
+        task_id: str,
+        row: dict[str, Any],
+        secrets: Secrets | None,
+        coro_fn: Callable[[TaskCtx], Coroutine[Any, Any, None]],
+        name: str,
+    ) -> None:
+        """串行槽共用协议：建 ctx → spawn 命名子任务 → await 带 cancel 路由。
+
+        子任务 cancel（``cancel_running``/``stop`` 撤 ``_current``）正常吞；
+        dispatcher 自身被 cancel 必须重抛——否则循环回 ``queue.get()`` 死等，
+        ``stop()`` 的 await dispatcher 永久挂起。``_current`` 出槽即清；
+        ``name`` 兼作 escaped 日志标签（``texlate-task-*``/``texlate-retr-*``）。
+        """
+        ctx = TaskCtx(
+            store=self.store,
+            bus=self.bus,
+            task_id=task_id,
+            row=row,
+            secrets=secrets or Secrets(model=str(row["model"])),
+            root=self.worker.data_dir / "tasks" / task_id,
+        )
+        task = asyncio.create_task(coro_fn(ctx), name=name)
+        self._current = (task_id, ctx, task)
+        try:
+            await task
+        except asyncio.CancelledError:
+            if asyncio.current_task().cancelling() > 0:
+                raise
+        except Exception:
+            log.exception("%s escaped for %s", name, task_id)
+        finally:
+            self._current = None
+
     async def _retranslate_job(self, job: _RetranslateJob) -> None:
         """终态任务单块重译——占同一串行槽 + ``_current`` 心跳/取消面。
 
@@ -332,29 +356,13 @@ class TaskRunner:
             row = self.store.get(task_id)
             if row is None or row["status"] not in ("done", "partial"):
                 return
-            ctx = TaskCtx(
-                store=self.store,
-                bus=self.bus,
-                task_id=task_id,
-                row=row,
-                secrets=job.secrets or Secrets(model=str(row["model"])),
-                root=self.worker.data_dir / "tasks" / task_id,
+            await self._run_slot(
+                task_id,
+                row,
+                job.secrets,
+                partial(self.worker.run_retranslate, seq=job.seq),
+                f"texlate-retr-{task_id}-{job.seq}",
             )
-            task = asyncio.create_task(
-                self.worker.run_retranslate(ctx, job.seq),
-                name=f"texlate-retr-{task_id}-{job.seq}",
-            )
-            self._current = (task_id, ctx, task)
-            try:
-                await task
-            except asyncio.CancelledError:
-                # 与主任务支同口径：子任务 cancel 吞，自身 cancel 重抛
-                if asyncio.current_task().cancelling() > 0:
-                    raise
-            except Exception:
-                log.exception("retranslate escaped for %s", task_id)
-            finally:
-                self._current = None
         except asyncio.CancelledError:
             raise
         except Exception:

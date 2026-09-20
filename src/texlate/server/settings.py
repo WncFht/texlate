@@ -41,6 +41,7 @@ from urllib.parse import urlsplit
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+from texlate.compile.engine import DEFAULT_TIMEOUT, ENGINE_NAMES
 from texlate.server.auth import (  # noqa: F401 -- auth 关切出叶，属性面守恒
     _SALT_LOCK,
     BYOK_FIELDS,
@@ -94,12 +95,14 @@ MAX_FILES = 4000
 TARGET_LANGS = frozenset({"zh-CN", "zh-TW", "en"})
 
 #: 编译引擎白名单（``_normalize_updates`` 与 ``load`` 容错回落同口径；
-#: app 侧 ``_ENGINE_NAMES`` 是 options 入参闸的并行拷贝）
-ENGINES = frozenset({"auto", "xelatex", "tectonic"})
+#: 单源 ``compile.engine.ENGINE_NAMES``，app 侧 ``_ENGINE_NAMES`` 同件转口）
+ENGINES = ENGINE_NAMES
 
-#: 编译超时秒数：默认与上限同 worker ``_env_timeout`` 域
-#: （``_ENV_TIMEOUT_MAX_S``=86400 镜像——settings 不反向 import worker 防环）
-DEFAULT_COMPILE_TIMEOUT_S = 240.0
+#: 编译超时秒数：默认单源 ``compile.engine.DEFAULT_TIMEOUT``（docs/spec/
+#: compile.md）经 engine facade 转口；上限仍本地镜像 worker ``_env_timeout``
+#: 域（``_ENV_TIMEOUT_MAX_S``=86400——settings 不反向 import worker 防环），
+#: 待 hoist 至 ``compile/engine/_base.py`` 后与默认值同槽转口
+DEFAULT_COMPILE_TIMEOUT_S = DEFAULT_TIMEOUT
 COMPILE_TIMEOUT_MAX_S = 86400.0
 
 #: 探活清单 TTL——同 endpoint 连续 ``save`` 不重复打 ``/models``
@@ -262,7 +265,7 @@ def _check_compile_timeout(value: object) -> float:
     try:
         return max(1.0, min(COMPILE_TIMEOUT_MAX_S, float(value)))  # type: ignore[arg-type]
     except (TypeError, ValueError, OverflowError):
-        msg = "compile_timeout 须为可转数值的秒数（clamp 1–86400）"
+        msg = f"compile_timeout 须为可转数值的秒数（clamp 1–{COMPILE_TIMEOUT_MAX_S:g}）"
         raise ValueError(msg) from None
 
 
@@ -333,14 +336,14 @@ def _load_quota(value: object) -> int:
 
 
 def _load_concurrency(value: object) -> int:
-    """``concurrency`` 容错读：非法值 → 3。
+    """``concurrency`` 容错读：非法值 → 3；clamp 1–16 与写径 ``_check_concurrency`` 同域。
 
     ``load()`` 其余字段的强转（``str``/``bool``）永不炸——唯一会抛的是
     本项 ``int()``；手改文件留个 ``"abc"`` 会炸穿 ``load()`` 连带全部
     ``_auth``/settings 端点 500，与 ``_load_quota`` 同口径容错回落。
     """
     try:
-        return max(1, int(value or 3))
+        return max(1, min(16, int(value or 3)))
     except (TypeError, ValueError, OverflowError):
         return 3
 
@@ -571,24 +574,26 @@ class SettingsStore:
         if not values.get("api_key"):
             values.pop("api_key", None)
         merged = old | values
+        # connections.json 单读共用：api_key/dialect 槽位找回与下方回写吃
+        # 同一快照——分次读在 ``_save_lock`` 内付重复读盘+parse，且槽位
+        # 查找与回写可能观测到不同内容
+        conns = self.connections()
         if "api_key" not in values and merged["base_url"] != old["base_url"]:
             # 换 endpoint 未带 key → 找回新 endpoint 槽位历史 key。
             # 只改 merged——old 动不得：下方 conns 回写按 cfg.base_url
             # 分槽，old.api_key 若被换成新 endpoint 的 key，旧槽会被
             # 错写（切回旧 endpoint 时把新 key 发给它）。
             merged["api_key"] = (
-                self.connections().get(str(merged["base_url"]), {}).get("api_key") or ""
+                conns.get(str(merged["base_url"]), {}).get("api_key") or ""
             )
         if "dialect" not in values and merged["base_url"] != old["base_url"]:
             # 换 endpoint 未带 dialect → 找回新槽位历史值（缺槽归 auto）——
             # 方言是端点属性，残留旧值会把 openai 请求打向 responses-only 端点
             merged["dialect"] = (
-                self.connections().get(str(merged["base_url"]), {}).get("dialect")
-                or "auto"
+                conns.get(str(merged["base_url"]), {}).get("dialect") or "auto"
             )
         if clear_key:
             merged["api_key"] = ""
-        conns = self.connections()
         for cfg in (old, merged):
             conns.pop(cfg["base_url"], None)
             conns[cfg["base_url"]] = {slot: cfg[slot] for slot in _CONNECTION_SLOTS}

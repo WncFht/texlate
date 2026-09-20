@@ -3,25 +3,13 @@
 from __future__ import annotations
 
 import time
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
-if TYPE_CHECKING:
-    import sqlite3
-
-    from texlate.server.store import Store
+from texlate.server.store._common import _Repo
 
 
-class UsageRepo:
+class UsageRepo(_Repo):
     """task_usage 表聚合。构造只存门面回指——连接在 ``open()`` 后才可用。"""
-
-    def __init__(self, store: Store) -> None:
-        """回指门面（conn 惰性经 ``store.conn`` 取，断言即未 open 契约）。"""
-        self._s = store
-
-    @property
-    def conn(self) -> sqlite3.Connection:
-        """门面共享连接——repo 不持有独立连接（单写者纪律由 Store 持有）。"""
-        return self._s.conn
 
     def record_usage(  # noqa: PLR0913 -- usage 聚合五元组是 spec 定案字段
         self,

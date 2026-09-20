@@ -63,10 +63,37 @@ def _check_upload_route(route: str, babeldoc: str | None, filename: str) -> None
         )
 
 
-def _upload_fields(
-    request: Request, form: dict[str, str | UploadPart], deps: AppDeps
-) -> tuple[str, str, dict[str, Any]]:
-    """表单字段 → ``(model, target_lang, options)``；非法 → ``_ApiError``。"""
+def _discard_part(file: UploadPart) -> None:
+    """spool 件兜底清理——已 rename 走则 ``unlink`` no-op，仍躺 spool 收掉。
+
+    ``UploadPart.discard()`` 的本地件（share.py 同款 finally 幂等清理）——
+    待 hoist 至 ``server/http.py`` 两域共吃。
+    """
+    with suppress(OSError):
+        file.path.unlink(missing_ok=True)
+
+
+def _require_file_part(form: dict[str, str | UploadPart]) -> UploadPart:
+    """``file`` 字段闸：缺席/非文件字段 → 400；空文件收掉 spool 件后 → 400。"""
+    file = form.get("file")
+    if not isinstance(file, UploadPart):
+        raise _ApiError(
+            400,
+            {
+                "detail": "multipart field 'file' required",
+                "code": "invalid_request",
+            },
+        )
+    if file.size == 0:
+        _discard_part(file)
+        raise _ApiError(
+            400, {"detail": "empty upload", "code": "invalid_request"}
+        )
+    return file
+
+
+def _form_options(form: dict[str, str | UploadPart]) -> dict[str, Any]:
+    """``options`` 字段 → 清洗后 dict：坏 JSON → 400；非 object → ``{}``。"""
     options_raw = _form_text(form, "options")
     try:
         options = json.loads(options_raw) if options_raw else {}
@@ -77,7 +104,14 @@ def _upload_fields(
         ) from None
     if not isinstance(options, dict):
         options = {}
-    options = _clean_task_options(options)
+    return _clean_task_options(options)
+
+
+def _upload_fields(
+    request: Request, form: dict[str, str | UploadPart], deps: AppDeps
+) -> tuple[str, str, dict[str, Any]]:
+    """表单字段 → ``(model, target_lang, options)``；非法 → ``_ApiError``。"""
+    options = _form_options(form)
     try:
         model = validate_model(_form_text(form, "model") or deps.auth(request).model)
     except ValueError as e:
@@ -105,20 +139,8 @@ def register(app: FastAPI, deps: AppDeps) -> None:
     async def upload(request: Request) -> Response:
         """Multipart 上传：魔数路由 upload_tex/upload_pdf/docx/epub（§2.4）。"""
         form = await _parse_multipart(request, deps.spool_dir)
-        file = form.get("file")
-        if not isinstance(file, UploadPart):
-            raise _ApiError(
-                400,
-                {
-                    "detail": "multipart field 'file' required",
-                    "code": "invalid_request",
-                },
-            )
+        file = _require_file_part(form)
         try:
-            if file.size == 0:
-                raise _ApiError(
-                    400, {"detail": "empty upload", "code": "invalid_request"}
-                )
             filename = file.filename or "upload.bin"
             # 魔数路由读全 blob（gzip/zip 容器判定非头字节可定）——CPU+读盘
             # 秒级，卸出事件循环；临时 bytes 不出本函数域
@@ -178,6 +200,5 @@ def register(app: FastAPI, deps: AppDeps) -> None:
                 )
             return _accepted(row, status, extra)
         finally:
-            # spool 件已 rename 走则 no-op；仍躺 spool 即本次未消费——收掉
-            with suppress(OSError):
-                file.path.unlink(missing_ok=True)
+            # 仍躺 spool 即本次未消费——收掉（已 rename 走则 no-op）
+            _discard_part(file)

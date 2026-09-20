@@ -10,7 +10,7 @@ import logging
 import sys
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from texlate.repair import resolve_glossary_path
 from texlate.repair_l2 import ENV_ENV_JUDGE, env_judge_all, unknown_env_of
@@ -68,6 +68,8 @@ if TYPE_CHECKING:
 from texlate.server.worker import seams
 
 log = logging.getLogger(__name__)
+
+_T = TypeVar("_T")
 
 
 class _Translate:
@@ -207,19 +209,11 @@ class _Translate:
         in_flight = sys.exc_info()[0] is not None
         tail_exc: Exception | None = None
         try:
-            if usage["calls"]:
-                # 有真账用真账——tokens_est 由字符估算换成 prompt+completion
-                ctx.tokens_est = usage["prompt_tokens"] + usage["completion_tokens"]
-                # buffer 空时下面的 _flush_translate 早退，tasks.tokens 滞留估算值
-                self.store.update_fields(ctx.task_id, tokens=ctx.tokens_est)
-                self.store.record_usage(
-                    ctx.task_id,
-                    model=str(usage["model"]),
-                    calls=int(usage["calls"]),
-                    prompt_tokens=int(usage["prompt_tokens"]),
-                    completion_tokens=int(usage["completion_tokens"]),
-                    latency_s=float(usage["latency_s"]),
-                )
+            # 有真账用真账——replace_est 把 tokens_est 从字符估算换成
+            # prompt+completion；buffer 空时下面 _flush_translate 早退，
+            # update_fields 不跑则 tasks.tokens 滞留估算值。本段在 loop
+            # 线程跑，_on_loop 直调即原内联写盘口径
+            self._persist_usage(ctx, usage, replace_est=True)
         except Exception as e:  # noqa: BLE001 -- 记账失败不挡数据落盘与资源释放
             tail_exc = e
             log.warning("teardown usage persist failed: %s: %s", type(e).__name__, e)
@@ -396,7 +390,7 @@ class _Translate:
             lambda: env_flag(ENV_ENV_JUDGE, default=False),
         )
 
-    def _env_judge_filter(  # noqa: C901 -- 守卫/回退阶梯平铺即 spec 的跳过面
+    def _env_judge_filter(  # 守卫/回退阶梯平铺即 spec 的跳过面
         self,
         ctx: TaskCtx,
         trans: dict[str, str],
@@ -429,31 +423,13 @@ class _Translate:
             glossary=self._make_glossary(ctx),
         )
 
-        async def _judged() -> dict[str, bool]:
-            try:
-                return await env_judge_all(pipe, targets)
-            finally:
-                # client 的用/关收进同一 ephemeral loop——拆两次 asyncio.run
-                # 会在已关 loop 上 aclose（RuntimeError 吞掉 → 连接 FD 泄漏）；
-                # 关完清空清单让外层 finally 不对已关 client 二次 aclose
-                await seams._aclose_clients(clients)  # noqa: SLF001 -- seams 缝
-                clients.clear()
-
         try:
-            verdicts = asyncio.run(_judged())
+            verdicts = self._run_ephemeral(
+                clients, lambda: env_judge_all(pipe, targets)
+            )
         finally:
             # judge 调用也烧 token——不入账就从 task_usage 里蒸发
-            try:
-                self._persist_usage(ctx, usage)
-            except Exception:
-                log.debug("env_judge usage persist failed", exc_info=True)
-            if clients:
-                # 未走到 _judged 就早退（aclose 内部未跑）——未用 client 在
-                # 新 loop 上关是平凡路径，兜底不敞口
-                try:
-                    asyncio.run(seams._aclose_clients(clients))  # noqa: SLF001 -- seams 缝
-                except Exception:
-                    log.debug("env_judge client aclose failed", exc_info=True)
+            self._teardown_bypass(ctx, usage, clients, label="env_judge")
         reverted = sorted(cid for cid, keep in verdicts.items() if not keep)
         self._log(
             ctx,
@@ -490,14 +466,15 @@ class _Translate:
     def _persist_usage(
         self, ctx: TaskCtx, usage: dict[str, Any], *, replace_est: bool = False
     ) -> None:
-        """旁路臂真实 usage 落账（``_teardown_translate`` 的旁路对应物）。
+        """真实 usage 落账唯一实现——旁路臂**累加**、唯一记账臂**替换**。
 
         旁路 meter 只数本臂调用——``tokens_est`` **累加**而非覆盖
         （覆盖会把主链真账抹成旁路小计）。ExportError/crash 早退也把
         已发调用的真账留下；``_on_loop`` 回弹使 worker 线程内的旁路臂
-        （env_judge/L2/llm_hook）也可直调。``replace_est=True`` 给唯一
-        记账臂（doc 路——est 全程只是字符估算）用真账**替换**估算，
-        口径同 ``_teardown_translate``。
+        （env_judge/L2/llm_hook）也可直调，loop 线程上的
+        ``_teardown_translate`` 则直调直写。``replace_est=True`` 给唯一
+        记账臂（translating 段/doc 路——est 全程只是字符估算）用真账
+        **替换**估算。
         """
         if not usage["calls"]:
             return
@@ -513,6 +490,52 @@ class _Translate:
             completion_tokens=int(usage["completion_tokens"]),
             latency_s=float(usage["latency_s"]),
         )
+
+    def _run_ephemeral(
+        self,
+        clients: list[ChatClient],
+        coro_fn: Callable[[], Awaitable[_T]],
+    ) -> _T:
+        """旁路臂 ephemeral-loop 消费壳：coro 与 client 关闭收进同一 ``asyncio.run``。
+
+        client 的用/关必须收进同一 ephemeral loop——拆两次 ``asyncio.run``
+        会在已关 loop 上 aclose（RuntimeError 吞掉 → 连接 FD 泄漏）；关完
+        清空清单让外层 ``_teardown_bypass`` 不对已关 client 二次 aclose。
+        """
+        async def _arm() -> _T:
+            try:
+                return await coro_fn()
+            finally:
+                await seams._aclose_clients(clients)  # noqa: SLF001 -- seams 缝
+                clients.clear()
+
+        return asyncio.run(_arm())
+
+    def _teardown_bypass(
+        self,
+        ctx: TaskCtx,
+        usage: dict[str, Any] | None,
+        clients: list[ChatClient],
+        *,
+        label: str,
+    ) -> None:
+        """旁路臂统一收尾（env_judge/L2/llm_hook 同构）：已发调用落账 + 未用 client 兜底关闭。
+
+        旁路烧的是 BYOK token——崩溃/早退也把已发调用落账（``usage`` 为
+        None 的臂只关 client）；``clients`` 非空 = 消费臂未跑到
+        （``_run_ephemeral`` 跑过的已自清清单）——未用 client 在新 loop
+        上关是平凡路径，兜底不敞口。
+        """
+        if usage is not None:
+            try:
+                self._persist_usage(ctx, usage)
+            except Exception:
+                log.debug("%s usage persist failed", label, exc_info=True)
+        if clients:
+            try:
+                asyncio.run(seams._aclose_clients(clients))  # noqa: SLF001 -- seams 缝
+            except Exception:
+                log.debug("%s client aclose failed", label, exc_info=True)
 
     # ------------------------------------------------------------ translator
 
@@ -733,7 +756,7 @@ class _Translate:
             local_sig = hashlib.sha256(local.read_bytes()).hexdigest()[:12]
         # user 层同按内容进指纹（``_share_glossary_hash`` 同口径）：
         # 路径字符串当指纹会同名换内容串桶/异名同内容分桶；拒/缺席与
-        # ``_make_glossary`` 同态回落 ``USER_GLOSSARY_PATH`` 缺省层
+        # ``_make_glossary`` 同态回落 ``user_glossary_path`` 缺省层
         gfile = (
             resolve_glossary_path(
                 glossary, str(cfg_row.get("glossary_dir") or ""), ctx.base_dir
@@ -741,8 +764,8 @@ class _Translate:
             if glossary
             else None
         )
-        if gfile is None and seams.USER_GLOSSARY_PATH.is_file():
-            gfile = seams.USER_GLOSSARY_PATH
+        if gfile is None and seams.user_glossary_path().is_file():
+            gfile = seams.user_glossary_path()
         user_sig = ""
         if gfile is not None:
             try:

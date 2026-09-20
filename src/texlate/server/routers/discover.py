@@ -54,16 +54,24 @@ class _TtlCache[T]:
         self._d: OrderedDict[str, tuple[float, T]] = OrderedDict()
 
     def get(self, key: str) -> T | None:
-        """过期当缺席（顺手摘除）。"""
+        """过期当缺席（顺手摘除）；「存了 ``None``」与「缺席」的区分走 ``try_get``。"""
+        return self.try_get(key)[1]
+
+    def try_get(self, key: str) -> tuple[bool, T | None]:
+        """命中返 ``(True, val)``；缺席/过期返 ``(False, None)``（顺手摘除）。
+
+        负缓存口径用——值本身可为 ``None`` 的调用方靠首元区分
+        「没存/已过期」与「存了 ``None``」。
+        """
         hit = self._d.get(key)
         if hit is None:
-            return None
+            return False, None
         exp, val = hit
         if exp < time.monotonic():
             self._d.pop(key, None)
-            return None
+            return False, None
         self._d.move_to_end(key)
-        return val
+        return True, val
 
     def put(self, key: str, val: T) -> None:
         """写入 + LRU 排序 + 容量逐出。"""
@@ -81,16 +89,23 @@ _overview_cache = _TtlCache[dict[str, Any]](ttl=1800, max_entries=256)
 _og_cache = _TtlCache[bytes](ttl=86400, max_entries=64)
 
 #: 按事件环分桶的 AsyncClient——httpx 连接池绑创建时的 running loop，
-#: 跨环复用炸 "attached to a different loop"（worker/_common.py 同款坑）
-_clients: dict[int, httpx.AsyncClient] = {}
+#: 跨环复用炸 "attached to a different loop"（worker/_common.py 同款坑）。
+#: 键用 loop 对象本体（强引用）：``id()`` 键在环销毁后会被新环复用
+#: 地址，捞到死环绑定的 client 每请求炸 ``RuntimeError``（非
+#: ``httpx.HTTPError``，``_ax_get`` 翻不出 502 直接 500）。死环条目
+#: 在 ``_client()`` 按 ``is_closed()`` 顺手摘除——回不了死环 aclose，
+#: FD 归 GC（泄漏上界同 worker/_common.py 接受形态）。
+_clients: dict[asyncio.AbstractEventLoop, httpx.AsyncClient] = {}
 
 
 def _client() -> httpx.AsyncClient:
-    """取当前环的共享 client（惰性建）。"""
+    """取当前环的共享 client（惰性建，顺带摘除死环条目）。"""
     import httpx  # noqa: PLC0415 -- 重依赖惰性加载
 
-    key = id(asyncio.get_running_loop())
-    cli = _clients.get(key)
+    loop = asyncio.get_running_loop()
+    for dead in [lp for lp in _clients if lp.is_closed()]:
+        del _clients[dead]
+    cli = _clients.get(loop)
     if cli is None:
         cli = httpx.AsyncClient(
             base_url=_AX_API,
@@ -98,8 +113,22 @@ def _client() -> httpx.AsyncClient:
             follow_redirects=True,
             headers={"User-Agent": "texlate-discover"},
         )
-        _clients[key] = cli
+        _clients[loop] = cli
     return cli
+
+
+async def _aclose_clients() -> None:
+    """尽力关全部 loop 桶 client——app lifespan 收尾用（``bus.close_all()`` 旁）。
+
+    逐条 pop+aclose、单条失败不挡其余：异环/死环绑定的 client aclose
+    抛 ``RuntimeError`` 在预期内（死环条目本就关不掉，FD 归 GC）。
+    """
+    while _clients:
+        cli = _clients.pop(next(iter(_clients)))
+        try:
+            await cli.aclose()
+        except Exception as e:  # noqa: BLE001 -- 收尾尽力而为
+            log.debug("discover client aclose failed: %s: %s", type(e).__name__, e)
 
 
 async def _ax_get(path: str, params: dict[str, Any] | None = None) -> httpx.Response:

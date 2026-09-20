@@ -18,7 +18,12 @@ from texlate.pipecore import (
 from texlate.pipecore import (
     PIPE_TO_DB as _PIPE_TO_DB,  # noqa: F401 -- 包内再出口（pdf.py/translate.py 经此取）
 )
+from texlate.pipecore import (
+    delivered_db,
+)
 from texlate.server.settings import (
+    COMPILE_TIMEOUT_MAX_S,
+    DEFAULT_COMPILE_TIMEOUT_S,
     cache_scope,
     scrub,
 )
@@ -70,7 +75,9 @@ _FLUSH_N = 8
 
 _FLUSH_MS = 0.5
 
-_ENV_TIMEOUT_MAX_S = 86400.0  # env 超时值 24h 封顶——更大属配置错误
+#: env 超时值 24h 封顶——更大属配置错误；单源在 settings
+#: （``COMPILE_TIMEOUT_MAX_S``），本别名保 ``worker.__init__`` 再出口旧名
+_ENV_TIMEOUT_MAX_S = COMPILE_TIMEOUT_MAX_S
 
 
 def _env_timeout(name: str, default: float) -> float:
@@ -97,7 +104,7 @@ def opt_bool(options: dict[str, Any], key: str, env_on: Callable[[], bool]) -> b
 #: 全链优先级 ``TEXLATE_COMPILE_TIMEOUT`` env > settings.json
 #: ``compile_timeout`` > 240s，``create_app`` 装配时解析透传；本常量
 #: 兜非 app 构造方（测试/内嵌直 new PipelineWorker 不走 settings）
-COMPILE_TIMEOUT = _env_timeout("TEXLATE_COMPILE_TIMEOUT", 240.0)
+COMPILE_TIMEOUT = _env_timeout("TEXLATE_COMPILE_TIMEOUT", DEFAULT_COMPILE_TIMEOUT_S)
 
 #: files.kind → URL kind（§2.3 白名单表）
 KIND_URL = {
@@ -381,6 +388,17 @@ def chunk_db_id(src_file: str, byte_start: int, byte_end: int) -> str:
     return h.hexdigest()[:24]
 
 
+def zh_slot(row: dict[str, Any]) -> str:
+    """``all_chunks`` 行 zh 槽译文：``delivered_db`` 交付口径 + ``str`` 型判。
+
+    非 ok 行（fallback/failed 装 en 原文回写）与 TEXT 列 BLOB 一律 ``""``——
+    原文进 zh 槽阅读面会把英文当译文（dual.json/md.zip 两路消费单源，
+    原 ``compile._zh_text``/``html._zh_slot`` 逐文件副本）。
+    """
+    t = row["translation"]
+    return t if delivered_db(row["status"], t) and isinstance(t, str) else ""
+
+
 def cache_key_for(  # noqa: PLR0913 -- 键材料五元组 + source/fm 即 dedup 面
     *,
     arxiv_id: str,
@@ -514,11 +532,13 @@ class SegmentCache:
         return hit
 
     def _count_hit(self, seg_key: str) -> None:
-        """预载命中的 ``hit_count`` 记账——借 store 延迟聚合桶（无 SELECT 开销）。"""
-        hits_map = getattr(self._store, "_cache_hits", None)  # store 延迟记账桶借道
-        if isinstance(hits_map, dict):
-            full = self._full(seg_key)
-            hits_map[full] = hits_map.get(full, 0) + 1
+        """预载命中的 ``hit_count`` 记账——``CacheRepo.count_hit`` 公共面。
+
+        ``Store.__getattr__`` repo 透传到 ``CacheRepo.count_hit``——同一
+        聚合桶（``store._cache_hits``）+ 同一 ``_CACHE_HIT_FLUSH`` 兜底
+        落盘阈值，与逐键 ``cache_get`` 命中记账口径一致（无 SELECT 开销）。
+        """
+        self._store.count_hit(self._full(seg_key))
 
     def __setitem__(self, seg_key: str, translation: str) -> None:
         """写进 pending 缓冲（drain 前对同 key 读可见）。"""

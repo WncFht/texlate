@@ -13,11 +13,13 @@ import sqlite3
 import time
 from typing import TYPE_CHECKING
 
+from texlate.server.store._common import _Repo
+
 if TYPE_CHECKING:
     from texlate.server.store import Store
 
 
-class CacheRepo:
+class CacheRepo(_Repo):
     """translation_cache 表聚合。构造只存门面回指 + 命中缓冲引用。"""
 
     #: 命中记账兜底阈值——正常靠 ``flush_chunk_batch``/``close`` 顺带落；
@@ -26,13 +28,18 @@ class CacheRepo:
 
     def __init__(self, store: Store, hits: dict[str, int]) -> None:
         """回指门面 + 共享命中缓冲（``store._cache_hits`` 同一对象）。"""
-        self._s = store
+        super().__init__(store)
         self._hits = hits
 
-    @property
-    def conn(self) -> sqlite3.Connection:
-        """门面共享连接——repo 不持有独立连接（单写者纪律由 Store 持有）。"""
-        return self._s.conn
+    def count_hit(self, key: str) -> None:
+        """命中记账：缓冲 ``+1``，distinct-key 量达 ``_CACHE_HIT_FLUSH`` 兜底落盘。
+
+        ``cache_get`` 与 worker ``SegmentCache._count_hit``（``store.count_hit``
+        透传）共用——预载命中不经 ``cache_get`` 也走同一聚合桶/同一兜底。
+        """
+        self._hits[key] = self._hits.get(key, 0) + 1
+        if len(self._hits) >= self._CACHE_HIT_FLUSH:
+            self._drain_cache_hits()
 
     def cache_get(self, key: str) -> str | None:
         """段级缓存读；命中记 hit_count/last_hit_at（聚合批量落）。"""
@@ -41,9 +48,7 @@ class CacheRepo:
         ).fetchone()
         if row is None:
             return None
-        self._hits[key] = self._hits.get(key, 0) + 1
-        if len(self._hits) >= self._CACHE_HIT_FLUSH:
-            self._drain_cache_hits()
+        self.count_hit(key)
         return str(row["translation"])
 
     def cache_put_batch(self, cache_puts: list[tuple[str, str, str, str]]) -> None:

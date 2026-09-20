@@ -36,6 +36,7 @@ from ._common import (
     PROGRESS,
     TaskCtx,
     _StageError,
+    zh_slot,
 )
 
 #: sanitize 剥除的活性内容 tag（script/iframe/表单件——媒体与样式保留：
@@ -409,9 +410,12 @@ class _Html:
                 "src_file": r["src_file"],
                 "en": r["src_text"],
                 # TEXT 列动态类型可落 BLOB——非 str 译文按空 coerce，
-                # 不让单格 atomic_json TypeError 挡掉 dual.json 落盘
-                "zh": r["translation"] if isinstance(r["translation"], str) else "",
+                # 不让单格 atomic_json TypeError 挡掉 dual.json 落盘；
+                # 非 ok 行（fallback/failed 装 en 原文回写）zh 位留空——
+                # 原文进 zh 槽阅读面会把英文当译文呈现
+                "zh": zh_slot(r),
                 "kind": r["kind"],
+                "status": str(r["status"]),
             }
             for r in rows
         ]

@@ -372,6 +372,58 @@ class _Events:
             },
         )
 
+    def _finish_terminal(  # noqa: PLR0913 -- 终态写面即参数面
+        self,
+        ctx: TaskCtx,
+        status: str,
+        *,
+        err: dict[str, Any] | None = None,
+        message: str | None = None,
+        stats_extra: dict[str, Any] | None = None,
+        progress: int | None = 100,
+    ) -> None:
+        """成功路径终态公共尾：终态旗 → 迁移 → done 帧（终态一致性）。
+
+        与 ``_write_terminal`` 的分工：本函数是成功/partial 交付尾，
+        ``_write_terminal`` 是 ``_fail``/``_reject`` 的 fault 尾（按库内
+        现值快照 progress、夹 error 帧）——形态 genuinely 不同，不互调。
+
+        - ``err=None`` 显式清 ``error_json``（``transition`` 的 None 即
+          置 NULL，与 reuse 命中行 post-queued 本已 NULL 同效）；
+        - ``progress=None`` 不动行内进度（``transition`` 跳过 None）——
+          cancel 臂的 interrupted 靠它保留「不钉 100」语义；
+        - ``message=None`` 时按 status 取默认（done→完成，其余→部分完成），
+          interrupted 由调用侧显式传 "worker cancelled"；
+        - ``stats_extra`` 并入 done 载荷的 stats（babeldoc 统计等）。
+        """
+        self._mark_terminal(ctx, status)
+        self.store.transition(
+            ctx.task_id,
+            status,
+            progress=progress,
+            error=err,
+            force=True,
+            message=(
+                message
+                if message is not None
+                else "完成"
+                if status == "done"
+                else "部分完成"
+            ),
+        )
+        stats = self._stats(ctx)
+        if stats_extra:
+            stats.update(stats_extra)
+        self.bus.publish(
+            ctx.task_id,
+            "done",
+            {
+                "status": status,
+                "artifacts": self._artifact_urls(ctx),
+                "stats": stats,
+            },
+        )
+
     def _all_chunks(self, ctx: TaskCtx) -> list[dict[str, Any]]:
         """``all_chunks`` 的 run 内物化缓存——loop 线程专用（conn 亲和）。
 
@@ -441,10 +493,15 @@ class _Events:
             out["share"] = ctx.share
         return out
 
-    def _register(self, ctx: TaskCtx, kind: str, rel: str) -> dict[str, Any]:
+    def _register(
+        self, ctx: TaskCtx, kind: str, rel: str, *, force: bool = False
+    ) -> dict[str, Any]:
         """产物登记（bytes/sha256 在**调用线程**实测——大文件哈希不占 loop）。
 
         缺失产物记 NULL 同旧口径；``_on_loop`` 回弹的只剩 DB 写。
+        ``force=True`` 跳终态守卫——终态任务的单块重译 job（retranslate）
+        以刷新 files 清单为目的，登记不得因任务已 done/partial 短路
+        （入队闸已限终态）。
         """
         size: int | None = None
         sha: str | None = None
@@ -455,7 +512,7 @@ class _Events:
             sha = hashlib.sha256(blob).hexdigest()
 
         def _put() -> dict[str, Any]:
-            if self._current_status(ctx) in TERMINAL_STATUSES:
+            if not force and self._current_status(ctx) in TERMINAL_STATUSES:
                 # 终态后登记的 files 行让 done 事件已发的产物清单失真——
                 # 孤儿线程残尾只登记不落盘的形态与取消语义一致
                 return {"kind": kind, "path": rel, "bytes": size, "sha256": sha}

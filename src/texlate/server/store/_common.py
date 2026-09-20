@@ -13,8 +13,11 @@ from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    import sqlite3
     from collections.abc import Iterable
     from pathlib import Path
+
+    from texlate.server.store import Store
 
 #: §3.2 DDL（可直接执行；外键 + 部分唯一索引压实 reuse 语义）
 DDL = """
@@ -337,3 +340,16 @@ class TransitionError(StoreError):
         self.current = current
         self.target = target
         super().__init__(f"{task_id}: {current} -> {target} rejected")
+
+
+class _Repo:
+    """聚合 repo 基类：存门面回指 + 惰性共享连接（单写者纪律由 Store 持有）。"""
+
+    def __init__(self, store: Store) -> None:
+        """回指门面（conn 惰性经 ``store.conn`` 取，断言即未 open 契约）。"""
+        self._s = store
+
+    @property
+    def conn(self) -> sqlite3.Connection:
+        """门面共享连接——repo 不持有独立连接（单写者纪律由 Store 持有）。"""
+        return self._s.conn

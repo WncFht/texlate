@@ -2,7 +2,7 @@
 
 ``runner.enqueue_retranslate`` 入队、dispatcher 与主任务同一串行域派发；
 任务本体**不迁终态**——log/warning 走 ``force=True`` 终态后审计通道，
-产物登记走 ``_register_forced`` 绕过 ``_register`` 的终态守卫（files
+产物登记走 ``_register(..., force=True)`` 绕过终态守卫（files
 清单更新即本 job 目的）。失败路径只记 log + chunks 行 ``error_code``：
 原译与旧产物一律保留，重译不得让既有状态倒退。
 """
@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import hashlib
 import json
 import logging
 import shutil
@@ -35,8 +34,6 @@ from ._common import (
 )
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from texlate.repair_l2 import TreeRun
     from texlate.xlat.pipeline import ChunkResult
 
@@ -189,7 +186,7 @@ class _Retranslate:
                 self._abort_if_cancelled(ctx)
                 if f.is_file() and f.name not in _SENTINELS:
                     zf.write(f, f.relative_to(ctx.zh_dir).as_posix())
-        self._register_forced(ctx, "zh_src_zip", "zh-src.zip")
+        self._register(ctx, "zh_src_zip", "zh-src.zip", force=True)
 
     def _retr_recompile(self, ctx: TaskCtx) -> bool:
         """zh.pdf 重编译（轻量——无 L2/fixloop：单块改动的归因域就是它自己）。
@@ -218,14 +215,14 @@ class _Retranslate:
         if res.has_pdf and res.pdf is not None:
             shutil.copyfile(res.pdf, ctx.root / "zh.pdf")
             self._embed_tounicode(ctx, ctx.root / "zh.pdf")
-            self._register_forced(ctx, "zh_pdf", "zh.pdf")
+            self._register(ctx, "zh_pdf", "zh.pdf", force=True)
             (ctx.zh_dir / ".compile-done").write_text("", encoding="utf-8")
             ok = True
         (ctx.root / "compile.log").write_text(
             scrub(self._log_text_of(res), ctx.secrets.api_key),
             encoding="utf-8",
         )
-        self._register_forced(ctx, "compile_log", "compile.log")
+        self._register(ctx, "compile_log", "compile.log", force=True)
         for r in v.reasons:
             self._log(ctx, f"judge: {r}", force=True)
         for n in v.notes:
@@ -238,13 +235,13 @@ class _Retranslate:
         return ok
 
     def _retr_dual_md(self, ctx: TaskCtx) -> None:
-        """dual.json + md.zip 重建（终态任务的登记都走 ``_register_forced``）。
+        """dual.json + md.zip 重建（终态任务的登记都走 ``_register(force=True)``）。
 
         md.zip 是降级产物——原任务产物面有它才刷新（无记录不新造，
         done 任务不会因重译凭空多出降级包）。
         """
         self._build_dual(ctx)
-        self._register_forced(ctx, "dual_json", "dual.json")
+        self._register(ctx, "dual_json", "dual.json", force=True)
         had_md = (
             self._on_loop(self.store.file_record, ctx.task_id, "md_zip") is not None
             or (ctx.root / "md.zip").is_file()
@@ -253,7 +250,7 @@ class _Retranslate:
             return
         self._build_md_zip(ctx)
         if (ctx.root / "md.zip").is_file():
-            self._register_forced(ctx, "md_zip", "md.zip")
+            self._register(ctx, "md_zip", "md.zip", force=True)
         else:
             self._on_loop(self.store.delete_file, ctx.task_id, "md_zip")
 
@@ -310,17 +307,4 @@ class _Retranslate:
                 "failed": counts["failed"],
                 "items": [item],
             },
-        )
-
-    def _register_forced(self, ctx: TaskCtx, kind: str, rel: str) -> dict[str, Any]:
-        """终态任务的产物登记——绕过 ``_register`` 终态守卫（更新清单即本 job 目的）。"""
-        size: int | None = None
-        sha: str | None = None
-        full: Path = ctx.root / rel
-        if full.is_file():
-            blob = full.read_bytes()
-            size = len(blob)
-            sha = hashlib.sha256(blob).hexdigest()
-        return self._on_loop(
-            self.store.put_file, ctx.task_id, kind, rel, size=size, sha256=sha
         )
