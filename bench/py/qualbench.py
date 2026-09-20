@@ -231,9 +231,8 @@ class Pair:
         return f"{self.model}|{self.paper}|{self.chunk_id}"
 
 
-def _un_safe_id(name: str) -> str:
-    """``safe_id`` 单层目录名 → 论文 id（``--`` → ``/``）。"""
-    return name.replace("--", "/")
+#: ``safe_id`` 单层目录名 → 论文 id——单源下沉 ``benchlib.canon_id``，保名。
+_un_safe_id = benchlib.canon_id
 
 
 def _state_files(roots: list[Path]) -> list[tuple[Path, str, str]]:

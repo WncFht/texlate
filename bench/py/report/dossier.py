@@ -83,13 +83,14 @@ def _ruleset():
 
 
 def _id_candidates(pid: str) -> list[str]:
-    """records id 形态候选：原样 + ``--``↔``/`` 互换。"""
-    cands = [pid]
-    if "--" in pid:
-        cands.append(pid.replace("--", "/"))
-    if "/" in pid:
-        cands.append(pid.replace("/", "--"))
-    return list(dict.fromkeys(cands))
+    """records id 形态候选：原样 + ``--``↔``/`` 互换。
+
+    canon 单源 ``benchlib.canon_id``/``safe_id``：[pid, canon, safe(canon)]
+    与旧版条件 append 全输入等价——``--``/``/`` 兼存时 safe(canon) 与
+    safe(原样) 同值（两种分隔符都归 ``--``），去重后序列逐位相同。
+    """
+    canon = benchlib.canon_id(pid)
+    return list(dict.fromkeys([pid, canon, benchlib.safe_id(canon)]))
 
 
 def _workdir_names(pid: str) -> list[str]:

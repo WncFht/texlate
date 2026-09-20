@@ -28,11 +28,9 @@ def _ingest_copy(pid: str, out_dir: Path) -> dict:
     src_corp = sl.CORPUS / pid / "extracted"
     dst = sl.workdir(out_dir, pid) / "src"
     if not src_corp.is_dir():
-        rec["errors"] = [
-            {"code": "no_extracted", "cat": "ingest", "payload": str(src_corp)}
-        ]
-        rec["status"] = "error"
-        return sl.finish_rec(rec, t0)
+        return sl.gate_rec(
+            rec, "error", "no_extracted", "ingest", str(src_corp), t0
+        )
     if dst.exists():
         shutil.rmtree(dst)
     dst.parent.mkdir(parents=True, exist_ok=True)
@@ -66,26 +64,23 @@ def _missing_rec(entry: dict) -> dict:
         "sha256_ok": None,
     }
     if fmt in ("stub", "pdf", "error") or not entry.get("item"):
-        r["status"] = "reject"
         code = (
             f"{fmt}_format"
             if fmt in ("stub", "pdf", "error")
             else ("eprint_fetch_unwired" if ch == "arxiv_eprint" else "no_item")
         )
         # cat=code：sig 要能分流 stub_format/eprint_fetch_unwired 等
-        r["errors"] = [{"code": code, "cat": code, "payload": entry.get("member")}]
-    else:
-        r["status"] = "skip"
-        # cat=code 同 reject 约定；payload 只到 item 级——triage sig 按 IA
-        # item 聚类（一个 tar 一个工单），member 由 id 回 manifest 查。
-        r["errors"] = [
-            {
-                "code": "ia_fetch_unwired",
-                "cat": "ia_fetch_unwired",
-                "payload": f"item={entry['item']}",
-            }
-        ]
-    return sl.finish_rec(r, t0)
+        return sl.gate_rec(r, "reject", code, code, entry.get("member"), t0)
+    # cat=code 同 reject 约定；payload 只到 item 级——triage sig 按 IA
+    # item 聚类（一个 tar 一个工单），member 由 id 回 manifest 查。
+    return sl.gate_rec(
+        r,
+        "skip",
+        "ia_fetch_unwired",
+        "ia_fetch_unwired",
+        f"item={entry['item']}",
+        t0,
+    )
 
 
 def stage_ingest(

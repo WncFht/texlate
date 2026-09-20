@@ -47,11 +47,7 @@ def _parse_job(pid: str, src_s: str, zh_s: str, pj_s: str, engine_opt: str) -> d
     if route.reject:
         doc["status"] = "reject"
         pj.write_text(json.dumps(doc, ensure_ascii=False, indent=1))
-        rec["status"] = "reject"
-        rec["errors"] = [
-            {"code": "route_reject", "cat": "route", "payload": route.reject}
-        ]
-        return sl.finish_rec(rec, t0)
+        return sl.gate_rec(rec, "reject", "route_reject", "route", route.reject, t0)
 
     # zh/ 先建到兄弟暂存再 rename —— 并发 compile 读 zh/.xlat-arm.json
     # 时窗口内 rmtree+重建会让 marker 缺席 → 误记 skip (41 捞出 20 格)。
@@ -79,9 +75,7 @@ def _parse_job(pid: str, src_s: str, zh_s: str, pj_s: str, engine_opt: str) -> d
         doc["no_main_sub"] = sub
         _swap_in()
         pj.write_text(json.dumps(doc, ensure_ascii=False, indent=1))
-        rec["status"] = "reject"
-        rec["errors"] = [{"code": "no_main_tex", "cat": "parse", "payload": sub or ""}]
-        return sl.finish_rec(rec, t0)
+        return sl.gate_rec(rec, "reject", "no_main_tex", "parse", sub or "", t0)
     main_rel = main.relative_to(stage).as_posix()
     eng = (
         engine_opt
@@ -168,15 +162,16 @@ def stage_parse(
         src = wid / "src"
         if not src.is_dir():
             r = sl.base_rec(pid, "parse", "-")
-            r["status"] = "skip"
-            r["errors"] = [
-                {
-                    "code": "no_src",
-                    "cat": "upstream",
-                    "payload": "work/{id}/src/ missing",
-                }
-            ]
-            log.append(sl.finish_rec(r, time.monotonic()))
+            log.append(
+                sl.gate_rec(
+                    r,
+                    "skip",
+                    "no_src",
+                    "upstream",
+                    "work/{id}/src/ missing",
+                    time.monotonic(),
+                )
+            )
             continue
         todo.append(
             (pid, str(src), str(wid / "zh"), str(wid / "parse.json"), args.engine)

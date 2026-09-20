@@ -52,40 +52,36 @@ def _fixloop_one(
     splice = wid / "splice"
     if args.rerun:
         zh = wid / "zh"
-        marker_p = zh / ".xlat-arm.json"
-        if not zh.is_dir() or not marker_p.exists():
-            rec["status"] = "error"
-            rec["errors"] = [
-                {
-                    "code": "rerun_no_zh",
-                    "cat": "upstream",
-                    "payload": "zh/ missing or no .xlat-arm.json",
-                }
-            ]
-            return sl.finish_rec(rec, t0)
-        marker_arm = json.loads(marker_p.read_text()).get("arm") or ""
+        marker_doc = sl.load_xlat_marker(wid)
+        if marker_doc is None:
+            return sl.gate_rec(
+                rec,
+                "error",
+                "rerun_no_zh",
+                "upstream",
+                "zh/ missing or no .xlat-arm.json",
+                t0,
+            )
+        marker_arm = marker_doc.get("arm") or ""
         if upstream and marker_arm and marker_arm != upstream:
             # 与 _compile_one 的 arm 门同口径：zh/ 已被别的 xlat 臂重译，
             # 重建会混臂——skip 让位而非在错位树上误修。
-            rec["status"] = "skip"
-            rec["errors"] = [
-                {
-                    "code": "arm_mismatch",
-                    "cat": "upstream",
-                    "payload": f"zh/ is {marker_arm}, compile was {upstream}",
-                }
-            ]
-            return sl.finish_rec(rec, t0)
+            return sl.gate_rec(
+                rec,
+                "skip",
+                "arm_mismatch",
+                "upstream",
+                f"zh/ is {marker_arm}, compile was {upstream}",
+                t0,
+            )
         if splice.exists():
             shutil.rmtree(splice)
         shutil.copytree(zh, splice, ignore=benchlib.copytree_ignore())
         rec["metrics"]["splice_rebuilt"] = True
     if not splice.is_dir():
-        rec["status"] = "skip"
-        rec["errors"] = [
-            {"code": "no_splice", "cat": "upstream", "payload": "splice/ missing"}
-        ]
-        return sl.finish_rec(rec, t0)
+        return sl.gate_rec(
+            rec, "skip", "no_splice", "upstream", "splice/ missing", t0
+        )
     pj = wid / "parse.json"
     main_rel = None
     if pj.exists():
@@ -94,27 +90,22 @@ def _fixloop_one(
         m = find_main_tex(splice)
         main_rel = m.relative_to(splice).as_posix() if m else None
     if not main_rel:
-        rec["status"] = "error"
-        rec["errors"] = [
-            {
-                "code": "no_main_tex",
-                "cat": "fixloop",
-                "payload": classify_no_main(splice) or "",
-            }
-        ]
-        return sl.finish_rec(rec, t0)
+        return sl.gate_rec(
+            rec,
+            "error",
+            "no_main_tex",
+            "fixloop",
+            classify_no_main(splice) or "",
+            t0,
+        )
     if args.rerun:
         # 重建的 splice 是纯 zh/ 副本——ctex 注入须与 compile 同式重做，
         # 否则 fixloop 修的是未注入树（与编译期口径不一致）。
         try:
             rec["metrics"]["inject"] = prepare_chinese(splice, main_rel)
         except InjectRejectError as e:
-            rec["status"] = "reject"
-            rec["errors"] = [
-                {"code": "inject_reject", "cat": "inject", "payload": e.reason}
-            ]
             rec["metrics"]["verdict"] = {"status": "reject", "reasons": [e.reason]}
-            return sl.finish_rec(rec, t0)
+            return sl.gate_rec(rec, "reject", "inject_reject", "inject", e.reason, t0)
 
     texmf = wid / "_texmf"
     if texmf.exists():
@@ -267,21 +258,17 @@ def stage_fixloop(
     # cand[-1] 拿到的不是最新 compile 格 (1e 审计); 直扫文件按 append 序取。
     # id 全程 canon 归一 —— flat 拼写存量 compile 账按规范形命中
     # (loop1 双拼写并存实证, 不 canon 则 flat 账静默落选)。
-    cand_latest: dict[str, dict] = {}
-    comp_path = out_dir / "records" / "compile.jsonl"
-    if comp_path.exists():
-        cand_latest = benchlib.latest_by(
-            (
-                rec
-                for rec in benchlib.iter_jsonl(comp_path)
-                if sl.canon_id(str(rec.get("id") or "")) in want_ids
-                and rec.get("arm") == "zh"
-                # 多 xlat 臂并存时同键 append 互覆 —— 指定 --xlat-arm 则只认
-                # 该臂记录 (arm_mismatch skip 的 upstream 为空, 自然滤除)
-                and (not args.xlat_arm or (rec.get("upstream") or "") == args.xlat_arm)
-            ),
-            lambda r: sl.canon_id(str(r["id"])),  # append 序覆盖 = 末条
-        )
+    cand_latest = {
+        pid: rec
+        for pid, rec in benchlib.latest_records(
+            out_dir / "records" / "compile.jsonl",
+            arm="zh",
+            # 多 xlat 臂并存时同键 append 互覆 —— 指定 --xlat-arm 则只认
+            # 该臂记录 (arm_mismatch skip 的 upstream 为空, 自然滤除)
+            upstream=args.xlat_arm or None,
+        ).items()
+        if pid in want_ids
+    }
     todo: list[tuple[str, dict]] = []
     for pid in ids:
         crec = cand_latest.get(pid)

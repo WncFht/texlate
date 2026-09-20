@@ -119,6 +119,8 @@ def scan_records(
             continue
         stats["accepted"] += 1
         kept.append(r)
+    # 键有意用 raw id 不走 benchlib.latest_records 的 canon 归一——计分卡按
+    # 拼写原样计格，canon 会把双拼写账并键改掉 unique/superseded 账数。
     latest = benchlib.latest_by(kept, lambda r: r["id"])
     stats["unique"] = len(latest)
     stats["superseded"] = stats["accepted"] - stats["unique"]

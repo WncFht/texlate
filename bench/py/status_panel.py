@@ -300,6 +300,9 @@ def n200_stats() -> dict:
     def collect() -> dict:
         records = N200_DIR / "records.jsonl"
         meta = json.loads((N200_DIR / "run_meta.json").read_text())
+        # e2e 单行 schema（pipe-xel/pipe-fix/base-xel）非 stagerun 账——全行
+        # 计数口径（chunks/秒数逐行累加），不套 benchlib.latest_records 的
+        # id 末条胜去重；fail-loud 读法是面板对腐账的有意态度。
         recs = [
             json.loads(line)
             for line in records.read_bytes().splitlines()

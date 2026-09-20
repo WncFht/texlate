@@ -69,7 +69,11 @@ def _read_jsonl(path):
 
 def _rec_key(rec):
     """(id, arm, upstream)——与 stagerun._rec_key 同键（resume 追加同键新行，
-    append 序末条胜）；单源 ``benchlib.rec_key``。"""
+    append 序末条胜）；单源 ``benchlib.rec_key``。
+
+    有意不做 canon 归一（stagerun_lib._rec_key 会 canon_id）：triage 是
+    审计面——``math--X``/``math/X`` 双拼写同存的账本身就是要捞的病灶，
+    canon 归一会把两形静默并键遮住分裂信号（mixed-id-forms 实证）。"""
     return benchlib.rec_key(rec)
 
 

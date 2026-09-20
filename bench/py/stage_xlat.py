@@ -323,15 +323,14 @@ async def _xlat_one_inner(
     zh = wid / "zh"
     pj = wid / "parse.json"
     if not zh.is_dir() or not pj.exists():
-        rec["status"] = "skip"
-        rec["errors"] = [
-            {
-                "code": "no_parse_tree",
-                "cat": "upstream",
-                "payload": "zh/ or parse.json missing",
-            }
-        ]
-        return sl.finish_rec(rec, t0)
+        return sl.gate_rec(
+            rec,
+            "skip",
+            "no_parse_tree",
+            "upstream",
+            "zh/ or parse.json missing",
+            t0,
+        )
     translator = translator_factory(pid)
     state_dir = wid / "xlat-state" / args.arm  # 臂间 state 隔离——mock 结果不回灌 real
     cfg = PipelineConfig(concurrency=args.concurrency)
@@ -358,16 +357,10 @@ async def _xlat_one_inner(
     )
     if stats.get("oversize"):
         shutil.rmtree(stage, ignore_errors=True)
-        rec["status"] = "reject"
-        rec["errors"] = [
-            {
-                "code": "oversize",
-                "cat": "xlat",
-                "payload": f"src_chars={stats['src_chars']}",
-            }
-        ]
         rec["metrics"]["translate"] = stats
-        return sl.finish_rec(rec, t0)
+        return sl.gate_rec(
+            rec, "reject", "oversize", "xlat", f"src_chars={stats['src_chars']}", t0
+        )
     # 逐块明细（triage/契约审计原料）
     detail = wid / f"xlat-{args.arm}.jsonl"
     with detail.open("w", encoding="utf-8") as fh:

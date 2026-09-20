@@ -67,29 +67,26 @@ def _compile_one(
 
     if args.arm == "zh":
         zh = wid / "zh"
-        marker_p = zh / ".xlat-arm.json"
-        if not zh.is_dir() or not marker_p.exists():
-            rec["status"] = "skip"
-            rec["errors"] = [
-                {
-                    "code": "not_translated",
-                    "cat": "upstream",
-                    "payload": "zh/ missing or no .xlat-arm.json",
-                }
-            ]
-            return sl.finish_rec(rec, t0)
-        marker_doc = json.loads(marker_p.read_text())
+        marker_doc = sl.load_xlat_marker(wid)
+        if marker_doc is None:
+            return sl.gate_rec(
+                rec,
+                "skip",
+                "not_translated",
+                "upstream",
+                "zh/ missing or no .xlat-arm.json",
+                t0,
+            )
         upstream = marker_doc.get("arm") or ""
         if args.xlat_arm and upstream != args.xlat_arm:
-            rec["status"] = "skip"
-            rec["errors"] = [
-                {
-                    "code": "arm_mismatch",
-                    "cat": "upstream",
-                    "payload": f"zh/ is {upstream}, want {args.xlat_arm}",
-                }
-            ]
-            return sl.finish_rec(rec, t0)
+            return sl.gate_rec(
+                rec,
+                "skip",
+                "arm_mismatch",
+                "upstream",
+                f"zh/ is {upstream}, want {args.xlat_arm}",
+                t0,
+            )
         rec["upstream"] = upstream
         # xlat 换代印：同臂 --rerun 重建 zh/ 后 marker.ts 变，compile
         # resume 凭此判陈记（stage_compile 侧对照 latest 记录）
@@ -97,15 +94,14 @@ def _compile_one(
         up_ok = set((args.upstream or "ok,partial").split(","))
         xr = xlat_recs.get((pid, upstream, ""))
         if xr is not None and xr.get("status") not in up_ok:
-            rec["status"] = "skip"
-            rec["errors"] = [
-                {
-                    "code": "upstream_gate",
-                    "cat": "upstream",
-                    "payload": f"xlat[{upstream}]={xr.get('status')}",
-                }
-            ]
-            return sl.finish_rec(rec, t0)
+            return sl.gate_rec(
+                rec,
+                "skip",
+                "upstream_gate",
+                "upstream",
+                f"xlat[{upstream}]={xr.get('status')}",
+                t0,
+            )
         splice = wid / "splice"
         if splice.exists():
             shutil.rmtree(splice)
@@ -114,27 +110,24 @@ def _compile_one(
             m = find_main_tex(splice)
             main_rel = m.relative_to(splice).as_posix() if m else None
         if not main_rel:
-            rec["status"] = "reject"
-            rec["errors"] = [
-                {
-                    "code": "no_main_tex",
-                    "cat": "compile",
-                    "payload": classify_no_main(splice) or "",
-                }
-            ]
-            return sl.finish_rec(rec, t0)
+            return sl.gate_rec(
+                rec,
+                "reject",
+                "no_main_tex",
+                "compile",
+                classify_no_main(splice) or "",
+                t0,
+            )
         eng = _resolve_engine(args, parse_doc, splice)
         rec["metrics"]["engine"] = eng
         rec["metrics"]["main_rel"] = main_rel
         try:
             rec["metrics"]["inject"] = prepare_chinese(splice, main_rel)
         except InjectRejectError as e:
-            rec["status"] = "reject"
-            rec["errors"] = [
-                {"code": "inject_reject", "cat": "inject", "payload": e.reason}
-            ]
             rec["metrics"]["verdict"] = {"status": "reject", "reasons": [e.reason]}
-            return sl.finish_rec(rec, t0)
+            return sl.gate_rec(
+                rec, "reject", "inject_reject", "inject", e.reason, t0
+            )
         # 0-chunk 主文档 (includepdf 壳) 无译文产出 → 不期待 CJK (F 桶假阳修);
         # xr 缺席时保守默认 True。记入 metrics 供 fixloop 复判同口径
         _tr = ((xr or {}).get("metrics") or {}).get("translate") or {}
@@ -146,26 +139,24 @@ def _compile_one(
     else:  # base：src/ 原样直编（归因臂——不 normalize 不 inject）
         src = wid / "src"
         if not src.is_dir():
-            rec["status"] = "skip"
-            rec["errors"] = [
-                {
-                    "code": "no_src",
-                    "cat": "upstream",
-                    "payload": "work/{id}/src/ missing",
-                }
-            ]
-            return sl.finish_rec(rec, t0)
+            return sl.gate_rec(
+                rec,
+                "skip",
+                "no_src",
+                "upstream",
+                "work/{id}/src/ missing",
+                t0,
+            )
         main = find_main_tex(src)
         if main is None:
-            rec["status"] = "reject"
-            rec["errors"] = [
-                {
-                    "code": "no_main_tex",
-                    "cat": "compile",
-                    "payload": classify_no_main(src) or "",
-                }
-            ]
-            return sl.finish_rec(rec, t0)
+            return sl.gate_rec(
+                rec,
+                "reject",
+                "no_main_tex",
+                "compile",
+                classify_no_main(src) or "",
+                t0,
+            )
         main_rel = main.relative_to(src).as_posix()
         build = wid / "build-base"
         if build.exists():
@@ -230,12 +221,13 @@ def stage_compile(
     for pid in ids:
         # resume 键含 upstream：zh 臂对 mock/real 产物各记一格
         if args.arm == "zh":
-            marker = sl.workdir(out_dir, pid) / "zh" / ".xlat-arm.json"
+            # marker 读径单源 load_xlat_marker；腐值/非 dict 仍一律 suppress
+            # 回退纯键判（读径换了，容错口径不动）
             up = ""
             mts = None
-            if marker.exists():
-                with contextlib.suppress(Exception):
-                    doc = json.loads(marker.read_text())
+            with contextlib.suppress(Exception):
+                doc = sl.load_xlat_marker(sl.workdir(out_dir, pid))
+                if doc is not None:
                     up = doc.get("arm") or ""
                     mts = doc.get("ts")
             if not args.rerun and up and log.is_done(pid, "zh", up, recode=args.recode):

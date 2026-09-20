@@ -17,13 +17,14 @@ import os
 import shutil
 from datetime import UTC, datetime
 
+import benchlib
+
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 STORE = os.path.join(ROOT, "bench", "zh-store")
 MANIFEST = os.path.join(STORE, "manifest.jsonl")
 
-
-def canon(safe: str) -> str:
-    return safe.replace("--", "/")
+#: canon_id 单源 benchlib（safe_id 逆；收割的 work/ 目名回流拼写归一）。
+canon = benchlib.canon_id
 
 
 def now() -> str:
@@ -31,6 +32,8 @@ def now() -> str:
 
 
 def read_marker(cell: str) -> dict:
+    # 与 stagerun_lib.load_xlat_marker 有意不同根/不同异常界：此处按
+    # cell 目直扫 zh|splice 两序、腐值一律 {} 兜底（收割器容错口径）。
     for sub in ("zh", "splice"):
         p = os.path.join(cell, sub, ".xlat-arm.json")
         if os.path.isfile(p):
@@ -41,27 +44,12 @@ def read_marker(cell: str) -> dict:
     return {}
 
 
-def latest_status(path: str, arm: str | None) -> dict:
-    out = {}
-    if not os.path.isfile(path):
-        return out
-    for line in open(path):
-        try:
-            r = json.loads(line)
-        except Exception:
-            continue
-        if arm is not None and r.get("arm") != arm:
-            continue
-        out[canon(r["id"])] = r.get("status")
-    return out
-
-
 def clean_ids(run_dir: str) -> set:
     rec = os.path.join(run_dir, "records")
-    comp = latest_status(os.path.join(rec, "compile.jsonl"), "zh")
-    fix = latest_status(os.path.join(rec, "fixloop.jsonl"), None)
-    eff = dict(comp)
-    eff.update(fix)  # fixloop 是 compile 之后的终判
+    comp = benchlib.latest_records(os.path.join(rec, "compile.jsonl"), arm="zh")
+    fix = benchlib.latest_records(os.path.join(rec, "fixloop.jsonl"))
+    eff = {pid: r.get("status") for pid, r in comp.items()}
+    eff.update({pid: r.get("status") for pid, r in fix.items()})  # fixloop 是 compile 之后的终判
     return {pid for pid, st in eff.items() if st == "clean"}
 
 
