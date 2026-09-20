@@ -33,6 +33,7 @@
 | translators_bench | `bench/py/translators_bench.py` | stagerun xlat 臂适配层：mock/sabotage/perturb 工厂+台账 | 无 | active |
 | triage | `bench/py/triage.py` | records 后处理：签名聚类→tickets+趋势+report | 无 | active |
 | rundiff | `bench/py/rundiff.py` | 两 run 逐格迁移比较器（transition 矩阵） | 无 | active |
+| harvest | `bench/py/harvest.py` | zh-store 收割器：终判 compile-clean → primary、已译非 clean → `_quarantine/`、落选 → `_alt/`（move 语义）+ manifest.jsonl 索引/`--reindex` 重建 | 无 | active |
 | gate_scorecard | `bench/py/gate_scorecard.py` | M2 出门记分卡：end-state/union 语义成功率+新鲜度闸 | 无 | active |
 | gwpilot | `bench/py/gwpilot.py` | 机会型批跑驱动：JSONL 队列续跑 + serve 模式并发闸代理 | LLM网关 | active |
 | quality_proxies | `bench/py/quality_proxies.py` | S5 事后质量代理：leak/term/landmark 三系指标侧车 | 无 | active |
@@ -72,7 +73,7 @@
 | fixtures | `bench/fixtures/` | 陷阱 .tex 语料（@Tnn，字节即语义，禁格式化） | — | asset·保护区 |
 | frame | `bench/frame/` | 语料规划资产：universe parquet+item-index+分层配额（91M） | — | asset |
 | PROTOCOL/TIERS/RETENTION | `bench/*.md` | bench 协议/验证分层契约/结果留存契约 | — | asset·治理 |
-| results/* | `bench/results/{soak-2026-09-18,stagerun-overnite-2026-09-20,stagerun-smk-unified-2026-09-19,status-panel}` | 现存 run 目录（归零后存活件，口径见 RETENTION） | — | asset |
+| results/* | `bench/results/{soak-2026-09-18,stagerun-overnite-2026-09-20,zhstore-verify-2026-09-20,stagerun-smk-unified-2026-09-19,status-panel}` | 现存 run 目录（归零后存活件，口径见 RETENTION） | — | asset |
 | work_* | `bench/work_{daily,e2ereal,gwpilot,iclr,m1k,v3}` | 各管线工作区（gitignored，活引用全保） | — | asset |
 | .venv_babeldoc | `bench/py/.venv_babeldoc/` | babeldoc 对照实验专用 venv（664M，**macOS 原生在 Linux 已 broken**） | — | broken |
 
@@ -149,7 +150,7 @@ gwpilot JSONL 任务队列投递位；`night.jsonl` 已于 release 清理删除�
 - **运行**：`uv run python bench/py/stagerun.py {ingest|parse|xlat --arm mock|real|sabotage-b|sabotage-c|perturb|compile --arm zh|base|fixloop --on ...} [--layers ... --ids ... --jobs N --tag T --dir D]`（env：`TEXLATE_SRC/TEXLATE_CORPUS/TEXLATE_BASE_URL/TEXLATE_API_KEY`，real 臂默认内部 OpenAI 兼容网关）
 - **输入**：corpus manifest 各层行、corpus/{id}/extracted、work/{id}/ 中间树、records/*.jsonl 续跑门
 - **输出**：`bench/results/stagerun-<tag>-<date>/{records/*.jsonl, run_meta.json, cases.jsonl, work/{id}/{src,zh,splice,build-base,_texmf,parse.json,xlat-*.jsonl}}`
-- **成本**：LLM 网关+LaTeX+重算力。**状态**：active——隔夜 real 批在跑；`stagerun_lib` 为内核（RecLog 追加/canon_id 归一/dedup_wids/run_meta），五个 `stage_*` 为段驱动：ingest（copytree）、parse（route+normalize+parse_file，原子 swap）、xlat（asyncio XlatPipeline+网关信号量+破坏臂）、compile（zh splice/base build-base+judge）、fixloop（--on 选格+yaml 规则修+_texmf 冷 usertree+重判）。
+- **成本**：LLM 网关+LaTeX+重算力。**状态**：active——`stagerun_lib` 为内核（RecLog 追加/canon_id 归一/dedup_wids/run_meta），五个 `stage_*` 为段驱动：ingest（copytree）、parse（route+normalize+parse_file，原子 swap）、xlat（asyncio XlatPipeline+网关信号量+破坏臂）、compile（zh splice/base build-base+judge）、fixloop（--on 选格+yaml 规则修+_texmf 冷 usertree+重判）。run 收尾经 `harvest.py` 收割译文入 zh-store 后 work/ 可整删。
 - †`stage_timing.py`（records 分位计时报告→`_timing/`）：普查窗口内被在飞 reorg 自 worktree 删除（index 留 HEAD 副本），本行留档。
 
 ### status_panel.py — :8766 只读状态面板
@@ -438,9 +439,10 @@ records jsonl 容错读写、原子写、safe_id/copytree_ignore、TUNA_TLNET pi
 | `bench/PROTOCOL.md` | per-库评测协议（四项横评+报告格式） | **已删** 2026-09-20（选型期协议退役，原文见 git 历史） |
 | `bench/TIERS.md` | L0–L3 验证分层契约 | 治理·keep |
 | `bench/RETENTION.md` | results/ 留存契约（归零后存活口径+删除谓词） | 治理·keep（注意：live index 中被他 lane staged-delete） |
-| `bench/results/soak-2026-09-18` | 4.6G 活工单（mock 批 records+work+工单） | keep·结清后可删 |
-| `bench/results/stagerun-overnite-2026-09-20` | **在跑** real 隔夜批 21G+ | **保护区** |
-| `bench/results/stagerun-smk-unified-2026-09-19` | 41M 新基座冒烟（归零后幸存件） | one-shot·keep |
+| `bench/results/soak-2026-09-18` | 15M 纯账本（work 已删） | keep·账本 |
+| `bench/results/stagerun-overnite-2026-09-20` | 63M 纯账本（2714 格已收割入 zh-store，work 已删） | keep·账本 |
+| `bench/results/zhstore-verify-2026-09-20` | 25M 纯账本（zh-store 全量 defer 复编译实证） | keep·账本 |
+| `bench/results/stagerun-smk-unified-2026-09-19` | records-only 账本（41M mock 臂 work 已删） | keep·账本 |
 | `bench/results/status-panel` | 看板状态目录（tasks.d/*.json） | active·keep |
 | `bench/work_daily` | daily-soak 工作区（lock+log，今日写） | active·keep |
 | `bench/work_e2ereal` | 2.9G e2e_real 工作区（4 个 live 脚本引用） | active·keep |

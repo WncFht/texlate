@@ -16,7 +16,7 @@
     - `bench/corpus/` — **唯一语料物理根**（2026-09-20 七库合一，~14k 篇）：层化 manifest（core/booster/dev_*/expand/hot/holdout + v1 手挑陷阱裸布局 + v2 分层随机 + m1k 四层 + iclr），口径以 `MANIFEST.md` 为准；原四库文档折存 `MANIFEST_{v1,v2,m1k}.md`，版本冲突落选树存 `_alt-versions/`；`manifest*.jsonl`/`mechanisms.jsonl`/`select_booster.py` 入库、数据 gitignored；管线 `bench/py/corpus/`（build_corpus_{v2,m1k,v3,layers,expand,sw} + build_hot_layer + daily_arxiv）
     - `bench/corpus_daily/` — soak 滚动窗口语料（每日增删，独立生命周期，不并入 v3）
     - `bench/corpus_iclr_pdf/` — ICLR PDF 产物库（非 e-print 树）
-    - `bench/zh-store/` — real 臂 LLM 译文资产库（`{canon_id}/{zh,splice,provenance.json}`，不可再生；`_alt/`=重译落选副本）
+    - `bench/zh-store/` — real 臂 LLM 译文资产库（`{canon_id}/{zh,splice,provenance.json}`，不可再生；`_alt/`=重译落选副本；`_quarantine/`=已译但终判非 compile-clean 保留区；`manifest.jsonl`=唯一覆盖索引，收割器 `bench/py/harvest.py`）
     - `bench/archive-*/` — results 归零前的账本镜像与审计留痕（数据 gitignored，README 入库）
     - `bench/fixtures/` — 陷阱构造 `.tex`（`% @Tnn` 标记；**逐字节即语义——不要格式化/润色这些文件**）
     - `bench/results/` — bench 产出目录（report/walkthrough/json 均由脚本重写；**全链划出**——改写型 formatter 与 check 类链都不覆盖：prettier/gfs/eslint/autocorrect 经 ignore/exclude，markdownlint 经 cli2 ignores，ruff 经 extend-exclude，shfmt/shellcheck/taplo 无对应文件类型属 vacuous）
