@@ -206,12 +206,13 @@ def test_nolinkurl_polyfill_detokenize(tmp_path: Path) -> None:
 
 
 def test_aastex6x_body_nolinkurl_delegate() -> None:
-    """``aastex6x_body`` 锚共享 —— 4 个存活 cls 条目同获 ``\\nolinkurl``
-    (routeclean: aastex62.cls 槽删→vendor/files 真件)。"""
+    """``aastex6x_body`` 锚共享 —— 存活锚条目同获 ``\\nolinkurl``
+    (routeclean: aastex62.cls 槽删→vendor/files 真件; clsbridge:
+    AASTeX62.cls 混合大写死键删 —— shim_map 键大小写敏感永不可达)。"""
     shim_map = next(r for r in _rs().rules if r.id == "legacy_pkg_shim").action[
         "params"
     ]["shim_map"]
     body = shim_map["aastex61.cls"]["body"]
     assert "\\providecommand{\\nolinkurl}[1]{\\url{#1}}" in body
-    for cls in ("aastex63.cls", "aastex631.cls", "AASTeX62.cls"):
+    for cls in ("aastex63.cls", "aastex631.cls"):
         assert "\\nolinkurl" in shim_map[cls]["body"]
