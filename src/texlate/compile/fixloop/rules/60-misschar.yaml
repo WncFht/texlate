@@ -169,6 +169,36 @@ rules:
           #   且无已装字体覆盖 U+0964 (fb 也救不了) → 剥除唯一可达;
           #   有损 (regex 字类少一员) census 已注。
           - { id: danda, cps: [0x964], replace: "{}" }
+          # ── failmine8 A1 补表 (2026-09-20, OTF/T1 缺字尾, 14 cps/12 cells) ──
+          # ℝℚℂ 双线大写 + ∂ 落 lmmono8/9 (2608.09867/2609.19352/2609.20805,
+          #   lean/literate 代码字面): \mathbb 依赖 amssymb, 观测格已载
+          #   (同 dblz 先例 —— 未载格 warn 转 undefined_cs 由派发链接手);
+          #   ∂ 是 kernel 数学形无依赖。
+          - { id: dblr, cps: [0x211D], replace: "\\ensuremath{\\mathbb{R}}" }
+          - { id: dblq, cps: [0x211A], replace: "\\ensuremath{\\mathbb{Q}}" }
+          - { id: dblc, cps: [0x2102], replace: "\\ensuremath{\\mathbb{C}}" }
+          - { id: partial, cps: [0x2202], replace: "\\ensuremath{\\partial}" }
+          # 数学斜体字母落 LinLibertine 文本字体 (2609.20309/2510.02854)
+          #   —— kernel 数学字形 (micro 先例), 斜体面不追求粗细细节
+          - { id: itmu, cps: [0x1D707], replace: "\\ensuremath{\\mu}" }
+          - { id: ittheta, cps: [0x1D703], replace: "\\ensuremath{\\theta}" }
+          # ⪪ SMALLER THAN 关系符 (2609.19583 LinLibertine) → 字面义 <
+          - { id: smaller_than, cps: [0x2AAA], replace: "\\ensuremath{<}" }
+          # ― HORIZONTAL BAR 引文横棒 (2504.14870 ``― Yann LeCun``)
+          #   —— emdash 同形; ‑ 不断行连字符 (2503.23278 third‑party 族)
+          #   \mbox 内不折行与 hyphen 同形; ≥ leq 镜像; → kernel 箭头
+          #   (2501.19393 \textbf{V2 → V3} 落 t1-stix TFM 无槽)
+          - { id: horizbar, cps: [0x2015], replace: "\\mbox{---}" }
+          - { id: nbhyphen, cps: [0x2011], replace: "\\mbox{-}" }
+          - { id: geq, cps: [0x2265], replace: "\\ensuremath{\\geq}" }
+          - { id: rarrow, cps: [0x2192], replace: "\\ensuremath{\\rightarrow}" }
+          # Վ 亚美尼亚大写 VEW (1109.1915 lmroman9) —— 孤立字母按音写还 V
+          - { id: armenian_vew, cps: [0x054E], replace: "V" }
+          # ─│ 制表符 ascii-art (2408.07394 Verbatim 域内/nlin bbl 侧)
+          #   —— 语义还原 ASCII 对等 (╨→- 先例, 有对等则还原非剥除);
+          #   Verbatim 遮盖域内站点本臂够不到, 前瞻收非逐字面
+          - { id: boxdraw_2500, cps: [0x2500], replace: "-" }
+          - { id: boxdraw_2502, cps: [0x2502], replace: "|" }
         # ── hangul 路由臂 ko 字体候选 (kotexfix #196) ──
         # 谚文缺字 + 源内 xeCJK/kotex 系机制 → \begin{document} 前注路由件:
         # xeCJK AutoFallBack + \setCJKfallbackfamilyfont (rm/sf/tt) 逐字
@@ -220,6 +250,10 @@ rules:
       - {
           corpus: "2403.00013 (kaist-ucs.cls+kotex, hangul×1355 in FandolSong script=hani) / 2410.18001 (article+ctex+kotex, hangul×544 in lmroman) — kotexfix #196",
           error: "谚文落无 hangul 字体: xetexko catcode-12 杀 newunicodechar + HG 类暖盒无效 → 路由臂 AutoFallBack+hangulfont",
+        }
+      - {
+          corpus: "failmine8 A1 (2026-09-20): 2608.09867/2609.19352/2609.20805/2609.20309/2510.02854/2609.19583/2504.14870/2609.20425/2503.23278/2501.19393/1109.1915/2408.07394+nlin/0103011 — 12 cells",
+          error: "Missing character: ℝℚℂ∂ lmmono / 𝜇𝜃⪪ LinLibertine / ―‑≥→ lmroman+Inconsolata+t1-stix / Վ lmroman9 / ─│ ascii-art → char_table 补 14 条",
         }
     stats: { fires: 303, rescued_cells: 148, status: active }
     source_ref: "spec 2026-09-16-batch-hardening-design §9 F4; scout-misschar-coverage findings.yaml §outband_coverage+cls_pretokenized"
