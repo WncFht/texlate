@@ -250,3 +250,50 @@ def test_relocate_single_still_works_no_top_dir(tmp_path: Path) -> None:
     assert ok, note
     assert (tmp_path / "sub" / "frag.tex").is_file()
     assert "tree files" not in note
+
+
+# ════════════ 2026-09-20 taxon2/pdfex+gapmine: exts 表扩位 ════
+# \input{X.pdf_tex} 双缺席形 (无 pdf_tex 且无 pdf/eps sibling ——
+# 2508.03897/2606.18450/2508.04813/2503.10148 普查 4 格) 与 doc-absent
+# .tikzstyles (2606.19622) 同归空 stub 诚实降级; exts 表外名仍让位。
+
+
+def _stub_wired(ctx: LoopCtx, payload: str | None) -> tuple[bool, str]:
+    """经 ruleset 实载 ``rule.action.params`` 直驱 —— 钉 yaml→builtin 接线。"""
+    rule = _rule(_RULE_STUB)
+    return TRANSFORM_FNS[_RULE_STUB](
+        ctx, _EngStub(), payload, rule.action.get("params") or {}
+    )
+
+
+def test_stub_exts_param_table() -> None:
+    """params.exts 钉死表内容 —— 回退 yaml 即红。"""
+    params = _rule(_RULE_STUB).action.get("params") or {}
+    assert set(params.get("exts") or ()) == {".tex", ".pdf_tex", ".tikzstyles"}
+
+
+def test_stub_pdf_tex_writes_empty_stub(tmp_path: Path) -> None:
+    """``\\input{figure2a.pdf_tex}`` 双缺席 → 空 stub 落解析位。"""
+    _mkfile(tmp_path / "main.tex")
+    ctx = _ctx(tmp_path)
+    ok, note = _stub_wired(ctx, "figure2a.pdf_tex")
+    assert ok, note
+    assert "doc-absent stub" in (tmp_path / "figure2a.pdf_tex").read_text()
+
+
+def test_stub_tikzstyles_writes_empty_stub(tmp_path: Path) -> None:
+    _mkfile(tmp_path / "main.tex")
+    ctx = _ctx(tmp_path)
+    ok, note = _stub_wired(ctx, "my.tikzstyles")
+    assert ok, note
+    assert "doc-absent stub" in (tmp_path / "my.tikzstyles").read_text()
+
+
+def test_stub_ext_gate_still_declines_unlisted(tmp_path: Path) -> None:
+    """表外扩展名经真 params 仍让位 (.cls/.sty/.def → install/shim 域)。"""
+    _mkfile(tmp_path / "main.tex")
+    ctx = _ctx(tmp_path)
+    ok, _ = _stub_wired(ctx, "foo.cls")
+    assert not ok
+    ok, _ = _stub_wired(ctx, "bar.def")
+    assert not ok

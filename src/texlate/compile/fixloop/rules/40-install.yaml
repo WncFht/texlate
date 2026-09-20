@@ -825,19 +825,25 @@ rules:
   # 12step_dynamics, 2210.03294 —— 真内容优于 stub); (b) 解析位 minimal
   # 空 stub —— 丢该段保其余, 优于整格 unfixable。闸内自证缺席
   # (wdir 全树零命中才 stub); 瞬态扩展名拒 (.aux/.bbl = 上游病灶信号,
-  # stub 遮蔽真因 —— 2609.20323 main.aux 裁决沿); 非 .tex 让位
+  # stub 遮蔽真因 —— 2609.20323 main.aux 裁决沿); 表外扩展名让位
   # (.cls/.sty 走 install/shim 域)。
+  # 2026-09-20 taxon2/pdfex+gapmine 扩 exts: \input{X.pdf_tex} 双缺席形
+  # (无 pdf_tex 且无 pdf/eps sibling —— 2508.03897×1/2606.18450×9/
+  # 2508.04813×14/2503.10148×10 普查 4 格) 与 doc-absent .tikzstyles
+  # (2606.19622) 同归本臂空 stub 诚实降级 (\resizebox{w}{!}{\input{X.
+  # pdf_tex}} 内亦降级如实); .pdf_tex→\includegraphics{X.pdf} 合成支
+  # 不做 —— 零格需求。
   - id: doc_absent_stub
     mechanisms: [W19]
-    description: "doc 引用但 e-print 未带 .tex → 版本缀 sibling 唯一命中搬真件, 否则解析位空 stub"
+    description: "doc 引用但 e-print 未带 .tex/.pdf_tex/.tikzstyles → 版本缀 sibling 唯一命中搬真件, 否则解析位空 stub"
     phase: loop
     order: 12.95 # 全真件臂后末位兜底: install(10)/vendored(11.5)/shim(12/12.9) 皆 decline 才 stub —— pst-tools.tex 实证 .tex payload 可以是真 CTAN 件
     when: { category: missing_file, payload_required: true }
     action:
       kind: builtin_transform
       function: doc_absent_stub
-      params: {}
-    risk: low # 空 stub 仅丢该 \input 段; sibling 救援限同目录唯一版本缀命中; 指纹闸不覆外来件; 瞬态件/非 .tex/逃逸名全让位
+      params: { exts: [".tex", ".pdf_tex", ".tikzstyles"] }
+    risk: low # 空 stub 仅丢该 \input 段; sibling 救援限同目录唯一版本缀命中; 指纹闸不覆外来件; 瞬态件/表外扩展名/逃逸名全让位
     known_gap: "stub 段内宏定义 (其余段依赖的 \\newcommand) 缺席 → 下游 undefined_cs 转嫁 (诚实降级); 版本缀表外的纯改名漂移只能空 stub"
     engines:
       xelatex: { mode: native }

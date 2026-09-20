@@ -12,11 +12,16 @@ version: 1
 # ════════════════════════════════════════════════════════════════
 taxonomy:
   # —— 文件缺失类 (抓文件名 → install_file) ——
+  # 2026-09-20 taxon2/pdfex lane: 扩展名类补 "_" —— `figure2a.pdf_tex`
+  # 系 \input{*.pdf_tex} 缺档旧穿 head 全臂落 other → tail `Enter file
+  # name` 臂 (payload_group:null) 抢成 missing_file|None 丢 payload;
+  # head `File`/`Cannot find` + tail 同款 `File` 三位同补。`.sty`/多段
+  # `x.y.z.tex` 捕获不变。
   - {
       id: missing_file,
       scope: head,
       payload_group: 1,
-      pattern: "File `([^']+\\.[a-zA-Z0-9]+)' not found",
+      pattern: "File `([^']+\\.[a-zA-Z0-9_]+)' not found",
     }
   - {
       id: missing_file,
@@ -32,7 +37,7 @@ taxonomy:
       id: missing_file,
       scope: head,
       payload_group: 1,
-      pattern: "Cannot find the file\\s+([\\w@.+-]+\\.[a-zA-Z0-9]+)",
+      pattern: "Cannot find the file\\s+([\\w@.+-]+\\.[a-zA-Z0-9_]+)",
     }
   # 2026-09-19 nfssfd lane (loop2 普查 8 cells): NFSS .fd 缺档硬错——
   # 内核 \try@load@fontshape 先 \InputIfFileExists{<小写名>} 再
@@ -80,14 +85,32 @@ taxonomy:
       payload_group: 1,
       pattern: "breviation language(?: file)? `([^']+\\.ldf)' (?:was )?not found",
     }
+  # 2026-09-20 taxon2 lane: fontspec 装载的 TU/ 编码 NFSS 字体缺载行
+  # `Font TU/<fam>(<i>)/m/n/<sz>[=<ext>]/OT at <d>pt not loadable` —— TU 为
+  # fontspec 专属编码, 永不走 TFM; 旧落 missing_tfm 臂, 前缀 \S*? 膨胀到
+  # 末段 `/OT` 后零宽 \s* 抓 "OT" 作死 payload (soak-2026-09-18
+  # 2609.19944 errs 12 条实证 missing_tfm|OT, install_tfm 恒 miss)。
+  # 改归 fontspec_missing: payload=去 .otf/.ttf/.ttc 扩展名与 (N) 实例缀
+  # 的家族名 → install_sysfont try_exts 复原扩展名投递。须排在
+  # missing_tfm 全臂之前 (评估序), 否则本签永远轮不到。
+  - {
+      id: fontspec_missing,
+      scope: head,
+      payload_group: 1,
+      pattern: 'Font TU/([^\s/(]+?)(?:\.(?:otf|ttf|ttc))?(?:\(\d+\))?/[^\n]*?not loadable',
+    }
   # —— TFM 字体缺失 (抓字体名=文件名 → install_tfm) ——
   # payload 类须含 "-": SkakNew-Diagram 型名按 [a-zA-Z0-9]/\w 抓会在
   # 连字符处截断成 "Diagram" → filemap 必 miss (loop1-2211.12985 实证)。
+  # 2026-09-20 taxon2 lane: 规格两形 —— `\font\X=name at <d>pt` 印
+  # "at Npt", `\font\X=name scaled <n>` 印 "scaled N" (harmony.sty:62
+  # \newfont{\NOTEN}{musix13 scaled \value{notescl}} → "scaled 1200",
+  # 2512.04896 实证归 other|None); scaled 可负 (镜像字体)。
   - {
       id: missing_tfm,
       scope: head,
       payload_group: 1,
-      pattern: "Font \\\\?\\S*?=?\\s*([\\w-]+) at [0-9.]+pt not loadable",
+      pattern: "Font \\\\?\\S*?=?\\s*([\\w-]+) (?:at [0-9.]+pt|scaled -?[0-9]+) not loadable",
     }
   - {
       id: missing_tfm,
@@ -138,11 +161,16 @@ taxonomy:
       scope: head,
       pattern: "image inclusion failed for \"([^\"]+\\.[0-9]+)\"|Unable to load picture or PDF file '([^']+\\.[0-9]+)'",
     }
+  # 2026-09-20 taxon2 lane: fontspec 错文按 ~79 列折行, 折点随字体名长
+  # 漂 (HaranoAjiMincho-Regular 在 be|found 间断行: `cannot be\n(fontspec)
+  # found;` —— soak-2026-09-18 2609.19944 实证恒归 other|None)。三处关节
+  # (引号→cannot→be→found) 各容忍一个 `(<pkg>)` 续行前缀 + 空白垫;
+  # 裸名单行形态 (Nimbus/Tinos/Amiri 实证已中) 不受扰。
   - {
       id: fontspec_missing,
       scope: head,
       payload_group: 1,
-      pattern: 'font [“"]([^”"]+)[”"] cannot be found',
+      pattern: 'font [“"]([^”"]+)[”"](?:\s*\([\w@*+-]+\))?\s*cannot(?:\s*\([\w@*+-]+\))?\s*be(?:\s*\([\w@*+-]+\))?\s*found',
     }
   # —— 源码级 ——
   - { id: illegal_unit, scope: head, pattern: "Illegal unit of measure" }
@@ -309,7 +337,7 @@ taxonomy:
   # 2505.06480): \includegraphics{X}/\fig{..}{X} 无扩展名引用, 资产在所
   # 有试扩名下缺席 → graphicx \Gin@i 经 \@latex@error 落
   # `File `X' not found.` (裸 basename——前列 missing_file 臂要
-  # `\.[a-zA-Z0-9]+` 扩展名够不着, 原落 other|None 零规则可派发)。
+  # `\.[a-zA-Z0-9_]+` 扩展名够不着, 原落 other|None 零规则可派发)。
   # 图形证据 = errhelp `I could not locate the file with any of these
   # extensions:` —— 仅 graphicx \Gin@i 错误路径落盘, 恒居错误行 +8
   # (恰出 ctx8 右缘) → 走 use_post 扩展窗; l.N 回显行的 graphic cs
@@ -498,7 +526,7 @@ taxonomy:
       id: missing_file,
       scope: tail,
       payload_group: 1,
-      pattern: "File `([^']+\\.[a-zA-Z0-9]+)' not found",
+      pattern: "File `([^']+\\.[a-zA-Z0-9_]+)' not found",
       guard: "Enter file name|Emergency",
       preempts: [undefined_cs, pdftex_prim, other, emergency],
     }
