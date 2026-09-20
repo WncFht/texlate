@@ -273,13 +273,40 @@ def _mask_tex(  # noqa: C901 -- 深度门新增两分支即语义面
 _mask_tex_memo = lru_cache(maxsize=_MEMO_MAXSIZE)(_mask_tex)
 
 
-def iter_depth0(rx: re.Pattern[str], vis: str) -> Iterator[re.Match[str]]:
-    r"""``rx`` 在遮盖视图上、起始位置 brace 深度 0 的全部命中。
+# ---------------------------------------------------------------- 死尾截断
+
+#: 死尾边界：首个 ``\end{document}``/``\endinput`` 之后引擎不再读本文件——
+#: 其后的同形 token 非活 slot，扫它只会报假缺失/假命中。三处旧本地字面量
+#: （``compile.probe._DEAD_TAIL_RE``/``judge._DEAD_TAIL_RX``/
+#: ``fixloop._builtins_slotrev._DEAD_TAIL_RX``）归并本件。
+DEAD_TAIL_RX: Final = re.compile(r"\\end\s*\{document\}|\\endinput\b")
+
+
+def dead_tail_view(view: str) -> str:
+    r"""遮盖视图死尾截断 → ``\end{document}``/``\endinput`` 起前缀即活面。
+
+    等长遮盖视图的前缀切片——截断后 ``m.start()/end()`` 仍可直接回切原文。
+    """
+    dead = DEAD_TAIL_RX.search(view)
+    return view[: dead.start()] if dead is not None else view
+
+
+def live_tex(src: str) -> str:
+    r"""``mask_tex`` 等长视图 + 死尾截断——活 slot 扫描面单源。
+
+    遮盖视图与原文字节 offset 对齐，截断后 ``m.start()/end()`` 仍可直接
+    回切 ``src``。
+    """
+    return dead_tail_view(mask_tex(src))
+
+
+def iter_depth(rx: re.Pattern[str], vis: str) -> Iterator[tuple[re.Match[str], int]]:
+    r"""``rx`` 在遮盖视图上的全部命中 ``(match, 起始位 brace 深度)``。
 
     花括号配对走查随 finditer 游标推进；``\\`` 双字符跳过不吃配对。
     ``\bgroup``/``[..]`` 非字符花括号不计深度——与 TeX 语义一致。
-    ``inject.find_docclass_ends`` 与 ``latex209._primary_docstyle`` 共用
-    （原逐字复抄，单源后落本模块——两层都不能反依赖 compile 层）。
+    depth-0 过滤（``iter_depth0``）与逐深度分派
+    （``inject.find_docclass_ends``）共用本走查。
     """
     depth = 0
     pos = 0
@@ -295,5 +322,16 @@ def iter_depth0(rx: re.Pattern[str], vis: str) -> Iterator[re.Match[str]]:
                 depth -= 1
             pos += 1
         pos = m.end()
+        yield m, depth
+
+
+def iter_depth0(rx: re.Pattern[str], vis: str) -> Iterator[re.Match[str]]:
+    r"""``rx`` 在遮盖视图上、起始位置 brace 深度 0 的全部命中。
+
+    ``iter_depth`` 的 depth-0 过滤件——``inject.find_docclass_ends`` 与
+    ``latex209._primary_docstyle`` 共用（原逐字复抄，单源后落本模块——
+    两层都不能反依赖 compile 层）。
+    """
+    for m, depth in iter_depth(rx, vis):
         if depth == 0:
             yield m

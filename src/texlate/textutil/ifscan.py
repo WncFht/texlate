@@ -40,6 +40,7 @@ operand 同理记 close-alias。operand 预算 (``COND_OPS``): ``\\ifx``/
 from __future__ import annotations
 
 import re
+from bisect import bisect_left
 from dataclasses import dataclass, field
 from typing import Final
 
@@ -276,6 +277,7 @@ def scan_ifs(text: str) -> IfScan:  # noqa: C901, PLR0912, PLR0915 -- token 分�
     计 —— 两模分歧位。
     """
     vis = mask_tex(text)
+    nl_offs = [i for i, ch in enumerate(vis) if ch == "\n"]  # 换行偏移表 —— 行号 bisect 查
     opens: list[tuple[str, int, int]] = []  # (name, line, region) region=0 live
     groups: list[str] = []  # per-{ kind: "grp"|"def"|"skip"
     live_opens = live_closes = def_unclosed = 0
@@ -298,6 +300,9 @@ def scan_ifs(text: str) -> IfScan:  # noqa: C901, PLR0912, PLR0915 -- token 分�
     pending_alias: tuple[str, str] | None = None  # (name_cs, op_cs)
     def_name = False  # DEFCMD 后首个 cs 是名位 → 销 alias
 
+    def line_at(pos: int) -> int:
+        return bisect_left(nl_offs, pos) + 1
+
     def def_depth() -> int:
         d = 0
         for i, k in enumerate(groups):
@@ -312,7 +317,7 @@ def scan_ifs(text: str) -> IfScan:  # noqa: C901, PLR0912, PLR0915 -- token 分�
         # 非执行位 token 在活条件帧内 → 跳读扫描按其计 (phantom)。
         if live_cond() == 0:
             return
-        line = vis.count("\n", 0, pos) + 1
+        line = line_at(pos)
         if (cs.startswith("if") and cs not in NONCOND) or cs in if_alias_ops:
             phantoms.append((cs, line, "open"))
         elif cs in CLOSE or cs in close_aliases:
@@ -325,6 +330,20 @@ def scan_ifs(text: str) -> IfScan:  # noqa: C901, PLR0912, PLR0915 -- token 分�
             while opens and opens[-1][2] == len(groups) + 1:
                 opens.pop()
                 def_unclosed += 1
+
+    def push_group() -> None:
+        # ``{``/``\bgroup`` 共用开组分派: pending 列队优先, 次 def_params
+        # 体组, 余皆普通组。
+        nonlocal def_params
+        kind = "grp"
+        if pending:
+            kind = pending.pop(0)
+        elif def_params:
+            kind = "def"
+            def_params = False
+        if kind == "name":
+            kind = "skip"  # \newcommand{\foo} name brace: content unscanned
+        groups.append(kind)
 
     for tm in TOKEN.finditer(vis):
         cs, brace = tm.group(1), tm.group(2)
@@ -345,15 +364,7 @@ def scan_ifs(text: str) -> IfScan:  # noqa: C901, PLR0912, PLR0915 -- token 分�
                 continue
         prev_end = tm.end()
         if brace == "{":
-            kind = "grp"
-            if pending:
-                kind = pending.pop(0)
-            elif def_params:
-                kind = "def"
-                def_params = False
-            if kind == "name":
-                kind = "skip"  # \newcommand{\foo} name brace: content unscanned
-            groups.append(kind)
+            push_group()
             continue
         if brace == "}":
             close_group()
@@ -423,15 +434,7 @@ def scan_ifs(text: str) -> IfScan:  # noqa: C901, PLR0912, PLR0915 -- token 分�
             pending = ["skip", "def", "def"]
             continue
         if cs == "bgroup":
-            kind = "grp"
-            if pending:
-                kind = pending.pop(0)
-            elif def_params:
-                kind = "def"
-                def_params = False
-            if kind == "name":
-                kind = "skip"
-            groups.append(kind)
+            push_group()
             continue
         if cs == "egroup":
             close_group()
@@ -444,14 +447,14 @@ def scan_ifs(text: str) -> IfScan:  # noqa: C901, PLR0912, PLR0915 -- token 分�
             continue
         d = def_depth()
         if (cs.startswith("if") and cs not in NONCOND) or cs in if_alias_ops:
-            opens.append((cs, vis.count("\n", 0, tm.start()) + 1, d))
+            opens.append((cs, line_at(tm.start()), d))
             if d == 0:
                 live_opens += 1
             elif live_cond() > 0:
                 # 活条件内的 def 区 open: 跳读同样计开 (已计入 opens,
                 # 此处仅上报 —— 不重复计 live/def 合计)。append 的是
                 # def 区 open (r>0), 不影响 live_cond 读数。
-                phantoms.append((cs, vis.count("\n", 0, tm.start()) + 1, "def-open"))
+                phantoms.append((cs, line_at(tm.start()), "def-open"))
             # operand 预算: \ifx/\ifnum/\ifdefined 等其后 N cs 是 operand
             # 位 —— 走 cond_ops 位静默 + phantom 判, 不计开 (跳读扫描按
             # token 计, 与 operand 位语义一致地落在 phantom 域)。

@@ -8,21 +8,29 @@ r"""文本小件单源 —— 遮盖视图/校验签名/env 读取的跨层宿�
 - ``cite``：cite/bib 键面词法——``\cite`` 族/``\bibitem``/aux 陈旧键的
   键表抽取正则（跨层共享件，C3 归位预置）。
 - ``mask``：``mask_comments``/``mask_tex`` 等长遮盖机 + 逐字/失活环境
-  注册表（``VERBATIM_ENVS``/``DEAD_ENVS``）+ 遮盖视图迭代件。
+  注册表（``VERBATIM_ENVS``/``DEAD_ENVS``）+ 遮盖视图迭代件 +
+  死尾截断面（``DEAD_TAIL_RX``/``dead_tail_view``/``live_tex``）。
 - ``cjk``：排序不相交区间的 bisect 判定件 + ``CJK_RANGES``/``CJK_RX``/
   ``is_cjk_cp`` 码点面。
 - ``encoding``：arXiv 源码字节 → 编码判定/解码簇（``sniff_tex_encoding``/
   ``decode_tex``/``decode_tex_with``/``EncodingVerdict``）。
 - ``ifscan``：条件栈字面扫描器（``scan_ifs``/``IfScan``——fixloop
   ``unclosed_if_close*`` 共用件）。
+- ``jsonl``：flock 串行化 jsonl 追加件（``append_jsonl``——share 索引
+  与 fixloop CaseSink 共用）。
 - ``nets``：校验域知识件——``*_net`` 缺陷签名检测簇（``bare_cs_net``/
   ``ph_in_cs_net``/``residual_en_net``）+ ``MATH_CS``/``cs_events_spans``
   支撑件 + ``JSON_FENCE_RX``/``PH_*``/``prose_text``/``est_tokens``/
-  ``lev_capped`` 共享口径。消费方在 validate/xlat/fixloop 层，迁往任一
-  消费层都会破坏 import 面（validate 不能 import xlat），故宿于底叶。
+  ``lev_capped`` 共享口径 + 接缝判据（``cs_letter_tail_rx``/
+  ``needs_seam_space``——原 ``segmenter/_common`` 下沉）。消费方在
+  validate/xlat/fixloop 层，迁往任一消费层都会破坏 import 面
+  （validate 不能 import xlat），故宿于底叶。
 - ``osutil``：os 边界小件——``env_flag``/``env_str``/``env_float``/
-  ``env_raw``/``env_opt`` 读取族 + ``data_root`` + ``safe_resolve``/
-  ``safe_is_file`` 路径防御。
+  ``env_raw``/``env_opt`` 读取族 + ``data_root``/``set_data_dir`` +
+  ``safe_resolve``/``safe_is_file``/``safe_is_dir`` 路径防御 +
+  ``utc_now``/``filtered_env``/``DEFAULT_BIND_*`` 派生共享件。
+- ``targate``：tar 伪装二进制闸（``_tar_disguised``/``_tar_header_ok``
+  ——compile/latex 两层共用，不能锚在消费层）。
 """
 
 from __future__ import annotations
@@ -53,34 +61,37 @@ from .decls import (
 # ``textutil._x`` 属性面消费（各带 noqa: SLF001）；nets/osutil 私有名
 # 出叶前本属 facade 模块级，同面转口保属性面逐名守恒，拆分后口径不变。
 from .encoding import (  # noqa: F401
-    _TAR_HEADER_LEN,
     EncodingVerdict,
     _char_class,
     _declared_name,
     _decode_tex_with_memo,
     _eol_norm,
     _scrub_c1_mojibake,
-    _tar_disguised,
-    _tar_header_ok,
     decode_tex,
     decode_tex_with,
     sniff_tex_encoding,
 )
 from .ifscan import IfScan, scan_ifs
+from .jsonl import append_jsonl
 from .mask import (  # noqa: F401
     _MEMO_MAX_INPUT,
     _VERBATIM_BEGIN_RX,
     DEAD_ENVS,
+    DEAD_TAIL_RX,
     VERBATIM_ENVS,
     _mask_tex_memo,
     dead_end_anchored,
     dead_env_end,
+    dead_tail_view,
+    iter_depth,
     iter_depth0,
+    live_tex,
     mask_comments,
     mask_tex,
 )
 from .nets import (  # noqa: F401
     _BARE_CS_SCAN_RX,
+    _LETTER_TAIL_RX,
     _MIN_FUSED_PREFIX,
     _PH_IN_CS_RX,
     _RESID_EN_ADDR_RX,
@@ -102,23 +113,32 @@ from .nets import (  # noqa: F401
     _math_spans,
     bare_cs_net,
     cs_events_spans,
+    cs_letter_tail_rx,
     est_tokens,
     lev_capped,
+    needs_seam_space,
     ph_in_cs_net,
     prose_text,
     residual_en_net,
 )
 from .osutil import (  # noqa: F401
     _TRUE_WORDS,
+    DEFAULT_BIND_HOST,
+    DEFAULT_BIND_PORT,
     data_root,
     env_flag,
     env_float,
     env_opt,
     env_raw,
     env_str,
+    filtered_env,
+    safe_is_dir,
     safe_is_file,
     safe_resolve,
+    set_data_dir,
+    utc_now,
 )
+from .targate import _TAR_HEADER_LEN, _tar_disguised, _tar_header_ok  # noqa: F401
 
 __all__ = [
     "AUX_CITEKEY_RE",
@@ -130,8 +150,11 @@ __all__ = [
     "CMD_BOUNDARY",
     "CS_OR_SYM_RX",
     "DEAD_ENVS",
+    "DEAD_TAIL_RX",
     "DECL_NAME_RX",
     "DECL_TAIL",
+    "DEFAULT_BIND_HOST",
+    "DEFAULT_BIND_PORT",
     "DOCCLASS_DECL_RX",
     "DOCCLASS_NAMES",
     "DOCCLASS_ONLY_RX",
@@ -152,12 +175,15 @@ __all__ = [
     "VERBATIM_ENVS",
     "EncodingVerdict",
     "IfScan",
+    "append_jsonl",
     "bare_cs_net",
     "clean_decl_name",
     "cs_events_spans",
+    "cs_letter_tail_rx",
     "data_root",
     "dead_end_anchored",
     "dead_env_end",
+    "dead_tail_view",
     "decode_tex",
     "decode_tex_with",
     "env_flag",
@@ -166,16 +192,23 @@ __all__ = [
     "env_raw",
     "env_str",
     "est_tokens",
+    "filtered_env",
     "is_cjk_cp",
+    "iter_depth",
     "iter_depth0",
     "lev_capped",
+    "live_tex",
     "mask_comments",
     "mask_tex",
+    "needs_seam_space",
     "ph_in_cs_net",
     "prose_text",
     "residual_en_net",
+    "safe_is_dir",
     "safe_is_file",
     "safe_resolve",
     "scan_ifs",
+    "set_data_dir",
     "sniff_tex_encoding",
+    "utc_now",
 ]

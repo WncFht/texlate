@@ -402,7 +402,18 @@ def _decode_high_run(run: bytes) -> tuple[str, str]:  # noqa: C901 — 局部仲
 
 
 def _decode_mixed(blob: bytes) -> tuple[str, dict[int, str]]:
-    """UTF-8 分段 + 高字节 run 局部解码。返回 (文本, {offset: 区段 codec})。"""
+    """UTF-8 分段 + 高字节 run 局部解码。返回 (文本, {offset: 区段 codec})。
+
+    判定面（``_sniff_arbitrate`` 评分）与解码面（``_decode_tex_with`` 按
+    ``utf-8-mixed`` 定档重取同文）共用一份结果——memo 口径同
+    ``sniff_tex_encoding``：超窗输入绕过缓存直算，产物 regions 只读。
+    """
+    if len(blob) > _MEMO_MAX_INPUT:
+        return _decode_mixed_impl(blob)
+    return _decode_mixed_memo(blob)
+
+
+def _decode_mixed_impl(blob: bytes) -> tuple[str, dict[int, str]]:
     parts: list[str] = []
     regions: dict[int, str] = {}
     pos = 0
@@ -424,6 +435,9 @@ def _decode_mixed(blob: bytes) -> tuple[str, dict[int, str]]:
     return "".join(parts), regions
 
 
+_decode_mixed_memo = lru_cache(maxsize=_MEMO_MAXSIZE)(_decode_mixed_impl)
+
+
 def sniff_tex_encoding(blob: bytes) -> EncodingVerdict:
     """按文件归属分档判定编码（不解码大文本时只判不定）。
 
@@ -435,32 +449,55 @@ def sniff_tex_encoding(blob: bytes) -> EncodingVerdict:
     return _sniff_tex_encoding_memo(blob)
 
 
-def _sniff_tex_encoding(blob: bytes) -> EncodingVerdict:  # noqa: C901, PLR0911, PLR0912, PLR0915 — 分档链即规格序
+def _sniff_tex_encoding(blob: bytes) -> EncodingVerdict:
+    # 分档链即规格序：bom → utf16 → strict → 双字节族 → 全体评分仲裁
+    # （自述声明在仲裁内采纳/不符——声明面只在 BOM 未命中后才扫）。
+    verdict = _sniff_bom(blob)
+    if verdict is not None:
+        return verdict
+    declared_raw = _declared_name(blob)
+    declared = _declared_codec(declared_raw) if declared_raw else None
+    verdict = (
+        _sniff_utf16_nul(blob, declared_raw)
+        or _sniff_strict_utf8(blob, declared_raw, declared)
+        or _sniff_cjk_family(blob, declared_raw, declared)
+    )
+    if verdict is not None:
+        return verdict
+    return _sniff_arbitrate(blob, declared_raw, declared)
+
+
+def _sniff_bom(blob: bytes) -> EncodingVerdict | None:
     if blob.startswith(b"\xef\xbb\xbf"):
         return EncodingVerdict("utf-8-sig", "bom")
     if blob.startswith((b"\xff\xfe", b"\xfe\xff")):
         return EncodingVerdict("utf-16", "bom")
-    declared_raw = _declared_name(blob)
-    declared = _declared_codec(declared_raw) if declared_raw else None
+    return None
+
+
+def _sniff_utf16_nul(blob: bytes, declared_raw: str | None) -> EncodingVerdict | None:
     # utf-16le/be 无 BOM 时是合法 UTF-8（NUL+ASCII）——必须先于 strict 判定。
     # 比例口径：头 4K 里 NUL 占 ≥1/4 即成案（utf-16 ASCII 区恒 ~50%）。
     head = blob[:_UTF16_HEAD]
-    if (
-        head.count(b"\x00") > len(head) // _UTF16_NUL_DIV
-        and len(head) >= _UTF16_MIN_LEN
-    ):
-        for enc in ("utf-16-le", "utf-16-be"):
-            try:
-                blob.decode(enc)
-            except UnicodeDecodeError:
-                continue
-            return EncodingVerdict(enc, "detector", declared_raw, "nul-dense")
-        # 两端 strict 皆败（奇数字节截断/孤立代理对）——NUL+ASCII 落回
-        # utf-8 档会产出 NUL 夹心乱文；按 NUL 奇偶位选端，
-        # decode_tex_with 的 errors=replace 兜底只坏截断点一处。
-        odd_nul = head[1::2].count(0)
-        enc = "utf-16-le" if odd_nul * 2 >= head.count(b"\x00") else "utf-16-be"
-        return EncodingVerdict(enc, "detector", declared_raw, "nul-dense,bad-tail")
+    if head.count(b"\x00") <= len(head) // _UTF16_NUL_DIV or len(head) < _UTF16_MIN_LEN:
+        return None
+    for enc in ("utf-16-le", "utf-16-be"):
+        try:
+            blob.decode(enc)
+        except UnicodeDecodeError:
+            continue
+        return EncodingVerdict(enc, "detector", declared_raw, "nul-dense")
+    # 两端 strict 皆败（奇数字节截断/孤立代理对）——NUL+ASCII 落回
+    # utf-8 档会产出 NUL 夹心乱文；按 NUL 奇偶位选端，
+    # decode_tex_with 的 errors=replace 兜底只坏截断点一处。
+    odd_nul = head[1::2].count(0)
+    enc = "utf-16-le" if odd_nul * 2 >= head.count(b"\x00") else "utf-16-be"
+    return EncodingVerdict(enc, "detector", declared_raw, "nul-dense,bad-tail")
+
+
+def _sniff_strict_utf8(
+    blob: bytes, declared_raw: str | None, declared: str | None
+) -> EncodingVerdict | None:
     try:
         blob.decode("utf-8")
     except UnicodeDecodeError as err:
@@ -476,13 +513,18 @@ def _sniff_tex_encoding(blob: bytes) -> EncodingVerdict:  # noqa: C901, PLR0911,
             return EncodingVerdict(
                 "utf-8", "strict-utf8", declared_raw, "truncated utf-8 tail"
             )
-    else:
-        note = (
-            ""
-            if declared in (None, "utf-8")
-            else f"declared {declared_raw} ignored: bytes are strict utf-8"
-        )
-        return EncodingVerdict("utf-8", "strict-utf8", declared_raw, note)
+        return None
+    note = (
+        ""
+        if declared in (None, "utf-8")
+        else f"declared {declared_raw} ignored: bytes are strict utf-8"
+    )
+    return EncodingVerdict("utf-8", "strict-utf8", declared_raw, note)
+
+
+def _sniff_cjk_family(
+    blob: bytes, declared_raw: str | None, declared: str | None
+) -> EncodingVerdict | None:
     # 双字节族快判：高字节「前位亦高」相邻占比 ≥60% 且总量 ≥8——真
     # GBK/SJIS/Big5/EUC 文的高字节两两相连；latin/cyrillic 的高字节被
     # ASCII 断开（latin 重音后随字母落在 gb trail 区间会把「下位字节」
@@ -527,11 +569,18 @@ def _sniff_tex_encoding(blob: bytes) -> EncodingVerdict:  # noqa: C901, PLR0911,
                         declared_raw,
                         f"paired-bytes={adjacent / len(high):.2f}",
                     )
+    return None
+
+
+def _sniff_arbitrate(  # noqa: C901 — argmax+声明采纳链即规格序
+    blob: bytes, declared_raw: str | None, declared: str | None
+) -> EncodingVerdict:
     candidates: list[tuple[str, str, float]] = []  # (encoding, basis, score)
-    mixed_text, regions = _decode_mixed(blob)
+    regions: dict[int, str] = {}
     if _UTF8_SEQ_RX.search(blob):
         # 含真 UTF-8 多字节序列才是混合文件，否则与单字节全量解码同文；
         # +20 结构分——合法 UTF-8 序列的存在本身就是该走分段解码的证据
+        mixed_text, regions = _decode_mixed(blob)
         candidates.append(
             ("utf-8-mixed", "mixed", _score_text(mixed_text) + _MIXED_STRUCT_BONUS)
         )
@@ -697,70 +746,3 @@ _decode_tex_with_memo = lru_cache(maxsize=_MEMO_MAXSIZE)(_decode_tex_with)
 def decode_tex(blob: bytes) -> str:
     """解码 arXiv 源码字节；判定层级见 :func:`sniff_tex_encoding`。"""
     return decode_tex_with(blob)[0]
-
-
-# ---------------------------------------------------------------- 伪装二进制闸
-#: tar 魔数探测窗——与 fixloop ``_tar_header_start`` 同口径（前 64KB 扫
-#: ``ustar``、回推 257 验头），原生与被前置注入推位的变异 blob 通吃。
-#: ``decode_tex`` 永不抛（latin-1 兜底）：tar 成员文本里可含
-#: ``\begin{document}``/``\documentclass``/``\fontfamily``，blob 解出的
-#: "文本"照样命中各手术锚点——0707.0382 ``AMSbsy.sty`` 实为 1MB tar，
-#: 兼容前导块前置把 ustar 推离 257 实案。宿于本叶：compile/latex 两层
-#: 共用（normalize/inject 手术面 + api/flatten 翻译面 + fixloop 解包闸），
-#: 不能锚在消费层。
-_TAR_SNIFF_WINDOW: Final = 65536
-_TAR_MAGIC_OFF: Final = 257
-_TAR_MAGIC: Final = b"ustar"
-#: offset-257 魔数+版本域全宽 8B：POSIX ``ustar\0`` + ``00``，GNU
-#: ``ustar`` + 2 空格 + ``\0``。``ustar}``/``ustarh``/``ustar(`` 等文本
-#: 命中永不过此关（2410.17904 ``\mustar``/``\mustarh`` 宏名假阳实案——
-#: fixloop 侧真 ``paper.tex`` 曾被改名 .tarblob → missing_file）。
-_TAR_MAGIC_LEN: Final = 8
-_TAR_MAGIC_FIELDS: Final = frozenset({b"ustar\x0000", b"ustar  \x00"})
-#: tar chksum 字段（头内偏移 148，8 字节）——存值须等于 512B 头余字节
-#: 按空格计之和；数据表里 ``012345␣␣`` 形态巧合过不了值校验，
-#: 与魔数域双校验后假阳率近零。
-_TAR_CHKSUM_OFF: Final = 148
-_TAR_CHKSUM_LEN: Final = 8
-_TAR_HEADER_LEN: Final = 512
-
-
-def _tar_header_ok(head: bytes, start: int) -> bool:
-    """Tar 头校验：name 首字节非 NUL + 魔数+版本域全宽 + 512B 校验和。
-
-    ``start`` 为调用方 ``ustar`` 命中回推 ``_TAR_MAGIC_OFF`` 的头起点
-    （``0 <= start < len(head)``）；``head`` 须给到 ``start+512`` 才让
-    校验和层生效——窗尾命中不足 512B 按非 tar 拒。
-    """
-    if head[start] == 0:
-        return False
-    magic = head[start + _TAR_MAGIC_OFF : start + _TAR_MAGIC_OFF + _TAR_MAGIC_LEN]
-    if magic not in _TAR_MAGIC_FIELDS:
-        return False
-    blk = head[start : start + _TAR_HEADER_LEN]
-    if len(blk) < _TAR_HEADER_LEN:
-        return False
-    field = blk[_TAR_CHKSUM_OFF : _TAR_CHKSUM_OFF + _TAR_CHKSUM_LEN]
-    digits = field.split(b"\x00")[0].strip()
-    if not digits or any(c not in b"01234567" for c in digits):
-        return False
-    return int(digits, 8) == (
-        sum(blk[:_TAR_CHKSUM_OFF])
-        + _TAR_CHKSUM_LEN * 0x20
-        + sum(blk[_TAR_CHKSUM_OFF + _TAR_CHKSUM_LEN :])
-    )
-
-
-def _tar_disguised(blob: bytes) -> bool:
-    """Tar 伪装件判定：探测窗内 ``ustar`` 回推 ``_TAR_MAGIC_OFF`` 双校验。
-
-    多读 ``_TAR_HEADER_LEN`` 让窗尾命中仍见全头（不足按非 tar 拒）。
-    """
-    head = blob[: _TAR_SNIFF_WINDOW + _TAR_HEADER_LEN]
-    pos = head.find(_TAR_MAGIC)
-    while pos != -1:
-        start = pos - _TAR_MAGIC_OFF
-        if start >= 0 and _tar_header_ok(head, start):
-            return True
-        pos = head.find(_TAR_MAGIC, pos + 1)
-    return False

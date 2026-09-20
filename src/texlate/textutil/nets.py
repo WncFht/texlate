@@ -370,3 +370,35 @@ def lev_capped(a: str, b: str, cap: int) -> int:
             return cap + 1
         prev = cur
     return min(prev[-1], cap + 1)
+
+
+# ---------------------------------------------------------------- 接缝判据
+# 尾字符必须真字母：孤 ``\@`` 是控制符号而非控制词尾——``\@x`` 的 ``@``
+# 不吞后继空格，``_rappend``/``seg_join`` 若按 ``\\[@]+`` 收它会补伪
+# ``" "`` 破 identity（S1）；``\ds@list`` 族中位 ``@`` 不受影响。
+# ``\Z`` 严格串尾（体尾 ``\n`` 已阻断 token 合并，放宽会收过头）。
+# 严格接缝族单源——``reconstruct.seg_join`` 同形经 ``needs_seam_space``
+# 消费（``xlat.batch`` 的 ``\*?`` 星形 + ``$`` 收尾变体与 bench parsebench
+# 的松径是有意分歧，不随本件）。原宿 ``latex/segmenter/_common``——
+# ``latex.reconstruct``/``segmenter.core`` 消费，迁往任一消费层都破坏
+# import 面，下沉本叶。
+cs_letter_tail_rx: Final = re.compile(r"\\[a-zA-Z@]*[a-zA-Z]\Z")
+#: 旧锚名——canonical 名 ``cs_letter_tail_rx``。
+_LETTER_TAIL_RX = cs_letter_tail_rx
+
+
+def _starts_letter(s: str) -> bool:
+    r"""首字符是 ASCII 字母（TeX 控制词名续名判据——``\\foo``+``中`` 不算熔合）。"""
+    return bool(s) and s[0].isascii() and s[0].isalpha()
+
+
+def needs_seam_space(prev: str, nxt: str) -> bool:
+    r"""``prev`` 尾落 ``\letters`` 控制词形 + ``nxt`` ASCII 字母头 → 接缝补 ``" "`` 判据。
+
+    ``_rappend``/``seg_join``/``letters_cut`` 同闸单源。头字符定死
+    ASCII-only（``_starts_letter``）——ident 轨 byte-identity 要求
+    （裸 ``isalpha`` 会在 CJK 头前补伪空格）；``seg_join`` 侧 TeX
+    吸收该空格本无所谓，统一取严口径顺带消 ``\cs``+CJK 的
+    letters_cut 假阳性面。
+    """
+    return _starts_letter(nxt) and cs_letter_tail_rx.search(prev) is not None
