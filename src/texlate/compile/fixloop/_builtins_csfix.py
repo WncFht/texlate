@@ -1668,8 +1668,9 @@ def spacefactor_atdef_wrap(
     del eng, payload
     head = ctx.err_head or ""
     log = _fixloop_log(ctx)
-    if "spacefactor" not in head and "spacefactor" not in log:
-        return False, "no spacefactor signature"
+    gate = params.get("gate_terms", ("spacefactor",))
+    if gate and not any(t in head or t in log for t in gate):
+        return False, f"no gate signature ({'|'.join(gate)})"
     exts = tuple(params.get("exts") or (".tex",))
     changed: list[str] = []
     for f in ctx.tex_files(exts):

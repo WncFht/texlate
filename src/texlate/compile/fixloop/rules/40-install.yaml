@@ -616,6 +616,149 @@ rules:
     stats: { fires: 27, rescued_cells: 13, status: active }
     source_ref: "tmp/lane-geomverify/report.md + fixloop.jsonl r1 实读; drop 化裁定 = census 改设 (leader); 补丁件 = mnras-optpatch #51 vendor/files/mnras.cls"
 
+  # 2026-09-20 implunk26 lane (unk26spec B1, cond-mat/0103307+0103262):
+  # 稿自带 era pst-* 包捆遮蔽系统件 —— 0103307 era pst-feyn.sty/.tex +
+  # pst-key.sty/.tex (era pst-key.tex 喂现代 ~/texmf pstricks.tex →
+  # \ifpst@useCalc undefined + keyval skew); 0103262 ~30 era pst-*.sty/.tex
+  # + multido/floatfig 遮蔽 → \usepackage{pstricks,pst-node} 载 era 核 →
+  # timeout。era 件全带日期面 (\ProvidesPackage[1997-1999] / \def\filedate)
+  # 且 < 系统 (pst-feyn 2018, pst-key 2004, pstricks 2024) → ld<sd 可证。
+  # vendored_sty_shadow(85-shim:15, order 150) 太靠后 (0103307 烧 14 编译
+  # 未达) 且 when 只收 undefined_cs|already_def —— 本臂同语义提前到 11.92
+  # 宽 when (timeout 在列 —— 0103262 超时装载格), action exts 加 .def/
+  # .cfg 把退役面扩到带日期面的 era 配套核 (condition 的 (.sty,.cls) 探针
+  # 不变 —— era .sty 在场即过闸)。
+  # DEVIATION (spec 原案 exts 含 .tex): 同干 .sty+.tex 双候选时
+  # _retire_paired_tex_core 先移 .tex, 直接候选再 rename 撞缺件 →
+  # FileNotFoundError (vendored_shadow_isolate 无 moved 文件卫, 钉测实证)。
+  # .tex 不入 exts 后同干核仍经 paired 道退役 —— spec pin "全四件
+  # .fixloop-iso" 结果不变; 仅失无同干 wrapper 的孤 .tex 面 (era 包捆
+  # 全成对)。builtin 修补属 _builtins_vendored.py 权属外 → 报 leader。
+  - id: era_bundle_shadow_retire
+    mechanisms: [B05]
+    description: "稿自带 era 包捆 (.sty/.cls/.def/.cfg + 同干 .tex 核 paired 道) ld<sd 确证遮蔽 → .fixloop-iso 退役 (vendored_shadow 早位宽 when 版)"
+    phase: loop
+    order: 11.92 # mnras_texmf_shadow_drop(11.91) 后, microtype_era_cfg_retire(11.93) 前 —— vendored_sty_shadow(150) 早位同族
+    when:
+      any: # 签名散格 + 超时装载格 (era pst-* 喂现代核的连锁面全收)
+        - { category: undefined_cs }
+        - { category: syntax }
+        - { category: illegal_unit }
+        - { category: key_unknown }
+        - { category: already_def }
+        - { category: other }
+        - { category: timeout }
+    condition:
+      vendored_shadow: true # builtin 探测: (.sty,.cls) 探针 ld<sd 自证
+    action:
+      kind: builtin_transform
+      function: vendored_shadow_isolate
+      params:
+        exts: [.sty, .cls, .def, .cfg]
+        suffix: .fixloop-iso
+    risk: medium # 条件自证 (只在 ld<sd 遮蔽存在时发); 触发格同轮抢占 >11.92 臂 = 预期消费
+    known_gap: "era .pro/.con 无日期面永不确证 → 留盘 (驱动期 skew 残面, 现代 .tex+era .pro 通常仍工作); 无系统对件的 era 件保留 (退役即造 missing_file); 孤 .tex (无同干 .sty/.cls wrapper) 不入直接候选 —— paired 道够不到则留盘"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "cond-mat/0103307 + cond-mat/0103262 (unk26 failmine7)",
+          error: "era pst-feyn/pst-key/pst-node 包捆遮蔽 → \\ifpst@useCalc undefined / pstricks 装载超时 (14 compiles 未达 vendored_sty_shadow@150)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-unk26spec/bundles.json B1 + tmp/lane-unk26/census.md"
+
+  # 2026-09-20 implunk26 lane (unk26spec B6, 0812.1138): 稿自带 era
+  # microtype 包捆 —— microtype.sty (\ProvidesPackage[2008/06/04 v2.3b])
+  # + microtype.cfg + 19 mt-*.cfg + letterspace.sty。era cfg 的
+  # \DeclareMicrotypeSet 对现代 microtype → Missing number ×40。
+  # .cfg 件无 \ProvidesX/\def\filedate 日期面 → vendored_shadow_isolate
+  # 的 ld<sd 永不确证 → 须走 pstricks_add_pair_retire(11.9) 同名单
+  # sh-loop 形 (指纹跳 + mv .fixloop-iso)。texlive 现代 microtype 套件
+  # (sty+cfg+mt-* 族) 全在档 → 退役后 kpathsea 一致解析。
+  - id: microtype_era_cfg_retire
+    mechanisms: [B05]
+    description: "稿自带 era microtype 包捆 (microtype.sty/.cfg/letterspace.sty/mt-*.cfg) → sh mv .fixloop-iso 退役, 系统现代套件递补"
+    phase: loop
+    order: 11.93 # era_bundle_shadow_retire(11.92) 后, doc_ifx_errmessage_demote(11.94) 前 —— pstadd 11.9 同名单退役同族
+    when:
+      any: # 签名散格: era cfg 对现代包 → Missing number(syntax)/undef cs/already_def/microtype 专属行
+        - { category: syntax }
+        - { category: undefined_cs }
+        - { category: other }
+        - { category: already_def }
+        - { category: microtype_pdftex }
+    condition:
+      ctx_suggests: "microtype|DeclareMicrotypeSet|MT@|letterspace"
+      cache_dir_glob: microtype.cfg
+      tool_available: sh
+    action:
+      kind: run_tool
+      params:
+        argv:
+          - sh
+          - -c
+          - 'for f in microtype.sty microtype.cfg letterspace.sty mt-*.cfg; do if [ -f "$f" ] && ! grep -q ''texlate-fixloop-injected'' "$f"; then mv -f "$f" "$f.fixloop-iso"; fi; done; exit 0'
+        timeout: 30
+    risk: low # 签名+在场双闸; 名单内全是有系统对件的 era 件 → 退役后解析一致
+    known_gap: "mt-*.cfg glob 无配 → [ -f ] 失败安全跳; 无系统对件的 doc-own 件 (stddefs/stdtypog/svninfo/crscat.cls) 不在名单保留; already_def:textast (crscat.cls:206) 另格残面非本捆; .pro 类无日期面伴船不在名单"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "0812.1138 (unk26 failmine7)",
+          error: "era microtype v2.3b (2008/06/04) \\DeclareMicrotypeSet 对现代 microtype → Missing number ×40",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-unk26spec/bundles.json B6 + tmp/lane-unk26/census.md"
+
+  # 2026-09-20 implunk26 lane (unk26spec B3, cond-mat/9612213): doc 导言
+  # 区引擎护栏 \ifx<cs>\undefined..\errmessage{..}\fi —— longbb.tex:53-55
+  # verbatim `\ifx\href\undefined \else\errmessage{Don't use hypertex} \fi`,
+  # 注入 hyperref 定义 \href → \errmessage abort (splice:421, cat=other)。
+  # engine_guard_strip(11.99) 是 .sty/.cls sh 行删臂 (when=emergency 单类)
+  # —— 文件集/线形/类目皆不同 → 独立 regex 臂: \errmessage 降级 \typeout,
+  # 告警留 log 可见 (剥整段 \ifx..\fi 会丢作者告警文本 —— 弃)。
+  - id: doc_ifx_errmessage_demote
+    mechanisms: [B05]
+    description: "doc .tex \\ifx<cs>\\undefined..\\errmessage{..}\\fi 引擎护栏 → \\errmessage 降级 \\typeout (注入 preamble 件踩护栏中止)"
+    phase: loop
+    order: 11.94 # microtype_era_cfg_retire(11.93) 后, abstract_edef_capture_neutralize(11.95) 前 —— engine_guard_strip(11.99) 的 .tex 姊妹臂
+    when:
+      any:
+        - { category: other }
+        - { category: syntax }
+        - { category: emergency }
+    condition:
+      source_contains: "\\\\ifx\\\\[A-Za-z@]+\\\\undefined[\\s\\S]{0,200}?\\\\errmessage"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex]
+        rewrites:
+          - {
+              pattern: "\\\\ifx(\\\\[A-Za-z@]+)\\\\undefined\\s*\\\\else\\s*\\\\errmessage\\{([^{}]*)\\}\\s*\\\\fi",
+              repl: "\\\\ifx\\g<1>\\\\undefined\\\\else\\\\typeout{\\g<2>}\\\\fi % texlate-fixloop-injected: doc engine guard demoted",
+            }
+          - {
+              pattern: "\\\\ifx(\\\\[A-Za-z@]+)\\\\undefined\\s*\\\\errmessage\\{([^{}]*)\\}\\s*\\\\fi",
+              repl: "\\\\ifx\\g<1>\\\\undefined\\\\typeout{\\g<2>}\\\\fi % texlate-fixloop-injected: doc engine guard demoted",
+            }
+    risk: low # 全形匹配才动; 护栏告警文本保留在 log; 改写后 \errmessage 消失天然幂等
+    known_gap: "裸 \\errmessage (非 \\ifx 护栏形) 不盖 —— 另签名待证; 嵌套花括消息不收 ([^{}] 界); .sty 内同形护栏不盖 (exts .tex)"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "cond-mat/9612213 (unk26 failmine7)",
+          error: "longbb.tex:53-55 \\ifx\\href\\undefined\\else\\errmessage{Don't use hypertex} — 注入 hyperref 定义 \\href → abort",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-unk26spec/bundles.json B3 + tmp/lane-unk26/census.md"
+
   # 2026-09-19 draftsty-patch lane: 稿自带 .sty 内 abstract 体捕获花括号
   # hack —— `\protected@edef\@tempa{\ifnum`}=\z@\fi...` 的 `` `} `` 被
   # \ifnum 当字符码操作数吞掉 (125≠0 假值整段空), 使 edef 的 `{` 失去配对
