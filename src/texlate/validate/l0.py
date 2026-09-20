@@ -69,6 +69,7 @@ import re
 from collections import Counter
 from dataclasses import dataclass, field
 from enum import StrEnum
+from functools import cached_property
 from typing import TYPE_CHECKING, Final
 
 from texlate.textutil import (
@@ -178,12 +179,13 @@ COMMENT_PH_RX: Final = re.compile(r"\[\[COMMENT_\d+\]\]")
 _COMMENT_LINE_RX: Final = re.compile(r"[ \t]*(?:\[\[COMMENT_\d+\]\][ \t]*)+")
 _COMMENT_TAIL_RX: Final = re.compile(r"(?:[ \t]*\[\[COMMENT_\d+\]\])*[ \t]*")
 
-#: 协议回显签名（repro-2410b §4b 交付守卫）：与 bench ``DIRTY_SIGS``
-#: （``e2e_mock_bench.py``）同一词表同序——L0 反馈消息实际 emit 串 +
+#: 协议回显签名（repro-2410b §4b 交付守卫）：L0 反馈消息实际 emit 串 +
 #: 重试协议字面（三段式节标/``previous_validation_error`` 尾拼/
 #: ``slot_validation_failures`` 字段/``[compile_error]`` L2 回灌标）。
-#: 交付 zh 出现即 prompt/反馈被当正文回显；``[这是译文]``/``[word]``
-#: 行内合法产出不在表内不误伤。
+#: 本表为唯一词表单源——bench ``DIRTY_SIGS``（``e2e_mock_bench.py``）
+#: 经 import 同源，勿再复抄副本（复抄面曾静默漂移：词表项的全角冒号
+#: 改写脱离了 emit 串）。交付 zh 出现即 prompt/反馈被当正文回显；
+#: ``[这是译文]``/``[word]`` 行内合法产出不在表内不误伤。
 _ECHO_SIGS: Final = (
     "占位符缺失:",  # _pair_placeholder_typos
     "占位符疑似拼错",  # _pair_placeholder_typos lev 配对臂
@@ -345,6 +347,61 @@ def _lex(s: str) -> list[tuple[str, str, int]]:
         out.append(("ch", c, i))
         i += 1
     return out
+
+
+class _Ctx:
+    """``(src, zh)`` 校验对的共享预处理视图缓存（``_CHECKERS`` 入参）。
+
+    14 条 checker 曾按 ``(src, zh, issues)`` 签名各自重推同一批词法/遮盖/
+    散文视图（每对 ``_lex`` ×13、``mask_comments`` ×9、``_prose`` ×4）；
+    全部改为随本对象惰性派生——每视图每对只算一次，未消费的侧不付成本。
+    """
+
+    def __init__(self, src: str, zh: str, issues: list[Issue]) -> None:
+        """记下双侧原文与共享 issues 槽；视图全部惰性。"""
+        self.src = src
+        self.zh = zh
+        self.issues = issues
+
+    @cached_property
+    def lex_src(self) -> list[tuple[str, str, int]]:
+        r"""``_lex(src)``——注释区整体是 ``cmt`` token，区内 ``\foo`` 本就不入 cs 计数。"""
+        return _lex(self.src)
+
+    @cached_property
+    def lex_zh(self) -> list[tuple[str, str, int]]:
+        """``_lex(zh)``。"""
+        return _lex(self.zh)
+
+    @cached_property
+    def masked_src(self) -> str:
+        """``mask_comments(src)`` 等长遮盖视图。"""
+        return mask_comments(self.src)
+
+    @cached_property
+    def masked_zh(self) -> str:
+        """``mask_comments(zh)`` 等长遮盖视图。"""
+        return mask_comments(self.zh)
+
+    @cached_property
+    def prose_src(self) -> str:
+        """``prose_text(src)`` 剥占位符/cs 后的散文本体（length/same_source 共用）。"""
+        return _prose(self.src)
+
+    @cached_property
+    def prose_zh(self) -> str:
+        """``prose_text(zh)``。"""
+        return _prose(self.zh)
+
+    @cached_property
+    def est_src(self) -> float:
+        """``est_tokens(prose_src)``——大小写不变量（CJK 数+非空白数），``ss.lower()`` 视图同值。"""
+        return _est_tokens(self.prose_src)
+
+    @cached_property
+    def est_zh(self) -> float:
+        """``est_tokens(prose_zh)``。"""
+        return _est_tokens(self.prose_zh)
 
 
 # ---------------------------------------------------------------- 规则组
@@ -519,22 +576,24 @@ def _check_ph_anchor(snc: str, znc: str, issues: list[Issue]) -> None:
         )
 
 
-def _ph_in_comments(s: str) -> Counter[str]:
+def _ph_in_comments(toks: list[tuple[str, str, int]]) -> Counter[str]:
     r"""注释区（``%``→行尾，``\%`` 豁免）内正规形占位符计数。
 
     mask 口径下注释区整体不可见，必须单独点算——zh 注释里臆造的占位符
     splice 后字面残留（sabotage 实测逃逸），src 自带注释占位符作净差豁免。
+    入参为 ``_lex`` token 流（``_Ctx.lex_src``/``lex_zh`` 共享视图）。
     """
     c: Counter[str] = Counter()
-    for kind, text, _ in _lex(s):
+    for kind, text, _ in toks:
         if kind == "cmt":
             c.update(PH_ANY_LIKE_RX.findall(text))
     return c
 
 
-def _check_placeholder(src: str, zh: str, issues: list[Issue]) -> None:
+def _check_placeholder(ctx: _Ctx) -> None:
     """占位符 multiset diff + lev≤2 修复配对 + 序守恒软信号 + 行锚定（BIBITEM/COMMENT）。"""
-    snc, znc = mask_comments(src), mask_comments(zh)
+    src, zh, issues = ctx.src, ctx.zh, ctx.issues
+    snc, znc = ctx.masked_src, ctx.masked_zh
     sseq = PH_ANY_LIKE_RX.findall(snc)
     zseq = PH_ANY_LIKE_RX.findall(znc)
     scnt, zcnt = Counter(sseq), Counter(zseq)
@@ -576,7 +635,7 @@ def _check_placeholder(src: str, zh: str, issues: list[Issue]) -> None:
     # —— 注释区占位符专项检查：zh 注释内净多出的占位符是 splice 字面残留
     #    （mask 比对看不见，sabotage 实测逃逸）。反向"正文占位符被挪进注释"
     #    已由上方 masked multiset 的 missing 方向捕获，此处只报多出。
-    extra_cmt = _ph_in_comments(zh) - _ph_in_comments(src)
+    extra_cmt = _ph_in_comments(ctx.lex_zh) - _ph_in_comments(ctx.lex_src)
     issues.extend(
         Issue(
             "placeholder",
@@ -590,11 +649,13 @@ def _check_placeholder(src: str, zh: str, issues: list[Issue]) -> None:
     _check_ph_anchor(snc, znc, issues)
 
 
-def _brace_profile(s: str) -> tuple[int, int, int, int, int]:
-    """``(open数, close数, 净深度, 最小前缀深度, 首个负深度pos)``。"""
+def _brace_profile_toks(
+    toks: list[tuple[str, str, int]],
+) -> tuple[int, int, int, int, int]:
+    """``(open数, close数, 净深度, 最小前缀深度, 首个负深度pos)``——``_lex`` token 流入参。"""
     depth = opens = closes = minpref = 0
     first_neg = -1
-    for kind, ch, pos in _lex(s):
+    for kind, ch, pos in toks:
         if kind != "ch":
             continue
         if ch == "{":
@@ -609,10 +670,16 @@ def _brace_profile(s: str) -> tuple[int, int, int, int, int]:
     return opens, closes, depth, minpref, first_neg
 
 
-def _check_brace(src: str, zh: str, issues: list[Issue]) -> None:
+def _brace_profile(s: str) -> tuple[int, int, int, int, int]:
+    """``_brace_profile_toks(_lex(s))``——fuzz oracle 用的字符串入口。"""
+    return _brace_profile_toks(_lex(s))
+
+
+def _check_brace(ctx: _Ctx) -> None:
     """``{}`` 平衡：zh 最小前缀深度 < src 最小前缀深度，或净余额不同 → error。"""
-    so, sc, sd, smin, _ = _brace_profile(src)
-    zo, zc, zd, zmin, zneg = _brace_profile(zh)
+    issues = ctx.issues
+    so, sc, sd, smin, _ = _brace_profile_toks(ctx.lex_src)
+    zo, zc, zd, zmin, zneg = _brace_profile_toks(ctx.lex_zh)
     if zmin < smin:
         issues.append(
             Issue(
@@ -642,21 +709,20 @@ def _check_brace(src: str, zh: str, issues: list[Issue]) -> None:
         )
 
 
-def _env_tokens(s: str) -> list[tuple[str, str, int]]:
-    """``(begin|end, 环境名, pos)`` 事件流（注释豁免）。"""
+def _env_tokens(snc: str) -> list[tuple[str, str, int]]:
+    """``(begin|end, 环境名, pos)`` 事件流——入参须为 ``mask_comments`` 遮盖视图。"""
     return [
-        (m.group(1), m.group(2).strip(), m.start())
-        for m in ENV_RX.finditer(mask_comments(s))
+        (m.group(1), m.group(2).strip(), m.start()) for m in ENV_RX.finditer(snc)
     ]
 
 
-def _env_signature(
-    s: str,
+def _env_signature_masked(
+    snc: str,
 ) -> tuple[int, int, Counter[str], Counter[str], Counter[str]]:
-    """``(多余end数, 不匹配数, 未闭合begin名, begin名, end名)`` 栈签名。"""
+    """``(多余end数, 不匹配数, 未闭合begin名, begin名, end名)`` 栈签名——遮盖视图入参。"""
     stack: list[tuple[str, int]] = []
     n_orphan_end = n_mismatch = 0
-    toks = _env_tokens(s)
+    toks = _env_tokens(snc)
     for kind, name, pos in toks:
         if kind == "begin":
             stack.append((name, pos))
@@ -671,13 +737,21 @@ def _env_signature(
     return n_orphan_end, n_mismatch, Counter(n for n, _ in stack), begins, ends
 
 
-def _check_env(src: str, zh: str, issues: list[Issue]) -> None:
+def _env_signature(
+    s: str,
+) -> tuple[int, int, Counter[str], Counter[str], Counter[str]]:
+    """``_env_signature_masked(mask_comments(s))``——fuzz oracle 用的原文入口。"""
+    return _env_signature_masked(mask_comments(s))
+
+
+def _check_env(ctx: _Ctx) -> None:
     r"""``\begin{X}``/``\end{X}`` 栈配对 + 环境名 multiset 签名差分。
 
     src 自身的内部不一致不追责（继承容忍），只报 zh 新增的栈错误类别。
     """
-    s_orph, s_mis, s_left, s_beg, s_end = _env_signature(src)
-    z_orph, z_mis, z_left, z_beg, z_end = _env_signature(zh)
+    issues = ctx.issues
+    s_orph, s_mis, s_left, s_beg, s_end = _env_signature_masked(ctx.masked_src)
+    z_orph, z_mis, z_left, z_beg, z_end = _env_signature_masked(ctx.masked_zh)
     if z_orph > s_orph:
         issues.append(
             Issue(
@@ -718,14 +792,14 @@ def _check_env(src: str, zh: str, issues: list[Issue]) -> None:
     )
 
 
-def _key_multiset(s: str) -> Counter[str]:
-    r"""cite/ref/label/bib key 多重集（逗号拆分，[..] 可选参豁免）。
+def _key_multiset_masked(snc: str) -> Counter[str]:
+    r"""cite/ref/label/bib key 多重集（逗号拆分，[..] 可选参豁免）——遮盖视图入参。
 
     refrange 臂的第二 {..} 也是 key 参数（``\crefrange{a}{b}``），
     group 1-3 逐组点算。
     """
     c: Counter[str] = Counter()
-    for m in KEY_CMD_RX.finditer(mask_comments(s)):
+    for m in KEY_CMD_RX.finditer(snc):
         for gi in (1, 2, 3, 4):
             grp = m.group(gi)
             if grp is None:
@@ -738,9 +812,16 @@ def _key_multiset(s: str) -> Counter[str]:
     return c
 
 
-def _check_key(src: str, zh: str, issues: list[Issue]) -> None:
+def _key_multiset(s: str) -> Counter[str]:
+    """``_key_multiset_masked(mask_comments(s))``——fuzz oracle 用的原文入口。"""
+    return _key_multiset_masked(mask_comments(s))
+
+
+def _check_key(ctx: _Ctx) -> None:
     """cite/ref/label/bib key multiset：src−zh=error，zh−src=warn（幻觉引用）。"""
-    sk, zk = _key_multiset(src), _key_multiset(zh)
+    issues = ctx.issues
+    sk = _key_multiset_masked(ctx.masked_src)
+    zk = _key_multiset_masked(ctx.masked_zh)
     for k, n in sorted((sk - zk).items()):
         issues.append(
             Issue("key", Severity.ERROR, f"引用/标签 key 丢失: '{k}' ×{n}", expected=k)
@@ -753,10 +834,12 @@ def _check_key(src: str, zh: str, issues: list[Issue]) -> None:
         )
 
 
-def _math_profile(s: str) -> tuple[int, int, int, int, int]:
-    r"""``($数, \(数, \)数, \[数, \]数)``（未转义，注释豁免）。"""
+def _math_profile_toks(
+    toks: list[tuple[str, str, int]],
+) -> tuple[int, int, int, int, int]:
+    r"""``($数, \(数, \)数, \[数, \]数)``（未转义）——``_lex`` token 流入参。"""
     d = lp = rp = lb = rb = 0
-    for kind, text, _ in _lex(s):
+    for kind, text, _ in toks:
         if kind == "ch":
             if text == "$":
                 d += 1
@@ -772,10 +855,16 @@ def _math_profile(s: str) -> tuple[int, int, int, int, int]:
     return d, lp, rp, lb, rb
 
 
-def _check_math(src: str, zh: str, issues: list[Issue]) -> None:
+def _math_profile(s: str) -> tuple[int, int, int, int, int]:
+    """``_math_profile_toks(_lex(s))``——fuzz oracle 用的字符串入口。"""
+    return _math_profile_toks(_lex(s))
+
+
+def _check_math(ctx: _Ctx) -> None:
     r"""``$`` ``\(\)`` ``\[\]`` 计数一致性（未转义，注释豁免）。"""
-    sd, slp, srp, slb, srb = _math_profile(src)
-    zd, zlp, zrp, zlb, zrb = _math_profile(zh)
+    issues = ctx.issues
+    sd, slp, srp, slb, srb = _math_profile_toks(ctx.lex_src)
+    zd, zlp, zrp, zlb, zrb = _math_profile_toks(ctx.lex_zh)
     if zd != sd:
         issues.append(
             Issue("math", Severity.ERROR, f"'$' 计数不同: src {sd} vs zh {zd}")
@@ -804,7 +893,7 @@ def _check_math(src: str, zh: str, issues: list[Issue]) -> None:
         )
 
 
-def _check_same_source(src: str, zh: str, issues: list[Issue]) -> None:
+def _check_same_source(ctx: _Ctx) -> None:
     """整段原文回显拒收（E24）：规范化等值 src==zh 且拉丁主导 → error。
 
     豁免：``[[BIB_`` bib 直通块（留英合法）、剥后 src <10 est_token
@@ -813,33 +902,36 @@ def _check_same_source(src: str, zh: str, issues: list[Issue]) -> None:
     唯一命中是合法邮箱块；拉丁主导门槛豁免 ``zh==en`` 含 CJK 的合法
     恒等译文（share.py 收录口径同款情形）。
     """
-    if "[[BIB_" in src:
+    if "[[BIB_" in ctx.src:
         return
-    ss, sz = _prose(src).lower(), _prose(zh).lower()
-    if _est_tokens(ss) < _MIN_PROSE_TOKENS or ss != sz:
+    # ``est_tokens`` 只数 CJK + 非空白字符，大小写不变——共享未小写视图的
+    # est 与 ``ss`` 上重算同值（length 臂消费同一 ``ctx.est_src``）。
+    ss, sz = ctx.prose_src.lower(), ctx.prose_zh.lower()
+    if ctx.est_src < _MIN_PROSE_TOKENS or ss != sz:
         return
     cjk = len(CJK_RX.findall(ss))
     lat = sum(1 for c in ss if c.isascii() and c.isalpha())
     if lat >= _MIN_LATIN_FOR_CJK_CHECK and cjk / (cjk + lat) < CJK_SHARE_MIN:
-        issues.append(
+        ctx.issues.append(
             Issue(
                 "same_source",
                 Severity.ERROR,
-                f"整段原文回显（剥占位符规范化后 src==zh，est={_est_tokens(ss):.0f}）",
+                f"整段原文回显（剥占位符规范化后 src==zh，est={ctx.est_src:.0f}）",
             )
         )
 
 
-def _check_length(src: str, zh: str, issues: list[Issue]) -> None:
+def _check_length(ctx: _Ctx) -> None:
     """长度比 sanity（E24 token 代理口径）+ 疑似未翻译（拉丁字符占比）。
 
     长度比：剥后 est_token 比出 [0.3,3.0] → error 拒收（src est<10 豁免）。
     CJK 占比：zh 剥后拉丁主导（share<0.30）→ warn 疑似未翻译。
     """
-    ss, sz = _prose(src), _prose(zh)
-    ts = _est_tokens(ss)
+    issues = ctx.issues
+    sz = ctx.prose_zh
+    ts = ctx.est_src
     if ts >= _MIN_PROSE_TOKENS:
-        tz = _est_tokens(sz)
+        tz = ctx.est_zh
         r = tz / ts
         if not TOKEN_RATIO_LO <= r <= TOKEN_RATIO_HI:
             issues.append(
@@ -870,7 +962,7 @@ def _check_length(src: str, zh: str, issues: list[Issue]) -> None:
 _RESID_EN_SHOW: Final = 80
 
 
-def _check_residual_en(src: str, zh: str, issues: list[Issue]) -> None:
+def _check_residual_en(ctx: _Ctx) -> None:
     """段内残英句拒收（seq-49/51 实证补网）：zh 夹未翻译英文 run → error。
 
     ``_check_same_source`` 只拦整段回显、``_check_length`` CJK 占比是
@@ -880,7 +972,7 @@ def _check_residual_en(src: str, zh: str, issues: list[Issue]) -> None:
     （CJK 切 run / verbatim 子串 + 混血长句 / 人名豁免 / BIB 直通豁免），
     与 pipeline ``_intercept_residual_en`` 逐字节一致。
     """
-    issues.extend(
+    ctx.issues.extend(
         Issue(
             "residual_en",
             Severity.ERROR,
@@ -889,15 +981,17 @@ def _check_residual_en(src: str, zh: str, issues: list[Issue]) -> None:
             "（行级修复原文回退/半译签名）",
             found=run,
         )
-        for run in residual_en_net(src, zh)
+        for run in residual_en_net(ctx.src, ctx.zh)
     )
 
 
-def _cs_names(s: str) -> tuple[Counter[str], Counter[str]]:
-    """``(cs 名 Counter, 脆弱间距 token Counter)``——脆弱集含 bs 五枚 + ``~``。"""
+def _cs_names_toks(
+    toks: list[tuple[str, str, int]],
+) -> tuple[Counter[str], Counter[str]]:
+    """``(cs 名 Counter, 脆弱间距 token Counter)``——``_lex`` token 流入参。脆弱集含 bs 五枚 + ``~``。"""
     cs: Counter[str] = Counter()
     frag: Counter[str] = Counter()
-    for kind, text, _ in _lex(s):
+    for kind, text, _ in toks:
         if kind == "cs":
             cs[text] += 1
         elif kind == "bs":
@@ -909,6 +1003,11 @@ def _cs_names(s: str) -> tuple[Counter[str], Counter[str]]:
         elif kind == "ch" and text in FRAGILE_CHARS:
             frag[text] += 1
     return cs, frag
+
+
+def _cs_names(s: str) -> tuple[Counter[str], Counter[str]]:
+    """``_cs_names_toks(_lex(s))``——fuzz oracle 用的字符串入口。"""
+    return _cs_names_toks(_lex(s))
 
 
 def _macro_new_issues(sn: Counter[str], zn: Counter[str], issues: list[Issue]) -> None:
@@ -943,14 +1042,15 @@ def _macro_new_issues(sn: Counter[str], zn: Counter[str], issues: list[Issue]) -
             )
 
 
-def _check_macro(src: str, zh: str, issues: list[Issue]) -> None:
+def _check_macro(ctx: _Ctx) -> None:
     """控制序列双向 diff（E21/E22/E24 修订口径）。
 
     zh−src 新增：全档 error（结构族/非 ASCII 融合 cs 同档处理）。
     src−zh 丢失：脆弱间距命令计数差（cs_dropped）=error；其余丢失=warn。
     """
-    sn, sf = _cs_names(src)
-    zn, zf = _cs_names(zh)
+    issues = ctx.issues
+    sn, sf = _cs_names_toks(ctx.lex_src)
+    zn, zf = _cs_names_toks(ctx.lex_zh)
     _macro_new_issues(sn, zn, issues)
 
     # —— src 丢失方向（E22：脆弱命令计数差 cs_dropped 升硬判据）——
@@ -976,7 +1076,7 @@ def _check_macro(src: str, zh: str, issues: list[Issue]) -> None:
     )
 
 
-def _check_item_glue(src: str, zh: str, issues: list[Issue]) -> None:
+def _check_item_glue(ctx: _Ctx) -> None:
     r"""``\item``+ASCII 字母粘合签名（``\itemFSU`` 类，管线引入，编译炸弹）。
 
     走 ``_lex`` cs 流而非裸正则：``\\itemX``（``\\`` 断行 + 文本）不误判，
@@ -985,21 +1085,21 @@ def _check_item_glue(src: str, zh: str, issues: list[Issue]) -> None:
     src 自带粘连靠 src↔zh 净差豁免；只报 zh 多出计数。
     """
 
-    def glued(s: str) -> Counter[str]:
+    def glued(toks: list[tuple[str, str, int]]) -> Counter[str]:
         return Counter(
             t
-            for k, t, _ in _lex(s)
+            for k, t, _ in toks
             if k == "cs"
             and t != "item"
             and t.startswith("item")
             and any(c.isupper() for c in t[4:])
         )
 
-    s, z = glued(src), glued(zh)
+    s, z = glued(ctx.lex_src), glued(ctx.lex_zh)
     extra = z - s
     if extra:
         toks = ", ".join(f"\\{t} ×{n}" for t, n in sorted(extra.items()))
-        issues.append(
+        ctx.issues.append(
             Issue(
                 "item_glue",
                 Severity.WARN,
@@ -1010,7 +1110,7 @@ def _check_item_glue(src: str, zh: str, issues: list[Issue]) -> None:
         )
 
 
-def _check_ph_in_cs(src: str, zh: str, issues: list[Issue]) -> None:
+def _check_ph_in_cs(ctx: _Ctx) -> None:
     r"""``\cs名[..[[PH]]..]字母`` 双侧夹持签名（``\fo[[CMD_1]]o`` 类）。
 
     译文把占位符嵌进 cs 名中段 → splice 逐字节替换后断 cs
@@ -1026,10 +1126,10 @@ def _check_ph_in_cs(src: str, zh: str, issues: list[Issue]) -> None:
     记档：``\cs[[KEY_n]]`` 类尾邻载荷字母头也会融合，但 validator
     拿不到 ph_map 判不了类型——后续按 ph 类型白名单再补。
     """
-    extra = ph_in_cs_net(src, zh)
+    extra = ph_in_cs_net(ctx.src, ctx.zh)
     if extra:
         toks = ", ".join(f"{t} ×{n}" for t, n in sorted(extra.items()))
-        issues.append(
+        ctx.issues.append(
             Issue(
                 "ph_in_cs",
                 Severity.ERROR,
@@ -1041,7 +1141,7 @@ def _check_ph_in_cs(src: str, zh: str, issues: list[Issue]) -> None:
         )
 
 
-def _check_bare_cs(src: str, zh: str, issues: list[Issue]) -> None:
+def _check_bare_cs(ctx: _Ctx) -> None:
     r"""译文裸 cs 注入（realpostfix2 0905.4907 实证签名），两类编译炸弹。
 
     ``macro`` 规则对新增 cs 只报泛 warn；本规则抓其中**编译即炸**的
@@ -1058,9 +1158,10 @@ def _check_bare_cs(src: str, zh: str, issues: list[Issue]) -> None:
       间隔空格、后随词首字母粘上）→ 未定义 cs 炸弹。后缀须含大写：
       ``\citep``/``\refname``/``\textbf`` 类全小写延申是真实 cs 不炸。
     """
-    net = bare_cs_net(src, zh)
+    net = bare_cs_net(ctx.src, ctx.zh)
     if not net:
         return
+    issues = ctx.issues
     bombs = {nme: n for nme, n in net.items() if nme in MATH_CS}
     if bombs:
         toks = ", ".join(f"\\{nme} ×{n}" for nme, n in sorted(bombs.items()))
@@ -1075,7 +1176,9 @@ def _check_bare_cs(src: str, zh: str, issues: list[Issue]) -> None:
         )
     fused = {nme: n for nme, n in net.items() if nme not in MATH_CS}
     if fused:
-        sn = {t for k, t, _ in _lex(mask_comments(src)) if k == "cs"}
+        # cs 名集与 ``_lex(mask_comments(src))`` 同集——注释区 ``\foo`` 在
+        # 原始 token 流里本就裹在 cmt token 内不可见，无需再遮盖重扫。
+        sn = {t for k, t, _ in ctx.lex_src if k == "cs"}
         parts = []
         for nme, n in sorted(fused.items()):
             pre = max((s for s in sn if nme.startswith(s)), key=len, default=None)
@@ -1096,18 +1199,20 @@ def _check_bare_cs(src: str, zh: str, issues: list[Issue]) -> None:
         )
 
 
-def _tail_unterminated_comment(s: str) -> str | None:
+def _tail_unterminated_comment(
+    toks: list[tuple[str, str, int]], sm: str
+) -> str | None:
     r"""文本尾段未终结注释的签名（字面 ``%`` → ``"%"``、``[[COMMENT_n]]`` → token）；无 → ``None``。
 
     ``%`` 展开吞到 EOL——尾段注释未终结时，splice 后随字面首行被接进注释行。
     字面 ``%`` 走 ``_lex`` 末 token 判（``\%`` 转义天然豁免）；``[[COMMENT_n]]``
     形在遮盖视图上判——token 后只剩 ``[ \t]*`` 到 EOF 即未终结（``\n`` 是注释
     终结符；后随非空白属 ``_check_ph_anchor`` 混入判据，此处不重复报）。
+    入参 ``toks``/``sm`` 分别为 ``_lex`` 流与 ``mask_comments`` 视图
+    （``_Ctx.lex_*``/``masked_*`` 共享件）。
     """
-    toks = _lex(s)
     if toks and toks[-1][0] == "cmt":
         return "%"
-    sm = mask_comments(s)
     # 末个 ``[[COMMENT_`` 前缀位即候选——若非良形 token，则任一更早 token 的
     # 尾段都含该残码（非空白）必非未终结，无需往前再扫。
     i = sm.rfind("[[COMMENT_")
@@ -1119,7 +1224,7 @@ def _tail_unterminated_comment(s: str) -> str | None:
     return None
 
 
-def _check_comment_eof(src: str, zh: str, issues: list[Issue]) -> None:
+def _check_comment_eof(ctx: _Ctx) -> None:
     r"""译文尾段未终结注释 → error（rt1 ``\@xdblarg`` runaway 族实证，4 cell 同形）。
 
     ``[[COMMENT_n]]``/字面 ``%`` 到 zh EOF 无 ``\n``：splice 接缝把 chunk 后
@@ -1129,10 +1234,10 @@ def _check_comment_eof(src: str, zh: str, issues: list[Issue]) -> None:
     src 尾段同形豁免——源 chunk 以未终结注释收尾时后随字面本就以该注释的
     ``\n`` 终结符起头，zh 同形即忠实复现。
     """
-    tok = _tail_unterminated_comment(zh)
-    if tok is None or _tail_unterminated_comment(src) is not None:
+    tok = _tail_unterminated_comment(ctx.lex_zh, ctx.masked_zh)
+    if tok is None or _tail_unterminated_comment(ctx.lex_src, ctx.masked_src) is not None:
         return
-    issues.append(
+    ctx.issues.append(
         Issue(
             "comment_eof",
             Severity.ERROR,
@@ -1144,7 +1249,7 @@ def _check_comment_eof(src: str, zh: str, issues: list[Issue]) -> None:
     )
 
 
-def _check_protocol_echo(src: str, zh: str, issues: list[Issue]) -> None:
+def _check_protocol_echo(ctx: _Ctx) -> None:
     r"""协议回显守卫：zh 净多出 corrector/L0 协议字面 → error。
 
     repro-2410b §4b：Mode-B mock 把三段式 prompt 当正文翻，交付块带
@@ -1152,20 +1257,20 @@ def _check_protocol_echo(src: str, zh: str, issues: list[Issue]) -> None:
     而载荷脏（反馈行里 ``[[COMMENT_14]]`` splice 出 ``%`` 吞掉 chunk 外
     ``}`` → early_eof）。真模型 parrot prompt furniture 是同款逃逸通道，
     与 ``pipeline._intercept_leftover_ph`` 同层（error → 重译/回退原文）。
-    词表 ``_ECHO_SIGS`` 与 bench ``DIRTY_SIGS`` 同款同序——子串直配 +
-    src↔zh 净差（src 自带同形串属忠实翻译不追责；校验行话 + ASCII
-    冒号/节标形态合法译文不产出）。
+    词表 ``_ECHO_SIGS`` 单源（bench ``DIRTY_SIGS`` 同源 import）——
+    子串直配 + src↔zh 净差（src 自带同形串属忠实翻译不追责；校验行话
+    + ASCII 冒号/节标形态合法译文不产出）。
     """
     for sig in _ECHO_SIGS:
-        n = zh.count(sig) - src.count(sig)
+        n = ctx.zh.count(sig) - ctx.src.count(sig)
         if n > 0:
-            issues.append(
+            ctx.issues.append(
                 Issue(
                     "protocol_echo",
                     Severity.ERROR,
                     f"协议字面 {sig!r} 进入交付译文 ×{n}"
                     f"（corrector 反馈/重试协议被当正文回显，载荷脏）",
-                    zh.find(sig),
+                    ctx.zh.find(sig),
                     found=sig,
                 )
             )
@@ -1184,8 +1289,9 @@ CACHE_VETO_RULES: Final = frozenset(
 
 
 #: ``validate_pair`` 全量检查表（序即执行序）——新增/移除检查只动本表
-#: 一条目，调用点迭代驱动自动并入，不再逐名点名。
-_CHECKERS: Final[tuple[Callable[[str, str, list[Issue]], None], ...]] = (
+#: 一条目，调用点迭代驱动自动并入，不再逐名点名。入参 ``_Ctx`` 携
+#: 共享预处理视图，各 checker 按需取用不再重复推导。
+_CHECKERS: Final[tuple[Callable[[_Ctx], None], ...]] = (
     _check_placeholder,
     _check_brace,
     _check_env,
@@ -1210,8 +1316,9 @@ def validate_pair(src: str, zh: str) -> L0Report:
     的文本可直接进 corrector 的 ``previous_validation_error`` 字段。
     """
     rep = L0Report(src_len=len(src), zh_len=len(zh))
+    ctx = _Ctx(src, zh, rep.issues)
     for check in _CHECKERS:
-        check(src, zh, rep.issues)
+        check(ctx)
     return rep
 
 

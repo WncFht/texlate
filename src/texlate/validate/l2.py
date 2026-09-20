@@ -312,14 +312,26 @@ class L2Verdict:
 # ---------------------------------------------------------------- 内部
 
 
-def _mark_redline(  # noqa: PLR0913 - 归因三件套（栈/root/缓存）拆散反而伤读
+@dataclass(slots=True)
+class _WarnScan:
+    """warning 扫描归因参数组——``_mark_redline``/``_classify_warning`` 共用。
+
+    ``ws`` = 累计中的 ``WarningSummary``；``project_root``/``dos_eps_cache``
+    是 invalid_utf8 系统件/DOS-EPS 归因用的根与判定缓存（``is_dos_eps``
+    逐文件名记忆，一次 parse 内共享）。``stack`` 逐事件随 ``(`` 栈
+    变化、不属本组，仍单列传入。
+    """
+
+    ws: WarningSummary
+    project_root: Path | None
+    dos_eps_cache: dict[str, bool] = field(default_factory=dict)
+
+
+def _mark_redline(
     cls: str,
     line: str,
-    ws: WarningSummary,
+    scan: _WarnScan,
     stack: tuple[str | None, ...],
-    *,
-    project_root: Path | None,
-    dos_eps_cache: dict[str, bool],
 ) -> None:
     """红线打标——``invalid_utf8`` 按 ``stack`` 最内文件归因产生者。
 
@@ -330,14 +342,15 @@ def _mark_redline(  # noqa: PLR0913 - 归因三件套（栈/root/缓存）拆散
     全量进 ``redlines``（missing_glyph/file_not_found 按内容论不按产生
     文件论）。
     """
+    ws = scan.ws
     if cls == "invalid_utf8":
         inner = next((s for s in reversed(stack) if s), None)
-        if is_dos_eps(inner, project_root, dos_eps_cache):
+        if is_dos_eps(inner, scan.project_root, scan.dos_eps_cache):
             hit = f"{cls}@{Path(inner).name if inner else '?'}(dos-eps)"
             if hit not in ws.sys_hits:
                 ws.sys_hits.append(hit)
             return
-        if not is_project_file(inner, project_root):
+        if not is_project_file(inner, scan.project_root):
             hit = f"{cls}@{Path(inner).name if inner else '?'}"
             if hit not in ws.sys_hits:
                 ws.sys_hits.append(hit)
@@ -369,12 +382,10 @@ def _record_hit(
         hb.append({"file": inner, "line": None, "head": head, "log_line": log_line})
 
 
-def _classify_warning(  # noqa: PLR0913 - 归因参数组与 _mark_redline 同形，拆散伤读
+def _classify_warning(
     line: str,
-    ws: WarningSummary,
+    scan: _WarnScan,
     stack: tuple[str | None, ...],
-    project_root: Path | None,
-    dos_eps_cache: dict[str, bool],
     *,
     log_line: int,
     next_ln: str = "",
@@ -389,6 +400,7 @@ def _classify_warning(  # noqa: PLR0913 - 归因参数组与 _mark_redline 同�
     """
     if not _is_warning_form(line):
         return  # 非 warning 形态行（含 error ctx 内的帮助文本）
+    ws = scan.ws
     cls = "generic"
     probe = line + "\n" + next_ln if next_ln else line
     for name, rx in _WARNING_RULES:
@@ -408,9 +420,7 @@ def _classify_warning(  # noqa: PLR0913 - 归因参数组与 _mark_redline 同�
     ws.by_class[cls] = ws.by_class.get(cls, 0) + 1
     _record_hit(ws, cls, stack, line.strip(), log_line)
     if cls in _REDLINE_CLASSES:
-        _mark_redline(
-            cls, line, ws, stack, project_root=project_root, dos_eps_cache=dos_eps_cache
-        )
+        _mark_redline(cls, line, scan, stack)
 
 
 def _tex_line_from_ctx(ctx: list[str]) -> int | None:
@@ -494,7 +504,7 @@ def parse_log_text(text: str, *, project_root: Path | None = None) -> L2Verdict:
             v.engine = m.group(1)
 
     last_pop: tuple[int, str] | None = None  # (行 idx, 刚弹出的文件 token)
-    dos_eps_cache: dict[str, bool] = {}
+    scan = _WarnScan(v.warnings, project_root)
     for ev in iter_log_events(lines):
         for tok in ev.popped:
             if tok is not None:
@@ -526,10 +536,8 @@ def parse_log_text(text: str, *, project_root: Path | None = None) -> L2Verdict:
 
         _classify_warning(
             ev.line,
-            v.warnings,
+            scan,
             ev.stack,
-            project_root,
-            dos_eps_cache,
             log_line=ev.i + 1,
             next_ln=_misschar_next_ln(lines, ev.i),
         )

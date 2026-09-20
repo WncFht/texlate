@@ -38,7 +38,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import queue
 import shutil
 import subprocess
@@ -49,7 +48,7 @@ from importlib import resources
 from pathlib import Path
 from typing import Any, Self
 
-from texlate.textutil import env_raw
+from texlate.textutil import env_raw, filtered_env
 
 __all__ = [
     "L1Error",
@@ -306,13 +305,11 @@ class TsValidator:
         validator.js 只经 ``NODE_PATH`` 解析依赖，其余一律不继承
         （白名单表见 ``_ENV_PASS_*``）。
         """
-        env = {
-            k: v
-            for k, v in os.environ.items()
-            if k in _ENV_PASS_EXACT or k.startswith(_ENV_PASS_PREFIX)
-        }
-        env["NODE_PATH"] = str(self._node_path)  # 显式注入盖掉透传值
-        return env
+        return filtered_env(
+            _ENV_PASS_EXACT,
+            _ENV_PASS_PREFIX,
+            {"NODE_PATH": str(self._node_path)},  # 显式注入盖掉透传值
+        )
 
     def _require_available(self) -> str:
         if not self._node:
