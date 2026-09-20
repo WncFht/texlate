@@ -623,6 +623,7 @@ def precheck_job(
         "enabled": True,
         "verdict": pre.get("verdict"),
         "reject_route": pre.get("reject_route"),
+        "gate_fired": pre.get("gate_fired") or [],
         "installed": pre.get("installed") or [],
         "engine_flags": pre.get("engine_flags") or [],
         "engine_flags_dropped": pre.get("flags_dropped") or [],

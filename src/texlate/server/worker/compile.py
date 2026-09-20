@@ -23,6 +23,7 @@ from texlate.compile.probe import (
 from texlate.latex.placeholder import PH_RX
 from texlate.latex.reconstruct import reconstruct
 from texlate.pipecore import (
+    PipeJob,
     RepairPolicy,
     compile_judge,
     delivered_db,
@@ -30,6 +31,7 @@ from texlate.pipecore import (
     fixloop_round,
     judge_res,
     l2_repair,
+    precheck_job,
     precheck_reject,
     probe_report,
     reject_verdict,
@@ -39,7 +41,6 @@ from texlate.repair import (
     embed_tounicode_quiet,
     fixloop_cell_parts,
     log_text_of,
-    run_precheck,
 )
 from texlate.repair_l2 import (
     ENV_NO_L2,
@@ -1045,18 +1046,22 @@ class _Compile:
         缺包类失败在 L2 归因前就消掉——missing_file 进 L2 兜底只会把块
         拖去重译/回退（``t_f74894ebc691aaf4`` algpseudocodex 实证）。
         预检引擎走 ``_fixloop_engine``（与 fixloop 轮内同机——precheck
-        无编译，halt_on_error 无关，要的是同一台接线对象）。
+        无编译，halt_on_error 无关，要的是同一台接线对象）；报告形走
+        ``pipecore.precheck_job``（两臂同一 ``run_precheck`` 包壳——
+        崩溃兜底形 ``{"error": ...}`` 复刻原 except 臂语义）。
         ``reject:<rid>`` 不重编——路由拒绝交 fixloop 复现 + 跨引擎消费。
         """
-        try:
-            pre = run_precheck(
-                work,
-                self._fixloop_engine(ctx, eng),
-                engine_name=ctx.engine_name,
+        pre = precheck_job(
+            PipeJob(
+                work=work,
                 main_rel=ctx.main_rel,
-            )
-        except Exception as e:  # noqa: BLE001 -- 预检崩不拖垮编译段
-            self._log(ctx, f"precheck crashed: {type(e).__name__}: {e}")
+                eng_name=ctx.engine_name,
+                timeout=self._compile_timeout,
+            ),
+            engine_fn=lambda _name: self._fixloop_engine(ctx, eng),
+        )
+        if "error" in pre:  # 预检崩不拖垮编译段——precheck_job 兜底形
+            self._log(ctx, f"precheck crashed: {pre['error']}")
             return res, v
         ctx.precheck = _scrub_deep(
             {
