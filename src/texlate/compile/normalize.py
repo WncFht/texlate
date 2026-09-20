@@ -39,6 +39,8 @@ from texlate.textutil import (
     safe_resolve,
 )
 
+# 缝原语回引同 layout.py——inject 不反向依赖 normalize，单向无环。
+from .inject import _splice_after_seams, find_docclass_ends
 from .mask import (
     TEX_SOURCE_SUFFIXES,
     apply_edits,
@@ -83,8 +85,11 @@ JUNK_FILE_MARKERS: Final[dict[str, tuple[bytes, ...]]] = {
 }
 
 # ---------------------------------------------------------------- 兼容前导块
-# 注入缝统一为 \begin{document} 之前（docs/spec/compile.md）；字体系块例外，
-# 走 \documentclass{} 之后（见 prepare_legacy_latin_fonts / inject.py）。
+# 注入缝三档（docs/spec/compile.md）：包钩/类选项/字体 shim → 文件顶前置
+# （``\documentclass`` 之前——``\PassOptionsTo*`` 必须抢在类装载前）；
+# preamble 消费的仿真定义 → ``\documentclass`` 缝后（XETEX_EARLY_DEFS，
+# 经 inject 缝原语）；bd 锚块（CJK_MATH_FALLBACK 等）→ ``\begin{document}``
+# 之前，归 inject/layout。
 
 PIXEL_COMPATIBILITY = r"""% texlate: pdfTeX pixel dimensions for XeTeX
 \ifdefined\pdfpxdimen\else\newdimen\pdfpxdimen\pdfpxdimen=65782sp\fi
@@ -112,6 +117,12 @@ XETEX_COMPATIBILITY = r"""% texlate: native XeTeX font and PDF-driver capabiliti
 \typeout{TeXlate-PostScript-object: #1}\TeXlatePstObject{#1}}%
 \fi
 }
+"""
+
+#: preamble 消费的仿真定义——用户 preamble 代码会调用的 cs，落
+#: ``\documentclass`` 缝后逐缝注入（``_splice_early_defs``），抢在全部
+#: 用户 preamble 代码之前。
+XETEX_EARLY_DEFS = r"""% texlate: emulation defs consumed by user preamble code
 % \DeclareUnicodeCharacter is pdfTeX/inputenc-only and undefined under XeTeX,
 % but e-print preambles still call it (2501.14787). Emulate via the lccode
 % idiom: make the code point an active char expanding to the replacement.
@@ -130,6 +141,25 @@ TECTONIC_FONT_COMPATIBILITY = r"""% texlate: vector double-stroke fonts; Tectoni
 \SetMathAlphabet{\mathbbmtt}{bold}{U}{dsrom}{m}{n}%
 }
 """
+
+
+def _splice_early_defs(text: str) -> str:
+    r"""``\documentclass`` 缝后逐缝注入 preamble 消费的仿真定义块。
+
+    刻意不挂 preamble_ok/bd 闸：bd 藏进 ``\input`` 子件时 main 零 bd
+    （2609.19376），旧闸把定义整段关在 main 外、落进子件顶=组合
+    preamble 中段，``\input`` 点之前的调用仍 undefined_cs。
+    ``\providecommand`` 幂等，多缝逐点重放安全；``\documentstyle``
+    缝滤除（209 无该 cs）。subdoc 子档（subfiles/standalone 类）同
+    preamble_ok 口径放行——其 docclass→bd 区段在母档 ``\subfile``/
+    ``\includestandalone`` 语境被整体吞没，preamble 调用永不执行。
+    """
+    if XETEX_EARLY_DEFS in text:
+        return text
+    if any(iter_depth0(SUBDOC_CHILD_RX, visible_tex(text))):
+        return text
+    seams = [hit for hit in find_docclass_ends(text) if hit[2] == "documentclass"]
+    return _splice_after_seams(text, seams, XETEX_EARLY_DEFS) if seams else text
 
 
 # ---------------------------------------------------------------- 1. comment 环境行尾
@@ -938,9 +968,10 @@ def normalize_engine(
     （``\pdfinfo``/``\pdfoutput``/输出设置/``\DisableLigatures``）与
     px 像素改写跳过；驱动 token、microtype 降级、编码剥离等
     装载期语义改写仍生效。``prologue=False`` 再闸掉兼容前导块注入
-    （PIXEL/XETEX/TECTONIC 兼容块 + fontspec ``no-math`` 选项）——
-    ``has_document`` 命中二进制 blob 解出的成员文本时不许前置注入
-    （0707.0382 tar 伪装 .sty 实案），调用方按字节面判据传闸。
+    （PIXEL/XETEX/TECTONIC 兼容块 + XETEX_EARLY_DEFS + fontspec
+    ``no-math`` 选项）——``has_document`` 命中二进制 blob 解出的成员
+    文本时不许前置注入（0707.0382 tar 伪装 .sty 实案），调用方按
+    字节面判据传闸。
     """
     text = normalize_comment_terminators(text)
     text = normalize_float_positions(text)
@@ -983,6 +1014,12 @@ def normalize_engine(
                 and r"\PassOptionsToPackage{no-math}{fontspec}" not in visible_tex(text)
             ):
                 text = "\\PassOptionsToPackage{no-math}{fontspec}\n" + text
+            # preamble 消费的仿真定义落 ``\documentclass`` 缝后（全部用户
+            # preamble 代码之前）——限 doc_source：支持件里的声明字样是
+            # 条件装载/示例文本而非文档起点，且 GBK 支持件逐跑转码后
+            # ``_prologue_ok`` 翻转会二次注入（fuzz 幂等面实证）。
+            if doc_source:
+                text = _splice_early_defs(text)
         text = strip_input_encodings(text)
         text = normalize_pdf_primitives(text, doc_source=doc_source)
     if engine in ("tectonic", "xelatex", "lualatex"):

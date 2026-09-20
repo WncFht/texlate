@@ -64,7 +64,7 @@ def test_text_sty_with_document_gets_prologue(tmp_path: Path) -> None:
     normalize_project(tmp_path, "xelatex")
     out = (tmp_path / "weird.sty").read_text(encoding="utf-8")
     assert out.startswith("\\PassOptionsToPackage{no-math}{fontspec}\n")
-    assert "\\providecommand{\\DeclareUnicodeCharacter}" in out
+    assert "\\TeXlatePstObject" in out
 
 
 def test_nonutf8_sty_no_prologue(tmp_path: Path) -> None:

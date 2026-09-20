@@ -8,6 +8,9 @@ docs/spec/compile.md 注入缝：
 - 兼容块 → `\begin{document}` 前（本模块 _splice_before_document，depth-0 锚）
 - 字体系块 → `\documentclass{}` 后（本模块 find_docclass_ends：逐缝注入，
   `\ifpdf A \else B \fi` 分支选择形态每条臂各落一份幂等块）
+- preamble 消费仿真定义 → 同 docclass 缝（normalize.XETEX_EARLY_DEFS 经
+  本模块 find_docclass_ends/_splice_after_seams 消费；无 bd/子档闸——
+  bd 藏 ``\input`` 子件形态 main 零 bd，2609.19376 实案）
 - `\documentstyle` → **禁止注入 + inject 层 reject**（ctex/xeCJK 与 2.09
   互不兼容；route_project 已降级为 latex209_suspect 试编标记——
   inject 是 2.09 的兜底拒绝点，账本记 `inject_reject:latex209`
