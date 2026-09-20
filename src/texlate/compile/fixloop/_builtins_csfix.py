@@ -148,6 +148,32 @@ _SORTLIST_BBL_POLYFILL = r"""
 """
 
 
+#: crossreftools 1.0 splitter 字段臂修补 (2211.04538): 上游
+#: ``\crt@cref@splitter@<field>#1#2`` 按 cleveref ≤0.21 双组
+#: ``\r@<l>@cref`` 形 ``{[t][n][]r}{[p][]p}`` 取参; ≥0.21.1 五组形
+#: ``{[t][n][]r}{[p][]p}{}{}{}`` 残留 ``{}{}{}`` 直接落进
+#: ``\csname cref@<type>{}{}{}@name`` 构造 → 组内 csname-relax 化
+#: orphan token 存进 ``\@currentlabelname``/toc whatsit → 写期
+#: ``undefined_cs|cref@section`` (preamble ``\def`` 该名无用 —— orphan
+#: 名带 ``{}{}{}`` 后缀且 relax 绑定随组蒸发, r2-r9 实证)。根修 =
+#: splitter 第三参 ``#3\fi`` 定界吞尾组再回吐 ``\fi`` —— 双组/五组
+#: 两形通吃, 字段层名 (``@counter/@number/@result/@reference/@page``)
+#: 直改: 包装载期 ``\let`` 快照链 ``firstarg→counter`` 在钩点已
+#: 完成, 改 arg 层够不到字段层 → 须覆写字段名本体。``#`` 参数用
+#: 单 ``#`` 形 —— lthooks 存钩码不折叠 ``##`` (kernel≥2020 实证)。
+_CRT_CREF_SPLITTER_FIX = r"""
+\makeatletter
+\AddToHook{begindocument/before}{%
+\def\crt@cref@splitter@counter#1#2#3\fi{\expandafter\crt@@cref@@splitter@@first#1\@nil\fi}%
+\def\crt@cref@splitter@number#1#2#3\fi{\expandafter\crt@@cref@@splitter@@second#1\@nil\fi}%
+\def\crt@cref@splitter@result#1#2#3\fi{\expandafter\crt@@cref@@splitter@@third#1\@nil\fi}%
+\def\crt@cref@splitter@reference#1#2#3\fi{\expandafter\crt@@cref@@splitter@@fourth#1\@nil\fi}%
+\def\crt@cref@splitter@page#1#2#3\fi{\expandafter\crt@@cref@@splitter@@fourth#2\@nil\fi}%
+}
+\makeatother
+"""
+
+
 #: undefined_cs → 定向修复表 (cs_targeted_fix 的默认表, rules/
 #: params.cs_table 可扩)。spec 键: strip_pkg / usepackage / cs_map /
 #: guard / guard_pre / polyfill / polyfill_pre / engines{eng: 覆盖 spec}
@@ -209,6 +235,32 @@ _CS_FIX_TABLE: dict[str, dict[str, Any]] = {
     # (pfsd96_pp.tex:475 实证)。provide 同体全局替身: env 内局部
     # \def 仍遮罩 (同体零语义差), env 外调用有兜底。
     "refpar": {"polyfill": r"\providecommand\refpar{\par\hangindent=3em\hangafter=1}"},
+    # 2211.04538 (csfix8): crossreftools 1.0 splitter × cleveref ≥0.21.1
+    # 五组 ``*@cref`` newlabel 形 → 写期 ``\csname`` orphan —— 修补字段层
+    # splitter (机理与 hook 点选择见 _CRT_CREF_SPLITTER_FIX 头注)。
+    "cref@section": {"polyfill": _CRT_CREF_SPLITTER_FIX},
+    # 1206.1993 (csfix8): 95-targeted.yaml cs_table 已有 ``Bar`` 键但
+    # payload 是小写 ``bar`` —— 精确大小写查表落空。eulervm 稿 ``\Bar``
+    # 展开 ``\bar``, eulervm 版不设 ``\bar`` 数学重音 → 裸缺。defer 必需:
+    # preamble ``\providecommand`` 会抢 eulervm ``\DeclareMathAccent``
+    # 名 → AtBeginDocument 复查点先让位, 已定义则不覆。
+    "bar": {
+        "polyfill": r"\AtBeginDocument{\providecommand\bar[1]{\overline{#1}}}",
+    },
+    # 2504.01669 (csfix8): doc 体直调 ``\inputencoding{latin1}`` —
+    # xelatex 下 inputenc 不载 (inputenc_strip 臂只应 inputenc_unicode
+    # 类, 此格是裸 undefined_cs) → 一参 gobble。
+    "inputencoding": {"polyfill": r"\providecommand\inputencoding[1]{}"},
+    # 2009.11007 (csfix8): doc 自有 ``{\red 这是译文}`` 色切宏无定义
+    # → xcolor 装载 + 组内色切替身。
+    "red": {
+        "usepackage": "xcolor",
+        "polyfill": r"\providecommand{\red}{\color{red}}",
+    },
+    # cond-mat/0111246 (csfix8): 2.09 代 tabbing 重音 ``\+'e`` 裸调
+    # (tabbing env 外无定义) → 零参 gobble 脱壳留 'e 文本;
+    # tabbing env 内 ``\+`` 由 env 自重绑, providecommand 不干扰。
+    "+": {"polyfill": r"\providecommand{\+}{}"},
 }
 
 

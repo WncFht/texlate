@@ -306,6 +306,48 @@ rules:
     stats: { fires: 8, rescued_cells: 1, status: active }
     source_ref: "builtins.py svjour_clo_stub (3e292eb)"
 
+  # 2026-09-20 csfix8 (1511.06717): aa.cls \def\filedate{2014/12/1} —
+  # 月/日段单数字让 kernel \@parse@version@dash 错位, \@nil 漏进 \ifnum →
+  # 每次 \@ifl@ter/\usepackage 处 undefined_cs|@nil 级联。根修 = 源级把
+  # YYYY/M/D 单数字月日段补零 (双臂: 日段 / 月段), 双位数日期不动。
+  # masked 面匹配防注释行误改; 条件双门 (payload=@nil + 源有短日期形)
+  # 挡无关 @nil 触发。
+  - id: provides_date_daypad
+    mechanisms: [B05]
+    description: "随源 cls/sty/tex 版本日期月日段单数字 → \\@parse@version 错位 \\@nil 入 \\ifnum → 月日段补零"
+    phase: loop
+    order: 159.5 # svjour_clo_stub(159) 与 journal_cs_polyfill(160) 之间: cls 源级补丁先于逐宏补
+    when: { category: undefined_cs, payload_required: true }
+    condition:
+      payload_pattern: "^\\\\?@nil$"
+      source_contains: "(?<![0-9])[0-9]{4}/(?:[0-9]{1,2}/[0-9](?![0-9])|[0-9]/[0-9]{1,2}(?![0-9]))"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty, .cls]
+        rewrites:
+          - {
+              pattern: "(?<![0-9])([0-9]{4}/[0-9]{1,2}/)([0-9])(?![0-9])",
+              repl: "\\g<1>0\\g<2>",
+              match_surface: masked,
+            }
+          - {
+              pattern: "(?<![0-9])([0-9]{4}/)([0-9])(/[0-9]{1,2}(?![0-9]))",
+              repl: "\\g<1>0\\g<2>\\g<3>",
+              match_surface: masked,
+            }
+    risk: low # 双门窄签 + 仅单数字段补零; 双位数日期与三位数段均不动
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "1511.06717 (singles4 csfix8)",
+          error: "Undefined control sequence \\@nil (aa.cls \\def\\filedate{2014/12/1} 单数字日段)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-csfix8/ aafix.cls+trb.log 实证"
+
   # 新增 (fixloop-v2 整改): AAS 期刊缩写宏缺失 —— tectonic bundle 内置
   # aastex 5.0rc3.1 (1999) 没有 \actaa 族 (emulateapj/后期 aastex 才有);
   # undefined_cs payload (l.N 行末 cs 名) 命中期刊表 → 全表 \providecommand
