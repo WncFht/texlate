@@ -41,6 +41,7 @@ import shutil
 import subprocess
 from typing import TYPE_CHECKING, Final, NamedTuple
 
+from texlate.latex.model import ws_skip
 from texlate.textutil import (
     CMD_BOUNDARY,
     DOCSTYLE_DECL_RX,
@@ -614,17 +615,41 @@ _MULTICOLS_SHIM = r"""% texlate: multicol incompatible with target class — env
 \makeatother"""
 
 
+#: ``\twocolumn``/``\@makecol``/``\pacs`` 三行共享负载核——本模块
+#: ``_REVTEX209_SHIM`` 与 fixloop ``_REVTEX209_POLYFILL``（_builtins_shim.py）
+#: 的同义 TeX 件单源（fixloop 已同链 import ``wrap_math_cites``/
+#: ``upgrade_209``）。两站各自在核前后配自己的包装/守卫行：SHIM 加
+#: ``\makeatletter`` 对 + ``frontmatter@init`` 守护臂 + ``\wideabs``/
+#: ``\abstract`` 复活钩；POLYFILL 加 ``_AT_LETTER_PRE``/``_AT_LETTER_POST``
+#: exact-restore + 裸 ``\frontmatter@init`` 臂——共享负载单源消漂移面。
+#: ``\pacs`` 取 ``\long\def``：实参可含空行/``\and``（revpacs 残案——
+#: 非 ``\long`` 版撞 "Paragraph ended before \pacs"），代价为零；
+#: ``\AtBeginDocument`` 参数内单 ``#1``——hook 逐字存 token（f3f013d2），
+#: ``##`` 双写会字面留下炸 "Parameters must be numbered consecutively"。
+REVTEX209_CORE = (
+    "\\providecommand{\\twocolumn}[1][]{#1}\n"
+    "\\@ifundefined{@makecol}"
+    "{\\def\\@makecol{\\setbox\\@outputbox\\vbox{\\unvbox\\@cclv}}}{}\n"
+    "\\AtBeginDocument{\\long\\def\\pacs#1{\\par\\noindent\\textbf{PACS:} #1\\par}}\n"
+)
+
+
 #: revtex 2.09 文稿面 polyfill——revtex4-2 刻意删掉的 209 面整块补回。
 #: 与 fixloop ``_REVTEX209_POLYFILL``（_builtins_shim.py）同义 + 三个
-#: 实证扩件；partial 稿不进 fixloop（``--on fail`` 门），补位只能在这里。
+#: 实证扩件；共享负载行（``\twocolumn``/``\@makecol``/``\pacs``）单源在
+#: ``REVTEX209_CORE`` 随 init 臂后直接展开——``\AtBeginDocument`` 注册的
+#: ``\pacs`` 迟延至 ``\begin{document}``，核内行序无语义；partial 稿不进
+#: fixloop（``--on fail`` 门），补位只能在这里。
 #: - ``\frontmatter@init``：209 稿序言裸调 ``\author``/``\address`` 时
 #:   ``\collaboration@sw``（cls:2145 在 init 内出生）未定义连锁炸
 #:   ``\@argswap``/``\add@AUCO@grp``（cond-mat/9901276 等 8 格实证）；
 #:   执行后自封防 init 重入。
-#: - ``\twocolumn``：cls:4512 ``\let\twocolumn\@undefined``；209 稿用
+#: - ``\twocolumn``（行体在 ``REVTEX209_CORE``）：cls:4512
+#:   ``\let\twocolumn\@undefined``；209 稿用
 #:   ``\twocolumn[\hsize\textwidth...]`` 宽头习惯（cond-mat/0501128:218），
 #:   ``[1][]{#1}` 吞可选宽头参透传正文。
-#: - ``\@makecol``：cls:3912 同批删；ltxgrid 接管前兜底原 kernel 形。
+#: - ``\@makecol``（行体在 ``REVTEX209_CORE``）：cls:3912 同批删；
+#:   ltxgrid 接管前兜底原 kernel 形。
 #: - ``\wideabs``：revtex 3.1 宽摘要命令（hep-ph/0104029 等 5 格实证）。
 #: - ``\abstract``/``\endabstract``：cls:2685 ``\frontmatter@maketitle``
 #:   内清理删——``\maketitle`` 之后正文调用位必死（hep-ph/0104029
@@ -636,21 +661,21 @@ _MULTICOLS_SHIM = r"""% texlate: multicol incompatible with target class — env
 #:   双 ``\appdef`` 因 init 路由用 ``\let`` 拷贝宏体——``\maketitle``
 #:   持旧副本不吃后挂补丁，直挂调用名本身（cls:2702 hyperref 复位
 #:   缝则经 frontmatter@maketitle 那份复得）。
-#: - ``\pacs``：``\AtBeginDocument`` 重定义压过 cls "must be used before
-#:   ``\maketitle``" 闸门（多格二次错误实证）；``\long`` 因实参可含空行。
-#: ``\AtBeginDocument`` 参数内单 ``#1``——hook 逐字存 token（f3f013d2）。
-_REVTEX209_SHIM = r"""% texlate: revtex 2.09 surface polyfill (revtex4-2 deletes the 209 surface)
-\makeatletter
-\@ifundefined{frontmatter@init}{}{\frontmatter@init\let\frontmatter@init\relax}
-\providecommand{\twocolumn}[1][]{#1}
-\@ifundefined{@makecol}{\def\@makecol{\setbox\@outputbox\vbox{\unvbox\@cclv}}}{}
-\providecommand{\wideabs}[1]{#1}
-\@ifundefined{abstract}{\def\abstract{\par}}{}
-\@ifundefined{endabstract}{\def\endabstract{\par}}{}
-\@ifundefined{frontmatter@maketitle}{}{\appdef\frontmatter@maketitle{\@ifundefined{abstract}{\gdef\abstract{\par}}{}\@ifundefined{endabstract}{\gdef\endabstract{\par}}{}}}
-\@ifundefined{maketitle}{}{\appdef\maketitle{\@ifundefined{abstract}{\gdef\abstract{\par}}{}\@ifundefined{endabstract}{\gdef\endabstract{\par}}{}}}
-\AtBeginDocument{\long\def\pacs#1{\par\noindent\textbf{PACS:} #1\par}}
-\makeatother"""
+#: - ``\pacs``（行体在 ``REVTEX209_CORE``）：``\AtBeginDocument`` 重定义
+#:   压过 cls "must be used before ``\maketitle``" 闸门（多格二次错误
+#:   实证）；``\long`` 因实参可含空行。
+_REVTEX209_SHIM = (
+    "% texlate: revtex 2.09 surface polyfill (revtex4-2 deletes the 209 surface)\n"
+    "\\makeatletter\n"
+    "\\@ifundefined{frontmatter@init}{}{\\frontmatter@init\\let\\frontmatter@init\\relax}\n"
+    + REVTEX209_CORE
+    + "\\providecommand{\\wideabs}[1]{#1}\n"
+    "\\@ifundefined{abstract}{\\def\\abstract{\\par}}{}\n"
+    "\\@ifundefined{endabstract}{\\def\\endabstract{\\par}}{}\n"
+    "\\@ifundefined{frontmatter@maketitle}{}{\\appdef\\frontmatter@maketitle{\\@ifundefined{abstract}{\\gdef\\abstract{\\par}}{}\\@ifundefined{endabstract}{\\gdef\\endabstract{\\par}}{}}}\n"
+    "\\@ifundefined{maketitle}{}{\\appdef\\maketitle{\\@ifundefined{abstract}{\\gdef\\abstract{\\par}}{}\\@ifundefined{endabstract}{\\gdef\\endabstract{\\par}}{}}}\n"
+    "\\makeatother"
+)
 
 
 def _split_opts(optspan: str | None) -> list[str]:
@@ -804,8 +829,7 @@ def _textarg_spans(vis: str, pos: int, name: str) -> list[tuple[int, int]]:
             i = m.end()
     spans: list[tuple[int, int]] = []
     while len(spans) < _TEXTARG_CS_209[name]:
-        while i < len(vis) and vis[i] in " \t\r\n":
-            i += 1
+        i = ws_skip(vis, i)
         if i >= len(vis) or vis[i] not in "[{":
             break
         e = group_end(vis, i)
@@ -842,8 +866,7 @@ def _cite_call_end(vis: str, pos: int) -> int:
     i = pos
     n = len(vis)
     for _ in range(3):  # ``*`` 槽 + 两个 ``[..]`` 槽——槽序由实见字符自证
-        while i < n and vis[i] in " \t\r\n":
-            i += 1
+        i = ws_skip(vis, i)
         if i < n and vis[i] == "*":
             i += 1
             continue
@@ -854,8 +877,7 @@ def _cite_call_end(vis: str, pos: int) -> int:
             i = e
             continue
         break
-    while i < n and vis[i] in " \t\r\n":
-        i += 1
+    i = ws_skip(vis, i)
     if i >= n or vis[i] != "{":
         return -1
     e = group_end(vis, i)

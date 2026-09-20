@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Container, Iterator
 
     from texlate.textutil import EncodingVerdict
 
@@ -40,7 +40,7 @@ from texlate.textutil import (
 )
 
 # 缝原语回引同 layout.py——inject 不反向依赖 normalize，单向无环。
-from .inject import _splice_after_seams, find_docclass_ends
+from ._seams import _splice_after_seams, find_docclass_ends
 from .mask import (
     TEX_SOURCE_SUFFIXES,
     apply_edits,
@@ -563,24 +563,62 @@ def _strip_lead_junk(blob: bytes) -> bytes:
     return blob
 
 
+# ---------------------------------------------------------------- 树遍历/读件共享低层件
+def _iter_files(
+    root: Path, suffixes: Container[str] | None, *, skip_hidden: bool = True
+) -> Iterator[Path]:
+    r"""工程内常规文件迭代：软链豁免 + 后缀过滤 + 隐藏路径闸（原各站手卷同闸收束）。
+
+    ``os.walk(followlinks=False)`` 而非 ``rglob``——rglob 跟随目录符号链
+    且无环检测，unpack 放行的 in-tree symlink 环会炸 RecursionError
+    （``arxiv/locate.py`` ``_iter_files`` 同教训同款实现）；walk 下目录
+    软链不递归——此前 rglob 会穿进软链目录把链外件当包内件改写，现整支
+    豁免（软链下文件不读不写）。``suffixes=None`` 不按后缀过滤——
+    按文件名判定（``_neutralize_junk_files`` 名单件）或排除式
+    catch-all 面用。``skip_hidden=False`` 留给统计口径须含隐藏件的
+    调用方（``_normalize_tex_files`` 的 ``stats["files"]`` 先计后跳）。
+    """
+    for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
+        if skip_hidden:
+            # 隐藏目录整支不递归——_hidden_path 口径提前到目录层（.git 等）
+            dirnames[:] = [d for d in dirnames if not d.startswith(".")]
+        base = Path(dirpath)
+        for name in filenames:
+            path = base / name
+            if path.is_symlink() or not path.is_file():
+                continue  # 软链豁免：读写都会穿到 root 外目标（同 _transcode 臂）
+            if suffixes is not None and path.suffix.lower() not in suffixes:
+                continue
+            if skip_hidden and _hidden_path(path, root):
+                continue  # 隐藏路径整体豁免（同 _transcode 口径）
+            yield path
+
+
+def _read_tex_path(path: Path) -> bytes | None:
+    """读件原始字节；OSError（不可读件）/tar 伪装件 → ``None``。
+
+    tar 伪装件成员字节不是手术面——转码/改写都会腐蚀 blob。
+    """
+    try:
+        blob = path.read_bytes()
+    except OSError:
+        return None
+    return None if _tar_disguised(blob) else blob
+
+
+def _read_tex(path: Path) -> str | None:
+    """``_read_tex_path`` + ``decode_tex``——tex 源解码文本或 ``None``。"""
+    blob = _read_tex_path(path)
+    return None if blob is None else decode_tex(blob)
+
+
 def _tex_sources(root: Path) -> dict[Path, str]:
     """工程内非隐藏 tex 源 → 解码文本；软链/不可读件/tar 伪装件跳过。"""
     sources: dict[Path, str] = {}
-    for path in root.rglob("*"):
-        if (
-            not path.is_file()
-            or path.is_symlink()
-            or path.suffix.lower() not in TEX_SOURCE_SUFFIXES
-            or _hidden_path(path, root)
-        ):
-            continue
-        try:
-            blob = path.read_bytes()
-        except OSError:
-            continue
-        if _tar_disguised(blob):
-            continue  # 成员字节不是手术面——转码/改写都会腐蚀 blob
-        sources[path] = decode_tex(blob)
+    for path in _iter_files(root, TEX_SOURCE_SUFFIXES):
+        text = _read_tex(path)
+        if text is not None:
+            sources[path] = text
     return sources
 
 
@@ -783,21 +821,15 @@ def use_bundled_bibliography(text: str, path: Path, cwd: Path | None = None) -> 
     return text
 
 
-def _is_within(root: Path, candidate: Path) -> bool:
-    """``candidate`` 解后是否落 ``root`` 内；解不开 → 按越界计（审计面宁报不漏）。"""
-    resolved = safe_resolve(candidate)
-    return resolved is not None and resolved.is_relative_to(root)
-
-
 # ---------------------------------------------------------------- 12. 越界路径 rebase
 def _apply_rebase_edits(
-    root: Path, path: Path, edits: list[tuple[int, int, str]]
+    root: Path, path: Path, text: str, edits: list[tuple[int, int, str]]
 ) -> list[str]:
-    """单文件逆序回放 rebase 编辑 → 改动位次表；读/写失败 → 原样不动、无位次。"""
-    try:
-        text = decode_tex(path.read_bytes())
-    except OSError:
-        return []
+    """单文件逆序回放 rebase 编辑 → 改动位次表；写失败 → 原样不动、无位次。
+
+    ``text`` 用枚举臂已解码的原文——不重复 read/decode（位次在遮蔽视图
+    与原文等长，定位坐标两视图通用）。
+    """
     locations = []
     for start, end, relative in sorted(edits, reverse=True):
         locations.append(
@@ -815,29 +847,19 @@ def rebase_project_paths(root: Path, main: str) -> list[str]:
     r"""`\input/../foo.tex` 越界引用重写为包内正确相对路径。
 
     只修"剥掉 ../ 后能在包内找到同名文件"的情形；返回改动位置列表
-    `relpath:lineno` 供日志。解不开的越界引用由 source_path_violations 报。
+    `relpath:lineno` 供日志。解不开的越界引用原样保留。
     """
     root = root.resolve()
     cwd = (root / main).parent
     changes: dict[Path, list[tuple[int, int, str]]] = {}
-    for path in root.rglob("*"):
-        if (
-            not path.is_file()
-            or path.is_symlink()
-            or path.suffix.lower() not in (TEX_SOURCE_SUFFIXES | AUX_BIB_SUFFIXES)
-            or _hidden_path(path, root)
-        ):
+    decoded: dict[Path, str] = {}
+    for path in _iter_files(root, TEX_SOURCE_SUFFIXES | AUX_BIB_SUFFIXES):
+        raw = _read_tex(path)
+        if raw is None:
             continue
-        try:
-            blob = path.read_bytes()
-        except OSError:
-            continue
-        if _tar_disguised(blob):
-            continue  # tar 伪装件——成员文本里的 \input 命中不是改写面
-        text = visible_tex(decode_tex(blob))
+        text = visible_tex(raw)
         # 成员集刻意窄收 \input/\include：本站是 ``../`` 前缀改写的手术
-        # 面，仅限 tex 包含命令；includegraphics/openin 等更宽越界审计集
-        # 在 source_path_violations（成员集分歧理由见该处注记）。
+        # 面，仅限 tex 包含命令。
         for match in re.finditer(
             r"\\(?:input|include)(?![A-Za-z@])\s*"
             r"(?:\{([^{}]*)\}|([^\s{}%]+))",
@@ -857,10 +879,17 @@ def rebase_project_paths(root: Path, main: str) -> list[str]:
             ):
                 relative = Path(os.path.relpath(candidate, cwd)).as_posix()
                 changes.setdefault(path, []).append((*match.span(group), relative))
+                decoded[path] = raw
     locations = []
     for path, edits in changes.items():
-        locations.extend(_apply_rebase_edits(root, path, edits))
+        locations.extend(_apply_rebase_edits(root, path, decoded[path], edits))
     return sorted(locations)
+
+
+def _is_within(root: Path, candidate: Path) -> bool:
+    """``candidate`` 解后是否落 ``root`` 内；解不开 → 按越界计（审计面宁报不漏）。"""
+    resolved = safe_resolve(candidate)
+    return resolved is not None and resolved.is_relative_to(root)
 
 
 def source_path_violations(
@@ -874,21 +903,11 @@ def source_path_violations(
     """
     root = root.resolve()
     cwd = (root / main).parent if main else root
-    for p in root.rglob("*"):
-        if (
-            p.is_symlink()
-            or not p.is_file()
-            or p.suffix.lower() not in TEX_SOURCE_SUFFIXES | AUX_BIB_SUFFIXES
-            or _hidden_path(p, root)
-        ):
-            continue
-        try:
-            blob = p.read_bytes()
-        except OSError:
-            continue
-        if _tar_disguised(blob):
-            continue  # tar 伪装件——成员文本里的路径引用不算越界证据
-        text = visible_tex(decode_tex(blob))
+    for p in _iter_files(root, TEX_SOURCE_SUFFIXES | AUX_BIB_SUFFIXES):
+        text = _read_tex(p)
+        if text is None:
+            continue  # 不可读件/tar 伪装件——成员文本里的路径引用不算越界证据
+        text = visible_tex(text)
         # \input 族审计集与 textutil ``INPUT_BRACED_RX``/``INPUT_BARE_RX``、
         # ``arxiv.locate._REF_RES`` 刻意不同集（textutil 注记明写该族不按
         # 单枚正则单源）：本站收「单路径实参」的越界向量——
@@ -926,11 +945,7 @@ def _neutralize_junk_files(root: Path, stats: dict[str, object]) -> None:
     签名的文件按撞名真件放行——覆写会毁掉真件本体（同名 ≠ 同垃圾）。
     """
     hits = []
-    for path in sorted(root.rglob("*")):
-        if path.is_symlink() or not path.is_file():
-            continue  # 软链豁免：写穿会改到 root 外目标
-        if _hidden_path(path, root):
-            continue  # 隐藏路径整体豁免（同 _transcode 口径）
+    for path in sorted(_iter_files(root, None)):
         stub = JUNK_FILE_STUBS.get(path.name)
         if stub is None:
             continue
@@ -1035,13 +1050,9 @@ def _normalize_tex_files(
     encodings: dict[str, dict[str, str | None]],
 ) -> None:
     """逐 tex 件主手术：转码 + `normalize_engine` + bbl 替换；累计 files/rewritten。"""
-    for path in root.rglob("*"):
-        if (
-            path.is_symlink()
-            or not path.is_file()
-            or path.suffix.lower() not in TEX_SOURCE_SUFFIXES
-        ):
-            continue  # 软链豁免：读写都会穿到 root 外目标（同 _transcode 臂）
+    # skip_hidden=False：隐藏件照计 ``stats["files"]``（先计后跳旧口径），
+    # 隐藏路径整体豁免手术的手动闸保留在增量之后。
+    for path in _iter_files(root, TEX_SOURCE_SUFFIXES, skip_hidden=False):
         stats["files"] = int(stats["files"]) + 1
         if _hidden_path(path, root):
             continue  # 隐藏路径整体豁免手术（同 _transcode 口径）

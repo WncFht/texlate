@@ -30,12 +30,13 @@ from typing import TYPE_CHECKING
 
 from texlate.redlines import REDLINES_BY_ID, name_pattern
 from texlate.texlog import misschar_sweep_hits
-from texlate.textutil import CITE_FAMILY_RE, CJK_RX, CMD_BOUNDARY, mask_tex
+from texlate.textutil import CITE_FAMILY_RE, CJK_RX, CMD_BOUNDARY, live_tex
 
 from .engine import CompRes, _driver_fatal, classify_error
 from .sandbox import find_tool, run_process
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
     from pathlib import Path
 
 #: `!` 错误容忍上限（docs/spec/compile.md）。
@@ -177,10 +178,21 @@ _MACHINE_SLOT_RXS: tuple[tuple[str, re.Pattern[str]], ...] = (
 )
 #: 机位审计 note 封顶——防巨型工程 notes 刷屏。
 _MACHINE_SLOT_MAX = 20
-#: 死尾截断（``compile.probe._DEAD_TAIL_RE`` 同口径）：``\end{document}``/
-#: ``\endinput`` 之后的机位同形 token 非活 slot，在遮盖视图上定位（注释/
-#: verbatim 内的字面命中不算死界）。
-_DEAD_TAIL_RX = re.compile(r"\\end\s*\{document\}|\\endinput\b")
+
+
+def _gate_and_sweep(log_text: str) -> tuple[int, int]:
+    """缺字门控命中数与 C0 扫掠豁免量一趟出 → ``(净缺字, 扫掠)``。
+
+    扫掠 ⊆ 门控域（nullfont 窗口语义在 ``redlines._MISSCHAR_WINDOW``
+    单源，``misschar_sweep_hits`` 跳过同窗口的 nullfont 行）——零门控
+    命中蕴涵零扫掠，主导的无缺字路径省掉 ``misschar_sweep_hits`` 的
+    全文折行拼回 + 逐消息解析。
+    """
+    gate = len(_MISSCHAR_GATE_RX.findall(log_text))
+    if not gate:
+        return 0, 0
+    sweep = misschar_sweep_hits(log_text)
+    return gate - sweep, sweep
 
 
 def count_missing_chars(log_text: str) -> int:
@@ -190,16 +202,15 @@ def count_missing_chars(log_text: str) -> int:
     ≥25 条严格升序 C0+DEL 缺字消息属测量盒扫掠（``misschar_sweep_hits``，
     picinpar ``\computeilg`` tcl=0..127 逐码位试排丢盒），亦不计入。
     """
-    return len(_MISSCHAR_GATE_RX.findall(log_text)) - misschar_sweep_hits(log_text)
+    return _gate_and_sweep(log_text)[0]
 
 
 def _missing_char_check(v: Verdict, full_log: str, *, expect_cjk: bool) -> None:
     """缺字形门控计数（nullfont/扫掠双豁免）+ 良性命中进 notes 观察项。"""
-    v.missing_chars = count_missing_chars(full_log)
+    v.missing_chars, sweep = _gate_and_sweep(full_log)
     nf_misses = len(_MISSCHAR_NULLFONT_RX.findall(full_log))
     if nf_misses:
         v.notes.append(f"{_MISSCHAR_NULLFONT[0]}×{nf_misses}")
-    sweep = misschar_sweep_hits(full_log)
     if sweep:
         v.notes.append(f"{_MISSCHAR_SWEEP}×{sweep}")
     if expect_cjk and v.missing_chars > 0:
@@ -212,21 +223,35 @@ def _thm_restate_probe(v: Verdict, full_log: str) -> None:
         v.notes.append(_THM_RESTATE[0])
 
 
+def _iter_slot_groups(
+    src: str, rxs: tuple[tuple[str, re.Pattern[str]], ...]
+) -> Iterator[tuple[str, re.Match[str], int]]:
+    """活视图上逐 ``(kind, rx)`` 命中 → ``(kind, match, 组号)`` 三元组流。
+
+    只产非 None 捕获组；match 锚在 ``live_tex`` 等长视图上——消费端按
+    ``m.start(i)/m.end(i)`` 回切 ``src`` 取原文字节、按 ``m.group(i)``
+    取遮盖面文本做判定。``_slot_scan``/``_slot_args``/
+    ``fixloop._builtins_slotrev._slot_spans`` 三路组迭代同形，只差
+    yield 映射（非 ASCII 过滤 / 全组入列 / 保 offset）。
+    """
+    view = live_tex(src)
+    for kind, rx in rxs:
+        for m in rx.finditer(view):
+            for i, g in enumerate(m.groups(), start=1):
+                if g is not None:
+                    yield kind, m, i
+
+
 def _slot_scan(
     src: str, rxs: tuple[tuple[str, re.Pattern[str]], ...]
 ) -> list[tuple[str, str]]:
     """单文件源文机位命中 → ``(kind, arg)`` 序对（遮盖视图 + 死尾截断）。"""
-    view = mask_tex(src)
-    dead = _DEAD_TAIL_RX.search(view)
-    if dead is not None:
-        view = view[: dead.start()]
     hits: list[tuple[str, str]] = []
-    for kind, rx in rxs:
-        for m in rx.finditer(view):
-            for i, g in enumerate(m.groups(), start=1):
-                if g is not None and _HDR_NONASCII_RX.search(g):
-                    hits.append((kind, src[m.start(i) : m.end(i)]))
-                    break
+    seen: re.Match[str] | None = None  # 已记命中的 match——每 match 只收首个非 ASCII 组
+    for kind, m, i in _iter_slot_groups(src, rxs):
+        if m is not seen and _HDR_NONASCII_RX.search(m.group(i)):
+            hits.append((kind, src[m.start(i) : m.end(i)]))
+            seen = m
     return hits
 
 
@@ -504,23 +529,14 @@ def _slot_args(
 ) -> list[tuple[str, str]]:
     r"""单文件源文机位实参全量命中 → ``(kind, arg)`` 序对。
 
-    ``_slot_scan`` 同口径的 ``mask_tex`` 视图 + 死尾截断，但无非 ASCII
-    过滤、每 match 全部非 None 捕获组各自入列（restatable 双参都收，
-    ``\\input`` 三形态只中一支）——arg 按视图命中区间回切原文字节。
+    ``_slot_scan`` 同口径的 ``mask_tex`` 视图 + 死尾截断（迭代面在
+    ``_iter_slot_groups``），但无非 ASCII 过滤、每 match 全部非 None
+    捕获组各自入列（restatable 双参都收，``\\input`` 三形态只中一支）
+    ——arg 按视图命中区间回切原文字节。
     """
-    view = mask_tex(src)
-    dead = _DEAD_TAIL_RX.search(view)
-    if dead is not None:
-        view = view[: dead.start()]
-    hits: list[tuple[str, str]] = []
-    for kind, rx in rxs:
-        for m in rx.finditer(view):
-            hits.extend(
-                (kind, src[m.start(i) : m.end(i)])
-                for i, g in enumerate(m.groups(), start=1)
-                if g is not None
-            )
-    return hits
+    return [
+        (kind, src[m.start(i) : m.end(i)]) for kind, m, i in _iter_slot_groups(src, rxs)
+    ]
 
 
 def _slot_arg_multiset(

@@ -5,11 +5,11 @@ r"""中文支持注入：ctex `[fontset=fandol,UTF8]` 默认路径 + xeCJK 降�
 （CJK 九段）/ Libertinus Serif（西里尔·组合符·拉丁扩展）符号字体补齐。
 
 docs/spec/compile.md 注入缝：
-- 兼容块 → `\begin{document}` 前（本模块 _splice_before_document，depth-0 锚）
-- 字体系块 → `\documentclass{}` 后（本模块 find_docclass_ends：逐缝注入，
+- 兼容块 → `\begin{document}` 前（``_seams._splice_before_document``，depth-0 锚）
+- 字体系块 → `\documentclass{}` 后（``_seams.find_docclass_ends``：逐缝注入，
   `\ifpdf A \else B \fi` 分支选择形态每条臂各落一份幂等块）
 - preamble 消费仿真定义 → 同 docclass 缝（normalize.XETEX_EARLY_DEFS 经
-  本模块 find_docclass_ends/_splice_after_seams 消费；无 bd/子档闸——
+  ``_seams`` find_docclass_ends/_splice_after_seams 消费；无 bd/子档闸——
   bd 藏 ``\input`` 子件形态 main 零 bd，2609.19376 实案）
 - `\documentstyle` → **禁止注入 + inject 层 reject**（ctex/xeCJK 与 2.09
   互不兼容；route_project 已降级为 latex209_suspect 试编标记——
@@ -18,11 +18,13 @@ docs/spec/compile.md 注入缝：
 
 实证：compile-bench 72 次编译中 ctex 注入破坏率 0%（bench/results/compile-report.md）。
 
-C4 拆分：本模块宿 CJK 注入 + 共享缝原语（``_splice_*``/``find_docclass_ends``）。
-主文件发现+``\input`` 闭包+filecontents 虚拟 FS 出叶 ``mainfile``，
-版式手术（FLOAT_SIZING/TABLE_FITTING/wrapfloat 降级）出叶 ``layout``——
-两叶消费名经本模块回引（mainfile 静态 import、layout ``__getattr__``
-惰性转口，后者顶层反向 import 本模块缝原语，静态互引会成环）。
+C4 拆分：本模块宿 CJK 注入编排（``inject_cjk``/``_input_hop_*``/
+``prepare_chinese``）。缝原语（``_splice_*``/``find_docclass_ends``）
+出叶 ``_seams``——inject/layout/normalize 三向单向消费；主文件发现+
+``\input`` 闭包+filecontents 虚拟 FS 出叶 ``mainfile``，版式手术
+（FLOAT_SIZING/TABLE_FITTING/wrapfloat 降级）出叶 ``layout``——两叶
+消费名经本模块静态回引（钉点面守恒；layout 缝原语已转 ``_seams``
+单向取用，旧 inject↔layout 顶层互引环断，``__getattr__`` 惰性转口退役）。
 """
 
 from __future__ import annotations
@@ -32,11 +34,8 @@ from typing import TYPE_CHECKING
 
 from texlate.textutil import (
     BEGIN_DOC_RX,
-    DEAD_ENVS,
-    DOCCLASS_RX,
     INPUT_BARE_RX,
     INPUT_BRACED_RX,
-    VERBATIM_ENVS,
     _tar_disguised,
     clean_decl_name,
     decode_tex,
@@ -44,17 +43,26 @@ from texlate.textutil import (
     safe_resolve,
 )
 
+from ._seams import _splice_after_seams, _splice_before_document, find_docclass_ends
 from .latex209 import upgrade_209
+from .layout import (  # noqa: F401 — C4 出叶回引：layout 缝原语转 _seams 后环断，钉点名转静态回引
+    FLOAT_SIZING,
+    TABLE_FITTING,
+    _demote_wrapfloats_text,
+    _float_sized,
+    demote_wrapfloats,
+    inject_float_sizing,
+    inject_table_fitting,
+)
 from .mainfile import (  # noqa: F401 — C4 出叶回引：find_main_tex/_walk_inputs 等公共+私名钉点面守恒
     _resolve_input,
     _walk_inputs,
     classify_no_main,
     find_main_tex,
 )
-from .mask import group_end, visible_tex
+from .mask import visible_tex
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
     from pathlib import Path
 
 #: zihao=false 必须钉死：ctex 默认 scheme=chinese 在未收到显式字号选项时
@@ -382,17 +390,6 @@ TEXT_8BIT_FALLBACK = r"""
 \fi
 """
 
-#: ``\begin{逐字/失活环境}`` opener——遮盖视图把 opener 本身也抹成空白，
-#: 判断 docclass 行尾是否藏吞行环境必须查原文 tail（fuzz I4）。
-_ENV_OPEN_RE = re.compile(
-    r"\\begin\s*\{(?:"
-    + "|".join(re.escape(e) for e in sorted(VERBATIM_ENVS | DEAD_ENVS))
-    + r")\}"
-)
-
-#: \documentclass 调用参数扫描上限（防御畸形输入死循环）。
-_DOCCLASS_SCAN_LIMIT = 4000
-
 #: ``_input_hop_inject`` 一跳 ``\input`` 目标数上界——病态工程的巨量
 #: 声明不拖死探测；正常 preamble 分拆远在此界内。
 _INPUT_HOP_CAP = 64
@@ -410,284 +407,6 @@ class InjectRejectError(ValueError):
         """记录拒绝原因（默认 latex209 documentstyle）。"""
         self.reason = reason
         super().__init__("inject_reject:" + reason)
-
-
-def _docclass_close(vis: str, start: int) -> int:
-    r"""从 `\documentclass` 命令名之后扫描 `[opt]{cls}` 配对，返回 `}` 后 offset。
-
-    在 visible_tex 遮盖视图上扫——`%` 注释/verbatim 已等长抹成空格，
-    注释内括号不参与配对。命令名与首括号之间只允许空白（含被抹平的
-    注释残位）：`\documentclass\cls` 宏实参/裸声明形态下首个非空白
-    token 不是 `[`/`{`，扫到则收口返回 start（调用方退化行尾缝）——
-    无界前扫曾把远处 `\begin{document}` 的花括号吞成类名实参，缝落
-    enddoc 行死注（I2）。
-    """
-    j, n = start, len(vis)
-    db = dc = 0
-    seen_brace = False
-    while j < n:
-        c = vis[j]
-        if not seen_brace and db == 0 and c not in "[{ \t\n\r":
-            return start
-        if c == "\\":
-            j += 2
-            continue
-        if c == "[":
-            db += 1
-        elif c == "]":
-            db -= 1
-        elif c == "{":
-            dc += 1
-            seen_brace = True
-        elif c == "}":
-            dc -= 1
-            if seen_brace and dc == 0 and db <= 0:
-                return j + 1
-        if j - start > _DOCCLASS_SCAN_LIMIT:
-            break
-        j += 1
-    return j
-
-
-def _seam_after_close(tex: str, vis: str, close: int) -> tuple[int, int]:
-    r"""``}`` 后缝位判定：同行纯空白/注释 → 行尾缝，有活代码/逐字 opener → 即插。
-
-    ``}`` 后同行纯空白/注释 → 行尾缝（吞注释安全位）；同行有活
-    代码（单行文档的 bd/enddoc）或行尾开逐字/失活环境（opener 自身
-    在 vis 上被抹平，须查原文 tail）则 ``}`` 后即插——插到其前不
-    劈断、不落死文本/环境体（I1/I3/I4）。返回 ``(insert, lineno)``。
-    """
-    eol = tex.find("\n", close)
-    lineno = tex.count("\n", 0, close) + 1
-    tail = vis[close : eol if eol >= 0 else len(vis)]
-    raw_tail = tex[close : eol if eol >= 0 else len(tex)]
-    insert = (
-        eol
-        if eol >= 0 and not tail.strip() and not _ENV_OPEN_RE.search(raw_tail)
-        else close
-    )
-    return insert, lineno
-
-
-def _trailing_arg(vis: str, pos: int) -> int | None:
-    r"""``pos`` 起跳过空白/单行 ``\n`` 后若是 ``{``/``[`` 实参开 → 返回其位。
-
-    空行（``\par`` token）非可吞空白——遇之即非实参，返回 ``None``。
-    """
-    n = len(vis)
-    j = pos
-    while j < n and vis[j] in " \t":
-        j += 1
-    if j < n and vis[j] == "\n":
-        j += 1
-        while j < n and vis[j] in " \t":
-            j += 1
-        if j >= n or vis[j] == "\n":
-            return None  # 空行 = \par token——实参扫描到此为止
-    return j if j < n and vis[j] in "{[" else None
-
-
-def _nested_construct_end(vis: str, start: int, depth: int) -> int:
-    r"""depth>0 docclass 命中的构造尾：最外包容组的 depth-0 闭 ``}`` 之后 offset。
-
-    ``\IfFileExists{cls}{..\doclass..}{..}`` 形（0812.0615 lang10.tex
-    实证）：命中点在 arg2 内（depth 1），先扫到 arg2 闭 ``}``（depth→0），
-    再吞同构造紧随的 ``{..}``/``[..]`` 实参——缝落整个条件构造之后，
-    任臂执行 prologue 都在真声明后；若停在 arg2 闭 ``}``，注入物会被
-    当 arg3 扫走。空白跨行可吞；空行（``\par`` 边界）截断实参扫描。
-    """
-    n = len(vis)
-    i, d = start, depth
-    while i < n and d > 0:
-        c = vis[i]
-        if c == "\\":
-            i += 2
-            continue
-        if c == "{":
-            d += 1
-        elif c == "}":
-            d -= 1
-        i += 1
-    while (arg := _trailing_arg(vis, i)) is not None:
-        i = group_end(vis, arg)
-    return i
-
-
-#: ``\newcommand``/``\def`` 族定义命令探测——``_def_body_spans`` 与
-#: ``_macro_proxy_seams`` 同枚单源。
-_DEF_CMD_RX = re.compile(
-    r"\\(?:(?:new|renew|provide)command|DeclareRobustCommand|def|gdef|edef|xdef)"
-    r"\*?\s*\{?\\([a-zA-Z@]+)\}?"
-)
-
-
-def _def_body_spans(vis: str) -> list[tuple[int, int]]:
-    r"""``\newcommand``/``\def`` 族宏体花括号区间 ``(brace, group_end)`` 表。
-
-    宏体内的 ``\documentclass`` 不是真声明点（归 ``_macro_proxy_seams``
-    的调用点缝管）——nested-seam 判定借本表排除。
-    """
-    spans: list[tuple[int, int]] = []
-    for m in _DEF_CMD_RX.finditer(vis):
-        brace = vis.find("{", m.end())
-        if brace < 0:
-            continue
-        spans.append((brace, group_end(vis, brace)))
-    return spans
-
-
-def _iter_docclass(vis: str) -> Iterator[tuple[re.Match[str], int]]:
-    r"""``DOCCLASS_RX`` 全命中 + 命中位 brace 深度（``iter_depth0`` 同口径走查）。"""
-    depth = 0
-    pos = 0
-    for m in DOCCLASS_RX.finditer(vis):
-        while pos < m.start():
-            c = vis[pos]
-            if c == "\\":
-                pos += 2
-                continue
-            if c == "{":
-                depth += 1
-            elif c == "}":
-                depth -= 1
-            pos += 1
-        pos = m.end()
-        yield m, depth
-
-
-def find_docclass_ends(tex: str) -> list[tuple[int, int, str]]:
-    r"""全部可用的 `\documentclass`/`\documentstyle` 注入缝 `(pos, lineno, cmd)`。
-
-    在 visible_tex 等长遮盖视图上扫（注释/verbatim 命中天然消失，offset
-    与原文对齐）。brace depth>0 的命中分两路：宏体（`\newcommand{\ds}{\
-    \documentstyle}` 类，1706.07796）仍非真声明点——跳过，零缝时归
-    ``_macro_proxy_seams``；可执行组/条件实参内命中（`\IfFileExists{cls}
-    {..\doclass..}{..}` 形，B5a）缝取**整个构造的 depth-0 收尾**——
-    ``_nested_construct_end`` 扫到最外包容组闭 ``}`` 再吞同构造尾随
-    实参，prologue 落构造后任臂皆在真声明后。
-
-    条件分支内命中**不判死活**（`\ifpdf A \else B \fi` 双 docclass 是
-    sigma/jhep 系标准形态；`\ifemulate`/`\ifdefined` 同理）——调用方逐缝
-    注入，哪条臂执行哪条臂生效（loop1 A 桶：旧版取首个命中，落死分支
-    则注入物整段进死代码 → 中文静默缺失）。
-    """
-    vis = visible_tex(tex)
-    hits: list[tuple[int, int, str]] = []
-    seen_pos: set[int] = set()
-    def_spans: list[tuple[int, int]] | None = None
-    for m, depth in _iter_docclass(vis):
-        if depth == 0:
-            close = _docclass_close(vis, m.end())
-            if close > 0 and vis[close - 1] == "}":
-                insert, lineno = _seam_after_close(tex, vis, close)
-            else:
-                # 无 {..} 的裸 \documentclass：退化为行尾注入。
-                eol = tex.find("\n", m.end())
-                lineno = tex.count("\n", 0, m.start()) + 1
-                insert = len(tex) if eol < 0 else eol
-        else:
-            if def_spans is None:
-                def_spans = _def_body_spans(vis)
-            if any(b <= m.start() < e for b, e in def_spans):
-                continue  # 宏体内声明字样非真声明点——归 proxy 缝
-            insert, lineno = _seam_after_close(
-                tex, vis, _nested_construct_end(vis, m.end(), depth)
-            )
-        if insert not in seen_pos:  # 单行 `\if..\else..\fi` 双命中同缝
-            seen_pos.add(insert)
-            hits.append((insert, lineno, m.group(1)))
-    if not hits:
-        hits = _macro_proxy_seams(tex, vis)
-    hits.sort()
-    return hits
-
-
-def _macro_proxy_seams(tex: str, vis: str) -> list[tuple[int, int, str]]:
-    r"""宏包声明形态的回退缝。
-
-    ``\def\doc{...\documentclass{cls}...}`` + 顶层 ``\doc`` 调用 —— 真声明
-    藏在宏体内（depth>0 被 ``find_docclass_ends`` 主循环跳过），可编译
-    文档会静默零注入（I9）。
-
-    收集 ``\newcommand/\renewcommand/\def/\gdef`` 体内含声明命令的宏名，
-    顶层（depth 0）调用行行尾即缝——注入物在执行序上位于真声明之后。
-    """
-    proxy: dict[str, str] = {}
-    def_sites: set[int] = set()
-    for m in _DEF_CMD_RX.finditer(vis):
-        brace = vis.find("{", m.end())
-        if brace < 0:
-            continue
-        body_end = group_end(vis, brace)
-        dm = DOCCLASS_RX.search(vis, brace, body_end)
-        if dm is not None:
-            proxy[m.group(1)] = dm.group(1)
-            def_sites.add(m.start(1) - 1)  # 定义位的 \name token 不算调用
-    if not proxy:
-        return []
-    names = "|".join(sorted(proxy))
-    invoke_re = re.compile(rf"\\(?:{names})(?![a-zA-Z@])")
-    hits: list[tuple[int, int, str]] = []
-    for m in iter_depth0(invoke_re, vis):
-        if m.start() in def_sites:
-            continue
-        eol = tex.find("\n", m.end())
-        insert = len(tex) if eol < 0 else eol
-        lineno = tex.count("\n", 0, m.start()) + 1
-        hits.append((insert, lineno, proxy.get(m.group(0)[1:], "documentclass")))
-    return hits
-
-
-def find_docclass_end(tex: str) -> tuple[int, int, str] | None:
-    r"""首个可用 `\documentclass` 缝（``find_docclass_ends`` 的首元素）。"""
-    hits = find_docclass_ends(tex)
-    return hits[0] if hits else None
-
-
-def _splice_after_seams(tex: str, hits: list[tuple[int, int, str]], block: str) -> str:
-    r"""逐缝 ``\n``+block 回填——pos 为原 tex 绝对 offset，顺序累加 delta。"""
-    out = tex
-    delta = 0
-    for pos, _ln, _c in hits:
-        out = out[: pos + delta] + "\n" + block + out[pos + delta :]
-        delta += len(block) + 1
-    return out
-
-
-def _splice_before_document(
-    tex: str, block: str, *, after: int = 0, sentinel: str = "TeXlateMathFB"
-) -> str:
-    r"""``\begin{document}`` 前逐点 ``\n``+block 回填——preamble 尾锚。
-
-    多 bd 形态（条件双 bd/坏档）逐点注入 + 幂等哨兵（与 docclass 多缝
-    同款：活臂执行立哨，余点整块跳过）；右向左回填免 offset 簿记。
-    只认 ``after``（首个 docclass 缝位）之后的 bd——先于缝位的 bd 不是
-    preamble 尾，锚在那里会把声明放到 ``\documentclass`` 行之前。
-    bd 命中取 ``iter_depth0``：``\def\bd{\begin{document}}``/``\newcommand``
-    宏体内的 bd 字样不是真文档起点——裸 finditer 把注入块楔进 ``\def\bd{``
-    与 ``\begin{document}}`` 之间，宏体吞含 ``#1`` 的定义即 "Illegal
-    parameter number in definition of \bd"（hep-th/0307203、
-    hep-th/9910011、0905.0876 实案）；depth>0 一律不算锚点。
-    无合格 bd 则原样返回（调用方负责退化路径）。
-    """
-    positions = sorted(
-        {
-            m.start()
-            for m in iter_depth0(BEGIN_DOC_RX, visible_tex(tex))
-            if m.start() > after
-        }
-    )
-    if not positions:
-        return tex
-    if len(positions) > 1:
-        block = (
-            f"% texlate: {sentinel} (multi-bd idempotent)\n"
-            f"\\ifdefined\\{sentinel}\\else\n"
-            f"\\def\\{sentinel}{{1}}%\n" + block + "\\fi\n"
-        )
-    for pos in reversed(positions):
-        tex = tex[:pos] + "\n" + block + tex[pos:]
-    return tex
 
 
 def inject_cjk(  # noqa: C901 — ctex/xecjk 双模锚点分派+幂等校验平铺
@@ -882,14 +601,6 @@ def prepare_chinese(
     ``inject_reject:<reason>`` 类 reject（与 route reject 分流），而非
     编译失败。
     """
-    # layout 叶反向 import 本模块缝原语——顶层静态互引成环，调用点惰性取；
-    # 外部 ``inject.demote_wrapfloats`` 属性面同款经 __getattr__ 转口。
-    from .layout import (  # noqa: PLC0415 — 惰性位：inject↔layout 顶层互引成环
-        demote_wrapfloats,
-        inject_float_sizing,
-        inject_table_fitting,
-    )
-
     main_path = root / main if isinstance(main, str) else main
     blob = main_path.read_bytes()
     if _tar_disguised(blob):
@@ -915,33 +626,3 @@ def prepare_chinese(
     if float_sizing:
         info["float_sizing"] = inject_float_sizing(root)
     return info
-
-
-#: C4 拆分转口表——layout 叶移出的消费名（tests/__init__/bench 钉点面）。
-#: layout 顶层 ``from .inject import`` 缝原语，本模块若再顶层静态
-#: ``from .layout import`` 即成 import 环——故走 ``__getattr__``（PEP 562）
-#: 惰性转口：``from texlate.compile.inject import demote_wrapfloats`` 与
-#: ``inject._float_sized`` 等钉点逐名守恒，命中后即落 ``__dict__`` 免再查。
-_LAYOUT_NAMES = frozenset(
-    {
-        "FLOAT_SIZING",
-        "TABLE_FITTING",
-        "_demote_wrapfloats_text",
-        "_float_sized",
-        "demote_wrapfloats",
-        "inject_float_sizing",
-        "inject_table_fitting",
-    }
-)
-
-
-def __getattr__(name: str) -> object:
-    """C4 转口兜底：``_LAYOUT_NAMES`` 内的名字惰性取回 layout 叶（防 import 环）。"""
-    if name in _LAYOUT_NAMES:
-        from . import layout  # noqa: PLC0415 — 惰性位：顶层互引成环
-
-        value = getattr(layout, name)
-        globals()[name] = value
-        return value
-    msg = f"module {__name__!r} has no attribute {name!r}"
-    raise AttributeError(msg)

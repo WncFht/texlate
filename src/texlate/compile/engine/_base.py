@@ -40,6 +40,12 @@ class CompRes:
     #: ``_report_of``/``log_text_of``/``_l2_parse``/``parse_log(res)`` 直接复用，
     #: 同一文本不再重复开文件（B14 fix#10 格内 ~4× 文件读 → 1×）。
     log_text: str = ""
+    #: log 截断谓词（Guard A）——仅 xelatex ``halt_on_error`` 且非
+    #: ``best_effort`` 的编译在 ``n_errors>0`` 时盖 ``True``：halt-on-error
+    #: 截在首错，错误计数是下界非测量值，证不了 errors≤阈值；best_effort
+    #: （nonstopmode）跑全程不截。tectonic 与测试替身不盖此章，消费端
+    #: getattr 容错按不截断处理（judge.py:462）。
+    log_truncated: bool = False
     timed_out: bool = False
     #: 活哨截杀原因（``vbox_flood``/``page_flood``）——``run_process``
     #: 经 ``timed_out`` 槽回吐 str，``_collect_compile_outputs`` 归位到

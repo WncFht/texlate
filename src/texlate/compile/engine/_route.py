@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from ._base import Engine
 
 from texlate.compile.mask import visible_tex
-from texlate.textutil import DOCSTYLE_RX, decode_tex
+from texlate.textutil import DOCSTYLE_RX, decode_tex_with
 
 from ._tectonic import TectonicEngine
 from ._xelatex import XelatexEngine
@@ -82,9 +82,8 @@ class _RouteSigs(NamedTuple):
     psfile_special: bool
 
 
-def _route_sigs(root: Path, blob_vis: str) -> _RouteSigs:
-    """工程树文件面 + 遮盖视图 blob → 静态路由信号集。"""
-    exts = {p.suffix.lower() for p in root.rglob("*") if p.is_file()}
+def _route_sigs(exts: set[str], blob_vis: str) -> _RouteSigs:
+    """文件后缀集 + 遮盖视图 blob → 静态路由信号集。"""
     return _RouteSigs(
         eps=".eps" in exts,
         mf=".mf" in exts,
@@ -152,18 +151,26 @@ def route_project(root: Path, *, prefer: str = "tectonic") -> RouteDecision:
     """
     vis: dict[Path, str] = {}
     non_utf8 = False
+    exts: set[str] = set()
     for p in root.rglob("*"):
-        if not p.is_file() or p.suffix.lower() != ".tex":
+        if not p.is_file():
+            continue
+        suffix = p.suffix.lower()
+        exts.add(suffix)  # 全文件面后缀集（_route_sigs 的 eps/mf 信号源）
+        if suffix != ".tex":
             continue
         try:
             raw = p.read_bytes()
         except OSError:
             continue  # 不可读文件不参与路由信号（竞态删除/权限位）
-        try:
-            raw.decode("utf-8")
-        except UnicodeDecodeError:
-            non_utf8 = True
-        vis[p] = visible_tex(decode_tex(raw))
+        text, verdict = decode_tex_with(raw)
+        # 判定族非 UTF-8 或 strict-utf8 截尾——与旧 raw.decode("utf-8")
+        # 探测同口径（utf-8-sig/utf-16 等 BOM 族按判定名归位）。
+        non_utf8 = non_utf8 or (
+            verdict.encoding not in ("utf-8", "utf-8-sig")
+            or "truncated utf-8 tail" in verdict.note
+        )
+        vis[p] = visible_tex(text)
     blob_vis = "\n".join(vis.values())
 
     # --- \documentstyle → latex209_suspect 标记（任何文件里出现都算）
@@ -172,7 +179,7 @@ def route_project(root: Path, *, prefer: str = "tectonic") -> RouteDecision:
     ]
 
     reasons: list[str] = []
-    sigs = _route_sigs(root, blob_vis)
+    sigs = _route_sigs(exts, blob_vis)
     engines = (
         ["xelatex", "tectonic"] if prefer == "xelatex" else ["tectonic", "xelatex"]
     )
@@ -186,6 +193,11 @@ def route_project(root: Path, *, prefer: str = "tectonic") -> RouteDecision:
         non_utf8=non_utf8,
         latex209_suspect=bool(latex209_suspect),
     )
+
+
+#: 引擎名白名单（``auto`` 路由 + 两台真机）——settings ``ENGINES`` 与
+#: http ``_ENGINE_NAMES`` 入参闸的单一事实源；``engine_for`` 只构造真机。
+ENGINE_NAMES: Final = frozenset({"auto", "xelatex", "tectonic"})
 
 
 def engine_for(name: str, **kwargs: object) -> Engine:

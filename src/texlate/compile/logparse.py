@@ -3,8 +3,9 @@
 原 ``fixloop/logparse.py``——log 解析/taxonomy 是 compile 层共享件
 (``loginfo``/``judge``/``proc`` 同层消费), 上提后 fixloop 向下消费
 (旧 ``fixloop.logparse`` 路径 2026-09-20 退场, 全仓直引本模块;
-仅 ``_WARN_FILELINE_RE``/``_FATAL_TRAILER_RE``/
-``_attribute_warns`` 三死件随事件流重构退场)。
+``_WARN_FILELINE_RE``/``_FATAL_TRAILER_RE``/``_attribute_warns``
+三死件随事件流重构退场, 薄 delegate ``_is_err_line`` 同清——其
+yaml 注释面改指 ``texlog.iter_log_events``/``match_error_line``)。
 
 移植自 bench/py/fixloop.py L48-125 (`first_error`/`classify`), 增强两点
 (docs/research/latex/fixloop-rules.md §5 spec):
@@ -20,10 +21,13 @@
 ``warn_utf8`` 每轮空转再生, 污染 census)。
 
 C8 单遍事件流 (architecture-review-2026-09-19 §8): 文件栈走查/错误行
-判定单源 = ``texlog.iter_log_events``——``parse_text`` 一遍事件流上同
+判定单源 = ``texlog.iter_log_events``——``parse_text`` 在事件流上同
 时做错误面投影 (``first``/``ctx``/``errs``/``file_stack``/``popped_files``)
 与归因警告投影 (``_AttrWarns.feed``), 不再自维护栈、不再 ``file_stack_at``
-回放、不再私有错误行判定 (三消费面同词素三写已并)。
+回放、不再私有错误行判定 (三消费面同词素三写已并)。事件流物化件
+``ParsedLog`` (``parse_events``) 是 CompRes stash 缝的投影底件——引擎
+编译期一份即可供 ``loginfo``/本层/l2 三面各自投影 (产生者三支判定
+``producer_tag`` 亦经本层共享, 归宿均 ``texlog``)。
 """
 
 from __future__ import annotations
@@ -34,7 +38,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Iterator
 
 from texlate.texlog import (
     CTX_LINES,
@@ -45,10 +49,17 @@ from texlate.texlog import (
     is_dos_eps,
     is_project_file,
     iter_log_events,
-    match_error_line,
 )
 
-__all__ = ["ErrReport", "Taxonomy", "parse_log", "parse_text"]
+__all__ = [
+    "ErrReport",
+    "ParsedLog",
+    "Taxonomy",
+    "parse_events",
+    "parse_log",
+    "parse_text",
+    "producer_tag",
+]
 
 #: ``Overfull \vbox ... while \output is active`` —— ``\clearpage`` 输出例程
 #: 死循环签名（gr-qc/0104075 实证：``\end{document}`` 期暴走 73,595 页烧满
@@ -177,13 +188,27 @@ _CAP_LN_ROW_RX = re.compile(r"^l\.\d+")
 #: 集)——1504 log 语料零分歧, 词素并单源。
 
 
-def _is_err_line(ln: str) -> bool:
-    """`!` 行或 `-file-line-error` 行 (排除 Warning 伪命中与 ==> 汇总尾行)。
+@dataclass(slots=True)
+class ParsedLog:
+    """``iter_log_events`` 物化事件流——``ErrReport``/``LogInfo``(/l2) 共享投影底件。
 
-    判定单源 = ``texlog.match_error_line``——rules/ yaml 注释面与本层旧
-    钉点经此名消费, 薄 delegate 保旧面。
+    事件级原料 (``ev.err``/``ev.stack``/``ev.popped``/``ev.inner``) 一份即够
+    各消费面自行投影——排他/含行首错快照、``errs`` 截顶、warn 归因全是
+    投影侧形状差, 底件不预制口径 (l2 需全 ``ev.stack`` 元组, 故存事件而
+    非仅最内帧)。目标载体 = ``CompRes`` 与 ``res.log_text`` 并列 stash
+    (B14 fix#10 缝先例)——引擎编译期建一份, loginfo/logparse/l2 三个
+    投影共用, 同一 log 不再逐消费面各走一遍事件流; 本层暂为归宿, 随
+    stash 落地迁 ``texlog`` 叶子层。
     """
-    return match_error_line(ln) is not None
+
+    lines: list[str]
+    events: list[LogEvent]
+
+
+def parse_events(text: str) -> ParsedLog:
+    """Log 文本 → ``ParsedLog`` (``splitlines`` + 物化 ``iter_log_events``)。"""
+    lines = text.splitlines()
+    return ParsedLog(lines=lines, events=list(iter_log_events(lines)))
 
 
 #: ``ErrReport.errs`` 收集上限——全错误面逐条 (err_line, ctx blob) 供次级
@@ -217,6 +242,28 @@ _POST_LINES = 6
 _FILE_ATTRIBUTED_WARNS = frozenset({"invalid_utf8"})
 
 
+def producer_tag(
+    inner: str | None, root: Path | None, cache: dict[str, bool]
+) -> str | None:
+    """警告产生者三支判定——工程件 → ``None``; 系统件 → 文件名 tag。
+
+    警告/红线产生文件 ``inner`` (事件 ``ev.inner`` = 栈顶最内具名帧) →
+    ``(dos-eps)`` 尾标名 / 裸文件名 / ``None`` 三态: DOS 魔数 EPS
+    (normalize ``dos_eps_skipped`` 原样保留的二进制件, 残余警告是必然
+    残余非可修缺陷) 打 ``(dos-eps)`` 标便于台账对账; 余下系统
+    texmf/bundle 件给裸文件名; 工程件与 ``None``/不可判 token
+    (``is_project_file`` 保守归工程) 返回 ``None``。dos-eps 判**先于**
+    工程判——skipped 件就在工程树内, 先 ``is_project_file`` 会错归工程。
+    loginfo ``_scan_error_lines``/l2 ``_mark_redline`` 同口径 (三消费面
+    各把三态映到自家记录形); 归宿 ``texlog`` 归因原语, 随 stash 迁移。
+    """
+    if is_dos_eps(inner, root, cache):
+        return f"{Path(inner).name if inner else '?'}(dos-eps)"
+    if is_project_file(inner, root):
+        return None
+    return Path(inner).name if inner else "?"
+
+
 @dataclass(slots=True)
 class _AttrWarns:
     """归因型警告 (``_FILE_ATTRIBUTED_WARNS``) 的逐行投影状态——C8 事件流件。
@@ -238,14 +285,11 @@ class _AttrWarns:
         for wid, rx in self.pats.items():
             if not rx.search(ev.line):
                 continue
-            inner = ev.inner
-            if is_dos_eps(inner, project_root, self.dos_eps_cache):
-                name = Path(inner).name if inner else "?"
-                self.sys.setdefault(wid, set()).add(f"{name}(dos-eps)")
-            elif is_project_file(inner, project_root):
+            tag = producer_tag(ev.inner, project_root, self.dos_eps_cache)
+            if tag is None:
                 self.proj.add(wid)
             else:
-                self.sys.setdefault(wid, set()).add(Path(inner).name if inner else "?")
+                self.sys.setdefault(wid, set()).add(tag)
 
 
 @dataclass(slots=True)
@@ -286,6 +330,18 @@ class ErrReport:
     #: 首条恒 = ``(first, ctx)``。
     errs: list[tuple[str, str]] = field(default_factory=list)
 
+    def site_frames(self) -> Iterator[str]:
+        r"""报错站点候选帧流: ``file_stack`` 内→外序 + ``popped_files`` 新→旧递补。
+
+        「内层帧 else 最近关闭帧」序的单源——runaway 类错报位在父文件续行
+        (肇事帧先被弹栈, #78 ``\\@iiiparbox``/``\\next`` 扫描族), 空栈时
+        ``popped_files[-1]`` = 肇事候选。fixloop ``_err_site_outside`` 首帧
+        直取、``_requester_paths`` tier-2 弹栈段过滤、llm_hook
+        ``_resolve_err_file`` 三消费面同口径。
+        """
+        yield from reversed(self.file_stack)
+        yield from reversed(self.popped_files)
+
 
 def parse_log(
     log_path: Path | None,
@@ -312,6 +368,7 @@ def parse_text(
     warn_patterns: list[dict[str, Any]] | None = None,
     *,
     project_root: Path | None = None,
+    parsed: ParsedLog | None = None,
 ) -> ErrReport:
     """Log 文本 → ErrReport (tectonic stdout_tail 兜底也走这里)。
 
@@ -324,6 +381,10 @@ def parse_text(
     事件遍里以 ``prev_stack``/``popped_hist`` 前置快照守恒, 与
     l2/loginfo 含行快照是有意分歧, 不并)。
 
+    ``parsed`` = 调用方已物化的 ``ParsedLog`` (CompRes stash 缝)——
+    缺席时本侧自建; 传入者须是 ``text`` 同一文本的事件流 (``raw``/全文
+    警告扫仍走 ``text``, 事件面不再第二遍)。
+
     ``project_root`` = 编译工作根 (``wdir``): ``_FILE_ATTRIBUTED_WARNS``
     的警告按警告行文件栈顶归因——工程源命中进 ``warnings`` (驱动
     ``warn_*`` 伪类别), 系统 texmf/bundle 件与 DOS 魔数 EPS 源降
@@ -331,7 +392,8 @@ def parse_text(
     工程 (``loginfo.parse_log`` 同口径——不可归因不掉红线)。
     """
     rep = ErrReport(raw=text)
-    lines = text.splitlines()
+    pl = parsed if parsed is not None else parse_events(text)
+    lines = pl.lines
     attr = _AttrWarns(
         pats={
             w["id"]: re.compile(w["pattern"], re.IGNORECASE)
@@ -346,7 +408,7 @@ def parse_text(
     #: 续行, 真肇事件靠它找回 #78); 首错捕获点即冻结。
     prev_stack: tuple[str | None, ...] = ()
     popped_hist: list[str | None] = []
-    for ev in iter_log_events(lines):
+    for ev in pl.events:
         if ev.err is not None:
             rep.n_bang += 1
             if len(rep.errs) < _ERRS_MAX:

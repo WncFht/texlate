@@ -1,7 +1,10 @@
 r"""log 语义层：TeX ``.log`` → ``LogInfo`` + 错误分类学适配（docs/spec/validate.md）。
 
 行级词法原语（``(``/``)`` 文件栈、``file:line:``/``^!``/``l.NNN`` regex、
-单遍事件流 ``iter_log_events``）在叶子层 ``texlog.py``；本模块持语义产物
+单遍事件流 ``iter_log_events``）在叶子层 ``texlog.py``；事件流物化件
+``ParsedLog``/``parse_events`` 与产生者三支判定 ``producer_tag`` 归
+``compile.logparse``（CompRes stash 缝就绪后同迁 texlog——同一 log
+引擎侧建一份即供本层/logparse/l2 三面投影）。本模块持语义产物
 （错误计数/首错上下文/红线命中 ``warnings_hit`` 与 ``warnings_sys``
 归因）与 ``classify_error`` 薄适配——匹配语义（head/tail 有序评估、
 payload_group、``subclassify`` 收窄、tail ``guard`` 复核）全部归
@@ -15,18 +18,21 @@ import logging
 import re
 from dataclasses import dataclass, field
 from functools import lru_cache
-from pathlib import Path
+from typing import TYPE_CHECKING, Final
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 from texlate.compile._yamlish import load_yaml
-from texlate.compile.logparse import ErrReport, Taxonomy
-from texlate.redlines import ENGINE_RED_LINES, REDLINES_BY_ID, name_pattern
-from texlate.texlog import (
-    L_NUM_RE,
-    is_dos_eps,
-    is_project_file,
-    iter_log_events,
-    misschar_sweep_hits,
+from texlate.compile.logparse import (
+    ErrReport,
+    ParsedLog,
+    Taxonomy,
+    parse_events,
+    producer_tag,
 )
+from texlate.redlines import ENGINE_RED_LINES, REDLINES_BY_ID, name_pattern
+from texlate.texlog import L_NUM_RE, misschar_sweep_hits
 
 log = logging.getLogger(__name__)
 
@@ -65,17 +71,26 @@ _UTF8_WARN_RE = re.compile(
 )
 WARNING_RED_LINES: list[tuple[str, str]] = list(ENGINE_RED_LINES)
 
+#: 首错 ``error_ctx`` 窗的后随行数（窗总宽 = 错误行 + ``_CTX_FOLLOW``）——
+#: 刻意**不**用共享 knob ``texlog.CTX_LINES``：本侧 ``_err_report`` 薄构造
+#: 不填 ``ErrReport.pre``/``post``，engine 侧 ``use_post`` 条目的扩展签名
+#: 全靠这 +8 后随行可达（graphicx ``I could not locate ... extensions:``
+#: errhelp 恒居错误行 +8，恰出 ctx8 右缘——logparse ``_POST_LINES`` 同
+#: 签名域）；收窄到 CTX_LINES 会在 judge 路径丢该命中面。钉值同
+#: tests/test_fuzz_engine.py ``_CTX_N = 9``。
+_CTX_FOLLOW: Final = 8
+
 
 def _scan_error_lines(
-    lines: list[str], info: LogInfo, project_root: Path | None = None
+    pl: ParsedLog, info: LogInfo, project_root: Path | None = None
 ) -> tuple[int, bool]:
-    """数 `^!`+`file:line:` 错误、记首错位置——单遍事件流投影（texlog）。
+    """数 `^!`+`file:line:` 错误、记首错位置——物化事件流 ``ParsedLog`` 投影。
 
     返回 ``(首错行号, 工程源 invalid_utf8 命中)``：逐事件把 ``ev.inner``
-    （栈顶最内具名帧）作产生者交 ``is_project_file`` 判定——系统件源名
-    收进 ``info.warnings_sys``（``invalid_utf8@<file>``），工程源命中由
-    ``parse_log`` 收口进 ``warnings_hit``；DOS 魔数 EPS（normalize
-    ``dos_eps_skipped`` 原样保留件）视同系统件降级，标 ``(dos-eps)``。
+    （栈顶最内具名帧）交 ``producer_tag`` 三支判定（logparse/l2 同口径）
+    ——系统件源名收进 ``info.warnings_sys``（``invalid_utf8@<file>``，DOS
+    魔数 EPS 件带 ``(dos-eps)`` 尾标），工程源命中由 ``parse_log`` 收口
+    进 ``warnings_hit``。
     """
     ctx_start = -1
     #: 弹栈史累计到首错（含首错行自身弹栈——本侧是含行快照口径，与
@@ -86,20 +101,15 @@ def _scan_error_lines(
     utf8_proj = False
     utf8_sys: set[str] = set()
     dos_eps_cache: dict[str, bool] = {}
-    for ev in iter_log_events(lines):
+    for ev in pl.events:
         if info.first_error is None:
             popped.extend(ev.popped)
         if _UTF8_WARN_RE.search(ev.line):
-            inner = ev.inner
-            if is_dos_eps(inner, project_root, dos_eps_cache):
-                # dos_eps_skipped 件：normalize 字节原样保留的二进制 EPS，
-                # 残余警告降 warnings_sys 并打 (dos-eps) 标便于台账对账。
-                name = Path(inner).name if inner else "?"
-                utf8_sys.add(f"{name}(dos-eps)")
-            elif is_project_file(inner, project_root):
+            tag = producer_tag(ev.inner, project_root, dos_eps_cache)
+            if tag is None:
                 utf8_proj = True
             else:
-                utf8_sys.add(Path(inner).name if inner else "?")
+                utf8_sys.add(tag)
         if ev.err is not None:
             info.n_errors += 1
             info.errors.append(ev.err.head[:300])
@@ -112,11 +122,21 @@ def _scan_error_lines(
     return ctx_start, utf8_proj
 
 
-def parse_log(log_text: str, *, project_root: Path | None = None) -> LogInfo:
+def parse_log(
+    log_text: str,
+    *,
+    project_root: Path | None = None,
+    parsed: ParsedLog | None = None,
+) -> LogInfo:
     """解析 TeX log 文本 → LogInfo（引擎无关；调用方负责拿文本）。
 
     错误计数**双格式**：`^!` 行 + `file:line:` 行（只数 `!` 会漏掉
     `-file-line-error` 模式下引擎级错误，docs/spec/validate.md）。
+
+    ``parsed`` = 调用方已物化的 ``ParsedLog``（CompRes stash 缝，与
+    ``logparse.parse_text`` 同件两面投影）——缺席时本侧自建；传入者
+    须是 ``log_text`` 同一文本的事件流（红线扫仍走 ``log_text`` 全文，
+    事件面不再第二遍）。
 
     ``project_root`` = 编译工作根（``wdir``）：invalid_utf8 红线按警告
     产生文件归因，系统 texmf/bundle 源与 DOS 魔数 EPS（normalize
@@ -126,11 +146,12 @@ def parse_log(log_text: str, *, project_root: Path | None = None) -> LogInfo:
     info = LogInfo()
     if not log_text:
         return info
-    lines = log_text.splitlines()
-    ctx_start, utf8_proj = _scan_error_lines(lines, info, project_root)
+    pl = parsed if parsed is not None else parse_events(log_text)
+    lines = pl.lines
+    ctx_start, utf8_proj = _scan_error_lines(pl, info, project_root)
     if ctx_start >= 0:
         ctx_lines = []
-        for j in range(ctx_start, min(ctx_start + 9, len(lines))):
+        for j in range(ctx_start, min(ctx_start + _CTX_FOLLOW + 1, len(lines))):
             ctx_lines.append(lines[j])
             if info.error_line is None:
                 m = L_NUM_RE.match(lines[j].strip())

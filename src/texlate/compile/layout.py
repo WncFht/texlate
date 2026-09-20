@@ -25,7 +25,7 @@ from texlate.textutil import (
     iter_depth0,
 )
 
-from .inject import _splice_after_seams, _splice_before_document, find_docclass_ends
+from ._seams import _splice_after_seams, _splice_before_document, find_docclass_ends
 from .mainfile import _MAIN_TEX_SUFFIXES
 from .mask import apply_edits, group_end, visible_tex
 

@@ -107,6 +107,62 @@ def _bbl_complete(bbl: Path) -> bool:
     return _BBL_TAIL_RX.search(tail) is not None
 
 
+def _prepare_main(
+    wdir: Path,
+    main: str,
+    outdir: Path | None,
+    *,
+    default_subdir: str = "",
+    extra_stale: Iterable[str] = (),
+) -> tuple[Path, Path, str, Path, Path, Path]:
+    """compile() 头段共享件：main 校验 + out 落点解析/mkdir + 陈旧产物清理。
+
+    ``default_subdir`` = ``outdir`` 缺席时 ``cwd`` 下的引擎默认子目录
+    （tectonic ``_tect_out``；xelatex 产物落 main 旁、留空）。``extra_stale``
+    收相对 ``out`` 的追加清档名，``{stem}`` 占位按 main 词干展开（xelatex
+    ``"{stem}.fls"``、tectonic ``"dependencies.mk"``）。返回
+    ``(main_path, cwd, stem, out, pdf, log)``——源树目录镜像等引擎私有
+    步骤留在调用方。
+    """
+    main_path = _checked_main(wdir, main)
+    cwd = main_path.parent
+    stem = main_path.stem
+    out = (outdir or (cwd / default_subdir if default_subdir else cwd)).resolve()
+    out.mkdir(parents=True, exist_ok=True)
+    pdf, log = out / f"{stem}.pdf", out / f"{stem}.log"
+    for stale in (pdf, log, *(out / name.format(stem=stem) for name in extra_stale)):
+        stale.unlink(missing_ok=True)
+    return main_path, cwd, stem, out, pdf, log
+
+
+def _harvest(  # noqa: PLR0913, PLR0917 — compile() 尾段共享件，参数面即两引擎差异缝
+    res: CompRes,
+    wdir: Path,
+    main: str,
+    out: Path,
+    pdf: Path,
+    log: Path,
+    log_text: str,
+) -> None:
+    """compile() 尾段共享件：log_text/log_path/pdf/ok/workdir/deps 归位。
+
+    ``log_text`` 由调用方早读——各引擎 ``.log``→``LogInfo`` 解析段发散
+    （xelatex ``parse_log(log_text or stdout_tail)`` + driver-fatal 打捞 +
+    ``log_truncated``；tectonic 空 .log 退 stdout_tail + ``error:`` 签名
+    兜底），读盘随解析段留在原地。本函数只归位字段，且须在
+    ``_salvage_driver_fatal`` 之后调用：``_driver_fatal`` 的 ``has_pdf``
+    门按归位前字段评估（编译时序上恒 False——``res.pdf`` 此刻未落位即
+    「呈失败相」，fatal 行打捞不因已出 pdf 被闸掉）。
+    """
+    res.log_text = log_text
+    res.log_path = log if log.exists() else None
+    res.pdf = pdf if pdf.exists() else None
+    res.pdf_bytes = pdf.stat().st_size if pdf.exists() else 0
+    res.ok = not res.timed_out and res.rc is not None and res.rc >= 0
+    res.workdir = wdir
+    res.deps = compiled_dependencies(wdir, main, out, res.engine)
+
+
 # ================================================================ xelatex
 class XelatexEngine:
     """TeX Live xelatex：M0 开发默认（tlmgr 可修性实测最高，engine-matrix §5）。"""
@@ -136,6 +192,12 @@ class XelatexEngine:
         self.repository = repository or env_raw("TEXLATE_TLNET") or None
         self._search_cache: dict[str, list[str]] | None = None
         self._usertree_inited = False
+        #: ``_fontconfig_conf`` memo——``(texmfhome, conf 路径)``。conf 内容
+        #: 只吃 texmfhome（``_texmfdist`` 进程级 lru_cache 恒定）；texmfhome
+        #: 经 fixloop ``_wire_engine``/worker 接线漂移（None → 实树）即自动
+        #: 失效重写，conf 文件被外删（usertree 整清）时 ``is_file`` 复核回写
+        #: ——同键每实例只写一回，不再逐次 ``_env`` 重写。
+        self._fontconfig_memo: tuple[Path | None, str] | None = None
         #: ``probe_file`` 树探测 memo——键 ``(fname, texmfhome, 宿主
         #: TEXMFHOME)``，值 None=阴性也缓存（缺件重探是真成本）；树态变动
         #: 只经本实例 install/updmap 通路，各落件点统一 ``clear()``。
@@ -182,8 +244,16 @@ class XelatexEngine:
         保住宿主机字体面。conf 落 ``usertree/home`` 之下（该目录经
         ``TEXMFHOME`` 链入 ``_bwrap_env_paths`` 挂进沙箱；usertree 根本身
         不在挂载面）；texmfhome 缺席时落 ``~/.cache/texlate/fontconfig/``
-        （已列入 ``_bwrap_mounts`` rw）。重写幂等。
+        （已列入 ``_bwrap_mounts`` rw）。重写幂等——实例内 memo
+        （``_fontconfig_memo``）同 texmfhome 键只写一回：``_env`` 每次
+        kpsewhich/tlmgr/updmap spawn 都经本方法，幂等重写此前逐次摊销。
         """
+        if (
+            self._fontconfig_memo is not None
+            and self._fontconfig_memo[0] == self.texmfhome
+            and Path(self._fontconfig_memo[1]).is_file()
+        ):
+            return self._fontconfig_memo[1]
         dist = _texmfdist()
         dirs = []
         if dist:
@@ -219,7 +289,8 @@ class XelatexEngine:
             ]
             conf.write_text("\n".join(body) + "\n", encoding="utf-8")
         except OSError:
-            return None
+            return None  # 写失败不 memo——下回重试（同旧逐次重写语义）
+        self._fontconfig_memo = (self.texmfhome, str(conf))
         return str(conf)
 
     def _usertree_env(self) -> dict[str, str]:
@@ -273,13 +344,15 @@ class XelatexEngine:
         main_name: str,
         *,
         best_effort: bool = False,
-        flags: Iterable[str] | None = None,
+        flag_toks: Iterable[str] | None = None,
     ) -> list[str]:
-        """构造 xelatex 命令行（docs/spec/compile.md 旗标集 + fixloop engine_flags）。
+        """构造 xelatex 命令行（docs/spec/compile.md 旗标集 + 预切 engine_flags）。
 
-        ``flags`` 追加在基线旗标之后、``main_name`` 之前——kpathsea 选项
-        last-wins，规则请求（如 minted 的 ``-shell-escape``）可压过
-        ``-no-shell-escape``。
+        ``flag_toks`` 是 ``_split_flags`` 已放行的 token——compile() 喂
+        ``res.flags_applied``（过滤记账单点在 compile 头段，此处不复切；
+        预切也免了同一 ``flags`` 迭代器被二次消费的空放形）。追加在基线
+        旗标之后、``main_name`` 之前——kpathsea 选项 last-wins，规则请求
+        （如 minted 的 ``-shell-escape``）可压过 ``-no-shell-escape``。
         """
         cmd = [
             binary,
@@ -291,14 +364,13 @@ class XelatexEngine:
         ]
         if self.halt_on_error and not best_effort:
             cmd.insert(3, "-halt-on-error")
-        applied, _ = self._split_flags(flags)
-        for fl in applied:
+        for fl in flag_toks or ():
             if fl not in cmd:
                 cmd.append(fl)
         cmd.append(main_name)
         return cmd
 
-    def compile(  # noqa: C901, PLR0913, PLR0915 — 签名即 docs/spec/compile.md 规格面；pass 环停趟判据单点平铺
+    def compile(  # noqa: PLR0913 — 签名即 docs/spec/compile.md 规格面；pass 环停趟判据单点平铺
         self,
         wdir: Path,
         main: str,
@@ -328,17 +400,16 @@ class XelatexEngine:
         if binary is None:
             res.stdout_tail = "xelatex not found"
             return res
-        main_path = _checked_main(wdir, main)
-        cwd = main_path.parent
-        stem = main_path.stem
-        out = (outdir or cwd).resolve()
-        out.mkdir(parents=True, exist_ok=True)
-        pdf, log = out / f"{stem}.pdf", out / f"{stem}.log"
-        for stale in (pdf, log, out / f"{stem}.fls"):
-            stale.unlink(missing_ok=True)
+        main_path, cwd, stem, out, pdf, log = _prepare_main(
+            wdir, main, outdir, extra_stale=("{stem}.fls",)
+        )
         env = self._env(env_extra)
         cmd = self._cmd(
-            binary, out, main_path.name, best_effort=best_effort, flags=flags
+            binary,
+            out,
+            main_path.name,
+            best_effort=best_effort,
+            flag_toks=res.flags_applied,
         )
         cmd, res.sandbox_mode = _apply_sandbox(
             cmd,
@@ -433,13 +504,7 @@ class XelatexEngine:
         res.log_truncated = (
             self.halt_on_error and not best_effort and res.log.n_errors > 0
         )
-        res.log_text = log_text
-        res.log_path = log if log.exists() else None
-        res.pdf = pdf if pdf.exists() else None
-        res.pdf_bytes = pdf.stat().st_size if pdf.exists() else 0
-        res.ok = not res.timed_out and res.rc is not None and res.rc >= 0
-        res.workdir = wdir
-        res.deps = compiled_dependencies(wdir, main, out, self.name)
+        _harvest(res, wdir, main, out, pdf, log, log_text)
         return res
 
     def _bib_pass(  # noqa: C901, PLR0912, PLR0913 -- compile 上下文面集中透传；两臂各一段顺序闸
@@ -809,11 +874,9 @@ class XelatexEngine:
         return rc == 0 and not to
 
     def parse_log(self, res: CompRes) -> LogInfo:
-        """编译期已读的 ``res.log_text`` 优先；缺席退 res.log_path，再 stdout_tail。"""
-        text = res.log_text
-        if not text and res.log_path is not None:
-            with contextlib.suppress(OSError):
-                text = res.log_path.read_text(encoding="utf-8", errors="replace")
-        info = parse_log(text or res.stdout_tail, project_root=res.workdir)
+        """``repair.log_text_of`` 同口径：log_text 优先、``.log`` 兜底、stdout_tail 收尾。"""
+        from texlate.repair import log_text_of  # noqa: PLC0415 -- 循环，惰载
+
+        info = parse_log(log_text_of(res), project_root=res.workdir)
         _salvage_driver_fatal(info, res)
         return info

@@ -123,6 +123,20 @@ def _filecontents_bodies(kept: str) -> dict[str, str]:
     return out
 
 
+def _input_names(name: str) -> Iterator[str]:
+    r"""``\input``/``\include`` 声明名 → 候选文件名流（kpathsea 序）。
+
+    无扩展名按 ``_MAIN_TEX_SUFFIXES`` 序补 ``.tex``/``.ltx``，有扩展名
+    原样单发；后缀不在 ``_MAIN_TEX_SUFFIXES`` 者滤除（``.bbl``/``.sty``
+    等非 tex 目标不进闭包）。``_resolve_input``/``_resolve_virtual``
+    共用此候选名策略，两跳的基域各自保有（磁盘 Path vs 虚拟表键）。
+    """
+    names = [name] if Path(name).suffix else [name + ext for ext in _MAIN_TEX_SUFFIXES]
+    for fname in names:
+        if Path(fname).suffix.lower() in _MAIN_TEX_SUFFIXES:
+            yield fname
+
+
 def _resolve_virtual(
     root: Path, decl_dir: Path, name: str, virtual: Mapping[str, str]
 ) -> tuple[Path, str] | None:
@@ -133,16 +147,13 @@ def _resolve_virtual(
     filecontents 落盘的合成位（root 下成员名）——``seen`` 键与嵌套
     ``\input`` 基准目录沿用真路径语义，不落盘。
     """
-    names = [name] if Path(name).suffix else [name + ext for ext in _MAIN_TEX_SUFFIXES]
     try:
         decl_rel = decl_dir.relative_to(root).as_posix()
     except ValueError:
         decl_rel = ""
     if decl_rel == ".":
         decl_rel = ""
-    for fname in names:
-        if Path(fname).suffix.lower() not in _MAIN_TEX_SUFFIXES:
-            continue
+    for fname in _input_names(name):
         for base in (decl_rel, ""):
             key = f"{base}/{fname}" if base else fname
             body = virtual.get(key)
@@ -157,10 +168,7 @@ def _resolve_input(root: Path, decl_dir: Path, name: str) -> Path | None:
     无扩展名补 ``.tex``；解析到非 .tex（``.bbl``/``.sty`` 等）或越出
     工程根的目标不计入 body 量（probe.py ``_find_local`` 同口径）。
     """
-    names = [name] if Path(name).suffix else [name + ext for ext in _MAIN_TEX_SUFFIXES]
-    for fname in names:
-        if Path(fname).suffix.lower() not in _MAIN_TEX_SUFFIXES:
-            continue
+    for fname in _input_names(name):
         for base in (decl_dir, root):
             # ``\input`` 参数是文档可控面——巨名 ENAMETOOLONG、symlink loop
             # RuntimeError、NUL ValueError 按不可解析处理（consistency-audit）。
@@ -174,6 +182,7 @@ def _walk_inputs(
     root: Path,
     seeds: list[tuple[Path, str]],
     virtual: Mapping[str, str] | None = None,
+    text_cache: Mapping[Path, str] | None = None,
 ) -> Iterator[tuple[Path, str]]:
     r"""``\input``/``\include`` 传递闭包遍历：产出 ``(resolved_path, visible_text)``。
 
@@ -181,7 +190,12 @@ def _walk_inputs(
     目标（注释/verbatim 内的 ``\input`` 不参与），逐文件解析可存在的本地
     .tex（``_resolve_input`` 口径：声明目录→工程根两跳、越出工程根不计）。
     ``virtual`` 非空时磁盘缺席再探 filecontents 虚拟成员（自解包形态）。
-    环引由 visited 集收，规模上界 ``_MASS_FILE_CAP``。
+    ``text_cache`` 非空时 ``resolved path → 遮盖文本`` 命中即免
+    read_bytes/``_tar_disguised``/decode/遮盖整链——``find_main_tex``
+    全树扫描产物直供，消逐候选×逐文件的重复盘读（decode/mask 本体已有
+    内容键 memo，真收益是 I/O 消重与 >512 件/>2MB 件树的 lru_cache
+    挤兑免疫）；表外件（tar 伪装、扫描时 OSError、扫描后新建）回落
+    实时读路径。环引由 visited 集收，规模上界 ``_MASS_FILE_CAP``。
     """
     vmap: Mapping[str, str] = virtual if virtual is not None else {}
     seen = {src for src, _vis in seeds}
@@ -208,13 +222,17 @@ def _walk_inputs(
             if tgt is None or tgt in seen:
                 continue
             seen.add(tgt)
-            try:
-                blob = tgt.read_bytes()
-            except OSError:
-                continue
-            if _tar_disguised(blob):
-                continue  # tar 伪装件——成员字节不是闭包面（normalize._tex_sources 同闸）
-            sub = visible_tex(decode_tex(blob))
+            sub: str | None = None
+            if text_cache is not None:
+                sub = text_cache.get(tgt)
+            if sub is None:
+                try:
+                    blob = tgt.read_bytes()
+                except OSError:
+                    continue
+                if _tar_disguised(blob):
+                    continue  # tar 伪装件——成员字节不是闭包面（normalize._tex_sources 同闸）
+                sub = visible_tex(decode_tex(blob))
             queue.append((tgt, sub))
             yield tgt, sub
 
@@ -224,6 +242,7 @@ def _closure_has_document(
     main: Path,
     text: str,
     virtual: Mapping[str, str] | None = None,
+    text_cache: Mapping[Path, str] | None = None,
 ) -> bool:
     r"""``\begin{document}`` 在本体或 ``\input`` 传递闭包任一文件中可见。
 
@@ -237,7 +256,7 @@ def _closure_has_document(
         return True
     return any(
         BEGIN_DOC_RX.search(sub)
-        for _tgt, sub in _walk_inputs(root, [(main, text)], virtual)
+        for _tgt, sub in _walk_inputs(root, [(main, text)], virtual, text_cache)
     )
 
 
@@ -246,6 +265,7 @@ def _closure_has_docclass(
     main: Path,
     text: str,
     virtual: Mapping[str, str] | None = None,
+    text_cache: Mapping[Path, str] | None = None,
 ) -> bool:
     r"""``\documentclass``/``\documentstyle`` 在本体或 ``\input`` 闭包可见。
 
@@ -258,7 +278,7 @@ def _closure_has_docclass(
         return True
     return any(
         DOCCLASS_RX.search(sub)
-        for _tgt, sub in _walk_inputs(root, [(main, text)], virtual)
+        for _tgt, sub in _walk_inputs(root, [(main, text)], virtual, text_cache)
     )
 
 
@@ -267,6 +287,7 @@ def _body_mass(
     main: Path,
     body: str,
     virtual: Mapping[str, str] | None = None,
+    text_cache: Mapping[Path, str] | None = None,
 ) -> int:
     r"""``\begin{document}`` 后实质 body 量：可见非空白字符数 + ``\input`` 闭包。
 
@@ -279,12 +300,12 @@ def _body_mass(
     ``_MASS_FILE_CAP``。
     """
     mass = len(re.sub(r"\s", "", body))
-    for _tgt, sub in _walk_inputs(root, [(main, body)], virtual):
+    for _tgt, sub in _walk_inputs(root, [(main, body)], virtual, text_cache):
         mass += len(re.sub(r"\s", "", sub))
     return mass
 
 
-def find_main_tex(root: Path) -> Path | None:  # noqa: C901, PLR0912 — 候选过滤+排序启发式平铺即算法本体
+def find_main_tex(root: Path) -> Path | None:  # noqa: C901, PLR0912, PLR0915 — 候选过滤+排序启发式平铺即算法本体
     r"""定位主 .tex：最浅、最像正文的 `\documentclass`+`\begin{document}` 文件。
 
     候选门槛：`\documentclass`/`\documentstyle` 必须在文件本体（遮盖视图），
@@ -312,9 +333,9 @@ def find_main_tex(root: Path) -> Path | None:  # noqa: C901, PLR0912 — 候选�
     resolved = root.resolve()
     scanned: list[tuple[Path, str, str]] = []
     kept_views: list[str] = []
-    for p in sorted(
-        p for p in root.rglob("*") if p.suffix.lower() in _MAIN_TEX_SUFFIXES
-    ):
+    from .normalize import _iter_files  # noqa: PLC0415 -- 循环，惰载
+
+    for p in sorted(_iter_files(root, _MAIN_TEX_SUFFIXES)):
         try:
             blob = p.read_bytes()
         except OSError:
@@ -329,6 +350,11 @@ def find_main_tex(root: Path) -> Path | None:  # noqa: C901, PLR0912 — 候选�
     for kept in kept_views:
         for key, body in _filecontents_bodies(kept).items():
             virtual.setdefault(key, body)
+
+    # 闭包走查的 ``resolved path → 遮盖文本`` 预取表——扫描已读/解码/遮盖
+    # 的件命中即免再走 read_bytes→decode→mask（各候选闭包会重扫同批
+    # ``\input`` 目标）；表外件回落 ``_walk_inputs`` 实时读路径，口径不变。
+    text_cache = {p: text for p, _rel, text in scanned}
 
     candidates = []
     bodies = {}
@@ -354,7 +380,7 @@ def find_main_tex(root: Path) -> Path | None:  # noqa: C901, PLR0912 — 候选�
     for p, rel, text in scanned:
         if not DOCCLASS_RX.search(text):
             continue
-        if not _closure_has_document(resolved, p, text):
+        if not _closure_has_document(resolved, p, text, text_cache=text_cache):
             continue
         _admit(rel, text)
     if not candidates:
@@ -368,9 +394,9 @@ def find_main_tex(root: Path) -> Path | None:  # noqa: C901, PLR0912 — 候选�
                 or INPUT_BARE_RX.search(text)
             ):
                 continue  # 无 bd 也无 input 边 → 闭包双判定必空
-            if not _closure_has_document(resolved, p, text, virtual):
+            if not _closure_has_document(resolved, p, text, virtual, text_cache):
                 continue
-            if not _closure_has_docclass(resolved, p, text, virtual):
+            if not _closure_has_docclass(resolved, p, text, virtual, text_cache):
                 continue
             _admit(rel, text)
     if not candidates:
@@ -383,7 +409,9 @@ def find_main_tex(root: Path) -> Path | None:  # noqa: C901, PLR0912 — 候选�
         return letters > 0 and latin < letters / 2
 
     masses = {
-        rel: _body_mass(resolved, (resolved / rel).resolve(), bodies[rel])
+        rel: _body_mass(
+            resolved, (resolved / rel).resolve(), bodies[rel], text_cache=text_cache
+        )
         for rel in candidates
     }
 
@@ -437,9 +465,9 @@ def classify_no_main(root: Path) -> str | None:
     后缀、worker/e2e reason 后缀）；``None`` 时票面不变。
     """
     has_ds = has_bd = plain = False
-    for p in root.rglob("*"):
-        if not p.is_file() or p.suffix.lower() not in _MAIN_TEX_SUFFIXES:
-            continue
+    from .normalize import _iter_files  # noqa: PLC0415 -- 循环，惰载
+
+    for p in _iter_files(root, _MAIN_TEX_SUFFIXES):
         try:
             blob = p.read_bytes()
         except OSError:

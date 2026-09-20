@@ -18,6 +18,7 @@
 
 from texlate.textutil import decode_tex
 
+from ._seams import find_docclass_end
 from .engine import (
     CompRes,
     Engine,
@@ -38,7 +39,6 @@ from .inject import (
     InjectRejectError,
     classify_no_main,
     demote_wrapfloats,
-    find_docclass_end,
     find_main_tex,
     inject_cjk,
     inject_float_sizing,

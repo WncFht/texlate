@@ -34,11 +34,15 @@ import tarfile
 import zipfile
 from functools import lru_cache
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import httpx
 
 from texlate.compile import seams
 from texlate.textutil import data_root, env_flag
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 log = logging.getLogger(__name__)
 
@@ -103,17 +107,34 @@ def asset_for(system: str, machine: str) -> tuple[str, str, str]:
     return url, digest, binary_name
 
 
+def _read_capped(
+    resp: httpx.Response, cap: int, *, on_over: Callable[[int], Exception]
+) -> bytes:
+    """流式响应体累计读入内存；超 ``cap`` 即 ``raise on_over(cap)``。
+
+    ``ctan._http_get`` 同款「累计 + 封顶即拒」循环——共享私有叶
+    ``compile._dl`` 就位前暂居本模块；``on_over`` 造异常保各方自有的
+    错误契约。
+    """
+    buf = io.BytesIO()
+    for chunk in resp.iter_bytes():
+        buf.write(chunk)
+        if buf.tell() > cap:
+            raise on_over(cap)
+    return buf.getvalue()
+
+
 def _fetch(url: str, client: httpx.Client) -> bytes:
     """流式下载到内存：累计超 ``_DOWNLOAD_CAP`` 即拒（texglot 同额帽）。"""
-    buf = io.BytesIO()
     with client.stream("GET", url) as resp:
         resp.raise_for_status()
-        for chunk in resp.iter_bytes():
-            buf.write(chunk)
-            if buf.tell() > _DOWNLOAD_CAP:
-                msg = f"tectonic 归档超限（>{_DOWNLOAD_CAP}B），拒绝安装"
-                raise RuntimeError(msg)
-    return buf.getvalue()
+        return _read_capped(
+            resp,
+            _DOWNLOAD_CAP,
+            on_over=lambda cap: RuntimeError(
+                f"tectonic 归档超限（>{cap}B），拒绝安装"
+            ),
+        )
 
 
 def _extract_binary(archive: bytes, binary_name: str) -> bytes:
@@ -222,18 +243,23 @@ def resolve_tool(name: str) -> str | None:
     return seams.find_tool(name) or seams.find_managed(name)
 
 
-def _smoke(binary: Path) -> bool:
-    """落位后 ``--version`` 自检：sha256 保字节对，自检保本平台可执行。"""
+def _run_version(binary: str) -> subprocess.CompletedProcess[bytes] | None:
+    """``binary --version`` 拉起一次；跑不动（OSError/超时）→ None。"""
     try:
-        r = subprocess.run(  # noqa: S603 — 二进制已过 sha256 钉校验
-            [str(binary), "--version"],
+        return subprocess.run(  # noqa: S603 — 探测已定位/已钉校验的二进制
+            [binary, "--version"],
             capture_output=True,
             timeout=30,
             check=False,
         )
     except (OSError, subprocess.TimeoutExpired):
-        return False
-    return r.returncode == 0
+        return None
+
+
+def _smoke(binary: Path) -> bool:
+    """落位后 ``--version`` 自检：sha256 保字节对，自检保本平台可执行。"""
+    r = _run_version(str(binary))
+    return r is not None and r.returncode == 0
 
 
 @lru_cache(maxsize=8)
@@ -243,14 +269,8 @@ def tectonic_version(binary: str) -> tuple[int, int, int] | None:
     lru_cache：同一二进制一进程只探一回——``compile._cmd`` 每文件都会问到
     （``--web-bundle`` 自 0.17.0 起被撤、URL 并入 ``--bundle`` 的分支判定）。
     """
-    try:
-        r = subprocess.run(  # noqa: S603 — 同 _smoke：探测已定位的二进制
-            [binary, "--version"],
-            capture_output=True,
-            timeout=30,
-            check=False,
-        )
-    except (OSError, subprocess.TimeoutExpired):
+    r = _run_version(binary)
+    if r is None:
         return None
     m = re.search(rb"(\d+)\.(\d+)\.(\d+)", r.stdout + r.stderr)
     if m is None:

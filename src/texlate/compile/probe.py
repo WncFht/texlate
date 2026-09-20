@@ -25,6 +25,7 @@ from texlate.textutil import (
     INPUT_BRACED_RX,
     _tar_disguised,
     clean_decl_name,
+    dead_tail_view,
     decode_tex,
     safe_is_file,
     safe_resolve,
@@ -61,9 +62,6 @@ _PKG_RE = re.compile(r"\\(?:usepackage|RequirePackage)\s*(?:\[[^\]]*\])?\s*\{([^
 #: ``textutil.DOCCLASS_NAMES`` ∪ ``{LoadClass}`` 内联——``LoadClassWithOptions``
 #: 首参同为类名可收但原面不含（同上留档）。
 _CLS_RE = re.compile(r"\\(documentclass|documentstyle|LoadClass)" + DECL_TAIL)
-#: 死尾边界：首个 ``\end{document}``/``\endinput`` 之后引擎不再读本文件——
-#: 其后的 ``\input`` 不产生 missing_file，扫它只会报假缺失。
-_DEAD_TAIL_RE = re.compile(r"\\end\s*\{document\}|\\endinput\b")
 #: ``\PreventPackageFromLoading`` 阻断名单收割（scrlfile 机制）：声明的包
 #: 运行时被拦——``\usepackage`` 仍在稿面但永不加载，依赖表若照声明装包
 #: 即 FP 向；阻断行自身被注释遮蔽则 FN 向（走遮盖视图天然豁免）。
@@ -238,27 +236,29 @@ def _record_dep(
     return probe
 
 
+def _record_input(
+    ctx: _ScanCtx, rel: str, name: str, queue: list[Path], *, optional: bool = False
+) -> None:
+    r"""登记一条 `\input` 依赖，本地命中 .tex 则解析入队跟进。"""
+    probe = _record_dep(ctx, rel, name, "input", optional=optional)
+    if probe.resolved == "local" and probe.fname.lower().endswith(".tex"):
+        queued = safe_resolve(ctx.root / probe.detail)
+        if queued is not None:
+            queue.append(queued)
+
+
 def _scan_inputs(ctx: _ScanCtx, live: str, rel: str, queue: list[Path]) -> None:
     r"""`\input`/`\include`/`\InputIfFileExists` + 裸 `\input` 登记与跟进。"""
     for match in INPUT_BRACED_RX.finditer(live):
         name = clean_decl_name(match["arg"])
-        if name is None:
-            continue
-        optional = match["verb"] == "InputIfFileExists"
-        probe = _record_dep(ctx, rel, name, "input", optional=optional)
-        if probe.resolved == "local" and probe.fname.lower().endswith(".tex"):
-            queued = safe_resolve(ctx.root / probe.detail)
-            if queued is not None:
-                queue.append(queued)
+        if name is not None:
+            _record_input(
+                ctx, rel, name, queue, optional=match["verb"] == "InputIfFileExists"
+            )
     for match in INPUT_BARE_RX.finditer(live):
         name = clean_decl_name(match["arg"])
-        if name is None:
-            continue
-        probe = _record_dep(ctx, rel, name, "input")
-        if probe.resolved == "local" and probe.fname.lower().endswith(".tex"):
-            queued = safe_resolve(ctx.root / probe.detail)
-            if queued is not None:
-                queue.append(queued)
+        if name is not None:
+            _record_input(ctx, rel, name, queue)
 
 
 def _scan_file(ctx: _ScanCtx, tex: Path, rel: str, queue: list[Path]) -> None:
@@ -284,8 +284,7 @@ def _scan_file(ctx: _ScanCtx, tex: Path, rel: str, queue: list[Path]) -> None:
     ctx.psfile += len(_PSFILE_SPECIAL_RE.findall(vis))
     m = BEGIN_DOC_RX.search(vis)
     preamble = vis[: m.start()] if m is not None else vis
-    dead = _DEAD_TAIL_RE.search(vis)
-    live = vis[: dead.start()] if dead is not None else vis
+    live = dead_tail_view(vis)
     # 阻断名单先收——main 是 BFS 首件，其 preamble 的 PreventPackageFromLoading
     # 在一切 \usepackage 记账前就位（scrlfile 语义即声明顺序无关的运行时拦截）。
     _harvest_prevented(ctx, preamble)

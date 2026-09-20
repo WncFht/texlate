@@ -11,8 +11,11 @@ r"""编译沙箱策略面：env 白名单 + macOS sandbox-exec + linux bwrap（d
   ``CompRes.sandbox_mode``，``TEXLATE_NO_BWRAP=1`` 显式关停。
 - 子进程执行件（进程组隔离/单调钟排干环/超时 killpg/POSIX rlimits/
   ``_RunawaySentry`` 活哨）出叶 ``proc.py``——下段 ``from .proc import``
-  再出口维持旧 ``sandbox.X`` 路径可读可 import。**monkeypatch 钉定义
-  模块**：runner 行为（``_RLIMIT_*`` 帽值、``subprocess`` 替身等）钉
+  只再出口 ``sandbox.X`` 旧路径仍在消费的名（``run_process`` 兼供
+  ``judge``/``compile`` 包面与本模块自用；``_RunawaySentry``/
+  ``_cap_rlimit``/``_SENTRY_KEEP`` 供测试），runner 其余名径走
+  ``texlate.compile.proc``。**monkeypatch 钉定义模块**：runner 行为
+  （``_RLIMIT_*`` 帽值、``subprocess`` 替身等）钉
   ``texlate.compile.proc``；本模块内被调名（``run_process``/``find_tool``/
   ``sandbox_wrap``/``_bwrap_*``/``_kpathsea_*``）仍钉本模块。
 """
@@ -29,25 +32,11 @@ from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
-from texlate.textutil import env_flag
+from texlate.textutil import env_flag, filtered_env
 
-from .proc import (  # noqa: F401  # 再出口: 旧 ``sandbox.X`` 路径原样可用
-    _CANCEL_POLL_S,
-    _PAGE_MARK_RX,
-    _READ_CHUNK,
-    _RLIMIT_AS_BYTES,
-    _RLIMIT_CPU_FLOOR,
-    _RLIMIT_NOFILE,
-    _RUNAWAY_PAGE_MAX,
+from .proc import (  # noqa: F401  # 再出口: ``sandbox.X`` 旧路径仍在消费的名
     _SENTRY_KEEP,
-    _SENTRY_TAIL_CAP,
     _cap_rlimit,
-    _communicate_cancellable,
-    _drain_bounded,
-    _drain_nonblocking,
-    _kill_tree,
-    _pump_once,
-    _rlimit_preexec,
     _RunawaySentry,
     run_process,
 )
@@ -104,12 +93,7 @@ def child_env(extra: dict[str, str] | None = None) -> dict[str, str]:
     ``extra`` 不得松动 ``_ENV_FORCED`` 阀位——``shell_escape=t`` 类增量
     静默压过强制阀即裸 ``\write18`` 面，同名键直接滤除（阀值恒赢）。
     """
-    env = {
-        k: v
-        for k, v in os.environ.items()
-        if k in _ENV_PASS_EXACT or k.startswith(_ENV_PASS_PREFIX)
-    }
-    env.update(_ENV_FORCED)
+    env = filtered_env(_ENV_PASS_EXACT, _ENV_PASS_PREFIX, _ENV_FORCED)
     if extra:
         env.update({k: v for k, v in extra.items() if k not in _ENV_FORCED})
     return env

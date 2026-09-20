@@ -7,7 +7,6 @@
 from __future__ import annotations
 
 import contextlib
-import re
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -21,6 +20,7 @@ import texlate.compile.engine as _eng
 from texlate.compile.deps import compiled_dependencies
 from texlate.compile.loginfo import parse_log
 from texlate.compile.sandbox import _apply_sandbox, _rc_to_signal, child_env
+from texlate.texlog import normalize_stderr_errors
 from texlate.textutil import env_opt, safe_is_file, safe_resolve
 
 from ._base import DEFAULT_TIMEOUT, CompRes, _checked_main, _collect_compile_outputs
@@ -288,13 +288,14 @@ class TectonicEngine:
             log_text = ""
         info = parse_log(log_text, project_root=wdir)
         if info.first_error is None and not log_text:
-            # tectonic 有时不写 .log 就崩（如 \documentstyle）——stderr 兜底。
+            # tectonic 有时不写 .log 就崩（如 \documentstyle）——stderr 兜底；
+            # 无 ``!``/``file:line:`` 错时把 ``error:``/``*: fatal:`` 签名行
+            # 归一成 ``! `` 再解析（fixloop ``_report_of`` 同词素双臂）。
             info = parse_log(res.stdout_tail, project_root=wdir)
             if info.first_error is None:
-                m = re.search(r"^error: (.+)$", res.stdout_tail, re.MULTILINE)
-                if m:
-                    info.first_error = "! " + m.group(1)
-                    info.n_errors = max(1, info.n_errors)
+                info = parse_log(
+                    normalize_stderr_errors(res.stdout_tail), project_root=wdir
+                )
         res.log = info
         res.log_text = log_text
         res.log_path = log if log.exists() else None
@@ -339,11 +340,11 @@ class TectonicEngine:
         return False
 
     def parse_log(self, res: CompRes) -> LogInfo:
-        """读 res.log_path；缺席/空文件时退 stdout_tail + ``error:`` 扫描。
+        """读 res.log_path；缺席/空文件时退 stdout_tail + stderr 签名扫描。
 
         ``res.log_text`` 不可作 ``text`` 源——它已合并 stdout_tail，而下方
-        ``error:`` 扫描门钉在「.log 文件侧为空」上（合并值会把空 .log +
-        非空 stdout 的形态错挡在门外）。
+        ``error:``/``fatal:`` 归一扫描门钉在「.log 文件侧为空」上（合并值
+        会把空 .log + 非空 stdout 的形态错挡在门外）。
         """
         text = ""
         if res.log_path is not None:
@@ -351,8 +352,7 @@ class TectonicEngine:
                 text = res.log_path.read_text(encoding="utf-8", errors="replace")
         info = parse_log(text or res.stdout_tail, project_root=res.workdir)
         if info.first_error is None and not text:
-            m = re.search(r"^error: (.+)$", res.stdout_tail, re.MULTILINE)
-            if m:
-                info.first_error = "! " + m.group(1)
-                info.n_errors = max(1, info.n_errors)
+            info = parse_log(
+                normalize_stderr_errors(res.stdout_tail), project_root=res.workdir
+            )
         return info
