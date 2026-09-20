@@ -2478,6 +2478,40 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/qc_impl_spec/impl-rules.json revtex_array_clash"
     known_gap: "列规降级/\\newcolumntype guard/deluxetable 拆解半臂需 builtin array_preamble_shim——本规只覆盖前置装载可修子集; emulateapj \\@endpefalse 级联走 cls 补丁非本臂"
+  # ── 2026-09-20 errsweep (soak overnite 残余 unfixable:syntax 对) ──
+  # era 稿宏件 (mymacros 族) \def\mag{...} 把 TeX 放大率寄存器原语覆写
+  # 成文本宏 → xetex.def \Gin@setpagesize \ifnum\mag=\@m 在
+  # \begin{document} 读不到数 → Missing number (cat=syntax)。
+  # 修 = baseline 原件树内 def+全部调用点同改 \<prefix><name>
+  # (builtin 单一边界正则通吃 def/let/newcommand 各定义形), 原语名
+  # 归位; 装入件不动 (包件内 \mag 是合法原语读)。两例 \mag 均系
+  # 死定义 (正文零调用), 改名零排版面差。
+  - id: prim_clobber_rename
+    description: "用户档 \\def\\<primitive> 覆写寄存器原语 (\\mag 族) → baseline 树内全站改名 \\texlateuser<name>"
+    phase: loop
+    order: 199.79 # redactcite_brace_close(199.78) 之后, undefined_cs_guess(900) 之前; Missing-number-at-begindoc + clobber-def 双签专属
+    when: { category: syntax }
+    condition:
+      ctx_suggests: "Missing number" # 原语读位拿不到数才在此签; 其他 syntax 错不进
+    action:
+      kind: builtin_transform
+      function: primitive_clobber_rename # def 不在 baseline 树即落穿; names 表只收实证名
+    risk: low # masked-guard 认 def 形 + baseline 树限界 (装入件/包件原语读不沾); 撞名弃权
+    known_gap: "\\csname mag\\endcsname 构名/\\magnification 级 plain 族未收; 用户件内以 \\ifnum\\mag 读原语意图者改名后同破 (覆写前已破, 非新增)"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "astro-ph/0103205 (stagerun-overnite-2026-09-20 errsweep)",
+          error: "ferguson.tex:332 Missing number, treated as zero <to be read again> { @ \\begin{document} (mymacros.tex: \\def\\mag{{\\rm\\thinspace mag}} 覆写原语; xetex.def:410 \\ifnum\\mag=\\@m 读位)",
+        }
+      - {
+          corpus: "astro-ph/0103349 (stagerun-overnite-2026-09-20 errsweep)",
+          error: "cmastars.tex \\def\\mag{\\hbox{$^{\\rm m}$}} 同款覆写, begin-doc Missing number",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "errsweep-2026-09-20 bisect: mnras/art+graphicx+\\def\\mag 最小复现 (mintest t5/t6/t8); xetex.def:408-410 读位"
 
   # ─── 兜底: 恒最后 ───
   - id: undefined_cs_guess

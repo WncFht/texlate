@@ -250,6 +250,7 @@ def ruleset_with_baseline(baseline: Path) -> Ruleset:
     for rule in rs.rules:
         act = rule.raw.get("action") or {}
         if act.get("kind") == "builtin_transform" and act.get("function") in {
+            "primitive_clobber_rename",
             "restore_support_from_src",
             "slot_arg_revert",
         }:

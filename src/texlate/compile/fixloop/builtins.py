@@ -55,6 +55,7 @@ if TYPE_CHECKING:
         _allocated_cs_names,
         cs_targeted_fix,
         ctlseq_undefine,
+        primitive_clobber_rename,
         undefine_for_redef,
     )
     from texlate.compile.fixloop._builtins_docfix import (
@@ -221,6 +222,7 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "_allocated_cs_names",
         "cs_targeted_fix",
         "ctlseq_undefine",
+        "primitive_clobber_rename",
         "undefine_for_redef",
     ),
     "_builtins_docfix": (
@@ -429,6 +431,7 @@ _TRANSFORM_KEYS: tuple[str, ...] = (
     "revtex209_surface_polyfill",
     "pdfstring_cs_disarm",
     "premature_cs_guard",
+    "primitive_clobber_rename",
     "xbb_pregen",
     "pdf_asset_sanitize",
     "shipped_sty_input_wrap",
@@ -573,6 +576,7 @@ __all__ = [
     "physics_stub_detach",
     "plain_format_detect",
     "premature_cs_guard",
+    "primitive_clobber_rename",
     "pstricks_dvips_preflight",
     "purge_corrupt_intermediates",
     "px_to_bp",
