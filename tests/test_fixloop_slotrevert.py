@@ -583,3 +583,185 @@ def test_primgap_idempotent(tmp_path: Path) -> None:
     assert (work / "main.tex").read_text(
         encoding="utf-8"
     ) == "\\vadjust pre{\\vskip 1pt}\n"
+
+
+# ------------------------------------------------- slotfix: envarg 跨行参 + tcb kv 组 (2026-09-20)
+
+
+def test_envarg_newline_arg_reverted(tmp_path: Path) -> None:
+    r"""2609.19556 实证: ``\begin{promptbox}{General\ninstructions}
+    {colframe=black!60}`` —— src 参带字面换行 ``_ARG`` 捕不进, zh 平
+    参站双侧 26≠28 → envarg 整跳 7 站全漏; ``_ARGNL`` 跨行容忍后对
+    齐, kv 参还原; 参1 含 ``\n`` 非严格 ident 保留 zh (title 散文位)。"""
+    work, base = _trees(tmp_path)
+    src = (
+        "\\begin{promptbox}{General\ninstructions}{colframe=black!60}\n"
+        "body\n\\end{promptbox}\n"
+        "\\begin{promptbox}{Exhaustion}{colframe=blue!50!black}\n"
+        "body\n\\end{promptbox}\n"
+    )
+    zh = (
+        "\\begin{promptbox}{这是译文这是译文}{这是译文!60}\n"
+        "正文\n\\end{promptbox}\n"
+        "\\begin{promptbox}{这是译文}{这是译文这是译文}\n"
+        "正文\n\\end{promptbox}\n"
+    )
+    _pair(work, base, "main.tex", src, zh)
+    ok, _note = _run(work, base)
+    assert ok
+    out = (work / "main.tex").read_text(encoding="utf-8")
+    assert "\\begin{promptbox}{这是译文这是译文}{colframe=black!60}" in out
+    assert "\\begin{promptbox}{Exhaustion}{colframe=blue!50!black}" in out
+
+
+def test_envarg_newline_divergence_healed(tmp_path: Path) -> None:
+    """计数分歧不再整跳后, 同文件无关 envarg 站 (``Mizar`` 尾参) 照
+    常还原 —— 跨行参站补齐后 28=28 对齐。"""
+    work, base = _trees(tmp_path)
+    src = (
+        "\\begin{promptbox}{General\ninstructions}{colframe=black!60}\n"
+        "x\n\\end{promptbox}\n"
+        "\\begin{Mizar}{x,Y,A}\ny\n\\end{Mizar}\n"
+    )
+    zh = (
+        "\\begin{promptbox}{这是译文}{这是译文!60}\n"
+        "x\n\\end{promptbox}\n"
+        "\\begin{Mizar}{x,译文,A}\ny\n\\end{Mizar}\n"
+    )
+    _pair(work, base, "main.tex", src, zh)
+    ok, _note = _run(work, base)
+    assert ok
+    out = (work / "main.tex").read_text(encoding="utf-8")
+    assert "{colframe=black!60}" in out
+    assert "\\begin{Mizar}{x,Y,A}" in out
+
+
+def test_tcbopt_env_multiline_group_reverted(tmp_path: Path) -> None:
+    r"""2609.20423 实证: ``\begin{tcblisting}{multi-line nested kv}``
+    整组 zh 化 → ``/tcb/这是译文`` pgfkeys 错; ``_ARGB`` 平衡组 (≤2
+    层嵌套+跨行) 捕获 + kvnl ident 整组换回; 体内散文保 zh。"""
+    work, base = _trees(tmp_path)
+    src = (
+        "\\begin{tcblisting}{\n"
+        "  enhanced,\n"
+        "  breakable,\n"
+        "  listing options={\n"
+        "    basicstyle=\\ttfamily\\footnotesize,\n"
+        "    breaklines=true,\n"
+        "  }\n"
+        "}\n"
+        "body\n\\end{tcblisting}\n"
+    )
+    zh = (
+        "\\begin{tcblisting}{  这是译文这是译文={  这是译文=\\ttfamily"
+        "\\footnotesize,  这是译文  } }\n"
+        "正文\n\\end{tcblisting}\n"
+    )
+    _pair(work, base, "main.tex", src, zh)
+    ok, _note = _run(work, base)
+    assert ok
+    out = (work / "main.tex").read_text(encoding="utf-8")
+    assert out.startswith(src.split("body", maxsplit=1)[0])  # 整组换回 baseline 字节
+    assert "正文\n\\end{tcblisting}" in out  # env 体内散文保 zh
+
+
+def test_tcbopt_opt_head_reverted(tmp_path: Path) -> None:
+    """``\\begin{tcolorbox}[multi-line kv]`` ``[]`` 头形 zh 化 → 还原。"""
+    work, base = _trees(tmp_path)
+    src = "\\begin{tcolorbox}[\n  enhanced,\n  colback=red!5,\n]\nx\n\\end{tcolorbox}\n"
+    zh = "\\begin{tcolorbox}[这是译文这是译文]\nx\n\\end{tcolorbox}\n"
+    _pair(work, base, "main.tex", src, zh)
+    ok, _note = _run(work, base)
+    assert ok
+    assert (work / "main.tex").read_text(encoding="utf-8") == src
+
+
+def test_tcbopt_def_tail_reverted(tmp_path: Path) -> None:
+    """``\\newtcblisting{name}[n]{kv}``/``\\newtcolorbox`` def 尾选项
+    组 zh 化 → 整组还原 (``#n`` 形参位同域, 2609.19556 def 站实证)。"""
+    work, base = _trees(tmp_path)
+    src = (
+        "\\newtcblisting{promptbox}[2]{\n"
+        "  enhanced, title=#1,\n"
+        "  listing options={breaklines=true},\n"
+        "  #2\n"
+        "}\n"
+        "\\newtcolorbox{mybox}[2][red]{colback=#2, title=#1}\n"
+        "\\NewTColorBox{xbox}{m O{red}}{colback=#2}\n"
+    )
+    zh = (
+        "\\newtcblisting{promptbox}[2]{\n"
+        "  这是译文, title=#1,\n"
+        "  listing options={这是译文=true},\n"
+        "  #2\n"
+        "}\n"
+        "\\newtcolorbox{mybox}[2][red]{这是译文这是译文}\n"
+        "\\NewTColorBox{xbox}{m O{red}}{这是译文}\n"
+    )
+    _pair(work, base, "main.tex", src, zh)
+    ok, _note = _run(work, base)
+    assert ok
+    assert (work / "main.tex").read_text(encoding="utf-8") == src
+
+
+def test_tcbopt_flat_arg_dedup(tmp_path: Path) -> None:
+    """tcb env 单行平参 —— envarg 严格 ident 与 tcbopt kvnl 双面同位
+    重扫去重, 行为不变 (``listing only`` 裸键 + ``,`` kv 形)。"""
+    work, base = _trees(tmp_path)
+    src = "\\begin{tcblisting}{listing only, breakable}\nx\n\\end{tcblisting}\n"
+    zh = "\\begin{tcblisting}{这是译文这是译文}\nx\n\\end{tcblisting}\n"
+    _pair(work, base, "main.tex", src, zh)
+    ok, _note = _run(work, base)
+    assert ok
+    assert (work / "main.tex").read_text(encoding="utf-8") == src
+
+
+# ------------------------------------- 负向: 空行截断/散文组/非 tcb 面
+
+
+def test_envarg_blank_line_still_breaks(tmp_path: Path) -> None:
+    r"""``\n\n``=``\par`` 仍截断 arg 扫描 —— 含空行的组双侧都不捕
+    (``_ARGNL`` 只放单 ``\n``, 不过度放宽)。"""
+    work, base = _trees(tmp_path)
+    src = "\\begin{e}{a\n\nb}\nx\n\\end{e}\n"
+    zh = "\\begin{e}{a\n\n这是译文}\nx\n\\end{e}\n"
+    _pair(work, base, "main.tex", src, zh)
+    ok, _note = _run(work, base)
+    assert not ok
+    assert (work / "main.tex").read_text(encoding="utf-8") == zh
+
+
+def test_tcbopt_prose_group_not_reverted(tmp_path: Path) -> None:
+    r"""``\begin{tcolorbox}`` 后散文 ``{multi\nline prose}`` 组 ——
+    kvnl 白名单能 fullmatch 纯 ASCII 散文, kv 形断言 (``=``/``,``/
+    ``#``) 兜底拒收。"""
+    work, base = _trees(tmp_path)
+    src = "\\begin{tcolorbox}\n{Dear reviewer\nwe thank you}\n"
+    zh = "\\begin{tcolorbox}\n{尊敬的审稿人\n我们感谢您}\n"
+    _pair(work, base, "main.tex", src, zh)
+    ok, _note = _run(work, base)
+    assert not ok
+    assert (work / "main.tex").read_text(encoding="utf-8") == zh
+
+
+def test_tcbopt_bare_key_not_reverted(tmp_path: Path) -> None:
+    """``{listing only}`` 裸键站 —— 无 ``=``/``,``/``#`` kv 形宁可
+    漏收 (错位 revert 比不复原更糟)。"""
+    work, base = _trees(tmp_path)
+    src = "\\begin{tcblisting}{listing only}\nx\n\\end{tcblisting}\n"
+    zh = "\\begin{tcblisting}{这是译文这是译文}\nx\n\\end{tcblisting}\n"
+    _pair(work, base, "main.tex", src, zh)
+    ok, _note = _run(work, base)
+    assert not ok
+
+
+def test_tcbopt_non_tcb_env_untouched(tmp_path: Path) -> None:
+    """非 tcb env 跨行 kv 形组 —— envarg ``_ARGNL`` 捕到但严格
+    ident 拒 (空格/换行), tcbopt 名单不盖 → 不还原。"""
+    work, base = _trees(tmp_path)
+    src = "\\begin{myenv}{key=value\nfoo=bar}\nx\n\\end{myenv}\n"
+    zh = "\\begin{myenv}{这是译文=这是译文\n这是译文=这是译文}\nx\n\\end{myenv}\n"
+    _pair(work, base, "main.tex", src, zh)
+    ok, _note = _run(work, base)
+    assert not ok
+    assert (work / "main.tex").read_text(encoding="utf-8") == zh

@@ -40,6 +40,20 @@ _OPTC = r"\[([^\]\n]*)\]"  # opt 位捕获 (revert 面: 计数/包选项/label)
 #: 扫描 (TeX 无 \long 参扫描语义), 防 ``\begin{env}`` 后散文 ``{word}``
 #: 误收。
 _GAP = r"[^\S\n]*(?:\n[^\S\n]*)?"
+#: 平衡组扫描单元 —— 非 ``{}`` 字符且非空行首 ``\n``: 空行=\par 截断 arg
+#: 扫描 (同 _GAP 口径), 单 ``\n`` 是合法 arg token (2609.19556
+#: ``{General\ninstructions}`` 实证: src 参带字面换行 ``_ARG`` 捕不进 →
+#: 计数分歧整 kind 跳)。``\r`` 入空白列护 CRLF 空行判。
+_NBC = r"(?:(?!\n[ \t\r]*\n)[^{}])"
+#: 换行容忍实参 —— envarg 尾随参跨行组; 嵌套 ``{}`` 仍不收 (由 _ARGB 面盖)。
+_ARGNL = r"\{(" + _NBC + r"*)\}"
+#: 平衡组体 (非捕获, ≤1 层嵌套) —— 中置参/组内嵌套单元。
+_BGM = r"\{(?:" + _NBC + r"|\{" + _NBC + r"*\})*\}"
+#: 平衡组实参 (捕获, ≤2 层嵌套 + 跨行) —— tcb kv 选项组
+#: (``listing options={...}`` 值自带 ``{}`` 组)。
+_ARGB = r"\{((?:" + _NBC + r"|" + _BGM + r")*)\}"
+#: 平衡方括 opt 实参 (捕获, ≤1 层嵌套 + 跨行) —— tcolorbox ``[kv]`` 头。
+_OPTB = r"\[((?:(?!\n[ \t\r]*\n)[^\[\]]|\[[^\[\]\n]*\])*)\]"
 
 #: 扩展机位表 —— judge ``_MACHINE_SLOT_RXS`` 不盖的机位头族, 逐
 #: ``(kind, rx)``; rx 捕获组全为机位实参候选, 同一文件 src/zh 双侧
@@ -49,7 +63,9 @@ _SLOTREV_EXTRA_RXS: tuple[tuple[str, re.Pattern[str]], ...] = (
     # \begin{env}[opt]{mand}×≤4 —— 未注册 env 尾随机参
     # (translatedabstract{french}/Mizar{x,Y,A} 实证锚点); opt 位与
     # 尾随 mand 参全收。末臂 ``|_OPTC`` 收 opt-only 站
-    # (\begin{tikzpicture}[kv] 类)。
+    # (\begin{tikzpicture}[kv] 类)。mand 参用 ``_ARGNL`` 跨行容忍 —
+    # 参内字面换行合法 (2609.19556 ``{General\ninstructions}``: src
+    # 站捕不进 → envarg 26≠28 整跳, 7 站 zh 参全漏)。
     (
         "envarg",
         re.compile(
@@ -59,18 +75,18 @@ _SLOTREV_EXTRA_RXS: tuple[tuple[str, re.Pattern[str]], ...] = (
             + _OPTC
             + _GAP
             + r")?"
-            + _ARG
+            + _ARGNL
             + r"(?:"
             + _GAP
-            + _ARG
+            + _ARGNL
             + r")?"
             + r"(?:"
             + _GAP
-            + _ARG
+            + _ARGNL
             + r")?"
             + r"(?:"
             + _GAP
-            + _ARG
+            + _ARGNL
             + r")?"
             + r"|"
             + _OPTC
@@ -537,6 +553,50 @@ _SLOTREV_EXTRA_RXS: tuple[tuple[str, re.Pattern[str]], ...] = (
             + r"\s*([^{}\n]*?)\{"
         ),
     ),
+    # ── 2026-09-20 slotfix: tcb 族 kv 选项组机位 ──
+    # ``\begin{tcblisting}{enhanced,\n breakable,\n listing options={...}}``
+    # 形 (2609.20423 实证: 跨行+嵌套 ``{}`` 选项组整组 zh 化 →
+    # ``/tcb/这是译文`` pgfkeys 错) —— ``_ARG`` 吃不进换行与嵌组,
+    # 严格/宽松 ident 均拒带空白 kv → 独立 kind: ``_ARGB``/``_OPTB``
+    # 平衡组捕获 (≤2/≤1 层嵌套, 空行截断) + kvnl ident (可打印
+    # ASCII+``\t\n\r``, 且须含 ``=``/``,``/``#`` kv 形 —— 防
+    # ``\begin{tcolorbox}`` 后散文 ``{multi\nline prose}`` 误收)。
+    # ``{}``/``[]`` 双头形同盖 (tcblisting ``{opts}`` 必填形, tcolorbox
+    # ``[opts]`` 常形); envarg 对单行平参同位重扫 → 同位改写去重无害。
+    (
+        "tcbopt",
+        re.compile(
+            r"\\begin\s*\{(?:tcolorbox|tcblisting|tcbox|tcbposter|tcbraster|"
+            r"tcboxedraster|tcbitemize|tcbverbatimwrite|tcboxed)\*?\}"
+            + _GAP
+            + r"(?:"
+            + _ARGB
+            + r"|"
+            + _OPTB
+            + r")"
+        ),
+    ),
+    # ``\newtcblisting``/``\newtcolorbox``/``\newtcbox`` (new/renew/
+    # provide + xparse ``\NewTCBListing``/``\NewTCBox``/``\NewTColorBox``
+    # 系) def 尾选项组 —— ``{name}[n]{opts}``/``{name}{spec}{opts}``
+    # 的末组即 kv 机位 (``#n`` 形参位同域, 2609.19556
+    # ``\newtcblisting{promptbox}[2]{...#1...#2}`` 实证锚点); 名参与
+    # 中置 ``[n]``/``[default]``/``{spec}`` 组只吃不捕。
+    (
+        "tcbopt",
+        re.compile(
+            r"\\(?:(?:new|renew|provide)(?:tcblisting|tcolorbox|tcbox)|"
+            r"(?:New|Renew|Provide|Declare)(?:TCBListing|TColorBox|TCBox))"
+            + CMD_BOUNDARY
+            + r"\s*(?:\[[^\]\n]*\]\s*)?"
+            + r"\{[^{}\n]*\}"
+            + r"(?:\s*(?:\[[^\]\n]*\]|"
+            + _BGM
+            + r"))*"
+            + r"\s*"
+            + _ARGB
+        ),
+    ),
 )
 
 #: 严格 ident 白名单 —— 机位实参 (键/名/路径/kv 串/csv) 的字符域。
@@ -555,6 +615,14 @@ _IDENT_SPEC_PREFIX = "colspec"
 #: mathpartir kv 键表机位, CJK 即译污。primgap: 原语 pre-``{`` gap
 #: 含空格/反斜杠 (``to .55em``/``\hbox to .55em``/``spread 2pt``)。
 _IDENT_SPEC_KINDS = frozenset({"inferkv", "primgap"})
+#: kvnl ident —— tcb kv 选项组字符域: 可打印 ASCII + ``\t\n\r`` (跨行
+#: kv 串含嵌组/``#n`` 形参); 须同时含 ``=``/``,``/``#`` kv 形, 防
+#: ``\begin{tcolorbox}`` 后散文 ``{multi\nline prose}`` 组误收 —
+#: kvnl 白名单放得太宽, 纯散文 ASCII 组也能 fullmatch, 靠 kv 形断言
+#: 兜底 (错位 revert 比不复原更糟; ``{listing only}`` 裸键站宁可漏)。
+_IDENT_KVNL_RX = re.compile(r"[\t\n\r -~]+")
+_KVNL_SHAPE_RX = re.compile(r"[=,#]")
+_IDENT_KVNL_KINDS = frozenset({"tcbopt"})
 
 #: unique-src 广播适用 kind —— 计数分歧时若 src 侧该 kind 全部 gap 值
 #: 唯一且过 ident, 广播至 zh 侧全部含 CJK gap 站 (宏展开把单一 def 站
@@ -572,8 +640,14 @@ def _is_ident(arg: str, kind: str) -> bool:
     """机位标识符谓词。
 
     font 类用宽松名单 (字体名含空格), colspec 系用可打印 ASCII
-    (spec/dimen 形), 其余严格。
+    (spec/dimen 形), tcbopt 用 kvnl (可打印 ASCII+空白 ∧ kv 形),
+    其余严格。
     """
+    if kind in _IDENT_KVNL_KINDS:
+        return (
+            _IDENT_KVNL_RX.fullmatch(arg) is not None
+            and _KVNL_SHAPE_RX.search(arg) is not None
+        )
     if kind.startswith(_IDENT_SPEC_PREFIX) or kind in _IDENT_SPEC_KINDS:
         return _IDENT_SPEC_RX.fullmatch(arg) is not None
     rx = _IDENT_LOOSE_RX if kind in _IDENT_LOOSE_KINDS else _IDENT_STRICT_RX
