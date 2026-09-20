@@ -173,4 +173,9 @@
 \providecommand{\ncim}{\sissa@jrnl{Nuovo~Cim.}}
 \providecommand{\jhep}{\sissa@jrnl{JHEP}}
 \providecommand{\jcap}{\sissa@jrnl{JCAP}}
+% ── 批十一 (clsfidcen 普查 ~2 格): \sissa@jrnl 期刊缩写补员 ——
+% 打印名按真件 JHEP.cls @spires 表 (corpus/hep-th/9901059 随稿) 抄值
+\providecommand{\ap}{\sissa@jrnl{Ann.~Phys.~(NY)}}
+\providecommand{\prep}{\sissa@jrnl{Phys.~Rep.}}
+\providecommand{\jgp}{\sissa@jrnl{J.~Geom.~Phys.}}
 \endinput

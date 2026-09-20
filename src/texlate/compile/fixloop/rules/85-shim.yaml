@@ -160,6 +160,22 @@ rules:
           \expandafter\def\csname ver@emulateapj5.sty\endcsname{2026/09/17}
           \expandafter\def\csname opt@emulateapj5.sty\endcsname{twocolumn,onecolumn}
           \LoadClassWithOptions{emulateapj}
+          % aastex5 frontmatter 面 (真件 aastex.cls v5 抄签名, clsfidcen 普查
+          % ~230 格): emulateapj 全缺此族 —— \email 用 provide+renew 双写
+          % (同 aastex6x_body 先例, 防御 emulateapj 变体自带版), 余者
+          % provide 即可。references env 真件是参考文献块容器 —— 守卫让位
+          % (emulateapj 若自带则用原生版)。
+          \providecommand{\email}[1]{}
+          \renewcommand{\email}[1]{}
+          \providecommand{\authoremail}[1]{}
+          \providecommand{\received}[1]{}
+          \providecommand{\revised}[1]{}
+          \providecommand{\accepted}[1]{}
+          \providecommand{\journalid}[2]{}
+          \providecommand{\articleid}[2]{}
+          \providecommand{\cpright}[2]{}
+          \providecommand{\ccc}[1]{}
+          \@ifundefined{references}{\newenvironment{references}{}{}}{}
           \providecommand{\rotate}{}
           \endinput
     engines:

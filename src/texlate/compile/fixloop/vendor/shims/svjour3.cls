@@ -97,4 +97,52 @@
 \@ifundefined{remark}{\newtheorem{remark}[theorem]{Remark}}{}
 \@ifundefined{conjecture}{\newtheorem{conjecture}[theorem]{Conjecture}}{}
 \@ifundefined{claim}{\newtheorem{claim}[theorem]{Claim}}{}
+% --- qed 族（真件 :964-968 抄形——\sqcap/\sqcup 是 lasy 字形内核无,
+%    \squareforqed 改画框版同 siamltex body 先例; \smartqed 把 \qed
+%    换成行尾 flush-right 式, 稿 \begin{proof}...\smartqed 连用面） ---
+\def\squareforqed{\hbox{\vbox{\hrule height0.6pt\hbox{%
+  \vrule height1.3ex width0.6pt\hskip0.8ex\vrule width0.6pt}\hrule height0.6pt}}}
+\def\qed{\ifmmode\else\unskip\quad\fi\squareforqed}
+\def\smartqed{\def\qed{\ifmmode\squareforqed\else{\unskip\nobreak\hfil
+\penalty50\hskip1em\null\nobreak\hfil\squareforqed
+\parfillskip=0pt\finalhyphendemerits=0\endgraf}\fi}}
+% --- 真件 :540 noop 件 + :251 \setitemindent 抄值 ---
+\newcommand{\makeheadbox}[1]{\relax}
+\def\setitemindent#1{\settowidth{\labelwidth}{#1}%
+        \leftmargini\labelwidth
+        \advance\leftmargini\labelsep
+   \def\@listi{\leftmargin\leftmargini
+        \labelwidth\leftmargini\advance\labelwidth by -\labelsep
+        \parsep=\parskip
+        \topsep=\medskipamount
+        \itemsep=\parskip \advance\itemsep by -\parsep}}
+% --- theopargself 对（真件 :938-947 抄值; env 体仅重 def 两个内部
+%    theorem-begin handler —— 本 stub kernel \newtheorem 不走该 handler,
+%    调用即 dormant-def, 无炸面） ---
+\@ifundefined{theopargself}{\newenvironment{theopargself}
+    {\def\@spopargbegintheorem##1##2##3##4##5{\trivlist
+         \item[\hskip\labelsep{##4##1\ ##2}]{##4##3\@thmcounterend\ }##5}
+     \def\@Opargbegintheorem##1##2##3##4{##4\trivlist
+         \item[\hskip\labelsep{##3##1}]{##3##2\@thmcounterend\ }}}{}}{}
+\@ifundefined{theopargself*}{\newenvironment{theopargself*}
+    {\def\@spopargbegintheorem##1##2##3##4##5{\trivlist
+         \item[\hskip\labelsep{##4##1\ ##2}]{\hspace*{-\labelsep}##4##3\@thmcounterend}##5}
+     \def\@Opargbegintheorem##1##2##3##4{##4\trivlist
+         \item[\hskip\labelsep{##3##1}]{\hspace*{-\labelsep}##3##2\@thmcounterend}}}{}}{}
+% --- *name 族默认值（真件 :1288-1321 switcht@albion 英文表抄值;
+%    provide 让稿内 \def\Xname 改名面不撞） ---
+\providecommand{\theoremname}{Theorem}
+\providecommand{\lemmaname}{Lemma}
+\providecommand{\corollaryname}{Corollary}
+\providecommand{\propositionname}{Proposition}
+\providecommand{\definitionname}{Definition}
+\providecommand{\examplename}{Example}
+\providecommand{\remarkname}{Remark}
+\providecommand{\conjecturename}{Conjecture}
+\providecommand{\claimname}{Claim}
+\providecommand{\problemname}{Problem}
+\providecommand{\proofname}{Proof}
+\providecommand{\emailname}{E-mail}
+\providecommand{\mailname}{Correspondence to:}
+\providecommand{\noteaddname}{Note added in proof}
 \endinput

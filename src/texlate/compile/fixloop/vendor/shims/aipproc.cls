@@ -89,4 +89,40 @@
 % \relax@ 被扫成单 cs 名, @ 定界符永不到场 → runaway (th2 实证)。
 \providecommand{\tablehead}[4]{\multicolumn{#1}{#2}{\csname texlate@aipth@#3\endcsname{#4}}}
 \@namedef{texlate@aipth@b}{\textbf}
+% ── 批十一 (clsfidcen 普查 ~5 格): aipproc 第二宏面 ──
+% \lesssim/\gtrsim: 画符 rlap 近似 (本 stub 不载 amssymb ——
+% 90-shim-legacy aastex6x_body :422 同式)
+\providecommand{\lesssim}{\mathrel{\hbox{\rlap{\raisebox{-.4ex}{$<$}}\raisebox{.4ex}{$\sim$}}}}
+\providecommand{\gtrsim}{\mathrel{\hbox{\rlap{\raisebox{-.4ex}{$>$}}\raisebox{.4ex}{$\sim$}}}}
+% \sq: 真件 lasy \square 近似 —— lasy 字形内核无, 画框版 (svjour3/
+% siamltex \squareforqed 同式), \ensuremath 包文本模式调用
+\providecommand{\sq}{\ensuremath{\hbox{\vbox{\hrule height0.6pt\hbox{%
+  \vrule height1.3ex width0.6pt\hskip0.8ex\vrule width0.6pt}\hrule height0.6pt}}}}
+\providecommand{\sun}{\ensuremath{\odot}}
+% \boldmath 内核已有 (\mathversion{bold}) —— provide 恒 no-op, 普查面占位
+\providecommand{\boldmath}{\mathversion{bold}}
+% \tablenote: 真件收集式表注 (\@tablenotes + alph 记号, :871-917)
+% → 就地 footnotesize 直印保内容 (tabular 格内 \footnote 会丢注文)
+\providecommand{\tablenote}[1]{\unskip~{\footnotesize(#1)}}
+% \SetInternalRegister\reg{val}: 真件寄存器赋值宏 —— doc
+% \SetInternalRegister\hbadness{8000} 实证, 功能形非 noop
+\providecommand{\SetInternalRegister}[2]{#1=#2\relax}
+% \AIPcitestyleselect: 0 参值持宏, doc \equal{\AIPcitestyleselect}{num}
+% 比较面实证 → 默认 'num' 字符串
+\providecommand{\AIPcitestyleselect}{num}
+% varioref 式 \reftext 族 (英文默认值; doc \renewcommand 改名面 +
+% \reftextvario{a}{b} 双参取首)
+\providecommand{\reftextvario}[2]{#1}
+\providecommand{\reftextfacebefore}{on the \reftextvario{facing}{preceding} page}
+\providecommand{\reftextfaceafter}{on the \reftextvario{facing}{following} page}
+\providecommand{\reftextbefore}{on the \reftextvario{preceding page}{page before}}
+\providecommand{\reftextafter}{on the \reftextvario{following page}{next page}}
+\providecommand{\reftextcurrent}{on this page}
+\providecommand{\reftextearlier}{\reftextvario{earlier}{before}}
+\providecommand{\reftextlater}{\reftextvario{later}{further on}}
+\providecommand{\reftextfaraway}[1]{on page~\pageref{#1}}
+% \source/\spaceforfigure: 图件出处行 + 占位盒 (真件签名未随稿实证,
+% 取保守形 —— 出处行 footnotesize 直印, 占位盒纵距留空)
+\providecommand{\source}[1]{\par{\footnotesize #1\par}}
+\providecommand{\spaceforfigure}[2]{\par\vspace{#1}\par}
 \endinput

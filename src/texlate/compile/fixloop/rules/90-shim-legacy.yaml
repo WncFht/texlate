@@ -322,8 +322,36 @@ rules:
           autart.cls: { needs: ["elsarticle.cls"], body: *elsart_body }
           personal.cls: { needs: ["elsarticle.cls"], body: *elsart_body }
           # sig-alternate (ACM ≤2015 版式) → acmart 官方继任; naturemag → nature。
-          sig-alternate.cls: { loads: "acmart", needs: ["acmart.cls"] }
-          sig-alternate-05-2015.cls: { loads: "acmart", needs: ["acmart.cls"] }
+          sig-alternate.cls:
+            needs: ["acmart.cls"]
+            body: &sigalt_body |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesClass{sig-alternate}[2026/09/20 fixloop legacy shim -> acmart + sig-alternate kit]
+              \LoadClassWithOptions{acmart}
+              % sig-alternate (ACM ≤2015 版式) → acmart 桥 (clsfidcen ~19 格;
+              % 真件 1602.00244 抄签名): \alignauthor 列起始 → \par (acm_proc
+              % 先例), \numberofauthors acmart 自计, \category 3 参+尾可选
+              % 版本参吞, \conferenceinfo/\CopyrightYear/\crdata/\permission/
+              % \isbn/\doi/\toappear 存值件 noop —— 全 \ifdefined 守卫防
+              % acmart 原生同名 (acm_proc_article-sp \protected\def 同例)
+              \ifdefined\alignauthor\else\protected\def\alignauthor{\par}\fi
+              \ifdefined\numberofauthors\else\protected\def\numberofauthors#1{}\fi
+              \def\sigalt@eato[#1]{}
+              \ifdefined\category\else\protected\def\category#1#2#3{\@ifnextchar[\sigalt@eato\relax}\fi
+              \ifdefined\conferenceinfo\else\protected\def\conferenceinfo#1#2{}\fi
+              \ifdefined\additionalauthors\else\protected\long\def\additionalauthors#1{\author{#1}}\fi
+              \ifdefined\CopyrightYear\else\protected\def\CopyrightYear#1{}\fi
+              \ifdefined\crdata\else\protected\def\crdata#1{}\fi
+              \ifdefined\permission\else\protected\def\permission#1{}\fi
+              \ifdefined\isbn\else\protected\def\isbn#1{}\fi
+              \ifdefined\doi\else\protected\def\doi#1{}\fi
+              \ifdefined\printccsdesc\else\protected\def\printccsdesc{}\fi
+              \ifdefined\toappear\else\protected\def\toappear#1{}\fi
+              \ifdefined\toappearbox\else\protected\def\toappearbox#1{}\fi
+              \ifdefined\balancecolumns\else\protected\def\balancecolumns{}\fi
+              \endinput
+          sig-alternate-05-2015.cls:
+            { needs: ["acmart.cls"], body: *sigalt_body }
           naturemag.cls: { loads: "nature", needs: ["nature.cls"] }
           # AASTeX v6.x 全退役 (TL 无 aastex6x) → emulateapj + 6x 宏面 polyfill。
           # emulateapj 自带 deluxetable*/\tablehead/\affiliation/\keywords/\dataset
@@ -345,8 +373,9 @@ rules:
               \providecommand{\published}[1]{}
               \providecommand{\submitjournal}[1]{}
               \providecommand{\correspondingauthor}[1]{}
-              % emulateapj 自带 revtex 系 \email (隐参+可选参, 内部 \@AF@join 未武装
-              % 会炸) 与 \collaboration (revtex 组语义) —— provide 不够, 得 renew 覆盖
+              % census 订正 (clsfidcen): emulateapj 实测无 \email —— provide+renew
+              % 双写 = 无条件占位; \collaboration 原生实现依赖 revtex 内部件
+              % (未武装会炸) —— 同样覆盖成确定性版式
               \providecommand{\email}[1]{}
               \renewcommand{\email}[1]{}
               \providecommand{\collaboration}[2]{#2}
@@ -373,6 +402,30 @@ rules:
               \providecommand{\startlongtable}{}
               \@ifundefined{endlongtable}{\@namedef{endlongtable}{}}{}
               \providecommand{\watermark}[1]{}
+              % --- aastex63x/AASTeX62 实侧补面 (clsfidcen 普查 ~109 格;
+              %    真件 aastex631.cls 抄签名) ---
+              % \altaffiliation 在 emulateapj 有原生 revtex 定义 → provide 让位
+              \providecommand{\altaffiliation}[2][]{}
+              \providecommand{\allauthors}{}
+              \providecommand{\setwatermarkfontsize}[1]{}
+              % track-changes 族 (真件 \@ifnextchar 可选参形): \added[why]{new}
+              % 印新, \deleted[why]{old} 吞旧, \replaced[why]{old}{new} 印新;
+              % \listofchanges 无参; \AuthorCollaborationLimit 是 \newcount
+              % 寄存器 (稿侧 \AuthorCollaborationLimit=N 赋值)
+              \providecommand{\added}[2][]{#2}
+              \providecommand{\deleted}[2][]{}
+              \providecommand{\replaced}[3][]{#3}
+              \providecommand{\listofchanges}{}
+              \@ifundefined{AuthorCollaborationLimit}{\newcount\AuthorCollaborationLimit\AuthorCollaborationLimit=10000\relax}{}
+              % \lesssim/\gtrsim: emulateapj 传递装 amssymb → provide 平时
+              % 让位; 无 amssymb 路径兜底画符 (rlap <∽ 叠加)
+              \providecommand{\lesssim}{\mathrel{\hbox{\rlap{\raisebox{-.4ex}{$<$}}\raisebox{.4ex}{$\sim$}}}}
+              \providecommand{\gtrsim}{\mathrel{\hbox{\rlap{\raisebox{-.4ex}{$>$}}\raisebox{.4ex}{$\sim$}}}}
+              % env 三件: widetext 跨栏块 → 横线包围段; ruledtabular → tabular
+              % 直通; contribution → 无号小节。全 \@ifundefined 守卫
+              \@ifundefined{widetext}{\newenvironment{widetext}{\par\hrule\nobreak}{\par\nobreak\hrule\par}}{}
+              \@ifundefined{ruledtabular}{\newenvironment{ruledtabular}{\tabular}{\endtabular}}{}
+              \@ifundefined{contribution}{\newenvironment{contribution}{\par\noindent\textbf{Author contributions:}\space}{\par}}{}
               \providecommand{\rotate}{}
               \endinput
           # (aastex62.cls 槽已删: vendor/files 真件在 —— vendored 先中)
@@ -419,6 +472,10 @@ rules:
               \LoadClassWithOptions{revtex4-2}
               \frontmatter@init
               \let\frontmatter@init\relax
+              % clsfidcen 补面 (revtex4 ~1 格): 真件 hep-ph/0111060 :306 verbatim
+              % (\tabskip\mathindent eqnarray 对齐位; env:titlepage 普查项是
+              %  误报 —— vendored revtex4-2 自带)
+              \providecommand{\mathindent}{\@centering}
               \endinput
           # revtex4-1.cls: aastex61/62 内部 \IfFileExists 硬依赖 (缺失则
           # \stop 死路 → early_eof 零页; loop1 13 格实证簇)。TL 只存
@@ -567,6 +624,38 @@ rules:
               \newtheorem{corollary}[theorem]{Corollary}
               \newtheorem{proposition}[theorem]{Proposition}
               \newtheorem{definition}[theorem]{Definition}
+              % clsfidcen 补面 (siamltex ~11 格; 真件 corpus/2511.16127
+              % 随稿抄形): mathop 族真件 \operator@font 是 amsopn 私有
+              % → \mathrm 降级; \sameauthor/\URL verbatim;
+              % romannum/remunerate list env + AM abssec 降级;
+              % \Appendix = \secdef 换 \section + Alpha 编号 (:521-547)
+              \providecommand{\const}{\mathop{\mathrm{const}}\nolimits}
+              \providecommand{\diag}{\mathop{\mathrm{diag}}\nolimits}
+              \providecommand{\grad}{\mathop{\mathrm{grad}}\nolimits}
+              \providecommand{\Range}{\mathop{\mathrm{Range}}\nolimits}
+              \providecommand{\rank}{\mathop{\mathrm{rank}}\nolimits}
+              \providecommand{\supp}{\mathop{\mathrm{supp}}\nolimits}
+              \providecommand{\sameauthor}{\leavevmode\vrule height 2pt depth -1.6pt width 23pt}
+              \providecommand{\URL}{\protect\\ \hspace*{15.37pt}http://www.siam.org/journals/}
+              \providecommand{\AMname}{AMS subject classification}
+              \@ifundefined{AM}{\newenvironment{AM}{\par\noindent\textbf{\AMname.}\space}{\par}}{}
+              \@ifundefined{c@rmnum}{\newcounter{rmnum}}{}
+              \@ifundefined{romannum}{\newenvironment{romannum}
+                 {\begin{list}{{\upshape (\roman{rmnum})}}{\usecounter{rmnum}
+                  \setlength{\leftmargin}{0pt}\setlength{\itemindent}{42pt}}}{\end{list}}}{}
+              \@ifundefined{c@muni}{\newcounter{muni}}{}
+              \@ifundefined{remunerate}{\newenvironment{remunerate}
+                 {\begin{list}{{\upshape \arabic{muni}.}}{\usecounter{muni}
+                  \setlength{\leftmargin}{0pt}\setlength{\itemindent}{38pt}}}{\end{list}}}{}
+              \providecommand{\Append}[2][?]{\refstepcounter{section}%
+                {\vskip 1.3ex \@plus .5ex \@minus .2ex
+                 \reset@font\normalsize\bfseries\appendixname\ \thesection. #2.}}
+              \providecommand{\sAppend}[1]{\refstepcounter{section}%
+                {\vskip 1.3ex \@plus .5ex \@minus .2ex
+                 \reset@font\normalsize\bfseries\appendixname. #1.}}
+              \providecommand{\Appendix}{\renewcommand{\section}{\secdef\Append\sAppend}%
+                \setcounter{section}{0}\setcounter{subsection}{0}%
+                \renewcommand\thesection{\Alph{section}}}
               \endinput
           siamart.cls:
             body: &siam_body |
@@ -595,6 +684,14 @@ rules:
               \providecommand{\journal}[1]{}
               \providecommand{\doi}[1]{}
               \providecommand{\setboolean}[2]{}
+              % clsfidcen 补面 (osajnl ~4 格; 真件 2511.16950 抄签名):
+              % 存值/版式指示件 noop + backmatter env + \bmsection
+              \providecommand{\bibliographyfullrefs}[1]{}
+              \providecommand{\dates}[1]{}
+              \providecommand{\journalref}[1]{}
+              \providecommand{\articletype}[1]{}
+              \@ifundefined{backmatter}{\newenvironment{backmatter}{}{}}{}
+              \providecommand{\bmsection}[1]{\section*{#1}}
               \endinput
           osajnl2.cls: { body: *osa_body }
           # SISSA 高能类 (jhep/jcap 作者包, 不在 TL; JHEP.cls/JHEP3.cls 槽
@@ -958,6 +1055,25 @@ rules:
               \providecommand{\dedication}[1]{}
               \providecommand{\mail}[1]{}
               \providecommand{\offprints}[1]{}
+              % clsfidcen 补面 (svjour2 ~10 格; 真件 1312.0478 抄签名):
+              % \email 真件打印形 "\emailname: #1"; \subtitle 存值;
+              % \tens = mathsf 张量记号 (svjour.cls:561 同式)
+              \providecommand{\emailname}{E-mail}
+              \providecommand{\email}[1]{\emailname: #1}
+              \providecommand{\subtitle}[1]{\gdef\@subtitle{#1}}
+              \providecommand{\tens}[1]{\ensuremath{\mathsf{#1}}}
+              % qed 族 (画框版 \squareforqed —— \sqcap/\sqcup lasy 字形
+              % 内核无, 同 siamltex body/svjour3 stub 先例)
+              \def\squareforqed{\hbox{\vbox{\hrule height0.6pt\hbox{%
+                \vrule height1.3ex width0.6pt\hskip0.8ex\vrule width0.6pt}\hrule height0.6pt}}}
+              \providecommand{\qed}{\ifmmode\else\unskip\quad\fi\squareforqed}
+              \providecommand{\smartqed}{\def\qed{\ifmmode\squareforqed\else{\unskip\nobreak\hfil
+              \penalty50\hskip1em\null\nobreak\hfil\squareforqed
+              \parfillskip=0pt\finalhyphendemerits=0\endgraf}\fi}}
+              % acknowledgements env + cs 单数形 (真件 \trivlist 降级)
+              \providecommand{\ackname}{Acknowledgements}
+              \@ifundefined{acknowledgement}{\newenvironment{acknowledgement}{\par\noindent{\bfseries\ackname.}\enspace\ignorespaces}{\par}}{}
+              \@ifundefined{acknowledgements}{\newenvironment{acknowledgements}{\par\noindent{\bfseries\ackname.}\enspace\ignorespaces}{\par}}{}
               \endinput
           # EPL epl2.cls (Europhysics Letters, 期刊外发): 旧体 \abstract/
           # \pacs/\institute 即时排版 → 导言区调用 no_begindoc (0905.1214
@@ -1066,12 +1182,65 @@ rules:
           # 实证/设计: bench/results/fixer-legacy-acm-2026-09-17/。
           acm_proc_article-sp.cls:
             needs: ["acmart.cls"]
-            body: "\n\\NeedsTeXFormat{LaTeX2e}\n\\ProvidesClass{acm_proc_article-sp}[2026/09/17 fixloop legacy shim -> acmart + author-block kit]\n\\LoadClassWithOptions{acmart}\n% --- acm_proc_article-sp author-block family under acmart (1306.0281) ---\n% \\alignauthor is a column-starter (no arg, name runs to \\\\) — \\par mirrors\n% the old \"new author column\" break inside the single acmart \\author{} arg.\n\\ifdefined\\alignauthor\\else\\protected\\def\\alignauthor{\\par}\\fi\n% \\affaddr/\\affinst{inst} sit loose inside \\author{} — acmart \\affiliation\n% would corrupt \\addresses there; inline emph keeps the text.\n\\ifdefined\\affaddr\\else\\protected\\def\\affaddr#1{\\emph{#1}}\\fi\n\\ifdefined\\affinst\\else\\protected\\def\\affinst#1{\\emph{#1}}\\fi\n% \\titlenote inside \\author{} executes inside \\MakeUppercase: acmart's\n% native def appends \\footnotemark to \\@title -> \\@xfootnotemark mismatch\n% + Missing \\endcsname storm (100 errs). Override is mandatory — \\protected\n% bridge to \\thanks survives text_expand and lands in the \\thankses strip.\n\\protected\\def\\titlenote#1{\\thanks{#1}}\n% \\additionalauthors{names} top-level -> register as another acmart author.\n\\ifdefined\\additionalauthors\\else\\protected\\long\\def\\additionalauthors#1{\\author{#1}}\\fi\n% \\numberofauthors{N} — acmart auto-counts (cs_table polyfill also covers).\n\\ifdefined\\numberofauthors\\else\\protected\\def\\numberofauthors#1{}\\fi\n% acmart has native \\subtitle — guard only for exotic load paths.\n\\ifdefined\\subtitle\\else\\protected\\def\\subtitle#1{}\\fi\n% Old acm_proc order puts abstract AFTER \\maketitle; acmart \\@saveabstract\n% ClassErrors once \\@ACM@maketitle@typeset. Conditional bridge: pre-maketitle\n% keeps the native Collect@Body stash; post-maketitle typesets the body as a\n% plain labelled block — NO Collect@Body on the late path (its body-scan\n% hijacks \\abstract and cannot tolerate a typesetting callback).\n\\renewenvironment{abstract}{\\if@ACM@maketitle@typeset\\par\\medskip\\noindent{\\bfseries\\abstractname.}\\space\\ignorespaces\\else\\Collect@Body\\@saveabstract\\fi}{\\if@ACM@maketitle@typeset\\par\\medskip\\fi}\n% 2.09 font switches: acmart inherits \\rm\\sf\\tt\\bf\\it\\sl\\sc from\n% amsart (its \\DeclareOldFontCommand block); only \\cal/\\mit are missing\n% (amsart deliberately omits them) — doc \\cA->{\\cal A} family needs them.\n\\ifdefined\\cal\\else\\DeclareOldFontCommand{\\cal}{\\normalfont\\itshape}{\\mathcal}\\fi\n\\ifdefined\\mit\\else\\DeclareOldFontCommand{\\mit}{\\normalfont\\itshape}{\\mathnormal}\\fi\n% ntheorem compat (scout-thmtwin, 1306.0281): the amsthm bridge above\n% leaves \\@begintheorem in three-arg form, but ntheorem loaded WITHOUT\n% the [amsthm] option calls it kernel two-arg — `[` becomes the #2\n% delimiter and the scan swallows to \\par (Paragraph ended x6 + missing\n% \\item x6). Restore item-only defs, double-gated: only when ntheorem\n% loaded, amsthm-option form untouched. \\PassOptionsToPackage{amsthm}\n% {ntheorem} rejected — collides on style/proof/openbox + \\NAT@@citetp.\n\\AtBeginDocument{\\@ifpackageloaded{ntheorem}{%\n  \\def\\@begintheorem#1#2{\\item[\\hskip\\labelsep \\theorem@headerfont #1\\ #2.]}%\n  \\def\\@opargbegintheorem#1#2#3{\\item[\\hskip\\labelsep \\theorem@headerfont #1\\ #2\\ (#3).]}%\n}{}}\n\\endinput\n"
+            body: "\n\\NeedsTeXFormat{LaTeX2e}\n\\ProvidesClass{acm_proc_article-sp}[2026/09/17 fixloop legacy shim -> acmart + author-block kit]\n\\LoadClassWithOptions{acmart}\n% --- acm_proc_article-sp author-block family under acmart (1306.0281) ---\n% \\alignauthor is a column-starter (no arg, name runs to \\\\) — \\par mirrors\n% the old \"new author column\" break inside the single acmart \\author{} arg.\n\\ifdefined\\alignauthor\\else\\protected\\def\\alignauthor{\\par}\\fi\n% \\affaddr/\\affinst{inst} sit loose inside \\author{} — acmart \\affiliation\n% would corrupt \\addresses there; inline emph keeps the text.\n\\ifdefined\\affaddr\\else\\protected\\def\\affaddr#1{\\emph{#1}}\\fi\n\\ifdefined\\affinst\\else\\protected\\def\\affinst#1{\\emph{#1}}\\fi\n% \\titlenote inside \\author{} executes inside \\MakeUppercase: acmart's\n% native def appends \\footnotemark to \\@title -> \\@xfootnotemark mismatch\n% + Missing \\endcsname storm (100 errs). Override is mandatory — \\protected\n% bridge to \\thanks survives text_expand and lands in the \\thankses strip.\n\\protected\\def\\titlenote#1{\\thanks{#1}}\n% \\additionalauthors{names} top-level -> register as another acmart author.\n\\ifdefined\\additionalauthors\\else\\protected\\long\\def\\additionalauthors#1{\\author{#1}}\\fi\n% \\numberofauthors{N} — acmart auto-counts (cs_table polyfill also covers).\n\\ifdefined\\numberofauthors\\else\\protected\\def\\numberofauthors#1{}\\fi\n% acmart has native \\subtitle — guard only for exotic load paths.\n\\ifdefined\\subtitle\\else\\protected\\def\\subtitle#1{}\\fi\n% Old acm_proc order puts abstract AFTER \\maketitle; acmart \\@saveabstract\n% ClassErrors once \\@ACM@maketitle@typeset. Conditional bridge: pre-maketitle\n% keeps the native Collect@Body stash; post-maketitle typesets the body as a\n% plain labelled block — NO Collect@Body on the late path (its body-scan\n% hijacks \\abstract and cannot tolerate a typesetting callback).\n\\renewenvironment{abstract}{\\if@ACM@maketitle@typeset\\par\\medskip\\noindent{\\bfseries\\abstractname.}\\space\\ignorespaces\\else\\Collect@Body\\@saveabstract\\fi}{\\if@ACM@maketitle@typeset\\par\\medskip\\fi}\n% 2.09 font switches: acmart inherits \\rm\\sf\\tt\\bf\\it\\sl\\sc from\n% amsart (its \\DeclareOldFontCommand block); only \\cal/\\mit are missing\n% (amsart deliberately omits them) — doc \\cA->{\\cal A} family needs them.\n\\ifdefined\\cal\\else\\DeclareOldFontCommand{\\cal}{\\normalfont\\itshape}{\\mathcal}\\fi\n\\ifdefined\\mit\\else\\DeclareOldFontCommand{\\mit}{\\normalfont\\itshape}{\\mathnormal}\\fi\n% ntheorem compat (scout-thmtwin, 1306.0281): the amsthm bridge above\n% leaves \\@begintheorem in three-arg form, but ntheorem loaded WITHOUT\n% the [amsthm] option calls it kernel two-arg — `[` becomes the #2\n% delimiter and the scan swallows to \\par (Paragraph ended x6 + missing\n% \\item x6). Restore item-only defs, double-gated: only when ntheorem\n% loaded, amsthm-option form untouched. \\PassOptionsToPackage{amsthm}\n% {ntheorem} rejected — collides on style/proof/openbox + \\NAT@@citetp.\n\\AtBeginDocument{\\@ifpackageloaded{ntheorem}{%\n  \\def\\@begintheorem#1#2{\\item[\\hskip\\labelsep \\theorem@headerfont #1\\ #2.]}%\n  \\def\\@opargbegintheorem#1#2#3{\\item[\\hskip\\labelsep \\theorem@headerfont #1\\ #2\\ (#3).]}%\n}{}}\n% --- sig-alternate 同族版式件 (clsfidcen ~9 格): conference/category\n% 族存值件 noop, \\category 尾可选参经定界 eater 吞 ---\n\\def\\acmsp@eato[#1]{}\n\\ifdefined\\category\\else\\protected\\def\\category#1#2#3{\\@ifnextchar[\\acmsp@eato\\relax}\\fi\n\\ifdefined\\conferenceinfo\\else\\protected\\def\\conferenceinfo#1#2{}\\fi\n\\ifdefined\\CopyrightYear\\else\\protected\\def\\CopyrightYear#1{}\\fi\n\\ifdefined\\crdata\\else\\protected\\def\\crdata#1{}\\fi\n\\ifdefined\\permission\\else\\protected\\def\\permission#1{}\\fi\n\\ifdefined\\isbn\\else\\protected\\def\\isbn#1{}\\fi\n\\ifdefined\\doi\\else\\protected\\def\\doi#1{}\\fi\n\\ifdefined\\printccsdesc\\else\\protected\\def\\printccsdesc{}\\fi\n\\ifdefined\\toappear\\else\\protected\\def\\toappear#1{}\\fi\n\\ifdefined\\toappearbox\\else\\protected\\def\\toappearbox#1{}\\fi\n\\ifdefined\\balancecolumns\\else\\protected\\def\\balancecolumns{}\\fi\n\\endinput\n"
           # TL 全缺席出版商类 → article 桥 (版式降级保内容): svmult
           # (Springer 专著), cimento (Nuovo Cimento), eptcs, JINST, PoS
           # (SISSA), appolb, pasj00, aa501 (A&A), kapproc —— 逐格实证名见
           # REPORT 补记7 delta 残盘表。
-          svmult.cls: { loads: "article" }
+          # svmult.cls (Springer 专著类, TL 无) → article + 真件宏面
+          # (clsfidcen ~31 格; 真件 corpus_daily/2609.19176 抄签名):
+          # running-heads 是 \newtoks 寄存器 (稿 \titlerunning{...} 赋
+          # 值), theorem 面 = svjour3 同款三式 \spnewtheorem 路由。
+          svmult.cls:
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesClass{svmult}[2026/09/20 fixloop legacy shim -> article + svmult polyfills]
+              \LoadClassWithOptions{article}
+              % toks 寄存器 verbatim: 稿 \titlerunning{...} 是赋值非调用
+              \@ifundefined{titlerunning}{\newtoks\titlerunning}{}
+              \@ifundefined{authorrunning}{\newtoks\authorrunning}{}
+              \@ifundefined{toctitle}{\newtoks\toctitle}{}
+              \@ifundefined{tocauthor}{\newtoks\tocauthor}{}
+              \providecommand{\inst}[1]{\unskip$^{#1}$}
+              \providecommand{\orcidID}[1]{\unskip$^{[#1]}$}
+              \providecommand{\fnmsep}{\unskip$^,$}
+              \providecommand{\subtitle}[1]{\gdef\@subtitle{#1}}
+              \providecommand{\institute}[1]{\gdef\@institute{#1}}
+              \providecommand{\email}[1]{\texttt{#1}}
+              % \svhline 真件 verbatim (booktabs 式粗线, 依赖内核 \@xhline)
+              \providecommand{\svhline}{\noalign{\ifnum0=`}\fi\hrule \@height2\arrayrulewidth \futurelet\reserved@a\@xhline}
+              % \greeksym{chr} 真件走 psy 字体 —— xetex 下不稳, 降级直印;
+              % \umu/\udelta 真件由 greeksym 字母派生 → 数学字母兜底
+              \providecommand{\greeksym}[1]{#1}
+              \providecommand{\umu}{\ensuremath{\mu}}
+              \providecommand{\udelta}{\ensuremath{\delta}}
+              % qed 族 (画框版 \squareforqed, 同 svjour3 stub 先例)
+              \def\squareforqed{\hbox{\vbox{\hrule height0.6pt\hbox{%
+                \vrule height1.3ex width0.6pt\hskip0.8ex\vrule width0.6pt}\hrule height0.6pt}}}
+              \providecommand{\qed}{\ifmmode\else\unskip\quad\fi\squareforqed}
+              \providecommand{\smartqed}{\def\qed{\ifmmode\squareforqed\else{\unskip\nobreak\hfil
+              \penalty50\hskip1em\null\nobreak\hfil\squareforqed
+              \parfillskip=0pt\finalhyphendemerits=0\endgraf}\fi}}
+              % \spnewtheorem 三式路由 → kernel \newtheorem (字体两参丢弃)
+              \providecommand{\spnewtheorem}{\@ifstar\texlate@svm@uthm\texlate@svm@thm}
+              \def\texlate@svm@thm#1{\@ifnextchar[{\texlate@svm@thmA{#1}}{\texlate@svm@thmB{#1}}}
+              \def\texlate@svm@thmA#1[#2]#3#4#5{\newtheorem{#1}[#2]{#3}}
+              \def\texlate@svm@thmB#1#2{\@ifnextchar[{\texlate@svm@thmC{#1}{#2}}{\texlate@svm@thmD{#1}{#2}}}
+              \def\texlate@svm@thmC#1#2[#3]#4#5{\newtheorem{#1}{#2}[#3]}
+              \def\texlate@svm@thmD#1#2#3#4{\newtheorem{#1}{#2}}
+              \def\texlate@svm@uthm#1#2#3#4{\@ifundefined{#1}%
+                {\newenvironment{#1}{\par\noindent{\bfseries#2}\enspace\ignorespaces}{\par}}{}}
+              % acknowledgement env 真件 \trivlist 形 → 标题段降级; \ackname 供
+              \providecommand{\ackname}{Acknowledgements}
+              \@ifundefined{acknowledgement}{\newenvironment{acknowledgement}{\par\noindent{\bfseries\ackname.}\enspace\ignorespaces}{\par}}{}
+              % 版式指示件 noop
+              \providecommand{\biblstarthook}[1]{}
+              \providecommand{\sidecaption}{}
+              \providecommand{\frontmatter}{}
+              \providecommand{\mainmatter}{}
+              \providecommand{\backmatter}{}
+              \providecommand{\cleardoublepage}{\clearpage}
+              \endinput
           # cimento.cls (Nuovo Cimento, TL 无): article + 实证 frontmatter
           # 面 (0905.4620 随稿签名)——\from{key} \inst{key} \instlist{...}
           # \PACSes{...\PACSit{code}{desc}...}。
@@ -1090,8 +1259,69 @@ rules:
               \providecommand{\instlist}[1]{\AtBeginDocument{\par\medskip\noindent #1\par}}
               \providecommand{\PACSes}[1]{\AtBeginDocument{\par\noindent\textbf{PACS:} #1\par}}
               \providecommand{\PACSit}[2]{#1\quad #2\par}
+              % clsfidcen 补面 (真件 1107.0266 verbatim 抄值): \atque/\And
+              % \etal/\idest/\jr 行内字面件; \acknowledgments 三星居中块 +
+              % \stars/\solong 别名; \drm/\sy/\tx/\un/\chem/\mth/\acro
+              % 单位-记号族 (math-only 件保 \ensuremath 双模)
+              \providecommand{\atque}{{\normalfont\MakeLowercase{and\ \ignorespaces}}}
+              \def\And{\atque}
+              \providecommand{\etal}{{\rmfamily\itshape\mdseries et al.}}
+              \providecommand{\idest}{{\rmfamily\itshape\mdseries i.e.}}
+              \providecommand{\jr}{{\upshape jr.}}
+              \providecommand{\acknowledgments}{\par\medskip{\centering$\ast\ \ast\ \ast$\par}\medskip}
+              \let\stars\acknowledgments
+              \let\solong\acknowledgments
+              \providecommand{\drm}{\mathrm{d}}
+              \providecommand{\sy}[1]{\mathrm{#1}}
+              \let\ab\sy
+              \providecommand{\tx}[1]{\mbox{#1}}
+              \providecommand{\un}[1]{{\,\mbox{#1}}}
+              \providecommand{\chem}[1]{\ensuremath{\mathrm{#1}}}
+              \providecommand{\mth}[1]{\ensuremath{#1}}
+              \providecommand{\acro}[1]{{\normalfont #1}}
+              % bbl-struct 宏族 (真件 :1760-1768 verbatim) + \ETC noop +
+              % \issue/\shortauthor/\institute 存值件
+              \providecommand{\NAME}[1]{\textsc{#1}}
+              \let\name\NAME
+              \providecommand{\BY}[1]{\NAME{#1},}
+              \providecommand{\IN}[4]{\textit{#1}, \textbf{#2} (#3) #4}
+              \providecommand{\SAME}[3]{\textbf{#1} (#2) #3}
+              \providecommand{\TITLE}[1]{\textit{#1}}
+              \providecommand{\ETC}{}
+              \providecommand{\issue}[3]{}
+              \providecommand{\shortauthor}[1]{}
+              \providecommand{\institute}[1]{}
+              % eqnletter/mathletters env (真件 :1338-1346): eqnarray 包
+              % + subequation 步进; narrowtabular [opt]{spec}{x} → tabular
+              % 直通 (第 3 参弃)
+              \@ifundefined{c@subequation}{\newcounter{subequation}}{}
+              \@ifundefined{eqnletter}{\newenvironment{eqnletter}{\begin{eqnarray}}{\end{eqnarray}\stepcounter{equation}\setcounter{subequation}{1}\aftergroup\ignorespaces}}{}
+              \@ifundefined{mathletters}{\newenvironment{mathletters}{\stepcounter{equation}\setcounter{subequation}{1}}{\par}}{}
+              \@ifundefined{narrowtabular}{\newenvironment{narrowtabular}[3][]{\tabular[#1]{#2}}{\endtabular}}{}
               \endinput
-          eptcs.cls: { loads: "article" }
+          eptcs.cls:
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesClass{eptcs}[2026/09/20 fixloop legacy shim -> article + EPTCS polyfills]
+              \LoadClassWithOptions{article}
+              % EPTCS frontmatter 面 (真件 1312.0342 抄值, clsfidcen ~35 格):
+              % \event/\volume/\anno/\eid/\titlerunning/\authorrunning/
+              % \publicationstatus/\copyrightholders 全 0 参文本 holder —
+              % 稿 \renewcommand/\def 覆盖即出版信息
+              \providecommand{\event}{}
+              \providecommand{\volume}{??}
+              \providecommand{\anno}{20??}
+              \providecommand{\eid}{??}
+              \providecommand{\titlerunning}{Please define {\tt \string\titlerunning}}
+              \providecommand{\authorrunning}{Please define {\tt \string\authorrunning}}
+              \providecommand{\publicationstatus}{}
+              \providecommand{\copyrightholders}{\authorrunning}
+              % \firstpage 是 counter 非 cs (真件 :207 verbatim)
+              \@ifundefined{c@firstpage}{\newcounter{firstpage}\setcounter{firstpage}{1}}{}
+              % \institute/\email 打印形 (真件 :188-192 verbatim)
+              \providecommand{\institute}[1]{\\{\scriptsize\begin{tabular}[t]{@{\footnotesize}c@{}}#1\end{tabular}}}
+              \providecommand{\email}[1]{\\{\footnotesize\tt #1}}
+              \endinput
           # JINST 升级版 (1e scout-modec-resid 实测 1306.0302 xelatex
           # 16pp/0err/0miss): JINST 语义 = \begin{document} 自动出标题块
           # (稿内无 \maketitle) → abstract/keywords stash + AtBeginDocument
@@ -1114,6 +1344,32 @@ rules:
               \providecommand{\arxiv}[1]{\href{https://arxiv.org/abs/#1}{arXiv:#1}}
               \providecommand{\proceeding}[1]{}
               \providecommand{\notoc}[1]{}
+              % clsfidcen 补面 (JINST ~2 格 + 高频 arxiv-abbrev 族; 真件
+              % 2306.00097 抄形): \preprint 存值 AtBeginDocument 吐;
+              % \nuclex/\physics/\quantph/\jinst 等档号宏 = \href 打印面
+              % (hyperref 已载 —— \href 不补, 普查项是误报)
+              \providecommand{\preprint}[1]{\long\gdef\@preprint{#1}}
+              \providecommand{\nuclex}[1]{\href{https://arxiv.org/abs/nucl-ex/#1}{\tt nucl-ex/#1}}
+              \providecommand{\nuclth}[1]{\href{https://arxiv.org/abs/nucl-th/#1}{\tt nucl-th/#1}}
+              \providecommand{\physics}[1]{\href{https://arxiv.org/abs/physics/#1}{\tt physics/#1}}
+              \providecommand{\quantph}[1]{\href{https://arxiv.org/abs/quant-ph/#1}{\tt quant-ph/#1}}
+              \providecommand{\jinst}[1]{\href{https://arxiv.org/abs/#1}{\tt #1}}
+              \providecommand{\hepth}[1]{\href{https://arxiv.org/abs/hep-th/#1}{\tt hep-th/#1}}
+              \providecommand{\hepph}[1]{\href{https://arxiv.org/abs/hep-ph/#1}{\tt hep-ph/#1}}
+              \providecommand{\hepex}[1]{\href{https://arxiv.org/abs/hep-ex/#1}{\tt hep-ex/#1}}
+              \providecommand{\heplat}[1]{\href{https://arxiv.org/abs/hep-lat/#1}{\tt hep-lat/#1}}
+              \providecommand{\grqc}[1]{\href{https://arxiv.org/abs/gr-qc/#1}{\tt gr-qc/#1}}
+              \providecommand{\astroph}[1]{\href{https://arxiv.org/abs/astro-ph/#1}{\tt astro-ph/#1}}
+              \providecommand{\condmat}[1]{\href{https://arxiv.org/abs/cond-mat/#1}{\tt cond-mat/#1}}
+              \providecommand{\mathph}[1]{\href{https://arxiv.org/abs/math-ph/#1}{\tt math-ph/#1}}
+              \providecommand{\qalg}[1]{\href{https://arxiv.org/abs/q-alg/#1}{\tt q-alg/#1}}
+              \providecommand{\chaodyn}[1]{\href{https://arxiv.org/abs/chao-dyn/#1}{\tt chao-dyn/#1}}
+              \providecommand{\accphys}[1]{\href{https://arxiv.org/abs/accphys/#1}{\tt accphys/#1}}
+              \providecommand{\alggeom}[1]{\href{https://arxiv.org/abs/alg-geom/#1}{\tt alg-geom/#1}}
+              \providecommand{\dgga}[1]{\href{https://arxiv.org/abs/dg-ga/#1}{\tt dg-ga/#1}}
+              \providecommand{\nlinsys}[1]{\href{https://arxiv.org/abs/nlin-sys/#1}{\tt nlin-sys/#1}}
+              \providecommand{\solvint}[1]{\href{https://arxiv.org/abs/solv-int/#1}{\tt solv-int/#1}}
+              \providecommand{\suprcon}[1]{\href{https://arxiv.org/abs/supr-con/#1}{\tt supr-con/#1}}
               \AtBeginDocument{%
                 \ifx\@title\@empty\else\maketitle\fi
                 \ifx\JINST@abstract\@empty\else\begin{quotation}\noindent\textbf{Abstract.} \JINST@abstract\end{quotation}\fi
@@ -1139,8 +1395,28 @@ rules:
               \newenvironment{acknowledgments}{\section*{Acknowledgments}}{\par}
               \providecommand{\abstract}{}
               \renewcommand{\abstract}[1]{\AtBeginDocument{\par\medskip\noindent\textbf{Abstract.}\space #1\par}}
+              % clsfidcen 补面 (PoS ~9 格; 真件 1008.0653 抄形): \href
+              % 真件走 dvi-special → 打印第二参降级; \pos = \href 缩写宏
+              \providecommand{\href}[2]{#2}
+              \providecommand{\pos}[1]{\href{https://pos.sissa.it/#1}{\tt #1}}
               \endinput
-          appolb.cls: { loads: "article" }
+          appolb.cls:
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesClass{appolb}[2026/09/20 fixloop legacy shim -> article + appolb polyfills]
+              \LoadClassWithOptions{article}
+              % appolb (Acta Phys. Pol. B) 面 (clsfidcen ~13 格; 真件
+              % 2410.17921 抄签名): \eqsec 开 equation 按 section 编号
+              % (真件 verbatim 减 \eq@sec 内部 flag); \address/\PACS
+              % 即时打印块; \Tr = mathop{\operator@font Tr} → {\rm Tr}
+              % 兜底 (无 amsopn); \preprint/\runhead 存值件 noop
+              \providecommand{\eqsec}{\def\theequation{\thesection.\@arabic\c@equation}\@addtoreset{equation}{section}}
+              \providecommand{\address}[1]{\par\vspace*{6pt}\noindent{\small\rmfamily #1}\par}
+              \providecommand{\PACS}[1]{\par\noindent\strut\kern18pt{\footnotesize\rmfamily PACS numbers: #1}\par}
+              \providecommand{\Tr}{\mathop{\rm Tr}\nolimits}
+              \providecommand{\preprint}[1]{}
+              \providecommand{\runhead}[1]{}
+              \endinput
           # pasj00.cls (PASJ 老版, TL 无): article + natbib/amssymb/graphicx
           # + 实证 frontmatter 面 (1003.0945 随稿签名)——\DeclareAbbreviation
           # \CS{text} 2 参定义件 (稿 30+ 散调) + 真件内建期刊缩写集
@@ -1195,7 +1471,38 @@ rules:
           # astro-ph/0104346 实证: article 底缺 \offprints 等 A&A 面;
           # 0104007 同构仿真 0err/18pp。
           aa501.cls: { loads: "aa", needs: ["aa.cls"] }
-          kapproc.cls: { loads: "article" }
+          kapproc.cls:
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesClass{kapproc}[2026/09/20 fixloop legacy shim -> article + kapproc polyfills]
+              \LoadClassWithOptions{article}
+              % kapproc (Kluwer 老版式) 面 (clsfidcen ~5 格; 真件
+              % astro-ph/0501207 抄签名): \articletitle book→article
+              % 桥 = \section*; \savefootnote 系 let 快照; \affil/
+              % \email/\affilemail 打印面; \sphline 真件 verbatim;
+              % bib/版式开关族 noop
+              \let\savefootnote\footnote
+              \let\savefootnotetext\footnotetext
+              \providecommand{\savefootnoterule}{}
+              \providecommand{\articletitle}[1]{\section*{#1}}
+              \providecommand{\articlesubtitle}[1]{}
+              \providecommand{\affil}[1]{\par{\footnotesize #1\par}}
+              \providecommand{\email}[1]{\texttt{#1}}
+              \providecommand{\affilemail}[1]{\texttt{#1}}
+              \providecommand{\upperandlowercase}{}
+              \providecommand{\kluwerbib}{}
+              \providecommand{\normallatexbib}{}
+              \providecommand{\lcitebracket}{}
+              \providecommand{\rcitebracket}{}
+              \providecommand{\sphline}{\noalign{\vskip3pt}\hline\noalign{\vskip3pt}}
+              \providecommand{\chaptersection}{}
+              \providecommand{\chapbblname}{}
+              \providecommand{\chapbibliography}{}
+              \providecommand{\chaptitlerunninghead}{}
+              \providecommand{\notes}{}
+              \providecommand{\draft}{}
+              \providecommand{\altaffilmark}[1]{\unskip$^{#1}$}
+              \endinput
           # multind 两参 \index{name}{entry} —— noop 必须吞双参, 否则第二参
           # 泄进正文 (0806.3028 实证用法)。
           multind.sty:

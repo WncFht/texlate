@@ -173,4 +173,25 @@
 \providecommand{\ncim}{\sissa@jrnl{Nuovo~Cim.}}
 \providecommand{\jhep}{\sissa@jrnl{JHEP}}
 \providecommand{\jcap}{\sissa@jrnl{JCAP}}
+% ── 批十一 (clsfidcen 普查 ~10 格): \sissa@jrnl 期刊缩写补员 + \newjournal/\PrHEP ──
+% 打印名按真件 JHEP3.cls @spires 表 (corpus/1003.0694 随稿) 抄值;
+% 双态分派沿用: 带 brace → "名 vol (yr) pg" 引文形, 裸调 → 缩写直印。
+\providecommand{\ap}{\sissa@jrnl{Ann.~Phys.~(NY)}}
+\providecommand{\ptp}{\sissa@jrnl{Prog.~Theor.~Phys.}}
+\providecommand{\ptps}{\sissa@jrnl{Prog.~Theor.~Phys.~Suppl.}}
+\providecommand{\prep}{\sissa@jrnl{Phys.~Rept.}}
+\providecommand{\atmp}{\sissa@jrnl{Adv.~Theor.~Math.~Phys.}}
+\providecommand{\adnp}{\sissa@jrnl{Adv.~Nucl.~Phys.}}
+\providecommand{\npps}{\sissa@jrnl{Nucl.~Phys.~Proc.~Suppl.}}
+\providecommand{\ppnp}{\sissa@jrnl{Prog.~Part.~Nucl.~Phys.}}
+\providecommand{\app}{\sissa@jrnl{Astropart.~Phys.}}
+\providecommand{\apj}{\sissa@jrnl{Astrophys.~J.}}
+\providecommand{\am}{\sissa@jrnl{Ann.~Math.}}
+\providecommand{\nc}{\sissa@jrnl{Nuovo~Cim.}}
+% \newjournal{name}{spires-code}{vol}{yr}{pg}: 真件走 @spires 链接
+% (:1683), 降级丢 code 参打印引文形 (引文序 vol/yr/pg 不变)
+\providecommand{\newjournal}[5]{{\itshape #1 }{\bfseries #3} (#4) #5}
+% \PrHEP 真件是 dvipdf \special logo 件 (:1714); 非 dvipdf 分支
+% \let\PrHEP\gobble (:1729) —— shim 取 noop 同款
+\providecommand{\PrHEP}[1]{}
 \endinput

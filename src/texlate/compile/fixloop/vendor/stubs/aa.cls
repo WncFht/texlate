@@ -204,4 +204,101 @@
 \providecommand{\apjlett}{ApJ}
 \providecommand{\apjsupp}{ApJS}
 \providecommand{\applopt}{Appl.~Opt.}
+% ── 批十一 (clsfidcen 普查 ~88 格): aa 实侧第二宏面 ──
+% \pdfoutput 兜底: xelatex 下 pdfTeX 原语未定义 → 真件 verbatim newcount
+\ifx\pdfoutput\undefined \newcount\pdfoutput \fi
+% longtable 真件内载 (:208) —— longtab env 与稿直 \begin{longtable} 两用
+\RequirePackage{longtable}
+% 表注/表内文献族 (真件 v9.1 :1681-1714 抄形, 私有 VSpaceBefore* dimen
+% 降级 \medskip; \fnmsep :763 verbatim)
+\providecommand{\fnmsep}{\unskip\hbox{\@textsuperscript{\normalfont,}}}
+\providecommand{\tablebib}[1]{\par\medskip\noindent
+  \begin{minipage}{\linewidth}{\small\bfseries References.}~{\small\ignorespaces #1}\end{minipage}}
+\providecommand{\tablefoot}[1]{\par\medskip\noindent
+  \begin{minipage}{\linewidth}{\small\bfseries Notes.}~{\small\ignorespaces #1}\end{minipage}}
+\providecommand{\tablefootmark}[1]{\unskip
+  \hbox{\@textsuperscript{\normalfont\itshape\ignorespaces#1}}\,\ignorespaces}
+\providecommand{\tablefoottext}[2]{%
+  \hbox{\@textsuperscript{\normalfont({\itshape\ignorespaces#1})}}~\ignorespaces #2\ \ignorespaces}
+% Online Material 族 (真件 v8 :1382-1417 抄形: \onlfig/\onltab/\onllongtab
+% 0 参委托 \onlfloat{kind}, 内容参随主流; \Online = 换页+页头 → 降级
+% \clearpage; \onlfloat{kind}{body} 弃 kind 直排 body)
+\providecommand{\Online}{\clearpage}
+\providecommand{\onlfloat}[2]{\par\medskip\noindent #2\par}
+\providecommand{\onlfig}{\onlfloat{figure}}
+\providecommand{\onltab}{\onlfloat{table}}
+\providecommand{\onllongtab}{\onlfloat{table}}
+% longtab: 真件双 vintage —— v8 ENV (Newassociation) / v9.1 CMD[2][]。
+% 普查记 env 形 (\begin{longtab}{colspec}) → env 降级 longtable
+\@ifundefined{longtab}{\newenvironment{longtab}[1]{\begin{longtable}{#1}}{\end{longtable}}}{}
+% \orcidlink 真件注释态 (logo 图件) → 文形保内容; \element 真件
+% 4 可选参+1 必参链 (:1871-1888) → 链式吞 ≤4 可选参, 末参排印
+\providecommand{\orcidlink}[1]{\texttt{orcid.org/#1}}
+\providecommand{\element}[1][]{\aa@elemA}
+\def\aa@elemA{\@ifnextchar[{\aa@elemB}{\aa@elemF}}
+\def\aa@elemB[#1]{\@ifnextchar[{\aa@elemC}{\aa@elemF}}
+\def\aa@elemC[#1]{\@ifnextchar[{\aa@elemD}{\aa@elemF}}
+\def\aa@elemD[#1]{\aa@elemF}
+\def\aa@elemF#1{#1}
+% 杂散件 (真件抄值): \corr 审稿消音 tag 印文, \idline/\headnote
+% 页头件 noop, \listofobjects appendix-对象表 noop, \filedate/
+% \fileversion 版本戳 (真件 :28-30)
+\providecommand{\corr}[1]{#1}
+\providecommand{\idline}[1]{}
+\providecommand{\headnote}[1]{}
+\providecommand{\listofobjects}{}
+\providecommand{\filedate}{2016/09/01}
+\providecommand{\fileversion}{9.1}
+% acknowledgements env 尾件: stub 已有 \acknowledgements cs (批八),
+% \begin{acknowledgements} 走 begin=cs 但 \endacknowledgements 缺 →
+% 补 end 件使 env 形可用 (cs 形不变)
+\@ifundefined{endacknowledgements}{\@namedef{endacknowledgements}{\par}}{}
+% --- aa 式 \newtheorem 宽容路由 (真件 :1594-1650): 内核签名尾部可再
+%    挂 {capf}{bodyf} 两字体参 (丢弃降级); 星号形 = 不编号 env,
+%    字体参同样可选吞 ---
+\let\aa@newtheorem\newtheorem
+\def\aa@thfonteat{\@ifnextchar\bgroup{\aa@thfe@ne}{\relax}}
+\def\aa@thfe@ne#1{\@ifnextchar\bgroup{\@gobble}{\relax}}
+\renewcommand{\newtheorem}{\@ifstar{\aa@nthmstar}{\aa@nthm}}
+\def\aa@nthm#1{\@ifnextchar[{\aa@nthmA{#1}}{\aa@nthmB{#1}}}
+\def\aa@nthmA#1[#2]#3{\@ifnextchar[{\aa@nthmD{#1}[#2]{#3}}{\aa@newtheorem{#1}[#2]{#3}\aa@thfonteat}}
+\def\aa@nthmD#1[#2]#3[#4]{\aa@newtheorem{#1}[#2]{#3}\aa@thfonteat}
+\def\aa@nthmB#1#2{\@ifnextchar[{\aa@nthmC{#1}{#2}}{\aa@newtheorem{#1}{#2}\aa@thfonteat}}
+\def\aa@nthmC#1#2[#3]{\aa@newtheorem{#1}{#2}[#3]\aa@thfonteat}
+\def\aa@nthmstar#1#2{\@ifundefined{#1}%
+  {\newenvironment{#1}{\par\noindent{\bfseries #2}\enspace\ignorespaces}{\par}}{}%
+  \aa@thfonteat}
+% 预定义 env 集 (真件 :1695-1707 抄名, aa 式 5 参形走自路由)
+\@ifundefined{proof}{\newtheorem*{proof}{Proof}{\itshape}{\rmfamily}}{}
+\@ifundefined{theorem}{\newtheorem{theorem}{Theorem}[section]{\bfseries}{\itshape}}{}
+\@ifundefined{corollary}{\newtheorem{corollary}[theorem]{Corollary}{\bfseries}{\itshape}}{}
+\@ifundefined{definition}{\newtheorem{definition}{Definition}{\bfseries}{\rmfamily}}{}
+\@ifundefined{example}{\newtheorem{example}[theorem]{Example}{\itshape}{\rmfamily}}{}
+\@ifundefined{exercise}{\newtheorem{exercise}[theorem]{Exercise}{\itshape}{\rmfamily}}{}
+\@ifundefined{lemma}{\newtheorem{lemma}[theorem]{Lemma}{\bfseries}{\itshape}}{}
+\@ifundefined{note}{\newtheorem{note}[theorem]{Note}{\itshape}{\rmfamily}}{}
+\@ifundefined{problem}{\newtheorem{problem}[theorem]{Problem}{\itshape}{\rmfamily}}{}
+\@ifundefined{proposition}{\newtheorem{proposition}[theorem]{Proposition}{\bfseries}{\itshape}}{}
+\@ifundefined{question}{\newtheorem{question}[theorem]{Question}{\itshape}{\rmfamily}}{}
+\@ifundefined{remark}{\newtheorem{remark}[theorem]{Remark}{\itshape}{\rmfamily}}{}
+\@ifundefined{solution}{\newtheorem{solution}[theorem]{Solution}{\itshape}{\rmfamily}}{}
+% dataavailability 族 (真件 :1283-1295): nodata 底 env + 外层 env +
+% \DataAvailability/\endDataAvailability let 别名
+\@ifundefined{nodata}{\newenvironment{nodata}{\par\itshape}{\par}}{}
+\@ifundefined{dataavailability}{%
+  \newenvironment{dataavailability}{\par\begin{nodata}}{\end{nodata}\par}}{}
+\@ifundefined{DataAvailability}{%
+  \expandafter\let\csname DataAvailability\endcsname\dataavailability
+  \expandafter\let\csname endDataAvailability\endcsname\enddataavailability}{}
+% 期刊缩写增补 (真件 v9.1 :1930-1985 抄值, stub 表缺位项)
+\providecommand{\actaa}{Acta Astron.}
+\providecommand{\bac}{Bull.~astr.~Inst.~Czechosl.}
+\providecommand{\caa}{Chinese Astron. Astrophys.}
+\providecommand{\cjaa}{Chinese J. Astron. Astrophys.}
+\providecommand{\icarus}{Icarus}
+\providecommand{\jcap}{J.~Cosmology Astropart. Phys.}
+\providecommand{\na}{New A}
+\providecommand{\nar}{New A Rev.}
+\providecommand{\pasa}{PASA}
+\providecommand{\rmxaa}{Rev.~Mexicana Astron. Astrofis.}
 \endinput

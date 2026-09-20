@@ -129,4 +129,24 @@
   % 恒炸 "already defined") —— 经 \@namedef 旁路, 保 provide 语义
   \@ifundefined{endsortlist}{\@namedef{endsortlist}{\par\endgroup}}{}%
 }
+% ── 批十一 (clsfidcen 普查 ~4 格; 真件 hep-ex/0309004 svjour.cls 抄形) ──
+% \makeheadbox: 真件 0 参宏本体空组 (:486 —— 版式框整体注释态);
+% doc \renewcommand\makeheadbox{} 需前置存在 (2505.06598 实证)
+\def\makeheadbox{{}}
+% \fnmsep/\tens 真件 verbatim (:343/:561)
+\def\fnmsep{\unskip$^,$}
+\def\tens#1{\ensuremath{\mathsf{#1}}}
+% \spnewtheorem 三式路由 (真件 :682 \@ifstar{\@sthm}{\@Sthm} 签名面):
+%   \spnewtheorem{name}{cap}[within]{capf}{bodyf}   (within 式)
+%   \spnewtheorem{name}[like]{cap}{capf}{bodyf}     (同计数器式)
+%   \spnewtheorem*{name}{cap}{capf}{bodyf}          (不编号式)
+% 字体两参丢弃版式降级 —— svjour3 stub 同构先例
+\providecommand{\spnewtheorem}{\@ifstar\texlate@svj@uthm\texlate@svj@thm}
+\def\texlate@svj@thm#1{\@ifnextchar[{\texlate@svj@thmA{#1}}{\texlate@svj@thmB{#1}}}
+\def\texlate@svj@thmA#1[#2]#3#4#5{\newtheorem{#1}[#2]{#3}}
+\def\texlate@svj@thmB#1#2{\@ifnextchar[{\texlate@svj@thmC{#1}{#2}}{\texlate@svj@thmD{#1}{#2}}}
+\def\texlate@svj@thmC#1#2[#3]#4#5{\newtheorem{#1}{#2}[#3]}
+\def\texlate@svj@thmD#1#2#3#4{\newtheorem{#1}{#2}}
+\def\texlate@svj@uthm#1#2#3#4{\@ifundefined{#1}%
+  {\newenvironment{#1}{\par\noindent{\bfseries#2}\enspace\ignorespaces}{\par}}{}}
 \endinput
