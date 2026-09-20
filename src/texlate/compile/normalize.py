@@ -672,10 +672,14 @@ def normalize_legacy_cjk(text: str, engine: str) -> str:
 ## 体内 (2105.11398 `\newcommand{\showbib}` 实证: 旧 `\makeatletter`
 ## `\@ifundefined` 形在 @=12 预读体里成 `\@`+裸字母 → 调用点 vmode
 ## spacefactor 炸), csname 任意 catcode 同读 (同 _builtins_bib)。
+## 名扫段内每个 `@` 都写 `\string@`: doc 激活 @ (`\MakeShortVerb{\@}`
+## → @=13) 时裸 @ token 在 \ifcsname/\csname 名扫里被当 active cs
+## 展开 → Missing \endcsname (1107.0063 实证); \string 直接取记号
+## 产 catcode-12 字面 @ 字符, @=11/12/13 三态同名同读。
 _AUTOBIB_DISARM = (
-    r"\ifcsname auto@bib\endcsname"
-    r"\expandafter\let\csname auto@bib\expandafter\endcsname"
-    r"\csname @empty\endcsname\fi"
+    r"\ifcsname auto\string@bib\endcsname"
+    r"\expandafter\let\csname auto\string@bib\expandafter\endcsname"
+    r"\csname \string@empty\endcsname\fi"
 )
 
 

@@ -20,9 +20,9 @@ from texlate.compile.normalize import use_bundled_bibliography
 #: 双侧统一 csname-let 形 (零字面 ``@``) —— normalize
 #: ``use_bundled_bibliography`` 与 fixloop ``bbl_stub_rewrite`` 同文。
 _DISARM_NORM = (
-    r"\ifcsname auto@bib\endcsname"
-    r"\expandafter\let\csname auto@bib\expandafter\endcsname"
-    r"\csname @empty\endcsname\fi"
+    r"\ifcsname auto\string@bib\endcsname"
+    r"\expandafter\let\csname auto\string@bib\expandafter\endcsname"
+    r"\csname \string@empty\endcsname\fi"
 )
 _DISARM_FIXLOOP = _DISARM_NORM
 

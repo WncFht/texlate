@@ -1166,9 +1166,9 @@ def test_bbl_long_bib_name_tolerated(tmp_path: Path) -> None:
     tex = "\\bibliography{" + "d" * 300 + "}\n"
     out = use_bundled_bibliography(tex, tmp_path / "main.tex", tmp_path)
     assert out == (
-        "\\ifcsname auto@bib\\endcsname"
-        "\\expandafter\\let\\csname auto@bib\\expandafter\\endcsname"
-        "\\csname @empty\\endcsname\\fi\n\\input{main.bbl}\n"
+        "\\ifcsname auto\\string@bib\\endcsname"
+        "\\expandafter\\let\\csname auto\\string@bib\\expandafter\\endcsname"
+        "\\csname \\string@empty\\endcsname\\fi\n\\input{main.bbl}\n"
     )
 
 

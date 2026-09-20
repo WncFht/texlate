@@ -1525,9 +1525,9 @@ def test_bbl_input_probe_noninput_forms_still_inject(
     main.write_text("\\bibliography{gone}\n" + prior + "\n")
     out = use_bundled_bibliography(main.read_text(), main)
     assert out.startswith(
-        "\\ifcsname auto@bib\\endcsname"
-        "\\expandafter\\let\\csname auto@bib\\expandafter\\endcsname"
-        "\\csname @empty\\endcsname\\fi\n\\input{main.bbl}\n"
+        "\\ifcsname auto\\string@bib\\endcsname"
+        "\\expandafter\\let\\csname auto\\string@bib\\expandafter\\endcsname"
+        "\\csname \\string@empty\\endcsname\\fi\n\\input{main.bbl}\n"
     )
 
 
@@ -1551,9 +1551,9 @@ def test_bbl_bibliography_parent_ref_counts_as_missing(tmp_path: Path) -> None:
     main.write_text("\\bibliography{../outside/x}\n")
     out = use_bundled_bibliography(main.read_text(), main)
     assert out == (
-        "\\ifcsname auto@bib\\endcsname"
-        "\\expandafter\\let\\csname auto@bib\\expandafter\\endcsname"
-        "\\csname @empty\\endcsname\\fi\n\\input{main.bbl}\n"
+        "\\ifcsname auto\\string@bib\\endcsname"
+        "\\expandafter\\let\\csname auto\\string@bib\\expandafter\\endcsname"
+        "\\csname \\string@empty\\endcsname\\fi\n\\input{main.bbl}\n"
     )
 
 

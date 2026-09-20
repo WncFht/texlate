@@ -32,6 +32,9 @@ _VENDOR_DIR = (
 )
 _VENDOR_BYTES = (_VENDOR_DIR / "mnras.cls").read_text(encoding="utf-8")
 _RULE_ID = "mnras_texmf_shadow_drop"
+#: mn2e_usegraphicx_defer (order 11.905) 指纹同签且文件盲 —— wdir 内病件
+#: (含 _texmf/host-texmf 子树) 被它先原位补丁, 本规则只盖 wdir 外病件。
+_MN2E_RULE = "mn2e_usegraphicx_defer"
 _KPSEWHICH = shutil.which("kpsewhich") is not None
 
 # 1206.0291 geomreverify 实证首错 (file-line-error 形态, cat=other pay=null)
@@ -482,8 +485,8 @@ def _sh_runner(
     return p.returncode, (p.stdout or "") + (p.stderr or ""), 0.0, False
 
 
-def test_e2e_drop_shadows_usertree_buggy(tmp_path: Path) -> None:
-    """整链 (内嵌布局): Options Section → 指纹确证 + vendor 平铺 → clean; 病件原位。"""
+def test_e2e_mn2e_superset_patches_usertree_buggy(tmp_path: Path) -> None:
+    """整链 (内嵌布局): mn2e 同病超集 —— wdir 内病件原位补丁 → clean; shadow 臂不发。"""
     eng = _MockEngine(
         [
             {"log": _ERR_OPTIONS + "\n" + _ERR_OPTIONS_CTX + "\n"},
@@ -492,14 +495,17 @@ def test_e2e_drop_shadows_usertree_buggy(tmp_path: Path) -> None:
     )
     cell = fixloop(_proj(tmp_path), eng, runner=_sh_runner)
     assert cell["verdict"] == "clean"
-    assert any(a["rule"] == _RULE_ID for a in cell["actions"])
+    assert any(a["rule"] == _MN2E_RULE for a in cell["actions"])
+    assert not any(a["rule"] == _RULE_ID for a in cell["actions"])
     cls = tmp_path / "_texmf/home/tex/latex/mnras/mnras.cls"
-    assert cls.read_text(encoding="utf-8") == _BUGGY_CLS  # 树内件零突变
-    assert (tmp_path / "mnras.cls").read_text(encoding="utf-8") == _VENDOR_BYTES
+    text = cls.read_text(encoding="utf-8")
+    assert "\\AtEndOfClass{\\usepackage{graphicx}}" in text  # 原位补丁
+    assert "texlate-fixloop-injected" in text
+    assert not (tmp_path / "mnras.cls").exists()  # 无需平铺
 
 
 def test_e2e_drop_sibling_layout(tmp_path: Path) -> None:
-    """整链 (stagerun 兄弟式): ../_texmf/home 病件证病 → splice/mnras.cls 平铺。"""
+    """整链 (stagerun 兄弟式): ../_texmf/home 病件出 wdir → mn2e rglob 不达 → 本臂平铺。"""
     eng = _MockEngine(
         [
             {"log": _ERR_OPTIONS + "\n" + _ERR_OPTIONS_CTX + "\n"},
@@ -517,10 +523,10 @@ def test_e2e_drop_sibling_layout(tmp_path: Path) -> None:
 
 @pytest.mark.integration
 @pytest.mark.skipif(not _KPSEWHICH, reason="kpsewhich 缺席 → 宿主面臂不评")
-def test_e2e_drop_host_only_buggy(
+def test_e2e_mn2e_superset_patches_host_tree_buggy(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """整链 (宿主病件): 本地零件 + TEXMFHOME 假宿主病 → kpsewhich 证病 → 平铺。"""
+    """整链 (假宿主树在 wdir 内): host-texmf 病件同被 mn2e rglob 原位补丁; 真宿主出 wdir 归 sibling 臂。"""
     host = _fake_host(tmp_path, _BUGGY_CLS, monkeypatch)
     (tmp_path / "main.tex").write_text(
         "\\documentclass{mn2e}\n\\begin{document}\nx\n\\end{document}\n",
@@ -534,9 +540,11 @@ def test_e2e_drop_host_only_buggy(
     )
     cell = fixloop(tmp_path, eng, runner=_sh_runner)
     assert cell["verdict"] == "clean"
-    assert any(a["rule"] == _RULE_ID for a in cell["actions"])
-    assert (tmp_path / "mnras.cls").read_text(encoding="utf-8") == _VENDOR_BYTES
-    assert host.read_text(encoding="utf-8") == _BUGGY_CLS  # 宿主件零突变
+    assert any(a["rule"] == _MN2E_RULE for a in cell["actions"])
+    assert not any(a["rule"] == _RULE_ID for a in cell["actions"])
+    text = host.read_text(encoding="utf-8")
+    assert "\\AtEndOfClass{\\usepackage{graphicx}}" in text  # 原位补丁
+    assert not (tmp_path / "mnras.cls").exists()  # 无需平铺
 
 
 def test_e2e_no_fire_on_other_error(tmp_path: Path) -> None:
@@ -558,13 +566,12 @@ def test_e2e_no_fire_on_other_error(tmp_path: Path) -> None:
     assert not (tmp_path / "mnras.cls").exists()
 
 
-def test_e2e_dropped_not_redropped_breaks_loop(tmp_path: Path) -> None:
-    """vendor 件已平铺仍报同名错: patch 标闸保件 —— 无再投→再判病环。"""
+def test_e2e_patched_then_shadow_converges_clean(tmp_path: Path) -> None:
+    """mn2e 原位补丁后同签名错再报 → shadow 臂补投 vendor 件收敛 clean。"""
     eng = _MockEngine(
         [
             {"log": _ERR_OPTIONS + "\n" + _ERR_OPTIONS_CTX + "\n"},
-            # 平铺的 vendor 件仍报 Options Section (假想签名变体重投场景):
-            # dedup 外再跑脚本也必须跳过 patch 标件, 不得覆写→判病循环
+            # r2 同签名错 (mn2e 补丁后指纹已灭 → mn2e decline; shadow 臂首投)
             {
                 "log": "./mnras.cls:120: LaTeX Error: \\RequirePackage or "
                 "\\LoadClass in Options Section.\nl.120 \\fi\n"
@@ -573,7 +580,9 @@ def test_e2e_dropped_not_redropped_breaks_loop(tmp_path: Path) -> None:
         ]
     )
     cell = fixloop(_proj(tmp_path), eng, runner=_sh_runner)
-    # r2 同签名错被 dedup 拦 (rule:None 已 applied) → stuck → salvage 兜底出 pdf
-    assert cell["verdict"] == "best_effort_pdf"
+    assert cell["verdict"] == "clean"
+    rules = [a["rule"] for a in cell["actions"]]
+    assert _MN2E_RULE in rules
+    assert _RULE_ID in rules
     assert (tmp_path / "mnras.cls").read_text(encoding="utf-8") == _VENDOR_BYTES
     assert not (tmp_path / "mnras.cls.fixloop-iso").exists()

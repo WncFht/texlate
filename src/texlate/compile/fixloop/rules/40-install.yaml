@@ -456,6 +456,67 @@ rules:
     stats: { fires: 3, rescued_cells: 1, status: active }
     source_ref: "pstadd-lane 2026-09-19: tmp/lane-multistrand/report.md + flipcheck3 work/0707.4206 实读"
 
+  # 2026-09-20 sabfix lane (sabdeg census, 1107.0009): 稿自带 mn2e.cls
+  # v2.2 (2001/02/06) 与 mnras 同族 \ds@usegraphicx 病 —— :52 `\def\
+  # ds@usegraphicx{\@usegraphicxtrue\usepackage[xetex]{graphicx}}` 把
+  # \usepackage 写进 \ds@ 选项声明体, \ProcessOptions 执行 usegraphicx
+  # → `\RequirePackage or \LoadClass in Options Section` (嵌套 fontenc
+  # 载入归名 fontenc.sty:115, options_section)。mnras_texmf_shadow_drop
+  # (11.91) 的 ctx 同签但文件闸只认 mnras.cls —— 本格 kpsewhich 臂放行
+  # 后投了死 mnras.cls, 病件 mn2e.cls 原样 → fired-unfixed。vendor/ 无
+  # mn2e 补丁件可投 → 走原位补丁形 (engine_guard_strip/abstract_edef
+  # 同族): regex_rewrite 把内联 \usepackage[...]{graphicx} 裹进
+  # \AtEndOfClass{...} —— ds@ 体仍只置 flag, 包装载推迟出类选项段
+  # (mn2e.cls 自身 \if@usenatbib→natbib :1201 同款推迟惯用法; 驱动
+  # 选项原样保留)。指纹 = \@usegraphicxtrue 紧邻 \usepackage|
+  # \RequirePackage —— vendor shim mn2e.cls 无 @usegraphicxtrue、补丁
+  # mnras.cls ds@ 行已净, 皆阴性; 补丁行尾挂 texlate-fixloop-injected
+  # 标, mnras 闸文件级标检自然跳过, 免疫幂等 (紧邻指纹消失即不再中);
+  # 模式尾 \s*\} 把 \def 闭括号收进 match —— 标注落闭括号后注释里,
+  # 不把 } 留进注释咬死 \def。regex_rewrite 按 exts rglob 不点名文件:
+  # cond 的 glob(mn2e.cls) 与指纹可来自不同文件 —— mn2e-shim + wdir
+  # 内病 mnras 同在场时连病 mnras.cls 一起原位修 (同病同治超集,
+  # mnrasretire e2e 的 shadow-drop 必发旧预期需同步; mn2e.cls 缺席格
+  # 照旧落 mnras 臂)。
+  # order 11.905 居 mnras(11.91) 前: mn2e-shipped 格先修真病件不白烧
+  # mnras 投递轮; 无 mn2e.cls 格 glob cond-skip 同轮落 mnras 面零成本。
+  - id: mn2e_usegraphicx_defer
+    mechanisms: [B05]
+    description: "稿自带 mn2e.cls \\ds@usegraphicx 内联 \\usepackage → \\AtEndOfClass 推迟出选项段 (mnras #51 姊妹病原位补丁)"
+    phase: loop
+    order: 11.905 # pstricks_add_pair_retire(11.9) 后, mnras_texmf_shadow_drop(11.91) 前
+    when:
+      any: # 签名散格同 mnras 闸: 本格 options_section; 连锁 Missing\begin{document}→syntax / undef cs 变体同闸收
+        - { category: syntax }
+        - { category: undefined_cs }
+        - { category: other }
+        - { category: options_section }
+    condition:
+      ctx_suggests: "Options Section|mn2e\\.cls"
+      cache_dir_glob: "**/mn2e.cls"
+      source_contains: "\\\\@usegraphicxtrue\\s*\\\\(?:usepackage|RequirePackage)"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.cls]
+        rewrites:
+          - {
+              pattern: "(\\\\def\\\\ds@usegraphicx\\{\\\\@usegraphicxtrue)\\s*(\\\\(?:usepackage|RequirePackage)(?:\\[[^\\]]*\\])?\\{graphicx\\})\\s*\\}",
+              repl: "\\g<1>\\\\AtEndOfClass{\\g<2>}} % texlate-fixloop-injected: ds@usegraphicx deferred past ProcessOptions",
+            }
+    risk: low # 单点行内裹壳不动其余字节; 指纹阴性零改写 decline; @usegraphicxtrue 后紧邻 \usepackage 消失即幂等
+    known_gap: "\\DeclareOption{usegraphicx}{..\\usepackage..} 书写形不盖 (mn2e/mnras 皆 \\def\\ds@ 形); TEXINPUTS 旁枝目录的 mn2e.cls 出 wdir 时漏 (rglob 只扫 wdir); @usegraphicxtrue 与包装载跨 \\if/宏包裹变体不中; rewrite 文件名盲 —— wdir 内同病 mnras.cls 一并原位修 (同病同治超集, mnrasretire e2e shadow-drop 必发预期需 owner 同步)"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "corpus 1107.0009 (sabdeg census, wave-13 replay degraded cell)",
+          error: "fontenc.sty:115: LaTeX Error: \\RequirePackage or \\LoadClass in Options Section —— 稿自带 mn2e.cls:52 \\ds@usegraphicx 内联 \\usepackage[xetex]{graphicx}",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-sabdeg/census.md (1107.0009); mnras-optpatch #51 同族姊妹病"
+
   # 2026-09-19 mnras-retire lane (1206.0291, geomreverify #57 实证): 病件
   # 是上游 mnras v3.2 本体 —— `\def\ds@usegraphicx{\@usegraphicxtrue
   # \usepackage{graphicx}}` 把 inline \usepackage 写进 \ds@ 选项声明体,
