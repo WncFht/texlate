@@ -207,7 +207,7 @@ class _Core:
     def _rappend(self, surface: str, ident: str, vspan: Span) -> None:
         r"""追加 run 项（surface/ident 双轨 + 覆盖位）。
 
-        项界接缝守卫（``_cat_surf``/``_seg_join`` 同族——run 项边是它俩
+        项界接缝守卫（``_cat_surf``/``seg_join`` 同族——run 项边是它俩
         都够不着的残留面）：前项尾落 ``\letters`` 控制词形且本项以字母
         起头 → 补 ``" "``。csname 合成/乱序 token 的 ``\w after`` 形中
         ``\w`` 与 ``after`` 分属两项、gap 字节 ``\w `` 被前项 cover 代记

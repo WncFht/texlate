@@ -9,7 +9,7 @@ r"""splice 重建 + DAG 递归展开 + validate（docs/spec/latex-pipeline.md）
   只在有译文时启用（identity 路径保持逐字节）。
 - ``cjk_punct_close_guard``（CJK 标点 + ``\end{``/``\)``/``\]`` → 标点后插
   ``{}``）同位同门——xeCJK CheckFullRight 前瞻断链护栏。
-- ``_seg_join`` 接缝守卫（``\cs`` 尾 + 字母头 → 接缝插空格）在 expand/平铺
+- ``seg_join`` 接缝守卫（``\cs`` 尾 + 字母头 → 接缝插空格）在 expand/平铺
   两级生效，同样只随译文启用——latin 版不能用平铺正则（``\itemsep``/
   ``\parindent``/``\partial``/用户 camelCase 宏全是前缀撞名，语料万级
   存量），只能打接缝（cs token 永不跨段，``\cs|letter`` 接缝必是分隔被吞）。
@@ -94,7 +94,7 @@ _CS_TAIL_RX = re.compile(r"\\[a-zA-Z@]*[a-zA-Z]\Z")
 #: 与大写首字母黏合。``\\item(?=[A-Z])`` 零误伤——``\item``+大写无合法
 #: 先例（bfuse 普查），``\itemsep`` 类小写前缀撞名天然避开。只打译文体：
 #: 源文侧 ``\cs<letter>`` 本就是一个 cs token，不构成该形。
-_LATIN_ITEM_RX = re.compile(r"\\item(?=[A-Z])")
+LATIN_ITEM_RX = re.compile(r"\\item(?=[A-Z])")
 
 #: 行首控制字采集：``\obeylines``/``^^M``-delimited 参数等换行语义域里
 #: ``\X``-at-line-start 是定界 token（2009.11130 ``\GetTitle`` runaway——
@@ -128,7 +128,7 @@ def _restore_linestarts(vtex: str, span: Span, zh: str) -> str:
     return rx.sub(r"\n\g<1>", zh)
 
 
-def _seg_join(segs: list[str]) -> str:
+def seg_join(segs: list[str]) -> str:
     r"""相邻展开段接缝守卫：``\cs`` 尾 + 字母头 → 接缝插空格。
 
     源文 ``\cs`` 与后继字母之间恒有分隔（空格/换行/注释——缺省即单
@@ -212,7 +212,7 @@ _UNICODE_MATH_RX = re.compile("[" + "".join(re.escape(c) for c in _TEXT_TO_MATH)
 #: 在 ``\caption`` 参数内合成 ``\n\n``）。译文内部与占位符边界合并出的
 #: 段落断在展开后文本上统一压成单 ``\n``；正文段（``para``/``item``）
 #: 的 ``\n\n`` 合法，不动。
-_PAR_RUN_RX = re.compile(r"\n(?:[ \t\r]*\n)+")
+PAR_RUN_RX = re.compile(r"\n(?:[ \t\r]*\n)+")
 
 #: 译文侧的占位符切分（typed ``[[X_n]]`` + 裸 ``[[NAME]]`` 都算——模型可能
 #: 把 [[SL]] 等编码 token 原样回显，其内部不许进 unicode→math 替换）。
@@ -247,7 +247,7 @@ def reconstruct(res: ScanResult, translations: dict[int, str] | None = None) -> 
         {}
         if translations is None
         else {
-            f"[[CHUNK_{k}]]": _LATIN_ITEM_RX.sub(
+            f"[[CHUNK_{k}]]": LATIN_ITEM_RX.sub(
                 r"\\item ",
                 unicode_math_fix(
                     _restore_linestarts(res.vtex, res.chunks[k].span, v)
@@ -264,7 +264,7 @@ def reconstruct(res: ScanResult, translations: dict[int, str] | None = None) -> 
     active: set[str] = set()
     dangling: set[str] = set()  # 查无实体的 ph token——留字面并记名（原静默残留）
     # 短参 chunk 集：context 非 para/item 的已译 [[CHUNK_n]]——展开后 ``\n\n``
-    # 压单 ``\n``（见 _PAR_RUN_RX 注）。
+    # 压单 ``\n``（见 PAR_RUN_RX 注）。
     short_arg: set[str] = {
         f"[[CHUNK_{c.id}]]"
         for c in chunks
@@ -310,7 +310,7 @@ def reconstruct(res: ScanResult, translations: dict[int, str] | None = None) -> 
         def push_literal(seg: str) -> None:
             nonlocal prev_ph
             if fold_par:
-                seg = _PAR_RUN_RX.sub("\n", seg)
+                seg = PAR_RUN_RX.sub("\n", seg)
                 if seg.startswith("\n") and segs and segs[-1].endswith("\n"):
                     seg = seg[1:]
             segs.append(seg)
@@ -336,11 +336,11 @@ def reconstruct(res: ScanResult, translations: dict[int, str] | None = None) -> 
             push_ph(mm.group(0))
             pos = mm.end()
         push_literal(body[pos:])
-        return _seg_join(segs) if glue_latin else "".join(segs)
+        return seg_join(segs) if glue_latin else "".join(segs)
 
     # LITERAL 段也可能内嵌 ph（短 run / MINED_ONLY run 发渲染文本）——全段展开。
     out = [expand_body(p.text) for p in res.pieces]
-    result = _seg_join(out) if glue_latin else "".join(out)
+    result = seg_join(out) if glue_latin else "".join(out)
     if dangling:
         log.warning(
             "splice unresolved placeholders left literal: %d kinds (e.g. %s)",

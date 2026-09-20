@@ -64,6 +64,7 @@ from ._common import (
     _ListSource,
     _pend_call_slots,
     _pend_slot_of,
+    _pull_cursor,
     _slot_elem,
     _WSpec,
 )
@@ -179,27 +180,7 @@ class _Pending:
         """
         pulled: list[Tok] = []
         committed = 0
-
-        def unpull(x: Tok | None = None) -> None:
-            tail = pulled[committed:]
-            if x is not None:
-                tail = [*tail, x]
-            if tail:
-                src.unread(tail)
-            del pulled[committed:]
-
-        def peek() -> Tok | None:
-            while True:
-                x = src.read()
-                if x is None:
-                    return None
-                if x.kind == "space":
-                    pulled.append(x)
-                    continue
-                if x.kind == "eol_par" or x.gen > 0 or x.pos[0] != fid:
-                    src.unread([x])
-                    return None
-                return x
+        unpull, peek = _pull_cursor(src, fid, pulled, lambda: committed)
 
         for s in slots:
             if s == "s":
@@ -389,27 +370,7 @@ class _Pending:
         """
         pulled: list[Tok] = []
         committed = 0
-
-        def unpull(x: Tok | None = None) -> None:
-            tail = pulled[committed:]
-            if x is not None:
-                tail = [*tail, x]
-            if tail:
-                src.unread(tail)
-            del pulled[committed:]
-
-        def peek() -> Tok | None:
-            while True:
-                x = src.read()
-                if x is None:
-                    return None
-                if x.kind == "space":
-                    pulled.append(x)
-                    continue
-                if x.kind == "eol_par" or x.gen > 0 or x.pos[0] != fid:
-                    src.unread([x])
-                    return None
-                return x
+        unpull, peek = _pull_cursor(src, fid, pulled, lambda: committed)
 
         def e_arg_tail() -> None:
             # ``e`` 参已吃 ``X`` 的 ``{arg}``/``<tok>`` 尾位（可缺省——

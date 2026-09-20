@@ -189,7 +189,7 @@ def test_short_arg_untranslated_identity() -> None:
     assert reconstruct(res) == DOC % body
 
 
-# ------------------------------------------------------- bug-B 接缝守卫（_seg_join）
+# ------------------------------------------------------- bug-B 接缝守卫（seg_join）
 
 
 def test_latin_glue_ph_joint() -> None:

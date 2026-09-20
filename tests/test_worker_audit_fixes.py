@@ -954,7 +954,7 @@ class TestL2EofAttribution:
 class TestChunkSpansMirror:
     """``chunk_spans`` 镜像 ``reconstruct`` 落盘字节：译文侧变换逐项复刻。
 
-    ``_LATIN_ITEM_RX`` 保险丝与 ``_seg_join`` 接缝守卫缺一则 ``find`` 失配、
+    ``LATIN_ITEM_RX`` 保险丝与 ``seg_join`` 接缝守卫缺一则 ``find`` 失配、
     块归 ``None``，L2 归因静默丢块（``4ce255e`` short_arg 同款漂移）。
     """
 
@@ -978,8 +978,8 @@ class TestChunkSpansMirror:
             c1.id: f"前缀 \\foo[[CHUNK_{c0.id}]] 后缀",
         }
         disk = reconstruct(res, trans)
-        assert "\\item FSU 内容" in disk  # _LATIN_ITEM_RX 保险丝生效
-        assert "\\foo Vector \\item FSU 内容" in disk  # _seg_join 接缝插空格
+        assert "\\item FSU 内容" in disk  # LATIN_ITEM_RX 保险丝生效
+        assert "\\foo Vector \\item FSU 内容" in disk  # seg_join 接缝插空格
         spans = chunk_spans(disk, res, trans)
         assert spans[c0.id] is not None
         assert spans[c1.id] is not None

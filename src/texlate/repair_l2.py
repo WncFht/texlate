@@ -25,10 +25,10 @@ from texlate.compile.inject import InjectRejectError, prepare_chinese
 from texlate.compile.judge import paired_slot_diff
 from texlate.latex.placeholder import CHUNK_RX, PH_RX
 from texlate.latex.reconstruct import (
-    _LATIN_ITEM_RX,
-    _PAR_RUN_RX,
-    _seg_join,
+    LATIN_ITEM_RX,
+    PAR_RUN_RX,
     reconstruct,
+    seg_join,
     unicode_math_fix,
 )
 from texlate.latex.tables import (
@@ -316,7 +316,7 @@ def _expand_tokens(
     已译且 context 非 para/item 的 ``[[CHUNK_n]]`` 展开后同样压 ``\n\n``→``\n``
     （reconstruct.expand 的 ``short_arg`` 同则）——缺这步 ``chunk_spans`` 的
     ``find`` 必对不上落盘字节，块在 L2 二次归因里整片消失。字面/ph 交错段
-    接缝同走 ``_seg_join``（``\cs`` 尾 + 字母头补空格）——本函数只服务
+    接缝同走 ``seg_join``（``\cs`` 尾 + 字母头补空格）——本函数只服务
     译文落盘文件，``reconstruct`` 侧 ``glue_latin`` 恒真。
     """
     if _depth > _EXPAND_MAX_DEPTH:
@@ -341,7 +341,7 @@ def _expand_tokens(
                 "para",
                 "item",
             ):
-                out = _PAR_RUN_RX.sub("\n", out)
+                out = PAR_RUN_RX.sub("\n", out)
         return out
 
     segs: list[str] = []
@@ -351,7 +351,7 @@ def _expand_tokens(
         segs.append(rep(m))
         pos = m.end()
     segs.append(text[pos:])
-    return _seg_join(segs)
+    return seg_join(segs)
 
 
 def chunk_spans(
@@ -363,7 +363,7 @@ def chunk_spans(
     前后块锚定（归因是启发式，丢块可接受）。
     """
     tokmap = {
-        f"[[CHUNK_{cid}]]": _LATIN_ITEM_RX.sub(r"\\item ", unicode_math_fix(zh))
+        f"[[CHUNK_{cid}]]": LATIN_ITEM_RX.sub(r"\\item ", unicode_math_fix(zh))
         for cid, zh in trans.items()
     }
     spans: dict[int, tuple[int, int] | None] = {}

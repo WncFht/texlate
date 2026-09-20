@@ -61,6 +61,8 @@ from texlate.textutil import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from texlate.latex.gullet import (
         Arg,
         EnvDef,
@@ -82,7 +84,7 @@ _LEAD_WS_RX = re.compile(r"\s*")
 _TRAIL_WS_RX = re.compile(r"\s*$")
 
 # 尾字符必须真字母：孤 ``\@`` 是控制符号而非控制词尾——``\@x`` 的 ``@``
-# 不吞后继空格，``_rappend``/``_seg_join`` 若按 ``\\[@]+`` 收它会补伪
+# 不吞后继空格，``_rappend``/``seg_join`` 若按 ``\\[@]+`` 收它会补伪
 # ``" "`` 破 identity（S1）；``\ds@list`` 族中位 ``@`` 不受影响。
 # ``\Z`` 严格串尾（体尾 ``\n`` 已阻断 token 合并，放宽会收过头）。
 _LETTER_TAIL_RX = re.compile(r"\\[a-zA-Z@]*[a-zA-Z]\Z")
@@ -1271,6 +1273,42 @@ class _ListSource:
         for _ in range(i):
             q.popleft()
         return end if end > t.pos[2] else None
+
+
+def _pull_cursor(
+    src: TokenSource, fid: int, pulled: list[Tok], committed: Callable[[], int]
+) -> tuple[Callable[[Tok | None], None], Callable[[], Tok | None]]:
+    r"""流侧拉参游标 ``(unpull, peek)`` 闭包对——``_absorb_slots``/``_absorb_spec`` 共享。
+
+    ``pulled`` = 已拉 token 全列，``committed()`` 取当前提交水位（调用方传
+    ``lambda: committed`` 活引用——水位随消费推进须逐次取新值，快照即
+    死数）。``unpull`` 把未提交尾段（可选 ``x`` 附尾）``unread`` 回放并
+    截断；``peek`` 跳 space 入账，界 token（``eol_par``/``gen>0``/异 fid）
+    与 EOF 回放不消费、返 ``None``。
+    """
+
+    def unpull(x: Tok | None = None) -> None:
+        tail = pulled[committed():]
+        if x is not None:
+            tail = [*tail, x]
+        if tail:
+            src.unread(tail)
+        del pulled[committed():]
+
+    def peek() -> Tok | None:
+        while True:
+            x = src.read()
+            if x is None:
+                return None
+            if x.kind == "space":
+                pulled.append(x)
+                continue
+            if x.kind == "eol_par" or x.gen > 0 or x.pos[0] != fid:
+                src.unread([x])
+                return None
+            return x
+
+    return unpull, peek
 
 
 # ------------------------------------------------------------------ segmenter
