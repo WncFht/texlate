@@ -1882,3 +1882,12 @@
 - **peer cleanup-A 挪位实证**：bench/results/parsebench-v3-postw84* 被归档至 bench/archive-2026-09-20/results/——挪非删，证据完整；bench/results 现仅余 4 活跃目录。
 - **新派 ×3 read-only → roster 8**：expandgap（4 异常格机理诊断——timeout/diverged/leak/protect-ph 各 1）、waveprep（78+36 id 全量可重放性预检：workdir/records/file 三解 + ready.json by_dir）、paracen2（cap64 爆炸面精查：>8 culprits 格 → wave-14/15 候选）。
 - **门**：HEAD=0b5e6e22；overnite 2298/2822 ph=0 健康；roster 8（pairbun/taxrow/zhleakimpl/singbun/clsfidcen + expandgap/waveprep/paracen2）；wave-13 mutex 续持（4 impl lanes 编 live-read 件）；clean% 基线待 wave-13 收官测量；共享 index 勿动；无 teammate git 越权。
+
+### patrol ~10:15 — zhleakimpl 落账 0c9e5b99；clsfidcen 普查交付；roster 补足 10
+
+- **commit**：`0c9e5b99` zhleakimpl——_builtins_slotrev +130/-26（colspec 双臂 `_ARG`→`_ARGB` 平衡括号捕获：arm1 +xltabular/tblr/tabu/longtable/NiceTabular 等签名核实 env 表 + `O{} m` opt 位；arm2 +xltabular+NiceTabularX，xtabular 纠位回 arm1（xtab.sty `\@supertabular[#1]#2` 单 mand 实参）；colspec_mc/nt/holder RX 同步；**新 kind `pgtable`** 双臂无 kv 门（numeric 数据无 `=,#`——pgfplotstableread/addplot 族）；`_IDENT_SPEC_RX`→`[\t\n\r -~]+`）+ test_fixloop_slotrevert +175（8 pins：xltabular 多行嵌套/idempotent/tblr colspec/xtabular+multicolumn/负例/pgtable 读写/addplot kw/divergent-counts/src-cjk-not-reverted）。leader 验 59/59 pins、Ruleset.load 185。dry-run：2609.20179 reverts=1 盖全 6 泄点、2609.19828 reverts=3。
+- **wave-13 manifest**：两 zhleakimpl 格 pending→targets → **80 targets / 16 pending**；wave13-ids.txt 同步。
+- **stale-pin 路由 taxrow**：其 incomplete_if 行（10-taxonomy:852 在飞）使 test_taxonomy_incomplete_iffalse_is_other stale——pin 更新随 taxrow commit。
+- **clsfidcen 普查交付**（tmp/lane-clsfidcen/census.md）：31 级 stub 保真差排表 + 覆盖洞。TOP：aastex.cls thin-shim \email/\authoremail/\received 族 230 格（resid 36）；vendor aa.cls \tablefoot 族 88 格；aastex631 \lesssim/\altaffiliation 67；svjour3 \smartqed 59；ALIAS bare-bridge 族（eptcs 35/svmult 31/sig-alternate 17/appolb 13）；docclass 名无键洞 12 名（aastex6/7/701、revtex4b5/5、svjourmod/Test/3arxiv）+ case-variant 路由待验（aastex62→AASTeX62、pos→PoS、JHEP→JHEP）。20 stub 零差、6 无实物对版。
+- **新派 ×3 read-only → roster 10**：clsbridge（12 无键 docclass 名 → 父 stub 路由建议 + resid 量化 + case 归一检查）、cleanbase（clean% 基线测量 + cleansab 36 逃逸审计 vs ledger 前值）、bibprep（wave-14 185 targets 可重放性预检 + by_dir 分组 + 217 secondary 随行表）。
+- **门**：HEAD=0c9e5b99；overnite 2314/2822 ph=0；mutex = pairbun(2h)/taxrow/singbun 三 impl；clsfidcen 待关（交付后 SendMessage 未至，存活观察中）；cleanbase 基线在测；共享 index 勿动；无 teammate git 越权。
