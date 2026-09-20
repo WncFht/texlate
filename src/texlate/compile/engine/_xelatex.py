@@ -551,20 +551,26 @@ class XelatexEngine:
         key = (fname, str(self.texmfhome), env_raw("TEXMFHOME"))
         if key in self._probe_cache:
             return self._probe_cache[key]
-        hit = self._probe_tree(fname)
+        hit = self._probe_tree(fname, base)
         if len(self._probe_cache) >= _PROBE_MEMO_MAX:
             self._probe_cache.clear()
         self._probe_cache[key] = hit
         return hit
 
-    def _probe_tree(self, fname: str) -> str | None:
-        """``kpsewhich`` 纯树探测（``.`` 元素已由 ``probe_file`` cwd 直查覆盖）。"""
+    def _probe_tree(self, fname: str, base: Path) -> str | None:
+        """``kpsewhich`` 纯树探测（``.`` 元素已由 ``probe_file`` cwd 直查覆盖）。
+
+        子进程 cwd 取 ``base`` 而非进程 cwd——``safe_is_file`` 已直查过
+        ``base/fname``, ``.`` 元素在该基上永不另产命中; 进程 cwd 落 wdir
+        内时旧写法会让 kpsewhich ``.`` 命中 vendored 自件并毒化 memo
+        (seki 15 era 件全 self-hit → vendored_shadow 条件死面实证)。
+        """
         tool = _eng.find_tool("kpsewhich")
         if tool is None:
             return None
         rc, out, _, to = _eng.run_process(
             [tool, fname],
-            cwd=Path.cwd(),
+            cwd=base if base.is_dir() else Path.cwd(),
             env=self._env(None),
             timeout=15,
         )

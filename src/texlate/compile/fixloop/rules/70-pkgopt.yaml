@@ -519,8 +519,10 @@ rules:
       ctx_suggests: "Unknown float option [`']H'"
       # 2.09 (\documentstyle) 无 \\usepackage——注入即非法; docclass 断言并入
       # source_contains (main_head 仅 3k 窗, 0408234 注释堆 70 行 docclass@3280
-      # 漏窗实证——fixloop6 replay 未点火)
-      source_contains: "\\A(?![\\s\\S]*(?:\\\\(?:usepackage|RequirePackage)\\s*(\\[[^\\]\\n]*\\])?\\s*\\{[^}]*\\bfloat\\b|\\\\input(?:\\s*\\{\\s*|\\s+)float\\.sty))(?=[\\s\\S]*\\\\documentclass)(?=[\\s\\S]*\\\\begin\\{[A-Za-z]+\\*?\\}\\s*\\[[^\\]\\n]*H)"
+      # 漏窗实证——fixloop6 replay 未点火)。USAGE 双臂: 字面括号 H 或
+      # cls 级 \def\fps@<env>{...H} 默认 spec (1107.0117 PoS.cls:806 实证——
+      # no-opt 路由 \csname fps@env\endcsname 展开得 Htbp 字串同样炸 H)
+      source_contains: "\\A(?![\\s\\S]*(?:\\\\(?:usepackage|RequirePackage)\\s*(\\[[^\\]\\n]*\\])?\\s*\\{[^}]*\\bfloat\\b|\\\\input(?:\\s*\\{\\s*|\\s+)float\\.sty))(?=[\\s\\S]*\\\\documentclass)(?=[\\s\\S]*(?:\\\\begin\\{[A-Za-z]+\\*?\\}\\s*\\[[^\\]\\n]*H|\\\\[gex]?def\\\\fps@[A-Za-z]+\\s*\\{[^}\\n]*H))"
     action:
       kind: regex_rewrite
       params:
@@ -543,6 +545,37 @@ rules:
         }
     stats: { fires: 15, rescued_cells: 3, status: active }
     source_ref: "failmine float_opt|H lane; corpus 五格源实读混排形"
+
+  # 2026-09-20 pairbun lane (singtail bundles rank-5 pair-2):
+  # cls 级 cs 值浮体 opt —— cimento.cls \newenvironment{table}[1][\fps@table]
+  # (\def\fps@table{tb}) 经 \@xfloat \@onelevel@sanitize 展开成 cs 名字符
+  # → \ /f/s/@/a/l/e 每字一报 Unknown float option (0712.0315 单格 21 错,
+  # float_opt|\ + f/s/@/a/l/e 七签同族)。USAGE 站三形: env 默认参 /
+  # \@float 族直调 / \begin{env}[\cs] 显式 —— [\cs] 与可解 \def\cs{spec}
+  # (纯 !htbpH 字符) 共存才动; builtin 多重定义/非 spec 值/cs 不可解保守
+  # 拒改, 剥离后 spec 含 H 自然落 float_opt_h_pkgload(187) 下游。
+  - id: float_opt_cs_expand
+    description: "float_opt cs-值 opt → \\def 字面 spec 内联 (sanitize cs 名逐字炸)"
+    phase: loop
+    order: 187.5 # float_opt_h_pkgload(187) 同簇后位——cs 先内联, H 残留给它收
+    when: { category: float_opt, payload_required: true }
+    condition:
+      source_contains: "\\[\\s*\\\\[A-Za-z@]+\\s*\\]" # [\\cs] opt 站位在场
+    action:
+      kind: builtin_transform
+      function: float_opt_cs_expand
+    risk: low # spec 白名单 !htbpH + 单定义闸——非浮体 opt/多定义/不可解全拒
+    known_gap: "cs def 与 use 跨文件经 source_blob 解析 (单文件不可见 def 不救); spec 含嵌套 cs/参数宏不在解面; era kernel 下本可展开的等价形被内联成字面 —— 语义恒等非降级"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "0712.0315 (singtail singles bundles rank-5)",
+          error: "LaTeX Error: Unknown float option `\\'/`f'/`s'/`@'/`a'/`l'/`e' @ \\newenvironment{table}[1][\\fps@table] (\\def\\fps@table{tb})",
+        }
+    stats: { fires: 0, rescued_cells: 0, status: active }
+    source_ref: "pairbun rank-5 pair-2; cimento.cls:1330-1335 实读"
 
   # 2026-09-19 flushend lane (failmine2, stagerun-loop2-2026-09-18 五格实读):
   # sttools 3.x flushend.sty 删 keeplastbox 选项 (1.x 时代 \lastbox 冲刷保留

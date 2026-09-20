@@ -89,6 +89,46 @@ rules:
         }
     stats: { fires: 43, rescued_cells: 15, status: active }
 
+  # 2026-09-20 pairbun lane (singtail bundles rank-7): 时代 graphicx key
+  # type=/ext=/read= 走 \csname Gin@rule@.. 链 —— 现代 graphicx 下炸
+  # Missing \endcsname (syntax|None) 并把图名毒化成 missing_graphic 级联
+  # (0812.0324: syntax×32+missing_graphic×12, 盘上 rmt_*.pdf 在场实证;
+  # 0812.0365: syntax×131+missing_graphic×45)。成员级剥除即死签双清;
+  # 键名精确比对, subtype=/breadth= 类前缀不沾。剥后若真缺图, 自有
+  # missing_graphic 报文走 placeholder(17.6) 链——剥键不造新缺。
+  - id: graphics_kv_strip_obsolete
+    description: "\\includegraphics opt 表剥 type=/ext=/read= 时代 key (\\csname 链炸)"
+    phase: loop
+    order: 14.5 # graphic_ext_relax(14) 后, eps_to_pdf(15) 前
+    when:
+      any:
+        - { category: syntax }
+        - { category: missing_graphic, payload_required: true }
+    condition:
+      source_contains: "\\\\includegraphics\\*?\\s*\\[[^\\]\\n]*\\b(?:type|ext|read)\\s*="
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty, .cls]
+        rewrites:
+          - {
+              pattern: "(\\\\includegraphics\\*?)\\s*\\[([^\\]\\n]*)\\]",
+              function: graphics_kv_strip_obsolete,
+              match_surface: masked,
+            }
+    risk: low # 键名成员级精确剥; 无三键的 opt 表逐字返回; 语义=现代 graphicx 本就忽略路径
+    known_gap: "多行 opt 表 ([^\\]\\n] 界) 不可见; \\includegraphics 外的同款键用法 (\\DeclareGraphicsRule 族) 不在面"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "0812.0324/0812.0365 (singtail singles bundles rank-7)",
+          error: "Missing \\endcsname inserted @ \\includegraphics[type=pdf,ext=.pdf,read=.pdf,...]{X} + missing_graphic 级联",
+        }
+    stats: { fires: 0, rescued_cells: 0, status: active }
+    source_ref: "pairbun rank-7; phase.tex:1210-1212/ms.tex:358+ 实读"
+
   # 新增 (fixloop-v2 整改): log 确证的 PS 硬墙 → 先救后拒。
   # 实证: tectonic 对 .eps 工程分两类 —— 能出 pdf~ 的 (eps 引用未真正进
   # xdvipdfmx 路径) 与撞墙的 ("image inclusion failed for X.eps")。

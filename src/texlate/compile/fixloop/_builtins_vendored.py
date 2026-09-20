@@ -173,8 +173,9 @@ def find_vendored_shadows(
     cands = []
     tectonic = ctx.engine_name == "tectonic"
     wdir_r = ctx.wdir.resolve()
+    neutral = _neutral_probe_dir(ctx)
     for f in ctx.tex_files(exts):
-        resolved = eng.probe_file(f.name)
+        resolved = eng.probe_file(f.name, cwd=neutral)
         if not resolved:
             if tectonic:
                 pkgs = _index_providers(eng, f.name)
@@ -219,7 +220,7 @@ def _retire_paired_tex_core(  # noqa: PLR0911  # 保守闸逐条一处, 缺一�
     core = f.with_suffix(".tex")
     if core == f or not safe_is_file(core):
         return None
-    resolved = eng.probe_file(core.name)
+    resolved = eng.probe_file(core.name, cwd=_neutral_probe_dir(ctx))
     if not resolved:
         return None  # 系统无核可递补——rename 即造 missing_file, 不动
     rp = Path(resolved) if isinstance(resolved, str) else resolved
@@ -333,9 +334,20 @@ def _pathqual_hit(ctx: LoopCtx, rel: str) -> bool:
     return False
 
 
+def _neutral_probe_dir(ctx: LoopCtx) -> Path:
+    """``probe_file`` ``cwd`` 中立基——wdir 外恒存且不含工程件的锚目录。
+
+    进程 cwd 落 wdir 内时默认 ``Path.cwd()`` 基让 ``safe_is_file`` 直查
+    命中 vendored 自件 → "wdir 外系统副本" 探测全灭 (seki era 件全
+    self-hit → vendored_shadow 条件死面实证)。``/`` 同名件概率实零,
+    在场亦属系统面 (语义仍对)。
+    """
+    return Path(ctx.wdir.resolve().anchor or "/")
+
+
 def _probe_external(ctx: LoopCtx, eng: Engine, name: str) -> str | None:
     """``probe_file(name)`` 命中 wdir 外系统副本 → 路径串; 否则 ``None``。"""
-    resolved = eng.probe_file(name)
+    resolved = eng.probe_file(name, cwd=_neutral_probe_dir(ctx))
     if not resolved:
         return None
     try:

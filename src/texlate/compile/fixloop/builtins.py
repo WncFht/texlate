@@ -91,11 +91,13 @@ from texlate.compile.fixloop._builtins_graphics import (
     xbb_pregen,
 )
 from texlate.compile.fixloop._builtins_misc import (
+    aux_seed_undefined_refs,
     cjk_env_relax,
     docstrip_generate,
     eps_converted_alias,
     extract_tar_blobs,
     float_h_demote,
+    float_opt_cs_expand,
     graphics_include_strip,
     harvest_build_directives,
     latex209_upgrade,
@@ -209,6 +211,7 @@ __all__ = [
     "_vendored_source",
     "accent_mark_fix",
     "amsmath_family_retire",
+    "aux_seed_undefined_refs",
     "bbl_regen",
     "bbl_stub_rewrite",
     "biber_biblatex_skew_route",
@@ -232,6 +235,7 @@ __all__ = [
     "fileset_relocate",
     "find_vendored_shadows",
     "float_h_demote",
+    "float_opt_cs_expand",
     "font_cs_shim",
     "font_fallback",
     "font_sub_shim",
@@ -314,7 +318,49 @@ def keep_latin_tokens(m: re.Match[str]) -> str:
     return "\\hyphenation{" + " ".join(toks) + "}"
 
 
-REWRITE_FNS = {"px_to_bp": px_to_bp, "keep_latin_tokens": keep_latin_tokens}
+#: 时代 graphicx key——``type=``/``ext=``/``read=`` 现代走 ``\csname Gin@rule@..``
+#: 链 (``Missing \endcsname`` + 名字毒化 missing_graphic 级联, 0812.0324/365 实证)。
+_GIN_OBSOLETE_KEYS = frozenset({"type", "ext", "read"})
+
+
+def _kv_top_members(opts: str) -> list[str]:
+    """逗号分枚 opt 表 (brace 深度内逗号不切)。"""
+    out: list[str] = []
+    depth = 0
+    cur = ""
+    for ch in opts:
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth = max(0, depth - 1)
+        if ch == "," and depth == 0:
+            out.append(cur)
+            cur = ""
+        else:
+            cur += ch
+    out.append(cur)
+    return out
+
+
+def graphics_kv_strip_obsolete(m: re.Match[str]) -> str:
+    r"""``\includegraphics[...]`` opt 表剥 ``type=``/``ext=``/``read=`` 成员。
+
+    组1 = ``\includegraphics`` 头 (含 ``*``), 组2 = 括号 opt 表。成员级
+    ``key=`` 比对 (``subtype``/``breadth`` 类前缀不沾); 剥空即整括号摘除。
+    """
+    keep = [
+        kv
+        for kv in _kv_top_members(m.group(2))
+        if kv.split("=", 1)[0].strip() not in _GIN_OBSOLETE_KEYS
+    ]
+    return m.group(1) + ("[" + ",".join(keep) + "]" if keep else "")
+
+
+REWRITE_FNS = {
+    "px_to_bp": px_to_bp,
+    "keep_latin_tokens": keep_latin_tokens,
+    "graphics_kv_strip_obsolete": graphics_kv_strip_obsolete,
+}
 
 
 TRANSFORM_FNS = {
@@ -341,6 +387,7 @@ TRANSFORM_FNS = {
     "cs_targeted_fix": cs_targeted_fix,
     "ctlseq_undefine": ctlseq_undefine,
     "purge_corrupt_intermediates": purge_corrupt_intermediates,
+    "aux_seed_undefined_refs": aux_seed_undefined_refs,
     "missing_char_fix": missing_char_fix,
     "macro_glyph_fix": macro_glyph_fix,
     "accent_mark_fix": accent_mark_fix,
@@ -396,4 +443,5 @@ TRANSFORM_FNS = {
     "xy_option_load": xy_option_load,
     "tcolorbox_breakable_inject": tcolorbox_breakable_inject,
     "float_h_demote": float_h_demote,
+    "float_opt_cs_expand": float_opt_cs_expand,
 }

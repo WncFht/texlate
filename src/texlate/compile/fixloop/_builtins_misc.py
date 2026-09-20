@@ -15,7 +15,11 @@ import shutil
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any
 
-from texlate.compile.fixloop._builtins_common import _live_matches, _map_tex_files
+from texlate.compile.fixloop._builtins_common import (
+    _fixloop_log,
+    _live_matches,
+    _map_tex_files,
+)
 from texlate.compile.fixloop._builtins_graphics import (
     _EPS_EXTS,
     _EPS_KV_RE,
@@ -178,6 +182,67 @@ def purge_corrupt_intermediates(
     if skewed:
         note.append(f"purged skewed aux (contains \\{payload}): {', '.join(skewed)}")
     return (bool(purged or skewed)), "; ".join(note)
+
+
+_UNDEF_REF_WARN_RE = re.compile(
+    r"LaTeX Warning: Reference [`']([^'\n]+)' on page \d+ undefined"
+)
+#: ``\thanksnewlabel`` (imsart) / ``\@newl@bel`` 等派生写入器同归 ``\r@`` ——
+#: 子串匹配 ``newlabel{`` 而非锚 ``\newlabel``, 否则 dedup 看不见已定义名。
+_NEWLABEL_NAME_RE = re.compile(r"newlabel\{([^{}]*)\}")
+#: 可安全落 ``\newlabel{...}`` 的键面 —— csname 语境容空格/@/冒号;
+#: 反斜线/花括号/hash 类入键即碎的键名跳过 (它们本也过不了 label 写入)。
+_LABEL_SAFE_RE = re.compile(r"^[^\\{}&#%$^_~\n]+$")
+
+
+def aux_seed_undefined_refs(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""未定义 ``\r@`` 引用 → ``\newlabel`` 空桩落 .aux, 斩 edef 炸弹。
+
+    实证根因 (pairbun lane, 1107.0312/1106.5915): imsart 系 ``\printead``
+    把 ``\saferef`` 输出喂进 ``\href`` URL 参 —— hyperref
+    ``\hyper@@normalise`` 的 ``\edef\Hy@tempa`` 全展开 URL; 未定义引用走
+    ``\@setref`` ``??`` 臂 ``\nfss@text{\reset@font\bfseries ??}`` → 现代
+    内核 ``\bfseries`` 展开 ``\expand@font@defaults`` →
+    ``\series@maybe@drop@one@m@x`` 替换文本内嵌 ``\def\in@@ ##1`` →
+    ``#1`` 参 token 撞零参 ``\Hy@tempa`` 定义 → ``Illegal parameter
+    number``。同根级联: ``\@ifundefined{r@...}`` 全 YES → ``\ead@text``/
+    ``\ead@type``/``\ead@prefix`` 不置 → undefined_cs ×N。
+
+    主战场是**首遍真空**: workdir 无 .aux → 所有 ``\@setref`` 走 ``??`` 臂
+    → end-of-doc ``\printead``/``\printaddresses`` 连环爆 (1107.0312 实测
+    100 errors → 补 aux 后重编 rc=0/0 err, ``\@ifundefined`` 查的
+    ``r@e1@email`` 与 ``\thanksnewlabel`` 写名一致, 源里 ``\ead@ref @``
+    间空格 tokenize 时已被吃掉)。doc 自写覆盖不到的引用 (警告名) 由桩
+    补齐 —— 桩 ``\r@<label>`` 使 ``\@setref`` 走 else 臂 +
+    ``\@ifundefined`` 走定义臂, 一根双斩; .aux 每遍被 doc 重写, 不扰。
+    """
+    del eng, payload
+    exts = tuple(params.get("exts") or (".aux",))
+    refs: list[str] = []
+    for m in _UNDEF_REF_WARN_RE.finditer(_fixloop_log(ctx)):
+        name = m.group(1).strip()
+        if name and _LABEL_SAFE_RE.match(name) and name not in refs:
+            refs.append(name)
+    if not refs:
+        return False, "no undefined refs in log"
+    changed: list[str] = []
+    for f in ctx.tex_files(exts):
+        t = ctx.read(f)
+        if t is None:
+            continue
+        have = set(_NEWLABEL_NAME_RE.findall(t))
+        missing = [r for r in refs if r not in have]
+        if not missing:
+            continue
+        seeds = "".join("\\newlabel{" + r + "}{{}{}{}{}{}}\n" for r in missing)
+        body = t if t.endswith("\n") else t + "\n"
+        ctx.write(f, body + "% fixloop: seed undefined refs\n" + seeds)
+        changed.append(f"{f.name}(+{len(missing)})")
+    if not changed:
+        return False, "all undefined refs already labelled"
+    return True, f"seed \\newlabel stubs: {', '.join(changed)}"
 
 
 # ════════════════════════════════════════════════════════════════
@@ -1666,3 +1731,75 @@ def float_h_demote(
     if not changed:
         return False, "no [H] float option sites"
     return True, f"[H] demoted in {changed} file(s)"
+
+
+#: 浮体 opt 字面 spec 白名单——``!htbpH`` 外字符的 def 值不是 placement
+#: (含 H: 展开后落 float_opt|H → float_opt_h_pkgload 已覆盖路径)。
+_FLOATOPT_SPEC_RE = re.compile(r"[!htbpH]+")
+
+#: 无参 cs 字面定义面: ``\def``/``\gdef``/``\edef``/``\xdef`` 与
+#: ``\new``/``\renew``/``\providecommand`` 裸形。带参宏 (``[n]`` 计数)
+#: 结构不含 {spec} 紧邻位 → 天然排除。
+_FLOATOPT_CS_DEF_RE = re.compile(
+    r"\\[gex]?def\s*\\([A-Za-z@]+)\s*\{([^{}\n]*)\}"
+    r"|\\(?:new|renew|provide)command\*?\s*\{?\s*\\([A-Za-z@]+)\s*\}?\s*\{([^{}\n]*)\}"
+)
+
+#: 浮体 opt 括号单 cs 站位三形——env 默认参 (``\newenvironment{env}[n][\cs]``)、
+#: ``\@float`` 族直调 (``\@float{env}[\cs]``/``\@dblfloat``/``\@rotfloat``/``\@xfloat``)、
+#: ``\begin{env}[\cs]`` 显式值。组1/3/5 = 站前缀, 组2/4/6 = cs。
+_FLOATOPT_CS_SITE_RE = re.compile(
+    r"(\\(?:new|renew)environment\*?\s*\{[A-Za-z@* ]+\}\s*\[\d+\]\s*)\[\s*\\([A-Za-z@]+)\s*\]"
+    r"|(\\@(?:dbl|x|rot)?float\s*\{[A-Za-z*]+\}\s*)\[\s*\\([A-Za-z@]+)\s*\]"
+    r"|(\\begin\s*\{[A-Za-z*]+\}\s*)\[\s*\\([A-Za-z@]+)\s*\]"
+)
+
+
+def float_opt_cs_expand(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""浮体 opt cs 值 → ``\def`` 字面 spec 内联 (sanitize cs 名逐字炸)。
+
+    死因 (0712.0315 cimento.cls 实证): ``\newenvironment{table}[1][\fps@table]``
+    类 cs 默认 opt 经 ``\@xfloat`` ``\@onelevel@sanitize`` 展开成 cs 名字符
+    (``\fps@table``→``\fps@table`` 逐字) —— ``p/t/b`` 静默过, ``\``/``f``/``s``/``@``/
+    ``a``/``l``/``e`` 每字一报 ``Unknown float option`` (单 cell 21 错)。
+    ``[\cs]`` 站与 ``\def\cs{spec}`` 同工程可解且 spec 纯 ``!htbpH`` 字符时
+    内联字面 spec —— 非浮体语境亦语义恒等 (cs 本展开同串), 零语义改写。
+    多重定义/非 spec 值/cs 不可解 → 保守不动。
+    """
+    del eng, payload
+    defs: dict[str, list[str]] = {}
+    for m in _live_matches(_FLOATOPT_CS_DEF_RE, ctx.source_blob()):
+        name = m.group(1) or m.group(3)
+        spec = (m.group(2) or m.group(4) or "").strip()
+        defs.setdefault(name, []).append(spec)
+    specs = {
+        n: s[0]
+        for n, s in defs.items()
+        if len(s) == 1 and _FLOATOPT_SPEC_RE.fullmatch(s[0])
+    }
+    if not specs:
+        return False, "no resolvable float-spec cs defs"
+    exts = tuple(params.get("exts") or (".tex", ".sty", ".cls"))
+    changed = 0
+    for f in ctx.tex_files(exts):
+        t = ctx.read(f)
+        if not t:
+            continue
+
+        def _sub(m: re.Match[str]) -> str:
+            prefix = m.group(1) or m.group(3) or m.group(5)
+            cs = m.group(2) or m.group(4) or m.group(6) or ""
+            spec = specs.get(cs)
+            if spec is None:
+                return m.group(0)
+            return (prefix or "") + "[" + spec + "]"
+
+        nt = _FLOATOPT_CS_SITE_RE.sub(_sub, t)
+        if nt != t:
+            ctx.write(f, nt)
+            changed += 1
+    if not changed:
+        return False, "no cs-valued float option sites resolved"
+    return True, f"expanded cs float opts in {changed} file(s)"
