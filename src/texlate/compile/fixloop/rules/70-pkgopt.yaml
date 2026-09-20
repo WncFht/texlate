@@ -660,3 +660,129 @@ rules:
         }
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/lane-singlesweep/mech_buckets.json xypic-curve-ext; xyarrow.tex:527/xygraph.tex:163-186 句式实读"
+
+  # 2026-09-20 unkopt lane (failmine5, stagerun-overnite-2026-09-20 两格实读):
+  # ucs v2.4 utf8 引擎下自弃 (sty:19-23 ``\ifx\Umathchar\undefined\else ...
+  # \expandafter\endinput`` —— \DeclareOption*/\ProcessOptions* @sty:183 永远
+  # 到不了, 任何选项都报 unknown; mathletters 是 ucs 专属 unicode-option,
+  # pdftex 语义=数学段 Unicode 字母映射, xelatex 下整包弃权故剥除零语义差)。
+  # 两格 zh 炸 main.tex 行内 ``Unknown option `mathletters' for package `ucs'``,
+  # err 落 other 桶 (2508.04292 19err errors>3 / 2603.08693 driver_fatal 三桶
+  # 同挂同 keeplastbox 先例)。ctx+source 双闸 AND; 成员级匹配 (mathlettersx/
+  # xmathletters 不沾); ucs 组外同名键不剥 (mathletters 为 ucs 专属名,
+  # 他包无此键; AAS mathletters 环境同名不同位——那是环境不是选项)。
+  - id: ucs_mathletters_opt_strip
+    description: "ucs utf8 引擎自弃包使 mathletters 选项无消费 → usepackage/PassOptions 成员级剥除"
+    phase: loop
+    order: 200 # xy_option_load(198) 后选项面尾位; other+ctx 臂
+    when:
+      any:
+        - { category: other, payload_required: false }
+        - { category: early_eof, payload_required: false }
+        - { category: syntax, payload_required: false }
+    condition:
+      ctx_suggests: "Unknown option [`']mathletters' for package [`']ucs'"
+      source_contains: "\\bmathletters\\b"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty, .cls]
+        rewrites:
+          # 括号头: [mathletters,rest]{..ucs..} → [rest]{..ucs..}
+          - {
+              pattern: "(\\\\(?:usepackage|RequirePackage)\\s*\\[)\\s*mathletters\\s*,\\s*([^\\]]*\\]\\s*\\{[^{}]*\\bucs\\b[^{}]*\\})",
+              repl: "\\g<1>\\g<2>",
+              match_surface: "masked",
+            }
+          # 括号中/末: [a,mathletters(,b)]{..ucs..} → [a(,b)]
+          - {
+              pattern: "(\\\\(?:usepackage|RequirePackage)\\s*\\[[^\\]]*?),\\s*mathletters\\s*(?=[,\\]])([^\\]]*\\]\\s*\\{[^{}]*\\bucs\\b[^{}]*\\})",
+              repl: "\\g<1>\\g<2>",
+              match_surface: "masked",
+            }
+          # 括号 solo: [mathletters]{..ucs..} → 整括号摘除 (两格全此形)
+          - {
+              pattern: "(\\\\(?:usepackage|RequirePackage))\\s*\\[\\s*mathletters\\s*\\](\\s*\\{[^{}]*\\bucs\\b[^{}]*\\})",
+              repl: "\\g<1>\\g<2>",
+              match_surface: "masked",
+            }
+          # PassOptionsToPackage 首参同三位 (大括号形)
+          - {
+              pattern: "(\\\\PassOptionsToPackage\\s*\\{)\\s*mathletters\\s*,\\s*([^}]*\\}\\s*\\{ucs\\})",
+              repl: "\\g<1>\\g<2>",
+              match_surface: "masked",
+            }
+          - {
+              pattern: "(\\\\PassOptionsToPackage\\s*\\{[^}]*?),\\s*mathletters\\s*(?=[,}])([^}]*\\}\\s*\\{ucs\\})",
+              repl: "\\g<1>\\g<2>",
+              match_surface: "masked",
+            }
+          # 首参 solo: 剥净留 {}{ucs} no-op (keeplastbox 空参同留先例)
+          - {
+              pattern: "(\\\\PassOptionsToPackage\\s*\\{)\\s*mathletters\\s*\\}(\\s*\\{ucs\\})",
+              repl: "\\g<1>}\\g<2>",
+              match_surface: "masked",
+            }
+    risk: low # 死选项剥除; ucs 在 utf8 引擎整体自弃, 选项本就不可达
+    known_gap: "ucs 其余选项 (postscript/autoload/hyperref 等) 同机理未列 —— 每选项独立臂是库内惯例, 新签再现时扩; 组载 {ucs,other} 共享括号内 mathletters 同剥 (他包无此专属键, 语义零损); documentclass 全局位不剥 (全局项不进 per-pkg Unknown-option 错误面); PassOptions 首参嵌套 brace 值罕形漏剥; verbatim 内假装载 masked 面不沾"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "2508.04292/2603.08693 (stagerun-overnite-2026-09-20 failmine5)",
+          error: "main.tex:166/189 LaTeX Error: Unknown option `mathletters' for package `ucs'",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-failmine5/buckets.json other|None 簇; ucs.sty:19-23 utf8-bail + :180-183 DeclareOption 实读"
+
+  # 2026-09-20 unkopt lane (failmine5, soak-2026-09-18 2609.20764 实读):
+  # bxcjkjatype (BX CJK jatype, texlive-langjapanese 有真件 —— install_file
+  # 先装上, vendored_fetch/legacy_pkg_shim 的 missing_file 通道永远够不到)
+  # 是 pdfTeX-only 包: sty:45 ``\bxjy@error{The engine in use is not
+  # supported}{Only pdfTeX engine is supported.}\Package loading is aborted``
+  # 在 \ProcessOptions 前抛 → ``Unknown option `whole' for package
+  # `bxcjkjatype'`` 连环。包唯一职能是 pdfLaTeX 下无 CJK 包排日文, xelatex
+  # 下恒死; 该格 doc 已有 inject 注入的 xeCJK (``% texlate: adapted legacy
+  # CJK``), 正文裸 CJK 字符 xeCJK 直接排版, 无任何 bxcjkjatype 专属 cs 调用。
+  # 修 = 装载行注释中和 (microtype_lig_off 同式): 引擎不可达包注释即其
+  # 自身语义; masked 面挡 verbatim/已注释行。PassOptionsToPackage 指向
+  # 未载包是惰性 no-op 故不动; documentclass 全局位不在 per-pkg 面。
+  - id: bxcjkjatype_engine_retire
+    description: "bxcjkjatype pdfTeX-only 引擎自爆 → usepackage/RequirePackage 装载行注释中和"
+    phase: loop
+    order: 201 # ucs_mathletters_opt_strip(200) 后; other+ctx 臂
+    when:
+      any:
+        - { category: other, payload_required: false }
+        - { category: early_eof, payload_required: false }
+        - { category: syntax, payload_required: false }
+    condition:
+      # 双签同闸: 引擎自爆 PackageError 行与 unknown-option 行都点名 bxcjkjatype
+      ctx_suggests: "bxcjkjatype"
+      source_contains: "\\bbxcjkjatype\\b"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty, .cls]
+        rewrites:
+          # \usepackage[whole]{bxcjkjatype} / \RequirePackage[...]{bxcjkjatype}
+          # → %\g<0> 行内注释 (选项括号有无两形并收; 组载 {x,bxcjkjatype}
+          # 括号形后述已知缺口)
+          - {
+              pattern: "\\\\(?:usepackage|RequirePackage)\\s*(?:\\[[^\\]\\n]*\\]\\s*)?\\{bxcjkjatype\\}",
+              repl: "%\\g<0>",
+              match_surface: "masked",
+            }
+    risk: low # pdfTeX-only 包在 xelatex 恒自爆; CJK 排版 xeCJK/原生 Unicode 担
+    known_gap: "组载 {bxcjkjatype,other} 形未收 (花括号内成员级剥会留死包引用, 需另一条形未见实证); doc 若调 \\Ja 系专属 cs 会前进 undefined_cs → cs_targeted_fix (该格无调用实读); PassOptionsToPackage{whole}{bxcjkjatype} 惰性残存 (不报错); [whole] 经 \\PassOptionsToPackage 与 \\usepackage{bxcjkjatype} 两文件分工形 —— 装载行注释后 PassOptions 成 no-op, 覆盖"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "2609.20764 (soak-2026-09-18 failmine5)",
+          error: "bxcjkjatype.sty:45 Package bxcjkjatype Error: The engine in use is not supported → MarkovPerco.tex:43 Unknown option `whole' for package `bxcjkjatype'",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-failmine5/buckets.json; bxcjkjatype.sty:45 引擎自爆 + 实格 MarkovPerco.log 连环错实读"
