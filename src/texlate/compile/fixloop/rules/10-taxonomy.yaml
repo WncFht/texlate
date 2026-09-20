@@ -505,6 +505,38 @@ taxonomy:
       payload_group: 1,
       pattern: "Illegal pream-token \\(\\\\([\\w@]+)\\)",
     }
+  # ── 2026-09-20 nfss-encoding-under-TU (lane-nfsstu) ──
+  # xelatex TU 下 legacy NFSS enc 声明三签名, 全带 ``LaTeX Error:`` 前缀
+  # (kernel \@latex@error), file-line/``!`` 两形皆有:
+  # (a) ``Command \X unavailable in encoding TU`` —— cs 只声明在 PU 等旧
+  #     enc (hyperref puenc.def \DeclareTextCommand 盖过稿自带
+  #     \providecommand 兜底), TU 下调用即报, payload=cs 名;
+  # (b) ``Encoding scheme `E' unknown`` —— 源面 \usefont/\fontencoding{E}
+  #     直选未声明 enc (easycyrsymbol T2A 族), payload=enc 名;
+  # (c) ``Font family `E+F' unknown`` —— \DeclareFontShape{E}{F} 时家族
+  #     未声明 (times.sty + AtBeginDocument T1+ptm 实证; E 已声明是
+  #     本签成立前提——E 未声明会先报 (b)), payload="E+F"。
+  # 归 nfss_enc 单类 payload 分形, 65-encoding.yaml 三臂按签名复述
+  # ctx_suggests 分流 (aux_purge_regen 同构)。须在 syntax 前占位:
+  # syntax 宽词不盖本句式, 早评只为 head 段确定性。
+  - {
+      id: nfss_enc,
+      scope: head,
+      payload_group: 1,
+      pattern: "LaTeX Error: Command \\\\([\\w@]+) unavailable in encoding",
+    }
+  - {
+      id: nfss_enc,
+      scope: head,
+      payload_group: 1,
+      pattern: "LaTeX Error: Encoding scheme `([\\w]+)' unknown",
+    }
+  - {
+      id: nfss_enc,
+      scope: head,
+      payload_group: 1,
+      pattern: "LaTeX Error: Font family `([\\w]+\\+[\\w]+)' unknown",
+    }
   # 2026-09-16 扩 syntax 族: Extra }/\\endgroup/\\right/\\middle/\\else/\\fi/\\or
   # 与 Forgotten \\endgroup —— 组/定界/条件多 token 错误归 syntax
   # (astro-ph/0306068 "Extra }, or forgotten $." 原是 other 兜底;

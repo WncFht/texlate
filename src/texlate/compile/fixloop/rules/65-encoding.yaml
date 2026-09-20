@@ -180,3 +180,77 @@ rules:
         }
     stats: { fires: 0, status: proposed }
     source_ref: "docs/research/product/2026-09-16-signature-mining.md §2.2"
+
+  # ── 2026-09-20 lane-nfsstu: nfss_enc 三臂 (xelatex TU 下 legacy NFSS
+  # enc 声明族; 0712.1142 / 2609.20339 / 2609.20539 原全归 other|None)。
+  # 同 cat 三臂各复述签名实形 ctx_suggests 分流 (aux_purge_regen 同构):
+  # (a) ``Command \X unavailable in encoding E`` → 补 ``\DeclareTextCommand
+  #     {\X}{E}{body}`` (体表内置, \ensuremath 件两模态通用; 空
+  #     \DeclareFontEncoding 实证产 "Corrupted NFSS tables" 不可用);
+  # (b) ``Encoding scheme `E' unknown`` → 活 ``\usefont/\fontencoding{E}``
+  #     站点改 TU + enc 字形 cs 表 \providecommand polyfill;
+  # (c) ``Font family `E+F' unknown`` → ``\DeclareFontFamily{E}{F}{}``
+  #     (空 family 合法, fd 文件同款; 与空 enc 声明不同机制)。
+  - id: nfss_cmd_enc_polyfill
+    description: "Command \\X unavailable in encoding E → docclass 后补 \\DeclareTextCommand{\\X}{E}{body}"
+    phase: loop
+    order: 98.1
+    when: { category: nfss_enc, payload_required: true }
+    condition: { ctx_suggests: "unavailable in encoding" }
+    action:
+      kind: builtin_transform
+      function: nfss_cmd_enc_polyfill
+    risk: low # 仅补 per-enc 分支声明; 体表外 cs 直 decline 不猜字形
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "0712.1142 (stagerun-overnite-2026-09-20 splice)",
+          error: "LaTeX Error: Command \\textprime unavailable in encoding TU ×50 (hyperref puenc.def 盖过稿 \\providecommand)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-nfsstu/ (f1d repro: \\ensuremath{'} 体两模态净)"
+
+  - id: nfss_enc_scheme_relax
+    description: "Encoding scheme `E' unknown → \\usefont/\\fontencoding{E} 站点改 TU + 字形 cs polyfill"
+    phase: loop
+    order: 98.2
+    when: { category: nfss_enc, payload_required: true }
+    condition: { ctx_suggests: "Encoding scheme" }
+    action:
+      kind: builtin_transform
+      function: nfss_enc_scheme_relax
+      params: { exts: [.tex, .sty, .cls] }
+    risk: low # 站点级 enc 改写 + providecommand 幂等注入; 无活站点 decline
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "2609.20339 (soak-2026-09-18 splice)",
+          error: "LaTeX Error: Encoding scheme `T2A' unknown ×108 + undefined_cs|\\CYRZH (\\easycyrsymbol \\usefont{T2A} 族)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-nfsstu/ (f2b repro: usefont→TU + \\providecommand{\\CYRZH}{Ж} 净)"
+
+  - id: nfss_fam_declare
+    description: "Font family `E+F' unknown → docclass 后补 \\DeclareFontFamily{E}{F}{}"
+    phase: loop
+    order: 98.3
+    when: { category: nfss_enc, payload_required: true }
+    condition: { ctx_suggests: "Font family" }
+    action:
+      kind: builtin_transform
+      function: nfss_fam_declare
+    risk: low # 空 family 声明合法 (fd 文件同款); payload 非 E+F 形 decline
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "2609.20539 (soak-2026-09-18 splice)",
+          error: "LaTeX Error: Font family `T1+ptm' unknown (times.sty + \\AtBeginDocument \\DeclareFontShape)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-nfsstu/ (f3 repro: \\DeclareFontFamily{T1}{ptm}{} 净)"
