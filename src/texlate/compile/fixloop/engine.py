@@ -1121,11 +1121,13 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
     # 入口产物兜底 (loop1 实证 partial→fail 真退化 4 格)。reject:* 不救。
     main_pdf = wdir / Path(ctx.io.main_rel).with_suffix(".pdf")
     floor_snap: Path | None = None
+    floor_bytes = 0  # 快照字节数——Guard B baseline 的入口态分量
     if main_pdf.is_file() and main_pdf.stat().st_size > 0:
         snap = wdir / ".fixloop-entry.pdf"
         try:
             shutil.copy2(main_pdf, snap)
             floor_snap = snap
+            floor_bytes = main_pdf.stat().st_size
         except OSError as e:  # 快照失败仅失底板, 不阻塞修复
             ctx.ledger.advisories.append(f"floor snapshot: {e}")
 
@@ -1224,6 +1226,14 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
             "pdf_bytes": int(pdf_bytes or 0),
             # 超时/被杀轮——死编译产出未证，汇总段 clean/acceptable 判据须查。
             "died": _res_died(res),
+            # Guard A (adjudication #10): halt_on_error 编译 n_bang>0 ⇒ log
+            # 截在首错——n_bang 是下界非测量值, 证不了 errors≤clean_err_max。
+            # 本轮两轮候选编 (pass-1/finalize) 均非 best_effort; 探针/salvage
+            # 的 best_effort 轮不走本 entry。无 halt 面引擎 (tectonic/Mock)
+            # getattr 落 False 不置位。
+            "log_truncated": bool(
+                getattr(eng, "halt_on_error", False) and rep.n_bang > 0
+            ),
             # 驱动 fatal 证据行（无则 None）——category 仍押 classify 的
             # "other" 面（pdf_asset_sanitize 等 ``when: category: other``
             # 规则靠它派发），本字段载精确归因 + salvage 定败排除闸。
@@ -1252,6 +1262,7 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
                 try:
                     shutil.copy2(src, snap)
                     floor_snap = snap
+                    floor_bytes = src.stat().st_size
                 except OSError as e:
                     ctx.ledger.advisories.append(f"floor snapshot: {e}")
         # —— 终止判据 (spike L742-761 + docs/08:312) ——
@@ -1478,6 +1489,8 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
             "pdf": spdf,
             "pdf_bytes": int(getattr(sres, "pdf_bytes", 0) or 0),
             "died": _res_died(sres),
+            # best_effort (nonstopmode) 全程 log 不截——Guard A 豁免 (adjudication #10)。
+            "log_truncated": False,
             "driver_fatal": _res_driver_fatal(sres),
             "n_errors": srep.n_bang,
             "category": None,
@@ -1539,17 +1552,40 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
         cell["log_excerpt"] = (head or last_rep.tail)[:2000]
     cell["started_fail"] = not (cell["rounds"] and cell["rounds"][0]["pdf"])
     if cell["verdict"] in (None, "max_rounds", "stuck") and cell["final_pdf"]:
-        # 末轮死编译（超时/信号杀）产出 pdf 未证 clean——压成 dirty 且禁升。
+        # 末轮死编译（超时/信号杀）产出 pdf 未证 clean——压成 dirty 且禁升;
+        # halt 截断轮同理 (n_bang 下界证不了 0 错, Guard A adjudication #10)。
         cell["verdict"] = (
             "dirty_pdf"
-            if (last.get("n_errors") or 9) > 0 or last.get("died")
+            if (last.get("n_errors") or 9) > 0
+            or last.get("died")
+            or last.get("log_truncated")
             else "clean"
         )
+    # Guard B (adjudication #10) 内容腰斩闸: 终产物字节相对本 run 最强 pdf
+    # (floor 快照 ∪ 逐轮峰值) 跌过 50% ⇒ 中段截断/内容回归——nonstopmode
+    # 定败残页是 log_truncated 够不到的补位面; 阈值外诚实 zh 重排不动。
+    # floor 兜回格终产物即快照本体, final_bytes 取 floor 而非末轮的 0。
+    baseline_bytes = max(
+        floor_bytes, *(int(r.get("pdf_bytes") or 0) for r in cell["rounds"])
+    )
+    final_bytes = (
+        floor_bytes if cell["floor_restored"] else int(last.get("pdf_bytes") or 0)
+    )
+    shrunk = bool(
+        cell["final_pdf"] and baseline_bytes > 0 and final_bytes < baseline_bytes * 0.5
+    )
+    if shrunk:
+        cell["content_regressed"] = round(final_bytes / baseline_bytes, 3)
+        if cell["verdict"] == "clean":
+            # 0 错编译同样可腰斩 (修复误删附录类真内容丢失)——clean 不豁免。
+            cell["verdict"] = "dirty_pdf"
     if (
         cell["final_pdf"]
         and (cell["final_errors"] or 0) <= clean_err_max
         and cell["verdict"] == "dirty_pdf"
         and not last.get("died")  # 死编译末轮的 dirty 不升 acceptable
+        and not last.get("log_truncated")  # 截断 log 证不了 errors≤max (Guard A)
+        and not shrunk  # 腰斩残页不升 (Guard B)
     ):
         cell["verdict"] = "acceptable_pdf"
     # 末态清场: 末轮/兜底被杀的截断 aux 不驻留毒化格后 post 复判

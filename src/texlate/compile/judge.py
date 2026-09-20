@@ -396,12 +396,18 @@ def _timeout_verdict(v: Verdict, res: CompRes, log_text: str) -> Verdict:
 
 
 def judge(  # noqa: C901 — 判定树逐支平铺（tofu 否决为末位支）
-    res: CompRes, *, expect_cjk: bool = False, log_text: str = ""
+    res: CompRes,
+    *,
+    expect_cjk: bool = False,
+    log_text: str = "",
+    baseline_pdf_bytes: int | None = None,
 ) -> Verdict:
     """CompRes → 终态判定。`expect_cjk` 打开中文渲染检查（zh 条件必开）。
 
     `log_text`：调用方若已读 log 全文可传入；否则读 res.log_path
     （Missing character 计数需要全文，parse_log 只留了结构化字段）。
+    `baseline_pdf_bytes`：调用方持有的基线字节数（fixloop 逐轮峰值∪入口
+    快照）——缺席时 Guard B 内容腰斩闸不启用，standalone 调用面不变。
     """
     v = Verdict(status="fail", n_errors=res.log.n_errors)
     v.warnings_hit = list(res.log.warnings_hit)
@@ -451,6 +457,14 @@ def judge(  # noqa: C901 — 判定树逐支平铺（tofu 否决为末位支）
 
     if res.log.n_errors > CLEAN_ERR_MAX:
         v.reasons.append(f"errors>{CLEAN_ERR_MAX} ({res.log.n_errors})")
+    # Guard A (adjudication #10): halt_on_error 截断 log——n_errors 是下界
+    # 非测量值, 证不了 errors≤CLEAN_ERR_MAX; 测量缺陷非内容缺陷但同否 clean。
+    if getattr(res, "log_truncated", False):
+        v.reasons.append("log_truncated")
+    # Guard B: 供了 baseline 时终产物腰斩 <50% 记内容回归——0 错编译同样
+    # 可丢内容 (误删附录类), clean 不豁免。
+    if baseline_pdf_bytes and res.pdf_bytes < baseline_pdf_bytes * 0.5:
+        v.reasons.append(f"content_regressed:{res.pdf_bytes / baseline_pdf_bytes:.3f}")
     if cat in DIRTY_FIRST_CATEGORIES:
         v.reasons.append(f"first_error={cat}:{pay}")
     v.reasons.extend(f"warn:{hit}" for hit in res.log.warnings_hit)

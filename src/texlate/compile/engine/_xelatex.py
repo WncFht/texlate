@@ -426,6 +426,13 @@ class XelatexEngine:
             log_text = ""
         res.log = parse_log(log_text or res.stdout_tail, project_root=wdir)
         _salvage_driver_fatal(res.log, res)
+        # Guard A (adjudication #10): halt_on_error 下 n_errors>0 ⇒ 编译截在
+        # 首错——计数是下界非测量值, log 证不了 errors≤阈值; best_effort
+        # (nonstopmode) 跑全程不截。消费端 getattr 容错——tectonic/测试替身
+        # 无此字段按不截断处理。
+        res.log_truncated = (
+            self.halt_on_error and not best_effort and res.log.n_errors > 0
+        )
         res.log_text = log_text
         res.log_path = log if log.exists() else None
         res.pdf = pdf if pdf.exists() else None
