@@ -4,7 +4,12 @@
 // 需要在 retry 时 reset，状态不下沉组件内）；组件本体纯展示。
 
 import { createSignal, Show } from "solid-js";
-import { api, ApiError, type SharePackResponse } from "../api/client";
+import {
+    api,
+    ApiError,
+    errText,
+    type SharePackResponse,
+} from "../api/client";
 import { t } from "../i18n";
 
 export interface ShareError {
@@ -20,7 +25,7 @@ const SHARE_ERR_TEXT: Record<string, string> = {
 
 /** code → 可读文案；映射外的错回退服务端 detail */
 const shareErrText = (ae: ApiError | null, e: unknown) => {
-    const detail = ae?.detail ?? (e instanceof Error ? e.message : String(e));
+    const detail = ae?.detail ?? errText(e);
     const mapped =
         ae?.status === 409 ? t.reader.shareErrState : SHARE_ERR_TEXT[ae?.code ?? ""];
     return mapped ? (detail ? `${mapped}（${detail}）` : mapped) : detail;

@@ -2,41 +2,27 @@
 // 坐标线性化：x = Σheights[0..page-1] + fraction * h[page]，pairs 是服务端
 // 已排序的单调链，二分插值；regions（图浮动）优先于 pairs；无 pairs 退化为
 // kind:"pages" 同页码映射。
+// 线形载荷（Pos/Alignment 族）是 API 契约——单一事实源在 api/types.ts，
+// 本文件只做消费（createPositionMapper）与门面再导出（消费方沿旧路径拿）。
+
+import type {
+    Alignment,
+    AlignmentPair,
+    AlignmentRegion,
+    Pos,
+    RegionCoord,
+} from "../api/types";
+
+export type {
+    Alignment,
+    AlignmentPair,
+    AlignmentRegion,
+    Pos,
+    RegionCoord,
+};
 
 export type DocId = "original" | "translated";
 export type Side = DocId;
-
-export interface Pos {
-    page: number;
-    fraction: number;
-    /** 焦点行距视口顶部的比例（跨页跳转后锚点停在屏幕同一高度） */
-    viewport?: number;
-}
-
-export interface RegionCoord {
-    page: number;
-    start: number;
-    end: number;
-}
-
-export interface AlignmentPair {
-    id?: string;
-    original: Pos;
-    translated: Pos;
-}
-
-export interface AlignmentRegion {
-    id?: string;
-    original: RegionCoord;
-    translated: RegionCoord;
-}
-
-export interface Alignment {
-    kind: "landmarks" | "pages" | string;
-    heights?: { original?: number[]; translated?: number[] };
-    pairs?: AlignmentPair[];
-    regions?: AlignmentRegion[];
-}
 
 export type PosMap = (pos: Pos, from: Side) => Pos;
 

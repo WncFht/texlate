@@ -3,7 +3,7 @@
 // 要点（texglot 先例）：20% 焦点线、viewport 字段保持锚点屏幕高度、
 // ignoreTop 吞程序跳转回声、rAF+epoch 合帧丢弃过期滚动。
 
-import type { Pos, PosMap, Side } from "./alignment";
+import type { DocId, Pos, PosMap, Side } from "./alignment";
 
 export type { Pos, PosMap, Side };
 
@@ -138,6 +138,53 @@ export function bindChunkGeom(
         dispose() {
             ro?.disconnect();
             mo?.disconnect();
+        },
+    };
+}
+
+/**
+ * chunk 窗格共享句柄：PaneLike + capture/jump/scrollTopFor/gotoPage/
+ * setFontSize。HtmlPane/DomPane 同构——页码即 [data-chunk] 序（seq 1:1）。
+ */
+export interface ChunkPaneHandle extends PaneLike {
+    gotoPage?(n: number): void;
+    capture(): Pos;
+    jump(pos: Pos): void;
+    scrollTopFor(pos: Pos): number | null;
+    /** html/dom 缩放落点：正文字号（px） */
+    setFontSize?(px: number): void;
+}
+
+/** PaneLike + capture/jump/scrollTopFor/gotoPage/setFontSize 的共享构造 */
+export function makeChunkPaneHandle(opts: {
+    side: DocId;
+    scroller: () => HTMLElement;
+    body: () => HTMLElement;
+    geom: { pages(): PageGeom[] };
+}): ChunkPaneHandle {
+    return {
+        side: opts.side,
+        get el() {
+            return opts.scroller();
+        },
+        pages(): PageGeom[] {
+            return opts.geom.pages();
+        },
+        capture() {
+            return capturePos(this);
+        },
+        // 页码 = chunk 序：跳到第 n 段顶
+        gotoPage(n) {
+            jumpTo(this, { page: n, fraction: 0, viewport: 0 });
+        },
+        jump(pos) {
+            jumpTo(this, pos);
+        },
+        scrollTopFor(pos) {
+            return scrollTopFor(this, pos);
+        },
+        setFontSize(px) {
+            opts.body().style.fontSize = `${px}px`;
         },
     };
 }

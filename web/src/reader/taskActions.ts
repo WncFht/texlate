@@ -6,6 +6,7 @@ import { createSignal } from "solid-js";
 import {
     api,
     ApiError,
+    errText,
     landingHash,
     type TaskSnapshot,
     type TaskStatus,
@@ -59,9 +60,7 @@ export function createTaskRetry(deps: {
             setRetryError({
                 status: ae?.status ?? 0,
                 code: ae?.code,
-                message:
-                    ae?.detail ??
-                    (e instanceof Error ? e.message : String(e)),
+                message: ae?.detail ?? errText(e),
             });
         } finally {
             setRetrying(false);

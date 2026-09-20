@@ -8,6 +8,7 @@
 
 import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { api, type DiscoverHit, type DiscoverPaper } from "../api/client";
+import { createDebouncedAxSearch } from "../axsearch";
 import { t } from "../i18n";
 
 const PAGE_SIZE = 24;
@@ -150,6 +151,9 @@ const SkelCards = (props: { n: number }) => (
     </For>
 );
 
+// ---- 300ms 防抖快搜（axsearch.ts 共享工厂——与 home/search.ts 的
+//      输入即搜同构）：onClear=清场、onResult=落地、onError=无结果态 ----
+
 export default function Discover(props: { nav(to: string): void }) {
     const [query, setQuery] = createSignal("");
     // hits=null=未发起/已清空；[]=搜过无匹配——两态驱动结果区显隐
@@ -158,11 +162,13 @@ export default function Discover(props: { nav(to: string): void }) {
     // 闸跳过后 loading 永真、chips 全瘫）
     const [loading, setLoading] = createSignal(false);
     const [failed, setFailed] = createSignal(false);
-    let searchTimer = 0;
-    let searchSeq = 0;
-    onCleanup(() => {
-        window.clearTimeout(searchTimer);
+    const axSearch = createDebouncedAxSearch({
+        onClear: () => setHits(null),
+        onResult: setHits,
+        // 搜索失败当无结果——留空态文案，不炸页面
+        onError: () => setHits([]),
     });
+    onCleanup(axSearch.cancel);
 
     const fetchPage = async (p: number) => {
         const seq = ++feedSeq;
@@ -239,24 +245,7 @@ export default function Discover(props: { nav(to: string): void }) {
     /** 300ms 防抖快搜；清空查询即回榜单（seq 防慢响应盖新查询） */
     const onSearchInput = (v: string) => {
         setQuery(v);
-        window.clearTimeout(searchTimer);
-        const q = v.trim();
-        if (!q) {
-            searchSeq++;
-            setHits(null);
-            return;
-        }
-        searchTimer = window.setTimeout(() => {
-            const seq = ++searchSeq;
-            api.discoverSearch(q)
-                .then((res) => {
-                    if (seq === searchSeq) setHits(res);
-                })
-                .catch(() => {
-                    // 搜索失败当无结果——留空态文案，不炸页面
-                    if (seq === searchSeq) setHits([]);
-                });
-        }, 300);
+        axSearch.feed(v);
     };
 
     const searching = () => query().trim().length > 0;

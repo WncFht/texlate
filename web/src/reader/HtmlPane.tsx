@@ -19,7 +19,7 @@ import {
     untrack,
 } from "solid-js";
 
-import type { DocId, Pos } from "./alignment";
+import type { DocId } from "./alignment";
 import { escapeHtml } from "./sanitize";
 import {
     chunkSideText,
@@ -32,31 +32,21 @@ import { externalLinksBlank } from "./paneUtils";
 import { CHUNK_WINDOW } from "./chunkPoll";
 import {
     bindChunkGeom,
-    capturePos,
-    jumpTo,
+    makeChunkPaneHandle,
     raf,
-    scrollTopFor,
-    type PageGeom,
-    type PaneLike,
+    type ChunkPaneHandle,
 } from "./sync";
-import { api, ApiError, type DualChunk } from "../api/client";
+import { api, apiErrText, type DualChunk } from "../api/client";
 import { t } from "../i18n";
 
 /** 单段重译后等待新 zh 落地的轮询参数 */
 const RETX_POLL_MS = 2000;
 const RETX_TIMEOUT_MS = 60_000;
 const RETX_TOAST_MS = 4500;
-/** 挂载分片的时间盒——marked+KaTeX 每段数 ms，40ms/帧保对侧窗格可交互 */
-const MOUNT_SLICE_MS = 40;
+/** 分片时间盒——marked+KaTeX 每段数 ms，40ms/帧保对侧窗格可交互 */
+const SLICE_MS = 40;
 
-export interface HtmlPaneHandle extends PaneLike {
-    gotoPage?(n: number): void;
-    capture(): Pos;
-    jump(pos: Pos): void;
-    scrollTopFor(pos: Pos): number | null;
-    /** html/dom 缩放落点：正文字号（px） */
-    setFontSize?(px: number): void;
-}
+export type HtmlPaneHandle = ChunkPaneHandle;
 
 interface Props {
     side: DocId;
@@ -69,6 +59,34 @@ interface Props {
     onDispose?(h: HtmlPaneHandle): void;
     onActivate?(): void;
     onScroll?(): void;
+}
+
+/* —— 以下两件仍是 chunk 窗格共享骨架的本地副本（makeChunkPaneHandle 已
+ *   hoist 到 sync.ts；DomPane 的分片挂载/scroll 转发、LivePane 的分片绘
+ *   与本件逐字同构，归宿是 sync.ts 的 chunk-pane 族）—— */
+
+/** 时间盒分片遍历：每片 ≤SLICE_MS，片间 rAF 让帧；isCancelled 置位即收 */
+async function forEachSliced<T>(
+    items: readonly T[],
+    fn: (item: T) => void,
+    isCancelled: () => boolean,
+): Promise<void> {
+    let i = 0;
+    while (i < items.length && !isCancelled()) {
+        const deadline = performance.now() + SLICE_MS;
+        do {
+            fn(items[i++]);
+        } while (i < items.length && performance.now() < deadline);
+        if (i < items.length) {
+            await new Promise<void>((r) => raf(() => r()));
+        }
+    }
+}
+
+/** scroll → cb 的被动监听：effect 体内调用，随所属作用域 onCleanup 卸 */
+function onPaneScroll(el: HTMLElement, cb: () => void): void {
+    el.addEventListener("scroll", cb, { passive: true });
+    onCleanup(() => el.removeEventListener("scroll", cb));
 }
 
 export default function HtmlPane(props: Props) {
@@ -89,31 +107,12 @@ export default function HtmlPane(props: Props) {
     const [note, setNote] = createSignal("");
     let noteTimer = 0;
 
-    const handle: HtmlPaneHandle = {
+    const handle = makeChunkPaneHandle({
         side: untrack(() => props.side),
-        get el() {
-            return scrollEl;
-        },
-        pages(): PageGeom[] {
-            return geom.pages();
-        },
-        capture() {
-            return capturePos(this);
-        },
-        // 页码 = chunk 序：跳到第 n 段顶
-        gotoPage(n) {
-            jumpTo(this, { page: n, fraction: 0, viewport: 0 });
-        },
-        jump(pos) {
-            jumpTo(this, pos);
-        },
-        scrollTopFor(pos) {
-            return scrollTopFor(this, pos);
-        },
-        setFontSize(px) {
-            bodyEl.style.fontSize = `${px}px`;
-        },
-    };
+        scroller: () => scrollEl,
+        body: () => bodyEl,
+        geom,
+    });
 
     const toast = (msg: string) => {
         setNote(msg);
@@ -166,9 +165,7 @@ export default function HtmlPane(props: Props) {
         try {
             await api.retranslateChunk(taskId, seq);
         } catch (e) {
-            toast(
-                `${t.live.retxFail}：${e instanceof ApiError ? e.detail : e instanceof Error ? e.message : String(e)}`,
-            );
+            toast(`${t.live.retxFail}：${apiErrText(e)}`);
             pending.delete(seq);
             btn.disabled = false;
             btn.textContent = t.live.retranslate;
@@ -241,11 +238,9 @@ export default function HtmlPane(props: Props) {
             // 几百段一次 innerHTML + 全文 KaTeX 会连卡主线程数秒——按时间盒
             // 分片挂载、片间 rAF 让帧；onReady 仍待全部落 DOM，保证同步几何完整
             const tmp = document.createElement("div");
-            let i = 0;
-            while (i < props.chunks.length && !disposed) {
-                const deadline = performance.now() + MOUNT_SLICE_MS;
-                do {
-                    const c = props.chunks[i++];
+            await forEachSliced(
+                props.chunks,
+                (c) => {
                     tmp.innerHTML = sectionHtml(c);
                     const sec = tmp.firstElementChild as HTMLElement | null;
                     if (sec) {
@@ -254,11 +249,9 @@ export default function HtmlPane(props: Props) {
                         libs?.renderMath(sec);
                         bodyEl.append(sec);
                     }
-                } while (i < props.chunks.length && performance.now() < deadline);
-                if (i < props.chunks.length) {
-                    await new Promise<void>((r) => raf(() => r()));
-                }
-            }
+                },
+                () => disposed,
+            );
             if (disposed) return;
         }
         bodyEl.addEventListener("click", onBodyClick);
@@ -275,10 +268,7 @@ export default function HtmlPane(props: Props) {
     });
 
     createEffect(() => {
-        const el = scrollEl;
-        const l = () => props.onScroll?.();
-        el.addEventListener("scroll", l, { passive: true });
-        onCleanup(() => el.removeEventListener("scroll", l));
+        onPaneScroll(scrollEl, () => props.onScroll?.());
     });
 
     return (

@@ -4,7 +4,8 @@
 // 契约（↓↑ 环绕 / Enter 回填 / Esc 关）。自 pages/Home.tsx 拆出。
 
 import { createSignal } from "solid-js";
-import { api, type DiscoverHit } from "../api/client";
+import type { DiscoverHit } from "../api/client";
+import { createDebouncedAxSearch } from "../axsearch";
 
 const ARXIV_RE =
     /^(?:\d{4}\.\d{4,5}(?:v\d+)?|[a-z-]+(?:\.[A-Z][a-zA-Z]+)?\/\d{7}(?:v\d+)?)$/i;
@@ -36,33 +37,20 @@ export function createHomeSuggest(deps: {
         setHits(v);
         setActiveHit(-1);
     };
-    let searchTimer = 0;
-    // seq 防慢响应盖新查询（旧响应落地时输入早已变）
-    let searchSeq = 0;
 
     /**
      * 输入即搜喂入口：调用方先写输入信号/清格式错，再交本件判发起。
-     * 300ms 防抖打 alphaxiv 快搜——能解析成 id 的输入不发起（待提交态）。
+     * 300ms 防抖打 alphaxiv 快搜（axsearch.ts 共享工厂）——能解析成 id
+     * 的输入不发起（待提交态）；失败同空查询处理（关下拉）。
      */
-    const feed = (v: string) => {
-        window.clearTimeout(searchTimer);
-        const q = v.trim();
-        if (!q || parseArxivId(q)) {
-            searchSeq++;
-            setSuggest(null);
-            return;
-        }
-        searchTimer = window.setTimeout(() => {
-            const seq = ++searchSeq;
-            api.discoverSearch(q)
-                .then((res) => {
-                    if (deps.alive() && seq === searchSeq) setSuggest(res);
-                })
-                .catch(() => {
-                    if (deps.alive() && seq === searchSeq) setSuggest(null);
-                });
-        }, 300);
-    };
+    const axSearch = createDebouncedAxSearch({
+        alive: deps.alive,
+        gate: (q) => parseArxivId(q) !== null,
+        onClear: () => setSuggest(null),
+        onResult: setSuggest,
+        onError: () => setSuggest(null),
+    });
+    const feed = axSearch.feed;
 
     /** 建议行点击/Enter 选中 → 回填输入框（用户确认后再提交） */
     const pickHit = (h: DiscoverHit) => {
@@ -107,7 +95,7 @@ export function createHomeSuggest(deps: {
     const close = () => setSuggest(null);
 
     /** 卸载清防抖 timer——在飞 fetch 由 alive 闸兜底 */
-    const cancel = () => window.clearTimeout(searchTimer);
+    const cancel = axSearch.cancel;
 
     return {
         hits,

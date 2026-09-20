@@ -4,36 +4,20 @@ import {
     createSignal,
     For,
     onCleanup,
-    onMount,
     Show,
 } from "solid-js";
-import type { FileManifest, TaskError, TaskSnapshot } from "../api/client";
-import { api, isTerminal } from "../api/client";
+import type { TaskSnapshot } from "../api/client";
+import { api, errText, isTerminal } from "../api/client";
 import { taskStore } from "../stores/tasks";
-import { downloadItems, isDocKind } from "../taskFiles";
 import { fmtBytes } from "../reader/paneUtils";
 import { bindMenuDismiss, menuRoving, menuTriggerKey } from "./menuNav";
+import PurgeDialog from "./PurgeDialog";
+import TaskRow, { RETRYABLE } from "./TaskRow";
 import { t } from "../i18n";
 
 interface Props {
     tasks: TaskSnapshot[];
     onOpen(taskId: string): void;
-}
-
-const MIN = 60_000;
-const HOUR = 3_600_000;
-const DAY = 86_400_000;
-
-/** 相对时间：7 天内用 t.time 模板，超出回退日期；now 由调用方 60s tick 驱动 */
-function fmtRel(ts: number, now: number): string {
-    const ms = ts < 1e12 ? ts * 1000 : ts;
-    const diff = now - ms;
-    const n = (v: number, tpl: string) => tpl.replace("{n}", String(v));
-    if (diff < MIN) return t.time.justNow;
-    if (diff < HOUR) return n(Math.floor(diff / MIN), t.time.minAgo);
-    if (diff < DAY) return n(Math.floor(diff / HOUR), t.time.hourAgo);
-    if (diff < 7 * DAY) return n(Math.floor(diff / DAY), t.time.dayAgo);
-    return new Date(ms).toLocaleDateString();
 }
 
 type Filter = "all" | "active" | "done" | "failed";
@@ -46,246 +30,6 @@ const FAILED_SET = new Set([
     "interrupted",
     "needs_auth",
 ]);
-
-/** 行内 ↻ 重试臂：终态可重跑的状态集（needs_auth 缺 key，走 ⚙ 设置链接） */
-const RETRYABLE = new Set(["fault", "partial", "cancelled", "interrupted"]);
-
-/** ↻ 迷你菜单引擎子项：null=auto（options 不带 engine 键，后端按已存决议） */
-const RETRY_ENGINES: { key: string | null; label: string }[] = [
-    { key: null, label: t.home.engineAuto },
-    { key: "tectonic", label: "tectonic" },
-    { key: "xelatex", label: "xelatex" },
-    { key: "pdflatex", label: "pdflatex" },
-];
-
-/**
- * ↻ 重试迷你菜单本体——仅打开期挂载，dismiss 监听（外点/Escape）随
- * 组件生灭不占全局；roving/Tab 走 menuNav 共享契约。
- * onPick(undefined)=裸重试、null=auto、字符串=指定引擎。
- */
-function RetryMenu(props: {
-    wrap(): HTMLElement | undefined;
-    trigger(): HTMLElement | undefined;
-    onClose(): void;
-    onPick(engine?: string | null): void;
-}) {
-    bindMenuDismiss({
-        open: () => true,
-        close: () => props.onClose(),
-        wrap: () => props.wrap(),
-        trigger: () => props.trigger(),
-    });
-    return (
-        <span
-            class="retry-menu"
-            role="menu"
-            onKeyDown={(e) => menuRoving(e, props.onClose)}
-        >
-            <button
-                type="button"
-                role="menuitem"
-                tabIndex={-1}
-                class="retry-item"
-                onClick={() => props.onPick()}
-            >
-                {t.home.retry}
-            </button>
-            <For each={RETRY_ENGINES}>
-                {(eng) => (
-                    <button
-                        type="button"
-                        role="menuitem"
-                        tabIndex={-1}
-                        class="retry-item"
-                        onClick={() => props.onPick(eng.key)}
-                    >
-                        {t.home.retryAs.replace("{engine}", eng.label)}
-                    </button>
-                )}
-            </For>
-        </span>
-    );
-}
-
-/**
- * 终态任务行内产物下载：折叠钮展开直链清单。snapshot.artifacts（SSE
- * done 帧带过）优先；列表行缺 artifacts 时懒拉 files manifest——
- * 但只在用户意图明确后（悬停/聚焦预取，点开必然已发），避免列表
- * 挂载即每行一请求的 N 突发。
- * 快捷臂必须落在 .task-row <a> 之外——a 内嵌 interactive 非法。
- */
-function TaskDownloads(props: { task: TaskSnapshot }) {
-    const [open, setOpen] = createSignal(false);
-    const [manifest, setManifest] = createSignal<FileManifest | null>(null);
-    const [fetching, setFetching] = createSignal(false);
-    let tried = false;
-
-    /** 幂等懒拉：首悬停/聚焦即预热，点开时多半已就绪；失败不留死闸可重试 */
-    const ensure = () => {
-        if (tried || props.task.artifacts) return;
-        tried = true;
-        setFetching(true);
-        api.files(props.task.task_id)
-            .then(setManifest)
-            .catch(() => {
-                tried = false;
-                setManifest(null);
-            })
-            .finally(() => setFetching(false));
-    };
-
-    const items = () => {
-        const snap = props.task.artifacts;
-        if (snap) return downloadItems(snap);
-        const m = manifest();
-        if (!m) return [];
-        return downloadItems(
-            Object.fromEntries(
-                Object.entries(m.artifacts).map(([k, e]) => [k, e.url]),
-            ),
-        );
-    };
-
-    return (
-        <>
-            <button
-                type="button"
-                class="task-dlt"
-                aria-expanded={open()}
-                title={t.home.dlTitle}
-                aria-label={t.home.dlTitle}
-                onPointerEnter={ensure}
-                onFocus={ensure}
-                onClick={() => {
-                    ensure();
-                    setOpen((v) => !v);
-                }}
-            >
-                ⬇
-            </button>
-            <Show when={open()}>
-                <span class="task-dls">
-                    <For each={items()}>
-                        {(d) => (
-                            <a class="task-dl" href={d.url} download="">
-                                {d.label}
-                            </a>
-                        )}
-                    </For>
-                    <Show when={!items().length}>
-                        <span class="task-dl-empty">
-                            {fetching() ? t.home.dlLoading : t.home.dlNone}
-                        </span>
-                    </Show>
-                </span>
-            </Show>
-        </>
-    );
-}
-
-/**
- * 「删除已结束任务」确认框——docker prune 式：明说删什么、可选范围、
- * 显式确认，替代旧的工具行两击臂（按钮文案当确认太隐晦）。
- * 焦点默认落取消钮防 Enter 误触；busy 期禁取消（删除已在飞）。
- */
-function PurgeDialog(props: {
-    doneCount: number;
-    failedCount: number;
-    busy: boolean;
-    onCancel(): void;
-    onConfirm(sel: { done: boolean; failed: boolean }): void;
-}) {
-    const [selDone, setSelDone] = createSignal(true);
-    const [selFailed, setSelFailed] = createSignal(true);
-    const n = () =>
-        (selDone() ? props.doneCount : 0) +
-        (selFailed() ? props.failedCount : 0);
-    let cancelBtn: HTMLButtonElement | undefined;
-    onMount(() => {
-        cancelBtn?.focus();
-        const esc = (e: KeyboardEvent) => {
-            if (e.key === "Escape" && !props.busy) props.onCancel();
-        };
-        document.addEventListener("keydown", esc);
-        onCleanup(() => document.removeEventListener("keydown", esc));
-    });
-    return (
-        <div
-            class="purge-veil"
-            onClick={(e) => {
-                if (e.target === e.currentTarget && !props.busy) {
-                    props.onCancel();
-                }
-            }}
-        >
-            <div
-                class="purge-box"
-                role="alertdialog"
-                aria-modal="true"
-                aria-label={t.home.purgeTitle}
-            >
-                <h2 class="purge-title">{t.home.purgeTitle}</h2>
-                <p class="purge-desc">{t.home.purgeDesc}</p>
-                <div class="purge-opts">
-                    <label class="purge-opt">
-                        <input
-                            type="checkbox"
-                            checked={selDone()}
-                            disabled={props.busy || props.doneCount === 0}
-                            onChange={(e) =>
-                                setSelDone(e.currentTarget.checked)
-                            }
-                        />
-                        {t.home.purgeScopeDone.replace(
-                            "{n}",
-                            String(props.doneCount),
-                        )}
-                    </label>
-                    <label class="purge-opt">
-                        <input
-                            type="checkbox"
-                            checked={selFailed()}
-                            disabled={props.busy || props.failedCount === 0}
-                            onChange={(e) =>
-                                setSelFailed(e.currentTarget.checked)
-                            }
-                        />
-                        {t.home.purgeScopeFailed.replace(
-                            "{n}",
-                            String(props.failedCount),
-                        )}
-                    </label>
-                </div>
-                <div class="purge-foot">
-                    <button
-                        type="button"
-                        class="btn-ghost purge-cancel"
-                        ref={(el) => (cancelBtn = el)}
-                        disabled={props.busy}
-                        onClick={() => props.onCancel()}
-                    >
-                        {t.home.cancel}
-                    </button>
-                    <button
-                        type="button"
-                        class="btn-primary purge-confirm"
-                        disabled={props.busy || n() === 0}
-                        onClick={() =>
-                            props.onConfirm({
-                                done: selDone(),
-                                failed: selFailed(),
-                            })
-                        }
-                    >
-                        {props.busy
-                            ? t.home.purgeBusy
-                            : t.home.purgeDo.replace("{n}", String(n()))}
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
-}
 
 export default function TaskList(props: Props) {
     const [deleting, setDeleting] = createSignal<string | null>(null);
@@ -307,11 +51,9 @@ export default function TaskList(props: Props) {
         window.clearTimeout(armTimer);
         setArm(null);
     };
-    // ↻ 重试迷你菜单：打开的 task_id（null=全收）；wrap/trigger ref 按行登记
-    // ——Escape 焦点回正确行的钮、外点判定圈在本行 span 内
+    // ↻ 重试迷你菜单：打开的 task_id（null=全收）；wrap/trigger ref
+    // 随 TaskRow 收进行内局部量（Escape 回焦/外点判定契约不变）
     const [retryMenu, setRetryMenu] = createSignal<string | null>(null);
-    const retryWraps = new Map<string, HTMLElement>();
-    const retryBtns = new Map<string, HTMLButtonElement>();
     // 「清理 ▾」维护菜单 + 删除确认框；estBytes=slim dry-run 预估（开菜单懒拉）
     const [maintOpen, setMaintOpen] = createSignal(false);
     const [purgeOpen, setPurgeOpen] = createSignal(false);
@@ -389,12 +131,6 @@ export default function TaskList(props: Props) {
         () => props.tasks.filter((x) => isTerminal(x.status)).length,
     );
 
-    // 终态 fault/partial 的 error 徽标内容
-    const errOf = (task: TaskSnapshot): TaskError | null => {
-        if (task.status !== "fault" && task.status !== "partial") return null;
-        return task.error ?? null;
-    };
-
     const confirmDelete = async (task: TaskSnapshot) => {
         if (!isTerminal(task.status) || deleting() !== null || cleaning()) {
             return;
@@ -428,7 +164,7 @@ export default function TaskList(props: Props) {
         try {
             await api.cancel(task.task_id);
         } catch (e) {
-            setDelError(e instanceof Error ? e.message : String(e));
+            setDelError(errText(e));
         } finally {
             setActing(null);
         }
@@ -451,7 +187,7 @@ export default function TaskList(props: Props) {
             taskStore.resetLive(task.task_id);
             void taskStore.refresh();
         } catch (e) {
-            setDelError(e instanceof Error ? e.message : String(e));
+            setDelError(errText(e));
         } finally {
             setActing(null);
         }
@@ -473,7 +209,7 @@ export default function TaskList(props: Props) {
                     : t.home.slimNone,
             );
         } catch (e) {
-            setDelError(e instanceof Error ? e.message : String(e));
+            setDelError(errText(e));
         } finally {
             setCleaning(false);
         }
@@ -620,226 +356,24 @@ export default function TaskList(props: Props) {
             <Show when={props.tasks.length > 0 && visible().length === 0}>
                 <p class="task-empty">{t.home.searchEmpty}</p>
             </Show>
+            {/* 行体已抽为 TaskRow——谓词信号直传、行内 ↻ ref 自理 */}
             <For each={visible()}>
-                {(task) => {
-                    // 行卸载（过滤/删除/整表收敛）即释放登记的行 DOM——
-                    // ref 只 set 不 delete 会把已移除行的元素挂在 Map 里
-                    onCleanup(() => {
-                        retryWraps.delete(task.task_id);
-                        retryBtns.delete(task.task_id);
-                    });
-                    return (
-                        <div class="task-wrap">
-                            {/* 真链接 href——中键/复制链接/新标签打开可用；
-                                onOpen 仍走 hash 路由（同值单 hashchange） */}
-                            <a
-                                class="task-row"
-                                href={`#/reader/${task.task_id}`}
-                                onClick={() => props.onOpen(task.task_id)}
-                            >
-                                <span class="task-title">
-                                    {task.title ||
-                                        task.arxiv_id ||
-                                        task.task_id}
-                                </span>
-                                <span class={`task-status st-${task.status}`}>
-                                    {t.status[task.status] ?? task.status}
-                                </span>
-                                <span class="task-time">
-                                    {fmtRel(task.created_at, now())}
-                                </span>
-                                <span class="task-meta muted">
-                                    <span
-                                        class="task-kind"
-                                        classList={{
-                                            "k-doc": isDocKind(task.kind),
-                                        }}
-                                    >
-                                        {t.kind[task.kind] ?? task.kind}
-                                    </span>
-                                    <Show when={!isTerminal(task.status)}>
-                                        <span>
-                                            {t.status[
-                                                task.stage ?? task.status
-                                            ] ??
-                                                task.stage ??
-                                                task.status}
-                                        </span>
-                                    </Show>
-                                    {/* 同 arXiv id 重复任务靠 model 区分 */}
-                                    <Show when={task.model}>
-                                        <span class="task-model">
-                                            {task.model}
-                                        </span>
-                                    </Show>
-                                    <Show when={errOf(task)}>
-                                        {(e) => (
-                                            <span
-                                                class="task-err"
-                                                title={e().message}
-                                            >
-                                                [{e().code}]
-                                            </span>
-                                        )}
-                                    </Show>
-                                    {/* 窄屏换位副本：≤480px 时 .task-time 隐藏、
-                                    时间落到 meta 行保住可见（responsive.css） */}
-                                    <span class="task-time-m">
-                                        {fmtRel(task.created_at, now())}
-                                    </span>
-                                </span>
-                                <span
-                                    class="task-bar"
-                                    role="progressbar"
-                                    aria-label={
-                                        task.title ||
-                                        task.arxiv_id ||
-                                        task.task_id
-                                    }
-                                    aria-valuenow={task.progress}
-                                    aria-valuemin={0}
-                                    aria-valuemax={100}
-                                >
-                                    <i
-                                        style={{ width: `${task.progress}%` }}
-                                        classList={{
-                                            done: task.status === "done",
-                                            fail: task.status === "fault",
-                                            dead:
-                                                task.status === "cancelled" ||
-                                                task.status === "interrupted",
-                                        }}
-                                    />
-                                </span>
-                            </a>
-                            {/* 行内快捷臂（U8）：在途 ⏻ 取消；可重试终态 ↻；
-                            needs_auth 缺 key——↻ 原地打转，给 ⚙ 设置入口 */}
-                            <Show when={!isTerminal(task.status)}>
-                                <button
-                                    type="button"
-                                    class="task-act"
-                                    disabled={acting() !== null}
-                                    title={t.home.cancelTip}
-                                    aria-label={t.home.cancelTask}
-                                    onClick={() => void cancelTask(task)}
-                                >
-                                    ⏻
-                                </button>
-                            </Show>
-                            <Show when={task.status === "needs_auth"}>
-                                <a
-                                    class="task-act"
-                                    href="#/settings"
-                                    title={t.home.authTip}
-                                    aria-label={t.home.goSettings}
-                                >
-                                    ⚙
-                                </a>
-                            </Show>
-                            <Show when={RETRYABLE.has(task.status)}>
-                                <span
-                                    class="task-retry"
-                                    ref={(el) => {
-                                        retryWraps.set(task.task_id, el);
-                                    }}
-                                >
-                                    <button
-                                        type="button"
-                                        class="task-act"
-                                        ref={(el) => {
-                                            retryBtns.set(task.task_id, el);
-                                        }}
-                                        disabled={acting() !== null}
-                                        title={t.home.retryTip}
-                                        aria-label={t.home.retry}
-                                        aria-haspopup="menu"
-                                        aria-expanded={
-                                            retryMenu() === task.task_id
-                                        }
-                                        onClick={() =>
-                                            setRetryMenu((v) =>
-                                                v === task.task_id
-                                                    ? null
-                                                    : task.task_id,
-                                            )
-                                        }
-                                        onKeyDown={(e) =>
-                                            menuTriggerKey(
-                                                e,
-                                                () =>
-                                                    setRetryMenu(task.task_id),
-                                                () =>
-                                                    retryWraps.get(
-                                                        task.task_id,
-                                                    ),
-                                            )
-                                        }
-                                    >
-                                        ↻
-                                    </button>
-                                    <Show when={retryMenu() === task.task_id}>
-                                        <RetryMenu
-                                            wrap={() =>
-                                                retryWraps.get(task.task_id)
-                                            }
-                                            trigger={() =>
-                                                retryBtns.get(task.task_id)
-                                            }
-                                            onClose={() => setRetryMenu(null)}
-                                            onPick={(eng) =>
-                                                void retryTask(task, eng)
-                                            }
-                                        />
-                                    </Show>
-                                </span>
-                            </Show>
-                            <Show when={task.artifacts?.share_zip}>
-                                <a
-                                    class="task-act"
-                                    href={api.fileUrl(
-                                        task.task_id,
-                                        "share.zip",
-                                        { download: true },
-                                    )}
-                                    download=""
-                                    title={t.home.shareZipTip}
-                                    aria-label={t.home.shareZip}
-                                >
-                                    ⤓
-                                </a>
-                            </Show>
-                            <Show when={isTerminal(task.status)}>
-                                <TaskDownloads task={task} />
-                            </Show>
-                            <button
-                                type="button"
-                                class="task-del"
-                                classList={{
-                                    busy: deleting() === task.task_id,
-                                    arm: arm() === task.task_id,
-                                }}
-                                disabled={
-                                    !isTerminal(task.status) ||
-                                    deleting() !== null ||
-                                    cleaning()
-                                }
-                                title={
-                                    arm() === task.task_id
-                                        ? t.home.delConfirm
-                                        : !isTerminal(task.status)
-                                          ? t.home.delBusy
-                                          : deleting() !== null
-                                            ? t.home.delWait
-                                            : t.home.delTip
-                                }
-                                aria-label={t.home.del}
-                                onClick={() => void confirmDelete(task)}
-                            >
-                                {arm() === task.task_id ? t.home.delArm : "✕"}
-                            </button>
-                        </div>
-                    );
-                }}
+                {(task) => (
+                    <TaskRow
+                        task={task}
+                        now={now}
+                        acting={acting}
+                        deleting={deleting}
+                        cleaning={cleaning}
+                        arm={arm}
+                        retryMenu={retryMenu}
+                        setRetryMenu={setRetryMenu}
+                        onOpen={props.onOpen}
+                        onCancel={cancelTask}
+                        onRetry={retryTask}
+                        onDelete={confirmDelete}
+                    />
+                )}
             </For>
             <Show when={delError()}>
                 <p class="task-del-err" role="alert">

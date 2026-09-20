@@ -8,6 +8,7 @@ import { createStore, produce, reconcile } from "solid-js/store";
 import {
     api,
     ApiError,
+    errText,
     forgetTaskEvents,
     isTerminal,
     liveSeqWatermark,
@@ -17,8 +18,8 @@ import {
 } from "../api/client";
 import {
     chunkCap,
-    chunkItemOk,
     foldFixloop,
+    mergeChunkItemsInto,
     normalizeL2,
     type TaskLive,
 } from "./liveFrames";
@@ -87,6 +88,25 @@ function inheritRich(
         options: s.options ?? cur.options,
         glossary: s.glossary ?? cur.glossary,
     };
+}
+
+/**
+ * 列表行归并的水位守卫（refresh 与共享列表轮询共用口径）：SSE 已消费
+ * 水位线或现行行 last_seq 领先于列表旧读 → 现行行顶替，旧读不回退；
+ * 否则 inheritRich 补富字段后归并。stale 判定返回 cur 本身——调用方
+ * 以 === 识别跳过（stale 行不写回、不进 convergeTerminal）。
+ */
+function mergeRow(
+    incoming: TaskSnapshot,
+    cur: TaskSnapshot | undefined,
+): TaskSnapshot {
+    if (
+        cur !== undefined &&
+        Math.max(liveSeqWatermark(incoming.task_id), cur.last_seq ?? 0) >
+            (incoming.last_seq ?? 0)
+    )
+        return cur;
+    return inheritRich(incoming, cur);
 }
 
 /** 终态收敛：释放 append-only 缓冲（logs/stages 会话内单调增长）；
@@ -161,13 +181,9 @@ const tp = createTransport({
                 continue;
             }
             const cur = curById.get(id);
-            if (
-                cur !== undefined &&
-                Math.max(liveSeqWatermark(id), cur.last_seq ?? 0) >
-                    (s.last_seq ?? 0)
-            )
-                continue;
-            upsertTask(inheritRich(s, cur));
+            const m = mergeRow(s, cur);
+            if (m === cur) continue; // 旧读不回写——stale 行也不进终态收敛
+            upsertTask(m);
             if (isTerminal(s.status)) {
                 convergeTerminal(id, s);
                 dirty = true;
@@ -213,17 +229,9 @@ const tp = createTransport({
                     "live",
                     taskId,
                     "chunkItems",
-                    produce((items: ChunkItem[]) => {
-                        for (const it of e.items) {
-                            if (!chunkItemOk(it, cap)) continue;
-                            while (items.length < it.seq)
-                                items.push({
-                                    seq: items.length,
-                                    status: "pending",
-                                });
-                            items[it.seq] = it;
-                        }
-                    }),
+                    produce((items: ChunkItem[]) =>
+                        mergeChunkItemsInto(items, e.items, cap),
+                    ),
                 );
             });
         },
@@ -303,16 +311,7 @@ export const taskStore = {
             for (const t of list) {
                 if (seen.has(t.task_id)) continue;
                 seen.add(t.task_id);
-                const cur = byId.get(t.task_id);
-                merged.push(
-                    cur !== undefined &&
-                        Math.max(
-                            liveSeqWatermark(t.task_id),
-                            cur.last_seq ?? 0,
-                        ) > (t.last_seq ?? 0)
-                        ? cur
-                        : inheritRich(t, cur),
-                );
+                merged.push(mergeRow(t, byId.get(t.task_id)));
             }
             // reconcile 按 task_id 匹配：在册行字段级合并（引用不变，
             // <For> 行不重挂）；新行插入、消失行移除——一次原子替换
@@ -338,7 +337,7 @@ export const taskStore = {
         } catch (e) {
             setState({
                 loaded: true,
-                loadError: e instanceof Error ? e.message : String(e),
+                loadError: errText(e),
             });
         }
     },

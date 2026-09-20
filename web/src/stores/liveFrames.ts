@@ -62,6 +62,24 @@ export const chunkCap = (limit?: number) =>
     limit == null ? MAX_CHUNK_SEQ : Math.min(limit, MAX_CHUNK_SEQ);
 
 /**
+ * chunk delta 合并的 mutating 核——mergeChunkItems 的规则直接落在已有
+ * 数组上：非法 seq（<0/非整数/>cap）丢弃、越界空洞补 pending 占位、
+ * 按 seq 落位。produce draft 调用方（tasks.ts 帧归约）省一次 slice。
+ */
+export function mergeChunkItemsInto(
+    items: ChunkItem[],
+    delta: ChunkItem[],
+    cap: number,
+): void {
+    for (const it of delta) {
+        if (!chunkItemOk(it, cap)) continue;
+        while (items.length < it.seq)
+            items.push({ seq: items.length, status: "pending" });
+        items[it.seq] = it;
+    }
+}
+
+/**
  * chunk 事件 items[] 只带变化段——按 seq 覆盖合并进 dense 数组；
  * 越界空洞补 pending 占位。非法 seq（<0/非整数/>limit/>MAX_CHUNK_SEQ）
  * 丢弃；limit 传 e.total——0/1 基两种约定下 seq>total 均越界。
@@ -71,14 +89,8 @@ export function mergeChunkItems(
     delta: ChunkItem[],
     limit?: number,
 ): ChunkItem[] {
-    const cap = chunkCap(limit);
     const next = prev.slice();
-    for (const it of delta) {
-        if (!chunkItemOk(it, cap)) continue;
-        while (next.length < it.seq)
-            next.push({ seq: next.length, status: "pending" });
-        next[it.seq] = it;
-    }
+    mergeChunkItemsInto(next, delta, chunkCap(limit));
     return next;
 }
 

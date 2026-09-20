@@ -15,6 +15,7 @@ import {
 import {
     api,
     ApiError,
+    errText,
     isTerminal,
     REQUEST_TIMEOUT_MS,
     type DualJson,
@@ -148,7 +149,7 @@ export default function Reader(props: {
             ) {
                 setReaderGone(true);
             } else {
-                setFatal(e instanceof Error ? e.message : String(e));
+                setFatal(errText(e));
             }
         }
     };
@@ -163,7 +164,7 @@ export default function Reader(props: {
                 taskStore.watch(props.taskId);
             }
         } catch (e) {
-            setFatal(e instanceof Error ? e.message : String(e));
+            setFatal(errText(e));
         }
     };
 

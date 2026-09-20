@@ -16,3 +16,13 @@ export const API_DIALECTS: string[] = [
     "anthropic",
     "responses",
 ];
+
+/** Segmented 白名单选项：现值越表（旧配置/服务端扩列）prepend 保留可选，防静默改值 */
+export const segOptsWithCurrent = (
+    list: string[],
+    cur: string,
+    labelOf?: (v: string) => string,
+): { value: string; label: string }[] => [
+    ...(cur && !list.includes(cur) ? [{ value: cur, label: cur }] : []),
+    ...list.map((v) => ({ value: v, label: labelOf ? labelOf(v) : v })),
+];

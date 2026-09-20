@@ -3,7 +3,13 @@
 import { createSignal, onCleanup, onMount, Show, For } from "solid-js";
 import { settingsStore } from "../stores/settings";
 import Segmented from "../components/Segmented";
-import { API_DIALECTS, ENGINES, TARGET_LANGS } from "../options";
+import { errText } from "../api/client";
+import {
+    API_DIALECTS,
+    ENGINES,
+    segOptsWithCurrent,
+    TARGET_LANGS,
+} from "../options";
 import { t, langChoice, setLang, type LangChoice } from "../i18n";
 
 export default function Settings() {
@@ -93,9 +99,7 @@ export default function Settings() {
             setApiKey("");
             flash(t.settings.saved);
         } catch (e) {
-            fail(
-                `${t.settings.saveFailed}：${e instanceof Error ? e.message : String(e)}`,
-            );
+            fail(`${t.settings.saveFailed}：${errText(e)}`);
         } finally {
             setSaving(false);
         }
@@ -111,9 +115,7 @@ export default function Settings() {
             setApiKey("");
             flash(t.settings.keyCleared);
         } catch (e) {
-            fail(
-                `${t.settings.clearFailed}：${e instanceof Error ? e.message : String(e)}`,
-            );
+            fail(`${t.settings.clearFailed}：${errText(e)}`);
         } finally {
             setClearing(false);
         }
@@ -133,9 +135,7 @@ export default function Settings() {
             if (r.ok) flash(t.settings.testOk);
             else fail(`${t.settings.testFail}：${r.detail ?? ""}`);
         } catch (e) {
-            fail(
-                `${t.settings.testFail}：${e instanceof Error ? e.message : String(e)}`,
-            );
+            fail(`${t.settings.testFail}：${errText(e)}`);
         } finally {
             setTesting(false);
         }
@@ -299,18 +299,12 @@ export default function Settings() {
                         {t.settings.dialect}
                         <em class="muted">{t.settings.dialectHint}</em>
                     </span>
-                    {/* 已存值越出白名单（旧配置/服务端扩列）prepend 保留可选，防静默改值 */}
                     <Segmented
-                        options={[
-                            ...(dialect() && !API_DIALECTS.includes(dialect())
-                                ? [{ value: dialect(), label: dialect() }]
-                                : []),
-                            ...API_DIALECTS.map((d) => ({
-                                value: d,
-                                label:
-                                    d === "auto" ? t.settings.dialectAuto : d,
-                            })),
-                        ]}
+                        options={segOptsWithCurrent(
+                            API_DIALECTS,
+                            dialect(),
+                            (d) => (d === "auto" ? t.settings.dialectAuto : d),
+                        )}
                         value={dialect()}
                         onChange={setDialect}
                         ariaLabel={t.settings.dialect}
@@ -318,18 +312,8 @@ export default function Settings() {
                 </div>
                 <div class="settings-field">
                     <span>{t.settings.targetLang}</span>
-                    {/* 同 dialect：越表旧值 prepend 保留 */}
                     <Segmented
-                        options={[
-                            ...(targetLang() &&
-                            !TARGET_LANGS.includes(targetLang())
-                                ? [{ value: targetLang(), label: targetLang() }]
-                                : []),
-                            ...TARGET_LANGS.map((l) => ({
-                                value: l,
-                                label: l,
-                            })),
-                        ]}
+                        options={segOptsWithCurrent(TARGET_LANGS, targetLang())}
                         value={targetLang()}
                         onChange={setTargetLang}
                         ariaLabel={t.settings.targetLang}
@@ -338,15 +322,11 @@ export default function Settings() {
                 <div class="settings-field">
                     <span>{t.settings.engine}</span>
                     <Segmented
-                        options={[
-                            ...(engine() && !ENGINES.includes(engine())
-                                ? [{ value: engine(), label: engine() }]
-                                : []),
-                            ...ENGINES.map((en) => ({
-                                value: en,
-                                label: en === "auto" ? t.home.engineAuto : en,
-                            })),
-                        ]}
+                        options={segOptsWithCurrent(
+                            ENGINES,
+                            engine(),
+                            (en) => (en === "auto" ? t.home.engineAuto : en),
+                        )}
                         value={engine()}
                         onChange={setEngine}
                         ariaLabel={t.settings.engine}

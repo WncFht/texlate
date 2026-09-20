@@ -20,28 +20,19 @@ import {
     untrack,
 } from "solid-js";
 
-import type { DocId, Pos } from "./alignment";
+import type { DocId } from "./alignment";
 import { sanitizeDomHtml } from "./sanitize";
 import { externalLinksBlank } from "./paneUtils";
 import {
     bindChunkGeom,
-    capturePos,
-    jumpTo,
+    makeChunkPaneHandle,
     raf,
-    scrollTopFor,
-    type PageGeom,
-    type PaneLike,
+    type ChunkPaneHandle,
 } from "./sync";
+import { errText } from "../api/client";
 import { t } from "../i18n";
 
-export interface DomPaneHandle extends PaneLike {
-    gotoPage?(n: number): void;
-    capture(): Pos;
-    jump(pos: Pos): void;
-    scrollTopFor(pos: Pos): number | null;
-    /** html/dom 缩放落点：正文字号（px） */
-    setFontSize?(px: number): void;
-}
+export type DomPaneHandle = ChunkPaneHandle;
 
 interface Props {
     side: DocId;
@@ -83,30 +74,12 @@ export default function DomPane(props: Props) {
         () => bodyEl,
     );
 
-    const handle: DomPaneHandle = {
+    const handle = makeChunkPaneHandle({
         side: untrack(() => props.side),
-        get el() {
-            return scrollEl;
-        },
-        pages(): PageGeom[] {
-            return geom.pages();
-        },
-        capture() {
-            return capturePos(this);
-        },
-        gotoPage(n) {
-            jumpTo(this, { page: n, fraction: 0, viewport: 0 });
-        },
-        jump(pos) {
-            jumpTo(this, pos);
-        },
-        scrollTopFor(pos) {
-            return scrollTopFor(this, pos);
-        },
-        setFontSize(px) {
-            bodyEl.style.fontSize = `${px}px`;
-        },
-    };
+        scroller: () => scrollEl,
+        body: () => bodyEl,
+        geom,
+    });
 
     let disposed = false;
     let ac: AbortController | null = null;
@@ -157,7 +130,7 @@ export default function DomPane(props: Props) {
                 (e instanceof DOMException && e.name === "AbortError")
             )
                 return;
-            setErrMsg(e instanceof Error ? e.message : String(e));
+            setErrMsg(errText(e));
             setPhase("error");
         }
     };

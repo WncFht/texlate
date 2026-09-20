@@ -1,8 +1,6 @@
 // 共享类型 —— §2 端点体/事件帧的类型面 + ApiError + 终态判定。
 // client.ts 门面对外再导出；本文件不含运行时请求逻辑。
 
-import type { Alignment, Pos } from "../reader/alignment";
-
 export type TaskStatus =
     | "queued"
     | "fetching"
@@ -298,6 +296,43 @@ export interface FileManifest {
     artifacts: Record<string, FileEntry>;
 }
 
+// ---------- reader 线形（§5.3/§5.4 位置模型） ----------
+// Pos/Alignment 等是服务端序列化的载荷形状（reader info / dual.json /
+// position 持久化），归 API 契约层；reader/alignment.ts 的
+// createPositionMapper/PosMap 是消费这些形状的本地映射逻辑。
+
+export interface Pos {
+    page: number;
+    fraction: number;
+    /** 焦点行距视口顶部的比例（跨页跳转后锚点停在屏幕同一高度） */
+    viewport?: number;
+}
+
+export interface RegionCoord {
+    page: number;
+    start: number;
+    end: number;
+}
+
+export interface AlignmentPair {
+    id?: string;
+    original: Pos;
+    translated: Pos;
+}
+
+export interface AlignmentRegion {
+    id?: string;
+    original: RegionCoord;
+    translated: RegionCoord;
+}
+
+export interface Alignment {
+    kind: "landmarks" | "pages" | string;
+    heights?: { original?: number[]; translated?: number[] };
+    pairs?: AlignmentPair[];
+    regions?: AlignmentRegion[];
+}
+
 export interface ReaderDoc {
     version: string;
     pages: number;
@@ -505,6 +540,14 @@ export class ApiError extends Error {
         this.name = "ApiError";
     }
 }
+
+/** 异常 → 展示字符串：Error 取 message，其余 String() */
+export const errText = (e: unknown): string =>
+    e instanceof Error ? e.message : String(e);
+
+/** ApiError 取服务端 detail，其余同 errText——UI 报错统一入口 */
+export const apiErrText = (e: unknown): string =>
+    e instanceof ApiError ? e.detail : errText(e);
 
 /** 上传进度回调（loaded/total 字节——lengthComputable 才发） */
 export type UploadProgress = (loaded: number, total: number) => void;
