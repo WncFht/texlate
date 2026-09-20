@@ -1152,12 +1152,16 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
     #: 裁决」时填入 (miss 块内探针→候选全灭→break 是原子序, 天然新鲜)。
     salvage_res: CompResLike | None = None
     salvage_rep: ErrReport | None = None
+    #: 末次迭代编译前的 actions 账顶 (None = loop 未跑)——B6 写后复验门
+    #: 的基线: 出口时账顶增长 = 末次编译后仍有 apply 落件。
+    acts_mark: int | None = None
     for rnd in range(1, max_rounds + 1):
         if should_cancel is not None and should_cancel():
             raise asyncio.CancelledError
         swept = _sweep_bad_aux(wdir)
         if swept:
             ctx.ledger.events.append(f"r{rnd} aux-sweep: {', '.join(swept)}")
+        acts_mark = len(ctx.ledger.actions)
         res = eng.compile(
             wdir,
             ctx.io.main_rel,
@@ -1422,7 +1426,7 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
     # warn-preempt 退出点补位 (missdisp #189): loop 以 max_rounds/非拒绝
     # verdict 收场且末轮残存 missing-char 码位有族臂未见 → 补一轮派发
     # 再走 salvage/汇总。无 pdf 格的兜底编译天然充当验证编; max_rounds
-    # +pdf 格的 apply 落地后不复编 (低风险幂等件, 下游 post 编译验)。
+    # +pdf 格的 apply 落地后由下方 B6 写后复验补编取证。
     if not v_now.startswith("reject:"):
         wrule, wnote = _warn_preempt(rs, ctx, eng, last_rep or ErrReport())
         if wrule is not None:
@@ -1442,6 +1446,70 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
                 ctx.ledger.events.append(f"post warn-preempt -> {wrule.id} ({wnote})")
                 salvage_res = salvage_rep = None
             v_now = str(cell["verdict"] or "")
+    # —— B6 写后复验: 末次编译后仍有 apply 落件 (末轮派发/gate/post
+    # warn-preempt 统一经 ledger.actions 入账) → ``rounds[-1]`` 证的是写前
+    # 证据, 汇总段 floor/Guard-A/B/acceptable_pdf 公式全吃残证
+    # (2503.10148/2606.19622: stub 落在末编 ~0.7s 后, max_rounds 格被压
+    # dirty/acceptable 失真)。补一发常参 pass-1 编译——非 best_effort:
+    # halt 口径与轮编译同标, Guard A 的 log_truncated 判据才同义——
+    # entry 按轮形落让下游公式零改消费, ``proxy.last`` 同被刷新 (bench
+    # post 复判吃 fixloop_last 亦得新证)。门 = actions 账顶增长 ∧
+    # 末轮出 pdf: 无 pdf 出路的写后取证由 salvage best_effort 兜底天然
+    # 承担 (其 sentry entry 即新证), reject/定败 unfixable 复验无义;
+    # clean 出路在派发段前 break 写不存在, 天然零开销 (构造保证)。≤1 次/格。
+    if (
+        acts_mark is not None
+        and cell["rounds"]
+        and cell["rounds"][-1].get("pdf")
+        and len(ctx.ledger.actions) > acts_mark
+    ):
+        res = eng.compile(
+            wdir,
+            ctx.io.main_rel,
+            passes=1,
+            flags=list(ctx.ledger.engine_flags),
+            **compile_kw,
+        )
+        ctx.invalidate_suffixes(_VOLATILE_EXTS)
+        _note_dropped_flags(ctx, res)
+        rep = _report_of(res, rs.warn_patterns, wdir)
+        cat, pay = _round_cat(rs, rep, res)
+        pdf = _res_has_pdf(res)
+        pdf_bytes = getattr(res, "pdf_bytes", None)
+        if pdf and pdf_bytes is None:
+            pdf_attr = getattr(res, "pdf", None)
+            try:
+                pdf_bytes = Path(pdf_attr).stat().st_size if pdf_attr else 0
+            except (OSError, TypeError):
+                pdf_bytes = 0
+        last_rep = rep  # log_excerpt 消费终态报告
+        entry = {
+            "round": len(cell["rounds"]) + 1,
+            "reverify": True,
+            "pdf": pdf,
+            "pdf_bytes": int(pdf_bytes or 0),
+            "died": _res_died(res),
+            # 与轮 entry 同式 (adjudication #10 Guard A): halt + n_bang>0
+            # ⇒ 截断下界证不了 errors≤max——best_effort 才恒 False 豁免。
+            "log_truncated": bool(
+                getattr(eng, "halt_on_error", False) and rep.n_bang > 0
+            ),
+            "driver_fatal": _res_driver_fatal(res),
+            "n_errors": rep.n_bang,
+            "category": cat,
+            "payload": pay,
+            "warnings": list(rep.warnings),
+            "warnings_sys": list(rep.warnings_sys),
+            "line_no": rep.line_no,
+            "file_stack": rep.file_stack,
+            "sec": round(float(getattr(res, "seconds", getattr(res, "sec", 0.0))), 1),
+        }
+        cell["rounds"].append(entry)
+        ctx.ledger.events.append(
+            f"post-write reverify: pdf={pdf} err={rep.n_bang} cat={cat}"
+        )
+        if on_round is not None:
+            on_round(entry)
     if (
         v_now
         and not v_now.startswith("reject:")
@@ -1554,11 +1622,19 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
     if cell["verdict"] in (None, "max_rounds", "stuck") and cell["final_pdf"]:
         # 末轮死编译（超时/信号杀）产出 pdf 未证 clean——压成 dirty 且禁升;
         # halt 截断轮同理 (n_bang 下界证不了 0 错, Guard A adjudication #10)。
+        # clean 式与轮内 :1276 收敛门同面 (spec compile.md:201): pdf ∧
+        # n_bang==0 ∧ cat∉warn_cats ∧ ¬died——warn 残类照样压 dirty。
+        # 旧 ``or 9`` 把 n_errors=0 也吞成 9 (缺字段保守语义误伤真 0)——
+        # B6 写后复验让 0 错 entry 在 max_rounds/stuck 出口可达, clean 臂
+        # 由死码复活; 0-err warn-cat 末轮 (旧可达) 由 warn_cats 子句等价
+        # 接管, 无行为回退。
+        n_err_last = last.get("n_errors")
         cell["verdict"] = (
             "dirty_pdf"
-            if (last.get("n_errors") or 9) > 0
+            if (9 if n_err_last is None else n_err_last) > 0
             or last.get("died")
             or last.get("log_truncated")
+            or last.get("category") in rs.taxonomy.warn_cats
             else "clean"
         )
     # Guard B (adjudication #10) 内容腰斩闸: 终产物字节相对本 run 最强 pdf
