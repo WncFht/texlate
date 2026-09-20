@@ -122,7 +122,7 @@ URL_KIND = {v: k for k, v in KIND_URL.items()}
 
 
 def artifact_urls(store: Store, task_id: str) -> dict[str, str]:
-    """files 行 → ``{db_kind: /api/files/{id}/{url_kind}}``（done 事件/快照共用面）。
+    """Files 行 → ``{db_kind: /api/files/{id}/{url_kind}}``（done 事件/快照共用面）。
 
     与 ``KIND_URL`` 同址共置——web 层快照（``routers/tasks``）与 worker
     终态帧（``_Events._artifact_urls``）消费的是同一映射，单源防漂移。

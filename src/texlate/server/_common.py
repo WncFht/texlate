@@ -51,9 +51,7 @@ async def slim_terminal_tasks(
         if row is None or str(row["status"]) not in TERMINAL_STATUSES:
             continue
         keep = {str(rec["path"]) for rec in store.files(tid).values()}
-        keep_dirs = (
-            ("zh", "base") if str(row["status"]) in ("done", "partial") else ()
-        )
+        keep_dirs = ("zh", "base") if str(row["status"]) in ("done", "partial") else ()
         n = await asyncio.to_thread(
             slim_task_dir, tasks_dir / tid, keep, keep_dirs, dry=dry
         )

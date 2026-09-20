@@ -264,7 +264,7 @@ gullet 静默消费的字节段（`\def` 串、`\if` 条件区、`\input` 调用
 
 ## 8. splice 重建与译文修正
 
-`reconstruct.py::reconstruct(res, translations=None)`：`None` → identity（逐字节 = 原文，硬验收）；否则 `{chunk_id: 译文}` 预处理（`_restore_linestarts` 行首 `\cs` 归位 → `unicode_math_fix` 游离数学字符包 `$..$` → `_LATIN_ITEM_RX` `\item大写` 融合保险丝）后经 `expand`/`expand_body` DAG 递归展开：token 优先级 `trans → ph_map → chunks[content]`，memo 化 O(总规模)，活动集防译文侧自指环；查无实体且非 `ph_reserved` → 留字面记 dangling。短参 chunk（`context` 非 `para`/`item`）展开后 `\n\n` 压单 `\n`（`_PAR_RUN_RX`——`\caption` 等非 `\long` 参内 runaway 防线）。`_seg_join` 接缝守卫（`\cs` 尾 + 字母头插空格）在段级与总段级两级生效，仅译文路径启用。译文存在时再跑 `cjk_glue_fix`（`\cmd这是` → 插空格）与 `cjk_punct_close_guard`（CJK 标点后贴 `\end{`/`\)`/`\]` → 插 `{}` 断 xeCJK CheckFullRight 前瞻链），均取 `mask_tex` 视图命中、逆序回放。
+`reconstruct.py::reconstruct(res, translations=None)`：`None` → identity（逐字节 = 原文，硬验收）；否则 `{chunk_id: 译文}` 预处理（`_restore_linestarts` 行首 `\cs` 归位 → `unicode_math_fix` 游离数学字符包 `$..$` → `LATIN_ITEM_RX` `\item大写` 融合保险丝）后经 `expand`/`expand_body` DAG 递归展开：token 优先级 `trans → ph_map → chunks[content]`，memo 化 O(总规模)，活动集防译文侧自指环；查无实体且非 `ph_reserved` → 留字面记 dangling。短参 chunk（`context` 非 `para`/`item`）展开后 `\n\n` 压单 `\n`（`PAR_RUN_RX`——`\caption` 等非 `\long` 参内 runaway 防线）。`seg_join` 接缝守卫（`\cs` 尾 + 字母头插空格）在段级与总段级两级生效，仅译文路径启用。译文存在时再跑 `cjk_glue_fix`（`\cmd这是` → 插空格）与 `cjk_punct_close_guard`（CJK 标点后贴 `\end{`/`\)`/`\]` → 插 `{}` 断 xeCJK CheckFullRight 前瞻链），均取 `mask_tex` 视图命中、逆序回放。
 
 ## 9. 校验
 

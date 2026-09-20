@@ -1288,12 +1288,12 @@ def _pull_cursor(
     """
 
     def unpull(x: Tok | None = None) -> None:
-        tail = pulled[committed():]
+        tail = pulled[committed() :]
         if x is not None:
             tail = [*tail, x]
         if tail:
             src.unread(tail)
-        del pulled[committed():]
+        del pulled[committed() :]
 
     def peek() -> Tok | None:
         while True:

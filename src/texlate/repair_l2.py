@@ -168,7 +168,7 @@ _UNDEF_CS_CULPRIT_RXS: tuple[re.Pattern[str], ...] = (
 
 
 def _undef_cs_culprit(err: l2_mod.LogError) -> str | None:
-    """``Undefined control sequence`` 的肇事 cs 名（``\\rowcolor`` 形）。"""
+    r"""``Undefined control sequence`` 的肇事 cs 名（``\\rowcolor`` 形）。"""
     blob = "\n".join(err.ctx)
     for rx in _UNDEF_CS_CULPRIT_RXS:
         if m := rx.search(blob):
@@ -183,7 +183,7 @@ def _sig_head(head: str) -> str:
 
 
 def err_signature(err: l2_mod.LogError) -> str:
-    """错误签名——en/zh 双编译间稳定（``head|culprit`` 形）。
+    r"""错误签名——en/zh 双编译间稳定（``head|culprit`` 形）。
 
     ``Undefined control sequence`` 头恒定、罪魁全在 ctx——签名键必须是
     cs 名而非裸 head（否则 en 任一 undefined_cs 会豁免 zh 全部同类，
@@ -209,7 +209,7 @@ def err_signatures(res: CompRes) -> set[str]:
 
 
 def err_signatures_text(log_text: str, *, project_root: Path | None = None) -> set[str]:
-    """log 文本 → 错误签名集——``build-en`` 残存 .log 回扫臂（resume 路径）。"""
+    """Log 文本 → 错误签名集——``build-en`` 残存 .log 回扫臂（resume 路径）。"""
     if not log_text:
         return set()
     verdict = l2_mod.parse_log_text(log_text, project_root=project_root)
