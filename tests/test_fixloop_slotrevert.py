@@ -765,3 +765,178 @@ def test_tcbopt_non_tcb_env_untouched(tmp_path: Path) -> None:
     ok, _note = _run(work, base)
     assert not ok
     assert (work / "main.tex").read_text(encoding="utf-8") == zh
+
+
+# ------------------------------------ zhleakimpl: _ARGB 平衡组 spec + pgtable (2026-09-20)
+
+
+def test_colspec_xltabular_multiline_nested_spec(tmp_path: Path) -> None:
+    r"""2609.20179 实证: ``\begin{xltabular}{\textwidth}{`` 跨行
+    ``>{...}`` 嵌组 spec —— src 多行参 ``_ARG`` 捕不进, zh 压平
+    单行 ``p``/``X`` → ``这是译文`` ×6; ``_ARGB`` 整参捕获 + ws
+    spec ident 一次性换回 baseline 字节 (6 漏点一参覆盖), env 体
+    内散文保 zh; 二次跑幂等空转。"""
+    work, base = _trees(tmp_path)
+    src = (
+        "\\begin{xltabular}{\\textwidth}{\n"
+        "\t\t>{\\raggedright\\arraybackslash}p{0.13\\textwidth}\n"
+        "\t\t>{\\raggedright\\arraybackslash}p{0.17\\textwidth}\n"
+        "\t\t>{\\raggedright\\arraybackslash}X\n"
+        "\t}\n"
+        "a & b & c \\\\\n\\end{xltabular}\n"
+    )
+    zh = (
+        "\\begin{xltabular}{\\textwidth}{  >{\\raggedright\\arraybackslash}"
+        "这是译文{0.13\\textwidth}  >{\\raggedright\\arraybackslash}"
+        "这是译文{0.17\\textwidth}  >{\\raggedright\\arraybackslash}这是译文  }\n"
+        "甲 & 乙 & 丙 \\\\\n\\end{xltabular}\n"
+    )
+    _pair(work, base, "main.tex", src, zh)
+    ok, _note = _run(work, base)
+    assert ok
+    out = (work / "main.tex").read_text(encoding="utf-8")
+    assert out.startswith(src.split("a & b", maxsplit=1)[0])  # spec 整参复原
+    assert "甲 & 乙 & 丙" in out  # env 体散文保 zh
+    ok, _note = _run(work, base)
+    assert not ok  # 幂等
+
+
+def test_colspec_nested_decl_one_arg_env(tmp_path: Path) -> None:
+    r"""单参臂同盲区: ``\begin{tabular}{>{\raggedright}p{3cm}c}`` 与
+    ``\begin{tblr}{colspec={Q[l]Q[c]}}`` 嵌组 spec zh 化 → ``_ARGB``
+    + ws ident 还原。"""
+    work, base = _trees(tmp_path)
+    src = (
+        "\\begin{tabular}{>{\\raggedright}p{3cm}c}\nx\n\\end{tabular}\n"
+        "\\begin{tblr}{colspec={Q[l]Q[c]}, row{1}={c}}\ny\n\\end{tblr}\n"
+    )
+    zh = (
+        "\\begin{tabular}{>{\\raggedright}这是译文{3cm}这是译文}\nx\n\\end{tabular}\n"
+        "\\begin{tblr}{这是译文={这是译文}这是译文}\ny\n\\end{tblr}\n"
+    )
+    _pair(work, base, "main.tex", src, zh)
+    ok, _note = _run(work, base)
+    assert ok
+    assert (work / "main.tex").read_text(encoding="utf-8") == src
+
+
+def test_colspec_xtabular_and_multicolumn_nested(tmp_path: Path) -> None:
+    r"""``xtabular`` 回单参臂 (xtab.sty ``\@supertabular[#1]#2`` 单
+    mand 参实测) + ``\multicolumn{n}{>{...}c}{text}`` spec 位嵌组
+    —— zh 化还原, multicolumn text 散文不碰。"""
+    work, base = _trees(tmp_path)
+    src = (
+        "\\begin{xtabular}{>{\\footnotesize}lX}\nx\n\\end{xtabular}\n"
+        "\\multicolumn{2}{>{\\raggedright}c|}{Head}\n"
+    )
+    zh = (
+        "\\begin{xtabular}{>{\\footnotesize}这是译文这是译文}\nx\n\\end{xtabular}\n"
+        "\\multicolumn{2}{>{\\raggedright}这是译文|}{标题}\n"
+    )
+    _pair(work, base, "main.tex", src, zh)
+    ok, _note = _run(work, base)
+    assert ok
+    out = (work / "main.tex").read_text(encoding="utf-8")
+    assert "\\begin{xtabular}{>{\\footnotesize}lX}" in out
+    assert "\\multicolumn{2}{>{\\raggedright}c|}{标题}" in out  # text 保 zh
+
+
+def test_colspec_non_spec_env_prose_untouched(tmp_path: Path) -> None:
+    r"""负向: 非 spec-env 后 ``{...}`` 散文组 —— colspec env 名单
+    不收; envarg 同位捕获但严格 ident 拒空格散文 → 双面皆不碰,
+    zh 保留 (ws-spec ident 不外溢到非机位)。"""
+    work, base = _trees(tmp_path)
+    src = "\\begin{myenv}{Dear reviewer}\nx\n\\end{myenv}\n"
+    zh = "\\begin{myenv}{这是译文}\nx\n\\end{myenv}\n"
+    _pair(work, base, "main.tex", src, zh)
+    ok, _note = _run(work, base)
+    assert not ok
+    assert (work / "main.tex").read_text(encoding="utf-8") == zh
+
+
+def test_pgtable_read_inline_numeric_table(tmp_path: Path) -> None:
+    r"""2609.19828 实证: ``\pgfplotstableread{内联数值表}\cs`` 整参
+    zh 化 (头行标识 + ``7.045e-03`` 的 ``e`` → ``这是译文``) ——
+    纯数值表无 ``=``,``/``#`` kv 形, spec 域 (无门控) ident 还原;
+    ``[col sep=...]`` opt 同机位; ``\cs`` 尾巴不碰; 幂等。"""
+    work, base = _trees(tmp_path)
+    src = (
+        "\\pgfplotstableread{\n"
+        "gpus cells dofs cg_time\n"
+        "4 4194304 269748225 7.045e-03\n"
+        "8 8388608 538970625 7.256e-03\n"
+        "}\\tableWeakFour\n"
+        "\\pgfplotstableread[col sep=space]{\n"
+        "a b\n1 2\n}\\tableWeakFive\n"
+    )
+    zh = (
+        "\\pgfplotstableread{\n"
+        "这是译文这是译文这是译文这是译文\n"
+        "4 4194304 269748225 7.045这是译文-02\n"
+        "8 8388608 538970625 7.256这是译文-02\n"
+        "}\\tableWeakFour\n"
+        "\\pgfplotstableread[这是译文]{\n"
+        "这是译文这是译文\n1 2\n}\\tableWeakFive\n"
+    )
+    _pair(work, base, "main.tex", src, zh)
+    ok, _note = _run(work, base)
+    assert ok
+    assert (work / "main.tex").read_text(encoding="utf-8") == src
+    ok, _note = _run(work, base)
+    assert not ok  # 幂等
+
+
+def test_pgtable_addplot_keyword_and_bare_expr(tmp_path: Path) -> None:
+    r"""``\addplot`` 系: ``table[x expr={...}]{\cs}`` opt+data 双机位
+    还原 (opt 含 ``{}`` ``_OPTB`` 收); 裸 ``{expr}`` 无 keyword 同盖
+    (pgfplots 语法 ``{...}`` 恒为 plot spec); ``\addplot[opt] 散文
+    {..}`` keyword 门控不收 —— 散文组保 zh。"""
+    work, base = _trees(tmp_path)
+    src = (
+        "\\addplot table[x expr={\\thisrowno{0}/4}, y expr={\\thisrowno{5}}] {\\tableMG};\n"
+        "\\addplot[domain=1:128, dashed] {3.6*x};\n"
+        "\\addplot[red] prose {keepme}\n"
+    )
+    zh = (
+        "\\addplot table[这是译文={\\thisrowno{0}/4}, 这是译文={\\thisrowno{5}}] {这是译文};\n"
+        "\\addplot[domain=1:128, dashed] {这是译文};\n"
+        "\\addplot[red] prose {这是译文}\n"
+    )
+    _pair(work, base, "main.tex", src, zh)
+    ok, _note = _run(work, base)
+    assert ok
+    out = (work / "main.tex").read_text(encoding="utf-8")
+    assert "x expr={\\thisrowno{0}/4}, y expr={\\thisrowno{5}}] {\\tableMG}" in out
+    assert "{3.6*x}" in out  # 裸 expr 还原
+    assert "prose {这是译文}" in out  # keyword 门控, 散文不碰
+
+
+def test_pgtable_divergent_counts_skip(tmp_path: Path) -> None:
+    """zh 侧多一个 ``\\pgfplotstableread`` → pgtable kind 整跳 (分歧
+    保护, note 记 colspec 同款 ``kind(n!=m)``)。"""
+    work, base = _trees(tmp_path)
+    src = "\\pgfplotstableread{\na b\n1 2\n}\\ta\n"
+    zh = (
+        "\\pgfplotstableread{\n这是译文这是译文\n1 2\n}\\ta\n"
+        "\\pgfplotstableread{\nc d\n3 4\n}\\tb\n"
+    )
+    _pair(work, base, "main.tex", src, zh)
+    ok, note = _run(work, base)
+    assert not ok
+    assert "pgtable(1!=2)" in note
+
+
+def test_pgtable_src_cjk_data_not_reverted(tmp_path: Path) -> None:
+    """baseline 数据参自带 CJK (合法中文表头) → 非 ASCII ws-ident,
+    不碰。"""
+    work, base = _trees(tmp_path)
+    _pair(
+        work,
+        base,
+        "main.tex",
+        "\\pgfplotstableread{\n列名 值\n1 2\n}\\ta\n",
+        "\\pgfplotstableread{\n其他列 值\n1 2\n}\\ta\n",
+    )
+    ok, _note = _run(work, base)
+    assert not ok
+    assert "其他列" in (work / "main.tex").read_text(encoding="utf-8")

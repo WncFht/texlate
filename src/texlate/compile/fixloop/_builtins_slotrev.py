@@ -483,26 +483,41 @@ _SLOTREV_EXTRA_RXS: tuple[tuple[str, re.Pattern[str]], ...] = (
     # 全不在白名单; \textwidth 含反斜杠同理) —— 1502.01845 ``\betb``
     # 实证外, env-arg 位 zh 化 spec 是本族结构性盲区。spec-env 的参位
     # 即机位断言 (该位恒为机参, 内核拒 CJK → 参含 CJK 必为译污),
-    # ident 放宽到可打印 ASCII。``\begin{tabular}`` 系首参 spec;
-    # tabularx/tabulary/xtabular/tabular*/array* 系 ``{dimen}{spec}``
-    # 双参全机位 (dimen 被译同样炸)。
+    # ident 放宽到可打印 ASCII+空白 (``_IDENT_SPEC_RX``)。
+    # ``\begin{tabular}`` 系首参 spec; tabularx/tabulary/xltabular/
+    # NiceTabularX 系 ``{dimen}{spec}`` 双参全机位 (dimen 被译同样炸)。
+    # 2026-09-20 zhleakimpl: spec 参 ``_ARG``→``_ARGB`` —— ``>{...}``/
+    # ``!{...}`` 嵌组与跨行 spec (2609.20179 xltabular 多行 ``>{...}
+    # p{0.13\textwidth}...X`` 实证) ``_ARG`` 结构上捕不进, 本族第二
+    # 盲区; env 表同步补: xtabular 回单参臂 (xtab.sty
+    # ``\@supertabular[#1]#2`` 实测单 mand 参, 原双参臂名单位置错)、
+    # tabu/longtabu (``to``/``spread`` 形天然不匹配, 裸 ``{spec}``
+    # 形同盖)、tabularray ``tblr/longtblr/talltblr/booktabs/
+    # longtabs/talltabs`` (``O{} m`` 签名)、nicematrix ``NiceArray``
+    # 系/``NiceTabular`` (``O{} m``; ``NiceMatrix`` 系签名 ``!O{}``
+    # 无显式 spec 参位, ``{...}`` 可能为首格散文 → 不收, 错位
+    # revert 比不复原更糟)。
     (
         "colspec",
         re.compile(
             r"\\begin\s*\{(?:tabular|array|deluxetable|smalldeluxetable|"
-            r"sidewaysdeluxetable|sidewaystable|supertabular|longtable)\*?\}"
+            r"sidewaysdeluxetable|sidewaystable|supertabular|mpsupertabular|"
+            r"longtable|xtabular|tabu|longtabu|tblr|longtblr|talltblr|"
+            r"booktabs|longtabs|talltabs|NiceTabular|NiceArray|"
+            r"pNiceArray|bNiceArray|BNiceArray|vNiceArray|VNiceArray)\*?\}"
             + _GAP
             + r"(?:"
             + _OPT
             + _GAP
             + r")?"
-            + _ARG
+            + _ARGB
         ),
     ),
     (
         "colspec",
         re.compile(
-            r"\\begin\s*\{(?:tabularx|tabulary|xtabular|tabular\*|array\*)\}"
+            r"\\begin\s*\{(?:tabularx|tabulary|xltabular|tabular\*|array\*|"
+            r"NiceTabularX|NiceTabular\*)\}"
             + _GAP
             + r"(?:"
             + _OPT
@@ -510,16 +525,21 @@ _SLOTREV_EXTRA_RXS: tuple[tuple[str, re.Pattern[str]], ...] = (
             + r")?"
             + _ARG
             + _GAP
-            + _ARG
+            + r"(?:"
+            + _OPT
+            + _GAP
+            + r")?"
+            + _ARGB
         ),
     ),
-    # \multicolumn{n}{spec}{text} —— n+spec 双机位 (text 散文不碰)
+    # \multicolumn{n}{spec}{text} —— n+spec 双机位 (text 散文不碰);
+    # spec 位 ``>{...}``/``!{...}`` 嵌组同盲区, ``_ARGB`` 收。
     (
         "colspec_mc",
-        re.compile(r"\\multicolumn\*?" + CMD_BOUNDARY + r"\s*" + _ARG + r"\s*" + _ARG),
+        re.compile(r"\\multicolumn\*?" + CMD_BOUNDARY + r"\s*" + _ARG + r"\s*" + _ARGB),
     ),
     # \newcolumntype{name}[n]{spec} —— spec 参 (name 参 envdecl 已盖;
-    # spec 内 ``>{...}`` 花括号结构 ``_ARG`` 吃不进, 只护无括号形)
+    # spec 内 ``>{...}``/``#n`` 嵌组 ``_ARGB`` 收)。
     (
         "colspec_nt",
         re.compile(
@@ -527,7 +547,7 @@ _SLOTREV_EXTRA_RXS: tuple[tuple[str, re.Pattern[str]], ...] = (
             + CMD_BOUNDARY
             + r"\s*"
             + r"\{[^{}\n]*\}\s*(?:\[[^\]\n]*\]\s*)?"
-            + _ARG
+            + _ARGB
         ),
     ),
     # ── 2026-09-20 primgap: 原语 cs 与 ``{``-组之间 gap 机位 ──
@@ -597,6 +617,50 @@ _SLOTREV_EXTRA_RXS: tuple[tuple[str, re.Pattern[str]], ...] = (
             + _ARGB
         ),
     ),
+    # ── 2026-09-20 zhleakimpl: pgfplots 数据表机位 ──
+    # ``\pgfplotstableread{内联数值表}\cs`` 整参 zh 化 (2609.19828 实证:
+    # 头行 ``gpus cells dofs ...`` ×9 + ``7.045e-03`` 的 ``e`` →
+    # ``这是译文``, 下游 pgfplots "too many columns" → 100-error
+    # abort)。数据参位恒为机位 (内联表/csname/文件名/kv 皆机器引用 →
+    # 含 CJK 必译污): ``_ARGB`` 平衡组收跨行数据 + spec 域 ident —
+    # 纯数值表无 ``=``,``/``#``, kvnl 形断言会拒收, 故不加 kv 门控
+    # (勿并入 ``_IDENT_KVNL_KINDS``)。``[]`` 头 (``[col sep=...]``)
+    # 同机位 ``_OPTB`` 捕。
+    (
+        "pgtable",
+        re.compile(
+            r"\\(?:pgfplotstableread|pgfplotstablecreate|"
+            r"pgfplotstabletypeset|pgfplotstablecopy|"
+            r"pgfplotstabletranspose|pgfplotstablevertcat|"
+            r"pgfplotstablesave|pgfplotstableset|"
+            r"pgfplotsinvokeforeach)"
+            + CMD_BOUNDARY
+            + r"\s*(?:"
+            + _OPTB
+            + r"\s*)?"
+            + _ARGB
+        ),
+    ),
+    # ``\addplot[opts] table[opts]{data}`` 系 —— 数据源 keyword
+    # (table/file/coordinates/expression/function/gnuplot/shell/
+    # graphics) 可缺省: pgfplots 语法上 ``\addplot`` 后 ``{...}``
+    # 只能是数据/表达式 plot spec (非散文位), 裸 ``{expr}`` 同盖
+    # (2609.19828 roofline ``\addplot[opt]{3.6*x}`` 实证); keyword
+    # 门控仍防 ``\addplot[opt] 散文{...}`` 误收。``\addplot3``/
+    # ``\addplot+`` 变体同收; tikz ``\draw plot table`` 的 ``plot``
+    # 是裸词非 cs, 结构上不盖。
+    (
+        "pgtable",
+        re.compile(
+            r"\\addplot3?\+?"
+            + CMD_BOUNDARY
+            + r"\s*(?:"
+            + _OPTB
+            + r"\s*)?"
+            + r"(?:(?:table|file|coordinates|expression|function|"
+            r"gnuplot|shell|graphics)\s*(?:" + _OPTB + r"\s*)?)?" + _ARGB
+        ),
+    ),
 )
 
 #: 严格 ident 白名单 —— 机位实参 (键/名/路径/kv 串/csv) 的字符域。
@@ -604,17 +668,23 @@ _IDENT_STRICT_RX = re.compile(r"[A-Za-z0-9@._/:+*!,=~-]+")
 #: 宽松 ident —— 仅 font kind: 字体名含空格/'/()/& ("Times New Roman")。
 _IDENT_LOOSE_RX = re.compile(r"[A-Za-z0-9@._/:+*!,=~ '()&-]+")
 _IDENT_LOOSE_KINDS = frozenset({"font"})
-#: spec ident —— 列 spec/dimen 参的字符域: 可打印 ASCII (| 空格
-#: @ < > ! * 反斜杠全收; {} 结构上 ``_ARG`` 已排)。spec 位自带
-#: 机位断言, 不复用严格白名单 (1502.01845 实证: 真 spec 恒被它拒)。
-_IDENT_SPEC_RX = re.compile(r"[ -~]+")
+#: spec ident —— 列 spec/dimen/数据表参的字符域: 可打印 ASCII +
+#: ``\t\n\r`` (| 空格 @ < > ! * 反斜杠换行全收; {} 由 ``_ARGB``
+#: 平衡组结构上承载)。spec 位自带机位断言, 不复用严格白名单
+#: (1502.01845 实证: 真 spec 恒被它拒); 空白容忍为跨行 spec
+#: (2609.20179 xltabular ``>{...}`` 嵌组多行参) 与 pgf 内联数
+#: 值表 (2609.19828) 所需 —— ``_ARGB`` 捕获可含 ``\n\t``。
+_IDENT_SPEC_RX = re.compile(r"[\t\n\r -~]+")
 #: spec 系 kind 前缀 —— colspec/colspec_mc/colspec_nt/colspec_holder:*。
 _IDENT_SPEC_PREFIX = "colspec"
-#: spec 同域 (可打印 ASCII) 的散 kind —— inferkv: opt kv 值含 cs 调用
+#: spec 同域 (可打印 ASCII+空白) 的散 kind —— inferkv: opt kv 值含 cs 调用
 #: (``\rlabel{Rec}``) 与空格, 严格/宽松 ident 均拒; 该位恒为
 #: mathpartir kv 键表机位, CJK 即译污。primgap: 原语 pre-``{`` gap
 #: 含空格/反斜杠 (``to .55em``/``\hbox to .55em``/``spread 2pt``)。
-_IDENT_SPEC_KINDS = frozenset({"inferkv", "primgap"})
+#: pgtable: pgfplots 数据参位 (内联表/csname/文件名/kv 全机器引用,
+#: CJK 即译污) —— 纯数值表无 ``=``,``/``#``, kvnl 形断言会拒收,
+#: 故用无门控 spec 域 (2609.19828 实证, 勿并入 _IDENT_KVNL_KINDS)。
+_IDENT_SPEC_KINDS = frozenset({"inferkv", "primgap", "pgtable"})
 #: kvnl ident —— tcb kv 选项组字符域: 可打印 ASCII + ``\t\n\r`` (跨行
 #: kv 串含嵌组/``#n`` 形参); 须同时含 ``=``/``,``/``#`` kv 形, 防
 #: ``\begin{tcolorbox}`` 后散文 ``{multi\nline prose}`` 组误收 —
@@ -637,11 +707,11 @@ _NOTE_CAP = 20
 
 
 def _is_ident(arg: str, kind: str) -> bool:
-    """机位标识符谓词。
+    r"""机位标识符谓词。
 
-    font 类用宽松名单 (字体名含空格), colspec 系用可打印 ASCII
-    (spec/dimen 形), tcbopt 用 kvnl (可打印 ASCII+空白 ∧ kv 形),
-    其余严格。
+    font 类用宽松名单 (字体名含空格), colspec 系与 inferkv/
+    primgap/pgtable 用可打印 ASCII+``\t\n\r`` (spec/dimen/数据
+    表形), tcbopt 用 kvnl (可打印 ASCII+空白 ∧ kv 形), 其余严格。
     """
     if kind in _IDENT_KVNL_KINDS:
         return (
@@ -667,11 +737,18 @@ _HOLDER_DEF_RX = re.compile(
     r"\s*\{?\\([A-Za-z@]+)\}?\s*"
     r"\{((?:[^{}]|\{[^{}]*\})*)\}"
 )
-#: def 体尾部 spec-env ``\begin`` 断言 (可带 ``[pos]`` 尾巴)。
+#: def 体尾部 spec-env ``\begin`` 断言 (可带 ``[pos]`` 尾巴); env 表
+#: 与 colspec 双臂同步 (2026-09-20 zhleakimpl 补 xtabular/tabu/tblr
+#: 系/nicematrix/xltabular —— 双参 env 结尾的 holder 调用站只收首
+#: 参, 参位仍全机位故收之无害)。
 _HOLDER_TAIL_RX = re.compile(
     r"\\begin\s*\{(?:tabular|array|deluxetable|smalldeluxetable|"
-    r"sidewaysdeluxetable|sidewaystable|supertabular|longtable|"
-    r"tabularx|tabulary|xtabular)\*?\}\s*(?:\[[^\]\n]*\]\s*)?$"
+    r"sidewaysdeluxetable|sidewaystable|supertabular|mpsupertabular|"
+    r"longtable|xtabular|tabu|longtabu|tblr|longtblr|talltblr|"
+    r"booktabs|longtabs|talltabs|NiceTabular|NiceArray|"
+    r"pNiceArray|bNiceArray|BNiceArray|vNiceArray|VNiceArray|"
+    r"tabularx|tabulary|xltabular|NiceTabularX)\*?\}"
+    r"\s*(?:\[[^\]\n]*\]\s*)?$"
 )
 #: 每文件 spec-holder 名发现上限 (防宏农场文 noise kinds 刷屏)。
 _HOLDER_CAP = 8
@@ -682,7 +759,8 @@ def _holder_rxs(src: str) -> tuple[tuple[str, re.Pattern[str]], ...]:
 
     ``mask_tex`` 视图扫描 (注释/逐字内 def 不算); 调用站 rx 吃可选
     ``[opt]`` 后首 ``{}`` 参 —— def 自体因体含花括号天然不匹配
-    (``_ARG`` 吃不进 ``{}`` 体)。
+    (``_ARG`` 吃不进 ``{}`` 体)。spec 参 ``_ARGB`` 收 —— holder
+    调用站 spec 同带 ``>{...}`` 嵌组 (2026-09-20 zhleakimpl)。
     """
     view = mask_tex(src)
     dead = _DEAD_TAIL_RX.search(view)
@@ -696,7 +774,7 @@ def _holder_rxs(src: str) -> tuple[tuple[str, re.Pattern[str]], ...]:
             continue
         seen.add(name)
         rx = re.compile(
-            r"\\" + re.escape(name) + CMD_BOUNDARY + r"\s*(?:\[[^\]\n]*\]\s*)?" + _ARG
+            r"\\" + re.escape(name) + CMD_BOUNDARY + r"\s*(?:\[[^\]\n]*\]\s*)?" + _ARGB
         )
         out.append((f"colspec_holder:{name}", rx))
         if len(out) >= _HOLDER_CAP:
