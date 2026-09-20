@@ -1,0 +1,49 @@
+# selfimp 假设池快照 —— open / adopted / rejected / blocked 四态
+
+> **结论**：假设池是自改进环的供给面——每条假设必须带证据指针（本机复现或上游实证）与判死线（「出现什么结果说明想错了」），rejected 条目留档防重复派。快照时点 open 14 条、adopted 大量（含硬化档直落）、rejected 8 条。
+> **状态**：时点证据（2026-09-19 快照口径）。池是活文档，多数 open 条目在快照后已 adopted——以主仓假设池与 commit 链为准；本文价值在假设写法范式（机制 → 证据 → 判死线 → 修法）与已验证的 adopted/rejected 记录。
+> **日期**：2026-09-19（2026-09-20 迁入重编）
+
+每条假设的写法范式：机制描述（缺陷在哪一层）→ 证据指针（本机复现实验或上游项目实证）→ 修法 → 判死线/验收。上游搬运要标出处（texglot / BabelDOC / latexpand 等参考实现均有注明）。
+
+## open（快照时点）
+
+- `C5-batch-amortize` — adopted 注记（leader 裁决：已被 `73ffa4c` 抢先实装）：原假设 BATCH_MAX_CHARS 2000→~8000ch 摊销 68%→<40%；`73ffa4c` K-quantized 装箱直接到 12000 + MAX_ITEMS=32 + MIN_CHARS=2500，且 prod audit 已证批质量 ≥solo（per-ph 错 0.32% vs 8.93%）——假设的量与方向全被覆盖且更激进。
+- `qual:bib-passthrough` — adopted 注记（用户裁决 GO→实装 `40904c7` 直通臂 + judge 条款/src_bib 信号；回归 PASS：bib14 dnt-major 17→0、14/14 stated=100、term_inconsistency 16%→8.7% 顺带验证 autogloss）：`^[[BIB_` 锚首 chunk=bibitem 条目起点，按 do_not_translate 约定本该留英却照常送翻。esa2 基线终值：convention-do_not_translate 57 例（major 47=全池第一大户），96% 集中 `[[BIB_` 块；被标块 stated 67.9 vs 净块 95.3；池占 52/1200(4.3%)，单标块中招率 89%(41/46)。修法=管线臂 bib 块绕过送翻（占位符还原链不变），副收益=省 ~4% 翻译 token。判死线：实装后 frozen-300 复跑 do_not_translate major 不显著下降即错。检测器=src 含 `[[BIB_`（PhType.BIB=`\bibitem` 占位，含标即文献域，语义严格）；边角：note 型 `\bibitem` 条目直通留英仍合约定。交互约束：output-sanity-gate 的 same-as-source 拦截须豁免 bib 直通语境。吞并 M8 低分格 bib 子群（重翻臂治不了 convention 违例）。
+- `loader-withoptions`：RequirePackageWithOptions/LoadClassWithOptions 召回缺口（刻意子集外真缺口）。
+- `passoptions-class-misfile`：PassOptionsToClass 类名误入 packages 集（normalize .sty 探测恒 miss）。
+- `stale-stub-shadowing`：fixloop precheck「文件已在」跳过重投 → 旧 noop stub 遮蔽新真 stub（1907.03745 实证，37 移交）。修法=注入件指纹+precheck 比对。
+- `qual:c0-json-strip` — adopted 注记（硬化档，leader-direct）：LLM 输出裸 C0 字符双杀——slots JSON `json.loads` strict 拒收整批弃置，纯文本路径 C0 落进 .tex → compile `invalid_char` 且 `non_utf8_recode` 不修（合法 UTF-8 控制符不在其域）。修法 = translate_fn/slots_fn 入口剥 `[\x00-\x08\x0b-\x1f\x7f]`。证据：pipeline `json.loads(_strip_json_fence(raw))` 无清洗 + 本机复现 `\x0b` 入串 → JSONDecodeError；上游 BabelDOC PR #612「Strip C0 control characters from LLM JSON output」生产实证同坑。落地：`_C0_RX` 于 GatewayTranslator.translate 入口——整段/批/slots 全响应路径单点覆盖。
+- `qual:auto-extract-glossary` — adopted 注记（产品化落地；default-on 待 frozen-300 回归 + 用户裁决）：LLM 逐篇术语抽取喂 glossary（上游 babeldoc `auto_extract_glossary` 默认开：术语师 prompt 限定 ≤5 词域名词/具名实体、排数学项、JSON `{src,tgt}` 出，逐篇共享上下文去重 + 同 term 多批抽中不同译名→多数表决；消费侧按批过滤注入——与 texlate `doc_filter` 同构）。texlate 侧消费件全在（glossary 五层装载含 `glossary.local.yaml` 层 + doc_filter 烤进稳定 system prompt），缺的只是生产臂；terms/ 仅 cs.* 五表 ~1790 行（physics/math/cond-mat/quant-ph 零覆盖 = 手工扩面瓶颈），抽取臂天然覆盖全 arXiv 类目。落地：`xlat/autogloss.py` extract_terms（swe-2-medium 抽取臂、2400ch×6 批等距抽样、逐归一键多数决 + 原文形回投、批级降级不炸、占位符泄漏闸）+ 20 钉测绿；管线侧 `PipelineConfig.auto_glossary_fn` 槽 + `_auto_glossary` → `_materialize` 把 auto 作底座、curated doc_filter 同 key 覆盖赢；worker `auto_glossary` option 开关。L1(5 篇跨域)=113 术语 ~96% 域内正确；L2 A/B(60 term-flagged 块重翻臂)：term_inconsistency 100%→43%（34 清除 0 新增）、stated100 88.9→90.9(+2.0)、判死线未触发 → 探针过。
+- `qual:abstract-context` — adopted 注记（prompt-bundle 打包档，`6efc83e`）：论文摘要（≤~6k 字符截断）作 `paper_context` 注入请求——主题/术语锚定，「only for topic and terminology, never append」。system prompt 原无文档级上下文槽；摘要已是 `kind="abstract"` chunk 可直接从 ScanResult 取，烤进 system prompt 不破坏逐篇恒定（前缀缓存前提保住）。上游 texglot paper_context 注入面 + BabelDOC `contextual_hints_block` 同族。落地：`build_system_prompt(paper_context=)` kwarg + `_PAPER_CONTEXT_CLAUSE`；pipeline `_materialize` 扫 pending 首个 abstract 块截 6000 入 `_paper_ctx`；slots 臂显式排除。已知不对称：resume 跑 abstract 已完成→pending 无→ctx 缺席（优雅降级非 bug）。
+- `delim-param-args` — adopted 注记（`aa8882f`）：`\def\x#1<delim>` 定界参宏调用侧参数不消费 → 参数散文 + 定界符双双裸落正文（`\def\formula#1\stop{$#1$}` 调 `\formula x^2+y^2 \stop` → `[[MACRO_1]]` + `x^2+y^2 \stop` 原样进 chunk——数学内容漏译风险 + `\stop` 裸 cs 落译文）。证据：gullet Arg→ArgSpec 映射 `delim`/`until_group`→零宽 `ArgSpec("b")` + 本机复现 + corpus_v3 15+ 文件含定界参 def；上游 texglot collect_math_aliases 专门收 `#1<delim>` 数学包装。落地：ArgSpec 增 `delim_toks` 字段 + 新 kind 'u'（滑窗逐枚命中 delim 序列）/'g'（until-lbrace）；eol_par/EOF runaway 全回吐 break。真纸验证：`\th #1 #2. #3\par` 的 `\par` 定界正确放弃保住定理散文。9 钉测 635 绿。
+- `quoted-input-filename` — adopted 注记（硬化档，leader-direct）：`\input{"a b.tex"}` 引号文件名不解析 → `missing_input` warning + 目标文件内容静默漏翻。证据：FILENAME_CHARS 无 `"` + 本机复现；上游 latexpand `$ARGQUOTED` 专支 `\input{"f n.tex"}`/`\input"f n.tex"` 两形。落地：`strip_fname_quotes` 单源剥壳接两 resolve 漏斗 + bare-quoted 扫描四站补齐。
+- `original-repair-carry`：先编译原文、诊断修复（缺包 stub/编码/模板冲突）带入翻译管线——LLM 读已修源 + 译文编译少重发现修复 + 不可修篇烧模型前就拒。现状 = normalize→translate→compile（fixloop 只见译文文档），`base_condition` 原编臂存在但 bench 归因专用——机制都在，产品管线不跑。成本 +1 原编周期。上游 texglot 1.0.4/1.0.2 双版本实证此设计（CHANGELOG）。
+- `qual:glossary-ws-flex` — adopted 注记（硬化档，leader-direct）：doc_filter 多词术语内部空白字面化 → 源码换行/`~` 断开的术语整篇漏配。terms/ 多词术语占 71%（1168/1647），`re.escape(en)` 把词内空格编进 pattern，`Maximum\nLikelihood` 与 `computer~vision` 形全 miss。修法 = 逐词 escape 后 `[~\s]+` 连接。证据：语料抽样 500 篇 11 篇（2.2%）存在仅断开形术语；上游 babeldoc prompt 规则自证此形态存在——「Apply glossary items even inside tags or when broken by hyphens/line breaks」。落地：`_term_pattern` 词内按 `[\s~]+` 切词逐词 escape 留缝；fuzz oracle 缝扫镜像 + 6 钉测。实测 200 篇 0.5% 文档增益——incidence 微，零风险件顺手收。
+- `qual:output-sanity-gate` — adopted 注记（硬化档，leader-direct）：译出件健全性门槛缺失——same-as-source（剥占位符后整段原文回显拒收）与长度比带（output/input token 比 0.3–3）两检查上游逐条做。基线 L0 实测：>0.85 echo 16 块中 13 块 bib 合法留英、非 bib 3 块里 2 块合法 → 真 echo ~1-3/1200（0.1-0.25%）<0.5% 判死线；zh 新控制词 0 命中；长度比臂 char 级阈值失准（CJK 密度致 241 假离群，须 token 级口径重标定）。结论=机制真但池面 incidence 微 → 随主线捎带实装。门槛豁免：纯占位符段输出=输入是正确态，babeldoc 用 `input_token_count>10` + 剥占位符比较回避误伤；实现陷阱实证：babeldoc 同类检查曾写成 str vs 对象恒假死代码（issue #610）——门槛落时必须带「确实触发」的钉测。落地：三门全 ERROR 实装——same_source（归一精确相等 + latin 占优闸；bib/短段/CJK 恒等三豁免）、length token 代理带 [0.30,3.00]（est=cjk+(nonws-cjk)/4，全池标定 p0=0.76/p99.5=1.80 零 FP）、new-cs（`_macro_new_issues` WARN→ERROR，escape 族豁免）。附带标点坍缩清理 + `\<newline>` 修复。全仓 6643 绿。
+- `compile-consumed-deps`：翻译范围=原编译实际消费文件集（.fls/日志文件栈），免疫一切 `\input` 语法枚举缺口——动态文件名、宏内 include、条件分支文件、引号文件名全覆盖，静态枚举根本够不着。现状 = flatten 8 形态静态解析，miss → `missing_input` 警告 + 目标内容缺席 chunks；texlog 文件栈追踪件已在（修档诊断面用），改为解析件喂 flatten 即权威 include 清单。依赖原编译先行——与 `original-repair-carry` 同炉。上游 texglot「Translate the TeX files the original compilation actually consumed」生产实证；附带文件级 opaque 传播件 `classify_source_contexts`（沿 include 图传播 opaque 上下文，纯图形/公式源文件整件不翻）供参考。
+- `qual:sentence-split-abbrev` — adopted 注记（硬化档，leader-direct）：行级降级与超块切分都无缩写守卫地砍 `.!?`+空格——`Fig. 2 shows`/`et al. found`/`e.g. the case` 被劈成 `Fig.`/`e.g.` 碎头 + 残句进 lines 批。证据：`_split_lines_scoped`/`_best_split` 唯一守卫是 brace/数学深度，无缩略词判据；上游 texglot 缩写守卫——取切点前尾词，`"." in word or len(word)<=3` 判缩写（e.g./i.e./Dr./Fig./vs./et al. 天然覆盖）。落地：`_abbrev_cut` 单源——尾词含 `.` 或 ≤3 字母 → 不切；双点接入（保守向欠切）。
+- `qual:copied-token-boundary` — adopted 注记（硬化档，leader-direct）：`recover_copied_tokens` 无边界 lookaround 的裸 `replace`——模型把占位符还原成源片段抄进译文时单命中即替换：`\alpha` 会命中 `\alphax` 内、`$x$` 命中 `$$x$$` 内、`42` 命中 `42.5` 内 → token 嵌进更长文本腐化译出件。证据：`zh.count(fragment)==1` 后直接 `str.replace` 前后无字符类断言；上游 texglot 三条边界守卫——`$…$` 片段 `(?<!\$)…(?!\$)`、cs 片段 `(?![A-Za-z@])`、alnum 结尾片段 `(?![A-Za-z0-9_.])`。落地：`_copied_boundary_rx` 三守卫全抄 + `recover_copied_tokens` 改 `rx.findall`/`rx.sub`，长 fragment 先认领序保留。
+- `qual:movable-token-license` — adopted 注记（prompt-bundle 打包档，`6efc83e`）：PLACEHOLDER_CLAUSE 一刀切禁 reorder 与自然语序冲突——「as shown in [[REF_1]], [[MATH_1]] holds」中译天然动序，全禁令产硬译或诱模型丢/并 token 触拦截。证据：原禁令对全部 token 类型无差别；上游 texglot 二分 movable/fixed——数字/数学/refs/具名宏 SHOULD 按目标语语法重排 vs `fixed_format_order` 保作用域与相对序。落地：禁令删「reorder」+ 追加 movable/fixed 二分授权（MATH/CITE/REF 可随中文语法移位，保 `_fill` 逐字不变量）。
+- `qual:placeholder-value-context` — adopted 注记（prompt-bundle 打包档，`6efc83e`）：模型只见 token 不见其值——masked-only user=src_text + slots user_obj 无 token→原值映射 → `[[MATH_1]]` 背后的公式/`[[REF_2]]` 背后的引用文本对模型不可见，指代、数一致性、术语一致性决策缺料。证据：上游 texglot payload 三字段 `value_tokens`+`fixed_text_context`+`surrounding_source`；BabelDOC `formula_placeholders_hint` 占位符→可读公式文本注入 prompt。落地：`render_value_context`/`truncate_value_frags` 200ch/frag+2000ch/block 截断、untrusted 块头；注入四点=单块/slots JSON/L2 error tag 前/批合并块。
+- `qual:untrusted-content-clause` — adopted 注记（prompt-bundle 打包档，`6efc83e`）：system prompt 零注入防御条款——论文源是不受信输入，`Ignore previous instructions` 式注入面全开。证据：上游 texglot 三处 untrusted-content 标记 + BabelDOC PROMPT_TEMPLATE 同款结构规则。与 output-sanity-gate 的新 cs 拦截是同一威胁模型两侧：prompt 侧让模型别听、校验侧兜底拒收。落地：`_UNTRUSTED_CLAUSE` 全 kind 生效。
+- `qual:content-filter-fallback` — adopted 注记（硬化档，leader-direct）：内容过滤拒答无分类、不换模、批内还放大——provider 400 `error.code=content_filter` → 兜底 `ClientRejectedError`（non-retryable）→ `_model_switchable` False 死路；批量路径放大：non-retryable 错误把整批成员全 skip 回原文，一个毒 chunk 全批英文留存。200+`finish_reason="content_filter"` 形同样无识别。修法=content_filter 归类→switchable，走既有 `fallback_candidates` 降级臂。上游 BabelDOC #580「multi-model fallback support for content filter errors」生产实证。
+
+## adopted（收割自 open 的旧条目）
+
+- `prose-recall-opaque` — `4521e0e`：argspec 臂 `[[CMD]]` 散文抠出 + keyval/comma-list 双形状门，全量 6343 绿 + parsebench identity 100%。
+- `missing-file-x23` — `498ae9e`：vendor 157 files + mn.cls stub 落地扩面臂。
+
+## rejected（留档防重派）
+
+- `qual:M8-lowscore-rexlat` — esa2 基线终值 stated<55 仅 5/1200 << 30 判死线（低分格 bib 子群已由 bib-passthrough 吞并；机制本身没问题，是池面 incidence 塌了）。
+- `qual:en-residue-rexlat-redline` — esa2 基线终值 en≥8×omission 命中 11/51=22% << 60% 判死线；en≥8 主 flag=over_translation（病灶≠漏翻），旗舰极端例全是合法留英 bib 条目。信号提纯思路并入 `qual:output-sanity-gate` same-as-source 臂。
+- M1 公共缓存 registry — 2026-09-18 用户裁决否决。
+- Electron 客户端 — 同上否决。
+- 横向扩库 →10k/50k — 边际已塌，只定点扩盲区。
+- parse_tex_v1(None) 严格化对齐 v2 — 结案：保持不对称各有据。
+- LOADER 词表逐字节全并 — 裁决：各站刻意子集，真缺口只有 *WithOptions 两站。
+
+## blocked（等依赖）
+
+- C5/C6 与 qualbench judge 协议面改动走专用车道，本池只提需求单。

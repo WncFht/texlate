@@ -1,6 +1,8 @@
 # 社区共享译文缓存设计
 
-> 2026-09-16。范围：share key 寻址、包格式、信任模型、opt-in 上传与服务端形态。实现落 `src/texlate/share.py`（纯库层，零新依赖，stdlib）；cli/worker/服务端接线不在本文。现状代码参照：`server/worker.py`（产物与 `cache_key_for`）、`server/store.py`（files/translation_cache 表）、`xlat/state.py`（段级键派生）。
+> **结论**：share key 七组分寻址 + `.share.zip` 包格式 + 「下载译文不直接渲染、本地全链重跑」信任模型已冻结并实装（`src/texlate/share.py` + worker 完成钩 + share 域路由 + Reader 分享按钮 + `texlate share pack`）。
+> **状态**：已落地——设计与 `src/texlate/share.py`、`server/routers/share.py`、`server/worker/share.py` 实装对齐；规范口径以 spec/ 层为准，本文留设计推理作参考。
+> **日期**：2026-09-16（2026-09-19 复核实装）
 
 ## 0. TL;DR
 
@@ -18,11 +20,11 @@ hjfy 是中心化模式：平台付 token，代价是每日 100 篇新建配额�
 
 管线已有三层缓存，共享缓存是在产物级之上做**跨实例**延伸。
 
-| 层     | 键                                          | 命中物                  | 位置                               |
-| ------ | ------------------------------------------- | ----------------------- | ---------------------------------- |
-| 源级   | `arxiv_id@resolved_ver`                     | arXiv e-print 解压树    | `data/src-cache/`（SourceCache）   |
-| 产物级 | `sha256(id@ver\|model\|pipeline_ver\|lang)` | 整任务产物复用（reuse） | `tasks.cache_key`（store.py）      |
-| 段级   | `{cfg16}:{seg_key}`                         | 单 chunk 译文           | `translation_cache` 表（store.py） |
+| 层     | 键                                          | 命中物                  | 位置                            |
+| ------ | ------------------------------------------- | ----------------------- | ------------------------------- |
+| 源级   | `arxiv_id@resolved_ver`                     | arXiv e-print 解压树    | `data/src-cache/`（SourceCache） |
+| 产物级 | `sha256(id@ver\|model\|pipeline_ver\|lang)` | 整任务产物复用（reuse） | `tasks.cache_key`（store）      |
+| 段级   | `{cfg16}:{seg_key}`                         | 单 chunk 译文           | `translation_cache` 表（store） |
 
 产物级 `cache_key_for` 的 docstring 已注明「公开论文的确定性函数可跨租户 reuse——hjfy 对等共享缓存是既定产品特性」，并提供 `TEXLATE_CACHE_SCOPE=per_key` 凭证分桶开关（`k:{key指纹}` 拼进键材料）消除本地缓存存在性 oracle。共享缓存是同一方向的跨实例化：本地 dedup 只能命中自己跑过的任务，共享包让其他人的付费产出可被复用。
 
@@ -46,7 +48,7 @@ share key 七组分按下序 `|` 拼接进 sha256：
 
 两个刻意决策值得记：其一，`model` 组分的含义是「译文内容生产者」——BYOK 下 Alice 用 deepseek 译出的包不会命中 Bob 用其他模型的请求，这不是缺陷而是特性（用户只检索自己信任的模型池）；要做「跨模型共享」是另一层产品决策（比如白名单模型互通），v1 不做。其二，前六组分禁止含 `|`（否则分隔歧义可撞键），`pipeline_ver` 是末位组分允许自带 `|`——`worker.PIPELINE_VERSION` 本就长成 `texlate-{ver}|{prompt_ver}`，末位含分隔符无解析歧义。
 
-> 勘误 2026-09-17（组分归一化，impl `share.py`）：七组分进键前逐组分 `strip()`——边缘空白不进键（域内无意义）；manifest 侧 `_key_parts` 同口径归一，且 `version`/`glossary_hash` 两可空组分（`_EMPTY_OK`）的 JSON `null` 与 `""` 同义（latest 别名/无术语表），其余五组分 `None` 或 strip 后空串按缺键拒（`ShareError`）；七键缺一即拒。`version` 另过 `_norm_version`（`3`/`"v3"`/`None` → `v3`/`""` 归一形）。
+组分归一化实装口径（`share.py`）：七组分进键前逐组分 `strip()`；manifest 侧 `_key_parts` 同口径归一，且 `version`/`glossary_hash` 两可空组分的 JSON `null` 与 `""` 同义（latest 别名/无术语表），其余五组分 `None` 或 strip 后空串按缺键拒（`ShareError`）；`version` 另过 `_norm_version`（`3`/`"v3"`/`None` → `v3`/`""` 归一形）。
 
 ## 4. 包格式
 
@@ -86,7 +88,7 @@ manifest.json schema:
 
 为什么是 `dual.json` 而不是 `zh-src.zip` 当载荷：`zh/` 树是 splice 的**结果**——消费端若直接展开它就没法重跑 splice/validate，信任模型就空了。`dual.json` 的 `chunks[]` 恰好是 xlat 阶段的输出物形态：消费端把它按 `src_file` + `en` 文本对账到本地 parse 出的 chunks，再从 splice 开始全程本地跑——「只信翻译内容，不信任何下游产物」。`zh-src.zip` 留在包里是冗余但与 hjfy `{id}_zh_CN.tgz` 公开下载同形，人类可直接取用。
 
-> 勘误 2026-09-17（包完整性实装面）：`pack_share` 对每个产物**单次 `read_bytes()`**——同一份字节既进 manifest sha256/bytes 对账字段又写 zip 成员，消灭「对账到写入之间文件被改 → 包自矛盾」的 TOCTOU；发布走临时文件 + 原子 rename（并发同键打包/静态托管读取不见半成品）；单产物 >256MB（`_MEMBER_MAX`）拒。`unpack_share` 校验序：zip 可读 → `manifest.json` 在场且 ≤1MB（`_MANIFEST_MAX`）→ `format`/`key_parts`/`share_key` 重算自洽 → `artifacts` 逐条校验（产物名扁平白名单 `_name_ok`：拒 `/`、`\`、NUL 与 >255B 名；sha256 定长 64hex；`bytes` ∈ [0,256MB] int）→ 逐成员 size+sha256 对账；只抽 manifest 登记成员（多余成员忽略，天然免 zip-slip）；产物先落 `dest` 内临时目录、全部对账过才逐件 rename——中途失败 `dest` 零残留。
+包完整性实装面：`pack_share` 对每个产物**单次 `read_bytes()`**——同一份字节既进 manifest sha256/bytes 对账字段又写 zip 成员，消灭「对账到写入之间文件被改 → 包自矛盾」的 TOCTOU；发布走临时文件 + 原子 rename（并发同键打包/静态托管读取不见半成品）；单产物 >256MB（`_MEMBER_MAX`）拒。`unpack_share` 校验序：zip 可读 → `manifest.json` 在场且 ≤1MB（`_MANIFEST_MAX`）→ `format`/`key_parts`/`share_key` 重算自洽 → `artifacts` 逐条校验（产物名扁平白名单 `_name_ok`：拒 `/`、`\`、NUL 与 >255B 名；sha256 定长 64hex；`bytes` ∈ [0,256MB] int）→ 逐成员 size+sha256 对账；只抽 manifest 登记成员（多余成员忽略，天然免 zip-slip）；产物先落 `dest` 内临时目录、全部对账过才逐件 rename——中途失败 `dest` 零残留。
 
 ## 5. 信任模型（核心设计）
 
@@ -120,26 +122,26 @@ manifest.json schema:
 
 ## 8. 模块面（`src/texlate/share.py`）
 
-| API             | 签名                                                                                      | 职责                                                                                                                                            |
-| --------------- | ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `share_key`     | `(arxiv_id, version, model, prompt_ver, target_lang, glossary_hash, pipeline_ver) -> str` | 寻址键派生；version 归一（`3`/`"v3"`/`None`）                                                                                                   |
-| `pack_share`    | `(work_dir, manifest, *, out_dir=None) -> Path`                                           | 三件套打包 + manifest 生成 + sha256 自校验字段                                                                                                  |
-| `unpack_share`  | `(path, dest) -> ShareManifest`                                                           | 解包 + 全量校验；坏包 `ShareError`                                                                                                              |
-| `index_append`  | `(index_path, manifest, url, package_bytes) -> dict`                                      | §7 index.jsonl 追加一行（share_key/url/key_parts/bytes/created_at/contributor）                                                                 |
-| `index_lookup`  | `(index_path, share_key) -> dict \| None`                                                 | 线性扫 index，同 key 后写胜；malformed 行跳过、扫完一条 warning 带行号（`88ea4a5` 起——单行坏数据不毒死全索引）；整文件非 UTF-8 仍抛由调用方降级 |
-| `ShareManifest` | frozen dataclass                                                                          | 校验后 manifest 视图（fmt/share_key/key_parts/artifacts/contributor/created_at）                                                                |
-| `ShareError`    | Exception                                                                                 | 一切格式/校验失败                                                                                                                               |
+| API             | 签名                                                                                      | 职责                                                                                                                                   |
+| --------------- | ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `share_key`     | `(arxiv_id, version, model, prompt_ver, target_lang, glossary_hash, pipeline_ver) -> str` | 寻址键派生；version 归一（`3`/`"v3"`/`None`）                                                                                          |
+| `pack_share`    | `(work_dir, manifest, *, out_dir=None) -> Path`                                           | 三件套打包 + manifest 生成 + sha256 自校验字段                                                                                         |
+| `unpack_share`  | `(path, dest) -> ShareManifest`                                                           | 解包 + 全量校验；坏包 `ShareError`                                                                                                     |
+| `index_append`  | `(index_path, manifest, url, package_bytes) -> dict`                                      | §7 index.jsonl 追加一行（share_key/url/key_parts/bytes/created_at/contributor）                                                        |
+| `index_lookup`  | `(index_path, share_key) -> dict \| None`                                                 | 线性扫 index，同 key 后写胜；malformed 行跳过、扫完一条 warning 带行号（单行坏数据不毒死全索引）；整文件非 UTF-8 仍抛由调用方降级      |
+| `ShareManifest` | frozen dataclass                                                                          | 校验后 manifest 视图（fmt/share_key/key_parts/artifacts/contributor/created_at）                                                       |
+| `ShareError`    | Exception                                                                                 | 一切格式/校验失败                                                                                                                      |
 
-纯库层：不接 cli/app。接线现状：worker 完成钩已落地（`746e87f`——`options.share_pack` opt-in，`_stage_compile` 三终态出口，`pack_share`+`unpack_share` 回验后 `index_append` 进 `share_dir/index.jsonl`；`kind=="share"` 与 reuse_hit 永不自包）；`POST /api/task/{id}/share/pack` 事后打包端点同口径（`share_pack_manifest` 单一派生面，幂等 + 409/422 守卫阶梯）。消费侧 v1 = 显式导入：`POST /api/share/import`（`unpack_share` 机械校验 + key_parts 白名单 → `kind="share"` 任务，model/lang/arxiv_id/version 取 manifest 自描述值）→ worker `_run_share` 走 §5 全链（fetch→parse→`_stage_share_apply` `(src_file,en)` 对账回灌→compile，零 token——包内 zh-src.zip/zh.pdf 只作证据不解不进产物面）；web 端 `.share.zip` 上传自动路由此端点。translate 时自动查 index 的隐式命中仍未接线——挂点即任务创建 fetch 后（resolved_ver 已知，#74 post-resolve dedup `7cce5f9` 已落同点位）。
+纯库层：不接 cli/app。接线现状：worker 完成钩已落地（`options.share_pack` opt-in，三终态出口 `pack_share`+`unpack_share` 回验后 `index_append` 进 `share_dir/index.jsonl`；`kind=="share"` 与 reuse_hit 永不自包）；`POST /api/task/{id}/share/pack` 事后打包端点同口径（`share_pack_manifest` 单一派生面，幂等 + 409/422 守卫阶梯）。消费侧 v1 = 显式导入：`POST /api/share/import`（`unpack_share` 机械校验 + key_parts 白名单 → `kind="share"` 任务，model/lang/arxiv_id/version 取 manifest 自描述值）→ worker `_run_share` 走 §5 全链（fetch→parse→`(src_file,en)` 对账回灌→compile，零 token——包内 zh-src.zip/zh.pdf 只作证据不解不进产物面）；web 端 `.share.zip` 上传自动路由此端点。translate 时自动查 index 的隐式命中仍未接线——挂点即任务创建 fetch 后（resolved_ver 已知）。
 
 ## 9. 开放问题
 
 - **chunks 对账协议**：`src_file + en` 文本匹配的隐含假设是同一 `id@ver` 源码在两侧 parse 出逐字节相同的 chunk——同版本 segmenter 下成立；segmenter 演进会让 en 文本分叉，但 `pipeline_ver` 组分已兜住（实现变 → 版本变 → key 变 → 不互相命中），属保守但正确的失效。
-- ~~**fault/partial 产物可否共享**：v1 要求三件套齐全（zh.pdf 在场 = 贡献者侧至少编通过）；「译文好但贡献者环境编不过」的包价值存疑，留给 v2。~~ **已放行**（2026-09-16 `c6e4306`）：pack/unpack 同口径只强制 `zh-src.zip`+`dual.json`，zh.pdf 缺席即 partial 包——fixloop_exhausted 型任务的 L2 修复译文经包传播有实证价值（share-live gap#4）；贡献者编不过只是少了证据件，消费端反正本地重编。
+- ~~**fault/partial 产物可否共享**：v1 要求三件套齐全（zh.pdf 在场 = 贡献者侧至少编通过）。~~ **已放行**（2026-09-16）：pack/unpack 同口径只强制 `zh-src.zip`+`dual.json`，zh.pdf 缺席即 partial 包——fixloop_exhausted 型任务的 L2 修复译文经包传播有实证价值；贡献者编不过只是少了证据件，消费端反正本地重编。
 - **段级共享**：`translation_cache` 表结构直接就是段级共享素材（key 已含 cfg 指纹），粒度更细、命中收益更高；但单段译文无法在本地 compile 验证语义，信任模型弱一档——v1 选文档级正因为它能被全链重跑验证。
 - **配额与滥用**：上传侧限流、包大小配额、恶意包举报通道——等服务选型再定。
 - **内容签名**：v1 信任模型不需要签名——伪造包的无害化由消费端重跑全链承担，不靠身份担保。若未来要「可信贡献者快速通道」（跳过部分重验证）或贡献者信誉体系，可在 manifest 增加 `signature` 字段（如对 `share_key`+产物哈希做 ed25519 签名）；stdlib 无 ed25519，届时要么引依赖要么把验签放服务端。
 
 ### 参考文献
 
-[^hjfy]: 幻觉翻译 hjfy.top 线上侦察（本仓 `docs/research/product/hjfy-site.md`）。产物三件套 `{id}.pdf`/`{id}_zh_CN.pdf`/`{id}_zh_CN.tgz`、已译论文匿名可看、新建 100 篇/天配额、[hjfy.top](https://hjfy.top)。2026-09.
+[^hjfy]: 幻觉翻译 hjfy.top 线上侦察（本库 `research/product/hjfy-site.md`）。产物三件套 `{id}.pdf`/`{id}_zh_CN.pdf`/`{id}_zh_CN.tgz`、已译论文匿名可看、新建 100 篇/天配额、[hjfy.top](https://hjfy.top)。2026-09.

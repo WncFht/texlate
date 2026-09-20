@@ -1,243 +1,113 @@
-# arXiv 串行探针实测报告：content-disposition 三态 / 条件请求 / 旧 id 归并 / 许可证 / HTML 版本矩阵 / 发现层
+# arXiv 主站串行探针实录（两波合并）：线缆格式 / 条件请求 / 旧 id 归并 / license 机读位 / HTML 版本矩阵 / v-diff 复用率 / 190 发大样本
 
-日期：2026-09-14 · 依据：本机串行探针 38 发（`tmp/exp/arxiv-probes/headers.jsonl` 逐发记录），间隔 ≥3.1s、零并发、全程无 429；探针脚本 `tmp/exp/arxiv-probes/probe.py`。关联文档：`arxiv-layer.md`（下称 layer §N 指其章节号）。
+> **结论**：HEAD `/src/{id}` 的 content-disposition 后缀（`.tar.gz`/`.gz`/`.pdf`）即 hasSrc+格式预检；条件请求 304 全面支持；旧式 id `math.AG/`、`HEP-TH/` 均 301 归并 archive 小写形；`/html/{id}` latest 可能是 includepdf 包装壳 stub，须逐版本回退探测；v1→latest 的 .tex 行复用率中位 0.52 → 增量重翻可省 ~50–85%；旧式 id 源码率 98.1%、新式 94.8%、遗留格式零观测。
+> **状态**：时点证据（2026-09-14 口径，两波合计 ~296 发、间隔 ≥3.1s、零并发）。结论已并入 [layer.md](layer.md) 并实装进 `src/texlate/arxiv/`（fetch 的 cd 三态解析/304 重验证、sniff 的 wrapper 检测、ratelimit 的断路器）。
+> **日期**：2026-09-14 取证，2026-09-20 重订入库（并原名映射：`serial2.md` → 本文 §B）
 
-## 0. 结论速览
+本文合并同一日的两波 arxiv.org 主站探针：§A 端点机制面（content-disposition/条件请求/归并/license/HTML/发现层/类目表），§B 规模化面（v-diff 版本表/官方 PDF/190 发抽样）。原始逐发记录为开发机现场，结论已摘要进正文。
 
-1. **content-disposition 后缀即三态判别**：`.tar.gz`（多文件）/ `.gz`（单文件裸 gz，非 `.tex.gz`）/ `.pdf`（PDF 直投，且 `content-type: application/pdf`）——HEAD `/src/{id}` 一次即可定格式分支 + hasSrc 预检，魔数嗅探降级为下载后 sanity check。→ **销 §10.1**
-2. **条件请求全面支持**：`If-None-Match` 与 `If-Modified-Since` 对 `/src/` 均返回 **304**（经 Varnish）。→ **销 §10.5**
-3. **旧式 id 归并实测**：`math.AG/0301001` →301→ `/abs/math/0301001`（subject-class 写法归并到 archive 形式）；`HEP-TH` →301→ `hep-th`（小写归一）。canonical link 与 `citation_arxiv_id` 均指 archive 形。→ **销 §10.3**
-4. **许可证机器可读位** = abs 页 `div.abs-license > a[href]`（URL 即枚举值）；RSS `dc:rights` 用同一 URL 词表。无 `rel="license"`/`citation_license`，RDF 块只是 trackback。
-5. **HTML 版本矩阵**：每版本独立 etag/content-length；canonical 恒指无版本形；`x-robots-tag: nofollow`。**重大边缘案**：`1412.6980` latest(v9) 是 20KB **退化 stub**（LaTeXML 只吐 `See pages 1-last of 0_adam_main.pdf`）而 v1/v2 有 150KB/290KB 完整正文——「探最新版」策略会踩到 includepdf 包装壳。
-6. **第四态源码形态实证**：1412.6980 v9 的 e-print 是合法 tar.gz + 含 `\documentclass` 的主文件，但正文仅 `\includepdf[pages=1-last]{...}`——解包/定位全成功却无可翻内容。主文件定位后须加「正文含量」检查。
-7. **发现层**：`/rss/{cat}` 302→`export.arxiv.org`（export 桶），260 item/日含 license+announce_type+ 版本号 guid；`/list/{cat}/new` 在 arxiv.org 桶直出 818KB。均可作日更种子源，RSS 信息密度更高。
-8. **类目表**：`/category_taxonomy` 200 落盘（155 个 h4 类目 + h3 archive 组）；退役 archive 不在表内 → §9.2 旧式白名单仍需手工维护。
+## A. 第一波：端点机制
 
-## 1. 实测摘录
+### A.1 content-disposition 后缀 = 三态判别（销 layer.md 待验项）
 
-### 1.1 探针 1 —— 单文件 .gz 的 content-disposition（销 §10.1）
+| 形态        | 文件名例                                | 附带信号                        |
+| ----------- | --------------------------------------- | ------------------------------- |
+| tar 多文件  | `arXiv-2203.02155v1.tar.gz`             | `content-type: application/gzip` |
+| 单文件 .gz  | `arXiv-0807.5094v1.gz`（裸 .gz 非 .tex.gz） | 同上                            |
+| 旧式单文件  | `arXiv-math0404188v6.gz`（id 去斜杠拼）  | 裸 id 解析到 v6 并写进文件名    |
+| PDF 直投    | `arXiv-1602.03837v1.pdf`                | `content-type: application/pdf` 双信号 |
 
-```
-HEAD https://arxiv.org/src/0807.5094        → 200
-  content-disposition: attachment; filename="arXiv-0807.5094v1.gz"
-  content-type: application/gzip · content-length: 7402
-  etag: "CJC2qdH9pvICEAE=" · last-modified: Tue, 10 Aug 2021 17:30:04 GMT
-HEAD https://arxiv.org/src/math/0404188     → 200
-  content-disposition: attachment; filename="arXiv-math0404188v6.gz"
-  content-type: application/gzip · content-length: 57656
-  etag: "COXyy/PKqPICEAE=" · last-modified: Wed, 11 Aug 2021 08:48:25 GMT
-```
+一次 HEAD 即定格式分支 + hasSrc 判决；`/e-print/{id}` 301 → `/src/{id}`（新代码直接打 `/src/` 少一跳）；`accept-ranges: bytes` 支持 Range 取魔数。
 
-**结论**：单文件形态文件名 = `arXiv-{id}v{N}.gz`（**裸 `.gz`**，不是 `.tex.gz`、也不保留投稿原名）。旧式 id 文件名去斜杠拼接：`math/0404188` → `arXiv-math0404188v6.gz`，且裸 id 解析到 **v6**（resolved version 进文件名，与 layer §0.2 一致）。
+### A.2 条件请求 304
 
-### 1.2 探针 2 —— PDF 直投稿 content-disposition（hasSrc 预检成立）
+`If-None-Match` 与 `If-Modified-Since` 对 `/src/` 均回 304（`via: 1.1 varnish`）。etag 两形态并存——新对象 `"sha256:{hex}"`、旧对象 GCS 风格短串（如 `"CJC2qdH9pvICEAE="`）——**存原样串整体回送，不要解析**。etag 变则回 200 拿新 body，天然覆盖「同版本被 replacement」。
 
-```
-HEAD https://arxiv.org/src/1602.03837 → 200
-  content-disposition: attachment; filename="arXiv-1602.03837v1.pdf"
-  content-type: application/pdf · content-length: 935476
-HEAD https://arxiv.org/src/1906.11238 → 200
-  content-disposition: attachment; filename="arXiv-1906.11238v1.pdf"
-  content-type: application/pdf · content-length: 2578342
-```
+### A.3 旧式 id 归并
 
-**结论**：PDF 直投文件名直接给 `.pdf` 后缀 + `content-type: application/pdf` 双信号——**HEAD `/src/{id}` 一次 = hasSrc 预检成立**，无需 GET 嗅 `%PDF` 魔数。配合 1.1，`filename` 后缀三分支完备：`.tar.gz` → 解包流、`.gz` → gunzip→单 tex、`.pdf` → 直接进 PDF sidecar。
+- `math.AG/0301001` →301→ `/abs/math/0301001`：**subject-class 写法归并到 archive 形式**，`.AG` 不进 canonical id（canonical link 与 `citation_arxiv_id` 均指 archive 形）。
+- `HEP-TH/9901001` →301→ `hep-th/9901001`：大小写归一到全小写。
+- 落地归一化规则：`{archive}.{subj}/NNNNNNN` → `{archive}/NNNNNNN`，整体 lower-case。引用语料里 `math.AG/…` 写法常见，不归一会重复计数。（实测 math.AG、HEP-TH 两例；nlin/cs 的 subject-class 写法按同构推断。）
 
-### 1.3 探针 3 —— etag 重验证（销 §10.5）
+### A.4 许可证机器可读位
 
-```
-GET https://arxiv.org/src/2203.02155
-  If-None-Match: "sha256:f25763898e65142f6e9319537f7309cd0e13add9094909b082745f8c2d448b78"
-  → 304 · etag 同值回显 · via: 1.1 varnish
-GET https://arxiv.org/src/2203.02155
-  If-Modified-Since: Mon, 07 Mar 2022 07:41:13 GMT
-  → 304 · age: 952665 · via: 1.1 varnish
-```
+- abs 页标记 = **`div.abs-license > a[href]`，href URL 即枚举值**；CC 类附 `class="has_license"` + 图标。已观测取值：`arxiv.org/licenses/nonexclusive-distrib/1.0/`、`arxiv.org/licenses/assumed-1991-2003/`（pre-2004 旧文专属）、`creativecommons.org/licenses/by/4.0/`。
+- 无 `rel="license"`、无 `citation_license` meta；页内 `rdf:RDF` 块只含 trackback:ping。
+- **RSS `dc:rights` 用同一 URL 词表**——批量取 license 不必逐篇爬 abs。
+- `citation_doi` meta 只在有正式 DOI 时出现，**不回填 `10.48550/arXiv.*`**。
 
-**结论**：`/src/` 对两种条件头都正确回 304，缓存重验证路线可用。细节：
+### A.5 HTML 逐版本覆盖矩阵
 
-- etag 有两种形态——新对象 `"sha256:{hex}"`，旧对象 `"CJC2qdH9pvICEAE="` 类 GCS 风格（0807.5094/math0404188/1602.03837 均后者）。**存原样串整体回送即可**，不要试图解析。
-- 304 由 Varnish 边界缓存回（`via: 1.1 varnish`）；IMS 那条还带 `age`——缓存命中不影响正确性。
-- 推论：若 etag 变化则回 200 拿新 body，天然覆盖「同版本被 replacement」场景。
+| id         | `/html/{id}`          | `{id}v1`              | `{id}v2`              | 解读                                     |
+| ---------- | --------------------- | --------------------- | --------------------- | ---------------------------------------- |
+| 2501.14787 | 200 · 1912286B        | 200 · 同 etag 同 size | 404                   | 单版本                                   |
+| 1706.03762 | 200 · 188707B         | 200 · 180979B         | 200 · 204363B         | ≥3 版本，逐版本独立 etag/size（latest=v3）|
+| 1412.6980  | 200 · **20827B stub** | 200 · 150059B         | 200 · 290669B         | latest=v9 为包装壳 stub                  |
+| 2203.02155 | 200 · 679724B         | 200 · 同 etag 同 size | 404                   | 单版本                                   |
+| 2605.15481 | 200 · 272315B         | 404                   | 200 · 同 etag 同 size | 边缘案复现：v1 无 HTML、v2 有            |
 
-### 1.4 探针 4 —— 旧式 id 归并（销 §10.3）
+公共特征：全部 `x-robots-tag: nofollow`；`rel='canonical'` 恒指无版本形；每版本独立内容寻址 etag；`last-modified` 是页面再生日（曾观测整批 2026-08-24 重建），非论文时间。
 
-```
-GET https://arxiv.org/abs/math.AG/0301001 → 301 · location: /abs/math/0301001
-GET https://arxiv.org/abs/math/0301001    → 200
-  <link rel="canonical" href="https://arxiv.org/abs/math/0301001"/>
-  <meta name="citation_arxiv_id" content="math/0301001"/>
-GET https://arxiv.org/abs/HEP-TH/9901001  → 301 · location: /abs/hep-th/9901001
-GET https://arxiv.org/abs/hep-th/9901001  → 200 · canonical 同上形态
-```
+### A.6 第四态源码形态：PDF 包装壳
 
-**结论**：
+1412.6980 v9 的 e-print 是合法 tar.gz + 含 `\documentclass` 的主文件，但正文仅 `\includepdf[pages=1-last]{0_adam_main.pdf}`；其 LaTeXML HTML 也是 20KB stub（正文只有「See pages 1-last of 0_adam_main.pdf」一行）。v9 e-print 仅 2 个文件（壳 tex + PDF），v1 的 19 个正文文件全删——**"latest 有源码" ≠ "latest 可翻"**；复用旧版译文也必须先对新版做正文含量检查。判据与 DOM 信号见 [html-path.md](html-path.md) §5。
 
-- `math.AG/0301001` 与 `math/0301001` 是**同一篇**；canonical = `math/0301001`——**subject-class 写法 301 归并到 archive 形式**，`.AG` 不进 canonical id。
-- 大小写不归一也会 301 纠到全小写 archive 形（`HEP-TH` → `hep-th`）。
-- → §9.2 归一化规则落地：`{archive}.{subj}/{7digits}` → `{archive}/{7digits}`，整体 lower-case。引用语料里 `math.AG/0301001` 这类写法常见，不归一会造成重复计数。（实测仅 math.AG 一例 subject 归并 + hep-th 一例大小写；nlin/cs 的 subject-class 写法按同构推断，未逐一实测。）
+### A.7 发现层
 
-### 1.5 探针 5 —— 许可证机器可读性（新发现，补入 layer §5）
+- `arxiv.org/rss/{cat}` →302→ `export.arxiv.org/rss/{cat}`（**export 桶**，与 Atom API 同池）：cs.LG 实测 558KB / 260 item，每条含 `guid=oai:arXiv.org:{id}v{n}`（带版本）、`announce_type`（new/cross/replace/replace-cross）、`dc:rights`（license URL）、`dc:creator`、标题+摘要；`skipDays` Sat/Sun（工作日日更）。信息密度远高于 list 页，**日更种子源首选**。
+- `arxiv.org/list/{cat}/new`（arxiv.org 桶）直出 818KB HTML，三节 New/Cross/Replacement 同数 260——主站桶热备。
 
-abs 页 markup（三篇样本三种取值）：
+### A.8 类目表
 
-```html
-<!-- 1412.6980：非独占 -->
-<div class="abs-license">
-    <a
-        href="http://arxiv.org/licenses/nonexclusive-distrib/1.0/"
-        title="Rights to this article"
-        >view license</a
-    >
-</div>
-<!-- math/0301001 & hep-th/9901001:2004 前投稿的"假定许可证" -->
-<div class="abs-license">
-    <a href="http://arxiv.org/licenses/assumed-1991-2003/" ...>view license</a>
-</div>
-<!-- 2606.31863 (EPTCS) & 1602.03837 (LIGO GW150914)：CC-BY，多 class/icon -->
-<div class="abs-license">
-    <a
-        href="http://creativecommons.org/licenses/by/4.0/"
-        title="Rights to this article"
-        class="has_license"
-    >
-        <img
-            alt="license icon"
-            ...
-            src="https://arxiv.org/icons/licenses/by-4.0.png"
-        />
-        <span>view license</span></a
-    >
-</div>
-```
+`/category_taxonomy` 落盘 84KB：`<h3>` archive 组 + `<h4>` 类目 ×155，覆盖全部现行 subject class；**退役 archive 不在表内**（alg-geom/dg-ga/funct-an/q-alg 等）→ 旧式 id 白名单不能从该表生成，需手工维护。
 
-**结论**：
+## B. 第二波：版本表 / v-diff / 官方 PDF / 190 发大样本
 
-- 机器可读位 = **`div.abs-license > a[href]`，href URL 即枚举值**；CC 类附 `class="has_license"` + 图标。
-- 已观测取值：`nonexclusive-distrib/1.0`、`assumed-1991-2003`（旧文专属）、`creativecommons.org/licenses/by/4.0`。
-- 无 `rel="license"`、`citation_license` meta；页内 `rdf:RDF` 块只含 trackback:ping，无 rights。
-- **RSS `dc:rights` 用同一 URL 词表**（见 1.8）——批量拉 license 不必逐篇爬 abs。
-- 附带发现：`citation_doi` meta 只在有正式 DOI 时出现（hep-th/9901001→`10.1143/PTP.101.1155`、1602.03837→`10.1103/...`、2606.31863→`10.4204/EPTCS.447.11`；1412.6980/math 0301001 无）——**不回填 `10.48550/arXiv.*`**。此为 abs 页证据，§10.4 的 Atom `<arxiv:doi>` 字段仍未直接实测，标半销。
+### B.1 版本表机制（10 id，HEAD 逐版探测 404 定界）
 
-### 1.6 探针 6 —— HTML 逐版本覆盖矩阵
+8/10 有多版本：1412.6980→v9、1706.03762→v7、2005.11401→v4、1403.3985→v3、1810.04805/2106.09685/1801.02634/2003.08934→v2；1512.03385、2203.02155 单版本。知名论文改版是常态，v-diff 缓存问题真实存在。版本包大小可剧烈变化（2106.09685 v1→v2 从 1.83MB 砍到 917KB，换 ICLR 模板）。
 
-| id         | `/html/{id}`          | `{id}v1`              | `{id}v2`              | 解读                                       |
-| ---------- | --------------------- | --------------------- | --------------------- | ------------------------------------------ |
-| 2501.14787 | 200 · 1912286B        | 200 · 同 etag 同 size | **404**               | 单版本                                     |
-| 1706.03762 | 200 · 188707B         | 200 · 180979B         | 200 · 204363B         | ≥3 版本，逐版本独立 etag/size（latest=v3） |
-| 1412.6980  | 200 · **20827B stub** | 200 · 150059B         | 200 · 290669B         | latest=v9 为包装壳 stub（见 1.7）          |
-| 2203.02155 | 200 · 679724B         | 200 · 同 etag 同 size | **404**               | 单版本                                     |
-| 2605.15481 | 200 · 272315B         | **404**               | 200 · 同 etag 同 size | 边缘案复现：v1 无 HTML、v2 有              |
+### B.2 v1→latest 逐对 diff：增量重翻可省 ~50–85%
 
-公共特征：所有 HTML 响应 `x-robots-tag: nofollow` + `link: <https://arxiv.org/html/{id}>; rel='canonical'`（**canonical 恒指无版本形**，v1/v2 页也一样）；每版本独立 `etag`（内容寻址，可直接做版本级缓存键）；`last-modified` 是页面再生日（2026-08-24 批量重建痕迹），非论文时间。
+口径：`tex_reuse_new` = 全树 .tex 行多重集交集 / 新版全部 .tex 行（改名/搬动不罚，最贴「省翻率」）；`reuse_new` = 同名文件对齐 equal 行占比（偏乐观）。
 
-**结论**：「探 `{id}`（最新版）」方向正确但**不充分**——latest 可能是 stub；逐版本 HEAD 成本低（~0.2–0.5s），降级路径应做「latest → 逐版本回退」探测。→ 推进 §10.7（接口位确认 + 新增 stub 输入）。
+| id         | 版本跨度 | tex_reuse_new | reuse_new | 备注                                       |
+| ---------- | -------- | ------------- | --------- | ------------------------------------------ |
+| 1801.02634 | v1→v2    | **0.9985**    | 0.9997    | 近乎纯增补                                 |
+| 1706.03762 | v1→v7    | **0.8258**    | 0.9084    | 6 版演进仍保留 83%                         |
+| 2003.08934 | v1→v2    | **0.6102**    | 0.8599    |                                            |
+| 2005.11401 | v1→v4    | **0.4555**    | 0.8877    | v4 新增大段 tex                            |
+| 1810.04805 | v1→v2    | **0.4799**    | 0.8652    | sections/→根目录大搬家                     |
+| 1403.3985  | v1→v3    | **0.5502**    | 0.3247    | 换类 + .bbl 552→1793 行全换                |
+| 2106.09685 | v1→v2    | **0.4612**    | 0.2716    | NeurIPS→ICLR 模板整套换（sty/bbl/bst 全删） |
+| 1412.6980  | v1→v9    | (0.357)       | —         | 边缘案不入统计：v9 正文归零                |
 
-### 1.7 探针 7 —— HTML 样本下载 + 第四态源码形态
+统计（7 对正常）：tex_reuse_new **中位 0.52 / 均值 0.59**；reuse_new 中位 0.87 / 均值 0.73。推论：
 
-```
-GET /html/1706.03762 → 200 · 188707B  → tmp/exp/arxiv-probes/html/1706.03762.html
-GET /html/1412.6980  → 200 ·  20827B  → tmp/exp/arxiv-probes/html/1412.6980.html  ⚠ stub
-GET /html/2203.02155 → 200 · 679724B  → tmp/exp/arxiv-probes/html/2203.02155.html
-```
+- 行级 verbatim 复用下界 ~50–60%；按段落哈希 + ~0.9 相似度模糊匹配可望推到 **60–85%**——「出新版重翻」用增量缓存能省一半以上。
+- **缓存配对键必须按内容指纹而非文件名**——改名/结构搬家（1810.04805）与换模板/换 bib 工具链（1403.3985、2106.09685，~45–55% 流失来自 preamble/bbl 整体替换）是主损耗。
+- `.bbl` 差异是噪声大户（bib 工具重生成即全文换血）；翻译只消费 .tex，bbl/sty 变化不计入重翻量。
 
-1412.6980 stub 正文全貌（LaTeXML 0.7.6 合法输出但无正文）：
+### B.3 官方 PDF 下载事实
 
-```html
-<div id="infobox" class="infobox">
-    <a
-        id="license-tr"
-        href="https://info.arxiv.org/help/license/index.html#licenses-available"
-    >
-        License: arXiv.org perpetual non-exclusive license</a
-    >
-    <div id="watermark-tr">arXiv:1412.6980v9 [cs.LG] 30 Jan 2017</div>
-</div>
-<article class="ltx_document">
-    <div id="p1" class="ltx_para">
-        <p id="p1.1" class="ltx_p">
-            See pages 1-last of
-            <a href="https://0_adam_main.pdf">0_adam_main.pdf</a>
-        </p>
-    </div>
-</article>
-<!-- footer 附 ./1412.6980v9/__stdout.txt build log 链接 -->
-```
+`GET /pdf/{id}` 200 直出，`content-disposition: inline; filename="{id}v{N}.pdf"`（**inline**，与 `/src/` 的 attachment 不同）；15/15 全部 ≤8.8MB。旧式 id 落盘注意嵌套目录（`math/0404188.pdf`）。保真度对拍见 [pdf-fidelity.md](pdf-fidelity.md)。
 
-根因（本地 corpus `bench/corpus/1412.6980/` 佐证）：v9 e-print 是合法 tar.gz，主文件 `arxiv.tex` 有 `\documentclass`，但正文只有 `\includepdf[pages=1-last]{0_adam_main.pdf}`。
+### B.4 190 发大样本（HEAD 判定，未下载）
 
-**结论 —— 源码三态之外存在第四态「PDF 包装壳」**：
+采样：旧式 12 archive × 3 个 YYMM(1996–2006) × 2 seq，404 重抽一次；新式 2008–2026 按月均匀，同法。
 
-- 表现：e-print 非 `.pdf`（HEAD 预检判成有源码）、解包成功、`\documentclass` 定位成功，但正文是 `\includepdf`——解析管线「全绿」却产出空文档。
-- 对策：主文件定位后加**正文含量检查**（剥 preamble 后正文 <阈值字节 / 探测 `\includepdf`、`\includegraphics` 独占正文）→ 判 `wrapper_pdf`，路由到 PDF sidecar（或回退更早版本 HTML——本案 v2 有 290KB 真内容）。
-- stub 内 `id="license-tr"` 锚点也带许可证文本，是 HTML 路径的第二个 license 读取位。
+| 池            | n   | tar.gz | 单文件 .gz | PDF-only | 404    | 其他  |
+| ------------- | --- | ------ | ---------- | -------- | ------ | ----- |
+| 旧式（96–06） | 92  | 37     | 15         | 1        | **39** | **0** |
+| 新式（08–26） | 98  | 77     | 15         | 5        | 1      | **0** |
 
-### 1.8 探针 8 —— 发现层
+源码率（剔除 404）：旧式 **98.1%**（52/53）、新式 **94.8%**（92/97）；合并 wave-1 前 60 篇基线后新式口径 91.7%——「老论文几乎必有 TeX」实证；旧式 PDF-only 唯一一例是 cond-mat/9610071。
 
-```
-GET https://arxiv.org/rss/cs.LG  → 302 · location: http://export.arxiv.org/rss/cs.LG
-GET http://export.arxiv.org/rss/cs.LG   → 301 → https
-GET https://export.arxiv.org/rss/cs.LG  → 200 · 558541B · application/rss+xml
-GET https://arxiv.org/list/cs.LG/new    → 200 · 818770B · text/html（arxiv.org 直出）
-```
+- **旧式单文件率 28.8% ≈ 新式 16.3% 的 2 倍**——老论文更常单 tex 直投，解包必须保住单文件 .gz 分支。
+- **遗留尾巴零观测**：190 发 200 响应里只有 `.tar.gz`/`.gz`/`.pdf` 三类——`.ps.gz`/`.dvi`/`.doc`/纯文本 0 例（含 1996–1999 最老样本），rule-of-three 真实「其他」率 <1.6%（95%）→ 三态判决对 ~98.4% 语料充分，「其他」桶记 unknown 人工看即可，无需预建 dvi/ps 工具链。
+- **旧式 id 稀疏坑**：39/92 旧式请求 404——seq≤099 并不稠密（nucl-ex 9/11、cs 8/10、hep-lat 6/9；math/9710、cs/9603、cs/9709、hep-ph/9909 整月全灭）。成因：低流量 archive-month 月投稿 < 抽取序号。**枚举式抓取必须容忍大量 404，不能用「seq 连续」做完整性假设**；引用图发现 id 的路线正好规避此坑。
+- 预算注记：本波 258 发触顶停发，2025–2026 新式样本 n≈2，新式统计实际覆盖 2008–2025。
 
-RSS item 字段（260 items，与 list 页三节同数）：
+### 参考文献
 
-```
-99  <arxiv:announce_type>new</> · 59 cross · 49 replace · 53 replace-cross
-260 <dc:creator> · 260 <dc:rights>{license URL}</> · <guid>oai:arXiv.org:{id}v{n}</guid>
-dc:rights 分布: 120 CC-BY · 13 BY-NC-ND · 8 BY-NC-SA · 9 BY-SA · 1 CC0 · 109 nonexclusive
-skipDays: Sat/Sun（工作日日更）· channel self-link 称 http://rss.arxiv.org/rss/cs.LG
-```
-
-list 页三节：`New submissions (99) / Cross submissions (59) / Replacement submissions (102)`，条目 `/abs/{id}` 链接 260 个。
-
-**结论**：可作「每日新文预译」种子源。**优先 RSS**——单请求拿到 id+ 版本号+announce_type+license+abstract 五元组，密度远高于 list HTML；注意它落在 **export 桶**（限流与 Atom API 同池），调度归 export 队列。list/new 在 arxiv.org 桶可作热备。
-
-### 1.9 探针 9 —— 类目表
-
-```
-GET https://arxiv.org/category_taxonomy → 200 · 83909B → tmp/exp/arxiv-probes/category_taxonomy.txt
-结构：<h3>{Group}<br><span>({archive})</span></h3> 组 + <h4>{cat} <span>({full name})</span></h4> 类目 ×155
-覆盖：math.* / nlin.* / stat.* / cs.* 等全部现行 subject class；astro-ph/cond-mat/hep-*/gr-qc 组齐
-缺：退役 archive（alg-geom/dg-ga/funct-an/q-alg/cmp-lg/adap-org/chao-dyn/solv-int/patt-sol/mtrl-th…）
-    —— 全表仅 "supr-con" 在描述文字出现 1 次，无类目条目
-```
-
-**结论**：现行类目 → 术语包映射底表已齐（存盘可 diff 跟踪新增类目）；§9.2 旧式 archive 白名单**不能**从该表生成，仍需手工维护退役清单。
-
-## 2. §10 销号表
-
-| §10 条目                       | 状态     | 结论                                                                                                 |
-| ------------------------------ | -------- | ---------------------------------------------------------------------------------------------------- |
-| 1. 单文件 .gz 文件名形态       | ✅ 销    | `arXiv-{id}vN.gz` 裸 `.gz`；旧 id `arXiv-{archive}{digits}vN.gz`；三分支 `.tar.gz`/`.gz`/`.pdf` 完备 |
-| 2. export 429 窗口/Retry-After | ⏸ 未跑成 | 今日 export 无 429（RSS 落 export 正常 200），窗口仍未知，保留 park 策略                             |
-| 3. math.AG vs math 归并        | ✅ 销    | 301→`math/`，canonical=archive 形；`HEP-TH`→`hep-th` 小写归一                                        |
-| 4. Atom `<arxiv:doi>` 回填     | 🔶 半销  | abs `citation_doi` 仅真 DOI、不回填 10.48550；Atom 字段未直接实测                                    |
-| 5. /src/ If-None-Match 304     | ✅ 销    | INM + IMS 均 304（Varnish），etag 存原样回送                                                         |
-| 6. S3 manifest 边界            | ⏸ 未跑   | 本轮无 AWS 侧探针                                                                                    |
-| 7. HTML DOM 分块规格           | 🔶 推进  | 3 篇样本落盘 `tmp/exp/arxiv-probes/html/` 供 DOM agent；新增 stub 边缘案输入                         |
-
-## 3. 对 arxiv-layer.md 的修订建议
-
-1. **§3.1 三态 → 四态**：补「includepdf 包装壳」——HEAD 判成有源码、解包/定位全成功但正文空；主文件定位后加正文含量检查（`\includepdf` 探测 + 正文字节阈值），判 `wrapper_pdf` 进 PDF sidecar 或回退早期版本。
-2. **§2.2 HEAD 预检升级**：`content-disposition` 后缀（`.tar.gz`/`.gz`/`.pdf`）可直接定格式分支 + hasSrc 判决；魔数嗅探降为下载后 sanity check。
-3. **§7 降级链**：`/html/{id}` latest 可为 stub（1412.6980v9 实证）→ L2 探测改「latest → `{id}v{n}` 逐版本回退」，且可用 content-length/正文嗅探判 stub。
-4. **§9.2 归一化补实**：`{archive}.{subj}/NNNNNNN` → `{archive}/NNNNNNN` + lower-case（math.AG/HEP-TH 双实证）。
-5. **§5 元数据**：license 机器可读位 = `div.abs-license a[href]`（URL 枚举）；`citation_doi` 仅真 DOI；RSS `dc:rights` 同词表可批量取。
-6. **§8 发现层新增**：RSS `/rss/{cat}`（export 桶）为日更种子源首选，list/new（arxiv.org 桶）热备。
-7. **etag 注意**：双形态并存（`"sha256:…"` 与 GCS 风格短串），按原样不透明串处理。
-
-## 4. 产物清单
-
-```
-tmp/exp/arxiv-probes/
-├── headers.jsonl          # 38 发逐条：label/method/url/req_headers/status/headers/elapsed/body_bytes
-├── probe.py               # 探针脚本（串行限速器，可复用扩展）
-├── probe_stdout.log       # 控制台摘要
-├── abs/                   # 6 个 abs 页（含 canonical/license 证据；HEP-TH 与 hep-th 同文件——大小写不敏感 FS 实证）
-├── html/                  # 1706.03762(189KB) 1412.6980(20KB stub) 2203.02155(680KB)
-├── rss_cs.LG.txt          # 559KB 全日 RSS
-├── list_cs.LG_new.txt     # 819KB /list/cs.LG/new
-└── category_taxonomy.txt  # 84KB 类目表
-```
+无新增外部来源；全部为本机探针实测（UA 自报、≥3.1s 间隔、零并发纪律）。相关官方端点语义见 [layer.md](layer.md) 参考文献。

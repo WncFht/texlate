@@ -1,6 +1,10 @@
 # hjfy.top 线上产品侦察报告
 
-> 侦察时间 2026-09-14。方法：站点是纯 SPA（所有路由返回同一 `index.html`），因此主要证据来自前端 JS bundle（`cdn.hjfy.top/web/assets/index-C-lPcRmK.js` 等 9 个 chunk）逆向 + 匿名 API 实测 + GitHub 第三方客户端源码。下文标注 `[实测]`=直接调通、`[代码]`=bundle 证据、`[猜]`=推断。
+> **结论**：hjfy.top 是「arXiv LaTeX 源码 → LLM 翻译 → ctex 重编译」生态位的唯一现存产品；API 面极薄（GET status 即创建任务），产物三件套 + 五态状态机 + DeepSeek 重翻通道构成复刻 checklist 的核心。
+> **状态**：时点证据（2026-09-14 口径）
+> **日期**：2026-09-14
+
+方法：站点是纯 SPA（所有路由返回同一 `index.html`），因此主要证据来自前端 JS bundle 逆向 + 匿名 API 实测 + GitHub 第三方客户端源码[^zotero-hjfy][^zotero-split]。下文标注 `[实测]`=直接调通、`[代码]`=bundle 证据、`[猜]`=推断。
 
 ## 0. TL;DR
 
@@ -63,7 +67,7 @@ items: [
 // 默认值：window.innerWidth > 1080 ? "split" : "translated"
 ```
 
-**左右互换**：`localStorage.translatePosition`（默认 `"left"`=左译右原？代码 `translatePosition==="left"?[U,B]:[B,U]`，U=译文面板）；tooltip 文案"左侧显示原文/左侧显示翻译"。
+**左右互换**：`localStorage.translatePosition`（默认 `"left"`；代码 `translatePosition==="left"?[U,B]:[B,U]`，U=译文面板）；tooltip 文案"左侧显示原文/左侧显示翻译"。
 
 **滚动同步** `[代码]`：仅 split 模式挂载双向 scroll 监听；译文容器滚动时 `origin.scrollTop += delta`（**等值 delta 联动，非比例/非页对齐**）；反向亦然。增量 |Δ|>500px（大纲/缩略图跳页）不联动，改为浮出按钮（点击把对侧 scrollTop 拉到本侧位置）。
 
@@ -71,38 +75,38 @@ items: [
 
 **状态文案** `[代码]`：
 
-| status     | 文案                                                                                |
-| ---------- | ----------------------------------------------------------------------------------- |
-| start      | "开始翻译，通常需要 1-10 分钟。"                                                    |
-| processing | "翻译中"（info 附带当前文件名，如"正在翻译 04-alignment.tex"）                      |
-| finished   | 进阅读器                                                                            |
+| status     | 文案                                                                              |
+| ---------- | --------------------------------------------------------------------------------- |
+| start      | "开始翻译，通常需要 1-10 分钟。"                                                  |
+| processing | "翻译中"（info 附带当前文件名，如"正在翻译 04-alignment.tex"）                    |
+| finished   | 进阅读器                                                                          |
 | failed     | "翻译失败，对于 arXiv 论文，我们会定期检查失败任务并修复，请等待或联系我们加速处理" |
-| error      | "翻译出错，可能这篇论文没有源码。"                                                  |
-| fault      | "编译失败，请下载源码浏览"                                                          |
+| error      | "翻译出错，可能这篇论文没有源码。"                                                |
+| fault      | "编译失败，请下载源码浏览"                                                        |
 
 ## 3. 可见 API 面
 
-全部同源 `https://hjfy.top`，JSON 信封 `{status, data?, msg?}`：`status:0`=OK，`101`=需登录，`400/500`=错误。**无独立"创建任务"端点——GET Status 即触发/登记任务**（第三方客户端 Zotero 插件还会 GET `/arxiv/{id}` 页面来 prime，`[代码+三方证据]`）。
+全部同源 `https://hjfy.top`，JSON 信封 `{status, data?, msg?}`：`status:0`=OK，`101`=需登录，`400/500`=错误。**无独立"创建任务"端点——GET Status 即触发/登记任务**（第三方客户端 Zotero 插件还会 GET `/arxiv/{id}` 页面来 prime，`[代码+三方证据]`[^zotero-hjfy]）。
 
-| 端点                                           | 方法/载荷                                                                              | 响应（实测）                                                                                                                                                                                                   |
-| ---------------------------------------------- | -------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/api/arxivStatus/{id}`                        | GET                                                                                    | `{status:0,data:{status:"finished",info:"正在翻译 01-Overview.tex"}}`；未译论文匿名→`{status:101,"required login"}`；不存在 id→`{status:"error",info:"正在下载论文源码"}`                                      |
-| `/api/arxivFiles/{id}`                         | GET                                                                                    | `[实测]` `{id,title,origin,zhCN,zhCNTar,isDeepSeek}`，三个阿里云 OSS 签名 URL（`hjfy-files.oss-accelerate.aliyuncs.com/arxiv/{id}/`，`x-oss-expires=3600`）；命名 `{id}.pdf`/`{id}_zh_CN.pdf`/`{id}_zh_CN.tgz` |
-| `/api/arxivInfo/{id}`                          | GET                                                                                    | 返回 `data.hasSrc` `[代码]`；`[实测]` 当前持续 500 "socket connection closed"（疑似线上故障）                                                                                                                  |
-| `/api/arxivViewHistory?limit={n}`              | GET                                                                                    | `[实测]` 匿名 `{status:0,data:[]}`                                                                                                                                                                             |
-| `/api/fileStatus/{key}` `/api/fileFiles/{key}` | GET                                                                                    | 同 arxiv 结构（type=file）；`[实测]` 乱 key 触发函数计算崩溃错误 → 后端**函数计算**实锤（呼应原文"SaaS 版本会莫名其妙退出"）                                                                                   |
-| `/api/getFile/{key}/{path}`                    | GET                                                                                    | 文件资源代理；`[实测]` 坏 key→`{"msg":"Not found"}`                                                                                                                                                            |
-| `/api/uploadFiles`                             | POST `multipart`（file,fileName）                                                      | `{status:0,data:{fileKey}}`→跳 `/file/{key}`；`status:302`→跳 `/arxiv/{arxivId}`（**上传命中已译论文直接复用**）；匿名 `[实测]` `required login`                                                               |
-| `/api/myFiles` `/api/deleteFile/{key}`         | GET / POST(delete)                                                                     | 需登录（`required login`）                                                                                                                                                                                     |
-| `/api/sendCode`                                | POST `{captchaVerifyParam,phone}`                                                      | 阿里云验证码校验先行；`[实测]` 假参数→`人机识别失败`                                                                                                                                                           |
-| `/api/phoneLogin`                              | POST `{phone,code}`                                                                    | →`{data:{session}}`→`/api/callbackSession?session=…&path=…`                                                                                                                                                    |
-| 微信登录                                       | WxLogin QR → `/api/login/callback/wechat?path=…`；微信内→`/api/login/callback/fuwuhao` |                                                                                                                                                                                                                |
-| `/api/logout`                                  | POST                                                                                   |                                                                                                                                                                                                                |
-| `/api/userinfo`                                | GET                                                                                    | `[实测]` `{login:false}`；登录后 `{login,nickname,head_img_url}`                                                                                                                                               |
-| `/api/errorFeedback`                           | POST `{id:url, errorType, errorContent}`                                               | 登录可用                                                                                                                                                                                                       |
-| `/api/pay/wechat/createTransaction`            | GET                                                                                    | →`{data:{code_url}}`，前端 canvas 画 QR                                                                                                                                                                        |
+| 端点                                         | 方法/载荷                                                                              | 响应（实测）                                                                                                                                                                                         |
+| -------------------------------------------- | -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/api/arxivStatus/{id}`                      | GET                                                                                    | `{status:0,data:{status:"finished",info:"正在翻译 01-Overview.tex"}}`；未译论文匿名→`{status:101,"required login"}`；不存在 id→`{status:"error",info:"正在下载论文源码"}`                            |
+| `/api/arxivFiles/{id}`                       | GET                                                                                    | `[实测]` `{id,title,origin,zhCN,zhCNTar,isDeepSeek}`，三个阿里云 OSS 签名 URL（`hjfy-files.oss-accelerate.aliyuncs.com/arxiv/{id}/`，`x-oss-expires=3600`）；命名 `{id}.pdf`/`{id}_zh_CN.pdf`/`{id}_zh_CN.tgz` |
+| `/api/arxivInfo/{id}`                        | GET                                                                                    | 返回 `data.hasSrc` `[代码]`；`[实测]` 当前持续 500 "socket connection closed"（疑似线上故障）                                                                                                        |
+| `/api/arxivViewHistory?limit={n}`            | GET                                                                                    | `[实测]` 匿名 `{status:0,data:[]}`                                                                                                                                                                   |
+| `/api/fileStatus/{key}` `/api/fileFiles/{key}` | GET                                                                                  | 同 arxiv 结构（type=file）；`[实测]` 乱 key 触发函数计算崩溃错误 → 后端**函数计算**实锤（呼应作者"SaaS 版本会莫名其妙退出"的说法）                                                                     |
+| `/api/getFile/{key}/{path}`                  | GET                                                                                    | 文件资源代理；`[实测]` 坏 key→`{"msg":"Not found"}`                                                                                                                                                  |
+| `/api/uploadFiles`                           | POST `multipart`（file,fileName）                                                      | `{status:0,data:{fileKey}}`→跳 `/file/{key}`；`status:302`→跳 `/arxiv/{arxivId}`（**上传命中已译论文直接复用**）；匿名 `[实测]` `required login`                                                       |
+| `/api/myFiles` `/api/deleteFile/{key}`       | GET / POST(delete)                                                                     | 需登录（`required login`）                                                                                                                                                                           |
+| `/api/sendCode`                              | POST `{captchaVerifyParam,phone}`                                                      | 阿里云验证码校验先行；`[实测]` 假参数→`人机识别失败`                                                                                                                                                 |
+| `/api/phoneLogin`                            | POST `{phone,code}`                                                                    | →`{data:{session}}`→`/api/callbackSession?session=…&path=…`                                                                                                                                          |
+| 微信登录                                     | WxLogin QR → `/api/login/callback/wechat?path=…`；微信内→`/api/login/callback/fuwuhao` |                                                                                                                                                                                                      |
+| `/api/logout`                                | POST                                                                                   |                                                                                                                                                                                                      |
+| `/api/userinfo`                              | GET                                                                                    | `[实测]` `{login:false}`；登录后 `{login,nickname,head_img_url}`                                                                                                                                     |
+| `/api/errorFeedback`                         | POST `{id:url, errorType, errorContent}`                                               | 登录可用                                                                                                                                                                                             |
+| `/api/pay/wechat/createTransaction`          | GET                                                                                    | →`{data:{code_url}}`，前端 canvas 画 QR                                                                                                                                                              |
 
-**前端栈**：SolidJS（编译模板 `w('<div>')`）+ Vite + Tailwind + pdfslick + marked + KaTeX + qrcode；静态资源 `cdn.hjfy.top`，百度统计，CSRFTOKEN 模板占位。
+**前端栈**：SolidJS（编译模板 `w('<div>')`）+ Vite + Tailwind + pdfslick + marked + KaTeX + qrcode；静态资源走独立 CDN 域，百度统计，CSRFTOKEN 模板占位。
 
 ## 4. 定价与限制 `[About FAQ 代码原文]`
 
@@ -115,13 +119,13 @@ items: [
 
 1. **任务模型五态+fault 细分**：编译失败（fault）与翻译失败（failed）分开，fault 仍交付 .tgz 源码——复刻时 `status` 枚举直接抄。
 2. **进度可见到文件名**：`info` 字段暴露"正在翻译 xx.tex"——后端按文件粒度推进并上报。
-3. **isDeepSeek 双轨制**：默认译文用便宜模型（原文：qwen-turbo/doubao-lite），用户可反馈"换 DeepSeek 重翻"，`isDeepSeek` 标记进 files 响应——**分级模型 + 按需升级的产品化闭环**。
-4. **失败任务定期重修**：failed 文案承诺"定期检查失败任务并修复"，呼应原文"手动修复固化进代码"。
-5. **版本号归一**：`v\d+` 可省略，失败后自动回退无版本号 ID；任务存储按无版本 ID（第三方插件 `VersionedArxivReference` 证实）。
+3. **isDeepSeek 双轨制**：默认译文用便宜模型（作者文章：qwen-turbo/doubao-lite），用户可反馈"换 DeepSeek 重翻"，`isDeepSeek` 标记进 files 响应——**分级模型 + 按需升级的产品化闭环**。
+4. **失败任务定期重修**：failed 文案承诺"定期检查失败任务并修复"，呼应作者"手动修复固化进代码"的说法。
+5. **版本号归一**：`v\d+` 可省略，失败后自动回退无版本号 ID；任务存储按无版本 ID（第三方插件 `VersionedArxivReference` 证实[^zotero-hjfy]）。
 6. **PDF 译文交付物是 Markdown 而非重排版 PDF**：上传 PDF 走 marker→md→LLM，阅读器右侧 marked+KaTeX 渲染，图片走 `/api/getFile` 代理——作者自评"效果很差"，新方案（PDF 指令直译）在研。
 7. **上传去重**：uploadFiles 返回 302+arxivId 说明后端对上传 PDF 做 arXiv 匹配/去重。
-8. **生态**：多个第三方客户端直接消费上述 API（zotero-plugin-hjfy、zotero-hjfy-split-reader、3 个浏览器插件/油猴脚本），还有 ieeA（本仓参考实现）——API 即公开接口，复刻值得保持同构。
-9. **桌面版占位**：`/desktop` 是模板 stub，与原文"之后做桌面版"一致——未做。
+8. **生态**：多个第三方客户端直接消费上述 API[^zotero-hjfy][^zotero-split]，还有 ieeA（TeXlate 仓的参考实现）——API 即公开接口，复刻值得保持同构。
+9. **桌面版占位**：`/desktop` 是模板 stub，与作者"之后做桌面版"一致——未做。
 10. **后端线索**：函数计算（fileStatus 崩溃报文）、阿里云 OSS 杭州、阿里云验证码、微信双登录（扫码 + 服务号）、微信支付。
 
 ## 6. 未侦察到/存疑
@@ -132,7 +136,8 @@ items: [
 - Word/Epub：meta description 里宣传"Word 翻译，Epub 翻译"但前端无入口 `[猜:规划中]`。
 - 翻译产物命名约定 `{id}_zh_CN` 暗示多语言预留，但 UI 无语言选择（`[猜]`）。
 
-## 附：关键证据文件
+### 参考文献
 
-- 侦察下载的 bundle 在 `/tmp/hjfy_*.js`（会话临时目录，未入库）
-- 第三方 API 用法：`github.com/ANGJustinl/zotero-plugin-hjfy` `src/modules/arxivTranslation.ts`；`github.com/Infinity4B/zotero-hjfy-split-reader` `src/modules/hjfyClient.ts`（含状态分类器 hjfyState.ts）
+[^zotero-hjfy]: ANGJustinl. zotero-plugin-hjfy（Zotero 插件，hjfy API 客户端，`src/modules/arxivTranslation.ts`）. GitHub 2026. [github.com/ANGJustinl/zotero-plugin-hjfy](https://github.com/ANGJustinl/zotero-plugin-hjfy)
+
+[^zotero-split]: Infinity4B. zotero-hjfy-split-reader（分屏阅读器插件，`src/modules/hjfyClient.ts` + 状态分类器 hjfyState.ts）. GitHub 2026. [github.com/Infinity4B/zotero-hjfy-split-reader](https://github.com/Infinity4B/zotero-hjfy-split-reader)

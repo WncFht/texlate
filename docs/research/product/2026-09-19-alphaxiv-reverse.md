@@ -1,6 +1,10 @@
-# alphaXiv 逆向调研报告（2026-09-19）
+# alphaXiv 逆向调研报告
 
-对 https://www.alphaxiv.org/ 做了一轮「网络调研 + 直接探针 + 浏览器抓包」三层逆向。结论：**逆向成本极低**——其公共 REST 面几乎完全无鉴权裸奔，社区已有成型的 Python SDK 把端点枚举干净，前端 bundle 泄露了从实验开关到模型清单的大量内部信息。唯一需要账号的是写操作与 AI assistant 链路（API key `axv1_...` 或 better-auth session cookie）。
+> **结论**：alphaXiv 的公共 REST 面几乎完全无鉴权，社区 SDK 已把端点枚举干净；其 overview「翻译」是多语言再生成而非 PDF 重编译，与 texlate 路线不同；references 解析器与 per-language 状态机是可借鉴的成熟设计。
+> **状态**：时点证据（2026-09-19 口径）——逆向结论是对第三方服务的时点观察，仅供互操作参考，服务端随时可能变更。
+> **日期**：2026-09-19
+
+对 https://www.alphaxiv.org/ 做了一轮「网络调研 + 直接探针 + 前端抓包」三层逆向。结论：**逆向成本极低**——其公共 REST 面几乎完全无鉴权裸奔，社区已有成型的 Python SDK 把端点枚举干净，前端 bundle 泄露了从实验开关到模型清单的大量内部信息。唯一需要账号的是写操作与 AI assistant 链路（API key `axv1_...` 或 session cookie）。
 
 ## 公司背景
 
@@ -18,14 +22,14 @@ Cloudflare 全代理（h3、cf-cache-status、nel 上报），响应头带 `vers
 
 ### 资产域（全部无鉴权 CDN）
 
-| 域                                                                                    | 内容                                            |
-| ------------------------------------------------------------------------------------- | ----------------------------------------------- |
-| `pdfs.assets.alphaxiv.org/{id}v{n}.pdf`                                               | 论文 PDF（必须带版本号，如 `1706.03762v7.pdf`） |
-| `thumbnails.assets.alphaxiv.org/{64,256,512,768,1024}/{uuid}.avif` 与 `/{id}v{n}.png` | 首页缩略图                                      |
-| `paper-assets.alphaxiv.org/figures/{id}v{n}/...`                                      | 从 LaTeX 源抽出的论文插图                       |
-| `paper-podcasts.alphaxiv.org/{pgid}/podcast.mp3` `.../transcript.json`                | AI 播客音频与 transcript                        |
-| `user.assets.alphaxiv.org`                                                            | 头像/机构图标                                   |
-| `proxy.assets.alphaxiv.org`                                                           | 外部图片代理                                    |
+| 域 | 内容 |
+| --- | --- |
+| `pdfs.assets.alphaxiv.org/{id}v{n}.pdf` | 论文 PDF（必须带版本号，如 `1706.03762v7.pdf`） |
+| `thumbnails.assets.alphaxiv.org/{64,256,512,768,1024}/{uuid}.avif` 与 `/{id}v{n}.png` | 首页缩略图 |
+| `paper-assets.alphaxiv.org/figures/{id}v{n}/...` | 从 LaTeX 源抽出的论文插图 |
+| `paper-podcasts.alphaxiv.org/{pgid}/podcast.mp3` `.../transcript.json` | AI 播客音频与 transcript |
+| `user.assets.alphaxiv.org` | 头像/机构图标 |
+| `proxy.assets.alphaxiv.org` | 外部图片代理 |
 
 ## 协议面（四层）
 
@@ -33,40 +37,40 @@ Cloudflare 全代理（h3、cf-cache-status、nel 上报），响应头带 `vers
 
 以下全部实测过（除标注 auth 的外均**无需任何凭证**，CORS 固定回 `allow-origin: https://www.alphaxiv.org`，浏览器侧第三方被挡、服务端随意调）：
 
-| 端点                                                                        | 实测结果                                                                                                                                                               |
-| --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /papers/v3/legacy/{arxivId}`                                           | 主聚合：paper_version+paper_group+authors_v2+verified_authors+organization_info+**完整评论树**（1706.03762 实测 200）                                                  |
-| `GET /papers/v3/{id}` `/preview`                                            | 单版本/紧凑元数据；`GET /papers/v3/previews?ids=u1,u2` 批量                                                                                                            |
-| `GET /papers/v3/{pvid}/full-text`                                           | **逐页抽取文本** `[{pageNumber,text}]`——他们 PDF 理解的底座                                                                                                            |
-| `GET /papers/v3/{pvid}/overview/{lang}`                                     | **AI overview 多语言版**：翻译标题/摘要 + 完整 markdown 中文博客 + summary 六件套 + 带 justification 的相关引用                                                        |
-| `GET /papers/v3/{pvid}/overview/status`                                     | 翻译状态机：12 语言（en/zh/ja/ko/de/es/fr/hi/ru/tr/bg/ro）各自 state/requestedAt/updatedAt                                                                             |
-| `GET /papers/v3/{id}v{n}/references`                                        | **结构化参考文献**：每条带 PDF 页内坐标 (page,x,y)、label、原文 text、解析出的 arxivId/paperGroupId，`resolverVersion: 5`                                              |
-| `GET /papers/v3/{pvid}/abstract-citations`                                  | 摘要页引用                                                                                                                                                             |
-| `GET /papers/v3/{pvid}/ai-detection`                                        | AI 生成检测：fractionAi/Assisted/Human + 逐窗口判定                                                                                                                    |
-| `GET /papers/v3/{pvid}/model-links`                                         | 文中模型名链接 sidecar                                                                                                                                                 |
-| `GET /papers/v3/{pgid}/figures`                                             | LaTeX 源抽图路径清单                                                                                                                                                   |
-| `GET /papers/v3/x-mentions-db/{pgid}`                                       | 社媒提及（不少论文 404）                                                                                                                                               |
-| `GET /papers/v3/{pgid}/similar-papers`                                      | 相似论文（对 id 类型敏感，社区标注为 noisy）                                                                                                                           |
-| `GET /papers/v3/legacy/{pgid}/comments`                                     | 公开评论流                                                                                                                                                             |
-| `GET /search/v2/paper/fast?q=`                                              | 搜索建议（link/paperId/title/snippet）                                                                                                                                 |
-| `GET /v1/search/paper?q=`                                                   | 富搜索（summary+metrics+org+repo，单响应 ~187KB）                                                                                                                      |
-| `GET /v1/search/closest-topic?input=`                                       | 主题归一                                                                                                                                                               |
-| `GET /papers/v3/feed`                                                       | 首页 feed；zod 泄漏 schema：`sort∈{Hot,Comments,Views,Likes,GitHub,ForYou,Recent}`、`interval∈{3,7,30,90 Days,All time}`+pageNum/pageSize；`ForYou` 需登录（401 明示） |
-| `GET /organizations/v2/search` `/top`                                       | 机构搜索/榜单                                                                                                                                                          |
-| `GET /events/v1`                                                            | 活动列表（实测空数组）                                                                                                                                                 |
-| `GET /open-graph/v1/{paper,researcher,organization,folder}/{id}`            | **OG 图渲染服务**，直接吐 PNG                                                                                                                                          |
-| `POST /papers/v3/{pgid}/view`                                               | 浏览计数（公开写）                                                                                                                                                     |
-| `GET /assistant/v2/url-metadata?url=`                                       | URL→metadata（登录页浏览器直调）                                                                                                                                       |
-| `POST /papers/v2/{pvid}/comment`、`POST /comments/v2/{id}/upvote`、`DELETE` | auth：评论/投票                                                                                                                                                        |
-| `POST /v2/papers/{arxivId}/versions/{n}/request-ai?preferredLanguage=`      | auth：**触发 AI overview/翻译生成**                                                                                                                                    |
-| `GET/POST /assistant/v2*`                                                   | auth：assistant 会话列表、`/chat` SSE、`/{sid}/messages`                                                                                                               |
-| `GET/PATCH /users/v3`、`/folders/v3*`、`POST /papers/v3/{pgid}/like`        | auth：用户/收藏/点赞                                                                                                                                                   |
+| 端点 | 实测结果 |
+| --- | --- |
+| `GET /papers/v3/legacy/{arxivId}` | 主聚合：paper_version+paper_group+authors_v2+verified_authors+organization_info+**完整评论树**（1706.03762 实测 200） |
+| `GET /papers/v3/{id}` `/preview` | 单版本/紧凑元数据；`GET /papers/v3/previews?ids=u1,u2` 批量 |
+| `GET /papers/v3/{pvid}/full-text` | **逐页抽取文本** `[{pageNumber,text}]`——他们 PDF 理解的底座 |
+| `GET /papers/v3/{pvid}/overview/{lang}` | **AI overview 多语言版**：翻译标题/摘要 + 完整 markdown 中文博客 + summary 六件套 + 带 justification 的相关引用 |
+| `GET /papers/v3/{pvid}/overview/status` | 翻译状态机：12 语言（en/zh/ja/ko/de/es/fr/hi/ru/tr/bg/ro）各自 state/requestedAt/updatedAt |
+| `GET /papers/v3/{id}v{n}/references` | **结构化参考文献**：每条带 PDF 页内坐标 (page,x,y)、label、原文 text、解析出的 arxivId/paperGroupId，`resolverVersion: 5` |
+| `GET /papers/v3/{pvid}/abstract-citations` | 摘要页引用 |
+| `GET /papers/v3/{pvid}/ai-detection` | AI 生成检测：fractionAi/Assisted/Human + 逐窗口判定 |
+| `GET /papers/v3/{pvid}/model-links` | 文中模型名链接 sidecar |
+| `GET /papers/v3/{pgid}/figures` | LaTeX 源抽图路径清单 |
+| `GET /papers/v3/x-mentions-db/{pgid}` | 社媒提及（不少论文 404） |
+| `GET /papers/v3/{pgid}/similar-papers` | 相似论文（对 id 类型敏感，社区标注为 noisy） |
+| `GET /papers/v3/legacy/{pgid}/comments` | 公开评论流 |
+| `GET /search/v2/paper/fast?q=` | 搜索建议（link/paperId/title/snippet） |
+| `GET /v1/search/paper?q=` | 富搜索（summary+metrics+org+repo，单响应 ~187KB） |
+| `GET /v1/search/closest-topic?input=` | 主题归一 |
+| `GET /papers/v3/feed` | 首页 feed；zod 泄漏 schema：`sort∈{Hot,Comments,Views,Likes,GitHub,ForYou,Recent}`、`interval∈{3,7,30,90 Days,All time}`+pageNum/pageSize；`ForYou` 需登录（401 明示） |
+| `GET /organizations/v2/search` `/top` | 机构搜索/榜单 |
+| `GET /events/v1` | 活动列表（实测空数组） |
+| `GET /open-graph/v1/{paper,researcher,organization,folder}/{id}` | **OG 图渲染服务**，直接吐 PNG |
+| `POST /papers/v3/{pgid}/view` | 浏览计数（公开写） |
+| `GET /assistant/v2/url-metadata?url=` | URL→metadata（登录页浏览器直调） |
+| `POST /papers/v2/{pvid}/comment`、`POST /comments/v2/{id}/upvote`、`DELETE` | auth：评论/投票 |
+| `POST /v2/papers/{arxivId}/versions/{n}/request-ai?preferredLanguage=` | auth：**触发 AI overview/翻译生成** |
+| `GET/POST /assistant/v2*` | auth：assistant 会话列表、`/chat` SSE、`/{sid}/messages` |
+| `GET/PATCH /users/v3`、`/folders/v3*`、`POST /papers/v3/{pgid}/like` | auth：用户/收藏/点赞 |
 
 无 swagger/openapi（社区探过全 404）。错误体统一 `{"error":{"message","issues":[zod]}}`，401 一律 `Missing Authorization`。
 
 ### 2. WebSocket:`wss://api.alphaxiv.org/live`
 
-自研 pub/sub，文本帧协议极简洁（浏览器抓包 + 页内注入实测）：
+自研 pub/sub，文本帧协议极简洁（前端抓包 + 页内注入实测）：
 
 - 订阅：发 `a<channel>;<arg1>;<arg2>`，一行一条可批量；
 - 数据帧：`a["<channel>;<args>",<payload>]`（首帧即推当前快照，之后推增量）；
@@ -97,29 +101,27 @@ OAuth 2.1 浏览器登录或 `Authorization: Bearer axv1_...`（Settings → API
 
 ## 生态与已有工具
 
-- **[petroslamb/alphaxiv-py](https://github.com/petroslamb/alphaxiv-py)**（MIT，9★，2026-07 仍验证有效）：完整端点清单 `docs/api-inventory.md`（本报告 REST 表大量沿用其实测结论）+ CLI；认证支持 `ALPHAXIV_API_KEY`/`~/.alphaxiv/api-key.json` 与 `alphaxiv auth login-web` 浏览器 cookie 持久化。**直接可用，无需重写**。
+- **[petroslamb/alphaxiv-py](https://github.com/petroslamb/alphaxiv-py)**（MIT，9★，2026-07 仍验证有效）：完整端点清单 `docs/api-inventory.md`（本报告 REST 表大量沿用其实测结论）+ CLI；认证支持 `ALPHAXIV_API_KEY` 环境变量与 `alphaxiv auth login-web` 浏览器 cookie 持久化。**直接可用，无需重写**。
 - [alphaXiv/OpenResearch](https://github.com/alphaXiv/OpenResearch)（官方，5.3k★，Rust）：本地优先 research agent 工作台（`orx` CLI 包装 Claude Code/Codex 做文献循环），其 assistant 思路的开源姊妹产品。
 - [danjuan-77/alphaxiv-skill](https://github.com/danjuan-77/alphaxiv-skill)：Agent Skill 封装，额外暴露 `sota`/`implementations`/`top` 端点；[AlphaClawXiv](https://github.com/Riddhimaan-Senapati/AlphaClawXiv)：MCP→OpenClaw 插件含 OAuth 实现。
 - 仿品/同类：[little-alphaxiv](https://github.com/HZHdyzx/little-alphaxiv)（FastAPI+SQLite+React+pdf.js 自托管复刻，Zotero 同步）、[alphaxiv-open](https://github.com/juvu/alphaxiv-open)（FastAPI+markitdown+MiniRAG+Gemini）、[obsixiv](https://github.com/asahium/obsixiv)（Obsidian 插件，可反推 overview 模板）；Explainpaper（高亮解释）、HF Papers（榜单）、SciRate（投票）各占一角，alphaXiv 独占「逐行评论+grounded QA+ 自动 blog」三合一。
 
 ## 可行性结论
 
-| 目标                                                     | 难度       | 路径                                                                                    |
-| -------------------------------------------------------- | ---------- | --------------------------------------------------------------------------------------- |
-| 读任意论文元数据/评论/全文/参考/图/AI overview（含中文） | **零成本** | REST 裸调 + `.md` 路由 + WS 快照                                                        |
-| 复刻搜索/feed/相似论文/趋势榜                            | **零成本** | 同上，schema 已被 zod 泄漏                                                              |
-| 复刻 overview 生成/翻译/播客                             | 低         | 已知 prompt 模板结构 + 公开状态机；生成触发 `request-ai` 需自有账号 key                 |
-| 复用其 assistant 问答                                    | 低         | 官方 MCP（free tier 配额）或 `axv1_` key 直调 `/assistant/v2/chat` SSE                  |
-| 复刻前端                                                 | 中         | 无 sourcemap，但 SSR 数据全明、协议已破译；直接抄数据层即可                             |
-| 拿其全集语料                                             | 低 - 中    | feed/搜索/枚举 arXiv ID 拉 `legacy`+`full-text`+`overview`，1.5M/h 限流够爬，但注意合规 |
+| 目标 | 难度 | 路径 |
+| --- | --- | --- |
+| 读任意论文元数据/评论/全文/参考/图/AI overview（含中文） | **零成本** | REST 裸调 + `.md` 路由 + WS 快照 |
+| 复刻搜索/feed/相似论文/趋势榜 | **零成本** | 同上，schema 已被 zod 泄漏 |
+| 复刻 overview 生成/翻译/播客 | 低 | 已知 prompt 模板结构 + 公开状态机；生成触发 `request-ai` 需自有账号 key |
+| 复用其 assistant 问答 | 低 | 官方 MCP（free tier 配额）或 `axv1_` key 直调 `/assistant/v2/chat` SSE |
+| 复刻前端 | 中 | 无 sourcemap，但 SSR 数据全明、协议已破译；直接抄数据层即可 |
+| 拿其全集语料 | 低 - 中 | feed/搜索/枚举 arXiv ID 拉 `legacy`+`full-text`+`overview`，1.5M/h 限流够爬，但注意合规 |
 
-对 texlate 的直接价值：①他们的 `full-text` 逐页抽取 + `references` 带坐标解析是 PDF 理解层的成熟参照（尤其 `resolverVersion` 迭代到 v5 说明引用解析是个持续打磨的活）；②`overview/status` 的 per-language 状态机、`live` WS 频道协议、feed 枚举设计可借鉴进 server 端 API 形态；③overview 翻译 ≠ 论文翻译，我们的产品差异点（重编译 PDF）恰好是他们没做的；④若要低成本起步，直接 `uv add` 思路装 `alphaxiv-py` 或其代码模式即可，无需从零下端点。
+对 texlate 的直接价值：①他们的 `full-text` 逐页抽取 + `references` 带坐标解析是 PDF 理解层的成熟参照（尤其 `resolverVersion` 迭代到 v5 说明引用解析是个持续打磨的活）；②`overview/status` 的 per-language 状态机、`live` WS 频道协议、feed 枚举设计可借鉴进 server 端 API 形态；③overview 翻译 ≠ 论文翻译，我们的产品差异点（重编译 PDF）恰好是他们没做的；④若要低成本起步，直接用 `alphaxiv-py` 或其代码模式即可，无需从零下端点。
 
-### 覆盖率实测（2026-09-19，对 corpus_v3 抽样 45 篇）
+### 覆盖率实测（2026-09-19，对语料库抽样 45 篇）
 
 alphaXiv 富产物是**头部爆款专属**而非全库资产：随机近年代论文 15/15 有元数据但 references 仅 1/15、overview 0/15、full-text 0/15；OpenAlex 高引热层 15 篇同样 overview 0/15、references 3/15；2007 前 archive 式老 ID（astro-ph/…）0/15 根本未索引。overview/zh/full-text 全靠 `request-ai` 按需生成（auth 门槛），不做预计算。结论：**alphaXiv 只能当机会型增强（命中即白嫖），不能进核心管线当依赖**；引用图要自建——texlate 有 LaTeX 源可抽 `.bbl`/`\bibitem` 边，覆盖率天然好于他们 PDF 侧解析；引用排序用 OpenAlex（免 key）/S2（429 需 key）而非他们的图。
-
-实验现场：`tmp/alphaxiv-re/`（抓包脚本 capture.cjs/ws_inpage.cjs、全部响应样本、api-inventory.md、JS bundle assets/）。
 
 ## 生成管线逆向（overview / references / zh 导读）
 

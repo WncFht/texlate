@@ -1,25 +1,28 @@
 # Web 服务层 + 前端规格调研
 
-> 交付：API spec / SQLite 队列 / BYOK / 前端框架决策 / 滚动同步 / 部署形态。
-> 证据来源：`tmp/refs/texglot`（活体先例，已逐文件读过 server/jobs/reader/alignment/cli/frontend）、npm registry 实测（@pdfslick/* 4.0.2 tarball 解开看过 d.ts 与实现）、`docs/02 §5`、`docs/04 §8`。
+> **结论**：FastAPI 单进程 + asyncio.Queue + SQLite(WAL) + SSE + BYOK 三级入口 + SolidJS/pdfslick 双 viewer 页锚同步——全部决策已实装于 `src/texlate/server/` 与 `web/`。
+> **状态**：已落地（2026-09-20 核实 `server/`、`web/` 代码）；设计推理与 texglot 取证留本文，规范口径以 spec/ 层与代码为准。
+> **日期**：2026-09-15（2026-09-17 实装勘误折入正文）
+
+> **⚠️ SUPERSEDED 2026-09-20**：本文为实施前的设计规格兼取证记录；API/状态机/DDL 的**规范事实源已移交 `spec/architecture.md` §4–§5 与 `src/texlate/server/`、`web/` 代码**。正文保留调研当时的完整规格（含实装勘误注记）与 texglot 先例拆解作历史参考——与代码漂移处以代码为准。
+
+证据来源：texglot（Mengqi-Lei/texglot, Apache-2.0，形态最接近的活体先例，逐文件读过 server/jobs/reader/alignment/cli/frontend）[^texglot]、npm registry 实测（@pdfslick/\* 4.0.2 tarball 解开看过 d.ts 与实现）[^pdfslick]。
 
 ## 0. 结论速览
 
-| 议题     | 结论                                                                                                                                                                                                                                         | 依据                                                                                                                                                                               |
-| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 前端框架 | **SolidJS + TS**                                                                                                                                                                                                                             | pdfslick 两绑定同版本同维护（同日发版），能力等价；hjfy 同款栈便于复刻阅读体验；Solid store 直接包 zustand 状态、细粒度订阅滚动同步零额外开销；绑定层极薄，未来换 React 是机械移植 |
-| PDF 渲染 | `@pdfslick/solid`（@pdfslick/core 包 pdfjs-dist ^6 + zustand ^5）                                                                                                                                                                            | texglot 用 React+ 裸 pdfjs 手写 viewer 付出 ~57KB 前端代码（PdfReader 39K + PdfPane 17K），pdfslick 白送 PDFViewer/缩略图/缩放/findController                                      |
-| 滚动同步 | 页锚映射而非滚动比例：**服务端用 hyperref named destinations 算 alignment（最大权单调链），前端 {page,fraction,viewport} 位置模型分段线性插值**                                                                                              | texglot `alignment.py` + `readerNavigation.ts` 完整方案可直接借鉴（不搬码），退化路径 = 同页码同 fraction                                                                          |
-| 服务形态 | FastAPI 单进程，uvicorn loop 内 `asyncio.Queue` + SQLite(WAL) 持久化；CLI 是本地服务的瘦 HTTP 客户端（服务自动拉起 + flock 单 owner）                                                                                                        | texglot 同款：`service.lock` + 127.0.0.1 + `--parent-pipe` watchdog                                                                                                                |
-| SSE      | `GET /api/task/{id}` 按 Accept 协商：`text/event-stream`→流，否则 JSON 快照；`Last-Event-ID` 断线重放                                                                                                                                        | texglot 用 2s 轮询够用但 SSE 更贴合逐段进度；事件表落盘即可重放                                                                                                                    |
-| BYOK     | 三级入口：请求头 `X-Texlate-Key`（多用户服务端）> settings.json `0600`（本地默认）> env；**key 只进内存，task 序列化绝不包含；redact() 过滤异常与日志**；租户隔离用 `k_+sha256(key+server_salt)[:12]` 指纹（本地模式恒 `"local"`），不存 key | texglot `config.py`/`llm.py redact()` 完整先例                                                                                                                                     |
-| 部署     | `uv tool install texlate` → `texlate web` 起本地服务；wheel 用 hatchling `force-include` 把 `web/dist` 打进 `texlate/server/static`；docker 多阶段镜像走 `TEXLATE_DATA_DIR` + Redis 队列升级位                                               | texglot pyproject `force-include` + vite 拷 pdfjs 资源模式完全可抄作业                                                                                                             |
-
----
+| 议题     | 结论                                                                                                                                                                                                                                 | 依据                                                                                                                                                                                   |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 前端框架 | **SolidJS + TS**                                                                                                                                                                                                                     | pdfslick 两绑定同版本同维护（同日发版），能力等价；hjfy 同款栈便于复刻阅读体验；Solid store 直接包 zustand 状态、细粒度订阅滚动同步零额外开销；绑定层极薄，未来换 React 是机械移植     |
+| PDF 渲染 | `@pdfslick/solid`（@pdfslick/core 包 pdfjs-dist ^6 + zustand ^5）                                                                                                                                                                      | texglot 用 React+ 裸 pdfjs 手写 viewer 付出 ~57KB 前端代码（PdfReader 39K + PdfPane 17K），pdfslick 白送 PDFViewer/缩略图/缩放/findController                                          |
+| 滚动同步 | 页锚映射而非滚动比例：**服务端用 hyperref named destinations 算 alignment（最大权单调链），前端 {page,fraction,viewport} 位置模型分段线性插值**                                                                                      | texglot `alignment.py` + `readerNavigation.ts` 完整方案可直接借鉴（不搬码），退化路径 = 同页码同 fraction                                                                              |
+| 服务形态 | FastAPI 单进程，uvicorn loop 内 `asyncio.Queue` + SQLite(WAL) 持久化；CLI 是本地服务的瘦 HTTP 客户端（服务自动拉起 + flock 单 owner）                                                                                                  | texglot 同款：`service.lock` + 127.0.0.1 + `--parent-pipe` watchdog                                                                                                                    |
+| SSE      | `GET /api/task/{id}` 按 Accept 协商：`text/event-stream`→流，否则 JSON 快照；`Last-Event-ID` 断线重放                                                                                                                                | texglot 用 2s 轮询够用但 SSE 更贴合逐段进度；事件表落盘即可重放                                                                                                                        |
+| BYOK     | 三级入口：请求头 `X-Texlate-Key`（多用户服务端）> settings.json `0600`（本地默认）> env；**key 只进内存，task 序列化绝不包含；redact() 过滤异常与日志**；租户隔离用 `k_+sha256(key+server_salt)[:12]` 指纹（本地模式恒 `"local"`），不存 key | texglot `config.py`/`llm.py redact()` 完整先例                                                                                                                                         |
+| 部署     | `uv tool install texlate` → `texlate web` 起本地服务；wheel 用 hatchling `force-include` 把 `web/dist` 打进 `texlate/server/static`；docker 多阶段镜像走 `TEXLATE_DATA_DIR` + Redis 队列升级位                                           | texglot pyproject `force-include` + vite 拷 pdfjs 资源模式完全可抄作业                                                                                                                 |
 
 ## 1. texglot 参考拆解（证据沉淀）
 
-texglot（Mengqi-Lei/texglot, Apache-2.0）是形态最接近的活体先例：FastAPI+uvicorn 单 owner 本地服务 + React 前端 + per-job 目录持久化。值得借鉴的模式与要避开的坑：
+texglot（Mengqi-Lei/texglot, Apache-2.0）是形态最接近的活体先例：FastAPI+uvicorn 单 owner 本地服务 + React 前端 + per-job 目录持久化[^texglot]。值得借鉴的模式与要避开的坑：
 
 **服务**（`app/server.py`/`main.py`）
 
@@ -49,11 +52,9 @@ texglot（Mengqi-Lei/texglot, Apache-2.0）是形态最接近的活体先例：F
 
 **BYOK**（`config.py`/`llm.py`）
 
-- `~/.texglot/settings.json`（dir 0700, file 0600）；`public_settings` 剥 key 只回 `has_api_key`；env 兜底按 provider 映射（DEEPSEEK_API_KEY 等）；`redact()` = 替换 key 本体 + `sk-[A-Za-z0-9._-]+` 正则；base_url validator 拒绝带 userinfo/query 的 URL、非 localhost 强制 https。
+- `settings.json`（dir 0700, file 0600）；`public_settings` 剥 key 只回 `has_api_key`；env 兜底按 provider 映射（DEEPSEEK_API_KEY 等）；`redact()` = 替换 key 本体 + `sk-[A-Za-z0-9._-]+` 正则；base_url validator 拒绝带 userinfo/query 的 URL、非 localhost 强制 https。
 
 **texglot 没做/我们不要抄的**：SQLite（它用 per-job JSON，我们已定 SQLite）、SSE（它轮询）、pdfslick（它裸 pdfjs）、任务去重/缓存命中即返回（它每次重跑）。
-
----
 
 ## 2. API 规格
 
@@ -81,7 +82,7 @@ texglot（Mengqi-Lei/texglot, Apache-2.0）是形态最接近的活体先例：F
 ```
 
 - `options.prefer`: `reuse`(默认) — `cache_key` 命中已完成任务 → `200 {task_id, status:"done", reused:true}`；`fresh` — 强制新任务。
-- `options.source`（勘误 2026-09-17，G1）：`eprint`（默认，e-print tar 链）| `html`（arXiv HTML/LaTeXML DOM 链 → `kind=arxiv_html`，无编译段，产物形态见 §5.4）；`_clean_task_options` 白名单校验，非枚举值 400 `invalid_request`。
+- `options.source`：`eprint`（默认，e-print tar 链）| `html`（arXiv HTML/LaTeXML DOM 链 → `kind=arxiv_html`，无编译段，产物形态见 §5.4）；`_clean_task_options` 白名单校验，非枚举值 400 `invalid_request`。
 - 响应 `202`：
 
 ```json
@@ -213,7 +214,7 @@ JSON Schema（可直接实现；`progress` 为 0-100 粗粒度）：
 //               "stats":{"tokens":81233,"seconds":264,"chunks_failed":3}}
 ```
 
-错误码枚举：`arxiv_fetch | no_latex_source | no_html_source | pdf_wrapper | parse | provider_auth | provider_rate | provider_timeout | provider_error | validate | placeholder_mismatch | compile | fixloop_exhausted | unsupported_format | internal | auth_required`。（勘误 2026-09-17，G1：`no_html_source`——arxiv_html 链 `/html/{id}` 404 或 200 stub（无 `ltx_document`）终态，`retryable=false`；取页非 200/404 的传输面仍归 `arxiv_fetch` 可重试。）
+错误码枚举：`arxiv_fetch | no_latex_source | no_html_source | pdf_wrapper | parse | provider_auth | provider_rate | provider_timeout | provider_error | validate | placeholder_mismatch | compile | fixloop_exhausted | unsupported_format | internal | auth_required`。（`no_html_source`——arxiv_html 链 `/html/{id}` 404 或 200 stub（无 `ltx_document`）终态，`retryable=false`；取页非 200/404 的传输面仍归 `arxiv_fetch` 可重试。）
 
 进度百分比映射（沿用 texglot 刻度，前端也可只用 stage+counters 自绘）：fetching 3→9 / parsing 9→25 / translating 25→85（按 done/total 线性）/ compiling 90→99 / 终态 100。
 
@@ -258,16 +259,14 @@ JSON Schema（可直接实现；`progress` 为 0-100 粗粒度）：
 
 - `GET /api/health` — `{ok, version, compilers:{tectonic,xelatex,babeldoc}, data_dir}`
 - `GET /api/tasks` — 按 `tenant`（§4）过滤的任务列表（`?status=` 过滤）
-- `POST /api/task/{id}/cancel` / `POST /api/task/{id}/retry`（body 可带 `{main, options}`）（勘误 2026-09-17，retry 守卫与清理面：**状态守卫先于一切 mutation**——`status ∉ RETRYABLE_FROM` 纯 409 `invalid_transition`，不得先清产物；`needs_auth` 无 `X-Texlate-Key` → 401 `auth_required`；body 白名单外键一律 400 `invalid_request`——`model`/`target_lang` 是 cache_key 口径成员，换值须新建任务，静默丢弃比报错糟；`main` 变更（body.main 与 options.main 同口径）→ 解析产物作废：`DELETE chunks` + rmtree `base/zh/build-en/build-zh` + `store.delete_file` 逐行删 `files`（`src_tar` 除外——取源产物仍有效）+ 限 task_root 内 unlink 磁盘件（resolve + `is_relative_to` 防越界；en.pdf 随 base/ 同死——换 main 后它编译自另一棵树）。）
+- `POST /api/task/{id}/cancel` / `POST /api/task/{id}/retry`（body 可带 `{main, options}`）。retry 守卫与清理面：**状态守卫先于一切 mutation**——`status ∉ RETRYABLE_FROM` 纯 409 `invalid_transition`，不得先清产物；`needs_auth` 无 `X-Texlate-Key` → 401 `auth_required`；body 白名单外键一律 400 `invalid_request`——`model`/`target_lang` 是 cache_key 口径成员，换值须新建任务，静默丢弃比报错糟；`main` 变更（body.main 与 options.main 同口径）→ 解析产物作废：`DELETE chunks` + rmtree `base/zh/build-en/build-zh` + `store.delete_file` 逐行删 `files`（`src_tar` 除外——取源产物仍有效）+ 限 task_root 内 unlink 磁盘件（resolve + `is_relative_to` 防越界；en.pdf 随 base/ 同死——换 main 后它编译自另一棵树）。
 - `DELETE /api/task/{id}` — 终态任务删除（DB 行级联子表 + `tasks/{id}/` 目录）；ACTIVE 态 409 先 cancel，删前补 `done{status:"deleted"}` 事件让在听 SSE 收尾
-- `GET /api/task/{id}/reader` — `{documents:{original:{version,pages,url},translated:{…}}, alignment, reading}`（勘误 2026-09-17:404 为**双条件**——`files` 表 `dual_json` 行与磁盘 `dual.json` 须同时在场，以登记行为准（登记前崩溃/失效清理残留的磁盘孤儿件不服务）；响应另带 `view` 字段——`zh_html` 登记 → `"dom"`（arxiv_html 链，`documents` 两侧 `url` 改挂 `/api/files/{id}/{en.html|zh.html}`、`pages` 语义为标记块数），否则 `md_zip` 登记且 `zh_pdf` 缺席 → `"html"`，否则 `"pdf"`（fault→retry 救回出 pdf 后残留的 md_zip 不把视图钉死在 html）；PDF 路 `url` 挂 `en.pdf|zh.pdf`，`alignment` 缺省 `{kind:"pages"}`。）
-- `PUT /api/task/{id}/reader/position` — 存 `{positions, active, mode, zoom, sync}`；document_version 不符 → 409（勘误 2026-09-17，G1：比对锚为 `zh_pdf` 登记行 sha256，缺席回落 `zh_html`——arxiv_html 无 zh_pdf，dom 路同吃防旧版位置回灌）
+- `GET /api/task/{id}/reader` — `{documents:{original:{version,pages,url},translated:{…}}, alignment, reading, view}`。404 为**双条件**——`files` 表 `dual_json` 行与磁盘 `dual.json` 须同时在场，以登记行为准（登记前崩溃/失效清理残留的磁盘孤儿件不服务）；`view` 字段——`zh_html` 登记 → `"dom"`（arxiv_html 链，`documents` 两侧 `url` 改挂 `/api/files/{id}/{en.html|zh.html}`、`pages` 语义为标记块数），否则 `md_zip` 登记且 `zh_pdf` 缺席 → `"html"`，否则 `"pdf"`（fault→retry 救回出 pdf 后残留的 md_zip 不把视图钉死在 html）；PDF 路 `url` 挂 `en.pdf|zh.pdf`，`alignment` 缺省 `{kind:"pages"}`。
+- `PUT /api/task/{id}/reader/position` — 存 `{positions, active, mode, zoom, sync}`；document_version 不符 → 409（比对锚为 `zh_pdf` 登记行 sha256，缺席回落 `zh_html`——arxiv_html 无 zh_pdf，dom 路同吃防旧版位置回灌）
 - `GET/PUT /api/settings` + `POST /api/settings/test` — BYOK 管理（§4）；GET 永不回 key 本体，只回 `has_api_key`；PUT 键白名单外 400，伪字段 `clear_api_key:true` 清除已存 key
 - `GET /api/providers` — provider 预设清单
-- `POST /api/share/import` — `.share.zip` multipart 导入：`unpack_share` 机械校验 + key_parts 白名单 → `kind="share"` 任务入队；model/lang/arxiv_id/version 一律取 manifest key_parts（包自描述，上传者配置不进寻址）；§5 信任模型由 worker `_run_share` 全链重跑承担（shared-cache.md §5）
-- `POST /api/task/{id}/share/pack` — 终态任务事后打 `.share.zip` 入共享目录 → `{share_key, url, bytes}`；幂等（`index.jsonl` 已登记且包在场直返不重打）；守卫阶梯：`kind=share`（导入产物不自包）/`kind=arxiv_html`（勘误 2026-09-17，G1：html 链产不出 `zh-src.zip`，且 HTML chunk 与 share 包 TeX chunk 不对版不可比对）/reuse 命中 → 422 `share_pack_rejected`，非 done/partial → 409 `invalid_state`，缺必需产物（`zh-src.zip`/`dual.json`，zh.pdf 缺席落 partial 包）→ 422 `share_pack_artifacts`，打包失败 → 422 `share_pack_failed`
-
----
+- `POST /api/share/import` — `.share.zip` multipart 导入：`unpack_share` 机械校验 + key_parts 白名单 → `kind="share"` 任务入队；model/lang/arxiv_id/version 一律取 manifest key_parts（包自描述，上传者配置不进寻址）；信任模型由 worker `_run_share` 全链重跑承担（见 `shared-cache.md` §5）
+- `POST /api/task/{id}/share/pack` — 终态任务事后打 `.share.zip` 入共享目录 → `{share_key, url, bytes}`；幂等（`index.jsonl` 已登记且包在场直返不重打）；守卫阶梯：`kind=share`（导入产物不自包）/`kind=arxiv_html`（html 链产不出 `zh-src.zip`，且 HTML chunk 与 share 包 TeX chunk 不对版不可比对）/reuse 命中 → 422 `share_pack_rejected`，非 done/partial → 409 `invalid_state`，缺必需产物（`zh-src.zip`/`dual.json`，zh.pdf 缺席落 partial 包）→ 422 `share_pack_artifacts`，打包失败 → 422 `share_pack_failed`
 
 ## 3. 任务队列：asyncio.Queue + SQLite
 
@@ -275,9 +274,9 @@ JSON Schema（可直接实现；`progress` 为 0-100 粗粒度）：
 
 - 进程内 `asyncio.Queue` 做调度 + **单写者连接**（所有 DB 写走 loop 线程一个 `sqlite3`/aiosqlite 连接，`PRAGMA journal_mode=WAL; busy_timeout=5000; synchronous=NORMAL`）；读快照可开只读连接。
 - 全局 `Semaphore(1)` 管线槽（texglot 同款：编译/下载重活串行），翻译块级并行由 translate 模块内 `Semaphore(settings.concurrency)` 管。
-- 服务端化升级位：队列接口抽成 `enqueue/dequeue/heartbeat`，SQLite 实现先跑；`REDIS_URL` 存在时换 Redis broker（docs/04 已定此路径，M0 不实现 huey）。
+- 服务端化升级位：队列接口抽成 `enqueue/dequeue/heartbeat`，SQLite 实现先跑；`REDIS_URL` 存在时换 Redis broker。
 
-### 3.2 DDL（可直接执行）
+### 3.2 DDL
 
 ```sql
 PRAGMA journal_mode = WAL;
@@ -384,16 +383,14 @@ CREATE TABLE task_events (                       -- SSE 重放 + 审计；每任
 2. **chunk 级**：翻译循环每完成一块，`translation_cache` + `chunks` 同事务写入（批量 flush：每 8 块或 500ms 一次事务，兼顾 SSD 寿命与崩溃窗口）；恢复 = `SELECT … WHERE status='pending'` 继续。`fallback_orig` 块记入 `failed_chunks` 并驱动 `partial` 终态。
 3. **事件级**：`task_events` 在每次事件落盘时同事务写 → `Last-Event-ID` 重放与刷新页面后 `snapshot` 重建零成本。
 4. 启动恢复：`UPDATE tasks SET status='interrupted', worker_id=NULL WHERE status IN (active)` → 前端列表面向用户"继续"按钮；`auth_source='header'` 的转 `needs_auth`。
-5. splice 失效恢复（勘误 2026-09-17，impl `worker._invalidate_splice`）：恢复或换主文件后 chunks 与已 splice 产物分叉——diff chunk 行判失效面，unlink `.splice-done` 哨兵 + 删 `_SPLICE_STALE_KINDS`（`zh_pdf`/`zh_src_zip`/`dual_json`/`compile_log`/`md_zip`）files 行与磁盘件；`en_pdf`/`src_tar` 属上游产物保留。options 数值解析 `_opt_int`：非数字 → warning + 落默认；`<1` → warning + clamp 到 1（喂 concurrency/qps——0/负值语义在调用点是"无节制"而非"禁用"，clamp 防静默放大）。
-
----
+5. splice 失效恢复（impl `worker._invalidate_splice`）：恢复或换主文件后 chunks 与已 splice 产物分叉——diff chunk 行判失效面，unlink `.splice-done` 哨兵 + 删 `_SPLICE_STALE_KINDS`（`zh_pdf`/`zh_src_zip`/`dual_json`/`compile_log`/`md_zip`）files 行与磁盘件；`en_pdf`/`src_tar` 属上游产物保留。options 数值解析 `_opt_int`：非数字 → warning + 落默认；`<1` → warning + clamp 到 1（喂 concurrency/qps——0/负值语义在调用点是"无节制"而非"禁用"，clamp 防静默放大）。
 
 ## 4. BYOK
 
 ### 4.1 key 入口优先级（高→低）
 
 1. **请求头**：`X-Texlate-Key` / `X-Texlate-Base-URL` / `X-Texlate-Model` —— 服务端多用户模式与"临时换个 key"共用此路；**只在内存里活过任务生命周期，绝不写 settings/tasks/files/日志**。选 header 而非 body：FastAPI 校验失败时 body 可能进异常细节；header 天然不进 uvicorn access log（它不记 header）。
-2. **服务端配置**：`PUT /api/settings` → `~/.texlate/settings.json`（父目录 0700、文件 0600、`atomic_json` 写入）。本地单机默认形态。
+2. **服务端配置**：`PUT /api/settings` → `settings.json`（父目录 0700、文件 0600、`atomic_json` 写入）。本地单机默认形态。
 3. **环境变量**：`TEXLATE_API_KEY` → provider 映射兜底 `OPENAI_API_KEY`/`DEEPSEEK_API_KEY`/`DASHSCOPE_API_KEY`/`ANTHROPIC_API_KEY`；`TEXLATE_BASE_URL`/`TEXLATE_MODEL` 同理。仅启动时读。
 4. CLI `texlate --configure [--key-env NAME]`：交互安全输入（getpass）写 settings.json——texglot 同款。
 
@@ -410,19 +407,17 @@ CREATE TABLE task_events (                       -- SSE 重放 + 审计；每任
 
 - `tasks.tenant`：`local`（单机）或 `'k_'+sha256(api_key+server_salt)[:12]`（服务端模式从 key 派生指纹，**指纹入库、key 不入库**）。`GET /api/tasks`、文件下载、SSE 全部按 tenant 过滤——这是"我的任务列表"隔离。
 - `translation_cache` 默认**跨租户共享**：内容寻址（key 由 src_text+model+prompt_ver+lang 决定），不含任何用户数据，命中是双赢；paranoid 部署开 `TEXLATE_CACHE_SCOPE=per_key`（旧名 `tenant` 同义保留）把 tenant 拼进缓存键即可，零 schema 变更（key 仍是单列主键）。
-- `tasks.cache_key`（产物级 dedup）= `sha256(arxiv_id@ver|model|pipeline_ver|target_lang)` —— **故意不含 tenant**：同一 arXiv+ 同配置，A 译过 B 可直接 reuse（产物是公开论文的确定性函数）；要求租户间物理隔离的部署同样用 `CACHE_SCOPE=per_key` 一键切。（勘误 2026-09-17，G1：键材料追加两成分——`options.source≠eprint` 时拼 `|src:{source}`（同 id@ver 的 eprint 与 html 任务产物链不同构，channel-blind 会串桶互喂错产物）；`cache_scope()==per_key` 时拼 `|k:{sha256(api_key)[:16]}` 按凭证分桶，消除跨租户缓存存在性 oracle——匿名桶 `key=""` 共享一桶，与 `tenant_for` 同语义。）
-
----
+- `tasks.cache_key`（产物级 dedup）= `sha256(arxiv_id@ver|model|pipeline_ver|target_lang)` —— **故意不含 tenant**：同一 arXiv+ 同配置，A 译过 B 可直接 reuse（产物是公开论文的确定性函数）；要求租户间物理隔离的部署同样用 `CACHE_SCOPE=per_key` 一键切。键材料另追加两成分——`options.source≠eprint` 时拼 `|src:{source}`（同 id@ver 的 eprint 与 html 任务产物链不同构，channel-blind 会串桶互喂错产物）；`cache_scope()==per_key` 时拼 `|k:{sha256(api_key)[:16]}` 按凭证分桶，消除跨租户缓存存在性 oracle——匿名桶 `key=""` 共享一桶，与 `tenant_for` 同语义。
 
 ## 5. 前端
 
 ### 5.1 框架决策：SolidJS（证据）
 
-npm 实测（registry 直查 + tarball 解包读 d.ts/实现，2026-09-14）：
+npm 实测（registry 直查 + tarball 解包读 d.ts/实现，2026-09-14）[^pdfslick]：
 
 | 维度                         | `@pdfslick/solid`                                                                                                                                                   | `@pdfslick/react`                                                                                               |
 | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| 版本/维护                    | 4.0.2，2026-08-09 发布                                                                                                                                              | 4.0.2，同日同 monorepo 发布（github.com/pdfslick/pdfslick，MIT，~1.1k★）                                        |
+| 版本/维护                    | 4.0.2，2026-08-09 发布                                                                                                                                              | 4.0.2，同日同 monorepo 发布（MIT，~1.1k★）                                                                    |
 | 共同核心                     | `@pdfslick/core@4.0.2` = pdfjs-dist ^6 + zustand ^5，`PDFSlick` 类暴露 `viewer(PDFViewer)`、`eventBus`、`gotoPage`、`setScrollMode/SpreadMode/Rotation`、`document` | 同左                                                                                                            |
 | `usePDFSlick(url,opts)` 返回 | `pdfSlick: Accessor`、`pdfSlickStore`（solid store 包 zustand 态）、`viewerRef`/`thumbsRef`、`PDFSlickViewer`、`PDFSlickThumbnails`、`error`、`isDocumentLoaded`    | `store: StoreApi`、`usePDFSlickStore(selector)`、`viewerRef`/`thumbsRef`、同两组件、`error`、`isDocumentLoaded` |
 | peers                        | `solid-js>=1.5`（当前 1.9.x）                                                                                                                                       | `react>=17` `react-dom>=17`                                                                                     |
@@ -430,7 +425,7 @@ npm 实测（registry 直查 + tarball 解包读 d.ts/实现，2026-09-14）：
 
 **决定 SolidJS，理由按权重排序**：
 
-1. **hjfy 同款**：我们要复刻的就是 hjfy 的阅读体验，同栈时其行为（DOM、事件、时序）可直接对照观察，踩过的坑大概率同款。docs/04 §8 也标了"pdfslick 原生"。
+1. **hjfy 同款**：我们要复刻的就是 hjfy 的阅读体验，同栈时其行为（DOM、事件、时序）可直接对照观察，踩过的坑大概率同款。
 2. **响应模型贴合双 viewer**：`pdfSlickStore` 是 solid store 对 zustand 的 reconcile 包装，组件里 `store.pageNumber` 细粒度订阅、零 selector 样板；React 侧每处读数都要 `usePDFSlickStore(s=>s.x)`。滚动同步本身走 DOM/事件不进 store，两个框架都能做——但工具栏、进度、缩略图这些高频小状态，Solid 写法更短且无重渲染顾虑。
 3. **包体**：solid-js ~10KB vs react+dom ~45KB（本地工具无所谓但白拿的）。
 4. **可逆**：两绑定都是 core 上的 ~150 行薄壳，同步引擎（§5.3）是纯 TS 不依赖框架；若未来要 React 生态（如现成批注组件），移植成本=重写壳组件。
@@ -439,7 +434,7 @@ npm 实测（registry 直查 + tarball 解包读 d.ts/实现，2026-09-14）：
 
 反方观点备案：React 生态大（批注/虚拟列表现成）、招人熟。但本 UI 面窄（任务列表 + 设置 + 阅读器），texglot 已证明裸 pdfjs+React 要手写 ~57KB，我们没有任何 React-only 需求。
 
-依赖钉：`@pdfslick/solid@^4` `solid-js@^1.9` `marked@^18` `katex@^0.18` `vite@^8` `vitest`。
+依赖钉：`@pdfslick/solid@^4` `solid-js@^1.9` `marked@^18` `katex@^0.18` `vite` `vitest`。
 
 ### 5.2 应用骨架与三模式 UI
 
@@ -573,30 +568,26 @@ class SyncEngine {
 
 **降级路径**：`upload_pdf` 路线（MinerU→markdown）或编译彻底失败但译文在库时，`reader` 响应给 `view:"html"`：`HtmlPane` 用 `marked.parse` 渲染双侧，`katex` auto-render 处理 `$…$`/`$$…$$`/`\[\]`，原文侧同样渲染 markdown/en 文本。同步复用 SyncEngine——只是 `pages()` 换成 `querySelectorAll('[data-chunk]')` 的 `offsetTop/offsetHeight`，且 chunk 对是严格 1:1（seq 直映）比 PDF 锚更准。KaTeX 单公式失败 fallback：原样显示源码 + `.katex-error` 样式，不炸整页。
 
-**arxiv_html 路径**（勘误 2026-09-17，G1）：`options.source=html` 任务走 `_run_html`（fetch→parse→translate→emit，无编译/fixloop/share 臂——HTML chunk 与 share 包 TeX chunk 不对版不可比对）；emit 段 `marked_html` 给每个块元素注 `data-chunk=block.key`（元素 `id` 优先、缺失合成 `b{n}`、撞号 `#k`——与 chunks 行 `chunk_id` 严格 1:1）→ 双侧 `_sanitize_dom`（剥 `script/noscript/template/iframe/form/button/dialog/select`、`on*` 属性、`javascript:`/`vbscript:`/非 image `data:` scheme）+ 相对 URL `urljoin` 绝对化到 `arxiv.org/html/{id}/` → zh 侧每 `[data-chunk]` 元素内文换 `reinsert(translation)`（`ltx_note` 只换 `ltx_note_content` 子树保 mark 触发包装；fallback/failed 块落 `src_text`，降级语义同 TeX 路 splice）；`dual.json` 变体 `documents.{original,translated}={version:文件sha256,pages:标记块数}` + `alignment` 恒 `{"kind":"pages"}`（锚序双侧 1:1，pages 退化臂即同序映射），`chunks` 段同构。前端 `view:"dom"` → `DomPane`：`fetch` 产物 → `DOMParser` → `.ltx_page_main ?? body` → `sanitizeDomHtml`（DOMPurify `DOM_PROFILE`：html+mathMl+svg+svgFilters，`FORBID_TAGS` iframe/object/embed/form/base/link/meta，`ADD_ATTR` data-chunk/target——服务端 `_sanitize_dom` 之外的第二道防线）→ `innerHTML`，`fixupRelativeUrls` 把漏网 `/`-起相对路径补到 `https://arxiv.org` origin；无 marked/KaTeX（MathML 浏览器原生渲染），`pages()`=`[data-chunk]` 元素几何，SyncEngine/position 持久化原样复用。入口：Home「取源」select（eprint 默认不写字段、仅 html 显式传 `options.source="html"`；upload 路剔除 `source`——上传无取源通道概念）。
+**arxiv_html 路径**：`options.source=html` 任务走 `_run_html`（fetch→parse→translate→emit，无编译/fixloop/share 臂——HTML chunk 与 share 包 TeX chunk 不对版不可比对）；emit 段 `marked_html` 给每个块元素注 `data-chunk=block.key`（元素 `id` 优先、缺失合成 `b{n}`、撞号 `#k`——与 chunks 行 `chunk_id` 严格 1:1）→ 双侧 `_sanitize_dom`（剥 `script/noscript/template/iframe/form/button/dialog/select`、`on*` 属性、`javascript:`/`vbscript:`/非 image `data:` scheme）+ 相对 URL `urljoin` 绝对化到 `arxiv.org/html/{id}/` → zh 侧每 `[data-chunk]` 元素内文换 `reinsert(translation)`（`ltx_note` 只换 `ltx_note_content` 子树保 mark 触发包装；fallback/failed 块落 `src_text`，降级语义同 TeX 路 splice）；`dual.json` 变体 `documents.{original,translated}={version:文件sha256,pages:标记块数}` + `alignment` 恒 `{"kind":"pages"}`（锚序双侧 1:1，pages 退化臂即同序映射），`chunks` 段同构。前端 `view:"dom"` → `DomPane`：`fetch` 产物 → `DOMParser` → `.ltx_page_main ?? body` → `sanitizeDomHtml`（DOMPurify `DOM_PROFILE`：html+mathMl+svg+svgFilters，`FORBID_TAGS` iframe/object/embed/form/base/link/meta，`ADD_ATTR` data-chunk/target——服务端 `_sanitize_dom` 之外的第二道防线）→ `innerHTML`，`fixupRelativeUrls` 把漏网 `/`-起相对路径补到 `https://arxiv.org` origin；无 marked/KaTeX（MathML 浏览器原生渲染），`pages()`=`[data-chunk]` 元素几何，SyncEngine/position 持久化原样复用。入口：Home「取源」select（eprint 默认不写字段、仅 html 显式传 `options.source="html"`；upload 路剔除 `source`——上传无取源通道概念）。
 
 ### 5.5 Vite 工程
 
-`vite.config.ts`：`@solidjs/vite-plugin`（或 react plugin）；`server.proxy['/api']='http://127.0.0.1:8765'`；`build` 用 texglot 的 `closeBundle` 插件把 `pdfjs-dist/{cmaps,standard_fonts,wasm}` 拷进 `dist/pdfjs/`（pdfslick `getDocumentParams` 里配 `cMapUrl:'/pdfjs/cmaps/'` 等）+ 生成 `THIRD_PARTY_LICENSES.txt`。测试 vitest（同步引擎/alignment 纯函数可 node --test 式单测，texglot 的 `tsconfig.reader-tests.json` 模式）。
-
----
+`vite.config.ts`：`@solidjs/vite-plugin`；`server.proxy['/api']='http://127.0.0.1:8765'`；`build` 用 texglot 的 `closeBundle` 插件把 `pdfjs-dist/{cmaps,standard_fonts,wasm}` 拷进 `dist/pdfjs/`（pdfslick `getDocumentParams` 里配 `cMapUrl:'/pdfjs/cmaps/'` 等）+ 生成 `THIRD_PARTY_LICENSES.txt`。测试 vitest（同步引擎/alignment 纯函数可 node --test 式单测）。
 
 ## 6. 部署形态
 
 **本地（主形态）**：`uv tool install texlate` → `texlate` 入口三模式（texglot `cli.py` 同构）：
 
-- `texlate web|serve [--port 8765]`：前台跑 `uvicorn`，绑定 127.0.0.1，先 `service.lock` flock（抢不到 → 直接 `open http://127.0.0.1:8765` 复用已有实例）。（勘误 2026-09-17：`--port` 有值域闸——`texlate web` 走 typer `min=1/max=65535`，`python -m texlate.server` 走 argparse `_port` type（1–65535、越界/非数字 exit 2），双入口同口径。）
+- `texlate web|serve [--port]`：前台跑 `uvicorn`，绑定 127.0.0.1，先 `service.lock` flock（抢不到 → 直接打开浏览器复用已有实例）。`--port` 有值域闸——`texlate web` 走 typer `min=1/max=65535`，`python -m texlate.server` 走 argparse `_port` type（1–65535、越界/非数字 exit 2），双入口同口径。
 - `texlate <arxiv-url|file>`：瘦 HTTP 客户端——健康探测失败就 `spawn python -m texlate.server`（+`--parent-pipe` 可选），等 `/api/health` 起来后走 §2 API，进度 SSE 渲染到终端。
 - `texlate --configure/--list/--status/--resume`：设置与任务管理。
-- 数据目录 `~/.texlate/`（`TEXLATE_DATA_DIR` 覆盖——勘误 2026-09-17：`textutil.data_root` 是唯一 locate 点，只判在不在、不 mkdir——落盘前目录不存在由消费方自创建）：`settings.json`(0600) `texlate.db` `tasks/{id}/` `service.lock` `connections.json`。
+- 数据目录（`TEXLATE_DATA_DIR` 覆盖；`textutil.data_root` 是唯一 locate 点，只判在不在、不 mkdir——落盘前目录不存在由消费方自创建）：`settings.json`(0600) `texlate.db` `tasks/{id}/` `service.lock` `connections.json`。
 
-**打包**：`hatchling` wheel `force-include`: `"web/dist" = "texlate/server/static"`；FastAPI mount `static/assets`+`static/pdfjs`+SPA fallback（texglot `main.py` 尾部同款）（勘误 2026-09-17：impl `staticfiles.mount_spa` 是 `_SpaFiles(StaticFiles, html=True)` **整目录挂 `/`**——前端走 hash 路由（`#/…`），`html=True` 即够、无独立 fallback 路由；缓存策略按实 serve 文件分档：`index.html` → `Cache-Control: no-cache`，`assets/` 哈希产物 → `public, max-age=31536000, immutable`，`pdfjs/` 等稳定名资源走默认条件请求；`TEXLATE_SPA_DIR` 可指 `web/dist` 直挂开发产物，目录无 `index.html` 视为未构建不挂载、`/` 保持 404）；release 流水线 `npm ci --prefix web && vite build` 先于 `uv build`，dist 不入库。
+**打包**：`hatchling` wheel `force-include`: `"web/dist" = "texlate/server/static"`；FastAPI 挂静态——impl `staticfiles.mount_spa` 是 `_SpaFiles(StaticFiles, html=True)` **整目录挂 `/`**——前端走 hash 路由（`#/…`），`html=True` 即够、无独立 fallback 路由；缓存策略按实 serve 文件分档：`index.html` → `Cache-Control: no-cache`，`assets/` 哈希产物 → `public, max-age=31536000, immutable`，`pdfjs/` 等稳定名资源走默认条件请求；`TEXLATE_SPA_DIR` 可指 `web/dist` 直挂开发产物，目录无 `index.html` 视为未构建不挂载、`/` 保持 404；release 流水线 `npm ci --prefix web && vite build` 先于 `uv build`，dist 不入库。
 
-**Docker（服务端形态）**：multi-stage——`node:xx` build web → `python:3.12-slim` + tectonic 预置二进制（校验和）+ fonts-noto-cjk；`ENV TEXLATE_DATA_DIR=/data`（挂卷）、`EXPOSE 8765`；`TEXLATE_MODE=server` 时：绑 0.0.0.0、关 service.lock 单 owner、`REDIS_URL` 启用 Redis 队列后端、tenant 强制 header 指纹、本地 `local_only` 中间件换正式 CORS allowlist。TeXLive xelatex 变体镜像做 tag `texlate:full`（CI/服务端高成功率编译）。
+**Docker（服务端形态）**：multi-stage——`node` build web → `python:3.12-slim` + tectonic 预置二进制（校验和）+ fonts-noto-cjk；`ENV TEXLATE_DATA_DIR=/data`（挂卷）、`EXPOSE 8765`；`TEXLATE_MODE=server` 时：绑 0.0.0.0、关 service.lock 单 owner、`REDIS_URL` 启用 Redis 队列后端、tenant 强制 header 指纹、本地 `local_only` 中间件换正式 CORS allowlist。TeXLive xelatex 变体镜像做 tag `texlate:full`（CI/服务端高成功率编译）。
 
 **桌面（远期）**：texglot 矩阵已验证 Electron+PyInstaller（冻结后端 `--engine-server` 子命令 + spawn + parent-pipe），UI 与 web 同源。
-
----
 
 ## 7. 开放问题 / 风险
 
@@ -604,4 +595,10 @@ class SyncEngine {
 2. **`_pages` 是 pdf.js 内部字段**：`viewer._pages[i].div` 虽稳定多年但非公开 API；备选 = `container.querySelectorAll('.page')`（`data-page-number`）。实现时抽 `pages()` 一层即可随时换。
 3. **alignment 依赖 hyperref**：arXiv 论文有少数无 hyperref/禁用 dest 的工程 → `kind:"pages"` 退化（同页码映射），体验降级但仍可用；这是 texglot 同款边界。
 4. **pdfslick 单点风险**：个人维护者（1.1k★），但它本质是 pdf.js `web/viewer` 组件的打包封装——最坏情况 fork 或直接掉回 texglot 式裸 pdfjs（有完整先例代码路径）。
-5. **BabelDOC sidecar 进度**：sidecar 进程 stdout 进度行 → 解析后映射成 `chunk`/`stage` 事件（docs/04 §120 行已留此口）。（勘误 2026-09-17，`babeldoc.py` 实装面：`_spawn` `start_new_session=True` 独立进程组 + `_kill_tree` killpg SIGKILL→`proc.kill` 兜底（cancel/超时整组带走，防孤儿孙进程）；pty/pipe 双通道合流单解析；`errors` 面 `deque(maxlen=64)` 有界——长跑任务错误行不无限堆积。）
+5. **BabelDOC sidecar 进度**：sidecar 进程 stdout 进度行 → 解析后映射成 `chunk`/`stage` 事件。实装面（`babeldoc.py`）：`_spawn` `start_new_session=True` 独立进程组 + `_kill_tree` killpg SIGKILL→`proc.kill` 兜底（cancel/超时整组带走，防孤儿孙进程）；pty/pipe 双通道合流单解析；`errors` 面 `deque(maxlen=64)` 有界——长跑任务错误行不无限堆积。
+
+### 参考文献
+
+[^texglot]: Mengqi-Lei. texglot — arXiv LaTeX 翻译本地服务（FastAPI+React+per-job 目录，Apache-2.0）. GitHub 2026. [github.com/Mengqi-Lei/texglot](https://github.com/Mengqi-Lei/texglot)
+
+[^pdfslick]: pdfslick — pdf.js viewer 组件封装（@pdfslick/core|react|solid）. GitHub 2026. [github.com/pdfslick/pdfslick](https://github.com/pdfslick/pdfslick)

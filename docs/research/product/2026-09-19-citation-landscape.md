@@ -1,5 +1,9 @@
 # 引用图谱论文发现生态全景调研
 
+> **结论**：「引用图谱发现」赛道真实存在但无人做到完全形态——空白点 = 「全 arXiv 量级、语句级边质量、算子化查询面、实时新鲜度」四者合一；LaTeX 源侧抽取是唯一能同时解锁边质量与新鲜度的路径，是 texlate 的结构性优势。数据底座以 OpenAlex 快照为主干即可零成本起步。
+> **状态**：时点证据（2026-09-19 口径）——产品机制逆向为对第三方服务的时点观察，仅供互操作参考；数据源规模与价格随时间漂移，引用前复核。
+> **日期**：2026-09-19
+
 调研问题：**基于引用数与引用图谱做论文推荐/发现，现在有哪些应用、服务、网站、工具，它们具体怎么做的；要做一个「完全形态」应该怎么做。**方法：20 个并行调研 lane（数据源实测、产品逆向、开源源码阅读、算法文献、工程成本核算），覆盖 40+ 产品与工具、10+ 个数据集源、30+ 篇关键文献；关键断言均以 API/端点实测或官方文档取证（2026-09-19）。各 lane 完整报告在 `citation-landscape-2026-09-19/` 目录（01–20 编号），本文是汇总与结论。
 
 ## 一句话结论
@@ -187,4 +191,14 @@ AMiner（智谱/清华 KEG）：引用关系按次卖 ¥0.10/call，图谱能力
 | 19   | `19-china.md`            | AMiner/OAG/X-MOL/文献鸟/中文引文库 + MAG 遗档                                                 |
 | 20   | `20-engineering.md`      | 规模核算：arXiv 子图单机/全图大内存机/三路线成本模型                                          |
 
-原始探针产物在 `tmp/citation-survey/<lane>/`（各报告末尾有清单）。
+## 附录：调研任务书
+
+本报告是下述调研任务的产出归档，任务书原文要点留存备查。
+
+调研背景：texlate（开源「arXiv LaTeX 源 → LLM 段落级翻译 → ctex 重编译中文 PDF」项目，产品代码 `src/texlate/`）的产品方向扩展为「不止翻译，还要基于引用数与引用图谱做论文推荐/发现」——目标是最终拥有类似 alphaXiv similar-papers、Connected Papers 那一档的发现层能力。本轮是纯调研，为后续架构决策供弹药。
+
+已验证可直接引用的前提：alphaXiv 的 references/overview 等富产物覆盖率很低（随机论文 ~7–20%，老 ID 0%），只能机会型白嫖——逆向细节见同目录 `2026-09-19-alphaxiv-reverse.md`；texlate 有每篇论文的 LaTeX 源（`.bbl`/`.bib`/`\bibitem`），引用边可自抽——这是相对 PDF 侧玩家的结构优势。
+
+调研范围三块：**数据源层**（OpenAlex、Semantic Scholar API+datasets/S2ORC、OpenCitations、Crossref、arXiv 官方渠道、INSPIRE-HEP/ADS/PubMed/DBLP 领域库、Lens.org 等——谁有引用边、被引数、arXiv ID 含 `astro-ph/` 老 ID、bulk dump、license、更新延迟）；**算法与产品层**（Connected Papers、ResearchRabbit、Litmaps、Inciteful、scite.ai、alphaXiv 各自怎么算「相关论文」：co-citation / bibliographic coupling / SPECTER 类 embedding / 混合；托管推荐 API 现状；可直接用的 embedding 资产）；**工程层**（全 arXiv ~250 万篇上亿边规模的 bulk dump 体量、存储形态、预计算 vs 按需、更新节奏；S2ORC / OpenAlex snapshot / GROBID 现成管线角色；「自建全图 / 骑托管 API / 混合」三条路线真实成本对比）。
+
+方法要求：WebSearch/WebFetch 调研 + `curl` 直接探 API 验证（限流、字段、覆盖率主张尽量实测，不抄二手数字）；实测验证过的标实测，查不到的标「未验证」；报告必须落到「texlate 下一步该怎么走」的具体建议上。

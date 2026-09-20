@@ -1,256 +1,87 @@
-# L2 HTML 降级路规格：LaTeXML DOM 分块 → 翻译 → 双语呈现
+# L2 HTML 降级路调研与分块规格：LaTeXML DOM → 占位符契约 → 双语呈现
 
-> 日期：2026-09-14 · 样本：`tmp/exp/arxiv-probes/html/`（arxiv.org/html: 1706.03762 / 2203.02155 / stub 1412.6980；ar5iv: math/0404188 + tmp/ 下既有 ar5iv_*.html 五篇）· 产出物：`tmp/exp/html-dom/`（`inventory.py`、`*.dom.json` 直方图、`structure-tree.txt` 骨架、`dom-fragments.html` 关键片段）。
-> 结论：**LaTeXML DOM 分块可行且比 LaTeX 扫描器简单——`article.ltx_document` 内按「叶选择器 + 原子占位符」两层规则抽取；数学/MathML 整子树直通不译；id 是位置式非 \label 式，对齐锚用文档序 `data-chunk` seq；双语呈现推荐 DOM 内交错注入为规范产物、双栏为派生视图。**
+> **结论**：arXiv 原生 HTML（LaTeXML 输出）可按「提取边界 = `article.ltx_document` + 叶选择器分块 + 原子占位符」规则产出与 LaTeX 路**同构的 chunks[]**——translate/validate 零改动；MathML 整子树直通不译；对齐锚用 DOM 序 1:1 精确锚（优于 PDF 路 named-dest 估算）；双语呈现定「交错注入（原上译下）为规范产物、双栏为派生视图」。
+> **状态**：已落地（`arxiv/html.py` 的块枚举/占位符/`marked_html` 锚注入、`server/worker/html.py` 的 arxiv_html 链、web 端 `HtmlPane`）。规范面唯一事实源 = `spec/`；本文是 DOM 实测证据与设计动机。落地差异注记：实现用**元素 key**（元素 `id` 优先、缺失合成 `b{n}`）作 `data-chunk` 锚而非纯 seq，1:1 契约语义不变。
+> **日期**：2026-09-14 取证（样本：arxiv.org/html 1706.03762/2203.02155/stub 1412.6980 + ar5iv 多篇），2026-09-20 重订入库
 
-## 0. 结论速览
+## 1. DOM 结构事实
 
-| 议题      | 决策                                                                                                                                         | 关键证据                                          |
-| --------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
-| 提取边界  | 只取 `article.ltx_document`；页眉/导航/页脚/modal/infobox/TOC 全剥                                                                           | arxiv.org 与 ar5iv chrome 完全不同但 article 同构 |
-| 分块单元  | 叶元素：`p.ltx_p`、`span.ltx_p`（表格单元内）、`figcaption.ltx_caption`、`.ltx_title*`、`span.ltx_note_content`、无 ltx_p 的 `td/th.ltx_td`  | 四篇实测 311/1857/581/1 块                        |
-| 原子占位  | `math`、`cite.ltx_cite`、`a.ltx_ref`、`span.ltx_note`、`img/svg` → `[[MATH/CITE/REF/NOTE/IMG_n]]`                                            | 与主管线 `[[TYPE_n]]` 契约同构                    |
-| 跳过子树  | `table.ltx_equation*`、`li.ltx_bibitem`、`.ltx_authors`（除 note_content）、`pre/.ltx_verbatim`、`.ltx_pagination`、导航                     | thebibliography 与 LaTeX 路黑名单一致             |
-| 数学      | MathML 子树原样克隆进译文 DOM，不进 prompt；TeX 源在 `alttext` 属性 + `<annotation encoding="application/x-tex">`（双份，100% 覆盖）         | 142/142、64/64、283/283、2293/2293                |
-| 锚点      | LaTeXML id 全是位置式（`S3.E1`/`bib.bib8`/`footnote1`），**`\label` 名不保留**；双语对齐用 DOM 序 `data-chunk="{seq}"` 1:1                   | 924/4826/4030 ids 全为生成式                      |
-| stub 检测 | `ltx_section+appendix == 0` ∧ `article 文本 <2KB` → stub；`See pages … of …\.pdf` → pdf_wrapper 亚型                                         | 1412.6980: 1 para/35B 文本                        |
-| 质量信号  | DOM 内：`span.ltx_ERROR`、`math.ltx_math_unparsed` 计数；外部（可选）：`{id}v{N}/__stdout.txt` / ar5iv `/log/{id}` 的 `Status:conversion:N`  | math0404188: 59 unparsed; hep-th: 2 ERROR         |
-| 双语呈现  | **交错注入（原上译下）为规范产物**；每个叶元素生成 zh 兄弟节点 `data-chunk="{seq}" data-chunk-role="zh"`；双栏 = 同一 DOM 克隆后按 role 过滤 | SSE `chunk` 事件 seq 直接驱动增量插入             |
+- **engine**：arxiv.org `/html/` 与 ar5iv[^ar5iv] 同为 LaTeXML[^latexml]（0.7.5/0.7.6）——**同引擎同 DOM 方言，一套选择器通吃两源**；ar5iv 可作 L2 第二源（但同样救不了 PDF-only）。
+- **页面骨架**：chrome（导航/TOC/页脚/modal/infobox）全剥，唯一提取边界 = `article.ltx_document`（无 id，class 定位）；article 内顶层序 = `div.ltx_para` 版权行 → `h1.ltx_title_document` → `div.ltx_authors` → `div.ltx_abstract` → `section.ltx_section`…→ `section.ltx_appendix`…→ `section.ltx_bibliography`。
+- **资源引用**：`img.ltx_graphics[src]` 全相对路径，基准 = `https://arxiv.org/html/{id}v{resolved}/`——服务化时必须 absolutize 或走代理。
+- **标题层级**：h1=document、h2=section/appendix/bibliography、h3=subsection、h4=subsubsection、h5=paragraph(runin)、h6=abstract/theorem；**chrome 里也有 h2/h5**，计数须限定 article 内。
 
-## 1. DOM 结构规格
+### class 直方图（摘要）
 
-### 1.1 页面骨架与提取边界
+实测三篇（1706/2203/math0404188）关键类的块语义：`ltx_para`=段落容器（非分块单位，可包公式表/列表）；`p.ltx_p`+`span.ltx_p`=**文本叶**（后者是表格单元内段，2203 中 479/662）；`ltx_equation*`=行间公式 **`<table>`**；`ltx_section*/appendix`=section 嵌套最深 3 层；`ltx_figure/table`=figure 浮动体（可嵌套子图面板）；`ltx_tabular/ltx_td`=数据表格（单元块是块数大头，表格密论文占 80%+）；`ltx_bibitem/bibblock`=参考文献条目；`ltx_cite`=cite 元素；`ltx_ref`=内部交叉引用锚；`ltx_note/note_content`=行内嵌套脚注（内容默认隐藏）；`ltx_theorem*`=定理块；`ltx_authors`=作者块（不译）；`ltx_ERROR`=LaTeXML 错误内嵌字面量；`ltx_picture/svg`=TikZ→内联 SVG；`ltx_Math`/`ltx_math_unparsed`=`<math>` 元素（unparsed=解析失败）；`ltx_align_*`/`ltx_font_*`/`ltx_text` 等纯表现层不影响抽取。
 
-```
-body
-├─ dialog#modal-form / div.ds-announcement / header.arxiv-html-header   ← arXiv chrome
-├─ nav.ltx_page_navbar > nav.ltx_TOC                                    ← 目录侧栏（arxiv.org 独有）
-├─ div.ltx_page_main
-│  ├─ div#infobox (license + watermark "arXiv:1706.03762v7 [cs.CL] …")
-│  └─ div.ltx_page_content
-│     └─ article.ltx_document            ←★ 唯一提取边界（无 id，class 定位）
-├─ footer.arxiv-html-footer (build-log 链接 + 反馈说明)                  ← chrome
-└─ div#fixed-buttons-container
-```
-
-- **engine**：`<!--Generated by LaTeXML oxide (version 0.7.6)-->`（arxiv.org）/ `0.7.5`（ar5iv），同引擎同 DOM 方言——一套选择器通吃两源。
-- **article 内顶层序**：`div.ltx_para#p1`（版权行）→ `h1.ltx_title_document` → `div.ltx_authors` → `div.ltx_abstract#abstract1` → `section.ltx_section#S1`…→ `section.ltx_appendix#A1`…→ `section.ltx_bibliography`。
-- **ar5iv 差异**：无 `nav.ltx_TOC`、页脚是 `div.ltx_page_footer`，article 内结构一致（id/class 同语法）。stub 同样形态。
-- **资源引用**：`img.ltx_graphics[src]` 全相对路径（`1706.03762v7/Figures/x.png`），基准 = `https://arxiv.org/html/{id}v{resolved}/`；服务化时必须 absolutize 或走代理。外链 `a[href^="http"]` 保留原样。
-
-### 1.2 class 直方图（摘要，全量见 `*.dom.json`）
-
-| class                                                                                                                | 1706       | 2203        | math0404188               | 含义                                                                                                                             |
-| -------------------------------------------------------------------------------------------------------------------- | ---------- | ----------- | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `ltx_para`                                                                                                           | 70         | 257         | 240                       | 段落容器 div（可包 p/公式表/列表/表格）                                                                                          |
-| `ltx_p`                                                                                                              | 67         | 662         | 496                       | **两种形态**：`<p>`（正文段）+ `<span>`（表格单元内段，2203 中 479/662）                                                         |
-| `ltx_Math`/`ltx_math_unparsed`                                                                                       | 142/0      | 63/1        | 2234/59                   | `<math>` 元素上的 class；unparsed = LaTeXML 解析失败                                                                             |
-| `ltx_equation`/`ltx_equationgroup`/`ltx_eqn_*`                                                                       | 10+2/—     | 4/—         | 577/—                     | **行间公式 = `<table>`**；单元格 `td.ltx_eqn_cell`，编号 `span.ltx_tag_equation`                                                 |
-| `ltx_section/subsection/subsubsection/paragraph/appendix`                                                            | 8/12/3/5/0 | 5/42/2/31/6 | 11/0/0/0/1                | `<section>` 标签，最深 3 层嵌套                                                                                                  |
-| `ltx_title`/`ltx_title_{document,section,subsection,subsubsection,paragraph,appendix,abstract,bibliography,theorem}` | 31         | 89          | 45                        | h1..h6；h1=文档标题，h2=section/bibliography/appendix，h3=subsection，h4=subsubsection，h5=paragraph，h6=abstract+theorem(runin) |
-| `ltx_figure`/`ltx_table`/`ltx_figure_panel`/`ltx_flex_*`                                                             | 5/4/6      | 54/13/4     | 0                         | `<figure>` 浮动体；2203 有 figure 嵌套进 ltx_table 的子图面板                                                                    |
-| `ltx_caption`                                                                                                        | 9          | 64          | 0                         | `<figcaption>`，内含 `span.ltx_tag_figure`（"Figure 1: "）                                                                       |
-| `ltx_tabular`/`ltx_td`/`ltx_tr`/`ltx_thead`/`ltx_guessed_headers`                                                    | 5/396/54   | 41/1460/488 | 0                         | 数据表格；单元 = `td/th.ltx_td`，内含 `span.ltx_inline-block>span.ltx_p` 或裸 `span.ltx_text`                                    |
-| `ltx_bibliography`/`ltx_biblist`/`ltx_bibitem`/`ltx_bibblock`                                                        | 1/1/40/119 | 1/1/91/273  | 45                        | `section>ul>li.ltx_bibitem`，bibblock=作者/题名/出处分段                                                                         |
-| `ltx_cite`/`ltx_citemacro_{citep,citet,cite}`                                                                        | 63         | 123         | —                         | `<cite>` 元素，内包 `a.ltx_ref` 链到 `#bib.bibN`                                                                                 |
-| `ltx_ref`/`ltx_ref_tag`/`ltx_tag_ref`                                                                                | 128        | 400         | 458                       | `<a class=ltx_ref href="#…">` 内部交叉引用锚文本                                                                                 |
-| `ltx_note`/`ltx_note_content`/`ltx_note_mark`/`ltx_role_footnote`                                                    | 12         | 10          | 26                        | 脚注 **inline 嵌在 p 内**：`span.ltx_note>sup.ltx_note_mark+span.ltx_note_outer>span.ltx_note_content`（内容默认隐藏）           |
-| `ltx_itemize`/`ltx_enumerate`/`ltx_item`/`ltx_tag_item`                                                              | 1/—/3      | 25/2/90     | —                         | `ul/ol>li.ltx_item>span.ltx_tag_item("•")+div.ltx_para>p.ltx_p`                                                                  |
-| `ltx_theorem`/`ltx_theorem_{theorem,lemma,proposition,definition,conjecture}`                                        | —          | —           | 43                        | `div.ltx_theorem>h6.ltx_title_theorem(runin)+div.ltx_para`                                                                       |
-| `ltx_authors`/`ltx_creator`/`ltx_personname`/`ltx_contact`                                                           | 1/8/8/15   | 1/21/21     | —                         | 作者块（人名/邮箱/单位），不译                                                                                                   |
-| `ltx_pubnote(s)`/`ltx_note_frontmatter`/`ltx_thanks_*`                                                               | 3          | 1           | 1                         | 致谢/资助 note，藏在 title/authors 内                                                                                            |
-| `ltx_abstract`/`ltx_keywords`/`ltx_dates`                                                                            | 1/—/—      | 1/—/—       | 1                         | abstract = div + h6 + p.ltx_p                                                                                                    |
-| `ltx_pagination`/`ltx_role_newpage`                                                                                  | 1          | 7           | —                         | 分页标记，跳过                                                                                                                   |
-| `ltx_ERROR[.undefined]`/`ltx_INFO`/`ltx_WARNING`                                                                     | 0          | 0           | 0(另有 ar5iv hep-th 2 处) | LaTeXML 错误内嵌字面量（如 `\preprintnumber` 原文残留）                                                                          |
-| `ltx_picture`/`svg`                                                                                                  | —          | —           | 30                        | TikZ→内联 SVG 图，原子跳过                                                                                                       |
-| `ltx_TOC`/`ltx_toclist`/`ltx_tocentry*`                                                                              | 1/8/29     | 1/19/87     | 0(ar5iv)                  | arxiv.org 生成目录，href=#S1 等                                                                                                  |
-| 样式类 `ltx_align_*`/`ltx_border_*`/`ltx_font_*`/`ltx_text`/`ltx_inline-block`/`ltx_tag`/`ltx_rule`/`ltx_break`      | 大量       | 大量        | 大量                      | 纯表现层，一律不影响抽取                                                                                                         |
-
-### 1.3 标题↔层级映射（article 内实测）
-
-`h1`=`ltx_title_document` · `h2`=`ltx_title_section`/`_appendix`/`_bibliography` · `h3`=`_subsection` · `h4`=`_subsubsection` · `h5`=`_paragraph`（runin 段题）· `h6`=`_abstract`/`_theorem`。注意 **chrome 里也有 h2/h5**（反馈 modal/页脚说明），计数必须限定在 article 内。
-
-## 2. 决策一：分块模型
-
-### 2.1 三层规则（可执行伪码）
+## 2. 分块模型（三层规则）
 
 ```python
 ATOMIC   = 'math, cite.ltx_cite, a.ltx_ref, span.ltx_note, span.ltx_pubnote, img, svg,
-            .ltx_personname, .ltx_contact, .ltx_role_affiliation'   # 作者原子
+            .ltx_personname, .ltx_contact, .ltx_role_affiliation'
 LEAF     = 'p.ltx_p, span.ltx_p, figcaption.ltx_caption, .ltx_title, span.ltx_note_content'
 SKIPTREE = 'table.ltx_equation, table.ltx_equationgroup, li.ltx_bibitem,
-            .ltx_pagination, nav, script, style,
-            pre, .ltx_verbatim, .ltx_listing'           # 后三未见样本，防御性加入
-
-# 1) 叶发现（文档序）
-for el in article.select(LEAF):
-    if el.find_parent(SKIPTREE):            continue   # 跳过子树内无 chunk
-    # leaf-in-leaf：若祖先链上先碰到 LEAF 而非 ATOMIC → 内层丢弃（外层已覆盖）
-    # ltx_authors 不进 SKIPTREE：人名/邮箱靠 ATOMIC 级跳过，
-    #   其中的 ltx_note_content（thanks 散文）仍独立成块
-    p = el.parent
-    while p is not article:
-        if p in LEAF_SET:    skip(el); break
-        if p in ATOMIC_SET:  break                     # 隔了原子边界 → 内层独立成块
-        p = p.parent
-# 2) 裸单元格补扫：td/th.ltx_td 无 LEAF 后代且有非原子文本 → 单元格 chunk
-for td in article.select('td.ltx_td, th.ltx_td'):
-    if not td.select(LEAF) and text_without_atomic(td): leaves.append(td)
+            .ltx_pagination, nav, script, style, pre, .ltx_verbatim, .ltx_listing'
 ```
 
-- **`div.ltx_para` 不是分块单位**——它是容器，可能包公式表/列表/裸表格（6/70 无 p.ltx_p）；真正的文本叶是 `p.ltx_p`。等价于 LaTeX chunk 的正是 **`p.ltx_p` + `span.ltx_p` 这一族叶元素**。
-- **leaf-in-leaf 只发生在 note/pubnote**：`p.ltx_p` 内嵌 `span.ltx_note`（原子）再内 `ltx_note_content`（叶）→ 父子两块都保留（§2.3 依赖关系）。
-- **实测块数**：1706.03762=311（para 67、td_bare 192、note 12、title 29、caption 9）、2203.02155=1857（cell 1511 块为主！）、math0404188=581（para 496、theorem_title 43、note 26）、stub=1。
-- **表格单元是块数大头**：表格密论文 cell 块占比 80%+，单块极小（"Use-case"/"45.6%"）→ 翻译层必须**按编号批量打包**（ieeA 协议正好如此），seq 粒度 ≠ 请求粒度。
-- **kind 分类**（写 chunks.kind）：`para | cell | caption | title_{document,section,subsection,subsubsection,paragraph,appendix,abstract,bibliography,theorem} | note | pubnote`；bibitem 不产块（跳过）。
+叶发现按文档序；leaf-in-leaf 只发生在 note/pubnote（`p.ltx_p` 内嵌原子 `span.ltx_note` 再内 `ltx_note_content` 叶→父子两块都保留）；裸单元格补扫（td/th 无 LEAF 后代且有非原子文本 → cell 块）。实测块数：1706.03762=311、2203.02155=1857（cell 块为主）、math0404188=581、stub=1。**表格单元块极小（中位 <20 字符）→ 翻译层按编号批量打包**，seq 粒度 ≠ 请求粒度。
 
-### 2.2 跳过清单（与 LaTeX 路黑名单对齐）
+### 跳过清单（与 LaTeX 路黑名单对齐）
 
-| 节点                                                                     | 处理                                                                                       | 理由                                                                                                                                      |
-| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `table.ltx_equation`/`ltx_equationgroup`                                 | 整树跳过（连编号 tag 都不进块）                                                            | 行间公式不可译；e2e 黑名单 equation/align 全族对应物                                                                                      |
-| `li.ltx_bibitem`                                                         | 整树跳过                                                                                   | 对齐 LaTeXTrans `thebibliography` 黑名单；bibblock 是姓名/题名/出处元数据。**省钱 ~11% 字符量**（2203: 20K/182K）；如需译参考文献留配置口 |
-| `div.ltx_authors` 内 personname/contact/email/affiliation                | 原子级跳过                                                                                 | 人名保原语（K1 条款）；`ltx_note_content` 例外（致谢散文，译）                                                                            |
-| `math`、`cite.ltx_cite`、`a.ltx_ref`、`span.ltx_note/pubnote`、`img/svg` | **原子**：不进文本、占位 `[[MATH/CITE/REF/NOTE/IMG_n]]`                                    | 见 §2.3/§3                                                                                                                                |
-| `nav.ltx_TOC`/`ltx_page_navbar`/chrome                                   | 剥壳时不进 article                                                                         | 我们自建双语 TOC                                                                                                                          |
-| `ltx_tag`（"Figure 1:"/"Lemma 3.4"/"•"/"1"）                             | **保留在文本内**（caption/title 里就是文字）；equation tag 随表跳过                        | "图 1："/"引理 3.4" 该翻；项目符号本来就是符号                                                                                            |
-| `ltx_pagination`/`ltx_role_newpage`/`ltx_rule`/`ltx_break`               | 跳过                                                                                       | 排版痕迹                                                                                                                                  |
-| `ltx_logical-block`/`ltx_minipage`/`ltx_inline-block`/`ltx_flex_*`       | 容器，不下钻规则变化                                                                       | 内层叶照常命中                                                                                                                            |
-| `span.ltx_ERROR`                                                         | **不算原子**：文本原样进 chunk（它就是可见文本，如 `\preprintnumber`）；同时计数进质量信号 | 见 §5                                                                                                                                     |
-| `pre`/`.ltx_verbatim`/`.ltx_listing`/`algorithm`                         | 跳过子树                                                                                   | 代码不译（样本未覆盖，防御性保留）                                                                                                        |
+| 节点                                        | 处理                                              | 理由                                                                       |
+| ------------------------------------------- | ------------------------------------------------- | -------------------------------------------------------------------------- |
+| `table.ltx_equation*`                       | 整树跳过（连编号 tag 都不进块）                   | 行间公式不可译                                                             |
+| `li.ltx_bibitem`                            | 整树跳过                                          | 对齐 thebibliography 黑名单；**省 ~11% 字符量**（2203: 20K/182K）          |
+| `div.ltx_authors` 内 personname/contact 等  | 原子级跳过                                        | 人名保原语；`ltx_note_content` 例外（致谢散文，译）                        |
+| `ltx_tag`（"Figure 1:"/"•"）                | **保留在文本内**                                  | "图 1："该翻；项目符号本来就是符号                                         |
+| `span.ltx_ERROR`                            | 文本原样进 chunk + 计数进质量信号                 | 它是可见文本（如 `\preprintnumber` 残留）                                  |
+| `pre`/`.ltx_verbatim`/`.ltx_listing`        | 跳过子树                                          | 代码不译（样本未覆盖，防御性保留）                                         |
 
-### 2.3 抽取与占位符契约（复用主管线）
+### 抽取与占位符契约
 
-```
-src_text(leaf) = serialize(el): 文本节点原样；ATOMIC 子树 → [[TYPE_n]]
-  math → [[MATH_n]]      cite.ltx_cite → [[CITE_n]]      a.ltx_ref → [[REF_n]]
-  span.ltx_note/pubnote → [[NOTE_n]]   img/svg → [[IMG_n]]
-```
+`src_text(leaf)` = 序列化：文本节点原样；ATOMIC 子树 → `[[TYPE_n]]`（math→`[[MATH_n]]`、cite→`[[CITE_n]]`、`a.ltx_ref`→`[[REF_n]]`、note/pubnote→`[[NOTE_n]]`、img/svg→`[[IMG_n]]`）——与主管线 `[[TYPE_n]]` 契约同构，validator 的占位符多重集校验零改动复用。**陷阱**：naive `get_text()` 会把 `<math><annotation>` 的 TeX 源码和 `ltx_note_content` 隐藏脚注文本串进正文（2203 实测多 ~850 字符噪音）——必须先原子替换再取文本。
 
-- **陷阱**：naive `el.get_text()` 会把 `<math><annotation>` 里的 TeX 源码**和** `ltx_note_content` 隐藏脚注文本都串进正文——必须先走原子替换再取文本（实测 2203 公式块会多 ~850 字符噪音）。
-- **校验器零改动复用**：占位符多重集相等；花括号平衡在 HTML 路可放宽（文本不编 TeX），但保留无害。
-- **写回**：zh 克隆叶元素 → 译文文本按占位符切分 → 原子子树克隆按序插回 → 占位符缺失即该原子丢失，validator 兜底。
-- **依赖块**：`[[NOTE_n]]` 的原子子树内 `ltx_note_content` 本身是另一 seq 的块 → 插入 zh 时若 note 译文未至，先留 EN 内容并打 `data-chunk="{note_seq}" data-chunk-role="zh" data-pending` 槽位，note chunk 到达后填充（§6 接口）。
+## 3. 数学
 
-## 3. 决策二：数学
+全部样本 `<math>` 100% 携带 `alttext="{TeX源}"` **且** `<annotation encoding="application/x-tex">` 子元素（双份冗余）。决策：**MathML 子树原子直通**——翻译输入 `[[MATH_n]]`，zh DOM 原样克隆由浏览器原生渲染；alttext 不进占位符。`ltx_math_unparsed`（LaTeXML 解析失败，math0404188 有 59/2293）同样直通但计数进质量报告。
 
-- **验证**：全部样本 `<math>` 100% 携带 `alttext="{TeX源}"` 属性 **且** `<semantics><annotation encoding="application/x-tex">{TeX源}</annotation>` 子元素（双份冗余）；`display="inline|block"`；`intent=":literal"` 语义标记可忽略。
-- **决策**：**MathML 子树原子直通**——翻译输入 `[[MATH_n]]`，zh DOM 原样克隆，MathML 由浏览器原生渲染。**alttext 不进占位符**（不需要——MathML 本身就是渲染形态，不像 PDF 路要回嵌 LaTeX）。TeX 源双备份仅留作调试/未来「`\text{}` 内汉字」类需求。
-- `ltx_math_unparsed`（LaTeXML 解析失败的 math，math0404188 有 59/2293）：同样直通，但计数进质量报告（§5）。
-- `td.ltx_eqn_cell` 里的 math 不单独成块——整个 `ltx_equation` 表跳过。
+## 4. 锚点与对齐
 
-## 4. 决策三：锚点与对齐
-
-### 4.1 LaTeXML id 语法（全位置式，`\label` 名不保留）
-
-```
-S{n}.SS{n}.SSS{n}.Px{n}   section/subsection/subsubsection/paragraph  （无号段 Px）
-A{n}…                     appendix 同构          bib.bib{n}            bibitem
-S{n}.E{n}                 编号公式              S{n}.EGx{n}/.Ex{n}     无号公式组/行
-S{n}.F{n} / S{n}.T{n}     图/表浮动体           S{n}.F{n}.g{n}         figure 内 img
-S{n}.T{n}.fig{n}…         表内子面板/嵌套tabular  footnote{n}/id{n}      脚注/杂项 id
-abstract{n}               摘要                  S{n}.p{n}…             ltx_para
-…p{n}.{k}                 para 内 p.ltx_p       …p{n}.m{n}             para 内 math
-```
-
-- 每个结构节点都带 id（1706: 924 个、2203: 4826、math0404188: 4030），**但纯位置语义**——`S3.E1` 不告诉你它对应哪个 `\label{eq:attn}`。含义：**HTML 路不存在与 PDF named-destinations 的语义对应物**；好在双语 HTML 同源生成，不需要它。
-- `a.ltx_ref[href^="#"]` = 全部内部交叉引用（cite→bib.bibN、ref→S/E/F/T/footnote id），zh DOM 克隆时锚原样可用。
-- `nav.ltx_TOC`（arxiv.org 独有）的 `ltx_tocentry` 链接同锚——我们自建 TOC 直接读 `ltx_title_*` 元素生成双语版。
-
-### 4.2 对齐锚方案（呼应 web-layer `data-chunk`）
-
-- **主锚 = DOM 序 seq**：每个 translatable 叶按文档序编 seq（0-based），与 `chunks.seq`/`chunks.jsonl`/SSE `chunk.items[].seq` 严格 1:1——PDF 路靠 named-destination 估算的对齐，HTML 路是**天然精确 1:1**。
-- **DOM 标记**：原叶 `data-chunk="{seq}" data-chunk-role="en"`；译文兄弟 `data-chunk="{seq}" data-chunk-role="zh"`；LaTeXML id 保留在 en 节点（锚点跳转目标），zh 克隆**不复制 id**（否则 id 重复、href=#S1 会跳到译文副本——zh 节点如确需 id 用 `{orig}--zh`）。
-- 派生 `ltx_id ↔ seq` 映射表入 `dual.json`（调试/`#frag` 深链支持：访问 `…#S3.E1` 仍能定位原文公式）。
+- LaTeXML id 全是**位置式**（`S3.E1`/`bib.bib8`/`footnote1`/`abstract1`），`\label` 名不保留——HTML 路不存在与 PDF named-dest 的语义对应物，但双语 HTML 同源生成，不需要它。
+- **主锚 = DOM 序 1:1**：每个可译叶按文档序编锚，与 chunks/SSE `chunk.items[].seq` 严格对应——PDF 路靠 named-destination 估算的对齐，HTML 路是天然精确 1:1。
+- DOM 标记：原叶 `data-chunk="{key}" data-chunk-role="en"`；译文兄弟 `data-chunk="{key}" data-chunk-role="zh"`；LaTeXML id 保留在 en 节点（锚跳转目标），zh 克隆不复制 id（防 `href=#S1` 跳译文副本；如需 zh 侧锚用 `{orig}--zh`）。
+- `a.ltx_ref[href^="#"]` 全部内部交叉引用在 zh DOM 克隆中原样可用；自建双语 TOC 直接读 `ltx_title_*` 元素生成。
 
 ## 5. stub / 失败检测
 
-### 5.1 DOM 内信号（零额外请求，先做）
+DOM 内零额外请求信号：
 
-| 信号                            | 正常       | stub (1412.6980)                      | 判定                                                                               |
-| ------------------------------- | ---------- | ------------------------------------- | ---------------------------------------------------------------------------------- |
-| `ltx_section`+`ltx_appendix` 数 | 8–87       | **0**                                 | ==0 ∧ 文本<2KB → `html_stub`                                                       |
-| article 文本长                  | ≥30K chars | 35 chars                              | 主判据                                                                             |
-| `ltx_p` 叶数                    | ≥50        | 1                                     | 辅证 ≤3                                                                            |
-| math/figure/bibitem             | ≥1         | 0/0/0                                 | 辅证全 0                                                                           |
-| 文本模式                        | —          | `See pages 1-last of 0_adam_main.pdf` | `See pages? [\d\-last]+ of \S+\.pdf` → **pdf_wrapper 亚型**（源码是 \pdfpages 壳） |
-| `span.ltx_ERROR`                | 0–2        | 0                                     | >0 → warning（未定义宏残留，hep-th 实例 2 处）                                     |
-| `math.ltx_math_unparsed`        | 0–1        | —                                     | >5% of math → degraded 警告（math0404188: 59/2293=2.6%）                           |
+| 信号                            | 正常       | stub (1412.6980)                      | 判定                                                                |
+| ------------------------------- | ---------- | ------------------------------------- | ------------------------------------------------------------------- |
+| `ltx_section`+`ltx_appendix` 数 | 8–87       | **0**                                 | ==0 ∧ 文本<2KB → `html_stub`                                        |
+| article 文本长                  | ≥30K chars | 35 chars                              | 主判据                                                              |
+| 文本模式                        | —          | `See pages 1-last of 0_adam_main.pdf` | `See pages? [\d\-last]+ of \S+\.pdf` → **pdf_wrapper 亚型**         |
+| `span.ltx_ERROR`                | 0–2        | 0                                     | >0 → warning（未定义宏残留）                                        |
+| `math.ltx_math_unparsed`        | 0–1        | —                                     | >5% of math → degraded 警告                                         |
 
-- 路由：stub+pdf_wrapper → 说明「论文本体是扫描 PDF」，跳 L3 PDF sidecar；stub 非 wrapper（真 LaTeXML 崩）→ 也跳 L3。**stub 不送翻译**。
-- 工程量级参考：正常 HTML ≥150KB，stub 8–21KB——字节数可作粗筛但不做判据。
-
-### 5.2 外部信号（可选、懒加载）
-
-- **arxiv.org**：每个 HTML 页 footer 固定链 `./{id}v{N}/__stdout.txt`（构建日志全文）。
-- **ar5iv**：`/log/{id}` 转换报告是**机器可读的 HTML**（`ltx_conversion_report` section）：`Status:conversion:N`（0=ok/1=warn/2=error/3=fatal 级别；1412.6980=2，hep-th 日志也有 error 行）+ `ltx_ERROR/ltx_INFO` 分类行。
-- 建议：不作为默认路径（多一次请求），在 DOM 信号异常或用户报告渲染问题时懒取；`Status:conversion` 写入 report.json。
+路由：stub+pdf_wrapper → 「论文本体是扫描 PDF」跳 L3；stub 非 wrapper（LaTeXML 崩）→ 也跳 L3；**stub 不送翻译**。外部可选信号（懒加载）：arxiv.org 每页 footer 链 `./{id}v{N}/__stdout.txt`（构建日志）；ar5iv `/log/{id}` 机器可读转换报告（`Status:conversion:N` 0=ok/1=warn/2=error/3=fatal）。
 
 ## 6. 双语呈现方案
 
-### 6.1 推荐：交错注入为规范产物（alphaxiv/沉浸式同款 UX）
+**决定：DOM 内逐节点交错插入译文（原上译下）为规范产物**，理由：L2 是降级路工程预算有限，交错视图零同步机械（单滚动容器天然对齐）；SSE `chunk` 事件按锚到达即插，用户逐段看译文生长；沉浸式翻译已在同一 DOM 方言验证此 UX；**双栏不丢失**——规范 DOM 里 en/zh 节点都带 `data-chunk`+`data-chunk-role`，派生双栏 = 克隆 article 一侧删 zh 一侧删 en，scrollTop 按 `[data-chunk]` offsetTop 映射即可接入既有 SyncEngine。
 
-**决定：a) DOM 内逐节点插入译文**为主形态，理由：
-
-1. L2 是降级路——工程预算有限；交错视图**零同步机械**（单滚动容器天然对齐），双栏需要第二棵 DOM 树 + SyncEngine 适配。
-2. 增量流式天然契合：SSE `chunk` 事件按 seq 到达即插，用户逐段看译文生长（hjfy 段落棋盘格的阅读器版）。
-3. 沉浸式翻译已验证此 UX 于同一 DOM 方言——用户心智现成。
-4. **双栏不丢失**：规范 DOM 里 en/zh 节点都带 `data-chunk`+`data-chunk-role`，派生双栏 = 克隆 article、一侧删 zh 一侧删 en，scrollTop 按 `[data-chunk]` offsetTop 映射——`pages()` 换成 `querySelectorAll('[data-chunk]')` 即接入现有 SyncEngine（web-layer §5.4 已留此口）。先做交错，双栏作为 reader `view:"html-split"` 后续选项。
-
-### 6.2 DOM 操作粒度与锚命名
-
-```html
-<p class="ltx_p" id="S1.p3.1" data-chunk="42" data-chunk-role="en">
-    We focus on …
-</p>
-<p class="ltx_p texlate-zh" lang="zh-CN" data-chunk="42" data-chunk-role="zh">
-    我们聚焦于…
-</p>
-```
-
-- **粒度 = translatable 叶**（§2.1）；zh 节点 = 克隆叶元素同名同类 + `texlate-zh`/`lang`/`data-chunk-role`，**紧随其后插入**（原上译下）。
-- 标题/caption/cell/note_content 同规则；表格单元 zh 内容直接**替换进单元格内的并列 span**（单元格内交错，保持表结构）——具体：cell 块 zh 节点插在原 `span.ltx_p`/`ltx_text` 后，同 td 内。
-- `data-chunk` 命名**复用 web-layer 已定的 1:1 锚**；role 区分两侧。
-- 原子子树（math/cite/ref/note/img）克隆进 zh 节点原位；`a.ltx_ref` 的 `href="#S3"` 指向 en 节点 id——读者点译文内引用跳原文锚，可接受；要跳译文侧需 id 重写（`#S3--zh`），列为可选增强。
-
-### 6.3 增量渲染 / SSE 接口形状
-
-```
-GET /api/task/{id}/html          → {view:"html", article_url:"/files/{id}/article.en.html",
-                                   chunks_url:"/files/{id}/chunks.jsonl", toc:[{id,seq,level,title}]}
-GET /api/files/{id}/article.en.html  → 剥壳后的 article 静态 HTML（en 骨架，data-chunk 已标）
-SSE event: chunk  (既有协议)     → items:[{seq,status}]
-  前端: status=ok     → 拉译文 → insertAfter([data-chunk=seq][data-role=en])
-        status=fallback_orig → 不插或插「原文」标记
-译文载体两选：a) SSE data 直接带 {seq, zh_html_segment}（小段内联，省请求——推荐）
-             b) GET /files/{id}/chunks.jsonl 全量拉（断线重放/刷新后一次性水合）
-```
-
-- **水合顺序无关**：note 依赖槽用 `data-pending` 标记（§2.3）；刷新后先插 article.en.html，再按 chunks.jsonl 全量重放——与 `Last-Event-ID` 机制正交。
-- 样式：自带最小 ltx 样式表（`ltx_eqn_table` 居中、`ltx_note` 弹注、`texlate-zh` 配色/间距），不引 arXiv CDN CSS（跨域资产 + 主题耦合）；MathML 原生渲染，SVG/PNG 已 absolutize。
+zh 节点 = 克隆叶元素同名同类 + `texlate-zh`/`lang="zh-CN"`/`data-chunk-role`，紧随其后插入；表格单元 zh 内容插在原 `span.ltx_p` 后同 td 内；note 依赖槽用 `data-pending` 标记，note chunk 到达后填充。样式自带最小 ltx 样式表（不引 arXiv CDN CSS——跨域资产 + 主题耦合）；MathML 原生渲染，SVG/PNG 已 absolutize。
 
 ## 7. 与主管线的接口（translate 编排契约接入点）
 
-| 契约点                     | LaTeX 路                                          | HTML 路实现                                                                                                                    |
-| -------------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `chunks` 表/`chunks.jsonl` | `seq, chunk_id, kind, src_text, translation`      | 同 schema；`src_file` 记 `html:{arxiv_id}v{n}`，`byte_start/end` 记 DOM 序偏移或留 0；`chunk_id = sha256(html_sha + seq)[:24]` |
-| kind 枚举                  | text/caption/section_title/footnote…              | `para/cell/caption/title_*/note/pubnote`（新值进同一列）                                                                       |
-| 占位符协议                 | `[[MATH/CITE/REF/ENV/AUTHOR/NOTE/IMG_n]]`         | **同一枚举**：MATH/CITE/REF/NOTE/IMG；ENV 不需要（公式表整跳）；AUTHOR 不需要（authors 原子跳过）                              |
-| prompt/glossary            | 分类 system prompt + 占位符条款尾置 + ph 恒等注入 | **原样复用**——HTML 抽出的 src_text 是纯文本 + 占位符，译器不知道来源是 DOM；kind→prompt 类型映射加一条 html 分支即可           |
-| validator                  | ph 多重集 + 相对 brace 平衡                       | ph 多重集原样；brace 平衡对 HTML 文本可关（无 TeX 编译），保留无成本                                                           |
-| 断点续翻                   | translation_cache 内容寻址                        | 同——src_text 相同即命中（同一论文 LaTeX 路与 HTML 路 src_text 不同形，不串缓存）                                               |
-| 状态机                     | `degraded_html` 终态                              | 已有接口位；stub/pdf_wrapper → 路由 L3 不产 `degraded_html`                                                                    |
-| 产物                       | zh.pdf/en.pdf/dual.json                           | `article.en.html` + `chunks.jsonl` + `dual.json`（含 `html` 视图段：toc、ltx_id↔seq 表）；files.kind 增 `en_html`/`dual_html`  |
-| 进度                       | done/total 计数                                   | cell 块占比高 → 进度条按块数即可，批量打包在 translate 层内部完成                                                              |
+`parse` 阶段替换 scanner——输入 HTML 字节，输出与 LaTeX 路完全同构的 `chunks[]`（锚/kind/src_text+ 占位符）；`translate/validate` 零改动；`compile` 换成「zh DOM 写回 + 剥壳 HTML 序列化」产出 `article.en.html`/`article.zh.html`/`dual.json`（含 `ltx_id↔seq` 映射表支持 `#S3.E1` 深链）。kind 枚举新值 `para/cell/caption/title_*/note/pubnote` 进同一列；占位符枚举同一族（ENV/AUTHOR 不需要——公式表整跳、authors 原子跳过）；断点续翻走 translation_cache 内容寻址（与 LaTeX 路 src_text 不同形，不串缓存）；stub/pdf_wrapper 路由 L3 不产 `degraded_html`。
 
-**接入点一句话**：`parse` 阶段替换 scanner——输入 HTML 字节，输出与 LaTeX 路**完全同构**的 `chunks[]`（seq/kind/src_text+ 占位符）；`translate/validate` 零改动；`compile` 阶段换成「zh DOM 写回 + 剥壳 HTML 序列化」产出 `dual_html`/`article.zh.html`。
+## 8. 开放问题（重订时注）
 
-## 8. 开放问题 / 待验证
+`pre/ltx_verbatim/algorithm` 样本当时未覆盖（选择器防御性加入）；`ltx_keywords/ltx_dates` 低频；zh 内 `a.ltx_ref` href 是否重写指向 zh 锚（`#S3--zh`）是低风险增强项；单元格批量打包目标尺寸（建议 ~1500 字符/请求）在译器层验证；数学 `alttext` 空值边界未观测到反例（2729/2729 非空）；`Status:conversion` 枚举全集未穷尽（实测见 2，文档述 0–3）。
 
-1. `pre/ltx_verbatim/ltx_listing/algorithm` 样本未覆盖——选择器已防御性加入，遇到实例再校准（预期同 LaTeX 黑名单处理）。
-2. `ltx_keywords`/`ltx_dates` 未在样本出现，若存在应进 LEAF（估计低频）。
-3. zh 内 `a.ltx_ref` 是否重写 href 指向 zh 锚（`#S3--zh`）——需先决定 zh 节点是否持 `id="{orig}--zh"`；倾向：持，ref 重写，TOC 双锚。低风险增强项。
-4. `span.ltx_p` 在 td 之外的语境未观测到（2203 中 479/479 全在 td 内）——若未来出现于其他容器，`cell_p` kind 语义自动覆盖，无需改码。
-5. 单元格块极小（中位 <20 字符）→ translate 批量打包的目标打包尺寸（建议 ~1500 字符/请求）需在译器层验证。
-6. 数学 `alttext` 是否有不含 TeX 的边界（如 `alttext=""`）：样本 2729/2729 全非空，未观测到反例。
-7. arxiv.org `__stdout.txt` 与 ar5iv `/log/` 的 `Status:conversion` 枚举值全集未穷尽（实测见 2；文档述 0–3）。
+### 参考文献
+
+[^latexml]: NIST / DLMF. LaTeXML — arxiv.org/html 与 ar5iv 共同的转换引擎（0.7.x DOM 方言，`ltx_*` class 体系）. [latexml](https://math.nist.gov/~BMiller/LaTeXML/)
+[^ar5iv]: ar5iv — arXiv 论文的 LaTeXML HTML 独立镜像（`/log/{id}` 转换报告机器可读）. [ar5iv.labs.arxiv.org](https://ar5iv.labs.arxiv.org/)

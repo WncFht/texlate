@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # errsweep.sh — 定时清扫沉淀错误 → 根因修复（幂等、flock 单实例、systemd-timer 友好）。
 #
-#   git worktree 隔离分支 → claude -p 按 docs/errsweep-runbook.md 蒸馏修复
+#   git worktree 隔离分支 → claude -p 按 docs/dev/errsweep-runbook.md 蒸馏修复
 #
-# 设计：docs/errsweep-runbook.md（流程/纪律/报告协议全在那）。
+# 设计：docs/dev/errsweep-runbook.md（流程/纪律/报告协议全在那）。
 # 调度建议：每日 18:23（soak 批 10:30 起跑沉淀大半天后）由 systemd --user timer 触发。
 # 隔离：主树常态 dirty + 多会话在飞——清扫一律在 errsweep/<date> 分支 worktree 里跑，
 #   产物=分支 commit + ~/.local/state/texlate/errsweep-<date>-report.md 摘要。
@@ -60,7 +60,7 @@ cd "$WT" || exit 1
 # --add-dir 双授权：~/.texlate（DB/workdir，只读语义）+ 主仓根（未入库 soak 结果）
 # timeout 6h 保险丝：模型免费不设预算闸，但防真卡死空转（正常一跑 <2h）
 timeout 6h env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT claude -p \
-  "你是 texlate errsweep agent，今天是 $DATE，工作目录是分支 $BR 的隔离 worktree。完整工作指令在 docs/errsweep-runbook.md——先通读再开工。要点：soak 结果在主仓 $ROOT/bench/results/soak-*/ 下（worktree 里未必有，经 --add-dir 读）；回放副本放 $REPLAY_DIR；报告除随分支提交外复制一份到 $STATE/errsweep-$DATE-report.md。" \
+  "你是 texlate errsweep agent，今天是 $DATE，工作目录是分支 $BR 的隔离 worktree。完整工作指令在 docs/dev/errsweep-runbook.md——先通读再开工。要点：soak 结果在主仓 $ROOT/bench/results/soak-*/ 下（worktree 里未必有，经 --add-dir 读）；回放副本放 $REPLAY_DIR；报告除随分支提交外复制一份到 $STATE/errsweep-$DATE-report.md。" \
   --dangerously-skip-permissions \
   --add-dir "$HOME/.texlate" \
   --add-dir "$ROOT"
