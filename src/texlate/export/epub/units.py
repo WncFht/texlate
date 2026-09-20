@@ -16,8 +16,7 @@ from lxml import etree
 
 from texlate.export.common import MalformedEpubError
 from texlate.export.filters import (
-    is_apparatus_text,
-    is_special_text,
+    is_unit_text,
     normalize_text,
 )
 from texlate.export.markers import (
@@ -26,7 +25,6 @@ from texlate.export.markers import (
     Ordinals,
     is_wordless,
 )
-from texlate.xlat.placeholders import is_placeholder_only
 
 from .model import Unit
 from .tags import (
@@ -353,11 +351,7 @@ def _iter_units(  # noqa: C901, PLR0912 -- 枚举主循环：记录趟/owner 趟
         for owner in owner_order:
             runs = list(_runs_for_owner(owner, owned_by[id(owner)], ordinals))
             for run_nodes, markers, text in runs:
-                if not text:
-                    continue
-                if is_special_text(text) or is_apparatus_text(text):
-                    continue
-                if is_placeholder_only(text):
+                if not is_unit_text(text):
                     continue
                 digest = hashlib.sha256(text.encode()).hexdigest()[:16]
                 job_id = f"epub:{doc_index}:{path}:{seq}:{digest}"
@@ -387,7 +381,7 @@ def _iter_units(  # noqa: C901, PLR0912 -- 枚举主循环：记录趟/owner 趟
                 if isinstance(el.tag, str) and el.tag.rsplit("}", 1)[-1] == "text"
             ):
                 raw = normalize_text("".join(text_el.itertext()))
-                if not raw or is_special_text(raw) or is_apparatus_text(raw):
+                if not is_unit_text(raw):
                     continue
                 digest = hashlib.sha256(raw.encode()).hexdigest()[:16]
                 yield Unit(

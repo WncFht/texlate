@@ -107,7 +107,9 @@ def translate_epub(  # noqa: PLR0913 -- 驱动主链：公共 API 参数面 + ap
             preview_zh=lambda u, r: sanitize_xml_text(
                 reconcile_markers(u.text, r.translation, issued=u.markers)
             ),
-            insert=lambda u, r: insert_translation(u, r.translation, lang or ""),
+            insert=lambda u, r, zh: insert_translation(
+                u, r.translation, lang or "", zh=zh
+            ),
             counts_unchanged=lambda u: u.ncx_text is None,
         )
 

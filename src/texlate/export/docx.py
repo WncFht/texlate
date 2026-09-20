@@ -47,11 +47,11 @@ from docx.text.paragraph import Paragraph
 from lxml import etree
 
 from texlate.xlat.pipeline import ChunkIn, ChunkResult
-from texlate.xlat.placeholders import is_placeholder_only
 from texlate.xlat.state import StateStore
 
 from .common import (
     ApplyCounts,
+    ExportError,
     ExportReport,
     GlossaryArg,
     UnsupportedFormatError,
@@ -60,8 +60,7 @@ from .common import (
     safe_language,
 )
 from .filters import (
-    is_apparatus_text,
-    is_special_text,
+    is_unit_text,
     normalize_text,
     sanitize_xml_text,
 )
@@ -261,6 +260,11 @@ def _iter_surfaces(
             yield name, p_el, part, root
 
 
+def _job_digest(text: str) -> str:
+    """``job_id`` 的内容锚：``sha256(text)[:16]``——断点续跑的稳定键。"""
+    return hashlib.sha256(text.encode()).hexdigest()[:16]
+
+
 def iter_units(
     doc: DocumentObject,
 ) -> Iterator[tuple[DocxUnit, Part | None, _Element | None]]:
@@ -270,18 +274,13 @@ def iter_units(
         if _toc_styled(p_el):
             continue
         text = _para_text(p_el)
-        if not text:
-            continue
-        if is_special_text(text) or is_apparatus_text(text):
-            continue
-        if is_placeholder_only(text):
+        if not is_unit_text(text):
             continue
         idx = counters.get(part_name, 0)
         counters[part_name] = idx + 1
-        digest = hashlib.sha256(text.encode()).hexdigest()[:16]
         yield (
             DocxUnit(
-                job_id=f"docx:{part_name}:{idx}:{digest}",
+                job_id=f"docx:{part_name}:{idx}:{_job_digest(text)}",
                 text=text,
                 p_el=p_el,
                 part_name=part_name,
@@ -356,7 +355,67 @@ def insert_after(p_el: _Element, zh_text: str, language: str) -> None:
 # ---------------------------------------------------------------- 驱动
 
 
-def translate_docx(  # noqa: C901, PLR0913 -- 驱动主链：公共 API 参数面 + apply/commit 闭包
+def _run_export(  # noqa: PLR0913 -- 双驱共享参数面（drive_pipeline 先例）
+    src: Path,
+    dst: Path,
+    translator: Translator,
+    *,
+    lang: str | None,  # noqa: ARG001 -- preamble 上收预留槽，与 EPUB 臂签名对齐（本尾不读）
+    state_dir: Path | None,
+    glossary: GlossaryArg | None,
+    on_result: Callable[[ChunkResult], None] | None,
+    chunks: list[ChunkIn],
+    apply_fn: Callable[[Mapping[str, ChunkResult]], ApplyCounts],
+    save_fn: Callable[[int], None],
+    err_cls: type[ExportError],
+    fmt: str,
+    documents: int,
+    pipeline_version: str,
+) -> ExportReport:
+    """枚举后段公共尾：``StateStore`` → ``drive_pipeline`` → 清理 → ``ExportReport``。
+
+    DOCX/EPUB 两驱动的枚举后段逐行同构（``state_dir`` 缺省、嵌套护栏、
+    state 清理、skipped 计数、报告装配）——待上收 ``common.py`` 的
+    ``run_export`` 共享件；``err_cls``/``fmt``/``documents`` 是仅存的差异
+    参数面。``lang`` 属驱动侧闭包词法语境，本尾不读——签名留槽与 EPUB 臂
+    对齐（preamble 上收变体的挂点）。
+    """
+    state_dir = state_dir or dst.with_name(dst.name + ".state")
+    store = StateStore(state_dir, model="export", pipeline_version=pipeline_version)
+    try:
+        results, counts = drive_pipeline(
+            chunks,
+            translator=translator,
+            store=store,
+            glossary=glossary,
+            on_result=on_result,
+            apply_fn=apply_fn,
+            save_fn=save_fn,
+        )
+    except RecursionError as e:
+        # 超深 ``w:p`` 子树在 ``insert_after`` 的 deepcopy/序列化路径同样
+        # 撞 RecursionError——折进 ExportError 族，裸内置异常不许逃逸
+        msg = f"{fmt.upper()} 文档嵌套过深，无法翻译: {src.name}"
+        raise err_cls(msg) from e
+
+    if state_dir.exists():
+        shutil.rmtree(state_dir, ignore_errors=True)
+    n_skipped = sum(1 for r in results.values() if r.status == "skipped")
+    return ExportReport(
+        src=src,
+        dst=dst,
+        format=fmt,
+        units=len(chunks),
+        translated=counts.translated,
+        unchanged=counts.unchanged,
+        skipped=n_skipped,
+        fault=counts.fault,
+        documents=documents,
+        warnings=counts.warnings,
+    )
+
+
+def translate_docx(  # noqa: PLR0913 -- 驱动主链：公共 API 参数面 + apply/commit 闭包
     src: Path | str,
     dst: Path | str,
     translator: Translator,
@@ -374,14 +433,14 @@ def translate_docx(  # noqa: C901, PLR0913 -- 驱动主链：公共 API 参数�
     """
     src = Path(src)
     dst = Path(dst)
-    lang = safe_language(target_lang)
-    if lang is None:
-        log.warning("target_lang 非 BCP47 形态，跳过全部语言章: %r", target_lang)
     try:
         doc = Document(str(src))
     except Exception as e:
         msg = f"不是可读 DOCX: {src.name} ({e})"
         raise UnsupportedFormatError(msg) from e
+    lang = safe_language(target_lang)
+    if lang is None:
+        log.warning("target_lang 非 BCP47 形态，跳过全部语言章: %r", target_lang)
 
     try:
         pairs = list(iter_units(doc))
@@ -395,16 +454,13 @@ def translate_docx(  # noqa: C901, PLR0913 -- 驱动主链：公共 API 参数�
         if part is not None:
             parts_to_commit[u.part_name] = (part, root)
 
-    state_dir = state_dir or dst.with_name(dst.name + ".state")
-    store = StateStore(state_dir, model="export", pipeline_version=_PIPELINE_VERSION)
-
     def _apply(results: Mapping[str, ChunkResult]) -> ApplyCounts:
         # preview 与 insert_after 的 sanitize 同口径（见 common.apply_translations）
         return apply_translations(
             units,
             results,
             preview_zh=lambda _u, r: sanitize_xml_text(r.translation),
-            insert=lambda u, r: insert_after(u.p_el, r.translation, lang or ""),
+            insert=lambda u, _r, zh: insert_after(u.p_el, zh, lang or ""),
         )
 
     def _commit_and_save(_translated: int) -> None:
@@ -415,33 +471,19 @@ def translate_docx(  # noqa: C901, PLR0913 -- 驱动主链：公共 API 参数�
         doc.save(str(dst))
 
     chunks = [ChunkIn(u.job_id, u.text, "para") for u in units]
-    try:
-        results, counts = drive_pipeline(
-            chunks,
-            translator=translator,
-            store=store,
-            glossary=glossary,
-            on_result=on_result,
-            apply_fn=_apply,
-            save_fn=_commit_and_save,
-        )
-    except RecursionError as e:
-        # 超深 ``w:p`` 子树在 ``insert_after`` 的 deepcopy/序列化路径同样
-        # 撞 RecursionError——折进 ExportError 族，裸内置异常不许逃逸
-        msg = f"DOCX 文档嵌套过深，无法翻译: {src.name}"
-        raise UnsupportedFormatError(msg) from e
-
-    if state_dir.exists():
-        shutil.rmtree(state_dir, ignore_errors=True)
-    n_skipped = sum(1 for r in results.values() if r.status == "skipped")
-    return ExportReport(
-        src=src,
-        dst=dst,
-        format="docx",
-        units=len(units),
-        translated=counts.translated,
-        unchanged=counts.unchanged,
-        skipped=n_skipped,
-        fault=counts.fault,
+    return _run_export(
+        src,
+        dst,
+        translator,
+        lang=lang,
+        state_dir=state_dir,
+        glossary=glossary,
+        on_result=on_result,
+        chunks=chunks,
+        apply_fn=_apply,
+        save_fn=_commit_and_save,
+        err_cls=UnsupportedFormatError,
+        fmt="docx",
         documents=len(parts_to_commit) + 1,
+        pipeline_version=_PIPELINE_VERSION,
     )

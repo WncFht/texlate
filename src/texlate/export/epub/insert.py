@@ -187,11 +187,15 @@ def _restore_markers(unit: Unit, inserted: Tag) -> None:
             anchor = piece
 
 
-def insert_translation(unit: Unit, zh_text: str, language: str) -> str | None:
-    """按 §1.4 形态集插译；返回警告行（marker 调和有动作时）。"""
-    zh = reconcile_markers(unit.text, zh_text, issued=unit.markers)
-    warn = marker_report(unit.job_id, unit.text, zh_text, issued=unit.markers)
-    zh = sanitize_xml_text(zh)  # 译文带 XML 非法字符会把整篇变非法文档
+def _insert_dom(unit: Unit, zh: str, language: str) -> str | None:
+    """净化后译文的 DOM 插入尾：ncx 写回/空壳·echo 闸/三形态插译/marker 复原。
+
+    ``zh`` 是已按 ``reconcile_markers``+``sanitize_xml_text`` 同口径净化的
+    译文——``apply_translations`` preview 臂算过的结果直入免双算
+    （``insert_translation`` 对生译文先净化再交本函数）。返回 DOM 侧
+    警告行（无 ``<body>`` 锚定落痕），无警告 ``None``。
+    """
+    warn: str | None = None
     if unit.ncx_text is not None:
         unit.ncx_text.text = f"{unit.text} / {zh}"
         return warn
@@ -219,13 +223,33 @@ def insert_translation(unit: Unit, zh_text: str, language: str) -> str | None:
     elif unit.is_multi_run or owner.name == "body" or root_owner:
         inserted = _insert_anchored_translation(unit, zh, language)
         if root_owner:
-            note = (
+            warn = (
                 f"{unit.job_id}: no <body>; owner={owner.name}"
                 " — translation anchored after run"
             )
-            warn = f"{warn} | {note}" if warn else note
     else:
         inserted = _insert_clone_translation(unit, zh, language)
     if inserted is not None:
         _restore_markers(unit, inserted)
     return warn
+
+
+def insert_translation(
+    unit: Unit, zh_text: str, language: str, *, zh: str | None = None
+) -> str | None:
+    """按 §1.4 形态集插译；返回警告行（marker 调和有动作时）。
+
+    ``zh_text`` 是生译文——marker 报告始终按它记调和动作。``zh`` 是调用方
+    已按同口径（``reconcile_markers``+``sanitize_xml_text``）净化的译文，
+    给则直入 ``_insert_dom`` 免双算（``apply_translations`` preview 臂复用）；
+    缺省 ``None`` 时本函数自行净化。
+    """
+    warn = marker_report(unit.job_id, unit.text, zh_text, issued=unit.markers)
+    if zh is None:
+        zh = sanitize_xml_text(  # 译文带 XML 非法字符会把整篇变非法文档
+            reconcile_markers(unit.text, zh_text, issued=unit.markers)
+        )
+    dom_warn = _insert_dom(unit, zh, language)
+    if warn and dom_warn:
+        return f"{warn} | {dom_warn}"
+    return warn or dom_warn

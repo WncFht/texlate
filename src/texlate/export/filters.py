@@ -10,6 +10,8 @@ from __future__ import annotations
 import re
 import string
 
+from texlate.xlat.placeholders import is_placeholder_only
+
 #: 零宽/软连字符：留在文档里，从送模型文本剥掉（软连字符把词切成半 token）
 _INVISIBLE_CHARS_RE = re.compile("[\\u00ad\\u200b\\ufeff]")
 
@@ -71,4 +73,15 @@ def is_apparatus_text(text: str) -> bool:
             all(c.isdigit() or c.isspace() for c in stripped) and bool(stripped),
             bool(_ISBN_RE.match(stripped)),
         ]
+    )
+
+
+def is_unit_text(text: str) -> bool:
+    """送模型文本的枚举接受判据：非空 + 非 special/apparatus/纯占位。
+
+    DOCX ``iter_units`` 与 EPUB ``iter_units`` 两处枚举（正文 run/NCX
+    navLabel）同一口径——原 ``docx._is_unit_text`` 上收为本公开件。
+    """
+    return bool(text) and not (
+        is_special_text(text) or is_apparatus_text(text) or is_placeholder_only(text)
     )
