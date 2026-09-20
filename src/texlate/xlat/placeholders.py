@@ -183,10 +183,23 @@ def find_all(text: str) -> list[str]:
     return list(dict.fromkeys(ANY_PH_RX.findall(text)))
 
 
+def ph_type(ph: str) -> str:
+    """占位符 token → 类型名：``[[REF_5]]``→``REF``，无 ``_`` 前缀段时原样返回。
+
+    刻意裸 ``rpartition``——``_`` 尾段不做数字守卫，``[[NBSP_RAW]]``→``NBSP``。
+    ``_BENIGN_EXTRA_TYPES`` 豁免与 ``pipeline._seg_key`` 段键快照（=缓存键）
+    均依赖此口径，勿加 ``isdigit`` 守卫；``sort_key`` 是另一解析，见下。
+    """
+    body = ph.strip("[]")
+    return body.rpartition("_")[0] or body
+
+
 def sort_key(ph: str) -> tuple[str, int]:
     """占位符稳定排序键：TYPE 字典序 + n 数值序（裸标记按 n=-1 排同型之前）。
 
     前缀缓存命中要求 term_dict 注入顺序逐字节稳定，此键是排序唯一事实源。
+    ``tail.isdigit()`` 守卫刻意与 ``ph_type`` 不同径——``NBSP_RAW`` 在此归
+    ``NBSP_RAW`` 型而非 ``NBSP``，两解析各自服务、不合并。
     """
     body = ph.strip("[]")
     head, _, tail = body.rpartition("_")
@@ -281,12 +294,7 @@ class PhDiff:
     @property
     def real_extra(self) -> list[str]:
         """``extra`` 剔除幂等无载荷类型（``_BENIGN_EXTRA_TYPES``）后的净多 token。"""
-        return [
-            e
-            for e in self.extra
-            if (e.strip("[]").rpartition("_")[0] or e.strip("[]"))
-            not in _BENIGN_EXTRA_TYPES
-        ]
+        return [e for e in self.extra if ph_type(e) not in _BENIGN_EXTRA_TYPES]
 
     @property
     def ok(self) -> bool:

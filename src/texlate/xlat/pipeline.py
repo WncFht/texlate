@@ -21,7 +21,7 @@ import json
 import logging
 import re
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Any, NamedTuple, Protocol
 
 # ``ChunkIn`` 契约下沉 ``texlate.chunk``（arxiv 降级链同消费——底层不能
 # 向上 import 本包）；转口保持 ``from texlate.xlat.pipeline import ChunkIn``
@@ -43,6 +43,7 @@ from .batch import (
 )
 from .client import (
     HTTP_UNAUTHORIZED,
+    REASONING_MIN_MAX_TOKENS,
     ChatClient,
     ChatError,
     ChatOptions,
@@ -65,6 +66,7 @@ from .intercept import (
 from .mock import MOCK_ZH, MockTranslator, _mock_translate_text  # noqa: F401
 from .retry import (
     RetryPolicy,
+    assess_answer,
     bare_token_audit,
     call_with_backoff,
     translate_with_ladder,
@@ -83,8 +85,10 @@ log = logging.getLogger(__name__)
 
 #: 翻译温度（docs/spec/translate.md：0.2~0.3 保守值；judge/抽取 0）
 TRANSLATE_TEMPERATURE = 0.2
-#: 翻译输出预算（reasoning 模型下限；短输出不亏——按量计费）
-TRANSLATE_MAX_TOKENS = 8192
+#: 翻译输出预算（reasoning 模型下限；短输出不亏——按量计费）——
+#: 别名 client 层的 reasoning 地板常量（autogloss.EXTRACT_MAX_TOKENS 同款），
+#: 地板上调时翻译预算随动不滞后
+TRANSLATE_MAX_TOKENS = REASONING_MIN_MAX_TOKENS
 #: length 截断重试的放大预算
 LENGTH_RETRY_MAX_TOKENS = 32768
 #: 默认并发（provider 限额 10~50 可调）
@@ -211,11 +215,6 @@ class Translator(Protocol):
 #: 不管合法 UTF-8 控制符）。上游 BabelDOC PR #612 同坑实证。
 _C0_RX = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 
-#: 模型输出退化坍缩签名：20+ 连排句读标点 → 坍成单 ``.``（BabelDOC
-#: ``il_translator_llm_only.py`` :754 同款清理；合法 LaTeX 源不产 20+
-#: 连排点——TOC 点线是编译期生成，源文本无此形态）。
-_PUNCT_RUN_RX = re.compile(r"[.。…，]{20,}")
-
 
 class GatewayTranslator:
     """`ChatClient` 的 Translator 适配：HTTP 退避 + length 截断放大重试。"""
@@ -300,14 +299,54 @@ def _net_apply_fn(net: _InterceptNet) -> Callable[[ChunkResult], None]:
     return globals()[f"_intercept_{net.name}"]
 
 
-def _item_chunks(item: tuple[str, Any]) -> list[ChunkIn]:
-    """工作单元 → 受影响 ChunkIn（worker crash 兜底记账用）。"""
-    kind, payload = item
-    if kind == "batch":
-        return list(payload[1])
-    if kind == "split":
-        return [payload[0]]
-    return [payload]
+class WorkItem(NamedTuple):
+    """工作单元 tagged union——``kind`` + 命名 accessor 是生产侧唯一解码点。
+
+    tuple 形为存量两元解包/下标消费面（``for k, payload in items``、
+    ``it[0]``）保兼容；``payload`` 位序语义只经本类 accessor 读——
+    ``payload[0]`` 在 ``batch`` 是批序号、``split`` 是父块、``single``
+    载荷即块本身。新增 item 种类只改本类 + ``_process`` 一处。
+
+    - ``batch``：``(seq, members)``
+    - ``split``：``(parent, pieces)``——片段译文合并后按父 id 记账
+    - ``single``：``ChunkIn``
+    """
+
+    kind: str  # "batch" | "split" | "single"
+    payload: Any  # tagged union 载荷形态随 kind 变，命名 accessor 给出类型
+
+    @property
+    def seq(self) -> int:
+        """``batch`` 批序号。"""
+        return int(self.payload[0])
+
+    @property
+    def members(self) -> list[ChunkIn]:
+        """``batch`` 成员列表。"""
+        return list(self.payload[1])
+
+    @property
+    def parent(self) -> ChunkIn:
+        """``split`` 父块（记账 id 属主）。"""
+        return self.payload[0]  # type: ignore[no-any-return]
+
+    @property
+    def pieces(self) -> list[ChunkIn]:
+        """``split`` 片段序列。"""
+        return list(self.payload[1])
+
+    @property
+    def chunk(self) -> ChunkIn:
+        """``single`` 载荷块。"""
+        return self.payload  # type: ignore[no-any-return]
+
+    def affected(self) -> list[ChunkIn]:
+        """本单元覆盖的 ChunkIn（auth 闸/worker crash 兜底记账用）。"""
+        if self.kind == "batch":
+            return self.members
+        if self.kind == "split":
+            return [self.parent]
+        return [self.chunk]
 
 
 def _slots_user_obj(
@@ -472,7 +511,7 @@ class XlatPipeline:
     def _seg_key(self, c: ChunkIn) -> str:
         """段级缓存键：source + role + masked 快照（占位符布局变则 key 变）。"""
         ph_types = [
-            p.strip("[]").rpartition("_")[0] or p.strip("[]")
+            placeholders.ph_type(p)
             for p in placeholders.ANY_PH_RX.findall(c.content)
         ]
         return segment_key(c.content, c.kind, masked_snapshot=repr(ph_types))
@@ -597,7 +636,9 @@ class XlatPipeline:
             if res.status == "recovered"
             else "fault"
         )
-        zh = _PUNCT_RUN_RX.sub(".", res.translation)
+        # 坍缩标点清理已收口进阶梯 postlude（``assess_answer``）——fallback_orig
+        # 原文在此不再过清洗，保住 ``fell_back`` 的 zh≡src 簿记不变量
+        zh = res.translation
         if res.status in ("ok", "recovered"):
             self._cache_store(c, zh)
         return ChunkResult(
@@ -642,17 +683,14 @@ class XlatPipeline:
         except Exception as e:  # noqa: BLE001 -- 传输崩=保留原译，不算一次有效修复
             log.debug("retranslate %s transport failed: %s", c.chunk_id, e)
             return None
-        zh = _PUNCT_RUN_RX.sub(".", placeholders.decode_newlines(raw))
-        repair = self._repair_fn(c)
-        warnings: list[str] = []
-        if repair is not None:
-            zh, recovered = repair(c.content, zh)
-            if recovered:
-                warnings.append(
-                    f"recovered copied placeholders: {', '.join(recovered)}"
-                )
         # 回灌 user 是未编码原文——token 多重集期望基线同为原文形态
-        err = bare_token_audit(c.content, raw) or self.validator(c.content, zh)
+        zh, err, warnings = assess_answer(
+            c.content,
+            placeholders.decode_newlines(raw),
+            audit_err=bare_token_audit(c.content, raw),
+            repair_fn=self._repair_fn(c),
+            validate_fn=self.validator,
+        )
         if err:
             return ChunkResult(
                 chunk_id=c.chunk_id,
@@ -744,19 +782,16 @@ class XlatPipeline:
             return out
 
         for (i, c), part in zip(send, parts, strict=True):
-            zh = placeholders.decode_newlines(part)
-            warnings: list[str] = []
-            repair = self._repair_fn(c)
-            if repair is not None:
-                zh, recovered = repair(c.content, zh)
-                if recovered:
-                    warnings.append(
-                        f"recovered copied placeholders: {', '.join(recovered)}"
-                    )
             # 批成员按 ``encode_batch`` 同款编码形态对账锻造 token（D3）
-            err = bare_token_audit(
-                placeholders.encode_newlines(c.content)[0], part
-            ) or self.validator(c.content, zh)
+            zh, err, warnings = assess_answer(
+                c.content,
+                placeholders.decode_newlines(part),
+                audit_err=bare_token_audit(
+                    placeholders.encode_newlines(c.content)[0], part
+                ),
+                repair_fn=self._repair_fn(c),
+                validate_fn=self.validator,
+            )
             if err:
                 # 批成功但该块校验败 → 单块回炉走完整阶梯
                 out[i] = await self._degrade_one(c, batch_id)
@@ -825,16 +860,15 @@ class XlatPipeline:
 
     # ------------------------------------------------------------ 主编排
 
-    async def _process(self, item: tuple[str, Any]) -> list[ChunkResult]:
+    async def _process(self, item: WorkItem) -> list[ChunkResult]:
         """统一工作单元执行（warmup 与 worker 共用）。
 
-        item 形态：`("batch", (序号, [ChunkIn]))` / `("single", ChunkIn)` /
+        item 形态：`WorkItem("batch", (序号, [ChunkIn]))` / `("single", ChunkIn)` /
         `("split", (父 ChunkIn, [片段...]))`——拆分块内部逐段走阶梯、译文合并
         后按父 id 记账（state/续跑只见父 id，不见片段 id）。
         """
-        kind, payload = item
-        if kind == "batch":
-            bid, members = f"batch_{payload[0]:04d}", payload[1]
+        if item.kind == "batch":
+            bid, members = f"batch_{item.seq:04d}", item.members
             try:
                 return await self._one_batch(members, bid)
             except Exception as e:  # noqa: BLE001 -- worker 绝不让一批炸全队
@@ -842,8 +876,8 @@ class XlatPipeline:
                     self._skip(c, f"batch crash: {e}", bid, kind=_kind_of(e))
                     for c in members
                 ]
-        if kind == "split":
-            parent, pieces = payload
+        if item.kind == "split":
+            parent, pieces = item.parent, item.pieces
             translations: list[str] = []
             warnings: list[str] = []
             kinds: list[str] = []
@@ -883,7 +917,7 @@ class XlatPipeline:
                     ),
                 )
             ]
-        c = payload
+        c = item.chunk
         try:
             return [await self._one_chunk(c)]
         except Exception as e:  # noqa: BLE001 -- 同上
@@ -920,14 +954,14 @@ class XlatPipeline:
         completed: set[str],
         done_map: dict[str, ChunkResult],
         fatal: list[BaseException],
-    ) -> tuple[list[ChunkIn], list[tuple[str, Any]]]:
+    ) -> tuple[list[ChunkIn], list[WorkItem]]:
         """路由输入块 → (pending, split_items)。
 
         completed 直跳过；纯占位符直落盘；超 hard_limit 的原子块切成 split
         工作单元（译文按父 id 合并记账，state/续跑只见父 id）。
         """
         pending: list[ChunkIn] = []
-        split_items: list[tuple[str, Any]] = []
+        split_items: list[WorkItem] = []
         for c in chunks:
             cid = c.chunk_id
             prev = done_map.get(cid)
@@ -966,7 +1000,7 @@ class XlatPipeline:
                     ChunkIn(f"{cid}~{i}", p, c.kind, ph_fragments=c.ph_fragments)
                     for i, p in enumerate(pieces)
                 ]
-                split_items.append(("split", (c, subs)))
+                split_items.append(WorkItem("split", (c, subs)))
             else:
                 pending.append(c)
         return pending, split_items
@@ -974,9 +1008,9 @@ class XlatPipeline:
     def _build_work_items(
         self,
         pending: list[ChunkIn],
-        split_items: list[tuple[str, Any]],
-    ) -> list[tuple[str, Any]]:
-        """全量装箱：`("batch",(序号,[ChunkIn])) | ("single",ChunkIn) | split`。
+        split_items: list[WorkItem],
+    ) -> list[WorkItem]:
+        """全量装箱：`WorkItem("batch",(序号,[ChunkIn])) | ("single",ChunkIn) | split`。
 
         不分 short/long——产线对账批质量 ≥ 单发（per-placeholder 错率 0.32%
         vs 8.93%），全量入批只为削 ``n_req × ~2.9s`` 固定开销。batch 按 kind
@@ -989,7 +1023,7 @@ class XlatPipeline:
         by_kind: dict[str, list[ChunkIn]] = {}
         for c in pending:
             by_kind.setdefault(c.kind, []).append(c)
-        work_items: list[tuple[str, Any]] = []
+        work_items: list[WorkItem] = []
         seq = 0
         for grp_chunks in by_kind.values():  # dict 保 insertion 序——批次确定性
             for grp in pack_batches(
@@ -1000,15 +1034,17 @@ class XlatPipeline:
                 workers=self.cfg.concurrency,
             ):
                 if len(grp) == 1:
-                    work_items.append(("single", grp_chunks[grp[0]]))
+                    work_items.append(WorkItem("single", grp_chunks[grp[0]]))
                 else:
-                    work_items.append(("batch", (seq, [grp_chunks[j] for j in grp])))
+                    work_items.append(
+                        WorkItem("batch", (seq, [grp_chunks[j] for j in grp]))
+                    )
                     seq += 1
         return work_items + split_items
 
     async def _worker(
         self,
-        queue: asyncio.Queue[tuple[str, Any] | None],
+        queue: asyncio.Queue[WorkItem | None],
         done_map: dict[str, ChunkResult],
         fatal: list[BaseException],
     ) -> None:
@@ -1033,7 +1069,7 @@ class XlatPipeline:
                     # auth 闸已断：剩余块不再发请求，直接按 auth 失败记账
                     results = [
                         self._skip(c, "auth circuit open", kind="auth")
-                        for c in _item_chunks(item)
+                        for c in item.affected()
                     ]
                 else:
                     try:
@@ -1044,14 +1080,14 @@ class XlatPipeline:
                         log.exception("worker item crashed")
                         results = [
                             self._skip(c, f"worker crash: {e}", kind=_kind_of(e))
-                            for c in _item_chunks(item)
+                            for c in item.affected()
                         ]
                     except BaseException as e:  # 收账转 _drain 重抛
                         log.exception("worker item crashed fatally")
                         fatal.append(e)
                         results = [
                             self._skip(c, f"worker crash: {e}", kind=_kind_of(e))
-                            for c in _item_chunks(item)
+                            for c in item.affected()
                         ]
                 self._collect(results, done_map, fatal)
             finally:
@@ -1108,15 +1144,19 @@ class XlatPipeline:
 
     async def _drain(
         self,
-        work_items: list[tuple[str, Any]],
+        work_items: list[WorkItem | tuple[str, Any]],
         done_map: dict[str, ChunkResult],
     ) -> None:
-        """首发单飞暖前缀缓存 → N worker 消费 queue（哨兵收尾）。"""
+        """首发单飞暖前缀缓存 → N worker 消费 queue（哨兵收尾）。
+
+        入队统一成 ``WorkItem``——存量 tuple 形工作单元在此收口归一，
+        下游 ``_process``/``affected()`` 只见命名访问面。
+        """
         if not work_items:
             return
-        queue: asyncio.Queue[tuple[str, Any] | None] = asyncio.Queue()
+        queue: asyncio.Queue[WorkItem | None] = asyncio.Queue()
         for item in work_items:
-            queue.put_nowait(item)
+            queue.put_nowait(item if isinstance(item, WorkItem) else WorkItem(*item))
 
         # 首发单飞暖前缀缓存，再并发其余（docs/spec/translate.md warmup 模式）
         fatal: list[BaseException] = []
@@ -1128,7 +1168,7 @@ class XlatPipeline:
                 log.exception("warmup item crashed")
                 results = [
                     self._skip(c, f"warmup crash: {e}", kind=_kind_of(e))
-                    for c in _item_chunks(first)
+                    for c in first.affected()
                 ]
             self._collect(results, done_map, fatal)
         queue.task_done()

@@ -5,7 +5,7 @@ yaml 装载走 PyYAML safe_load；`flatten_terms` 把 `{en: zh}` / `{en: {target
 
 层级（高→低优先级，先写者胜）：
 
-    ① 用户表     ~/.texlate/glossary.yaml | --glossary user.csv   独占覆盖
+    ① 用户表     数据目录/glossary.yaml | --glossary user.csv    独占覆盖
     ② 论文级     output/{paper}/glossary.local.yaml              介于 user 与 category
     ③ category  terms/{primary_cat}.csv（+ 次 category 并集，声明序先命中先写）
     ④ 内建默认   terms/default.csv                               兜底
@@ -27,7 +27,7 @@ from typing import TYPE_CHECKING
 
 import yaml
 
-from texlate.textutil import safe_is_file, safe_resolve
+from texlate.textutil import data_root, safe_is_file, safe_resolve
 
 from .placeholders import sort_key
 
@@ -38,10 +38,26 @@ log = logging.getLogger(__name__)
 
 #: 随包分发的种子术语表目录
 DEFAULT_TERMS_DIR = Path(__file__).resolve().parent / "terms"
-#: 用户级术语表默认位置（优先级最高）
-USER_GLOSSARY_PATH = Path.home() / ".texlate" / "glossary.yaml"
 #: 论文级覆盖文件名（优先级介于 user 与 category 之间）
 LOCAL_GLOSSARY_NAME = "glossary.local.yaml"
+
+
+def user_glossary_path() -> Path:
+    """用户级术语表缺省位置（优先级最高）：``data_root()/glossary.yaml``。
+
+    调用点现读——``TEXLATE_DATA_DIR`` > ``~/.texlate``（``data_root`` 同口径）；
+    ``--data-dir`` 等运行期 env 写入也命中，import 期冻结的常量形会错过。
+    """
+    return data_root() / "glossary.yaml"
+
+
+def _default_user_path() -> Path:
+    """``Glossary.load`` 缺省 user 层路径：走模块 attr ``USER_GLOSSARY_PATH``。
+
+    setattr 补丁点命中落下的真 attr；未补丁经 ``__getattr__`` 按 env 现算——
+    写模块 attr / 钉 ``TEXLATE_DATA_DIR`` 两条补丁通道都有效。
+    """
+    return sys.modules[__name__].USER_GLOSSARY_PATH
 
 #: 文档级过滤用的词边界正则模板（IGNORECASE|ASCII，照 ieeA `_build_glossary_hints`）
 _TERM_BOUNDARY = r"(?<!\w){}(?!\w)"
@@ -91,8 +107,8 @@ class Glossary:
         占位符恒等注入最后执行——优先级最低，绝不覆盖真术语。
         """
         g = cls()
-        # ① 用户表（缺省读 ~/.texlate/glossary.yaml；显式 path 优先）
-        u = user_path if user_path is not None else USER_GLOSSARY_PATH
+        # ① 用户表（缺省读 数据目录/glossary.yaml；显式 path 优先）
+        u = user_path if user_path is not None else _default_user_path()
         if safe_is_file(u):
             g._merge(load_table(u), "user")
         # ② 论文级覆盖
@@ -284,3 +300,12 @@ def flatten_terms(data: object, *, name: str) -> dict[str, str]:
             zh = str(v).strip() or en
         out[en] = zh
     return out
+
+
+def __getattr__(name: str) -> object:
+    # ``USER_GLOSSARY_PATH`` 历史常量形的兼容出口——from-import/属性读/
+    # setattr 补丁点全兼容；动态求值让 ``TEXLATE_DATA_DIR`` 运行期写入
+    # 生效。setattr 落真 attr 后本函数不再被调，补丁语义与旧常量一致。
+    if name == "USER_GLOSSARY_PATH":
+        return user_glossary_path()
+    raise AttributeError(name)

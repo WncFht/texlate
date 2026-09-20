@@ -113,11 +113,20 @@ def pack_batches(  # noqa: PLR0913 -- 装箱旋钮面即 PipelineConfig.batch_* 
 
 def encode_batch(contents: Sequence[str]) -> str:
     r"""`[1] xxx\n[2] yyy`——内容先经 `encode_newlines` 换行编码。"""
-    lines = []
-    for i, text in enumerate(contents, 1):
-        encoded, _counts = encode_newlines(text)
-        lines.append(f"[{i}] {encoded}")
-    return "\n".join(lines)
+    payload, _members = encode_batch_members(contents)
+    return payload
+
+
+def encode_batch_members(contents: Sequence[str]) -> tuple[str, list[str]]:
+    r"""``encode_batch`` 的成员级形态：``(拼接 payload, 各成员编码后文本)``。
+
+    成员编码只跑一次——调用方（``pipeline._batch_call``）取 ``members[k]``
+    直作 ``bare_token_audit`` 基线，基线字节与线发字节结构性同源，
+    免逐成员二次 ``encode_newlines`` 重推导。
+    """
+    members = [encode_newlines(text)[0] for text in contents]
+    lines = [f"[{i}] {enc}" for i, enc in enumerate(members, 1)]
+    return "\n".join(lines), members
 
 
 def _parse_numbered(text: str, n: int, rx: re.Pattern[str]) -> list[str] | None:

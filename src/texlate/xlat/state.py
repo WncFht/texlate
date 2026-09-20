@@ -23,9 +23,10 @@ import os
 import secrets
 import tempfile
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
+from texlate.textutil import utc_now
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -52,8 +53,16 @@ def atomic_json(path: Path, obj: object) -> None:
         raise
 
 
-def _utcnow() -> str:
-    return datetime.now(UTC).isoformat(timespec="seconds")
+def _quarantine(path: Path, why: str, *args: object) -> None:
+    """损坏文件改名隔离：`*-invalid-<rand>` 兄弟名 + warn，不删（留诊断现场）。
+
+    `why` 为含 ``→ quarantined as %s`` 尾位的 log.warning 格式串（如
+    ``"state %s corrupted (%s) → quarantined as %s"``），`args` 为其参数——
+    隔离目标名由本函数统一生成并以末位 ``%s`` 补入，四处损坏出口共用同一命名口径。
+    """
+    bad = path.with_name(f"{path.stem}-invalid-{secrets.token_hex(4)}{path.suffix}")
+    path.rename(bad)
+    log.warning(why, *args, bad.name)
 
 
 # ---------------------------------------------------------------- 缓存键
@@ -113,9 +122,7 @@ def load_cache(path: Path) -> dict[str, str]:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, UnicodeDecodeError, OSError, RecursionError) as e:
-        bad = path.with_name(f"{path.stem}-invalid-{secrets.token_hex(4)}{path.suffix}")
-        path.rename(bad)
-        log.warning("cache %s corrupted (%s) → quarantined as %s", path, e, bad.name)
+        _quarantine(path, "cache %s corrupted (%s) → quarantined as %s", path, e)
         return {}
     if not isinstance(data, dict):
         return {}
@@ -220,7 +227,7 @@ class StateStore:
         self._completed: dict[str, None] = {}  # dict 当有序 set——重试块不重复登记
         self._results: list[dict[str, Any]] = []
         self._errors: list[dict[str, Any]] = []
-        self._started_at = _utcnow()
+        self._started_at = utc_now()
         self._finished_at: str | None = None
         self._total_chunks = 0
         self._dirty = 0
@@ -240,24 +247,16 @@ class StateStore:
             data = json.loads(path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, UnicodeDecodeError, OSError, RecursionError) as e:
             # 与 load_cache 同口径：隔离留诊断现场，不覆盖不删除
-            bad = path.with_name(
-                f"{path.stem}-invalid-{secrets.token_hex(4)}{path.suffix}"
-            )
-            path.rename(bad)
-            log.warning(
-                "state %s corrupted (%s) → quarantined as %s", path, e, bad.name
+            _quarantine(
+                path, "state %s corrupted (%s) → quarantined as %s", path, e
             )
             return set(), {}
         if not isinstance(data, dict):
-            bad = path.with_name(
-                f"{path.stem}-invalid-{secrets.token_hex(4)}{path.suffix}"
-            )
-            path.rename(bad)
-            log.warning(
+            _quarantine(
+                path,
                 "state %s malformed (top-level %s) → quarantined as %s",
                 path,
                 type(data).__name__,
-                bad.name,
             )
             return set(), {}
         if data.get("version") != STATE_VERSION:
@@ -269,15 +268,6 @@ class StateStore:
                 STATE_VERSION,
             )
         try:
-            completed = set(data.get("completed") or [])
-            results: dict[str, ChunkRecord] = {}
-            for r in data.get("results") or []:
-                try:
-                    rec = ChunkRecord.from_dict(r)
-                except (KeyError, TypeError, ValueError) as e:
-                    log.warning("state record skipped: %s", e)
-                    continue
-                results[rec.chunk_id] = rec
             completed_raw = dict.fromkeys(data.get("completed") or [])
             results_raw = list(data.get("results") or [])
             errors_raw = list(data.get("errors_report") or [])
@@ -285,15 +275,18 @@ class StateStore:
             # meta 非 dict 时 .get 抛 AttributeError——同属字段级脏，一并隔离
             started_at = meta.get("started_at")
             total_chunks = int(meta.get("total_chunks") or 0)
+            completed = set(completed_raw)
+            results: dict[str, ChunkRecord] = {}
+            for r in results_raw:
+                try:
+                    rec = ChunkRecord.from_dict(r)
+                except (KeyError, TypeError, ValueError) as e:
+                    log.warning("state record skipped: %s", e)
+                    continue
+                results[rec.chunk_id] = rec
         except (TypeError, ValueError, AttributeError) as e:
             # 字段级类型脏同属损坏——与 top-level 非 dict 同口径隔离回空
-            bad = path.with_name(
-                f"{path.stem}-invalid-{secrets.token_hex(4)}{path.suffix}"
-            )
-            path.rename(bad)
-            log.warning(
-                "state %s malformed (%s) → quarantined as %s", path, e, bad.name
-            )
+            _quarantine(path, "state %s malformed (%s) → quarantined as %s", path, e)
             return set(), {}
         self._completed = completed_raw
         self._results = results_raw
@@ -305,7 +298,7 @@ class StateStore:
     def start(self, total_chunks: int) -> None:
         """开跑登记。"""
         self._total_chunks = total_chunks
-        self._started_at = _utcnow()
+        self._started_at = utc_now()
         self.flush()
 
     def record(self, rec: ChunkRecord, *, error: dict[str, Any] | None = None) -> None:
@@ -324,7 +317,7 @@ class StateStore:
 
     def finish(self) -> None:
         """收尾：finished_at + 强制落盘。"""
-        self._finished_at = _utcnow()
+        self._finished_at = utc_now()
         self.flush()
 
     def flush(self) -> None:

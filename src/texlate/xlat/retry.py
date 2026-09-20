@@ -47,7 +47,7 @@ from .placeholders import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable
+    from collections.abc import Awaitable, Callable, Iterator
 
 log = logging.getLogger(__name__)
 
@@ -217,11 +217,47 @@ def bare_token_audit(shown_src: str, zh_raw: str) -> str:
     return "structural token multiset mismatch: " + ", ".join(bad)
 
 
-def _split_lines_scoped(text: str) -> list[str]:
-    """闭合 scope 边界按句号切（`{}` 深度 0 的 `.!?`+空白 处断）——行级修复切分。"""
-    parts: list[str] = []
+#: 模型输出退化坍缩签名：20+ 连排句读标点 → 坍成单 ``.``（BabelDOC
+#: ``il_translator_llm_only.py`` :754 同款清理；合法 LaTeX 源不产 20+
+#: 连排点——TOC 点线是编译期生成，源文本无此形态）。
+_PUNCT_RUN_RX = re.compile(r"[.。…，]{20,}")
+
+
+def assess_answer(
+    src: str,
+    zh: str,
+    *,
+    audit_err: str = "",
+    repair_fn: Callable[[str, str], tuple[str, list[str]]] | None,
+    validate_fn: Callable[[str, str], str],
+) -> tuple[str, str, list[str]]:
+    """Decode 后统一后评：坍缩标点清理 → 占位符抄回修复 → ``audit_err or validate``。
+
+    ``zh`` 取各调用点 decode 产物（``decode_newlines``/槽位装配/行拼合——形态
+    各异故 decode 留调用方）；``audit_err`` 是 decode 前 ``bare_token_audit``
+    的对账结果（无该闸的路径省略）。返回 ``(zh, err, warnings)``——``err``
+    空串即通过；``warnings``（修复抄回记录）只在调用方采纳该件时并入账本，
+    被拒件不留 "recovered" 伪报（取代 ``_LadderCtx.repair`` 的无条件落账）。
+    """
+    zh = _PUNCT_RUN_RX.sub(".", zh)
+    warnings: list[str] = []
+    if repair_fn is not None:
+        zh, recovered = repair_fn(src, zh)
+        if recovered:
+            warnings.append(f"recovered copied placeholders: {', '.join(recovered)}")
+    return zh, audit_err or validate_fn(src, zh), warnings
+
+
+def sentence_ends(text: str, stop: int | None = None) -> Iterator[int]:
+    r"""闭合-scope 句号切点逐枚产出：depth==0 的 ``.!?`` 后随空白处的 ``i+1`` 位。
+
+    ``\\`` 转义双跳 + ``{}`` 深度跟踪 + ``abbrev_cut`` 缩写位豁免——
+    ``batch._best_split`` 同款扫描规则的单源实现（升 batch.py 后两处共享）；
+    ``stop`` 限扫描窗（_best_split 只在 limit 内取切）。切位语义归消费方：
+    行级切分吸收后续空白入前片，best_split 记窗内最右切点。
+    """
     depth = 0
-    i, n, start = 0, len(text), 0
+    i, n = 0, len(text) if stop is None else min(len(text), stop)
     while i < n:
         c = text[i]
         if c == "\\":
@@ -238,14 +274,20 @@ def _split_lines_scoped(text: str) -> list[str]:
             and text[i + 1] in " \n"
             and not abbrev_cut(text, i)
         ):
-            j = i + 1
-            while j < n and text[j] in " \n":
-                j += 1
-            parts.append(text[start:j])
-            start = j
-            i = j
-            continue
+            yield i + 1
         i += 1
+
+
+def _split_lines_scoped(text: str) -> list[str]:
+    """闭合 scope 边界按句号切（`{}` 深度 0 的 `.!?`+空白 处断）——行级修复切分。"""
+    parts: list[str] = []
+    start, n = 0, len(text)
+    for cut in sentence_ends(text):
+        j = cut
+        while j < n and text[j] in " \n":
+            j += 1
+        parts.append(text[start:j])
+        start = j
     if start < n:
         tail = text[start:]
         if parts and not tail.strip():
@@ -333,24 +375,19 @@ class _LadderCtx:
         self.attempts += 1
         return await self.translate_fn(src_text, feedback)
 
-    def repair(self, src_text: str, zh: str) -> str:
-        """Decode 后、validate 前的占位符抄回修复（缺 token 且原文唯一命中才换）。"""
-        if self.repair_fn is None:
-            return zh
-        zh2, recovered = self.repair_fn(src_text, zh)
-        if recovered:
-            self.warnings.append(
-                f"recovered copied placeholders: {', '.join(recovered)}"
-            )
-        return zh2
-
 
 async def _stage_whole(ctx: _LadderCtx) -> str | None:
     """Stage 1：整段×2（第二试 corrector 三段式或字段化反馈）。通过返回译文。"""
     raw = await ctx.call(ctx.encoded)
-    zh = ctx.repair(ctx.source, decode_newlines(raw))
-    err = bare_token_audit(ctx.encoded, raw) or ctx.validate_fn(ctx.source, zh)
+    zh, err, w = assess_answer(
+        ctx.source,
+        decode_newlines(raw),
+        audit_err=bare_token_audit(ctx.encoded, raw),
+        repair_fn=ctx.repair_fn,
+        validate_fn=ctx.validate_fn,
+    )
     if not err:
+        ctx.warnings.extend(w)
         return zh
     if ctx.corrector_fn is not None:
         ctx.attempts += 1
@@ -360,9 +397,15 @@ async def _stage_whole(ctx: _LadderCtx) -> str | None:
     else:
         raw2 = await ctx.call(ctx.encoded, err)
         shown2 = ctx.encoded
-    zh2 = ctx.repair(ctx.source, decode_newlines(raw2))
-    err2 = bare_token_audit(shown2, raw2) or ctx.validate_fn(ctx.source, zh2)
+    zh2, err2, w2 = assess_answer(
+        ctx.source,
+        decode_newlines(raw2),
+        audit_err=bare_token_audit(shown2, raw2),
+        repair_fn=ctx.repair_fn,
+        validate_fn=ctx.validate_fn,
+    )
     if not err2:
+        ctx.warnings.extend(w2)
         return zh2
     ctx.warnings.append(f"whole×2 failed: {err2}")
     ctx.best_zh = zh2  # 行级修复以较新一版为参照（装配仍走槽位原文）
@@ -380,7 +423,6 @@ async def _stage_lines(ctx: _LadderCtx) -> str | None:
         src_l = decode_newlines(line)
         raw_l = await ctx.call(line)
         audit = bare_token_audit(line, raw_l)
-        zh_l = ""
         if audit:
             # 锻造/丢 token 的行应答其 decode 产物不可信——带 audit err 作
             # feedback 重试一次（``[[SP]]`` 族锻造是瞬时幻觉高发签名，
@@ -394,24 +436,41 @@ async def _stage_lines(ctx: _LadderCtx) -> str | None:
             bad_lines += 1
             fixed.append(src_l)
             continue
-        zh_l = ctx.repair(src_l, decode_newlines(raw_l))
-        err_l = ctx.validate_fn(src_l, zh_l)
+        zh_l, err_l, w_l = assess_answer(
+            src_l,
+            decode_newlines(raw_l),
+            repair_fn=ctx.repair_fn,
+            validate_fn=ctx.validate_fn,
+        )
         if err_l:
             raw_l = await ctx.call(line, err_l)
             if not bare_token_audit(line, raw_l):
-                zh2_l = ctx.repair(src_l, decode_newlines(raw_l))
-                if not ctx.validate_fn(src_l, zh2_l):
-                    zh_l = zh2_l
+                zh2_l, err2_l, w2_l = assess_answer(
+                    src_l,
+                    decode_newlines(raw_l),
+                    repair_fn=ctx.repair_fn,
+                    validate_fn=ctx.validate_fn,
+                )
+                if not err2_l:
+                    zh_l, w_l = zh2_l, w2_l
                     err_l = ""
         if err_l:
             bad_lines += 1
+        # zh_l 恒入 fixed（败北行作 best-effort 成员装配）——只挂最终入列件
+        # 的修复告警，被 zh2_l 顶掉的首版不留 "recovered" 伪报
+        ctx.warnings.extend(w_l)
         fixed.append(zh_l)
-    candidate = ctx.repair(ctx.source, "\n".join(fixed))
-    err = ctx.validate_fn(ctx.source, candidate)
+    candidate, err, w_c = assess_answer(
+        ctx.source,
+        "\n".join(fixed),
+        repair_fn=ctx.repair_fn,
+        validate_fn=ctx.validate_fn,
+    )
     if err:
         ctx.warnings.append(f"lines failed: {err}")
         ctx.best_zh = candidate
         return None
+    ctx.warnings.extend(w_c)
     ctx.warnings.append(f"line-level repair rescued ({bad_lines} bad lines)")
     return candidate
 
@@ -478,11 +537,16 @@ async def _stage_slots(ctx: _LadderCtx) -> str | None:
     if pending:
         ctx.warnings.append(f"slots unanswered after retries: {sorted(pending)}")
         return None
-    candidate = ctx.repair(ctx.source, _assemble_slots(seq, translated))
-    err = ctx.validate_fn(ctx.source, candidate)
+    candidate, err, w = assess_answer(
+        ctx.source,
+        _assemble_slots(seq, translated),
+        repair_fn=ctx.repair_fn,
+        validate_fn=ctx.validate_fn,
+    )
     if err:
         ctx.warnings.append(f"slots assembled but still invalid: {err}")
         return None
+    ctx.warnings.extend(w)
     ctx.warnings.append("slots fallback path rescued")
     return candidate
 
