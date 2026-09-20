@@ -1037,6 +1037,44 @@ rules:
     stats: { fires: 2, rescued_cells: 1, status: active }
     source_ref: "tmp/rtarget/ — pdo 修复后残面实跑发现"
 
+  # 2026-09-20 singbun lane (failmine6 2609.19872, ex-primgap 残格):
+  # unicode-math 下 ^/_ 直扫 \\mathcal 族为 field token —— 其展开首
+  # \\__um_group_begin: 非 { → ``Missing { inserted``。um_accent_brace_
+  # wrap (191) 的 accent-cs source_contains 闸够不到 ^\mathcal 形故未
+  # 发。修 = [\^_]\mathalpha{...} → [\^{\mathalpha{...}}] (花括号组
+  # field 语义恒等, um 要的组参补上); (?<!\\) 拒 \^/\_ 转义 accent/
+  # 字面符, masked 挡 verbatim/注释。
+  - id: um_script_alphabet_brace
+    description: "um 下 ^\\mathcal{P}/_\\mathcal{C} 裸 field → ^{\\mathcal{P}}/_{\\mathcal{C}} 组化 (语义恒等)"
+    phase: loop
+    order: 191.6 # um_accent_brace_wrap(191) 姊妹臂 —— accent-cs 面其收, script-alphabet 面本收, 互斥
+    when: { category: syntax }
+    condition:
+      ctx_suggests: "Missing \\{ inserted|__um_group_begin"
+      source_contains: "[\\^_][ \\t]*\\\\(?:mathcal|mathbb|mathfrak|mathscr|mathrm|mathbf|mathit|mathsf|mathtt|mathnormal|symcal|symbf|symbfit|symit|symrm|symsf|symtt|symfrak|symscr|symbb)"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex]
+        rewrites:
+          - {
+              pattern: "(?<!\\\\)([\\^_])[ \\t]*(\\\\(?:mathcal|mathbb|mathfrak|mathscr|mathrm|mathbf|mathit|mathsf|mathtt|mathnormal|symcal|symbf|symbfit|symit|symrm|symsf|symtt|symfrak|symscr|symbb)[ \\t]*(?:\\{[^{}\\n]*\\}|[a-zA-Z]))",
+              repl: "\\g<1>{\\g<2>}",
+              match_surface: "masked",
+            }
+    risk: low # ^{\\mathcal{P}} ≡ ^\\mathcal{P} 语义; 仅 um 加载稿现该签 (非 um 稿 ^\\mathcal 合法不会报错, ctx 闸不开)
+    known_gap: "^\\text{}/^\\operatorname 等他参 cs 形未收 (实证仅 mathalphabet 族); \\\\^ 双反杠后脚本位保守拒中 (lookbehind 单字)"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "2609.19872 (soak-2026-09-18, failmine6)",
+          error: "method.tex:7: Missing { inserted. <to be read again> \\__um_group_begin: @ $f^\\mathcal{P}$ — acmart/xelatex unicode-math 下 ^ 裸 \\mathcal field (6 站: ^\\mathcal{P}×3/_\\mathcal{P}×1/^\\mathcal{C}×1/_\\mathcal{C}×1)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-failmine6/census.md Missing-{ row; tmp/lane-singbun/repro19872/t.tex caret-mathcal 实编译"
+
   # 1003.0067 残面2: acmart 自载 setspace (acmart.cls:290) 并存
   # \ACM@origbaselinestretch 快照 (:3627), AtEndDocument \ifx 比对
   # 不一致即 ClassError。触发点在包链/钩子内 (稿面无字面量) —— 在

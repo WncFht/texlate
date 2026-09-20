@@ -821,3 +821,85 @@ rules:
         }
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/lane-failmine5/buckets.json; bxcjkjatype.sty:45 引擎自爆 + 实格 MarkovPerco.log 连环错实读"
+
+  # 2026-09-20 singbun lane (gapmine cluster-3, 0712.0823): mncite.sty 全
+  # 位缺席 (CTAN/texlive 皆无, install_file/filemap 永 miss) —— MNRAS 期
+  # 作者随稿宏包。该格 \documentclass[useAMS,usenatbib]{mn2e} → mn2e 存根
+  # 转 mnras.cls:1342 \usepackage[authoryear]{natbib}, 全稿仅 \citep×38/
+  # \citet×2 皆 natbib 原生。修 = 装载行注释中和 (bxcjkjatype_engine_retire
+  # 同式): 包不可达即其自身语义; masked 面挡 verbatim/已注释行。
+  - id: mncite_absent_retire
+    description: "mncite.sty 全位缺席 (mn2e→mnras 链 natbib 已担 \\citep/\\citet) → usepackage/RequirePackage 装载行注释中和"
+    phase: loop
+    order: 202 # bxcjkjatype_engine_retire(201) 后; missing_file 退役系同族
+    when: { category: missing_file, payload_required: true }
+    condition:
+      ctx_suggests: "mncite\\.sty"
+      source_contains: "\\bmncite\\b"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty, .cls]
+        rewrites:
+          - {
+              pattern: "\\\\(?:usepackage|RequirePackage)\\s*(?:\\[[^\\]\\n]*\\]\\s*)?\\{mncite\\}",
+              repl: "%\\g<0>",
+              match_surface: "masked",
+            }
+    risk: low # 包缺席不可装; natbib \\citep/\\citet 语义等价覆盖 (doc 无 mncite 专属 cs 实读)
+    known_gap: "组载 {mncite,other} 形未收; 非 natbib 文档类装载 mncite 的稿 (\\citet/\\citep 将前进 undefined_cs → cs_targeted_fix) 未见实证"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "0712.0823 (stagerun-overnite-2026-09-20, gapmine F-bucket)",
+          error: "! LaTeX Error: File `mncite.sty' not found @ RiceText.tex:164 \\usepackage{mncite} → :165 Emergency stop",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-gapmine/census.md cluster-3; mnras.cls:1342 usenatbib→natbib; RiceText.tex:30 docclass opts 实读"
+
+  # 2026-09-20 singbun lane (failmine6 brace-cascade, 2602.09664): cite.sty
+  # 与 natbib 并载恒炸 —— cite 的 \\cite 调 \\@citex[#1]#2 二参形, natbib
+  # \\NAT@set@cites (AtBeginDocument) 把 \\@citex 复为 \\NAT@citexnum
+  # [#1][#2]#3 三参 → 扫第二 [] 遇 {keys} 炸 ``Argument of \\@citex has
+  # an extra }`` 连环 (该格 \\usepackage{cite} 在 \\ifx\\pdfoutput
+  # \\undefined 死支内, xelatex 下 \\pdfoutput 未定义 → 真载)。修 =
+  # cite 装载行注释中和: natbib 已担全部 \\cite 语义 (sort&compress
+  # 原生覆盖 cite 职能); masked 面挡已注释行 (该格 :162 旧注释残件)。
+  - id: cite_natbib_clash_retire
+    description: "cite.sty+natbib 并载 \\@citex arity 冲突 → \\usepackage{cite} 装载行注释中和"
+    phase: loop
+    order: 203 # mncite_absent_retire(202) 后; 退役系同族
+    when:
+      any:
+        - { category: syntax, payload_required: false }
+        - { category: other, payload_required: false }
+        - { category: early_eof, payload_required: false }
+    condition:
+      ctx_suggests: "\\\\@citex has an extra|before \\\\@citex|Use of \\\\@citex"
+      # 双签同闸: natbib 与 cite 皆须活载 (缺一则无 arity 冲突);
+      # 已注释装载行 regex 仍见字面 → 双前瞻豁免已注名单载虚警
+      source_contains: "(?=[\\s\\S]*?\\\\(?:usepackage|RequirePackage)[^\\n]*\\{[^}\\n]*natbib)(?=[\\s\\S]*?\\\\(?:usepackage|RequirePackage)[^\\n]*\\{cite\\})"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty, .cls]
+        rewrites:
+          - {
+              pattern: "\\\\(?:usepackage|RequirePackage)\\s*(?:\\[[^\\]\\n]*\\]\\s*)?\\{cite\\}",
+              repl: "%\\g<0>",
+              match_surface: "masked",
+            }
+    risk: low # natbib \\cite 语义等价 (含 sort&compress); cite 专属 \\citen/\\citeonline 稀见 —— 退役后前进 undefined_cs 由 cs 系收
+    known_gap: "组载 {cite,other} 形未收; \\RequirePackage{cite} 在 .sty/.cls 内同收 (exts 含); cite 专属 cs 调用稿 (\\citen 等) 退役后落 undefined_cs 后续臂"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "2602.09664 (stagerun-overnite-2026-09-20, failmine6)",
+          error: "draft_bos.tex:380: Argument of \\@citex has an extra }. — cite.sty:219 + natbib[numbers,sort&compress]:163 并载 (\\ifx\\pdfoutput\\undefined 死支真载)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-failmine6/census.md brace-cascade; natbib.sty \\NAT@set@cites \\let\\@citex\\NAT@citexnum 3-参 vs cite.sty \\@citex[#1]#2 2-参 arity 冲突实读"

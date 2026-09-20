@@ -85,8 +85,11 @@ rules:
         # (a) aux_scan_eof: taxonomy 读端 pattern 复述 —— 对该 cat 恒真
         - { ctx_suggests: "File ended while scanning use of \\\\?@?(newl@?bel|writefile|contentsline)" }
         # (b) runaway_scan 读端 = aux 书写族 cs (含 \\@writefile 直引)
+        # 2026-09-20 singbun: +redactcite (2606.18573 指派; 该格实为 doc 级
+        # 未闭合 \\redactcite{ 非 aux 回读 —— 健康 aux 上 builtin decline,
+        # 表列名补全语义一致族, 真修见 75-syntax redactcite_brace_close)
         - {
-            ctx_suggests: "scanning use of \\\\((abx|blx|zref|oddpage|abspage|lastpage|NAT|hyper)@[A-Za-z@]*|bibcite|citation|bibdata|bibstyle|newlabel|@writefile|@input|pgfsyspdfmark)",
+            ctx_suggests: "scanning use of \\\\((abx|blx|zref|oddpage|abspage|lastpage|NAT|hyper)@[A-Za-z@]*|bibcite|citation|bibdata|bibstyle|newlabel|@writefile|@input|pgfsyspdfmark|redactcite)",
           }
         # (c) undefined_cs 站点直落 .aux 行 (file:NN 误差行锚定)
         - { ctx_suggests: "\\.aux:\\d+: Undefined control sequence" }

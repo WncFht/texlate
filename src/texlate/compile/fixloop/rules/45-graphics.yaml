@@ -392,6 +392,46 @@ rules:
     stats: { fires: 19, rescued_cells: 15, status: active }
     source_ref: "tmp/lane-failmine3/ (#164a); epsprobe 真编译臂 -no-shell-escape 验证; tmp/lane-covgap/ (二进制占位实证)"
 
+  # 2026-09-20 singbun lane (failmine6 syntax-residual 2512.05247): svg 包
+  # 源图真缺 (.svg 不在树) → ``Package svg Error: File `X.svg' is missing``
+  # 归 missing_graphic (10-taxonomy 行)。svg_prepare 两臂都救不了:
+  # inkscape 在请 flag 治不了缺件, 转换臂无 .svg 可转 decline。修 =
+  # \includesvg[opts]{X.svg} → \includegraphics[opts]{X.pdf} 降级 —
+  # 次轮 graphicx ``File `X.pdf' not found`` 走 placeholder 源侧枚举
+  # 落 PDF 占位桩 (同格 3 个 resizebox 内缺 png 一并补齐, Division by 0
+  # 级联同愈)。svg 装载行保留无害: 无 \includesvg 调用即纯惰性。
+  # masked 面挡 verbatim/注释内假命中; 已降级稿无 \includesvg 天然幂等。
+  - id: svg_missing_demote
+    description: "svg 源图真缺 → \\includesvg[opts]{X.svg} 降级 \\includegraphics[opts]{X.pdf} (placeholder 下轮补桩)"
+    phase: loop
+    order: 17.65 # graphic_missing_placeholder(17.6) 后 (.svg payload 其内拒, 无竞争), rasterpdf(17.7) 前
+    when: { category: missing_graphic, payload_required: true }
+    condition:
+      ctx_suggests: "Package svg Error: File `[^']+\\.svg' is missing"
+      source_contains: "\\\\includesvg\\b"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex]
+        rewrites:
+          - {
+              pattern: "\\\\includesvg\\*?(\\[[^\\]\\n]*\\])?\\s*\\{([^}\\n]*?)\\.svg\\}",
+              repl: "\\\\includegraphics\\g<1>{\\g<2>.pdf}",
+              match_surface: "masked",
+            }
+    risk: low # 仅重写缺件签名存活期; opts 过 graphicx 键面与 includesvg 兼容子集一致
+    known_gap: "\\includesvg 的 .pdf_tex/inkscapelatex 双件形与 \\svgpath 搜索径不在本臂; 降级后图面位与矢量渲染质量异 (占位桩兜底, 与真 inkscape 链不等价)"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "2512.05247 (stagerun-overnite-2026-09-20, failmine6)",
+          error: "main.tex:579: Package svg Error: File `modified-recoverability.svg' is missing → \\includesvg[width=\\textwidth]{modified-recoverability.svg} (e-print 未船 .svg)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-failmine6/census.md syntax-residual singles; _builtins_graphics.py _stub_graphic_at 拒 .svg 后缀实录"
+
   # singlesweep mislabeled-raster-as-pdf (6 格: 1607.00405/2310.01082/
   # 2504.15280): e-print 船货 X.pdf 实为 PNG/JPEG 字节 —— 引擎按后缀走
   # pdf 链拒载, xetex 报 "Unable to load picture or PDF file 'X.pdf'"

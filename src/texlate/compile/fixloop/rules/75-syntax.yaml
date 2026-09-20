@@ -2104,6 +2104,165 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/lane-singtail/bundles.json cluster-6; imsart.sty:661 \\ims@href{\\ead@prefix\\saferef{...}}; hyperref.sty \\hyper@@normalise \\edef\\Hy@tempa"
 
+  # 2026-09-20 singbun lane (failmine6 syntax-residual astro-ph/0605352):
+  # LaTeX \\input = \\protect 包裹不可展, 对齐行间 (\\hline 后 \\cr 扫描
+  # 位) 起新行 u-part 半截 → 后续 \\hline 的 \\noalign 落错位连环
+  # (Misplaced \\noalign + Misplaced \\crcr)。原始缀 \\@@input 可展 —
+  # 行间扫描时整件注入, 其内 \\ 行分隔照常, 后续 \\noalign 合法。
+  # 修 = 紧邻 \\hline 族的 \\input{X} → \\csname @@input\\endcsname{X}
+  # (csname 可展桥, 文本域 \\input 语义同)。t.tex repro 实证: \\input
+  # 炸, @@input/\\csname 形编译通过。
+  - id: input_noalign_primitive
+    description: "对齐行间 \\protect 化 \\input{X} 毒化 \\noalign 扫描 → \\csname @@input\\endcsname{X} 可展化"
+    phase: loop
+    order: 199.75 # hytempa_hash_auxseed(199.7) 后, undefined_cs_guess(900) 前; Misplaced \\noalign 签专属无竞争
+    when: { category: syntax }
+    condition:
+      ctx_suggests: "Misplaced \\\\noalign"
+      source_contains: "\\\\(?:hline|cline|midrule|toprule|bottomrule)[\\s\\S]{0,80}?\\\\input\\{"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex]
+        rewrites:
+          - {
+              pattern: "(\\\\(?:hline|cline(?:\\{[^}\\n]*\\})?|(?:top|mid|bottom)rule(?:\\[[^\\]\\n]*\\])?|cmidrule(?:\\([^)\\n]*\\))?(?:\\{[^}\\n]*\\})?|endhead|endfirsthead|endfoot|endlastfoot|tabularnewline))([ \\t\\n]*?)\\\\input(\\{[^}\\n]+\\})",
+              repl: "\\g<1>\\g<2>\\\\csname @@input\\\\endcsname\\g<3>",
+              match_surface: "masked",
+            }
+    risk: low # \\csname @@input\\endcsname{X} ≡ 原始缀 \\@@input{X} (\\input 去壳), 行间/文本两域语义同
+    known_gap: "前驱非 \\hline 族的行间 \\input (裸 \\\\ 行终止符后) 未收 —— 单格实证仅 \\hline 邻位; \\@@input 与 \\input 差异仅在 \\@filef@und 文件栈追踪, 可忽略"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "astro-ph/0605352 (stagerun-overnite-2026-09-20, failmine6)",
+          error: "WOM33varsearchV4.tex:673/897: Misplaced \\noalign + :674/899 Misplaced \\crcr — \\hline/\\input{ebaslist,combres.tex}/\\hline 夹位",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-singbun/repro-noalign/{t,t2,t3,t4}.tex 实编译 (\\input 炸 vs @@input/csname 过)"
+
+  # 2026-09-20 singbun lane (failmine6 syntax-residual 2505.08102): zh 全
+  # 角括号 U+FF08/FF09 泄入 \\big 族定界符操作位 —— 无 delcode 即炸
+  # ``Missing delimiter (. inserted)``。修 = \\big族/\\left/\\right/
+  # \\middle 后 （） → ASCII ()。定界语义恒等 (原稿即 \\big( 形, zh
+  # 管全角化误改); masked 面挡 verbatim/注释。
+  - id: big_fullwidth_delim_fix
+    description: "\\big 族定界符操作位全角 （） → ASCII () (无 delcode 缺炸修)"
+    phase: loop
+    order: 199.76 # input_noalign_primitive(199.75) 后; Missing delimiter 签专属无竞争
+    when: { category: syntax }
+    condition:
+      ctx_suggests: "Missing delimiter"
+      source_contains: "\\\\(?:bigg|big|bigl|bigr|biggl|biggr|left|right|middle)[（）]"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex]
+        rewrites:
+          - {
+              pattern: "(\\\\(?:bigg|big|bigl|bigr|biggl|biggr|left|right|middle))（",
+              repl: "\\g<1>(",
+              match_surface: "masked",
+            }
+          - {
+              pattern: "(\\\\(?:bigg|big|bigl|bigr|biggl|biggr|left|right|middle))）",
+              repl: "\\g<1>)",
+              match_surface: "masked",
+            }
+    risk: low # 全角括号无 delcode 恒不合法; ASCII 回原稿语义
+    known_gap: "［］｛｝全角方/花括号同病未收 (实证仅 （）); 裸 （） 非 \\big 邻位的数学模式字符缺失属 missing_char 域"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "2505.08102 (stagerun-overnite-2026-09-20, failmine6)",
+          error: "main.tex:359: Missing delimiter (. inserted) — \\big（…\\big） ×~15 站 (38\\big（+34\\big）+1\\Big（+1\\Big）, 原稿 \\big() 被 zh 全角化)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-failmine6/census.md; bench/corpus/2505.08102/extracted/main.tex 原稿 \\big( 对照"
+
+  # 2026-09-20 singbun lane (failmine6 brace-cascade 0812.1022):
+  # emulateapj.cls:1373 \\def\\LT@endpbox 陈旧本缺 \\color@endgroup —
+  # LaTeX2e≥2021-06 内核对齐 p-cell 模板开 \\color@begingroup, 收尾须
+  # \\color@endgroup 平色组再 \\egroup; 旧本直 \\egroup → 每 p-cell 炸
+  # ``Extra }, or forgotten \\endgroup`` (deluxetable* p{3.4cm} 三 p 列
+  # ×99 错)。修 = \\@finalstrut\\@arstrutbox↔\\egroup 间插
+  # \\color@endgroup (longtable 新本同构); 插后形不再命中天然幂等。
+  - id: lt_endpbox_color_fix
+    description: "陈旧 \\LT@endpbox (emulateapj 等) 缺 \\color@endgroup → \\egroup 前插补齐 (新内核对齐色组)"
+    phase: loop
+    order: 199.77 # big_fullwidth_delim_fix(199.76) 后; Extra-} 签内 \\LT@endpbox 源签专属
+    when: { category: syntax }
+    condition:
+      ctx_suggests: "Extra \\}|forgotten \\\\endgroup"
+      source_contains: "\\\\def\\\\LT@endpbox"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.cls, .sty]
+        rewrites:
+          - {
+              pattern: "(\\\\@finalstrut[ \\t\\n]*\\\\@arstrutbox)([ \\t\\n]*)\\\\egroup",
+              repl: "\\g<1>\\g<2>\\\\color@endgroup\\g<2>\\\\egroup",
+              match_surface: "masked",
+            }
+    risk: low # \\color@endgroup 内核已备 (2021-06+); 仅 \\@finalstrut\\@arstrutbox↔\\egroup 紧邻签名位 (endpbox 特征)
+    known_gap: "\\LT@startpbox 等姊妹位不同病未收; \\def 外 \\renewcommand/\\patchcmd 改写形未见实证"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "0812.1022 (stagerun-overnite-2026-09-20, failmine6)",
+          error: "ms.tex:506-513+: Extra }, or forgotten \\endgroup ×99 — emulateapj.cls:1373 \\def\\LT@endpbox 缺 \\color@endgroup @deluxetable* p-cols",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-failmine6/census.md brace-cascade; emulateapj.cls:1373-1379 实读; longtable 新本 \\LT@endpbox \\color@endgroup 同构位"
+
+  # 2026-09-20 singbun lane (failmine6 runaway_scan 2606.18573): zh 拼接
+  # 吞 \\redactcite 外层闭括号 —— \\redactcite{\\cite{key}} 残为
+  # \\redactcite{\\cite{key}。 → ``File ended while scanning use of
+  # \\redactcite`` 吞到 EOF 无 PDF。aux 族健康 (0 redactcite 写件)
+  # → aux_purge_regen decline 救不了 (指派表列名已补 65-encoding, 实机
+  # 非 aux 回读)。修 = 未闭合形补外层 }: 内层 \\cite{key} 后无 } 即
+  # 插; 健康双括稿前瞻拒中天然幂等; masked 挡 verbatim/注释。
+  - id: redactcite_brace_close
+    description: "未闭合 \\redactcite{\\cite{key}} (外层 } 被吞) → 内层 \\cite{key} 后补 } (doc 级 runaway 修)"
+    phase: loop
+    order: 199.78 # lt_endpbox_color_fix(199.77) 后; \\redactcite 签专属 (aux_purge_regen(96) 先 decline 才轮此)
+    when:
+      any:
+        - { category: runaway_scan, payload_required: true }
+        - { category: syntax }
+    condition:
+      ctx_suggests: "scanning use of \\\\redactcite"
+      source_contains: "\\\\redactcite\\{"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex]
+        rewrites:
+          - {
+              pattern: "\\\\redactcite\\{(\\\\cite\\{[^}\\n]*\\})(?![ \\t\\n]*\\})",
+              repl: "\\\\redactcite{\\g<1>}",
+              match_surface: "masked",
+            }
+    risk: low # 仅未闭合形中 (后随非 } 才点火); 已闭双括稿零命中
+    known_gap: "\\redactcite{\\cite{a},\\cite{b}} 多键/嵌套他宏形未收 (实证单 \\cite 单键); \\cite 外内层宏 (\\citealp 等) 未见实证"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "2606.18573 (stagerun-overnite-2026-09-20, failmine6)",
+          error: "main.log:850-852 Runaway argument? + ! File ended while scanning use of \\redactcite @ main.tex:562 \\redactcite{\\cite{thompson_ssl_cv_dataset_2026}。 (zh 吞外层 })",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-failmine6/census.md runaway_scan row; bench/corpus/2606.18573/extracted/main.tex:300 原稿双括对照; main.aux 0 redactcite (aux 健康证非回读)"
+
   # ─── 兜底: 恒最后 ───
   - id: undefined_cs_guess
     description: "未定义控制序列 → cs→pkg 知识库长射 + LLM 兜底分析 (占位)"
