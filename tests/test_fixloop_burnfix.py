@@ -50,11 +50,18 @@ def _write(tmp_path: Path, name: str, text: str) -> Path:
     return p
 
 
-#: docclass 藏进 ``\IfFileExists`` 两臂 —— ``find_docclass_ends`` 只收
-#: depth-0 命中, 本形零缝 → ``_inject_after_docclass`` 走头注路径
-#: (0812.0615 lang10.tex 同构)。
+#: docclass 藏进 ``\IfFileExists`` 两臂 —— B5a 起 depth>0 可执行构造命中
+#: 产缝于构造 depth-0 收尾后 (0812.0615 lang10.tex 同构), 注入物落整个
+#: 条件构造之后、两臂任一执行的真声明之后。
 _HIDDEN_DOCCLASS = (
     "\\IfFileExists{mycls.cls}{\\documentclass{mycls}}{\\documentclass{article}}\n"
+    "\\begin{document}\nx\n\\end{document}\n"
+)
+
+#: docclass 只在宏体内 —— 仍非真声明点, 零缝 → ``_inject_after_docclass``
+#: 走头注路径。
+_DEF_BODY_DOCCLASS = (
+    "\\newcommand{\\fakecls}{\\documentclass{mycls}}\n"
     "\\begin{document}\nx\n\\end{document}\n"
 )
 
@@ -71,8 +78,8 @@ def test_fb_snippet_head_uses_requirepackage() -> None:
 
 
 def test_hidden_docclass_head_prepend_safe(tmp_path: Path) -> None:
-    """docclass 藏 ``\\IfFileExists`` 内 → 头注块落行首仍是 ``\\RequirePackage``
-    (docclass 前 ``\\usepackage`` 即自投毒 —— 本钉防回归)。"""
+    """docclass 藏 ``\\IfFileExists`` 内 → 缝落构造尾, 注入块在其后仍是
+    ``\\RequirePackage`` (docclass 前 ``\\usepackage`` 即自投毒 —— 本钉防回归)。"""
     _write(tmp_path, "main.tex", _HIDDEN_DOCCLASS)
     _write(
         tmp_path,
@@ -84,20 +91,21 @@ def test_hidden_docclass_head_prepend_safe(tmp_path: Path) -> None:
     ok, note = font_fallback(_ctx(tmp_path), eng, None, {})
     assert ok, note
     t = (tmp_path / "main.tex").read_text()
-    assert t.startswith("% fixloop: per-char font fallback")
-    head = t.split("\\IfFileExists", 1)[0]
-    assert "\\RequirePackage{newunicodechar}" in head
-    assert "\\usepackage" not in head
+    assert t.startswith("\\IfFileExists")
+    seam_tail = t.split("\\IfFileExists", 1)[1]
+    seam_block = seam_tail.split("\\begin{document}", 1)[0]
+    assert "\\RequirePackage{newunicodechar}" in seam_block
+    assert "\\usepackage" not in seam_block
 
 
 def test_ensure_usepackage_head_prepend(tmp_path: Path) -> None:
-    """``_ensure_usepackage`` 无 docclass 档头注 —— ``\\RequirePackage`` 行首合法。"""
+    """``_ensure_usepackage`` 嵌套 docclass 缝注 —— ``\\RequirePackage`` 落构造后行。"""
     _write(tmp_path, "main.tex", _HIDDEN_DOCCLASS)
     eng = MockEngine([], available={"url.sty"})
     out = _ensure_usepackage(_ctx(tmp_path), eng, "url")
     assert any("url" in s for s in out)
     t = (tmp_path / "main.tex").read_text()
-    assert t.split("\n", 1)[0] == "\\RequirePackage{url} % fixloop: cs-fix"
+    assert t.split("\n", 2)[1] == "\\RequirePackage{url} % fixloop: cs-fix"
 
 
 def test_cs_rebind_emits_requirepackage(tmp_path: Path) -> None:
@@ -140,11 +148,11 @@ def test_premature_seam_emits_requirepackage(tmp_path: Path) -> None:
 
 def test_inject_after_docclass_head_prepend_path(tmp_path: Path) -> None:
     """机制钉: 零 docclass 缝时 ``_inject_after_docclass`` 确走头注。"""
-    _write(tmp_path, "main.tex", _HIDDEN_DOCCLASS)
+    _write(tmp_path, "main.tex", _DEF_BODY_DOCCLASS)
     ctx = _ctx(tmp_path)
     assert _inject_after_docclass(ctx, "SNIP")
     t = (tmp_path / "main.tex").read_text()
-    assert t.startswith("SNIP\n\\IfFileExists")
+    assert t.startswith("SNIP\n\\newcommand")
 
 
 # ═══════════ fix 2: para_longize cap 64 + 截断注记 ═══════════

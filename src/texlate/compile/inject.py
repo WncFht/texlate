@@ -51,6 +51,7 @@ from .mainfile import (  # noqa: F401 — C4 出叶回引：find_main_tex/_walk_
 from .mask import group_end, visible_tex
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
     from pathlib import Path
 
 #: zihao=false 必须钉死：ctex 默认 scheme=chinese 在未收到显式字号选项时
@@ -445,12 +446,122 @@ def _docclass_close(vis: str, start: int) -> int:
     return j
 
 
+def _seam_after_close(tex: str, vis: str, close: int) -> tuple[int, int]:
+    r"""``}`` 后缝位判定：同行纯空白/注释 → 行尾缝，有活代码/逐字 opener → 即插。
+
+    ``}`` 后同行纯空白/注释 → 行尾缝（吞注释安全位）；同行有活
+    代码（单行文档的 bd/enddoc）或行尾开逐字/失活环境（opener 自身
+    在 vis 上被抹平，须查原文 tail）则 ``}`` 后即插——插到其前不
+    劈断、不落死文本/环境体（I1/I3/I4）。返回 ``(insert, lineno)``。
+    """
+    eol = tex.find("\n", close)
+    lineno = tex.count("\n", 0, close) + 1
+    tail = vis[close : eol if eol >= 0 else len(vis)]
+    raw_tail = tex[close : eol if eol >= 0 else len(tex)]
+    insert = (
+        eol
+        if eol >= 0 and not tail.strip() and not _ENV_OPEN_RE.search(raw_tail)
+        else close
+    )
+    return insert, lineno
+
+
+def _trailing_arg(vis: str, pos: int) -> int | None:
+    r"""``pos`` 起跳过空白/单行 ``\n`` 后若是 ``{``/``[`` 实参开 → 返回其位。
+
+    空行（``\par`` token）非可吞空白——遇之即非实参，返回 ``None``。
+    """
+    n = len(vis)
+    j = pos
+    while j < n and vis[j] in " \t":
+        j += 1
+    if j < n and vis[j] == "\n":
+        j += 1
+        while j < n and vis[j] in " \t":
+            j += 1
+        if j >= n or vis[j] == "\n":
+            return None  # 空行 = \par token——实参扫描到此为止
+    return j if j < n and vis[j] in "{[" else None
+
+
+def _nested_construct_end(vis: str, start: int, depth: int) -> int:
+    r"""depth>0 docclass 命中的构造尾：最外包容组的 depth-0 闭 ``}`` 之后 offset。
+
+    ``\IfFileExists{cls}{..\doclass..}{..}`` 形（0812.0615 lang10.tex
+    实证）：命中点在 arg2 内（depth 1），先扫到 arg2 闭 ``}``（depth→0），
+    再吞同构造紧随的 ``{..}``/``[..]`` 实参——缝落整个条件构造之后，
+    任臂执行 prologue 都在真声明后；若停在 arg2 闭 ``}``，注入物会被
+    当 arg3 扫走。空白跨行可吞；空行（``\par`` 边界）截断实参扫描。
+    """
+    n = len(vis)
+    i, d = start, depth
+    while i < n and d > 0:
+        c = vis[i]
+        if c == "\\":
+            i += 2
+            continue
+        if c == "{":
+            d += 1
+        elif c == "}":
+            d -= 1
+        i += 1
+    while (arg := _trailing_arg(vis, i)) is not None:
+        i = group_end(vis, arg)
+    return i
+
+
+#: ``\newcommand``/``\def`` 族定义命令探测——``_def_body_spans`` 与
+#: ``_macro_proxy_seams`` 同枚单源。
+_DEF_CMD_RX = re.compile(
+    r"\\(?:(?:new|renew|provide)command|DeclareRobustCommand|def|gdef|edef|xdef)"
+    r"\*?\s*\{?\\([a-zA-Z@]+)\}?"
+)
+
+
+def _def_body_spans(vis: str) -> list[tuple[int, int]]:
+    r"""``\newcommand``/``\def`` 族宏体花括号区间 ``(brace, group_end)`` 表。
+
+    宏体内的 ``\documentclass`` 不是真声明点（归 ``_macro_proxy_seams``
+    的调用点缝管）——nested-seam 判定借本表排除。
+    """
+    spans: list[tuple[int, int]] = []
+    for m in _DEF_CMD_RX.finditer(vis):
+        brace = vis.find("{", m.end())
+        if brace < 0:
+            continue
+        spans.append((brace, group_end(vis, brace)))
+    return spans
+
+
+def _iter_docclass(vis: str) -> Iterator[tuple[re.Match[str], int]]:
+    r"""``DOCCLASS_RX`` 全命中 + 命中位 brace 深度（``iter_depth0`` 同口径走查）。"""
+    depth = 0
+    pos = 0
+    for m in DOCCLASS_RX.finditer(vis):
+        while pos < m.start():
+            c = vis[pos]
+            if c == "\\":
+                pos += 2
+                continue
+            if c == "{":
+                depth += 1
+            elif c == "}":
+                depth -= 1
+            pos += 1
+        pos = m.end()
+        yield m, depth
+
+
 def find_docclass_ends(tex: str) -> list[tuple[int, int, str]]:
     r"""全部可用的 `\documentclass`/`\documentstyle` 注入缝 `(pos, lineno, cmd)`。
 
     在 visible_tex 等长遮盖视图上扫（注释/verbatim 命中天然消失，offset
-    与原文对齐）。brace depth>0 的命中——`\newcommand{\ds}{\documentstyle}`
-    类宏体（1706.07796）、`\ifmain{...}` 型实参——不是真声明点，跳过。
+    与原文对齐）。brace depth>0 的命中分两路：宏体（`\newcommand{\ds}{\
+    \documentstyle}` 类，1706.07796）仍非真声明点——跳过，零缝时归
+    ``_macro_proxy_seams``；可执行组/条件实参内命中（`\IfFileExists{cls}
+    {..\doclass..}{..}` 形，B5a）缝取**整个构造的 depth-0 收尾**——
+    ``_nested_construct_end`` 扫到最外包容组闭 ``}`` 再吞同构造尾随
+    实参，prologue 落构造后任臂皆在真声明后。
 
     条件分支内命中**不判死活**（`\ifpdf A \else B \fi` 双 docclass 是
     sigma/jhep 系标准形态；`\ifemulate`/`\ifdefined` 同理）——调用方逐缝
@@ -460,32 +571,31 @@ def find_docclass_ends(tex: str) -> list[tuple[int, int, str]]:
     vis = visible_tex(tex)
     hits: list[tuple[int, int, str]] = []
     seen_pos: set[int] = set()
-    for m in iter_depth0(DOCCLASS_RX, vis):
-        close = _docclass_close(vis, m.end())
-        if close > 0 and vis[close - 1] == "}":
-            eol = tex.find("\n", close)
-            lineno = tex.count("\n", 0, close) + 1
-            # ``}`` 后同行纯空白/注释 → 行尾缝（吞注释安全位）；同行有活
-            # 代码（单行文档的 bd/enddoc）或行尾开逐字/失活环境（opener 自身
-            # 在 vis 上被抹平，须查原文 tail）则 ``}`` 后即插——插到其前不
-            # 劈断、不落死文本/环境体（I1/I3/I4）。
-            tail = vis[close : eol if eol >= 0 else len(vis)]
-            raw_tail = tex[close : eol if eol >= 0 else len(tex)]
-            insert = (
-                eol
-                if eol >= 0 and not tail.strip() and not _ENV_OPEN_RE.search(raw_tail)
-                else close
-            )
+    def_spans: list[tuple[int, int]] | None = None
+    for m, depth in _iter_docclass(vis):
+        if depth == 0:
+            close = _docclass_close(vis, m.end())
+            if close > 0 and vis[close - 1] == "}":
+                insert, lineno = _seam_after_close(tex, vis, close)
+            else:
+                # 无 {..} 的裸 \documentclass：退化为行尾注入。
+                eol = tex.find("\n", m.end())
+                lineno = tex.count("\n", 0, m.start()) + 1
+                insert = len(tex) if eol < 0 else eol
         else:
-            # 无 {..} 的裸 \documentclass：退化为行尾注入。
-            eol = tex.find("\n", m.end())
-            lineno = tex.count("\n", 0, m.start()) + 1
-            insert = len(tex) if eol < 0 else eol
+            if def_spans is None:
+                def_spans = _def_body_spans(vis)
+            if any(b <= m.start() < e for b, e in def_spans):
+                continue  # 宏体内声明字样非真声明点——归 proxy 缝
+            insert, lineno = _seam_after_close(
+                tex, vis, _nested_construct_end(vis, m.end(), depth)
+            )
         if insert not in seen_pos:  # 单行 `\if..\else..\fi` 双命中同缝
             seen_pos.add(insert)
             hits.append((insert, lineno, m.group(1)))
     if not hits:
         hits = _macro_proxy_seams(tex, vis)
+    hits.sort()
     return hits
 
 
@@ -501,11 +611,7 @@ def _macro_proxy_seams(tex: str, vis: str) -> list[tuple[int, int, str]]:
     """
     proxy: dict[str, str] = {}
     def_sites: set[int] = set()
-    for m in re.finditer(
-        r"\\(?:(?:new|renew|provide)command|DeclareRobustCommand|def|gdef|edef|xdef)"
-        r"\*?\s*\{?\\([a-zA-Z@]+)\}?",
-        vis,
-    ):
+    for m in _DEF_CMD_RX.finditer(vis):
         brace = vis.find("{", m.end())
         if brace < 0:
             continue

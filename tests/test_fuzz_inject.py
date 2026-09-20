@@ -252,22 +252,29 @@ def test_seam_masked_regions_skipped() -> None:
 
 
 def test_seam_brace_depth_semantics() -> None:
-    """depth>0 命中跳过；``\\bgroup``/``[..]`` 不计深度的 characterization。"""
+    """宏体内 depth>0 命中跳过；可执行嵌套构造产缝；``\\bgroup``/``[..]`` 不计深度。"""
     for prefix in [
         "\\newcommand{\\x}{\\documentclass{a}}\n",
         "\\def\\x{\\documentclass{a}}\n",
-        "{\\documentclass{a}}\n",
-        "\\ifmain{\\documentclass{a}}{}\n",
     ]:
         assert find_docclass_ends(prefix) == []
         hits = _assert_seam_invariants(prefix + "\\documentclass{article}\nx\n")
         assert len(hits) == 1
         assert hits[0][0] > len(prefix)  # 缝落在真声明行尾、prefix 之后
-    # 前置游离 ``}`` 使 depth 归负——全量命中被跳，安全降级 no-docline。
+    # 裸组/条件实参内的命中（B5a）——缝落整个嵌套构造的 depth-0 收尾后。
+    for prefix in [
+        "{\\documentclass{a}}\n",
+        "\\ifmain{\\documentclass{a}}{}\n",
+    ]:
+        assert len(find_docclass_ends(prefix)) == 1
+        hits = _assert_seam_invariants(prefix + "\\documentclass{article}\nx\n")
+        assert len(hits) == 2  # noqa: PLR2004
+    # 前置游离 ``}`` 使 depth 归负——B5a 起不再致盲：声明本身真实，depth<0
+    # 走 nested 臂等价退化，缝仍落 ``{article}`` 收尾，注入成功。
     blinded = "}\n\\documentclass{article}\n" + _DOC
-    assert find_docclass_ends(blinded) == []
+    assert len(find_docclass_ends(blinded)) == 1
     _out, info = inject_cjk(blinded)
-    assert info["status"] == "no-docline"
+    assert info["status"] == "injected"
     # ``\bgroup``/``\egroup`` 非字符花括号——depth 不计，组内声明仍成缝。
     assert len(find_docclass_ends("\\bgroup\\documentclass{a}\\egroup\n" + _DOC)) == 1
     # ``[..]`` 不计深度——``\usepackage[\documentclass{x}]{y}`` 造幻影缝：
