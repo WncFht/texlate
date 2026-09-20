@@ -1853,3 +1853,10 @@
 - **phantom-deletion 再实证**：`git diff HEAD --stat` 报 jabbrv-ltwa-*.ldf/jabbrv.sty/aaai23.sty/test_fixloop_unkopt.py 全删——`ls` 交叉验证全在盘（unkopt 测试 12945B 完整）。共享 index peer 暂存删的幻影照旧，ls 为准。真信号：JHEP.cls/JHEP3.cls 各 +35 = stubfid task#329 在飞。
 - impl 未落属正常窗：burnfix \RequirePackage 未现（20min）、taxon2 `_`/exts 未现（scope 扩后 ~20min）；taxcen reclass.json、bibwave candidates.json、failmine6 buckets.json 产出爬坡近交付态。
 - **门**：HEAD=62ca6687；worktree ruleset 183；共享 index 勿动；无 teammate git 越权。
+
+### patrol ~09:08 — 心跳：无收割；roster 10 全 running；worktree ruleset 184 load-OK
+
+- 无新 report.md / run.log。overnite 1983/2822 ph=0。
+- lane dirs 10min 内全静——impl lanes 直编 src 属正常；Ruleset.load 仍绿 184（较上轮 +1 臂，注册随落）。
+- burnfix 16min 未落（三修+pins 窗内）；taxon2 扩域后 ~30min 未落；csfix8 2h+（08:44 有活写，repro 密集型上限窗——过 2.5h 起软查）。
+- **门**：HEAD=32c2a6de；共享 index 勿动；无 teammate git 越权。
