@@ -182,7 +182,7 @@ rules:
               match_surface: "masked",
             }
     risk: low # \mbox kernel 原语零依赖; 已裹站点实参为 \mbox{..} 非单 cs → 不再命中 (幂等)
-    known_gap: "多 token 实参 (\\hl{a \\model}) 不收——soul_err 复发后无后续规则接, 残面同 soul_cjk_mbox 已知缺口"
+    known_gap: "多 token 实参 (\\hl{a \\model}/\\so{\\cs{arg}}) 由 soul_multi_mbox(103) 接; 残面同 soul_cjk_mbox 已知缺口"
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }
@@ -193,6 +193,42 @@ rules:
         }
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/lane-mathbd/cells/2210.03629: 28-site \\mbox{\\cs} wrap xelatex 净编译实证"
+
+  # ── 2026-09-20 armgap4 (1107.0598 gate_miss) ──
+  # soul_cs_mbox(102) 只收单-cs 实参; 1107.0598 def-站 `\so{\MakeTextUppercase
+  # {#1}}`/`\caps{\MakeTextLowercase{#1}}` (master.tex:43-44) 是 cs+花括号组
+  # 多 token 形 —— 字面 CJK 闸(100)与单-cs 闸(102)全 decline, soul_err 无
+  # 下家 (gate_miss, 原 soul_cs_mbox known_gap 记档面)。本臂收"实参内含任意
+  # cs 的多 token"形 → 同 \mbox 包裹成原子盒。(?!\s*\\mbox\b) 闸: 已裹站点
+  # (本臂/102 产出) 实参首 cs=\mbox → 不再命中 (幂等); 无 cs 纯文本实参
+  # 不收 (不同机理, 防误裹)。
+  - id: soul_multi_mbox
+    description: "soul 族 (\\hl\\ul\\st\\so\\caps) 实参为多 token 含 cs (\\so{\\MakeTextUppercase{#1}}) → \\mbox 包裹"
+    phase: loop
+    order: 103 # soul_cs_mbox(102) 单-cs 形先收; 本臂兜多 token 实参形
+    when: { category: soul_err }
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty, .cls]
+        rewrites:
+          - {
+              pattern: "\\\\(hl|ul|st|so|caps)\\{(?!\\s*\\\\mbox\\b)((?:[^{}]|\\{[^{}]*\\})*\\\\[a-zA-Z@]+(?:[^{}]|\\{[^{}]*\\})*)\\}",
+              repl: '\\\g<1>{\\mbox{\g<2>}}',
+              match_surface: "masked",
+            }
+    risk: low # \mbox kernel 原语零依赖; lookahead 拦已裹站点 (幂等); 无 cs 实参不收
+    known_gap: "两层以上花括号嵌套实参不收; 无 cs 纯文本实参不收——soul_err 复发后无后续规则接, 残面同 soul_cjk_mbox 已知缺口"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "1107.0598 (armgap4 census; stagerun-overnite-2026-09-20)",
+          error: "Package soul Error: Reconstruction failed — \\so{\\MakeTextUppercase{#1}}/\\caps{\\MakeTextLowercase{#1}} def-站 (master.tex:43-44)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-armgap4/census.md §1107.0598; soul_cs_mbox known_gap 多 token 形收口"
 
   # ── 2026-09-19 citemath 匝道 (task #79; lane-citemath EVIDENCE) ──
   # natbib ``\@citex`` 未定义引用标记 ``{\reset@font\bfseries ?}`` 无盒

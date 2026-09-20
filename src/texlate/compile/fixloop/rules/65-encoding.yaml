@@ -37,6 +37,37 @@ rules:
     stats: { fires: 7, rescued_cells: 5, status: validated }
     source_ref: "handoff-2026-09-15 §2.2; compilebench-v3 失败构成"
 
+  # 2026-09-20 armgap4 (1003.2165 fired_ineffective): inputenc_strip(94)
+  # 只够得到 ctx.tex_files 内装载点 —— 肇事 `\RequirePackage[utf8]{inputenc}`
+  # 躺在系统 cc.cls:196 (texmf-dist, fileset 外), strip 改的是稿内死
+  # filecontents* 体, 每轮复炸。修 = vendor noop inputenc.sty 投 compile
+  # cwd (vendored_fetch_multi → _resolve_site main_dir): kpathsea `.` 先
+  # TEXMFDIST → 系统 cls 装载链也解析到 noop, 任意选项吞 (\DeclareOption*
+  # 通吃, xetex-inputenc stub 同构 #327)。noop \ProvidesPackage 日期
+  # 2026/09/20 > 系统真件 → vendored_sty_shadow 不反退 (ld<sd 判据);
+  # 稿自带 inputenc.sty 时 dst 在场跳过 decline (保守不覆写)。
+  - id: inputenc_noop_shadow
+    description: "fileset 外 inputenc 装载点 (系统 cls 链) → vendor noop inputenc.sty 投 compile cwd 遮蔽 TEXMFDIST 真件"
+    phase: loop
+    order: 94.5 # inputenc_strip(94) 先收工程内站点; 本臂兜 fileset 外装载链
+    when: { category: inputenc_unicode }
+    action:
+      kind: builtin_transform
+      function: vendored_fetch_multi
+      params: { files: [inputenc.sty] }
+    risk: low # xetex/luatex 下真 inputenc 必 fatal —— noop 严格占优; 稿自带同名件不覆写
+    known_gap: "装载点经 TEXINPUTS 优先于 cwd 的目录解析时不遮 (texmfhome 注件例外); inputenc 私有宏面除 \\inputencoding 已补位外不收"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "1003.2165 (armgap4 census; zhstore-verify-2026-09-20)",
+          error: "inputenc.sty:164 inputenc is not designed for xetex or luatex — 活装载点 texmf-dist cc.cls:196 在 fileset 外",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-armgap4/census.md §1003.2165; vendor/files/inputenc.sty noop shadow"
+
   # 新增 (docs/08:272): xelatex 对非 UTF-8 源静默出 U+FFFD —— warning 驱动轮
   - id: non_utf8_source
     mechanisms: [B02, W72, W13]

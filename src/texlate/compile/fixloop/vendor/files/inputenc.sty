@@ -1,0 +1,16 @@
+% texlate vendored stub — inputenc.sty noop shadow
+% xetex/luatex 下真 inputenc 必拒载 ("inputenc is not designed for xetex or
+% luatex") —— 本件由 inputenc_noop_shadow 规则 (65-encoding.yaml) 经
+% vendored_fetch_multi 投至 compile cwd (main_dir); kpathsea `.` 先于
+% TEXMFDIST → 工程外装载链 (系统 cls 内 \RequirePackage[utf8]{inputenc},
+% 1003.2165 texmf-dist cc.cls:196 实证) 解析到本 noop 即吞, 不再 fatal。
+% \DeclareOption*{} 吞任意选项 ([utf8]/[latin1]/[utf8x] 同收 —— noop 本无
+% 选项语义, 拒收即炸; xetex-inputenc stub 同口径, stubfid #327)。
+% \inputencoding 补位: kernel 已定义时 providecommand 幂等让位, 未定义
+% (旧稿直调) 时兜底空宏防连锁 undefined_cs。
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{inputenc}[2026/09/20 fixloop noop shadow - Unicode engines native UTF-8]
+\DeclareOption*{}
+\ProcessOptions\relax
+\providecommand{\inputencoding}[1]{}
+\endinput

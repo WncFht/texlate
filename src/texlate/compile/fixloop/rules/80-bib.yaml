@@ -243,3 +243,46 @@ rules:
         }
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/lane-failmine/rule_targets.txt item 2; natbib.sty:967-968 \\AtEndDocument aux 写面"
+
+  # ── 2026-09-20 armgap4 (2605.29672 fired_ineffective) ──
+  # biblatex backend=bibtex: bibtex 是 8-bit 工具, 行包 (~2000B) 劈断
+  # multibyte UTF-8 → 产出 .bbl 带非法序列 → warnings invalid_utf8 升级
+  # warn_utf8 轮 (纯 warn-only fail)。毒件是引擎每遍重生成的 .bbl ——
+  # non_utf8_source(95) 的 recode exts 不含 .bbl 且下遍再腐, 永不收敛。
+  # 修 = biblatex 装载行 backend=bibtex → biber: biber 全 UTF-8, 下遍
+  # .bcf→biber 通道产净 .bbl。三闸: .bcf 在场 (biblatex 稿天然限定,
+  # bbl_regen 同口径) + 源有 backend=bibtex + biber 可执行。order 置
+  # warn_utf8 消费族尾: misschar 臂(25.x)/non_utf8_source(95) 先评 —
+  # latin1 .bib 先转码, 本臂只兜 bibtex-8bit 生成面腐 (同签共存稿各臂
+  # 按序收不互抢)。
+  - id: bib_backend_biber_swap
+    description: "biblatex backend=bibtex (8-bit 劈 UTF-8 腐 .bbl) → backend=biber (全 UTF-8 通道)"
+    phase: loop
+    order: 195.5 # non_utf8_source(95) 先转码源件; 本臂兜 bibtex 生成面腐
+    when: { category: warn_utf8 }
+    condition:
+      fileset: { has_ext: [.bcf] } # .bcf 只在 biber 通路存在, 天然限定 biblatex 稿
+      source_contains: "backend\\s*=\\s*bibtex\\b"
+      tool_available: biber
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty, .cls]
+        rewrites:
+          - {
+              pattern: "(\\\\(?:usepackage|RequirePackage)\\s*\\[[^\\]]*?)backend\\s*=\\s*bibtex\\b(?=[^\\]]*\\]\\s*\\{[^}]*\\bbiblatex\\b[^}]*\\})",
+              repl: "\\g<1>backend=biber",
+              match_surface: "masked",
+            }
+    risk: medium # 后端切换改参考文献产出路径; biber 本是 biblatex 默认通路, 其余选项原样保留
+    known_gap: "backend=bibtex8 (同 8-bit 腐) 词界不收——实证格后再扩; 默认 backend (无显式键) 不改写; 已腐 .bbl 靠下遍重生成自愈"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "2605.29672 (armgap4 census; stagerun-overnite-2026-09-20)",
+          error: "invalid_utf8 ×4 @ splice/*.bbl — bibtex 8-bit 行包劈断 UTF-8 (.bib 本体净, recode 0 命中)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-armgap4/census.md §2605.29672; engine _bib_pass .bcf→biber 通道"
