@@ -29,10 +29,13 @@ rules:
     description: "LaTeX 2.09 文档 (\\documentstyle/化石 cls) → 路由拒绝, 转 latex+dvips 通道"
     phase: gate
     order: 1
-    when:
-      any:
-        - { category: latex209 }
-        - { category: missing_file, main_head_contains: "\\documentstyle" }
+    # v4 收窄 (eracls2 普查/gatenarrow 2026-09-20): 删 missing_file 支 ——
+    # latex209_upgrade 落地后带活 \documentstyle 的稿在 precheck 已转化或
+    # 内携 REJECT, 到不了 gate; 该支唯一可达群体是升级稿 missing_file 载荷
+    # (注释 %\documentstyle 残留命中 mhc raw 子串 + COMPAT_SHIM 面包屑满足
+    # condition) —— 纯 FP, 把 shim/install/doc_absent 臂全挡死 (aas2pp4.sty
+    # /flushrt.sty/laa.cls ~5 格实证)。真 209 籍由 latex209 类错误兜底。
+    when: { category: latex209 }
     condition: {
         # v2 修正: mhc 子串会被注释 %\documentstyle 误中 (1806.06690);
         # 加行锚定复核 —— 真 2.09 文档的 \documentstyle 必在行首。
