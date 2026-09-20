@@ -131,10 +131,10 @@ class _ScriptEng(_Eng):
 
 # ---------------------------------------------------------------- taxonomy
 def test_compat_signature_classifies_other() -> None:
-    r"""``.aux:NN:`` file-line 签名无专属 head 条目 → ``other`` 兜底。"""
+    r"""``.aux:NN:`` file-line 签名 taxrow 归 ``bib_compat``。"""
     rep = parse_text(_COMPAT_LOG)
     cat, _pay = _rs().taxonomy.classify(rep)
-    assert cat == "other"
+    assert cat == "bib_compat"
 
 
 def test_rule_shape() -> None:
@@ -143,7 +143,9 @@ def test_rule_shape() -> None:
     r = _rule()
     assert r.raw["phase"] == "loop"
     assert r.raw["order"] == 195  # noqa: PLR2004
-    assert r.raw["when"] == {"category": "other"}
+    assert r.raw["when"] == {
+        "any": [{"category": "other"}, {"category": "bib_compat"}]
+    }
     assert r.raw["action"]["kind"] == "regex_rewrite"
     assert r.raw["action"]["params"]["exts"] == [".aux"]
     cond = r.raw["condition"]

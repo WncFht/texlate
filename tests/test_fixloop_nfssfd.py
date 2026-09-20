@@ -132,14 +132,15 @@ def test_taxonomy_font_info_inline_no_file_rejected() -> None:
     """``LaTeX Font Info:    No file X.fd.`` 行内形态不命中 ``^No file`` 锚。
 
     内核字体替换成功时同样印 ``No file`` 字样但带 Font Info 前缀——
-    良性 info, 非缺档硬错; NFSS 错行本体无签 → 归 other。
+    良性 info, 非缺档硬错; NFSS 错行本体签 → taxrow 归 nfss_setup
+    (无消费臂, 路由语义同原 other 兜底)。
     """
     log = (
         "LaTeX Font Info:    No file LGRcmr.fd.\n"
         "./main.tex:340: LaTeX Error: This NFSS system isn't set up properly."
         + _NFSS_TAIL
     )
-    assert _classify(log) == ("other", None)
+    assert _classify(log) == ("nfss_setup", None)
 
 
 def test_taxonomy_no_file_fd_without_nfss_not_matched() -> None:
@@ -159,11 +160,11 @@ def test_taxonomy_no_file_nonfd_rejected() -> None:
         "./main.tex:340: LaTeX Error: This NFSS system isn't set up properly."
         + _NFSS_TAIL
     )
-    assert _classify(log) == ("other", None)
+    assert _classify(log) == ("nfss_setup", None)  # NFSS 头签 → nfss_setup taxrow
 
 
 def test_taxonomy_no_file_fd_outside_pre_window() -> None:
-    """``No file`` 距首错 >_PRE_LINES(4) 行 → 窗外不命中, 归 other。"""
+    """``No file`` 距首错 >_PRE_LINES(4) 行 → 窗外不命中, NFSS 头签归 nfss_setup。"""
     filler = "\n".join(
         f"LaTeX Font Info:    Trying to load font information for LGR+f{i}"
         " on input line 340."
@@ -174,7 +175,7 @@ def test_taxonomy_no_file_fd_outside_pre_window() -> None:
         "./main.tex:340: LaTeX Error: This NFSS system isn't set up properly."
         + _NFSS_TAIL
     )
-    assert _classify(log) == ("other", None)
+    assert _classify(log) == ("nfss_setup", None)
 
 
 def test_taxonomy_existing_missing_file_signatures_intact() -> None:
@@ -191,7 +192,7 @@ def test_taxonomy_existing_missing_file_signatures_intact() -> None:
 
 # ─────────────────── errs 边界: 次级错误面无 pre (forward-only) ───────────────────
 def test_errs_secondary_nfss_boundary() -> None:
-    """``rep.errs`` 逐条分类不携 pre——远端次级 NFSS 错行归 other (已知边界)。
+    """``rep.errs`` 逐条分类不携 pre——远端次级 NFSS 错行归 nfss_setup (已知边界)。
 
     首错 ctx8 窗够不到远处 No-file+NFSS 对时, 次级 NFSS 错行保持未覆盖;
     首错本身是 NFSS 形 (或 ctx8 内含该对) 才经 ``ErrReport.pre``/blob
@@ -210,7 +211,7 @@ def test_errs_secondary_nfss_boundary() -> None:
     cands = _rs().taxonomy.err_candidates(rep)
     nfss = [c for c in cands if "NFSS" in c[2]]
     assert nfss
-    assert all(cat == "other" for cat, _pay, _l, _b in nfss)
+    assert all(cat == "nfss_setup" for cat, _pay, _l, _b in nfss)
 
 
 def test_errs_ctx8_pair_routes_missing_file() -> None:

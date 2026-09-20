@@ -257,17 +257,18 @@ def test_warn_patterns_scanned() -> None:
             "undefined_color",
             "red",
         ),
-        # "Undefined color model `X'" 是另一错误 (模型名非色名),
-        # fallback 注 \\definecolor 修不了 → 不落 undefined_color。
+        # "Undefined color model `X'" taxrow 并收 undefined_color (模型名
+        # 非色名, 消费侧自行分辨) —— undefined_color_fallback 的
+        # ctx_suggests `Undefined color [`']` 闸把 model 形挡在投递外。
         (
             "! Package xcolor Error: Undefined color model `cmyk7'.",
-            "other",
-            None,
+            "undefined_color",
+            "cmyk7",
         ),
         (
             "! LaTeX Error: Undefined color model `这是译文'.",
-            "other",
-            None,
+            "undefined_color",
+            "这是译文",
         ),
         # ── 2026-09-20 extless lane (failmine4 9-cell): graphicx \Gin@i
         # 对无扩展名 \includegraphics{X} 落 `File `X' not found.` (裸
@@ -362,9 +363,10 @@ def test_warn_patterns_scanned() -> None:
             "missing_graphic",
             "plot-a",
         ),
-        # 保守面: 无 errhelp 且无 graphic cs 的 ext-less File-not-found
+        # 无 errhelp 且无 graphic cs 的 ext-less File-not-found
         # (\lstinputlisting/\verbatiminput 型 producer 发不出 graphicx
-        # errhelp) → 维持 other|None, taxonfix GenericError 语义不扰。
+        # errhelp): taxrow missing_file_extless 行收裸名 →
+        # missing_file|stem → install_file filemap miss 后 decline。
         (
             (
                 "! LaTeX Error: File `snippet' not found.\n"
@@ -375,8 +377,8 @@ def test_warn_patterns_scanned() -> None:
                 "\n"
                 "l.30 \\lstinputlisting{snippet}\n"
             ),
-            "other",
-            None,
+            "missing_file",
+            "snippet",
         ),
         # tempered 前瞻闸: chunk1 (非图形 producer 短块) 不得跨后续错
         # 误起点 (`:9: ` file:line 前缀/`Error:`/`File ` 三重闸) 借

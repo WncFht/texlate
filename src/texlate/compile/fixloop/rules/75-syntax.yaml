@@ -612,6 +612,8 @@ rules:
     phase: loop
     order: 166 # cs_targeted_fix(165) 之后, undefined_cs_guess(900) 之前
     when: { category: undefined_color, payload_required: true }
+    condition: # 色名形才收: `Undefined color model `X'` (模型名非色名) 注册色名修不了 —— 投递侧 decline
+      ctx_suggests: "Undefined color [`']"
     action:
       kind: regex_rewrite
       params:

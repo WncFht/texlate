@@ -107,11 +107,11 @@ def test_taxonomy_reserved_a_is_syntax() -> None:
     assert cat == "syntax"
 
 
-def test_taxonomy_citex_is_other() -> None:
-    """实证签名 \\@citex doesn't match → other (1003.0910 final_cat)。"""
+def test_taxonomy_citex_pin() -> None:
+    """实证签名 \\@citex doesn't match → taxrow 归 cs_mismatch (1003.0910)。"""
     rep = parse_text(_ERR_CITEX)
     cat, _ = _rs().taxonomy.classify(rep)
-    assert cat == "other"
+    assert cat == "cs_mismatch"
 
 
 # ---------------------------------------------------------------- 规则接线

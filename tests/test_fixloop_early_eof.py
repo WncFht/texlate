@@ -158,7 +158,7 @@ def test_targeted_rules_when_no_early_eof() -> None:
     rs = Ruleset.load()
     expected = {
         "symbolfont_tuletters": {"other", "symbol_font"},
-        "natbib_numbers_pass": {"other"},
+        "natbib_numbers_pass": {"other", "bib_compat"},
     }
     for rid, want in expected.items():
         rule = next(r for r in rs.rules if r.id == rid)

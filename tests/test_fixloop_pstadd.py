@@ -70,10 +70,10 @@ def test_taxonomy_missing_number_is_syntax() -> None:
     assert cat == "syntax"
 
 
-def test_taxonomy_xkeyval_is_other() -> None:
-    """Package xkeyval Error → other (dx/dy 键移除签名落兜底格)。"""
+def test_taxonomy_xkeyval_pin() -> None:
+    """Package xkeyval Error → taxrow 归 key_unknown (dx/dy 键移除签名)。"""
     cat, _ = _classify(_ERR_XKV)
-    assert cat == "other"
+    assert cat == "key_unknown"
 
 
 # ---------------------------------------------------------------- 钉版面
@@ -91,7 +91,7 @@ def test_rule_wired_loop_phase() -> None:
     rule = _rule()
     assert rule.order == 11.9  # noqa: PLR2004 - schema 断言值
     cats = {c.get("category") for c in rule.when["any"]}
-    assert cats == {"syntax", "undefined_cs", "other"}
+    assert cats == {"syntax", "undefined_cs", "other", "key_unknown"}
     assert rule.condition["cache_dir_glob"] == "pstricks-add.tex"
     assert "pstricks-add" in rule.condition["ctx_suggests"]
     assert rule.action["kind"] == "run_tool"

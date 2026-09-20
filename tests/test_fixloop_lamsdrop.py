@@ -58,10 +58,10 @@ def _params() -> dict:
 
 # ---------------------------------------------------------------- taxonomy
 def test_taxonomy_signature_is_other() -> None:
-    """设计尺寸 font 加载错: missing_tfm 两模式全不中 → other。"""
+    """设计尺寸 font 加载错: taxrow missing_tfm 无规格臂收 `Font \\X=lamsN not loadable`。"""
     rep = parse_text(_ERR_LINE + "\n" + _ERR_CTX)
     cat, _ = _rs().taxonomy.classify(rep)
-    assert cat == "other"
+    assert cat == "missing_tfm"
 
 
 # ---------------------------------------------------------------- vendor 资产
@@ -83,7 +83,8 @@ def test_rule_wired() -> None:
     """挂 loop 相 order 11.97 → builtin_transform vendored_fetch_multi。"""
     rule = _rule()
     assert rule.order == 11.97  # noqa: PLR2004 - schema 断言值
-    assert rule.when["category"] == "other"
+    cats = {c.get("category") for c in rule.when["any"]}
+    assert {"other", "missing_tfm"} <= cats
     assert "lamsarrow" in rule.condition["ctx_suggests"]
     assert rule.action["kind"] == "builtin_transform"
     assert rule.action["function"] == "vendored_fetch_multi"

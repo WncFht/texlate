@@ -124,10 +124,10 @@ def _fake_host(tmp_path: Path, body: str, monkeypatch: pytest.MonkeyPatch) -> Pa
 
 
 # ---------------------------------------------------------------- taxonomy
-def test_taxonomy_options_section_is_other() -> None:
-    """实证签名: Options Section LaTeX Error → other (兜底格)。"""
+def test_taxonomy_options_section_pin() -> None:
+    """实证签名: Options Section LaTeX Error → taxrow 归 options_section。"""
     cat, _ = _classify(_ERR_OPTIONS + "\n" + _ERR_OPTIONS_CTX)
-    assert cat == "other"
+    assert cat == "options_section"
 
 
 def test_taxonomy_missing_number_is_syntax() -> None:
@@ -164,7 +164,7 @@ def test_rule_wired_loop_phase() -> None:
     rule = _rule()
     assert rule.order == 11.91  # noqa: PLR2004 - schema 断言值
     cats = {c.get("category") for c in rule.when["any"]}
-    assert cats == {"syntax", "undefined_cs", "other"}
+    assert cats == {"syntax", "undefined_cs", "other", "options_section"}
     assert "Options Section" in rule.condition["ctx_suggests"]
     assert "mnras" in rule.condition["ctx_suggests"]
     globs = {c.get("cache_dir_glob") for c in rule.condition["any"]}

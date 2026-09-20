@@ -195,7 +195,8 @@ rules:
   # pdfTeX≥1.30/LuaTeX 可达, XeTeX 族 (xelatex/tectonic) 下抛可恢复
   # \PackageError "Disabling ligatures of a font is only possible with
   # pdftex version 1.30 or newer. Ignoring \DisableLigatures." —— PDF 照出
-  # 但 error 计数使 verdict 落 best_effort_pdf。file-line 形签名归 other;
+  # 但 error 计数使 verdict 落 best_effort_pdf。file-line 形签名 taxrow 归
+  # microtype_pdftex (other 闸保兼容);
   # 与 microtype_off 的 xetexglyph_tfm 主场分臂 (触发面与动作皆异——
   # 同改 usepackage 行会顺带关 protrusion/expansion, 超出本错所需)。
   # 修 = 行注释中和: microtype 自报 "Ignoring" 即本引擎下该调用本就空转,
@@ -204,7 +205,10 @@ rules:
     description: "microtype \\DisableLigatures (pdfTeX/LuaTeX 专属 cs) → XeTeX 族下注释中和"
     phase: loop
     order: 71 # microtype_off(70) 同族邻位; other+ctx 臂与 xetexglyph_tfm 臂互不抢签
-    when: { category: other }
+    when: # file-line 签名 taxrow 归 microtype_pdftex; other 保兼容
+      any:
+        - { category: other }
+        - { category: microtype_pdftex }
     condition:
       ctx_suggests: "Disabling ligatures"
     action:

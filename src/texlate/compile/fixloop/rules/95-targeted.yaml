@@ -807,7 +807,10 @@ rules:
     description: "author-year 类 + 数字 bbl → \\NAT@numberstrue 预翻, \\NAT@force@numbers 空转"
     phase: loop
     order: 186
-    when: { category: other } # W126 根修: file-line 签名错归 other, early_eof 臂撤
+    when: # W126 根修: file-line 签名 taxrow 归 bib_compat; other 保兼容, early_eof 臂撤
+      any:
+        - { category: other }
+        - { category: bib_compat }
     condition:
       ctx_suggests: "Bibliography not compatible with author-year"
     action:

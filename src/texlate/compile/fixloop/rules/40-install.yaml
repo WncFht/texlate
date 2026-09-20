@@ -428,10 +428,11 @@ rules:
     phase: loop
     order: 11.9 # csvsimple_l3_kernel_retire(11.8) 后, legacy_pkg_shim(12) 前
     when:
-      any: # 签名散三格: xkeyval→other / Undefined cs→undefined_cs / Missing→syntax
+      any: # 签名散三格: xkeyval→key_unknown (taxrow) / Undefined cs→undefined_cs / Missing→syntax
         - { category: syntax }
         - { category: undefined_cs }
         - { category: other }
+        - { category: key_unknown }
     condition:
       ctx_suggests: "pstricks-add\\.tex:\\d+|\\\\psset@@tickstyle|\\\\psk@tickstyle"
       cache_dir_glob: pstricks-add.tex
@@ -487,10 +488,11 @@ rules:
     phase: loop
     order: 11.91 # pstricks_add_pair_retire(11.9) 后, abstract_edef_capture_neutralize(11.95) 前 —— texmf 驻留遮蔽同族
     when:
-      any: # 签名散格: 本格 other; 连锁 Missing\begin{document}→syntax / undef cs 变体同闸收
+      any: # 签名散格: 本格 options_section (taxrow 专属行); 连锁 Missing\begin{document}→syntax / undef cs 变体同闸收
         - { category: syntax }
         - { category: undefined_cs }
         - { category: other }
+        - { category: options_section }
     condition:
       ctx_suggests: "Options Section|mnras\\.cls"
       any: # 在场证: wdir 内全层 ∨ stagerun 兄弟 usertree ∨ kpsewhich 可探 (宿主/TEXMFDIST 面交脚本指纹裁)
@@ -683,7 +685,10 @@ rules:
     description: "lamsarrow.sty \\font lamsN TFM 缺 → vendor lams{1..5}.{tfm,mf} 字节平铺 wdir (Type3 shipout)"
     phase: loop
     order: 11.97 # amsmath_saveprimitive_retire(11.96) 后 —— vendored 资产投递同族
-    when: { category: other } # 设计尺寸 font 加载错归 other (missing_tfm 两模式全不中)
+    when: # taxrow missing_tfm 无规格臂收 `Font \X=lamsN not loadable` → missing_tfm|lamsN; other 保兼容
+      any:
+        - { category: other }
+        - { category: missing_tfm }
     condition:
       ctx_suggests: "lamsarrow\\.sty|=lams[1-5]" # file-line 点名 + font spec 双口径
     action:
@@ -738,11 +743,12 @@ rules:
     phase: loop
     order: 11.98 # lamsarrow_lams_fonts_drop(11.97) 后, legacy_pkg_shim(12) 前 —— ship/texmf-retire 族尾
     when:
-      any: # \@citex 错归 other/syntax, reserved@a 归 other, 零页归 early_eof
+      any: # \@citex 归 cs_mismatch (taxrow), reserved@a 归 other, 零页归 early_eof
         - { category: syntax }
         - { category: other }
         - { category: early_eof, payload_required: false }
         - { category: undefined_cs }
+        - { category: cs_mismatch }
     condition:
       # 三签同机: reserved@a (illegal param) | @citex doesn't match | 点名件
       # revtex4\.cls 字面带点 —— revtex4-1/revtex4-2 名不命中, 防错绑

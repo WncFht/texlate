@@ -5,8 +5,9 @@ doc-shipped cls 模板段 ``\DisableLigatures[f]{family=sf*}`` —— 该 cs 仅
 pdfTeX≥1.30/LuaTeX 可达, XeTeX 族下 microtype 抛可恢复 ``\PackageError``
 ("...only possible with pdftex version 1.30 or newer. Ignoring
 \DisableLigatures.") → error 计数使 verdict 落 best_effort_pdf。file-line 形
-签名归 ``other``; ``microtype_lig_off`` 行注释中和 (本引擎下该调用恒被
-Ignoring, 注释即其自身语义, shipped-cls 保真不动其他行)。
+签名 taxrow 归 ``microtype_pdftex`` (other 闸保兼容); ``microtype_lig_off``
+行注释中和 (本引擎下该调用恒被 Ignoring, 注释即其自身语义, shipped-cls
+保真不动其他行)。
 """
 
 from functools import lru_cache
@@ -68,21 +69,22 @@ _ERR_HEAD = (
 
 # ──────────────────────────── 类目: file-line 形归 other ────────────────────────
 def test_taxonomy_signature_falls_to_other() -> None:
-    """真实 file-line 错行归 other, payload=None (taxonomy `^.` 兜底)。"""
+    """真实 file-line 错行 taxrow 归 microtype_pdftex, payload=None。"""
     cat, pay = _classify(
         "./applemlr.cls:19: Package microtype Error: Disabling ligatures of a "
         "font is only possible\n(microtype)                with pdftex version "
         "1.30 or newer.\n(microtype)                Ignoring \\DisableLigatures."
         "\n\nl.19 \\DisableLigatures[f]{family=sf*}\n"
     )
-    assert (cat, pay) == ("other", None)
+    assert (cat, pay) == ("microtype_pdftex", None)
 
 
 def test_rule_registered() -> None:
-    """规则面: other+ctx_suggests 臂, loop order 71, cls 在 exts。"""
+    """规则面: other+microtype_pdftex 双臂 + ctx_suggests, loop order 71, cls 在 exts。"""
     rule = _rule("microtype_lig_off")
     assert rule.order == 71  # noqa: PLR2004 - schema 断言值
-    assert rule.when["category"] == "other"
+    cats = {c.get("category") for c in rule.when["any"]}
+    assert {"other", "microtype_pdftex"} <= cats
     assert "Disabling ligatures" in rule.condition["ctx_suggests"]
     assert ".cls" in rule.action["params"]["exts"]
 
@@ -181,20 +183,24 @@ def test_unrelated_cs_untouched(tmp_path: Path) -> None:
 
 
 def test_match_apply_routes(tmp_path: Path) -> None:
-    """整链: other + err_head 签名 → _match_apply 点火本臂并落地注释。"""
-    (tmp_path / "applemlr.cls").write_text(
-        "\\RequirePackage{microtype}\n\\DisableLigatures[f]{family=sf*}\n",
-        encoding="utf-8",
-    )
-    ctx = _ctx(tmp_path, _ERR_HEAD)
-    rule, note = actions._match_apply(  # noqa: SLF001
-        _rs(), ctx, _Eng(), "other", None, ErrReport()
-    )
-    assert rule is not None, note
-    assert rule.id == "microtype_lig_off"
-    assert (
-        "%\\DisableLigatures[f]{family=sf*}" in (tmp_path / "applemlr.cls").read_text()
-    )
+    """整链: 真实派发猫 microtype_pdftex + other 兼容臂同钉 —— 双臂皆点火本臂。"""
+    for cat in ("microtype_pdftex", "other"):
+        sub = tmp_path / cat
+        sub.mkdir()
+        (sub / "applemlr.cls").write_text(
+            "\\RequirePackage{microtype}\n\\DisableLigatures[f]{family=sf*}\n",
+            encoding="utf-8",
+        )
+        ctx = _ctx(sub, _ERR_HEAD)
+        rule, note = actions._match_apply(  # noqa: SLF001
+            _rs(), ctx, _Eng(), cat, None, ErrReport()
+        )
+        assert rule is not None, f"{cat}: {note}"
+        assert rule.id == "microtype_lig_off"
+        assert (
+            "%\\DisableLigatures[f]{family=sf*}"
+            in (sub / "applemlr.cls").read_text()
+        )
 
 
 def test_xetexglyph_arm_unaffected(tmp_path: Path) -> None:

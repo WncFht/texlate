@@ -214,7 +214,10 @@ rules:
     description: "陈旧 .aux 残留 \\NAT@force@numbers 强制行 → 整行剥除 (numbers_pass 已挡再写)"
     phase: loop
     order: 195 # begindoc_tail_recomment(194) 同签族殿后: tex 层裂伤先收, aux 残毒后剥
-    when: { category: other } # .aux:NN file-line 签名归 other (taxonomy `^.` 兜底)
+    when: # .aux:NN file-line 签名 taxrow 归 bib_compat; other 保兼容
+      any:
+        - { category: other }
+        - { category: bib_compat }
     condition:
       ctx_suggests: "Bibliography not compatible with author-year"
       fileset: { has_ext: [.aux] }

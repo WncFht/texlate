@@ -129,9 +129,12 @@ def test_shim_map_loads_entries_are_cls_and_delegate(tmp_path: Path) -> None:
     ],
 )
 def test_shim_map_evolved_class_targets(tmp_path: Path, payload: str) -> None:
-    """有确证继任类的退役 cls → loads 委托正确目标。"""
+    """有确证继任类的退役 cls → 委托正确目标 (loads 模板或 body 内
+    \\LoadClassWithOptions —— sig-alternate 携 kit polyfill 走 body 形)。"""
     spec = _shim_map()[payload]
-    assert spec["loads"] in {"elsarticle", "acmart", "nature"}
+    m = re.search(r"\\LoadClassWithOptions\{([^}]*)\}", spec.get("body") or "")
+    target = spec.get("loads") or (m.group(1) if m else None)
+    assert target in {"elsarticle", "acmart", "nature"}
     ctx, eng = _ctx(tmp_path), _Eng()
     ok, note = TRANSFORM_FNS["legacy_pkg_shim"](ctx, eng, payload, _shim_params())
     assert ok, note
