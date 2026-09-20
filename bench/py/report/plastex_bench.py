@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""plasTeX benchmark — PROTOCOL.md 评测 + 宏展开参考实现价值评估.
+"""plasTeX benchmark — 选型期评测（原 bench/PROTOCOL.md，已退役）+ 宏展开参考实现价值评估.
 
 Outputs:
   results/plastex-parse.json   corpus 逐文件结果

@@ -33,7 +33,7 @@
 
 ## 3. 逐库评测协议（PROTOCOL）
 
-`bench/PROTOCOL.md` 是外部 LaTeX 库选型期的四项对比协议：解析鲁棒性（corpus 全部 .tex，30s 超时）、陷阱断言（fixtures 逐条分类核对）、round-trip 保真（parse→serialize→原文对比，strict/normalized/diverged）、泄漏率（可译块内含 `$`/`\cite`/`\ref`/`\begin{` 的块占比）；报告落 `results/{lib}-report.md`[^protocol]。**注记**：M0 后 `parsebench.py` 是 `texlate.latex` 产品管线的正式评测器，逐库对比层只适用于选型期[^protocol]。
+外部 LaTeX 库选型期的四项对比协议（原 `bench/PROTOCOL.md`，2026-09-20 退役删除）[^protocol]：解析鲁棒性（corpus 全部 .tex，30s 超时）、陷阱断言（fixtures 逐条分类核对）、round-trip 保真（parse→serialize→原文对比，strict/normalized/diverged）、泄漏率（可译块内含 `$`/`\cite`/`\ref`/`\begin{` 的块占比）；报告落 `results/{lib}-report.md`。**注记**：M0 后 `parsebench.py` 是 `texlate.latex` 产品管线的正式评测器，逐库对比层只适用于选型期。
 
 ## 4. 各评测器规格
 
@@ -136,7 +136,7 @@
 
 [^suite]: 仓内证据件 `docs/10-benchmark-suite.md`（旧规格原文，逐门证据矩阵见 [spec0910](../log/audit-2026-09-16/spec0910.md)）。
 [^tiers]: 仓内证据件 `bench/TIERS.md`（验证分层契约原文）。
-[^protocol]: 仓内证据件 `bench/PROTOCOL.md`（逐库评测协议原文）。
+[^protocol]: `bench/PROTOCOL.md`（逐库评测协议原文）已于 2026-09-20 退役删除，原文见 git 历史；陷阱断言登记以 `tests/test_bench_regression.py` 的 TRICKY_IDS 为准。
 [^v3plan]: 仓内证据件 [v3-plan](../research/corpus/v3-plan.md) §7–8（指标口径与门槛论证）与 [parsebench-v1](../research/corpus/parsebench-v1.md)。
 [^parsebench]: 仓内证据件 `bench/py/parsebench.py` 模块 docstring 与 [parse-metrics-literature](../research/methods/parse-metrics-literature.md)。
 [^fixloop]: 仓内证据件 `bench/py/{compilebench_v3,fixloop_bench}.py` docstring 与 [fixloop-rules](../research/latex/fixloop-rules.md)。

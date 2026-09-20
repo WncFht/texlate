@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-pylatexenc benchmark per bench/PROTOCOL.md.
+pylatexenc benchmark — 选型期四项评测（原 bench/PROTOCOL.md，已退役）.
 
 Usage:
     python bench_pylatexenc.py parse      # corpus robustness, subprocess+30s timeout

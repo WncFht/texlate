@@ -18,6 +18,10 @@
 2. **文档归属**：~280 个一次性 probe/smoke/scout 目录零文档引用（合计 <0.5G）；基线目录全部在 keep 名单。
 3. **活 fence**：`sab-r*`/`flipcheck*` 迭代波不在 results/（是 `tmp/lane-*` 现场）；flipcheck10 波在飞期间所有 run 的 `zh/`/`splice/` 是潜在 replay donor。
 
+## 引用解析约定
+
+`docs/` 中形如 `bench/results/<旧 run 名>` 的引用（归零前写入，见 `doc-keep-list.txt` 被引名单）实际解析到本归档 `results/<同名>` 下——docs 路径未逐条改写，读档时自行加 `archive-2026-09-20/` 前缀。
+
 ## work/ 树去向
 
 树本体留在 `bench/results/*/work/`：real 臂 `zh/`（付费译文，swe-2 promo 2026-10-16 到期前不可再生）与 `splice/`（时间点产物 + replay donor）按「分级删」决议全保留；mock 臂 `zh/` 待 flipcheck10 收官后删除（确定性可重建 + 蒸馏已榨干）；`src/`/`_texmf/`/`build-base/` 已于 2026-09-19 A 档删除 17.15G。

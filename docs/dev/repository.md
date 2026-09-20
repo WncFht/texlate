@@ -273,7 +273,7 @@ SolidJS + Vite + TypeScript + vitest + eslint（`eslint-plugin-solid`）；独�
 
 ## 7. `bench/`
 
-三份契约文档管这一层：`PROTOCOL.md`（逐库评测协议 + fixtures 陷阱断言表）、`TIERS.md`（验证分层：L0 单元/L1 机制覆盖/L2 子集回归/L3 全量集成，「能低不高」）、`RETENTION.md`（产物寿命与删除谓词）。
+两份契约文档管这一层：`TIERS.md`（验证分层：L0 单元/L1 机制覆盖/L2 子集回归/L3 全量集成，「能低不高」）、`RETENTION.md`（产物寿命与删除谓词）。fixtures 陷阱断言登记在 `tests/test_bench_regression.py` 的 TRICKY_IDS 与 fixtures 内联 `% @Tnn`；逐库横评协议 `PROTOCOL.md` 已于 2026-09-20 退役删除（原文见 git 历史）。
 
 | 路径 | 角色 |
 | --- | --- |

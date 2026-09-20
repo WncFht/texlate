@@ -9,7 +9,7 @@
 - `web/` — SolidJS+Vite+pdfslick 阅读器前端（独立 package.json/tsconfig/vitest；TypeScript 全量，CI web job 跑 tsc/eslint/vitest）
 - `tests/` — pytest（corpus/网关/node 依赖用例均有 skipif/env 守卫，干净 clone 全绿）
 - `docs/` — 六分区文档库（`README.md` 总索引）：`guide/` 用户文档、`spec/` 技术规范（实现唯一事实源，与代码冲突以代码为准改文档）、`decisions/` ADR 决策史、`dev/` 贡献者文档（仓布局/工具手册/评测协议/errsweep runbook）、`research/` 调研档案（arxiv/latex/corpus/methods/product/errsweep 域 + `model-selection.md`/`bibliography.md` 单件）、`log/` 工程日志（编年时间线 + 审计快照）；**写/改任何文档先读维护规则 `docs/MAINTENANCE.md`**（分区生命周期、格式契约、公开发布敏感政策、索引登记）
-- `bench/` — 解析/编译库 benchmark 现场（`bench/PROTOCOL.md` 是评测协议：每库测解析鲁棒性/陷阱断言/round-trip/输出物 4 项）
+- `bench/` — 解析/编译库 benchmark 现场（`bench/TIERS.md` 验证分层契约 L0–L3；评测器规格 `docs/spec/benchmark.md`；留存契约 `bench/RETENTION.md`）
     - `bench/py/` — python 侧 bench（pylatexenc/TexSoup/plasTeX/fixloop/compile/parsebench 等；miniscanner spike 已退役，断言矩阵移植 `tests/test_bench_regression.py`），`report/`=一次性审计/横评/归因、`corpus/`=语料管线、`scratch/`=一次性探针
     - `bench/py/.venv_babeldoc/` — babeldoc 对照实验专用 venv（gitignored）
     - `bench/ts/` — js 侧 bench（latex-utensils/unified-latex/tree-sitter-latex），独立 package.json，CommonJS

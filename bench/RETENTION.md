@@ -1,8 +1,8 @@
 # 保留契约 —— bench 产物的寿命、删除谓词与活生成器
 
-> 对照 `PROTOCOL.md`（逐库评测协议）、`TIERS.md`（验证分层）、`py/runbook_loop.md`（L3 操作单，含 `work/{id}/` 目录布局）、`stagerun.py` 模块 docstring（DAG 契约）。那几份定义**目录里有什么**，本文定义**每样东西活多久、按什么谓词删**。
+> 对照 `TIERS.md`（验证分层）、`py/runbook_loop.md`（L3 操作单，含 `work/{id}/` 目录布局）、`stagerun.py` 模块 docstring（DAG 契约）、`py/harvest.py`（zh-store 收割器）。那几份定义**目录里有什么**，本文定义**每样东西活多久、按什么谓词删**。
 
-> **2026-09-20 终态 —— results 归零重启 + 兼容壳拆除**：旧 run 全部 458 项已删（账本在 `archive-2026-09-20/`）；real 臂 LLM 资产提取至 **`bench/zh-store/`**（2247 id + 30 重译副本 / 26.1G，含 zh+splice+provenance，见库内 README）；语料唯一物理根 `corpus` 54.9G，四源库 symlink 兼容壳同日拆除（原 MANIFEST 折存 `corpus/MANIFEST_{v1,v2,m1k}.md`，版本冲突落选树存 `corpus/_alt-versions/`）；results/ 现仅 `soak-2026-09-18`（活工单，结清后删）与 `stagerun-smk-unified-2026-09-19`（新基座冒烟）——nightwatch 快照循环已停删。bench/ 总重 ~104G。
+> **2026-09-20 终态 —— results 归零重启 + 兼容壳拆除 + zh-store 三分区**：旧 run 全部 458 项已删（账本在 `archive-2026-09-20/`）；real 臂 LLM 资产提取至 **`bench/zh-store/`**，收割器 `bench/py/harvest.py`：终判 compile-clean → primary `{id}/`，已译非 clean → `_quarantine/{id}/`（付费字节保留、选池永不重译、可日后免费重编译捞回），落选副本 → `_alt/{id}/{run}/`，覆盖索引 `manifest.jsonl`；语料唯一物理根 `corpus` 54.9G，四源库 symlink 兼容壳同日拆除（原 MANIFEST 折存 `corpus/MANIFEST_{v1,v2,m1k}.md`，版本冲突落选树存 `corpus/_alt-versions/`）；nightwatch 快照循环已停删。**收割后 run 的 `work/` 是纯脚手架可整删，results/ 保持纯账本形态。**
 
 ## results/ 结构分类（2026-09-19 时点，387 项）
 
@@ -19,8 +19,8 @@
 
 | 子目录 | 内容 | 重建代价 | 删除口径 |
 |---|---|---|---|
-| `zh/`（real 臂） | 付费 LLM 译文树 | **不可再生**——重译烧 token，swe-2 promo 2026-10-16 到期后同价买不回 | 不删 |
-| `splice/` | 中文 PDF + `.fixloop-entry.pdf` + fixloop 修复树 + log | CPU 可重建，但 inject/fixloop 代码漂移使重建字节≠当时字节 | 不删（时间点保真 + replay 播种源） |
+| `zh/`（real 臂） | 付费 LLM 译文树 | **不可再生**——重译烧 token，swe-2 promo 2026-10-16 到期后同价买不回 | 收割前不删；`harvest.py` 移入 zh-store 后随 work/ 可删 |
+| `splice/` | 中文 PDF + `.fixloop-entry.pdf` + fixloop 修复树 + log | CPU 可重建，但 inject/fixloop 代码漂移使重建字节≠当时字节 | 收割前不删（时间点保真 + replay 播种源）；入 zh-store 后随 work/ 可删 |
 | `zh/`（mock 臂） | 确定性译文树 | 免费重建，代价=逐篇 parse+normalize CPU | 默认留；空间告急时 loop2/loop3/flipcheck 系可删（确定性可复现，失当时字节） |
 | `xlat-state/` | xlat resume 检查点 | 已完成 run 无意义 | 可删（~0.8G，收益小默认留） |
 | `src/` | corpus extracted 原样副本 | 谓词可删：该 id 在任一 corpus 根仍有原件 | **A 档已删**（17.15G，2026-09-19） |
@@ -37,11 +37,10 @@
 
 ## 活生成器（删前必查，2026-09-19 时点）
 
-- `stagerun-m1k-2026-09-19`：real 臂 xlat 在跑；其 `work/{id}/src/` ~1G 与 `.zh-xlat/` 12 例未清，完结后重跑清理脚本收尾
 - `texlate-daily-soak.timer`：每日 02:30 UTC 新增 `corpus_daily/` 论文 + `soak-<date>/` run（语料日增 ~1G 级）
 - `texlate-errsweep.timer`：每日 18:23 蒸馏（在 errsweep worktree，不写 results）
-- `nightwatch.py` cron 循环：每 10min 写 `nightwatch/*.md`
-- 并行会话：replay/重烘焙波随时从既有 run 拷 work 树播种新目录（`replay-mutex-window` 教训：mutex 在飞禁派波）；`tmp/lane-*` 是它们的活现场
+- 并行会话：replay/重烘焙波随时从既有 run 拷 work 树播种新目录（`replay-mutex-window` 教训：mutex 在飞禁派波）；`tmp/lane-*` 是它们的活现场（<2h 有写入即视为在飞，勿动）
+- 收割闸：run 收尾跑 `python3 bench/py/harvest.py --dir <run>`（move 语义）——漏跑则译文随 work/ 删除而丢失；`_quarantine/` 内 id 已在 manifest 标记，选池永不重译
 
 ## 下游依赖（为何不能一刀切删 work/）
 

@@ -435,7 +435,7 @@ records jsonl 容错读写、原子写、safe_id/copytree_ignore、TUNA_TLNET pi
 | 项 | 说明 | 状态 |
 |---|---|---|
 | `bench/fixtures/` | 陷阱 .tex 语料 92K（tricky*@Tnn/xlat-traps），字节即语义 | **保护区**·asset |
-| `bench/PROTOCOL.md` | per-库评测协议（四项横评+报告格式） | 治理·keep |
+| `bench/PROTOCOL.md` | per-库评测协议（四项横评+报告格式） | **已删** 2026-09-20（选型期协议退役，原文见 git 历史） |
 | `bench/TIERS.md` | L0–L3 验证分层契约 | 治理·keep |
 | `bench/RETENTION.md` | results/ 留存契约（归零后存活口径+删除谓词） | 治理·keep（注意：live index 中被他 lane staged-delete） |
 | `bench/results/soak-2026-09-18` | 4.6G 活工单（mock 批 records+work+工单） | keep·结清后可删 |

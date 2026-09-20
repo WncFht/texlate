@@ -503,7 +503,7 @@ def finalize():
         "# Corpus v2 Manifest — arXiv 分层随机抽样源码语料",
         "",
         "分层随机抽样的 arXiv e-print 源码（`arxiv.org/src/{id}v{N}` 钉版本下载，字节原样存 `raw.*`，过滤后树存 `extracted/`）。",
-        "数据在 `bench/corpus_v2/`（不入库），本目录只有此清单。抽样与解包口径见 `bench/PROTOCOL.md` / `docs/research/arxiv/layer.md` §3。",
+        "数据在 `bench/corpus_v2/`（不入库），本目录只有此清单。抽样与解包口径见 `docs/research/arxiv/layer.md` §3。",
         "旧式 ID 按 `archive/name` 嵌套（如 `hep-th/0212074/`）。版本号为下载时 content-disposition 解析值，可复现。",
         "",
         f"- 入库 **{len(oks)}** 篇 · {n_files} 文件 · {n_tex} 个 .tex · 原始包共 {human2(tot_bytes)}",

@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""TexSoup benchmark — PROTOCOL.md 4 项评测.
+"""TexSoup benchmark — 选型期四项评测（原 bench/PROTOCOL.md，已退役）.
 
 Outputs:
   results/texsoup-parse.json   corpus 逐文件结果
