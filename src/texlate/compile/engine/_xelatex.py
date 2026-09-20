@@ -45,7 +45,8 @@ MAX_PASSES = 2
 
 #: 续趟判据（B14 fix#7 rerun-gate）：逐趟 stdout 匹配——命中即 LaTeX 自报
 #: 还要一遍。不收裸 ``rerun``（rerunfilecheck 包名行是常态噪音），也不收
-#: biber 系请求（``Please (re)run Biber`` 单跑 latex 救不了 citation）。
+#: biber 系请求——citation 缺件由 ``_bib_pass`` 按文件态（.bcf/.aux）
+#: 补趟处理，log 串探测在截断 log 上不可靠（lane-bibpass 设计取舍）。
 _RERUN_HINT_RX: Final = re.compile(
     r"rerun to get|label\(s\) may have changed|there were undefined references"
     r"|table widths have changed",
@@ -67,6 +68,43 @@ _OUTPUT_REKEY_PREFIXES: Final = ("-output-directory", "-aux-directory", "-jobnam
 _SHELL_ESCAPE_FLAGS: Final = frozenset(
     {"-shell-escape", "--shell-escape", "-enable-write18", "--enable-write18"}
 )
+
+#: ``_bib_pass`` 逐 aux 扫描上限（``out.rglob("*.aux")`` 排序截断）与
+#: 单次工具子进程预算顶——bibtex 实测 33ms，顶只在病态 .bib 上兜底。
+_BIB_AUX_SCAN_MAX: Final = 8
+_BIB_TOOL_TIMEOUT_MAX: Final = 60.0
+
+#: bbl 完整性尾标（尾窗字节内匹配）：classic bibtex 以
+#: ``\end{thebibliography}`` 收，biblatex 两后端 datalist 以 ``\endinput``
+#: 收（PoC 实测双形）——截断件两标皆缺。截断 bbl 下趟喂 "File ended while
+#: scanning" poison，只留完整件（同 ``bbl_regen`` 防御姿态）。
+_BBL_TAIL_RX: Final = re.compile(rb"\\end\{thebibliography\}|\\endinput")
+_BBL_TAIL_BYTES: Final = 4096
+
+
+def _has_bbl(bbl: Path) -> bool:
+    """同侪 ``.bbl`` 在席判据——空文件视同缺席（无物可失），查不了态按在席。
+
+    在席即永不 clobber：bundled .bbl 是上游跑好的成品（cargo bbl 如
+    ``foxtrot-full.bbl`` 无 .bib 可重生），且 biber 败北会自删同侪 bbl
+    （``_builtins_bib.bbl_regen`` 实证）——在场即整臂跳过才安全。
+    """
+    try:
+        return bbl.is_file() and bbl.stat().st_size > 0
+    except OSError:
+        return True
+
+
+def _bbl_complete(bbl: Path) -> bool:
+    """``_bib_pass`` 采纳闸：产物尾窗须带完整尾标，缺即截断件。"""
+    try:
+        size = bbl.stat().st_size
+        with bbl.open("rb") as fh:
+            fh.seek(max(0, size - _BBL_TAIL_BYTES))
+            tail = fh.read()
+    except OSError:
+        return False
+    return _BBL_TAIL_RX.search(tail) is not None
 
 
 # ================================================================ xelatex
@@ -260,7 +298,7 @@ class XelatexEngine:
         cmd.append(main_name)
         return cmd
 
-    def compile(  # noqa: PLR0913 — 签名即 docs/08 §4.1 规格面
+    def compile(  # noqa: C901, PLR0913, PLR0915 — 签名即 docs/08 §4.1 规格面；pass 环停趟判据单点平铺
         self,
         wdir: Path,
         main: str,
@@ -327,7 +365,11 @@ class XelatexEngine:
         outputs = []
         eff_passes = MAX_PASSES if passes is None else passes
         per_pass = max(10.0, timeout / max(1, eff_passes))
-        for p in range(1, eff_passes + 1):
+        # while 非 for-range：bib 采纳后 eff_passes+1 要真吃进一趟
+        # （range 界在入环时定死，中途改量不延趟——bibcite→aux→[n] 需 3 趟）。
+        p = 0
+        while p < eff_passes:
+            p += 1
             rc, out_s, sec, to = _eng.run_process(
                 cmd, cwd=cwd, env=env, timeout=per_pass, should_cancel=should_cancel
             )
@@ -345,6 +387,30 @@ class XelatexEngine:
             # 重跑；提示缺席照旧即收。钉死档（passes=N）rc!=0 恒停、不吃提示。
             # 信号死（负 rc / 包裹层 128+N）是外部截杀非定败，留续趟通道。
             hint = _RERUN_HINT_RX.search(out_s) is not None
+            # bib 中间趟（lane-bibpass）：后面还有趟才补——趟间产物
+            # （.bcf/.aux）此刻最新。本趟恒收的死相（超时/exec 败/无 pdf）
+            # 与钉死档 rc!=0 不补（补了也吃不到下趟）。采纳即续趟信号；
+            # 自适应档再放一趟——pass2 载 .bbl 把 \bibcite 落 aux，pass3
+            # 才渲文内 [n]（PoC 实证 2 趟仍 [?]）。钉死档 caller 钉了 N，
+            # 只在趟间补 bib、不延趟。
+            if (
+                p < eff_passes
+                and not res.bib_ran
+                and not (to or rc is None or not pdf.exists())
+                and (rc == 0 or sig is not None or passes is None)
+            ):
+                res.bib_ran = self._bib_pass(
+                    wdir,
+                    out,
+                    env,
+                    stem=stem,
+                    sandbox=sandbox,
+                    per_pass=per_pass,
+                    should_cancel=should_cancel,
+                )
+                if res.bib_ran and passes is None:
+                    eff_passes += 1
+            hint = hint or bool(res.bib_ran)
             if (
                 to
                 or rc is None
@@ -368,6 +434,104 @@ class XelatexEngine:
         res.workdir = wdir
         res.deps = compiled_dependencies(wdir, main, out, self.name)
         return res
+
+    def _bib_pass(  # noqa: C901, PLR0912, PLR0913 -- compile 上下文面集中透传；两臂各一段顺序闸
+        self,
+        wdir: Path,
+        out: Path,
+        env: dict[str, str],
+        *,
+        stem: str,
+        sandbox: bool,
+        per_pass: float,
+        should_cancel: Callable[[], bool] | None = None,
+    ) -> list[str]:
+        r"""文件态触发的 bibtex/biber 趟间补跑（lane-bibpass 设计）。
+
+        上游 arXiv latexmk 在 latex 趟间跑 bib 工具再生 ``.bbl``——本引擎
+        此前从不跑，~30% clean 格因此出 ``[?]`` 引用缺。两路择一（互斥由
+        biblatex 自身保证：``backend=biber`` 才产 ``.bcf``；
+        ``backend=bibtex`` 不产 bcf，走 aux ``\citation``+``\bibdata``）：
+
+        1. ``<stem>.bcf`` 在 out 且 ``<stem>.bbl`` 缺席 → ``biber <stem>``；
+        2. 否则逐 aux（``out.rglob`` 排序截 ``_BIB_AUX_SCAN_MAX``）：含
+           ``\citation``+``\bibdata`` 且同侪 ``.bbl`` 缺席 →
+           ``bibtex <aux-rel-stem>``（latexmk 逐 aux 算法——``\include``
+           子件与 multibib 同吃，PoC 实证 ``bibtex sub/ch1`` 可用）。
+
+        工具 argv 走 ``_apply_sandbox`` 同款包裹（bwrap 下 bibtex/biber
+        实测可跑）；``BIBINPUTS``/``BSTINPUTS`` 补 ``wdir``/``out`` 前缀
+        覆盖 out≠cwd 场景（env 键本在透传/挂载白名单内）。同侪 ``.bbl``
+        在席即跳过（``_has_bbl``——bundled .bbl 永不 clobber）。采纳闸：
+        产物须尾标完整（``_bbl_complete``；biber 另须 rc==0——败北会自删
+        poison），不完整件是本趟新产出，删除免毒下一趟。返回采纳记录
+        ``["bibtex:<rel-stem>", ...]``——空表即未跑/未采纳，调用方不计
+        续趟信号。失败仅记 debug，永不中断 pass 环。
+        """
+        ran: list[str] = []
+        bib_env = dict(env)
+        for key in ("BIBINPUTS", "BSTINPUTS"):
+            # 末端空位保 kpathsea 默认树；调用方原值居尾不被吃掉。
+            bib_env[key] = f"{wdir}:{out}:{bib_env.get(key, '')}"
+        budget = min(_BIB_TOOL_TIMEOUT_MAX, per_pass)
+        extra_rw = [self.texmfhome] if self.texmfhome else []
+
+        def _run(argv: list[str]) -> tuple[int | None, str, float, bool | str]:
+            wrapped, _mode = _apply_sandbox(
+                argv,
+                root=wdir,
+                out=out,
+                env=bib_env,
+                enabled=sandbox,
+                allow_net=False,
+                extra_rw=extra_rw,
+            )
+            return _eng.run_process(
+                wrapped,
+                cwd=out,
+                env=bib_env,
+                timeout=budget,
+                should_cancel=should_cancel,
+            )
+
+        bbl_main = out / f"{stem}.bbl"
+        if (out / f"{stem}.bcf").is_file():
+            if _has_bbl(bbl_main):
+                return ran  # bundled .bbl 在席——不跑 biber（败北自删实证）
+            if (tool := _eng.find_tool("biber")) is None:
+                return ran
+            rc, out_s, _sec, to = _run([tool, stem])
+            if rc == 0 and not to and _bbl_complete(bbl_main):
+                ran.append(f"biber:{stem}")
+            else:
+                bbl_main.unlink(missing_ok=True)  # 本趟残件——不喂下一趟
+                log.debug(
+                    "biber %s not adopted rc=%s to=%s: %.200s", stem, rc, to, out_s
+                )
+            return ran
+
+        if (tool := _eng.find_tool("bibtex")) is None:
+            return ran
+        for aux in sorted(out.rglob("*.aux"))[:_BIB_AUX_SCAN_MAX]:
+            bbl = aux.with_suffix(".bbl")
+            if _has_bbl(bbl):
+                continue  # bundled/已产——永不 clobber
+            try:
+                text = aux.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            if "\\citation" not in text or "\\bibdata" not in text:
+                continue
+            rel = str(aux.relative_to(out).with_suffix(""))
+            rc, out_s, _sec, to = _run([tool, rel])
+            if _bbl_complete(bbl):
+                ran.append(f"bibtex:{rel}")
+            else:
+                bbl.unlink(missing_ok=True)  # 截断/空 bbl——删除免毒下趟
+                log.debug(
+                    "bibtex %s not adopted rc=%s to=%s: %.200s", rel, rc, to, out_s
+                )
+        return ran
 
     def probe_file(self, fname: str, *, cwd: Path | None = None) -> str | None:
         """用 kpsewhich 探测文件可解析路径（texmf 树侧结果进程内 memo）。

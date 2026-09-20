@@ -52,6 +52,10 @@ class CompRes:
     #: 任一 pass 被信号杀死时记信号号（如 13=SIGPIPE）——res.rc 只留
     #: 末 pass，mid-loop 死亡会被后 pass 掩盖（2211.13013 实证）。
     killed_signal: int | None = None
+    #: 趟间补跑的参考文献工具采纳记录（``bibtex:<aux-rel-stem>`` /
+    #: ``biber:<stem>``）——非空即本编译跑过 bib 中间趟（``_bib_pass``
+    #: 文件态触发，design tmp/lane-bibpass）；空表 = 未跑或未采纳。
+    bib_ran: list[str] = field(default_factory=list)
     stdout_tail: str = ""
     deps: list[str] | None = None  # compiled_dependencies（.fls/.mk 权威输入集）
     #: 本次实际生效的 OS 沙箱形态：``off``（sandbox=False 或未走到 wrap
