@@ -19,20 +19,20 @@ from texlate.compile.fixloop._builtins_common import (
     _FB_FONT,
     _MATH_SHIM_CS,
     _inject_after_docclass,
-    _live_matches,
+    _inject_before_begindoc,
     _map_tex_files,
     _mc_chr,
     _mc_hit,
-    _mc_parse_log,
     _mc_plan,
+    _mc_seen,
     _mc_table,
+    _splice,
 )
 from texlate.latex.tables import MATH_ENVS
 from texlate.textutil import cs_events_spans, mask_tex
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
-    from pathlib import Path
 
     from texlate.compile.fixloop.engine import Engine, LoopCtx
 
@@ -87,33 +87,11 @@ _KO_FONT_CANDS: tuple[Any, ...] = (
     "Malgun Gothic",
 )
 
-#: ``\begin{document}`` 锚 —— 导言区末位注入点。hangul 路由件须晚于一切
-#: 包装载的 catcode/charclass 重声明 (xetexko 装载把 AC00-D7A3 catcode 重置
+#: ``\begin{document}`` 锚 —— 导言区末位注入点 (``_inject_before_begindoc``,
+#: ``_builtins_common`` 单源)。hangul 路由件须晚于一切包装载的
+#: catcode/charclass 重声明 (xetexko 装载把 AC00-D7A3 catcode 重置
 #: 12 + 圈进自家 HG 类), 又早于 class ``\AtBeginDocument`` 钩内的排版
 #: (kaist-ucs.cls 封面文字在钩内走)。
-_BEGINDOC_RE = re.compile(r"\\begin\s*\{document\}")
-
-
-def _compile_log_text(ctx: LoopCtx) -> str:
-    """定位本轮编译 log。
-
-    ``{stem}.log`` (xelatex) → ``_tect_out/{stem}.log`` (tectonic)
-    → 任一含 Missing character 的 ``*.log`` (兜底)。
-    """
-    main = ctx.main_path()
-    cands: list[Path] = []
-    if main is not None:
-        stem = main.stem
-        cands += [ctx.wdir / f"{stem}.log", ctx.wdir / "_tect_out" / f"{stem}.log"]
-    for p in cands:
-        t = ctx.read(p) if p.is_file() else None
-        if t and "Missing character" in t:
-            return t
-    for p in sorted(ctx.wdir.rglob("*.log")):
-        t = ctx.read(p)
-        if t and "Missing character" in t:
-            return t
-    return ""
 
 
 #: cjk_warmup 注入的绑定预热盒: 每 ``{尺寸/系列 中}`` 组把
@@ -149,10 +127,9 @@ def missing_char_fix(
     ``\iffontchar`` 回退 + xetexko ``\setmainhangulfont`` 族, 认领码位出表。
     """
     del payload
-    log = _compile_log_text(ctx)
-    if not log:
+    seen = _mc_seen(ctx)
+    if seen is None:
         return False, "no compile log with Missing character found"
-    seen = _mc_parse_log(log)
     if not seen:
         return False, "Missing character lines present but no codepoint parsed"
 
@@ -192,28 +169,6 @@ def _mc_apply_warmup(ctx: LoopCtx) -> tuple[bool, str]:
     if _inject_after_docclass(ctx, snippet):
         return True, "injected CJK font-binding warmup"
     return False, "warmup snippet already present"
-
-
-def _inject_before_begindoc(ctx: LoopCtx, snippet: str) -> bool:
-    r"""主文件首个活 ``\begin{document}`` 行首注入 snippet (幂等)。
-
-    导言区末位注入点 —— 晚于一切包装载的 catcode/charclass 重声明
-    (xetexko 装载把 AC00-D7A3 catcode 重置 12 + 圈进自家 HG 类), 又早于
-    class ``\AtBeginDocument`` 钩内的排版 (kaist-ucs.cls 封面文字在钩内
-    走); 且 ``\@onlypreamble`` 命令在此仍合法 (``\AtBeginDocument`` 迟延
-    形则不可)。注释/verbatim 内假锚经 ``_live_matches`` 滤除; 无活锚
-    → False。
-    """
-    main = ctx.main_path()
-    t = ctx.read(main) if main is not None else None
-    if t is None or snippet in t:
-        return False
-    hits = _live_matches(_BEGINDOC_RE, t)
-    if not hits:
-        return False
-    at = t.rfind("\n", 0, hits[0].start()) + 1
-    ctx.write(main, t[:at] + snippet + "\n" + t[at:])
-    return True
 
 
 def _ko_route_snippet(font: str) -> str:
@@ -533,10 +488,9 @@ def font_fallback(
     ``fallback_font``/``_FB_FONT`` 单值路径不探测原样使用。
     """
     del payload
-    log = _compile_log_text(ctx)
-    if not log:
+    seen = _mc_seen(ctx)
+    if seen is None:
         return False, "no compile log with Missing character found"
-    seen = _mc_parse_log(log)
     done: list[str] = []
     if shimmed := _inject_math_cs_shims(ctx, _math_cs_shim_names(ctx, seen)):
         done.append("math cs shim: " + ", ".join(rf"\{c}" for c in shimmed))
@@ -545,10 +499,11 @@ def font_fallback(
         "font_not"
     )  # 字体名正则: 命中即跳 (CJK cp 落 CJK 字体是真缺字形)
     fb_cs = str(params.get("fallback_cs") or "txlatefallback")
+    table = _mc_table(params)
     taken = {
         cp
         for cp, (what, font) in seen.items()
-        for e in _mc_table(params).values()
+        for e in table.values()
         if e.get("replace") and _mc_hit(e, cp, font)
     }
     chars = [
@@ -589,24 +544,16 @@ def _sub_literal_chars(t: str, repl: dict[str, str]) -> tuple[str, int]:
     腐蚀成 ``\\ensuremath{...}`` 串 (audit-2026-09-16)。
     """
     masked = mask_tex(t)
-    hits: list[tuple[int, str]] = []
+    edits: list[tuple[int, int, str]] = []
     for ch, to in repl.items():
         start = 0
         while (i := masked.find(ch, start)) >= 0:
             if t[i] == ch:  # 同码位恰落在遮盖位 (' '/'\\n') 时守卫
-                hits.append((i, to))
+                edits.append((i, i + 1, to))
             start = i + 1
-    if not hits:
+    if not edits:
         return t, 0
-    hits.sort()
-    out: list[str] = []
-    prev = 0
-    for i, to in hits:
-        out.append(t[prev:i])
-        out.append(to)
-        prev = i + 1
-    out.append(t[prev:])
-    return "".join(out), len(hits)
+    return _splice(t, edits), len(edits)
 
 
 # ════════════════════════════════════════════════════════════════
@@ -672,15 +619,7 @@ def _accent_fix_text(t: str, cs_marks: dict[str, str]) -> tuple[str, set[str], i
                 edits.append((m.start(), m.end(), arg))
     if not edits:
         return t, set(), 0
-    edits.sort()
-    out: list[str] = []
-    prev = 0
-    for s, e, r in edits:
-        out.append(t[prev:s])
-        out.append(r)
-        prev = e
-    out.append(t[prev:])
-    return "".join(out), composed, len(edits)
+    return _splice(t, edits), composed, len(edits)
 
 
 def accent_mark_fix(
@@ -696,10 +635,9 @@ def accent_mark_fix(
     再触火); 无预组字 → 剥 accent 留 base。
     """
     del payload
-    log = _compile_log_text(ctx)
-    if not log:
+    seen = _mc_seen(ctx)
+    if seen is None:
         return False, "no compile log with Missing character found"
-    seen = _mc_parse_log(log)
     cs_marks = {cs: chr(cp) for cp, cs in _ACCENT_CS.items() if cp in seen}
     if not cs_marks:
         return False, "no combining-mark missing chars"
@@ -864,15 +802,7 @@ def _macro_glyph_fix_text(
                 n_char += 1
     if not edits:
         return t, 0, 0
-    edits.sort()
-    out: list[str] = []
-    prev = 0
-    for s, e, r in edits:
-        out.append(t[prev:s])
-        out.append(r)
-        prev = e
-    out.append(t[prev:])
-    return "".join(out), n_cs, n_char
+    return _splice(t, edits), n_cs, n_char
 
 
 def macro_glyph_fix(
@@ -888,10 +818,9 @@ def macro_glyph_fix(
     (缺省 .tex/.bbl/.cls)。
     """
     del eng, payload
-    log = _compile_log_text(ctx)
-    if not log:
+    seen = _mc_seen(ctx)
+    if seen is None:
         return False, "no compile log with Missing character found"
-    seen = _mc_parse_log(log)
     sites = {cs: rep for cs, (cp, rep) in _MACRO_GLYPH_CS.items() if cp in seen}
     char_slots = {n: rep for n, rep in _OT1_CHAR_SLOTS.items() if n in seen}
     if not sites and not char_slots:
@@ -982,14 +911,7 @@ def _caret_utf8_text(t: str) -> tuple[str, int, int]:
             n_chars += n
     if not edits:
         return t, 0, 0
-    out: list[str] = []
-    prev = 0
-    for s, e, r in edits:
-        out.append(t[prev:s])
-        out.append(r)
-        prev = e
-    out.append(t[prev:])
-    return "".join(out), len(edits), n_chars
+    return _splice(t, edits), len(edits), n_chars
 
 
 def caret_utf8_fix(
@@ -1008,10 +930,9 @@ def caret_utf8_fix(
     (char_table/字体回退) 照常接管。``params.exts`` 缺省 .tex/.bbl。
     """
     del eng, payload
-    log = _compile_log_text(ctx)
-    if not log:
+    seen = _mc_seen(ctx)
+    if seen is None:
         return False, "no compile log with Missing character found"
-    seen = _mc_parse_log(log)
     if not any(_C1_LO <= cp <= _C1_HI for cp in seen):
         return False, "no C1 missing chars (^^XX byte-notation fingerprint)"
     exts = tuple(params.get("exts") or (".tex", ".bbl"))
@@ -1197,15 +1118,7 @@ def _clone_fix_text(t: str, resolve: Callable[[str], str | None]) -> tuple[str, 
                 edits.append((m.start(), m.end(), rep))
     if not edits:
         return t, 0
-    edits.sort()
-    out: list[str] = []
-    prev = 0
-    for s, e, r in edits:
-        out.append(t[prev:s])
-        out.append(r)
-        prev = e
-    out.append(t[prev:])
-    return "".join(out), len(edits)
+    return _splice(t, edits), len(edits)
 
 
 def fontspec_clone_sub(
@@ -1301,15 +1214,7 @@ def _strip_enc_opts(t: str, enc: str) -> tuple[str, int]:
             edits.append((m.start(1) - 1, m.end(1) + 1, ""))
     if not edits:
         return t, 0
-    edits.sort()
-    out: list[str] = []
-    prev = 0
-    for s, e, r in edits:
-        out.append(t[prev:s])
-        out.append(r)
-        prev = e
-    out.append(t[prev:])
-    return "".join(out), len(edits)
+    return _splice(t, edits), len(edits)
 
 
 def _comment_enc_decl(t: str, enc: str) -> tuple[str, int]:
@@ -1330,14 +1235,7 @@ def _comment_enc_decl(t: str, enc: str) -> tuple[str, int]:
     ]
     if not edits:
         return t, 0
-    out: list[str] = []
-    prev = 0
-    for s, e, r in edits:
-        out.append(t[prev:s])
-        out.append(r)
-        prev = e
-    out.append(t[prev:])
-    return "".join(out), len(edits)
+    return _splice(t, edits), len(edits)
 
 
 def fontenc_enc_relax(
@@ -1525,14 +1423,7 @@ def _rewrite_enc_sites(t: str, rx: re.Pattern[str]) -> tuple[str, int]:
     ]
     if not edits:
         return t, 0
-    out: list[str] = []
-    prev = 0
-    for s, e, r in edits:
-        out.append(t[prev:s])
-        out.append(r)
-        prev = e
-    out.append(t[prev:])
-    return "".join(out), len(edits)
+    return _splice(t, edits), len(edits)
 
 
 def _glyph_uses(t: str, glyph_re: re.Pattern[str]) -> set[str]:

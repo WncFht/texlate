@@ -15,8 +15,10 @@ spike L523-527 恒 False stub 的实装位)。本模块只含机制本体::
 整条拒。落盘走 ``ctx.write`` —— 与 builtin transform 同一路径。
 
 网关面: 默认 env ``TEXLATE_BASE_URL``/``TEXLATE_API_KEY``/``TEXLATE_MODEL``
-(cli.py:612 同口径); 单次调用 ``timeout_s`` 60s, 模块级信号量把同时在飞的
-网关请求压在 4 (swe-2-medium 并发硬闸)。
+(key 另按已决议端点 provider 专名 env 兜底 —— ``xlat.client.env_key_for_url``
+单源, ``env_credentials``/server ``env_key_for`` 同口径); 单次调用
+``timeout_s`` 60s, 模块级信号量把同时在飞的网关请求压在 4
+(swe-2-medium 并发硬闸)。
 
 注: 本轮 taxonomy ``cat``/``pay`` 若由 engine 落到 ``ctx.err_cat``/
 ``ctx.err_pay`` (冻结期未挂) 会进 prompt 与 note; 未挂时 getattr 兜底
@@ -33,8 +35,16 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import httpx
+
 from texlate.textutil import JSON_FENCE_RX, env_raw, safe_resolve
-from texlate.xlat.client import DEFAULT_BASE_URL, DEFAULT_MODEL
+from texlate.xlat.client import (
+    DEFAULT_BASE_URL,
+    DEFAULT_MODEL,
+    ChatClient,
+    ChatOptions,
+    env_key_for_url,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Coroutine
@@ -171,13 +181,10 @@ def _resolve_err_file(ctx: LoopCtx, rep: ErrReport) -> Path | None:
 
     栈全不命中并入 ``reversed(popped_files)`` 递补——
     ``File ended while scanning`` 类 runaway 错报位在最近关闭帧
-    (``popped_files[-1]`` = 肇事候选, #78)。
+    (``popped_files[-1]`` = 肇事候选, #78)。帧序单源
+    ``ErrReport.site_frames``。
     """
-    for tok in reversed(rep.file_stack):
-        t = tok.strip()
-        if t and (hit := _err_tok_path(ctx, t)) is not None:
-            return hit
-    for tok in reversed(rep.popped_files):
+    for tok in rep.site_frames():
         t = tok.strip()
         if t and (hit := _err_tok_path(ctx, t)) is not None:
             return hit
@@ -327,8 +334,9 @@ class LlmFixer:
 
     ``translator`` 满足 :class:`~texlate.xlat.pipeline.Translator` 协议
     (MockTranslator 即测件); None 走默认网关路 —— 每次调用在驱动线程的
-    loop 里新建 ``ChatClient`` (env ``TEXLATE_BASE_URL``/``TEXLATE_API_KEY``
-    /``TEXLATE_MODEL``/``TEXLATE_DIALECT`` 解析), 不跨 loop 复用 httpx 池。
+    loop 里新建 ``ChatClient`` (env ``TEXLATE_BASE_URL``/``TEXLATE_MODEL``
+    /``TEXLATE_DIALECT`` 裸读 + key 走 ``env_key_for_url`` provider 兜底),
+    不跨 loop 复用 httpx 池。
     """
 
     def __init__(  # noqa: PLR0913  # endpoint/key/model/timeout/预算全是独立旋钮
@@ -347,7 +355,7 @@ class LlmFixer:
         """组装配置; ``translator=None`` 时 env 解析网关三件套。"""
         self.translator = translator
         self.base_url = base_url or env_raw("TEXLATE_BASE_URL") or DEFAULT_BASE_URL
-        self.api_key = api_key if api_key is not None else env_raw("TEXLATE_API_KEY")
+        self.api_key = api_key if api_key is not None else env_key_for_url(self.base_url)
         self.model = model or env_raw("TEXLATE_MODEL") or DEFAULT_MODEL
         self.dialect = dialect or env_raw("TEXLATE_DIALECT") or "auto"
         self.timeout_s = timeout_s
@@ -365,13 +373,6 @@ class LlmFixer:
                 max_tokens=self.max_tokens,
                 response_format={"type": "json_object"},
             )
-        import httpx  # noqa: PLC0415  # 默认路才拉 http 栈
-
-        from texlate.xlat.client import (  # noqa: PLC0415
-            ChatClient,
-            ChatOptions,
-        )
-
         timeout = httpx.Timeout(self.timeout_s, connect=10.0)
         msgs = [
             {"role": "system", "content": system},

@@ -14,7 +14,6 @@ docs/spec/compile.md (L312-330) 的沉淀机制::
 
 from __future__ import annotations
 
-import fcntl
 import json
 import threading
 import time
@@ -22,19 +21,23 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from texlate.textutil import append_jsonl
+
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from texlate.compile.fixloop.engine import Engine, Ruleset
+    from texlate.compile.fixloop.engine import Engine, LlmHook, Ruleset, RunFn
 
 __all__ = [
     "CaseSink",
     "ReplayResult",
     "load_cases",
+    "proj_resolver",
     "replay_all",
     "replay_case",
     "stats_backfill",
     "triage",
+    "xelatex_factory",
 ]
 
 # 进 triage 队列的 verdict (docs/08:319); max_rounds/no_errors_no_pdf 同为未救回
@@ -104,15 +107,9 @@ class CaseSink:
             "advisories": cell.get("advisories") or [],
             "log_excerpt": cell.get("log_excerpt") or "",
         }
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        line = json.dumps(rec, ensure_ascii=False) + "\n"
         # 线程锁防同进程交错、flock 防跨进程截断——bench 并行/多 worker 可共享同一 cases.jsonl。
-        with self._lock, self.path.open("a", encoding="utf-8") as f:
-            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-            try:
-                f.write(line)
-            finally:
-                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+        with self._lock:
+            append_jsonl(self.path, rec)
         return rec
 
 
@@ -156,22 +153,61 @@ class ReplayResult:
     regressed: bool = False  # ② 曾 clean 的格被改脏 (batch 层回填)
 
 
-def replay_case(
+def replay_case(  # noqa: PLR0913 -- 驱动面穿透 (fixloop 开关面同构)
     case: dict[str, Any],
     proj: Path,
-    engine: Engine,
+    engine: Engine | None = None,
     ruleset: Ruleset | None = None,
+    *,
+    engine_name: str | None = None,
+    main_rel: str | None = None,
+    runner: RunFn | None = None,
+    case_sink: CaseSink | None = None,
+    compile_timeout: float | None = None,
+    llm_hook: LlmHook | None = None,
+    engine_wrap: Callable[[Engine], Engine] | None = None,
+    inject: Callable[[Path, str | None], None] | None = None,
+    driver: Callable[[dict[str, Any], Path], dict[str, Any]] | None = None,
 ) -> ReplayResult:
-    """门①: 用当前规则库重跑该 case 的工程, fail 格须被修到出 pdf。"""
-    from texlate.compile.fixloop.engine import fixloop  # noqa: PLC0415  # 循环依赖隔离
+    """门①: 用当前规则库重跑该 case 的工程, fail 格须被修到出 pdf。
 
-    cell = fixloop(
-        proj,
-        engine,
-        ruleset=ruleset,
-        corpus_id=case.get("corpus"),
-        cond=case.get("cond"),
-    )
+    驱动面与 ``stage_fixloop`` 接线同构: ``runner``/``case_sink``/
+    ``compile_timeout``/``llm_hook`` 直透 ``fixloop()``; ``engine_name``/
+    ``main_rel`` 缺省各回落 case 记录的 engine/main——回放复现记账
+    口径而非重新探测。``engine_wrap`` 是引擎包装钩 (ResProxy/NoSandbox
+    类 ``Engine→Engine``); ``inject`` 在 fixloop 前对 ``(proj, 实效
+    main_rel)`` 跑一次 (``prepare_chinese`` 式注入——重建树上重放 ctex
+    的挂点)。``driver`` 是 cell 级全控驱动 ``(case, proj) -> cell``:
+    给定时以上旋钮全归它自理 (engine 也可缺席), 供要 texmf runner/
+    baseline 注入等完整接线的驱动方。
+    """
+    eff_main = main_rel or case.get("main")
+    if driver is not None:
+        cell = driver(case, Path(proj))
+    else:
+        if engine is None:
+            msg = "replay_case: engine 与 driver 至少给一个"
+            raise TypeError(msg)
+        from texlate.compile.fixloop.engine import (  # noqa: PLC0415  # 循环依赖隔离
+            fixloop,
+        )
+
+        eng = engine_wrap(engine) if engine_wrap is not None else engine
+        if inject is not None:
+            inject(Path(proj), eff_main)
+        cell = fixloop(
+            proj,
+            eng,
+            ruleset=ruleset,
+            engine_name=engine_name or case.get("engine"),
+            main_rel=eff_main,
+            corpus_id=case.get("corpus"),
+            cond=case.get("cond"),
+            llm_hook=llm_hook,
+            runner=runner,
+            case_sink=case_sink,
+            compile_timeout=compile_timeout,
+        )
     return ReplayResult(
         corpus=case.get("corpus"),
         cond=case.get("cond"),
@@ -186,21 +222,33 @@ def replay_case(
 def replay_all(
     cases: list[dict[str, Any]],
     resolve_proj: Callable[[dict[str, Any]], Path | None],
-    engine_factory: Callable[[dict[str, Any]], Engine],
+    engine_factory: Callable[[dict[str, Any]], Engine] | None = None,
     ruleset: Ruleset | None = None,
+    *,
+    driver: Callable[[dict[str, Any], Path], dict[str, Any]] | None = None,
+    **fixloop_kw: Any,  # noqa: ANN401 -- replay_case 旋钮透传, 键集由其签名定
 ) -> list[ReplayResult]:
     """批量回放 + 门②: 任何「曾 clean」的格不得被改脏。
 
-    ``resolve_proj(case)`` 把 corpus id 映到工程目录 (None → 跳过该格);
-    ``engine_factory(case)`` 按 case 的 engine 字段造引擎实例。
+    ``resolve_proj(case)`` 把 corpus id 映到工程目录 (None → 跳过该格;
+    ``proj_resolver(root)`` 是规范实现); ``engine_factory(case)`` 按 case
+    造引擎实例 (``xelatex_factory(...)`` 是规范实现)——``driver`` 给定时
+    免 engine_factory, 每格直 ``driver(case, proj) -> cell``。
+    ``**fixloop_kw`` 透传 ``replay_case`` 驱动面 (``engine_name``/
+    ``main_rel``/``runner``/``case_sink``/``compile_timeout``/
+    ``engine_wrap``/``inject`` 等)。
     """
+    if driver is None and engine_factory is None:
+        msg = "replay_all: engine_factory 与 driver 至少给一个"
+        raise ValueError(msg)
     results: list[ReplayResult] = []
     pairs: list[tuple[dict[str, Any], ReplayResult]] = []
     for case in cases:
         proj = resolve_proj(case)
         if proj is None or not Path(proj).exists():
             continue
-        res = replay_case(case, Path(proj), engine_factory(case), ruleset)
+        eng = engine_factory(case) if engine_factory is not None else None
+        res = replay_case(case, Path(proj), eng, ruleset, driver=driver, **fixloop_kw)
         results.append(res)
         pairs.append((case, res))
     for case, res in pairs:
@@ -243,3 +291,62 @@ def stats_backfill(raw: dict[str, Any], cells: list[dict[str, Any]]) -> dict[str
         if st.get("status") == "proposed" and st["fires"] and st["rescued_cells"]:
             st["status_suggested"] = "active"  # 人工确认后才转正, 不自动改 status
     return raw
+
+
+# ════════════════════════════════════════════════════════════════
+# canonical 驱动件 — runbook「照抄 stage_fixloop 接线」的 src 侧落点
+# ════════════════════════════════════════════════════════════════
+
+
+def proj_resolver(root: Path | str) -> Callable[[dict[str, Any]], Path | None]:
+    """Canonical ``resolve_proj``: ``case → <root>/<corpus>`` 工程目录。
+
+    corpus id 混存 raw (``cat/id``)/canon/单层 safe (``cat--id``) 诸形——
+    verbatim 先行, 两种替换形各探一次, 首个存在的目录胜出; 诸形皆无 →
+    返回 verbatim 形 (缺席格由 ``replay_all`` 的 exists() 闸跳过, 语义不变)。
+    """
+    root_path = Path(root)
+
+    def _resolve(case: dict[str, Any]) -> Path | None:
+        corpus = str(case.get("corpus") or "")
+        if not corpus:
+            return None
+        for name in dict.fromkeys(
+            (corpus, corpus.replace("/", "--"), corpus.replace("--", "/"))
+        ):
+            cand = root_path / name
+            if cand.is_dir():
+                return cand
+        return root_path / corpus
+
+    return _resolve
+
+
+def xelatex_factory(
+    *,
+    texmf_root: Path | str | None = None,
+    repository: str | None = None,
+    halt_on_error: bool = True,
+) -> Callable[[dict[str, Any]], Engine]:
+    """Canonical ``engine_factory``: 每 case 造一台 ``XelatexEngine``。
+
+    ``texmf_root`` 给定时逐格独占 ``<texmf_root>/<safe corpus>`` usertree
+    (并行回放 tlmgr install 不互踩); None → 引擎缺省树。binary/sandbox/
+    filemap 等其余旋钮走 ``XelatexEngine`` 自身面, 不在此展开。
+    """
+
+    def _make(case: dict[str, Any]) -> Engine:
+        from texlate.compile.engine import (  # noqa: PLC0415  # 引擎边界: 用到才付引擎栈导入
+            XelatexEngine,
+        )
+
+        texmf = (
+            Path(texmf_root) / str(case.get("corpus") or "unnamed").replace("/", "--")
+            if texmf_root is not None
+            else None
+        )
+        return XelatexEngine(
+            halt_on_error=halt_on_error, texmfhome=texmf, repository=repository
+        )
+
+    return _make

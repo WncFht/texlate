@@ -894,8 +894,9 @@ taxonomy:
   - id: syntax
     scope: head
     pattern: "Missing|Runaway|Paragraph ended|Misplaced|Double subscript|Illegal|There's no line|Lonely|Bad math|Something's wrong|not in outer par|allowed only in math|improper|Extra \\}|Forgotten \\\\endgroup|Extra \\\\(?:endgroup|right|middle|else|fi|or)\\b"
-  # 兜底: 首错行在场必命中 —— rep.first 恒为 _is_err_line 认证的错误行
-  # ('!' 或 file-line `f.tex:N:` 形), 故 `^.` 即「有签名错」全量覆盖。
+  # 兜底: 首错行在场必命中 —— rep.first 恒为 texlog.iter_log_events/
+  # match_error_line 认证的错误行 ('!' 或 file-line `f.tex:N:` 形),
+  # 故 `^.` 即「有签名错」全量覆盖。
   # 旧写 `^!` 漏 file-line 形: 无 head 签的 file-line 首错落 tail 段被
   # early_eof 吞 (W126: 0806.2594 TUletters / astro-ph/0408240 natbib-aux
   # 实证, \begin{document} 期 aux 读/字体声明错皆此形)。

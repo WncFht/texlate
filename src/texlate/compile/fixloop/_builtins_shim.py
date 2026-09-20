@@ -1,6 +1,7 @@
 r"""_builtins_shim — stub/遮蔽/polyfill 注入原语 (C3 拆分)。
 
-往 wdir/主文件注入新件或 prologue: 退役包 cls/sty stub (legacy_pkg_shim) /
+往 wdir/主文件注入新件或 prologue, 或把位错稿自带件归位到解析位
+(fileset_relocate/driver_tfm_hoist): 退役包 cls/sty stub (legacy_pkg_shim) /
 svjour .clo noop stub / pdfTeX 读取原语 polyfill / 期刊宏 ``\\providecommand``
 整表注入 / 引擎 bundle 内建类遮蔽 stub; ``shim_pkgs_in_use`` 是 shim_map
 键的工程在用量查询 (engine shim_known 条件实现)。
@@ -10,9 +11,11 @@ from __future__ import annotations
 
 import re
 import shutil
+from fnmatch import fnmatchcase
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any
 
+from texlate.arxiv.locate import safe_rel
 from texlate.compile.fixloop._builtins_common import (
     _AT_LETTER_POST,
     _AT_LETTER_PRE,
@@ -21,18 +24,23 @@ from texlate.compile.fixloop._builtins_common import (
     PDFTEX_PRIMS,
     _fixloop_log,
     _inject_after_docclass,
+    _inject_before_begindoc,
     _inject_write,
+    _is_live,
     _live_matches,
     _mc_chr,
-    _mc_parse_log,
+    _mc_seen,
     _mc_table,
     _resolve_site,
 )
 from texlate.compile.fixloop._builtins_csfix import _ensure_usepackage
+from texlate.compile.fixloop._builtins_graphics import _PDF_SANITIZE_SKIP_DIRS
 from texlate.latex.tables import MATH_ENVS
 from texlate.textutil import DOCCLASS_OPTS_RX, mask_tex, safe_is_file
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable, Iterator
+
     from texlate.compile.fixloop.engine import Engine, LoopCtx
 
 
@@ -337,6 +345,59 @@ def _shim_spec(
     return fname, spec
 
 
+def _safe_rel(name: str) -> PurePosixPath | None:
+    """``payload`` 名 → ``PurePosixPath``; 空名/绝对路径/``..`` 段/NUL → ``None``。
+
+    各注入/归位 builtin 统一的 payload 拒收口——非相对安全名一律 decline,
+    绝不把 ``../x``/``/etc/x`` 写进 wdir。词法单源
+    ``texlate.arxiv.locate.safe_rel`` (misc 叶经本件回引)。
+    """
+    return safe_rel(name)
+
+
+def _install_needs(
+    ctx: LoopCtx, eng: Engine, needs: Iterable[str] | None
+) -> list[str]:
+    """stub/shadow 的 ``needs`` 依赖逐件补装 → 仍缺名表。
+
+    解析位已有件 / ``probe_file`` 可探 / ``install_file`` 可装三者任一即不缺;
+    缺者照记进 note (下轮 missing_file 自然归因), 不阻塞本体注入。
+    """
+    missing = []
+    for dep in needs or []:
+        dep_site = _resolve_site(ctx, PurePosixPath(dep))
+        if (
+            (dep_site is not None and dep_site.is_file())
+            or eng.probe_file(dep)
+            or eng.install_file(dep)
+        ):
+            continue
+        missing.append(dep)
+    return missing
+
+
+def _inject_named(
+    ctx: LoopCtx, rel: PurePosixPath, body: str, name: str, why: str = ""
+) -> tuple[bool, str]:
+    """``_resolve_site`` → ``_inject_write`` 一条龙 → ``(ok, note)``。
+
+    site 逃出 wdir / 外来件指纹闸 / 写失败 / 盘上已 current 各终局 note
+    直冒泡 (``False`` 调用方 decline, ``True`` 已 current 免重写); 写成功
+    拼 ``"<name> injected"`` (旧代件为 ``"refreshed (stale injected)"``),
+    ``why`` 非空加 ``(<why>)`` 尾注。
+    """
+    site = _resolve_site(ctx, rel)
+    if site is None:
+        return False, f"{rel}: escapes wdir"
+    done, state = _inject_write(ctx, site, body, name)
+    if done is not None:
+        return done
+    note = f"{name} {'refreshed (stale injected)' if state == 'stale' else 'injected'}"
+    if why:
+        note += f" ({why})"
+    return True, note
+
+
 def legacy_pkg_shim(
     ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
 ) -> tuple[bool, str]:
@@ -370,35 +431,18 @@ def legacy_pkg_shim(
         )
     if not stub:
         return False, f"shim spec for {payload} has neither body nor loads"
-    missing = []
-    for dep in spec.get("needs") or []:
-        dep_site = _resolve_site(ctx, PurePosixPath(dep))
-        if (
-            (dep_site is not None and dep_site.is_file())
-            or eng.probe_file(dep)
-            or eng.install_file(dep)
-        ):
-            continue
-        missing.append(dep)
-    site = _resolve_site(ctx, PurePosixPath(fname))
-    if site is None:
-        return False, f"{fname}: escapes wdir"
-    done, state = _inject_write(ctx, site, stub, f"stub {fname}")
-    if done is not None:
-        return done
-    note = f"stub {fname} {'refreshed (stale injected)' if state == 'stale' else 'injected'}"
-    if loads:
-        note += f" (\\LoadClassWithOptions{{{loads}}})"
-    if missing:
+    missing = _install_needs(ctx, eng, spec.get("needs"))
+    # 指纹闸: 稿自带同名件不覆写; 旧代注入件覆写刷新。
+    ok, note = _inject_named(
+        ctx,
+        PurePosixPath(fname),
+        stub,
+        f"stub {fname}",
+        why=f"\\LoadClassWithOptions{{{loads}}}" if loads else "",
+    )
+    if ok and missing:
         note += f"; deps still missing: {', '.join(missing)}"
-    return True, note
-
-
-#: ``\documentclass`` 选项表提取 —— 选项可缺省, 方括号内允跨行空白。
-#: 单源 ``textutil.DOCCLASS_OPTS_RX``；私名仍挂 builtins 门面 ``__all__``
-#: 再导出位, 但门面路径零消费 (B12 死回引在册)——唯一用点是本叶
-#: ``svjour_clo_stub``。
-_DOCCLASS_OPTS_RE = DOCCLASS_OPTS_RX
+    return ok, note
 
 
 #: ``svjour_clo_stub`` 写入体: 真 .clo 内嵌 size10.clo 复刻本
@@ -457,11 +501,11 @@ def svjour_clo_stub(
     if t is None:
         return False, "no main tex"
     vis = mask_tex(t)  # 注释掉的 %\documentclass 的选项不得入 stub 表
-    if not _DOCCLASS_OPTS_RE.search(vis):
+    if not DOCCLASS_OPTS_RX.search(vis):
         return False, "no \\documentclass in main"
     opts = [
         o.strip()
-        for m in _DOCCLASS_OPTS_RE.finditer(vis)
+        for m in DOCCLASS_OPTS_RX.finditer(vis)
         for o in (m.group(1) or "").split(",")
         if o.strip()
     ]
@@ -598,31 +642,18 @@ def bundled_class_shadow(
         return False, f"{payload} not in bundle-shadow set"
     if not cs or cs not in cs_set:
         return False, f"{payload} not in bundle-shadow set"
-    missing = []
-    for dep in params.get("needs") or []:
-        dep_site = _resolve_site(ctx, PurePosixPath(dep))
-        if (
-            (dep_site is not None and dep_site.is_file())
-            or eng.probe_file(dep)
-            or eng.install_file(dep)
-        ):
-            continue
-        missing.append(dep)
-    t = _resolve_site(ctx, PurePosixPath(str(target)))
-    if t is None:
-        return False, f"{target}: escapes wdir"
+    missing = _install_needs(ctx, eng, params.get("needs"))
     # 指纹闸: 稿自带同名件不覆写; 旧代注入件覆写刷新。
-    done, state = _inject_write(ctx, t, str(body), f"shadow {target}")
-    if done is not None:
-        return done
-    why = f"\\{cs} missing from bundled class"
-    note = (
-        f"shadow {target} {'refreshed (stale injected)' if state == 'stale' else 'injected'}"
-        f" ({why})"
+    ok, note = _inject_named(
+        ctx,
+        PurePosixPath(str(target)),
+        str(body),
+        f"shadow {target}",
+        why=f"\\{cs} missing from bundled class",
     )
-    if missing:
+    if ok and missing:
         note += f"; deps still missing: {', '.join(missing)}"
-    return True, note
+    return ok, note
 
 
 # ════════════════════════════════════════════════════════════════
@@ -672,8 +703,8 @@ def generated_stub(
     """
     del eng
     fname = (payload or "").strip()
-    rel = PurePosixPath(fname)
-    if not fname or rel.is_absolute() or ".." in rel.parts or "\x00" in fname:
+    rel = _safe_rel(fname)
+    if rel is None:
         return False, f"unsafe stub name {fname!r}"
     faces = {str(f) for f in (params.get("faces") or ("openout", "overlay"))}
     hit: str | None = None
@@ -735,23 +766,57 @@ _RELOCATE_TRANSIENT_EXTS = frozenset(
 _RELOCATE_TRANSIENT_NAME_EXTS = (".run.xml", ".synctex.gz", ".fdb_latexmk")
 
 
+def _is_transient_name(name: str, suffix: str) -> bool:
+    """编译自产瞬态件判定 —— ``.aux``/``.bbl`` 族扩展名或复合尾缀命中即瞬态。
+
+    瞬态缺位是上游病灶信号非源档位错, 搬陈件/stub 都遮蔽真因
+    (``_RELOCATE_TRANSIENT_*`` 表注, 2609.20323 实证)。
+    """
+    return suffix.lower() in _RELOCATE_TRANSIENT_EXTS or name.lower().endswith(
+        _RELOCATE_TRANSIENT_NAME_EXTS
+    )
+
+
+def _in_wdir(ctx: LoopCtx, p: Path) -> bool:
+    """``p`` resolve 后是否仍落 ``ctx.wdir`` 内 —— resolve 失败按逃逸论。"""
+    try:
+        p.resolve().relative_to(ctx.wdir.resolve())
+    except (OSError, RuntimeError, ValueError):
+        return False
+    return True
+
+
+def _wdir_project_files(ctx: LoopCtx) -> Iterator[tuple[Path, tuple[str, ...]]]:
+    """``wdir`` 工程件遍历 → ``(path, wdir 相对 parts)``, dot 段与引擎树排除。
+
+    dot 段路径 (``.git``/``.fixloop-*`` 类) 与任一段命中
+    ``_PDF_SANITIZE_SKIP_DIRS`` (``_texmf`` wired texmfhome / ``_tect_out``
+    tectonic 产物树) 的件都不算工程档——引擎封装件非稿自带, 归位/hoist
+    不得把它们当搬运源 (``parts[0]`` 判会漏嵌套位, 须 any-part)。
+    """
+    for p in ctx.wdir.rglob("*"):
+        if not safe_is_file(p):
+            continue
+        parts = p.relative_to(ctx.wdir).parts
+        if any(part.startswith(".") for part in parts) or any(
+            part in _PDF_SANITIZE_SKIP_DIRS for part in parts
+        ):
+            continue
+        yield p, parts
+
+
 def _find_relocate_src(ctx: LoopCtx, rel: PurePosixPath) -> Path | None:
     r"""定位位错真身 —— wdir 内后缀路径匹配优先, basename 兜底, 浅者优先。
 
     ``**/payload`` 形命中 (如 payload ``templates/arxiv/fairmeta.cls`` 对
     深层同名位) 高于裸 basename; dot 段路径 (``./.git``/``.texmf`` 类)
-    剔除 —— 工程件不住隐藏目录。多命中取 (rank, 深度, 路径) 最小者,
-    确定性排序。
+    与引擎树 (``_texmf``/``_tect_out``) 剔除 —— 工程件不住隐藏目录与
+    引擎封装树。多命中取 (rank, 深度, 路径) 最小者, 确定性排序。
     """
     want_tail = tuple(p.lower() for p in rel.parts)
     base = rel.name.lower()
     cands: list[tuple[int, int, str, Path]] = []
-    for p in ctx.wdir.rglob("*"):
-        if not safe_is_file(p):
-            continue
-        parts = p.relative_to(ctx.wdir).parts
-        if any(part.startswith(".") for part in parts):
-            continue
+    for p, parts in _wdir_project_files(ctx):
         pl = tuple(part.lower() for part in parts)
         if pl[-len(want_tail) :] == want_tail:
             rank = 0
@@ -788,21 +853,16 @@ def fileset_relocate(  # noqa: PLR0911 - 逐门 decline note 即归因
     """
     del eng, params
     fname = (payload or "").strip().strip("'\"")
-    rel = PurePosixPath(fname)
-    if not fname or rel.is_absolute() or ".." in rel.parts or "\x00" in fname:
+    rel = _safe_rel(fname)
+    if rel is None:
         return False, f"unsafe relocate name {fname!r}"
-    name_l = rel.name.lower()
-    if rel.suffix.lower() in _RELOCATE_TRANSIENT_EXTS or name_l.endswith(
-        _RELOCATE_TRANSIENT_NAME_EXTS
-    ):
+    if _is_transient_name(rel.name, rel.suffix):
         return False, f"{fname}: transient artifact — not a source file"
     mp = ctx.main_path()
     if mp is None:
         return False, f"{fname}: main unknown — resolve site undetermined"
     target = mp.parent / Path(*rel.parts)
-    try:
-        target.resolve().relative_to(ctx.wdir.resolve())
-    except ValueError:
+    if not _in_wdir(ctx, target):
         return False, f"{fname}: escapes wdir"
     if safe_is_file(target):
         return False, f"{fname}: already at resolve site"
@@ -832,9 +892,7 @@ def _mirror_tree_skip(
     """镜像源件逐项跳闸 —— 瞬态件/dot 段/目标自身/已处归位树内 (防递归)。"""
     if any(part.startswith(".") for part in pparts):
         return True
-    if p.suffix.lower() in _RELOCATE_TRANSIENT_EXTS or p.name.lower().endswith(
-        _RELOCATE_TRANSIENT_NAME_EXTS
-    ):
+    if _is_transient_name(p.name, p.suffix):
         return True
     pres = p.resolve()
     if pres == target_res:
@@ -863,11 +921,9 @@ def _mirror_relocate_tree(
     dst_top = main_dir / top
     if not src_top.is_dir() or src_top.resolve() == dst_top.resolve():
         return 0
-    try:
-        dst_top_res = dst_top.resolve()
-        dst_top_res.relative_to(ctx.wdir.resolve())
-    except ValueError:
+    if not _in_wdir(ctx, dst_top):
         return 0
+    dst_top_res = dst_top.resolve()
     target_res = target.resolve()
     n = 0
     for p in sorted(src_top.rglob("*")):
@@ -926,10 +982,8 @@ def driver_tfm_hoist(
         return False, f"{want}: already at driver resolve site"
     hits = [
         p
-        for p in sorted(ctx.wdir.rglob(want))
-        if safe_is_file(p)
-        and not any(part.startswith(".") for part in p.relative_to(ctx.wdir).parts)
-        and p.parent.resolve() != dst_res
+        for p, _parts in sorted(_wdir_project_files(ctx))
+        if fnmatchcase(p.name, want) and p.parent.resolve() != dst_res
     ]
     if not hits:
         return False, f"{want}: not present in fileset"
@@ -1021,12 +1075,10 @@ def doc_absent_stub(  # noqa: PLR0911 - 逐门 decline note 即归因
     """
     del eng
     fname = (payload or "").strip().strip("'\"")
-    rel = PurePosixPath(fname)
-    if not fname or rel.is_absolute() or ".." in rel.parts or "\x00" in fname:
+    rel = _safe_rel(fname)
+    if rel is None:
         return False, f"unsafe stub name {fname!r}"
-    if rel.suffix.lower() in _RELOCATE_TRANSIENT_EXTS or rel.name.lower().endswith(
-        _RELOCATE_TRANSIENT_NAME_EXTS
-    ):
+    if _is_transient_name(rel.name, rel.suffix):
         return False, f"{fname}: transient artifact — not a source file"
     exts = {str(e).lower() for e in (params.get("exts") or (".tex",))}
     if rel.suffix.lower() not in exts:
@@ -1143,30 +1195,6 @@ _KERNEL_ENVS: frozenset[str] = frozenset(
 )
 
 
-def _inject_before_begindoc(ctx: LoopCtx, snippet: str) -> bool:
-    r"""主文件首个 live ``\begin{document}`` 行首注入 snippet (幂等)。
-
-    与 docclass 缝位的本质差别: 全部 ``\usepackage``/cls 内装载已执行,
-    ``\ifcsname`` 守卫在此点才能正确见包/类已定义名 —— env polyfill
-    批扩依赖这个时序 (docclass 位守卫会把后载包定义的环境误判成缺,
-    注成 noop 再被包的 ``\newenvironment`` 反撞 already_def)。
-    无 live ``\begin{document}`` (片断稿/死区命中) 退 docclass 缝。
-    """
-    main = ctx.main_path()
-    t = ctx.read(main) if main is not None else None
-    if t is None or snippet in t:
-        return False
-    masked = mask_tex(t)
-    m = re.search(r"\\begin\s*\{\s*document\s*\}", masked)
-    if m is None or masked[m.start() : m.end()] != t[m.start() : m.end()]:
-        return _inject_after_docclass(ctx, snippet)
-    # 行首锚 —— \begin{document} 若裹在宏参死块 (\doit{0}{...}) 里,
-    # 行首注入仍落活区顶位
-    at = t.rfind("\n", 0, m.start()) + 1
-    ctx.write(main, t[:at] + snippet + "\n" + t[at:])
-    return True
-
-
 def _env_noop_line(env: str) -> str:
     r"""``\ifcsname`` 守卫的 noop ``\newenvironment`` 行; 数学 env 给 ``\[..\]`` 壳。"""
     pre, post = (r"\[", r"\]") if env in MATH_ENVS else ("", "")
@@ -1217,7 +1245,7 @@ def _live_renew_sites(t: str, envs: set[str]) -> dict[str, int]:
         name = m.group(1)
         if name not in envs or name in sites:
             continue
-        if masked[m.start() : m.end()] != t[m.start() : m.end()]:
+        if not _is_live(m, masked, t):
             continue  # 注释/verbatim 死区内站点不动
         sites[name] = m.start()
     return sites
@@ -1362,7 +1390,9 @@ def undefined_env_polyfill(  # noqa: C901  # pkg_map/站点/对偶件/批扩多�
             lines.append(_env_noop_line(e))
             if e in companions:
                 lines.append(companions[e])
-        if _inject_before_begindoc(ctx, "\n".join(lines)):
+        if _inject_before_begindoc(
+            ctx, "\n".join(lines), strict_first=True, fallback=_inject_after_docclass
+        ):
             notes.append(f"env polyfill: {', '.join(fresh)}")
     if not notes:
         return False, "undefined envs already polyfilled"
@@ -1551,10 +1581,9 @@ def cs_rebind(
     排在重声明后, 迟延绑定存活。
     """
     del eng, payload
-    log = _fixloop_log(ctx)
-    if "Missing character" not in log:
+    seen = _mc_seen(ctx)
+    if seen is None:
         return False, "no Missing character in compile log"
-    seen = _mc_parse_log(log)
     if not seen:
         return False, "Missing character lines but no codepoint parsed"
     producers = _producer_map(params)
@@ -1744,6 +1773,8 @@ def bm_mathchar_wrap(
     del eng, payload, params
     if not _BM_FAMILY_USE_RE.search(mask_tex(ctx.source_blob())):
         return False, "no bm-family macro use in source"
-    if not _inject_before_begindoc(ctx, _BM_MATHCHAR_WRAP):
+    if not _inject_before_begindoc(
+        ctx, _BM_MATHCHAR_WRAP, strict_first=True, fallback=_inject_after_docclass
+    ):
         return False, "bm wrap block already present"
     return True, "bm-family group-wrap polyfill injected"

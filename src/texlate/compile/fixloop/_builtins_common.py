@@ -12,11 +12,12 @@ import re
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING
 
-from texlate.compile.inject import find_docclass_ends
-from texlate.textutil import mask_tex
+from texlate.compile._seams import find_docclass_ends
+from texlate.texlog import _mc_parse_log
+from texlate.textutil import BEGIN_DOC_RX, iter_depth0, mask_tex
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Iterable
     from typing import Any
 
     from texlate.compile.fixloop.engine import LoopCtx
@@ -283,6 +284,15 @@ def _resolve_site(ctx: LoopCtx, rel: PurePosixPath) -> Path | None:
     return dst
 
 
+def _is_live(m: re.Match[str], masked: str, t: str) -> bool:
+    r"""遮盖视图命中体的原文保真判 —— 跨遮盖区 (注释/verbatim 死臂) 命中为假。
+
+    ``_live_matches`` 的逐命中谓词形: 非 ``finditer`` 枚举源
+    (``iter_depth0`` 等自带过滤的迭代器) 逐枚复核用。
+    """
+    return masked[m.start() : m.end()] == t[m.start() : m.end()]
+
+
 def _live_matches(rx: re.Pattern[str], t: str) -> list[re.Match[str]]:
     r"""遮盖视图命中且匹配体完整未遮——``%`` 注释/verbatim 内假装载点不算。
 
@@ -314,6 +324,24 @@ def _map_tex_files(
     return n_files
 
 
+def _splice(t: str, edits: list[tuple[int, int, str]]) -> str:
+    r"""(start, end, rep) 编辑表 → 排序回放拼接 (站点改写通用骨架)。
+
+    各 ``_*_fix_text``/站点改写器只产编辑表, 回放语义单源 —— 与
+    ``compile/mask.py`` ``apply_edits`` 不同: 纯拼接, 不补 ``\\n`` 保行号。
+    csfix 叶 prepend 形 = 零宽编辑同骨架。
+    """
+    edits.sort()
+    out: list[str] = []
+    prev = 0
+    for s, e, r in edits:
+        out.append(t[prev:s])
+        out.append(r)
+        prev = e
+    out.append(t[prev:])
+    return "".join(out)
+
+
 def _drop_pkg_loads(t: str, pkg: str) -> tuple[str, int]:
     r"""剥 ``\usepackage``/``\RequirePackage`` 对 pkg 的装载 → (新文本, 摘除数)。
 
@@ -338,6 +366,19 @@ def _drop_pkg_loads(t: str, pkg: str) -> tuple[str, int]:
         return "% fixloop: stripped " + m.group(0).strip()
 
     return pat.sub(_sub, t), n
+
+
+#: ``\usepackage``/``\RequirePackage`` 装载点 —— group(1)=花括内逗号列
+#: 元素串 (``[opts]`` 跳过)。无行首锚: ``\if..\RequirePackage..\fi``
+#: 单行条件形也收, 前置在 token 前序位恒正确。
+_LOAD_SITE_RE = re.compile(
+    r"\\(?:usepackage|RequirePackage)\s*(?:\[[^\]\n]*\])?\s*\{([^}]*)\}"
+)
+
+
+def _load_elems(m: re.Match[str]) -> set[str]:
+    r"""``_LOAD_SITE_RE`` 命中的花括逗号列 → 小写去空白包名集。"""
+    return {e.strip().lower() for e in m.group(1).split(",") if e.strip()}
 
 
 def _inject_after_docclass(ctx: LoopCtx, snippet: str) -> bool:
@@ -375,6 +416,78 @@ def _inject_after_docclass(ctx: LoopCtx, snippet: str) -> bool:
     return True
 
 
+def _inject_before_anchor(  # noqa: PLR0913 - 锚/depth0/strict_first/fallback 四旋钮各叶语义位
+    ctx: LoopCtx,
+    snippet: str,
+    anchor: re.Pattern[str],
+    *,
+    depth0: bool = False,
+    strict_first: bool = False,
+    fallback: str | Callable[[LoopCtx, str], bool] | None = None,
+) -> bool:
+    r"""主文件首个活 ``anchor`` 命中行首前注入 snippet (幂等)。
+
+    遮盖视图找锚: ``depth0`` 走 ``iter_depth0`` (def 体/花括组内命中不算,
+    csfix docclass/paralong begindoc 口径), 缺省 ``finditer`` 全命中
+    (misschar begindoc 口径); ``_is_live`` 复核剔注释/verbatim 死命中。
+    ``strict_first`` 只验首个遮盖命中 (shim begindoc 口径: 首命中落死区
+    不续扫, 视同无锚直退 ``fallback``)。
+
+    无可用锚时 ``fallback`` 分派: ``None`` → False; ``"head"`` → 文件头
+    注入 (csfix docclass 臂: preamble 顶仍先于一切 cls 执行); callable →
+    委派 (shim: ``_inject_after_docclass``)。
+    """
+    main = ctx.main_path()
+    t = ctx.read(main) if main is not None else None
+    if t is None or snippet in t:
+        return False
+    masked = mask_tex(t)
+    pos: int | None = None
+    if strict_first:
+        m = anchor.search(masked)
+        if m is not None and _is_live(m, masked, t):
+            pos = t.rfind("\n", 0, m.start()) + 1
+    else:
+        hits = iter_depth0(anchor, masked) if depth0 else anchor.finditer(masked)
+        for m in hits:
+            if _is_live(m, masked, t):
+                pos = t.rfind("\n", 0, m.start()) + 1
+                break
+    if pos is None:
+        if fallback is None:
+            return False
+        if fallback == "head":
+            ctx.write(main, snippet + "\n" + t)
+            return True
+        return fallback(ctx, snippet)
+    ctx.write(main, t[:pos] + snippet + "\n" + t[pos:])
+    return True
+
+
+def _inject_before_begindoc(
+    ctx: LoopCtx,
+    snippet: str,
+    *,
+    depth0: bool = False,
+    strict_first: bool = False,
+    fallback: str | Callable[[LoopCtx, str], bool] | None = None,
+) -> bool:
+    r"""``_inject_before_anchor`` 的 ``\begin{document}`` 锚特化。
+
+    导言区末位注入点 —— 晚于一切包装载的 catcode/charclass 重声明,
+    又早于 class ``\AtBeginDocument`` 钩内排版与 ``\begin{document}``
+    执行内触发的 aux 读面; ``\@onlypreamble`` 命令在此仍合法。
+    """
+    return _inject_before_anchor(
+        ctx,
+        snippet,
+        BEGIN_DOC_RX,
+        depth0=depth0,
+        strict_first=strict_first,
+        fallback=fallback,
+    )
+
+
 # ════════════════════════════════════════════════════════════════
 # 编译 log 定位 (C3 收尾归位: csfix/bib/shim 三叶共用的通用版)
 # ════════════════════════════════════════════════════════════════
@@ -402,6 +515,39 @@ def _fixloop_log(ctx: LoopCtx) -> str:
     return ""
 
 
+def _compile_log_text(ctx: LoopCtx) -> str:
+    """定位本轮编译 log (Missing character 内容门)。
+
+    ``{stem}.log`` (xelatex) → ``_tect_out/{stem}.log`` (tectonic)
+    → 任一含 Missing character 的 ``*.log`` (兜底)。
+    """
+    main = ctx.main_path()
+    cands: list[Path] = []
+    if main is not None:
+        stem = main.stem
+        cands += [ctx.wdir / f"{stem}.log", ctx.wdir / "_tect_out" / f"{stem}.log"]
+    for p in cands:
+        t = ctx.read(p) if p.is_file() else None
+        if t and "Missing character" in t:
+            return t
+    for p in sorted(ctx.wdir.rglob("*.log")):
+        t = ctx.read(p)
+        if t and "Missing character" in t:
+            return t
+    return ""
+
+
+def _mc_seen(ctx: LoopCtx) -> dict[int, tuple[str, str]] | None:
+    """含缺字的编译 log → 解析码位表; 无 log → ``None`` (表可空: 全 nullfont 滤除)。
+
+    ``_compile_log_text`` (内容门) + ``_mc_parse_log`` 的读侧短路 ——
+    misschar 叶与 shim 叶 log-gate 同用 (后者 ``_fixloop_log`` + 子串门
+    无 rglob 兜底, 弱于本口径)。
+    """
+    log = _compile_log_text(ctx)
+    return _mc_parse_log(log) if log else None
+
+
 # ════════════════════════════════════════════════════════════════
 # missing_char 读侧/规划侧机制 (C3 收尾归位: shim 叶同消费)
 # 「Missing character」行解析 → 码位 → 表匹配 → 修复规划;
@@ -410,16 +556,11 @@ def _fixloop_log(ctx: LoopCtx) -> str:
 # ════════════════════════════════════════════════════════════════
 
 #: ``Missing character: There is no <what> (U+XXXX)? in font <font>``
-#: xetex/tectonic spec 字体带 ``(U+XXXX)``; tfm 字体带 ``("XXXX)`` 十六进制
-#: (``("8FD9)`` = U+8FD9「这」, 码位仍是 Unicode); pdftex 8-bit 给裸字符或
-#: ``^^xx`` 记法。
-_MISSING_CHAR_RE = re.compile(
-    r"Missing character:\s*There is no (?P<what>.+?)"
-    r"(?:\s*\((?P<cp>U\+[0-9A-Fa-f]+|\"[0-9A-Fa-f]+)\))?\s*in font\s+(?P<font>[^\s!;]+)"
-)
-
-#: ``^^xx``/``^^^xxxx`` TeX 记法码位提取。
-_CARET_HEX_RE = re.compile(r"\^{2,3}([0-9a-fA-F]{2,4})")
+#: 消息正则 (``_MISSCHAR_MSG_RX``)、U+000A 折行拼回 (``_MISSCHAR_WRAP_RX``)
+#: 与码位解析 (``_misschar_cp``) 单源在更深的 ``texlate.texlog`` ——
+#: fixloop→texlog 边既存 (engine/actions 同向), 本叶直引同口径件,
+#: 不再同形双写。spec 字体 ``(U+XXXX)`` / tfm 字体 ``("XXXX)`` 十六进制 /
+#: pdftex 8-bit 裸字符 / ``^^xx``/``^^X`` 记法的判定细则见彼层。
 
 #: 判定「字体本身即 CJK 字体」的排除模式 —— CJK 码位落在 CJK 字体里
 #: 是真缺字形 (换字体的 warmup 救不了), 不属于绑定污染类。
@@ -428,17 +569,6 @@ _CJK_FONT_RE = re.compile(
     r"sim(?:sun|hei|kai|fang)|ms ?(?:gothic|mincho)|cjk",
     re.IGNORECASE,
 )
-
-
-def _mc_codepoint(what: str, cp: str | None) -> int | None:
-    """``(U+XXXX)`` / ``("XXXX)`` / ``^^xx`` / 裸字符 → 码位; 不可判定 → None。"""
-    if cp:
-        return int(cp[2:] if cp.startswith("U+") else cp[1:], 16)
-    if m := _CARET_HEX_RE.fullmatch(what.strip()):
-        return int(m.group(1), 16)
-    if len(what) == 1:
-        return ord(what)
-    return None
 
 
 #: missing_char 修复默认表 (seeded 自 n100 缺字签名, 2026-09-16;
@@ -510,21 +640,6 @@ def _mc_hit(entry: dict[str, Any], cp: int, font: str) -> bool:
     return any(lo <= cp <= hi for lo, hi in entry.get("ranges") or ())
 
 
-def _mc_parse_log(log: str) -> dict[int, tuple[str, str]]:
-    """``Missing character`` 行 → {码位: (原字面, 字体名)} 去重; nullfont 滤除。"""
-    seen: dict[int, tuple[str, str]] = {}
-    for m in _MISSING_CHAR_RE.finditer(log):
-        font = m.group("font").rstrip(".,;")
-        if font == "nullfont":
-            # 测量盒/\write 上下文的缺字按设计不可印 (scout-misschar ×5)——
-            # 签名侧经 rules/ missing_char pattern 排除, 这里兜底 wrap 漏网。
-            continue
-        cp = _mc_codepoint(m.group("what"), m.group("cp"))
-        if cp is not None and cp not in seen:
-            seen[cp] = (m.group("what"), font)
-    return seen
-
-
 def _mc_plan(
     seen: dict[int, tuple[str, str]], table: dict[str, dict[str, Any]]
 ) -> tuple[bool, dict[str, str], int]:
@@ -581,3 +696,44 @@ _MATH_SHIM_CS: dict[str, int] = {
     "copyright": 0x00A9,
     "pounds": 0x00A3,
 }
+
+
+# ════════════════════════════════════════════════════════════════
+# 工作树指纹 (engine 落件同步与 misc 失效补共用的通用树扫件)
+# ════════════════════════════════════════════════════════════════
+
+
+def _wdir_fingerprint(wdir: Path) -> dict[Path, tuple[int, int]]:
+    """工作树文件 ``(mtime_ns, size)`` 指纹——``run_tool`` 改盘面快照 diff 用。
+
+    通用树扫件而非规则实现——engine ``_landing_sync`` 的外部落件基线与
+    ``_builtins_misc._invalidate_changed``/docstrip 全量失效两侧消费。
+    """
+    fp: dict[Path, tuple[int, int]] = {}
+    for p in wdir.rglob("*"):
+        try:
+            st = p.stat()
+        except OSError:
+            continue
+        if p.is_file():
+            fp[p] = (st.st_mtime_ns, st.st_size)
+    return fp
+
+
+def _fp_diff(
+    before: dict[Path, tuple[int, int]],
+    after: dict[Path, tuple[int, int]],
+    *,
+    exclude: Iterable[Path] = (),
+) -> list[Path]:
+    """指纹 diff 核: 基线间变值路径集 (``exclude`` 自产写件除外)。
+
+    ``_landing_sync`` 的外部落件判据与 ``_builtins_misc._invalidate_changed``
+    的通用补同核——后者免 exclude (全量失效)。
+    """
+    excl = set(exclude)
+    return [
+        p
+        for p in set(before) | set(after)
+        if before.get(p) != after.get(p) and p not in excl
+    ]

@@ -23,10 +23,12 @@ if TYPE_CHECKING:
         CaseSink,
         ReplayResult,
         load_cases,
+        proj_resolver,
         replay_all,
         replay_case,
         stats_backfill,
         triage,
+        xelatex_factory,
     )
     from texlate.compile.fixloop.engine import (
         Engine,
@@ -44,10 +46,12 @@ _SUBMODULE_EXPORTS: dict[str, tuple[str, ...]] = {
         "CaseSink",
         "ReplayResult",
         "load_cases",
+        "proj_resolver",
         "replay_all",
         "replay_case",
         "stats_backfill",
         "triage",
+        "xelatex_factory",
     ),
     "engine": (
         "Engine",
@@ -79,10 +83,12 @@ __all__ = [
     "load_cases",
     "load_ruleset",
     "precheck_pass",
+    "proj_resolver",
     "replay_all",
     "replay_case",
     "stats_backfill",
     "triage",
+    "xelatex_factory",
 ]
 
 

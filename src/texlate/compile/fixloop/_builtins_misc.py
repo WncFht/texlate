@@ -12,13 +12,15 @@ from __future__ import annotations
 import contextlib
 import re
 import shutil
-from pathlib import Path, PurePosixPath
+from pathlib import Path, PurePath, PurePosixPath
 from typing import TYPE_CHECKING, Any
 
 from texlate.compile.fixloop._builtins_common import (
     _fixloop_log,
+    _fp_diff,
     _live_matches,
     _map_tex_files,
+    _wdir_fingerprint,
 )
 from texlate.compile.fixloop._builtins_graphics import (
     _EPS_EXTS,
@@ -29,8 +31,10 @@ from texlate.compile.fixloop._builtins_graphics import (
     _NUMERIC_EXT_RE,
     _norm_graphic_name,
 )
+from texlate.compile.fixloop._builtins_shim import _safe_rel
 from texlate.compile.inject import _walk_inputs
 from texlate.compile.latex209 import upgrade_209
+from texlate.compile.mask import group_end
 from texlate.compile.normalize import normalize_legacy_cjk
 from texlate.compile.transcode import INTERMEDIATE_SUFFIXES
 from texlate.latex.api import NAME_GATED_TEX_SUFFIXES, parse_file
@@ -484,19 +488,6 @@ def harvest_build_directives(
 _DOCSTRIP_DRIVERS = ("latex", "pdflatex", "xelatex", "tex")
 
 
-def _wdir_fingerprint(wdir: Path) -> dict[Path, tuple[int, int]]:
-    """工作树文件 ``(mtime_ns, size)`` 指纹——``run_tool`` 改盘面快照 diff 用。"""
-    fp: dict[Path, tuple[int, int]] = {}
-    for p in wdir.rglob("*"):
-        try:
-            st = p.stat()
-        except OSError:
-            continue
-        if p.is_file():
-            fp[p] = (st.st_mtime_ns, st.st_size)
-    return fp
-
-
 def _invalidate_changed(ctx: LoopCtx, before: dict[Path, tuple[int, int]]) -> int:
     """快照后新增/改写/删除路径全 invalidate → 失效数。
 
@@ -506,7 +497,7 @@ def _invalidate_changed(ctx: LoopCtx, before: dict[Path, tuple[int, int]]) -> in
     不触 ``_texts`` 私有面, 指纹 diff 即全覆盖 (真写必换指纹)。
     """
     after = _wdir_fingerprint(ctx.wdir)
-    changed = [p for p in set(before) | set(after) if before.get(p) != after.get(p)]
+    changed = _fp_diff(before, after)
     for p in changed:
         ctx.invalidate(p)
     return len(changed)
@@ -529,8 +520,8 @@ def docstrip_generate(
     """
     del eng
     want = (payload or "").strip()
-    rel = PurePosixPath(want)
-    if not want or rel.is_absolute() or ".." in rel.parts or "\x00" in want:
+    rel = _safe_rel(want)
+    if rel is None:
         return False, f"unsafe payload {want!r}"
     ins_all = sorted(p for p in ctx.wdir.rglob("*.ins") if p.is_file())
     stem = rel.stem.lower()
@@ -628,12 +619,7 @@ def _safe_member_name(name: str) -> PurePosixPath | None:
     n = name
     while n.startswith("./"):
         n = n[2:]
-    if not n or "\x00" in n:
-        return None
-    rel = PurePosixPath(n)
-    if rel.is_absolute() or ".." in rel.parts:
-        return None
-    return rel
+    return _safe_rel(n)
 
 
 def _slot_hit(rel: PurePosixPath, expected: Path) -> int:
@@ -1094,11 +1080,8 @@ def _pfa_to_pfb_bytes(data: bytes) -> bytes | None:
 
 
 def _safe_map_name(name: str) -> PurePosixPath | None:
-    """Map token 名卫: 拒绝对路径/``..``/空名 —— 只信 basename 级引用。"""
-    rel = PurePosixPath(name)
-    if rel.is_absolute() or ".." in rel.parts:
-        return None
-    return rel
+    """Map token 名卫: 拒绝对路径/``..``/空名/含 NUL —— 只信 basename 级引用。"""
+    return _safe_rel(name)
 
 
 def _convert_map_pfas(
@@ -1266,6 +1249,11 @@ _EPS_KV_STRIP_CMDS = frozenset({"epsfig", "psfig"})
 _EPS_CONV_ALIAS_EXTS = frozenset((*_EPS_EXTS, ".pdf"))
 
 
+def _is_rel_escape(rel: PurePath) -> bool:
+    """相对名逃逸判——绝对路径 ∨ ``..`` 段 (待 hoist ``textutil.osutil.is_rel_escape``)。"""
+    return rel.is_absolute() or ".." in rel.parts
+
+
 def _verbatim_graphic_hit(base: Path, want: str) -> bool:
     r"""引用串按 TeX 字面解析位已有档。
 
@@ -1361,7 +1349,7 @@ def eps_converted_alias(  # noqa: C901, PLR0912, PLR0915  # 逐门 decline note 
         if not want or "\x00" in want:
             continue
         p = PurePosixPath(want)
-        if p.is_absolute() or ".." in p.parts:
+        if _is_rel_escape(p):
             continue
         suffix = p.suffix.lower()
         if (
@@ -1407,7 +1395,7 @@ def eps_converted_alias(  # noqa: C901, PLR0912, PLR0915  # 逐门 decline note 
         suffix = p.suffix.lower()
         if suffix not in _EPS_EXTS and not _NUMERIC_EXT_RE.match(suffix):
             continue
-        if p.is_absolute() or ".." in p.parts:
+        if _is_rel_escape(p):
             continue
         stem = p.parent / p.stem
         if stem.as_posix().lower() not in served:
@@ -1442,43 +1430,11 @@ def eps_converted_alias(  # noqa: C901, PLR0912, PLR0915  # 逐门 decline note 
 # ════════════════════════════════════════════════════════════════
 
 
-def _brace_end(t: str, i: int) -> int | None:
-    r"""``t[i] == "{"`` → 配对 ``}`` 位 (``\{`` 转义不算)。"""
-    depth = 0
-    j = i
-    while j < len(t):
-        c = t[j]
-        if c == "\\":
-            j += 2
-            continue
-        if c == "{":
-            depth += 1
-        elif c == "}":
-            depth -= 1
-            if depth == 0:
-                return j
-        j += 1
-    return None
-
-
-def _bracket_end(t: str, i: int) -> int | None:
-    """``t[i] == "["`` → 配对 ``]`` 位; ``{…}`` 嵌套内与转义的 ``]`` 不收。"""
-    brace = 0
-    j = i
-    while j < len(t):
-        c = t[j]
-        if c == "\\":
-            j += 2
-            continue
-        if c == "{":
-            brace += 1
-        elif c == "}":
-            if brace:
-                brace -= 1
-        elif c == "]" and brace == 0:
-            return j
-        j += 1
-    return None
+#: ``{``/``[`` 配对扫描统一走 ``texlate.compile.mask.group_end`` —— 转义/嵌套
+#: 单源 (inject/layout/latex209/normalize 同口径); 本族在 raw 文本上跑, 其
+#: ``%`` 注释跳过是语义升级 (注释内 ``{``/``]`` 不再计入配对)。契约差两处:
+#: unpaired 归一 ``len(t)`` (调用侧 ``e >= len(t)`` 判失配), 返回 after-index
+#: (closer 位 = ``e - 1``)。
 
 
 def _skip_ws(t: str, j: int) -> int:
@@ -1492,8 +1448,8 @@ def _skip_bracket(t: str, j: int) -> int | None:
     """``t[j] == "["`` → 配对组后空白归位; 非 ``[`` → ``j`` 原样; 未配对 → None。"""
     if j >= len(t) or t[j] != "[":
         return j
-    e = _bracket_end(t, j)
-    return None if e is None else _skip_ws(t, e + 1)
+    e = group_end(t, j)
+    return None if e >= len(t) else _skip_ws(t, e)
 
 
 #: ``\begin{tcolorbox}`` env 站。
@@ -1564,32 +1520,30 @@ def _tcb_def_opts_span(t: str, i: int) -> tuple[int, int] | None:
         return None
     if t[j : j + 1] != "{":  # {name}
         return None
-    e = _brace_end(t, j)
-    if e is None:
+    e = group_end(t, j)
+    if e >= len(t):
         return None
-    j = _skip_ws(t, e + 1)
+    j = _skip_ws(t, e)
     while t[j : j + 1] == "[":  # [num][default]…
         j = _skip_bracket(t, j)
         if j is None:
             return None
     if t[j : j + 1] != "{":  # {options}
         return None
-    e = _brace_end(t, j)
-    return None if e is None else (j, e)
+    e = group_end(t, j)
+    return None if e >= len(t) else (j, e - 1)
 
 
 def _tcb_edits(t: str) -> list[tuple[int, int, str]]:
     """单文件 tcolorbox env/def 选项组补 ``breakable`` 的编辑表 (遮盖视图定位)。"""
     edits: list[tuple[int, int, str]] = []
     for m in _live_matches(_TCB_BEGIN_RX, t):
-        j = m.end()
-        while j < len(t) and t[j] in " \t\n":
-            j += 1
-        if j < len(t) and t[j] == "[":
-            e = _bracket_end(t, j)
-            if e is None:
+        j = _skip_ws(t, m.end())
+        if t[j : j + 1] == "[":
+            e = group_end(t, j)
+            if e >= len(t):
                 continue
-            if ed := _tcb_opts_edits(j, t[j + 1 : e]):
+            if ed := _tcb_opts_edits(j, t[j + 1 : e - 1]):
                 edits.append(ed)
         else:
             edits.append((m.end(), m.end(), "[breakable]"))
@@ -1690,11 +1644,11 @@ def _float_h_edits(t: str, rx: re.Pattern[str]) -> list[tuple[int, int, str]]:
         j = _skip_ws(t, m.end())
         if t[j : j + 1] != "[":
             continue
-        e = _bracket_end(t, j)
-        if e is None:
+        e = group_end(t, j)
+        if e >= len(t):
             continue
-        if (new := _float_demote_opts(t[j + 1 : e])) is not None:
-            edits.append((j, e + 1, "[" + new + "]"))
+        if (new := _float_demote_opts(t[j + 1 : e - 1])) is not None:
+            edits.append((j, e, "[" + new + "]"))
     return edits
 
 

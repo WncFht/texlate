@@ -53,10 +53,12 @@ from texlate.compile.fixloop._builtins_common import (
     _AT_LETTER_POST,
     _AT_LETTER_PRE,
     _fixloop_log,
+    _inject_before_begindoc,
+    _is_live,
     _live_matches,
     _map_tex_files,
 )
-from texlate.textutil import iter_depth0, mask_tex
+from texlate.textutil import BEGIN_DOC_RX, iter_depth0, mask_tex
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -72,7 +74,7 @@ _PARA_ENDED_RE = re.compile(r"Paragraph ended before (\\[A-Za-z@]+)")
 _DEF_EXTS = (".tex", ".sty", ".cls", ".def", ".clo", ".cfg")
 
 #: ``\begin{document}`` 锚 —— wrap 注入缝 (aux 读死线) 定位用。
-_BEGIN_DOC_RE = re.compile(r"\\begin\s*\{document\}")
+#: 词素单源 = ``textutil.BEGIN_DOC_RX`` (直引)。
 
 #: 装载期件后缀 —— .sty/.cls/.def/.clo/.cfg 经 ``\usepackage``/``\documentclass``
 #: 读入, 其内 ``\X`` 调用在执行序上恒属 preamble (无所谓件内 ``\begin{document}``
@@ -245,31 +247,10 @@ def _longize_defs(t: str, name: str) -> tuple[str, int]:
 
 def _live_begin_pos(t: str, masked: str) -> int | None:
     r"""首个活 ``\begin{document}`` 起点 offset; 遮盖区命中跳过, 无 → None。"""
-    for m in iter_depth0(_BEGIN_DOC_RE, masked):
-        if masked[m.start() : m.end()] == t[m.start() : m.end()]:
+    for m in iter_depth0(BEGIN_DOC_RX, masked):
+        if _is_live(m, masked, t):
             return m.start()
     return None
-
-
-def _inject_before_begindoc(ctx: LoopCtx, snippet: str) -> bool:
-    r"""主文件首个活 ``\begin{document}`` 行首前注入 snippet (幂等)。
-
-    ``\let``-wrap 专用缝: aux 读/``\@fourthoffive`` 族 aux 扫描器触发面
-    在 ``\begin{document}`` 执行内, AtBeginDocument 钩位之后 → 钩注
-    够不到, 须 preamble 末位落。无活 ``\begin{document}`` → False。
-    """
-    main = ctx.main_path()
-    if main is None:
-        return False
-    t = ctx.read(main) or ""
-    if snippet in t:
-        return False
-    bd = _live_begin_pos(t, mask_tex(t))
-    if bd is None:
-        return False
-    pos = t.rfind("\n", 0, bd) + 1
-    ctx.write(main, t[:pos] + snippet + "\n" + t[pos:])
-    return True
 
 
 def _depth0_line_start(masked: str, start: int) -> int:
@@ -334,7 +315,7 @@ def _first_preamble_call(
         if not load_file and bd is None and has_bd:
             continue
         for m in iter_depth0(call_rx, masked):
-            if masked[m.start() : m.end()] != t[m.start() : m.end()]:
+            if not _is_live(m, masked, t):
                 continue
             if not load_file and bd is not None and m.start() >= bd:
                 break
@@ -407,7 +388,7 @@ def _apply_wraps(
         existing = texts.get(main) if main is not None else ""
         block, done = _wrap_block(rest, table, existing or "")
         if done:
-            if _inject_before_begindoc(ctx, block):
+            if _inject_before_begindoc(ctx, block, depth0=True):
                 injected.extend(done)
             else:
                 notes.append("wrap site missing (no live \\begin{document})")

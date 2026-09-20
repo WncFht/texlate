@@ -25,23 +25,23 @@ import contextlib
 import re
 import shutil
 import subprocess
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol
 
 from texlate.compile import ctan
 from texlate.compile.fixloop._builtins_common import _mc_parse_log
-from texlate.compile.fixloop._builtins_misc import (
-    _wdir_fingerprint,
-)
 from texlate.compile.fixloop.actions import (
     _REJECT_PREFIX,
     _apply,
+    _apply_landed,
     _apply_scan_install,
+    _apply_window,
     _cond_ok,
     _dep_stems,
     _is_misschar_rule,
+    _landing_sync,
     _match_apply,
     _probe,
     _substitute,
@@ -62,7 +62,7 @@ from texlate.compile.logparse import (
     parse_log,
     parse_text,
 )
-from texlate.texlog import driver_fatal_line
+from texlate.texlog import driver_fatal_line, normalize_stderr_errors
 from texlate.textutil import DOCCLASS_RX, decode_tex
 
 if TYPE_CHECKING:
@@ -78,9 +78,12 @@ __all__ = [
     "Ruleset",
     "RulesetError",
     "_apply",
+    "_apply_landed",
     "_apply_scan_install",
+    "_apply_window",
     "_cond_ok",
     "_dep_stems",
+    "_landing_sync",
     "_match_apply",
     "_probe",
     "_substitute",
@@ -361,6 +364,17 @@ def _note_route(note: str) -> str | None:
     return m.group(1) if m else None
 
 
+def _commit_reject(cell: dict[str, Any], rule: Rule, note: str) -> None:
+    """REJECT 裁决落账: ``reject:<rid>`` verdict + route 令牌 (有则)。
+
+    主轮/gate/次级 warn 臂/post warn-preempt 各决策点的同一写点——
+    route 令牌即取即落 ``cell["reject_route"]``, 供跨引擎臂消费。
+    """
+    cell["verdict"] = f"reject:{rule.id}"
+    if r := _note_route(note):
+        cell["reject_route"] = r
+
+
 def _report_of(
     res: CompResLike,
     warn_patterns: list[dict[str, Any]],
@@ -393,8 +407,7 @@ def _report_of(
     if rep.n_bang == 0:
         tail = getattr(res, "stdout_tail", "") or ""
         if tail:
-            norm = re.sub(r"(?m)^error:\s*", "! ", tail)
-            norm = re.sub(r"(?m)^\s*(\w+:\s*fatal:)", r"! \1", norm)
+            norm = normalize_stderr_errors(tail)
             alt = parse_text(norm, warn_patterns, project_root=project_root)
             if alt.n_bang or rep.raw == "":
                 rep = alt
@@ -423,6 +436,9 @@ class _CtxIO:
     #: 区分规则自改 (经缓存的 accounted 写) 与外部落件 (install/run_tool
     #: 裸写, 绕过 ``_texts``) 用。
     written: set[Path] = field(default_factory=set, repr=False)
+    #: cond 树敏感面快照 (actions._cond_snap 三槽惰性填) —— 每派发窗
+    #: ``_apply`` 尝试即整槽作废 (``_cond_snap_reset``)。
+    _cond_snap: dict[str, Any] | None = field(default=None, repr=False)
 
 
 @dataclass
@@ -458,6 +474,29 @@ class _CtxRound:
         """
         self.err_cat, self.err_pay = cat, pay
         self.err_head = (rep.first or "") + "\n" + (rep.ctx or "")
+
+    @contextlib.contextmanager
+    def pointed(
+        self,
+        cat: str | None,
+        pay: str | None,
+        rep: ErrReport,
+        mc_cps: frozenset[int] | None = None,
+    ) -> Iterator[None]:
+        """``point`` 的作用域版: 进入重指 (可选 ``mc_cps`` 覆盖), 退出四字段全复元。
+
+        warn-preempt 类临时派发用——``err_head`` 一并入保存/复元集 (分点
+        手 roller 只存 cat/pay 会留 stale head, 后续族臂的 ctx_suggests
+        读到的还是重指前 rep 的 head, 与 ``point`` 的三字段一体契约相悖)。
+        """
+        keep = (self.err_cat, self.err_pay, self.err_head, self.mc_cps)
+        self.point(cat, pay, rep)
+        if mc_cps is not None:
+            self.mc_cps = mc_cps
+        try:
+            yield
+        finally:
+            self.err_cat, self.err_pay, self.err_head, self.mc_cps = keep
 
 
 @dataclass
@@ -701,52 +740,6 @@ def find_main_tex(proj: Path) -> Path | None:
     return Path(cands[0][2])
 
 
-def _landing_sync(
-    ctx: LoopCtx,
-    before: dict[Path, tuple[int, int]],
-    pre_applied: set[str],
-) -> int:
-    """动作落件同步: 外部落件指纹 diff → ``_texts`` 失效 + 落件前烧键过期。
-
-    规则动作可改写盘面 (``scan_install``/``install_file``/vendored 落件、
-    ``run_tool``/docstrip 产物、builtin 直写)。``written`` 在派发窗开始
-    时清空, 窗内经 ``ctx.write`` 落账的写件即本窗自产编辑; ``before``
-    基线后的变化件分两档:
-
-      - **规则自改** —— ``written`` 在账的 ``ctx.write`` 改写/新建
-        (regex_rewrite/站点前置/shim 新建件): 写件已在 ``_texts`` 同步,
-        键面不动——派发链的自产编辑不该稀释 dedup (stucksem 实证: 无
-        差别过期会让先火规则非幂等重派, 抢走凭据门后位规则的派发窗)。
-      - **外部落件** —— 绕 ``ctx.write`` 的新件/改写/删除 (install/
-        vendor/run_tool 裸写): 全 invalidate (覆盖写与 miss→None 毒化
-        条目同 logcache 病族, 下轮 ``ctx.read``/site-map 读新文), 并把
-        ``pre_applied`` 基线前烧录的 ``{rule}:{pay}`` dedup 键整体过
-        期——落件把新站点引进 fileset 后, 同签轮应允许同规则重派
-        (defcensus E-route 病族: mid-loop install 后 already_def 臂
-        按旧烧键跳过, 残签滞留)。基线后新烧键 (``applied - pre_applied``)
-        保留——刚派发的规则不因自身落件立刻重派。
-
-    返回外部落件数 (0 = 无外部落件, 键面不动)。
-    """
-    after = _wdir_fingerprint(ctx.io.wdir)
-    authored = ctx.io.written
-    external = [
-        p
-        for p in set(before) | set(after)
-        if before.get(p) != after.get(p) and p not in authored
-    ]
-    for p in external:
-        ctx.invalidate(p)
-    if not external:
-        return 0
-    ctx.ledger.applied.intersection_update(ctx.ledger.applied - pre_applied)
-    ctx.ledger.events.append(
-        f"landing sync: {len(external)} external landing(s) — "
-        "pre-landing dedup keys expired"
-    )
-    return len(external)
-
-
 def _match_apply_landing(  # noqa: PLR0913, PLR0917  # 与 _match_apply 同签名面
     rs: Ruleset,
     ctx: LoopCtx,
@@ -757,11 +750,8 @@ def _match_apply_landing(  # noqa: PLR0913, PLR0917  # 与 _match_apply 同签�
     only: Callable[[Rule], bool] | None = None,
 ) -> tuple[Rule | None, str]:
     """``_match_apply`` + 落件同步——loop 相两处派发点共用。"""
-    before = _wdir_fingerprint(ctx.io.wdir)
-    pre = set(ctx.ledger.applied)
-    ctx.io.written.clear()  # 本窗自产写从零计账
-    rule, note = _match_apply(rs, ctx, eng, cat, pay, rep, only=only)
-    _landing_sync(ctx, before, pre)
+    with _apply_window(ctx):
+        rule, note = _match_apply(rs, ctx, eng, cat, pay, rep, only=only)
     return rule, note
 
 
@@ -792,14 +782,7 @@ def _gate_eval(  # noqa: PLR0913, PLR0917  # 与 _match_apply 同签名面
         if not ok:
             ctx.ledger.events.append(f"gate {rule.id}: cond skip ({why})")
             continue
-        before = _wdir_fingerprint(ctx.io.wdir)
-        pre = set(ctx.ledger.applied)
-        ctx.io.written.clear()
-        try:
-            applied, note = _apply(rule, ctx, eng, pay, rep)
-        except Exception as e:  # noqa: BLE001
-            applied, note = False, f"gate crashed: {type(e).__name__}: {e}"
-        _landing_sync(ctx, before, pre)
+        applied, note = _apply_landed(rule, ctx, eng, pay, rep, label="gate")
         if applied and note.startswith(_REJECT_PREFIX):
             return f"reject:{rule.id}", _note_route(note)
         if applied:
@@ -850,18 +833,14 @@ def _warn_preempt(
     if not eff:
         return None, ""
     cat, pay = ctx.round.err_cat, ctx.round.err_pay
-    keep_cps = ctx.round.mc_cps
-    ctx.round.err_cat, ctx.round.err_pay = "warn_missing_char", None
-    ctx.round.mc_cps = eff
-    try:
+    # ``pointed`` 走 point() 接缝重指——err_head 同写同复元 (旧分点手写
+    # 留 stale head, 族臂 ctx_suggests 会读到重指前 rep 的 head)。
+    with ctx.round.pointed("warn_missing_char", None, rep, mc_cps=eff):
         if not _warn_family_due(rs, ctx, cat, pay):
             return None, ""
         rule, note = _match_apply_landing(
             rs, ctx, eng, "warn_missing_char", None, rep, only=_is_misschar_rule
         )
-    finally:
-        ctx.round.err_cat, ctx.round.err_pay = cat, pay
-        ctx.round.mc_cps = keep_cps
     if rule is None:
         ctx.ledger.events.append(
             f"warn-preempt: {len(eff)} residual cps, no arm applied"
@@ -932,6 +911,32 @@ def _wire_engine(eng: Engine, rs: Ruleset, wdir: Path, ctx: LoopCtx) -> None:
         ctx.ledger.advisories.append(f"ctan_fetch wire failed: {type(e).__name__}: {e}")
 
 
+def _setup_ctx(  # noqa: PLR0913  # 装配头参数列即两入口注入面交集
+    proj: Path | str,
+    eng: Engine,
+    *,
+    ruleset: Ruleset | None = None,
+    engine_name: str | None = None,
+    runner: RunFn | None = None,
+    llm_hook: LlmHook | None = None,
+) -> tuple[Ruleset, str, Path, LoopCtx]:
+    """Ruleset 装载 + 引擎名解析 + wdir + LoopCtx + skipped 建议账——共用装配头。
+
+    只收两入口同构段; ``_wire_engine`` 接线位与 main_rel 推导口径各异
+    (precheck_pass 宽松 ``find_main_tex`` 直落 ``ctx.io.main_rel``;
+    fixloop 严格树内校验 + ``main_fallback`` 留痕 + no_main 早退),
+    各留调用点不入本缝。
+    """
+    rs = ruleset or Ruleset.load(tolerant=True)
+    engine_name = engine_name or getattr(
+        eng, "name", rs.meta.get("engine_default", "xelatex")
+    )
+    wdir = Path(proj)
+    ctx = LoopCtx(wdir=wdir, engine_name=engine_name, runner=runner, llm_hook=llm_hook)
+    ctx.ledger.advisories.extend(rs.skipped_rules)
+    return rs, engine_name, wdir, ctx
+
+
 def _precheck_phase(
     rs: Ruleset, ctx: LoopCtx, eng: Engine
 ) -> tuple[str | None, str | None]:
@@ -958,14 +963,7 @@ def _precheck_phase(
         if not ok:
             ctx.ledger.events.append(f"precheck {rule.id}: cond skip ({why})")
             continue
-        before = _wdir_fingerprint(ctx.io.wdir)
-        pre = set(ctx.ledger.applied)
-        ctx.io.written.clear()
-        try:
-            applied, note = _apply(rule, ctx, eng, None, dummy_rep)
-        except Exception as e:  # noqa: BLE001
-            applied, note = False, f"precheck crashed: {type(e).__name__}: {e}"
-        _landing_sync(ctx, before, pre)
+        applied, note = _apply_landed(rule, ctx, eng, None, dummy_rep, label="precheck")
         ctx.ledger.actions.append(
             {"round": 0, "rule": rule.id, "detail": note, "applied": applied}
         )
@@ -993,16 +991,13 @@ def precheck_pass(  # noqa: PLR0913 -- 与 fixloop 同契约的注入面
     ``main_rel`` 缺省时 ``find_main_tex`` 宽松档推导；无主档置空串
     （预检的 source_contains/扫描原语只读工程树，不依赖主档存在）。
     """
-    rs = ruleset or Ruleset.load(tolerant=True)
-    engine_name = engine_name or getattr(
-        eng, "name", rs.meta.get("engine_default", "xelatex")
+    rs, engine_name, wdir, ctx = _setup_ctx(
+        proj, eng, ruleset=ruleset, engine_name=engine_name, runner=runner
     )
-    wdir = Path(proj)
     if main_rel is None:
         main = find_main_tex(wdir)
         main_rel = str(main.relative_to(wdir)) if main is not None else ""
-    ctx = LoopCtx(wdir=wdir, engine_name=engine_name, main_rel=main_rel, runner=runner)
-    ctx.ledger.advisories.extend(rs.skipped_rules)
+    ctx.io.main_rel = main_rel
     _wire_engine(eng, rs, wdir, ctx)
     verdict, route = _precheck_phase(rs, ctx, eng)
     pre = {
@@ -1036,7 +1031,6 @@ class _FixRun:
     ctx: LoopCtx
     cell: dict[str, Any]
     compile_kw: dict[str, Any]
-    engine_name: str
     max_rounds: int
     clean_err_max: int
     passes: int
@@ -1081,6 +1075,28 @@ class _FixRun:
 
     # ------------------------------------------------------------ 主轮循环
 
+    def _compile(
+        self, *, passes: int | None = 1, best_effort: bool = False
+    ) -> CompResLike:
+        """``eng.compile`` + 编译后惯例两件套 (失效挥发性缓存 + 丢旗记账)。
+
+        ``_VOLATILE_EXTS`` 头注的「循环内每个 ``eng.compile`` 后必失效此集」
+        不变量收敛为结构——走本方法即不可能漏失效 (含探针与兜底臂, 幂等)。
+        ``passes=None`` 透传引擎自适应遍数门。
+        """
+        ctx = self.ctx
+        res = self.eng.compile(
+            ctx.io.wdir,
+            ctx.io.main_rel,
+            passes=passes,
+            best_effort=best_effort,
+            flags=list(ctx.ledger.engine_flags),
+            **self.compile_kw,
+        )
+        ctx.invalidate_suffixes(_VOLATILE_EXTS)
+        _note_dropped_flags(ctx, res)
+        return res
+
     def rounds(self) -> None:
         """主轮循环: 每轮 aux-sweep→分类编译→终止判→派发落账; 穷尽 → ``max_rounds``。"""
         for rnd in range(1, self.max_rounds + 1):
@@ -1124,9 +1140,7 @@ class _FixRun:
             if flow == "continue":
                 return None
         if note.startswith(_REJECT_PREFIX):
-            cell["verdict"] = f"reject:{rule.id}"
-            if r := _note_route(note):
-                cell["reject_route"] = r
+            _commit_reject(cell, rule, note)
             return "break"
         action_entry: dict[str, Any] = {"round": rnd, "rule": rule.id, "detail": note}
         if sec_via is not None:
@@ -1143,16 +1157,8 @@ class _FixRun:
         pass-1 读 log 分类; pass-1 判收敛则同轮全遍终编定稿 (rungen_stub
         类机制靠第二遍 ``\\write`` 填实成品), 复编重分类回流同一决策面。
         """
-        ctx, rs, eng, rnd = self.ctx, self.rs, self.eng, self.rnd
-        res = eng.compile(
-            ctx.io.wdir,
-            ctx.io.main_rel,
-            passes=1,  # 分类轮只读 pass-1 log——第二遍不产新分类信号
-            flags=list(ctx.ledger.engine_flags),
-            **self.compile_kw,
-        )
-        ctx.invalidate_suffixes(_VOLATILE_EXTS)
-        _note_dropped_flags(ctx, res)
+        ctx, rs, rnd = self.ctx, self.rs, self.rnd
+        res = self._compile(passes=1)  # 分类轮只读 pass-1 log——第二遍不产新分类信号
         rep = _report_of(res, rs.warn_patterns, ctx.io.wdir)
         cat, pay = _round_cat(rs, rep, res)
         round_sec = float(getattr(res, "seconds", getattr(res, "sec", 0.0)))
@@ -1164,24 +1170,18 @@ class _FixRun:
             # 在半行, 同轮重编即吃毒件造 aux_scan_eof 幻影 (2403.05523
             # 实证, 与 ``_round_verdict`` clean 门同一 _res_died 否决语义)。
             self.passes > 1
-            and self.engine_name != "tectonic"
+            and self.ctx.deps.engine_name != "tectonic"
             and not _res_died(res)
             and _res_has_pdf(res)
             and rep.n_bang == 0
             and cat not in rs.taxonomy.warn_cats
         ):
-            res = eng.compile(
-                ctx.io.wdir,
-                ctx.io.main_rel,
+            res = self._compile(
                 # yaml ``compile_passes`` 权威依旧: >1 才进本臂; 值 ≤2 时传
                 # ``None`` 走引擎自适应门 (rerun-hint 才升遍, MAX_PASSES=2
                 # 同值), >2 是超自适应上限的显式诉求, 原样透传无条件执行。
                 passes=None if self.passes <= 2 else self.passes,  # noqa: PLR2004 - 2 = compile/engine.py MAX_PASSES 自适应上限
-                flags=list(ctx.ledger.engine_flags),
-                **self.compile_kw,
             )
-            ctx.invalidate_suffixes(_VOLATILE_EXTS)
-            _note_dropped_flags(ctx, res)
             rep = _report_of(res, rs.warn_patterns, ctx.io.wdir)
             cat, pay = _round_cat(rs, rep, res)
             round_sec += float(getattr(res, "seconds", getattr(res, "sec", 0.0)))
@@ -1200,16 +1200,28 @@ class _FixRun:
         )
         return res, rep, cat, pay, round_sec
 
-    def _round_entry(
+    def _append_round(  # noqa: PLR0913 -- entry 字段面即参数列 (三 site 同构共用)
         self,
         res: CompResLike,
         rep: ErrReport,
+        *,
+        rnd: int,
         cat: str | None,
         pay: str | None,
-        round_sec: float,
-    ) -> bool:
-        """物化本轮 rounds entry + events/on_round 出口 + 首轮 pdf 迟快照 → pdf。"""
-        ctx, cell, eng, rnd = self.ctx, self.cell, self.eng, self.rnd
+        log_truncated: bool,
+        sec: float | None = None,
+        marker: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """物化一条 rounds entry: 字段装配 → ``cell["rounds"]`` 落账 → ``on_round``。
+
+        主轮/reverify/salvage 三 site 的 entry 骨架单源——``pdf_bytes`` 缺载
+        时的 ``Path(pdf).stat()`` 兜底与 ``sec`` 旧名 (``res.sec``) 兼容读法
+        都收在此 (旧三抄里 salvage 臂两处皆漂: stat 兜底缺 + ``sec`` legacy
+        名丢)。``sec=None`` 时按 res 取秒 (reverify/salvage 单编译轮); 主轮
+        传两轮累计 ``round_sec``。``marker`` = 轮次标记位
+        (``{"reverify": True}``/``{"salvage": True}``), 落 ``round`` 键后。
+        """
+        cell = self.cell
         pdf = _res_has_pdf(res)
         pdf_bytes = getattr(res, "pdf_bytes", None)
         if pdf and pdf_bytes is None:
@@ -1218,20 +1230,18 @@ class _FixRun:
                 pdf_bytes = Path(pdf_attr).stat().st_size if pdf_attr else 0
             except (OSError, TypeError):
                 pdf_bytes = 0
+        if sec is None:
+            sec = float(getattr(res, "seconds", getattr(res, "sec", 0.0)))
         entry = {
             "round": rnd,
+            **(marker or {}),
             "pdf": pdf,
             "pdf_bytes": int(pdf_bytes or 0),
             # 超时/被杀轮——死编译产出未证，汇总段 clean/acceptable 判据须查。
             "died": _res_died(res),
-            # Guard A (adjudication #10): halt_on_error 编译 n_bang>0 ⇒ log
-            # 截在首错——n_bang 是下界非测量值, 证不了 errors≤clean_err_max。
-            # 本轮两轮候选编 (pass-1/finalize) 均非 best_effort; 探针/salvage
-            # 的 best_effort 轮不走本 entry。无 halt 面引擎 (tectonic/Mock)
-            # getattr 落 False 不置位。
-            "log_truncated": bool(
-                getattr(eng, "halt_on_error", False) and rep.n_bang > 0
-            ),
+            # Guard A (adjudication #10) 判据值由调用方按 halt/best_effort
+            # 口径给——best_effort (nonstopmode) 全程 log 不截, 恒 False。
+            "log_truncated": log_truncated,
             # 驱动 fatal 证据行（无则 None）——category 仍押 classify 的
             # "other" 面（pdf_asset_sanitize 等 ``when: category: other``
             # 规则靠它派发），本字段载精确归因 + salvage 定败排除闸。
@@ -1245,14 +1255,41 @@ class _FixRun:
             "warnings_sys": list(rep.warnings_sys),
             "line_no": rep.line_no,
             "file_stack": rep.file_stack,
-            "sec": round(round_sec, 1),
+            "sec": round(sec, 1),
         }
         cell["rounds"].append(entry)
+        if self.on_round is not None:
+            self.on_round(entry)
+        return entry
+
+    def _round_entry(
+        self,
+        res: CompResLike,
+        rep: ErrReport,
+        cat: str | None,
+        pay: str | None,
+        round_sec: float,
+    ) -> bool:
+        """物化本轮 rounds entry + events 出口 + 首轮 pdf 迟快照 → pdf。"""
+        ctx, eng, rnd = self.ctx, self.eng, self.rnd
+        # Guard A (adjudication #10): halt_on_error 编译 n_bang>0 ⇒ log
+        # 截在首错——n_bang 是下界非测量值, 证不了 errors≤clean_err_max。
+        # 本轮两轮候选编 (pass-1/finalize) 均非 best_effort; 探针/salvage
+        # 的 best_effort 轮不走本 entry。无 halt 面引擎 (tectonic/Mock)
+        # getattr 落 False 不置位。
+        entry = self._append_round(
+            res,
+            rep,
+            rnd=rnd,
+            cat=cat,
+            pay=pay,
+            log_truncated=bool(getattr(eng, "halt_on_error", False) and rep.n_bang > 0),
+            sec=round_sec,
+        )
+        pdf = bool(entry["pdf"])
         ctx.ledger.events.append(
             f"r{rnd}: pdf={pdf} err={rep.n_bang} cat={cat} pay={pay} ({entry['sec']}s)"
         )
-        if self.on_round is not None:
-            self.on_round(entry)
         if self.floor_snap is None and pdf:  # 入口无现存产物 → 快照首轮 pdf
             src = getattr(res, "pdf", None)
             if isinstance(src, Path):
@@ -1330,18 +1367,9 @@ class _FixRun:
             and self.sec_probes < _SEC_PROBE_MAX
             and len(ctx.ledger.actions) != self.sec_probe_mark
         ):
-            probe_res = eng.compile(
-                ctx.io.wdir,
-                ctx.io.main_rel,
-                passes=1,
-                best_effort=True,
-                flags=list(ctx.ledger.engine_flags),
-                **self.compile_kw,
-            )
-            ctx.invalidate_suffixes(_VOLATILE_EXTS)
+            probe_res = self._compile(passes=1, best_effort=True)
             self.sec_probes += 1
             self.sec_probe_mark = len(ctx.ledger.actions)
-            _note_dropped_flags(ctx, probe_res)
             probe_rep = _report_of(probe_res, rs.warn_patterns, ctx.io.wdir)
             cand_rep = probe_rep
             ctx.ledger.events.append(f"r{rnd} secondary probe: err={probe_rep.n_bang}")
@@ -1380,21 +1408,9 @@ class _FixRun:
         wrule, wnote = _warn_preempt(rs, ctx, eng, cand_rep)
         if wrule is not None:
             if wnote.startswith(_REJECT_PREFIX):
-                cell["verdict"] = f"reject:{wrule.id}"
-                if r := _note_route(wnote):
-                    cell["reject_route"] = r
+                _commit_reject(cell, wrule, wnote)
                 return "break", None, "", None
-            cell["actions"].append(
-                {
-                    "round": rnd,
-                    "rule": wrule.id,
-                    "detail": wnote,
-                    "via": "warn_preempt",
-                }
-            )
-            ctx.ledger.events.append(f"r{rnd} warn-preempt -> {wrule.id} ({wnote})")
-            # apply 已落地——探针编译瞬间陈旧, 兜底槽必须弃用
-            self.salvage_res = self.salvage_rep = None
+            self._warn_preempt_hit(wrule, wnote, rnd)
             return "continue", None, "", None
         # stuck 结算点移到派发耗尽后: 同签 streak ≥ stuck_sig_repeat 且
         # 本轮主+次级均无 apply → stuck。旧制在第 stuck_n 个同签轮派发前
@@ -1421,6 +1437,26 @@ class _FixRun:
         self._salvage()
         self._finalize()
 
+    def _warn_preempt_hit(self, wrule: Rule, wnote: str, rnd: int | str) -> None:
+        """warn-preempt 命中落账: action 条目 + event 行 + 兜底槽弃用。
+
+        ``rnd`` = ``"round"`` 字段原值 (轮号或 ``"post"``)——event 行前缀
+        分别派生 ``r<N>``/``post``。轮内补发与退出点补位两 site 共用。
+        """
+        ctx, cell = self.ctx, self.cell
+        cell["actions"].append(
+            {
+                "round": rnd,
+                "rule": wrule.id,
+                "detail": wnote,
+                "via": "warn_preempt",
+            }
+        )
+        label = rnd if isinstance(rnd, str) else f"r{rnd}"
+        ctx.ledger.events.append(f"{label} warn-preempt -> {wrule.id} ({wnote})")
+        # apply 已落地——探针编译瞬间陈旧, 兜底槽必须弃用
+        self.salvage_res = self.salvage_rep = None
+
     def _post_warn_preempt(self) -> None:
         """warn-preempt 退出点补位 (missdisp #189)。
 
@@ -1438,20 +1474,9 @@ class _FixRun:
         if wrule is None:
             return
         if wnote.startswith(_REJECT_PREFIX):
-            cell["verdict"] = f"reject:{wrule.id}"
-            if r := _note_route(wnote):
-                cell["reject_route"] = r
+            _commit_reject(cell, wrule, wnote)
             return
-        cell["actions"].append(
-            {
-                "round": "post",
-                "rule": wrule.id,
-                "detail": wnote,
-                "via": "warn_preempt",
-            }
-        )
-        ctx.ledger.events.append(f"post warn-preempt -> {wrule.id} ({wnote})")
-        self.salvage_res = self.salvage_rep = None
+        self._warn_preempt_hit(wrule, wnote, "post")
 
     def _reverify(self) -> None:
         """B6 写后复验。
@@ -1476,53 +1501,26 @@ class _FixRun:
             and len(ctx.ledger.actions) > self.acts_mark
         ):
             return
-        res = self.eng.compile(
-            ctx.io.wdir,
-            ctx.io.main_rel,
-            passes=1,
-            flags=list(ctx.ledger.engine_flags),
-            **self.compile_kw,
-        )
-        ctx.invalidate_suffixes(_VOLATILE_EXTS)
-        _note_dropped_flags(ctx, res)
+        res = self._compile(passes=1)
         rep = _report_of(res, self.rs.warn_patterns, ctx.io.wdir)
         cat, pay = _round_cat(self.rs, rep, res)
-        pdf = _res_has_pdf(res)
-        pdf_bytes = getattr(res, "pdf_bytes", None)
-        if pdf and pdf_bytes is None:
-            pdf_attr = getattr(res, "pdf", None)
-            try:
-                pdf_bytes = Path(pdf_attr).stat().st_size if pdf_attr else 0
-            except (OSError, TypeError):
-                pdf_bytes = 0
         self.last_rep = rep  # log_excerpt 消费终态报告
-        entry = {
-            "round": len(cell["rounds"]) + 1,
-            "reverify": True,
-            "pdf": pdf,
-            "pdf_bytes": int(pdf_bytes or 0),
-            "died": _res_died(res),
-            # 与轮 entry 同式 (adjudication #10 Guard A): halt + n_bang>0
-            # ⇒ 截断下界证不了 errors≤max——best_effort 才恒 False 豁免。
-            "log_truncated": bool(
+        # 与轮 entry 同式 (adjudication #10 Guard A): halt + n_bang>0
+        # ⇒ 截断下界证不了 errors≤max——best_effort 才恒 False 豁免。
+        entry = self._append_round(
+            res,
+            rep,
+            rnd=len(cell["rounds"]) + 1,
+            cat=cat,
+            pay=pay,
+            log_truncated=bool(
                 getattr(self.eng, "halt_on_error", False) and rep.n_bang > 0
             ),
-            "driver_fatal": _res_driver_fatal(res),
-            "n_errors": rep.n_bang,
-            "category": cat,
-            "payload": pay,
-            "warnings": list(rep.warnings),
-            "warnings_sys": list(rep.warnings_sys),
-            "line_no": rep.line_no,
-            "file_stack": rep.file_stack,
-            "sec": round(float(getattr(res, "seconds", getattr(res, "sec", 0.0))), 1),
-        }
-        cell["rounds"].append(entry)
-        ctx.ledger.events.append(
-            f"post-write reverify: pdf={pdf} err={rep.n_bang} cat={cat}"
+            marker={"reverify": True},
         )
-        if self.on_round is not None:
-            self.on_round(entry)
+        ctx.ledger.events.append(
+            f"post-write reverify: pdf={entry['pdf']} err={rep.n_bang} cat={cat}"
+        )
 
     def _salvage(self) -> None:
         r"""best-effort 兜底 pass。
@@ -1566,14 +1564,7 @@ class _FixRun:
         sres = (
             self.salvage_res
             if self.salvage_res is not None
-            else self.eng.compile(
-                ctx.io.wdir,
-                ctx.io.main_rel,
-                passes=1,
-                best_effort=True,
-                flags=list(ctx.ledger.engine_flags),
-                **self.compile_kw,
-            )
+            else self._compile(passes=1, best_effort=True)
         )
         ctx.invalidate_suffixes(_VOLATILE_EXTS)
         _note_dropped_flags(ctx, sres)  # 复用探针已记录过——flags_dropped 去重幂等
@@ -1582,28 +1573,17 @@ class _FixRun:
             if self.salvage_rep is not None
             else _report_of(sres, self.rs.warn_patterns, ctx.io.wdir)
         )
-        spdf = _res_has_pdf(sres)
-        sentry = {
-            "round": len(cell["rounds"]) + 1,
-            "salvage": True,
-            "pdf": spdf,
-            "pdf_bytes": int(getattr(sres, "pdf_bytes", 0) or 0),
-            "died": _res_died(sres),
-            # best_effort (nonstopmode) 全程 log 不截——Guard A 豁免 (adjudication #10)。
-            "log_truncated": False,
-            "driver_fatal": _res_driver_fatal(sres),
-            "n_errors": srep.n_bang,
-            "category": None,
-            "payload": None,
-            "warnings": list(srep.warnings),
-            "warnings_sys": list(srep.warnings_sys),
-            "line_no": srep.line_no,
-            "file_stack": srep.file_stack,
-            "sec": round(float(getattr(sres, "seconds", 0.0)), 1),
-        }
-        cell["rounds"].append(sentry)
-        if self.on_round is not None:
-            self.on_round(sentry)
+        # best_effort (nonstopmode) 全程 log 不截——Guard A 豁免 (adjudication #10)。
+        sentry = self._append_round(
+            sres,
+            srep,
+            rnd=len(cell["rounds"]) + 1,
+            cat=None,
+            pay=None,
+            log_truncated=False,
+            marker={"salvage": True},
+        )
+        spdf = bool(sentry["pdf"])
         cell["actions"].append(
             {
                 "round": "salvage",
@@ -1721,7 +1701,7 @@ class _FixRun:
         cell["gate_fired"] = _gate_fired_of(cell)
 
 
-def fixloop(  # noqa: PLR0913, PLR0915 -- 注入面穿透 + 装配序即语句列
+def fixloop(  # noqa: PLR0913 -- 注入面穿透
     proj: Path | str,
     eng: Engine,
     *,
@@ -1757,11 +1737,14 @@ def fixloop(  # noqa: PLR0913, PLR0915 -- 注入面穿透 + 装配序即语句�
     调用（含 salvage 兜底轮），entry 与 cell 内同对象——server worker
     借此发 SSE 实况帧；None 时零开销，e2e/bench 直调臂行为不变。
     """
-    rs = ruleset or Ruleset.load(tolerant=True)
-    engine_name = engine_name or getattr(
-        eng, "name", rs.meta.get("engine_default", "xelatex")
+    rs, engine_name, wdir, ctx = _setup_ctx(
+        proj,
+        eng,
+        ruleset=ruleset,
+        engine_name=engine_name,
+        runner=runner,
+        llm_hook=llm_hook,
     )
-    wdir = Path(proj)
     cfg = rs.loop_cfg
     max_rounds = int(cfg.get("max_rounds", 8))
     clean_err_max = int(cfg.get("clean_err_max", 3))
@@ -1794,9 +1777,6 @@ def fixloop(  # noqa: PLR0913, PLR0915 -- 注入面穿透 + 装配序即语句�
         # 调用方指定主档缺件/树外时的回退留痕——None = 无回退发生
         "main_fallback": None,
     }
-    ctx = LoopCtx(wdir=wdir, engine_name=engine_name, runner=runner, llm_hook=llm_hook)
-    ctx.ledger.advisories.extend(rs.skipped_rules)
-
     main: Path | None = None
     if main_rel is not None:
         cand = wdir / main_rel
@@ -1828,7 +1808,6 @@ def fixloop(  # noqa: PLR0913, PLR0915 -- 注入面穿透 + 装配序即语句�
         ctx=ctx,
         cell=cell,
         compile_kw=compile_kw,
-        engine_name=engine_name,
         max_rounds=max_rounds,
         clean_err_max=clean_err_max,
         passes=passes,

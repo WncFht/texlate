@@ -76,16 +76,15 @@ def _rx_problems(pat: Any, label: str) -> list[str]:  # noqa: ANN401  # 同上
 def _when_item_problems(item: dict[str, Any], label: str, tag: str) -> list[str]:
     """单个 when 候选 (顶层 map 或 ``any[]`` 子项) 的值形校验。
 
-    与 ``_when_ok`` 逐键消费形对齐: ``category`` 与 cat 做 ``!=``
-    比对 (str 或 str 表两形), ``payload_required`` 真值 (bool),
-    ``main_head_contains`` ``in`` 子串 (str——非 str 触发 TypeError,
-    _when_ok 在 try 外, 装载期拦)。
+    与 ``_when_ok`` 逐键消费形对齐: ``category`` 仅 str——评估侧
+    ``c["category"] != cat`` 是标量比对, list 形永不等即静默
+    fail-dead, OR 语义走 ``when.any`` 子项; ``payload_required``
+    真值 (bool), ``main_head_contains`` ``in`` 子串 (str——非 str
+    触发 TypeError, _when_ok 在 try 外, 装载期拦)。
     """
     probs: list[str] = []
-    if "category" in item and not (
-        isinstance(item["category"], str) or _str_list(item["category"])
-    ):
-        probs.append(f"rule {tag}: {label}.category 必须是 str 或 list[str]")
+    if "category" in item and not isinstance(item["category"], str):
+        probs.append(f"rule {tag}: {label}.category 必须是 str")
     if "payload_required" in item and not isinstance(item["payload_required"], bool):
         probs.append(f"rule {tag}: {label}.payload_required 必须是 bool")
     if "main_head_contains" in item and not isinstance(item["main_head_contains"], str):

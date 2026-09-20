@@ -10,14 +10,17 @@
 
 from __future__ import annotations
 
+import contextlib
 import re
 import shutil
+from itertools import islice
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any
 
 import regex
 
 from texlate.compile.fixloop import builtins
+from texlate.compile.fixloop._builtins_common import _fp_diff, _wdir_fingerprint
 from texlate.compile.fixloop.ruleset import _WHEN_ITEM_KEYS
 from texlate.texlog import is_project_file
 from texlate.textutil import mask_tex
@@ -127,17 +130,76 @@ def _err_site_outside(ctx: LoopCtx, rep: ErrReport | None) -> bool:
 
     ``rep.file_stack[-1]`` = TeX ``l.N`` 报错所在文件 (内层帧); runaway
     空栈回退 ``popped_files[-1]`` (最近关闭帧肇事口径, 与
-    ``_requester_paths`` 同)。``is_project_file`` 与红线归因同口径——
-    相对帧/``root`` 内 = 工程 (fileset 可 patch), texmf/bundle 帧 =
-    工程外 (fileset 够不到, 仅 wdir 无关 arm 可治)。无栈帧证据
-    (``rep=None`` 的直驱/旧调用面) → False (fail-closed)。
+    ``_requester_paths`` 同——帧序单源 ``ErrReport.site_frames``)。
+    ``is_project_file`` 与红线归因同口径——相对帧/``root`` 内 = 工程
+    (fileset 可 patch), texmf/bundle 帧 = 工程外 (fileset 够不到,
+    仅 wdir 无关 arm 可治)。无栈帧证据 (``rep=None`` 的直驱/旧调用面)
+    → False (fail-closed)。
     """
     if rep is None:
         return False
-    site = rep.file_stack[-1] if rep.file_stack else None
-    if site is None and rep.popped_files:
-        site = rep.popped_files[-1]
+    site = next(rep.site_frames(), None)
     return site is not None and not is_project_file(site, ctx.wdir)
+
+
+# ════════════════════════════════════════════════════════════════
+# cond 树敏感面快照 —— fileset/_stem_sibling 的 rglob 文件表与
+# source_contains/prim_read_form 的 tex 拼接 blob 每派发各取一次
+# ════════════════════════════════════════════════════════════════
+#
+# miss 轮 ``_cond_ok`` 逐规则评估数十次, 旧制每次各跑一遍全树 rglob +
+# ~MB 级 join。同一派发窗内两次 ``_cond_ok`` 之间的盘面突变只能经
+# ``_apply`` (规则自写/install 落件/run_tool 产出)——故不变量 =
+# 「每次 ``_apply`` 尝试即整槽作废」(loop/gate/precheck 三相的派发
+# 全经 ``_apply`` 分派, 崩溃半途而废亦在作废后), ``_match_apply``
+# 入口再清一次兜住窗间编译产物 (aux/log 落删) 与 pending_esc 直调
+# ``ctx.llm_hook`` 的 ``ctx.write`` —— loop 相文件面恒以当窗树为准。
+# ``_landing_sync`` 的外部落件 ``_texts`` invalidate 在窗尾补刀时
+# memo 若非空 (上次评估缓存未作废), blob 槽另有 ``sig`` 元素级校验
+# (``ctx.read`` 返回对象级比对——invalidate/pop/重写必换对象, 内容
+# 相同则 join 相同复用无碍), 与既有 freshness 逐字节同口径;
+# files 槽以 loop 派发窗为刷新界 (gate/precheck 现无 fileset 条件)。
+
+#: ``source_blob`` 拼接扩展名集 —— ``LoopCtx.tex_files`` 缺省值镜像
+#: (快照 ``files`` 表派生 tex 清单, 不再第二遍 rglob)。
+_SOURCE_BLOB_EXTS = (".tex", ".sty", ".cls")
+
+
+def _cond_snap(ctx: LoopCtx) -> dict[str, Any]:
+    """条件快照槽 (挂 ``ctx.io._cond_snap`` 动态面): ``files``/``sig``/``blob`` 三槽惰性填。"""
+    snap = getattr(ctx.io, "_cond_snap", None)
+    if snap is None:
+        snap = {"files": None, "sig": None, "blob": None}
+        ctx.io._cond_snap = snap  # noqa: SLF001 - 同上
+    return snap
+
+
+def _cond_snap_reset(ctx: LoopCtx) -> None:
+    """整槽作废——``_apply`` 尝试 / ``_match_apply`` 入口 / pending_esc hook 后。"""
+    ctx.io._cond_snap = None  # noqa: SLF001 - 同上
+
+
+def _cond_files(ctx: LoopCtx) -> list[Path]:
+    """``wdir`` 存活文件表快照 (fileset 扩展名集 / ``_stem_sibling`` 共用一次 rglob)。"""
+    snap = _cond_snap(ctx)
+    if snap["files"] is None:
+        snap["files"] = [p for p in ctx.wdir.rglob("*") if p.is_file()]
+    return snap["files"]
+
+
+def _cond_blob(ctx: LoopCtx) -> str:
+    """``source_blob`` 等价 tex 源拼接快照 (source_contains/prim_read_form 共用)。
+
+    ``sig`` = 逐 tex 件 ``ctx.read`` 返回对象元组——对象级不等必换
+    (invalidate/pop/重写全换对象), 与当日 ``source_blob`` 逐字节同口径。
+    """
+    snap = _cond_snap(ctx)
+    tex = sorted(p for p in _cond_files(ctx) if p.suffix.lower() in _SOURCE_BLOB_EXTS)
+    sig = tuple(ctx.read(f) for f in tex)
+    if snap["blob"] is None or snap["sig"] != sig:
+        snap["sig"] = sig
+        snap["blob"] = "\n".join(t for t in sig if t)
+    return snap["blob"]
 
 
 def _stem_sibling(ctx: LoopCtx, pay: str, exts: list[Any]) -> bool:
@@ -165,9 +227,7 @@ def _stem_sibling(ctx: LoopCtx, pay: str, exts: list[Any]) -> bool:
         return False
     pool = {str(e).lower() for e in exts}
     skip_dirs = {"_texmf", "_tect_out"}
-    for p in ctx.wdir.rglob("*"):
-        if not p.is_file():
-            continue
+    for p in _cond_files(ctx):
         parts = p.relative_to(ctx.wdir).parts
         if any(part.startswith(".") for part in parts) or parts[0] in skip_dirs:
             continue
@@ -214,7 +274,7 @@ def _cond_ok(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0917  # 条件原语�
             if str(v) not in ctx.main_head():
                 return False, "main head 无该子串"
         elif key == "source_contains":
-            if not regex.search(str(v), ctx.source_blob()):
+            if not regex.search(str(v), _cond_blob(ctx)):
                 return False, "源码无该 pattern"
         elif key == "ctx_suggests":
             if not regex.search(str(v), ctx.err_head or ""):
@@ -223,7 +283,7 @@ def _cond_ok(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0917  # 条件原语�
             has = v.get("has_ext") or []
             lacks = v.get("lacks_ext") or []
             sib = v.get("sibling_exts") or []
-            names = {p.suffix for p in ctx.wdir.rglob("*") if p.is_file()}
+            names = {p.suffix for p in _cond_files(ctx)}
             if any(e not in names for e in has) or any(e in names for e in lacks):
                 return False, "fileset 不满足"
             if sib and not _stem_sibling(ctx, str(pay or ""), sib):
@@ -240,7 +300,7 @@ def _cond_ok(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0917  # 条件原语�
                 return False, f"{v.get('file')} 版本 {got} < {v.get('version')}"
         elif key == "prim_read_form":
             prim = re.escape(str(v))
-            if not re.search(rf"\\if[a-zA-Z@]*\s*\\{prim}\b", ctx.source_blob()):
+            if not re.search(rf"\\if[a-zA-Z@]*\s*\\{prim}\b", _cond_blob(ctx)):
                 return False, f"无 \\if*\\{v} 读取语境"
         elif key == "payload_pattern":
             # payload 词形谓词 —— ``pdf@`` 别名族报错定义上即包内宏展开帧
@@ -450,6 +510,10 @@ def _scan_vendored(
         dst = builtins._resolve_site(ctx, rel)  # noqa: SLF001 - 落位口径单源
         if dst is None:
             continue
+        if dst.exists():
+            continue  # 稿自带/前轮已投不覆写 (vendored_fetch_multi ``present`` 同闸;
+            # missing 探针是 wdir 视域, ``_resolve_site`` 落 ``main_dir/rel``
+            # 可触 wdir 根外的工程件——盲 copyfile 会覆写稿内同名件)
         try:
             dst.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(src, dst)
@@ -588,10 +652,11 @@ def _requester_paths(ctx: LoopCtx, eng: Engine, rep: ErrReport) -> list[Path]:
     stack = [s for s in rep.file_stack[-2:] if s.endswith((".sty", ".cls", ".def"))]
     if not stack:
         # runaway 错报位在最近关闭帧（``popped_files[-1]`` 肇事候选，
-        # #78/\@iiiparbox×3/\next 扫描实证）——栈取不到时 popped 尾段递补
+        # #78/\@iiiparbox×3/\next 扫描实证）——栈取不到时 ``site_frames``
+        # 弹栈段递补（跳过 ``file_stack`` 全段 = ``popped_files`` 新→旧序）
         stack = [
             s
-            for s in reversed(rep.popped_files)
+            for s in islice(rep.site_frames(), len(rep.file_stack), None)
             if s.endswith((".sty", ".cls", ".def"))
         ]
     names += stack
@@ -688,6 +753,7 @@ def _apply(  # noqa: C901, PLR0911  # action.kind 分派表, 每种一处
     rule: Rule, ctx: LoopCtx, eng: Engine, pay: str | None, rep: ErrReport
 ) -> tuple[bool, str]:
     """按 action.kind 分派执行一条规则 → (applied, note)。"""
+    _cond_snap_reset(ctx)  # 任何动作尝试皆可改盘面——后续 _cond_ok 重建快照
     action = rule.action
     kind = action.get("kind")
     params = _substitute(action.get("params") or {}, pay, ctx)
@@ -775,6 +841,7 @@ def _match_apply(  # noqa: C901, PLR0912, PLR0913, PLR0915, PLR0917  # spike pic
     ``only`` 可选族过滤器 (warn-preempt 的缺字族专场): 非 None 时只评
     谓词为真的规则——``when: always`` 的域外规则不抢家族派发窗。
     """
+    _cond_snap_reset(ctx)  # 派发窗入口整槽作废——窗间编译产物 (aux/log 落删) 不入快照
     pending_esc: tuple[Rule, str] | None = None
     for rule in rs.phase("loop"):
         if only is not None and not only(rule):
@@ -822,6 +889,7 @@ def _match_apply(  # noqa: C901, PLR0912, PLR0913, PLR0915, PLR0917  # spike pic
     if pending_esc is not None and ctx.llm_hook is not None:
         rule, key = pending_esc
         applied, note = ctx.llm_hook(ctx, rep)
+        _cond_snap_reset(ctx)  # hook 直写 (ctx.write 不过 _apply)——快照作废
         if applied:
             ctx.applied.add(key)
             return rule, f"escalated: {note}"
@@ -831,3 +899,89 @@ def _match_apply(  # noqa: C901, PLR0912, PLR0913, PLR0915, PLR0917  # spike pic
             if d not in ctx.declined:
                 ctx.declined.append(d)
     return None, ""
+
+
+# ════════════════════════════════════════════════════════════════
+# 派发窗落件同步 —— loop/gate/precheck 三相共用 (C2 自 engine 归位;
+# ``engine`` 门面回引保 ``engine.X`` import 面)
+# ════════════════════════════════════════════════════════════════
+
+
+def _landing_sync(
+    ctx: LoopCtx,
+    before: dict[Path, tuple[int, int]],
+    pre_applied: set[str],
+) -> int:
+    """动作落件同步: 外部落件指纹 diff → ``_texts`` 失效 + 落件前烧键过期。
+
+    规则动作可改写盘面 (``scan_install``/``install_file``/vendored 落件、
+    ``run_tool``/docstrip 产物、builtin 直写)。``written`` 在派发窗开始
+    时清空, 窗内经 ``ctx.write`` 落账的写件即本窗自产编辑; ``before``
+    基线后的变化件分两档:
+
+      - **规则自改** —— ``written`` 在账的 ``ctx.write`` 改写/新建
+        (regex_rewrite/站点前置/shim 新建件): 写件已在 ``_texts`` 同步,
+        键面不动——派发链的自产编辑不该稀释 dedup (stucksem 实证: 无
+        差别过期会让先火规则非幂等重派, 抢走凭据门后位规则的派发窗)。
+      - **外部落件** —— 绕 ``ctx.write`` 的新件/改写/删除 (install/
+        vendor/run_tool 裸写): 全 invalidate (覆盖写与 miss→None 毒化
+        条目同 logcache 病族, 下轮 ``ctx.read``/site-map 读新文), 并把
+        ``pre_applied`` 基线前烧录的 ``{rule}:{pay}`` dedup 键整体过
+        期——落件把新站点引进 fileset 后, 同签轮应允许同规则重派
+        (defcensus E-route 病族: mid-loop install 后 already_def 臂
+        按旧烧键跳过, 残签滞留)。基线后新烧键 (``applied - pre_applied``)
+        保留——刚派发的规则不因自身落件立刻重派。
+
+    返回外部落件数 (0 = 无外部落件, 键面不动)。
+    """
+    after = _wdir_fingerprint(ctx.io.wdir)
+    external = _fp_diff(before, after, exclude=ctx.io.written)
+    for p in external:
+        ctx.invalidate(p)
+    if not external:
+        return 0
+    ctx.ledger.applied.intersection_update(ctx.ledger.applied - pre_applied)
+    ctx.ledger.events.append(
+        f"landing sync: {len(external)} external landing(s) — "
+        "pre-landing dedup keys expired"
+    )
+    return len(external)
+
+
+@contextlib.contextmanager
+def _apply_window(ctx: LoopCtx) -> Iterator[None]:
+    """派发窗: 指纹基线 + applied 快照 + ``written`` 清零 → 退出 ``_landing_sync``。
+
+    loop/gate/precheck 三相派发共用同一落件同步不变量——窗内经
+    ``ctx.write`` 的写按自产编辑计账, 窗外裸写按外部落件失效 +
+    烧键过期 (口径见 ``_landing_sync``)。
+    """
+    before = _wdir_fingerprint(ctx.io.wdir)
+    pre = set(ctx.ledger.applied)
+    ctx.io.written.clear()  # 本窗自产写从零计账
+    try:
+        yield
+    finally:
+        _landing_sync(ctx, before, pre)
+
+
+def _apply_landed(  # noqa: PLR0913  # 与 _apply/_match_apply 同签名面
+    rule: Rule,
+    ctx: LoopCtx,
+    eng: Engine,
+    pay: str | None,
+    rep: ErrReport,
+    *,
+    label: str,
+) -> tuple[bool, str]:
+    """单规则落件派发: ``_apply_window`` 内 guarded ``_apply``。
+
+    crash note 统一 ``{label} crashed: <type>: <e>`` —— gate/precheck
+    相逐条评估共用 (loop 相的逐条 crash 兜底在 ``_match_apply`` 内部)。
+    """
+    with _apply_window(ctx):
+        try:
+            applied, note = _apply(rule, ctx, eng, pay, rep)
+        except Exception as e:  # noqa: BLE001
+            applied, note = False, f"{label} crashed: {type(e).__name__}: {e}"
+    return applied, note

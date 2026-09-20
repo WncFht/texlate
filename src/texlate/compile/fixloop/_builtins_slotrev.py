@@ -4,7 +4,7 @@ r"""_builtins_slotrev — zh 机位实参 revert (slotrevert lane, task#188)。
 未注册 env 尾随参等) 放上 chunk 翻译字面量面 → zh 化后 splice 写回
 机位 → ``Undefined color '这是译文'``/``No counter``/``can't find file``
 族。本叶做决定性 revert: ``judge.py`` ``_MACHINE_SLOT_RXS`` + 本叶扩展
-表在 ``mask_tex`` 等长遮盖视图 (``_DEAD_TAIL_RX`` 死尾截断同口径) 上
+表在 ``mask_tex`` 等长遮盖视图 (``DEAD_TAIL_RX`` 死尾截断同口径) 上
 定位机位实参, 对 ``params.baseline_dir`` pristine 树逐文件做 per-kind
 序号对齐配对 —— baseline 参纯 ASCII 标识符 ∧ zh 参含 CJK ∧ 两侧
 相异 → zh 参位字节换回 baseline 参。``\section{标题}`` 等文位结构上
@@ -23,14 +23,10 @@ import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from texlate.textutil import CITE_FAMILY_RE, CJK_RX, CMD_BOUNDARY, mask_tex
+from texlate.textutil import CITE_FAMILY_RE, CJK_RX, CMD_BOUNDARY, live_tex
 
 if TYPE_CHECKING:
     from texlate.compile.fixloop.engine import Engine, LoopCtx
-
-#: ``compile.probe._DEAD_TAIL_RE``/``judge._DEAD_TAIL_RX`` 同口径死尾截断:
-#: ``\end{document}``/``\endinput`` 之后同形 token 非活 slot。
-_DEAD_TAIL_RX = re.compile(r"\\end\s*\{document\}|\\endinput\b")
 
 #: 同命令相邻实参间空白 (跨行随意); 仅 envarg 尾随参用受限 _GAP。
 _ARG = r"\{([^{}\n]*)\}"
@@ -762,10 +758,7 @@ def _holder_rxs(src: str) -> tuple[tuple[str, re.Pattern[str]], ...]:
     (``_ARG`` 吃不进 ``{}`` 体)。spec 参 ``_ARGB`` 收 —— holder
     调用站 spec 同带 ``>{...}`` 嵌组 (2026-09-20 zhleakimpl)。
     """
-    view = mask_tex(src)
-    dead = _DEAD_TAIL_RX.search(view)
-    if dead is not None:
-        view = view[: dead.start()]
+    view = live_tex(src)
     out: list[tuple[str, re.Pattern[str]]] = []
     seen: set[str] = set()
     for m in _HOLDER_DEF_RX.finditer(view):
@@ -791,10 +784,7 @@ def _slot_spans(
     全部非 None 捕获组各自入列, 但保留位置供回写 —— arg 切片区间为
     ``src[start:end]``。
     """
-    view = mask_tex(src)
-    dead = _DEAD_TAIL_RX.search(view)
-    if dead is not None:
-        view = view[: dead.start()]
+    view = live_tex(src)
     hits: list[tuple[str, int, int]] = []
     for kind, rx in rxs:
         for m in rx.finditer(view):

@@ -18,9 +18,66 @@ from texlate.compile.fixloop._builtins_common import (
 from texlate.textutil import mask_tex
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from pathlib import Path
 
     from texlate.compile.fixloop.engine import Engine, LoopCtx
+
+
+# ════════════════════════════════════════════════════════════════
+# 跨 lane 单源原语 (hoist 候选: ``_builtins_common`` —— ``_USE_RE``/
+# ``_drop_pkg_loads``/``_AT_LETTER_*`` 同骨架件在彼侧, 归一后本叶改引)
+# ════════════════════════════════════════════════════════════════
+
+#: ``\\usepackage``/``\\RequirePackage`` 装载命令的规范骨架 (命名组单源)。
+#: 旧拼在同骨架上组位逐处漂移 (names 位在 g5/g3/g2 不等: ``_USE_RE``/
+#: ``_SIU_LIST_RE``/``load_pat``), 命名组替数字位收口。
+#: 组面: ``cmd``=命令名, ``opts``=整 ``[..]`` 段 (含括号), ``opts_inner``=
+#: 选项本体 (option_clash_merge 读内层需要), ``names``=花括号名单,
+#: ``head``=名单外的全部前缀。opts 字符集取 ``[^\\]]`` 允跨行 —— TeX
+#: 选项表换行合法且 ``_USE_RE``/``load_pat`` 原本即此口径; 遮盖视图里
+#: 注释内 ``]`` 已遮, 对 ``[^\\]\\n]`` 旧拼 (``_SIU_LIST_RE``/``_XY_LOAD_RE``/
+#: ``_PHYS_LOAD_RE``) 是严格超集, 只会多中真多行选项装载点。
+#: hoist 后 ``_USE_RE`` 可 rebased 为 ``re.compile(rf"^(\\s*){_PKG_LOAD_SRC}",
+#: re.MULTILINE)`` —— ``^`` 行首锚必须留, option_clash_merge 靠它防行内
+#: 装载点误并。
+_PKG_LOAD_HEAD_SRC = (
+    r"(?P<head>\\(?P<cmd>usepackage|RequirePackage)\s*"
+    r"(?P<opts>\[(?P<opts_inner>[^\]]*)\])?\s*)"
+)
+_PKG_LOAD_SRC = _PKG_LOAD_HEAD_SRC + r"\{(?P<names>[^}]*)\}"
+_PKG_LOAD_RE = re.compile(_PKG_LOAD_SRC)
+
+
+def _pkg_list_re(pkg: str) -> re.Pattern[str]:
+    r"""名单内含 ``pkg`` 的装载点变体 —— ``names`` 拆 ``before``/``after`` 双组。
+
+    ``\\b<pkg>\\b`` 界只挡字母续名 (``{physics-tools}`` 这类误中由调用方
+    元素级判定滤掉)。``_PHYS_LOAD_RE`` 与 ``_builtins_common._drop_pkg_loads``
+    内联 pat 的同形单源。
+    """
+    return re.compile(
+        _PKG_LOAD_HEAD_SRC
+        + rf"\{{(?P<before>[^}}]*)\b{re.escape(pkg)}\b(?P<after>[^}}]*)\}}"
+    )
+
+
+def _exact_restore_wrap(cs: str) -> tuple[str, str]:
+    r"""exact-restore @=11 包裹对的裸段 → ``(pre_seg, post_seg)``。
+
+    ``pre_seg`` = ``\\edef\\<cs>{\\catcode 64=\\the\\catcode 64\\relax}\\catcode 64=11\\relax``
+    (``\\edef`` 存 ``\\catcode 64`` 现值 → ``=11`` 读本族 @-cs), ``post_seg``
+    = ``\\<cs>`` (复元恒回原位)。分隔符 (空格/换行) 归属调用方拼 —
+    ``_SHIP_WRAP_*`` 尾空/头空, ``_SIU_PEACE_*`` 换行。
+
+    隐式耦合: 传入 ``cs`` 必须已登记进 ``_AMBIENT_AT_RE`` 的 restore 交替
+    组 (``\\TeXlate(?:At|StyIn)Restore``) —— 否则组作用域走查的 at_letter
+    跟踪把该 cs 当普通字符消费, ``\\catcode 64=11`` 事件配平丢失致状态误记。
+    """
+    return (
+        rf"\edef\{cs}{{\catcode 64=\the\catcode 64\relax}}\catcode 64=11\relax",
+        rf"\{cs}",
+    )
 
 
 def option_clash_merge(
@@ -43,11 +100,9 @@ def option_clash_merge(
         ]
         if len(hits) < 2:  # noqa: PLR2004 - 2 = 重复加载的最小命中数
             continue
-        first, later = hits[0], hits[-1]
-        opts1 = first.group(4) or ""
-        opts2 = later.group(4) or ""
+        first = hits[0]
         merged = ",".join(
-            dict.fromkeys(o for o in (opts1 + "," + opts2).split(",") if o)
+            dict.fromkeys(o for h in hits for o in (h.group(4) or "").split(",") if o)
         )
         m0 = first.group(0)
         if first.group(3):
@@ -56,14 +111,15 @@ def option_clash_merge(
             # `str.replace("", ...)` 会逐位插入, 此处修掉该潜伏 bug
             brace = m0.rfind("{")
             first_new = m0[:brace] + f"[{merged}]" + m0[brace:]
-        t = (
-            t[: first.start()]
-            + first_new
-            + t[first.end() : later.start()]
-            + "% fixloop: merged into earlier \\usepackage\n% "
-            + later.group(0).replace("\n", "\n% ")
-            + t[later.end() :]
-        )
+        # 首处后所有重复装载点全注释 —— 逆序 splice 保住未处理命中的偏移
+        for later in reversed(hits[1:]):
+            t = (
+                t[: later.start()]
+                + "% fixloop: merged into earlier \\usepackage\n% "
+                + later.group(0).replace("\n", "\n% ")
+                + t[later.end() :]
+            )
+        t = t[: first.start()] + first_new + t[first.end() :]
         ctx.write(f, t)
         changed += 1
     return (changed > 0), f"merge \\usepackage{{{payload}}} opts in {changed} files"
@@ -98,9 +154,7 @@ def strip_inputenc(
 
 #: ``\\usepackage``/``\\RequirePackage`` 名单内的 ``physics`` 装载点
 #: (``\\b`` 界只保证不以字母续名——``{physics-tools}`` 这类命中由成员判定滤掉)。
-_PHYS_LOAD_RE = re.compile(
-    r"\\(usepackage|RequirePackage)(\s*\[[^\]\n]*\])?\s*\{([^}]*)\bphysics\b([^}]*)\}"
-)
+_PHYS_LOAD_RE = _pkg_list_re("physics")
 #: 源侧既有 ``\\input{physics.sty}`` 裸载点 —— 只 ``.sty`` 显式形真载 stub:
 #: ``\\input{physics}``/``\\input{physics.tex}`` 走 kpathsea tex 格式只解析
 #: ``physics``/``physics.tex`` (章节文件, 1206.5202 ``\\input{physics}`` 即
@@ -153,9 +207,9 @@ def _detach_physics_loads(
     masked = mask_tex(t)
     hits = []
     for m in _PHYS_LOAD_RE.finditer(masked):
-        # g3+g4 是不含 physics 本体的花括号残件——回填本体再做元素级判定
-        # (``{physics-tools}`` 的 ``\b`` 误命中由此滤掉)。
-        pkgs = [p.strip() for p in (m.group(3) + "physics" + m.group(4)).split(",")]
+        # before+after 是不含 physics 本体的花括号残件——回填本体再做元素级
+        # 判定 (``{physics-tools}`` 的 ``\b`` 误命中由此滤掉)。
+        pkgs = [p.strip() for p in (m["before"] + "physics" + m["after"]).split(",")]
         if "physics" in pkgs:
             hits.append((m, [p for p in pkgs if p and p != "physics"]))
     if not hits:
@@ -172,12 +226,12 @@ def _detach_physics_loads(
             )
             ins = f"% fixloop: physics stub detached\n{input_line}"
             repl = (
-                f"\\{m.group(1)}{m.group(2) or ''}{{{','.join(keep)}}}\n{ins}"
+                f"\\{m['cmd']}{m['opts'] or ''}{{{','.join(keep)}}}\n{ins}"
                 if keep
                 else ins
             )
         elif keep:
-            repl = f"\\{m.group(1)}{m.group(2) or ''}{{{','.join(keep)}}}"
+            repl = f"\\{m['cmd']}{m['opts'] or ''}{{{','.join(keep)}}}"
         else:
             ls = t.rfind("\n", 0, m.start()) + 1
             repl = (
@@ -229,24 +283,34 @@ def _input_cmd_end(vis: str, m: re.Match[str]) -> int:
     return j + 1 if j < len(vis) and vis[j] == "}" else -1
 
 
-def _sty_input_sites(t: str, input_re: re.Pattern[str]) -> list[tuple[int, int, bool]]:
-    r"""``\\input`` 顶层 live 站收集 → ``[(start, end, at_letter)]``。
+def _match_end(_vis: str, m: re.Match[str]) -> int:
+    r"""名单形命令的站点尾 —— ``{[^}]*}`` 已随 match 自闭, ``end`` 即 ``m.end()``。"""
+    return m.end()
 
-    遮盖视图走查: 注释/verbatim 内假装载点不算 (``mask_tex`` 已遮),
-    宏体等 ``{}`` 组内站点不算 (深度 0 限定——组内 ``\\input`` 是延迟或
-    局部执行, 非顶层载点)。``\\makeatletter``/``\\makeatother`` 按组局部
-    语义入栈, ``at_letter`` = 站点处 @ 是否已是 letter。``end`` 对 ``{``
-    形含随尾闭合 ``}`` (被注释隔断等未闭合的站点丢弃)。匹配本体不推
-    游标 —— 下个命中前的走查把它当普通字符消费, 内部 ``{``/``}`` 照常
-    配对计深。``input_re`` 决定哪些 ``\\input`` 目标算装载点。
+
+def _scoped_sites(
+    t: str,
+    rx: re.Pattern[str],
+    *,
+    end_fn: Callable[[str, re.Match[str]], int] = _input_cmd_end,
+) -> list[tuple[re.Match[str], int, bool]]:
+    r"""遮盖视图顶层 live 站收集 → ``[(match, end, at_letter)]``。
+
+    注释/verbatim 内假装载点不算 (``mask_tex`` 已遮), 宏体等 ``{}`` 组内
+    站点不算 (深度 0 限定——组内命令是延迟或局部执行, 非顶层载点)。
+    ``\\makeatletter``/``\\makeatother`` 按组局部语义入栈, ``at_letter``
+    = 站点处 @ 是否已是 letter。``end_fn(vis, m)`` 定站点尾位, 返 ``-1``
+    丢弃该站 (``_input_cmd_end`` 的 ``{`` 形未随尾闭合情形)。匹配本体不
+    推游标 —— 下个命中前的走查把它当普通字符消费, 内部 ``{``/``}`` 照常
+    配对计深。``rx`` 决定哪些命令算装载点。
     """
     vis = mask_tex(t)
     depth = 0
     at_letter = False
     stack: list[bool] = []
     pos = 0
-    out: list[tuple[int, int, bool]] = []
-    for m in input_re.finditer(vis):
+    out: list[tuple[re.Match[str], int, bool]] = []
+    for m in rx.finditer(vis):
         while pos < m.start():
             pos, ev = _scope_step(vis, pos)
             if ev == "open":
@@ -259,10 +323,22 @@ def _sty_input_sites(t: str, input_re: re.Pattern[str]) -> list[tuple[int, int, 
             elif ev is not None:
                 at_letter = ev == "letter"
         if depth == 0 and vis[m.start() : m.end()] == t[m.start() : m.end()]:
-            end = _input_cmd_end(vis, m)
+            end = end_fn(vis, m)
             if end >= 0:
-                out.append((m.start(), end, at_letter))
+                out.append((m, end, at_letter))
     return out
+
+
+def _sty_input_sites(t: str, input_re: re.Pattern[str]) -> list[tuple[int, int, bool]]:
+    r"""``\\input`` 顶层 live 站收集 → ``[(start, end, at_letter)]``。
+
+    ``_scoped_sites`` 的 ``\\input`` 包装: ``end`` 对 ``{`` 形含随尾闭合
+    ``}`` (``_input_cmd_end``; 被注释隔断等未闭合的站点丢弃)。``input_re``
+    决定哪些 ``\\input`` 目标算装载点。
+    """
+    return [
+        (m.start(), end, at_letter) for m, end, at_letter in _scoped_sites(t, input_re)
+    ]
 
 
 def _phys_sty_input_sites(t: str) -> list[tuple[int, int, bool]]:
@@ -308,6 +384,9 @@ def _wrap_phys_sty_inputs(t: str) -> tuple[str, int]:
     return _wrap_sites(t, _phys_sty_input_sites(t), _SHIP_WRAP_PRE, _SHIP_WRAP_POST)
 
 
+#: ``TeXlateStyInRestore`` 存复裸段对 —— ``_SHIP_WRAP_*`` 与 ``_SIU_PEACE_*``
+#: 内饰共用同一 restore cs, 字面量由 ``_exact_restore_wrap`` 单源产出。
+_STYIN_SEG = _exact_restore_wrap("TeXlateStyInRestore")
 #: shipwrap 存复包裹对 —— ``vendor/stubs/svglov3.clo`` 同款 exact-restore
 #: idiom: ``\\edef`` 先存 ``\\catcode 64`` 现值, ``=11`` 读件, 尾段复元。
 #: 宿主 @ 语境不可知 (``\\documentclass``/``\\usepackage`` 载是 11, 裸
@@ -315,11 +394,8 @@ def _wrap_phys_sty_inputs(t: str) -> tuple[str, int]:
 #: ``\\makeatletter``/``\\makeatother`` 对会把 @=letter 宿主的后续 @-cs
 #: 强翻回 12 (svglov3.clo 头注: 1608.06693 ``15\\p@`` 实证)。restore cs
 #: 名纯字母 —— 宿主可能正处 @=other, 名里带 ``@`` 自断签名。
-_SHIP_WRAP_PRE = (
-    r"\edef\TeXlateStyInRestore{\catcode 64=\the\catcode 64\relax}"
-    r"\catcode 64=11\relax "
-)
-_SHIP_WRAP_POST = r" \TeXlateStyInRestore"
+_SHIP_WRAP_PRE = _STYIN_SEG[0] + " "
+_SHIP_WRAP_POST = " " + _STYIN_SEG[1]
 
 
 def _wrap_shipped_sty_inputs(t: str) -> tuple[str, int]:
@@ -420,75 +496,54 @@ def physics_stub_detach(
     return True, "physics stub detached: " + "; ".join(parts)
 
 
-#: ``\\usepackage``/``\\RequirePackage`` 名单内含 ``siunitx`` 的装载点
-#: (元素级判定在站点收集后做——``{siunitx-blah}`` 这类 ``\\b`` 误命中由此滤掉)。
-_SIU_LIST_RE = re.compile(
-    r"\\(usepackage|RequirePackage)(\s*\[[^\]\n]*\])?\s*\{([^}]*)\}"
-)
+#: ``\\usepackage``/``\\RequirePackage`` 名单装载点 (``_PKG_LOAD_RE`` 别名) —
+#: siunitx 元素级判定在站点收集后做 (``{siunitx-blah}`` 这类误中由此滤掉)。
+_SIU_LIST_RE = _PKG_LOAD_RE
 #: siunitx v3 ``\\__siunitx_load_check:n`` 的不兼容名单 —— 装载时全查,
 #: ``\\AtBeginDocument`` 复查前三 (SIunits/sistyle/units)。``ver@X.sty``
 #: 置 ``\\relax`` 即从 ``\\@ifpackageloaded`` 注销 (physics_stub_detach
 #: 同机理); 未载过的名 ``\\csname`` 展开本即 ``\\relax``, 幂等无害。
 _SIU_INCOMPAT_PKGS = ("SIunits", "sistyle", "units", "unitsdef", "fancyunits")
-#: 包裹对 —— exact-restore idiom 同 ``_SHIP_WRAP_*``: 宿主 @ 语境不可知,
-#: ``\\edef`` 存现值 ``=11`` 读本族 ``\\@ifundefined``, 尾段恒回原位
-#: (裸 ``\\makeatother`` 会把 @=letter 宿主的后续 @-cs 强翻回 12)。
+#: 包裹对 —— exact-restore idiom 同 ``_SHIP_WRAP_*`` (内饰共用 ``_STYIN_SEG``
+#: 裸段, 换行替空格作分隔): 宿主 @ 语境不可知, ``\\edef`` 存现值 ``=11``
+#: 读本族 ``\\@ifundefined``, 尾段恒回原位 (裸 ``\\makeatother`` 会把
+#: @=letter 宿主的后续 @-cs 强翻回 12)。
 _SIU_PEACE_PRE = (
     "% fixloop: siunitx incompatible-pkg evasion shim\n"
-    "\\edef\\TeXlateStyInRestore{\\catcode 64=\\the\\catcode 64\\relax}"
-    "\\catcode 64=11\\relax\n"
-    "\\@ifundefined{TeXlateSavedUnit}"
+    + _STYIN_SEG[0]
+    + "\n"
+    + "\\@ifundefined{TeXlateSavedUnit}"
     "{\\@ifundefined{unit}{}{\\let\\TeXlateSavedUnit\\unit\\let\\unit\\relax}}{}\n"
     + "".join(
         f"\\expandafter\\let\\csname ver@{p}.sty\\endcsname\\relax\n"
         for p in _SIU_INCOMPAT_PKGS
     )
-    + "\\TeXlateStyInRestore\n"
+    + _STYIN_SEG[1]
+    + "\n"
 )
 #: 载后复元 ``\\unit`` —— siunitx ``\\NewDocumentCommand\\unit``(sty:9494)
 #: 在 ``\\unit``=``\\relax`` 下当未定义处理正常落定义, 此处把 units 语义
 #: 装回 (units 的 ``\\unit[value]{unit}`` 与 siunitx ``O{} m`` 签名不兼容,
 #: 用 units 语法的文档必须复元, 2105.03729 ``\\unit[38]{mW}`` 实证)。
 _SIU_PEACE_POST = (
-    "\n\\edef\\TeXlateStyInRestore{\\catcode 64=\\the\\catcode 64\\relax}"
-    "\\catcode 64=11\\relax"
-    "\\@ifundefined{TeXlateSavedUnit}{}"
-    "{\\let\\unit\\TeXlateSavedUnit\\let\\TeXlateSavedUnit\\relax}"
-    "\\TeXlateStyInRestore"
+    "\n" + _STYIN_SEG[0] + "\\@ifundefined{TeXlateSavedUnit}{}"
+    "{\\let\\unit\\TeXlateSavedUnit\\let\\TeXlateSavedUnit\\relax}" + _STYIN_SEG[1]
 )
 
 
 def _siunitx_load_sites(t: str) -> list[tuple[int, int, bool]]:
     r"""siunitx 装载命令顶层 live 站 → ``[(start, end, at_letter)]``。
 
-    ``_sty_input_sites`` 同骨架走查 (遮盖视图 + 深度 0 + ambient @ 栈),
-    宏体/组内 ``\\usepackage`` 不算 (延迟执行语境, 注入文本会在定义点
-    断 ``\\@`` 签名)。``end`` 即 match 本体尾 —— 名单 ``[^}]*`` 不含
-    ``}``, 命令括号已自闭。
+    ``_scoped_sites`` 走查 (遮盖视图 + 深度 0 + ambient @ 栈), 宏体/组内
+    ``\\usepackage`` 不算 (延迟执行语境, 注入文本会在定义点断 ``\\@`` 签名)。
+    ``end`` 即 match 本体尾 (``_match_end``) —— 名单 ``[^}]*`` 不含 ``}``,
+    命令括号已自闭。``at_letter`` 本 lane 不消费, 随统一三元组带回。
     """
-    vis = mask_tex(t)
-    depth = 0
-    at_letter = False
-    stack: list[bool] = []
-    pos = 0
     out: list[tuple[int, int, bool]] = []
-    for m in _SIU_LIST_RE.finditer(vis):
-        while pos < m.start():
-            pos, ev = _scope_step(vis, pos)
-            if ev == "open":
-                depth += 1
-                stack.append(at_letter)
-            elif ev == "close":
-                depth -= 1
-                if stack:
-                    at_letter = stack.pop()
-            elif ev is not None:
-                at_letter = ev == "letter"
-        if depth != 0 or vis[m.start() : m.end()] != t[m.start() : m.end()]:
-            continue
-        pkgs = [p.strip() for p in m.group(3).split(",")]
+    for m, end, at_letter in _scoped_sites(t, _SIU_LIST_RE, end_fn=_match_end):
+        pkgs = [p.strip() for p in m["names"].split(",")]
         if "siunitx" in pkgs:
-            out.append((m.start(), m.end(), at_letter))
+            out.append((m.start(), end, at_letter))
     return out
 
 
@@ -563,9 +618,6 @@ def font_sub_shim(
     exts = tuple(params.get("exts") or (".tex", ".sty"))
     shim_map: dict[str, dict[str, Any]] = params.get("shim_map") or {}
     changed = []
-    load_pat = re.compile(
-        r"(\\(?:usepackage|RequirePackage)\s*(?:\[[^\]]*\])?\s*)\{([^}]*)\}"
-    )
     for f in ctx.tex_files(exts):
         t = ctx.read(f)
         if t is None:
@@ -578,17 +630,17 @@ def font_sub_shim(
 
             # 装载点: {bbm} 精确 / {a,bbm,c} 列表元素 (其余不动)
             def _sw(m: re.Match[str], _o: str = old_pkg, _n: str = new_pkg) -> str:
-                parts = [x.strip() for x in m.group(2).split(",")]
+                parts = [x.strip() for x in m["names"].split(",")]
                 if _o not in parts:
                     return m.group(0)
                 return (
-                    m.group(1)
+                    m["head"]
                     + "{"
                     + ",".join(_n if p == _o else p for p in parts)
                     + "}"
                 )
 
-            nt = load_pat.sub(_sw, nt)
+            nt = _PKG_LOAD_RE.sub(_sw, nt)
             for old_cs, new_cs in (spec.get("cs_map") or {}).items():
                 nt = re.sub(rf"\\{old_cs}\b", rf"\\{new_cs}", nt)
         if nt != t:
@@ -612,12 +664,10 @@ _XY_EXT_ERR_RES = (
     re.compile(r"([A-Za-z()]+)\s+feature\s+not\s+loaded"),
 )
 
-#: ``\\usepackage``/``\\RequirePackage`` 名单装载点 —— 元素级 xy/xypic
-#: 判定在站点收集后做 (``_SIU_LIST_RE`` 同骨架; ``xypic.sty`` 是
-#: ``\\input{xy.sty}``+``\\xyoption{v2}`` 薄壳, ``xy`` 直载 ``xy.sty``)。
-_XY_LOAD_RE = re.compile(
-    r"\\(usepackage|RequirePackage)(\s*\[[^\]\n]*\])?\s*\{([^}]*)\}"
-)
+#: ``\\usepackage``/``\\RequirePackage`` 名单装载点 (``_PKG_LOAD_RE`` 别名) ——
+#: 元素级 xy/xypic 判定在站点收集后做 (``xypic.sty`` 是 ``\\input{xy.sty}``
+#: +``\\xyoption{v2}`` 薄壳, ``xy`` 直载 ``xy.sty``)。
+_XY_LOAD_RE = _PKG_LOAD_RE
 
 
 def _xy_ext_names(ctx: LoopCtx) -> list[str]:
@@ -652,7 +702,7 @@ def _xy_missing_loads(t: str, exts: list[str]) -> tuple[str, int]:
     if not need:
         return t, 0
     for m in _live_matches(_XY_LOAD_RE, t):
-        pkgs = [p.strip() for p in m.group(3).split(",")]
+        pkgs = [p.strip() for p in m["names"].split(",")]
         if not ({"xy", "xypic"} & set(pkgs)):
             continue
         ins = "".join(rf"\xyoption{{{e}}}" for e in need)

@@ -51,14 +51,16 @@ if TYPE_CHECKING:
     )
     from texlate.compile.fixloop._builtins_csfix import (
         _allocated_cs_names,
-        cs_delim_tail_fix,
         cs_targeted_fix,
         ctlseq_undefine,
+        undefine_for_redef,
+    )
+    from texlate.compile.fixloop._builtins_docfix import (
+        cs_delim_tail_fix,
         if_phantom_protect,
         pdfstring_cs_disarm,
         premature_cs_guard,
         spacefactor_atdef_wrap,
-        undefine_for_redef,
     )
     from texlate.compile.fixloop._builtins_graphics import (
         _EPS_EXTS,
@@ -198,14 +200,16 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
     ),
     "_builtins_csfix": (
         "_allocated_cs_names",
-        "cs_delim_tail_fix",
         "cs_targeted_fix",
         "ctlseq_undefine",
+        "undefine_for_redef",
+    ),
+    "_builtins_docfix": (
+        "cs_delim_tail_fix",
         "if_phantom_protect",
         "pdfstring_cs_disarm",
         "premature_cs_guard",
         "spacefactor_atdef_wrap",
-        "undefine_for_redef",
     ),
     "_builtins_graphics": (
         "_EPS_EXTS",
@@ -410,7 +414,7 @@ _TRANSFORM_KEYS: tuple[str, ...] = (
 )
 
 # 字面列表——ruff F401 re-export 判定要静态 __all__; 键集 = _LAZY 键集 +
-# 本地注册表名, 新增导出两侧同步。
+# 本地注册表名, 新增导出两侧同步 (``_export_drift`` 是三表同步闸)。
 __all__ = [
     "PDFTEX_PRIMS",
     "REWRITE_FNS",
@@ -490,6 +494,7 @@ __all__ = [
     "graphic_missing_placeholder",
     "graphic_repair",
     "graphics_include_strip",
+    "graphics_kv_strip_obsolete",
     "harvest_build_directives",
     "if_phantom_protect",
     "includepdf_missing_stub",
@@ -560,6 +565,56 @@ def __dir__() -> list[str]:
     return __all__
 
 
+def _export_drift() -> list[str]:
+    """``__all__``/``_LEAF_EXPORTS``/本地公共名三表同步审计 → 漂移描述表。
+
+    空表 = 同步, 测试断言 ``== []`` 即可。三向覆盖:
+
+    - ``_LAZY`` 键与 ``_TRANSFORM_KEYS`` 全进 ``__all__``;
+    - ``__all__`` 逐名 ``getattr`` 可解——叶子断链 (``_LEAF_EXPORTS``
+      配名叶子不提供) 与幽灵条 (既非叶子名也非本地名) 在此曝, 是首访
+      ``AttributeError`` 唯一的提前闸;
+    - 本地公共名 (本模块定义的函数/类 + 注册表 dict) 全进 ``__all__``
+      —— ``graphics_kv_strip_obsolete`` 漏列即此类漂移。
+
+    审计实载全部叶子, 只供测试调用, 装载期不自检。
+    """
+    mod = sys.modules[__name__]
+    drift = [
+        f"{name} in _LEAF_EXPORTS but missing from __all__"
+        for name in _LAZY
+        if name not in __all__
+    ]
+    drift += [
+        f"{key} in _TRANSFORM_KEYS but not in _LAZY"
+        for key in _TRANSFORM_KEYS
+        if key not in _LAZY
+    ]
+    if len(__all__) != len(set(__all__)):
+        drift.append("__all__ has duplicate entries")
+    for name in __all__:
+        try:
+            getattr(mod, name)
+        except Exception as exc:  # noqa: BLE001 -- 审计兜全漂移, 非首错即死
+            drift.append(f"__all__ entry {name} does not resolve: {exc}")
+    local_publics = {
+        name
+        for name, v in vars(mod).items()
+        if not name.startswith("_")
+        and name not in _LAZY
+        and (
+            isinstance(v, dict)
+            or (callable(v) and getattr(v, "__module__", None) == __name__)
+        )
+    }
+    drift += [
+        f"{name} defined locally but missing from __all__"
+        for name in sorted(local_publics)
+        if name not in __all__
+    ]
+    return drift
+
+
 # ════════════════════════════════════════════════════════════════
 # regex_rewrite 逐 match 改写函数 —— (Match) -> str
 # ════════════════════════════════════════════════════════════════
@@ -588,7 +643,11 @@ _GIN_OBSOLETE_KEYS = frozenset({"type", "ext", "read"})
 
 
 def _kv_top_members(opts: str) -> list[str]:
-    """逗号分枚 opt 表 (brace 深度内逗号不切)。"""
+    """逗号分枚 opt 表 (brace 深度内逗号不切)。
+
+    与 ``_builtins_misschar._split_kv`` 同算法——待公共
+    ``textutil.split_top_level_commas`` 落地后两处收敛删本份。
+    """
     out: list[str] = []
     depth = 0
     cur = ""

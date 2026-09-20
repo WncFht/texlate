@@ -18,7 +18,11 @@ import subprocess
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any
 
-from texlate.compile.fixloop._builtins_common import _fixloop_log, _live_matches
+from texlate.compile.fixloop._builtins_common import (
+    _fixloop_log,
+    _live_matches,
+    _map_tex_files,
+)
 from texlate.textutil import mask_tex, safe_is_file
 
 if TYPE_CHECKING:
@@ -155,15 +159,27 @@ def _run_convert(tool: str, src: Path, dst: Path) -> tuple[int | None, str, bool
         return p.returncode, p.stdout or "", False
 
 
+def _gs_bin() -> str | None:
+    """gs 可执行名查找: ``gs`` → ``gswin64c`` → ``gswin32c``。"""
+    return shutil.which("gs") or shutil.which("gswin64c") or shutil.which("gswin32c")
+
+
+def _produced(dst: Path, rc: int | None, to: bool | str) -> bool:
+    """转换工具后件断言: ``rc==0`` 且未超时且 dst 非空在盘; 判败残留就地清掉。"""
+    if rc == 0 and not to and dst.is_file() and dst.stat().st_size:
+        return True
+    dst.unlink(missing_ok=True)  # 失败残留清掉, 防半文件被当成产物
+    return False
+
+
 def _convert_one(epstopdf: str | None, gs: str | None, src: Path, dst: Path) -> bool:
     """单个 .eps/.ps → .pdf: epstopdf 优先, gs -dEPSCrop 兜底 (texglot 同配方)。"""
     for tool in (epstopdf, gs):
         if not tool:
             continue
         rc, _out, to = _run_convert(tool, src, dst)
-        if rc == 0 and not to and dst.is_file() and dst.stat().st_size:
+        if _produced(dst, rc, to):
             return True
-        dst.unlink(missing_ok=True)  # 失败残留清掉, 防半文件被当成产物
     return False
 
 
@@ -171,12 +187,10 @@ def _rewrite_eps_refs(
     ctx: LoopCtx, exts: tuple[str, ...], converted: dict[str, str]
 ) -> tuple[int, int]:
     """逐 tex 文件: 字面量 ``x.eps``→``x.pdf`` + 剥 PS 驱动选项 → (改写文件数, 摘驱动数)。"""
-    n_files = 0
     n_drivers = 0
-    for f in ctx.tex_files(exts):
-        t = ctx.read(f)
-        if t is None:
-            continue
+
+    def _fn(t: str) -> tuple[str, int]:
+        nonlocal n_drivers
         nt = t
         for old, new in converted.items():
             if new.startswith(old):
@@ -187,10 +201,9 @@ def _rewrite_eps_refs(
                 nt = nt.replace(old, new)
         nt, k = _strip_ps_driver_opts(nt)
         n_drivers += k
-        if nt != t:
-            ctx.write(f, nt)
-            n_files += 1
-    return n_files, n_drivers
+        return nt, int(nt != t)
+
+    return _map_tex_files(ctx, exts, _fn), n_drivers
 
 
 def eps_to_pdf(
@@ -210,7 +223,7 @@ def eps_to_pdf(
     """
     del eng, payload  # 转换不触引擎原语; 全量转换不靠单点 payload
     epstopdf = shutil.which("epstopdf")
-    gs = shutil.which("gs") or shutil.which("gswin64c") or shutil.which("gswin32c")
+    gs = _gs_bin()
     if not epstopdf and not gs:
         return False, "no epstopdf/gs available"
     exts = tuple(params.get("exts") or (".tex", ".sty"))
@@ -475,11 +488,10 @@ def _stub_graphic_refs(ctx: LoopCtx, f: Path, want: str, params: dict[str, Any])
     h_d = str(params.get("stub_height") or r"0.45\linewidth")
     names = {want, f.name, f.relative_to(ctx.wdir).as_posix()}
     exts = tuple(params.get("exts") or (".tex", ".sty"))
-    changed = 0
-    for tf in ctx.tex_files(exts):
-        t = ctx.read(tf)
-        if t is None or "\\includegraphics" not in t:
-            continue
+
+    def _fn(t: str) -> tuple[str, int]:
+        if "\\includegraphics" not in t:
+            return t, 0
 
         def _sub(m: re.Match[str]) -> str:
             if not any(_graphic_ref_hit(m.group(2), n) for n in names):
@@ -490,10 +502,9 @@ def _stub_graphic_refs(ctx: LoopCtx, f: Path, want: str, params: dict[str, Any])
             return f"{box}% fixloop: stub for unreadable {f.name}"
 
         nt = _INCLUDE_GFX_RE.sub(_sub, t)
-        if nt != t:
-            ctx.write(tf, nt)
-            changed += 1
-    return changed
+        return nt, int(nt != t)
+
+    return _map_tex_files(ctx, exts, _fn)
 
 
 def _try_gs_redistill(ctx: LoopCtx, f: Path, marker: Path) -> str | None:
@@ -502,7 +513,7 @@ def _try_gs_redistill(ctx: LoopCtx, f: Path, marker: Path) -> str | None:
     原件拷为 marker (备份兼「已蒸馏」标记); 失败残留 ``.fixloop-tmp`` 清掉,
     防半文件被当成产物 (``_convert_one`` 同款纪律)。
     """
-    gs = shutil.which("gs") or shutil.which("gswin64c") or shutil.which("gswin32c")
+    gs = _gs_bin()
     if gs is None:
         return "no gs"
     tmp = f.with_name(f.name + ".fixloop-tmp")
@@ -519,8 +530,7 @@ def _try_gs_redistill(ctx: LoopCtx, f: Path, marker: Path) -> str | None:
         ],
         timeout=90,
     )
-    if rc != 0 or to or not tmp.is_file() or not tmp.stat().st_size:
-        tmp.unlink(missing_ok=True)
+    if not _produced(tmp, rc, to):
         return f"gs failed rc={rc}{'/timeout' if to else ''}"
     shutil.copy2(f, marker)
     tmp.replace(f)
@@ -659,9 +669,8 @@ def _svg_convert_one(ctx: LoopCtx, src: Path, dst: Path) -> str | None:
             else [tool, str(src), str(dst)]  # magick / convert
         )
         rc, _out, to = ctx.run_tool(argv, timeout=90)
-        if rc == 0 and not to and dst.is_file() and dst.stat().st_size:
+        if _produced(dst, rc, to):
             return None
-        dst.unlink(missing_ok=True)  # 失败残留清掉, 防半文件被当成产物
     return "no converter on PATH" if not tried else "all converters failed"
 
 
@@ -683,11 +692,10 @@ def _rewrite_includesvg(ctx: LoopCtx, converted: dict[str, str]) -> int:
     converted 键是 svg basename; arg 规范名剥 ``.svg`` 尾 (或裸 stem) 后命中
     即改写, 目录前缀原样保留 —— dst 就落在 src 同目录。返回改写文件数。
     """
-    changed = 0
-    for f in ctx.tex_files((".tex", ".sty")):
-        t = ctx.read(f)
-        if t is None or "\\includesvg" not in t:
-            continue
+
+    def _fn(t: str) -> tuple[str, int]:
+        if "\\includesvg" not in t:
+            return t, 0
         out: list[str] = []
         prev = 0
         n = 0
@@ -709,11 +717,11 @@ def _rewrite_includesvg(ctx: LoopCtx, converted: dict[str, str]) -> int:
             prev = m.end()
             n += 1
         if not n:
-            continue
+            return t, 0
         out.append(t[prev:])
-        ctx.write(f, "".join(out))
-        changed += 1
-    return changed
+        return "".join(out), n
+
+    return _map_tex_files(ctx, (".tex", ".sty"), _fn)
 
 
 def _svg_convert_arm(ctx: LoopCtx) -> tuple[bool, str]:
@@ -861,10 +869,10 @@ def xbb_pregen(
         rc, _out, to = ctx.run_tool(
             [extractbb, "-x", src.relative_to(ctx.wdir).as_posix()], timeout=timeout
         )
-        if rc == 0 and not to and xbb.is_file() and xbb.stat().st_size:
+        # 失败空 .xbb 是毒件 (\ifeof 仍走 pipe) —— _produced 判败顺带清掉
+        if _produced(xbb, rc, to):
             gen += 1
         else:
-            xbb.unlink(missing_ok=True)  # 失败空 .xbb 是毒件 —— \ifeof 仍走 pipe
             failed.append(f"{src.name}(rc={rc}{'/to' if to else ''})")
     if not gen:
         if fresh and not failed:
@@ -880,13 +888,13 @@ def xbb_pregen(
 
 # ═══ xdvipdfmx pdf_link_obj 域 (xlinkobj lane 2026-09-19): 内嵌 pdf 重序列化 ═══
 
-#: sanitize 目标扫描的排除目录 —— ``_texmf`` (wired vendored texmfhome) 与
+#: 内嵌 .pdf 候选扫描的排除目录 —— ``_texmf`` (wired vendored texmfhome) 与
 #: ``_tect_out`` (tectonic 产物树) 是引擎/注入侧封装件, 非文档内嵌图件。
 _PDF_SANITIZE_SKIP_DIRS = frozenset({"_texmf", "_tect_out"})
 
 
-def _pdf_sanitize_targets(ctx: LoopCtx) -> list[Path]:
-    """``wdir`` 内 sanitize 候选 .pdf —— 排除引擎产物/隐藏面/封装树。"""
+def _pdf_asset_targets(ctx: LoopCtx) -> list[Path]:
+    """``wdir`` 内嵌 .pdf 候选 —— 排除引擎产物/隐藏面/封装树 (sanitize/mislabeled 同口径)。"""
     main = ctx.main_path()
     main_pdf = main.with_suffix(".pdf") if main is not None else None
     out: list[Path] = []
@@ -919,7 +927,7 @@ def pdf_asset_sanitize(
     文件名) 故全量重写 —— 健康件重序列化是语义 no-op。
     """
     del eng, payload, params
-    targets = _pdf_sanitize_targets(ctx)
+    targets = _pdf_asset_targets(ctx)
     if not targets:
         return False, "no pdf assets in project"
     done = skipped = 0
@@ -1326,6 +1334,32 @@ def _stub_graphic_at(  # noqa: C901, PLR0911, PLR0912 - 逐门 decline note 即�
     return True, f"placeholder {suffix.lstrip('.').upper()} at {want}"
 
 
+def _stub_sweep(
+    ctx: LoopCtx, base: Path, wants: list[str], *, rescue_skip_first: bool = False
+) -> tuple[bool, str]:
+    r"""wants 全量逐件过 ``_stub_graphic_at`` 落占位 → (有落盘, 汇总 note)。
+
+    ``rescue_skip_first=True``: 首件 (本轮首错 payload) 免 rescue_check
+    —— case_link 本轮已先评; 其余 sweep 件带检, 去括/ci 变体在盘时让位。
+    note 组装: 首件落盘 note + ``(+N swept)`` + ``| declined: ...``。
+    """
+    wrote: list[str] = []
+    declined: list[str] = []
+    for i, w in enumerate(wants):
+        ok, note = _stub_graphic_at(
+            ctx, base, w, rescue_check=i > 0 or not rescue_skip_first
+        )
+        (wrote if ok else declined).append(note)
+    if not wrote:
+        return False, declined[0] if declined else "no stub written"
+    head = wrote[0]
+    if len(wrote) > 1:
+        head += f" (+{len(wrote) - 1} swept)"
+    if declined:
+        head += f" | declined: {'; '.join(declined)}"
+    return True, head
+
+
 def graphic_missing_placeholder(
     ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
 ) -> tuple[bool, str]:
@@ -1371,19 +1405,7 @@ def graphic_missing_placeholder(
     for w in _enum_missing_graphics(ctx, eng, base):
         if w not in wants:
             wants.append(w)
-    wrote: list[str] = []
-    declined: list[str] = []
-    for i, w in enumerate(wants):
-        ok, note = _stub_graphic_at(ctx, base, w, rescue_check=i > 0)
-        (wrote if ok else declined).append(note)
-    if not wrote:
-        return False, declined[0] if declined else "no stub written"
-    head = wrote[0]
-    if len(wrote) > 1:
-        head += f" (+{len(wrote) - 1} swept)"
-    if declined:
-        head += f" | declined: {'; '.join(declined)}"
-    return True, head
+    return _stub_sweep(ctx, base, wants, rescue_skip_first=True)
 
 
 # ════════════════════════════════════════════════════════════════
@@ -1416,27 +1438,15 @@ def _sniff_raster_ext(p: Path) -> str | None:
 def _mislabeled_pdf_targets(ctx: LoopCtx) -> list[tuple[Path, str]]:
     r"""``wdir`` 全量 ``*.pdf`` magic 复核 → ``[(path, real_ext)]``。
 
-    排除面与 ``_pdf_sanitize_targets`` 同口径: dot-部件 (``.fixloop-*``
+    排除面与 ``_pdf_asset_targets`` 同口径: dot-部件 (``.fixloop-*``
     底板快照)、``_texmf``/``_tect_out`` 封装树、main 输出 pdf
     (重编译自生非内嵌图件)。真 ``%PDF`` 头件不落表 —— 引擎可读。
     """
-    main = ctx.main_path()
-    main_pdf = main.with_suffix(".pdf") if main is not None else None
-    out: list[tuple[Path, str]] = []
-    for p in sorted(ctx.wdir.rglob("*")):
-        if not p.is_file() or p.suffix.lower() != ".pdf":
-            continue
-        parts = p.relative_to(ctx.wdir).parts
-        if any(part.startswith(".") for part in parts):
-            continue
-        if parts[0] in _PDF_SANITIZE_SKIP_DIRS:
-            continue
-        if main_pdf is not None and p == main_pdf:
-            continue
-        ext = _sniff_raster_ext(p)
-        if ext is not None:
-            out.append((p, ext))
-    return out
+    return [
+        (p, ext)
+        for p in _pdf_asset_targets(ctx)
+        if (ext := _sniff_raster_ext(p)) is not None
+    ]
 
 
 def _rewrite_mislabeled_refs(
@@ -1450,11 +1460,10 @@ def _rewrite_mislabeled_refs(
     改名后自解 (1607.00405 实证)。``\includepdf`` 不扫 —— pdfpages
     只收真 pdf, 改名后其缺件归 includepdf_missing_stub 诚实降级。
     """
-    changed = 0
-    for f in ctx.tex_files(exts):
-        t = ctx.read(f)
-        if t is None or "\\includegraphics" not in t:
-            continue
+
+    def _fn(t: str) -> tuple[str, int]:
+        if "\\includegraphics" not in t:
+            return t, 0
         out: list[str] = []
         prev = 0
         n = 0
@@ -1476,11 +1485,11 @@ def _rewrite_mislabeled_refs(
             prev = m.end(2)
             n += 1
         if not n:
-            continue
+            return t, 0
         out.append(t[prev:])
-        ctx.write(f, "".join(out))
-        changed += 1
-    return changed
+        return "".join(out), n
+
+    return _map_tex_files(ctx, exts, _fn)
 
 
 def raster_pdf_rename(
@@ -1583,16 +1592,4 @@ def driver_missing_image_stub(
     for w in _enum_missing_graphics(ctx, eng, base):
         if w not in wants:
             wants.append(w)
-    wrote: list[str] = []
-    declined: list[str] = []
-    for w in wants:
-        ok, note = _stub_graphic_at(ctx, base, w, rescue_check=True)
-        (wrote if ok else declined).append(note)
-    if not wrote:
-        return False, declined[0] if declined else "no stub written"
-    head = wrote[0]
-    if len(wrote) > 1:
-        head += f" (+{len(wrote) - 1} swept)"
-    if declined:
-        head += f" | declined: {'; '.join(declined)}"
-    return True, head
+    return _stub_sweep(ctx, base, wants)

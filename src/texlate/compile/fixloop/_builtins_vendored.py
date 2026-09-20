@@ -13,6 +13,7 @@ import shutil
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any
 
+from texlate.arxiv.locate import safe_rel
 from texlate.compile.fixloop._builtins_common import (
     _FINGERPRINT_RE,
     _LEGACY_INJECTED_HEADS,
@@ -172,11 +173,9 @@ def find_vendored_shadows(
     """
     cands = []
     tectonic = ctx.engine_name == "tectonic"
-    wdir_r = ctx.wdir.resolve()
-    neutral = _neutral_probe_dir(ctx)
     for f in ctx.tex_files(exts):
-        resolved = eng.probe_file(f.name, cwd=neutral)
-        if not resolved:
+        sp = _probe_external(ctx, eng, f.name)
+        if sp is None:
             if tectonic:
                 pkgs = _index_providers(eng, f.name)
                 if pkgs:
@@ -185,28 +184,31 @@ def find_vendored_shadows(
                     prov = f"bundle provides {', '.join(pkgs)}"
                     cands.append((f, ld, None, prov))
             continue
-        rp = Path(resolved) if isinstance(resolved, str) else resolved
-        try:
-            rpv = rp.resolve()
-            if rpv == f.resolve() or rpv.is_relative_to(wdir_r):
-                continue  # 命中工程自身/工程内同名副本（kpsewhich 搜 cwd——
-                # 进程 cwd 落在 workdir 内时探到的是 vendored 自件）→ 非遮蔽
-        except (OSError, RuntimeError, ValueError):
-            continue  # symlink loop/NUL/巨名 → 按非遮蔽计
+        rp = Path(sp)
         local_txt = ctx.read(f)
-        try:
-            sys_txt = Path(rp).read_text(encoding="utf-8", errors="replace")
-        except (OSError, ValueError):
-            continue
         if local_txt is None:
             continue
+        sys_txt = _read_utf8(rp)
         ld, sd = _provides_date(local_txt), _provides_date(sys_txt)
         if ld is not None and sd is not None and ld < sd:
             cands.append((f, ld, sd, str(rp)))
     return cands
 
 
-def _retire_paired_tex_core(  # noqa: PLR0911  # 保守闸逐条一处, 缺一不碰
+def _advise(ctx: LoopCtx, adv: str) -> None:
+    """幂等 advisory 记账 —— 同文条目不重复落 ``ctx.ledger.advisories``。"""
+    if adv not in ctx.ledger.advisories:
+        ctx.ledger.advisories.append(adv)
+
+
+def _isolate_rename(f: Path, suffix: str) -> Path:
+    """``f`` rename 为 ``<f.name><suffix>`` 隔离件 → 新路径 (让出原名槽位)。"""
+    iso = f.with_name(f.name + suffix)
+    f.rename(iso)
+    return iso
+
+
+def _retire_paired_tex_core(
     ctx: LoopCtx, eng: Engine, f: Path, suffix: str
 ) -> str | None:
     r"""退役 wrapper 同名 .tex 核 (pst-* 族 wrapper+core 一体件) → 隔离 note。
@@ -220,30 +222,21 @@ def _retire_paired_tex_core(  # noqa: PLR0911  # 保守闸逐条一处, 缺一�
     core = f.with_suffix(".tex")
     if core == f or not safe_is_file(core):
         return None
-    resolved = eng.probe_file(core.name, cwd=_neutral_probe_dir(ctx))
-    if not resolved:
-        return None  # 系统无核可递补——rename 即造 missing_file, 不动
-    rp = Path(resolved) if isinstance(resolved, str) else resolved
-    try:
-        rpv = rp.resolve()
-        if rpv == core.resolve() or rpv.is_relative_to(ctx.wdir.resolve()):
-            return None  # probe 命中工程自身 (kpsewhich cwd 毒化) → 非遮蔽
-    except (OSError, RuntimeError, ValueError):
-        return None
+    sp = _probe_external(ctx, eng, core.name)
+    if sp is None:
+        return None  # 系统无核可递补/probe 自命中 (kpsewhich cwd 毒化) —— 不动
+    rp = Path(sp)
     local_txt = ctx.read(core)
     if local_txt is None:
         return None
     head = local_txt.lstrip()[:200]
     if _FINGERPRINT_RE.search(local_txt) or head.startswith(_LEGACY_INJECTED_HEADS):
         return None  # 本引擎注入件非稿自带——退役即自拆台
-    try:
-        sys_txt = rp.read_text(encoding="utf-8", errors="replace")
-    except (OSError, ValueError):
-        return None
+    sys_txt = _read_utf8(rp)
     ld, sd = _provides_date(local_txt), _provides_date(sys_txt)
     if ld is None or sd is None or ld >= sd:
         return None  # 无日期面确证新旧——盲删必死, 保留
-    core.rename(core.with_name(core.name + suffix))
+    _isolate_rename(core, suffix)
     note = f"{core.name} (paired core {ld} < {sd})"
     shim = _path_shim_for(ctx, eng, core, str(rp))
     if shim:
@@ -414,17 +407,15 @@ def _isolate_cohort_sib(ctx: LoopCtx, eng: Engine, sib: Path, suffix: str) -> li
     if _pathqual_hit(ctx, srel):
         sp = _probe_external(ctx, eng, sib.name)
         if sp is None:
-            adv = f"{srel}: 路径限定装载但系统无递补, 保留"
-            if adv not in ctx.advisories:
-                ctx.advisories.append(adv)
+            _advise(ctx, f"{srel}: 路径限定装载但系统无递补, 保留")
             return []
-        sib.rename(sib.with_name(sib.name + suffix))
+        _isolate_rename(sib, suffix)
         return [f"{srel} (cohort)", _write_path_shim(ctx, sib, sp)]
-    sib.rename(sib.with_name(sib.name + suffix))
+    _isolate_rename(sib, suffix)
     return [f"{srel} (cohort)"]
 
 
-def vendored_shadow_isolate(  # noqa: C901  # 保守闸逐条一处, 缺一不碰
+def vendored_shadow_isolate(  # 保守闸逐条一处, 缺一不碰
     ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
 ) -> tuple[bool, str]:
     r"""确证更旧的工程内 .sty/.cls → rename ``<f>.fixloop-iso`` 隔离 (docs/08:269)。
@@ -453,13 +444,11 @@ def vendored_shadow_isolate(  # noqa: C901  # 保守闸逐条一处, 缺一不�
     moved = []
     for f, ld, sd, prov in find_vendored_shadows(ctx, eng, exts):
         if sd is None:
-            adv = f"{f.name}: {prov}——vendored 撞名未确证新旧, 保留"
-            if adv not in ctx.advisories:
-                ctx.advisories.append(adv)
+            _advise(ctx, f"{f.name}: {prov}——vendored 撞名未确证新旧, 保留")
             continue
         if not safe_is_file(f):  # 同干 .sty+.tex 双候选时 paired 道已移走
             continue
-        f.rename(f.with_name(f.name + suffix))
+        _isolate_rename(f, suffix)
         moved.append(f"{f.name} ({ld} < {sd})")
         shim = _path_shim_for(ctx, eng, f, prov)
         if shim:
@@ -501,6 +490,14 @@ def _vendored_source(root: Path, fname: str) -> Path | None:
     return None
 
 
+def _safe_rel_name(name: str) -> PurePosixPath | None:
+    """件名卫: 空名/绝对径/``..``/含 NUL → ``None``; 否则 ``PurePosixPath``。
+
+    词法单源 ``texlate.arxiv.locate.safe_rel``。
+    """
+    return safe_rel(name)
+
+
 def vendored_fetch(
     ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
 ) -> tuple[bool, str]:
@@ -513,8 +510,8 @@ def vendored_fetch(
     """
     del eng
     fname = (payload or "").strip()
-    rel = PurePosixPath(fname)
-    if not fname or rel.is_absolute() or ".." in rel.parts or "\x00" in fname:
+    rel = _safe_rel_name(fname)
+    if rel is None:
         return False, f"unsafe vendored name {fname!r}"
     src = _vendored_source(_vendor_root(params), fname)
     if src is None:
@@ -583,7 +580,7 @@ def amsmath_family_retire(
         txt = ctx.read(f) or ""
         if _SAVEPRIM_CALL_RE.search(txt) is None:
             continue
-        f.rename(f.with_name(f.name + suffix))
+        _isolate_rename(f, suffix)
         if f.stem == "amsmath":
             moved.append(f"{f.name} (saveprimitive-era, system serves)")
         else:
@@ -592,7 +589,7 @@ def amsmath_family_retire(
     for f, ld, sd, _prov in find_vendored_shadows(ctx, eng, (".sty",)):
         if sd is None or not f.name.startswith("ams"):
             continue
-        f.rename(f.with_name(f.name + suffix))
+        _isolate_rename(f, suffix)
         moved.append(f"{f.name} (cohort {ld} < {sd})")
     if not moved:
         return False, "无 saveprimitive 指纹 ams* 件"
@@ -657,11 +654,9 @@ def _retire_revtex40a_files(
         if _FINGERPRINT_RE.search(txt) or head.startswith(_LEGACY_INJECTED_HEADS):
             continue
         if not repl_ok:
-            adv = f"{f.name}: revtex4-2 递补源缺席, v4.0a 退役搁置"
-            if adv not in ctx.advisories:
-                ctx.advisories.append(adv)
+            _advise(ctx, f"{f.name}: revtex4-2 递补源缺席, v4.0a 退役搁置")
             continue
-        f.rename(f.with_name(f.name + suffix))
+        _isolate_rename(f, suffix)
         ctx.write(f, _mark_injected(_REV_DELEGATE_TMPL % f.stem))
         moved.append(f"{f.name} (v4.0a -> revtex4-2 delegate)")
 
@@ -699,9 +694,7 @@ def _drop_revtex_root_delegate(
     if root is None or root.exists() or not _revtex_shadowed_externally(ctx, eng):
         return
     if not repl_ok:
-        adv = "revtex4.cls: texmf 遮蔽命中但 revtex4-2 缺席, 搁置"
-        if adv not in ctx.advisories:
-            ctx.advisories.append(adv)
+        _advise(ctx, "revtex4.cls: texmf 遮蔽命中但 revtex4-2 缺席, 搁置")
         return
     done, _state = _inject_write(
         ctx, root, _REV_DELEGATE_TMPL % "revtex4", "revtex4.cls"
@@ -710,8 +703,8 @@ def _drop_revtex_root_delegate(
         moved.append("revtex4.cls (texmf shadow -> root delegate)")
     elif done[0]:
         moved.append(done[1])
-    elif done[1] not in ctx.advisories:
-        ctx.advisories.append(done[1])
+    else:
+        _advise(ctx, done[1])
 
 
 def revtex_era_retire(
@@ -756,8 +749,8 @@ def vendored_fetch_multi(
     root = _vendor_root(params)
     dropped, notes = [], []
     for fname in files:
-        rel = PurePosixPath(fname)
-        if not fname or rel.is_absolute() or ".." in rel.parts or "\x00" in fname:
+        rel = _safe_rel_name(fname)
+        if rel is None:
             notes.append(f"{fname}: unsafe")
             continue
         src = _vendored_source(root, fname)
