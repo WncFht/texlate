@@ -3,7 +3,7 @@ r"""伪装二进制/非 UTF-8 支持件的注入闸（``normalize.py`` 字节面
 0707.0382 实案：``AMSbsy.sty`` 实为 1MB tar blob——``decode_tex`` 永不抛
 （latin-1 兜底），成员文本里的 ``\begin{document}`` 让 ``has_document``
 命中，归一化臂把 ``\PassOptionsToPackage{no-math}{fontspec}`` +
-XETEX_COMPATIBILITY（``\providecommand{\DeclareUnicodeCharacter}`` 仿真块）
+XETEX_COMPATIBILITY 前置块
 前置进 blob，``ustar`` 魔数被推离偏移 257，下游 fixloop 只能靠扫描窗
 找回。上游字节面闸：tar 魔数命中件逐字节不动；非 strict-UTF-8 或含
 NUL 的支持件不做兼容前导块注入（转码与其余手术照旧——全树 tex 源
