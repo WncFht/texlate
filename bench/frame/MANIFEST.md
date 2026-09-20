@@ -10,13 +10,13 @@
 
 ## 内容
 
-| 文件 | 说明 |
-|---|---|
-| `frame.parquet` | 主资产：3,164,528 行 × 14 列派生 frame（schema：`docs/spec/corpus.md` §4；新式 id 覆盖 99.9994%） |
-| `frame_raw.parquet` | 原始快照 10 列（id/id_style/v1_ts/categories/license_uri/n_versions/update_date 等），派生输入即 provenance |
-| `item-index.csv` | IA arxiv-bulk item 索引（09-19 重建） |
-| `tiger-files.csv` | HF TIGER-Lab/arxiv-latex-5T 文件索引 |
-| `cluster_pick.json` / `cluster-cat-mix.csv` / `allocation-{core,booster}.csv` / `strata-{era-cat,license}.csv` / `counts_by_yymm.csv` / `coverage_newstyle.csv` / `{ia,tiger}_chunks_by_yymm.json` | 分层/簇/配额/覆盖率规划件 |
+| 文件                                                                                                                                                                                               | 说明                                                                                                        |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `frame.parquet`                                                                                                                                                                                    | 主资产：3,164,528 行 × 14 列派生 frame（schema：`docs/spec/corpus.md` §4；新式 id 覆盖 99.9994%）           |
+| `frame_raw.parquet`                                                                                                                                                                                | 原始快照 10 列（id/id_style/v1_ts/categories/license_uri/n_versions/update_date 等），派生输入即 provenance |
+| `item-index.csv`                                                                                                                                                                                   | IA arxiv-bulk item 索引（09-19 重建）                                                                       |
+| `tiger-files.csv`                                                                                                                                                                                  | HF TIGER-Lab/arxiv-latex-5T 文件索引                                                                        |
+| `cluster_pick.json` / `cluster-cat-mix.csv` / `allocation-{core,booster}.csv` / `strata-{era-cat,license}.csv` / `counts_by_yymm.csv` / `coverage_newstyle.csv` / `{ia,tiger}_chunks_by_yymm.json` | 分层/簇/配额/覆盖率规划件                                                                                   |
 
 ## 消费者
 
