@@ -25,7 +25,9 @@ refactor-audit-2026-09-17 ★1 收口：两臂各自保留编排（报告形状�
   env 名常量补齐（e2e 本地常量 + worker 裸字面量双源归一）、
   ``embed_tounicode_quiet``（ToUnicode 注入 best-effort 壳）、
   ``consume_engine_flags``（fixloop ``engine_flags`` 消费尾：
-  dropped→``cross_engine_retry``，applied→审计 note）
+  dropped→``cross_engine_retry``，applied→审计 note）、
+  ``merge_flags``（``probe_flags``+``flags`` 去重合并——pipecore/
+  worker/本件三面归一）
 - C4 批（2026-09-18，reaudit 拆分）：env judge 可译性判定 + L2 回灌
   机械 + ``TreeRun``/``split_cid`` 运行态整簇迁 ``repair_l2.py``——
   消费面直取叶子模块，本文件不回引
@@ -336,6 +338,17 @@ def cross_engine_retry(  # noqa: PLR0913 -- 开关面穿透两臂同一契约
     )
 
 
+def merge_flags(
+    probe_flags: Iterable[str], flags: Iterable[str] | None
+) -> list[str] | None:
+    """``probe_flags``+``flags`` 请求面合并：probe 声明在前、去重、空集 → ``None``。
+
+    e2e ``_compile_judge_job``/worker 预检重编臂/``consume_engine_flags``
+    换编三面同一开编码，归一本件（``pipecore._merge_flags`` 原位置）。
+    """
+    return list(dict.fromkeys([*probe_flags, *(flags or [])])) or None
+
+
 def consume_engine_flags(  # noqa: PLR0913 -- 开关面穿透两臂同一契约
     *,
     engine_name: str,
@@ -372,7 +385,7 @@ def consume_engine_flags(  # noqa: PLR0913 -- 开关面穿透两臂同一契约
             work=work,
             main_rel=main_rel,
             timeout=timeout,
-            flags=list(dict.fromkeys([*probe_flags, *flags])) or None,
+            flags=merge_flags(probe_flags, flags),
             dropped=dropped,
             expect_cjk=expect_cjk,
             make_engine=make_engine,

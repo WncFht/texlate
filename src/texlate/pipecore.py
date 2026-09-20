@@ -16,7 +16,9 @@ r"""管线核心契约层——e2e / worker / bench 三臂共享的 policy 脊�
   ``l2_repair``（done 帧同口）；开关决议 ``RepairPolicy``（显式 >
   options > ``TEXLATE_NO_*`` env 缺省皆开）与 ``reject:<rid>`` 判词
   （``reject_verdict``/``precheck_reject``）是 e2e/worker 两臂
-  修复链 policy 的单源。
+  修复链 policy 的单源；整链 ``repair_chain``（precheck→L2→fixloop
+  三级直铺）+ 翻前快照 ``baseline_snapshot`` 收 e2e/bench 两臂
+  修复段单件。
 
 观测约定：e2e/bench 臂走 ``NULL_SINK`` 零事件面（报告经 rec dict 投影，
 与重构前一致）；worker 臂经 ``_Sink`` 绑 ``_log``/``_repair_event``——
@@ -26,7 +28,11 @@ r"""管线核心契约层——e2e / worker / bench 三臂共享的 policy 脊�
 from __future__ import annotations
 
 import asyncio
+import logging
+import shutil
+import tempfile
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol
 
 from texlate.compile.engine import engine_for
@@ -40,6 +46,7 @@ from texlate.repair import (
     consume_engine_flags,
     fixloop_cell_parts,
     log_text_of,
+    merge_flags,
     ruleset_with_baseline,
     run_fixloop,
     run_precheck,
@@ -67,7 +74,6 @@ from texlate.xlat.placeholders import collect_doc_placeholders
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Iterable, Mapping
-    from pathlib import Path
 
     from texlate.chunk import ChunkIn
     from texlate.compile.ctan import TlpdbIndex
@@ -78,6 +84,8 @@ if TYPE_CHECKING:
     from texlate.repair import CrossRetry
     from texlate.xlat.pipeline import ChunkResult, Translator
 
+log = logging.getLogger(__name__)
+
 __all__ = [
     "DB_TO_PIPE",
     "NULL_SINK",
@@ -86,6 +94,7 @@ __all__ = [
     "PipeJob",
     "RepairPolicy",
     "ReportSink",
+    "baseline_snapshot",
     "compile_judge",
     "compile_judge_tail",
     "delivered",
@@ -100,6 +109,7 @@ __all__ = [
     "precheck_reject",
     "probe_report",
     "reject_verdict",
+    "repair_chain",
     "scan_tree",
     "tail_dict",
     "translate_tree_run",
@@ -562,16 +572,15 @@ def _compile_judge_job(
     kw: dict[str, object] = (
         {"halt_on_error": False} if job.eng_name == "xelatex" else {}
     )
-    eng = eng_fn(job.eng_name, **kw)
-    _texmf_wire(eng, job.work)
-    res = eng.compile(
+    eng = _texmf_eng(eng_fn, job.eng_name, job.work, **kw)
+    return compile_judge(
+        eng,
         job.work,
         job.main_rel,
         timeout=job.timeout,
-        sandbox=True,
-        flags=list(dict.fromkeys([*job.probe_flags, *(flags or [])])) or None,
+        flags=merge_flags(job.probe_flags, flags),
+        expect_cjk=expect_cjk,
     )
-    return res, judge_res(res, expect_cjk=expect_cjk)
 
 
 def compile_judge_tail(
@@ -765,17 +774,25 @@ def l2_repair_job(  # noqa: PLR0913 -- 注入面穿透（编译件/上限/sink �
     注入 e2e 编译件（``_compile_judge_job``，``engine_fn`` 保
     ``e2e.engine_for`` monkeypatch 缝）并把末态 Verdict 换回 tail dict
     报告形。``sink`` 透传 ``l2_repair``——CLI 臂收 done 实况帧。
+    错误契约与 ``precheck_job``/``fixloop_job`` 同件：崩不传播，
+    落 ``({'enabled': True, 'error': ...}, 入参 res, None)``——
+    修复臂崩不毁主报告，调用方不必再包 try。
     """
-    rep, last_res, v = l2_repair(
-        run,
-        job.work,
-        job.main_rel,
-        res,
-        cap,
-        retranslate=lambda r, h, c: asyncio.run(retranslate_hits(r, h, c)),
-        recompile=lambda: _compile_judge_job(job, expect_cjk=True, engine_fn=engine_fn),
-        sink=sink,
-    )
+    try:
+        rep, last_res, v = l2_repair(
+            run,
+            job.work,
+            job.main_rel,
+            res,
+            cap,
+            retranslate=lambda r, h, c: asyncio.run(retranslate_hits(r, h, c)),
+            recompile=lambda: _compile_judge_job(
+                job, expect_cjk=True, engine_fn=engine_fn
+            ),
+            sink=sink,
+        )
+    except Exception as e:  # noqa: BLE001 -- 修复臂崩不毁主报告
+        return ({"enabled": True, "error": f"{type(e).__name__}: {e}"}, res, None)
     tail = tail_dict(last_res, v) if v is not None else None
     return rep, last_res, tail
 
@@ -975,3 +992,119 @@ def fixloop_job(  # noqa: PLR0913 -- 开关面穿透同 pipe_condition
     if note is not None:
         tail["verdict"]["notes"].append(note)
     return rep, tail, last_res
+
+
+# ---------------------------------------------------------------- 修复链编排
+
+
+def baseline_snapshot(
+    work: Path, *, enabled: bool
+) -> tempfile.TemporaryDirectory | None:
+    """翻前快照 → fixloop ``baseline_dir``（normalize 后/翻译前的 pristine 树）。
+
+    e2e ``_baseline_snapshot``/worker ``ctx.base_dir`` 同位——原地翻译臂
+    无常驻 base，``restore_support_from_src``/``slot_arg_revert`` 要它
+    逐字节复原被写脏的 support 件。快照落系统 tempdir 防污染
+    ``scan_tree``/编译枚举；``enabled=False``（fixloop 关）跳过省一次
+    全树 copytree；copytree 失败降级 ``None``（修复臂旁路件，不该砸死
+    主链）。
+
+    返回的 ``TemporaryDirectory`` 是生命周期令牌——快照根在
+    ``Path(td.name)/"base"``；调用方持有到修复链收敛（局部变量持到
+    函数返回即随帧清理，也可 ``td.cleanup()`` 显式收）。
+    """
+    if not enabled:
+        return None
+    td = tempfile.TemporaryDirectory(prefix="texlate-baseline-")
+    base = Path(td.name) / "base"
+    try:
+        shutil.copytree(work, base)
+    except (OSError, shutil.Error) as e:
+        log.warning("baseline snapshot failed (%s) → fixloop 无 baseline", e)
+        return None
+    return td
+
+
+def repair_chain(  # noqa: PLR0913 -- 修复链开关面穿透 + 三级阶梯直铺
+    rec: dict,
+    job: PipeJob,
+    run: TreeRun,
+    res: CompRes,
+    *,
+    expect_cjk: bool,
+    l2_on: bool | None,
+    fixloop_on: bool | None,
+    l2_max_chunks: int,
+    route_engines: list[str] | None,
+    baseline_dir: Path | None = None,
+    engine_fn: Callable[..., Engine] | None = None,
+    sink: ReportSink = NULL_SINK,
+) -> CompRes:
+    """非 clean 后的修复链：precheck 预检 → L2 回灌 → fixloop；reports 直写 ``rec``。
+
+    顺序是设计约束：precheck（装缺件，fixloop 第 0 招独立相）先消
+    missing_file 类基建失败——它们进 L2 归因面只会把块拖去重译/回退
+    （``t_f74894ebc691aaf4`` algpseudocodex 实证）；L2 回灌先于
+    fixloop——fixloop 的 regex_rewrite 会被 L2 resplice 冲掉。
+    三个 ``*_job`` 件各自吞崩成 error dict——修复臂崩不毁主报告。
+    fixloop 只在仍非 clean 时跑。返回最新 ``CompRes`` 供 ToUnicode
+    注入判产物。``engine_fn`` 缺省本模块 ``engine_for`` 全局——
+    e2e 显式透传自家全局名保 ``e2e.engine_for`` monkeypatch 缝
+    （conftest RecordingEngine）。
+    """
+    policy = RepairPolicy.resolve(fixloop_on=fixloop_on, l2_on=l2_on)
+    fl, l2 = policy.fixloop, policy.l2
+
+    # —— 第 0 招: precheck 预检 (装缺件/解嵌套 tar/收割构建 flag) ——
+    # precheck 相全是增量件不碰 .tex 源——对 resplice 安全。装上缺件或
+    # 收割到 engine_flags 才重编 (空转省一发编译)；clean 即收工。
+    # reject:<rid> 不重编不跑 L2——路由拒绝交 fixloop 复现 + 跨引擎消费。
+    pre_reject = False
+    if fl:
+        sink.event("stage", {"stage": "precheck"})
+        pre = precheck_job(job, engine_fn=engine_fn)
+        rec["precheck"] = pre
+        pre_reject = precheck_reject(pre)
+        pre_flags = [str(f) for f in pre.get("engine_flags") or []]
+        if not pre_reject and (pre.get("installed") or pre_flags):
+            tail0, res = compile_judge_tail(
+                job,
+                expect_cjk=expect_cjk,
+                flags=pre_flags or None,
+                engine_fn=engine_fn,
+            )
+            rec.update(tail0)
+            if rec["status"] == "clean":
+                return res
+
+    if l2 and not pre_reject:
+        sink.event("stage", {"stage": "l2"})
+        l2_rep, res, tail2 = l2_repair_job(
+            job, run, res, l2_max_chunks, engine_fn=engine_fn, sink=sink
+        )
+        rec["l2"] = l2_rep
+        if tail2 is not None:
+            rec.update(tail2)
+    elif not l2:
+        rec["l2"] = {"enabled": False, "reason": ENV_NO_L2}
+    else:
+        rec["l2"] = {"enabled": False, "reason": "precheck_reject"}
+
+    if rec["status"] != "clean" and fl:
+        sink.event("stage", {"stage": "fixloop"})
+        fl_rep, tail3, res = fixloop_job(
+            job,
+            route_engines or [job.eng_name],
+            res,
+            timeout=job.timeout,
+            expect_cjk=expect_cjk,
+            baseline_dir=baseline_dir,
+            engine_fn=engine_fn,
+            sink=sink,
+        )
+        rec["fixloop"] = fl_rep
+        if tail3 is not None:
+            rec.update(tail3)
+    elif rec["status"] != "clean":
+        rec["fixloop"] = {"enabled": False, "reason": ENV_NO_FIXLOOP}
+    return res

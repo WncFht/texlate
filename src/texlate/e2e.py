@@ -82,6 +82,16 @@ _delivered = delivered
 _tail_dict = tail_dict
 
 
+def env_switch(name: str, *, explicit: bool | None, default: bool) -> bool:
+    """三态开关归一：显式参数优先，``None`` 才读 ``env_flag``。
+
+    本模块就地副本——共享单源应为 ``texlate.textutil.osutil.env_switch``
+    （hoist 后删此定义、改从 ``texlate.textutil`` 导入，调用点不变）。
+    env 仍在调用时读取，``monkeypatch.setenv`` 缝不受影响。
+    """
+    return explicit if explicit is not None else env_flag(name, default=default)
+
+
 def engine_for(name: str, **kw: object) -> Engine:
     """``compile.engine.engine_for`` 调用时委托——同名同签名。
 
@@ -145,12 +155,8 @@ def translate_tree(  # noqa: PLR0913 -- 同上：注入面穿透到 _translate_t
     ``TEXLATE_AUTO_GLOSSARY``（默认关）；``front_matter`` = preamble
     前置发射集（None → ``TEXLATE_FRONT_MATTER``/缺省 ``abstract,title``）。
     """
-    ej = env_flag(ENV_ENV_JUDGE, default=False) if env_judge is None else env_judge
-    ag = (
-        env_flag(ENV_AUTO_GLOSSARY, default=False)
-        if auto_glossary is None
-        else auto_glossary
-    )
+    ej = env_switch(ENV_ENV_JUDGE, explicit=env_judge, default=False)
+    ag = env_switch(ENV_AUTO_GLOSSARY, explicit=auto_glossary, default=False)
     stats, _run = _translate_tree(
         root,
         translator=translator,
@@ -328,13 +334,9 @@ def pipe_condition(  # noqa: PLR0913 -- 修复链开关面（env 缺省，显式
     rec: dict[str, object] = {"engine": eng_name}
     rec["normalize"] = normalize_project(work, eng_name, main_rel)
     sink.event("stage", {"stage": "normalize"})
-    ej = env_flag(ENV_ENV_JUDGE, default=False) if env_judge is None else env_judge
+    ej = env_switch(ENV_ENV_JUDGE, explicit=env_judge, default=False)
     fl = RepairPolicy.resolve(fixloop_on=fixloop_on).fixloop
-    ag = (
-        env_flag(ENV_AUTO_GLOSSARY, default=False)
-        if auto_glossary is None
-        else auto_glossary
-    )
+    ag = env_switch(ENV_AUTO_GLOSSARY, explicit=auto_glossary, default=False)
     with _baseline_snapshot(work, enabled=fl) as baseline_dir:
         sink.event("stage", {"stage": "translate"})
         stats, run = _translate_tree(

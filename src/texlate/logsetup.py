@@ -10,10 +10,14 @@ uvicorn/httpx 三方输出），``propagate`` 保持 True 让 pytest caplog
 级别三来源：显式参 > ``TEXLATE_LOG`` env（``debug|info|warning|error|off``
 归一小写）> 调用方 default。文件路径三态经 ``_file_from_env``：
 ``TEXLATE_LOG_FILE`` 未设/空 → 调用方 default 形参；``off`` → 关文件；
-其余 → 路径。脱敏沿用 server ``logredact`` 同款正则（
-:func:`xlat.client.redact` 已知 secret 形态 + 显式 key 值 + 本模块
-``SECRET_LOG_PATTERNS`` 补集）——``RedactFilter`` 类体从
-``server/logredact.py`` 下沉本层，原址 re-export 保名字面。
+其余 → 路径。脱敏面本地自足不反引 xlat——本模块是日志底座
+（``cli/run.py``/server ``__main__`` 顶层经），引 ``xlat.client`` 会拖入
+httpx/asyncio/ssl 全栈，纯 ``re`` 小件就地实现：``SECRET_LOG_PATTERNS``
+单表全覆盖 ``xlat.client._SECRET_PATTERNS``（sk- 宽松形收编基表两档），
+``scrub`` 与 ``RedactFilter`` 共用同一迭代面不再各养可漂移的
+``key.replace + rx.sub``；待提升 ``textutil`` 单源后 client 与本模块
+同引一处。``RedactFilter`` 类体从 ``server/logredact.py`` 下沉本层，
+原址 re-export 保名字面。
 """
 
 from __future__ import annotations
@@ -29,7 +33,6 @@ from rich.console import Console
 from rich.logging import RichHandler
 
 from texlate.textutil import env_opt, env_str
-from texlate.xlat.client import redact
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
@@ -68,12 +71,17 @@ _MANAGED_ATTR = "_texlate_managed"
 _LOG_FILE_MAX_BYTES = 4 * 1024 * 1024
 _LOG_FILE_BACKUPS = 3
 
-#: 日志面 secret 形态补集（``xlat.client._SECRET_PATTERNS`` 之上的第二层
-#: ——sk-/key- 宽松形、Bearer、Google key、api_key=/token= 键值）。
+#: 日志面 secret 形态表——``xlat.client._SECRET_PATTERNS`` 基表的全覆盖
+#: 超集：Bearer/AIza/api_key= 三行同形；``sk-`` 放宽（``.`` 入类 + ``{4,}``
+#: 下限）收编基表 ``sk-{8,}``/``sk-ant-{4,}`` 两档与旧表 ``sk-ant-.`` 冗行
+#: （窄形先跑会把 ``sk-…….`` 截成 ``***.尾`` 留残，单宽行无此坑）；
+#: ``key-`` 宽松形为日志面独有。纯 ``re`` 小件就地单表——底座层不反引
+#: ``xlat.client``（拖 httpx/asyncio/ssl 全栈），待提升 ``textutil`` 单源。
+#: ``scrub``/``RedactFilter._scrub`` 共用同一份迭代面（server
+#: ``logredact._KEY_PATTERNS`` 名字面同源）。
 SECRET_LOG_PATTERNS = [
     re.compile(r"Bearer\s+\S+", re.IGNORECASE),
     re.compile(r"sk-[A-Za-z0-9._-]{4,}"),
-    re.compile(r"sk-ant-[A-Za-z0-9._-]{4,}"),
     re.compile(r"key-[A-Za-z0-9._-]{4,}"),
     re.compile(r"AIza[0-9A-Za-z_-]{10,}"),
     re.compile(r"(?:api[_-]?key|x-api-key|token)[=:]\s*[\"']?\S+", re.IGNORECASE),
@@ -81,8 +89,13 @@ SECRET_LOG_PATTERNS = [
 
 
 def scrub(text: str, api_key: str = "") -> str:
-    """redact() 同族：已知 secret 形态 + 显式 key 值（§4.2 第一道防线）。"""
-    out = redact(text, api_key)
+    """显式 key 值 + 已知 secret 形态抹除（§4.2 第一道防线）。
+
+    regex 道单实现——``RedactFilter._scrub`` 抹完动态 key 后同走本函数。
+    """
+    out = text
+    if api_key:
+        out = out.replace(api_key, "***")
     for rx in SECRET_LOG_PATTERNS:
         out = rx.sub("***", out)
     return out
@@ -110,11 +123,10 @@ class RedactFilter(logging.Filter):
         return []
 
     def _scrub(self, text: str) -> str:
+        out = text
         for key in self._keys():
-            text = text.replace(key, "***")
-        for rx in SECRET_LOG_PATTERNS:
-            text = rx.sub("***", text)
-        return text
+            out = out.replace(key, "***")
+        return scrub(out)
 
     def filter(self, record: logging.LogRecord) -> bool:
         """命中 secret 形态时改写 msg 并清空 args（避免二次格式化还原）。

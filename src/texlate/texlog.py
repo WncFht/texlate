@@ -26,8 +26,11 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Final
+
+from texlate.textutil import safe_resolve
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator
@@ -57,6 +60,7 @@ __all__ = [
     "looks_like_input_file",
     "match_error_line",
     "misschar_sweep_hits",
+    "normalize_stderr_errors",
     "patch_graphic_top",
     "update_file_stack",
 ]
@@ -230,6 +234,14 @@ def file_stack_at(
 _SYS_TREE_RX: Final = re.compile(r"[^/]*texmf[^/]*/|/Tectonic/")
 
 
+#: ``root`` 侧 ``safe_resolve`` memo——一次 parse 遍内同一 root 被逐绝对路径
+#: token 的前缀判问到（logparse ``producer_tag``/loginfo ``_scan_error_lines``
+#: 逐行喂），按 Path 值消重 realpath syscall；上限防 server 多 job root 堆积。
+@lru_cache(maxsize=64)
+def _resolved_root(root: Path) -> Path | None:
+    return safe_resolve(root)
+
+
 def is_project_file(token: str | None, root: Path | None = None) -> bool:
     """文件栈 token → 工程文件判定（invalid_utf8 类红线按产生者归因用）。
 
@@ -253,10 +265,11 @@ def is_project_file(token: str | None, root: Path | None = None) -> bool:
     if _SYS_TREE_RX.search(token):
         return False
     if root is not None:
-        try:
-            return Path(token).resolve().is_relative_to(Path(root).resolve())
-        except (OSError, ValueError):
-            pass  # symlink 环/非法路径——不可归因，保守归工程
+        tr, rr = safe_resolve(Path(token)), _resolved_root(Path(root))
+        if tr is not None and rr is not None:
+            return tr.is_relative_to(rr)
+        # resolve 缺席——symlink 环 RuntimeError/ENAMETOOLONG/NUL 同收口于
+        # safe_resolve 的 None 语义，不可归因保守归工程
     return True
 
 
@@ -330,12 +343,28 @@ def driver_fatal_line(text: str) -> str | None:
     return m.group(1).strip()[:300] if m else None
 
 
+#: tectonic stderr→stdout 合流面的 ``error:`` 签名行——引擎/bundle 级报错
+#: 非 ``!`` 词法（tfmhoist 实证 ``error: Unable to find TFM file`` 双形之
+#: tectonic 侧），归一成 ``! `` 行喂同一套 log 解析。
+_STDERR_ERROR_RX: Final = re.compile(r"(?m)^error:\s*")
+
+
+def normalize_stderr_errors(tail: str) -> str:
+    r"""Stderr 尾巴上的 ``error:``/``<tool>: fatal:`` 行 → ``! `` 行归一文本。
+
+    ``error:`` 腿先行（签名行整体换 ``! `` 头），``DRIVER_FATAL_RE`` 腿随后
+    把 ``*: fatal:`` 行同样提为 ``! `` 词法——tectonic 引擎面与 fixloop
+    ``_report_of`` 探针面共用单源。
+    """
+    return DRIVER_FATAL_RE.sub(r"! \1", _STDERR_ERROR_RX.sub("! ", tail))
+
+
 # ================================================================ 缺字扫掠豁免
 
 #: ``Missing character: There is no <what> (U+XXXX|("XXXX))? in font <font>``
-#: 消息级解析——与 fixloop ``_builtins_common._MISSING_CHAR_RE`` **同形双写**
-#: （builtins 冻结窗内不可外引；xetex/tectonic spec 字体带 ``(U+XXXX)``、tfm
-#: 字体带 ``("XXXX)`` 十六进制、pdftex 8-bit 给裸字符或 ``^^xx`` 记法）。
+#: 消息级解析——xetex/tectonic spec 字体带 ``(U+XXXX)``、tfm 字体带
+#: ``("XXXX)`` 十六进制、pdftex 8-bit 给裸字符或 ``^^xx`` 记法；
+#: fixloop ``_builtins_common`` 经 import 直引本件（无同形双写）。
 _MISSCHAR_MSG_RX: Final = re.compile(
     r"Missing character:\s*There is no (?P<what>.+?)"
     r"(?:\s*\((?P<cp>U\+[0-9A-Fa-f]+|\"[0-9A-Fa-f]+)\))?\s*in font\s+(?P<font>[^\s!;]+)"
@@ -349,8 +378,7 @@ _MISSCHAR_WRAP_RX: Final = re.compile(
     r"(There is no)\s*\n(\s*\((?:U\+|\")[0-9A-Fa-f]+\))"
 )
 
-#: ``^^xx``/``^^^xxxx`` TeX 记法码位提取（``_builtins_common._CARET_HEX_RE``
-#: 同形双写）。
+#: ``^^xx``/``^^^xxxx`` TeX 记法码位提取。
 _CARET_HEX_RX: Final = re.compile(r"\^{2,3}([0-9a-fA-F]{2,4})")
 
 #: ``^^X`` 单字符名记法（``^^@``=U+0000 … ``^^?``=U+007F）：TeX 规则
@@ -415,6 +443,24 @@ def misschar_sweep_hits(log_text: str) -> int:
         if run >= _SWEEP_RUN_MIN:
             hits += run
     return hits
+
+
+def _mc_parse_log(log: str) -> dict[int, tuple[str, str]]:
+    """``Missing character`` 行 → {码位: (原字面, 字体名)} 去重; nullfont 滤除。"""
+    seen: dict[int, tuple[str, str]] = {}
+    # U+000A 缺字行自身折行 (缺字本体是换行符) —— 与 misschar_sweep_hits
+    # 同源的 ``_MISSCHAR_WRAP_RX`` 预拼回单行再走消息正则。
+    text = _MISSCHAR_WRAP_RX.sub(r"\1 \2", log)
+    for m in _MISSCHAR_MSG_RX.finditer(text):
+        font = m.group("font").rstrip(".,;")
+        if font == "nullfont":
+            # 测量盒/\write 上下文的缺字按设计不可印 (scout-misschar ×5)——
+            # 签名侧经 rules/ missing_char pattern 排除, 这里兜底 wrap 漏网。
+            continue
+        cp = _misschar_cp(m.group("what"), m.group("cp"))
+        if cp is not None and cp not in seen:
+            seen[cp] = (m.group("what"), font)
+    return seen
 
 
 #: ``l.N`` 源码行号词素——严格行首形（消费端 strip 后用）；``*_SRC`` 片段

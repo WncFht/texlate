@@ -4,9 +4,9 @@ C4 拆分（reaudit-2026-09-18）：``repair.py`` 收敛为 fixloop 包装/跨�
 重试/glossary confine 纯低层件，本模块承载 L2 阶梯全实现——
 ``TreeRun``/``split_cid`` 运行态、env judge 可译性判定
 （``_env_judge_one``/``env_judge_all`` + 目标谓词 ``unknown_env_of``）、
-L2 回灌机械（``_l2_parse``/``_expand_tokens``/``chunk_spans``/
-``_resolve_fidx``/``L2Attr``/``_l2_localize``/``retranslate_hits``/
-``_resplice``/``l2_repair_round``）与配套开关/上限常量。
+L2 回灌机械（``_l2_parse``/``chunk_spans``/``_resolve_fidx``/``L2Attr``/
+``_l2_localize``/``retranslate_hits``/``_resplice_and_diffs``/
+``l2_repair_round``）与配套开关/上限常量。
 
 ``repair`` 门面按全仓实测消费回引公共名——私名消费请从本模块直取
 （B12 口径，不批发回引）。
@@ -23,13 +23,10 @@ from typing import TYPE_CHECKING, Any
 
 from texlate.compile.inject import InjectRejectError, prepare_chinese
 from texlate.compile.judge import paired_slot_diff
-from texlate.latex.placeholder import CHUNK_RX, PH_RX
 from texlate.latex.reconstruct import (
-    LATIN_ITEM_RX,
-    PAR_RUN_RX,
+    _Expander,
     reconstruct,
-    seg_join,
-    unicode_math_fix,
+    translation_tokens,
 )
 from texlate.latex.tables import (
     ARG_TRANSPARENT_ENVS,
@@ -37,6 +34,7 @@ from texlate.latex.tables import (
     PROTECTED_ENVS,
     VERBATIM_ENVS,
 )
+from texlate.repair import log_text_of
 from texlate.validate import l2 as l2_mod
 from texlate.xlat import prompts as xlat_prompts
 
@@ -56,8 +54,6 @@ L2_MAX_CHUNKS = 10
 _L2_ATTR_WINDOW = 4000
 #: L2 单次回灌最多消费的 log 错误条数
 _L2_MAX_ERRORS = 50
-#: ``_expand_tokens`` 递归深度保险丝（自引用 token 不死循环）
-_EXPAND_MAX_DEPTH = 32
 #: 基建类错误签名——head+ctx 窗匹配（fixloop taxonomy ``scope:head``
 #: 同口径；签名内空格一律 ``\s+``——79 列折行能把短语切进 ctx 行）。
 #: 收录判据「译文内容是否可能造成该类错」：肇事者是环境/装载期
@@ -196,26 +192,27 @@ def err_signature(err: l2_mod.LogError) -> str:
     return f"{_sig_head(err.head)}|{culprit}"
 
 
+def _sig_set(verdict: l2_mod.L2Verdict) -> set[str]:
+    """L2Verdict → 错误签名集（``log_missing``/无错 → 空集）。"""
+    if verdict.log_missing or not verdict.errors:
+        return set()
+    return {err_signature(e) for e in verdict.errors}
+
+
 def err_signatures(res: CompRes) -> set[str]:
     """CompRes → 错误签名集（en 基线快照——worker 原文编译后取）。
 
     签名在 en 侧出现 = 源生错（无译文时已犯）——zh 侧同签名错误不归
     chunk（L2 归因面消费；基线缺席返回空集=无过滤）。
     """
-    verdict = _l2_parse(res)
-    if verdict.log_missing or not verdict.errors:
-        return set()
-    return {err_signature(e) for e in verdict.errors}
+    return err_signatures_text(log_text_of(res), project_root=res.workdir)
 
 
 def err_signatures_text(log_text: str, *, project_root: Path | None = None) -> set[str]:
     """Log 文本 → 错误签名集——``build-en`` 残存 .log 回扫臂（resume 路径）。"""
     if not log_text:
         return set()
-    verdict = l2_mod.parse_log_text(log_text, project_root=project_root)
-    if verdict.log_missing or not verdict.errors:
-        return set()
-    return {err_signature(e) for e in verdict.errors}
+    return _sig_set(l2_mod.parse_log_text(log_text, project_root=project_root))
 
 
 #: env judge 输入截断（长 env 体只喂前 N 字符）
@@ -292,66 +289,16 @@ async def env_judge_all(
 
 
 def _l2_parse(res: CompRes) -> l2_mod.L2Verdict:
-    """CompRes → L2Verdict：log 文本优先，缺席/空文件/读失败退 stdout_tail。
+    """CompRes → L2Verdict：``repair.log_text_of`` 全文 → ``parse_log_text``。
 
     被杀编译留 0 字节 ``.log``——``exists()`` 判据下 0 错返回 L2 臂
-    静默空转（engine.parse_log 同款修复，worker 共享本函数同愈）。
+    静默空转（``log_text_of`` 单源同口径：``.log`` 非空优先、缺席/
+    空文件/读失败退 ``stdout_tail``，worker 共享本函数同愈）。
     """
-    text = getattr(res, "log_text", "") or ""
-    if not text and res.log_path is not None:
-        with suppress(OSError):
-            text = res.log_path.read_text(encoding="utf-8", errors="replace")
-    if text or res.stdout_tail:
-        return l2_mod.parse_log_text(text or res.stdout_tail, project_root=res.workdir)
+    text = log_text_of(res)
+    if text:
+        return l2_mod.parse_log_text(text, project_root=res.workdir)
     return l2_mod.L2Verdict(log_missing=True)
-
-
-def _expand_tokens(
-    res: ScanResult, tokmap: dict[str, str], text: str, _depth: int = 0
-) -> str:
-    r"""``[[X_n]]`` 递归展开到落盘形态（与 reconstruct.expand 同优先级）。
-
-    ``tokmap`` = ``{"[[CHUNK_k]]": unicode_math_fix(zh)}``——译文本位；
-    未译 chunk 回落 ``chunks[k].content``，typed ph 走 ``ph_map``。
-    已译且 context 非 para/item 的 ``[[CHUNK_n]]`` 展开后同样压 ``\n\n``→``\n``
-    （reconstruct.expand 的 ``short_arg`` 同则）——缺这步 ``chunk_spans`` 的
-    ``find`` 必对不上落盘字节，块在 L2 二次归因里整片消失。字面/ph 交错段
-    接缝同走 ``seg_join``（``\cs`` 尾 + 字母头补空格）——本函数只服务
-    译文落盘文件，``reconstruct`` 侧 ``glue_latin`` 恒真。
-    """
-    if _depth > _EXPAND_MAX_DEPTH:
-        return text
-
-    def rep(m: re.Match[str]) -> str:
-        tok = m.group(0)
-        body = tokmap.get(tok)
-        if body is None:
-            body = res.ph_map.get(tok)
-        cm = CHUNK_RX.fullmatch(tok)
-        if body is None and cm:
-            idx = int(cm.group(1))
-            if 0 <= idx < len(res.chunks):
-                body = res.chunks[idx].content
-        if body is None:
-            return tok
-        out = _expand_tokens(res, tokmap, body, _depth + 1)
-        if cm and tok in tokmap:
-            idx = int(cm.group(1))
-            if 0 <= idx < len(res.chunks) and res.chunks[idx].context not in (
-                "para",
-                "item",
-            ):
-                out = PAR_RUN_RX.sub("\n", out)
-        return out
-
-    segs: list[str] = []
-    pos = 0
-    for m in PH_RX.finditer(text):
-        segs.append(text[pos : m.start()])
-        segs.append(rep(m))
-        pos = m.end()
-    segs.append(text[pos:])
-    return seg_join(segs)
 
 
 def chunk_spans(
@@ -360,17 +307,18 @@ def chunk_spans(
     """各 chunk 在当前文件中的 ``[s, e)`` 区间（文档序贪心 find）。
 
     cjk_glue_fix 可能在译文里插空格 → find 失败的块给 ``None``，位置由
-    前后块锚定（归因是启发式，丢块可接受）。
+    前后块锚定（归因是启发式，丢块可接受）。展开走 ``reconstruct`` 同款
+    ``_Expander``（``translation_tokens`` 映射 + ``short_arg`` 折叠 +
+    ``seg_join`` 接缝守卫 + memo/环检全单源）——落盘字节镜像口径：
+    缺这步 ``find`` 必对不上落盘字节，块在 L2 二次归因里整片消失。
+    本函数只服务译文落盘文件，``glue_latin`` 恒真。
     """
-    tokmap = {
-        f"[[CHUNK_{cid}]]": LATIN_ITEM_RX.sub(r"\\item ", unicode_math_fix(zh))
-        for cid, zh in trans.items()
-    }
+    ex = _Expander(res, translation_tokens(res, trans), glue_latin=True)
     spans: dict[int, tuple[int, int] | None] = {}
     cur = 0
     for c in res.chunks:
-        # 走 token 入口——短参折叠只在 rep 见到 [[CHUNK_n]] 时发生（同 reconstruct）
-        body = _expand_tokens(res, tokmap, f"[[CHUNK_{c.id}]]")
+        # 走 token 入口——短参折叠只在 expand 见到 [[CHUNK_n]] 时发生（同 reconstruct）
+        body = ex.expand(f"[[CHUNK_{c.id}]]")
         if not body:
             continue
         i = text.find(body, cur)
@@ -612,25 +560,52 @@ async def retranslate_hits(
     return rep
 
 
-def _resplice(run: TreeRun, work: Path, main_rel: str, fidxs: set[int]) -> list[str]:
-    """受影响文件 reconstruct 重写；主文件重跑 ``prepare_chinese`` 补 ctex。"""
+def _resplice_and_diffs(
+    run: TreeRun, work: Path, main_rel: str, fidxs: set[int]
+) -> tuple[list[str], dict[str, list[str]]]:
+    """受影响文件 reconstruct 重写 + 写入即 ``paired_slot_diff`` 对账（单遍）。
+
+    diff 取**注入前**在手 ``zh``——``res.vtex`` 对重建体的干净口径
+    （``pipecore.translate_tree_run`` 同形）：主文件的 ``prepare_chinese``
+    注入不污染 notes（旧盘后重读会把 demote/inject 改写面记成机位差）。
+    ``prepare_chinese`` 重跑补 ctex 在全量写+diff 之后；注入后树级审计
+    由 ``machine_slot_audit``（judge）覆盖。
+    """
     main_path = work / main_rel
     rewritten: list[str] = []
+    diffs: dict[str, list[str]] = {}
     touched_main = False
     for fidx in sorted(fidxs):
         f, res = run.scans[fidx]
-        f.write_text(reconstruct(res, run.trans.get(fidx) or {}), encoding="utf-8")
-        rewritten.append(f.relative_to(work).as_posix())
+        zh = reconstruct(res, run.trans.get(fidx) or {})
+        f.write_text(zh, encoding="utf-8")
+        rel = f.relative_to(work).as_posix()
+        rewritten.append(rel)
+        if notes := paired_slot_diff(res.vtex, zh, rel):
+            diffs[rel] = notes
         touched_main = touched_main or f == main_path
     if touched_main:
         # 首注已过——同文件重注不会再触发 \documentstyle 拒绝
         with suppress(InjectRejectError):
             prepare_chinese(work, main_rel)
-    return rewritten
+    return rewritten, diffs
+
+
+def _resplice(run: TreeRun, work: Path, main_rel: str, fidxs: set[int]) -> list[str]:
+    """受影响文件 reconstruct 重写；主文件重跑 ``prepare_chinese`` 补 ctex。
+
+    ``_resplice_and_diffs`` 的写盘臂（worker ``_retr_resplice`` 旧签名档——
+    其 ``_slot_diffs`` 盘后读回保留注入后磁盘真值口径）。
+    """
+    return _resplice_and_diffs(run, work, main_rel, fidxs)[0]
 
 
 def _slot_diffs(run: TreeRun, work: Path, fidxs: set[int]) -> dict[str, list[str]]:
-    """``_resplice`` 落盘 zh 对 ``res.vtex`` 的机位配对 diff——重写后逐文件对账。"""
+    """``_resplice`` 落盘 zh 对 ``res.vtex`` 的机位配对 diff——重写后逐文件对账。
+
+    盘后读回 = 注入后磁盘真值口径（worker ``_retr_resplice`` 消费位）；
+    ``l2_repair_round`` 内面走 ``_resplice_and_diffs`` 的注入前在手 zh 口径。
+    """
     out: dict[str, list[str]] = {}
     for fidx in sorted(fidxs):
         f, res = run.scans[fidx]
@@ -684,8 +659,8 @@ def l2_repair_round(  # noqa: C901, PLR0913 -- 阶梯直铺：钩子面穿透两
         return rep, last_res, None
 
     fidxs = {split_cid(c)[0] for c in changed}
-    rep["rewritten"] = _resplice(run, work, main_rel, fidxs)
-    if diffs := _slot_diffs(run, work, fidxs):
+    rep["rewritten"], diffs = _resplice_and_diffs(run, work, main_rel, fidxs)
+    if diffs:
         rep["slot_diffs"] = diffs
     res2, v2 = recompile()
     if checkpoint is not None:
@@ -706,9 +681,11 @@ def l2_repair_round(  # noqa: C901, PLR0913 -- 阶梯直铺：钩子面穿透两
             fidx, ccid = split_cid(cid)
             run.trans.get(fidx, {}).pop(ccid, None)
         fb_fidxs = {split_cid(c)[0] for c in still_bad}
-        rep["fallback_rewritten"] = _resplice(run, work, main_rel, fb_fidxs)
-        if diffs := _slot_diffs(run, work, fb_fidxs):
-            rep["fallback_slot_diffs"] = diffs
+        rep["fallback_rewritten"], fb_diffs = _resplice_and_diffs(
+            run, work, main_rel, fb_fidxs
+        )
+        if fb_diffs:
+            rep["fallback_slot_diffs"] = fb_diffs
         # 回落态即交付树——补一次裸编：fixloop 关/崩/reject 时不再有
         # 代验兜底，zh-src.zip 不能装未验证树（audit fallback_unverified）
         res3, v3 = recompile()

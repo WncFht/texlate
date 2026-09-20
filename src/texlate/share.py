@@ -28,9 +28,10 @@ import tempfile
 import zipfile
 import zlib
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
+from texlate.textutil import append_jsonl, safe_is_file, utc_now
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -115,11 +116,6 @@ class ShareManifest:
     created_at: str
 
 
-def _utcnow() -> str:
-    """UTC ISO8601 秒级时间戳（与 ``xlat.state._utcnow`` 同口径）。"""
-    return datetime.now(UTC).isoformat(timespec="seconds")
-
-
 def _norm_version(version: object) -> str:
     """版本归一：``3``/``"3"``/``"v3"`` → ``"v3"``；``None``/``""`` → ``""``（latest 别名）。"""
     if version is None:
@@ -177,14 +173,6 @@ def share_key(  # noqa: PLR0913, PLR0917 -- 七组分即寻址公式本身，参
     return hashlib.sha256("|".join(parts).encode()).hexdigest()
 
 
-def _is_file(p: Path) -> bool:
-    """``p.is_file()`` 的容错版（OSError/ValueError 一律按不在计）。"""
-    try:
-        return p.is_file()
-    except (OSError, ValueError):
-        return False
-
-
 def glossary_content_hash(
     *,
     user_layer: Path | None,
@@ -206,10 +194,10 @@ def glossary_content_hash(
     死径即拒，worker 臂 ``_glossary_path`` confine（拒/缺席回落缺省层）——
     两臂各按自己翻译时的实际生效层喂参，本函数只管层序与指纹口径。
     """
-    gfile = user_layer if user_layer is not None and _is_file(user_layer) else None
-    if gfile is None and fallback_user is not None and _is_file(fallback_user):
+    gfile = user_layer if user_layer is not None and safe_is_file(user_layer) else None
+    if gfile is None and fallback_user is not None and safe_is_file(fallback_user):
         gfile = fallback_user
-    files = [f for f in (gfile, local_layer) if f is not None and _is_file(f)]
+    files = [f for f in (gfile, local_layer) if f is not None and safe_is_file(f)]
     if not files:
         return ""
     strict = frozenset(strict_layers)
@@ -362,7 +350,7 @@ def pack_share(
         "artifacts": {},
         "contributor": _manifest_field_str(manifest, "contributor")
         or f"c-{secrets.token_hex(8)}",
-        "created_at": _manifest_field_str(manifest, "created_at") or _utcnow(),
+        "created_at": _manifest_field_str(manifest, "created_at") or utc_now(),
     }
     out = (out_dir or work_dir) / f"{key}.share.zip"
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -666,7 +654,8 @@ def index_append(
     行字段直取 ``manifest`` + 入参（设计文 §7：静态托管旁挂清单，一行一
     已发布包）；父目录缺席自动创建。index 是 append-only——同 share_key
     重传即追加新行，旧行不删，读取侧 last-wins（见 ``index_lookup``）。
-    UTF-8 单行 JSON + ``\n`` 结尾。返回写入的行 dict。
+    UTF-8 单行 JSON + ``\n`` 结尾；追加经 ``textutil.append_jsonl`` flock
+    串行化，``to_thread`` 工作线程并发落行不交错。返回写入的行 dict。
     """
     row: dict[str, Any] = {
         "share_key": manifest.share_key,
@@ -676,9 +665,7 @@ def index_append(
         "created_at": manifest.created_at,
         "contributor": manifest.contributor,
     }
-    index_path.parent.mkdir(parents=True, exist_ok=True)
-    with index_path.open("a", encoding="utf-8") as fh:
-        fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+    append_jsonl(index_path, row)
     return row
 
 
