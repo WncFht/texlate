@@ -57,12 +57,13 @@ def _sub(src: str) -> str:
 
 
 def test_rule_shape() -> None:
-    r"""loop 相 order 194 (natbib_numbers_pass 186 裂伤兜底) + other 猫 +
+    r"""loop 相 order 194 (natbib_numbers_pass 186 裂伤兜底) + when.any 三类 +
     双签 ctx_suggests + source_contains 预筛。"""
     r = _rule()
     assert r.raw["phase"] == "loop"
     assert r.raw["order"] == 194  # noqa: PLR2004
-    assert r.raw["when"] == {"category": "other"}
+    cats = {c.get("category") for c in r.raw["when"]["any"]}
+    assert cats == {"other", "bib_compat", "preamble_only"}
     assert r.raw["action"]["kind"] == "regex_rewrite"
     assert r.raw["action"]["params"]["exts"] == [".tex"]
     cond = r.raw["condition"]

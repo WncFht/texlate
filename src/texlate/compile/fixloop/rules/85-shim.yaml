@@ -510,7 +510,10 @@ rules:
     description: "\\bm{<CJK>} 撞 Extended mathchar 墙 → 守卫式 \\bm 族重定义走 group 路径"
     phase: loop
     order: 162 # biblatex_bbx_rename(161) 与 physics_stub_detach(163) 之间: 源级补丁同档
-    when: { category: other } # "Extended mathchar" 归 other (taxonomy `^.` 兜底)
+    when: # taxrow 落地前归 other —— mathchar_ext 专属行 + other 兼容
+      any:
+        - { category: other }
+        - { category: mathchar_ext }
     condition:
       ctx_suggests: "Extended mathchar used as mathchar"
     action:

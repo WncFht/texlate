@@ -575,7 +575,8 @@ rules:
     phase: loop
     order: 11.95 # pstricks_add_pair_retire(11.9) 后, legacy_pkg_shim(12) 前 —— 稿自带件病灶同族 (退役系 → 补丁系)
     when:
-      any: # Incomplete \iffalse 落 other; 吸收展开首错变体 (File-ended/undef cs) 同闸收
+      any: # Incomplete \iffalse 落 incomplete_if (taxrow 行) —— other 保留兼容旧 records; 吸收展开首错变体 (File-ended/undef cs) 同闸收
+        - { category: incomplete_if }
         - { category: other }
         - { category: syntax }
         - { category: undefined_cs }

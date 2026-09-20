@@ -56,11 +56,11 @@ def _apply(rule: Rule, wdir: Path) -> tuple[bool, str]:
 
 
 # ---------------------------------------------------------------- taxonomy
-def test_taxonomy_incomplete_iffalse_is_other() -> None:
-    """`! Incomplete \\iffalse` → other (无专属条目, pay=None)。"""
+def test_taxonomy_incomplete_iffalse_is_incomplete_if() -> None:
+    """`! Incomplete \\iffalse` → incomplete_if (taxrow 专属行, pay=条件 cs)。"""
     cat, pay = _classify(_ERR_IFFALSE)
-    assert cat == "other"
-    assert pay is None
+    assert cat == "incomplete_if"
+    assert pay == "\\iffalse"
 
 
 def test_taxonomy_end_occurred_ifx_is_early_eof() -> None:
@@ -75,7 +75,8 @@ def test_rule_other_arm_wired() -> None:
     """other 臂: when=other, ctx_suggests Incomplete \\if + python3, run_tool。"""
     rule = _rule()
     assert rule.order == 196  # noqa: PLR2004 - schema 断言值
-    assert rule.when == {"category": "other"}
+    cats = {c.get("category") for c in rule.when["any"]}
+    assert cats == {"other", "incomplete_if"}
     assert rule.condition["ctx_suggests"] == "Incomplete \\\\if"
     assert rule.condition["tool_available"] == "python3"
     assert rule.action["kind"] == "run_tool"

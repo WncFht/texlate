@@ -112,6 +112,18 @@ taxonomy:
       payload_group: 1,
       pattern: "Font \\\\?\\S*?=?\\s*([\\w-]+) (?:at [0-9.]+pt|scaled -?[0-9]+) not loadable",
     }
+  # 2026-09-20 taxrow lane (taxcen missing_tfm_notloadable): 即时形
+  # `Font \cs=name not loadable` —— \font 装载失败但不带
+  # `at Npt|scaled N` 规格段 (2003.10901 `Font \NOTEN=musix13` /
+  # `Font \noten=musix11` 双签名实证)。规格臂在前先签, 本臂只见无规格
+  # 残形; TU/ fontspec 行仍由更前 TU/ 臂截走 (2511.10135 fontawesome5
+  # `=Name:script=latn;` 形不落本臂)。
+  - {
+      id: missing_tfm,
+      scope: head,
+      payload_group: 1,
+      pattern: "Font \\\\?\\S*?=?\\s*([\\w-]+) not loadable",
+    }
   - {
       id: missing_tfm,
       scope: head,
@@ -171,6 +183,16 @@ taxonomy:
       scope: head,
       payload_group: 1,
       pattern: 'font [“"]([^”"]+)[”"](?:\s*\([\w@*+-]+\))?\s*cannot(?:\s*\([\w@*+-]+\))?\s*be(?:\s*\([\w@*+-]+\))?\s*found',
+    }
+  # 2026-09-20 taxrow lane (taxcen fontspec_bare): fontspec 裸头兜底 ——
+  # 首错 `Package fontspec Error:` 但 head 窗内无 `font "X" cannot be
+  # found` 签名时 (其他 fontspec 硬错措辞) 旧落 other|None; 排折行臂
+  # 之后, payload=None 由 fix 层自行 decline。
+  - {
+      id: fontspec_missing,
+      scope: head,
+      payload_group: null,
+      pattern: "Package fontspec Error",
     }
   # —— 源码级 ——
   - { id: illegal_unit, scope: head, pattern: "Illegal unit of measure" }
@@ -289,11 +311,14 @@ taxonomy:
   # 顶格 \end{<env>}, 源生 tab 缩进的终结行不认 → 扫到 EOF runaway。
   # 通用形排在 aux_scan_eof 窄签之后 (aux 族保持专属路由), emergency
   # 之前 ("File ended" 行的 ctx8 常混进 Emergency stop 抢签)。
+  # 2026-09-20 taxrow lane (taxcen runaway_scan_uscore): cs 名类补
+  # `_`/`:` —— expl3 内部宏 `\__siunitx_quantity_parsed_aux:w` 旧在 `_`
+  # 处截断得死 payload (2105.00070 实证归 other|None)。
   - {
       id: runaway_scan,
       scope: head,
       payload_group: 1,
-      pattern: "File ended while scanning use of (\\\\[A-Za-z@]+)",
+      pattern: "File ended while scanning use of (\\\\[A-Za-z@_:]+)",
     }
   - {
       id: emergency,
@@ -323,6 +348,16 @@ taxonomy:
       scope: head,
       payload_group: 1,
       pattern: "Package [`']([\\w-]+)' is obsolete",
+    }
+  # 2026-09-20 taxrow lane (taxcen pkg_opt_removed): 选项级废弃措辞
+  # —— glossaries 自报 `obsolete package option `X' has been removed`
+  # (2203.08887 `smallcaps` 实证), 与包级 `Package `X' is obsolete`
+  # 同桶分形, payload=选项名。
+  - {
+      id: pkg_obsolete,
+      scope: head,
+      payload_group: 1,
+      pattern: "obsolete package option [`']([^']+)' has been removed",
     }
   # ── 2026-09-16 signature-mining "other" 拆家 (§2.2) ── 精确字面签名须
   # 先于 syntax 宽词族评估 (syntax 含 Missing/Illegal 等词会抢签)。
@@ -356,6 +391,48 @@ taxonomy:
       payload_group: 1,
       use_post: true,
       pattern: "File `([^'\\n]+)' not found(?:(?!File `|Error:|! |:[0-9]+: )[\\s\\S]){0,1500}?(?:I could not locate the file with any of these extensions|\\\\includegraphics|\\\\includepdf|\\\\epsfig|\\\\pgfimage)",
+    }
+  # 2026-09-20 taxrow lane (taxcen graphic_nobb + file_open_fail): 图形
+  # 缺档两残措辞 —— `Cannot determine size of graphic in X (no
+  # BoundingBox)` (graphicx 尺寸探测败, 1404.0103 graphbelow.jpg) 与
+  # `Could not open file X, ignoring it.` (epsf/老式图形读取器,
+  # astro-ph/9703200 86efield9.eps)。payload=文件名同族归
+  # missing_graphic。
+  - {
+      id: missing_graphic,
+      scope: head,
+      payload_group: 1,
+      pattern: "Cannot determine size of graphic in ([^\\s(]+)",
+    }
+  - {
+      id: missing_graphic,
+      scope: head,
+      payload_group: 1,
+      pattern: "Could not open file ([^\\s,]+), ignoring",
+    }
+  # 2026-09-20 singbun lane (failmine6 syntax-residual 2512.05247): svg 包
+  # 源图缺席报 ``Package svg Error: File `X.svg' is missing`` —— 措辞既非
+  # ``not found`` 亦非 ``Unable to load`` 落 other 零派发。payload 限 .svg
+  # 后缀: 包自产中间件 ``*_svg-tex.pdf`` 缺席系 svg_prepare (45-graphics
+  # order 9, when other) 固有域, 不抢; 真缺 .svg 走 missing_graphic →
+  # svg_missing_demote 降级 includegraphics 后 placeholder 补桩。
+  - {
+      id: missing_graphic,
+      scope: head,
+      payload_group: 1,
+      pattern: "Package svg Error: File `([^']+\\.svg)' is missing",
+    }
+  # 2026-09-20 taxrow lane (taxcen missing_file_extless 16 cells): 裸名
+  # `File `stem' not found` 无扩展名兜底 —— 首列 missing_file 臂要
+  # `\.[a-zA-Z0-9_]+` 扩展名够不着; 图形证据在 post 窗的裸名仍归
+  # missing_graphic (本臂排其后不抢既有路由), 无证据裸名 (PoSlogo/
+  # Fig1/diamondrule/fmmgraph/noncompact-0-cropped 实证) 归
+  # missing_file|stem → install_file 自行试 .sty/.tex 缀。
+  - {
+      id: missing_file,
+      scope: head,
+      payload_group: 1,
+      pattern: "File `([^']+)' not found",
     }
   - {
       id: babel_opt,
@@ -399,21 +476,27 @@ taxonomy:
   # → (x)color Undefined color; payload=色名, 供 undefined_color_fallback 兜底。
   # 2026-09-19 colorquote: 真实发射是 TeX 引法 `X' (ledger 实证 xcolor/color/
   # 内核 LaTeX Error 三发行方; 直引形仅兼容收) —— 原直引 pattern 零命中 ~44
-  # cells 落 other。"Undefined color model `X'" 是另一错误 (模型名非色名),
-  # color 后随 m 不中引号类 → 天然排除。
+  # cells 落 other。
+  # 2026-09-20 taxrow lane (taxcen color_model_undef): `Undefined color
+  # model `X'` 变体并收 (2407.18070/2410.17954 实证, 模型名非色名 ——
+  # payload 语义按提案同桶归类, 消费侧自行分辨)。
   - {
       id: undefined_color,
       scope: head,
       payload_group: 1,
-      pattern: "(?:Package (?:x)?color|LaTeX) Error: Undefined color [`']([^']+)'",
+      pattern: "(?:Package (?:x)?color|LaTeX) Error: Undefined color (?:model )?[`']([^']+)'",
     }
   # 2026-09-17 fixer-acro-v3: l3keys "key unknown" 行 (acro v3 弃键等)
   # 此前无 head 签命中 → 落 tail early_eof 误判。payload=键名 (acro/X 形)。
+  # 2026-09-20 taxrow lane (taxcen pgfkeys_unknown + xkeyval_err): 同族
+  # 两措辞并收 —— pgfkeys `I do not know the key 'X', to which you
+  # passed...` (键路径可带空格, `[^']+` 全捕) 与 xkeyval `Package
+  # xkeyval Error: `X' undefined in families `Y'`。payload_group 缺省 =
+  # 首个非空组: l3keys→组1, pgfkeys→组2, xkeyval→组3。
   - {
       id: key_unknown,
       scope: head,
-      payload_group: 1,
-      pattern: "The key '([\\w@./-]+)' is unknown and is being ignored",
+      pattern: "The key '([\\w@./-]+)' is unknown and is being ignored|I do not know the key '([^']+)'|Package xkeyval Error: [`']([^`']+)' undefined",
     }
   # 2026-09-17 fixer-apjbbx: biblatex \patchcmd 失败走 PackageError
   # (file-line-error 形, 可无 '!' 前缀) —— bundled .bbx 撞 3.8+ 改名宏。
@@ -470,6 +553,17 @@ taxonomy:
       payload_group: 1,
       pattern: "([^()\\s:/]+\\.[A-Za-z0-9_-]{1,10}):\\d+: (?:Critical )?(?:Package|Class) [\\w@*+-]+ Error[\\s\\S]{0,600}?too old",
     }
+  # 2026-09-20 taxrow lane (taxcen pkg_version_need): 版本闸另一措辞族
+  # —— `Package X Error: ... need at least version` / `version ... too
+  # old` / `requires ... version` (caption.sty cooperation nag
+  # 2211.13002 实证, 前臂要 file-line 前缀 + `too old` 窗词两条件皆不
+  # 沾)。`!`/file-line 两形无锚并收, payload=包名。
+  - {
+      id: pkg_version_skew,
+      scope: head,
+      payload_group: 1,
+      pattern: "Package (\\w+) Error[\\s\\S]{0,400}?(?:need at least version|version[^\\n]*too old|requires[^\\n]*version)",
+    }
   # ── 2026-09-19 citemath 匝道 ──
   # ``Command \X invalid in math mode`` —— \not@math@alphabet 签名。
   # 主战场: natbib ``\@citex`` 未定义引用标记 ``{\reset@font\bfseries ?}``
@@ -483,11 +577,15 @@ taxonomy:
   # ``LaTeX (Font )?Warning: Command \X invalid in math mode`` 是同句式
   # 软警告 (\r/\small/\sc 族, 非 \not@math@alphabet 硬报)——不锚前缀
   # 会被首错后 ctx8 窗内的警告行抢签误路由 (loop1 多格带此警告)。
+  # 2026-09-20 taxrow lane (taxcen invalid_in_math_braced): `\end{env}`
+  # 花括号参形 —— `Command \end{lemma} invalid in math mode` 中 `{lemma}`
+  # 夹在 cs 与 ` invalid` 之间击败邻接假设 (2410.17903 实证);
+  # `(?:\{[^}]*\})?` 可选参段兼容, payload 仍取 cs 名 (`end`)。
   - {
       id: invalid_in_math,
       scope: head,
       payload_group: 1,
-      pattern: "LaTeX Error: Command \\\\([a-zA-Z@]+) invalid in math mode",
+      pattern: "LaTeX Error: Command \\\\([a-zA-Z@]+)(?:\\{[^}]*\\})? invalid in math mode",
     }
   # ── 2026-09-19 arraypream lane (arraypream-2026-09-19 普查) ──
   # array.sty \@mkpream 拒收签名: "Illegal pream-token (\X): `c' used."
@@ -536,6 +634,258 @@ taxonomy:
       scope: head,
       payload_group: 1,
       pattern: "LaTeX Error: Font family `([\\w]+\\+[\\w]+)' unknown",
+    }
+  # ── 2026-09-20 taxrow lane (lane-taxcen 普查: other|None 实缺 224
+  #   cells → 79 phrasing clusters → 56 提案覆盖 223/224; tmp/lane-taxcen/
+  #   rows.json + clusters_raw.json 逐行实证) ──
+  # 新类簇按 verbatim 证据形收录, 各签现行全归 other|None —— 排在
+  # syntax 宽词族前只是为 head 段确定性求早评: 全部措辞均不含 syntax
+  # 交替词, 与既有臂互不串线; 同族新臂 (missing_file 裸名/missing_tfm
+  # 即时形/fontspec 裸头/missing_graphic 两残形/pkg_version_skew 版本
+  # 措辞/pkg_obsolete 选项级/key_unknown pgfkeys+xkeyval/undefined_color
+  # model 变体/invalid_in_math 花括参/runaway_scan expl3 名) 已在各自
+  # 家族位插入, 本块只收全新类 id。
+  # —— 包/类自报硬错族 (Package|Class X Error) ——
+  # bib_compat ×25 (最大单簇): natbib bibpunct/citestyle 错配 aux 态错,
+  # payload=引证式 (author-year|numbers)。
+  - {
+      id: bib_compat,
+      scope: head,
+      payload_group: 1,
+      pattern: "Bibliography not compatible with (author-year|numbers) citations",
+    }
+  # unknown_option ×13: 内核通用不识选项错 (区别于 babel_opt/float_opt
+  # 包专属臂) —— 引法 `` `x' ``/`'x'` 两形、包名带不带引皆见
+  # (` compress' natbib / 'hiresbb' xcolor / `whole' bxcjkjatype 实证);
+  # payload=选项名 (组1, 组2 为包名备查)。
+  - {
+      id: unknown_option,
+      scope: head,
+      payload_group: 1,
+      pattern: "Unknown option [`']\\s*([^`']+?)' for package [`']?([\\w+-]+)'?",
+    }
+  # pkg_requires ×7: 包依赖序硬错 (breakurl→hyperref 实证)。
+  - {
+      id: pkg_requires,
+      scope: head,
+      payload_group: 2,
+      pattern: "Package (\\w+) Error: The \\w+ depends on (\\w+) package",
+    }
+  # pkg_engine ×3: 引擎门槛硬错 (bxcjkjatype `engine in use is not
+  # supported` / bmpsize `You need pdfTeX N.N`), payload=包名。
+  - {
+      id: pkg_engine,
+      scope: head,
+      payload_group: 1,
+      pattern: "Package (\\w+) Error: (?:The engine in use is not supported|You need pdfTeX)",
+    }
+  # graphics_div ×3: graphics 缩放除零 (Division by 0 实证), payload=除数。
+  - {
+      id: graphics_div,
+      scope: head,
+      payload_group: 1,
+      pattern: "Package graphics Error: Division by (\\d+)",
+    }
+  # cls_redefine_guard ×5: acmart 重定义护栏 (\baselinestretch,
+  # acmartstretch lane 配套), payload=cs。
+  - {
+      id: cls_redefine_guard,
+      scope: head,
+      payload_group: 1,
+      pattern: "Class \\w+ Error: An attempt to redefine (\\\\[A-Za-z@]+)",
+    }
+  # cls_unsupported ×2: revtex 时代不支持 cs 硬错 (\and 实证),
+  # 组1=类名, payload=cs (组2)。
+  - {
+      id: cls_unsupported,
+      scope: head,
+      payload_group: 2,
+      pattern: "Class (\\S+) Error: (\\\\[A-Za-z@]+) is not supported",
+    }
+  # cls_affil ×2: acmart 署名 schema 错 (No country present, 疑似
+  # unfixable-class)。
+  - { id: cls_affil, scope: head, pattern: "Class acmart Error: No country present" }
+  # oldfont_cmd ×1: KOMA 2.09 字体开关护栏 (`\bf' 0712.1692 42-错格),
+  # payload=cs → 209-switch polyfill 路由。
+  - {
+      id: oldfont_cmd,
+      scope: head,
+      payload_group: 1,
+      pattern: "Class \\w+ Error: undefined old font command [`'](\\\\[A-Za-z@]+)'",
+    }
+  # calc_err ×2: calc 表达式解析败 (`\let ' invalid 实证), payload=token。
+  - {
+      id: calc_err,
+      scope: head,
+      payload_group: 1,
+      pattern: "Package calc Error: `([^']+)' invalid at this point",
+    }
+  # keyval_undef ×5 (kvcen 近亲): `Package keyval Error: X undefined`
+  # —— key_unknown 是 `The key X is unknown and is being ignored` 另一
+  # 措辞; payload=键名 (Zalta/rheight/这是译文 zh-leak 槽)。
+  - {
+      id: keyval_undef,
+      scope: head,
+      payload_group: 1,
+      pattern: "Package keyval Error: ([^'\\s.]+) undefined",
+    }
+  # etoolbox_toggle ×1: etoolbox toggle 未定义 (key_unknown 近亲但
+  # toggle≠key, 语义分行)。
+  - {
+      id: etoolbox_toggle,
+      scope: head,
+      payload_group: 1,
+      pattern: "Package etoolbox Error: Toggle '([^']+)' undefined",
+    }
+  # pgf_shape ×1: pgf/tikz shape 库缺 (tau1, pgfnodes lane), payload=形名。
+  - {
+      id: pgf_shape,
+      scope: head,
+      payload_group: 1,
+      pattern: "Package pgf Error: No shape named [`']([^']+)'",
+    }
+  # newunicodechar_arg / standalone_shell 各 ×1。
+  - {
+      id: newunicodechar_arg,
+      scope: head,
+      pattern: "Package newunicodechar Error: Invalid argument",
+    }
+  - {
+      id: standalone_shell,
+      scope: head,
+      pattern: "Package standalone Error: Shell escape needed",
+    }
+  # patch_fail ×5: 通用宏补丁失败三措辞 —— `\cs could not be patched`
+  # (\@combinedblfloats) / `Patching \cs failed` (biblatex
+  # \MakeUppercase) / 裸 `patch failed.`; payload=首个非空组 (裸形无组
+  # →None)。cannot_patch_macro 臂只盖 bib/cite 措辞, 语义分行。
+  - {
+      id: patch_fail,
+      scope: head,
+      pattern: "(\\\\[A-Za-z@]+) could not be patched|Patching (\\\\[A-Za-z@]+) failed|patch failed",
+    }
+  # —— 宽包名头族 (Package <name> Error 单行归族; 排具体措辞臂后) ——
+  # microtype_pdftex ×38 (最大簇): pdftex 专属特性 on xetex 四措辞
+  # (Disabling-ligatures 折行 / kerning|spacing only works with pdftex
+  # 1.40 / Font expansion does not work with xetex) —— microtypelis 修
+  # 复臂已走 other-dispatch, 本行把不可见流量转为可测签名。
+  - { id: microtype_pdftex, scope: head, pattern: "Package microtype Error" }
+  # siunitx_err ×6: Invalid number 'X' / prefix-no-unit / pkg-incompatible。
+  - { id: siunitx_err, scope: head, pattern: "Package siunitx Error" }
+  # acro_err ×1: acro v3 属性定义错 (折行 msg, acro_v3_key_rename 配套)。
+  - { id: acro_err, scope: head, pattern: "Package acro Error" }
+  # pgfplots_err ×2 / amsmath_err ×2: 各自包内结构错族。
+  - { id: pgfplots_err, scope: head, pattern: "Package pgfplots Error" }
+  - { id: amsmath_err, scope: head, pattern: "Package amsmath Error" }
+  # latex_hooks ×4: 钩子管理错 (generic-hook add / sort-rule 时序)。
+  - { id: latex_hooks, scope: head, pattern: "LaTeX hooks Error" }
+  # —— 内核/装载语义错族 ——
+  # counter_undef ×11: `No counter 'X' defined` —— payload=计数器名
+  # ('theorem' env-polyfill 族 + '这是译文' zh-leak 槽)。
+  - {
+      id: counter_undef,
+      scope: head,
+      payload_group: 1,
+      pattern: "No counter '([^']+)' defined",
+    }
+  # fontsize_undef ×2: 字号命令未定义 (stubfid .clo 缺口), payload=cs。
+  - {
+      id: fontsize_undef,
+      scope: head,
+      payload_group: 1,
+      pattern: "The font size command (\\\\[A-Za-z@]+) is not defined",
+    }
+  # symbol_font ×1: 声明/未定义家族三措辞 —— `Too many symbol fonts
+  # declared` (无组→None) / `Symbol font `X' (is )?not defined`
+  # (payload=字体名 gns@font)。
+  - {
+      id: symbol_font,
+      scope: head,
+      pattern: "Too many symbol fonts declared|Symbol font [`']([\\w@]+)' (?:is )?not defined",
+    }
+  # nfss_setup ×11 (bare-NFSS 兜底臂): `NFSS system isn't set up
+  # properly` 无 `^No file X.fd` 探测行时, 前列 use_pre missing_file 臂
+  # 够不着 —— 双证在场仍归 missing_file|X.fd (评估序), 裸 NFSS 中止
+  # 归本类 payload=None。
+  - {
+      id: nfss_setup,
+      scope: head,
+      pattern: "NFSS system isn't set up properly",
+    }
+  # nfss_corrupt ×4: NFSS 内表腐败 (era 字体机械)。
+  - { id: nfss_corrupt, scope: head, pattern: "Corrupted NFSS tables" }
+  # grouped_load ×4 / preamble_only ×2 / options_section ×1 /
+  # pkg_before_docclass ×1: 装载时序四签。
+  - {
+      id: grouped_load,
+      scope: head,
+      pattern: "Loading a class or package in a group",
+    }
+  - { id: preamble_only, scope: head, pattern: "Can be used only in preamble" }
+  - {
+      id: options_section,
+      scope: head,
+      pattern: "(?:\\\\RequirePackage|\\\\LoadClass|\\\\usepackage) (?:or|and) \\\\[A-Za-z@]+ in Options Section",
+    }
+  - {
+      id: pkg_before_docclass,
+      scope: head,
+      pattern: "(?:\\\\usepackage|\\\\RequirePackage) before \\\\documentclass",
+    }
+  # nested_depth ×1 / cs_eol ×2 (\\verb ended by end of line)。
+  - { id: nested_depth, scope: head, pattern: "Too deeply nested" }
+  - {
+      id: cs_eol,
+      scope: head,
+      payload_group: 1,
+      pattern: "(\\\\[A-Za-z@]+) ended by end of line",
+    }
+  # cs_mismatch ×11: 定界宏参形错配 (csdefmismatch lane 修过 5) ——
+  # 交替三支: 字母串 cs / 单字符 nonletter / `\<space>` 空格 cs
+  # (`Use of \  doesn't` 双空格实证形; 提案 `\\\S` 漏此支, 补 `\\ `)。
+  - {
+      id: cs_mismatch,
+      scope: head,
+      payload_group: 1,
+      pattern: "Use of (\\\\[A-Za-z@]+|\\\\\\S|\\\\ ) doesn't match its definition",
+    }
+  # vmode_prim ×11: 模式外原语 (\spacefactor/\unskip/\eqno/\halign,
+  # spacefactor lane other-dispatch 修复面)。
+  - {
+      id: vmode_prim,
+      scope: head,
+      payload_group: 1,
+      pattern: "You can't use [`'](\\\\[A-Za-z@]+)' in (?:vertical|horizontal|math|LR|internal) mode",
+    }
+  # lr_mode ×2: LR-mode 限制 (vmode_prim 同族异措辞)。
+  - { id: lr_mode, scope: head, pattern: "Not allowed in LR mode" }
+  # incomplete_if ×3: `Incomplete \if*; all text was ignored` ——
+  # ifclose/ifprot 修复臂的签名面, payload=条件 cs。
+  - {
+      id: incomplete_if,
+      scope: head,
+      payload_group: 1,
+      pattern: "Incomplete (\\\\if\\w*); all text was ignored",
+    }
+  # extra_brace ×5: `Too many }'s` 非对称闭括号 (syntax 交替无
+  # 'Too many' 词, 独立成行)。
+  - { id: extra_brace, scope: head, pattern: "Too many }'s" }
+  # —— 数值/数学/排版引擎错族 ——
+  # display_math_close ×2 / dim_overflow ×5 / arith_overflow ×1 /
+  # output_loop ×3 / mathchar_ext ×1 / xypic_err ×1。
+  - { id: display_math_close, scope: head, pattern: "Display math should end with \\$\\$" }
+  - { id: dim_overflow, scope: head, pattern: "Dimension too large" }
+  - { id: arith_overflow, scope: head, pattern: "Arithmetic overflow" }
+  - {
+      id: output_loop,
+      scope: head,
+      pattern: "Output loop---\\d+ consecutive dead cycles",
+    }
+  - { id: mathchar_ext, scope: head, pattern: "Extended mathchar used as mathchar" }
+  - {
+      id: xypic_err,
+      scope: head,
+      pattern: "Xy-pic error|A <box> was supposed to be here",
     }
   # 2026-09-16 扩 syntax 族: Extra }/\\endgroup/\\right/\\middle/\\else/\\fi/\\or
   # 与 Forgotten \\endgroup —— 组/定界/条件多 token 错误归 syntax

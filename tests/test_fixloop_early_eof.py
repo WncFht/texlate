@@ -40,17 +40,17 @@ def _classify_log(text: str) -> tuple[str | None, str | None]:
 
 # ---------------------------------------------------------------- W126 缺陷面
 def test_fileline_signed_error_not_early_eof() -> None:
-    """file-line 形签名错 + 零页尾 → other —— 实证双形态同墙。"""
-    assert _classify_log(_TULETTERS_LOG) == ("other", None)
-    assert _classify_log(_NATBIB_AUX_LOG) == ("other", None)
+    """file-line 形签名错 + 零页尾 → taxrow 专属行 (非 early_eof, 非 other 兜底)。"""
+    assert _classify_log(_TULETTERS_LOG) == ("symbol_font", "TUletters")
+    assert _classify_log(_NATBIB_AUX_LOG) == ("bib_compat", "author-year")
 
 
 def test_fileline_signed_error_via_classify_error() -> None:
-    """薄包装同语义: file-line err + No-pages tail → other。"""
+    """薄包装同语义: file-line err + No-pages tail → symbol_font。"""
     err = "./main.tex:63: LaTeX Error: Symbol font `TUletters' is not defined."
     tail = "l.63 \\begin{document}\nNo pages of output.\n"
     cat, _ = classify_error(err, None, tail, timed_out=False)
-    assert cat == "other"
+    assert cat == "symbol_font"
 
 
 def test_bang_signed_error_still_other() -> None:
@@ -154,13 +154,17 @@ def test_tail_latex209_real_signature_not_stolen() -> None:
 
 # ---------------------------------------------------------------- 95-targeted 回改
 def test_targeted_rules_when_no_early_eof() -> None:
-    """symbolfont_tuletters / natbib_numbers_pass when 面只剩 other。"""
+    """symbolfont_tuletters / natbib_numbers_pass when 面无 early_eof 臂。"""
     rs = Ruleset.load()
-    for rid in ("symbolfont_tuletters", "natbib_numbers_pass"):
+    expected = {
+        "symbolfont_tuletters": {"other", "symbol_font"},
+        "natbib_numbers_pass": {"other"},
+    }
+    for rid, want in expected.items():
         rule = next(r for r in rs.rules if r.id == rid)
         cats = {
             c.get("category")
             for c in (rule.when.get("any") or [rule.when])
             if isinstance(c, dict)
         }
-        assert cats == {"other"}, f"{rid} when 面应只剩 other: {cats}"
+        assert cats == want, f"{rid} when 面应为 {want}: {cats}"

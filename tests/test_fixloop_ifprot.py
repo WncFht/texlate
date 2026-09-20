@@ -170,5 +170,6 @@ def test_registration_and_rule() -> None:
     assert rule.phase == "loop"
     assert rule.action["kind"] == "builtin_transform"
     assert rule.action["function"] == "if_phantom_protect"
-    assert rule.when["category"] == "other"
+    cats = {c.get("category") for c in rule.when["any"]}
+    assert cats == {"other", "incomplete_if"}
     assert 196.5 < rule.order < 200  # noqa: PLR2004 - 序位钉 (扫描双臂 196/196.5 之后)

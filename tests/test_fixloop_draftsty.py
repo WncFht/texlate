@@ -72,10 +72,11 @@ def _classify(head_text: str) -> tuple[str | None, str | None]:
 
 
 # ---------------------------------------------------------------- taxonomy
-def test_taxonomy_incomplete_iffalse_is_other() -> None:
-    """实证签名: `! Incomplete \\iffalse` → other (无专属 taxonomy 条目)。"""
-    cat, _ = _classify(_ERR_IFFALSE)
-    assert cat == "other"
+def test_taxonomy_incomplete_iffalse_is_incomplete_if() -> None:
+    """实证签名: `! Incomplete \\iffalse` → incomplete_if (taxrow 专属行, payload=条件 cs)。"""
+    cat, pay = _classify(_ERR_IFFALSE)
+    assert cat == "incomplete_if"
+    assert pay == "\\iffalse"
 
 
 def test_taxonomy_edef_eof_is_runaway_scan() -> None:
@@ -91,7 +92,7 @@ def test_rule_wired_loop_phase() -> None:
     rule = _rule()
     assert rule.order == 11.95  # noqa: PLR2004 - schema 断言值
     cats = {c.get("category") for c in rule.when["any"]}
-    assert cats == {"other", "syntax", "undefined_cs", "runaway_scan"}
+    assert cats == {"incomplete_if", "other", "syntax", "undefined_cs", "runaway_scan"}
     assert rule.condition["cache_dir_glob"] == "*.sty"
     assert rule.condition["tool_available"] == "sh"
     ctx_pats = {c.get("ctx_suggests") for c in rule.condition["any"]}

@@ -561,6 +561,7 @@ rules:
     order: 197 # 同族 option 病理簇 (xcolor 184/pstcol 185/geometry 186/float 187) 后首空位
     when:
       any:
+        - { category: unknown_option, payload_required: false }
         - { category: other, payload_required: false }
         - { category: early_eof, payload_required: false }
         - { category: syntax, payload_required: false }
@@ -677,6 +678,7 @@ rules:
     order: 200 # xy_option_load(198) 后选项面尾位; other+ctx 臂
     when:
       any:
+        - { category: unknown_option, payload_required: false }
         - { category: other, payload_required: false }
         - { category: early_eof, payload_required: false }
         - { category: syntax, payload_required: false }

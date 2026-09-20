@@ -143,5 +143,6 @@ def test_registration_and_rule() -> None:
     assert rule.phase == "loop"
     assert rule.action["kind"] == "builtin_transform"
     assert rule.action["function"] == "bm_mathchar_wrap"
-    assert rule.when["category"] == "other"
+    cats = {c.get("category") for c in rule.when["any"]}
+    assert cats == {"other", "mathchar_ext"}
     assert "Extended mathchar" in rule.condition["ctx_suggests"]

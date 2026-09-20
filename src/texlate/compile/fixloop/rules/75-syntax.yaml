@@ -1145,7 +1145,10 @@ rules:
     description: "doc 源件未闭合 \\if* → preamble 开注 \\begin{document} 前 / body 开注 \\end{document}/\\endinput/EOF 前 (other 臂: Incomplete \\if 首错)"
     phase: loop
     order: 196 # pdfstring_cs_disarm(193)/80-bib(195) 之后, undefined_cs_guess(900) 之前; draftsty 补丁(11.95) 先拿 phantom
-    when: { category: other }
+    when:
+      any:
+        - { category: other }
+        - { category: incomplete_if }
     condition:
       ctx_suggests: "Incomplete \\\\if"
       tool_available: python3
@@ -1456,7 +1459,10 @@ rules:
     description: "phantom Incomplete \\if (字面平衡复发) → \\footnote/\\thanks+\\bf\\it\\rm\\sf\\tt\\sc\\sl eTeX \\protected 重定义 (@\\begin{document} 钩)"
     phase: loop
     order: 197.5 # unclosed_if_close(196)+eof 臂(196.5) 字面扫描先烧 dedup 位, 同签复发才轮到本规则 = phantom 判别
-    when: { category: other }
+    when:
+      any:
+        - { category: other }
+        - { category: incomplete_if }
     condition:
       ctx_suggests: "Incomplete \\\\if"
     action:

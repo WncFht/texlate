@@ -66,7 +66,7 @@ def test_flushend_rule_registered() -> None:
     assert rule.order == 197  # noqa: PLR2004 - schema 断言值
     assert rule.phase == "loop"
     cats = {w.get("category") for w in rule.when["any"]}
-    assert "other" in cats
+    assert {"other", "unknown_option"} <= cats
     assert rule.action["kind"] == "regex_rewrite"
     rws = rule.action["params"]["rewrites"]
     assert all(rw["match_surface"] == "masked" for rw in rws)

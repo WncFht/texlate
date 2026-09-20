@@ -171,7 +171,11 @@ rules:
     description: "注入式 rewrite 注释切分裂伤 → 带尾文的行首孤立 \\begin{document} 重注释 (后起行首 \\begin{document} 门)"
     phase: loop
     order: 194 # natbib_numbers_pass(186) 裂伤兜底, 同签下轮收
-    when: { category: other }
+    when: # 两臂签名分归 bib_compat/preamble_only (taxrow 行) —— other 保兼容
+      any:
+        - { category: other }
+        - { category: bib_compat }
+        - { category: preamble_only }
     condition:
       ctx_suggests: "Bibliography not compatible with author-year|Can be used only in preamble"
       source_contains: "\\n\\\\begin\\{document\\}[^\\S\\r\\n]*[^\\s%]"
