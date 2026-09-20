@@ -1790,3 +1790,8 @@
 - **wave-13 +=**：stale-verdict replay ×6（HaranoAji 已装）+ zh-leak replay-first ×4。
 - **dispatch ×3**：nfsstu（nfss-TU impl：新行+T-enc→TU relax/unicode-polyfill+taxonomy 臂评）、stubfid（vendor stub fidelity 补钉 ×4）、pairbun（float_opt cls-level×2/\Hy@tempa×2/endcsname-gfx-keys×2/seki-para-nonlong×2）。decline ×4 记录；psfig→epsfig+mainrel 两单 deferred。
 - **门**：HEAD=d0a00665；ruleset 178（worktree）；overnite 1724/2822；wave-13 mutex 扩持（csfix8/bibimpl/nfsstu/stubfid/pairbun impl 在飞）；无 teammate git 越权。
+
+### patrol ~08:00 — 心跳：无收割；roster 12 全 running；overnite 1748/2822
+
+- 无新 report.md。活动实证：dedupchk（exposed.json×2+fireable_none）、stuckmine（rows.json+sweep.py）、primcen（probe.tex/log）、csfix8 cref repro r5→r6 递进。产品代码 20min 内无写——impl lanes 仍在诊断段。
+- **门**：HEAD=f57d4536；ruleset 178（worktree）；wave-13 mutex 扩持 5 impl lanes；共享 index 勿动；无 teammate git 越权。
