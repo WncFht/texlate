@@ -55,7 +55,7 @@
 version: 1
 
 meta:
-  source: "bench/py/fixloop.py + docs/spec/compile.md
+  source: "bench/py/fixloop.py + docs/spec/compile.md"
   generated: "2026-09-15"
   engine_default: xelatex
   loop:
