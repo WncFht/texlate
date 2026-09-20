@@ -25,7 +25,7 @@ server = [
   "uvicorn>=0.30",
   "sse-starlette>=2.1",
 ]
-# spec 承诺名（docs/decisions/background.md §2.2）：L1 tree-sitter 校验是 node 子进程
+# spec 承诺名（docs/decisions/background.md、docs/spec/validate.md）：L1 tree-sitter 校验是 node 子进程
 # 跑随包 `validate/ts/` 数据件，python 侧零依赖——空 extra 仅占位兑现安装面，
 # 运行时 `shutil.which("node")` 探测缺席即降级 L0。
 ts-validator = []

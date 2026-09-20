@@ -563,7 +563,7 @@ class TestCacheScope:
 
 
 class TestFixloopWiring:
-    """docs/spec/compile.md 编译首判非 clean → fixloop 规则循环 → 摘要留痕。"""
+    """docs/spec/compile.md：zh 编译首判非 clean → fixloop 规则循环 → 摘要留痕。"""
 
     def test_rescue_to_done(
         self,

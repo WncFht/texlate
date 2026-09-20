@@ -179,7 +179,7 @@ def parse_batch_response(text: str, n: int) -> list[str] | None:
 def split_long_chunk(text: str, *, max_chars: int = CHUNK_HARD_LIMIT) -> list[str]:
     """超大原子 chunk 按句界二分（闭合 scope 边界 + 句号优先、大写开头次优）。
 
-    docs/spec/translate.md chunk 先切分再入批」——不切会爆单请求上下文
+    docs/spec/translate.md「超大原子 chunk 先切分再入批」——不切会爆单请求上下文
     （实测 109K/77K 原子块，cost-model §5.3）。返回保持顺序的片段列表。
     """
     if max_chars < 1 or len(text) <= max_chars:

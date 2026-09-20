@@ -1,6 +1,6 @@
 """LLM 客户端：OpenAI/Anthropic/Responses 三方言、免费集发现、错误分类。
 
-规格 docs/spec/translate.md
+规格 docs/spec/translate.md：
 
 - 默认后端 `http://127.0.0.1:3033`（本地 OpenAI 兼容网关，Chat 协议）；
   **免费集运行时动态筛**——`/panel/api/models` 按 `cost_tier=="free"` ∧

@@ -85,7 +85,7 @@ SLOTS_MAX_ROUNDS = 2
 
 @dataclass
 class RetryPolicy:
-    """HTTP 层退避参数（docs/spec/translate.md 试、429 ³ 阶、timeout 下限 10s）。"""
+    """HTTP 层退避参数（docs/spec/translate.md：3~5 试、429 ³ 阶、timeout 下限 10s）。"""
 
     max_tries: int = 5
     base_delay: float = 1.0

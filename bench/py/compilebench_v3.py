@@ -61,7 +61,7 @@ V2_CELLS_DEFAULT = ROOT / "bench/results/compilebench-corpusv2-2026-09-15/cells.
 
 SEED_DEFAULT = 20260915
 SAMPLE_N_DEFAULT = 180
-PASS_TIMEOUT = 240.0  # 单 pass/单 attempt 上限(秒), docs/spec/compile.md 与 v2 同
+PASS_TIMEOUT = 240.0  # 单 pass/单 attempt 上限(秒), docs/spec/compile.md, 与 v2 同
 XELATEX_TIMEOUT = PASS_TIMEOUT * 2  # 产品 compile timeout 是总预算/per_pass
 TECTONIC_TIMEOUT = PASS_TIMEOUT
 MAX_PASSES = 2

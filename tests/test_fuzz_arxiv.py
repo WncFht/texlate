@@ -1056,7 +1056,7 @@ def test_acquire_retry_attempt_cap() -> None:
     """瞬态码重试上界：单 host 至多 len(RETRY_DELAYS)+1 次请求。
 
     顺带钉住语义：failover 只对异常/park 发生——瞬态 status 不触发换 host
-    （docs/spec/arxiv-source.md 键是 (host,path) 桶，未 park 的 host 不换）。
+    （docs/spec/arxiv-source.md：park 键是 (host,path) 桶，未 park 的 host 不换）。
     """
     calls: list[str] = []
 

@@ -12,7 +12,7 @@ class 名/选项、tex 数/总大小/非 UTF-8、路由标签 (reject/xelatex/mi
 non-utf8/no-hyperref——B3 静态路由金标准)、孤儿 tex 清单、stratum_cell/
 cluster_id/权重 (供 docs/spec/corpus.md 统计与事后分层).
 
-统计口径 (docs/spec/corpus.md §8 门槛): 加权池化率 (事后分层权重 w_cell =
+统计口径 (docs/spec/corpus.md, §8 门槛): 加权池化率 (事后分层权重 w_cell =
 frame_cell/sample_cell, stratum_cell 来自 corpus manifest, frame 宇宙计数
 来自 bench/frame/strata-era-cat.csv) + 宏平均 (逐篇等权, olmOCR 式) +
 raw pooled 三口径并列; Wilson 95% CI (iid 近似) + 月簇稳健 bootstrap CI

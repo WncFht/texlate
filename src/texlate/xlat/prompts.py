@@ -1,4 +1,4 @@
-r"""六 kind system prompt 套件（规格 docs/spec/translate.md prompt-glossary-spec §3）。
+r"""六 kind system prompt 套件（规格 docs/spec/translate.md；成稿源 prompt-glossary-spec §3）。
 
 组装公式（逐字固定，改动必须 bump `PROMPT_VERSION`——段级缓存键含此值）：
 

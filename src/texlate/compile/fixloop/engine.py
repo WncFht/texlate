@@ -1,4 +1,4 @@
-"""Engine — fixloop 规则引擎主循环 (docs/spec/compile.md bench/py/fixloop.py 移植)。
+"""Engine — fixloop 规则引擎主循环 (docs/spec/compile.md, bench/py/fixloop.py 移植)。
 
 管线: ``eng.compile → parse_log → taxonomy.classify → gate → match → apply →
 重编``, ≤``meta.loop.max_rounds`` 轮 (默认 8)。

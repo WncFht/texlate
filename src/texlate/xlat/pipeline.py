@@ -77,7 +77,7 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
-#: 翻译温度（docs/spec/translate.md 保守值；judge/抽取 0）
+#: 翻译温度（docs/spec/translate.md：0.2~0.3 保守值；judge/抽取 0）
 TRANSLATE_TEMPERATURE = 0.2
 #: 翻译输出预算（reasoning 模型下限；短输出不亏——按量计费）
 TRANSLATE_MAX_TOKENS = 8192
