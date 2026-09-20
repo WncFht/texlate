@@ -86,7 +86,7 @@ docker run --rm texlate fetch 1706.03762                    # 其他子命令同
 
 ## 实测指标
 
-六天开发历程与 2026-09-19 全量画像（口径与全部原始数据：[metrics 报告](docs/research/metrics-2026-09-19/report.pdf)，自包含 `data/` + `refs/`）：
+六天开发历程与 2026-09-19 全量画像（口径与全部原始数据：[metrics 报告](docs/research/methods/metrics-2026-09-19/report.pdf)，自包含 `data/` + `refs/`）：
 
 **编译健康度**：联合口径出 PDF 89.17→98.75%（M2 门 ≥90% 过线），真实臂 96.7% 与模拟臂打平；注意裸编译基线自身 +19pt——离线宏包与工具链同步成熟。
 
@@ -109,7 +109,7 @@ docker run --rm texlate fetch 1706.03762                    # 其他子命令同
 - `src/texlate/` — 产品代码：`arxiv/` 获取层、`latex/` 半解析管线、`xlat/` 翻译编排、`validate/` L0/L1/L2、`compile/` 引擎+fixloop、`server/` Web 后端、`export/`、`cli.py`
 - `web/` — SolidJS+Vite+pdfslick 阅读器（独立 package.json；`npx tsc --noEmit && npx eslint . && npx vitest run`）
 - `tests/` — pytest（corpus/网关/node 依赖用例均有守卫，干净 clone 全绿）
-- `docs/` — [`docs/README.md`](docs/README.md) 总索引：决策史 01–05 + 现行技术规格 06–10 + `research/` 调研档案 + `tools-runbook.md` 工具手册
+- `docs/` — [`docs/README.md`](docs/README.md) 总索引，六分区：`guide/` 用户文档 + `spec/` 技术规范（实现唯一事实源）+ `decisions/` ADR 决策史 + `dev/` 贡献者文档 + `research/` 调研档案 + `log/` 工程日志；维护规则 [`docs/MAINTENANCE.md`](docs/MAINTENANCE.md)
 - `bench/` — 评测 harness（`PROTOCOL.md` 协议；`py/` 评测器 B1–B7 + stagerun 批量驱动；`corpus*/` 语料与 `results/` 产物 gitignored，可经 `bench/py/` 三件套（`build_corpus_v3.py` + `build_hot_layer.py` + `build_corpus_expand.py`）重建）
 - `Dockerfile` / `.github/workflows/` — 容器形态与 CI（pre-commit 同源）
 
@@ -131,5 +131,5 @@ Apache-2.0（见 LICENSE）。`compile/fixloop/vendor/files/` 内第三方期刊
 
 ## 致谢
 
-- [hjfy.top](https://hjfy.top/)（吴多益）——产品原型与全部关键设计共识（实现自述：[知乎原文](https://zhuanlan.zhihu.com/p/1905569596599169419)，存档说明 `docs/original.md`）
+- [hjfy.top](https://hjfy.top/)（吴多益）——产品原型与全部关键设计共识（实现自述：[知乎原文](https://zhuanlan.zhihu.com/p/1905569596599169419)，产品侦察 `docs/research/product/hjfy-site.md`）
 - [ieeA](https://github.com/zcyisiee/ieeA)——参考实现，借鉴模式
