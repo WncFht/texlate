@@ -10,6 +10,8 @@ from typing import TYPE_CHECKING, Annotated
 import typer
 from typer.models import TyperPath
 
+from texlate.textutil import env_raw, safe_is_dir, safe_is_file
+
 if TYPE_CHECKING:
     import click
 
@@ -18,7 +20,26 @@ app = typer.Typer(
     no_args_is_help=True,
 )
 
-_DEFAULT_CACHE = Path.home() / ".cache" / "texlate" / "src"
+
+def _cache_root() -> Path:
+    """缓存根：``TEXLATE_CACHE_DIR`` > ``$XDG_CACHE_HOME/texlate`` > ``~/.cache/texlate``。
+
+    ``textutil.data_root`` 的缓存侧对称件——只定位不 mkdir。``TEXLATE_CACHE``
+    不复用：已登记为 ctan filemap 叶目录（``compile/ctan.py``）。待 hoist 至
+    ``textutil/osutil.py``——engine ``_cache``/``_xelatex``/``sandbox`` 同根消费。
+    """
+    raw = env_raw("TEXLATE_CACHE_DIR")
+    if raw:
+        return Path(raw).expanduser()
+    xdg = env_raw("XDG_CACHE_HOME")
+    return (
+        Path(xdg).expanduser() / "texlate"
+        if xdg
+        else Path.home() / ".cache" / "texlate"
+    )
+
+
+_DEFAULT_CACHE = _cache_root() / "src"
 
 #: 路径串控制字符（C0/C1——NUL 为代表）。
 _CTRL_CHARS_RE = re.compile(r"[\x00-\x1f\x7f-\x9f]")
@@ -54,19 +75,13 @@ _CLI_FILE = _CliPath(exists=True, dir_okay=False, readable=True)
 
 
 def _is_dir(p: Path) -> bool:
-    """``is_dir`` 宽判：ENAMETOOLONG/EACCES 等非缺席型 OSError 归一 False。"""
-    try:
-        return p.is_dir()
-    except OSError:
-        return False
+    """``is_dir`` 宽判：ENAMETOOLONG/EACCES/NUL 等非缺席型异常归一 False。"""
+    return safe_is_dir(p)
 
 
 def _is_file(p: Path) -> bool:
     """``is_file`` 宽判：同 ``_is_dir``。"""
-    try:
-        return p.is_file()
-    except OSError:
-        return False
+    return safe_is_file(p)
 
 
 @app.callback()

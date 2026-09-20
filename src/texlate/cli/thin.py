@@ -16,6 +16,7 @@ import typer
 from texlate.arxiv.fetch import normalize_arxiv_id, valid_id
 from texlate.cli._common import _is_dir
 from texlate.cli._output import (
+    _FALLBACK_DIV,
     console,
     fixloop_round_line,
     log_line_filtered,
@@ -37,8 +38,6 @@ _THIN_TERMINAL = frozenset(
 _THIN_POLL_S = 2.0
 #: SSE 断流带 ``Last-Event-ID`` 重连上限——尽后剩余预算归 ``_thin_wait`` 轮询。
 _SSE_RETRIES = 2
-#: 非 tty 逐块行输出节奏——每 ~1/10 总量一行（与 ``_output._FALLBACK_DIV`` 同拍）。
-_SSE_FALLBACK_DIV = 10
 
 
 def _thin_run(  # noqa: C901, PLR0911, PLR0913 -- 与 run 的 --server 选项面一一对应
@@ -234,6 +233,70 @@ def _thin_follow(client: httpx.Client, task_id: str, wait: float) -> str | None:
         retries += 1
 
 
+def l2_done_line(p: Mapping[str, Any]) -> str | None:
+    """``l2`` 帧 → 状态行文本；非 ``done`` 相位 ``None``（``CliSink._on_l2`` 同口径）。"""
+    if p.get("phase") != "done":
+        return None
+    if not p.get("enabled"):
+        return "l2 skipped"
+    return (
+        f"l2 done retranslated={p.get('retranslated', 0)}"
+        f" fallback={p.get('fallback', 0)} errors={p.get('errors', 0)}"
+    )
+
+
+def fixloop_frame_line(p: Mapping[str, Any]) -> str | None:
+    """``fixloop`` round/done 帧 → 状态行文本；其余相位 ``None``（``CliSink`` 同口径）。"""
+    phase = p.get("phase")
+    if phase == "round":
+        r = p.get("round")
+        return fixloop_round_line(r) if isinstance(r, dict) else f"fixloop round {r}"
+    if phase == "done":
+        cell = p.get("cell") or {}
+        n = len(cell.get("rounds") or [])
+        return f"fixloop done verdict={cell.get('verdict') or '—'} rounds={n}"
+    return None
+
+
+class _ChunkProgress:
+    """chunk 计数 → tty 进度条 / 非 tty 退化行的 sink 无关策略件。
+
+    tty 下 ``make_translate_progress`` Live 条 advance；非 tty 按
+    ``_output._FALLBACK_DIV`` 节奏节流单行。
+    ``close()`` 停 Live——断流/终帧/回轮询前必须收工，否则刷新区残留。
+    ``CliSink._on_translate``/``_finish_translate`` 同策，拟迁 ``_output.py``
+    供两 sink 共用。
+    """
+
+    def __init__(self, label: str = "chunks") -> None:
+        self._label = label
+        self._progress: Progress | None = None
+        self._task: TaskID | None = None
+        self._total = 0
+
+    def update(self, done: int, total: int | None = None) -> None:
+        """新 ``done`` 计数（可携新 ``total``）→ 进度条 advance / 退化行节流。"""
+        if total:
+            self._total = total
+        if console.is_terminal and self._total:
+            if self._progress is None:
+                self._progress = make_translate_progress()
+                self._progress.start()
+                self._task = self._progress.add_task("translate", total=self._total)
+            self._progress.update(self._task, completed=done)
+        elif self._total and (
+            done >= self._total or done % max(1, self._total // _FALLBACK_DIV) == 0
+        ):
+            console.print(f"  {self._label} {done}/{self._total}", style="dim")
+
+    def close(self) -> None:
+        """进度条收工——断流/终帧/回轮询前必须停 Live，否则刷新区残留。"""
+        if self._progress is not None:
+            self._progress.stop()
+            self._progress = None
+            self._task = None
+
+
 class _SseFollow:
     """单任务 SSE 消费端：帧解析 → stderr 渲染；``_last_id`` 水位跨重连任。
 
@@ -249,9 +312,7 @@ class _SseFollow:
         self._task_id = task_id
         self._last_id = 0
         self._terminal_hint: str | None = None
-        self._progress: Progress | None = None
-        self._task: TaskID | None = None
-        self._total = 0
+        self._chunk_progress = _ChunkProgress()
 
     def stream_once(self, deadline: float) -> tuple[str, str | None]:
         """开一路 SSE 流消费到终帧/断流/超时 → ``(kind, value)``。
@@ -276,7 +337,7 @@ class _SseFollow:
                     return "poll", None
                 return self._consume(resp, deadline)
         finally:
-            self._close_progress()
+            self._chunk_progress.close()
 
     def _consume(self, resp: httpx.Response, deadline: float) -> tuple[str, str | None]:
         """``iter_lines`` 帧循环：字段累积 → 空行 ``_dispatch`` → deadline 逐行查。"""
@@ -372,44 +433,22 @@ class _SseFollow:
 
     def _on_chunk(self, p: Mapping[str, Any]) -> None:
         """``chunk`` 帧 → tty 进度条 / 非 tty 每 ~1/10 一行（``items`` 明细不渲）。"""
-        done = int(p.get("done") or 0)
-        if p.get("total"):
-            self._total = int(p["total"])
-        if console.is_terminal and self._total:
-            if self._progress is None:
-                self._progress = make_translate_progress()
-                self._progress.start()
-                self._task = self._progress.add_task("translate", total=self._total)
-            self._progress.update(self._task, completed=done)
-        elif self._total and (
-            done >= self._total or done % max(1, self._total // _SSE_FALLBACK_DIV) == 0
-        ):
-            console.print(f"  chunks {done}/{self._total}", style="dim")
+        total = p.get("total")
+        self._chunk_progress.update(
+            int(p.get("done") or 0), int(total) if total else None
+        )
 
     def _on_l2(self, p: Mapping[str, Any]) -> None:
         """``l2`` done 帧 → 一行统计（``CliSink._on_l2`` 同口径）。"""
-        if p.get("phase") != "done":
-            return
-        if not p.get("enabled"):
-            status("l2 skipped")
-            return
-        status(
-            f"l2 done retranslated={p.get('retranslated', 0)}"
-            f" fallback={p.get('fallback', 0)} errors={p.get('errors', 0)}"
-        )
+        line = l2_done_line(p)
+        if line is not None:
+            status(line)
 
     def _on_fixloop(self, p: Mapping[str, Any]) -> None:
         """``fixloop`` round/done 帧 → 行（``CliSink._on_fixloop`` 同口径）。"""
-        phase = p.get("phase")
-        if phase == "round":
-            r = p.get("round")
-            status(
-                fixloop_round_line(r) if isinstance(r, dict) else f"fixloop round {r}"
-            )
-        elif phase == "done":
-            cell = p.get("cell") or {}
-            n = len(cell.get("rounds") or [])
-            status(f"fixloop done verdict={cell.get('verdict') or '—'} rounds={n}")
+        line = fixloop_frame_line(p)
+        if line is not None:
+            status(line)
 
     def _on_resync(self) -> None:
         """``resync`` 缺口帧 → 拉新快照重置水位线渲染（best-effort，失败静默续流）。"""
@@ -420,13 +459,6 @@ class _SseFollow:
             return
         if isinstance(snap, dict):
             self._on_snapshot(snap)
-
-    def _close_progress(self) -> None:
-        """进度条收工——断流/终帧/回轮询前必须停 Live，否则刷新区残留。"""
-        if self._progress is not None:
-            self._progress.stop()
-            self._progress = None
-            self._task = None
 
 
 def _thin_download(

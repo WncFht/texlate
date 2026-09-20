@@ -11,6 +11,7 @@ from typing import IO, Annotated
 import typer
 
 from texlate.cli._common import _CLI_PATH, app
+from texlate.textutil import DEFAULT_BIND_HOST, DEFAULT_BIND_PORT, set_data_dir
 
 
 def _connect_url(host: str, port: int) -> str:
@@ -66,10 +67,10 @@ def _service_lock(
 @app.command()
 def web(
     *,
-    host: Annotated[str, typer.Option("--host", help="绑定地址")] = "127.0.0.1",
+    host: Annotated[str, typer.Option("--host", help="绑定地址")] = DEFAULT_BIND_HOST,
     port: Annotated[
         int, typer.Option("--port", "-p", help="端口", min=1, max=65535)
-    ] = 8765,
+    ] = DEFAULT_BIND_PORT,
     data_dir: Annotated[
         Path | None,
         typer.Option(
@@ -87,13 +88,15 @@ def web(
     拉起/容器内的预期通路）。
     """
     if data_dir is not None:
-        os.environ["TEXLATE_DATA_DIR"] = str(data_dir.expanduser())
+        set_data_dir(data_dir)
     try:
         import uvicorn  # noqa: PLC0415 -- server extra 延迟导入
 
-        from texlate.server.app import _loopback_bind, create_app  # noqa: PLC0415
+        from texlate.server.app import (  # noqa: PLC0415
+            _exposed_bind_warning,
+            create_app,
+        )
         from texlate.server.settings import data_dir as _data_dir  # noqa: PLC0415
-        from texlate.server.settings import server_mode  # noqa: PLC0415
     except ImportError:
         typer.echo(
             "web 需要 server extra：uv sync --extra server"
@@ -115,15 +118,9 @@ def web(
         webbrowser.open(existing)
         return
     typer.echo(f"texlate web → http://{host}:{port}", err=True)
-    if server_mode() != "server" and not _loopback_bind(host):
-        # local 形态 API 无鉴权（Host 闸只防 DNS rebinding）——非回环绑定
-        # 把建任务/PUT settings/读产物暴露给整个可达网段
-        typer.echo(
-            f"警告：--host {host} 非回环绑定，local 形态 API 无鉴权——"
-            "可达网段内任何人可建任务/改 settings；多租户部署请用"
-            " TEXLATE_MODE=server（X-Texlate-Key 鉴权）",
-            err=True,
-        )
+    warning = _exposed_bind_warning(host)
+    if warning is not None:
+        typer.echo(warning, err=True)
     from texlate.logsetup import configure_server_logging  # noqa: PLC0415
 
     try:

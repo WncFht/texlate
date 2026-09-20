@@ -8,16 +8,22 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path  # noqa: TC003 -- typer eval_str 解析 Annotated 实参
-from typing import TYPE_CHECKING, Annotated
+from typing import TYPE_CHECKING, Annotated, Final
 
 import typer
 
 import texlate.cli as _cli
 from texlate.cli._common import _CLI_PATH, app
 from texlate.textutil import env_str
+from texlate.textutil.osutil import (
+    ENV_TRANSLATOR,  # 名表单源登记处——facade 未转口 ENV_* 故叶直引
+)
 
 if TYPE_CHECKING:
     from texlate.xlat.pipeline import Translator
+
+#: ``ENV_TRANSLATOR`` 合法值集——空串表缺省自动，非空不在集内即 typo 形。
+TRANSLATOR_MODES: Final = frozenset({"mock", "gateway"})
 
 
 @app.command()
@@ -82,10 +88,21 @@ def export(
     )
 
 
+def translator_mode() -> str:
+    """``TEXLATE_TRANSLATOR`` 归一读取：``env_str`` 口径，未设/置空 → ``""``。
+
+    只归一不裁决——``TRANSLATOR_MODES`` 白名单的处置归消费侧（本模块未知值
+    exit 2 显式拒；server 三读点 warn-and-auto）。四读点同口径的单源目标位
+    ``textutil.osutil``（``env_str`` 邻居、``ENV_TRANSLATOR`` 名表登记处）。
+    """
+    return env_str(ENV_TRANSLATOR)
+
+
 def _export_translator(model: str | None, *, mock: bool) -> Translator:
     """worker._make_translator 的无 ctx 版：env/key → 网关，否则 Mock。
 
-    ``TEXLATE_TRANSLATOR`` 白名单 ``mock|gateway``——其他非空值（typo 形）
+    ``TEXLATE_TRANSLATOR`` 经 ``translator_mode`` 归一、白名单
+    ``TRANSLATOR_MODES``（``mock|gateway``）——其他非空值（typo 形）
     exit 2 显式拒，不静默按 auto 回落；``gateway`` 无 key 同样 exit 2
     （缺 key 的网关调用必败，不静默回落 Mock 产占位译文）；无 key 隐式
     回落 Mock 时打 stderr 提示——占位译文当真译文是真实踩坑面。凭证
@@ -103,19 +120,19 @@ def _export_translator(model: str | None, *, mock: bool) -> Translator:
         MockTranslator,
     )
 
-    force = env_str("TEXLATE_TRANSLATOR")
+    force = translator_mode()
     env_url, api_key, env_model, env_dialect = env_credentials()
     if mock or force == "mock":
         return MockTranslator()  # 显式干跑优先于 env 矛盾检查
-    if force not in ("", "gateway"):
+    if force and force not in TRANSLATOR_MODES:
         typer.echo(
-            f"未知 TEXLATE_TRANSLATOR={force!r}——接受 mock|gateway（缺省自动）",
+            f"未知 {ENV_TRANSLATOR}={force!r}——接受 mock|gateway（缺省自动）",
             err=True,
         )
         raise typer.Exit(2)
     if force == "gateway" and not api_key:
         typer.echo(
-            "TEXLATE_TRANSLATOR=gateway 需要 TEXLATE_API_KEY（缺 key 的网关翻译必败）",
+            f"{ENV_TRANSLATOR}=gateway 需要 TEXLATE_API_KEY（缺 key 的网关翻译必败）",
             err=True,
         )
         raise typer.Exit(2)
