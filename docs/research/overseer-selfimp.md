@@ -1806,3 +1806,9 @@
 
 - bibimpl PoC 实证 bibtex→.bbl 产物生成（poc/main.blg+.bbl 08:04）——设计路径复验。csfix8 cref repro r7→r8 递进中。dedupchk/stuckmine/primcen 产物爬坡。
 - **门**：HEAD=21164962；ruleset 178（worktree）；wave-13 mutex 6 impl lanes 持；共享 index 勿动；无 teammate git 越权。
+
+### patrol ~08:15 — residtail 收割：11 格零 replay-confirm；unkopt/stubfid 分域裁决；taxon2 派出
+
+- **residtail 终判**（关 lane）：resid 尾 11 格 ruleset 未动→零 replay-confirm（重跑同墙）。路由：textprime/T2A → nfsstu 既有域；siamltex theorem counter + svjour_clo_stub 自残（noop .clo 盖真 font-size defs）→ **stubfid +2**；usepackage-in-\IfFileExists docline 漏检 + inject-block LR-mode → inject 队列；musix13 "scaled N" tfm phrasing + fontspec bare-header errs[1+] 调度洞 → **taxon2 impl 派出**；pgfplots 数值表 zh-leak → zh-leak-2 候选。结构注：**11 格全落 other|None 因无 taxonomy 行——taxonomy 覆盖是 resid 尾瓶颈**。
+- **unkopt/stubfid 分域**（批准+双发确认）：unkopt 只留 ucs mathletters×2 option-strip 臂；xetex-inputenc（shim_map noop stub 缺 \DeclareOption*）+ bxcjkjatype（pdfTeX-only abort 前 \ProcessOptions）归 stubfid stub 侧——零文件冲突。
+- **门**：HEAD=9a75e4d5；overnite ~1770/2822；roster 12；无 teammate git 越权。
