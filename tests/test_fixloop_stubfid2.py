@@ -150,14 +150,27 @@ _AASTEX6X_FRAGS = (
 )
 
 
-@pytest.mark.parametrize(
-    "key", ["aastex61.cls", "aastex63.cls", "aastex631.cls", "AASTeX62.cls"]
-)
+@pytest.mark.parametrize("key", ["aastex61.cls", "aastex63.cls", "aastex631.cls"])
 def test_aastex6x_shared_body(key: str) -> None:
-    """aastex6x 共享体四键同面：track-changes 族 + env 三件 + 画符不等号。"""
+    """aastex6x 共享体三键同面：track-changes 族 + env 三件 + 画符不等号。"""
     code = _code_lines(_shim_body(key))
     for frag in _AASTEX6X_FRAGS:
         assert frag in code, f"{key} 缺 {frag}"
+
+
+def test_aastex_barename_bridges() -> None:
+    """aastex6/aastex3 裸名桥 → vendored 真件；AASTeX62.cls 死键已删。
+
+    clsbridge 普查唯一真覆盖洞：1901.00051 \\documentclass{aastex6} →
+    missing_file|aastex6.cls，TL/vendor 无本体；loads 桥让 stub
+    \\LoadClassWithOptions{aastex62} 命中 vendored 真件。aastex3 桥是
+    aux-declare 面保险（零活实证）。AASTeX62.cls 键大小写敏感不可达，
+    删后不得复活。
+    """
+    sm = _shim_map()
+    assert sm.get("aastex6.cls") == {"loads": "aastex62", "needs": ["aastex62.cls"]}
+    assert sm.get("aastex3.cls") == {"loads": "aastex", "needs": ["aastex.cls"]}
+    assert "AASTeX62.cls" not in sm
 
 
 # ------------------------------------------------- svjour3.cls vendor 件
