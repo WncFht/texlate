@@ -1817,3 +1817,18 @@
 
 - csfix8 cref repro r12（~2min/轮节奏未滞）；nfsstu f1a/f1b/f2a/f2b/f3 五变体 repro 批。产品代码 25min+ 无写——impl lanes 全在诊断段。
 - **门**：HEAD=ba76e6cd；ruleset 178（worktree）；wave-13 mutex 7 impl lanes；无 teammate git 越权。
+
+### patrol ~08:35 — 六连收割爆 + 3 commits + nfsstu  unsafe-direction 逮住
+
+- **primcen 终判**（关 lane）：unseeded engine-identity prims 全库 1 格 <3 → singles-bundle 注记无新臂。讽刺：唯一暴露是 primnit 自己 seed 造的（pdftexversion=140 → microtype=140 arm → `\ifnum\pdftexrevision<4` chardef=1 → tier 6-vs-7 graceful）。`_PRIM_STRDEF` 形存档（TL2026 "29"，def-with-body 可展开）——同文件 csfix8-adjacent，post-csfix8 窗再做。
+- **dedupchk 终判**（关 lane）：124 None-payload-fireable 规则全审 → 0 硬暴露（enumerate-inside-builtin 已是库范式）。边际 ×3 路由：para_longize cap8+bbl_stub count=1 → burnfix；escalate-once 有意保留。**DO-NOT-TOUCH 登记**：if_phantom_protect 依赖 unclosed_if_close noop applied=True 烧 {rid}:None 槽路由——dedup 语义是调度机制一部分。
+- **pdfex 终判**（关 lane）：4 distinct 格 ≥3 → impl 成立。修形=扩表非新臂：doc_absent_stub params.exts +.pdf_tex（40-install.yaml:830，builtin 门全合）+ 10-taxonomy `_` 缺 ext class ×3 站（L19/L35/L501 → figure2a.pdf_tex 落 None）。→ taxon2 scope+2。
+- **stuckmine 终判**（关 lane）：post-#142/#254 全桶净——A/D 结构不可能、B'/E 已修、C one-off；live 残 3：0812.0615 **SELF-POISON**（docclass 藏 \IfFileExists 臂 → inject head-prepend → \usepackage 落 docclass 前 → cjk_font_fallback 造修不了的错 → 烧轮 stuck→floor_restore）TOP REC=misschar emit 改 \RequirePackage（前后皆合法）；2505.06598 stuck 正确（stubfid 域）；2609.19664 三机理已修。方法论注记：floor_restored 抹 stuck verdict——今后 stuck 普查须从 rounds[] 重建。
+- **unkopt 收割**（关 lane）：4 格全覆盖——ucs_mathletters_opt_strip（o200）+ bxcjkjatype_engine_retire（o201，install_file 路径 vendor-shim 不可达、retire 唯一可行形）落 70-pkgopt +126 单 hunk；xetex-inputenc 自 revert 归 stubfid（交接 spec 已转达）。21 pins、fixloop sweep 2370/0。
+- **bibimpl 收割**（关 lane）：门控 bibtex/biber 中趟实装——bcf→biber | aux \citation+\bibdata→bibtex；sibling .bbl 双臂 skip 不覆写；采纳要尾整 bbl（\end{thebibliography}|\endinput）；auto-passes 采纳 eff_passes+1。6 处保守收紧 vs 设计稿。## REVIEW：numeric(eff_passes+1)+arch(engine 内调外部工具)。
+- **slotfix 收割**（关 lane）：两 GAP 双修实证——envarg `_ARGNL`（_NBC 非空行断 \n 容）救 26≠28 类杀（19556 reverts=8 全 7 泄点）；新 `tcbopt` kind（tcb-env 平衡括号 + \newtcblisting def 尾，kvnl ident 需 [=,#] 门）复 20423 整组。9 pins、2691 sweep 净。
+- **commits**：3e023af6(unkopt) / 3fe32ba5(bibimpl) / 51e7016d(slotfix)——皆私有 index 逐 hunk 归因，HEAD=51e7016d，committed ruleset 180。
+- **路由**：stubfid descope（inputenc 回其手 + bxcjk 采 unkopt 臂）；taxon2 +2（`_`×3 + exts+.pdf_tex）。
+- **dispatch ×5 → roster 10**：burnfix（impl：misschar \usepackage→\RequirePackage + para_longize cap/dedup + bbl_stub count=0——三窄 hunk 三叶）；gapmine（F-桶 18 格 rule-gap 聚类）；taxcen（other|None 全群 → 候选 taxonomy 行，近失 vs 新行分桶）；bibwave（wave-14 bib manifest 策划，dedup wave-13+在飞）；failmine6（最新 records 下轮目标普查，排他清单全列）。
+- **事故**：审计逮住 nfsstu 走 unsafe 方向——65-encoding.yaml 三臂（nfss_cmd_enc_polyfill/nfss_enc_scheme_relax/nfss_fam_declare）已写、builtin 零注册 → worktree Ruleset.load 破。已 SendMessage 令即落 builtin+注册。mutex 持着无 replay 受影响；committed HEAD 净。
+- **门**：HEAD=51e7016d；overnite ~1820/2822；roster 10（csfix8/nfsstu/pairbun/stubfid/taxon2 + burnfix/gapmine/taxcen/bibwave/failmine6）；共享 index 勿动；无 teammate git 越权。
