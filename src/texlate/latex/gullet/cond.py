@@ -2,6 +2,10 @@ r"""``latex/gullet`` 子模块——god-class 机械拆分（行为零变）：\
 
 from __future__ import annotations
 
+from typing import (
+    TYPE_CHECKING,
+)
+
 from texlate.latex.mouth import (
     Tok,
 )
@@ -19,6 +23,37 @@ from .tokutil import (
     _surface,
     _tok_eq,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import (
+        Callable,
+    )
+
+
+def _branch_markers(
+    sel: list[Tok], edge: Tok | None, trig: Tok, tag: str
+) -> tuple[int | None, Tok | None]:
+    r"""界标夹心（``process_if``/``\@ifundefined`` 共用）。
+
+    ``edge`` = 右端边界 token（收尾 ``\fi``/末读/trace 末枚）。返回
+    ``(lead_end, tail)``：``lead_end`` = 选支首 token 起点（空选支 =
+    ``edge`` 末）；``tail`` = 盖 ``[选支末, edge 末)`` 的 ``consumed``
+    marker（选支已抵 ``edge`` → ``None``）。边界 token 跨 fid →
+    ``(None, None)``，调用方退回旧端点。
+    """
+    fid = trig.pos[0]
+    if edge is None or edge.pos[0] != fid:
+        return None, None
+    if not sel:
+        return edge.pos[2], None
+    if sel[0].pos[0] != fid or sel[-1].pos[0] != fid:
+        return None, None
+    tail: Tok | None = None
+    if edge.pos[2] > sel[-1].pos[2]:
+        tail = Tok(
+            "consumed", tag, (fid, sel[-1].pos[2], edge.pos[2]), trig.gen, trig.origin
+        )
+    return sel[0].pos[1], tail
 
 
 class _Cond:
@@ -146,7 +181,31 @@ class _Cond:
             self.unread([t])
         return None
 
-    def _read_number(self) -> float | None:  # noqa: C901, PLR0911, PLR0912, PLR0915 — TeX <number> 各形态一分支
+    def _read_run(
+        self, pred: Callable[[Tok], bool], trace: list[Tok] | None = None
+    ) -> str:
+        r"""``pred`` 命中的连续 token 文本（共用 read-while-pred 循环）。
+
+        ``_read_number`` 各进制串/``\input`` 裸文件名同形。首个不命中
+        token 回吐——``trace`` 在时走 ``_rt``/``_pushback`` 销账（同
+        ``args.py`` 读参约定），缺席走裸 ``read``/``unread``。
+        """
+        chars: list[str] = []
+        while True:
+            t = self._rt(trace) if trace is not None else self.read()
+            if t is None:
+                break
+            if pred(t):
+                chars.append(t.text)
+                continue
+            if trace is not None:
+                self._pushback(trace, t)
+            else:
+                self.unread([t])
+            break
+        return "".join(chars)
+
+    def _read_number(self) -> float | None:  # noqa: C901, PLR0911, PLR0912 — TeX <number> 各形态一分支
         r"""读 TeX 数（``readInteger`` TeX.py:1592-1643 砍半）。
 
         可选符号 + 数字串 / ``'77`` 八进制 / ``"ff`` 十六进制 / ``` `` `x`` 字符码 /
@@ -166,41 +225,18 @@ class _Cond:
                 continue
             break
         if t.kind != "cs" and t.text and t.text in _DIGITS:
-            digits = [t.text]
-            while True:
-                t2 = self.read()
-                if t2 is None:
-                    break
-                if t2.kind != "cs" and t2.text in _DIGITS:
-                    digits.append(t2.text)
-                    continue
-                self.unread([t2])
-                break
-            return sign * int("".join(digits))
+            digits = t.text + self._read_run(
+                lambda x: x.kind != "cs" and x.text in _DIGITS
+            )
+            return sign * int(digits)
         if t.kind != "cs" and t.text == "'":  # 八进制
-            digits = []
-            while True:
-                t2 = self.read()
-                if t2 is None:
-                    break
-                if t2.kind != "cs" and t2.text in "01234567":
-                    digits.append(t2.text)
-                    continue
-                self.unread([t2])
-                break
-            return sign * int("".join(digits) or "0", 8)
+            digits = self._read_run(lambda x: x.kind != "cs" and x.text in "01234567")
+            return sign * int(digits or "0", 8)
         if t.kind != "cs" and t.text == '"':  # 十六进制
-            digits = []
-            while True:
-                t2 = self.read()
-                if t2 is None:
-                    break
-                if t2.kind != "cs" and t2.text.lower() in "0123456789abcdef":
-                    digits.append(t2.text)
-                    continue
-                self.unread([t2])
-                break
-            return sign * int("".join(digits) or "0", 16)
+            digits = self._read_run(
+                lambda x: x.kind != "cs" and x.text.lower() in "0123456789abcdef"
+            )
+            return sign * int(digits or "0", 16)
         if t.kind != "cs" and t.text == "`":  # 字符码
             t2 = self.read()
             if t2 is None:
@@ -216,14 +252,7 @@ class _Cond:
             if t2 is None:
                 return None
             if t2.kind != "cs" and t2.text in _DIGITS:
-                while True:
-                    t3 = self.read()
-                    if t3 is None:
-                        break
-                    if t3.kind != "cs" and t3.text in _DIGITS:
-                        continue
-                    self.unread([t3])
-                    break
+                self._read_run(lambda x: x.kind != "cs" and x.text in _DIGITS)
                 return None
             if t2.kind != "cs" and t2.text == "`":
                 self.read()
@@ -237,7 +266,7 @@ class _Cond:
         self.unread([t])
         return None
 
-    def process_if(  # noqa: C901, PLR0912, PLR0915 — 案例收集循环分支平铺即 TeX.py:531-585
+    def process_if(  # noqa: C901 — 案例收集循环分支平铺即 TeX.py:531-585
         self,
         which: bool | int,  # noqa: FBT001 — \ifcase 值与 True/False 同槽（plasTeX which 同形）
         *,
@@ -321,27 +350,11 @@ class _Cond:
         sel = cases[idx]
         # 界标端点：边界 token（选支首尾、\fi/末读）须同 fid——跨文件
         # \if 退回 None（旧行为：marker 只盖条件段，死支折 gap）
-        fid = trig.pos[0]
-        edge = fi_tok if fi_tok is not None else self._last_read
-        bounds_ok = (
-            edge is not None
-            and edge.pos[0] == fid
-            and (not sel or (sel[0].pos[0] == fid and sel[-1].pos[0] == fid))
+        lead_end, tail = _branch_markers(
+            sel,
+            fi_tok if fi_tok is not None else self._last_read,
+            trig,
+            tail_tag or "fi:",
         )
-        tail: Tok | None = None
-        lead_end: int | None = None
-        if bounds_ok and edge is not None:
-            if sel:
-                lead_end = sel[0].pos[1]
-                if edge.pos[2] > sel[-1].pos[2]:
-                    tail = Tok(
-                        "consumed",
-                        tail_tag or "fi:",
-                        (fid, sel[-1].pos[2], edge.pos[2]),
-                        trig.gen,
-                        trig.origin,
-                    )
-            else:
-                lead_end = edge.pos[2]  # 空选支：单 marker 盖到 \fi 末
         self.unread([*sel, *([tail] if tail is not None else [])])
         return lead_end

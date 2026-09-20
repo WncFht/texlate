@@ -2,6 +2,9 @@ r"""``latex/gullet`` 子模块——god-class 机械拆分（行为零变）：\
 
 from __future__ import annotations
 
+from texlate.latex.macro_table import (
+    scan_xparse,
+)
 from texlate.latex.mouth import (
     Mouth,
     Tok,
@@ -64,6 +67,59 @@ class _Decls:
         except ValueError:
             return 0, grp
 
+    @staticmethod
+    def _opt_default_spec(nargs: int | None, default: list[Tok] | None) -> list[Arg]:
+        r"""``[N][d]`` → ``spec=[o(d)]+m×(N-1)``；``d`` 缺席 → ``m×N``。
+
+        N **含**可选位（plasTeX ``nargs-1`` ``__init__.py:1145-1147``）——
+        ``\newcommand`` 族与 ``\newenvironment`` 同式。
+        """
+        spec: list[Arg] = []
+        n = nargs or 0
+        if default is not None:
+            spec.append(Arg("o", default=default))
+            n = max(n - 1, 0)
+        spec.extend(Arg("m") for _ in range(n))
+        return spec
+
+    def _register_cmd(  # noqa: PLR0913, PLR0917 — 登记尾参数面即各定义点所持上下文
+        self,
+        tag: str,
+        mname: str,
+        spec: list[Arg],
+        body: list[Tok],
+        trig: Tok,
+        trace: list[Tok],
+        *,
+        provide: bool = False,
+        global_: bool = False,
+        head: Tok | None = None,
+    ) -> Tok:
+        r"""``\newcommand``/xparse/``\def`` 族共用登记尾：classify → ``MacroDef`` → marker。
+
+        ``provide`` → ``setdefault``（全链查无才写顶帧）；``global_``/``head``
+        由 ``_do_prefix`` 链透传——provide 与 ``global_`` 不共现（前缀链只接
+        ``\def``/``\let``/``\newif``），``setdefault`` 恒写顶帧是安全的。
+        """
+        kind, target, protect = self._classify(body, self._param_count(spec))
+        h = head or trig
+        scope = "global" if global_ else "local"
+        entry = MacroDef(
+            name=mname,
+            spec=spec,
+            body=body,
+            kind=kind,
+            target_env=target,
+            protect_args=protect,
+            scope=scope,
+            src=(h.pos[0], h.pos[1], self._trace_end(trace)),
+        )
+        if provide:
+            self.macros.setdefault(mname, entry)
+        else:
+            self.macros.set(mname, entry, scope)
+        return self._consumed(f"{tag}:{mname}", trig, trace, head)
+
     def _do_newcmd(self, trig: Tok, name: str) -> Tok | None:
         r"""``\newcommand[*]{\n}[N][d]{B}``（``Definitions.py:15-24``）。
 
@@ -77,31 +133,14 @@ class _Decls:
             return self._def_fail(trig, trace, "newcommand name")
         nargs, _ = self._read_opt_int(trace)
         default = self._read_grouping(trace, "[", "]")  # 缺省值是 token 列非 int
-        n = nargs or 0
         brace = self._rt_skip(trace)
         if brace is None or brace.kind != "lbrace":
             return self._def_fail(trig, trace, "newcommand body")
         body = self._read_balanced(trace)
-        spec: list[Arg] = []
-        if default is not None:
-            spec.append(Arg("o", default=default))
-            n = max(n - 1, 0)
-        spec.extend(Arg("m") for _ in range(n))
-        kind, target, protect = self._classify(body, self._param_count(spec))
-        entry = MacroDef(
-            name=mname,
-            spec=spec,
-            body=body,
-            kind=kind,
-            target_env=target,
-            protect_args=protect,
-            src=(trig.pos[0], trig.pos[1], self._trace_end(trace)),
+        spec = self._opt_default_spec(nargs, default)
+        return self._register_cmd(
+            name, mname, spec, body, trig, trace, provide=name == "providecommand"
         )
-        if name == "providecommand":
-            self.macros.setdefault(mname, entry)
-        else:
-            self.macros.set(mname, entry)
-        return self._consumed(f"{name}:{mname}", trig, trace)
 
     def _do_newenv(self, trig: Tok) -> Tok | None:
         r"""``\newenvironment[*]{env}[N][d]{before}{after}``（Definitions.py:42-51）。"""
@@ -118,12 +157,7 @@ class _Decls:
         after = self._read_grouping(trace, "{", "}")
         if after is None:
             return self._def_fail(trig, trace, "newenvironment after")
-        spec: list[Arg] = []
-        n = nargs or 0
-        if default is not None:
-            spec.append(Arg("o", default=default))
-            n = max(n - 1, 0)
-        spec.extend(Arg("m") for _ in range(n))
+        spec = self._opt_default_spec(nargs, default)
         kind = "transparent"  # env 保护性归分段器按 ENV 表裁决（v1 一律 transparent）
         self.macros.set_env(
             EnvDef(
@@ -265,109 +299,86 @@ class _Decls:
         body = self._read_grouping(trace, "{", "}")
         if body is None:
             return self._def_fail(trig, trace, "xparse body")
-        kind, target, protect = self._classify(body, self._param_count(spec))
-        entry = MacroDef(
-            name=mname,
-            spec=spec,
-            body=body,
-            kind=kind,
-            target_env=target,
-            protect_args=protect,
-            src=(trig.pos[0], trig.pos[1], self._trace_end(trace)),
+        return self._register_cmd(
+            "xparse",
+            mname,
+            spec,
+            body,
+            trig,
+            trace,
+            provide=name == "ProvideDocumentCommand",
         )
-        if name == "ProvideDocumentCommand":
-            self.macros.setdefault(mname, entry)
-        else:
-            self.macros.set(mname, entry)
-        return self._consumed(f"xparse:{mname}", trig, trace)
 
-    def _parse_xparse(self, s: str) -> list[Arg] | None:  # noqa: C901, PLR0912, PLR0915 — spec 字母平铺即 §4.3 表
-        """Xparse spec 串 → ``list[Arg]``；不支持字母 → ``None``。"""
+    def _parse_xparse(  # noqa: C901, PLR0911, PLR0912 — SpecItem 角色平铺即 §4.3 lowering 表
+        self, s: str
+    ) -> list[Arg] | None:
+        r"""Xparse spec 串 → ``list[Arg]``；不支持字母 → ``None``。
+
+        共享扫描 ``macro_table.scan_xparse`` 产 ``SpecItem`` 语义角色，本
+        路降 ``Arg``（缺省/``u``/``e`` 载荷经 ``self._lex`` 活体猫码物
+        化——签名串是静态数据，默认猫码 ``Mouth`` 物化是表路
+        ``parse_argspec`` 的事）。``verb``/``body``/``embel_dft``/``xexp``
+        与 ``toks`` 缺席、定界对截断（``open_c==""``）→ fail-closed
+        ``None``（整条不登记）；``name``（``n``）无 ``Arg`` 槽型——按旧
+        路未知字母跳过同规。
+        """
         out: list[Arg] = []
-        i, n = 0, len(s)
-
-        def _braced(j: int) -> tuple[str | None, int]:
-            """``{..}`` 取内容（不配对括号）。"""
-            if j < n and s[j] == "{":
-                e = s.find("}", j + 1)
-                if e >= 0:
-                    return s[j + 1 : e], e + 1
-            return None, j
-
-        while i < n:
-            ch = s[i]
-            i += 1
-            if ch in " \t\n+":
-                continue
-            if ch == "m":
+        for it in scan_xparse(s):
+            role = it.role
+            if role == "mand":
                 out.append(Arg("m"))
-            elif ch == "o":
+            elif role == "opt":
                 out.append(Arg("o"))
-            elif ch == "O":
-                d, i = _braced(i)
-                out.append(Arg("o", default=self._lex(d or "")))
-            elif ch == "s":
-                out.append(Arg("star", char="*"))
-            elif ch == "t":
-                if i < n:
-                    out.append(Arg("star", char=s[i]))
-                    i += 1
-                else:
-                    out.append(Arg("star"))
-            elif ch in "dD":
-                if i + 1 < n:
-                    a = Arg("o", open=s[i], close=s[i + 1])
-                    i += 2
-                    if ch == "D":
-                        d, i = _braced(i)
-                        a.default = self._lex(d or "")
-                    out.append(a)
-                else:
+            elif role == "opt_dft":
+                out.append(Arg("o", default=self._lex(it.default or "")))
+            elif role == "dreq_dft":
+                if it.open_c == "":
                     return None
-            elif ch in "rR":
-                if i + 1 < n:
-                    open_c, close_c = s[i], s[i + 1]
-                    i += 2
-                    if ch == "r":
-                        # r<> 必填：literal_match 开符 + delim 收内容（只占一槽）
-                        out.append(
-                            Arg(
-                                "literal_match",
-                                delim=[Tok("other", open_c, (-1, -1, -1))],
-                            )
-                        )
-                        out.append(
-                            Arg(
-                                "delim",
-                                delim=[Tok("other", close_c, (-1, -1, -1))],
-                            )
-                        )
-                    else:
-                        # R<> 带缺省 → 等价 'o' 自定界
-                        a = Arg("o", open=open_c, close=close_c)
-                        d, i = _braced(i)
-                        a.default = self._lex(d or "")
-                        out.append(a)
-                else:
+                # R<> 带缺省 → 等价 'o' 自定界
+                a = Arg("o", open=it.open_c, close=it.close_c)
+                a.default = self._lex(it.default or "")
+                out.append(a)
+            elif role in ("star", "test"):
+                out.append(Arg("star", char=it.char or "*"))
+            elif role in ("dopt", "dopt_dft"):
+                if it.open_c == "":
                     return None
-            elif ch == "u":
-                d, i = _braced(i)
-                if d is None:
+                a = Arg("o", open=it.open_c, close=it.close_c)
+                if role == "dopt_dft":
+                    a.default = self._lex(it.default or "")
+                out.append(a)
+            elif role == "dreq":
+                if it.open_c == "":
                     return None
-                out.append(Arg("delim", delim=self._lex(d)))
-            elif ch == "g":
+                # r<> 必填：literal_match 开符 + delim 收内容（只占一槽）
+                out.append(
+                    Arg(
+                        "literal_match",
+                        delim=[Tok("other", it.open_c, (-1, -1, -1))],
+                    )
+                )
+                out.append(
+                    Arg(
+                        "delim",
+                        delim=[Tok("other", it.close_c, (-1, -1, -1))],
+                    )
+                )
+            elif role == "until":
+                if it.toks is None:
+                    return None
+                out.append(Arg("delim", delim=self._lex(it.toks)))
+            elif role == "ogrp":
                 out.append(Arg("o", open="{", close="}"))
-            elif ch == "l":
+            elif role == "ugrp":
                 out.append(Arg("until_group"))
-            elif ch == "e":
-                d, i = _braced(i)
-                if d is None:
+            elif role == "embel":
+                if it.toks is None:
                     return None
-                out.append(Arg("e", delim=self._lex(d)))
-            elif ch in "vbEx":
-                return None  # 不支持的参数型 → 整条不登记
+                out.append(Arg("e", delim=self._lex(it.toks)))
+            elif role == "name":
+                continue  # ``n`` 裸名参无 Arg 槽型——旧路未知字母跳过同规
             else:
-                continue  # 未知字母跳过（容错）
+                return None  # verb/body/embel_dft/xexp/未知角色 → 整条不登记
         return out
 
     def _lex(self, s: str) -> list[Tok]:

@@ -33,17 +33,23 @@ from texlate.latex.tables import (
 from ._common import (
     _ARG_COMMENT_RX,
     _BSBS_OPT_RX,
+    _COND_GROUP_ARGS,
+    _DEAD_ARG_NAMES,
+    _DEAD_TAIL_NAMES,
     _MATH_TEXTARG,
     _PKG_CMDS,
     _PROTECT_TYP,
+    _SWALLOW_ARG_NAMES,
     _TAIL_CAP,
     TokenSource,
     _ArgTok,
     _chunk_spec_cached,
     _cite_ref_type,
+    _kv_list_shaped,
     _ListSource,
     _pend_call_slots,
     _pick_cut,
+    _prose_text_hit,
 )
 
 if TYPE_CHECKING:
@@ -54,83 +60,9 @@ if TYPE_CHECKING:
 
 r"""``Segmenter`` 参数读取/保护调用/各 handler/argspec 发射。"""
 
-# ``{key=val,..}``/``{flag,key=..}`` 起头的 keyval 组形状——键名字符面取宽
-# （字母数字 ``_@*.-``），逗号前缀只收裸键位，``{散文}``/``{key 散文}`` 不中。
-_KEYVAL_GROUP_RX = re.compile(r"\s*(?:[\w@*.\-]+[ \t]*,[ \t]*)*[\w@*.\-]+[ \t]*=")
-
-# 逗号分隔机读名单形状——``\usetikzlibrary{arrows, automata, backgrounds,
-# calendar}``/``\includeonly{ch1, ch2}``/``\bibliography{r1.bib, r2.bib}`` 类
-# 标识符/文件名/路径列：≥4 连词判据会被 ``a, b, c, d`` 误判成散文，抠出
-# 翻译会把库名/包名/文件名译断。纯名单槽位逐项 ``[\w@*.\-/]+`` 逗号相连
-# 才收——真散文词间缺逗号即不中（``{word, word, word}`` 散文罕见，宁漏
-# 不译名单）。
-_COMMA_LIST_RX = re.compile(r"\s*[\w@*.\-/]+\s*(?:,\s*[\w@*.\-/]+\s*)*,?\s*")
-
-# ``{..}`` 组判形前的 ``%`` 注释剥离——keyval/名单组常以注释行起头
-# （``\lstdefinelanguage{lean}{\n% c\nmathescape=false,..}``），裸套
-# ``_KEYVAL_GROUP_RX``/``_COMMA_LIST_RX`` 在 ``%`` 处即断 → 组判成散文
-# → 键位译成 ``这是译文`` → ``Package keyval Error``（2105.00041
-# lstlean.tex 实证）。``\%`` 转义不剥。
-_KV_COMMENT_RX = re.compile(r"(?<!\\)%[^\n\r]*")
-
-
-# 键值/裸键逗号列判形（``_KEYVAL_GROUP_RX`` 的宽口径版）：tikz/pgf 键值列常
-# 裸键起头或全裸键——``[rectangle, draw, text width=8em, text centered,
-# rounded corners, minimum height=4em]``（2009.03715）、``[draw, -latex]``、
-# ``[black!10]``、``[orcid=,email=]``（2410.17963/2403.01255 实证）。逐项
-# 逗号切分后：任一项 ``key=`` 形（``text width=8em`` 的 ``width=``、
-# ``key =v`` 的空格皆中）即键值列；或全项皆机读键 token——``-latex``
-# 箭头名、``blue!50`` 色阶、``/`` 路径键、``.`` 缀名皆收——亦判键值列。
-# ``[see Fig. 1]``/``{散文}`` 单项含空格且无 ``=`` 不中；``_KEYVAL_GROUP_RX``
-# 锚定形被本判据完全覆盖（首项 ``key=`` 即任一项 ``key=`` 的特例）。
-_KEYVAL_ITEM_RX = re.compile(r"[\w@*.\-/!]+[ \t]*=")
-_KEY_TOKEN_RX = re.compile(r"[\w@*.\-/!]+")
-
-
-def _kv_list_shaped(ftext: str, cs: int, ce: int) -> bool:
-    r"""``ftext[cs:ce]`` 剥注释后是否键值/裸键逗号列（宽口径）。"""
-    items = _KV_COMMENT_RX.sub(" ", ftext[cs:ce]).split(",")
-    return any(_KEYVAL_ITEM_RX.search(it) for it in items) or all(
-        bool(it.strip()) and _KEY_TOKEN_RX.fullmatch(it.strip()) is not None
-        for it in items
-    )
-
-
-# 参内零宽命令整调用剥除——``\index``/``\label`` 不产生可见文本，但其
-# ``{..}`` 组在词链判据里当隔墙（``{inflation \index{x} and the epoch}``
-# 左右各不到 4 词被误判非散文，W85 实形）。判形前整段剔走让词链连通；
-# 抠出后 ``_subscan_render`` 仍照常把 ``\index`` 折 ``[[CMD]]`` 保真。
-_ZERO_WIDTH_ARG_RX = re.compile(r"\\(?:index|label)\s*(?:\[[^\]\n]*\]\s*)?\{[^{}]*\}")
-
 # ``\cite{15-20}`` 把区间当键写（W90）——逗号项中纯数字-数字形即误植，
 # ``smith-2020``/``key-a`` 合法键不中。
 _CITE_RANGE_KEY_RX = re.compile(r"\s*\d+\s*-+\s*\d+\s*")
-
-# opaque 宏 ``{..}`` 参的调用点散文判据（gullet-at scout 口径）：检测文本先
-# 剔 ``%`` 注释与 cs（``\emph`` 类名不计词），再要 ≥4 个 ``[A-Za-z]{2,}``
-# 连词（容标点分隔）、非全大写缩写列——``\sortbibitem{KEY}``/``\bibinfo{f}``
-# 的 cite-key/字段名参天然不命中，逐参内容判定（参位白名单会断 key 链）。
-_OPAQUE_ARG_STRIP_RX = re.compile(r"%[^\n]*|\\[A-Za-z@]+|\\.")
-_OPAQUE_ARG_PROSE_RX = re.compile(
-    r"[A-Za-z]{2,}(?:[ \t]*[,;:'’\-–—()/&]*[ \t\n]+[A-Za-z]{2,}){3,}"
-)
-_OPAQUE_ARG_WORD_RX = re.compile(r"[A-Za-z]{2,}")
-
-#: 吞块宏名闸（opaque 臂 + 探针臂同罩）：``\comment{...}`` 按惯例是隐藏批注
-#: 宏（comment.sty / 作者自定义 ``\newcommand{\comment}[1]{}``），参内散文
-#: 抬进译文面会把源 PDF 本不显示的内部注记印进译文 PDF（W50 语义）。
-#: ``todo``/``fixme``/``note`` 不收——todonotes/fixme 包默认内联渲染参数，
-#: 误收会把真可见文本藏起来；``comment`` 是唯一不歧义的吞块约定名。
-_SWALLOW_ARG_NAMES = frozenset({"comment"})
-
-#: 死文本参名闸（changes 族 W27）：``\deleted``/``\removed`` 参是被删
-#: 文本——抠出翻译会把终稿不显示的删改内容印进译文面。与吞块闸不同：
-#: 吞块是源文本就隐藏，死文本是修订标记语义下的非终稿内容。
-_DEAD_ARG_NAMES = frozenset({"deleted", "removed"})
-
-#: 尾参死文本名闸：``\replaced{新}{旧}`` 首参（新文本）可见可译、
-#: 次参起（``{旧}``）是被替换的死文本不译——只放首个实参。
-_DEAD_TAIL_NAMES = frozenset({"replaced"})
 
 #: protect-block 散文白名单：``\markright``/``\markboth`` 运行头与
 #: ``\address``/``\institute``/``\affiliation`` 机构隶属段装的是真散文
@@ -152,62 +84,58 @@ _PROSE_BLOCK_ARITY = {
     "affiliation": 1,
 }
 
-#: ``if*`` 界标路径的名/表达式槽组数——etoolbox/boolexpr/biblatex 测试族
-#: 的首 N 个 ``{..}`` 是机器槽（toggle/bool/cs/field/比较元），不是散文；
-#: 吸收进界标覆盖后 ``{T}{F}`` 支仍留 surface 照译。``\newif`` 旗标
-#: （``\ifdraft``/``\ifmmode`` 等）与 ``\ifx`` 比较没有花括号参——不入表。
-_COND_GROUP_ARGS = {
-    "iftoggle": 1,
-    "ifbool": 1,
-    "ifboolexpr": 1,
-    "ifboolexpe": 1,
-    "ifthenelse": 1,
-    "ifcsdef": 1,
-    "ifcsundef": 1,
-    "ifcsempty": 1,
-    "ifcsvoid": 1,
-    "ifcsmacro": 1,
-    "ifstrempty": 1,
-    "ifblank": 1,
-    "ifnumodd": 1,
-    "ifundef": 1,
-    "ifdefempty": 1,
-    "ifdefvoid": 1,
-    "iffieldundef": 1,
-    "iflistundef": 1,
-    "ifnameundef": 1,
-    "ifentrytype": 1,
-    "ifentryseen": 1,
-    "ifkeyword": 1,
-    "ifcategory": 1,
-    "ifnodedefined": 1,
-    "ifundefined": 1,
-    "ifstrequal": 2,
-    "ifcsstring": 2,
-    "ifdefstring": 2,
-    "ifdefequal": 2,
-    "ifnumequal": 2,
-    "ifnumgreater": 2,
-    "ifnumless": 2,
-    "ifdimequal": 2,
-    "ifdimgreater": 2,
-    "ifdimless": 2,
-    "ifnumcomp": 3,
-    "ifdimcomp": 3,
-}
+# ------------------------------------------------------------- _ArgTok 构造厂
+# 三构形本地版（hoist 候选 ``_common._ArgTok`` classmethod ``.group/.single/
+# .empty``——mainloop/pending 面也有同形手抄点）：组参（``{..}``/``[..]``/
+# 定界对）、单 token 参、零宽占位。
+
+
+def _argtok_group(  # noqa: PLR0913, PLR0917 — 组参记录构造面（fid/开闭符/内体/回吐/spec）六件原位
+    fid: int,
+    open_t: Tok,
+    closer: Tok,
+    inner: list[Tok],
+    pulled: list[Tok],
+    spec: ArgSpec,
+) -> _ArgTok:
+    r"""组参记录：content 去括号区间、full 含括号、``all_toks`` 含前后 ws+括号。"""
+    return _ArgTok(
+        fid,
+        open_t.pos[2],
+        closer.pos[1],
+        open_t.pos[1],
+        closer.pos[2],
+        inner,
+        [*pulled, open_t, *inner, closer],
+        spec,
+    )
+
+
+def _argtok_single(fid: int, x: Tok, pulled: list[Tok], spec: ArgSpec) -> _ArgTok:
+    r"""单 token 参记录：``fs==cs``/``fe==ce``，``all_toks`` 含前置 ws。"""
+    return _ArgTok(fid, x.pos[1], x.pos[2], x.pos[1], x.pos[2], [x], [*pulled, x], spec)
+
+
+def _argtok_empty(fid: int, end: int, spec: ArgSpec) -> _ArgTok:
+    r"""零宽占位参记录：可选参缺席，``fs==fe`` 占 spec 位序。"""
+    return _ArgTok(fid, end, end, end, end, spec=spec)
 
 
 class _Args:
     # ------------------------------------------------------------ 参数读取（token 版 _args）
 
     @staticmethod
-    def _peek_nonspace(src: TokenSource, pulled: list[Tok]) -> Tok | None:
+    def _peek_nonspace(
+        src: TokenSource, pulled: list[Tok], *, fid: int | None = None
+    ) -> Tok | None:
         r"""拉下一非 space token；跳过的 space token 追加进 ``pulled``。
 
         ``eol_par``/EOF → None（eol_par 立即回吐——``\\par`` 是不定界参数
-        边界，同 ``ws_skip_arg`` 的 par 停语义）。``pulled`` 约定：space
-        token 拉出即失主流——参数命中时其字节在覆盖区间内（``pulled``
-        并进 ``all_toks`` 或随调用点覆盖），放弃路径必须
+        边界，同 ``ws_skip_arg`` 的 par 停语义）。``fid`` 非空时异 fid
+        token 同样回吐返 None（``_handle_accent`` 的 fid-only 判据——
+        与 ``_pull_cursor.peek`` 的 gen>0 额外闸不同步）。``pulled``
+        约定：space token 拉出即失主流——参数命中时其字节在覆盖区间内
+        （``pulled`` 并进 ``all_toks`` 或随调用点覆盖），放弃路径必须
         ``src.unread([*pulled, x])`` 全量回放（字节版「pos 停在不匹配
         位、空白由主流重扫」的等价物，否则 ``\\cite{a} more`` 的空格
         从 surface 消失）。
@@ -219,7 +147,7 @@ class _Args:
             if x.kind == "space":
                 pulled.append(x)
                 continue
-            if x.kind == "eol_par":
+            if x.kind == "eol_par" or (fid is not None and x.pos[0] != fid):
                 src.unread([x])
                 return None
             return x
@@ -243,7 +171,7 @@ class _Args:
 
     @staticmethod
     def _collect_group(
-        src: TokenSource, open_t: Tok, *, brace: bool
+        src: TokenSource, open_t: Tok, *, brace: bool, fid: int | None = None
     ) -> tuple[list[Tok], Tok] | None:
         r"""``open_t``（lbrace/``[``）之后拉配对组 → ``(inner_toks, closer)``。
 
@@ -252,6 +180,11 @@ class _Args:
         的等价物）。``eol_par`` 在组内是普通内容 token（``match_brace``
         不判段界），继续收集。组内对价：``_grp_bal``（展开组 token 列
         版——``eol_par`` 即停返 None，规则不同步过对端须双查）。
+
+        ``fid`` 非空时组内逐 token 查 fid——异 fid token 即止：已拉
+        token（含异 fid 者）全部回吐、返 None（``_handle_accent`` 的
+        fid-only 判据同款；注意是**逐枚**判据非 closer-only——调用方
+        只查 closer fid 的门不能换用本参）。
 
         ``unmatched_open``（``TokenSource`` 契约成员——``_ListSource`` 持
         真集，Gullet 恒 None）：扫到流尽仍未归零时，深度栈上残留的 open
@@ -274,6 +207,9 @@ class _Args:
                 src.unread(pulled)
                 return None
             pulled.append(x)
+            if fid is not None and x.pos[0] != fid:
+                src.unread(pulled)
+                return None
             if brace:
                 is_open = x.kind == "lbrace"
                 is_close = x.kind == "rbrace"
@@ -289,6 +225,57 @@ class _Args:
                     return inner, x
                 opens.pop()
             inner.append(x)
+
+    @staticmethod
+    def _unread_pulled(src: TokenSource, pulled: list[Tok], *tail: Tok | None) -> None:
+        r"""回放 ``pulled`` + 可选尾 token 并清账——bail 惯用式单源。
+
+        ``src.unread([*pulled, *tail])`` 的兜底形：放弃路径把跳读 ws 与
+        探得 token 一并回吐主流重扫（字节版「pos 停原位」等价物）；尾参
+        逐个收、``None`` 滤除（peek-bail 的 maybe-None 位直接传）。
+        ``pulled`` 回放后即死账——顺手 ``clear()`` 供循环位复用同名
+        列表（``_protect_cs`` opt/mand 轮探臂）。
+        """
+        src.unread([*pulled, *(t for t in tail if t is not None)])
+        pulled.clear()
+
+    @staticmethod
+    def _eat_quoted_toks(src: TokenSource, first: Tok) -> tuple[list[Tok], int | None]:
+        r"""引号裸名 ``"a b.tex"`` 收集：``first``（开引号 token）起收至闭引号。
+
+        返回 ``(toks, qend)``——``toks`` 含 ``first``；``qend`` = 闭引号
+        token 后界，缺席（EOF/源界先至）为 ``None``：in_arg 臂按此中止
+        回放（无配对不吞尾），literal 臂忽略之整收到流尾。
+        """
+        toks = [first]
+        while True:
+            y = src.read()
+            if y is None:
+                return toks, None
+            toks.append(y)
+            if y.kind in ("letter", "other") and y.text == '"':
+                return toks, y.pos[2]
+
+    @staticmethod
+    def _eat_fname_toks(src: TokenSource, first: Tok) -> tuple[list[Tok], int]:
+        r"""裸文件名连吃：``first`` 起连吃 FILENAME_CHARS token → ``(toks, end)``。
+
+        首个失配 token 回吐不消费；``end`` = 末枚文件名 token 后界。
+        """
+        toks = [first]
+        while True:
+            y = src.read()
+            if (
+                y is not None
+                and y.kind in ("letter", "other")
+                and all(c in FILENAME_CHARS for c in y.text)
+            ):
+                toks.append(y)
+            else:
+                if y is not None:
+                    src.unread([y])
+                break
+        return toks, toks[-1].pos[2]
 
     def _args_tok(  # noqa: C901, PLR0912, PLR0913, PLR0915 — argspec 字母各一分支，平铺即 §5.3 表
         self,
@@ -323,153 +310,76 @@ class _Args:
             x = self._peek_nonspace(src, pulled)
             if x is None:
                 # par/EOF 停：ws 回放主流重扫（v1 主循环从 end 续读）
-                src.unread(pulled)
-                out.append(_ArgTok(fid, end, end, end, end, spec=s))
+                self._unread_pulled(src, pulled)
+                out.append(_argtok_empty(fid, end, s))
                 continue
             if s.kind in ("m", "v"):
                 if x.kind == "lbrace" or (x.kind == "other" and x.text == "["):
                     hit = self._collect_group(src, x, brace=x.kind == "lbrace")
                     if hit is None:
                         # 组 token 已回吐；ws 回放（v1 pos 停原位的等价物）
-                        src.unread(pulled)
+                        self._unread_pulled(src, pulled)
                         break
                     inner, closer = hit
-                    out.append(
-                        _ArgTok(
-                            fid,
-                            x.pos[2],
-                            closer.pos[1],
-                            x.pos[1],
-                            closer.pos[2],
-                            inner,
-                            [*pulled, x, *inner, closer],
-                            s,
-                        )
-                    )
+                    out.append(_argtok_group(fid, x, closer, inner, pulled, s))
                     end = closer.pos[2]
                 elif x.kind == "cs" or not allow_single_token:
                     # 单 token 参数不跨 '\'（BUG1）；禁用即停
-                    src.unread([*pulled, x])
+                    self._unread_pulled(src, pulled, x)
                     break
                 else:
-                    out.append(
-                        _ArgTok(
-                            fid,
-                            x.pos[1],
-                            x.pos[2],
-                            x.pos[1],
-                            x.pos[2],
-                            [x],
-                            [*pulled, x],
-                            s,
-                        )
-                    )
+                    out.append(_argtok_single(fid, x, pulled, s))
                     end = x.pos[2]
             elif s.kind == "n":
                 # 裸 cs 名参（``\setlength\parskip{4pt}``）：cs token 直收、
                 # 或 {..}/[..] 组——其余形失配即终止（强制参同 m）
                 if x.kind == "cs":
-                    out.append(
-                        _ArgTok(
-                            fid,
-                            x.pos[1],
-                            x.pos[2],
-                            x.pos[1],
-                            x.pos[2],
-                            [x],
-                            [*pulled, x],
-                            s,
-                        )
-                    )
+                    out.append(_argtok_single(fid, x, pulled, s))
                     end = x.pos[2]
                 elif x.kind == "lbrace" or (x.kind == "other" and x.text == "["):
                     hit = self._collect_group(src, x, brace=x.kind == "lbrace")
                     if hit is None:
-                        src.unread(pulled)
+                        self._unread_pulled(src, pulled)
                         break
                     inner, closer = hit
-                    out.append(
-                        _ArgTok(
-                            fid,
-                            x.pos[2],
-                            closer.pos[1],
-                            x.pos[1],
-                            closer.pos[2],
-                            inner,
-                            [*pulled, x, *inner, closer],
-                            s,
-                        )
-                    )
+                    out.append(_argtok_group(fid, x, closer, inner, pulled, s))
                     end = closer.pos[2]
                 else:
-                    src.unread([*pulled, x])
+                    self._unread_pulled(src, pulled, x)
                     break
             elif s.kind in ("o", "O"):
                 if x.kind == "other" and x.text == "[":
                     hit = self._collect_group(src, x, brace=False)
                     if hit is None:
-                        src.unread(pulled)
+                        self._unread_pulled(src, pulled)
                         break
                     inner, closer = hit
-                    out.append(
-                        _ArgTok(
-                            fid,
-                            x.pos[2],
-                            closer.pos[1],
-                            x.pos[1],
-                            closer.pos[2],
-                            inner,
-                            [*pulled, x, *inner, closer],
-                            s,
-                        )
-                    )
+                    out.append(_argtok_group(fid, x, closer, inner, pulled, s))
                     end = closer.pos[2]
                 else:
-                    src.unread([*pulled, x])
-                    out.append(_ArgTok(fid, end, end, end, end, spec=s))
+                    self._unread_pulled(src, pulled, x)
+                    out.append(_argtok_empty(fid, end, s))
             elif s.kind == "s":
                 if x.kind == "other" and x.text == "*":
-                    out.append(
-                        _ArgTok(
-                            fid,
-                            x.pos[1],
-                            x.pos[2],
-                            x.pos[1],
-                            x.pos[2],
-                            [x],
-                            [*pulled, x],
-                            s,
-                        )
-                    )
+                    out.append(_argtok_single(fid, x, pulled, s))
                     end = x.pos[2]
                 else:
-                    src.unread([*pulled, x])
-                    out.append(_ArgTok(fid, end, end, end, end, spec=s))
+                    self._unread_pulled(src, pulled, x)
+                    out.append(_argtok_empty(fid, end, s))
             elif s.kind == "t" and s.delim:
                 if x.kind != "cs" and x.text == s.delim[0]:
-                    out.append(
-                        _ArgTok(
-                            fid,
-                            x.pos[1],
-                            x.pos[2],
-                            x.pos[1],
-                            x.pos[2],
-                            [x],
-                            [*pulled, x],
-                            s,
-                        )
-                    )
+                    out.append(_argtok_single(fid, x, pulled, s))
                     end = x.pos[2]
                 else:
-                    src.unread([*pulled, x])
-                    out.append(_ArgTok(fid, end, end, end, end, spec=s))
+                    self._unread_pulled(src, pulled, x)
+                    out.append(_argtok_empty(fid, end, s))
             elif s.kind in ("d", "D", "r", "R") and s.delim:
                 op, cl = s.delim[0], s.delim[-1]
                 if x.kind == "cs" or x.text != op:
-                    src.unread([*pulled, x])
+                    self._unread_pulled(src, pulled, x)
                     if s.kind in ("r", "R"):
                         break  # 定界强制缺失 → 参数不匹配，停读
-                    out.append(_ArgTok(fid, end, end, end, end, spec=s))
+                    out.append(_argtok_empty(fid, end, s))
                     continue
                 dtoks = [x]
                 inner = []
@@ -484,27 +394,16 @@ class _Args:
                         break
                     inner.append(y)
                 if closer is None:
-                    src.unread([*pulled, *dtoks])
+                    self._unread_pulled(src, pulled, *dtoks)
                     break
-                out.append(
-                    _ArgTok(
-                        fid,
-                        x.pos[2],
-                        closer.pos[1],
-                        x.pos[1],
-                        closer.pos[2],
-                        inner,
-                        [*pulled, *dtoks],
-                        s,
-                    )
-                )
+                out.append(_argtok_group(fid, x, closer, inner, pulled, s))
                 end = closer.pos[2]
             elif s.kind == "e":
                 # 修饰参 ``e{^_}``：逐个 token 试吃 ``X{arg}``/``X<tok>``，
                 # 整段并作一个 ArgTok（F10 位序修复的 token 版；
                 # gullet ``_invoke`` 'e' 分支同规——cs 不作参、缺席只留符）
                 es = end
-                src.unread([*pulled, x])  # 归一：候选判读在循环内逐轮做
+                self._unread_pulled(src, pulled, x)  # 归一：候选判读在循环内逐轮做
                 etoks: list[Tok] = []
                 inner = []
                 if s.delim:
@@ -513,7 +412,7 @@ class _Args:
                         ip: list[Tok] = []
                         y = self._peek_nonspace(src, ip)
                         if y is None or y.kind == "cs" or y.text not in rest:
-                            src.unread([*ip, *([y] if y is not None else [])])
+                            self._unread_pulled(src, ip, y)
                             break
                         etoks.extend(ip)
                         etoks.append(y)
@@ -530,14 +429,14 @@ class _Args:
                                 inner.extend([z, *g_inner, g_close])
                                 end = g_close.pos[2]
                             else:
-                                src.unread(jp)  # 组 token 已回吐
+                                self._unread_pulled(src, jp)  # 组 token 已回吐
                         elif z is not None and z.kind != "cs":
                             etoks.extend(jp)
                             etoks.append(z)
                             inner.append(z)
                             end = z.pos[2]
                         else:
-                            src.unread([*jp, *([z] if z is not None else [])])
+                            self._unread_pulled(src, jp, z)
                 out.append(_ArgTok(fid, es, end, es, end, inner, etoks, s))
             elif s.kind == "u" and s.delim_toks:
                 # ``#1<seq>`` 定界参：滑窗 ``_tok_eq`` 逐枚比对 delim 序列——
@@ -579,7 +478,7 @@ class _Args:
                         continue
                     dtoks.append(y)
                 if runaway:
-                    src.unread([*pulled, *dtoks])
+                    self._unread_pulled(src, pulled, *dtoks)
                     break
                 inner = dtoks[:-k]
                 closer = dtoks[-1]
@@ -618,7 +517,7 @@ class _Args:
                         break
                     gtoks.append(y)
                 if not hit:
-                    src.unread([*pulled, *gtoks])
+                    self._unread_pulled(src, pulled, *gtoks)
                     break
                 out.append(
                     _ArgTok(
@@ -636,9 +535,37 @@ class _Args:
                     end = gtoks[-1].pos[2]
             else:
                 # 'b'/无 delim 的 dDrRt/未知：不消费但占零宽位
-                src.unread([*pulled, x])
-                out.append(_ArgTok(fid, end, end, end, end, spec=s))
+                self._unread_pulled(src, pulled, x)
+                out.append(_argtok_empty(fid, end, s))
         return out, end
+
+    def _try_args(  # noqa: PLR0913 — 三连惯用式参面（源/fid/spec/pos0/双开关）原位
+        self,
+        src: TokenSource,
+        fid: int,
+        spec: list[ArgSpec] | int,
+        pos0: int,
+        *,
+        has_opt: bool = False,
+        allow_single_token: bool = True,
+    ) -> tuple[list[_ArgTok], int] | None:
+        r"""``_args_tok`` + 全占位判据 + ``_unread_args`` 回放的三连惯用式。
+
+        任一实消费参 → ``(args, end)``；全零宽占位 → 回放后返 ``None``
+        （调用方走各自 bail：protect 回落/逐字/字面档）。
+        """
+        args, end = self._args_tok(
+            src,
+            fid,
+            spec,
+            pos0,
+            has_opt=has_opt,
+            allow_single_token=allow_single_token,
+        )
+        if not any(a.fe > a.fs for a in args):
+            self._unread_args(src, args)
+            return None
+        return args, end
 
     # ------------------------------------------------------------ 保护调用
 
@@ -675,12 +602,7 @@ class _Args:
                 eol = ftext.find("\n", x.pos[1] + 1)
                 lim = eol if eol >= 0 else len(ftext)
                 end = e + 1 if 0 <= e < lim else lim
-                self._cover_gap(fid, t.pos[1])
-                vspan = self._cover_to(fid, end)
-                self._rappend_ph(
-                    self._ph(typ, self.vt.slice(vspan.start, vspan.end)),
-                    vspan,
-                )
+                self._cover_ph(fid, end, typ, gap=t)
                 self._skip_past(src, fid, end)
                 return
         if x is not None:
@@ -694,11 +616,9 @@ class _Args:
                     end = hit[1].pos[2]
                     pulled.clear()
                     continue
-                src.unread(pulled)  # 组 token 已回吐；ws 回放
-                pulled.clear()
+                self._unread_pulled(src, pulled)  # 组 token 已回吐；ws 回放
                 break
-            src.unread([*pulled, *([x] if x is not None else [])])
-            pulled.clear()
+            self._unread_pulled(src, pulled, x)
             break
         key_span: tuple[int, int] | None = None  # 末个 ``{..}`` 内容位（告警判形）
         for _ in range(mand):
@@ -709,8 +629,7 @@ class _Args:
                     # resync；token 收集会被 ``%`` 吃掉闭括号直排 EOF
                     e = match_brace(self.file_texts[fid], x.pos[1], verbatim=True)
                     if e is None:
-                        src.unread([*pulled, x])
-                        pulled.clear()
+                        self._unread_pulled(src, pulled, x)
                         break
                     end = e
                     pulled.clear()  # ws/lbrace 已在覆盖区间内——不回放
@@ -718,20 +637,16 @@ class _Args:
                     continue
                 hit = self._collect_group(src, x, brace=True)
                 if hit is None:
-                    src.unread(pulled)  # 组 token 已回吐
-                    pulled.clear()
+                    self._unread_pulled(src, pulled)  # 组 token 已回吐
                     break
                 key_span = (x.pos[2], hit[1].pos[1])
                 end = hit[1].pos[2]
                 pulled.clear()
                 continue
-            src.unread([*pulled, *([x] if x is not None else [])])
-            pulled.clear()
+            self._unread_pulled(src, pulled, x)
             break
         self._protect_key_warns(t, fid, end, typ, key_span)
-        self._cover_gap(fid, t.pos[1])
-        vspan = self._cover_to(fid, end)
-        self._rappend_ph(self._ph(typ, self.vt.slice(vspan.start, vspan.end)), vspan)
+        self._cover_ph(fid, end, typ, gap=t)
 
     def _protect_key_warns(
         self,
@@ -786,17 +701,13 @@ class _Args:
                     self.vt.slice(vpre.start, vpre.end),
                     vpre,
                 )
-                vph = self._cover_to(fid, e)
-                self._rappend_ph(
-                    self._ph(PhType.HREF, self.vt.slice(vph.start, vph.end)),
-                    vph,
-                )
+                self._cover_ph(fid, e, PhType.HREF)
                 self._skip_past(src, fid, e)
                 return
-            src.unread([*pulled, x])  # 未配对——全量回放重扫（v1 回 j）
+            self._unread_pulled(src, pulled, x)  # 未配对——全量回放重扫（v1 回 j）
             self._rappend_tok(t)
             return
-        src.unread([*pulled, *([x] if x is not None else [])])
+        self._unread_pulled(src, pulled, x)
         self._rappend_tok(t)
 
     def _handle_input_cs(  # noqa: C901, PLR0912, PLR0915 — 四形平铺（{file}/import 双参/裸名/\cs 动态名）
@@ -821,53 +732,22 @@ class _Args:
                 # 非 in_arg 臂）。子扫源界即 arg 界——无闭引号时「缺席」
                 # 只说明本 arg 内无配对，不吞尾（否则引号后散文全进
                 # CMD），全量回放退 ``_protect_cs`` 只护 ``\input``。
-                qtail: list[Tok] = []
-                qend: int | None = None
-                while True:
-                    y = src.read()
-                    if y is None:
-                        break
-                    qtail.append(y)
-                    if y.kind in ("letter", "other") and y.text == '"':
-                        qend = y.pos[2]
-                        break
+                qtoks, qend = self._eat_quoted_toks(src, x)
                 if qend is None:
-                    src.unread([*pulled, x, *qtail])
+                    self._unread_pulled(src, pulled, *qtoks)
                     self._protect_cs(t, src, PhType.CMD)
                     return
-                self._cover_gap(fid, t.pos[1])
-                vspan = self._cover_to(fid, qend)
-                self._rappend_ph(
-                    self._ph(PhType.CMD, self.vt.slice(vspan.start, vspan.end)),
-                    vspan,
-                )
+                self._cover_ph(fid, qend, PhType.CMD, gap=t)
                 return
             if (
                 x is not None
                 and x.kind in ("letter", "other")
                 and all(c in FILENAME_CHARS for c in x.text)
             ):
-                end = x.pos[2]
-                while True:
-                    y = src.read()
-                    if (
-                        y is not None
-                        and y.kind in ("letter", "other")
-                        and all(c in FILENAME_CHARS for c in y.text)
-                    ):
-                        end = y.pos[2]
-                    else:
-                        if y is not None:
-                            src.unread([y])
-                        break
-                self._cover_gap(fid, t.pos[1])
-                vspan = self._cover_to(fid, end)
-                self._rappend_ph(
-                    self._ph(PhType.CMD, self.vt.slice(vspan.start, vspan.end)),
-                    vspan,
-                )
+                _, end = self._eat_fname_toks(src, x)
+                self._cover_ph(fid, end, PhType.CMD, gap=t)
                 return
-            src.unread([*pulled, *([x] if x is not None else [])])
+            self._unread_pulled(src, pulled, x)
             self._protect_cs(t, src, PhType.CMD)
             return
         end = b
@@ -892,24 +772,17 @@ class _Args:
                             ].strip()
                             end = closer2.pos[2]
                         else:
-                            src.unread(p2)  # 组 token 已回吐
+                            self._unread_pulled(src, p2)  # 组 token 已回吐
                     else:
-                        src.unread([*p2, *([y] if y is not None else [])])
+                        self._unread_pulled(src, p2, y)
                 else:
                     fname = self.file_texts[fid][x.pos[2] : closer.pos[1]].strip()
             else:
-                src.unread(pulled)  # 组已回吐；ws 回放（v1 end=j 重扫）
+                self._unread_pulled(src, pulled)  # 组已回吐；ws 回放（v1 end=j 重扫）
         elif x is not None and x.kind in ("letter", "other") and x.text == '"':
             # 引号裸名 ``\input"a b.tex"``（web2c 带空格名）——连同双引号
             # 收至闭引号 token，缺席收到流尾；span 须整吞否则文件名漏成散文
-            fname_toks = [x]
-            while True:
-                y = src.read()
-                if y is None:
-                    break
-                fname_toks.append(y)
-                if y.kind in ("letter", "other") and y.text == '"':
-                    break
+            fname_toks, _ = self._eat_quoted_toks(src, x)
             fname = "".join(t2.text for t2 in fname_toks)
             end = fname_toks[-1].pos[2]
         elif (
@@ -918,28 +791,15 @@ class _Args:
             and all(c in FILENAME_CHARS for c in x.text)
         ):
             # 裸文件名形（\input path/to）：连吃 FILENAME_CHARS token
-            fname_toks = [x]
-            while True:
-                y = src.read()
-                if (
-                    y is not None
-                    and y.kind in ("letter", "other")
-                    and all(c in FILENAME_CHARS for c in y.text)
-                ):
-                    fname_toks.append(y)
-                else:
-                    if y is not None:
-                        src.unread([y])
-                    break
+            fname_toks, end = self._eat_fname_toks(src, x)
             fname = "".join(t2.text for t2 in fname_toks)
-            end = fname_toks[-1].pos[2]
         elif x is not None and x.kind == "cs":
             # ``\input \cs`` 动态文件名：cs 吞进 literal 随命令走——否则
             # ``\myfile`` 被主流当未知命令展开/逐字，体文本漏进 chunk
             # （R4）。``fname`` 留空——动态名非字面路径，不记 inputs[]。
             end = x.pos[2]
         else:
-            src.unread([*pulled, *([x] if x is not None else [])])
+            self._unread_pulled(src, pulled, x)
         vspan = self._cover_to(fid, end)
         self._flush_run(vspan.start)
         self._emit(vspan.start, vspan.end)
@@ -949,12 +809,15 @@ class _Args:
             # 引号壳统一剥除——``"a b.tex"`` 与 ``a b.tex`` 同档记
             self.state.inputs.append((vspan.start, strip_fname_quotes(fname)))
 
-    def _handle_chunk_arg(self, t: Tok, src: TokenSource, name: str) -> None:
-        r"""``\section[opt]{arg}`` token 版：前缀 LITERAL，arg → 独立 chunk。
+    def _chunk_target_args(
+        self, t: Tok, src: TokenSource, name: str
+    ) -> tuple[int, list[_ArgTok], _ArgTok | None]:
+        r"""``\section`` 族 chunk-arg 公共头：``*`` 修饰 + spec 读参 + 可译位挑取。
 
-        v1 ``_handle_chunk_arg`` 逐行移植：arg token 经 ``_args_tok`` 拉出
-        （消费位入覆盖账），内容 token 喂 ``_ListSource`` 子扫——渲染串含
-        ``[[X_n]]`` 自解析（ident=part 直传 ``_new_chunk``）。
+        返回 ``(b, args, target)``——``b`` = ``*`` 后参数扫描起点；
+        ``target`` = spec 位序 ``tidx`` 实参（位空/未消费 → ``None``，
+        调用方按各自 bail 处理）。``_handle_chunk_arg``/
+        ``_preamble_chunk_arg`` 共用（bail/发射尾各异，留在调用方）。
         """
         fid, _a, b = t.pos
         # v1：``pos = ws_skip_arg(j)`` 后先吃 ``*``（``\section*{T}``），
@@ -964,7 +827,7 @@ class _Args:
         if x is not None and x.kind == "other" and x.text == "*":
             b = x.pos[2]
         else:
-            src.unread([*pulled, *([x] if x is not None else [])])
+            self._unread_pulled(src, pulled, x)
         spec_str, tidx = CHUNK_ARG_SPEC.get(name, ("om", 1))
         spec = _chunk_spec_cached(spec_str)
         args, _end = self._args_tok(src, fid, spec, b, allow_single_token=True)
@@ -975,6 +838,17 @@ class _Args:
         target: _ArgTok | None = None
         if tidx < len(args) and args[tidx].fe > args[tidx].fs:
             target = args[tidx]
+        return b, args, target
+
+    def _handle_chunk_arg(self, t: Tok, src: TokenSource, name: str) -> None:
+        r"""``\section[opt]{arg}`` token 版：前缀 LITERAL，arg → 独立 chunk。
+
+        v1 ``_handle_chunk_arg`` 逐行移植：arg token 经 ``_args_tok`` 拉出
+        （消费位入覆盖账），内容 token 喂 ``_ListSource`` 子扫——渲染串含
+        ``[[X_n]]`` 自解析（ident=part 直传 ``_new_chunk``）。
+        """
+        fid, _a, _b = t.pos
+        _b, args, target = self._chunk_target_args(t, src, name)
         if target is not None and self.gen >= MAX_GEN:
             self.state.warnings.append(
                 ScanWarning("gen_overflow", len(self.vt), f"chunk:{name}")
@@ -1041,19 +915,8 @@ class _Args:
         bail 会把 ``\title`` 挂进 run，EOF flush 时在已盖字面区里再发 piece
         → 平铺破。此路径参数缺失/空参数全部回放+整调用字面盖过。
         """
-        fid, _a, b = t.pos
-        pulled: list[Tok] = []
-        x = self._peek_nonspace(src, pulled)
-        if x is not None and x.kind == "other" and x.text == "*":
-            b = x.pos[2]
-        else:
-            src.unread([*pulled, *([x] if x is not None else [])])
-        spec_str, tidx = CHUNK_ARG_SPEC.get(name, ("om", 1))
-        spec = _chunk_spec_cached(spec_str)
-        args, _end = self._args_tok(src, fid, spec, b, allow_single_token=True)
-        target: _ArgTok | None = None
-        if tidx < len(args) and args[tidx].fe > args[tidx].fs:
-            target = args[tidx]
+        fid, _a, _b = t.pos
+        b, args, target = self._chunk_target_args(t, src, name)
         if (
             target is None
             or (target.cs, target.ce) == (target.fs, target.fe)
@@ -1134,8 +997,7 @@ class _Args:
                 pulled.clear()
                 x = self._peek_nonspace(src, pulled)
             else:
-                src.unread(pulled)  # 组已回吐
-                pulled.clear()
+                self._unread_pulled(src, pulled)  # 组已回吐
                 x = None
         if x is not None and x.kind == "lbrace":
             hit = self._collect_group(src, x, brace=True)
@@ -1143,15 +1005,14 @@ class _Args:
                 end = hit[1].pos[2]
                 opt_toks = []
             else:
-                src.unread(pulled)  # `{` 组已回吐；opt 段随下方回放
+                self._unread_pulled(src, pulled)  # `{` 组已回吐；opt 段随下方回放
             pulled.clear()
             x = None
         src.unread([*opt_toks, *pulled, *([x] if x is not None else [])])
         if end > b:
             end = self._keyval_tail_end(src, end)
         self._cover_gap(fid, t.pos[1])
-        vspan = self._cover_to(fid, end)
-        body = self.vt.slice(vspan.start, vspan.end)
+        vspan, body = self._cover_text(fid, end)
         if self.in_arg:
             self._rappend_ph(self._ph(PhType.AUTHOR, body), vspan)
             return
@@ -1173,30 +1034,13 @@ class _Args:
         args, end = self._args_tok(
             src, fid, _PROSE_BLOCK_ARITY[t.text], b, allow_single_token=False
         )
-        prose_args = self._prose_args_of(t.text, fid, args)
-        if prose_args and self.gen >= MAX_GEN:
-            self.state.warnings.append(
-                ScanWarning("gen_overflow", len(self.vt), f"block:{t.text}")
-            )
-            prose_args = []
+        prose_args = self._prose_args_gated(t.text, t, fid, args, "block")
         if not prose_args:
             self._unread_args(src, args)
             return False
         self._cover_gap(fid, t.pos[1])
-        for a in prose_args:
-            vspan = self._cover_to(fid, a.cs)
-            self._rappend_ph(
-                self._ph(PhType.CMD, self.vt.slice(vspan.start, vspan.end)),
-                vspan,
-            )
-            vmark = len(self.vt)
-            rendered = self._subscan_render(a)
-            self._rappend(rendered, rendered, Span(vmark, len(self.vt)))
-        vspan = self._cover_to(fid, end)
-        self._rappend_ph(
-            self._ph(PhType.CMD, self.vt.slice(vspan.start, vspan.end)),
-            vspan,
-        )
+        self._emit_prose_args(fid, prose_args, PhType.CMD)
+        self._cover_ph(fid, end, PhType.CMD)
         return True
 
     def _keyval_tail_end(self, src: TokenSource, end: int) -> int:
@@ -1225,21 +1069,21 @@ class _Args:
             is_brace = x is not None and x.kind == "lbrace"
             is_bracket = x is not None and x.kind == "other" and x.text == "["
             if x is None or not (is_brace or is_bracket):
-                src.unread([*pulled, *([x] if x is not None else [])])
+                self._unread_pulled(src, pulled, x)
                 return end
             hit = self._collect_group(src, x, brace=is_brace)
             if hit is None:
-                src.unread(pulled)  # 组 token 已回吐；ws/``=`` 回放
+                self._unread_pulled(src, pulled)  # 组 token 已回吐；ws/``=`` 回放
                 return end
             inner, closer = hit
             if closer.pos[0] != x.pos[0] or not _kv_list_shaped(
                 self.file_texts[x.pos[0]], x.pos[2], closer.pos[1]
             ):
-                src.unread([*pulled, x, *inner, closer])
+                self._unread_pulled(src, pulled, x, *inner, closer)
                 return end
             end = closer.pos[2]
 
-    def _handle_boundary(  # noqa: C901, PLR0912 — tail/spec/in_arg 三路分派平铺即边界语义
+    def _handle_boundary(  # noqa: C901 — tail/spec/in_arg 三路分派平铺即边界语义
         self, t: Tok, src: TokenSource, name: str
     ) -> None:
         r"""边界命令：flush + LITERAL（含 ``BOUNDARY_TAIL``/dimen 尾参）。
@@ -1255,27 +1099,16 @@ class _Args:
         spec = BOUNDARY_TAIL.get(name)
         if self.in_arg:
             if tail_end is not None:
-                self._cover_gap(fid, t.pos[1])
-                vspan = self._cover_to(fid, tail_end)
-                self._rappend_ph(
-                    self._ph(PhType.CMD, self.vt.slice(vspan.start, vspan.end)),
-                    vspan,
-                )
+                self._cover_ph(fid, tail_end, PhType.CMD, gap=t)
                 self._skip_past(src, fid, tail_end)
             elif spec is not None:
                 # 参内边界命令同样按 spec 收参（``\setlength\parskip{4pt}``
                 # 的 ``{4pt}`` 在参内照样漏 chunk）——token 已被
                 # ``_args_tok`` 消费，无需 ``_skip_past``
-                args, e2 = self._args_tok(src, fid, spec, b)
-                if any(a.fe > a.fs for a in args):
-                    self._cover_gap(fid, t.pos[1])
-                    vspan = self._cover_to(fid, e2)
-                    self._rappend_ph(
-                        self._ph(PhType.CMD, self.vt.slice(vspan.start, vspan.end)),
-                        vspan,
-                    )
+                hit = self._try_args(src, fid, spec, b)
+                if hit is not None:
+                    self._cover_ph(fid, hit[1], PhType.CMD, gap=t)
                 else:
-                    self._unread_args(src, args)
                     self._protect_cs(t, src, PhType.CMD)
             else:
                 self._protect_cs(t, src, PhType.CMD)
@@ -1284,15 +1117,13 @@ class _Args:
         if tail_end is not None:
             end = tail_end
         elif spec is not None:
-            args, e2 = self._args_tok(src, fid, spec, b)
-            if any(a.fe > a.fs for a in args):
-                end = e2
+            hit = self._try_args(src, fid, spec, b)
+            if hit is not None:
+                args, end = hit
                 if name in _PKG_CMDS:
                     # 无 preamble 文档（无 \begin{document}）：包声明走
                     # 字面档时同步登记 argspec 门控
                     self._note_pkgs(args)
-            else:
-                self._unread_args(src, args)
         vspan = self._cover_to(fid, end)
         self._flush_run(vspan.start)
         self._emit(vspan.start, vspan.end)
@@ -1309,19 +1140,13 @@ class _Args:
         是 chunk-arg 但只挂 xcolor 包——族表先行不吃门控。
         """
         fid, _a, b = t.pos
-        args, end = self._args_tok(
+        hit = self._try_args(
             src, fid, TRANSPARENT_HEAD_SPEC[name], b, allow_single_token=False
         )
-        if not any(a.fe > a.fs for a in args):
-            self._unread_args(src, args)
+        if hit is None:
             self._rappend_tok(t)
             return
-        self._cover_gap(fid, t.pos[1])
-        vspan = self._cover_to(fid, end)
-        self._rappend_ph(
-            self._ph(PhType.CMD, self.vt.slice(vspan.start, vspan.end)),
-            vspan,
-        )
+        self._cover_ph(fid, hit[1], PhType.CMD, gap=t)
 
     def _handle_bsbs(self, t: Tok, src: TokenSource) -> None:
         r"""``\\`` 的可选 dimen 参：``\\[5pt]``/``\\*[2em]`` 整调用 → ``[[CMD]]``。
@@ -1336,12 +1161,7 @@ class _Args:
             self._rappend_tok(t)
             return
         end = m.end()
-        self._cover_gap(fid, t.pos[1])
-        vspan = self._cover_to(fid, end)
-        self._rappend_ph(
-            self._ph(PhType.CMD, self.vt.slice(vspan.start, vspan.end)),
-            vspan,
-        )
+        self._cover_ph(fid, end, PhType.CMD, gap=t)
         self._skip_past(src, fid, end)
 
     def _handle_box_tail(self, t: Tok, src: TokenSource, name: str) -> None:
@@ -1361,15 +1181,10 @@ class _Args:
             else:
                 self._handle_unknown_cs(t, src, name)
             return
-        self._cover_gap(fid, t.pos[1])
-        vspan = self._cover_to(fid, end)
-        self._rappend_ph(
-            self._ph(PhType.CMD, self.vt.slice(vspan.start, vspan.end)),
-            vspan,
-        )
+        self._cover_ph(fid, end, PhType.CMD, gap=t)
         self._skip_past(src, fid, end)
 
-    def _handle_accent(self, t: Tok, src: TokenSource) -> None:  # noqa: C901, PLR0912 — 参形两态（组深扫/单token）+ bail 三路平铺
+    def _handle_accent(self, t: Tok, src: TokenSource) -> None:
         r"""``\'e``/``\c{c}`` accent 单参保护：整调用 → ``[[CMD]]`` 进 run。
 
         参形：``{x}`` 组或单 token（``\~n``/``\~\i``——undelimited 参前导
@@ -1383,36 +1198,23 @@ class _Args:
         pulled: list[Tok] = []
         end = -1
         hit_eof = False
-        while True:
-            x = src.read()
-            if x is None:
-                hit_eof = True
-                break
-            pulled.append(x)
-            if x.kind == "eol_par" or x.pos[0] != fid:
-                break
-            if x.kind == "space":
-                continue
-            if x.kind == "lbrace":
-                depth = 1
-                while depth:
-                    y = src.read()
-                    if y is None:
-                        hit_eof = True
-                        break
-                    pulled.append(y)
-                    if y.pos[0] != fid:
-                        break
-                    if y.kind == "lbrace":
-                        depth += 1
-                    elif y.kind == "rbrace":
-                        depth -= 1
-                if depth == 0:
-                    end = pulled[-1].pos[2]
-                break
-            if x.kind in ("letter", "other") or (x.kind == "cs" and len(x.text) == 1):
-                end = x.pos[2]
-            break
+        x = self._peek_nonspace(src, pulled, fid=fid)
+        if x is None or x.kind == "lbrace":
+            if x is not None:
+                hit = self._collect_group(src, x, brace=True, fid=fid)
+                if hit is not None:
+                    end = hit[1].pos[2]
+                x = None  # 组 token 由 ``_collect_group`` 结账（成败皆已回放/消费）
+            if end < 0:
+                # peek/组扫的 None 三分支（eol_par/异 fid/真 EOF）以重探分流：
+                # 回吐过的 token 原样读出 → 回放走普通 bail；真 EOF → hit_eof
+                x2 = src.read()
+                if x2 is None:
+                    hit_eof = True
+                else:
+                    src.unread([x2])
+        elif x.kind in ("letter", "other") or (x.kind == "cs" and len(x.text) == 1):
+            end = x.pos[2]
         if end < 0:
             if hit_eof and src.eof_pops:
                 # _on_math 同款 EOF 守护：unread 只建 file_id<0 合成源——
@@ -1422,15 +1224,10 @@ class _Args:
                 tail = self._cover_to(fid, len(self.file_texts[fid]))
                 self._emit(tail.start, tail.end)
                 return
-            src.unread(pulled)
+            self._unread_pulled(src, pulled, x)
             self._rappend_tok(t)
             return
-        self._cover_gap(fid, t.pos[1])
-        vspan = self._cover_to(fid, end)
-        self._rappend_ph(
-            self._ph(PhType.CMD, self.vt.slice(vspan.start, vspan.end)),
-            vspan,
-        )
+        self._cover_ph(fid, end, PhType.CMD, gap=t)
 
     def _handle_endinput(self, t: Tok, src: TokenSource) -> None:
         r"""``\endinput`` 漏网档：顶层 flush + 本文件余下逐字 + 截停。"""
@@ -1448,12 +1245,7 @@ class _Args:
         fid, _a, _b = t.pos
         e = self._find_math_close_tok(src, closer)
         if e is not None:
-            self._cover_gap(fid, t.pos[1])
-            vspan = self._cover_to(fid, e)
-            self._rappend_ph(
-                self._ph(PhType.MATH, self.vt.slice(vspan.start, vspan.end)),
-                vspan,
-            )
+            self._cover_ph(fid, e, PhType.MATH, gap=t)
             return
         self._rappend_tok(t)
 
@@ -1469,9 +1261,7 @@ class _Args:
         while True:
             x = src.read()
             if x is None or x.kind == "eol_par":
-                if x is not None:
-                    pulled.append(x)
-                src.unread(pulled)
+                self._unread_pulled(src, pulled, x)
                 return None
             pulled.append(x)
             if x.kind == "cs" and x.text == closer:
@@ -1518,26 +1308,21 @@ class _Args:
             # 不在吸收数内，留主流照常进 chunk。跨 fid/gen>0 组不收——字节
             # 异源判不了界，全量回放是保守等价物。
             pulled: list[Tok] = []
-            x = self._peek_nonspace(src, pulled)
-            if x is None or x.kind != "lbrace" or x.gen != 0 or x.pos[0] != fid:
-                src.unread([*pulled, *([x] if x is not None else [])])
+            x = self._peek_nonspace(src, pulled, fid=fid)
+            if x is None or x.kind != "lbrace" or x.gen != 0:
+                self._unread_pulled(src, pulled, x)
                 break
             hit = self._collect_group(src, x, brace=True)
             if hit is None:
-                src.unread(pulled)  # 组 token 已回吐；ws 回放
+                self._unread_pulled(src, pulled)  # 组 token 已回吐；ws 回放
                 break
             inner, closer = hit
             if closer.gen != 0 or closer.pos[0] != fid:
-                src.unread([*pulled, x, *inner, closer])
+                self._unread_pulled(src, pulled, x, *inner, closer)
                 break
             end = closer.pos[2]
         if self.in_arg:
-            self._cover_gap(fid, t.pos[1])
-            vspan = self._cover_to(fid, end)
-            self._rappend_ph(
-                self._ph(PhType.COND, self.vt.slice(vspan.start, vspan.end)),
-                vspan,
-            )
+            self._cover_ph(fid, end, PhType.COND, gap=t)
             return
         self._flush_run(len(self.vt))
         vspan = self._cover_to(fid, end)
@@ -1590,34 +1375,15 @@ class _Args:
                 self.state.warnings.append(
                     ScanWarning("keyarg_unbound", len(self.vt), f"\\{ka} 尾参缺席")
                 )
-        prose_args = self._prose_args_of(t.text, fid, args)
-        if prose_args and self.gen >= MAX_GEN:
-            # 子扫代数触底——散文参不挖，整调用维持 opaque（``_handle_chunk_arg``
-            # 同款回压：宁可不译也不超代数）。
-            self.state.warnings.append(
-                ScanWarning("gen_overflow", len(self.vt), f"opaque:{t.text}")
-            )
-            prose_args = []
+        prose_args = self._prose_args_gated(t.text, t, fid, args, "opaque")
         self._cover_gap(fid, t.pos[1])
-        for a in prose_args:
-            # ``{`` 随前段结构进 [[MACRO]]，参内容子扫渲进 run surface——
-            # 嵌套 cs/注释由 ``_subscan_render`` 照常保护。
-            vspan = self._cover_to(fid, a.cs)
-            self._rappend_ph(
-                self._ph(PhType.MACRO, self.vt.slice(vspan.start, vspan.end)),
-                vspan,
-            )
-            vmark = len(self.vt)
-            rendered = self._subscan_render(a)
-            self._rappend(rendered, rendered, Span(vmark, len(self.vt)))
+        # ``{`` 随前段结构进 [[MACRO]]，参内容子扫渲进 run surface——
+        # 嵌套 cs/注释由 ``_subscan_render`` 照常保护。
+        self._emit_prose_args(fid, prose_args, PhType.MACRO)
         end = self._keyval_tail_end(src, end)  # 尾随 ``[kv]`` 选参并入 [[MACRO]] 覆盖
-        vspan = self._cover_to(fid, end)
-        self._rappend_ph(
-            self._ph(PhType.MACRO, self.vt.slice(vspan.start, vspan.end)),
-            vspan,
-        )
+        self._cover_ph(fid, end, PhType.MACRO)
 
-    def _opaque_arg_prose(  # noqa: PLR0911 — 形状门逐条早退，平铺即判据表
+    def _opaque_arg_prose(
         self, fid: int, a: _ArgTok
     ) -> bool:
         r"""Opaque 宏 ``{..}``/``[..]`` 组参的调用点散文门（gullet-at scout 口径）。
@@ -1640,22 +1406,7 @@ class _Args:
         if self.file_texts[fid][a.fs] not in "{[":
             return False  # ``d<>``/``e``/``r()``/``t`` 定界参非散文槽位
         content = self.file_texts[fid][a.cs : a.ce]
-        stripped = _KV_COMMENT_RX.sub(" ", content)
-        if _KEYVAL_GROUP_RX.match(stripped) is not None:
-            return False  # ``{key=..}`` 组——键位非散文，整参保持 opaque
-        if _COMMA_LIST_RX.fullmatch(stripped):
-            return False  # 逗号名单（库/包/文件列）——机读槽位不挖
-        if _kv_list_shaped(self.file_texts[fid], a.cs, a.ce):
-            return False  # 裸键起头/全裸键键值列（``[rectangle,draw,..]`` 面）
-        text = _ZERO_WIDTH_ARG_RX.sub(" ", content)
-        text = _OPAQUE_ARG_STRIP_RX.sub(" ", text)
-        for mm in _OPAQUE_ARG_PROSE_RX.finditer(text):
-            words = _OPAQUE_ARG_WORD_RX.findall(mm.group(0))
-            if len(words) >= 4 and not all(  # noqa: PLR2004 - 4 = scout 散文判据连词下限
-                w == w.upper() for w in words
-            ):
-                return True
-        return False
+        return _prose_text_hit(content)
 
     def _prose_args_of(self, name: str, fid: int, args: list[_ArgTok]) -> list[_ArgTok]:
         r"""调用点名闸 + 逐参散文门——三臂（opaque/探针/argspec）抠出判定单源。
@@ -1678,6 +1429,45 @@ class _Args:
             nth += 1
         return out
 
+    def _prose_args_gated(
+        self, name: str, t: Tok, fid: int, args: list[_ArgTok], tag: str
+    ) -> list[_ArgTok]:
+        r"""``_prose_args_of`` + ``gen_overflow`` 闸二连——三臂共用判定面。
+
+        子扫代数触底时散文参不挖、整调用维持 protect/opaque 原文
+        （``_handle_chunk_arg`` 同款回压：宁可不译也不超代数）；``tag``
+        即告警 detail 前缀（``block``/``opaque``/``probe``/``argspec``）。
+        """
+        prose_args = self._prose_args_of(name, fid, args)
+        if prose_args and self.gen >= MAX_GEN:
+            self.state.warnings.append(
+                ScanWarning("gen_overflow", len(self.vt), f"{tag}:{t.text}")
+            )
+            prose_args = []
+        return prose_args
+
+    def _emit_prose_args(
+        self, fid: int, prose_args: list[_ArgTok], typ: PhType
+    ) -> None:
+        r"""散文参逐枚「``{`` 前结构进 ``[[typ]]`` + 参内容子扫渲 surface」发射。
+
+        ``_cover_to(a.cs)`` 不含前隙——调用方先 ``_cover_gap`` 剖命令前
+        间隙字面项；``_rappend_subscan`` 的 vmark 不复用位（逐枚只渲不锚）。
+        """
+        for a in prose_args:
+            self._cover_ph(fid, a.cs, typ)
+            self._rappend_subscan(a, len(self.vt))
+
+    def _rappend_subscan(self, a: _ArgTok, vmark: int) -> int:
+        r"""子扫渲染串进 run（``[vmark, vt 末)`` 区间记账）→ 新 vmark。
+
+        ``_emit_argspec_chunks`` 的 op 循环锚位推进同款——``vmark`` 是
+        上一 op 落定后的 vt 位，返回 ``len(self.vt)`` 供下一 op 复用。
+        """
+        rendered = self._subscan_render(a)
+        self._rappend(rendered, rendered, Span(vmark, len(self.vt)))
+        return len(self.vt)
+
     def _handle_unknown_cs(
         self, t: Tok, src: TokenSource, name: str = "", m: object | None = None
     ) -> None:
@@ -1698,12 +1488,7 @@ class _Args:
         kind = DIMEN_TAIL_KIND.get(name or t.text)
         tail_end = self._tail_scan_end(fid, b, kind if kind is not None else "assign")
         if tail_end is not None:
-            self._cover_gap(fid, t.pos[1])
-            vspan = self._cover_to(fid, tail_end)
-            self._rappend_ph(
-                self._ph(PhType.CMD, self.vt.slice(vspan.start, vspan.end)),
-                vspan,
-            )
+            self._cover_ph(fid, tail_end, PhType.CMD, gap=t)
             self._skip_past(src, fid, tail_end)
             return
         if m is not None:
@@ -1716,11 +1501,10 @@ class _Args:
             ka = self._keyarg_tail(m, src)
             if ka is not None:
                 pulled: list[Tok] = []
-                x = self._peek_nonspace(src, pulled)
+                x = self._peek_nonspace(src, pulled, fid=fid)
                 bound = (
                     x is not None
                     and x.gen == 0
-                    and x.pos[0] == fid
                     and (
                         x.kind == "lbrace"
                         or (x.kind == "other" and x.text in "[*")
@@ -1737,7 +1521,7 @@ class _Args:
                         )
                     )
                 )
-                src.unread([*pulled, *([x] if x is not None else [])])
+                self._unread_pulled(src, pulled, x)
                 typ = _cite_ref_type(ka) or _PROTECT_TYP.get(ka, PhType.CMD)
                 if bound:
                     self._protect_cs(
@@ -1755,52 +1539,29 @@ class _Args:
                         f"\\{name or t.text}→\\{ka} 参缺席",
                     )
                 )
-                self._cover_gap(fid, t.pos[1])
-                vspan = self._cover_to(fid, b)
-                self._rappend_ph(
-                    self._ph(typ, self.vt.slice(vspan.start, vspan.end)), vspan
-                )
+                self._cover_ph(fid, b, typ, gap=t)
                 return
         if m is None:
             e = _tables.argspec_lookup(name or t.text, self.state.pkgs)
             if e is not None:
                 self._handle_argspec_cs(t, src, e)
                 return
-        args, end = self._args_tok(
-            src, fid, 6, b, has_opt=True, allow_single_token=False
-        )
-        if any(a.fe > a.fs for a in args):
-            # 与 ``_handle_opaque_macro`` 同款散文参挖掘：投机参里的 ``{散文}``
-            # 抠出 [[CMD]] 覆盖子扫渲进 run surface——``\@maketitle{…prose…}``
-            # 类调用块不再整块蒸发（1803.00127 实测）。宏名/非散文参/散文参
-            # 花括号所在结构段仍 [[CMD]] 原文。
-            prose_args = self._prose_args_of(name or t.text, fid, args)
-            if prose_args and self.gen >= MAX_GEN:
-                self.state.warnings.append(
-                    ScanWarning("gen_overflow", len(self.vt), f"probe:{t.text}")
-                )
-                prose_args = []
-            self._cover_gap(fid, t.pos[1])
-            end = self._keyval_tail_end(src, end)  # 尾随 ``[kv]`` 选参并入覆盖
-            for a in prose_args:
-                vspan = self._cover_to(fid, a.cs)
-                self._rappend_ph(
-                    self._ph(PhType.CMD, self.vt.slice(vspan.start, vspan.end)),
-                    vspan,
-                )
-                vmark = len(self.vt)
-                rendered = self._subscan_render(a)
-                self._rappend(rendered, rendered, Span(vmark, len(self.vt)))
-            vspan = self._cover_to(fid, end)
-            self._rappend_ph(
-                self._ph(PhType.CMD, self.vt.slice(vspan.start, vspan.end)),
-                vspan,
-            )
+        hit = self._try_args(src, fid, 6, b, has_opt=True, allow_single_token=False)
+        if hit is None:
+            self._rappend_tok(t)
             return
-        self._unread_args(src, args)
-        self._rappend_tok(t)
+        args, end = hit
+        # 与 ``_handle_opaque_macro`` 同款散文参挖掘：投机参里的 ``{散文}``
+        # 抠出 [[CMD]] 覆盖子扫渲进 run surface——``\@maketitle{…prose…}``
+        # 类调用块不再整块蒸发（1803.00127 实测）。宏名/非散文参/散文参
+        # 花括号所在结构段仍 [[CMD]] 原文。
+        prose_args = self._prose_args_gated(name or t.text, t, fid, args, "probe")
+        self._cover_gap(fid, t.pos[1])
+        end = self._keyval_tail_end(src, end)  # 尾随 ``[kv]`` 选参并入覆盖
+        self._emit_prose_args(fid, prose_args, PhType.CMD)
+        self._cover_ph(fid, end, PhType.CMD)
 
-    def _handle_argspec_cs(  # noqa: C901, PLR0911, PLR0912, PLR0915 — policy 分派早退平铺，顺序即语义
+    def _handle_argspec_cs(  # noqa: C901, PLR0911 — policy 分派早退平铺，顺序即语义
         self, t: Tok, src: TokenSource, e: ArgspecEntry
     ) -> None:
         r"""Argspec 表命中分派：policy → literal/boundary/protect/chunk-arg。
@@ -1840,20 +1601,15 @@ class _Args:
             # 参）——``;`` 定界整句进 [[CMD]]（R8）；非路径形 → None 回落。
             tail_end = self._tikz_tail_end(fid, b)
             if tail_end is not None:
-                self._cover_gap(fid, t.pos[1])
-                vspan = self._cover_to(fid, tail_end)
-                self._rappend_ph(
-                    self._ph(PhType.CMD, self.vt.slice(vspan.start, vspan.end)),
-                    vspan,
-                )
+                self._cover_ph(fid, tail_end, PhType.CMD, gap=t)
                 self._skip_past(src, fid, tail_end)
                 return
-        args, end = self._args_tok(src, fid, spec, b, allow_single_token=True)
+        hit = self._try_args(src, fid, spec, b, allow_single_token=True)
+        args, end = hit or ([], b)
         if e.policy == "chunk-arg":
             self._emit_argspec_chunks(t, src, e, args, end, b)
             return
         if not any(a.fe > a.fs for a in args):
-            self._unread_args(src, args)
             if e.policy == "boundary" and not self.in_arg:
                 vspan = self._cover_to(fid, self._keyval_tail_end(src, b))
                 self._flush_run(vspan.start)
@@ -1863,12 +1619,7 @@ class _Args:
                 # 签名零参/参数缺席但本体仍要保护（\printindex 类）——
                 # 裸名进 run 会被译文面当真词处理；尾随 ``[kv]`` 选参同收
                 # （``\printbibliography[title={..},segment=1]`` 2403.09125）
-                self._cover_gap(fid, t.pos[1])
-                vspan = self._cover_to(fid, self._keyval_tail_end(src, b))
-                self._rappend_ph(
-                    self._ph(PhType.CMD, self.vt.slice(vspan.start, vspan.end)),
-                    vspan,
-                )
+                self._cover_ph(fid, self._keyval_tail_end(src, b), PhType.CMD, gap=t)
                 return
             self._rappend_tok(t)
             return
@@ -1884,26 +1635,9 @@ class _Args:
         # ——``\marginpar{prose}``/``\only<1>{prose}``/``\frame{prose}`` 面。
         # 逐参 ``_opaque_arg_prose`` 调用点判定（key/良性参天然不命中，
         # keyval 组由判据内形状门挡住），花括号所在结构段仍 ``[[CMD]]`` 原文。
-        prose_args = self._prose_args_of(e.name, fid, args)
-        if prose_args and self.gen >= MAX_GEN:
-            self.state.warnings.append(
-                ScanWarning("gen_overflow", len(self.vt), f"argspec:{t.text}")
-            )
-            prose_args = []
-        for a in prose_args:
-            vspan = self._cover_to(fid, a.cs)
-            self._rappend_ph(
-                self._ph(PhType.CMD, self.vt.slice(vspan.start, vspan.end)),
-                vspan,
-            )
-            vmark = len(self.vt)
-            rendered = self._subscan_render(a)
-            self._rappend(rendered, rendered, Span(vmark, len(self.vt)))
-        vspan = self._cover_to(fid, end)
-        self._rappend_ph(
-            self._ph(PhType.CMD, self.vt.slice(vspan.start, vspan.end)),
-            vspan,
-        )
+        prose_args = self._prose_args_gated(e.name, t, fid, args, "argspec")
+        self._emit_prose_args(fid, prose_args, PhType.CMD)
+        self._cover_ph(fid, end, PhType.CMD)
 
     def _emit_argspec_chunks(  # noqa: C901, PLR0912, PLR0913, PLR0915, PLR0917 — 参序 literal/chunk 交替平铺即 _handle_chunk_arg 多参推广
         self,
@@ -1952,12 +1686,7 @@ class _Args:
             )
             text_k = set()
         if not text_k:
-            self._cover_gap(fid, t.pos[1])
-            vspan = self._cover_to(fid, end)
-            self._rappend_ph(
-                self._ph(PhType.CMD, self.vt.slice(vspan.start, vspan.end)),
-                vspan,
-            )
+            self._cover_ph(fid, end, PhType.CMD, gap=t)
             return
         # 参序 op 列：("lit", end) 覆盖到 end；("arg", _ArgTok) 子扫文本参。
         # 非文本参/括号字节随相邻 lit 段覆盖——首 op 恒为 lit（text_k 非空）。
@@ -1978,15 +1707,9 @@ class _Args:
                     # 非文本参/括号字面段不进 run surface——``[[CMD]]`` 代位
                     # （2310.16788 ``[origin=c]``→``[这是译文]`` 机理：凡
                     # argspec chunk-arg 名 in_arg 皆漏）
-                    v = self._cover_to(fid, int(x))
-                    self._rappend_ph(
-                        self._ph(PhType.CMD, self.vt.slice(v.start, v.end)), v
-                    )
-                    vmark = v.end
+                    vmark = self._cover_ph(fid, int(x), PhType.CMD).end
                     continue
-                rendered = self._subscan_render(x)
-                self._rappend(rendered, rendered, Span(vmark, len(self.vt)))
-                vmark = len(self.vt)
+                vmark = self._rappend_subscan(x, vmark)
             return
         self._cover_gap(fid, t.pos[1])  # 同上——字面 piece 不含前隙
         v0 = self._cover_to(fid, int(ops[0][1]))

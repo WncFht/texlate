@@ -26,7 +26,7 @@ from dataclasses import dataclass, field
 
 from texlate.latex.model import Chunk, ScanResult, ScanWarning, Span
 from texlate.latex.placeholder import CHUNK_RX, PH_RX
-from texlate.textutil import CJK_RANGES, mask_tex
+from texlate.textutil import CJK_RANGES, mask_tex, needs_seam_space
 
 log = logging.getLogger(__name__)
 
@@ -37,6 +37,18 @@ _CJK_RX = re.compile(
 )
 
 
+def _insert_masked(s: str, rx: re.Pattern[str], piece: str) -> str:
+    r"""``mask_tex`` 视图命中点后插 ``piece``（verbatim/comment 体字面不可编辑，逆序回放）。
+
+    命中位在等长遮盖视图上取——遮盖位与原串逐字节对齐，逆序回放使前序
+    插入不扰后序命中位。``cjk_glue_fix``/``cjk_punct_close_guard`` 同骨架。
+    """
+    hits = [m.end() for m in rx.finditer(mask_tex(s))]
+    for pos in reversed(hits):
+        s = s[:pos] + piece + s[pos:]
+    return s
+
+
 def cjk_glue_fix(s: str) -> str:
     r"""``\cmd这是`` → ``\cmd 这是``：控制字后直接贴 CJK 时插空格。
 
@@ -44,10 +56,7 @@ def cjk_glue_fix(s: str) -> str:
     命中点在 ``mask_tex`` 视图上找——verbatim/comment 体内的 ``\cmd中``
     是字面内容，不可编辑（等长遮盖位对齐，逆序回放）。
     """
-    hits = [m.end() for m in _CJK_RX.finditer(mask_tex(s))]
-    for pos in reversed(hits):
-        s = s[:pos] + " " + s[pos:]
-    return s
+    return _insert_masked(s, _CJK_RX, " ")
 
 
 #: FullRight 类 CJK 标点（xeCJK punct 类右半族）——与暴露面普查口径一致。
@@ -77,18 +86,17 @@ def cjk_punct_close_guard(s: str) -> str:
     视图（verbatim/comment 体字面不可编辑），原串逆序回放——与
     ``cjk_glue_fix`` 同规。
     """
-    hits = [m.end() for m in _CJK_PUNCT_CLOSE_RX.finditer(mask_tex(s))]
-    for pos in reversed(hits):
-        s = s[:pos] + "{}" + s[pos:]
-    return s
+    return _insert_masked(s, _CJK_PUNCT_CLOSE_RX, "{}")
 
 
 #: 段尾控制字（``\foo``/``\@foo``）：译文字母直接贴上即成更长 cs 名
 #: （``\item FSU`` → ``\itemFSU``，realarm bug-B LLM 回显侧融合）。
-#: ``\Z`` 绝对收尾——``\item\n`` 尾已自带分隔，不算接缝命中。
-#: 尾字符必须真字母：孤 ``\@`` 是控制符号，``\@x`` 源内本无分隔，
-#: 接缝补 ``" "`` 会多出真空格（segmenter ``_LETTER_TAIL_RX`` 同族同规）。
-_CS_TAIL_RX = re.compile(r"\\[a-zA-Z@]*[a-zA-Z]\Z")
+#: 接缝判据 ``needs_seam_space`` 走 ``textutil.nets`` 单源——cs 尾形
+#: ``cs_letter_tail_rx`` + ASCII 字母头（``\item\n`` 尾已自带分隔不算
+#: 接缝命中；孤 ``\@`` 控制符号不收）。头字符 ASCII-only 是严口径：
+#: 本处 TeX 吸收空格本无所谓，统一即消 ``isalpha`` 双侧漂移。
+#: 有意分歧不复用：``xlat.batch._CS_TAIL_RX``（``\*?`` 星形 + ``$``
+#: 收尾——cut retreat 的「尾落 cs token」安检，另一判据）。
 
 #: 译文体内的 ``\itemFSU`` 保险丝（realarm spec）：模型回显把 ``\item``
 #: 与大写首字母黏合。``\\item(?=[A-Z])`` 零误伤——``\item``+大写无合法
@@ -143,7 +151,7 @@ def seg_join(segs: list[str]) -> str:
     for seg in segs:
         if not seg:
             continue
-        if out and _CS_TAIL_RX.search(out[-1]) and seg[0].isalpha():
+        if out and needs_seam_space(out[-1], seg):
             out.append(" ")
         out.append(seg)
     return "".join(out)
@@ -238,63 +246,85 @@ def unicode_math_fix(zh: str) -> str:
     return "".join(out)
 
 
-def reconstruct(res: ScanResult, translations: dict[int, str] | None = None) -> str:  # noqa: C901, PLR0915 — expand/expand_body 双闭包 + 校验分支平铺即 §9 伪码
-    """按 pieces splice + 占位符 DAG 递归展开（docs/spec/latex-pipeline.md 伪码原样）。
+def translation_tokens(
+    res: ScanResult, translations: dict[int, str] | None
+) -> dict[str, str]:
+    r"""``{chunk_id: 译文}`` → ``{"[[CHUNK_k]]": 落盘位译文本}`` token 映射。
 
-    ``translations``：``{chunk_id: 译文}``；None → identity 重建。
+    ``reconstruct``/``repair_l2.chunk_spans`` 同一构造——译文侧变换链
+    ``_restore_linestarts`` 行首 ``\cs`` 归位 → ``unicode_math_fix`` →
+    ``LATIN_ITEM_RX`` 保险丝逐条同序施加；``res.chunks`` 界外/非 int
+    键直通原值。``None`` → 空映射（identity 面无译文本）。
     """
-    trans = (
-        {}
-        if translations is None
-        else {
-            f"[[CHUNK_{k}]]": LATIN_ITEM_RX.sub(
-                r"\\item ",
-                unicode_math_fix(
-                    _restore_linestarts(res.vtex, res.chunks[k].span, v)
-                    if isinstance(k, int) and 0 <= k < len(res.chunks)
-                    else v
-                ),
-            )
-            for k, v in translations.items()
-        }
-    )
-    memo: dict[str, str] = {}
-    chunks = res.chunks
-    glue_latin = translations is not None
-    active: set[str] = set()
-    dangling: set[str] = set()  # 查无实体的 ph token——留字面并记名（原静默残留）
-    # 短参 chunk 集：context 非 para/item 的已译 [[CHUNK_n]]——展开后 ``\n\n``
-    # 压单 ``\n``（见 PAR_RUN_RX 注）。
-    short_arg: set[str] = {
-        f"[[CHUNK_{c.id}]]"
-        for c in chunks
-        if c.context not in ("para", "item") and f"[[CHUNK_{c.id}]]" in trans
+    if translations is None:
+        return {}
+    return {
+        f"[[CHUNK_{k}]]": LATIN_ITEM_RX.sub(
+            r"\\item ",
+            unicode_math_fix(
+                _restore_linestarts(res.vtex, res.chunks[k].span, v)
+                if isinstance(k, int) and 0 <= k < len(res.chunks)
+                else v
+            ),
+        )
+        for k, v in translations.items()
     }
 
-    def expand(token: str) -> str:  # token 形如 [[X_n]]
+
+class _Expander:
+    r"""``[[X_n]]`` 占位符 DAG 递归展开器（``reconstruct``/``chunk_spans`` 单源）。
+
+    ``trans_map`` = ``translation_tokens`` 产物；``glue_latin`` 开接缝
+    守卫（译文落盘侧恒真，identity 路径恒假）。``expand`` 解析优先级
+    ``trans_map → ph_map → CHUNK_RX.fullmatch → chunks[idx].content →
+    字面``；memo + ``active`` 环检内建（译文侧自指/互指环留字面），
+    查无实体的 token 记 ``dangling``（``ph_reserved`` 豁免）。
+    """
+
+    def __init__(
+        self, res: ScanResult, trans_map: dict[str, str], *, glue_latin: bool
+    ) -> None:
+        self.res = res
+        self.trans = trans_map
+        self.glue_latin = glue_latin
+        self.memo: dict[str, str] = {}
+        self.active: set[str] = set()
+        # 查无实体的 ph token——留字面并记名（原静默残留）
+        self.dangling: set[str] = set()
+        # 短参 chunk 集：context 非 para/item 的已译 [[CHUNK_n]]——展开后
+        # ``\n\n`` 压单 ``\n``（见 PAR_RUN_RX 注）。
+        self.short_arg: set[str] = {
+            f"[[CHUNK_{c.id}]]"
+            for c in res.chunks
+            if c.context not in ("para", "item") and f"[[CHUNK_{c.id}]]" in trans_map
+        }
+
+    def expand(self, token: str) -> str:  # token 形如 [[X_n]]
+        """单 token → 展开体（memo 命中直返）。"""
+        memo = self.memo
         if token in memo:
             return memo[token]
-        if token in active:
+        if token in self.active:
             return token  # 译文侧自指/互指环（ph_map 构造上无环）→ 留字面
-        active.add(token)
-        body = trans.get(token)
+        self.active.add(token)
+        body = self.trans.get(token)
         if body is None:
-            body = res.ph_map.get(token)
+            body = self.res.ph_map.get(token)
         if body is None:
             m = CHUNK_RX.fullmatch(token)
             idx = int(m.group(1)) if m else -1
-            if 0 <= idx < len(chunks):
-                body = chunks[idx].content
+            if 0 <= idx < len(self.res.chunks):
+                body = self.res.chunks[idx].content
             else:
-                if token not in res.ph_reserved:
-                    dangling.add(token)
+                if token not in self.res.ph_reserved:
+                    self.dangling.add(token)
                 body = token
-        expanded = expand_body(body, fold_par=token in short_arg)
+        expanded = self.expand_body(body, fold_par=token in self.short_arg)
         memo[token] = expanded
-        active.discard(token)
+        self.active.discard(token)
         return memo[token]
 
-    def expand_body(body: str, *, fold_par: bool = False) -> str:
+    def expand_body(self, body: str, *, fold_par: bool = False) -> str:
         r"""字面+ph 交错体展开——token 递归展开后过接缝守卫。
 
         ``fold_par`` 折叠域 = 本层字面段 + 字面↔ph 接缝；嵌套 ph 展开体
@@ -318,7 +348,7 @@ def reconstruct(res: ScanResult, translations: dict[int, str] | None = None) -> 
 
         def push_ph(tok: str) -> None:
             nonlocal prev_ph
-            exp = expand(tok)
+            exp = self.expand(tok)
             if (
                 fold_par
                 and not prev_ph
@@ -336,16 +366,24 @@ def reconstruct(res: ScanResult, translations: dict[int, str] | None = None) -> 
             push_ph(mm.group(0))
             pos = mm.end()
         push_literal(body[pos:])
-        return seg_join(segs) if glue_latin else "".join(segs)
+        return seg_join(segs) if self.glue_latin else "".join(segs)
 
+
+def reconstruct(res: ScanResult, translations: dict[int, str] | None = None) -> str:
+    """按 pieces splice + 占位符 DAG 递归展开（docs/spec/latex-pipeline.md 伪码原样）。
+
+    ``translations``：``{chunk_id: 译文}``；None → identity 重建。
+    """
+    glue_latin = translations is not None
+    ex = _Expander(res, translation_tokens(res, translations), glue_latin=glue_latin)
     # LITERAL 段也可能内嵌 ph（短 run / MINED_ONLY run 发渲染文本）——全段展开。
-    out = [expand_body(p.text) for p in res.pieces]
+    out = [ex.expand_body(p.text) for p in res.pieces]
     result = seg_join(out) if glue_latin else "".join(out)
-    if dangling:
+    if ex.dangling:
         log.warning(
             "splice unresolved placeholders left literal: %d kinds (e.g. %s)",
-            len(dangling),
-            ", ".join(sorted(dangling)[:8]),
+            len(ex.dangling),
+            ", ".join(sorted(ex.dangling)[:8]),
         )
     if translations:
         result = cjk_glue_fix(result)

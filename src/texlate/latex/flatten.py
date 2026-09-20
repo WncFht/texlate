@@ -17,7 +17,7 @@ r"""``\input/\include`` 展平（docs/spec/latex-pipeline.md）。
   根集（file_dir/root_dir/top_dir）内——``..``/绝对路径/根内
   symlink 指出界的候选按 miss 处理，永不进 ``read_bytes``
   （不可信 e-print 经 ``\input`` 读本机文件 = 外泄面；与 v2
-  ``gullet/input.py`` ``_resolve_input`` 同闸）。``\includeonly`` 忽略。
+  ``gullet`` 共用 ``resolve_input`` 同一实现）。``\includeonly`` 忽略。
 """
 
 from __future__ import annotations
@@ -67,33 +67,30 @@ def strip_doc_shell(tex: str) -> str:
     return body[: e.start()] if e else body
 
 
-def _resolve(  # noqa: C901 — 根集装配 + 三段候选循环平铺即查找序规格
+def resolve_input(
     fname: str, file_dir: str, root_dir: str, *, top_dir: str | None = None
 ) -> str | None:
-    r"""查找序：including 目录 → 项目根 → paper topdir → basename 补 .tex → 裸名。
+    r"""``\input`` 查找序唯一实现：including 目录 → 根目录 → paper topdir → basename 补 ``.tex``。
 
-    ``top_dir`` 是论文顶层目录兜底（深位 root 文件按 e-print 根的相对路径
-    ``\input``，hep-ex/0307068 ``./LaTeX/zeus/…`` 实例）；缺省即旧两级行为。
+    v2 ``gullet/input.py`` ``_resolve_input`` 与本模块 ``_resolve`` 同调此口
+    ——语义以 v2 为准（F8 扩展名序、resolved 命中归并）。``top_dir`` 是论文
+    顶层目录兜底（深位 root 文件按 e-print 根的相对路径 ``\input``，
+    hep-ex/0307068 ``./LaTeX/zeus/…`` 实例）；空串/None 不作根
+    （``Path("")`` 会按 cwd 解析，同为泄漏面）。
 
-    ``openin_any`` 等价闸（W73，与 v2 ``_resolve_input`` 同口径）：候选的
-    **real path** 必须落在已解析根集内——``..``/绝对路径逃逸出界、根内
+    ``openin_any`` 等价闸（W73/C1）：候选的 **real path** 必须落在已解析
+    根集（file_dir/root_dir/top_dir）内——``..``/绝对路径逃逸出界、根内
     symlink 指出界一律按 miss，永不进 ``read_bytes``（敌意 e-print 经
-    ``\input`` 读本机文件 = 外泄面）。空串 dir 不作根（``Path("")`` 会按
-    cwd 解析，同为泄漏面）。
+    ``\input`` 读本机文件 = 外泄面）。
+
+    扩展名序（F8）：``fname`` 无扩展名 → 先 ``.tex``/``.TEX`` 补全再
+    裸名（TeX 对无扩展名 ``\input`` 追加 ``.tex``——裸名垃圾文件不得
+    压过 ``foo.tex``）；带显式扩展名 → 原样查找不追加。
     """
-    dirs = tuple(
-        dict.fromkeys(
-            d
-            for d in (
-                (file_dir, root_dir)
-                if top_dir is None
-                else (file_dir, root_dir, top_dir)
-            )
-            if d  # 空串 dir 出局——Path("")/c 按 cwd 解析
-        )
-    )  # file_dir==root_dir 常见——去重免重复 stat
     roots: list[Path] = []
-    for d in dirs:
+    for d in (file_dir, root_dir, top_dir):
+        if not d:
+            continue
         try:
             r = Path(d).resolve()
         except (OSError, RuntimeError, ValueError):  # symlink 环/NUL → 该根出局
@@ -102,52 +99,59 @@ def _resolve(  # noqa: C901 — 根集装配 + 三段候选循环平铺即查找
             roots.append(r)
 
     def _hit(p: Path) -> str | None:
-        """``p`` OS 级存在且 real path 落在任一根内 → 命中（返回原形态串）。
+        """``p`` resolve 后存在且 real path 落在任一根内 → 解析后绝对路径。
 
-        存在性走 ``p.exists()`` 而非 resolved 路径——``resolve`` 对不存在
-        的中间目录做词法 ``..`` 消解（``sub/../x`` 里 sub 缺席时也归并出
-        ``x``），与 OS 遍历语义不符（symlink 环/NUL 按 miss）。
+        存在性判在 resolved 形上——``resolve`` 对缺席中间目录做词法 ``..``
+        消解（``sub/../x`` 里 sub 缺席时也归并出 ``x``），与 TeX 开件语义
+        对齐（v2 口径；symlink 环/NUL 按 miss——字节扫描可递 NUL 名，
+        ``ValueError`` 一并收）。
         """
-        if not p.exists():
-            return None
         try:
             rp = p.resolve()
         except (OSError, RuntimeError, ValueError):
             return None
-        if any(rp.is_relative_to(r) for r in roots):
-            return str(p)
+        if rp.exists() and any(rp.is_relative_to(r) for r in roots):
+            return str(rp)
         return None
 
-    cands = (
-        [fname]
-        if fname.lower().endswith(".tex")
-        else [fname, fname + ".tex", fname + ".TEX"]  # 野存在大写扩展名（corpus）
+    # 阶段序：各根 × 候选名（含 .tex 补全）→ 各根 × basename 补 .tex。
+    # 历史第三段「各根 × 裸名」恒被首段候选覆盖，不再单开。
+    names = (
+        [fname] if Path(fname).suffix else [fname + ".tex", fname + ".TEX", fname]
     )
-    for d in dirs:
-        for c in cands:
-            hit = _hit(Path(d) / c)
-            if hit is not None:
-                return hit
     stem = Path(fname).name
-    for d in dirs:
-        for ext in (".tex", ".TEX"):
-            hit = _hit(Path(d) / (stem + ext))
-            if hit is not None:
-                return hit
+    paths = [r / n for r in roots for n in names]
+    paths += [r / (stem + ext) for r in roots for ext in (".tex", ".TEX")]
+    for p in paths:
+        hit = _hit(p)
+        if hit is not None:
+            return hit
     return None
+
+
+def _resolve(
+    fname: str, file_dir: str, root_dir: str, *, top_dir: str | None = None
+) -> str | None:
+    r"""``resolve_input`` 薄代理——tests/test_flatten_boundary.py 直引此名。"""
+    return resolve_input(fname, file_dir, root_dir, top_dir=top_dir)
+
+
+def read_input_blob(path: str) -> bytes:
+    r"""``\input`` 目标字节读取 + tar 伪装闸（``_read_file``/v2 gullet 共用）。"""
+    blob = Path(path).read_bytes()
+    if _tar_disguised(blob):
+        # tar 伪装件——成员字节经 decode_tex（永不抛）解出假散文，内联进
+        # 展平输出即污染翻译面；按 OSError 走 missing_input 非展开回吐
+        raise OSError(errno.EINVAL, "tar archive disguised as tex", path)
+    return blob
 
 
 def _read_file(path: str) -> str:
     """文件读取接缝（bench ``flatten_reach`` 的 open 记录器经 shim 重绑这里）。"""
-    blob = Path(path).read_bytes()
-    if _tar_disguised(blob):
-        # tar 伪装件——成员字节经 decode_tex（永不抛）解出假散文，内联进
-        # 展平输出即污染翻译面；按 OSError 走 _try_input 的非展开回吐
-        raise OSError(errno.EINVAL, "tar archive disguised as tex", path)
-    return decode_tex(blob)
+    return decode_tex(read_input_blob(path))
 
 
-def _extract_tag_region(tex: str, tag: str) -> str | None:
+def extract_tag_region(tex: str, tag: str) -> str | None:
     r"""``\CatchFileBetweenTags`` 的标签区提取：``%<*tag>`` … ``%</tag>``。"""
     start_rx = re.compile(r"%\s*<\*?" + re.escape(tag) + r">")
     end_rx = re.compile(r"%\s*</" + re.escape(tag) + r">")
@@ -156,6 +160,11 @@ def _extract_tag_region(tex: str, tag: str) -> str | None:
         return None
     e = end_rx.search(tex, s.end())
     return tex[s.end() : e.start() if e else len(tex)]
+
+
+def _extract_tag_region(tex: str, tag: str) -> str | None:
+    r"""``extract_tag_region`` 薄代理——本模块 ``_try_input`` 调用点名。"""
+    return extract_tag_region(tex, tag)
 
 
 def flatten_inputs(  # noqa: C901, PLR0912, PLR0913, PLR0915 — 单遍逐字符主循环，分支序即语义（docs/spec/latex-pipeline.md 五条铁律）

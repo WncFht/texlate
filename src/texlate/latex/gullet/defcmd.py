@@ -12,7 +12,6 @@ from texlate.latex.mouth import (
 
 from .entries import (
     Arg,
-    MacroDef,
 )
 
 
@@ -69,26 +68,9 @@ class _DefCmd:
                 return self._def_fail(trig, trace, "param text illegal")
         if eager:
             body = self._expand_eager(body)
-        kind, target, protect = self._classify(body, self._param_count(spec))
-        self.macros.set(
-            mname,
-            MacroDef(
-                name=mname,
-                spec=spec,
-                body=body,
-                kind=kind,
-                target_env=target,
-                protect_args=protect,
-                scope="global" if global_ else "local",
-                src=(
-                    (head or trig).pos[0],
-                    (head or trig).pos[1],
-                    self._trace_end(trace),
-                ),
-            ),
-            "global" if global_ else "local",
+        return self._register_cmd(
+            trig.text, mname, spec, body, trig, trace, global_=global_, head=head
         )
-        return self._consumed(f"{trig.text}:{mname}", trig, trace, head)
 
     def _expand_eager(self, body: list[Tok]) -> list[Tok]:
         r"""``\edef/\xdef`` 体即时展开：体 + 哨兵推回，抽展开流到哨兵止。

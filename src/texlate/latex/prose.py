@@ -27,37 +27,60 @@ import re
 from typing import TYPE_CHECKING
 
 from texlate.latex.placeholder import PH_RX
+from texlate.latex.tables import CHUNK_ARG_NAMES
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
     from texlate.latex.model import Chunk
 
-#: 结构上下文白名单：这些 context 的块本身是标题/脚注/关键词类正文——
-#: 短到零功能词也算散文。
-PROSE_CONTEXTS: frozenset[str] = frozenset(
+#: ``argspec.json`` ``chunk-arg`` 登记项中属文档结构的 context 名——
+#: beamer/exam/hyperref/amsmath 的标题、题干、行间批注位（硬编码面之外
+#: 的查表路径生产；context = argspec 条目名）。手工策展子集：
+#: ``resizebox``/``rotatebox``/``scalebox``/``reflectbox``/``multirow``/
+#: ``multicolumn``/``mbox`` 等盒/表参名不收——它们的 args 是机制碎片，
+#: 收进来会重开此门要防的假阳腐蚀。
+_ARGSPEC_STRUCT_CTX: frozenset[str] = frozenset(
     {
-        "abst",
-        "caption",
-        "captionof",
-        "chapter",
-        "footnote",
-        "footnotetext",
-        "keywords",
-        "paragraph",
-        "part",
-        "sect",
-        "section",
-        "subcaption",
-        "subparagraph",
-        "subsect",
-        "subsection",
-        "subsubsection",
-        "subtitle",
-        "tablecaption",
-        "thanks",
-        "title",
+        "CorrectChoice",
+        "alert",
+        "answerline",
+        "choice",
+        "fillin",
+        "framesubtitle",
+        "frametitle",
+        "intertext",
+        "pdfbookmark",
+        "question",
+        "shortintertext",
+        "structure",
+        "subpart",
+        "texorpdfstring",
+        "textenv",
     }
+)
+
+#: 环境内部语境：aastex deluxetable 表注（``tablenotetext``/
+#: ``tablecomments``）与 pinlabel ``labellist`` 标签——只在保护
+#: 环境挖掘面内产生的 context；仅含这类块的文件更像 bundled
+#: 表格件而非散文文档，维持显式排除（历史名单漏收→复核保留，
+#: 不是默认漂移）。
+_ENV_INTERNAL_CTX: frozenset[str] = frozenset(
+    {
+        "tablenotetext",
+        "tablecomments",
+        "pinlabel",
+    }
+)
+
+#: 结构上下文白名单：这些 context 的块本身是标题/脚注/关键词类正文——
+#: 短到零功能词也算散文。派生不自抄：``CHUNK_ARG_NAMES``（硬编码
+#: chunk-arg 命令面，context = 命令名）∪ ``{"abstract"}``（env 派生
+#: 语境——core.py 按 env_stack 顶位赋）∪ ``_ARGSPEC_STRUCT_CTX``
+#: − ``_ENV_INTERNAL_CTX``。新增 chunk-arg 命令/结构调整项在各自
+#: 登记表改一次即生效，不再双表漂移。
+PROSE_CONTEXTS: frozenset[str] = (
+    frozenset(CHUNK_ARG_NAMES | {"abstract"} | _ARGSPEC_STRUCT_CTX) - _ENV_INTERNAL_CTX
 )
 
 #: 严格功能词表（冠词/介词/连词/助动词）——PS 算子与内容名词不入。

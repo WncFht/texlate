@@ -22,12 +22,12 @@ if TYPE_CHECKING:
 class Arg:
     """参数槽（``MacroDef.spec`` 项；调用点读取顺序即列表序，§4.1/§8.4）。"""
 
-    kind: str  # 'm'|'o'|'star'|'eq'|'delim'|'until_group'|'literal_match'
+    kind: str  # 'm'|'o'|'star'|'delim'|'until_group'|'literal_match'
     delim: list[Tok] = field(default_factory=list)  # delim/literal_match 目标序列
     default: list[Tok] | None = None  # 'o' 缺省值 token
     open: str = "["  # 'o' 自定界 opener（xparse d<>/g 用）
     close: str = "]"
-    char: str = "*"  # 'star'/'eq' 期待字符
+    char: str = "*"  # 'star' 期待字符
     brace_after: bool = False  # `\def\foo#1 abc#{`：delim 命中后仍要求 `{` 回吐
 
 

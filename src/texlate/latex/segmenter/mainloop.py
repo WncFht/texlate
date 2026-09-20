@@ -518,12 +518,7 @@ class _MainLoop:
             #     反斜杠变真 mathshift。
             if _inline_lit_cs(name):
                 if name == "$":
-                    self._cover_gap(fid, t.pos[1])
-                    vspan = self._cover_to(fid, b)
-                    self._rappend_ph(
-                        self._ph(PhType.CMD, self.vt.slice(vspan.start, vspan.end)),
-                        vspan,
-                    )
+                    self._cover_ph(fid, b, PhType.CMD, gap=t)
                     return
                 self._rappend_tok(t)
                 return
@@ -697,12 +692,7 @@ class _MainLoop:
             # ``Missing $``/``Display math should end with $$`` 错因）。
             # 孤定界符不再逐字进 run（``$`` 裸落可译 chunk = dollar leak
             # 主族残留）——[[CMD]] 单项保真：字节全保、chunk 只见占位符。
-            self._cover_gap(fid, t.pos[1])
-            vspan = self._cover_to(fid, nxt.pos[2] if disp else b)
-            self._rappend_ph(
-                self._ph(PhType.CMD, self.vt.slice(vspan.start, vspan.end)),
-                vspan,
-            )
+            vspan = self._cover_ph(fid, nxt.pos[2] if disp else b, PhType.CMD, gap=t)
             self.state.warnings.append(ScanWarning("unpaired_dollar", vspan.start, "$"))
             if body:
                 if x is None and src.eof_pops:
@@ -720,10 +710,7 @@ class _MainLoop:
                     src.unread(body)
             return
         eb = end_tok.pos[2]
-        self._cover_gap(fid, t.pos[1])
-        vspan = self._cover_to(fid, eb)
-        ph = self._ph(PhType.MATH, self.vt.slice(vspan.start, vspan.end))
-        self._rappend_ph(ph, vspan)
+        self._cover_ph(fid, eb, PhType.MATH, gap=t)
 
     @staticmethod
     def _skip_balanced(src: TokenSource, body: list[Tok], pair: str) -> None:
@@ -776,7 +763,7 @@ class _MainLoop:
 
     # ------------------------------------------------------------ verb
 
-    def _handle_verb(self, t: Tok, src: TokenSource) -> None:  # noqa: C901, PLR0912, PLR0915 — verb 三形各一支，平铺即 W9/W10
+    def _handle_verb(self, t: Tok, src: TokenSource) -> None:  # noqa: C901, PLR0912 — verb 三形各一支，平铺即 W9/W10
         r"""``\\verb|..|``/``\\verb*``/``\\lstinline[opt]|..|``/``{...}`` 配对形。
 
         定界符 = 命令后首个非空白 token；``{..}`` 配对形按平衡组收；
@@ -821,13 +808,7 @@ class _MainLoop:
                 src.unread(pulled)  # 未消费任何组 token——全量回放（含 d）
                 self._rappend_tok(t)
                 return
-            self._cover_gap(fid, t.pos[1])
-            vspan = self._cover_to(fid, e)
-            self._rappend_ph(
-                self._ph(PhType.VERB, self.vt.slice(vspan.start, vspan.end)),
-                vspan,
-            )
-            self._skip_past(src, fid, e)
+            self._protect_span(PhType.VERB, fid, t.pos[1], e, src=src)
             return
         # 定界符 = token 的文件首字符（cs → ``\``；多字符 token 取首字符，
         # 与 v1 单字符 ``d = tex[k]`` 语义一致）
@@ -846,13 +827,7 @@ class _MainLoop:
             src.unread(pulled)
             return
         end = close + 1
-        self._cover_gap(fid, t.pos[1])
-        vspan = self._cover_to(fid, end)
-        self._rappend_ph(
-            self._ph(PhType.VERB, self.vt.slice(vspan.start, vspan.end)),
-            vspan,
-        )
-        self._skip_past(src, fid, end)
+        self._protect_span(PhType.VERB, fid, t.pos[1], end, src=src)
 
     def _skip_past(self, src: TokenSource, fid: int, end: int) -> None:
         """Resync ``fid`` 源到 ``end``——raw 区段不经 token 流（契约 §4）。

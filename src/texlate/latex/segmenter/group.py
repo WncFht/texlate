@@ -30,21 +30,22 @@ from texlate.textutil import (
 )
 
 from ._common import (
+    _BSBS_SLOTS,
     _GRP_BSBS_CONTENT_RX,
     _GRP_SCAN_CAP,
     _GRP_TAIL_CAP,
+    _KEYVAL_GROUP_RX,
     _PEND_PROBE,
     _aspec_elem,
+    _call_slots,
     _chunk_spec_cached,
+    _env_mand_count,
+    _prose_arg_hit,
+    _prose_word_hit,
+    _scan_envtag,
     _slot_elem,
     _WalkRes,
     _WSpec,
-)
-from .args import (
-    _KEYVAL_GROUP_RX,
-    _OPAQUE_ARG_PROSE_RX,
-    _OPAQUE_ARG_WORD_RX,
-    _SWALLOW_ARG_NAMES,
 )
 
 if TYPE_CHECKING:
@@ -96,31 +97,23 @@ class _Group:
     def _grp_envtag(self, toks: list[Tok], i: int) -> tuple[str, int] | None:
         r"""``\\begin``/``\\end`` + ws + ``{name}`` → ``(name, j_end)``；失配 None。
 
-        主流对价：``_env_name``——前扫跨 space 与 ``eol_par``（断行
-        env tag 收名），名内 ``eol_par`` 即失败（R6 主流同规）。
+        主流对价：``_env_name``——扫描本体 = ``_common._scan_envtag``
+        单源（前扫跨 space 与 ``eol_par``，名内 ``eol_par`` 即失败，
+        R6 主流同规）。
         """
         n = len(toks)
         j = i + 1
-        while j < n and toks[j].kind in ("space", "eol_par"):
-            j += 1
-        if j >= n or toks[j].kind != "lbrace":
-            return None
-        depth = 1
-        j += 1
-        parts: list[str] = []
-        while j < n:
-            x = toks[j]
-            if x.kind == "eol_par":
+
+        def pull() -> Tok | None:
+            nonlocal j
+            if j >= n:
                 return None
-            if x.kind == "lbrace":
-                depth += 1
-            elif x.kind == "rbrace":
-                depth -= 1
-                if depth == 0:
-                    return "".join(parts), j + 1
-            parts.append(self._tok_surface(x))
+            x = toks[j]
             j += 1
-        return None
+            return x
+
+        hit = _scan_envtag(pull, self._tok_surface)
+        return (hit[0], j) if hit is not None else None
 
     def _grp_env_macro(self, t: Tok) -> tuple[str, str] | None:
         r"""组内 env_begin/env_end 宏端点 → ``(kind, target_env)``；非宏 None。"""
@@ -290,9 +283,9 @@ class _Group:
         （``d<>`` 恒版式豁免在归一侧）；``cont_ok`` 的组未闭承
         ``_grp_open_tail`` 跨界续扫态。
 
-        结果投影：``end`` 各面通用；``cand`` 仅 ``opt``/``marg``/``bsbs``
-        组参记录（``_grp_spec_walk`` 的散文候选界、``_grp_bsbs`` 的中/未
-        中区分）；``rem``=toks 走尽/真跨界
+        结果投影：``end`` 各面通用；``cand`` 仅 ``opt``/``mand``/``marg``/
+        ``bsbs`` 组参记录（``_grp_spec_walk``/``_grp_probe_end`` 的散文候
+        选界、``_grp_bsbs`` 的中/未中区分）；``rem``=toks 走尽/真跨界
         时未完元下标（``_slots_walk_toks`` 的剩余槽列、``_PendRem`` 的
         ``spec``/``ka_slots`` 切片料）；``cont``/``e_rest`` 是跨界续扫态
         与 ``e`` 残件料。流侧拉取对价（``_absorb_slots``/``_absorb_spec``/
@@ -344,6 +337,7 @@ class _Group:
                         if hit is not None:
                             return _WalkRes(end, cand, ei, hit, None)
                     break
+                cand.append((nth, k, e))  # 记 cand——``_grp_probe_end`` 散文候选界
                 end = e
             elif kind == "egrp":  # ``{..}``|``[..]`` 任选强制组（slot ``e``）
                 if x.kind != "lbrace" and not (x.kind == "other" and x.text == "["):
@@ -526,11 +520,10 @@ class _Group:
     def _grp_call_end(self, toks: list[Tok], i: int, mand: int) -> int:
         r"""Cs + ``*``? + ``[opt]``≤3 + ``{arg}``≤mand → j_end（``_protect_cs`` 镜像）。
 
-        走参本体 = ``_walk_spec_toks``——``("s","o","o","o")+("m")*mand``
+        走参本体 = ``_walk_spec_toks``——``_call_slots(["m"]*mand)``
         槽列（``_PEND_CALL1``/``_PEND_CALL2`` 同形）。
         """
-        elems = [_slot_elem(s) for s in ("s", "o", "o", "o")]
-        elems.extend(_slot_elem("m") for _ in range(mand))
+        elems = [_slot_elem(s) for s in _call_slots(["m"] * mand)]
         return self._walk_spec_toks(toks, i + 1, elems).end
 
     def _grp_keyval_tail_end(self, toks: list[Tok], j: int) -> int:
@@ -653,13 +646,13 @@ class _Group:
 
         ``_BSBS_OPT_RX`` 的 token 版：``*``? + ``[atom]``——内容非 dimen
         （``\\[x]`` 形）→ None 回落逐字。走参本体 = ``_walk_spec_toks``
-        （``["s","b"]`` 槽列同 ``_pend_spec_of`` ``\\`` 行）；cand 命中 =
+        （``_BSBS_SLOTS`` 槽列同 ``_pend_spec_of`` ``\\`` 行）；cand 命中 =
         ``[dimen]`` 实消费（单 ``*`` 不算）。
         """
-        res = self._walk_spec_toks(toks, i + 1, [_slot_elem("s"), _slot_elem("b")])
+        res = self._walk_spec_toks(toks, i + 1, [_slot_elem(s) for s in _BSBS_SLOTS])
         return res.end if res.cand else None
 
-    def _grp_spec_args_end(  # noqa: PLR0913 — 签名同参照原（argspec 走参五参数集）
+    def _grp_spec_args_end(  # noqa: PLR0913 — 组内走参面（toks/起点/spec/角色/env/开关）原位
         self,
         toks: list[Tok],
         j: int,
@@ -727,9 +720,7 @@ class _Group:
             return self._grp_spec_args_end(
                 toks, j, _chunk_spec_cached(ae.signature), ae.arg_roles, env
             )
-        mand = 1 if env in ENV_MANDATORY_ARG else 0
-        if reg is not None:
-            mand = max(mand, sum(1 for a in getattr(reg, "spec", ()) if a.kind == "m"))
+        mand = _env_mand_count(env, reg)
         # 版式 ``[opt]``（``env_opt_is_format`` 闸）+ ``{m}``×mand——归一走
         # 参元列（``[opt]`` 未闭/闸败即停：mand 位从原位同判 ``[`` 失配）
         j = self._walk_spec_toks(
@@ -749,14 +740,15 @@ class _Group:
                     j = e
         return j
 
-    def _grp_probe_end(self, toks: list[Tok], i: int) -> int | None:
+    def _grp_probe_end(self, toks: list[Tok], i: int) -> _WalkRes | None:
         r"""未知命令探针的组内版（``_handle_unknown_cs``：``[opt]``? + ``{m}``×6、禁单 token 参）。
 
-        任一参数命中 → j_end；全缺席 → None。走参本体 =
-        ``_walk_spec_toks``——``_PEND_PROBE`` 槽列同形。
+        任一参数命中 → ``_WalkRes``（``end`` 调用界、``cand`` 逐参界——
+        ``_grp_probe_prose_args`` 散文挖掘直取 cand，免同形复扫）；全缺席
+        → None。走参本体 = ``_walk_spec_toks``——``_PEND_PROBE`` 槽列同形。
         """
         res = self._walk_spec_toks(toks, i + 1, [_slot_elem(s) for s in _PEND_PROBE])
-        return res.end if res.end > i + 1 else None
+        return res if res.end > i + 1 else None
 
     def _grp_arg_prose(self, inner: list[Tok]) -> bool:
         r"""组内 ``{..}`` 参内容的散文判据——``_opaque_arg_prose`` 的 token 级对价。
@@ -767,47 +759,26 @@ class _Group:
         拼接后过同款 ≥4 连词、非全大写判据。
         """
         text = "".join(" " if t.kind == "cs" else self._tok_surface(t) for t in inner)
-        for mm in _OPAQUE_ARG_PROSE_RX.finditer(text):
-            words = _OPAQUE_ARG_WORD_RX.findall(mm.group(0))
-            if len(words) >= 4 and not all(  # noqa: PLR2004 - scout 散文判据连词下限
-                w == w.upper() for w in words
-            ):
-                return True
-        return False
+        return _prose_word_hit(text)
 
     def _grp_probe_prose_args(
-        self, toks: list[Tok], i: int, j: int, name: str
+        self, toks: list[Tok], probe: _WalkRes, name: str
     ) -> list[tuple[int, int]]:
-        r"""探针调用 ``toks[i:j]`` 内的散文 ``{..}`` 参 → ``(``{`` 位, ``}`` 后位)`` 列。
+        r"""探针调用 ``toks[i:probe.end]`` 内的散文 ``{..}`` 参 → ``(``{`` 位, ``}`` 后位)`` 列。
 
-        ``_handle_unknown_cs`` 散文挖掘的组内对价：``_grp_probe_end``
-        同形复扫（ws + ``[o]``? + ``{m}``×6）——``[o]`` 组非散文槽位不挖、
-        ``_SWALLOW_ARG_NAMES`` 名闸同口径（``\\comment`` 吞块 W50 面）；
-        散文参内层由调用方 ``_grp_scan`` 子扫渲 surface。
+        ``_handle_unknown_cs`` 散文挖掘的组内对价：参界直取 ``_grp_probe_end``
+        走参记录的 ``cand``（同形复扫已并）——``[o]`` 组非散文槽位不挖
+        （``lbrace`` 开位滤除）；``_prose_arg_hit`` 名闸 + keyval/逗号名单/
+        裸键列形状门 + 词链判据与流侧 ``_opaque_arg_prose``、组内
+        ``_grp_opaque_args`` 同口径（``\\comment`` 吞块 W50、``\\deleted``
+        死文本、``\\replaced`` 尾参死文本同罩）。散文参内层由调用方
+        ``_grp_scan`` 子扫渲 surface。
         """
-        if name in _SWALLOW_ARG_NAMES:
-            return []
-        spans: list[tuple[int, int]] = []
-        k = i + 1
-        k2 = k
-        while k2 < j and toks[k2].kind == "space":
-            k2 += 1
-        if k2 < j and toks[k2].kind == "other" and toks[k2].text == "[":
-            e = self._grp_bal(toks, k2, brace=False)
-            if e is not None:
-                k = e
-        for _ in range(6):
-            k2 = k
-            while k2 < j and toks[k2].kind == "space":
-                k2 += 1
-            if k2 >= j or toks[k2].kind != "lbrace":
-                break
-            e = self._grp_bal(toks, k2, brace=True)
-            if e is None or e > j:
-                break
-            if self._grp_arg_prose(toks[k2 + 1 : e - 1]):
-                spans.append((k2, e))
-            k = e
-        return spans
+        return [
+            (a0, a1)
+            for nth, a0, a1 in probe.cand
+            if toks[a0].kind == "lbrace"
+            and _prose_arg_hit(name, nth, self._grp_surfs(toks[a0 + 1 : a1 - 1]))
+        ]
 
     # -------------------------------------------------------- 跨边界待绑参

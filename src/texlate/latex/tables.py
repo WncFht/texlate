@@ -12,7 +12,15 @@ import re
 from functools import cache
 from importlib import resources
 
-from texlate.latex.model import ArgSpec, ArgspecEntry
+# 三常量 = 兼容再出口：定义已上归 model 数据层
+# （``ARG_TRANSPARENT_ENVS`` 为 repair_l2/segmenter 旧调用面保持）。
+from texlate.latex.model import (  # noqa: F401
+    ARG_TRANSPARENT_ENVS,
+    OPT_FMT_CHARS,
+    OPT_POS_LETTERS,
+    ArgSpec,
+    ArgspecEntry,
+)
 from texlate.textutil import DEAD_ENVS as _DEAD_ENVS
 from texlate.textutil import VERBATIM_ENVS as _VERBATIM_ENVS
 
@@ -87,27 +95,6 @@ PROTECTED_ENVS = {
     "eepic",
     "labellist",  # pinlabel ``\begin{labellist}`` env 形（cs 对形见 PAIR_BLOCK_CMDS）
 }
-
-# in_arg 下的透明容器环境白名单（纯容器 → begin/end 行 [[ENVTAG]]，
-# 内部 item 文本照常挖；其余未知 env in_arg → 整段 [[ENV]]，修泄漏 C2）
-ARG_TRANSPARENT_ENVS = {
-    "itemize",
-    "enumerate",
-    "description",
-    "center",
-    "flushleft",
-    "flushright",
-    "quote",
-    "quotation",
-    "verse",
-    "abstract",
-    "minipage",
-    "list",
-    "trivlist",
-    "sloppypar",
-    "document",
-}
-ARG_TRANSPARENT_ENVS |= {e + "*" for e in list(ARG_TRANSPARENT_ENVS)}
 
 # \begin 后要吞掉强制 {arg} 的环境（宽/格式参数，非文本）
 ENV_MANDATORY_ARG = {
@@ -537,9 +524,6 @@ PAIR_BLOCK_CMDS: dict[str, str] = {
 }
 PAIR_BLOCK_ALL = frozenset(PAIR_BLOCK_CMDS) | frozenset(PAIR_BLOCK_CMDS.values())
 
-OPT_FMT_CHARS = frozenset("=*\\#|!~,()<>:;")  # 版式参特征（kv/装饰/分组）
-OPT_POS_LETTERS = frozenset("htbpHTBPclrmb")  # 浮动位 htbp + 列型 lcrmpb
-
 # BOUNDARY 命令的结构尾参表（audit 次要 3）：``\cline{1-2}``/``\vspace*{1em}``
 # 这类非文本参消费进 LITERAL 段——否则 ``{1-2}`` 落正文成 chunk 被翻译。
 # 只列结构参；``\item[o]`` 的 label、``\newtheorem`` 标题是可译文本不收。
@@ -848,30 +832,20 @@ TRANSPARENT_HEAD_SPEC: dict[str, list[ArgSpec]] = {
 
 # ---------------------------------------------------------------- argspec.json
 
-# 非真实 ``\usepackage`` 的包名：内核命令 + 合成来源族，无条件激活。
-# 真实包名（beamer/exam/hyperref/…）须 ``ScanState.pkgs`` 命中才启用——
-# 否则 ``\frame``/``\partlabel`` 这类包私有名会误吃普通文档参数。
-ARGSPEC_ALWAYS_PKGS = frozenset(
-    {
-        "latex2e",
-        "manual",
-        "miniscanner",
-        "math-literal",
-        "latex-literal",
-        "single-char",
-        "parser-primitive",
-        "latex-utensils",
-    }
-)
-
 
 @cache
 def argspec_tables() -> tuple[dict[str, ArgspecEntry], dict[str, ArgspecEntry]]:
-    """``data/argspec.json`` → ``(macros, envs)`` 两张 ``name → ArgspecEntry`` 表。
+    r"""``data/argspec.json`` → ``(macros, envs)`` 两张 ``name → ArgspecEntry`` 表。
 
     懒加载 + 进程级缓存（~500KB JSON 只在首个未知 cs 命中时读一次）。
     条目照抄 JSON 字段；``guessed`` = source 含 ``guessed-signature``
     （族规则推断签名，审计可回滚）；``also_in`` 收跨包重名登记。
+
+    包门史话（两 ``argspec_lookup*`` 共用前提）：查表曾按
+    ``ScanState.pkgs`` 门控，但 ``pkgs`` 只收**本文件**
+    ``\\usepackage``/``\\documentclass``——工程按 ``\\input`` 拆开后
+    体文件查不到导言区包名，包门必假阴 → 门控已退役，两侧查表
+    均不按包过滤（``pkgs`` 收集端仍在，纯观测仪表）。
     """
     raw = resources.files("texlate.latex").joinpath("data/argspec.json")
     data = json.loads(raw.read_text(encoding="utf-8"))
@@ -895,17 +869,17 @@ def argspec_tables() -> tuple[dict[str, ArgspecEntry], dict[str, ArgspecEntry]]:
 def argspec_lookup(name: str, _pkgs: set[str]) -> ArgspecEntry | None:
     r"""未知控制序列查表——不按包门控（``argspec_lookup_env`` 同规）。
 
-    ``pkgs`` 只收本文件 ``\\usepackage``/``\\documentclass``；工程按
-    ``\\input`` 拆开后体文件查不到导言区包名，包门必假阴。用户
-    ``\\newcommand``/``\\def`` 撞名由调用方先短路：主流
-    ``_handle_unknown_cs`` 仅 ``m is None`` 才查表（``_resolve_macro``
+    门控退役史话见 ``argspec_tables``。用户 ``\\newcommand``/``\\def``
+    撞名由调用方先短路：主流 ``_handle_unknown_cs`` 仅 ``m is None``
+    才查表（``_resolve_macro``
     命中 gullet 宏表即跳过；可展开用户宏 gullet 先行吃掉到不了分段
     器），cite/ref 词族按名先行、签名只决定保护参目。不吃签名会把
     key 参漏成散文送译——``\\crefrange{a}{b}`` 第二参、``\\joref``
     尾四组实证泄漏 → cleveref ``\\cref@resetstack`` 递归炸栈
     （2105.00111）。``text``/``opt-text`` 角色参回吐主流不受影响；
     最坏形态 = 未加载包同名 cs 按签名多吞若干组（有界少译，无腐蚀
-    面）。``_pkgs`` 留参与 env 侧调用面对称，不读。
+    面）。``_pkgs`` 死参——旧门控签名留位（调用面仍传
+    ``state.pkgs``），不读。
     """
     return argspec_tables()[0].get(name)
 
@@ -913,16 +887,16 @@ def argspec_lookup(name: str, _pkgs: set[str]) -> ArgspecEntry | None:
 def argspec_lookup_env(name: str, _pkgs: set[str]) -> ArgspecEntry | None:
     r"""``argspec_lookup`` 的环境侧同名物（``\\begin{X}`` 的 X）——不按包门控。
 
-    ``pkgs`` 只收本文件 ``\\usepackage``/``\\documentclass``；工程按
-    ``\\input`` 拆开后体文件查不到导言区包名，包门必假阴。``\\begin{X}``
-    出现本身即工程已供 X 的证据（X 无内核/恒激活族提供方；用户
-    ``\\newenvironment`` 撞名由调用方 ``_argspec_env`` 的 ``reg`` 先短路，
-    到不了此层）。不吃签名会把 env-name/key 参漏成散文送译——thmtools
-    ``restatable`` 实证：``\\begin{restatable}{theorem}{main}`` 的两参进
-    chunk 被译成 ``{这是译文}{这是译文}`` → cleveref ``\\cref@resetstack``
-    递归炸栈（2105.00111）。``text``/``opt-text`` 角色参回吐主流不受影响；
-    最坏形态 = 未定义/撞名 env 按签名多吞若干组（有界少译，无腐蚀面）。
-    ``_pkgs`` 留参与宏侧调用面对称，不读。
+    ``\\begin{X}`` 出现本身即工程已供 X 的证据（X 无内核/恒激活族
+    提供方；用户 ``\\newenvironment`` 撞名由调用方 ``_argspec_env``
+    的 ``reg`` 先短路，到不了此层）。不吃签名会把 env-name/key 参
+    漏成散文送译——thmtools ``restatable`` 实证：
+    ``\\begin{restatable}{theorem}{main}`` 的两参进 chunk 被译成
+    ``{这是译文}{这是译文}`` → cleveref ``\\cref@resetstack`` 递归炸栈
+    （2105.00111）。``text``/``opt-text`` 角色参回吐主流不受影响；
+    最坏形态 = 未定义/撞名 env 按签名多吞若干组（有界少译，无腐蚀
+    面）。``_pkgs`` 死参——旧门控签名留位（调用面仍传
+    ``state.pkgs``），不读。
     """
     return argspec_tables()[1].get(name)
 

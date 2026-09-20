@@ -116,16 +116,13 @@ def scan_tex_tree(
             out.support.append(rel)
             continue
         try:
-            blob = f.read_bytes()
-        except OSError:
-            blob = b""  # 读不动交给下方 parse_file 的 fault 分流记名
-        if _tar_disguised(blob):
-            # tar 伪装 .tex——成员字节不是翻译面（decode_tex 永不抛会把成员
-            # 文本当散文送译、写回腐蚀 blob）；不入任何名单，逐字节原样保留
-            continue
-        try:
             res = parse_file(f, flatten=False, front_matter=front_matter)
         except Exception as exc:  # noqa: BLE001 -- 单文件解析崩不拖垮整树
+            if isinstance(exc, OSError) and exc.errno == errno.EINVAL:
+                # tar 伪装 .tex——成员字节不是翻译面（decode_tex 永不抛会把
+                # 成员文本当散文送译、写回腐蚀 blob）；不入任何名单，逐字节
+                # 原样保留。tar 闸单源在 parse_file 内，扫树不再预读重复检
+                continue
             out.fault.append((rel, exc))  # 记名可审计，该文件按原文保留
             continue
         if not file_has_prose(res.chunks):

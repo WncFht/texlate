@@ -38,9 +38,12 @@ from texlate.latex.tables import (
 )
 
 from ._common import (
+    _ACCENT_SLOTS,
+    _BSBS_SLOTS,
     _ENV_CS,
     _GRP_BSBS_CONTENT_RX,
     _GRP_SCAN_CAP,
+    _HYPERREF_SLOTS,
     _KEYARG_TAIL_DEPTH,
     _KEYARG_TAIL_RX,
     _MATH_DELIM_CS,
@@ -55,8 +58,10 @@ from ._common import (
     _VERB_LIKE,
     TokenSource,
     _accent_cs,
+    _call_slots,
     _chunk_spec_cached,
     _cite_ref_type,
+    _cond_slots,
     _env_ph_type,
     _fams,
     _gspec_elem,
@@ -64,17 +69,10 @@ from ._common import (
     _ListSource,
     _pend_call_slots,
     _pend_slot_of,
+    _prose_arg_hit,
     _pull_cursor,
     _slot_elem,
     _WSpec,
-)
-from .args import (
-    _COMMA_LIST_RX,
-    _COND_GROUP_ARGS,
-    _DEAD_ARG_NAMES,
-    _DEAD_TAIL_NAMES,
-    _KEYVAL_GROUP_RX,
-    _SWALLOW_ARG_NAMES,
 )
 
 r"""``Segmenter`` 跨边界待绑参与组 surface 收拢。"""
@@ -137,6 +135,22 @@ _PEND_SPEC_FAMS: tuple[tuple[str, object], ...] = _fams(
 )
 
 
+# ---- ``_pend_spec_of`` 槽列 ↔ ``_grp_scan``/``_grp_bsbs`` 走参元的同形单源 ----
+# 名→槽形改动只改一处（``_slot_elem`` 逐位归一投影进 ``_walk_spec_toks``）；
+# ``_HYPERREF_SLOTS``/``_BSBS_SLOTS``/``_ACCENT_SLOTS``/``_cond_slots``/
+# ``_call_slots`` 已收 ``_common``（``_PEND_CALL*``/``_PEND_PROBE`` 同族）。
+
+
+def _pull_boundary(x: Tok | None, fid: int, *, par: bool = True) -> bool:
+    r"""参扫界 token 判据：``None``(EOF)/``eol_par``/``gen>0``/异 fid。
+
+    ``_absorb_slots``/``_absorb_spec``/``_absorb_grp_tail`` 拉参扫的统一界
+    判（各 docstring 的「界 token」契约）；``par=False`` = ``eol_par`` 不作
+    界——``_absorb_grp_tail`` 组内续收里 par 是组内容物。
+    """
+    return x is None or (par and x.kind == "eol_par") or x.gen > 0 or x.pos[0] != fid
+
+
 class _PendRem(NamedTuple):
     r"""``_grp_spec_walk`` 组末余量——跨界待绑位描述（``_absorb_spec`` 消费）。
 
@@ -168,7 +182,21 @@ class _Pending:
         res = self._walk_spec_toks(toks, j, [_slot_elem(s) for s in slots])
         return list(slots[res.rem :]) if res.rem is not None else None
 
-    def _absorb_slots(  # noqa: C901, PLR0912, PLR0915 — 槽字母各一分支，平铺即流侧列扫对价
+    def _pull_group(self, src: TokenSource, x: Tok, *, brace: bool) -> list[Tok] | None:
+        r"""``_collect_group`` 拉取打包 → ``[x, *inner, closer]`` / ``None``。
+
+        ``_absorb_slots``/``_absorb_spec`` 的组参拉取半（``_pull_cursor``
+        是回放/前瞻半）：``x`` = 已读开界 token（``{``/``[``）；组未闭 →
+        ``None``（``_collect_group`` 已全量回吐——调用方 ``unpull`` 收
+        未提交尾即可）。
+        """
+        hit = self._collect_group(src, x, brace=brace)
+        if hit is None:
+            return None
+        inner, closer = hit
+        return [x, *inner, closer]
+
+    def _absorb_slots(  # noqa: C901, PLR0912, PLR0915 — 槽字母各一分支，平铺即流侧 _slots_walk_toks 对价
         self, src: TokenSource, fid: int, slots: list[str]
     ) -> list[Tok]:
         r"""槽形从 ``read()`` 流吸参 → 已消费 token 列（拉取序，可空）。
@@ -203,28 +231,26 @@ class _Pending:
                 break
             if s == "o":
                 if x.kind == "other" and x.text == "[":
-                    hit = self._collect_group(src, x, brace=False)
-                    if hit is None:
+                    grp = self._pull_group(src, x, brace=False)
+                    if grp is None:
                         unpull()
                         break
-                    inner, closer = hit
-                    pulled.extend((x, *inner, closer))
+                    pulled.extend(grp)
                     committed = len(pulled)
                 else:
                     unpull(x)
                 continue
             if s == "b":
                 if x.kind == "other" and x.text == "[":
-                    hit = self._collect_group(src, x, brace=False)
-                    if hit is None:
+                    grp = self._pull_group(src, x, brace=False)
+                    if grp is None:
                         unpull()
                         break
-                    inner, closer = hit
-                    if not _GRP_BSBS_CONTENT_RX.fullmatch(self._grp_surfs(inner)):
-                        src.unread([x, *inner, closer])
+                    if not _GRP_BSBS_CONTENT_RX.fullmatch(self._grp_surfs(grp[1:-1])):
+                        src.unread(grp)
                         unpull()
                         break
-                    pulled.extend((x, *inner, closer))
+                    pulled.extend(grp)
                     committed = len(pulled)
                 else:
                     unpull(x)
@@ -233,12 +259,11 @@ class _Pending:
                 if x.kind != "lbrace":
                     unpull(x)
                     break
-                hit = self._collect_group(src, x, brace=True)
-                if hit is None:
+                grp = self._pull_group(src, x, brace=True)
+                if grp is None:
                     unpull()
                     break
-                inner, closer = hit
-                pulled.extend((x, *inner, closer))
+                pulled.extend(grp)
                 committed = len(pulled)
                 continue
             if s == "n":
@@ -250,34 +275,31 @@ class _Pending:
                 if x.kind != "lbrace" and not (x.kind == "other" and x.text == "["):
                     unpull(x)
                     break
-                hit = self._collect_group(src, x, brace=x.kind == "lbrace")
-                if hit is None:
+                grp = self._pull_group(src, x, brace=x.kind == "lbrace")
+                if grp is None:
                     unpull()
                     break
-                inner, closer = hit
-                pulled.extend((x, *inner, closer))
+                pulled.extend(grp)
                 committed = len(pulled)
                 continue
             if s == "e":
                 if x.kind != "lbrace" and not (x.kind == "other" and x.text == "["):
                     unpull(x)
                     break
-                hit = self._collect_group(src, x, brace=x.kind == "lbrace")
-                if hit is None:
+                grp = self._pull_group(src, x, brace=x.kind == "lbrace")
+                if grp is None:
                     unpull()
                     break
-                inner, closer = hit
-                pulled.extend((x, *inner, closer))
+                pulled.extend(grp)
                 committed = len(pulled)
                 continue
             if s == "a":
                 if x.kind == "lbrace":
-                    hit = self._collect_group(src, x, brace=True)
-                    if hit is None:
+                    grp = self._pull_group(src, x, brace=True)
+                    if grp is None:
                         unpull()
                         break
-                    inner, closer = hit
-                    pulled.extend((x, *inner, closer))
+                    pulled.extend(grp)
                     committed = len(pulled)
                 elif x.kind in ("letter", "other") or (
                     x.kind == "cs" and len(x.text) == 1
@@ -293,12 +315,7 @@ class _Pending:
                     seq = [x]
                     while True:
                         y = src.read()
-                        if (
-                            y is None
-                            or y.kind == "eol_par"
-                            or y.gen > 0
-                            or y.pos[0] != fid
-                        ):
+                        if _pull_boundary(y, fid):
                             src.unread([*seq, *([y] if y is not None else [])])
                             seq = []
                             break
@@ -335,7 +352,7 @@ class _Pending:
         seq: list[Tok] = []
         while True:
             y = src.read()
-            if y is None or y.gen > 0 or y.pos[0] != fid:
+            if _pull_boundary(y, fid, par=False):
                 if y is not None:
                     src.unread([y])
                 src.unread(seq)
@@ -380,12 +397,11 @@ class _Pending:
             if z is None:
                 unpull()
             elif z.kind == "lbrace":
-                hit = self._collect_group(src, z, brace=True)
-                if hit is None:
+                grp = self._pull_group(src, z, brace=True)
+                if grp is None:
                     unpull()
                 else:
-                    inner, closer = hit
-                    pulled.extend((z, *inner, closer))
+                    pulled.extend(grp)
                     committed = len(pulled)
             elif z.kind != "cs":
                 pulled.append(z)
@@ -410,12 +426,11 @@ class _Pending:
                     break
                 if kind == "m":
                     if x.kind == "lbrace" or (x.kind == "other" and x.text == "["):
-                        hit = self._collect_group(src, x, brace=x.kind == "lbrace")
-                        if hit is None:
+                        grp = self._pull_group(src, x, brace=x.kind == "lbrace")
+                        if grp is None:
                             unpull()
                             break
-                        inner, closer = hit
-                        pulled.extend((x, *inner, closer))
+                        pulled.extend(grp)
                         committed = len(pulled)
                     elif x.kind == "cs":
                         unpull(x)
@@ -425,12 +440,11 @@ class _Pending:
                         committed = len(pulled)
                     continue
                 if x.kind == "other" and x.text == "[":
-                    hit = self._collect_group(src, x, brace=False)
-                    if hit is None:
+                    grp = self._pull_group(src, x, brace=False)
+                    if grp is None:
                         unpull()
                         break
-                    inner, closer = hit
-                    pulled.extend((x, *inner, closer))
+                    pulled.extend(grp)
                     committed = len(pulled)
                 else:
                     unpull(x)
@@ -479,13 +493,12 @@ class _Pending:
                         unpull()
                         break
                     if x.kind == "lbrace":
-                        hit = self._collect_group(src, x, brace=True)
-                        if hit is None:
+                        grp = self._pull_group(src, x, brace=True)
+                        if grp is None:
                             unpull()
                             break
-                        inner, closer = hit
-                        seq.extend((x, *inner, closer))
-                        pulled.extend((x, *inner, closer))
+                        seq.extend(grp)
+                        pulled.extend(grp)
                     else:
                         seq.append(x)
                         pulled.append(x)
@@ -498,18 +511,17 @@ class _Pending:
                         matched = True
                         continue
                     y = src.read()
-                    if y is None or y.kind == "eol_par" or y.gen > 0 or y.pos[0] != fid:
+                    if _pull_boundary(y, fid):
                         if y is not None:
                             src.unread([y])
                         runaway = True
                     elif y.kind == "lbrace":
-                        hit = self._collect_group(src, y, brace=True)
-                        if hit is None:
+                        grp = self._pull_group(src, y, brace=True)
+                        if grp is None:
                             runaway = True
                         else:
-                            inner, closer = hit
-                            seq.extend((y, *inner, closer))
-                            pulled.extend((y, *inner, closer))
+                            seq.extend(grp)
+                            pulled.extend(grp)
                     else:
                         seq.append(y)
                         pulled.append(y)
@@ -531,7 +543,7 @@ class _Pending:
                 found = False
                 while True:
                     y = src.read()
-                    if y is None or y.kind == "eol_par" or y.gen > 0 or y.pos[0] != fid:
+                    if _pull_boundary(y, fid):
                         if y is not None:
                             src.unread([y])
                         break
@@ -622,26 +634,20 @@ class _Pending:
         if name in _MATH_DELIM_CS:
             return None, ""
         if _cite_ref_type(name) is not None:
-            return [
-                "s",
-                "o",
-                "o",
-                "o",
-                *(["m"] * self._cite_ref_mand(name)),
-            ], name
+            return _call_slots(["m"] * self._cite_ref_mand(name)), name
         if name in PROTECT_NAMES:
             return _pend_call_slots(name), name
         if name == "href":
             return ["m"], ""  # {url} 参；{text} 可译留主流
         if name == "hyperref":
-            return ["s", "e"], ""
+            return list(_HYPERREF_SLOTS), ""
         if COND_RX.match(name):
             # ``\iftoggle`` 族名/表达式槽是强制 ``{..}`` 参——组尾未绑时
             # 跨界吸回（主流 ``_handle_cond`` 的 ``_COND_GROUP_ARGS`` 白名单
             # 对价）；表外 ``\ifx``/``\else``/``\fi``/``\newif`` 旗标无花括号
             # 名参，``{..}`` 是分支散文非名槽——维持无槽形。
-            nslots = _COND_GROUP_ARGS.get(name, 0)
-            return (["m"] * nslots if nslots else None), ""
+            slots = _cond_slots(name)
+            return (slots or None), ""
         if name in INPUT_SCAN_CMDS:
             return (list(_PEND_CALL2) if name in _IMPORT2 else list(_PEND_CALL1)), ""
         m = self._resolve_macro(src, name)
@@ -668,13 +674,13 @@ class _Pending:
             mslots = [
                 "n" if a.kind == "n" else "m" for a in spec if a.kind in ("m", "v", "n")
             ]
-            return ["s", "o", "o", "o", *mslots], ""
+            return _call_slots(mslots), ""
         if name == "\\":
-            return ["s", "b"], ""
+            return list(_BSBS_SLOTS), ""
         if name in TRANSPARENT_HEAD_SPEC:
             return ["o", "m"], ""  # {red} 头参非文本；{text} 留主流
         if _accent_cs(name):
-            return ["a"], ""
+            return list(_ACCENT_SLOTS), ""
         if _inline_lit_cs(name):
             # 行内字面无参——零槽形防误吸（``\5``/``\_``/字体开关名下
             # argspec 假条目不得领槽把界外散文拉进组）
@@ -713,7 +719,7 @@ class _Pending:
                 for s2 in spec2
                 if s2.kind in ("m", "v", "n")
             ]
-            return ["s", "o", "o", "o", *mslots], ""
+            return _call_slots(mslots), ""
         ka = self._keyarg_tail(m, src)
         if ka is not None:
             return _pend_call_slots(ka), ka
@@ -946,24 +952,17 @@ class _Pending:
         走参本体 = ``_grp_spec_walk``（跨界余量归 ``_grp_pending`` 臂，组内
         surface 只见完结调用——``_grp_scan`` 在收组后对完整 toks 重走）。
         散文参界 = 实消费 ``{``/``[``-open 组参过判据的 ``(开位, 闭后位)``
-        列——``_opaque_arg_prose`` 判据的 token 级对价：``_SWALLOW/_DEAD``
-        名闸 + ``_DEAD_TAIL`` 首参限 + keyval/逗号名单形状门 +
-        ``_grp_arg_prose`` 词链判据；``e``/``u``/单 token 参无散文槽位
-        （主流 ``a.fs``/``a.cs`` 门同界）。
+        列——``_prose_arg_hit`` 单源管线（``_opaque_arg_prose`` 的组内
+        对价）：``_SWALLOW/_DEAD`` 名闸 + ``_DEAD_TAIL`` 首参限 +
+        keyval/逗号名单/裸键列形状门 + 词链判据；``e``/``u``/单 token 参
+        无散文槽位（主流 ``a.fs``/``a.cs`` 门同界）。
         """
         end, cand, _rem = self._grp_spec_walk(toks, i, m)
-        if name in _SWALLOW_ARG_NAMES or name in _DEAD_ARG_NAMES:
-            return end, []
-        tail_dead = name in _DEAD_TAIL_NAMES
-        spans = [
+        return end, [
             (a0, a1)
             for nth2, a0, a1 in cand
-            if (not tail_dead or nth2 == 0)
-            and _KEYVAL_GROUP_RX.match(self._grp_surfs(toks[a0 + 1 : a1 - 1])) is None
-            and not _COMMA_LIST_RX.fullmatch(self._grp_surfs(toks[a0 + 1 : a1 - 1]))
-            and self._grp_arg_prose(toks[a0 + 1 : a1 - 1])
+            if _prose_arg_hit(name, nth2, self._grp_surfs(toks[a0 + 1 : a1 - 1]))
         ]
-        return end, spans
 
     def _group_surface(self) -> list[str] | None:
         r"""组成员 token → surface 段：结构命令再生保护段产 ph。
@@ -986,6 +985,43 @@ class _Pending:
         ``\\begin{eqnarray}\\relax`` 形）。
         """
         return self._grp_scan(self._open_toks)
+
+    def _grp_emit_carved(  # noqa: PLR0913, PLR0917 — carve 发射面（输出/区间/切列/深度/警标）七件原位
+        self,
+        out: list[str],
+        toks: list[Tok],
+        i: int,
+        j2: int,
+        spans: list[tuple[int, int]],
+        depth: int,
+        warn_tag: str,
+    ) -> int:
+        r"""散文参界列 carve 发射 → 新 ``i``（= ``j2``）。
+
+        ``_grp_scan`` opaque/探针两臂的共享末段（``_walk_spec_toks`` 同款
+        单源化）：``spans`` 非空而 ``depth`` 触底 ``MAX_GEN`` →
+        ``gen_overflow`` 告警 + 参维持 opaque；否则逐散文参 ``_grp_scan``
+        递归子扫（``None`` = 参内保护族 env 无配对——该参维持 opaque），
+        参间结构段与调用尾段罩 ``[[CMD]]``。
+        """
+        if spans and depth >= MAX_GEN:
+            self.state.warnings.append(
+                ScanWarning("gen_overflow", len(self.vt), warn_tag)
+            )
+            spans = []
+        cur = i
+        for a0, a1 in spans:
+            sub = self._grp_scan(toks[a0 + 1 : a1 - 1], depth + 1)
+            if sub is None:
+                continue  # 参内保护族 env 无配对——该参维持 opaque
+            self._cat_surf(
+                out,
+                self._grp_ph(PhType.CMD, self._grp_surfs(toks[cur : a0 + 1])),
+            )
+            self._cat_surf(out, "\n\n".join(sub))
+            cur = a1 - 1  # ``}``/``]`` 随下段结构进 CMD（主流同位）
+        self._cat_surf(out, self._grp_ph(PhType.CMD, self._grp_surfs(toks[cur:j2])))
+        return j2
 
     def _grp_scan(  # noqa: C901, PLR0912, PLR0915 — 组内保护段分派平铺（§3 再生保护段）
         self, toks: list[Tok], depth: int = 0
@@ -1139,7 +1175,7 @@ class _Pending:
                 # [label]）随命令进 [[CMD]]，{text} 余参留 surface 续扫——
                 # 走参 = ``["s","e"]`` 槽列（``_pend_spec_of`` hyperref 行同形）
                 j = self._walk_spec_toks(
-                    toks, i + 1, [_slot_elem("s"), _slot_elem("e")]
+                    toks, i + 1, [_slot_elem(s) for s in _HYPERREF_SLOTS]
                 ).end
                 self._cat_surf(
                     out, self._grp_ph(PhType.CMD, self._grp_surfs(toks[i:j]))
@@ -1153,7 +1189,7 @@ class _Pending:
                 # 内，留 surface 续扫照译。表外名无槽形（``{`` 是分支散文）。
                 # 走参 = ``["m"]×nslots`` 槽列（``_pend_spec_of`` COND 行同形）
                 j = self._walk_spec_toks(
-                    toks, i + 1, [_slot_elem("m")] * _COND_GROUP_ARGS.get(name, 0)
+                    toks, i + 1, [_slot_elem(s) for s in _cond_slots(name)]
                 ).end
                 self._cat_surf(
                     out, self._grp_ph(PhType.COND, self._grp_surfs(toks[i:j]))
@@ -1346,7 +1382,9 @@ class _Pending:
                 # 单 token 参随 cs 进 [[CMD]]——参字母裸落 surface 会被
                 # 翻译（0806.3144 同族，花括号形前由探针兜底、裸参形是洞）。
                 # 走参 = ``["a"]`` 槽列（``_pend_spec_of`` accent 行同形）
-                j = self._walk_spec_toks(toks, i + 1, [_slot_elem("a")]).end
+                j = self._walk_spec_toks(
+                    toks, i + 1, [_slot_elem(s) for s in _ACCENT_SLOTS]
+                ).end
                 if j > i + 1:
                     self._cat_surf(
                         out,
@@ -1380,26 +1418,9 @@ class _Pending:
                 # （主流散文挖掘同型）；体尾 key-arg 调用点 ``{key}`` 同罩。
                 # 宏行在 pair-block 行之前与主流行序同位。
                 j2, spans = self._grp_opaque_args(toks, i, name, m2)
-                if spans and depth >= MAX_GEN:
-                    self.state.warnings.append(
-                        ScanWarning("gen_overflow", len(self.vt), f"grp-opaque:{name}")
-                    )
-                    spans = []
-                cur = i
-                for a0, a1 in spans:
-                    sub = self._grp_scan(toks[a0 + 1 : a1 - 1], depth + 1)
-                    if sub is None:
-                        continue  # 参内保护族 env 无配对——该参维持 opaque
-                    self._cat_surf(
-                        out,
-                        self._grp_ph(PhType.CMD, self._grp_surfs(toks[cur : a0 + 1])),
-                    )
-                    self._cat_surf(out, "\n\n".join(sub))
-                    cur = a1 - 1  # ``}``/``]`` 随下段结构进 CMD（主流同位）
-                self._cat_surf(
-                    out, self._grp_ph(PhType.CMD, self._grp_surfs(toks[cur:j2]))
+                i = self._grp_emit_carved(
+                    out, toks, i, j2, spans, depth, f"grp-opaque:{name}"
                 )
-                i = j2
                 continue
             if name in PAIR_BLOCK_ALL:
                 # cs 对界块（主流 row18b 对价）：组内有配对闭 cs → 整段
@@ -1466,29 +1487,12 @@ class _Pending:
             # surface（``_handle_unknown_cs`` 散文挖掘的组内同型——宏名/
             # 非散文参/散文参两侧花括号所在结构段仍 CMD 原文，嵌套 cs 经
             # 子扫分派照常保护）。
-            j2 = self._grp_probe_end(toks, i)
-            if j2 is not None:
-                spans = self._grp_probe_prose_args(toks, i, j2, name)
-                if spans and depth >= MAX_GEN:
-                    self.state.warnings.append(
-                        ScanWarning("gen_overflow", len(self.vt), f"grp-probe:{name}")
-                    )
-                    spans = []
-                cur = i
-                for a0, a1 in spans:
-                    sub = self._grp_scan(toks[a0 + 1 : a1 - 1], depth + 1)
-                    if sub is None:
-                        continue  # 参内保护族 env 无配对——该参维持 opaque
-                    self._cat_surf(
-                        out,
-                        self._grp_ph(PhType.CMD, self._grp_surfs(toks[cur : a0 + 1])),
-                    )
-                    self._cat_surf(out, "\n\n".join(sub))
-                    cur = a1 - 1  # ``}`` 随下段结构进 CMD（字节臂 a.ce 起盖同位）
-                self._cat_surf(
-                    out, self._grp_ph(PhType.CMD, self._grp_surfs(toks[cur:j2]))
+            res = self._grp_probe_end(toks, i)
+            if res is not None:
+                spans = self._grp_probe_prose_args(toks, res, name)
+                i = self._grp_emit_carved(
+                    out, toks, i, res.end, spans, depth, f"grp-probe:{name}"
                 )
-                i = j2
                 continue
             self._cat_surf(out, self._tok_surface(t))
             i += 1

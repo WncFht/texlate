@@ -25,17 +25,19 @@ from texlate.latex.tables import (
     CHUNK_MIN,
 )
 
+from texlate.textutil import (
+    needs_seam_space,
+)
 from ._common import (
     _CLEAN_CMD_RX,
     _CLEAN_NONALPHA_RX,
     _COMMENT_GAP_RX,
     _LEAD_WS_RX,
-    _LETTER_TAIL_RX,
     _TRAIL_WS_RX,
+    TokenSource,
     _EnvDeadTok,
     _pick_cut,
     _RunItem,
-    _starts_letter,
     _Vtex,
 )
 
@@ -184,8 +186,7 @@ class _Core:
         if (
             cut is not None
             and cut[1] < len(self.file_texts[cut[0]])
-            and self.file_texts[cut[0]][cut[1]].isalpha()
-            and _LETTER_TAIL_RX.search(body)
+            and needs_seam_space(body, self.file_texts[cut[0]][cut[1]])
         ):
             self.state.warnings.append(
                 ScanWarning("letters_cut", len(self.vt), body[-40:])
@@ -217,9 +218,9 @@ class _Core:
         """
         if self._run:
             prev = self._run[-1]
-            if _starts_letter(surface) and _LETTER_TAIL_RX.search(prev.surface):
+            if needs_seam_space(prev.surface, surface):
                 surface = " " + surface
-            if _starts_letter(ident) and _LETTER_TAIL_RX.search(prev.ident):
+            if needs_seam_space(prev.ident, ident):
                 ident = " " + ident
         if self._run_start is None:
             self._run_start = vspan.start
@@ -270,6 +271,47 @@ class _Core:
             ident,
             vspan,
         )
+
+    def _protect_span(
+        self,
+        typ: PhType,
+        fid: int,
+        tok_start: int,
+        end: int,
+        *,
+        src: TokenSource | None = None,
+    ) -> Span:
+        r"""「盖间隙 → 盖到 ``end`` → ph 进 run」三连合写（~30 手抄点的共用缝）。
+
+        ``_cover_gap`` 对连续区间自 no-op——无间隙调用点（prose 循环内
+        ``_cover_to`` 直起者）同形直调；ph 体经 ``_cover_text`` 顺路带回，
+        省 ``vt.slice`` 反查。``src`` 非空时尾接 ``skip_past`` resync——
+        ``\\verb``/verbatim 定界体等 raw 消费段剔除 token 残骸，其 ``end``
+        恒与覆盖尾同位。返回 ``vspan``——``\\end``/unpaired-dollar 等调用点
+        复用 ``vspan.start`` 作 ``_env_pop``/告警/``_emit`` 锚位。
+        """
+        self._cover_gap(fid, tok_start)
+        vspan, body = self._cover_text(fid, end)
+        self._rappend_ph(self._ph(typ, body), vspan)
+        if src is not None:
+            src.skip_past(fid, end)
+        return vspan
+
+    def _cover_ph(
+        self, fid: int, end: int, typ: PhType, gap: Tok | None = None
+    ) -> Span:
+        r"""「盖间隙 → 盖到 ``end`` → ph 进 run」三连合写（run 侧 ph 发射缝）。
+
+        ``gap`` 非空 = 调用点前 ``_cover_gap`` 先剖间隙字面项（``_protect_span``
+        同型直委）；prose 循环等 ``_cover_to`` 直起位无前隙可剖，传 ``None``
+        跳过剖分——ph 体经 ``_cover_text`` 顺路带回，省 ``vt.slice`` 反查。
+        返回 ``vspan``——``_skip_past``/``_emit`` 等锚位复用。
+        """
+        if gap is not None:
+            return self._protect_span(typ, fid, gap.pos[1], end)
+        vspan, body = self._cover_text(fid, end)
+        self._rappend_ph(self._ph(typ, body), vspan)
+        return vspan
 
     # ------------------------------------------------------------ piece 发射
 

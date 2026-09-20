@@ -16,7 +16,6 @@ from texlate.latex.model import (
 )
 from texlate.latex.tables import (
     ARG_TRANSPARENT_ENVS,
-    ENV_MANDATORY_ARG,
     INPUT_CMDS,
     MAX_GEN,
     PAIR_BLOCK_CMDS,
@@ -30,11 +29,14 @@ from texlate.textutil import (
 )
 
 from ._common import (
+    _VERB_LIKE,
     TokenSource,
     _chunk_spec_cached,
+    _env_mand_count,
     _env_ph_type,
     _EnvDeadTok,
     _ListSource,
+    _scan_envtag,
 )
 
 if TYPE_CHECKING:
@@ -63,34 +65,21 @@ class _Env:
         ``unread(consumed)``（v1 返回 ``i`` 原位重扫的等价物）。
 
         不变式：``env is None`` ⟺ ``close_t is None``——调用方只判
-        ``env`` 即可。组内对价：``_grp_envtag``（展开组 surface 侧）。
+        ``env`` 即可。扫描本体 = ``_common._scan_envtag``（组内对价
+        ``_grp_envtag`` 同一单源）。
         """
         consumed: list[Tok] = []
-        open_t = src.read()
-        while open_t is not None and open_t.kind in ("space", "eol_par"):
-            consumed.append(open_t)
-            open_t = src.read()
-        if open_t is not None:
-            consumed.append(open_t)
-        if open_t is None or open_t.kind != "lbrace":
-            return None, None, consumed
-        name_toks: list[Tok] = []
-        depth = 1
-        while True:
+
+        def pull() -> Tok | None:
             x = src.read()
-            if x is None:
-                return None, None, consumed
-            consumed.append(x)
-            if x.kind == "eol_par":
-                return None, None, consumed
-            if x.kind == "lbrace":
-                depth += 1
-            elif x.kind == "rbrace":
-                depth -= 1
-                if depth == 0:
-                    name = "".join(t2.text for t2 in name_toks).strip()
-                    return name, x, consumed
-            name_toks.append(x)
+            if x is not None:
+                consumed.append(x)
+            return x
+
+        hit = _scan_envtag(pull, self._tok_surface)
+        if hit is None:
+            return None, None, consumed
+        return hit[0], hit[1], consumed
 
     def _handle_env_begin(  # noqa: C901, PLR0911, PLR0912, PLR0915 — §3.5 环境四分类各一段，平铺即规则表
         self, t: Tok, src: TokenSource, m: MacroDef | None = None
@@ -131,14 +120,7 @@ class _Env:
                 # 渲染直切 vt 字节 = 字面）
                 hit = self._find_env_end(src, env, t.pos)
                 if hit is None:
-                    # 未闭合也先吃环境尾参——{cc} preamble/版式 [opt]
-                    # 不裸进 chunk（R2，全臂同规）
-                    end = self._eat_env_args(src, fid, close_t.pos[2], env, reg, ae)
-                    vspan = self._cover_to(fid, end)
-                    self._emit(v_begin.start, vspan.end)
-                    self.state.warnings.append(
-                        ScanWarning("unclosed_env", v_begin.start, env)
-                    )
+                    self._unclosed_env(src, fid, close_t, env, reg, ae, v_begin)
                     return
                 _tag, last, _body = hit
                 vspan = self._cover_to(last.pos[0], last.pos[2])
@@ -163,12 +145,7 @@ class _Env:
             else:
                 k = self.file_texts[fid].find(pat, close_t.pos[2])
             if k < 0:
-                end = self._eat_env_args(src, fid, close_t.pos[2], env, reg, ae)
-                vspan = self._cover_to(fid, end)
-                self._emit(v_begin.start, vspan.end)
-                self.state.warnings.append(
-                    ScanWarning("unclosed_env", v_begin.start, env)
-                )
+                self._unclosed_env(src, fid, close_t, env, reg, ae, v_begin)
                 return
             end = k + len(pat)
             vspan = self._cover_to(fid, end)
@@ -184,12 +161,7 @@ class _Env:
             hit = self._find_env_end(src, env, t.pos)
             if hit is None:
                 self._flush_run(v_begin.start)
-                end = self._eat_env_args(src, fid, close_t.pos[2], env, reg, ae)
-                vspan = self._cover_to(fid, end)
-                self._emit(v_begin.start, vspan.end)
-                self.state.warnings.append(
-                    ScanWarning("unclosed_env", v_begin.start, env)
-                )
+                self._unclosed_env(src, fid, close_t, env, reg, ae, v_begin)
                 return
             _tag, last, _body = hit
             vspan = self._cover_to(last.pos[0], last.pos[2])
@@ -203,12 +175,7 @@ class _Env:
             hit = self._find_env_end(src, env, t.pos)
             if hit is None:
                 self._flush_run(v_begin.start)
-                end = self._eat_env_args(src, fid, close_t.pos[2], env, reg, ae)
-                vspan = self._cover_to(fid, end)
-                self._emit(v_begin.start, vspan.end)
-                self.state.warnings.append(
-                    ScanWarning("unclosed_env", v_begin.start, env)
-                )
+                self._unclosed_env(src, fid, close_t, env, reg, ae, v_begin)
                 return
             tag, last, body_toks = hit
             self._flush_run(v_begin.start)
@@ -238,15 +205,7 @@ class _Env:
             hit = self._find_env_end(src, env, t.pos)
             if hit is None:
                 # 未闭合也吃环境尾参——ENVTAG 界延到 preamble 后（R2 同规）
-                end = self._eat_env_args(src, fid, close_t.pos[2], env, reg, ae)
-                vspan = self._cover_to(fid, end)
-                self._rappend_ph(
-                    self._ph(PhType.ENVTAG, self.vt.slice(v_begin.start, vspan.end)),
-                    Span(v_begin.start, vspan.end),
-                )
-                self.state.warnings.append(
-                    ScanWarning("unclosed_env", v_begin.start, env)
-                )
+                self._unclosed_env(src, fid, close_t, env, reg, ae, v_begin, emit=False)
                 return
             tag, last, body_toks = hit
             body, vend = self._env_with_mined(
@@ -260,6 +219,35 @@ class _Env:
         self._emit(v_begin.start, vrow.end)  # \begin 行（含吃掉的环境参）literal
         self.env_stack.append(env)
         src.scope_push()
+
+    def _unclosed_env(  # noqa: PLR0913, PLR0917 — 尾参四件+区间+发射开关随调用臂平铺
+        self,
+        src: TokenSource,
+        fid: int,
+        close_t: Tok,
+        env: str,
+        reg: object | None,
+        ae: ArgspecEntry | None,
+        v_begin: Span,
+        *,
+        emit: bool = True,
+    ) -> None:
+        r"""未闭合 env 尾：吃环境尾参 → 盖 begin 行 → ``unclosed_env`` 告警。
+
+        ``{cc}`` preamble/版式 ``[opt]`` 尾参不裸进 chunk（R2，全臂同规）。
+        ``emit=False`` = in_arg 面——``_emit`` 换 ENVTAG run 项（界延到
+        preamble 后）。``_flush_run`` 由调用方按臂先行。
+        """
+        end = self._eat_env_args(src, fid, close_t.pos[2], env, reg, ae)
+        vspan = self._cover_to(fid, end)
+        if emit:
+            self._emit(v_begin.start, vspan.end)
+        else:
+            self._rappend_ph(
+                self._ph(PhType.ENVTAG, self.vt.slice(v_begin.start, vspan.end)),
+                Span(v_begin.start, vspan.end),
+            )
+        self.state.warnings.append(ScanWarning("unclosed_env", v_begin.start, env))
 
     def _handle_env_end(
         self, t: Tok, src: TokenSource, m: MacroDef | None = None
@@ -341,12 +329,7 @@ class _Env:
         close = PAIR_BLOCK_CMDS.get(name)
         if close is None:
             # 孤 \end<block> 闭合 cs——CMD 保护（不吞参）
-            self._cover_gap(fid, t.pos[1])
-            vspan = self._cover_to(fid, t.pos[2])
-            self._rappend_ph(
-                self._ph(PhType.CMD, self.vt.slice(vspan.start, vspan.end)),
-                vspan,
-            )
+            self._cover_ph(fid, t.pos[2], PhType.CMD, gap=t)
             return
         # 先扫后盖——``_find_pair_end`` 未命中时 cs 字节须未盖，否则落
         # unknown-cs 的 CMD 体缺名（覆盖账单调，已盖区间不回卷）
@@ -367,7 +350,7 @@ class _Env:
         self._flush_run(v_begin.start)
         self._emit_ph(PhType.ENV, v_begin.start, vend, body)
 
-    def _find_pair_end(  # noqa: C901 — ``_find_env_end`` 配对 cs 版同款单遍扫描
+    def _find_pair_end(  # ``_find_env_end`` 配对 cs 版同款单遍扫描
         self, src: TokenSource, open_: str, close: str
     ) -> tuple[Tok, Tok, list[Tok]] | None:
         r"""``cs`` 对界块收尾扫描（``_find_env_end`` 的配对 cs 版）。
@@ -389,8 +372,7 @@ class _Env:
                 continue
             if x.text == close:
                 return x, x, collected[:-1]
-            if x.text in ("verb", "verb*", "lstinline"):
-                self._skip_verb_toks(src, collected)
+            if self._scan_skip(src, x, collected):
                 continue
             if x.text == "end":
                 n2, c2, grp = self._env_name(src)
@@ -401,18 +383,8 @@ class _Env:
                 if n2 == open_:
                     return x, c2, collected[: -(1 + len(grp))]
                 continue
-            if x.text in INPUT_CMDS:
-                # 前瞻不触发展开——\input 族交回源内联（_find_env_end
-                # 同臂；否则子文件 token 随 _ListSource 重放漏网成
-                # literal）。_ListSource input_expand 恒 (False,None)
-                # 落回后续分派。
-                handled, hit = src.input_expand(x)
-                if handled:
-                    if hit is not None and hit is not x:
-                        collected[-1] = hit
-                    continue
 
-    def _eat_env_args(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915, PLR0917 — opt/mand/colspec 三段判定平铺即 v1 行序
+    def _eat_env_args(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0917 — opt/mand/colspec 三段判定平铺即 v1 行序
         self,
         src: TokenSource,
         fid: int,
@@ -451,12 +423,7 @@ class _Env:
         else:
             src.unread([x])
             pos = x.pos[1]
-        mand = 1 if env in ENV_MANDATORY_ARG else 0
-        if reg is not None:
-            mand = max(
-                mand,
-                sum(1 for a in getattr(reg, "spec", ()) if a.kind == "m"),
-            )
+        mand = _env_mand_count(env, reg)
         for _ in range(mand):
             p2: list[Tok] = []
             x = self._peek_nonspace(src, p2)
@@ -627,6 +594,20 @@ class _Env:
         src.unread(pulled)
         return None
 
+    def _dead_env_close(
+        self, x: Tok, env: str, close_pos: tuple[int, int, int]
+    ) -> bool:
+        r"""Dead 族闭合判据：``\end`` cs 与 ``{env}`` rbrace 同 fid + 行锚字面。
+
+        comment 族终结是纯字面行锚——行中 ``\end{env}`` 是体字面不闭合
+        （``_env_stop`` dead 臂同式）。``_find_env_end``/
+        ``_skip_verbatim_env_toks`` 与组内 ``_grp_find_env_end`` 三处同判；
+        名等（``n == env``）与 ``\end`` 名判留给调用方。
+        """
+        return x.pos[0] == close_pos[0] and dead_end_anchored(
+            self.file_texts[x.pos[0]], env, x.pos[1], close_pos[2]
+        )
+
     def _find_env_end(  # noqa: C901, PLR0911, PLR0912, PLR0915 — begin/end/csname-end/verb/宏端点五分支单遍查找
         self, src: TokenSource, env: str, qpos: tuple[int, int, int]
     ) -> tuple[Tok, Tok, list[Tok]] | None:
@@ -688,20 +669,8 @@ class _Env:
             if x.kind != "cs":
                 continue
             seq = len(collected) - 1  # 事件位 = tag 首 token 的拉取序号
-            if x.text in ("verb", "verb*", "lstinline"):
-                self._skip_verb_toks(src, collected)
+            if self._scan_skip(src, x, collected):
                 continue
-            if x.text in INPUT_CMDS:
-                # 前瞻 read() 不触发展开——\input 族收进 body_toks 会随
-                # _ListSource 子扫漏网成 literal（v1 flatten 先内联）。
-                # 交回源正常展开（input_expand 契约）：marker 顶替已入列
-                # 的 cs（pos 覆盖整调用）、新源 token 由后续 read() 照常
-                # 进 collected；_ListSource 恒 (False,None) 落原分派。
-                handled, hit = src.input_expand(x)
-                if handled:
-                    if hit is not None and hit is not x:
-                        collected[-1] = hit
-                    continue
             if x.text in ("begin", "end"):
                 n, c, grp = self._env_name(src)
                 if n is None:
@@ -717,10 +686,7 @@ class _Env:
                     if (
                         x.text == "end"
                         and n == env
-                        and x.pos[0] == c.pos[0]
-                        and dead_end_anchored(
-                            self.file_texts[x.pos[0]], env, x.pos[1], c.pos[2]
-                        )
+                        and self._dead_env_close(x, env, c.pos)
                     ):
                         return x, c, collected[: -(1 + len(grp))]
                     continue
@@ -829,6 +795,27 @@ class _Env:
             if x.kind == "eol_par" or x.text == delim:
                 return
 
+    def _scan_skip(self, src: TokenSource, x: Tok, collected: list[Tok]) -> bool:
+        r"""前瞻扫描跳过件：``\verb`` 定界体跳读 + ``\input`` 族交回展开。
+
+        ``True`` = 本 token 已处置（调用方 ``continue``）。前瞻 ``read()``
+        不触发展开——``\input`` 族收进 body_toks 会随 ``_ListSource`` 子扫
+        漏网成 literal（v1 flatten 先内联），交回源正常展开
+        （``input_expand`` 契约）：marker 顶替已入列的 cs（pos 覆盖整调
+        用）、新源 token 由后续 ``read()`` 照常进 collected；
+        ``_ListSource`` 恒 ``(False, None)`` 落回原分派。
+        """
+        if x.text in _VERB_LIKE:
+            self._skip_verb_toks(src, collected)
+            return True
+        if x.text in INPUT_CMDS:
+            handled, hit = src.input_expand(x)
+            if handled:
+                if hit is not None and hit is not x:
+                    collected[-1] = hit
+                return True
+        return False
+
     def _skip_verbatim_env_toks(
         self, src: TokenSource, env: str, collected: list[Tok]
     ) -> None:
@@ -853,14 +840,7 @@ class _Env:
                 continue
             collected.extend(grp)
             if dead:
-                if (
-                    x.text == "end"
-                    and n == env
-                    and x.pos[0] == c.pos[0]
-                    and dead_end_anchored(
-                        self.file_texts[x.pos[0]], env, x.pos[1], c.pos[2]
-                    )
-                ):
+                if x.text == "end" and n == env and self._dead_env_close(x, env, c.pos):
                     return
                 continue
             if n != env:

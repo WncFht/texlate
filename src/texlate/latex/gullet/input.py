@@ -2,8 +2,6 @@ r"""``latex/gullet`` 子模块——god-class 机械拆分（行为零变）：\
 
 from __future__ import annotations
 
-import errno
-import re
 from pathlib import (
     Path,
 )
@@ -12,6 +10,9 @@ from typing import (
 )
 
 from texlate.latex.flatten import (
+    extract_tag_region,
+    read_input_blob,
+    resolve_input,
     strip_doc_shell,
 )
 from texlate.latex.tables import (
@@ -20,7 +21,6 @@ from texlate.latex.tables import (
     strip_fname_quotes,
 )
 from texlate.textutil import (
-    _tar_disguised,
     decode_tex,
 )
 
@@ -37,14 +37,6 @@ if TYPE_CHECKING:
     )
 
 
-def _read_input_blob(path: str) -> bytes:
-    blob = Path(path).read_bytes()
-    if _tar_disguised(blob):
-        # 同 flatten._read_file：tar 伪装件按 OSError 走 missing_input 回吐
-        raise OSError(errno.EINVAL, "tar archive disguised as tex", path)
-    return blob
-
-
 class _Input:
     # ------------------------------------------------------------ \input 族
 
@@ -54,7 +46,8 @@ class _Input:
         分段器 env/verbatim 体配对用 ``read()`` 原始前瞻、不触发展开——
         ``\input`` 族 cs 交回此口正常内联（marker 顶顶替已入列的 cs，
         新源 token 由后续 ``read()`` 照常进收集）。``ArgMismatch``（流尽
-        残参）→ ``_trace`` 回吐 + ``hit=None``（cs 留 literal）。
+        残参/必需组缺席/解析失败）→ ``_trace`` 回吐 + ``hit=None``
+        （cs 留 literal）。
         """
         try:
             return True, self._do_input(trig, trig.text)
@@ -62,10 +55,12 @@ class _Input:
             self.unread(self._trace)  # ArgMismatch 回吐协议（§3.5）
             return True, None
 
-    def _do_input(self, trig: Tok, name: str) -> Tok | None:  # noqa: C901, PLR0911, PLR0912, PLR0915 — 八形态参数语法平铺即 §7 触发面
+    def _do_input(self, trig: Tok, name: str) -> Tok | None:  # noqa: C901, PLR0912, PLR0915 — 八形态参数语法平铺即 §7 触发面
         r"""``\input`` 族：解析文件名 → 压新 Mouth 进 ``inputs``（§10）。
 
-        失败（不存在/超深/已见）→ warning + 参数回吐 + ``\input`` 本体交出。
+        失败（参数缺席/不存在/超深/已见）→ ``ArgMismatch``——§3.5 协议由
+        ``input_expand``/``_exec_prim`` 统一回吐已读 + 交出 ``\input`` 本体；
+        warning 在 raise 前按序记。
         """
         trace = self._trace = []
         shell = False
@@ -80,74 +75,54 @@ class _Input:
                 else:
                     fname = self._read_bare_filename(trace)
             else:
-                grp = self._read_grouping(trace, "{", "}")
-                if grp is None:
-                    self.unread(trace)
-                    return trig
+                grp = self._req_grouping(trace, "{", "}")
                 fname = _surface(grp).strip()
         elif name in ("subfile", "includestandalone"):
-            grp = self._read_grouping(trace, "{", "}")
-            if grp is None:
-                self.unread(trace)
-                return trig
+            grp = self._req_grouping(trace, "{", "}")
             fname, shell = _surface(grp).strip(), True
         elif name in ("import", "subimport"):
-            g1 = self._read_grouping(trace, "{", "}")
-            g2 = self._read_grouping(trace, "{", "}") if g1 is not None else None
-            if g1 is None or g2 is None:
-                self.unread(trace)
-                return trig
+            g1 = self._req_grouping(trace, "{", "}")
+            g2 = self._req_grouping(trace, "{", "}")
             sub = _surface(g1).strip()
             fn = _surface(g2).strip()
             fname = str(Path(sub) / fn) if sub else fn
         elif name == "InputIfFileExists":
-            grp = self._read_grouping(trace, "{", "}")
-            if grp is None:
-                self.unread(trace)
-                return trig
+            grp = self._req_grouping(trace, "{", "}")
             fname = _surface(grp).strip()  # {then}{else} 留在流内
         elif name == "CatchFileBetweenTags":
             t = self._rt_skip(trace)
             if t is not None and t.kind != "cs":
                 self._pushback(trace, t)
-            g1 = self._read_grouping(trace, "{", "}")
-            g2 = self._read_grouping(trace, "{", "}") if g1 is not None else None
-            if g1 is None or g2 is None:
-                self.unread(trace)
-                return trig
+            g1 = self._req_grouping(trace, "{", "}")
+            g2 = self._req_grouping(trace, "{", "}")
             fname, tag = _surface(g1).strip(), _surface(g2).strip()
         if fname is not None:
             fname = strip_fname_quotes(fname)
         if not fname or "\\" in fname:
             # 含 cs 的文件名是计算式（\@journal\substyle@ext）——无法按
             # 字面解析，非输入尝试：回吐走普通 token 流，不计 missing_input
-            self.unread(trace)
-            return trig
+            raise ArgMismatch
         file_dir = self._file_dir_of(trig)
         hit = self._resolve_input(fname, file_dir, self.root_dir, top_dir=self.top_dir)
         if hit is None or str(Path(hit).resolve()) in self._seen:
             if hit is None:
                 self._warn("missing_input", trig, f"{name}:{fname}")
-            self.unread(trace)
-            return trig
+            raise ArgMismatch
         if len(self.inputs) > MAX_INPUTS:
             self._warn("missing_input", trig, f"depth>{MAX_INPUTS}:{fname}")
-            self.unread(trace)
-            return trig
+            raise ArgMismatch
         try:
-            sub = decode_tex(_read_input_blob(hit))
+            sub = decode_tex(read_input_blob(hit))
         except OSError:
             self._warn("missing_input", trig, f"{name}:{fname}")
-            self.unread(trace)
-            return trig
+            raise ArgMismatch from None
         if shell:
             sub = strip_doc_shell(sub)
         if tag is not None:
-            region = self._extract_tag_region(sub, tag)
+            region = extract_tag_region(sub, tag)
             if region is None:
                 self._warn("missing_input", trig, f"tag:{tag}@{fname}")
-                self.unread(trace)
-                return trig
+                raise ArgMismatch
             sub = region
         self.push_source(sub, hit)
         # marker 文本带解析后绝对路径——分段器据此登记 inputs[]
@@ -198,59 +173,9 @@ class _Input:
     def _resolve_input(
         fname: str, file_dir: str, root_dir: str, *, top_dir: str = ""
     ) -> str | None:
-        r"""查找序：including 目录 → 根目录 → paper topdir → basename 补 ``.tex`` → 裸名。
+        r"""``texlate.latex.flatten.resolve_input`` 的 static 契约面。
 
-        ``openin_any`` 等价闸（C1）：候选的 **real path** 必须落在已解析
-        根集（file_dir/root_dir/top_dir）内——绝对路径或 ``..`` 逃逸出界
-        的候选按 miss 处理，永不进 ``read_bytes``（不可信 e-print 经
-        ``\input`` 读本机文件 = 外泄面）。含根内 symlink 指出界同样拦。
-
-        扩展名序（F8）：``fname`` 无扩展名 → 先 ``.tex``/``.TEX`` 补全再
-        裸名（TeX 对无扩展名 ``\input`` 追加 ``.tex``——裸名垃圾文件不得
-        压过 ``foo.tex``）；带显式扩展名 → 原样查找不追加。
+        查找序/``openin_any`` 闸/扩展名序（F8）实现已并入 flatten——本方法
+        仅留签名面（fuzz oracle/tests 直调），``top_dir`` 空串等价缺席。
         """
-        roots: list[Path] = []
-        for d in (file_dir, root_dir, top_dir):
-            if not d:
-                continue
-            try:
-                r = Path(d).resolve()
-            except (OSError, RuntimeError):  # symlink 环等 → 该根出局
-                continue
-            if r not in roots:
-                roots.append(r)
-
-        def _hit(p: Path) -> str | None:
-            """``p`` 存在且 real path 落在任一根内 → 解析后绝对路径。"""
-            try:
-                rp = p.resolve()
-            except (OSError, RuntimeError):
-                return None
-            if rp.exists() and any(rp.is_relative_to(r) for r in roots):
-                return str(rp)
-            return None
-
-        # 阶段序：各根 × 候选名（含 .tex 补全）→ 各根 × basename 补 .tex。
-        # 历史第三段「各根 × 裸名」恒被首段候选覆盖，不再单开。
-        names = (
-            [fname] if Path(fname).suffix else [fname + ".tex", fname + ".TEX", fname]
-        )
-        stem = Path(fname).name
-        paths = [r / n for r in roots for n in names]
-        paths += [r / (stem + ext) for r in roots for ext in (".tex", ".TEX")]
-        for p in paths:
-            hit = _hit(p)
-            if hit is not None:
-                return hit
-        return None
-
-    @staticmethod
-    def _extract_tag_region(tex: str, tag: str) -> str | None:
-        r"""``\CatchFileBetweenTags`` 标签区：``%<*tag>`` … ``%</tag>``。"""
-        start_rx = re.compile(r"%\s*<\*?" + re.escape(tag) + r">")
-        end_rx = re.compile(r"%\s*</" + re.escape(tag) + r">")
-        s = start_rx.search(tex)
-        if not s:
-            return None
-        e = end_rx.search(tex, s.end())
-        return tex[s.end() : e.start() if e else len(tex)]
+        return resolve_input(fname, file_dir, root_dir, top_dir=top_dir)
