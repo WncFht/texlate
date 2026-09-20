@@ -1846,3 +1846,10 @@
 - **taxon2 scope+1**：exts 变 `[".tex",".pdf_tex",".tikzstyles"]`。
 - **zhleak2chk 派出**（read-only dry-run）：2609.20179 xltabular colspec + 2609.19828 pgfplots inline_table 两 zh-leak 格在 slotfix 落地机下 coverage 未定——_revert_file dry-run 分 COVERED/GAP，不编译不犯 mutex。roster 10。
 - **门**：HEAD=4c0ae0ac；共享 index 勿动；无 teammate git 越权。
+
+### patrol ~08:58 — 心跳：无收割；phantom-deletion  caveat 再实证；roster 10 全 running
+
+- 无新 report.md / run.log。overnite 1967/2822 ph=0。
+- **phantom-deletion 再实证**：`git diff HEAD --stat` 报 jabbrv-ltwa-*.ldf/jabbrv.sty/aaai23.sty/test_fixloop_unkopt.py 全删——`ls` 交叉验证全在盘（unkopt 测试 12945B 完整）。共享 index peer 暂存删的幻影照旧，ls 为准。真信号：JHEP.cls/JHEP3.cls 各 +35 = stubfid task#329 在飞。
+- impl 未落属正常窗：burnfix \RequirePackage 未现（20min）、taxon2 `_`/exts 未现（scope 扩后 ~20min）；taxcen reclass.json、bibwave candidates.json、failmine6 buckets.json 产出爬坡近交付态。
+- **门**：HEAD=62ca6687；worktree ruleset 183；共享 index 勿动；无 teammate git 越权。
