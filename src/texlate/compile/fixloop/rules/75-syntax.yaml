@@ -2070,6 +2070,40 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/lane-csdefmismatch/report.md; tests/test_fixloop_delim_tail.py 10 测; 5-cell splice replay 实证 (1404.0519 xelatex → 13p PDF)"
 
+  # ─── 2026-09-20 pairbun hytempa-hash-pair (1107.0312/1106.5915) ───
+  # imsart 系 \printead → \ims@href=\href{URL}: hyperref \hyper@@normalise
+  # 的 \edef\Hy@tempa 全展开 URL 参 —— fresh-aux 上 \saferef→\@setref 走
+  # "??" 臂 \nfss@text{\reset@font\bfseries ??} → 现代内核 \bfseries 展开
+  # \expand@font@defaults→\series@maybe@drop@one@m@x (体内嵌 \def\in@@ ##1)
+  # → "#1" 参 token 撞零参 \Hy@tempa 定义 → Illegal parameter number ×N。
+  # 同根: \@ifundefined{r@...} 全 YES → \ead@text/\ead@type/\ead@prefix
+  # 不置 → undefined_cs 级联。修 = log 内 "Reference `X' undefined" 键表
+  # → \newlabel{X} 空桩落 .aux: \@setref 走 else 臂 + \@ifundefined 走
+  # 定义臂, 一根双斩; aux 可再生, 下遍引擎重写后 \label 正经写入接管。
+  - id: hytempa_hash_auxseed
+    mechanisms: [W126]
+    description: "fresh-aux 未定义 \\r@ 引用 → \\newlabel 空桩落 .aux (hyperref \\edef\\Hy@tempa ??-炸弹 + \\@ifundefined 级联一根双斩)"
+    phase: loop
+    order: 199.7 # cs_delim_tail_fix(199.6) 之后, undefined_cs_guess(900) 之前; aux 族 aux_purge_regen(96) 同构反向臂 (彼删坏件, 此补桩)
+    when: { category: syntax }
+    condition:
+      ctx_suggests: "Illegal parameter number in definition of \\\\Hy@tempa" # hyperref normalise 专属签 —— 其他 Illegal 族不落本规
+      fileset: { has_ext: [.aux] } # 桩有落点才点火 (无 aux 多半 \\begin{document} 前死, 非本族)
+    action:
+      kind: builtin_transform
+      function: aux_seed_undefined_refs # params.exts 可扩; 0 未定义键/键面不安全自然 noop
+    risk: low # aux 可再生 + 空桩 elem1 空 (\@setref else 臂 URL 仅前缀); 键面安全闸; 已含 \\newlabel 不重落
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "1107.0312 + 1106.5915 (stagerun-overnite-2026-09-20, lane-pairbun)",
+          error: "Illegal parameter number in definition of \\Hy@tempa ×8 @\\end{document} + undefined_cs ×25 (\\ead@text 级联) — fresh-aux \\printead href-URL edef 炸弹",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-singtail/bundles.json cluster-6; imsart.sty:661 \\ims@href{\\ead@prefix\\saferef{...}}; hyperref.sty \\hyper@@normalise \\edef\\Hy@tempa"
+
   # ─── 兜底: 恒最后 ───
   - id: undefined_cs_guess
     description: "未定义控制序列 → cs→pkg 知识库长射 + LLM 兜底分析 (占位)"
