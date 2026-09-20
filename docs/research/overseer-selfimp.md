@@ -1832,3 +1832,10 @@
 - **dispatch ×5 → roster 10**：burnfix（impl：misschar \usepackage→\RequirePackage + para_longize cap/dedup + bbl_stub count=0——三窄 hunk 三叶）；gapmine（F-桶 18 格 rule-gap 聚类）；taxcen（other|None 全群 → 候选 taxonomy 行，近失 vs 新行分桶）；bibwave（wave-14 bib manifest 策划，dedup wave-13+在飞）；failmine6（最新 records 下轮目标普查，排他清单全列）。
 - **事故**：审计逮住 nfsstu 走 unsafe 方向——65-encoding.yaml 三臂（nfss_cmd_enc_polyfill/nfss_enc_scheme_relax/nfss_fam_declare）已写、builtin 零注册 → worktree Ruleset.load 破。已 SendMessage 令即落 builtin+注册。mutex 持着无 replay 受影响；committed HEAD 净。
 - **门**：HEAD=51e7016d；overnite ~1820/2822；roster 10（csfix8/nfsstu/pairbun/stubfid/taxon2 + burnfix/gapmine/taxcen/bibwave/failmine6）；共享 index 勿动；无 teammate git 越权。
+
+### patrol ~08:46 — 心跳：batches 全收尾；nfsstu 自愈 load 恢复；roster 10 全产
+
+- 脱管批：l1-gate DONE（1955/1955、leak 0.0）；autogloss-reg DONE（gate-on-vs-off.json，contested 0.070→0.080 ok）；overnite 1933/2822 健康 ph=0。无新 run.log。
+- **nfsstu 自愈确认**：三 nfss_* builtin 落 _builtins_misschar.py（与 burnfix L331-332 窄 hunk 同文件——commit 时逐 hunk 归因）；Ruleset.load 恢复，worktree ruleset=183（committed 180）。
+- lane 活性实证：csfix8 cref/ 08:44（2h，repro 密集未滞）、nfsstu repro 08:35、pairbun hy/ 08:31、gapmine fixrecs×2、taxcen census.py、bibwave scan×3、failmine6 census/finalize 就位；stubfid/taxon2 无 scratch（直编 src 属正常）；burnfix 在读态。
+- **门**：HEAD=4b844039；共享 index 勿动；无 teammate git 越权；wave-13 mutex 6 impl lanes 持。
