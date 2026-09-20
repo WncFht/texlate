@@ -1839,3 +1839,10 @@
 - **nfsstu 自愈确认**：三 nfss_* builtin 落 _builtins_misschar.py（与 burnfix L331-332 窄 hunk 同文件——commit 时逐 hunk 归因）；Ruleset.load 恢复，worktree ruleset=183（committed 180）。
 - lane 活性实证：csfix8 cref/ 08:44（2h，repro 密集未滞）、nfsstu repro 08:35、pairbun hy/ 08:31、gapmine fixrecs×2、taxcen census.py、bibwave scan×3、failmine6 census/finalize 就位；stubfid/taxon2 无 scratch（直编 src 属正常）；burnfix 在读态。
 - **门**：HEAD=4b844039；共享 index 勿动；无 teammate git 越权；wave-13 mutex 6 impl lanes 持。
+
+### patrol ~08:52 — gapmine 收割：F-桶 15/18 stale；taxon2 scope+1；zhleak2chk 派出
+
+- **gapmine 终判**（关 lane）：F-桶无真 ≥2 格 rule gap——aaai2027 \RequirePDFTeX ×15 全是 engine_guard_strip 落地前 stale records（rescued_cells:15，replay-verify only → wave-13 += 15）；残 3 格：2606.19622 .tikzstyles doc-absent（ext-gate 拒 → taxon2 exts 同行 +=）、0712.0823 mncite drop-line（单格 → singles-bundle 队列，retire 形同 bxcjkjatype）、0812.0640 psline-flood timeout（capacity decline）。
+- **taxon2 scope+1**：exts 变 `[".tex",".pdf_tex",".tikzstyles"]`。
+- **zhleak2chk 派出**（read-only dry-run）：2609.20179 xltabular colspec + 2609.19828 pgfplots inline_table 两 zh-leak 格在 slotfix 落地机下 coverage 未定——_revert_file dry-run 分 COVERED/GAP，不编译不犯 mutex。roster 10。
+- **门**：HEAD=4c0ae0ac；共享 index 勿动；无 teammate git 越权。
