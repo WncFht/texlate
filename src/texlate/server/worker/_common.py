@@ -120,6 +120,21 @@ KIND_URL = {
 #: URL kind → files.kind（反查）
 URL_KIND = {v: k for k, v in KIND_URL.items()}
 
+
+def artifact_urls(store: Store, task_id: str) -> dict[str, str]:
+    """files 行 → ``{db_kind: /api/files/{id}/{url_kind}}``（done 事件/快照共用面）。
+
+    与 ``KIND_URL`` 同址共置——web 层快照（``routers/tasks``）与 worker
+    终态帧（``_Events._artifact_urls``）消费的是同一映射，单源防漂移。
+    未登记的 kind 按原名透传（``get(kind, kind)``）——新产物 kind 进库
+    而未进 ``KIND_URL`` 时 URL 面照发不炸。
+    """
+    return {
+        kind: f"/api/files/{task_id}/{KIND_URL.get(kind, kind)}"
+        for kind in store.files(task_id)
+    }
+
+
 #: fetch 失败中重试无意义的终态
 _FETCH_NO_RETRY = frozenset(
     {

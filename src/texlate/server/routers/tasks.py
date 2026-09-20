@@ -20,10 +20,10 @@ from sse_starlette.sse import EventSourceResponse
 
 from texlate.arxiv.fetch import normalize_arxiv_id, valid_id
 from texlate.pipecore import front_matter_of
+from texlate.server._common import slim_terminal_tasks
 from texlate.server.events import sse_frame
 from texlate.server.http import (
     _accepted,
-    _artifacts,
     _clean_task_options,
     _json_error,
     _options_json_checked,
@@ -38,9 +38,8 @@ from texlate.server.store import (
     StoreError,
     TransitionError,
     row_json,
-    slim_task_dir,
 )
-from texlate.server.worker import cache_key_for
+from texlate.server.worker import artifact_urls, cache_key_for
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -128,7 +127,9 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 端
         # RFC 9110：媒体类型大小写不敏感——TEXT/EVENT-STREAM 也应进 SSE
         if "text/event-stream" not in accept.lower():
             return JSONResponse(
-                deps.store.snapshot(task_id, artifacts=_artifacts(deps.store, task_id))
+                deps.store.snapshot(
+                    task_id, artifacts=artifact_urls(deps.store, task_id)
+                )
             )
         try:
             last_id = int(request.headers.get("last-event-id", "0") or 0)
@@ -141,7 +142,7 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 端
 
         async def gen() -> AsyncIterator[dict[str, Any]]:
             snap = deps.store.snapshot(
-                task_id, artifacts=_artifacts(deps.store, task_id)
+                task_id, artifacts=artifact_urls(deps.store, task_id)
             )
             yield sse_frame({"seq": 0, "type": "snapshot", "data": snap})
             async for ev in deps.bus.stream(task_id, last_event_id=last_id):
@@ -277,7 +278,7 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 端
             "done",
             {
                 "status": "cancelled",
-                "artifacts": _artifacts(deps.store, task_id),
+                "artifacts": artifact_urls(deps.store, task_id),
                 "stats": {
                     "tokens": row.get("tokens", 0),
                     "seconds": round(
@@ -480,23 +481,11 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 端
         """
         tenant = deps.auth(request).tenant
         dry = request.query_params.get("dry") in ("1", "true")
-        skip = deps.runner.inflight_task_ids()
-        freed = 0
-        slimmed = 0
-        for tid in deps.store.terminal_task_ids(tenant):
-            if tid in skip:
-                continue
-            row = deps.store.get(tid)
-            if row is None or str(row["status"]) not in TERMINAL_STATUSES:
-                continue
-            keep = {str(rec["path"]) for rec in deps.store.files(tid).values()}
-            keep_dirs = (
-                ("zh", "base") if str(row["status"]) in ("done", "partial") else ()
-            )
-            n = await asyncio.to_thread(
-                slim_task_dir, deps.root / "tasks" / tid, keep, keep_dirs, dry=dry
-            )
-            if n:
-                slimmed += 1
-                freed += n
+        slimmed, freed = await slim_terminal_tasks(
+            deps.store,
+            deps.root / "tasks",
+            skip=deps.runner.inflight_task_ids(),
+            tenant=tenant,
+            dry=dry,
+        )
         return JSONResponse({"slimmed": slimmed, "freed_bytes": freed})

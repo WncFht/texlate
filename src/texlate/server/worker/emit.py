@@ -14,8 +14,8 @@ from texlate.server.settings import scrub
 from texlate.server.store import TERMINAL_STATUSES
 
 from ._common import (
-    KIND_URL,
     TaskCtx,
+    artifact_urls,
 )
 
 if TYPE_CHECKING:
@@ -290,30 +290,14 @@ class _Events:
         if self._current_status(ctx) in TERMINAL_STATUSES:
             return
         self._mark_terminal(ctx, "fault")
-        clean = scrub(message, ctx.secrets.api_key)
-        err = {"code": code, "message": clean, "retryable": retryable}
+        err = {
+            "code": code,
+            "message": scrub(message, ctx.secrets.api_key),
+            "retryable": retryable,
+        }
         if detail:
             err.update(detail)
-        row = self.store.get(ctx.task_id)
-        progress = int(row["progress"]) if row else 0
-        if row and row["stage"]:
-            # ctx.row 是入队快照——error 事件的 stage 以库内现值为准
-            stage = str(row["stage"])
-        self.store.transition(
-            ctx.task_id, "fault", error=err, progress=progress, force=True
-        )
-        self.bus.publish(
-            ctx.task_id, "error", {**err, "stage": stage, "chunk_seq": None}
-        )
-        self.bus.publish(
-            ctx.task_id,
-            "done",
-            {
-                "status": "fault",
-                "artifacts": self._artifact_urls(ctx),
-                "stats": self._stats(ctx),
-            },
-        )
+        self._write_terminal(ctx, "fault", err, emit_error=True, stage=stage)
 
     def _reject(  # code/message/reject_at/detail 即错误面
         self,
@@ -343,20 +327,46 @@ class _Events:
         }
         if detail:
             err.update(detail)
+        self._write_terminal(ctx, "partial", err, message="部分完成")
+
+    def _write_terminal(  # noqa: PLR0913 -- 终态写面即参数面
+        self,
+        ctx: TaskCtx,
+        status: str,
+        err: dict[str, Any],
+        *,
+        message: str | None = None,
+        emit_error: bool = False,
+        stage: str | None = None,
+    ) -> None:
+        """``_fail``/``_reject`` 公共尾段：终态迁移 → （可选 error 帧）→ done 帧。
+
+        迁移写 ``error_json`` 并按库内现值快照 progress；``emit_error``
+        时 error 帧夹在迁移与 done 之间（fault 的错误语义面，``stage``
+        以库内现值为准、缺席回退入参——``ctx.row`` 只是入队快照）。
+        ``message`` 非 None 才写行 message 字段（``transition`` 的 None
+        即「不动」语义）。
+        """
         row = self.store.get(ctx.task_id)
         self.store.transition(
             ctx.task_id,
-            "partial",
+            status,
             error=err,
             progress=int(row["progress"]) if row else 0,
             force=True,
-            message="部分完成",
+            message=message,
         )
+        if emit_error:
+            if row and row["stage"]:
+                stage = str(row["stage"])
+            self.bus.publish(
+                ctx.task_id, "error", {**err, "stage": stage, "chunk_seq": None}
+            )
         self.bus.publish(
             ctx.task_id,
             "done",
             {
-                "status": "partial",
+                "status": status,
                 "artifacts": self._artifact_urls(ctx),
                 "stats": self._stats(ctx),
             },
@@ -374,11 +384,8 @@ class _Events:
         return rows
 
     def _artifact_urls(self, ctx: TaskCtx) -> dict[str, str]:
-        """Files 行 → ``{db_kind: /api/files/{id}/{url_kind}}``。"""
-        return {
-            kind: f"/api/files/{ctx.task_id}/{KIND_URL.get(kind, kind)}"
-            for kind in self.store.files(ctx.task_id)
-        }
+        """Files 行 → ``{db_kind: /api/files/{id}/{url_kind}}``——``_common.artifact_urls`` 绑 ``ctx`` 形。"""
+        return artifact_urls(self.store, ctx.task_id)
 
     def _stats(self, ctx: TaskCtx) -> dict[str, Any]:  # noqa: C901 -- 审计载荷条件阶梯平铺
         counts = self.store.chunk_counts(ctx.task_id)

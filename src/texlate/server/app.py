@@ -35,6 +35,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.gzip import GZipMiddleware
 
 from texlate import __version__
+from texlate.server._common import slim_terminal_tasks
 from texlate.server.events import EventBus
 from texlate.server.http import (
     _BUILD_COMMIT,
@@ -61,11 +62,9 @@ from texlate.server.settings import data_dir as default_data_dir
 from texlate.server.staticfiles import mount_spa
 from texlate.server.store import (
     ACTIVE_STATUSES,
-    TERMINAL_STATUSES,
     Store,
     StoreError,
     TransitionError,
-    slim_task_dir,
     valid_task_id,
 )
 from texlate.server.store._common import _dir_size
@@ -187,31 +186,13 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 装配阶梯+闭包面平铺
     async def _slim_terminal() -> None:
         """瘦身段（无条件）：终态任务 ``tasks/{id}/`` 清未登记字节。
 
-        产物/记录全留；done/partial 追加 ``zh``/``base`` 整树——单块重
-        译（``_ensure_scans`` 重解析 base/ + resplice 写 zh/）与 share
-        打包的 glossary 指纹都读活树。DB 留 loop 线程，dir walk 逐任务
-        ``to_thread`` 卸载；retry 竞窗靠 runner 在飞集 + 逐任务状态复
-        核收窄（复核→walk 间翻活只丢一拍窗口，下拍再瘦）。
+        扫描体单源在 ``server/_common.slim_terminal_tasks``（与
+        ``POST /api/tasks/slim`` 同口径）；本段只管 sweep 语义——
+        不区分 tenant（本地库即全集），瘦出量进 log。
         """
-        skip = runner.inflight_task_ids()
-        slim_freed = 0
-        slimmed = 0
-        for tid in store.terminal_task_ids():
-            if tid in skip:
-                continue
-            row = store.get(tid)
-            if row is None or str(row["status"]) not in TERMINAL_STATUSES:
-                continue
-            keep = {str(rec["path"]) for rec in store.files(tid).values()}
-            keep_dirs = (
-                ("zh", "base") if str(row["status"]) in ("done", "partial") else ()
-            )
-            freed = await asyncio.to_thread(
-                slim_task_dir, tasks_dir / tid, keep, keep_dirs
-            )
-            if freed:
-                slimmed += 1
-                slim_freed += freed
+        slimmed, slim_freed = await slim_terminal_tasks(
+            store, tasks_dir, skip=runner.inflight_task_ids()
+        )
         if slimmed:
             log.info("slim sweep: %d task(s), freed %d B", slimmed, slim_freed)
 

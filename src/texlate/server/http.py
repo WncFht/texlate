@@ -31,7 +31,6 @@ except ModuleNotFoundError:  # pragma: no cover -- 旧式包名回落（同 star
     import multipart as _pymp  # type: ignore[no-redef]
 
 from texlate.server.settings import UPLOAD_CAP
-from texlate.server.worker import KIND_URL
 from texlate.xlat.client import _LOOPBACK_HOSTS
 
 if TYPE_CHECKING:
@@ -39,8 +38,6 @@ if TYPE_CHECKING:
 
     from fastapi import Request
     from starlette.types import Message
-
-    from texlate.server.store import Store
 
 
 def _probe_git_commit() -> str:
@@ -430,14 +427,6 @@ def _same_origin(request: Request, origin: str) -> bool:
         o.scheme == request.url.scheme
         and o.netloc.lower() == request.headers.get("host", "").lower()
     )
-
-
-def _artifacts(store: Store, task_id: str) -> dict[str, str]:
-    """``{db_kind: /api/files/{id}/{url_kind}}``（done 事件/快照共用）。"""
-    return {
-        kind: f"/api/files/{task_id}/{KIND_URL.get(kind, kind)}"
-        for kind in store.files(task_id)
-    }
 
 
 #: 会产出 ``dual.json``（→ reader 可用）的任务 kind。docx/epub 走
