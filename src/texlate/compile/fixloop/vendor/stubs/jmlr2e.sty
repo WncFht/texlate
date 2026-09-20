@@ -1,0 +1,79 @@
+% texlate vendored stub — 原许可禁分发，最小兼容面
+% jmlr2e.sty S1 替身：JMLR author kit (jmlr.org 直发, 不在 CTAN/TL ——
+% kpsewhich 零命中实证) → stub。面按 corpus 实调用抄 (11 稿统一形):
+% preamble/doc 双期 \jmlrheading(6|7 参混)/\ShortHeadings/\firstpageno/
+% \editor 收值 → wrapped \maketitle 前置 heading 块 + editor 行附后;
+% 正文 \name/\email/\addr/\AND 作者块帮手 + keywords env + \acks;
+% theorem 族 AtBeginDocument 守卫式补 (稿自义优先 —— 2609.19363 自义
+% proposition/definition/remark, 2609.19170 自义 assumption 实证)。
+% \citep/\citet 全系靠真件内载 natbib(authoryear,round) —— 9/11 稿
+% 零自载 natbib 实证 (1704.00003 裸 \usepackage{natbib} 无 opt 不撞)。
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{jmlr2e}[2026/09/20 texlate stub — original not redistributable]
+\PackageWarningNoLine{texlate-stub}{jmlr2e.sty is a compatibility shim}
+
+% —— 选项面: preprint/abbrvbib 等全吞 (真件 preprint 控版权块,
+%    abbrvbib 换 abbrvnat.bst —— stub 无版权输出不涉 bst) ——
+\DeclareOption*{}
+\ProcessOptions\relax
+
+\RequirePackage[authoryear,round]{natbib}
+\pagestyle{myheadings}
+
+% —— frontmatter 存值面 ——
+\def\@jmlrhead{}\def\@jmlreditor{}\def\@shorttitle{}\def\@shortauthor{}
+% \jmlrheading 两形并存 (corpus 各半实证): 旧 6 参 {vol}{yr}{pages}
+%   {sub}{pub}{authors} / 新 7 参 插 {paperid} —— \@ifnextchar\bgroup
+%   探第 7 组分流; 值收 \@jmlrhead 由 \maketitle 吐 (preamble 期不可排印)
+\def\jmlrheading#1#2#3#4#5#6{%
+  \@ifnextchar\bgroup{\@jmhr@vii{#1}{#2}{#3}{#4}{#5}{#6}}%
+                     {\@jmhr@vi{#1}{#2}{#3}{#4}{#5}{#6}}}
+\def\@jmhr@vi#1#2#3#4#5#6{\gdef\@jmlrhead{%
+  {\itshape Journal of Machine Learning Research} #1 (#2) #3\par
+  Submitted #4; Published #5\par #6\par}}
+\def\@jmhr@vii#1#2#3#4#5#6#7{\gdef\@jmlrhead{%
+  {\itshape Journal of Machine Learning Research} #1 (#2) #3\par
+  Submitted #4; Published #5\par #7\par}}
+% \ShortHeadings{短题}{短作者} → running head (真件 fancyhdr 版式,
+%    stub 走 article myheadings+markboth 近似)
+\providecommand{\ShortHeadings}[2]{\markboth{#2}{#1}}
+% \firstpageno{n} → 首页码 (真件同款 \setcounter{page})
+\providecommand{\firstpageno}[1]{\setcounter{page}{#1}}
+% \editor{name} → 收值 (preamble 调不可排印), \maketitle 附印
+\providecommand{\editor}[1]{\gdef\@jmlreditor{#1}}
+% —— \maketitle 包装: heading 块前置 (真件页一首位), editor 行附后 ——
+\let\texlate@jmlr@mk\maketitle
+\renewcommand{\maketitle}{%
+  \ifx\@jmlrhead\@empty\else\noindent\@jmlrhead\vspace{1em}\fi
+  \texlate@jmlr@mk
+  \ifx\@jmlreditor\@empty\else\par\noindent{\itshape Editor:} \@jmlreditor\par\fi}
+
+% —— \author 参内帮手 (真件 inline 形; \AND 行断 = JMLR 竖排作者块
+%    近似 —— \and 横排多栏 ~10 作者溢宽, 1204.1276/1910.10683 实证) ——
+\providecommand{\name}[1]{\textbf{#1}}
+\providecommand{\email}[1]{\texttt{#1}}
+\providecommand{\addr}[1]{#1}
+\providecommand{\AND}{\\}
+% —— keywords env / \acks 致谢块 (in-doc 域) ——
+\@ifundefined{keywords}{%
+  \newenvironment{keywords}{\par\noindent\textbf{Keywords:} }{\par}}{}
+\providecommand{\acks}[1]{\par\vspace{1em}\noindent
+  \textbf{Acknowledgements}\par\noindent #1\par}
+
+% —— theorem 族守卫补 (AtBeginDocument 评稿内 \newtheorem 后位, 稿自义
+%    胜出防撞) ——
+\AtBeginDocument{%
+  \@ifundefined{theorem}{\newtheorem{theorem}{Theorem}}{}%
+  \@ifundefined{lemma}{\newtheorem{lemma}{Lemma}}{}%
+  \@ifundefined{corollary}{\newtheorem{corollary}{Corollary}}{}%
+  \@ifundefined{proposition}{\newtheorem{proposition}{Proposition}}{}%
+  \@ifundefined{definition}{\newtheorem{definition}{Definition}}{}%
+  \@ifundefined{example}{\newtheorem{example}{Example}}{}%
+  \@ifundefined{remark}{\newtheorem{remark}{Remark}}{}%
+  \@ifundefined{assumption}{\newtheorem{assumption}{Assumption}}{}%
+  \@ifundefined{claim}{\newtheorem{claim}{Claim}}{}%
+  \@ifundefined{proof}{%
+    \@namedef{proof}{\par\noindent\textbf{Proof.}\enspace}%
+    \@namedef{endproof}{\par}}{}%
+}
+\endinput

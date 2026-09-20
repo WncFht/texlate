@@ -199,6 +199,33 @@ rules:
           #   Verbatim 遮盖域内站点本臂够不到, 前瞻收非逐字面
           - { id: boxdraw_2500, cps: [0x2500], replace: "-" }
           - { id: boxdraw_2502, cps: [0x2502], replace: "|" }
+          # ── 2026-09-20 重音拉丁字面补表 (作者名/keywords 批观测) ──
+          # ğ ń ć š ł č ž ū ę ė 加大写兄弟 —— 全落 [0xC0,0x17F] fb 带,
+          # 但 pre-tokenized 上下文 (\name/\textbf preamble 期 token 化)
+          # fb 绑不住 (lcomma/ncomma 同机理先例), 源级字面替换灭字与
+          # 捕获时序无关。一律 accent 机制形 (无字体槽位依赖): \v 卡隆/
+          # \u 短音符/\' 尖音/\k 反尾形符/\. 上点/\= 长音符; ł/Ł 有专 cs
+          # \l/\L 直接走。\' 在 yaml 双引号内是非法转义 → 单引号包。
+          - { id: ccaron, cps: [0x10D], replace: "\\mbox{\\v{c}}" }
+          - { id: ccaron_up, cps: [0x10C], replace: "\\mbox{\\v{C}}" }
+          - { id: gbreve, cps: [0x11F], replace: "\\mbox{\\u{g}}" }
+          - { id: gbreve_up, cps: [0x11E], replace: "\\mbox{\\u{G}}" }
+          - { id: edot, cps: [0x117], replace: "\\mbox{\\.{e}}" }
+          - { id: edot_up, cps: [0x116], replace: "\\mbox{\\.{E}}" }
+          - { id: eogonek, cps: [0x119], replace: "\\mbox{\\k{e}}" }
+          - { id: eogonek_up, cps: [0x118], replace: "\\mbox{\\k{E}}" }
+          - { id: lstroke, cps: [0x142], replace: "\\mbox{\\l}" }
+          - { id: lstroke_up, cps: [0x141], replace: "\\mbox{\\L}" }
+          - { id: nacute, cps: [0x144], replace: '\mbox{\''{n}}' }
+          - { id: nacute_up, cps: [0x143], replace: '\mbox{\''{N}}' }
+          - { id: cacute, cps: [0x107], replace: '\mbox{\''{c}}' }
+          - { id: cacute_up, cps: [0x106], replace: '\mbox{\''{C}}' }
+          - { id: scaron, cps: [0x161], replace: "\\mbox{\\v{s}}" }
+          - { id: scaron_up, cps: [0x160], replace: "\\mbox{\\v{S}}" }
+          - { id: zcaron, cps: [0x17E], replace: "\\mbox{\\v{z}}" }
+          - { id: zcaron_up, cps: [0x17D], replace: "\\mbox{\\v{Z}}" }
+          - { id: umacron, cps: [0x16B], replace: "\\mbox{\\={u}}" }
+          - { id: umacron_up, cps: [0x16A], replace: "\\mbox{\\={U}}" }
         # ── hangul 路由臂 ko 字体候选 (kotexfix #196) ──
         # 谚文缺字 + 源内 xeCJK/kotex 系机制 → \begin{document} 前注路由件:
         # xeCJK AutoFallBack + \setCJKfallbackfamilyfont (rm/sf/tt) 逐字
