@@ -784,7 +784,7 @@ _END_DOC_RE = re.compile(r"\\end\s*\{document\}")
 #: (``\includegraphics`` 等非同族词干由 ``\s*\{`` 紧随约束排除)。
 _INPUT_EXEC1_RX = re.compile(
     r"\\(?:input|include|subfile|subfileinclude|includestandalone"
-    r"|InputIfFileExists)\s*\{([^}]*)\}"
+    r"|InputIfFileExists)(?:\s*\[[^\]\n]*\])?\s*\{([^}]*)\}"
 )
 #: 双参 import 族 —— 第一参目录前缀, 第二参文件名。
 _INPUT_EXEC2_RX = re.compile(

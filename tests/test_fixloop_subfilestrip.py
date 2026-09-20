@@ -173,3 +173,20 @@ def test_rule_sits_between_tar_extract_and_precheck() -> None:
     i_wrap = ids.index("shipped_sty_input_wrap")
     i_scan = ids.index("static_precheck")
     assert i_tar < i_strip < i_wrap < i_scan
+
+
+def test_includestandalone_opts_form_counts_as_reference(tmp_path: Path) -> None:
+    # B5b: \includestandalone[width=..]{sub} — [opts] 曾使 _INPUT_EXEC1_RX
+    # 失配, referenced 集为空 → 子文档 preamble 毒面存活 (0812.0615 族).
+    main = (
+        "\\documentclass{article}\n\\usepackage{standalone}\n"
+        "\\begin{document}\n"
+        "\\includestandalone[width=0.9\\textwidth]{sub}\n"
+        "\\end{document}\n"
+    )
+    ctx = _ctx(tmp_path, {"main.tex": main, "sub.tex": _SUB})
+    ok, note = subfile_docclass_strip(ctx, None, None, {"exts": [".tex"]})
+    assert ok, note
+    out = (tmp_path / "sub.tex").read_text(encoding="utf-8")
+    assert "Sub body" in out
+    assert "documentclass" not in out
