@@ -107,18 +107,20 @@
 
 ### 中期（月度）
 
-| #   | 项                                                                                                                                                                             | 修价       | 依据                             |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------- | -------------------------------- |
-| M1  | **共享缓存分发层**：index.jsonl 远端拉取 + 共享包 HTTP fetch+ 可选公共 registry 端点（静态托管即可）——「1 万篇预译秒回」的 hjfy 对等武器，BYOK 下唯一摊薄社区 token 成本的结构 | 3–5d       | product-gaps #1                  |
-| M2  | **批量承载底板**：tasks 分页+status 过滤接线+SSE 收敛/聚合流（消 >6 在途假死）+retention/GC（settings.retention_days+`texlate gc`）+translation_cache LRU——预译灌库前置        | 2–4d       | product-gaps #2 + frontend #1    |
-| M3  | 首启可用 + 公网分发收口：默认 base_url 改中性值 + 未配置引导、providers 免费档说明、systemd/compose 样例、`texlate:full` tag 转正、CLI `run --live` 真翻入口                   | 1–3d       | product-gaps #3 + docs-health §3 |
-| M4  | R1：compile/engine.py 四关注点拆分 + 掐断 fixloop↔engine 环（log 原语下移 texlog）                                                                                             | ~1d        | architecture R1                  |
-| M5  | R2：e2e 共享件扶正余量（_scan_tree/env 表归正层，顺手并 worker/parse 双实现）                                                                                                  | ~1d        | architecture R2                  |
-| M6  | mech_tags 全层回填（features.jsonl 沉淀+evidence 改可执行检测器 → 5133 格全标；机制级 burn-down 图随之解锁）                                                                   | 1–2d       | bench-expansion #4               |
-| M7  | 领域术语表扩面（cs-only → math/physics/hep/cond-mat/q-bio；LaTeXTrans 外需新源）                                                                                               | 1d+ 内容活 | product-gaps #5                  |
-| M8  | 反馈 + 换模型重翻闭环（POST feedback 端点+Reader 重翻钮=新建预填 model）                                                                                                       | 1–2d       | product-gaps #4                  |
-| M9  | f 带（2026+）进样+hot 层补齐 27 缺口+pdf_only 类登记（~5% arXiv 无源稿产品会遇到）                                                                                             | 1d         | bench-expansion §1.3             |
-| M10 | 50k 扩展前置：work 树剪枝/归档纪律（clean 格只留 records）+ 波次 runbook 更新                                                                                                  | 0.5d 纪律  | bench-expansion §2.3             |
+> 编号口径（2026-09-21 消歧）：本表工单号 **MT1–MT10**（中期 work item），与里程碑门 M0–M4（`spec/benchmark.md` §8、`decisions/background.md`）是两套独立编号——原写作 M1–M10 与里程碑撞号，已统一改名；表外遗留的 `M1-B`（判别波名）与「桌面端/M4」（里程碑远期）保留原样。
+
+| #    | 项                                                                                                                                                                             | 修价       | 依据                             |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------- | -------------------------------- |
+| MT1  | **共享缓存分发层**：index.jsonl 远端拉取 + 共享包 HTTP fetch+ 可选公共 registry 端点（静态托管即可）——「1 万篇预译秒回」的 hjfy 对等武器，BYOK 下唯一摊薄社区 token 成本的结构 | 3–5d       | product-gaps #1                  |
+| MT2  | **批量承载底板**：tasks 分页+status 过滤接线+SSE 收敛/聚合流（消 >6 在途假死）+retention/GC（settings.retention_days+`texlate gc`）+translation_cache LRU——预译灌库前置        | 2–4d       | product-gaps #2 + frontend #1    |
+| MT3  | 首启可用 + 公网分发收口：默认 base_url 改中性值 + 未配置引导、providers 免费档说明、systemd/compose 样例、`texlate:full` tag 转正、CLI `run --live` 真翻入口                   | 1–3d       | product-gaps #3 + docs-health §3 |
+| MT4  | R1：compile/engine.py 四关注点拆分 + 掐断 fixloop↔engine 环（log 原语下移 texlog）                                                                                             | ~1d        | architecture R1                  |
+| MT5  | R2：e2e 共享件扶正余量（_scan_tree/env 表归正层，顺手并 worker/parse 双实现）                                                                                                  | ~1d        | architecture R2                  |
+| MT6  | mech_tags 全层回填（features.jsonl 沉淀+evidence 改可执行检测器 → 5133 格全标；机制级 burn-down 图随之解锁）                                                                   | 1–2d       | bench-expansion #4               |
+| MT7  | 领域术语表扩面（cs-only → math/physics/hep/cond-mat/q-bio；LaTeXTrans 外需新源）                                                                                               | 1d+ 内容活 | product-gaps #5                  |
+| MT8  | 反馈 + 换模型重翻闭环（POST feedback 端点+Reader 重翻钮=新建预填 model）                                                                                                       | 1–2d       | product-gaps #4                  |
+| MT9  | f 带（2026+）进样+hot 层补齐 27 缺口+pdf_only 类登记（~5% arXiv 无源稿产品会遇到）                                                                                             | 1d         | bench-expansion §1.3             |
+| MT10 | 50k 扩展前置：work 树剪枝/归档纪律（clean 格只留 records）+ 波次 runbook 更新                                                                                                  | 0.5d 纪律  | bench-expansion §2.3             |
 
 ### 远期/战略（季度，形态决策先行）
 
@@ -135,9 +137,9 @@
 | ----------------------- | ----------------------------- | ----------------------------------------------------------------------- |
 | swe-2-medium promo 到期 | **2026-10-16（剩 ~29 天）**   | S1 滚动探针优先打 hot/expand real 缺口；备用内部网关+ 注册源预案 |
 | 上游网关账号级 429        | 限流非本地可控                | retry 阶梯空转即正确姿势；降并发无用                                    |
-| 磁盘                    | 卷余 363G/917G；50k 需 ~185G+ | M10 剪枝纪律先行                                                        |
+| 磁盘                    | 卷余 363G/917G；50k 需 ~185G+ | MT10 剪枝纪律先行                                                       |
 | arxiv e-print           | 180/日硬限+429 park 翻倍      | hot/版本敏感增补走 bulk 之外唯一受限通道，排产按日切片                  |
-| 单点网关                | 私有内网 单地址           | M3 中性默认+failover 链；docs 面首启引导                                |
+| 单点网关                | 私有内网 单地址           | MT3 中性默认+failover 链；docs 面首启引导                               |
 | real↔mock 口径断点      | a08dda3 前后体积类指标不可比  | 跨波对比按 commit 切段（bench-expansion §3.1）                          |
 | pytest 门时长           | 全量 50min+（争用下）         | 波次期定向证据先行、全量后台确认（本次已实操）                          |
 
@@ -145,9 +147,9 @@
 
 1. **是否授权 server concurrency 3→10**（BYOK 下 ~3× 提速；风险是用户自付 token 的网关限流面）。
 2. **promo 死线前排产**：S1 滚动探针的抽样配额（建议 hot/expand 加权、每波 n≈200–300）。
-3. **共享缓存公共 registry 是否立项**（M1 的 §0 形态——静态托管即够，但意味着公开分发已译语料的姿态）。
+3. **共享缓存公共 registry 是否立项**（MT1 的 §0 形态——静态托管即够，但意味着公开分发已译语料的姿态）。
 4. **匿名浏览/公共实例**路线表态（远期分叉，现在只需「暂不」或「调研」两字）。
-5. 默认 base_url 改中性值的公关级决定（影响对外发布形态，与 M3 绑定）。
+5. 默认 base_url 改中性值的公关级决定（影响对外发布形态，与 MT3 绑定）。
 
 ## 7. 附件索引
 

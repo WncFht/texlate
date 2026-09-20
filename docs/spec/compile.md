@@ -143,7 +143,7 @@ yaml 规则驱动的编译自动修复循环：log→taxonomy 分类→规则匹
 必填 `id`/`phase`/`when`/`action`；可选 `order`（float，缺省 0）、`condition`、`engines`（per-engine `{mode,degrade,fallback,via,note}`）、`mechanisms`（`[BTW]\d+`）、`description`、`risk`、`known_gap`、`provenance`（`[{corpus,error}]` 表——人肉修复库的开源等价物，必填可回溯失败现场）、`stats`（`fires`/`rescued_cells`/`status`/`note`/`status_suggested`）、`source_ref`。
 
 - `phase ∈ {gate, precheck, loop}`：gate=每轮分类后最先评估；precheck=编译前一次性；loop=每轮错误驱动。同 phase 按 order 升序。
-- `when` 键：`always`/`any[]`/`category`(str|list)/`payload_required`/`main_head_contains`。
+- `when` 键：`always`/`any[]`/`category`(str)/`payload_required`/`main_head_contains`。
 - `condition` 16 键白名单：`any, tool_available, cap_available, engine_in, main_head_contains, source_contains, ctx_suggests, fileset{has_ext,lacks_ext,sibling_exts}, cache_dir_glob, vendored_shadow, package_version_ge, prim_read_form, payload_pattern, err_outside_fileset, shim_known`——未知键 fail-closed，装载期拦 typo。
 - `action` 键：`kind`/`function`/`params`；`{payload}`/`{main_dir}` 占位由 `_substitute` 递归展开。
 - taxonomy 行：`id`/`scope`(head|tail|warnings)/`pattern`/`payload_group`/`guard`/`preempts[]`/`use_pre`/`use_post`/`subclassify`/`payload_scan`/`warn_id`。

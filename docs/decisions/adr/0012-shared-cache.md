@@ -26,7 +26,7 @@ hjfy 的「已译论文匿名随便看」是平台付费 token 换来的中心�
 ## 演变
 
 - 2026-09-16：pack/unpack 放行 partial 包（zh.pdf 缺席合法）；share_pack 三挂载点落地。
-- 2026-09-18：**公共 registry/已译浏览面否决**——M1 里程碑不做公共实例与匿名浏览（决策理由见 ADR-0019）；share 协议保留为单机/自托管形态。
+- 2026-09-18：**公共 registry/已译浏览面否决**——roadmap 中期工单 MT1（共享缓存分发层，原文误记为「M1 里程碑」）不做公共实例与匿名浏览（决策理由见 ADR-0019）；share 协议保留为单机/自托管形态。
 - 2026-09-19→20：隐式命中接线（`_run_tex` 在 parse 后 `_share_lookup` → `_stage_share_apply` 零 token；`_ShareRejectError` 回退自译），共享缓存从「显式导入」升级为「默认查」。
 
 ## 现状

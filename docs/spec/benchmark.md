@@ -132,6 +132,8 @@
 | 常驻 | B5 | mock A 全绿 / mock B 破坏 100% 编译前捕获 / L3 `escaped>0` 硬门 |
 | M3 | B7 | hyperref 对锚点保留率 ≥95% / 退化路径不崩 |
 
+> 编号口径：本表 M0–M3 为里程碑门（对应 `decisions/background.md` 阶段线 M0→M4）；`log/roadmap-2026-09-17/ROADMAP.md` 中期工单另用 **MT1–MT10**，两套编号独立勿混。
+
 ### 参考文献
 
 [^suite]: 仓内证据件 `docs/10-benchmark-suite.md`（旧规格原文，逐门证据矩阵见 [spec0910](../log/audit-2026-09-16/spec0910.md)）。

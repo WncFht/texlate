@@ -38,7 +38,7 @@
 
 - `qual:M8-lowscore-rexlat` — esa2 基线终值 stated<55 仅 5/1200 << 30 判死线（低分格 bib 子群已由 bib-passthrough 吞并；机制本身没问题，是池面 incidence 塌了）。
 - `qual:en-residue-rexlat-redline` — esa2 基线终值 en≥8×omission 命中 11/51=22% << 60% 判死线；en≥8 主 flag=over_translation（病灶≠漏翻），旗舰极端例全是合法留英 bib 条目。信号提纯思路并入 `qual:output-sanity-gate` same-as-source 臂。
-- M1 公共缓存 registry — 2026-09-18 用户裁决否决。
+- MT1 公共缓存 registry（roadmap 中期工单，非里程碑）— 2026-09-18 用户裁决否决。
 - Electron 客户端 — 同上否决。
 - 横向扩库 →10k/50k — 边际已塌，只定点扩盲区。
 - parse_tex_v1(None) 严格化对齐 v2 — 结案：保持不对称各有据。
