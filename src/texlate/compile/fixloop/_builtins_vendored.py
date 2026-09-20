@@ -424,7 +424,7 @@ def _isolate_cohort_sib(ctx: LoopCtx, eng: Engine, sib: Path, suffix: str) -> li
     return [f"{srel} (cohort)"]
 
 
-def vendored_shadow_isolate(
+def vendored_shadow_isolate(  # noqa: C901  # 保守闸逐条一处, 缺一不碰
     ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
 ) -> tuple[bool, str]:
     r"""确证更旧的工程内 .sty/.cls → rename ``<f>.fixloop-iso`` 隔离 (docs/08:269)。
@@ -456,6 +456,8 @@ def vendored_shadow_isolate(
             adv = f"{f.name}: {prov}——vendored 撞名未确证新旧, 保留"
             if adv not in ctx.advisories:
                 ctx.advisories.append(adv)
+            continue
+        if not safe_is_file(f):  # 同干 .sty+.tex 双候选时 paired 道已移走
             continue
         f.rename(f.with_name(f.name + suffix))
         moved.append(f"{f.name} ({ld} < {sd})")
