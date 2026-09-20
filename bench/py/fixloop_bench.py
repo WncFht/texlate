@@ -68,11 +68,10 @@ from texlate.compile import (
     route_project,
     run_process,
 )
+from texlate.compile.ctan import CtanFetcher, TlpdbIndex
 from texlate.compile.engine import TECTONIC_BUNDLE_PIN
 from texlate.compile.fixloop import (
     CaseSink,
-    CtanFetcher,
-    TlpdbIndex,
     fixloop,
     load_ruleset,
 )
