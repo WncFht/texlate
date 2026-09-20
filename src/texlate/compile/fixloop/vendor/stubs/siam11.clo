@@ -1,0 +1,12 @@
+% texlate vendored stub — 原许可禁分发，最小兼容面
+% siam11.clo 伴生件：siamltex.cls 真件 :107 \input{siam1\@ptsize.clo}
+% 尺寸式样族 11pt 臂 (\DeclareOption{11pt}→\@ptsize=1)。内核
+% size11.clo 直通 = 尺寸族全真播种 (siam10.clo/svglov3.clo 同款,
+% catcode 存复裹两语境安全)。
+\ProvidesFile{siam11.clo}[2026/09/20 texlate stub — siamltex size shim]
+\edef\siamclorestore{\catcode 64=\the\catcode 64\relax}
+\catcode 64=11\relax
+\input{size11.clo}
+\siamclorestore
+\PackageWarningNoLine{texlate-stub}{siam11.clo is a size/layout shim}
+\endinput

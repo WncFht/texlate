@@ -256,6 +256,10 @@ def test_relocate_single_still_works_no_top_dir(tmp_path: Path) -> None:
 # \input{X.pdf_tex} 双缺席形 (无 pdf_tex 且无 pdf/eps sibling ——
 # 2508.03897/2606.18450/2508.04813/2503.10148 普查 4 格) 与 doc-absent
 # .tikzstyles (2606.19622) 同归空 stub 诚实降级; exts 表外名仍让位。
+# 同日 eraimpl 批 (failmine7 普查 tmp/lane-eracls2/candidates.json)
+# 再扩 .pgf (2506.05065 figures/legendre.pgf 子目录位) / .tikz
+# (2603.07778 vanilla.tikz) / .latex (chao-dyn/9412002 scheme2.latex)
+# / .cfg (2604.03663 econsocart.cls :67 \input{econsocart.cfg} 伴生缺档)。
 
 
 def _stub_wired(ctx: LoopCtx, payload: str | None) -> tuple[bool, str]:
@@ -269,7 +273,15 @@ def _stub_wired(ctx: LoopCtx, payload: str | None) -> tuple[bool, str]:
 def test_stub_exts_param_table() -> None:
     """params.exts 钉死表内容 —— 回退 yaml 即红。"""
     params = _rule(_RULE_STUB).action.get("params") or {}
-    assert set(params.get("exts") or ()) == {".tex", ".pdf_tex", ".tikzstyles"}
+    assert set(params.get("exts") or ()) == {
+        ".tex",
+        ".pdf_tex",
+        ".tikzstyles",
+        ".pgf",
+        ".tikz",
+        ".latex",
+        ".cfg",
+    }
 
 
 def test_stub_pdf_tex_writes_empty_stub(tmp_path: Path) -> None:

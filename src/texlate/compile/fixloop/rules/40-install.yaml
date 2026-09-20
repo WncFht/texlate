@@ -903,14 +903,30 @@ rules:
   # 不做 —— 零格需求。
   - id: doc_absent_stub
     mechanisms: [W19]
-    description: "doc 引用但 e-print 未带 .tex/.pdf_tex/.tikzstyles → 版本缀 sibling 唯一命中搬真件, 否则解析位空 stub"
+    description: "doc 引用但 e-print 未带 .tex/.pdf_tex/.tikzstyles/.pgf/.tikz/.latex/.cfg → 版本缀 sibling 唯一命中搬真件, 否则解析位空 stub"
     phase: loop
     order: 12.95 # 全真件臂后末位兜底: install(10)/vendored(11.5)/shim(12/12.9) 皆 decline 才 stub —— pst-tools.tex 实证 .tex payload 可以是真 CTAN 件
     when: { category: missing_file, payload_required: true }
     action:
       kind: builtin_transform
       function: doc_absent_stub
-      params: { exts: [".tex", ".pdf_tex", ".tikzstyles"] }
+      # eracls2 批扩: .pgf (2506.05065 figure 内 pgf picture \input) /
+      # .tikz (2603.07778) / .latex (chao-dyn/9412002 scheme2.latex) /
+      # .cfg (2604.03663 econsocart.cls :67 \input{econsocart.cfg} 伴生
+      # 缺口 —— VTEX 排版件空 stub 诚实降级)。
+      params:
+        {
+          exts:
+            [
+              ".tex",
+              ".pdf_tex",
+              ".tikzstyles",
+              ".pgf",
+              ".tikz",
+              ".latex",
+              ".cfg",
+            ],
+        }
     risk: low # 空 stub 仅丢该 \input 段; sibling 救援限同目录唯一版本缀命中; 指纹闸不覆外来件; 瞬态件/表外扩展名/逃逸名全让位
     known_gap: "stub 段内宏定义 (其余段依赖的 \\newcommand) 缺席 → 下游 undefined_cs 转嫁 (诚实降级); 版本缀表外的纯改名漂移只能空 stub"
     engines:

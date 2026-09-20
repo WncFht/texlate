@@ -2002,6 +2002,178 @@ rules:
               \providecommand{\pasa}{PASA}
               \providecommand{\rmxaa}{Rev.~Mexicana Astron.~Astrofis.}
               \endinput
+          # ── eracls2/failmine7 批 (stagerun-overnite-2026-09-20 zh 臂
+          # missing_file 普查, tmp/lane-eracls2/census.md) ──
+          # l-aa.cls: A&A Letters 变体名 ×4 格 (astro-ph/9612038/9612050/
+          # 9612150 \documentstyle{l-aa}; 9612158 另被 latex209_reject
+          # 门拦属 gatenarrow lane) —— 稿面纯 A&A frontmatter
+          # (\title/\author/\institute/\keywords/\thesaurus/\offprints/
+          # \maketitle), vendored stubs/aa.cls 替身全覆盖 → aa 桥
+          # (aa501.cls 先例)。
+          l-aa.cls: { loads: "aa", needs: ["aa.cls"] }
+          # aip.cls: AIP 2.09 时代类 (astro-ph/9412060 \documentstyle
+          # [11pt]{aip}) —— 稿面纯 article (\title/\author/\date/
+          # \maketitle/abstract env/\section*/\cite), 零 AIP 专有宏
+          # → article 桥 (不桥 revtex4-2: apl.cls 先例对无 \affiliation
+          # frontmatter 稿更重)。
+          aip.cls: { loads: "article" }
+          # ioplppt.cls: IOP letter-proceedings 时代类 (cond-mat/9612190
+          # \documentstyle[psfig]{ioplppt}) —— 稿面 \jl/\letter/\author/
+          # \address/\pacs/\etal/abstract env 由 vendored files/
+          # iopart.cls 真件全覆盖 (iopart10/12.clo+iopams.sty 随船)。
+          ioplppt.cls: { loads: "iopart", needs: ["iopart.cls"] }
+          # ichep.cls: ICHEP94 会议类 (hep-ph/9412258 \documentstyle
+          # [epsfig]{ichep}) —— article 底 + 三件面: \affil 累进;
+          # \abstract{...} 单参命令形 (article 已定义 env-begin 同名
+          # → 须 provide+renew, 否则 {参} 入 env-begin 排版且 env 不
+          # 闭合炸 \@checkend); \fnm{N}{t} 显式脚注号 → superscript+
+          # footnote 双件 (\@maketitle 内 \let\footnote\thanks 不吃可
+          # 选参, 直传 [#1] 会留 `1]t` 残文); 累进件于 \maketitle
+          # 后放出 (preamble/正文两序通吃)。
+          ichep.cls:
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesClass{ichep}[2026/09/20 fixloop legacy shim -> article + ICHEP94 surface]
+              \LoadClassWithOptions{article}
+              \def\ich@affils{}
+              \def\ich@abstract{}
+              \providecommand{\affil}[1]{\g@addto@macro\ich@affils{\par #1}}
+              \providecommand{\abstract}{}
+              \renewcommand{\abstract}[1]{\gdef\ich@abstract{#1}}
+              \providecommand{\fnm}[2]{\textsuperscript{#1}\footnote{#2}}
+              \let\ich@maketitle\maketitle
+              \renewcommand{\maketitle}{\ich@maketitle
+                \ifx\ich@affils\@empty\else\par{\footnotesize\ich@affils\par}\fi
+                \ifx\ich@abstract\@empty\else\begin{quotation}\noindent
+                \textbf{Abstract.} \ich@abstract\end{quotation}\fi}
+              \endinput
+          # sn-jnl.cls: Springer Nature 投稿类 (2604.04274 \documentclass
+          # [sn-basic,pdflatex]{sn-jnl}, journal-shipped 非 CTAN/TL) ——
+          # article 底 + sn frontmatter 面: \title[短]{长} opt 宽容;
+          # \author[*][编号]{名} 星号+可选参双宽容累进 \@author; \affil
+          # [*][编号]{org 件} 星号吞弃/\abstract{文}/\keywords{文} 累进
+          # → \maketitle
+          # 后放出, emit 清位 + AtEndDocument 兜底扫残 (preamble/正文
+          # 任意调用序不丢内容); \fnm/\sur/\orgdiv/\orgname/\orgaddress/
+          # \city/\postcode/\country 参文直印。
+          sn-jnl.cls:
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesClass{sn-jnl}[2026/09/20 fixloop legacy shim -> article + sn-jnl surface]
+              \LoadClassWithOptions{article}
+              \renewcommand{\title}{\@ifnextchar[{\snj@title@o}{\snj@title@p}}
+              \def\snj@title@o[#1]#2{\gdef\@title{#2}}
+              \def\snj@title@p#1{\gdef\@title{#1}}
+              \gdef\@author{}
+              \renewcommand{\author}{\@ifstar{\snj@author@s}{\snj@author@n}}
+              \def\snj@author@s{\@ifnextchar[{\snj@author@so}{\snj@author@sp}}
+              \long\def\snj@author@so[#1]#2{\snj@addauthor{#2}}
+              \long\def\snj@author@sp#1{\snj@addauthor{#1}}
+              \def\snj@author@n{\@ifnextchar[{\snj@author@no}{\snj@author@np}}
+              \long\def\snj@author@no[#1]#2{\snj@addauthor{#2}}
+              \long\def\snj@author@np#1{\snj@addauthor{#1}}
+              \long\def\snj@addauthor#1{%
+                \ifx\@author\@empty\gdef\@author{#1}%
+                \else\g@addto@macro\@author{\and #1}\fi}
+              \def\snj@affils{}
+              \providecommand{\affil}{\@ifstar{\snj@affil@x}{\snj@affil@x}}
+              \def\snj@affil@x{\@ifnextchar[{\snj@affil@o}{\snj@affil@p}}
+              \long\def\snj@affil@o[#1]#2{\snj@addaffil{#2}}
+              \long\def\snj@affil@p#1{\snj@addaffil{#1}}
+              \long\def\snj@addaffil#1{%
+                \ifx\snj@affils\@empty\gdef\snj@affils{#1}%
+                \else\g@addto@macro\snj@affils{\par #1}\fi}
+              \def\snj@abstract{}
+              \providecommand{\abstract}{}
+              \renewcommand{\abstract}[1]{\gdef\snj@abstract{#1}}
+              \def\snj@keywords{}
+              \providecommand{\keywords}[1]{\gdef\snj@keywords{#1}}
+              \providecommand{\fnm}[1]{#1}
+              \providecommand{\sur}[1]{#1}
+              \providecommand{\orgdiv}[1]{#1}
+              \providecommand{\orgname}[1]{#1}
+              \providecommand{\orgaddress}[1]{#1}
+              \providecommand{\city}[1]{#1}
+              \providecommand{\postcode}[1]{#1}
+              \providecommand{\country}[1]{#1}
+              \def\snj@emitfront{%
+                \ifx\snj@affils\@empty\else
+                  \par{\footnotesize\snj@affils\par}\global\let\snj@affils\@empty\fi
+                \ifx\snj@abstract\@empty\else
+                  \begin{quotation}\noindent\textbf{Abstract.} \snj@abstract
+                  \end{quotation}\global\let\snj@abstract\@empty\fi
+                \ifx\snj@keywords\@empty\else
+                  \par\noindent\textbf{Keywords:} \snj@keywords\par
+                  \global\let\snj@keywords\@empty\fi}
+              \let\snj@maketitle\maketitle
+              \renewcommand{\maketitle}{\snj@maketitle\snj@emitfront}
+              \AtEndDocument{\snj@emitfront}
+              \endinput
+          # mncite.sty: MNRAS 引用伴船件 (0712.0823 \usepackage{mncite};
+          # 稿 \citep 已由 vendored shims/mn2e.cls usenatbib 解) —— noop
+          # + cite 别名 provide 作无 natbib 路径兜底。
+          mncite.sty:
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesPackage{mncite}[2026/09/20 fixloop noop stub - MNRAS cite companion]
+              \DeclareOption*{}
+              \ProcessOptions\relax
+              \providecommand{\citep}[2][]{\cite[#1]{#2}}
+              \providecommand{\citet}[2][]{\cite[#1]{#2}}
+              \providecommand{\citealt}[2][]{\cite[#1]{#2}}
+              \providecommand{\citealp}[2][]{\cite[#1]{#2}}
+              \providecommand{\citeauthor}[2][]{#2}
+              \providecommand{\citeyear}[2][]{#2}
+              \endinput
+          # cropmark.sty: 2.09 crop-mark 版式样 (cond-mat/0103015 文稿级
+          # \usepackage{cropmark}) —— 裁切标记无内容语义, 纯 noop。
+          cropmark.sty:
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesPackage{cropmark}[2026/09/20 fixloop noop stub - crop marks]
+              \DeclareOption*{}
+              \ProcessOptions\relax
+              \endinput
+          # revtex.sty: REVTeX3 伴船 sty (hep-th/0103239 稿自带真 REVTeX3
+          # revtex.cls 薄壳 :94 \RequirePackage{revtex} 伴生缺口) ——
+          # 原身即 class-in-sty 架构: \LoadClass 在 .sty 语境被
+          # latex.ltx \@currext=\@pkgextension 检查硬拒 (! \LoadClass
+          # in package file) → \@currext 存复位绕过 (已载类场景
+          # \@ifl@aded clashchk 空参幂等; 薄壳先行 \input{latex209.def}
+          # 起 compat 模式, article \DeclareOldFontCommand 被 compat
+          # 内 noop 化不撞 \bf 族)。\address/\andaddress/\pacs 就地印
+          # 会炸 preamble 调用 (Missing \begin{document}) → 累进 \rtx@front
+          # \maketitle 钩 + AtEndDocument 扫残两序通吃。revtex3 残面同
+          # vendor/shims/revtex.cls compat 臂表。
+          revtex.sty:
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesPackage{revtex}[2026/09/20 fixloop legacy shim -> article + revtex3 surface]
+              \DeclareOption*{}
+              \ProcessOptions\relax
+              \@ifundefined{@maketitle}{%
+                \let\rtx@save@currext\@currext
+                \let\@currext\@clsextension
+                \LoadClass{article}%
+                \let\@currext\rtx@save@currext}{}
+              \def\rtx@front{}
+              \providecommand{\address}[1]{\g@addto@macro\rtx@front{\par{\itshape#1\par}}}
+              \providecommand{\andaddress}[1]{\g@addto@macro\rtx@front{\par{\itshape#1\par}}}
+              \providecommand{\pacs}[1]{\g@addto@macro\rtx@front{\par\noindent\textbf{PACS:} #1\par}}
+              \def\rtx@emitfront{\ifx\rtx@front\@empty\else
+                \rtx@front\global\let\rtx@front\@empty\fi}
+              \@ifundefined{maketitle}{}{%
+                \let\rtx@maketitle\maketitle
+                \renewcommand{\maketitle}{\rtx@maketitle\rtx@emitfront}}
+              \AtEndDocument{\rtx@emitfront}
+              \providecommand{\preprint}[1]{}
+              \providecommand{\draft}{}
+              \providecommand{\tighten}{}
+              \providecommand{\tightenlines}{}
+              \providecommand{\widetext}{}
+              \providecommand{\narrowtext}{}
+              \providecommand{\submit}[1]{}
+              \endinput
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same } # stub 注入与引擎无关; needs 装不上则下轮 missing_file 归因

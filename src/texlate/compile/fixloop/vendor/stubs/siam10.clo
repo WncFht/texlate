@@ -1,0 +1,18 @@
+% texlate vendored stub — 原许可禁分发，最小兼容面
+% siam10.clo 伴生件：siamltex.cls 真件 (2511.16127 e-print 船) :107
+% \input{siam1\@ptsize.clo} 尺寸式样件 (10pt→siam10/11pt→siam11/
+% 12pt→siam12 族; \ExecuteOptions 默认 10pt → siam10.clo)。真件内含
+% \normalsize 族 + 版心尺寸——空 stub 让 \normalsize 停 kernel
+% error-stub (latex.ltx \@latex@error 占位) → fontspec/ctex
+% "font size command \normalsize is not defined" 级联
+% (svjour_clo_stub/_SVJOUR_CLO_BODY 同案, 2505.06598 实证)。
+% 内核 size10.clo 直通 = 尺寸族全真播种 (svglov3.clo 先例同款);
+% catcode 存复裹 = @=letter(class-load)/@=other(doc \input) 两语境
+% 精确回原位, \siamclorestore 纯字母名无 @-cs 面。
+\ProvidesFile{siam10.clo}[2026/09/20 texlate stub — siamltex size shim]
+\edef\siamclorestore{\catcode 64=\the\catcode 64\relax}
+\catcode 64=11\relax
+\input{size10.clo}
+\siamclorestore
+\PackageWarningNoLine{texlate-stub}{siam10.clo is a size/layout shim}
+\endinput
