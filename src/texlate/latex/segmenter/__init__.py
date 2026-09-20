@@ -11,7 +11,7 @@ r"""Segmenter——``next_expanded()`` token 流的消费者（M1 接线，S1 �
   ph 项 = token 自身、展开组 = ``[[EXPAND_n]]``）。
 - **chunk identity**：run 含展开组时 ``ph_map["[[CHUNK_k]]"]`` 登记为
   identity 串——``expand()`` 的 ``trans → ph_map → content`` 优先级
-  自动回原文（docs/07 §9 伪码同序），零 schema 变更。
+  自动回原文（docs/spec/latex-pipeline.md 伪码同序），零 schema 变更。
 - **展开组**：``gen>0`` 连续同 ``origin`` token 为一组；组内 gen=0
   arg token（pos 落调用区间内）同属。surface 正常流过分段，identity
   收拢为一个 ``[[EXPAND_n]]``。

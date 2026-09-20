@@ -6,7 +6,7 @@ r"""defect_ledger.py — 缺陷台账机读化：fuzz findings + 人工总账 �
   tmp/{arxiv,validate}-fuzz/findings.jsonl                新波 jsonl 台账（B9/B8）
   tmp/fuzz-{texlog,xlat-batch}/findings.jsonl             新波 jsonl 台账（B10/B11，
     xlat-batch 同目录老波 findings.txt 由 jsonl 取代——同条目机读版，不重复收）
-  docs/research/roadmap-2026-09-17/inputs/defect-ledger.md 人工总账（P0/P1/P2 + 核销表）
+  docs/log/roadmap-2026-09-17/inputs/defect-ledger.md 人工总账（P0/P1/P2 + 核销表）
   tests/test_fuzz_*.py  活钉扫描（status 运行态判定；texlog+align 一 lane 合扫两文件）
 
 status 口径：pinned=开口项（活钉或未修台账项）、fixed=已核销/钉已拆/已标
@@ -51,7 +51,7 @@ import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[3]
-LEDGER_MD = REPO / "docs/research/roadmap-2026-09-17/inputs/defect-ledger.md"
+LEDGER_MD = REPO / "docs/log/roadmap-2026-09-17/inputs/defect-ledger.md"
 DEFAULT_OUT = REPO / "tmp" / "defect-ledger" / "ledger.jsonl"
 DATE = "2026-09-17"
 

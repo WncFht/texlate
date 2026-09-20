@@ -1,4 +1,4 @@
-r"""M1 展开层（mouth/gullet）单元测试：docs/07 §8 验收面。
+r"""M1 展开层（mouth/gullet）单元测试：docs/spec/latex-pipeline.md 验收面。
 
 逐条锁 ``docs/research/latex/expansion-design.md`` §12 移植表的行为：
 三态 tokenize / 注释吞行 / ``\def`` 定界参数族 / ``\newcommand`` 调用点 /

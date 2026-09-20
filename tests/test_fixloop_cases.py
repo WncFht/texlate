@@ -1,4 +1,4 @@
-"""cases — cases.jsonl 沉淀 / triage / 回放三门 单测 (docs/08 §5.5)。"""
+"""cases — cases.jsonl 沉淀 / triage / 回放三门 单测 (docs/spec/compile.md)。"""
 
 from functools import lru_cache
 from pathlib import Path

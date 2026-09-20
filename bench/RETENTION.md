@@ -9,7 +9,7 @@
 | 类 | 数量 | 体量 | 内容 |
 |---|---|---|---|
 | `stagerun-*` / `replay-*` / `soak-*` | 42 | ~44.6G | DAG 格式 run：`records/` + `work/{id}/` + `cases.jsonl` + `run_meta.json` |
-| 评测器三件套目录（parsebench/compilebench/validbench/e2e/alignbench/probe 等） | ~300 | <0.5G | `files\|cases.jsonl` + `summary.md` + `papers\|cells.json`（docs/10 §产出契约） |
+| 评测器三件套目录（parsebench/compilebench/validbench/e2e/alignbench/probe 等） | ~300 | <0.5G | `files\|cases.jsonl` + `summary.md` + `papers\|cells.json`（docs/spec/benchmark.md 产出契约） |
 | 顶层 `*.md` | 75 | 小 | 一次性报告 / 横评 / walkthrough |
 | `nightwatch/` | 1 | 8M 且增 | cron 每 10min 快照 `.md` |
 

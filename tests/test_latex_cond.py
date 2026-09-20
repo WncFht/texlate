@@ -1,4 +1,4 @@
-r"""``\if`` 两档展开的单测（docs/07 §8.6 + plasTeX processIfContent 语义）。
+r"""``\if`` 两档展开的单测（docs/spec/latex-pipeline.md + plasTeX processIfContent 语义）。
 
 可求值族 → 只推回选中支（未选支+界标全 LITERAL）；
 不可求值 → 结构界标 literal，双分支都进分段器（召回优先）。

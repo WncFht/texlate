@@ -15,7 +15,7 @@ from typing import Final
 
 from texlate.textutil import mask_tex
 
-#: TeX 主文件扩展名（docs/06 只列 .tex；corpus 实测 .ltx/.latex 亦存在——
+#: TeX 主文件扩展名（docs/spec/arxiv-source.md 只列 .tex；corpus 实测 .ltx/.latex 亦存在——
 #: nucl-ex/0203009 唯一主文件即 article.latex）
 TEX_EXT: Final = (".tex", ".ltx", ".latex")
 

@@ -1,5 +1,5 @@
 """§4 安全回归：main override confine / glossary 任意文件读 / RedactFilter
-挂载 / cache_scope 跨租户 oracle / fixloop 编译段接线（docs/08 §5）。"""
+挂载 / cache_scope 跨租户 oracle / fixloop 编译段接线（docs/spec/compile.md）。"""
 
 from __future__ import annotations
 
@@ -563,7 +563,7 @@ class TestCacheScope:
 
 
 class TestFixloopWiring:
-    """docs/08 §5：zh 编译首判非 clean → fixloop 规则循环 → 摘要留痕。"""
+    """docs/spec/compile.md 编译首判非 clean → fixloop 规则循环 → 摘要留痕。"""
 
     def test_rescue_to_done(
         self,

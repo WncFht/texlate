@@ -4,14 +4,14 @@ r"""xlatbench — B4a 翻译硬契约回归跑分器 (gwbench 扶正版).
 对 3033 网关免费集模型跑分层抽样 LaTeX 段落翻译, 逐调用过 L0 validator
 + 三条增强判定, 产出 results.jsonl; report 子命令聚合排序表.
 
-样例池 (docs/10 §B4a): corpus manifest.jsonl 按 ``--where k=v`` 切层
+样例池 (docs/spec/benchmark.md §B4a): corpus manifest.jsonl 按 ``--where k=v`` 切层
 (如 layer=core), ``--docs N`` 跨 cluster 轮转取 N 篇 (seed 定簇内序),
 每篇 locate() 定主 tex → 候选 chunk (300–1200 字符且含占位符) 按
 context-kind 分桶, 每桶等距取 ``--per-kind`` 个; 尾部挂 S1–S4 合成压力
 (与 bench/fixtures/xlat-traps.tex @Xn 遮蔽输出逐字一致, test_bench_regression
 assert_xlat 钉住产品口径).
 
-判定口径 (E22 定案, docs/05 §E22):
+判定口径 (E22 定案, docs/decisions/background.md E22):
   hard_ok = validator.ok ∧ 无丢占位符 ∧ 无造占位符 ∧ 无丢脆弱命令
   ph_order 降为软信号 (合法中文换序占违例 ~95%), 单独记录不计硬失败.
   cs_dropped = src 中脆弱命令 (\ /\,/\;/\:/\!/~) 在 zh 计数变少 —— 升硬

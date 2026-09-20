@@ -1,4 +1,4 @@
-"""译文校验层：L0 自写规则 always-on / L1 tree-sitter 可选 / L2 编译 log 回灌（规格 docs/08）。
+"""译文校验层：L0 自写规则 always-on / L1 tree-sitter 可选 / L2 编译 log 回灌（规格 docs/spec/compile.md）。
 
 - ``l0.validate_pair``：十三规则 src↔zh 相对判定，stdlib 零依赖 always-on；
 - ``l1.TsValidator``：tree-sitter CST 增强层，node 子进程 JSONL，无 node 自动降级；

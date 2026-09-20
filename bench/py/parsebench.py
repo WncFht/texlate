@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-r"""parsebench v2 — ``texlate.latex`` 产品管线评测器 (docs/10 §B1).
+r"""parsebench v2 — ``texlate.latex`` 产品管线评测器 (docs/spec/benchmark.md §B1).
 
 逐 .tex: parse ok/error/ms (30s SIGALRM)、chunk 数与字符中位/p90、泄漏率
-($ \cite \ref \begin{ \if \input 六组正则, docs/09 §7.1 口径)、round-trip
+($ \cite \ref \begin{ \if \input 六组正则, docs/spec/corpus.md 口径)、round-trip
 (vtex vs recon) strict/normalized/diverged+首差异位、flat→vtex 展开足迹、
 fake-translation 死占位符/孤儿 chunk、
 scan/validate warnings 计数、flatten 覆盖 (是否被主文件 \input 图触及).
@@ -10,9 +10,9 @@ scan/validate warnings 计数、flatten 覆盖 (是否被主文件 \input 图触
 逐论文: 主文件定位 (剥注释→documentclass/documentstyle, 多根标 multi_doc)、
 class 名/选项、tex 数/总大小/非 UTF-8、路由标签 (reject/xelatex/minted/
 non-utf8/no-hyperref——B3 静态路由金标准)、孤儿 tex 清单、stratum_cell/
-cluster_id/权重 (供 docs/09 §7.2 统计与事后分层).
+cluster_id/权重 (供 docs/spec/corpus.md 统计与事后分层).
 
-统计口径 (docs/09 §7.2, §8 门槛): 加权池化率 (事后分层权重 w_cell =
+统计口径 (docs/spec/corpus.md §8 门槛): 加权池化率 (事后分层权重 w_cell =
 frame_cell/sample_cell, stratum_cell 来自 corpus manifest, frame 宇宙计数
 来自 bench/frame/strata-era-cat.csv) + 宏平均 (逐篇等权, olmOCR 式) +
 raw pooled 三口径并列; Wilson 95% CI (iid 近似) + 月簇稳健 bootstrap CI
@@ -23,7 +23,7 @@ raw pooled 三口径并列; Wilson 95% CI (iid 近似) + 月簇稳健 bootstrap 
   uv run python bench/py/parsebench.py --corpus bench/corpus [--out DIR]
   python3 bench/py/parsebench.py --corpus corpus_daily --limit 20   # src shim 兜底
 
-产出 (docs/10 统一产出契约): OUT/files.jsonl + OUT/papers.json + OUT/summary.md,
+产出 (docs/spec/benchmark.md 统一产出契约): OUT/files.jsonl + OUT/papers.json + OUT/summary.md,
 OUT 默认 bench/results/parsebench-{corpus.name}-{date}/.
 files.jsonl 逐文件 append 落盘（行在=done）——同 OUT 重跑自动续跑已完成
 文件（--rerun 强制重测）；papers.json/summary.md 仍是末尾汇总报告。
@@ -199,7 +199,7 @@ PH_TOKEN_RX = re.compile(r"\[\[[A-Z_]+_\d+\]\]")
 
 
 def ph_tail_risk(res: ScanResult) -> int:
-    r"""BUG1 回归计数 (docs/07 §11): 占位符 body 以 `\letters` 结尾且其后继字符
+    r"""BUG1 回归计数 (docs/spec/latex-pipeline.md): 占位符 body 以 `\letters` 结尾且其后继字符
     是字母 → 展开后命令吞掉后继字母, token 合并. 扫描域 = protected_tex +
     ph bodies + chunk contents (嵌套占位符的全部可见位置)."""
     blob = (
@@ -217,7 +217,7 @@ def ph_tail_risk(res: ScanResult) -> int:
     return n
 
 
-# ---------------------------------------------------------------- 判定 (docs/09 §7.1 口径, 产品 API 版)
+# ---------------------------------------------------------------- 判定 (docs/spec/corpus.md 口径, 产品 API 版)
 
 
 def parse_one(path: Path, timeout_s: int) -> dict:
@@ -256,7 +256,7 @@ LEAK_PATTERNS = {
 
 
 def scan_chunks(res: ScanResult) -> dict:
-    """泄漏判据 (docs/09 §7.1): 可译 chunk 命中六组正则任一 → 记 hit."""
+    """泄漏判据 (docs/spec/corpus.md): 可译 chunk 命中六组正则任一 → 记 hit."""
     per_chunk = []
     hits = dict.fromkeys(LEAK_PATTERNS, 0)
     leaked = 0
@@ -294,7 +294,7 @@ def orphan_chunk_ids(res: ScanResult) -> int:
 
 
 def classify_recon(orig: str, recon: str) -> tuple[str, float, int]:
-    """identity 三档 (docs/09 §7.1): strict 逐字节 / normalized 仅空白 / diverged."""
+    """identity 三档 (docs/spec/corpus.md): strict 逐字节 / normalized 仅空白 / diverged."""
     if orig == recon:
         return "strict", 1.0, -1
 
@@ -318,7 +318,7 @@ def fake_translation(chunk, idx: int) -> str:
 
 
 def rebuild_metrics(res: ScanResult) -> dict:
-    """identity 重建 + fake-translation splice 残留 + 孤儿 chunk (docs/09 §7.1)."""
+    """identity 重建 + fake-translation splice 残留 + 孤儿 chunk (docs/spec/corpus.md)."""
     recon_identity = reconstruct(res)
     translated = {c.id: fake_translation(c, i) for i, c in enumerate(res.chunks)}
     recon_fake = reconstruct(res, translated)
@@ -402,7 +402,7 @@ def file_metrics(
         entry["chunk_chars_max"] = lens[-1] if lens else None
         entry["_lens"] = lens  # 聚合用, 随行落盘（续跑后聚合仍保真）
 
-        # scan/validate warnings 分类计数 (泄漏类 bug 第一手线索, docs/07 model)
+        # scan/validate warnings 分类计数 (泄漏类 bug 第一手线索, docs/spec/latex-pipeline.md model)
         wk: dict[str, int] = {}
         for w in res.warnings:
             wk[w.kind] = wk.get(w.kind, 0) + 1
@@ -414,7 +414,7 @@ def file_metrics(
             name for _pos, name in res.inputs if not os.path.isabs(name)
         ]
 
-        lk = scan_chunks(res)  # 6 组正则 (docs/09 §7.1), chunk 命中任一即泄漏
+        lk = scan_chunks(res)  # 6 组正则 (docs/spec/corpus.md), chunk 命中任一即泄漏
         entry["leak"] = {
             "n_translatable": lk["n_translatable_chunks"],
             "n_leaked": lk["n_leaked"],
@@ -653,13 +653,13 @@ def load_frame_counts(path: Path | None) -> dict[str, int]:
 def build_weights(
     papers: list[dict], manifest: dict[str, dict], frame_counts: dict[str, int]
 ) -> dict[str, float]:
-    """事后分层权重 (docs/09 §4.2): w_cell = N_frame_cell / n_sample_cell.
+    """事后分层权重 (docs/spec/corpus.md): w_cell = N_frame_cell / n_sample_cell.
 
     n_sample_cell 用 manifest 行 (抽出的样本) 计数; 样本行缺 stratum_cell
     或 frame 表缺该 cell → 该篇无权重, 加权统计剔除并在报告注明.
     语料无 stratum_cell (corpus39/v2) → 返回空 dict → 调用方退化等权.
     有 layer 字段的 manifest (v3): 只有 layer=="core" 行入 n_cell/得权重——
-    补强层是策展非随机样, 池化估计只用核心层 (docs/09 §0.4/§7.2)."""
+    补强层是策展非随机样, 池化估计只用核心层 (docs/spec/corpus.md)."""
     has_layer = any("layer" in m for m in manifest.values())
     n_cell: dict[str, int] = {}
     for m in manifest.values():
@@ -695,7 +695,7 @@ def wilson_ci(k: int, n: int, z: float = 1.959964) -> tuple[float | None, float 
 def cluster_bootstrap(
     papers: list[dict], files: list[dict], n_boot: int = BOOTSTRAP_B
 ) -> dict[str, tuple[float, float] | None]:
-    """月簇稳健 bootstrap (docs/09 §7.2): 按簇键 (cluster_id‖yymm‖pid) 有放回
+    """月簇稳健 bootstrap (docs/spec/corpus.md): 按簇键 (cluster_id‖yymm‖pid) 有放回
     重抽样论文, 重算 pooled 比率取 2.5/97.5 分位. 无簇键时逐篇 iid (退化标注)."""
     if not papers:
         return {}
@@ -912,7 +912,7 @@ def write_summary(
         f"{n_no_root} rootless   (触及率 {_pct(cover)}%)\n"
     )
 
-    # ---- docs/10 B1 漏斗: fetched → .tex → rooted → ok → identity → leak → dead/orphan
+    # ---- docs/spec/benchmark.md B1 漏斗: fetched → .tex → rooted → ok → identity → leak → dead/orphan
     n_multi = sum(1 for p in papers if p["multi_doc"])
     n_rootless = sum(1 for p in papers if not p["roots"])
     lines.append("## funnel\n")
@@ -949,7 +949,7 @@ def write_summary(
         f"{n_reached} / {n_orphan} / {n_no_root} |\n"
     )
 
-    # ---- docs/09 §8 门槛
+    # ---- docs/spec/corpus.md 门槛
     wil_ok = wilson_ci(tot["ok"], tot["files"])
     n_meas = tot["files"] - tot["error"] - tot["measure_error"]
     wil_id = wilson_ci(tot["strict"], n_meas)
@@ -996,20 +996,20 @@ def write_summary(
             "PASS" if (cover or 0) >= 0.99 else "BELOW",
         ),
     ]
-    lines.append("## gates (docs/09 §8)\n")
+    lines.append("## gates (docs/spec/corpus.md)\n")
     lines.append("| gate | value | 门槛 | verdict |")
     lines.append("|---|---|---|---|")
     lines.extend(f"| {g} | {v} | {t} | {d} |" for g, v, t, d in gates)
     lines.append(
-        "\n† coverage 口径勘误 (docs/09 §8 表下): orphan 大头是 e-print 内未被主文件 "
+        "\n† coverage 口径勘误 (docs/spec/corpus.md 表下): orphan 大头是 e-print 内未被主文件 "
         "\\input 触及的随附 tex (preamble/poster 件), 属语料真实属性而非实现漏跟; "
         "v3 实测 ~93%.\n"
     )
 
-    # ---- docs/09 §7.2 三口径 + CI
+    # ---- docs/spec/corpus.md 三口径 + CI
     wr = weighted_rates(files, weights)
     mr = macro_rates(files, papers)
-    lines.append("## 统计口径 (docs/09 §7.2)\n")
+    lines.append("## 统计口径 (docs/spec/corpus.md)\n")
     lines.append(
         f"- 权重: {weighted_note}; bootstrap: 簇键 cluster_id‖yymm‖pid, "
         f"B={n_boot}, seed={BOOTSTRAP_SEED} (无簇键即逐篇 iid)"
@@ -1059,7 +1059,7 @@ def write_summary(
         )
         lines.append("")
 
-    # ---- 泄漏逐条归因表 (docs/10 B1-4: 人工复核素材 → mechanisms.jsonl)
+    # ---- 泄漏逐条归因表 (docs/spec/benchmark.md B1-4: 人工复核素材 → mechanisms.jsonl)
     leaked_files = [f for f in files if f.get("leak", {}).get("n_leaked")]
     if leaked_files:
         lines.append("## leak detail\n")
@@ -1329,7 +1329,7 @@ def main() -> None:
     for p in paper_list:
         p["weight"] = round(weights.get(p["id"], 0.0), 4) or None
 
-    # ---- 落盘 (docs/10 契约三件套；files.jsonl 已随 pass2 append 落盘)
+    # ---- 落盘 (docs/spec/benchmark.md 契约三件套；files.jsonl 已随 pass2 append 落盘)
     p_json = out / "papers.json"
     s_md = out / "summary.md"
 

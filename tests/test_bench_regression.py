@@ -1,4 +1,4 @@
-r"""B2 fixtures 陷阱断言回归（docs/10 §B2）——spike ``miniscanner_test`` 断言矩阵移植到 ``texlate.latex``。
+r"""B2 fixtures 陷阱断言回归（docs/spec/benchmark.md §B2）——spike ``miniscanner_test`` 断言矩阵移植到 ``texlate.latex``。
 
 底材 ``bench/fixtures/*.tex``（入库，逐字节即语义——永不格式化/润色）：
 
@@ -27,7 +27,7 @@ r"""B2 fixtures 陷阱断言回归（docs/10 §B2）——spike ``miniscanner_te
 
 断言函数 ``assert_tricky`` / ``assert_209`` / ``assert_multi`` / ``assert_xlat``
 与 bench 跑分器 ``bench/py/fixture_assert.py`` 共享（该脚本直接 import 本模块）。
-门槛（docs/10 §B2）：72 条 dict 断言全 ``pass``——``partial`` 在 spike 里是容忍档，
+门槛（docs/spec/benchmark.md §B2）：72 条 dict 断言全 ``pass``——``partial`` 在 spike 里是容忍档，
 但产品现状全 pass，退化到 partial 即回归，这里按 ``== "pass"`` 严判。
 """
 
@@ -923,7 +923,7 @@ WENC_ASSERTS = assert_wenc(_wenc.res) if _wenc.res else {}
 DOLLAR_ASSERTS = assert_dollar(_d.res, _d.recon, _d.recon_fake) if _d.res else {}
 MASK_ASSERTS = assert_mask(_mk.res, _mk.recon, _mk.recon_fake) if _mk.res else {}
 
-# tricky.tex 的断言全集（docs/10：新增断言只增不减——T14 在 multi，T15/T28 不存在）
+# tricky.tex 的断言全集（docs/spec/benchmark.md：新增断言只增不减——T14 在 multi，T15/T28 不存在）
 TRICKY_IDS = [
     f"T{n:02d}"
     for n in (

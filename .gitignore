@@ -28,9 +28,7 @@ bench/results/
 bench/queue/
 bench/py/scratch/
 
-# 内部过程文档（transcript 采矿/网关运维/交接台账）——本机保留，不入发布仓
-docs/research/preclean-2026-09-16/
-docs/research/gateway/
+# 交接台账——本机保留，不入发布仓
 docs/HANDOFF-*.md
 
 # 个人 tailscale 网关运维件（公开仓无意义）
@@ -65,6 +63,4 @@ scripts/find-gateway-hog.sh
 # 调研实验现场 (repos/reports/experiments)
 tmp/
 
-# 文献原件 (PDF/HTML 二进制,可再生)
-docs/research/lit/
 .DS_Store

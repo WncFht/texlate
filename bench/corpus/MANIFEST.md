@@ -2,9 +2,9 @@
 
 渠道钉版批量语料：a–d 带 IA `arxiv-bulk` 月 chunk / e 带 HF `TIGER-Lab/arxiv-latex-5T`（成员四元组 `(channel,item,member,blob_sha256)` 钉版，`resolved_version=null`）。
 数据在本目录 `{id}/` 子目录（gitignored），入库的有此清单、`manifest.jsonl`（核心 1000）、`manifest_booster.jsonl`（补强 200）、`manifest_expand.jsonl`（扩展 3866）、`manifest_hot.jsonl`（热层 166，OpenAlex 高引近期 e-print 渠道）、`manifest_dev_failmine.jsonl`（机制挖掘 1500）、`manifest_dev_vol.jsonl`（体量层 2000）、`manifest_dev_recent.jsonl`（近期 dev 层，scholarweave+eprint 双通道）、`manifest_holdout.jsonl`（留出评测层，EVAL_ONLY 治理见末节）、`mechanisms.jsonl`、`booster_selection.jsonl`、`select_booster.py`、`selection_report.md`、`eval_coverage.json`（B04/B06 宇宙×语料覆盖簿记，L12 EVAL）、`nominations/`（提名审计轨迹，见补强层节），管线脚本在 `bench/py/corpus/build_corpus_v3.py`（core/booster）+ `build_corpus_expand.py`（expand）+ `build_hot_layer.py`（hot）+ `build_corpus_layers.py`（holdout/dev_vol/dev_failmine bulk + 各层 recent eprint 臂）+ `build_sw_layer.py`（scholarweave 脱水通道 → dev_recent）。
-抽样管线见 `docs/09-benchmark-corpus.md` S0–S5；旧式 ID 按 `archive/name` 嵌套。
+抽样管线见 `docs/spec/corpus.md` S0–S5；旧式 ID 按 `archive/name` 嵌套。
 
-> 追记（2026-09-17）：四层合计 **5232 篇**。expand 层（3866）与 hot 层（166）为增补层——expand 明细见 `manifest_expand.jsonl` + QC `bench/results/corpus-expand-qc-2026-09-16/`；hot 层口径见 `docs/09` §4.3 增补注记与 `docs/research/product/2026-09-16-e2e-pipefix-hotlayer.md`。（勘误 2026-09-18：hot 层当日收官为 166 篇、expand 新批后 3866、合计 5232；本注记原写 133/合计 5133 系时点旧值。再勘误 2026-09-19：评测/开发分轨扩层收官后八层合计 **13,266 篇**，见末节。）
+> 追记（2026-09-17）：四层合计 **5232 篇**。expand 层（3866）与 hot 层（166）为增补层——expand 明细见 `manifest_expand.jsonl` + QC `bench/results/corpus-expand-qc-2026-09-16/`；hot 层口径见 `docs/spec/corpus.md` §4.3 增补注记与 `docs/research/product/2026-09-16-hardening-notes.md`。（勘误 2026-09-18：hot 层当日收官为 166 篇、expand 新批后 3866、合计 5232；本注记原写 133/合计 5133 系时点旧值。再勘误 2026-09-19：评测/开发分轨扩层收官后八层合计 **13,266 篇**，见末节。）
 
 - 入库 **1000** 篇（核心层）· 1955 个 .tex · 原始包共 1603M
 - 打包形式：{'tar': 831, 'gz': 169}
@@ -1123,7 +1123,7 @@ fill 即设计回补路径）；`cluster_id` 前缀 `DF`；1,901 tex · 342MB。
 - **scholarweave 脱水 1,065**：`build_sw_layer.py` footers→pool→assign→rehydrate——
   47 parquet 分片行组级 range-read 只拉 latex 列，`==== FILE:` 拆包重打 raw.tar.gz；
   `channel=hf_scholarweave`、`stratum_cell=sw|{yymm}`、`figures_stripped:true`
-  （有损源只进 dev 层，不进评测/池化——docs/09 §0.3 口径延续）。HF CDN 三次重试
+  （有损源只进 dev 层，不进评测/池化——docs/spec/corpus.md 口径延续）。HF CDN 三次重试
   后弃 3 行组（thrift 页截断）→ 比计划 1,200 少 135。
 - **eprint 449**：sw 池余量切 id 清单走 `acquire_source` 钉版，
   `stratum_cell=dev_recent|recent`。

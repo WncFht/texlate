@@ -55,11 +55,11 @@ rules:
       tectonic: { mode: same }
     provenance:
       - {
-          corpus: "非 UTF-8 语料 (docs/08 §4.2 路由表)",
+          corpus: "非 UTF-8 语料 (docs/spec/compile.md 路由表)",
           error: "Invalid UTF-8 byte / U+FFFD 静默",
         }
     stats: { fires: 0, status: proposed }
-    source_ref: "docs/08-translate-compile.md L221, L272"
+    source_ref: "docs/spec/compile.md L221, L272"
 
   # 2026-09-16 compile-hard 新增 (2211.13013 闭环·引擎自产臂): aux_scan_eof
   # 命中 → 删「utf-8 解码失败 或 末行不完整」的 aux 族可再生件, 下遍
@@ -182,7 +182,7 @@ rules:
           error: "Text line contains an invalid character",
         }
     stats: { fires: 0, status: proposed }
-    source_ref: "docs/research/product/2026-09-16-signature-mining.md §2.2"
+    source_ref: "docs/research/methods/2026-09-16-signature-mining.md §2.2"
 
   # ── 2026-09-20 lane-nfsstu: nfss_enc 三臂 (xelatex TU 下 legacy NFSS
   # enc 声明族; 0712.1142 / 2609.20339 / 2609.20539 原全归 other|None)。

@@ -1,4 +1,4 @@
-r"""元数据层：Atom API 主源 + OAI-PMH 兜底 + §5 降级链（docs/06 §3/§5）。
+r"""元数据层：Atom API 主源 + OAI-PMH 兜底 + §5 降级链（docs/spec/arxiv-source.md）。
 
 - ``fetch_metadata``：``export.arxiv.org/api/query?id_list=…`` Atom feed →
   ``PaperMeta``（§3.2 schema：title/authors/categories/published/updated/

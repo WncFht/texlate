@@ -1,4 +1,4 @@
-r"""reconstruct DAG 展开 + validate 的单测（docs/07 §9）。"""
+r"""reconstruct DAG 展开 + validate 的单测（docs/spec/latex-pipeline.md）。"""
 
 import re
 

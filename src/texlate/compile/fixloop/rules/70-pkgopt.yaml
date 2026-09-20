@@ -240,7 +240,7 @@ rules:
           error: "minted v3 读 v2 frozencache 报 ~50 错 (docs/08:257)",
         }
     stats: { fires: 0, status: proposed }
-    source_ref: "docs/08-translate-compile.md L257, L270"
+    source_ref: "docs/spec/compile.md L257, L270"
 
   # fixable-data 裁定 (2211.13028/2308.12612, 1d 已批): doc 强指 dvi/pdf
   # 驱动给 hyperref 家族, xelatex 下必炸 "Wrong driver option"/

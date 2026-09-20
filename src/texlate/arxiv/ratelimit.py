@@ -1,11 +1,11 @@
-r"""请求纪律：按 host 限速桶 + (host, path) 断路器 + 日预算（docs/06 §1.2/§1.3）。
+r"""请求纪律：按 host 限速桶 + (host, path) 断路器 + 日预算（docs/spec/arxiv-source.md）。
 
 - **限速**：每 host ≥3.05s 全局间隔、零并发（官方 ToU：≤1 req/3s、单连接）。
   arxiv.org / export.arxiv.org / oaipmh.arxiv.org 三个独立桶。
 - **断路器**：同 (host, path-class) 连续 2 次 429/406/403 → 按路径 park。实测
   限流按路径不按 host（export 的 /api 429 时 /src 照常 200）→ park 键带
   path-class；窗口实测 >30min、无 Retry-After → 初始 park 取 30min
-  （docs/06 表内 15min 与其自身证据矛盾，export-probes.md 建议 30–60min
+  （docs/spec/arxiv-source.md 表内 15min 与其自身证据矛盾，export-probes.md 建议 30–60min
   起步），逐次翻倍封顶 2h。
 - **日预算**：直采 ~150–200 发/日护栏（实测 ~150 发后 /src 回 406）。
 - 状态 JSON 落盘（checkpoint 可恢复）；clock/sleep 可注入便于测试。
@@ -41,7 +41,7 @@ GAP_SECONDS: Final = 3.05
 DAILY_BUDGET: Final = 180
 #: 初始 park 时长（惩罚窗口实测 >30min，取保守起步 30min）
 PARK_BASE_SECONDS: Final = 1800.0
-#: park 翻倍上限 2h（docs/06 §1.3）
+#: park 翻倍上限 2h（docs/spec/arxiv-source.md）
 PARK_MAX_SECONDS: Final = 7200.0
 #: 断路器触发阈值：同 (host,path) 连续 N 次 429/406/403
 BREAKER_STRIKES: Final = 2
@@ -103,7 +103,7 @@ class BudgetExhaustedError(Exception):
 
 @dataclass(frozen=True, slots=True)
 class RatePolicy:
-    """限速参数集（默认值即 docs/06 校准值）。"""
+    """限速参数集（默认值即 docs/spec/arxiv-source.md 校准值）。"""
 
     gap: float = GAP_SECONDS
     daily_budget: int = DAILY_BUDGET

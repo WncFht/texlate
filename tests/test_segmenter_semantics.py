@@ -1,6 +1,6 @@
 r"""分段器 S3 语义黑盒测试 —— ``parse_tex``/``parse_file`` 端到端。
 
-规格来源：``docs/research/latex/segmenter-integration.md`` + docs/07 §3。
+规格来源：``docs/research/latex/segmenter-integration.md`` + docs/spec/latex-pipeline.md。
 覆盖（与 test_latex_argspec.py 的表/门控冒烟互补，不重复）：
 
 - 组边界：``{...}`` 不泄 chunk、``\def`` 作用域不出组、eol_par 跨括号切段

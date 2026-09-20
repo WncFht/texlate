@@ -1,4 +1,4 @@
-r"""在线获取：HEAD 预检 → GET e-print → 钉版缓存编排（docs/06 §1/§4）。
+r"""在线获取：HEAD 预检 → GET e-print → 钉版缓存编排（docs/spec/arxiv-source.md）。
 
 - ``HEAD /src/{id}[vN]``：``content-disposition`` 文件名给出
   resolved_version + 打包格式（``arXiv-{id}v{N}.tar.gz|.gz|.pdf``），
@@ -61,9 +61,9 @@ DEFAULT_UA: Final = (
     f"texlate/{__version__} (+https://github.com/wncfht/texlate; "
     "mailto:research@texlate.dev)"
 )
-#: 包体上限（docs/06 §1.2：拒 >150MB）
+#: 包体上限（docs/spec/arxiv-source.md >150MB）
 DL_CAP: Final = 150 * 1024 * 1024
-#: 重试间隔表（docs/06 §1.3：+10s → +30s → +90s，±20% jitter）
+#: 重试间隔表（docs/spec/arxiv-source.md → +30s → +90s，±20% jitter）
 RETRY_DELAYS: Final = (10.0, 30.0, 90.0)
 #: Retry-After 可兑现上限（5min）：高于退避表上限 90s×jitter、远低于断路器
 #: park 档（30min 起）。超出视同不可兑现与 inf 同归终态——不钳短硬等，
@@ -94,7 +94,7 @@ class FetchStatus(StrEnum):
 
 
 class AcquireStatus(StrEnum):
-    """端到端取源结果（对齐 docs/06 §4.2 状态机失败终态）。"""
+    """端到端取源结果（对齐 docs/spec/arxiv-source.md 状态机失败终态）。"""
 
     OK = "ok"
     HIT = "cache_hit"

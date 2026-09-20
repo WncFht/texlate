@@ -4,7 +4,7 @@ r"""中文支持注入：ctex `[fontset=fandol,UTF8]` 默认路径 + xeCJK 降�
 `\boldmath` 头标即在数学族字体丢字，`\Umathcode` 重映进 FandolSong
 （CJK 九段）/ Libertinus Serif（西里尔·组合符·拉丁扩展）符号字体补齐。
 
-docs/08 §3.3 注入缝：
+docs/spec/compile.md 注入缝：
 - 兼容块 → `\begin{document}` 前（本模块 _splice_before_document，depth-0 锚）
 - 字体系块 → `\documentclass{}` 后（本模块 find_docclass_ends：逐缝注入，
   `\ifpdf A \else B \fi` 分支选择形态每条臂各落一份幂等块）

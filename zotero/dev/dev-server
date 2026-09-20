@@ -2,7 +2,7 @@
 # dev-server — texlate mock web 服务生命周期 + curl e2e 协议校验（zotero 插件
 # 的协议靶场：插件打的就是这套 FastAPI 面）。
 #
-# 反馈通道三属性（对照 docs/research/selfimp-skeleton.md）：
+# 反馈通道三属性（对照 docs/research/methods/selfimp-skeleton.md）：
 #   局部可归因 — 六步断言各自带名（health/create/poll/files/download/
 #     reader-url），首个 [FAIL] 即停并截断呈现违例响应（≤500B），坏在哪步
 #     一眼定位，不用翻日志猜；

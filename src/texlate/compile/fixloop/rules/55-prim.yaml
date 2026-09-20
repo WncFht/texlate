@@ -346,7 +346,7 @@ rules:
           error: "Undefined control sequence (\\ifnum\\pdfoutput 读取型)",
         }
     stats: { fires: 60, rescued_cells: 30, status: active }
-    source_ref: "docs/08-translate-compile.md L268"
+    source_ref: "docs/spec/compile.md L268"
 
   # 2026-09-20 singlesweep pdfprim 车道 arm-B (pdftex-gated-codepath ×4):
   # pdf 模式门把能装代码段锁进死臂 —— \ifCLASSINFOpdf (1706.07613: 真臂

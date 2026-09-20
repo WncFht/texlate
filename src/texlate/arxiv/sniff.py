@@ -1,4 +1,4 @@
-r"""e-print 线缆格式判别与 pdf_wrapper 源码壳检测（docs/06 §2.1）。
+r"""e-print 线缆格式判别与 pdf_wrapper 源码壳检测（docs/spec/arxiv-source.md）。
 
 判别顺序（魔数优先，content-disposition 只作预检提示）::
 
@@ -33,7 +33,7 @@ from texlate.textutil import BEGIN_DOC_RX, END_DOC_RX
 GZIP_MAGIC: Final = b"\x1f\x8b"
 PDF_MAGIC: Final = b"%PDF"
 
-#: 解包规格上限（docs/06 §2.2）：解压总量 ≤512MB。
+#: 解包规格上限（docs/spec/arxiv-source.md）：解压总量 ≤512MB。
 MAX_INFLATED: Final = 512 * 1024 * 1024
 #: pdf_wrapper 正文含量阈值：剥 preamble 后可见文本 <2KB。
 WRAPPER_TEXT_CAP: Final = 2048

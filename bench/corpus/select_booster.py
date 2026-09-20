@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """P3 补强层选择器：nominations/ → booster_selection.jsonl + selection_report.md.
 
-规则（docs/09 §4.3）：
+规则（docs/spec/corpus.md）：
 - B01–B07 是**地板配额**（最小保障）：B01 30 / B02 30 / B03 30 / B04 30 / B05 25 / B06 20 / B07 25。
 - 补强层不进池化——选择目标是机制覆盖，不是代表性。
 - 算法：先 B 地板（每 quota 内优先"稀有 W tag 覆盖最多"的提名）→ 再逐 W 机制补代表

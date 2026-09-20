@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 r"""e2e real bench — corpus 抽样 → 真实网关翻译 → ctex 注入 → xelatex 编译基线。
 
-docs/10 §B5 Mode B（真实翻译 E2E）。与 e2e_mock_bench 同产出契约
+docs/spec/benchmark.md §B5 Mode B（真实翻译 E2E）。与 e2e_mock_bench 同产出契约
 （results.json + matrix.md + summary.md），差异只在翻译器：
 ``XlatPipeline(GatewayTranslator(ChatClient))`` 打 3033 网关真模型，
 其余 route → normalize → L0 校验 → splice → prepare_chinese → compile →

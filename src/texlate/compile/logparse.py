@@ -11,7 +11,7 @@
   - ctx 内 ``l.<N>`` 行号 → ``ErrReport.line_no``
   - ``(`` 开括号文件栈追踪 → ``ErrReport.file_stack`` (定位出错 .tex/.sty)
 
-另加 rules/ ``warnings:`` 段扫描 (docs/08 §4.3 红线) → ``warnings`` 字段;
+另加 rules/ ``warnings:`` 段扫描 (docs/spec/compile.md 红线) → ``warnings`` 字段;
 ``invalid_utf8`` 命中在无 '!' 错时升级为 ``warn_utf8`` 伪类别 (v1.1 扩展,
 驱动 non_utf8_source 修复轮)。``_FILE_ATTRIBUTED_WARNS`` 的输入侧警告按
 警告行文件栈顶归因——系统 texmf/bundle 件与 DOS 魔数 EPS 源降
@@ -637,7 +637,7 @@ class Taxonomy:
             m = pat.search(blob)
             if m and (not entry.get("guard") or re.search(entry["guard"], blob)):
                 return entry["id"], _payload(entry, m)
-        # —— 仍不中: warning 驱动的伪类别 (v1.1, docs/08 §5.2) ——
+        # —— 仍不中: warning 驱动的伪类别 (v1.1, docs/spec/compile.md) ——
         for entry in self.warn:
             if entry.get("warn_id") in rep.warnings:
                 return entry["id"], None

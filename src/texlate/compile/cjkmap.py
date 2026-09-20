@@ -1,4 +1,4 @@
-"""GB1→UCS2 ToUnicode CMap 注入（docs/08 §3.3 注入层步骤）。
+"""GB1→UCS2 ToUnicode CMap 注入（docs/spec/compile.md 注入层步骤）。
 
 xelatex/tectonic 出的 zh.pdf 里 ctex+fandol 是真 CID-keyed GB1 字体且不落
 ToUnicode——poppler 靠嵌入字体自身 cmap 能抽，pypdf/极简阅读器直抽即乱码
@@ -121,7 +121,7 @@ def _iter_pdf_fonts(writer: PdfWriter) -> Iterator[DictionaryObject]:
 
 
 def embed_cjk_mappings(pdf: Path) -> int:
-    """给 ``Identity-H``/Adobe-GB1 无 ToUnicode 的 CID 字体注 ``Adobe-GB1-UCS2`` cmap（docs/08 §3.3）。
+    """给 ``Identity-H``/Adobe-GB1 无 ToUnicode 的 CID 字体注 ``Adobe-GB1-UCS2`` cmap（docs/spec/compile.md）。
 
     xelatex/tectonic 出的 zh.pdf 里 ctex+fandol 是真 CID-keyed GB1 字体
     且不落 ToUnicode——poppler 靠嵌入字体自身 cmap 能抽，pypdf/极简

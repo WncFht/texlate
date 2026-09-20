@@ -5,7 +5,7 @@ test_sentinel_ladder.py 钉族层梯级机制（_escape_family/_unescape_family 
 sentinel/非规范形全混 + 邻接 + 字符串边缘位）、换行游程 0..10 与 CRLF/CR 归一、
 脆弱空白字面与 token/换行互邻、CJK/emoji 混排，外加三条契约钉——编码产物
 charset（无裸换行/脆弱字面）、encode 非幂等 iff（wire 形态在则再编码必变）、
-PLACEHOLDER_CLAUSE 命名一致性（docs/08 勘误：实列 5/8 裸标记，
+PLACEHOLDER_CLAUSE 命名一致性（docs/spec/compile.md 勘误：实列 5/8 裸标记，
 MEDSP/THICKSP/NEGSP 按设计不进 prompt 措辞）。
 """
 
@@ -423,7 +423,7 @@ class TestCodecContracts:
 
 
 class TestPlaceholderClauseConsistency:
-    """C9 条款命名一致性——docs/08 §1.1 勘误钉住的 5/8 划分。"""
+    """C9 条款命名一致性——docs/spec/translate.md 勘误钉住的 5/8 划分。"""
 
     def test_named_bare_tokens_are_module_constants(self) -> None:
         """条款点名的每个裸 token 都是 placeholders 模块实存常量。"""

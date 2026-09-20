@@ -136,7 +136,7 @@ rules:
           error: "xdvipdfmx: bbm10 physical font dead",
         }
     stats: { fires: 0, status: proposed }
-    source_ref: "docs/08-translate-compile.md L275; ctanfetch-probe.md §3.5"
+    source_ref: "docs/spec/compile.md L275; ctanfetch-probe.md §3.5"
 
   - id: px_to_bp
     description: "非法单位 px → bp 换算 (pdfTeX 缺省忠实: 1px = 1bp)"

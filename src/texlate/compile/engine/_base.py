@@ -1,6 +1,6 @@
 """引擎协议 + 编译结果类型 + 共享小件 —— ``engine.py`` 拆分基座叶。
 
-``CompRes``/``Engine`` 契约（docs/08 §4.1）与两引擎共用的输出汇总、
+``CompRes``/``Engine`` 契约（docs/spec/compile.md）与两引擎共用的输出汇总、
 信号死 stdout 打捞、main 参数合法性闸。
 """
 
@@ -18,7 +18,7 @@ from texlate.compile.loginfo import LogInfo
 from texlate.texlog import DRIVER_FATAL_RE, driver_fatal_line
 from texlate.textutil import safe_resolve
 
-DEFAULT_TIMEOUT = 240.0  # docs/08 §4.1
+DEFAULT_TIMEOUT = 240.0  # docs/spec/compile.md
 
 
 # ================================================================ 数据类型
@@ -77,7 +77,7 @@ class CompRes:
 # ================================================================ Engine 协议
 @runtime_checkable
 class Engine(Protocol):
-    """docs/08 §4.1 五方法 + detect/parse_log。
+    """docs/spec/compile.md 五方法 + detect/parse_log。
 
     `caps` 能力集决定 fixloop 哪些规则可跑：`{kpsewhich,tlmgr,updmap,
     shell_escape,bundle}`；tectonic 只有 `bundle`——install 系规则在其上
@@ -91,7 +91,7 @@ class Engine(Protocol):
         """引擎二进制路径；不可用返回 None。"""
         ...
 
-    def compile(  # noqa: PLR0913 — 签名即 docs/08 §4.1 规格面
+    def compile(  # noqa: PLR0913 — 签名即 docs/spec/compile.md 规格面
         self,
         wdir: Path,
         main: str,

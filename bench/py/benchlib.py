@@ -3,7 +3,7 @@ r"""bench 共享小件——records jsonl 读写 / corpus manifest / 编译侧�
 设计约束：**纯 stdlib、模块级零 IO**——import 本文件不依赖 texlate.*
 （judge_dict 内延迟 import），system python3 与 `uv run` 下皆可载。
 
-records 契约（docs/research/product/2026-09-16-batch-hardening-design.md §6）：
+records 契约（docs/research/product/2026-09-16-hardening-notes.md §6）：
 每篇/每格一行 append——行在盘上 = done，续跑即按 key 跳过。
 """
 

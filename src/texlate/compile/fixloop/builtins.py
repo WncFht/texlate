@@ -5,7 +5,7 @@
     (spike 里 `px_to_bp`/`keep_latin_tokens`, 算术/集合变换非纯模板)
   - TRANSFORM_FNS: ``(ctx, eng, payload, params) -> (applied, note)`` ——
     builtin_transform 条目的文件级算法改写 (spike 里 `option_clash_merge`,
-    新增 6 条按 docs/08 §5.2 实现)
+    新增 6 条按 docs/spec/compile.md 实现)
 
 社区贡献规则多数只需写 regex; 新算法型修复才需要往这里 PR 代码。
 

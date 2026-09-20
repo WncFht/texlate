@@ -231,7 +231,7 @@ def _oracle_judge(  # noqa: C901, PLR0912 -- 判定树逐支重述，压平伤�
     file_text: str | None,
     cjk: int,
 ) -> _Expect:
-    """按 judge docstring（docs/08 §4.3）独立重述判定树。
+    """按 judge docstring（docs/spec/compile.md）独立重述判定树。
 
     ``file_text`` = res.log_path 可读文件内容（目录/缺席 → None——
     impl 侧 ``exists()``/``OSError`` 两支都坍成 ""）。

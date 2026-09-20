@@ -1,4 +1,4 @@
-"""LaTeX 半解析管线：pieces / macros / flatten / splice（规格 docs/07）。
+"""LaTeX 半解析管线：pieces / macros / flatten / splice（规格 docs/spec/latex-pipeline.md）。
 
 典型用法::
 

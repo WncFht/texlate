@@ -1,7 +1,7 @@
 r"""归一化层：pdfTeX 时代源码 → XeTeX/tectonic 可编译形态的无条件手术。
 
-docs/08 §3.2 十二项清单逐条实现；**条件手术（microtype_off/times→newtx 等错误
-驱动修复）留给 fixloop，两边不得重复改同一处**（docs/08 §3.2 分工铁律）。
+docs/spec/compile.md 十二项清单逐条实现；**条件手术（microtype_off/times→newtx 等错误
+驱动修复）留给 fixloop，两边不得重复改同一处**（docs/spec/compile.md 分工铁律）。
 
 所有定位打在 :func:`mask.visible_tex` 遮蔽视图上，编辑逆序回放到原文，
 删除类编辑补回换行保持行号稳定（编译错误可回溯源文件行号）。
@@ -83,7 +83,7 @@ JUNK_FILE_MARKERS: Final[dict[str, tuple[bytes, ...]]] = {
 }
 
 # ---------------------------------------------------------------- 兼容前导块
-# 注入缝统一为 \begin{document} 之前（docs/08 §3.3）；字体系块例外，
+# 注入缝统一为 \begin{document} 之前（docs/spec/compile.md）；字体系块例外，
 # 走 \documentclass{} 之后（见 prepare_legacy_latin_fonts / inject.py）。
 
 PIXEL_COMPATIBILITY = r"""% texlate: pdfTeX pixel dimensions for XeTeX
@@ -932,7 +932,7 @@ _DOC_SOURCE_SUFFIXES = frozenset({".tex", ".ltx"})
 def normalize_engine(
     text: str, engine: str, *, doc_source: bool = True, prologue: bool = True
 ) -> str:
-    r"""单文件无条件手术编排（docs/08 §3.2 清单 1–10 的文件内部分）。
+    r"""单文件无条件手术编排（docs/spec/compile.md 清单 1–10 的文件内部分）。
 
     ``doc_source=False`` 按支持件处理：文档级输出控制删除
     （``\pdfinfo``/``\pdfoutput``/输出设置/``\DisableLigatures``）与

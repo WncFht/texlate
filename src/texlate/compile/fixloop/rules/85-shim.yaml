@@ -48,7 +48,7 @@ rules:
     provenance:
       - { corpus: "—", error: "装了新包但错误依旧 → 工程内旧 .sty 遮蔽" }
     stats: { fires: 61, rescued_cells: 17, status: active }
-    source_ref: "docs/08-translate-compile.md L269"
+    source_ref: "docs/spec/compile.md L269"
 
   # ── 2026-09-17 支援件腐蚀复原 (prose gate 落地前残案兜底) ──
   # builtin 五条件全 conjunctive 自判 (baseline 同名件在 ∧ 字节异 ∧ 无

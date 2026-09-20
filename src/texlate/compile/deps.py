@@ -2,7 +2,7 @@ r"""依赖记录解析：编译器自述输入集（``.fls`` INPUT / ``dependenc
 
 xelatex ``-recorder`` 产 ``{stem}.fls``；tectonic ``--makefile-rules`` 产
 ``dependencies.mk``（Make 转义 + 未转义续行双形态）。``compiled_dependencies``
-是**翻译文件集权威**（docs/08 §3.4）；静态 ``\input`` 图只作编译失败时的
+是**翻译文件集权威**（docs/spec/compile.md）；静态 ``\input`` 图只作编译失败时的
 降级（probe 层）。本模块纯解析，leaf 层，不依赖引擎实现。
 """
 
@@ -101,7 +101,7 @@ def _deps_from_record(main: str, out: Path, engine: str) -> list[str] | None:
 def compiled_dependencies(
     root: Path, main: str, out: Path, engine: str
 ) -> list[str] | None:
-    r"""编译器自述的真实输入集——**翻译文件集权威**（docs/08 §3.4）。
+    r"""编译器自述的真实输入集——**翻译文件集权威**（docs/spec/compile.md）。
 
     xelatex 读 `-recorder` 产的 `.fls` INPUT 行；tectonic 读
     `--makefile-rules` 产物。静态 `\input` 图只作编译失败时的降级。

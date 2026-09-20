@@ -1,4 +1,4 @@
-"""占位符方案（docs/07 §6）。
+"""占位符方案（docs/spec/latex-pipeline.md）。
 
 格式 ``[[TYPE_n]]``；``n`` 由单一 :class:`PlaceholderIssuer` 全局单调递增
 （跨子扫描器共享——spike ``_ctr`` list-hack 的扶正）。

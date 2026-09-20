@@ -34,7 +34,7 @@ rules:
           error: "missing \\item @ \\end{thebibliography} (stub bbl 遮蔽 360 行真 bbl)",
         }
     stats: { fires: 0, status: proposed }
-    source_ref: "docs/08-translate-compile.md L274; ctanfetch-probe.md §3.3"
+    source_ref: "docs/spec/compile.md L274; ctanfetch-probe.md §3.3"
 
   # 2026-09-17 wave-2 (apj-bib-scout §S4, 11 格): ADS/apj.bst 时代 .bbl
   # cite-key 裸 &/_ 在现代内核炸 Missing $/Misplaced alignment tab ——

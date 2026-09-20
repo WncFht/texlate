@@ -1,4 +1,4 @@
-r"""e-print 解包：逐成员路径安全 + mtree 清单（docs/06 §2.2）。
+r"""e-print 解包：逐成员路径安全 + mtree 清单（docs/spec/arxiv-source.md）。
 
 逐成员检查（缺一不可）：
 
@@ -37,7 +37,7 @@ from typing import Final
 from texlate.arxiv._texutil import TEX_EXT
 from texlate.arxiv.sniff import BlobKind, SniffResult
 
-#: 资源上限（docs/06 §2.2）
+#: 资源上限（docs/spec/arxiv-source.md）
 MAX_MEMBERS: Final = 20_000
 MAX_FILE_BYTES: Final = 100 * 1024 * 1024
 MAX_TOTAL_BYTES: Final = 512 * 1024 * 1024

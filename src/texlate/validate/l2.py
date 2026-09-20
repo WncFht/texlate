@@ -1,19 +1,19 @@
-"""L2 编译 log 回灌层 —— xelatex/tectonic ``.log`` 结构化解析（规格 docs/08 §2.3）。
+"""L2 编译 log 回灌层 —— xelatex/tectonic ``.log`` 结构化解析（规格 docs/spec/validate.md）。
 
 职责边界：本层只做"读"——错误计数、warning 分类、首个错误定位、出错文件栈；
 不判 clean/dirty（``!``≤3、首错类别门槛等策略属 compile/fixloop 侧，
-docs/08 §4.3 的判据消费本层输出）。
+docs/spec/compile.md 的判据消费本层输出）。
 
 要点：
 
 - 错误计数**双格式**：``^!`` 经典行 + ``-file-line-error`` 的 ``file:line:`` 行。
   只数 ``!`` 会漏掉全部引擎级错误（bench 语料全部没用 ``-file-line-error`` 编译，
-  生产引擎按 docs/08 §4.1 带该旗标，两种格式必须同吃）。
+  生产引擎按 docs/spec/compile.md 带该旗标，两种格式必须同吃）。
 - 首个错误给定位信息：log 行号、其后 ≤8 行上下文、ctx 内 ``l.NNN`` 源码行号、
   ``(`` 开括号文件栈快照（定位出错 .tex/.sty，供 rewrite 规则缩小作用域）。
 - warning 分类按真实 log 语料（bench/work_compile）归纳：missing_glyph /
   invalid_utf8 / citation / reference / rerun / font_subst / file_not_found /
-  overfull / generic；并对 docs/08 §4.3 红线信号打标（invalid_utf8、
+  overfull / generic；并对 docs/spec/compile.md 红线信号打标（invalid_utf8、
   缺字形全家含 U+FFFD 具名红线与 CJK 缺字形、file_not_found）。
 - tectonic 有时**不写 .log**：``parse_log`` 对不存在路径返回 ``log_missing=True``
   的 verdict，不抛异常——监控方不得假设 log 存在。
@@ -131,7 +131,7 @@ _EOF_ERR_RX: Final = re.compile(r"File ended while scanning")
 #: ``)`` 弹出到错误打印的最大行距（日志折行/font dump 可隔几行）。
 _EOF_POP_WINDOW: Final = 16
 
-#: docs/08 §4.3 红线 warning 类（命中即记入 ``WarningSummary.redlines``）
+#: docs/spec/compile.md 红线 warning 类（命中即记入 ``WarningSummary.redlines``）
 #: ——集合单源 ``texlate.redlines.L2_REDLINE_CLASSES``（★2）。``fffd_glyph``
 #: = 缺 U+FFFD 替换符字形（invalid_utf8 源被排版成缺字——loginfo 侧
 #: ``WARNING_RED_LINES`` 同名红线的 L2 对应类）。``missing_glyph``
@@ -181,7 +181,7 @@ class LogError:
 
 @dataclass(slots=True)
 class WarningSummary:
-    r"""warning 分类汇总。``redlines`` 命中 docs/08 §4.3 红线信号即 dirty 依据。
+    r"""warning 分类汇总。``redlines`` 命中 docs/spec/compile.md 红线信号即 dirty 依据。
 
     ``sys_hits`` = 系统 texmf/bundle 件产生的红线类命中
     （``invalid_utf8@<file>``）——观察项不判 dirty（loginfo 侧

@@ -3,7 +3,7 @@
 # 加载断言 → 插件内 selftest 全链逐 fixture 断言 → 负例/菜单态/xpi/幂等
 # → sabotage 三例人为破坏的可归因性测验。
 #
-# 反馈通道三属性（对照 docs/research/selfimp-skeleton.md）：
+# 反馈通道三属性（对照 docs/research/methods/selfimp-skeleton.md）：
 #   局部可归因 — 每条 [PASS]/[FAIL] 一行一带机读证据：selftest 逐步名
 #     （resolve-item→prefs→health→extract→already-marked→create→poll→
 #     files→download+attach→mark→attachments-verify→reader-url）、

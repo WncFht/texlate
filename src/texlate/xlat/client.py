@@ -1,6 +1,6 @@
 """LLM 客户端：OpenAI/Anthropic/Responses 三方言、免费集发现、错误分类。
 
-规格 docs/08 §1.6–1.7：
+规格 docs/spec/translate.md
 
 - 默认后端 `http://127.0.0.1:3033`（本地 OpenAI 兼容网关，Chat 协议）；
   **免费集运行时动态筛**——`/panel/api/models` 按 `cost_tier=="free"` ∧
@@ -86,7 +86,7 @@ SERVER_ERROR_MIN = 500
 MAX_RETRY_AFTER_S = 60.0
 
 
-# ---------------------------------------------------------------- 错误分类（docs/08 §1.6 HTTP 层）
+# ---------------------------------------------------------------- 错误分类（docs/spec/translate.md HTTP 层）
 
 
 class XlatError(Exception):
@@ -236,7 +236,7 @@ def _body_retry_after(body: str) -> float | None:
 def classify_status(
     status: int, redacted_body: str, headers: httpx.Headers
 ) -> ChatError:
-    """HTTP 状态码 → 异常类型（docs/08 §1.6 状态码分类表 + B4a 429 body 修订）。
+    """HTTP 状态码 → 异常类型（docs/spec/translate.md 状态码分类表 + B4a 429 body 修订）。
 
     429 的 retry_after 解析序：body `error.retry_after` → header `Retry-After`
     → 无（退 `3^attempt` 下限 5s）。429 是多租户共享流量触发（healthz 常驻他户
@@ -412,7 +412,7 @@ def provider_for_url(base_url: str) -> str:
     return "custom"
 
 
-#: provider → 环境变量名（BYOK 读 key 的约定，docs/08 §1.7）
+#: provider → 环境变量名（BYOK 读 key 的约定，docs/spec/translate.md）
 PROVIDER_KEY_ENV: dict[str, str] = {
     "openai": "OPENAI_API_KEY",
     "anthropic": "ANTHROPIC_API_KEY",

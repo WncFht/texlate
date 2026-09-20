@@ -41,7 +41,7 @@ log = logging.getLogger(__name__)
 #: hyperref 自动页锚 ``page.N``——只是页码，对锚点同步无信息量，单列不计。
 _PAGE_ANCHOR_RX = re.compile(r"^page\.\d+$")
 
-#: 类别权重（docs/10 §B7）：section 12 / 图表 10 / equation 4 / cite 2，
+#: 类别权重（docs/spec/benchmark.md §B7）：section 12 / 图表 10 / equation 4 / cite 2，
 #: 与评测侧同表——链越"像目录序"权越高。
 _WEIGHT = {
     "section": 12,

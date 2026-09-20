@@ -1,4 +1,4 @@
-r"""主文件定位 + \input 拓扑（docs/06 §2.3/§2.4）。
+r"""主文件定位 + \input 拓扑（docs/spec/arxiv-source.md）。
 
 候选：``*.tex``/``*.ltx`` 中剥注释后含 ``\documentclass``/``\documentstyle``
 的文件。裁决序：``\begin{document}`` 优先 → include 图的**根**优先 →
@@ -11,7 +11,7 @@ LaTeX（plain TeX ``\bye`` / ConTeXt ``\starttext``）→ 进降级链。
 ``\import{dir}{file}`` / ``\subimport`` / ``\includestandalone`` /
 ``\CatchFileBetweenTags``；另有 ``\bibliography{x}`` → ``x.bbl``。
 
-路径解析基准序（corpus39-profile 实测修正 docs/06「相对 including 文件
+路径解析基准序（corpus39-profile 实测修正 docs/spec/arxiv-source.md「相对 including 文件
 目录 → 退项目根」）：**编译 CWD（主文件目录）→ 项目根 → including 文件
 目录**；扩展名补全 ``.tex → .sty → 裸名``。
 """

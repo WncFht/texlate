@@ -10,7 +10,7 @@
 
 ## 里程碑指针
 
-`docs/research/metrics-2026-09-19/` 已是成稿的指标史：`data/milestones.md`（D0-D2+ 时间线）、`refs/00-grand-comparison.md`、完整 LaTeX 报告。本归档是它的数据底座备份。
+`docs/research/methods/metrics-2026-09-19/` 已是成稿的指标史：`data/milestones.md`（D0-D2+ 时间线）、`refs/00-grand-comparison.md`、完整 LaTeX 报告。本归档是它的数据底座备份。
 
 ## 审计结论（2026-09-20 三路审计）
 

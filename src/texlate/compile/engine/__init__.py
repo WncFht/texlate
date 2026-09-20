@@ -1,4 +1,4 @@
-r"""引擎层：Engine 协议 + xelatex/tectonic 实现 + 静态路由表（docs/08 §4）。
+r"""引擎层：Engine 协议 + xelatex/tectonic 实现 + 静态路由表（docs/spec/compile.md）。
 
 - Engine 协议（§4.1）：`detect/compile/probe_file/install_file/rebuild_fontmaps/
   filemap/parse_log` + `caps` 能力集——fixloop 按 caps 降级（tectonic 无

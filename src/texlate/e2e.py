@@ -1,4 +1,4 @@
-"""mock E2E 驱动（docs/10 B5 Mode A 的产品化扶正）。
+"""mock E2E 驱动（docs/spec/benchmark.md B5 Mode A 的产品化扶正）。
 
 全链走产品 API：``route_project → normalize_project → XlatPipeline(MockTranslator)
 + L0 校验 → splice 写回 → prepare_chinese → engine.compile → judge``。
@@ -8,7 +8,7 @@ policy 脊单源在 ``texlate.pipecore``（worker/bench 共享），本模块只
 编排顶与 e2e 私有缝（``_baseline_snapshot``/``_embed_tounicode`` 的
 monkeypatch 面）。
 
-编译失败后的两级修复（docs/08 §2.3/§5 接线）：
+编译失败后的两级修复（docs/spec/validate.md 接线）：
 
 1. **L2 回灌**（先跑）——log 解析把错误定位到 chunk（file:line: 或文件栈
    归因），只重译被点名的块（每块限 1 次、per-doc 有上限），resplice 后

@@ -1,4 +1,4 @@
-r"""分派表逐行覆盖（docs/07 §3.2 顺序即语义）。"""
+r"""分派表逐行覆盖（docs/spec/latex-pipeline.md 顺序即语义）。"""
 
 from conftest import DOC, scan_doc
 

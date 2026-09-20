@@ -1,4 +1,4 @@
-"""arXiv 源获取层：fetch / sniff / unpack / cache / locate / ratelimit（规格 docs/06）。
+"""arXiv 源获取层：fetch / sniff / unpack / cache / locate / ratelimit（规格 docs/spec/arxiv-source.md）。
 
 典型用法::
 

@@ -1,6 +1,6 @@
 """cases — ``cases.jsonl`` 沉淀: 失败案例结构化落盘 → triage → 回放三门验证。
 
-docs/08 §5.5 (L312-330) 的沉淀机制::
+docs/spec/compile.md (L312-330) 的沉淀机制::
 
     每格跑完 → cases.jsonl {corpus, cond, engine, rounds[cat/pay/rule/result],
                             verdict, log_excerpt}

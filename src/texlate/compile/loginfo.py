@@ -1,4 +1,4 @@
-r"""log 语义层：TeX ``.log`` → ``LogInfo`` + 错误分类学适配（docs/08 §2.3/§4.3）。
+r"""log 语义层：TeX ``.log`` → ``LogInfo`` + 错误分类学适配（docs/spec/validate.md）。
 
 行级词法原语（``(``/``)`` 文件栈、``file:line:``/``^!``/``l.NNN`` regex、
 单遍事件流 ``iter_log_events``）在叶子层 ``texlog.py``；本模块持语义产物
@@ -53,7 +53,7 @@ class LogInfo:
     warnings_sys: list[str] = field(default_factory=list)
 
 
-#: clean 判据的 log warning 红线（docs/08 §4.3）：任一命中即 dirty。
+#: clean 判据的 log warning 红线（docs/spec/compile.md）：任一命中即 dirty。
 #: ``invalid_utf8`` 按产生文件归因——仅工程文件源计入 ``warnings_hit``；
 #: 系统 texmf/bundle 件（老 CTAN 包自带坏字节，loop1 归因占 96%）与
 #: ``dos_eps_skipped`` 二进制件（normalize 原样保留、警告是必然残余）降
@@ -116,7 +116,7 @@ def parse_log(log_text: str, *, project_root: Path | None = None) -> LogInfo:
     """解析 TeX log 文本 → LogInfo（引擎无关；调用方负责拿文本）。
 
     错误计数**双格式**：`^!` 行 + `file:line:` 行（只数 `!` 会漏掉
-    `-file-line-error` 模式下引擎级错误，docs/08 §2.3）。
+    `-file-line-error` 模式下引擎级错误，docs/spec/validate.md）。
 
     ``project_root`` = 编译工作根（``wdir``）：invalid_utf8 红线按警告
     产生文件归因，系统 texmf/bundle 源与 DOS 魔数 EPS（normalize

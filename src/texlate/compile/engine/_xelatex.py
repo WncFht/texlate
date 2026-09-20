@@ -129,7 +129,7 @@ class XelatexEngine:
         （mirror.ctan.org round-robin 在部分网络下不稳，bench 侧钉 TUNA）。
         """
         self.binary = binary
-        # docs/08 命令行含 -halt-on-error（fixloop 首错语义）；bench 基线跑
+        # docs/spec/compile.md 命令行含 -halt-on-error（fixloop 首错语义）；bench 基线跑
         # best-effort（halt_on_error=False，对齐 compile_bench 方法论）。
         self.halt_on_error = halt_on_error
         self.texmfhome = texmfhome
@@ -275,7 +275,7 @@ class XelatexEngine:
         best_effort: bool = False,
         flags: Iterable[str] | None = None,
     ) -> list[str]:
-        """构造 xelatex 命令行（docs/08 §4.1 旗标集 + fixloop engine_flags）。
+        """构造 xelatex 命令行（docs/spec/compile.md 旗标集 + fixloop engine_flags）。
 
         ``flags`` 追加在基线旗标之后、``main_name`` 之前——kpathsea 选项
         last-wins，规则请求（如 minted 的 ``-shell-escape``）可压过
@@ -298,7 +298,7 @@ class XelatexEngine:
         cmd.append(main_name)
         return cmd
 
-    def compile(  # noqa: C901, PLR0913, PLR0915 — 签名即 docs/08 §4.1 规格面；pass 环停趟判据单点平铺
+    def compile(  # noqa: C901, PLR0913, PLR0915 — 签名即 docs/spec/compile.md 规格面；pass 环停趟判据单点平铺
         self,
         wdir: Path,
         main: str,

@@ -31,7 +31,7 @@ _TECTONIC_ATTEMPTS = 2  # 冷 bundle 首拉超时后重试（缓存热身）
 #: 时长；再给满 timeout 会把单次调用真超时翻倍且救不了真超时的论文。
 _TECTONIC_RETRY_TIMEOUT = 120.0
 
-#: tectonic bundle pin（docs/08 §4.1）——引擎默认 bundle；可用 env
+#: tectonic bundle pin（docs/spec/compile.md）——引擎默认 bundle；可用 env
 #: TEXLATE_TEX_BUNDLE 或构造参数覆盖，置空串回落引擎自带默认 bundle。
 TECTONIC_BUNDLE_PIN = "https://data1b.fullyjustified.net/tlextras-2022.0r0.tar"
 
@@ -105,7 +105,7 @@ class TectonicEngine:
     ) -> None:
         """bundle=None → 钉版 tlextras-2022.0r0；ctan_fetch=(fname)->落点|None。"""
         self.binary = binary
-        # 默认走 pin（docs/08 §4.1）；env TEXLATE_TEX_BUNDLE 覆盖，
+        # 默认走 pin（docs/spec/compile.md）；env TEXLATE_TEX_BUNDLE 覆盖，
         # 置空串 = 引擎自带默认 bundle。
         env_bundle = env_opt("TEXLATE_TEX_BUNDLE")
         self.bundle = (
@@ -187,7 +187,7 @@ class TectonicEngine:
         best_effort: bool = False,
         flags: Iterable[str] | None = None,
     ) -> list[str]:
-        """构造 tectonic V2 命令行（docs/08 §4.1 + continue-on-errors 语义对齐）。
+        """构造 tectonic V2 命令行（docs/spec/compile.md + continue-on-errors 语义对齐）。
 
         ``flags`` 经 ``_map_flags`` 过滤——只放受支持子集（见该方法 docstring）。
         """
@@ -216,7 +216,7 @@ class TectonicEngine:
         cmd.append(main_name)
         return cmd
 
-    def compile(  # noqa: PLR0913, PLR0915 — 签名即 docs/08 §4.1 规格面
+    def compile(  # noqa: PLR0913, PLR0915 — 签名即 docs/spec/compile.md 规格面
         self,
         wdir: Path,
         main: str,

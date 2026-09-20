@@ -1,4 +1,4 @@
-"""L1 tree-sitter CST 校验层 —— node 子进程 JSONL 批处理（可选组件，规格 docs/08 §2.2）。
+"""L1 tree-sitter CST 校验层 —— node 子进程 JSONL 批处理（可选组件，规格 docs/spec/validate.md）。
 
 技术路线结论（2026-09 调研）：
 
@@ -10,7 +10,7 @@
        C toolchain 现场编译 parser.c/scanner.cc，破坏 uv 零编译体验 → 排除；
     d. ``web-tree-sitter`` WASM —— 仍需 JS 宿主（node/deno）或 wasmtime
        手写 glue，工程量大于收益 → 排除；
-    e. **node 子进程 JSONL（docs/08 §2.2 定案）** —— chunk 级 0.7–2ms、
+    e. **node 子进程 JSONL（docs/spec/validate.md 定案）** —— chunk 级 0.7–2ms、
        常驻/批处理摊薄 <1ms/块；``shutil.which("node")`` 探测，
        无 node 优雅降级 L0。
 - 分发：``validate/ts/`` 内 validator.js + package.json（两 npm 依赖均有

@@ -2,7 +2,7 @@
 
 消费侧两个形态：
 - ``ok`` / ``hard_failures()`` —— 管线闸：不过 → corrector 重译 / fallback 原文；
-- ``feedback()`` —— corrector 字段化反馈（docs/08 §1.2 ``previous_validation_error``）。
+- ``feedback()`` —— corrector 字段化反馈（docs/spec/translate.md ``previous_validation_error``）。
 """
 
 from __future__ import annotations

@@ -1,4 +1,4 @@
-"""断点续跑 state + 段级缓存（docs/08 §1.6）。
+"""断点续跑 state + 段级缓存（docs/spec/translate.md）。
 
 - `state.json` 五表之一：每块完成原子重写 `{version, meta{model,
   pipeline_version, total_chunks, started_at, finished_at}, completed[],

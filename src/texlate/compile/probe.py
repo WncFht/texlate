@@ -1,4 +1,4 @@
-r"""声明依赖静态探针 + `compiled_dependencies` 权威集差分（docs/08 §3.4）。
+r"""声明依赖静态探针 + `compiled_dependencies` 权威集差分（docs/spec/compile.md）。
 
 - `target_probe`：编译前扫主文件 preamble 的 `\usepackage`/`\documentclass`/
   `\input` 声明依赖（`visible_tex` 遮蔽视图定位、`\input` 沿本地文件传递

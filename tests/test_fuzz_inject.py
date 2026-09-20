@@ -106,7 +106,7 @@ from texlate.textutil import BEGIN_DOC_RX
 
 
 def _block(mode: str, nseams: int, *, bd_tail: bool = False) -> str:
-    """``inject_cjk`` 块组装的独立重演（docs/08 §3.3 注入缝规格 + W157 尾锚）。"""
+    """``inject_cjk`` 块组装的独立重演（docs/spec/compile.md 注入缝规格 + W157 尾锚）。"""
     blk = (
         CTEX_LINE + "  % [texlate injected]" + ACM_BASELINESTRETCH_GUARD
         if mode == "ctex"

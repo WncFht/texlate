@@ -1,4 +1,4 @@
-r"""批量协议（docs/08 §1.3 + batchmodel-2026-09-18 修订）：全量入批 + K 量化等大装箱 + `[n]` 编号 + `@@` 兜底 + 整批退单翻。
+r"""批量协议（docs/spec/translate.md + batchmodel-2026-09-18 修订）：全量入批 + K 量化等大装箱 + `[n]` 编号 + `@@` 兜底 + 整批退单翻。
 
 - 分桶：**取消 short/long 分桶，全量入批**——产线 129K chunk 对账：批成员
   per-placeholder 错率 0.32% vs 单发 8.93%，批质量全面 ≥ 单发；34% 单发
@@ -179,7 +179,7 @@ def parse_batch_response(text: str, n: int) -> list[str] | None:
 def split_long_chunk(text: str, *, max_chars: int = CHUNK_HARD_LIMIT) -> list[str]:
     """超大原子 chunk 按句界二分（闭合 scope 边界 + 句号优先、大写开头次优）。
 
-    docs/08 §1.3「超大原子 chunk 先切分再入批」——不切会爆单请求上下文
+    docs/spec/translate.md chunk 先切分再入批」——不切会爆单请求上下文
     （实测 109K/77K 原子块，cost-model §5.3）。返回保持顺序的片段列表。
     """
     if max_chars < 1 or len(text) <= max_chars:

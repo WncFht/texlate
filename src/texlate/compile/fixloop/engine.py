@@ -1,4 +1,4 @@
-"""Engine — fixloop 规则引擎主循环 (docs/08 §5, bench/py/fixloop.py 移植)。
+"""Engine — fixloop 规则引擎主循环 (docs/spec/compile.md bench/py/fixloop.py 移植)。
 
 管线: ``eng.compile → parse_log → taxonomy.classify → gate → match → apply →
 重编``, ≤``meta.loop.max_rounds`` 轮 (默认 8)。
@@ -902,7 +902,7 @@ def _wire_filemap_overrides(
 
 
 def _wire_engine(eng: Engine, rs: Ruleset, wdir: Path, ctx: LoopCtx) -> None:
-    """引擎侧降级原语注入 (docs/08 §5.3)。
+    """引擎侧降级原语注入 (docs/spec/compile.md)。
 
     ``filemap.overrides`` 手工映射对全引擎生效 (实例遮蔽 ``eng.filemap``);
     tectonic 追加: ``install_file`` 内部走 ``self.ctan_fetch`` callable ——
@@ -1520,7 +1520,7 @@ def fixloop(  # noqa: C901, PLR0912, PLR0913, PLR0915  # 主循环分支即 spik
     cell["final_pdf"] = bool(last.get("pdf"))
     # —— 底板兜回: 入口有 pdf 而末态无 → 拷回快照, verdict 置 None 让下方
     # 既有公式自然落成 dirty_pdf/clean; floor_from 记兜底前 verdict 供
-    # triage/cases 观测 (不新增 verdict 词, 保持 docs/08 §6 词表封闭)。
+    # triage/cases 观测 (不新增 verdict 词, 保持 docs/spec/compile.md 词表封闭)。
     v_end = str(cell["verdict"] or "")
     if (
         not cell["final_pdf"]
@@ -1614,7 +1614,7 @@ def _record_case(
     cond: str | None,
     engine_name: str,
 ) -> None:
-    """沉淀 cases.jsonl (docs/08 §5.5); sink 缺省即不写。"""
+    """沉淀 cases.jsonl (docs/spec/compile.md); sink 缺省即不写。"""
     if sink is None:
         return
     sink.record(cell, corpus_id=corpus_id, cond=cond, engine=engine_name)

@@ -1,7 +1,7 @@
 """L2 warning 分类侧合成边界钉 —— l2edges-scout-2026-09-17 可补清单 11 项。
 
 全部经 ``parse_log_text`` 内联合成（无需真 log）：``NONERR_MSG_RE``
-豁免（生产引擎按 docs/08 §4.1 带 ``-file-line-error``，``./x.tex:N:
+豁免（生产引擎按 docs/spec/compile.md 带 ``-file-line-error``，``./x.tex:N:
 LaTeX/Package/Class … Warning:`` 行每编译必走，回归即 n_errors 膨胀全判
 dirty）、``file_not_found``/``rerun`` 零正向类、error ctx 帮助文本预筛
 豁免、``eof_file`` 弹出窗界、Underfull/generic 归类、samples 留存上限、

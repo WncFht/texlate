@@ -32,7 +32,7 @@ from .mask import apply_edits, group_end, visible_tex
 if TYPE_CHECKING:
     from pathlib import Path
 
-#: FLOAT_SIZING 仅在有 figure/table 时注入（docs/08 §3.3）。
+#: FLOAT_SIZING 仅在有 figure/table 时注入（docs/spec/compile.md）。
 FLOAT_SIZING = r"""% texlate: fit complete oversized float boxes v1
 \usepackage{graphicx}
 \begingroup

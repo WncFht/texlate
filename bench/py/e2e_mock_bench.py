@@ -87,7 +87,7 @@ WORK = ROOT / "bench/work_e2emock"
 RESULTS_DIR_DEFAULT = "e2emock-corpus39"
 
 # ---------------------------------------------------------------- Mode B/C
-# docs/10 §B5: Mode B 幻觉 mock (译文丢/造占位符 → 校验链编译前 100% 捕获);
+# docs/spec/benchmark.md §B5: Mode B 幻觉 mock (译文丢/造占位符 → 校验链编译前 100% 捕获);
 # Mode C 位置扰动 mock (随机挪 ~10% 占位符 → 量化 splice 鲁棒性)。
 # 扰动决策 = f(段内容哈希) → 确定性可复现，批/单块/阶梯重试同决策。
 

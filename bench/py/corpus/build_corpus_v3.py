@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 r"""build_corpus_v3.py — corpus P2 管线: 簇下载→成员扫描→配额抽样→组装→自检.
 
-docs/09 S1–S5 实现. 30 月簇 (cluster_pick.json): a–d 带走 IA arxiv-bulk
+docs/spec/corpus.md S1–S5 实现. 30 月簇 (cluster_pick.json): a–d 带走 IA arxiv-bulk
 月 chunk, e 带走 HF TIGER-Lab/arxiv-latex-5T. 零 arxiv.org 请求.
 
-块选取规则 (docs/09 §4.1 "每月选 1–2 块; d/e 间隔 2 块扩候选池" 的统一落实):
+块选取规则 (docs/spec/corpus.md "每月选 1–2 块; d/e 间隔 2 块扩候选池" 的统一落实):
   n_chunks<=2 → 全取 (=整月); n>2 → 等距 2 块 {n//4+1, 3n//4+1}
   (避开首块边界与末块 partial, 内部等距覆盖 id 区间).
 
@@ -1547,7 +1547,7 @@ def write_manifest_md(manifest: list[dict]) -> None:
             "`mechanisms.jsonl`/`booster_selection.jsonl`；管线脚本在 `bench/py/`。"
         ),
         (
-            "抽样管线见 `docs/09-benchmark-corpus.md` S0–S5；旧式 ID 按 "
+            "抽样管线见 `docs/spec/corpus.md` S0–S5；旧式 ID 按 "
             "`archive/name` 嵌套。"
         ),
         "",

@@ -580,7 +580,7 @@ class _Compile:
     def _run_fixloop(
         self, ctx: TaskCtx, work: Path, eng: Engine, first: CompRes
     ) -> CompRes:
-        """Fixloop 救援循环（docs/08 §5）：规则引擎在 ``build-zh`` 内重编到出 pdf/放弃。
+        """Fixloop 救援循环（docs/spec/compile.md）：规则引擎在 ``build-zh`` 内重编到出 pdf/放弃。
 
         摘要留 ``ctx.fixloop`` 并进 ``task_events``（``fixloop`` 事件可重放）+
         ``fixloop-cases.jsonl`` 沉淀（§5.5）。救回出 pdf 时把改动过的 TeX

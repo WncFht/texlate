@@ -1,4 +1,4 @@
-"""翻译编排层：prompt 套件 / 批量 / 重试阶梯 / 术语表 / 断点续跑（规格 docs/08）。
+"""翻译编排层：prompt 套件 / 批量 / 重试阶梯 / 术语表 / 断点续跑（规格 docs/spec/translate.md）。
 
 惰性门面（PEP 562）：``__all__`` 平名经 ``__getattr__`` 映射回子模块惰性
 解析——``import texlate.xlat.placeholders`` 不再经包 init 拉入 httpx 等

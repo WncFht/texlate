@@ -1,4 +1,4 @@
-r"""``\input/\include`` 展平（docs/07 §7）。
+r"""``\input/\include`` 展平（docs/spec/latex-pipeline.md）。
 
 触发面八形态：``\input/\include/\InputIfFileExists/\subfile/\import/
 \subimport/\includestandalone/\CatchFileBetweenTags`` + 裸文件名形
@@ -158,7 +158,7 @@ def _extract_tag_region(tex: str, tag: str) -> str | None:
     return tex[s.end() : e.start() if e else len(tex)]
 
 
-def flatten_inputs(  # noqa: C901, PLR0912, PLR0913, PLR0915 — 单遍逐字符主循环，分支序即语义（docs/07 §3 五条铁律）
+def flatten_inputs(  # noqa: C901, PLR0912, PLR0913, PLR0915 — 单遍逐字符主循环，分支序即语义（docs/spec/latex-pipeline.md 五条铁律）
     tex: str,
     file_dir: str,
     root_dir: str | None = None,
@@ -259,7 +259,7 @@ def flatten_inputs(  # noqa: C901, PLR0912, PLR0913, PLR0915 — 单遍逐字符
     return "".join(out)
 
 
-def _try_input(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915, PLR0917 — 八形态各一段参数语法，平铺即规格（docs/07 §7 触发面表）
+def _try_input(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915, PLR0917 — 八形态各一段参数语法，平铺即规格（docs/spec/latex-pipeline.md 触发面表）
     tex: str,
     i: int,
     name: str,

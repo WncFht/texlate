@@ -27,7 +27,7 @@ class ChunkIn:
     ph_fragments: dict[str, str] | None = None
 
 
-#: 上游 scanner context → xlat kind 归一表（docs/07 Chunk.context → docs/08 六 kind）
+#: 上游 scanner context → xlat kind 归一表（docs/spec/latex-pipeline.md Chunk.context → docs/spec/compile.md 六 kind）
 KIND_ALIASES: dict[str, str] = {
     "para": "para",
     "item": "para",

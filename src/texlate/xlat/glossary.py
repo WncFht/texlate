@@ -1,4 +1,4 @@
-"""三级术语表 + ph→ph 恒等注入 + 文档级过滤烤进稳定 system prompt（docs/08 §1.4）。
+"""三级术语表 + ph→ph 恒等注入 + 文档级过滤烤进稳定 system prompt（docs/spec/translate.md）。
 
 yaml 装载走 PyYAML safe_load；`flatten_terms` 把 `{en: zh}` / `{en: {target: zh}}` /
 `{"terms": {...}}` 三种形态归一为平表，list 值拒绝（宁可拒载不静默读歪）。

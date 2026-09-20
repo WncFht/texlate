@@ -61,7 +61,7 @@ V2_CELLS_DEFAULT = ROOT / "bench/results/compilebench-corpusv2-2026-09-15/cells.
 
 SEED_DEFAULT = 20260915
 SAMPLE_N_DEFAULT = 180
-PASS_TIMEOUT = 240.0  # 单 pass/单 attempt 上限(秒), docs/08 §4.1, 与 v2 同
+PASS_TIMEOUT = 240.0  # 单 pass/单 attempt 上限(秒), docs/spec/compile.md 与 v2 同
 XELATEX_TIMEOUT = PASS_TIMEOUT * 2  # 产品 compile timeout 是总预算/per_pass
 TECTONIC_TIMEOUT = PASS_TIMEOUT
 MAX_PASSES = 2
@@ -246,7 +246,7 @@ def run_paper(p, corpus: Path, work: Path, engines: list[str], cond: str = "base
     """复制 → find_main_tex + route_project → per-engine 编译判定.
 
     cond=zh: 每引擎独立拷贝 → normalize_project → prepare_chinese(ctex 注入)
-    → 编译(docs/10 §B3 网格 zh-injected 臂; inject 拒绝记 inject_reject)。
+    → 编译(docs/spec/benchmark.md §B3 网格 zh-injected 臂; inject 拒绝记 inject_reject)。
     """
     pid = p["id"]
     src = corpus / pid / "extracted"
@@ -777,7 +777,7 @@ def main():
         "--condition",
         choices=CONDS,
         default="baseline",
-        help="baseline=原文直编; zh=normalize+prepare_chinese(ctex) 后编译 (docs/10 §B3)",
+        help="baseline=原文直编; zh=normalize+prepare_chinese(ctex) 后编译 (docs/spec/benchmark.md §B3)",
     )
     ap.add_argument("--corpus", type=Path, default=CORPUS_DEFAULT)
     ap.add_argument(

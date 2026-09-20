@@ -43,7 +43,7 @@ def test_parse_log_bang_errors() -> None:
 
 
 def test_parse_log_file_line_format() -> None:
-    """双格式计数：`file:line:` 引擎级错误也要数到（docs/08 §2.3）。"""
+    """双格式计数：`file:line:` 引擎级错误也要数到（docs/spec/validate.md）。"""
     log = "./main.tex:10: Undefined control sequence\nnext\n"
     info = parse_log(log)
     assert info.n_errors == 1

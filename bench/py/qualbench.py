@@ -18,7 +18,7 @@ chunk 对来源（--source）：
           固定中文串），不 import texlate.* 也能把全链跑通。
 
 judge 协议（ESA 两步单发，``protocol_v=esa2``；规格见
-docs/research/xlat-quality-eval-2026-09-18 §7）：
+docs/research/methods/xlat-quality-eval-2026-09-18.md §7）：
   judge 先标错误 span（须为译文逐字子串）再赋 0-100 分——gemba_esa 同款
   形态（WMT24 prompt 系最强 reference-free 指标）。输出严格 JSON
   ``{"errors":[{span,category,severity,note}], "score":0-100}``；``` 围栏

@@ -1,4 +1,4 @@
-r"""宏体分类 + argspec 编译：gullet/segmenter 共享的登记侧 helper（docs/07 §5）。
+r"""宏体分类 + argspec 编译：gullet/segmenter 共享的登记侧 helper（docs/spec/latex-pipeline.md）。
 
 分类在**登记时**一次完成，调用点只查表（§5.1）：
 

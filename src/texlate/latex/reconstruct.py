@@ -1,4 +1,4 @@
-r"""splice 重建 + DAG 递归展开 + validate（docs/07 §9）。
+r"""splice 重建 + DAG 递归展开 + validate（docs/spec/latex-pipeline.md）。
 
 - **identity**：``translations=None`` → 平铺 pieces + ph 体逐字 → 逐字节 = 原文。
 - O(总规模)+memo；相对 spike ``str.replace`` 不动点语义等价
@@ -239,7 +239,7 @@ def unicode_math_fix(zh: str) -> str:
 
 
 def reconstruct(res: ScanResult, translations: dict[int, str] | None = None) -> str:  # noqa: C901, PLR0915 — expand/expand_body 双闭包 + 校验分支平铺即 §9 伪码
-    """按 pieces splice + 占位符 DAG 递归展开（docs/07 §9 伪码原样）。
+    """按 pieces splice + 占位符 DAG 递归展开（docs/spec/latex-pipeline.md 伪码原样）。
 
     ``translations``：``{chunk_id: 译文}``；None → identity 重建。
     """

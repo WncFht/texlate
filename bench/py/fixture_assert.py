@@ -9,7 +9,7 @@ tricky-multi T14 ×4, xlat-traps.tex @X1–@X4.
 用法:
   uv run python bench/py/fixture_assert.py --out DIR
 
-产出 (docs/10 §统一产出契约): OUT/cases.jsonl (逐断言明细) +
+产出 (docs/spec/benchmark.md 统一产出契约): OUT/cases.jsonl (逐断言明细) +
 OUT/cells.json (逐 fixture 聚合) + OUT/summary.md.
 """
 

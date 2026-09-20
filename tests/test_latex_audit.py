@@ -610,11 +610,11 @@ def test_audit_f12_unclosed_env_nested_surplus() -> None:
 
 
 def test_audit_f12_unclosed_env_perf_gate() -> None:
-    r"""F12 性能门（docs/07 §11 max≤500ms）：800 未闭合 ``\\begin`` 不再 O(N·n)。"""
+    r"""F12 性能门（docs/spec/latex-pipeline.md max≤500ms）：800 未闭合 ``\\begin`` 不再 O(N·n)。"""
     tex = "".join(f"text {k} \\begin{{equation}} x_{{{k}}}+y\n\n" for k in range(800))
     t0 = time.perf_counter()
     res = parse_tex(tex)
-    gate_s = 0.5  # docs/07 §11 max≤500ms
+    gate_s = 0.5  # docs/spec/latex-pipeline.md max≤500ms
     assert time.perf_counter() - t0 < gate_s
     assert reconstruct(res) == tex
 

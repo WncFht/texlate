@@ -87,7 +87,7 @@ rules:
     provenance:
       - { corpus: "—", error: "dvips 兜底缺 .pro 时白跑一路由 (docs/08:273)" }
     stats: { fires: 0, status: proposed }
-    source_ref: "docs/08-translate-compile.md L273"
+    source_ref: "docs/spec/compile.md L273"
 
   # W37/W68 孤儿裁决 (mechmap-2026-09-17): 纯 plain/amsTeX 稿无路由可救
   # (缺 plain.fmt 通道) → gate 显式拒 tex-plain, 诚实上报优于烧满轮次。
@@ -165,7 +165,7 @@ rules:
         fires: 0,
         note: "v1 为 eps_route fileset 版; v2 拆出 .eps 改走 ps_image 循环规则",
       }
-    source_ref: "docs/08-translate-compile.md L218, L271; fixloop-v2 整改"
+    source_ref: "docs/spec/compile.md L218, L271; fixloop-v2 整改"
 
   # W31 孤儿裁决 (mechmap-2026-09-17): svg 包 = inkscape + shell-escape
   # 外部链, tectonic 无可行路径 → precheck 直拒路由 xelatex; xelatex 臂

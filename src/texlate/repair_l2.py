@@ -257,7 +257,7 @@ def unknown_env_of(chunk: Chunk) -> str | None:
 
 
 async def _env_judge_one(pipe: XlatPipeline, chunk: Chunk, env_name: str) -> bool:
-    """单 env 可译性判定（docs/08 §1.5）：0 温/16 tok/3 试/解析失败 fail-open。"""
+    """单 env 可译性判定（docs/spec/translate.md）：0 温/16 tok/3 试/解析失败 fail-open。"""
     system = xlat_prompts.env_judge_system_prompt(pipe.cfg.src_lang, pipe.cfg.tgt_lang)
     user = (
         f"\\begin{{{env_name}}}\n"

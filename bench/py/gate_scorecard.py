@@ -13,7 +13,7 @@ record，两套口径并列（scope 块钉死语义，防臂并集误读）：
     union(best-of)     compile 与新鲜 fixloop 两段取较优终态(STATUS_RANK)
 
 union 名实（2026-09-18 复核）：union=**阶段并集** best-of(compile∪fixloop)
-按格取优——即 docs/10 的「union 口径取 pipe-xel/pipe-fix 较优者」，zh 臂
+按格取优——即 docs/spec/benchmark.md 的「union 口径取 pipe-xel/pipe-fix 较优者」，zh 臂
 mock 上游单人口径，**非 zh+base 臂并集**（M2 门是 zh 条件编译成功率，base
 臂是归因基线不入格）。输出 scope 块显式标注，防再次名实争议。
 

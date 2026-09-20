@@ -2,7 +2,7 @@ r"""probe.py 性质 fuzz——合成工程树/字节汤/对抗 main_rel 下的�
 
 oracle 方法：发生器落盘时逐条登记声明日志（offset/kind/name/form/masked），
 期望报告完全由**生成侧事实**重算——不复用 impl 的扫描/解析/差分路径。
-region 边界（preamble/死尾）与文件名清洗按 docs/08 §3.4 语义独立实现；
+region 边界（preamble/死尾）与文件名清洗按 docs/spec/compile.md 语义独立实现；
 解码/遮蔽走共享件 ``decode_tex``/``visible_tex``（独立受测，且只有等长
 遮蔽才能保证 offset 语义一致）。
 

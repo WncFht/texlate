@@ -81,7 +81,7 @@ PYSPY=${PYSPY_BIN:-py-spy}
 command -v "$PYSPY" >/dev/null || {
   echo "error: 找不到 py-spy（$PYSPY）。安装: cargo install py-spy / uv tool install py-spy；" >&2
   echo "       或用 PYSPY_BIN=<path> 指定。应急替代: python -X faulthandler 起目标进程" >&2
-  echo "       + faulthandler.dump_traceback_later（见 docs/tools-runbook.md §5.2）。" >&2
+  echo "       + faulthandler.dump_traceback_later（见 docs/dev/tools-runbook.md §5.2）。" >&2
   exit 2
 }
 

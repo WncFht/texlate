@@ -1,4 +1,4 @@
-r"""占位符编解码与 src↔zh 对账（规格 docs/08 §1.3/§1.6，口径对齐 L0 校验层）。
+r"""占位符编解码与 src↔zh 对账（规格 docs/spec/translate.md，口径对齐 L0 校验层）。
 
 契约边界：
 - `[[TYPE_n]]` 带号占位符——`ph_map` 侧受保护片段；PhType 全枚举（含
@@ -387,7 +387,7 @@ def _copied_boundary_rx(fragment: str) -> re.Pattern[str]:
 
 
 def recover_copied_tokens(zh: str, ph_map: Mapping[str, str]) -> tuple[str, list[str]]:
-    """模型把受保护原文抄回译文时，**exact+unique** 才换回 token（docs/08 §1.6）。
+    """模型把受保护原文抄回译文时，**exact+unique** 才换回 token（docs/spec/translate.md）。
 
     仅当占位符在 zh 中缺失、且其原文片段在 zh 中恰好出现一次时替换。
     返回 (修复后译文, 已修复占位符列表)。

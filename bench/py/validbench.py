@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-r"""validbench — B6 校验段基准 harness（docs/10 §B6 产品化）.
+r"""validbench — B6 校验段基准 harness（docs/spec/benchmark.md §B6 产品化）.
 
 测 ``texlate.validate`` 对 LLM 译文破坏的检出能力：校验器本身必须被语料验证。
 
@@ -25,7 +25,7 @@ r"""validbench — B6 校验段基准 harness（docs/10 §B6 产品化）.
   uv run python bench/py/validbench.py [--corpus DIR] [--max-per-paper N]
       [--papers N] [--paper SUBSTR] [--out DIR] [--no-l1] [--check]
       [--replay cases.jsonl]
-产出 (docs/10 §统一产出契约): OUT/{cases.jsonl,probes.jsonl,cells.json,summary.md}
+产出 (docs/spec/benchmark.md 统一产出契约): OUT/{cases.jsonl,probes.jsonl,cells.json,summary.md}
 
 门槛 (--check): 10 类破坏 L0 100% 检出、干净对 0 error-FP、探针全过、
 L0 摊薄 ≤1ms/对 (总 wall/对数, 与 spike 0.57ms/对 同口径; 逐对计时
@@ -413,7 +413,7 @@ CORRUPTIONS = [
 ]
 
 # ---------------------------------------------------------------- 对抗探针
-# docs/10 §B6-2 清单 + test_validate_l0.py 防误报面; 每条断言 ok/error-rules/
+# docs/spec/benchmark.md §B6-2 清单 + test_validate_l0.py 防误报面; 每条断言 ok/error-rules/
 # warn-rules. suggest= 要求至少一条 issue 带 expected+found 修复配对.
 
 PROBES: list[dict] = [

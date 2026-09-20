@@ -1,6 +1,6 @@
 r"""遮蔽视图与 TeX 词法小件：normalize/inject 所有正则定位都打在这里。
 
-方法论（docs/08 §3.1）：`visible_tex()` 把 verbatim 族环境、`\verb`、行内 `%`
+方法论（docs/spec/compile.md）：`visible_tex()` 把 verbatim 族环境、`\verb`、行内 `%`
 注释做**等长空格遮盖**（`\n` 保留 → 行号与 offset 不变），调用方在视图上定位、
 回原文做 span 编辑。**定位视图 ≠ 改写目标**——masked view 绝不能拷回原文，
 否则注释行变空行、跨行参数被劈断。

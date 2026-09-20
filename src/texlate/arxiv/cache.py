@@ -1,4 +1,4 @@
-r"""source-tier 钉版缓存（docs/06 §4.1）。
+r"""source-tier 钉版缓存（docs/spec/arxiv-source.md）。
 
 布局（``root`` 默认 ``cache/src``，由调用方给）::
 

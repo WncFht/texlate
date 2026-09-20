@@ -1,4 +1,4 @@
-"""编译层：Engine 协议 / ctex 注入 / normalize / clean 判定 / 沙箱（规格 docs/08 §3–4）。
+"""编译层：Engine 协议 / ctex 注入 / normalize / clean 判定 / 沙箱（规格 docs/spec/compile.md）。
 
 - `mask`：visible_tex 遮蔽视图（所有手术的定位地基）
 - `normalize`：pdfTeX→XeTeX 无条件手术 12 项

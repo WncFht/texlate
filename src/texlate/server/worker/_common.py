@@ -93,7 +93,7 @@ def opt_bool(options: dict[str, Any], key: str, env_on: Callable[[], bool]) -> b
     return env_on()
 
 
-#: 编译超时（docs/08 §4.1 默认值；server 路径无 --timeout flag）——
+#: 编译超时（docs/spec/compile.md 默认值；server 路径无 --timeout flag）——
 #: 全链优先级 ``TEXLATE_COMPILE_TIMEOUT`` env > settings.json
 #: ``compile_timeout`` > 240s，``create_app`` 装配时解析透传；本常量
 #: 兜非 app 构造方（测试/内嵌直 new PipelineWorker 不走 settings）

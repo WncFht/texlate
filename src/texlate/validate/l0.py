@@ -1,4 +1,4 @@
-r"""L0 规则校验层 —— stdlib always-on，src↔zh 相对判定（规格 docs/08 §2.1）。
+r"""L0 规则校验层 —— stdlib always-on，src↔zh 相对判定（规格 docs/spec/validate.md）。
 
 定位：校验链第一层，LLM 每返回一个 chunk 立即校验（实测 0.57ms/对）。
 独立于任何 LaTeX 解析器（pylatexenc 静默截断的教训——校验器必须异构），
@@ -7,7 +7,7 @@ r"""L0 规则校验层 —— stdlib always-on，src↔zh 相对判定（规格 
 设计原则 = "译文不得比原文更坏"：每条检查都是 src↔zh 比较而非 zh 绝对判定，
 src 自带的不平衡/不一致不追责（继承容忍），只报 zh 相对 src 的新增损伤。
 
-十三条规则（docs/08 §2.1 表 + E21/E22 修订口径 + 注释区/粘合/回显/ph_in_cs/裸 cs/注释尾段/残英补丁）：
+十三条规则（docs/spec/validate.md 表 + E21/E22 修订口径 + 注释区/粘合/回显/ph_in_cs/裸 cs/注释尾段/残英补丁）：
 
   placeholder  ``[[TYPE_n]]``/``[[SL]]``/``[[PL]]`` multiset diff + lev≤2 修复建议；
                E22：严格序守恒降为 warn（``of X``→``X 的`` 合法换序占违例 ~95%），
@@ -290,7 +290,7 @@ class L0Report:
         }
 
     def feedback(self) -> str:
-        """给带错重翻 corrector 的紧凑错误描述（docs/08 §1.2 反馈字段化）。"""
+        """给带错重翻 corrector 的紧凑错误描述（docs/spec/translate.md 反馈字段化）。"""
         return "\n".join(i.message for i in self.issues if i.severity is Severity.ERROR)
 
     def __str__(self) -> str:

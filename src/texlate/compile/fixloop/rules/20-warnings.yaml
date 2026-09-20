@@ -3,7 +3,7 @@
 version: 1
 
 # ────────────────────────────────────────────────────────────────
-# log 尾部红线 warning 扫描 (docs/08 §4.3): 只记录进 cell.warnings,
+# log 尾部红线 warning 扫描 (docs/spec/compile.md): 只记录进 cell.warnings,
 # 其中 invalid_utf8 在无 '!' 错时升级为 warn_utf8 类别驱动修复轮。
 # ────────────────────────────────────────────────────────────────
 warnings:

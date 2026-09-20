@@ -1,4 +1,4 @@
-r"""clean 判定三件套（docs/08 §4.3，判据非修复）：
+r"""clean 判定三件套（docs/spec/compile.md，判据非修复）：
 
     clean = ① 有 pdf
           ∧ ② `!`≤3 且首错非 missing_*/undefined_cs
@@ -10,7 +10,7 @@ r"""clean 判定三件套（docs/08 §4.3，判据非修复）：
 
     partial = 有 pdf 但 dirty；fail = 无 pdf / 超时 / 引擎缺失。
 
-铁律"出 PDF ≠ 成功"（docs/08 §0）：2501.14787 在 1519 个 `!` 错误下照样吐
+铁律"出 PDF ≠ 成功"（docs/spec/compile.md）：2501.14787 在 1519 个 `!` 错误下照样吐
 1MB pdf；hep-th 出 8 页 PDF 但 0 中文字节——校验必须独立于编译。
 
 中文渲染检查选 **pdftotext**（poppler，子进程边界）：
@@ -38,7 +38,7 @@ from .sandbox import find_tool, run_process
 if TYPE_CHECKING:
     from pathlib import Path
 
-#: `!` 错误容忍上限（docs/08 §4.3）。
+#: `!` 错误容忍上限（docs/spec/compile.md）。
 CLEAN_ERR_MAX = 3
 
 #: 首错命中这些类别 → 即使有 pdf 也判 dirty（出 pdf ≠ 内容完整）。

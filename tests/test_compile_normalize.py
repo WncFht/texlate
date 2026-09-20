@@ -1,4 +1,4 @@
-"""normalize.py 十二项无条件手术的单测（docs/08 §3.2 逐条对应）。"""
+"""normalize.py 十二项无条件手术的单测（docs/spec/compile.md 逐条对应）。"""
 
 from pathlib import Path
 

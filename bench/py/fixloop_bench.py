@@ -13,7 +13,7 @@ fixloop_bench.py — M2 前置测量: 产品化 fixloop 引擎在 corpus_v2 40 �
   xelatex  : XelatexEngine(halt_on_error=True, texmfhome=work/{pid}/_texmf)
              —— 每篇独立冷 usertree (对齐 baseline 冷 TEXMF 语义), 装包走
              tlmgr --usermode 落该树; init-usertree 由引擎自动补
-  tectonic : TectonicEngine(bundle=TECTONIC_BUNDLE_PIN) —— docs/08 §4.1 pin,
+  tectonic : TectonicEngine(bundle=TECTONIC_BUNDLE_PIN) —— docs/spec/compile.md pin,
              与 rules.yaml filemap.version_guard epoch (2022-07-14) 配套;
              install_file 由 fixloop 注入 CtanFetcher (tlnet 拉包 cwd 平铺)
   sandbox  : compile(sandbox=False) —— 对齐 compilebench_v2 (env paranoid
@@ -303,7 +303,7 @@ def run_paper(p: dict, todo_engines: tuple[str, ...]) -> list[dict]:
             shutil.rmtree(wdir)
         shutil.copytree(src, wdir, ignore=IGNORE)
         if INJECT_ZH:
-            # zh 条件臂 (docs/10 §B3): 产品序 normalize → ctex 注入 → fixloop
+            # zh 条件臂 (docs/spec/benchmark.md §B3): 产品序 normalize → ctex 注入 → fixloop
             from texlate.compile.inject import (
                 InjectRejectError,
                 find_main_tex,

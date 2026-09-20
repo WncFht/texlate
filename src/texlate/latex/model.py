@@ -1,6 +1,6 @@
 """latex 管线核心数据结构（纯数据层，不反向依赖）。
 
-规格：docs/07-latex-pipeline.md §2。区间一律半开 ``[start, end)``，
+规格：docs/spec/latex-pipeline.md。区间一律半开 ``[start, end)``，
 相对**当前 scan 输入串**的偏移；子扫描器经 ``base`` 换算全局偏移。
 """
 
@@ -99,7 +99,7 @@ class MacroKind(Enum):
 
 @dataclass(slots=True)
 class ArgSpec:
-    """xparse 参数签名项（docs/07 §5.2）。"""
+    """xparse 参数签名项（docs/spec/latex-pipeline.md）。"""
 
     kind: str  # 'm'|'o'|'O'|'s'|'d'|'D'|'r'|'R'|'v'|'e'|'t'|'b'|'n'|'u'|'g'
     delim: str = ""  # d/D/r/R/t 的定界符（'<>'）或 e 的 token 表（'^_'）
@@ -388,7 +388,7 @@ def unescaped_dollar_odd(body: str) -> bool:
 def env_opt_is_format(env: str, content: str) -> bool:
     r"""``\begin{env}[opt]`` 的 ``[opt]``：版式参（吃掉）还是标题正文（放行）。
 
-    scanner-audit F6：docs/07 §3.5 原规格无条件吞 ``[opt]`` → theorem/
+    scanner-audit F6：docs/spec/latex-pipeline.md 原规格无条件吞 ``[opt]`` → theorem/
     lemma/proof 类环境标题永不进 chunk（corpus 命中 8.3%，召回缺口）。
     判定（corpus 实测分布校准）：
 

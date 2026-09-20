@@ -1,4 +1,4 @@
-# corpus: manifest/台账/提名审计轨迹入库, 论文数据 gitignored (docs/09 §6)
+# corpus: manifest/台账/提名审计轨迹入库, 论文数据 gitignored (docs/spec/corpus.md)
 *
 !.gitignore
 !MANIFEST.md

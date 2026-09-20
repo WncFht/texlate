@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-r"""alignbench — B7 锚点保留基准 harness（docs/10 §B7 产品化）.
+r"""alignbench — B7 锚点保留基准 harness（docs/spec/benchmark.md §B7 产品化）.
 
 tmp/exp/align-probe/dest_probe.py 扶正：pypdf 提双侧 named destinations →
 同名锚点配对 → 保留率 + 最大权值单调链（对照阅读器滚动同步的质量上限，
-docs/05 §3-18 方案的前提条件；保留率 <95% 本身即 zh 编译完整性探针）。
+docs/decisions/background.md 方案的前提条件；保留率 <95% 本身即 zh 编译完整性探针）。
 
 用法:
   uv run --with pypdf python bench/py/alignbench.py --pairs pairs.jsonl [--check]
@@ -18,7 +18,7 @@ docs/05 §3-18 方案的前提条件；保留率 <95% 本身即 zh 编译完整�
   --selftest      pypdf 合成对子 (keep/shift/drop/degraded 四案) 无语料冒烟,
                   自含断言不进 --check 门槛语义
   --e2e-real      e2e_real_bench 产物树 + run records 配对——zh 侧按 union
-                  口径优先 pipe-fix/{sid}、缺路径回落 pipe-xel/{sid}（docs/10
+                  口径优先 pipe-fix/{sid}、缺路径回落 pipe-xel/{sid}（docs/spec/benchmark.md
                   §B5 增补: union 取较优者——pipe-fix 复判失败的 main.pdf 已
                   被引擎先 unlink, 不存在陈旧误标）；en 侧 base-xel 优先、
                   base-rescue 兜底。每对携带 {product_arm,en_arm,
@@ -31,9 +31,9 @@ docs/05 §3-18 方案的前提条件；保留率 <95% 本身即 zh 编译完整�
                   重编译 en 基线，--jobs 并发 xelatex。verdict 落
                   OUT/rescue.jsonl。
 
-产出 (docs/10 §统一产出契约): OUT/{pairs.jsonl,cells.json,summary.md}
+产出 (docs/spec/benchmark.md 统一产出契约): OUT/{pairs.jsonl,cells.json,summary.md}
 
-门槛 (--check, docs/10 §B7): 有 hyperref 锚点侧的对子保留率 ≥95%;
+门槛 (--check, docs/spec/benchmark.md §B7): 有 hyperref 锚点侧的对子保留率 ≥95%;
 双侧无锚点对 (无 hyperref 工程 ~31%) 走退化路径不崩; 无 pair 级异常.
 单侧 PDF 不可解析记 invalid_pdf verdict——编译段垃圾产物 (kill 截断/stub),
 对应 leg 在 B3/B5 已计 FAIL, 不占 no_pair_errors 门但单列显著报告.
@@ -127,7 +127,7 @@ def category(name: str) -> str:
     return "other"
 
 
-# docs/10 §B7: section 12 / 图表 10 / equation 4 / cite 2 (page.* 排除等效权 0)
+# docs/spec/benchmark.md §B7: section 12 / 图表 10 / equation 4 / cite 2 (page.* 排除等效权 0)
 WEIGHT = {
     "section": 12,
     "figtable": 10,
@@ -412,7 +412,7 @@ def e2e_real_pairs(
 ) -> tuple[list[dict], list[dict]]:
     """e2e_real_bench 产物树 → 对子 + 逐工程覆盖率记录。
 
-    union 口径（docs/10 §B5 增补）：zh 侧 relpath 级 [pipe-fix, pipe-xel] 递减
+    union 口径（docs/spec/benchmark.md §B5 增补）：zh 侧 relpath 级 [pipe-fix, pipe-xel] 递减
     优先级（pipe-fix 仅当该工程 record 里实际跑过）；en 侧 [base-xel,
     base-rescue]。返回 (pairs, coverage)；coverage 每行 {id,b_arm,zh_verdict,
     n_pairs,unpaired_reason}——无法成对的原因显式化。

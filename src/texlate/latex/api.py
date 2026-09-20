@@ -1,4 +1,4 @@
-r"""入口装配：``parse_tex`` / ``parse_file``（docs/07 §1）。
+r"""入口装配：``parse_tex`` / ``parse_file``（docs/spec/latex-pipeline.md）。
 
 v2 token 流（``Gullet``+``Segmenter``）是唯一解析路径。
 """

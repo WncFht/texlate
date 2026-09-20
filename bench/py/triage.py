@@ -2,7 +2,7 @@
 r"""
 triage.py — stagerun records → tickets.jsonl 聚类 + metrics.jsonl 趋势 + report merge。
 
-实现 docs/research/product/2026-09-16-batch-hardening-design.md §6 文件协议 / §9 E3+E4:
+实现 docs/research/product/2026-09-16-hardening-notes.md §6 文件协议 / §9 E3+E4:
 
   records/{stage}.jsonl   每行 {id,stage,arm,status,dur_s,metrics{..},errors[{code,cat,payload}],sig}
   tickets.jsonl           {sig_id,stage,signature,count,example_ids[],repro_path,fix_class,notes}

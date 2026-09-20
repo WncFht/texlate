@@ -1,4 +1,4 @@
-r"""编译沙箱策略面：env 白名单 + macOS sandbox-exec + linux bwrap（docs/08 §4.4）。
+r"""编译沙箱策略面：env 白名单 + macOS sandbox-exec + linux bwrap（docs/spec/compile.md）。
 
 - env **白名单**（非黑名单）：只放编译所需最小集，天然洗 KEY/TOKEN/SECRET；
   叠加 `TECTONIC_UNTRUSTED_MODE=1 openin_any=p openout_any=p shell_escape=f`。

@@ -19,8 +19,8 @@ from texlate.textutil import VERBATIM_ENVS as _VERBATIM_ENVS
 # ---------------------------------------------------------------- 阈值
 
 CHUNK_MIN = 20  # flush_run 可译性阈值（去命令/非字母后字符数）
-CHUNK_MAX = 4000  # 原子 chunk 上限（超阈值二次切分，docs/07 §3.8 硬要求）
-BUDGET = 100_000  # 每文档展开步数上限（docs/07 §8.2）
+CHUNK_MAX = 4000  # 原子 chunk 上限（超阈值二次切分，docs/spec/latex-pipeline.md 硬要求）
+BUDGET = 100_000  # 每文档展开步数上限（docs/spec/latex-pipeline.md）
 MAX_GEN = 32  # 子扫描/展开代数上限（正常宏嵌套 ≤4 代，8 倍余量）
 MAX_INPUTS = 8  # \\input 展平深度上限
 
@@ -465,7 +465,7 @@ DEF_NAMES = {
     "renewenvironment",
 }
 
-# \input 展平触发面（docs/07 §7，flatten.py 消费）
+# \input 展平触发面（docs/spec/latex-pipeline.md，flatten.py 消费）
 INPUT_CMDS = {
     "input",
     "@input",  # \makeatletter 下 \@input 内部形（gullet catcode 路径）
@@ -482,7 +482,7 @@ INPUT_CMDS = {
 
 COND_RX = re.compile(r"^(if[a-zA-Z@]*|else|fi|or)$")
 
-# 恒值 \if 族（可求值，docs/07 §8.6）
+# 恒值 \if 族（可求值，docs/spec/latex-pipeline.md）
 # 真值以 plasTeX 为准（Primitives.py:247-258 硬编码 ifvmode=False/
 # ifhmode=True——展开语境恒按"正在水平排版"处理）；此前写反会让
 # 顶层 \ifhmode/\ifvmode 选中死分支进 chunk。

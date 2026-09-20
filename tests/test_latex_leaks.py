@@ -1,4 +1,4 @@
-r"""四条泄漏机制的回归测试（rewrite-spec 泄漏表 + docs/07 §11）。
+r"""四条泄漏机制的回归测试（rewrite-spec 泄漏表 + docs/spec/latex-pipeline.md）。
 
 A ``_args`` 单 token 兜底吞 ``$``/``\\``；
 B in-arg 注释；C1 env 名 ``*`` 归一；C2 in-arg 未知 env；D in-arg 条件式。

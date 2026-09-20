@@ -139,7 +139,7 @@ def _apply_route_sigs(
 
 
 def route_project(root: Path, *, prefer: str = "tectonic") -> RouteDecision:
-    r"""静态预检路由（docs/08 §4.2 表）：编译前即可决策的引擎分配。
+    r"""静态预检路由（docs/spec/compile.md 表）：编译前即可决策的引擎分配。
 
     - `\documentstyle` → `latex209_suspect` 降级标记，**不再无条件 reject**
       （TL2026 实测 ~23% FP：cond-mat/9703223 等真 2.09 源编出 clean——

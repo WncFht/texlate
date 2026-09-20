@@ -2,7 +2,7 @@ r"""Gullet：回压式不动点展开（plasTeX ``TeX.__iter__`` TeX.py:281-340 
 
 宏展开的**唯一**发生地：拉取 Mouth 原始 token → 命中宏表/原语则按预编译
 spec 读参 → 代入 → 推回流前端（不动点，不 return）。移植位逐条对
-``docs/research/latex/expansion-design.md`` §12 表；行为规格 docs/07 §8。
+``docs/research/latex/expansion-design.md`` §12 表；行为规格 docs/spec/latex-pipeline.md。
 
 与 plasTeX 的刻意分歧（规格内留档项）：
 

@@ -12,7 +12,7 @@ qualbench ``--source manifest`` 的上游：把 stagerun/e2e_real 已落盘的
            ——e2e_real 批副池，arm=""。同 paper id → rt1 优先（arm=real 同质，
            副池整篇丢弃不混块）；e2e-only 篇排在候选序尾部只补缺。
 
-分层（冻结协议 docs/research/xlat-quality-eval-2026-09-18）：
+分层（冻结协议 docs/research/methods/xlat-quality-eval-2026-09-18.md）：
   para 按 src 长度三分层——切点取**池级**分布（rt1 全部可用 para 的 len(src)
   1/3、2/3 分位），配额均摊；caption/section_title 各保底 ``--caption`` /
   ``--section-title``（默认 150）；其余 kind（abstract/table_text/env_text…）

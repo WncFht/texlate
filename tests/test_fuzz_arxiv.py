@@ -1056,7 +1056,7 @@ def test_acquire_retry_attempt_cap() -> None:
     """瞬态码重试上界：单 host 至多 len(RETRY_DELAYS)+1 次请求。
 
     顺带钉住语义：failover 只对异常/park 发生——瞬态 status 不触发换 host
-    （docs/06 §1.3：park 键是 (host,path) 桶，未 park 的 host 不换）。
+    （docs/spec/arxiv-source.md 键是 (host,path) 桶，未 park 的 host 不换）。
     """
     calls: list[str] = []
 
@@ -1921,7 +1921,7 @@ def test_across_hosts_all_parked_raises_first() -> None:
 
 
 def test_path_class_isolation_pin() -> None:
-    """park 键带 path-class：/api 被 park 不挡 /src（实测口径 docs/06 勘误）。"""
+    """park 键带 path-class：/api 被 park 不挡 /src（实测口径 docs/spec/arxiv-source.md 勘误）。"""
     clk = _Clock()
     rl = RateLimiter(clock=clk.now, sleep=clk.sleep)
     for _ in range(2):

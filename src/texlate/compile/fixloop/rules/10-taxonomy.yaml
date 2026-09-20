@@ -959,6 +959,6 @@ taxonomy:
       payload_group: null,
     }
   # —— warnings 段: 无 '!' 且无 tail 命中, 但 warning 红线命中 (v1.1) ——
-  - { id: warn_utf8, scope: warnings, warn_id: invalid_utf8 } # docs/08 §5.2 non_utf8_source 的类别入口
+  - { id: warn_utf8, scope: warnings, warn_id: invalid_utf8 } # docs/spec/compile.md non_utf8_source 的类别入口
   - { id: warn_missing_char, scope: warnings, warn_id: missing_char } # F4: 无 '!' 错但缺字 → 分诊修复入口
   # 都不中: err 为空 → clean; err 非空 → other

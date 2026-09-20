@@ -1,6 +1,6 @@
 """engine.py 误报回归：latex209 tail 签名收紧 + pstricks 路由高置信化。
 
-证据：docs/research/product/2026-09-16-signature-mining.md §2.4 +
+证据：docs/research/methods/2026-09-16-signature-mining.md §2.4 +
 bench/results/fixloop-replay-baseline-2026-09-16/SUMMARY.md
 （aastex 横幅 15+ 篇 latex209 误报、1803.08846 注释 pstricks 误杀）。
 """

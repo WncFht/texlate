@@ -1,4 +1,4 @@
-"""SourceCache 钉版目录：glob 消毒、get 语义、原子 commit/回滚（docs/06 §4.1）。"""
+"""SourceCache 钉版目录：glob 消毒、get 语义、原子 commit/回滚（docs/spec/arxiv-source.md）。"""
 
 import json
 from pathlib import Path

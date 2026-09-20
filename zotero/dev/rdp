@@ -4,7 +4,7 @@
 # 本脚本是薄 wrapper——协议实现与机制注释在 rdp.mjs，spike 证据在
 # dev/research/rdp.md。
 #
-# 反馈通道三属性（对照 docs/research/selfimp-skeleton.md）：
+# 反馈通道三属性（对照 docs/research/methods/selfimp-skeleton.md）：
 #   局部可归因 — exit code 分流：0 成功 / 1 eval 异常或超时（stderr 带
 #     exceptionMessage+stack）/ 2 连接失败（ECONNREFUSED 直报端口）；
 #   廉价及时 — 单次 eval 秒级返回，--timeout 死线兜底（缺省 30s）；

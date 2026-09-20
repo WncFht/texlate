@@ -8,7 +8,7 @@
 # rules.yaml — fixloop 编译修复规则表 (schema v1.1)
 #
 # 来源: bench/py/fixloop.py spike (冷 TEXMFHOME, 22 格, 16/16 救回) 的
-# 硬编码修复逻辑 → 数据化; 另并入 docs/08 §5.2 实证缺口回填的 9 条新规则。
+# 硬编码修复逻辑 → 数据化; 另并入 docs/spec/compile.md 实证缺口回填的 9 条新规则。
 # v2 (2026-09-15 corpus_v2 40 篇实测整改): eps_route 由 fileset 静态拒改
 # log 确证 (ps_image taxonomy + eps_to_pdf 救回 + 兜底拒); pstricks 独立成
 # pstricks_route; legacy_pkg_shim 接住退役包; aastex_bundle_shadow 遮蔽
@@ -50,12 +50,12 @@
 # 注册表在 builtins.py —— 新函数才需要 PR 代码)。
 # 书写约束: flow 集合 {..}/[..] 必须单行写完 (子集解析器不跨行)。
 #
-# 每条规则逐条带注释: 出处为 spike 行号 (fixloop.py Lxxx) 或 docs/08 行号。
+# 每条规则逐条带注释: 出处为 spike 行号 (fixloop.py Lxxx) 或 docs/spec/compile.md 行号。
 
 version: 1
 
 meta:
-  source: "bench/py/fixloop.py + docs/08 §5"
+  source: "bench/py/fixloop.py + docs/spec/compile.md
   generated: "2026-09-15"
   engine_default: xelatex
   loop:
@@ -229,6 +229,6 @@ filemap:
     "swedish.ldf": "babel-swedish"
     "turkmen.ldf": "turkmen" # TL 包名即 turkmen (无 babel- 前缀)
     "vietnamese.ldf": "babel-vietnamese"
-  version_guard: # docs/08 §5.2 第9条: ctan_fetch 版本前置检查
+  version_guard: # docs/spec/compile.md 第9条: ctan_fetch 版本前置检查
     enabled: true # tlnet 只发最新; 新版对 bundle 的 expl3/LaTeX2e 太旧会拒载
     texlive_format_epoch: "2022-07-14" # tectonic bundle 快照年代 (ctanfetch-probe §3.4)

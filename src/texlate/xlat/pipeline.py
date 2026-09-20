@@ -1,4 +1,4 @@
-"""翻译编排骨架（docs/08 §1.3/§1.6）：asyncio.Queue + N worker + 首发单飞暖缓存。
+"""翻译编排骨架（docs/spec/translate.md）：asyncio.Queue + N worker + 首发单飞暖缓存。
 
 流程：
 
@@ -77,7 +77,7 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
-#: 翻译温度（docs/08 §1.6：0.2~0.3 保守值；judge/抽取 0）
+#: 翻译温度（docs/spec/translate.md 保守值；judge/抽取 0）
 TRANSLATE_TEMPERATURE = 0.2
 #: 翻译输出预算（reasoning 模型下限；短输出不亏——按量计费）
 TRANSLATE_MAX_TOKENS = 8192
@@ -605,7 +605,7 @@ def _merged_value_frags(members: list[ChunkIn]) -> dict[str, str]:
 
 @dataclass
 class PipelineConfig:
-    """编排参数（docs/08 §1.6 定案默认值）。"""
+    """编排参数（docs/spec/translate.md 定案默认值）。"""
 
     concurrency: int = DEFAULT_CONCURRENCY
     batch_max_chars: int = BATCH_MAX_CHARS
@@ -638,7 +638,7 @@ class XlatPipeline:
     段级缓存 dict（调用方负责 file_cache_key 维度的装载/落盘）。
     """
 
-    def __init__(  # noqa: PLR0913 -- 依赖注入面（docs/08 §1.6 可插拔点全集）
+    def __init__(  # noqa: PLR0913 -- 依赖注入面（docs/spec/translate.md 可插拔点全集）
         self,
         translator: Translator,
         *,
@@ -1040,7 +1040,7 @@ class XlatPipeline:
     def _skip(
         c: ChunkIn, reason: str, batch_id: str = "", *, kind: str = ""
     ) -> ChunkResult:
-        """失败回退原文——不阻塞整批（docs/08 §1.6）。``kind`` 记失败成因。"""
+        """失败回退原文——不阻塞整批（docs/spec/translate.md）。``kind`` 记失败成因。"""
         return ChunkResult(
             chunk_id=c.chunk_id,
             source=c.content,
@@ -1370,7 +1370,7 @@ class XlatPipeline:
         for item in work_items:
             queue.put_nowait(item)
 
-        # 首发单飞暖前缀缓存，再并发其余（docs/08 §1.6 warmup 模式）
+        # 首发单飞暖前缀缓存，再并发其余（docs/spec/translate.md warmup 模式）
         fatal: list[BaseException] = []
         first = await queue.get()
         if first is not None:

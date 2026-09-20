@@ -28,7 +28,7 @@ RUN npm run build
 
 # ------------------------------------------------------ tectonic 二进制
 # 官方 GitHub release musl 静态构建，校验和钉死（linux amd64/arm64 两档；
-# 全五平台矩阵见 docs/08 §4 分发规格）。
+# 全五平台矩阵见 docs/spec/compile.md 分发规格）。
 FROM python:${PYTHON_VERSION}-slim AS tectonic
 ARG TECTONIC_VERSION=0.17.0
 ARG TECTONIC_SHA256_AMD64=8533d07f9ccbd7a65824b9e0459041bca34af1eb33daba48f59215593753a3b7
