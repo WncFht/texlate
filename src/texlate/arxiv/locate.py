@@ -201,6 +201,19 @@ def _norm_arg(arg: str) -> str | None:
     return "/".join(parts)
 
 
+def safe_rel(name: str) -> PurePosixPath | None:
+    """``name`` → ``PurePosixPath``; 空名/绝对路径/``..`` 段/NUL → ``None``。
+
+    词法级路径守卫（不做存在性/解析）：fixloop 各注入/归位 builtin 统一
+    的 payload 拒收口——非相对安全名一律 decline，绝不把 ``../x``/``/etc/x``
+    写进 wdir。
+    """
+    rel = PurePosixPath(name)
+    if not name or rel.is_absolute() or ".." in rel.parts or "\x00" in name:
+        return None
+    return rel
+
+
 def _resolve(
     arg: str,
     bases: list[str],

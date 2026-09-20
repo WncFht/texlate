@@ -492,11 +492,12 @@ def _enumerate_blocks(  # noqa: C901, PLR0915 -- 块分派 + support/嵌套闸 +
         yield from drain_notes()
 
 
-def parse_arxiv_html(html: str, *, arxiv_id: str = "") -> HtmlDoc:
-    """HTML 全文 → 文档序块模型。
+def _article_ctx(html: str, arxiv_id: str) -> tuple[BeautifulSoup, Tag, _InlineCtx]:
+    """soup→``article.ltx_document``→``_InlineCtx`` 公共前奏。
 
-    无 ``article.ltx_document`` → ``HtmlNotAvailableError``（stub/回落页
-    与 fetch 侧同型判据，parse 单用也安全）。
+    ``parse_arxiv_html`` 与 ``marked_html`` 同源——stub 判据 detail 串
+    单源，两侧枚举的是同一棵 DOM（marked 的 ``data-chunk`` 锚写在返回
+    的 soup 上）。无 ``article.ltx_document`` → ``HtmlNotAvailableError``。
     """
     soup = BeautifulSoup(html, "lxml")
     art = soup.find("article", class_="ltx_document")
@@ -505,6 +506,16 @@ def parse_arxiv_html(html: str, *, arxiv_id: str = "") -> HtmlDoc:
             arxiv_id, status=HTTPStatus.OK, detail="no article.ltx_document"
         )
     ctx = _InlineCtx(_Issuer(PH_RX.findall(art.get_text())), {})
+    return soup, art, ctx
+
+
+def parse_arxiv_html(html: str, *, arxiv_id: str = "") -> HtmlDoc:
+    """HTML 全文 → 文档序块模型。
+
+    无 ``article.ltx_document`` → ``HtmlNotAvailableError``（stub/回落页
+    与 fetch 侧同型判据，parse 单用也安全）。
+    """
+    _soup, art, ctx = _article_ctx(html, arxiv_id)
     blocks = [
         HtmlBlock(key, context, text, ph)
         for _el, key, context, text, ph in _enumerate_blocks(art, ctx)
@@ -525,13 +536,7 @@ def marked_html(html: str, *, arxiv_id: str = "") -> str:
     ``HtmlDoc.blocks``/chunks 行 ``chunk_id`` 严格 1:1（DomPane 的
     PageGeom 契约）。无 ``article.ltx_document`` → ``HtmlNotAvailableError``。
     """
-    soup = BeautifulSoup(html, "lxml")
-    art = soup.find("article", class_="ltx_document")
-    if art is None:
-        raise HtmlNotAvailableError(
-            arxiv_id, status=HTTPStatus.OK, detail="no article.ltx_document"
-        )
-    ctx = _InlineCtx(_Issuer(PH_RX.findall(art.get_text())), {})
+    soup, art, ctx = _article_ctx(html, arxiv_id)
     for el, key, _context, _text, _ph in _enumerate_blocks(art, ctx):
         el["data-chunk"] = key
     return str(soup)

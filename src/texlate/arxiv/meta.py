@@ -51,6 +51,11 @@ _RAW_NS: Final = "http://arxiv.org/OAI/arXivRaw/"
 _VER_TAIL_RE: Final = re.compile(r"[vV](\d+)(?:\.pdf)?$")
 
 
+def _vsuf(ver: int | None) -> str:
+    """``vN`` 钉版后缀；无钉版（``None``/0）→ 空串，``{id}{_vsuf(ver)}`` 直拼。"""
+    return f"v{ver}" if ver else ""
+
+
 def _text(parent: ElementTree.Element, tag: str) -> str:
     """取子元素文本并折叠空白（Atom summary/title 常带换行缩进）。"""
     el = parent.find(tag)
@@ -220,7 +225,7 @@ def _parse_oai(body: bytes, pin: int | None) -> PaperMeta | None:
         pin if pin is not None and any(v.version == pin for v in versions) else latest
     )
     base = _text(rec, f"{{{_RAW_NS}}}id")
-    suffix = f"v{resolved}" if resolved else ""
+    suffix = _vsuf(resolved)
     return PaperMeta(
         arxiv_id=base,
         resolved_version=resolved,
@@ -251,7 +256,7 @@ def _parse_oai(body: bytes, pin: int | None) -> PaperMeta | None:
 
 def _atom_meta(fetcher: Fetcher, base: str, pin: int | None) -> PaperMeta | None:
     """Atom ``id_list`` 单篇查询；钉版透传（``id_list=id vN`` → 该版 entry）。"""
-    suffix = f"v{pin}" if pin else ""
+    suffix = _vsuf(pin)
     resp = _get(fetcher, f"{ATOM_API}?id_list={base}{suffix}")
     if resp is None:
         return None
@@ -362,7 +367,7 @@ def _head(
     裸 id 经 301 跳到 ``{id}v{N}``——从 final URL 回收版本号。
     park/传输错误向上抛（让 degrade 切下一层，不再空耗版本回退）。
     """
-    path = f"/{kind}/{base}{f'v{ver}' if ver else ''}"
+    path = f"/{kind}/{base}{_vsuf(ver)}"
     try:
         resp = fetcher.head_path(path)
     except (ParkedError, BudgetExhaustedError, httpx.RequestError, OSError) as e:

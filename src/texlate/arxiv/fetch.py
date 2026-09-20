@@ -25,7 +25,6 @@ import os
 import re
 import time
 from dataclasses import dataclass, field, replace
-from datetime import UTC, datetime
 from enum import StrEnum
 from http import HTTPStatus
 from typing import TYPE_CHECKING, Final, Self
@@ -48,6 +47,7 @@ from texlate.arxiv.unpack import (
     unpack_sniffed,
     write_manifest,
 )
+from texlate.textutil import utc_now
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -189,6 +189,20 @@ def valid_id(base: str) -> bool:
     return bool(_NEW_ID_RE.match(base) or _OLD_ID_RE.match(base))
 
 
+def req_base_ver(arxiv_id: str, version: int | None = None) -> tuple[str, int | None]:
+    """归一化 + 钉版合并 + 校验 → ``(base, ver)``；非法 id/版本抛 ``ValueError``。
+
+    ``version`` 实参优先于 id 串内 ``vN`` 钉版；返回 ``ver=None`` 表示未钉版。
+    取源/降级各入口共用的 id 前置闸。
+    """
+    base, pin = normalize_arxiv_id(arxiv_id)
+    ver = version if version is not None else pin
+    if not valid_id(base) or (ver is not None and ver < 1):
+        msg = f"bad arxiv id: {arxiv_id!r}"
+        raise ValueError(msg)
+    return base, ver
+
+
 def _cd_filename(headers: httpx.Headers) -> str:
     m = _CD_FN_RE.search(headers.get("content-disposition", ""))
     return m.group(1) if m else ""
@@ -274,7 +288,7 @@ def _env_proxy_set() -> bool:
 
 
 class Fetcher:
-    """带限速纪律的 arXiv 客户端。所有请求过 limiter（pacing+断路器+预算）。"""
+    """带限速纪律的 arXiv 客户端。所有请求过 limiter（pacing+ 断路器 + 预算）。"""
 
     def __init__(
         self,
@@ -323,14 +337,19 @@ class Fetcher:
         self.limiter.report(url, resp.status_code)
         return resp
 
-    def _request(
-        self, method: str, url: str, headers: dict[str, str]
-    ) -> httpx.Response:
-        """单 URL 请求 + 退避重试。Parked/Budget 直接上抛（交上层切 host）。
+    def _retry[T](
+        self,
+        url: str,
+        label: str,
+        fn: Callable[[], tuple[httpx.Response, T | None]],
+    ) -> tuple[httpx.Response, T | None]:
+        """退避重试驱动：``fn`` 打一发返 ``(resp, 结果)``——结果 ``None``=瞬时续重试。
 
-        只重试传输层瞬时失败（TransportError/OSError）；DecodingError/
-        TooManyRedirects 等确定性 RequestError 立即上抛——重试无意义且
-        白烧日预算与退避时间。
+        只重试传输层瞬时失败（TransportError/OSError）与 ``TRANSIENT_STATUS``
+        响应；DecodingError/TooManyRedirects 等确定性 RequestError 立即上抛——
+        重试无意义且白烧日预算与退避时间。Parked/Budget 直接上抛（交上层
+        切 host）。瞬时耗尽归 ``(last_resp, None)`` 由调用方裁决；纯传输
+        失败耗尽抛 ``httpx.TransportError``。``label`` 仅用于重试告警日志。
         """
         last_exc: Exception | None = None
         last_resp: httpx.Response | None = None
@@ -348,7 +367,7 @@ class Fetcher:
                 )
                 log.warning(
                     "%s %s failed (%s) → retry %d/%d in %.0fs",
-                    method,
+                    label,
                     url,
                     why,
                     attempt,
@@ -357,19 +376,38 @@ class Fetcher:
                 )
                 self._sleep(delay)
             try:
-                resp = self._request_once(method, url, headers)
+                resp, result = fn()
             except (httpx.TransportError, OSError) as e:
                 last_exc = e
                 last_resp = None
                 continue
-            if resp.status_code not in TRANSIENT_STATUS:
-                return resp
+            if result is not None:
+                return resp, result
             last_resp = resp
             last_exc = None
         if last_resp is not None:
-            return last_resp
+            return last_resp, None
         msg = f"transport failed after retries: {last_exc}"
         raise httpx.TransportError(msg) from last_exc
+
+    def _request(
+        self, method: str, url: str, headers: dict[str, str]
+    ) -> httpx.Response:
+        """单 URL 请求 + 退避重试。Parked/Budget 直接上抛（交上层切 host）。
+
+        只重试传输层瞬时失败（TransportError/OSError）；DecodingError/
+        TooManyRedirects 等确定性 RequestError 立即上抛——重试无意义且
+        白烧日预算与退避时间。
+        """
+
+        def once() -> tuple[httpx.Response, httpx.Response | None]:
+            resp = self._request_once(method, url, headers)
+            if resp.status_code in TRANSIENT_STATUS:
+                return resp, None
+            return resp, resp
+
+        resp, _done = self._retry(url, method, once)
+        return resp
 
     def _request_get_body(
         self, url: str, headers: dict[str, str]
@@ -382,43 +420,19 @@ class Fetcher:
         ``body`` 截断在 ``DL_CAP+1`` 处由上层判 ``TOO_LARGE``。非 200 或
         瞬时重试耗尽的 body 归 ``b""``（上层只按 status 裁决）。
         """
-        last_exc: Exception | None = None
-        last_resp: httpx.Response | None = None
-        for attempt in range(self._attempts):
-            if attempt:
-                delay = _retry_delay(url, attempt, last_resp)
-                if not math.isfinite(delay):
-                    break
-                why = (
-                    f"HTTP {last_resp.status_code}"
-                    if last_resp is not None
-                    else (str(last_exc) or type(last_exc).__name__)
-                )
-                log.warning(
-                    "GET %s failed (%s) → retry %d/%d in %.0fs",
-                    url,
-                    why,
-                    attempt,
-                    len(RETRY_DELAYS),
-                    delay,
-                )
-                self._sleep(delay)
-            try:
-                self.limiter.acquire(url)
-                with self.client.stream("GET", url, headers=headers) as resp:
-                    self.limiter.report(url, resp.status_code)
-                    if resp.status_code in TRANSIENT_STATUS:
-                        last_exc, last_resp = None, resp
-                        continue
-                    if resp.status_code != HTTPStatus.OK:
-                        return resp, b""
-                    return resp, _read_capped(resp)
-            except (httpx.TransportError, OSError) as e:
-                last_exc, last_resp = e, None
-        if last_resp is not None:
-            return last_resp, b""
-        msg = f"transport failed after retries: {last_exc}"
-        raise httpx.TransportError(msg) from last_exc
+
+        def once() -> tuple[httpx.Response, bytes | None]:
+            self.limiter.acquire(url)
+            with self.client.stream("GET", url, headers=headers) as resp:
+                self.limiter.report(url, resp.status_code)
+                if resp.status_code in TRANSIENT_STATUS:
+                    return resp, None
+                if resp.status_code != HTTPStatus.OK:
+                    return resp, b""
+                return resp, _read_capped(resp)
+
+        resp, body = self._retry(url, "GET", once)
+        return resp, b"" if body is None else body
 
     def _across_hosts[T](self, fn: Callable[[str], T]) -> T:
         """按 hosts 序尝试，跳过被 park 的 host；全 park 抛首个 ParkedError。
@@ -467,11 +481,7 @@ class Fetcher:
 
     def head_src(self, arxiv_id: str, version: int | None = None) -> HeadInfo:
         """HEAD 预检（一次请求 = hasSrc + 版本 + 三态格式预检）。"""
-        base, pin = normalize_arxiv_id(arxiv_id)
-        ver = version if version is not None else pin
-        if not valid_id(base) or (ver is not None and ver < 1):
-            msg = f"bad arxiv id: {arxiv_id!r}"
-            raise ValueError(msg)
+        base, ver = req_base_ver(arxiv_id, version)
         resp = self._across_hosts(
             lambda host: self._request("HEAD", _src_url(host, base, ver), {})
         )
@@ -505,11 +515,7 @@ class Fetcher:
         last_modified: str = "",
     ) -> SrcResult:
         """GET e-print：先 HEAD（可复用传入的），再带条件头 GET，魔数判别。"""
-        base, pin = normalize_arxiv_id(arxiv_id)
-        ver = version if version is not None else pin
-        if not valid_id(base) or (ver is not None and ver < 1):
-            msg = f"bad arxiv id: {arxiv_id!r}"
-            raise ValueError(msg)
+        base, ver = req_base_ver(arxiv_id, version)
         if head is None:
             head = self.head_src(base, ver)
         early = _head_gate(head)
@@ -674,6 +680,15 @@ def _hit_result(
     )
 
 
+#: ``FetchStatus`` → ``AcquireStatus`` 终态映射（head-gate/get 两臂共用；
+#: head-gate 产不出 PARKED，超集带一键无害、免两表各自发散）
+_FETCH_TO_ACQ: Final = {
+    FetchStatus.NOT_FOUND: AcquireStatus.NOT_FOUND,
+    FetchStatus.TOO_LARGE: AcquireStatus.TOO_LARGE,
+    FetchStatus.PARKED: AcquireStatus.PARKED,
+}
+
+
 def _head_phase(
     base: str, ver_req: int | None, fetcher: Fetcher, cache: SourceCache
 ) -> tuple[HeadInfo | AcquireResult, CacheEntry | None]:
@@ -693,10 +708,7 @@ def _head_phase(
         return (err or AcquireResult(AcquireStatus.ERROR, base, detail="head")), None
     gate = _head_gate(head)
     if gate is not None:
-        status = {
-            FetchStatus.NOT_FOUND: AcquireStatus.NOT_FOUND,
-            FetchStatus.TOO_LARGE: AcquireStatus.TOO_LARGE,
-        }.get(gate.status, AcquireStatus.ERROR)
+        status = _FETCH_TO_ACQ.get(gate.status, AcquireStatus.ERROR)
         return AcquireResult(status, base, head=head, detail=gate.detail), None
     ver = head.resolved_version or ver_req
     if ver is None:
@@ -750,11 +762,7 @@ def _get_phase(
         return _hit_result(fetcher, ids.base, ids.ver, cached, head)
     if res.status is FetchStatus.OK:
         return res
-    st = {
-        FetchStatus.NOT_FOUND: AcquireStatus.NOT_FOUND,
-        FetchStatus.TOO_LARGE: AcquireStatus.TOO_LARGE,
-        FetchStatus.PARKED: AcquireStatus.PARKED,
-    }.get(res.status, AcquireStatus.ERROR)
+    st = _FETCH_TO_ACQ.get(res.status, AcquireStatus.ERROR)
     return AcquireResult(st, ids.base, ids.ver, head=head, detail=res.detail)
 
 
@@ -822,7 +830,7 @@ def _commit_phase(
         "n_files": up.n_files if up else 0,
         "tex_files": up.tex_files if up else 0,
         "extracted_bytes": up.extracted_bytes if up else 0,
-        "fetched_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "fetched_at": utc_now(),
         "warnings": warnings,
         "locate": _locate_meta(loc_res),
     }
@@ -869,16 +877,13 @@ def acquire_source(
     ``offline=True`` 时完全不触碰 fetcher（HEAD/GET 都不发）：命中本地
     钉版缓存直接返回，无缓存报 ``offline_no_cache``。
     """
-    base, pin = normalize_arxiv_id(arxiv_id)
-    ver_req = version if version is not None else pin
-    bad = (
-        f"bad_id:{base!r}"
-        if not valid_id(base)
-        else f"bad_version:{ver_req}"
-        if ver_req is not None and ver_req < 1
-        else None
-    )
-    if bad is not None:
+    try:
+        base, ver_req = req_base_ver(arxiv_id, version)
+    except ValueError:
+        # 同判据不抛版——错细节分 bad_id/bad_version 两档
+        base, pin = normalize_arxiv_id(arxiv_id)
+        ver_req = version if version is not None else pin
+        bad = f"bad_id:{base!r}" if not valid_id(base) else f"bad_version:{ver_req}"
         return AcquireResult(AcquireStatus.ERROR, base, detail=bad)
     if offline:
         return _offline_phase(base, ver_req, cache)

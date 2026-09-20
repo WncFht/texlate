@@ -235,6 +235,13 @@ def _reconcile_aliases(res: UnpackResult) -> None:
         res.warnings.append(f"dup_member_overwrite:{m.path}")
 
 
+def _drop_member(res: UnpackResult, rel: str) -> None:
+    """覆盖同名成员时摘掉旧 mtree 条目（``members`` 与 ``member_index`` 同步）。"""
+    if rel in res.member_index:
+        res.members = [mm for mm in res.members if mm.path != rel]
+        res.member_index.discard(rel)
+
+
 def _write_entry(
     res: UnpackResult, rel: str, data: bytes, kind: str, link: str | None = None
 ) -> bool:
@@ -247,9 +254,7 @@ def _write_entry(
         # 后到 file 覆盖同名 symlink：先摘链再写，否则 write_bytes 穿链改目标
         target.unlink()
     target.write_bytes(data)
-    if rel in res.member_index:
-        res.members = [mm for mm in res.members if mm.path != rel]
-        res.member_index.discard(rel)
+    _drop_member(res, rel)
     stub = len(data) < STUB_SIZE or data.startswith(STUB_PREFIX)
     res.members.append(
         MemberEntry(
@@ -447,11 +452,9 @@ class _TarWalker:
                     raise
                 self.res.warnings.append(f"reject_io:{rel}:{e.errno}")
                 return
-            # 覆盖同名 file 成员时摘掉旧 mtree 条目（_write_entry 同款口径），
+            # 覆盖同名 file 成员时摘掉旧 mtree 条目，
             # 否则 files/mtree 把盘上 symlink 记成 file
-            if rel in self.res.member_index:
-                self.res.members = [mm for mm in self.res.members if mm.path != rel]
-                self.res.member_index.discard(rel)
+            _drop_member(self.res, rel)
             self.res.members.append(
                 MemberEntry(
                     path=rel, size=0, sha256="", kind="symlink", link_target=m.linkname
