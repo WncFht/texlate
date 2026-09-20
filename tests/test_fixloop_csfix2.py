@@ -503,7 +503,9 @@ def test_premature_tex_stem_docclass_seam(tmp_path: Path) -> None:
     assert ok, note
     assert "docclass-seam provider amsmath" in note
     text = _read(tmp_path, "main.tex")
-    assert text.index("\\usepackage{amsmath} % fixloop") < text.index("\\numberwithin")
+    assert text.index("\\RequirePackage{amsmath} % fixloop") < text.index(
+        "\\numberwithin"
+    )
 
 
 def test_premature_cls_stem_abstain(tmp_path: Path) -> None:

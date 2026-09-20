@@ -65,7 +65,7 @@ def bbl_stub_rewrite(
         nt = pat.sub(
             lambda _m: _AUTOBIB_DISARM + "\n\\input{" + target.name + "}",
             t,
-            count=1,
+            count=0,
         )
         if nt != t:
             ctx.write(f, nt)

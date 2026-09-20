@@ -328,8 +328,8 @@ def _fb_snippet_lines(
     """
     lines = [
         "% fixloop: per-char font fallback via newunicodechar",
-        "\\usepackage{newunicodechar}",
-        "\\ifdefined\\newfontfamily\\else\\usepackage{fontspec}\\fi",
+        "\\RequirePackage{newunicodechar}",
+        "\\ifdefined\\newfontfamily\\else\\RequirePackage{fontspec}\\fi",
         f"\\ifdefined\\{cs}\\else\\newfontfamily\\{cs}{{{font}}}\\fi",
     ]
     acts = [

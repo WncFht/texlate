@@ -876,14 +876,14 @@ rules:
         # env→真包臂 (pgffix, 1306.0281 族): 图类 env 装真包替代 noop —
         # noop 吞图体且体内 pgf cs (\node/\addplot) 连锁 undefined_cs
         # 白烧轮次; cs_table 无条目者 (axis/tikzcd) 更是唯一活路。
-        # tikzpicture 的 polyfill 自带 \usepackage{tikz} 前缀: 注缝 LIFO
-        # 下裸 \usetikzlibrary 会落在 arm usepackage 行之前 → 新
+        # tikzpicture 的 polyfill 自带 \RequirePackage{tikz} 前缀: 注缝 LIFO
+        # 下裸 \usetikzlibrary 会落在 arm 装载行之前 → 新
         # undefined_cs (与 cs_table tikz 族同机理, 见 95-targeted 头注)。
         pkg_map:
           tikzpicture:
             {
               usepackage: tikz,
-              polyfill: "\n\\usepackage{tikz}\n\\usetikzlibrary{arrows,positioning,shapes}",
+              polyfill: "\n\\RequirePackage{tikz}\n\\usetikzlibrary{arrows,positioning,shapes}",
             }
           axis: { usepackage: pgfplots }
           tikzcd: { usepackage: tikz-cd }
@@ -1113,9 +1113,9 @@ rules:
     action:
       kind: builtin_transform
       function: para_longize
-      # params.wrap_table / deny / max_macros(默认8) 可扩 —— 未收内核名走 wrap_table 同形补
+      # params.wrap_table / deny / max_macros(默认64) 可扩 —— 未收内核名走 wrap_table 同形补
     risk: medium # wrap 重定义内核/包宏 (\let 快照+签名转发, 零 body 拷贝免版本漂移); \par-strip 丢顶层段断 = 语义合意但非逐字; 嵌套组内 \par 剥不到是已知残面
-    known_gap: "嵌套花括号组内 \\par 不剥 (语料肇事均为顶层); deny 面 (\\bbl@temp*/\\@temp*/\\next 暂存/级联) 转上游臂; 表外且无 def-site 宏 decline 交下轮"
+    known_gap: "嵌套花括号组内 \\par 不剥 (语料肇事均为顶层); deny 面 (\\bbl@temp*/\\@temp*/\\next 暂存/级联) 转上游臂; 表外且无 def-site 宏 decline 交下轮; 单轮肇事宏 >max_macros(64) 截断时尾部滞留 —— applied=True 已烧 dedup 键, 残宏同签不重派 (return-False-after-writes 在引擎语义下是终局结算, 不可作续尾信号)"
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }

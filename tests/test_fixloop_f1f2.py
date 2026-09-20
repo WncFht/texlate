@@ -320,7 +320,7 @@ def test_cs_table_rewrite_leaves_sty(tmp_path: Path) -> None:
 
 
 def test_cs_table_usepackage_inject(tmp_path: Path) -> None:
-    """citep→natbib: 缺包签名走 \\usepackage 注入 + install_file (非 cs_map)。"""
+    """citep→natbib: 缺包签名走 \\RequirePackage 注入 + install_file (非 cs_map)。"""
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n\\begin{document}\n\\citep{x}\n\\end{document}\n"
     )
@@ -328,7 +328,7 @@ def test_cs_table_usepackage_inject(tmp_path: Path) -> None:
     ok, note = TRANSFORM_FNS["cs_targeted_fix"](ctx, eng, "citep", _cs_params())
     assert ok, note
     t = (tmp_path / "main.tex").read_text()
-    assert "\\usepackage{natbib}" in t
+    assert "\\RequirePackage{natbib}" in t
     assert "natbib.sty" in eng.install_calls
     assert "\\citep{x}" in t  # cs 本身不改写
 
@@ -403,7 +403,7 @@ def test_cs_split_exact_table_precedence(tmp_path: Path) -> None:
     ctx, eng = _ctx(tmp_path), _Eng(installable=("natbib.sty",))
     ok, _ = TRANSFORM_FNS["cs_targeted_fix"](ctx, eng, "citep", _cs_params())
     assert ok
-    assert "\\usepackage{natbib}" in (tmp_path / "main.tex").read_text()
+    assert "\\RequirePackage{natbib}" in (tmp_path / "main.tex").read_text()
     assert "\\cite p" not in (tmp_path / "main.tex").read_text()
 
 

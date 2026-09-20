@@ -276,7 +276,7 @@ def test_font_fallback_cyrillic(tmp_path: Path) -> None:
     assert ok is True
     assert "Libertinus Serif" in note
     t = (tmp_path / "main.tex").read_text()
-    assert "\\usepackage{newunicodechar}" in t
+    assert "\\RequirePackage{newunicodechar}" in t
     assert "\\newfontfamily\\txlatefallback{Libertinus Serif}" in t
     assert (
         "\\newunicodechar{Ж}{\\ifmmode\\mbox{\\txlatefallback Ж}"

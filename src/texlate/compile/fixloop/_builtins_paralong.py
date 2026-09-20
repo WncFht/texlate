@@ -567,7 +567,7 @@ def para_longize(
     def-site 补 ``\long``, 表内宏再备 wrap 注入 ``\begin{document}`` 前
     (双保险: fileset 死定义与运行时真定义不同名时 wrap 仍兜底)。
     ``params.wrap_table`` 同形条目扩表, ``params.deny`` 扩拒收名单,
-    ``params.max_macros`` 上限 (默认 8)。
+    ``params.max_macros`` 上限 (默认 64)。
     """
     del eng, payload
     head = ctx.err_head or ""
@@ -580,7 +580,7 @@ def para_longize(
     table = dict(_WRAP_TABLE)
     table.update(params.get("wrap_table") or {})
     deny = _DENY_NAMES | frozenset(params.get("deny") or ())
-    cap = int(params.get("max_macros") or 8)
+    cap = int(params.get("max_macros") or 64)
     notes: list[str] = []
     n_def = 0
     wrap_names: list[str] = []
@@ -589,6 +589,8 @@ def para_longize(
         n_def += n
         if note:
             notes.append(note)
+    if len(macros) > cap:
+        notes.append(f"cap x{cap}: {len(macros) - cap} culprit macro(s) truncated")
     injected: list[str] = []
     if wrap_names:
         injected = _apply_wraps(ctx, wrap_names, table, notes)

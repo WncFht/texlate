@@ -516,11 +516,11 @@ rules:
           # acm_proc_article-sp→acmart shim 后 {tikzpicture} env 已 polyfill
           # 但 \tikzset{...} 裸调缺位 (1306.0281) —— 旧 noop 吞参会静默丢全篇
           # style 定义 (mynode/myarrow 式), 升级装真包: 与下方 \node/\draw 族
-          # 同形 (自足 \usepackage{tikz}+\usetikzlibrary 块, 机理见该块头注)。
+          # 同形 (自足 \RequirePackage{tikz}+\usetikzlibrary 块, 机理见该块头注)。
           tikzset:
             {
               usepackage: tikz,
-              polyfill: "\n\\usepackage{tikz}\n\\usetikzlibrary{arrows,positioning,shapes}",
+              polyfill: "\n\\RequirePackage{tikz}\n\\usetikzlibrary{arrows,positioning,shapes}",
             }
           # appolb.cls shim 缺 \PACS 头注宏 (1306.1932) —— 与 keywords 同式
           # 保文渲染而非丢文
@@ -611,46 +611,48 @@ rules:
           # cs_map/gobble 无一能吞 —— 装真包是唯一正解 (tikz.sty 供 \node/\draw/
           # \path/\coordinate/\fill/\filldraw/\matrix/\tikzset/tikzpicture;
           # arrows+positioning+shapes 三库兜 `>=latex'`/`above right=of`/`mynode`
-          # 系常见库键)。polyfill 自带 \usepackage{tikz} 前缀: 注缝 LIFO 语义下
-          # 裸 \usetikzlibrary 会落在 arm 的 usepackage 行**之前** → 新
+          # 系常见库键)。polyfill 自带 \RequirePackage{tikz} 前缀: 注缝 LIFO 语义下
+          # 裸 \usetikzlibrary 会落在 arm 的装载行**之前** → 新
           # undefined_cs (bad-order 实证); 自足块对死臂/注释载/稿后载全免疫,
-          # preamble 库键 \tikzset 调用面亦安全。dup `\usepackage{tikz}` 行
+          # preamble 库键 \tikzset 调用面亦安全。dup `\RequirePackage{tikz}` 行
           # (arm 注入 + polyfill 内联) 是 benign no-op —— LaTeX 重载同包零选项
           # 静默跳过; arm 的 install_file/probe + refire done 非空语义照留。
+          # (\RequirePackage 形: docclass 藏 depth>0 时本块经头注落 docclass
+          # 前, \usepackage 彼处即 Missing \begin{document} 自投毒。)
           node:
             {
               usepackage: tikz,
-              polyfill: "\n\\usepackage{tikz}\n\\usetikzlibrary{arrows,positioning,shapes}",
+              polyfill: "\n\\RequirePackage{tikz}\n\\usetikzlibrary{arrows,positioning,shapes}",
             }
           draw:
             {
               usepackage: tikz,
-              polyfill: "\n\\usepackage{tikz}\n\\usetikzlibrary{arrows,positioning,shapes}",
+              polyfill: "\n\\RequirePackage{tikz}\n\\usetikzlibrary{arrows,positioning,shapes}",
             }
           path:
             {
               usepackage: tikz,
-              polyfill: "\n\\usepackage{tikz}\n\\usetikzlibrary{arrows,positioning,shapes}",
+              polyfill: "\n\\RequirePackage{tikz}\n\\usetikzlibrary{arrows,positioning,shapes}",
             }
           coordinate:
             {
               usepackage: tikz,
-              polyfill: "\n\\usepackage{tikz}\n\\usetikzlibrary{arrows,positioning,shapes}",
+              polyfill: "\n\\RequirePackage{tikz}\n\\usetikzlibrary{arrows,positioning,shapes}",
             }
           fill:
             {
               usepackage: tikz,
-              polyfill: "\n\\usepackage{tikz}\n\\usetikzlibrary{arrows,positioning,shapes}",
+              polyfill: "\n\\RequirePackage{tikz}\n\\usetikzlibrary{arrows,positioning,shapes}",
             }
           filldraw:
             {
               usepackage: tikz,
-              polyfill: "\n\\usepackage{tikz}\n\\usetikzlibrary{arrows,positioning,shapes}",
+              polyfill: "\n\\RequirePackage{tikz}\n\\usetikzlibrary{arrows,positioning,shapes}",
             }
           matrix:
             {
               usepackage: tikz,
-              polyfill: "\n\\usepackage{tikz}\n\\usetikzlibrary{arrows,positioning,shapes}",
+              polyfill: "\n\\RequirePackage{tikz}\n\\usetikzlibrary{arrows,positioning,shapes}",
             }
         # 表外 fallback (2026-09-16): glue 残骸前缀拆分 —— payload 未命中
         # cs_table 时, 若 cs = 已知粘连头 + 残余 (大写起首或 ≤4 字符) 则合成

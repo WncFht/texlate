@@ -94,8 +94,8 @@ def test_fb_snippet_head_lines_stable() -> None:
     lines = _fb_snippet_lines([0x0100], "Noto Serif")
     assert lines[:4] == [
         "% fixloop: per-char font fallback via newunicodechar",
-        "\\usepackage{newunicodechar}",
-        "\\ifdefined\\newfontfamily\\else\\usepackage{fontspec}\\fi",
+        "\\RequirePackage{newunicodechar}",
+        "\\ifdefined\\newfontfamily\\else\\RequirePackage{fontspec}\\fi",
         "\\ifdefined\\txlatefallback\\else\\newfontfamily\\txlatefallback{Noto Serif}\\fi",
     ]
 

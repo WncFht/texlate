@@ -106,7 +106,7 @@ def test_when_rejects_no_payload(tmp_path: Path) -> None:
 # ---------------------------------------------------------------- 动作直驱
 @pytest.mark.parametrize("cs", NATBIB_CS)
 def test_builtin_natbib_cs_injects_usepackage(tmp_path: Path, cs: str) -> None:
-    """每个 natbib 键: payload → docclass 后注 ``\\usepackage{natbib}``。"""
+    """每个 natbib 键: payload → docclass 后注 ``\\RequirePackage{natbib}``。"""
     _proj(
         tmp_path,
         "\\documentclass{article}\n\\begin{document}\n"
@@ -116,8 +116,8 @@ def test_builtin_natbib_cs_injects_usepackage(tmp_path: Path, cs: str) -> None:
     ok, note = _fix(ctx, cs)
     assert ok, note
     text = (tmp_path / "main.tex").read_text(encoding="utf-8")
-    assert "\\usepackage{natbib}" in text
-    assert text.index("\\usepackage{natbib}") < text.index("\\begin{document}")
+    assert "\\RequirePackage{natbib}" in text
+    assert text.index("\\RequirePackage{natbib}") < text.index("\\begin{document}")
 
 
 def test_builtin_payload_leading_backslash(tmp_path: Path) -> None:
@@ -129,7 +129,9 @@ def test_builtin_payload_leading_backslash(tmp_path: Path) -> None:
     ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel="main.tex")
     ok, _ = _fix(ctx, "\\citet")
     assert ok
-    assert "\\usepackage{natbib}" in (tmp_path / "main.tex").read_text(encoding="utf-8")
+    assert "\\RequirePackage{natbib}" in (tmp_path / "main.tex").read_text(
+        encoding="utf-8"
+    )
 
 
 def test_builtin_natbib_already_loaded_no_dup(tmp_path: Path) -> None:

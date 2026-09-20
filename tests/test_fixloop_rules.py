@@ -460,7 +460,7 @@ def test_cs_targeted_fix_mathbbm_per_engine(tmp_path: Path) -> None:
     ok, note = TRANSFORM_FNS["cs_targeted_fix"](ctx, eng, "mathbbm", {})
     assert ok, note
     t = (tmp_path / "main.tex").read_text()
-    assert "\\usepackage{dsfont}" in t
+    assert "\\RequirePackage{dsfont}" in t
     assert "\\mathds{1}" in t
     assert "\\mathbbm" not in t
     assert "dsfont.sty" in eng.install_calls

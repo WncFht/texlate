@@ -273,13 +273,13 @@ def _rewrite_cs_map(t: str, cmap: dict[str, str]) -> tuple[str, int]:
 
 
 def _ensure_usepackage(ctx: LoopCtx, eng: Engine, pkg: str) -> list[str]:
-    r"""主文件 ``\documentclass`` 后注入 ``\usepackage{pkg}`` + 装文件 → 已做事项。"""
+    r"""主文件 ``\documentclass`` 后注入 ``\RequirePackage{pkg}`` + 装文件 → 已做事项。"""
     out = []
     if not re.search(
         rf"\\(?:usepackage|RequirePackage)\s*(?:\[[^\]]*\])?\s*\{{[^}}]*\b{re.escape(pkg)}\b",
         mask_tex(ctx.source_blob()),  # 注释掉的 %\usepackage 不算已装载
-    ) and _inject_after_docclass(ctx, f"\\usepackage{{{pkg}}} % fixloop: cs-fix"):
-        out.append(f"inject \\usepackage{{{pkg}}}")
+    ) and _inject_after_docclass(ctx, f"\\RequirePackage{{{pkg}}} % fixloop: cs-fix"):
+        out.append(f"inject \\RequirePackage{{{pkg}}}")
     if eng.probe_file(f"{pkg}.sty") or eng.install_file(f"{pkg}.sty"):
         out.append(f"{pkg}.sty available")
     else:
@@ -1457,7 +1457,7 @@ def premature_cs_guard(  # noqa: C901, PLR0912, PLR0915 - 双臂逐站分派 + s
         if todo and _inject_after_docclass(
             ctx,
             "\n".join(
-                f"\\usepackage{{{p}}} % fixloop: premature provider" for p in todo
+                f"\\RequirePackage{{{p}}} % fixloop: premature provider" for p in todo
             ),
         ):
             done.append(f"docclass-seam provider {', '.join(todo)}")

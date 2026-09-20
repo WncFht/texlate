@@ -1575,7 +1575,7 @@ def cs_rebind(
     fam = str(params.get("fallback_cs") or "txlatefallback")
     lines = [
         "% fixloop: cs-rebind — missing chars produced by cs under TFM fonts",
-        "\\ifdefined\\newfontfamily\\else\\usepackage{fontspec}\\fi",
+        "\\ifdefined\\newfontfamily\\else\\RequirePackage{fontspec}\\fi",
         f"\\ifdefined\\{fam}\\else\\newfontfamily\\{fam}{{{font}}}\\fi",
     ]
     for cp, cs in fresh:

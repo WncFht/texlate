@@ -20,6 +20,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+
 from texlate.compile.fixloop import load_ruleset
 from texlate.compile.fixloop.builtins import TRANSFORM_FNS
 from texlate.compile.fixloop.engine import LoopCtx
@@ -69,19 +70,20 @@ def test_table_entries_present() -> None:
 def test_no_gobble_or_plain_let() -> None:
     """判词钉死: 表内不得有 LetLtxMacro 的 polyfill/cs_map 错义修。"""
     spec = _CSTABLE["LetLtxMacro"]
-    assert "polyfill" not in spec and "cs_map" not in spec
+    assert "polyfill" not in spec
+    assert "cs_map" not in spec
     assert "LetLtxMacroOpt" not in _CSTABLE
 
 
 @pytest.mark.parametrize("cs", ["LetLtxMacro", "GlobalLetLtxMacro"])
 def test_usepackage_injected_after_docclass(tmp_path: Path, cs: str) -> None:
-    """``\\usepackage{letltxmacro}`` 落 ``\\documentclass`` 缝后。"""
+    """``\\RequirePackage{letltxmacro}`` 落 ``\\documentclass`` 缝后。"""
     (tmp_path / "main.tex").write_text(_DOC, encoding="utf-8")
     ok, note = _fix(tmp_path, cs)
     assert ok, note
     text = (tmp_path / "main.tex").read_text(encoding="utf-8")
-    assert "\\usepackage{letltxmacro}" in text
-    assert text.index("\\usepackage{letltxmacro}") > text.index("\\documentclass")
+    assert "\\RequirePackage{letltxmacro}" in text
+    assert text.index("\\RequirePackage{letltxmacro}") > text.index("\\documentclass")
 
 
 def test_already_loaded_no_double_inject(tmp_path: Path) -> None:
@@ -99,13 +101,13 @@ def test_already_loaded_no_double_inject(tmp_path: Path) -> None:
 
 
 def test_refire_no_duplicate_line(tmp_path: Path) -> None:
-    """二轮重火: 已装载判定使注入幂等 —— 文件内仍只有一行 usepackage。"""
+    """二轮重火: 已装载判定使注入幂等 —— 文件内仍只有一行装载行。"""
     (tmp_path / "main.tex").write_text(_DOC, encoding="utf-8")
     ok1, _ = _fix(tmp_path, "LetLtxMacro")
     assert ok1
     _fix(tmp_path, "LetLtxMacro")
     text = (tmp_path / "main.tex").read_text(encoding="utf-8")
-    assert text.count("\\usepackage{letltxmacro}") == 1
+    assert text.count("\\RequirePackage{letltxmacro}") == 1
 
 
 def _compile(wdir: Path, tex: str) -> str:
@@ -125,9 +127,14 @@ def _compile(wdir: Path, tex: str) -> str:
 def test_robust_cs_copy_compiles(tmp_path: Path) -> None:
     r"""2403.15085 全形: ``\DeclareRobustCommand`` 目标 ``\LetLtxMacro`` 拷贝
     → renew 原 cs → ``\mbox{\oldcite{..}}`` 调用面 —— 真包下零 ``!`` 错。"""
-    if subprocess.run(  # noqa: S603
-        ["kpsewhich", "letltxmacro.sty"], capture_output=True, check=False
-    ).returncode != 0:
+    if (
+        subprocess.run(  # noqa: S603 -- argv[0] 来自 shutil.which 绝对路径
+            [shutil.which("kpsewhich") or "kpsewhich", "letltxmacro.sty"],
+            capture_output=True,
+            check=False,
+        ).returncode
+        != 0
+    ):
         pytest.skip("letltxmacro.sty not in texmf")
     tex = (
         "\\documentclass{article}\n"
@@ -143,7 +150,9 @@ def test_robust_cs_copy_compiles(tmp_path: Path) -> None:
     assert ok, note
     log = _compile(tmp_path, (tmp_path / "main.tex").read_text(encoding="utf-8"))
     errs = re.findall(r"^! ", log, re.MULTILINE)
-    assert not errs, f"compile errors remain: {log[log.find('!'):log.find('!') + 300]}"
+    assert not errs, (
+        f"compile errors remain: {log[log.find('!') : log.find('!') + 300]}"
+    )
     assert (tmp_path / "main.pdf").is_file()
     # robust 拷贝真到位: 若 \oldcite 是空壳/丢壳, xelatex 会报
     # "Undefined control sequence" 或 \protected 相关错 —— 零 ! 即判词

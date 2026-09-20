@@ -128,7 +128,7 @@ def test_z_csmap_typo_plus_deferred_provide(tmp_path: Path) -> None:
     text = (tmp_path / "main.tex").read_text(encoding="utf-8")
     assert "\\Zö" not in text
     assert "$\\Z$" in text
-    assert "\\usepackage{amssymb}" in text
+    assert "\\RequirePackage{amssymb}" in text
     assert "\\AtBeginDocument{\\providecommand{\\Z}" in text
     # 稿自 \newcommand{\Z} 原样存活 (provide 延迟, 站点不 already_def)。
     assert "\\newcommand{\\Z}{\\mathbb{Z}}" in text
@@ -154,7 +154,7 @@ def test_bbb_csmap_spares_bbbk(tmp_path: Path) -> None:
     text = (tmp_path / "main.tex").read_text(encoding="utf-8")
     assert "$\\mathbb{R}$" in text
     assert "$\\Bbbk$" in text
-    assert "\\usepackage{amssymb}" in text
+    assert "\\RequirePackage{amssymb}" in text
 
 
 def test_line_usepackage_pict2e(tmp_path: Path) -> None:
@@ -163,8 +163,8 @@ def test_line_usepackage_pict2e(tmp_path: Path) -> None:
     ok, _ = _fix(tmp_path, "Line")
     assert ok
     text = (tmp_path / "main.tex").read_text(encoding="utf-8")
-    assert "\\usepackage{pict2e}" in text
-    assert text.index("\\usepackage{pict2e}") > text.index("\\documentclass")
+    assert "\\RequirePackage{pict2e}" in text
+    assert text.index("\\RequirePackage{pict2e}") > text.index("\\documentclass")
 
 
 def test_epstopdf_extended_arm(tmp_path: Path) -> None:
@@ -173,7 +173,7 @@ def test_epstopdf_extended_arm(tmp_path: Path) -> None:
     ok, _ = _fix(tmp_path, "epstopdfDeclareGraphicsRule")
     assert ok
     text = (tmp_path / "main.tex").read_text(encoding="utf-8")
-    assert "\\usepackage{epstopdf}" in text
+    assert "\\RequirePackage{epstopdf}" in text
     assert "\\providecommand{\\epstopdfDeclareGraphicsRule}[4]{}" in text
     assert "\\providecommand{\\AppendGraphicsExtensions}[1]{}" in text
     assert "\\providecommand{\\PrependGraphicsExtensions}[1]{}" in text
@@ -195,7 +195,7 @@ def test_tfrac_dual_arm(tmp_path: Path) -> None:
     ok, _ = _fix(tmp_path, "tfrac")
     assert ok
     text = (tmp_path / "main.tex").read_text(encoding="utf-8")
-    assert "\\usepackage{amsmath}" in text
+    assert "\\RequirePackage{amsmath}" in text
     assert "\\providecommand{\\tfrac}[2]" in text
 
 

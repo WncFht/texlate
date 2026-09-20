@@ -180,12 +180,12 @@ def test_currentcolor_idempotent(tmp_path: Path) -> None:
 
 
 def test_url_usepackage_and_probe(tmp_path: Path) -> None:
-    """``\\usepackage{url}`` 注入 + url.sty 探装。"""
+    """``\\RequirePackage{url}`` 注入 + url.sty 探装。"""
     eng = _Eng()
     ctx = _ctx(tmp_path)
     ok, note = _TARGETED(ctx, eng, "url", _cs_params())
     assert ok, note
-    assert "\\usepackage{url}" in _read(tmp_path)
+    assert "\\RequirePackage{url}" in _read(tmp_path)
     assert "url.sty" in eng.probed
 
 

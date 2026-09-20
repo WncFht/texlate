@@ -58,7 +58,7 @@ def test_accent_sites_rewritten_and_fallback_self_injected(tmp_path: Path) -> No
     assert r"Guţă" in t
     assert r"\c{t}" not in t
     assert r"\u{a}" not in t
-    assert "\\usepackage{newunicodechar}" in t
+    assert "\\RequirePackage{newunicodechar}" in t
     assert (
         "\\newunicodechar{ţ}{\\ifmmode\\mbox{\\txlatefallback ţ}"
         "\\else{\\txlatefallback ţ}\\fi}" in t
