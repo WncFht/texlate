@@ -2,7 +2,7 @@
 r"""wave.py — 修复波一体化编排壳（runbook_loop.md §1-§5 的波次面封装）。
 
 三子命令，全部只做编排壳——选样/对账/记分逻辑一律 subprocess 调既有
-脚本（mech_ids / rerun-wave.sh / rundiff / dossier / gate_scorecard），
+脚本（mech_ids / stagerun / rundiff / dossier / gate_scorecard），
 本文件零重实现：
 
   wave.py run IDS.txt --stage chain              # id 集开波（dry-run 预览）
@@ -14,25 +14,27 @@ r"""wave.py — 修复波一体化编排壳（runbook_loop.md §1-§5 的波次�
 
 波次工作区 bench/results/wave-<tag>-<date>/（--workspace 覆盖）：
 
-  ids.txt               本波 id 集（每行一个 slash 形，rerun-wave.sh 同口径）
+  ids.txt               本波 id 集（每行一个 slash 形，拼 CSV 喂 stagerun --ids）
   before/records/       开波前 records 快照——postmortem 的 rundiff A 侧
   wave.json             波次元数据（selector/run_dir/stage/argv/created）
   rundiff.md            postmortem 对账（rundiff 原文）
   postmortem.{md,json}  postmortem 汇总产出
   run.log               建议的脱管日志落点（setsid 行里已拼好）
 
-纪律（与 rerun-wave.sh 头注 / runbook §0§2 同源）：
+纪律（与 runbook §0§2 同源）：
   - 单写者：同结果目只允许一个 stagerun 进程——run 开头 pgrep 检查，
     撞车拒开波（先于快照，防 append 撕半边）。
   - 脱管：估时 >30min 必须 setsid 脱离任务系统（harness 看门狗专杀后台
     批）。本壳 dry-run 打印现成 setsid 命令行，**不替用户点火**；--go
-    是前台跑，等价 rerun-wave.sh --go。
+    是前台跑，档位内各 stagerun 命令顺序执行、非零即停。
   - runbook §0 前置（网关探活 / preflight_batch.py / src 快照）属
     人工确认，本壳不代跑；stagerun 自带 import+mock 链 preflight 在每条
     命令起跑时仍生效。
 
-纯 stdlib。python 子进程用 sys.executable——`uv run` 下 dossier 吃到
-texlate.* 读侧 taxonomy，系统 python3 下各脚本按自有约定降级。
+纯 stdlib + benchlib（同目 stdlib-only 共享件——compile 末条分类与
+stage_fixloop 候选捞格同口径单源）。python 子进程用 sys.executable——
+`uv run` 下 dossier 吃到 texlate.* 读侧 taxonomy，系统 python3 下各脚本
+按自有约定降级。
 """
 
 from __future__ import annotations
@@ -47,19 +49,22 @@ from collections import Counter
 from datetime import UTC, datetime
 from pathlib import Path
 
+import benchlib
+
 PY_DIR = Path(__file__).resolve().parent
 ROOT = PY_DIR.parents[1]
 RESULTS = ROOT / "bench" / "results"
-MECH_IDS = PY_DIR / "mech_ids.py"
+MECH_IDS = PY_DIR / "report" / "mech_ids.py"
 RUNDIFF = PY_DIR / "rundiff.py"
-DOSSIER = PY_DIR / "dossier.py"
+DOSSIER = PY_DIR / "report" / "dossier.py"
 SCORECARD = PY_DIR / "gate_scorecard.py"
-RERUN_SH = ROOT / "tmp" / "rerun-wave.sh"
+STAGERUN = PY_DIR / "stagerun.py"
 
 #: pgrep 绝对路径（S607）；找不到退裸名交 PATH 解析。
 _PGREP = shutil.which("pgrep") or "pgrep"
 
-#: rerun-wave.sh --stage 的四档口径原样透传。
+#: 波次档位（旧 rerun-wave.sh --stage 口径）：fixloop/compile 单档、
+#: chain=compile+fixloop、deep=parse→xlat→compile→fixloop，一律 --rerun。
 WAVE_STAGES = ("fixloop", "compile", "chain", "deep")
 #: added 格里值得进 dossier join 的坏终态。
 _BAD_END = {"fail", "error", "reject", "dirty_pdf"}
@@ -87,7 +92,7 @@ def _json_run(cmd: list[str]) -> dict:
 
 def _newest_stagerun() -> Path | None:
     """缺省 run 目：stagerun-loop* 最新者优先（loop 是主战场），
-    否则任意 stagerun-* 最新者——与 rerun-wave.sh 钉 loop1 的默认同向。"""
+    否则任意 stagerun-* 最新者。"""
     dirs = [d for d in RESULTS.glob("stagerun-*") if (d / "records").is_dir()]
     loops = [d for d in dirs if d.name.startswith("stagerun-loop")]
     pool = loops or dirs
@@ -101,7 +106,7 @@ def _resolve_run_dir(arg: str | None) -> Path | None:
 
 
 def _stagerun_alive(run_dir: Path) -> list[str]:
-    """同目在跑 stagerun 的 pid 表（rerun-wave.sh 单写者闸同 pattern）。"""
+    """同目在跑 stagerun 的 pid 表（单写者闸）。"""
     r = subprocess.run(
         [_PGREP, "-f", f"stagerun.py.*{run_dir.name}"],
         capture_output=True,
@@ -111,8 +116,7 @@ def _stagerun_alive(run_dir: Path) -> list[str]:
 
 
 def _read_ids_file(path: Path) -> list[str]:
-    """ids 文件 → 有序去重 id 表；每行一个或逗号分隔，空白/# 注释忽略
-    （rerun-wave.sh 内嵌解析器同口径）。"""
+    """ids 文件 → 有序去重 id 表；每行一个或逗号分隔，空白/# 注释忽略。"""
     ids: list[str] = []
     for raw in path.read_text().splitlines():
         line = raw.strip()
@@ -176,14 +180,20 @@ def _write_meta(ws: Path, meta: dict) -> None:
     )
 
 
-def _detach_hint(go_cmd: list[str], ws: Path, run_dir: Path) -> None:
+def _detach_hint(cmds: list[list[str]], ws: Path, run_dir: Path) -> None:
     # 全部 flush=True——与子进程直写 stdout 的输出保持时序（管道下 print 块缓冲）。
     print(
         "== 脱管点火（runbook §2：估时 >30min 必须 setsid，勿挂任务系统后台）==",
         flush=True,
     )
+    run_line = (
+        shlex.join(cmds[0])
+        if len(cmds) == 1
+        # 多段命令链 && 串行——与 --go 的非零即停同语义。
+        else f"bash -c {shlex.quote(' && '.join(shlex.join(c) for c in cmds))}"
+    )
     print(
-        f"  setsid nohup {shlex.join(go_cmd)} >> {ws}/run.log 2>&1 < /dev/null &",
+        f"  setsid nohup {run_line} >> {ws}/run.log 2>&1 < /dev/null &",
         flush=True,
     )
     print(
@@ -198,6 +208,90 @@ def _detach_hint(go_cmd: list[str], ws: Path, run_dir: Path) -> None:
         f"  波后: uv run python bench/py/wave.py postmortem {run_dir} --workspace {ws}",
         flush=True,
     )
+
+
+#: compile 末条分类桶与展示序（unrunnable = reject/skip/error——无有效
+#: splice 树，fixloop --on all 谓词同口径选不中）。
+_CLASS_ORDER = ("fail", "partial", "clean", "unrunnable", "norecord")
+#: --split 下 fixloop 单档注定 0 格的桶（--on all 谓词排除 + 无 compile 末条），
+#: 跳过免白跑一趟 preflight+manifest 装载。
+_NO_FIXLOOP = {"unrunnable", "norecord"}
+
+
+def _compile_groups(
+    run_dir: Path, ids: list[str], xlat_arm: str
+) -> dict[str, list[str]]:
+    """波次 id 按 compile 末条分类（旧 rerun-wave.sh dry-run 口径复刻）：
+    arm=zh ∧ upstream=<xlat-arm> 的 append 序末条胜——与 stage_fixloop
+    候选捞格同一 ``benchlib.latest_records`` 口径；末条缺 → norecord。
+    表外状态自立一桶不吞（如实亮出腐账）。"""
+    latest = benchlib.latest_records(
+        run_dir / "records" / "compile.jsonl",
+        arm="zh",
+        upstream=xlat_arm or None,
+    )
+    groups: dict[str, list[str]] = {k: [] for k in _CLASS_ORDER}
+    for pid in ids:
+        rec = latest.get(benchlib.canon_id(pid))
+        if rec is None:
+            groups["norecord"].append(pid)
+            continue
+        st = str(rec.get("status") or "?")
+        if st in {"reject", "skip", "error"}:
+            groups["unrunnable"].append(pid)
+        elif st in groups:
+            groups[st].append(pid)
+        else:
+            groups[st] = [pid]
+    return groups
+
+
+def _stagerun_cmds(
+    stage: str, xlat_arm: str, jobs: int, run_dir: Path, ids_csv: str
+) -> list[list[str]]:
+    """波次档位 → stagerun 子命令序列（旧 rerun-wave.sh 档内链复刻：
+    compile --arm zh、fixloop --on all、deep 全链 parse→xlat→compile→
+    fixloop；xlat 臂与 --xlat-arm 同取 --xlat-arm 实参）。"""
+    tail = [
+        "--ids",
+        ids_csv,
+        "--dir",
+        str(run_dir),
+        "--jobs",
+        str(jobs),
+        "--rerun",
+    ]
+    base = [sys.executable, str(STAGERUN)]
+    comp = [*base, "compile", *tail, "--arm", "zh", "--xlat-arm", xlat_arm]
+    fix = [*base, "fixloop", *tail, "--on", "all", "--xlat-arm", xlat_arm]
+    if stage == "fixloop":
+        return [fix]
+    if stage == "compile":
+        return [comp]
+    if stage == "chain":
+        return [comp, fix]
+    return [
+        [*base, "parse", *tail],
+        [*base, "xlat", *tail, "--arm", xlat_arm],
+        comp,
+        fix,
+    ]
+
+
+def _disp_cmd(cmd: list[str], keep: int = 12) -> str:
+    """命令行预览：--ids CSV 只留前 keep 个 + 截略计数（真跑/setsid 行不受影响）。"""
+    out: list[str] = []
+    i = 0
+    while i < len(cmd):
+        if cmd[i] == "--ids" and i + 1 < len(cmd):
+            ids = cmd[i + 1].split(",")
+            tail = f",…(+{len(ids) - keep})" if len(ids) > keep else ""
+            out += ["--ids", ",".join(ids[:keep]) + tail]
+            i += 2
+        else:
+            out.append(cmd[i])
+            i += 1
+    return shlex.join(out)
 
 
 def cmd_run(args) -> int:
@@ -270,23 +364,52 @@ def cmd_run(args) -> int:
         return 2
     print(f"ids: {len(ids)} -> {ids_out}", flush=True)
 
-    _snapshot(run_dir, ws)
-    cmd = [
-        "bash",
-        str(RERUN_SH),
-        "--ids-file",
-        str(ids_out),
-        "--dir",
-        str(run_dir),
-        "--stage",
-        args.stage,
-        "--xlat-arm",
-        args.xlat_arm,
-        "--jobs",
-        str(args.jobs),
+    # ---- compile 末条分类（旧 rerun-wave.sh dry-run 面：分类 + 将跑命令）
+    groups = _compile_groups(run_dir, ids, args.xlat_arm)
+    print(
+        f"== compile 末条分类（arm=zh upstream={args.xlat_arm}）==",
+        flush=True,
+    )
+    for name, g in groups.items():
+        head = " ".join(g[:8]) + (f" … +{len(g) - 8}" if len(g) > 8 else "")
+        print(f"  {name}: {len(g)}  {head}".rstrip(), flush=True)
+
+    # --split：按分类逐组串行（每组一条 stagerun 命令链——旧 rerun-wave.sh
+    # 分组目录口径）；缺省整波一条链。fixloop 单档跳过注定 0 格的桶。
+    batches = []
+    skipped = []
+    for name, g in groups.items():
+        if not g:
+            continue
+        if args.stage == "fixloop" and name in _NO_FIXLOOP:
+            skipped.append(name)
+            continue
+        batches.append((name, g))
+    if not args.split:
+        batches = [("all", ids)]
+        skipped = []
+    if skipped:
+        print(
+            f"  （fixloop --on all 选不中，跳过组: {', '.join(skipped)}）", flush=True
+        )
+    cmds = [
+        c
+        for _tag, grp in batches
+        for c in _stagerun_cmds(
+            args.stage, args.xlat_arm, args.jobs, run_dir, ",".join(grp)
+        )
     ]
-    if args.split:
-        cmd.append("--split")
+    if not cmds:
+        print(
+            "!! 波次 id 全落 fixloop 选不中格（unrunnable/norecord）——未快照未开波",
+            file=sys.stderr,
+        )
+        return 2
+    print("== 将跑命令（顺序执行，非零即停）==", flush=True)
+    for c in cmds:
+        print(f"  {_disp_cmd(c)}", flush=True)
+
+    _snapshot(run_dir, ws)
     _write_meta(
         ws,
         {
@@ -306,20 +429,19 @@ def cmd_run(args) -> int:
         "== runbook §0 前置自查（本壳不代跑）：preflight_batch.py / src 快照按需先行",
         flush=True,
     )
-    go_cmd = [*cmd, "--go"]
+    _detach_hint(cmds, ws, run_dir)
     if not args.go:
-        r = _run(cmd)  # rerun-wave.sh 缺省 dry-run：分类 + 将跑命令
-        if r.returncode != 0:
-            return r.returncode
-        _detach_hint(go_cmd, ws, run_dir)
         print("== dry-run 完毕（--go 前台真跑，或上面 setsid 行脱管）", flush=True)
         return 0
     print(
         "== --go 前台跑；长波更稳的姿势是上面这条 setsid（中断可重跑同命令续）",
         flush=True,
     )
-    _detach_hint(go_cmd, ws, run_dir)
-    return _run(go_cmd).returncode
+    for c in cmds:
+        r = _run(c)
+        if r.returncode != 0:
+            return r.returncode
+    return 0
 
 
 # ---------------------------------------------------------------- postmortem
@@ -821,7 +943,8 @@ def main(argv: list[str] | None = None) -> int:
     sub = ap.add_subparsers(dest="cmd", required=True)
 
     p_run = sub.add_parser(
-        "run", help="id 集开波：快照 + rerun-wave.sh dry-run/前台 + 脱管命令行"
+        "run",
+        help="id 集开波：快照 + compile 末条分类 + stagerun 命令预览/前台 + 脱管命令行",
     )
     p_run.add_argument("ids_file", nargs="?", help="id 文件（每行一个/逗号分隔）")
     p_run.add_argument(
@@ -839,7 +962,7 @@ def main(argv: list[str] | None = None) -> int:
         "--stage",
         default="fixloop",
         choices=WAVE_STAGES,
-        help="rerun-wave.sh 档位（默认 fixloop）",
+        help="波次档位（默认 fixloop；chain=compile+fixloop、deep=parse→xlat→compile→fixloop）",
     )
     p_run.add_argument(
         "--dir", default=None, help="目标 run 目（缺省最新 stagerun-loop*）"
@@ -847,7 +970,9 @@ def main(argv: list[str] | None = None) -> int:
     p_run.add_argument("--xlat-arm", default="mock")
     p_run.add_argument("--jobs", type=int, default=8)
     p_run.add_argument(
-        "--split", action="store_true", help="rerun-wave.sh --split 透传"
+        "--split",
+        action="store_true",
+        help="按 compile 末条分类逐组串行（缺省整波一条命令链）",
     )
     p_run.add_argument("--tag", default=None, help="工作区 tag（缺省由选择器推导）")
     p_run.add_argument("--workspace", default=None, help="显式工作区目录")

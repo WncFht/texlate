@@ -30,8 +30,9 @@ import translators_bench as tb  # xlat 臂工厂 + sabotage 台账（e2e_mock �
 
 from texlate.latex.placeholder import PH_RX
 from texlate.latex.reconstruct import reconstruct
+from texlate.pipecore import delivered
 from texlate.pipecore import scan_tree as _scan_tree
-from texlate.validate.l0 import validate_pair
+from texlate.validate.l0 import pair_feedback, validate_pair
 from texlate.xlat.client import ChatClient
 from texlate.xlat.glossary import LOCAL_GLOSSARY_NAME, Glossary
 from texlate.xlat.pipeline import (
@@ -45,6 +46,7 @@ from texlate.xlat.state import StateStore
 
 if TYPE_CHECKING:
     import argparse
+    from collections.abc import Callable
     from pathlib import Path
 
 
@@ -136,24 +138,42 @@ def _instrument_translator(translator: object) -> dict:
     return rec
 
 
-async def _translate_tree(
+async def translate_tree_async(
     root: Path,
     translator: object,
     state_dir: Path,
     cfg: PipelineConfig,
     *,
     oversize_cap: int = 0,
-    glossary_categories: list[str] | None = None,
-    local_glossary: Path | None = None,
+    glossary_fn: Callable | None = None,
+    scan_fn: Callable | None = None,
+    validator: Callable | None = None,
+    post_run: Callable | None = None,
 ) -> tuple[dict, list]:
-    """e2e_real.translate_tree 同构 + 返回逐块结果（chunk 明细/sabotage 归因用）。
+    """bench 两臂共享的 async 翻译编排体——``benchlib.translate_tree_async`` 候升位。
 
-    扫描段单源 ``pipecore.scan_tree``——文件名四门（dotfile 跳、``.rtx.tex`` 跳、
-    ``.code.tex``/无散文记 support_files）与 ``is_file``/suffix 小写口径同
-    e2e/mock/real 臂不漂移（★3 收敛：旧内联件漏 ``.TEX``/``.RTX.TEX`` 大写形，
-    support 只记 basename 丢子目录路径）。
+    ``e2e_real_bench.translate_tree`` 与本文件原 ``_translate_tree`` 的同构单源：
+    扫描 → oversize 闸 → StateStore → XlatPipeline → 逐块对账 → splice 写回，
+    恒返 ``(stats, results)``（e2e_real 弃 results 不用）。注入面全 kw-only：
+
+    - ``glossary_fn(chunks) -> Glossary | None``：回调式术语表注入——
+      ``Glossary.load`` 的 ``placeholders`` 要 post-scan chunks 经
+      ``collect_doc_placeholders`` 算，调用方预计算即双扫，故按回调给。
+    - ``post_run(pipe) -> None``：``pipe.run`` 后调一次——term_dict 落盘等
+      要 ``pipe._doc_glossary``/``pipe.state`` 面的观测件由此接。
+    - ``scan_fn``/``validator``：调用侧**显式**传自家模块全局
+      （``scan_fn=_scan_tree``、``validator=lambda s,z: validate_pair(s,z)
+      .feedback()``）——test_fuzz_scan_tree 的 ``_scan_spy`` monkeypatch
+      缝靠 from-import 属性查找保活（同 e2e._translate_tree 注入格局）；
+      缺省回退 ``_scan_tree``/``pair_feedback``（L0→str 适配单源）。
+    - 交付谓词 ``pipecore.delivered``：``ok``+空译不回填 splice（旧式
+      ``status=="ok" or (partial and zh)`` 会把块内容从 zh 树静默擦除），
+      与产品臂 ``translate_tree_run`` 同口径。
+    - 畸形 ``chunk_id`` 守备解析记 fault+bad_chunk_id 不炸整篇——
+      续跑腐记录/translator 违约向量下比对拍裸解更稳（e2e_real 裸解形
+      是已漂移副本，勿回抄）。
     """
-    scans, chunks, fault_files, support_files = _scan_tree(root)
+    scans, chunks, fault_files, support_files = (scan_fn or _scan_tree)(root)
     total_chars = sum(len(c.content) for c in chunks)
     if oversize_cap and total_chars > oversize_cap:
         # 保守闸（同 e2e_real）：超上限不烧网关配额——调用侧记 oversize 终态
@@ -190,32 +210,16 @@ async def _translate_tree(
     t0 = time.monotonic()
     state_dir.mkdir(parents=True, exist_ok=True)
     state = StateStore(state_dir, model=getattr(translator, "model", "") or "")
-    # 术语表注入只服务 TERM_ARMS（real）——mock 系臂不调 LLM，注入纯属
-    # doc_filter 空转。categories=None → glossary=None → pipe._doc_glossary={}。
-    # user 层禁用哨兵同 quality_proxies._NO_USER_GLOSSARY：机器相关的
-    # ~/.texlate/glossary.yaml 会让跨机跑批与后算重建口径双双漂移。
-    glossary = None
-    if glossary_categories is not None:
-        glossary = Glossary.load(
-            user_path=qp._NO_USER_GLOSSARY,
-            local_path=local_glossary,
-            categories=glossary_categories,
-            placeholders=collect_doc_placeholders(c.content for c in chunks),
-        )
-    req_rec = _instrument_translator(translator)
     pipe = XlatPipeline(
         translator,
         config=cfg,
-        glossary=glossary,
+        glossary=glossary_fn(chunks) if glossary_fn is not None else None,
         state=state,
-        validator=lambda s, z: validate_pair(s, z).feedback(),
+        validator=validator or pair_feedback,
     )
     results = await pipe.run(chunks)
-    if glossary is not None:
-        # term_dict 落盘（xlat-state/{arm}/term_dict.json）——观测件不毁账：
-        # 写盘失败不应把已完成的翻译格记成 error。
-        with contextlib.suppress(Exception):
-            state.save_maps(term_dict=pipe._doc_glossary)
+    if post_run is not None:
+        post_run(pipe)
     translate_s = time.monotonic() - t0
 
     by_file: dict[int, dict[int, str]] = {}
@@ -234,7 +238,7 @@ async def _translate_tree(
             stats[r.status] += 1
         else:
             stats["fault"] += 1
-        if r.status == "ok" or (r.status == "partial" and r.translation):
+        if delivered(r):
             by_file.setdefault(fidx, {})[cid] = r.translation
         for w in r.warnings:
             key = w.split(":", 1)[0][:60]
@@ -263,21 +267,76 @@ async def _translate_tree(
         "warn_kinds": dict(sorted(warn_kinds.items())),
         "seconds": round(translate_s, 1),
         "src_chars": total_chars,
-        # 请求时序三分拆（A1 界外需求裁决 a）：chat=纯 HTTP 时延，
-        # backoff=inner−chat 退避睡眠，sem_wait=outer−inner 全局闸排队，
-        # span=outer 请求路径总占；编排残差 = seconds − span/concurrency。
-        "req_timing": {
-            "calls": req_rec["calls"],
-            "chat_calls": req_rec["chat_calls"],
-            "chat_s": round(req_rec["chat_s"], 1),
-            "backoff_s": round(max(0.0, req_rec["inner_s"] - req_rec["chat_s"]), 1),
-            "sem_wait_s": round(max(0.0, req_rec["outer_s"] - req_rec["inner_s"]), 1),
-            "span_s": round(req_rec["outer_s"], 1),
-        },
         # AuthGate 设计口径「跨论文熔断由调用方累计」（e2e_real 同款键）：
         # 整篇全 auth 败时 drive 连记 N 篇即收摊（篇内阈值块熔断走
         # AuthTrippedError 即停，本键兜篇均不足阈值块的慢速失血）。
         "auth_all_failed": pipe.auth_gate.all_failed,
+    }
+    return stats_d, results
+
+
+async def _translate_tree(
+    root: Path,
+    translator: object,
+    state_dir: Path,
+    cfg: PipelineConfig,
+    *,
+    oversize_cap: int = 0,
+    glossary_categories: list[str] | None = None,
+    local_glossary: Path | None = None,
+) -> tuple[dict, list]:
+    """``translate_tree_async`` 的 stagerun 委托壳：req_timing 三包 + 术语表注入。
+
+    扫描段单源 ``pipecore.scan_tree``——文件名四门（dotfile 跳、``.rtx.tex`` 跳、
+    ``.code.tex``/无散文记 support_files）与 ``is_file``/suffix 小写口径同
+    e2e/mock/real 臂不漂移（★3 收敛：旧内联件漏 ``.TEX``/``.RTX.TEX`` 大写形，
+    support 只记 basename 丢子目录路径）。
+    """
+    req_rec = _instrument_translator(translator)
+
+    def _glossary_fn(chunks: list) -> Glossary | None:
+        # 术语表注入只服务 TERM_ARMS（real）——mock 系臂不调 LLM，注入纯属
+        # doc_filter 空转。categories=None → None → pipe._doc_glossary={}。
+        # user 层禁用哨兵同 quality_proxies._NO_USER_GLOSSARY：机器相关的
+        # ~/.texlate/glossary.yaml 会让跨机跑批与后算重建口径双双漂移。
+        if glossary_categories is None:
+            return None
+        return Glossary.load(
+            user_path=qp._NO_USER_GLOSSARY,
+            local_path=local_glossary,
+            categories=glossary_categories,
+            placeholders=collect_doc_placeholders(c.content for c in chunks),
+        )
+
+    def _post_run(pipe: XlatPipeline) -> None:
+        if glossary_categories is None or pipe.state is None:
+            return
+        # term_dict 落盘（xlat-state/{arm}/term_dict.json）——观测件不毁账：
+        # 写盘失败不应把已完成的翻译格记成 error。
+        with contextlib.suppress(Exception):
+            pipe.state.save_maps(term_dict=pipe._doc_glossary)
+
+    stats_d, results = await translate_tree_async(
+        root,
+        translator,
+        state_dir,
+        cfg,
+        oversize_cap=oversize_cap,
+        glossary_fn=_glossary_fn,
+        scan_fn=_scan_tree,
+        validator=lambda s, z: validate_pair(s, z).feedback(),
+        post_run=_post_run,
+    )
+    # 请求时序三分拆（A1 界外需求裁决 a）：chat=纯 HTTP 时延，
+    # backoff=inner−chat 退避睡眠，sem_wait=outer−inner 全局闸排队，
+    # span=outer 请求路径总占；编排残差 = seconds − span/concurrency。
+    stats_d["req_timing"] = {
+        "calls": req_rec["calls"],
+        "chat_calls": req_rec["chat_calls"],
+        "chat_s": round(req_rec["chat_s"], 1),
+        "backoff_s": round(max(0.0, req_rec["inner_s"] - req_rec["chat_s"]), 1),
+        "sem_wait_s": round(max(0.0, req_rec["outer_s"] - req_rec["inner_s"]), 1),
+        "span_s": round(req_rec["outer_s"], 1),
     }
     return stats_d, results
 

@@ -11,7 +11,6 @@ import contextlib
 import json
 import shutil
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -63,7 +62,6 @@ def _compile_one(
     wid = sl.workdir(out_dir, pid)
     pj = wid / "parse.json"
     parse_doc = json.loads(pj.read_text()) if pj.exists() else None
-    main_rel = (parse_doc or {}).get("main_rel")
 
     if args.arm == "zh":
         zh = wid / "zh"
@@ -103,21 +101,12 @@ def _compile_one(
                 t0,
             )
         splice = wid / "splice"
-        if splice.exists():
-            shutil.rmtree(splice)
-        shutil.copytree(zh, splice, ignore=benchlib.copytree_ignore())
-        if not main_rel:
-            m = find_main_tex(splice)
-            main_rel = m.relative_to(splice).as_posix() if m else None
-        if not main_rel:
-            return sl.gate_rec(
-                rec,
-                "reject",
-                "no_main_tex",
-                "compile",
-                classify_no_main(splice) or "",
-                t0,
-            )
+        sl.rebuild_splice(zh, splice)
+        main_rel = sl.resolve_main_rel(
+            wid, splice, rec, t0, no_main_status="reject", parse_doc=parse_doc
+        )
+        if main_rel is None:
+            return rec
         eng = _resolve_engine(args, parse_doc, splice)
         rec["metrics"]["engine"] = eng
         rec["metrics"]["main_rel"] = main_rel
@@ -239,20 +228,21 @@ def stage_compile(
             continue
         todo.append(pid)
     print(f"compile[{args.arm}]: {len(todo)} to run (jobs={args.jobs})", flush=True)
-    t_start = time.monotonic()
-    with ThreadPoolExecutor(max_workers=args.jobs) as ex:
-        futs = {ex.submit(_compile_one, p, out_dir, args, xlat_recs): p for p in todo}
-        for i, fut in enumerate(as_completed(futs), 1):
-            pid = futs[fut]
-            try:
-                rec = fut.result()
-            except Exception as e:
-                rec = sl.crash_rec(pid, "compile", args.arm, e, time.monotonic())
-            log.append(rec)
-            v = (rec.get("metrics") or {}).get("verdict") or {}
-            print(
-                f"  [{i}/{len(todo)}] {pid} -> {rec['status']} cat={v.get('category') or '-'} ({rec['dur_s']}s)",
-                flush=True,
-            )
-            if args.time_budget and time.monotonic() - t_start > args.time_budget:
-                break
+
+    def _progress(i: int, n: int, pid: str, rec: dict) -> None:
+        v = (rec.get("metrics") or {}).get("verdict") or {}
+        print(
+            f"  [{i}/{n}] {pid} -> {rec['status']} cat={v.get('category') or '-'} ({rec['dur_s']}s)",
+            flush=True,
+        )
+
+    sl.run_pool(
+        todo,
+        submit_fn=lambda ex, p: ex.submit(_compile_one, p, out_dir, args, xlat_recs),
+        pid_fn=lambda p: p,
+        log=log,
+        args=args,
+        stage="compile",
+        arm=args.arm,
+        progress_fn=_progress,
+    )

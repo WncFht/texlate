@@ -112,6 +112,12 @@ NUM_RX = re.compile(r"^\d[\d.,/%-]*$")
 
 
 def strip_comments(tex: str) -> str:
+    r"""去注释：``\X`` 先吃两字符（``\%`` 不触发，``\\%`` 后 % 仍是注释），
+    裸 ``%`` 删到行尾（保留换行）。不感知 verbatim。
+
+    三处同源副本之一（另两处 ``parsebench.strip_comments`` /
+    ``corpus/build_corpus_v3.strip_comments``）——待下沉 ``benchlib`` 单源。
+    """
     out, i, n = [], 0, len(tex)
     while i < n:
         c = tex[i]

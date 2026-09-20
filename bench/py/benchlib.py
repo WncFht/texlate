@@ -21,6 +21,11 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+try:
+    import fcntl
+except ImportError:  # 无 fcntl 平台（win 等）→ append_jsonl 退化为无锁
+    fcntl = None  # type: ignore[assignment]
+
 #: tlnet 镜像统一钉 tuna——mirror.ctan.org round-robin 本机不通
 #:（fixloop_bench/compilebench_v3 2026-09-15 实测；usertree `option repository`
 #: 逐篇钉住 → tlmgr install 不吃镜像抖动）。引擎子进程 child_env 不透传
@@ -111,9 +116,22 @@ def write_jsonl(fh, rec: dict) -> None:
 
 
 def append_jsonl(path: Path, rec: dict) -> None:
-    """一次性 open-append-close（无长驻句柄的调用点用）。"""
+    """一次性 open-append-close（无长驻句柄的调用点用）；父目录缺席自建。
+
+    写临界区经 ``flock`` 串行化——bench 并行/多 worker 共享同一账文件时
+    防行交错；无 fcntl 平台退化为无锁。canonical 件 =
+    ``texlate.textutil.jsonl.append_jsonl``——本模块纯 stdlib 约束
+    （``qualbench`` 臂零 texlate 依赖）就地镜像同构实现。
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as fh:
-        write_jsonl(fh, rec)
+        if fcntl is not None:
+            fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
+        try:
+            fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
+        finally:
+            if fcntl is not None:
+                fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
 
 
 def atomic_write_text(path: Path, text: str) -> None:

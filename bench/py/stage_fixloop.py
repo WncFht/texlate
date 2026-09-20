@@ -7,10 +7,8 @@ post 复判编译（与 compile 记录同 verdict 刻度）。``--on`` 谓词选
 
 from __future__ import annotations
 
-import json
 import shutil
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import TYPE_CHECKING
 
 import benchlib
@@ -22,8 +20,6 @@ from texlate.compile.fixloop import CaseSink, Ruleset, fixloop
 from texlate.compile.fixloop.llm_hook import make_llm_hook
 from texlate.compile.inject import (
     InjectRejectError,
-    classify_no_main,
-    find_main_tex,
     prepare_chinese,
 )
 from texlate.repair import ResProxy
@@ -31,6 +27,21 @@ from texlate.repair import ResProxy
 if TYPE_CHECKING:
     import argparse
     from pathlib import Path
+
+
+def _inject_or_reject(splice: Path, main_rel: str, rec: dict, t0: float) -> dict | None:
+    """prepare_chinese(ctex) 注入 + InjectRejectError → inject_reject 门（两臂逐字同式）。
+
+    返回 None=成功（``metrics.inject`` 已记）；命中门则 reject 终态 rec
+    已收口——调用方直 ``return``。gate cat 恒 ``"inject"``（triage 分桶
+    口径，不随 ``rec["stage"]``）。
+    """
+    try:
+        rec["metrics"]["inject"] = prepare_chinese(splice, main_rel)
+    except InjectRejectError as e:
+        rec["metrics"]["verdict"] = {"status": "reject", "reasons": [e.reason]}
+        return sl.gate_rec(rec, "reject", "inject_reject", "inject", e.reason, t0)
+    return None
 
 
 def _fixloop_one(
@@ -74,49 +85,28 @@ def _fixloop_one(
                 f"zh/ is {marker_arm}, compile was {upstream}",
                 t0,
             )
-        if splice.exists():
-            shutil.rmtree(splice)
-        shutil.copytree(zh, splice, ignore=benchlib.copytree_ignore())
+        sl.rebuild_splice(zh, splice)
         rec["metrics"]["splice_rebuilt"] = True
     if not splice.is_dir():
         return sl.gate_rec(
             rec, "skip", "no_splice", "upstream", "splice/ missing", t0
         )
-    pj = wid / "parse.json"
-    main_rel = None
-    if pj.exists():
-        main_rel = json.loads(pj.read_text()).get("main_rel")
-    if not main_rel:
-        m = find_main_tex(splice)
-        main_rel = m.relative_to(splice).as_posix() if m else None
-    if not main_rel:
-        return sl.gate_rec(
-            rec,
-            "error",
-            "no_main_tex",
-            "fixloop",
-            classify_no_main(splice) or "",
-            t0,
-        )
+    main_rel = sl.resolve_main_rel(wid, splice, rec, t0, no_main_status="error")
+    if main_rel is None:
+        return rec
     if args.rerun:
         # 重建的 splice 是纯 zh/ 副本——ctex 注入须与 compile 同式重做，
         # 否则 fixloop 修的是未注入树（与编译期口径不一致）。
-        try:
-            rec["metrics"]["inject"] = prepare_chinese(splice, main_rel)
-        except InjectRejectError as e:
-            rec["metrics"]["verdict"] = {"status": "reject", "reasons": [e.reason]}
-            return sl.gate_rec(rec, "reject", "inject_reject", "inject", e.reason, t0)
+        gated = _inject_or_reject(splice, main_rel, rec, t0)
+        if gated is not None:
+            return gated
 
     texmf = wid / "_texmf"
     if texmf.exists():
         shutil.rmtree(texmf)  # 冷启动——防半成品 usertree 偏暖（同 pipe_fix_condition）
-    flb._init_usertree(texmf)
-    eng = flb._NoSandbox(
-        XelatexEngine(halt_on_error=True, texmfhome=texmf, repository=flb.TUNA_TLNET)
-    )
-    idx = flb._index()
-    if idx is not None:
-        eng.filemap = idx.query
+    # 冷 usertree XelatexEngine+filemap+_NoSandbox 配方与 fixloop_bench/
+    # e2e_real 同式——_make_engine 单源（_init_usertree→引擎→tlpdb 索引注入）。
+    eng = flb._make_engine("xelatex", texmf, splice)
     # baseline_dir 是逐格运行时路径 (复跑继承 pre-prose-gate 脏树才有存量
     # 腐蚀可修) —— params 在共享 flb.RS 上无法按 pid 注入, 故每格
     # Ruleset.load() 后按 transform 名注入 src/ 原件树 (同
@@ -289,22 +279,23 @@ def stage_fixloop(
     # ('.\\hbox' 非法转义事故 809 格全 error), preflight 一次挡在波前。
     Ruleset.load()
     sink = CaseSink(out_dir / "cases.jsonl")
-    t_start = time.monotonic()
-    with ThreadPoolExecutor(max_workers=args.jobs) as ex:
-        futs = {
-            ex.submit(_fixloop_one, p, out_dir, args, cr, sink): p for p, cr in todo
-        }
-        for i, fut in enumerate(as_completed(futs), 1):
-            pid = futs[fut]
-            try:
-                rec = fut.result()
-            except Exception as e:
-                rec = sl.crash_rec(pid, "fixloop", "fix", e, time.monotonic())
-            log.append(rec)
-            fv = (rec.get("metrics") or {}).get("fixloop_verdict") or "-"
-            print(
-                f"  [{i}/{len(todo)}] {pid} -> {rec['status']} fixloop={fv} ({rec['dur_s']}s)",
-                flush=True,
-            )
-            if args.time_budget and time.monotonic() - t_start > args.time_budget:
-                break
+
+    def _progress(i: int, n: int, pid: str, rec: dict) -> None:
+        fv = (rec.get("metrics") or {}).get("fixloop_verdict") or "-"
+        print(
+            f"  [{i}/{n}] {pid} -> {rec['status']} fixloop={fv} ({rec['dur_s']}s)",
+            flush=True,
+        )
+
+    sl.run_pool(
+        todo,
+        submit_fn=lambda ex, item: ex.submit(
+            _fixloop_one, item[0], out_dir, args, item[1], sink
+        ),
+        pid_fn=lambda item: item[0],
+        log=log,
+        args=args,
+        stage="fixloop",
+        arm="fix",
+        progress_fn=_progress,
+    )

@@ -14,9 +14,9 @@ r"""e2e mock bench — corpus39 全量 mock 翻译 → ctex 注入 → 双引擎
   pipeB-xel: pipe-xel + Mode B 幻觉破坏（~30% 块丢/造占位符 → 校验链须 100% 捕获）
   pipeC-xel: pipe-xel + Mode C 位置扰动（~10% 占位符挪位 → 量化 splice 鲁棒性）
 
-pipeB/pipeC 与 pipe 走**同一条 compile 尾段**（L2 回灌 + fixloop + inject
-reject→partial 口径）——verdict 跨臂可比；破坏记账只在翻译层叠加，
-尾段修复语义与产品路径一致。
+pipeB/pipeC 与 pipe 走**同一条 compile 尾段**（precheck + L2 回灌 + fixloop
++ inject reject→partial 口径——修复段 = ``pipecore.repair_chain`` 单件）——
+verdict 跨臂可比；破坏记账只在翻译层叠加，尾段修复语义与产品路径一致。
 
 路由先行：`route_project`（\documentstyle → reject；仍跑 base-xel 实证拒绝正确性）。
 fault_chunks/leftover_ph 即管线 bug 信号（应零）。
@@ -64,16 +64,18 @@ from texlate.e2e import base_condition, pipe_condition
 from texlate.latex.placeholder import PH_RX
 from texlate.pipecore import (
     PipeJob,
+    RepairPolicy,
+    baseline_snapshot,
     compile_judge_tail,
     delivered,
-    fixloop_job,
-    l2_repair_job,
+    probe_report,
+    repair_chain,
     translate_tree_run,
 )
 from texlate.pipecore import (
     scan_tree as _scan_tree,
 )
-from texlate.repair import ENV_NO_FIXLOOP, embed_tounicode_quiet
+from texlate.repair import embed_tounicode_quiet
 from texlate.textutil import env_flag
 from texlate.validate.l0 import validate_pair
 from texlate.xlat.pipeline import MockTranslator
@@ -315,6 +317,15 @@ def translate_tree(
     )
 
 
+def _probe_flags_of(work: Path, main_rel: str) -> tuple[str, ...]:
+    """``probe_report`` 的旗标投影：声明侧编译旗标（minted→-shell-escape 等）。
+
+    e2e ``_probe_flags_of`` 同款旁路语义——探针崩只空旗标返回，不阻塞编译。
+    """
+    rep = probe_report(work, main_rel)
+    return tuple(rep.flags) if rep is not None else ()
+
+
 def pipe_mode_condition(
     work: Path,
     eng_name: str,
@@ -342,8 +353,9 @@ def pipe_mode_condition(
     armed_zh 计数）。caught/recovered/escaped 仍为 sabotage 口径；
     by_kind 各桶是 sabotaged 块上的交叉表（含 armed 列）。
     Mode C: 挪位天然过 L0, 记账 moved + 落到 splice 的块数 (spliced)。
-    编译尾段 = ``pipe_condition`` 同一条链：首编 → L2 回灌 → fixloop，
-    inject 拒绝同口径 ``partial``——verdict 与 pipe 臂直接可比。
+    编译尾段 = ``pipe_condition`` 同一条链：首编 → ``pipecore.repair_chain``
+    （precheck → L2 回灌 → fixloop），inject 拒绝同口径 ``partial``——
+    verdict 与 pipe 臂直接可比。
     """
     rec: dict = {"engine": eng_name}
     rec["normalize"] = normalize_project(work, eng_name, main_rel)
@@ -353,6 +365,13 @@ def pipe_mode_condition(
         if env_judge is None
         else env_judge
     )
+    # baseline 快照在翻译写回前抓（e2e._baseline_snapshot 同位：normalize 过的
+    # 英文 pristine 树 → fixloop restore_support_from_src 的复原源）；fixloop
+    # 关时跳过省一次全树 copytree。_td 须活到修复链收敛——局部绑定持到
+    # 函数返回即随帧清理，快照寿命=修复链全程。
+    fl = RepairPolicy.resolve(fixloop_on=fixloop_on).fixloop
+    _td = baseline_snapshot(work, enabled=fl)
+    baseline_dir = Path(_td.name) / "base" if _td is not None else None
     stats, run, results = translate_tree(work, tr, env_judge=ej)
     rec["translate"] = stats
     # 事件归因 → 逐块结局；env_judge 回落的块视同未进 splice（防 escaped 虚报）
@@ -452,47 +471,34 @@ def pipe_mode_condition(
         rec["reject_at"] = "inject"
         rec["verdict"] = {"status": "partial", "reasons": [e.reason]}
         return rec
-    job = PipeJob(work, main_rel, eng_name, timeout)
+    job = PipeJob(
+        work,
+        main_rel,
+        eng_name,
+        timeout,
+        probe_flags=_probe_flags_of(work, main_rel),
+    )
     # 0-chunk 主文档不期待 CJK (与 pipe_condition 同口径，F 桶假阳修)
     expect_cjk = stats.get("chunks") != 0
     tail, res = compile_judge_tail(job, expect_cjk=expect_cjk)
     rec.update(tail)
 
     if rec["status"] != "clean":
-        l2 = (
-            (not env_flag(repair_mod.ENV_NO_L2, default=False))
-            if l2_on is None
-            else l2_on
+        # 修复链 = pipecore.repair_chain 单件（precheck → L2 回灌 → fixloop，
+        # 与 pipe_condition 同一条链；开关 RepairPolicy 决议，baseline_dir
+        # 喂 restore_support_from_src）
+        res = repair_chain(
+            rec,
+            job,
+            run,
+            res,
+            expect_cjk=expect_cjk,
+            l2_on=l2_on,
+            fixloop_on=fl,
+            l2_max_chunks=l2_max_chunks,
+            route_engines=route_engines,
+            baseline_dir=baseline_dir,
         )
-        if l2:
-            l2_rep, res, tail2 = l2_repair_job(job, run, res, l2_max_chunks)
-            rec["l2"] = l2_rep
-            if tail2 is not None:
-                rec.update(tail2)
-        else:
-            rec["l2"] = {"enabled": False, "reason": repair_mod.ENV_NO_L2}
-
-        fl = (
-            (not env_flag(ENV_NO_FIXLOOP, default=False))
-            if fixloop_on is None
-            else fixloop_on
-        )
-        if rec["status"] != "clean" and fl:
-            # timeout=job.timeout: 重编预算吃 --timeout (bench/worker 同口径
-            # compile_timeout=作业超时) 而非 rules.yaml meta.loop.timeout_sec;
-            # expect_cjk 透传——0-chunk 工程终判 tail 不该期待 CJK
-            fl_rep, tail3, res = fixloop_job(
-                job,
-                route_engines or [eng_name],
-                res,
-                timeout=job.timeout,
-                expect_cjk=expect_cjk,
-            )
-            rec["fixloop"] = fl_rep
-            if tail3 is not None:
-                rec.update(tail3)
-        elif rec["status"] != "clean":
-            rec["fixloop"] = {"enabled": False, "reason": ENV_NO_FIXLOOP}
     # ToUnicode 注入在修复链收敛之后 (pipe_condition 同位，worker 同口径)
     if res.has_pdf and res.pdf is not None:
         rec["tounicode_fonts"] = embed_tounicode_quiet(res.pdf)

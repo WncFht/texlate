@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 r"""preflight_batch.py — loop 批前置自检（stagerun 大批量前一票闸）。
 
-仿 e2e_real_bench.preflight 的「src 全量 import walk + 无网 mock 链」，
+「src 全量 import walk + 无网 mock 链」委托 benchlib.preflight 单源，
 加批量特有的资源面：磁盘余量 / corpus manifest / TeX 工具链 / 网关认证。
 stagerun 启动时自带的 preflight 只含前两项，本脚本是其超集。
 
@@ -16,10 +16,8 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import importlib
 import json
 import os
-import pkgutil
 import shutil
 import sys
 import urllib.error
@@ -45,67 +43,29 @@ def rep(level: str, name: str, detail: str = "") -> None:
     print(f"{level:<4} {name:<18} {detail}", flush=True)
 
 
-def check_imports() -> None:
-    """texlate 全量 import walk——被并行代理改半截的源码树在这就拦下。"""
+def check_src() -> None:
+    """texlate 全量 import walk + 无网 mock 链——委托 benchlib.preflight 单源。
+
+    errs 按 ``import ``/``mock chain:`` 前缀还原两条 FAIL 票；walk 前就抛
+    （texlate 本体/首层 import 死）记 import-walk 一票即返——fail-and-continue，
+    磁盘/manifest/工具链/网关项照常跑。未识别前缀记第三票不静默丢。
+    """
     try:
-        import texlate
+        import benchlib
+
+        errs = asyncio.run(benchlib.preflight())
     except Exception as e:
-        rep("FAIL", "import-walk", f"texlate 包本体导入失败: {e!r}")
+        rep("FAIL", "import-walk", repr(e))
         return
-    errs, n = [], 0
-    for m in pkgutil.walk_packages(texlate.__path__, "texlate."):
-        n += 1
-        try:
-            importlib.import_module(m.name)
-        except Exception as e:
-            errs.append(f"{m.name}: {e!r}")
-    if errs:
-        rep(
-            "FAIL",
-            "import-walk",
-            f"{len(errs)}/{n} 模块失败 — " + " | ".join(errs[:5]),
-        )
-    else:
-        rep("ok", "import-walk", f"{n} modules")
-
-
-def check_mock_chain() -> None:
-    """无网过一遍 mock 翻译链——e2e_real_bench.preflight 同构。"""
-    try:
-        from texlate.latex.api import parse_tex
-        from texlate.validate.l0 import validate_pair
-        from texlate.xlat.pipeline import (
-            MockTranslator,
-            XlatPipeline,
-            chunk_to_in,
-        )
-
-        async def go() -> list:
-            scans = parse_tex(
-                "\\documentclass{article}\n\\begin{document}\n"
-                "Hello world $x^2$.\n\\end{document}\n"
-            )
-            chunks = [
-                chunk_to_in(c, chunk_id=f"0:{c.id}", ph_map=scans.ph_map)
-                for c in scans.chunks
-            ]
-            pipe = XlatPipeline(
-                MockTranslator(),
-                validator=lambda s, z: validate_pair(s, z).feedback(),
-            )
-            return await pipe.run(chunks)
-
-        results = asyncio.run(go())
-    except Exception as e:
-        rep("FAIL", "mock-chain", repr(e))
-        return
-    bad = [r for r in results if r.status == "fault"]
-    if bad:
-        rep("FAIL", "mock-chain", f"{len(bad)}/{len(results)} chunks fault")
-    elif not results:
-        rep("warn", "mock-chain", "0 chunks——链条没炸但没产出，关注")
-    else:
-        rep("ok", "mock-chain", f"{len(results)} chunks")
+    for name, prefix in (("import-walk", "import "), ("mock-chain", "mock chain:")):
+        bad = [e for e in errs if e.startswith(prefix)]
+        if bad:
+            rep("FAIL", name, f"{len(bad)} 项 — " + " | ".join(bad[:5]))
+        else:
+            rep("ok", name)
+    rest = [e for e in errs if not e.startswith(("import ", "mock chain:"))]
+    if rest:
+        rep("FAIL", "preflight", " | ".join(rest[:5]))
 
 
 def check_disk(min_gb: float) -> None:
@@ -207,8 +167,7 @@ def main() -> None:
         f"preflight_batch: TEXLATE_SRC={os.environ.get('TEXLATE_SRC') or str(ROOT / 'src')}",
         flush=True,
     )
-    check_imports()
-    check_mock_chain()
+    check_src()
     check_disk(args.min_free_gb)
     check_manifest([s.strip() for s in args.layers.split(",") if s.strip()])
     check_tools()

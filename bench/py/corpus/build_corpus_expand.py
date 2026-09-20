@@ -47,6 +47,7 @@ import time
 from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+from typing import NamedTuple
 
 sys.path.insert(
     0, str(Path(__file__).resolve().parents[1])
@@ -84,6 +85,35 @@ RAW_NAME = {
     "stub": "raw.stub",
     "error": "raw.bin",
 }
+
+
+class TarDirs(NamedTuple):
+    """IA tar 管线的层工作区——下载/扫描各目录一束.
+
+    expand 本体用 EXP 全局（``EXP_DIRS``）；build_corpus_layers 按层注入
+    work_v3/{layer}/ 下同构目录——同一套 .part 续传/成员级断点机器,
+    只是落点不同.
+    """
+
+    workdir: Path  # scan_log 等层记录落点
+    features: Path
+    members: Path
+    tars: Path
+    meta: Path
+
+    @classmethod
+    def from_workdir(cls, workdir: Path) -> TarDirs:
+        """标准布局: {features,members,tars,meta} 全在 workdir 下."""
+        return cls(
+            workdir,
+            workdir / "features",
+            workdir / "members",
+            workdir / "tars",
+            workdir / "meta",
+        )
+
+
+EXP_DIRS = TarDirs.from_workdir(EXP)
 
 log = b3.log
 
@@ -383,14 +413,13 @@ def cmd_plan(args: argparse.Namespace) -> None:
 # ---------------- scan ----------------
 
 
-def remote_size(it: dict) -> int:
-    """权威 size: ia 走 metadata API（item-index 尺寸有过期记录）并缓存;
-    tiger 用索引 LFS size."""
+def remote_size(it: dict, meta_dir: Path) -> int:
+    """权威 size: ia 走 metadata API（item-index 尺寸有过期记录）并缓存于
+    meta_dir; tiger 用索引 LFS size."""
     if it["channel"] == "tiger":
         return it["size"]
-    mdir = EXP / "meta"
-    mdir.mkdir(parents=True, exist_ok=True)
-    cache = mdir / f"{it['item']}.json"
+    meta_dir.mkdir(parents=True, exist_ok=True)
+    cache = meta_dir / f"{it['item']}.json"
     meta = None
     if cache.exists():
         try:
@@ -428,12 +457,12 @@ def _verify_content(path: Path, it: dict) -> None:
         raise OSError(msg)
 
 
-def download_item(it: dict, dest_dir: Path) -> Path:
+def download_item(it: dict, dest_dir: Path, meta_dir: Path) -> Path:
     """item tar → dest_dir/{item}.tar（.part+Range 续传, 尺寸+内容校验）."""
     dest_dir.mkdir(parents=True, exist_ok=True)
     part = dest_dir / f"{it['item']}.tar.part"
     final = dest_dir / f"{it['item']}.tar"
-    want = remote_size(it)
+    want = remote_size(it, meta_dir)
     if final.exists() and final.stat().st_size == want:
         # 尺寸对≠内容对: 腐 final 曾让本函数静默返回坏 tar(探针实证)——
         # 验不过就删掉落回下载循环重抓
@@ -484,22 +513,22 @@ def download_item(it: dict, dest_dir: Path) -> Path:
     raise OSError(msg)
 
 
-def scan_item(it: dict) -> str:
+def scan_item(it: dict, dirs: TarDirs) -> str:
     """单 item: 下载→流扫(成员级断点)→.done→删 tar."""
     item = it["item"]
-    done_f = EFEATURES / f"{item}.done"
+    done_f = dirs.features / f"{item}.done"
     if done_f.exists():
         return "done-skip"
-    EFEATURES.mkdir(parents=True, exist_ok=True)
-    EMEMBERS.mkdir(parents=True, exist_ok=True)
-    fjsonl = EFEATURES / f"{item}.jsonl"
-    mjsonl = EMEMBERS / f"{item}.jsonl"
+    dirs.features.mkdir(parents=True, exist_ok=True)
+    dirs.members.mkdir(parents=True, exist_ok=True)
+    fjsonl = dirs.features / f"{item}.jsonl"
+    mjsonl = dirs.members / f"{item}.jsonl"
     done_members = (
         {r["member"] for r in benchlib.iter_jsonl(fjsonl) if r.get("member")}
         if fjsonl.exists()
         else set()
     )
-    tar_path = download_item(it, ETARS)
+    tar_path = download_item(it, dirs.tars, dirs.meta)
     n = len(done_members)
     t0 = time.time()
     with (
@@ -540,18 +569,17 @@ def scan_item(it: dict) -> str:
                 log(f"  {item}: {n} members {time.time() - t0:.0f}s")
     done_f.write_text(f"{n} members\n")
     tar_path.unlink(missing_ok=True)
-    (ETARS / f"{item}.tar.part").unlink(missing_ok=True)
+    (dirs.tars / f"{item}.tar.part").unlink(missing_ok=True)
     return f"scanned {n}"
 
 
-def cmd_scan(args: argparse.Namespace) -> None:
-    plan = load_plan()
-    items = plan["items"][: args.limit] if args.limit else plan["items"]
-    todo = [it for it in items if not (EFEATURES / f"{it['item']}.done").exists()]
-    log(f"scan: {len(todo)}/{len(items)} items pending")
+def scan_batch(items: list[dict], dirs: TarDirs, jobs: int, tag: str = "") -> None:
+    """ThreadPool 批量 scan_item + scan_log 落账（expand 与分层构建器共用）."""
+    todo = [it for it in items if not (dirs.features / f"{it['item']}.done").exists()]
+    log(f"scan{tag}: {len(todo)}/{len(items)} items pending")
     errs = []
-    with ThreadPoolExecutor(max_workers=args.jobs) as ex:
-        futs = {ex.submit(scan_item, it): it for it in todo}
+    with ThreadPoolExecutor(max_workers=jobs) as ex:
+        futs = {ex.submit(scan_item, it, dirs): it for it in todo}
         for fut in as_completed(futs):
             it = futs[fut]
             state = "done"
@@ -563,10 +591,16 @@ def cmd_scan(args: argparse.Namespace) -> None:
                 state = "failed"
                 log(f"FAIL {it['item']}: {type(e).__name__}: {e}")
             benchlib.append_jsonl(
-                EXP / "scan_log.jsonl",
+                dirs.workdir / "scan_log.jsonl",
                 {"item": it["item"], "state": state, "ts": time.strftime("%FT%T")},
             )
     log(f"scan pass done, {len(errs)} failed: {errs or '-'}")
+
+
+def cmd_scan(args: argparse.Namespace) -> None:
+    plan = load_plan()
+    items = plan["items"][: args.limit] if args.limit else plan["items"]
+    scan_batch(items, EXP_DIRS, args.jobs)
 
 
 # ---------------- extract ----------------
@@ -636,12 +670,14 @@ def select_members(args: argparse.Namespace) -> list[dict]:
     return sel
 
 
-def offsets_for(item: str, tag_of_item: dict[str, str]) -> dict[str, tuple[int, int]]:
-    """item → {member: (offset, size)}; expand item 读 expand/members/{item},
-    旧 item 走 tag 映射读 work_v3/members/{tag}."""
+def offsets_for(
+    item: str, members_dir: Path, tag_of_item: dict[str, str] | None = None
+) -> dict[str, tuple[int, int]]:
+    """item → {member: (offset, size)}; members_dir 下 {item}.jsonl 直读,
+    tag_of_item 给了且本地缺档时回退旧池 work_v3/members/{tag}."""
     out = {}
-    p = EMEMBERS / f"{item}.jsonl"
-    if not p.exists() and item in tag_of_item:
+    p = members_dir / f"{item}.jsonl"
+    if not p.exists() and tag_of_item and item in tag_of_item:
         p = WORK / "members" / f"{tag_of_item[item]}.jsonl"
     if p.exists():
         for r in benchlib.iter_jsonl(p):
@@ -688,8 +724,20 @@ def fetch_blob(rec: dict, old_tars: dict[str, Path], offs: dict[str, dict]) -> b
     raise OSError(err)
 
 
-def materialize(rec: dict, blob: bytes, sha: str) -> dict:
-    """blob → corpus/{id}/ + manifest 行（shape 同 booster + layer=expand）."""
+def materialize(
+    rec: dict,
+    blob: bytes,
+    sha: str,
+    *,
+    layer: str = "expand",
+    cluster_prefix: str = "EXP",
+    reason: str = "expand_quota",
+) -> dict:
+    """blob → corpus/{id}/ + manifest 行（shape 同 booster）.
+
+    layer/cluster_prefix/reason 分层注入：expand 走默认值即原样；
+    build_corpus_layers 传层名+簇前缀, pick_reason=f"{reason}:{_cell}".
+    """
     pid = rec["id"]
     dest = CORPUS / pid
     dest.mkdir(parents=True, exist_ok=True)
@@ -705,7 +753,10 @@ def materialize(rec: dict, blob: bytes, sha: str) -> dict:
             main_sha = hashlib.sha256(mp.read_bytes()).hexdigest()
     era = "old" if "/" in pid else "new"
     yymm = member_yymm(rec["member"])
-    band = rec["_cell"].split("|")[0]
+    # _cell 形态：配额层 "band|cat"；矿层 "flag:X"/"failmine_fill" → band 取 features 记录
+    band = rec["_cell"].split("|", 1)[0]
+    if band.startswith("flag:") or band == "failmine_fill" or "|" not in rec["_cell"]:
+        band = rec.get("band") or band_of_yymm(yymm)
     meta = {
         "arxiv_id": pid,
         "resolved_version": None,
@@ -713,11 +764,11 @@ def materialize(rec: dict, blob: bytes, sha: str) -> dict:
         "era": era,
         "archive": pid.split("/")[0] if "/" in pid else None,
         "yymm": yymm,
-        "cluster_id": rec.get("cluster_id") or f"EXP-{band}",
+        "cluster_id": rec.get("cluster_id") or f"{cluster_prefix}-{band}",
         "year_band": band,
-        "layer": "expand",
+        "layer": layer,
         "stratum_cell": rec["_cell"],
-        "cat_group": rec["cat_group"],
+        "cat_group": rec.get("cat_group"),
         "license_class": rec.get("license_class"),
         "channel": rec["channel"],
         "item": rec["item"],
@@ -732,34 +783,37 @@ def materialize(rec: dict, blob: bytes, sha: str) -> dict:
         # 特征以 extracted 树重算为准(expand scan 记录仍是旧合并口径——
         # 无 staging 无法回填; extracted_features 与 blob_features 同一生成码)
         "features": b3.extracted_features(dest / "extracted"),
-        "pick_reason": f"expand_quota:{rec['_cell']}",
-        "pool": rec["_pool"],
+        "pick_reason": f"{reason}:{rec['_cell']}",
         "warnings": warns,
         "source": rec["channel"],
     }
+    if rec.get("_pool"):  # expand 选样记 _pool; 分层构建器无此字段
+        meta["pool"] = rec["_pool"]
     (dest / "meta.json").write_text(json.dumps(meta, indent=1, ensure_ascii=False))
-    return {
+    row = {
         "id": pid,
         "era": era,
         "archive": meta["archive"],
         "yymm": yymm,
         "cluster_id": meta["cluster_id"],
-        "layer": "expand",
+        "layer": layer,
         "channel": rec["channel"],
         "item": rec["item"],
         "member": rec["member"],
         "blob_sha256": sha,
         "main_tex_sha256": main_sha,
         "stratum_cell": rec["_cell"],
-        "cat_group": rec["cat_group"],
+        "cat_group": rec.get("cat_group"),
         "license_class": rec.get("license_class"),
         "format": fmt,
         "n_files": n_ext,
         "n_tex": rec.get("n_tex_files"),
         "bytes": len(blob),
         "pick_reason": meta["pick_reason"],
-        "pool": rec["_pool"],
     }
+    if rec.get("_pool"):
+        row["pool"] = rec["_pool"]
+    return row
 
 
 def manifest_row_from_meta(dest: Path) -> dict | None:
@@ -826,7 +880,7 @@ def cmd_extract(args: argparse.Namespace) -> None:
         for it in need_items & old_items
         if (b3.TARS / f"{it}.tar").exists()
     }
-    offs = {it: offsets_for(it, tag_of_item) for it in need_items}
+    offs = {it: offsets_for(it, EMEMBERS, tag_of_item) for it in need_items}
     n0 = len(todo)
     todo = [r for r in todo if r["member"] in offs.get(r["item"], {})]
     if n0 - len(todo):

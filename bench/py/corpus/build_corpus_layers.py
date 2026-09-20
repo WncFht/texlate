@@ -45,7 +45,6 @@ import random
 import re
 import shutil
 import sys
-import tarfile
 import time
 from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -110,17 +109,15 @@ FLAG_QUOTAS = [
 ]
 YIELD_PER_CHUNK = 280  # 合格成员/chunk 经验值（expand 实测口径 ~200-400）
 POOL_MARGIN = 1.6  # join_miss/短收/不合格余量
-RAW_NAME = {
-    "tar": "raw.tar.gz",
-    "gz": "raw.gz",
-    "pdf": "raw.pdf",
-    "stub": "raw.stub",
-    "error": "raw.bin",
-}
 
 
 def layer_dir(layer: str) -> Path:
     return WORK / layer
+
+
+def tar_dirs(layer: str) -> bx.TarDirs:
+    """本层 tar 工作区——bx 扫描/下载管线注入点（features/members/tars/meta）。"""
+    return bx.TarDirs.from_workdir(layer_dir(layer))
 
 
 def manifest_path(layer: str) -> Path:
@@ -282,176 +279,13 @@ def cmd_plan(args: argparse.Namespace) -> None:
 
 
 # ---------------- scan ----------------
-
-
-def remote_size(it: dict, meta_dir: Path) -> int:
-    """权威 size: ia 走 metadata API（缓存于本层 meta/）；tiger 用索引 LFS size。"""
-    if it["channel"] == "tiger":
-        return it["size"]
-    meta_dir.mkdir(parents=True, exist_ok=True)
-    cache = meta_dir / f"{it['item']}.json"
-    meta = None
-    if cache.exists():
-        try:
-            meta = json.loads(cache.read_text())
-        except (OSError, json.JSONDecodeError):
-            cache.unlink(missing_ok=True)
-    if meta is None:
-        with b3.open_url(b3.IA_META.format(item=it["item"])) as r:
-            meta = json.loads(r.read())
-        benchlib.atomic_write_text(cache, json.dumps(meta))
-    for f in meta.get("files", []):
-        if f["name"] == f"{it['item']}.tar":
-            it["sha1"] = f.get("sha1")
-            return int(f["size"])
-    return it["size"]
-
-
-def download_item(it: dict, dest_dir: Path, meta_dir: Path) -> Path:
-    """item tar → dest_dir/{item}.tar（.part+Range 续传, 尺寸+内容校验）。"""
-    dest_dir.mkdir(parents=True, exist_ok=True)
-    part = dest_dir / f"{it['item']}.tar.part"
-    final = dest_dir / f"{it['item']}.tar"
-    want = remote_size(it, meta_dir)
-    if final.exists() and final.stat().st_size == want:
-        try:
-            bx._verify_content(final, it)
-        except OSError as e:
-            log(f"  {it['item']} existing tar corrupt: {e} — 重抓")
-            final.unlink()
-        else:
-            return final
-    for attempt in range(4):
-        have = part.stat().st_size if part.exists() else 0
-        if have == want:
-            try:
-                bx._verify_content(part, it)
-            except OSError as e:
-                log(f"  {it['item']} .part 腐坏: {e} — 重抓")
-                part.unlink()
-                have = 0
-            else:
-                part.rename(final)
-                return final
-        if have > want:
-            part.unlink()
-            have = 0
-        try:
-            headers = {"Range": f"bytes={have}-"} if have else {}
-            r = b3.open_url(it["url"], headers=headers, timeout=180)
-            try:
-                resumed = bool(have) and r.status == 206
-                with open(part, "ab" if resumed else "wb") as f:
-                    while True:
-                        buf = r.read(1 << 20)
-                        if not buf:
-                            break
-                        f.write(buf)
-            finally:
-                r.close()
-            if part.stat().st_size == want:
-                bx._verify_content(part, it)
-                part.rename(final)
-                return final
-            log(f"  {it['item']} partial {part.stat().st_size}/{want}")
-        except Exception as e:
-            log(f"  {it['item']} dl#{attempt}: {type(e).__name__}: {e}")
-            time.sleep(5 * (attempt + 1))
-    msg = f"{it['item']} download failed"
-    raise OSError(msg)
-
-
-def scan_item(it: dict, layer: str) -> str:
-    """单 item: 下载→流扫(成员级断点)→.done→删 tar。"""
-    wdir = layer_dir(layer)
-    feat_dir, mem_dir, tar_dir = (
-        wdir / "features",
-        wdir / "members",
-        wdir / "tars",
-    )
-    done_f = feat_dir / f"{it['item']}.done"
-    if done_f.exists():
-        return "done-skip"
-    for d in (feat_dir, mem_dir):
-        d.mkdir(parents=True, exist_ok=True)
-    fjsonl = feat_dir / f"{it['item']}.jsonl"
-    mjsonl = mem_dir / f"{it['item']}.jsonl"
-    done_members = (
-        {r["member"] for r in benchlib.iter_jsonl(fjsonl) if r.get("member")}
-        if fjsonl.exists()
-        else set()
-    )
-    tar_path = download_item(it, tar_dir, wdir / "meta")
-    n = len(done_members)
-    t0 = time.time()
-    with (
-        tarfile.open(tar_path, "r|") as tar,
-        open(fjsonl, "a") as fw,
-        open(mjsonl, "a") as mw,
-    ):
-        for m in tar:
-            if not m.isreg():
-                continue
-            if m.name in done_members:
-                continue
-            bf = tar.extractfile(m)
-            blob = bf.read() if bf else b""
-            try:
-                rec = b3.blob_features(m.name, blob)
-            except Exception as e:
-                rec = {
-                    "member": m.name,
-                    "id": b3.member_id(m.name),
-                    "member_bytes": m.size,
-                    "format": "error",
-                    "error": f"{type(e).__name__}: {e}",
-                }
-            rec.pop("_texts", None)
-            rec["item"] = it["item"]
-            rec["channel"] = it["channel"]
-            rec["band"] = bx.band_of_yymm(it["yymm"])
-            mw.write(
-                json.dumps({"name": m.name, "size": m.size, "offset": m.offset_data})
-                + "\n"
-            )
-            mw.flush()
-            fw.write(json.dumps(rec) + "\n")
-            fw.flush()
-            n += 1
-            if n % 1000 == 0:
-                log(f"  {it['item']}: {n} members {time.time() - t0:.0f}s")
-    done_f.write_text(f"{n} members\n")
-    tar_path.unlink(missing_ok=True)
-    (tar_dir / f"{it['item']}.tar.part").unlink(missing_ok=True)
-    return f"scanned {n}"
+# item tar 下载/流扫机器全在 bx（TarDirs 注入本层工作区）
 
 
 def cmd_scan(args: argparse.Namespace) -> None:
     plan = load_plan(args.layer)
     items = plan["items"][: args.limit] if args.limit else plan["items"]
-    wdir = layer_dir(args.layer)
-    todo = [
-        it for it in items if not (wdir / "features" / f"{it['item']}.done").exists()
-    ]
-    log(f"scan[{args.layer}]: {len(todo)}/{len(items)} items pending")
-    errs = []
-    with ThreadPoolExecutor(max_workers=args.jobs) as ex:
-        futs = {ex.submit(scan_item, it, args.layer): it for it in todo}
-        for fut in as_completed(futs):
-            it = futs[fut]
-            state = "done"
-            try:
-                st = fut.result()
-                log(f"ok {it['item']} ({it['size'] / 1e6:.0f}MB {it['channel']}): {st}")
-            except Exception as e:
-                errs.append(it["item"])
-                state = "failed"
-                log(f"FAIL {it['item']}: {type(e).__name__}: {e}")
-            benchlib.append_jsonl(
-                wdir / "scan_log.jsonl",
-                {"item": it["item"], "state": state, "ts": time.strftime("%FT%T")},
-            )
-    log(f"scan pass done, {len(errs)} failed: {errs or '-'}")
+    bx.scan_batch(items, tar_dirs(args.layer), args.jobs, tag=f"[{args.layer}]")
 
 
 # ---------------- extract ----------------
@@ -568,91 +402,6 @@ def select_flags(layer: str, profile: dict) -> tuple[list[dict], dict]:
     return list(picked.values()), stats
 
 
-def offsets_for(item: str, layer: str) -> dict[str, tuple[int, int]]:
-    out = {}
-    p = layer_dir(layer) / "members" / f"{item}.jsonl"
-    if p.exists():
-        for r in benchlib.iter_jsonl(p):
-            off = r.get("offset", r.get("offset_data"))
-            if off is None:
-                continue
-            out[r["name"]] = (off, r["size"])
-    return out
-
-
-def materialize(rec: dict, blob: bytes, sha: str, layer: str, profile: dict) -> dict:
-    """blob → corpus/{id}/ + manifest 行（layer=本层）。"""
-    pid = rec["id"]
-    dest = CORPUS / pid
-    dest.mkdir(parents=True, exist_ok=True)
-    fmt = rec["format"]
-    raw_name = RAW_NAME[fmt]
-    (dest / raw_name).write_bytes(blob)
-    n_ext, warns = b3.unpack_blob(blob, fmt, dest)
-    main_sha = None
-    roots = rec.get("tex_roots") or []
-    if len(roots) == 1:
-        mp = dest / "extracted" / roots[0]
-        if mp.exists():
-            main_sha = hashlib.sha256(mp.read_bytes()).hexdigest()
-    era = "old" if "/" in pid else "new"
-    yymm = bx.member_yymm(rec["member"])
-    # _cell 形态：配额层 "band|cat"；矿层 "flag:X"/"failmine_fill" → band 取 features 记录
-    band = rec["_cell"].split("|", 1)[0]
-    if band.startswith("flag:") or band == "failmine_fill" or "|" not in rec["_cell"]:
-        band = rec.get("band") or bx.band_of_yymm(yymm)
-    meta = {
-        "arxiv_id": pid,
-        "resolved_version": None,
-        "fetched_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "era": era,
-        "archive": pid.split("/")[0] if "/" in pid else None,
-        "yymm": yymm,
-        "cluster_id": rec.get("cluster_id") or f"{profile['cluster_prefix']}-{band}",
-        "year_band": band,
-        "layer": layer,
-        "stratum_cell": rec["_cell"],
-        "cat_group": rec.get("cat_group"),
-        "license_class": rec.get("license_class"),
-        "channel": rec["channel"],
-        "item": rec["item"],
-        "member": rec["member"],
-        "raw_sha256": sha,
-        "raw_file": raw_name,
-        "format": fmt,
-        "n_files": n_ext,
-        "tex_files": rec.get("n_tex_files"),
-        "bytes": len(blob),
-        "uncompressed_bytes": rec.get("uncompressed_bytes"),
-        "features": b3.extracted_features(dest / "extracted"),
-        "pick_reason": f"{layer}:{rec['_cell']}",
-        "warnings": warns,
-        "source": rec["channel"],
-    }
-    (dest / "meta.json").write_text(json.dumps(meta, indent=1, ensure_ascii=False))
-    return {
-        "id": pid,
-        "era": era,
-        "archive": meta["archive"],
-        "yymm": yymm,
-        "cluster_id": meta["cluster_id"],
-        "layer": layer,
-        "channel": rec["channel"],
-        "item": rec["item"],
-        "member": rec["member"],
-        "blob_sha256": sha,
-        "main_tex_sha256": main_sha,
-        "stratum_cell": rec["_cell"],
-        "cat_group": rec.get("cat_group"),
-        "license_class": rec.get("license_class"),
-        "format": fmt,
-        "n_files": n_ext,
-        "n_tex": rec.get("n_tex_files"),
-        "bytes": len(blob),
-        "pick_reason": meta["pick_reason"],
-    }
-
-
 def cmd_extract(args: argparse.Namespace) -> None:
     layer = args.layer
     profile = PROFILES[layer]
@@ -696,7 +445,9 @@ def cmd_extract(args: argparse.Namespace) -> None:
         for it in {r["item"] for r in todo}
         if (b3.TARS / f"{it}.tar").exists()
     }
-    offs = {it: offsets_for(it, layer) for it in {r["item"] for r in todo}}
+    offs = {
+        it: bx.offsets_for(it, wdir / "members") for it in {r["item"] for r in todo}
+    }
     n0 = len(todo)
     todo = [r for r in todo if r["member"] in offs.get(r["item"], {})]
     if n0 - len(todo):
@@ -718,7 +469,14 @@ def cmd_extract(args: argparse.Namespace) -> None:
                 if sha != rec["blob_sha256"]:
                     msg = f"sha256 mismatch {sha[:12]}"
                     raise OSError(msg)  # noqa: TRY301
-                row = materialize(rec, blob, sha, layer, profile)
+                row = bx.materialize(
+                    rec,
+                    blob,
+                    sha,
+                    layer=layer,
+                    cluster_prefix=profile["cluster_prefix"],
+                    reason=layer,
+                )
                 mfh.write(json.dumps(row, ensure_ascii=False) + "\n")
                 mfh.flush()
                 n_ok += 1

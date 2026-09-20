@@ -18,12 +18,14 @@ import shutil
 import subprocess
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     import argparse
+    from collections.abc import Callable
 
 ROOT = Path(__file__).resolve().parents[2]
 #: TEXLATE_SRC 可指冻结快照（同 e2e_real_bench：bench 期间 src/ 被改时隔离）。
@@ -315,3 +317,111 @@ def out_dir_of(args: argparse.Namespace) -> Path:
 
 def workdir(out_dir: Path, pid: str) -> Path:
     return out_dir / "work" / benchlib.safe_id(pid)
+
+
+# ================================================================ stage_* 共用件
+
+
+def rebuild_splice(zh: Path, splice: Path) -> None:
+    """zh/ → splice/ 原样重建：rmtree + copytree——compile zh 臂与 fixloop --rerun 共用序。
+
+    fixloop ``--rerun`` 以当前 zh/ 从头重建（上波就地变异不带入新轮）；
+    compile zh 臂是首次建树——原 ``stage_fixloop._rebuild_splice`` 与
+    ``stage_compile._compile_one`` 就地同式的两份收敛于此。
+    """
+    if splice.exists():
+        shutil.rmtree(splice)
+    shutil.copytree(zh, splice, ignore=benchlib.copytree_ignore())
+
+
+def resolve_main_rel(
+    wid: Path,
+    splice: Path,
+    rec: dict,
+    t0: float,
+    *,
+    no_main_status: str,
+    parse_doc: dict | None = None,
+) -> str | None:
+    """main_rel 三段式解析：parse.json → find_main_tex 兜底 → no_main_tex 门。
+
+    ``stage_compile._compile_one`` zh 臂与 ``stage_fixloop`` --rerun/就地两路
+    三方共用（原 ``_resolve_main_rel`` 上提）。``parse_doc`` 缺省自重读
+    parse.json（compile 侧已持有它供 ``_resolve_engine``，传入免二次读）。
+    ``no_main_status`` 两臂有意不同：compile=reject（源树判不可修）、
+    fixloop=error（compile 记录在而主档失踪属异常）；gate cat 取
+    ``rec["stage"]``——恰是 base_rec 写入的 "compile"/"fixloop"，与两臂
+    既有口径一致。
+    返回 main_rel；命中门则终态经 ``gate_rec`` 写进 rec 并返回 None
+    （调用方直 ``return rec``）。
+    """
+    # texlate 惰性引——本模块 import 期不引 texlate.*（系统 python3 可载约束）。
+    from texlate.compile.inject import classify_no_main, find_main_tex
+
+    if parse_doc is None:
+        pj = wid / "parse.json"
+        parse_doc = json.loads(pj.read_text()) if pj.exists() else None
+    main_rel = (parse_doc or {}).get("main_rel")
+    if not main_rel:
+        m = find_main_tex(splice)
+        main_rel = m.relative_to(splice).as_posix() if m else None
+    if not main_rel:
+        gate_rec(
+            rec,
+            no_main_status,
+            "no_main_tex",
+            rec["stage"],
+            classify_no_main(splice) or "",
+            t0,
+        )
+        return None
+    return main_rel
+
+
+def run_pool(
+    todo: list,
+    *,
+    submit_fn: Callable,
+    pid_fn: Callable,
+    log: RecLog,
+    args: argparse.Namespace,
+    stage: str,
+    arm: str,
+    progress_fn: Callable,
+    executor_cls: type = ThreadPoolExecutor,
+) -> None:
+    """Executor+as_completed+crash_rec+time_budget 分发骨架（stagerun 驱动共用形）。
+
+    executor 生命周期显式化而非 ``with``：``finally`` 里
+    ``shutdown(wait=True, cancel_futures=True)``——与 stage_parse 的
+    shutdown 契约同口径。相对旧 ``with`` 块，budget ``break`` 的语义有意
+    收窄：排队任务被 cancel 不再白跑（旧形 ``__exit__`` 只 wait，剩余
+    任务照跑、副作用照落 work/ 树却无 record 入账）；在飞任务仍等其
+    写毕再交棒——wait=False 会把在写树的 worker 丢在后台，下个 stage
+    读到残树。
+
+    ``submit_fn(ex, item)`` 提交任务、``pid_fn(item)`` 取 records 键、
+    ``progress_fn(i, n, pid, rec)`` 打进度行——各 stage 只差 submit 映射
+    与进度字段，其余全同型（原 ``stage_compile._run_pool`` 上提；
+    stage_parse 的逐条 submit 变体仍自有循环）。
+    """
+    ex = executor_cls(max_workers=args.jobs)
+    t_start = time.monotonic()
+    try:
+        futs = {submit_fn(ex, item): pid_fn(item) for item in todo}
+        for i, fut in enumerate(as_completed(futs), 1):
+            pid = futs[fut]
+            try:
+                rec = fut.result()
+            except Exception as e:
+                rec = crash_rec(pid, stage, arm, e, time.monotonic())
+            log.append(rec)
+            progress_fn(i, len(todo), pid, rec)
+            if args.time_budget and time.monotonic() - t_start > args.time_budget:
+                print(
+                    f"time budget {args.time_budget}s — stop ({i}/{len(todo)})",
+                    flush=True,
+                )
+                break
+    finally:
+        ex.shutdown(wait=True, cancel_futures=True)
