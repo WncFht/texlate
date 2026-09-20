@@ -26,7 +26,7 @@ def 组冻结计) 与 ``\\let\\sep=,`` 字符赋值 CONSUME=2 吞真 ``\\fi``
 from pathlib import Path
 
 from texlate.compile.fixloop import actions, load_ruleset
-from texlate.compile.fixloop._builtins_csfix import premature_cs_guard
+from texlate.compile.fixloop._builtins_docfix import premature_cs_guard
 from texlate.compile.fixloop.builtins import TRANSFORM_FNS
 from texlate.compile.fixloop.engine import LoopCtx, Rule
 from texlate.compile.logparse import ErrReport

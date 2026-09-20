@@ -18,7 +18,7 @@ from texlate.compile.fixloop._builtins_common import (
     _let_cs,
     _undefine_cs,
 )
-from texlate.compile.fixloop._builtins_csfix import (
+from texlate.compile.fixloop._builtins_docfix import (
     _AT_TOKEN_RE,
     _atdef_sites,
 )

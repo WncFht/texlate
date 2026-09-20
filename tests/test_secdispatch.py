@@ -384,7 +384,10 @@ def test_probe_gated_on_no_pdf(tmp_path: Path) -> None:
         be_script=[{"log": _TWIN_LOG, "pdf": True}],
     )
     cell = fixloop(tmp_path, eng, ruleset=_rs([_FIX_CLASH]))
-    assert cell["verdict"] == "acceptable_pdf"  # pdf 在 + 错≤3 → 降级
+    # halt 截断轮 (pdf+1 错): n_bang 是下界证不了 错≤max → Guard A
+    # (adjudication #10) 封 acceptable 升档, 留 dirty_pdf。
+    assert cell["verdict"] == "dirty_pdf"
+    assert cell["rounds"][-1]["log_truncated"] is True
     assert not any(c["best_effort"] for c in eng.calls)
 
 

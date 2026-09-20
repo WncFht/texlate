@@ -26,20 +26,18 @@ import json
 import os
 import random
 import re
-import sqlite3
 import zipfile
 from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar
 
 import httpx
 import pytest
-from conftest import FakeFetcher, make_targz
+from conftest import FakeFetcher, make_targz, mk_task_dir
 from typer.testing import CliRunner, Result
 
 from texlate import cli
 from texlate.cli import app
 from texlate.compile import toolchain
-from texlate.server.store import DDL
 from texlate.xlat.glossary import LOCAL_GLOSSARY_NAME
 
 if TYPE_CHECKING:
@@ -152,38 +150,13 @@ def _src_dir(tmp_path: Path) -> Path:
     return src
 
 
-def _mk_task_dir(data: Path, task_id: str = "t_fuzz01") -> Path:
-    """合成 ``<data>/tasks/<id>`` 产物 + ``texlate.db`` 任务行（share pack 前置）。"""
-    tdir = data / "tasks" / task_id
-    tdir.mkdir(parents=True)
-    (tdir / "dual.json").write_text("{}", encoding="utf-8")
-    (tdir / "zh-src.zip").write_bytes(b"fake-src")
-    conn = sqlite3.connect(str(data / "texlate.db"))
-    try:
-        conn.executescript(DDL)
-        conn.execute(
-            "INSERT INTO tasks (id, kind, status, arxiv_id, source_name,"
-            " target_lang, model, config_json, options_json, cache_key,"
-            " created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-            (
-                task_id,
-                "arxiv",
-                "done",
-                "2001.00001v1",
-                "",
-                "zh-CN",
-                "m",
-                "{}",
-                "{}",
-                "",
-                0.0,
-                0.0,
-            ),
-        )
-        conn.commit()
-    finally:
-        conn.close()
-    return tdir
+#: ``mk_task_dir``（conftest 公共件）的本文件产物集——share pack 只强制
+#: dual.json，zh-src.zip 是 unpack golden 的断言行（test_cli.py 同款
+#: 调用落 zh.pdf，仅这张表不同）。
+_TASK_FILES: dict[str, str | bytes] = {
+    "dual.json": "{}",
+    "zh-src.zip": b"fake-src",
+}
 
 
 def _patch_httpx(
@@ -1166,7 +1139,7 @@ class TestShare:
         """``t_x/../../victim`` 借 ``is_dir`` 解析穿仓——resolve 后须落
         ``tasks/`` 直子级，越狱形态 → exit 1（已修复，回归钉）。"""
         data = tmp_path / "data"
-        _mk_task_dir(data, "t_x")
+        mk_task_dir(data, "t_x", _TASK_FILES)
         victim = data / "victim"
         victim.mkdir(parents=True)
         (victim / "dual.json").write_text("{}", encoding="utf-8")
@@ -1181,7 +1154,7 @@ class TestShare:
     def test_pack_in_jail_dotdot(self, tmp_path: Path) -> None:
         """``t_x/../t_x`` 归一后仍在 ``tasks/`` 内 → 放行（仓内形态合法）。"""
         data = tmp_path / "data"
-        _mk_task_dir(data, "t_x")
+        mk_task_dir(data, "t_x", _TASK_FILES)
         result = _RUNNER.invoke(
             app,
             [
@@ -1200,7 +1173,7 @@ class TestShare:
     def test_pack_unpack_roundtrip(self, tmp_path: Path) -> None:
         """pack → unpack golden：``{share_key}.share.zip`` 校验解包 exit 0。"""
         data = tmp_path / "data"
-        _mk_task_dir(data)
+        mk_task_dir(data, "t_fuzz01", _TASK_FILES)
         out_dir = tmp_path / "packed"
         result = _RUNNER.invoke(
             app,

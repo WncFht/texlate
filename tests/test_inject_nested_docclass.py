@@ -17,9 +17,10 @@ from pathlib import Path
 
 from test_fixloop_loop import MockEngine  # noqa: F401 — ctx 夹具同族约定
 
+from texlate.compile._seams import find_docclass_ends
 from texlate.compile.fixloop._builtins_common import _inject_after_docclass
 from texlate.compile.fixloop.engine import LoopCtx
-from texlate.compile.inject import find_docclass_ends, inject_cjk
+from texlate.compile.inject import inject_cjk
 
 _DOC = "\\begin{document}\nx\n\\end{document}\n"
 

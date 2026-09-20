@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sqlite3
 import zipfile
 from pathlib import Path
@@ -29,6 +30,9 @@ if TYPE_CHECKING:
     from click.testing import Result
 
 _RUNNER = CliRunner()
+#: rich help 把 ``--out`` 按高亮 span 切段（``-``+``-out`` 各自带 ANSI）——
+#: 断言旗标名前先剥转义序列，否则字面 ``--out`` 不连续
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 _TASK_ID = "t_0123456789ab"
 _ZH_TEX = "\\documentclass{article}\\begin{document}正文\\end{document}"
 _FAKE_KEY = "f" * 64
@@ -433,10 +437,12 @@ class TestShareHelp:
     def test_pack_help(self) -> None:
         res = _RUNNER.invoke(app, ["share", "pack", "--help"])
         assert res.exit_code == 0
-        assert "--out" in res.output
-        assert "--data-dir" in res.output
+        plain = _ANSI_RE.sub("", res.output)
+        assert "--out" in plain
+        assert "--data-dir" in plain
 
     def test_unpack_help(self) -> None:
         res = _RUNNER.invoke(app, ["share", "unpack", "--help"])
         assert res.exit_code == 0
-        assert "--out" in res.output
+        plain = _ANSI_RE.sub("", res.output)
+        assert "--out" in plain

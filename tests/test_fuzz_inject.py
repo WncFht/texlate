@@ -77,6 +77,7 @@ from _fuzzkit import fuzz_rng
 if TYPE_CHECKING:
     from pathlib import Path
 
+from texlate.compile._seams import find_docclass_end, find_docclass_ends
 from texlate.compile.inject import (
     ACM_BASELINESTRETCH_GUARD,
     CJK_FIRST_USE_WARMUP,
@@ -91,8 +92,6 @@ from texlate.compile.inject import (
     XECJK_BLOCK,
     InjectRejectError,
     classify_no_main,
-    find_docclass_end,
-    find_docclass_ends,
     find_main_tex,
     inject_cjk,
     inject_float_sizing,

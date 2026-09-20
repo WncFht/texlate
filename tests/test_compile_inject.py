@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from texlate.compile._seams import find_docclass_end, find_docclass_ends
 from texlate.compile.inject import (
     CTEX_LINE,
     FLOAT_SIZING,
@@ -11,8 +12,6 @@ from texlate.compile.inject import (
     InjectRejectError,
     _resolve_input,
     classify_no_main,
-    find_docclass_end,
-    find_docclass_ends,
     find_main_tex,
     inject_cjk,
     inject_float_sizing,

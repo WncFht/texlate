@@ -12,37 +12,16 @@ transform 返回 applied=False 自然 decline。
 
 from pathlib import Path
 
-from texlate.compile.fixloop import actions, load_ruleset
-from texlate.compile.fixloop.engine import LoopCtx, Rule
-from texlate.compile.logparse import ErrReport, Taxonomy
+from _fixloopkit import apply, mk_ctx, rs, rule
 
+from texlate.compile.fixloop import actions
+from texlate.compile.logparse import ErrReport
 
-class _Eng:
-    """builtin_transform 路径的最小引擎替身。"""
-
-    name = "xelatex"
-
-    def probe_file(self, fname: str, cwd: Path | None = None) -> str | None:
-        del fname, cwd
-        return None
-
-    def filemap(self, fname: str) -> list[str]:
-        del fname
-        return []
-
-
-def _ctx(tmp_path: Path) -> LoopCtx:
-    return LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel="main.tex")
-
-
-def _rule() -> Rule:
-    return next(r for r in load_ruleset().rules if r.id == "cite_in_math_mbox")
+_RID = "cite_in_math_mbox"
 
 
 def _apply(tmp_path: Path, pay: str | None = "bfseries") -> tuple[bool, str]:
-    return actions._apply(  # noqa: SLF001 - 钉规则动作直驱
-        _rule(), _ctx(tmp_path), _Eng(), pay, ErrReport()
-    )
+    return apply(_RID, mk_ctx(tmp_path), pay)
 
 
 def _roundtrip(tmp_path: Path, body: str) -> str:
@@ -55,16 +34,12 @@ def _roundtrip(tmp_path: Path, body: str) -> str:
     return (tmp_path / "main.tex").read_text()
 
 
-def _taxonomy() -> Taxonomy:
-    return load_ruleset().taxonomy
-
-
 # ─── taxonomy 路由 ───
 
 
 def test_citemath_taxonomy_routes_signature() -> None:
     r"""``Command \X invalid in math mode`` → invalid_in_math, payload=cs 名。"""
-    tax = _taxonomy()
+    tax = rs().taxonomy
     rep = ErrReport(
         first="! LaTeX Error: Command \\bfseries invalid in math mode.",
         ctx="l.42 $\\phi^i_{\\pm}=0 \\cite{HawMos}.$",
@@ -76,7 +51,7 @@ def test_citemath_taxonomy_routes_signature() -> None:
 
 def test_citemath_taxonomy_not_captured_by_syntax() -> None:
     r"""同句式不被 syntax 交替 (``improper`` 等) 抢先——invalid_in_math 先评。"""
-    tax = _taxonomy()
+    tax = rs().taxonomy
     rep = ErrReport(
         first="! LaTeX Error: Command \\bfseries invalid in math mode.",
         ctx="l.1 x",
@@ -88,7 +63,7 @@ def test_citemath_taxonomy_not_captured_by_syntax() -> None:
 
 def test_citemath_taxonomy_other_unrelated_unchanged() -> None:
     """普通 LaTeX Error 仍落旧路由——新条目不抢面。"""
-    tax = _taxonomy()
+    tax = rs().taxonomy
     rep = ErrReport(first="! LaTeX Error: Environment proof undefined.", ctx="l.5")
     assert tax.classify(rep)[0] == "env_undefined"
 
@@ -96,7 +71,7 @@ def test_citemath_taxonomy_other_unrelated_unchanged() -> None:
 def test_citemath_taxonomy_warning_line_no_hijack() -> None:
     r"""ctx8 窗内 ``LaTeX (Font )?Warning: Command \X invalid in math mode``
     软警告不抢签——``LaTeX Error:`` 前缀锚 (loop1 多格带 \r/\small 警告)。"""
-    tax = _taxonomy()
+    tax = rs().taxonomy
     for warn in (
         "LaTeX Warning: Command \\r invalid in math mode on input line 272.",
         "LaTeX Font Warning: Command \\small invalid in math mode on input line 9.",
@@ -112,21 +87,21 @@ def test_citemath_taxonomy_warning_line_no_hijack() -> None:
 
 
 def test_citemath_rule_registered() -> None:
-    rule = _rule()
-    assert rule.order == 105  # noqa: PLR2004 - schema 断言值
-    assert rule.phase == "loop"
-    assert rule.when["category"] == "invalid_in_math"
-    assert rule.action["kind"] == "builtin_transform"
-    assert rule.action["function"] == "cite_in_math_mbox"
-    assert rule.action["params"]["exts"] == [".tex"]
+    r = rule(_RID)
+    assert r.order == 105  # noqa: PLR2004 - schema 断言值
+    assert r.phase == "loop"
+    assert r.when["category"] == "invalid_in_math"
+    assert r.action["kind"] == "builtin_transform"
+    assert r.action["function"] == "cite_in_math_mbox"
+    assert r.action["params"]["exts"] == [".tex"]
 
 
 def test_citemath_when_gate_declines_other_categories(tmp_path: Path) -> None:
-    rule = _rule()
-    ctx = _ctx(tmp_path)
-    assert actions._when_ok(rule.when, "invalid_in_math", "bfseries", ctx)  # noqa: SLF001
+    r = rule(_RID)
+    ctx = mk_ctx(tmp_path)
+    assert actions._when_ok(r.when, "invalid_in_math", "bfseries", ctx)  # noqa: SLF001
     for cat in ("syntax", "other", "undefined_cs", None):
-        assert not actions._when_ok(rule.when, cat, None, ctx)  # noqa: SLF001
+        assert not actions._when_ok(r.when, cat, None, ctx)  # noqa: SLF001
 
 
 # ─── 命中面 ───
@@ -262,8 +237,7 @@ def test_citemath_cite_no_key_untouched(tmp_path: Path) -> None:
 
 
 def test_citemath_ruleset_loads() -> None:
-    rs = load_ruleset()
-    ids = [r.id for r in rs.rules]
+    ids = [r.id for r in rs().rules]
     assert len(ids) == len(set(ids))
-    assert "cite_in_math_mbox" in ids
-    assert "invalid_in_math" in {e["id"] for e, _p in rs.taxonomy.head}
+    assert _RID in ids
+    assert "invalid_in_math" in {e["id"] for e, _p in rs().taxonomy.head}

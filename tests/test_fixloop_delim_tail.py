@@ -11,7 +11,7 @@ r"""csdelim lane (2026-09-19): ``cs_delim_tail_fix`` 走查单元。
 
 from pathlib import Path
 
-from texlate.compile.fixloop._builtins_csfix import (
+from texlate.compile.fixloop._builtins_docfix import (
     _DEF_TAIL_RE,
     cs_delim_tail_fix,
 )

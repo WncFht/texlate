@@ -24,10 +24,8 @@ from test_fixloop_loop import MockEngine
 
 from texlate.compile.fixloop._builtins_bib import bbl_stub_rewrite
 from texlate.compile.fixloop._builtins_common import _inject_after_docclass
-from texlate.compile.fixloop._builtins_csfix import (
-    _ensure_usepackage,
-    premature_cs_guard,
-)
+from texlate.compile.fixloop._builtins_csfix import _ensure_usepackage
+from texlate.compile.fixloop._builtins_docfix import premature_cs_guard
 from texlate.compile.fixloop._builtins_misschar import (
     _fb_snippet_lines,
     font_fallback,

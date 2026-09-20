@@ -11,6 +11,7 @@ from __future__ import annotations
 import io
 import logging
 import os
+import sqlite3
 import sys
 import tarfile
 import time
@@ -566,3 +567,48 @@ def mk_api_task(
     )
     assert r.status_code == HTTPStatus.ACCEPTED, r.text
     return r.json()["task_id"]
+
+
+def mk_task_dir(data: Path, task_id: str, files: dict[str, str | bytes]) -> Path:
+    """合成 ``<data>/tasks/<id>`` 产物 + ``texlate.db`` 任务行（share pack 前置）。
+
+    ``files`` = 成员名 → 内容（``str`` 走 UTF-8 text，``bytes`` 走 binary）。
+    任务行填 share pack 满意的最小集（done/arxiv）；要变体行（状态/臂/
+    cache_key）的复杂场景见 ``test_share_cli._mk_task`` 的参数化版。
+    """
+    from texlate.server.store import DDL  # noqa: PLC0415
+
+    tdir = data / "tasks" / task_id
+    tdir.mkdir(parents=True)
+    for name, content in files.items():
+        p = tdir / name
+        if isinstance(content, bytes):
+            p.write_bytes(content)
+        else:
+            p.write_text(content, encoding="utf-8")
+    conn = sqlite3.connect(str(data / "texlate.db"))
+    try:
+        conn.executescript(DDL)
+        conn.execute(
+            "INSERT INTO tasks (id, kind, status, arxiv_id, source_name,"
+            " target_lang, model, config_json, options_json, cache_key,"
+            " created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+            (
+                task_id,
+                "arxiv",
+                "done",
+                "2001.00001v1",
+                "",
+                "zh-CN",
+                "m",
+                "{}",
+                "{}",
+                "",
+                0.0,
+                0.0,
+            ),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return tdir

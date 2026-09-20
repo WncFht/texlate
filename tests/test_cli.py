@@ -14,23 +14,23 @@ import hashlib
 import json
 import os
 import shutil
-import sqlite3
 import tempfile
 from typing import TYPE_CHECKING
 
 import httpx
+import pytest
+from conftest import mk_task_dir
 from typer.testing import CliRunner
 
 from texlate import cli, e2e
 from texlate.arxiv.cache import SourceCache
 from texlate.cli import app
-from texlate.server.store import DDL
+from texlate.cli._output import console
 
 if TYPE_CHECKING:
     from collections.abc import Callable
     from pathlib import Path
 
-    import pytest
     from conftest import RecordingEngine
 
 _MAIN = (
@@ -45,6 +45,20 @@ _DOCSTYLE = (
 )
 
 _RUNNER = CliRunner()
+
+
+@pytest.fixture(autouse=True)
+def _plain_terminal_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """钉无色彩端——纯文本 stderr 断言前提。
+
+    ``FORCE_COLOR``/``TTY_COMPATIBLE`` 会把 rich ``is_terminal`` 顶成 True
+    （CliRunner 捕获非 tty 也开 Live 进度条与转义序列），须摘除；
+    ``console._color_system`` 又在 import 时已按当时环境冻结，运行期摘 env
+    不改已缓存的色域——须置 None 让 ``style.render`` 走无色路径。
+    """
+    for key in ("FORCE_COLOR", "TTY_COMPATIBLE"):
+        monkeypatch.delenv(key, raising=False)
+    monkeypatch.setattr(console, "_color_system", None)
 
 
 def _src(tmp_path: Path, body: str = _MAIN) -> Path:
@@ -762,40 +776,6 @@ class TestWeb:
         assert (tmp_path / "logs" / "texlate.log").is_file()
 
 
-def _mk_task_dir(data: Path, task_id: str = "t_thincli01") -> Path:
-    """合成 ``<data>/tasks/<id>`` 产物 + ``texlate.db`` 任务行（share pack 前置）。"""
-    tdir = data / "tasks" / task_id
-    tdir.mkdir(parents=True)
-    (tdir / "dual.json").write_text("{}", encoding="utf-8")
-    (tdir / "zh.pdf").write_bytes(b"%PDF-1.4")
-    conn = sqlite3.connect(str(data / "texlate.db"))
-    try:
-        conn.executescript(DDL)
-        conn.execute(
-            "INSERT INTO tasks (id, kind, status, arxiv_id, source_name,"
-            " target_lang, model, config_json, options_json, cache_key,"
-            " created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-            (
-                task_id,
-                "arxiv",
-                "done",
-                "2001.00001v1",
-                "",
-                "zh-CN",
-                "m",
-                "{}",
-                "{}",
-                "",
-                0.0,
-                0.0,
-            ),
-        )
-        conn.commit()
-    finally:
-        conn.close()
-    return tdir
-
-
 class TestShareErrors:
     """share pack 的 CLI 侧错误归一：库读失败/写失败 → exit 1 不 traceback。"""
 
@@ -818,7 +798,9 @@ class TestShareErrors:
         """``-o`` 落在已存在文件之下 → mkdir OSError 归一 exit 1。"""
         monkeypatch.setenv("TEXLATE_DATA_DIR", str(tmp_path / "env-data"))
         data = tmp_path / "data"
-        tdir = _mk_task_dir(data)
+        tdir = mk_task_dir(
+            data, "t_thincli01", {"dual.json": "{}", "zh.pdf": b"%PDF-1.4"}
+        )
         blocker = tmp_path / "blocker"
         blocker.write_text("x", encoding="utf-8")
         result = _RUNNER.invoke(

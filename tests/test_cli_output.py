@@ -14,7 +14,12 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from texlate.cli._output import CliSink, fixloop_round_line, log_line_filtered
+from texlate.cli._output import (
+    CliSink,
+    console,
+    fixloop_round_line,
+    log_line_filtered,
+)
 
 if TYPE_CHECKING:
     from typing import Any
@@ -28,6 +33,20 @@ def _default_level(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(_LOG, "level", logging.WARNING)
     # isEnabledFor 结果有 _cache, setattr(level) 不清——走 manager 全清
     _LOG.manager._clear_cache()  # noqa: SLF001
+
+
+@pytest.fixture(autouse=True)
+def _plain_terminal_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """钉无色彩端——纯文本断言前提。
+
+    ``FORCE_COLOR``/``TTY_COMPATIBLE`` 会把 rich ``is_terminal`` 顶成 True
+    （capsys 捕获非 tty 也出 ANSI），须摘除；``console._color_system`` 又在
+    import 时已按当时环境冻结，运行期摘 env 不改已缓存的色域——须置 None
+    让 ``style.render`` 走无色路径。
+    """
+    for key in ("FORCE_COLOR", "TTY_COMPATIBLE"):
+        monkeypatch.delenv(key, raising=False)
+    monkeypatch.setattr(console, "_color_system", None)
 
 
 def _round(**kw: object) -> dict[str, Any]:

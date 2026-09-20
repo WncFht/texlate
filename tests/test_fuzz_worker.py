@@ -24,7 +24,6 @@ import asyncio
 import contextlib
 import io
 import json
-import random
 import sqlite3
 import threading
 import zipfile
@@ -38,7 +37,8 @@ import pytest
 
 pytest.importorskip("fastapi", reason="server extra 未装")
 
-from _workerkit import mk_ctx
+from _fuzzkit import fuzz_rng
+from _workerkit import _insert_chunk, mk_ctx
 
 from texlate.arxiv.unpack import UnpackError
 from texlate.server.events import _RESYNC, _SUB_QUEUE_MAX, EventBus
@@ -59,36 +59,6 @@ from texlate.server.worker import (
 )
 from texlate.share import share_key
 from texlate.xlat.state import ChunkRecord
-
-
-def _insert_chunk(  # noqa: PLR0913
-    store: Store,
-    task_id: str,
-    chunk_id: str = "c1",
-    *,
-    seq: int = 0,
-    src: str = "hello world",
-    status: str = "pending",
-) -> None:
-    """最小 chunks 行（``insert_chunks`` 合法面），status 非 pending 走 update。"""
-    store.insert_chunks(
-        task_id,
-        [
-            {
-                "chunk_id": chunk_id,
-                "seq": seq,
-                "src_file": "main.tex",
-                "src_text": src,
-                "kind": "para",
-                "byte_start": 0,
-                "byte_end": len(src),
-            }
-        ],
-    )
-    if status != "pending":
-        # update_chunk 契约是 flush 事务内复用不 commit——测试侧补 commit 收尾
-        store.update_chunk(task_id, chunk_id, {"status": status})
-        store.conn.commit()
 
 
 def _sql(store: Store, stmt: str, *args: object) -> None:
@@ -169,7 +139,7 @@ class TestUnpackZipAdversarial:
             assert f.resolve().is_relative_to(root), f"越界落盘: {f}"
 
     def test_fuzz_names_confined(self, tmp_path: Path) -> None:
-        rng = random.Random(41)  # noqa: S311
+        rng = fuzz_rng(41)
         soup = ["../", "a", "b.tex", "C:", "\\\\", "/", ".", "..", "中", "x" * 200]
         # 限总长 ≤240B：单段超 NAME_MAX(255B) 的逃逸面由 W7 钉样另测
         for _ in range(200):
@@ -261,7 +231,7 @@ class TestSharePoolRow:
     }
 
     def test_matrix(self) -> None:
-        rng = random.Random(7)  # noqa: S311
+        rng = fuzz_rng(7)
         soup: list[Any] = [
             "a",
             "main.tex",
@@ -952,7 +922,7 @@ class TestChunkErrorCode:
     """``chunk_error_code`` 域内矩阵——归因序（error_kind → skipped → fault）。"""
 
     def test_matrix(self) -> None:
-        rng = random.Random(3)  # noqa: S311
+        rng = fuzz_rng(3)
         kinds = ["", "auth", "provider", "crash", "validate", "weird"]
         for _ in range(500):
             rec = ChunkRecord(
@@ -983,7 +953,7 @@ class TestMdMember:
     """``_md_member`` zip 成员名净化——段级 ``..``/绝对/驱动器/NUL 不得出现。"""
 
     def test_fuzz_names_safe(self) -> None:
-        rng = random.Random(11)  # noqa: S311
+        rng = fuzz_rng(11)
         seen: set[str] = set()
         soup = [
             "../",
