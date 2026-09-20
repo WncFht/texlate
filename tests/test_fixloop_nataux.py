@@ -17,7 +17,7 @@ import regex
 
 from texlate.compile.fixloop import Ruleset, actions, fixloop, load_ruleset
 from texlate.compile.fixloop.engine import LoopCtx, Rule
-from texlate.compile.fixloop.logparse import ErrReport, parse_text
+from texlate.compile.logparse import ErrReport, parse_text
 
 
 @lru_cache(maxsize=1)
@@ -143,9 +143,7 @@ def test_rule_shape() -> None:
     r = _rule()
     assert r.raw["phase"] == "loop"
     assert r.raw["order"] == 195  # noqa: PLR2004
-    assert r.raw["when"] == {
-        "any": [{"category": "other"}, {"category": "bib_compat"}]
-    }
+    assert r.raw["when"] == {"any": [{"category": "other"}, {"category": "bib_compat"}]}
     assert r.raw["action"]["kind"] == "regex_rewrite"
     assert r.raw["action"]["params"]["exts"] == [".aux"]
     cond = r.raw["condition"]

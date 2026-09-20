@@ -14,7 +14,7 @@ import io
 import tarfile
 from typing import TYPE_CHECKING
 
-from texlate.compile.fixloop.ctan import TlpdbIndex
+from texlate.compile.ctan import TlpdbIndex
 from texlate.compile.probe import target_probe
 
 if TYPE_CHECKING:

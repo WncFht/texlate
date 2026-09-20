@@ -2,8 +2,8 @@
 
 原 ``fixloop/ctan.py``——CTAN 拉包/索引是 compile 层共享件
 (``probe``/``engine._xelatex``/``pipecore``/``worker`` 同层消费), 上提后
-fixloop 向下消费 (旧路径 ``texlate.compile.fixloop.ctan`` 经 re-export
-shim 守恒, 名面全量含私名)。
+fixloop 向下消费 (旧 ``fixloop.ctan`` 路径 2026-09-20 退场,
+全仓直引本模块)。
 
 实证基础 ``docs/research/latex/ctanfetch-probe.md``:
   - tlpdb 正确路径 ``tlpkg/texlive.tlpdb.xz`` (~2.8MB xz → 20.7MB),

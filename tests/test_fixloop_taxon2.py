@@ -23,7 +23,7 @@ from functools import lru_cache
 from typing import Any
 
 from texlate.compile.fixloop import Ruleset, load_ruleset
-from texlate.compile.fixloop.logparse import parse_text
+from texlate.compile.logparse import parse_text
 
 
 @lru_cache(maxsize=1)

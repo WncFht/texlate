@@ -18,13 +18,13 @@ from test_fixloop_loop import CLEAN_LOG, MockEngine, make_proj
 
 from texlate.compile.engine import CompRes
 from texlate.compile.fixloop import fixloop
-from texlate.compile.fixloop.logparse import (
+from texlate.compile.judge import judge
+from texlate.compile.loginfo import LogInfo, classify_error
+from texlate.compile.logparse import (
     ErrReport,
     Taxonomy,
     _is_runaway_output,
 )
-from texlate.compile.judge import judge
-from texlate.compile.loginfo import LogInfo, classify_error
 
 _VBOX = "Overfull \\vbox (400.0pt too high) has occurred while \\output is active"
 RUNAWAY_LOG = "This is XeTeX, Version 3.141592653\n" + "\n".join([_VBOX] * 40) + "\n"

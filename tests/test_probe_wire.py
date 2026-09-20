@@ -16,8 +16,8 @@ import pytest
 
 pytest.importorskip("fastapi", reason="server extra 未装")
 
+from texlate.compile.ctan import TlpdbIndex
 from texlate.compile.engine import CompRes
-from texlate.compile.fixloop.ctan import TlpdbIndex
 from texlate.server.events import EventBus
 from texlate.server.store import Store
 from texlate.server.worker import PipelineWorker, Secrets, TaskCtx

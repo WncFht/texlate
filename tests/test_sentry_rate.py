@@ -33,10 +33,10 @@ import pytest
 
 from texlate.compile.engine import CompRes, _collect_compile_outputs
 from texlate.compile.fixloop.engine import _round_cat
-from texlate.compile.fixloop.logparse import ErrReport, _is_runaway_output
 from texlate.compile.fixloop.ruleset import Ruleset
 from texlate.compile.judge import judge
 from texlate.compile.loginfo import LogInfo
+from texlate.compile.logparse import ErrReport, _is_runaway_output
 from texlate.compile.sandbox import _RunawaySentry, child_env, run_process
 
 if TYPE_CHECKING:

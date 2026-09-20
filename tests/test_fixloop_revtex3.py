@@ -30,8 +30,8 @@ from texlate.compile.fixloop._builtins_vendored import (
     vendored_fetch,
 )
 from texlate.compile.fixloop.engine import LoopCtx, Rule
-from texlate.compile.fixloop.logparse import ErrReport
 from texlate.compile.latex209 import upgrade_209
+from texlate.compile.logparse import ErrReport
 
 
 @lru_cache(maxsize=1)

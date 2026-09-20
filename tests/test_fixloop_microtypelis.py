@@ -15,7 +15,7 @@ from pathlib import Path
 
 from texlate.compile.fixloop import Ruleset, actions, load_ruleset
 from texlate.compile.fixloop.engine import LoopCtx, Rule
-from texlate.compile.fixloop.logparse import ErrReport, parse_text
+from texlate.compile.logparse import ErrReport, parse_text
 
 
 @lru_cache(maxsize=1)
@@ -198,8 +198,7 @@ def test_match_apply_routes(tmp_path: Path) -> None:
         assert rule is not None, f"{cat}: {note}"
         assert rule.id == "microtype_lig_off"
         assert (
-            "%\\DisableLigatures[f]{family=sf*}"
-            in (sub / "applemlr.cls").read_text()
+            "%\\DisableLigatures[f]{family=sf*}" in (sub / "applemlr.cls").read_text()
         )
 
 

@@ -21,7 +21,7 @@ from pathlib import Path
 
 from texlate.compile.fixloop import actions, load_ruleset
 from texlate.compile.fixloop.engine import LoopCtx, Rule
-from texlate.compile.fixloop.logparse import ErrReport
+from texlate.compile.logparse import ErrReport
 from texlate.compile.normalize import _strip_lead_junk, normalize_project
 
 

@@ -26,8 +26,8 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Iterator
 
     from texlate.compile.fixloop.engine import Engine, LoopCtx
-    from texlate.compile.fixloop.logparse import ErrReport
     from texlate.compile.fixloop.ruleset import Rule, Ruleset
+    from texlate.compile.logparse import ErrReport
 
 _REJECT_PREFIX = "REJECT:"
 

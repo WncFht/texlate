@@ -42,7 +42,7 @@ from texlate.compile.fixloop.builtins import (
     vendored_shadow_isolate,
 )
 from texlate.compile.fixloop.engine import LoopCtx, Rule
-from texlate.compile.fixloop.logparse import ErrReport
+from texlate.compile.logparse import ErrReport
 
 _RS = load_ruleset()
 _ERA = next(r for r in _RS.rules if r.id == "era_bundle_shadow_retire")

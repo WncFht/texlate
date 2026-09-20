@@ -598,7 +598,7 @@ class XelatexEngine:
         假 "no package provides"（fixloop-bench 口径）——同一份仓库知识走
         本地索引既稳又快（~/.texlate/cache/filemap.json 常驻）。
         """
-        from texlate.compile.fixloop.ctan import (  # noqa: PLC0415  # 延迟: fixloop/__init__ 链重(cases→fcntl 平台门)
+        from texlate.compile.ctan import (  # noqa: PLC0415  # 冷路径惰载
             MIRROR,
             TlpdbIndex,
         )
@@ -773,7 +773,7 @@ class XelatexEngine:
 
     def _fetch_into_usertree(self, fname: str, pkgs: list[str], dest: Path) -> bool:
         """CTAN ``archive/<pkg>.tar.xz`` → overlay=tree 落 usertree home → 复核。"""
-        from texlate.compile.fixloop.ctan import (  # noqa: PLC0415  # 延迟: fixloop/__init__ 链重(cases→fcntl 平台门)
+        from texlate.compile.ctan import (  # noqa: PLC0415  # 冷路径惰载
             MIRROR,
             fetch_package,
         )

@@ -26,7 +26,7 @@ from test_fixloop_loop import MockEngine, make_proj
 
 from texlate.compile.fixloop import Ruleset, builtins, fixloop, load_ruleset
 from texlate.compile.fixloop.engine import LoopCtx
-from texlate.compile.fixloop.logparse import parse_text
+from texlate.compile.logparse import parse_text
 
 
 @lru_cache(maxsize=1)

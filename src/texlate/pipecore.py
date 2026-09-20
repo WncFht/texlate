@@ -70,8 +70,8 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from texlate.chunk import ChunkIn
+    from texlate.compile.ctan import TlpdbIndex
     from texlate.compile.engine import CompRes, Engine
-    from texlate.compile.fixloop.ctan import TlpdbIndex
     from texlate.compile.fixloop.engine import LlmHook
     from texlate.compile.probe import ProbeReport
     from texlate.latex.model import Chunk, ScanResult

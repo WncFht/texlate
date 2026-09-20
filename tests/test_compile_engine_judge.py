@@ -18,6 +18,7 @@ import pytest
 import texlate.compile.loginfo as loginfo_mod
 import texlate.compile.sandbox as sb_mod
 from texlate.compile import engine as eng_mod
+from texlate.compile._yamlish import load_yaml
 from texlate.compile.engine import (
     CompRes,
     TectonicEngine,
@@ -27,7 +28,6 @@ from texlate.compile.engine import (
     parse_log,
     route_project,
 )
-from texlate.compile.fixloop._yamlish import load_yaml
 from texlate.compile.fixloop.engine import RULES_PATH
 from texlate.compile.judge import count_missing_chars, judge
 from texlate.compile.sandbox import child_env, sandbox_wrap
@@ -1158,7 +1158,7 @@ def test_install_file_ambient_texmfhome_fetch_dest(
 ) -> None:
     """texmfhome=None + ambient TEXMFHOME：CTAN 直铺 dest 取 env 解析值——
     旧码 ``Path(self.texmfhome)`` 直接 TypeError 崩。"""
-    from texlate.compile.fixloop import ctan  # noqa: PLC0415 - 延迟面同产码
+    from texlate.compile import ctan  # noqa: PLC0415 - 延迟面同产码
 
     amb = tmp_path / "amb"
     monkeypatch.setenv("TEXMFHOME", str(amb))

@@ -28,7 +28,7 @@ from pathlib import Path
 from texlate.compile.fixloop import Ruleset, actions, load_ruleset
 from texlate.compile.fixloop._builtins_misschar import _fb_snippet_lines
 from texlate.compile.fixloop.engine import LoopCtx, Rule
-from texlate.compile.fixloop.logparse import ErrReport, parse_text
+from texlate.compile.logparse import ErrReport, parse_text
 
 _ENDCS_ERR = (
     "! Missing \\endcsname inserted.\n"

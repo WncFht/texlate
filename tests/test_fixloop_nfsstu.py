@@ -23,8 +23,8 @@ from texlate.compile.fixloop.builtins import (
     nfss_fam_declare,
 )
 from texlate.compile.fixloop.engine import LoopCtx, Rule
-from texlate.compile.fixloop.logparse import parse_text
 from texlate.compile.fixloop.ruleset import Ruleset
+from texlate.compile.logparse import parse_text
 
 
 class _Eng:

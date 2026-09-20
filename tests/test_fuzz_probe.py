@@ -34,12 +34,12 @@ from typing import TYPE_CHECKING
 import pytest
 from _fuzzkit import fuzz_rng
 
+from texlate.compile.ctan import TlpdbIndex
 from texlate.compile.engine import (
     BITMAP_FONT_PKG_NAMES,
     PST_PKG_PREFIXES,
     PSTRICKS_PKG_NAMES,
 )
-from texlate.compile.fixloop.ctan import TlpdbIndex
 from texlate.compile.mask import visible_tex
 from texlate.compile.probe import (
     ProbeReport,

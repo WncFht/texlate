@@ -17,9 +17,9 @@ from typing import Any
 
 import regex
 
+from texlate.compile._yamlish import load_yaml
 from texlate.compile.fixloop import builtins
-from texlate.compile.fixloop._yamlish import load_yaml
-from texlate.compile.fixloop.logparse import Taxonomy
+from texlate.compile.logparse import Taxonomy
 
 #: 规则库根: 2026-09-17 起为 ``rules/`` 目录（_yamlish.load_yaml 目录感知
 #: 合并多分片; 序敏感段 taxonomy/warnings 各自单文件承载）。``Ruleset.load``

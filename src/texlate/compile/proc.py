@@ -39,6 +39,14 @@ import sys
 import time
 from typing import TYPE_CHECKING, Final
 
+from texlate.compile.logparse import (
+    _RUNAWAY_PAGE_MAX,
+    _RUNAWAY_PAGE_RX,
+    _RUNAWAY_VBOX_DENSITY,
+    _RUNAWAY_VBOX_MIN,
+    _RUNAWAY_VBOX_RX,
+)
+
 if sys.platform != "win32":
     import resource
 else:
@@ -113,17 +121,16 @@ _SENTRY_KEEP: Final = 4096
 #: ``n >= 已计最大值`` 入计；收敛文档万级非序方括数字（索引/引用阵
 #: 列）只贡献 ~ln(n) 个左向右极大值，不再假触（killsem2 census 开放缺
 #: 口——旧纯计数把任意 ``[\d+]`` 当页标）。
-#: 本对是 ``sandbox.py`` 再出口兼容面——权威 str 源与阈值已收敛在
-#: ``fixloop.logparse``（``_RUNAWAY_PAGE_RX``/``_RUNAWAY_PAGE_MAX``，
-#: 活哨经惰性 import 取真源），改动须同步两侧。
-_RUNAWAY_PAGE_MAX: Final = 10_000
-_PAGE_MARK_RX: Final = re.compile(rb"\[\d+\]")
+#: ``_PAGE_MARK_RX``/``_RUNAWAY_PAGE_MAX`` 是 ``sandbox.py`` 再出口兼容面——
+#: 权威 str 源与阈值单源在 ``compile.logparse``（``_RUNAWAY_PAGE_MAX`` 经顶层
+#: import 转口），页标 bytes 形按同一 ``str.pattern.encode()`` 变换派生。
+_PAGE_MARK_RX: Final = re.compile(_RUNAWAY_PAGE_RX.pattern.encode())
 
 
 class _RunawaySentry:
     r"""``\output`` 暴走活哨：drain 流片喂入、行界扫描，双臂越阈即报。
 
-    与 ``fixloop.logparse`` 事后判据同 regex 同阈值（str 模式源 ``encode``
+    与 ``compile.logparse`` 事后判据同 regex 同阈值（str 模式源 ``encode``
     成 bytes 编译形，定义仍单源）：
 
     - ``page_flood``：``[N]`` 页标**单调包络计数** ≥ ``_RUNAWAY_PAGE_MAX``
@@ -142,14 +149,6 @@ class _RunawaySentry:
     """
 
     def __init__(self) -> None:
-        from texlate.compile.fixloop.logparse import (  # noqa: PLC0415  # 延迟: fixloop/__init__ 链重(cases→fcntl 平台门)，运行期首用才拉
-            _RUNAWAY_PAGE_MAX,
-            _RUNAWAY_PAGE_RX,
-            _RUNAWAY_VBOX_DENSITY,
-            _RUNAWAY_VBOX_MIN,
-            _RUNAWAY_VBOX_RX,
-        )
-
         self._vbox_rx = re.compile(_RUNAWAY_VBOX_RX.pattern.encode())
         self._page_rx = re.compile(_RUNAWAY_PAGE_RX.pattern.encode())
         self._vbox_min = _RUNAWAY_VBOX_MIN

@@ -21,7 +21,7 @@ from typing import Any
 import pytest
 
 from texlate.compile.fixloop import Ruleset, load_ruleset
-from texlate.compile.fixloop.logparse import parse_text
+from texlate.compile.logparse import parse_text
 
 
 @lru_cache(maxsize=1)

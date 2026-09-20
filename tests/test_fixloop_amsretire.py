@@ -17,7 +17,7 @@ from pathlib import Path
 from texlate.compile.fixloop import Ruleset, actions, load_ruleset
 from texlate.compile.fixloop.builtins import TRANSFORM_FNS
 from texlate.compile.fixloop.engine import LoopCtx, Rule
-from texlate.compile.fixloop.logparse import parse_text
+from texlate.compile.logparse import parse_text
 
 _RULE_ID = "amsmath_saveprimitive_retire"
 

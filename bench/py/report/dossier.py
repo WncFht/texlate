@@ -44,7 +44,7 @@ VENDORED_INV = RESULTS / "cbucket-vendored-inventory" / "inventory.jsonl"
 
 try:  # 读侧 taxonomy 复用——uv run 下可用；系统 python 降级
     from texlate.compile.fixloop.engine import load_ruleset
-    from texlate.compile.fixloop.logparse import parse_log, parse_text
+    from texlate.compile.logparse import parse_log, parse_text
 
     _TAX_OK = True
 except Exception:

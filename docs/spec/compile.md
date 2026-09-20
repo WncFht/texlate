@@ -131,12 +131,12 @@ caps 语义：xelatex=`{"kpsewhich","tlmgr","updmap","recorder"}`，tectonic=`{"
 
 yaml 规则驱动的编译自动修复循环：log→taxonomy 分类→规则匹配→动作应用→重编，逐轮收敛[^fixloop-rules]。
 
-### 6.1 架构三件套与 shim 边界
+### 6.1 架构三件套与共享地基
 
 - `engine.py`：主循环 + `LoopCtx`（io/deps/round/ledger 四组 dataclass + `_CTX_FIELD_GROUP` facade）+ `_wire_engine`（filemap overrides 实例遮蔽 `eng.filemap`；texmfhome 缺省 → `wdir/_texmf` 隔离；tectonic 注入 `CtanFetcher`）。
 - `actions.py`：`when`/`condition` 评估 + 7 种 action 分派。
 - `ruleset.py`：`Ruleset.load(tolerant=True)`——`rules/` 目录按文件名序逐件 safe_load、顶层段合并（list 段按文件序 extend、map 段递归、标量异值即 `YamlishError` 冲突）；rule 级问题弃条记 `skipped_rules`、file 级 raise；`_RULESET_CACHE` 按分片 `(name,mtime_ns,size)` 指纹缓存、返回 deepcopy。
-- **shim 边界**：`fixloop/logparse.py`、`fixloop/ctan.py`、`fixloop/_yamlish.py` 是 re-export shim——实现已上提 `compile/logparse.py`/`compile/ctan.py`/`compile/_yamlish.py`（compile 层共享件）；`__init__.py` 是 PEP 562 惰性门面（23 平名映射回四叶）。
+- **共享地基**：`compile/logparse.py`/`compile/ctan.py`/`compile/_yamlish.py` 是 compile 层共享件（log 解析/taxonomy、CTAN 拉包、yaml 装载——C3/F2 归位自 fixloop，fixloop 向下消费）；`fixloop/__init__.py` 是 PEP 562 惰性门面（23 平名映射回四叶）。
 
 ### 6.2 规则 schema
 

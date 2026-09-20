@@ -42,7 +42,7 @@ from .mask import visible_tex
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
-    from texlate.compile.fixloop.ctan import TlpdbIndex
+    from texlate.compile.ctan import TlpdbIndex
 
 __all__ = [
     "DepProbe",
@@ -146,7 +146,7 @@ class _ScanCtx:
 
 def _load_index() -> TlpdbIndex | None:
     """默认 tlpdb 离线索引（`TlpdbIndex.ensure` 同款惰性缓存；失败 → None）。"""
-    from texlate.compile.fixloop.ctan import (  # noqa: PLC0415  # 延迟: fixloop/__init__ 链重(cases→fcntl 平台门)
+    from texlate.compile.ctan import (  # noqa: PLC0415  # 冷路径惰载
         TlpdbIndex,
     )
 

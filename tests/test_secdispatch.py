@@ -11,8 +11,8 @@ option_clash 类规则够到真根因。
 from pathlib import Path
 
 from texlate.compile.fixloop import fixloop, load_ruleset
-from texlate.compile.fixloop.logparse import Taxonomy, parse_text
 from texlate.compile.fixloop.ruleset import Ruleset
+from texlate.compile.logparse import Taxonomy, parse_text
 from texlate.texlog import CTX_LINES
 
 _TAX = [

@@ -25,7 +25,7 @@ from texlate.compile.fixloop._builtins_common import (
 )
 from texlate.compile.fixloop.builtins import TRANSFORM_FNS, generated_stub
 from texlate.compile.fixloop.engine import LoopCtx
-from texlate.compile.fixloop.logparse import parse_text
+from texlate.compile.logparse import parse_text
 
 
 class _Eng:

@@ -14,7 +14,7 @@ import pytest
 from conftest import make_tar, tar_dir, tar_reg
 
 from texlate.arxiv.unpack import unpack_tar
-from texlate.compile.fixloop.ctan import (
+from texlate.compile.ctan import (
     CtanFetchError,
     FetchCaps,
     TlpdbIndex,

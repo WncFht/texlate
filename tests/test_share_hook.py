@@ -19,7 +19,7 @@ pytest.importorskip("starlette.testclient", reason="server extra 未装")
 
 from conftest import MINI_TEX, RecordingEngine
 
-from texlate.compile.fixloop.ctan import TlpdbIndex
+from texlate.compile.ctan import TlpdbIndex
 from texlate.server.events import EventBus
 from texlate.server.store import Store, new_task_id
 from texlate.server.worker import PIPELINE_VERSION, PipelineWorker, Secrets, TaskCtx

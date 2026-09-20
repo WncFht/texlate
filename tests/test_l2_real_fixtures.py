@@ -17,7 +17,7 @@ from pathlib import Path
 import pytest
 
 from texlate.compile.fixloop import Ruleset, load_ruleset
-from texlate.compile.fixloop.logparse import parse_log as fl_parse_log
+from texlate.compile.logparse import parse_log as fl_parse_log
 from texlate.validate.l2 import parse_log
 
 LOGS = Path(__file__).resolve().parent / "fixtures" / "logs"

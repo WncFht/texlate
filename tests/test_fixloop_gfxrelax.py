@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 
 from texlate.compile.fixloop import actions, load_ruleset
 from texlate.compile.fixloop.engine import LoopCtx
-from texlate.compile.fixloop.logparse import ErrReport
+from texlate.compile.logparse import ErrReport
 
 if TYPE_CHECKING:
     from pathlib import Path

@@ -25,7 +25,7 @@ from pathlib import Path
 
 from texlate.compile.fixloop import Ruleset, actions, load_ruleset
 from texlate.compile.fixloop.engine import LoopCtx, Rule
-from texlate.compile.fixloop.logparse import ErrReport
+from texlate.compile.logparse import ErrReport
 
 
 @lru_cache(maxsize=1)
@@ -71,8 +71,7 @@ def _apply(
 # ═════════════════════════ hyperref_driver_neutralize 扩臂 ═════════════════════
 
 _WEBOCS_ERR = (
-    "hyperref.sty:4072: Package hyperref Error: Wrong DVI mode driver option "
-    "`dvips',\n"
+    "hyperref.sty:4072: Package hyperref Error: Wrong DVI mode driver option `dvips',\n"
 )
 
 
@@ -170,8 +169,7 @@ def test_driver_conditional_outside_bracket_untouched(tmp_path: Path) -> None:
 def test_driver_condition_gate_newcommand_form(tmp_path: Path) -> None:
     """source_contains 新支: 仅 newcommand 指派 + cs 引用括号即放行。"""
     (tmp_path / "main.tex").write_text(
-        "\\newcommand\\woc@driver{dvips}\n"
-        "\\RequirePackage[\\woc@driver]{hyperref}\n",
+        "\\newcommand\\woc@driver{dvips}\n\\RequirePackage[\\woc@driver]{hyperref}\n",
         encoding="utf-8",
     )
     ctx = _ctx(tmp_path)
@@ -198,8 +196,7 @@ def test_driver_condition_gate_clean_doc_rejects(tmp_path: Path) -> None:
 # ═════════════════════════ microtype_expansion_off ═════════════════════════
 
 _MT_ERR = (
-    "main.tex:323: Package microtype Error: Font expansion does not work with "
-    "xetex.\n"
+    "main.tex:323: Package microtype Error: Font expansion does not work with xetex.\n"
 )
 
 
@@ -216,9 +213,7 @@ def test_microtype_expansion_multiline_flip(tmp_path: Path) -> None:
         "]{microtype}\n",
         encoding="utf-8",
     )
-    ok, note = _apply(
-        _rule("microtype_expansion_off"), tmp_path, err_head=_MT_ERR
-    )
+    ok, note = _apply(_rule("microtype_expansion_off"), tmp_path, err_head=_MT_ERR)
     assert ok, note
     t = (tmp_path / "main.tex").read_text()
     assert "expansion=false," in t
@@ -319,9 +314,7 @@ def test_xy_group_load_inject(tmp_path: Path) -> None:
 
 def test_xy_bare_xy_pkg(tmp_path: Path) -> None:
     """\\usepackage{xy} 独载形同愈 (xy.sty 直载面)。"""
-    (tmp_path / "main.tex").write_text(
-        "\\usepackage{xy}\n", encoding="utf-8"
-    )
+    (tmp_path / "main.tex").write_text("\\usepackage{xy}\n", encoding="utf-8")
     ok, _ = _apply(_rule("xy_option_load"), tmp_path, err_head=_XY_ERR)
     assert ok
     assert "\\xyoption{curve}" in (tmp_path / "main.tex").read_text()
@@ -365,18 +358,14 @@ def test_xy_commented_xyoption_still_injects(tmp_path: Path) -> None:
 
 def test_xy_no_load_site_noop(tmp_path: Path) -> None:
     """工程无 xy/xypic 装载点 → applied=False (err 有签名也无处挂)。"""
-    (tmp_path / "main.tex").write_text(
-        "\\usepackage{amsmath}\n", encoding="utf-8"
-    )
+    (tmp_path / "main.tex").write_text("\\usepackage{amsmath}\n", encoding="utf-8")
     ok, _ = _apply(_rule("xy_option_load"), tmp_path, err_head=_XY_ERR)
     assert not ok
 
 
 def test_xy_no_error_noop(tmp_path: Path) -> None:
     """err_head/log 无扩展缺失句式 → applied=False。"""
-    (tmp_path / "main.tex").write_text(
-        "\\usepackage{xypic}\n", encoding="utf-8"
-    )
+    (tmp_path / "main.tex").write_text("\\usepackage{xypic}\n", encoding="utf-8")
     ok, _ = _apply(_rule("xy_option_load"), tmp_path, err_head="! unrelated")
     assert not ok
 
@@ -402,9 +391,7 @@ def test_hyperxmp_relocate_covers_let_sandwich(tmp_path: Path) -> None:
         "\\RequirePackage[bookmarksnumbered,unicode]{hyperref}\n",
         encoding="utf-8",
     )
-    ok, note = _apply(
-        _rule("pkg_order_hyperxmp_relocate"), tmp_path, pay="hyperxmp"
-    )
+    ok, note = _apply(_rule("pkg_order_hyperxmp_relocate"), tmp_path, pay="hyperxmp")
     assert ok, note
     t = (tmp_path / "acmart.cls").read_text()
     assert t.index("{hyperref}") < t.index("{hyperxmp}")

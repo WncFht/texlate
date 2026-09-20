@@ -19,7 +19,7 @@ from texlate.compile.fixloop import actions, builtins, load_ruleset
 from texlate.compile.fixloop._builtins_misc import _pfa_to_pfb_bytes
 from texlate.compile.fixloop.builtins import pdf_asset_sanitize, pfa_to_pfb
 from texlate.compile.fixloop.engine import LoopCtx, Rule, _report_of
-from texlate.compile.fixloop.logparse import ErrReport
+from texlate.compile.logparse import ErrReport
 
 
 class _Eng:

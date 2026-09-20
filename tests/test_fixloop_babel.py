@@ -21,7 +21,7 @@ from texlate.compile.fixloop.engine import (
     Rule,
     _wire_filemap_overrides,
 )
-from texlate.compile.fixloop.logparse import ErrReport, parse_text
+from texlate.compile.logparse import ErrReport, parse_text
 
 
 @lru_cache(maxsize=1)

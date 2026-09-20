@@ -2,8 +2,8 @@
 
 原 ``fixloop/logparse.py``——log 解析/taxonomy 是 compile 层共享件
 (``loginfo``/``judge``/``proc`` 同层消费), 上提后 fixloop 向下消费
-(旧路径 ``texlate.compile.fixloop.logparse`` 经 re-export shim 守恒,
-名面全量含私名; 仅 ``_WARN_FILELINE_RE``/``_FATAL_TRAILER_RE``/
+(旧 ``fixloop.logparse`` 路径 2026-09-20 退场, 全仓直引本模块;
+仅 ``_WARN_FILELINE_RE``/``_FATAL_TRAILER_RE``/
 ``_attribute_warns`` 三死件随事件流重构退场)。
 
 移植自 bench/py/fixloop.py L48-125 (`first_error`/`classify`), 增强两点

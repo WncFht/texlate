@@ -40,7 +40,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Coroutine
 
     from texlate.compile.fixloop.engine import LlmHook, LoopCtx
-    from texlate.compile.fixloop.logparse import ErrReport
+    from texlate.compile.logparse import ErrReport
     from texlate.xlat.pipeline import Translator
 
 __all__ = ["LlmFixer", "Patch", "make_llm_hook"]

@@ -33,7 +33,7 @@ from texlate.compile.fixloop import (
     load_ruleset,
 )
 from texlate.compile.fixloop.engine import LoopCtx, Rule
-from texlate.compile.fixloop.logparse import ErrReport
+from texlate.compile.logparse import ErrReport
 
 _XELATEX = shutil.which("xelatex")
 _COMPILE = pytest.mark.skipif(_XELATEX is None, reason="xelatex not installed")

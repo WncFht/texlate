@@ -13,7 +13,7 @@ astro-ph/0408240 natbib-aux 实证, \begin{document} 期 aux 读/字体声明错
 
 from texlate.compile.engine import classify_error
 from texlate.compile.fixloop.engine import Ruleset
-from texlate.compile.fixloop.logparse import parse_text
+from texlate.compile.logparse import parse_text
 
 # ── 实证形态 (stagerun-loop1-2026-09-16 cases.jsonl log_excerpt 节录) ──
 

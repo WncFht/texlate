@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from texlate.compile.fixloop._yamlish import YamlishError, load_yaml, loads
+from texlate.compile._yamlish import YamlishError, load_yaml, loads
 
 RULES_DIR = Path(__file__).resolve().parents[1] / "src/texlate/compile/fixloop/rules"
 

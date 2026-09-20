@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from texlate.compile.fixloop.ctan import (
+from texlate.compile.ctan import (
     CtanFetcher,
     TlpdbIndex,
     check_version_compat,

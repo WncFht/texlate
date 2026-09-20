@@ -18,6 +18,14 @@ import importlib
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from texlate.compile.ctan import (
+        CtanFetcher,
+        FetchResult,
+        TlpdbIndex,
+        check_version_compat,
+        ctan_fetch,
+        fetch_package,
+    )
     from texlate.compile.fixloop.cases import (
         CaseSink,
         ReplayResult,
@@ -26,14 +34,6 @@ if TYPE_CHECKING:
         replay_case,
         stats_backfill,
         triage,
-    )
-    from texlate.compile.fixloop.ctan import (
-        CtanFetcher,
-        FetchResult,
-        TlpdbIndex,
-        check_version_compat,
-        ctan_fetch,
-        fetch_package,
     )
     from texlate.compile.fixloop.engine import (
         Engine,
@@ -45,7 +45,7 @@ if TYPE_CHECKING:
         load_ruleset,
         precheck_pass,
     )
-    from texlate.compile.fixloop.logparse import ErrReport, Taxonomy, parse_log
+    from texlate.compile.logparse import ErrReport, Taxonomy, parse_log
 
 _SUBMODULE_EXPORTS: dict[str, tuple[str, ...]] = {
     "cases": (

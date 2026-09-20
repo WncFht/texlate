@@ -3,7 +3,7 @@
 C3 地基归位（architecture-review-2026-09-19 §3）：本件自
 ``compile/fixloop/_yamlish.py`` 上提——yaml 装载有 compile 层非 fixloop
 消费面（``loginfo._taxonomy`` 只读 ``taxonomy:`` 段），归 compile 层共享
-件；旧路径 ``texlate.compile.fixloop._yamlish`` 经 re-export shim 守恒。
+件；旧 ``fixloop._yamlish`` 路径 2026-09-20 退场，全仓直引本模块。
 
 历史注记：早期为保持 venv 零依赖内置过 YAML 子集解析器；PyYAML 成为正式
 依赖后退役，本模块只剩统一错误类型与入口。

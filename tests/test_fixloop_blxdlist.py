@@ -28,7 +28,7 @@ import pytest
 from texlate.compile.fixloop import Ruleset, actions, load_ruleset
 from texlate.compile.fixloop.builtins import TRANSFORM_FNS
 from texlate.compile.fixloop.engine import LoopCtx, Rule, RunFn
-from texlate.compile.fixloop.logparse import ErrReport
+from texlate.compile.logparse import ErrReport
 
 _RULE_ID = "blx_dlist_polyfill"
 
@@ -115,7 +115,9 @@ def test_table_keys_exact_four() -> None:
 
 def test_polyfill_guard_forms() -> None:
     """polyfill 体: 三处 ifx-csname 守卫 + lossort provide; end* 不走 provide。"""
-    body = next(iter({_params()["cs_table"][k]["polyfill"] for k in _params()["cs_table"]}))
+    body = next(
+        iter({_params()["cs_table"][k]["polyfill"] for k in _params()["cs_table"]})
+    )
     assert "\\AddToHook{begindocument/before}" in body
     for cs in ("blx@dlist@type", "blx@dlist@name", "endlossort"):
         assert f"\\expandafter\\ifx\\csname {cs}\\endcsname\\relax" in body, cs

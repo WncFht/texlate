@@ -29,7 +29,7 @@ from texlate.compile.fixloop import (
 from texlate.compile.fixloop._builtins_common import _resolve_site
 from texlate.compile.fixloop.builtins import TRANSFORM_FNS
 from texlate.compile.fixloop.engine import LoopCtx, Rule, _apply_scan_install
-from texlate.compile.fixloop.logparse import ErrReport
+from texlate.compile.logparse import ErrReport
 
 
 def _ctx(wdir: Path, main_rel: str | None = "main.tex") -> LoopCtx:

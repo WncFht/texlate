@@ -7,7 +7,7 @@ TlpdbIndex）覆盖 local/tl_pkg/missing 三分支；``deps_diff``/``dep_seen``
 
 from pathlib import Path
 
-from texlate.compile.fixloop.ctan import TlpdbIndex
+from texlate.compile.ctan import TlpdbIndex
 from texlate.compile.probe import (
     dep_seen,
     deps_diff,

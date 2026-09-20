@@ -20,7 +20,7 @@ from texlate.compile.fixloop._builtins_pkgload import (
     _wrap_shipped_sty_inputs,
 )
 from texlate.compile.fixloop.engine import LoopCtx, Rule
-from texlate.compile.fixloop.logparse import ErrReport
+from texlate.compile.logparse import ErrReport
 
 
 class _Eng:

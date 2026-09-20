@@ -6,16 +6,11 @@ r"""texlog 单遍事件流 + C3 归位 shim 钉点。
   Warning/``==>`` 复述排除、捕获面）。
 - 栈口径守恒：l2/loginfo 含行快照 vs logparse ``file_stack_at`` 排他
   口径——有意分歧逐面钉死。
-- ``fixloop.logparse``/``fixloop._yamlish`` 旧路径 shim 名面守恒
-  （新老家同物同名）。
 """
 
 from __future__ import annotations
 
-import texlate.compile._yamlish as cym
 import texlate.compile.logparse as clp
-from texlate.compile.fixloop import _yamlish as fym
-from texlate.compile.fixloop import logparse as flp
 from texlate.compile.loginfo import parse_log as eng_parse_log
 from texlate.texlog import (
     iter_log_events,
@@ -152,58 +147,6 @@ def test_parse_text_attr_warns_projection() -> None:
     rep = clp.parse_text(log, pats, project_root=None)
     assert rep.warnings == []  # texmf 系统件源不驱 warn_*
     assert rep.warnings_sys == ["invalid_utf8@pkg.sty"]
-
-
-# ---------------------------------------------------------------- C3 归位 shim 面
-
-
-def test_logparse_shim_surface() -> None:
-    """旧路径名面转口守恒——新旧模块同物同名（含私名）。"""
-    names = [
-        "ErrReport",
-        "Taxonomy",
-        "parse_log",
-        "parse_text",
-        "_is_runaway_output",
-        "_is_err_line",
-        "_ctx_tail_css",
-        "_collect_warnings",
-        "_payload",
-        "_cap_bracket_tag",
-        "_capacity_pending",
-        "_capacity_payload",
-        "_cap_verdict_cat",
-        "_AttrWarns",
-        "_RUNAWAY_VBOX_RX",
-        "_RUNAWAY_VBOX_MIN",
-        "_RUNAWAY_VBOX_DENSITY",
-        "_RUNAWAY_PAGE_RX",
-        "_RUNAWAY_PAGE_MAX",
-        "_LINE_NO_RE",
-        "_LN_ROW_RE",
-        "_CS_NAME_RE",
-        "_CTX_HEAD_RE",
-        "_CAP_BRACKET_RX",
-        "_CAP_BRACKET_TAG",
-        "_CAP_CS_RX",
-        "_CAP_MACRO_RX",
-        "_CAP_HEAD_RX",
-        "_CAP_LN_ROW_RX",
-        "_CAP_UPSTREAM_RECURSION_CS",
-        "_PAYLOAD_SCANS",
-        "_ERRS_MAX",
-        "_PRE_LINES",
-        "_FILE_ATTRIBUTED_WARNS",
-    ]
-    for name in names:
-        assert getattr(flp, name) is getattr(clp, name), name
-    assert flp.__all__ == clp.__all__
-
-
-def test_yamlish_shim_surface() -> None:
-    """``fixloop._yamlish`` 名面转口守恒——``ruleset`` 等旧 import 不动。"""
-    for name in ["YamlishError", "loads", "load_yaml", "_merge_into", "_merge_maps"]:
-        assert getattr(fym, name) is getattr(cym, name), name
 
 
 # ---------------------------------------------------------------- textutil cite 叶

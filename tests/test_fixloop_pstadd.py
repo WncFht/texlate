@@ -18,7 +18,7 @@ from pathlib import Path
 from texlate.compile.fixloop import Ruleset, actions, fixloop, load_ruleset
 from texlate.compile.fixloop.builtins import TRANSFORM_FNS
 from texlate.compile.fixloop.engine import LoopCtx, Rule
-from texlate.compile.fixloop.logparse import ErrReport, parse_text
+from texlate.compile.logparse import ErrReport, parse_text
 
 _VENDOR_DIR = (
     Path(__file__).resolve().parent.parent / "src/texlate/compile/fixloop/vendor/files"

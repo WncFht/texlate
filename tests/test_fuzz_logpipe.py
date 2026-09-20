@@ -1,5 +1,5 @@
 r"""跨层一致性 fuzz —— ``texlog.update_file_stack`` → ``loginfo.parse_log`` /
-``l2.parse_log_text`` / ``fixloop.logparse.parse_text`` → ``judge`` 门控。
+``l2.parse_log_text`` / ``logparse.parse_text`` → ``judge`` 门控。
 
 四层各自独立实现同一套 log 语义，本文件只测**跨层协议不变量**：
 
@@ -33,10 +33,9 @@ from typing import TYPE_CHECKING
 import pytest
 from _fuzzkit import fuzz_rng
 
+from texlate.compile._yamlish import load_yaml
 from texlate.compile.engine import CompRes
-from texlate.compile.fixloop._yamlish import load_yaml
 from texlate.compile.fixloop.engine import RULES_PATH
-from texlate.compile.fixloop.logparse import parse_text as fx_parse_text
 from texlate.compile.judge import (
     _MISSCHAR_GATE_RX,
     _MISSCHAR_NULLFONT_RX,
@@ -44,6 +43,7 @@ from texlate.compile.judge import (
     judge,
 )
 from texlate.compile.loginfo import parse_log as eng_parse_log
+from texlate.compile.logparse import parse_text as fx_parse_text
 from texlate.texlog import update_file_stack
 from texlate.validate.l2 import _REDLINE_CLASSES, parse_log_text
 

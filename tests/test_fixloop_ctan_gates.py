@@ -20,7 +20,7 @@ from pathlib import Path
 
 import pytest
 
-from texlate.compile.fixloop.ctan import (
+from texlate.compile.ctan import (
     TlpdbIndex,
     check_version_compat,
     ctan_fetch,

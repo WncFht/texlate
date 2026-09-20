@@ -13,7 +13,7 @@ import pytest
 from texlate.compile.fixloop import Ruleset, actions, load_ruleset
 from texlate.compile.fixloop.actions import _cond_ok, _when_ok
 from texlate.compile.fixloop.engine import LoopCtx
-from texlate.compile.fixloop.logparse import (
+from texlate.compile.logparse import (
     ErrReport,
     Taxonomy,
     _ctx_tail_css,

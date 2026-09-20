@@ -19,7 +19,7 @@ from pathlib import Path
 from test_fixloop_ctan import make_tarxz
 from test_fixloop_loop import MockEngine
 
-from texlate.compile.fixloop.ctan import (
+from texlate.compile.ctan import (
     INDEX_EXTS,
     OVERLAY_EXTS,
     CtanFetcher,

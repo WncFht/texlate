@@ -47,12 +47,6 @@ from texlate.compile.fixloop.actions import (
     _substitute,
     _when_ok,
 )
-from texlate.compile.fixloop.logparse import (
-    ErrReport,
-    _is_runaway_output,
-    parse_log,
-    parse_text,
-)
 from texlate.compile.fixloop.ruleset import (
     RULES_PATH,
     Rule,
@@ -62,6 +56,12 @@ from texlate.compile.fixloop.ruleset import (
 )
 from texlate.compile.inject import classify_no_main as _classify_no_main
 from texlate.compile.inject import find_main_tex as _inject_find_main_tex
+from texlate.compile.logparse import (
+    ErrReport,
+    _is_runaway_output,
+    parse_log,
+    parse_text,
+)
 from texlate.texlog import driver_fatal_line
 from texlate.textutil import DOCCLASS_RX, decode_tex
 

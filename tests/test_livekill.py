@@ -1,7 +1,7 @@
 """``run_process`` 内嵌 ``_RunawaySentry`` 活哨——病态 ``\\output`` 暴走的
 活杀测试。
 
-签名/阈值与 ``fixloop.logparse`` 事后判据单源（``_RUNAWAY_VBOX_RX`` ×
+签名/阈值与 ``compile.logparse`` 事后判据单源（``_RUNAWAY_VBOX_RX`` ×
 30；``[N]`` shipout 页标 10K 第二闸）。越阈排干环抛 ``TimeoutExpired``
 → ``run_process`` 既有 killpg 收树臂 → ``timed_out`` 槽回吐截杀臂名
 （``vbox_flood``/``page_flood`` str）+ SIGKILL——``_res_died``/
@@ -100,7 +100,7 @@ def test_run_process_livekill_vbox_flood(tmp_path: Path) -> None:
     输出须仍含签名——事后 ``_is_runaway_output``/``runaway_output`` 归因
     靠它命中（``timed_out`` + 签名文本 → ``runaway_output`` 而非 ``timeout``）。
     """
-    from texlate.compile.fixloop.logparse import (  # noqa: PLC0415  # 与哨件同源
+    from texlate.compile.logparse import (  # noqa: PLC0415  # 与哨件同源
         _is_runaway_output,
     )
 

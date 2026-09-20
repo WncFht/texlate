@@ -24,7 +24,7 @@ import pytest
 
 from texlate.compile.fixloop import Ruleset, actions, load_ruleset
 from texlate.compile.fixloop.engine import LoopCtx, Rule
-from texlate.compile.fixloop.logparse import ErrReport
+from texlate.compile.logparse import ErrReport
 
 _RULE_ID = "pinlabel_pdfximage_emulate"
 
@@ -57,7 +57,9 @@ def _ctx(tmp_path: Path, main: str = _MAIN) -> LoopCtx:
     return LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel="main.tex")
 
 
-def _match(ctx: LoopCtx, pay: str, rep: ErrReport, cat: str = "pdftex_prim"):
+def _match(
+    ctx: LoopCtx, pay: str, rep: ErrReport, cat: str = "pdftex_prim"
+) -> tuple[Rule | None, str]:
     return actions._match_apply(_rs(), ctx, None, cat, pay, rep)  # noqa: SLF001
 
 
@@ -106,7 +108,8 @@ def test_refire_idempotent(tmp_path: Path) -> None:
     ctx = _ctx(tmp_path)
     rep = ErrReport(file_stack=["./main.tex"])
     rule1, _ = _match(ctx, "pdfximage", rep)
-    assert rule1 is not None and rule1.id == _RULE_ID
+    assert rule1 is not None
+    assert rule1.id == _RULE_ID
     rule2, _ = _match(ctx, "pdfximage", rep)
     assert rule2 is None or rule2.id != _RULE_ID
     out = (tmp_path / "main.tex").read_text(encoding="utf-8")
@@ -187,7 +190,8 @@ def test_real_xelatex_repro_and_fix(tmp_path: Path) -> None:
     ctx = _ctx(tmp_path)
     rep = ErrReport(file_stack=["./main.tex"])
     rule, _note = _match(ctx, "pdfximage", rep)
-    assert rule is not None and rule.id == _RULE_ID
+    assert rule is not None
+    assert rule.id == _RULE_ID
 
     subprocess.run(  # noqa: S603
         [_XELATEX, "-interaction=nonstopmode", "main.tex"],

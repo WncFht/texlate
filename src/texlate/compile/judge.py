@@ -384,7 +384,7 @@ def _timeout_verdict(v: Verdict, res: CompRes, log_text: str) -> Verdict:
         timed_out=True,
     )
     if cat == "timeout":
-        from texlate.compile.fixloop.logparse import (  # noqa: PLC0415  # 延迟: fixloop/__init__ 链重
+        from texlate.compile.logparse import (  # noqa: PLC0415  # 冷路径惰载
             _is_runaway_output,
         )
 

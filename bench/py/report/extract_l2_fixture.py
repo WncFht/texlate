@@ -34,7 +34,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[3]
 
 from texlate.compile.fixloop import load_ruleset
-from texlate.compile.fixloop.logparse import parse_text as fl_parse_text
+from texlate.compile.logparse import parse_text as fl_parse_text
 from texlate.texlog import (
     CTX_LINES,
     ERR_BANG_RE,

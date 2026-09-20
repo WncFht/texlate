@@ -12,15 +12,15 @@ from pathlib import Path
 
 import regex
 
+from texlate.compile.ctan import CtanFetcher
 from texlate.compile.fixloop import Ruleset, actions, builtins, fixloop
-from texlate.compile.fixloop.ctan import CtanFetcher
 from texlate.compile.fixloop.engine import (
     LoopCtx,
     _dep_stems,
     _report_of,
     find_main_tex,
 )
-from texlate.compile.fixloop.logparse import ErrReport
+from texlate.compile.logparse import ErrReport
 
 CLEAN_LOG = "This is pdfTeX\nOutput written on main.pdf (1 page).\n"
 MAIN_TEX = "\\documentclass{article}\n\\begin{document}\nhi\n\\end{document}\n"

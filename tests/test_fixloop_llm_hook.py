@@ -19,7 +19,7 @@ import texlate.compile.fixloop.llm_hook as llm_hook_mod
 from texlate.compile.fixloop import fixloop
 from texlate.compile.fixloop.engine import LoopCtx
 from texlate.compile.fixloop.llm_hook import make_llm_hook
-from texlate.compile.fixloop.logparse import ErrReport, parse_text
+from texlate.compile.logparse import ErrReport, parse_text
 
 if TYPE_CHECKING:
     from pathlib import Path

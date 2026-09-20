@@ -31,7 +31,7 @@ from texlate.compile.fixloop._builtins_bib import (
 )
 from texlate.compile.fixloop._builtins_bib import bbl_stub_rewrite
 from texlate.compile.fixloop.engine import LoopCtx, Rule
-from texlate.compile.fixloop.logparse import ErrReport, parse_text
+from texlate.compile.logparse import ErrReport, parse_text
 from texlate.compile.normalize import (
     _AUTOBIB_DISARM as _DISARM_NORM,
 )
@@ -62,8 +62,7 @@ _ERR_FONTENC_CTX = (
 _BANG_ERR = "! LaTeX Error: \\RequirePackage or \\LoadClass in Options Section.\n"
 # mn2e.cls 点名归名变体 (ctx_suggests 第二备选 mn2e\.cls 亦收)
 _ERR_MN2E_ATTR = (
-    "./mn2e.cls:52: LaTeX Error: \\RequirePackage or \\LoadClass in Options "
-    "Section.\n"
+    "./mn2e.cls:52: LaTeX Error: \\RequirePackage or \\LoadClass in Options Section.\n"
 )
 # 签名散格变体: 同文件 Missing number (syntax) —— 错面同闸收
 _ERR_MISSINGNUM = "./mn2e.cls:114: Missing number, treated as zero.\n"
@@ -85,9 +84,7 @@ _MN2E_PATCHED_LINE = (
     "ds@usegraphicx deferred past ProcessOptions"
 )
 # 无选项 / RequirePackage 变体病形 (pattern 的 [..] 可选组与双命令名都盖)
-_MN2E_BUGGY_NOOPT = (
-    "\\def\\ds@usegraphicx{\\@usegraphicxtrue\\usepackage{graphicx}}\n"
-)
+_MN2E_BUGGY_NOOPT = "\\def\\ds@usegraphicx{\\@usegraphicxtrue\\usepackage{graphicx}}\n"
 _MN2E_BUGGY_REQPKG = (
     "\\def\\ds@usegraphicx{\\@usegraphicxtrue\\RequirePackage{graphicx}}\n"
 )
@@ -232,9 +229,9 @@ def test_rule_order_neighbors() -> None:
     orders = {r.id: r.order for r in _rs().phase("loop")}
     assert orders["pstricks_add_pair_retire"] < orders[_RULE_ID]
     assert orders[_RULE_ID] < orders["mnras_texmf_shadow_drop"]
-    assert orders["mnras_texmf_shadow_drop"] < orders[
-        "abstract_edef_capture_neutralize"
-    ]
+    assert (
+        orders["mnras_texmf_shadow_drop"] < orders["abstract_edef_capture_neutralize"]
+    )
 
 
 # ---------------------------------------------------------------- condition 闸

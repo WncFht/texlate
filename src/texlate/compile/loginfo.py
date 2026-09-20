@@ -6,7 +6,7 @@ r"""log 语义层：TeX ``.log`` → ``LogInfo`` + 错误分类学适配（docs/
 归因）与 ``classify_error`` 薄适配——匹配语义（head/tail 有序评估、
 payload_group、``subclassify`` 收窄、tail ``guard`` 复核）全部归
 ``compile.logparse.Taxonomy``（C3 归位——旧 ``fixloop.logparse`` 路径
-经 shim 守恒），分类表**单源** = ``fixloop/rules/`` ``taxonomy:`` 段。
+2026-09-20 退场），分类表**单源** = ``fixloop/rules/`` ``taxonomy:`` 段。
 """
 
 from __future__ import annotations

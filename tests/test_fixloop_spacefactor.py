@@ -23,7 +23,7 @@ from texlate.compile.fixloop._builtins_csfix import (
     _atdef_sites,
 )
 from texlate.compile.fixloop.engine import LoopCtx, Rule
-from texlate.compile.fixloop.logparse import ErrReport
+from texlate.compile.logparse import ErrReport
 from texlate.textutil import mask_tex
 
 _ERR_VMODE = "You can't use `\\spacefactor' in vertical mode."

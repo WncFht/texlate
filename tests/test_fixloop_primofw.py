@@ -31,7 +31,7 @@ from texlate.compile.fixloop import (
     load_ruleset,
 )
 from texlate.compile.fixloop.engine import LoopCtx, Rule
-from texlate.compile.fixloop.logparse import ErrReport
+from texlate.compile.logparse import ErrReport
 
 # 系统 texmf 帧 token (file_stack_at 实录形态: 相对帧 ./ 前缀, 系统帧绝对)。
 _AXS_STY = "/usr/share/texmf-dist/tex/latex/axessibility/axessibility.sty"

@@ -19,7 +19,7 @@ from pathlib import Path
 import pytest
 
 from texlate.compile.fixloop import Ruleset, load_ruleset
-from texlate.compile.fixloop.logparse import parse_log
+from texlate.compile.logparse import parse_log
 
 WORK = Path(__file__).resolve().parents[1] / "bench/work_fixloop"
 FIXTURES = Path(__file__).resolve().parent / "fixtures"

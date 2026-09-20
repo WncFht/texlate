@@ -35,8 +35,8 @@ if TYPE_CHECKING:
 
     from texlate.arxiv.cache import SourceCache
     from texlate.arxiv.fetch import Fetcher
+    from texlate.compile.ctan import TlpdbIndex
     from texlate.compile.engine import Engine
-    from texlate.compile.fixloop.ctan import TlpdbIndex
     from texlate.server.events import EventBus
     from texlate.xlat.pipeline import Translator
 

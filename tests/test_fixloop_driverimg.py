@@ -14,7 +14,7 @@ from types import SimpleNamespace
 from texlate.compile.fixloop import actions, builtins, load_ruleset
 from texlate.compile.fixloop.builtins import driver_missing_image_stub
 from texlate.compile.fixloop.engine import LoopCtx, Rule, _report_of
-from texlate.compile.fixloop.logparse import ErrReport
+from texlate.compile.logparse import ErrReport
 
 
 class _Eng:

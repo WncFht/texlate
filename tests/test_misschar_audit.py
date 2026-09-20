@@ -18,7 +18,7 @@ from texlate.compile.fixloop.builtins import (
     font_fallback,
 )
 from texlate.compile.fixloop.engine import LoopCtx, Ruleset
-from texlate.compile.fixloop.logparse import parse_text
+from texlate.compile.logparse import parse_text
 
 
 def _ctx(tmp_path: Path) -> LoopCtx:
