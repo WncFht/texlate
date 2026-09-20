@@ -153,6 +153,22 @@ rules:
           - { id: langle_27e8, cps: [0x27E8], replace: "\\ensuremath{\\langle}" }
           - { id: rangle_27e9, cps: [0x27E9], replace: "\\ensuremath{\\rangle}" }
           - { id: dblgrave, cps: [0x02F5], replace: "\\mbox{''}" }
+          # ── 2026-09-20 erafam char-table (failmine7 桶 → lane-erafam census) ──
+          # ‒ figuredash .bbl 字面落 lmroman12 (2603.07352) —— U+2012 在
+          #   全部 _FB_RANGES 带外, fb 永不绑; "--" 是 canonical 近似
+          - { id: figuredash, cps: [0x2012], replace: "--" }
+          # ļ/ņ 拉脱维亚人名 \name{}/\textbf{} 内 (2603.08182): fb 绑定
+          #   已在树 (newunicodechar 行在), 但 \name preamble 期 token 化
+          #   catcode-11 字面逃出 AtBeginDocument 活化窗 → 落 cmunbx 缺字。
+          #   字面替换在源级灭字, 与捕获时序无关。注: 已改树上会碰 fb
+          #   行内同字面 —— fresh-run 路径干净 (census 已注)。
+          - { id: lcomma, cps: [0x13C], replace: "\\mbox{\\c{l}}" }
+          - { id: ncomma, cps: [0x146], replace: "\\mbox{\\c{n}}" }
+          # । danda 在 \texttt{\detokenize{...}} regex 展示行内
+          #   (2511.15886) —— detokenize 双挡 active-char 绑定与 cs 注入,
+          #   且无已装字体覆盖 U+0964 (fb 也救不了) → 剥除唯一可达;
+          #   有损 (regex 字类少一员) census 已注。
+          - { id: danda, cps: [0x964], replace: "{}" }
         # ── hangul 路由臂 ko 字体候选 (kotexfix #196) ──
         # 谚文缺字 + 源内 xeCJK/kotex 系机制 → \begin{document} 前注路由件:
         # xeCJK AutoFallBack + \setCJKfallbackfamilyfont (rm/sf/tt) 逐字
@@ -393,6 +409,63 @@ rules:
         }
     stats: { fires: 15, rescued_cells: 3, status: active }
     source_ref: "hangulfont lane census 2026-09-19 (tmp/hangulfont/census.json): 2 cells ×4 run-records"
+
+  # ─── hani 二档回退臂 (erafam lane 2026-09-20, 11 cells) ───
+  # 汉字码位落在**主 CJK 字体**上: FandolSong/FandolKai script=hani 真缺
+  # 字形 —— zh 译文引入的生僻字 (埼 U+57FC/祇 U+7947/蒭/凈/為/啰/甦/昇
+  # 全是源内字面, 非机制产出)。cjk_font_fallback(27) font_not 含 fandol
+  # 是正确防自回环 —— 但也把这群格留成无臂认领。本臂是二档: 与 hangul
+  # 臂同构, newunicodechar 逐字改绑大字库 hani 字体; 候选全 fontconfig
+  # 家族名 (fc-list 探测 —— fixloop run_tool 面无 FONTCONFIG_FILE 注入
+  # 但系统 noto-cjk 包经 fc-list 可达, /usr/share/fonts/noto-cjk/ 实证
+  # 全部 8 字在册)。全灭 → decline 诚实 unfixable, 不发错字体声明。
+  - id: hani_font_fallback
+    mechanisms: [W42, W43]
+    description: "CJK 表意缺字落 Fandol 系主字体 (script=hani 真缺字形) → newunicodechar 逐字回退大字库 hani 字体 (Noto CJK 候选探测式)"
+    phase: loop
+    order: 29 # hangul_font_fallback(28) 之后; 带面 = cjk 臂子集, 专收其 font_not 漏口
+    when:
+      any:
+        - { category: warn_missing_char }
+        - { category: warn_utf8 } # 同 missing_char_fix —— 类别排他 quirk 补漏
+    action:
+      kind: builtin_transform
+      function: font_fallback
+      params:
+        # CJK 表意三段 (统一表意 + ext-A + 兼容表意) —— cjk 臂带表子集:
+        # 本臂只管汉字面, 假名/谚文/全角/扩展 B+ 各有主臂不动
+        fallback_ranges:
+          - [0x4E00, 0x9FFF]
+          - [0x3400, 0x4DBF]
+          - [0xF900, 0xFAFF]
+        # 有序候选全家族名 —— fc-list 探测 (文件形 .ttc 在 fixloop
+        # run_tool 面 kpathsea 不可达, fontspec 家族名解析同路);
+        # noto-cjk OS 包为先 (本机 /usr/share/fonts/noto-cjk/ 实装),
+        # Source Han 同件别名兜异名环境
+        fallback_fonts:
+          - "Noto Serif CJK SC"
+          - "Noto Sans CJK SC"
+          - "Source Han Serif SC"
+          - "Noto Serif CJK TC"
+        # 独立 cs 名 —— 与 txlatefallback/txlatecjkfb/txlatekofb 并存不撞
+        fallback_cs: txlatehanifb
+        # 缺字字体名已具大字库 hani 覆盖 → 真缺字形不归本臂 (防自回环)。
+        # **fandol 刻意不收** —— FandolSong/Kai 上缺字正是本臂猎场
+        # (cjk 臂 font_not 含 fandol 是这批格漏管的根因, 同 hangul 臂
+        # 不收 fandol 的镜像道理)。
+        font_not: "noto.*(cjk|sc|tc|jp|kr)|source.?han|sarasa|hanazono|uming|ukai|wqy|lxgw"
+    risk: low # newunicodechar 逐字绑; 候选探测不过即 decline 不注入
+    known_gap: "死 \\selectfont 上下文内无效 (同 cjk/hangul 臂); 无 fontconfig 且 texmf 无 noto-cjk 的极简环境 decline"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "0712.1390 / 2506.05273 / 2602.08729 / 2504.06412 / 2511.21629 / 0712.1052 / 0812.0856 / 2110.10462 / 2511.16846 / 2512.04160 / 2603.07197 (erafam hani-gap, 11 cells)",
+          error: "Missing character: 埼(U+57FC)/祇(U+7947)/蒭(U+84AD)/凈(U+51C8)/為(U+70BA)/啰(U+5570)/甦(U+7526)/昇(U+6607) in [FandolSong/FandolKai-Regular.otf]/OT:script=hani —— zh 译文引入生僻字落主 CJK 字体真缺字形",
+        }
+    stats: { fires: 0, rescued_cells: 0, status: active }
+    source_ref: "erafam lane census 2026-09-20 (tmp/lane-erafam/bundles.json)"
 
   # ─── F4f (misscharcen #169, loop3 残余普查): bibtex-era ``^^XX`` UTF-8
   # 字节记法解码 —— 每 ``^^XX`` 在 xetex 下读作独立码位 U+00XX: 高位字节

@@ -143,8 +143,9 @@ rules:
           # —— \C 恒缺 (稿载 amssymb, renew 后 \mathbb 就位); 同族预置
           C: { guard: true }
           # 0806.3016: babel-russian v1.3m (2021) ldf 已不定义 \No (№ 号);
-          # \textnumero 内核文本符号零依赖
-          No: { polyfill: "\n\\providecommand{\\No}{\\textnumero}" }
+          # \textnumero 内核文本符号零依赖 (No 是 yaml bool 词, 不引号会
+          # 解析成 False 键永不命中 —— 2026-09-20 erafam 批顺手修)
+          "No": { polyfill: "\n\\providecommand{\\No}{\\textnumero}" }
           # 1003.4727: OSA 版式宏 \ocis 被稿挪进 article 类 (osajnl 类
           # shim 按类名够不到); 与 90-shim-legacy osajnl_body 同式
           ocis:
@@ -654,6 +655,141 @@ rules:
               usepackage: tikz,
               polyfill: "\n\\RequirePackage{tikz}\n\\usetikzlibrary{arrows,positioning,shapes}",
             }
+          # ── 2026-09-20 erafam era/209-surface 定点族 (failmine7 桶 →
+          # lane-erafam census, tmp/lane-erafam/bundles.json) ──
+          # B1 era-cstable 39 cells: era cls/期刊面宏缺位 (209batch #127 同形)。
+          # providecommand 写不进的形 (\end 名 —— \@ifdefinable 拒; dimen
+          # 寄存器; 定界参; env 对; \newif 开关; \let 布尔) 一律
+          # \ifdefined..\else..\fi 原始 TeX polyfill —— 同表 "z"/"refpar"/
+          # "reserveinserts" 先例; 全 polyfill 带 \n 前缀逃 docclass 行尾
+          # % 吞缝 (1404.0346 实证)。
+          # era cls 缺 kernel onecolumn —— clearpage 保分页语义
+          # (cond-mat/0103295 + 0103565/0111406/9612039, l.743 裸调)
+          onecolumn: { polyfill: "\n\\providecommand\\onecolumn{\\clearpage}" }
+          # 2.09-era \pagestyle{X} 的 undefined-pagestyle 错误分支 cs
+          # (hep-ph/9412208/9412226 + math/0103032/0103031; X=columns/
+          # textheight/textwidth/normal) —— noop 吞错
+          undefinedpagestyle: { polyfill: "\n\\providecommand\\undefinedpagestyle{}" }
+          # aastex-era 0 参字体开关 thebibliography 内 (hep-ph/9412208/9412226)
+          bibfont: { polyfill: "\n\\providecommand\\bibfont{}" }
+          # running-head 元数据 → gobble (0712.1200/0712.1491)
+          runtitle: { polyfill: "\n\\providecommand\\runtitle[1]{}" }
+          # \thankstext{label}{text} → \thanks{text} (0812.0291 + hep-th/9412018)
+          thankstext:
+            { polyfill: "\n\\providecommand\\thankstext[2]{\\thanks{#2}}" }
+          # \end{appendix} env end-cs 未定义 (0812.0291 + 0812.0411) ——
+          # \@ifdefinable 拒 end* 名, 守卫 \def 形 (endproof 同构)
+          endappendix:
+            {
+              polyfill: "\n\\ifdefined\\endappendix\\else\\def\\endappendix{}\\fi",
+            }
+          # era 字号声明 {\ixpt ...} → noop (0812.0757)
+          ixpt: { polyfill: "\n\\providecommand\\ixpt{}" }
+          # doc 自 \newenvironment{proof} 藏 \iffalse 块内 (0712.0873
+          # new2combined.tex:250) → \begin{proof} 炸 \proof; env 对定义
+          # 非裸 cs —— \ifdefined 守卫 \newenvironment 形
+          proof:
+            {
+              polyfill: "\n\\ifdefined\\proof\\else\\newenvironment{proof}{\\par\\noindent{\\itshape Proof.}\\ }{\\hfill\\ensuremath{\\Box}\\par}\\fi",
+            }
+          # \subtitle{重新审视 Darwin 理论} (2510.03391) → 打印本体
+          subtitle: { polyfill: "\n\\providecommand\\subtitle[1]{#1}" }
+          # \end{acknowledgements} 半定义 env (1107.0659)
+          endacknowledgements:
+            {
+              polyfill: "\n\\ifdefined\\endacknowledgements\\else\\def\\endacknowledgements{}\\fi",
+            }
+          # \texorpdfstring{$\tau(K)$}{\texttau(K)} 文本侧 (2511.15773)
+          texttau:
+            { polyfill: "\n\\providecommand\\texttau{\\ensuremath{\\tau}}" }
+          # svmultproof env end-macro {\qed\end{proof}} 无 amsthm (0712.0600)
+          qed: { polyfill: "\n\\providecommand\\qed{\\hfill\\ensuremath{\\Box}}" }
+          # \movetableright=-1in dimen 赋值 (2505.07962) —— 须 \newdimen
+          # 非 \def; \ifdefined 守卫
+          movetableright:
+            {
+              polyfill: "\n\\ifdefined\\movetableright\\else\\newdimen\\movetableright\\fi",
+            }
+          # aastex \altaffiltext{n}{text} 印 affil (astro-ph/0103021:389)
+          altaffiltext: { polyfill: "\n\\providecommand\\altaffiltext[2]{#2}" }
+          # parenthetical cite 别名 (astro-ph/0103475 ×N) —— \cite 保 bib 解析
+          pcite: { polyfill: "\n\\providecommand\\pcite[1]{(\\cite{#1})}" }
+          # era leading-tighten 声明 → noop (astro-ph/9412015)
+          tighten: { polyfill: "\n\\providecommand\\tighten{}" }
+          # \authoraddr{address} 印地址 (astro-ph/9612038)
+          authoraddr: { polyfill: "\n\\providecommand\\authoraddr[1]{#1}" }
+          # bare \acknowledgments 节首宏 (astro-ph/9612065)
+          acknowledgments:
+            {
+              polyfill: "\n\\providecommand\\acknowledgments{\\par\\bigskip\\noindent{\\bfseries Acknowledgments.}\\enspace}",
+            }
+          # \tablenote{text} multicolumn 头内 → 内联近似 (astro-ph/9612153)
+          tablenote: { polyfill: "\n\\providecommand\\tablenote[1]{#1}" }
+          # bare \ack 节首宏 (astro-ph/9612160)
+          ack:
+            {
+              polyfill: "\n\\providecommand\\ack{\\par\\bigskip\\noindent{\\bfseries Acknowledgments.}\\enspace}",
+            }
+          # psfig.sty 内部 \no-bb-error 分支 cs (chao-dyn/9412012) ——
+          # missing-bb fatal 路径 noop 吞 (yaml bool 词须引号)
+          "no": { polyfill: "\n\\providecommand\\no{}" }
+          # \epsfile{file=x.eps,width=70mm} 即 epsfig.sty 语法
+          # (cond-mat/0103342) —— 真包导出 + 改名, 非 polyfill
+          epsfile: { usepackage: epsfig, cs_map: { epsfile: "epsfig" } }
+          # \Pacs{05}{70.Ce}{desc} PACS 行 (cond-mat/0103592:413)
+          Pacs: { polyfill: "\n\\providecommand\\Pacs[3]{#1.\\,#2:\\ #3}" }
+          # \prep{323}{2000}{183} preprint 引用格式 (cond-mat/0103342)
+          prep: { polyfill: "\n\\providecommand\\prep[3]{#1~(#2)~#3}" }
+          # $\psl$ 超代数符号 (hep-th/0103133)
+          psl: { polyfill: "\n\\providecommand\\psl{\\mathrm{psl}}" }
+          # picture-env 线宽声明 → noop (hep-th/9412106)
+          THICKLINES: { polyfill: "\n\\providecommand\\THICKLINES{}" }
+          # cite.sty-era cite 别名 (hep-th/9412173)
+          citen: { polyfill: "\n\\providecommand\\citen[1]{\\cite{#1}}" }
+          # \psannotate{box}{annotations} 保盒弃注层 (hep-th/9612060:955)
+          psannotate: { polyfill: "\n\\providecommand\\psannotate[2]{#1}" }
+          # amstex 定界定理头 \proclaim 定义 1. <text> (hep-th/9612230:359)
+          # —— 段点定界参须 \long\def, providecommand 写不进
+          proclaim:
+            {
+              polyfill: "\n\\ifdefined\\proclaim\\else\\long\\def\\proclaim#1.{\\par\\medskip\\noindent{\\bfseries #1.}\\enspace}\\fi",
+            }
+          # ── B2 atcs-cstable 6 cells: @-面 cs, csname 安全形 ──
+          # \if@smallext 作 \if 开关 (1503.00409/1503.00408 l.190) ——
+          # providecommand 会留不可展宏充条件 → \newif 经 csname
+          if@smallext:
+            {
+              polyfill: "\n\\expandafter\\newif\\csname if@smallext\\endcsname",
+            }
+          # mnras \caption 出浮体读 \@captype (0812.0384 log c@\@captype)
+          # → 默认 figure; dict 形 guard = provide 带 body
+          "@captype": { guard: { args: "", body: figure } }
+          # xkeyval \KV@split unknown-key 回调 \KV@undefined{#2}{#3}
+          # (0812.1376) → 2 参 gobble
+          KV@undefined: { guard: "[2]" }
+          # doc \renewcommand*{\@verridelabel}[1] renew-on-undefined
+          # (2502.00943) —— provide 预置使 renew 接管 (renewguard 先例)
+          "@verridelabel": { guard: "[1]" }
+          # revtex 布尔惯用 \x@sw{T}{F} (1502.06414 log \collaboration@sw)
+          # → \let \@secondoftwo = false (无 collaboration 默认)
+          collaboration@sw:
+            {
+              polyfill: "\n\\expandafter\\let\\csname collaboration@sw\\endcsname\\csname @secondoftwo\\endcsname",
+            }
+          # ── B3 pkg-load 5 cells: 真包导出, preamble 确证未载 ──
+          # \overset{\rightarrow}{k} (1107.0650; 载 iopams/setstack/babel)
+          overset: { usepackage: amsmath }
+          # \setstretch{1..} (hep-ex/9412009) / \onehalfspace (hep-ph/9412247)
+          setstretch: { usepackage: setspace }
+          onehalfspace: { usepackage: setspace }
+          # ${\mathscr...}$ (hep-ph/0103252; amsfonts 不导 \mathscr)
+          mathscr: { usepackage: mathrsfs }
+          # \psfrag{XXX}{$m_{\tilde t_1}$} (hep-ph/0103120)
+          psfrag: { usepackage: psfrag }
+          # ── B4 I-polyfill 3 cells ──
+          # \I 普用数学斜体 I 非虚数单位 (1312.0738 强度关联 \I=<E^-E^+> /
+          # 1910.12800 索引量 [I_1,..,\I_t] / 2401.01624 FC_1(I)+\I 加项)
+          I: { polyfill: "\n\\providecommand{\\I}{I}" }
         # 表外 fallback (2026-09-16): glue 残骸前缀拆分 —— payload 未命中
         # cs_table 时, 若 cs = 已知粘连头 + 残余 (大写起首或 ≤4 字符) 则合成
         # cs_map 拆回 "head rest" (replay 实证 rmPT 型新残骸仍零星冒头,

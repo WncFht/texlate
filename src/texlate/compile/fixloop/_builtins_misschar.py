@@ -759,6 +759,19 @@ _MACRO_GLYPH_CS: dict[str, tuple[int, str]] = {
     # 混搭); 音标域 02DD 真缺字场景不触发, '' 不误伤语义。
     "textgravedbl": (0x02F5, "\\mbox{\\quotedblbase}"),
     "textacutedbl": (0x02F5, "\\mbox{''}"),
+    # ── 2026-09-20 erafam macro-glyph (failmine7 桶 → lane-erafam census) ──
+    # \checkmark 产 U+2713 落 LinLibertine_R 无槽 (2508.04740 表格域 /
+    # 2602.08678 / 2603.08225 tikz 节点 ×3) —— \surd 数学族恒有, 勾形近似。
+    "checkmark": (0x2713, "\\ensuremath{\\surd}"),
+    # \blacktriangle 产 U+25B4 落 libertinusmath 无槽 (2502.00432
+    # experiments.tex ``$\times 2.050 \ \blacktriangle$``) —— \vartriangle
+    # 是空心近似 (实→空有损, census 已标注), 数学族恒有兜底。
+    "blacktriangle": (0x25B4, "\\ensuremath{\\vartriangle}"),
+    # \MakeUppercase 作用于 \ss 产 ẞ U+1E9E (2512.03885 作者名
+    # ``Au\ss{}enhofer`` → AUSSENHOFER 大写 ẞ 落主字体无槽) —— 替换 "ss"
+    # 是 2017 前德语大写正字法 (ẞ→SS), 小写语境 "Aussenhofer" 同为合规
+    # 转写 (census flagged approx)。
+    "ss": (0x1E9E, "ss"),
 }
 
 #: ``\char<dec>`` OT1/cmc 0-31 槽位 → 替换串 (misscharcen #169):
