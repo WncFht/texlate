@@ -69,7 +69,7 @@ import re
 from collections import Counter
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Final
+from typing import TYPE_CHECKING, Final
 
 from texlate.textutil import (
     CJK_RX,
@@ -84,6 +84,9 @@ from texlate.textutil import (
 )
 from texlate.textutil import est_tokens as _est_tokens
 from texlate.textutil import prose_text as _prose
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 __all__ = [
     "Issue",
@@ -1180,27 +1183,35 @@ CACHE_VETO_RULES: Final = frozenset(
 )
 
 
+#: ``validate_pair`` 全量检查表（序即执行序）——新增/移除检查只动本表
+#: 一条目，调用点迭代驱动自动并入，不再逐名点名。
+_CHECKERS: Final[tuple[Callable[[str, str, list[Issue]], None], ...]] = (
+    _check_placeholder,
+    _check_brace,
+    _check_env,
+    _check_key,
+    _check_math,
+    _check_same_source,
+    _check_length,
+    _check_residual_en,
+    _check_macro,
+    _check_item_glue,
+    _check_ph_in_cs,
+    _check_bare_cs,
+    _check_protocol_echo,
+    _check_comment_eof,
+)
+
+
 def validate_pair(src: str, zh: str) -> L0Report:
-    """对 ``(src_chunk, zh_chunk)`` 跑全部 13 组检查，返回结构化 verdict。
+    """对 ``(src_chunk, zh_chunk)`` 跑 ``_CHECKERS`` 全表检查，返回结构化 verdict。
 
     ``report.ok`` 为 True 即可送 L1/拼回；False 时 ``report.feedback()``
     的文本可直接进 corrector 的 ``previous_validation_error`` 字段。
     """
     rep = L0Report(src_len=len(src), zh_len=len(zh))
-    _check_placeholder(src, zh, rep.issues)
-    _check_brace(src, zh, rep.issues)
-    _check_env(src, zh, rep.issues)
-    _check_key(src, zh, rep.issues)
-    _check_math(src, zh, rep.issues)
-    _check_same_source(src, zh, rep.issues)
-    _check_length(src, zh, rep.issues)
-    _check_residual_en(src, zh, rep.issues)
-    _check_macro(src, zh, rep.issues)
-    _check_item_glue(src, zh, rep.issues)
-    _check_ph_in_cs(src, zh, rep.issues)
-    _check_bare_cs(src, zh, rep.issues)
-    _check_protocol_echo(src, zh, rep.issues)
-    _check_comment_eof(src, zh, rep.issues)
+    for check in _CHECKERS:
+        check(src, zh, rep.issues)
     return rep
 
 
