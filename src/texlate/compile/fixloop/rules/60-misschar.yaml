@@ -467,6 +467,58 @@ rules:
     stats: { fires: 0, rescued_cells: 0, status: active }
     source_ref: "erafam lane census 2026-09-20 (tmp/lane-erafam/bundles.json)"
 
+  # ─── pairbun2 unbatang (failmine7 普查, 2+1 cells): kotex/xetexko
+  # 工程 hani 缺字落 UnBatang —— xetexko charclass 把汉字位全路由
+  # hanja 族 (默认 \AtBeginDocument 注 UnBatang 兜底, xetexko.sty
+  # :2484+), 而 catcode/charclass 域让全部逐字 \newunicodechar 绑
+  # (cjk_font_fallback 27 / hani_font_fallback 29 注入件) 失活 ——
+  # 2604.04008 (binds 在场 UnBatang 仍缺 ×4720) / 2605.28727 (×7364)
+  # 实证死绑。路由级修: \setmainhanjafont 族级改绑 (xetexko
+  # \DeclareDocumentCommand :2278/2297/2316, 导言区设定赢过
+  # \ifdefined-守 \AtBeginDocument 默认), FandolSong = zh 工程注入
+  # ctex fontset=fandol 必带字体, \IfFontExistsTF 守缺席环境 no-op。
+  # masked 面: 注释/verbatim 内假 \begin{document} 锚不可见; 幂等
+  # 用代码标记 \def\txlatehanjaroute{} 定宽 lookbehind —— 注释形
+  # 标记在 masked 视图被抹空白挡不住复火。
+  - id: hanja_route_fallback
+    mechanisms: [W42, W43]
+    description: "xetexko hanja→UnBatang 路由缺字 (逐字 newunicodechar 绑全死) → \\setmainhanjafont 族级改绑 FandolSong"
+    phase: loop
+    order: 29.5 # hani_font_fallback(29) 之后 —— 逐字臂先试, 本臂专收 xetexko charclass 域死绑残口
+    when:
+      any:
+        - { category: warn_missing_char }
+        - { category: warn_utf8 } # 同 missing_char_fix —— 类别排他 quirk 补漏
+    condition:
+      # kotex 系装载门 —— 行首锚防注释行假阳性 (source_contains 跑 raw 源)
+      source_contains: "(?m)^[ \\t]*\\\\(?:usepackage|RequirePackage)\\s*(\\[[^\\]]*\\]\\s*)?\\{[^}]*\\b(kotex|xetexko)\\b"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex]
+        rewrites:
+          - {
+              pattern: "(?<!\\\\def\\\\txlatehanjaroute\\{\\}\n)(\\\\begin\\s*\\{document\\})",
+              repl: "\\\\ifdefined\\\\setmainhanjafont\n  \\\\IfFontExistsTF{FandolSong-Regular.otf}{%\n    \\\\setmainhanjafont{FandolSong-Regular.otf}%\n    \\\\setsanshanjafont{FandolSong-Regular.otf}%\n    \\\\setmonohanjafont{FandolSong-Regular.otf}%\n  }{}%\n\\\\fi\n\\\\def\\\\txlatehanjaroute{}\n\\g<1>",
+              match_surface: masked,
+            }
+    risk: low # \ifdefined+\IfFontExistsTF 双守 —— 非 kotex/无 Fandol 环境 no-op
+    known_gap: "doc 自设 \\setmainhanjafont{Other} 且该字体亦缺字 → 本臂覆盖为 FandolSong (改字型但救缺字); 非 hani 缺字 (hangul/latin) 在 kotex 工程触发时注入件空转无害; 缺 fontspec 的 kotex-utf 时代形 \\ifdefined 全守挡"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same } # tectonic 同走 xetexko; IfFontExistsTF 守字体缺席
+    provenance:
+      - {
+          corpus: "2604.04008 (_quarantine, arXiv.tex:407 \\usepackage{kotex}; binds :31-62 在场死)",
+          error: "Missing character: 们维数为构刚层间导证栈… ×4720 in [UnBatang.ttf(0)] —— hani cp 经 hanja 族落 UnBatang 简体缺字形",
+        }
+      - {
+          corpus: "2605.28727 (_quarantine, main.tex:461 \\usepackage{kotex}; binds :35-46 在场死)",
+          error: "Missing character: 质现会状态软并… ×7364 in [UnBatang.ttf] —— 同机理",
+        }
+    stats: { fires: 0, rescued_cells: 0, status: proposed }
+    source_ref: "tmp/lane-pairbun2/ — failmine7 census mass_cjk_unbatang 桶; xetexko.sty hanja 路由对账"
+
   # ─── F4f (misscharcen #169, loop3 残余普查): bibtex-era ``^^XX`` UTF-8
   # 字节记法解码 —— 每 ``^^XX`` 在 xetex 下读作独立码位 U+00XX: 高位字节
   # 产 C1 (U+0080-9F) 缺字, 低位字节产 â/¼ 等静默 mojibake。门控 = 日志
@@ -500,6 +552,52 @@ rules:
         }
     stats: { fires: 3, rescued_cells: 1, status: active }
     source_ref: "task #169 misscharcen wave-2; tmp/lane-misscharcen/cells.json ^^80/^^93 rows"
+
+  # ─── pairbun2 ctrl_char (failmine7 普查, 1+1 cells): ``\mathbf{\<OT1
+  # 大写希腊>}`` 在 XeTeX+fontspec TU 数学面把 OT1 槽位当 Unicode 码位
+  # 排 —— \Lambda='003 → "no ^^C (U+0003) in font [lmromandemi10-
+  # regular]" 控字符缺字 (全部 11 个 OT1 大写希腊 \Gamma-\Omega =
+  # '000-'012 同机理)。2602.09474 ×151 hits = 76 站点 × amsmath
+  # align* 双排版 (量测+正式两遍)。产出类站点臂: 改写
+  # ``\ensuremath{\boldsymbol{\<cs>}}`` —— boldmath 真粗希腊语义等
+  # 价, 数学/文本双域安全。门控: 源须行首载 amsmath/amsbsy/
+  # mathtools/bm (\boldsymbol 定义者) —— 无包裸改产 undefined_cs
+  # 回退伤; bm.sty 亦导出 \boldsymbol (\bm 别名)。两臂语法: 花括
+  # 形 \mathbf{\Lambda} 与松散形 {\mathbf \Lambda} 并收 (后者不吃
+  # 外层组闭 brace —— 交错两捕获组, repl \g<1>\g<2> 恒一空一实)。
+  - id: mathbf_ot1_greek
+    mechanisms: [W42, W43]
+    description: "``\\mathbf{\\Lambda}`` 族 OT1 槽位-in-TU 字体控字符缺字 → ``\\ensuremath{\\boldsymbol{...}}`` 真粗希腊改写"
+    phase: loop
+    order: 25.95 # caret_utf8_fix(25.9) 之后, font_fallback(26) 之前 —— 产出类站点臂簇尾
+    when:
+      any:
+        - { category: warn_missing_char }
+    condition:
+      # \boldsymbol 存在门 —— 行首锚防注释行假阳性 (source_contains 跑 raw 源)
+      source_contains: "(?m)^[ \\t]*\\\\(?:usepackage|RequirePackage)\\s*(\\[[^\\]]*\\]\\s*)?\\{[^}]*\\b(amsmath|amsbsy|mathtools|bm)\\b"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty, .cls]
+        rewrites:
+          - {
+              pattern: "\\\\mathbf\\s*(?:\\{\\s*\\\\(Gamma|Delta|Theta|Lambda|Xi|Pi|Sigma|Upsilon|Phi|Psi|Omega)\\s*\\}|\\\\(Gamma|Delta|Theta|Lambda|Xi|Pi|Sigma|Upsilon|Phi|Psi|Omega)(?![a-zA-Z]))",
+              repl: '\\ensuremath{\\boldsymbol{\\\g<1>\g<2>}}',
+              match_surface: masked,
+            }
+    risk: low # \boldsymbol 存在门控; 缺字形恢复为真粗希腊, 语义等价
+    known_gap: "``{\\bf\\Lambda}`` 旧开关形不收 (零观测); 无 ams/bm 包的裸 \\mathbf{希腊} 门控挡 —— 缺字留表走 font_fallback 带外 decline; ``\\mathbf{\\Lambda X}`` 多 token 参不误中 (braced 臂 \\} 锚 + bare 臂 (?![a-zA-Z]) 双守)"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "2602.09474 (failmine7 ctrl_char 桶; splice/main.tex 73× \\mathbf{\\Lambda} + ~3 松散形; arxiv.log)",
+          error: "Missing character: There is no ^^C (U+0003) in font [lmromandemi10-regular]:mapping=tex-text; ×151 —— \\mathbf{\\Lambda} OT1'003 槽位在 TU 字体",
+        }
+    stats: { fires: 0, rescued_cells: 0, status: proposed }
+    source_ref: "tmp/lane-pairbun2/ — failmine7 census ctrl_char 桶; tulmr.fd:81-84 + amsbsy \\boldsymbol 对账"
 
   # ─── fontfb-A (2026-09-20, singlesweep 普查 font-not-installed 桶 7 格) ───
   # fontspec_missing 精确臂: install_sysfont(30) 装不上 (家族名 payload 无

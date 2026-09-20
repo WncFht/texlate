@@ -24,6 +24,10 @@ rules:
         # 批七扩类: pkg_obsolete payload=废弃包名, 同表 strip_pkg+usepackage
         # 语义 (amstex→amsmath)。builtin 不验 category, 表查询与来源无关。
         - { category: pkg_obsolete, payload_required: true }
+        # pairbun2 (failmine7): cls_unsupported payload=类拒 cs 名
+        # (taxonomy payload_group=2, `\X is not supported`) —— 同表
+        # polyfill 语义, revtex-era \and → \par 退化收此道。
+        - { category: cls_unsupported, payload_required: true }
     action:
       kind: builtin_transform
       function: cs_targeted_fix
@@ -754,6 +758,12 @@ rules:
             {
               polyfill: "\n\\ifdefined\\proclaim\\else\\long\\def\\proclaim#1.{\\par\\medskip\\noindent{\\bfseries #1.}\\enspace}\\fi",
             }
+          # revtex4-2 \let\and\frontmatter@and 类载抢占 → "Class revtex4-2
+          # Error: \and is not supported" (cls_unsupported|and; hep-ph/
+          # 9703272 + hep-th/9612173, failmine7 pairbun2)。providecommand/
+          # \ifdefined 守卫见 \and 已 \let 定义 → 全跳过 → 须无条件 \def
+          # 覆盖 (polyfill 注 docclass 行后, 晚于类载 \let 故胜出)。
+          and: { polyfill: "\n\\def\\and{\\par}" }
           # ── B2 atcs-cstable 6 cells: @-面 cs, csname 安全形 ──
           # \if@smallext 作 \if 开关 (1503.00409/1503.00408 l.190) ——
           # providecommand 会留不可展宏充条件 → \newif 经 csname
@@ -1512,3 +1522,42 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/lane-drvstage/ — probe4 .xbb 旁件复现链 + cell1-3 stdout 实证"
     known_gap: "驱动期 ci-变体 (盘存 vinfcomp.eps 要 vInfComp.eps) rescue_check 让位 —— tex 侧 case_link 派发面够不到驱动名, 真出此形需专用 copy-variant 臂; \\special{psfile=X} 无扩展名形无活图形引用作证亦让位"
+
+  # ─── pairbun2 msym10 (failmine7 普查, missing_tfm|msym10 ×2 cells) ───
+  # msym10 = 旧 amsfonts msym 族 TFM 名 —— tlnet tlpdb 与 CTAN 双缺席
+  # (musix13 filemap 先例无路可走: install_tfm(20) 的 install/filemap
+  # 两通道皆 dead-end)。msbm10 = 同族现行名, amsfonts 在档 —— msym/
+  # msbm 字符位逐槽一致 (tftopl 对账: 黑体/开花体同槽面), ``\font\x=
+  # msymN`` 直改 ``msbmN`` 语义等价。臂先 install_tfm 评估 —— 死名
+  # payload 在装包臂前完成改名, 真名永不到 install 面; 若改名后
+  # msbmN 同缺 (非标配尺寸) install_tfm 收真名 filemap 可解。
+  - id: msym_tfm_rename
+    mechanisms: [W95]
+    description: "missing_tfm|msymN (CTAN 死名) → 源内 msymN 引用改 msbmN (amsfonts 槽位兼容)"
+    phase: loop
+    order: 19 # driver_missing_image_stub(18.6) 后, install_tfm(20) 前 —— 死名先改写
+    when: { category: missing_tfm, payload_required: true }
+    condition:
+      payload_pattern: "^msym\\d+$"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty, .cls]
+        rewrites:
+          - {
+              pattern: "\\bmsym(\\d+)\\b",
+              repl: 'msbm\g<1>',
+              match_surface: masked,
+            }
+    risk: low # 字符位逐槽一致 (tftopl); masked 面不改注释/verbatim 内名字
+    known_gap: "msymN 的非常规尺寸 (msbm 族无同号 TFM) → 改后 missing_tfm|msbmN 走 install_tfm 真名面, 仍缺则诚实 unfixable; \\font 以外语境 (map 行/驱动件) 不收"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "hep-ph/9703272 + hep-th/9612173 (failmine7 census pairbun2 桶)",
+          error: "missing_tfm|msym10 ×2 — msym 族 tlnet/CTAN 双缺席, install 面死路",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-pairbun2/ — msym10 死名对账 + msbm10 槽位兼容验证 (tftopl)"
