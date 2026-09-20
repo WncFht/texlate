@@ -44,17 +44,10 @@ STAGES = ("ingest", "parse", "xlat", "compile", "fixloop")
 
 
 # ================================================================ 选样与 records
-def canon_id(pid: str) -> str:
-    """论文 id 规范形：``--`` → ``/``——``benchlib.safe_id`` 的逆。
-
-    arXiv id 本体永不含 ``--``（旧式 ``archive/YYMMNNN`` 的 archive 只带
-    单 ``-``，新式 ``YYMM.NNNNN`` 无 dash），故 ``--`` 必为 safe_id 单层
-    目录名的回流拼写（从 ``work/`` 目名拷进 ``--ids``）。归一幂等：输出
-    无 ``--``，再调不变。``math--0408287``/``math/0408287`` 归同一规范形
-    → 同 records 键、同 workdir、单任务（loop1 实证 65 对双拼写并存，
-    fixloop --rerun 同 wid 并发互 rmtree 罩 post 复判的根因）。
-    """
-    return str(pid).replace("--", "/")
+#: 论文 id 规范形（``--`` → ``/``，``benchlib.safe_id`` 逆）——单源下沉
+#: ``benchlib.canon_id``（stdlib-only 消费方免 import 本内核），此处保名
+#: 兼作 ``stagerun.canon_id`` re-export 链源头。
+canon_id = benchlib.canon_id
 
 
 def dedup_wids(ids: list[str]) -> list[str]:
@@ -211,6 +204,33 @@ def finish_rec(rec: dict, t0: float) -> dict:
     rec["dur_s"] = round(time.monotonic() - t0, 2)
     rec["sig"] = make_sig(rec["errors"])
     return rec
+
+
+def gate_rec(rec: dict, status: str, code: str, cat: str, payload, t0: float) -> dict:
+    """门控/早退终态快填：status + 单条 errors + finish_rec。
+
+    各 stage 的「未真跑即终态」出口（上游门 skip / no_main_tex reject /
+    环境 error）原是同型三行散在 compile/fixloop/parse/xlat/ingest——
+    收编单源；sig 仍由 finish_rec 从 errors[0] 合成（cat:pay 口径不变，
+    cat="upstream" 走 triage._upstream_gated 豁免不出票）。
+    """
+    rec["status"] = status
+    rec["errors"] = [{"code": code, "cat": cat, "payload": payload}]
+    return finish_rec(rec, t0)
+
+
+def load_xlat_marker(wid: Path) -> dict | None:
+    """``work/{id}/zh/.xlat-arm.json`` → 解析值；zh/ 或 marker 缺席 → ``None``。
+
+    compile zh 臂 provenance 门与 fixloop --rerun 重建门共用读径（两臂
+    原是同型就地抄）。腐 JSON / 非 dict 值原样抛/返回——两臂现状都是
+    裸 ``json.loads``（崩 → crash_rec harness 格），读侧不改异常边界；
+    调用方要容错口径的自行 suppress（stage_compile 驱动侧既有先例）。
+    """
+    p = wid / "zh" / ".xlat-arm.json"
+    if not p.parent.is_dir() or not p.exists():
+        return None
+    return json.loads(p.read_text())
 
 
 def crash_rec(pid: str, stage: str, arm: str, e: BaseException, t0: float) -> dict:

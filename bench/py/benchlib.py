@@ -58,6 +58,21 @@ def safe_id(rel: str) -> str:
     return rel.replace("/", "--")
 
 
+def canon_id(pid: str) -> str:
+    """论文 id 规范形：``--`` → ``/``——``safe_id`` 的逆。
+
+    arXiv id 本体永不含 ``--``（旧式 ``archive/YYMMNNN`` 的 archive 只带
+    单 ``-``，新式 ``YYMM.NNNNN`` 无 dash），故 ``--`` 必为 safe_id 单层
+    目录名的回流拼写（从 ``work/`` 目名拷进 ``--ids``）。归一幂等：输出
+    无 ``--``，再调不变。``math--0408287``/``math/0408287`` 归同一规范形
+    → 同 records 键、同 workdir、单任务（loop1 实证 65 对双拼写并存，
+    fixloop --rerun 同 wid 并发互 rmtree 罩 post 复判的根因）。
+    原 ``stagerun_lib.canon_id`` 下沉单源——harvest/qualbench 等
+    stdlib-only 消费方免 import stagerun 内核。
+    """
+    return str(pid).replace("--", "/")
+
+
 # ---------------------------------------------------------------- records
 def iter_jsonl(path: Path, *, on_bad="skip", errors: str = "replace"):
     """逐行 yield 解析值；空行跳过，坏 json 行按 ``on_bad`` 处置。
@@ -134,6 +149,41 @@ def load_records(path: Path, key: str = "id") -> dict[str, dict]:
     return latest_by(
         (r for r in iter_jsonl(path) if isinstance(r, dict) and key in r),
         lambda r: str(r[key]),
+    )
+
+
+def latest_records(
+    path, *, arm: str | None = None, upstream: str | None = None
+) -> dict[str, dict]:
+    """records jsonl → ``{canon_id: 末条记录}``（按 append 行序后者胜）。
+
+    摊平口径：每篇只留最新一条——「每篇终态」消费面单源（harvest
+    clean_ids、stage_fixloop 候选捞格同源两处）。要 (id,arm,upstream)
+    三元键并存/多臂格的走 ``stagerun_lib.load_latest``；要行级去向账
+    的走 gate_scorecard.scan_records（口径差异有意保留，勿互套）。
+
+    ``arm``/``upstream`` 精确匹配过滤（``None`` 不限）；``upstream``
+    缺字段按 ``""`` 计——stage_fixloop ``--xlat-arm`` 捞格同口径
+    （arm_mismatch skip 格 upstream 为空，自然滤除）。非 dict / 缺
+    ``id`` 的行跳过（iter_jsonl 坏行同口径——append 账容忍截尾）。
+    键经 ``canon_id`` 归一：flat 拼写存量账按规范形命中（同
+    ``stagerun_lib._rec_key`` 键面）。
+    """
+    fp = Path(path)
+    if not fp.is_file():
+        return {}
+
+    def _want(r) -> bool:
+        return (
+            isinstance(r, dict)
+            and bool(r.get("id"))
+            and (arm is None or r.get("arm") == arm)
+            and (upstream is None or str(r.get("upstream") or "") == upstream)
+        )
+
+    return latest_by(
+        (r for r in iter_jsonl(fp) if _want(r)),
+        lambda r: canon_id(str(r["id"])),
     )
 
 
