@@ -69,6 +69,8 @@ rules:
             body: &aas4_body |
               \NeedsTeXFormat{LaTeX2e}
               \ProvidesPackage{aas4x}[2026/09/18 fixloop legacy shim -> article + AAS v4 surface]
+              \DeclareOption*{}
+              \ProcessOptions\relax
               \@ifundefined{aasfour@done}{}{\endinput}
               \def\aasfour@done{1}
               \RequirePackage{amssymb}
@@ -501,6 +503,8 @@ rules:
             body: |
               \NeedsTeXFormat{LaTeX2e}
               \ProvidesPackage{scrpage}[2026/09/16 fixloop legacy shim -> scrlayer-scrpage]
+              \DeclareOption*{}
+              \ProcessOptions\relax
               \RequirePackage{scrlayer-scrpage}
               \endinput
           scrpage2.sty:
@@ -508,6 +512,8 @@ rules:
             body: |
               \NeedsTeXFormat{LaTeX2e}
               \ProvidesPackage{scrpage2}[2026/09/16 fixloop legacy shim -> scrlayer-scrpage]
+              \DeclareOption*{}
+              \ProcessOptions\relax
               \RequirePackage{scrlayer-scrpage}
               \endinput
           # doublespace (1990s) → setspace: 同名 singlespace/doublespace 环境 +
@@ -517,15 +523,55 @@ rules:
             body: |
               \NeedsTeXFormat{LaTeX2e}
               \ProvidesPackage{doublespace}[2026/09/16 fixloop legacy shim -> setspace]
+              \DeclareOption*{}
+              \ProcessOptions\relax
               \RequirePackage{setspace}
               \providecommand{\spacing}[1]{\setstretch{#1}}
               \endinput
           # SIAM 老类 (siamltex/siamart 均不在 TL; 继任 siamart190516 也不在)
           # —— article + 元数据 polyfill (\slugger/keywords 环境面)。
+          # siamltex 独有定理机 (真身 corpus/1102.0075 随稿抄值): onethmnum
+          # 选项切平排/[section] 排; theorem 持 counter, lemma/corollary/
+          # proposition/definition [theorem] 联号; proof 是 \def 命令对非
+          # env; \@begintheorem 系 scshape 头 + \it 体。siamart 不共享 —
+          # 真 siamart 走 amsthm, 稿多自备 \newtheorem, 预定义必撞
+          # (0807.5094 No counter 'theorem' 实证)。
           siamltex.cls:
+            body: |
+              \NeedsTeXFormat{LaTeX2e}
+              \ProvidesClass{siamltex}[2026/09/20 fixloop legacy shim -> article + SIAM polyfills]
+              \newif\if@onethmnum\@onethmnumfalse
+              \DeclareOption{onethmnum}{\@onethmnumtrue}
+              \ProcessOptions\relax
+              \LoadClassWithOptions{article}
+              \providecommand{\slugger}[5]{}
+              \providecommand{\shorttitle}[1]{}
+              \providecommand{\shortauthor}[1]{}
+              \providecommand{\PII}[1]{}
+              \@ifundefined{keywords}{\newenvironment{keywords}{\par\noindent\textbf{Keywords:}\space}{\par}}{}
+              \@ifundefined{AMS}{\newenvironment{AMS}{\par\noindent\textbf{AMS subject classifications:}\space}{\par}}{}
+              \def\@begintheorem#1#2{\par\bgroup{\scshape #1\ #2. }\it\ignorespaces}
+              \def\@opargbegintheorem#1#2#3{\par\bgroup%
+                 {\scshape #1\ #2\ ({\upshape #3}). }\it\ignorespaces}
+              \def\@endtheorem{\egroup}
+              \def\proof{\par{\it Proof}. \ignorespaces}
+              \def\endproof{\vbox{\hrule height0.6pt\hbox{%
+                 \vrule height1.3ex width0.6pt\hskip0.8ex
+                 \vrule width0.6pt}\hrule height0.6pt}}
+              \if@onethmnum
+                \newtheorem{theorem}{Theorem}
+              \else
+                \newtheorem{theorem}{Theorem}[section]
+              \fi
+              \newtheorem{lemma}[theorem]{Lemma}
+              \newtheorem{corollary}[theorem]{Corollary}
+              \newtheorem{proposition}[theorem]{Proposition}
+              \newtheorem{definition}[theorem]{Definition}
+              \endinput
+          siamart.cls:
             body: &siam_body |
               \NeedsTeXFormat{LaTeX2e}
-              \ProvidesClass{siamltex}[2026/09/16 fixloop legacy shim -> article + SIAM polyfills]
+              \ProvidesClass{siamart}[2026/09/16 fixloop legacy shim -> article + SIAM polyfills]
               \LoadClassWithOptions{article}
               \providecommand{\slugger}[5]{}
               \providecommand{\shorttitle}[1]{}
@@ -534,7 +580,6 @@ rules:
               \@ifundefined{keywords}{\newenvironment{keywords}{\par\noindent\textbf{Keywords:}\space}{\par}}{}
               \@ifundefined{AMS}{\newenvironment{AMS}{\par\noindent\textbf{AMS subject classifications:}\space}{\par}}{}
               \endinput
-          siamart.cls: { body: *siam_body }
           # OSA 老类 (osajnl/osajnl2, 不在 TL) —— article + \ocis/\email 面;
           # \setboolean{shortarticle} 是 osajnl2 版式开关, no-op 吞掉。
           osajnl.cls:
@@ -603,7 +648,30 @@ rules:
               \providecommand{\affiliation}[2][]{\g@addto@macro\sissa@affils{\par#2}}
               \providecommand{\JHEPspecialurl}[1]{}
               \providecommand{\JHEP}[1]{}
-              \providecommand{\hepth}[1]{hep-th/#1}
+              % \href 降级为打印第二参 (真件是 pdf-link 版; 1308.0304
+              % \href×107 实证)。eprint 档号族真件
+              % \href{xxx.lanl.gov/abs/X/#1}{\tt X/#1} → {\tt X/#1} 打印面
+              % (\Math 两参 math.AG/n 形, \arXivid 现代 arXiv 号)。
+              \providecommand{\href}[2]{#2}
+              \providecommand{\hepth}[1]{\texttt{hep-th/#1}}
+              \providecommand{\hepph}[1]{\texttt{hep-ph/#1}}
+              \providecommand{\heplat}[1]{\texttt{hep-lat/#1}}
+              \providecommand{\hepex}[1]{\texttt{hep-ex/#1}}
+              \providecommand{\nuclth}[1]{\texttt{nucl-th/#1}}
+              \providecommand{\nuclex}[1]{\texttt{nucl-ex/#1}}
+              \providecommand{\grqc}[1]{\texttt{gr-qc/#1}}
+              \providecommand{\qalg}[1]{\texttt{q-alg/#1}}
+              \providecommand{\accphys}[1]{\texttt{accphys/#1}}
+              \providecommand{\alggeom}[1]{\texttt{alg-geom/#1}}
+              \providecommand{\astroph}[1]{\texttt{astro-ph/#1}}
+              \providecommand{\chaodyn}[1]{\texttt{chao-dyn/#1}}
+              \providecommand{\condmat}[1]{\texttt{cond-mat/#1}}
+              \providecommand{\nlinsys}[1]{\texttt{nlin-sys/#1}}
+              \providecommand{\quantph}[1]{\texttt{quant-ph/#1}}
+              \providecommand{\solvint}[1]{\texttt{solv-int/#1}}
+              \providecommand{\suprcon}[1]{\texttt{supr-con/#1}}
+              \providecommand{\Math}[2]{\texttt{math.#1/#2}}
+              \providecommand{\arXivid}[1]{\texttt{arXiv:#1}}
               \providecommand{\email}[1]{\texttt{#1}}
               \providecommand{\emailAdd}[1]{\g@addto@macro\sissa@affils{\par\texttt{#1}}}
               \providecommand{\note}[2][]{\thanks{#2}}
@@ -635,6 +703,18 @@ rules:
               \renewcommand{\author}[1]{%
                 \if@sissaauth\g@addto@macro\@author{\\#1}%
                 \else\gdef\@author{#1}\@sissaauthtrue\fi}
+              % \@maketitle 段落式重定义 (真件 flushleft 作者块同款):
+              % article 原版 tabular{c} 囚 \begin{itemize}/\bigskip →
+              % Not allowed in LR mode (0712.1912 实证); 段落组内
+              % \\ 续排、块级内容全存活。
+              \def\@maketitle{%
+                \begin{flushleft}%
+                  {\LARGE\sffamily\bfseries\@title\par}%
+                  \vskip1.5em%
+                  {\normalsize\bfseries\sffamily\@author\par}%
+                  \vskip1em%
+                  {\large\@date\par}%
+                \end{flushleft}\par\vskip1.5em}
               % JHEP3 floatflt 系 float 速记 → 标准 env 降级 (可选参数是
               % 版式词非 placement, 一律 [htbp])
               \providecommand{\FIGURE}[2][]{\begin{figure}[htbp]\centering#2\end{figure}}
@@ -726,6 +806,8 @@ rules:
               % 老 arXiv 稿常见私人宏包名 (1803.09046 实证缺名) —— 裸 stub
               \NeedsTeXFormat{LaTeX2e}
               \ProvidesPackage{math}[2026/09/16 fixloop legacy shim -> no-op]
+              \DeclareOption*{}
+              \ProcessOptions\relax
               \endinput
           # ── 2026-09-16 signature-mining F 扩列 ──
           # (mn2e.cls 槽已删: vendor/shims 同名替身 stub 在 —— vendored 先中,
@@ -757,6 +839,8 @@ rules:
             needs: ["geometry.sty", "amssymb.sty", "amsmath.sty"]
             body: |
               \typeout{fixloop legacy shim: geom.sty -> geometry + polyfills}
+              \DeclareOption*{}
+              \ProcessOptions\relax
               \RequirePackage{geometry}
               \RequirePackage{amssymb}
               \RequirePackage{amsmath}
@@ -1118,6 +1202,8 @@ rules:
             body: |
               \NeedsTeXFormat{LaTeX2e}
               \ProvidesPackage{multind}[2026/09/16 fixloop stub -> two-arg index swallow]
+              \DeclareOption*{}
+              \ProcessOptions\relax
               \providecommand{\makeindex}[1]{}
               \renewcommand{\index}[2]{}
               \providecommand{\printindex}[2]{}
@@ -1139,47 +1225,65 @@ rules:
             body: |
               \NeedsTeXFormat{LaTeX2e}
               \ProvidesPackage{widetext}[2026/09/16 fixloop stub - widetext env]
+              \DeclareOption*{}
+              \ProcessOptions\relax
               \newenvironment{widetext}{}{}
               \endinput
           # 纯 noop .sty: numcompress (elsarticle 引文压缩件, sort&compress
           # 已由 natbib 担), ol2/docs (私名件),
           # xetex-inputenc (luainputenc 链内引用, xelatex 原生 UTF-8 免),
           # umlaut/isolatin1 (化石编码件), llncsdoc (llncs 文档样式)。
+          # 一律 \DeclareOption*{}\ProcessOptions 吞任意选项 (noop 本无选项
+          # 语义, 拒收即炸 —— 2609.19431 luainputenc→[utf8]xetex-inputenc 实证)。
           # (sw20lart.sty 槽已删: vendor/stubs 同名 stub 在 —— vendored 先中)
           numcompress.sty:
             body: |
               \NeedsTeXFormat{LaTeX2e}
               \ProvidesPackage{numcompress}[2026/09/16 fixloop noop stub - elsarticle cite-compress kit]
+              \DeclareOption*{}
+              \ProcessOptions\relax
               \endinput
           ol2.sty:
             body: |
               \NeedsTeXFormat{LaTeX2e}
               \ProvidesPackage{ol2}[2026/09/16 fixloop noop stub - not in TL]
+              \DeclareOption*{}
+              \ProcessOptions\relax
               \endinput
           docs.sty:
             body: |
               \NeedsTeXFormat{LaTeX2e}
               \ProvidesPackage{docs}[2026/09/16 fixloop noop stub - not in TL]
+              \DeclareOption*{}
+              \ProcessOptions\relax
               \endinput
           xetex-inputenc.sty:
             body: |
               \NeedsTeXFormat{LaTeX2e}
               \ProvidesPackage{xetex-inputenc}[2026/09/16 fixloop noop stub - xetex native UTF-8]
+              \DeclareOption*{}
+              \ProcessOptions\relax
               \endinput
           umlaut.sty:
             body: |
               \NeedsTeXFormat{LaTeX2e}
               \ProvidesPackage{umlaut}[2026/09/16 fixloop noop stub - legacy german shorthand]
+              \DeclareOption*{}
+              \ProcessOptions\relax
               \endinput
           isolatin1.sty:
             body: |
               \NeedsTeXFormat{LaTeX2e}
               \ProvidesPackage{isolatin1}[2026/09/16 fixloop noop stub - legacy encoding kit]
+              \DeclareOption*{}
+              \ProcessOptions\relax
               \endinput
           llncsdoc.sty:
             body: |
               \NeedsTeXFormat{LaTeX2e}
               \ProvidesPackage{llncsdoc}[2026/09/16 fixloop noop stub - llncs doc kit, not in TL runfiles]
+              \DeclareOption*{}
+              \ProcessOptions\relax
               \endinput
           # .tex 碎片裸 \input (thmsupp 定理补充件 / feynman 老图宏集) ——
           # \endinput 即退; 正文若调其宏下轮 undefined_cs 归因。
@@ -1202,11 +1306,15 @@ rules:
             body: |
               \NeedsTeXFormat{LaTeX2e}
               \ProvidesPackage{tocstyle}[2026/09/16 fixloop noop stub - withdrawn KOMA kit]
+              \DeclareOption*{}
+              \ProcessOptions\relax
               \endinput
           procps.sty:
             body: |
               \NeedsTeXFormat{LaTeX2e}
               \ProvidesPackage{procps}[2026/09/16 fixloop noop stub - kapproc companion, not in TL]
+              \DeclareOption*{}
+              \ProcessOptions\relax
               \endinput
           amscd2000.sty:
             needs: ["amscd.sty"]
@@ -1224,11 +1332,15 @@ rules:
             body: |
               \NeedsTeXFormat{LaTeX2e}
               \ProvidesPackage{setstack}[2026/09/16 fixloop noop stub - S-stack macros, not in TL]
+              \DeclareOption*{}
+              \ProcessOptions\relax
               \endinput
           default.sty:
             body: |
               \NeedsTeXFormat{LaTeX2e}
               \ProvidesPackage{default}[2026/09/16 fixloop noop stub - template cruft name]
+              \DeclareOption*{}
+              \ProcessOptions\relax
               \endinput
           # undertilde 唯一宏面 \utilde → \widetilde 降级近似 (真身依赖
           # 专用 .tex 字体机制, CTAN-only)。
@@ -1236,6 +1348,8 @@ rules:
             body: |
               \NeedsTeXFormat{LaTeX2e}
               \ProvidesPackage{undertilde}[2026/09/16 fixloop degrade shim -> widetilde]
+              \DeclareOption*{}
+              \ProcessOptions\relax
               \providecommand{\utilde}[1]{\widetilde{#1}}
               \endinput
           # ── 2026-09-17 latex209 白名单实证批 (1e scout-pf2final) ──────────
@@ -1257,6 +1371,8 @@ rules:
             body: |
               \NeedsTeXFormat{LaTeX2e}
               \ProvidesPackage{apjprepr}[2026/09/17 fixloop legacy shim]
+              \DeclareOption*{}
+              \ProcessOptions\relax
               \RequirePackage{amssymb}
               \@ifundefined{epsfbox}{\RequirePackage{epsf}}{}
               \def\slugcomment#1{}
@@ -1434,6 +1550,8 @@ rules:
             body: |
               \NeedsTeXFormat{LaTeX2e}
               \ProvidesPackage{amssym}[2026/09/17 fixloop legacy shim -> amssymb]
+              \DeclareOption*{}
+              \ProcessOptions\relax
               \let\gtrsim\@undefined
               \let\lesssim\@undefined
               \RequirePackage{amssymb}
@@ -1443,6 +1561,8 @@ rules:
             body: |
               \NeedsTeXFormat{LaTeX2e}
               \ProvidesPackage{flushrt}[2026/09/17 fixloop legacy shim]
+              \DeclareOption*{}
+              \ProcessOptions\relax
               \AtBeginDocument{\raggedleft}
               \endinput
           # crckapb.cls (Kluwer crckap 书章类): article 底 + opening env +
@@ -1470,6 +1590,8 @@ rules:
             body: |
               \NeedsTeXFormat{LaTeX2e}
               \ProvidesPackage{nato}[2026/09/17 fixloop noop stub - NATO ASI option, not in TL]
+              \DeclareOption*{}
+              \ProcessOptions\relax
               \endinput
           # laa.cls: 期刊外发类 (physics/9910044) → article 桥。
           laa.cls: { loads: "article" }
@@ -1479,6 +1601,8 @@ rules:
             body: |
               \NeedsTeXFormat{LaTeX2e}
               \ProvidesPackage{dina4}[2026/09/17 fixloop shim - DIN A4 layout, not in TL]
+              \DeclareOption*{}
+              \ProcessOptions\relax
               \setlength{\paperheight}{297mm}\setlength{\paperwidth}{210mm}
               \setlength{\textheight}{257mm}\setlength{\textwidth}{160mm}
               \endinput
@@ -1489,6 +1613,8 @@ rules:
             body: |
               \NeedsTeXFormat{LaTeX2e}
               \ProvidesPackage{prabib}[2026/09/17 fixloop noop stub - PRA biblio option, not in TL]
+              \DeclareOption*{}
+              \ProcessOptions\relax
               \endinput
           # BoxedEPS.tex / FEYNMAN.tex: 老图宏 \input 碎片 (cond-mat/
           # 0408520, hep-th/9703071) —— 宏面无公共对应物, 裸 stub; 正文
@@ -1639,6 +1765,8 @@ rules:
               % fixloop stub: hangcaption (LaTeX2.09 caption style, not in TL)
               \NeedsTeXFormat{LaTeX2e}
               \ProvidesPackage{hangcaption}[2026/09/18 fixloop stub: caption layout noop]
+              \DeclareOption*{}
+              \ProcessOptions\relax
               \endinput
     engines:
       xelatex: { mode: native }

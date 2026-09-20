@@ -41,7 +41,29 @@
 \providecommand{\affiliation}[2][]{\g@addto@macro\sissa@affils{\par#2}}
 \providecommand{\JHEPspecialurl}[1]{}
 \providecommand{\JHEP}[1]{}
-\providecommand{\hepth}[1]{hep-th/#1}
+% \href 降级为打印第二参 (真件是 pdf-link 版; 1308.0304 \href×107 实证)。
+% eprint 档号族真件 \href{xxx.lanl.gov/abs/X/#1}{\tt X/#1} → {\tt X/#1}
+% 打印面 (\Math 两参 math.AG/n 形, \arXivid 现代 arXiv 号)。
+\providecommand{\href}[2]{#2}
+\providecommand{\hepth}[1]{\texttt{hep-th/#1}}
+\providecommand{\hepph}[1]{\texttt{hep-ph/#1}}
+\providecommand{\heplat}[1]{\texttt{hep-lat/#1}}
+\providecommand{\hepex}[1]{\texttt{hep-ex/#1}}
+\providecommand{\nuclth}[1]{\texttt{nucl-th/#1}}
+\providecommand{\nuclex}[1]{\texttt{nucl-ex/#1}}
+\providecommand{\grqc}[1]{\texttt{gr-qc/#1}}
+\providecommand{\qalg}[1]{\texttt{q-alg/#1}}
+\providecommand{\accphys}[1]{\texttt{accphys/#1}}
+\providecommand{\alggeom}[1]{\texttt{alg-geom/#1}}
+\providecommand{\astroph}[1]{\texttt{astro-ph/#1}}
+\providecommand{\chaodyn}[1]{\texttt{chao-dyn/#1}}
+\providecommand{\condmat}[1]{\texttt{cond-mat/#1}}
+\providecommand{\nlinsys}[1]{\texttt{nlin-sys/#1}}
+\providecommand{\quantph}[1]{\texttt{quant-ph/#1}}
+\providecommand{\solvint}[1]{\texttt{solv-int/#1}}
+\providecommand{\suprcon}[1]{\texttt{supr-con/#1}}
+\providecommand{\Math}[2]{\texttt{math.#1/#2}}
+\providecommand{\arXivid}[1]{\texttt{arXiv:#1}}
 \providecommand{\email}[1]{\texttt{#1}}
 \providecommand{\emailAdd}[1]{\g@addto@macro\sissa@affils{\par\texttt{#1}}}
 \providecommand{\note}[2][]{\thanks{#2}}
@@ -73,6 +95,17 @@
 \renewcommand{\author}[1]{%
   \if@sissaauth\g@addto@macro\@author{\\#1}%
   \else\gdef\@author{#1}\@sissaauthtrue\fi}
+% \@maketitle 段落式重定义 (真件 flushleft 作者块同款): article 原版
+% tabular{c} 囚 \begin{itemize}/\bigskip → Not allowed in LR mode
+% (0712.1912 实证); 段落组内 \\ 续排、块级内容全存活。
+\def\@maketitle{%
+  \begin{flushleft}%
+    {\LARGE\sffamily\bfseries\@title\par}%
+    \vskip1.5em%
+    {\normalsize\bfseries\sffamily\@author\par}%
+    \vskip1em%
+    {\large\@date\par}%
+  \end{flushleft}\par\vskip1.5em}
 % JHEP3 floatflt 系 float 速记 → 标准 env 降级 (可选参数是
 % 版式词非 placement, 一律 [htbp])
 \providecommand{\FIGURE}[2][]{\begin{figure}[htbp]\centering#2\end{figure}}

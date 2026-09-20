@@ -401,17 +401,48 @@ def legacy_pkg_shim(
 _DOCCLASS_OPTS_RE = DOCCLASS_OPTS_RX
 
 
+#: ``svjour_clo_stub`` 写入体: 真 .clo 内嵌 size10.clo 复刻本
+#: (corpus/1107.0209 svepj.clo:46-72 抄值, ``dd`` 归一为 ``pt``)。
+#: 纯 ``\endinput`` noop 遮蔽真件 → size-family 永不播种,
+#: ``\normalsize`` 停在 kernel error-stub (latex.ltx ``\@latex@error``)
+#: → fontspec-xetex:443 / ctex:715 "font size command \normalsize is
+#: not defined" (2505.06598 实证)。``\renewcommand`` 必要——kernel 预置
+#: error-stub 视为已定义, ``\providecommand`` 不覆盖; 兄弟尺寸宏 kernel
+#: 未预置, ``\providecommand`` 播了不撞稿自带真件序。
+_SVJOUR_CLO_BODY = (
+    "% fixloop: svjour option stub — noop + size-family seed\n"
+    "\\renewcommand\\normalsize{%\n"
+    "   \\@setfontsize\\normalsize\\@xpt\\@xiipt\n"
+    "   \\abovedisplayskip 10\\p@ \\@plus2\\p@ \\@minus5\\p@\n"
+    "   \\abovedisplayshortskip \\z@ \\@plus3\\p@\n"
+    "   \\belowdisplayshortskip 6\\p@ \\@plus3\\p@ \\@minus3\\p@\n"
+    "   \\belowdisplayskip \\abovedisplayskip}\n"
+    "\\normalsize\n"
+    "\\providecommand\\small{\\@setfontsize\\small\\@ixpt{10.5pt}}\n"
+    "\\providecommand\\footnotesize{\\@setfontsize\\footnotesize\\@viiipt{9.5pt}}\n"
+    "\\providecommand\\scriptsize{\\@setfontsize\\scriptsize\\@viipt\\@viiipt}\n"
+    "\\providecommand\\tiny{\\@setfontsize\\tiny\\@vpt\\@vipt}\n"
+    "\\providecommand\\large{\\@setfontsize\\large\\@xiipt\\@xivpt}\n"
+    "\\providecommand\\Large{\\@setfontsize\\Large\\@xivpt{16pt}}\n"
+    "\\providecommand\\LARGE{\\@setfontsize\\LARGE\\@xviipt{18pt}}\n"
+    "\\providecommand\\huge{\\@setfontsize\\huge\\@xxpt{25pt}}\n"
+    "\\providecommand\\Huge{\\@setfontsize\\Huge\\@xxvpt{30pt}}\n"
+    "\\endinput\n"
+)
+
+
 def svjour_clo_stub(
     ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
 ) -> tuple[bool, str]:
-    r"""svjour.cls 零 .clo 伴船 → 按 ``\documentclass`` 选项写 ``sv<opt>.clo`` noop stub。
+    r"""svjour.cls 零 .clo 伴船 → 按 ``\documentclass`` 选项写 ``sv<opt>.clo`` stub。
 
     实证根因 (0905.0193): e-print 捆绑 svjour.cls (2003, Springer) 但不带
     任何 .clo, TeX Live 亦不收录 svjour → ``\DeclareOption*`` 里
     ``\InputIfFileExists{sv\CurrentOption.clo}`` 逐选项落空,
     ``\journalopt`` 停在 ``\@empty`` → ``\ClassError{No valid journal
-    specified}`` + ``\stop``。noop ``\endinput`` stub 让 InputIfFileExists
-    走真臂置 ``\journalopt`` 为选项名即过; 盘上已有真 .clo 不覆盖。
+    specified}`` + ``\stop``。stub 让 InputIfFileExists 走真臂置
+    ``\journalopt`` 为选项名即过; 盘上已有真 .clo 不覆盖。
+    stub 体 = ``_SVJOUR_CLO_BODY`` (noop + size-family 播种)。
     """
     del eng, payload, params
     main = ctx.main_path()
@@ -430,7 +461,7 @@ def svjour_clo_stub(
     if not opts:
         return False, "no documentclass options"
     written = []
-    body = "% fixloop: svjour option stub (noop)\n\\endinput\n"
+    body = _SVJOUR_CLO_BODY
     for opt in dict.fromkeys(opts):
         if "/" in opt or "\\" in opt:
             continue  # 防选项里的路径分隔符穿出 wdir / write_text 炸 OSError
@@ -556,7 +587,9 @@ def bundled_class_shadow(
         cs_set |= set(_JOURNAL_MACROS)
     target = params.get("target")
     body = params.get("body")
-    if not cs or cs not in cs_set or not target or not body:
+    if not target or not body:
+        return False, f"{payload} not in bundle-shadow set"
+    if not cs or cs not in cs_set:
         return False, f"{payload} not in bundle-shadow set"
     missing = []
     for dep in params.get("needs") or []:
@@ -575,9 +608,10 @@ def bundled_class_shadow(
     done, state = _inject_write(ctx, t, str(body), f"shadow {target}")
     if done is not None:
         return done
+    why = f"\\{cs} missing from bundled class"
     note = (
         f"shadow {target} {'refreshed (stale injected)' if state == 'stale' else 'injected'}"
-        f" (\\{cs} missing from bundled class)"
+        f" ({why})"
     )
     if missing:
         note += f"; deps still missing: {', '.join(missing)}"
