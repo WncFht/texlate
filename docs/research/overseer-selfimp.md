@@ -1860,3 +1860,15 @@
 - lane dirs 10min 内全静——impl lanes 直编 src 属正常；Ruleset.load 仍绿 184（较上轮 +1 臂，注册随落）。
 - burnfix 16min 未落（三修+pins 窗内）；taxon2 扩域后 ~30min 未落；csfix8 2h+（08:44 有活写，repro 密集型上限窗——过 2.5h 起软查）。
 - **门**：HEAD=32c2a6de；共享 index 勿动；无 teammate git 越权。
+
+### patrol ~09:30 — 七车道收割潮：4 impl commits 落账；roster 重排 6
+
+- **commits ×4**（全部私有 index + 逐 hunk 归因过滤 staging——burnfix/csfix8/pairbun 在飞 hunk 全隔离）：`6d5ea1c9` taxon2（10-taxonomy 6 hunks：新 Font TU 臂→fontspec_missing、missing_tfm += scaled-N、fontspec_missing 79列续行容忍、`_` ext-class ×4 位 + 40-install exts→[.tex,.pdf_tex,.tikzstyles] + 2 测试件；targets 2512.04896/2609.19944/pdf_tex×4/2606.19622）；`2450578a` nfsstu（nfss_enc 三行 + 65-encoding 三臂 + misschar 叶三 builtin+表 + facade 注册 + 15 钉；targets 0712.1142/2609.20339/2609.20539）；`ca1ad2cc` stubfid（28 .sty `\DeclareOption*{}` 容忍 + siamltex 定理机分出 &siam_body + JHEP3/JHEP/sissa \href+eprint 族+par-mode \@maketitle + svjour .clo size-seed _SVJOUR_CLO_BODY + 14 钉；targets 2609.19431/0807.5094/1308.0304/0712.1912/2505.06598）；`a93f052f` csfix8（85-shim provides_date_daypad o159.5 + _builtins_csfix _CRT_CREF_SPLITTER_FIX+5 表项 + 13 钉；targets 1511.06717/1206.1993/2504.01669/2009.11007/2211.04538/cond-mat/0111246）。
+- **premise 纠正 ×5**（实证文化有效）：taxon2——musix13 filemap 本已在 canonical index、2609.19944 真因 ctx8 79列折行非派发洞；stubfid——1308.0304 真因 \href×107 非 bib-group、2609.20764 自撤 shadow 让 unkopt retire 独占（group-load gap 记在 retire）；csfix8——1511.06717 真因 cls 短日期错位 \@parse@version 非 ctex-zihao、2211.04538 真因 crossreftools×cleveref≥0.21.1 五组写时孤 cs（名内嵌花括号）非 stale-aux。
+- **关 lane ×7**：nfsstu/stubfid/bibwave/failmine6/zhleak2chk/taxcen/csfix8 TaskStop；taxon2 → taxrow 续派（taxcen 交付 56 行盖 223/224 other|None——37 new+19 near-miss，tmp/lane-taxcen/rows.json）。
+- **新派 ×3**：zhleakimpl（xltabular colspec _ARGB + pgfplotstableread new kind，两 zhleak2chk 实证 GAP）、singbun（7 单格束 yaml-only 纪律——_builtins_* 全域在飞禁碰）、clsfidcen（era .cls 保真普查，stubfid siamltex 型复发面）。
+- **census 终判入库**：bibwave wave-14 manifest 409 存活（targets 185=171 bibtex+14 biber，7825 cites，revtex Notes.bib 7 格 regression-grade 降 low）；failmine6 uncovered 仅 24 + 351 resid_sig=clean replay-verify 域 + EARLY-WARNING GREEN；taxcen other|None 全枚举（81 stale+28 covered-head-only 白捡）。
+- **事故**：stubfid svjour_clo 钉在其自身半写态闪红一次（svsvepj.clo 怪名——leader 侧验证恰撞 _builtins_shim.py 编辑中点；落齐 14/14 绿）。vendor MM×6 全 0-delta 幻影（peer staged-noise，ls 为准再实证）。aux_seed_undefined_refs 谜件确权 = pairbun hytempa_hash_auxseed 臂（75-syntax:2062+misc+facade 三部，在飞勿提交）。
+- **在飞未收**：pairbun（hy/ aux_seed 三部已落 + 3 对臂在编）、burnfix（\RequirePackage 全扫已布 csfix/misschar/shim 三叶+paralong cap64+bib count0+~10 test sync 落齐未报告）。
+- **inject queue 减 0712.1912**（stubfid par-mode \@maketitle 已根治）；latex209_no_target 单格 decline 记档。
+- **门**：HEAD=a93f052f；overnite 2141/2822 ph=0；roster 6（pairbun/burnfix/taxon2-taxrow/zhleakimpl/singbun/clsfidcen）；wave-13 mutex 续持（pairbun/burnfix/taxrow/zhleakimpl/singbun 编 live-read 件）；共享 index 勿动；无 teammate git 越权。
