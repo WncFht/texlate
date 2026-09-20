@@ -429,11 +429,17 @@ rules:
               \providecommand{\rotate}{}
               \endinput
           # (aastex62.cls 槽已删: vendor/files 真件在 —— vendored 先中)
+          # aastex6.cls 裸名桥 → vendored 真件 aastex62 (clsbridge 普查唯一
+          # 真覆盖洞: 1901.00051 \documentclass{aastex6} 实证; TL/vendor 无
+          # aastex6.cls 本体)。aastex3.cls 裸名桥 → vendored aastex.cls
+          # (aux-declare 面保险, 零活实证)。
+          # (AASTeX62.cls 键删: shim_map 键按误报文件名大小写敏感匹配,
+          #  混合大写名永不可达 —— 死配置; 不做 casefold 通修)
+          aastex6.cls: { loads: "aastex62", needs: ["aastex62.cls"] }
+          aastex3.cls: { loads: "aastex", needs: ["aastex.cls"] }
           aastex63.cls:
             { needs: ["emulateapj.cls", "epsf.sty"], body: *aastex6x_body }
           aastex631.cls:
-            { needs: ["emulateapj.cls", "epsf.sty"], body: *aastex6x_body }
-          AASTeX62.cls:
             { needs: ["emulateapj.cls", "epsf.sty"], body: *aastex6x_body }
           # 老 APS 类 (revtex3 时代): prl.cls → revtex4-2 的 aps,prl 版式。
           # 0905.1767 precheck 实证缺名 (编译未实际请求 —— 前瞻性条目)。

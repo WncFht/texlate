@@ -182,7 +182,7 @@ def test_shim_map_elsart_body_form(tmp_path: Path) -> None:
         # vendored 面无 needs 元数据 (install 依赖由 stub 内联自给)
         ("aastex61.cls", ["emulateapj.cls", "epsf.sty"]),
         ("aastex63.cls", ["emulateapj.cls", "epsf.sty"]),
-        ("AASTeX62.cls", ["emulateapj.cls", "epsf.sty"]),
+        ("aastex6.cls", ["aastex62.cls"]),
         ("prl.cls", ["revtex4-2.cls"]),
         ("apl.cls", ["revtex4-2.cls"]),
         ("revtex4.cls", ["revtex4-2.cls"]),
