@@ -1801,3 +1801,8 @@
 - **tcbchk 终判**（关 lane）：tcb-zh-leak 对双双未覆——2609.19556 envarg `_ARG=[^{}\n]*` 不吃 src 字面换行→26≠28 整跳杀 7 泄点（newline-tolerant arg 或 per-site scoping）；2609.20423 多行嵌套 kv 组双面不可见→需新 kind（balanced-group tcb option arg，白容 kv ident——新臂非调）。
 - **slotfix impl 派出**：_builtins_slotrev 双修——(A) envarg newline-arg（类级救 count-divergence 杀）+(B) tcb-kv balanced-group kind。mutex 集 += slotrev 文件。
 - **门**：HEAD=7a018f91；overnite ~1750/2822；roster 12；无 teammate git 越权。
+
+### patrol ~08:06 — 心跳：无收割；roster 12 全 running；overnite 1768/2822
+
+- bibimpl PoC 实证 bibtex→.bbl 产物生成（poc/main.blg+.bbl 08:04）——设计路径复验。csfix8 cref repro r7→r8 递进中。dedupchk/stuckmine/primcen 产物爬坡。
+- **门**：HEAD=21164962；ruleset 178（worktree）；wave-13 mutex 6 impl lanes 持；共享 index 勿动；无 teammate git 越权。
