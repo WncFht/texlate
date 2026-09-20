@@ -2046,6 +2046,11 @@ rules:
                 \ifx\ich@affils\@empty\else\par{\footnotesize\ich@affils\par}\fi
                 \ifx\ich@abstract\@empty\else\begin{quotation}\noindent
                 \textbf{Abstract.} \ich@abstract\end{quotation}\fi}
+              \providecommand{\fl}{}
+              \newcommand{\Table}[2]{\begin{tabular}{#1}#2\end{tabular}}
+              \newcommand{\mpl}[3]{Mod.~Phys.~Lett. {\bf A#1} (19#2) #3}
+              \providecommand{\Bibliography}[1]{\begin{thebibliography}{#1}}
+              \newenvironment{leqnarray}{\begin{eqnarray}}{\end{eqnarray}}
               \endinput
           # sn-jnl.cls: Springer Nature 投稿类 (2604.04274 \documentclass
           # [sn-basic,pdflatex]{sn-jnl}, journal-shipped 非 CTAN/TL) ——

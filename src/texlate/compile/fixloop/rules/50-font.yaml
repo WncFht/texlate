@@ -252,7 +252,10 @@ rules:
     description: "microtype expansion/activate 开 (XeTeX 不支持 expansion) → 附着括号内翻 false"
     phase: loop
     order: 72 # microtype_off(70)/microtype_lig_off(71) 同族邻位; other+ctx 臂
-    when: { category: other }
+    when: # file-line 签名 taxrow 归 microtype_pdftex; other 保兼容
+      any:
+        - { category: other }
+        - { category: microtype_pdftex }
     condition:
       ctx_suggests: "expansion does not work"
     action:

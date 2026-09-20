@@ -674,6 +674,7 @@ rules:
       any:
         - { category: other, payload_required: false }
         - { category: syntax, payload_required: false }
+        - { category: xypic_err, payload_required: false }
     condition:
       ctx_suggests: "extension loaded|feature not loaded"
       source_contains: "\\b(?:xypic|xy)\\b"
@@ -792,6 +793,8 @@ rules:
         - { category: other, payload_required: false }
         - { category: early_eof, payload_required: false }
         - { category: syntax, payload_required: false }
+        - { category: pkg_engine, payload_required: false }
+        - { category: unknown_option, payload_required: false }
     condition:
       # 双签同闸: 引擎自爆 PackageError 行与 unknown-option 行都点名 bxcjkjatype
       ctx_suggests: "bxcjkjatype"
@@ -903,3 +906,63 @@ rules:
         }
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/lane-failmine6/census.md brace-cascade; natbib.sty \\NAT@set@cites \\let\\@citex\\NAT@citexnum 3-参 vs cite.sty \\@citex[#1]#2 2-参 arity 冲突实读"
+
+  # 2026-09-20 w13impl lane (w13spec B4, 2609.20135): webofc.cls ``\RequirePackage``
+  # 选项括号内嵌 ``\if..\else..\fi`` 条件块 (:178-201 四块) —— LaTeX 选项
+  # 名单只认逗号切分, ``\if``/``\else``/``\fi`` 行被吃成畸形选项名 →
+  # hyperref "Wrong DVI mode driver option `dvips'" 首错 + ``Extra \fi``
+  # syntax 雪崩 + undefined_cs 连环 (kvoptions 逗号切分同理死)。
+  # 修 = PassOptionsToPackage 提升 (spec 荐 hoist-faithful 非常量折叠):
+  # 括号内每个 ``\if`` 块外提为守卫的 ``\PassOptionsToPackage{支}{pkg}`` 行,
+  # 装载行重开括号续静态残件 —— 守卫留活, 静态假设错也不致错折。
+  # 一条 rewrite 一趟 finditer 只剥各 bracket 首个 ``\if`` 块 (剥完重开
+  # 的括号继续含残块), 故同形条目 yaml 别名重复 6 次串行剥 ≤6 块/趟;
+  # dedup {rule}:{payload} 阻跨轮复火, >6 块残留为已知缺口。
+  - id: optlist_cond_hoist
+    description: "选项括号内嵌 \\if..\\fi 条件块 → \\PassOptionsToPackage 外提 + 装载行重开括号"
+    phase: loop
+    order: 204 # cite_natbib_clash_retire(203) 后选项面尾位; syntax/other 系+ctx 臂
+    when:
+      any:
+        - { category: syntax, payload_required: false }
+        - { category: other, payload_required: false }
+        - { category: unknown_option, payload_required: false }
+        - { category: key_unknown, payload_required: false }
+        - { category: keyval_undef, payload_required: false }
+        - { category: undefined_cs, payload_required: false }
+        - { category: hyperref_driver, payload_required: false }
+    condition:
+      # 雪崩面宽口径: Extra \fi/\else + 选项/keyval 系 + undefined_cs 连环
+      # + 首错 Wrong DVI mode (driver 分支被括号条件吞错); source 闸担精度
+      ctx_suggests: "Extra \\\\fi|Extra \\\\else|Unknown option|keyval Error|Undefined control sequence|Wrong DVI mode"
+      # 括号内 \if 源签: [^\\]] 界内见 \\if 才放行 (括号外合法 \if 不触发)
+      source_contains: "\\\\(?:usepackage|RequirePackage)\\s*\\[[^\\]]*\\\\if"
+    action:
+      kind: regex_rewrite
+      params:
+        exts: [.tex, .sty, .cls]
+        rewrites:
+          # 一趟剥各 bracket 首个 \if 块; 别名同形条目串行剥 ≤6 块
+          - &optlist_cond_hoist_rw
+            {
+              pattern: "(\\\\(?:usepackage|RequirePackage)\\s*\\[)([^\\]\\\\]*?)\\\\(if[a-zA-Z@]+(?:(?:\\\\[a-zA-Z@]*|[=<>0-9.'`+\"\\-]|[ \\t])*?)?)[ \\t]*\\r?\\n\\s*((?:(?!\\\\(?:if|else|fi)[a-zA-Z@]*)[^{}]|\\{[^{}]*\\})*?)\\s*(?:\\\\else(?![a-zA-Z@])\\s*((?:(?!\\\\(?:if|else|fi)[a-zA-Z@]*)[^{}]|\\{[^{}]*\\})*?)\\s*)?\\\\fi(?![a-zA-Z@])[ \\t]*,?[ \\t]*\\r?\\n?(?=[^\\]]*\\]\\s*\\{([^{}\\n]+)\\})",
+              repl: "\\\\\\g<3>\n\\\\PassOptionsToPackage{\\g<4>}{\\g<6>}\n\\\\else\n\\\\PassOptionsToPackage{\\g<5>}{\\g<6>}\n\\\\fi\n\\g<1>\\g<2>",
+              match_surface: masked,
+            }
+          - *optlist_cond_hoist_rw
+          - *optlist_cond_hoist_rw
+          - *optlist_cond_hoist_rw
+          - *optlist_cond_hoist_rw
+          - *optlist_cond_hoist_rw
+    risk: low # 提升即括号内条件自身语义; 静态残件原序原样保留在重开括号
+    known_gap: "条件行与 then 部同行形 (``\\ifnum..dvips,`` 同行) 操作数界拒解不动; then/else 部内嵌套 \\if 整块拒解; g2 跨遮盖注释时注释随组擦除 (EOL 死文本零语义差); 同 bracket >6 个 \\if 块残留 (dedup 阻复火); \\else 缺省形发 ``\\PassOptionsToPackage{}{pkg}`` 空载 no-op"
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same }
+    provenance:
+      - {
+          corpus: "soak-2026-09-18 (2609.20135; w13autopsy B4, webofc.cls:177-203)",
+          error: "Package hyperref Error: Wrong DVI mode driver option `dvips' → 后续轮 Extra \\fi ×99 + undefined_cs ×119 雪崩 (\\RequirePackage[\\ifnum\\pdfoutput=\\z@ dvips,\\else pdftex,\\fi ...]{hyperref})",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "tmp/lane-w13spec/bundles.json B4; webofc.cls:176-203 四 \\if 块实读"

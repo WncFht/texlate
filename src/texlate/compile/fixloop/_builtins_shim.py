@@ -427,6 +427,13 @@ _SVJOUR_CLO_BODY = (
     "\\providecommand\\LARGE{\\@setfontsize\\LARGE\\@xviipt{18pt}}\n"
     "\\providecommand\\huge{\\@setfontsize\\huge\\@xxpt{25pt}}\n"
     "\\providecommand\\Huge{\\@setfontsize\\Huge\\@xxvpt{30pt}}\n"
+    # PACS 面: svepj.clo:224-225/254-256 抄值 (嵌套位 ## 归一为顶层 #);
+    # 稿面 \PACS{...} + \@@PACS 放出链缺件即 undefined_cs (2505.06598 实证)。
+    "\\def\\pacsstart#1#2{#1\\hskip5pt plus2ptminus2pt#2}%\n"
+    "\\def\\and#1#2{\\unskip\\ -- #1\\hskip5pt plus2ptminus2pt#2}%\n"
+    "\\def\\PACS#1{\\gdef\\@PACS{#1}}\n"
+    "\\def\\@@PACS{\\par\\addvspace\\baselineskip\\noindent{\\sffamily\\bfseries\n"
+    "PACS.\\enspace}\\ignorespaces\\expandafter\\pacsstart\\@PACS\\par}\n"
     "\\endinput\n"
 )
 
