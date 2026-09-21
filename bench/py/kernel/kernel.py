@@ -402,6 +402,11 @@ def _terminal_ev(env, cell, status: str, *, seq: int, cat=None, dur_s=None,
         events.T_CELL, run=env["rd"].run, seq=seq, id=cell["id"],
         idc=cell["idc"], arm=cell["arm"], up=cell["up"],
         variant=cell["variant"], stage=cell["stage"], status=status)
+    spec = env.get("spec")
+    stage_obj = spec.stage(cell["stage"]) if spec is not None else None
+    if (spec is not None and spec.eval) or (
+            stage_obj is not None and getattr(stage_obj, "eval", False)):
+        ev["eval"] = True
     if cat is not None:
         ev["cat"] = cat
     if dur_s is not None:
@@ -438,7 +443,10 @@ def _thread_index(env):
     tl = env["thread_local"]
     idx = getattr(tl, "index", None)
     if idx is None:
-        idx = indexmod.Index()
+        spec = env.get("spec")
+        eval_stages = {s.name for s in getattr(spec, "stages", ())
+                       if getattr(s, "eval", False)} or None
+        idx = indexmod.Index(eval_stages=eval_stages)
         tl.index = idx
         tl.oracle = dedupmod.DedupOracle(
             idx,

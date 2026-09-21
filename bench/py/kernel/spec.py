@@ -230,11 +230,14 @@ class Stage:
             SHOULD — §3.1's mandatory review point).
     dedup_key None (asset default (idc,arm,variant)) | callable
             cell->(idc,arm,variant) | tuple of cell-field names.
+    eval    stage's terminal rows also land in the eval_records lane
+            (judge/score stages inside a mixed spec; spec.eval marks the
+            whole run).
     """
 
     def __init__(self, name, fn, needs=None, paid: bool = False,
                  executor=None, cost_hook=None, mutates=None, on=None,
-                 status_class=None, dedup_key=None):
+                 status_class=None, dedup_key=None, eval: bool = False):
         self.name = str(name)
         self.fn = fn
         self.needs = [_norm_need(n) for n in (needs or [])]
@@ -246,6 +249,7 @@ class Stage:
         self.status_class = (dict(status_class) if status_class
                              else dict(DEFAULT_STATUS_CLASS))
         self.dedup_key = dedup_key
+        self.eval = bool(eval)
 
     def accept_for(self, up_stage: str) -> frozenset:
         """Effective accept set for one upstream edge (needs accept ∪ on)."""
@@ -268,6 +272,7 @@ class Stage:
             "mutates": list(self.mutates),
             "on": {k: sorted(v) for k, v in self.on.items()},
             "status_class": self.status_class,
+            "eval": self.eval,
             "dedup_key": (
                 None if self.dedup_key is None
                 else list(self.dedup_key) if isinstance(self.dedup_key, (list, tuple))

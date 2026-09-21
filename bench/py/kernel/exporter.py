@@ -46,6 +46,7 @@ from __future__ import annotations
 import errno
 import json
 import os
+import re
 import shutil
 import time
 from datetime import UTC, datetime
@@ -80,13 +81,19 @@ def _upstream(up) -> str:
     return "" if up in _EMPTY else str(up)
 
 
+_BLOB_SHA_RE = re.compile(r"[0-9a-f]{64}")
+
+
 def _unblob(val, blob_dir: Path | None):
     """Resolve a {"$blob": sha} metrics/errors offload marker back to the
     payload stored under run derived/blobs/. Marker is kept verbatim when the
-    blob file is unreadable — a projection must not invent data."""
+    blob file is unreadable — a projection must not invent data. The sha must
+    be a full lowercase hex digest — anything else would be a path-traversal
+    primitive pointing outside blob_dir."""
     if not (
         isinstance(val, dict)
         and isinstance(val.get("$blob"), str)
+        and _BLOB_SHA_RE.fullmatch(val["$blob"])
         and blob_dir is not None
     ):
         return val
@@ -483,7 +490,11 @@ def _export_soak(index, info: dict, out: Path) -> dict:
             by_stage.setdefault(str(ev.get("stage") or "unknown"), []).append(row)
         n += 1
     for stage in sorted(by_stage):
-        _write_jsonl(out / "records" / f"{stage}.jsonl", by_stage[stage], files)
+        # stage is data-controlled — never let it join a path verbatim
+        # ('/abs/x' discards the prefix; '../..' escapes the export tree).
+        fname = re.sub(r"[^A-Za-z0-9._-]+", "_", stage) or "unknown"
+        _write_jsonl(out / "records" / f"{fname}.jsonl", by_stage[stage],
+                     files)
     if eval_rows:
         _write_jsonl(out / "eval-records.jsonl", eval_rows, files)
     _export_cases(index, info, out, files)
@@ -494,9 +505,10 @@ def _export_soak(index, info: dict, out: Path) -> dict:
 
 
 def _cond_key(ev: dict) -> str:
-    """Per-case column key for the e2e projection. variant carries the e2e
-    condition dimension (§3.1); both dimensions non-trivial -> arm@variant
-    so no (arm,variant) pair can collide into another."""
+    """Base per-case column key — the legacy spelling: 'a@v' when both
+    dims are set, bare variant / bare arm when one side is empty. NOT
+    injective on its own: ('x','-') and ('-','x') both yield 'x' —
+    _cond_keys repairs collisions per run."""
     arm, var = ev.get("arm"), ev.get("variant")
     arm_ok, var_ok = arm not in _EMPTY, var not in _EMPTY
     if arm_ok and var_ok:
@@ -504,6 +516,31 @@ def _cond_key(ev: dict) -> str:
     if var_ok:
         return str(var)
     return str(arm) if arm_ok else "-"
+
+
+def _cond_keys(evs: list[dict]) -> dict[tuple, str]:
+    """(arm, variant) -> column key for one run's event set. Legacy base
+    spellings survive unless several DISTINCT pairs share one base key;
+    colliding pairs alone get a qualified 'arm@var' spelling ('x@-' vs
+    '-@x'), '~'-bumped if even that spelling is already a base key."""
+    base2pairs: dict[str, set] = {}
+    for ev in evs:
+        base2pairs.setdefault(_cond_key(ev), set()).add(
+            (ev.get("arm"), ev.get("variant")))
+    pair2key: dict[tuple, str] = {}
+    used = set(base2pairs)
+    for ev in evs:
+        pair = (ev.get("arm"), ev.get("variant"))
+        if pair in pair2key:
+            continue
+        ck = _cond_key(ev)
+        if len(base2pairs[ck]) > 1:
+            ck = f"{ev.get('arm')}@{ev.get('variant')}"
+            while ck in used:
+                ck += "~"
+        pair2key[pair] = ck
+        used.add(ck)
+    return pair2key
 
 
 def _verdict_mark(metrics, status) -> str:
@@ -529,17 +566,21 @@ def _export_e2e(index, info: dict, out: Path) -> dict:
     statuses: dict[tuple, object] = {}
     order: list[str] = []
     eval_rows: list[dict] = []
+    cell_evs: list[dict] = []
     for ev in _cell_events(index, info):
         if _is_eval_cell(index, ev):
             eval_rows.append(_legacy_row(ev, blobs))
-            continue
+        else:
+            cell_evs.append(ev)
+    pair2key = _cond_keys(cell_evs)
+    for ev in cell_evs:
         pid = ev.get("id")
         row = cases.get(pid)
         if row is None:
             row = {"id": pid, "status": None}
             cases[pid] = row
             order.append(pid)
-        ck = _cond_key(ev)
+        ck = pair2key[(ev.get("arm"), ev.get("variant"))]
         metrics = _unblob(ev.get("metrics") or {}, blobs)
         row[ck] = metrics
         statuses[(pid, ck)] = ev.get("status")
@@ -621,7 +662,12 @@ def export_run(index, rundir_or_name, out_dir, mode: str = "auto") -> dict:
     """
     info = _resolve(index, rundir_or_name)
     fam = _family(mode, info["kind"])
-    out = Path(out_dir) / str(info["run"]).replace("/", "--")
+    # run is data-controlled — charset-filter, then reject dot-only residues
+    # ('..' with no slash survives the filter and escapes out_dir).
+    safe = re.sub(r"[^A-Za-z0-9._-]+", "_", str(info["run"]).replace("/", "--"))
+    if set(safe) <= {"."}:
+        safe = "_"
+    out = Path(out_dir) / safe
     out.mkdir(parents=True, exist_ok=True)
     res = _export_e2e(index, info, out) if fam == "e2e" else _export_soak(
         index, info, out

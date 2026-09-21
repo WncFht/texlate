@@ -64,10 +64,14 @@ ARCHIVE_RENAMED: dict[str, str] = {
     "supr-con": "cond-mat.supr-con",
 }
 _NEW_TO_OLD = {new: old for old, new in ARCHIVE_RENAMED.items()}
+# Case-insensitive lookup to the OFFICIAL new-name spelling ('MATH.QA' and
+# 'math.qa' both mean math.QA) — minted old archives are all-lowercase.
+_NEW_CANON = {new.lower(): new for new in _NEW_TO_OLD}
 
 # Shape validators. [0-9] not \d — unicode digits must not leak into canon.
 _CAT_RE = re.compile(r"[A-Za-z0-9]+(?:[.-][A-Za-z0-9]+)*")
-_NUM_OLD_RE = re.compile(r"[0-9]{7,9}")  # YYMM(4) + NNN(3..5)
+_NUM_OLD_RE = re.compile(r"[0-9]{7,8}")  # YYMM(4) + NNN(3..4) — the old
+# scheme ended 2007-03; no archive ever minted a 5-digit suffix
 _NEW_RE = re.compile(r"[0-9]{4}\.[0-9]{4,5}")  # YYMM.NNNNN (4-digit legacy ok)
 _BARE_RE = re.compile(r"[0-9]{7}")  # YYMMNNN tail — registry only
 _VER_RE = re.compile(r"v[0-9]+$")
@@ -98,6 +102,13 @@ _DENY_SUFFIXES = ("-mock", "-fixture", "-test")
 # Sources that prove a bare tail's cat is arXiv-real — required for the
 # |cats|=1 -> ok gate. Ledger/vault/manual rows are untrusted breadth only.
 TRACKED_SRC = frozenset({"manifest", "idresolve", "override"})
+
+# Row statuses that mark an UNRESOLVED adjudication — fed rows carrying one
+# of these are dropped wholesale (no known/tails/resolutions contribution).
+_ROW_STATUS_DENY = frozenset({
+    "pending", "ambig", "ambiguous", "invalid", "failed", "error",
+    "rejected", "denied", "unresolved",
+})
 
 
 @dataclass(frozen=True)
@@ -145,14 +156,18 @@ def idc_from_safe(sid: str) -> str:
 
 def escape_component(s: str) -> str:
     """Escape one component (arm/variant/altseq) for vault meta filenames:
-    '%' -> %25 first, then '.' -> %2E, '@' -> %40."""
-    return s.replace("%", "%25").replace(".", "%2E").replace("@", "%40")
+    '%' -> %25 first, then '.' -> %2E, '@' -> %40, '/' -> %2F. '/' MUST be
+    escaped — an unescaped slash turns one filename component into nested
+    dirs (claim locks, vault dir keys)."""
+    return (s.replace("%", "%25").replace(".", "%2E")
+             .replace("@", "%40").replace("/", "%2F"))
 
 
 def unescape_component(s: str) -> str:
-    """Inverse of escape_component. %2E/%40 must decode BEFORE %25 so a
+    """Inverse of escape_component. %2E/%40/%2F must decode BEFORE %25 so a
     literal '%40' in the source (stored as %2540) cannot double-decode."""
-    return s.replace("%2E", ".").replace("%40", "@").replace("%25", "%")
+    return (s.replace("%2E", ".").replace("%40", "@")
+             .replace("%2F", "/").replace("%25", "%"))
 
 
 def _mm_ok(yymm: str) -> bool:
@@ -168,6 +183,15 @@ def _cat_ok(cat: str) -> bool:
     return not (c in _DENY_CATS or c.endswith(_DENY_SUFFIXES))
 
 
+def _cat_canon(cat: str) -> str:
+    """Canonical archive spelling: minted archives are all-lowercase;
+    renamed archives keep their official mixed-case NEW name ('MATH.QA',
+    'math.qa', 'Math.Qa' all canonicalize to 'math.QA'). Same paper can
+    never split into two canon ids over case."""
+    c = cat.lower()
+    return _NEW_CANON.get(c, c)
+
+
 def _form_of(t: str) -> tuple | None:
     """Shape validation of a normalized token.
 
@@ -179,7 +203,7 @@ def _form_of(t: str) -> tuple | None:
             return None
         if not _cat_ok(cat):
             return None
-        return ("old", cat, num)
+        return ("old", _cat_canon(cat), num)
     if _NEW_RE.fullmatch(t) and _mm_ok(t[:4]):
         return ("new",)
     return None
@@ -228,7 +252,7 @@ def parse_ia_member(name: str) -> tuple[str, str | None, str | None] | None:
         cat, num, ver, ext = m.groups()
         if _form_of(f"{cat}/{num}") is None:
             return None
-        return f"{cat}/{num}", (f"v{ver}" if ver else None), ext
+        return f"{_cat_canon(cat)}/{num}", (f"v{ver}" if ver else None), ext
     return None
 
 
@@ -366,25 +390,33 @@ class PapersRegistry:
             return
 
     def _feed_row(self, row: dict, src: str) -> None:
+        # Unresolved/failed adjudications contribute NOTHING — not even
+        # breadth. The denylist gates every row shape (a bare {"idc", "status":
+        # "pending"} row must not mark its tail tracked either).
+        status = str(row.get("status", "")).lower()
+        if status in _ROW_STATUS_DENY:
+            return
         idc = (
             row.get("idc") or row.get("id") or row.get("resolved") or row.get("resolve")
         )
         tail = row.get("tail7") or row.get("tail")
         if isinstance(tail, str):
-            # Row is a tail adjudication. Unresolved seeds contribute nothing —
-            # an "ambig"/"pending" candidate must not leak into `known` and
-            # accidentally mark the tail tracked.
-            status = str(row.get("status", "")).lower()
-            if status in {"pending", "ambig", "ambiguous", "invalid"}:
+            # Row is a tail adjudication. resolutions[] is adjudicated fact —
+            # only TRACKED sources may write it. Ledger/vault/manual rows are
+            # untrusted breadth: they feed `known`/`tails` via add() but can
+            # never mint or overwrite a tail->idc resolution.
+            if src in TRACKED_SRC:
+                if isinstance(idc, str) and self.resolve_tail(tail, idc, src=src):
+                    return
+                # Alternative resolution shape: {"tail7": "…", "cat": "…"}
+                cat = row.get("cat") or row.get("archive")
+                if isinstance(cat, str):
+                    self.resolve_tail(tail, f"{cat}/{tail}", src=src)
+                # A tail row whose resolution target failed validation is
+                # dropped wholesale (fail-closed) — never reinterpreted.
                 return
-            if isinstance(idc, str) and self.resolve_tail(tail, idc, src=src):
-                return
-            # Alternative resolution shape: {"tail7": "…", "cat": "…"}
-            cat = row.get("cat") or row.get("archive")
-            if isinstance(cat, str):
-                self.resolve_tail(tail, f"{cat}/{tail}", src=src)
-            # A tail row whose resolution target failed validation is dropped
-            # wholesale (fail-closed) — never reinterpret it as a plain id.
+            if isinstance(idc, str):
+                self.add(idc, src=src)
             return
         if isinstance(idc, str):
             self.add(idc, src=src)

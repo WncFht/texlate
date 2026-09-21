@@ -70,9 +70,10 @@ _NEG_TERM = frozenset({"fail", "fault", "reject", "dirty_pdf"})
 # The known gateway key prefix — substring scan, wherever it appears.
 _KEY_SUBSTR = "240127"
 # tailscale 100.64.0.0/10 — needs all four octets so plain floats like
-# "seconds": 100.6 never match.
+# "seconds": 100.6 never match. No leading \b: an IP embedded in a token
+# ('node100.64.1.5') is still the IP.
 _TAILSCALE_RE = re.compile(
-    r"\b100\.(?:6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])"
+    r"100\.(?:6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])"
     r"\.(?:[0-9]{1,3})\.(?:[0-9]{1,3})\b"
 )
 # Auth-ish JSON field names — normalized (separators stripped, lowered) so
@@ -83,6 +84,8 @@ _AUTH_KEYS_RAW = frozenset({
     "access_token", "refresh_token", "id_token", "passwd", "password",
     "secret", "client_secret", "auth", "bearer", "cookie", "set-cookie",
     "private_key", "credentials", "session_key", "gateway_key",
+    "auth_token", "api_secret", "secret_key", "session_token",
+    "bearer_token", "app_key", "private_token",
 })
 _SEP_RE = re.compile(r"[-_.\s]+")
 _AUTH_KEYS = frozenset(_SEP_RE.sub("", k) for k in _AUTH_KEYS_RAW)
@@ -157,6 +160,15 @@ def _scalar_secret(s: str) -> bool:
     return _KEY_SUBSTR in s or bool(_TAILSCALE_RE.search(s))
 
 
+def _redact_str(s: str) -> str:
+    """Scalar redaction for fields that must stay strings (identity/vocab
+    fields like run/stage/arm) — in-place placeholder, deterministic so a
+    whole run's rows still group under one (mangled) name."""
+    if isinstance(s, str) and _scalar_secret(s):
+        return f"$redact-{_sha(s)[:16]}"
+    return s
+
+
 def redact(obj) -> tuple:
     """Deep-redact secrets out of an imported payload.
 
@@ -165,6 +177,10 @@ def redact(obj) -> tuple:
     {"$redact": sha256_of_original}; a dict entry whose KEY is auth-ish
     (authorization/api_key/token/passwd/…) loses its entire value the
     same way. sha256 keeps the original verifiable without keeping it.
+
+    Dict KEYS are scanned too — a secret used as a key is still a secret —
+    and non-JSON-native values (bytes, sets, …) are replaced by a
+    content-free placeholder so one hostile column can't wedge the import.
     """
     n = 0
 
@@ -173,13 +189,22 @@ def redact(obj) -> tuple:
         if isinstance(o, dict):
             out = {}
             for k, v in o.items():
-                if _authish(k):
+                kk = k if isinstance(k, str) else str(k)
+                if _authish(kk):
+                    # key NAME is vocabulary ('api_key'), not a secret —
+                    # keep it readable, drop the whole value
                     n += 1
-                    out[k] = {"$redact": _sha(_jcanon(v))}
+                    out[kk] = {"$redact": _sha(_jcanon(v))}
+                elif _scalar_secret(kk):
+                    # the key ITSELF is the secret (a dict keyed by a token
+                    # or a tailscale host) — rename, drop the value
+                    n += 1
+                    out[f"$redact:{_sha(kk)[:16]}"] = {
+                        "$redact": _sha(_jcanon(v))}
                 else:
-                    out[k] = walk(v)
+                    out[kk] = walk(v)
             return out
-        if isinstance(o, list):
+        if isinstance(o, (list, tuple)):
             return [walk(x) for x in o]
         if isinstance(o, str):
             if _scalar_secret(o):
@@ -194,7 +219,17 @@ def redact(obj) -> tuple:
                 n += 1
                 return {"$redact": _sha(s)}
             return o
-        return o
+        if isinstance(o, (bytes, bytearray)):
+            n += 1
+            return {"$nonjson": "bytes", "len": len(o),
+                    "sha256": hashlib.sha256(bytes(o)).hexdigest()}
+        if o is None:
+            return o
+        # sets, datetimes, other non-JSON scalars — never ship content,
+        # keep a verifiable fingerprint
+        n += 1
+        return {"$nonjson": type(o).__name__,
+                "sha256": _sha(repr(o)[:8192])}
 
     return walk(obj), n
 
@@ -249,6 +284,11 @@ def _status_of(raw_status, *, default: str) -> tuple[str, str | None]:
     original is preserved for metrics._orig_status.
     """
     s = raw_status if isinstance(raw_status, str) else ""
+    if s in events.STATUS_KERNEL:
+        # Kernel-internal masks (dedup/claimed/lost/unpaid_gate) are
+        # projections, not work outcomes — a source row carrying one would
+        # land as a terminal mask and falsely gate retries. Fail loud.
+        return "fault", s
     if s in events.ALL_STATUSES:
         return s, None
     if not s:
@@ -327,6 +367,10 @@ def _norm_db_record(row: dict, run_ts: float) -> dict:
     sig = {k: v for k, v in row.items() if k not in ("rec_id", "run_id")}
     return {
         "id": row.get("id"),
+        # the db's own adjudication column beats re-deriving canon from the
+        # raw spelling — a bare tail the legacy pipeline already resolved
+        # must not fall back to bare-tail-unknown quarantine.
+        "canon_hint": row.get("id_canon") or None,
         "arm": row.get("arm") or "-",
         "up": row.get("upstream") or "-",
         "variant": "-",
@@ -349,18 +393,18 @@ def _norm_db_raw(table: str, row: dict, run_ts: float) -> dict:
     if not isinstance(payload, dict):
         payload = {"_unparsed": payload}
     id_raw = (
-        payload.get("id")
-        or row.get("paper")
+        row.get("paper")
         or row.get("corpus")
+        or payload.get("id")
         or payload.get("corpus")
         or payload.get("paper")
     )
     ts = _parse_ts(payload.get("ts")) or _parse_ts(row.get("ts"))
     return {
         "id": id_raw,
-        "arm": payload.get("arm") or "-",
-        "up": payload.get("upstream") or "-",
-        "variant": payload.get("variant") or "-",
+        "arm": payload.get("arm") or row.get("arm") or "-",
+        "up": payload.get("upstream") or row.get("upstream") or "-",
+        "variant": payload.get("variant") or row.get("variant") or "-",
         "stage": row.get("stage") or table,
         "status": row.get("status") or payload.get("status"),
         "dur_s": row.get("seconds") or payload.get("seconds"),
@@ -371,7 +415,13 @@ def _norm_db_raw(table: str, row: dict, run_ts: float) -> dict:
         "queue_wait_s": payload.get("queue_wait_s"),
         "ts": ts if ts is not None else run_ts,
         "default_status": "ok",
-        "dedup_sig": str(row.get("raw")),
+        "eval": table == "eval_records",
+        # every row column belongs to the dedup signature — two rows sharing
+        # a raw payload but differing in status/seconds must both land, else
+        # the later status update is silently dropped.
+        "dedup_sig": _jcanon(
+            {k: v for k, v in row.items()
+             if k not in ("rec_id", "run_id")}),
     }
 
 
@@ -412,7 +462,8 @@ def _norm_jsonl_row(row: dict, *, fname: str, file_ts: float,
         "variant": row.get("variant") or "-",
         "stage": stage,
         "status": row.get("status"),
-        "dur_s": row.get("dur_s"),
+        "dur_s": row.get("dur_s") or row.get("seconds"),
+        "eval": fname == "eval-records.jsonl" or bool(row.get("eval")),
         "metrics": row.get("metrics") if "metrics" in row else row,
         "errors": row.get("errors"),
         "sig": row.get("sig"),
@@ -433,11 +484,13 @@ def _rec_to_event(rec: dict, *, run_name: str, run_seq: int,
     """Normalized rec -> cell event (seq=0 placeholder), or None when the
     row routes to quarantine (appended to `quar`)."""
     id_raw = rec.get("id")
-    res = _canon_gate(id_raw, registry)
+    # the source db's own adjudication (id_canon) outranks re-resolving the
+    # raw spelling; absent it, gate on id as before.
+    res = _canon_gate(rec.get("canon_hint") or id_raw, registry)
     if not res.ok:
         payload, n_red = redact(rec)
         stats["redacted"] += n_red
-        quar.append({
+        quar_row, n_red2 = redact({
             "type": "import_quarantine",
             "src": src,
             "run": run_name,
@@ -450,6 +503,8 @@ def _rec_to_event(rec: dict, *, run_name: str, run_seq: int,
             "payload": payload,
             "ts": rec["ts"],
         })
+        stats["redacted"] += n_red2
+        quar.append(quar_row)
         stats["quarantined"] += 1
         return None
 
@@ -458,6 +513,24 @@ def _rec_to_event(rec: dict, *, run_name: str, run_seq: int,
     sig, n3 = redact(rec.get("sig"))
     code, n4 = redact(rec.get("code"))
     stats["redacted"] += n1 + n2 + n3 + n4
+
+    # Identity/vocab fields are redacted IN PLACE (scalar placeholder, not
+    # the dict form) — a secret inside run/stage/arm/up/variant/id still
+    # counts, but the row survives and stays groupable under its mangled
+    # key instead of wedging the schema.
+    run_clean = _redact_str(run_name)
+    if run_clean != run_name:
+        stats["redacted"] += 1
+    id_clean = _redact_str(id_raw) if isinstance(id_raw, str) else id_raw
+    if id_clean != id_raw:
+        stats["redacted"] += 1
+    vocab = {}
+    for k in ("arm", "up", "variant", "stage"):
+        v = rec.get(k)
+        if isinstance(v, str) and _scalar_secret(v):
+            stats["redacted"] += 1
+            v = _redact_str(v)
+        vocab[k] = v
 
     status, orig = _status_of(rec.get("status"),
                               default=rec["default_status"])
@@ -472,15 +545,15 @@ def _rec_to_event(rec: dict, *, run_name: str, run_seq: int,
         "type": events.T_CELL,
         "v": events.SCHEMA_V,
         "ts": rec["ts"],
-        "run": run_name,
+        "run": run_clean,
         "run_seq": run_seq,
         "seq": 0,
-        "id": id_raw,
+        "id": id_clean,
         "idc": res.idc,
-        "arm": rec["arm"],
-        "up": rec["up"],
-        "variant": rec["variant"],
-        "stage": rec["stage"],
+        "arm": vocab["arm"],
+        "up": vocab["up"],
+        "variant": vocab["variant"],
+        "stage": vocab["stage"],
         "status": status,
         "dur_s": rec.get("dur_s"),
         "metrics": metrics,
@@ -490,12 +563,14 @@ def _rec_to_event(rec: dict, *, run_name: str, run_seq: int,
         "fp": None,
         "import_src": src,
     }
+    if rec.get("eval"):
+        ev["eval"] = 1
     if rec.get("queue_wait_s") is not None:
         ev["queue_wait_s"] = rec["queue_wait_s"]
     try:
         events.validate(ev)
     except events.EventError as exc:
-        quar.append({
+        quar_row, n_red = redact({
             "type": "import_quarantine",
             "src": src,
             "run": run_name,
@@ -507,6 +582,8 @@ def _rec_to_event(rec: dict, *, run_name: str, run_seq: int,
                         "status": status},
             "ts": rec["ts"],
         })
+        stats["redacted"] += n_red
+        quar.append(quar_row)
         stats["quarantined"] += 1
         return None
     return ev
@@ -609,14 +686,25 @@ def _commit(evs: list, *, rdir: Path | None, index, stats: dict,
     blob_dir = Path(rdir) / "derived" / "blobs" if rdir is not None else None
     evs = [events.maybe_offload(e, blob_dir) for e in evs]
     known = _known_shas(index, evs)
-    new = [e for e in evs if events.content_hash(e) not in known]
+    # dedupe against the index AND within this batch — two source rows
+    # differing only in fields that never reach the event produce identical
+    # content_hash; both would otherwise land as duplicate ledger lines.
+    new = []
+    for e in evs:
+        h = events.content_hash(e)
+        if h in known:
+            continue
+        known.add(h)
+        new.append(e)
     stats["dup_skipped"] += len(evs) - len(new)
     for i in range(0, len(new), EMIT_CHUNK):
         chunk = new[i:i + EMIT_CHUNK]
         ledger.emit_batch(chunk, run_dir=rdir)
         stats["emitted"] += len(chunk)
         if index is not None:
-            stats["applied"] += index.apply_events(chunk)
+            applied = index.apply_events(chunk)
+            stats["applied"] += applied
+            stats["index_rejected"] += len(chunk) - applied
 
 
 def _flush_quar(quar: list, seen: set, stats: dict, dry: bool) -> None:
@@ -630,7 +718,7 @@ def _stats() -> dict:
         "rows": 0, "events": 0, "emitted": 0, "applied": 0,
         "dup_skipped": 0, "quarantined": 0, "quar_written": 0,
         "redacted": 0, "order_sensitive": 0, "runs": 0, "runs_minted": 0,
-        "bad_lines": 0,
+        "bad_lines": 0, "index_rejected": 0,
     }
 
 
@@ -639,18 +727,20 @@ def _stats() -> dict:
 # ---------------------------------------------------------------------------
 
 def _run_sort_key(run: dict):
-    """(started_at -> dir mtime -> run name) per §3.3."""
-    ca = run.get("created_at")
+    """(started_at -> dir mtime -> run name) per §3.3. Timestamps sort
+    NUMERICALLY — a lexical repr() inverts across digit-width boundaries
+    and mixed ISO spellings (' ' vs 'T' separator) misorder."""
+    ca = _parse_ts(run.get("created_at"))
     name = str(run.get("name") or "")
-    if ca:
-        return (0, str(ca), name)
+    if ca is not None:
+        return (0, ca, name)
     p = run.get("path")
     if p:
         try:
-            return (1, repr(Path(p).stat().st_mtime), name)
+            return (1, float(Path(p).stat().st_mtime), name)
         except OSError:
             pass
-    return (2, "", name)
+    return (2, 0.0, name)
 
 
 def _run_date(run: dict) -> str:
@@ -838,12 +928,13 @@ def import_jsonl_file(path, run, stage_map=None, index=None, registry=None,
     def rows():
         for _ln, ev, raw in iter_jsonl(path):
             stats["rows"] += 1
-            if ev is None:
-                payload, n_red = redact(raw)
+            if ev is None or not isinstance(ev, dict):
+                reason = "bad_line" if ev is None else "non_object"
+                payload, n_red = redact(raw if ev is None else ev)
                 stats["redacted"] += n_red
                 quar.append({
                     "type": "import_quarantine", "src": "jsonl",
-                    "run": run_name, "reason": "bad_line",
+                    "run": run_name, "reason": reason,
                     "payload": payload,
                     "dedup_sha": _sha(raw), "ts": file_ts,
                 })
@@ -960,6 +1051,13 @@ def import_zhstore(manifest_path, bytes_root, index, registry=None,
             stats["bad_lines"] += 1
             continue
         if not isinstance(row, dict):
+            quar.append({
+                "type": "import_quarantine", "src": "zhstore",
+                "run": run_name, "reason": "non_object",
+                "dedup_sha": _sha(raw), "ts": file_ts,
+            })
+            stats["quarantined"] += 1
+            stats["bad_lines"] += 1
             continue
         id_raw = row.get("id")
         if id_raw is not None:
@@ -970,7 +1068,7 @@ def import_zhstore(manifest_path, bytes_root, index, registry=None,
         if not res.ok:
             payload, n_red = redact(row)
             stats["redacted"] += n_red
-            quar.append({
+            quar_row, n_red2 = redact({
                 "type": "import_quarantine", "src": "zhstore",
                 "run": run_name, "reason": "canon",
                 "canon_state": res.state, "canon_reason": res.reason,
@@ -978,12 +1076,27 @@ def import_zhstore(manifest_path, bytes_root, index, registry=None,
                 "payload": payload,
                 "dedup_sha": _sha(raw), "ts": ts,
             })
+            stats["redacted"] += n_red2
+            quar.append(quar_row)
             stats["quarantined"] += 1
             continue
         idc = res.idc
         referenced.add(idnorm.safe_id(idc))
-        zone = _ZONE_VERDICT.get(str(row.get("zone") or "primary"),
-                                 "primary")
+        zone_key = str(row.get("zone") or "primary")
+        zone = _ZONE_VERDICT.get(zone_key)
+        if zone is None:
+            # unknown zone is fail-closed: an uninterpretable zone must
+            # never promote bytes into the dedup-hit set.
+            quar_row, n_red = redact({
+                "type": "import_quarantine", "src": "zhstore",
+                "run": run_name, "reason": "zone_unknown",
+                "id": id_raw, "payload": {"zone": row.get("zone")},
+                "dedup_sha": _sha(raw), "ts": ts,
+            })
+            stats["redacted"] += n_red
+            quar.append(quar_row)
+            stats["quarantined"] += 1
+            continue
         arm = str(row.get("arm") or "-")
         base = None
         for cand in _zh_dir_candidates(bytes_root, row, idc):

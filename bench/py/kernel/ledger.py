@@ -48,6 +48,7 @@ from kernel.events import (
     dumps,
     iter_jsonl,
     make_event,
+    maybe_offload,
     validate,
 )
 
@@ -184,11 +185,22 @@ def _emit_lines_locked(lines: list[bytes], run_dir) -> list[int]:
 # --- public write API -------------------------------------------------------------
 
 
+def _offload_for(ev: dict, run_dir) -> dict:
+    """Run-scoped blob offload — the >4KB metrics/errors contract (§3.1)
+    covers every writer, kernel cells included. The $blob-rewritten form is
+    what the ledger stores AND what the sink applies, so the index never
+    diverges from the ledger."""
+    if run_dir is None:
+        return ev
+    return maybe_offload(ev, Path(run_dir) / "derived" / "blobs")
+
+
 def emit(ev: dict, run_dir: Path | None = None, sink=None) -> int:
     """Validate + durably append one event. Sole write path for events.jsonl.
 
     Returns the byte offset of the written line in the hot tail.
     """
+    ev = _offload_for(ev, run_dir)
     validate(ev)
     line = dumps(ev).encode("utf-8") + b"\n"
     with _ledger_lock():
@@ -204,14 +216,17 @@ def emit_batch(events: list[dict], run_dir: Path | None = None, sink=None) -> li
     partially due to a late validation error. Returns per-line offsets.
     """
     lines = []
+    out_evs = []
     for ev in events:
+        ev = _offload_for(ev, run_dir)
         validate(ev)
+        out_evs.append(ev)
         lines.append(dumps(ev).encode("utf-8") + b"\n")
     if not lines:
         return []
     with _ledger_lock():
         offsets = _emit_lines_locked(lines, run_dir)
-        for ev in events:
+        for ev in out_evs:
             _apply_sink(sink, ev)
         return offsets
 

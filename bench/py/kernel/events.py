@@ -66,6 +66,29 @@ OPTIONAL_WHITELIST = frozenset({"queue_wait_s", "auth_tripped", "attempt"})
 # Keys every event may carry regardless of type.
 COMMON_KEYS = frozenset({"type", "ts", "v", "run_seq", "import_src", "canon_drift_of"})
 
+# Per-type optional keys — the extra-key whitelist applies to EVERY event
+# type, not just cells. Registry-adjudication vocabulary (tail7/tail/cat/
+# archive/resolved/resolve) is deliberately absent everywhere: a hostile
+# ledger row carrying those keys would feed PapersRegistry._feed_row.
+OPTIONAL_KEYS: dict[str, frozenset[str]] = {
+    T_RUN_REGISTERED: frozenset(),
+    T_CELL_QUEUED: frozenset({"needs", "fp_input"}),
+    T_CELL_STARTED: frozenset({"claim_id"}),
+    T_CELL: frozenset({
+        "dur_s", "metrics", "errors", "sig", "code", "fp", "cat", "eval",
+    }),
+    T_CLAIM: frozenset({"slot"}),
+    T_ASSET: frozenset({
+        "sha", "bytes", "zone", "verdict", "altseq", "model", "source_run",
+    }),
+    T_TOMBSTONE: frozenset({"lost_run", "zone", "source_run"}),
+    T_NOTE: frozenset({
+        "id", "idc", "arm", "up", "variant", "stage", "kind", "safe_id",
+    }),
+    T_FINISHED: frozenset({"cost_usd", "accounting_ok"}),
+    T_LAKE_CELL: frozenset({"source", "bytes"}),
+}
+
 # Status vocabulary (§3.1). DONE = terminal; RETRIABLE = may retry as a new attempt.
 STATUS_DONE = frozenset({"ok", "partial", "clean", "fail", "reject", "fault", "dirty_pdf"})
 STATUS_RETRIABLE = frozenset({"skip", "error"})
@@ -105,6 +128,10 @@ def make_event(etype: str, **kw) -> dict:
     return ev
 
 
+def _type_ok(v, *types) -> bool:
+    return v is None or (isinstance(v, types) and not isinstance(v, bool))
+
+
 def validate(ev: dict) -> None:
     etype = ev.get("type")
     if etype not in EVENT_TYPES:
@@ -112,14 +139,37 @@ def validate(ev: dict) -> None:
     missing = REQUIRED[etype] - ev.keys()
     if missing:
         raise EventError(f"{etype} missing keys {sorted(missing)}: {ev!r}")
+    extra = (set(ev) - REQUIRED[etype] - OPTIONAL_WHITELIST - COMMON_KEYS
+             - OPTIONAL_KEYS[etype])
+    if extra:
+        raise EventError(
+            f"{etype} event has non-whitelisted keys {sorted(extra)}")
+    if ev.get("v") != SCHEMA_V:
+        raise EventError(f"bad schema v {ev.get('v')!r}")
+    for k in ("seq", "run_seq"):
+        if not _type_ok(ev.get(k), int):
+            raise EventError(f"{etype} {k} must be int|None: {ev.get(k)!r}")
     if etype == T_CELL:
-        extra = set(ev) - REQUIRED[etype] - OPTIONAL_WHITELIST - COMMON_KEYS - {
-            "dur_s", "metrics", "errors", "sig", "code", "fp", "cat",
-        }
-        if extra:
-            raise EventError(f"cell event has non-whitelisted keys {sorted(extra)}")
         if ev.get("status") not in ALL_STATUSES:
             raise EventError(f"unknown cell status {ev.get('status')!r}")
+        for k in ("id", "idc", "arm", "up", "variant", "stage"):
+            if not isinstance(ev.get(k), str):
+                raise EventError(f"cell {k} must be str: {ev.get(k)!r}")
+        if not _type_ok(ev.get("metrics"), dict):
+            raise EventError("cell metrics must be dict|None")
+        if not _type_ok(ev.get("errors"), list):
+            raise EventError("cell errors must be list|None")
+        if not _type_ok(ev.get("dur_s"), int, float):
+            raise EventError("cell dur_s must be number|None")
+        for k in ("sig", "code", "fp"):
+            if not _type_ok(ev.get(k), str):
+                raise EventError(f"cell {k} must be str|None")
+        cat = ev.get("cat")
+        if cat is not None and cat not in CATS:
+            raise EventError(f"unknown cell cat {cat!r}")
+        evl = ev.get("eval")
+        if evl is not None and not isinstance(evl, (int, bool)):
+            raise EventError("cell eval must be int/bool|None")
     if etype == T_CLAIM and ev.get("op") not in CLAIM_OPS:
         raise EventError(f"bad claim op {ev.get('op')!r}")
     if etype == T_ASSET:
@@ -146,23 +196,36 @@ def maybe_offload(ev: dict, blob_dir: Path | None) -> dict:
     """Offload oversized metrics/errors payloads to blob_dir/<sha>.json.
 
     Returns the (possibly rewritten) event. No-op when blob_dir is None or
-    payloads are under the threshold.
+    payloads are under the threshold. Blobs are content-addressed and the
+    write is atomic — a truncated blob is healed on the next offload, never
+    pinned by a bare exists() check.
     """
     if blob_dir is None:
         return ev
+    from kernel import fsutil
     ev = dict(ev)
     for field in ("metrics", "errors"):
         val = ev.get(field)
-        if val is None:
+        if val is None or (isinstance(val, dict) and "$blob" in val):
             continue
-        raw = json.dumps(val, ensure_ascii=False, sort_keys=True).encode("utf-8")
+        try:
+            raw = json.dumps(
+                val, ensure_ascii=False, sort_keys=True).encode("utf-8")
+        except (TypeError, ValueError):
+            continue  # unserializable payload stays inline; dumps() in the
+            # emit path surfaces the failure at write time, as before
         if len(raw) <= BLOB_OFFLOAD_THRESHOLD:
             continue
         sha = hashlib.sha256(raw).hexdigest()
         blob_dir.mkdir(parents=True, exist_ok=True)
         blob_path = blob_dir / f"{sha}.json"
-        if not blob_path.exists():
-            blob_path.write_bytes(raw)
+        try:
+            if blob_path.stat().st_size == len(raw):
+                pass  # intact content-addressed blob — nothing to do
+            else:
+                fsutil.atomic_write(blob_path, raw)  # heal a truncated blob
+        except OSError:
+            fsutil.atomic_write(blob_path, raw)
         ev[field] = {"$blob": sha, "$bytes": len(raw)}
     return ev
 
