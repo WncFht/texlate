@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "arXiv LaTeX 源码 → LLM 段落级翻译 → ctex 重编译中文 PDF，双语对照阅读（hjfy.top 开源复现）"
 readme = "README.md"
 requires-python = ">=3.12"
-license = { text = "Apache-2.0" }
+license = "Apache-2.0"
 dependencies = [
   "beautifulsoup4>=4.15.0",
   "defusedxml>=0.7.1",
@@ -35,10 +35,6 @@ texlate = "texlate.cli:app"
 
 [dependency-groups]
 dev = ["pytest>=8", "pytest-asyncio>=0.24"]
-
-[[tool.uv.index]]
-url = "https://mirrors.aliyun.com/pypi/simple"
-default = true
 
 [tool.pytest.ini_options]
 # 裸 pytest 从仓根只收 tests/——tmp/refs/ 参考 clone、bench、web 不入收集；

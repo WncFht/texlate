@@ -11,7 +11,7 @@
 - `docs/` — 六分区文档库（`README.md` 总索引）：`guide/` 用户文档、`spec/` 技术规范（实现唯一事实源，与代码冲突以代码为准改文档）、`decisions/` ADR 决策史、`dev/` 贡献者文档（仓布局/工具手册/评测协议/errsweep runbook）、`research/` 调研档案（arxiv/latex/corpus/methods/product/errsweep 域 + `model-selection.md`/`bibliography.md` 单件）、`log/` 工程日志（编年时间线 + 审计快照）；**写/改任何文档先读维护规则 `docs/MAINTENANCE.md`**（分区生命周期、格式契约、公开发布敏感政策、索引登记）
 - `bench/` — 解析/编译库 benchmark 现场（`bench/TIERS.md` 验证分层契约 L0–L3；评测器规格 `docs/spec/benchmark.md`；留存契约 `bench/RETENTION.md`）
     - `bench/py/` — python 侧 bench（pylatexenc/TexSoup/plasTeX/fixloop/compile/parsebench 等；miniscanner spike 已退役，断言矩阵移植 `tests/test_bench_regression.py`），`report/`=一次性审计/横评/归因、`corpus/`=语料管线、`scratch/`=一次性探针
-    - `bench/py/.venv_babeldoc/` — babeldoc 对照实验专用 venv（gitignored）
+    - `bench/py/.venv_babeldoc/` — babeldoc 对照实验专用 venv（gitignored；现 absent，按需重建）
     - `bench/ts/` — js 侧 bench（latex-utensils/unified-latex/tree-sitter-latex），独立 package.json，CommonJS
     - `bench/corpus/` — **唯一语料物理根**（2026-09-20 七库合一，~14k 篇）：层化 manifest（core/booster/dev_*/expand/hot/holdout + v1 手挑陷阱裸布局 + v2 分层随机 + m1k 四层 + iclr），口径以 `MANIFEST.md` 为准；原四库文档折存 `MANIFEST_{v1,v2,m1k}.md`，版本冲突落选树存 `_alt-versions/`；`manifest*.jsonl`/`mechanisms.jsonl`/`select_booster.py` 入库、数据 gitignored；管线 `bench/py/corpus/`（build_corpus_{v2,m1k,v3,layers,expand,sw} + build_hot_layer + daily_arxiv）
     - `bench/corpus_daily/` — soak 滚动窗口语料（每日增删，独立生命周期，不并入 v3）
@@ -48,7 +48,7 @@ CI（`.github/workflows/ci.yml`）与本地同源，本地不过 CI 必挂。
 
 - 本仓处于 M1–M3 推进阶段（M0 已验收，详见 `docs/log/audit-2026-09-16/README.md`）：`src/texlate/` 产品代码 + `tests/` pytest；`bench/` 下是评测 harness 与语料管线。
 - 产品代码一律走 uv venv：`uv sync`（web/server 形态加 `--extra server`）后 `uv run pytest tests/` / `uv run texlate`；**`src/**` 吃 ruff select=ALL 严格集（docstring/类型标注/异常纪律），bench/tests 的脚本豁免在 per-file-ignores**。
-- `bench/py/` 脚本分两档：纯 bench 工具用系统 python3（依赖见各文件头部注释）；**import `texlate.*` 产品代码的（e2e_mock_bench/parsebench v2 等）必须 `uv run python bench/py/…`**——venv 才有 httpx/typer。`babeldoc` 对照实验用 `bench/py/.venv_babeldoc/` 专用 venv。
+- `bench/py/` 脚本分两档：纯 bench 工具用系统 python3（依赖见各文件头部注释）；**import `texlate.*` 产品代码的（e2e_mock_bench/parsebench v2 等）必须 `uv run python bench/py/…`**——venv 才有 httpx/typer。`babeldoc` 对照实验用 `bench/py/.venv_babeldoc/` 专用 venv（现 absent，按需重建）。
 - `bench/ts/` 自带 `package.json` + `node_modules`（latexjs/unified-latex/tree-sitter 依赖），与根 toolchain 的 package.json 无关——在 `bench/ts/` 里 `npm ci`。
 - `bench/corpus*/` 语料是 arXiv e-print 解压原样，不改写；新增语料登记对应 `MANIFEST.md`。
 - 参考实现 [ieeA](https://github.com/zcyisiee/ieeA) 只借鉴模式不搬代码。

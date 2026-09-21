@@ -27,6 +27,8 @@ module.exports = [
             // 会在其 .mjs/ESM .js 上 parse-error。
             ".crossnote/", // 本机软链层，事实源在 ~/.agents
             ".claude/",
+            ".agents/", // vendored skill 原样入库（浏览器 js/jsx/mjs 非本仓 commonjs
+            // bench 代码，同 zotero 取舍：lint 由上游自家配置把关）
             "**/*.min.js",
         ],
     },

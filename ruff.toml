@@ -3,7 +3,8 @@
 # src/** 产品代码吃严格全集（docstring / 类型标注 / 异常纪律全要）。
 target-version = "py312"
 # bench/results/ 是脚本产出目录——与 .prettierignore 同一条线，不进链
-extend-exclude = ["bench/results"]
+# .agents/ 是 vendored skill 原样入库区——上游代码不吃本仓 lint 口径
+extend-exclude = ["bench/results", ".agents"]
 
 [lint]
 select = ["ALL"]

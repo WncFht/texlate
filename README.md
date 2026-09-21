@@ -30,15 +30,22 @@ uv run texlate tools install-tectonic   # 便携引擎，sha256 钉版（推荐�
 uv run texlate run 1706.03762     # mock 端到端：真实编译，但译文是占位假译（链路自检用）
 ```
 
-**注意：`texlate run` 默认是 mock 翻译臂**——产出 PDF 的英文段被替换成占位文本，用于零成本验证 fetch→parse→compile 全链。真翻译需 BYOK（下节）。
+**注意：本地 `texlate run` 只有 mock 翻译臂**——产出 PDF 的英文段被替换成占位文本，用于零成本验证 fetch→parse→compile 全链。真翻译走 server 形态（下节）。
 
-真翻译（任意 OpenAI 兼容端点 / Anthropic messages 方言均可）：
+真翻译（任意 OpenAI 兼容端点 / Anthropic messages 方言均可）：BYOK 配在运行中的 `texlate web` server 上——三 env（另可选 `TEXLATE_DIALECT`）或在 Web Settings 页配置均可：
 
 ```bash
-export TEXLATE_BASE_URL="https://your-gateway/v1"   # 或 http://127.0.0.1:3003 本地网关
+export TEXLATE_BASE_URL="https://your-gateway/v1"   # 或 http://127.0.0.1:3033 本地网关
 export TEXLATE_API_KEY="sk-..."
 export TEXLATE_MODEL="your-model"
-uv run texlate run 1706.03762                       # 真译文 + ctex 重编译 → 双语 PDF
+uv run texlate web                                  # http://127.0.0.1:8765
+```
+
+随后经 SPA 提交 arXiv ID，或用 CLI 瘦客户端向 server 提交任务：
+
+```bash
+uv run texlate run 1706.03762 --server http://127.0.0.1:8765   # 真译文 + ctex 重编译 → 双语 PDF
+# 按请求覆盖 BYOK：`--model/--api-key/--base-url/--dialect`（x-texlate-* 请求头）
 ```
 
 三 env 等价于 Web Settings 页配置；本地 `http://127.0.0.1:*` 与 tailnet 主机（`100.64.0.0/10`、`*.ts.net`）放行明文 HTTP，远程端点强制 HTTPS。
@@ -69,7 +76,7 @@ docker run --rm texlate fetch 1706.03762                    # 其他子命令同
 | ------------------------------------------------------- | -------------------------------------------------- |
 | `texlate fetch <id> [--offline]`                        | e-print 获取 + 钉版缓存（`~/.cache/texlate/src/`） |
 | `texlate parse <main.tex>`                              | 半解析分块 → chunks.jsonl                          |
-| `texlate run <id\|dir>`                                 | 端到端（mock 臂默认；配 BYOK 即真译）              |
+| `texlate run <id\|dir>`                                 | 端到端（本地仅 mock 臂；真译加 `--server` 提交）   |
 | `texlate web`                                           | FastAPI+SSE+SQLite 服务 + SPA                      |
 | `texlate export <docx/epub>`                            | 双语插译导出                                       |
 | `texlate share pack/unpack`                             | 任务产物社区共享包（sha256 全量回验）              |
@@ -110,7 +117,7 @@ docker run --rm texlate fetch 1706.03762                    # 其他子命令同
 - `web/` — SolidJS+Vite+pdfslick 阅读器（独立 package.json；`npx tsc --noEmit && npx eslint . && npx vitest run`）
 - `tests/` — pytest（corpus/网关/node 依赖用例均有守卫，干净 clone 全绿）
 - `docs/` — [`docs/README.md`](docs/README.md) 总索引，六分区：`guide/` 用户文档 + `spec/` 技术规范（实现唯一事实源）+ `decisions/` ADR 决策史 + `dev/` 贡献者文档 + `research/` 调研档案 + `log/` 工程日志；维护规则 [`docs/MAINTENANCE.md`](docs/MAINTENANCE.md)
-- `bench/` — 评测 harness（`TIERS.md` 分层契约 + `docs/spec/benchmark.md` 评测器规格；`py/` 评测器 B1–B7 + stagerun 批量驱动；`corpus*/` 语料与 `results/` 产物 gitignored，可经 `bench/py/` 三件套（`build_corpus_v3.py` + `build_hot_layer.py` + `build_corpus_expand.py`）重建）
+- `bench/` — 评测 harness（`TIERS.md` 分层契约 + `docs/spec/benchmark.md` 评测器规格；`py/` 评测器 B1–B7 + stagerun 批量驱动；`corpus*/` 语料与 `results/` 产物 gitignored，可经 `bench/py/corpus/` 三件套（`build_corpus_v3.py` + `build_hot_layer.py` + `build_corpus_expand.py`）重建）
 - `Dockerfile` / `.github/workflows/` — 容器形态与 CI（pre-commit 同源）
 
 ## 开发

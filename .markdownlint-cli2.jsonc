@@ -25,6 +25,9 @@
         "bench/work_*/**",
         "docs/HANDOFF-*.md",
         "scripts/gwcap/**",
+        // .agents/skills/ 是 vendored skill 原样入库区——上游 md 有自己的
+        // 排版约定，不吃本仓 lint 口径（与 eslint/ruff/shellcheck 同政策）
+        ".agents/**",
         "**/.venv*/**",
     ],
 }

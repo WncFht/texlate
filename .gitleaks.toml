@@ -19,6 +19,9 @@ regexTarget = "line"
 regexes = [
   '''"(share_key|cache_key)"\s*:\s*"[0-9a-f]{64}"''',
   '''share_key:\s*"s-[0-9a-z-]+"''',
+  # vendored huashu-design 文档里的豆包 TTS 示例配置——voice_id 是公开
+  # 音色预设名不是凭据（.agents/skills/huashu-design/references/voiceover-pipeline.md）
+  '''DOUBAO_TTS_VOICE_ID=zh_female_xiaohe_uranus_bigtts''',
 ]
 
 # 自有凭据格式：真实值在任意已入库文件都拦，占位符放行。

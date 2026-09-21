@@ -70,6 +70,8 @@ repos:
         entry: bash -c 'for f in "$@"; do head -1 "$f" | grep -q "^#!.*zsh" || shellcheck -S warning "$f"; done' --
         language: system
         types: [shell]
+        # .agents/ vendored skill 原样入库——上游脚本不吃本仓 lint 口径
+        exclude: "^.agents/"
       - id: ruff-check
         name: ruff check
         entry: ruff check
