@@ -280,10 +280,18 @@ def attempted_unpaid(index, idc, arm, variant) -> bool:
     stage's last state is ok|partial (a later success already puts the cell
     in the paid pool — attempted must not stick). regen_gate rejects are
     gate artifacts, not instrument attempts — excluded.
+
+    Reads `records` (T_CELL-only terminal history), NOT `cells` — the
+    cells projection is masked by queued/started mid-run, which would
+    silently empty this bucket right when a rerun is being planned.
     """
     rows = index.conn.execute(
-        "SELECT status, cat FROM cells WHERE idc=? AND arm=? AND variant=?",
-        (idc, _norm(arm), _norm(variant)),
+        "SELECT status, cat FROM records r"
+        " WHERE r.idc=? AND r.arm=? AND r.variant=?"
+        " AND r.rowid IN (SELECT MAX(rowid) FROM records"
+        "               WHERE idc=? AND arm=? AND variant=?"
+        "               GROUP BY up, stage)",
+        (idc, _norm(arm), _norm(variant), idc, _norm(arm), _norm(variant)),
     ).fetchall()
     if any(r["status"] in ("ok", "partial") for r in rows):
         return False
@@ -437,9 +445,12 @@ class DedupOracle:
         if row is not None:
             return True
         for r in self.index.conn.execute(
-            "SELECT status, cat FROM cells WHERE idc=? AND arm=? AND variant=?",
+            "SELECT status, cat FROM records"
+            " WHERE idc=? AND arm=? AND variant=?",
             (idc, arm, variant),
         ):
+            # records = T_CELL-only terminal history — never masked by a
+            # live run's queued/started the way the cells projection is.
             if r["status"] in MISSING_CELL_STATUSES or r["cat"] in MISSING_CATS:
                 return True
         return False
