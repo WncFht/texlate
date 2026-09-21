@@ -1,84 +1,57 @@
 // taskStore SSE 窗口：MAX_SSE_TASKS 上限内 EventSource、溢出任务降级
-// snapshot 轮询；pin（reader 聚焦）抢占；终态让位/摘除；resetLive 重订。
+// 共享列表轮询（pollListWanted 一拍 /api/tasks 归并，非逐任务 snapshot）；
+// pin（reader 聚焦）抢占；终态让位/摘除；resetLive 重订。
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
     tasks: vi.fn(),
     snapshot: vi.fn(),
-    deleteTask: vi.fn(),
     openTaskEvents: vi.fn(),
 }));
 
+// SSE 脚手架收敛到 _taskkit（同 liveFixes/liveFixloop 同构件）：clientModuleMock
+// 把 openTaskEvents 分到顶层导出、其余键进 api 覆写
 vi.mock("../api/client", async (importOriginal) => {
-    const mod = await importOriginal<typeof import("../api/client")>();
-    return {
-        ...mod,
-        api: {
-            ...mod.api,
-            tasks: mocks.tasks,
-            snapshot: mocks.snapshot,
-            deleteTask: mocks.deleteTask,
-        },
-        openTaskEvents: mocks.openTaskEvents,
-    };
+    const { clientModuleMock } = await import("./_taskkit");
+    return clientModuleMock(importOriginal, mocks);
 });
 
-import {
-    type TaskChannel,
-    type TaskEventHandlers,
-    type TaskSnapshot,
-} from "../api/client";
+import { type TaskSnapshot } from "../api/client";
 import { MAX_SSE_TASKS, POLL_INTERVAL_MS, taskStore } from "../stores/tasks";
+import { snap as fakeSnap } from "./fakes";
+import {
+    channelOf,
+    handlersOf,
+    mkChannel,
+    openedFor,
+    trackWatches,
+} from "./_taskkit";
 
+// (id, status, updated) 旧签名保留——updated 映 updated_at（0 回 fakes 基线戳）
 const snap = (
     id: string,
     status: TaskSnapshot["status"],
     updated = 0,
-): TaskSnapshot => ({
-    task_id: id,
-    kind: "arxiv",
-    status,
-    progress: status === "done" ? 100 : 40,
-    created_at: 1_700_000_000,
-    updated_at: updated || 1_700_000_000,
-});
-
-/** openTaskEvents 第 i 次调用拿到的 handlers */
-const handlersOf = (i: number) =>
-    mocks.openTaskEvents.mock.calls[i][1] as TaskEventHandlers;
-const channelOf = (i: number) =>
-    mocks.openTaskEvents.mock.results[i].value as TaskChannel & {
-        close: ReturnType<typeof vi.fn>;
-    };
-const openedFor = () =>
-    mocks.openTaskEvents.mock.calls.map((c) => c[0] as string);
+): TaskSnapshot =>
+    fakeSnap(id, { status, updated_at: updated || 1_700_000_000 });
 
 const used: string[] = [];
+// afterEach 统一 unwatch used 桶（幂等）——注册见 _taskkit 头注
+trackWatches(used, taskStore);
 
 beforeEach(() => {
     vi.useFakeTimers();
-    used.length = 0;
     mocks.tasks.mockReset();
-    mocks.deleteTask.mockReset().mockResolvedValue(undefined);
     mocks.snapshot
         .mockReset()
         .mockImplementation((id: string) =>
             Promise.resolve(snap(id, "translating")),
         );
-    mocks.openTaskEvents.mockReset().mockImplementation(() => {
-        const ch = {
-            closed: false,
-            close: vi.fn(() => {
-                ch.closed = true;
-            }),
-        };
-        return ch;
-    });
+    mocks.openTaskEvents.mockReset().mockImplementation(() => mkChannel());
 });
 
 afterEach(() => {
-    for (const id of used) taskStore.unwatch(id);
     vi.clearAllTimers();
     vi.useRealTimers();
 });
@@ -97,7 +70,7 @@ describe("taskStore SSE 窗口（MAX_SSE_TASKS）", () => {
         await taskStore.refresh();
 
         expect(mocks.openTaskEvents).toHaveBeenCalledTimes(MAX_SSE_TASKS);
-        expect(openedFor()).toEqual(["w1", "w2", "w3"]);
+        expect(openedFor(mocks)).toEqual(["w1", "w2", "w3"]);
         // 溢出两任务由共享列表轮询覆盖——不再逐任务开 snapshot 轮询
         expect(mocks.snapshot).not.toHaveBeenCalled();
         // refresh 一拍 + 轮询器立补一拍
@@ -118,12 +91,12 @@ describe("taskStore SSE 窗口（MAX_SSE_TASKS）", () => {
         ]);
         used.push("p1", "p2", "p3", "p4");
         await taskStore.refresh();
-        expect(openedFor()).toEqual(["p1", "p2", "p3"]);
+        expect(openedFor(mocks)).toEqual(["p1", "p2", "p3"]);
 
         taskStore.watch("p4"); // reader 聚焦——pin 最优先
         expect(mocks.openTaskEvents).toHaveBeenCalledTimes(4);
-        expect(openedFor().at(-1)).toBe("p4");
-        expect(channelOf(2).close).toHaveBeenCalled(); // p3 被挤下 SSE
+        expect(openedFor(mocks).at(-1)).toBe("p4");
+        expect(channelOf(mocks, 2).close).toHaveBeenCalled(); // p3 被挤下 SSE
         // p3 非 pin——降级进共享列表轮询：下拍 /api/tasks 覆盖而非 snapshot
         mocks.tasks.mockClear();
         await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
@@ -144,7 +117,7 @@ describe("taskStore SSE 窗口（MAX_SSE_TASKS）", () => {
         expect(mocks.snapshot).not.toHaveBeenCalled();
         expect(mocks.tasks.mock.calls.length).toBeGreaterThanOrEqual(2);
 
-        const h = handlersOf(0); // d1
+        const h = handlersOf(mocks, 0); // d1
         h.log?.({ line: "x" });
         h.stage?.({ stage: "translating", progress: 10, message: "", at: 0 });
         expect(taskStore.live("d1")!.logs).toHaveLength(1);
@@ -152,7 +125,7 @@ describe("taskStore SSE 窗口（MAX_SSE_TASKS）", () => {
 
         h.done?.({ status: "done", artifacts: {}, stats: { tokens: 5 } });
 
-        expect(channelOf(0).close).toHaveBeenCalled();
+        expect(channelOf(mocks, 0).close).toHaveBeenCalled();
         expect(taskStore.task("d1")!.status).toBe("done");
         const live = taskStore.live("d1")!;
         expect(live.done?.stats.tokens).toBe(5);
@@ -160,7 +133,7 @@ describe("taskStore SSE 窗口（MAX_SSE_TASKS）", () => {
         expect(live.stages).toEqual([]);
         // d4 升格 SSE
         expect(mocks.openTaskEvents).toHaveBeenCalledTimes(4);
-        expect(openedFor().at(-1)).toBe("d4");
+        expect(openedFor(mocks).at(-1)).toBe("d4");
     });
 
     it("轮询任务回终态——摘除观测且不再轮询", async () => {
@@ -207,12 +180,12 @@ describe("taskStore SSE 窗口（MAX_SSE_TASKS）", () => {
         mocks.tasks.mockResolvedValue([snap("s1", "translating", 50)]);
         used.push("s1");
         await taskStore.refresh();
-        expect(openedFor()).toEqual(["s1"]);
+        expect(openedFor(mocks)).toEqual(["s1"]);
 
         taskStore.resetLive("s1");
-        expect(channelOf(0).close).toHaveBeenCalled();
+        expect(channelOf(mocks, 0).close).toHaveBeenCalled();
         expect(mocks.openTaskEvents).toHaveBeenCalledTimes(2);
-        expect(openedFor().at(-1)).toBe("s1");
+        expect(openedFor(mocks).at(-1)).toBe("s1");
     });
 
     it("pin 超窗：watch 返回轮询句柄，close 即摘除观测", async () => {
@@ -264,5 +237,39 @@ describe("taskStore SSE 窗口（MAX_SSE_TASKS）", () => {
         ]);
         await taskStore.refresh();
         expect(taskStore.task("g1")!.progress).toBe(95);
+    });
+});
+
+describe("taskStore ensureFresh / patch", () => {
+    it("ensureFresh：TTL 内二次调用不重拉；过期再拉", async () => {
+        mocks.tasks.mockResolvedValue([]); // 空列表——无 wanted 无轮询器
+        await taskStore.ensureFresh(60_000);
+        await taskStore.ensureFresh(60_000);
+        expect(mocks.tasks).toHaveBeenCalledTimes(1); // TTL 门内幂等
+
+        // 假时钟推进越过 TTL（Date.now 随钟走）——第三调用再发请求
+        await vi.advanceTimersByTimeAsync(61_000);
+        await taskStore.ensureFresh(60_000);
+        expect(mocks.tasks).toHaveBeenCalledTimes(2);
+    });
+
+    it("patch：undefined 键跳过不清值；行引用不变；未知 id 空转", async () => {
+        mocks.tasks.mockResolvedValue([snap("pt1", "translating", 50)]);
+        used.push("pt1");
+        await taskStore.refresh();
+        const row = taskStore.task("pt1")!;
+
+        taskStore.patch("pt1", { progress: 77, message: "m1" });
+        expect(row.progress).toBe(77);
+        expect(row.message).toBe("m1");
+        // undefined 值跳过而非清字段——patch 只带要改的键
+        taskStore.patch("pt1", { message: undefined });
+        expect(row.message).toBe("m1");
+        // 字段级写——行对象引用保持（M9：<For> 不整行重挂）
+        expect(taskStore.task("pt1")).toBe(row);
+
+        taskStore.patch("ghost", { progress: 1 }); // 未知 id——空转不抛
+        expect(taskStore.task("ghost")).toBeUndefined();
+        expect(taskStore.state.tasks).toHaveLength(1);
     });
 });

@@ -28,6 +28,17 @@ beforeEach(() => {
 });
 
 describe("settingsStore（BYOK 设置读写）", () => {
+    // 本用例必须居首——store 是模块级单例，refresh 一旦成功 settings
+    // 即非 null，失败臂的 settings()==null 断言就再不可达
+    it("refresh：getSettings 失败仍放 loaded（Settings 页不停空表单）", async () => {
+        mocks.getSettings.mockRejectedValue(new Error("down"));
+
+        await settingsStore.refresh();
+
+        expect(settingsStore.loaded()).toBe(true);
+        expect(settingsStore.settings()).toBeNull();
+    });
+
     it("refresh：GET settings 落 store，providers 失败不阻塞", async () => {
         mocks.getSettings.mockResolvedValue({
             has_api_key: true,
@@ -83,5 +94,26 @@ describe("settingsStore（BYOK 设置读写）", () => {
 
         expect(settingsStore.settings()?.model).toBe("m2");
         expect(settingsStore.settings()?.target_lang).toBe("zh-CN");
+    });
+
+    it("save：回执带 ignored 落 store；下轮回执缺席时归零不挂留", async () => {
+        mocks.getSettings.mockResolvedValue({ has_api_key: true, model: "m" });
+        await settingsStore.refresh();
+
+        mocks.putSettings.mockResolvedValueOnce({
+            has_api_key: true,
+            model: "m",
+            ignored: ["mystery_key"],
+        });
+        await settingsStore.save({ model: "m" });
+        expect(settingsStore.settings()?.ignored).toEqual(["mystery_key"]);
+
+        // 第二轮响应无 ignored 字段——浅合并会挂留旧值，归一 ?? [] 兜底
+        mocks.putSettings.mockResolvedValueOnce({
+            has_api_key: true,
+            model: "m",
+        });
+        await settingsStore.save({ model: "m" });
+        expect(settingsStore.settings()?.ignored).toEqual([]);
     });
 });

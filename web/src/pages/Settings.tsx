@@ -3,7 +3,7 @@
 import { createSignal, onCleanup, onMount, Show, For } from "solid-js";
 import { settingsStore } from "../stores/settings";
 import Segmented from "../components/Segmented";
-import { errText } from "../api/client";
+import { errText, type Provider } from "../api/client";
 import {
     API_DIALECTS,
     ENGINES,
@@ -11,6 +11,13 @@ import {
     TARGET_LANGS,
 } from "../options";
 import { t, langChoice, setLang, type LangChoice } from "../i18n";
+
+/** 并发夹取 1..16——与 Home 任务选项（home/options.ts）同一口径 */
+const clampConcurrency = (v: number) => Math.max(1, Math.min(16, Math.floor(v)));
+
+/** 预设的模型清单：models[] 或单数 model；自定义/无模型预设 → 空表走自由输入 */
+const providerModels = (p?: Provider): string[] =>
+    p?.models ?? (p?.model ? [p.model] : []);
 
 export default function Settings() {
     const [apiKey, setApiKey] = createSignal("");
@@ -46,10 +53,14 @@ export default function Settings() {
         setBaseUrl(s.base_url ?? "");
         setModel(s.model ?? "");
         setDialect(s.dialect ?? "auto");
-        // 回填后反查预设：base_url 命中即归位，否则落「自定义」
+        // 回填后反查预设：base_url 命中即归位，否则落「自定义」；
+        // s.base_url 缺席时不查——免得撞上同样缺 base_url 的预设误归位
         setProvider(
-            settingsStore.providers().find((p) => p.base_url === s.base_url)
-                ?.id ?? "",
+            s.base_url
+                ? (settingsStore
+                      .providers()
+                      .find((p) => p.base_url === s.base_url)?.id ?? "")
+                : "",
         );
         setTargetLang(s.target_lang ?? "zh-CN");
         setGlossary(s.glossary ?? "");
@@ -91,7 +102,7 @@ export default function Settings() {
         // 空串不送——server 侧 int("") 直接 400；夹取口径同 Home 任务选项
         const conc = Number(concurrency());
         if (Number.isFinite(conc) && conc >= 1) {
-            patch.concurrency = Math.max(1, Math.min(16, Math.floor(conc)));
+            patch.concurrency = clampConcurrency(conc);
         }
         if (apiKey().trim()) patch.api_key = apiKey().trim();
         try {
@@ -125,12 +136,12 @@ export default function Settings() {
         setTesting(true);
         setMsg("");
         try {
-            // 测当前表单值而非已存配置
+            // 测当前表单值而非已存配置——trim 归一化口径与 save() 一致
             const r = await settingsStore.test({
-                base_url: baseUrl(),
-                model: model(),
+                base_url: baseUrl().trim(),
+                model: model().trim(),
                 dialect: dialect(),
-                ...(apiKey() ? { api_key: apiKey() } : {}),
+                ...(apiKey().trim() ? { api_key: apiKey().trim() } : {}),
             });
             if (r.ok) flash(t.settings.testOk);
             else fail(`${t.settings.testFail}：${r.detail ?? ""}`);
@@ -145,12 +156,8 @@ export default function Settings() {
     const curProvider = () =>
         settingsStore.providers().find((p) => p.id === provider());
 
-    /** 预设的模型清单：models[] 或单数 model；自定义预设 → 空表走自由输入 */
-    const provModels = () => {
-        const p = curProvider();
-        if (!p) return [];
-        return p.models ?? (typeof p.model === "string" ? [p.model] : []);
-    };
+    /** 当前预设的模型清单——空表时走自由输入框 */
+    const provModels = () => providerModels(curProvider());
 
     /** 预设选择即回填 base_url + 首选 model——model 留空值时用户再挑 */
     const pickProvider = (id: string) => {
@@ -158,7 +165,7 @@ export default function Settings() {
         const p = settingsStore.providers().find((x) => x.id === id);
         if (!p) return;
         setBaseUrl(p.base_url ?? "");
-        const ms = p.models ?? (p.model ? [p.model] : []);
+        const ms = providerModels(p);
         if (ms.length && !ms.includes(model())) setModel(ms[0]);
     };
 
@@ -197,6 +204,7 @@ export default function Settings() {
                         </span>
                         <input
                             type="password"
+                            name="api_key"
                             autocomplete="off"
                             value={apiKey()}
                             onInput={(e) => setApiKey(e.currentTarget.value)}
@@ -250,6 +258,7 @@ export default function Settings() {
                     <span>{t.settings.baseUrl}</span>
                     <input
                         type="url"
+                        name="base_url"
                         placeholder="https://…/v1"
                         value={baseUrl()}
                         onInput={(e) => {
@@ -339,6 +348,7 @@ export default function Settings() {
                     </span>
                     <input
                         type="number"
+                        name="concurrency"
                         min={1}
                         max={16}
                         value={concurrency()}

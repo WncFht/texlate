@@ -7,8 +7,12 @@ import { createSignal } from "solid-js";
 import type { DiscoverHit } from "../api/client";
 import { createDebouncedAxSearch } from "../axsearch";
 
+// 与服务端 fetch.normalize_arxiv_id 同口径：旧形学科类目 . 后首字母必
+// 大写（_OLD_ID_RE 无 IGNORECASE——/i 只留给前缀/URL 剥壳，不进 id 本体）、
+// vN 限 1–3 位且非零（v0/v1234 服务端同拒）。比服务端窄是刻意的：大写
+// V 版与 v0N 前导零不收，怪输入留给服务端 400 回来报错。
 const ARXIV_RE =
-    /^(?:\d{4}\.\d{4,5}(?:v\d+)?|[a-z-]+(?:\.[A-Z][a-zA-Z]+)?\/\d{7}(?:v\d+)?)$/i;
+    /^(?:\d{4}\.\d{4,5}(?:v[1-9]\d{0,2})?|[a-zA-Z-]+(?:\.[A-Z][a-zA-Z]+)?\/\d{7}(?:v[1-9]\d{0,2})?)$/;
 
 // 服务端 normalize_arxiv_id 的轻量版：剥 arXiv: 前缀、各路径段 URL、
 // 尾部斜杠与 .pdf，再按新/旧 id 形白名单判
@@ -16,8 +20,10 @@ export function parseArxivId(raw: string): string | null {
     const s = raw.trim().replace(/^arxiv\s*:\s*/i, "");
     const bare = s.replace(/\.pdf$/i, "");
     if (ARXIV_RE.test(bare)) return bare;
-    const m = s.match(
-        /arxiv\.org\/(?:abs|pdf|html|src|e-print|format)\/+([^\s?#]+?)\/*?(?:\.pdf)?(?:[?#].*)?$/i,
+    // URL 形锚在 raw 头部（同服务端 _ID_URL_RE 的 ^ 口径）——「notarxiv.org」
+    // 寄生域名与「arXiv: <url>」双前缀串不再误食
+    const m = raw.trim().match(
+        /^(?:(?:https?:\/\/)?(?:[\w.-]+\.)?arxiv\.org\/(?:abs|pdf|html|src|e-print|format)\/+)([^\s?#]+?)\/*?(?:\.pdf)?(?:[?#].*)?$/i,
     );
     return m && ARXIV_RE.test(m[1]) ? m[1] : null;
 }
@@ -25,7 +31,9 @@ export function parseArxivId(raw: string): string | null {
 export function createHomeSuggest(deps: {
     /** 卸载闸——在飞请求不随卸载取消，但迟到响应不得再落地 */
     alive(): boolean;
-    /** 建议命中回填输入框（用户确认后再提交） */
+    /** 建议命中回填输入框（用户确认后再提交）——契约含清格式错态
+     *  （idBad/error）：下拉开着时也可提交落得 aria-invalid，回填的是
+     *  合法 id，残留错态会让有效输入挂 invalid 标记 */
     fillId(id: string): void;
 }) {
     // 输入框快搜建议（alphaXiv）：hits=null=未发起/已关；[]=搜过无匹配

@@ -88,9 +88,11 @@ export function zoomToFontPx(z: string): number {
     return Math.round((12 + ((ratio - 0.6) * 10) / 1.4) * 10) / 10;
 }
 
-/** 渲染产物里的 http(s) 外链一律新开标签页 + noopener——pane 内默认跳转会顶掉阅读器 */
+/** 渲染产物里的 http(s)/协议相对外链一律新开标签页 + noopener——pane 内默认跳转会顶掉阅读器 */
 export function externalLinksBlank(root: ParentNode): void {
-    for (const a of root.querySelectorAll<HTMLAnchorElement>('a[href^="http"]')) {
+    for (const a of root.querySelectorAll<HTMLAnchorElement>(
+        'a[href^="http"], a[href^="//"]',
+    )) {
         a.target = "_blank";
         a.rel = "noopener noreferrer";
     }

@@ -2,6 +2,12 @@
 
 import { createEffect, createSignal, For, Show, untrack } from "solid-js";
 import Segmented from "./Segmented";
+import ThemeToggle, {
+    cycleTheme,
+    themeIcon,
+    themeLabel,
+} from "./ThemeToggle";
+import { settingsStore } from "../stores/settings";
 import { bindMenuDismiss, menuRoving, menuTriggerKey } from "./menuNav";
 import type { FileKind, TaskStatus } from "../api/client";
 import { isTerminal } from "../api/client";
@@ -185,14 +191,44 @@ export default function Toolbar(props: Props) {
                                 ⇄ {t.reader.swap}
                             </button>
                         </Show>
+                        <button
+                            type="button"
+                            role="menuitem"
+                            tabIndex={-1}
+                            onClick={() => {
+                                cycleTheme();
+                                setMoreOpen(false);
+                            }}
+                        >
+                            {themeIcon[settingsStore.theme()]} {t.settings.theme}
+                            ：{themeLabel(settingsStore.theme())}
+                        </button>
                         <label class="tb-menu-row">
                             {t.reader.zoom}
+                            {/* role=menuitem 收进 menuRoving 漫游圈（≤640px 时
+                                此处是唯一缩放控件）；方向键/Home/End 留给 select
+                                原生改值不上冒（否则被 roving 抢走焦点），
+                                Tab/Escape 照常上冒收菜单 */}
                             <select
                                 class="tb-select tx-select"
+                                role="menuitem"
+                                tabIndex={-1}
                                 value={props.zoom}
                                 onChange={(e) =>
                                     props.onZoom(e.currentTarget.value)
                                 }
+                                onKeyDown={(e) => {
+                                    if (
+                                        e.key === "ArrowDown" ||
+                                        e.key === "ArrowUp" ||
+                                        e.key === "ArrowLeft" ||
+                                        e.key === "ArrowRight" ||
+                                        e.key === "Home" ||
+                                        e.key === "End"
+                                    ) {
+                                        e.stopPropagation();
+                                    }
+                                }}
                             >
                                 <For each={ZOOMS}>
                                     {(z) => (
@@ -380,6 +416,8 @@ export default function Toolbar(props: Props) {
                     ⇧ {t.reader.share}
                 </button>
             </Show>
+
+            <ThemeToggle class="tb-btn tb-opt" />
 
             <button
                 type="button"

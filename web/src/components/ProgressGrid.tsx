@@ -25,6 +25,12 @@ const STATUS_CLASS: Record<string, string> = {
     failed: "cell-failed",
 };
 
+/** i18n 模板 {k} 插值——本地副本；单源待 hoist 到 i18n/index.ts 供全站共用 */
+const fmt = (tpl: string, vars: Record<string, string | number>): string =>
+    tpl.replace(/\{(\w+)\}/g, (m, k: string) =>
+        k in vars ? String(vars[k]) : m,
+    );
+
 export default function ProgressGrid(props: Props) {
     // 定长下标表——total 不变即引用不变，<Index> 行零重建
     const idxs = createMemo(() =>
@@ -96,9 +102,10 @@ export default function ProgressGrid(props: Props) {
                                 tabIndex={clickable() ? 0 : undefined}
                                 aria-label={
                                     clickable()
-                                        ? t.progress.cellFailed
-                                              .replace("{n}", String(i() + 1))
-                                              .replace("{code}", code())
+                                        ? fmt(t.progress.cellFailed, {
+                                              n: i() + 1,
+                                              code: code(),
+                                          })
                                         : undefined
                                 }
                                 title={failed() ? code() : undefined}

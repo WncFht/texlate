@@ -1,6 +1,6 @@
 // mergeResultStats 补角：taskStats.test.ts 已盖优先级/兜底/空态主路径，本文件补——
 // 逐字段独立兜底（非整体二选一）、?? 语义（0 不回退）、usage 零值/仅 model、
-// done.stats 未知附加键不点亮、返回形状固定七键。
+// done.stats 未知附加键不点亮、返回形状固定十键。
 
 import { describe, expect, it } from "vitest";
 import { mergeResultStats } from "../taskStats";

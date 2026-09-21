@@ -2,7 +2,7 @@
 // Home 表单临时 API Key：填了 → translate 第三参 byok 透传 + 提交成功即清；
 // 空/纯空白 → 不带 byok（per-request 语义，不落 settings store）。
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
     tasks: vi.fn(),
@@ -13,76 +13,30 @@ const mocks = vi.hoisted(() => ({
     translate: vi.fn(),
 }));
 
-vi.mock("../api/client", async (importOriginal) => {
-    const mod = await importOriginal<typeof import("../api/client")>();
-    return {
-        ...mod,
-        api: {
-            ...mod.api,
-            tasks: mocks.tasks,
-            health: mocks.health,
-            getSettings: mocks.getSettings,
-            putSettings: mocks.putSettings,
-            providers: mocks.providers,
-            translate: mocks.translate,
-        },
-    };
-});
+// vi.mock 提升限制——工厂体内再引 _homekit（顶层 import 进不了 hoisted 作用域）
+// buildApiModule 的 HOME_API_DEFAULTS 兜底 upload/shareImport/discoverSearch
+// 等未声明成员——此前 ...mod.api 穿透会打真 fetch
+vi.mock("../api/client", async (importOriginal) =>
+    (await import("./_homekit")).buildApiModule(
+        await importOriginal<typeof import("../api/client")>(),
+        mocks,
+    ),
+);
 
-import { render } from "solid-js/web";
 import Home from "../pages/Home";
+import {
+    flush,
+    FM_OPTS,
+    mountHome,
+    resetHomeMocks,
+    type,
+} from "./_homekit";
 
-const flush = () => new Promise((r) => setTimeout(r, 0));
-
-// collectOptions 恒写 front_matter（UI 态即意图）——裸提交的 options 形
-const FM_OPTS = {
-    options: {
-        front_matter: { abstract: true, title: true, author: false },
-    },
-};
-
-let dispose: (() => void) | undefined;
-
-function mount() {
-    const nav = vi.fn();
-    dispose = render(() => Home({ nav }), document.body);
-    const input = document.body.querySelector<HTMLInputElement>(".arxiv-input");
-    const key = document.body.querySelector<HTMLInputElement>(
-        '.task-opts input[type="password"]',
-    );
-    const form = document.body.querySelector<HTMLFormElement>("form");
-    if (!input || !key || !form) throw new Error("form elements missing");
-    return { nav, input, key, form };
-}
-
-function type(el: HTMLInputElement, v: string) {
-    el.value = v;
-    el.dispatchEvent(new Event("input", { bubbles: true }));
-}
-
-beforeEach(() => {
-    mocks.tasks.mockReset().mockResolvedValue({ tasks: [] });
-    mocks.health.mockReset().mockResolvedValue({ ok: true, version: "t", compilers: {} });
-    mocks.getSettings.mockReset().mockResolvedValue({ has_api_key: false });
-    mocks.putSettings.mockReset();
-    mocks.providers.mockReset().mockResolvedValue({ providers: [] });
-    mocks.translate.mockReset().mockResolvedValue({
-        task_id: "t_0000000000000f01",
-        status: "queued",
-        events_url: "/api/task/t_0000000000000f01",
-        reader_url: "/api/task/t_0000000000000f01/reader",
-    });
-});
-
-afterEach(() => {
-    dispose?.();
-    dispose = undefined;
-    document.body.innerHTML = "";
-});
+beforeEach(() => resetHomeMocks(mocks));
 
 describe("Home 临时 API Key（per-request BYOK）", () => {
     it("填 key 提交 → translate 带 {apiKey}，成功后清空输入", async () => {
-        const { nav, input, key, form } = mount();
+        const { nav, input, key, form } = mountHome(Home);
         type(input, "2501.14787");
         type(key, "sk-temp-1");
 
@@ -98,7 +52,7 @@ describe("Home 临时 API Key（per-request BYOK）", () => {
     });
 
     it("不填 key → byok 参 undefined（现状不变）", async () => {
-        const { input, form } = mount();
+        const { input, form } = mountHome(Home);
         type(input, "2501.14787");
 
         form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
@@ -108,7 +62,7 @@ describe("Home 临时 API Key（per-request BYOK）", () => {
     });
 
     it("纯空白 key 视同未填 → 不透传", async () => {
-        const { input, key, form } = mount();
+        const { input, key, form } = mountHome(Home);
         type(input, "2501.14787");
         type(key, "   ");
 
@@ -119,7 +73,7 @@ describe("Home 临时 API Key（per-request BYOK）", () => {
     });
 
     it("临时 key 不触碰 settings store（纯 per-request，不发 PUT）", async () => {
-        const { input, key, form } = mount();
+        const { input, key, form } = mountHome(Home);
         type(input, "2501.14787");
         type(key, "sk-temp-2");
 

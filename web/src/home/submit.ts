@@ -2,7 +2,12 @@
 // → api.translate；409（同 cache_key 已有活动任务）直跳既有任务。busy
 // 门防重入（输入框 Enter 隐式提交不走 disabled 钮）。自 pages/Home.tsx 拆出。
 
-import { api, ApiError, type TranslateResponse } from "../api/client";
+import {
+    api,
+    apiErrText,
+    ApiError,
+    type TranslateResponse,
+} from "../api/client";
 import { t } from "../i18n";
 import type { HomeOptions } from "./options";
 import { parseArxivId } from "./search";
@@ -52,7 +57,7 @@ export function createHomeSubmit(deps: {
                     return;
                 }
             }
-            deps.setError(e instanceof Error ? e.message : String(e));
+            deps.setError(apiErrText(e));
         } finally {
             deps.setBusy(false);
         }

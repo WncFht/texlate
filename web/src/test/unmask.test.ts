@@ -4,10 +4,10 @@
 import { describe, expect, it } from "vitest";
 import { unmaskLatex } from "../reader/markdown";
 
+// 用脱节点当宿主即可：createTreeWalker/closest/textContent 都支持 detached
 const host = (html: string): HTMLElement => {
     const el = document.createElement("div");
     el.innerHTML = html;
-    document.body.appendChild(el);
     return el;
 };
 

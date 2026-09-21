@@ -5,7 +5,10 @@
 //
 // 增量 DOM 补丁：seq → <section> 映射 + 有序插入，每拍只重绘变化段，
 // 滚动位置与已渲染公式不动。折叠容器恒挂载（display 自门控），
-// 首段到达即自动可用；再大任务也限 CHUNKS_PAGE_MAX 窗内。
+// 首段到达即自动可用。acc/els/order 累积全部已下发 seq——delta 轮询
+// 每拍限 CHUNK_WINDOW（= 服务端 CHUNKS_PAGE_MAX 500）拉取但跨拍全量
+// 送达，渲染 DOM 并无 500 窗上限；注意整页兜底路径
+// （api.taskChunks 首页拉取）只覆盖 seq<500，>500 段任务在降级态截尾。
 //
 // 折叠免绘制：details 合上期间 onPage 只把脏 seq 记进 pendingSeqs，
 // marked+KaTeX 不做；重新展开时按 acc 最新快照 backfill 补渲。
@@ -17,6 +20,7 @@ import { createEffect, createSignal, onCleanup, onMount } from "solid-js";
 import type { TaskChunksPage } from "../api/client";
 import { pollChunksOnce, subscribeChunks } from "./chunkPoll";
 import {
+    chunkSideText,
     chunkUntranslated,
     loadMdLibs,
     unmaskLatex,
@@ -49,23 +53,26 @@ export function mergeLive(
     for (const r of rows) {
         if (typeof r.seq !== "number" || !Number.isFinite(r.seq)) continue;
         const cur = acc.get(r.seq);
-        if (
-            cur &&
-            cur.status === r.status &&
-            cur.zh === r.zh &&
-            cur.en === r.en &&
-            cur.kind === r.kind
-        )
-            continue;
-        acc.set(r.seq, {
+        // ph 缺席的行继承旧表——合并结果进 dirty，重绘才能拿到保留的掩码表
+        const merged: LiveChunk = {
             seq: r.seq,
             kind: r.kind,
             status: r.status,
             en: r.en,
             zh: r.zh,
             ph: r.ph ?? cur?.ph,
-        });
-        dirty.push(r);
+        };
+        if (
+            cur &&
+            cur.status === merged.status &&
+            cur.zh === merged.zh &&
+            cur.en === merged.en &&
+            cur.kind === merged.kind &&
+            cur.ph === merged.ph
+        )
+            continue;
+        acc.set(r.seq, merged);
+        dirty.push(merged);
     }
     return dirty;
 }
@@ -120,7 +127,6 @@ export default function LivePane(props: Props) {
             bodyEl.insertBefore(el, ref);
             els.set(c.seq, el);
         }
-        const zh = (c.zh ?? "").trim();
         const meta =
             `<div class="chunk-meta muted">` +
             `<span class="chunk-seq">#${c.seq + 1}</span>` +
@@ -129,7 +135,9 @@ export default function LivePane(props: Props) {
         const badge = chunkUntranslated(c)
             ? `<span class="chunk-badge">${escapeHtml(t.live.untranslated)}</span>`
             : "";
-        el.innerHTML = meta + badge + libs.mdToHtml(zh ? c.zh! : (c.en ?? ""));
+        // 与 HtmlPane 同一单侧取文：zh 空白回退 en
+        el.innerHTML =
+            meta + badge + libs.mdToHtml(chunkSideText(c, "translated"));
         // marked 产物内的 http(s) 外链一律新窗——pane 内默认跳转会顶掉阅读器
         externalLinksBlank(el);
         unmaskLatex(el, c.ph);

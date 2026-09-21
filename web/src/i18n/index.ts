@@ -39,3 +39,9 @@ export const setLang = (choice: LangChoice) => {
 
 // 形状以 zh.ts 为准——en.ts 键级 parity 由这里的赋值把守
 export const t: typeof zh = currentLang() === "zh" ? zh : en;
+
+/** i18n 模板 {k} 插值——单源；各组件的本地 fmt 副本一律改从这里 import */
+export const fmt = (tpl: string, vars: Record<string, string | number>): string =>
+    tpl.replace(/\{(\w+)\}/g, (m, k: string) =>
+        k in vars ? String(vars[k]) : m,
+    );

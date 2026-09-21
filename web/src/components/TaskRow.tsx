@@ -230,6 +230,7 @@ export default function TaskRow(props: {
                 }}
                 disabled={
                     !isTerminal(props.task.status) ||
+                    props.acting() !== null ||
                     props.deleting() !== null ||
                     props.cleaning()
                 }

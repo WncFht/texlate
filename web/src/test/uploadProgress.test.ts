@@ -3,16 +3,12 @@
 // 走 XHR（xhr.upload.onprogress → loaded/total）。覆盖：
 //   progress 回调触发、Idempotency-Key/BYOK 头经 setRequestHeader、
 //   未决重发复用同 key（XHR 路 idem 语义不变）、
+//   xhr.timeout=UPLOAD_TIMEOUT_MS(10min) + ontimeout/onabort → TypeError
+//   （同 onerror 属「未决」——留 idem key，重试复用不双建）、
 //   HTTP 错误 → ApiError、网络失败 → TypeError（未决留 key）。
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
-const RESP = {
-    task_id: "t_0000000000000f01",
-    status: "queued",
-    events_url: "/api/task/t_0000000000000f01",
-    reader_url: "/api/task/t_0000000000000f01/reader",
-};
+import { RESP } from "./_homekit";
 
 /** 最小 XHR 桩：记录 open/setRequestHeader/send，测试手动驱动 onprogress/onload */
 class FakeXHR {
@@ -32,6 +28,8 @@ class FakeXHR {
     onload: (() => void) | null = null;
     onerror: (() => void) | null = null;
     onabort: (() => void) | null = null;
+    ontimeout: (() => void) | null = null;
+    timeout = 0;
 
     constructor() {
         FakeXHR.instances.push(this);
@@ -48,6 +46,10 @@ class FakeXHR {
     }
     send(body?: unknown) {
         this.sentBody = body;
+    }
+    abort() {
+        // 真 XHR abort() 触发 abort 事件 → onabort（init.signal 臂亦落此）
+        this.onabort?.();
     }
     progress(loaded: number, total: number, computable = true) {
         this.upload.onprogress?.({ loaded, total, lengthComputable: computable });
@@ -157,6 +159,40 @@ describe("api.upload/shareImport 上传进度（XHR 路）", () => {
         const p2 = api.upload(file, undefined, undefined, vi.fn());
         const k2 = lastXhr().headers["Idempotency-Key"];
         expect(k2).toBe(k1);
+        lastXhr().respond(202, RESP);
+        await p2;
+    });
+
+    it("xhr.timeout=UPLOAD_TIMEOUT_MS(10min)；ontimeout → TypeError，重发复用 key", async () => {
+        const file = new File(["x"], "slow.tex");
+        const p1 = api.upload(file, undefined, undefined, vi.fn());
+        const xhr = lastXhr();
+        // 10min：80MB 上限在 ~150KB/s 慢链约 9min 传完（rest.ts UPLOAD_TIMEOUT_MS）
+        expect(xhr.timeout).toBe(600_000);
+        const k1 = xhr.headers["Idempotency-Key"];
+
+        xhr.ontimeout?.();
+        await expect(p1).rejects.toThrow(TypeError);
+        await expect(p1).rejects.toThrow("upload timeout");
+
+        // TypeError 属「未决」——同文件重发复用同 key
+        const p2 = api.upload(file, undefined, undefined, vi.fn());
+        expect(lastXhr().headers["Idempotency-Key"]).toBe(k1);
+        lastXhr().respond(202, RESP);
+        await p2;
+    });
+
+    it("abort → TypeError(\"upload aborted\")，同文件重发复用 key", async () => {
+        const file = new File(["x"], "abort.tex");
+        const p1 = api.upload(file, undefined, undefined, vi.fn());
+        const k1 = lastXhr().headers["Idempotency-Key"];
+
+        lastXhr().abort();
+        await expect(p1).rejects.toThrow(TypeError);
+        await expect(p1).rejects.toThrow("upload aborted");
+
+        const p2 = api.upload(file, undefined, undefined, vi.fn());
+        expect(lastXhr().headers["Idempotency-Key"]).toBe(k1);
         lastXhr().respond(202, RESP);
         await p2;
     });

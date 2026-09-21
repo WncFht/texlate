@@ -1,6 +1,8 @@
 // menuNav —— ARIA menu 交互契约共享件：menuitem ↑↓/Home/End roving、
 // Tab 顺走收菜单、外部 pointerdown 收、Escape 收+焦点回触发钮、触发钮
-// ArrowDown 开菜单聚焦首项。Toolbar 下载菜单与 TaskList ↻ 重试菜单共用。
+// ArrowDown 开菜单聚焦首项。全站下拉菜单共用——Toolbar ⬇ 下载 / ⋯ 溢出、
+// TaskList 清理 ▾、TaskRow ↻ 重试（RetryMenu）；dismiss 半件也服务
+// ReaderView 分享弹层等非 menu 浮层。
 
 import { createEffect, onCleanup } from "solid-js";
 

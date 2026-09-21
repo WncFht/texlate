@@ -214,6 +214,21 @@ describe("createHomeSuggest —— 防抖 + seq 闸 + 键盘契约", () => {
         await vi.advanceTimersByTimeAsync(0);
         expect(sg.hits()?.length).toBe(2);
 
+        // Esc（下拉开着）→ 收下拉 + preventDefault；已合则全键放行
+        const esc = key("Escape");
+        sg.onSuggestKey(esc);
+        expect(esc.preventDefault).toHaveBeenCalled();
+        expect(sg.hits()).toBeNull();
+        const esc2 = key("Escape");
+        sg.onSuggestKey(esc2);
+        expect(esc2.preventDefault).not.toHaveBeenCalled();
+
+        // 重开下拉走完 ↓↑/Enter 契约
+        sg.feed("some query");
+        await vi.advanceTimersByTimeAsync(300);
+        await vi.advanceTimersByTimeAsync(0);
+        expect(sg.hits()?.length).toBe(2);
+
         sg.onSuggestKey(key("ArrowDown"));
         expect(sg.activeHit()).toBe(0);
         sg.onSuggestKey(key("ArrowDown"));

@@ -1,7 +1,10 @@
 // 双栏滚动同步引擎 —— docs/research/product/web-layer.md §5.3 伪码落地。
-// 纯 TS、框架无关：PdfPane / HtmlPane 都实现 PaneLike 即可接入。
+// 核心纯 TS、框架无关：PdfPane / HtmlPane 都实现 PaneLike 即可接入
+// （onPaneScroll 例外——内部挂 SolidJS onCleanup，须在 owner 作用域调）。
 // 要点（texglot 先例）：20% 焦点线、viewport 字段保持锚点屏幕高度、
-// ignoreTop 吞程序跳转回声、rAF+epoch 合帧丢弃过期滚动。
+// ignoreTop 吞程序跳转回声、rAF+pendingSrc 合帧丢弃过期滚动。
+
+import { onCleanup } from "solid-js";
 
 import type { DocId, Pos, PosMap, Side } from "./alignment";
 
@@ -27,6 +30,33 @@ export const raf: (cb: FrameRequestCallback) => void =
     typeof requestAnimationFrame === "function"
         ? (cb) => requestAnimationFrame(cb)
         : (cb) => void setTimeout(() => cb(performance.now()), 16);
+
+/** 分片时间盒——chunk-pane 族渲染每段数 ms，40ms/帧保对侧窗格可交互 */
+const SLICE_MS = 40;
+
+/** 时间盒分片遍历：每片 ≤SLICE_MS，片间 rAF 让帧；isCancelled 置位即收 */
+export async function forEachSliced<T>(
+    items: readonly T[],
+    fn: (item: T) => void,
+    isCancelled: () => boolean,
+): Promise<void> {
+    let i = 0;
+    while (i < items.length && !isCancelled()) {
+        const deadline = performance.now() + SLICE_MS;
+        do {
+            fn(items[i++]);
+        } while (i < items.length && performance.now() < deadline);
+        if (i < items.length) {
+            await new Promise<void>((r) => raf(() => r()));
+        }
+    }
+}
+
+/** scroll → cb 的被动监听：effect 体内调用，随所属作用域 onCleanup 卸 */
+export function onPaneScroll(el: HTMLElement, cb: () => void): void {
+    el.addEventListener("scroll", cb, { passive: true });
+    onCleanup(() => el.removeEventListener("scroll", cb));
+}
 
 /** 焦点行 = scrollTop + 20% 视口高；返回所在页 + 页内 fraction + 视口位置 */
 export function capturePos(pane: PaneLike): Pos {
@@ -56,7 +86,10 @@ export function capturePos(pane: PaneLike): Pos {
 
 /** jump() 会写出的 scrollTop（不落地，用于漂移检测/测试） */
 export function scrollTopFor(pane: PaneLike, pos: Pos): number | null {
-    const p = pane.pages().find((pg) => pg.page === pos.page);
+    const pages = pane.pages();
+    // 现行产出皆连续 1-based 页码——索引直取 O(1)；稀疏/乱序页表退回线性扫
+    let p: PageGeom | undefined = pages[Math.round(pos.page) - 1];
+    if (p?.page !== pos.page) p = pages.find((pg) => pg.page === pos.page);
     if (!p) return null;
     return (
         p.top +

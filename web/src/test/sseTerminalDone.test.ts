@@ -25,20 +25,17 @@ vi.mock("../api/client", async (importOriginal) => {
 
 import type { TaskEventHandlers, TaskSnapshot } from "../api/client";
 import { taskStore } from "../stores/tasks";
+import { snap as fakeSnap } from "./fakes";
 
-const snap = (
-    id: string,
-    status: TaskSnapshot["status"],
-): TaskSnapshot => ({
-    task_id: id,
-    kind: "arxiv",
-    status,
-    progress: status === "done" ? 100 : 40,
-    created_at: 1_700_000_000,
-    updated_at: 1_700_000_000,
-    artifacts:
-        status === "done" ? { zh_pdf: `/api/files/${id}/zh.pdf` } : undefined,
-});
+// (id, status) 签名保留；done 行随 zh_pdf artifact——其余字段归 fakes.snap
+const snap = (id: string, status: TaskSnapshot["status"]): TaskSnapshot =>
+    fakeSnap(id, {
+        status,
+        artifacts:
+            status === "done"
+                ? { zh_pdf: `/api/files/${id}/zh.pdf` }
+                : undefined,
+    });
 
 const handlersOf = (i: number) =>
     mocks.openTaskEvents.mock.calls[i][1] as TaskEventHandlers;

@@ -1,29 +1,39 @@
 // 共享类型 —— §2 端点体/事件帧的类型面 + ApiError + 终态判定。
 // client.ts 门面对外再导出；本文件不含运行时请求逻辑。
 
-export type TaskStatus =
-    | "queued"
-    | "fetching"
-    | "parsing"
-    | "translating"
-    | "compiling"
-    | "done"
-    | "partial"
-    | "fault"
-    | "cancelled"
-    | "interrupted"
-    | "needs_auth";
+/** 任务状态词表（唯一事实源）——TaskStatus 联合由此派生；
+    i18n status 段与测试词表对本表迭代而非各维护一份手抄数组 */
+export const TASK_STATUSES = [
+    "queued",
+    "fetching",
+    "parsing",
+    "translating",
+    "compiling",
+    "done",
+    "partial",
+    "fault",
+    "cancelled",
+    "interrupted",
+    "needs_auth",
+] as const;
+
+export type TaskStatus = (typeof TASK_STATUSES)[number];
 
 export type TaskStage = "fetching" | "parsing" | "translating" | "compiling";
-export type TaskKind =
-    | "arxiv"
-    | "arxiv_html"
-    | "upload_tex"
-    | "upload_pdf"
-    | "docx"
-    | "epub"
-    | "share"
-    | string;
+
+/** 已知任务类型词表——服务端可发词表外 kind（新通道先行），
+    TaskKind 保留 `| string` 尾 */
+export const TASK_KINDS = [
+    "arxiv",
+    "arxiv_html",
+    "upload_tex",
+    "upload_pdf",
+    "docx",
+    "epub",
+    "share",
+] as const;
+
+export type TaskKind = (typeof TASK_KINDS)[number] | string;
 
 export type ErrorCode =
     | "arxiv_fetch"
@@ -73,10 +83,14 @@ export interface TaskSnapshot {
     progress: number;
     created_at: number;
     updated_at: number;
-    stage?: TaskStage;
+    /** 单任务 snapshot 缺席；/tasks 列表行发显式 null（DB 列可空） */
+    stage?: TaskStage | null;
     message?: string;
     title?: string;
-    arxiv_id?: string;
+    /** 同 stage：列表行 null（上传类无 arxiv 源），单任务 snapshot 缺席 */
+    arxiv_id?: string | null;
+    /** /tasks 列表行恒发（DB NOT NULL DEFAULT ''）；单任务 snapshot 不携带 */
+    source_name?: string;
     target_lang?: string;
     model?: string;
     counters?: TaskCounters;
@@ -563,4 +577,10 @@ const TERMINAL: ReadonlySet<TaskStatus> = new Set([
 
 export function isTerminal(status: TaskStatus): boolean {
     return TERMINAL.has(status);
+}
+
+/** 终态中的失败桶（终态 − done）——计数/过滤/清理/重试共用这一份判定；
+    可重试集 = isFailed − needs_auth（缺 key 走设置而非重试） */
+export function isFailed(status: TaskStatus): boolean {
+    return isTerminal(status) && status !== "done";
 }

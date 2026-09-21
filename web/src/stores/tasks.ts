@@ -55,13 +55,22 @@ function ensureLive(taskId: string): void {
     setState("live", taskId, (l) => l ?? freshLive());
 }
 
+/** task_id 行定位一处口径（upsert/stage/done/patch/task 共用） */
+function rowIndex(id: string): number {
+    return state.tasks.findIndex((t) => t.task_id === id);
+}
+
+function rowOf(id: string): TaskSnapshot | undefined {
+    return state.tasks.find((t) => t.task_id === id);
+}
+
 /**
  * 字段级写回行——行对象引用不变，TaskList 的 <For> 不整行重挂（M9）。
  * reconcile 对对象节点 in-place 合并：新增键落位、缺席键清 undefined
  * （快照语义——服务端不发即无此值）、等值叶不触写。
  */
 function upsertTask(snap: TaskSnapshot) {
-    const i = state.tasks.findIndex((t) => t.task_id === snap.task_id);
+    const i = rowIndex(snap.task_id);
     if (i < 0) {
         setState("tasks", (list) => [snap, ...list]);
         return;
@@ -84,7 +93,12 @@ function inheritRich(
         artifacts: s.artifacts ?? cur.artifacts,
         warnings: s.warnings ?? cur.warnings,
         usage: s.usage ?? cur.usage,
-        queue_position: s.queue_position ?? cur.queue_position,
+        // 仅排队中继承——离队后 queue_position 语义是「缺席」，
+        // 照搬旧读会让已起跑/终态行永挂死位次
+        queue_position:
+            s.status === "queued"
+                ? (s.queue_position ?? cur.queue_position)
+                : undefined,
         options: s.options ?? cur.options,
         glossary: s.glossary ?? cur.glossary,
     };
@@ -184,8 +198,10 @@ const tp = createTransport({
             const m = mergeRow(s, cur);
             if (m === cur) continue; // 旧读不回写——stale 行也不进终态收敛
             upsertTask(m);
-            if (isTerminal(s.status)) {
-                convergeTerminal(id, s);
+            if (isTerminal(m.status)) {
+                // 收敛喂归并后行——原始列表行缺 artifacts，直喂会把
+                // live.done 的 artifacts 合成成 {}（refresh 路同口径）
+                convergeTerminal(id, m);
                 dirty = true;
             }
         }
@@ -208,7 +224,7 @@ const tp = createTransport({
                 setState("live", taskId, "stage", e);
                 setState("live", taskId, "stages", (ss) => [...ss, e]);
                 // 字段级补丁——行引用不变，<For> 不整行重挂（M9）
-                const i = state.tasks.findIndex((t) => t.task_id === taskId);
+                const i = rowIndex(taskId);
                 if (i >= 0) {
                     setState("tasks", i, "status", e.stage);
                     setState("tasks", i, "stage", e.stage);
@@ -266,7 +282,7 @@ const tp = createTransport({
             const status = e.status; // 窄化在闭包外——batch 内不继承 narrowing
             batch(() => {
                 setState("live", taskId, "done", e);
-                const i = state.tasks.findIndex((t) => t.task_id === taskId);
+                const i = rowIndex(taskId);
                 if (i >= 0) {
                     setState("tasks", i, "status", status);
                     setState("tasks", i, "progress", 100);
@@ -358,7 +374,7 @@ export const taskStore = {
     /** 本地补丁任务行（retry 后乐观更新；SSE snapshot 随后来覆盖为准）。
      *  逐字段写——行引用保持（M9）；undefined 值跳过（patch 只带要改的键） */
     patch(taskId: string, p: Partial<TaskSnapshot>) {
-        const i = state.tasks.findIndex((t) => t.task_id === taskId);
+        const i = rowIndex(taskId);
         if (i < 0) return;
         for (const [k, v] of Object.entries(p)) {
             if (v === undefined) continue;
@@ -390,6 +406,6 @@ export const taskStore = {
     },
 
     task(taskId: string): TaskSnapshot | undefined {
-        return state.tasks.find((t) => t.task_id === taskId);
+        return rowOf(taskId);
     },
 };

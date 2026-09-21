@@ -6,7 +6,7 @@ import {
     onCleanup,
     Show,
 } from "solid-js";
-import type { TaskSnapshot } from "../api/client";
+import type { TaskSnapshot, TaskStatus } from "../api/client";
 import { api, errText, isTerminal } from "../api/client";
 import { taskStore } from "../stores/tasks";
 import { fmtBytes } from "../reader/paneUtils";
@@ -22,14 +22,15 @@ interface Props {
 
 type Filter = "all" | "active" | "done" | "failed";
 
-/** 「未完成」筛选桶：终态里非 done 的全部 */
-const FAILED_SET = new Set([
-    "fault",
-    "partial",
-    "cancelled",
-    "interrupted",
-    "needs_auth",
-]);
+/** 「未完成」筛选桶：终态里非 done 的全部——由 TERMINAL 派生不另立清单
+ *  （TaskRow RETRYABLE = 本桶 − needs_auth；单源待 hoist 到 api/types.ts） */
+const isFailed = (s: TaskStatus): boolean => isTerminal(s) && s !== "done";
+
+/** i18n 模板 {k} 插值——本地副本；单源待 hoist 到 i18n/index.ts 供全站共用 */
+const fmt = (tpl: string, vars: Record<string, string | number>): string =>
+    tpl.replace(/\{(\w+)\}/g, (m, k: string) =>
+        k in vars ? String(vars[k]) : m,
+    );
 
 export default function TaskList(props: Props) {
     const [deleting, setDeleting] = createSignal<string | null>(null);
@@ -72,7 +73,10 @@ export default function TaskList(props: Props) {
         estTried = true;
         api.slimTasks({ dry: true })
             .then((r) => setEstBytes(r.freed_bytes))
-            .catch(() => setEstBytes(null));
+            .catch(() => {
+                estTried = false; // 失败不锁死——下次开菜单重拉 dry-run
+                setEstBytes(null);
+            });
     });
     // fmtRel 60s tick——相对时间随墙钟刷新，不靠任务事件顺带更新
     const [now, setNow] = createSignal(Date.now());
@@ -95,7 +99,7 @@ export default function TaskList(props: Props) {
         for (const x of props.tasks) {
             if (!isTerminal(x.status)) c.active++;
             if (x.status === "done") c.done++;
-            if (FAILED_SET.has(x.status)) c.failed++;
+            if (isFailed(x.status)) c.failed++;
         }
         return c;
     });
@@ -111,7 +115,7 @@ export default function TaskList(props: Props) {
         const list = props.tasks.filter((task) => {
             if (f === "active" && isTerminal(task.status)) return false;
             if (f === "done" && task.status !== "done") return false;
-            if (f === "failed" && !FAILED_SET.has(task.status)) return false;
+            if (f === "failed" && !isFailed(task.status)) return false;
             if (q) {
                 const hay =
                     `${task.title ?? ""} ${task.arxiv_id ?? ""} ${task.task_id}`.toLowerCase();
@@ -119,7 +123,7 @@ export default function TaskList(props: Props) {
             }
             return true;
         });
-        return [...list].sort((a, b) => {
+        return list.sort((a, b) => {
             const ta = isTerminal(a.status) ? 1 : 0;
             const tb = isTerminal(b.status) ? 1 : 0;
             if (ta !== tb) return ta - tb;
@@ -131,8 +135,13 @@ export default function TaskList(props: Props) {
         () => props.tasks.filter((x) => isTerminal(x.status)).length,
     );
 
+    /** 任一互斥操作在途（行内取消/重试 acting、删除 deleting、清理 cleaning）——
+     *  slim/purge/删除入口共用一把锁，防并行提交互相踩 */
+    const busy = () =>
+        cleaning() || deleting() !== null || acting() !== null;
+
     const confirmDelete = async (task: TaskSnapshot) => {
-        if (!isTerminal(task.status) || deleting() !== null || cleaning()) {
+        if (!isTerminal(task.status) || busy()) {
             return;
         }
         if (arm() !== task.task_id) {
@@ -196,7 +205,7 @@ export default function TaskList(props: Props) {
     /** 清理中间文件：POST /tasks/slim——只清 workdir 未登记字节
      *  （产物/记录全留），非破坏操作不需要确认；结果落 notice 行。 */
     const slimAll = async () => {
-        if (cleaning() || deleting() !== null || acting() !== null) return;
+        if (busy()) return;
         setCleaning(true);
         setDelError("");
         setNotice("");
@@ -205,7 +214,7 @@ export default function TaskList(props: Props) {
             setEstBytes(0); // 预估失效——刚清完下拍近乎为 0
             setNotice(
                 r.freed_bytes > 0
-                    ? t.home.slimFreed.replace("{size}", fmtBytes(r.freed_bytes))
+                    ? fmt(t.home.slimFreed, { size: fmtBytes(r.freed_bytes) })
                     : t.home.slimNone,
             );
         } catch (e) {
@@ -219,7 +228,7 @@ export default function TaskList(props: Props) {
      *  与 dropTask 清理）。删的是产物+记录本身，非瘦身——busy 期对话框
      *  保持开着让用户看见在删，结束才收。 */
     const purge = async (sel: { done: boolean; failed: boolean }) => {
-        if (cleaning() || deleting() !== null || acting() !== null) return;
+        if (busy()) return;
         setCleaning(true);
         setDelError("");
         setNotice("");
@@ -228,7 +237,7 @@ export default function TaskList(props: Props) {
             for (const task of props.tasks) {
                 const hit =
                     (task.status === "done" && sel.done) ||
-                    (FAILED_SET.has(task.status) && sel.failed);
+                    (isFailed(task.status) && sel.failed);
                 if (!hit) continue;
                 try {
                     await taskStore.remove(task.task_id);
@@ -238,7 +247,7 @@ export default function TaskList(props: Props) {
                 }
             }
             if (n) {
-                setNotice(t.home.purgeDone.replace("{n}", String(n)));
+                setNotice(fmt(t.home.purgeDone, { n }));
             }
         } finally {
             setCleaning(false);
@@ -319,10 +328,9 @@ export default function TaskList(props: Props) {
                                     : t.home.maintSlim}
                                 <Show when={!cleaning() && (estBytes() ?? 0) > 0}>
                                     <span class="menu-hint">
-                                        {t.home.maintSlimEst.replace(
-                                            "{size}",
-                                            fmtBytes(estBytes()!),
-                                        )}
+                                        {fmt(t.home.maintSlimEst, {
+                                            size: fmtBytes(estBytes()!),
+                                        })}
                                     </span>
                                 </Show>
                             </button>
@@ -340,10 +348,7 @@ export default function TaskList(props: Props) {
                             >
                                 {t.home.maintPurge}
                                 <span class="menu-hint">
-                                    {t.home.purgeN.replace(
-                                        "{n}",
-                                        String(termCount()),
-                                    )}
+                                    {fmt(t.home.purgeN, { n: termCount() })}
                                 </span>
                             </button>
                         </span>

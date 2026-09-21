@@ -9,3 +9,11 @@
     border: 0 !important;
 }
 
+/* ---------- 暗色页面对位（跟随 data-theme） ----------
+   canvas 像素由 Blender 渲染期接管（web/src/reader/blender.ts + pdfTheme.ts,
+   ADR-0018)——中性色映射 --paper/--ink ramp、彩色保 Lab 色相、图片按类分治。
+   这里只剩 .page 底色同步 --page-bg-color:reset 重渲间隙/未渲染页不闪白。 */
+[data-theme="dark"] .pdfSlickViewer {
+    --page-bg-color: var(--paper);
+}
+

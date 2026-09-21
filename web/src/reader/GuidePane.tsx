@@ -27,7 +27,8 @@ export default function GuidePane(props: { arxivId?: string }) {
     );
     const [libs, setLibs] = createSignal<MdLibs | null>(null);
     const [toc, setToc] = createSignal<{ el: HTMLElement; text: string }[]>([]);
-    let bodyEl: HTMLElement | undefined;
+    // article 随 content Show 挂/卸——信号化让渲染 effect 在重挂载时重跑
+    const [bodyEl, setBodyEl] = createSignal<HTMLElement>();
     let alive = true;
     onCleanup(() => {
         alive = false;
@@ -67,12 +68,18 @@ export default function GuidePane(props: { arxivId?: string }) {
     createEffect(() => {
         const l = libs();
         const md = ov()?.overview;
-        if (!l || !md || !bodyEl) return;
-        bodyEl.innerHTML = l.mdToHtml(md);
-        externalLinksBlank(bodyEl); // overview 内 alphaxiv/外链新窗，不顶掉阅读器
-        l.renderMath(bodyEl);
+        const el = bodyEl();
+        if (!l || !md || !el) {
+            // overview 缺席的重取/remount 间隙：清锚清文，不残留上一篇
+            setToc([]);
+            if (el) el.innerHTML = "";
+            return;
+        }
+        el.innerHTML = l.mdToHtml(md);
+        externalLinksBlank(el); // overview 内 alphaxiv/外链新窗，不顶掉阅读器
+        l.renderMath(el);
         setToc(
-            [...bodyEl.querySelectorAll("h2")].map((h, i) => {
+            [...el.querySelectorAll("h2")].map((h, i) => {
                 if (!h.id) h.id = `guide-s${i}`;
                 return { el: h, text: h.textContent ?? "" };
             }),
@@ -113,14 +120,17 @@ export default function GuidePane(props: { arxivId?: string }) {
                 <Show when={state() === "empty"}>
                     <div class="guide-empty">
                         <p>{t.reader.guideEmpty}</p>
-                        <a
-                            class="tb-btn"
-                            href={axUrl()}
-                            target="_blank"
-                            rel="noreferrer"
-                        >
-                            {t.reader.guideOpen} ↗
-                        </a>
+                        {/* 无 arxivId 的 empty 态出 /abs/undefined 死链——门掉 */}
+                        <Show when={props.arxivId}>
+                            <a
+                                class="tb-btn"
+                                href={axUrl()}
+                                target="_blank"
+                                rel="noreferrer"
+                            >
+                                {t.reader.guideOpen} ↗
+                            </a>
+                        </Show>
                     </div>
                 </Show>
 
@@ -202,7 +212,7 @@ export default function GuidePane(props: { arxivId?: string }) {
                                 </Show>
                                 <article
                                     class="guide-body"
-                                    ref={(el) => (bodyEl = el)}
+                                    ref={setBodyEl}
                                 />
                             </div>
                             <Show when={(o().citations?.length ?? 0) > 0}>

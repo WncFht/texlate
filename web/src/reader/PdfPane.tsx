@@ -22,11 +22,17 @@ import type { DocId, Pos } from "./alignment";
 import {
     capturePos,
     jumpTo,
+    onPaneScroll,
     scrollTopFor,
     type PageGeom,
     type PaneLike,
 } from "./sync";
 import { ensurePdfjsWorker } from "../pdfjs";
+import {
+    applyPdfTheme,
+    patchPdfPage,
+    resolvedTheme,
+} from "./pdfTheme";
 import PaneSidebar from "./PaneSidebar";
 import FindBar from "./FindBar";
 import DocInfo from "./DocInfo";
@@ -178,9 +184,17 @@ export default function PdfPane(props: Props) {
         const waitPages = () => {
             const s = pdfSlick();
             const views = (
-                s?.viewer as unknown as { _pages?: PdfPageViewLike[] }
+                s?.viewer as unknown as {
+                    _pages?: (PdfPageViewLike & {
+                        pdfPage?: Parameters<typeof patchPdfPage>[0];
+                    })[];
+                }
             )?._pages;
             if (s && views?.length && views.every((v) => v?.div)) {
+                // Blender 补丁落在首渲完成前——拦 render() 而非改产物,
+                // 暗色初始态也走同一管线;已在暗色下渲出的页由下方
+                // 主题 effect 的 applyPdfTheme 重渲兜底
+                for (const v of views) if (v?.pdfPage) patchPdfPage(v.pdfPage);
                 readyNotified = true;
                 props.onReady?.(handle);
                 return;
@@ -191,6 +205,23 @@ export default function PdfPane(props: Props) {
     });
     onCleanup(() => cancelAnimationFrame(rafId));
     onCleanup(() => props.onDispose?.(handle));
+
+    // 暗色主题 ↔ PDF 页渲染:data-theme 翻转(含 auto 档系统翻转)
+    // → applyPdfTheme 全页 reset + 原位重渲。亮色槽为 null(原样透传),
+    // 首次挂载的 light 不重置——默认渲出的就是对的
+    let themeApplied = false;
+    let prevTheme = resolvedTheme();
+    createEffect(() => {
+        const th = resolvedTheme();
+        const s = pdfSlick();
+        if (!s || !isDocumentLoaded()) return;
+        if (th === prevTheme && !(th === "dark" && !themeApplied)) return;
+        prevTheme = th;
+        if (th === "dark" || themeApplied) {
+            applyPdfTheme(s);
+            themeApplied = th === "dark";
+        }
+    });
 
     // 几何缓存失效线：pdf.js 布局变化走 eventBus，容器尺寸走 RO
     createEffect(() => {
@@ -270,10 +301,7 @@ export default function PdfPane(props: Props) {
     createEffect(() => {
         const s = pdfSlick();
         if (!s) return;
-        const el = s.viewer.container;
-        const l = () => props.onScroll?.();
-        el.addEventListener("scroll", l, { passive: true });
-        onCleanup(() => el.removeEventListener("scroll", l));
+        onPaneScroll(s.viewer.container, () => props.onScroll?.());
     });
 
     // rail/侧栏/浮层等窗格 chrome 区的滚轮转给文档滚动口——滚轮语义

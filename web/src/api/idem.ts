@@ -34,14 +34,15 @@ export function intentSettle(fp: string, key: string): void {
     if (pendingCreate.get(fp) === key) pendingCreate.delete(fp);
 }
 
-/** 提交内容指纹——apiKey 是凭证不是意图，改 key 重试仍复用同一 idem key */
+/** 提交内容指纹——apiKey 是凭证不是意图，改 key 重试仍复用同一 idem key；
+ *  dialect 与 baseUrl/model 同入指纹（同端点不同方言语义不同、非同参提交） */
 export function createFp(
     kind: string,
     payload: unknown,
     byok?: ByokHeaders,
 ): string {
     const semantics = byok
-        ? { baseUrl: byok.baseUrl, model: byok.model }
+        ? { baseUrl: byok.baseUrl, model: byok.model, dialect: byok.dialect }
         : null;
     return JSON.stringify([kind, payload, semantics]);
 }

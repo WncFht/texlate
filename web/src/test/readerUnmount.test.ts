@@ -37,22 +37,25 @@ vi.mock("../reader/ReaderView", () => ({ default: () => null }));
 import type { TaskEventHandlers, TaskSnapshot } from "../api/client";
 import Reader from "../pages/Reader";
 import { taskStore } from "../stores/tasks";
+import { t } from "../i18n";
+import { snap as fakeSnap } from "./fakes";
 
-const snap = (over: Partial<TaskSnapshot> = {}): TaskSnapshot => ({
-    task_id: "t1",
-    kind: "arxiv",
-    status: "translating",
-    progress: 42,
-    title: "Paper X",
-    created_at: 1_700_000_000,
-    updated_at: 1_700_000_000,
-    ...over,
-});
+const snap = (over: Partial<TaskSnapshot> = {}): TaskSnapshot =>
+    fakeSnap("t1", {
+        status: "translating",
+        progress: 42,
+        title: "Paper X",
+        ...over,
+    });
 
 const handlersOf = (i: number) =>
     mocks.openTaskEvents.mock.calls[i][1] as TaskEventHandlers;
 
 let dispose: (() => void) | undefined;
+
+// document.hidden 在 jsdom 是原型 getter——测试里 defineProperty 覆写的是
+// own property；无 own 描述符时 delete 即还原原型
+const origHidden = Object.getOwnPropertyDescriptor(document, "hidden");
 
 beforeEach(() => {
     mocks.snapshot.mockReset().mockImplementation(() => Promise.resolve(snap()));
@@ -75,6 +78,10 @@ afterEach(() => {
     dispose?.();
     dispose = undefined;
     document.body.innerHTML = "";
+    if (origHidden) Object.defineProperty(document, "hidden", origHidden);
+    else delete (document as { hidden?: boolean }).hidden;
+    vi.useRealTimers();
+    vi.restoreAllMocks();
 });
 
 describe("Reader 编排", () => {
@@ -119,7 +126,6 @@ describe("Reader 编排", () => {
         vi.useFakeTimers();
         handlersOf(0).done?.({ status: "done", artifacts: {}, stats: {} });
         await vi.advanceTimersByTimeAsync(1200);
-        expect(document.title).toContain("【");
-        vi.useRealTimers();
+        expect(document.title).toBe(`【${t.status.done}】Paper X`);
     });
 });

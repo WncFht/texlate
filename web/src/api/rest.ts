@@ -27,12 +27,35 @@ import {
 const BASE = "/api";
 
 /** 默认请求超时——health 挂起→首页恒「检测中」之类的裸挂收敛到 15s。
- *  调用方传 init.signal 可覆盖（上传不走此路——xhrRequest 用自带
+ *  request() 内留有 init?.signal 覆盖臂，但 api.* 公开面无任一方法透传
+ *  init——现状全量调用都吃此默认（上传不走此路——xhrRequest 用自带
  *  UPLOAD_TIMEOUT_MS，80MB 慢链要远比 15s 宽）。 */
 export const REQUEST_TIMEOUT_MS = 15_000;
 
 /** 上传 xhr 超时——10min：80MB 上限在 ~150KB/s 慢链约 9min 传完 */
 const UPLOAD_TIMEOUT_MS = 10 * 60_000;
+
+/**
+ * 错误体 → ApiError——request/xhrRequest 同一契约（{detail,code?,task_id?}，
+ * 非对象体全缺席）。statusText 形参即 detail 兜底值，调用方各自定（fetch 直用，
+ * xhr 空串时降 HTTP 状态码）。
+ */
+function toApiError(
+    status: number,
+    statusText: string,
+    body: unknown,
+): ApiError {
+    let detail = statusText;
+    let code: string | undefined;
+    let taskId: string | undefined;
+    if (body && typeof body === "object") {
+        const b = body as Record<string, unknown>;
+        if (typeof b.detail === "string") detail = b.detail;
+        if (typeof b.code === "string") code = b.code;
+        if (typeof b.task_id === "string") taskId = b.task_id;
+    }
+    return new ApiError(status, detail, code, taskId);
+}
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
     const res = await fetch(`${BASE}${path}`, {
@@ -41,18 +64,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
             init?.signal ?? AbortSignal.timeout?.(REQUEST_TIMEOUT_MS) ?? null,
     });
     if (!res.ok) {
-        let detail = res.statusText;
-        let code: string | undefined;
-        let taskId: string | undefined;
+        let body: unknown;
         try {
-            const body = await res.json();
-            if (typeof body?.detail === "string") detail = body.detail;
-            if (typeof body?.code === "string") code = body.code;
-            if (typeof body?.task_id === "string") taskId = body.task_id;
+            body = await res.json();
         } catch {
             /* 非 JSON 错误体 */
         }
-        throw new ApiError(res.status, detail, code, taskId);
+        throw toApiError(res.status, res.statusText, body);
     }
     if (res.status === 204) return undefined as T;
     const ct = res.headers.get("content-type") ?? "";
@@ -95,16 +113,13 @@ function xhrRequest<T>(
                 resolve((xhr.status === 204 ? undefined : body) as T);
                 return;
             }
-            let detail = xhr.statusText || `HTTP ${xhr.status}`;
-            let code: string | undefined;
-            let taskId: string | undefined;
-            if (body && typeof body === "object") {
-                const b = body as Record<string, unknown>;
-                if (typeof b.detail === "string") detail = b.detail;
-                if (typeof b.code === "string") code = b.code;
-                if (typeof b.task_id === "string") taskId = b.task_id;
-            }
-            reject(new ApiError(xhr.status, detail, code, taskId));
+            reject(
+                toApiError(
+                    xhr.status,
+                    xhr.statusText || `HTTP ${xhr.status}`,
+                    body,
+                ),
+            );
         };
         xhr.onerror = () => reject(new TypeError("failed to fetch"));
         xhr.onabort = () => reject(new TypeError("upload aborted"));
@@ -173,20 +188,30 @@ export const api = {
      */
     tasks: async (status?: string): Promise<TaskSnapshot[]> => {
         const PAGE = 1000;
+        // 防御页数上限：无 total 且对端无视 offset（恒回满页）时防无限翻页
+        const MAX_PAGES = 100;
         const out: TaskSnapshot[] = [];
-        for (let offset = 0; ; offset += PAGE) {
+        for (let i = 0; i < MAX_PAGES; i++) {
             const q = new URLSearchParams({
                 limit: String(PAGE),
-                offset: String(offset),
+                offset: String(i * PAGE),
             });
             if (status) q.set("status", status);
             const res = await request<
                 TaskSnapshot[] | { tasks: TaskSnapshot[]; total?: number }
             >(`/tasks?${q}`);
-            const page = Array.isArray(res) ? res : (res.tasks ?? []);
+            // 裸数组无 {tasks,total} 分页契约——按全量一页收齐即停；
+            // 继续 offset 对无视参数的对端只会重复累积或空转
+            if (Array.isArray(res)) {
+                out.push(...res);
+                break;
+            }
+            const page = res.tasks ?? [];
             out.push(...page);
-            const total = Array.isArray(res) ? undefined : res.total;
-            if (page.length < PAGE || (total != null && out.length >= total))
+            if (
+                page.length < PAGE ||
+                (res.total != null && out.length >= res.total)
+            )
                 break;
         }
         return out;

@@ -18,18 +18,18 @@ export const createDebouncedAxSearch = (deps: {
     onError(): void;
 }) => {
     let searchTimer = 0;
-    // seq 防慢响应盖新查询（旧响应落地时输入早已变）
+    // seq 防慢响应盖新查询（旧响应落地时输入早已变）：feed/cancel 同步换代，
+    // 让防抖窗内未发请求的间隙里旧响应也立刻作废，不等到下个 timer 点火
     let searchSeq = 0;
     const feed = (v: string) => {
         window.clearTimeout(searchTimer);
+        const seq = ++searchSeq;
         const q = v.trim();
         if (!q || deps.gate?.(q)) {
-            searchSeq++;
             deps.onClear();
             return;
         }
         searchTimer = window.setTimeout(() => {
-            const seq = ++searchSeq;
             api.discoverSearch(q)
                 .then((res) => {
                     if ((deps.alive?.() ?? true) && seq === searchSeq) {
@@ -43,7 +43,10 @@ export const createDebouncedAxSearch = (deps: {
                 });
         }, 300);
     };
-    /** 卸载清防抖 timer——在飞 fetch 由 alive/seq 闸兜底 */
-    const cancel = () => window.clearTimeout(searchTimer);
+    /** 卸载清防抖 timer + 换代——在飞 fetch 由 alive/seq 闸兜底 */
+    const cancel = () => {
+        window.clearTimeout(searchTimer);
+        searchSeq++;
+    };
     return { feed, cancel };
 };

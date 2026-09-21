@@ -46,6 +46,63 @@ describe("createPositionMapper", () => {
         expect(map({ page: 4, fraction: 0.9 }, "original")).toMatchObject({ page: 6 });
     });
 
+    it("landmarks 反向：译文 → 原文 同样走 pairs 分段插值", () => {
+        const al: Alignment = {
+            kind: "landmarks",
+            heights,
+            pairs: [
+                { id: "a", original: { page: 1, fraction: 0 }, translated: { page: 1, fraction: 0 } },
+                { id: "b", original: { page: 3, fraction: 0 }, translated: { page: 4, fraction: 0 } },
+                { id: "c", original: { page: 4, fraction: 0 }, translated: { page: 6, fraction: 0 } },
+            ],
+        };
+        const map = createPositionMapper(al, { original: 4, translated: 6 });
+        // 译文 p4 顶（= pair b 锚点）→ 原文 p3 顶
+        expect(map({ page: 4, fraction: 0 }, "translated")).toMatchObject({
+            page: 3,
+            fraction: 0,
+        });
+        // 译文 p2.5（a/b 段中点 x=1.5）→ 原文 p2 顶（y=1.0）
+        const mid = map({ page: 2, fraction: 0.5 }, "translated");
+        expect(mid.page).toBe(2);
+        expect(mid.fraction).toBeCloseTo(0, 5);
+        // 首对之前 clamp 到首对原文侧
+        expect(map({ page: 1, fraction: 0 }, "translated")).toMatchObject({
+            page: 1,
+        });
+        // 末对之后 clamp：译文 p6 → 原文 p4
+        expect(map({ page: 6, fraction: 0.9 }, "translated")).toMatchObject({
+            page: 4,
+        });
+    });
+
+    it("regions 反向：译文 region 内位置映回原文 region 归一化坐标", () => {
+        const al: Alignment = {
+            kind: "landmarks",
+            heights,
+            pairs: [
+                { original: { page: 1, fraction: 0 }, translated: { page: 1, fraction: 0 } },
+                { original: { page: 4, fraction: 0 }, translated: { page: 6, fraction: 0 } },
+            ],
+            regions: [
+                {
+                    id: "figure.1",
+                    original: { page: 2, start: 0.2, end: 0.6 },
+                    translated: { page: 3, start: 0.4, end: 0.8 },
+                },
+            ],
+        };
+        const map = createPositionMapper(al, { original: 4, translated: 6 });
+        // 译文 region 中点 (p3,f0.6) → 原文 region 中点 (p2,f0.4)
+        const out = map({ page: 3, fraction: 0.6 }, "translated");
+        expect(out.page).toBe(2);
+        expect(out.fraction).toBeCloseTo(0.4, 5);
+        // region 端点：译文 p3 f0.8（区间尾）→ 原文 p2 f0.6
+        const tail = map({ page: 3, fraction: 0.8 }, "translated");
+        expect(tail.page).toBe(2);
+        expect(tail.fraction).toBeCloseTo(0.6, 5);
+    });
+
     it("regions 优先于 pairs：图浮动块内按归一化位置映射", () => {
         const al: Alignment = {
             kind: "landmarks",

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 // Reader 终态「分享本译文」：canShare 渲染门 + 成功态 + 按 code 映射的可读错误。
-// PdfPane/HtmlPane 打桩隔离 pdfjs/katex；api 层打点走 vi.mock（同 homeByok.test）。
+// 夹具归一 _sharekit（同 sharePackEdge.test.ts）；navigator.clipboard 还原为文件级附加 afterEach。
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -16,110 +16,51 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("../api/client", async (importOriginal) => {
-    const mod = await importOriginal<typeof import("../api/client")>();
-    return {
-        ...mod,
-        api: {
-            ...mod.api,
-            snapshot: mocks.snapshot,
-            files: mocks.files,
-            reader: mocks.reader,
-            sharePack: mocks.sharePack,
-            cancel: mocks.cancel,
-            retry: mocks.retry,
-            putPosition: mocks.putPosition,
-        },
-        openTaskEvents: mocks.openTaskEvents,
-    };
+    const { clientModuleMock } = await import("./_taskkit");
+    return clientModuleMock(importOriginal, mocks);
 });
 
-vi.mock("../reader/PdfPane", () => ({
-    default: () => {
-        const el = document.createElement("div");
-        el.className = "pdf-pane-stub";
-        return el;
-    },
+vi.mock("../reader/PdfPane", async () => ({
+    default: (await import("./_sharekit")).mkPaneStub("pdf-pane-stub"),
 }));
-vi.mock("../reader/HtmlPane", () => ({
-    default: () => {
-        const el = document.createElement("div");
-        el.className = "html-pane-stub";
-        return el;
-    },
+vi.mock("../reader/HtmlPane", async () => ({
+    default: (await import("./_sharekit")).mkPaneStub("html-pane-stub"),
 }));
 
-import { render } from "solid-js/web";
-import { ApiError, type ReaderInfo, type TaskSnapshot } from "../api/client";
+import { ApiError, type TaskSnapshot } from "../api/client";
 import Reader from "../pages/Reader";
 import { taskStore } from "../stores/tasks";
 import { t } from "../i18n";
+import {
+    clickShare,
+    mountReader,
+    openShare,
+    q,
+    resetShareMocks,
+    settle,
+    shareBtn,
+    shareSnap,
+    trackShareTeardown,
+} from "./_sharekit";
 
 const TID = "t_share";
 
-const flush = () => new Promise((r) => setTimeout(r, 0));
-const settle = async () => {
-    for (let i = 0; i < 8; i++) await flush();
-};
+// navigator.clipboard 覆写还原点（own 描述符缺席 → delete 还原原型/缺席态）
+const origClipboard = Object.getOwnPropertyDescriptor(navigator, "clipboard");
 
-let dispose: (() => void) | undefined;
+// 夹具全在 _sharekit——本文件只留 TID 绑定别名
+const snap = (over: Partial<TaskSnapshot> = {}): TaskSnapshot =>
+    shareSnap(TID, over);
+const mount = () => mountReader(Reader, TID);
 
-const snap = (over: Partial<TaskSnapshot> = {}): TaskSnapshot => ({
-    task_id: TID,
-    kind: "arxiv",
-    status: "done",
-    progress: 100,
-    created_at: 1_700_000_000,
-    updated_at: 1_700_000_000,
-    arxiv_id: "2501.14787",
-    ...over,
-});
+beforeEach(() => resetShareMocks(mocks, TID));
+trackShareTeardown(taskStore, TID);
 
-const PDF_READER: ReaderInfo = {
-    view: "pdf",
-    documents: {
-        original: { version: "v-en", pages: 3, url: `/api/files/${TID}/en.pdf` },
-        translated: { version: "v-zh", pages: 4, url: `/api/files/${TID}/zh.pdf` },
-    },
-    reading: null,
-};
-
-function mount() {
-    const nav = vi.fn();
-    dispose = render(() => Reader({ taskId: TID, nav }), document.body);
-    return { nav };
-}
-
-const q = <T extends Element>(sel: string) => document.body.querySelector<T>(sel);
-const shareBtn = () => q<HTMLButtonElement>(".share-btn");
-const clickShare = () =>
-    shareBtn()?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-// 分享块住工具栏弹层里——先点 .tb-share 开层，.share-btn 才在 DOM
-const openShare = () =>
-    q<HTMLButtonElement>(".tb-share")?.dispatchEvent(
-        new MouseEvent("click", { bubbles: true }),
-    );
-
-beforeEach(() => {
-    for (const m of Object.values(mocks)) m.mockReset();
-    mocks.snapshot.mockResolvedValue(snap());
-    mocks.files.mockResolvedValue({ artifacts: {} });
-    mocks.reader.mockResolvedValue(PDF_READER);
-    mocks.cancel.mockResolvedValue(undefined);
-    mocks.putPosition.mockResolvedValue(undefined);
-    mocks.openTaskEvents.mockReturnValue({ close: vi.fn(), closed: false });
-    // dual.json 拉取：404 → dual=null（pdf 视图不受其影响）
-    vi.stubGlobal(
-        "fetch",
-        vi.fn(() => Promise.resolve(new Response("{}", { status: 404 }))),
-    );
-});
-
+// vi.unstubAllGlobals 不撤 defineProperty 的 navigator.clipboard 桩——文件级附加清理
 afterEach(() => {
-    dispose?.();
-    dispose = undefined;
-    taskStore.unwatch(TID);
-    document.body.innerHTML = "";
-    vi.unstubAllGlobals();
+    if (origClipboard)
+        Object.defineProperty(navigator, "clipboard", origClipboard);
+    else delete (navigator as { clipboard?: unknown }).clipboard;
 });
 
 describe("Reader「分享本译文」渲染门", () => {
@@ -152,6 +93,14 @@ describe("Reader「分享本译文」渲染门", () => {
 
     it("kind=share → 无分享钮也无弹层（导入产物不自包）", async () => {
         mocks.snapshot.mockResolvedValue(snap({ kind: "share" }));
+        mount();
+        await settle();
+        expect(shareBtn()).toBeNull();
+        expect(q(".tb-share")).toBeNull();
+    });
+
+    it("kind=arxiv_html → 无分享钮也无弹层（HTML 源不参与共享寻址）", async () => {
+        mocks.snapshot.mockResolvedValue(snap({ kind: "arxiv_html" }));
         mount();
         await settle();
         expect(shareBtn()).toBeNull();
@@ -194,6 +143,23 @@ describe("Reader「分享本译文」调用与结果态", () => {
         expect(mocks.sharePack).toHaveBeenCalledWith(TID);
         expect(q(".share-ok")?.textContent).toContain("s-250114787-zh-ab12");
         expect(shareBtn()).toBeNull();
+
+        // .share-copy 两分支：clipboard 缺席 → 静默不装已复制；
+        // 在席 → writeText(share_key) + 标签翻【已复制】
+        const copyBtn = () => q<HTMLButtonElement>(".share-copy");
+        copyBtn()?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        await settle();
+        expect(copyBtn()?.textContent).toBe(t.reader.copy);
+
+        const writeText = vi.fn().mockResolvedValue(undefined);
+        Object.defineProperty(navigator, "clipboard", {
+            value: { writeText },
+            configurable: true,
+        });
+        copyBtn()?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        await settle();
+        expect(writeText).toHaveBeenCalledWith("s-250114787-zh-ab12");
+        expect(copyBtn()?.textContent).toBe(t.reader.copied);
     });
 
     it("409 invalid_state → 可读错误「任务未终态」", async () => {

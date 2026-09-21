@@ -6,7 +6,7 @@ import { createSignal } from "solid-js";
 import {
     api,
     ApiError,
-    errText,
+    apiErrText,
     landingHash,
     type TaskSnapshot,
     type TaskStatus,
@@ -60,7 +60,7 @@ export function createTaskRetry(deps: {
             setRetryError({
                 status: ae?.status ?? 0,
                 code: ae?.code,
-                message: ae?.detail ?? errText(e),
+                message: apiErrText(e),
             });
         } finally {
             setRetrying(false);
@@ -116,7 +116,7 @@ export function createHtmlFallback(deps: {
             });
             deps.nav(landingHash(res));
         } catch (e) {
-            setHtmlErr(e instanceof ApiError ? e.detail : String(e));
+            setHtmlErr(apiErrText(e));
         } finally {
             setHtmlBusy(false);
         }

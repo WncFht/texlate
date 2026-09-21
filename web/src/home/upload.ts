@@ -14,7 +14,18 @@ import type { HomeOptions, UploadFields } from "./options";
 
 /** 上传客户端预检（U14）：80MB 上限 + 扩展名白名单——早于 XHR 失败给出本地错 */
 export const MAX_UPLOAD_BYTES = 80 * 1024 * 1024;
-const UPLOAD_EXT = /\.(pdf|tex|tar|gz|tgz|zip|docx|epub)$/i;
+/** 扩展名白名单单一事实源——precheck 正则与 Home 的 accept 属性同由此派生 */
+export const UPLOAD_EXTS = [
+    "pdf",
+    "tex",
+    "tar",
+    "gz",
+    "tgz",
+    "zip",
+    "docx",
+    "epub",
+];
+const UPLOAD_EXT = new RegExp(`\\.(${UPLOAD_EXTS.join("|")})$`, "i");
 
 /** 客户端预检——返回错误文案或 null 放行（.share.zip 走 .zip 白名单） */
 export function precheckUpload(f: File): string | null {
@@ -47,32 +58,26 @@ export function createHomeUpload(deps: {
         setUpPct(Math.min(100, Math.round((loaded / total) * 100)));
 
     /** 单文件提交：.share.zip 是社区缓存包走 share/import（包内 manifest
-     *  自描述），其余走 api.upload（main 指定主文件） */
+     *  自描述），其余走 api.upload（main 指定主文件）。main/byok 一律读
+     *  快照——批传中途再改选项不渗进在飞批 */
     const uploadOne = (
         f: File,
         snap: UploadFields,
         onProgress: UploadProgress,
     ) => {
-        const { o, upOpts } = snap;
+        const { o, upOpts, main, byok } = snap;
         if (f.name.toLowerCase().endsWith(".share.zip")) {
-            return api.shareImport(
-                f,
-                Object.keys(upOpts).length ? upOpts : undefined,
-                deps.options.byok(),
-                onProgress,
-            );
+            // upOpts 恒非空（front_matter 恒在）——快照直传
+            return api.shareImport(f, upOpts, byok, onProgress);
         }
-        const main = deps.options.optMain().trim();
-        const fields =
-            o || main
-                ? {
-                      model: o?.model,
-                      target_lang: o?.target_lang,
-                      main: main || undefined,
-                      options: upOpts,
-                  }
-                : undefined;
-        return api.upload(f, fields, deps.options.byok(), onProgress);
+        // o 恒为对象（front_matter 恒在）→ fields 恒在场
+        const fields = {
+            model: o.model,
+            target_lang: o.target_lang,
+            main: main || undefined,
+            options: upOpts,
+        };
+        return api.upload(f, fields, byok, onProgress);
     };
 
     /** 单件执行体：precheck + 状态翻转 + uploadOne——upload/uploadBatch 共用。
@@ -99,7 +104,8 @@ export function createHomeUpload(deps: {
         }
     };
 
-    const upload = async (file: File, land = true) => {
+    /** 单件上传：成功落地 onResult（批量只 1 件时同此路——与手选单件同行为） */
+    const upload = async (file: File) => {
         if (deps.busy()) return;
         const r = await runOne(file, deps.options.uploadFields());
         if (!deps.alive()) return;
@@ -108,7 +114,7 @@ export function createHomeUpload(deps: {
             return;
         }
         deps.options.clearKey();
-        if (land) deps.onResult(r.res);
+        deps.onResult(r.res);
     };
 
     /**
@@ -117,6 +123,8 @@ export function createHomeUpload(deps: {
      * 单文件失败不阻断后续；错误汇总到 error 行。
      */
     const uploadBatch = async (files: File[]) => {
+        // busy 门与 upload/submit 同例——批路入口自带闸不靠调用方自觉
+        if (deps.busy()) return;
         if (files.length === 1) {
             await upload(files[0]);
             return;

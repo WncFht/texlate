@@ -3,7 +3,7 @@
 // 门：活动态/cancelled/needs_auth 无钮；错：share_pack_failed、映射外 code、
 // 无 code、非 ApiError、409 无 code、空 detail；busy 态禁用；失败后重试点击。
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
     snapshot: vi.fn(),
@@ -17,121 +17,49 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("../api/client", async (importOriginal) => {
-    const mod = await importOriginal<typeof import("../api/client")>();
-    return {
-        ...mod,
-        api: {
-            ...mod.api,
-            snapshot: mocks.snapshot,
-            files: mocks.files,
-            reader: mocks.reader,
-            sharePack: mocks.sharePack,
-            cancel: mocks.cancel,
-            retry: mocks.retry,
-            putPosition: mocks.putPosition,
-        },
-        openTaskEvents: mocks.openTaskEvents,
-    };
+    const { clientModuleMock } = await import("./_taskkit");
+    return clientModuleMock(importOriginal, mocks);
 });
 
-vi.mock("../reader/PdfPane", () => ({
-    default: () => {
-        const el = document.createElement("div");
-        el.className = "pdf-pane-stub";
-        return el;
-    },
+vi.mock("../reader/PdfPane", async () => ({
+    default: (await import("./_sharekit")).mkPaneStub("pdf-pane-stub"),
 }));
-vi.mock("../reader/HtmlPane", () => ({
-    default: () => {
-        const el = document.createElement("div");
-        el.className = "html-pane-stub";
-        return el;
-    },
+vi.mock("../reader/HtmlPane", async () => ({
+    default: (await import("./_sharekit")).mkPaneStub("html-pane-stub"),
 }));
 
-import { render } from "solid-js/web";
-import {
-    ApiError,
-    type ReaderInfo,
-    type SharePackResponse,
-    type TaskSnapshot,
-} from "../api/client";
+import { ApiError, type SharePackResponse } from "../api/client";
 import Reader from "../pages/Reader";
 import { taskStore } from "../stores/tasks";
 import { t } from "../i18n";
+import {
+    clickShare,
+    mountReader,
+    openShare,
+    q,
+    resetShareMocks,
+    settle,
+    shareBtn,
+    shareSnap,
+    trackShareTeardown,
+} from "./_sharekit";
 
 const TID = "t_share_edge";
 
-const flush = () => new Promise((r) => setTimeout(r, 0));
-const settle = async () => {
-    for (let i = 0; i < 8; i++) await flush();
-};
+// 夹具全在 _sharekit（sharePack.test.ts 同源）——快照桩直用 shareSnap(TID, over)
+const mount = () => mountReader(Reader, TID);
 
-let dispose: (() => void) | undefined;
-
-const snap = (over: Partial<TaskSnapshot> = {}): TaskSnapshot => ({
-    task_id: TID,
-    kind: "arxiv",
-    status: "done",
-    progress: 100,
-    created_at: 1_700_000_000,
-    updated_at: 1_700_000_000,
-    arxiv_id: "2501.14787",
-    ...over,
-});
-
-const PDF_READER: ReaderInfo = {
-    view: "pdf",
-    documents: {
-        original: { version: "v-en", pages: 3, url: `/api/files/${TID}/en.pdf` },
-        translated: { version: "v-zh", pages: 4, url: `/api/files/${TID}/zh.pdf` },
-    },
-    reading: null,
-};
-
-function mount() {
-    const nav = vi.fn();
-    dispose = render(() => Reader({ taskId: TID, nav }), document.body);
-    return { nav };
-}
-
-const q = <T extends Element>(sel: string) => document.body.querySelector<T>(sel);
-const shareBtn = () => q<HTMLButtonElement>(".share-btn");
-const clickShare = () =>
-    shareBtn()?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-// 分享块住工具栏弹层里——先点 .tb-share 开层，.share-btn 才在 DOM
-const openShare = () =>
-    q<HTMLButtonElement>(".tb-share")?.dispatchEvent(
-        new MouseEvent("click", { bubbles: true }),
-    );
-
-beforeEach(() => {
-    for (const m of Object.values(mocks)) m.mockReset();
-    mocks.snapshot.mockResolvedValue(snap());
-    mocks.files.mockResolvedValue({ artifacts: {} });
-    mocks.reader.mockResolvedValue(PDF_READER);
-    mocks.cancel.mockResolvedValue(undefined);
-    mocks.putPosition.mockResolvedValue(undefined);
-    mocks.openTaskEvents.mockReturnValue({ close: vi.fn(), closed: false });
-    // dual.json 拉取：404 → dual=null（pdf 视图不受其影响）
-    vi.stubGlobal(
-        "fetch",
-        vi.fn(() => Promise.resolve(new Response("{}", { status: 404 }))),
-    );
-});
-
-afterEach(() => {
-    dispose?.();
-    dispose = undefined;
-    taskStore.unwatch(TID);
-    document.body.innerHTML = "";
-    vi.unstubAllGlobals();
-});
+beforeEach(() => resetShareMocks(mocks, TID));
+trackShareTeardown(taskStore, TID);
 
 describe("分享钮渲染门——补充状态组合", () => {
     it("translating（活动态）→ 进度视图，无任何分享钮", async () => {
         mocks.snapshot.mockResolvedValue(
-            snap({ status: "translating", stage: "translating", progress: 40 }),
+            shareSnap(TID, {
+                status: "translating",
+                stage: "translating",
+                progress: 40,
+            }),
         );
         mount();
         await settle();
@@ -141,7 +69,7 @@ describe("分享钮渲染门——补充状态组合", () => {
     });
 
     it("cancelled + pdf 视图 → 结果横幅挂 rp-actions 但无分享钮", async () => {
-        mocks.snapshot.mockResolvedValue(snap({ status: "cancelled" }));
+        mocks.snapshot.mockResolvedValue(shareSnap(TID, { status: "cancelled" }));
         mount();
         await settle();
         expect(q(".result-banner .rp-actions")).not.toBeNull();
@@ -149,7 +77,9 @@ describe("分享钮渲染门——补充状态组合", () => {
     });
 
     it("needs_auth → auth 输入行在、分享钮缺席", async () => {
-        mocks.snapshot.mockResolvedValue(snap({ status: "needs_auth" }));
+        mocks.snapshot.mockResolvedValue(
+            shareSnap(TID, { status: "needs_auth" }),
+        );
         mount();
         await settle();
         expect(q(".auth-key-input")).not.toBeNull();

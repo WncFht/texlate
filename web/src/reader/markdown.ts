@@ -4,6 +4,7 @@
 // 只服务 html/live 视图，pdf/dom 常用路不付解析成本。
 
 import { escapeHtml, sanitizeHtml } from "./sanitize";
+import { externalLinksBlank } from "./paneUtils";
 import type { DocId } from "./alignment";
 
 export interface MdLibs {
@@ -69,12 +70,13 @@ export function loadMdLibs(): Promise<MdLibs> {
     return cached;
 }
 
-/** 单侧段文本：translated 优 zh 回退 en；original 优 en 回退 zh */
+/** 单侧段文本：translated 优 zh 回退 en；original 优 en 回退 zh（空白串视同缺席） */
 export function chunkSideText(
     c: { en?: string; zh?: string },
     side: DocId,
 ): string {
-    return (side === "original" ? c.en : c.zh) ?? c.en ?? c.zh ?? "";
+    const [v, alt] = side === "original" ? [c.en, c.zh] : [c.zh, c.en];
+    return v?.trim() ? v : alt?.trim() ? alt : (v ?? alt ?? "");
 }
 
 /**
@@ -130,8 +132,12 @@ const RESIDUE_RULES: [RegExp, string][] = [
     [/~/g, " "],
     [/ {2,}/g, " "],
 ];
-const RESIDUE_PROBE =
-    /\\(?:newblock|newline|noindent|indent|hline|toprule|midrule|bottomrule|smallskip|medskip|bigskip|vfill|vfil|hfill|hfil|centering|raggedright|raggedleft|sloppy|fussy|pagebreak|clearpage|cleardoublepage|linebreak|nolinebreak|maketitle|tableofcontents|quad|qquad|em|bf|it|rm|sf|tt|sc|sl|boldmath|unboldmath|normalsize|small|footnotesize|scriptsize|tiny|large|Large|LARGE|huge|Huge|par|textbf|textit|textsl|textsc|texttt|textrm|textsf|textmd|textup|emph|underline|uline|sout|st|hl|text|mathrm|mathbf|mathit|mathsf|mathtt|mathcal|mathbfit|boldsymbol|bm|MakeUppercase|MakeLowercase|uppercase|lowercase|mbox|fbox|texorpdfstring|textcolor|colorbox|fcolorbox)\b|\\[,;:!]|\\\\|~|\{-\}|\\[%&#_]|\\[\s[]|\\(?:vspace\*?|hspace\*?|cmidrule)\{/;
+// 探针直接由规则表合成——任一规则可命中即需进节点处理；手工镜像的命令
+// 名单会随规则增删漂移（曾漏 `~`/` {2,}` 等规则，节点被探针误放过去）
+const RESIDUE_PROBE = new RegExp(
+    RESIDUE_RULES.map(([rx]) => rx.source).join("|"),
+    "i",
+);
 
 /** 剥 body 顶层 `{...}` 组内容（组内花括号保留；`[...]` 可选参不进组） */
 function braceGroups(body: string): string[] {
@@ -266,4 +272,16 @@ export function unmaskLatex(
         pushText(text.slice(last));
         if (dirty) node.parentNode?.replaceChild(frag, node);
     }
+}
+
+/** 注入后渲染管线：外链新窗 → 掩码/残件反查 → KaTeX 重扫
+ * （mount 分片 / 重译重绘 / LivePane.paint 三处同口径） */
+export function finishChunk(
+    el: HTMLElement,
+    libs: MdLibs | null,
+    ph?: Record<string, string>,
+): void {
+    externalLinksBlank(el);
+    unmaskLatex(el, ph);
+    libs?.renderMath(el);
 }

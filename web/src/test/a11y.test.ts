@@ -9,29 +9,28 @@ const mocks = vi.hoisted(() => ({
     deleteTask: vi.fn(),
 }));
 
-vi.mock("../api/client", async (importOriginal) => {
-    const mod = await importOriginal<typeof import("../api/client")>();
-    return {
-        ...mod,
-        api: {
-            ...mod.api,
-            files: mocks.files,
-            deleteTask: mocks.deleteTask,
-        },
-    };
-});
+// vi.mock 提升限制——工厂体内再引 _homekit（顶层 import 进不了 hoisted 作用域）
+vi.mock("../api/client", async (importOriginal) =>
+    (await import("./_homekit")).buildApiModule(
+        await importOriginal<typeof import("../api/client")>(),
+        mocks,
+    ),
+);
 
 import { render } from "solid-js/web";
 import DocInfo from "../reader/DocInfo";
 import TaskList from "../components/TaskList";
 import type { TaskSnapshot } from "../api/client";
+import { flush, resetHomeMocks } from "./_homekit";
 
-const flush = () => new Promise((r) => setTimeout(r, 0));
+// 本文件直挂 DocInfo/TaskList（非经 mountHome）——dispose/afterEach 仍自留；
+// _homekit 顶层 afterEach 只摘 mountHome 的件并清 body，与本件互补
 let dispose: (() => void) | undefined;
 
 beforeEach(() => {
-    mocks.files.mockReset().mockResolvedValue({ artifacts: {} });
-    mocks.deleteTask.mockReset().mockResolvedValue(undefined);
+    resetHomeMocks(mocks);
+    mocks.files.mockResolvedValue({ artifacts: {} });
+    mocks.deleteTask.mockResolvedValue(undefined);
 });
 
 afterEach(() => {

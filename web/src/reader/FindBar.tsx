@@ -93,6 +93,10 @@ export default function FindBar(props: Props) {
             emit("again", e.shiftKey);
         } else if (e.key === "Escape") {
             e.preventDefault();
+            // 只关 findbar——keydown 是 Solid 委托事件（监听挂在 document），
+            // stopPropagation 拦不住同节点的 DocInfo/bindMenuDismiss 原生监听，
+            // 须 stopImmediatePropagation 才让 Esc 一次只收一层
+            e.stopImmediatePropagation();
             close();
         }
     };

@@ -218,9 +218,11 @@ export default function Reader(props: {
     const startFlash = () => {
         if (flashTimer) return;
         let on = false;
-        const name = title();
         flashTimer = window.setInterval(() => {
             on = !on;
+            // 标题每次现取——闪烁期 task.title/PDF 标题可能才到，别定格在
+            // 启动瞬间的 taskId 兜底上
+            const name = title();
             document.title = on ? `【${t.status.done}】${name}` : name;
         }, 1000);
     };
@@ -421,7 +423,7 @@ export default function Reader(props: {
                     dual={dual()}
                     status={task()?.status}
                     title={title()}
-                    arxivId={task()?.arxiv_id}
+                    arxivId={task()?.arxiv_id ?? undefined}
                     downloads={downloads()}
                     mode={mode()}
                     setMode={setMode}

@@ -7,8 +7,13 @@
 import { createSignal } from "solid-js";
 import type { ByokHeaders, TranslateOptions } from "../api/client";
 import { t } from "../i18n";
-import { ENGINES, TARGET_LANGS } from "../options";
+import { clampConcurrency, ENGINES, TARGET_LANGS } from "../options";
 import { settingsStore } from "../stores/settings";
+
+/** 并发上下限——表单行 min/max 用；collectOptions 夹取走 ../options
+ *  clampConcurrency（同界 1..16，漂移即双口径） */
+const OPT_CONC_MIN = 1;
+const OPT_CONC_MAX = 16;
 
 /** options 表单行描述——label/hint/控件形/信号绑定数据驱动渲染；
  *  adv=true 收进「高级」折叠组，缺省进常用组 */
@@ -37,10 +42,13 @@ export type OptRow = {
     | { kind: "textarea"; rows?: number }
 );
 
-/** upload 的 multipart 字段快照形——options 透传走 JSON 字段 */
+/** upload 的 multipart 字段快照形——options 透传走 JSON 字段；
+ *  main/byok 同帧快照——批传中途再改主文件/临时 key 不渗进在飞批 */
 export interface UploadFields {
-    o: TranslateOptions | undefined;
+    o: TranslateOptions;
     upOpts: Record<string, unknown>;
+    main: string;
+    byok: ByokHeaders | undefined;
 }
 
 export function createHomeOptions() {
@@ -64,8 +72,9 @@ export function createHomeOptions() {
     // per-request BYOK：仅存组件 state，提交成功即清，不落 settings
     const [optKey, setOptKey] = createSignal("");
 
-    /** 非空字段收成 TranslateOptions；全空返回 undefined（不附带 body 字段） */
-    const collectOptions = (): TranslateOptions | undefined => {
+    /** 非空字段收成 TranslateOptions——front_matter 恒显式写（UI 态即
+     *  意图），options 恒非空故恒返回对象，「全空 → undefined」不可达 */
+    const collectOptions = (): TranslateOptions => {
         const o: TranslateOptions = {};
         const opts: NonNullable<TranslateOptions["options"]> = {};
         if (optModel().trim()) o.model = optModel().trim();
@@ -74,7 +83,9 @@ export function createHomeOptions() {
         if (optGuidance()) opts.context_guidance = optGuidance() === "on";
         const conc = Number(optConcurrency());
         if (optConcurrency() && Number.isFinite(conc)) {
-            opts.concurrency = Math.max(1, Math.min(16, Math.floor(conc)));
+            // Home 侧守卫只排非有限值——sub-1 由 clamp 提到 1（Settings 侧
+            // 另行省略 sub-1，两站守卫语义各自保留）
+            opts.concurrency = clampConcurrency(conc);
         }
         if (optEngine()) opts.engine = optEngine();
         if (optShare()) opts.share_pack = optShare() === "on";
@@ -88,10 +99,8 @@ export function createHomeOptions() {
             title: optFmTitle() === "on",
             author: optFmAuthor() === "on",
         };
-        if (Object.keys(opts).length) o.options = opts;
-        return o.model || o.target_lang || o.glossary || o.options
-            ? o
-            : undefined;
+        o.options = opts;
+        return o;
     };
 
     /** 临时 key → X-Texlate-Key 头（空 → undefined，纯 per-request 透传） */
@@ -106,11 +115,11 @@ export function createHomeOptions() {
      *  取源通道同理剔除；glossary 在 options 内传递故上提 */
     const uploadFields = (): UploadFields => {
         const o = collectOptions();
-        const upOpts: Record<string, unknown> = { ...o?.options };
+        const upOpts: Record<string, unknown> = { ...o.options };
         delete upOpts.prefer;
         delete upOpts.source;
-        if (o?.glossary) upOpts.glossary = o.glossary;
-        return { o, upOpts };
+        if (o.glossary) upOpts.glossary = o.glossary;
+        return { o, upOpts, main: optMain().trim(), byok: byok() };
     };
 
     /** settings 默认值做占位文案（未加载时给通用占位） */
@@ -156,8 +165,8 @@ export function createHomeOptions() {
         {
             kind: "input",
             type: "number",
-            min: 1,
-            max: 16,
+            min: OPT_CONC_MIN,
+            max: OPT_CONC_MAX,
             label: t.home.optConcurrency,
             get: optConcurrency,
             set: setOptConcurrency,

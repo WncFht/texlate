@@ -110,7 +110,6 @@ export const t = {
         processing: "已上传，处理中…",
         // === progress chrome ===
         retryAs: "重试 · {engine}",
-        retryEngineTip: "换引擎重试",
         shareZip: "共享包",
         shareZipTip: "下载 .share.zip 社区缓存包",
     },
@@ -137,7 +136,6 @@ export const t = {
         },
         views: "{n} 次浏览",
         loadMore: "加载更多",
-        loading: "加载中…",
         retry: "重试",
         failed: "alphaXiv 暂时不可用",
         empty: "该榜单暂无论文",
@@ -318,7 +316,6 @@ export const t = {
         polling: "轮询中",
         closed: "连接已关闭",
         warnings: "警告",
-        preview: "译文预览",
         // === progress chrome ===
         queuePos: "排队第 {n} 位",
         etaMin: "预计剩余 ~{n} 分钟",

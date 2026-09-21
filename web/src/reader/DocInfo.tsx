@@ -37,10 +37,13 @@ export default function DocInfo(props: Props) {
                 [t.pane.fPages, s.numPages ? String(s.numPages) : undefined],
                 [
                     t.pane.fPageSize,
-                    pageSizeText(s.pageSize, {
-                        portrait: t.pane.portrait,
-                        landscape: t.pane.landscape,
-                    }),
+                    // 与兄弟行同口径：缺席 → undefined 整行不渲，不留「—」
+                    s.pageSize
+                        ? pageSizeText(s.pageSize, {
+                              portrait: t.pane.portrait,
+                              landscape: t.pane.landscape,
+                          })
+                        : undefined,
                 ],
                 [t.pane.fSize, s.filesize != null ? fmtBytes(s.filesize) : undefined],
                 [

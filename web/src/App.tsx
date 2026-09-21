@@ -16,6 +16,7 @@ import Home from "./pages/Home";
 import Tasks from "./pages/Tasks";
 import Discover from "./pages/Discover";
 import Settings from "./pages/Settings";
+import ThemeToggle from "./components/ThemeToggle";
 import { isTerminal } from "./api/client";
 import { taskStore } from "./stores/tasks";
 import { t } from "./i18n";
@@ -111,6 +112,7 @@ export default function App() {
                 >
                     {t.nav.settings}
                 </a>
+                <ThemeToggle />
             </nav>
             <Suspense
                 fallback={

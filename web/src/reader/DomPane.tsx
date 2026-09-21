@@ -26,6 +26,7 @@ import { externalLinksBlank } from "./paneUtils";
 import {
     bindChunkGeom,
     makeChunkPaneHandle,
+    onPaneScroll,
     raf,
     type ChunkPaneHandle,
 } from "./sync";
@@ -147,10 +148,7 @@ export default function DomPane(props: Props) {
     });
 
     createEffect(() => {
-        const el = scrollEl;
-        const l = () => props.onScroll?.();
-        el.addEventListener("scroll", l, { passive: true });
-        onCleanup(() => el.removeEventListener("scroll", l));
+        onPaneScroll(scrollEl, () => props.onScroll?.());
     });
 
     return (
@@ -180,8 +178,7 @@ export default function DomPane(props: Props) {
                     style={{ "flex-direction": "column", gap: "8px" }}
                 >
                     <span>
-                        {t.pane.loadFailed}
-                        {errMsg()}
+                        {t.pane.loadFailed}：{errMsg()}
                     </span>
                     <button
                         type="button"

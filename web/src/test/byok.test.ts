@@ -2,32 +2,7 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { api } from "../api/client";
-
-const RESP = {
-    task_id: "t_0000000000000f01",
-    status: "queued",
-    events_url: "/api/task/t_0000000000000f01",
-    reader_url: "/api/task/t_0000000000000f01/reader",
-};
-
-function stubFetch() {
-    const spy = vi.fn<typeof fetch>(() =>
-        Promise.resolve(
-            new Response(JSON.stringify(RESP), {
-                status: 202,
-                headers: { "content-type": "application/json" },
-            }),
-        ),
-    );
-    vi.stubGlobal("fetch", spy);
-    return spy;
-}
-
-/** 最近一次 fetch 调用的 headers（RequestInit.headers 平面对象） */
-function sentHeaders(spy: ReturnType<typeof stubFetch>): Record<string, string> {
-    const init = spy.mock.calls.at(-1)?.[1];
-    return (init?.headers ?? {}) as Record<string, string>;
-}
+import { sentHeaders, stubFetch } from "./_fetchkit";
 
 afterEach(() => vi.unstubAllGlobals());
 

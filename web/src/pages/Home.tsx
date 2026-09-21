@@ -22,7 +22,7 @@ import { createHomeHealth } from "../home/health";
 import { createHomeOptions } from "../home/options";
 import { createHomeSubmit } from "../home/submit";
 import { createHomeSuggest } from "../home/search";
-import { createHomeUpload } from "../home/upload";
+import { createHomeUpload, UPLOAD_EXTS } from "../home/upload";
 import { t } from "../i18n";
 import { settingsStore } from "../stores/settings";
 import { taskStore } from "../stores/tasks";
@@ -30,6 +30,11 @@ import { taskStore } from "../stores/tasks";
 // 门面再导出：parseArxivId 的本家在 home/search——消费方（tests）从
 // pages/Home 单点拿的历史口径保留（stores/tasks.ts 同例）
 export { parseArxivId } from "../home/search";
+
+/** accept 属性与 precheckUpload 的 UPLOAD_EXT 校验正则同由 upload.ts 的
+    UPLOAD_EXTS 派生（单一事实源）；i18n t.home.formats 展示文案（zh.ts）
+    是剩余的手同步点 */
+const UPLOAD_ACCEPT = UPLOAD_EXTS.map((e) => `.${e}`).join(",");
 
 export default function Home(props: {
     nav(to: string): void;
@@ -53,7 +58,15 @@ export default function Home(props: {
     const opts = createHomeOptions();
     const sg = createHomeSuggest({
         alive: () => alive,
-        fillId: setArxivId,
+        // 回填的是合法 id——残留格式错态随回填即消（同 onIdInput 口径），
+        // 否则有效输入仍挂 aria-invalid + 旧错文案
+        fillId: (v) => {
+            setArxivId(v);
+            if (idBad()) {
+                setIdBad(false);
+                setError("");
+            }
+        },
     });
     const open = (taskId: string) => props.nav(`#/reader/${taskId}`);
     // 202 落地：reader_url 仅产 dual.json 的 kind 下发，缺席（docx/epub）
@@ -191,7 +204,7 @@ export default function Home(props: {
                         type="file"
                         hidden
                         multiple
-                        accept=".pdf,.tex,.tar,.gz,.tgz,.zip,.docx,.epub"
+                        accept={UPLOAD_ACCEPT}
                         onChange={(e) => {
                             const files = [...(e.currentTarget.files ?? [])];
                             if (files.length) void up.uploadBatch(files);

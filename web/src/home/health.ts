@@ -8,11 +8,16 @@ import { api, type Health } from "../api/client";
 /** 健康复查 TTL——reader 往返重挂载不再每趟重打（任务面走 store ensureFresh） */
 const HOME_TTL_MS = 30_000;
 let lastHealthAt = 0;
+// 判词本体也跨挂载缓存：TTL 只挡「再打一次」，若信号仍按实例新建，窗内
+// 重挂载的实例会拿着初始 pending 而永远等不到检查——「检测中…」卡死
+const [health, setHealth] = createSignal<Health | null>(null);
+const [healthPending, setHealthPending] = createSignal(true);
 
 export function createHomeHealth() {
-    const [health, setHealth] = createSignal<Health | null>(null);
-    const [healthPending, setHealthPending] = createSignal(true);
     let healthTimer = 0;
+    // 卸载闸：dispose 后在飞检查落地不得再武装 interval（否则卸载实例
+    // 仍漏一只 30s 轮询器）
+    let disposed = false;
 
     const check = async () => {
         try {
@@ -22,12 +27,13 @@ export function createHomeHealth() {
         }
         setHealthPending(false);
         window.clearInterval(healthTimer);
-        healthTimer = health()?.ok
-            ? 0
-            : window.setInterval(() => void check(), 30_000);
+        healthTimer =
+            !disposed && !health()?.ok
+                ? window.setInterval(() => void check(), 30_000)
+                : 0;
     };
 
-    /** 挂载入口——TTL 窗内不重打 */
+    /** 挂载入口——TTL 窗内不重打（模块级判词直出，不回 pending） */
     const ensure = () => {
         const now = Date.now();
         if (now - lastHealthAt <= HOME_TTL_MS) return;
@@ -35,8 +41,10 @@ export function createHomeHealth() {
         void check();
     };
 
-    /** 手动重试：回 pending 态走同一检查路径 */
+    /** 手动重试：回 pending 态走同一检查路径；重置 TTL 窗（紧接的
+     *  重挂载直出本次判词，不再立刻补打一发） */
     const recheck = () => {
+        lastHealthAt = Date.now();
         setHealthPending(true);
         void check();
     };
@@ -49,8 +57,11 @@ export function createHomeHealth() {
         return `${keys.filter((k) => c[k]).length}/${keys.length}`;
     };
 
-    /** 卸载清自动复测 timer */
-    const dispose = () => window.clearInterval(healthTimer);
+    /** 卸载清自动复测 timer + 立卸载闸（在飞检查落地不再武装 interval） */
+    const dispose = () => {
+        disposed = true;
+        window.clearInterval(healthTimer);
+    };
 
     return { health, healthPending, ensure, recheck, compilersStat, dispose };
 }

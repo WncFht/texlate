@@ -2,7 +2,7 @@
 // Settings 表单行为：saving 门防重入（Enter 隐式提交不走 disabled 按钮）、
 // concurrency 夹取口径同 Home（1–16）、标量字段 trim 后再 PUT。
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
     getSettings: vi.fn(),
@@ -11,42 +11,37 @@ const mocks = vi.hoisted(() => ({
     testSettings: vi.fn(),
 }));
 
+// vi.mock 工厂收敛到 _taskkit.clientModuleMock——mocks 全键进 api 覆写
 vi.mock("../api/client", async (importOriginal) => {
-    const mod = await importOriginal<typeof import("../api/client")>();
-    return {
-        ...mod,
-        api: {
-            ...mod.api,
-            getSettings: mocks.getSettings,
-            putSettings: mocks.putSettings,
-            providers: mocks.providers,
-            testSettings: mocks.testSettings,
-        },
-    };
+    const { clientModuleMock } = await import("./_taskkit");
+    return clientModuleMock(importOriginal, mocks);
 });
 
-import { render } from "solid-js/web";
 import Settings from "../pages/Settings";
-
-const flush = () => new Promise((r) => setTimeout(r, 0));
-let dispose: (() => void) | undefined;
+import { flush } from "./_taskkit";
+import { resetHomeMocks, type } from "./_homekit";
+import { mountToBody } from "./helpers";
 
 function mount() {
-    dispose = render(() => Settings(), document.body);
+    mountToBody(() => Settings());
     const form = document.body.querySelector<HTMLFormElement>("form.settings-form");
     if (!form) throw new Error("settings form missing");
-    const num = form.querySelector<HTMLInputElement>('input[type="number"]');
-    const url = form.querySelector<HTMLInputElement>('input[type="url"]');
-    const pwd = form.querySelector<HTMLInputElement>('input[type="password"]');
+    // 优先 [name=] 稳定口（同 model 字段先例）；Settings.tsx 的
+    // api_key/base_url/concurrency 尚未挂 name 属性——挂上后本查询自动走
+    // name 路，目前落到 input-type 唯一性兜底
+    const num =
+        form.querySelector<HTMLInputElement>('[name="concurrency"]') ??
+        form.querySelector<HTMLInputElement>('input[type="number"]');
+    const url =
+        form.querySelector<HTMLInputElement>('[name="base_url"]') ??
+        form.querySelector<HTMLInputElement>('input[type="url"]');
+    const pwd =
+        form.querySelector<HTMLInputElement>('[name="api_key"]') ??
+        form.querySelector<HTMLInputElement>('input[type="password"]');
     // model 字段随预设态在 input/select 间切换——name 属性做稳定查询口
     const modelInput = form.querySelector<HTMLInputElement>('[name="model"]');
     if (!num || !url || !pwd || !modelInput) throw new Error("fields missing");
     return { form, num, url, pwd, modelInput };
-}
-
-function type(el: HTMLInputElement, v: string) {
-    el.value = v;
-    el.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
 function submit(form: HTMLFormElement) {
@@ -54,7 +49,8 @@ function submit(form: HTMLFormElement) {
 }
 
 beforeEach(() => {
-    for (const m of Object.values(mocks)) m.mockReset();
+    // 统一复位 + providers 空表走 _homekit；getSettings/putSettings 覆写本文件值
+    resetHomeMocks(mocks);
     mocks.getSettings.mockResolvedValue({
         has_api_key: false,
         base_url: "https://gw/v1",
@@ -64,15 +60,9 @@ beforeEach(() => {
         engine: "auto",
         context_guidance: true,
     });
-    mocks.providers.mockResolvedValue({ providers: [] });
     mocks.putSettings.mockResolvedValue({ has_api_key: false });
 });
-
-afterEach(() => {
-    dispose?.();
-    dispose = undefined;
-    document.body.innerHTML = "";
-});
+// 挂载摘除+body 清场由 helpers.ts 顶层 afterEach 兜底——本文件无文件级清理
 
 describe("Settings 表单提交", () => {
     it("saving 门：PUT 未决期间重复提交只发一次", async () => {

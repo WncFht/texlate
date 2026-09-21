@@ -8,7 +8,7 @@
 //  - Home             arxivId prop → 预填 + 聚焦翻译钮，不自动提交
 // marked/auto-render 桩掉——管线行为在 htmlPane.test.ts 已覆盖，这里测逻辑。
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("marked", () => ({
     marked: { parse: (s: string) => `<p>${s}</p>` },
@@ -25,67 +25,37 @@ const mocks = vi.hoisted(() => ({
     retranslateChunk: vi.fn(),
 }));
 
+// vi.mock 工厂收敛到 _taskkit.clientModuleMock——mocks 全键进 api 覆写
+//（本文件无 openTaskEvents 等顶层导出要换；顶层键分流口径见 _taskkit 头注）
 vi.mock("../api/client", async (importOriginal) => {
-    const mod = await importOriginal<typeof import("../api/client")>();
-    return {
-        ...mod,
-        api: {
-            ...mod.api,
-            tasks: mocks.tasks,
-            health: mocks.health,
-            getSettings: mocks.getSettings,
-            providers: mocks.providers,
-            translate: mocks.translate,
-            taskChunks: mocks.taskChunks,
-            retranslateChunk: mocks.retranslateChunk,
-        },
-    };
+    const { clientModuleMock } = await import("./_taskkit");
+    return clientModuleMock(importOriginal, mocks);
 });
 
-import { render } from "solid-js/web";
 import { createSignal } from "solid-js";
 import LivePane, { mergeLive, type LiveChunk } from "../reader/LivePane";
 import HtmlPane from "../reader/HtmlPane";
 import { chunkUntranslated } from "../reader/markdown";
 import { parseHash } from "../App";
 import Home from "../pages/Home";
+import { taskStore } from "../stores/tasks";
 import { t } from "../i18n";
-
-const flush = () => new Promise((r) => setTimeout(r, 0));
-
-let dispose: (() => void) | undefined;
-
-afterEach(() => {
-    dispose?.();
-    dispose = undefined;
-    document.body.innerHTML = "";
-});
+import type { DualChunk } from "../api/client";
+import { flush } from "./_taskkit";
+import { FM_OPTS, resetHomeMocks } from "./_homekit";
+import { mountToBody, unmountLast } from "./helpers";
 
 beforeEach(() => {
-    mocks.tasks.mockReset().mockResolvedValue({ tasks: [] });
-    mocks.health
-        .mockReset()
-        .mockResolvedValue({ ok: true, version: "t", compilers: {} });
-    mocks.getSettings.mockReset().mockResolvedValue({ has_api_key: false });
-    mocks.providers.mockReset().mockResolvedValue({ providers: [] });
-    mocks.translate.mockReset().mockResolvedValue({
-        task_id: "t_0000000000000f01",
+    // Home 面成员（tasks/health/getSettings/providers/translate→RESP）走
+    // _homekit 统一复位；taskChunks/retranslateChunk 是 reader 面键，本地补值
+    resetHomeMocks(mocks);
+    mocks.taskChunks.mockResolvedValue({ chunks: [], total: 0 });
+    mocks.retranslateChunk.mockResolvedValue({
+        task_id: "t1",
+        seq: 0,
         status: "queued",
-        events_url: "/api/task/t_0000000000000f01",
-        reader_url: "/api/task/t_0000000000000f01/reader",
     });
-    mocks.taskChunks.mockReset().mockResolvedValue({ chunks: [], total: 0 });
-    mocks.retranslateChunk
-        .mockReset()
-        .mockResolvedValue({ task_id: "t1", seq: 0, status: "queued" });
 });
-
-// collectOptions 恒写 front_matter（UI 态即意图）——裸提交的 options 形
-const FM_OPTS = {
-    options: {
-        front_matter: { abstract: true, title: true, author: false },
-    },
-};
 
 // ---------- mergeLive：轮询页合并 ----------
 
@@ -166,11 +136,16 @@ describe("parseHash —— #/arxiv/{id} 深链", () => {
             page: "reader",
             taskId: "t_abc123",
         });
+        expect(parseHash("#/tasks")).toEqual({ page: "tasks" });
+        expect(parseHash("#/discover")).toEqual({ page: "discover" });
         expect(parseHash("#/settings")).toEqual({ page: "settings" });
         expect(parseHash("#/")).toEqual({ page: "home" });
         expect(parseHash("")).toEqual({ page: "home" });
         // 空 id / 仅前缀不判深链——落裸 home（arxivId 缺席不触发自动提交）
         expect(parseHash("#/arxiv/")).toEqual({ page: "home" });
+        // % 不在 id 字符集（[A-Za-z0-9._/-]）——畸形转义到不了
+        // decodeURIComponent，整条落裸 home（App.tsx 的 catch 因此是死分支）
+        expect(parseHash("#/arxiv/%E0%A4")).toEqual({ page: "home" });
     });
 });
 
@@ -185,7 +160,7 @@ describe("LivePane —— 边译边读", () => {
                 { seq: 1, kind: "text", status: "pending", en: "e1", zh: "" },
             ],
         });
-        dispose = render(() => LivePane({ taskId: "t_live" }), document.body);
+        mountToBody(() => LivePane({ taskId: "t_live" }));
         await vi.waitFor(() =>
             expect(document.body.querySelectorAll("[data-chunk]").length).toBe(
                 2,
@@ -228,7 +203,7 @@ describe("LivePane —— 边译边读", () => {
                 { seq: 0, kind: "text", status: "ok", en: "e0", zh: "译文0" },
             ],
         });
-        dispose = render(() => LivePane({ taskId: "t_fold" }), document.body);
+        mountToBody(() => LivePane({ taskId: "t_fold" }));
         await vi.waitFor(() =>
             expect(document.body.querySelectorAll("[data-chunk]").length).toBe(
                 1,
@@ -272,34 +247,36 @@ describe("LivePane —— 边译边读", () => {
     });
 
     it("卸载即停轮询", async () => {
-        dispose = render(() => LivePane({ taskId: "t_stop" }), document.body);
-        await vi.waitFor(() => expect(mocks.taskChunks).toHaveBeenCalled());
-        dispose();
-        dispose = undefined;
-        const n = mocks.taskChunks.mock.calls.length;
-        await new Promise((r) => setTimeout(r, 2600));
-        expect(mocks.taskChunks.mock.calls.length).toBe(n);
+        // chunkPoll 走 window.setInterval(POLL_MS=2500)——假时钟免真等 2.6s
+        vi.useFakeTimers();
+        try {
+            mountToBody(() => LivePane({ taskId: "t_stop" }));
+            await vi.waitFor(() =>
+                expect(mocks.taskChunks).toHaveBeenCalled(),
+            );
+            unmountLast();
+            const n = mocks.taskChunks.mock.calls.length;
+            await vi.advanceTimersByTimeAsync(2600);
+            expect(mocks.taskChunks.mock.calls.length).toBe(n);
+        } finally {
+            vi.useRealTimers();
+        }
     });
 });
 
 // ---------- HtmlPane：徽标 + 单段重译 ----------
 
 describe("HtmlPane —— 未翻译徽标", () => {
-    const mount = (
-        side: "original" | "translated",
-        chunks: never[] | object[],
-    ) =>
-        render(
-            () =>
-                HtmlPane({
-                    side,
-                    chunks: chunks as never,
-                }),
-            document.body,
+    const mount = (side: "original" | "translated", chunks: DualChunk[]) =>
+        mountToBody(() =>
+            HtmlPane({
+                side,
+                chunks,
+            }),
         );
 
     it("译文侧：status!=ok 与旧文件空 zh 带徽标；ok 段不标；原文侧恒不标", async () => {
-        dispose = mount("translated", [
+        mount("translated", [
             { seq: 0, en: "e0", zh: "译文0", status: "ok" },
             { seq: 1, en: "e1", zh: "e1", status: "fallback_orig" },
             { seq: 2, en: "e2", zh: "" }, // status 缺席 + zh 空 → 标
@@ -321,7 +298,7 @@ describe("HtmlPane —— 未翻译徽标", () => {
     });
 
     it("原文侧任何状态都不挂徽标", async () => {
-        dispose = mount("original", [
+        mount("original", [
             { seq: 0, en: "e0", zh: "", status: "failed" },
         ]);
         await vi.waitFor(() =>
@@ -341,18 +318,16 @@ describe("HtmlPane —— 单段重译", () => {
                 { seq: 1, kind: "text", status: "ok", en: "e1", zh: "新译文1" },
             ],
         });
-        dispose = render(
-            () =>
-                HtmlPane({
-                    side: "translated",
-                    taskId: "t_retx",
-                    canRetranslate: true,
-                    chunks: [
-                        { seq: 0, en: "e0", zh: "译文0", status: "ok" },
-                        { seq: 1, en: "e1", zh: "", status: "failed" },
-                    ],
-                }),
-            document.body,
+        mountToBody(() =>
+            HtmlPane({
+                side: "translated",
+                taskId: "t_retx",
+                canRetranslate: true,
+                chunks: [
+                    { seq: 0, en: "e0", zh: "译文0", status: "ok" },
+                    { seq: 1, en: "e1", zh: "", status: "failed" },
+                ],
+            }),
         );
         await vi.waitFor(() =>
             expect(document.body.querySelectorAll("[data-chunk]").length).toBe(
@@ -388,15 +363,13 @@ describe("HtmlPane —— 单段重译", () => {
         mocks.retranslateChunk.mockRejectedValue(
             new ApiError(409, "task not terminal"),
         );
-        dispose = render(
-            () =>
-                HtmlPane({
-                    side: "translated",
-                    taskId: "t_retx",
-                    canRetranslate: true,
-                    chunks: [{ seq: 0, en: "e0", zh: "", status: "failed" }],
-                }),
-            document.body,
+        mountToBody(() =>
+            HtmlPane({
+                side: "translated",
+                taskId: "t_retx",
+                canRetranslate: true,
+                chunks: [{ seq: 0, en: "e0", zh: "", status: "failed" }],
+            }),
         );
         await vi.waitFor(() =>
             expect(document.body.querySelectorAll("[data-chunk]").length).toBe(
@@ -413,13 +386,11 @@ describe("HtmlPane —— 单段重译", () => {
     });
 
     it("canRetranslate/taskId 缺席 → 不挂钮（进行中隐藏）", async () => {
-        dispose = render(
-            () =>
-                HtmlPane({
-                    side: "translated",
-                    chunks: [{ seq: 0, en: "e0", zh: "z0" }],
-                }),
-            document.body,
+        mountToBody(() =>
+            HtmlPane({
+                side: "translated",
+                chunks: [{ seq: 0, en: "e0", zh: "z0" }],
+            }),
         );
         await vi.waitFor(() =>
             expect(document.body.querySelectorAll("[data-chunk]").length).toBe(
@@ -435,11 +406,11 @@ describe("HtmlPane —— 单段重译", () => {
 describe("Home —— #/arxiv/{id} 深链", () => {
     it("arxivId prop → 预填输入框 + 聚焦翻译钮，用户拍板才提交", async () => {
         const nav = vi.fn();
-        dispose = render(
-            () => Home({ nav, arxivId: "2501.14787" }),
-            document.body,
-        );
+        mountToBody(() => Home({ nav, arxivId: "2501.14787" }));
         await flush();
+        // 挂载触发 ensureFresh→refresh：api.tasks 裸数组契约下成功路径
+        // 不挂 loadError（信封形 mock 会让 refresh 抛错留下 loadError）
+        expect(taskStore.state.loadError).toBeUndefined();
         // 不自动烧任务——输入框预填、焦点落翻译钮待命
         expect(mocks.translate).not.toHaveBeenCalled();
         expect(
@@ -476,7 +447,7 @@ describe("Home —— #/arxiv/{id} 深链", () => {
                 return aid();
             },
         };
-        dispose = render(() => Home(props), document.body);
+        mountToBody(() => Home(props));
         await flush();
         expect(mocks.translate).not.toHaveBeenCalled();
         const input = () =>

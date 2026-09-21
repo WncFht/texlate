@@ -7,31 +7,41 @@ import { t as tEn } from "../i18n/en";
 // zh.ts 是 Record 段（status/kind/files）的唯一事实源——服务端词表扩张时
 // 这些断言先于 UI 空白处报警。词表以 server/store.py 与 client.ts 类型为准。
 
+/** 深度遍历叶子：visit(path, value)；非对象的值都算叶（string/number/…） */
+const walkLeaves = (
+    o: Record<string, unknown>,
+    path: string,
+    visit: (path: string, value: unknown) => void,
+): void => {
+    for (const [k, v] of Object.entries(o)) {
+        const p = path ? `${path}.${k}` : k;
+        if (v && typeof v === "object") {
+            walkLeaves(v as Record<string, unknown>, p, visit);
+        } else {
+            visit(p, v);
+        }
+    }
+};
+
+const keySet = (o: Record<string, unknown>): string[] => {
+    const keys: string[] = [];
+    walkLeaves(o, "", (p) => keys.push(p));
+    return keys;
+};
+
+const expectNonEmptyLeaves = (o: Record<string, unknown>) =>
+    walkLeaves(o, "", (p, v) => {
+        if (typeof v === "string") expect(v.trim().length, p).toBeGreaterThan(0);
+    });
+
 describe("en/zh —— 键级 parity（Record 段 typeof 守不到，靠这里）", () => {
-    const keySet = (o: Record<string, unknown>, path = ""): string[] =>
-        Object.entries(o).flatMap(([k, v]) => {
-            const p = path ? `${path}.${k}` : k;
-            return v && typeof v === "object"
-                ? keySet(v as Record<string, unknown>, p)
-                : [p];
-        });
     it("en.ts 与 zh.ts 叶子键集合完全一致", () => {
         expect(
             keySet(tEn as unknown as Record<string, unknown>).sort(),
         ).toEqual(keySet(tZh as unknown as Record<string, unknown>).sort());
     });
     it("en.ts 无空文案叶", () => {
-        const walk = (o: Record<string, unknown>, path: string) => {
-            for (const [k, v] of Object.entries(o)) {
-                const p = path ? `${path}.${k}` : k;
-                if (typeof v === "string") {
-                    expect(v.trim().length, p).toBeGreaterThan(0);
-                } else if (v && typeof v === "object") {
-                    walk(v as Record<string, unknown>, p);
-                }
-            }
-        };
-        walk(tEn as unknown as Record<string, unknown>, "");
+        expectNonEmptyLeaves(tEn as unknown as Record<string, unknown>);
     });
 });
 
@@ -56,7 +66,15 @@ describe("t.status —— 服务端状态/阶段词表全覆盖", () => {
 
 describe("t.kind —— 任务类型词表全覆盖", () => {
     it("TaskKind 联合 + share 包全部有文案", () => {
-        const vocab = ["arxiv", "upload_tex", "upload_pdf", "docx", "epub", "share"];
+        const vocab = [
+            "arxiv",
+            "arxiv_html",
+            "upload_tex",
+            "upload_pdf",
+            "docx",
+            "epub",
+            "share",
+        ];
         for (const k of vocab) expect(t.kind[k], k).toBeTruthy();
     });
 });
@@ -71,16 +89,6 @@ describe("t.files —— FileKind 全覆盖", () => {
 
 describe("t —— 无空文案叶（防占位键混进 UI）", () => {
     it("所有叶子值非空且非纯空白", () => {
-        const walk = (o: Record<string, unknown>, path: string) => {
-            for (const [k, v] of Object.entries(o)) {
-                const p = path ? `${path}.${k}` : k;
-                if (typeof v === "string") {
-                    expect(v.trim().length, p).toBeGreaterThan(0);
-                } else if (v && typeof v === "object") {
-                    walk(v as Record<string, unknown>, p);
-                }
-            }
-        };
-        walk(t as unknown as Record<string, unknown>, "");
+        expectNonEmptyLeaves(t as unknown as Record<string, unknown>);
     });
 });

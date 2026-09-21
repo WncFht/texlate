@@ -146,26 +146,35 @@ export function createTransport(hooks: TransportHooks): TaskTransport {
         unwant(taskId);
     }
 
+    /**
+     * snapshot 一拍定去留（tick/probeAfterClose/resync 三路共用归约）：
+     * 拍间摘除 → 迟到响应不回写——成功与失败两路同口径守卫；
+     * 终态 → onTerminal，404 → onDrop，其余错误吞下轮再试。
+     * 返回是否收敛（终态/404）——rebalance 策略归调用方：
+     * probe 恒补一拍（SSE 死槽刚让出），tick/resync 仅收敛时。
+     */
+    async function settleSnapshot(taskId: string): Promise<boolean> {
+        try {
+            const s = await api.snapshot(taskId);
+            if (!wanted.has(taskId)) return false; // 已摘除——迟到响应不回写
+            hooks.upsertTask(s);
+            if (!isTerminal(s.status)) return false;
+            hooks.onTerminal(taskId, s);
+            return true;
+        } catch (e) {
+            if (!wanted.has(taskId)) return false; // 迟到 404 同口径不回写
+            if (!(e instanceof ApiError && e.status === 404)) return false;
+            hooks.onDrop(taskId);
+            return true;
+        }
+    }
+
     function startPoll(taskId: string) {
         hooks.ensureLive(taskId);
         hooks.setTransport(taskId, "polling");
         if (pollers.has(taskId)) return;
         const tick = async () => {
-            try {
-                const s = await api.snapshot(taskId);
-                if (!wanted.has(taskId)) return; // 已摘除——迟到响应不回写
-                hooks.upsertTask(s);
-                if (isTerminal(s.status)) {
-                    hooks.onTerminal(taskId, s);
-                    rebalance();
-                }
-            } catch (e) {
-                if (e instanceof ApiError && e.status === 404) {
-                    hooks.onDrop(taskId);
-                    rebalance();
-                }
-                // 其余错误下轮再试
-            }
+            if (await settleSnapshot(taskId)) rebalance();
         };
         pollers.set(
             taskId,
@@ -178,31 +187,24 @@ export function createTransport(hooks: TransportHooks): TaskTransport {
      * SSE 被服务端终结（探活兜底，M6）：snapshot 一次定去留——
      * 404 → 行已删 drop；终态 → 收敛摘除；仍在跑/探活失败 → 交尾部
      * rebalance 降级（pin 走独轮询，非 pin 进共享列表轮询；SSE 不复活）。
+     * 尾部 rebalance 恒补一拍——死槽让位/升级回收都在此收口。
      */
     async function probeAfterClose(taskId: string) {
-        try {
-            const s = await api.snapshot(taskId);
-            if (!wanted.has(taskId)) return;
-            hooks.upsertTask(s);
-            if (isTerminal(s.status)) hooks.onTerminal(taskId, s);
-        } catch (e) {
-            if (!wanted.has(taskId)) return;
-            if (e instanceof ApiError && e.status === 404) hooks.onDrop(taskId);
-        }
+        await settleSnapshot(taskId);
         rebalance();
     }
 
     /** pin 优先、其后按任务 updated_at 新→旧占 SSE 槽 */
     function orderedWanted(): string[] {
-        const tasks = hooks.tasks();
+        // 比较器内 tasks.find 是 O(w·log w·m)——先摊成 Map 一次 O(m)
+        const upd = new Map(
+            hooks.tasks().map((t) => [t.task_id, t.updated_at ?? 0]),
+        );
         return [...wanted.keys()].sort((a, b) => {
             const pa = wanted.get(a)?.pin ? 1 : 0;
             const pb = wanted.get(b)?.pin ? 1 : 0;
             if (pa !== pb) return pb - pa;
-            return (
-                (tasks.find((t) => t.task_id === b)?.updated_at ?? 0) -
-                (tasks.find((t) => t.task_id === a)?.updated_at ?? 0)
-            );
+            return (upd.get(b) ?? 0) - (upd.get(a) ?? 0);
         });
     }
 
@@ -268,22 +270,9 @@ export function createTransport(hooks: TransportHooks): TaskTransport {
                 // 拉 snapshot 对齐任务面；SSE 仍活着，不降轮询
                 if (!wanted.has(taskId)) return;
                 hooks.clearChunkLive(taskId);
-                void api
-                    .snapshot(taskId)
-                    .then((s) => {
-                        if (!wanted.has(taskId)) return;
-                        hooks.upsertTask(s);
-                        if (isTerminal(s.status)) {
-                            hooks.onTerminal(taskId, s);
-                            rebalance();
-                        }
-                    })
-                    .catch((e: unknown) => {
-                        if (e instanceof ApiError && e.status === 404) {
-                            hooks.onDrop(taskId);
-                            rebalance();
-                        }
-                    });
+                void settleSnapshot(taskId).then((settled) => {
+                    if (settled) rebalance();
+                });
             },
             ...hooks.frameHandlers(taskId),
         });

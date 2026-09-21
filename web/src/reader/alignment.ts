@@ -26,7 +26,9 @@ export type Side = DocId;
 
 export type PosMap = (pos: Pos, from: Side) => Pos;
 
-const other = (s: Side): Side => (s === "original" ? "translated" : "original");
+/** 对侧名——ReaderView 的 target/updateDrift/jumpBack 与 mapper 共用 */
+export const other = (s: Side): Side =>
+    s === "original" ? "translated" : "original";
 const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi);
 
 interface SideGeom {
@@ -84,7 +86,12 @@ export function createPositionMapper(
             const eo = toLinear(geoms.original, { page: r.original.page, fraction: r.original.end });
             const st = toLinear(geoms.translated, { page: r.translated.page, fraction: r.translated.start });
             const et = toLinear(geoms.translated, { page: r.translated.page, fraction: r.translated.end });
-            return { o: [Math.min(so, eo), Math.max(so, eo)] as const, t: [st, et] as const };
+            // 两侧区间同口径 min/max 归一——start>end 的反向 region 在
+            // 命中插值时 y 会倒序映射（ds>de 折返），先归一保单调
+            return {
+                o: [Math.min(so, eo), Math.max(so, eo)] as const,
+                t: [Math.min(st, et), Math.max(st, et)] as const,
+            };
         })
         .sort((a, b) => a.o[0] - b.o[0]);
 

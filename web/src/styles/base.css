@@ -116,6 +116,7 @@ button {
     .tb-select,
     .tb-page input,
     .topnav a,
+    .theme-toggle,
     .rail-btn,
     .fb-btn,
     .fb-input,
@@ -204,6 +205,24 @@ button {
     background: var(--cinnabar);
     border-radius: 999px;
     vertical-align: 1px;
+}
+
+/* 顶栏主题快切钮（ThemeToggle）——margin-left:auto 顶到行尾；
+   阅读器侧复用 .tb-btn 皮肤，这里只管 topnav 语境 */
+.topnav .theme-toggle {
+    margin-left: auto;
+    align-self: center;
+    padding: 2px 4px;
+    border: 0;
+    background: none;
+    color: var(--ink-2);
+    font-size: 14px;
+    line-height: 1;
+    border-radius: 4px;
+}
+
+.topnav .theme-toggle:hover {
+    color: var(--ink);
 }
 
 /* ---------- 内页壳（Tasks / Discover 共用） ---------- */

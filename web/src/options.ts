@@ -17,6 +17,12 @@ export const API_DIALECTS: string[] = [
     "responses",
 ];
 
+/** 并发夹取 1..16 整数——Home 任务选项（home/options.ts collectOptions）与
+ *  Settings（pages/Settings.tsx）同一口径；界值同 home/options.ts 表单行
+ *  min/max 的 OPT_CONC_MIN/OPT_CONC_MAX */
+export const clampConcurrency = (v: number): number =>
+    Math.max(1, Math.min(16, Math.floor(v)));
+
 /** Segmented 白名单选项：现值越表（旧配置/服务端扩列）prepend 保留可选，防静默改值 */
 export const segOptsWithCurrent = (
     list: string[],

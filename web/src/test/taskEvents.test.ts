@@ -11,6 +11,7 @@ import {
     type TaskSnapshot,
     type TransportState,
 } from "../api/client";
+import { snap as fakeSnap } from "./fakes";
 
 type Listener = (ev: Event) => void;
 
@@ -67,14 +68,9 @@ class FakeEventSource {
     }
 }
 
-const snap = (status: TaskSnapshot["status"]): TaskSnapshot => ({
-    task_id: "t1",
-    kind: "arxiv",
-    status,
-    progress: 50,
-    created_at: 1,
-    updated_at: 1,
-});
+// (status) 签名保留——progress 恒 50、时间戳钉 1（帧只读 status，值不参与断言）
+const snap = (status: TaskSnapshot["status"]): TaskSnapshot =>
+    fakeSnap("t1", { status, progress: 50, created_at: 1, updated_at: 1 });
 
 const stage = (progress: number): StageEvent => ({
     stage: "translating",

@@ -23,22 +23,16 @@ vi.mock("../api/client", async (importOriginal) => {
     };
 });
 
-import { render } from "solid-js/web";
-import TaskList from "../components/TaskList";
 import type { TaskSnapshot } from "../api/client";
+import { snap as fakeSnap } from "./fakes";
+import { flush } from "./_taskkit";
+import { renderList } from "./_taskdom";
 
-const flush = () => new Promise((r) => setTimeout(r, 0));
 let dispose: (() => void) | undefined;
 
-const snap = (id: string, over: Partial<TaskSnapshot> = {}): TaskSnapshot => ({
-    task_id: id,
-    kind: "docx",
-    status: "done",
-    progress: 100,
-    created_at: 1_700_000_000,
-    updated_at: 1_700_000_000,
-    ...over,
-});
+// 下载行语义是 doc 任务——kind 经 fakes.snap 的 over 覆写，其余缺省同源
+const snap = (id: string, over: Partial<TaskSnapshot> = {}): TaskSnapshot =>
+    fakeSnap(id, { kind: "docx", ...over });
 
 beforeEach(() => {
     mocks.files.mockReset().mockResolvedValue({
@@ -62,23 +56,13 @@ afterEach(() => {
 
 describe("行内产物下载 —— 懒拉时机", () => {
     it("挂载不拉 manifest（无 artifacts 行零请求）", async () => {
-        dispose = render(
-            () =>
-                TaskList({
-                    tasks: [snap("t_d1"), snap("t_d2")],
-                    onOpen: vi.fn(),
-                }),
-            document.body,
-        );
+        dispose = renderList([snap("t_d1"), snap("t_d2")]);
         await flush();
         expect(mocks.files).not.toHaveBeenCalled();
     });
 
     it("点开折叠钮 → 恰好一次 api.files，产物链出现", async () => {
-        dispose = render(
-            () => TaskList({ tasks: [snap("t_d1")], onOpen: vi.fn() }),
-            document.body,
-        );
+        dispose = renderList([snap("t_d1")]);
         const toggle =
             document.body.querySelector<HTMLButtonElement>(".task-dlt");
         expect(toggle).toBeTruthy();
@@ -91,10 +75,7 @@ describe("行内产物下载 —— 懒拉时机", () => {
     });
 
     it("悬停预取后再点开 —— 仍只发一次", async () => {
-        dispose = render(
-            () => TaskList({ tasks: [snap("t_d1")], onOpen: vi.fn() }),
-            document.body,
-        );
+        dispose = renderList([snap("t_d1")]);
         const toggle = document.body.querySelector<HTMLElement>(".task-dlt")!;
         toggle.dispatchEvent(new Event("pointerenter", { bubbles: true }));
         await flush();
@@ -107,18 +88,11 @@ describe("行内产物下载 —— 懒拉时机", () => {
     });
 
     it("snapshot.artifacts 已在 → 不拉 manifest 也能展开直链", async () => {
-        dispose = render(
-            () =>
-                TaskList({
-                    tasks: [
-                        snap("t_d1", {
-                            artifacts: { zh_docx: "/api/files/t_d1/zh.docx" },
-                        }),
-                    ],
-                    onOpen: vi.fn(),
-                }),
-            document.body,
-        );
+        dispose = renderList([
+            snap("t_d1", {
+                artifacts: { zh_docx: "/api/files/t_d1/zh.docx" },
+            }),
+        ]);
         document.body.querySelector<HTMLButtonElement>(".task-dlt")!.click();
         await flush();
         expect(mocks.files).not.toHaveBeenCalled();
@@ -130,17 +104,10 @@ describe("行内产物下载 —— 懒拉时机", () => {
 describe("删除互斥", () => {
     it("一单在飞 → 其余行删除钮 disabled", async () => {
         mocks.deleteTask.mockImplementation(() => new Promise(() => {}));
-        dispose = render(
-            () =>
-                TaskList({
-                    tasks: [
-                        snap("t_a", { kind: "arxiv" }),
-                        snap("t_b", { kind: "arxiv" }),
-                    ],
-                    onOpen: vi.fn(),
-                }),
-            document.body,
-        );
+        dispose = renderList([
+            snap("t_a", { kind: "arxiv" }),
+            snap("t_b", { kind: "arxiv" }),
+        ]);
         const dels =
             document.body.querySelectorAll<HTMLButtonElement>(".task-del");
         expect(dels.length).toBe(2);

@@ -4,32 +4,7 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { api } from "../api/client";
-
-const RESP = {
-    task_id: "t_0000000000000f01",
-    status: "queued",
-    events_url: "/api/task/t_0000000000000f01",
-    reader_url: "/api/task/t_0000000000000f01/reader",
-};
-
-function resp202() {
-    return new Response(JSON.stringify(RESP), {
-        status: 202,
-        headers: { "content-type": "application/json" },
-    });
-}
-
-function stubFetch(impl?: typeof fetch) {
-    const spy = vi.fn<typeof fetch>(impl ?? (() => Promise.resolve(resp202())));
-    vi.stubGlobal("fetch", spy);
-    return spy;
-}
-
-/** 第 i 次（默认最后一次）fetch 调用的 headers（RequestInit.headers 平面对象） */
-function sentHeaders(spy: ReturnType<typeof stubFetch>, i = -1): Record<string, string> {
-    const init = spy.mock.calls.at(i)?.[1];
-    return (init?.headers ?? {}) as Record<string, string>;
-}
+import { resp202, stubFetch, sentHeaders } from "./_fetchkit";
 
 const netFail = () => Promise.reject(new TypeError("failed to fetch"));
 
@@ -154,5 +129,33 @@ describe("Idempotency-Key（create 三路）", () => {
         await expect(api.translate("2501.00009", undefined, { apiKey: "sk-b" })).rejects.toThrow();
         expect(sentHeaders(spy)["Idempotency-Key"]).toBe(k1);
         expect(sentHeaders(spy)["X-Texlate-Key"]).toBe("sk-b");
+    });
+
+    it("改 baseUrl/model 重发同一提交→新 idem key（端点是意图语义）", async () => {
+        const spy = stubFetch(netFail);
+        await expect(
+            api.translate("2501.00010", undefined, { baseUrl: "https://a" }),
+        ).rejects.toThrow();
+        const k1 = sentHeaders(spy)["Idempotency-Key"];
+        expect(k1).toBeTruthy();
+
+        await expect(
+            api.translate("2501.00010", undefined, { baseUrl: "https://b" }),
+        ).rejects.toThrow();
+        const k2 = sentHeaders(spy)["Idempotency-Key"];
+        expect(k2).toBeTruthy();
+        expect(k2).not.toBe(k1);
+
+        // model 同入指纹——同端点换模型仍属另一意图
+        await expect(
+            api.translate("2501.00010", undefined, {
+                baseUrl: "https://a",
+                model: "m2",
+            }),
+        ).rejects.toThrow();
+        const k3 = sentHeaders(spy)["Idempotency-Key"];
+        expect(k3).toBeTruthy();
+        expect(k3).not.toBe(k1);
+        expect(k3).not.toBe(k2);
     });
 });

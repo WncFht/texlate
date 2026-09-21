@@ -1,5 +1,7 @@
 // M7：request() 默认 AbortSignal.timeout(15s)——防 health/snapshot 裸挂。
-// 调用方传 init.signal 可覆盖（结构验证：spy AbortSignal.timeout 的调用与否）。
+// init?.signal 覆盖臂在 request()/xhrRequest() 内部接线，但 api.* 公开面
+// 无任一方法透传 init——现状全量调用都吃默认超时（结构验证：spy
+// AbortSignal.timeout 的调用与否）。
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, REQUEST_TIMEOUT_MS } from "../api/client";

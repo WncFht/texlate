@@ -8,28 +8,23 @@ export default function UploadBar(props: {
     uploading(): boolean;
     upPct(): number;
 }) {
+    // 不定态闸：<0（无进度事件）或 ≥100（字节送完、服务端建单中）→ 扫条
+    const indet = () => props.upPct() < 0 || props.upPct() >= 100;
     return (
         <Show when={props.uploading()}>
             <div class="up-progress">
                 <div
                     class="up-bar"
-                    classList={{ indet: props.upPct() < 0 || props.upPct() >= 100 }}
+                    classList={{ indet: indet() }}
                     role="progressbar"
                     aria-label={t.home.upload}
                     aria-valuemin={0}
                     aria-valuemax={100}
-                    aria-valuenow={
-                        props.upPct() >= 0 && props.upPct() < 100
-                            ? props.upPct()
-                            : undefined
-                    }
+                    aria-valuenow={indet() ? undefined : props.upPct()}
                 >
                     <i
                         style={{
-                            width:
-                                props.upPct() < 0 || props.upPct() >= 100
-                                    ? "35%"
-                                    : `${props.upPct()}%`,
+                            width: indet() ? "35%" : `${props.upPct()}%`,
                         }}
                     />
                 </div>

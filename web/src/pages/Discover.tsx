@@ -9,11 +9,16 @@
 import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { api, type DiscoverHit, type DiscoverPaper } from "../api/client";
 import { createDebouncedAxSearch } from "../axsearch";
+import {
+    cardId,
+    dedup,
+    FEED_TTL_MS,
+    readFeedCache,
+    writeFeedCache,
+} from "../discover/feed";
 import { t } from "../i18n";
 
 const PAGE_SIZE = 24;
-/** 会话态保鲜窗——与服务端 feed 缓存（600s）同档，窗口内 hash 往返不重拉 */
-const FEED_TTL_MS = 600_000;
 
 const SORTS = [
     { value: "Hot", key: "hot" },
@@ -43,51 +48,9 @@ let lastFeedAt = 0;
 let feedSeq = 0;
 
 // ---- 第一页 sessionStorage SWR：reload/超 TTL 先即渲缓存再后台纠偏 ----
-const FEED_CACHE = "texlate.discover.feed";
-const FEED_CACHE_TTL = 600_000;
-const FEED_CACHE_MAX = 12;
+// 缓存读写/去重纯函数在 discover/feed.ts（TTL/容量常量同出一处，vitest 直测）
 
 const feedCacheKey = () => `${sort()}|${interval()}`;
-
-const readFeedCache = (): DiscoverPaper[] | null => {
-    try {
-        const raw = sessionStorage.getItem(FEED_CACHE);
-        if (!raw) return null;
-        const map = JSON.parse(raw) as Record<
-            string,
-            { ts: number; rows: DiscoverPaper[] }
-        >;
-        const e = map[feedCacheKey()];
-        if (!e || Date.now() - e.ts > FEED_CACHE_TTL) return null;
-        return Array.isArray(e.rows) && e.rows.length ? e.rows : null;
-    } catch {
-        return null;
-    }
-};
-
-const writeFeedCache = (rows: DiscoverPaper[]) => {
-    try {
-        const raw = sessionStorage.getItem(FEED_CACHE);
-        const map = (
-            raw ? JSON.parse(raw) : {}
-        ) as Record<string, { ts: number; rows: DiscoverPaper[] }>;
-        map[feedCacheKey()] = { ts: Date.now(), rows };
-        const ks = Object.keys(map);
-        // 超上限逐最旧（同一板面反复刷只换同键，容量挡的是多榜组合）
-        for (const k of ks
-            .sort((a, b) => map[a].ts - map[b].ts)
-            .slice(0, Math.max(0, ks.length - FEED_CACHE_MAX))) {
-            delete map[k];
-        }
-        sessionStorage.setItem(FEED_CACHE, JSON.stringify(map));
-    } catch {
-        /* quota/隐私模式——缓存只是提速 */
-    }
-};
-
-/** 卡 id 取 universal_paper_id（arXiv id），缺席回 canonical_id */
-const cardId = (p: DiscoverPaper) =>
-    p.universal_paper_id || p.canonical_id || "";
 
 const cardDesc = (p: DiscoverPaper) =>
     p.feed_description ||
@@ -109,14 +72,6 @@ const cardMeta = (p: DiscoverPaper): string => {
     return parts.join(" · ");
 };
 
-const dedup = (rows: DiscoverPaper[], seen: Set<string>) =>
-    rows.filter((r) => {
-        const k = cardId(r) || r.id;
-        if (!k || seen.has(k)) return false;
-        seen.add(k);
-        return true;
-    });
-
 // ---- 密度控制：每行 2..6 张卡（默认 3——预览可读），sessionStorage 持久 ----
 const DENSITY_KEY = "texlate.discover.cols";
 const COL_MIN: Record<number, number> = {
@@ -137,6 +92,15 @@ const readDensity = () => {
 };
 
 const [density, setDensity] = createSignal(readDensity());
+
+/** 密度持久化——+/- 两钮共用（sessionStorage 失败仅丢持久，不挡交互） */
+const persistDensity = () => {
+    try {
+        sessionStorage.setItem(DENSITY_KEY, String(density()));
+    } catch {
+        /* 忽略 */
+    }
+};
 
 /** 骨架卡：与 .ax-card 解剖一致（16:9 图区 + 两行文本）防跳动 */
 const SkelCards = (props: { n: number }) => (
@@ -188,7 +152,7 @@ export default function Discover(props: { nav(to: string): void }) {
                 const seen = new Set<string>();
                 const fresh = dedup(rows, seen);
                 setPapers(fresh);
-                writeFeedCache(fresh);
+                writeFeedCache(feedCacheKey(), fresh);
             } else {
                 // 跨页去重（榜单流动可能把同篇推回后页）——按卡 id 稳定键
                 setPapers((prev) => [
@@ -219,7 +183,7 @@ export default function Discover(props: { nav(to: string): void }) {
         setPage(0);
         setEndFeed(false);
         setFailed(false);
-        setPapers(readFeedCache() ?? []);
+        setPapers(readFeedCache(feedCacheKey()) ?? []);
         void fetchPage(1);
     };
 
@@ -302,14 +266,7 @@ export default function Discover(props: { nav(to: string): void }) {
                         aria-label="−"
                         onClick={() => {
                             setDensity((d) => Math.max(2, d - 1));
-                            try {
-                                sessionStorage.setItem(
-                                    DENSITY_KEY,
-                                    String(density()),
-                                );
-                            } catch {
-                                /* 忽略 */
-                            }
+                            persistDensity();
                         }}
                     >
                         −
@@ -322,14 +279,7 @@ export default function Discover(props: { nav(to: string): void }) {
                         aria-label="+"
                         onClick={() => {
                             setDensity((d) => Math.min(6, d + 1));
-                            try {
-                                sessionStorage.setItem(
-                                    DENSITY_KEY,
-                                    String(density()),
-                                );
-                            } catch {
-                                /* 忽略 */
-                            }
+                            persistDensity();
                         }}
                     >
                         +

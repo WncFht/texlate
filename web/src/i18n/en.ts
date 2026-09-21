@@ -114,7 +114,6 @@ export const t = {
         processing: "Uploaded, processing…",
         // === progress chrome ===
         retryAs: "Retry · {engine}",
-        retryEngineTip: "Retry with a different engine",
         shareZip: "Share pack",
         shareZipTip: "Download the .share.zip community cache package",
     },
@@ -141,7 +140,6 @@ export const t = {
         },
         views: "{n} views",
         loadMore: "Load more",
-        loading: "Loading…",
         retry: "Retry",
         failed: "alphaXiv is unavailable right now",
         empty: "No papers on this board yet",
@@ -326,7 +324,6 @@ export const t = {
         polling: "Polling",
         closed: "Connection closed",
         warnings: "Warnings",
-        preview: "Translation preview",
         // === progress chrome ===
         queuePos: "#{n} in queue",
         etaMin: "~{n} min remaining",

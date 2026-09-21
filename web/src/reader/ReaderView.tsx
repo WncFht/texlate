@@ -33,7 +33,12 @@ import {
 } from "../api/client";
 import Toolbar, { type DownloadItem, type Mode } from "../components/Toolbar";
 import { bindMenuDismiss } from "../components/menuNav";
-import { createPositionMapper, type DocId, type Pos } from "./alignment";
+import {
+    createPositionMapper,
+    other,
+    type DocId,
+    type Pos,
+} from "./alignment";
 import { annotFileName, zoomToFontPx } from "./paneUtils";
 import { capturePos, jumpTo, scrollTopFor, SyncEngine } from "./sync";
 import type { PaneHandle } from "./PdfPane";
@@ -135,8 +140,7 @@ export default function ReaderView(props: Props) {
     const stepPage = (d: number) => {
         const cur = pageNums()[active()] ?? 1;
         const total = pageCounts()[active()] || 1;
-        const n = Math.min(total, Math.max(1, cur + d));
-        handles()[active()]?.gotoPage?.(n);
+        gotoPage(Math.min(total, Math.max(1, cur + d)));
     };
 
     // 键盘面：1/2/3 模式、s 同步、[/] 翻页（段）、? 帮助浮层。
@@ -214,8 +218,8 @@ export default function ReaderView(props: Props) {
     onMount(() => {
         const onWheel = (e: WheelEvent) => {
             if (e.ctrlKey || e.metaKey) return;
-            const t = e.target as Element | null;
-            if (!t || t.closest(".pane") || t.closest(".guide")) return;
+            const tgt = e.target as Element | null;
+            if (!tgt || tgt.closest(".pane") || tgt.closest(".guide")) return;
             let el: HTMLElement | undefined;
             try {
                 el = handles()[active()]?.el;
@@ -317,8 +321,13 @@ export default function ReaderView(props: Props) {
                     ? { from: src.side, pos: capturePos(src) }
                     : null;
             pendingJump = null;
+            // saveNow 必须在 setMode 前——进 guide 后双栏 display:none、
+            // paneVisible 全 false，positions 空表早退，pending 防抖存盘
+            // 会被白清；guide 模式本身不落库（回程位置走 guideReturn）
+            saveNow();
+            window.clearTimeout(saveTimer);
+            saveTimer = 0;
             setMode(next);
-            persistPosition();
             return;
         }
         // 出 guide 的回程票优先（隐藏期活侧 scrollTop 读 0——见 guideReturn 注释）
@@ -333,12 +342,7 @@ export default function ReaderView(props: Props) {
         const pos = ticket?.pos ?? (src ? capturePos(src) : null);
         if (from && pos) {
             // 目标侧：split → 当前隐藏的对侧；单栏 → next 对应侧
-            const target: DocId =
-                next === "split"
-                    ? from === "original"
-                        ? "translated"
-                        : "original"
-                    : next;
+            const target: DocId = next === "split" ? other(from) : next;
             const dst = handles()[target];
             if (dst) {
                 // 目标窗格仍在挂载态（U3 后单栏切换两侧俱在）——立即跳，
@@ -423,8 +427,7 @@ export default function ReaderView(props: Props) {
         const next: Partial<Record<DocId, boolean>> = {};
         for (const side of ["original", "translated"] as const) {
             const me = handles()[side];
-            const otherSide: DocId =
-                side === "original" ? "translated" : "original";
+            const otherSide = other(side);
             const src = handles()[otherSide];
             if (!me || !src) continue;
             const expected = scrollTopFor(
@@ -440,8 +443,7 @@ export default function ReaderView(props: Props) {
 
     const jumpBack = (side: DocId) => {
         const me = handles()[side];
-        const otherSide: DocId =
-            side === "original" ? "translated" : "original";
+        const otherSide = other(side);
         const src = handles()[otherSide];
         if (!me || !src) return;
         jumpTo(me, mapper()(capturePos(src), otherSide));

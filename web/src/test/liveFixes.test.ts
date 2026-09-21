@@ -14,72 +14,44 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("../api/client", async (importOriginal) => {
-    const mod = await importOriginal<typeof import("../api/client")>();
-    return {
-        ...mod,
-        api: {
-            ...mod.api,
-            tasks: mocks.tasks,
-            snapshot: mocks.snapshot,
-        },
-        openTaskEvents: mocks.openTaskEvents,
-    };
+    const { clientModuleMock } = await import("./_taskkit");
+    return clientModuleMock(importOriginal, mocks);
 });
 
-import {
-    ApiError,
-    type TaskChannel,
-    type TaskEventHandlers,
-    type TaskSnapshot,
-} from "../api/client";
+import { ApiError, type TaskSnapshot } from "../api/client";
 import { POLL_INTERVAL_MS, taskStore } from "../stores/tasks";
+import { snap as fakeSnap } from "./fakes";
+import {
+    channelOf,
+    handlersOf,
+    mkChannel,
+    openedFor,
+    trackWatches,
+} from "./_taskkit";
 
+// (id, status, updated) 旧签名保留——updated 映 updated_at（0 回 fakes 基线戳）
 const snap = (
     id: string,
     status: TaskSnapshot["status"],
     updated = 0,
-): TaskSnapshot => ({
-    task_id: id,
-    kind: "arxiv",
-    status,
-    progress: status === "done" ? 100 : 40,
-    created_at: 1_700_000_000,
-    updated_at: updated || 1_700_000_000,
-});
-
-const handlersOf = (i: number) =>
-    mocks.openTaskEvents.mock.calls[i][1] as TaskEventHandlers;
-const channelOf = (i: number) =>
-    mocks.openTaskEvents.mock.results[i].value as TaskChannel & {
-        close: ReturnType<typeof vi.fn>;
-    };
-const openedFor = () =>
-    mocks.openTaskEvents.mock.calls.map((c) => c[0] as string);
+): TaskSnapshot =>
+    fakeSnap(id, { status, updated_at: updated || 1_700_000_000 });
 
 const used: string[] = [];
+trackWatches(used, taskStore);
 
 beforeEach(() => {
     vi.useFakeTimers();
-    used.length = 0;
     mocks.tasks.mockReset();
     mocks.snapshot
         .mockReset()
         .mockImplementation((id: string) =>
             Promise.resolve(snap(id, "translating")),
         );
-    mocks.openTaskEvents.mockReset().mockImplementation(() => {
-        const ch = {
-            closed: false,
-            close: vi.fn(() => {
-                ch.closed = true;
-            }),
-        };
-        return ch;
-    });
+    mocks.openTaskEvents.mockReset().mockImplementation(() => mkChannel());
 });
 
 afterEach(() => {
-    for (const id of used) taskStore.unwatch(id);
     vi.clearAllTimers();
     vi.useRealTimers();
 });
@@ -92,7 +64,7 @@ describe("M2：watch/unwatch 统一 detach（幂等）", () => {
         const h = taskStore.watch("u1");
         h.close();
         expect(h.closed).toBe(true);
-        expect(channelOf(0).close).toHaveBeenCalled();
+        expect(channelOf(mocks, 0).close).toHaveBeenCalled();
         h.close(); // 幂等
         taskStore.unwatch("u1"); // 公开幂等——已摘除再调不炸
     });
@@ -120,7 +92,7 @@ describe("M8：transport 状态机", () => {
         taskStore.watch("c1");
         // ensureChannel 落座即 connecting——openTaskEvents 尚未回话
         expect(taskStore.live("c1")!.transport).toBe("connecting");
-        handlersOf(0).transport?.("live");
+        handlersOf(mocks, 0).transport?.("live");
         expect(taskStore.live("c1")!.transport).toBe("live");
     });
 
@@ -149,25 +121,25 @@ describe("M6：SSE 服务端终结 → 探活定去留，不复活", () => {
                 : Promise.resolve(snap(id, "translating")),
         );
         await taskStore.refresh();
-        expect(openedFor()).toEqual(["g1", "g2"]);
+        expect(openedFor(mocks)).toEqual(["g1", "g2"]);
 
-        handlersOf(0).transport?.("closed"); // g1 的 ES readyState=CLOSED
+        handlersOf(mocks, 0).transport?.("closed"); // g1 的 ES readyState=CLOSED
         await vi.advanceTimersByTimeAsync(0);
         expect(taskStore.task("g1")).toBeUndefined();
         expect(taskStore.live("g1")).toBeUndefined();
-        expect(openedFor()).toEqual(["g1", "g2"]); // 无复活——仍是两次
+        expect(openedFor(mocks)).toEqual(["g1", "g2"]); // 无复活——仍是两次
 
         // 后续 rebalance（新 watch 触发）也不得复活 g1
         used.push("g3");
         taskStore.watch("g3");
-        expect(openedFor()).toEqual(["g1", "g2", "g3"]);
+        expect(openedFor(mocks)).toEqual(["g1", "g2", "g3"]);
     });
 
     it("closed + 探活仍在跑 → 降级轮询（不复活 SSE）", async () => {
         mocks.tasks.mockResolvedValue([snap("a1", "translating", 50)]);
         used.push("a1");
         await taskStore.refresh();
-        handlersOf(0).transport?.("closed");
+        handlersOf(mocks, 0).transport?.("closed");
         await vi.advanceTimersByTimeAsync(0);
         expect(taskStore.live("a1")!.transport).toBe("polling");
         expect(mocks.openTaskEvents).toHaveBeenCalledTimes(1); // 未复活
@@ -182,7 +154,7 @@ describe("M6：SSE 服务端终结 → 探活定去留，不复活", () => {
         used.push("f1");
         await taskStore.refresh();
         mocks.snapshot.mockResolvedValue(snap("f1", "done"));
-        handlersOf(0).transport?.("closed");
+        handlersOf(mocks, 0).transport?.("closed");
         await vi.advanceTimersByTimeAsync(0);
         expect(taskStore.task("f1")!.status).toBe("done");
         mocks.snapshot.mockClear();
@@ -206,7 +178,7 @@ describe("resync 帧：重放缺口 → 清派生态 + 拉快照对齐", () => {
         mocks.tasks.mockResolvedValue([snap("r1", "translating", 50)]);
         used.push("r1");
         await taskStore.refresh();
-        const h = handlersOf(0);
+        const h = handlersOf(mocks, 0);
         h.chunk?.({
             total: 5,
             done: 4,
@@ -232,7 +204,7 @@ describe("resync 帧：重放缺口 → 清派生态 + 拉快照对齐", () => {
         used.push("r9");
         await taskStore.refresh();
         mocks.snapshot.mockRejectedValue(new ApiError(404, "gone"));
-        handlersOf(0).resync?.();
+        handlersOf(mocks, 0).resync?.();
         await vi.advanceTimersByTimeAsync(0);
         expect(taskStore.task("r9")).toBeUndefined();
     });
@@ -243,7 +215,7 @@ describe("P2：chunk 帧按 seq 增量写（不再整组重建）", () => {
         mocks.tasks.mockResolvedValue([snap("k1", "translating", 50)]);
         used.push("k1");
         await taskStore.refresh();
-        const h = handlersOf(0);
+        const h = handlersOf(mocks, 0);
         h.chunk?.({
             total: 4,
             done: 2,

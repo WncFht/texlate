@@ -17,15 +17,13 @@ vi.mock("../api/client", async (importOriginal) => {
 
 import { ApiError, type TaskSnapshot } from "../api/client";
 import { taskStore } from "../stores/tasks";
+import { snap as fakeSnap } from "./fakes";
 
-const snap = (id: string, status: TaskSnapshot["status"] = "done"): TaskSnapshot => ({
-    task_id: id,
-    kind: "arxiv",
-    status,
-    progress: status === "done" ? 100 : 40,
-    created_at: 1_700_000_000,
-    updated_at: 1_700_000_000,
-});
+// (id, status="done") 签名保留——缺省面与 fakes.snap 全同形
+const snap = (
+    id: string,
+    status: TaskSnapshot["status"] = "done",
+): TaskSnapshot => fakeSnap(id, { status });
 
 beforeEach(() => {
     mocks.tasks.mockReset();

@@ -32,8 +32,9 @@ import { externalLinksBlank } from "./paneUtils";
 import { CHUNK_WINDOW } from "./chunkPoll";
 import {
     bindChunkGeom,
+    forEachSliced,
     makeChunkPaneHandle,
-    raf,
+    onPaneScroll,
     type ChunkPaneHandle,
 } from "./sync";
 import { api, apiErrText, type DualChunk } from "../api/client";
@@ -43,8 +44,6 @@ import { t } from "../i18n";
 const RETX_POLL_MS = 2000;
 const RETX_TIMEOUT_MS = 60_000;
 const RETX_TOAST_MS = 4500;
-/** 分片时间盒——marked+KaTeX 每段数 ms，40ms/帧保对侧窗格可交互 */
-const SLICE_MS = 40;
 
 export type HtmlPaneHandle = ChunkPaneHandle;
 
@@ -61,32 +60,20 @@ interface Props {
     onScroll?(): void;
 }
 
-/* —— 以下两件仍是 chunk 窗格共享骨架的本地副本（makeChunkPaneHandle 已
- *   hoist 到 sync.ts；DomPane 的分片挂载/scroll 转发、LivePane 的分片绘
- *   与本件逐字同构，归宿是 sync.ts 的 chunk-pane 族）—— */
+/* —— finishChunk 仍是共享骨架的本地副本（forEachSliced/onPaneScroll 已随
+ *   makeChunkPaneHandle hoist 进 sync.ts；本件与 LivePane.paint 的注入后
+ *   渲染管线同口径，归宿 markdown.ts）—— */
 
-/** 时间盒分片遍历：每片 ≤SLICE_MS，片间 rAF 让帧；isCancelled 置位即收 */
-async function forEachSliced<T>(
-    items: readonly T[],
-    fn: (item: T) => void,
-    isCancelled: () => boolean,
-): Promise<void> {
-    let i = 0;
-    while (i < items.length && !isCancelled()) {
-        const deadline = performance.now() + SLICE_MS;
-        do {
-            fn(items[i++]);
-        } while (i < items.length && performance.now() < deadline);
-        if (i < items.length) {
-            await new Promise<void>((r) => raf(() => r()));
-        }
-    }
-}
-
-/** scroll → cb 的被动监听：effect 体内调用，随所属作用域 onCleanup 卸 */
-function onPaneScroll(el: HTMLElement, cb: () => void): void {
-    el.addEventListener("scroll", cb, { passive: true });
-    onCleanup(() => el.removeEventListener("scroll", cb));
+/** 注入后渲染管线：外链新窗 → 掩码/残件反查 → KaTeX 重扫
+ * （mount 分片 / 重译重绘 / LivePane.paint 三处同口径） */
+function finishChunk(
+    el: HTMLElement,
+    libs: MdLibs | null,
+    ph?: Record<string, string>,
+): void {
+    externalLinksBlank(el);
+    unmaskLatex(el, ph);
+    libs?.renderMath(el);
 }
 
 export default function HtmlPane(props: Props) {
@@ -131,9 +118,9 @@ export default function HtmlPane(props: Props) {
         let s = `<section class="chunk" data-chunk="${seqAttr(c.seq)}">`;
         // 「未翻译」只标译文侧——原文侧显原文是本职，徽标反成噪声
         if (props.side === "translated" && chunkUntranslated(cur))
-            s += `<span class="chunk-badge">${t.live.untranslated}</span>`;
+            s += `<span class="chunk-badge">${escapeHtml(t.live.untranslated)}</span>`;
         if (props.canRetranslate && props.taskId && Number.isInteger(c.seq))
-            s += `<button type="button" class="chunk-retx" data-retx="${seqAttr(c.seq)}" title="${t.live.retranslate}">${t.live.retranslate}</button>`;
+            s += `<button type="button" class="chunk-retx" data-retx="${seqAttr(c.seq)}" title="${escapeHtml(t.live.retranslate)}">${escapeHtml(t.live.retranslate)}</button>`;
         return `${s}${inner}</section>`;
     };
 
@@ -148,9 +135,7 @@ export default function HtmlPane(props: Props) {
         if (!fresh) return;
         sec.replaceWith(fresh);
         // 重绘段含新外链——初始渲染挂过，就地重绘也要挂（与 mount 路径同口径）
-        externalLinksBlank(fresh);
-        unmaskLatex(fresh, c.ph);
-        libs?.renderMath(fresh);
+        finishChunk(fresh, libs, c.ph);
         // childList 变化已排 MO 整绑——同步再绑一遍是纯重复，只清缓存
         geom.invalidate();
     };
@@ -244,9 +229,7 @@ export default function HtmlPane(props: Props) {
                     tmp.innerHTML = sectionHtml(c);
                     const sec = tmp.firstElementChild as HTMLElement | null;
                     if (sec) {
-                        externalLinksBlank(sec);
-                        unmaskLatex(sec, c.ph);
-                        libs?.renderMath(sec);
+                        finishChunk(sec, libs, c.ph);
                         bodyEl.append(sec);
                     }
                 },

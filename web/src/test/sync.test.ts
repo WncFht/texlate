@@ -19,7 +19,8 @@ class FakeEl {
     removeEventListener(_t: string, l: () => void) {
         this.listeners.delete(l);
     }
-    /** 模拟浏览器：写 scrollTop 后异步派发 scroll 事件 */
+    /** 模拟浏览器：写 scrollTop 后派发 scroll 事件（同步派发是测试替身
+     *  简化——真实浏览器 scroll 事件异步，flush() 的 25ms 等待掩盖差异） */
     scrollTo(top: number) {
         this.scrollTop = top;
         for (const l of this.listeners) l();
@@ -136,12 +137,12 @@ describe("SyncEngine", () => {
         expect(B.fel.scrollTop).toBe(0);
     });
 
-    it("epoch：连续滚动只应用最后一帧", async () => {
+    it("pendingSrc 覆盖：连续滚动只应用最后一帧", async () => {
         const A = fakePane("original", [0, 800, 1600]);
         const B = fakePane("translated", [0, 800, 1600]);
         new SyncEngine(A, B, identity);
         A.fel.scrollTo(100);
-        A.fel.scrollTo(1200); // 第二次滚动使第一帧的 epoch 过期
+        A.fel.scrollTo(1200); // 第二次滚动覆盖 pendingSrc，第一帧不再生效
         await flush();
         expect(B.fel.scrollTop).toBe(1200);
     });

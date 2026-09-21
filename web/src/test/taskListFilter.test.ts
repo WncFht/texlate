@@ -36,24 +36,13 @@ vi.mock("../stores/tasks", () => ({
     },
 }));
 
-import { render } from "solid-js/web";
-import TaskList from "../components/TaskList";
 import type { TaskSnapshot } from "../api/client";
 import { t } from "../i18n";
+import { flush, snap } from "./_taskkit";
+import { renderList as mountList } from "./_taskdom";
 
-const flush = () => new Promise((r) => setTimeout(r, 0));
 let dispose: (() => void) | undefined;
 let root: HTMLDivElement;
-
-const snap = (id: string, over: Partial<TaskSnapshot> = {}): TaskSnapshot => ({
-    task_id: id,
-    kind: "arxiv",
-    status: "done",
-    progress: 100,
-    created_at: 1_700_000_000,
-    updated_at: 1_700_000_000,
-    ...over,
-});
 
 const rows = () => [...root.querySelectorAll(".task-row")];
 const titles = () =>
@@ -91,7 +80,7 @@ afterEach(() => {
 });
 
 const renderList = (tasks = seed) => {
-    dispose = render(() => TaskList({ tasks, onOpen: () => {} }), root);
+    dispose = mountList(tasks, root);
 };
 
 describe("U5：搜索 + 筛选 + 活动置顶", () => {
@@ -105,6 +94,12 @@ describe("U5：搜索 + 筛选 + 活动置顶", () => {
         renderList();
         const inp = root.querySelector(".task-search") as HTMLInputElement;
         inp.value = "epsilon";
+        inp.dispatchEvent(new Event("input", { bubbles: true }));
+        await flush();
+        expect(titles()).toEqual(["done epsilon"]);
+
+        // task_id 命中同一 hay 串（title 不含该子串——走的是 ID 臂）
+        inp.value = "a5";
         inp.dispatchEvent(new Event("input", { bubbles: true }));
         await flush();
         expect(titles()).toEqual(["done epsilon"]);

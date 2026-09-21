@@ -3,7 +3,7 @@
 // upload/shareImport 两路 byok 第三参透传 + 成功即清；失败保留字段值（可重试）；
 // 全程不发 PUT settings（per-request 不落盘）。
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
     tasks: vi.fn(),
@@ -16,83 +16,23 @@ const mocks = vi.hoisted(() => ({
     shareImport: vi.fn(),
 }));
 
-vi.mock("../api/client", async (importOriginal) => {
-    const mod = await importOriginal<typeof import("../api/client")>();
-    return {
-        ...mod,
-        api: {
-            ...mod.api,
-            tasks: mocks.tasks,
-            health: mocks.health,
-            getSettings: mocks.getSettings,
-            putSettings: mocks.putSettings,
-            providers: mocks.providers,
-            translate: mocks.translate,
-            upload: mocks.upload,
-            shareImport: mocks.shareImport,
-        },
-    };
-});
+// vi.mock 提升限制——工厂体内再引 _homekit（顶层 import 进不了 hoisted 作用域）
+vi.mock("../api/client", async (importOriginal) =>
+    (await import("./_homekit")).buildApiModule(
+        await importOriginal<typeof import("../api/client")>(),
+        mocks,
+    ),
+);
 
-import { render } from "solid-js/web";
 import { ApiError } from "../api/client";
 import Home from "../pages/Home";
+import { flush, FM_OPTS, mountHome, pick, resetHomeMocks, type } from "./_homekit";
 
-const RESP = {
-    task_id: "t_0000000000000f01",
-    status: "queued",
-    events_url: "/api/task/t_0000000000000f01",
-    reader_url: "/api/task/t_0000000000000f01/reader",
-};
-
-const flush = () => new Promise((r) => setTimeout(r, 0));
-
-let dispose: (() => void) | undefined;
-
-function mount() {
-    const nav = vi.fn();
-    dispose = render(() => Home({ nav }), document.body);
-    const input = document.body.querySelector<HTMLInputElement>(".arxiv-input");
-    const key = document.body.querySelector<HTMLInputElement>(
-        '.task-opts input[type="password"]',
-    );
-    const form = document.body.querySelector<HTMLFormElement>("form");
-    const file = document.body.querySelector<HTMLInputElement>('input[type="file"]');
-    if (!input || !key || !form || !file) throw new Error("form elements missing");
-    return { nav, input, key, form, file };
-}
-
-function type(el: HTMLInputElement, v: string) {
-    el.value = v;
-    el.dispatchEvent(new Event("input", { bubbles: true }));
-}
-
-/** 隐藏 file input 选文件（jsdom 无 DataTransfer 构造需求，直接灌 files） */
-function pick(el: HTMLInputElement, f: File) {
-    Object.defineProperty(el, "files", { value: [f], configurable: true });
-    el.dispatchEvent(new Event("change", { bubbles: true }));
-}
-
-beforeEach(() => {
-    for (const m of Object.values(mocks)) m.mockReset();
-    mocks.tasks.mockResolvedValue({ tasks: [] });
-    mocks.health.mockResolvedValue({ ok: true, version: "t", compilers: {} });
-    mocks.getSettings.mockResolvedValue({ has_api_key: false });
-    mocks.providers.mockResolvedValue({ providers: [] });
-    mocks.translate.mockResolvedValue(RESP);
-    mocks.upload.mockResolvedValue(RESP);
-    mocks.shareImport.mockResolvedValue(RESP);
-});
-
-afterEach(() => {
-    dispose?.();
-    dispose = undefined;
-    document.body.innerHTML = "";
-});
+beforeEach(() => resetHomeMocks(mocks));
 
 describe("Home 临时 API Key——上传两路", () => {
     it(".tex + key → api.upload 第三参 {apiKey}；成功后清字段、跳 reader", async () => {
-        const { nav, key, file } = mount();
+        const { nav, key, file } = mountHome(Home);
         type(key, "sk-up-1");
         const f = new File(["tex-src"], "paper.tex");
         pick(file, f);
@@ -108,9 +48,7 @@ describe("Home 临时 API Key——上传两路", () => {
                 model: undefined,
                 target_lang: undefined,
                 main: undefined,
-                options: {
-                    front_matter: { abstract: true, title: true, author: false },
-                },
+                ...FM_OPTS,
             },
             { apiKey: "sk-up-1" },
             expect.any(Function),
@@ -121,7 +59,7 @@ describe("Home 临时 API Key——上传两路", () => {
     });
 
     it(".share.zip + key → api.shareImport 带 key；成功后清字段", async () => {
-        const { nav, key, file } = mount();
+        const { nav, key, file } = mountHome(Home);
         type(key, "sk-sh-1");
         const f = new File(["zip-bytes"], "bundle.share.zip");
         pick(file, f);
@@ -131,7 +69,7 @@ describe("Home 临时 API Key——上传两路", () => {
 
         expect(mocks.shareImport).toHaveBeenCalledWith(
             f,
-            { front_matter: { abstract: true, title: true, author: false } },
+            FM_OPTS.options,
             { apiKey: "sk-sh-1" },
             expect.any(Function),
         );
@@ -141,7 +79,7 @@ describe("Home 临时 API Key——上传两路", () => {
     });
 
     it("上传不填 key → byok 参 undefined", async () => {
-        const { file } = mount();
+        const { file } = mountHome(Home);
         const f = new File(["tex-src"], "paper.tex");
         pick(file, f);
 
@@ -153,9 +91,7 @@ describe("Home 临时 API Key——上传两路", () => {
                 model: undefined,
                 target_lang: undefined,
                 main: undefined,
-                options: {
-                    front_matter: { abstract: true, title: true, author: false },
-                },
+                ...FM_OPTS,
             },
             undefined,
             expect.any(Function),
@@ -164,7 +100,7 @@ describe("Home 临时 API Key——上传两路", () => {
 
     it("上传失败 → key 字段保留（仅成功即清），错误文案可见", async () => {
         mocks.upload.mockRejectedValue(new ApiError(500, "server exploded"));
-        const { key, file } = mount();
+        const { key, file } = mountHome(Home);
         type(key, "sk-keep");
         pick(file, new File(["tex-src"], "paper.tex"));
 
@@ -179,7 +115,7 @@ describe("Home 临时 API Key——上传两路", () => {
 
     it("translate 失败同样保留 key（同一份清空契约）", async () => {
         mocks.translate.mockRejectedValue(new ApiError(500, "boom"));
-        const { input, key, form } = mount();
+        const { input, key, form } = mountHome(Home);
         type(input, "2501.14787");
         type(key, "sk-keep-2");
 
@@ -191,7 +127,7 @@ describe("Home 临时 API Key——上传两路", () => {
     });
 
     it("上传两路的临时 key 均不触碰 settings（putSettings 零调用）", async () => {
-        const { key, file } = mount();
+        const { key, file } = mountHome(Home);
         type(key, "sk-nosettings");
         pick(file, new File(["zip-bytes"], "a.share.zip"));
 

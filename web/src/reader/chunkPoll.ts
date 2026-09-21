@@ -60,18 +60,27 @@ function tick(taskId: string, forceFull = false): Promise<void> {
                 items.length > 0;
             if (delta) {
                 const dirty: number[] = [];
+                const itemStatus = new Map<number, string>();
                 for (const it of items) {
                     if (!it || !Number.isInteger(it.seq)) continue;
+                    itemStatus.set(it.seq, it.status);
                     if (p.seen.get(it.seq) !== it.status) dirty.push(it.seq);
                 }
                 if (!dirty.length) return; // 本拍零变化——不发请求
-                const page = await api.taskChunksSeqs(
-                    taskId,
-                    dirty.slice(0, CHUNK_WINDOW),
-                );
+                const requested = dirty.slice(0, CHUNK_WINDOW);
+                const page = await api.taskChunksSeqs(taskId, requested);
+                const answered = new Set<number>();
                 for (const r of page.chunks) {
                     p.cache.set(r.seq, r);
                     p.seen.set(r.seq, r.status);
+                    answered.add(r.seq);
+                }
+                // 响应缺席的 seq 也按本次观测状态记 seen——不记则下拍仍判
+                // 脏、永动重拉同一批缺席行；行后补/状态再翻时重新判脏自愈
+                for (const seq of requested) {
+                    if (answered.has(seq)) continue;
+                    const st = itemStatus.get(seq);
+                    if (st !== undefined) p.seen.set(seq, st);
                 }
                 p.total = page.total;
             } else {
