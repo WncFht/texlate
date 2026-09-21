@@ -1,0 +1,593 @@
+"""Lake zone — the rebuildable corpus (design §3.10.3 lazy three-state
+machine, §3.10.1 capacity budget, R9 fetch-storm guard).
+
+Layout::
+
+    lake/corpus/{source}/{safe_id}/    cell tree
+        raw/        canonical layer (payload as fetched — may be absent
+                    after a raw-tier eviction)
+        extracted/  re-derivable projection — evicted FIRST
+        meta.json   commit marker: {n_files, ...}
+        files.txt / mtree.txt          optional bookkeeping (not payload)
+    lake/corpus/catalog.jsonl          dynamic state book — the projection
+                                       of ledger lake_cell events; last
+                                       row wins per idc
+    lake/tmp/rebuild/{run_seq}/{safe_id}.stage/
+                                       atomic build area — a cell is
+                                       constructed whole here, then
+                                       rename()'d into place (§3.10.8:
+                                       "物化真原子化")
+    lake/.locks/{safe_id}.lock         per-cell flock — never unlinked (R21)
+
+State machine: ``skeleton → hydrating → hydrated ⇄ pinned`` plus tiered
+``raw_only`` (extracted evicted, raw kept — local re-extract is free) and
+``failed`` (manifest-seeded stub/pdf_only/fetch_error, never in the fetch
+set). ``manifested:false`` marks orphan cells — first eviction candidates.
+
+Read predicate (THE consumer gate, §3.10.3): ``is_complete`` = cell dir
+exists ∧ meta.json parseable ∧ meta.n_files == actual payload file count —
+half trees NEVER satisfy, so a paid cell never projects a torn corpus entry.
+
+Concurrency: hydrate takes ``.locks/{safe_id}.lock`` LOCK_EX (blocking) and
+re-checks completeness inside the lock — two concurrent hydrations of the
+same cell degrade to one-fetch-one-wait ("同格两 run 同拉退化为一拉一等").
+"""
+from __future__ import annotations
+
+import gzip
+import json
+import os
+import shutil
+import tarfile
+import time
+from contextlib import contextmanager, suppress
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+from kernel import events, fsutil, ledger, locks, paths
+from kernel.events import iter_jsonl, make_event
+from kernel.idnorm import safe_id
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Iterator
+
+__all__ = [
+    "LakeCatalog",
+    "admit",
+    "cell_dir",
+    "evict",
+    "hydrate",
+    "is_complete",
+    "lake_lock",
+    "register_skeleton",
+    "shrink_shell",
+]
+
+_HEAL_CHUNK = 64 * 1024
+
+# Bookkeeping files that are never counted as cell payload.
+_BOOKKEEP = {"meta.json", "mtree.txt", "files.txt"}
+
+_ENV_LAKE_CAP_GB = "TEXLATE_LAKE_CAP_GB"
+_ENV_LAKE_FLOOR_GB = "TEXLATE_LAKE_FLOOR_GB"
+_GIB = 1024 ** 3
+
+# Files kept by shrink_shell on a terminal cell (§3.10.1 shell set).
+# ``xlat-state.*`` directories are additionally preserved — the chunk-level
+# paid checkpoint is prune-exempt until vaulted (§3.10.1 revision + R17:
+# losing it re-burns paid quota on resume).
+_SHELL_KEEP_EXACT = frozenset({
+    "receipt.json", "parse.json", ".xlat-arm.json", ".lock",
+})
+_SHELL_KEEP_GLOB = ("xlat-*.jsonl", "xlat-state.*")
+
+
+# --- small append helper ---------------------------------------------------------
+
+def _append_line(path: Path, payload: bytes) -> None:
+    """Heal torn tail, append payload in ONE os.write, fsync — same contract
+    as the ledger path minus the lock (catalog.jsonl has serialized writers
+    by construction; the heal still applies after a crash mid-append)."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    existed = path.exists()
+    fd = os.open(path, os.O_RDWR | os.O_APPEND | os.O_CREAT, 0o644)
+    try:
+        size = os.fstat(fd).st_size
+        offset = size
+        pos = size
+        while pos > 0:
+            n = min(_HEAL_CHUNK, pos)
+            pos -= n
+            buf = os.pread(fd, n, pos)
+            idx = buf.rfind(b"\n")
+            if idx != -1:
+                offset = pos + idx + 1
+                break
+        else:
+            offset = 0
+        if offset != size:
+            os.ftruncate(fd, offset)
+        if payload:
+            n = os.write(fd, payload)
+            if n != len(payload):
+                msg = f"short write {n}/{len(payload)} on {path}"
+                raise OSError(msg)
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+    if not existed:
+        fsutil.fsync_dir(path.parent)
+
+
+def _append_row(path: Path, row: dict) -> None:
+    line = json.dumps(
+        row, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8") + b"\n"
+    _append_line(path, line)
+
+
+# --- paths / cell introspection -----------------------------------------------------
+
+def cell_dir(idc: str, source: str = "arxiv") -> Path:
+    """``lake/corpus/{source}/{safe_id}`` — pure path math."""
+    return paths.lake_corpus_dir() / source / safe_id(idc)
+
+
+def _read_meta(cell: Path) -> dict:
+    """Parse cell meta.json; {} on any error (a torn meta is no meta)."""
+    try:
+        meta = json.loads((cell / "meta.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return meta if isinstance(meta, dict) else {}
+
+
+def _payload_count(cell: Path) -> int:
+    """Actual payload file count under a cell dir: every regular file except
+    top-level bookkeeping names and anything under ``raw/`` (the canonical
+    layer is not the extracted projection this count audits)."""
+    cell = Path(cell)
+    n = 0
+    if not cell.is_dir():
+        return 0
+    for p, kind in fsutil._iter_tree(cell):
+        if kind != "file":
+            continue
+        rel = p.relative_to(cell)
+        if rel.parts[0] == "raw":
+            continue
+        if len(rel.parts) == 1 and rel.name in _BOOKKEEP:
+            continue
+        n += 1
+    return n
+
+
+def is_complete(idc: str, source: str = "arxiv") -> bool:
+    """THE read predicate: dir exists ∧ meta.json parseable ∧
+    meta.n_files == actual payload file count. Half trees never satisfy —
+    a torn cell falls back to the same-lease self-hydration path instead of
+    projecting partial bytes into a paid stage."""
+    d = cell_dir(idc, source)
+    if not d.is_dir():
+        return False
+    n_files = _read_meta(d).get("n_files")
+    if not isinstance(n_files, int) or isinstance(n_files, bool):
+        return False
+    return n_files == _payload_count(d)
+
+
+# --- locks ------------------------------------------------------------------------------
+
+
+@contextmanager
+def lake_lock(safe: str) -> Iterator[int]:
+    """Hold LOCK_EX (blocking) on ``lake/.locks/{safe_id}.lock``.
+
+    The per-cell serializer: hydrate/evict hold it exclusively, read-only
+    projections may hold it shared. The lock file is immortal (R21).
+    """
+    lock_path = paths.lake_locks_dir() / f"{safe}.lock"
+    with locks.flock(lock_path, exclusive=True, blocking=True) as fd:
+        yield fd
+
+
+# --- catalog (the dynamic state book) ----------------------------------------------------
+
+
+class LakeCatalog:
+    """catalog.jsonl — per-idc lake state, last row wins.
+
+    Written rows are self-contained: every ``set``/``mark_used`` merges the
+    new keys onto the stored row before appending, so a single append both
+    carries the full projected state and keeps the file append-only.
+    """
+
+    def __init__(self) -> None:
+        self._rows: dict[str, dict] = {}
+
+    @classmethod
+    def load(cls) -> LakeCatalog:
+        """Tolerantly parse catalog.jsonl — bad lines are skipped, last row
+        wins per idc (the file is a rebuildable projection of lake_cell
+        events, never a second source of truth)."""
+        cat = cls()
+        p = paths.lake_catalog_path()
+        if not p.exists():
+            return cat
+        for _ln, row, _raw in iter_jsonl(p):
+            if not isinstance(row, dict):
+                continue
+            idc = row.get("idc")
+            if not isinstance(idc, str) or not idc:
+                continue
+            cat._rows[idc] = row
+        return cat
+
+    def rows(self) -> dict:
+        """``{idc: row}`` projection — shallow copy, safe to mutate."""
+        return dict(self._rows)
+
+    def state(self, idc: str) -> str:
+        """Current state string; ``'absent'`` for unknown cells."""
+        return self._rows.get(idc, {}).get("state", "absent")
+
+    def set(self, idc: str, state: str, **kw) -> dict:
+        """Transition ``idc`` to ``state``: append the merged row to
+        catalog.jsonl AND emit the ledger lake_cell event — the two stay in
+        lockstep because the catalog is declared a projection of the event
+        stream. Returns the stored row."""
+        row = {**self._rows.get(idc, {}), "idc": idc, "state": state,
+               "ts": round(time.time(), 3), **kw}
+        _append_row(paths.lake_catalog_path(), row)
+        self._rows[idc] = row
+        ev_kw = {"source": row.get("source", "arxiv")}
+        if row.get("bytes") is not None:
+            ev_kw["bytes"] = row["bytes"]
+        ledger.emit(make_event(
+            events.T_LAKE_CELL, id=idc, idc=idc, state=state, **ev_kw
+        ))
+        return row
+
+    def mark_used(self, idc: str) -> dict:
+        """Cheap last_used_at touch (LRU feed, §3.10.3): append-only row,
+        no ledger event — usage churn is bookkeeping, not history."""
+        row = {**self._rows.get(idc, {}), "idc": idc,
+               "last_used_at": round(time.time(), 3)}
+        _append_row(paths.lake_catalog_path(), row)
+        self._rows[idc] = row
+        return row
+
+
+# --- skeleton ---------------------------------------------------------------------------
+
+
+def register_skeleton(idc: str, source: str = "arxiv",
+                      meta: dict | None = None) -> Path:
+    """Register a manifested cell with no bytes: create the (empty) cell dir
+    and a 'skeleton' catalog row. ``meta`` merges extra catalog fields —
+    it is NOT written as meta.json, so the skeleton can never satisfy the
+    is_complete read predicate."""
+    d = cell_dir(idc, source)
+    d.mkdir(parents=True, exist_ok=True)
+    cat = LakeCatalog.load()
+    cat.set(idc, "skeleton", source=source, manifested=True, **(meta or {}))
+    return d
+
+
+# --- hydration ----------------------------------------------------------------------------
+
+
+def _populate_from_raw(raw_dir: Path, dst: Path) -> None:
+    """Rebuild an extracted projection from the cell's canonical raw layer.
+
+    - raw is a multi-entry tree → hardlink_farm the whole tree (the sw /
+      repacked-text case — zero-copy read-only projection).
+    - raw holds exactly one archive file → tarfile-extract (filter='data',
+      stdlib safe extraction).
+    - raw holds one non-tar ``*.gz`` → gzip single-file decompress
+      (arXiv old-style members are gzipped single payloads).
+    - raw holds one plain file → hardlink it across (EXDEV → copyfile via
+      the farm fallback path is unnecessary for a single leaf; os.link is
+      attempted first).
+    """
+    entries = sorted(raw_dir.iterdir())
+    dst.mkdir(parents=True, exist_ok=True)
+    if len(entries) == 1 and entries[0].is_file():
+        f = entries[0]
+        if tarfile.is_tarfile(f):
+            with tarfile.open(f) as tf:
+                tf.extractall(dst, filter="data")
+            return
+        if f.suffix == ".gz":
+            with gzip.open(f, "rb") as fi:
+                data = fi.read()
+            out = dst / f.stem
+            out.write_bytes(data)
+            return
+        try:
+            os.link(f, dst / f.name)
+        except OSError:
+            shutil.copyfile(f, dst / f.name)
+        return
+    fsutil.hardlink_farm(raw_dir, dst)
+
+
+def _publish_stage(stage: Path, dest: Path) -> bool:
+    """Whole-dir rename of a built stage into ``dest``.
+
+    Returns False when dest is already a COMPLETE cell — first wins, the
+    existing tree is kept and our stage is discarded (§3.10.8 "已占 dest
+    拒 rename 先者胜"). An occupied-but-incomplete dest (torn/skeleton) is
+    ours to finish: it is removed and our stage lands.
+    """
+    dest = Path(dest)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    if dest.is_symlink():
+        dest.unlink()  # a link is never a cell — clear it before publish
+    elif dest.exists():
+        meta = _read_meta(dest)
+        n_files = meta.get("n_files")
+        if (
+            isinstance(n_files, int)
+            and not isinstance(n_files, bool)
+            and n_files == _payload_count(dest)
+        ):
+            return False
+        shutil.rmtree(dest)
+    os.rename(stage, dest)
+    fsutil.fsync_dir(dest.parent)
+    return True
+
+
+def hydrate(idc: str, fetch_fn: Callable | None = None,
+            source: str = "arxiv", run_seq: int = 0) -> Path | None:
+    """Materialize one cell; returns the cell dir, or None when the cell is
+    lazy-unfetchable (no fetch_fn and no local raw to re-extract).
+
+    Protocol (§3.10.3/§3.10.8):
+
+    1. Fast path: ``is_complete`` outside the lock → return.
+    2. ``.locks/{safe_id}.lock`` LOCK_EX → re-check inside the lock
+       (double-check — a concurrent hydrator's finished cell is reused,
+       never re-fetched: two same-cell hydrations degrade to one-fetch
+       one-wait).
+    3. Build whole-cell in ``lake/tmp/rebuild/{run_seq}/{safe}.stage``:
+       ``fetch_fn(stage)`` when provided — it must populate
+       ``{stage}/extracted/`` (payload) and may populate ``{stage}/raw/``
+       and return a dict of extra meta fields — else, when the existing
+       cell still holds ``raw/``, re-extract locally at zero network cost
+       (the raw_only tier's way back to hydrated).
+    4. meta.json via atomic_write, then whole-dir rename into place.
+    5. Catalog row + lake_cell event 'hydrated'.
+    """
+    d = cell_dir(idc, source)
+    if is_complete(idc, source):
+        return d
+    sid = safe_id(idc)
+    with lake_lock(sid):
+        # Double-check inside the lock — whoever held it before us may have
+        # finished the hydration while we queued.
+        if is_complete(idc, source):
+            return d
+        cat = LakeCatalog.load()
+        old_meta = _read_meta(d)
+        raw_dir = d / "raw"
+
+        if fetch_fn is None and raw_dir.is_dir():
+            # raw_only → hydrated, in-place: extracted.stage inside the cell
+            # then rename (no payload-risking window on the canonical layer).
+            cat.set(idc, "hydrating", source=source)
+            stage_e = d / "extracted.stage"
+            if stage_e.exists():
+                shutil.rmtree(stage_e)
+            stage_e.mkdir(parents=True)
+            _populate_from_raw(raw_dir, stage_e)
+            ex = d / "extracted"
+            if ex.is_symlink():
+                ex.unlink()  # never a projection dir — clear it
+            elif ex.exists():
+                shutil.rmtree(ex)  # torn half-tree — replaced atomically
+            os.rename(stage_e, ex)
+            n = _payload_count(d)
+            meta = {**old_meta, "idc": idc, "source": source,
+                    "n_files": n, "hydrated_at": round(time.time(), 3),
+                    "run_seq": run_seq, "rebuilt_from": "raw"}
+            fsutil.atomic_write(
+                d / "meta.json",
+                json.dumps(meta, ensure_ascii=False, sort_keys=True,
+                           indent=2).encode("utf-8"),
+            )
+            cat.set(idc, "hydrated", source=source, n_files=n,
+                    bytes=fsutil.dir_size(d), manifested=True,
+                    last_used_at=round(time.time(), 3))
+            return d
+
+        if fetch_fn is None:
+            return None  # lazy-unfetchable: nothing local, no fetcher
+
+        cat.set(idc, "hydrating", source=source)
+        stage = (paths.lake_tmp_dir() / "rebuild" / str(run_seq)
+                 / f"{sid}.stage")
+        if stage.exists():
+            shutil.rmtree(stage)
+        stage.mkdir(parents=True)
+        try:
+            ret = fetch_fn(stage)
+            meta_extra = dict(ret) if isinstance(ret, dict) else {}
+            n = _payload_count(stage)
+            meta = {**old_meta, "idc": idc, "source": source,
+                    "n_files": n, "hydrated_at": round(time.time(), 3),
+                    "run_seq": run_seq, **meta_extra}
+            fsutil.atomic_write(
+                stage / "meta.json",
+                json.dumps(meta, ensure_ascii=False, sort_keys=True,
+                           indent=2).encode("utf-8"),
+            )
+            if not _publish_stage(stage, d):
+                shutil.rmtree(stage, ignore_errors=True)
+                return d  # first wins — existing complete cell kept
+        except BaseException:
+            shutil.rmtree(stage, ignore_errors=True)
+            raise
+        cat.set(idc, "hydrated", source=source, n_files=n,
+                bytes=fsutil.dir_size(d), manifested=True,
+                last_used_at=round(time.time(), 3))
+        return d
+
+
+# --- capacity gate ---------------------------------------------------------------------------
+
+
+def admit(n_bytes: int, cap_gb: float | None = None,
+          floor_gb: float | None = None) -> bool:
+    """Admission control for lake writes (§3.10.1, R9).
+
+    Two gates, both must pass:
+
+    - cap: lake zone apparent bytes + ``n_bytes`` ≤
+      ``TEXLATE_LAKE_CAP_GB`` GiB (default 100 — a watermark, not a target;
+      the lake stays lazy).
+    - fs floor: filesystem free space minus ``n_bytes`` must leave ≥
+      ``TEXLATE_LAKE_FLOOR_GB`` GiB (default 27 = the §3.10.1
+      ``fs_avail−25GB−2GB`` reserve: 25G vault + 2G ledger).
+    """
+    if cap_gb is None:
+        cap_gb = float(os.environ.get(_ENV_LAKE_CAP_GB, "100"))
+    if floor_gb is None:
+        floor_gb = float(os.environ.get(_ENV_LAKE_FLOOR_GB, "27"))
+    lake = paths.lake_dir()
+    used = fsutil.dir_size(lake) if lake.exists() else 0
+    if used + n_bytes > cap_gb * _GIB:
+        return False
+    try:
+        free = shutil.disk_usage(lake).free
+    except OSError:
+        lake.mkdir(parents=True, exist_ok=True)
+        free = shutil.disk_usage(lake).free
+    return free - n_bytes >= floor_gb * _GIB
+
+
+# --- eviction ----------------------------------------------------------------------------------
+
+
+def _pinned(row: dict) -> bool:
+    return bool(row.get("pinned")) or row.get("state") == "pinned"
+
+
+def evict(target_free_bytes: int, catalog: LakeCatalog | None = None) -> list:
+    """LRU eviction toward ``target_free_bytes`` freed; returns removed paths.
+
+    Tier order (§3.10.3 — always extracted projection before raw):
+
+    1. orphans (``manifested:false`` rows) — whole cell dir, first.
+    2. extracted/ projection of every non-pinned cell — LRU oldest first;
+       the cell drops to ``raw_only`` (or ``evicted`` when it has no raw).
+    3. raw/ of every non-pinned cell — except ``regen_cost='network'``
+       tagged rows (sw figures_stripped / stub / pdf_only: their raw is a
+       repacked tree or a network-only regen, never a free local one).
+
+    Pinned rows and the durable zone are never touched. Each deletion
+    updates the catalog (and thereby emits lake_cell events) so the state
+    book always reflects the surviving tier.
+    """
+    cat = catalog or LakeCatalog.load()
+    rows = cat.rows()
+
+    def lru(r: dict) -> float:
+        return r.get("last_used_at") or 0.0
+
+    def cdir_of(r: dict) -> Path:
+        return cell_dir(r["idc"], r.get("source", "arxiv"))
+
+    freed = 0
+    removed: list[Path] = []
+
+    def done() -> bool:
+        return freed >= target_free_bytes
+
+    # Tier 0 — orphans first (manifested:false), LRU order.
+    orphans = sorted(
+        (r for r in rows.values() if not r.get("manifested", True)), key=lru
+    )
+    for r in orphans:
+        if done():
+            break
+        if _pinned(r):
+            continue
+        d = cdir_of(r)
+        if not d.exists():
+            continue
+        freed += fsutil.dir_size(d)
+        shutil.rmtree(d)
+        removed.append(d)
+        cat.set(r["idc"], "evicted", source=r.get("source", "arxiv"))
+
+    # Tier 1 — extracted projection (LRU), cells drop to raw_only.
+    tier1 = sorted(
+        (r for r in rows.values()
+         if r.get("manifested", True) and not _pinned(r)), key=lru,
+    )
+    for r in tier1:
+        if done():
+            break
+        ex = cdir_of(r) / "extracted"
+        if not ex.is_dir():
+            continue
+        freed += fsutil.dir_size(ex)
+        shutil.rmtree(ex)
+        removed.append(ex)
+        state = "raw_only" if (cdir_of(r) / "raw").exists() else "evicted"
+        cat.set(r["idc"], state, source=r.get("source", "arxiv"))
+
+    # Tier 2 — raw payload (LRU); regen_cost=network rows keep their raw.
+    tier2 = sorted(
+        (r for r in rows.values()
+         if r.get("manifested", True) and not _pinned(r)
+         and r.get("regen_cost") != "network"), key=lru,
+    )
+    for r in tier2:
+        if done():
+            break
+        raw = cdir_of(r) / "raw"
+        if not raw.exists():
+            continue
+        freed += fsutil.dir_size(raw)
+        shutil.rmtree(raw)
+        removed.append(raw)
+        state = "hydrated" if (cdir_of(r) / "extracted").is_dir() else "evicted"
+        cat.set(r["idc"], state, source=r.get("source", "arxiv"))
+
+    return removed
+
+
+# --- terminal-cell shell ----------------------------------------------------------------------
+
+
+def shrink_shell(work_cell_dir) -> None:
+    """Reduce a terminal cell tree to its shell (§3.10.1): keep only
+    ``{receipt.json, parse.json, xlat-*.jsonl, .xlat-arm.json, .lock}``
+    plus ``xlat-state.*`` dirs (paid chunk checkpoint — prune-exempt until
+    vaulted, R17). Everything else — zh/splice/src@/state/build.* trees —
+    is deleted. The cell dir itself stays.
+
+    Called by prune/sweep AFTER terminal status; NOT a delete verb for the
+    cell root (that is remove_cell_tree's job).
+    """
+    d = Path(work_cell_dir)
+    if not d.is_dir():
+        return
+    for entry in d.iterdir():
+        name = entry.name
+        if name in _SHELL_KEEP_EXACT:
+            continue
+        if any(entry.match(g) for g in _SHELL_KEEP_GLOB):
+            continue
+        if entry.is_symlink() or entry.is_file():
+            entry.unlink()
+        elif entry.is_dir():
+            shutil.rmtree(entry)
+        else:
+            entry.unlink()
+    with suppress(OSError):
+        fsutil.fsync_dir(d)
