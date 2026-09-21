@@ -1,9 +1,0 @@
-[Unit]
-Description=daily arXiv soak at 02:30 UTC (after 20:00 ET announce)
-
-[Timer]
-OnCalendar=*-*-* 10:30:00
-Persistent=true
-
-[Install]
-WantedBy=timers.target

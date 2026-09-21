@@ -37,7 +37,6 @@
 
 ## 活生成器（删前必查，2026-09-19 时点）
 
-- `texlate-daily-soak.timer`：每日 02:30 UTC 新增 `corpus_daily/` 论文 + `soak-<date>/` run（语料日增 ~1G 级）
 - `texlate-errsweep.timer`：每日 18:23 蒸馏（在 errsweep worktree，不写 results）
 - 并行会话：replay/重烘焙波随时从既有 run 拷 work 树播种新目录（`replay-mutex-window` 教训：mutex 在飞禁派波）；`tmp/lane-*` 是它们的活现场（<2h 有写入即视为在飞，勿动）
 - 收割闸：run 收尾跑 `python3 bench/py/harvest.py --dir <run>`（move 语义）——漏跑则译文随 work/ 删除而丢失；`_quarantine/` 内 id 已在 manifest 标记，选池永不重译

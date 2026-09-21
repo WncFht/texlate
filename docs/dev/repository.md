@@ -15,7 +15,7 @@ TeXlate 是「幻觉翻译」（hjfy.top）的开源复现[^hjfy]：arXiv LaTeX 
 | `tests/` | pytest 套件：350+ 个 `test_*.py` + `conftest.py` 共享件 + `fixtures/`（真编译 log 实物） |
 | `docs/` | 文档库六分区：`guide/` 用户文档、`spec/` 技术规范（实现唯一事实源）、`decisions/` ADR、`dev/` 贡献者文档、`research/` 调研档案、`log/` 工程日志；维护规则 `docs/MAINTENANCE.md` |
 | `bench/` | 评测 harness、语料库与产出区（§7） |
-| `scripts/` | 工程脚本：`agent-links.sh`（agent 入口软链重建）、`build-web.sh`（SPA 构建拷入 `server/static`）、`daily-soak.sh`/`errsweep.sh`（定时运维）、`dev-smoke.sh`/`server-smoke.sh`/`demo.sh`（冒烟）、`fmt-shell.sh`（shfmt 包装、zsh 透传）、`systemd/`（部署单元样例） |
+| `scripts/` | 工程脚本：`agent-links.sh`（agent 入口软链重建）、`build-web.sh`（SPA 构建拷入 `server/static`）、`errsweep.sh`（定时运维）、`dev-smoke.sh`/`server-smoke.sh`/`demo.sh`（冒烟）、`fmt-shell.sh`（shfmt 包装、zsh 透传）、`systemd/`（部署单元样例） |
 | `zotero/` | Zotero 插件子工程：TypeScript，独立 `package.json`/tsconfig，与产品包无构建耦合 |
 | `shots/` | 文档用截图资产 |
 | `dist/` | `texlate-0.1.0` wheel + sdist 构建产物（gitignored） |
@@ -288,7 +288,7 @@ SolidJS + Vite + TypeScript + vitest + eslint（`eslint-plugin-solid`）；独�
 
 | 路径 | 角色 |
 | --- | --- |
-| `py/` | python 侧评测与批量管线：`stagerun.py`（分阶段 DAG 批量驱动——ingest/parse/xlat/compile/fixloop 子命令 + append 式 records jsonl + `work/{id}/` 产物树 + 按 (id, arm, upstream) resume）、`parsebench.py`（`texlate.latex` 产品管线评测器 v2）、`compilebench_v3.py`/`e2e_mock_bench.py`/`e2e_real_bench.py`/`fixloop_bench.py`/`validbench.py`/`alignbench.py`/`gullet_bench.py`/`qualbench.py`/`translators_bench.py`/`wrapfloat_bench.py` 等评测器、`gate_scorecard.py`/`triage.py`/`rundiff.py`/`status_panel.py`/`wave.py`（判分/归因/看板/波段编排）、`corpus/`（语料管线：`build_corpus_{v2,v3,m1k,layers,expand,sw}` + `build_hot_layer` + `daily_arxiv`）、`iclr_*`（ICLR PDF 研究臂）、`runbook_loop.md`（L3 操作单）、`report/`、`.venv_babeldoc/`（babeldoc 对照专用 venv，gitignored） |
+| `py/` | python 侧评测与批量管线：`stagerun.py`（分阶段 DAG 批量驱动——ingest/parse/xlat/compile/fixloop 子命令 + append 式 records jsonl + `work/{id}/` 产物树 + 按 (id, arm, upstream) resume）、`parsebench.py`（`texlate.latex` 产品管线评测器 v2）、`compilebench_v3.py`/`e2e_mock_bench.py`/`e2e_real_bench.py`/`fixloop_bench.py`/`validbench.py`/`alignbench.py`/`gullet_bench.py`/`qualbench.py`/`translators_bench.py`/`wrapfloat_bench.py` 等评测器、`gate_scorecard.py`/`triage.py`/`rundiff.py`/`status_panel.py`/`wave.py`（判分/归因/看板/波段编排）、`corpus/`（语料管线：`build_corpus_{v2,v3,m1k,layers,expand,sw}` + `build_hot_layer`）、`iclr_*`（ICLR PDF 研究臂）、`runbook_loop.md`（L3 操作单）、`report/`、`.venv_babeldoc/`（babeldoc 对照专用 venv，gitignored） |
 | `ts/` | js 侧对照评测：latex-utensils/unified-latex/tree-sitter-latex（独立 `package.json`，CommonJS，`npm ci` 装依赖；L1 校验件也可经 `TEXLATE_TS_NODE_PATH` 吃这里 node_modules） |
 | `fixtures/` | 陷阱构造 `.tex`：`% @Tnn`/`@Wnn`/`@Xn` 标记，逐字节即语义——不格式化、不润色 |
 | `corpus_v3/` | 主语料物理根（规划目标名；磁盘与 git index 上仍是合一的 `corpus/`，拆分未登记）：~14k 篇 arXiv e-print 解压原样（gitignored），入库层化 manifest（core 1000 / booster 200 / expand 3866 / hot 166 / `manifest_dev_{failmine,vol,recent}` 开发层 / `manifest_holdout` 留出评测层）+ `mechanisms.jsonl` 机制台账 + `MANIFEST.md` 口径文档 + `nominations/` 提名审计轨迹 |

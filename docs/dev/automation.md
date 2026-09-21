@@ -1,8 +1,10 @@
 # 自动化系统
 
-本仓有两套每日定时运行的自动化系统，它们构成一个闭环：arXiv 日更 soak 负责**生产**——每天把最新的真实 arXiv 论文喂给完整管线，让错误自然暴露并沉淀成结构化账目；errsweep 负责**消费**——每日把沉淀的错误蒸馏成根因修复（fixloop 规则、builtin、产品代码修复）。两者都按「幂等、单实例、断点续跑」设计，由 systemd --user timer（或等价调度器）触发，两套样例 unit（daily-soak、errsweep）均在 `scripts/systemd/`。
+> **2026-09-21 变更**：daily-soak 链路整体退役——`texlate-daily-soak.timer` 已 disable+unit 拆除、`scripts/daily-soak.sh` 与 `bench/py/corpus/daily_arxiv.py` 已删、`corpus_daily` 语料区废弃。§1 保留作历史参考。errsweep（§2）仍在役，但其上游错误来源（soak 产出的每日新错误账）已断供。
 
-## 1. arXiv 日更 soak（`scripts/daily-soak.sh` + `bench/py/corpus/daily_arxiv.py`）
+本仓原有两套每日定时运行的自动化系统构成闭环：arXiv 日更 soak 负责**生产**，errsweep 负责**消费**。两者都按「幂等、单实例、断点续跑」设计，由 systemd --user timer 触发。soak 退役后只剩 errsweep 在跑。
+
+## 1. arXiv 日更 soak（已退役 2026-09-21，以下为历史记录）
 
 ### 1.1 管线
 

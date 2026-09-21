@@ -56,7 +56,6 @@
 | texsoup_bench | `bench/py/report/texsoup_bench.py` | TexSoup 横评（已结案→archive 候选） | 重算力 | one-shot |
 | texsoup_diverge | `bench/py/report/texsoup_diverge.py` | texsoup 输出发散点一次性分析（→archive 候选） | 无 | one-shot |
 | v2_diff | `bench/py/report/v2_diff.py` | v1↔v2 双跑 diff（v1 已退役→空转，archive 候选） | 重算力 | dead |
-| daily_arxiv | `bench/py/corpus/daily_arxiv.py` | 每日 arXiv soak：RSS→fetch→corpus_daily→report/prune | 网络 | active（定时器） |
 | build_corpus_v3 | `bench/py/corpus/build_corpus_v3.py` | v3 语料主构建+其他 builder 的共享库 | 网络+重算力 | active |
 | build_corpus_layers | `bench/py/corpus/build_corpus_layers.py` | holdout/dev_vol/dev_failmine/dev_recent 加层器 | 网络+重算力 | active |
 | build_corpus_expand | `bench/py/corpus/build_corpus_expand.py` | expand 层 +3866：失败率偏置采样+回填通道 | 网络+重算力 | active |
@@ -74,17 +73,10 @@
 | frame | `bench/frame/` | 语料规划资产：universe parquet+item-index+分层配额（91M） | — | asset |
 | PROTOCOL/TIERS/RETENTION | `bench/*.md` | bench 协议/验证分层契约/结果留存契约 | — | asset·治理 |
 | results/* | `bench/results/{soak-2026-09-18,stagerun-overnite-2026-09-20,zhstore-verify-2026-09-20,stagerun-smk-unified-2026-09-19,status-panel}` | 现存 run 目录（归零后存活件，口径见 RETENTION） | — | asset |
-| work_* | `bench/work_{daily,e2ereal,gwpilot,iclr,m1k,v3}` | 各管线工作区（gitignored，活引用全保） | — | asset |
+| work_* | `bench/work_{e2ereal,gwpilot,iclr,m1k,v3}` | 各管线工作区（gitignored，活引用全保） | — | asset |
 | .venv_babeldoc | `bench/py/.venv_babeldoc/` | babeldoc 对照实验专用 venv（664M macOS 原生件，bin/python 在 Linux 悬空） | — | **已删** 2026-09-20（机制位保留，按需重建） |
 
 ## 语料管线（bench/py/corpus/）
-
-### daily_arxiv.py — 每日 arXiv 全量 soak 驱动
-
-- **运行**：`uv run python bench/py/corpus/daily_arxiv.py enum|fetch|report|prune [--date YYYY-MM-DD]`（被 `scripts/daily-soak.sh` 于 02:30 UTC 定时器调用 4 次）
-- **输入**：rss.arxiv.org/rss/{cs,math}、arxiv.org/list 补漏、e-print via export host
-- **输出**：`bench/corpus_daily/{id}/` + `manifest_{date}.jsonl`、`bench/work_daily/{rss/,enum-,fetch-,report-,ratelimit}*`
-- **成本**：网络。**状态**：active——每日 ~1200 篇滚动 soak，feed 保护区 corpus_daily。
 
 ### build_corpus_v3.py — 语料主构建管线（`spec/corpus.md` S1–S5）
 
@@ -444,7 +436,7 @@ records jsonl 容错读写、原子写、safe_id/copytree_ignore、TUNA_TLNET pi
 | `bench/results/zhstore-verify-2026-09-20` | 25M 纯账本（zh-store 全量 defer 复编译实证） | keep·账本 |
 | `bench/results/stagerun-smk-unified-2026-09-19` | records-only 账本（41M mock 臂 work 已删） | keep·账本 |
 | `bench/results/status-panel` | 看板状态目录（tasks.d/*.json） | active·keep |
-| `bench/work_daily` | daily-soak 工作区（lock+log，今日写） | active·keep |
+| `bench/work_daily` | daily-soak 工作区（lock+log） | **已删** 2026-09-21——daily-soak 链路退役（timer 拆除、脚本与 daily_arxiv.py 已删） |
 | `bench/work_e2ereal` | 2.9G e2e_real 工作区（4 个 live 脚本引用） | active·keep |
 | `bench/work_iclr` | 8.3M ICLR 研究状态（6 脚本引用） | **已删** 2026-09-19/20 清理——续跑须从 OpenReview 缓存重导 `accepted.jsonl`（勘误见 `research/corpus/2026-09-19-iclr章节长度.md`） |
 | `bench/work_m1k` | 1.2M m1k+fixloop 基例挖掘区（今日写） | active·keep |

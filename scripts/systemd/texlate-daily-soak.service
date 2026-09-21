@@ -1,8 +1,0 @@
-[Unit]
-Description=texlate arXiv daily CS+math soak (enum→fetch→pipeline)
-
-[Service]
-Type=oneshot
-Environment=PATH=/home/fanghaotian/.local/bin:/home/fanghaotian/.cargo/bin:/usr/local/bin:/usr/bin
-ExecStart=/home/fanghaotian/src/texlate/scripts/daily-soak.sh
-TimeoutStartSec=0
