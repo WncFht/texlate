@@ -888,48 +888,61 @@ def _cmd_prune(args) -> int:
         keep_names.update(_PRUNE_KEEP[t])
 
     blocked = 0
-    for entry in sorted(rd.path.iterdir()):
-        if entry.name in keep_names:
-            print(f"  keep    {entry.name}")
-            continue
-        if entry.name == "work":
-            for cell in sorted(entry.iterdir()):
-                if not cell.is_dir() or cell.name.startswith((".", "_")):
-                    continue
-                sid = cell.name
-                idc = idnorm.idc_from_safe(sid)
+    try:
+        lock_ctx = rd.lock(blocking=False)
+        lock_ctx.__enter__()
+    except locks.WouldBlock:
+        _err(
+            f"prune: {rd.run} is live (run.lock held) — refusing to "
+            "delete a running archive (R21)"
+        )
+        return EXIT_REFUSED
+    try:
+        for entry in sorted(rd.path.iterdir()):
+            if entry.name in keep_names:
+                print(f"  keep    {entry.name}")
+                continue
+            if entry.name == "work":
+                for cell in sorted(entry.iterdir()):
+                    if not cell.is_dir() or cell.name.startswith((".", "_")):
+                        continue
+                    sid = cell.name
+                    idc = idnorm.idc_from_safe(sid)
 
-                def vault_check(sid=sid, idc=idc, cell=cell):
-                    if not _cell_has_paid_bytes(cell):
-                        return True
+                    def vault_check(sid=sid, idc=idc, cell=cell):
+                        if not _cell_has_paid_bytes(cell):
+                            return True
+                        try:
+                            return any(
+                                r.get("bytes_ok") for r in vault.query(idc)
+                            )
+                        except Exception:
+                            return False
+
                     try:
-                        return any(
-                            r.get("bytes_ok") for r in vault.query(idc)
-                        )
-                    except Exception:
-                        return False
-
-                try:
-                    runs.remove_cell_tree(rd, sid, vault_check=vault_check)
-                    print(f"  pruned  work/{sid}")
-                except runs.BlockedDelete as exc:
-                    blocked += 1
-                    _err(f"  blocked work/{sid}: {exc}")
-            if not blocked:
-                # cells gone or none — drop the remaining tree (_texmf
-                # shared cache et al.; all rebuildable)
+                        runs.remove_cell_tree(rd, sid, vault_check=vault_check)
+                        print(f"  pruned  work/{sid}")
+                    except runs.BlockedDelete as exc:
+                        blocked += 1
+                        _err(f"  blocked work/{sid}: {exc}")
+                if not blocked:
+                    # cells gone or none — drop the remaining tree (_texmf
+                    # shared cache et al.; all rebuildable)
+                    shutil.rmtree(entry)
+                continue
+            if entry.name == "events.jsonl":
+                _err(
+                    "  warning: removing the run events shard — the ledger "
+                    "keeps the sole remaining copy (dual-write redundancy "
+                    "ends)"
+                )
+            if entry.is_dir():
                 shutil.rmtree(entry)
-            continue
-        if entry.name == "events.jsonl":
-            _err(
-                "  warning: removing the run events shard — the ledger keeps"
-                " the sole remaining copy (dual-write redundancy ends)"
-            )
-        if entry.is_dir():
-            shutil.rmtree(entry)
-        else:
-            entry.unlink()
-        print(f"  pruned  {entry.name}")
+            else:
+                entry.unlink()
+            print(f"  pruned  {entry.name}")
+    finally:
+        lock_ctx.__exit__(None, None, None)
     if blocked:
         _err(f"prune: {blocked} cell tree(s) blocked (unharvested paid bytes)")
         return EXIT_FAIL

@@ -744,16 +744,24 @@ class Index:
         ).fetchone()
         return dict(row) if row else None
 
-    def paid_pool(self) -> set[tuple]:
+    def paid_pool(self, stages=None) -> set[tuple]:
         """(idc,arm,variant) whose latest cell state is terminal ok|partial —
         the index leg of the paid dedup domain for plan snapshots (§3.10.6).
-        Arm paidness is spec-side; callers intersect with their paid arms."""
+
+        ``stages`` MUST be the spec's paid stages on the spend path — an
+        ok row from a FREE stage (ingest/report) mints no paid-verified
+        evidence; without the filter it leaks into the pool and dedups the
+        paid cell forever (§3.10.6 verified leg is stage-scoped).
+        None = all stages (reconciliation callers only)."""
+        sql = ("SELECT DISTINCT idc,arm,variant FROM cells"
+               " WHERE status IN ('ok','partial')")
+        args: list = []
+        if stages is not None:
+            sql += f" AND stage IN ({','.join('?' * len(stages))})"
+            args += sorted(stages)
         return {
             (r["idc"], r["arm"], r["variant"])
-            for r in self.conn.execute(
-                "SELECT DISTINCT idc,arm,variant FROM cells"
-                " WHERE status IN ('ok','partial')"
-            )
+            for r in self.conn.execute(sql, args)
         }
 
     def vault_bytes_ok(self) -> set[tuple]:

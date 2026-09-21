@@ -454,6 +454,7 @@ def _thread_index(env):
             paid_pool_snap=env["oracle"].paid_pool_snap,
             sealed_gen=env["oracle"].sealed_gen,
             min_offset=env["oracle"].min_offset,
+            kind_evidence=env["oracle"].kind_evidence,
         )
     return tl.index, tl.oracle
 
@@ -465,6 +466,35 @@ def _emit(env, idx, ev):
 def _emit_batch(env, idx, evs):
     return ledger.emit_batch(evs, run_dir=env["rd"].path,
                              sink=idx.apply_event)
+
+
+def _harvest_last_mutating(env, idx, cell, stage_name, status, alloc):
+    """§3.5: the LAST mutating stage's done-status terminal seals the
+    cell's mutates-kind trees into the vault before the terminal row.
+
+    Runs on every terminal path — quick() refusals included: reject is a
+    done status, and a regen/budget-refused paid cell still owns upstream
+    mutates products that would otherwise die in the work tree."""
+    spec = env["spec"]
+    if (stage_name != spec.last_mutating_stage()
+            or status not in events.STATUS_DONE):
+        return
+    rd = env["rd"]
+    ctx = Ctx(rd, cell, idx, spec)
+    assets = ctx.asset_dirs()
+    if not assets:
+        return
+    idc = str(cell["idc"])
+    arm = str(cell.get("arm", "-"))
+    variant = str(cell.get("variant", "-"))
+    try:
+        vault.harvest(
+            idc, arm, variant, assets, source_run=rd.run,
+            id=cell["id"], seq=alloc, sink=idx.apply_event,
+            run_dir=rd.path)
+    except Exception as exc:  # noqa: BLE001 - loud, not fatal
+        _note(env, f"harvest failed for {idc}/{arm}/{variant}: "
+                   f"{type(exc).__name__}: {exc}", level="warn")
 
 
 def _run_cell(env, cell: dict) -> dict:
@@ -485,6 +515,7 @@ def _run_cell(env, cell: dict) -> dict:
 
     def quick(status, cat=None, errors=None, extra=None):
         """Terminal-ish one-shot row (gates that fire before fn runs)."""
+        _harvest_last_mutating(env, idx, cell, stage_name, status, alloc)
         ev = _terminal_ev(env, cell, status, seq=alloc(), cat=cat,
                           errors=errors, extra=extra)
         _emit(env, idx, ev)
@@ -502,16 +533,26 @@ def _run_cell(env, cell: dict) -> dict:
             return {"cell": key, "status": "already-terminal"}
 
         # 2. cross-run dedup — the last OUTCOME row (records, not the
-        #    queued-masked cells table) decides; DONE ∪ KERNEL = terminal
+        #    queued-masked cells table) decides; DONE ∪ KERNEL = terminal.
+        #    EXCEPT a paid-stage 'reject': reject is a gate REFUSAL
+        #    (regen_gate/budget), not work evidence — masking it behind
+        #    dedup makes a refused cell permanently un-runnable. Fall
+        #    through to the paid gate, which re-adjudicates (verified ->
+        #    dedup, missing -> regen 4-flag recheck, absent -> budget).
         last = _last_outcome(idx, idc, arm, up, variant, stage_name)
         if last is not None and last["status"] in (
                 events.STATUS_DONE | events.STATUS_KERNEL):
-            return quick("dedup")
+            gate_refusal = (stage is not None and stage.paid
+                            and last["status"] == "reject")
+            if not gate_refusal:
+                return quick("dedup")
 
         # 3. paid gate — the fail-closed oracle owns every paid cell
         if stage is not None and stage.paid:
             k_idc, k_arm, k_var = spec.dedup_key_of(stage, cell)
-            verdict = oracle.check(k_idc, k_arm, k_var, stage_paid=True)
+            verdict = oracle.check(
+                k_idc, k_arm, k_var, stage_paid=True,
+                need_kinds=frozenset(stage.mutates or ()))
             if verdict == dedupmod.UNSEALED:
                 return quick("error", cat="index_unsealed")
             if verdict == dedupmod.CLAIMED:
@@ -649,17 +690,7 @@ def _run_cell(env, cell: dict) -> dict:
 
         # 9. harvest — the LAST mutating stage's done-status terminal
         #    secures bytes into the vault BEFORE the terminal emit (§3.5)
-        if (stage_name == spec.last_mutating_stage()
-                and status in events.STATUS_DONE):
-            assets = ctx.asset_dirs()
-            if assets:
-                try:
-                    vault.harvest(
-                        idc, arm, variant, assets, source_run=rd.run,
-                        id=cell["id"], seq=alloc(), sink=idx.apply_event)
-                except Exception as exc:  # noqa: BLE001 - loud, not fatal
-                    _note(env, f"harvest failed for {idc}/{arm}/{variant}: "
-                               f"{type(exc).__name__}: {exc}", level="warn")
+        _harvest_last_mutating(env, idx, cell, stage_name, status, alloc)
 
         # 10. ONE emit_batch: terminal + outbox + claim-release (§3.2 —
         #     a torn row can never exist)
@@ -804,7 +835,9 @@ def run(spec_or_path, params=None, *, date=None, slug=None, resume=False,
             env["alloc"] = alloc
             main_idx = indexmod.Index()
             main_idx.tail_ingest()
-            oracle = dedupmod.DedupOracle.snapshot(main_idx)
+            oracle = dedupmod.DedupOracle.snapshot(
+                main_idx,
+                paid_stages={s.name for s in spec.stages if s.paid})
             env["oracle"] = oracle
             env["terminal_keys"] = _shard_terminal_keys(rd)
 
@@ -942,10 +975,11 @@ def _reconcile_pending(env, idx):
                 for k in spec.mutating_kinds() or ("zh",):
                     vault.tombstone(idc, arm, variant, k,
                                     "pending_abort", lost_run=rd.run,
-                                    sink=idx.apply_event)
+                                    sink=idx.apply_event, run_dir=rd.path)
             else:
                 vault.promote(idc, arm, variant, altseq, zone, verdict,
-                              source_run=rd.run, sink=idx.apply_event)
+                              source_run=rd.run, sink=idx.apply_event,
+                              run_dir=rd.path)
         except Exception as exc:  # noqa: BLE001 - reconcile must not crash
             _note(env, f"reconcile failed for {idc}/{arm}/{variant}@"
                        f"{altseq}: {type(exc).__name__}: {exc}",
@@ -991,9 +1025,14 @@ def plan(spec_or_path, params=None, *, date=None, slug=None, replan=False,
     idx = indexmod.Index()
     try:
         idx.tail_ingest()
-        oracle = dedupmod.DedupOracle.snapshot(idx)
+        oracle = dedupmod.DedupOracle.snapshot(
+            idx, paid_stages={s.name for s in spec.stages if s.paid})
         # quote over unique paid-cell keys — the oracle's unit of account
-        # is (idc,arm,variant), not the full cell tuple
+        # is (idc,arm,variant), not the full cell tuple. need_kinds is the
+        # spec-level union of paid mutates: the key IS the paid domain, so
+        # every key carries the full paid-product requirement.
+        paid_kinds = frozenset(
+            k for s in spec.stages if s.paid for k in (s.mutates or ()))
         seen = set()
         qcells = []
         for c in cells:
@@ -1003,7 +1042,8 @@ def plan(spec_or_path, params=None, *, date=None, slug=None, replan=False,
                 continue
             seen.add(k)
             qcells.append({"idc": k[0], "arm": k[1], "variant": k[2],
-                           "stage_paid": bool(st and st.paid)})
+                           "stage_paid": bool(st and st.paid),
+                           "need_kinds": paid_kinds})
         quote = oracle.quote(qcells)
     finally:
         idx.close()

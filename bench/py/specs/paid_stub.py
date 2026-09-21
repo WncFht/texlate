@@ -40,10 +40,12 @@ class _Items:
 
 
 def _ingest(ctx):
-    """Seed the cell workspace with a source stub."""
-    src = ctx.workspace() / "src"
-    src.mkdir(parents=True, exist_ok=True)
-    (src / "main.tex").write_text(
+    """Materialize the source stub into the 'state' mutates-kind — the
+    durable inter-stage channel. workspace() is per-run scratch: a cell
+    regenerating under a NEW run (regen/resume) finds it empty, while a
+    harvested mutates-kind is vault-restorable forever."""
+    out = ctx.asset_dir("state")
+    (out / "main.tex").write_text(
         "\\section{PaidStub}\npaid translation stub input\n",
         encoding="utf-8",
     )
@@ -51,16 +53,27 @@ def _ingest(ctx):
 
 
 def _xlat(ctx):
-    """The paid cell: gateway() construction is the paid assertion."""
-    ws = ctx.workspace()
-    src = (ws / "src" / "main.tex").read_text(encoding="utf-8")
+    """The paid cell: gateway() construction is the paid assertion.
+
+    Reads upstream 'state' via upstream_asset_dir, restoring from the
+    vault when this run's work tree lacks it (regen/resume under a fresh
+    work dir — the upstream cell dedups, its bytes live in the vault).
+    Writes into asset_dir('zh') — a mutates-kind dir — so the terminal
+    harvest secures the paid bytes into the vault (§3.5: paid output
+    that never reaches the vault is unrecoverable spend)."""
+    from kernel import vault
+    state = ctx.upstream_asset_dir("state")
+    if state is None:
+        vault.restore(ctx.idc, ctx.arm, ctx.variant, ctx.paper_dir())
+        state = ctx.upstream_asset_dir("state")
+    src = (state / "main.tex").read_text(encoding="utf-8")
     gw = ctx.gateway()
     res = gw.request(
         "chat",
         model="paid-stub",
         messages=[{"role": "user", "content": src}],
     )
-    out = ws / "zh"
+    out = ctx.asset_dir("zh")
     out.mkdir(parents=True, exist_ok=True)
     (out / "out.txt").write_text(src.upper(), encoding="utf-8")
     usage = res.get("usage", {}) if isinstance(res, dict) else {}
@@ -75,8 +88,15 @@ def _xlat(ctx):
 
 
 def _report(ctx):
-    """Metrics row over the paid product; mutates nothing."""
-    text = (ctx.workspace() / "zh" / "out.txt").read_text(encoding="utf-8")
+    """Metrics row over the paid product; mutates nothing.
+
+    Reads via upstream_asset_dir — the zh tree was vault-fused (0444)
+    at xlat harvest, so the write-probed asset_dir accessor would
+    refuse it."""
+    zh = ctx.upstream_asset_dir("zh")
+    if zh is None:
+        return {"status": "error", "errors": [{"code": "no_zh_asset"}]}
+    text = (zh / "out.txt").read_text(encoding="utf-8")
     ctx.emit({"stage": "report", "metric": "paid_stub_chars",
               "chars": len(text)})
     return "ok"
@@ -89,12 +109,13 @@ spec = Spec(
     },
     items=_Items(),
     stages=[
-        Stage("ingest", _ingest),
+        Stage("ingest", _ingest, mutates=["state"]),
         Stage(
             "xlat",
             _xlat,
             needs=[("ingest", {"ok"})],
             paid=True,
+            mutates=["zh"],
             dedup_key=("idc", "arm", "variant"),
         ),
         Stage(

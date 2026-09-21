@@ -73,6 +73,7 @@ __all__ = [
     "VERIFIED",
     "DedupOracle",
     "attempted_unpaid",
+    "manifest_kind_evidence",
     "manifest_tail",
     "tombstoned",
 ]
@@ -142,6 +143,36 @@ def _row_key(row) -> tuple[str, str, str] | None:
     return idc, _norm(row.get("arm")), _norm(row.get("variant"))
 
 
+# has_* legacy flag spellings -> the kind each speaks for.
+_FLAG_KINDS = {"has_zh": "zh", "has_splice": "splice", "has_state": "state"}
+
+
+def _row_kind_statements(row, val: bool) -> list:
+    """Kinds one byte-statement row vouches for (val True) or kills
+    (val False): 'kinds'/'dirs' (harvest), 'kind' (tombstone),
+    'moved'/'missing' (promote), 'assets' keys matching the statement's
+    polarity, and has_<kind> flags matching it. Empty => the row is
+    kind-AGNOSTIC (legacy shape) and folds on the altseq axis only."""
+    kinds: list[str] = []
+    for fld in ("kinds", "moved", "missing"):
+        v = row.get(fld)
+        if isinstance(v, (list, tuple)):
+            kinds.extend(str(k) for k in v)
+    v = row.get("dirs")
+    if isinstance(v, dict):
+        kinds.extend(str(k) for k in v)
+    v = row.get("kind")
+    if isinstance(v, str) and v:
+        kinds.append(v)
+    v = row.get("assets")
+    if isinstance(v, dict):
+        kinds.extend(str(k) for k, vv in v.items() if bool(vv) == val)
+    for fld, kind in _FLAG_KINDS.items():
+        if fld in row and bool(row[fld]) == val:
+            kinds.append(kind)
+    return list(dict.fromkeys(kinds))
+
+
 # -- manifest tail (durable verified leg ①) ----------------------------------------
 
 
@@ -187,17 +218,22 @@ def _read_tail_lines(path: Path, max_rows: int) -> list[bytes]:
     return rows[-max_rows:]
 
 
-def manifest_tail(path=None, max_rows: int = _MANIFEST_TAIL_ROWS) -> set[tuple]:
-    """(idc,arm,variant) set whose LAST manifest row per altseq asserts bytes.
+def _manifest_fold(path=None, max_rows: int = _MANIFEST_TAIL_ROWS) -> dict:
+    """Per-cell byte evidence from the manifest tail, split two ways:
 
-    Reads the last ~5000 rows of vault/manifest.jsonl tolerantly (bad lines
-    skipped — the iter_jsonl read-side contract). Per §3.10.4 last-row-wins
-    is evaluated per altseq: a demote row only kills its own copy's
-    evidence. Rows with no byte statement (metadata-only) never erase a
-    prior bytes_ok row.
+    "alt"   kind-agnostic statements keyed by altseq — last-row-wins per
+            copy (§3.10.4: a demote kills only its own altseq).
+    "kind"  per-kind statements keyed by (kind, altseq) -> (pos, val).
+    "wild"  per-kind altseq-free statements -> (pos, val); the tombstone
+            shape, which kills the kind cell-wide unless a LATER
+            altseq-scoped row re-asserts it.
+
+    pos is the row's ordinal in the tail stream — the ordering that lets
+    a harvest re-seal a kind a tombstone previously killed.
     """
     p = Path(path) if path is not None else paths.vault_manifest_path()
-    evidence: dict[tuple, bool] = {}
+    evidence: dict[tuple, dict] = {}
+    pos = 0
     for raw in _read_tail_lines(p, max_rows):
         try:
             row = json.loads(raw)
@@ -211,9 +247,78 @@ def manifest_tail(path=None, max_rows: int = _MANIFEST_TAIL_ROWS) -> set[tuple]:
         val = _manifest_bytes_value(row)
         if val is None:
             continue
-        altseq = str(row.get("altseq", "0") or "0")
-        evidence[(*key, altseq)] = val
-    return {k[:3] for k, v in evidence.items() if v}
+        pos += 1
+        entry = evidence.setdefault(
+            key, {"alt": {}, "kind": {}, "wild": {}})
+        kinds = _row_kind_statements(row, val)
+        altseq = row.get("altseq")
+        if not kinds:
+            a = str(altseq if altseq is not None else "0") or "0"
+            entry["alt"][a] = val
+            continue
+        for kind in kinds:
+            if altseq is None:
+                entry["wild"][kind] = (pos, val)
+            else:
+                entry["kind"].setdefault(kind, {})[str(altseq)] = (pos, val)
+    return evidence
+
+
+def _resolve_kinds(entry: dict) -> tuple[set, set]:
+    """(alive, dead) kind sets for one cell's folded evidence.
+
+    A kind is alive iff some altseq's latest statement is True — where a
+    wildcard tombstone counts as a statement against every altseq at its
+    position, so only a LATER altseq row revives the kind.
+    """
+    alive, dead = set(), set()
+    for kind in set(entry["kind"]) | set(entry["wild"]):
+        per_alt = entry["kind"].get(kind, {})
+        w = entry["wild"].get(kind)
+        if per_alt:
+            vals = [
+                v if (w is None or p > w[0]) else w[1]
+                for p, v in per_alt.values()
+            ]
+        else:
+            vals = [w[1]] if w else []
+        (alive if any(vals) else dead).add(kind)
+    return alive, dead
+
+
+def manifest_kind_evidence(path=None, max_rows: int = _MANIFEST_TAIL_ROWS) -> dict:
+    """(idc,arm,variant) -> {"alive": set, "dead": set, "ag": bool}.
+
+    The kind-aware manifest leg: which kinds have surviving byte evidence,
+    which have last-statement loss, and whether any kind-agnostic row
+    asserts bytes. check() intersects the paid stage's mutates against
+    'alive' — a {state}-only harvest must not mint 'verified' for a cell
+    whose paid product (zh) is tombstoned or never sealed."""
+    out: dict[tuple, dict] = {}
+    for key, entry in _manifest_fold(path, max_rows).items():
+        alive, dead = _resolve_kinds(entry)
+        ag_seen = bool(entry["alt"])
+        out[key] = {"alive": alive, "dead": dead,
+                    "ag": any(entry["alt"].values()),
+                    "ag_dead": ag_seen and not any(entry["alt"].values())}
+    return out
+
+
+def manifest_tail(path=None, max_rows: int = _MANIFEST_TAIL_ROWS) -> set[tuple]:
+    """(idc,arm,variant) set with surviving byte evidence and no dead kind.
+
+    Reads the last ~5000 rows of vault/manifest.jsonl tolerantly (bad lines
+    skipped — the iter_jsonl read-side contract). Per §3.10.4 last-row-wins
+    is evaluated per altseq AND per kind: a demote kills only its own
+    copy's evidence, a tombstone kills only its own kind's. A cell whose
+    manifest record shows a dead kind is NOT 'verified' — partial loss is
+    §3.6's third state, decided by the missing leg, never silently skipped.
+    """
+    out: set[tuple] = set()
+    for key, ev in manifest_kind_evidence(path, max_rows).items():
+        if (ev["ag"] or ev["alive"]) and not ev["dead"]:
+            out.add(key)
+    return out
 
 
 # -- vault meta scan (durable verified leg ②) --------------------------------------
@@ -350,15 +455,19 @@ class DedupOracle:
         paid_pool_snap: set[tuple] | None = None,
         sealed_gen: int = 0,
         min_offset: int = 0,
+        kind_evidence: dict | None = None,
     ):
         self.index = index
         self.manifest_tail = frozenset(manifest_tail or ())
         self.paid_pool_snap = frozenset(paid_pool_snap or ())
         self.sealed_gen = int(sealed_gen)
         self.min_offset = int(min_offset)
+        # key -> {"alive","dead","ag"} per-kind manifest evidence; None for
+        # hand-built oracles (kind-blind legacy legs only).
+        self.kind_evidence = kind_evidence or {}
 
     @classmethod
-    def snapshot(cls, index) -> "DedupOracle":
+    def snapshot(cls, index, paid_stages=None) -> "DedupOracle":
         """Capture the run-start oracle (§3.10.6 ②).
 
         sealed_gen/min_offset come from index.sealed_state() — lifted to
@@ -366,15 +475,21 @@ class DedupOracle:
         tail_ingest catches up reads 'unsealed' instead of trusting a
         behind-watermark projection. manifest_tail parses the last ~5000
         vault manifest rows tolerantly; paid_pool_snap freezes
-        index.paid_pool() for the plan.
+        index.paid_pool(paid_stages) — PASS the spec's paid stage names,
+        else a free stage's ok mints verified evidence for paid cells.
         """
         gen, wm = index.sealed_state()
+        kinds = manifest_kind_evidence()
         return cls(
             index,
-            manifest_tail=manifest_tail(),
-            paid_pool_snap=index.paid_pool(),
+            manifest_tail={
+                k for k, ev in kinds.items()
+                if (ev["ag"] or ev["alive"]) and not ev["dead"]
+            },
+            paid_pool_snap=index.paid_pool(stages=paid_stages),
             sealed_gen=gen,
             min_offset=max(wm, _events_tail_offset()),
+            kind_evidence=kinds,
         )
 
     # -- seal gate -----------------------------------------------------------------
@@ -388,13 +503,21 @@ class DedupOracle:
     # -- per-cell verdict ------------------------------------------------------------
 
     def check(self, idc, arm: str = "-", variant: str = "-",
-              stage_paid: bool = True) -> str:
+              stage_paid: bool = True, need_kinds=None) -> str:
         """Five-state paid-gate verdict — ORDER IS THE CONTRACT.
 
         stage_paid marks whether the caller's stage is paid; the oracle's
         evidence is paidness-agnostic (claims and bytes mean the same
         thing either way) — the flag is carried for quote()'s attempted
         bucketing and the caller's §3.8 interpretation.
+
+        need_kinds = the calling stage's declared mutates — the paid
+        product kinds. When given, 'verified' requires the manifest's
+        per-kind evidence to cover every needed kind (a {state}-only
+        harvest must not dedup a cell whose zh is tombstoned or was
+        never sealed), and a manifest-dead needed kind vetoes the
+        paid_pool/meta legs too. Kind-agnostic rows vouch no named kind
+        — ambiguous evidence resolves toward spend, never toward skip.
         """
         idc, arm, variant = str(idc), _norm(arm), _norm(variant)
         key = (idc, arm, variant)
@@ -422,7 +545,7 @@ class DedupOracle:
         meta_ok, meta_missing, meta_io_error = _scan_vault_meta(idc, arm, variant)
         if meta_io_error:
             return UNSEALED
-        if key in self.manifest_tail or key in self.paid_pool_snap or meta_ok:
+        if self._verified(key, meta_ok, need_kinds):
             return VERIFIED
 
         # 4. missing — tombstone/quar evidence with no verified leg.
@@ -431,6 +554,30 @@ class DedupOracle:
 
         # 5. absent — reachable only because the index is sealed.
         return ABSENT
+
+    def _verified(self, key, meta_ok: bool, need_kinds) -> bool:
+        """The verified legs under kind-aware adjudication.
+
+        need_kinds given: manifest must prove every needed kind alive;
+        the pool/meta legs then verify only when no needed kind is
+        manifest-dead (a paid-ok row or physically-intact meta must not
+        resurrect a declared-dead product). need_kinds None: the flat
+        manifest_tail set (surviving evidence with no dead kind) plus
+        pool/meta vetoed by ANY dead kind — fail-closed partial loss.
+        """
+        ev = self.kind_evidence.get(key)
+        alive = ev["alive"] if ev else set()
+        dead = ev["dead"] if ev else set()
+        ag_dead = bool(ev and ev["ag_dead"])
+        need = {str(k) for k in need_kinds} if need_kinds else None
+        if need:
+            if need <= alive:
+                return True
+            pool_meta = key in self.paid_pool_snap or meta_ok
+            return pool_meta and not (need & dead) and not ag_dead
+        if key in self.manifest_tail:
+            return True
+        return (key in self.paid_pool_snap or meta_ok) and not dead
 
     def _missing_evidence(self, idc, arm, variant) -> bool:
         """Index-side tombstone/quar/lost evidence (seal already passed)."""
@@ -475,9 +622,10 @@ class DedupOracle:
             k: [] for k in ("new", "reuse", "missing", "claimed", "attempted", "unsealed")
         }
         for c in cells:
-            idc, arm, variant, paid = _cell_spec(c)
+            idc, arm, variant, paid, need = _cell_spec(c)
             key = (idc, arm, variant)
-            res = self.check(idc, arm, variant, stage_paid=paid)
+            res = self.check(idc, arm, variant, stage_paid=paid,
+                             need_kinds=need)
             if res == VERIFIED:
                 buckets["reuse"].append(key)
             elif res == CLAIMED:
@@ -518,10 +666,11 @@ class DedupOracle:
         )
 
 
-def _cell_spec(cell) -> tuple[str, str, str, bool]:
-    """Normalize a plan-cell spec -> (idc, arm, variant, stage_paid).
+def _cell_spec(cell) -> tuple[str, str, str, bool, object]:
+    """Normalize a plan-cell spec -> (idc, arm, variant, stage_paid,
+    need_kinds).
 
-    dict:   {idc|id, arm?, variant?, stage_paid?|paid?}
+    dict:   {idc|id, arm?, variant?, stage_paid?|paid?, need_kinds?}
     tuple:  (idc,arm) | (idc,arm,variant) | (idc,arm,up,variant,stage,...)
     """
     if isinstance(cell, dict):
@@ -529,7 +678,9 @@ def _cell_spec(cell) -> tuple[str, str, str, bool]:
         if not isinstance(idc, str) or not idc:
             idc = _canon(cell.get("id")) or cell.get("id")
         paid = cell.get("stage_paid", cell.get("paid", True))
-        return str(idc), _norm(cell.get("arm")), _norm(cell.get("variant")), bool(paid)
+        return (str(idc), _norm(cell.get("arm")),
+                _norm(cell.get("variant")), bool(paid),
+                cell.get("need_kinds"))
     seq = list(cell)
     idc = str(seq[0])
     arm = _norm(seq[1] if len(seq) > 1 else "-")
@@ -537,4 +688,4 @@ def _cell_spec(cell) -> tuple[str, str, str, bool]:
         variant = _norm(seq[3])  # full cell key: (idc,arm,up,variant,stage,...)
     else:
         variant = _norm(seq[2] if len(seq) > 2 else "-")
-    return idc, arm, variant, True
+    return idc, arm, variant, True, None

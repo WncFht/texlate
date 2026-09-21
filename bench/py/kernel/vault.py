@@ -486,7 +486,7 @@ def _group_files(rows: list[dict]) -> dict:
 def harvest(idc, arm, variant, assets: dict, source_run: str = "adhoc",
             altseq=None, verdict: str = "pending", zone=None, model=None,
             id=None, seq=None, staged: bool = False, sink=None,
-            _op: str = "harvest") -> Path:
+            run_dir=None, _op: str = "harvest") -> Path:
     """THE commit path — stage, fuse, rename, meta-last, manifest, emit.
 
     assets = {kind: src_dir} for kind in {zh,splice,state}. The whole write
@@ -619,23 +619,26 @@ def harvest(idc, arm, variant, assets: dict, source_run: str = "adhoc",
 
     # Lock released — asset events never block the vault critical section on
     # the ledger lock. state: 'adopted' for quar-born copies, 'staged' for
-    # secure-then-evict pre-staging, else 'pending'.
+    # secure-then-evict pre-staging, else 'pending'. seq may be a callable
+    # (per-kind mint — a shared int would stamp duplicate (run_seq,seq)
+    # keys and the index would drop every kind after the first).
     state = "adopted" if zone == "quar" else ("staged" if staged else "pending")
+    seq_fn = seq if callable(seq) else (lambda: seq)
     for k in kinds:
         ev = events.make_event(
-            events.T_ASSET, run=source_run, seq=seq, id=id or idc, idc=idc,
-            arm=arm, variant=variant, kind=k,
+            events.T_ASSET, run=source_run, seq=seq_fn(), id=id or idc,
+            idc=idc, arm=arm, variant=variant, kind=k,
             path=_rel_leaf(zone, k, sid, key), sha=asset_sha,
             bytes=kind_bytes[k], state=state, verdict=verdict, zone=zone,
             altseq=chosen)
-        ledger.emit(ev, sink=sink)
+        ledger.emit(ev, run_dir=run_dir, sink=sink)
     return mpath
 
 
 # --- promote (zone/verdict bookkeeping; quar moves bytes) ---------------------------
 
 def promote(idc, arm, variant, altseq, zone, verdict,
-            source_run: str = "reconcile", sink=None) -> None:
+            source_run: str = "reconcile", sink=None, run_dir=None) -> None:
     """pending -> primary|quar|alt (and quar -> primary|alt back).
 
     primary/alt are pure metadata zones — promote is a meta rewrite plus a
@@ -720,7 +723,7 @@ def promote(idc, arm, variant, altseq, zone, verdict,
             arm=arm, variant=variant, kind=k,
             path=_rel_leaf(zone, k, sid, key), sha=meta.get("asset_sha"),
             state="verified", verdict=verdict, zone=zone, altseq=altseq)
-        ledger.emit(ev, sink=sink)
+        ledger.emit(ev, run_dir=run_dir, sink=sink)
 
 
 # --- dedup criterion ---------------------------------------------------------------
@@ -1074,7 +1077,7 @@ def _donor_map() -> dict:
 
 def adopt(src_dir, idc, arm: str = "-", variant: str = "-",
           reason: str = "orphan", kind: str = "zh", id=None,
-          sink=None) -> Path:
+          sink=None, run_dir=None) -> Path:
     """Orphan bytes -> quarantine. The whole tree becomes one quar-zone copy
     via the normal two-phase commit (verdict='quar', state='adopted'), then
     a note event records the adoption. Refuses non-regular files — a stray
@@ -1094,7 +1097,8 @@ def adopt(src_dir, idc, arm: str = "-", variant: str = "-",
             f"adopt refuses non-regular files: "
             f"{[str(o) for o in offenders[:5]]}")
     mpath = harvest(idc, arm, variant, {kind: src}, source_run="adopt",
-                    verdict="quar", zone="quar", id=id, sink=sink, _op="adopt")
+                    verdict="quar", zone="quar", id=id, sink=sink,
+                    run_dir=run_dir, _op="adopt")
     meta = _read_meta(mpath) or {}
     ev = events.make_event(
         events.T_NOTE, run="adopt", seq=None, id=id or idc, idc=idc,
@@ -1102,7 +1106,7 @@ def adopt(src_dir, idc, arm: str = "-", variant: str = "-",
               f"({idc},{arm},{variant},{meta.get('altseq', '0')}) "
               f"reason={reason}"),
         level="warn")
-    ledger.emit(ev, sink=sink)
+    ledger.emit(ev, run_dir=run_dir, sink=sink)
     return leaf_dir("quar", kind, idc, arm, variant, meta.get("altseq", "0"))
 
 
@@ -1173,7 +1177,7 @@ def _select_copy(idc: str, arm: str, variant: str, altseq) -> dict | None:
 
 
 def tombstone(idc, arm, variant, kind, reason, lost_run: str = "",
-              id=None, sink=None) -> None:
+              id=None, sink=None, run_dir=None) -> None:
     """Register lost bytes: a manifest tombstone row inside the vault lock,
     then a first-class tombstone event in the ledger (§3.1 — tombstones are
     events, not separate files). The regen gate reads these rows upstream."""
@@ -1190,7 +1194,7 @@ def tombstone(idc, arm, variant, kind, reason, lost_run: str = "",
     ev = events.make_event(
         events.T_TOMBSTONE, id=id or idc, idc=idc, arm=arm, variant=variant,
         kind=kind, reason=reason, lost_run=lost_run, ts=ts)
-    ledger.emit(ev, sink=sink)
+    ledger.emit(ev, run_dir=run_dir, sink=sink)
 
 
 def find_meta_less_dirs() -> list[Path]:

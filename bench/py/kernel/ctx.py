@@ -140,12 +140,18 @@ class Ctx:
     # --- paths ------------------------------------------------------------------------
 
     def paper_dir(self) -> Path:
-        """work/{safe_id} — this id's per-run work dir (probe-write gated)."""
+        """work/{safe_id} — this id's per-run work dir.
+
+        Root-entry writability only — a vault-fused mutates dir
+        (zh.{arm} 0444) INSIDE this tree is legal post-harvest; the
+        mutating subtrees probe themselves (workspace/asset_dir).
+        """
         if self.rundir is None:
             raise RuntimeError("ctx has no rundir — work paths unavailable")
         d = self.rundir.work(self.safe)
         d.mkdir(parents=True, exist_ok=True)
-        self._assert_writable(d)
+        if not d.stat().st_mode & 0o200:
+            raise PermissionError(f"{d}: non-writable paper dir")
         return d
 
     def workspace(self, scratch: bool = True) -> Path:
@@ -181,10 +187,25 @@ class Ctx:
 
     def asset_dir(self, kind: str) -> Path:
         """paper_dir()/{kind}.{arm}[@{variant}] — the harvestable tree for
-        one mutates kind (vault._work_dirname layout)."""
+        one mutates kind (vault._work_dirname layout).
+
+        Probe-write gated (§3.10.2): asking to mutate a vault-fused 0444
+        tree fails loud instead of writing into sealed bytes. For reading
+        an upstream stage's (possibly fused) product, use
+        upstream_asset_dir."""
         from kernel import vault
         d = self.paper_dir() / vault._work_dirname(kind, self.arm, self.variant)
+        d.mkdir(parents=True, exist_ok=True)
+        self._assert_writable(d)
         return d
+
+    def upstream_asset_dir(self, kind: str) -> Path | None:
+        """Read path to an upstream stage's (possibly vault-fused)
+        mutates-kind dir — the post-harvest inter-stage handoff. No write
+        probe: reading 0444 bytes is legal. None when absent."""
+        from kernel import vault
+        d = self.paper_dir() / vault._work_dirname(kind, self.arm, self.variant)
+        return d if d.is_dir() else None
 
     def asset_dirs(self, kinds=None) -> dict:
         """{kind: dir} for every mutates-kind dir that exists with content

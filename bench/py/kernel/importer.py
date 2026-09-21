@@ -541,6 +541,16 @@ def _rec_to_event(rec: dict, *, run_name: str, run_seq: int,
         else:
             metrics = {"_orig_status": orig, "_metrics": metrics}
 
+    # §3.10.7 canon_drift: the frozen hint lands, but when the raw id
+    # re-resolves to a DIFFERENT idc (or can't reproduce the frozen value
+    # at all) the divergence is stamped on the row — fail-loud, not silent.
+    drift = None
+    hint = rec.get("canon_hint")
+    if hint and isinstance(id_raw, str) and id_raw != hint:
+        raw_res = _canon_gate(id_raw, registry)
+        if not raw_res.ok or raw_res.idc != res.idc:
+            drift = raw_res.idc if raw_res.ok else str(id_raw)
+
     ev = {
         "type": events.T_CELL,
         "v": events.SCHEMA_V,
@@ -563,6 +573,8 @@ def _rec_to_event(rec: dict, *, run_name: str, run_seq: int,
         "fp": None,
         "import_src": src,
     }
+    if drift is not None:
+        ev["canon_drift_of"] = drift
     if rec.get("eval"):
         ev["eval"] = 1
     if rec.get("queue_wait_s") is not None:

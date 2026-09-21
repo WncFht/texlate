@@ -540,21 +540,39 @@ def remove_cell_tree(rundir: RunDir, safe_id: str, vault_check=None) -> Path:
     Always emits a note event; returns the (former) cell path.
     """
     cell = rundir.work(safe_id)
-    if vault_check is not None and not vault_check():
+    try:
+        with locks.flock(rundir.cell_lock_path(safe_id),
+                         exclusive=True, blocking=False):
+            # Delete-under-lock (R21): a probe-only check leaves a TOCTOU —
+            # a racer acquiring between probe and rmtree loses its lock
+            # inode and a fresh lock double-owns the cell. The lock is
+            # HELD through vault_check + rmtree; a live cell's hold makes
+            # the NB acquire raise WouldBlock — the loud refusal.
+            if vault_check is not None and not vault_check():
+                _emit_note(
+                    rundir,
+                    f"remove_cell_tree BLOCKED for {safe_id}: paid tree "
+                    f"without vault meta — harvest before delete",
+                    level="warn", safe_id=safe_id,
+                )
+                msg = (
+                    f"{safe_id}: paid cell tree with no vault meta — "
+                    f"refusing delete (harvest first)"
+                )
+                raise BlockedDelete(msg)
+            if cell.exists():
+                shutil.rmtree(cell)
+                with suppress(OSError):
+                    fsutil.fsync_dir(cell.parent)
+    except locks.WouldBlock:
         _emit_note(
             rundir,
-            f"remove_cell_tree BLOCKED for {safe_id}: paid tree without "
-            f"vault meta — harvest before delete",
+            f"remove_cell_tree BLOCKED for {safe_id}: cell lock held — "
+            f"live cell, refusing delete (R21)",
             level="warn", safe_id=safe_id,
         )
-        msg = (
-            f"{safe_id}: paid cell tree with no vault meta — "
-            f"refusing delete (harvest first)"
-        )
-        raise BlockedDelete(msg)
-    if cell.exists():
-        shutil.rmtree(cell)
-        with suppress(OSError):
-            fsutil.fsync_dir(cell.parent)
+        raise BlockedDelete(
+            f"{safe_id}: cell lock held — refusing delete (R21: rmtree "
+            f"kills the lock inode and a fresh lock double-owns the cell)")
     _emit_note(rundir, f"remove_cell_tree: {safe_id}", safe_id=safe_id)
     return cell
