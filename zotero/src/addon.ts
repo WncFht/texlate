@@ -14,9 +14,6 @@ class Addon {
     locale?: {
       current: any;
     };
-    prefs?: {
-      window: Window;
-    };
     dialog?: DialogHelper;
   };
   // Lifecycle hooks

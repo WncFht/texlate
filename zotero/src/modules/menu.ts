@@ -11,7 +11,7 @@
  */
 import { config } from "../../package.json";
 import type { MenuState } from "../contracts";
-import { extractArxivId } from "./arxivId";
+import { hasArxivId } from "./arxivId";
 import { getTexlateMark } from "./attach";
 import { openInReader, translateItems } from "./flow";
 
@@ -20,7 +20,7 @@ type ItemContext = _ZoteroTypes.MenuManager.LibraryMenuContext;
 let registered = false;
 
 const isTranslatable = (item: Zotero.Item): boolean =>
-  extractArxivId(item) !== null && getTexlateMark(item) === null;
+  hasArxivId(item) && getTexlateMark(item) === null;
 const isMarked = (item: Zotero.Item): boolean => getTexlateMark(item) !== null;
 
 /** Pure visibility decision — dev-verify asserts this without a real popup. */
@@ -47,8 +47,7 @@ function selectedItems(
 }
 
 export function registerMenus(win: _ZoteroTypes.MainWindow): void {
-  // Expose the pure predicate for selftest/dev-verify assertions.
-  Object.assign(addon.api, { computeMenuState });
+  // addon.api.computeMenuState is wired once by installSelftest (onStartup).
   if (registered) return; // MenuManager is global; covers every main window.
   const icon = `chrome://${config.addonRef}/content/icons/favicon.png`;
   const ok = Zotero.MenuManager.registerMenu({

@@ -2,7 +2,10 @@
  * contracts.ts — shared types & function signatures for all texlate plugin modules.
  *
  * Single source of truth: module agents implement against these signatures.
- * Server API facts (src/texlate/server/app.py + worker/_common.py):
+ * Server API facts — routes live in src/texlate/server/routers/
+ * ({meta,tasks,files}.py); the 202/error body shape in server/http.py
+ * (_accepted/_json_error); the db_kind↔url_kind map + artifact_urls in
+ * server/worker/_common.py (KIND_URL/URL_KIND):
  *   GET  /api/health                       → {ok, version?, ...}
  *   POST /api/arxiv/{id}/translate  {}     → 202 {task_id, status, events_url, reader_url?}
  *   GET  /api/task/{id}                    → snapshot (no SSE in plugin sandbox)
@@ -30,7 +33,7 @@ export const TERMINAL_STATUSES = [
 ] as const;
 
 /**
- * Server RETRYABLE_FROM (store/_common.py): terminal states POST
+ * Server RETRYABLE_FROM (server/store/_common.py): terminal states POST
  * /api/task/{id}/retry accepts. Matters because `interrupted` still counts
  * as active for translate dedup — a 409 can hand back a dead task_id.
  */
@@ -184,6 +187,7 @@ export interface TexlatePrefs {
  * Concrete exports each module MUST provide (parallel-implementation seam):
  *   client.ts   export function createClient(prefs: TexlatePrefs): TexlateClient
  *   arxivId.ts  export function extractArxivId(item): string | null
+ *               export function hasArxivId(item): boolean
  *   poller.ts   export function pollTask(client, taskId, opts): Promise<TaskSnapshot>
  *               export function phaseKey(snap: TaskSnapshot): string   // ftl suffix
  *   attach.ts   export function attachArtifacts(item, client, taskId, opts): Promise<AttachResult>
@@ -193,10 +197,14 @@ export interface TexlatePrefs {
  *               export function openPrefsDialog(): void
  *               export function registerPrefsPane(): void
  *   menu.ts     export function registerMenus(win): void
+ *               export function computeMenuState(items): MenuState
  *   flow.ts     export function translateItem(item): Promise<FlowResult>
  *               export function translateItems(items): Promise<FlowResult[]>
  *               export function openInReader(item): boolean   // launchURL'd
+ *               export const FILES_GRACE_MS: number
  *   selftest.ts export function selftest(itemID: number): Promise<SelftestResult>
+ *               export function selftestNonArxiv(itemID): Promise<SelftestResult>
+ *               export function installSelftest(): void
  */
 export interface TexlateClient {
   health(): Promise<HealthResponse>;

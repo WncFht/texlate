@@ -26,22 +26,23 @@ class StepError extends Error {
 /** Sentinel unwinding the pipeline after a recorded step failure. */
 class Halt extends Error {}
 
-function errText(e: unknown): string {
+/**
+ * Step-local error formatter — richer than utils/misc.errText: prefixes
+ * `unreachable:` for NetworkError and `Name:` for Error subclasses whose
+ * name isn't a bare "Error", so step details stay attributable.
+ */
+function stepErrText(e: unknown): string {
   if (e instanceof StepError || e instanceof ApiError) return e.message;
   if (e instanceof NetworkError) return `unreachable: ${e.message}`;
   if (e instanceof Error) return `${e.name}: ${e.message}`;
   return String(e);
 }
 
-function field(item: Zotero.Item, name: string): string {
-  return fieldText(item, name);
-}
-
 /** Attribute an extracted id to doi/url/archiveID/extra (substring probe). */
 function idSource(item: Zotero.Item, id: string): string {
   const needle = id.toLowerCase();
   for (const name of ["DOI", "url", "archiveID", "extra"]) {
-    if (field(item, name).toLowerCase().includes(needle)) {
+    if (fieldText(item, name).toLowerCase().includes(needle)) {
       return name === "DOI" ? "doi" : name;
     }
   }
@@ -59,7 +60,7 @@ async function step<T>(
     steps.push({ name, ok: true, detail: d });
     return v;
   } catch (e) {
-    steps.push({ name, ok: false, detail: errText(e) });
+    steps.push({ name, ok: false, detail: stepErrText(e) });
     throw new Halt();
   }
 }
@@ -73,7 +74,7 @@ async function run(itemID: number, negative: boolean): Promise<SelftestResult> {
       if (!it) throw new StepError(`item ${itemID} not found`);
       if (!it.isRegularItem())
         throw new StepError(`item ${itemID} not regular (${it.itemType})`);
-      const t = field(it, "title").slice(0, 40);
+      const t = fieldText(it, "title").slice(0, 40);
       return [it, `itemID=${itemID} type=${it.itemType} title=${t}`];
     });
     const prefs = await step(steps, "prefs", () => {
@@ -122,8 +123,10 @@ async function run(itemID: number, negative: boolean): Promise<SelftestResult> {
       return [snap, d];
     });
     await step(steps, "files", async () => {
-      // Terminal status races /api/files visibility (same window flow.ts's
-      // awaitFiles tolerates) — retry on empty/error until the deadline.
+      // Mirror of flow.awaitFiles (private there — export it and this step
+      // can call it directly): terminal status races /api/files visibility,
+      // so retry while the map is empty, or while zh_pdf is absent despite
+      // zh.pdf being requested, until the grace deadline.
       const fetchArts = async (): Promise<Record<string, FileInfo>> => {
         try {
           return await client.listFiles(created);
@@ -131,10 +134,14 @@ async function run(itemID: number, negative: boolean): Promise<SelftestResult> {
           return {};
         }
       };
+      const needZh = prefs.attachKinds.includes("zh.pdf");
       const deadline = Date.now() + FILES_GRACE_MS;
       let arts = await fetchArts();
-      while (Object.keys(arts).length === 0 && Date.now() < deadline) {
-        await sleep(2000);
+      while (
+        (Object.keys(arts).length === 0 || (needZh && !("zh_pdf" in arts))) &&
+        Date.now() < deadline
+      ) {
+        await sleep(2000); // flow.FILES_GRACE_INTERVAL_MS (private there)
         arts = await fetchArts();
       }
       if (Object.keys(arts).length === 0) {
@@ -180,7 +187,7 @@ async function run(itemID: number, negative: boolean): Promise<SelftestResult> {
       const titles = fresh
         .getAttachments()
         .map((id) => Zotero.Items.get(id))
-        .map((a) => (a ? field(a, "title") || a.getDisplayTitle() : "?"));
+        .map((a) => (a ? fieldText(a, "title") || a.getDisplayTitle() : "?"));
       const mine = titles.filter((t) => t.startsWith("TeXlate"));
       if (mine.length === 0)
         throw new StepError(`no texlate attachment (titles=[${titles}])`);
@@ -195,7 +202,7 @@ async function run(itemID: number, negative: boolean): Promise<SelftestResult> {
     return { ok: true, itemID, steps, taskId };
   } catch (e) {
     if (!(e instanceof Halt)) {
-      steps.push({ name: "unexpected", ok: false, detail: errText(e) });
+      steps.push({ name: "unexpected", ok: false, detail: stepErrText(e) });
     }
     const bad = steps.find((s) => !s.ok);
     return { ok: false, itemID, steps, taskId, error: bad?.name ?? "?" };

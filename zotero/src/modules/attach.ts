@@ -3,7 +3,7 @@
  * Zotero.Attachments.importFromFile stored attachments on `item`,
  * then stamp `texlate: {taskId}` into the Extra field.
  *
- * Pits (zotero-design.md §七): temp leaf ASCII-only (Windows
+ * Pits: temp leaf ASCII-only (Windows
  * NS_ERROR_FILE_UNRECOGNIZED_PATH); importFromFile takes parentItemID XOR
  * collections (we pass only parentItemID); storage leaf goes through
  * Zotero.File.getValidFileName; `extra` is a shared overflow field — only
@@ -77,7 +77,14 @@ export async function attachArtifacts(
   const temps: string[] = [];
   try {
     for (const urlKind of opts.kinds) {
-      const info = artifacts[urlKind.replace(/\./g, "_")];
+      // artifacts is keyed by db kind (zh_pdf); the url↔db map lives server-
+      // side (worker/_common.py KIND_URL). Don't mirror it — a `.`→`_`
+      // regex gets hyphenated kinds wrong (zh-src.zip → zh_src_zip ≠
+      // "zh-src_zip"). Match the FileInfo.url tail instead: the server
+      // builds it as `/api/files/{id}/{urlKind}`.
+      const info = Object.values(artifacts).find((f) =>
+        f.url.endsWith(`/${urlKind}`),
+      );
       if (!info) {
         result.missing.push(urlKind);
         continue;

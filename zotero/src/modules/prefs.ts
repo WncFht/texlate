@@ -6,6 +6,7 @@
  *
  * ftl keys needed in addon.ftl (locale agent fills; getString prefixes
  * `texlate-` — `t()` casts until i10n.d.ts regenerates):
+ *   prefs-title         = TeXlate
  *   prefs-dialog-title  = TeXlate Settings
  *   prefs-server-url    = Server URL
  *   prefs-api-key       = API key (optional)
@@ -56,7 +57,12 @@ function normalizeServerUrl(v: unknown): string {
   return s || "http://127.0.0.1:8765";
 }
 
-/** Build TexlatePrefs from a raw pref map (Zotero.Prefs or dialog values). */
+/**
+ * Build TexlatePrefs from a raw pref map (Zotero.Prefs or dialog values).
+ * SYNC: the fallback defaults below are duplicated in addon/prefs.js —
+ * Zotero loads prefs.js pre-bundle so it cannot import these TS constants.
+ * Any default change must be applied in both places.
+ */
 function prefsFrom(raw: Record<string, unknown>): TexlatePrefs {
   const attachKinds: string[] = [];
   if (bool(raw.attachZhPdf, true)) attachKinds.push("zh.pdf");

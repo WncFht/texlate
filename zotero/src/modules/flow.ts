@@ -17,7 +17,7 @@
  *   flow-error-api {status, detail} · flow-error-poll-timeout ·
  *   flow-error-task-fault {detail} · flow-error-task-cancelled ·
  *   flow-error-task-interrupted · flow-error-unexpected {message} ·
- *   flow-needs-auth {serverUrl} · flow-done {itemID} · flow-partial-warn ·
+ *   flow-needs-auth {serverUrl} · flow-done · flow-partial-warn ·
  *   flow-attach-failed {detail} · flow-batch-summary {ok, failed, total}
  */
 
@@ -51,7 +51,7 @@ import { errText, fieldText, sleep } from "../utils/misc";
 
 /** Post-terminal retry window for /api/files visibility (design §二 竞态宽限). */
 export const FILES_GRACE_MS = 20000;
-const FILES_GRACE_INTERVAL_MS = 2000;
+export const FILES_GRACE_INTERVAL_MS = 2000;
 
 const inflight = new Set<number>();
 
@@ -76,7 +76,7 @@ function fail(
  * COMPLETED_FILE_GRACE_MS). Retry while the map is empty, or while zh_pdf is
  * absent despite zh.pdf being requested. Returns the last-seen map.
  */
-async function awaitFiles(
+export async function awaitFiles(
   client: TexlateClient,
   taskId: string,
   kinds: string[],
@@ -90,8 +90,13 @@ async function awaitFiles(
     } catch {
       artifacts = {};
     }
-    const ok =
-      Object.keys(artifacts).length > 0 && (!needZh || "zh_pdf" in artifacts);
+    // Match the FileInfo.url tail like attach.ts rather than spelling the
+    // zh.pdf ↔ zh_pdf db-kind map a second way (server builds the url as
+    // /api/files/{id}/{urlKind}).
+    const hasZh = Object.values(artifacts).some((f) =>
+      f.url.endsWith("/zh.pdf"),
+    );
+    const ok = Object.keys(artifacts).length > 0 && (!needZh || hasZh);
     if (ok || Date.now() >= deadline) return artifacts;
     await sleep(FILES_GRACE_INTERVAL_MS);
   }
@@ -144,13 +149,7 @@ async function finish(
       // (empty artifacts) or nothing was requested, write it here so
       // "Open in Reader" still works.
       if (getTexlateMark(item) !== taskId) await setTexlateMark(item, taskId);
-      const first =
-        attach.attached.find((a) => a.kind === "zh.pdf") ?? attach.attached[0];
-      endProgress(
-        pw,
-        "success",
-        t("flow-done", { itemID: first?.itemID ?? itemID }),
-      );
+      endProgress(pw, "success", t("flow-done"));
       return { itemID, ok: true, status, taskId, attach };
     }
     case "fault": {

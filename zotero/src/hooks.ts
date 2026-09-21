@@ -51,45 +51,18 @@ function onShutdown(): void {
 }
 
 /**
- * Dispatcher for Zotero Notifier events.
- * Any operations should be placed in a function to keep this funcion clear.
- */
-async function onNotify(
-  event: string,
-  type: string,
-  ids: Array<string | number>,
-  extraData: { [key: string]: any },
-) {
-  ztoolkit.log("notify", event, type, ids, extraData);
-}
-
-/**
- * Dispatcher for Preference UI events.
+ * Dispatcher for Preference UI events — called from preferences.xhtml's
+ * groupbox onload. Window binding for the declarative prefs dialog is owned
+ * by modules/prefs.ts, so the "load" case is intentionally a no-op.
  * @param type event type
  * @param data event data
  */
 async function onPrefsEvent(type: string, data: { [key: string]: any }) {
   switch (type) {
     case "load":
-      // The preferences.xhtml pane was loaded; window binding for the
-      // declarative prefs dialog is owned by modules/prefs.ts.
       break;
     default:
       return;
-  }
-}
-
-function onShortcuts(type: string) {
-  switch (type) {
-    default:
-      break;
-  }
-}
-
-function onDialogEvents(type: string) {
-  switch (type) {
-    default:
-      break;
   }
 }
 
@@ -101,8 +74,5 @@ export default {
   onShutdown,
   onMainWindowLoad,
   onMainWindowUnload,
-  onNotify,
   onPrefsEvent,
-  onShortcuts,
-  onDialogEvents,
 };

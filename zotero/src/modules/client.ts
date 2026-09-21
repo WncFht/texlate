@@ -85,13 +85,17 @@ export function createClient(prefs: TexlatePrefs): TexlateClient {
     if (xhr.status === 0) {
       throw new NetworkError(`connection failed: ${method} ${path}`);
     }
-    const raw = opts.binary
-      ? decodeBinary(xhr.response)
-      : (xhr.responseText ?? "");
+    // Decode the body only when it's needed: non-2xx error detail or the
+    // JSON parse path. A successful binary download skips the (potentially
+    // large) ArrayBuffer→string decode entirely.
     if (xhr.status < 200 || xhr.status >= 300) {
-      throw new ApiError(xhr.status, raw);
+      throw new ApiError(
+        xhr.status,
+        opts.binary ? decodeBinary(xhr.response) : (xhr.responseText ?? ""),
+      );
     }
     if (opts.binary) return xhr.response as T;
+    const raw = xhr.responseText ?? "";
     try {
       return JSON.parse(raw) as T;
     } catch {
