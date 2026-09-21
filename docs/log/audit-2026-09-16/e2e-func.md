@@ -51,7 +51,7 @@
 ### 2.5 真·用户流：arXiv id 直跑
 
 - `texlate fetch 1706.03762 --cache tmp/audit-e2e/cache` → `{"status":"ok","resolved_version":7,"main_tex":"ms.tex"}`（在线，v7 钉版落缓存）
-- `texlate run 1706.03762 --cache tmp/audit-e2e/cache -w tmp/audit-e2e/run-arxiv-1706 --keep` → 命中缓存复跑全链，结果与 2.1 完全一致（155 chunks / 1.28MB PDF / 1745 CJK）
+- `texlate run 1706.03762 --cache tmp/audit-e2e/cache -w tmp/audit-e2e/run-arxiv-1706 --keep` → 命中缓存复跑全链，结果与 2.1 完全一致（155 chunks / 1.28MB PDF / 1744 CJK）
 
 ## 3. 错误路径（无裸 traceback）
 
@@ -71,7 +71,7 @@
 
 - `GET /api/health` → `{"ok":true,"version":"0.1.0","compilers":{"tectonic":true,"xelatex":true,"babeldoc":false}}`——编译器探测真实
 - `GET /api/tasks` → `{"tasks":[]}`；openapi 列 14 条路由（translate/upload/task/cancel/retry/reader/settings/providers 等）
-- `GET /` → 404（无前端 SPA bundle，M3 占位符合预期）
+- `GET /` → 404（无前端 SPA bundle——当时记为 M3 占位符合预期；同批 m3 审计改判其为 SPA 交付断链：`server/static/` 缺失 + 打包未 force-include。该缺陷已于 2026-09-17 闭合：现 `static/` 经 `scripts/build-web.sh` + pyproject artifacts 随包分发，`mount_spa` 已在 `server/staticfiles.py`/`app.py` 接线）
 - SIGTERM 干净关闭
 
 ## 5. 结论

@@ -20,7 +20,7 @@
 | DataCite `10.48550/arXiv.*` | 每篇 arXiv 论文的 DOI 元数据 | 无 | 无 | **`dates[]` 全版本时间线**（最大亮点） | 免费无需 key | 实时（v9 都全） | ✅ HEAD→302 到 abs；API 返回全字段 |
 | unpaywall | OA 状态/合法 PDF 链接 | 链接 | 无 | 无 | 免费，email 参数 | — | ✅ 但 **arXiv DataCite DOI 未收录（404）**，只认 Crossref DOI |
 | CORE | 聚合各仓库全文 | 有 | 无 | — | 免费 key，~10rps | — | 未实测（需 key），资料记录 |
-| OpenReview | 会议投稿/评审 | 有（pdf 字段） | 无 | 有 revisions | api2 匿名可查 | 实时 | ✅ `notes/search` 200 |
+| OpenReview | 会议投稿/评审 | 有（pdf 字段） | 无 | 有 revisions | 仅 `notes/search` 匿名可查；内容/pdf 端点需登录（见 `2026-09-19-iclr章节长度.md` 坑①） | 实时 | ✅ `notes/search` 200 |
 | Internet Archive `collection:arxiv` | 每篇一个 item：PDF+meta xml | PDF | 无 | 无 | 免费匿名 | **冻于 ~2017-04**（1,076,003 items） | ✅ |
 
 ## 1. Kaggle `Cornell-University/arxiv`
@@ -93,7 +93,7 @@
 
 - **unpaywall**：`api.unpaywall.org/v2/{doi}?email=` 免费；**arXiv DataCite DOI 未收录（404）**，只认出版方 Crossref DOI。仅在需要「发表版 OA 链接」时有用。
 - **CORE API v3**：免费 key，~10rps，`/search/works` 返回 `downloadUrl`/`fullText`；CORE Dataset 提供定期全量 dump。定位为兜底聚合源。
-- **OpenReview**：`api2.openreview.net/notes/search?term=` 匿名可用（实测 200）。非 arXiv 源，查 ICLR/NeurIPS 投稿 + 评审时用。
+- **OpenReview**：`api2.openreview.net/notes/search?term=` 匿名可用（实测 200）；但 `/pdf?id=` 等内容端点匿名必抛 ChallengeRequiredError，必须登录（见 `2026-09-19-iclr章节长度.md` 坑①）。非 arXiv 源，查 ICLR/NeurIPS 投稿 + 评审时用。
 - **Internet Archive `collection:arxiv`**：1,076,003 items，每 item = PDF+`*_metadata.xml`（无 src）；**覆盖止于 ~2017-04**。只配做老论文 PDF 冷备。
 
 ## 9. 需求 → 渠道映射

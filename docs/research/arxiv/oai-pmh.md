@@ -1,6 +1,6 @@
 # oaipmh.arxiv.org 探针实录：四格式字段矩阵 / license 独占 / resumptionToken 翻页 / 独立限流桶
 
-> **结论**：`oaipmh.arxiv.org/oai` 是 OAI-PMH 2.0 全功能端点、独立于 export 的第三限流桶（13 发全 200 零限流迹象）；`arXivRaw` 格式独占**版本史**（`<version>` date+size+source_type）与 `<license>`（Atom 无此字段，OAI 是唯一机读源）；`ListIdentifiers` 单页可吐 2000+ 条做轻量日窗扫描，`ListRecords` 翻页是体积驱动（~1300 条/页），全库 ~2.7M 篇 ≈ 2000 页 ≈ 7GB / ~2h 可完成全量元数据回填。
+> **结论**：`oaipmh.arxiv.org/oai` 是 OAI-PMH 2.0 全功能端点、独立于 export 的第三限流桶（13 发全 200 零限流迹象）；`arXivRaw` 格式独占**版本史**（`<version>` date+size+source_type）与 `<license>`（Atom 无此字段，OAI 是唯一机读源）；`ListIdentifiers` 单页可吐 2000+ 条做轻量日窗扫描，`ListRecords` 翻页是体积驱动（~1300 条/页），全库 ~3.16M 篇 ≈ 2430 页 ≈ 8.5GB / ~2–3h 可完成全量元数据回填。
 > **状态**：时点证据（2026-09-14 口径）。`GetRecord&metadataPrefix=arXivRaw` 兜底链已实装进 `meta.py`（license + 版本史消费）；批量收割/ListIdentifiers 增量对账属批量层设计，由 [2026-09-19-daily-soak.md](2026-09-19-daily-soak.md) 的枚举层部分承接。
 > **日期**：2026-09-14 取证，2026-09-20 重订入库
 
@@ -39,7 +39,7 @@ license 实锤：`<license>http://arxiv.org/licenses/nonexclusive-distrib/1.0/</
 - token 结构 = **URL 编码的改写后查询串**（收窄 from 到当前日 + 日内 `skip` 偏移），带 `expirationDate`（当夜 UTC 0 点过期，~10h TTL）；**无 completeListSize/cursor**，无法预知总条数。结尾空 `<resumptionToken/>` = 终止。
 - 对照：**ListIdentifiers 同窗同 set 单页返回全部 2074 条**（462KB / 4.2s，headers-only 无分页）——轻量同步扫描用 ListIdentifiers，要全字段才上 ListRecords。
 - 正确性：token 的「from 收窄 + 日内 skip」对**已闭合日**安全；当日窗口内新增会让 skip 漂移——增量收割建议 `until=昨天` 或先 ListIdentifiers diff。
-- 吞吐：~1300 条/页 ×3s/req ≈ 430 条/s 等效；全库 ~2.7M 篇 ≈ 2000 页 ≈ **7GB / ~2h**，一个下午可完成全量元数据回填。
+- 吞吐：~1300 条/页 ×3s/req ≈ 430 条/s 等效；全库 ~3.16M 篇 ≈ 2430 页 ≈ **8.5GB / ~2–3h**（@3s 纪律 ~2h，实测大页 ~4.8s 则 ~3.2h），一个下午可完成全量元数据回填。
 
 ## 4. 速率/缓存特征（13 发观测）
 

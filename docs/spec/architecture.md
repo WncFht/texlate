@@ -45,11 +45,11 @@ splice（`latex/reconstruct.py`）把译文写回 `zh/` 树 → `prepare_chinese
 
 ### 2.6 修复链（`pipecore` + `repair*.py` + `compile/fixloop/`）
 
-三段阶梯，逐段可开关（`RepairPolicy`：显式参 > options > `TEXLATE_NO_*` env，默认全开）：
+三段阶梯，两闸决议（`RepairPolicy`：L2/fixloop 各自 显式参 > options > `TEXLATE_NO_*` env，默认全开；precheck 无独立闸、随 fixloop 开关）：
 
 1. **precheck**（`precheck_job`/`repair.py`）：编译前环境级修复（缺包探测补装、209 预处理等）。
 2. **L2 修复**（`l2_repair_job`/`repair_l2.py`）：日志归因到 chunk/环境 → 回灌译文重 splice 重编（归因簇 + env judge）。
-3. **fixloop**（`fixloop_job`/`compile/fixloop/`[^fixloop-rules]）：yaml 规则引擎（`engine.py`/`actions.py`/`ruleset.py` 三件套 + `builtins` 八叶 facade + `cases`/`ctan`/`logparse`/`_yamlish` 支撑 + `llm_hook`），按日志签名改写源树迭代重编；`fixloop_flags_tail` 携跨引擎臂（tectonic 丢 flag → xelatex 重编）。
+3. **fixloop**（`fixloop_job`/`compile/fixloop/`[^fixloop-rules]）：yaml 规则引擎（`engine.py`/`actions.py`/`ruleset.py` 三件套 + `builtins` 十二叶 facade + `cases`/`ctan`/`logparse`/`_yamlish` 支撑 + `llm_hook`），按日志签名改写源树迭代重编；`fixloop_flags_tail` 携跨引擎臂（tectonic 丢 flag → xelatex 重编）。
 
 修复走尽仍 fail → `fault`/`fixloop_exhausted`；成功出 PDF 后经 `repair.py::embed_tounicode_quiet` + `compile/cjkmap.py`（GB1 cmap 资产 `compile/cmaps/`）嵌 ToUnicode 层，保证复制/搜索可用。
 
@@ -77,7 +77,7 @@ texlate/
   textutil/   编码/文本/正则/env 单源件（cjk/decls/encoding/mask/cite/ifscan/nets/osutil）
   chunk.py    ChunkIn 数据契约（顶层——arxiv 层不许上向 import，契约只能居根）
   pipecore.py 管线政策脊椎：状态映射/扫描/翻译/编译判定/修复三段/RepairPolicy/ReportSink
-  e2e.py      本地编排：pipeline_run/pipe_condition/mock_pipeline_run（CLI run 与 bench 共用）
+  e2e.py      本地编排：pipeline_run/pipe_condition/base_condition（CLI run 与 bench 共用）
   align.py    双语锚点对齐     share.py   分享包构建/消费     redlines.py 红线注册表
   repair.py   修复低层件      repair_l2.py L2 归因簇         texlog.py  日志 file-stack
   logsetup.py 日志装配单源
@@ -90,7 +90,7 @@ web/          SolidJS+Vite+pdfslick 阅读器前端（独立 toolchain）
 
 | 形态 | 入口 | 管线承载 | 状态/产物 |
 | --- | --- | --- | --- |
-| CLI | `texlate run|fetch|parse|export|share|tools|doctor`（`cli/`） | `e2e.py` 本地链（mock 或真翻译[^e2e-mock]） | 工作目录内 report/产物 |
+| CLI | `texlate run | fetch | parse | export | share | tools | doctor`（`cli/`） | `e2e.py` 本地链（mock 或真翻译[^e2e-mock]） | 工作目录内 report/产物 |
 | CLI 瘦客户端 | `texlate run --server URL`（`cli/thin.py`） | 提交到 server，2s 快照轮询 | 产物下载 + sha256 校验 |
 | Server | `texlate web` / `python -m texlate.server`（`server/app.py`） | `PipelineWorker` mixin 组合（fetch/parse/translate/compile/share/pdf/html/retranslate 段） | SQLite Store + SSE + 任务目录产物 |
 | SPA | `server/staticfiles.py` 挂载 `web/` 构建物 | 经 REST/SSE 消费 server | 双语阅读器 |
@@ -121,7 +121,7 @@ server 侧要点[^web-layer]：`Store`（`server/store/`）SQLite 六表（tasks
 - **离线**：`--offline`/`TEXLATE_OFFLINE=1` → 取源零网络（`acquire_source` `_offline_phase`：钉版精确查/最高已缓存版/`offline_no_cache`），不静默联网；本地目录源不受影响。
 - **front-matter**：`FRONT_MATTER_NAMES={abstract,title,author}`，`TEXLATE_FRONT_MATTER` env 缺省（默认 `abstract,title`），任务 `options.front_matter` 覆盖，实跑集以 `options.front_matter` 布尔图持久化（`ran_front_matter` 还原）。
 - **BYOK/密钥面**：LLM 凭据只存在请求内存 `Secrets` 与（可选）`settings` 配置；日志面经 RedactFilter 脱敏；段缓存按 key 指纹分桶（`k=` 段），跨租户不串。
-- **修复开关**：`TEXLATE_NO_PRECHECK`/`TEXLATE_NO_L2`/`TEXLATE_NO_FIXLOOP` 等 env 经 `RepairPolicy` 三级解析，显式参 > options > env > 默认开。
+- **修复开关**：`TEXLATE_NO_L2`/`TEXLATE_NO_FIXLOOP` env 经 `RepairPolicy` 三级解析（显式参 > options > env > 默认开）；precheck 无独立闸，随 fixloop 开关。
 - **env 名单源**：`textutil` 提供 `env_flag`/`env_str` 解析件；各层 `TEXLATE_*` 变量经它读，不各自 `os.environ`。
 
 ### 参考文献

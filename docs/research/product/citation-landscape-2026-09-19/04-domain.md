@@ -33,7 +33,7 @@ ADS 的核心价值不在数据（要 token、有日额），而在它把「引�
 
 ## zbMATH / OpenAIRE / DBLP
 
-**zbMATH Open** `api.zbmath.org/v1` 免鉴权：记录内嵌 `references[]` 带 `zbmath.document_id` 库内边——**边可用、边文本不可用**（相当多记录 doi/position/text 因许可冲突显示 unavailable）[^zbmath]。**OpenAIRE Graph** v11.1.1 全量 378.4GB（Zenodo，CC BY 4.0），`product_Cites_*.tar` 引用边 4 分片各 ~10.8GB——被低估的批量引用源[^openaire-graph]。**DBLP** 纯书目无引用边（设计使然）；**DOAJ** 无引用数据。
+**zbMATH Open** `api.zbmath.org/v1` 免鉴权：记录内嵌 `references[]` 带 `zbmath.document_id` 库内边——**边可用、边文本不可用**（相当多记录 doi/position/text 因许可冲突显示 unavailable）[^zbmath]。**OpenAIRE Graph** v11.1.1 全量 378.4GB（Zenodo，CC BY 4.0），`product_Cites_*.tar` 引用边 8 分片（7×~10.8GB + 1×~0.1GB，共 ~75.6GB）——被低估的批量引用源[^openaire-graph]。**DBLP** 纯书目无引用边（设计使然）；**DOAJ** 无引用数据。
 
 ## 可借鉴点
 

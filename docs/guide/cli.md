@@ -100,15 +100,16 @@ texlate tools install-tectonic     # 探测或安装 tectonic 引擎
 | 变量 | 作用 |
 | ---- | ---- |
 | `TEXLATE_BASE_URL` / `TEXLATE_API_KEY` / `TEXLATE_MODEL` / `TEXLATE_DIALECT` | BYOK 四件套：端点、key、模型、方言（`auto`\|`openai`\|`anthropic`\|`responses`） |
-| `OPENAI_API_KEY` / `DEEPSEEK_API_KEY` / `DASHSCOPE_API_KEY` / `ANTHROPIC_API_KEY` | `TEXLATE_API_KEY` 为空时按端点域名自动认读对应的厂商专名变量 |
+| `OPENAI_API_KEY` / `DEEPSEEK_API_KEY` / `DASHSCOPE_API_KEY` / `ANTHROPIC_API_KEY` / `TEXLATE_GATEWAY_KEY` | `TEXLATE_API_KEY` 为空时按端点域名自动认读对应的专名变量；`TEXLATE_GATEWAY_KEY` 对应回环端点（127.0.0.1/localhost/::1，含缺省本地网关 `http://127.0.0.1:3033`） |
 | `TEXLATE_OFFLINE` | `=1` 等效 `fetch`/`run` 的 `--offline` 总闸 |
 | `TEXLATE_DATA_DIR` | 数据目录（任务库、设置、日志、共享包、托管引擎），缺省主目录下 `.texlate/` |
-| `TEXLATE_LOG` | 日志级别 `debug`\|`info`\|`warning`\|`error`\|`off`，优先级高于 `-v`/`-q` 旗标 |
+| `TEXLATE_LOG` | 日志级别 `debug`\|`info`\|`warning`\|`error`\|`off`；未给 `-v`/`-q` 旗标时生效（旗标优先于 env） |
 | `TEXLATE_LOG_FILE` | 额外落盘的日志文件路径；`=off` 关闭（server 入口缺省落 `<数据目录>/logs/texlate.log`） |
 | `TEXLATE_TRANSLATOR` | `mock`\|`gateway` 强制翻译臂（export 与 server worker 共用） |
 | `TEXLATE_FRONT_MATTER` | 前置内容翻译集，逗号分隔 `abstract,title,author` |
 | `TEXLATE_NO_FIXLOOP` / `TEXLATE_NO_L2` | 关掉编译修复循环 / 译文归因重译 |
-| `TEXLATE_ENV_JUDGE` / `TEXLATE_AUTO_GLOSSARY` | 开启环境可译性判定 / 自动术语抽取（缺省关） |
+| `TEXLATE_ENV_JUDGE` | 开启环境可译性判定（缺省关；server 侧作逐任务 `env_judge` 选项的 env 兜底） |
+| `TEXLATE_AUTO_GLOSSARY` | 自动术语抽取——仅作用于本地 `run`/e2e（mock 占位管线）与 bench，缺省关；server/web 任务走逐任务选项 `auto_glossary`（缺省已开），此 env 在真实翻译路径无效 |
 | `TEXLATE_COMPILE_TIMEOUT` | server 侧编译超时秒数上限调整 |
 | `TEXLATE_MODE` | `server` 切多租户部署形态（写操作要 `X-Texlate-Key`；缺省 `local`） |
 | `TEXLATE_CACHE_SCOPE` | `shared`（缺省，译文缓存跨 key 共享）\| `per_key`（按 key 分桶隔离） |
@@ -119,4 +120,4 @@ texlate tools install-tectonic     # 探测或安装 tectonic 引擎
 
 ## 日志与实况
 
-`texlate` 的日志只走 stderr（stdout 留给 JSON 输出，可以安全管道）。级别判定顺序：`TEXLATE_LOG` > 旗标 > 缺省 `WARNING`。`-v`=INFO、`-vv`=DEBUG、`-q`=ERROR 且关实况进度、`-qq`=CRITICAL。`run` 的 stderr 实况包括阶段行、翻译进度条和修复循环的轮帧（每轮一行，形如 `fixloop r1 missing_file:plex-sans.sty err=68 (15.7s)`）；编译修复的细节日志缺省做了过滤只留动作行，`-vv` 或 `TEXLATE_LOG=debug` 放全量。
+`texlate` 的日志只走 stderr（stdout 留给 JSON 输出，可以安全管道）。级别判定顺序：旗标 > `TEXLATE_LOG` > 缺省 `WARNING`。`-v`=INFO、`-vv`=DEBUG、`-q`=ERROR 且关实况进度、`-qq`=CRITICAL。`run` 的 stderr 实况包括阶段行、翻译进度条和修复循环的轮帧（每轮一行，形如 `fixloop r1 missing_file:plex-sans.sty err=68 (15.7s)`）；编译修复的细节日志缺省做了过滤只留动作行，`-vv` 或 `TEXLATE_LOG=debug` 放全量。

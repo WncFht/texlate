@@ -29,4 +29,4 @@
 
 ## 现状
 
-实现落在 `bench/py/`：`parsebench.py`（B1）、`stagerun.py`（B3/L2 入口）、`gate_scorecard.py` + `triage.py`（L3 收口）、`fixture_assert.py`（B2 契约产出）、`runbook_loop.md`（估时唯一事实源）、`preflight_batch.py`（批前一票闸）；`tests/test_bench_regression.py` 98 例 fixture 断言矩阵是 L0 硬门。最新指标：identity 100% / leak 0.040%（parsebench，3937 文件时点）、union pdf 97.89% / clean 84.99%（scorecard，5124 格）。
+实现落在 `bench/py/`：`parsebench.py`（B1）、`stagerun.py`（B3/L2 入口）、`gate_scorecard.py` + `triage.py`（L3 收口）、`fixture_assert.py`（B2 契约产出）、`runbook_loop.md`（估时唯一事实源）、`preflight_batch.py`（批前一票闸）；`tests/test_bench_regression.py` fixture 断言矩阵（72 条 dict 断言 / 133 pytest 用例）是 L0 硬门。最新指标：identity 100% / leak 0.040%（parsebench，3937 文件时点）、union pdf 97.89% / clean 84.99%（scorecard，5124 格）。

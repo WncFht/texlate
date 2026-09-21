@@ -57,7 +57,7 @@
 - 08 §2.2 与 05 §6 M1 均承诺可选组件 `texlate[ts-validator]` → pyproject extras 只有 `server`；实现侧 `validate/ts/validator.js`+node 子进程已在（无 node 优雅降级 L0），extra 名从未建立。
 - 08 §5.2「沉淀队列头号 case：soul_cjk_mbox」→ taxonomy 已有 `soul_err`（L186），该句可能已被 v2/v3 规则消化（低置信提示）。
 - 10 §0「现状」列：B3「spike 已验证，需产品化」→ 已产品化（compilebench-v4）；B4「gwbench 雏形」→ xlatbench 冒烟 47/48=98%；B5「mock 16/16」→ e2e-real n100 已跑（chunk ok 99.97%）；B7「probe 已验证」→ alignbench 55 对全量复跑。该列整体停留在实施前快照。
-- 10 §8 M0 门「corpus39+v2 479 文件全绿」：corpus_v2 实际 224 个 .tex、corpus39 约 35 个 .tex（spike 口径 259/259），「479」与现有语料口径对不上（低置信，可能含非 .tex 文件）。
+- 10 §8 M0 门「corpus39+v2 479 文件全绿」：corpus_v2 实际 224 个 .tex、corpus39 实测 256 个 .tex（parsebench-corpus39-2026-09-15，files.jsonl 256 行；「约 35」系 by-class 表 aa 行 35 之误读）；256+224=480，旧跑 256+223=479 恰合 spec「479」口径——本条原判有误，可对上（同批 spec0910.md §4/§5 已核 PASS）。
 - 09 表头「~1,200 篇」：核心 1000 已入库；booster 200 已选（manifest_booster.jsonl 200 行）、docs/10 B1 记 187 篇已解析。规范是计划口径，无矛盾，但 booster 层现状只散见于 10 B1。
 - 06 无落地记录小节；其描述的获取层模块面与 `src/texlate/arxiv/`（fetch/unpack/cache/locate/ratelimit/sniff）一致 ✓。
 - 02 §目录结构 仍画「uv workspace 预留」树（fixrules/、tests/corpus/ 等旧名），与现行 src 布局有出入——决策史文档，按纪律可不改。
@@ -81,7 +81,7 @@
 
 - `version=0.1.0` == `src/texlate/__init__.py.__version__` ✓；`texlate = texlate.cli:app` ✓（cli 实有 version/fetch/parse/run/web 五命令）。
 - extras 仅 `server`（fastapi/python-multipart/uvicorn/sse-starlette）与 server/ 实装及 web/README「`texlate[server]`」一致 ✓；spec 承诺的 `texlate[ts-validator]` extra 缺位（见 §4）。
-- `[[tool.uv.index]]` tuna pin 与本机 `UV_DEFAULT_INDEX` churn 的处置口径在 HANDOFF-2026-09-16 §1 有记（uv.lock 不 commit）——当前 `git status` 里 uv.lock modified 正是此已知现象。
+- `[[tool.uv.index]]` tuna pin 与本机 `UV_DEFAULT_INDEX` churn 的处置口径在 HANDOFF-2026-09-16 §1 有记（uv.lock 不 commit）——审计时 `git status` 里 uv.lock modified 正是此已知现象。**2026-09-21 复查**：pyproject.toml 的 `[[tool.uv.index]]` 块已整体移除，但 uv.lock 仍为 tracked 且钉死 mirrors.aliyun.com（410 个 URL、0 个 pypi.org），与「永不入库」口径相悖；公开发布前须 `uv lock` 对 PyPI 重生成，或按口径 untrack（`git rm --cached uv.lock` + `.gitignore` 补登）。
 
 ## 8. 未漂/健康面（抽查通过项）
 

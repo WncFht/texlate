@@ -6,11 +6,11 @@
 
 ## 三种引用关联基本型
 
-**书目耦合 BC**（Kessler 1963）：共享 ≥1 条参考文献即耦合，强度=共享参考文献数[^kessler63]。两个决定性性质：**发表时刻即固定**、**对新论文 day-0 可用**（刚上线零被引但参考文献列表完整）。
+**书目耦合 BC**（Kessler 1963）：共享 ≥1 条参考文献即耦合，强度=共享参考文献数[^kessler63]。两个决定性性质：**发表时刻即固定**、**对新论文 day-0 可用**（刚上线零被引但参考文献列表完整）。ISI 1988 年就把 BC 做成产品功能 Related Records——「引用图→相似论文」的第一次工业化[^relrec]。
 
 **共被引 CC**（Small 1973；Marshakova 同年独立提出）：被同一后续论文同引即共被引[^small73][^marshakova73]。Marshakova 给出贯穿领域的定性框架：**BC 是回顾性的（作者成文时的知识结构，静态），CC 是前瞻性的（共同体后来如何理解两文关系，随新文献持续重估）**——CC 对经典配对越陈越准，对新论文是冷启动盲区。
 
-**直接引用**：ISI 1988 年就把 BC 做成产品功能 Related Records——「引用图→相似论文」的第一次工业化[^relrec]。
+**直接引用**：A→B 单边有向边——三型中最稀疏但语义最精确，新兴前沿侦测速度最快（下方 Shibata 2009 对照）。
 
 **对照实验**（两篇大样本、口径互补不矛盾）：Boyack & Klavans 2010（215 万篇）聚类准确性 **BC > CC > 直接引用**，BC+文本混合最好[^boyack10]；Shibata et al. 2009 新兴前沿侦测速度 **直接引用 > BC > CC**[^shibata09]——BC 画得准、直引发现得早。
 
@@ -27,11 +27,11 @@ Beel et al. 2016（200+ 篇综述）：推荐方法分布**内容过滤 55%/协�
 ## 影响力与归一化度量
 
 - **PageRank 系**：Chen et al. 2007 在 35.3 万篇 PR 论文上捞出低被引高 PageRank 的「gems」[^chen07]；**CiteRank**（Walker et al. 2007）——论文有年龄故 teleport 偏好新论文（τ≈2.6 年）、**damping d≈0.5** 而非 Web 的 0.85（无环图上高 damping 会让概率质量堆积在祖先节点）[^walker07]；ArticleRank（Li & Willett 2009）分母改「自身出度+全网平均出度」修正领域/年代偏置[^liwillett09]。定位：不是发现方法，是候选集内排序的现成武器。
-- **场归一化**：Radicchi et al. 2008（PNAS）领域内均值重标 cf=c/c₀ 后各学科分布坍缩为通用曲线——「除以领域均值」类指标的理论合法性[^radicchi08]；RCR 的领域用每篇论文自己的共被引网定义（NIH iCite 基于它）[^hutchins16]；FWCI=实际引用/同年同类同学科期望。归一化不产发现，是跨学科榜单的**排序公平性层**。
+- **场归一化**：Radicchi et al. 2008（PNAS）领域内均值重标 cf=c/c₀ 后各学科分布坍缩为通用曲线——「除以领域均值」类指标的理论合法性[^radicchi08]；RCR 的领域用每篇论文自己的共被引网定义（NIH iCite 基于它）[^hutchins16][^hutchins19]；FWCI=实际引用/同年同类同学科期望。归一化不产发现，是跨学科榜单的**排序公平性层**。
 
 ## 数据质量与博弈
 
-- **自引**：WoS 2016 全库量化——作者自引约占 5% 均值，但尾部极端（1822 人自引比 >0.5）[^kacem20]；按口径与领域 5–15% 区间[^szell20]。**建边时必须打 self-citation flag（作者交集非空），排序/计数可选剔除**。
+- **自引**：WoS 2016 全库量化——作者自引约占 5% 均值，但尾部极端（1822 人自引比 >0.5）[^kacem20]；按口径与领域 5–15% 区间[^szomszor20]。**建边时必须打 self-citation flag（作者交集非空），排序/计数可选剔除**。
 - **胁迫引用**：~1/5 受访作者报告经历过编辑/审稿人胁迫引用[^wilhite12]——边的生成动机本身有噪声。
 - **抽取管线是第一道门**：ParsCit 参考文献串精确匹配仅 ~40%、GROBID 更好仍有损；**unarXive 是决定性对照——从 arXiv LaTeX 源直抽得干净全文+2920 万条结构化 citation context（含位置）**[^unarxive]。LaTeX 源侧抽取在边质量与 context 覆盖上对 PDF 管线是结构性优势——有 LaTeX 源的自建方免费红利，PDF 侧玩家补不平。
 - **模型会作弊**：Citeomatic（Bhagavatula et al. 2018）实证——metadata 特征让模型学到「作者爱引自己」捷径，必须显式去自引偏置[^bhag18]。
@@ -67,9 +67,10 @@ Beel et al. 2016（200+ 篇综述）：推荐方法分布**内容过滤 55%/协�
 [^walker07]: Walker, D. et al. Ranking scientific publications using a model of network traffic (CiteRank). JSTAT P06010, 2007.
 [^liwillett09]: Li, J. & Willett, P. ArticleRank. Aslib Proceedings 61(6):605-618, 2009.
 [^radicchi08]: Radicchi, F. et al. Universality of citation distributions. PNAS 105(45):17268-17272, 2008.
-[^hutchins16]: Hutchins, B.I. et al. The NIH Open Citation Collection / Relative Citation Ratio. PLoS Biology 14(7):e1002541, 2016.
+[^hutchins16]: Hutchins, B.I., Yuan, X., Anderson, J.M. & Santangelo, G.M. Relative Citation Ratio (RCR): A new metric that uses citation rates to measure influence at the article level. PLoS Biology 14(9):e1002541, 2016. [doi.org/10.1371/journal.pbio.1002541](https://doi.org/10.1371/journal.pbio.1002541)
+[^hutchins19]: Hutchins, B.I. et al. The NIH Open Citation Collection: A public access, broad coverage resource. PLoS Biology 17(10):e3000385, 2019. [doi.org/10.1371/journal.pbio.3000385](https://doi.org/10.1371/journal.pbio.3000385)
 [^kacem20]: Kacem, A., Flatt, J.W. & Mayr, P. Tracking self-citations in academic publishing. Scientometrics 123:1157-1165, 2020.
-[^szell20]: Szell, M. / Clarivate 团队. How much is too much? Scientometrics 2020. [doi.org/10.1007/s11192-020-03417-5](https://doi.org/10.1007/s11192-020-03417-5)
+[^szomszor20]: Szomszor, M., Pendlebury, D.A. & Adams, J.（Clarivate）. How much is too much? Scientometrics 2020. [doi.org/10.1007/s11192-020-03417-5](https://doi.org/10.1007/s11192-020-03417-5)
 [^wilhite12]: Wilhite, A.W. & Fong, E.A. Coercive citation in academic publishing. Science 335(6068):542-543, 2012.
 [^unarxive]: Saier, T. & Färber, M. unarXive. Scientometrics 125:3085-3108, 2020（2022 更新）. [doi.org/10.1007/s11192-020-03382-z](https://doi.org/10.1007/s11192-020-03382-z)
 [^bhag18]: Bhagavatula, C. et al. Content-based citation recommendation (Citeomatic). NAACL 2018. [aclanthology.org/N18-1022](https://aclanthology.org/N18-1022/)

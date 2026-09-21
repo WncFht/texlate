@@ -10,7 +10,7 @@ React SPA + 小 express server（只做 Zotero/Mendeley OAuth 代理，学术数
 
 ## Local Citation Network（GPL-3，活跃维护 v1.32）
 
-巴塞尔大学 Tim Woelfle，纯静态 Vue 2 单页 + vis-network[^lcn-repo]。**四源抽象层是教科书实现**：统一 `wrapper(ids, responseFunction, phase, retrieveCited, retrieveCiting)` 签名——OpenAlex 用 `filter=cited_by:id1|id2`（≤50 ID/批）+cursor 拉入边、`filter=cites:{id}` 是拿 Top Citing 的关键技巧；S2 用 `paper/batch` POST（≤500 ids，源码注释标了 citations≤9999 上限坑）；Crossref 只有出边；实验性 Co*Citation API 实现 RICS 间接引用（coCited/coCiting 两档，rank=四者之和）[^lcn-src]。算法=两趟调用构 `referenced`/`citing` 局部计数表，Top Cited/Top Citing 取非 seed top-N；**完整度估计**（有 refs 的 seed 占比×ID 命中率）比大多数同类产品诚实[^lcn-faq]。可视化标杆：vis-network 按年份分层 hierarchical 布局，形状编码（◆source/●seed/▲cited/▼citing/⬡indirect）；bookmarklet 支持 17 家出版商页面 DOM 抽引用条目[^lcn-bookmarklet]。
+巴塞尔大学 Tim Woelfle，纯静态 Vue 2 单页 + vis-network[^lcn-repo]。**四源抽象层是教科书实现**：统一 `wrapper(ids, responseFunction, phase, retrieveCited, retrieveCiting)` 签名——OpenAlex 用 `filter=cited_by:id1|id2`（≤50 ID/批，拉 seed 的参考文献表=出边，喂 Top Cited）+`filter=cites:id1|id2`（同 ≤50 ID/批 OR，拉施引文献=入边，喂 Top Citing）+cursor 翻页——retrieve-all 两阶段共用同一份 idsString，单 id 的 `cites:{id}` 只见于 seed 预取路径；S2 用 `paper/batch` POST（≤500 ids，源码注释标了 citations≤9999 上限坑）；Crossref 只有出边；实验性 Co*Citation API 实现 RICS 间接引用（coCited/coCiting 两档，rank=四者之和）[^lcn-src]。算法=两趟调用构 `referenced`/`citing` 局部计数表，Top Cited/Top Citing 取非 seed top-N；**完整度估计**（有 refs 的 seed 占比×ID 命中率）比大多数同类产品诚实[^lcn-faq]。可视化标杆：vis-network 按年份分层 hierarchical 布局，形状编码（◆source/●seed/▲cited/▼citing/⬡indirect）；bookmarklet 支持 17 家出版商页面 DOM 抽引用条目[^lcn-bookmarklet]。
 
 ## Zotero Cita（Wikimedia 资助）
 

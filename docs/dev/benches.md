@@ -8,13 +8,13 @@
 ## 总表
 
 | bench | 路径 | 一句话用途 | 成本 | 状态 |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | stagerun | `bench/py/stagerun.py` + `stagerun_lib.py` + `stage_{ingest,parse,xlat,compile,fixloop}.py` | 五段批跑 DAG：ingest→parse→xlat→compile→fixloop，records jsonl 断点续跑 | LLM网关+LaTeX+重算力 | active |
 | stage_timing † | `bench/py/stage_timing.py` | records 分位/慢纸计时报告 → `_timing/{json,md}` | 无 | †在飞删除 |
 | status_panel | `bench/py/status_panel.py` | :8766 只读状态面板（进度漏斗/看板/进程/磁盘/台账） | 无 | active（pid 在跑） |
 | task_ping | `bench/py/task_ping.py` | 原子写 tasks.d/<slug>.json 心跳看板 | 无 | active |
 | preflight_batch | `bench/py/preflight_batch.py` | 批跑前一票闸：import 走查+mock链+磁盘+manifest+工具链+网关鉴权 | 网络 | active |
-| wave | `bench/py/wave.py` | 修复波编排：id 集解析→records 快照→tmp/rerun-wave.sh→postmortem→scorecard | LaTeX+网络 | active |
+| wave | `bench/py/wave.py` | 修复波编排：id 集解析→records 快照→stagerun 命令链→postmortem→scorecard | LaTeX+网络 | active |
 | nightwatch † | `bench/py/nightwatch.py` | 隔夜批 watchdog 报告 | 无 | †在飞删除（无人调用、无定时器） |
 | parsebench (B1) | `bench/py/parsebench.py` | 产品解析器语料评测：ok/ms/identity/leak/死占位，分层加权+CI | 重算力 | active |
 | fixture_assert (B2) | `bench/py/fixture_assert.py` | 陷阱断言矩阵（@Tnn）跑产品解析器出 contract 输出 | 无 | active |
@@ -75,7 +75,7 @@
 | PROTOCOL/TIERS/RETENTION | `bench/*.md` | bench 协议/验证分层契约/结果留存契约 | — | asset·治理 |
 | results/* | `bench/results/{soak-2026-09-18,stagerun-overnite-2026-09-20,zhstore-verify-2026-09-20,stagerun-smk-unified-2026-09-19,status-panel}` | 现存 run 目录（归零后存活件，口径见 RETENTION） | — | asset |
 | work_* | `bench/work_{daily,e2ereal,gwpilot,iclr,m1k,v3}` | 各管线工作区（gitignored，活引用全保） | — | asset |
-| .venv_babeldoc | `bench/py/.venv_babeldoc/` | babeldoc 对照实验专用 venv（664M，**macOS 原生在 Linux 已 broken**） | — | broken |
+| .venv_babeldoc | `bench/py/.venv_babeldoc/` | babeldoc 对照实验专用 venv（664M macOS 原生件，bin/python 在 Linux 悬空） | — | **已删** 2026-09-20（机制位保留，按需重建） |
 
 ## 语料管线（bench/py/corpus/）
 
@@ -175,9 +175,9 @@ gwpilot JSONL 任务队列投递位；`night.jsonl` 已于 release 清理删除�
 ### wave.py — 修复波编排壳（runbook_loop §1–§5）
 
 - **运行**：`uv run python bench/py/wave.py {run IDS.txt|--mech B01,W45|--rule R [... --go] | postmortem [RUN_DIR] [--deep --dossier-top 30] | scorecard [RUN_DIR|records] [--require-frozen --save]}`
-- **输入**：ids 文件/--mech/--rule 选择器、run records、report/{mech_ids,dossier}.py、rundiff、gate_scorecard、tmp/rerun-wave.sh
+- **输入**：ids 文件/--mech/--rule 选择器、run records、report/{mech_ids,dossier}.py、rundiff、gate_scorecard、stagerun.py
 - **输出**：`bench/results/wave-<tag>-<date>/{ids.txt,before/,run_meta.json,wave.json,rundiff.md,postmortem.{md,json}}` + scorecard-history
-- **成本**：LaTeX+网络。**状态**：active——fixloop 台账管线的波次调度。**已知缺陷**：wave.py:53/55 的 `bench/py/{mech_ids,dossier}.py` 路径在 report/ 子目录拆分（98e1ee34）后失效，--mech/postmortem 当前 broken 待重指。
+- **成本**：LaTeX+网络。**状态**：active——fixloop 台账管线的波次调度（report/ 拆分后 mech_ids/dossier 路径已于 73bdff0b 重指修复）。
 
 ### †nightwatch.py — 隔夜 watchdog（已在飞删除）
 
@@ -354,12 +354,12 @@ records jsonl 容错读写、原子写、safe_id/copytree_ignore、TUNA_TLNET pi
 
 - **运行**：`uv run python bench/py/report/dossier.py <id> [--run DIR|--diff DIR|--all-runs|--json]`
 - **输入**：results/*/records+cases+work 树 + fixloop rules 分类 + cbucket vendor 清单
-- **状态**：active——wave postmortem 的 dossier-join 子进程（注意 wave.py 侧 stale 路径待修）。
+- **状态**：active——wave postmortem 的 dossier-join 子进程。
 
 ### report/mech_ids.py — 机制标签↔id 双向索引
 
 - **运行**：`python3 bench/py/report/mech_ids.py <tags...>|--rule R|--coverage|--paper ID [--out F --validate --plus-random N --seed S]`
-- **输出**：id 表/--out 喂 rerun-wave --ids-file；--coverage 覆盖+孤儿审计
+- **输出**：id 表/--out 喂 `wave.py run <ids-file>`；--coverage 覆盖+孤儿审计
 - **状态**：active——ruleset.py:410 指定其 --validate 为机制覆盖官方口径。
 
 ### report/mech_backfill.py — manifest mech_tags 回填
@@ -377,7 +377,7 @@ records jsonl 容错读写、原子写、safe_id/copytree_ignore、TUNA_TLNET pi
 ### report/l2_attr_probe.py — L2 归因分布级探针
 
 - **运行**：`uv run python bench/py/report/l2_attr_probe.py`（RESULTS_JSON 常量需重指到 archive）
-- **输入**：e2e-real-n100 results.json + work_e2ereal trees + _xlat_state + corpus
+- **输入**：e2e-real-n100 results.json + work_e2ereal trees +_xlat_state + corpus
 - **输出**：`bench/results/l2-attr-probe-*/{probe.jsonl,cases.jsonl,summary.md}`
 - **状态**：active——_l2_localize 唯一分布级验证件；e2e_real_bench.py:776 为其保契约。
 
@@ -397,8 +397,8 @@ records jsonl 容错读写、原子写、safe_id/copytree_ignore、TUNA_TLNET pi
 以下六件 `bench/py/report/` 脚本由 `tools-runbook.md` 官宣「外部库横评（选型期已结案）」，运行依赖（pylatexenc/TexSoup/plasTeX/ieeA）已全部不在当前环境，产出已归档 `bench/archive-2026-09-20/results/`：
 
 | 脚本 | 运行 | 结案依据 |
-|---|---|---|
-| `bench_pylatexenc.py` | `python3 bench/py/report/bench_pylatexenc.py {parse|fixtures|roundtrip|extract|damage|newcmd|all}` | PROTOCOL 四项横评；pylatexenc 不在任何 env |
+| --- | --- | --- |
+| `bench_pylatexenc.py` | `python3 bench/py/report/bench_pylatexenc.py {parse | fixtures | roundtrip | extract | damage | newcmd | all}` | PROTOCOL 四项横评；pylatexenc 不在任何 env |
 | `ieeA_bench.py` | `PYTHONPATH=tmp/refs/ieeA python3 bench/py/report/ieeA_bench.py` | 参考实现横评；ieeA 仅存 tmp/refs clone |
 | `plastex_bench.py` | `python3 bench/py/report/plastex_bench.py` | plasTeX 横评+宏展开参考；dep 不在 env |
 | `texsoup_bench.py` | `python3 bench/py/report/texsoup_bench.py` | TexSoup 四项横评；dep 不在 env |
@@ -412,8 +412,8 @@ records jsonl 容错读写、原子写、safe_id/copytree_ignore、TUNA_TLNET pi
 续跑手册：`research/corpus/2026-09-19-iclr章节长度.md`。六件套均 active（暂停态，2026-09-20 新提交 67996754）：
 
 | 脚本 | 运行 | 输入→输出 |
-|---|---|---|
-| `iclr_map.py` | `uv run python bench/py/iclr_map.py [--phase oa|s2|all --limit N]`（OPENALEX_API_KEY 在 paper-search skill .env） | accepted.jsonl→`work_iclr/map.jsonl`（orid→arxiv_id） |
+| --- | --- | --- |
+| `iclr_map.py` | `uv run python bench/py/iclr_map.py [--phase oa | s2 | all --limit N]`（OPENALEX_API_KEY 在 paper-search skill .env） | accepted.jsonl→`work_iclr/map.jsonl`（orid→arxiv_id） |
 | `iclr_fetch.py` | `setsid nohup uv run python bench/py/iclr_fetch.py`（trial `--limit 30`） | map 行→`bench/corpus/{arxiv_id}/`+fetch.jsonl |
 | `iclr_pdf.py` | `uv run python bench/py/iclr_pdf.py [--limit N]`（OPENREVIEW_USER/PASS） | 无 arxiv_id 行→`bench/corpus_iclr_pdf/{orid}.pdf` |
 | `iclr_sections.py` | `uv run python bench/py/iclr_sections.py --corpus bench/corpus --out bench/work_iclr/sections.jsonl` | LaTeX 臂章节分桶（17 canon buckets） |
@@ -434,7 +434,7 @@ records jsonl 容错读写、原子写、safe_id/copytree_ignore、TUNA_TLNET pi
 ## 资产、产物与工作区
 
 | 项 | 说明 | 状态 |
-|---|---|---|
+| --- | --- | --- |
 | `bench/fixtures/` | 陷阱 .tex 语料 92K（tricky*@Tnn/xlat-traps），字节即语义 | **保护区**·asset |
 | `bench/PROTOCOL.md` | per-库评测协议（四项横评+报告格式） | **已删** 2026-09-20（选型期协议退役，原文见 git 历史） |
 | `bench/TIERS.md` | L0–L3 验证分层契约 | 治理·keep |
@@ -446,9 +446,9 @@ records jsonl 容错读写、原子写、safe_id/copytree_ignore、TUNA_TLNET pi
 | `bench/results/status-panel` | 看板状态目录（tasks.d/*.json） | active·keep |
 | `bench/work_daily` | daily-soak 工作区（lock+log，今日写） | active·keep |
 | `bench/work_e2ereal` | 2.9G e2e_real 工作区（4 个 live 脚本引用） | active·keep |
-| `bench/work_iclr` | 8.3M ICLR 研究状态（6 脚本引用） | active·keep |
+| `bench/work_iclr` | 8.3M ICLR 研究状态（6 脚本引用） | **已删** 2026-09-19/20 清理——续跑须从 OpenReview 缓存重导 `accepted.jsonl`（勘误见 `research/corpus/2026-09-19-iclr章节长度.md`） |
 | `bench/work_m1k` | 1.2M m1k+fixloop 基例挖掘区（今日写） | active·keep |
 | `bench/work_v3` | 200M corpus_v3 构建工作区（3 脚本硬编码） | active·keep |
 | `bench/work_gwpilot` | gwpilot 状态位（现 absent，run 时自重建） | keep·机制位 |
-| `bench/py/.venv_babeldoc` | babeldoc 对照 venv 664M——**macOS 原生，bin/python 在 Linux 悬空，当前 broken** | keep（文档契约）→建议重建或删 |
-| †`bench/py/.venv` | 54M macOS 原生横评 venv（无 bin/python，彻底 broken） | **delete 候选** |
+| `bench/py/.venv_babeldoc` | babeldoc 对照 venv 664M——macOS 原生件，bin/python 在 Linux 悬空 | 现 absent·机制位（09-20 清理已删；如需重建 `uv venv bench/py/.venv_babeldoc --python 3.12 && uv pip install babeldoc`） |
+| †`bench/py/.venv` | 54M macOS 原生横评 venv（无 bin/python，彻底 broken） | **已删** |

@@ -15,7 +15,7 @@ scite 2018 年创立于纽约布鲁克林（Josh Nicholson CEO），把「A 引 
 1. **全文获取双轨**：OA 走 PubMed Central + Unpaywall 全量收割（开源 `biblio-glutton-harvester`）；订阅内容走与出版商签的**全文索引协议**（30+ 家：Wiley/BMJ/Sage/Cambridge UP/IOP/Frontiers/AAAS 等）——这是真壁垒。
 2. **引注与文献条目识别**：PDF 走 **GROBID**（~5 PDF/s @4 核）；出版商 JATS XML 走 **Pub2TEI** 归一成同一 TEI；全管线 11 个 ML 模型[^ccc]。
 3. **条目→DOI 匹配**：**biblio-glutton**（GROBID 生态书目匹配服务，对 Crossref 全量模糊匹配，F=95.4）。端到端引用上下文解析到 DOI 比例：**PDF 源 ~70%、PMC JATS XML ~95%**——PDF 管线丢 ~30% 语句。
-4. **语句分类**：输入「引注句+前后各一句」窗口，输出 supporting/disputing/mentioning 三类。训练数据 ~5 万条双人专家标注（自研 doccano 部署）；模型演进到**微调 SciBERT** 定版；类别极不均衡（92.6% mentioning/6.5% supporting/0.8% disputing），过采样+预测层调权使各类 precision>80%，disputing F 58.97%。反直觉事实：**十几亿条语句的分类推理跑在单台 GTX 1080Ti 上**——推理成本极低[^qss]。外部独立评测对稀有类有争议（Bakker 2023 vs scite 反驳）[^bakker][^reply]。
+4. **语句分类**：输入「引注句+前后各一句」窗口，输出 supporting/disputing（SJI 论文与产品端称 contrasting）/mentioning 三类。训练数据 ~5 万条双人专家标注（自研 doccano 部署）；模型演进到**微调 SciBERT** 定版；类别极不均衡（92.6% mentioning/6.5% supporting/0.8% disputing），过采样+预测层调权使各类 precision>80%，disputing F 58.97%。反直觉事实：**十几亿条语句的分类推理跑在单台 GTX 1080Ti 上**——推理成本极低[^qss]。外部独立评测对稀有类有争议（Bakker 2023 vs scite 反驳）[^bakker][^reply]。
 
 数据分野要记：**语句级产物只来自有全文的 ~32M 篇；更大的 citation 图（~190M source→target 对）来自 Crossref 参考文献列表**[^qa]。Editorial notices（撤稿/关切/更正）聚合 Crossref+PubMed+Retraction Watch+自建检测器四源[^notices]。
 

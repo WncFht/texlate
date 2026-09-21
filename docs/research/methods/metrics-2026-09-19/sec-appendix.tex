@@ -13,16 +13,16 @@
 
 \subsection{随档清单与原始产物索引}
 
-本报告自包含：所有图表由随档 \texttt{data/} 原始数据生成，引用源文档的时点快照在随档 \texttt{refs/}，不依赖本目录以外的路径。
+本报告图表全部由随档 \texttt{data/} 原始数据生成，不依赖本目录以外的图片路径；但 \texttt{refs/} 仅随档上一期复盘的两张 SVG，引用源文档的时点快照未随迁——对应档案位置见下表与 README.md（「随档 \texttt{refs/} 全收录」的原始表述以 README 为准）。
 
 \begin{center}\small
 \begin{tabular}{@{}l>{\raggedright\arraybackslash}p{10.6cm}@{}}
 \toprule
 目录 & 内容 \\
 \midrule
-\texttt{data/} & 五条时间线 CSV（计分卡 / 解析 / 语料 / 规则测试 / 翻译质量）；\texttt{arms\_history.csv} 377 行评测流水（含各轮 run 目录名、样本量、头条读数）；\texttt{commits.json} 1{,}648 commit 全录；\texttt{milestones.md} D0--D5 大事记 \\
+\texttt{data/} & 六条时间线 CSV（计分卡 / 解析 / 语料 / 规则测试 / 翻译质量 / 每日 commit）；\texttt{arms\_history.csv} 377 行评测流水（含各轮 run 目录名、样本量、头条读数）；\texttt{commits.json} 1{,}648 commit 全录；\texttt{milestones.md} D0--D5 大事记 \\
 \midrule
-\texttt{refs/} & \texttt{10-benchmark-suite.md}（评测器规格：七臂定义/门槛）；\texttt{09-benchmark-corpus.md}（语料规格：层构造/治理）；\texttt{PROTOCOL.md}（逐库横评协议）；\texttt{TIERS.md}（验证分层契约 L0--L3）；\texttt{corpus\_v3-MANIFEST.md}（层语义/EVAL\_ONLY）；\texttt{mechanisms.jsonl}（机制台账快照 263 条）；\texttt{00-grand-comparison.md}（8 库横评，D0 定案证据）；\texttt{bench-metrics-corpusv3-2026-09-19.md}（本批 Markdown 总表）；\texttt{review-2026-09-18.md} + \texttt{metrics-timeline.svg} + \texttt{assets-growth.svg}（上一期复盘）；\texttt{overseer-selfimp-snapshot.md}（车队台账 09-19 时点快照） \\
+\texttt{refs/} & 随档仅 \texttt{metrics-timeline.svg} + \texttt{assets-growth.svg}（上一期复盘两图）。其余源文档快照未随迁，对应档案：评测器规格（七臂定义/门槛）→ \texttt{docs/spec/benchmark.md}；语料规格（层构造/治理）→ \texttt{docs/spec/corpus.md}；逐库横评协议 → \texttt{docs/dev/bench-harness.md}；验证分层契约 L0--L3 → \texttt{bench/TIERS.md}；层语义/EVAL\_ONLY → \texttt{bench/corpus/MANIFEST*.md} 族；机制台账快照 → \texttt{bench/corpus/mechanisms.jsonl}；8 库横评（D0 定案证据）→ \texttt{bench/archive-2026-09-20/results/00-grand-comparison.md}；本批 Markdown 总表 → \texttt{docs/research/methods/2026-09-19-bench-metrics-corpusv3.md}；上一期复盘正文与车队台账快照 → 迁移前存档 \texttt{tmp/old-docs-2026-09-20/docs/research/metrics-2026-09-19/refs/} \\
 \bottomrule
 \end{tabular}
 \end{center}

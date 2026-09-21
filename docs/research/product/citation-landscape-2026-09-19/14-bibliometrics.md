@@ -66,7 +66,7 @@ R 包（GPL-3），开源可编程性最强[^aria2017]。数据流矩阵代数�
 [^waltman2010unified]: Waltman L., van Eck N.J., Noyons E.C.M. A unified approach to mapping and clustering of bibliometric networks. *Journal of Informetrics* 4, 629–635, 2010.
 [^waltman2013slm]: Waltman L., van Eck N.J. A smart local moving algorithm for large-scale modularity-based community detection. *EPJ B* 86, 2013.
 [^vos-online-cp]: VOSviewer Online Docs — Control panel. [app.vosviewer.com/docs/user-interface/control-panel/](https://app.vosviewer.com/docs/user-interface/control-panel/)
-[^vos-manual165]: Manual for VOSviewer 1.6.5/1.6.21. [vosviewer.com/documentation/](https://www.vosviewer.com/documentation/Manual_VOSviewer_1.6.5.pdf)
+[^vos-manual165]: Manual for VOSviewer 1.6.5/1.6.21. [1.6.5 PDF](https://www.vosviewer.com/documentation/Manual_VOSviewer_1.6.5.pdf) + [1.6.21 PDF](https://www.vosviewer.com/documentation/Manual_VOSviewer_1.6.21.pdf)
 [^vos-online-gh]: neesjanvaneck/VOSviewer-Online（MIT、npm 包）. [github.com/neesjanvaneck/vosviewer-online](https://github.com/neesjanvaneck/vosviewer-online)
 [^chen2006]: Chen C. CiteSpace II: Visualization and knowledge discovery in bibliographic databases. [pmc.ncbi.nlm.nih.gov/articles/PMC1560567](https://pmc.ncbi.nlm.nih.gov/articles/PMC1560567/)
 [^chen2006jasist]: Chen C. CiteSpace II: Detecting and visualizing emerging trends and transient patterns in scientific literature. *JASIST* 57(3), 359–377, 2006.

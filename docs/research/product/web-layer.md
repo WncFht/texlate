@@ -58,7 +58,7 @@ texglot（Mengqi-Lei/texglot, Apache-2.0）是形态最接近的活体先例：F
 
 ## 2. API 规格
 
-统一约定：Base `/api`；错误一律 `{"detail": str, "code"?: str}`；任务相关响应含 `Cache-Control: no-store`；ID 全部 `t_`+16hex / `c_`+16hex（URL 安全、可排序性无所谓）。
+统一约定：Base `/api`；错误一律 `{"detail": str, "code"?: str}`；任务相关响应含 `Cache-Control: no-store`；task_id 为 `t_`+16hex（`store/_common.py::new_task_id`），chunk_id 为 `sha256(src_file:byte_start:byte_end)[:24]` 无前缀（URL 安全、可排序性无所谓）。
 
 ### 2.1 `POST /api/arxiv/{arxiv_id}/translate`
 
@@ -103,16 +103,22 @@ texglot（Mengqi-Lei/texglot, Apache-2.0）是形态最接近的活体先例：F
 
 帧格式：`id: {seq}\nevent: {type}\ndata: {json}\n\n`；每 15s 一行 `: ping` 保活（评论行，不占 seq）。
 
-| event      | 何时发                                                | data schema（均为 object）                                     |
-| ---------- | ----------------------------------------------------- | -------------------------------------------------------------- |
-| `snapshot` | 连接建立首帧，seq=0                                   | 完整任务快照（见下）                                           |
-| `stage`    | 状态机每次迁移                                        | `{stage, progress, message, at}`                               |
-| `chunk`    | 每块状态迁移；服务端按 200ms 窗口合帧批量发 `items[]` | `{done,total,cached,failed, items:[{seq,status,error_code?}]}` |
-| `log`      | 管线日志行（编译 log 摘要、修复动作）                 | `{line}`                                                       |
-| `warning`  | 非致命警告（表格超限、部分块回退原文）                | `{code, message}`                                              |
-| `error`    | 块级可重试错误或致命错误                              | `{code, message, stage, retryable, chunk_seq?}`                |
-| `done`     | 终态（done/partial/fault/cancelled）                  | `{status, artifacts, stats}`                                   |
-| `ping`     | 保活（也可只用评论行）                                | `{}`                                                           |
+| event      | 何时发                                                        | data schema（均为 object）                                     |
+| ---------- | ------------------------------------------------------------- | -------------------------------------------------------------- |
+| `snapshot` | 连接建立首帧，seq=0（逐连现场合成，不落 `task_events`）       | 完整任务快照（见下）                                           |
+| `stage`    | 状态机每次迁移                                                | `{stage, progress, message, at}`                               |
+| `chunk`    | 每块状态迁移；服务端每 8 块或 500ms 合帧批量发 `items[]`      | `{done,total,cached,failed, items:[{seq,status,error_code?}]}` |
+| `log`      | 管线日志行（编译 log 摘要、修复动作）                         | `{line}`                                                       |
+| `warning`  | 非致命警告（表格超限、部分块回退原文）                        | `{code, message}`                                              |
+| `error`    | 块级可重试错误或致命错误                                      | `{code, message, stage, retryable, chunk_seq?}`                |
+| `fixloop`  | 修复链轮实况/收尾帧（`_repair_event` 发布，api_key 已 scrub） | `{phase:"round"\|"done", round?, cell?, cond:"zh"\|"en"}`      |
+| `l2`       | L2 回灌臂阶段帧（同走 `_repair_event`）                       | `{phase:"start"\|"progress"\|"done", message?}`                |
+| `precheck` | 预检臂帧（wire 实发，`sse.ts` 暂无监听——inert）               | `{phase:"done", report}` / `{phase:"progress"}`                |
+| `resync`   | 重放缺口提示帧（`events.py::_gap_frame` 合成，不落库）        | `{gap_after, resume_from}`                                     |
+| `done`     | 终态（done/partial/fault/cancelled）                          | `{status, artifacts, stats}`                                   |
+| `ping`     | 保活（也可只用评论行）                                        | `{}`                                                           |
+
+线面活契约 = `src/texlate/server/events.py`（重放/缺口合成）+ `web/src/api/sse.ts`（监听面）。补充口径：`chunk` 合帧常量 `_FLUSH_N=8`/`_FLUSH_MS=0.5` 为 translate/pdf 两臂共用（`worker/_common.py`）；`fixloop` 无 `phase` 的旧版裸 cell 帧按 done 处理；`l2` done 帧平铺 `enabled/errors/retranslated/fallback`；`resync` 于 `Last-Event-ID` 落 `EVENT_CAP` 淘汰区时发出（seq=first_replayable-1），前端重置水位线重拉 snapshot；`_resync`（下划线形）是内部队列哨兵永不上线——上表 `resync` 才是线面帧。
 
 JSON Schema（可直接实现；`progress` 为 0-100 粗粒度）：
 
@@ -199,6 +205,19 @@ JSON Schema（可直接实现；`progress` 为 0-100 粗粒度）：
                 "latency_s": { "type": "number" },
             },
         },
+        "queue_position": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "仅 status=\"queued\" 且任务在 replay 序队列内时出现（缺席而非 null）",
+        },
+        "options": {
+            "type": "object",
+            "description": "用户入参 options 回显——内部审计键经 _SNAPSHOT_OPTS_DROP 剥除",
+        },
+        "glossary": {
+            "type": "string",
+            "description": "config_json.glossary 回显，未设则缺席",
+        },
         "created_at": { "type": "number" },
         "updated_at": { "type": "number" },
         "last_seq": { "type": "integer" },
@@ -214,7 +233,7 @@ JSON Schema（可直接实现；`progress` 为 0-100 粗粒度）：
 //               "stats":{"tokens":81233,"seconds":264,"chunks_failed":3}}
 ```
 
-错误码枚举：`arxiv_fetch | no_latex_source | no_html_source | pdf_wrapper | parse | provider_auth | provider_rate | provider_timeout | provider_error | validate | placeholder_mismatch | compile | fixloop_exhausted | unsupported_format | internal | auth_required`。（`no_html_source`——arxiv_html 链 `/html/{id}` 404 或 200 stub（无 `ltx_document`）终态，`retryable=false`；取页非 200/404 的传输面仍归 `arxiv_fetch` 可重试。）
+错误码枚举：`arxiv_fetch | no_latex_source | no_html_source | pdf_wrapper | parse | provider_auth | provider_rate | provider_timeout | provider_error | validate | placeholder_mismatch | compile | fixloop_exhausted | unsupported_format | internal | auth_required`。（此 16 码名录冻结于调研时点、已漂移——现行唯一事实源 = `src/texlate/server/store/_common.py::ERROR_CODES`（30 码；其 `#: 错误码枚举（§2.2）` 注释回指本节），汇总表见 `docs/dev/repository.md` §store。）（`no_html_source`——arxiv_html 链 `/html/{id}` 404 或 200 stub（无 `ltx_document`）终态，`retryable=false`；取页非 200/404 的传输面仍归 `arxiv_fetch` 可重试。）
 
 进度百分比映射（沿用 texglot 刻度，前端也可只用 stage+counters 自绘）：fetching 3→9 / parsing 9→25 / translating 25→85（按 done/total 线性）/ compiling 90→99 / 终态 100。
 
@@ -257,7 +276,7 @@ JSON Schema（可直接实现；`progress` 为 0-100 粗粒度）：
 
 ### 2.5 辅助端点（texglot 形状，全部本地语义）
 
-- `GET /api/health` — `{ok, version, compilers:{tectonic,xelatex,babeldoc}, data_dir}`
+- `GET /api/health` — local：`{ok, version, commit, started_at, compilers:{tectonic,xelatex,babeldoc}, data_dir}`；`TEXLATE_MODE=server` 深度探活返回 `{ok, db, queue_depth}`（db 探挂只降 `db=false` 不 503——`routers/meta.py`）
 - `GET /api/tasks` — 按 `tenant`（§4）过滤的任务列表（`?status=` 过滤）
 - `POST /api/task/{id}/cancel` / `POST /api/task/{id}/retry`（body 可带 `{main, options}`）。retry 守卫与清理面：**状态守卫先于一切 mutation**——`status ∉ RETRYABLE_FROM` 纯 409 `invalid_transition`，不得先清产物；`needs_auth` 无 `X-Texlate-Key` → 401 `auth_required`；body 白名单外键一律 400 `invalid_request`——`model`/`target_lang` 是 cache_key 口径成员，换值须新建任务，静默丢弃比报错糟；`main` 变更（body.main 与 options.main 同口径）→ 解析产物作废：`DELETE chunks` + rmtree `base/zh/build-en/build-zh` + `store.delete_file` 逐行删 `files`（`src_tar` 除外——取源产物仍有效）+ 限 task_root 内 unlink 磁盘件（resolve + `is_relative_to` 防越界；en.pdf 随 base/ 同死——换 main 后它编译自另一棵树）。
 - `DELETE /api/task/{id}` — 终态任务删除（DB 行级联子表 + `tasks/{id}/` 目录）；ACTIVE 态 409 先 cancel，删前补 `done{status:"deleted"}` 事件让在听 SSE 收尾
@@ -300,6 +319,7 @@ CREATE TABLE tasks (
   auth_source   TEXT NOT NULL DEFAULT 'settings',-- settings | env | header  ← 恢复时决定能否免密续跑
   tenant        TEXT NOT NULL DEFAULT 'local',   -- §4.4：'local' 或 'k_'+fp12
   cache_key     TEXT,                            -- arxiv_id@ver+model+pipeline_ver+lang 的 sha256，reuse 命中依据
+  idempotency_key TEXT,                          -- options_json.idempotency_key 提升的一等列（迁移见下注）
   total_chunks  INTEGER NOT NULL DEFAULT 0,
   done_chunks   INTEGER NOT NULL DEFAULT 0,
   cached_chunks INTEGER NOT NULL DEFAULT 0,
@@ -314,6 +334,8 @@ CREATE INDEX idx_tasks_status  ON tasks(status);
 CREATE INDEX idx_tasks_tenant  ON tasks(tenant, created_at DESC);
 CREATE UNIQUE INDEX uq_tasks_cachekey_active
   ON tasks(cache_key) WHERE status IN ('queued','fetching','parsing','translating','compiling','interrupted');
+CREATE INDEX idx_tasks_cachekey
+  ON tasks(cache_key) WHERE cache_key IS NOT NULL; -- 终态臂 find_reusable 等值查（ACTIVE 部分唯一索引盖不住）
 
 CREATE TABLE chunks (
   task_id    TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
@@ -327,6 +349,7 @@ CREATE TABLE chunks (
   translation TEXT,
   error_code TEXT,
   attempts   INTEGER NOT NULL DEFAULT 0,
+  warnings   TEXT,                               -- JSON 台账——块级非致命警告（迁移见下注）
   PRIMARY KEY (task_id, chunk_id),
   UNIQUE (task_id, seq)
 );
@@ -352,12 +375,24 @@ CREATE TABLE translation_cache (                 -- 跨任务内容寻址缓存�
 CREATE TABLE task_events (                       -- SSE 重放 + 审计；每任务封顶 2000 条滚动截断
   task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
   seq     INTEGER NOT NULL,
-  type    TEXT NOT NULL,                         -- stage|chunk|log|warning|error|done
+  type    TEXT NOT NULL,                         -- stage|chunk|log|warning|error|fixloop|l2|precheck|done
   data    TEXT NOT NULL,                         -- JSON
   created_at REAL NOT NULL,
   PRIMARY KEY (task_id, seq)
 );
+
+CREATE TABLE task_usage (                        -- 翻译阶段真实 usage/latency 聚合（ChatClient.usage_sink → worker 记账）
+  task_id           TEXT PRIMARY KEY REFERENCES tasks(id) ON DELETE CASCADE,
+  model             TEXT NOT NULL DEFAULT '',
+  calls             INTEGER NOT NULL DEFAULT 0,
+  prompt_tokens     INTEGER NOT NULL DEFAULT 0,
+  completion_tokens INTEGER NOT NULL DEFAULT 0,
+  latency_s         REAL NOT NULL DEFAULT 0,
+  updated_at        REAL NOT NULL
+);
 ```
+
+迁移面（`store/_common.py`）：新库走 `CREATE TABLE IF NOT EXISTS` 全量自补建；老库列级增量走 `_COLUMN_MIGRATIONS`（`table_info` 探测缺失才 `ALTER`——`tasks.idempotency_key` 自 `options_json` 经 `json_extract` 回填、`chunks.warnings` 无回填）；依赖迁移列的 `idx_tasks_idem`（`tasks(tenant, idempotency_key, created_at DESC) WHERE idempotency_key IS NOT NULL`）挂 `_POST_DDL` 在列迁移之后建。
 
 ### 3.3 状态机
 
@@ -383,7 +418,7 @@ CREATE TABLE task_events (                       -- SSE 重放 + 审计；每任
 2. **chunk 级**：翻译循环每完成一块，`translation_cache` + `chunks` 同事务写入（批量 flush：每 8 块或 500ms 一次事务，兼顾 SSD 寿命与崩溃窗口）；恢复 = `SELECT … WHERE status='pending'` 继续。`fallback_orig` 块记入 `failed_chunks` 并驱动 `partial` 终态。
 3. **事件级**：`task_events` 在每次事件落盘时同事务写 → `Last-Event-ID` 重放与刷新页面后 `snapshot` 重建零成本。
 4. 启动恢复：`UPDATE tasks SET status='interrupted', worker_id=NULL WHERE status IN (active)` → 前端列表面向用户"继续"按钮；`auth_source='header'` 的转 `needs_auth`。
-5. splice 失效恢复（impl `worker._invalidate_splice`）：恢复或换主文件后 chunks 与已 splice 产物分叉——diff chunk 行判失效面，unlink `.splice-done` 哨兵 + 删 `_SPLICE_STALE_KINDS`（`zh_pdf`/`zh_src_zip`/`dual_json`/`compile_log`/`md_zip`）files 行与磁盘件；`en_pdf`/`src_tar` 属上游产物保留。options 数值解析 `_opt_int`：非数字 → warning + 落默认；`<1` → warning + clamp 到 1（喂 concurrency/qps——0/负值语义在调用点是"无节制"而非"禁用"，clamp 防静默放大）。
+5. splice 失效恢复（impl `worker._invalidate_splice`）：恢复或换主文件后 chunks 与已 splice 产物分叉——diff chunk 行判失效面，unlink `.splice-done` 哨兵 + 删 `_SPLICE_STALE_KINDS`（`zh_pdf`/`zh_src_zip`/`dual_json`/`compile_log`/`md_zip`/`share_zip`）files 行与磁盘件；`en_pdf`/`src_tar` 属上游产物保留。options 数值解析 `_opt_int`：非数字 → warning + 落默认；`<1` → warning + clamp 到 1（喂 concurrency/qps——0/负值语义在调用点是"无节制"而非"禁用"，clamp 防静默放大）。
 
 ## 4. BYOK
 

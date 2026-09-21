@@ -30,4 +30,4 @@
 
 ## 现状
 
-物理根 `bench/corpus/`：层 manifest（v1/v2/core/booster/expand/hot/holdout/dev_vol/dev_failmine/dev_recent/m1k-*/iclr）+ `mechanisms.jsonl` + `nominations/` + `eval_coverage.json`（B04/B06 覆盖簿记）；管线 `bench/py/corpus/build_corpus_{v3,layers,expand,sw}.py` + `build_hot_layer.py` + `daily_arxiv.py`；治理件 `benchlib.EVAL_ONLY_LAYERS`。滚动层 `bench/corpus_daily/`（每日增删不并入）。
+物理根 `bench/corpus/`：层 manifest（v1/v2/core/booster/expand/hot/holdout/dev_vol/dev_failmine/dev_recent/m1k-*/iclr）+ `mechanisms.jsonl` + `nominations/` + `eval_coverage.json`（B04/B06 覆盖簿记）；管线 `bench/py/corpus/build_corpus_{v2,v3,layers,expand,m1k}.py` + `build_sw_layer.py` + `build_hot_layer.py` + `daily_arxiv.py`；治理件 `benchlib.EVAL_ONLY_LAYERS`。滚动层 `bench/corpus_daily/`（每日增删不并入）。

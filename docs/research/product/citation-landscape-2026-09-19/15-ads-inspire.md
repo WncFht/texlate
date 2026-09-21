@@ -69,7 +69,7 @@ ADS 的独特壁垒是 readership 数据（trending/myADS 个性化都靠它）�
 
 ### 参考文献
 
-[^ads-home]: SAO/NASA ADS. ADS Home Page. [adsabs.harvard.edu](https://web.archive.org/web/20171028043512/http:/articles.adsabs.harvard.edu/)
+[^ads-home]: SAO/NASA ADS. ADS Home Page. [ui.adsabs.harvard.edu](https://ui.adsabs.harvard.edu)
 [^adsapi-readme]: NASA ADS. adsabs-dev-api README. [github.com/adsabs/adsabs-dev-api](https://github.com/adsabs/adsabs-dev-api/blob/master/README.md)
 [^adsapi-notebook]: NASA ADS. Search API (Python) notebook. [github.com/adsabs/adsabs-dev-api](https://github.com/adsabs/adsabs-dev-api/blob/master/API_documentation_Python/Search_API_Python.ipynb)
 [^adsapi-openapi]: NASA ADS. openapi_public.yaml. [github.com/adsabs/adsabs-dev-api](https://github.com/adsabs/adsabs-dev-api/blob/2e221c0f/openapi/openapi_public.yaml)

@@ -35,4 +35,4 @@ LaTeX 是图灵完备的宏语言——`\def`/条件/catcode 让「正确解析�
 
 ## 现状
 
-实现落在 `latex/` 包：`mouth.py`+`flatten.py`（输入展平）→ `gullet/`（宏展开，ADR-0003）→ `segmenter/`（pieces+chunks+占位符）→ `reconstruct.py`（DAG memoized 展开回写）+ `tables.py`/`model.py`/`placeholder.py`/`macro_table.py`/`api.py`/`prose.py`；签名表 `latex/data/argspec.json`（1820 条，装载零 GAP）。parsebench 口径：identity 100%、leak 0.040%。
+实现落在 `latex/` 包：`mouth.py`+`flatten.py`（输入展平）→ `gullet/`（宏展开，ADR-0003）→ `segmenter/`（pieces+chunks+占位符）→ `reconstruct.py`（DAG memoized 展开回写）+ `tables.py`/`model.py`/`chars.py`/`placeholder.py`/`macro_table.py`/`api.py`/`prose.py`；签名表 `latex/data/argspec.json`（现行 1858 条 = 1595 宏 + 263 环境，装载零 GAP；计数口径以 `research/latex/ctan-argspec.md` 生成源为准）。parsebench 口径：identity 100%、leak 0.040%。

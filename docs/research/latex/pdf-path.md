@@ -1,7 +1,7 @@
 # PDF 通路设计：BabelDOC + MinerU 深读与 sidecar 决策
 
 > **结论**：PDF 双语通路选 BabelDOC sidecar 而非 MinerU→md——dual PDF 即旗舰 UX 且复用现有双栏阅读器，MinerU 收窄为扫描件/OCR 兜底。「静默 fallback 保原文」有可靠检测手段（translate_tracking.json），复用面收敛到 OpenAI 兼容网关 + glossary CSV + custom_system_prompt。
-> **状态**：现行（已落地为 `server/babeldoc.py`；**实现形与本文 §三 的 in-process 提案有偏差——实际选 spawn-CLI 契约**，落地形态见 §4.4 注记）
+> **状态**：现行（已落地为 `server/babeldoc.py`；**实现形与本文 §4 的 in-process 提案有偏差——实际选 spawn-CLI 契约**，落地形态见 §4.4 注记）
 > **日期**：2026-09-15
 
 ## 1. 路线裁决

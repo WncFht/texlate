@@ -1,6 +1,6 @@
 # 缺陷总账侦察输入（roadmap-2026-09-17）
 
-> **结论**：缺陷总账：P0 清零、P1 约 14、P2 约 43；xlat batch 族已整窝核销，fixloop 规则面是 P1 最密归属。
+> **结论**：缺陷总账：P0 清零、P1 约 13、P2 约 43；xlat batch 族已整窝核销，fixloop 规则面是 P1 最密归属。
 > **状态**：时点证据（2026-09-17 口径）
 > **日期**：2026-09-17（2026-09-20 迁入重编）
 
@@ -128,10 +128,10 @@ fuzz 报告目录（app-boundary-fuzz/cli-fuzz/arxiv-fuzz 等）未逐读——p
 | 级     | 条数    | 内容                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | ------ | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **P0** | **0**   | ~~xlat batch 非锚定退路成员静默错配进成品~~ **已核销 `164a9e0`**——P0 清零                                                                                                                                                                                                                                                                                                                                                     |
-| **P1** | **~14** | 代码面 2（share 非事务窗 + retry SLOT_NAME_RX PLAUSIBLE；~~batch 族 4 + _ERR_FILELINE_RE~~ 已核销）+ scout 面 ~12（~~dual zh 位英文/compile_timeout/sandbox rlimits/share_pack~~ 已核销；余：latex209 spec 校验 / halt_on_error 分叉 / e2e_real 印章 / fixloop 三缺口 / CJK 缺字路由 / 救援物自炸 / illegal_unit 残余（在修）/ accent 缺字 / stagerun resume 键 / l2 warning 断言 / splice 失效产物照发 / splice macro 截断） |
+| **P1** | **~13** | 代码面 2（share 非事务窗 + retry SLOT_NAME_RX PLAUSIBLE；~~batch 族 4 + _ERR_FILELINE_RE~~ 已核销）+ scout 面 ~11（~~dual zh 位英文/compile_timeout/sandbox rlimits/share_pack/halt_on_error 分叉~~ 已核销；余：latex209 spec 校验 / e2e_real 印章 / fixloop 三缺口 / CJK 缺字路由 / 救援物自炸 / illegal_unit 残余（在修）/ accent 缺字 / stagerun resume 键 / l2 warning 断言 / splice 失效产物照发 / splice macro 截断）   |
 | **P2** | **~43** | latent 8 + 陈旧 pin 文档 5（代码面）+ scout 面 ~30（见 §2.2，含裁决 pending 项；~~dur_s t0 伪影~~ 已核销 `174790e`）                                                                                                                                                                                                                                                                                                          |
 
-**形态结论**：~~xlat batch 协议是唯一成族缺陷窝（1 P0 + 4 P1 同文件）~~ batch 族已随 `164a9e0` 整窝核销；fixloop 规则面是 scout 面 P1 最密归属（peer1 占 6/16→现存约半）；已清零族运转良好（今日核销 30+ 项，pin 机制健康）。另：retry.py 新 fuzz 波（`35db9f8`，46 钉）挂出 5 CONFIRMED + 2 PLAUSIBLE **字节丢失类**缺陷待修，未计入上表——明细见 `../../report-2026-09-17-final.md` §4「已裁决未做」。
+**形态结论**：~~xlat batch 协议是唯一成族缺陷窝（1 P0 + 4 P1 同文件）~~ batch 族已随 `164a9e0` 整窝核销；fixloop 规则面是 scout 面 P1 最密归属（peer1 占 6/16→现存约半）；已清零族运转良好（今日核销 30+ 项，pin 机制健康）。另：retry.py 新 fuzz 波（`35db9f8`，46 钉）挂出 5 CONFIRMED + 2 PLAUSIBLE **字节丢失类**缺陷待修，未计入上表——明细见 `docs/research/report-2026-09-17-final.md` §4「已裁决未做」。
 
 ## 4. 已清零族（台账闭环证据）
 
@@ -140,7 +140,7 @@ inject I1-I9（0d93d66）、worker W1-W7（4de2360）、mask 5 族+lstinline（b
 ## 机读台账（generated）
 
 > generated：`python3 bench/py/defect_ledger.py --md`（2026-09-17；源=四份 fuzz findings.txt + 本文件 §1–§4 + tests/ 活钉扫描）
-> 条目：pinned 52 · wontfix 30 · fixed 56 · 合计 138；jsonl 全文 `tmp/defect-ledger/ledger.jsonl`（`--write` 生成）
+> 条目：pinned 51 · wontfix 30 · fixed 57 · 合计 138；jsonl 全文 `tmp/defect-ledger/ledger.jsonl`（`--write` 生成）
 
 | lane           | id          | sev | status  | pin          | site                                                                    | owner                                                                     | summary                                                                                                               |
 | -------------- | ----------- | --- | ------- | ------------ | ----------------------------------------------------------------------- | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
@@ -230,7 +230,7 @@ inject I1-I9（0d93d66）、worker W1-W7（4de2360）、mask 5 族+lstinline（b
 | ledger-scout   | scout-p1-13 | P1  | pinned  | doc          | -                                                                       | 1e/validate（已派工）                                                     | `tests/` l2 合成边界 11 件（scout-l2edges）——file:line Warning 豁免每编译必走却零断言——生产 `-file-line-error`        |
 | ledger-scout   | scout-p1-15 | P1  | pinned  | doc          | `src/texlate/server/store.py:772`                                       | worker/store                                                              | 失效重编失败 → 旧 zh_pdf/zh_src_zip/dual_json 行与磁盘件照发 partial；换 main 后 en.pdf/md.zip 陈旧照发（`delete      |
 | ledger-scout   | scout-p1-16 | P1  | pinned  | doc          | -                                                                       | 1d                                                                        | hep-ph/9910403 splice macro-body 回放截断——pf2final fail 格——macro body 回放进 zh 截断                                |
-| ledger-scout   | scout-p1-5  | P1  | pinned  | doc          | `src/texlate/e2e.py:772`                                                | e2e+worker                                                                | halt_on_error 两侧相反（e2e True/worker False）→ fixloop 每轮错误面不同，分类输入分叉                                 |
+| ledger-scout   | scout-p1-5  | P1  | fixed   | doc          | `src/texlate/e2e.py:772`                                                | e2e+worker                                                                | halt_on_error 两侧相反（e2e True/worker False）→ fixloop 每轮错误面不同，分类输入分叉                                 |
 | ledger-scout   | scout-p1-6  | P1  | pinned  | doc          | `bench/py/e2e_real_bench.py:899`                                        | bench/e2e_real（1e）                                                      | (a) --date 跨日重启劈目录全重跑；(b) 印章钉 live repo 不钉快照 → 无关 dirty 触发全量 stale                            |
 | ledger-scout   | scout-p1-7  | P1  | pinned  | doc          | -                                                                       | peer1 fixloop                                                             | fixloop rules `graphic_repair` + `missing_char_fix` + `shim_map`——三缺口——多 eps 缺图不触发 repair（                  |
 | ledger-scout   | scout-p1-8  | P1  | pinned  | doc          | -                                                                       | peer1                                                                     | fixloop missing_character 动作路由——CJK（U+4E00-9FFF）缺字走 install（kotex 错配实证×2）——应走 binding/font           |

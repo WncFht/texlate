@@ -1,12 +1,12 @@
 # ctan_fetch 原语验证：tlpdb 索引 + tlnet 拉包 + 工作目录遮蔽
 
 > **结论**：ctan_fetch 降级原语可行——tlpdb 索引亚秒构建、tlnet 拉包秒级、cwd 平铺文件有效遮蔽 bundle；但适用域仅限 TeX 输入层文件（.sty/.cls/.def/.clo 等），物理字体与 EPS 不在射程内，且新版包可能与 bundle 旧 expl3 不兼容，必须带版本判断。
-> **状态**：现行（已落地为 `compile/fixloop/ctan.py` + `bbl_stub_shadow`/`font_sub_shim` 规则；规范见 `spec/compile.md`）
+> **状态**：现行（已落地为 `compile/ctan.py` + `bbl_stub_shadow`/`font_sub_shim` 规则；规范见 `spec/compile.md`）
 > **日期**：2026-09-14
 
 ## 1. 动机与顺带推翻的归因
 
-引擎矩阵记录 2305.14335（IEEEtran + 注入 ctex）在 tectonic 下报 `missing \item`@bbl + bbm10 字体死，当时归因为「bundle ctex 2.5.8 旧」。本实验用该工程验证 ctan_fetch 降级原语，**顺带推翻了原归因**——missing \item 与 ctex 版本无关，真凶是 tectonic 自动 bibtex 生成的 stub bbl 遮蔽真实 bbl（§3.3）。
+引擎矩阵记录 2305.14335（IEEEtran + 注入 ctex）在 tectonic 下报 `missing \item`@bbl + bbm10 字体死，当时归因为「bundle ctex 2.5.8 旧」。本实验用该工程验证 ctan_fetch 降级原语，**顺带推翻了原归因**——missing \item 与 ctex 版本无关，真凶是 tectonic 自动 bibtex 生成的 stub bbl 遮蔽真实 bbl（§3.2）。
 
 ## 2. 索引与拉包
 
@@ -42,7 +42,7 @@ ctan_fetch **可行，适用域 = TeX 输入层文件**（.sty/.cls/.def/.cfg/.c
 
 - **`bbl_stub_shadow`**：有 .bbl 无 .bib 时 `\bibliography{x}` → `\input{main.bbl}`，阻断自动 bibtex 生成 stub 遮蔽真 bbl。
 - **`font_sub_shim`**：MF-only 字体包（bbm 等）→ Type1 近亲（dsfont/dsrom）shim。
-- **ctan_fetch 前置检查**：版本兼容判断（新版过新跳过），落地实现见 `compile/fixloop/ctan.py`。
+- **ctan_fetch 前置检查**：版本兼容判断（新版过新跳过），落地实现见 `compile/ctan.py`。
 
 ### 参考文献
 

@@ -10,10 +10,10 @@ arXiv e-print 实测三态：84.6% tar.gz（中位 7 文件、max 80）、15.4% 
 ## 裁决
 
 - **取源**：`arxiv.org/e-print/{id}` 主通道；每个 GET 前先 `HEAD /src/{id}`——content-disposition 白拿 resolved_version + 格式、content-length 上限、etag 重验证。
-- **限速**：`arxiv.org` 与 `export.arxiv.org` 端点分桶、各自 ≥3.05s 全局间隔、零并发、UA 强制带联系信息；单请求 429 → +10/30/90s jitter；同 host 连续 2 次 429 → 队列 park 15min（翻倍上限 2h），checkpoint 落盘可恢复。
+- **限速**：`arxiv.org`、`export.arxiv.org` 与 `oaipmh.arxiv.org` 端点分桶、各自 ≥3.05s 全局间隔、零并发、UA 强制带联系信息；单请求 429/406/5xx → +10/30/90s jitter；同 (host, path-class) 桶连续 2 次 429/406/403 → park 30min 起步、翻倍封顶 2h、±20% jitter，checkpoint 落盘可恢复。
 - **解包**：魔数三态嗅探（`1f8b`→gunzip→ustar 嗅探 / `%PDF`→sidecar / 其他→人工）；逐成员路径安全（`..`/绝对路径/link/setuid 拒、大小写折叠冲突检测、大小与成员数上限）；`mtree.txt` 多列 TSV（path/size/sha256/kind/链接目标/stub）每包一份 + 别名落点对账（经 kept symlink 祖先写穿的成员按赢家实况记账）。
 - **主文件定位**：剥注释匹配 `\documentclass|\documentstyle` → `\begin{document}` 优先 → `\input` 拓扑图根 → 文件名先验 → 多根标 `multi_doc` → 零候选走降级。
-- **元数据**：export Atom `id_list` 批量（≤200/次、URL ≤8KB 分批）；primary_category 喂术语表映射；resolved_version 陈旧检测。
+- **元数据**：export Atom `id_list` 批量（≤200/次、URL ≤8KB 分批）（未落地：产品层仅单篇 `_atom_meta`，批量属语料管线/远期设计，见 spec `arxiv-source.md` §3.1）；primary_category 喂术语表映射；resolved_version 陈旧检测。
 - **版本与缓存键**：`id@vN` 精确命中、无版本 resolve 最新；源级缓存键 `arxiv_id@resolved_version`。
 - **降级链**：e-print（~87%）→ arXiv HTML 最新版（LaTeXML DOM 分块异构翻译，救「我们解析器崩了」，覆盖率=源码不新增）→ BabelDOC PDF sidecar（无源码 ~13%）。
 

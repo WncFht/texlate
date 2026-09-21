@@ -63,7 +63,7 @@
 ## 4. 留档未修项与残余风险
 
 - **INLINE_MAX=8000 声明未接线**：CHUNK_MAX 切分已兜住单 chunk 体积，接线反而丢覆盖——保持现状。
-- **`parse_file` 的 warnings.pos 混排两套坐标系**（flatten 前文件偏移 vs 展平后串偏移）：诊断信息级问题，修要动 warning 契约。→ v2 落地后 warning.pos 统一 `(fid,off)` 形态（见 `segmenter-integration.md` §4）。
+- **`parse_file` 的 warnings.pos 混排两套坐标系**（flatten 前文件偏移 vs 展平后串偏移）：诊断信息级问题，修要动 warning 契约。→ v2 落地后坐标系由 vtex 统一承载（pieces/chunk.span/warning.pos 均为 int 偏移；`ScanWarning.pos` 仍是 int 装不下 fid——gullet 侧 warning 记 fid 本地偏移并以 `f{fid}` detail 前缀区分文件，segmenter 侧为 vtex 偏移；见 `segmenter-integration.md` §1）。
 - **小项（0 corpus 命中或 cosmetic）**：`match_bracket` 的 `\\X` 跳二对 `\]` 过匹配；`e`/`b` argspec 参数位错位；`_INPUT_SCAN_CMDS` 缺 `CatchFileBetweenTags`（仅 inputs 记账口径）；`cjk_glue_fix` 会动 verbatim 体内文本；`test_validate_result` 中 pieces[0] 重复检查死代码。
 - **判断点**：#15 段界判据若需恢复旧 rescue 语义，回退 `_on_dollar`/`_find_math_close` 内 `has_par_break` 一处即可；建议保留——与主循环判据一致、有 warning、且符合 TeX 语义。
 

@@ -65,7 +65,7 @@ scripts/build-web.sh
 
 阅读位置自动保存——关掉页面下次打开回到原处，模式、缩放、同步开关等偏好也随之恢复。
 
-顶部菜单下载产物：中文 PDF（`zh.pdf`）、原文 PDF（`en.pdf`，上游提供时）、对照数据（`dual.json`）、翻译后的 LaTeX 源码包（`zh-src.zip`）、编译日志等；上传的 docx/epub 任务则是双语版文档直链下载。arXiv 任务完成后还有「分享本译文」按钮，把译文打成 `.share.zip` 共享包（详见 `export-share.md`）。
+顶部菜单下载产物：中文 PDF（`zh.pdf`）、原文 PDF（`en.pdf`，由原文源码本地编译得到、源不可编译时缺席；PDF 上传任务则为上传的原文件）、对照数据（`dual.json`）、翻译后的 LaTeX 源码包（`zh-src.zip`）、编译日志等；上传的 docx/epub 任务则是双语版文档直链下载。arXiv 任务完成后还有「分享本译文」按钮，把译文打成 `.share.zip` 共享包（详见 `export-share.md`）。
 
 ## 发现页
 

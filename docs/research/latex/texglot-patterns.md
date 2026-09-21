@@ -112,7 +112,7 @@
 
 **结构校验**（`Segment.restore`，`latex.py:379-496`）：token 多重集相等；词粘连检查防「RoBERTa→RoBERTas」；fixed token 相对顺序不变；`\textbf{` 类命令与参数间不许插正文；scope/cell 区域签名比对（`{}/[]/&/\\/\begin` 嵌套帧序列两版一致）；空白边界对不许插字；译文长度 ≥10% 源文；只对生成散文做 LaTeX 转义（`\{}$&%#_^~` 映射 + Unicode 数学符号→`\ensuremath`）。`validate_source_map`：付费翻译前先自证 masked→protected→source 可逆；`target_probe` 把英文词换成译文样本做**免费预检编译**，确认字体兼容再花钱翻（texlate 对应物 = `compile/probe.py`）。
 
-**兜底 slots 模式**（`translate_slots`，`llm.py:420-571`）：段落按受保护 token 切开，散文片段编号 `⟪S0000⟫`，要求 JSON `{slot_id: 译文}`（`response_format json_object`）；每 8 槽一批，失败槽只重问失败那批并附 `slot_validation_failures{slot:reason}`；槽校验拒空/非字符串/保护标记/LaTeX 围栏；已接受槽不再改。槽前还有 `translate_lines`→`repair_chunks` 一级：闭合 scope 边界按句号/伪代码关键字切段重翻，粒度介于整段与槽之间。→ texlate 落地为 `xlat/retry.py` 阶梯 + `validate/l0.py` 结构校验 + `[n]` 批协议 reconcile（`xlat/placeholders.py`），思想同源、字段化反馈保留。
+**兜底 slots 模式**（`translate_slots`，`llm.py:420-571`）：段落按受保护 token 切开，散文片段编号 `⟪S0000⟫`，要求 JSON `{slot_id: 译文}`（`response_format json_object`）；每 8 槽一批，失败槽只重问失败那批并附 `slot_validation_failures{slot:reason}`；槽校验拒空/非字符串/保护标记/LaTeX 围栏；已接受槽不再改。槽前还有 `translate_lines`→`repair_chunks` 一级：闭合 scope 边界按句号/伪代码关键字切段重翻，粒度介于整段与槽之间。→ texlate 落地为 `xlat/retry.py` 阶梯 + `validate/l0.py` 结构校验 + `[n]` 批协议 reconcile（`xlat/batch.py::parse_batch_response`），思想同源、字段化反馈保留。
 
 **HTTP 层**（`Translator.complete`，`llm.py:239-325`）：401/403→认证错、402→余额、404→地址/模型错、408/409/425/429/5xx→重试 ≤2 次（`retry_delay` 读 Retry-After 数字或 HTTP-date，>60s 不等）、其余 4xx→拒绝；`finish_reason=="length"`→截断错；usage 可缺省不记账；TransportError/SSLError 指数退避；`redact()` 把 `settings.api_key` 与 `sk-*` 模式抹出错误信息。
 
@@ -151,7 +151,7 @@
 | 桌面壳 | `service.cjs` + `build_desktop.py` + electron-builder | 未采纳（roadmap 裁决不做 Electron） |
 | 翻译回路 | `jobs.py:580-611` + `llm.py:378-408` + `latex.py:379-496` + `llm.py:420-571` | `xlat/retry.py` + `validate/l0.py` + `[n]` 批协议 |
 | 编译沙箱 | `compiler.py:928-975` + `:1428-1440` | `compile/sandbox.py` + fixloop caps |
-| 防注入/路径安全 | `compiler.py:896-925` + `sources.py:48-73` | `server/upload/` 安全解包 + `textutil` safe_path |
+| 防注入/路径安全 | `compiler.py:896-925` + `sources.py:48-73` | `server/upload.py` 安全解包（底层引擎 `arxiv/unpack.py`）+ `textutil/osutil.py` `safe_resolve`/`safe_is_file`/`safe_is_dir` |
 
 ### 参考文献
 

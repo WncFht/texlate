@@ -12,7 +12,7 @@
 > 断链（fixloop 接线/L2 回灌/target_probe/env_judge/recover_copied_tokens）、
 > SPA 打包链（M3）、argspec 装载（M1 GAP）、B3 zh 臂/Mode B·C/B7 归因等
 > 多项"缺口"已在同日午后修复或推进——**当前判定以 `docs/HANDOFF-2026-09-16.md`
-> §3 追记与 §6 为准**，本文留作证据档案。
+> §3 追记与 §6 为准**（该文件未迁入本库；原文见 `git show d39a1b23^:docs/HANDOFF-2026-09-16.md`），本文留作证据档案。
 
 ## 1. 里程碑总判定（docs/05 §6 口径）
 
@@ -82,7 +82,7 @@
 | -------------------------------------- | ----------------- | ------------------------------------------------------- |
 | [m0.md](m0.md)                         | M0 验收           | 4/4 DONE                                                |
 | [m1.md](m1.md)                         | M1 验收           | 5P/2PART/1GAP，出口门带保留过                           |
-| [m2.md](m2.md)                         | M2 验收           | 库层齐，门字面未达（89.5%/n172/未接链）                 |
+| [m2.md](m2.md)                         | M2 验收           | 库层齐；89.5%/n172 为时点值，「未接链」已反转——fixloop/target_probe/L2 回灌/LLM 修复器均实装，详见文首 SUPERSEDED 注记 |
 | [m3.md](m3.md)                         | M3 验收           | 约半程；SPA 断链最刺眼                                  |
 | [spec06.md](spec06.md)                 | arxiv spec        | §3/§5 missing；unpack 有两套                            |
 | [spec07.md](spec07.md)                 | latex spec        | 仅 INLINE_MAX 死常量；余皆 spec 滞后                    |

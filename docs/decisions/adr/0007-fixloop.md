@@ -28,9 +28,9 @@ hjfy 的最大壁垒不是架构而是规则库厚度——~5000 篇人肉修复
 
 - 规则数：spike 16 → 产品化 25（09-15）→ 31 → 70 → 96+（09-18，16 分片）；taxonomy 分类表同步扩至百余行，物化进 records。
 - 2026-09-16：fixloop 接入 e2e/worker 产品链（此前只 bench 层跑）；同波 P0 安全修复（路径逃逸/glossary 读面/脱敏挂载）。
-- 组织演进：rules.yaml 拆 `rules/` 16 分片（base/taxonomy/warnings/route/install/graphics/font/prim/misschar/encoding/pkgopt/syntax/bib/shim/targeted），builtins 拆八叶 facade + `vendor/` 资产目录；审计裁决维持「~100 规则时按域拆包」的治理位。
+- 组织演进：rules.yaml 拆 `rules/` 16 分片（base/taxonomy/warnings/route/install/graphics/font/prim/misschar/encoding/pkgopt/syntax/bib/shim/shim-legacy/targeted），builtins 拆十二叶 facade + `vendor/` 资产目录；审计裁决维持「~100 规则时按域拆包」的治理位。
 - LLM 修复器：`llm_hook.py` 实装精确匹配 patch 契约，模块级信号量压网关并发。
 
 ## 现状
 
-实现落在 `compile/fixloop/` 包：`engine.py`（主循环 + LlmHook 协议）、`actions.py`、`ruleset.py` + `rules/` 16 分片（百余条规则与 taxonomy，条目数以生成源为准）、`cases.py`（沉淀）、`ctan.py`（tlpdb/tlnet/cwd 遮蔽）、`logparse.py`、`llm_hook.py`、`_builtins_*` 八叶 + `builtins.py` facade、`vendor/{files,stubs}`（23+ 件 off-CTAN 资产）。效果面：scorecard 5124 格 union pdf 97.89%、clean 84.99%（2026-09-18 口径），fixloop 是单一最大杠杆（接入当日 union pdf +18.9pt）。
+实现落在 `compile/fixloop/` 包：`engine.py`（主循环 + LlmHook 协议）、`actions.py`、`ruleset.py` + `rules/` 16 分片（两百余条规则与 taxonomy，条目数以生成源为准）、`cases.py`（沉淀）、`llm_hook.py`、`_builtins_*` 十二叶 + `builtins.py` facade、`vendor/{files,shims,stubs}`（两百余件 off-CTAN 资产）；`ctan.py`（tlpdb/tlnet/cwd 遮蔽）与 `logparse.py` 已归位 `compile/` 层直引，不在包内。效果面：scorecard 5124 格 union pdf 97.89%、clean 84.99%（2026-09-18 口径），fixloop 是单一最大杠杆（接入当日 union pdf +18.9pt）。

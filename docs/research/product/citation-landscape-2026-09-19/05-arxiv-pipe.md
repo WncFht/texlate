@@ -11,7 +11,7 @@
 - **OAI-PMH**：端点已迁至 `oaipmh.arxiv.org/oai`（301 重定向，实测）。earliestDatestamp 2005-09-16、`deletedRecord=persistent`、声明「Full-content harvesting not permitted」——只有元数据日更。`arXiv` 格式无 journal-ref/doi/references；`arXivRaw` 格式字段最全[^oaipmh]。
 - **export API**：实时 Atom XML（`/api/query`），`max_results` ≤30000、单片 ≤2000、建议间隔 ≥3s[^apimanual]。
 - **Kaggle + GCS**：`Cornell-University/arxiv` 元数据快照周更（~271 万篇 ~4.58GB）；`gs://arxiv-dataset` 免费桶匿名可列举，逐篇 PDF[^kaggle][^gcs]。
-- **S3 requester-pays**：`arxiv` 桶 `pdf/` 与 `src/` tar 分片按月切片；PDF ~2.7TB、**LaTeX 源 ~2.9TB**（合计 ~9.2TB，月增 ~100GB），下载方付流量费（源集约 $260 量级）[^s3]。`src/` 桶是引用图的关键——给的是 LaTeX 源而非 PDF。
+- **S3 requester-pays**：`arxiv` 桶 `pdf/` 与 `src/` tar 分片按月切片；PDF ~2.7TB、**LaTeX 源 ~2.9TB**（分量数字为 2023-03 口径；全桶文件 ~9.2TB 系 2025-04 口径，月增 ~100GB），下载方付流量费（源集约 $260 量级）[^s3]。`src/` 桶是引用图的关键——给的是 LaTeX 源而非 PDF。
 - **许可红线**：大多数论文是 arXiv perpetual non-exclusive license——**不能二次分发全文，派生索引/工具必须回链 arXiv**；抽取出的引用边与元数据可自由发布[^bulldata]。程序化抓取限速 burst 4 req/s + sleep 1s，全量走 S3 桶。
 
 ## 引用边抽取管线对比

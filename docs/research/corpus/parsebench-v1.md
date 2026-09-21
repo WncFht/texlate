@@ -4,12 +4,12 @@
 > **状态**：时点证据（2026-09-14 口径）。miniscanner 已退役（v2 `gullet/`+`segmenter/` 为唯一解析路径）；corpus_v2 语料已并入统一物理根 `bench/corpus/`（139 在场 / 217 manifest 行）。本文保留该时点的漏斗、归因与对照数据。
 > **日期**：2026-09-14
 
-依据：`bench/corpus_v2/`（137 篇分层随机源码语料，钉死版本）+ `bench/py/parsebench.py`。口径方法学：`research/methods/parse-metrics-literature.md`（unarXive 漏斗/归因、olmOCR 断言桶、GROBID 三档、Wilson CI）。
+依据：`bench/corpus/`（原 corpus_v2，`manifest_v2.jsonl` / `MANIFEST_v2.md`；137 篇分层随机源码语料，钉死版本）+ `bench/py/parsebench.py`。口径方法学：`research/methods/parse-metrics-literature.md`（unarXive 漏斗/归因、olmOCR 断言桶、GROBID 三档、Wilson CI）。
 
 ## 1. 语料构成（benchmark 底材）
 
 - **来源**：190 发分层 HEAD 抽样 + 60 篇早轮，取源码阳性 id，按 HEAD content-disposition 中的 **vN 钉版本** GET `/src/{id}vN` → 魔数三态解包 + 路径安全过滤。
-- **规模**：137 篇入库 / 254MB / 1,178 文件 / **223 个 .tex**（tar 107 : 单文件.gz 32；旧式 37 : 新式 102）。
+- **规模**：139 篇入库 / 137 篇进榜 / 254MB / 1,178 文件 / **223 个 .tex**（tar 107 : 单文件.gz 32；旧式 37 : 新式 102）。
 - **年代跨度**：1996–2026；**类目**：hep-th/hep-ph/hep-ex/astro-ph/cond-mat/gr-qc/nucl-th/quant-ph/math/cs + 新式全类随机。
 - **documentclass 多样性**：40 种——revtex 全家（revtex/4/4-1/4-2）、amsart、article、IEEEtran、llncs、elsart/elsarticle、mn2e、aastex、emulateapj、iopart、ptptex、lamuphys、caps、hnp06、JHEP3、MRM、bmc_article、lipics、optica-article、geophysics 等。
 - **注意偏倚**：旧式样本全为物理/数学 archive（arXiv 原生生态如此）；新式 id 随机未按类目分层（cs/econ 等 Word 重度领域代表性靠随机覆盖）。
@@ -30,7 +30,7 @@
 ## 3. 漏斗与失败归因（unarXive 式）
 
 ```
-139 fetched ──unpack──▶ 137 papers with .tex（丢弃：pdf_only 2、unpack_error 1）
+143 reached ──unpack──▶ 139 source trees（fetch 段丢弃：pdf_only 2、unpack_error 1、not_found 1；另有 74 发 406 阻断未计入）──has .tex──▶ 137 papers（丢弃：nucl-ex/0203009 零 .tex tar、quant-ph/0207092 仅含大写 test.TEX——当时 *.tex glob 大小写敏感；2026-09-15 起 is_tex 已大小写不敏感，重跑为 138 papers/224 files）
 137 papers ──locate──▶ 137 rooted（3 multi_doc、0 rootless）
 223 .tex ──parse──▶ 223 ok（0 crash/timeout）
 223 recon ──▶ 223 strict identical / 0 normalized / 0 diverged
@@ -70,4 +70,4 @@ fake-translate rebuild ──▶ 0 dead / 0 orphan
 - 语料偏物理/astro（旧式 id 的固有生态）；cs/econ 等新式领域靠 102 篇新式随机覆盖，未按类目分层——v3 以 HF 快照显式分层补齐。
 - 泄漏口径是保守正则（字面 `$` 在散文中合法）——15 hits 里 ~8 条是良性字面 `$`，真实「保护失败」约 4–6 条（≈0.03%）。
 - 本 benchmark 只覆盖「解析」段；编译成功率、翻译质量需另建。
-- 2/139 入库论文无 .tex 进榜（pdf_only/unpack 丢弃），漏斗第一段的丢弃率已被 capture。
+- 2/139 入库论文无 .tex 进榜（nucl-ex/0203009 零 .tex tar、quant-ph/0207092 仅大写 test.TEX——见 §3 漏斗注）；pdf_only/unpack_error/not_found 属 fetch 段丢弃、从未入库，与进榜丢弃分计。

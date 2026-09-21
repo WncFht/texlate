@@ -8,9 +8,9 @@
 
 ## 裁决
 
-|  | **TIGER-Lab/arxiv-latex-5T** | **scholarweave/arxiv-latex** |
+| | **TIGER-Lab/arxiv-latex-5T** | **scholarweave/arxiv-latex** |
 | --- | --- | --- |
-| 字节保真 | ✅ 成员 = 官方 e-print blob 逐字节（快照时点 2025-04）；含图 | ❌ 有损：仅 6 种文本扩展名白名单，UTF-8 lossy |
+| 字节保真 | ✅ 成员 = 官方 e-print blob 逐字节（快照时点 2025-04）；含图 | ❌ 有损：仅 7 种文本扩展名白名单（tex/ltx/bib/bbl/sty/cls/txt），UTF-8 lossy |
 | 覆盖 | 1991-07 → **2025-01**，403 个月逐月无缺，9,547 chunk | 1991-07 → **2026-07**（shard 0046, ts 2026-08-10），月更 |
 | 粒度 | `arXiv_src_YYMM_NNN.tar`，~0.53GB/块，2024 年每块 ~150 篇 | 46 shards × 2-9GB；duckdb httpfs 可按 id 谓词下推，不必整 shard 下载 |
 | 单篇成本 | ~3.7MB/篇（2024 chunk 口径）；散选需拖整月 chunk | ~0.24MB/篇 latex 文本；散选靠 row-group 修剪只拉命中段 |
@@ -63,18 +63,17 @@
 | 项 | 数字 |
 | --- | --- |
 | TIGER 树总文件 | 3,128 |
-| SW 保留 | 856（845 共享名 + 11 重命名单文件） |
-| **总丢弃** | **2,283（73.0%）** |
+| SW 保留 | 856（845 共享名 + 11 重命名单文件——SW 把单文件成员改写为 `{id}.tex`，非 `main.tex`，仍计入保留） |
+| **总丢弃** | **2,272（72.6%）** |
 | ├ 二进制/图（.pdf/.png/.eps/.jpg/.jpeg/.tif…） | 2,133（68.2%），**82% 论文受影响** |
-| ├ 非图文本（真损失） | 139 |
-| └ 单文件命名差异（`{id}.tex` vs `main.tex`，非损失） | 11 |
+| └ 非图文本（真损失） | 139 |
 | 非图损失明细 | .bst **63**（49 篇=35%）、biblatex 系 .bbx/.cbx/.dbx/.lbx/.clo 10、.dtx/.ins 4、文档 .md/.docx/.xml/无扩展 ~15、构建垃圾 .out/.aux/.toc/.fls/.log/.pygtex… ~50 |
 | **.tex 丢失** | **0**（528/528 全在） |
 | 共享文件内容一致性 | **845/845 逐字一致**（rstrip 尾换行后；SW 每文件尾补 `\n\n`） |
 | U+FFFD | 10/140 篇（7.1%）、385 字符——非 UTF-8 字节被替换的硬证据 |
 | 空 latex | 0/140（gz 成员）；pdf-only 成员 = NULL 行（样本内 10/150=6.7%） |
 
-**SW 白名单 = 恰好 6 种扩展名**：`.tex .bbl .bib .sty .cls .txt`。其余全部丢弃。
+**SW 白名单 = 7 种扩展名**：`.tex .ltx .bbl .bib .sty .cls .txt`（上游 ETL lib.rs `allowed_extensions` 实锤；本 140 篇样本内 `.ltx` 未出现，故实测只见 6 种）。其余全部丢弃。
 
 ## 6. parsebench funnel 对拍
 

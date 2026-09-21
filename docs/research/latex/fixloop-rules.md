@@ -1,7 +1,7 @@
 # fixloop 规则库 YAML 化 + tectonic 适配分析
 
 > **结论**：spike 全部修复逻辑可无损翻译为两层 YAML——`taxonomy`（log→错误类别，18 regex）+ `rules`（类别→动作，16 条）；install 系四招占 86 次规则触发的 75 次（87%），是救回率主力；11 条源码改写天然引擎无关可直接平移 tectonic，真正要降级的只有 5 条依赖 tlmgr/kpsewhich/updmap 的规则——降级路径汇到同一原语 `ctan_fetch`（file→TeX Live 包离线索引 + tlnet archive 直接解包到工作目录的「mini-tlmgr」）。
-> **状态**：现行（已落地为 `compile/fixloop/`——engine/actions/ruleset 三件套 + `rules/` 分片目录 + `_builtins_*` 叶 + `ctan.py` + `llm_hook`；规范见 `spec/compile.md`）
+> **状态**：现行（已落地为 `compile/fixloop/`——engine/actions/ruleset 三件套 + `rules/` 分片目录 + `_builtins_*` 叶 + `llm_hook`（`ctan.py` 已上提为 `compile/ctan.py`，2026-09-20）；规范见 `spec/compile.md`）
 > **日期**：2026-09-15
 
 本文是 fixloop spike（bench 原型，已随产品化退役）的 YAML 化设计稿兼 tectonic 适配分析；22 格语料实测（16 原始失败 → 16 救回、15 clean）来自开发机 bench 现场，结论已摘要进正文。spike 产物 rules.yaml（schema v1）其后演化为现行 `compile/fixloop/rules/` 分片目录，条目数以代码为准。
@@ -77,7 +77,7 @@ tectonic = XeTeX 内核 + TeX Live bundle 按需拉取；**无 tlmgr / 无 kpsew
 | latex209_reject | —（路由策略） | same | — |
 | undefined_cs_guess | —（LLM） | same | — |
 
-**降级架构要点**：5 条降级里 4 条汇到同一原语 `ctan_fetch`——真正要建的资产是 **file→TL 包索引**（xelatex 下由 `tlmgr search --file` 充当；tectonic 下用 texlive.tlpdb 离线解析生成，随规则库分发 + `overrides` 手工表兜底）。这一个索引同时喂 static_precheck 与 install_* 三招。updmap 无替代物——TFM 直读不需要它，需要 pfb map 的场景直接 escalate。→ 落地即 `compile/fixloop/ctan.py`（实测见 `ctanfetch-probe.md`）。
+**降级架构要点**：5 条降级里 4 条汇到同一原语 `ctan_fetch`——真正要建的资产是 **file→TL 包索引**（xelatex 下由 `tlmgr search --file` 充当；tectonic 下用 texlive.tlpdb 离线解析生成，随规则库分发 + `overrides` 手工表兜底）。这一个索引同时喂 static_precheck 与 install_* 三招。updmap 无替代物——TFM 直读不需要它，需要 pfb map 的场景直接 escalate。→ 落地即 `compile/ctan.py`（实测见 `ctanfetch-probe.md`）。
 
 ## 5. 规则执行引擎接口（设计稿，落地以 `compile/fixloop/engine.py` 为准）
 

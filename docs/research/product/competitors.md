@@ -29,7 +29,7 @@
 
 - **注册墙外可见**：Explore feed、搜索（含中文查询）、`/abs/{id}` 页 = AI Overview（博客式导读，嵌图/公式）、Audio、Discussion 评论楼、Similar papers、Cite、作者/机构页、GitHub 链接。`/zh/abs/{id}` 路由存在：标题 + 摘要+Overview 中译，**正文不译**（仅 "View Paper" 跳原 PDF）。
 - **功能**：AI Overview、Assistant（grounded Q&A，"Smart" 档）、行内评论/讨论、AI detection（Pangram）、MCP server（`/docs/mcp`）、Autoresearch（openresearch.sh）、Chrome 扩展（"understand-research"）[^alphaxiv]。
-- **模型线索**：第三方实测称默认 **Gemini Flash** 系（中英问答皆可）；官方未公开。
+- **模型线索**：第三方实测称默认 **Gemini Flash** 系（中英问答皆可，2026-09-14 口径）；官方未公开。已被本仓更新逆向取代：`2026-09-19-alphaxiv-reverse.md` 的「内容管线」节（Assistant 实为 Fast/Smart/Pro 三档 13 模型菜单，无单一默认；podcast=Claude 4.1 Opus、retrieval=Qwen3-8B 微调）与「看不到的部分与补全手段」节（翻译延迟指向 flash/mini 档）。
 - **定价**：无公开 pricing 页；Assistant 分层 + 登录留存（"Sign in to save"）。
 - **形态差异**：alphaXiv = HTML 理解层（导读 + 问答 + 社区），hjfy = 产物层（可下载的 zh 重编译 PDF + LaTeX 源码）。两者可共存：典型中文用户流是 alphaXiv 发现 → ar5iv+ 沉浸式翻译 细读（知乎实测贴证实）。
 

@@ -83,7 +83,7 @@
 
 ### 4.5 B5 · e2ebench —— 端到端组合基准
 
-测全链组合后的逐环节成功率——单段绿不等于组合绿。harness 复用产品模块 `texlate.e2e`（`mock_translate_tree`/`pipe_condition`/`base_condition`，CLI `texlate run` 与 bench 同路径），翻译走 `XlatPipeline` + L0 校验器产品 API[^suite]。
+测全链组合后的逐环节成功率——单段绿不等于组合绿。harness 复用产品模块 `texlate.e2e`（`translate_tree`/`pipe_condition`/`base_condition`，CLI `texlate run` 与 bench 同路径），翻译走 `XlatPipeline` + L0 校验器产品 API[^suite]。
 
 - `e2e_mock_bench.py`：Mode A 位置忠实 mock（注入 ctex + 占位译文 + splice + 编译，验机械链路）；Mode B 幻觉 mock（注入占位符丢失/幻觉，验校验链兜底）；Mode C 位置扰动 mock（随机移位 ~10% 占位符，量化 splice 鲁棒性）；每 Mode 双引擎臂（pipe-xel/pipe-tec + base 归因臂）。已知盲区登记：`MockTranslator._PROSE_RUN_RX` 只认 ASCII 散文 run，非 ASCII 散文原样回显——mock 臂对含此类散文的语料过估"忠实"，真译臂不受影响[^suite]。
 - `e2e_real_bench.py`：Mode D 真实臂——`GatewayTranslator(ChatClient)` 走内部 OpenAI 兼容网关（`TEXLATE_BASE_URL`/`TEXLATE_API_KEY` env），route→normalize→L0→splice→prepare_chinese→compile→judge 全产品链；`--fixloop onfail|always|never` pipe-fix 救回臂（产物树 copy → fixloop → 复判，union 取较优；`_want_fix` 谓词 = fail + misschar/error 级 partial，inject reject 不救）[^e2ereal]。
@@ -106,7 +106,7 @@
 
 `bench/py/stagerun.py` 是五阶段批量驱动（`ingest → parse → xlat → compile → fixloop` 各一子命令、独立 executor、append 式 `records/{stage}.jsonl`、按 `(id,arm,upstream)` resume）；论文流过 DAG 靠 `work/{id}/` 中间产物树而非内存对象；`--layers` 切语料层、`--sem` 全局信号量压网关 in-flight、id 全链路 `canon_id` 归一[^stagerun]。各 stage 实现件：`stage_ingest.py`（corpus 物化副本 → `work/{id}/src/`）、`stage_parse.py`（route+normalize+parse_file → `zh/` + `parse.json`）、`stage_xlat.py`（XlatPipeline → `zh/` 就地翻译 + `xlat-{arm}.jsonl` 明细 + auth 断路器）、`stage_compile.py`（splice+inject+compile+judge，`--arm zh|base`）、`stage_fixloop.py`（非 clean 格就地修复 + post 复判）[^stagerun]。
 
-配套件：`translators_bench.py`（xlat 臂工厂：arm ∈ `{mock, sabotage-b, sabotage-c, perturb, real}`，sabotage/perturb 带台账 `.ledger`/`.finalize` 逐块归因，注入实现以 `e2e_mock_bench` Mode B/C 为唯一事实源）；`triage.py`（records → `tickets.jsonl` 签名聚类 + `metrics.jsonl` 跨 run 趋势）；`gate_scorecard.py`（M2 门记分卡：end-state 末段胜 / union best-of 双口径并列）；`rundiff.py`（两 run 逐格迁移矩阵：degraded/improved/added/removed）；`wave.py`（修复波编排壳：`--mech`/`--rule` 反查 id → 开波，选样/对账/记分一律 subprocess 调既有脚本零重实现）；`preflight_batch.py`（批前一票闸：import walk + mock 链 + 磁盘 + manifest + 工具链 + 网关认证）；`quality_proxies.py`（后算器：leak_* 送译残留比率 / term_* 术语一致率，复用 `parsebench.LEAK_PATTERNS` 同口径）；`status_panel.py` + `task_ping.py`（本机只读状态面板 + 任务看板上报件）[^stagerun][^translators]。
+配套件：`translators_bench.py`（xlat 臂工厂：arm ∈ `{mock, sabotage-b, sabotage-c, perturb, real}`，sabotage/perturb 带台账 `.ledger`/`.finalize` 逐块归因，注入实现以 `e2e_mock_bench` Mode B/C 为唯一事实源）；`triage.py`（records → `tickets.jsonl` 签名聚类 + `metrics.jsonl` 跨 run 趋势）；`gate_scorecard.py`（M2 门记分卡：end-state 末段胜 / union best-of 双口径并列）；`rundiff.py`（两 run 逐格迁移矩阵：degraded/improved/added/removed）；`wave.py`（修复波编排壳：`--mech`/`--rule` 反查 id → 开波，选样/对账/记分一律 subprocess 调既有脚本零重实现）；`preflight_batch.py`（批前一票闸：import walk + mock 链 + 磁盘 + manifest + 工具链 + 网关认证）；`quality_proxies.py`（后算器：leak_*送译残留比率 / term_* 术语一致率，复用 `parsebench.LEAK_PATTERNS` 同口径）；`status_panel.py` + `task_ping.py`（本机只读状态面板 + 任务看板上报件）[^stagerun][^translators]。
 
 另有专题/底层评测件：`gullet_bench.py`（展开机抽干流实测门）、`wrapfloat_bench.py`（wrapfig 绕排碰撞检出 + 降级修复验证，poppler bbox 交集信号）、`iclr_*.py`（ICLR 语料映射/取源/章节管线，`corpus_m1k` iclr 层与 `corpus_iclr_pdf` 的支撑件）。
 

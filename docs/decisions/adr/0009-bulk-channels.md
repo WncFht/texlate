@@ -30,7 +30,7 @@
 
 ## 现状
 
-落地为 `bench/frame/frame.parquet` 抽样框 + `bench/py/corpus/` 管线（`build_corpus_{v2,v3,layers,expand,sw}` + `build_hot_layer` + `daily_arxiv`）+ `bench/corpus_daily/` 滚动语料库；S3 通道未启用（决策点挂账）。逐篇通道实现见 ADR-0008。
+落地为 `bench/frame/frame.parquet` 抽样框 + `bench/py/corpus/` 管线（`build_corpus_{v2,v3,layers,expand,m1k}` + `build_sw_layer` + `build_hot_layer` + `daily_arxiv`）+ `bench/corpus_daily/` 滚动语料库；S3 通道未启用（决策点挂账）。逐篇通道实现见 ADR-0008。
 
 ### 参考文献
 

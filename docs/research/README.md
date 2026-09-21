@@ -1,6 +1,6 @@
 # research/ —— 调研档案索引
 
-「为什么这么设计」的证据层，按域分区：`arxiv/` 获取层、`latex/` 解析与编译、`corpus/` 语料构建、`methods/` 评测方法学、`product/` 产品与生态。实现现状的唯一事实源在 `spec/`——本层文件是决策当时的取证与推理，与代码漂移处以代码为准；逐件状态标在各文件头（现行 / 时点证据 / SUPERSEDED / 已落地）。过程性探针日志、命令行与会话叙事已按写作约定削除，结论与数字保留。
+「为什么这么设计」的证据层，按域分区：`arxiv/` 获取层、`latex/` 解析与编译、`corpus/` 语料构建、`methods/` 评测方法学、`product/` 产品与生态。实现现状的唯一事实源在 `spec/`——本层文件是决策当时的取证与推理，与代码漂移处以代码为准；逐件状态标在各文件头（现行 / 时点证据 / 已改判 / 已落地 / 已完成；被取代件另加 SUPERSEDED 横幅）。过程性探针日志、命令行与会话叙事已按写作约定削除，结论与数字保留。
 
 ## 域索引
 
@@ -22,7 +22,9 @@
 
 ## 阅读建议
 
+（路径口径：本节裸写路径均为 `research/` 相对；`spec/` 前缀指 `docs/spec/`，`docs/` 前缀为仓根相对。）
+
 - 想懂「产品是什么」：`product/hjfy-site.md` → `product/competitors.md` → `spec/architecture.md`。
-- 想懂「技术方案从哪来」：`decisions/` ADR 是本层的结论面——每个 ADR 的脚注指回本层取证件。
+- 想懂「技术方案从哪来」：`docs/decisions/` ADR 是本层证据的结论面——每个 ADR 的脚注指回本层取证件。
 - 想懂「为什么是这个模型/协议/引擎」：`model-selection.md`、`latex/engine-matrix.md`、`product/e2e-mock-pipeline.md`。
 - 想找某项数字的出处：先按域进子目录 README，索引表逐件标了「结论 + 状态」。

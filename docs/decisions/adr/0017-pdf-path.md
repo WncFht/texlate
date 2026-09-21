@@ -18,7 +18,7 @@
 
 - 进程边界是许可隔离最便宜的形式：BabelDOC 功能完整（布局/字体子集/双语模式都现成），自研 PDF 直译是另一个项目量级。
 - spawn-CLI 而非 in-process 的实操理由更硬：依赖钉版隔离（其 torch/onnx 系依赖与主仓冲突面大）、崩溃域隔离、BYOK 传递可控。
-- 证据：主仓 `docs/05` 裁决 8；调研档案 `research/latex/pdf-path.md`、`research/latex/doc-formats.md`；babeldoc 对照实验留痕于 `bench/py/.venv_babeldoc/`。
+- 证据：原 `docs/05` 裁决 8（已随 2026-09-20 文档库重建归 `docs/decisions/`）；调研档案 `docs/research/latex/pdf-path.md`、`docs/research/latex/doc-formats.md`；babeldoc 对照实验留痕于 `bench/archive-2026-09-20/results/babeldoc-smoke-report.md`（产物见同级 `babeldoc/`、`babeldoc-e2e-2026-09-16/` 目录；实验 venv 属用户侧件本未入库）。
 
 ## 演变
 

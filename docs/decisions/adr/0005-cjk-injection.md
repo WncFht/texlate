@@ -27,4 +27,4 @@
 
 ## 现状
 
-实现落在 `compile/`：`inject.py`（`inject_cjk` 双缝 + 条件块 + `upgrade_209`）、`normalize.py`（归一化手术）、`latex209.py`（2.09 识别/转换/gate）、`transcode.py`（非 UTF-8 源码转码）、`cjkmap.py` + `cmaps/`（GB1 ToUnicode 资产，CJK 文本抽取校验用）、`mask.py`/`seams.py`（遮蔽与缝定位）。两条注入路径与同缝切换均已接线产品链。
+实现落在 `compile/`：`inject.py`（`inject_cjk` 双缝 + 条件块，遇 `\documentstyle` 调 `upgrade_209`）、`normalize.py`（归一化手术）、`latex209.py`（2.09 识别/`upgrade_209` 转换/gate）、`transcode.py`（非 UTF-8 源码转码）、`cjkmap.py` + `cmaps/`（GB1 ToUnicode 资产，CJK 文本抽取校验用）、`mask.py`/`seams.py`（遮蔽与缝定位）。两条注入路径与同缝切换均已接线产品链。

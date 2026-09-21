@@ -8,7 +8,7 @@
 
 **Google Scholar**：官方不披露算法，逆向研究（Beel & Gipp 2009 系列，136 万+ 文章位次分析）确认 GS 对关键词检索、Related articles、Cited by 用**三套不同排序算法**；被引数是最重排序因子，标题命中权重高，全文词频几乎无影响，且对近期文章有补偿性加权以抵消马太效应[^beel09a][^beel09b]。**My updates**（2012 上线，前提是有公开 Scholar profile）官方自述四信号：本人论文的内容、论文间的引用图、兴趣随时间漂移、合作者与所引作者[^gsblog]——「用自己的出版物当 profile」范式，作者身份本身就是兴趣模型，用户零操作。**Alerts** 两条线：关键词 alert 与 citation alert（自己论文被引时邮件）——被引是最朴素最强的相关信号[^lse]。无官方 API，事实标准方案是 SerpAPI 类付费抓取（`cites` 参数取被引、`related:` 取相关文，按月配额）[^serpapi]。
 
-**Semantic Scholar**：Recommendations API 只有两端点——`POST /recommendations/v1/papers`（body 正负例 paperId 列表，可混用外部 ID）与 `GET .../forpaper/{id}`，单次最多 500 条按相关度排序[^s2swagger][^s2medium]。实测关键发现：`forpaper` 对 2017 年「Attention is All you Need」（19.3 万被引）**返回空数组**——官方 FAQ 确认**推荐池只含最近 3 个月发表的论文**，是「跟上最新进展」型推荐而非全库相似检索[^s2faq]。Research Feeds 用「state-of-the-art 论文 embedding、对比学习训练」（SPECTER 一脉），正例=library 论文、负例=标 "not relevant"，建议 5 正 3 负起步，日更[^s2faq]。FeedLens（UIST 2022）透露内部抽象：每个 feed 是一个 per-user 偏好模型（lens），把「用户兴趣」建模为 embedding 空间里的方向[^feedlens]。未鉴权共享池限流紧、易 429，API key 免费申请。
+**Semantic Scholar**：Recommendations API 只有两端点——`POST /recommendations/v1/papers`（body 正负例 paperId 列表，可混用外部 ID）与 `GET .../forpaper/{id}`，单次最多 500 条按相关度排序[^s2swagger][^s2medium]。实测关键发现：`forpaper` 带 `from=recent|all-cs` 池参数（swagger 定义、默认 `recent`，仅 forpaper 上有）——对 2017 年「Attention is All you Need」（19.3 万被引）在默认 `recent` 池（~近 3 个月新论文，「跟上最新进展」型）**返回空数组**，但 `from=all-cs` 覆盖全 CS 语料并返回真实推荐（live 验证）——双池设计使 forpaper 同时能做全库相似检索[^s2swagger][^s2faq]。Research Feeds 用「state-of-the-art 论文 embedding、对比学习训练」（SPECTER 一脉），正例=library 论文、负例=标 "not relevant"，建议 5 正 3 负起步，日更[^s2faq]。FeedLens（UIST 2022）透露内部抽象：每个 feed 是一个 per-user 偏好模型（lens），把「用户兴趣」建模为 embedding 空间里的方向[^feedlens]。未鉴权共享池限流紧、易 429，API key 免费申请。
 
 **Microsoft Academic（历史范本，最完整公开配方）**：MAG 虽停运，arXiv:1905.08880 留下了工业级论文推荐最完整的设计与评估文档[^mag]：①**全库预计算**——为 ~1.6 亿篇英文论文/专利每篇静态生成推荐列表随 MAG on Azure 开放下载，「推荐即数据」而非在线计算；②**加权混合**——共被引（CcB，高质量但覆盖低）+ 内容 embedding（CB，覆盖全库但精度低）两支用可调 mapping function 融合；③**novelty–authority 旋钮**——调参在「推新」与「推权威」间滑动；④冷启动走 CB 支路保全库覆盖；⑤CB 支路用聚类加速近邻搜索（全库两两 2.56×10¹⁶ 不可行）；⑥40 人用户研究 2400+ 推荐对验证 CcB 支路与人工评分强相关。基本是「引用图谱+内容混合、全库离线预计算」路线的标准答案。
 
@@ -24,7 +24,7 @@
 
 **信号源**（按出现频率）：内容/embedding（每家）、引用图邻接（S2·MAG·CiteSeer·GS·ADS）、用户文库/共读行为（Mendeley·ADS·ACM·GS My-updates 隐含）、作者/合作关系（GS·RG）、显式正负反馈（S2·CiteSeer）、人口属性（RG）。混合是通用解，分歧只在权重。
 
-**架构**：清一色离线召回→线上排序。MAG 推到极限（全库逐篇预计算当数据发）；S2 折中（候选池裁到近 3 个月实时算）；ADS 实时算但语料只限天文——三家差异本质是语料规模×实时性取舍点不同。
+**架构**：清一色离线召回→线上排序。MAG 推到极限（全库逐篇预计算当数据发）；S2 折中（默认候选池裁到近 3 个月实时算，`from=all-cs` 另开全库池）；ADS 实时算但语料只限天文——三家差异本质是语料规模×实时性取舍点不同。
 
 **冷启动**两条主流：引用缺失时内容支路兜底（MAG），或干脆把池限到「有 embedding 的新论文」（S2）。SPECTER 的巧思在于用引用图当训练信号产出内容 embedding——把引用信息蒸馏进向量。
 

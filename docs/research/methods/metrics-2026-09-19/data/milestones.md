@@ -82,7 +82,7 @@
 | --- | --- | --- | --- |
 | 09-19 | 13c603cf | **corpus_v3 eval/dev split 扩到 8 层 13,266 篇** | dev_vol 2000/dev_recent 1514/dev_failmine 1500/holdout 3020 落地 |
 | 09-19 | 完整性审计 | 13,266 cell sha256 全量核验 | 13,266/13,266 通过，0 dup,EVAL_ONLY 治理生效 |
-| 09-19 | parsebench-v3-all | **全量 28,904 .tex / 13,253 篇** | parse ok 100.0%/strict identity **99.99%**/leak **0.004%**(76/1,845,338) |
+| 09-19 | parsebench-v3-all | **全量 28,904 .tex / 13,253 篇**（13,266 cell − 13 B07 stub cell，无 extracted/ 自动跳过） | parse ok 100.0%/strict identity **99.99%**/leak **0.004%**(76/1,845,338) |
 | 09-19 | parsebench-l1gate | 核心层复测 | leak 0/128,460——dollar 清零后守住 |
 | 09-19 | compilebench n=500 | baseline+zh 双臂 | base union pdf **90.4%**(xel 80.3%);zh xel clean 72.4%——normalize 转正收益 |
 | 09-19 | stagerun-v3all | 80 篇跨层全 DAG | union pdf **98.75%**/clean 88.75%（样本口径） |

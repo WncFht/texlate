@@ -2,7 +2,7 @@
 
 > **时点**：2026-09-20，`master` 分支工作树实测——模块职责以各文件 docstring 为准逐件核实，CLI 面以 `--help` 实跑为准，路由/DDL/事件名以源码注册点为准。
 > **口径**：本文只写「是什么」；规范约束见 `spec/`，裁决史见 `decisions/`。符号引用一律「仓内相对路径 + `::符号`」粒度，不写行号。
-> **在飞事项**：`bench/` 语料根拆分迁移在飞——git index 已登记 `bench/corpus_v3/`、`bench/corpus_m1k/`、`bench/corpus_v2/` 三个新根，写稿时工作树物理根仍是合一的 `bench/corpus/`。本文按目标布局书写并注明迁移态。
+> **在飞事项**：`bench/` 语料根拆分是规划方向（ADR-0013「再分层在途」，尚未落 index）——`bench/corpus_v3/`、`bench/corpus_m1k/`、`bench/corpus_v2/` 三个目标名在 git index 与磁盘上均不存在，现状物理根仍是合一的 `bench/corpus/`。本文 §7 按目标布局书写并注明规划态。
 
 TeXlate 是「幻觉翻译」（hjfy.top）的开源复现[^hjfy]：arXiv LaTeX 源码 → LLM 段落级翻译 → ctex 重编译中文 PDF，双语对照阅读。单仓内含：Python 产品包 `src/texlate/`、SolidJS SPA 前端 `web/`、pytest 套件 `tests/`、评测 harness 与语料 `bench/`、决策与规格文档 `docs/`、Zotero 插件子工程 `zotero/`。
 
@@ -63,6 +63,7 @@ TeXlate 是「幻觉翻译」（hjfy.top）的开源复现[^hjfy]：arXiv LaTeX 
 | --- | --- |
 | `api.py` | 入口装配：`parse_tex`/`parse_file`/`scan_tex_tree` |
 | `model.py` | 管线核心数据结构（纯数据层，不反向依赖；`ArgspecEntry` 等） |
+| `chars.py` | 字符级原语层：单遍逐字符扫描共享低层工具（`ws_skip`/`ws_skip_arg`/`match_brace`/`match_bracket`/`read_cmd_name`/`env_name_at` 等），自 `model` 扶正出的零依赖底叶——`model`/`tables`/`segmenter`/`macro_table`/`flatten`/`gullet` 单向依赖，旧 `model.ws_skip` 调用面由 model 再出口 |
 | `mouth.py` | Mouth：字符 → token（plasTeX `Tokenizer.py` 移植[^plastex]） |
 | `gullet/` | Gullet 展开机包：`core`（源栈 + 主循环 + 原语分派）+ `decls`/`defcmd`/`args`/`expand`/`cond`/`input`/`classify`/`entries`/`names`/`tokutil` 十片 god-class 机械拆分叶 |
 | `segmenter/` | Segmenter 切块器包：`core`/`mainloop`/`args`/`env`/`group`/`pending`/`_common` 拆分叶 |
@@ -78,8 +79,14 @@ TeXlate 是「幻觉翻译」（hjfy.top）的开源复现[^hjfy]：arXiv LaTeX 
 
 | 模块 | 职责 |
 | --- | --- |
-| `client.py` | LLM 客户端：OpenAI/Anthropic/Responses 三方言、免费端点集发现、错误分类（`AuthError`/`RetryableHTTPError`/`ChatError`） |
-| `pipeline.py` | 翻译编排骨架：`asyncio.Queue` + N worker + 首发单飞暖缓存 |
+| `client.py` | LLM 客户端门面：`ChatClient` 传输循环 + 薄委托——三方言编解码/免费集发现/错误分类实现已出叶（`_dialects`/`_discovery`/`_errors`/`stream`），经 `from leaf import` 回引保持 `texlate.xlat.client.X` 钉点名不变（`AuthError`/`RetryableHTTPError`/`ChatError`/`discover_free_models` 等仍由 client 出口） |
+| `_errors.py` | xlat 错误面（client 出叶）：`ChatError` 分类学 + `classify_status` 状态码→异常映射 + 降级/兜底臂级判据 + secret 脱敏与传输族异常包装 |
+| `_dialects.py` | openai/anthropic/responses 三方言编解码（client 出叶）：请求头/请求体/响应解析纯函数 + `Usage`/`ChatResult`/`ChatOptions` 结果载具 |
+| `_discovery.py` | 免费端点集发现面（client 出叶）：`normalize_base_url`/`is_free_gateway_url` 端点闸 + `list_models`/`panel_models`/`probe_model`/`discover_free_models` 发现链 + `rank_models`/`pick_model` 排序 |
+| `stream.py` | SSE 流式面（client 出叶）：`StreamEvent` 词汇 + 三方言 `data:` 行/帧解析 + `chat` 流式兜底臂执行体（`_chat_via_stream`） |
+| `pipeline.py` | 翻译编排骨架：`asyncio.Queue` + N worker + 首发单飞暖缓存（升格拦截网与 auth 熔断闸已出叶 `intercept`/`authgate`） |
+| `intercept.py` | 升格拦截网注册表 `_INTERCEPT_NETS`（pipeline 出叶）：zh 毒译签名 → fault + 回退原文；段级缓存否决/账本/裸形三消费点同迭代本表 |
+| `authgate.py` | auth 失败分类 `_kind_of` + 连续熔断闸 `AuthGate`/`AuthTrippedError`（pipeline 出叶）：凭证失效时论文 fault，绝不静默写 fallback 原文 |
 | `batch.py` | 批量协议：全量入批 + K 量化等大装箱 + `[n]` 编号 + `@@` 兜底 + 整批退单翻 |
 | `retry.py` | 重试：HTTP 指数退避 + 四段语义阶梯 |
 | `prompts.py` | 六 kind system prompt 套件 |
@@ -124,15 +131,16 @@ TeXlate 是「幻觉翻译」（hjfy.top）的开源复现[^hjfy]：arXiv LaTeX 
 | `cjkmap.py` | GB1→UCS2 ToUnicode CMap 注入（消费 `cmaps/Adobe-GB1-UCS2`） |
 | `ctan.py` | `ctan_fetch` 原语：tlpdb 离线索引 → tlnet 拉包 → cwd 平铺遮蔽 |
 | `seams.py` | compile 层唯一 monkeypatch 面收口 |
+| `_seams.py` | docclass/bd 注入缝原语（inject C4 拆出）：`find_docclass_ends`/`_splice_after_seams`/`_splice_before_document`——inject/layout/normalize/fixloop builtins 单向取用，仅依赖 textutil/mask；与上件 monkeypatch 收口 `seams.py` 同名不同概念 |
 | `_yamlish.py` | `rules/` 目录装载薄封装：PyYAML `safe_load` + 文件路径上下文错误 |
 | `cmaps/` | `Adobe-GB1-UCS2` cmap 数据资产 |
 | `fixloop/` | yaml 规则驱动的编译自动修复循环（§2.7） |
 
 ### 2.7 `compile/fixloop/` — 修复引擎
 
-规则库 = `rules/` 目录 16 分片（`00-base` 至 `95-targeted`），声明错误触发条件 → 修复动作；`ruleset.py` 负责校验装载 + phase 查询；`engine.py` 是主循环；`actions.py` 是动作解释器簇；`builtins.py` 是 `function:` 命名函数注册表 facade，实现拆在 11 个 `_builtins_*` 叶；`cases.py` 是 `cases.jsonl` 失败案例沉淀（triage → 回放三门验证）；`llm_hook.py` 是 `escalate_llm` 动作统一出口（LLM 修编译错误的补丁契约层）；`ctan.py`/`logparse.py`/`_yamlish.py` 是实现已上提 compile 层的 re-export shim；`vendor/` 是离线宏包资产（`files/` 182 件真包文件 + `shims/` 9 件受限重写 cls + `stubs/` 21 件桩）。
+规则库 = `rules/` 目录 16 分片（`00-base` 至 `95-targeted`），声明错误触发条件 → 修复动作；`ruleset.py` 负责校验装载 + phase 查询；`engine.py` 是主循环；`actions.py` 是动作解释器簇；`builtins.py` 是 `function:` 命名函数注册表 facade，实现拆在 12 个 `_builtins_*` 叶；`cases.py` 是 `cases.jsonl` 失败案例沉淀（triage → 回放三门验证）；`llm_hook.py` 是 `escalate_llm` 动作统一出口（LLM 修编译错误的补丁契约层）；`ctan.py`/`logparse.py`/`_yamlish.py` 是实现已上提 compile 层的 re-export shim；`vendor/` 是离线宏包资产（`files/` 183 件真包文件 + `shims/` 9 件受限重写 cls + `stubs/` 26 件桩）。
 
-`_builtins_*` 叶域划分：`_builtins_bib`（.bbl/.bib 族）、`_builtins_common`（跨域共享原语）、`_builtins_csfix`（undefined_cs/already_def 按 cs 名打靶）、`_builtins_graphics`（图形/EPS/SVG）、`_builtins_misc`（编码转码/中间件清场/support 文件腐蚀复原/格式门）、`_builtins_misschar`（missing_char 族）、`_builtins_paralong`（"Paragraph ended" 族）、`_builtins_pkgload`（`\usepackage`/`\documentclass` 装载点改写）、`_builtins_shim`（stub/遮蔽/polyfill 注入）、`_builtins_slotrev`（zh 机位实参 revert）、`_builtins_vendored`（工程内遮蔽探测/隔离 + vendored 件取放）。
+`_builtins_*` 叶域划分：`_builtins_bib`（.bbl/.bib 族）、`_builtins_common`（跨域共享原语）、`_builtins_csfix`（undefined_cs/already_def 按 cs 名打靶）、`_builtins_docfix`（文档结构/定义面打靶：`pdfstring_cs_disarm`/`if_phantom_protect`/`premature_cs_guard`/`spacefactor_atdef_wrap`/`cs_delim_tail_fix`，`_builtins_csfix` 再拆叶）、`_builtins_graphics`（图形/EPS/SVG）、`_builtins_misc`（编码转码/中间件清场/support 文件腐蚀复原/格式门）、`_builtins_misschar`（missing_char 族）、`_builtins_paralong`（"Paragraph ended" 族）、`_builtins_pkgload`（`\usepackage`/`\documentclass` 装载点改写）、`_builtins_shim`（stub/遮蔽/polyfill 注入）、`_builtins_slotrev`（zh 机位实参 revert）、`_builtins_vendored`（工程内遮蔽探测/隔离 + vendored 件取放）。
 
 ### 2.8 `server/` — Web 服务层
 
@@ -152,6 +160,7 @@ FastAPI + SSE + SQLite 任务队列 + BYOK，需 `server` extra（fastapi/uvicor
 | `staticfiles.py` | SPA 静态产物定位与挂载（`web/dist` → 包内 `server/static/`） |
 | `babeldoc.py` | BabelDOC sidecar spawn 契约：PDF 降级翻译通路（§4.8） |
 | `upload.py` | 上传物 unpack/sniff 安全件：zip 成员名拒绝面 + 数量/解压总量闸 |
+| `_common.py` | server 顶层共享件：`slim_terminal_tasks`——`create_app` retention loop 与 `POST /api/tasks/slim` 同一套终态瘦身扫描（只 import `store`，server extra 缺席也可 import） |
 | `routers/` | 端点域叶包（§4.2）：`deps.py` 持 `AppDeps` 依赖注入面，`__init__.py::register_routers` 统一挂点 |
 | `store/` | SQLite 任务库包（§4.4）：`_common` 底料 + 六聚合 repo 叶 + `Store` 门面 |
 | `worker/` | 管线 worker 包（§4.7） |
@@ -183,16 +192,18 @@ bilingual_book_maker 蓝图照抄、stdlib 自拆实现，不碰 EbookLib（AGPL
 | `ifscan.py` | 条件栈字面扫描器：`unclosed_if_close`/`unclosed_if_close_eof` 共用件 |
 | `nets.py` | 校验域知识件：net 检测器簇与共享口径件（validate/xlat/fixloop 跨层宿主） |
 | `osutil.py` | os 边界小件：env 读取与路径防御各层共用单源 |
+| `jsonl.py` | jsonl 追加件：flock 串行化单行 append 跨层单源 `append_jsonl`（`share.index_append` 与 fixloop `cases.CaseSink` 共用；无 fcntl 平台退化为无锁） |
+| `targate.py` | tar 伪装二进制闸 `_tar_disguised`：arXiv 源码 blob 的 tar 伪装件判定（compile/latex 两层共用底叶，前 64KB 扫 `ustar` + 回推 257 验头） |
 
 ## 3. CLI 面
 
-入口 `texlate = texlate.cli:app`（typer）。全局旗标：`-v`/`-vv` 日志加噪（等效 `TEXLATE_LOG`）、`-q`/`-qq` 降噪（覆盖 `-v`），子命令前给。
+入口 `texlate = texlate.cli:app`（typer）。全局旗标：`-v`/`-vv` 日志加噪、`-q`/`-qq` 降噪（覆盖 `-v`），子命令前给；级别决议序 = 旗标 > `TEXLATE_LOG` env > 缺省 `WARNING`——未给旗标时 `TEXLATE_LOG` 生效（`run` 子命令位同名旗标同口径覆盖）。
 
 | 命令 | 语义与关键 flag |
 | --- | --- |
 | `fetch {arxiv_id}` | 取 e-print：HEAD → GET → sniff → unpack → locate 钉版落缓存；`--version` 钉版、`--cache` 缓存根、`--offline`/`TEXLATE_OFFLINE=1` 零网络（钉版精确查、未钉版取已缓存最高版，无缓存报 `offline_no_cache` 退出 1） |
 | `parse {path}` | 半解析单 `.tex` → 分块/占位符/警告统计；`--flatten/--no-flatten`（展开 `\input` 图）、`-o` 落 `chunks.jsonl` |
-| `run {source}` | 端到端：arXiv id 或本地工程目录 → normalize → mock 翻译 → ctex 注入 → 编译 → 判定；`--engine auto|xelatex|tectonic`、`--work-dir`、`--timeout`（单引擎 240s）、`--cache`、`--offline`、`--keep`、`--front-matter`（preamble 翻译白名单，缺省 abstract,title） |
+| `run {source}` | 端到端：arXiv id 或本地工程目录 → normalize → mock 翻译 → ctex 注入 → 编译 → 判定；`--engine auto\|xelatex\|tectonic`、`--work-dir`、`--timeout`（单引擎 240s）、`--cache`、`--offline`、`--keep`、`--front-matter`（preamble 翻译白名单，缺省 abstract,title） |
 | `run --server URL` | 瘦客户端形态：`POST /api/arxiv/{id}/translate` → 2s 快照轮询（不依赖 SSE 客户端栈）→ 产物 sha256 自验下载；`--model`/`--api-key`/`--base-url`/`--dialect`（`x-texlate-*` 头）/`--out`/`--wait`（缺省 1800s）；同 `cache_key` 重跑自然 attach 进行中任务（409 duplicate_active 复用 task_id） |
 | `web` | 起 FastAPI+SSE 服务（server extra）：`--host`（缺省 loopback）、`--port`（缺省 8765）、`--data-dir`（缺省 `TEXLATE_DATA_DIR` 或家目录下 `.texlate/`）；`<data_dir>/service.lock` flock 单实例——已运行则打开浏览器退出 |
 | `export {path}` | EPUB/DOCX → 双语插译文档（zip 内容嗅探不看后缀；DRM 声明/fixed-layout/畸形包拒开）：`--out`（缺省 `{stem}_bilingual{ext}`）、`--model`（缺省 `TEXLATE_MODEL`）、`--glossary`（user 层叠内建默认表）、`--mock` 干跑；中断留 `{dst}.state/` 自动续跑 |
@@ -264,7 +275,7 @@ SolidJS + Vite + TypeScript + vitest + eslint（`eslint-plugin-solid`）；独�
 | `i18n/` | zh/en 双语文案 |
 | `styles/` | 约 20 张样式表（app/panes/reader/settings/progress/responsive/…） |
 | `test/` | 40+ vitest 用例（a11y/alignment/byok/idempotency/sse/sharePack/sync/tasks/upload 等域） |
-| `dev/mock-api.ts` | 开发态 mock API |
+| `web/dev/mock-api.ts` | 开发态 mock API |
 | `web/scripts/` | 截图/冒烟脚本（独立 `package.json`） |
 
 ## 6. `tests/`
@@ -277,15 +288,15 @@ SolidJS + Vite + TypeScript + vitest + eslint（`eslint-plugin-solid`）；独�
 
 | 路径 | 角色 |
 | --- | --- |
-| `py/` | python 侧评测与批量管线：`stagerun.py`（分阶段 DAG 批量驱动——ingest/parse/xlat/compile/fixloop 子命令 + append 式 records jsonl + `work/{id}/` 产物树 + 按 (id, arm, upstream) resume）、`parsebench.py`（`texlate.latex` 产品管线评测器 v2）、`compilebench_v3.py`/`e2e_mock_bench.py`/`e2e_real_bench.py`/`fixloop_bench.py`/`validbench.py`/`alignbench.py`/`gullet_bench.py`/`qualbench.py`/`translators_bench.py`/`wrapfloat_bench.py` 等评测器、`gate_scorecard.py`/`triage.py`/`rundiff.py`/`status_panel.py`/`wave.py`（判分/归因/看板/波段编排）、`corpus/`（语料管线：`build_corpus_{v2,v3,m1k,layers,expand,sw}` + `build_hot_layer` + `daily_arxiv`）、`iclr_*`（ICLR PDF 研究臂）、`runbook_loop.md`（L3 操作单）、`report/`+`scratch/`、`.venv_babeldoc/`（babeldoc 对照专用 venv，gitignored） |
+| `py/` | python 侧评测与批量管线：`stagerun.py`（分阶段 DAG 批量驱动——ingest/parse/xlat/compile/fixloop 子命令 + append 式 records jsonl + `work/{id}/` 产物树 + 按 (id, arm, upstream) resume）、`parsebench.py`（`texlate.latex` 产品管线评测器 v2）、`compilebench_v3.py`/`e2e_mock_bench.py`/`e2e_real_bench.py`/`fixloop_bench.py`/`validbench.py`/`alignbench.py`/`gullet_bench.py`/`qualbench.py`/`translators_bench.py`/`wrapfloat_bench.py` 等评测器、`gate_scorecard.py`/`triage.py`/`rundiff.py`/`status_panel.py`/`wave.py`（判分/归因/看板/波段编排）、`corpus/`（语料管线：`build_corpus_{v2,v3,m1k,layers,expand,sw}` + `build_hot_layer` + `daily_arxiv`）、`iclr_*`（ICLR PDF 研究臂）、`runbook_loop.md`（L3 操作单）、`report/`、`.venv_babeldoc/`（babeldoc 对照专用 venv，gitignored） |
 | `ts/` | js 侧对照评测：latex-utensils/unified-latex/tree-sitter-latex（独立 `package.json`，CommonJS，`npm ci` 装依赖；L1 校验件也可经 `TEXLATE_TS_NODE_PATH` 吃这里 node_modules） |
 | `fixtures/` | 陷阱构造 `.tex`：`% @Tnn`/`@Wnn`/`@Xn` 标记，逐字节即语义——不格式化、不润色 |
-| `corpus_v3/` | 主语料物理根（目标名；写稿时磁盘上仍是合一的 `corpus/`，迁移在飞）：~14k 篇 arXiv e-print 解压原样（gitignored），入库层化 manifest（core 1000 / booster 200 / expand 3866 / hot 166 / `manifest_dev_{failmine,vol,recent}` 开发层 / `manifest_holdout` 留出评测层）+ `mechanisms.jsonl` 机制台账 + `MANIFEST.md` 口径文档 + `nominations/` 提名审计轨迹 |
-| `corpus_m1k/` | m1k 四层语料的独立 manifest 根（目标名，迁移在飞） |
-| `corpus_v2/` | v2 分层随机语料 manifest + 构建脚本（目标名，迁移在飞） |
+| `corpus_v3/` | 主语料物理根（规划目标名；磁盘与 git index 上仍是合一的 `corpus/`，拆分未登记）：~14k 篇 arXiv e-print 解压原样（gitignored），入库层化 manifest（core 1000 / booster 200 / expand 3866 / hot 166 / `manifest_dev_{failmine,vol,recent}` 开发层 / `manifest_holdout` 留出评测层）+ `mechanisms.jsonl` 机制台账 + `MANIFEST.md` 口径文档 + `nominations/` 提名审计轨迹 |
+| `corpus_m1k/` | m1k 四层语料的独立 manifest 根（规划目标名，磁盘/index 尚不存在） |
+| `corpus_v2/` | v2 分层随机语料 manifest + 构建脚本（规划目标名，磁盘/index 尚不存在） |
 | `corpus_daily/` | soak 滚动窗口语料（每日增删，独立生命周期，不并入主库） |
 | `corpus_iclr_pdf/` | ICLR PDF 产物库（非 e-print 树） |
-| `zh-store/` | real 臂 LLM 译文资产库：`{canon_id}/{zh,splice,provenance.json}` 不可再生；`_alt/` 是重译落选副本 |
+| `zh-store/` | real 臂 LLM 译文资产库：`{canon_id}/{zh,splice,provenance.json}` 不可再生；`_quarantine/` 是已译非 clean 格隔离区（付费字节保留供日后免费重试），`_alt/` 是同 id 重译落选副本 |
 | `archive-2026-09-20/` | results 归零前的账本镜像与审计留痕（数据 gitignored，README 入库） |
 | `results/` | bench 产出目录：stagerun/soak/评测器三件套，脚本重写；全链划出格式化（prettier/gfs/eslint/autocorrect/markdownlint/ruff 均不覆盖） |
 | `work_*/` | 编译/fixloop 工作区（gitignored 重产物） |

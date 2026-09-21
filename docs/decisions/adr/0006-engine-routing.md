@@ -15,7 +15,7 @@
 - **翻译文件集：`compiled_dependencies()` 为权威**——编译产物 `.fls` INPUT 行 / tectonic `--makefile-rules` 决定翻哪些 .tex；静态 `\input` 图只作编译失败时的降级。
 - **target_probe**：翻译前先以「译文桩」替换英文词编译一遍（零 token），暴露字体/模板问题再花钱；探针失败直接进 fixloop。
 - **clean 判据三件套**：①有 pdf；②`!`≤3 且首错非 missing_*/undefined_cs；③log warning 扫描——`Invalid UTF-8 byte`/`Missing character.*U+FFFD`/tectonic `File.*not found` 降级行/missing_graphic 红线任一命中即 dirty；外加「中文实际进 PDF」（Missing character 计数与字体表 CJK 佐证）。tectonic 有时不写 .log，监控不假设 log 存在。
-- **沙箱**：tectonic `--untrusted` + env 白名单（非黑名单）+ `openin_any=p openout_any=p shell_escape=f` + macOS sandbox-exec + 进程树超时杀。
+- **沙箱**：tectonic `--untrusted` + env 白名单（非黑名单）+ `openin_any=p openout_any=p shell_escape=f` + macOS sandbox-exec / linux bwrap（缺席退回 env 白名单 + TeX 阀；`TEXLATE_NO_BWRAP` 为逃生门）+ 进程树超时杀。
 - **终态语义**：策略拒绝（route/inject/fixloop 三处）统一归 `partial` + `reject_at` 审计字段——拒绝是降级交付不是 fault。
 
 ## 理由

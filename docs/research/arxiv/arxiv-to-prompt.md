@@ -1,7 +1,7 @@
 # arxiv-to-prompt 解剖报告：抓取/定位/展平/裁剪四块对照
 
-> **结论**：`arxiv-to-prompt`（PyPI，MIT）本质是「flatten + 正则过滤器」——零解析库，全部正则+括号计数手撸——与我们的「保护/分块/splice 重建」不是同一物种，但**抓取层、主文件定位、展平、裁剪四块直接同构可对照**。实测确认其致命缺陷：主文件定位不剥注释（1502.01589 选中宏文件当主文件）、展平只认花括号 `\input{}`、注释剥离 verbatim 盲（截断 `\verb`/`\url`）。可借鉴：缓存原子发布+锁（已借入 `arxiv/cache.py`）、section 树消歧 UX、plain-TeX 终结符兜底、`\graphicspath` 取最后声明、118 例测试资产。
-> **状态**：现行（第三方工具解剖结论长期有效；缓存原子发布机制已实装进 `arxiv/cache.py`——staging 构建→marker→`os.replace`+`.old` 回滚）。主文件定位/展平/注释处理我方设计已全面超越，见 §8 对照。
+> **结论**：`arxiv-to-prompt`（PyPI，MIT）本质是「flatten + 正则过滤器」——零解析库，全部正则+括号计数手撸——与我们的「保护/分块/splice 重建」不是同一物种，但**抓取层、主文件定位、展平、裁剪四块直接同构可对照**。实测确认其致命缺陷：主文件定位不剥注释（1502.01589 选中宏文件当主文件）、展平只认花括号 `\input{}`、注释剥离 verbatim 盲（截断 `\verb`/`\url`）。可借鉴：缓存原子发布（已借入 `arxiv/cache.py`）、section 树消歧 UX、plain-TeX 终结符兜底、`\graphicspath` 取最后声明、118 例测试资产。
+> **状态**：现行（第三方工具解剖结论长期有效；缓存原子发布机制已实装进 `arxiv/cache.py`——staging 构建→meta.json 校验→`Path.rename` 原子换入+`.old` 回滚）。主文件定位/展平/注释处理我方设计已全面超越，见 §8 对照。
 > **日期**：2026-08-24 源码快照（0.14.1，HEAD `3078dda`）+ 本地实测，2026-09-20 重订入库
 
 对象：`arxiv-to-prompt` 0.14.1（作者 Takashi Ishida）[^atp-repo][^atp-pypi]。体量：`core.py` 1207 行 + `cli.py` 203 行 + `tests/test_core.py` 2073 行（118 用例）。依赖仅 requests/filelock/pyperclip（+可选 tiktoken）。定位：arXiv 源码 → 展平成单文件 prompt 喂 LLM。解剖现场为开发机快照与试运行输出，结论已摘要进正文。
@@ -13,7 +13,7 @@
 - **UA/限速**：`User-Agent: Mozilla/5.0` 伪装；**无任何限速/重试**（仅 availability 检查的 session 挂了 max_retries=3）。
 - **缓存**：XDG 缓存目录 `{id}/`（`/`→`_`）。设计亮点：`.arxiv_cache_complete` 完成标记 + rglob 有 .tex 才算有效缓存；`.locks/{sha256(id)}.lock` FileLock 串行化同 id 并发下载；`.staging/` 临时目录构建 → `os.replace` 原子发布；旧目录先改名 `.old.{uuid}` 备份，发布失败回滚、成功后清理；不完整缓存自动重建（`stale_cache_repair`）。
 - **解包安全**：逐成员拒 `..`/绝对路径/symlink/hardlink；py≥3.12 用 `filter="data"`。tar 失败回落 plain-gzip：gunzip 后嗅 `\documentclass|\documentstyle|\bye|\end` 才写成 `main.tex`。
-- **对照我们**：我们的魔数四态判别（ustar 嗅探）比它「tar 异常→试 gzip」的异常驱动更干净；锁/原子发布/回滚已借入；版本语义缺失则由我们 resolved_version 设计补齐。
+- **对照我们**：我们的魔数四态判别（ustar 嗅探）比它「tar 异常→试 gzip」的异常驱动更干净；原子发布/回滚已借入（per-id FileLock 未借入——`arxiv/` 内无锁）；版本语义缺失则由我们 resolved_version 设计补齐。
 
 ## 2. 主文件定位（`find_main_tex`，三遍扫描）
 
@@ -27,7 +27,7 @@
 
 - 仅识别 `\\(?:input|include){([^}]+)}`——**花括号形独占**。`\input filename`（无括号 TeX 原生语法）直接漏展平（实测证实）。无 `\import/\subfile/\InputIfFileExists/\includestandalone/\CatchFileBetweenTags`；`\bibliography{x}` 不映射 `x.bbl`（实测 paper.bbl 有 52 条 bibitem，输出里 `\bibliography{egbib}` 原样残留）。
 - 扩展名补全：`x.tex` → `x`（与 LaTeX `\input` 语义一致）；0.9.0 修了带点路径（`3.5_dataset`）——做法是「不以 .tex 结尾才补」，而非按段补。
-- 路径解析：**只相对根目录**（`os.path.join(directory, name)`），不相对 including 文件目录——子目录文件里 `\input{sibling}` 会漏。我们「including 目录 → 根目录」双查找更对。
+- 路径解析：**只相对根目录**（`os.path.join(directory, name)`），不相对 including 文件目录——子目录文件里 `\input{sibling}` 会漏。我们 locate() 基准序「编译 CWD（主文件目录）→ 项目根 → including 文件目录」三基准（corpus39-profile 实测修正自 spec 旧序）更对——including 目录仍在基准内，子目录 `\input{sibling}` 不漏（gullet 展开层另有 including→root→top_dir 序，见 spec）。
 - 注释内 `\input` 不展开：行前缀扫未转义 `%`（奇偶反斜杠计数判 `\%`/`\\%`，实现正确）。
 - 环/重复：单 `processed_files` 集合，二次包含返回 `""`——防环优先于重复展开语义（偏差）。
 - 编码：`errors='replace'`——latin-1 文件不崩但吃进 mojibake ``。
@@ -81,7 +81,7 @@
 
 ### 值得抄（部分已抄）
 
-1. **缓存发布机制**：staging 构建 → marker 完成位 → `os.replace` 原子换 + `.old` 备份回滚 + per-id FileLock——**已借入 `arxiv/cache.py`**。
+1. **缓存发布机制**：staging 构建 → meta.json 充当完成位（缺失/损坏即 miss、commit 硬拒）→ `Path.rename` 原子换入 + `.old-{uuid}` 备份回滚——**已借入 `arxiv/cache.py`**（per-id FileLock 未借入，`arxiv/` 内无锁）。
 2. **Section 树交互**：`A > B` 路径消歧 + stderr 列候选——若做「按节翻译」直接借用此 UX。
 3. **plain-TeX 终结符兜底**：`\bye|\end(?![a-zA-Z{])` 正则判 harvmac 类无 documentclass 论文——我们「零候选→降级链」更保守，但作为最后一档便宜好用。
 4. **`\iffalse…\fi` 当注释块**的认知（我们不剥注释，但判别「真注释 vs 条件编译」时可参考）。

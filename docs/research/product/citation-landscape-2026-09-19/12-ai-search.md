@@ -20,7 +20,7 @@
 
 ## 关键实证：Topic Is Not Agenda
 
-Pluto Labs 的 arXiv:2605.07158 是本调研最重要的实证[^pluto-paper]：全量 OpenAlex 引用表（~25 亿条）在 358 万篇论文上建**增广引用图**——直接引用 + 文献耦合（≥3 共同引用、Salton 加权、剔除被引超 500 的热门 refs）+ 共被引（≥3 共同施引、剔除施引超 200 的综述型），三层合并 1.53 亿边（均值度 85.5）；Leiden CPM 两级社区（L1 子领域/L2 研究议程）。结论：**四个 SOTA embedding（Gemini/Qwen3-8B/Qwen3-0.6B/SPECTER2）在 L1 有 45–52% top-10 同区率，但 L2 议程级只剩 15–21%**——每 10 篇语义近邻里约 8 篇不在同一研究议程，SPECTER2 这种引用对比训练的反而最差；而「BM25+被引数重排」这种刻意简单的探针拿 **59.6% top-1 L2 命中**，比最强 embedding（Gemini 50.6%）高 9 个点[^pluto-paper]。第三方评注认为 L2 分区 ground-truth 稳健性待同行评审[^pith-review]。
+Pluto Labs 的 arXiv:2605.07158 是本调研最重要的实证[^pluto-paper]：全量 OpenAlex 引用表（~25 亿条）在 358 万篇论文上建**增广引用图**——直接引用 + 文献耦合（≥3 共同引用、Salton 加权、剔除被引超 500 的热门 refs）+ 共被引（≥3 共同施引、剔除施引超 200 的综述型），三层合并 1.53 亿边（均值度 85.5）；Leiden CPM 两级社区（L1 子领域/L2 研究议程）。结论：**四个 SOTA embedding（Gemini/Qwen3-8B/Qwen3-0.6B/SPECTER2）在 L1 有 45–52% top-10 同区率，但 L2 议程级只剩 15–21%**——每 10 篇语义近邻里约 8 篇不在同一研究议程，SPECTER2 这种引用对比训练的反而最差；而换到 top-1 命中率口径看，「BM25+被引数重排」这种刻意简单的探针拿 **59.6% L2 命中**，比最强 embedding（Gemini 50.6%）高 9 个点[^pluto-paper]。第三方评注认为 L2 分区 ground-truth 稳健性待同行评审[^pith-review]。
 
 ## 可借鉴点
 

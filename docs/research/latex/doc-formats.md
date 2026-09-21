@@ -46,7 +46,7 @@ python-docx[^python-docx]（MIT）。插译核心 ~30 行：`copy.deepcopy(parag
 4. **CSS**：`.texlate-zh` 仅在有插译时注入。
 5. **勘误**（实装细节）：href→成员名解析先试 `unquote` 再试原样（percent-encoded 与字面 `%` 两态兼容）；缺 `mimetype` 时写规范值兜底；文档枚举按 path 去重；受限容器判定新增 `owner.name == "nav"`（克隆 nav 会复制成第二个 landmark）；语言码过 `safe_language`（`[\w-]+` fullmatch 的 BCP47 子集——`_restamp_opf` 是正则文本替换，不校验会造成 XML 注入）；marker 哨兵用 PUA `{i}` 而非控制字符（normalize 剥 XML 非法字符，`\x00` 哨兵活不过归一化）。
 
-验证：`tests/test_export_{epub,docx}.py` 12 例 + 真书回归（2 本 Gutenberg 全链绿、EbookLib 可读）。
+验证：`tests/test_export_{epub,docx}.py` + 真书回归（2 本 Gutenberg 全链绿、EbookLib 可读）。
 
 ## 5. 边界一览
 

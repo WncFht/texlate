@@ -6,11 +6,11 @@
 
 ## 该产品是什么
 
-Litmaps 2016 年创立于新西兰惠灵顿（Axton Pitt + Kyle Webster），初衷「画一张全科学的地图」[^dealroom]。2025-05 收购 ResearchRabbit 并完成 $1M 融资（ARR ~$1M、用户 200 万+），后续口径将合并为单一平台[^scoop][^ecommerce]。功能四块：Discover/Visualize/Share/**Monitor**；核心对象 Litmap = seed 文章在引用网络上的扩张候选可视化地图；官方推荐 Search-Loop 用法（seed→推荐→加回输入集→重跑，循环至 10–20 篇精选）。定价：Free ≤20 inputs/2 张图；Pro $10/月 无限[^pricing]。
+Litmaps 2016 年创立于新西兰惠灵顿（Axton Pitt + Kyle Webster），初衷「画一张全科学的地图」[^dealroom]。2025-05 收购 ResearchRabbit 并宣布 NZ\$1M 融资首轮关闭（ARR ~\$1M、用户 200 万+）；该轮 2025-08 超额认购终收于 NZ\$1.4M，后续口径将合并为单一平台[^scoop][^ecommerce]。功能四块：Discover/Visualize/Share/**Monitor**；核心对象 Litmap = seed 文章在引用网络上的扩张候选可视化地图；官方推荐 Search-Loop 用法（seed→推荐→加回输入集→重跑，循环至 10–20 篇精选）。定价：Free ≤20 inputs/2 张图；Pro \$10/月 无限[^pricing]。
 
 ## 数据面（实测出内部结构）
 
-官方 FAQ：**270M+ 文章 = Crossref + Semantic Scholar + OpenAlex 合并**，只索引 OA metadata，去重与版本归并（preprint↔正式版归并到 articleFamily）[^docs-db]。实测 `GET api.litmaps.com/article/1` 拿到内部 record 全貌：**稠密 int 内部 id；每条 article 直接内嵌 `forwardEdges`/`backwardEdges` 两个 id 列表 + 多源外部 id 数组**（`openAlexIds`/`magIds`/`semanticScholarCorpusIds`/`dois`/`arxivIds`/`pubmedIds`）+ `familyId` 版本归并——教科书式「自建引用图服务化」结构，可直接借鉴为 schema。
+官方 FAQ：**270M+ 文章 = Crossref + Semantic Scholar + OpenAlex 合并**，只索引开放获取（Open Access）元数据——title/abstract/引用等 article details、不含全文，去重与版本归并（preprint↔正式版归并到 articleFamily）[^docs-db]。实测 `GET api.litmaps.com/article/1` 拿到内部 record 全貌：**稠密 int 内部 id；每条 article 直接内嵌 `forwardEdges`/`backwardEdges` 两个 id 列表 + 多源外部 id 数组**（`openAlexIds`/`magIds`/`semanticScholarCorpusIds`/`dois`/`arxivIds`/`pubmedIds`）+ `familyId` 版本归并——教科书式「自建引用图服务化」结构，可直接借鉴为 schema。
 
 **质量面实测**：keywordSearch 返回过 Zenodo SEO spam 记录与同题重复条目（与其 FAQ 承认的去重残留一致）——**自建库必须留质量过滤层**。
 

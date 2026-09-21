@@ -15,7 +15,7 @@
 
 | 文件 | 内容 |
 | --- | --- |
-| [web-layer.md](web-layer.md) | **SUPERSEDED**：实施前 API/状态机/DDL 设计规格兼取证记录，规范事实源已移交 `spec/architecture.md` §4 与 `server/`、`web/` 代码；texglot 先例拆解仍具参考价值 |
+| [web-layer.md](web-layer.md) | **SUPERSEDED**：实施前 API/状态机/DDL 设计规格兼取证记录，规范事实源已移交 `spec/architecture.md` §4–§5 与 `server/`、`web/` 代码；texglot 先例拆解仍具参考价值 |
 | [shared-cache.md](shared-cache.md) | 社区共享译文缓存设计：share key 七组分寻址、`.share.zip` 包格式、「下载不直接渲染、本地全链重跑」信任模型——已实装 |
 | [2026-09-19-select-popup-方案调研.md](2026-09-19-select-popup-方案调研.md) | select 弹层两段式决策：≤4 项枚举改 Segmented 恒可见、长列表 `appearance: base-select` 渐进增强——已落地 `web/src/styles/select.css` |
 | [review3-web-perf-2026-09-19.md](review3-web-perf-2026-09-19.md) | Web 前端性能专项审计：慢感三主因（chunkPoll 全量轮询、挂载单帧巨渲染、缺 content-visibility）+ 20 项 findings 当日实施记录 |
@@ -51,4 +51,4 @@
 
 ## 阅读建议
 
-理解「texlate 在复刻什么」读 `hjfy-site.md` + `competitors.md`；理解「Web 层为什么长这样」读 `web-layer.md`（历史规格）对照 `spec/architecture.md` §4（现行事实）；理解「双语阅读之外的延伸空间」读 `2026-09-19-citation-landscape.md`；找外部产品可借鉴设计读两个 reverse 件。
+理解「texlate 在复刻什么」读 `hjfy-site.md` + `competitors.md`；理解「Web 层为什么长这样」读 `web-layer.md`（历史规格）对照 `spec/architecture.md` §4–§5（现行事实）；理解「双语阅读之外的延伸空间」读 `2026-09-19-citation-landscape.md`；找外部产品可借鉴设计读两个 reverse 件。

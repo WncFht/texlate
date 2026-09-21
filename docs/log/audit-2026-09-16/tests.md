@@ -4,7 +4,7 @@
 > **状态**：时点证据（2026-09-16 口径）
 > **日期**：2026-09-16（2026-09-20 迁入重编）
 
-范围：`tests/` 全集 + `src/texlate/` 模块映射 + `bench/fixtures/` 陷阱消费。基线：`uv run pytest tests/` = **1106 collected / 1090 passed / 16 skipped / 0 failed**（27s）。方法：逐文件 import 映射 + skip 条件归因 + AST 扫描零断言函数 + 核心文件断言抽查 + fixture 标记对账。
+范围：`tests/` 全集 + `src/texlate/` 模块映射 + `bench/fixtures/` 陷阱消费。基线：`uv run pytest tests/` = **1106 collected / 1090 passed / 16 skipped / 0 failed**（27s）（勘误 2026-09-17：1106/1090 为当日快照值，次日收集已达 2,668 例）。方法：逐文件 import 映射 + skip 条件归因 + AST 扫描零断言函数 + 核心文件断言抽查 + fixture 标记对账。
 
 ## 一、模块 × 覆盖矩阵
 

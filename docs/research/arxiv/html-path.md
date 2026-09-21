@@ -1,8 +1,18 @@
 # L2 HTML 降级路调研与分块规格：LaTeXML DOM → 占位符契约 → 双语呈现
 
 > **结论**：arXiv 原生 HTML（LaTeXML 输出）可按「提取边界 = `article.ltx_document` + 叶选择器分块 + 原子占位符」规则产出与 LaTeX 路**同构的 chunks[]**——translate/validate 零改动；MathML 整子树直通不译；对齐锚用 DOM 序 1:1 精确锚（优于 PDF 路 named-dest 估算）；双语呈现定「交错注入（原上译下）为规范产物、双栏为派生视图」。
-> **状态**：已落地（`arxiv/html.py` 的块枚举/占位符/`marked_html` 锚注入、`server/worker/html.py` 的 arxiv_html 链、web 端 `HtmlPane`）。规范面唯一事实源 = `spec/`；本文是 DOM 实测证据与设计动机。落地差异注记：实现用**元素 key**（元素 `id` 优先、缺失合成 `b{n}`）作 `data-chunk` 锚而非纯 seq，1:1 契约语义不变。
+> **状态**：已落地（`arxiv/html.py` 的块枚举/占位符/`marked_html` 锚注入、`server/worker/html.py` 的 arxiv_html 链、web 端 `HtmlPane`）。规范面唯一事实源 = `spec/`；本文是 DOM 实测证据与设计动机——**§2/§5/§6/§7 为设计稿**，落地真相以 `spec/arxiv-source.md` §5.2 与下方落地差异注记为准；§1/§3/§4 的 DOM 取证仍然有效。
 > **日期**：2026-09-14 取证（样本：arxiv.org/html 1706.03762/2203.02155/stub 1412.6980 + ar5iv 多篇），2026-09-20 重订入库
+
+**落地差异注记（2026-09-21 补，vs `arxiv/html.py` + `server/worker/html.py`）**：
+
+- `data-chunk` 锚用**元素 key**（元素 `id` 优先、缺失合成 `b{n}`）而非纯 seq——1:1 契约语义不变。
+- §2 三组选择器伪码（ATOMIC/LEAF/SKIPTREE）从未成码：落地是 dispatch-table 分派（`_SKIP_TAGS`/`_SKIP_CLASS_PREFIX`/`_SKIP_BLOCK_CLS`/`_EQN_PREFIX`/`_MEDIA_TAGS`/`_SUPPORT_ANCESTOR`）。
+- `ltx_tag` 由 `_SKIP_CLASS_PREFIX` 剥除、不保留在文本内（§2 表相反）；`span.ltx_ERROR` → `[[CMD_n]]` 原子占位符，不计入质量信号。
+- bibitem/figure/listing/authors/dates/equation 落地为 **support 块**（枚举式、带 `data-chunk` 锚、不译，内部仍挖 caption/title）——非 §2 表的整树跳过；`div.ltx_para` 本身就是 para 块（`span.ltx_p` 未处理）。
+- 落地 kind 枚举 = para/p/title/caption/footnote/keywords + support 族——无 cell/pubnote kind（`ltx_tabular` → `[[TABLE_n]]` 原子）；占位符族 = MATH/CITE/REF/NOTE/GRAPHICS/CMD/TABLE/URL，无 `[[IMG_n]]`。
+- §5 多信号 stub 表未落地：实现只判「无 `article.ltx_document`」（pdf_wrapper 亚型仅存于 e-print sniff 侧）。
+- §6 交错单 DOM 规范产物未实现：落地为成对 `en.html`/`zh.html` 共享 `data-chunk` 键 + 原位 zh 文本替换 + `dual.json` `alignment={"kind":"pages"}`；`data-chunk-role`/`texlate-zh`/`data-pending`/zh-克隆去 id 均未实现，`dual.json` 也无 `ltx_id↔seq` 深链表。
 
 ## 1. DOM 结构事实
 
@@ -16,6 +26,8 @@
 实测三篇（1706/2203/math0404188）关键类的块语义：`ltx_para`=段落容器（非分块单位，可包公式表/列表）；`p.ltx_p`+`span.ltx_p`=**文本叶**（后者是表格单元内段，2203 中 479/662）；`ltx_equation*`=行间公式 **`<table>`**；`ltx_section*/appendix`=section 嵌套最深 3 层；`ltx_figure/table`=figure 浮动体（可嵌套子图面板）；`ltx_tabular/ltx_td`=数据表格（单元块是块数大头，表格密论文占 80%+）；`ltx_bibitem/bibblock`=参考文献条目；`ltx_cite`=cite 元素；`ltx_ref`=内部交叉引用锚；`ltx_note/note_content`=行内嵌套脚注（内容默认隐藏）；`ltx_theorem*`=定理块；`ltx_authors`=作者块（不译）；`ltx_ERROR`=LaTeXML 错误内嵌字面量；`ltx_picture/svg`=TikZ→内联 SVG；`ltx_Math`/`ltx_math_unparsed`=`<math>` 元素（unparsed=解析失败）；`ltx_align_*`/`ltx_font_*`/`ltx_text` 等纯表现层不影响抽取。
 
 ## 2. 分块模型（三层规则）
+
+> ⚠️ 本节为设计稿伪码与跳过表——落地为 `html.py` dispatch-table 实现，差异见头部落地差异注记。
 
 ```python
 ATOMIC   = 'math, cite.ltx_cite, a.ltx_ref, span.ltx_note, span.ltx_pubnote, img, svg,
@@ -55,6 +67,8 @@ SKIPTREE = 'table.ltx_equation, table.ltx_equationgroup, li.ltx_bibitem,
 
 ## 5. stub / 失败检测
 
+> ⚠️ 本节多信号表为设计稿——落地只判「无 `article.ltx_document`」，见头部落地差异注记。
+
 DOM 内零额外请求信号：
 
 | 信号                            | 正常       | stub (1412.6980)                      | 判定                                                                |
@@ -69,11 +83,15 @@ DOM 内零额外请求信号：
 
 ## 6. 双语呈现方案
 
+> ⚠️ 本节交错单 DOM 方案未实现——落地为成对 `en.html`/`zh.html` + `dual.json`，见头部落地差异注记。
+
 **决定：DOM 内逐节点交错插入译文（原上译下）为规范产物**，理由：L2 是降级路工程预算有限，交错视图零同步机械（单滚动容器天然对齐）；SSE `chunk` 事件按锚到达即插，用户逐段看译文生长；沉浸式翻译已在同一 DOM 方言验证此 UX；**双栏不丢失**——规范 DOM 里 en/zh 节点都带 `data-chunk`+`data-chunk-role`，派生双栏 = 克隆 article 一侧删 zh 一侧删 en，scrollTop 按 `[data-chunk]` offsetTop 映射即可接入既有 SyncEngine。
 
 zh 节点 = 克隆叶元素同名同类 + `texlate-zh`/`lang="zh-CN"`/`data-chunk-role`，紧随其后插入；表格单元 zh 内容插在原 `span.ltx_p` 后同 td 内；note 依赖槽用 `data-pending` 标记，note chunk 到达后填充。样式自带最小 ltx 样式表（不引 arXiv CDN CSS——跨域资产 + 主题耦合）；MathML 原生渲染，SVG/PNG 已 absolutize。
 
 ## 7. 与主管线的接口（translate 编排契约接入点）
+
+> ⚠️ 本节 kind/占位符枚举与 `dual.json` 深链表为设计稿口径——落地见头部落地差异注记与 `spec/arxiv-source.md` §5.2。
 
 `parse` 阶段替换 scanner——输入 HTML 字节，输出与 LaTeX 路完全同构的 `chunks[]`（锚/kind/src_text+ 占位符）；`translate/validate` 零改动；`compile` 换成「zh DOM 写回 + 剥壳 HTML 序列化」产出 `article.en.html`/`article.zh.html`/`dual.json`（含 `ltx_id↔seq` 映射表支持 `#S3.E1` 深链）。kind 枚举新值 `para/cell/caption/title_*/note/pubnote` 进同一列；占位符枚举同一族（ENV/AUTHOR 不需要——公式表整跳、authors 原子跳过）；断点续翻走 translation_cache 内容寻址（与 LaTeX 路 src_text 不同形，不串缓存）；stub/pdf_wrapper 路由 L3 不产 `degraded_html`。
 

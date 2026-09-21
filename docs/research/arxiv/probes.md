@@ -1,6 +1,6 @@
 # arXiv 主站串行探针实录（两波合并）：线缆格式 / 条件请求 / 旧 id 归并 / license 机读位 / HTML 版本矩阵 / v-diff 复用率 / 190 发大样本
 
-> **结论**：HEAD `/src/{id}` 的 content-disposition 后缀（`.tar.gz`/`.gz`/`.pdf`）即 hasSrc+格式预检；条件请求 304 全面支持；旧式 id `math.AG/`、`HEP-TH/` 均 301 归并 archive 小写形；`/html/{id}` latest 可能是 includepdf 包装壳 stub，须逐版本回退探测；v1→latest 的 .tex 行复用率中位 0.52 → 增量重翻可省 ~50–85%；旧式 id 源码率 98.1%、新式 94.8%、遗留格式零观测。
+> **结论**：HEAD `/src/{id}` 的 content-disposition 后缀（`.tar.gz`/`.gz`/`.pdf`）即 hasSrc+格式预检；条件请求 304 全面支持；旧式 id `math.AG/`、`HEP-TH/` 均 301 归并 archive 小写形；`/html/{id}` latest 可能是 includepdf 包装壳 stub，须逐版本回退探测；v1→latest 的 .tex 行复用率中位 0.55 → 增量重翻可省 ~50–85%；旧式 id 源码率 98.1%、新式 94.8%、遗留格式零观测。
 > **状态**：时点证据（2026-09-14 口径，两波合计 ~296 发、间隔 ≥3.1s、零并发）。结论已并入 [layer.md](layer.md) 并实装进 `src/texlate/arxiv/`（fetch 的 cd 三态解析/304 重验证、sniff 的 wrapper 检测、ratelimit 的断路器）。
 > **日期**：2026-09-14 取证，2026-09-20 重订入库（并原名映射：`serial2.md` → 本文 §B）
 
@@ -82,7 +82,7 @@
 | 2106.09685 | v1→v2    | **0.4612**    | 0.2716    | NeurIPS→ICLR 模板整套换（sty/bbl/bst 全删） |
 | 1412.6980  | v1→v9    | (0.357)       | —         | 边缘案不入统计：v9 正文归零                |
 
-统计（7 对正常）：tex_reuse_new **中位 0.52 / 均值 0.59**；reuse_new 中位 0.87 / 均值 0.73。推论：
+统计（7 对正常）：tex_reuse_new **中位 0.55 / 均值 0.63**；reuse_new 中位 0.87 / 均值 0.73。推论：
 
 - 行级 verbatim 复用下界 ~50–60%；按段落哈希 + ~0.9 相似度模糊匹配可望推到 **60–85%**——「出新版重翻」用增量缓存能省一半以上。
 - **缓存配对键必须按内容指纹而非文件名**——改名/结构搬家（1810.04805）与换模板/换 bib 工具链（1403.3985、2106.09685，~45–55% 流失来自 preamble/bbl 整体替换）是主损耗。

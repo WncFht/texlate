@@ -16,7 +16,7 @@ Inciteful 由 Michael Weishuhn 2020 年独立开发上线[^istl]；项目缘起�
 
 最激进的发现：graph API 的 query 端点**接收并执行裸 SQL**（实测 `POST graph.incitefulmed.com/openalex/query/W2741809807?prune=10000`，body `SELECT sqlite_version()` 返回 3.51.1）。行为还原：后端持有全量引用图（OpenAlex 子集）；收到 seed 实时做图扩展算指标，**物化成独立 SQLite 库缓存 24h+**；之后前端所有表格通过 POST SQL 到这个库取数，服务端强追加 LIMIT[^pde][^pu]。
 
-实测 dump 出的真实 schema：
+实测 dump 出的 schema（压缩重写，列类型略）：
 
 ```sql
 CREATE TABLE papers (
@@ -26,7 +26,7 @@ CREATE TABLE papers (
   distance INTEGER, page_rank REAL, adamic_adar REAL, cocite REAL
 ) WITHOUT ROWID
 CREATE TABLE authors (author_id, paper_id, name, sequence, affiliation,
-  affiliation_id, ror, published_year, partial_page_rank REAL, PK(paper_id,author_id))
+  affiliation_id, ror, published_year, partial_page_rank REAL, PRIMARY KEY(paper_id, author_id))
 CREATE VIRTUAL TABLE title_search USING FTS5(paper_id, search_text, tokenize='porter unicode61')
 CREATE TABLE metadata (name TEXT PRIMARY KEY, value TEXT)  -- 建图参数
 ```
@@ -41,7 +41,7 @@ API 面全部免鉴权：`POST /openalex/query/{W-id}?prune={n}` 建图+SQL（�
 
 **指标五件套全标准算法**：PageRank（重要性，局部子图迭代，作者侧 `partial_page_rank` 摊到作者）；**Adamic/Adar**（耦合相似——共同引用按 1/log 被引数 加权，共享冷门引用权重高）；**Salton 余弦**（共被引，分母 √(被引数之积) 补偿规模悬殊）；BFS distance；`num_citing` 排序识别综述（引用图内论文最多者≈综述）。
 
-**前端 SQL 模板可直接照抄**：相似论文 `ORDER BY adamic_adar + COALESCE(cocite,0) DESC`；重要论文 `ORDER BY page_rank DESC`；近期重要加 `published_year > now-3`；作者榜 `SUM(partial_page_rank)`；LitReview 作者加权 `page_rank / (CASE 首末位作者按 1/3、中间按 1/(3N))`；新锐学者 `MIN(published_year) > now-10`；机构/期刊榜 `SUM(page_rank)` 分组聚合。
+**前端 SQL 模板可直接照抄**：相似论文 `ORDER BY adamic_adar + COALESCE(cocite,0) DESC`；重要论文 `ORDER BY page_rank DESC`；近期重要加 `published_year > (strftime('%Y', 'now') - 3)`；作者榜 `SUM(partial_page_rank)`；LitReview 作者加权 `SUM(page_rank / (CASE WHEN num_authors < 4 THEN num_authors WHEN sequence = 0 OR sequence = num_authors - 1 THEN 3 ELSE num_authors * 3 END))`；新锐学者 `MIN(published_year) > (strftime('%Y', 'now') - 10)`；机构/期刊榜 `SUM(page_rank)` 分组聚合。
 
 **Literature Connector**：全图当无向图做双向 BFS——两端逐层扩展到前沿相交，只保留最短路径上的点边；`extend` 参数把路径上限+1 层；作者称「还没遇到过连不上的」[^lcd]。
 
@@ -61,8 +61,8 @@ API 面全部免鉴权：`POST /openalex/query/{W-id}?prune={n}` 建图+SQL（�
 
 [^about]: Inciteful. About Inciteful（2026-09-19 实测提取）. incitefulmed.com/academic/about
 [^pde]: Inciteful. Paper Discovery Explained. inciteful-academic-docs repo. [raw.githubusercontent.com](https://raw.githubusercontent.com/inciteful-xyz/inciteful-academic-docs/master/paper-disovery-explained.md)
-[^pu]: Inciteful. Power Users (SQL schema + filters). inciteful-academic-docs repo, power-users.md.
-[^lcd]: Inciteful. Literature Connector Explained. inciteful-academic-docs repo, literature-connector-explained.md.
+[^pu]: Inciteful. Power Users (SQL schema + filters). inciteful-academic-docs repo. [raw.githubusercontent.com](https://raw.githubusercontent.com/inciteful-xyz/inciteful-academic-docs/master/power-users.md)
+[^lcd]: Inciteful. Literature Connector Explained. inciteful-academic-docs repo. [raw.githubusercontent.com](https://raw.githubusercontent.com/inciteful-xyz/inciteful-academic-docs/master/literature-connector-explained.md)
 [^istl]: Issues in Science and Technology Librarianship. Citation Network Based Research Discovery Using Inciteful. [journals.library.ualberta.ca](https://journals.library.ualberta.ca/istl/index.php/istl/article/download/2974/2860?inline=1)
 [^substack]: Erika@Inciteful Med. Welcome to Informed Consent. [incitefulmed.substack.com](https://incitefulmed.substack.com/p/welcome-to-informed-consent)
 [^gh]: GitHub. inciteful-xyz organization repositories. [github.com/inciteful-xyz](https://github.com/inciteful-xyz)

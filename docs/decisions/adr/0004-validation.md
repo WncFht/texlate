@@ -30,4 +30,4 @@
 
 ## 现状
 
-实现落在 `validate/` 包：`l0.py`（规则层）、`l1.py` + `ts/validator.js`（node 批处理 CST 校验）、`l2.py`（编译 log 归因）、`report.py`；`repair.py`/`repair_l2.py` 承载 L2→重 splice→补验的回灌环（e2e/worker 双臂共享）。L1 为可选组件，未进默认依赖。
+实现落在 `validate/` 包：`l0.py`（规则层）、`l1.py` + `ts/validator.js`（node 批处理 CST 校验）、`l2.py`（编译 log 归因）、`report.py`；`src/texlate/repair.py`（e2e/worker 共享低层件）+ `src/texlate/repair_l2.py`（L2 阶梯全实现，居包根、`validate/` 外）承载 L2→重 splice→补验的回灌环。L1 为可选组件，未进默认依赖。

@@ -1,6 +1,6 @@
 # 自动化系统
 
-本仓有两套每日定时运行的自动化系统，它们构成一个闭环：arXiv 日更 soak 负责**生产**——每天把最新的真实 arXiv 论文喂给完整管线，让错误自然暴露并沉淀成结构化账目；errsweep 负责**消费**——每日把沉淀的错误蒸馏成根因修复（fixloop 规则、builtin、产品代码修复）。两者都按「幂等、单实例、断点续跑」设计，由 systemd --user timer（或等价调度器）触发，样例 unit 在 `scripts/systemd/`。
+本仓有两套每日定时运行的自动化系统，它们构成一个闭环：arXiv 日更 soak 负责**生产**——每天把最新的真实 arXiv 论文喂给完整管线，让错误自然暴露并沉淀成结构化账目；errsweep 负责**消费**——每日把沉淀的错误蒸馏成根因修复（fixloop 规则、builtin、产品代码修复）。两者都按「幂等、单实例、断点续跑」设计，由 systemd --user timer（或等价调度器）触发，两套样例 unit（daily-soak、errsweep）均在 `scripts/systemd/`。
 
 ## 1. arXiv 日更 soak（`scripts/daily-soak.sh` + `bench/py/corpus/daily_arxiv.py`）
 
@@ -19,11 +19,11 @@ RSS 枚举 ──> corpus_daily/manifest_{公告日}.jsonl
 
 ### 1.2 缺口与回填
 
-RSS 频道无历史日期参数——漏跑即丢当日枚举，所以「每日必达」是硬要求，漏跑靠两条回填通道补：≤1 周走 `/list/{cs,math}/pastweek?skip=N` 分页（覆盖最近数个公告日），>1 周走 OAI-PMH `ListIdentifiers` 集合日窗（含 deletedRecord 撤稿感知，可做周度对账）。enum 步骤会对「上次成功批次 → 今日」缺口告警。
+RSS 频道无历史日期参数——漏跑即丢当日枚举，所以「每日必达」是硬要求，漏跑靠两条回填通道补：≤1 周走 `/list/{cs,math}/pastweek?skip=N` 分页（`backfill` 子命令已实现，但当前仅枚举计数、不回写 manifest，需手工补录），>1 周走 OAI-PMH `ListIdentifiers` 集合日窗（含 deletedRecord 撤稿感知，可做周度对账）——该通道 v2 待接、目前未实现。enum 的「上次成功批次 → 今日」缺口告警亦未接线（v2 待接）。
 
 ### 1.3 产物面
 
-`bench/corpus_daily/` 是滚动窗口语料（独立生命周期，不并入钉版 corpus）；批跑结果落 `bench/results/soak-<date>/`——records（每行 `{id,stage,arm,status,metrics,errors,sig}`，签名预算好聚类零加工）、cases（fixloop CaseSink 沉淀）、work 现场树。这套产物就是 errsweep 的主矿。
+`bench/corpus_daily/` 是滚动窗口语料（独立生命周期，不并入钉版 corpus）；批跑结果落 `bench/results/soak-<date>/`——records（每行 `{id,stage,arm,upstream,code,status,dur_s,metrics,errors,sig}`，签名预算好聚类零加工；`upstream` 是 `(id,arm,upstream)` resume 键第三元）、cases（fixloop CaseSink 沉淀）、work 现场树。这套产物就是 errsweep 的主矿。
 
 ## 2. errsweep 错误清扫（`scripts/errsweep.sh`）
 

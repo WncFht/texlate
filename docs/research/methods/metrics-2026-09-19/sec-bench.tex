@@ -2,7 +2,7 @@
 
 \subsection{七臂总览}
 
-评测套件按「每臂对准管线一段 + 一个组合层」设计：每条臂独立成 harness，产出机读落盘记录供计分卡与归因消费。评测器规格冻结件随档于 \texttt{refs/}（\texttt{10-benchmark-suite.md}），共同底材为 corpus\_v3。表~\ref{tab:arms} 为总览。
+评测套件按「每臂对准管线一段 + 一个组合层」设计：每条臂独立成 harness，产出机读落盘记录供计分卡与归因消费。评测器规格冻结件为 \texttt{docs/spec/benchmark.md}，共同底材为 corpus\_v3。表~\ref{tab:arms} 为总览。
 
 \begin{table}[htbp]
 \centering\small
@@ -32,7 +32,7 @@ B7 & alignbench & 阅读体验 & 中英编译产物对 & 具名锚点保留率 /
 
 \subsection{评测现场：\texttt{bench/} 的构成}
 
-所有评测资产集中在仓库 \texttt{bench/} 树，入口文档为 \texttt{PROTOCOL.md}（逐库横评协议）与 \texttt{TIERS.md}（验证分层契约，均随档 \texttt{refs/}）。后者定义「一个问题该在哪一级被抓住」：L0 单测/断言样例（秒级，CI 硬门）$\to$ L1 语料机制覆盖（分钟级）$\to$ L2 stagerun 子集回归（分钟到小时，机制台账定向重放）$\to$ L3 全层全臂过夜集成（里程碑门）；规则是「能低不高」——低层能钉住的问题不许只在批量上撞见，批量发现的真坑要沉淀回 L0 层断言。本报告 B1--B7 属 L1--L3 层读数。布局与职能：
+所有评测资产集中在仓库 \texttt{bench/} 树，入口文档为 \texttt{bench/TIERS.md}（验证分层契约）与 \texttt{docs/spec/benchmark.md} §3（逐库横评协议——原 \texttt{bench/PROTOCOL.md} 已于 2026-09-20 退役）。后者定义「一个问题该在哪一级被抓住」：L0 单测/断言样例（秒级，CI 硬门）$\to$ L1 语料机制覆盖（分钟级）$\to$ L2 stagerun 子集回归（分钟到小时，机制台账定向重放）$\to$ L3 全层全臂过夜集成（里程碑门）；规则是「能低不高」——低层能钉住的问题不许只在批量上撞见，批量发现的真坑要沉淀回 L0 层断言。本报告 B1--B7 属 L1--L3 层读数。布局与职能：
 
 \begin{table}[htbp]
 \centering\small
@@ -144,7 +144,7 @@ holdout & 3{,}020 & 留出评测层 & ia 2{,}159 + tiger 540 + eprint 321；EVAL
 \label{fig:corpusdist}
 \end{figure}
 
-治理规则：holdout 层（3{,}020 篇）登记 \texttt{EVAL\_ONLY\_LAYERS}，所有开发期采样经 \texttt{dev\_layers()} 过滤；语料扩展只加层不删层；格数据不入库（gitignored），入库物为清单八件与选样报告（\texttt{selection\_report.md}）；机制台账 \texttt{mechanisms.jsonl}、B04/B06 宇宙×语料覆盖簿记 \texttt{eval\_coverage.json}、补强层提名审计轨迹 \texttt{nominations/} 的快照均随档 \texttt{refs/}——台账是「评测发现 $\to$ 归因 $\to$ 规则沉淀」反馈环的载体。
+治理规则：holdout 层（3{,}020 篇）登记 \texttt{EVAL\_ONLY\_LAYERS}，所有开发期采样经 \texttt{dev\_layers()} 过滤；语料扩展只加层不删层；格数据不入库（gitignored），入库物为清单八件与选样报告（\texttt{selection\_report.md}）；机制台账 \texttt{mechanisms.jsonl}、B04/B06 宇宙×语料覆盖簿记 \texttt{eval\_coverage.json}、补强层提名审计轨迹 \texttt{nominations/} 均为 \texttt{bench/corpus/} 下正档——台账是「评测发现 $\to$ 归因 $\to$ 规则沉淀」反馈环的载体。
 
 \subsection{逐臂详解}
 \label{sec:arms}
@@ -215,4 +215,4 @@ stagerun 五段批量流水线（逐格追加式落盘、按 \texttt{(id,arm,ups
 
 \subsection{门槛体系}
 
-各臂门槛（语料规格 §8，随档 \texttt{refs/}）：parsebench——解析成功率 100\%、逐字节一致率 $\geq 99.5\%$、泄漏率 $\leq 0.15\%$、死占位符与孤儿译段 $=0$、合平覆盖率 $\geq 99\%$；M2 出口门（stagerun 计分卡）——联合口径出 PDF 率 $\geq 90\%$、纯净率 $\geq 90\%$。统计口径：核心层加权池化率 + 宏平均双报，置信区间用 Wilson 加月簇稳健自举。
+各臂门槛（\texttt{docs/spec/benchmark.md} §8 门槛汇总）：parsebench——解析成功率 100\%、逐字节一致率 $\geq 99.5\%$、泄漏率 $\leq 0.15\%$、死占位符与孤儿译段 $=0$、合平覆盖率 $\geq 99\%$；M2 出口门（stagerun 计分卡）——联合口径出 PDF 率 $\geq 90\%$、纯净率 $\geq 90\%$。统计口径：核心层加权池化率 + 宏平均双报，置信区间用 Wilson 加月簇稳健自举。

@@ -47,7 +47,7 @@ kind 专属条款：para/abstract 追加 C10 人名保原语（`always keep pers
 
 带错重翻（corrector）：专用 `_CORRECTOR_SYSTEM`（不共享公共块）+ user 三段式 `[Original]/[Translation]/[Error]`；在阶梯第二试经 `corrector_fn` 注入使用（§1.6）。
 
-`prompts.py::PROMPT_VERSION="xlat-prompt-v4"` 只进**文件级**缓存键（§1.7），段级键不含——prompt 措辞改动须 bump 它使文件级缓存整体失效[^texglot]。
+`prompts.py::PROMPT_VERSION="xlat-prompt-v4"` 不进 `state.segment_key` 材料本身——本地臂段条目住在 `cache-{file16}.json` 内，失效随**文件级**键文件名轮换（§1.7）；但 server 侧段缓存前缀 `cfg_hash` 显式含 PROMPT_VERSION（`worker/translate.py`），任务级 `cache_key_for` 亦经 `PIPELINE_VERSION="texlate-{ver}|{PROMPT_VERSION}"` 间接含之（`worker/_common.py`）——bump 实际三层缓存键全轮换[^texglot]。
 
 ### 1.3 占位符族（`xlat/placeholders.py`）
 
@@ -74,7 +74,7 @@ kind 专属条款：para/abstract 追加 C10 人名保原语（`always keep pers
 
 `retry.py::RetryPolicy`：`max_tries=5`、`base_delay=1.0`；退避 `base·2^attempt`；429 用 `base·3^attempt` 且下限 `rate_limit_floor=5s`；timeout 下限 `timeout_floor=10s`；`Retry-After` 兑现（body `error.retry_after` 秒值优先于 HTTP header，上限 `MAX_RETRY_AFTER_S=60`）——本网关 429 的 retry_after 在 body 不在 header[^texglot]。`e.max_tries` 逐错型封顶。
 
-`pipeline.py::AuthGate(threshold=3)` 熔断：连续 3 次认证错抛 `AuthTrippedError` 终止整管（避免 50+ 块重复烧 quota）。
+`xlat/authgate.py::AuthGate`（自 pipeline 出叶；threshold 由 `PipelineConfig.auth_fail_threshold=3` 供）熔断：连续 3 次认证错闩锁 `tripped`——`_drain` 剩余项按 auth 失败记账不再发请求（避免 50+ 块重复烧 quota），`run()` 收尾抛 `AuthTrippedError` 判论文 fault。
 
 ### 1.6 语义重试阶梯（`xlat/retry.py::translate_with_ladder`）
 
@@ -93,15 +93,15 @@ kind 专属条款：para/abstract 追加 C10 人名保原语（`always keep pers
 
 ### 1.7 拦截网与缓存口径
 
-`_INTERCEPT_NETS`（`pipeline.py` 唯一枚举面）注册四张升格拦截网：`leftover_ph`、`ph_in_cs`、`bare_cs`、`residual_en`——与 `l0.py::CACHE_VETO_RULES` 同集合镜像。两处消费：译文产出时 `_intercept_apply` 命中即 fault + 回退原文；`_cache_hit`/`_cache_store` 用它 veto 毒化缓存条目（缓存命中与续跑旁路同样过网，命中旧毒条目清除重翻）。
+`_INTERCEPT_NETS`（`xlat/intercept.py` 唯一枚举面——自 pipeline 出叶，`pipeline.py` 回引）注册四张升格拦截网：`leftover_ph`、`ph_in_cs`、`bare_cs`、`residual_en`——与 `l0.py::CACHE_VETO_RULES` 同集合镜像。三处消费同迭代本表（intercept.py docstring 口径）：`_interceptable` bool 形——`_cache_hit`/`_cache_store` veto 毒化缓存条目（缓存命中与续跑旁路同样过网，命中旧毒条目清除重翻）；`pipeline._ledger_intercepts` 账本形——译文产出时经 `_net_apply_fn` 晚绑定取件，命中即 fault + 回退原文（`_load_resumed`/`_ledger_outcome` 共用）；`pipeline.retranslate_chunk` 裸形——L2 回灌重译判定直迭代注册表。
 
 缓存三层口径[^texglot]：
 
 | 层 | 键构成 | 落点 |
 | --- | --- | --- |
 | 段级 | `state.segment_key` = `sha256(role␀source␀失效tag…␀masked␀快照)`；`masked_snapshot` 是占位符布局摘要（`repr(ph_types)`），token 布局变则 key 变 | `xlat` 本地：`cache-{file16}.json` 内条目；server：`translation_cache` 表，键 = `{cfg_hash}:{seg_key}` |
-| 文件级 | `state.file_cache_key` = `sha256(prompt_version|base_url|model|lang|glossary|context)[:16]` | `cache-{16hex}.json` 文件名 |
-| 任务级 | `worker/_common.py::cache_key_for` = `sha256(arxiv_id@ver|model|PIPELINE_VERSION|lang[|src:channel][|fm:集][|k:key指纹])` | `tasks.cache_key` 活跃态部分唯一索引（dedup/attach） |
+| 文件级 | `state.file_cache_key` = `sha256(prompt_version | base_url | model | lang | glossary | context)[:16]` | `cache-{16hex}.json` 文件名 |
+| 任务级 | `worker/_common.py::cache_key_for` = `sha256(arxiv_id@ver | model | PIPELINE_VERSION | lang[ | src:channel][ | fm:集][ | k:key指纹])` | `tasks.cache_key` 活跃态部分唯一索引（dedup/attach） |
 
 server 侧段缓存前缀 `cfg_hash` = `sha256(model|PROMPT_VERSION|target_lang|base_url|u:user_glossary_sig|l:local_sig|c:categories|ag:auto_glossary)[:16]`——base_url 进指纹防跨 provider 混桶中毒，categories/auto_glossary 开关进指纹同理；文档级 placeholders 不进（会把缓存锁成单文档桶）。`TEXLATE_CACHE_SCOPE=per_key` 时任务级与段级键均拼入 `sha256(api_key)[:16]` 指纹按凭证分桶，消除跨租户缓存存在性 oracle；默认 `shared`（公开论文确定性函数跨租户复用是既定特性）。`SegmentCache` 读面 = `_pending ∪ _written ∪ _pre`（prewarm 批量预载，`drain` 随 chunk flush 事务落盘）。
 
@@ -125,11 +125,11 @@ server 侧段缓存前缀 `cfg_hash` = `sha256(model|PROMPT_VERSION|target_lang|
 - **ph→ph 恒等注入**：文档全部占位符 `glossary[ph]=ph` 混入表——占位符保护从软约束升级为术语表硬约束，零额外 token。
 - **文档级过滤 + 整表烤进**：启动时扫全部 chunk 源文本，`(?<!\w)term(?!\w)`（IGNORECASE|ASCII；term 内空白/`~`→`[~\s]+`）筛出本文实际出现词条 → 序列化为 `- en: zh` 行表追加 system prompt 末尾——整篇翻译期间 system prompt 逐字节不变，供前缀缓存命中。真实词条按 `en.lower()` 排、ph 按 sort_key 排，字节稳定是缓存命中前提。
 - `terms/index.yaml` 类目映射：`stat.ML`→`cs.ML.csv`、`eess.AS`→`cs.AI.csv`、`cond-mat.*`→`cond-mat.csv`、`quant-ph`→`quant-ph.csv`，未列→`default.csv`。资产行数：default 404 / cond-mat 756 / cs.LG 357 / cs.ML 305 / cs.RO 354 / quant-ph 311 / cs.AI 212 / cs.CV 158。种子表来自 LaTeXTrans[^latextrans]。
-- 产物落盘 `term_dict.json`；运行时逐篇抽取臂 `autogloss.py` 默认关（`PipelineConfig.auto_glossary_fn` / `TEXLATE_AUTO_GLOSSARY`；masked chunk 文列 → LLM JSON `[{src,tgt}]` → 归一键多数表决；`EXTRACT_BATCH_CHARS=2400`、`EXTRACT_MAX_BATCHES=6`、`EXTRACT_TEMPERATURE=0.1`、单批失败跳过）。
+- 产物落盘 `term_dict.json`；运行时逐篇抽取臂 `autogloss.py` 的缺省分面：`TEXLATE_AUTO_GLOSSARY` env 仅闸本地 `run`/e2e（mock 占位管线）与 bench——该路径缺省关（`PipelineConfig.auto_glossary_fn`）；server/web 任务走逐任务选项 `auto_glossary` 且缺省已开（`server/http.py::_clean_task_options` 注入 `True`），此 env 在真实翻译路径无效。抽取细节：masked chunk 文列 → LLM JSON `[{src,tgt}]` → 归一键多数表决；`EXTRACT_BATCH_CHARS=2400`、`EXTRACT_MAX_BATCHES=6`、`EXTRACT_TEMPERATURE=0.1`、单批失败跳过。
 
 ### 1.10 网关客户端（`xlat/client.py`）
 
-默认对接**内部 OpenAI 兼容网关**（`DEFAULT_BASE_URL` 指向本机回环端点；`TEXLATE_BASE_URL`/`TEXLATE_API_KEY`/`TEXLATE_MODEL`/`TEXLATE_DIALECT` env 逃生舱，`env_credentials` 读取；dialect ∈ `auto|openai|anthropic|responses` 四方言）。`chat()` 是生产路径（非流式）；`chat_stream` 存在但无生产调用方（bench/测试用）。
+默认对接**内部 OpenAI 兼容网关**（`DEFAULT_BASE_URL` 指向本机回环端点；`TEXLATE_BASE_URL`/`TEXLATE_API_KEY`/`TEXLATE_MODEL`/`TEXLATE_DIALECT` env 逃生舱，`env_credentials` 读取；dialect ∈ `auto|openai|anthropic|responses` 四方言）。`chat()` 是生产主路径（非流式）；`chat_stream` 已接线生产——`chat` 的流式兜底臂（`stream_fallback`/`TEXLATE_STREAM_FALLBACK` opt-in，默认关），对 `_stream_rescuable` 判定的「非流式路由死亡」形错误（传输族/5xx，2026-09-19 网关非流式全模型 502、stream 独活实证）原地补发；其余消费方仅 tests/smoke。错误谱/方言编解码/免费集发现链/SSE 流式面已出叶 `_errors|_dialects|_discovery|stream.py`，`client.py` 经 `from leaf import` 回引保持 `texlate.xlat.client.X` 钉点面不变（ChatClient 留薄委托）。
 
 - 模型面：`DEFAULT_MODEL="swe-2-medium"`；`DEFAULT_MODEL_PREFERENCE=("swe-2-medium","swe-2-high","swe-2-max","glm-5-2")`；`DEFAULT_MODEL_DENYLIST={"swe-1-7","swe-1-7-medium"}`（精确两枚，非通配）；`FALLBACK_MAX_CANDIDATES=3`。
 - 免费集动态发现 `discover_free_models`：网关面板 `cost_tier=="free"∧promo.active∧!disabled` ∩ `/v1/models` ∩ 探活（Semaphore 4、`max_probe=12`）+ memoize——**仅 `is_free_gateway_url`**（回环 ∪ CGNAT 段 ∪ tailnet 域名）启用；`fallback_candidates`/`_FallbackTranslator`（worker `retry_model`）消费。
@@ -163,17 +163,18 @@ server 侧段缓存前缀 `cfg_hash` = `sha256(model|PROMPT_VERSION|target_lang|
 4. `normalize_pdftex_features`（tectonic/xelatex 限定）——`\pdf*` 输出系赋值整段删 + `\input glyphtounicode` 删；microtype `expansion/spacing/kerning`（tectonic 加 `tracking`）选项→`=false`。
 5. `normalize_pixel_dimensions`（doc_source 限定）——尺寸语境 `Npx`→`N\pdfpxdimen`、`Nbp` 多值键（语境受限非全局 sed）。
 6. `PIXEL_COMPATIBILITY` 前置（prologue 限定）——`\pdfpxdimen` polyfill 块。
-7. `preamble_ok`（has_document ∧ ¬standalone/subfiles 子文档）才 prepend `XETEX_COMPATIBILITY`（microtype TU 限定 + breakurl `\ifpdf` 暂存 + quantumarticle PassOptions + pstricks 探针 + DeclareUnicodeCharacter）+ `TECTONIC_FONT_COMPATIBILITY`（bbm→dsrom/dsss 向量字体 shim，tectonic 限定）+ `\PassOptionsToPackage{no-math}{fontspec}`——兼容块插**文件顶**（`\PassOptionsToClass` 语义所迫）。
-8. `strip_input_encodings`——`\usepackage` 名单只剔 `{inputenc,fontenc}`，其余保留。
-9. `normalize_pdf_primitives`——删 `\pdfinfo{...}`、删 `\pdfoutput=1`；驱动选项 `pdftex→xetex`（只改 hyperref/graphicx/graphics/color/xcolor 可选参内独立 token）。
-10. `normalize_legacy_cjk`（lualatex 追加）——`CJK/CJKutf8`→xeCJK+Fandol，lualatex→luatexja。
+7. `preamble_ok`（has_document ∧ ¬standalone/subfiles 子文档）才 prepend `XETEX_COMPATIBILITY`（microtype TU 限定 + breakurl `\ifpdf` 暂存 + quantumarticle PassOptions + pstricks 探针）+ `TECTONIC_FONT_COMPATIBILITY`（bbm→dsrom/dsss 向量字体 shim，tectonic 限定）+ `\PassOptionsToPackage{no-math}{fontspec}`——兼容块插**文件顶**（`\PassOptionsToClass` 语义所迫）。
+8. `_splice_early_defs`（prologue 块内 + doc_source 限定；刻意不挂 preamble_ok/bd 闸——bd 藏 `\input` 子件时仍须注入；`SUBDOC_CHILD_RX` standalone/subfiles 子档跳过）——preamble 消费的仿真定义 `XETEX_EARLY_DEFS`（含 `\DeclareUnicodeCharacter` 仿真）逐缝插 `\documentclass` 之后（`\documentstyle` 缝滤除，全部用户 preamble 之前），幂等闸为块字面包含 + `\providecommand` 多缝重放安全。
+9. `strip_input_encodings`——`\usepackage` 名单只剔 `{inputenc,fontenc}`，其余保留。
+10. `normalize_pdf_primitives`——删 `\pdfinfo{...}`、删 `\pdfoutput=1`；驱动选项 `pdftex→xetex`（只改 hyperref/graphicx/graphics/color/xcolor 可选参内独立 token）。
+11. `normalize_legacy_cjk`（lualatex 追加）——`CJK/CJKutf8`→xeCJK+Fandol，lualatex→luatexja。
 
 树级手术（`normalize_project` 链序：junk → tex 件逐件 → transcode → legacy latin → rebase → shadow）：
 
 - `_neutralize_junk_files`——`JUNK_FILE_STUBS`+签名闸命中件置 stub（隐藏路径/符号链豁免）。
 - `_normalize_tex_files` 逐件：`_strip_lead_junk`（4096 窗剥文件头垃圾字节）→ `decode_tex_with` 分档解码 + `_record_verdict` → `normalize_engine`（doc_source=`.tex/.ltx` 后缀；prologue=doc_source ∨ `_prologue_ok` 严格 UTF-8 无 NUL）→ bbl 复用 → 写回。
 - `use_bundled_bibliography`——`.bib` 缺失但声明词干的 `.bbl` 存在且含 `\begin{thebibliography}` → `\bibliography{x}`→`\input{<词干>.bbl}`（相对编译 cwd 的 posix 路径，relpath 不越 `..`；多只 `\bibliography` 只换首个缺库者；visible 已含 `\input{<target>}` 即不改——工程级幂等防逐跑累加）。
-- `transcode.py::_transcode_support_files`——`.bib/.bbl/.bst` + `.aux` 系可再生中间产物非 UTF-8→UTF-8 转码写回；中间产物另加 8192B 截尾整形（`_trim_intermediate_tail`：XeTeX 写缓冲在边界劈断多字节字符比非法字节更致命）[^aux-cjk]。
+- `transcode.py::_transcode_support_files`——`.bib/.bbl/.bst` + `.aux` 系可再生中间产物非 UTF-8→UTF-8 转码写回；中间产物另加截尾整形（`_trim_intermediate_tail` 砍回最后一个完整行界：XeTeX 8192B 写缓冲在边界劈断多字节字符比非法字节更致命）[^aux-cjk]。另含 PS 图形件（`.eps/.epsf/.epsi/.mps/.ps`）`%` 注释行逐行净化 + `%%BoundingBox: (atend)` 头行 trailer 实值回填 + DOS-EPS 魔数整件豁免（台账 `sanitized_ps_comments`/`resolved_atend_bbox`/`dos_eps_skipped`），与全树非手术面/非 `BINARY_SUFFIXES` 件 strict-UTF-8 catch-all 转码（`transcoded_data`，含 NUL 字节且非 UTF-16 形态兜底不动）；中间产物截尾整形外另有「无完整行界即 unlink」purge 臂（台账 `trimmed_intermediates`/`purged_intermediates`）。
 - `prepare_legacy_latin_fonts`——OT1/T1/LY1→TU：`ptm→texgyretermes` 等映射 + `\usefont/\fontfamily` 改写 + `\newfontfamily` 定义块插 `\documentclass{}` 后（自定义 NFSS 族跳过）。
 - `rebase_project_paths`——`\input/../foo.tex` 越界引用重写为包内正确相对路径；`source_path_violations` 审计迭代器。
 - `shadow.py::_shadow_broken_system_packages`——xelatex/lualatex 下 kpse 批量 resolve，坏字节系统包遮影进 main_dir（`_SHADOW_MAX_ROUNDS=8` 传递闭包）。

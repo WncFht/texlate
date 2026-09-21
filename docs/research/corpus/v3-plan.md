@@ -1,7 +1,7 @@
 # corpus_v3 数据管线计划：分层 benchmark 语料的设计定稿
 
 > **结论**：语料设计定型为「核心概率样本（1,000 篇月簇配额随机）+ 补强对抗样本（~200 篇 agent 策展）」两桶形态，全部来自批量数据集（IA / HF）零在线 API，成员级 sha256 钉版可复现；该计划已全部执行落地并继续扩层。
-> **状态**：已完成（2026-09-15/16 落地执行；语料后续扩至八层 13,266 篇并统一物理根，现行口径见 `bench/corpus_v3/MANIFEST.md` 与本域 `2026-09-16-expand-layer.md`）。本文保留设计论证作历史与方法依据。
+> **状态**：已完成（2026-09-15/16 落地执行；语料后续扩至八层 13,266 篇并统一物理根——2026-09-20 七库合一后 `corpus_v3` 更名 `corpus`，现行口径见 `bench/corpus/MANIFEST.md` 与本域 `2026-09-16-expand-layer.md`）。本文保留设计论证作历史与方法依据。
 > **日期**：2026-09-14
 
 上游调研：`ia-pilot.md`、`post2020-sourcing.md`、`frame-and-allocation.md`、`labels.md`（本域）；方法学引证 `research/methods/bench-construction-methods.md`、指标口径 `research/methods/parse-metrics-literature.md`。
@@ -23,7 +23,7 @@
 | --- | --- | --- |
 | 池化「parse+identity ≥99.5%」 | ≥600 篇零失败 | rule of three：零失败 95% 上界 ≈ 3/n[^hanley83] |
 | 每时代带单独下结论 | ~200/带 × 5 带 = 1,000 | 带内零失败 → ≤1.5% 上界 |
-| 泄漏率 CI | chunk 级 ~15 万自动满足 | n=137 时 17,375 chunks → ±0.05%；1,000 篇 → ±0.005% |
+| 泄漏率 CI | chunk 级 ~15 万自动满足 | n=137 时 17,375 chunks → ±0.05%；~1,200 篇（~15 万 chunks）→ ±0.015% |
 | 稀有机制发现（0.5%/篇） | 1,000 篇 → 期望 ~5 次命中 | n ≥ ln(1−α)/ln(1−p)（验收抽样传统[^nielsen93]） |
 | 编译段复用 | 每引擎×时代 ≥100 | 同底材摊薄成本 |
 | 比例误差边际 | n=1,000 → ±2.8% | n=z²p(1−p)/e²[^cochran77] |
@@ -40,7 +40,7 @@
 | --- | --- | --- | --- | --- |
 | IA `arxiv-bulk` 月度 tar | 1991-07→2020-10 共 352 月无缺（3,242 src item / 1.66TB，实测索引） | 字节级（Range 单成员抽取逐字节核验通过） | 免费、实测 10.7–16.2MB/s | ≤2020 主力（~24 簇） |
 | HF `TIGER-Lab/arxiv-latex-5T` | 1991-07→2025-01 连续 403 月零缺口（9,547 tar） | 字节级已实证：与 IA `2008_001` 对拍，123/165 成员 sha256 全同，42 差异全是上游 v2+ 修订 | 免费但 HF CDN 仅 3.5–3.8MB/s | post-2020 主力（~6 簇）+ IA 缺月备份；冻于 2025-01 |
-| HF `scholarweave/arxiv-latex` | →2026-08 | .tex 逐字保真（845/845 全同）但结构有损：丢 73% 文件（图/bst）、7.1% 论文 U+FFFD、pdf_only 行 NULL | duckdb httpfs 谓词下推 | 文本层规模实验正源；**不进正式语料**；2025-02 后唯一批量源 |
+| HF `scholarweave/arxiv-latex` | →2026-07 | .tex 逐字保真（845/845 全同）但结构有损：丢 72.6% 文件（图/bst）、7.1% 论文 U+FFFD、pdf_only 行 NULL | duckdb httpfs 谓词下推 | 文本层规模实验正源；**不进正式语料**；2025-02 后唯一批量源 |
 | HF `librarian-bots/arxiv-metadata-snapshot` | 全量元数据 | — | 免费、可远程列裁剪 | 分层 frame：年月/类目/license 键 |
 | AWS `s3://arxiv` | 全量 | 字节级 | requester-pays | 不用 |
 
@@ -151,7 +151,7 @@ S0 frame 构建 ──► S1 簇下载（IA/TIGER tar）
 
 ## 落地结果（追记）
 
-核心 1,000 + 补强 200 于 2026-09-15/16 落地（manifest 四元组钉版、QC 全绿）；hot 层 166（OpenAlex 高引近期）、expand 层 3,866（故障率加权定向扩容）相继入库；2026-09-19 评测/开发分轨扩 holdout 3,020 + dev_vol 2,000 + dev_failmine 1,500 + dev_recent 1,514，八层合计 **13,266 篇 · 46GB**；2026-09-20 七库合一统一物理根（并入 v1/v2/m1k/iclr 旧库 947 篇搬移 + 251 去重），~14,161 extracted 树 ~54.9GB。现行层口径以 `bench/corpus_v3/MANIFEST.md` 为准。
+核心 1,000 + 补强 200 于 2026-09-15/16 落地（manifest 四元组钉版、QC 全绿）；hot 层 166（OpenAlex 高引近期）、expand 层 3,866（故障率加权定向扩容）相继入库；2026-09-19 评测/开发分轨扩 holdout 3,020 + dev_vol 2,000 + dev_failmine 1,500 + dev_recent 1,514，八层合计 **13,266 篇 · 46GB**；2026-09-20 七库合一统一物理根（并入 v1/v2/m1k/iclr 旧库 947 篇搬移 + 251 去重），~14,161 extracted 树 ~54.9GB。现行层口径以 `bench/corpus/MANIFEST.md` 为准。
 
 ### 参考文献
 

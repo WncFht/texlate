@@ -21,7 +21,7 @@
 
 `arg_roles` 五值：`text`（可译正文→chunk）、`opt-text`（可选参中可译文本）、`key`（不透明标识符→保护：cite key/label/文件名/计数器/color/包名）、`verbatim`（逐字内容：url/code，内部不解析）、`skip`（结构参留模板：数字/尺寸/列格式/overlay/星号/定界参）。`policy` 兜底指令：`chunk-arg | transparent | key | verbatim | protect | boundary | literal`；env 另有 `body_role: text | verbatim | math | protect`（protect = 整段保护但内部挖 `\caption`）。
 
-## 2. 三源合并方法
+## 2. 六源合并方法
 
 1. **unified-latex-ctan 主源（464 条带签名）**：从 18 个包的 ESM `index.js` 直接 `import` 出 `macros`/`environments`，取 `signature`/`namedArguments`/`pgfkeysArgs`/`inMathMode`/`escapeToken`[^unified-latex]。同名跨包冲突 18 个（`\bibitem/\label/\ref/\section/\newtheorem/\item` 等）按「保留 latex2e 定义、其余记 `also_in`」处理。
 2. **扫描器命令族表**：cite/ref/label 族 → `key`；chunk-arg 族 → `m=text, o=opt-text`；transparent 族 → `m=text`；protect 族 → `key`；protect-block → `m` 全 `skip` 整段保护；boundary/inline-literal/字体开关 → literal。环境侧 math/verbatim/protect 三名单直接映射 `body_role`。

@@ -1,14 +1,14 @@
 # 抽样 frame 与簇/配额分配（corpus_v3 A3 回填）
 
 > **结论**：以 `librarian-bots/arxiv-metadata-snapshot`（CC0）建成 3,164,528 行 × 14 列的分层 frame，新式 id 覆盖 99.9994%、旧式序号实测连续——快照可作无偏 frame；30 月簇（IA 24 + TIGER 6）按带内累计论文量等分位取月，核心 1,000 = 每带 200 × 5 带，配额、坑清单、可发布子集预测全部落定并执行。
-> **状态**：已完成（frame 已建成并驱动 2026-09-15/16 实际抽样；分层计数与簇清单为 2026-09-14 快照口径）。现行语料层口径见 `bench/corpus_v3/MANIFEST.md`。
+> **状态**：已完成（frame 已建成并驱动 2026-09-15/16 实际抽样；分层计数与簇清单为 2026-09-14 快照口径）。现行语料层口径见 `bench/corpus/MANIFEST.md`。
 > **日期**：2026-09-14
 
 数据源：HF `librarian-bots/arxiv-metadata-snapshot`（CC0，lastModified 2026-09-14，10 shards）。约束遵守：全程只触 huggingface.co / archive.org（IA 尺寸校准），未请求 arxiv.org / AWS S3。
 
 ## 1. frame 构建方法
 
-duckdb + httpfs 列裁剪远程扫全量 10 shards ≈122s（经本地代理），未落全量；只取 8/14 列（abstract/authors/title 不传输）：
+duckdb + httpfs 列裁剪远程扫全量 10 shards ≈122s（经本地代理），未落全量；只取 6/14 列（abstract/authors/title 等 8 列弃取不传输）：
 
 ```sql
 SELECT id,
@@ -148,7 +148,7 @@ a 带 99% missing（2004 前无许可环节）；e 带 CC 系 ~53%。license 词
 | B07 | 单文件 .gz / pdf_only（记丢弃原因） | 25 | 全体 |
 | B08 | 机动：成员特征表出来后回填 | 10 | 全体 |
 
-落地后实际配额为 a43/b45/c21/d53/e38（B01–B07 底线达标，W-mech 103/109），见 `bench/corpus_v3/MANIFEST.md`。
+落地后实际配额为 a43/b45/c21/d53/e38（B01–B07 底线达标，W-mech 103/109），见 `bench/corpus/MANIFEST.md`。
 
 ## 5. 坑与字段异常实测记录
 

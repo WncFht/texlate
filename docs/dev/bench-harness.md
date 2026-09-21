@@ -35,7 +35,7 @@
 
 ### 2.1 解析鲁棒性（corpus 全部 .tex）
 
-逐文件记录成功/失败（异常类型）/耗时，30s 超时。产出 `results/{lib}-parse.json` 形态的逐文件明细。
+逐文件记录成功/失败（异常类型）/耗时，30s 超时。产出 `bench/results/parsebench-{corpus}-{date}/` 三件套：`files.jsonl`（逐文件明细）+ `papers.json` + `summary.md`。
 
 ### 2.2 陷阱断言（fixtures）
 

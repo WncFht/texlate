@@ -1,6 +1,6 @@
 # docs-health — 文档面健康度侦察（roadmap 输入件）
 
-> **结论**：文档健康侦察：规则计数四处全漂、当日拆包再灭约 10 行号锚点、上手断点五处；三条改进建议。
+> **结论**：文档健康侦察：规则计数四处全漂、当日拆包再灭约 10 行号锚点、上手断点七处；三条改进建议。
 > **状态**：时点证据（2026-09-17 口径）
 > **日期**：2026-09-17（2026-09-20 迁入重编）
 
@@ -12,9 +12,11 @@
 
 `src/texlate/compile/fixloop/rules.yaml` 现为 **70 条规则**（64 loop + 3 gate + 2 precheck）、**48 个 taxonomy 条目**、4 条 warning 类（invalid_utf8/missing_char/missing_graphic/tectonic_degrade）、状态分布 proposed×35/validated×6/verified×4/stub×1。对照面全线滞后：`CLAUDE.md:4` 写「36 规则」（更早版本曾写 67）、`README.md:31` 写「33 规则 + taxonomy 28 类」、`docs/08` §5.1 勘误链末次计数为「46 taxonomy / 62 rules」、`docs/10:79` 勘误写「现 67 条」——同一真实数字在四处各不同，且都错。同类：`README.md:29` 写 `validate/`「L0 规则校验（7 规则）」，实际 `src/texlate/validate/l0.py` 有 12 个 `_check_*` 函数；`README.md:36` 语料行只写「1000 核心 + 200 补强」，实际 `bench/corpus_v3/MANIFEST.md:7` 四层共 5133（+hot 133 +expand 3800，expand 层为 2026-09-16 增补、`docs/09:29` 勘误已记但 README 未跟）。`README.md:26` 写 arxiv「189 tests」，实测约 190 个 test 函数（轻微）。
 
+> **勘误（2026-09-21 补注）**：本节「70 条规则（64 loop + 3 gate + 2 precheck）」拆分自相矛盾（64+3+2=69）且总数亦误——同一真实数字本节自身即第五个错值。按状态分布钉定的快照时点（rules.yaml @ `e078e995`–`969a9868`，2026-09-17 ~16:12–16:44）复核，真实计数为 **68 条 = 64 loop + 2 gate + 2 precheck**：「3 gate」系注释行 `# phase: gate(每轮分类后最先评估)…` 被朴素 grep 误计，真实 gate 规则为 2；48 个 taxonomy 条目与 4 条 warning 无误。另，状态分布（proposed×35/validated×6/verified×4/stub×1）仅覆盖 68 条中携带 `stats.status` 字段的 46 条，余 22 条无 stats 块；taxonomy 条目无 status 字段、不在该分布口径内。
+
 ### 1.2 结构面漂移（含当日再漂）
 
-`latex/segmenter.py` 已拆为 `src/texlate/latex/segmenter/` 8 文件包（args/_common/core/env/group/mainloop/pending/**init**，工作区 mtime 2026-09-17 12:15–15:13）；`docs/07` §1 勘误（同为今日所加）仍写 `segmenter.py`，属同日再漂移。`server/worker.py` 已拆为 `src/texlate/server/worker/` 11 文件包（mtime ~14:27），`__pycache__` 内残留 `worker.cpython-312.pyc` 佐证拆分为当日事——由此 `docs/08:157`（`worker.py:3046`）、`docs/08:194`（`worker.py::_probe_target`）、`docs/HANDOFF-2026-09-16.md:139-140` 共约 10 处 `worker.py:*` 锚点全部失效。`src/texlate/redlines.py`（redline 注册表）与 `src/texlate/repair.py`（e2e↔worker 共享修复层）已落地——即 `docs/research/refactor-audit-2026-09-17/report.md` 的 ★1/★2 建议实现——但 `CLAUDE.md:8` 的 server/ 模块清单（缺 `upload.py`、worker 仍写单文件）与 `docs/02` §目录结构树均未反映。`docs/02` 目录树整体是旧名集合：`compile/` 写 `fixrules/`（实 `fixloop/`）、`latex/` 只列 4 文件、`validate/` 写 `rules, ts_latex`（实 l0/l1/l2/report/ts/）、无 `export/`、`share.py`、`e2e.py`。`docs/05` §4 架构图出现 `texlate.core` 模块，代码中不存在。`docs/10:48` 写 B2「98 用例」，实测 `tests/test_bench_regression.py` 18 个 test 函数（参数化展开口径可解释，但单位表述易误读）。
+`latex/segmenter.py` 已拆为 `src/texlate/latex/segmenter/` 8 文件包（args/_common/core/env/group/mainloop/pending/`__init__`，工作区 mtime 2026-09-17 12:15–15:13）；`docs/07` §1 勘误（同为今日所加）仍写 `segmenter.py`，属同日再漂移。`server/worker.py` 已拆为 `src/texlate/server/worker/` 11 文件包（mtime ~14:27），`__pycache__` 内残留 `worker.cpython-312.pyc` 佐证拆分为当日事——由此 `docs/08:157`（`worker.py:3046`）、`docs/08:194`（`worker.py::_probe_target`）、`docs/HANDOFF-2026-09-16.md:139-140` 共约 10 处 `worker.py:*` 锚点全部失效。`src/texlate/redlines.py`（redline 注册表）与 `src/texlate/repair.py`（e2e↔worker 共享修复层）已落地——即 `docs/research/refactor-audit-2026-09-17/report.md` 的 ★1/★2 建议实现——但 `CLAUDE.md:8` 的 server/ 模块清单（缺 `upload.py`、worker 仍写单文件）与 `docs/02` §目录结构树均未反映。`docs/02` 目录树整体是旧名集合：`compile/` 写 `fixrules/`（实 `fixloop/`）、`latex/` 只列 4 文件、`validate/` 写 `rules, ts_latex`（实 l0/l1/l2/report/ts/）、无 `export/`、`share.py`、`e2e.py`。`docs/05` §4 架构图出现 `texlate.core` 模块，代码中不存在。`docs/10:48` 写 B2「98 用例」，实测 `tests/test_bench_regression.py` 18 个 test 函数（参数化展开口径可解释，但单位表述易误读）。
 
 ### 1.3 命令/配置面漂移
 

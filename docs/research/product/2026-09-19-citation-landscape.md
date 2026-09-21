@@ -29,10 +29,10 @@
 
 | 源                      | 引用边规模                                      | 许可       | 获取方式                                                    | arXiv 适配                                  | 关键缺陷                                                                                                                    |
 | ----------------------- | ----------------------------------------------- | ---------- | ----------------------------------------------------------- | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| **OpenAlex**            | ~2.4B（估）                                     | **CC0**    | 季度快照 745GB 免账号 S3 + 计费 API                         | arXiv source 324 万 works、61% 带 refs      | 仅 31% works 有 refs；无 arXiv 原生 ID 字段（走 `10.48550` DOI 或 location 反查）；头部论文有合并事故；related_works 不可用 |
+| **OpenAlex**            | ~2.4B（估）                                     | **CC0**    | 季度快照 745GB 免账号 S3 + 计费 API                         | arXiv source 324 万 works（source 实体计数口径 works_count=3,236,808；locations 过滤口径 3,729,541≈373 万）、61% 带 refs      | 仅 31% works 有 refs；无 arXiv 原生 ID（`10.48550` DOI 合并记录 404→location 反查）；头部有合并事故；related_works 不可用   |
 | **Semantic Scholar**    | **2.4B**（带 intent/influential/contexts 属性） | ODC-BY     | datasets API 分片下载（citations 255GB）+ 需 key 的在线 API | 覆盖好、externalIds 含 ArXiv                | 无 key 实测持续 429；license 非 CC0                                                                                         |
 | **OpenCitations Index** | **2.56B**                                       | **CC0**    | 69GB dump + REST 180rpm                                     | arXiv 实体仅入边无出边（经 `10.48550` DOI） | 需 arXiv↔DOI 对齐；dump 滞后 ~5 个月                                                                                        |
-| **OpenAIRE Graph**      | 2.35B（product_Cites）                          | **CC0**    | Zenodo 半年 dump ~321GB                                     | 聚合多源含 arXiv                            | 边型需逐条核、知名度低被低估                                                                                                |
+| **OpenAIRE Graph**      | 2.35B（product_Cites）                          | **CC BY 4.0**| Zenodo 半年 dump ~378.4GB                                 | 聚合多源含 arXiv                            | 边型需逐条核、知名度低被低估                                                                                                |
 | **OAG v3.3（AMiner）**  | v3.2 口径 12.7 亿                               | ODC-BY     | 阿里云 OSS 直链免鉴权 117.6GB                               | **无 arXiv id 字段**，doi/标题自匹配        | 年更无 diff；v3 起失去 MAG 半边校核                                                                                         |
 | Crossref                | 8166 万 works 寄存 refs                         | 开放元数据 | REST 10rps + 年度公开 dump                                  | 出版 DOI 为主                               | cited-by 会员专属；寄存率 ~50% 是瓶颈                                                                                       |
 | Wikidata P2860          | ~3.1 亿声明                                     | CC0        | SPARQL/dump                                                 | 稀疏（arXiv ~104 万）                       | 边密度不足撑不起全覆盖                                                                                                      |
@@ -114,7 +114,7 @@ AMiner（智谱/清华 KEG）：引用关系按次卖 ¥0.10/call，图谱能力
 
 工程 lane 用实测 manifest 与采样把成本算穿了：
 
-**arXiv 子图（~316 万节点）是单机问题**：arXiv 内边估 40–70M 条 → u32 边表 ~560MB、CSR ~300MB；SPECTER 768 维向量 f32 全量 ~9.8GB（f16/量化 2.5–5GB）；topK 预计算（top50×全节点）~2GB 一晚跑完。**一台 32GB RAM VPS（$40–80/月）同时扛图查询+ANN+API**。
+**arXiv 子图（~320 万节点，OpenAlex 实测 3,236,808 source works）是单机问题**：arXiv 内边估 40–70M 条 → u32 边表 ~560MB、CSR ~300MB；SPECTER 768 维向量 f32 全量 ~9.8GB（f16/量化 2.5–5GB）；topK 预计算（top50×全节点）~2GB 一晚跑完。**一台 32GB RAM VPS（$40–80/月）同时扛图查询+ANN+API**。
 
 **全图（2.4B 边、2–3.3 亿节点）也只是一台大内存机器的问题**：边表 parquet ~20GB、内存 CSR 10–20GB RAM；745GB OpenAlex jsonl 抽边单机 4–10 小时。**不要上 Neo4j**——邻接遍历用 CSR/DuckDB 便宜两个数量级，只有多跳图算法才值图库，而本场景用不上。
 
@@ -128,7 +128,7 @@ AMiner（智谱/清华 KEG）：引用关系按次卖 ¥0.10/call，图谱能力
 
 ### 1. 数据底座：OpenAlex 快照为主干，三源交叉校验
 
-- **主干 = OpenAlex 季度快照**（CC0、745GB、免账号、`updated_date` 分区天然增量）：取 works 的 `referenced_works`/`cited_by_count`/元数据，过滤 arXiv source（S4306400194）+ `10.48550` DOI 映射出自图。
+- **主干 = OpenAlex 季度快照**（CC0、745GB、免账号、`updated_date` 分区天然增量）：取 works 的 `referenced_works`/`cited_by_count`/元数据，过滤 arXiv source（`locations.source.id:S4306400194`，lane 20 实测 ~373 万 works）+ `locations.landing_page_url` 反查映射出自图——`10.48550` DOI 仅在作为 work canonical `doi` 时可解析、合并/期刊 DOI 记录下 404（`filter=doi:` 计数 0），不可作映射主键；`10.48550` 仅留作 OpenCitations 侧桥（lane 03）。
 - **校验与补全 = OpenCitations Index**（CC0、边自带 `author_sc`/`journal_sc` 自引标志——白拿）+ OpenAIRE product_Cites（备选第二源）。
 - **增强 = S2 datasets**：citations 的 intent/influential/contexts 属性（全 2.4B 边带属性的独一份）、embeddings-specter_v2（按 paper-ids join 回 arXiv 子集，只取 ~3M 条 ~10GB 而非全量 840GB；单篇还有 `fields=embedding.specter_v2` 白嫖通道）。需申请免费 API key——匿名共享池实测 429 命中率 >80%，不可做生产依赖；S2 新论文收录延迟 ≤10 天。
 - **冷启动 = unarXive permissive 子集**（1.9M 篇 63M refs 已链 OpenAlex）——今天就能下，先建图再迭代。
@@ -199,6 +199,6 @@ AMiner（智谱/清华 KEG）：引用关系按次卖 ¥0.10/call，图谱能力
 
 已验证可直接引用的前提：alphaXiv 的 references/overview 等富产物覆盖率很低（随机论文 ~7–20%，老 ID 0%），只能机会型白嫖——逆向细节见同目录 `2026-09-19-alphaxiv-reverse.md`；texlate 有每篇论文的 LaTeX 源（`.bbl`/`.bib`/`\bibitem`），引用边可自抽——这是相对 PDF 侧玩家的结构优势。
 
-调研范围三块：**数据源层**（OpenAlex、Semantic Scholar API+datasets/S2ORC、OpenCitations、Crossref、arXiv 官方渠道、INSPIRE-HEP/ADS/PubMed/DBLP 领域库、Lens.org 等——谁有引用边、被引数、arXiv ID 含 `astro-ph/` 老 ID、bulk dump、license、更新延迟）；**算法与产品层**（Connected Papers、ResearchRabbit、Litmaps、Inciteful、scite.ai、alphaXiv 各自怎么算「相关论文」：co-citation / bibliographic coupling / SPECTER 类 embedding / 混合；托管推荐 API 现状；可直接用的 embedding 资产）；**工程层**（全 arXiv ~250 万篇上亿边规模的 bulk dump 体量、存储形态、预计算 vs 按需、更新节奏；S2ORC / OpenAlex snapshot / GROBID 现成管线角色；「自建全图 / 骑托管 API / 混合」三条路线真实成本对比）。
+调研范围三块：**数据源层**（OpenAlex、Semantic Scholar API+datasets/S2ORC、OpenCitations、Crossref、arXiv 官方渠道、INSPIRE-HEP/ADS/PubMed/DBLP 领域库、Lens.org 等——谁有引用边、被引数、arXiv ID 含 `astro-ph/` 老 ID、bulk dump、license、更新延迟）；**算法与产品层**（Connected Papers、ResearchRabbit、Litmaps、Inciteful、scite.ai、alphaXiv 各自怎么算「相关论文」：co-citation / bibliographic coupling / SPECTER 类 embedding / 混合；托管推荐 API 现状；可直接用的 embedding 资产）；**工程层**（全 arXiv ~316 万篇（现刊口径）上亿边规模的 bulk dump 体量、存储形态、预计算 vs 按需、更新节奏；S2ORC / OpenAlex snapshot / GROBID 现成管线角色；「自建全图 / 骑托管 API / 混合」三条路线真实成本对比）。
 
 方法要求：WebSearch/WebFetch 调研 + `curl` 直接探 API 验证（限流、字段、覆盖率主张尽量实测，不抄二手数字）；实测验证过的标实测，查不到的标「未验证」；报告必须落到「texlate 下一步该怎么走」的具体建议上。

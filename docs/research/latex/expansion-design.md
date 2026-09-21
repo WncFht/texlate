@@ -30,7 +30,7 @@ Mouth 行为对齐 plasTeX tokenizer：回压缓冲（`tokbuf`）先空先出、
 
 原始流 `read()` 弹输入栈顶 Mouth，栈空即尽；`unread()` 压回当前 Mouth 的 tokbuf 前端。展开主循环 `next_expanded()`：非 cs 或非可展开名 → 直交分段器；命中可展开集 → `expand()` 产 token 序列 → `unread` 推回前端，继续循环（不动点）。读参一律走 `read()`——**参数读的是未展开 token**（`\foo\bar` 把 `\bar` 原样作参），与 plasTeX 一致。
 
-可展开集 = 宏表 ∪ 原语子集：定义族（`def/edef/gdef/xdef/let/newcommand/renewcommand/providecommand/DeclareRobustCommand/newenvironment/renewenvironment/DeclareMathOperator/NewDocumentCommand 系/newtheorem/newif`）、`input/endinput/include`、`if` 族 + `else/fi`、`expandafter/csname/endcsname/noexpand/long/outer/makeatletter/makeatother/catcode/ifundefined`。LaTeX 内建命令（`\section \cite` 等）不展开，原样交分段器按 argspec 表处理。
+可展开集 = 宏表 ∪ 原语子集（下列为概览，规范枚举以 `gullet/names.py::_PRIMS` 与 `spec/latex-pipeline.md` §4.5 为准）：定义族（`def/edef/gdef/xdef/let/newcommand/renewcommand/providecommand/DeclareRobustCommand/newenvironment/renewenvironment/DeclareMathOperator/NewDocumentCommand 系/newtheorem/newif`）+ `long/outer/global/protected` 前缀链、作用域原语 `begingroup/endgroup/bgroup/egroup`、`\input` 族（`input/@input/include/InputIfFileExists/subfile/import/subimport/includestandalone/CatchFileBetweenTags` + `endinput`）、`if` 族 + `else/or/fi`、`expandafter/csname/endcsname/noexpand`、`makeatletter/makeatother/catcode`、`ifundefined/@ifundefined/@ifxundefined`、`romannumeral/uppercase/lowercase/par`。LaTeX 内建命令（`\section \cite` 等）不展开，原样交分段器按 argspec 表处理。
 
 ### 4.1 三级防护（plasTeX 没有，必须补）
 
@@ -38,7 +38,7 @@ plasTeX 无任何展开限制——`\def\x{\x}` 死循环只能靠外部 alarm �
 
 | 层 | 机制 | 触发后 |
 | --- | --- | --- |
-| token 代数 | 展开产物 `gen = 触发者 gen+1`；`gen > 32` 不再展开 | 该 cs 按不透明宏调用保护输出（保字节） |
+| token 代数 | 展开产物 `gen = 触发者 gen+1`；`gen >= 32`（`MAX_GEN`）不再展开 | 该 cs 按不透明宏调用保护输出（保字节） |
 | 全局步数 | 每次 `expand()` 计一步；超 100k/文档 | 后续所有 cs 不再展开，记 `expansion_overflow` |
 | 输入栈 | `\input` 嵌套 >8 拒绝压栈 | 调用本身 literal 输出；循环引用另用绝对路径集去重 |
 
@@ -52,7 +52,7 @@ plasTeX 无任何展开限制——`\def\x{\x}` 死循环只能靠外部 alarm �
 
 定义点在 gullet 内消费并登记，统一编译为 `spec: list[Arg]` + `body: list[Tok]`（`#n` 为 Parameter token）。`Arg.kind ∈ {m, o, star, eq, delim, until_group}`：`m` 强制（`{..}` 或单 token）、`o` 可选带默认、`star` 字面 `*`、`eq` 可选 `=`（`\let\a=\b`）、`delim` 定界参数（读到定界 token 序列为止，定界被消费不入参）、`until_group` 对应 `#{` 尾随组（读到 `{` 回吐不消费）。
 
-逐类要点：`\newcommand{\x}[2][a]` 的可选位计入 N（`#1` 可选 + `#2` 强制）——v1 按 `opt+N` 多读一个是 bug，已修；`\providecommand` 是 `setdefault`、`\renewcommand` 覆盖写；`\edef` 体不预先展开（调用点惰性展开等价，分歧仅在被定义体内再有定义时，罕见）；`\newtheorem` 登记 env 透明项 + caption 元数据；`\newif\iffoo` 登记三项（旗标 + `\footrue/\foofalse` setter）；`\let\a\b` 存当时的 MacroDef 快照引用（`\b` 后改不影响 `\a`）。xparse spec 实现 `m o O s t d D r R u g l` 子集，含 `v/b/e/E/x` 的定义整条降级不登记。
+逐类要点：`\newcommand{\x}[2][a]` 的可选位计入 N（`#1` 可选 + `#2` 强制）——v1 按 `opt+N` 多读一个是 bug，已修；`\providecommand` 是 `setdefault`、`\renewcommand` 覆盖写；`\edef/\xdef` 体在登记时即时展开（`_expand_eager` 哨兵界标法：体+哨兵推回流、抽展开产物至哨兵止；体内 `\noexpand` 给下一 token 打单发 `xprotect`）；`\newtheorem` 登记 env 透明项 + caption 元数据；`\newif\iffoo` 登记三项（旗标 + `\footrue/\foofalse` setter）；`\let\a\b` 存当时的 MacroDef 快照引用（`\b` 后改不影响 `\a`）。xparse spec 实现 `m o O s t d D r R u g l` 子集，含 `v/b/e/E/x` 的定义整条降级不登记。
 
 ### 5.1 `\def` 参数文本编译（前移 plasTeX 调用点逻辑）
 
@@ -73,10 +73,10 @@ transparent 分两个子模式：
 
 plasTeX 对每个 `\if*` 都求值，不可求值者硬编常量。对翻译而言求错值 = 丢一支文本，因此：
 
-- **可求值档**（`\iftrue/\iffalse`、`\newif` 旗标、`\ifmmode`（math_depth 计数）、操作数全字面的 `\ifnum/\ifodd/\ifdim`、`\ifdefined/\ifcsname`、字面可比的 `\if/\ifcat/\ifx`、恒 False 的 `\ifeof/\ifvoid/\ifhbox/\ifvbox/\ifinner`、按模式常量的 `\ifhmode/\ifvmode`）→ 读条件后收集分案例、只推回选中支，未选支 token 丢弃——其内 `\def` 不执行、文本不进 chunk，与 TeX 语义一致。
+- **可求值档**（`\iftrue/\iffalse`、`\newif` 旗标、操作数全字面的 `\ifnum/\ifodd/\ifdim`、`\ifdefined/\ifcsname`、字面可比的 `\if/\ifcat/\ifx`、恒 False 的 `\ifmmode/\ifeof/\ifvoid/\ifhbox/\ifvbox/\ifinner`、按模式常量的 `\ifhmode/\ifvmode`）→ 读条件后收集分案例、只推回选中支，未选支 token 丢弃——其内 `\def` 不执行、文本不进 chunk，与 TeX 语义一致。
 - **不可求值档**（带寄存器/内部量的 `\ifnum`、对宏的 `\ifx`、其余一切）→ 条件部分按各自语法读掉（避免 `\count0=1` 泄漏进 chunk），`\if/\else/\fi` 发为结构界标 literal piece，**两分支都进分段器**——召回优先，编译端 TeX 自决。
 
-`process_if` 收集未展开 token 到 `\fi`、按 `\else/\or` 分案例；`if*` 前缀计数嵌套、`\newif` 特例保证 `\ifx\newif\ify` 序列不被误算嵌套；`\ifcase N` 取第 N 支。`\ifmmode` 由分段器在 `$ \( \[ \begin{数学env}` 处维护深度回馈。
+`process_if` 收集未展开 token 到 `\fi`、按 `\else/\or` 分案例；`if*` 前缀计数嵌套、`\newif` 特例保证 `\ifx\newif\ify` 序列不被误算嵌套；`\ifcase N` 取第 N 支。`\ifmmode` 取恒 False——数学区由分段器 raw 拉取成 `[[MATH]]` 占位，数学体内的 `\ifmmode` 永不抵达求值器（理由注释见 `gullet/cond.py`，行为由 `tests/test_latex_cond.py::test_ifmmode_false` 钉死）。
 
 ## 8. 作用域、`\makeatletter`、`\input`
 
@@ -92,7 +92,7 @@ plasTeX 对每个 `\if*` 都求值，不可求值者硬编常量。对翻译而�
 
 ## 10. 明确不做
 
-catcode 通用机制（除 `@` 特例）、active chars 自定义、`\halign`、完整求值器（寄存器算术/盒尺）、`\write/\read/\openout`、e-TeX 扩展、`\uppercase/\lowercase`、xparse `v/b/e/E/x` 参数型、plasTeX 的 DOM/stomach 全部不移植。`\edef` 体预展开、`\let` 的 Mouth 层解析、`\chardef` 语义同样跳过（与 plasTeX 口径一致）。
+active chars 自定义、`\halign`、完整求值器（寄存器算术/盒尺）、`\write/\read/\openout`、xparse `v/b/e/E/x` 参数型、plasTeX 的 DOM/stomach 全部不移植。`\let` 的 Mouth 层解析、`\chardef` 语义同样跳过（与 plasTeX 口径一致）。注：本节成文后若干项已落地——`\catcode` 现为通用机制（任意字符/类别，仅 `\global\catcode` 写透缺）、`\uppercase/\lowercase` 与 `\romannumeral` 已实现、`\edef` 体预展开已落（§5）；e-TeX 面仅 `\unexpanded/\detokenize/\scantokens` 与 `\numexpr` 族算术仍缺——`\protected` 由前缀链消费、`\ifdefined/\ifcsname` 真求值、其余 e-TeX/pdfTeX/XeTeX `if*` 原语走界标档。
 
 ### 参考文献
 

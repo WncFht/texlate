@@ -6,7 +6,7 @@
 
 ## 数据规模实测（2026-09-19）
 
-**OpenAlex**：API 在线口径 works 总数 **327,389,651**；快照口径（2026-06-26 release manifest 实测）**649,096,577 条记录、745.5GB 压缩 JSONL**，其中 works 实体 510,372,821 条/665.7GB（快照计数含 API 已过滤的墓碑/合并记录故大于 API 口径）[^oa-manifest]。S3 公开桶**免 AWS 账号免流量费**，免费快照季度更新，文件按 `updated_date` 分区（2446 个）——增量同步天然可行[^oa-dl]。引用边规模：随机采样（n=125）显示仅 ~25.6% 随机 works 带 `referenced_works`、均值 ~7.5 条——**推总边数 ~2.4B，与 S2 的 2.4B 惊人一致**（估算；非随机样本会严重高估）。arXiv 覆盖：`locations.source.id:S4306400194` 实测 **3,729,541** works 带 arXiv location，相对现刊 316 万覆盖充分；**坑：arXiv DataCite DOI（`10.48550/arXiv.*`）在 OpenAlex 是 404**——ID 映射不能靠 DOI[^oa-limits]。
+**OpenAlex**：API 在线口径 works 总数 **327,389,651**；快照口径（2026-06-26 release manifest 实测）**649,096,577 条记录、745.5GB 压缩 JSONL**，其中 works 实体 510,372,821 条/665.7GB（快照计数含 API 已过滤的墓碑/合并记录故大于 API 口径）[^oa-manifest]。S3 公开桶**免 AWS 账号免流量费**，免费快照季度更新，文件按 `updated_date` 分区（2446 个）——增量同步天然可行[^oa-dl]。引用边规模：随机采样（n=125）显示仅 ~25.6% 随机 works 带 `referenced_works`、均值 ~7.5 条（按全部采样 works 无条件计，无 refs 记 0）——**推总边数 ~2.4B（=API 口径 327.4M works × 7.5；快照 510M 口径含墓碑/合并记录、贡献 ~0 边，不参与推总），与 S2 的 2.4B 惊人一致**（估算；非随机样本会严重高估。注：若该均值实为仅对带 refs 的 25.6% 求均值的条件口径，则推总仅 ~0.6–1.0B，本行结论与档二存储表需一并复核）。arXiv 覆盖：`locations.source.id:S4306400194` 实测 **3,729,541** works 带 arXiv location，相对现刊 316 万覆盖充分；**坑：arXiv DataCite DOI（`10.48550/arXiv.*`）在 OpenAlex 是 404**——ID 映射不能靠 DOI[^oa-limits]。
 
 **S2**（release 2026-09-17 实测）：papers 200M ~45GB、citations **2.4B ~255GB**（带 influential/intent/context）、abstracts 100M ~54GB、embeddings-specter_v1/_v2 各 120M ~840GB、s2orc_v2 16M ~180GB、paper-ids 450M ~15GB；license ODC-BY[^s2-datasets]。在线 API 无鉴权池实测连续 429——名义 1rps 实际已不可用，生产必须申 key。
 

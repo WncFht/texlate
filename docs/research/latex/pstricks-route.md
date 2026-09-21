@@ -37,14 +37,14 @@ latex 对 latin-5 裸字节报 `Invalid UTF-8 byte` **错误**（可见信号）
 
 ## 5. 落地为规则
 
-决策树：工程含 vendored `.sty/.cls` 且同名存在于 texmf → 比较 `\ProvidesPackage/\ProvidesFile` 日期，vendored 更旧则隔离（rename `.VENDORED`），同名不存在于 texmf 则保留；首选 xelatex + ctex 注入；latex→dvips→ps2pdf 作兜底（仅当 xelatex 仍失败——pst-* 特性仅 dvips 支持——或要求保真原版排版；前置 preflight 用 kpsewhich 检查 `.pro` 文件齐全）。
+决策树：工程含 vendored `.sty/.cls` 且同名存在于 texmf → 比较 `\ProvidesPackage/\ProvidesFile` 日期，vendored 更旧则隔离（rename `.fixloop-iso`），同名不存在于 texmf 则保留；首选 xelatex + ctex 注入；tectonic 遇 pstricks 依赖由 `pstricks_route` 预检改派 xelatex，latex209（`\documentstyle`）+ pstricks 稿走 latex→dvips→ps2pdf 通道（前置 `pstricks_dvips_preflight` 检查 `pst-tools.pro` 等 `.pro` 件齐全）。
 
-对应 fixloop 规则（均已落地，见 `spec/compile.md`）：
+对应 fixloop 规则（均已落地，见 `spec/compile.md` 与 `fixloop/rules/85-shim.yaml`、`30-route.yaml`）：
 
-- **R1 `vendored_pkg_shadow`**：触发 = 预扫同名 vendored 更旧，或 log undefined cs 级联 >10 且首错落在 vendored 包加载后；动作 = rename `.VENDORED` 重编；唯一来源不摘。本例收益 126/128 err → 0/2 err，零成本 rename 不依赖网络，应为最高优先级规则之一。
+- **R1 `vendored_sty_shadow`**（85-shim.yaml，loop 相 order 150）：触发 = loop 内 `undefined_cs`/`already_def` 类错误 + `vendored_shadow` 条件（builtin 探测工程内副本 `\ProvidesPackage/\ProvidesFile` 日期 < texmf 同名件——日期比较收在 condition 里，无独立预扫臂）；动作 = rename `.fixloop-iso` 隔离重编（`.sty/.cls`，biblatex 同包伴船 `.def/.bbx/.cbx` 等整组隔离）；texmf 无同名件（唯一来源）条件不中不摘。本例收益 126/128 err → 0/2 err，零成本 rename 不依赖网络，应为最高优先级规则之一。
 - **R2 `non_utf8_source`**：预扫 UTF-8 decode 失败或 log `Invalid UTF-8 byte` → xelatex 路线上游先转码、latex 路线注入探测编码的 inputenc。
-- **R3 `pstricks_dvips_fallback`**：pstricks/pst-* 依赖且 xelatex 经 R1 后仍失败 → 切 latex→dvips→ps2pdf + `.pro` preflight。
-- **R4 对 `latex209_reject` 的补充**：`\documentstyle` 工程不应路由 latex+dvips；latex+dvips 的正确用途是 pstricks/EPS 兜底而非 2.09 救命——路由条件须写清「仅当非 latex209 且含 pst-*/EPS 依赖」。
+- **R3 `pstricks_route` + `pstricks_dvips_preflight`**（30-route.yaml，落地为两条而非单条 fallback）：`pstricks_route`（precheck 相 order -10）= 源码行锚命中 pstricks/pst-*/pspicture/`\psset` 依赖且引擎 tectonic → 预检路由 xelatex（tectonic 无 PS 可行路径）；`pstricks_dvips_preflight`（gate 相 order 0，先于 `latex209_reject`）= `\documentstyle`+pstricks 依赖的 latex209 籍走 latex+dvips 前预检 `pst-tools.pro` 存在，缺则 REJECT note 附 advisory。
+- **R4 `latex209_reject`**（30-route.yaml，gate 相 order 1）：行锚 `\documentstyle` 或 COMPAT_SHIM 面包屑确认的 2.09 籍 → 路由拒绝转 latex+dvips 通道——与原稿「2.09 不应走 dvips」的设想相反，落地口径里 latex+dvips 正是 2.09 残留籍的救命路（`latex209_upgrade` 在 precheck 已转化一批，仍出 209 类错误者归此通道），pstricks 依赖者在 order 0 先经 `pstricks_dvips_preflight` 记 `.pro` 预检。
 
 环境注记：探针期 texmf 为 BasicTeX 精简发行版（dist 无 pstricks/IEEEtran，经 usermode 装），且缺 pstricks.tex 2025 新增依赖 `pst-tools.pro`（从 tlnet `pst-tools` 归档补进 cwd 即通）——完整 TeX Live 不缺，但 fixloop 的 missing_file 链对 `.pro` 同样适用（包名 = tlnet 归档名）。
 

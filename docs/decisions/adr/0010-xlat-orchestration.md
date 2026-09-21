@@ -9,9 +9,9 @@
 
 ## 裁决
 
-- **Prompt 体系**：6 个 chunk-kind system prompt（公共条款 C1–C8 + C9 占位符契约永远置末 + C10 人名保留 + kind 子句追加）；模板措辞变更必须 bump `PROMPT_VERSION`（段级缓存键含此值）。前缀缓存友好：system prompt + 术语表 + 占位符契约放前缀并稳定排序。
+- **Prompt 体系**：6 个 chunk-kind system prompt（公共条款 C1–C8 + C8a 反熔合 + C8b 不可信内容护栏 → kind 子句（批量追加 B1）→ C9 占位符契约 → C10 人名保留（仅 para/abstract）→ 术语表块永远置末；有 `paper_context` 时任务句后另插摘要锚定块）；模板措辞变更必须 bump `PROMPT_VERSION`（段级缓存键含此值）。前缀缓存友好：system prompt + 术语表 + 占位符契约放前缀并稳定排序。
 - **术语表三级**：全局默认表 → `primary_category` 映射领域包 → 文档级过滤取并集烘进稳定 system prompt；**ph→ph 恒等注入**——全部占位符以 `ph→ph` 映射灌进 glossary，把占位符保护变成术语硬约束；`autogloss` 自动术语抽取（masked chunk → LLM 域名词表 → 多数表决）。
-- **批量协议**：全量 chunk 入批、按 token 控批（约 2000–4000 token ≈ ≤8000 字符，K 量化等大装箱）+ `[n]` 编号 + `@@` 兜底行 + 整批失败折半梯子退单翻——批阈值是最大成本杠杆（E20：请求数降 ~10×、总 token 降 ~40%）；超大原子 chunk 先切分再入批。
+- **批量协议**：全量 chunk 入批、按字符硬顶 `BATCH_MAX_CHARS=12000` + 成员软顶 `BATCH_MAX_ITEMS=32` 控批（按 `n_req` K 量化等大装箱）+ `[n]` 编号 + `@@` 兜底行 + 整批失败直退单翻（无折半梯子——解析/调用失败的批成员直接落逐段单翻）——批阈值是最大成本杠杆（E20：请求数降 ~10×、总 token 降 ~40%）；超大原子 chunk 先切分再入批（`CHUNK_HARD_LIMIT=6000`）。
 - **重试阶梯**：整段 ×2（`previous_validation_error`/`slot_validation_failures` 字段化反馈）→ 行级修复 → slots JSON 兜底（`⟪S0000⟫` 槽位协议，失败槽只重问失败批）→ 三振 `fallback_orig` + `partial` 终态。
 - **辅助**：LLM-judge 判未知 env 可译性（temp=0、True/False、few-shot、fail-open）；`recover_copied_tokens`（模型把受保护原文抄回时唯一出现才换回 token）；断点续翻 state 落盘；段级缓存内容寻址。
 - HTTP 面：状态码分类表 + `Retry-After` 读取 + provider 无关 `redact()` 脱敏。
@@ -25,9 +25,10 @@
 ## 演变
 
 - 2026-09-17：批量协议 P0 修复——**非锚定解析整体撤除**（译文静默错配通道封死）+ `@@` 泄漏闸；同批核销 4 条 P1。
+- 2026-09-18：batchmodel 改版——控批口径从「约 2000–4000 token ≈ ≤8000 字符」改为字符硬顶 `BATCH_MAX_CHARS=12000` + 成员软顶 `BATCH_MAX_ITEMS=32` + `n_req` 驱动 K 量化等大装箱；整批失败的折半梯子撤除，批成员直退逐段单翻（`pipeline.py`「整批退单翻」）。
 - 术语表领域扩面：内建表从 cs 系扩到 8 张 CSV（cs.AI/CV/LG/ML/RO + cond-mat + quant-ph + default），`index.yaml` 做 arXiv category→CSV 映射；种子表来自 LaTeXTrans（MIT）。
 - 质量基线待定：qualbench LLM-judge 停在冒烟规模，「优化翻译」尚无质量分布基线——全文级术语一致性、judge 低分重翻（hjfy「反馈换档」对等物）在可做池。
 
 ## 现状
 
-实现落在 `xlat/` 包：`prompts.py`（`PROMPT_VERSION` 当前 v4）、`batch.py`（装箱 + 编号协议 + 折半）、`retry.py`（指数退避 + 四段语义阶梯）、`pipeline.py`（asyncio worker 池 + 首发单飞暖缓存）、`glossary.py` + `autogloss.py` + `terms/`（8 CSV + index.yaml）、`placeholders.py`（编解码与 src↔zh 对账）、`state.py`（段级缓存 + 断点）、`mock.py`（MockTranslator 确定性占位译文）、`client.py`（网关客户端，见 ADR-0011）。
+实现落在 `xlat/` 包：`prompts.py`（`PROMPT_VERSION` 当前 v4）、`batch.py`（装箱 + 编号协议 + 整批退单翻）、`retry.py`（指数退避 + 四段语义阶梯）、`pipeline.py`（asyncio worker 池 + 首发单飞暖缓存）、`glossary.py` + `autogloss.py` + `terms/`（8 CSV + index.yaml）、`placeholders.py`（编解码与 src↔zh 对账）、`state.py`（段级缓存 + 断点）、`mock.py`（MockTranslator 确定性占位译文）、`client.py`（网关客户端，见 ADR-0011）。

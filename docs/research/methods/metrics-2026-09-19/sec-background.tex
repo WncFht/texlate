@@ -18,7 +18,7 @@ TeXlate 是「幻觉翻译」(hjfy.top) 的开源复刻：输入一篇 arXiv 论
 
 \textbf{arXiv 源码是脏的真实世界数据}。语料横跨 LaTeX2.09（1990s）到 2026 年：混用 plain \TeX{} 原语与 LaTeX2.09 旧式、非 UTF-8 编码（Big5/GBK/Latin-1）、缺文件的残缺包、tar/gz 双格式、古早宏包（revtex4、aastex、psfig）。基线实测：裸编译（不做任何修复）能出 PDF 的仅 65--72\%，纯净出 PDF 的只有 22--40\%——三分之二的论文源码直接编译不出 PDF，最大失败类是缺文件（占裸编译失败的 92.1\%）。
 
-\textbf{宏展开是现成解析器的共同盲区}。95\% 的论文含自定义宏（中位 47 个/篇，最多 446），其中 12/39 篇手挑语料存在「宏体里藏 \verb|\begin/\end|」的结构性陷阱，49\% 的宏体藏 $>20$ 字母的可译文本。对 8 个第三方解析库（latex-utensils、unified-latex、tree-sitter-latex、TexSoup、plasTeX、pylatexenc、LaTeX.js、ieeA）的横评（原始报告随档 \texttt{refs/}）表明：陷阱断言全军覆没——最好成绩 24/26 vs 自研半解析器 32/32；「能解析」不等于「解析对」，pylatexenc 报 90/90 成功却是静默截断零报错。\textbf{无错误信号比崩溃更危险}，这决定了主解析器必须自研、校验器必须独立。
+\textbf{宏展开是现成解析器的共同盲区}。95\% 的论文含自定义宏（中位 47 个/篇，最多 446），其中 12/39 篇手挑语料存在「宏体里藏 \verb|\begin/\end|」的结构性陷阱，49\% 的宏体藏 $>20$ 字母的可译文本。对 8 个第三方解析库（latex-utensils、unified-latex、tree-sitter-latex、TexSoup、plasTeX、pylatexenc、LaTeX.js、ieeA）的横评（原始报告存档于 \texttt{bench/archive-2026-09-20/results/00-grand-comparison.md}）表明：陷阱断言全军覆没——最好成绩 24/26 vs 自研半解析器 32/32；「能解析」不等于「解析对」，pylatexenc 报 90/90 成功却是静默截断零报错。\textbf{无错误信号比崩溃更危险}，这决定了主解析器必须自研、校验器必须独立。
 
 \textbf{翻译约束是结构性的}。译段边界纪律要求公式、命令、环境标签逐字节保留，译文只能在散文区间替换；术语表一致性、学术语域、不可译段（参考文献/版权行）都要显式协议。编译侧中文需要 ctex 注入与 CJK 字体路由，修复侧要处理 EPS 图源、缺 sty/cls、文献链路断点等 $\sim$260 类已建档机制。
 
@@ -89,7 +89,7 @@ TeXlate 是「幻觉翻译」(hjfy.top) 的开源复刻：输入一篇 arXiv 论
   \item \textbf{硬契约（hard\_ok）与契约族}：翻译臂的硬契约判定——占位符全还原（\texttt{ph\_missing}、\texttt{ph\_invented}）、控制序列保留（\texttt{cs\_dropped}）、结构校验通过（\texttt{validator\_ok}）。顺序类分硬换序（\texttt{ord\_hard}，破契约）与软换序（\texttt{ord\_soft}，合法中文换序告警，不计败）。
   \item \textbf{ESA 评审与争议判例（contested）}：质量臂的 LLM 评审协议——评审模型按 ESA 错误分类打 0--100 分；初裁与复核分歧的判例记为争议，由第二评审仲裁。
   \item \textbf{具名锚点（named-dest）}：PDF 具名锚点（hyperref \verb|\label| 位点）；对齐臂测双版锚点保留率实现逐段对齐。
-  \item \textbf{修复循环（fixloop）/ 机制（mechanism）/ 车道}：fixloop 为 YAML 规则驱动的编译修复循环；mechanism 为机制台账（\texttt{mechanisms.jsonl}，快照随档 \texttt{refs/}）登记的已知缺陷模式（dollar 族泄漏、eps\_route 等），是「benchmark 发现 $\to$ 归因 $\to$ 规则沉淀」反馈环的载体；车道/波次为多代理并行修一批同族缺陷的工作单元；\textbf{自改进环（selfimp）}为 09-18 起常驻的多代理改进环（车队台账快照随档 \texttt{refs/}）。
+  \item \textbf{修复循环（fixloop）/ 机制（mechanism）/ 车道}：fixloop 为 YAML 规则驱动的编译修复循环；mechanism 为机制台账（\texttt{mechanisms.jsonl}，存档于 \texttt{bench/corpus/}）登记的已知缺陷模式（dollar 族泄漏、eps\_route 等），是「benchmark 发现 $\to$ 归因 $\to$ 规则沉淀」反馈环的载体；车道/波次为多代理并行修一批同族缺陷的工作单元；\textbf{自改进环（selfimp）}为 09-18 起常驻的多代理改进环（车队台账快照存档于 \texttt{tmp/old-docs-2026-09-20/docs/research/metrics-2026-09-19/refs/}）。
   \item \textbf{v2 切换（cutover）}：09-16 解析主路径从 v1 逐字符扫描器切到 v2 展开机 + 切分器的事件，切换硬门为回填残留占位符清零。
   \item \textbf{批量档（bg）}：网关批量档——低优先级队列，入闸排队约 120 秒，评测批跑默认档位，延迟读数含排队时间。
 \end{itemize}

@@ -5,7 +5,7 @@
 
 ## 上下文
 
-复刻 hjfy 要一次性选定语言、运行时、编译层、前端栈、分发方式与许可证。调研期对 8 个 LaTeX 解析库、编译侧、支撑生态、部署分发做了大横评（主仓 `docs/05` 证据矩阵 E1–E22、`bench/results/00-grand-comparison.md`），结论是所有现成 LaTeX 解析库都在宏展开上全灭、TeX 依赖是最大分发障碍、同领域开源项目清一色 Python。
+复刻 hjfy 要一次性选定语言、运行时、编译层、前端栈、分发方式与许可证。调研期对 8 个 LaTeX 解析库、编译侧、支撑生态、部署分发做了大横评（主仓 `docs/05` 证据矩阵 E1–E22），结论是所有现成 LaTeX 解析库都在宏展开上全灭、TeX 依赖是最大分发障碍、同领域开源项目清一色 Python。
 
 ## 裁决
 
@@ -33,4 +33,4 @@
 
 ## 现状
 
-落地为 `src/texlate/` Python 包（uv workspace、`uv sync` 起 .venv、Python 3.12+）+ `web/` SolidJS+Vite 前端（独立 package.json）+ `server/babeldoc.py` spawn-CLI sidecar；许可证 Apache-2.0 + NOTICE（texglot/unified-latex 等借鉴声明）。
+落地为 `src/texlate/` Python 包（uv 管理、`uv sync` 起 .venv、Python 3.12+）+ `web/` SolidJS+Vite 前端（独立 package.json）+ `server/babeldoc.py` spawn-CLI sidecar；许可证 Apache-2.0 + NOTICE（texglot/unified-latex 等借鉴声明）。

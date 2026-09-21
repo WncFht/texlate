@@ -12,7 +12,7 @@
 
 ### A. soak 臂（主矿——量大、签名已聚类、协议现成）
 
-- `bench/results/soak-<date>/records/{ingest,parse,xlat,compile,fixloop}.jsonl`：每行 `{id,stage,arm,status,metrics,errors[{code,cat,payload}],sig}`——`sig` 字段预算好，聚类零加工。**soak 目录在主仓 `<ROOT>/bench/results/` 下**（worktree 里只有入库版，可能缺最新批——一律经 `--add-dir` 的主仓路径读写）。
+- `bench/results/soak-<date>/records/{ingest,parse,xlat,compile,fixloop}.jsonl`：每行 `{id,stage,arm,upstream,code,status,dur_s,metrics,errors,sig}`（errors 元素为 `{code,cat,payload}`）——`sig` 字段预算好，聚类零加工；`upstream` 是 (id,arm,upstream) resume 键（`benchlib.rec_key`）的第三分量，triage/errsweep 的末条胜口径靠它。**soak 目录在主仓 `<ROOT>/bench/results/` 下**（worktree 里只有入库版，可能缺最新批——一律经 `--add-dir` 的主仓路径读写）。
 - 签名榜直接生成：`python3 <ROOT>/bench/py/triage.py records <ROOT>/bench/results/soak-<date>/` → `tickets.jsonl`（`sig_id/count/example_ids/repro_path/fix_class/notes`，按 count 降序）。**这是第一输入**，别手写聚类。tickets.jsonl/report.md 写进 soak 目录是脚本既定落点，允许；`metrics` 子命令不写（全局 metrics.jsonl 是跟踪文件，别在主树弄脏）。
 - `bench/results/soak-<date>/cases.jsonl`：fixloop CaseSink 沉淀。`load_cases` + `triage()` 过滤出待修队列（verdict ∈ unfixable:/stuck/dirty_pdf/max_rounds/no_errors_no_pdf）。
 - 现场：`bench/results/soak-<date>/work/{wid}/{src,zh,splice,build-base}/`。wid 与 records id 间有 raw(`cat/id`)/canon(`cat--id`)/flat 混形——**任何 id 匹配两侧都过 canon 归一**（wave-5 漏跑 253 格实证），tickets 的 `repro_path` 已解析好优先用它。

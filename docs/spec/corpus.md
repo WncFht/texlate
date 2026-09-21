@@ -1,7 +1,7 @@
 # 语料规范 —— arXiv LaTeX 源码评测底材
 
 > spec/ 层唯一事实源：与 `bench/` 磁盘现状对齐。评测器侧（用这些底材怎么测）见 `spec/benchmark.md`；取源渠道裁决与单次调研证据以 `research/` 档案为准，本文不复述实测细节。
-> 写作时点注意：语料库正在从统一物理根 `bench/corpus/` 复拆为 `corpus_v3`/`corpus_m1k`/`corpus_v2` 分库（git 已暂存、磁盘迁移在飞）。各层 manifest 文件名与层语义是跨迁移稳定锚点；本文按目标布局写根名，迁移完成前 `bench/corpus/` 仍是实际载体。
+> 写作时点注意：语料库复拆为 `corpus_v3`/`corpus_m1k`/`corpus_v2` 分库是规划方向（ADR-0013「再分层在途」，尚未落 index——三个目标根名在 git index 与磁盘上均不存在），现状物理根仍是合一的 `bench/corpus/`。各层 manifest 文件名与层语义是跨迁移稳定锚点；本文按目标布局写根名，迁移落地前 `bench/corpus/` 仍是实际载体。
 
 ## 1. 定位与设计原则
 
@@ -22,13 +22,13 @@
 | --- | --- | --- |
 | `bench/corpus_v3/` | **主库**——v3 层化语料（§3 表全部层 + v1/iclr 并入层 + 台账/审计件） | manifest/台账/提名/报告入库，`{id}/` 数据 gitignored |
 | `bench/corpus_m1k/` | m1k 全流程评测语料（4 源抽样 997 篇） | `manifest_{recent,axhot,iclr,v3}.jsonl` + `MANIFEST.md` 入库，数据 gitignored |
-| `bench/corpus_v2/` | v2 分层随机库（钉版本 e-print 渠道） | `manifest.jsonl` + `MANIFEST.md` + `build_corpus.py` 入库 |
+| `bench/corpus_v2/` | v2 分层随机库（钉版本 e-print 渠道） | `manifest.jsonl` + `MANIFEST.md` 入库（构建脚本为 `bench/py/corpus/build_corpus_v2.py`） |
 | `bench/corpus_daily/` | 日更 soak 滚动窗口（每日增删，生命周期独立，不并入静态库） | `manifest_{公告日}.jsonl` 入库，数据 gitignored |
 | `bench/corpus_iclr_pdf/` | ICLR PDF 产物库（OpenReview 官方 PDF，非 e-print 树——663 件时点） | 全量 gitignored |
 | `bench/zh-store/` | real 臂 LLM 译文资产库（§8） | 全量 gitignored |
 | `bench/frame/` | 抽样框与规划资产（§4） | 全部入库 |
 
-历史口径：2026-09-20 曾"七库合一"——`corpus`/`corpus_v2`/`corpus_m1k`/`corpus_iclr` 四库 paper 树并入 `bench/corpus/` 统一物理根（947 搬移 + 251 去重 + 3 冲突双保留），四库文档折存 `MANIFEST_{v1,v2,m1k}.md`；同日复拆为上表分库布局。合并现场以统一根 MANIFEST 末节为准[^unified]。
+历史口径：2026-09-20 曾"七库合一"——`corpus`/`corpus_v2`/`corpus_m1k`/`corpus_iclr` 四库 paper 树并入 `bench/corpus/` 统一物理根（947 搬移 + 251 去重 + 3 冲突双保留），四库文档折存 `MANIFEST_{v1,v2,m1k}.md`；复拆为上表分库布局是同批议定的规划方向（未落 index 与磁盘，现状仍是合一根）。合并现场以统一根 MANIFEST 末节为准[^unified]。
 
 ### 2.2 单篇 cell 布局
 
@@ -107,7 +107,7 @@ v3 八层（core/booster/hot/expand/holdout/dev_vol/dev_failmine/dev_recent）�
 | `build_sw_layer.py` | footers→pool→assign→rehydrate | scholarweave 脱水通道：parquet footer 行组圈 2501+ → 列投影 range-GET → `==== FILE:` 拆包重打 raw.tar.gz → dev_recent 层 |
 | `build_corpus_m1k.py` | select→materialize→emit / all | m1k 四源抽样（recent→axhot→iclr→v3 逐层去重）→ 本地 copytree 优先、缺则 `acquire_source` 补抓 → emit manifest |
 | `daily_arxiv.py` | enum→fetch→report | 日更 soak：RSS 公告集枚举 → `acquire_source` 物化 → 报告；`--backfill-list` 补枚举缺口 |
-| `corpus_v2/build_corpus.py` | （单跑批量取源） | v2 库构建：分层 id 清单 → e-print 钉版本下载 → 解包落盘 |
+| `build_corpus_v2.py` | （单跑批量取源） | v2 库构建：分层 id 清单 → e-print 钉版本下载 → 解包落盘 |
 | `select_booster.py` | （corpus_v3/ 内） | P3 补强层选择器：nominations/ → booster_selection.jsonl + selection_report.md（B 地板 → W 机制覆盖 → 稀有度填满 ~200） |
 | `iclr_map.py` / `iclr_fetch.py` | — | iclr 层辅助：ICLR accepted 标题 → OpenReview/OpenAlex/S2 三档映射 arXiv id → `acquire_source` 物化 |
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """README figures — regenerate with: uv run --with matplotlib python make_readme_figs.py
 
-Reads the local data/ CSVs (self-contained) and writes PNGs to <repo>/shots/.
+All figure data is inlined below (self-contained); writes PNGs to <repo>/shots/.
 Style: dataviz-method marks on the diagram-design token system (paper/ink/muted/
 accent/link) so all README figures share one visual identity. Chinese labels
 (Noto Sans CJK SC), 200 dpi.
@@ -24,7 +24,10 @@ from matplotlib.patches import PathPatch, Rectangle
 from matplotlib.path import Path
 
 HERE = pathlib.Path(__file__).resolve().parent
-REPO = HERE.parents[2]
+#: repo root = nearest ancestor carrying pyproject.toml. 2026-09-20 docs
+#: migration moved this script one level deeper and silently broke a
+#: hardcoded parents[N] — walk up instead of counting.
+REPO = next(p for p in HERE.parents if (p / "pyproject.toml").is_file())
 OUT = REPO / "shots"
 OUT.mkdir(exist_ok=True)
 

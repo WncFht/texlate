@@ -34,8 +34,8 @@
 
 | 路线 | 资产 | 冷启动 | 量化成本 | 适用 |
 | --- | --- | --- | --- | --- |
-| A. 吃 S2 specter_v2 dump | 120M 现成向量（需 key，ODC-BY） | 覆盖 S2 已收录 | arXiv 子集 ~2.5M×768 fp16≈3.8GB，hnswlib 单机即可 | 起步首选，当天能用 |
-| B. 自跑 SPECTER2 proximity | HF/S3 模型（BERT-base+adapter） | **任何新论文当天可编码** | 2.5M 篇≈A100 数小时/消费级 GPU 约一天 | 补 S2 缺口与新鲜度 |
+| A. 吃 S2 specter_v2 dump | 120M 现成向量（需 key，ODC-BY） | 覆盖 S2 已收录 | arXiv 子集 ~2.5M×768 fp16≈3.8GB（~2.5M=specter_v2 dump 内 arXiv 子集口径：快照时点、仅含可编码条目；现刊全量 ~3.2M 见 `20-engineering.md`），hnswlib 单机即可 | 起步首选，当天能用 |
+| B. 自跑 SPECTER2 proximity | HF/S3 模型（BERT-base+adapter） | **任何新论文当天可编码** | ~3.2M 篇（arXiv 现刊口径）≈A100 数小时/消费级 GPU 约一天 | 补 S2 缺口与新鲜度 |
 | C. 图派层（ProNE 类） | 自建引用图 | 需引用累积，新文冷启动差 | 单线程 29h/亿节点；产出 280d 小向量 | 召回补充/重排，补 CBF 结构盲区 |
 
 推荐组合 **A 打底 + B 补新 + C 做候选扩充与重排**——即 multi-perspectives 论文论证有效的 CBF×GB ensemble 形态。ANN 侧 arXiv 规模 hnswlib 单实例足够，亿级换 FAISS IVF+PQ。两个风险要记住：SPECTER 两版本向量不可混用；S2 下载需 API key 且未鉴权端点限流凶。模型权重除 HF 外另发在 SPECTER2 官方 AWS S3 渠道[^specter2-gh]。

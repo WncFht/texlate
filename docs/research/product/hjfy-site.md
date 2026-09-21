@@ -1,6 +1,6 @@
 # hjfy.top 线上产品侦察报告
 
-> **结论**：hjfy.top 是「arXiv LaTeX 源码 → LLM 翻译 → ctex 重编译」生态位的唯一现存产品；API 面极薄（GET status 即创建任务），产物三件套 + 五态状态机 + DeepSeek 重翻通道构成复刻 checklist 的核心。
+> **结论**：hjfy.top 是「arXiv LaTeX 源码 → LLM 翻译 → ctex 重编译」生态位的唯一现存产品；API 面极薄（GET status 即创建任务），产物三件套 + 五态+fault 状态机 + DeepSeek 重翻通道构成复刻 checklist 的核心。
 > **状态**：时点证据（2026-09-14 口径）
 > **日期**：2026-09-14
 
@@ -13,7 +13,7 @@
 - **API 极薄**：`/api/{arxiv,file}Status/{id}` 轮询任务、`/api/{arxiv,file}Files/{id}` 取签名 OSS URL 列表。任务创建无独立端点——**GET status 即创建/触发**（未登录返回 `status:101`）。
 - **产物三件套**（阿里云 OSS 杭州，签名 URL 1h）：`{id}.pdf` 原文、`{id}_zh_CN.pdf` 译文、`{id}_zh_CN.tgz` 译文 LaTeX 源码。
 - **限制**：每天新建翻译 100 篇/人、PDF 上传 10 篇/天且 ≤10MB；内测免费；有 `/pay` 页和微信支付二维码接口（已埋点未启用定价）。
-- **复刻核心差异点**：状态机五态（start/processing/finished/failed/error/fault，fault=编译失败仍可下载源码）、失败任务定期重修、DeepSeek 重翻反馈通道、LaTeX 源码 .tgz 公开下载。
+- **复刻核心差异点**：状态机五态+fault（start/processing/finished/failed/error + fault=编译失败仍可下载源码）、失败任务定期重修、DeepSeek 重翻反馈通道、LaTeX 源码 .tgz 公开下载。
 
 ## 1. 功能清单（复刻 checklist）
 

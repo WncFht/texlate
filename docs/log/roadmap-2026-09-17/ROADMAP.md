@@ -4,11 +4,11 @@
 > **状态**：时点证据（2026-09-17 口径）
 > **日期**：2026-09-17（2026-09-20 迁入重编）
 
-> 2026-09-17 汇总文档。素材来源：`inputs/` 八轴只读侦察（frontend / architecture / docs-health / measurement / perf / defect-ledger / bench-expansion / product-gaps）+ `../overseer-2026-09-16.md` 车队台账 + 当日各波次实测。所有数字以 records/scorecard 实测为准；标记「在飞」的项以落笔时点状态计。
+> 2026-09-17 汇总文档。素材来源：`inputs/` 八轴只读侦察（frontend / architecture / docs-health / measurement / perf / defect-ledger / bench-expansion / product-gaps）+ `docs/research/overseer-2026-09-16.md` 车队台账 + 当日各波次实测。所有数字以 records/scorecard 实测为准；标记「在飞」的项以落笔时点状态计。
 
 ## 0. 一页结论
 
-**现状**：管线已实质可用——5,117 格语料面 pdf 97.89%、clean 84.76%；real 臂 n200 实证 union pdf 98.5% 与 mock 臂打平；vendored-shim 机制单波把 492 格全 fail 面打到 73.2% clean，证明「机制归因→资产化→重跑」闭环已打通。产品面 hjfy 对标功能基本实装（含其未交付的 EPUB/DOCX 插译），G1 arxiv_html 三级取源链当日贯通。
+**现状**：管线已实质可用——5,117 格语料面 pdf 97.89%、clean 84.76%（M1-B 前口径；M1-B 后 5,124 格 / clean 84.99%，见 §2）；real 臂 n200 实证 union pdf 98.5% 与 mock 臂打平；vendored-shim 机制单波把 492 格全 fail 面打到 73.2% clean，证明「机制归因→资产化→重跑」闭环已打通。产品面 hjfy 对标功能基本实装（含其未交付的 EPUB/DOCX 插译），G1 arxiv_html 三级取源链当日贯通。
 
 **主要矛盾**（按对终目标「所有 arXiv 干净翻译」的杠杆排序）：
 
@@ -56,8 +56,8 @@
 - **real 臂吞吐**：conc20 实测 90s/格 ≈ 40–72 格/h；49-batch 论文 server 侧（conc=3）~260s vs 管线 conc=10 ~78s。
 - **规模账**：corpus_v3 四层 5,133 篇（core 1000/booster 200/hot 133/expand 3800）；mechanisms.jsonl 144 条；frame.parquet 抽样宇宙 3,164,528 行。
 - **资源**：磁盘 corpus 20G + work 28G + results 45G，卷余 363G；e-print 通道 180/日硬限（bulk 通道无瓶颈）。
-- **缺陷账**：P0 **清零**（batch 非锚定错配已修 `164a9e0`）/ P1×22 / P2~43；另新增 `_WS_NOPAR` ReDoS 回归一条（在修）；今日核销 27+ 项。
-- **代码量**：src ~51.8k 行 py（98 文件）+ web ~5.6k 行（26 源文件）；rules.yaml 70 规则 + 48 taxonomy。
+- **缺陷账**：P0 **清零**（batch 非锚定错配已修 `164a9e0`）/ P1 约 14 / P2~43；另新增 `_WS_NOPAR` ReDoS 回归一条（在修）；今日核销 27+ 项。
+- **代码量**：src ~51.8k 行 py（98 文件）+ web ~5.6k 行（26 源文件）；rules.yaml 69 规则 + 48 taxonomy（规则计数 2026-09-21 勘误：本快照落笔/EOD 口径为 69=loop 65+gate 2+precheck 2，与 architecture 轴实测一致；docs-health 快照窗 ~16:12–16:44 口径为 68，差一条 loop 系窗口间当日新落——原写 70 系 `# phase: gate…` 注释行被朴素 grep 误计，钉定见 inputs/docs-health.md §1.1 勘误）。
 
 ## 3. 分面调研结论（八轴摘要）
 
@@ -69,13 +69,13 @@
 
 **性能**（inputs/perf.md）：top5 = 网关延迟 96.8%（server conc=3→10 是 ~3× 旋钮）/ xelatex 体量（fail-path 可省 40–50%：单遍跳过+post-verify 去重）/ fixloop 白烧轮次（unfixable 437 行可前置预判）/ dur_s t0 伪影（**已修** `174790e`）/ scan 重复+StateStore O(n²)。并行余量：多任务 worker 池是吞吐最平杠杆。
 
-**缺陷**（inputs/defect-ledger.md）：P0×1（batch 非锚定错配，在修）/ P1×22（代码面 6 + scout 面 16——**fixloop 规则面是最密归属 peer1 占 6**）/ P2~43；xlat batch 协议唯一成族窝；陈旧 pin 文档债 ×5 **已清**（`99a4189`）。
+**缺陷**（inputs/defect-ledger.md，post-核销口径）：P0 **清零**（batch 非锚定错配已核销 `164a9e0`）/ P1 约 14（代码面 2 + scout 面 约 12——**fixloop 规则面仍是 scout 面最密归属，peer1 占约半**）/ P2~43；xlat batch 族已随 `164a9e0` 整窝核销；陈旧 pin 文档债 ×5 **已清**（`99a4189`）；另 retry.py 新 fuzz 波（`35db9f8`，46 钉）挂出 5 CONFIRMED + 2 PLAUSIBLE 字节丢失类待修，未计入上表。
 
 **bench 扩展**（inputs/bench-expansion.md）：fetch 非瓶颈（IA/TIGER bulk 零 arxiv 请求）；真约束 = real 臂吞吐+promo 死线 + 磁盘剪枝；覆盖缺口 = mech_tags 仅 booster 200 格、f 带（2026+）242k 未进样、pdf_only ~5% 不在框内；mock/real 终末指标已对齐（98.5% vs 98.5%）支持「mock 全量+real 滚动探针」设计。
 
 **产品**（inputs/product-gaps.md）：hjfy 对标面大体实装（含超额项）；真缺口 = **共享缓存无远端分发**（index 拉取/HTTP serve/上传通道全缺）/ **匿名已译浏览结构性缺席**（mutation 强制 key+ 读面租户隔离）/ 管线全局串行+tasks 无分页 + 零 GC/TTL / 默认网关私网地址开箱即死 / 无反馈 + 换模型重翻通道 / 术语表只覆盖 cs 类目。
 
-**docs 健康**（inputs/docs-health.md）：规则计数四处全漂（36/33/62/67 vs 实 70）；当日拆包灭 ~10 行号锚点；research 索引漏 6+ 件（refactor-audit 决策出处未登记）；上手断点：server extra 未写/run=mock 未声明/默认网关私网地址/SPA 需先 build-web/pre-commit 面向 macOS。
+**docs 健康**（inputs/docs-health.md）：规则计数四处全漂（36/33/62/67 vs 实 68——该轴快照窗 ~16:12–16:44 口径，其 2026-09-21 勘误钉定；EOD 口径 69，见 §2）；当日拆包灭 ~10 行号锚点；research 索引漏 6+ 件（refactor-audit 决策出处未登记）；上手断点：server extra 未写/run=mock 未声明/默认网关私网地址/SPA 需先 build-web/pre-commit 面向 macOS。
 
 ## 4. 排期建议
 
@@ -122,14 +122,16 @@
 | MT9  | f 带（2026+）进样+hot 层补齐 27 缺口+pdf_only 类登记（~5% arXiv 无源稿产品会遇到）                                                                                             | 1d         | bench-expansion §1.3             |
 | MT10 | 50k 扩展前置：work 树剪枝/归档纪律（clean 格只留 records）+ 波次 runbook 更新                                                                                                  | 0.5d 纪律  | bench-expansion §2.3             |
 
+> 裁决补注（2026-09-18）：MT1 的「可选公共 registry 端点」子句已否决——公共 registry/公共实例不做，MT1 自托管 share 形态保留，见 ADR-0019/ADR-0012。
+
 ### 远期/战略（季度，形态决策先行）
 
-- **匿名已译浏览/公共实例**：hjfy「已译随便看」与 BYOK 本地优先的形态分叉——做不做公开托管实例是产品路线决策（影响租户模型/配额窗/成本预算器）。
+- **匿名已译浏览/公共实例**：hjfy「已译随便看」与 BYOK 本地优先的形态分叉——做不做公开托管实例是产品路线决策（影响租户模型/配额窗/成本预算器）。（2026-09-18：本里程碑已否决、方向暂缓——复评条件=运维承诺+滥用治理，见 ADR-0019 暂缓表）
 - **多任务 worker 池 + Redis 队列**：吞吐最平杠杆，但依赖存储/并发模型裁决（m3gap G2 pending）。
 - **前端打磨包**：暗色主题、Reader 拆分（1005→~500）、路由级 lazy 拆包、拖拽上传/示例论文。
 - **fixloop 规则库治理**：rules.yaml ~100 规则时 taxonomy/rules 文件级拆分+builtins 按域拆包（审计裁决维持）。
 - **e2e↔stagerun records 双 schema 家族收编**：triage LEGACY_ARM_MAP 续命中，长宜统一。
-- **桌面端/M4**：Electron 形态未启动。
+- **桌面端/M4**：Electron 形态未启动（2026-09-18 已否决，见 ADR-0019；发版载体余下 web 自托管/CLI/库未决）。
 
 ## 5. 硬约束与风险
 
@@ -147,8 +149,8 @@
 
 1. **是否授权 server concurrency 3→10**（BYOK 下 ~3× 提速；风险是用户自付 token 的网关限流面）。
 2. **promo 死线前排产**：S1 滚动探针的抽样配额（建议 hot/expand 加权、每波 n≈200–300）。
-3. **共享缓存公共 registry 是否立项**（MT1 的 §0 形态——静态托管即够，但意味着公开分发已译语料的姿态）。
-4. **匿名浏览/公共实例**路线表态（远期分叉，现在只需「暂不」或「调研」两字）。
+3. **共享缓存公共 registry 是否立项**（MT1 的 §0 形态——静态托管即够，但意味着公开分发已译语料的姿态）。（2026-09-18 裁决：已否决——公共 registry/公共实例不做，share 保留自托管形态，见 ADR-0019/ADR-0012）
+4. **匿名浏览/公共实例**路线表态（远期分叉，现在只需「暂不」或「调研」两字）。（2026-09-18：本里程碑已否决、方向暂缓——复评条件=运维承诺+滥用治理，见 ADR-0019 暂缓表）
 5. 默认 base_url 改中性值的公关级决定（影响对外发布形态，与 MT3 绑定）。
 
 ## 7. 附件索引
@@ -157,10 +159,10 @@
 - `inputs/architecture.md` — 架构面（模块图/残余债/R1–R3）
 - `inputs/measurement.md` — 测量面（verdict 五面/判分盲区/scorecard 口径/五改进）
 - `inputs/perf.md` — 性能面（墙钟分解/top5 热点/并行余量）
-- `inputs/defect-ledger.md` — 缺陷总账（P0×1/P1×22/P2~43/核销表）
+- `inputs/defect-ledger.md` — 缺陷总账（P0×1→清零 `164a9e0`/P1×22→约 14/P2~43/核销表；post-核销口径与 §2/§3 对齐）
 - `inputs/bench-expansion.md` — bench 扩展（语料四层/规模账/五建议）
 - `inputs/product-gaps.md` — 产品面（hjfy 对账/运维差距/五建议）
 - `inputs/docs-health.md` — 文档健康（漂移清单/上手断点/三建议）
-- `../overseer-2026-09-16.md` — 车队台账（决策与落地逐条）
+- `docs/research/overseer-2026-09-16.md` — 车队台账（决策与落地逐条；已删，经 git 历史取 `git show 5ebc9797^:docs/research/overseer-2026-09-16.md`）
 - `tmp/drift-scout/drift-map.md` — e2e↔worker 漂移图（8 项）
 - `bench/results/mechmap-2026-09-17/` — 规则×机制全量映射（37 映射/11 孤儿）

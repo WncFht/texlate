@@ -25,9 +25,9 @@
 
 | 文件 | 内容 |
 | --- | --- |
-| [engine-matrix.md](engine-matrix.md) | tectonic/xelatex × 12 类失败形态实测矩阵：7/12 vs 4/12、E1–E12 分类法、路由结论——已落地 `_route.py`（时点证据） |
+| [engine-matrix.md](engine-matrix.md) | tectonic/xelatex × 12 类失败形态实测矩阵：7/12 vs 4/12、E1–E12 分类法、路由结论——已落地 `compile/engine/_route.py`（时点证据） |
 | [pstricks-route.md](pstricks-route.md) | pstricks 失败根因（vendored sty 与新 tex 错配）与四路由规则——已落地 |
-| [ctanfetch-probe.md](ctanfetch-probe.md) | tlpdb.xz 离线索引 + tlnet 直拉「mini-tlmgr」实测：cwd shadow 生效/TEXINPUTS 不生效、bbl stub、版本兼容陷阱——已落地 `ctan.py` |
+| [ctanfetch-probe.md](ctanfetch-probe.md) | tlpdb.xz 离线索引 + tlnet 直拉「mini-tlmgr」实测：cwd shadow 生效/TEXINPUTS 不生效、bbl stub、版本兼容陷阱——已落地 `compile/ctan.py` |
 | [fixloop-rules.md](fixloop-rules.md) | fixloop 规则库 YAML 化：16 规则全表、87% install 系主力、tectonic 降级矩阵汇于 `ctan_fetch`、沉淀机制——已落地 `compile/fixloop/` |
 | [2026-09-16-aux-cjk-truncation.md](2026-09-16-aux-cjk-truncation.md) | .aux 8192B 边界劈断 UTF-8 事故：机理与修复臂——已修复于 `compile/transcode.py` |
 

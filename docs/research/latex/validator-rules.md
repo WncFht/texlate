@@ -22,6 +22,8 @@ L0 是校验链第一层，独立于任何 LaTeX 解析器——pylatexenc 静�
 | `length` | zh/src 长度比；剥占位符/命令后 CJK 占（CJK+拉丁）比例 | — | 比出 [0.30, 2.50]；CJK<30% |
 | `macro` | zh 控制序列集合 − src 集合 | 命中结构族（`begin/end/documentclass/newcommand/usepackage` 等 31 个） | 其余新 cs（幻觉宏清单） |
 
+> **落地勘误**（本表为 2026-09-15 评测时点的历史快照；现行口径见 `validate/l0.py` 与 `spec/validate.md`）：生产规则集已扩至 **14 条 checker**（placeholder、brace、env、key、math、same_source、length、residual_en、macro、item_glue、ph_in_cs、bare_cs、protocol_echo、comment_eof——`spec/latex-pipeline.md`/`spec/validate.md` 作「14 项」）。表内两处已漂移：① `length` 现行口径是剥后 token 代理 est_tokens 比出 `[0.30,3.00]` 即 **error**（`TOKEN_RATIO_LO/HI`，E24 升级；src est<10 豁免），CJK<30% 仍 warn——原表「warn-only [0.30,2.50] 长度比」已作废；② `macro` 的 zh 新增方向在 E24 下**任何**新控制序列均 error（不只结构族，含 `\`+CJK 熔合 cs），src→zh 丢失方向中脆弱间距命令（`\` `\,` `\;` `\:` `\!` `~`）计数差（cs_dropped）为 error、其余丢失 warn；结构族 `STRUCT_CMDS` 实为 **27** 个（非 31，初版提交即 27）。
+
 ## 3. 实测（7 篇语料主文件 × ≤25 chunk，ph/raw 两层，1636 例）
 
 10 类破坏全部 100% 检出（1323 反例无一漏网）：丢 `}`、丢 `$`、`\end` 改名、删 `\end`、丢占位符、占位符拼错、`\[` 不配对、幻觉 `\newcommand`、删 cite key、多余占位符。其中丢 `$`/`\end` 改名/删 `\end`/`\[` 不配对/删 cite key 只在 raw 层有例——ph 层这些构造已被占位符保护，破坏在 ph 层转化为占位符问题仍被同一检查捕获，这正是占位符方案的价值。占位符拼错类 135/138 给出 lev≤2 自动修复建议（3 例数字三位全变 lev=3 退化为「缺失+多余」硬错，仍检出）。性能 0.57ms/对（1636 对共 0.94s），快于 tree-sitter 的 1.15ms。

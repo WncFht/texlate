@@ -4,6 +4,8 @@
 > **状态**：时点证据（2026-09-16 口径）
 > **日期**：2026-09-16（2026-09-20 迁入重编）
 
+> **⚠️ SUPERSEDED 2026-09-21**：头条 verdict「编排面 fixloop、L2 回灌、target_probe 三处 missing 是最大缺口」已被后续实装反转——**fixloop 已接编排**（`pipecore.fixloop_job`，`e2e.py` `pipe_condition` 调用；worker 链 `server/worker/compile.py` `_run_fixloop`/`fixloop_round`，`run_fixloop` seam 声明于 `server/worker/core.py`）、**target_probe 已实装**（`compile/probe.py`，经 `pipecore.probe_report` 供 e2e/worker 两侧调用）、**L2 回灌已落地**（`repair_l2.py` + `pipecore.l2_repair_job`，e2e 与 worker 均已接线）、**LLM 修复器已实装**（`compile/fixloop/llm_hook.py` `LlmFixer`/`make_llm_hook`，worker 侧已接线）。测量类/覆盖面 verdict 仍为时点事实、未宣称反转。现状唯一事实源 = `docs/spec/`（尤其 `architecture.md` §2.6）；本文仅留逐节取证过程作历史参考，勿再据此派工。
+
 - 审计对象：`src/texlate/xlat/`（client/pipeline/batch/retry/state/glossary/prompts/placeholders）、`src/texlate/validate/`（l0/l1/l2/report）、`src/texlate/compile/`（engine/inject/mask/normalize/judge/sandbox + fixloop/ 全部）、`src/texlate/e2e.py`、`cli.py`、`server/worker.py` 编排面；HEAD f461683（v2 切换后）。
 - 方法：逐节抽规范断言 → 对照实现与测试 → verdict。只读审计，未跑网关/编译实测；编排链路以 grep + 通读为准。
 - verdict 口径：**covered**=实现 + 测试齐；**impl-only**=实现对、无直接测试；**partial**=部分覆盖或有偏离；**missing**=无实现；**changed**=有意偏离 spec（代码内有记录）；**opt-absent**=spec 标可选、未实现（合规但不享受功能）。
@@ -68,7 +70,7 @@ partial（主体 covered，一处 spec 组件未接线）。
 - 重试阶梯：整段×2（第 2 试 corrector_fn/字段化反馈）→ 行级 `_stage_lines`（`_split_lines_scoped` 闭合 scope 句号切）→ slots JSON（`⟪S0000⟫`、`SLOTS_PER_BATCH=8`、`SLOTS_MAX_ROUNDS=2`、**只重问失败批**、`response_format json_object` + `_strip_json_fence`）→ 三振 `fallback_orig` + warning → `partial` 终态（retry.py 全链）✓。
 - **`recover_copied_tokens`：定义 + 单测齐（placeholders.py、test_xlat_placeholders.py:133-158），exact+unique 最长片段优先——但无任何生产调用点**，阶梯各 stage 均未消费 → missing 接线。
 - HTTP 状态码分类表：`classify_status`（client.py）401/403→AuthError、402→BillingError、404→EndpointNotFoundError、408/409/425/429/5xx→RetryableHTTPError、余 4xx→ClientRejectedError；`LengthTruncatedError`(finish_reason=length)+`EmptyContentError`；`redact()` provider 无关脱敏 ✓。长度截断触发 `LENGTH_RETRY_MAX_TOKENS=32768` 重试（pipeline.py）——spec 未写数值，实现合理。
-- 断点：`StateStore`（state.py）`state.json` + 五表（STATE_FILE/CHUNKS_MAP/PLACEHOLDERS_MAP/GLOSSARY_FILE=term_dict.json/ERRORS_FILE）；`atomic_json` tmp+rename+0600；`load_cache` 损坏隔离不删；`segment_key` = sha256(role\x00source+tags+masked ph-type 快照)——合「source+role+ 失效标签+masked 快照」公式；`file_cache_key` = sha256[prompt_version+base_url+model+lang+glossary+context](:16) ✓。`_load_resumed` completed 只收 ok/partial（skipped/fault 续跑重试，pipeline.py:610-613）。
+- 断点：`StateStore`（state.py）`state.json` + 五表（STATE_FILE/CHUNKS_MAP/PLACEHOLDERS_MAP/GLOSSARY_FILE=term_dict.json/ERRORS_FILE）；`atomic_json` tmp+rename+0600；`load_cache` 损坏隔离不删；`segment_key` = sha256(role\x00source+tags+masked ph-type 快照)——合「source+role+ 失效标签+masked 快照」公式；`file_cache_key` = `sha256[prompt_version+base_url+model+lang+glossary+context](:16)` ✓。`_load_resumed` completed 只收 ok/partial（skipped/fault 续跑重试，pipeline.py:610-613）。
 - 产品链断点：worker `DBStateBridge`（worker.py:307-375）以 DB chunks 表承载同一契约（load→(completed,recs)、record 缓冲、worker `_flush_translate` 批量事务落盘）——语义对齐，仅五表中间产物不落文件（见 §1.4）。
 - stale-source 自愈：parse 漂移下同 id 陈旧记录按未命中重翻（pipeline.py:655-664，n100 实测 1524 例教训）——spec 未写此条，实现超集。
 - 测试：test_xlat_state.py、test_xlat_retry.py、test_xlat_client.py、test_xlat_pipeline.py 覆盖。

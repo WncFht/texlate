@@ -49,7 +49,7 @@
 
 ### 2.4 GROBID：字段级 P/R/F1 与匹配档位词汇
 
-字段级（title/authors/abstract/keywords/citation 各字段）与 instance 级（整条 header/citation 全对才算）P/R/F1；`authors` 是集合级（全员 + 顺序）。文本字段四档匹配：strict（exact）/ soft（忽略标点大小写空格）/ relative Levenshtein / Ratcliff-Obershelp——identity 三档（identical/normalized/diverged）的学理对应就是 strict/soft/diverged。诚实性惯例：明示 gold 噪声压低分数、「eval 是版本间回归追踪而非绝对质量」——值得照抄的免责句式。
+字段级（title/authors/abstract/keywords/citation 各字段）与 instance 级（整条 header/citation 全对才算）P/R/F1；`authors` 是集合级（全员 + 顺序）。文本字段四档匹配：strict（exact）/ soft（忽略标点大小写空格）/ relative Levenshtein / Ratcliff-Obershelp——identity 三档（落地口径 strict/normalized/diverged）的学理对应即 GROBID 的 strict/soft/diverged。诚实性惯例：明示 gold 噪声压低分数、「eval 是版本间回归追踪而非绝对质量」——值得照抄的免责句式。
 
 ### 2.5 olmOCR-bench：与 trap fixtures 同构的「unit-test 事实」范式
 
@@ -83,10 +83,10 @@
 | 口径 | 推荐学名/写法 | 依据 |
 | --- | --- | --- |
 | 解析成功率（binary ok/fail） | severity 分级状态分布：{clean / warning / error / fatal 或 clean/degraded/failed}，文档状态=最高 severity；报漏斗式逐阶段保留率 | LaTeXML 四态 + arXiv 官方「error-free 75%」口径 + unarXive 漏斗；「出 PDF≠成功」已被 LaTeXML warn/error 区分实证 |
-| verdict（clean/pdf~/FAIL） | 保留三级但映射到 severity 词汇；编译健康若需软分，可引 LaTeXTrans fc_score 作对照 | fc_score=100−10e−2w+20·compiled |
+| verdict（clean/partial/fail——已落地，`compile/judge.py`） | 三级保留并映射到 severity 词汇；编译健康若需软分，可引 LaTeXTrans fc_score 作对照 | fc_score=100−10e−2w+20·compiled |
 | 泄漏率 | leakage rate = 含受保护记号痕迹的可译块占比；补失败归因分解（按残留 token 类型分桶） | unarXive natbib 30%→5% 静默退化先例——证明必须独立于端到端指标单测 |
 | trap 断言 | unit-test 式 fact 断言 + 分桶通过率 + Wilson/自助 CI；报告话术借 olmOCR「simple, unambiguous, machine-checkable, similar to a unit test」 | olmOCR-bench 7,000 facts/1,400 docs；逐桶报而非只报总分 |
-| identity（identical/normalized/diverged） | 三档改名为 strict / soft / diverged match（soft=仅空白差异） | GROBID strict/soft 匹配档；等值比较是全部解析器测试的通用判据 |
+| identity（strict/normalized/diverged——改名已落地，`bench/py/parsebench.py`） | identical→strict 采纳、normalized 保留（「soft」名未采纳，仅空白差异的语义对应 GROBID soft）、diverged 保留 | GROBID strict/soft 匹配档；等值比较是全部解析器测试的通用判据 |
 | chunk 统计 | coverage 表 + p50/p90 分布；补「每篇 chunks/chars 的桶间对比」 | S2ORC 逐元素均值、percentile 惯例 |
 | 占位符守恒 | placeholder/marker fidelity：守恒率、leftover 率、幻觉率分报三个数 | unarXive `{{cite:uuid}}` 同构 |
 | 锚点保留率 | landmark/anchor retention rate，分层报退化占比（无 hyperref 源=合理 0） | S2ORC 覆盖率表的「适用子集」写法 |

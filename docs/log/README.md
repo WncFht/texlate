@@ -4,7 +4,7 @@
 > **状态**：现行
 > **日期**：2026-09-20
 
-本时间线覆盖 2026-09 项目周期（09-14 立项 → 09-20 迁入本库）。每日一节，先记里程碑与关键数字，再列当日归档出处。归档文件按「当日口径」保留原文快照——前后数字不一致时以较晚日期的测量为准，口径漂移的说明见文末注记。重建前文档位于 `docs/01–05`/`docs/06–10`/`docs/research/` 等旧路径，本层引用这些是当日口径的历史指针，入库件经 git 历史（`git log -- docs/`、`git show <commit>:<path>`）检索；逐日 `docs/HANDOFF-*.md` 交接文档属内部工作件、未曾入库。
+本时间线覆盖 2026-09 项目周期（09-14 立项 → 09-20 迁入本库）。每日一节，先记里程碑与关键数字，再列当日归档出处。归档文件按「当日口径」保留原文快照——前后数字不一致时以较晚日期的测量为准，口径漂移的说明见文末注记。重建前文档是平铺文件 `docs/01-*.md`–`docs/10-*.md` 与旧 `docs/research/` 树（与现行六分区中的 `docs/research/` 同名不同物——旧树在 `5ebc9797` 重建时移除，内容仅存 git 历史），本层引用这些是当日口径的历史指针，一律经本仓库 git 历史（`git log -- docs/`、`git show <commit>:<path>`）检索。逐日 `docs/HANDOFF-*.md` 交接文档原已入库，2026-09-18 由 `d39a1b23` 移出跟踪（发布前整理，文件仍留盘），经 `git show d39a1b23^:docs/HANDOFF-<date>.md` 调阅；本机另有未跟踪副本存 `tmp/old-docs-2026-09-20/docs/`。
 
 ## 2026-09-14 · 立项日
 
@@ -12,19 +12,19 @@
 
 ## 2026-09-15 · 产品骨架日
 
-七条臂同日落地：`texlate/latex` 九文件半解析器（`c3431f66`）、Mouth+Gullet 展开机（`d22b56b8`）、segmenter S1→S4 骨架、compile 引擎层（`c841c343`）、fixloop yaml 规则引擎 25 条（`179f7e5b`）、xlat 翻译编排层（`0a6bcbed`）、server（FastAPI+SSE+SQLite+BYOK）+ SolidJS 阅读器与 CLI mock 全链（16/16）。语料 39→1,339 篇；compilebench v3（n=180 双引擎）测出裸编译天花板 union pdf 71.7%/clean 39.4%；parsebench 核心层 1,955 文件 identity 100%/leak 0.04%。当日收尾 pytest 1,020 绿，HEAD `063ab49`。归档：原始仓库 `docs/HANDOFF-2026-09-15.md`。
+七条臂同日落地：`texlate/latex` 九文件半解析器（`c3431f66`）、Mouth+Gullet 展开机（`d22b56b8`）、segmenter S1→S4 骨架、compile 引擎层（`c841c343`）、fixloop yaml 规则引擎 25 条（`179f7e5b`）、xlat 翻译编排层（`0a6bcbed`）、server（FastAPI+SSE+SQLite+BYOK）+ SolidJS 阅读器与 CLI mock 全链（16/16）。语料 39→1,339 篇；compilebench v3（n=180 双引擎）测出裸编译天花板 union pdf 71.7%/clean 39.4%；parsebench 核心层 1,955 文件 identity 100%/leak 0.04%。当日收尾 pytest 1,020 绿，HEAD `063ab49`。归档：`docs/HANDOFF-2026-09-15.md`（本仓库 git 历史，`d39a1b23` 起移出跟踪；调阅 `git show d39a1b23^:docs/HANDOFF-2026-09-15.md`）。
 
 ## 2026-09-16 · v2 切换日
 
-最大单日指标跃升。`f461683` BREAKING——`parse_tex`/`parse_file` 默认走 Gullet+Segmenter v2，splice 残留占位符 1,524→0 硬门通过；`3d5de8f7` fixloop 接线 e2e+worker 双臂并落 L2 重译回灌，union pdf 同口径 70.6%→89.5%（+18.9pt）。同日十三维度全仓只读审计判 M0 验收通过、M1 实质达成、M2 字面未达（89.5%<90%）、M3 约半程；审计发现的 P0 安全三件（worker 路径逃逸、glossary 任意读、RedactFilter 未挂载）当日全部修复。午后至深夜多波加固：parse 长尾 −48%、stagerun 五阶段批驱动成形、Mode-B 内容通道逃逸全链修复（门槛 escaped=0 ∧ dirty=0 PASS）、审计波二 9 只读 scout 约 75 条发现经 6 修复车道当日全交付；stagerun-loop1（n=5,124 格）起跑。语料扩至约 5,059 篇，pytest 1,090 绿（当日快照，后勘误为 2,668 收集例）。归档：原始仓库 `docs/HANDOFF-2026-09-16.md` + 本目录 [audit-2026-09-16/](audit-2026-09-16/README.md)。
+最大单日指标跃升。`f461683` BREAKING——`parse_tex`/`parse_file` 默认走 Gullet+Segmenter v2，splice 残留占位符 1,524→0 硬门通过；`3d5de8f7` fixloop 接线 e2e+worker 双臂并落 L2 重译回灌，union pdf 同口径 70.6%→89.5%（+18.9pt）。同日十三维度全仓只读审计判 M0 验收通过、M1 实质达成、M2 字面未达（89.5%<90%）、M3 约半程；审计发现的 P0 安全三件（worker 路径逃逸、glossary 任意读、RedactFilter 未挂载）当日全部修复。午后至深夜多波加固：parse 长尾 −48%、stagerun 五阶段批驱动成形、Mode-B 内容通道逃逸全链修复（门槛 escaped=0 ∧ dirty=0 PASS）、审计波二 9 只读 scout 约 75 条发现经 6 修复车道当日全交付；stagerun-loop1（n=5,124 格）起跑。语料扩至约 5,059 篇，pytest 1,090 绿（当日快照，后勘误为 2,668 收集例）。归档：`docs/HANDOFF-2026-09-16.md`（本仓库 git 历史，`d39a1b23` 起移出跟踪；调阅 `git show d39a1b23^:docs/HANDOFF-2026-09-16.md`）+ 本目录 [audit-2026-09-16/](audit-2026-09-16/README.md)。
 
 ## 2026-09-17 · 波次战日
 
-当日无单列交接文档，产出见本目录 [roadmap-2026-09-17/](roadmap-2026-09-17/ROADMAP.md) 与原始仓库 `docs/research/report-2026-09-17-final.md` 终报。白天是重构波：repair 单源化、segmenter/worker/gullet/builtins 拆包、rules.yaml 拆分为 `rules/` 分片（结构债台账见 refactor-audit）。并行收残面：vendor 语料落地（`a90978ab`，绝版宏包缺件面 492 格 fail→73.2% clean）、illegal_unit 段修波 108/108 闭环、ReDoS 原子组修复把 pytest 全量从 48 分钟压到 3 分 46 秒、xlat 非锚定 `[n]` parse 撤除（P0，`164a9e0f`）封死译文静默错配通道。realn200 真臂验收收官 union pdf 197/200=98.5%——真臂与 mock 打平，评测面非虚高；loop1 records 在代码演进下多轮重评，scorecard 爬到 pdf 97.89%/clean 84.99%，M2 门以 4,554/5,059=90.02% 复评越过。傍晚出 ROADMAP.md 现状报告与排期，另有 web 两轮审查。
+当日无单列交接文档，产出见本目录 [roadmap-2026-09-17/](roadmap-2026-09-17/ROADMAP.md) 与 `docs/research/report-2026-09-17-final.md` 终报（本仓库 git 历史，`5ebc9797` 前旧树）。白天是重构波：repair 单源化、segmenter/worker/gullet/builtins 拆包、rules.yaml 拆分为 `rules/` 分片（结构债台账见 `docs/research/refactor-audit-2026-09-17/report.md`，同前、`5ebc9797` 前旧树经 git 历史检索）。并行收残面：vendor 语料落地（`a90978ab`，绝版宏包缺件面 492 格 fail→73.2% clean）、illegal_unit 段修波 108/108 闭环、ReDoS 原子组修复把 pytest 全量从 48 分钟压到 3 分 46 秒、xlat 非锚定 `[n]` parse 撤除（P0，`164a9e0f`）封死译文静默错配通道。realn200 真臂验收收官 union pdf 197/200=98.5%——真臂与 mock 打平，评测面非虚高；loop1 records 在代码演进下多轮重评，scorecard 爬到 pdf 97.89%/clean 84.99%，M2 门以 4,554/5,059=90.02% 复评越过。傍晚出 ROADMAP.md 现状报告与排期，另有 web 两轮审查。
 
 ## 2026-09-18 · 重读审计与自我修复环
 
-重构波尘落后五路并行只读审计产出 reaudit（A17/B13/C10/D4/E10 五表 + F 归属外表），旧审计债基本清零；当日 12-lane 修复波起跑——安全面 A 批逐项对销、单源化 B 批收编、fuzz 三臂补测、文档漂移 E 批落地；晚间 wave-2A 收编 C 批：textutil.py 1,355 行拆包、engine.py 1,715 行拆三件套，均字节级搬移。同日 selfimp 常驻改进环成形（wave-1 共 23 车道并行）：dollar 族泄漏收口 57→0/136,049 chunks（单类四年债清零）、scorecard schema v3 复跑 loop1 分毫不差自证评测器稳定、qualbench esa2 基线 n=1,200 mean 92.9。stagerun-loop2（n=5,135 格）pdf 97.26%/clean 86.42%。发布评审当日判「可发布，前提是轮换密钥」；M1 公共缓存 registry 与 Electron 两案裁决不做。corpus_daily 日更 soak 首批启动。归档：原始仓库 `docs/HANDOFF-2026-09-18.md`。
+重构波尘落后五路并行只读审计产出 reaudit（A17/B13/C10/D4/E10 五表 + F 归属外表），旧审计债基本清零；当日 12-lane 修复波起跑——安全面 A 批逐项对销、单源化 B 批收编、fuzz 三臂补测、文档漂移 E 批落地；晚间 wave-2A 收编 C 批：textutil.py 1,355 行拆包、engine.py 1,715 行拆三件套，均字节级搬移。同日 selfimp 常驻改进环成形（wave-1 共 23 车道并行）：dollar 族泄漏收口 57→0/136,049 chunks（单类四年债清零）、scorecard schema v3 复跑 loop1 分毫不差自证评测器稳定、qualbench esa2 基线 n=1,200 mean 92.9。stagerun-loop2（n=5,135 格）pdf 97.26%/clean 86.42%。发布评审当日判「可发布，前提是轮换密钥」；M1 公共缓存 registry 与 Electron 两案裁决不做。corpus_daily 日更 soak 首批启动。归档：`docs/HANDOFF-2026-09-18.md`（本仓库 git 历史，`d39a1b23` 起移出跟踪；调阅 `git show d39a1b23^:docs/HANDOFF-2026-09-18.md`）。
 
 ## 2026-09-19 · 全量综合测试日
 
@@ -37,7 +37,7 @@
 ## 本层档案索引
 
 | 路径 | 内容 |
-|---|---|
+| --- | --- |
 | [audit-2026-09-16/](audit-2026-09-16/README.md) | 2026-09-16 十三维度全仓只读审计，15 件（其 README 为逐维索引与收口建议） |
 | [roadmap-2026-09-17/](roadmap-2026-09-17/ROADMAP.md) | 2026-09-17 现状报告与排期 ROADMAP + inputs/ 八路侦察底档（架构/bench 扩展/缺陷台账/文档健康/前端/测量/性能/产品缺口），9 件 |
 

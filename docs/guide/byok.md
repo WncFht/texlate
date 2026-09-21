@@ -16,7 +16,7 @@ key 只活在该活的范围内：单次请求的 key 只在内存里陪任务�
 
 ## 端点要求
 
-端点只要是 OpenAI 兼容即可：能接 `POST {base_url}/chat/completions`（或其他方言对应的端点）并返回标准形状。base_url 写站点根或带 `/v1` 都行，校验规则是：不允许在 URL 里嵌用户名密码或 query 参数；非本机地址必须用 https（本机回环地址放行 http）。
+端点只要是 OpenAI 兼容即可：能接 `POST {base_url}/chat/completions`（或其他方言对应的端点）并返回标准形状。base_url 写站点根或带 `/v1` 都行，校验规则是：不允许在 URL 里嵌用户名密码或 query 参数；非本机地址必须用 https（仅本机回环与 tailnet 主机——`*.ts.net` 域名、`100.64.0.0/10` CGNAT 段地址——放行 http）。
 
 方言（dialect）告诉客户端按哪种 API 形状说话：`auto`（缺省，按端点域名推断——Anthropic 域名自动走 messages 方言，其余按 openai）、`openai`、`anthropic`、`responses`。自建网关按它实现的 API 形状选；推断错了就在 Settings 或 `TEXLATE_DIALECT` 显式指定。
 

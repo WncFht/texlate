@@ -93,7 +93,7 @@ candidates = { f | f ∈ *.tex，strip_comments(f) 含 \documentclass 或 \docum
 ### 5.1 拉取分工
 
 - **Atom API**（export 桶）：`id_list` 批量拉元数据（经验值 ≤200 篇/次，URL 8KB 封顶分批）；发现/订阅用 `search_query` + 分页。**Atom 无 license 字段、无完整版本史**。
-- **OAI-PMH**（oaipmh 桶）：`GetRecord&metadataPrefix=arXivRaw`——独占 `<version>` 版本史（每版 date+size+source_type）与 `<license>`（license 唯一机读源）；`ListIdentifiers` 日窗做增量对账、`ListRecords` 做批量回填（全库 ~2000 页 ≈ 2h@3s，见 [oai-pmh.md](oai-pmh.md)）。
+- **OAI-PMH**（oaipmh 桶）：`GetRecord&metadataPrefix=arXivRaw`——独占 `<version>` 版本史（每版 date+size+source_type）与 `<license>`（license 唯一机读源）；`ListIdentifiers` 日窗做增量对账、`ListRecords` 做批量回填（全库 ~2400 页 ≈ 2–3h，见 [oai-pmh.md](oai-pmh.md)）。
 - **license 补充机读位**：abs 页 `div.abs-license > a[href]`（URL 即枚举值）；RSS `dc:rights` 同词表。
 
 ### 5.2 Atom → 内部 schema

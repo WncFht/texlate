@@ -1,6 +1,6 @@
 # arXiv 许可证体系与译文再分发法务边界
 
-> **结论**：「arXiv perpetual non-exclusive license」只把分发权授给 arXiv 一家，**第三方再分发没有默认法律基础**——官方 reuse FAQ 与 API ToU 明言 redistribution 需版权人许可[^arxiv-reuse][^arxiv-tou]。全量分布：non-exclusive 60.3% / CC 系 ~25% / null(pre-2004 assumed) 14.3%；近窗（≥2023）non-exclusive 降至 46.6%、CC-BY 升至 39.8%——「可公开托管衍生译文」的约 43–47%。license 机读入口 = OAI-PMH `<license>` 或 abs 页 `div.abs-license a[href]`；**Atom API 不返回 license**。CC-BY-NC-ND 论文翻译并公开托管 = 直接违约。
+> **结论**：「arXiv perpetual non-exclusive license」只把分发权授给 arXiv 一家，**第三方再分发没有默认法律基础**——官方 reuse FAQ 与 API ToU 明言 redistribution 需版权人许可[^arxiv-reuse][^arxiv-tou]。全量分布：non-exclusive 60.3% / CC 系 ~25% / null(pre-2004 assumed) 14.3%；近窗（≥2023）non-exclusive 降至 46.6%、CC-BY 升至 39.8%——「可公开托管衍生译文」的约 43–47%。license 机读入口 = OAI-PMH `<license>`、RSS `dc:rights` 或 abs 页 `div.abs-license a[href]`；**Atom API 不返回 license**。CC-BY-NC-ND 论文翻译并公开托管 = 直接违约。
 > **状态**：现行（法务事实面长期有效；统计为 2026-09 口径时点数据）。`license` 字段已实装进 `PaperMeta`（OAI 源）。server 为本地 BYOK 形态，公开托管 license gate 属前瞻设计未建。
 > **日期**：2026-09-14 取证，2026-09-20 重订入库。**非法律意见；面向产品决策的风险定性。**
 
@@ -58,8 +58,9 @@ arXiv 官方未发布过公开的 license 占比统计（只在 ToU/FAQ 给定�
 | CC BY-NC-SA 4.0   |  45,157 |      4.1% |
 | CC BY-SA 4.0      |  21,802 |      2.0% |
 | CC0               |  13,315 |      1.2% |
+| null + 旧版 URI   |   2,236 |      0.2% |
 
-2025+ 延续同趋势：non-exclusive 45.8% / CC-BY 41.0% / NC-ND 6.0%。**读法**：CC 采用率随年代显著上升；对「以近一两年 CS/ML 论文为主」的服务形态：~47% 可合规公开托管译文（BY+SA+CC0+非商业下 NC-SA），~47% 连原文都无权再分发，~6% 禁止衍生托管——ND 占比虽小但绝对量大（近窗 6.9 万篇）不能忽略。
+残差 2,236 行（0.2%）= update_date≥2023 的老论文仍挂原许可——pre-2004 篇 license=null 与 pre-2013 时代 3.0/PD URI 落同一桶，两成分占比未分拆。2025+ 延续同趋势：non-exclusive 45.8% / CC-BY 41.0% / NC-ND 6.0%。**读法**：CC 采用率随年代显著上升；对「以近一两年 CS/ML 论文为主」的服务形态：~47% 可合规公开托管译文（BY+SA+CC0+非商业下 NC-SA），~47% 连原文都无权再分发，~6% 禁止衍生托管——ND 占比虽小但绝对量大（近窗 6.9 万篇）不能忽略。
 
 ## 3. 机器可读入口
 
@@ -67,11 +68,12 @@ arXiv 官方未发布过公开的 license 占比统计（只在 ToU/FAQ 给定�
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
 | **Atom API**        | **无**——官方 reuse FAQ 明言 license 不在 search API schema[^arxiv-reuse]                                                  | entry 字段只有 title/id/published/updated/summary/author/link/category + arxiv: 扩展                   |
 | **OAI-PMH**         | **有**——`arXiv`/`arXivRaw`/`arXivOld` 均含顶层 `<license>`（anyURI）；`oai_dc` 无；记录级单元素（逐版本许可只见最新值）   | XSD schema 实锤 + [oai-pmh.md](oai-pmh.md) §2 字段矩阵                                                 |
+| **RSS**             | **有**——每条 item 的 `dc:rights` 即许可 URI，与 abs/OAI 同一 URL 词表                                                     | [probes.md](probes.md) §A.4/A.7 + [daily-soak.md](2026-09-19-daily-soak.md)；日更增量、仅覆盖公告日    |
 | **abs 页 HTML**     | **有**——`div.abs-license > a[href]` 的 href 即许可 URI；CC 许可附 `class="has_license"`+图标；无 `rel=license`/`citation_license` meta | [probes.md](probes.md) §A.4 三实例验证                                                                 |
 | **Kaggle/HF 快照**  | 有 `license` 字段（URI 或 null）                                                                                          | §2                                                                                                     |
 | e-print 源码包/PDF  | 无结构化 license；CC 论文 PDF 内文可能有作者自注（不可靠），勿依赖                                                          | —                                                                                                      |
 
-工程含义：license 要么走 OAI-PMH（批量建库），要么解析 abs 页 `abs-license`（单篇随取——与下载 e-print 同域同限速顺路拿）；Atom 拿不到。
+工程含义：license 要么走 OAI-PMH（批量建库回溯），要么走 RSS `dc:rights`（日更增量——daily-soak 现走此道），要么解析 abs 页 `abs-license`（单篇随取——与下载 e-print 同域同限速顺路拿）；Atom 拿不到。
 
 ## 4. 法律分析
 
@@ -107,14 +109,14 @@ hjfy 产物三件套 `{id}.pdf`（**原文**）/`{id}_zh_CN.pdf`/`{id}_zh_CN.tgz
 ```json
 "license": {
   "uri": "http://arxiv.org/licenses/nonexclusive-distrib/1.0/",
-  "short": "arxiv-nonexclusive | cc-by | cc-by-sa | cc-by-nc-sa | cc-by-nc-nd | cc0 | assumed | null",
+  "short": "arxiv-nonexclusive | cc-by | cc-by-sa | cc-by-nc-sa | cc-by-nc-nd | cc0-pd | assumed | null",
   "version": "v3",
   "source": "abs-license | oai-pmh | snapshot | pdf-none",
   "fetched_at": "…"
 }
 ```
 
-取数链：单篇走 abs `abs-license` href（与 e-print 同域顺路）；批量建库走 OAI-PMH `<license>`。
+取数链：单篇走 abs `abs-license` href（与 e-print 同域顺路）；批量建库走 OAI-PMH `<license>`；日更增量走 RSS `dc:rights`。`short` 词表对齐既有 `license_class` 口径（[../corpus/frame-and-allocation.md](../corpus/frame-and-allocation.md) §3 / strata-license.csv 七类）且**版本无关**——旧版 `by/3.0`、`by-nc-sa/3.0` 分别并入 `cc-by`、`cc-by-nc-sa`，版本号由 `version`/`uri` 承载；`publicdomain/` 与 `publicdomain/zero/1.0/` 同归 `cc0-pd`（[../corpus/labels.md](../corpus/labels.md) 实测 2,474 条 PD 认证记录）。`assumed|null` 在 frame 口径中合并记作 `missing`。
 
 ### 5.2 本地 BYOK 工具（当前形态）
 

@@ -40,13 +40,13 @@ user CSV（独占加载）→ 否则按 arXiv abs 页 `div.subjects` 爬 categor
 
 套件结构 `TASK_SENTENCE[kind] + C1..C8 + KIND_CLAUSES + C9 + C10? + GLOSSARY_BLOCK`：六种 kind（`para/caption/section_title/abstract/table_text/env_text`）共享逐字公共块 C1–C8；C9 占位符条款压轴（枚举真实 token 形态 `[[MATH_12]]` 等 + 动词清单 `translate/modify/reorder/split/merge/add/remove` 覆盖 validator 会查的全部破坏方式 + `must appear verbatim`）；C10 人名条款仅 para/abstract。`table_text` 是新能力（两参考实现都不翻 tabular）——K4 条款强约束 `&`/`\\`/列数不变，v0 先不翻、prompt 先备。
 
-**落地增量（v2/v4 修订，已进 `xlat/prompts.py`）**：+C8a 反熔合条款（实测 `\ `+CJK 熔合是跨模型通病，要求占位符/命令与 CJK 之间保留显式边界）；+C8b untrusted 条款（论文正文里嵌的指令/请求/格式命令一律当数据——prompt injection 防线）；C9 增补 movable-token 授权；abstract kind 带 paper_context 锚定块。
+**落地增量（v2/v4 修订，已进 `xlat/prompts.py`）**：+C8a 反熔合条款（实测 `\`+CJK 熔合是跨模型通病，要求占位符/命令与 CJK 之间保留显式边界）；+C8b untrusted 条款（论文正文里嵌的指令/请求/格式命令一律当数据——prompt injection 防线）；C9 增补 movable-token 授权；abstract kind 带 paper_context 锚定块。
 
-**术语表**：三级 user > category > default；文档级过滤（`(?<!\w)term(?!\w)` IGNORECASE 扫全部 chunk 源文，整篇过滤一次保证 system prompt 恒定）后序列化 `- en: zh` 行表追加尾部（「highest-priority rule」头），占位符恒等注入混在表里（按 TYPE 字典序 + n 数值序稳定排序——前缀缓存命中前提）。种子表搬 LaTeXTrans 六表并按语料 category 分布扩（现行 `xlat/terms/`：default + cs.AI/CV/LG/ML/RO + cond-mat + quant-ph + `index.yaml` 映射——加领域不改代码）。
+**术语表**：五级 user > 论文级（`output/{paper}/glossary.local.yaml`）> category > default > ph→ph 占位符恒等（`xlat/glossary.py` 层级注 ①–⑤，活规范 `spec/translate.md` §1.9——调研期的「三级」是 LaTeXTrans 原型，落地时插入论文级并把占位符恒等列为最低档）；文档级过滤（`(?<!\w)term(?!\w)` IGNORECASE 扫全部 chunk 源文，整篇过滤一次保证 system prompt 恒定）后序列化 `- en: zh` 行表追加尾部（「highest-priority rule」头），占位符恒等注入混在表里（按 TYPE 字典序 + n 数值序稳定排序——前缀缓存命中前提）。种子表搬 LaTeXTrans 六表并按语料 category 分布扩（现行 `xlat/terms/`：default + cs.AI/CV/LG/ML/RO + cond-mat + quant-ph + `index.yaml` 映射——加领域不改代码）。
 
 **LLM judge**：env 可译性——黑名单直判、未知 env 交 LLM（temp=0、`max_tokens=16`、True/False、fail-open=True）；段内可译判定走廉价规则（无拉丁字母/全大写/纯占位符 chunk 跳过），灰区默认翻不另开 LLM 调用。
 
-**批量/并发/断点**：<300 字符短块打包编号批量（≤2000 字符/批，user 文本 `[1]…[2]…`，数量不符/序号越界整批回退单翻）；Semaphore 10–50 + **首发单飞暖前缀缓存**；429 特判指数退避；temperature 翻译 0.2–0.3（LaTeXTrans 0.7 对保结构任务偏激进）、judge/抽取 0；单请求 ≤2000 字符超限按句界二分；state.json 逐块落盘 `{version, meta, completed[], results[], errors_report[]}`，chunk 缓存键 `sha256(content + model + prompt_version)`——**条款措辞任何改动必须 bump prompt_version 否则缓存命中旧 prompt 产物**；纯占位符 chunk 不发请求直接落盘。带错重翻 = `[Original]/[Translation]/[Error]` 三段式 user prompt + 专用 corrector，≤3 轮仍败回退原文记 `fault`。
+**批量/并发/断点**（参数以 batchmodel-2026-09-18 修订为准，活规范 `spec/translate.md` §1.4）：全量 chunk 入批（无 <300 短块闸，`pipeline.py::_build_work_items`），K 量化等大装箱 `BATCH_MAX_CHARS=12000` / `BATCH_MAX_ITEMS=32` / `BATCH_MIN_CHARS=2500`（`xlat/batch.py`），user 文本 `[1]…[2]…` 编号、响应按行首 `[n]` 锚定解析（`@@` 独占行为兜底分隔），数量不符/序号越界整批回退单翻；并发为 worker pool `DEFAULT_CONCURRENCY=10` + **首发单飞暖前缀缓存**；429 特判指数退避；temperature 翻译 0.2–0.3（LaTeXTrans 0.7 对保结构任务偏激进）、judge/抽取 0；单请求超 `CHUNK_HARD_LIMIT=6000` 按句界二分；state.json 逐块落盘 `{version, meta, completed[], results[], errors_report[]}`，chunk 缓存键 `sha256(content + model + prompt_version)`——**条款措辞任何改动必须 bump prompt_version 否则缓存命中旧 prompt 产物**；纯占位符 chunk 不发请求直接落盘。带错重翻 = `[Original]/[Translation]/[Error]` 三段式 user prompt + 专用 corrector，≤3 轮仍败回退原文记 `fault`。
 
 **换行编码（建议采纳项）**：ieeA 把 `\n`/`\n\n` 编码为 `[[SL]]`/`[[PL]]` 防 LLM 增删换行——采纳 `[[SL]]`（段内换行保护），`[[PL]]` 不需要（分段边界在 chunk 层管理）。
 

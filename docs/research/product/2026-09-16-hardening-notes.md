@@ -45,6 +45,6 @@ pipe-xel 非终态时把产物树 copy 到独立工作区跑 `fixloop()`（xelat
 
 **`[[SL]]` "幻觉占位符"实为 slots 装配 bug**：全部 fault 的 warnings 含 `slots assembled but still invalid: 多余/未识别占位符：[[SL]]`——根因不是模型臆造：`_assemble_slots` 对 `("ph", payload)` 项原样回拼**不解码**，编码期产生的 `[[SL]]`/`[[PL]]` 字面残留进校验文本 → 任何含换行的 chunk 在 slots 段必败（既有测试全是单行源恰好绕过）。修复：ph 分支改 `decode_newlines(payload)`。
 
-**`\` 脆弱间距防线（编码为占位符）**：E21/E22 硬判据 `\ ` 丢失（`resp.\ to`、`s.t.\ $x$`、`cf.\ \S` 高频形态）——模型把 `\ ` 当排版噪声丢弃，阶梯四段接不住是生成端真弱点非校验误报。防线：`encode_newlines` 把 `\ `→`[[SP]]`、`decode_newlines` 还原——模型侧看到的是受保护的占位符（echo 可靠性远高于裸 `\ `），校验侧 decode 后判据不动；`PROMPT_VERSION` bump 正确失效段级缓存。`\,`/`\;`/`\:`/`\!`/`~` 同族未编码——无实测失败信号，留扩展点。
+**`\` 脆弱间距防线（编码为占位符）**：E21/E22 硬判据 `\` 丢失（`resp.\ to`、`s.t.\ $x$`、`cf.\ \S` 高频形态）——模型把 `\` 当排版噪声丢弃，阶梯四段接不住是生成端真弱点非校验误报。防线：`encode_newlines` 把 `\`→`[[SP]]`、`decode_newlines` 还原——模型侧看到的是受保护的占位符（echo 可靠性远高于裸 `\`），校验侧 decode 后判据不动；`PROMPT_VERSION` bump 正确失效段级缓存。`\,`/`\;`/`\:`/`\!`/`~` 同族未编码——无实测失败信号，留扩展点。（注记：2026-09-17 已扩列落地 `a223db6a`——NBSP/THINSP/MEDSP/THICKSP/NEGSP 入 `placeholders._SPACE_FAM`，E22 realpostfix2 实证触发；扩展点已消费。）
 
 **splice 残留防线（source 漂移核查）**：1524 例 leftover_ph 的根因——续跑按位置 chunk_id `{fidx}:{c.id}` 命中旧记录**不校验 source**，parse 漂移下同 id 指向不同内容，旧译文的 `[[X_n]]` 在新 ph_map 缺席 → splice 留字面残留。三处修复：`_route_chunks` 命中前比 `prev.source == c.content`（漂移即 warning + 重翻 + 丢出 done_map）；`reconstruct` 查无实体的 ph token 记 `dangling` 集合并 warning 而非静默留字面；bench summary 的 splice 残留行升级为 gate（PASS 或逐篇点名 FAIL）。

@@ -1,6 +1,6 @@
 # corpus_v3 全量综合测试指标总表（2026-09-19）
 
-> **结论**：corpus_v3 8 层 13,266 篇全量综合测试——解析臂全绿（parse ok 100.0%、strict identity 99.99%、leak 0.004%），编译基线 union pdf 90.4%，zh 注入臂反超 baseline +16pt（normalize 修复源缺陷），e2e_real 零管线引入回归，stagerun 全 DAG union-pdf 98.75% / clean 88.75%（M2 ≥90% 门样本口径 PASS）。唯一 gate FAIL：dead protect ph=3（门=0）与 flatten 93.7%<99%（已知 errata）。
+> **结论**：corpus_v3 8 层 13,266 篇全量综合测试——解析臂全绿（parse ok 100.0%、strict identity 99.99%、leak 0.004%），编译基线 union pdf 90.4%，zh 注入臂反超 baseline +16pt（normalize 修复源缺陷），e2e_real 零管线引入回归，stagerun 全 DAG union-pdf 98.75% / clean 88.75%（M2 ≥90% 门样本口径 PASS）。gate FAIL 仅两处（均在 parsebench）：dead protect ph=3（门=0）与 flatten 93.7%<99%（已知 errata）。
 > **状态**：时点证据（2026-09-19 口径）。各臂结果目录在主仓评测产物存档区（`bench/results/` 轮次目录），本表为读数汇总。
 > **日期**：2026-09-19（2026-09-20 迁入重编）
 
@@ -34,7 +34,7 @@
 
 ## 已知缺口 / 跟进项
 
-1. dead protect ph=3——parsebench 唯一 gate FAIL，值小但门为 0，需归因。
+1. dead protect ph=3——parsebench 唯一非 errata gate FAIL，值小但门为 0，需归因。
 2. flatten 93.7% < 99%——已知 errata，orphan tex 清单在 papers.json。
 3. alignbench 覆盖薄——多数产物无 named-dests，保留率实际只在 42 对上有意义。
 4. xlat cs_dropped——翻译臂头号失败类，待归因是 prompt 侧还是网关侧丢 cs。

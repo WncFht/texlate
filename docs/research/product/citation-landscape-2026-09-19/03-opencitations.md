@@ -1,6 +1,6 @@
 # Lane 03：OpenCitations / Crossref / Lens / OpenAIRE / Wikidata
 
-> **结论**：OpenCitations Index 与 OpenAIRE 是仅有的两个 CC0 十亿级边集；OC 字段干净且自带自引标志，但 DOI 中心模型要求自建 arXiv↔DOI 映射；Crossref 是上游原料而非成品服务；Lens 专有只能当查询后端。
+> **结论**：OpenCitations Index 是唯一活跃的 CC0 专用十亿级边集；OpenAIRE（2.35B 边）同量级但为 CC BY 4.0、再分发须署名（fatcat refcat 是另一 CC0 数十亿边集但 ~2021-22 起停滞，OpenAlex ~2.4B 边同为 CC0 但嵌于 works 语料非专用边集）；OC 字段干净且自带自引标志，但 DOI 中心模型要求自建 arXiv↔DOI 映射；Crossref 是上游原料而非成品服务；Lens 专有只能当查询后端。
 > **状态**：时点证据（2026-09-19 口径）
 > **日期**：2026-09-19
 
@@ -22,20 +22,20 @@
 
 **Lens**：API token 制（个人 14 天试用、机构档 5 万 req/月），`reference.lens_id`/`referenced_by` 双向字段齐全 + 专利↔学术边；**数据专有不可再分发**——只能做服务后端[^lensapi][^lensitk]。
 
-**OpenAIRE Graph**：2026-06 版 **218M 出版物、product_Cites 关系 2,348,459,637 条**，另有 IsRelatedTo 5.35 亿条（含推断关系）；Zenodo 半年 dump ~321GB（tar 包 gz JSONL），CC0[^oag]。规模与 OC Index 同量级且含推断边，是被低估的第二来源。
+**OpenAIRE Graph**：2026-06 版 **218M 出版物、product_Cites 关系 2,348,459,637 条**，另有 IsRelatedTo 5.35 亿条（含推断关系）；Zenodo 半年 dump 全量 **378.4GB**（tar 包 gz JSONL；product_Cites 边表 8 分片共 ~75.6GB，分片明细见 `04-domain.md`），**CC BY 4.0**（再分发须署名）[^oag]。规模与 OC Index 同量级且含推断边，是被低估的第二来源。
 
 **Wikidata P2860**：~3.14 亿条声明但集中在 PubMed 系批量导入，arXiv/CS 覆盖稀疏；价值在语义结构（作者消歧、基金）而非边密度[^wdp2860]。
 
 ## 可借鉴点
 
-1. 底座 = OC Index dump（或 OpenAIRE product_Cites）+ arXiv↔DOI 对齐表——CC0 允许整图离线建仓再分发，是合法自建前提。
+1. 底座 = OC Index dump（或 OpenAIRE product_Cites）+ arXiv↔DOI 对齐表——OC Index 为 CC0 可无署名整图离线建仓再分发，是合法自建前提；OpenAIRE 为 CC BY 4.0，同样允许再分发但须署名。
 2. `author_sc`/`journal_sc` 自引标志白拿——做被引数去自引省去作者消歧。
 3. 更新节奏错位要管理：OC dump ~5 个月滞后，新边靠 Crossref REST 或更高频源补 delta。
 4. arXiv 出边缺口在 DOI 中心源里普遍存在且无人填补——LaTeX 源/全文抽取填的正是这一格。
 
 ## 结论
 
-对 arXiv 时代 CS/物理/数学引用边，OC Index 与 OpenAIRE 是仅有的两个 CC0 十亿级边集；OC 是首选校验/补全源（字段干净、API 直接给双向邻接表），OpenAIRE 作备选第二源；Crossref 只当上游原料，Lens 只能当查询后端，Wikidata 边密度不足。
+对 arXiv 时代 CS/物理/数学引用边，OC Index 是唯一活跃的 CC0 专用十亿级边集（fatcat refcat 为另一 CC0 数十亿边集但 ~2021-22 起停滞，见 `05-arxiv-pipe.md`；OpenAlex ~2.4B 边同为 CC0 但嵌于 works 语料非专用边集），OpenAIRE（2.35B 边）同量级但为 CC BY 4.0 须署名；OC 是首选校验/补全源（字段干净、API 直接给双向邻接表），OpenAIRE 作备选第二源；Crossref 只当上游原料，Lens 只能当查询后端，Wikidata 边密度不足。
 
 ### 参考文献
 
