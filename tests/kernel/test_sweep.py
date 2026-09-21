@@ -66,10 +66,11 @@ def _cell_event(run: str, seq: int, idc: str, status: str) -> dict:
         up="-", variant="-", stage="xlat", status=status)
 
 
-def _claim_acquire(run: str, seq: int, idc: str, slot: str = "0") -> dict:
+def _claim_acquire(run: str, seq: int, idc: str) -> dict:
+    # lifecycle claims carry no slot — slot is the paid_slots mirror stream
     return events.make_event(
         events.T_CLAIM, run=run, seq=seq, id=idc, idc=idc, arm="zh",
-        variant="-", op="acquire", slot=slot)
+        variant="-", op="acquire")
 
 
 # --- zombies ----------------------------------------------------------------
@@ -87,10 +88,11 @@ def test_sweep_reaps_zombie_run(broot: Path) -> None:
             if e.get("type") == "cell" and e.get("status") == "lost"]
     assert len(lost) == 1 and lost[0]["idc"] == "2401.00001"
     assert lost[0]["seq"] < 0            # kernel negative seq
-    # claim reaped (audit event) — also clears the paid_slots projection
+    # claim reaped (audit event) — the projection also clears the key's
+    # paid_slots mirror rows
     reaps = [e for e in _shard(rd)
              if e.get("type") == "claim" and e.get("op") == "reap"]
-    assert len(reaps) == 1 and reaps[0]["slot"] == "0"
+    assert len(reaps) == 1 and reaps[0]["idc"] == "2401.00001"
     assert rep["reaped_claims"][0]["idc"] == "2401.00001"
     # zombie note present
     notes = [e for e in _shard(rd) if e.get("type") == "note"]

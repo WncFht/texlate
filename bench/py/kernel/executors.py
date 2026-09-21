@@ -30,6 +30,7 @@ Contract:
 from __future__ import annotations
 
 import contextvars
+import functools
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 
 __all__ = ["execute_cells"]
@@ -104,9 +105,12 @@ def execute_cells(cells, run_cell_fn, executor: str = "thread", jobs: int = 4,
     results: list = []
     if executor == "process":
         # pickle boundary: run_cell_fn and cells must pickle; cells are
-        # plain dicts by construction (§4).
+        # plain dicts by construction (§4). The bound callable ships with
+        # each group — an unpicklable (closure) run_cell_fn fails loudly
+        # at submission, not mid-map.
+        bound = functools.partial(runner, run_cell_fn=run_cell_fn)
         with ProcessPoolExecutor(max_workers=jobs) as pool:
-            for group_res in pool.map(runner, groups):
+            for group_res in pool.map(bound, groups):
                 results.extend(group_res)
     else:
         with ThreadPoolExecutor(max_workers=jobs) as pool:

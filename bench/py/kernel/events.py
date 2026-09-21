@@ -77,7 +77,7 @@ OPTIONAL_KEYS: dict[str, frozenset[str]] = {
     T_CELL: frozenset({
         "dur_s", "metrics", "errors", "sig", "code", "fp", "cat", "eval",
     }),
-    T_CLAIM: frozenset({"slot"}),
+    T_CLAIM: frozenset({"slot", "fate"}),
     T_ASSET: frozenset({
         "sha", "bytes", "zone", "verdict", "altseq", "model", "source_run",
     }),

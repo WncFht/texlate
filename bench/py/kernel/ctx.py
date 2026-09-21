@@ -31,6 +31,39 @@ from kernel import claims, events, fsutil, idnorm, lake, locks, paid as paidmod
 __all__ = ["Ctx"]
 
 
+class _HeldClaim:
+    """Facade over an already-held ClaimLease (the kernel's).
+
+    ``with`` is a no-op both ways: enter needs no acquire (the mutex is
+    already ours — a fresh fd flock would deadlock), exit must NOT
+    release (the holder decides when the lease drops, not a nested
+    block). Explicit acquire/release delegate to the real lease for
+    callers that deliberately manage it.
+    """
+
+    def __init__(self, lease):
+        self.lease = lease
+
+    @property
+    def held(self) -> bool:
+        return self.lease.held
+
+    def acquire(self, blocking: bool = False) -> bool:
+        return True if self.lease.held else self.lease.acquire(blocking)
+
+    def release(self) -> None:
+        self.lease.release()
+
+    def held_by_other(self) -> bool:
+        return self.lease.held_by_other()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc) -> bool:
+        return False
+
+
 class Ctx:
     """Per-cell author context.
 
@@ -46,7 +79,7 @@ class Ctx:
     """
 
     def __init__(self, run, cell: dict, index, spec, *, rundir=None,
-                 factory=None, outbox=None, emit_note_fn=None):
+                 factory=None, outbox=None, emit_note_fn=None, alloc=None):
         self.spec = spec
         self.cell = cell
         self.index = index
@@ -56,6 +89,7 @@ class Ctx:
         self.factory = factory
         self._outbox = outbox if outbox is not None else []
         self._emit_note_fn = emit_note_fn
+        self._alloc = alloc
         # -- cell fields, promoted ---------------------------------------------------
         self.id = str(cell.get("id"))
         self.idc = str(cell.get("idc"))
@@ -245,13 +279,19 @@ class Ctx:
     # --- paid surface -------------------------------------------------------------------
 
     def claim(self):
-        """The (idc,arm,variant) ClaimLease — the paid mutex. Caller picks
-        acquire/release or the context-manager form."""
-        return claims.ClaimLease(self.idc, arm=self.arm, variant=self.variant)
+        """The (idc,arm,variant) claim surface — the paid mutex.
 
-    def paid_slot(self, nslots: int = 4, blocking: bool = True, **kw):
-        """One global paid slot — the ≤4 concurrent-request ceiling."""
-        return locks.paid_slot(nslots=nslots, blocking=blocking, **kw)
+        When the kernel already holds this cell's claim (paid stages),
+        returns a handle REUSING that lease: a fresh ClaimLease would
+        self-deadlock on 'with ctx.claim():' (flock rides the open file
+        description — a second fd on the same file blocks forever), and
+        a 'with' exit must never drop the kernel's lease mid-cell. When
+        no lease is held, returns a fresh ClaimLease — caller picks
+        acquire/release or the context-manager form."""
+        lease = getattr(self, "claim_lease", None)
+        if lease is not None and lease.held:
+            return _HeldClaim(lease)
+        return claims.ClaimLease(self.idc, arm=self.arm, variant=self.variant)
 
     def gateway(self):
         """The paid channel — LAZY: first call mints a PaidSession off the

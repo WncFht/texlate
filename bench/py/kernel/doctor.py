@@ -376,7 +376,8 @@ def _check_paid(checks: list, idx: index.Index | None) -> None:
     if idx is not None:
         idx_claimed = {
             (r["idc"], r["arm"], r["variant"]) for r in idx.conn.execute(
-                "SELECT DISTINCT idc,arm,variant FROM claims WHERE op='acquire'")
+                "SELECT DISTINCT idc,arm,variant FROM claims"
+                " WHERE op='acquire' AND slot IS NULL")
         }
         idx_pool = idx.paid_pool() & idx_claimed
         detail_parts.append(f"index paid-pool={len(idx_pool)}")

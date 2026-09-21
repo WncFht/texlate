@@ -223,7 +223,12 @@ class RunDir:
         return self.path / "derived"
 
     def cell_lock_path(self, safe_id: str) -> Path:
-        return self.work(safe_id) / ".lock"
+        # outside work/{safe}/ — the stage fn may rmtree its own paper_dir
+        # mid-cell; a lock inode inside it would be orphaned while the
+        # kernel still flocks it (and a recreated .lock would let a second
+        # holder in). Lock files are immortal (R21), so they live under
+        # the run's own locks/ dir.
+        return self.path / "locks" / f"{safe_id}.lock"
 
     # -- locks / liveness ------------------------------------------------------------
 

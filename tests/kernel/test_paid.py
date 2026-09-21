@@ -207,12 +207,18 @@ def test_session_401_counting_then_cell_abort(broot: Path):
             s.request("chat")
         assert ei.value.status == 401
         assert f.shared["paper_auth"]["2401.00001"] == n
-    # 401 #3 -> per-paper fuse: claim released auth_trip + abort cell
+    # 401 #3 -> per-paper fuse: fate marked auth_trip + abort cell
     with pytest.raises(paid.PaidAbortCell):
         s.request("chat")
     assert f.shared["paper_auth"]["2401.00001"] == 3
     assert f.shared["all_failed"] == 1
     assert s.ctx.claim_fate == "auth_trip"
+    # deferred release: the lease stays held until the cell boundary —
+    # a mid-cell drop would open an 'absent'-verdict re-burn window
+    # before the terminal row lands. For a bare session the caller's
+    # release_claim() IS the cell end.
+    assert claims.ClaimLease("2401.00001").held_by_other()
+    s.release_claim()
     assert not claims.ClaimLease("2401.00001").held_by_other()
 
 

@@ -117,7 +117,7 @@ def _shard_state(rdir: Path) -> dict:
                 started[runs._cell_key(ev)] = ev
             elif events.is_terminal_cell(ev):
                 terminal[runs._cell_key(ev)] = ev
-            elif t == events.T_CLAIM:
+            elif t == events.T_CLAIM and ev.get("slot") is None:
                 ckey = (
                     str(ev.get("idc") or ev.get("id")),
                     str(ev.get("arm") or "-"),
@@ -144,14 +144,14 @@ def _emit_lost(rd: runs.RunDir, ev0: dict) -> None:
 
 
 def _emit_claim_reap(rd: runs.RunDir | None, run: str, idc: str,
-                     arm: str, variant: str, slot=None, ev_id=None) -> None:
-    """Emit the op='reap' claim audit row; the slot field clears the
-    paid_slots projection (the ledger-side 'paid_slot release')."""
+                     arm: str, variant: str, ev_id=None) -> None:
+    """Emit the op='reap' claim audit row; the projection clears every
+    paid_slots mirror row for the (idc,arm,variant) key."""
     seq = runs._kernel_seq(rd) if rd is not None else None
     ev = events.make_event(
         events.T_CLAIM, run=run, seq=seq,
         id=ev_id or idc, idc=idc, arm=arm, variant=variant,
-        op="reap", slot=slot,
+        op="reap",
     )
     ledger.emit(ev, run_dir=rd.path if rd is not None else None)
 
@@ -183,8 +183,7 @@ def _reap_zombie(rd: runs.RunDir, report: dict) -> None:
         if not locks.lock_free(claims.claim_lock_path(idc, arm, variant)):
             continue  # live claimant — never reap
         _emit_claim_reap(
-            rd, rd.run, idc, arm, variant,
-            slot=cev.get("slot"), ev_id=cev.get("id"))
+            rd, rd.run, idc, arm, variant, ev_id=cev.get("id"))
         claims_reaped.append((idc, arm, variant))
         report["reaped_claims"].append(
             {"idc": idc, "arm": arm, "variant": variant, "run": rd.run})
@@ -239,13 +238,12 @@ def _sweep_stale_claims(idx: index.Index | None, report: dict) -> None:
         if not locks.lock_free(lpath):
             continue  # live holder
         row = idx.conn.execute(
-            "SELECT run, slot FROM claims"
-            " WHERE idc=? AND arm=? AND variant=?"
+            "SELECT run FROM claims"
+            " WHERE idc=? AND arm=? AND variant=? AND slot IS NULL"
             " ORDER BY rowid DESC LIMIT 1",
             (idc, arm, variant),
         ).fetchone()
         run = row["run"] if row else "sweep"
-        slot = row["slot"] if row else None
         rd = None
         if isinstance(run, str) and run.count("/") == 2:
             try:
@@ -258,7 +256,7 @@ def _sweep_stale_claims(idx: index.Index | None, report: dict) -> None:
             if last is not None and last.get("op") != "acquire":
                 continue  # shard says released — index is just behind
         try:
-            _emit_claim_reap(rd, run, idc, arm, variant, slot=slot)
+            _emit_claim_reap(rd, run, idc, arm, variant)
             report["reaped_claims"].append(
                 {"idc": idc, "arm": arm, "variant": variant, "run": run})
         except events.EventError as e:
@@ -439,7 +437,8 @@ def _sweep_harvest_pending(idx: index.Index | None, report: dict) -> None:
         return
     intent: set[tuple] = set()
     for r in idx.conn.execute(
-            "SELECT DISTINCT idc, arm, variant FROM claims WHERE op='acquire'"):
+            "SELECT DISTINCT idc, arm, variant FROM claims"
+            " WHERE op='acquire' AND slot IS NULL"):
         intent.add((r["idc"], r["arm"], r["variant"]))
     marks = ",".join("?" for _ in _VAULT_KINDS)
     for r in idx.conn.execute(

@@ -263,15 +263,19 @@ def _product_ok(rd: runs.RunDir, cell: dict, up_stage: str,
                 safe: str) -> bool:
     """'产物可解析' for a mutating upstream — PER-KIND, never cell-level.
 
-    A kind counts through evidence of ITS OWN bytes: an intact vault copy
-    declaring it, this run's work tree, or the upstream run's own work
-    tree. A manifest-dead kind (tombstone/loss row with no later revive)
-    vetoes the whole product UNLESS fresh work-tree bytes exist for it —
-    vault-intact bytes do NOT revive a tombstoned kind, because tombstone
-    is a verdict-layer loss record that deliberately leaves bytes on
-    disk. The old cell-level bytes_ok leg let a live 'state' copy mask a
-    tombstoned 'zh' — downstream then burned paid requests against a
-    product the ledger had already declared lost."""
+    A kind counts through evidence the stage fn can actually REACH: an
+    intact vault copy declaring it (ctx restores via vault.restore), or
+    this run's own work tree. The upstream run's work tree is NOT
+    evidence — ctx.upstream_asset_dir can only read this run's
+    paper_dir, so bytes stranded in a foreign run dir greenlight a cell
+    that then crash-loops on FileNotFoundError. A manifest-dead kind
+    (tombstone/loss row with no later revive) vetoes the whole product
+    UNLESS fresh work-tree bytes exist for it — vault-intact bytes do
+    NOT revive a tombstoned kind, because tombstone is a verdict-layer
+    loss record that deliberately leaves bytes on disk. The old
+    cell-level bytes_ok leg let a live 'state' copy mask a tombstoned
+    'zh' — downstream then burned paid requests against a product the
+    ledger had already declared lost."""
     if not up_spec or not up_spec.mutates:
         return True
     try:
@@ -284,22 +288,9 @@ def _product_ok(rd: runs.RunDir, cell: dict, up_stage: str,
     except Exception:
         vrows = []
     base = rd.work(safe)
-    # upstream run's own work tree — rec['run'] is kind/date/slug
-    other = None
-    rname = rec.get("run")
-    if isinstance(rname, str):
-        parts = rname.split("/")
-        if len(parts) == 3:
-            try:
-                other = paths.run_dir(parts[0], parts[1], parts[2])
-            except ValueError:
-                other = None
     lost = present = False
     for k in up_spec.mutates:
         work = _dir_has_files(base / vault._work_dirname(k, arm, variant))
-        if not work and other is not None:
-            work = _dir_has_files(
-                other / "work" / safe / vault._work_dirname(k, arm, variant))
         intact = any(
             isinstance(r.get("files"), dict) and k in r["files"]
             and r.get("bytes_ok")
@@ -362,7 +353,7 @@ def _needs_eval(rd: runs.RunDir, spec: Spec, idx, cell: dict,
 # --- outbox / terminal plumbing --------------------------------------------------------
 
 
-_CELL_MERGE_KEYS = {"metrics", "errors", "sig", "code", "dur_s", "cat"}
+_CELL_MERGE_KEYS = {"metrics", "errors", "sig", "code", "dur_s"}
 # Framework-owned cell fields — emit() can never rewrite identity/status
 # (status comes from the fn return alone; fp is kernel-stamped).
 _CELL_RESERVED = {"id", "idc", "arm", "up", "variant", "stage", "run",
@@ -551,17 +542,16 @@ def _run_cell(env, cell: dict) -> dict:
             return {"cell": key, "status": "already-terminal"}
 
         # 2. cross-run dedup — the last OUTCOME row (records, not the
-        #    queued-masked cells table) decides; DONE ∪ KERNEL = terminal.
-        #    PAID STAGES SKIP THIS ENTIRELY: records statuses like
-        #    'claimed'/'reject'/'lost' are adjudication states, not byte
-        #    evidence — masking them behind dedup bricks refused or
-        #    interrupted cells permanently. The step-3 oracle owns every
-        #    paid cell (verified -> dedup, missing -> regen gate,
-        #    absent -> budget fuse).
+        #    queued-masked cells table) decides; DONE ∪ {dedup} = work
+        #    evidence. 'lost'/'claimed'/'unpaid_gate' are KERNEL
+        #    adjudication states (swept zombie, live-lock mask, gate
+        #    refusal) — deduping them bricks a never-completed cell
+        #    forever. PAID STAGES SKIP THIS ENTIRELY: the step-3 oracle
+        #    owns every paid cell (verified -> dedup, missing -> regen
+        #    gate, absent -> budget fuse).
         last = _last_outcome(idx, idc, arm, up, variant, stage_name)
         if (last is not None and not (stage is not None and stage.paid)
-                and last["status"] in (
-                        events.STATUS_DONE | events.STATUS_KERNEL)):
+                and last["status"] in events.STATUS_DONE | {"dedup"}):
             return quick("dedup")
 
         # 3. paid gate — the fail-closed oracle owns every paid cell
@@ -644,7 +634,7 @@ def _run_cell(env, cell: dict) -> dict:
         _emit_batch(env, idx, pre)
 
         # 8. the stage fn — outbox rows fold into the terminal batch
-        ctx = Ctx(rd, cell, idx, spec, factory=(
+        ctx = Ctx(rd, cell, idx, spec, alloc=alloc, factory=(
             env["factory"] if stage is not None and stage.paid else None))
         if lease is not None:
             ctx.claim_lease = lease
@@ -733,10 +723,17 @@ def _run_cell(env, cell: dict) -> dict:
             batch.append(events.make_event(
                 events.T_CLAIM, run=rd.run, seq=alloc(), id=cell["id"],
                 idc=idc, arm=k_arm, variant=k_var, op="release",
-                slot=fate))
+                fate=fate))
         _emit_batch(env, idx, batch)
         if lease is not None:
             lease.release()
+        if ctx.claim_lease is not None:
+            # a session-owned lease (stage fn acquired via ctx.gateway()
+            # outside the kernel's own claim path) unwinds here too —
+            # mid-cell release would open an 'absent'-verdict re-burn
+            # window before the terminal row lands; idempotent on the
+            # kernel's own lease
+            ctx.claim_lease.release()
         env["emit"](f"[{status}] {idc} {arm}/{up}/{variant}/{stage_name}")
         return {"cell": key, "status": status, "cat": cat}
 
@@ -766,7 +763,9 @@ def _wrap_factory(gateway_factory, max_cost):
     if gateway_factory is None:
         return None
     if isinstance(gateway_factory, paidmod.GatewayFactory):
-        if max_cost is not None and gateway_factory.max_cost is None:
+        if max_cost is not None:
+            # the run flag is the documented fuse — it wins over a
+            # pre-built factory value rather than silently diverging
             gateway_factory.max_cost = max_cost
         return gateway_factory
     if callable(gateway_factory):
@@ -803,6 +802,14 @@ def run(spec_or_path, params=None, *, date=None, slug=None, resume=False,
                 "paid spec refuses to run without a gateway_factory "
                 "(client construction IS the paid assertion)")
     factory = _wrap_factory(gateway_factory, max_cost)
+    if spec.has_paid() and factory is not None and not factory.meter.prices \
+            and not any(getattr(s, "cost_hook", None)
+                        for s in spec.stages if s.paid):
+        raise RunError(
+            "paid spec has no pricing surface: meter.prices is empty and "
+            "no paid stage declares cost_hook — every request would "
+            "account $0 and the mandatory --max-cost fuse could never "
+            "bind (§3.6)")
 
     # 2. items + canon (eval specs run verbatim — no registry gate)
     registry = None if spec.eval else idnorm.PapersRegistry.load()
@@ -824,16 +831,11 @@ def run(spec_or_path, params=None, *, date=None, slug=None, resume=False,
         rd = runs.create_run(spec.kind, slug=slug, date=date,
                              spec_dict=spec_dict, spec_hash=shash,
                              spec_env=_spec_env(spec))
-    runs.add_invocation(
-        rd, {"resume": resume, "replan": replan, "max_cost": max_cost,
-             "regen": regen, "sel": sel, "yes": yes,
-             "allow_regen": allow_regen, "jobs": jobs},
-        spec_hash=shash, code_stamp=specmod.code_sha(spec))
 
     # 4-8 under kernel-active + run.lock
     env = {
         "rd": rd, "spec": spec, "factory": factory, "max_cost": max_cost,
-        "sel": sel, "allow_regen": allow_regen, "yes": yes,
+        "sel": sel, "allow_regen": allow_regen or regen, "yes": yes,
         "abort": threading.Event(), "emit": emit,
         "thread_local": threading.local(),
     }
@@ -846,6 +848,14 @@ def run(spec_or_path, params=None, *, date=None, slug=None, resume=False,
                 target=runs.heartbeat_loop,
                 args=(rd, 15.0, stop_hb), daemon=True)
             hb.start()
+
+            # invocation rows record runs that ACTUALLY executed — the
+            # lock-loser of a concurrent same-slug resume must leave no row
+            runs.add_invocation(
+                rd, {"resume": resume, "replan": replan,
+                     "max_cost": max_cost, "regen": regen, "sel": sel,
+                     "yes": yes, "allow_regen": allow_regen, "jobs": jobs},
+                spec_hash=shash, code_stamp=specmod.code_sha(spec))
 
             # 5. seq mint + index + oracle snapshot
             alloc = _SeqAlloc(_max_shard_seq(rd) + 1)

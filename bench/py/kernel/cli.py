@@ -1206,8 +1206,8 @@ def _add_runlike_flags(sp, *, with_exec: bool) -> None:
     sp.add_argument("--max-cost", type=float, default=None,
                     help="run-level budget fuse in USD (paid runs: required)")
     sp.add_argument("--regen", action="store_true",
-                    help="request paid-byte regeneration (needs --sel +"
-                         " --max-cost + --yes + --allow-regen)")
+                    help="request paid-byte regeneration — folds into"
+                         " --allow-regen (needs --sel + --max-cost + --yes)")
     sp.add_argument("--sel", help="cell selector expression")
     sp.add_argument("--yes", action="store_true",
                     help="confirm destructive/paid actions")

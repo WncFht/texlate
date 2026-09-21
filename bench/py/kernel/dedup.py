@@ -494,11 +494,28 @@ class DedupOracle:
 
     # -- seal gate -----------------------------------------------------------------
 
+    def _sealed_now(self) -> bool:
+        """check_sealed with ONE catch-up ingest first.
+
+        Events landing between run-start tail_ingest and snapshot leave
+        watermark < min_offset forever — without the catch-up every paid
+        cell degrades to 'unsealed' under ordinary ledger traffic. One
+        re-ingest consumes what the snapshot already priced in; a writer
+        that outruns even the catch-up still reads unsealed (fail-closed).
+        """
+        if self.index.dirty():
+            return False
+        if self.index.check_sealed(self.sealed_gen, self.min_offset):
+            return True
+        try:
+            self.index.tail_ingest()
+        except Exception:
+            pass
+        return self.index.check_sealed(self.sealed_gen, self.min_offset)
+
     def sealed(self) -> bool:
         """Seal predicate as check() evaluates it right now."""
-        return not self.index.dirty() and self.index.check_sealed(
-            self.sealed_gen, self.min_offset
-        )
+        return self._sealed_now()
 
     # -- per-cell verdict ------------------------------------------------------------
 
@@ -525,9 +542,7 @@ class DedupOracle:
         # 1. unsealed — first, even when durable legs say verified. A stale
         #    index can't be trusted about tombstones; the seal failure is
         #    the alarm that must surface (retriable-terminal upstream).
-        if self.index.dirty() or not self.index.check_sealed(
-            self.sealed_gen, self.min_offset
-        ):
+        if not self._sealed_now():
             return UNSEALED
 
         # 2. claimed — flock NB probe only; an un-probe-able claim is an

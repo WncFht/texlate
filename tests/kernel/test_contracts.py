@@ -696,7 +696,7 @@ def test_sweep_zombie_lost_and_claim_reap_locked_cell_survives(broot):
             arm="-", up="-", variant="-", stage="pay"), run_dir=rd.path)
     ledger.emit(events.make_event(
         events.T_CLAIM, run=rd.run, seq=9, id=idc_dead, idc=idc_dead,
-        arm="-", variant="-", op="acquire", slot="0"), run_dir=rd.path)
+        arm="-", variant="-", op="acquire"), run_dir=rd.path)
     # stale the heartbeat; run.lock stays free (nobody holds it)
     stale = time.time() - (sweep.ZOMBIE_AGE_S + 60)
     os.utime(rd.heartbeat_path(), (stale, stale))

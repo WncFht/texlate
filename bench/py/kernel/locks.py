@@ -101,10 +101,15 @@ def lock_free(path) -> bool:
     """NB probe: True iff nobody holds the lock — authoritative life proof.
 
     Acquires LOCK_EX|LOCK_NB on a throwaway fd and releases it. Works for
-    both EX- and SH-held locks (any hold blocks an EX probe). Creates the
-    lock file if absent, which is correct: lock files are immortal anyway.
+    both EX- and SH-held locks (any hold blocks an EX probe). Read-only
+    and non-creating: an absent lock file means no holder ever existed —
+    a probe must not materialize files on the paths it reads (an orphaned
+    probe inside a deleted tree would resurrect it).
     """
-    fd = _open_lock(path)
+    try:
+        fd = os.open(path, os.O_RDWR)  # no O_CREAT — probe must not create
+    except FileNotFoundError:
+        return True
     try:
         try:
             fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)

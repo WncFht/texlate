@@ -37,10 +37,11 @@ def _cell_event(run: str, seq: int, idc: str, status: str) -> dict:
         up="-", variant="-", stage="xlat", status=status)
 
 
-def _claim_acquire(run: str, seq: int, idc: str, slot: str = "0") -> dict:
+def _claim_acquire(run: str, seq: int, idc: str) -> dict:
+    # lifecycle claims carry no slot — slot is the paid_slots mirror stream
     return events.make_event(
         events.T_CLAIM, run=run, seq=seq, id=idc, idc=idc, arm="zh",
-        variant="-", op="acquire", slot=slot)
+        variant="-", op="acquire")
 
 
 # --- green path -------------------------------------------------------------------

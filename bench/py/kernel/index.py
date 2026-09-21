@@ -536,6 +536,15 @@ class Index:
             (ev.get("idc"), ev.get("arm"), ev.get("variant"), ev.get("run"),
              ev.get("seq"), ev.get("op"), ev.get("slot"), ev.get("ts")),
         )
+        if ev.get("op") == "reap":
+            # a reap clears every paid_slots mirror row the reaped key
+            # left behind, whichever slot it sat in
+            cur.execute(
+                "DELETE FROM paid_slots"
+                " WHERE idc=? AND arm=? AND variant=?",
+                (ev.get("idc"), ev.get("arm"), ev.get("variant")),
+            )
+            return
         slot = ev.get("slot")
         if slot is None:
             return
@@ -549,7 +558,7 @@ class Index:
                 (slot, ev.get("idc"), ev.get("arm"), ev.get("variant"),
                  ev.get("run"), ev.get("ts")),
             )
-        elif ev.get("op") in ("release", "reap"):
+        elif ev.get("op") == "release":
             cur.execute("DELETE FROM paid_slots WHERE slot=?", (slot,))
 
     def _proj_asset(self, cur, ev: dict) -> None:
@@ -778,15 +787,20 @@ class Index:
         }
 
     def active_claims(self) -> set[tuple]:
-        """(idc,arm,variant) whose latest claim op is 'acquire'."""
+        """(idc,arm,variant) whose latest claim op is 'acquire'.
+
+        slot-bearing rows are the paid_slots mirror stream — a separate
+        channel multiplexed on the same table; only slot IS NULL rows are
+        claim-lifecycle evidence.
+        """
         return {
             (r["idc"], r["arm"], r["variant"])
             for r in self.conn.execute(
                 "SELECT c.idc, c.arm, c.variant FROM claims c"
-                " WHERE c.op='acquire' AND c.rowid ="
+                " WHERE c.slot IS NULL AND c.op='acquire' AND c.rowid ="
                 " (SELECT MAX(rowid) FROM claims c2"
                 "  WHERE c2.idc=c.idc AND c2.arm=c.arm"
-                "  AND c2.variant=c.variant)"
+                "  AND c2.variant=c.variant AND c2.slot IS NULL)"
             )
         }
 

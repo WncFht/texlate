@@ -27,7 +27,7 @@ from __future__ import annotations
 import math
 import threading
 
-from kernel import claims, locks
+from kernel import claims, events, ledger, locks
 
 __all__ = [
     "AuthError",
@@ -175,6 +175,12 @@ class CostMeter:
             self._requests += 1
         return usd
 
+    def count(self) -> None:
+        """Register a non-priced wire call (probe) — requests++ only.
+        Recording a fake $0 sample would drag estimate_next down."""
+        with self._lock:
+            self._requests += 1
+
     # -- fuse ------------------------------------------------------------------------
     def spent(self) -> float:
         with self._lock:
@@ -200,6 +206,10 @@ class CostMeter:
         """Raise BudgetExceeded when spent + estimate_next() crosses max_cost."""
         if max_cost is None:
             return
+        if self.spent() >= float(max_cost):
+            raise BudgetExceeded(
+                f"cost fuse: spent {self.spent():.4f} >= max_cost "
+                f"{max_cost}")
         if self.spent() + self.estimate_next() > float(max_cost):
             raise BudgetExceeded(
                 f"cost fuse: spent {self.spent():.4f} + estimate_next "
@@ -305,7 +315,6 @@ class PaidSession:
         self.factory = factory
         self.ctx = ctx
         self._lease = None
-        self._owns_lease = False
         self._client_obj = None
 
     # -- internals --------------------------------------------------------------------
@@ -326,18 +335,14 @@ class PaidSession:
         """
         existing = getattr(self.ctx, "claim_lease", None)
         if existing is not None and existing.held:
-            # ``existing is self._lease`` = our own lease re-read back off
-            # the ctx — still ours. A DIFFERENT held lease is the kernel's:
-            # it releases at cell end, not via this session.
-            if existing is not self._lease:
-                self._owns_lease = False
+            # the kernel's lease or our own re-read back off the ctx —
+            # either way it releases at cell end, not via this session
             self._lease = existing
             return existing
         if self._lease is None or not self._lease.held:
             idc, arm, variant = self._key()
             self._lease = claims.ClaimLease(idc, arm=arm, variant=variant)
             self._lease.acquire(blocking=True)
-            self._owns_lease = True
             try:
                 self.ctx.claim_lease = self._lease
             except AttributeError:
@@ -359,14 +364,13 @@ class PaidSession:
                 pass
 
     def _trip_claim(self):
-        """Auth-trip bookkeeping: mark the release-audit fate, then drop
-        the lease ONLY if this session acquired it. A kernel-set
-        ``ctx.claim_lease`` unwinds via the cell's ExitStack at cell end —
-        releasing it here would open a re-burn window while the terminal
-        row is still unwritten (a racer could claim and re-spend)."""
+        """Auth-trip bookkeeping: mark the release-audit fate. The lease
+        is NEVER dropped here — releasing mid-cell opens an
+        'absent'-verdict re-burn window (a rival oracle sees free claim +
+        no durable evidence until the terminal row lands). The kernel
+        releases ctx.claim_lease after the terminal emit; a bare-session
+        caller drops it via release_claim() at their own cell boundary."""
         self._mark_fate("auth_trip")
-        if self._owns_lease:
-            self.release_claim()
 
     def _client(self):
         """Raw client — session-internal. The ONLY wire path stage code
@@ -378,16 +382,59 @@ class PaidSession:
 
     def probe_model(self):
         """Cheap liveness probe — AUTH_DEAD is checked FIRST (a dead-auth
-        probe would hang the gateway bridge; §3.10.6)."""
+        probe would hang the gateway bridge; §3.10.6). Still a wire call:
+        it rides the global paid_slot and counts on the meter — an
+        uncounted probe would let a probing fleet exceed the concurrency
+        ceiling and hide traffic from the cost ledger."""
         if locks.auth_dead():
             raise PaidAbortRun("AUTH_DEAD sentinel engaged")
         if self.factory.aborted():
             raise PaidAbortRun("run aborted by auth breaker")
         cli = self._client()
         probe = getattr(cli, "probe_model", None)
-        if callable(probe):
-            return probe()
-        return True
+        if not callable(probe):
+            return True
+        with locks.paid_slot(nslots=self.factory.nslots) as _slot:
+            self._slot_ev("acquire", _slot)
+            try:
+                res = probe()
+            finally:
+                self._slot_ev("release", _slot)
+        self.factory.meter.count()
+        return res
+
+    def _slot_ev(self, op: str, slot: int) -> None:
+        """Mirror one paid-slot take/drop into the ledger (§3.10 Q3 —
+        the index paid_slots table is the OBSERVATIONAL mirror sweep
+        reconciles; the flock is the lock, the row is the audit).
+        Emitted in real time — not via the terminal outbox — so a crash
+        leaves a dangling row the reaper cleans rather than nothing.
+        Observational only: every failure is swallowed; the wire path
+        never dies for a mirror row."""
+        try:
+            ctx = self.ctx
+            alloc = getattr(ctx, "_alloc", None)
+            if callable(alloc):
+                seq = alloc()
+            else:
+                rd = getattr(ctx, "rundir", None)
+                seq = None
+                if rd is not None:
+                    from kernel import runs as _runs
+                    seq = _runs._kernel_seq(rd)
+            idc, arm, variant = self._key()
+            ev = events.make_event(
+                events.T_CLAIM,
+                run=getattr(ctx, "run", None),
+                seq=seq, id=getattr(ctx, "id", None),
+                idc=idc, arm=arm, variant=variant, op=op, slot=slot)
+            rd = getattr(ctx, "rundir", None)
+            sink = getattr(getattr(ctx, "index", None), "apply_event", None)
+            ledger.emit(ev,
+                        run_dir=rd.path if rd is not None else None,
+                        sink=sink)
+        except Exception:
+            pass
 
     # -- the wire ----------------------------------------------------------------------
     def request(self, method, *a, **kw):
@@ -406,8 +453,24 @@ class PaidSession:
         idc, _arm, _var = self._key()
         self.claim()
         try:
-            with locks.paid_slot(nslots=self.factory.nslots):
-                res = self._call(method, *a, **kw)
+            with locks.paid_slot(nslots=self.factory.nslots) as _slot:
+                self._slot_ev("acquire", _slot)
+                try:
+                    # re-check the free gates AFTER the blocking waits —
+                    # a PAUSE/AUTH_DEAD/abort/budget trip engaged while
+                    # queued must still stop the wire call (the pre-wait
+                    # checks are stale by the time the slot lands)
+                    if locks.pause_engaged():
+                        raise PaidPause("PAUSE sentinel engaged")
+                    if locks.auth_dead():
+                        self.factory.abort()
+                        raise PaidAbortRun("AUTH_DEAD sentinel engaged")
+                    if self.factory.aborted():
+                        raise PaidAbortRun("run aborted by auth breaker")
+                    self.factory.meter.check(self.factory.max_cost)
+                    res = self._call(method, *a, **kw)
+                finally:
+                    self._slot_ev("release", _slot)
         except PaidAbortRun:
             self._trip_claim()
             raise

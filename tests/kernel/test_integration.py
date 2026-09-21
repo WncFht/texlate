@@ -238,8 +238,12 @@ def test_s07_concurrent_double_run_single_payer(broot):
     rd_a = runs.load_run("paid_stub", DATE, "ccA")
     rd_b = runs.load_run("paid_stub", DATE, "ccB")
     claims = _typed(rd_a, events.T_CLAIM) + _typed(rd_b, events.T_CLAIM)
-    acquires = [e for e in claims if e.get("op") == "acquire"]
-    releases = [e for e in claims if e.get("op") == "release"]
+    # lifecycle stream only — slot-carrying events are the paid_slots
+    # mirror (one take/drop pair per request), not claim ownership
+    acquires = [e for e in claims
+                if e.get("op") == "acquire" and e.get("slot") is None]
+    releases = [e for e in claims
+                if e.get("op") == "release" and e.get("slot") is None]
     # at most one acquire-winning sequence per (idc,arm,variant)
     acq_keys = sorted((e["idc"], e["arm"], e["variant"]) for e in acquires)
     assert acq_keys == PAID_KEYS
@@ -454,12 +458,13 @@ def test_s03_paid_stub_end_to_end(broot, tmp_path, monkeypatch):
     assert abs(factory.meter.spent() - 0.0004) < 1e-9
     claims = _typed(rd1, events.T_CLAIM)
     for idc in PAID_IDS:
-        ops = [e["op"] for e in claims if e["idc"] == idc]
+        ops = [e["op"] for e in claims
+               if e["idc"] == idc and e.get("slot") is None]
         assert ops == ["acquire", "release"], (idc, ops)
     assert all(
-        e.get("slot") == "verified"
+        e.get("fate") == "verified"
         for e in claims
-        if e["op"] == "release"
+        if e["op"] == "release" and e.get("slot") is None
     )
 
     # second run on the same cells: dedup skip, ZERO new paid requests

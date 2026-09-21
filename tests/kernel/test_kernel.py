@@ -368,10 +368,12 @@ def test_paid_full_path_claim_slot_meter(broot: Path, monkeypatch):
     assert factory.meter.requests() == 1
     # slot bound: every request inside locks.paid_slot
     assert slot_entries and slot_entries[0]["nslots"] == 4
-    # claim audit: acquire + release fate=verified
-    claims_ev = [e for e in _shard(rd) if e["type"] == "claim"]
+    # claim audit: acquire + release fate=verified (lifecycle stream —
+    # slot-carrying events are the per-request paid_slots mirror)
+    claims_ev = [e for e in _shard(rd)
+                 if e["type"] == "claim" and e.get("slot") is None]
     assert [e["op"] for e in claims_ev] == ["acquire", "release"]
-    assert claims_ev[1]["slot"] == "verified"
+    assert claims_ev[1]["fate"] == "verified"
     # claim file was really held then released
     lease = claims.ClaimLease("2401.00001", arm="-", variant="-")
     assert not lease.held_by_other()
@@ -478,8 +480,9 @@ def test_auth_breaker_three_401s_abort_cell(broot: Path):
     assert factory.shared["paper_auth"]["2401.00001"] == 3
     assert factory.shared["all_failed"] == 1
     release = [e for e in _shard(rd)
-               if e["type"] == "claim" and e["op"] == "release"][0]
-    assert release["slot"] == "auth_trip"
+               if e["type"] == "claim" and e["op"] == "release"
+               and e.get("slot") is None][0]
+    assert release["fate"] == "auth_trip"
 
 
 def test_auth_breaker_two_papers_trips_auth_dead(broot: Path):

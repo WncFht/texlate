@@ -183,15 +183,17 @@ def test_dirty_index_unseals_everything(broot):
 
 def test_watermark_behind_unseals(broot):
     """A snapshot whose min_offset covers bytes the index has not ingested
-    answers 'unsealed' until tail_ingest catches up."""
+    heals itself: check() runs ONE catch-up tail_ingest before declaring
+    unsealed — the seal only stays broken when the index still cannot
+    cover the durable tail (dirty flag, gen mismatch, a shrunken
+    post-rotation file)."""
     _append([_cell(1, status="ok")])
     idx = _sealed_index(broot)
     _append([_tombstone(IDC2)])  # durable bytes the index has NOT seen
     oracle = DedupOracle.snapshot(idx)   # min_offset includes the tombstone
-    assert oracle.check(IDC, ARM) == UNSEALED
-    assert oracle.check(IDC2, ARM) == UNSEALED
-    idx.tail_ingest()
-    assert oracle.check(IDC, ARM) == VERIFIED      # ok cell verifies after ingest
+    # first check catches the index up — verdicts come from real evidence,
+    # not a stale-watermark stall
+    assert oracle.check(IDC, ARM) == VERIFIED
     assert oracle.check(IDC2, ARM) == MISSING      # tombstone now visible
     idx.close()
 
