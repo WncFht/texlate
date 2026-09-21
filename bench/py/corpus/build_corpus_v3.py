@@ -741,26 +741,6 @@ def eval_signatures(blob_txt: str) -> dict[str, object]:
     return sig
 
 
-def strip_comments(tex: str) -> str:
-    out, i, n = [], 0, len(tex)
-    while i < n:
-        c = tex[i]
-        if c == "\\":
-            out.append(tex[i : i + 2])
-            i += 2
-            continue
-        if c == "%":
-            k = tex.find("\n", i)
-            if k < 0:
-                break
-            out.append("\n")
-            i = k + 1
-            continue
-        out.append(c)
-        i += 1
-    return "".join(out)
-
-
 def looks_like_tar(b: bytes) -> bool:
     if len(b) < 512:
         return False
@@ -919,8 +899,8 @@ def _texts_features(tex_texts: dict[str, str], texts: dict[str, bytes]) -> dict:
         for p, b in texts.items()
         if Path(p).suffix.lower() in {".sty", ".cls", ".bbl"}
     )
-    blob_txt = strip_comments(tex_raw)
-    sty_txt = strip_comments(sty_raw)
+    blob_txt = benchlib.strip_comments(tex_raw)
+    sty_txt = benchlib.strip_comments(sty_raw)
     dcls_ms = list(DOCCLASS_RX.finditer(blob_txt))
     rec["docclasses"] = sorted({m.group(3).strip() for m in dcls_ms})
     rec["docstyle"] = any(m.group(1) == "documentstyle" for m in dcls_ms)
@@ -943,7 +923,11 @@ def _texts_features(tex_texts: dict[str, str], texts: dict[str, bytes]) -> dict:
             if o.strip()
         }
     )
-    roots = [p for p, t in tex_texts.items() if DOCCLASS_RX.search(strip_comments(t))]
+    roots = [
+        p
+        for p, t in tex_texts.items()
+        if DOCCLASS_RX.search(benchlib.strip_comments(t))
+    ]
     rec["tex_roots"] = sorted(roots)
     rec["input_depth"] = input_depth(tex_texts, roots)
     # W101: flags 拆 tex/vendored 双通道——sty/cls/bbl 是发行资产, 合并扫描会把

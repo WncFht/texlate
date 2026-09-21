@@ -266,9 +266,14 @@ def run_paper(p, corpus: Path, work: Path, engines: list[str], cond: str = "base
         "engines": {},
     }
     if not src.is_dir():
+        # stub 行照落 cases.jsonl——(pid,engine) done 集覆盖，续跑不重检测；
+        # §1/§2 分母（cases 驱动）与 papers 表对齐。
+        cases = []
         for eng in engines:
-            paper["engines"][eng] = {"verdict": "no_source", "engine": eng}
-        return paper, []
+            r = {"verdict": "no_source", "engine": eng}
+            paper["engines"][eng] = r
+            cases.append({**_case_base(p, pid, eng, None, cond), **r})
+        return paper, cases
 
     from texlate.compile.engine import route_project
     from texlate.compile.inject import classify_no_main, find_main_tex
@@ -286,13 +291,16 @@ def run_paper(p, corpus: Path, work: Path, engines: list[str], cond: str = "base
     main = find_main_tex(src)
     if not main:
         sub = classify_no_main(src) or ""
+        cases = []  # 同 no_source：stub 行落账对齐 done 集与报告分母
         for eng in engines:
-            paper["engines"][eng] = {
+            r = {
                 "verdict": "no_main_tex",
                 "engine": eng,
                 "verdict_sub": sub,
             }
-        return paper, []
+            paper["engines"][eng] = r
+            cases.append({**_case_base(p, pid, eng, None, cond), **r})
+        return paper, cases
     main_rel = main.relative_to(src).as_posix()
     paper["main"] = main_rel
     texmf = _cold_texmf(wdir)

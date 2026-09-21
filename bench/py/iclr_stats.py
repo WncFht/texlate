@@ -29,6 +29,9 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import benchlib
+
 REPO = Path(__file__).resolve().parents[2]
 WORK = REPO / "bench" / "work_iclr"
 
@@ -60,18 +63,6 @@ def quantiles(xs: list[float]) -> dict:
     }
 
 
-def load_jsonl(p: Path) -> list[dict]:
-    if not p.exists():
-        return []
-    out = []
-    for l in p.open():
-        try:
-            out.append(json.loads(l))
-        except json.JSONDecodeError:
-            pass
-    return out
-
-
 def paper_level_stats(rec: dict) -> dict:
     """归一到单篇粒度：body/appendix/refs/abstract + bucket→words 聚合.
 
@@ -92,7 +83,7 @@ def paper_level_stats(rec: dict) -> dict:
         "refs": rec.get("refs_words", 0),
         "abstract": rec.get("abstract_words", 0),
         "n_top": rec.get("n_top_sections", 0),
-        "n_bib": rec.get("n_bib_items", 0),
+        "n_bib": rec.get("n_bib_items"),  # PDF 臂无此字段 → None, 分位输入侧滤除
         "bucket_words": dict(bw),
         "n_secs": len(secs),
     }
@@ -103,16 +94,16 @@ def main() -> None:
     ap.add_argument("--md", default="", help="同时输出 markdown 汇总表")
     a = ap.parse_args()
 
-    accepted = {r["orid"]: r for r in load_jsonl(WORK / "accepted.jsonl")}
+    accepted = {r["orid"]: r for r in benchlib.read_jsonl(WORK / "accepted.jsonl")}
     orid2arxiv: dict[str, str] = {}
-    for r in load_jsonl(WORK / "map.jsonl"):
+    for r in benchlib.read_jsonl(WORK / "map.jsonl"):
         if r.get("arxiv_id"):
             orid2arxiv[r["orid"]] = r["arxiv_id"]
 
     # ---- 双臂行 → (year, arm, rec) ----
     rows: list[dict] = []
     unmatched = {"latex_no_orid": 0, "pdf_no_accepted": 0}
-    for r in load_jsonl(WORK / "sections.jsonl"):
+    for r in benchlib.read_jsonl(WORK / "sections.jsonl"):
         if r.get("status") != "ok":
             continue
         aid = r["arxiv_id"]
@@ -124,7 +115,7 @@ def main() -> None:
                      "year": accepted[orid]["year"],
                      "track": accepted[orid].get("track", "unknown"),
                      **paper_level_stats(r)})
-    for r in load_jsonl(WORK / "sections_pdf.jsonl"):
+    for r in benchlib.read_jsonl(WORK / "sections_pdf.jsonl"):
         if r.get("status") != "ok":
             continue
         orid = r["orid"]
@@ -159,7 +150,9 @@ def main() -> None:
             "refs": quantiles([r["refs"] for r in src]),
             "abstract": quantiles([r["abstract"] for r in src]),
             "n_top_sections": quantiles([r["n_top"] for r in src]),
-            "n_bib_items": quantiles([r["n_bib"] for r in src]),
+            "n_bib_items": quantiles(
+                [r["n_bib"] for r in src if r["n_bib"] is not None]
+            ),
             "appendix_rate": round(
                 sum(1 for r in src if r["appendix"] > 0) / max(len(src), 1), 3
             ),

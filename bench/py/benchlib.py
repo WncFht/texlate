@@ -12,12 +12,15 @@ from __future__ import annotations
 import functools
 import hashlib
 import json
+import math
 import os
 import random
 import re
 import shutil
 import subprocess
 import sys
+import tempfile
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -135,10 +138,48 @@ def append_jsonl(path: Path, rec: dict) -> None:
 
 
 def atomic_write_text(path: Path, text: str) -> None:
-    """整文件写：同目录 .tmp 落盘后 replace——截尾只留 .tmp 不伤旧文件。"""
-    tmp = path.with_name(f"{path.name}.tmp")
-    tmp.write_text(text, encoding="utf-8")
-    tmp.replace(path)
+    """整文件写：同目录 mkstemp 随机缀 ``.<name>.<rand>.tmp`` 落盘后
+    ``os.replace``——截尾只留 tmp 不伤旧文件。
+
+    随机后缀防同路径并发撞名（``texlate.xlat.state.atomic_json`` 同式）——
+    固定 ``.tmp`` 名在两写者同发时会互踩（先 replace 者后被另一方的
+    unlink/replace 误伤）。
+    """
+    fd, tmp = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(text)
+        os.replace(tmp, path)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
+
+
+def atomic_write(path: Path, data: bytes | str, *, mode: int | None = 0o600) -> None:
+    """mkstemp 随机 tmp + 写 + chmod + ``os.replace`` 原子落盘。
+
+    ``texlate.textutil.osutil.atomic_write`` 的同构镜像（canonical 件在
+    osutil——本模块纯 stdlib 约束就地复刻，``e2e_real_bench._atomic_write``
+    等 bench 侧写点走本函数）。tmp 名带随机后缀防同路径并发撞名，异常
+    清 tmp 不留尸；``os.replace`` 跨平台原子覆盖。``mode=None`` 跳过
+    chmod（沿用 mkstemp 0600/umask 口径的调用方）——注意与楼上
+    ``atomic_write_text`` 的 mkstemp 直写形并存，勿互套。
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
+    try:
+        if isinstance(data, str):
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write(data)
+        else:
+            with os.fdopen(fd, "wb") as f:
+                f.write(data)
+        if mode is not None:
+            Path(tmp).chmod(mode)
+        os.replace(tmp, path)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
 
 
 def latest_by(items, keyfn, valfn=None) -> dict:
@@ -205,12 +246,48 @@ def latest_records(
     )
 
 
+def seed_run_records(rec_path: Path, out_path: Path, *, on_bad_seed=None) -> dict:
+    """records.jsonl→results.json 回退种子：append 账优先，账空回退快照。
+
+    ``load_records`` 读 ``rec_path``（不存在 → ``{}``）；结果为空且
+    ``out_path``（results.json）存在时读快照兜底——空 records 曾把有快照的
+    旧目录判成全量重跑（scout-e2ereal §7）。快照坏 JSON/不可读时按空种子
+    起步不炸启动；``on_bad_seed`` 非 None 时以异常实例回调
+    （``(OSError, json.JSONDecodeError)``——e2e_real_bench 打印 WARNING
+    行，e2e_mock_bench 静默不传）。快照解析出非 dict 同样按空计。
+
+    e2e_mock_bench.seed_results / e2e_real_bench.amain 同型下沉单源。
+    """
+    results = load_records(rec_path) if rec_path.exists() else {}
+    if not results and out_path.exists():
+        try:
+            loaded = json.loads(out_path.read_text())
+        except (OSError, json.JSONDecodeError) as e:
+            if on_bad_seed is not None:
+                on_bad_seed(e)
+            loaded = {}
+        results = loaded if isinstance(loaded, dict) else {}
+    return results
+
+
+def cond_status(rec: dict, cond: str) -> str:
+    """report 矩阵格：``cond`` 臂缺席 → ``"·"``，否则其 ``verdict.status``（缺 → ``"?"``）。
+
+    e2e_mock_bench._v / e2e_real_bench._v 逐字节同源下沉——results.json
+    旧格式种子行缺 cond 键是常态，``rec.get(cond)`` 宽容读。
+    """
+    c = rec.get(cond)
+    if c is None:
+        return "·"
+    return c.get("verdict", {}).get("status", "?")
+
+
 # ---------------------------------------------------------------- status 词汇
 #: 各消费方原表原样下沉——口径不对称是既有行为（triage 认 legacy 词
 #: gate_scorecard 不认），单源≠拉齐。
 BENCH_ERROR_STATUS = "bench_error"
 
-#: 记录状态词汇: ok 系不出票; skip 系(上游断/policy 拒)不计入 attempted。
+#: 记录状态词汇：ok 系不出票; skip 系 (上游断/policy 拒) 不计入 attempted。
 OK_STATUS = {"ok", "clean", "done"}
 SKIP_STATUS = {
     "skip",
@@ -265,7 +342,7 @@ def fixloop_attr(rounds, fv=None, final_cat=None):
     salvage 哨兵 (``"salvage": true``；旧 schema 无标——尾巴 cat 空且
     verdict 非 clean 系即哨兵，因 clean/no_errors_no_pdf 之外的 verdict
     只在非空 cat 轮结算) 不占归因槽。末轮 pay 空不回填旧轮——回填会把
-    已修轮的签名贴上来 (2609.19664: r2 latin 已装, r3-r5 ``other:None``
+    已修轮的签名贴上来 (2609.19664: r2 latin 已装，r3-r5 ``other:None``
     streak 触 stuck, 回填 latin 成 ``stuck:latin`` 误桶)。
     """
     rds = [rd for rd in (rounds or []) if isinstance(rd, dict)]
@@ -449,7 +526,7 @@ def judge_dict(res, *, expect_cjk: bool) -> dict:
     （单跑报告走 ``rec["l2"]`` 修复链报告，键名不同不撞）。
 
     ``taxonomy`` = fixloop 内部分类器对本次编译 log 的二级分类
-    ``{cat, pay}``（M1 物化, still-manual-audit-2026-09-17）——records 侧
+    ``{cat, pay}``（M1 物化，still-manual-audit-2026-09-17）——records 侧
     聚合桶 (other/errors>3/syntax) 由 dossier/triage 直读细分。
     """
     from texlate.compile.judge import judge
@@ -488,7 +565,7 @@ def judge_dict(res, *, expect_cjk: bool) -> dict:
 
 @functools.lru_cache(maxsize=1)
 def _fixloop_rs():
-    """fixloop Ruleset 懒载单例——taxonomy 物化逐格调, yaml 只解一次。"""
+    """fixloop Ruleset 懒载单例——taxonomy 物化逐格调，yaml 只解一次。"""
     from texlate.compile.fixloop import Ruleset
 
     return Ruleset.load()
@@ -522,7 +599,7 @@ def verdict_sig(verdict: dict, first_error: str | None = None) -> str:
     missing_character 走正则从 first_error/reasons 回补 payload。
 
     ``error_cats``（judge 逐错误行构成）在场且众数 cat 错误量**严格大于**
-    首错 cat 时 sig 改挂众数——首错遮 bulk 纠偏（quant-ph/9703040：110 错
+    首错 cat 时 sig 改挂众数——首错遮 bulk 纠偏（quant-ph/9703040:110 错
     108×syntax，category 却是自恢复的 illegal_unit）；平票仍归
     首错（TeX 级联中首错是因果上游）。众数 payload 取 ``error_pay`` 首见值。
     cat 不在构成中（derived meta 词 killed_by_signal/no_pdf 等 verdict 级
@@ -651,6 +728,132 @@ def code_stamp() -> str:
     except (OSError, subprocess.CalledProcessError):
         return "unknown"
     return f"{sha}{'-dirty' if dirty else ''}"
+
+
+# ---------------------------------------------------------------- 批脚本公共件
+#: iclr_*/daily_arxiv 系批脚本的 stderr 时间戳日志/凭据 env/fetch 脚手架——
+#: 原逐脚本就地抄的同型件下沉于此（stdlib-only，httpx 脚本亦可载）。
+
+
+def log(msg: str) -> None:
+    """stderr 时间戳日志行——脱管批（setsid nohup + run.log）共用形。"""
+    print(f"[{time.strftime('%H:%M:%S')}] {msg}", file=sys.stderr, flush=True)
+
+
+#: paper-search skill 的 ``.env``——OpenAlex/OpenReview 凭据读取口径
+#: （iclr_map/iclr_pdf 原各拷一份）。
+ENV_FP = Path.home() / ".claude/skills/paper-search/.env"
+
+
+def load_env(path: Path = ENV_FP) -> dict[str, str]:
+    """``.env`` → dict：``K=V`` 行切首等号，无 ``=`` 行跳过。"""
+    return dict(
+        ln.strip().split("=", 1) for ln in path.read_text().splitlines() if "=" in ln
+    )
+
+
+def rss_preflight(ua: dict[str, str], feed: str = "cs.CL") -> None:
+    """rss.arxiv.org 健康探针——不通 ``sys.exit(3)`` 中止，不进 fetch 烧预算。
+
+    daily_arxiv.preflight / iclr_fetch.preflight 同型下沉：urllib 30s 一发 +
+    ``<rss`` 魔数校验（代理截获会返非 RSS 登录页，净连但语义无货同拦）。
+    """
+    import urllib.error
+    import urllib.request
+
+    try:
+        req = urllib.request.Request(f"https://rss.arxiv.org/rss/{feed}", headers=ua)
+        with urllib.request.urlopen(req, timeout=30) as r:  # noqa: S310 固定 https 端点
+            body = r.read(400)
+    except (urllib.error.URLError, OSError) as e:
+        log(f"preflight FAILED: rss.arxiv.org unreachable ({e}) — 检查代理")
+        sys.exit(3)
+    if b"<rss" not in body[:400]:
+        log("preflight FAILED: rss.arxiv.org 返回非 RSS——检查代理")
+        sys.exit(3)
+
+
+def fetch_done(status_fp: Path, *, id_key: str = "id") -> dict[str, str]:
+    """fetch 状态账 jsonl → ``{id: 末条 status}``（仅终态行）——续跑跳过单源。
+
+    daily_arxiv._fetch_done / iclr_fetch._fetch_done 同型下沉。终态集 =
+    ``AcquireStatus`` 的成功/不可修类（error/budget/parked 留可重试）。
+    ``id_key`` 适配异名账键（iclr_fetch 账用 ``arxiv_id``）。
+    """
+    from texlate.arxiv.fetch import AcquireStatus  # 迟绑——模块级零 texlate 约束
+
+    terminal = {
+        AcquireStatus.OK.value,
+        AcquireStatus.PDF_ONLY.value,
+        AcquireStatus.UNKNOWN_FORMAT.value,
+        AcquireStatus.NOT_FOUND.value,
+        AcquireStatus.TOO_LARGE.value,
+        AcquireStatus.UNPACK_ERROR.value,
+    }
+    done: dict[str, str] = {}
+    if not status_fp.exists():
+        return done
+    for r in iter_jsonl(status_fp):
+        if isinstance(r, dict) and r.get(id_key):
+            done[str(r[id_key])] = str(r.get("status"))
+    return {k: v for k, v in done.items() if v in terminal}
+
+
+def materialize_entry(entry_dir: Path, dst: Path) -> None:
+    """fetch 缓存条目 → ``corpus/{id}``：rmtree 旧树 + copytree ``os.link``。
+
+    硬链接而非拷贝——缓存条目即语料内容，双视图零额外空间；缓存清理后
+    语料仍持有数据（daily_arxiv._materialize 单源；iclr_fetch 复制时丢落
+    ``copy_function`` 属回归——此处复原同口径）。
+    """
+    if dst.exists():
+        shutil.rmtree(dst)
+    shutil.copytree(entry_dir, dst, copy_function=os.link)
+
+
+# ---------------------------------------------------------------- 统计/文本小件
+def quantile(xs, q: float, *, presorted: bool = False):
+    """最近秩分位（ceil-rank）：``s[max(0, math.ceil(q*n)-1)]``；空输入 → ``None``。
+
+    ``presorted=True`` 时 ``xs`` 按已升序处理跳过重排——
+    parsebench.percentile 的 ``sorted_vals`` 契约、validbench._pct.q /
+    alignbench._pct_vals.q / parsebench CI 上界等已排序站点直传。
+    q ≤ 1 时 ``ceil(q*n) ≤ n`` 天然不越界（旧站点附带的 ``min(n-1, …)``
+    clamp 冗余）；q=0 → 首元素。floor-index（gullet_bench/v2_diff 系）、
+    round-over-(n-1)、插值系分位口径有意保留勿互套。
+    """
+    s = xs if presorted else sorted(xs)
+    n = len(s)
+    if n == 0:
+        return None
+    return s[max(0, math.ceil(q * n) - 1)]
+
+
+def strip_comments(tex: str) -> str:
+    r"""去注释：``\X`` 先吃两字符（``\%`` 不触发，``\\%`` 后 % 仍是注释），
+    裸 ``%`` 删到行尾（保留换行）。不感知 verbatim。
+
+    原 iclr_sections / parsebench / corpus.build_corpus_v3 三处逐字节同源
+    副本下沉单源——verbatim 内 ``%`` 误剥是既有口径（仅用于主文件定位/
+    路由标签场景），勿擅加 verbatim 感知。
+    """
+    out, i, n = [], 0, len(tex)
+    while i < n:
+        c = tex[i]
+        if c == "\\":
+            out.append(tex[i : i + 2])
+            i += 2
+            continue
+        if c == "%":
+            k = tex.find("\n", i)
+            if k < 0:
+                break
+            out.append("\n")
+            i = k + 1
+            continue
+        out.append(c)
+        i += 1
+    return "".join(out)
 
 
 # ---------------------------------------------------------------- 配额/auth 闸

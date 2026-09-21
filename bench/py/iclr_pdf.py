@@ -20,6 +20,7 @@ import time
 from datetime import UTC, datetime
 from pathlib import Path
 
+import benchlib
 import httpx
 
 REPO = Path(__file__).resolve().parents[2]
@@ -27,7 +28,6 @@ WORK = REPO / "bench" / "work_iclr"
 PDF_DIR = REPO / "bench" / "corpus_iclr_pdf"
 MAP = WORK / "map.jsonl"
 STATUS = WORK / "fetch_pdf.jsonl"
-ENV_FP = Path.home() / ".claude/skills/paper-search/.env"
 
 UA = {"User-Agent": "texlate-iclr-study/1.0 (research; mailto:bench@localhost)"}
 ACCEPTED = WORK / "accepted.jsonl"
@@ -35,14 +35,10 @@ API2 = "https://api2.openreview.net"
 API1 = "https://api.openreview.net"
 
 
-def log(msg: str) -> None:
-    print(f"[{time.strftime('%H:%M:%S')}] {msg}", file=sys.stderr, flush=True)
-
-
-def load_env() -> dict[str, str]:
-    return dict(
-        l.strip().split("=", 1) for l in ENV_FP.read_text().splitlines() if "=" in l
-    )
+#: stderr 时间戳日志 / paper-search .env 读取——benchlib 单源（iclr_* 系同源件）。
+log = benchlib.log
+load_env = benchlib.load_env
+ENV_FP = benchlib.ENV_FP
 
 
 def login(client: httpx.Client, base: str, env: dict[str, str]) -> str:
@@ -69,14 +65,21 @@ def main() -> int:
         r["orid"]: r.get("year", 0)
         for r in (json.loads(l) for l in ACCEPTED.open())
     }
-    todo: dict[str, str] = {}  # orid -> match
+    todo: dict[str, str] = {}  # orid -> match（map.jsonl 是 append 账：末行胜）
     for l in MAP.open():
         try:
             r = json.loads(l)
         except json.JSONDecodeError:
             continue
-        if not r.get("arxiv_id"):
-            todo.setdefault(r["orid"], r.get("match", "?"))
+        orid = r.get("orid")
+        if not orid:
+            continue
+        # 末行胜：后到的带 arxiv_id 行要把先到的无映射行从队列里撤掉，
+        # 否则同一 orid 先记 no-arxiv 后记 mapped 时 PDF 臂仍照跑。
+        if r.get("arxiv_id"):
+            todo.pop(orid, None)
+        else:
+            todo[orid] = r.get("match", "?")
     done: set[str] = set()
     if STATUS.exists():
         for l in STATUS.open():

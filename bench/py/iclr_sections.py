@@ -29,11 +29,7 @@ from texlate.compile.inject import find_main_tex  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[2]
 
-
-def log(msg: str) -> None:
-    import time as _t
-
-    print(f"[{_t.strftime('%H:%M:%S')}] {msg}", file=sys.stderr, flush=True)
+log = benchlib.log
 
 # ---------------- 文本处理 ----------------
 
@@ -111,30 +107,7 @@ WORD_RX = re.compile(r"[A-Za-z][A-Za-z0-9_'&.-]*")
 NUM_RX = re.compile(r"^\d[\d.,/%-]*$")
 
 
-def strip_comments(tex: str) -> str:
-    r"""去注释：``\X`` 先吃两字符（``\%`` 不触发，``\\%`` 后 % 仍是注释），
-    裸 ``%`` 删到行尾（保留换行）。不感知 verbatim。
-
-    三处同源副本之一（另两处 ``parsebench.strip_comments`` /
-    ``corpus/build_corpus_v3.strip_comments``）——待下沉 ``benchlib`` 单源。
-    """
-    out, i, n = [], 0, len(tex)
-    while i < n:
-        c = tex[i]
-        if c == "\\":
-            out.append(tex[i : i + 2])
-            i += 2
-            continue
-        if c == "%":
-            k = tex.find("\n", i)
-            if k < 0:
-                break
-            out.append("\n")
-            i = k + 1
-            continue
-        out.append(c)
-        i += 1
-    return "".join(out)
+strip_comments = benchlib.strip_comments
 
 
 def read_tex(p: Path) -> str:
@@ -149,7 +122,9 @@ def read_tex(p: Path) -> str:
 
 def norm_input_target(raw: str) -> str:
     t = raw.strip().strip("{}").strip('"').strip("'")
-    t = t.replace("\\", "/").lstrip("./")
+    t = t.replace("\\", "/")
+    while t.startswith("./"):  # 只剥 "./" 前缀——保留 ".." 让 base/root  join 出真父级
+        t = t[2:]
     if t.endswith(".tex.tex"):
         t = t[:-4]
     return t
@@ -397,7 +372,9 @@ def analyze_paper(pdir: Path) -> dict:
             "raw": meta.get("raw") or detex(title)[0].strip()[:120] or "(untitled)",
             "bucket": bucket, "level": meta["level"], "order": len(sections) + 1,
             "words": w, "chars": ch, "caption_words": capw,
-            "appendix": meta["in_appendix"], "unnumbered": meta["star"],
+            # 与 PDF 臂同口径：appendix 段后的 refs 只计 refs_words 不再双计 appendix
+            "appendix": meta["in_appendix"] and bucket != "references",
+            "unnumbered": meta["star"],
         })
 
     for pos, kind, meta in marks:
@@ -481,13 +458,8 @@ def main() -> None:
     stat = Counter()
     n_done = 0
     done_ids = set()
-    if outp.exists():  # 断点续跑
-        for l in outp.open():
-            try:
-                r = json.loads(l)
-                done_ids.add(r["arxiv_id"])
-            except json.JSONDecodeError:
-                pass
+    for r in benchlib.read_jsonl(outp):  # 断点续跑（缺文件/坏行容忍）
+        done_ids.add(r["arxiv_id"])
     with outp.open("a") as f:
         for d in dirs:
             rid = d.name if (d / "extracted").is_dir() else f"{d.parent.name}/{d.name}"

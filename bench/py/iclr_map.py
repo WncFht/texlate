@@ -23,19 +23,18 @@ import argparse
 import difflib
 import json
 import re
-import sys
 import time
 import unicodedata
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
+import benchlib
 import httpx
 
 REPO = Path(__file__).resolve().parents[2]
 WORK = REPO / "bench" / "work_iclr"
 ACCEPTED = WORK / "accepted.jsonl"
 MAP_OUT = WORK / "map.jsonl"
-ENV_FP = Path.home() / ".claude/skills/paper-search/.env"
 
 UA = {"User-Agent": "texlate-iclr-study/1.0 (research; mailto:bench@localhost)"}
 
@@ -45,14 +44,9 @@ UA = {"User-Agent": "texlate-iclr-study/1.0 (research; mailto:bench@localhost)"}
 TERMINAL = {"cache", "oa_exact", "oa_fuzzy", "oa_miss", "s2"}
 
 
-def log(msg: str) -> None:
-    print(f"[{time.strftime('%H:%M:%S')}] {msg}", file=sys.stderr, flush=True)
-
-
-def load_env() -> dict[str, str]:
-    return dict(
-        l.strip().split("=", 1) for l in ENV_FP.read_text().splitlines() if "=" in l
-    )
+#: stderr 时间戳日志 / paper-search .env 读取——benchlib 单源（iclr_* 系同源件）。
+log = benchlib.log
+load_env = benchlib.load_env
 
 
 def norm(t: str) -> str:

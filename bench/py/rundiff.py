@@ -14,6 +14,7 @@ triage.load_records), 同键格比对 status 等级 (triage.STATUS_RANK):
   rundiff.py DIR_A DIR_B --deep           # same-status churn 清单 (sig/taxonomy/
                                         #   n_errors/dur_s 四维变化逐格列出)
   rundiff.py DIR_A DIR_B --json           # 机读输出
+  rundiff.py DIR_A DIR_B --json-out PATH  # stdout 面照打 + 机读 JSON 双写落盘
 
 DIR_* = bench/results/{run}/。无 id 的非 stagerun 形状行无法成格键, 丢弃。
 纯 stdlib + 同目 triage; 系统 python3 可跑。
@@ -316,6 +317,13 @@ def main(argv=None):
     )
     p.add_argument("--json", action="store_true", dest="as_json", help="机读输出")
     p.add_argument(
+        "--json-out",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help="机读 JSON 额外落盘——stdout 面不变 (与 --json 可并给, 单扫双发)",
+    )
+    p.add_argument(
         "--deep",
         action="store_true",
         help="same-status 格列四维 churn 清单 (sig/taxonomy/n_errors/dur_s)",
@@ -346,14 +354,17 @@ def main(argv=None):
         for s in stages
     }
     name_a, name_b = args.dir_a.name, args.dir_b.name
-    if args.as_json:
-        print(
-            json.dumps(
-                _jsonable(name_a, name_b, diffs, deep=args.deep),
-                ensure_ascii=False,
-                indent=1,
-            )
+    payload = None
+    if args.as_json or args.json_out:
+        payload = _jsonable(name_a, name_b, diffs, deep=args.deep)
+    if args.json_out:
+        # print 渲染比 join 多一个换行——拼回保持落盘与 stdout 逐字节一致。
+        args.json_out.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=1) + "\n",
+            encoding="utf-8",
         )
+    if args.as_json:
+        print(json.dumps(payload, ensure_ascii=False, indent=1))
     else:
         print(render_md(name_a, name_b, diffs, deep=args.deep))
     return 0

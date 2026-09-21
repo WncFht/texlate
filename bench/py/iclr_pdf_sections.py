@@ -29,7 +29,6 @@ import json
 import re
 import subprocess
 import sys
-import time
 import unicodedata
 from collections import Counter
 from pathlib import Path
@@ -39,7 +38,11 @@ PDF_DIR = REPO / "bench" / "corpus_iclr_pdf"
 OUT = REPO / "bench" / "work_iclr" / "sections_pdf.jsonl"
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import benchlib
 from iclr_sections import canon_section, count_words  # noqa: E402
+
+#: stderr 时间戳日志——benchlib 单源（iclr_* 系同源件）。
+log = benchlib.log
 
 # ---------------- 行级清洗 ----------------
 
@@ -80,10 +83,6 @@ JOINED_UNNUMBERED = {
 
 def despace(t: str) -> str:
     return LETTER_SPACE_RX.sub(r"\1", t)
-
-
-def log(msg: str) -> None:
-    print(f"[{time.strftime('%H:%M:%S')}] {msg}", file=sys.stderr, flush=True)
 
 
 def titlecase_ratio(title: str) -> float:

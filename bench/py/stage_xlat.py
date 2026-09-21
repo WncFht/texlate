@@ -448,14 +448,7 @@ async def _xlat_one_inner(
             ensure_ascii=False,
         )
     )
-    old = zh.with_name(".zh-xlat-old")
-    if zh.exists():
-        if old.exists():
-            shutil.rmtree(old)
-        zh.rename(old)
-    stage.rename(zh)
-    if old.exists():
-        shutil.rmtree(old)
+    sl.swap_in(stage, zh)  # rename 接力——zh/ 路径名全程存在（并发 compile 不撞窗）
     rec["metrics"]["translate"] = stats
     # S5 质量代理观测键（wiring §1）：leak 两臂同义——送译 source 命中展开
     # 残留是上游 parse/gullet 质量面，与翻译臂无关；term 只 TERM_ARMS——

@@ -18,6 +18,7 @@ import shutil
 from datetime import UTC, datetime
 
 import benchlib
+from gate_scorecard import pick_final
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 STORE = os.path.join(ROOT, "bench", "zh-store")
@@ -48,8 +49,14 @@ def clean_ids(run_dir: str) -> set:
     rec = os.path.join(run_dir, "records")
     comp = benchlib.latest_records(os.path.join(rec, "compile.jsonl"), arm="zh")
     fix = benchlib.latest_records(os.path.join(rec, "fixloop.jsonl"))
-    eff = {pid: r.get("status") for pid, r in comp.items()}
-    eff.update({pid: r.get("status") for pid, r in fix.items()})  # fixloop 是 compile 之后的终判
+    # fixloop 记录只经 pick_final 闸门覆盖 compile 终判——over_noncompiled
+    # （compile=reject/skip 格的 fix 不计）、upstream 不符、compile_fp 陈旧
+    # （compile 重跑后旧 fix 作废）一律回退 compile 侧；无 compile 格的孤儿
+    # fix 记录不进 eff（无编译基线可验）。
+    eff = {}
+    for pid, c in comp.items():
+        _stage, r, _drop = pick_final(c, fix.get(pid))
+        eff[pid] = r.get("status")
     return {pid for pid, st in eff.items() if st == "clean"}
 
 

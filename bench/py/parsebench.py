@@ -97,29 +97,6 @@ def _alarm(signum, frame):
 # ---------------------------------------------------------------- 工具
 
 
-def strip_comments(tex: str) -> str:
-    r"""去注释: `\X` 先吃两字符 (故 \% 不触发注释, \\% 后 % 仍是注释),
-    裸 % 到行尾丢弃 (保留换行). 不感知 verbatim — 仅用于主文件定位/路由标签."""
-    out = []
-    i, n = 0, len(tex)
-    while i < n:
-        c = tex[i]
-        if c == "\\":
-            out.append(tex[i : i + 2])
-            i += 2
-            continue
-        if c == "%":
-            k = tex.find("\n", i)
-            if k < 0:
-                break
-            out.append("\n")
-            i = k + 1
-            continue
-        out.append(c)
-        i += 1
-    return "".join(out)
-
-
 def is_non_utf8(path: Path) -> bool:
     """含 0x80+ 字节且 UTF-8 decode 失败 → 非 UTF-8."""
     b = path.read_bytes()
@@ -146,7 +123,7 @@ def find_roots(tex_files: list[Path]) -> list[dict]:
             tex = decode_tex(p.read_bytes())
         except OSError:
             continue
-        m = DOCCLASS_RX.search(strip_comments(tex))
+        m = DOCCLASS_RX.search(benchlib.strip_comments(tex))
         if m:
             roots.append(
                 {
@@ -506,7 +483,7 @@ def analyze_paper(paper_id: str, pdir: Path, corpus: Path) -> dict:
 
     roots = find_roots(tex_files)
     stripped_blob = "\n".join(
-        strip_comments(decode_tex(p.read_bytes())) for p in tex_files
+        benchlib.strip_comments(decode_tex(p.read_bytes())) for p in tex_files
     )
 
     # flatten 覆盖: 所有根的 \input 图并集 (multi_doc 时并集口径)
@@ -1100,6 +1077,12 @@ def write_summary(
         )
     lines.append("")
 
+    # paper_id → files 索引一次建好：分组表逐 cell 全表扫 files 是
+    # O(groups × files)，索引后 O(files + groups)。
+    files_by_pid: dict[str, list[dict]] = {}
+    for f in files:
+        files_by_pid.setdefault(f["paper_id"], []).append(f)
+
     def group_table(title: str, key_fn) -> None:
         groups: dict[str, list[dict]] = {}
         for p in papers:
@@ -1111,7 +1094,9 @@ def write_summary(
         lines.append("|---|---|---|---|---|---|")
         for g in sorted(groups):
             pids = {pp["id"] for pp in groups[g]}
-            s = aggregate([f for f in files if f["paper_id"] in pids])
+            s = aggregate(
+                [f for pid in pids for f in files_by_pid.get(pid, [])]
+            )
             lines.append(
                 f"| {g} | {len(groups[g])} | {s['files']} "
                 f"| {_pct(s['ok_rate'])} | {_pct(s['identity_rate'])} "

@@ -36,6 +36,7 @@ records 落点同名（xlat→``translate``、compile→``landmark``），将来
 from __future__ import annotations
 
 import argparse
+import functools
 import json
 import re
 import statistics
@@ -49,7 +50,14 @@ import stagerun_lib as sl  # sys.path 设置 + canon_id/load_latest/workdir
 from parsebench import LEAK_PATTERNS  # 六族正则单源——勿复制防口径漂移
 
 from texlate.align import _category, extract_landmarks
-from texlate.xlat.glossary import _TERM_BOUNDARY, LOCAL_GLOSSARY_NAME, Glossary
+from texlate.textutil import safe_is_file
+from texlate.xlat.glossary import (
+    _TERM_BOUNDARY,
+    LOCAL_GLOSSARY_NAME,
+    Glossary,
+    TermEntry,
+    load_table,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -178,16 +186,36 @@ def scan_leak(pairs: list[tuple[str, str]]) -> dict:
     }
 
 
+@functools.cache
+def _term_base(cat_group: str) -> Glossary:
+    """cat_group → 非 local 层基底 Glossary（user 禁层 + category + default）。
+
+    index.yaml/category csv/default.csv 在同 cat_group 下恒定——原逐篇
+    ``Glossary.load`` 全量重读是纯磁盘+解析重复；每组缓存一份，逐篇只剩
+    local 层叠加 + doc_filter。
+    """
+    return Glossary.load(
+        user_path=_NO_USER_GLOSSARY,
+        categories=(cat_group,) if cat_group else (),
+    )
+
+
 def rebuild_term_dict(
     cat_group: str | None, sources: list[str], local_path: Path | None
 ) -> dict[str, str]:
-    """重建 server 口径注入术语集（doc_filter 后），缺席层自动跳过。"""
-    g = Glossary.load(
-        user_path=_NO_USER_GLOSSARY,
-        local_path=local_path,
-        categories=[cat_group] if cat_group else (),
-    )
-    return g.doc_filter(sources)
+    """重建 server 口径注入术语集（doc_filter 后），缺席层自动跳过。
+
+    层序保持 ``Glossary.load`` 的「先写者胜」优先级：local（论文自带）
+    高于 category/default——故逐篇先写 local 表，基底词经 ``setdefault``
+    只补空缺，绝不压 local。
+    """
+    terms: dict[str, TermEntry] = {}
+    if local_path is not None and safe_is_file(local_path):
+        for en, zh in load_table(local_path).items():
+            terms.setdefault(en, TermEntry(en, zh, "local"))
+    for en, entry in _term_base(cat_group or "").terms.items():
+        terms.setdefault(en, entry)
+    return Glossary(terms=terms).doc_filter(sources)
 
 
 def score_terms(pairs: list[tuple[str, str, str]], term_dict: dict[str, str]) -> dict:

@@ -34,7 +34,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
 import shutil
 import sys
@@ -52,7 +51,12 @@ if TYPE_CHECKING:
     import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(
+    0, str(Path(__file__).resolve().parents[1])
+)  # bench/py lib 层（subdir 化）
 sys.path.insert(0, str(ROOT / "src"))
+
+import benchlib
 
 from texlate.arxiv.cache import SourceCache
 from texlate.arxiv.fetch import (
@@ -84,8 +88,8 @@ _ID_RX = re.compile(r"oai:arXiv\.org:(\S+?)v(\d+)$")
 _ABS_RX = re.compile(r"/abs/([0-9]{4}\.[0-9]{4,5})(?:v(\d+))?")
 
 
-def log(msg: str) -> None:
-    print(f"[{time.strftime('%H:%M:%S')}] {msg}", file=sys.stderr, flush=True)
+#: stderr 时间戳日志——benchlib 单源（iclr_*/daily 系同源件）。
+log = benchlib.log
 
 
 def _get(url: str, timeout: float = 60.0, tries: int = 3) -> bytes:
@@ -100,18 +104,6 @@ def _get(url: str, timeout: float = 60.0, tries: int = 3) -> bytes:
             time.sleep(4 * (attempt + 1))
     assert last is not None
     raise last
-
-
-def preflight() -> None:
-    """代理/网络健康检查——不通直接中止，不进 fetch 烧预算。"""
-    try:
-        body = _get(f"{RSS_BASE}/cs.CL", timeout=30, tries=1)
-    except Exception as e:
-        log(f"preflight FAILED: rss.arxiv.org unreachable ({e}) — 检查代理")
-        sys.exit(3)
-    if b"<rss" not in body[:400]:
-        log("preflight FAILED: rss.arxiv.org 返回非 RSS——检查代理")
-        sys.exit(3)
 
 
 def _text(el: ET.Element, tag: str) -> str:
@@ -251,41 +243,8 @@ def _load_manifest(date: str) -> list[dict]:
     ]
 
 
-def _fetch_done(status_fp: Path) -> dict[str, str]:
-    """fetch jsonl → {id: 末次 status}——终态跳过，error/budget 重试。"""
-    done: dict[str, str] = {}
-    if not status_fp.exists():
-        return done
-    for line in status_fp.read_text(encoding="utf-8").splitlines():
-        if not line.strip():
-            continue
-        try:
-            r = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        done[r["id"]] = r["status"]
-    # 终态集：ok/pdf_only/unknown/not_found/too_large 不重试；error/budget/parked 可续
-    terminal = {
-        AcquireStatus.OK.value,
-        AcquireStatus.PDF_ONLY.value,
-        AcquireStatus.UNKNOWN_FORMAT.value,
-        AcquireStatus.NOT_FOUND.value,
-        AcquireStatus.TOO_LARGE.value,
-        AcquireStatus.UNPACK_ERROR.value,
-    }
-    return {k: v for k, v in done.items() if v in terminal}
-
-
-def _materialize(pid: str, entry_dir: Path) -> None:
-    # 硬链接而非拷贝——缓存条目即语料内容，双视图零额外空间；缓存清理后语料仍持有数据
-    dst = CORPUS_DAILY / pid
-    if dst.exists():
-        shutil.rmtree(dst)
-    shutil.copytree(entry_dir, dst, copy_function=os.link)
-
-
 def cmd_fetch(args: argparse.Namespace) -> int:
-    preflight()
+    benchlib.rss_preflight(UA)
     rows = _load_manifest(args.date)
     want_types = set(args.types.split(","))
     pool = [
@@ -294,7 +253,7 @@ def cmd_fetch(args: argparse.Namespace) -> int:
         if r.get("announce_type") in want_types or r.get("type") in want_types
     ]
     status_fp = WORK / f"fetch-{args.date}.jsonl"
-    done = _fetch_done(status_fp)
+    done = benchlib.fetch_done(status_fp)
     todo = [r for r in pool if r["id"] not in done]
     if args.limit:
         todo = todo[: args.limit]
@@ -332,7 +291,7 @@ def cmd_fetch(args: argparse.Namespace) -> int:
             counts[res_status] = counts.get(res_status, 0) + 1
             if res_status == AcquireStatus.OK.value and entry is not None:
                 try:
-                    _materialize(pid, entry.dir)
+                    benchlib.materialize_entry(entry.dir, CORPUS_DAILY / pid)
                 except OSError as e:
                     log(f"  {pid} materialize failed: {e}")
             if i % 25 == 0 or i == len(todo):

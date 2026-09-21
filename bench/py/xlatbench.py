@@ -14,8 +14,10 @@ assert_xlat 钉住产品口径).
 判定口径 (E22 定案, docs/decisions/background.md E22):
   hard_ok = validator.ok ∧ 无丢占位符 ∧ 无造占位符 ∧ 无丢脆弱命令
   ph_order 降为软信号 (合法中文换序占违例 ~95%), 单独记录不计硬失败.
-  cs_dropped = src 中脆弱命令 (\ /\,/\;/\:/\!/~) 在 zh 计数变少 —— 升硬
-  判据, 抓 "\ "+中文熔成 \和 这类未定义 cs 的编译炸弹.
+  cs_dropped = L0 校验器逐 token 脆弱间距命令丢失判据 (\ /\,/\;/\:/\!/~,
+  ``\<newline>``/``\<tab>`` 归一 ``\ ``) —— 升硬判据, 抓 "\ "+中文熔成 \和
+  这类未定义 cs 的编译炸弹; fragile_src/zh 仅为字符级近似旁证
+  (见 FRAGILE_CS_RX 注).
 
 2026-09-15: validator 从 tmp/exp/rule-validator (gitignored 脚手架) 切到
 产品版 texlate.validate.l0.validate_pair —— 规则集与 E22 基线口径可能
@@ -26,7 +28,8 @@ assert_xlat 钉住产品口径).
   uv run python bench/py/xlatbench.py run --models swe-2-medium,glm-5-2 \
       [--runs 2] [--samples N] [--manifest P] [--where layer=core] \
       [--docs 0] [--per-kind 8] [--seed 0] [--out DIR] [--resume]
-  uv run python bench/py/xlatbench.py report DIR [DIR...] [--md OUT.md]
+  uv run python bench/py/xlatbench.py report DIR [DIR...] [--md OUT.md] \
+      [--results results.rejudged.jsonl]   # 重判产物经 --results 渲染
   uv run python bench/py/xlatbench.py rejudge DIR [DIR...]  # 存量重判
   uv run python bench/py/xlatbench.py samples [抽样选项]    # 列出样例池
 """
@@ -51,7 +54,12 @@ import benchlib
 from texlate.arxiv.locate import locate
 from texlate.latex import parse_file
 from texlate.latex.placeholder import PH_RX
-from texlate.validate.l0 import validate_pair
+from texlate.validate.l0 import (
+    FRAGILE_BS,
+    FRAGILE_CHARS,
+    Severity,
+    validate_pair,
+)
 
 REPO = Path(__file__).resolve().parents[2]
 
@@ -70,8 +78,14 @@ SYSTEM = (
 )
 PROMPT_SHA = hashlib.sha256(SYSTEM.encode()).hexdigest()[:12]
 
-# 脆弱命令: 单字符/短控制序列, 丢了肉眼难查但影响排版
-FRAGILE_CS_RX = re.compile(r"\\[ ,;:!]|~")
+# 脆弱命令: 单字符/短控制序列, 丢了肉眼难查但影响排版。
+# token 集单源在 l0.FRAGILE_BS|FRAGILE_CHARS——本 RX 是其字符级投影:
+# L0 lexer 另把 ``\<newline>``/``\<tab>`` 归一成 ``\ `` 计入 (regex 不覆盖
+# 该变体), 且 fragile_src/zh 是总量计数非逐 token——cs_dropped 判定以
+# rep.issues 为准 (judge()), 本计数仅作展示旁证, 可与逐 token 报错并存差异.
+FRAGILE_CS_RX = re.compile(
+    "|".join(re.escape(t) for t in sorted(FRAGILE_BS | FRAGILE_CHARS))
+)
 # zh 中残留英文散文词 (>=4 字母单词, 排除占位符/LaTeX 命令)
 EN_WORD_RX = re.compile(r"[A-Za-z]{4,}")
 CS_RX = re.compile(r"\\[a-zA-Z]+")
@@ -122,6 +136,14 @@ SYNTHETIC = [
 
 def load_manifest(path: Path, where: list[str]) -> list[dict]:
     """manifest.jsonl → doc 行; ``--where k=v`` 逐项等值过滤 (值一律按 str 比)."""
+    if not path.exists():
+        # read_jsonl 对缺席路径静默给 []——typo 路径会把样例池退化成仅合成
+        # 样例仍出完整报告, 喊出来防假绿。
+        print(
+            f"  [warn] manifest {path} 不存在——语料样例为空 (仅 S1–S4 合成样例)",
+            file=sys.stderr,
+        )
+        return []
     docs = benchlib.read_jsonl(path)
     for w in where:
         k, sep, v = w.partition("=")
@@ -129,6 +151,12 @@ def load_manifest(path: Path, where: list[str]) -> list[dict]:
             print(f"  [skip] --where {w!r} 非 k=v 形", file=sys.stderr)
             continue
         docs = [d for d in docs if str(d.get(k)) == v]
+    if not docs:
+        print(
+            f"  [warn] manifest {path} 过滤后无 doc 行 (--where {where or '无'})"
+            "——语料样例为空 (仅 S1–S4 合成样例)",
+            file=sys.stderr,
+        )
     return docs
 
 
@@ -206,6 +234,13 @@ def build_samples(
                     }
                 )
                 i += 1
+    if not by_kind:
+        # docs 全无主 tex/parse 失败或无候选 chunk——同样退化成仅合成样例
+        print(
+            "  [warn] 语料桶为空 (doc 无主 tex/parse 失败或无候选 chunk)"
+            "——输出仅 S1–S4 合成样例",
+            file=sys.stderr,
+        )
     out: list[dict] = []
     for kind in sorted(by_kind):
         pool = by_kind[kind]
@@ -260,6 +295,13 @@ def call_once(model: str, user: str, max_tokens: int) -> dict:
             "seconds": round(time.time() - t0, 2),
         }
     dt = time.time() - t0
+    if not isinstance(payload, dict):
+        return {
+            "http": 200,
+            "seconds": round(dt, 2),
+            "content": "",
+            "error": f"non-object payload: {str(payload)[:200]}",
+        }
     choices = payload.get("choices") or []
     if not choices:
         return {
@@ -269,8 +311,19 @@ def call_once(model: str, user: str, max_tokens: int) -> dict:
             "error": f"missing choices: {str(payload)[:200]}",
         }
     ch = choices[0]
-    msg = ch["message"]
-    usage = payload.get("usage", {})
+    if not isinstance(ch, dict):
+        return {
+            "http": 200,
+            "seconds": round(dt, 2),
+            "content": "",
+            "error": f"malformed choice: {str(ch)[:200]}",
+        }
+    msg = ch.get("message")
+    if not isinstance(msg, dict):
+        msg = {}
+    usage = payload.get("usage")
+    if not isinstance(usage, dict):
+        usage = {}
     return {
         "http": 200,
         "seconds": round(dt, 2),
@@ -293,7 +346,13 @@ def judge(src: str, zh: str) -> dict:
     ph_order = ph_src == ph_zh  # 序守恒 —— 软信号, 不计硬失败
     fragile_src = len(FRAGILE_CS_RX.findall(src))
     fragile_zh = len(FRAGILE_CS_RX.findall(zh))
-    cs_dropped = fragile_zh < fragile_src
+    # 判定与 validator 同源——逐 token 丢失是 L0 error (message 带 cs_dropped
+    # 标记); 上面总量计数只是近似旁证 (``\<newline>`` 归一差/换序等token差
+    # 本 RX 不可见), 不与 validator_issues 相矛盾。
+    cs_dropped = any(
+        i.severity == Severity.ERROR and "cs_dropped" in i.message
+        for i in rep.issues
+    )
     validator_ok = rep.ok
     hard_ok = validator_ok and not ph_missing and not ph_invented and not cs_dropped
     zh_clean = CS_RX.sub(" ", PH_RX.sub(" ", zh))
@@ -314,6 +373,11 @@ def judge(src: str, zh: str) -> dict:
 
 
 def _samples_from_args(args: argparse.Namespace) -> list[dict]:
+    if args.per_kind <= 0:
+        # per_kind<=0 时 by_kind 抽样 step = len//0 → ZeroDivisionError;
+        # CLI 边界早退给干净报错 (run/samples 两子命令共用此口)。
+        print(f"--per-kind must be >= 1 (got {args.per_kind})", file=sys.stderr)
+        raise SystemExit(2)
     return build_samples(
         Path(args.manifest),
         args.where,
@@ -345,7 +409,7 @@ def cmd_run(args: argparse.Namespace) -> None:
             if r.get("http") == 200 and r.get("content"):
                 done.add((r["model"], r["run"], r["sample"]))
         print(f"resume: {len(done)} 已有结果将跳过")
-    fp = (outdir / "results.jsonl").open("a")
+    fp = (outdir / "results.jsonl").open("a", encoding="utf-8")
     models = [m.strip() for m in args.models.split(",")]
     print(f"samples={len(samples)} runs={args.runs} models={models}")
 
@@ -380,8 +444,7 @@ def cmd_run(args: argparse.Namespace) -> None:
                 if r.get("http") == 200 and r.get("content"):
                     rec["judge"] = judge(s["src"], r["content"])
                     rec["src"] = s["src"]
-                fp.write(json.dumps(rec, ensure_ascii=False) + "\n")
-                fp.flush()
+                benchlib.write_jsonl(fp, rec)
                 j = rec.get("judge") or {}
                 print(
                     f"  {model:22} r{run} {s['name']:22} "
@@ -430,7 +493,9 @@ def cmd_rejudge(args: argparse.Namespace) -> None:
             print(f"  flip {f_}")
         if len(flips) > 20:
             print(f"  ... +{len(flips) - 20} more flips")
-        print(f"  wrote {out_f}")
+        print(
+            f"  wrote {out_f}  (report --results {out_f.name} 渲染新口径)"
+        )
 
 
 def _med(xs: list[float]) -> float:
@@ -444,12 +509,14 @@ def _p95(xs: list[float]) -> float:
     return xs[min(len(xs) - 1, int(len(xs) * 0.95))]
 
 
-def aggregate(dirs: list[str]) -> tuple[dict[str, dict], list[dict]]:
-    """读各 DIR/results.jsonl → (逐模型聚合, 失败清单)."""
+def aggregate(
+    dirs: list[str], results_name: str = "results.jsonl"
+) -> tuple[dict[str, dict], list[dict]]:
+    """读各 DIR/``results_name`` → (逐模型聚合, 失败清单)."""
     rows: dict[str, dict] = {}
     fails: list[dict] = []
     for d in dirs:
-        for r in benchlib.iter_jsonl(Path(d) / "results.jsonl"):
+        for r in benchlib.iter_jsonl(Path(d) / results_name):
             m = r["model"]
             st = rows.setdefault(
                 m,
@@ -527,10 +594,15 @@ def aggregate(dirs: list[str]) -> tuple[dict[str, dict], list[dict]]:
                     for i in (j.get("validator_issues") or [])
                     if i.startswith("error:")
                 ]
-                why.extend(
-                    e[6:].split(":")[0] + ":" + e[6:].split(":", 2)[-1][:60]
-                    for e in errs
-                )
+                for e in errs:
+                    # issue 形 "error:rule:message"——message 自身可含 ':',
+                    # 旧 split(':',2)[-1] 会丢 message 首段; 取 rule + 完整前缀。
+                    parts = e.split(":", 2)
+                    why.append(
+                        parts[1] + ":" + parts[2][:60]
+                        if len(parts) == 3
+                        else e[:80]
+                    )
                 fails.append(
                     {
                         "model": m,
@@ -547,7 +619,7 @@ def aggregate(dirs: list[str]) -> tuple[dict[str, dict], list[dict]]:
 
 
 def cmd_report(args: argparse.Namespace) -> None:
-    rows, fails = aggregate(args.dirs)
+    rows, fails = aggregate(args.dirs, args.results)
     lines = [
         (
             "| model | n | hard_ok | ph_miss | ph_inv | cs_drop | ord_soft | "
@@ -590,11 +662,21 @@ def cmd_report(args: argparse.Namespace) -> None:
         print(f"- {f['model']} {f['sample']} run{f['run']}: {f['why']}")
     out = Path(args.dirs[0])
     (out / "models.json").write_text(
-        json.dumps({"models": agg, "fails": fails}, ensure_ascii=False, indent=2)
+        json.dumps(
+            {
+                # 自带数据源文件名——rejudged 渲染产物可辨判据 vintage
+                "results_file": args.results,
+                "models": agg,
+                "fails": fails,
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
     )
     if args.md:
-        Path(args.md).write_text(table + "\n")
-    print(f"\nwrote {out / 'models.json'}")
+        Path(args.md).write_text(table + "\n", encoding="utf-8")
+    print(f"\nwrote {out / 'models.json'} (source: {args.results})")
 
 
 def _add_sampling_args(p: argparse.ArgumentParser) -> None:
@@ -639,6 +721,11 @@ def main() -> None:
     p_rep = sub.add_parser("report")
     p_rep.add_argument("dirs", nargs="+")
     p_rep.add_argument("--md", default=None)
+    p_rep.add_argument(
+        "--results",
+        default="results.jsonl",
+        help="DIR 内结果文件名 (rejudge 产物传 results.rejudged.jsonl)",
+    )
     p_rep.set_defaults(fn=cmd_report)
     p_rej = sub.add_parser("rejudge")
     p_rej.add_argument("dirs", nargs="+")

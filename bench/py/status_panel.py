@@ -39,7 +39,8 @@ RESULTS_DIR = REPO / "bench" / "results"
 PANEL_DIR = RESULTS_DIR / "status-panel"
 PIDFILE = PANEL_DIR / "panel.pid"
 TASKS_DIR = PANEL_DIR / "tasks.d"
-N200_DIR = RESULTS_DIR / "realn200-2026-09-17"
+#: run 目录由 _n200_dir() 自动发现（realn200-*/e2e-* 最新含账者）——
+#: 原硬钉目录名已在归档后失效，常亮空账不如无候选时的显式空态。
 N200_PID = 439968
 SESSIONS_GLOB = os.path.expanduser("~/.claude/sessions/*.json")
 VENV_PY = REPO / ".venv" / "bin" / "python"
@@ -296,13 +297,62 @@ def _rate_sample(done: int) -> tuple[float | None, float]:
     return None, 0.0
 
 
+def _n200_dir() -> Path | None:
+    """realn200-*/e2e-* run 目录自动发现：records.jsonl + run_meta.json
+    双双在盘的候选里 run_meta mtime 最新者。硬钉目录名在 run 归档/改名后
+    会让整个面板拿不到 n200 账；无候选 → None（collect 走零形兜底）。
+    """
+    cands = [
+        d
+        for pat in ("realn200-*", "e2e-*")
+        for d in RESULTS_DIR.glob(pat)
+        if d.is_dir()
+        and (d / "run_meta.json").is_file()
+        and (d / "records.jsonl").is_file()
+    ]
+    if not cands:
+        return None
+    return max(cands, key=lambda d: (d / "run_meta.json").stat().st_mtime)
+
+
+def _n200_empty() -> dict:
+    """无 run 目录时的零形 st——消费方按 ``total == 0`` 分支渲染空态。"""
+    return {
+        "done": 0,
+        "total": 0,
+        "elapsed": 0.0,
+        "rate_ps": None,
+        "rate_span": 0.0,
+        "started": None,
+        "top": collections.Counter(),
+        "fix": collections.Counter(),
+        "base": collections.Counter(),
+        "chunks": collections.Counter(),
+        "reasons": collections.Counter(),
+        "strip": [],
+        "meta": {},
+        "xlat_secs": 0.0,
+        "xlat_exec": 0,
+        "pdf_pipe": 0,
+        "pdf_union": 0,
+        "mtime": None,
+        "in_flight": [],
+        "queued": [],
+        "dir": None,
+    }
+
+
 def n200_stats() -> dict:
     def collect() -> dict:
-        records = N200_DIR / "records.jsonl"
-        meta = json.loads((N200_DIR / "run_meta.json").read_text())
+        nd = _n200_dir()
+        if nd is None:
+            return _n200_empty()
+        records = nd / "records.jsonl"
+        meta = json.loads((nd / "run_meta.json").read_text())
         # e2e 单行 schema（pipe-xel/pipe-fix/base-xel）非 stagerun 账——全行
         # 计数口径（chunks/秒数逐行累加），不套 benchlib.latest_records 的
-        # id 末条胜去重；fail-loud 读法是面板对腐账的有意态度。
+        # id 末条胜去重；目录在而账腐仍 fail-loud——是面板对腐账的有意态度
+        # （由 render 的 section/chip 隔离兜底不炸整页）。
         recs = [
             json.loads(line)
             for line in records.read_bytes().splitlines()
@@ -343,7 +393,7 @@ def n200_stats() -> dict:
             strip.append((r.get("id", "?"), r.get("status", "?")))
         seen_ids: set[str] = set()
         in_flight: list[str] = []
-        log = N200_DIR / "run.log"
+        log = nd / "run.log"
         if log.exists():
             lines = log.read_text(errors="replace").splitlines()
             last_result = -1
@@ -383,6 +433,7 @@ def n200_stats() -> dict:
             "mtime": records.stat().st_mtime,
             "in_flight": in_flight,
             "queued": queued,
+            "dir": nd.name,
         }
 
     return cached("n200", 30, collect)
@@ -477,13 +528,16 @@ def sec_chips() -> str:
         )
     )
     st = n200_stats()
-    chips.append(
-        chip(
-            "n200 进度",
-            f"{st['done']}/{st['total']}",
-            f"{st['done'] / st['total'] * 100:.0f}% · 已跑 {fmt_dur(st['elapsed'])}",
+    if st["total"]:
+        chips.append(
+            chip(
+                "n200 进度",
+                f"{st['done']}/{st['total']}",
+                f"{st['done'] / st['total'] * 100:.0f}% · 已跑 {fmt_dur(st['elapsed'])}",
+            )
         )
-    )
+    else:
+        chips.append(chip("n200 进度", "—", "未发现 realn200/e2e run 目录"))
     c = st["chunks"]
     if c["chunks"]:
         ok_ph = not c["leftover_ph"] and not c["fault"]
@@ -586,6 +640,12 @@ def sec_tasks() -> str:
 def sec_n200() -> str:
     st = n200_stats()
     done, total = st["done"], st["total"]
+    if not total:
+        return (
+            "<div class='prow'>未发现 realn200-*/e2e-* run 目录"
+            "（records.jsonl + run_meta.json 双双在盘才算入列）——"
+            "跑批归档或尚未启动。</div>"
+        )
     if st["rate_ps"] is not None:
         rate = st["rate_ps"] * 3600
         basis = f"近{fmt_dur(st['rate_span'])}均速"
@@ -597,8 +657,16 @@ def sec_n200() -> str:
     conc = st["meta"].get("concurrency")
     pid, note = N200_PID, "钉选"
     if not pid_alive(pid):
-        probe = run_cmd(["pgrep", "-f", "e2e_real_bench.*realn200"], 5).split()
-        pid, note = (int(probe[0]), "自动发现") if probe else (0, "未发现")
+        # pgrep 模式跟随实际发现的 run 目录名（runner cmdline 含 --dir 路径）；
+        # run_cmd 无输出哨兵是 "(exit N, no output)"——probe[0] 会是 "(exit"
+        # 而非空，须 isdigit 兜底否则 int() 崩坏整节。
+        pat = f"e2e_real_bench.*{re.escape(st.get('dir') or 'realn200')}"
+        probe = run_cmd(["pgrep", "-f", pat], 5).split()
+        pid, note = (
+            (int(probe[0]), "自动发现")
+            if probe and probe[0].isdigit()
+            else (0, "未发现")
+        )
     alive = pid and pid_alive(pid)
     parts = [
         f"<div class='prow'><b>{done}</b> / {total} 篇 "
@@ -1037,6 +1105,12 @@ def render() -> str:
         except Exception as exc:  # section isolation: never 500 the page
             frag = f"<pre style='color:{C_FAIL}'>采集异常: {esc(repr(exc))}</pre>"
         parts.append(f"<h2>{esc(title)}</h2>{frag}")
+    try:
+        chips_html = sec_chips()
+    except Exception as exc:  # 同 SECTIONS 隔离——chips 采集崩不带垮整页
+        chips_html = (
+            f"<pre style='color:{C_FAIL}'>chips 采集异常: {esc(repr(exc))}</pre>"
+        )
     now = dt.datetime.now(tz=dt.UTC).astimezone().strftime("%Y-%m-%d %H:%M:%S")
     return PAGE.format(
         refresh=REFRESH_SECONDS,
@@ -1045,7 +1119,7 @@ def render() -> str:
         c_fail=C_FAIL,
         c_part=C_PART,
         c_info=C_INFO,
-        chips=sec_chips(),
+        chips=chips_html,
         body="\n".join(parts),
     )
 

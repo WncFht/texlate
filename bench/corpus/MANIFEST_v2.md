@@ -1,7 +1,7 @@
 # Corpus v2 Manifest — arXiv 分层随机抽样源码语料
 
 分层随机抽样的 arXiv e-print 源码（`arxiv.org/src/{id}v{N}` 钉版本下载，字节原样存 `raw.*`，过滤后树存 `extracted/`）。
-数据在本目录 `{id}/` 子目录（gitignored 不入库），入库的只有此清单与 `build_corpus.py`。抽样与解包口径见 `docs/research/arxiv/layer.md` §3。
+数据在本目录 `{id}/` 子目录（gitignored 不入库），入库的只有此清单与 `bench/py/corpus/build_corpus_v2.py`。抽样与解包口径见 `docs/research/arxiv/layer.md` §3。
 旧式 ID 按 `archive/name` 嵌套（如 `hep-th/0212074/`）。版本号为下载时 content-disposition 解析值，可复现。
 
 - 入库 **139** 篇 · 1178 文件 · 224 个 .tex · 原始包共 89.5M

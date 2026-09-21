@@ -267,29 +267,43 @@ def run_case(case_dir: Path, tex: str, *, demote: bool) -> dict:
 # ------------------------------------------------------------ 语料
 
 
+def _wrapfloat_texs(corpus: Path) -> list[Path]:
+    """corpus 全量 *.tex + WRAP_RX 命中清单（inventory 与 papers 共用扫描）。"""
+    return [
+        p
+        for p in corpus.rglob("*.tex")
+        if p.suffix == ".tex" and WRAP_RX.search(p.read_bytes())
+    ]
+
+
+def _paper_of(corpus: Path, tex: Path) -> str:
+    """tex 路径 → 论文 rel id：``extracted/`` 之前的部件整取。
+
+    ``corpus/{archive}/{id}/extracted/**`` 嵌套布局下 ``parts[0]`` 只留
+    archive 层——同 archive 全部论文坍缩成一格；取 extracted 前缀还原
+    ``archive/id`` 全形。无 ``extracted`` 锚的扁平布局退 ``parts[0]``
+    （原口径——该布局无法区分嵌套 id 与散件目录）。
+    """
+    parts = tex.relative_to(corpus).parts
+    if "extracted" in parts:
+        return "/".join(parts[: parts.index("extracted")])
+    return parts[0]
+
+
 def corpus_inventory() -> dict:
     """各语料库 wrapfloat 用量盘点（论文级口径）。"""
     inv: dict = {}
     for c in CORPORA:
         if not c.is_dir():
             continue
-        files = [
-            p
-            for p in c.rglob("*.tex")
-            if p.suffix == ".tex" and WRAP_RX.search(p.read_bytes())
-        ]
-        papers = {p.relative_to(c).parts[0] for p in files}
+        files = _wrapfloat_texs(c)
+        papers = {_paper_of(c, p) for p in files}
         inv[c.name] = {"files": len(files), "papers": len(papers)}
     return inv
 
 
 def _wrapfloat_papers(corpus: Path) -> list[str]:
-    hits = set()
-    for p in corpus.rglob("*.tex"):
-        if p.suffix != ".tex" or not WRAP_RX.search(p.read_bytes()):
-            continue
-        hits.add(p.relative_to(corpus).parts[0])
-    return sorted(hits)
+    return sorted({_paper_of(corpus, p) for p in _wrapfloat_texs(corpus)})
 
 
 def run_corpus_pair(corpus: Path, paper: str, work: Path) -> dict:

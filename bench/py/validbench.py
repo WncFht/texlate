@@ -261,20 +261,23 @@ def _live_insert_positions(s: str, spans: list[int]) -> list[int]:
 
 
 def _unescaped_positions(s: str, ch: str) -> list[int]:
-    out = []
-    i, n = 0, len(s)
-    while i < n:
-        if s[i] == "\\":
-            i += 2
-            continue
-        if s[i] == "%":
-            k = s.find("\n", i)
-            i = n if k < 0 else k
-            continue
-        if s[i] == ch:
-            out.append(i)
-        i += 1
-    return out
+    """``ch`` 的非转义/非注释出现位——``l0._lex`` ch token 自带豁免
+    (bs/cmt 不进 ch), 且注释止于 ``[\\r\\n]`` 比手扫的 ``\\n`` 更严."""
+    return [pos for kind, text, pos in l0._lex(s) if kind == "ch" and text == ch]
+
+
+def _pick_uncommented(
+    zh: str, rx: re.Pattern, rng: random.Random, keep=None
+) -> re.Match | None:
+    """注释区外候选随机取一 (l0 规则经 mask_comments 豁免注释 —— 注释内
+    破坏是语义 no-op); ``keep`` 附加过滤 (如 c09 空 key 不计多重集)."""
+    spans = _comment_spans(zh)
+    ms = [
+        m
+        for m in rx.finditer(zh)
+        if not _in_comment(spans, m.start()) and (keep is None or keep(m))
+    ]
+    return None if not ms else ms[rng.randrange(len(ms))]
 
 
 def c01_drop_rbrace(zh: str, rng: random.Random) -> str | None:
@@ -297,12 +300,10 @@ _END_RX = re.compile(r"\\end\{[^{}]*\}")
 
 
 def c03_rename_end(zh: str, rng: random.Random) -> str | None:
-    spans = _comment_spans(zh)
-    ms = [m for m in _END_RX.finditer(zh) if not _in_comment(spans, m.start())]
-    if not ms:
+    m = _pick_uncommented(zh, _END_RX, rng)
+    if m is None:
         return None
     begins = {m.group(1) for m in re.finditer(r"\\begin\{([^{}]*)\}", zh)}
-    m = ms[rng.randrange(len(ms))]
     name = re.match(r"\\end\{([^{}]*)\}", m.group(0)).group(1)
     alts = [b for b in begins if b != name]
     new = rng.choice(alts) if alts else name + "*"
@@ -310,33 +311,23 @@ def c03_rename_end(zh: str, rng: random.Random) -> str | None:
 
 
 def c04_drop_end(zh: str, rng: random.Random) -> str | None:
-    spans = _comment_spans(zh)
-    ms = [m for m in _END_RX.finditer(zh) if not _in_comment(spans, m.start())]
-    if not ms:
+    m = _pick_uncommented(zh, _END_RX, rng)
+    if m is None:
         return None
-    m = ms[rng.randrange(len(ms))]
     return zh[: m.start()] + zh[m.end() :]
 
 
 def c05_drop_ph(zh: str, rng: random.Random) -> str | None:
-    spans = _comment_spans(zh)
-    ms = [
-        m for m in l0.PH_ANY_LIKE_RX.finditer(zh) if not _in_comment(spans, m.start())
-    ]
-    if not ms:
+    m = _pick_uncommented(zh, l0.PH_ANY_LIKE_RX, rng)
+    if m is None:
         return None
-    m = ms[rng.randrange(len(ms))]
     return zh[: m.start()] + zh[m.end() :]
 
 
 def c06_typo_ph(zh: str, rng: random.Random) -> str | None:
-    spans = _comment_spans(zh)
-    ms = [
-        m for m in l0.PH_ANY_LIKE_RX.finditer(zh) if not _in_comment(spans, m.start())
-    ]
-    if not ms:
+    m = _pick_uncommented(zh, l0.PH_ANY_LIKE_RX, rng)
+    if m is None:
         return None
-    m = ms[rng.randrange(len(ms))]
     tok = m.group(0)
     inner = tok[2:-2]
     # 变体菜单; 某些变体在特定上下文是语义 no-op 要避开:
@@ -380,16 +371,18 @@ def c08_halluc_macro(zh: str, rng: random.Random) -> str | None:
 
 
 def c09_drop_key(zh: str, rng: random.Random) -> str | None:
-    spans = _comment_spans(zh)
-    ms = [
-        m
-        for m in l0.KEY_CMD_RX.finditer(zh)
-        if not _in_comment(spans, m.start())
-        and any(k.strip() for k in m.group(1).split(","))  # 空 key 不计多重集
-    ]
-    if not ms:
+    # 空 key 不计多重集; KEY_CMD_RX 三臂的 key 落在不同 group —— 逐组扫
+    # (原 m.group(1) 对 \cite/\label 臂恒 None, 实测直接 AttributeError)
+    m = _pick_uncommented(
+        zh,
+        l0.KEY_CMD_RX,
+        rng,
+        keep=lambda m: any(
+            k.strip() for g in m.groups() if g for k in g.split(",")
+        ),
+    )
+    if m is None:
         return None
-    m = ms[rng.randrange(len(ms))]
     return zh[: m.start()] + zh[m.end() :]
 
 
@@ -534,11 +527,6 @@ PROBES: list[dict] = [
 
 # ---------------------------------------------------------------- 语料底材
 
-_DOCCLASS_RX = re.compile(
-    r"\\(documentclass|documentstyle)\s*(?:\[[^\]]*\])?\s*\{([^}]*)\}",
-    re.DOTALL,
-)
-
 
 def _paper_dirs(corpus: Path) -> list[Path]:
     """corpus 下含 extracted/ 的目录 (old-style 按 archive/name 嵌套一层)."""
@@ -547,21 +535,15 @@ def _paper_dirs(corpus: Path) -> list[Path]:
 
 
 def _pick_root(pdir: Path) -> Path | None:
-    """剥注释含 \\documentclass/\\documentstyle 者为主文件; 无则最大 .tex."""
-    texs = sorted((pdir / "extracted").rglob("*.tex"))
-    if not texs:
-        return None
-    roots = []
-    for f in texs:
-        try:
-            tex = f.read_text(encoding="utf-8", errors="replace")
-        except OSError:
-            continue
-        if _DOCCLASS_RX.search(l0.mask_comments(tex)):
-            roots.append(f)
-    if roots:
-        return roots[0]
-    return max(texs, key=lambda f: f.stat().st_size)
+    """find_main_tex 定主档 (产品同款启发式); 无候选退最大 .tex."""
+    from texlate.compile.inject import find_main_tex  # wrapfloat_bench 同款惰载
+
+    ext = pdir / "extracted"
+    m = find_main_tex(ext)
+    if m is not None:
+        return m
+    texs = sorted(ext.rglob("*.tex"))
+    return max(texs, key=lambda f: f.stat().st_size) if texs else None
 
 
 class _ParseTimeout(Exception):

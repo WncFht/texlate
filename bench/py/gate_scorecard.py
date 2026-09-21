@@ -58,6 +58,8 @@ from pathlib import Path
 
 import benchlib
 
+#: 无候选 run 时的历史兜底路径（仅供 _default_records_dir 回退用——
+#: 原钉死目录名的 run 已归档，按缺省路径报 missing 与旧口径一致）。
 DEFAULT_DIR = Path("bench/results/stagerun-loop1-2026-09-16/records")
 GATE = 0.90
 SCHEMA = "gate_scorecard/v3"
@@ -73,6 +75,34 @@ _RANK = benchlib.STATUS_RANK
 compile_fp = benchlib.compile_fp
 #: 出 pdf 的终态集——end-state/union 两口径共用。
 PDF_STATUS = {"clean", "partial"}
+
+
+def _default_records_dir() -> Path:
+    """缺省 records/ 目录：``bench/results/*/`` 下最新的含账 run。
+
+    候选 = ``records/`` 子目录存在且父目录有 ``run_meta.json`` 的 run
+    （status_panel 等免参调用方依赖此发现——钉死目录名在 run 归档/改名后
+    会让记分卡悄悄出空账）。排序键 = max(run_meta.json, records/*.jsonl)
+    mtime，撞票按路径名取大者保底确定性。无候选回退 ``DEFAULT_DIR``。
+    """
+    results = Path(__file__).resolve().parents[2] / "bench" / "results"
+    best: Path | None = None
+    best_key: tuple[float, str] | None = None
+    if results.is_dir():
+        for rec in results.glob("*/records"):
+            if not rec.is_dir():
+                continue
+            meta = rec.parent / "run_meta.json"
+            if not meta.is_file():
+                continue
+            score = max(
+                [meta.stat().st_mtime]
+                + [f.stat().st_mtime for f in rec.glob("*.jsonl") if f.is_file()]
+            )
+            key = (score, str(rec))
+            if best_key is None or key > best_key:
+                best, best_key = rec, key
+    return best if best is not None else DEFAULT_DIR
 
 
 def scan_records(
@@ -397,6 +427,9 @@ def check_freeze(
             for k in ("exists", "age_s", "bad_lines", "tail_truncated", "torn")
         }
     return {
+        # rec_dir 回显进 freeze 块：--require-frozen 拒绝路径只出本块，
+        # 不带 records_dir 时调用方无从知晓判的是哪份账。
+        "records_dir": str(rec_dir),
         "status": "partial" if reasons else "frozen",
         "partial": bool(reasons),
         "reasons": sorted(set(reasons)),
@@ -692,7 +725,10 @@ def _print_text(t: dict, rep: dict) -> None:
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=(__doc__ or "").strip().splitlines()[0])
     p.add_argument(
-        "records_dir", nargs="?", default=str(DEFAULT_DIR), help="records/ 目录"
+        "records_dir",
+        nargs="?",
+        default=None,
+        help="records/ 目录（缺省自动发现 bench/results/ 下最新含账 run）",
     )
     p.add_argument("--json", action="store_true", dest="as_json", help="机读输出")
     p.add_argument(
@@ -711,7 +747,7 @@ def main(argv: list[str] | None = None) -> int:
         "--upstream", default=UPSTREAM, help="records upstream 过滤（默认 mock）"
     )
     args = p.parse_args(argv)
-    rec_dir = Path(args.records_dir)
+    rec_dir = Path(args.records_dir) if args.records_dir else _default_records_dir()
 
     now = datetime.now(UTC)
     comp, comp_st, comp_fi = _scan_file(

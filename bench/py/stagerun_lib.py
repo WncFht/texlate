@@ -98,8 +98,7 @@ def select_ids(entries: list[dict], args: argparse.Namespace, stage: str) -> lis
         changed = sorted({f"{i}→{canon_id(i)}" for i in raw if i != canon_id(i)})
         if changed:
             print(f"  id 拼写归一: {', '.join(changed)}", file=sys.stderr)
-        have = {canon_id(e["id"]) for e in entries}
-        return sorted((want & have) | (want - have))
+        return sorted(want)
     if args.n and args.n > 0:
         pool = sorted(
             {
@@ -322,6 +321,25 @@ def workdir(out_dir: Path, pid: str) -> Path:
 # ================================================================ stage_* 共用件
 
 
+def swap_in(stage_dir: Path, dst: Path) -> None:
+    """暂存树 → dst 的 rename 接力：``dst→old``、``stage_dir→dst``、rmtree old。
+
+    dst 路径名全程存在——并发读方（compile 读 ``zh/.xlat-arm.json`` 等）
+    不撞 rmtree+重建的缺席窗（41 捞出 20 格实证）。``stage_parse`` 的
+    ``.zh-build→zh`` 与 ``stage_xlat`` 的 ``.zh-xlat→zh`` 同式共用；两侧
+    旧树暂存名统一派生 ``<stage_dir.name>-old``（``.zh-xlat-old`` 原形不变，
+    ``.zh-old`` 归一为 ``.zh-build-old``——纯 transient 名无外部消费）。
+    """
+    old = stage_dir.with_name(f"{stage_dir.name}-old")
+    if dst.exists():
+        if old.exists():
+            shutil.rmtree(old)
+        dst.rename(old)
+    stage_dir.rename(dst)
+    if old.exists():
+        shutil.rmtree(old)
+
+
 def rebuild_splice(zh: Path, splice: Path) -> None:
     """zh/ → splice/ 原样重建：rmtree + copytree——compile zh 臂与 fixloop --rerun 共用序。
 
@@ -393,8 +411,8 @@ def run_pool(
     """Executor+as_completed+crash_rec+time_budget 分发骨架（stagerun 驱动共用形）。
 
     executor 生命周期显式化而非 ``with``：``finally`` 里
-    ``shutdown(wait=True, cancel_futures=True)``——与 stage_parse 的
-    shutdown 契约同口径。相对旧 ``with`` 块，budget ``break`` 的语义有意
+    ``shutdown(wait=True, cancel_futures=True)``——承自 stage_parse
+    手写循环时代的 shutdown 契约。相对旧 ``with`` 块，budget ``break`` 的语义有意
     收窄：排队任务被 cancel 不再白跑（旧形 ``__exit__`` 只 wait，剩余
     任务照跑、副作用照落 work/ 树却无 record 入账）；在飞任务仍等其
     写毕再交棒——wait=False 会把在写树的 worker 丢在后台，下个 stage
@@ -403,7 +421,9 @@ def run_pool(
     ``submit_fn(ex, item)`` 提交任务、``pid_fn(item)`` 取 records 键、
     ``progress_fn(i, n, pid, rec)`` 打进度行——各 stage 只差 submit 映射
     与进度字段，其余全同型（原 ``stage_compile._run_pool`` 上提；
-    stage_parse 的逐条 submit 变体仍自有循环）。
+    compile/parse/ingest/fixloop 均已收编，executor 类型经
+    ``executor_cls`` 换——stage_parse 用 ProcessPoolExecutor，其余默认
+    ThreadPoolExecutor；stage_xlat 是 asyncio 路不走本骨架）。
     """
     ex = executor_cls(max_workers=args.jobs)
     t_start = time.monotonic()

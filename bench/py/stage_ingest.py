@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import shutil
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import TYPE_CHECKING
 
 import stagerun_lib as sl
@@ -111,13 +110,21 @@ def stage_ingest(
         log.append(r)
         done_n += 1
         print(f"  [{done_n}] {r['id']} -> {r['status']}", flush=True)
-    with ThreadPoolExecutor(max_workers=args.jobs) as ex:
-        futs = {ex.submit(_ingest_copy, pid, out_dir): pid for pid in cached}
-        for fut in as_completed(futs):
-            try:
-                r = fut.result()
-            except Exception as e:
-                r = sl.crash_rec(futs[fut], "ingest", "-", e, time.monotonic())
-            log.append(r)
-            done_n += 1
-            print(f"  [{done_n}] {r['id']} -> {r['status']}", flush=True)
+    if not cached:
+        return
+
+    def _progress(i: int, _n: int, _pid: str, rec: dict) -> None:
+        print(f"  [{done_n + i}] {rec['id']} -> {rec['status']}", flush=True)
+
+    # 共用分发骨架：crash_rec 包装 + --time-budget 到点 break +
+    # shutdown(cancel_futures)——排队 copytree 不再无账白跑。
+    sl.run_pool(
+        cached,
+        submit_fn=lambda ex, pid: ex.submit(_ingest_copy, pid, out_dir),
+        pid_fn=lambda pid: pid,
+        log=log,
+        args=args,
+        stage="ingest",
+        arm="-",
+        progress_fn=_progress,
+    )

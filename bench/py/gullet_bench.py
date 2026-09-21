@@ -152,10 +152,14 @@ def main() -> None:
     done = {r["id"] for r in rows if "id" in r}
     if done:
         print(f"resume: {len(done)} prior rows kept", flush=True)
+    if rows_path.exists():
+        # 压实重写走 tmp+replace——truncate-then-rewrite 窗口内 kill 会把
+        # 存量行全丢；原子替换后截尾只留 .tmp（bad 行同口径在此被挤掉）。
+        benchlib.atomic_write_text(
+            rows_path, "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows)
+        )
     t_all = time.perf_counter()
-    with rows_path.open("w") as fh:  # 压实重写存量行后继续 append
-        for r in rows:
-            benchlib.write_jsonl(fh, r)
+    with rows_path.open("a") as fh:  # 存量已压实落盘——纯 append 续跑
         for k, e in enumerate(entries):
             if e["id"] in done:
                 continue

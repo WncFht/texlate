@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 r"""wave.py — 修复波一体化编排壳（runbook_loop.md §1-§5 的波次面封装）。
 
-三子命令，全部只做编排壳——选样/对账/记分逻辑一律 subprocess 调既有
-脚本（mech_ids / stagerun / rundiff / dossier / gate_scorecard），
-本文件零重实现：
+三子命令，全部只做编排壳——选样/对账/记分逻辑调既有脚本实现
+（mech_ids / stagerun / rundiff / dossier / gate_scorecard），
+本文件零重实现；其中 postmortem 的 rundiff 段走 ``import rundiff``
+进程内单扫（同函数同口径，省一趟双扫子进程）：
 
   wave.py run IDS.txt --stage chain              # id 集开波（dry-run 预览）
   wave.py run --mech B01,W45 --plus-random 20    # 机制标签外部 join → ids
@@ -50,12 +51,12 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import benchlib
+import rundiff  # postmortem 对账段进程内单扫（stage_cells/diff_stage/渲染纯函数）
 
 PY_DIR = Path(__file__).resolve().parent
 ROOT = PY_DIR.parents[1]
 RESULTS = ROOT / "bench" / "results"
 MECH_IDS = PY_DIR / "report" / "mech_ids.py"
-RUNDIFF = PY_DIR / "rundiff.py"
 DOSSIER = PY_DIR / "report" / "dossier.py"
 SCORECARD = PY_DIR / "gate_scorecard.py"
 STAGERUN = PY_DIR / "stagerun.py"
@@ -469,7 +470,13 @@ def _scope_lists(stage_diff: dict, ids: set[str] | None) -> dict:
         if ids is None:
             out[k] = entries
         else:
-            out[k] = [e for e in entries if e.get("id") in ids]
+            # 双侧 canon 归一：records 存量账有 cat/id 与 cat--id 两形并存
+            # （mixed-id-forms 实证），ids 集在 cmd_postmortem 已归一。
+            out[k] = [
+                e
+                for e in entries
+                if benchlib.canon_id(str(e.get("id") or "")) in ids
+            ]
     return out
 
 
@@ -678,17 +685,45 @@ def cmd_postmortem(args) -> int:
 
     ids: set[str] | None = None
     if args.ids:
-        ids = set(_read_ids_file(Path(args.ids)))
+        ids = {benchlib.canon_id(i) for i in _read_ids_file(Path(args.ids))}
     elif ws and (ws / "ids.txt").is_file():
-        ids = set(_read_ids_file(ws / "ids.txt"))
+        ids = {benchlib.canon_id(i) for i in _read_ids_file(ws / "ids.txt")}
 
-    rd_cmd = [sys.executable, str(RUNDIFF), str(baseline), str(run_dir)]
-    if args.deep:
-        rd_cmd.append("--deep")
-    rd = _json_run([*rd_cmd, "--json"])
-    rd_md = _run(rd_cmd, capture_output=True, text=True)
-    if rd_md.returncode == 0:
-        (out_dir / "rundiff.md").write_text(rd_md.stdout, encoding="utf-8")
+    # rundiff 进程内单扫：原 --json + 文本两趟子进程把两侧 records 全量
+    # 读两遍；stage_cells/diff_stage/_jsonable/render_md 是同模块纯函数，
+    # 调一遍两侧账产出 json 文档 + md 原文，口径逐字等价。
+    cells_a = rundiff.stage_cells(baseline)
+    cells_b = rundiff.stage_cells(run_dir)
+    stages = sorted(set(cells_a) & set(cells_b))
+    if not stages:
+        print("rundiff: 无共有 stage 可比", file=sys.stderr)
+        return 1
+    for s in stages:
+        if s not in cells_a:
+            print(
+                f"rundiff: warn {s} 不在 {baseline} records (按全 added 计)",
+                file=sys.stderr,
+            )
+        if s not in cells_b:
+            print(
+                f"rundiff: warn {s} 不在 {run_dir} records (按全 removed 计)",
+                file=sys.stderr,
+            )
+    diffs = {
+        s: rundiff.diff_stage(cells_a.get(s, {}), cells_b.get(s, {}), deep=args.deep)
+        for s in stages
+    }
+    rd = rundiff._jsonable(baseline.name, run_dir.name, diffs, deep=args.deep)
+    try:
+        # print 渲染比 join 多一个换行——拼回保持原文逐字节一致；md 侧
+        # 失败不挡机读面（原子进程 rc!=0 即不写，同口径收窄为异常即告警）。
+        (out_dir / "rundiff.md").write_text(
+            rundiff.render_md(baseline.name, run_dir.name, diffs, deep=args.deep)
+            + "\n",
+            encoding="utf-8",
+        )
+    except Exception as e:
+        print(f"!! rundiff.md 渲染失败: {e!r}", file=sys.stderr)
 
     scoped = {s: _scope_lists(d, ids) for s, d in rd["stages"].items()}
     clusters = {

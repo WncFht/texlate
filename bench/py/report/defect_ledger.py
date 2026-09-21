@@ -7,7 +7,7 @@ r"""defect_ledger.py — 缺陷台账机读化：fuzz findings + 人工总账 �
   tmp/fuzz-{texlog,xlat-batch}/findings.jsonl             新波 jsonl 台账（B10/B11，
     xlat-batch 同目录老波 findings.txt 由 jsonl 取代——同条目机读版，不重复收）
   docs/log/roadmap-2026-09-17/inputs/defect-ledger.md 人工总账（P0/P1/P2 + 核销表）
-  tests/test_fuzz_*.py  活钉扫描（status 运行态判定；texlog+align 一 lane 合扫两文件）
+  tests/test_fuzz_*.py  活钉扫描（status 运行态判定；texlog+align/validate 一 lane 合扫两文件）
 
 status 口径：pinned=开口项（活钉或未修台账项）、fixed=已核销/钉已拆/已标
 [FIXED]、wontfix=观测行为钉（裁决非缺陷，勿修——修了绿钉转红）。
@@ -56,8 +56,8 @@ DEFAULT_OUT = REPO / "tmp" / "defect-ledger" / "ledger.jsonl"
 DATE = "2026-09-17"
 
 # lane → 测试文件组 / ID token / 归属 / 燃烧批 lane；fmt=jsonl 走逐行 json 台账
-# （texlog+align 一 lane 两测试文件合扫；xlat-residual 的 findings 目录下另有
-# 老波 findings.txt——jsonl 为同条目机读版，优先 jsonl 不重复收）
+# （texlog+align/validate 一 lane 两测试文件合扫；xlat-residual 的 findings 目录下
+# 另有老波 findings.txt——jsonl 为同条目机读版，优先 jsonl 不重复收）
 LANE_META = {
     "glossary": {
         "tests": ["tests/test_fuzz_glossary.py"],
@@ -92,7 +92,7 @@ LANE_META = {
         "findings": "tmp/arxiv-fuzz/findings.jsonl",
     },
     "validate": {
-        "tests": ["tests/test_fuzz_validate.py"],
+        "tests": ["tests/test_fuzz_validate.py", "tests/test_fuzz_validate_l2.py"],
         "tok": r"[DPQ]\d+",
         "owner": "validate",
         "burn": "B8",

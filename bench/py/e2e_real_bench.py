@@ -25,7 +25,8 @@ pipe 条件因翻译是 async 在本文件内联同款流程）。
 （manifest_booster.jsonl）。只收 `extracted/` 存在的条目。
 断点续跑：StateStore 落 bench/work_e2ereal/_state/{sid}/（跨 copy 存活），
 重跑同 id 自动续翻已完成 chunk；records.jsonl 逐篇 append（行在=done、
-末行胜），results.json 逐篇整格替换快照（原子写）兼容旧消费方。
+末行胜），results.json 整格替换快照（原子写）节流至每 ≥8 篇/≥30s 一刷
++ 收尾强刷，兼容旧消费方。
 
 LEGACY（wave2-findings #2 + refactor-audit ★6 定调）：批式真网关跑批已归
 ``stagerun`` 分阶段管线（stage_xlat --arm real → stage_compile →
@@ -57,7 +58,6 @@ import os
 import re
 import shutil
 import sys
-import tempfile
 import time
 from datetime import UTC, datetime
 from pathlib import Path
@@ -73,6 +73,12 @@ sys.path.insert(0, os.environ.get("TEXLATE_SRC", str(ROOT / "src")))
 import benchlib
 import fixloop_bench as _fl
 
+# 编排单源：translate_tree 委托 stage_xlat.translate_tree_async。
+# TEXLATE_SRC 冻结快照语义不靠本处序位：stagerun_lib/e2e_mock_bench 在
+# stage_xlat 链内各自 sys.path.insert(TEXLATE_SRC)，texlate 包一经落地
+# __path__ 即钉快照侧——链中 texlate.* 子模块全部同源。
+import stage_xlat
+
 from texlate.compile.engine import XelatexEngine, engine_for, route_project
 from texlate.compile.fixloop import CaseSink, fixloop
 from texlate.compile.fixloop.llm_hook import make_llm_hook
@@ -84,8 +90,6 @@ from texlate.compile.inject import (
 )
 from texlate.compile.normalize import normalize_project
 from texlate.e2e import base_condition
-from texlate.latex.placeholder import PH_RX
-from texlate.latex.reconstruct import reconstruct
 from texlate.pipecore import scan_tree as _scan_tree
 from texlate.validate.l0 import validate_pair
 from texlate.xlat.client import ChatClient
@@ -93,9 +97,7 @@ from texlate.xlat.pipeline import (
     AuthTrippedError,
     GatewayTranslator,
     PipelineConfig,
-    XlatPipeline,
 )
-from texlate.xlat.state import StateStore
 
 if TYPE_CHECKING:
     from texlate.compile.fixloop.engine import LlmHook
@@ -150,106 +152,27 @@ async def translate_tree(
 ) -> dict:
     """work 内可译 .tex → XlatPipeline(GatewayTranslator)+L0 → splice 写回。
 
-    对齐 ``texlate.e2e.translate_tree`` 的编排（chunk_id = file_idx:cid、
-    reconstruct 回写、PH_RX 数残留），差异：async + StateStore 续跑 +
-    per-status 统计 + 调用量/耗时计量。
+    编排单源 ``stage_xlat.translate_tree_async``（扫描 → oversize 闸 →
+    StateStore → XlatPipeline → 逐块对账 → reconstruct 写回），本函数只剩
+    注入面 + results 丢弃。相对旧就地副本收编两处漂移：交付谓词
+    ``pipecore.delivered``（``ok``+空译不回填 splice）与畸形 chunk_id 的
+    ValueError 守备（记 fault+bad_chunk_id 不炸整篇）。stats 键面与旧
+    副本逐字一致（含 ``auth_all_failed``/oversize 闸两键）。
 
-    扫描段单源 ``pipecore.scan_tree``——文件名四门（dotfile 跳、``.rtx.tex`` 跳、
-    ``.code.tex``/无散文记 support_files）与 ``is_file``/suffix 小写口径同
-    e2e/mock 臂不漂移（★3 收敛 2026-09-17：此前零闸送译 support 件，新旧 run
-    体积类指标口径断点见 report.md §4）。
+    扫描段经 ``scan_fn=_scan_tree`` 显式传本模块全局（monkeypatch 缝保活），
+    四门口径（dotfile/``.rtx.tex``/``.code.tex``/无散文 support_files）
+    与 e2e/mock 臂同 ``pipecore.scan_tree`` 单源不漂移。
     """
-    scans, chunks, fault_files, support_files = _scan_tree(work)
-
-    total_chars = sum(len(c.content) for c in chunks)
-    if total_chars > MAX_TOTAL_CHARS:
-        # 保守闸：超上限不烧网关配额——记 oversize 终态，调用侧记 skipped_oversize
-        return {
-            "files": 0,
-            "chunks": len(chunks),
-            "ok": 0,
-            "partial": 0,
-            "fault": 0,
-            "skipped": 0,
-            "attempts": 0,
-            "batched": 0,
-            "leftover_ph": 0,
-            "fault_files": fault_files,
-            "support_files": support_files,
-            "support_skipped": len(support_files),
-            "warn_kinds": {},
-            "seconds": 0.0,
-            "src_chars": total_chars,
-            "oversize": True,
-            "max_total_chars": MAX_TOTAL_CHARS,
-        }
-
-    stats: dict[str, int] = {
-        "ok": 0,
-        "partial": 0,
-        "fault": 0,
-        "skipped": 0,
-        "attempts": 0,
-        "batched": 0,
-    }
-    t0 = time.monotonic()
-    state = StateStore(state_dir, model=translator.model)
-    state_dir.mkdir(parents=True, exist_ok=True)
-    pipe = XlatPipeline(
+    stats, _results = await stage_xlat.translate_tree_async(
+        work,
         translator,
-        config=cfg,
-        state=state,
+        state_dir,
+        cfg,
+        oversize_cap=MAX_TOTAL_CHARS,
+        scan_fn=_scan_tree,
         validator=lambda s, z: validate_pair(s, z).feedback(),
     )
-    results = await pipe.run(chunks)
-    translate_s = time.monotonic() - t0
-
-    by_file: dict[int, dict[int, str]] = {}
-    warn_kinds: dict[str, int] = {}
-    for r in results:
-        fidx, cid = (int(x) for x in r.chunk_id.split(":", 1))
-        stats["attempts"] += r.attempts
-        stats["batched"] += int(r.batched)
-        if r.status in stats:
-            stats[r.status] += 1
-        else:
-            stats["fault"] += 1
-        if r.status == "ok" or (r.status == "partial" and r.translation):
-            by_file.setdefault(fidx, {})[cid] = r.translation
-        for w in r.warnings:
-            key = w.split(":", 1)[0][:60]
-            warn_kinds[key] = warn_kinds.get(key, 0) + 1
-        if r.skip_reason:
-            key = "skip:" + r.skip_reason.split(":", 1)[0][:60]
-            warn_kinds[key] = warn_kinds.get(key, 0) + 1
-
-    n_files = 0
-    n_leftover = 0
-    for idx, (f, res) in enumerate(scans):
-        trans = by_file.get(idx)
-        if not trans:
-            continue
-        zh = reconstruct(res, trans)
-        f.write_text(zh, encoding="utf-8")
-        n_files += 1
-        n_leftover += len(PH_RX.findall(zh))
-
-    return {
-        "files": n_files,
-        "chunks": len(chunks),
-        **stats,
-        "leftover_ph": n_leftover,
-        "fault_files": fault_files,
-        "support_files": support_files,
-        "support_skipped": len(support_files),
-        "warn_kinds": dict(sorted(warn_kinds.items())),
-        "seconds": round(translate_s, 1),
-        "src_chars": total_chars,
-        # AuthGate 设计口径「跨论文熔断由调用方累计」：整篇全 auth 败时
-        # amain 连记 N 篇即收摊（篇内 3 连熔断走 AuthTrippedError 即停，
-        # 本键兜篇均不足阈值块的慢速失血）。
-        "auth_all_failed": pipe.auth_gate.all_failed,
-    }
+    return stats
 
 
 def _compile_judge(
@@ -445,6 +368,7 @@ async def run_project(
         "reject": route.reject,
         "reasons": route.reasons,
         "non_utf8": route.non_utf8,
+        "latex209_suspect": route.latex209_suspect,
     }
     if route.reject:
         rec["status"] = "partial"
@@ -503,20 +427,6 @@ def _code_stamp() -> str:
     （benchlib 侧 lru_cache）。
     """
     return benchlib.code_stamp()
-
-
-def _atomic_write(path: Path, text: str) -> None:
-    """tmp+os.replace 原子落盘——results.json/matrix/summary 有 live 消费方，
-    全量重写不留撕写窗（与 ``texlate.xlat.state.atomic_json`` 同式，tmp 名
-    带随机后缀防同路径并发撞名）。"""
-    fd, tmp = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write(text)
-        os.replace(tmp, path)
-    except BaseException:
-        Path(tmp).unlink(missing_ok=True)
-        raise
 
 
 def _dedup_cases(path: Path) -> int:
@@ -653,7 +563,7 @@ def write_reports(results: dict, out_dir: Path, meta: dict) -> None:
         "| --- | --- | --- | --- | --- | --- | --- | --- |",
     ]
     matrix.extend("| " + " | ".join(str(x) for x in r) + " |" for r in rows)
-    _atomic_write(out_dir / "matrix.md", "\n".join(matrix) + "\n")
+    benchlib.atomic_write(out_dir / "matrix.md", "\n".join(matrix) + "\n")
 
     # ---- summary：分环节通过率 + 失败模式分类 ----
     lines = [
@@ -762,7 +672,7 @@ def write_reports(results: dict, out_dir: Path, meta: dict) -> None:
         and rec.get("base-xel", {}).get("verdict", {}).get("status") == "clean"
     ]
     lines += ["", f"- pipe-xel 非 clean 且 base-xel clean（管线引入）: {introduced}"]
-    _atomic_write(out_dir / "summary.md", "\n".join(lines) + "\n")
+    benchlib.atomic_write(out_dir / "summary.md", "\n".join(lines) + "\n")
 
 
 # ---------------------------------------------------------------- main
@@ -843,7 +753,7 @@ async def amain(args: argparse.Namespace) -> None:
         "sample_ids": ids,
         "started_at": datetime.now(UTC).isoformat(),
     }
-    _atomic_write(
+    benchlib.atomic_write(
         out_dir / "run_meta.json", json.dumps(meta, ensure_ascii=False, indent=1)
     )
 
@@ -852,9 +762,27 @@ async def amain(args: argparse.Namespace) -> None:
         退出+records 行数判读；缺 ended_at 即被杀（KeyboardInterrupt 不补写）。"""
         meta["ended_at"] = datetime.now(UTC).isoformat()
         meta["end_reason"] = reason
-        _atomic_write(
+        benchlib.atomic_write(
             out_dir / "run_meta.json", json.dumps(meta, ensure_ascii=False, indent=1)
         )
+
+    # results.json + matrix.md + summary.md 快照节流：records.jsonl append
+    # 已是逐篇耐久账（行在=done、末行胜），快照类全量重写逐篇跑是热路径
+    # 冗余 IO——每 ≥8 篇或距上次 ≥30s 才落；循环收尾 force 补末刷，
+    # 消费方拿到的是 ≤8 篇滞后的截面而非每篇一写。
+    _snap = {"n": 0, "t": 0.0}
+
+    def _snap_reports(force: bool = False) -> None:
+        _snap["n"] += 1
+        now = time.monotonic()
+        if not force and _snap["n"] < 8 and now - _snap["t"] < 30.0:
+            return
+        _snap["n"] = 0
+        _snap["t"] = now
+        benchlib.atomic_write(
+            out_path, json.dumps(results, ensure_ascii=False, indent=1)
+        )
+        write_reports(results, out_dir, meta)
 
     cfg = PipelineConfig(concurrency=args.concurrency)
     sink = CaseSink(out_dir / "cases.jsonl")
@@ -912,10 +840,7 @@ async def amain(args: argparse.Namespace) -> None:
                     )
                     prev["ts"] = time.time()
                     benchlib.append_jsonl(rec_path, prev)
-                    _atomic_write(
-                        out_path, json.dumps(results, ensure_ascii=False, indent=1)
-                    )
-                    write_reports(results, out_dir, meta)
+                    _snap_reports()
                     print(
                         f"===== [{idx}/{len(ids)}] {rel} cached; pipe-fix "
                         f"backfill -> {prev['pipe-fix'].get('status')}",
@@ -964,8 +889,7 @@ async def amain(args: argparse.Namespace) -> None:
             results[rel] = rec
             rec["ts"] = time.time()
             benchlib.append_jsonl(rec_path, rec)
-            _atomic_write(out_path, json.dumps(results, ensure_ascii=False, indent=1))
-            write_reports(results, out_dir, meta)
+            _snap_reports()
             t = rec.get("pipe-xel", {}).get("translate", {})
             print(
                 f"  -> status={rec.get('status')} "
@@ -999,6 +923,7 @@ async def amain(args: argparse.Namespace) -> None:
                     flush=True,
                 )
                 break
+    _snap_reports(force=True)  # 收尾强刷——节流窗内滞留的末几篇快照落盘
     _close_meta(end_reason)
     print(f"done -> {out_dir}", flush=True)
 

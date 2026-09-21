@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import shutil
 import time
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -20,7 +20,7 @@ import stagerun_lib as sl
 from texlate.compile.engine import route_project
 from texlate.compile.inject import classify_no_main, find_main_tex
 from texlate.compile.normalize import normalize_project
-from texlate.latex.api import parse_file
+from texlate.latex.api import scan_tex_tree
 
 if TYPE_CHECKING:
     import argparse
@@ -57,23 +57,12 @@ def _parse_job(pid: str, src_s: str, zh_s: str, pj_s: str, engine_opt: str) -> d
         shutil.rmtree(stage)
     shutil.copytree(src, stage, ignore=benchlib.copytree_ignore())
 
-    def _swap_in() -> None:
-        # rename 接力而非 rmtree+rename —— zh 路径名全程存在
-        old = zh.with_name(".zh-old")
-        if zh.exists():
-            if old.exists():
-                shutil.rmtree(old)
-            zh.rename(old)
-        stage.rename(zh)
-        if old.exists():
-            shutil.rmtree(old)
-
     main = find_main_tex(stage)
     if main is None:
         sub = classify_no_main(stage)
         doc["status"] = "reject"
         doc["no_main_sub"] = sub
-        _swap_in()
+        sl.swap_in(stage, zh)
         pj.write_text(json.dumps(doc, ensure_ascii=False, indent=1))
         return sl.gate_rec(rec, "reject", "no_main_tex", "parse", sub or "", t0)
     main_rel = main.relative_to(stage).as_posix()
@@ -88,20 +77,18 @@ def _parse_job(pid: str, src_s: str, zh_s: str, pj_s: str, engine_opt: str) -> d
     rec["metrics"]["engine_resolved"] = eng
     rec["metrics"]["normalize"] = norm
 
+    # 逐文件枚举走全树扫描单源 latex.api.scan_tex_tree——与下游各 stage
+    # 同一门：rglob("*")+is_file()+suffix.lower()==".tex"（.TEX 大写命中）、
+    # dotfile/.rtx.tex 跳过、.code.tex/无散文件入 support、解析崩入 fault
+    # （tar 伪装件连 fault 都不记，逐字节原样保留）。
+    scan = scan_tex_tree(stage)
     files: list[dict] = []
     warn_kinds: dict[str, int] = {}
     unresolved: list[str] = []
     n_chunks = 0
-    parse_fail: list[str] = []
-    for f in sorted(stage.rglob("*.tex")):
-        if f.name.startswith("."):
-            continue
-        rel = f.relative_to(stage).as_posix()
-        try:
-            res = parse_file(f, flatten=False)
-        except Exception as e:
-            parse_fail.append(f"{rel}: {e!r:.160}")
-            continue
+    parse_fail = [f"{rel}: {exc!r:.160}" for rel, exc in scan.fault]
+    support = sorted(scan.support)
+    for _abs, rel, res in scan.parsed:
         ws = [{"kind": w.kind, "pos": w.pos, "detail": w.detail} for w in res.warnings]
         for w in res.warnings:
             warn_kinds[w.kind] = warn_kinds.get(w.kind, 0) + 1
@@ -122,20 +109,23 @@ def _parse_job(pid: str, src_s: str, zh_s: str, pj_s: str, engine_opt: str) -> d
             "status": "ok",
             "files": files,
             "parse_fail": parse_fail,
+            "support_files": support,
             "totals": {
                 "tex_files": len(files),
+                "support_files": len(support),
                 "chunks": n_chunks,
                 "warn_kinds": dict(sorted(warn_kinds.items())),
                 "unresolved": unresolved,
             },
         }
     )
-    _swap_in()
+    sl.swap_in(stage, zh)
     pj.write_text(json.dumps(doc, ensure_ascii=False, indent=1), encoding="utf-8")
     rec["status"] = "ok"
     rec["metrics"].update(
         {
             "tex_files": len(files),
+            "support_files": len(support),
             "chunks": n_chunks,
             "warn_kinds": doc["totals"]["warn_kinds"],
             "n_unresolved": len(unresolved),
@@ -179,29 +169,19 @@ def stage_parse(
     print(f"parse: {len(todo)} to run (jobs={args.jobs})", flush=True)
     if not todo:
         return
-    ex = ProcessPoolExecutor(max_workers=args.jobs)
-    t_start = time.monotonic()
-    try:
-        futs = {ex.submit(_parse_job, *t): t[0] for t in todo}
-        for i, fut in enumerate(as_completed(futs), 1):
-            pid = futs[fut]
-            try:
-                rec = fut.result()
-            except Exception as e:
-                rec = sl.crash_rec(pid, "parse", "-", e, time.monotonic())
-            log.append(rec)
-            print(
-                f"  [{i}/{len(todo)}] {pid} -> {rec['status']} ({rec['dur_s']}s)",
-                flush=True,
-            )
-            if args.time_budget and time.monotonic() - t_start > args.time_budget:
-                print(
-                    f"time budget {args.time_budget}s — stop ({i}/{len(todo)})",
-                    flush=True,
-                )
-                break
-    finally:
-        # wait=False 会把仍在写 zh/ 的在飞 worker 丢在后台——下个 stage
-        # 读到残树 (1e 审计)。cancel_futures 只收排队任务；在跑任务等其
-        # 写毕再交棒，bounded by 单篇 parse 时长。
-        ex.shutdown(wait=True, cancel_futures=True)
+    # 分发骨架收编 sl.run_pool——shutdown(wait=True, cancel_futures=True)
+    # 收尾语义与原手写循环逐字一致（在飞 worker 写毕才交棒，残树不进
+    # 下个 stage 视野）；ProcessPool 边界仍是 pickle 化的字符串参数。
+    sl.run_pool(
+        todo,
+        submit_fn=lambda ex, t: ex.submit(_parse_job, *t),
+        pid_fn=lambda t: t[0],
+        log=log,
+        args=args,
+        stage="parse",
+        arm="-",
+        progress_fn=lambda i, n, pid, rec: print(
+            f"  [{i}/{n}] {pid} -> {rec['status']} ({rec['dur_s']}s)", flush=True
+        ),
+        executor_cls=ProcessPoolExecutor,
+    )

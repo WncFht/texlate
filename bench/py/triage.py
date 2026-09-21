@@ -279,7 +279,9 @@ def classify(sig, rep):
             "wontfix",
             "LaTeX2.09 路由层拒绝 (F3: verdict 语义 reject→partial, 非缺陷)",
         )
-    if sig.startswith("unfixable:") or sig.split(":", 1)[0] in TERMINAL_WORDS:
+    # 终态词判在剥过 verdict 前缀的 cat 上——nosig:stuck / reject:max_rounds
+    # 这类带前缀 sig 的 raw 头词是前缀本身, 直切 sig 会漏判成 rule。
+    if sig.startswith("unfixable:") or cat in TERMINAL_WORDS:
         return "core", "fixloop 终态 → 规则面外的引擎/taxonomy 缺口"
     return "rule", "待人工归因"
 

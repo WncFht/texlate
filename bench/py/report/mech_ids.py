@@ -16,7 +16,7 @@
   derived   manifest mech_tags 中的谓词/cite 成分 + nominations(verified=feature)
             + mechanisms evidence 文本 arXiv id 引用（select_booster.derive 口径）
 
-产出接 `bash tmp/rerun-wave.sh --ids-file <out> [--go]`。
+产出接 `python3 bench/py/wave.py run <ids-file> [--go]`（旧 rerun-wave.sh --ids-file 口径）。
 纯 stdlib，系统 python3 直跑（不 import texlate.*）。
 """
 

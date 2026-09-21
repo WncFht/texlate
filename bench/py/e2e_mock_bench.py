@@ -10,7 +10,8 @@ r"""e2e mock bench — corpus39 全量 mock 翻译 → ctex 注入 → 双引擎
   pipe-xel : normalize → mock 翻译 → prepare_chinese(ctex) → xelatex → judge
              → 非 clean 时 L2 回灌 + fixloop（产品完整修复链）
   pipe-tec : 同上 → tectonic
-  base-tec : 原样复制 → tectonic（**仅当 pipe-tec 非 clean 时补跑**，归因用）
+  base-tec : 原样复制 → tectonic（pipe-tec 非 clean 时归因补跑；
+             pipe-tec 不在 --conditions 时按显式请求直跑）
   pipeB-xel: pipe-xel + Mode B 幻觉破坏（~30% 块丢/造占位符 → 校验链须 100% 捕获）
   pipeC-xel: pipe-xel + Mode C 位置扰动（~10% 占位符挪位 → 量化 splice 鲁棒性）
 
@@ -77,7 +78,7 @@ from texlate.pipecore import (
 )
 from texlate.repair import embed_tounicode_quiet
 from texlate.textutil import env_flag
-from texlate.validate.l0 import validate_pair
+from texlate.validate.l0 import _ECHO_SIGS, validate_pair
 from texlate.xlat.pipeline import MockTranslator
 from texlate.xlat.placeholders import (
     decode_newlines,
@@ -103,21 +104,10 @@ _NUM_LINE_RX = re.compile(r"^(\[\d+\])\s?(.*)$", re.DOTALL)
 #: 臂 CJK 非散文 run 原样残留进交付）；节标/字段名 = 重试协议字面（mock 会
 #: 翻成 ``[这是译文]`` 不命中，真模型 parrot prompt furniture 同款通道兜底）。
 #: ``[这是译文]`` 独行**不**作签名——源 ``[word]`` 合法产出同款。
-#: 词表与 ``l0._ECHO_SIGS`` 同款同序；src 自带签名的 delivered 块 echo 与
+#: 词表即 ``l0._ECHO_SIGS`` 本体（同源 import 同一对象，非复抄——复抄面曾
+#: 静默漂移成全角冒号脱离 emit 串）；src 自带签名的 delivered 块 echo 与
 #: 忠实译文裸包含不可区分 → armed（结构性盲区，记账只观测不进门槛）。
-DIRTY_SIGS: tuple[str, ...] = (
-    "占位符缺失：",  # l0._pair_placeholder_typos
-    "占位符疑似拼错",  # l0._pair_placeholder_typos lev 配对臂
-    "多余/未识别占位符：",  # l0._check_placeholder
-    "结构占位符",  # l0._check_ph_anchor "脱离行首位置"
-    "注释区内臆造占位符",  # l0._check_placeholder 注释区专项
-    "[Original]",  # prompts.corrector_user 三段式
-    "[Translation]",  # prompts.corrector_user
-    "[Error]",  # prompts.corrector_user
-    "previous_validation_error",  # pipeline 阶梯重试尾拼
-    "slot_validation_failures",  # pipeline 批模式失败槽字段
-    "[compile_error]",  # pipeline L2 回灌重译
-)
+DIRTY_SIGS: tuple[str, ...] = _ECHO_SIGS
 
 
 def _dirty_hits(text: str) -> list[str]:
@@ -605,14 +595,17 @@ def run_project(
         "reject": route.reject,
         "reasons": route.reasons,
         "non_utf8": route.non_utf8,
+        "latex209_suspect": route.latex209_suspect,
     }
     for cond in conditions:
         if cond == "base-tec":
-            continue  # 条件性补跑——pipe-tec 非 clean 时再跑
+            continue  # 见下——pipe-tec 在条件集时归因补跑，缺席时直跑
         rec[cond] = run_condition(cond, src, sid, main_rel, timeout, work)
     if "base-tec" in conditions:
+        # pipe-tec 缺席时按显式请求直跑——旧口径 ``pt is not None`` 前置使
+        # 请求的 base-tec 静默整臂跳过、零产出。
         pt = rec.get("pipe-tec", {}).get("verdict", {}).get("status")
-        if pt is not None and pt != "clean":
+        if "pipe-tec" not in conditions or pt not in (None, "clean"):
             rec["base-tec"] = run_condition(
                 "base-tec", src, sid, main_rel, timeout, work
             )
@@ -620,7 +613,7 @@ def run_project(
 
 
 # ---------------------------------------------------------------- 报告
-def _status(rec: dict, cond: str) -> str:
+def _v(rec: dict, cond: str) -> str:
     c = rec.get(cond)
     if c is None:
         return "·"
@@ -641,7 +634,7 @@ def write_reports(results: dict, out_dir: Path, corpus_name: str = "corpus39") -
     conds = [c for c in cond_order if any(r.get(c) for r in results.values())]
     rows = []
     for rel, rec in sorted(results.items()):
-        cells = [_status(rec, c) for c in conds]
+        cells = [_v(rec, c) for c in conds]
         route = rec.get("route", {})
         flag = "reject" if route.get("reject") else ""
         rows.append((rel, rec.get("main", "?"), flag, *cells))
@@ -740,7 +733,7 @@ def write_reports(results: dict, out_dir: Path, corpus_name: str = "corpus39") -
                 if a not in ("clean", "partial"):
                     continue
                 base_pdf += 1
-                cst = _status(results[rel], cond)
+                cst = _v(results[rel], cond)
                 if cst in ("clean", "partial"):
                     survived += 1
                 else:
@@ -854,7 +847,7 @@ def main() -> None:
             out_path, json.dumps(results, ensure_ascii=False, indent=1)
         )
         write_reports(results, out_dir, corpus.name)
-        stat = {c: _status(rec, c) for c in conditions}
+        stat = {c: _v(rec, c) for c in conditions}
         print(f"  -> {stat}", flush=True)
     print(f"done -> {out_dir}", flush=True)
 

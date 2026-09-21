@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-r"""iclr_fetch.py — ICLR 映射表 → arXiv e-print 批量取源 → corpus_iclr 物化.
+r"""iclr_fetch.py — ICLR 映射表 → arXiv e-print 批量取源 → bench/corpus 物化.
 
 镜像 daily_arxiv.py fetch 模式：acquire_source 钉版 HEAD+GET+unpack，
-corpus_iclr/{id}/{meta.json,raw.*,extracted/} 布局同 corpus/daily。
+corpus/{id}/{meta.json,raw.*,extracted/} 布局同 daily 层（合并根）。
 串行 3.05s 单连接纪律不变（日更 soak 同口径），RatePolicy 预算独立账。
 
 输入: bench/work_iclr/map.jsonl（match!=no_arxiv 且 arxiv_id 非空行）
@@ -17,16 +17,15 @@ from __future__ import annotations
 
 import argparse
 import json
-import shutil
 import sys
 import time
-import urllib.error
-import urllib.request
 from datetime import UTC, datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
+
+import benchlib
 
 from texlate.arxiv.cache import SourceCache
 from texlate.arxiv.fetch import (
@@ -48,54 +47,9 @@ RATE_STATE = WORK / "ratelimit.json"
 UA = {"User-Agent": "texlate-iclr-corpus/1.0 (research benchmark; mailto:bench@localhost)"}
 DAILY_BUDGET = 20000  # 独立预算账——与 daily soak 的 ratelimit.json 不共享
 
-
-def log(msg: str) -> None:
-    print(f"[{time.strftime('%H:%M:%S')}] {msg}", file=sys.stderr, flush=True)
-
-
-def preflight() -> None:
-    try:
-        req = urllib.request.Request(  # noqa: S310 固定 https 端点
-            "https://rss.arxiv.org/rss/cs.CL", headers=UA
-        )
-        with urllib.request.urlopen(req, timeout=30) as r:  # noqa: S310
-            body = r.read(400)
-    except (urllib.error.URLError, OSError) as e:
-        log(f"preflight FAILED: rss.arxiv.org unreachable ({e}) — 检查代理")
-        sys.exit(3)
-    if b"<rss" not in body[:400]:
-        log("preflight FAILED: rss.arxiv.org 返回非 RSS——检查代理")
-        sys.exit(3)
-
-
-def _fetch_done() -> dict[str, str]:
-    done: dict[str, str] = {}
-    if not STATUS.exists():
-        return done
-    for line in STATUS.read_text().splitlines():
-        if not line.strip():
-            continue
-        try:
-            r = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        done[r["arxiv_id"]] = r["status"]
-    terminal = {
-        AcquireStatus.OK.value,
-        AcquireStatus.PDF_ONLY.value,
-        AcquireStatus.UNKNOWN_FORMAT.value,
-        AcquireStatus.NOT_FOUND.value,
-        AcquireStatus.TOO_LARGE.value,
-        AcquireStatus.UNPACK_ERROR.value,
-    }
-    return {k: v for k, v in done.items() if v in terminal}
-
-
-def _materialize(pid: str, entry_dir: Path) -> None:
-    dst = CORPUS / pid
-    if dst.exists():
-        shutil.rmtree(dst)
-    shutil.copytree(entry_dir, dst)
+#: stderr 时间戳日志 / RSS 探针 / 终态账 / os.link 物化——benchlib 单源
+#:（daily_arxiv 同源件；log 本名别名保行文不变）。
+log = benchlib.log
 
 
 def main() -> int:
@@ -113,14 +67,14 @@ def main() -> int:
         if r.get("arxiv_id"):
             rows[r["orid"]] = r["arxiv_id"]
     todo_ids = sorted(set(rows.values()))
-    done = _fetch_done()
+    done = benchlib.fetch_done(STATUS, id_key="arxiv_id")
     todo = [pid for pid in todo_ids if pid not in done]
     if a.limit:
         todo = todo[: a.limit]
     log(f"fetch: mapped={len(todo_ids)} done={len(done)} todo={len(todo)}")
     if not todo:
         return 0
-    preflight()
+    benchlib.rss_preflight(UA)
     CORPUS.mkdir(parents=True, exist_ok=True)
     cache = SourceCache(CACHE)
     limiter = RateLimiter(RATE_STATE, policy=RatePolicy(daily_budget=a.budget))
@@ -149,7 +103,7 @@ def main() -> int:
             counts[res_status] = counts.get(res_status, 0) + 1
             if res_status == AcquireStatus.OK.value and entry is not None:
                 try:
-                    _materialize(pid, entry.dir)
+                    benchlib.materialize_entry(entry.dir, CORPUS / pid)
                 except OSError as e:
                     log(f"  {pid} materialize failed: {e}")
             if i % 25 == 0 or i == len(todo):

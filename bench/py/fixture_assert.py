@@ -3,8 +3,10 @@ r"""fixture_assert — B2 陷阱断言跑分器: bench/fixtures/*.tex → 契约
 
 断言矩阵来自 tests/test_bench_regression.py (spike miniscanner_test 移植,
 跑在 texlate.latex 产品解析器上); 本脚本只做计时执行 + 契约产出落盘.
-覆盖: tricky.tex T01–T29 (26 条 + _meta), tricky-209.tex 3 条 + parse_ok,
-tricky-multi T14 ×4, xlat-traps.tex @X1–@X4.
+覆盖 9 fixture: tricky.tex T01–T29 (26 条 + _meta), tricky-209.tex
+(3 条 + parse_ok; parse 失败也跑 assert_209(None)), tricky-multi/main.tex
+T14 ×4, xlat-traps.tex @X1–@X4, tricky-w.tex, tricky-w73/main/main.tex,
+tricky-wenc.tex, tricky-dollar.tex, tricky-mask.tex.
 
 用法:
   uv run python bench/py/fixture_assert.py --out DIR
@@ -27,6 +29,38 @@ sys.path.insert(0, str(REPO / "tests"))
 import test_bench_regression as tbr
 
 
+def _guarded(fn, *fields: str):
+    """p.ok 门包装：parse 失败 → 单条 ``_parse`` fail 行，不跑断言函数。
+
+    ``fields`` 是 FixtureScan 的字段名序——按序解出传给 ``fn``。
+    """
+
+    def run(p: tbr.FixtureScan) -> dict:
+        if not p.ok:
+            return {"_parse": {"status": "fail", "detail": p.error}}
+        return fn(*(getattr(p, f) for f in fields))
+
+    return run
+
+
+#: fixture → 断言函数分派表（assert 函数与 pytest 侧共享同一份）。
+#: 表外 fixture = 零断言格——下方构建 asserts 时 stderr 显式化（cells 记
+#: n_assert=0，summary 里直接可见）。
+#: tricky-209 有意不走 _guarded：assert_209 自身处理 res=None（parse_ok
+#: 断言覆盖解析失败路径）。
+_ASSERTS = {
+    "tricky.tex": _guarded(tbr.assert_tricky, "res", "recon", "recon_fake"),
+    "tricky-209.tex": lambda p: tbr.assert_209(p.res if p.ok else None, p.recon),
+    "tricky-multi/main.tex": _guarded(tbr.assert_multi, "recon"),
+    "xlat-traps.tex": _guarded(tbr.assert_xlat, "res"),
+    "tricky-w.tex": _guarded(tbr.assert_w, "res", "recon", "recon_fake"),
+    "tricky-w73/main/main.tex": _guarded(tbr.assert_w73, "res"),
+    "tricky-wenc.tex": _guarded(tbr.assert_wenc, "res"),
+    "tricky-dollar.tex": _guarded(tbr.assert_dollar, "res", "recon", "recon_fake"),
+    "tricky-mask.tex": _guarded(tbr.assert_mask, "res", "recon", "recon_fake"),
+}
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="fixtures trap-assertion bench")
     ap.add_argument("--out", required=True, type=Path, help="契约产出目录")
@@ -38,67 +72,21 @@ def main() -> None:
     cases: list[dict] = []
     cells: dict[str, dict] = {}
 
-    # 逐 fixture 现跑 (拿 wall_ms); 断言函数与 pytest 侧共享同一份
-    parsed = {
-        name: tbr.run_fixture(name, path, top_dir=tbr._FIXTURE_TOPDIR.get(name))
-        for name, path in tbr.FIXTURE_FILES
-    }
+    # 复用 pytest 侧模块级测量包 (tbr import 时已逐 fixture parse+重建，
+    # wall_ms 随包带); 断言函数与 pytest 侧共享同一份
+    parsed = tbr._PARSED
 
     asserts: dict[str, dict] = {}
-    t = parsed["tricky.tex"]
-    asserts["tricky.tex"] = (
-        tbr.assert_tricky(t.res, t.recon, t.recon_fake)
-        if t.ok and t.res is not None
-        else {"_parse": {"status": "fail", "detail": t.error}}
-    )
-    t2 = parsed["tricky-209.tex"]
-    asserts["tricky-209.tex"] = tbr.assert_209(t2.res if t2.ok else None, t2.recon)
-    tm = parsed["tricky-multi/main.tex"]
-    asserts["tricky-multi/main.tex"] = (
-        tbr.assert_multi(tm.recon)
-        if tm.ok
-        else {"_parse": {"status": "fail", "detail": tm.error}}
-    )
-    tx = parsed["xlat-traps.tex"]
-    asserts["xlat-traps.tex"] = (
-        tbr.assert_xlat(tx.res)
-        if tx.ok
-        else {"_parse": {"status": "fail", "detail": tx.error}}
-    )
-    tw = parsed["tricky-w.tex"]
-    asserts["tricky-w.tex"] = (
-        tbr.assert_w(tw.res, tw.recon, tw.recon_fake)
-        if tw.ok
-        else {"_parse": {"status": "fail", "detail": tw.error}}
-    )
-    t73 = parsed["tricky-w73/main/main.tex"]
-    asserts["tricky-w73/main/main.tex"] = (
-        tbr.assert_w73(t73.res)
-        if t73.ok
-        else {"_parse": {"status": "fail", "detail": t73.error}}
-    )
-    te = parsed["tricky-wenc.tex"]
-    asserts["tricky-wenc.tex"] = (
-        tbr.assert_wenc(te.res)
-        if te.ok
-        else {"_parse": {"status": "fail", "detail": te.error}}
-    )
-    td = parsed["tricky-dollar.tex"]
-    asserts["tricky-dollar.tex"] = (
-        tbr.assert_dollar(td.res, td.recon, td.recon_fake)
-        if td.ok
-        else {"_parse": {"status": "fail", "detail": td.error}}
-    )
-    tmk = parsed["tricky-mask.tex"]
-    asserts["tricky-mask.tex"] = (
-        tbr.assert_mask(tmk.res, tmk.recon, tmk.recon_fake)
-        if tmk.ok
-        else {"_parse": {"status": "fail", "detail": tmk.error}}
-    )
+    for name, p in parsed.items():
+        fn = _ASSERTS.get(name)
+        if fn is None:
+            print(f"  note: {name} 无断言映射——cells 记 0-assert", file=sys.stderr)
+            continue
+        asserts[name] = fn(p)
 
     for name, p in parsed.items():
         if p.ok:
-            status, _ratio, _first = tbr.classify_recon(p.flat, p.recon)
+            status, _ratio, _first = tbr.classify_recon(p.res.vtex, p.recon)
             identity = {"identical": "strict"}.get(status, status)
             n_chunks = len(p.res.chunks) if p.res else 0
             n_ph = len(p.res.ph_map) if p.res else 0

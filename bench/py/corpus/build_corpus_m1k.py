@@ -7,7 +7,8 @@ r"""build_corpus_m1k.py — m1k 评测语料构建：4 源抽样 → 物化 → 
   iclr   200  work_iclr/map.jsonl 已映射 arXiv id，年份加权抽样
   v3     250  corpus dev 层（holdout 除外——评测贞操层不烧 QA 跑）
 
-物化优先级：本地已有（corpus_daily/corpus/corpus_iclr）→ copytree；
+物化优先级：本地已有（corpus_daily/corpus/corpus_iclr）→ benchlib.materialize_entry
+（rmtree 旧树 + copytree os.link 硬链接，与 daily/iclr_fetch 同口径）；
 否则 acquire_source（钉版 HEAD+GET+unpack）3.05s 串行纪律，与
 daily_arxiv/iclr_fetch 同 RatePolicy 独立预算账。
 
@@ -30,20 +31,28 @@ import argparse
 import json
 import random
 import re
-import shutil
 import sys
 import time
 import urllib.error
 import urllib.request
-import xml.etree.ElementTree as ET
 from datetime import UTC, datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # bench/py lib 层
+
+import benchlib
 
 from texlate.arxiv.cache import SourceCache
-from texlate.arxiv.fetch import ARXIV_HOST, EXPORT_HOST, AcquireStatus, Fetcher, acquire_source
+from texlate.arxiv.fetch import (
+    ARXIV_HOST,
+    EXPORT_HOST,
+    AcquireStatus,
+    Fetcher,
+    acquire_source,
+)
+from texlate.arxiv.meta import fetch_metadata_batch
 from texlate.arxiv.ratelimit import RateLimiter, RatePolicy
 
 FETCH_HOSTS = (EXPORT_HOST, ARXIV_HOST)
@@ -75,12 +84,9 @@ V3_LAYERS = ("core", "booster", "dev_vol", "dev_failmine", "dev_recent", "expand
 _VER_RX = re.compile(r"^(?P<base>.+?)v\d+$")
 #: arXiv id 合法形：new-style YYMM.NNNNN(vN) 或 old-style archive/YYMMNNN(vN)。
 _ARXIV_ID_RX = re.compile(r"^(?:\d{4}\.\d{4,5}|[a-z-]+(?:\.[A-Z]{2})?/\d{7})v?\d*$")
-_ATOM = "{http://www.w3.org/2005/Atom}"
-_ARXIV = "{http://arxiv.org/schemas/atom}"
 
-
-def log(msg: str) -> None:
-    print(f"[{time.strftime('%H:%M:%S')}] {msg}", file=sys.stderr, flush=True)
+#: stderr 时间戳日志 / os.link 物化——benchlib 单源（log 本名别名保行文不变）。
+log = benchlib.log
 
 
 def base_id(pid: str) -> str:
@@ -167,34 +173,27 @@ def axhot_pool() -> list[dict]:
 
 
 # ---------------------------------------------------------------- arXiv API cat 补全
-def fill_cat_groups(rows: list[dict]) -> None:
-    """缺 cat_group 的行走 arXiv API 批量补（id_list 50/req）。"""
+def fill_cat_groups(rows: list[dict], *, budget: int = DAILY_BUDGET) -> None:
+    """缺 cat_group 的行走 Atom id_list 批量补（≤200/req + ≤8KB 分批）。
+
+    全程过 Fetcher/RateLimiter——429 park/日预算计账不再旁路（原 urllib
+    直打出口既不计预算也不记 park）；GAP_SECONDS=3.05 限速即原
+    ``time.sleep(3.05)`` 同口径。
+    """
     want = [r for r in rows if not r.get("cat_group")]
     log(f"cat_group 补全: {len(want)} 行")
-    for i in range(0, len(want), 50):
-        batch = want[i : i + 50]
-        id_list = ",".join(base_id(r["id"]) for r in batch)
-        url = f"https://export.arxiv.org/api/query?id_list={id_list}&max_results=50"
-        req = urllib.request.Request(url, headers=UA)  # noqa: S310
-        try:
-            with urllib.request.urlopen(req, timeout=60) as r:  # noqa: S310
-                tree = ET.fromstring(r.read())
-        except (urllib.error.URLError, OSError, ET.ParseError) as e:
-            log(f"  cat batch {i}: {e} — 跳过")
-            continue
-        by_id: dict[str, str] = {}
-        for entry in tree.findall(f"{_ATOM}entry"):
-            eid = (entry.findtext(f"{_ATOM}id") or "").rsplit("/", 1)[-1]
-            eid = base_id(eid)
-            prim = entry.find(f"{_ARXIV}primary_category")
-            term = prim.get("term") if prim is not None else ""
-            if eid and term:
-                by_id[eid] = cat_of(term)
-        for r in batch:
-            g = by_id.get(base_id(r["id"]))
-            if g:
-                r["cat_group"] = g
-        time.sleep(3.05)
+    if not want:
+        return
+    limiter = RateLimiter(RATE_STATE, policy=RatePolicy(daily_budget=budget))
+    with Fetcher(limiter=limiter, hosts=FETCH_HOSTS) as fx:
+        metas = fetch_metadata_batch((base_id(r["id"]) for r in want), fetcher=fx)
+    got = 0
+    for r in want:
+        meta = metas.get(base_id(r["id"]))
+        if meta is not None and meta.primary_category:
+            r["cat_group"] = cat_of(meta.primary_category)
+            got += 1
+    log(f"cat_group 补全: {got}/{len(want)} 命中")
 
 
 # ---------------------------------------------------------------- select
@@ -300,7 +299,7 @@ def cmd_select(args: argparse.Namespace) -> int:
     log(f"v3: pool={len(pool)} picked={n_v3}")
 
     sel = list(chosen.values())
-    fill_cat_groups(sel)
+    fill_cat_groups(sel, budget=getattr(args, "budget", DAILY_BUDGET))
     write_jsonl(SELECTION, sel)
     counts = {}
     for r in sel:
@@ -332,9 +331,7 @@ def cmd_materialize(args: argparse.Namespace) -> int:
         if src is not None:
             dst = CORPUS / pid
             dst.parent.mkdir(parents=True, exist_ok=True)
-            if dst.exists():
-                shutil.rmtree(dst)
-            shutil.copytree(src, dst)
+            benchlib.materialize_entry(src, dst)
             copied += 1
         elif done_status.get(pid) in ("ok", "cache_hit"):
             continue  # 物化成功但 dir 被清——下一轮 copy 不补，保持现状记
@@ -387,10 +384,8 @@ def cmd_materialize(args: argparse.Namespace) -> int:
             if status in (AcquireStatus.OK.value, AcquireStatus.HIT.value) and entry is not None:
                 dst = CORPUS / pid
                 dst.parent.mkdir(parents=True, exist_ok=True)
-                if dst.exists():
-                    shutil.rmtree(dst)
                 try:
-                    shutil.copytree(entry.dir, dst)
+                    benchlib.materialize_entry(entry.dir, dst)
                     fetched += 1
                 except OSError as e:
                     log(f"  {pid} materialize failed: {e}")

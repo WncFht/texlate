@@ -285,10 +285,10 @@ def collect_state_pairs(args: argparse.Namespace) -> tuple[list[Pair], dict]:
         except (json.JSONDecodeError, OSError):
             continue
         model = str((data.get("meta") or {}).get("model") or "?")
-        last: dict[str, dict] = {}
+        last = benchlib.latest_by(
+            data.get("results") or [], lambda r: str(r.get("chunk_id"))
+        )
         n_dead = 0
-        for r in data.get("results") or []:
-            last[str(r.get("chunk_id"))] = r
         cands: dict[str, list[dict]] = {}
         for r in last.values():
             zh = str(r.get("translation") or "")
@@ -391,19 +391,24 @@ def collect_corpus_pairs(args: argparse.Namespace) -> tuple[list[Pair], dict]:
     corpus = Path(args.corpus_root)
     rng = random.Random(args.seed)
     want_ids = (
-        {i.strip() for i in args.ids.split(",") if i.strip()} if args.ids else None
+        {benchlib.canon_id(i.strip()) for i in args.ids.split(",") if i.strip()}
+        if args.ids
+        else None
     )
-    dirs = sorted(d for d in corpus.iterdir() if (d / "extracted").is_dir())
+    # rglob 收嵌套 archive/id 布局（iterdir 只吃平铺层，漏旧式 archive 子树）
+    dirs = sorted(p.parent for p in corpus.rglob("extracted") if p.is_dir())
+    rel_ids = {d: benchlib.canon_id(d.relative_to(corpus).as_posix()) for d in dirs}
     if want_ids is not None:
-        dirs = [d for d in dirs if d.name in want_ids]
+        dirs = [d for d in dirs if rel_ids[d] in want_ids]
     else:
         rng.shuffle(dirs)
         dirs = dirs[: args.papers] if args.papers else dirs
-        dirs.sort(key=lambda d: d.name)
+        dirs.sort(key=lambda d: d.relative_to(corpus).as_posix())
 
     pairs: list[Pair] = []
     meta_papers: list[dict] = []
     for d in dirs:
+        pid = rel_ids[d]
         blocks: list[tuple[str, str]] = []  # (chunk_id, src)
         for fi, f in enumerate(sorted((d / "extracted").rglob("*.tex"))):
             try:
@@ -423,7 +428,7 @@ def collect_corpus_pairs(args: argparse.Namespace) -> tuple[list[Pair], dict]:
         picked = blocks[: args.per_paper] if args.per_paper else blocks
         pairs.extend(
             Pair(
-                paper=d.name,
+                paper=pid,
                 chunk_id=cid,
                 kind="para",
                 model="mock-translator",
@@ -433,7 +438,7 @@ def collect_corpus_pairs(args: argparse.Namespace) -> tuple[list[Pair], dict]:
             for cid, src in picked
         )
         meta_papers.append(
-            {"id": d.name, "model": "mock-translator", "n_pairs": len(picked)}
+            {"id": pid, "model": "mock-translator", "n_pairs": len(picked)}
         )
     if args.n:
         pairs = pairs[: args.n]
@@ -782,7 +787,7 @@ async def judge_pair(http, pair: Pair, args: argparse.Namespace) -> dict:
             r = {**r2, "reparsed": True, "raw_first": r["content"][:200]}
     if parsed is None:
         return {
-            **r,
+            **{k: v for k, v in r.items() if k != "content"},
             "judge_model_used": jm,
             "judge_error": "unparseable",
             "raw": r.get("content", "")[:300],
@@ -869,10 +874,6 @@ def aggregate(recs: list[dict]) -> dict:
             )
             row[e.get("severity") or "minor"] = (
                 row.get(e.get("severity") or "minor", 0) + 1
-            )
-        for c in r.get("cats_extra") or []:
-            row = cat_sev.setdefault(
-                f"?(extra:{c})", {"minor": 0, "major": 0, "critical": 0}
             )
     contested = [r for r in judged if r.get("contested")]
     worst = sorted(

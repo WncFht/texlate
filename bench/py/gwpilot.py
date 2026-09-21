@@ -49,9 +49,10 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.parse
 import urllib.request
 from collections import deque
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -92,6 +93,33 @@ _COOLDOWN_MAX = 180.0
 # ---------------------------------------------------------------- 配置
 
 
+def _split_upstream(upstream: str) -> tuple[str, str, int, str]:
+    """upstream URL → ``(scheme, host, port, path_prefix)``——配置面单源解析。
+
+    ``urlsplit`` 处理 IPv6 字面量/缺省端口/路径前缀；畸形值在此 SystemExit
+    早败（serve/run 同走 ``_cfg_from``→``GovConfig``，建配置即校验，不留到
+    首个转发请求才炸）。path_prefix 供 ``_forward`` 拼接在请求路径前——
+    带前缀的反代上游（``http://host:port/api``）不再把前缀吞掉。
+    """
+    try:
+        u = urllib.parse.urlsplit(upstream.rstrip("/"))
+    except ValueError as e:
+        msg = f"upstream 配置不可解析 {upstream!r}: {e}"
+        raise SystemExit(msg) from e
+    if u.scheme not in ("http", "https") or not u.hostname:
+        msg = f"upstream 需形如 http(s)://host[:port][/前缀]: {upstream!r}"
+        raise SystemExit(msg)
+    if u.query or u.fragment:
+        msg = f"upstream 不可带 query/fragment: {upstream!r}"
+        raise SystemExit(msg)
+    try:
+        port = u.port or (443 if u.scheme == "https" else 80)
+    except ValueError as e:  # 端口越界/非数字
+        msg = f"upstream 端口不可解析 {upstream!r}: {e}"
+        raise SystemExit(msg) from e
+    return u.scheme, u.hostname, port, u.path.rstrip("/")
+
+
 @dataclass
 class GovConfig:
     """调速旋钮；全有 CLI 对应。"""
@@ -110,6 +138,12 @@ class GovConfig:
     accounts_poll: float = 3.0  # /admin/accounts 轮询——lane 闸门精确算术的源
     reserve_margin: int = 4  # 本桶给外部预留的兜底条数（ext_rate 预测之外）
     pause_file: str = ""  # 存在即全员让路（min_cap 细流）
+    #: (scheme, host, port, path_prefix)——__post_init__ 一次解析缓存；
+    #: 畸形 upstream 在配置构造即 SystemExit（不拖到首个转发请求）。
+    up_parts: tuple[str, str, int, str] = field(init=False)
+
+    def __post_init__(self) -> None:
+        self.up_parts = _split_upstream(self.upstream)
 
 
 # ---------------------------------------------------------------- 调速器
@@ -576,11 +610,8 @@ class GovHandler(BaseHTTPRequestHandler):
                 self._synth_429(str(e))
                 return
 
-        up = gov.cfg.upstream.rstrip("/")
-        scheme, _, rest = up.partition("://")
-        hpart, _, port_s = rest.partition(":")
-        uhost = hpart
-        uport = int(port_s) if port_s else (443 if scheme == "https" else 80)
+        # upstream 已在 GovConfig.__post_init__ 一次解析（含 IPv6/路径前缀）。
+        scheme, uhost, uport, uprefix = gov.cfg.up_parts
         conn_cls = (
             http.client.HTTPSConnection
             if scheme == "https"
@@ -590,14 +621,17 @@ class GovHandler(BaseHTTPRequestHandler):
         headers = {
             k: v for k, v in self.headers.items() if k.lower() not in _HOP_BY_HOP
         }
-        headers["Host"] = f"{uhost}:{uport}"
+        # IPv6 字面量 Host 头须带方括号（urlsplit.hostname 已剥壳）。
+        headers["Host"] = f"[{uhost}]:{uport}" if ":" in uhost else f"{uhost}:{uport}"
 
         t0 = time.monotonic()
         status = -1
         ra: float | None = None
         try:
             conn = conn_cls(uhost, uport, timeout=_UPSTREAM_TIMEOUT)
-            conn.request(self.command, self.path, body=body, headers=headers)
+            conn.request(
+                self.command, f"{uprefix}{self.path}", body=body, headers=headers
+            )
             resp = conn.getresponse()
             status = resp.status
             if 200 <= status < 300:
@@ -902,6 +936,19 @@ def cmd_run(args: argparse.Namespace) -> int:
     signal.signal(signal.SIGINT, _sig)
 
     attempts: dict[str, int] = {}
+    if args.retry_failed:
+        # --retry-failed = 给 failed 格一轮新的 ≤3 次预算：把持久化的
+        # attempts 清零（内存账与落盘 state 两侧同口径）。旧实现只是把
+        # ≥3 门控整段跳过 = 无限重试，与 help 文案「重置重试计数」不符。
+        state0 = _load_state(state_path)
+        reset = False
+        for tid0, st0 in state0.items():
+            if st0.get("status") == "failed":
+                st0["attempts"] = 0
+                attempts[tid0] = 0
+                reset = True
+        if reset:
+            _save_state(state_path, state0)
     while not stop.is_set():
         tasks = _load_queue(queue)
         state = _load_state(state_path)
@@ -914,7 +961,6 @@ def cmd_run(args: argparse.Namespace) -> int:
                 continue
             if (
                 st.get("status") == "failed"
-                and not args.retry_failed
                 and max(attempts.get(tid, 0), st.get("attempts", 0)) >= 3
             ):
                 continue
