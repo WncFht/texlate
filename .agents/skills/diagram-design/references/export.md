@@ -8,11 +8,11 @@ Load this file when:
 
 - The user invokes `/diagram-design:export-diagram <html-file>` (the plugin's slash command — defined in `commands/export-diagram.md` at the repo root).
 - The user asks in natural language to export, save, rasterize, convert, or download a diagram in `.svg` or `.png` form. Typical phrasings:
-  - "export this as PNG"
-  - "save as SVG"
-  - "give me a PNG of that diagram"
-  - "rasterize it"
-  - "convert to png and svg"
+    - "export this as PNG"
+    - "save as SVG"
+    - "give me a PNG of that diagram"
+    - "rasterize it"
+    - "convert to png and svg"
 
 The slash command is a thin wrapper that delegates here — both paths run the same procedure below.
 
@@ -33,11 +33,13 @@ If the user explicitly asks for "a screenshot of the whole page including the ca
    - Ensure a `viewBox` is present. The skill's templates always include one; warn the user if absent rather than guessing.
    - Preserve `role="img"`, `aria-labelledby`, and the first-child `<title>` / `<desc>` exactly as authored.
    - Inject Google Fonts `@import` so the SVG renders with correct typography in a browser. **XML-escape the `&` separators as `&amp;`** — a standalone `.svg` is parsed as strict XML, where a bare `&` starts an entity reference and makes the whole file fail to parse. (Don't copy the raw URL from the HTML `<link href>`; that ampersand form is only valid in HTML.)
+
      ```svg
      <defs>
        <style>@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500;600&amp;family=Noto+Serif:ital@0;1&amp;family=Noto+Sans+KR:wght@400;500;600&amp;family=Noto+Serif+KR:wght@400&amp;family=Noto+Sans+TC:wght@400;500;600&amp;family=Noto+Serif+TC:wght@400&amp;display=swap');</style>
      </defs>
      ```
+
      If the SVG already contains a `<defs>` block, **merge** the `<style>` into it (don't add a second `<defs>`).
 4. Normalize colors for strict SVG 1.1 consumers. This design system's tokens are authored as `rgba(...)` (see `style-guide.md`) and render correctly wherever colors are read as CSS — browsers, Figma, Illustrator. PowerPoint's SVG importer does not: it treats `rgba(...)` and `transparent` as unrecognized and paints them **opaque black**, turning a barely-there tint into a solid block that swallows the label inside it. The transform is lossless (every replacement renders identically to the original in a browser), so apply it to the SVG string extracted in step 2, before writing the file:
 
@@ -77,10 +79,12 @@ python -c "import playwright" 2>NUL || python -c "import playwright"
 If the import fails, surface this exact instruction to the user and stop:
 
 > Playwright isn't installed. To enable PNG export, run:
+>
 > ```
 > pip install playwright
 > playwright install chromium
 > ```
+>
 > Then ask me to export again.
 
 Don't auto-install. The user asked for one feature, not a system change.
@@ -116,7 +120,7 @@ Default `device_scale_factor=2` for crisp output. Accept `1` for compact assets 
 The PNG's pixel dimensions are the SVG's `viewBox` × `device_scale_factor`. So the size decision was already made when the diagram was drawn — see [`output-spec.md` §2](output-spec.md) for the presets. Export only picks the multiplier.
 
 | Destination | Scale | Result from a 1280×720 `viewBox` |
-|---|---|---|
+| --- | --- | --- |
 | Docs, README, wiki | 2 | 2560×1440 |
 | Slide deck (projected) | 2 | 2560×1440 |
 | Print / PDF handout | 3 | 3840×2160 |
