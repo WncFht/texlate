@@ -1,0 +1,14 @@
+#!/usr/bin/env python3
+"""bench — executable shim for the trizone-ledger kernel CLI.
+
+Puts this file's directory (bench/py) on sys.path so `kernel.*` resolves,
+then delegates to kernel.cli.main. The detach path re-execs this file.
+"""
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from kernel.cli import main
+
+raise SystemExit(main())
