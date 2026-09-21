@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from kernel import events, paths
+from kernel import events, idnorm, paths
 from kernel.claims import ClaimLease
 from kernel.dedup import (
     ABSENT,
@@ -110,6 +110,32 @@ def _write_meta(idc, arm=ARM, variant=V, altseq=None, body=None, name=None):
     p = paths.vault_meta_dir() / name
     p.write_text(json.dumps(rec), encoding="utf-8")
     return p
+
+
+def _commit_copy(idc, arm=ARM, variant=V, altseq="0", verdict="primary",
+                 kinds=("zh",)):
+    """A physically committed vault copy: real leaf bytes + a real-shaped
+    meta (zone/verdict/files={kind:[{path,size}]}), filename via
+    vault.meta_key — what harvest actually leaves on disk."""
+    from kernel import vault
+
+    zone = "quar" if verdict in ("quar", "quarantine") else "primary"
+    sid = idnorm.safe_id(idc)
+    key = vault.dir_key(arm, variant, altseq)
+    files = {}
+    for kind in kinds:
+        root = (paths.vault_dir() / "quar" / kind) if zone == "quar" \
+            else paths.vault_dir() / kind
+        leaf = root / sid / key
+        leaf.mkdir(parents=True, exist_ok=True)
+        payload = f"bytes-{idc}-{kind}".encode()
+        (leaf / f"{kind}.bin").write_bytes(payload)
+        files[kind] = [{"path": f"{kind}.bin", "size": len(payload),
+                        "sha256": "0" * 64}]
+    body = {"idc": idc, "arm": arm, "variant": variant, "altseq": altseq,
+            "zone": zone, "verdict": verdict, "files": files}
+    return _write_meta(idc, arm, variant, altseq=altseq, body=body,
+                       name=vault.meta_key(idc, arm, variant, altseq))
 
 
 # -- snapshot ----------------------------------------------------------------------
@@ -287,20 +313,43 @@ def test_manifest_tail_tolerates_torn_and_bad_rows(broot):
 
 
 def test_verified_via_vault_meta_file(broot):
-    _write_meta("a/1", body={"verdict": "primary",
-                             "assets": {"zh": "x.pdf", "splice": ""}})
-    _write_meta("a/2", body={"verdict": "quar",
-                             "assets": {"splice": "x.pdf"}})
-    _write_meta("a/3", body={"verdict": "pending",          # pending ≠ bytes
-                             "assets": {"zh": "x.pdf"}})
-    _write_meta("a/4", body={"verdict": "primary",
-                             "assets": {}})                  # no declared bytes
+    _commit_copy("cs/0601023", verdict="primary")
+    _commit_copy("cs/0601024", verdict="quar")    # quar + bytes = §3.8 dedup hit
+    _write_meta("cs/0601033", body={"verdict": "pending",   # pending ≠ bytes
+                                    "assets": {"zh": "x.pdf"}})
+    _write_meta("cs/0601034", body={"verdict": "primary",
+                                    "assets": {}})         # no declared bytes
     idx = _sealed_index(broot)
     oracle = DedupOracle.snapshot(idx)
-    assert oracle.check("a/1", ARM) == VERIFIED
-    assert oracle.check("a/2", ARM) == VERIFIED   # quar + bytes = §3.8 dedup hit
-    assert oracle.check("a/3", ARM) != VERIFIED   # pending = treated as no-bytes
-    assert oracle.check("a/4", ARM) != VERIFIED   # verdict but no assets declared
+    assert oracle.check("cs/0601023", ARM) == VERIFIED
+    assert oracle.check("cs/0601024", ARM) == VERIFIED   # quar + bytes verifies
+    assert oracle.check("cs/0601033", ARM) != VERIFIED   # pending = no-bytes
+    assert oracle.check("cs/0601034", ARM) != VERIFIED   # no assets declared
+    idx.close()
+
+
+def test_committed_but_bytes_gone_is_missing(broot):
+    """Meta verdict=primary whose declared files are absent on disk is
+    §3.6's third state (付过费但字节没了) -> missing -> regen gate, never
+    a silent verified skip and never an ungated re-pay."""
+    _commit_copy("cs/0601025", verdict="primary")
+    leaf = paths.vault_dir() / "zh" / "cs--0601025" / "zh"
+    for f in leaf.iterdir():
+        f.unlink()
+    idx = _sealed_index(broot)
+    oracle = DedupOracle.snapshot(idx)
+    assert oracle.check("cs/0601025", ARM) == MISSING
+    idx.close()
+
+
+def test_unparseable_meta_body_is_missing_evidence(broot):
+    """Filename claims our cell but body unreadable = broken commit
+    marker — missing-side evidence (spend-refusing), never 'absent'."""
+    p = _write_meta("cs/0601026", body={"verdict": "primary"})
+    p.write_text("{not json", encoding="utf-8")
+    idx = _sealed_index(broot)
+    oracle = DedupOracle.snapshot(idx)
+    assert oracle.check("cs/0601026", ARM) == MISSING
     idx.close()
 
 
@@ -336,11 +385,11 @@ def test_tombstone_event_means_missing(broot):
 def test_quar_verdict_means_missing(broot):
     """quar verdict + no byte evidence = §3.6 missing∪quarantine hard stop."""
     _append([_asset(1, idc="a/1", state="pending", verdict="quar")])
-    _write_meta("a/2", body={"verdict": "quar", "assets": {}})  # durable side
+    _write_meta("cs/0601035", body={"verdict": "quar", "assets": {}})
     idx = _sealed_index(broot)
     oracle = DedupOracle.snapshot(idx)
     assert oracle.check("a/1", ARM) == MISSING    # index vault_meta quar verdict
-    assert oracle.check("a/2", ARM) == MISSING    # durable meta quar verdict
+    assert oracle.check("cs/0601035", ARM) == MISSING  # durable meta quar verdict
     idx.close()
 
 
@@ -506,26 +555,26 @@ def test_missing_cells_are_the_regen_decision_list(broot):
 
 def test_meta_scan_variant_and_altseq_names(broot):
     """Variant/altseq name forms parse back to the right cell key."""
-    _write_meta("a/1", variant="rep3",
-                body={"verdict": "primary", "assets": {"zh": "x"}})
-    _write_meta("a/2", altseq="2",
-                body={"verdict": "primary", "assets": {"zh": "x"}})
+    _commit_copy("cs/0601027", variant="rep3", verdict="primary")
+    _commit_copy("cs/0601028", altseq="2", verdict="primary")
     idx = _sealed_index(broot)
     oracle = DedupOracle.snapshot(idx)
-    assert oracle.check("a/1", ARM, "rep3") == VERIFIED
-    assert oracle.check("a/1", ARM) != VERIFIED   # different variant = different cell
-    assert oracle.check("a/2", ARM) == VERIFIED   # any altseq copy verifies the cell
+    assert oracle.check("cs/0601027", ARM, "rep3") == VERIFIED
+    assert oracle.check("cs/0601027", ARM) != VERIFIED  # variant ≠ = different cell
+    assert oracle.check("cs/0601028", ARM) == VERIFIED  # any altseq copy verifies
     idx.close()
 
 
-def test_meta_body_authoritative_over_weird_name(broot):
-    """A meta file with an unconventional name still proves bytes via its
-    body (filename unparseable -> body-checked)."""
-    _write_meta("a/9", name="strange-name.json",
-                body={"verdict": "verified", "assets": {"splice": "x"}})
+def test_unparseable_meta_name_contributes_nothing(broot):
+    """The filename is the authoritative credential (§3.10.4): a meta
+    whose name does not parse is invisible to the oracle — its body can
+    never greenlight a skip; doctor's meta-less report owns the anomaly."""
+    _write_meta("cs/0601029", name="strange-name.json",
+                body={"verdict": "verified",
+                      "files": {"zh": [{"path": "x", "size": 1}]}})
     idx = _sealed_index(broot)
     oracle = DedupOracle.snapshot(idx)
-    assert oracle.check("a/9", ARM) == VERIFIED
+    assert oracle.check("cs/0601029", ARM) == ABSENT
     idx.close()
 
 

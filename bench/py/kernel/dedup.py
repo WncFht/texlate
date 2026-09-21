@@ -33,7 +33,10 @@ Check order is the contract (implemented exactly as listed in §3.10.6):
        skip a burn, and equally never the reason we burn again.
     4. missing — tombstone/quar evidence (index vault_meta, last-cell
        lost/regen_gate/upstream-lost markers, durable meta verdicts) AND
-       no verified leg. quar verdicts sit in BOTH sets on purpose: §3.8
+       no verified leg. A committed meta verdict whose declared bytes are
+       physically gone also lands here — that is §3.6's third state
+       (付过费但字节没了), not a silent skip and never an ungated re-pay.
+       quar verdicts sit in BOTH sets on purpose: §3.8
        makes quarantine a dedup hit when bytes exist (verified leg fires
        first), while a quar verdict with no byte evidence is precisely
        §3.6's missing∪quarantine hard stop.
@@ -57,7 +60,7 @@ import json
 from pathlib import Path
 
 from kernel import claims, paths
-from kernel.idnorm import canon_id, idc_from_safe, unescape_component
+from kernel.idnorm import canon_id
 
 __all__ = [
     "ABSENT",
@@ -216,83 +219,39 @@ def manifest_tail(path=None, max_rows: int = _MANIFEST_TAIL_ROWS) -> set[tuple]:
 # -- vault meta scan (durable verified leg ②) --------------------------------------
 
 
-def _meta_key_from_name(name: str) -> tuple | None:
-    """Filename-derived (idc,arm,variant,altseq); None when unparseable.
-
-    Layout (§3.10.4): ``{safe_id}.{arm}[@{variant}][.{altseq}].json`` with
-    every component percent-escaped — literal '.'/'@' are separators,
-    in-component ones are %2E/%40. Split on raw separators FIRST, then
-    unescape, or an escaped '@' inside arm would fake a variant split.
-    """
-    stem = name.removesuffix(".json")
-    raw = stem.split(".")
-    if len(raw) < 2:
-        return None
-    seg_arm, _, seg_var = raw[1].partition("@")
-    idc = idc_from_safe(unescape_component(raw[0]))
-    arm = unescape_component(seg_arm)
-    variant = unescape_component(seg_var) if seg_var else "-"
-    altseq = unescape_component(raw[2]) if len(raw) > 2 else "0"
-    if not idc:
-        return None
-    return idc, _norm(arm), _norm(variant), altseq
-
-
-def _meta_declares_bytes(rec) -> bool:
-    """meta declares ≥1 vault asset non-empty (§3.5 dedup 判据).
-
-    Tolerant across meta shapes: an assets dict/list, has_* flags, direct
-    zh/splice/state fields, or a files/blobs list.
-    """
-    assets = rec.get("assets")
-    if isinstance(assets, dict):
-        return any(bool(assets.get(k)) for k in ("zh", "splice", "state"))
-    if isinstance(assets, (list, tuple)):
-        return bool(assets)
-    flags = [rec.get(k) for k in ("has_zh", "has_splice", "has_state") if k in rec]
-    if flags:
-        return any(bool(v) for v in flags)
-    if any(rec.get(k) for k in ("zh", "splice", "state")):
-        return True
-    files = rec.get("files") or rec.get("blobs")
-    return isinstance(files, (list, tuple)) and bool(files)
-
-
 def _scan_vault_meta(idc: str, arm: str, variant: str):
     """Durable meta-dir scan for one cell -> (bytes_ok, missing, io_error).
 
-    Filename prefilter keeps JSON parses to candidate files; a file whose
-    name does not parse gets body-checked (anomaly direction is spend-
-    blocking either way). Per-file parse failures skip per the tolerant
-    read contract — meta 可解析 is part of the §3.5 dedup criterion, so an
-    unreadable meta simply is not byte evidence.
+    Delegates iteration+parse+intactness to vault.query — the single meta
+    implementation — so the §3.10.4 filename-authoritative credential and
+    the physical intactness stat live in exactly one place. vault's
+    bytes_ok requires every declared asset present non-empty ON DISK: a
+    committed verdict whose bytes vanished is §3.6's third state and
+    folds into missing evidence, never a verified skip. A meta whose
+    filename claims this cell but whose body is unreadable is broken
+    commit-marker evidence — missing-side (spend-refusing), not absent.
     """
-    d = paths.vault_meta_dir()
-    target = (idc, _norm(arm), _norm(variant))
-    bytes_ok = miss = io_error = False
+    from kernel import vault  # lazy: heavy module; keeps import graph one-way
     try:
-        files = sorted(d.rglob("*.json"))
+        rows = vault.query(idc, _norm(arm), _norm(variant))
+    except ValueError:
+        return False, False, False  # non-canon idc can never own vault bytes
     except OSError:
         return False, False, True
-    for p in files:
-        key = _meta_key_from_name(p.name)
-        if key is not None and key[:3] != target:
-            continue  # filename says: not our cell — body can't help
-        try:
-            rec = json.loads(p.read_text(encoding="utf-8"))
-        except (OSError, ValueError, UnicodeDecodeError):
+    bytes_ok = miss = False
+    for row in rows:
+        if row.get("_parse_error"):
+            miss = True
             continue
-        if not isinstance(rec, dict):
-            continue
-        bkey = _row_key(rec) or (key[:3] if key else None)
-        if bkey != target:
-            continue
-        verdict = str(rec.get("verdict") or rec.get("state") or "").lower()
-        if verdict in BYTES_OK_VERDICTS and _meta_declares_bytes(rec):
-            bytes_ok = True
+        verdict = str(row.get("verdict") or row.get("state") or "").lower()
+        if verdict in BYTES_OK_VERDICTS:
+            if row.get("bytes_ok"):
+                bytes_ok = True
+            else:
+                miss = True
         if verdict in MISSING_VERDICTS:
             miss = True
-    return bytes_ok, miss, io_error
+    return bytes_ok, miss, False
 
 
 # -- index-side evidence (only ever read under a seal) -----------------------------
