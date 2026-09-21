@@ -7,7 +7,16 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-if [[ ${1:-} != --no-install ]]; then
+for arg in "$@"; do
+  case $arg in
+  --no-install) no_install=1 ;;
+  *)
+    echo "error: unknown flag: $arg" >&2
+    exit 2
+    ;;
+  esac
+done
+if [[ -z ${no_install:-} ]]; then
   npm ci --prefix web
 fi
 npm run --prefix web build

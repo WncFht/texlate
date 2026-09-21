@@ -67,9 +67,12 @@ timeout 6h env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT claude -p \
 
 rc=$?
 
-# 后验：agent 自述不算数——ruleset 能否加载是客观证（在 worktree 内跑，测的是分支态规则库）
-cd "$WT" && uv run python -c "from texlate.compile.fixloop.ruleset import Ruleset; Ruleset.load()" \
-  && echo "post-check: Ruleset.load OK" || echo "post-check: Ruleset.load FAIL"
+# 后验：agent 自述不算数——ruleset 能否加载是客观证（worktree 内跑，测的是分支态规则库）
+# 结果折进退出码：claude 干净退出但规则库毒化时，timer 也必须亮 systemctl --failed
+post=0
+uv run python -c "from texlate.compile.fixloop.ruleset import Ruleset; Ruleset.load()" \
+  && echo "post-check: Ruleset.load OK" || { echo "post-check: Ruleset.load FAIL"; post=1; }
 
-echo "===== errsweep done rc=$rc $(date '+%F %T %Z') ====="
+echo "===== errsweep done rc=$rc post=$post $(date '+%F %T %Z') ====="
+[ "$rc" -eq 0 ] && rc=$post
 exit $rc

@@ -16,7 +16,10 @@ for a in "$@"; do
   *) ID=$a ;;
   esac
 done
-WORK=$(mktemp -d "${TMPDIR:-/tmp}/texlate-demo-$ID.XXXXXX")
+# scratch 落仓内 gitignored tmp/——/tmp 是 usrquota tmpfs，有 EDQUOT 事故史；
+# 想换地方用 DEMO_TMPDIR 显式指定（不静默继承 TMPDIR——它常解析到 /tmp）
+mkdir -p "${DEMO_TMPDIR:-tmp}"
+WORK=$(mktemp -d "${DEMO_TMPDIR:-tmp}/demo-$ID.XXXXXX")
 
 echo "=== 1/4 fetch: $ID ==="
 uv run texlate fetch "$ID"

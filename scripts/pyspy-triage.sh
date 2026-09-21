@@ -42,7 +42,7 @@ while [[ $# -gt 0 ]]; do
     shift 2
     ;;
   -h | --help)
-    sed -n '2,20p' "$0"
+    sed -n '2,17p' "$0"
     exit 0
     ;;
   -*)
@@ -133,7 +133,16 @@ for i in $(seq 1 "$N"); do
   [[ $i -lt $N ]] && sleep "$INTERVAL"
 done
 
-J1=$(cpu_jiffies "$PID" 2>/dev/null || echo "$J0")
+# 收官再验活：最后一样本到 J1 之间有 grep/sha256 后处理窗口——进程在此期间
+# 退出时若 J1 静默回落 J0 会得到 DJ=0 误判 IDLE，违反「进程消失 → exit 2」契约
+[[ -d /proc/$PID ]] || {
+  echo "error: pid $PID 在第 $N 次采样后消失（采样收尾前退出）" >&2
+  exit 2
+}
+J1=$(cpu_jiffies "$PID") || {
+  echo "error: /proc/$PID/stat 读取失败（采样后进程刚退出？）" >&2
+  exit 2
+}
 DJ=$((J1 - J0))
 
 identical=1
