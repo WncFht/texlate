@@ -626,7 +626,7 @@ def _run_cell(env, cell: dict) -> dict:
         if claim_acquired:
             pre.append(events.make_event(
                 events.T_CLAIM, run=rd.run, seq=alloc(), id=cell["id"],
-                idc=idc, arm=k_arm, variant=k_var, op="acquire"))
+                idc=k_idc, arm=k_arm, variant=k_var, op="acquire"))
         pre.append(events.make_event(
             events.T_CELL_STARTED, run=rd.run, seq=alloc(), id=cell["id"],
             idc=idc, arm=arm, up=up, variant=variant, stage=stage_name,
@@ -722,7 +722,7 @@ def _run_cell(env, cell: dict) -> dict:
                 else "suspended")
             batch.append(events.make_event(
                 events.T_CLAIM, run=rd.run, seq=alloc(), id=cell["id"],
-                idc=idc, arm=k_arm, variant=k_var, op="release",
+                idc=k_idc, arm=k_arm, variant=k_var, op="release",
                 fate=fate))
         _emit_batch(env, idx, batch)
         if lease is not None:

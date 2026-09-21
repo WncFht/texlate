@@ -35,7 +35,7 @@ import os
 import shutil
 import subprocess
 import time
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple
 
@@ -177,8 +177,16 @@ def _emit_lines_locked(lines: list[bytes], run_dir) -> list[int]:
         pos += len(line)
     if run_dir is not None:
         rdir = Path(run_dir)
-        rdir.mkdir(parents=True, exist_ok=True)
-        _append_payload_locked(rdir / _RUN_EVENTS_NAME, payload)
+        try:
+            rdir.mkdir(parents=True, exist_ok=True)
+            _append_payload_locked(rdir / _RUN_EVENTS_NAME, payload)
+        except OSError:
+            # The hot tail is already durable — a failed shard write must
+            # not abort the emit (caller would retry and double-write the
+            # ledger). The shard is a mirror, rebuildable from the ledger;
+            # flag the run dir so doctor surfaces the gap.
+            with suppress(OSError):
+                (rdir / ".shard-dirty").touch()
     return offsets
 
 
@@ -325,13 +333,10 @@ def scanback_max_run_seq() -> int:
                 return best
     # Hot tail yielded nothing — consult sealed segments (crash-recovery leg).
     best = 0
-    sdir = paths.sealed_dir()
-    if sdir.is_dir():
-        for seg in sorted(sdir.glob("*.jsonl.zst")):
-            for _name, _off, ev in _iter_zst(seg):
-                seq = _run_seq_of_event(ev)
-                if seq:
-                    best = max(best, seq)
+    for _name, _off, ev in iter_sealed_events():
+        seq = _run_seq_of_event(ev)
+        if seq:
+            best = max(best, seq)
     return best
 
 
@@ -429,18 +434,85 @@ def _iter_zst(seg: Path):
         raise RuntimeError(msg)
 
 
+def _sealed_segments(sdir: Path) -> list[str]:
+    """Segment stems (``events-*.jsonl``) present in sealed/, sorted — a raw
+    segment and its ``.zst`` product share the stem."""
+    names: set = set()
+    for p in sdir.iterdir():
+        n = p.name
+        if n.endswith(".jsonl.zst"):
+            names.add(n[: -len(".zst")])
+        elif n.endswith(".jsonl"):
+            names.add(n)
+    return sorted(names)
+
+
+def zst_verified(zst: Path) -> bool:
+    """Does the .zst decode to bytes matching its seals-row ``raw_sha``?
+
+    seal_gc deletes the raw only after _zst_decodes_to passes, so a row'd
+    zst carries the raw's sha as its anchor — decode-and-hash beats trusting
+    a clean exit code (rc=0 garbage passthrough is a real hazard). No seals
+    row → False: the zst is unanchored, and a raw sibling (interrupted seal)
+    is the preferred source anyway.
+    """
+    want = None
+    for r in _read_seal_rows():
+        if r.get("file") == Path(zst).name:
+            want = r.get("raw_sha")
+            break
+    if not isinstance(want, str) or not want:
+        return False
+    try:
+        proc = subprocess.Popen(
+            [_bin("zstdcat"), str(zst)],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+        )
+    except (OSError, RuntimeError):
+        return False
+    assert proc.stdout is not None
+    h = hashlib.sha256()
+    try:
+        for chunk in iter(lambda: proc.stdout.read(1 << 20), b""):
+            h.update(chunk)
+    finally:
+        proc.stdout.close()
+        rc = proc.wait()
+    return rc == 0 and h.hexdigest() == want
+
+
+def iter_sealed_events():
+    """Yield (source_name, offset, ev|None) over sealed segments only, in
+    name-sort (== chronological) order.
+
+    The raw ``.jsonl`` wins when present (it IS the renamed hot tail —
+    byte-exact and cheaper than decoding). A ``.zst`` is read only after
+    zst_verified passes against its seals-row raw_sha; an unanchored or
+    corrupt segment is skipped, never trusted silently.
+    """
+    sdir = paths.sealed_dir()
+    if not sdir.is_dir():
+        return
+    for stem in _sealed_segments(sdir):
+        raw = sdir / stem
+        zst = Path(str(raw) + ".zst")
+        if raw.exists():
+            yield from _iter_events_file(raw)
+        elif zst.exists() and zst_verified(zst):
+            yield from _iter_zst(zst)
+
+
 def iter_all_events():
     """Yield (source_name, offset, ev|None) in authoritative append order:
-    sealed/*.jsonl.zst sorted by name, then the hot tail events.jsonl.
+    sealed segments (raw preferred, verified .zst otherwise), then the hot
+    tail events.jsonl.
 
     offset is the byte offset of the line start within that source (the
     decompressed stream for sealed segments). Unparseable lines yield
     ev=None per the iter_jsonl contract — skip-and-warn, never crash.
     """
-    sdir = paths.sealed_dir()
-    if sdir.is_dir():
-        for seg in sorted(sdir.glob("*.jsonl.zst")):
-            yield from _iter_zst(seg)
+    yield from iter_sealed_events()
     hot = paths.events_path()
     if hot.exists():
         yield from _iter_events_file(hot)

@@ -177,16 +177,20 @@ def dir_size(tree) -> int:
 
 
 def build_mtree(tree, with_sha: bool = False) -> dict:
-    """``{relpath: {"size": int, "mtime": float[, "sha256": str]}}`` over all
-    regular files under ``tree``. Keys sorted; relpaths are posix-style.
-    ``mtree.txt`` at the tree root is included if present — callers writing a
-    self-manifest strip it (see ``write_mtree``)."""
+    """``{relpath: entry}`` over all regular files and symlinks under
+    ``tree``. File entries are ``{"size": int, "mtime": float[, "sha256":
+    str]}``; symlink entries are ``{"link": target}``. Keys sorted; relpaths
+    are posix-style. ``mtree.txt`` at the tree root is included if present —
+    callers writing a self-manifest strip it (see ``write_mtree``)."""
     tree = Path(tree)
     out = {}
     for p, kind in _iter_tree(tree):
+        rel = p.relative_to(tree).as_posix()
+        if kind == "link":
+            out[rel] = {"link": os.readlink(p)}
+            continue
         if kind != "file":
             continue
-        rel = p.relative_to(tree).as_posix()
         st = p.stat(follow_symlinks=False)
         ent = {"size": st.st_size, "mtime": st.st_mtime}
         if with_sha:
@@ -218,10 +222,12 @@ def verify_mtree(tree, mtree, resha_sample: float = 0.0) -> list[str]:
     """Stat-level drift check of ``tree`` against ``mtree`` (dict or path to a
     JSON mtree file). Returns sorted drifted relpaths — empty means clean.
 
-    Drift = file in manifest but missing/size/mtime mismatch, file present
-    in tree but absent from manifest (unmanifested payload — except the
-    self-manifest ``mtree.txt`` at root, which is metadata, not payload),
-    or a special file (fifo/socket/device) where a regular file was expected.
+    Drift = file in manifest but missing/size/mtime mismatch, symlink entry
+    whose target changed, file present in tree but absent from manifest
+    (unmanifested payload — except the self-manifest ``mtree.txt`` at root,
+    which is metadata, not payload), or the wrong node kind where an entry
+    was expected (a planted symlink or special file where a regular file was
+    manifested, or vice versa).
     ``resha_sample`` in [0,1]: files that pass stat-level are re-hashed with
     that probability and must match the entry's ``sha256`` (entries without a
     recorded sha256 are skipped — nothing to check against).
@@ -230,7 +236,7 @@ def verify_mtree(tree, mtree, resha_sample: float = 0.0) -> list[str]:
     expected = _load_mtree(mtree)
     actual = {}
     for p, kind in _iter_tree(tree):
-        if kind in ("file", "other"):
+        if kind in ("file", "link", "other"):
             actual[p.relative_to(tree).as_posix()] = (p, kind)
 
     drifted = set()
@@ -241,7 +247,13 @@ def verify_mtree(tree, mtree, resha_sample: float = 0.0) -> list[str]:
             drifted.add(rel)
             continue
         p, kind = got
-        if kind != "file":  # manifest entry is now a special file — drift
+        if "link" in ent:
+            # manifest says symlink: kind must still be a symlink with the
+            # same target — a regular file or a retargeted link is drift
+            if kind != "link" or os.readlink(p) != ent["link"]:
+                drifted.add(rel)
+            continue
+        if kind != "file":  # manifested file is now a link or special file
             drifted.add(rel)
             continue
         st = p.stat(follow_symlinks=False)

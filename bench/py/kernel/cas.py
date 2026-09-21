@@ -25,13 +25,25 @@ import shutil
 import stat as statmod
 import tempfile
 import time
+from contextlib import contextmanager
 from pathlib import Path
 
-from . import fsutil, paths
+from . import fsutil, locks, paths
 
 _SHA_RE = re.compile(r"[0-9a-f]{64}")
 _KIND_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,31}")
 _OBJ_MODE = 0o444
+
+
+@contextmanager
+def _cas_lock(exclusive: bool):
+    """Whole-pool guard closing the nlink TOCTOU: reference paths (link_out,
+    dedup hits) hold SH so gc cannot unlink an inode between the caller's
+    stat and its link/refresh; gc_sweep takes EX per candidate so its own
+    stat→unlink is atomic against a racing reference."""
+    with locks.flock(paths.lake_locks_dir() / "cas.lock",
+                     exclusive=exclusive, blocking=True):
+        yield
 
 
 def object_path(sha: str, kind: str = "blob") -> Path:
@@ -63,9 +75,10 @@ def store_bytes(data: bytes, kind: str = "blob") -> str:
     sha. New object is written durably (atomic_write) and born 0444."""
     sha = hashlib.sha256(data).hexdigest()
     obj = object_path(sha, kind)
-    if obj.exists():
-        _refresh(obj)
-        return sha
+    with _cas_lock(exclusive=False):
+        if obj.exists():
+            _refresh(obj)
+            return sha
     obj.parent.mkdir(parents=True, exist_ok=True)
     fsutil.atomic_write(obj, data, mode=_OBJ_MODE)
     return sha
@@ -87,9 +100,10 @@ def store_file(src, kind: str = "file") -> str:
         raise ValueError(f"cannot store special file: {src}")  # fifo would block
     pre_sha = fsutil._sha256_file(src)
     pre_obj = object_path(pre_sha, kind)
-    if pre_obj.exists():
-        _refresh(pre_obj)
-        return pre_sha
+    with _cas_lock(exclusive=False):
+        if pre_obj.exists():
+            _refresh(pre_obj)
+            return pre_sha
     pre_obj.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=str(pre_obj.parent), prefix=f".{pre_sha}.",
                                suffix=".tmp")
@@ -107,10 +121,11 @@ def store_file(src, kind: str = "file") -> str:
             os.fsync(fo.fileno())
         sha = h.hexdigest()  # sha of the bytes actually written
         obj = object_path(sha, kind)
-        if obj.exists():
-            os.unlink(tmp)  # raced content already stored — discard our copy
-            _refresh(obj)
-            return sha
+        with _cas_lock(exclusive=False):
+            if obj.exists():
+                os.unlink(tmp)  # raced content already stored — discard
+                _refresh(obj)
+                return sha
         obj.parent.mkdir(parents=True, exist_ok=True)
         os.replace(tmp, obj)
         fsutil.fsync_dir(obj.parent)
@@ -131,29 +146,33 @@ def link_out(sha: str, dst, kind: str = "blob") -> Path:
       CAS link whose inode must stay 0444) then re-linked.
     - EXDEV → copyfile + mtime restore + chmod a-w on the fresh inode.
     - missing object → FileNotFoundError from stat.
+
+    Runs under the pool's SH lock so gc_sweep cannot unlink the object
+    between the stat and the link (nlink check is a TOCTOU without it).
     """
     src = object_path(sha, kind)
     dst = Path(dst)
-    src_st = src.stat()  # FileNotFoundError when object absent — loud is right
     dst.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        dst_st = dst.stat()
-    except FileNotFoundError:
-        dst_st = None
-    if dst_st is not None and dst_st.st_dev == src_st.st_dev \
-            and dst_st.st_ino == src_st.st_ino:
-        return dst  # already the same inode
-    if dst_st is not None or dst.is_symlink():
-        dst.unlink()
-    try:
-        os.link(src, dst)
-    except OSError as exc:
-        if exc.errno != errno.EXDEV:
-            raise
-        shutil.copyfile(src, dst)
-        os.utime(dst, ns=(src_st.st_atime_ns, src_st.st_mtime_ns))
-        dst_st2 = dst.stat()
-        os.chmod(dst, statmod.S_IMODE(dst_st2.st_mode) & ~0o222)
+    with _cas_lock(exclusive=False):
+        src_st = src.stat()  # FileNotFoundError when object absent — loud is right
+        try:
+            dst_st = dst.stat()
+        except FileNotFoundError:
+            dst_st = None
+        if dst_st is not None and dst_st.st_dev == src_st.st_dev \
+                and dst_st.st_ino == src_st.st_ino:
+            return dst  # already the same inode
+        if dst_st is not None or dst.is_symlink():
+            dst.unlink()
+        try:
+            os.link(src, dst)
+        except OSError as exc:
+            if exc.errno != errno.EXDEV:
+                raise
+            shutil.copyfile(src, dst)
+            os.utime(dst, ns=(src_st.st_atime_ns, src_st.st_mtime_ns))
+            dst_st2 = dst.stat()
+            os.chmod(dst, statmod.S_IMODE(dst_st2.st_mode) & ~0o222)
     return dst
 
 
@@ -165,6 +184,9 @@ def gc_sweep(grace_s: float = 86400) -> list[Path]:
     freshly stored objects alive. Also prunes the emptied fanout dirs and any
     stale non-dir litter (tmp files, stray symlinks) past grace. Returns
     removed paths.
+
+    Each candidate is re-stat'd under the pool's EX lock: a racing link_out
+    that bumped nlink after our unlocked peek is seen, never swept.
     """
     base = paths.lake_objects_dir()
     removed: list[Path] = []
@@ -178,17 +200,27 @@ def gc_sweep(grace_s: float = 86400) -> list[Path]:
             st = p.stat(follow_symlinks=False)
         except FileNotFoundError:
             continue  # a concurrent sweep already took it
-        if st.st_nlink == 1 and st.st_mtime < cutoff:
+        if st.st_nlink != 1 or st.st_mtime >= cutoff:
+            continue
+        with _cas_lock(exclusive=True):
+            # re-check under EX — a link_out racing the unlocked peek has
+            # already bumped nlink, so only still-dead inodes are unlinked
+            try:
+                st = p.stat(follow_symlinks=False)
+            except FileNotFoundError:
+                continue
+            if st.st_nlink != 1 or st.st_mtime >= cutoff:
+                continue
             try:
                 p.unlink()
             except FileNotFoundError:
                 continue
-            removed.append(p)
-            for d in (p.parent, p.parent.parent):  # prune emptied bb/aa dirs
-                try:
-                    d.rmdir()
-                except OSError:
-                    break
+        removed.append(p)
+        for d in (p.parent, p.parent.parent):  # prune emptied bb/aa dirs
+            try:
+                d.rmdir()
+            except OSError:
+                break
     return removed
 
 

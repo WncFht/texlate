@@ -247,6 +247,22 @@ def _max_run_seq_runs_jsonl() -> tuple[int, int]:
     return best, bad
 
 
+def _shard_dirty_runs() -> list[str]:
+    """Run dirs carrying a .shard-dirty flag — a shard write failed after
+    the hot tail committed, so that run's mirror is incomplete until the
+    run dir is rebuilt (the ledger hot tail itself is authoritative and
+    unaffected)."""
+    base = paths.runs_dir()
+    if not base.is_dir():
+        return []
+    out = []
+    for rdir in sorted(base.glob("*/*/*")):
+        if rdir.is_dir() and (rdir / ".shard-dirty").exists():
+            rel = rdir.relative_to(base)
+            out.append("/".join(rel.parts))
+    return out
+
+
 def _check_ledger(checks: list, idx: index.Index | None) -> None:
     problems = []
     bad = 0
@@ -258,6 +274,12 @@ def _check_ledger(checks: list, idx: index.Index | None) -> None:
     if bad:
         problems.append(f"{bad} unparseable lines in events.jsonl "
                         "(quarantine material)")
+    dirty_shards = _shard_dirty_runs()
+    if dirty_shards:
+        problems.append(
+            f"{len(dirty_shards)} run dir(s) flagged .shard-dirty — "
+            f"shard mirror incomplete (rebuild the run): "
+            f"{dirty_shards[:5]}")
     try:
         seq_val = int(paths.seqfile_path().read_text().strip() or "0")
     except (OSError, ValueError) as e:

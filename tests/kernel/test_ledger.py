@@ -357,11 +357,14 @@ def test_iter_all_events_spans_sealed_and_hot(broot: Path) -> None:
 
     items = list(ledger.iter_all_events())
     names = [s for s, _o, _e in items]
-    assert names[0] == zst.name
+    # the surviving raw segment is preferred over its .zst while both exist
+    # — either name labels the same segment
+    sealed_src = {zst.name, zst.name.removesuffix(".zst")}
+    assert names[0] in sealed_src
     assert names[-1] == "events.jsonl"
     # authoritative order: sealed segment first, then hot tail
     boundary = names.index("events.jsonl")
-    assert set(names[:boundary]) == {zst.name}
+    assert set(names[:boundary]) == {names[0]}
     got = [e for _s, _o, e in items if e]
     seqs = [e.get("seq") for e in got if e.get("type") == "note"]
     assert seqs == [0, 1, 2, 3, 4, 5]
@@ -423,8 +426,10 @@ def test_recover_interrupted_seal(broot: Path) -> None:
     assert rows[0]["file"] == zst.name
     # hot tail recreated
     assert paths.events_path().exists()
-    # and iter_all reads the recovered segment
-    assert any(s == zst.name for s, _o, _e in ledger.iter_all_events())
+    # and iter_all reads the recovered segment (raw preferred while it
+    # survives alongside the .zst)
+    assert any(s in (zst.name, orphan.name)
+               for s, _o, _e in ledger.iter_all_events())
 
 
 def test_recover_drops_corrupt_partial_zst(broot: Path) -> None:
@@ -441,7 +446,8 @@ def test_recover_drops_corrupt_partial_zst(broot: Path) -> None:
     # the recompressed zst faithfully encodes the raw segment
     assert rows[0]["zst_sha"] == hashlib.sha256(zst.read_bytes()).hexdigest()
     assert rows[0]["raw_sha"] == hashlib.sha256(orphan.read_bytes()).hexdigest()
-    seg_evs = [e for s, _o, e in ledger.iter_all_events() if s == zst.name]
+    seg_evs = [e for s, _o, e in ledger.iter_all_events()
+               if s in (zst.name, orphan.name)]
     assert len([e for e in seg_evs if e]) == 2
 
 

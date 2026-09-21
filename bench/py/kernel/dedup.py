@@ -435,6 +435,17 @@ def _events_tail_offset() -> int:
     return 0
 
 
+def _events_tail_tag() -> str:
+    """``st_dev:st_ino`` of the hot tail — the inode identity min_offset
+    belongs to. A seal rotates the tail into a segment and recreates it, so
+    a snapshot's offset is only comparable while the inode survives."""
+    try:
+        st = paths.events_path().stat()
+    except FileNotFoundError:
+        return ""
+    return f"{st.st_dev}:{st.st_ino}"
+
+
 # -- the oracle --------------------------------------------------------------------
 
 
@@ -455,6 +466,7 @@ class DedupOracle:
         paid_pool_snap: set[tuple] | None = None,
         sealed_gen: int = 0,
         min_offset: int = 0,
+        min_tag: str | None = None,
         kind_evidence: dict | None = None,
     ):
         self.index = index
@@ -462,6 +474,10 @@ class DedupOracle:
         self.paid_pool_snap = frozenset(paid_pool_snap or ())
         self.sealed_gen = int(sealed_gen)
         self.min_offset = int(min_offset)
+        # inode identity of the file min_offset was measured on — a seal
+        # rotates the tail away whole, after which offset comparison alone
+        # is meaningless (check_sealed falls back to segment coverage).
+        self.min_tag = min_tag
         # key -> {"alive","dead","ag"} per-kind manifest evidence; None for
         # hand-built oracles (kind-blind legacy legs only).
         self.kind_evidence = kind_evidence or {}
@@ -489,6 +505,7 @@ class DedupOracle:
             paid_pool_snap=index.paid_pool(stages=paid_stages),
             sealed_gen=gen,
             min_offset=max(wm, _events_tail_offset()),
+            min_tag=_events_tail_tag(),
             kind_evidence=kinds,
         )
 
@@ -505,13 +522,15 @@ class DedupOracle:
         """
         if self.index.dirty():
             return False
-        if self.index.check_sealed(self.sealed_gen, self.min_offset):
+        if self.index.check_sealed(
+                self.sealed_gen, self.min_offset, self.min_tag):
             return True
         try:
             self.index.tail_ingest()
         except Exception:
             pass
-        return self.index.check_sealed(self.sealed_gen, self.min_offset)
+        return self.index.check_sealed(
+            self.sealed_gen, self.min_offset, self.min_tag)
 
     def sealed(self) -> bool:
         """Seal predicate as check() evaluates it right now."""
@@ -567,8 +586,35 @@ class DedupOracle:
         if meta_missing or self._missing_evidence(idc, arm, variant):
             return MISSING
 
+        # 4.5 release-verified — a lifecycle claim row released with
+        #     fate='verified' is durable class evidence the paid commit ran
+        #     to terminal and its harvest fired. It sits AFTER missing so
+        #     tombstones keep winning for identity keys, BEFORE absent so
+        #     a spent cell never re-burns on a byte-evidence gap.
+        if self._release_verified(idc, arm, variant):
+            return VERIFIED
+
         # 5. absent — reachable only because the index is sealed.
         return ABSENT
+
+    def _release_verified(self, idc, arm, variant) -> bool:
+        """Latest lifecycle claim row for the key is release/fate=verified.
+
+        Reads the sealed index's claims projection — under the seal the
+        projection is proven current to min_offset, so this is durable
+        class-level evidence, not the advisory live-index read the other
+        verified legs ban. A key whose latest lifecycle row is 'acquire'
+        (claim still open, or re-opened) is not verified evidence here.
+        """
+        row = self.index.conn.execute(
+            "SELECT op, fate FROM claims"
+            " WHERE idc=? AND arm=? AND variant=? AND slot IS NULL"
+            " ORDER BY rowid DESC LIMIT 1",
+            (idc, arm, variant),
+        ).fetchone()
+        return bool(
+            row and row["op"] == "release" and row["fate"] == "verified"
+        )
 
     def _verified(self, key, meta_ok: bool, need_kinds) -> bool:
         """The verified legs under kind-aware adjudication.

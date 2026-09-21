@@ -328,23 +328,36 @@ def _fsync_ancestors(leaf_parent: Path) -> None:
         p = p.parent
 
 
-def _chmod_readonly_tree(root: Path, include_root: bool = True) -> None:
+def _chmod_readonly_tree(root: Path, include_root: bool = True) -> dict:
     """``chmod -R a-w`` — the vault fuse. Files share the work source's
     inode, so this deliberately makes the work-side copy read-only too.
 
     ``include_root=False`` leaves the tree root writable: rename(2) must
     rewrite the moved dir's ``..`` entry and refuses a read-only source dir,
     so the top dir is fused only AFTER it lands in place (nested dirs' ``..``
-    does not change — they stay fused throughout)."""
+    does not change — they stay fused throughout).
+
+    Returns ``{posix-rel: orig_mode}`` for every node whose write bits were
+    actually cleared — the rollback map an aborted commit uses to restore
+    the shared source inodes. Already-fused nodes are skipped, so a
+    re-harvest of an earlier commit's fused source stays fused (idempotent)."""
     root = Path(root)
+    changed: dict[str, int] = {}
     for p, kind in fsutil._iter_tree(root):
         if kind == "link":
             continue
         st = p.stat(follow_symlinks=False)
-        os.chmod(p, stat.S_IMODE(st.st_mode) & ~0o222)
+        mode = stat.S_IMODE(st.st_mode)
+        if mode & 0o222:
+            os.chmod(p, mode & ~0o222)
+            changed[p.relative_to(root).as_posix()] = mode
     if include_root:
         st = root.stat()
-        os.chmod(root, stat.S_IMODE(st.st_mode) & ~0o222)
+        mode = stat.S_IMODE(st.st_mode)
+        if mode & 0o222:
+            os.chmod(root, mode & ~0o222)
+            changed["."] = mode
+    return changed
 
 
 def _unfuse_dirs(root: Path) -> None:
@@ -538,6 +551,7 @@ def harvest(idc, arm, variant, assets: dict, source_run: str = "adhoc",
                                     dir=str(paths.vault_staging_dir())))
         mpath = meta_path(idc, arm, variant, chosen)
         moved: list[str] = []
+        fused: dict[str, dict] = {}
         kind_bytes: dict[str, int] = {}
         try:
             rows: list[dict] = []
@@ -560,7 +574,7 @@ def harvest(idc, arm, variant, assets: dict, source_run: str = "adhoc",
             fman.write_bytes(blob)
             _fsync_file(fman)
             for k in kinds:
-                _chmod_readonly_tree(tag / k, include_root=False)
+                fused[k] = _chmod_readonly_tree(tag / k, include_root=False)
                 _fsync_tree(tag / k)
             fsutil.fsync_dir(tag)
             # rename() each kind dir into place — same volume, so each move
@@ -613,6 +627,19 @@ def harvest(idc, arm, variant, assets: dict, source_run: str = "adhoc",
                 # prune the {sid} parent iff this aborted commit left it empty
                 with suppress(OSError):
                     dests[k].parent.rmdir()
+            # Un-fuse the work-source inodes this commit fused — the tag
+            # tree dies with staging, but the source-side aliases share the
+            # inodes and would stay 0444 forever otherwise. Only nodes this
+            # pass actually fused are restored, and only regular files: the
+            # tag-side dirs were fresh inodes (the source's own dirs were
+            # never touched) and a swapped-in symlink must not chmod a
+            # foreign target.
+            for k, changed in fused.items():
+                for rel, mode in changed.items():
+                    with suppress(OSError):
+                        p = srcs[k] / rel
+                        if stat.S_ISREG(os.lstat(p).st_mode):
+                            os.chmod(p, mode)
             shutil.rmtree(tag, ignore_errors=True)
             raise
         shutil.rmtree(tag, ignore_errors=True)

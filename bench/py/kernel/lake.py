@@ -86,36 +86,39 @@ _SHELL_KEEP_GLOB = ("xlat-*.jsonl", "xlat-state.*")
 
 def _append_line(path: Path, payload: bytes) -> None:
     """Heal torn tail, append payload in ONE os.write, fsync — same contract
-    as the ledger path minus the lock (catalog.jsonl has serialized writers
-    by construction; the heal still applies after a crash mid-append)."""
+    as the ledger path, serialized through ``lake/.locks/.catalog.lock``:
+    different cells' writers append the shared catalog concurrently, and an
+    unlocked heal-truncate can clip a racing writer's fresh line."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    existed = path.exists()
-    fd = os.open(path, os.O_RDWR | os.O_APPEND | os.O_CREAT, 0o644)
-    try:
-        size = os.fstat(fd).st_size
-        offset = size
-        pos = size
-        while pos > 0:
-            n = min(_HEAL_CHUNK, pos)
-            pos -= n
-            buf = os.pread(fd, n, pos)
-            idx = buf.rfind(b"\n")
-            if idx != -1:
-                offset = pos + idx + 1
-                break
-        else:
-            offset = 0
-        if offset != size:
-            os.ftruncate(fd, offset)
-        if payload:
-            n = os.write(fd, payload)
-            if n != len(payload):
-                msg = f"short write {n}/{len(payload)} on {path}"
-                raise OSError(msg)
-        os.fsync(fd)
-    finally:
-        os.close(fd)
+    catalog_lock = paths.lake_locks_dir() / ".catalog.lock"
+    with locks.flock(catalog_lock, exclusive=True, blocking=True):
+        existed = path.exists()
+        fd = os.open(path, os.O_RDWR | os.O_APPEND | os.O_CREAT, 0o644)
+        try:
+            size = os.fstat(fd).st_size
+            offset = size
+            pos = size
+            while pos > 0:
+                n = min(_HEAL_CHUNK, pos)
+                pos -= n
+                buf = os.pread(fd, n, pos)
+                idx = buf.rfind(b"\n")
+                if idx != -1:
+                    offset = pos + idx + 1
+                    break
+            else:
+                offset = 0
+            if offset != size:
+                os.ftruncate(fd, offset)
+            if payload:
+                n = os.write(fd, payload)
+                if n != len(payload):
+                    msg = f"short write {n}/{len(payload)} on {path}"
+                    raise OSError(msg)
+            os.fsync(fd)
+        finally:
+            os.close(fd)
     if not existed:
         fsutil.fsync_dir(path.parent)
 
@@ -174,7 +177,10 @@ def is_complete(idc: str, source: str = "arxiv") -> bool:
     n_files = _read_meta(d).get("n_files")
     if not isinstance(n_files, int) or isinstance(n_files, bool):
         return False
-    return n_files == _payload_count(d)
+    # zero-payload is not completeness — n_files=0 tautologically matches an
+    # empty tree. The catalog records that outcome as 'empty'; the read
+    # predicate must never vouch for it.
+    return n_files > 0 and n_files == _payload_count(d)
 
 
 # --- locks ------------------------------------------------------------------------------
@@ -233,26 +239,30 @@ class LakeCatalog:
         return self._rows.get(idc, {}).get("state", "absent")
 
     def set(self, idc: str, state: str, **kw) -> dict:
-        """Transition ``idc`` to ``state``: append the merged row to
-        catalog.jsonl AND emit the ledger lake_cell event — the two stay in
-        lockstep because the catalog is declared a projection of the event
-        stream. Returns the stored row."""
-        row = {**self._rows.get(idc, {}), "idc": idc, "state": state,
+        """Transition ``idc`` to ``state``: emit the ledger lake_cell event
+        FIRST, then append the merged row to catalog.jsonl — the catalog is
+        declared a projection of the event stream, so a crash between the
+        two must leave a replayable event, never a catalog row with no
+        history. The merge base is re-read from the file itself: a catalog
+        instance loaded once goes stale the moment another writer appends,
+        and merging onto stale state silently clobbers the interleaved
+        row's fields. Returns the stored row."""
+        row = {**_latest_row(idc), "idc": idc, "state": state,
                "ts": round(time.time(), 3), **kw}
-        _append_row(paths.lake_catalog_path(), row)
-        self._rows[idc] = row
         ev_kw = {"source": row.get("source", "arxiv")}
         if row.get("bytes") is not None:
             ev_kw["bytes"] = row["bytes"]
         ledger.emit(make_event(
             events.T_LAKE_CELL, id=idc, idc=idc, state=state, **ev_kw
         ))
+        _append_row(paths.lake_catalog_path(), row)
+        self._rows[idc] = row
         return row
 
     def mark_used(self, idc: str) -> dict:
         """Cheap last_used_at touch (LRU feed, §3.10.3): append-only row,
         no ledger event — usage churn is bookkeeping, not history."""
-        row = {**self._rows.get(idc, {}), "idc": idc,
+        row = {**_latest_row(idc), "idc": idc,
                "last_used_at": round(time.time(), 3)}
         _append_row(paths.lake_catalog_path(), row)
         self._rows[idc] = row
@@ -260,6 +270,20 @@ class LakeCatalog:
 
 
 # --- skeleton ---------------------------------------------------------------------------
+
+
+def _latest_row(idc: str) -> dict:
+    """Last catalog.jsonl row for ``idc``, read fresh from disk — the merge
+    base for ``set``/``mark_used``. Rows are never deleted (append-only), so
+    the last match wins. An absent catalog means no rows at all."""
+    latest: dict = {}
+    p = paths.lake_catalog_path()
+    if not p.exists():
+        return latest
+    for _ln, row, _raw in iter_jsonl(p):
+        if isinstance(row, dict) and row.get("idc") == idc:
+            latest = row
+    return latest
 
 
 def register_skeleton(idc: str, source: str = "arxiv",
@@ -331,6 +355,7 @@ def _publish_stage(stage: Path, dest: Path) -> bool:
         if (
             isinstance(n_files, int)
             and not isinstance(n_files, bool)
+            and n_files > 0
             and n_files == _payload_count(dest)
         ):
             return False
@@ -371,6 +396,10 @@ def hydrate(idc: str, fetch_fn: Callable | None = None,
         if is_complete(idc, source):
             return d
         cat = LakeCatalog.load()
+        if cat.state(idc) == "empty":
+            # a recorded zero-payload answer — a legitimately empty fetch is
+            # durable state, not a reason to fetch-storm the network again
+            return d
         old_meta = _read_meta(d)
         raw_dir = d / "raw"
 
@@ -398,8 +427,8 @@ def hydrate(idc: str, fetch_fn: Callable | None = None,
                 json.dumps(meta, ensure_ascii=False, sort_keys=True,
                            indent=2).encode("utf-8"),
             )
-            cat.set(idc, "hydrated", source=source, n_files=n,
-                    bytes=fsutil.dir_size(d), manifested=True,
+            cat.set(idc, "empty" if n == 0 else "hydrated", source=source,
+                    n_files=n, bytes=fsutil.dir_size(d), manifested=True,
                     last_used_at=round(time.time(), 3))
             return d
 
@@ -430,8 +459,8 @@ def hydrate(idc: str, fetch_fn: Callable | None = None,
         except BaseException:
             shutil.rmtree(stage, ignore_errors=True)
             raise
-        cat.set(idc, "hydrated", source=source, n_files=n,
-                bytes=fsutil.dir_size(d), manifested=True,
+        cat.set(idc, "empty" if n == 0 else "hydrated", source=source,
+                n_files=n, bytes=fsutil.dir_size(d), manifested=True,
                 last_used_at=round(time.time(), 3))
         return d
 
@@ -475,6 +504,29 @@ def _pinned(row: dict) -> bool:
     return bool(row.get("pinned")) or row.get("state") == "pinned"
 
 
+def _freeable_size(root: Path) -> int:
+    """Bytes an rmtree of ``root`` actually returns to the fs: only inodes
+    whose EVERY alias lives under root count. An inode with aliases
+    elsewhere (CAS objects, sibling cells sharing hardlinks) survives the
+    delete — counting it would over-report freed space and drive eviction
+    past its target while the real footprint stays."""
+    counts: dict[tuple, int] = {}
+    sizes: dict[tuple, int] = {}
+    links: dict[tuple, int] = {}
+    for p, kind in fsutil._iter_tree(Path(root)):
+        if kind != "file":
+            continue
+        try:
+            st = p.stat(follow_symlinks=False)
+        except FileNotFoundError:
+            continue
+        key = (st.st_dev, st.st_ino)
+        counts[key] = counts.get(key, 0) + 1
+        sizes[key] = st.st_size
+        links[key] = st.st_nlink
+    return sum(sizes[k] for k, n in counts.items() if n == links[k])
+
+
 def evict(target_free_bytes: int, catalog: LakeCatalog | None = None) -> list:
     """LRU eviction toward ``target_free_bytes`` freed; returns removed paths.
 
@@ -487,8 +539,10 @@ def evict(target_free_bytes: int, catalog: LakeCatalog | None = None) -> list:
        tagged rows (sw figures_stripped / stub / pdf_only: their raw is a
        repacked tree or a network-only regen, never a free local one).
 
-    Pinned rows and the durable zone are never touched. Each deletion
-    updates the catalog (and thereby emits lake_cell events) so the state
+    Pinned rows and the durable zone are never touched. Each deletion runs
+    under the cell's own lake_lock (a racing hydrate can never publish into
+    a half-deleted tree), counts only inodes the delete truly frees, and
+    updates the catalog (thereby emitting lake_cell events) so the state
     book always reflects the surviving tier.
     """
     cat = catalog or LakeCatalog.load()
@@ -516,12 +570,13 @@ def evict(target_free_bytes: int, catalog: LakeCatalog | None = None) -> list:
         if _pinned(r):
             continue
         d = cdir_of(r)
-        if not d.exists():
-            continue
-        freed += fsutil.dir_size(d)
-        shutil.rmtree(d)
-        removed.append(d)
-        cat.set(r["idc"], "evicted", source=r.get("source", "arxiv"))
+        with lake_lock(safe_id(r["idc"])):
+            if not d.exists():
+                continue
+            freed += _freeable_size(d)
+            shutil.rmtree(d)
+            removed.append(d)
+            cat.set(r["idc"], "evicted", source=r.get("source", "arxiv"))
 
     # Tier 1 — extracted projection (LRU), cells drop to raw_only.
     tier1 = sorted(
@@ -532,13 +587,14 @@ def evict(target_free_bytes: int, catalog: LakeCatalog | None = None) -> list:
         if done():
             break
         ex = cdir_of(r) / "extracted"
-        if not ex.is_dir():
-            continue
-        freed += fsutil.dir_size(ex)
-        shutil.rmtree(ex)
-        removed.append(ex)
-        state = "raw_only" if (cdir_of(r) / "raw").exists() else "evicted"
-        cat.set(r["idc"], state, source=r.get("source", "arxiv"))
+        with lake_lock(safe_id(r["idc"])):
+            if not ex.is_dir():
+                continue
+            freed += _freeable_size(ex)
+            shutil.rmtree(ex)
+            removed.append(ex)
+            state = "raw_only" if (cdir_of(r) / "raw").exists() else "evicted"
+            cat.set(r["idc"], state, source=r.get("source", "arxiv"))
 
     # Tier 2 — raw payload (LRU); regen_cost=network rows keep their raw.
     tier2 = sorted(
@@ -550,13 +606,15 @@ def evict(target_free_bytes: int, catalog: LakeCatalog | None = None) -> list:
         if done():
             break
         raw = cdir_of(r) / "raw"
-        if not raw.exists():
-            continue
-        freed += fsutil.dir_size(raw)
-        shutil.rmtree(raw)
-        removed.append(raw)
-        state = "hydrated" if (cdir_of(r) / "extracted").is_dir() else "evicted"
-        cat.set(r["idc"], state, source=r.get("source", "arxiv"))
+        with lake_lock(safe_id(r["idc"])):
+            if not raw.exists():
+                continue
+            freed += _freeable_size(raw)
+            shutil.rmtree(raw)
+            removed.append(raw)
+            state = ("hydrated" if (cdir_of(r) / "extracted").is_dir()
+                     else "evicted")
+            cat.set(r["idc"], state, source=r.get("source", "arxiv"))
 
     return removed
 

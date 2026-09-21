@@ -140,7 +140,7 @@ CREATE TABLE IF NOT EXISTS assets (
 );
 CREATE TABLE IF NOT EXISTS claims (
     idc TEXT, arm TEXT, variant TEXT, run TEXT, seq INTEGER,
-    op TEXT, slot TEXT, ts REAL
+    op TEXT, slot TEXT, fate TEXT, ts REAL
 );
 CREATE TABLE IF NOT EXISTS paid_slots (
     slot TEXT PRIMARY KEY,
@@ -207,6 +207,37 @@ def _tail_newline_offset(path: Path) -> int:
     return 0
 
 
+def _file_tag(path: Path) -> str:
+    """``st_dev:st_ino`` — the inode identity a byte watermark belongs to.
+
+    Byte offsets are only meaningful against the inode they were measured
+    on: a seal renames the hot tail away and recreates it, so a stored
+    watermark compared against a different inode silently misaligns.
+    Empty string when the file is absent.
+    """
+    try:
+        st = Path(path).stat()
+    except OSError:
+        return ""
+    return f"{st.st_dev}:{st.st_ino}"
+
+
+def _sealed_segment_names() -> set:
+    """Segment stems (``events-*.jsonl``) present in sealed/ — a raw
+    segment and its ``.zst`` product share the stem."""
+    sdir = paths.sealed_dir()
+    names: set = set()
+    if not sdir.is_dir():
+        return names
+    for p in sdir.iterdir():
+        n = p.name
+        if n.endswith(".jsonl.zst"):
+            names.add(n[: -len(".zst")])
+        elif n.endswith(".jsonl"):
+            names.add(n)
+    return names
+
+
 def _kernel_idle() -> bool:
     """True when no kernel is running — locks.kernel_idle() when the locks
     module is available, else an NB-flock probe on the .kernel-active
@@ -268,6 +299,13 @@ class Index:
         for k in _META_COUNTERS:
             self._meta_set_default(k, "0")
         self._meta_set_default("schema_v", str(INDEX_SCHEMA_V))
+        # Additive post-v1 columns — guarded ALTER, no schema bump (the
+        # column is nullable; replay and old rows are unaffected).
+        cols = {
+            r["name"] for r in self.conn.execute("PRAGMA table_info(claims)")
+        }
+        if "fate" not in cols:
+            self.conn.execute("ALTER TABLE claims ADD COLUMN fate TEXT")
 
     def _drop_all(self) -> None:
         with self._txn():
@@ -360,7 +398,11 @@ class Index:
             run_seq = -1
         seq = ev.get("seq")
         if seq is None:
-            seq = -self._meta_incr("runless_seq")
+            # Deep negative band: kernel seqs (sweep adjudication rows) live
+            # at -1..-N under real run_seqs — an assigned seq in that range
+            # collides on the (run_seq,seq) primary key and quarantines or
+            # replay-drops a legitimate event.
+            seq = -(1 << 40) - self._meta_incr("runless_seq")
         return int(run_seq), int(seq)
 
     def _apply_one(self, ev: dict, *, runless: bool = False) -> str:
@@ -531,10 +573,11 @@ class Index:
 
     def _proj_claim(self, cur, ev: dict) -> None:
         cur.execute(
-            "INSERT INTO claims(idc,arm,variant,run,seq,op,slot,ts)"
-            " VALUES (?,?,?,?,?,?,?,?)",
+            "INSERT INTO claims(idc,arm,variant,run,seq,op,slot,fate,ts)"
+            " VALUES (?,?,?,?,?,?,?,?,?)",
             (ev.get("idc"), ev.get("arm"), ev.get("variant"), ev.get("run"),
-             ev.get("seq"), ev.get("op"), ev.get("slot"), ev.get("ts")),
+             ev.get("seq"), ev.get("op"), ev.get("slot"), ev.get("fate"),
+             ev.get("ts")),
         )
         if ev.get("op") == "reap":
             # a reap clears every paid_slots mirror row the reaped key
@@ -594,28 +637,102 @@ class Index:
 
     # -- ingest --------------------------------------------------------------------
 
+    def _sealed_done_set(self) -> set:
+        """Segment stems already replayed into the index (meta name-set)."""
+        try:
+            return set(json.loads(self._meta_get("sealed_done", "[]") or "[]"))
+        except ValueError:
+            return set()
+
+    def _sealed_covered(self) -> bool:
+        """Every sealed segment present on disk is ingested — an uningested
+        segment is a blind spot: it can hold tombstone/missing evidence the
+        projections have never seen."""
+        return _sealed_segment_names() <= self._sealed_done_set()
+
+    def _ingest_sealed_segments(self) -> int:
+        """Apply events from sealed segments not yet in ``sealed_done``.
+
+        The hot tail rotates away whole — without this leg every byte the
+        seal moved would stay invisible to the projections forever (the
+        'unsealed' verdict that can never clear). Raw ``.jsonl`` wins over
+        ``.zst`` when both exist (identical bytes, cheaper); a ``.zst`` is
+        trusted only after ledger.zst_verified passes — a clean-exit zstdcat
+        can still decode garbage. Each segment ingests + marks done in ONE
+        transaction. Returns rows newly applied.
+        """
+        done = self._sealed_done_set()
+        pending = sorted(_sealed_segment_names() - done)
+        if not pending:
+            return 0
+        try:
+            from kernel import ledger as _ledger  # type: ignore[import-not-found]
+        except ImportError:
+            _ledger = None
+        sdir = paths.sealed_dir()
+        applied = 0
+        for name in pending:
+            evs: list = []
+            bad = 0
+            raw = sdir / name
+            zst = Path(str(raw) + ".zst")
+            if raw.exists():
+                for _ln, ev, _rawline in events.iter_jsonl(raw):
+                    if ev is None:
+                        bad += 1
+                    else:
+                        evs.append(ev)
+            elif (
+                zst.exists()
+                and _ledger is not None
+                and _ledger.zst_verified(zst)
+            ):
+                for _n, _off, ev in _ledger._iter_zst(zst):
+                    if ev is None:
+                        bad += 1
+                    else:
+                        evs.append(ev)
+            else:
+                # Nothing readable/verifiable — keep the segment pending so
+                # the seal gate stays closed instead of going blind.
+                continue
+            with self._txn():
+                for ev in evs:
+                    if self._apply_one(ev) == "applied":
+                        applied += 1
+                if bad:
+                    self._meta_incr("bad_lines", bad)
+                done.add(name)
+                self._meta_set("sealed_done", json.dumps(sorted(done)))
+        return applied
+
     def tail_ingest(self) -> int:
         """Consume complete lines from events.jsonl past the stored watermark.
 
         Watermark = offset just past the last swallowed '\\n'; an unterminated
-        tail is left for the next pass. A shrunken file (locked
-        truncate+rewrite) resets the watermark to 0 — dedupe-by-sha keeps the
-        replay idempotent. Returns rows newly applied.
+        tail is left for the next pass. The watermark is pinned to an inode
+        tag: a rotated/recreated hot tail (different dev:ino) or a shrunken
+        file resets it to 0 — dedupe-by-sha keeps the replay idempotent.
+        Newly sealed segments are ingested first so rotated-away bytes stay
+        visible. Returns rows newly applied.
         """
+        applied = self._ingest_sealed_segments()
         ep = paths.events_path()
         watermark = int(self._meta_get("watermark", "0") or 0)
         try:
-            size = ep.stat().st_size
+            st = ep.stat()
         except FileNotFoundError:
-            return 0
-        if watermark > size:
+            return applied
+        size = st.st_size
+        tag = f"{st.st_dev}:{st.st_ino}"
+        if self._meta_get("watermark_tag", "") != tag or watermark > size:
             watermark = 0
         with open(ep, "rb") as f:
             f.seek(watermark)
             data = f.read()
         end = data.rfind(b"\n")
         if end < 0:
-            return 0
+            return applied
         evs, bad = [], 0
         for line in data[: end + 1].split(b"\n"):
             if not line:
@@ -629,11 +746,12 @@ class Index:
                 bad += 1  # valid JSON, wrong shape — same skip-and-warn contract
                 continue
             evs.append(ev)
-        applied = self.apply_events(evs)
+        applied += self.apply_events(evs)
         with self._txn():
             if bad:
                 self._meta_incr("bad_lines", bad)
             self._meta_set("watermark", str(watermark + end + 1))
+            self._meta_set("watermark_tag", tag)
         return applied
 
     # -- rebuild ---------------------------------------------------------------------
@@ -682,6 +800,15 @@ class Index:
                 "kernel active — index rebuild refused "
                 "(claims/done projections would go blind mid-run)"
             )
+        # Snapshot the durable cursors BEFORE replaying: stamping a
+        # watermark measured after replay could cover ledger lines that
+        # arrived mid-replay and were never applied — the index would sit
+        # permanently ahead of its own projections. Anything the ledger
+        # gains during replay stays ahead of the stamped cursor for the
+        # next tail_ingest instead.
+        wm = self._ledger_watermark()
+        wtag = _file_tag(paths.events_path())
+        sealed_names = _sealed_segment_names()
         applied = 0
         with self._txn():
             for t in _PROJECTION_TABLES:
@@ -697,7 +824,9 @@ class Index:
                 if self._apply_one(ev) == "applied":
                     applied += 1
             self._meta_incr("sealed_gen")
-            self._meta_set("watermark", str(self._ledger_watermark()))
+            self._meta_set("watermark", str(wm))
+            self._meta_set("watermark_tag", wtag)
+            self._meta_set("sealed_done", json.dumps(sorted(sealed_names)))
         # Commit succeeded — the index is sealed again; only now clear dirty.
         try:
             paths.index_dirty_path().unlink()
@@ -714,14 +843,31 @@ class Index:
             int(self._meta_get("watermark", "0") or 0),
         )
 
-    def check_sealed(self, gen: int, min_offset: int) -> bool:
-        """Fail-closed oracle input (§3.10.6): generation must match AND the
-        index must have swallowed at least min_offset bytes AND no
-        .index-dirty flag. False = caller must NOT issue 'absent→放行'."""
+    def check_sealed(self, gen: int, min_offset: int = 0,
+                     min_tag: str | None = None) -> bool:
+        """Fail-closed oracle input (§3.10.6): generation must match AND no
+        .index-dirty flag AND no uningested sealed segment AND the index
+        must have swallowed the bytes the caller observed.
+
+        ``min_tag`` is the caller-snapshot inode tag of events.jsonl
+        (``st_dev:st_ino``). When it still matches the live file the plain
+        watermark>=min_offset comparison is honest. When it does not, the
+        file the offset pointed into rotated into sealed/: the bytes are
+        covered iff every sealed segment is ingested — and at least one
+        must exist, else the tail was wiped by a foreign hand, not a seal.
+        False = caller must NOT issue 'absent→放行'."""
         if self.dirty():
             return False
         gen_now, watermark = self.sealed_state()
-        return gen_now == int(gen) and watermark >= int(min_offset)
+        if gen_now != int(gen):
+            return False
+        if min_tag:
+            if _file_tag(paths.events_path()) != min_tag:
+                return (
+                    bool(_sealed_segment_names())
+                    and self._sealed_covered()
+                )
+        return self._sealed_covered() and watermark >= int(min_offset)
 
     def done(self, idc, arm, up, variant, stage, runs=None) -> bool:
         """Terminal status in cells for (idc,arm,up,variant,stage).
