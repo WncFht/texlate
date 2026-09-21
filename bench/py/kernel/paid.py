@@ -229,20 +229,23 @@ class GatewayFactory:
         self.meter = meter if meter is not None else CostMeter(prices)
         self.nslots = int(nslots)
         self.max_cost = max_cost
-        self._client = None
+        self._client_obj = None
         self._client_lock = threading.Lock()
         self.shared = {"paper_auth": {}, "all_failed": 0, "aborted": False}
         self._shared_lock = threading.Lock()
 
-    def client(self):
-        """Lazy client construction — AUTH_DEAD gates even construction."""
+    def _client(self):
+        """Lazy client construction — AUTH_DEAD gates even construction.
+        Private: the raw client must never be reachable from stage code —
+        session.request() is the only wire path."""
         if locks.auth_dead():
             raise PaidAbortRun("AUTH_DEAD sentinel engaged")
         with self._client_lock:
-            if self._client is None:
-                self._client = self.factory_fn(self.ctx) if self._wants_ctx() \
-                    else self.factory_fn()
-        return self._client
+            if self._client_obj is None:
+                self._client_obj = (
+                    self.factory_fn(self.ctx) if self._wants_ctx()
+                    else self.factory_fn())
+        return self._client_obj
 
     def _wants_ctx(self) -> bool:
         try:
@@ -268,9 +271,14 @@ class GatewayFactory:
             return n, self.shared["all_failed"]
 
     def fail_paper(self, idc: str) -> int:
-        """Mark a paper all-failed; returns the all_failed count."""
+        """Mark a paper all-failed; returns the DISTINCT failed-paper
+        count — a paper re-hitting its 401 limit must not re-increment
+        (the run fuse counts failed papers, not 401 bursts)."""
         with self._shared_lock:
-            self.shared["all_failed"] += 1
+            failed = self.shared.setdefault("failed_papers", set())
+            if idc not in failed:
+                failed.add(idc)
+                self.shared["all_failed"] += 1
             return self.shared["all_failed"]
 
     def abort(self):
@@ -297,7 +305,8 @@ class PaidSession:
         self.factory = factory
         self.ctx = ctx
         self._lease = None
-        self._client = None
+        self._owns_lease = False
+        self._client_obj = None
 
     # -- internals --------------------------------------------------------------------
     def _key(self) -> tuple:
@@ -317,12 +326,18 @@ class PaidSession:
         """
         existing = getattr(self.ctx, "claim_lease", None)
         if existing is not None and existing.held:
+            # ``existing is self._lease`` = our own lease re-read back off
+            # the ctx — still ours. A DIFFERENT held lease is the kernel's:
+            # it releases at cell end, not via this session.
+            if existing is not self._lease:
+                self._owns_lease = False
             self._lease = existing
             return existing
         if self._lease is None or not self._lease.held:
             idc, arm, variant = self._key()
             self._lease = claims.ClaimLease(idc, arm=arm, variant=variant)
             self._lease.acquire(blocking=True)
+            self._owns_lease = True
             try:
                 self.ctx.claim_lease = self._lease
             except AttributeError:
@@ -332,18 +347,34 @@ class PaidSession:
     def release_claim(self, fate: str | None = None):
         """Drop the claim mutex (idempotent). ``fate`` is recorded on the
         ctx for the kernel's claim-release audit event."""
+        self._mark_fate(fate)
+        if self._lease is not None:
+            self._lease.release()
+
+    def _mark_fate(self, fate: str | None):
         if fate:
             try:
                 self.ctx.claim_fate = fate
             except AttributeError:
                 pass
-        if self._lease is not None:
-            self._lease.release()
 
-    def client(self):
-        if self._client is None:
-            self._client = self.factory.client()
-        return self._client
+    def _trip_claim(self):
+        """Auth-trip bookkeeping: mark the release-audit fate, then drop
+        the lease ONLY if this session acquired it. A kernel-set
+        ``ctx.claim_lease`` unwinds via the cell's ExitStack at cell end —
+        releasing it here would open a re-burn window while the terminal
+        row is still unwritten (a racer could claim and re-spend)."""
+        self._mark_fate("auth_trip")
+        if self._owns_lease:
+            self.release_claim()
+
+    def _client(self):
+        """Raw client — session-internal. The ONLY wire path stage code
+        may touch is request(); a public accessor would bypass the
+        claim/slot/PAUSE/meter gates."""
+        if self._client_obj is None:
+            self._client_obj = self.factory._client()
+        return self._client_obj
 
     def probe_model(self):
         """Cheap liveness probe — AUTH_DEAD is checked FIRST (a dead-auth
@@ -352,7 +383,7 @@ class PaidSession:
             raise PaidAbortRun("AUTH_DEAD sentinel engaged")
         if self.factory.aborted():
             raise PaidAbortRun("run aborted by auth breaker")
-        cli = self.client()
+        cli = self._client()
         probe = getattr(cli, "probe_model", None)
         if callable(probe):
             return probe()
@@ -378,14 +409,14 @@ class PaidSession:
             with locks.paid_slot(nslots=self.factory.nslots):
                 res = self._call(method, *a, **kw)
         except PaidAbortRun:
-            self.release_claim(fate="auth_trip")
+            self._trip_claim()
             raise
         except Exception as exc:
             if is_auth_error(exc):
                 n, _af = self.factory.bump_auth(idc)
                 if n >= self.PAPER_401_LIMIT:
                     all_failed = self.factory.fail_paper(idc)
-                    self.release_claim(fate="auth_trip")
+                    self._trip_claim()
                     if all_failed >= self.RUN_ALL_FAILED_LIMIT:
                         locks.trip_auth_dead(
                             f"{all_failed} papers all_failed on 401 "
@@ -413,7 +444,7 @@ class PaidSession:
         return res
 
     def _call(self, method, *a, **kw):
-        cli = self.client()
+        cli = self._client()
         if callable(method):
             return method(cli, *a, **kw)
         fn = getattr(cli, method)

@@ -117,8 +117,8 @@ def test_factory_lazy_client_and_meter(broot: Path):
 
     f = paid.GatewayFactory(mk)
     assert built == []                               # lazy: nothing yet
-    f.client()
-    f.client()
+    f._client()
+    f._client()
     assert built == [1]                              # built exactly once
 
 

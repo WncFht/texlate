@@ -600,6 +600,15 @@ def compile_checks(spec: Spec) -> list[str]:
                     f"paid stage {st.name!r}: dedup_key required "
                     "(asset default None is fine — declare it explicitly "
                     "at stage or spec level)")
+            eff = st.dedup_key if st.dedup_key is not None else spec.dedup_key
+            if callable(eff) or (eff is not None
+                                 and tuple(eff) != ("idc", "arm", "variant")):
+                problems.append(
+                    f"paid stage {st.name!r}: dedup_key remap {eff!r} "
+                    "voids cell-keyed evidence legs — manifest/claim/"
+                    "paid_pool evidence is keyed (idc,arm,variant), so a "
+                    "remapped key always reads 'absent' and re-burns. "
+                    "Paid stages must claim on the asset default.")
     # Clarify: asset default IS 'no explicit key'; the check above only
     # fires when the author forgot the knob entirely AND spec lacks one.
     # An explicit dedup_key=None on the stage reads as the asset default.

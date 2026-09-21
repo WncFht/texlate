@@ -261,21 +261,31 @@ def _dir_has_files(d: Path) -> bool:
 def _product_ok(rd: runs.RunDir, cell: dict, up_stage: str,
                 up_spec, rec: dict, idc: str, arm: str, variant: str,
                 safe: str) -> bool:
-    """'产物可解析' for a mutating upstream: bytes reachable via vault
-    verified copy, this run's work tree, or the upstream run's own work
-    tree (cross-run — the foreign_runs/declared case)."""
+    """'产物可解析' for a mutating upstream — PER-KIND, never cell-level.
+
+    A kind counts through evidence of ITS OWN bytes: an intact vault copy
+    declaring it, this run's work tree, or the upstream run's own work
+    tree. A manifest-dead kind (tombstone/loss row with no later revive)
+    vetoes the whole product UNLESS fresh work-tree bytes exist for it —
+    vault-intact bytes do NOT revive a tombstoned kind, because tombstone
+    is a verdict-layer loss record that deliberately leaves bytes on
+    disk. The old cell-level bytes_ok leg let a live 'state' copy mask a
+    tombstoned 'zh' — downstream then burned paid requests against a
+    product the ledger had already declared lost."""
     if not up_spec or not up_spec.mutates:
         return True
     try:
-        if vault.bytes_ok(idc, arm, variant):
-            return True
+        ev = dedupmod.manifest_kind_evidence().get((idc, arm, variant))
     except Exception:
-        pass
+        ev = None
+    dead = ev["dead"] if ev else set()
+    try:
+        vrows = vault.query(idc, arm, variant)
+    except Exception:
+        vrows = []
     base = rd.work(safe)
-    for k in up_spec.mutates:
-        if _dir_has_files(base / vault._work_dirname(k, arm, variant)):
-            return True
     # upstream run's own work tree — rec['run'] is kind/date/slug
+    other = None
     rname = rec.get("run")
     if isinstance(rname, str):
         parts = rname.split("/")
@@ -284,13 +294,21 @@ def _product_ok(rd: runs.RunDir, cell: dict, up_stage: str,
                 other = paths.run_dir(parts[0], parts[1], parts[2])
             except ValueError:
                 other = None
-            if other is not None:
-                for k in up_spec.mutates:
-                    if _dir_has_files(
-                            other / "work" / safe
-                            / vault._work_dirname(k, arm, variant)):
-                        return True
-    return False
+    lost = present = False
+    for k in up_spec.mutates:
+        work = _dir_has_files(base / vault._work_dirname(k, arm, variant))
+        if not work and other is not None:
+            work = _dir_has_files(
+                other / "work" / safe / vault._work_dirname(k, arm, variant))
+        intact = any(
+            isinstance(r.get("files"), dict) and k in r["files"]
+            and r.get("bytes_ok")
+            for r in vrows)
+        if k in dead and not work:
+            lost = True
+        elif intact or work:
+            present = True
+    return present and not lost
 
 
 def _needs_eval(rd: runs.RunDir, spec: Spec, idx, cell: dict,
@@ -534,18 +552,17 @@ def _run_cell(env, cell: dict) -> dict:
 
         # 2. cross-run dedup — the last OUTCOME row (records, not the
         #    queued-masked cells table) decides; DONE ∪ KERNEL = terminal.
-        #    EXCEPT a paid-stage 'reject': reject is a gate REFUSAL
-        #    (regen_gate/budget), not work evidence — masking it behind
-        #    dedup makes a refused cell permanently un-runnable. Fall
-        #    through to the paid gate, which re-adjudicates (verified ->
-        #    dedup, missing -> regen 4-flag recheck, absent -> budget).
+        #    PAID STAGES SKIP THIS ENTIRELY: records statuses like
+        #    'claimed'/'reject'/'lost' are adjudication states, not byte
+        #    evidence — masking them behind dedup bricks refused or
+        #    interrupted cells permanently. The step-3 oracle owns every
+        #    paid cell (verified -> dedup, missing -> regen gate,
+        #    absent -> budget fuse).
         last = _last_outcome(idx, idc, arm, up, variant, stage_name)
-        if last is not None and last["status"] in (
-                events.STATUS_DONE | events.STATUS_KERNEL):
-            gate_refusal = (stage is not None and stage.paid
-                            and last["status"] == "reject")
-            if not gate_refusal:
-                return quick("dedup")
+        if (last is not None and not (stage is not None and stage.paid)
+                and last["status"] in (
+                        events.STATUS_DONE | events.STATUS_KERNEL)):
+            return quick("dedup")
 
         # 3. paid gate — the fail-closed oracle owns every paid cell
         if stage is not None and stage.paid:
