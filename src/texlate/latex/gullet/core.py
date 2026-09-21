@@ -30,11 +30,13 @@ from .entries import (
     ArgMismatch,
     IfCond,
     IfSetter,
-    MacroDef,
     ScopeMacroTable,
 )
+from .expand import (
+    _BLOCKED,
+    _MISMATCH,
+)
 from .names import (
-    _EXPAND_KINDS,
     _PRIMS,
 )
 
@@ -251,18 +253,15 @@ class _Core:
             entry = self.macros.lookup(name)
             if entry is not None:
                 r = self.macros.resolve(entry)
-                if isinstance(r, MacroDef):
-                    if r.kind in _EXPAND_KINDS and self._can_expand(t):
-                        self.steps += 1
-                        self._trace = []
-                        try:
-                            out = self._invoke(t, r)
-                        except ArgMismatch:
-                            self.unread(self._trace)
-                            return t  # §3.5：回吐已读 + \name 本体交出
-                        self.unread(out)
-                        continue
-                    return t  # opaque/math/inline/literal → 调用点保护
+                out = self._try_expand_macro(t, r, count_step=True)
+                if isinstance(out, list):
+                    self.unread(out)
+                    continue
+                if out is _BLOCKED or out is _MISMATCH:
+                    # _BLOCKED：opaque/math/inline/literal → 调用点保护；
+                    # _MISMATCH：§3.5 失配——助手已回吐已读 token，交本体。
+                    return t
+                # _NOT_MACRO：续走 IfCond/IfSetter/Tok/str 表项分派
                 if isinstance(r, IfCond):
                     if not self._can_expand(t):
                         return t
@@ -303,7 +302,7 @@ class _Core:
             return t  # LaTeX 内建/未知 cs → 分段器按 argspec 表处理
 
     def _can_expand(self, t: Tok) -> bool:
-        """三级限制：``gen>MAX_GEN``/``steps>BUDGET`` → 不再展开（§3.4）。"""
+        """三级限制：``gen>=MAX_GEN``/``steps>BUDGET`` → 不再展开（§3.4）。"""
         if t.gen >= MAX_GEN:
             if not self.overflow:
                 self.overflow = True

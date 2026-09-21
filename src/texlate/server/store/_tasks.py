@@ -12,22 +12,26 @@ from typing import TYPE_CHECKING, Any
 from texlate.server.store._common import (
     _UNSET,
     ACTIVE_STATUSES,
+    DDL,
     RETRYABLE_FROM,
     STAGES,
     TERMINAL_STATUSES,
     StoreError,
     TransitionError,
+    _qmarks,
     _Repo,
+    _set_clause,
+    _sql_str_list,
 )
 
 if TYPE_CHECKING:
     import sqlite3
-    from collections.abc import Iterable, Sized
 
 
 # ------------------------------------------------------------ 共享底料
-# ``_Repo`` 基类已上抬 ``_common.py`` 作六 repo 单源；本节余下的是
-# tasks 聚合自用的占位符/SQL 拼块件。
+# ``_Repo`` 基类与 ``_qmarks``/``_set_clause``/``_sql_str_list`` SQL
+# 拼块件都已上抬 ``_common.py`` 作包内单源；本节余下的是 tasks 聚合
+# 自用的枚举序常量。
 
 #: cache_key 占用态集 = ``ACTIVE_STATUSES ∪ {"interrupted"}``——与
 #: ``_common.DDL`` 的 ``uq_tasks_cachekey_active`` 部分唯一索引谓词
@@ -47,21 +51,14 @@ _CACHE_KEY_HELD_STATUSES = (
 assert frozenset(_CACHE_KEY_HELD_STATUSES) == ACTIVE_STATUSES | {  # noqa: S101 -- 集合契约：与 ACTIVE_STATUSES∪interrupted 锁步，漂移即坏 DDL/查询两侧同集前提
     "interrupted"
 }
+#: 序契约压实：渲染字面量须为已部署 DDL 谓词的逐字子串——同集异序
+#: 上面集合 assert 验不出，这里直接对 DDL 文本钉死。
+assert f"({_sql_str_list(_CACHE_KEY_HELD_STATUSES)})" in DDL  # noqa: S101 -- 序漂移即丢 uq_tasks_cachekey_active 部分索引资格，载入即炸响
 
-
-def _qmarks(items: Sized) -> str:
-    """IN 占位符串（``?,?,…``）——只产占位符，值全走绑定参数。"""
-    return ",".join("?" * len(items))
-
-
-def _set_clause(fields: dict[str, Any]) -> str:
-    """UPDATE SET 子句（``k = ?`` 逗号串）——键名全为调用方内部白名单。"""
-    return ", ".join(f"{k} = ?" for k in fields)
-
-
-def _sql_str_list(items: Iterable[str]) -> str:
-    """渲染 SQL 字符串字面量列表（``'a','b'``）——仅染内部枚举常量，外部输入禁入。"""
-    return ",".join(f"'{s}'" for s in items)
+#: 终态 IN 列表/绑定参数渲染件——terminal_task_ids/retention_candidates/
+#: terminal_oldest_first 三处共用（sorted 序固定，占位符与参数一一对应）。
+_TERMINAL_IN = f"({_qmarks(TERMINAL_STATUSES)})"
+_TERMINAL_ARGS: tuple[str, ...] = tuple(sorted(TERMINAL_STATUSES))
 
 
 class TaskRepo(_Repo):
@@ -133,12 +130,13 @@ class TaskRepo(_Repo):
         if status:
             rows = self.conn.execute(
                 "SELECT * FROM tasks WHERE tenant = ? AND status = ?"
-                " ORDER BY created_at DESC",
+                " ORDER BY created_at DESC, id DESC",
                 (tenant, status),
             ).fetchall()
         else:
             rows = self.conn.execute(
-                "SELECT * FROM tasks WHERE tenant = ? ORDER BY created_at DESC",
+                "SELECT * FROM tasks WHERE tenant = ?"
+                " ORDER BY created_at DESC, id DESC",
                 (tenant,),
             ).fetchall()
         return [dict(r) for r in rows]
@@ -242,9 +240,8 @@ class TaskRepo(_Repo):
 
     def terminal_task_ids(self, tenant: str | None = None) -> list[str]:
         """终态任务 id（``tenant`` 可选过滤）——瘦身/清扫候选面。"""
-        qmarks = _qmarks(TERMINAL_STATUSES)
-        sql = f"SELECT id FROM tasks WHERE status IN ({qmarks})"  # noqa: S608 -- '?' 占位符拼接，值全走绑定参数
-        args: tuple[str, ...] = tuple(sorted(TERMINAL_STATUSES))
+        sql = f"SELECT id FROM tasks WHERE status IN {_TERMINAL_IN}"  # noqa: S608 -- '?' 占位符拼接，值全走绑定参数
+        args: tuple[str, ...] = _TERMINAL_ARGS
         if tenant is not None:
             sql += " AND tenant = ?"
             args += (tenant,)
@@ -253,21 +250,19 @@ class TaskRepo(_Repo):
 
     def retention_candidates(self, cutoff: float) -> list[str]:
         """终态且 ``COALESCE(finished_at, updated_at) < cutoff``——retention 龄期候选。"""
-        qmarks = _qmarks(TERMINAL_STATUSES)
         rows = self.conn.execute(
-            f"SELECT id FROM tasks WHERE status IN ({qmarks})"  # noqa: S608 -- 同上
+            f"SELECT id FROM tasks WHERE status IN {_TERMINAL_IN}"  # noqa: S608 -- 同上
             " AND COALESCE(finished_at, updated_at) < ?",
-            (*sorted(TERMINAL_STATUSES), cutoff),
+            (*_TERMINAL_ARGS, cutoff),
         ).fetchall()
         return [str(r["id"]) for r in rows]
 
     def terminal_oldest_first(self) -> list[str]:
         """终态按完成时间升序——retention 容量阶段 oldest-first 候选序。"""
-        qmarks = _qmarks(TERMINAL_STATUSES)
         rows = self.conn.execute(
-            f"SELECT id FROM tasks WHERE status IN ({qmarks})"  # noqa: S608 -- 同上
+            f"SELECT id FROM tasks WHERE status IN {_TERMINAL_IN}"  # noqa: S608 -- 同上
             " ORDER BY COALESCE(finished_at, updated_at), id",
-            tuple(sorted(TERMINAL_STATUSES)),
+            _TERMINAL_ARGS,
         ).fetchall()
         return [str(r["id"]) for r in rows]
 
@@ -287,12 +282,12 @@ class TaskRepo(_Repo):
     def delete_task(self, task_id: str) -> bool:
         """删任务行——FK ``ON DELETE CASCADE`` 带走 chunks/files/events/usage。
 
-        返回是否有行被删（API 层 ``_get_task`` 已做存在性检查，这里只是
-        幂等回执）。任务工作目录 ``tasks/{id}/`` 清理由调用方负责。
+        无条件臂即 ``delete_task_guard`` 空 blocked 特例——单 DELETE 路径
+        不另滚 SQL。返回是否有行被删（API 层 ``_get_task`` 已做存在性
+        检查，这里只是幂等回执）。任务工作目录 ``tasks/{id}/`` 清理由
+        调用方负责。
         """
-        cur = self.conn.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
-        self.conn.commit()
-        return cur.rowcount > 0
+        return self.delete_task_guard(task_id, blocked=frozenset())
 
     def delete_task_guard(self, task_id: str, *, blocked: frozenset[str]) -> bool:
         """条件删除：status ∈ blocked 或行不存在 → False 不删；否则删行返 True。"""
@@ -342,7 +337,7 @@ class TaskRepo(_Repo):
             )
             if not legal:
                 raise TransitionError(task_id, cur, to)
-        fields: dict[str, Any] = {"status": to, "updated_at": time.time()}
+        fields: dict[str, Any] = {"status": to}  # updated_at 由 _set_fields 统一打戳
         if stage is not _UNSET:
             fields["stage"] = stage
         elif to in STAGES:
@@ -366,11 +361,7 @@ class TaskRepo(_Repo):
             fields["stage"] = None
             fields["error_json"] = None
             fields["finished_at"] = None
-        sets = _set_clause(fields)
-        self.conn.execute(
-            f"UPDATE tasks SET {sets} WHERE id = ?",  # noqa: S608 -- 键名全为内部白名单
-            (*fields.values(), task_id),
-        )
+        self._set_fields(task_id, fields)
         self.conn.commit()
         out = self.get(task_id)
         assert out is not None  # noqa: S101 -- 刚更新的行必然存在

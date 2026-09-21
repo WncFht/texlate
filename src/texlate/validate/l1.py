@@ -49,6 +49,7 @@ from pathlib import Path
 from typing import Any, Self
 
 from texlate.textutil import env_raw, filtered_env
+from texlate.textutil.osutil import ENV_NODE, ENV_TS_NODE_PATH, ENV_TS_WORKER
 
 __all__ = [
     "L1Error",
@@ -162,6 +163,11 @@ class TsResult:
         - ``placeholders`` 的 ``missing``/``unexpected``/``typos`` 三键
           须为 list 且 ``typos`` 项为 dict（``expected``/``found`` 计数
           int 键不涉——worker 协议原样放行）。
+
+        ``ok`` 是本段唯一的宽容字段——仍按 ``bool()`` 强转收编（fuzz
+        oracle ``test_fuzz_ts_result_from_dict_verdict`` 钉死 coercion
+        契约，``1``/``"yes"`` 等标量须合法通过），但非 bool 输入会打
+        warning 让协议漂移可观测。
         """
         try:
             res = cls(
@@ -199,6 +205,11 @@ class TsResult:
         if not all(isinstance(t, dict) for t in ph.get("typos", [])):
             msg = "L1 worker 响应 schema 违例: placeholders.typos 项非 dict"
             raise L1Error(msg)
+        ok_raw = d.get("ok")
+        if not isinstance(ok_raw, bool):
+            # ``ok`` 是唯一宽容字段——``bool()`` 收编契约被 fuzz oracle 钉死，
+            # 非 bool 不判违例但打 warning，让 worker 协议漂移可观测。
+            log.warning("L1 worker 响应 ok 非 bool，按 %s 收编: %r", bool(ok_raw), ok_raw)
         return res
 
     def to_dict(self) -> dict[str, Any]:
@@ -262,9 +273,9 @@ class TsValidator:
         timeout: float = _BATCH_TIMEOUT_S,
     ) -> None:
         """解析 node/worker/依赖三方位置；env 覆盖优先于参数默认值。"""
-        env_worker = env_raw("TEXLATE_TS_WORKER")
-        env_node_path = env_raw("TEXLATE_TS_NODE_PATH")
-        self._node = node or env_raw("TEXLATE_NODE") or shutil.which("node")
+        env_worker = env_raw(ENV_TS_WORKER)
+        env_node_path = env_raw(ENV_TS_NODE_PATH)
+        self._node = node or env_raw(ENV_NODE) or shutil.which("node")
         self._worker_dir = (
             Path(worker_dir or env_worker)
             if (worker_dir or env_worker)
@@ -278,6 +289,11 @@ class TsValidator:
         self._timeout = timeout
         self._proc: subprocess.Popen[str] | None = None
         self._lines: queue.Queue[str | None] = queue.Queue()
+        #: 常驻通道已用 doc_id 簿 + 关联戳序号——``_one`` 对复用 id 的上行
+        #: 记录加盖 ``~n`` 唯一戳配对；序号单调不复位（跨 close/open 亦然，
+        #: 旧泵线程残余行同样配不上对）。
+        self._used_ids: set[object] = set()
+        self._req_seq = 0
 
     # ---------------- 可用性 ----------------
 
@@ -291,6 +307,15 @@ class TsValidator:
         return (self._node_path / "tree-sitter").is_dir() and (
             self._node_path / "@pfoerster" / "tree-sitter-latex"
         ).is_dir()
+
+    def _deps_hint(self) -> str:
+        """``npm deps`` 缺席时的诊断尾巴（``""`` = 在场）。
+
+        ``_require_available`` 不闸 deps——``available()`` 才是三件套可用性
+        门，spawn 路径放行让 worker 自己崩；本件把"非零退出/EOF"归因成
+        可行动的 ``npm deps 缺失: <node_path>`` 诊断。
+        """
+        return "" if self._deps_present() else f"（npm deps 缺失: {self._node_path}）"
 
     def available(self) -> bool:
         """Node + worker.js + npm 依赖三者齐备才可用，否则降级 L0。"""
@@ -326,6 +351,10 @@ class TsValidator:
         worker 非零退出或行数与请求数不符 → ``L1Error``（带 stderr 尾巴）——
         空 stdout 若放任返回 ``[]``，调用方 ``[0]`` 取值会泄出 IndexError。
         """
+        # 空批不 spawn：worker 对空 stdin 按裸 .tex 兜底会回一条结果行，
+        # 撞上 ``len(results) != len(records)`` 计数闸误报 L1Error。
+        if not records:
+            return []
         node = self._require_available()
         payload = "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in records)
         try:
@@ -345,6 +374,7 @@ class TsValidator:
             msg = (
                 f"L1 worker 退出码 {proc.returncode}: "
                 f"{proc.stderr.strip()[-300:] or '(stderr 空)'}"
+                f"{self._deps_hint()}"
             )
             raise L1Error(msg)
         try:
@@ -421,16 +451,40 @@ class TsValidator:
     # ---------------- 业务 ----------------
 
     def _drain_lines(self) -> None:
-        """清空响应队列里的滞留行（上次超时后迟到的响应会毒害下一请求）。
+        """清空响应队列里的滞留行（迟到/多出响应会毒害下一请求）。
 
-        残余竞态：迟到行恰好落在 drain 与 write 之间——``_one`` 靠
-        ``id`` 配对丢弃这类迟到响应兜底。
+        ``_one`` 超时即 ``close()`` 拆通道——在途迟到响应随 worker 死亡
+        消失；本排空兜 worker 违协议多吐/错吐的**已落队**残余行，
+        drain 与 write 之间才落队的同 id 迟到行由 ``_one`` 的关联戳
+        挡住配对（``doc_id`` 复用不再构成漏洞窗）。
         """
         while True:
             try:
                 self._lines.get_nowait()
             except queue.Empty:
                 return
+
+    def _stamp_rec(self, rec: dict[str, Any]) -> tuple[dict[str, Any], Any]:
+        """同通道复用 doc_id 的上行记录加盖 ``~n`` 唯一关联戳 → ``(wire_rec, orig_id)``。
+
+        ``doc_id`` 由调用方给、可复用（``validate``/``sign`` 默认 ``"chunk"``/
+        ``"baseline"`` 逐块同名）。首用 id 在本通道内本已唯一不戳；复用时
+        wire id 换戳值，本轮 drain 之后才落队的同 id 迟到/多出残留行便
+        配不上对（此前 drain+id 配对在该窗口下同 id 误配给后发请求）。
+        戳序随 ``_req_seq`` 单调不复位——跨 close/open 旧泵残余行也配不上。
+        协议外不可哈希 doc_id 不进簿不戳，等值配对照旧。
+        """
+        orig_id = rec.get("id")
+        try:
+            fresh = orig_id not in self._used_ids
+            self._used_ids.add(orig_id)
+        except TypeError:  # 不可哈希 doc_id——戳不进簿，等值配对照旧
+            fresh = True
+        if fresh:
+            return rec, orig_id
+        seq = self._req_seq
+        self._req_seq += 1
+        return {**rec, "id": f"{orig_id}~{seq}"}, orig_id
 
     def _one(self, rec: dict[str, Any]) -> TsResult:
         """常驻通道优先，未启动/进程死退批处理单条。"""
@@ -441,24 +495,32 @@ class TsValidator:
             self.close()
             return self.validate_batch([rec])[0]
         self._drain_lines()
+        rec, orig_id = self._stamp_rec(rec)
+        want_id = rec.get("id")
         try:
             self._proc.stdin.write(json.dumps(rec, ensure_ascii=False) + "\n")
             self._proc.stdin.flush()
         except OSError as e:
             msg = "L1 常驻 worker stdin 已断（进程已退出？）"
             raise L1Error(msg) from e
-        want_id = rec.get("id")
         deadline = time.monotonic() + self._timeout
         while True:
             try:
                 line = self._lines.get(timeout=max(deadline - time.monotonic(), 0.01))
             except queue.Empty as e:
-                self._drain_lines()
+                # 超时即有一枚迟到响应在途——它若在下一轮 drain 与 write
+                # 之间落队，关联戳虽挡得住同 id 误配，残留行仍会逐轮淤积；
+                # 拆通道（下一调用走批处理降级重起）仍是最干净的兜底，
+                # id 配对只负责丢弃错序/多出的异 id 行。
+                self.close()
                 msg = f"L1 常驻 worker 响应超时（{self._timeout}s，进程已退出？）"
                 raise L1Error(msg) from e
             if line is None:
                 self.close()
-                msg = "L1 常驻 worker EOF（进程已退出，响应通道关闭）"
+                msg = (
+                    "L1 常驻 worker EOF（进程已退出，响应通道关闭）"
+                    f"{self._deps_hint()}"
+                )
                 raise L1Error(msg)
             try:
                 res = TsResult.from_dict(json.loads(line))
@@ -466,8 +528,9 @@ class TsValidator:
                 msg = f"L1 常驻 worker 输出非 JSON: {line[:200]!r}"
                 raise L1Error(msg) from e
             if res.id == want_id:
+                res.id = orig_id  # 关联戳是线协议内件——对外仍报调用方 doc_id
                 return res
-            # 迟到/错序响应（上轮超时残留）——丢弃继续等本请求的配对行
+            # 迟到/错序响应（上轮超时残留/戳外异 id 行）——丢弃继续等配对行
 
     def sign(self, tex: str, *, doc_id: str | None = None) -> TsBaseline:
         """对译前源文本取签名（相对判定基线）。"""

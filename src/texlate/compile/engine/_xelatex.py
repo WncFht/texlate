@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import contextlib
 import logging
+import os
 import re
 import shutil
 from pathlib import Path
@@ -29,6 +30,7 @@ from texlate.compile.sandbox import (
     child_env,
 )
 from texlate.textutil import env_raw, safe_is_file
+from texlate.textutil.osutil import ENV_TLNET
 
 from ._base import (
     DEFAULT_TIMEOUT,
@@ -189,7 +191,7 @@ class XelatexEngine:
         # best-effort（halt_on_error=False，对齐 compile_bench 方法论）。
         self.halt_on_error = halt_on_error
         self.texmfhome = texmfhome
-        self.repository = repository or env_raw("TEXLATE_TLNET") or None
+        self.repository = repository or env_raw(ENV_TLNET) or None
         self._search_cache: dict[str, list[str]] | None = None
         self._usertree_inited = False
         #: ``_fontconfig_conf`` memo——``(texmfhome, conf 路径)``。conf 内容
@@ -481,6 +483,12 @@ class XelatexEngine:
                 )
                 if res.bib_ran and passes is None:
                     eff_passes += 1
+                    # 延趟后按剩余预算重劈 per_pass——``timeout/eff_passes``
+                    # 本就是总墙钟约束：不劈则 timeout=240 的 2 趟起跑
+                    # （per_pass=120）延成 3 趟可烧 360s，静默超预算。
+                    per_pass = max(
+                        10.0, (timeout - res.seconds) / max(1, eff_passes - p)
+                    )
             hint = hint or bool(res.bib_ran)
             if (
                 to
@@ -636,13 +644,18 @@ class XelatexEngine:
         ``base/fname``, ``.`` 元素在该基上永不另产命中; 进程 cwd 落 wdir
         内时旧写法会让 kpsewhich ``.`` 命中 vendored 自件并毒化 memo
         (seki 15 era 件全 self-hit → vendored_shadow 条件死面实证)。
+        ``base`` 不在档（wdir 中途被清）时回落**文件系统根**而非进程
+        cwd——进程 cwd 的 ``.`` 命中是 cwd 相关结果，却会按 cwd 无关键
+        ``(fname, texmfhome, TEXMFHOME)`` 进 ``_probe_cache`` 毒化后续
+        一切 workdir 的探测；根目录下相对 ``fname`` 必 miss，结果天然
+        cwd 无关、缓存安全。
         """
         tool = _eng.find_tool("kpsewhich")
         if tool is None:
             return None
         rc, out, _, to = _eng.run_process(
             [tool, fname],
-            cwd=base if base.is_dir() else Path.cwd(),
+            cwd=base if base.is_dir() else Path(base.anchor or os.sep),
             env=self._env(None),
             timeout=15,
         )

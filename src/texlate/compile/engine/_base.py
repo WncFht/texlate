@@ -1,11 +1,13 @@
 """引擎协议 + 编译结果类型 + 共享小件 —— ``engine.py`` 拆分基座叶。
 
 ``CompRes``/``Engine`` 契约（docs/spec/compile.md）与两引擎共用的输出汇总、
-信号死 stdout 打捞、main 参数合法性闸。
+信号死 stdout 打捞、main 参数合法性闸、``compile()`` 头尾段共享件与
+``parse_log`` 的 .log 侧读段。
 """
 
 from __future__ import annotations
 
+import contextlib
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -14,6 +16,7 @@ from typing import TYPE_CHECKING, Protocol, runtime_checkable
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
 
+from texlate.compile.deps import compiled_dependencies
 from texlate.compile.loginfo import LogInfo
 from texlate.texlog import DRIVER_FATAL_RE, driver_fatal_line
 from texlate.textutil import safe_resolve
@@ -155,11 +158,17 @@ class Engine(Protocol):
 
 
 def _collect_compile_outputs(res: CompRes, outputs: list[str]) -> None:
-    """汇总各 pass 的 stdout 尾巴进 CompRes + 活哨原因归位。
+    """末 pass 的 stdout 尾 4KB 进 ``CompRes.stdout_tail``（前趟不拼）+ 活哨原因归位。
 
     ``run_process`` 把活哨截杀臂名写进 ``timed_out`` 槽以 str 回吐，引擎
     逐 pass 原样落 ``res.timed_out``——此处归位显式字段并复归纯 bool，
     下游（``_res_died``/e2e JSON/judge truthiness）只吃 bool 语义。
+
+    只取末趟是有意口径（``test_xelatex_stdout_tail_last_only`` 钉死）：
+    续趟/重试成功后前趟 tail 是陈态，拼接会把已恢复的 ``fatal:``/错误行
+    喂回兜底 ``parse_log`` 与 ``_driver_fatal`` 造假归因/假否决。代价——
+    中趟信号死（``killed_signal`` 仍记账）的 stdout fatal 行不进 tail，
+    clean 否决对「中趟 fatal + 末趟跑完」保守放行。
     """
     res.stdout_tail = outputs[-1][-4000:] if outputs else ""
     if isinstance(res.timed_out, str):
@@ -227,3 +236,79 @@ def _checked_main(wdir: Path, main: str) -> Path:
         msg = f"invalid main {main!r}: escapes workdir"
         raise ValueError(msg)
     return main_path
+
+
+# ================================================================ 两引擎共用件
+def _prepare_main(
+    wdir: Path,
+    main: str,
+    outdir: Path | None,
+    *,
+    default_subdir: str = "",
+    extra_stale: Iterable[str] = (),
+) -> tuple[Path, Path, str, Path, Path, Path]:
+    """compile() 头段共享件：main 校验 + out 落点解析/mkdir + 陈旧产物清理。
+
+    ``default_subdir`` = ``outdir`` 缺席时 ``cwd`` 下的引擎默认子目录
+    （tectonic ``_tect_out``；xelatex 产物落 main 旁、留空）。``extra_stale``
+    收相对 ``out`` 的追加清档名，``{stem}`` 占位按 main 词干展开（xelatex
+    ``"{stem}.fls"``、tectonic ``"dependencies.mk"``）。返回
+    ``(main_path, cwd, stem, out, pdf, log)``——源树目录镜像等引擎私有
+    步骤留在调用方。
+    """
+    main_path = _checked_main(wdir, main)
+    cwd = main_path.parent
+    stem = main_path.stem
+    out = (outdir or (cwd / default_subdir if default_subdir else cwd)).resolve()
+    out.mkdir(parents=True, exist_ok=True)
+    pdf, log = out / f"{stem}.pdf", out / f"{stem}.log"
+    for stale in (pdf, log, *(out / name.format(stem=stem) for name in extra_stale)):
+        stale.unlink(missing_ok=True)
+    return main_path, cwd, stem, out, pdf, log
+
+
+def _harvest(  # noqa: PLR0913, PLR0917 — compile() 尾段共享件，参数面即两引擎差异缝
+    res: CompRes,
+    wdir: Path,
+    main: str,
+    out: Path,
+    pdf: Path,
+    log: Path,
+    log_text: str,
+) -> None:
+    """compile() 尾段共享件：log_text/log_path/pdf/ok/workdir/deps 归位。
+
+    ``log_text`` 由调用方早读——各引擎 ``.log``→``LogInfo`` 解析段发散
+    （xelatex ``parse_log(log_text or stdout_tail)`` + driver-fatal 打捞 +
+    ``log_truncated``；tectonic 空 .log 退 stdout_tail + ``error:`` 签名
+    兜底），读盘随解析段留在原地。本函数只归位字段，且须在
+    ``_salvage_driver_fatal`` 之后调用：``_driver_fatal`` 的 ``has_pdf``
+    门按归位前字段评估（编译时序上恒 False——``res.pdf`` 此刻未落位即
+    「呈失败相」，fatal 行打捞不因已出 pdf 被闸掉）。
+    """
+    res.log_text = log_text
+    res.log_path = log if log.exists() else None
+    res.pdf = pdf if pdf.exists() else None
+    res.pdf_bytes = pdf.stat().st_size if pdf.exists() else 0
+    res.ok = not res.timed_out and res.rc is not None and res.rc >= 0
+    res.workdir = wdir
+    res.deps = compiled_dependencies(wdir, main, out, res.engine)
+
+
+def _log_side_text(res: CompRes) -> str:
+    """``.log`` 侧文本读段：``log_text`` 优先、``log_path`` 兜底、皆空 ``""``。
+
+    两引擎 ``parse_log`` 共用的 log-preferring 读段。``stdout_tail`` 收尾
+    归调用方自理——tectonic 的 ``error:``/``fatal:`` 归一重扫闸钉在
+    「.log 侧为空」判据上，本段若合并 tail 会让该闸失火；xelatex 臂
+    ``_log_side_text(res) or res.stdout_tail`` 即
+    ``repair.log_text_of``/``texlog.log_text_of`` 同口径。``getattr``
+    字段容错 + ``suppress(OSError)`` 读盘姿态与 ``log_text_of`` 一致
+    （test double 可缺 ``log_text`` 字段；被杀编译的 0 字节 .log 读成
+    ``""`` 自然落兜底）。
+    """
+    text = getattr(res, "log_text", "") or ""
+    if not text and res.log_path is not None:
+        with contextlib.suppress(OSError):
+            text = res.log_path.read_text(encoding="utf-8", errors="replace")
+    return text

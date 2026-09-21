@@ -319,12 +319,16 @@ class _WarnScan:
     ``ws`` = 累计中的 ``WarningSummary``；``project_root``/``dos_eps_cache``
     是 invalid_utf8 系统件/DOS-EPS 归因用的根与判定缓存（``is_dos_eps``
     逐文件名记忆，一次 parse 内共享）。``stack`` 逐事件随 ``(`` 栈
-    变化、不属本组，仍单列传入。
+    变化、不属本组，仍单列传入。``seen_*`` = ``redlines``/``sys_hits``
+    的去重影子集——warning 洪峰 log 上 ``x not in list`` 逐条 O(n)
+    累计成 O(n²)，集成员判 O(1) 且 append 序不变。
     """
 
     ws: WarningSummary
     project_root: Path | None
     dos_eps_cache: dict[str, bool] = field(default_factory=dict)
+    seen_red: set[str] = field(default_factory=set)
+    seen_sys: set[str] = field(default_factory=set)
 
 
 def _mark_redline(
@@ -347,16 +351,19 @@ def _mark_redline(
         inner = next((s for s in reversed(stack) if s), None)
         if is_dos_eps(inner, scan.project_root, scan.dos_eps_cache):
             hit = f"{cls}@{Path(inner).name if inner else '?'}(dos-eps)"
-            if hit not in ws.sys_hits:
+            if hit not in scan.seen_sys:
+                scan.seen_sys.add(hit)
                 ws.sys_hits.append(hit)
             return
         if not is_project_file(inner, scan.project_root):
             hit = f"{cls}@{Path(inner).name if inner else '?'}"
-            if hit not in ws.sys_hits:
+            if hit not in scan.seen_sys:
+                scan.seen_sys.add(hit)
                 ws.sys_hits.append(hit)
             return
     red = f"{cls}: {line.strip()[:120]}"
-    if red not in ws.redlines:
+    if red not in scan.seen_red:
+        scan.seen_red.add(red)
         ws.redlines.append(red)
 
 

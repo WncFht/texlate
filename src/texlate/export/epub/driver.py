@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import shutil
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -15,13 +14,12 @@ from texlate.export.common import (
     GlossaryArg,
     MalformedEpubError,
     apply_translations,
-    drive_pipeline,
     safe_language,
 )
+from texlate.export.docx import run_export
 from texlate.export.filters import sanitize_xml_text
 from texlate.export.markers import reconcile_markers
 from texlate.xlat.pipeline import ChunkIn, ChunkResult
-from texlate.xlat.state import StateStore
 
 from .insert import insert_translation
 from .load import load_epub
@@ -71,8 +69,6 @@ def translate_epub(  # noqa: PLR0913 -- 驱动主链：公共 API 参数面 + ap
     except RecursionError as e:
         msg = f"EPUB 文档嵌套过深，无法解析: {src.name}"
         raise MalformedEpubError(msg) from e
-    state_dir = state_dir or dst.with_name(dst.name + ".state")
-    store = StateStore(state_dir, model="export", pipeline_version=_PIPELINE_VERSION)
 
     ncx_root = next(
         (u.ncx_text.getroottree().getroot() for u in units if u.ncx_text is not None),
@@ -114,34 +110,20 @@ def translate_epub(  # noqa: PLR0913 -- 驱动主链：公共 API 参数面 + ap
         )
 
     chunks = [ChunkIn(u.job_id, u.text, u.kind) for u in units]
-    try:
-        results, counts = drive_pipeline(
-            chunks,
-            translator=translator,
-            store=store,
-            glossary=glossary,
-            on_result=on_result,
-            apply_fn=_apply,
-            save_fn=_flush_and_save,
-        )
-    except RecursionError as e:
-        # 超深 DOM 在克隆/序列化路径（bs4 递归遍历）同样会撞 RecursionError——
-        # 折进 ExportError 族，裸内置异常不许逃逸
-        msg = f"EPUB 文档嵌套过深，无法翻译: {src.name}"
-        raise MalformedEpubError(msg) from e
-
-    if state_dir.exists():
-        shutil.rmtree(state_dir, ignore_errors=True)
-    n_skipped = sum(1 for r in results.values() if r.status == "skipped")
-    return ExportReport(
-        src=src,
-        dst=dst,
-        format="epub",
-        units=len(units),
-        translated=counts.translated,
-        unchanged=counts.unchanged,
-        skipped=n_skipped,
-        fault=counts.fault,
+    # 枚举后段（state/pipeline/清理/报告）与 DOCX 臂逐行同构——共享 docx.run_export
+    return run_export(
+        src,
+        dst,
+        translator,
+        lang=lang,
+        state_dir=state_dir,
+        glossary=glossary,
+        on_result=on_result,
+        chunks=chunks,
+        apply_fn=_apply,
+        save_fn=_flush_and_save,
+        err_cls=MalformedEpubError,
+        fmt="epub",
         documents=len(book.doc_paths),
-        warnings=counts.warnings,
+        pipeline_version=_PIPELINE_VERSION,
     )

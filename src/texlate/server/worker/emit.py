@@ -40,6 +40,13 @@ _DRAIN_S = 5.0
 _LOG_FLUSH_N = 20
 _LOG_FLUSH_S = 0.2
 
+#: ``ctx.log_buf`` 的 append↔snapshot/swap 跨线程锁——``_log`` 会在
+#: worker 线程跑（``to_thread`` 段内逐行源）、``_flush_logs`` 多在
+#: loop 线程排空；无锁时 append 可落进已摘取的旧缓冲（orphan list
+#: join 后丢行），交错的两次 flush 还会重复发布。只在缓冲操作瞬间
+#: 持锁（µs 级）；``_on_loop`` 回弹会跨线程阻塞，绝不可带锁等
+_LOG_BUF_LOCK = threading.Lock()
+
 
 def _wait_events(evs: list[threading.Event], deadline: float) -> None:
     """顺序等事件集直到全置位/deadline——在辅助线程内跑，不占 loop。"""
@@ -184,14 +191,17 @@ class _Events:
         """
         if not force and ctx.terminal:
             return
-        if not ctx.log_buf:
-            ctx.log_last = time.monotonic()  # 批计时自缓冲首行起（0 值会立 flush）
-        ctx.log_buf.append(line)
-        if (
-            force
-            or len(ctx.log_buf) >= _LOG_FLUSH_N
-            or time.monotonic() - ctx.log_last >= _LOG_FLUSH_S
-        ):
+        with _LOG_BUF_LOCK:
+            if not ctx.log_buf:
+                ctx.log_last = time.monotonic()  # 批计时自缓冲首行起（0 值会立 flush）
+            ctx.log_buf.append(line)
+            due = (
+                force
+                or len(ctx.log_buf) >= _LOG_FLUSH_N
+                or time.monotonic() - ctx.log_last >= _LOG_FLUSH_S
+            )
+        # 锁外排空——``_on_loop`` 跨线程阻塞，持锁等 loop 是死锁面
+        if due:
             self._flush_logs(ctx, force=force)
 
     def _flush_logs(self, ctx: TaskCtx, *, force: bool = False) -> None:
@@ -200,11 +210,14 @@ class _Events:
         发布侧仍过 ``_current_status`` 守卫——``ctx.terminal`` 只覆盖
         worker 自迁终态，外部 cancel（API 置库）由库读兜底。
         """
-        lines = ctx.log_buf
-        if not lines:
-            return
-        ctx.log_buf = []
-        ctx.log_last = 0.0  # 0 = 无在批行——下次 append 重新起表
+        # snapshot+swap 与 ``_log`` append 同锁——否则 append 落进已
+        # 摘取的旧缓冲即丢行，交错双 flush 还会把同批行发布两次
+        with _LOG_BUF_LOCK:
+            lines = ctx.log_buf
+            if not lines:
+                return
+            ctx.log_buf = []
+            ctx.log_last = 0.0  # 0 = 无在批行——下次 append 重新起表
 
         def _pub() -> None:
             if not force and self._current_status(ctx) in TERMINAL_STATUSES:
@@ -348,11 +361,18 @@ class _Events:
         即「不动」语义）。
         """
         row = self.store.get(ctx.task_id)
+        # progress 可经直写腐化（TEXT 列 BLOB/非数值）——坏格按 0 容错
+        # （``_stats`` 的 created_at 守卫同口径）：参数求值先炸会把任务
+        # 卡在非终态——``_mark_terminal`` 已置旗而库行未迁
+        try:
+            progress = int(row["progress"]) if row else 0
+        except (TypeError, ValueError):
+            progress = 0
         self.store.transition(
             ctx.task_id,
             status,
             error=err,
-            progress=int(row["progress"]) if row else 0,
+            progress=progress,
             force=True,
             message=message,
         )
@@ -529,9 +549,13 @@ class _Events:
         *,
         hi: int | None = None,
     ) -> int:
-        """``options[key]`` 容错 int：非数值 → warning + 默认；≤0 → 钳 1；``hi`` 超上限钳位。
+        """``options[key]`` 容错 int：falsy 原值静默取默认；解析值 ``<1`` → 钳 1；``hi`` 超上限钳位。
 
-        存量 options_json 可残留非法值（早于 ``_clean_task_options`` 闸或经
+        falsy 原值（``0``/``False``/``""``/``None``/缺席）直返 ``default``
+        ——不经 ``int()`` 也就无 warning（与 ``"0"`` 串这类**非 falsy**
+        的零值不同：它过 ``int()`` 命中 ``<1`` 钳位臂，记 bad_option
+        warning）。非数值 → warning + 默认。存量 options_json 可残留
+        非法值（早于 ``_clean_task_options`` 闸或经
         share/retry 旁路写入）。``qps``/``concurrency`` 下游无
         ``__post_init__`` 兜底——负值直接进 sidecar，放大值打爆网关
         并发/速率面（上限口径对齐 ``app._clean_task_options``：

@@ -18,6 +18,7 @@ from texlate.arxiv.fetch import AcquireResult, AcquireStatus, acquire_source
 from texlate.cli._common import _CLI_PATH, _DEFAULT_CACHE, app
 from texlate.cli._output import status
 from texlate.textutil import env_flag
+from texlate.textutil.osutil import ENV_OFFLINE
 
 
 @app.command()
@@ -46,7 +47,7 @@ def fetch(
     ``{id}v{ver}``、未钉版取已缓存最高版；无缓存报 ``offline_no_cache``
     退出 1，不静默降级上网。
     """
-    off = offline or env_flag("TEXLATE_OFFLINE", default=False)
+    off = offline or env_flag(ENV_OFFLINE, default=False)
     status(f"fetch {arxiv_id}" + (" (offline)" if off else ""))
     res = _acquire(arxiv_id, cache, version=version, offline=off)
     _echo_acquire(res)

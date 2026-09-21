@@ -29,7 +29,7 @@ import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from .batch import abbrev_cut, split_long_chunk
+from .batch import sentence_ends, split_long_chunk
 from .client import HTTP_TOO_MANY_REQUESTS, ChatError
 from .placeholders import (
     ANY_PH_RX,
@@ -47,7 +47,7 @@ from .placeholders import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable, Iterator
+    from collections.abc import Awaitable, Callable
 
 log = logging.getLogger(__name__)
 
@@ -248,44 +248,23 @@ def assess_answer(
     return zh, audit_err or validate_fn(src, zh), warnings
 
 
-def sentence_ends(text: str, stop: int | None = None) -> Iterator[int]:
-    r"""闭合-scope 句号切点逐枚产出：depth==0 的 ``.!?`` 后随空白处的 ``i+1`` 位。
-
-    ``\\`` 转义双跳 + ``{}`` 深度跟踪 + ``abbrev_cut`` 缩写位豁免——
-    ``batch._best_split`` 同款扫描规则的单源实现（升 batch.py 后两处共享）；
-    ``stop`` 限扫描窗（_best_split 只在 limit 内取切）。切位语义归消费方：
-    行级切分吸收后续空白入前片，best_split 记窗内最右切点。
-    """
-    depth = 0
-    i, n = 0, len(text) if stop is None else min(len(text), stop)
-    while i < n:
-        c = text[i]
-        if c == "\\":
-            i += 2
-            continue
-        if c == "{":
-            depth += 1
-        elif c == "}":
-            depth = max(0, depth - 1)
-        elif (
-            c in ".!?"
-            and depth == 0
-            and i + 1 < n
-            and text[i + 1] in " \n"
-            and not abbrev_cut(text, i)
-        ):
-            yield i + 1
-        i += 1
-
-
 def _split_lines_scoped(text: str) -> list[str]:
-    """闭合 scope 边界按句号切（`{}` 深度 0 的 `.!?`+空白 处断）——行级修复切分。"""
+    """闭合 scope 边界按句号切（`{}` 深度 0 的 `.!?`+空白/换行 token 处断）——行级修复切分。"""
     parts: list[str] = []
     start, n = 0, len(text)
     for cut in sentence_ends(text):
         j = cut
-        while j < n and text[j] in " \n":
-            j += 1
+        while j < n:
+            if text[j] in " \n":
+                j += 1
+            elif text.startswith(SOFT_NEWLINE, j):
+                # 编码换行 token 同空白并入前片——句间换行属前句收尾，留在
+                # 下一片起头是孤儿 token（``join(parts)==text`` 平铺不变量不变）
+                j += len(SOFT_NEWLINE)
+            elif text.startswith(PARA_NEWLINE, j):
+                j += len(PARA_NEWLINE)
+            else:
+                break
         parts.append(text[start:j])
         start = j
     if start < n:
@@ -545,6 +524,7 @@ async def _stage_slots(ctx: _LadderCtx) -> str | None:
     )
     if err:
         ctx.warnings.append(f"slots assembled but still invalid: {err}")
+        ctx.best_zh = candidate  # 与前两阶段同则——最末阶段败件留作 fallback 诊断
         return None
     ctx.warnings.extend(w)
     ctx.warnings.append("slots fallback path rescued")

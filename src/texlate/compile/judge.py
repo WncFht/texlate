@@ -256,19 +256,25 @@ def _slot_scan(
 
 
 def machine_slot_audit(workdir: Path) -> list[str]:
-    r"""机位审计独立入口：``workdir`` 下 ``*.tex`` 机位实参非 ASCII → note 串。
+    r"""机位审计独立入口：``workdir`` 下 ``.tex/.ltx`` 源机位实参非 ASCII → note 串。
 
     judge() 内 ``_machine_slot_probe`` 只兜 has_pdf 路径——编译挂死早退
     时本函数仍给 splice 后调用面（e2e ``_translate_tree``/worker splice/
     ``repair_l2._resplice``）留污染证据。note 形与探针同：
-    ``machine_slot_nonascii:<kind>:<file>:<arg>`` + ``capped`` 截断标记。
+    ``machine_slot_nonascii:<kind>:<file>:<arg>`` + ``capped`` 截断标记
+    （确有丢弃才挂——恰好满额不虚报）。
     """
     rxs = (*_MACHINE_SLOT_RXS, ("cite", CITE_FAMILY_RE))
+    # ``_iter_files``/``_read_tex`` 一单源收三面：``.ltx``/``.TEX`` 后缀覆盖、
+    # ``decode_tex`` 判定读件（原 ``read_text(errors=…)`` 吃 locale 默认编码
+    # 且照扫 tar 伪装件）、``os.walk`` 不跟目录软链（rglob 跟链且无环检测）。
+    from .mainfile import _MAIN_TEX_SUFFIXES  # noqa: PLC0415 -- 循环，惰载
+    from .normalize import _iter_files, _read_tex  # noqa: PLC0415 -- 循环，惰载
+
     hits: list[str] = []
-    for tex in sorted(workdir.rglob("*.tex")):
-        try:
-            src = tex.read_text(errors="replace")
-        except OSError:
+    for tex in sorted(_iter_files(workdir, _MAIN_TEX_SUFFIXES)):
+        src = _read_tex(tex)
+        if src is None:
             continue
         hits.extend(
             f"machine_slot_nonascii:{kind}:{tex.name}:{arg!r}"
@@ -277,7 +283,7 @@ def machine_slot_audit(workdir: Path) -> list[str]:
         if len(hits) >= _MACHINE_SLOT_MAX:
             break
     notes = hits[:_MACHINE_SLOT_MAX]
-    if len(hits) >= _MACHINE_SLOT_MAX:
+    if len(hits) > _MACHINE_SLOT_MAX:
         notes.append(f"machine_slot_nonascii:capped@{_MACHINE_SLOT_MAX}")
     return notes
 

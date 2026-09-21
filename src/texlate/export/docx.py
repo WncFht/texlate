@@ -1,6 +1,6 @@
 """DOCX 双语插译管线（doc-formats.md §3——python-docx deepcopy ``w:p`` + ``addnext``）。
 
-遍历面（spec §3.1 六行表的 v1 落地）：
+遍历面（doc-formats.md §3 遍历矩阵的 v1 落地）：
 
 - 正文段落 + 表格 + 文本框 + ``w:sdt`` 内容控件：``body.iter(w:p)`` 一次全
   覆盖——``w:p`` 不可能嵌套，descendant iter 按文档序命中全部（含表格
@@ -29,10 +29,8 @@
 
 from __future__ import annotations
 
-import hashlib
 import logging
 import re
-import shutil
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
@@ -47,20 +45,19 @@ from docx.text.paragraph import Paragraph
 from lxml import etree
 
 from texlate.xlat.pipeline import ChunkIn, ChunkResult
-from texlate.xlat.state import StateStore
 
 from .common import (
     ApplyCounts,
-    ExportError,
     ExportReport,
     GlossaryArg,
     UnsupportedFormatError,
     apply_translations,
-    drive_pipeline,
+    run_export,
     safe_language,
 )
 from .filters import (
     is_unit_text,
+    job_digest,
     normalize_text,
     sanitize_xml_text,
 )
@@ -93,7 +90,9 @@ _PROTECTED_ANCESTOR = frozenset(
     }
 )
 
-#: ``w:rPr`` 下把 run 渲染成不可见的属性——其文本不送模型，rPr 也不做译文模板
+#: ``w:rPr`` 下把 run 渲染成不可见的属性——其文本不送模型，rPr 也不做译文模板。
+#: OnOff 型属性（CT_OnOff）：``w:val`` 缺省 = 开，``0``/``false``/``off``
+#: 是显式关态——写了 ``<w:vanish w:val="0"/>`` 的 run 是可见的，不算隐藏
 _HIDDEN_PROPS = (qn("w:vanish"), qn("w:specVanish"))
 
 #: 永不送模型的文本节点（``w:instrText`` 是域代码本体；``w:delText`` 是已删文本）
@@ -146,7 +145,10 @@ def _protected(node: _Element, stop: _Element) -> bool:
         if el.tag == qn("w:r"):
             rpr = el.find(qn("w:rPr"))
             if rpr is not None and any(
-                rpr.find(prop) is not None for prop in _HIDDEN_PROPS
+                (prop_el := rpr.find(prop)) is not None
+                and (prop_el.get(qn("w:val")) or "true").lower()
+                not in ("0", "false", "off")
+                for prop in _HIDDEN_PROPS
             ):
                 return True
         el = el.getparent()
@@ -260,11 +262,6 @@ def _iter_surfaces(
             yield name, p_el, part, root
 
 
-def _job_digest(text: str) -> str:
-    """``job_id`` 的内容锚：``sha256(text)[:16]``——断点续跑的稳定键。"""
-    return hashlib.sha256(text.encode()).hexdigest()[:16]
-
-
 def iter_units(
     doc: DocumentObject,
 ) -> Iterator[tuple[DocxUnit, Part | None, _Element | None]]:
@@ -280,7 +277,7 @@ def iter_units(
         counters[part_name] = idx + 1
         yield (
             DocxUnit(
-                job_id=f"docx:{part_name}:{idx}:{_job_digest(text)}",
+                job_id=f"docx:{part_name}:{idx}:{job_digest(text)}",
                 text=text,
                 p_el=p_el,
                 part_name=part_name,
@@ -314,7 +311,7 @@ def _first_rpr(p_el: _Element) -> _Element | None:
 def insert_after(p_el: _Element, zh_text: str, language: str) -> None:
     """Deepcopy ``w:p`` → 剥到 ``w:pPr`` → ``addnext`` → 写入译文 run。
 
-    pPr 深拷把 numPr/缩进/段落样式一起继承（spec §3.2）；书签/修订标记随
+    pPr 深拷把 numPr/缩进/段落样式一起继承（doc-formats.md §3）；书签/修订标记随
     非 pPr 子树剥掉，不产生重复锚点/域 id；``w14:paraId``/``w14:textId``
     是逐段唯一锚点 id，克隆必须剥除。``rPr`` 子元素走 ``get_or_add_*``
     按 schema 序落位；``w:lang`` 是 docx 侧的 texlate-zh 标记等价物。
@@ -355,66 +352,6 @@ def insert_after(p_el: _Element, zh_text: str, language: str) -> None:
 # ---------------------------------------------------------------- 驱动
 
 
-def _run_export(  # noqa: PLR0913 -- 双驱共享参数面（drive_pipeline 先例）
-    src: Path,
-    dst: Path,
-    translator: Translator,
-    *,
-    lang: str | None,  # noqa: ARG001 -- preamble 上收预留槽，与 EPUB 臂签名对齐（本尾不读）
-    state_dir: Path | None,
-    glossary: GlossaryArg | None,
-    on_result: Callable[[ChunkResult], None] | None,
-    chunks: list[ChunkIn],
-    apply_fn: Callable[[Mapping[str, ChunkResult]], ApplyCounts],
-    save_fn: Callable[[int], None],
-    err_cls: type[ExportError],
-    fmt: str,
-    documents: int,
-    pipeline_version: str,
-) -> ExportReport:
-    """枚举后段公共尾：``StateStore`` → ``drive_pipeline`` → 清理 → ``ExportReport``。
-
-    DOCX/EPUB 两驱动的枚举后段逐行同构（``state_dir`` 缺省、嵌套护栏、
-    state 清理、skipped 计数、报告装配）——待上收 ``common.py`` 的
-    ``run_export`` 共享件；``err_cls``/``fmt``/``documents`` 是仅存的差异
-    参数面。``lang`` 属驱动侧闭包词法语境，本尾不读——签名留槽与 EPUB 臂
-    对齐（preamble 上收变体的挂点）。
-    """
-    state_dir = state_dir or dst.with_name(dst.name + ".state")
-    store = StateStore(state_dir, model="export", pipeline_version=pipeline_version)
-    try:
-        results, counts = drive_pipeline(
-            chunks,
-            translator=translator,
-            store=store,
-            glossary=glossary,
-            on_result=on_result,
-            apply_fn=apply_fn,
-            save_fn=save_fn,
-        )
-    except RecursionError as e:
-        # 超深 ``w:p`` 子树在 ``insert_after`` 的 deepcopy/序列化路径同样
-        # 撞 RecursionError——折进 ExportError 族，裸内置异常不许逃逸
-        msg = f"{fmt.upper()} 文档嵌套过深，无法翻译: {src.name}"
-        raise err_cls(msg) from e
-
-    if state_dir.exists():
-        shutil.rmtree(state_dir, ignore_errors=True)
-    n_skipped = sum(1 for r in results.values() if r.status == "skipped")
-    return ExportReport(
-        src=src,
-        dst=dst,
-        format=fmt,
-        units=len(chunks),
-        translated=counts.translated,
-        unchanged=counts.unchanged,
-        skipped=n_skipped,
-        fault=counts.fault,
-        documents=documents,
-        warnings=counts.warnings,
-    )
-
-
 def translate_docx(  # noqa: PLR0913 -- 驱动主链：公共 API 参数面 + apply/commit 闭包
     src: Path | str,
     dst: Path | str,
@@ -425,7 +362,7 @@ def translate_docx(  # noqa: PLR0913 -- 驱动主链：公共 API 参数面 + ap
     glossary: GlossaryArg | None = None,
     on_result: Callable[[ChunkResult], None] | None = None,
 ) -> ExportReport:
-    """DOCX → 双语 DOCX 全链（断点/批量/阶梯与 EPUB 同构，见 ``epub.py``）。
+    """DOCX → 双语 DOCX 全链（断点/批量/阶梯与 EPUB 同构，见 ``epub/driver.py``）。
 
     ``glossary`` 入参归一见 ``common.coerce_glossary``。
     Ctrl-C/异常时按已完成译文写一本半成品双语书再抛出（bbm ``_save_temp_book``
@@ -471,7 +408,7 @@ def translate_docx(  # noqa: PLR0913 -- 驱动主链：公共 API 参数面 + ap
         doc.save(str(dst))
 
     chunks = [ChunkIn(u.job_id, u.text, "para") for u in units]
-    return _run_export(
+    return run_export(
         src,
         dst,
         translator,

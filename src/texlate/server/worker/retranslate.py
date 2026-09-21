@@ -15,7 +15,6 @@ import json
 import logging
 import shutil
 import threading
-import zipfile
 from typing import TYPE_CHECKING, Any
 
 from texlate.compile.judge import judge
@@ -26,14 +25,16 @@ from texlate.repair_l2 import (
 )
 from texlate.server.settings import scrub
 from texlate.textutil import env_str
+from texlate.textutil.osutil import ENV_TRANSLATOR
 
 from ._common import (
-    _SENTINELS,
     TaskCtx,
     _translator_clients,
 )
 
 if TYPE_CHECKING:
+    from texlate.compile.engine import CompRes
+    from texlate.compile.judge import Verdict
     from texlate.repair_l2 import TreeRun
     from texlate.xlat.pipeline import ChunkResult
 
@@ -54,18 +55,27 @@ class _Retranslate:
 
     # ------------------------------------------------------------ job 入口
 
-    async def run_retranslate(self, ctx: TaskCtx, seq: int) -> None:
-        """``TaskRunner._retranslate_job`` 派发入口：loop 装配 → job 体 → 线程排空。
+    def _rehydrate_ctx(self, ctx: TaskCtx) -> None:
+        """入口共用的内存字段重建：loop/tid 捕获 + ``main_rel``/``engine_name`` 复活。
 
-        与 ``run()`` 同款的内存字段重建（main_tex/engine_resolved 自
-        options 复活）；``tokens_est`` 续行快照值——``_persist_usage``
-        与 ``_flush_chunk_updates`` 的计数器回写在其上累加重译真账，
-        不续会把 ``tasks.tokens`` 清 0。
+        与 ``run()`` 主入口同构段（``main_tex``/``engine_resolved`` 自
+        options/行快照还原）；``tokens_est`` 续行快照由本 job 调用方
+        按需叠加。
         """
         self._loop = asyncio.get_running_loop()
         self._loop_tid = threading.get_ident()
         ctx.main_rel = str(ctx.row.get("main_tex") or "")
         ctx.engine_name = str(ctx.options().get("engine_resolved") or "tectonic")
+
+    async def run_retranslate(self, ctx: TaskCtx, seq: int) -> None:
+        """``TaskRunner._retranslate_job`` 派发入口：loop 装配 → job 体 → 线程排空。
+
+        与 ``run()`` 同款的内存字段重建走 ``_rehydrate_ctx``；
+        ``tokens_est`` 续行快照值——``_persist_usage``
+        与 ``_flush_chunk_updates`` 的计数器回写在其上累加重译真账，
+        不续会把 ``tasks.tokens`` 清 0。
+        """
+        self._rehydrate_ctx(ctx)
         try:
             ctx.tokens_est = int(ctx.row.get("tokens") or 0)
         except (TypeError, ValueError):
@@ -103,7 +113,7 @@ class _Retranslate:
         if (
             self._translator_factory is None
             and not ctx.secrets.api_key
-            and env_str("TEXLATE_TRANSLATOR") != "mock"
+            and env_str(ENV_TRANSLATOR) != "mock"
         ):
             # 无 key 静默回退 MockTranslator 会把占位译文覆盖真实译文——
             # 重译是真金白银的用户动作，拒绝 mock 污染（factory 注入与
@@ -180,12 +190,9 @@ class _Retranslate:
         # zh/ 已变——.compile-done 哨兵随之失效（否则 retry 见哨兵直跳
         # 编译段，旧 pdf 当新译文产物交付）
         (ctx.zh_dir / ".compile-done").unlink(missing_ok=True)
-        zip_path = ctx.root / "zh-src.zip"
-        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
-            for f in sorted(ctx.zh_dir.rglob("*")):
-                self._abort_if_cancelled(ctx)
-                if f.is_file() and f.name not in _SENTINELS:
-                    zf.write(f, f.relative_to(ctx.zh_dir).as_posix())
+        # zh-src.zip 重打复用 ``_zip_zh`` 本体——其内 ``_register`` 在终态
+        # 守卫下空转，终态 job 的清单刷新由下行 ``force`` 补登
+        self._zip_zh(ctx)
         self._register(ctx, "zh_src_zip", "zh-src.zip", force=True)
 
     def _retr_recompile(self, ctx: TaskCtx) -> bool:
@@ -218,21 +225,33 @@ class _Retranslate:
             self._register(ctx, "zh_pdf", "zh.pdf", force=True)
             (ctx.zh_dir / ".compile-done").write_text("", encoding="utf-8")
             ok = True
-        (ctx.root / "compile.log").write_text(
-            scrub(self._log_text_of(res), ctx.secrets.api_key),
-            encoding="utf-8",
-        )
-        self._register(ctx, "compile_log", "compile.log", force=True)
-        for r in v.reasons:
-            self._log(ctx, f"judge: {r}", force=True)
-        for n in v.notes:
-            self._log(ctx, f"judge note: {n}", force=True)
+        self._judge_log(ctx, res, v, force=True)
         self._log(
             ctx,
             f"retranslate recompile verdict: {v.status} cat={v.category}",
             force=True,
         )
         return ok
+
+    def _judge_log(
+        self, ctx: TaskCtx, res: CompRes, v: Verdict, *, force: bool = False
+    ) -> None:
+        """compile.log 落盘登记 + judge reasons/notes 留痕（``_compile_zh`` 尾段同构）。
+
+        ``force`` 透传 ``_register``/``_log``——终态任务的重译 job 须
+        ``force=True`` 绕终态守卫；verdict 汇总行两臂文案不同，归调用方
+        自留（``_compile_zh`` 报 ``errs=``，本 job 报 ``retranslate
+        recompile`` 前缀）。
+        """
+        (ctx.root / "compile.log").write_text(
+            scrub(self._log_text_of(res), ctx.secrets.api_key),
+            encoding="utf-8",
+        )
+        self._register(ctx, "compile_log", "compile.log", force=force)
+        for r in v.reasons:
+            self._log(ctx, f"judge: {r}", force=force)
+        for n in v.notes:
+            self._log(ctx, f"judge note: {n}", force=force)
 
     def _retr_dual_md(self, ctx: TaskCtx) -> None:
         """dual.json + md.zip 重建（终态任务的登记都走 ``_register(force=True)``）。

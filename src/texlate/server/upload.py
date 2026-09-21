@@ -10,6 +10,7 @@ from pathlib import Path, PurePosixPath
 from texlate.arxiv.sniff import (
     BlobKind,
     SniffError,
+    SniffResult,
     sniff,
 )
 from texlate.arxiv.unpack import (
@@ -123,7 +124,15 @@ def unpack_zip(data: bytes, dest: Path) -> list[str]:
 
 
 def _zip_kind(data: bytes) -> str:
-    """PK 容器细分：docx/epub/upload_tex（坏 zip 交解包处报错）。"""
+    """PK 容器细分：docx/epub/upload_tex（坏 zip 交解包处报错）。
+
+    探针按格式合同收紧——tex 工程 zip 内嵌同名件不误路由：docx 锚
+    ``word/document.xml``（OPC 包级固定件，成员名恒根相对）；epub 按 OCF
+    判——``mimetype`` 成员体 == ``application/epub+zip``（``zf.open`` 有界
+    读 64B：``zf.read`` 全量回拉会把声明巨成员的 zip-bomb 解压进 RAM），
+    或 ``META-INF/container.xml`` 在位（缺 mimetype 的畸形可翻本兜底）——
+    裸 ``*.opf`` 后缀扫描会误吃 tex 包内嵌的同名件，弃用。
+    """
     try:
         with zipfile.ZipFile(io.BytesIO(data)) as zf:
             names = set(zf.namelist())
@@ -132,11 +141,13 @@ def _zip_kind(data: bytes) -> str:
             head = b""
             if "mimetype" in names:
                 try:
-                    head = zf.read("mimetype")[:64].strip()
+                    with zf.open("mimetype") as fp:
+                        head = fp.read(64).strip()
                 except (KeyError, RuntimeError, NotImplementedError, OSError):
                     head = b""  # 加密/坏成员与 _zip_member_payload 同族——退 upload_tex 交解包处报错
-            if head == b"application/epub+zip" or any(
-                n.endswith("content.opf") for n in names
+            if (
+                head == b"application/epub+zip"
+                or "META-INF/container.xml" in names
             ):
                 return "epub"
     except zipfile.BadZipFile:
@@ -144,24 +155,43 @@ def _zip_kind(data: bytes) -> str:
     return "upload_tex"
 
 
-def sniff_upload(data: bytes, filename: str) -> str:
-    """上传魔数路由（§2.4）→ ``upload_pdf|upload_tex|docx|epub|unknown``。
+def _classify_upload(data: bytes, filename: str) -> tuple[str, SniffResult | None]:
+    r"""上传载荷统一分类 → ``(类别, SniffResult|None)``。
 
-    判据顺序：``%PDF`` → zip(docx/epub 细分) → gzip/tar → 可解码文本兜底。
+    ``sniff_upload``（任务 kind 路由）的判据级联；``worker/fetch._fetch_upload``
+    （``upload_tex`` 解包分派）曾自持一份序相反的级联（``sniff()`` 先于
+    ``PK`` 判定），收编目标是同消费本函数。统一序：
+    ``%PDF`` → ``PK\x03\x04`` → tar/single_gz(``sniff``) → tex 后缀/可解码
+    文本 → ``unknown``。tar/single 臂的解压载荷随 ``SniffResult`` 带出，
+    消费方直喂 ``unpack_sniffed`` 不二次 gunzip。
     """
     if data[:4] == b"%PDF":
-        return "upload_pdf"
+        return "pdf", None
     if data[:4] == b"PK\x03\x04":
-        return _zip_kind(data)
+        return "zip", None
     try:
         s = sniff(data)
     except SniffError:
-        return "unknown"
+        return "unknown", None
     if s.kind in (BlobKind.TAR, BlobKind.SINGLE):
-        return "upload_tex"
-    if filename.lower().endswith((".tex", ".ltx", ".latex", ".txt")):
-        return "upload_tex"
-    return "upload_tex" if _looks_text(data) else "unknown"
+        return s.kind.value, s
+    text = filename.lower().endswith((".tex", ".ltx", ".latex", ".txt"))
+    return ("text", None) if text or _looks_text(data) else ("unknown", None)
+
+
+def sniff_upload(data: bytes, filename: str) -> str:
+    """上传魔数路由（§2.4）→ ``upload_pdf|upload_tex|docx|epub|unknown``。
+
+    判据级联单源在 ``_classify_upload``（``worker/fetch._fetch_upload``
+    待收编同消费）；本函数只做 kind 映射，zip 容器再经 ``_zip_kind`` 细分
+    docx/epub。
+    """
+    kind, _s = _classify_upload(data, filename)
+    if kind == "pdf":
+        return "upload_pdf"
+    if kind == "zip":
+        return _zip_kind(data)
+    return "unknown" if kind == "unknown" else "upload_tex"
 
 
 def pdf_pages(pdf: Path) -> int:
@@ -175,11 +205,16 @@ def pdf_pages(pdf: Path) -> int:
 
 
 def _looks_text(data: bytes) -> bool:
-    """粗糙文本判定：前 64KB 可 UTF-8 解码且无 NUL。"""
-    if b"\x00" in data[:4096]:
+    """粗糙文本判定：前 64KB 可 UTF-8 解码且无 NUL（NUL 探窗与解码同窗）。
+
+    NUL 是合法 UTF-8 码点——解码闸单独拦不住二进制；探窗此前只有
+    4KB，NUL 落在 (4KB,64KB) 的二进制会误判文本写成 ``.tex``。
+    """
+    head = data[:65536]
+    if b"\x00" in head:
         return False
     try:
-        data[:65536].decode("utf-8")
+        head.decode("utf-8")
     except UnicodeDecodeError:
         return False
     return True

@@ -7,6 +7,7 @@ EPUB 与 DOCX 两条管线共用同一口径。
 
 from __future__ import annotations
 
+import hashlib
 import re
 import string
 
@@ -39,7 +40,10 @@ _PURE_URL_RE = re.compile(_URL_PATTERN)
 _LISTING_RE = re.compile(r"^Listing\s*\d+")
 _FIGURE_RE = re.compile(r"^Figure\s*\d+")
 _ISBN_RE = re.compile(r"^[Ee]?ISBN\s*\d[\d\s]*$")
-_ISBN_NUM = 80
+#: ``Figure N``/``Listing N`` 短 apparatus 标签的长度帽（ISBN 由 ``_ISBN_RE``
+#: 自判不吃本帽——``ISBN 978-0-...`` 本就短；帽只闸散文句不被 ``^Figure\s*\d``
+#: 前缀误吞，如 ``Figure 3 shows ...`` 长句放行）
+_APPARATUS_MAX = 80
 
 
 def normalize_text(raw: str) -> str:
@@ -68,8 +72,8 @@ def is_apparatus_text(text: str) -> bool:
         [
             bool(_URL_TAIL_RE.match(stripped)) and len(stripped) < _URL_TAIL_NUM,
             stripped.startswith("Source: "),
-            bool(_LISTING_RE.match(stripped)) and len(stripped) < _ISBN_NUM,
-            bool(_FIGURE_RE.match(stripped)) and len(stripped) < _ISBN_NUM,
+            bool(_LISTING_RE.match(stripped)) and len(stripped) < _APPARATUS_MAX,
+            bool(_FIGURE_RE.match(stripped)) and len(stripped) < _APPARATUS_MAX,
             all(c.isdigit() or c.isspace() for c in stripped) and bool(stripped),
             bool(_ISBN_RE.match(stripped)),
         ]
@@ -85,3 +89,12 @@ def is_unit_text(text: str) -> bool:
     return bool(text) and not (
         is_special_text(text) or is_apparatus_text(text) or is_placeholder_only(text)
     )
+
+
+def job_digest(text: str) -> str:
+    """``job_id`` 的内容锚：``sha256(text)[:16]``——断点续跑的稳定键。
+
+    DOCX/EPUB 两侧 job_id 共用同一锚（``docx.iter_units``/``epub.units``）——
+    ``[:16]`` 截断契约只有这一个定义点。
+    """
+    return hashlib.sha256(text.encode()).hexdigest()[:16]

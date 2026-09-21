@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import re
 import time
 from collections import OrderedDict
 from http import HTTPStatus
@@ -20,6 +19,7 @@ from typing import TYPE_CHECKING, Any
 
 from fastapi import Request, Response
 
+from texlate.arxiv.fetch import normalize_arxiv_id, valid_id
 from texlate.server.http import _ApiError
 
 if TYPE_CHECKING:
@@ -36,11 +36,6 @@ _AX_API = "https://api.alphaxiv.org"
 _FEED_SORTS = frozenset({"Hot", "Comments", "Views", "Likes", "GitHub", "Recent"})
 _FEED_INTERVALS = frozenset({"3 Days", "7 Days", "30 Days", "90 Days", "All time"})
 
-#: arXiv id 形态：新 ``YYMM.NNNNN(vN)``、旧 ``archive(.XX)?/YYMMNNN(vN)``
-_ARXIV_ID_RE = re.compile(
-    r"(?:\d{4}\.\d{4,6}|[a-zA-Z-]+(?:\.[a-zA-Z]{2})?/\d{7})(?:v\d+)?"
-)
-
 _SEARCH_Q_MAX = 200
 
 
@@ -54,24 +49,16 @@ class _TtlCache[T]:
         self._d: OrderedDict[str, tuple[float, T]] = OrderedDict()
 
     def get(self, key: str) -> T | None:
-        """过期当缺席（顺手摘除）；「存了 ``None``」与「缺席」的区分走 ``try_get``。"""
-        return self.try_get(key)[1]
-
-    def try_get(self, key: str) -> tuple[bool, T | None]:
-        """命中返 ``(True, val)``；缺席/过期返 ``(False, None)``（顺手摘除）。
-
-        负缓存口径用——值本身可为 ``None`` 的调用方靠首元区分
-        「没存/已过期」与「存了 ``None``」。
-        """
+        """命中返值；缺席/过期返 ``None``（顺手摘除）。"""
         hit = self._d.get(key)
         if hit is None:
-            return False, None
+            return None
         exp, val = hit
         if exp < time.monotonic():
             self._d.pop(key, None)
-            return False, None
+            return None
         self._d.move_to_end(key)
-        return True, val
+        return val
 
     def put(self, key: str, val: T) -> None:
         """写入 + LRU 排序 + 容量逐出。"""
@@ -156,15 +143,51 @@ def _check_2xx(resp: httpx.Response, what: str) -> None:
         )
 
 
+def _ax_json[T](resp: httpx.Response, what: str, expect: type[T]) -> T:
+    """上游 ``.json()`` + 顶层形状闸：坏 JSON/非 ``expect`` 型 → 502 ``discover_upstream``。
+
+    裸 ``resp.json()`` 的 ``JSONDecodeError``、以及下游 ``.get``/下标撞上
+    非标量形状的 ``AttributeError``/``TypeError`` 都会漏成无码 500——
+    上游数据病归一到本口径（端点 ``-> dict`` 注解同理救不了运行时形状）。
+    """
+    try:
+        data = resp.json()
+    except (TypeError, ValueError) as e:
+        raise _ApiError(
+            502,
+            {
+                "detail": f"alphaxiv {what}: bad json: {e}",
+                "code": "discover_upstream",
+            },
+        ) from e
+    if not isinstance(data, expect):
+        raise _ApiError(
+            502,
+            {
+                "detail": (
+                    f"alphaxiv {what}: expect {expect.__name__}, "
+                    f"got {type(data).__name__}"
+                ),
+                "code": "discover_upstream",
+            },
+        )
+    return data
+
+
 def _checked_arxiv_id(raw: str) -> str:
-    """校验 arXiv id 形态：``YYMM.NNNNN(vN)`` 或 ``archive/YYMMNNN(vN)``。"""
-    aid = raw.strip().strip("/")
-    if not _ARXIV_ID_RE.fullmatch(aid):
+    """校验 arXiv id 形态。
+
+    ``normalize_arxiv_id``+``valid_id`` 单源口径（compat/tasks 同套，
+    容忍 ``arXiv:``/URL/``.pdf`` 等装饰形）；``vN`` 钉版形原样拼回
+    转发上游。
+    """
+    base, ver = normalize_arxiv_id(raw)
+    if not valid_id(base):
         raise _ApiError(
             400,
             {"detail": f"bad arxiv id {raw!r}", "code": "invalid_request"},
         )
-    return aid
+    return f"{base}v{ver}" if ver is not None else base
 
 
 async def _fetch_overview(aid: str) -> dict[str, Any] | None:
@@ -174,8 +197,8 @@ async def _fetch_overview(aid: str) -> dict[str, Any] | None:
         return None
     _check_2xx(resp, "legacy")
     try:
-        pvid = resp.json()["paper"]["paper_version"]["id"]
-    except (KeyError, TypeError, ValueError) as e:
+        pvid = _ax_json(resp, "legacy", dict)["paper"]["paper_version"]["id"]
+    except (KeyError, TypeError) as e:
         raise _ApiError(
             502,
             {
@@ -187,8 +210,10 @@ async def _fetch_overview(aid: str) -> dict[str, Any] | None:
     if resp.status_code == HTTPStatus.NOT_FOUND:
         return None
     _check_2xx(resp, "overview/status")
-    status = resp.json()
+    status = _ax_json(resp, "overview/status", dict)
     translations = status.get("translations") or {}
+    if not isinstance(translations, dict):
+        translations = {}
     zh_done = (translations.get("zh") or {}).get("state") == "done"
     en_done = (translations.get("en") or {}).get("state") == "done" or status.get(
         "state"
@@ -200,7 +225,7 @@ async def _fetch_overview(aid: str) -> dict[str, Any] | None:
     if resp.status_code == HTTPStatus.NOT_FOUND:
         return None
     _check_2xx(resp, "overview")
-    ov = resp.json()
+    ov = _ax_json(resp, "overview", dict)
     return {
         "available": True,
         "lang": lang,
@@ -257,7 +282,7 @@ def register(app: FastAPI, _deps: AppDeps) -> None:  # noqa: C901 -- 嵌套端�
             },
         )
         _check_2xx(resp, "feed")
-        body: dict[str, Any] = resp.json()
+        body: dict[str, Any] = _ax_json(resp, "feed", dict)
         _feed_cache.put(key, body)
         return body
 
@@ -278,7 +303,7 @@ def register(app: FastAPI, _deps: AppDeps) -> None:  # noqa: C901 -- 嵌套端�
             params={"q": q, "includePrivate": "false"},
         )
         _check_2xx(resp, "search")
-        body: list[dict[str, Any]] = resp.json()
+        body: list[dict[str, Any]] = _ax_json(resp, "search", list)
         _search_cache.put(q, body)
         return body
 
@@ -295,7 +320,8 @@ def register(app: FastAPI, _deps: AppDeps) -> None:  # noqa: C901 -- 嵌套端�
             return cached
         body = await _fetch_overview(aid)
         if body is None:
-            return {"available": False}
+            body = {"available": False}
+        # 负结果同进 30min 缓存——否则未收录论文每次首页加载都打穿三步上游链
         _overview_cache.put(aid, body)
         return body
 

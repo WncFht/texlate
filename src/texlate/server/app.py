@@ -3,7 +3,7 @@
 ``create_app()`` 组装：``Store``(SQLite 单写者) + ``EventBus``(SSE 扇出)
 + ``TaskRunner``/``PipelineWorker``（``start_worker=False`` 供测试按住
 dispatcher）→ ``AppDeps`` 注入 ``server/routers/`` 各域路由叶（端点面
-按域分叶：tasks/compat/files/upload/share/meta/reader/settings）。
+按域分叶：tasks/compat/files/upload/share/meta/reader/settings/discover）。
 横切：``/api`` 一律 ``Cache-Control: no-store``；入站闸
 （``request_gate_mw``）做 local Host 白名单 + mutating 请求
 ``Origin``/``Sec-Fetch-Site`` 同源检查 + server 形态匿名写 401。
@@ -30,7 +30,6 @@ from fastapi import FastAPI, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from starlette._utils import get_route_path  # 路由匹配同一条路径视图（剥 root_path）
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.gzip import GZipMiddleware
 
@@ -49,9 +48,10 @@ from texlate.server.http import (
     _loopback_bind,
     _loopback_peer,
     _probe_git_commit,
+    _route_path,
     _same_origin,
 )
-from texlate.server.routers import AppDeps, register_routers
+from texlate.server.routers import AppDeps, discover, register_routers
 from texlate.server.settings import (
     BYOK_FIELDS,
     SettingsStore,
@@ -75,6 +75,7 @@ from texlate.server.worker import (
     TaskRunner,
     _env_timeout,
 )
+from texlate.textutil.osutil import ENV_COMPILE_TIMEOUT
 from texlate.xlat.client import _LOOPBACK_HOSTS
 
 if TYPE_CHECKING:
@@ -252,7 +253,7 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 装配阶梯+闭包面平铺
         babeldoc=babeldoc,
         # env ``TEXLATE_COMPILE_TIMEOUT`` > settings.json compile_timeout > 240
         compile_timeout=_env_timeout(
-            "TEXLATE_COMPILE_TIMEOUT", settings_store.load()["compile_timeout"]
+            ENV_COMPILE_TIMEOUT, settings_store.load()["compile_timeout"]
         ),
     )
     runner = TaskRunner(store, bus, worker)
@@ -307,6 +308,7 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 装配阶梯+闭包面平铺
                 await retention
             await runner.stop()
             bus.close_all()
+            await discover._aclose_clients()  # noqa: SLF001 -- lifespan 收尾钩
             store.close()
 
     app = FastAPI(title="texlate-server", version=__version__, lifespan=lifespan)
@@ -336,7 +338,7 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 装配阶梯+闭包面平铺
         - server 形态无 ``X-Texlate-Key`` 的 mutation 一律 401——settings/env
           的部署方 key 不外借（``resolve_auth`` 同侧不再回落）。
 
-        ``/api`` 前缀判定走 ``get_route_path``（剥 ``root_path``）而非
+        ``/api`` 前缀判定走 ``_route_path``（剥 ``root_path``）而非
         ``request.url.path``——后者含 ``root_path``，``--root-path``/反代
         子路径部署下 ``/tex/api/…`` 会骗过前缀闸而路由照样命中。
         """
@@ -354,7 +356,7 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 装配阶梯+闭包面平铺
             "PUT",
             "DELETE",
             "PATCH",
-        ) and get_route_path(request.scope).startswith("/api")
+        ) and _route_path(request.scope).startswith("/api")
         if not mutating:
             return await call_next(request)
         origin = request.headers.get("origin")
@@ -377,7 +379,7 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 装配阶梯+闭包面平铺
         request: Request, call_next: Callable[[Request], Awaitable[Response]]
     ) -> Response:
         resp = await call_next(request)
-        if get_route_path(request.scope).startswith("/api"):
+        if _route_path(request.scope).startswith("/api"):
             # 端点可经 request.state.cache_control 覆盖——内容寻址产物
             # （/api/files ?version=sha 匹配）放 private,immutable
             resp.headers["Cache-Control"] = (

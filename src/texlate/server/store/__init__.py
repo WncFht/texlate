@@ -7,8 +7,9 @@
 包布局：``_common`` 持 DDL/迁移/状态机枚举单源；``_tasks``/``_chunks``/
 ``_files``/``_cache``/``_events``/``_usage`` 六个聚合 repo 共享门面同一
 连接（构造只回指 Store，conn 惰性经 ``store.conn`` 取）。``Store`` 留
-组合门面：连接生命周期 + 跨聚合编排（``flush_chunk_batch``/
-``sweep_retention``/``snapshot``），其余 ``store.X`` 一律经
+组合门面：连接生命周期 + 跨聚合编排（``flush_chunk_batch``/``snapshot``
++ ``sweep_retention``——``app._sweep_delete`` 的同步孪生，生产走
+loop-native 版，本函数仅测试面在用），其余 ``store.X`` 一律经
 ``__getattr__`` 透传到对应 repo——调用面/私有名/monkeypatch 实例遮蔽
 语义全保。
 """
@@ -212,16 +213,22 @@ class Store:
         rmtree/目录遍历是重 I/O——本函数在调用方线程同步跑，调用方
         （loop 线程）应 ``to_thread`` 卸载。``share_dir``/``index.jsonl``
         不在本函数范围。
+
+        生产面由 ``app._sweep_delete``（loop-native 版）持有同语义——
+        ``_drop`` 同走 ``delete_task_guard(blocked=ACTIVE_STATUSES)``
+        条件删：候选枚举到执行间被 retry 回 ``queued`` 的任务当场拒删，
+        不许闸漂移。
         """
         removed: list[str] = []
         freed = 0
 
         def _drop(tid: str) -> int:
-            """删行 + rmtree 目录 → 目录字节数（无效 id 拒动返 0）。"""
+            """条件删行 + rmtree 目录 → 目录字节数（无效/在飞 id 拒动返 0）。"""
             if not valid_task_id(tid):
                 return 0
+            if not self.delete_task_guard(tid, blocked=ACTIVE_STATUSES):
+                return 0
             sz = _dir_size(tasks_dir / tid)
-            self.delete_task(tid)
             shutil.rmtree(tasks_dir / tid, ignore_errors=True)
             removed.append(tid)
             return sz
@@ -247,8 +254,14 @@ class Store:
         row = self.get(task_id)
         if row is None:
             return {}
+        # error_json 列可经直写腐化——坏 JSON/非 dict 按「无错」None 收，
+        # 不许单格坏值 500 掉 SSE bootstrap 端点（row_json 同款容错口径）
         error_raw = row.get("error_json")
-        error = json.loads(error_raw) if error_raw else None
+        try:
+            err_obj = json.loads(error_raw) if error_raw else None
+        except json.JSONDecodeError:
+            err_obj = None
+        error = err_obj if isinstance(err_obj, dict) else None
         snap: dict[str, Any] = {
             "task_id": row["id"],
             "kind": row["kind"],

@@ -5,6 +5,7 @@ r"""六 kind system prompt 套件（规格 docs/spec/translate.md；成稿源 pr
     system_prompt(kind) = TASK_SENTENCE[kind] + PAPER_CONTEXT?（abstract 锚定）
                         + C1..C8 + C8a + C8b（公共块逐字共享）
                         + KIND_CLAUSES[kind]  # 0~1 条专属条款
+                        + B1 _BATCH_CLAUSE?    # batch=True 时附专属条款后
                         + C9 PLACEHOLDER_CLAUSE  # 压轴，条款列表末位
                         + C10 NAME_CLAUSE        # 仅 para/abstract
                         + GLOSSARY_BLOCK         # 最末（docs/spec/translate.md）

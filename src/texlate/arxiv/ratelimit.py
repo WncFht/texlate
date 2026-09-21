@@ -22,15 +22,15 @@ import hashlib
 import json
 import logging
 import math
-import os
 import re
-import tempfile
 import time
 from dataclasses import dataclass
 from http import HTTPStatus
 from pathlib import Path
 from typing import TYPE_CHECKING, Final
 from urllib.parse import urlsplit
+
+from texlate.textutil.osutil import atomic_write
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -61,30 +61,6 @@ _CONTENT_PATH_RE: Final = re.compile(
 def _clamp_finite(v: float, upper: float) -> float:
     """落盘时间戳 → 合法域：非有限按 0（未记录/未 park），超上限钳到上限。"""
     return min(v, upper) if math.isfinite(v) else 0.0
-
-
-def _atomic_write(path: Path, data: bytes | str, *, mode: int = 0o600) -> None:
-    """tmp+rename 原子落盘：随机后缀 tmp 名防同路径并发撞名，异常清 tmp 不留尸。
-
-    与 ``xlat.state.atomic_json`` 同形（本层不引 xlat 上层）——待
-    ``textutil.osutil`` 沉淀公共 ``atomic_write`` 后切换。
-    """
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp_name = tempfile.mkstemp(
-        prefix=f".{path.name}.", suffix=".tmp", dir=path.parent
-    )
-    try:
-        if isinstance(data, str):
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
-                f.write(data)
-        else:
-            with os.fdopen(fd, "wb") as f:
-                f.write(data)
-        Path(tmp_name).chmod(mode)
-        Path(tmp_name).rename(path)  # POSIX rename = 原子覆盖
-    except BaseException:
-        Path(tmp_name).unlink(missing_ok=True)
-        raise
 
 
 def path_class(path: str) -> str:
@@ -236,7 +212,7 @@ class RateLimiter:
                 for k, b in self._buckets.items()
             },
         }
-        _atomic_write(self.state_path, json.dumps(data))
+        atomic_write(self.state_path, json.dumps(data))
 
     def _rollover(self) -> None:
         today = time.strftime("%Y-%m-%d", time.gmtime(self._now()))

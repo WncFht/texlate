@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import contextlib
 import logging
 import shutil
@@ -23,6 +22,7 @@ from texlate.compile.probe import (
 from texlate.latex.placeholder import PH_RX
 from texlate.latex.reconstruct import reconstruct
 from texlate.pipecore import (
+    DB_TO_PIPE,
     PipeJob,
     RepairPolicy,
     compile_judge,
@@ -52,13 +52,13 @@ from texlate.repair_l2 import (
     retranslate_hits,
     split_cid,
 )
-from texlate.server.settings import scrub
 from texlate.server.store import TERMINAL_STATUSES
 from texlate.server.upload import (
     _md_member,
     pdf_pages,
 )
 from texlate.textutil import env_flag, env_str
+from texlate.textutil.osutil import ENV_TRANSLATOR
 from texlate.validate.l0 import pair_feedback
 from texlate.xlat.client import DEFAULT_MODEL
 from texlate.xlat.pipeline import (
@@ -86,12 +86,19 @@ from ._common import (
     chunk_db_id,
     zh_slot,
 )
+from .html import (
+    _dual_chunk_row,
+)
 from .share import (
     _share_sourced,
 )
+from .translate import (
+    FAILED_DB,
+    _repend_puts,
+)
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
+    from collections.abc import Awaitable, Iterable
     from pathlib import Path
 
     from texlate.compile.engine import (
@@ -134,7 +141,8 @@ def _sync_fixed_sources(work: Path, zh: Path) -> int:
 
     copytree 起点两侧一致，分叉只来自 fixloop 改写/落包/隔离——按
     ``_FIXLOOP_SRC_EXTS`` 同步并删除 ``zh/`` 侧多余源文件（rename 隔离
-    类规则的删除语义）；``_*`` 前缀目录（_tect_out/_minted-*）与哨兵不进。
+    类规则的删除语义）；``_*`` 前缀**目录**（_tect_out/_minted-*）与
+    哨兵不进——顶层 ``_*.tex`` 这类下划线文件名是合法源件照常镜像。
     返回变更文件数。
     """
     keep: set[str] = set()
@@ -143,7 +151,7 @@ def _sync_fixed_sources(work: Path, zh: Path) -> int:
         if not f.is_file():
             continue
         rel = f.relative_to(work)
-        if rel.parts[0].startswith("_") or f.name in _SENTINELS:
+        if (len(rel.parts) > 1 and rel.parts[0].startswith("_")) or f.name in _SENTINELS:
             continue
         if f.suffix.lower() not in _FIXLOOP_SRC_EXTS:
             continue
@@ -157,9 +165,10 @@ def _sync_fixed_sources(work: Path, zh: Path) -> int:
         if not f.is_file():
             continue
         rel = f.relative_to(zh)
-        # copy 侧不收 ``_*`` 顶层项 → keep 永不含之；删侧同口径排除，
-        # 否则 zh/ 自带的 _ 前缀目录（_tect_out 等）被当多余源清掉
-        if rel.parts[0].startswith("_") or f.name in _SENTINELS:
+        # 排除口径 = ``_`` 前缀目录——copy 侧同口径故 keep 永不覆盖该类
+        # 子树，删侧同排除防 zh/ 自带的产物目录（_tect_out 等）被当多余
+        # 源清掉；顶层 ``_*`` 文件与常规模源件同走 keep 比对
+        if (len(rel.parts) > 1 and rel.parts[0].startswith("_")) or f.name in _SENTINELS:
             continue
         if f.suffix.lower() in _FIXLOOP_SRC_EXTS and rel.as_posix() not in keep:
             f.unlink()
@@ -186,11 +195,16 @@ def _repair_detail(ctx: TaskCtx, *, include_share: bool = False) -> dict[str, An
 
 
 def _delivered_map(rows: Iterable[dict[str, Any]]) -> dict[str, str]:
-    """``all_chunks`` 行 → ``{chunk_id: 译文}`` 交付映射（``delivered_db`` 口径）。"""
+    """``all_chunks`` 行 → ``{chunk_id: 译文}`` 交付映射（``delivered_db`` 口径）。
+
+    ``isinstance(str)`` 判与 ``zh_slot`` 同口径——TEXT 列可落 BLOB 等非
+    str 腐格，放行进 splice/L2 重译会把字节料写进 .tex 源树。
+    """
     return {
         r["chunk_id"]: r["translation"]
         for r in rows
         if delivered_db(r["status"], r["translation"])
+        and isinstance(r["translation"], str)
     }
 
 
@@ -255,24 +269,7 @@ class _Compile:
             await self._no_pdf_finish(ctx, share=share)
             await self._maybe_share_pack(ctx)
             return
-        self._mark_terminal(ctx, status)
-        self.store.transition(
-            ctx.task_id,
-            status,
-            progress=100,
-            error=err,
-            force=True,
-            message="完成" if status == "done" else "部分完成",
-        )
-        self.bus.publish(
-            ctx.task_id,
-            "done",
-            {
-                "status": status,
-                "artifacts": self._artifact_urls(ctx),
-                "stats": self._stats(ctx),
-            },
-        )
+        self._finish_terminal(ctx, status, err=err)
         await self._maybe_share_pack(ctx)
 
     async def _compile_zh_or_salvage(self, ctx: TaskCtx) -> bool:
@@ -781,7 +778,7 @@ class _Compile:
             tr = self._translator_factory(ctx)
             clients = _translator_clients(tr)
             return make_llm_hook(translator=tr), self._meter_usage(clients), clients
-        force = env_str("TEXLATE_TRANSLATOR")
+        force = env_str(ENV_TRANSLATOR)
         if not ctx.secrets.api_key or force == "mock":
             if opt:
                 self._log(ctx, "llm_hook: 无 BYOK api_key——跳过 escalate_llm")
@@ -799,18 +796,12 @@ class _Compile:
         *,
         tag: str = "llm_hook",
     ) -> None:
-        """LLM 旁路臂收尾：已发调用落账 + factory 路径 client 关闭（``tag`` 标来源臂）。"""
-        # 各旁路臂烧的都是 BYOK token——崩溃/早退也把已发调用落账
-        if usage is not None:
-            try:
-                self._persist_usage(ctx, usage)
-            except Exception:
-                log.debug("%s usage persist failed", tag, exc_info=True)
-        if clients:
-            try:
-                asyncio.run(seams._aclose_clients(clients))  # noqa: SLF001 -- seams 缝
-            except Exception:
-                log.debug("%s client aclose failed", tag, exc_info=True)
+        """LLM 旁路臂收尾——``_teardown_bypass`` 薄别名（``tag``→``label``）。
+
+        保留旧方法名/签名：既有调用点与测试面（``worker._teardown_llm_hook``
+        直调）不改名；env_judge/L2/llm_hook 同构收尾本体已单源归并。
+        """
+        self._teardown_bypass(ctx, usage, clients, label=tag)
 
     def _l2_run_state(self, ctx: TaskCtx, work: Path) -> tuple[TreeRun, dict[str, str]]:
         """``repair_l2.TreeRun`` 形态重建：scans 指向 work 内文件 + trans/chunk_ins。
@@ -895,22 +886,18 @@ class _Compile:
         clients = _translator_clients(run.pipe.translator)
         usage = self._meter_usage(clients)
 
-        async def _retr(
+        def _retr(
             run: TreeRun, hits: dict[str, dict[str, Any]], cap: int
-        ) -> dict[str, Any]:
-            try:
-                self._repair_event(
-                    ctx,
-                    "l2",
-                    {"phase": "progress", "message": f"L2 重译 {len(hits)} 块"},
-                )
-                return await retranslate_hits(run, hits, cap)
-            finally:
-                # client 用/关收进同一 ephemeral loop——拆两次 asyncio.run
-                # 会在已关 loop 上 aclose（RuntimeError 吞掉 → FD 泄漏）；
-                # 清空清单让外层 finally 不对已关 client 二次 aclose
-                await seams._aclose_clients(clients)  # noqa: SLF001 -- seams 缝
-                clients.clear()
+        ) -> Awaitable[dict[str, Any]]:
+            # coro_fn 同步体：progress 帧随调用即发，返回的协交由
+            # ``_run_ephemeral`` 内 ``await coro_fn()`` 消费——包一层
+            # async def 只是多一次无意义协程嵌套
+            self._repair_event(
+                ctx,
+                "l2",
+                {"phase": "progress", "message": f"L2 重译 {len(hits)} 块"},
+            )
+            return retranslate_hits(run, hits, cap)
 
         def _recompile() -> tuple[CompRes, Verdict]:
             self._repair_event(
@@ -936,7 +923,11 @@ class _Compile:
                 ctx.main_rel,
                 res,
                 L2_MAX_CHUNKS,
-                retranslate=lambda r, h, c: asyncio.run(_retr(r, h, c)),
+                # 旁路 client 用/关收进同一 ephemeral loop——``_run_ephemeral``
+                # 壳契约（拆两次 asyncio.run 会在已关 loop 上 aclose）
+                retranslate=lambda r, h, c: self._run_ephemeral(
+                    clients, lambda: _retr(r, h, c)
+                ),
                 recompile=_recompile,
                 checkpoint=lambda: self._abort_if_cancelled(ctx),
                 sink=_Sink(
@@ -947,8 +938,8 @@ class _Compile:
             )
         finally:
             # L2 重译也烧 token——不入账就从 task_usage 里蒸发；clients
-            # 非空=未走到 _retr 的早退（localize 即崩），_retr 跑过的已
-            # clear 由 helper 内 ``if clients`` 跳过
+            # 非空=未走到 _retr 的早退（localize 即崩），_run_ephemeral
+            # 跑过的已自清清单由 helper 内 ``if clients`` 跳过
             self._teardown_llm_hook(ctx, usage, clients, tag="l2")
         if v2 is not None:
             self._l2_writeback(ctx, run, db_of, rep)
@@ -988,7 +979,14 @@ class _Compile:
         cache_puts = cache.drain() if isinstance(cache, SegmentCache) else []
         if not upd and not cache_puts:
             return
-        self._flush_chunk_updates(ctx, list(upd.items()), cache_puts)
+        try:
+            self._flush_chunk_updates(ctx, list(upd.items()), cache_puts)
+        except Exception:
+            # drain 已取走的缓存项随 flush 失败回挂——同 ``_flush_translate``
+            # 口径（当前 L2 旁路 pipe 无 ``cache=`` 实为防御臂）
+            if cache_puts and isinstance(cache, SegmentCache):
+                _repend_puts(cache, cache_puts)
+            raise
 
     def _flush_chunk_updates(
         self,
@@ -1011,15 +1009,24 @@ class _Compile:
             for cid, f in applied:
                 st[cid] = str(f.get("status") or st[cid])
             row = self.store.get(ctx.task_id)
+            # 行格可经直写腐化（TEXT 列 BLOB/非数值）——坏格按 0 容错，
+            # 不让单格 int() 把 flush 事务参数求值先炸（``_stats`` 的
+            # created_at 守卫同口径）
+            try:
+                cached = int(row["cached_chunks"]) if row else 0
+            except (TypeError, ValueError):
+                cached = 0
+            try:
+                progress = int(row["progress"]) if row else 0
+            except (TypeError, ValueError):
+                progress = 0
             counters = {
                 "total": len(st),
-                "done": sum(
-                    s in ("ok", "fallback_orig", "failed") for s in st.values()
-                ),
-                "cached": int(row["cached_chunks"]) if row else 0,
-                "failed": sum(s in ("fallback_orig", "failed") for s in st.values()),
+                "done": sum(s in DB_TO_PIPE for s in st.values()),
+                "cached": cached,
+                "failed": sum(s in FAILED_DB for s in st.values()),
                 "tokens": ctx.tokens_est,
-                "progress": int(row["progress"]) if row else 0,
+                "progress": progress,
             }
             self.store.flush_chunk_batch(ctx.task_id, applied, cache_puts, counters)
             ctx.chunks_cache = None  # chunks 行已写——物化缓存失效
@@ -1189,15 +1196,7 @@ class _Compile:
             self._embed_tounicode(ctx, ctx.root / "zh.pdf")
             self._register(ctx, "zh_pdf", "zh.pdf")
             (ctx.zh_dir / ".compile-done").write_text("", encoding="utf-8")
-        (ctx.root / "compile.log").write_text(
-            scrub(self._log_text_of(res), ctx.secrets.api_key),
-            encoding="utf-8",
-        )
-        self._register(ctx, "compile_log", "compile.log")
-        for r in v.reasons:
-            self._log(ctx, f"judge: {r}")
-        for n in v.notes:
-            self._log(ctx, f"judge note: {n}")
+        self._judge_log(ctx, res, v)
         self._log(ctx, f"verdict: {v.status} cat={v.category} errs={v.n_errors}")
         return v.status in ("clean", "partial") or res.has_pdf
 
@@ -1254,20 +1253,10 @@ class _Compile:
                 frag_of = self._ph_frag_map(ctx)
             except Exception as e:  # noqa: BLE001
                 self._log(ctx, f"dual ph frag map failed: {e}")
-        doc["chunks"] = []
         for r in self._on_loop(self._all_chunks, ctx):
-            ch: dict[str, Any] = {
-                "seq": r["seq"],
-                "src_file": r["src_file"],
-                "en": r["src_text"],
-                # TEXT 列动态类型可落 BLOB——非 str 译文按空 coerce，
-                # 不让单格 atomic_json TypeError 挡掉 dual.json 落盘；
-                # 非 ok 行（fallback_orig 装的是 en 原文回写）zh 位留空——
-                # 原文进 zh 槽会让 share 对账把英文当译文 ok 落库续传
-                "zh": zh_slot(r),
-                "kind": r["kind"],
-                "status": str(r["status"]),
-            }
+            # 行投影与 html 链 ``_build_dual_html`` 同件——zh 位
+            # coerce/非 ok 留空口径在 ``_dual_chunk_row`` docstring
+            ch = _dual_chunk_row(r)
             ph = frag_of.get(r["chunk_id"])
             if ph:
                 ch["ph"] = ph

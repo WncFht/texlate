@@ -5,7 +5,7 @@
 bench harness（e2e_mock_bench）与 CLI ``texlate run`` 共用同一实现——
 评测条件矩阵在 bench 侧，单工程驱动在这里。扫描/翻译/编译/修复的
 policy 脊单源在 ``texlate.pipecore``（worker/bench 共享），本模块只留
-编排顶与 e2e 私有缝（``_baseline_snapshot``/``_embed_tounicode`` 的
+编排顶与 e2e 私有缝（``engine_for``/``_embed_tounicode`` 的
 monkeypatch 面）。
 
 编译失败后的两级修复（docs/spec/validate.md 接线）：
@@ -25,9 +25,6 @@ monkeypatch 面）。
 from __future__ import annotations
 
 import logging
-import shutil
-import tempfile
-from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -45,27 +42,24 @@ from texlate.pipecore import (
     NULL_SINK,
     PipeJob,
     RepairPolicy,
+    baseline_snapshot,
     compile_judge_tail,
     default_front_matter,
     delivered,
-    fixloop_job,
-    l2_repair_job,
-    precheck_job,
-    precheck_reject,
     probe_report,
+    repair_chain,
     tail_dict,
     translate_tree_run,
 )
 from texlate.pipecore import scan_tree as _scan_tree
-from texlate.repair import ENV_NO_FIXLOOP, embed_tounicode_quiet
-from texlate.repair_l2 import ENV_ENV_JUDGE, ENV_NO_L2, L2_MAX_CHUNKS
+from texlate.repair import embed_tounicode_quiet
+from texlate.repair_l2 import ENV_ENV_JUDGE, L2_MAX_CHUNKS
 from texlate.textutil import env_flag
+from texlate.textutil.osutil import ENV_AUTO_GLOSSARY
 from texlate.validate.l0 import validate_pair
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
-
-    from texlate.compile.engine import CompRes, Engine
+    from texlate.compile.engine import Engine
     from texlate.pipecore import ReportSink
     from texlate.repair_l2 import TreeRun
     from texlate.xlat.pipeline import Translator
@@ -73,8 +67,8 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 #: 逐篇 LLM 术语抽取臂开关（``TEXLATE_AUTO_GLOSSARY``，默认关——frozen-300
-#: 回归裁决⑦未定前不开产线；开时抽取臂与翻译同模）
-ENV_AUTO_GLOSSARY = "TEXLATE_AUTO_GLOSSARY"
+#: 回归裁决⑦未定前不开产线；开时抽取臂与翻译同模）——名本体注册在
+#: ``textutil.osutil``，同名回引
 
 # 兼容绑定：测试钉住的本模块私有名（pipecore 单源实体的别名——``_delivered``
 # 由 test_e2e 直调、``_tail_dict`` 是 test_bench_harness 的 judge_dict 键集对拍面）
@@ -190,117 +184,7 @@ def _embed_tounicode(pdf: Path) -> int:
     return embed_tounicode_quiet(pdf, embed_fn=embed_cjk_mappings)
 
 
-@contextmanager
-def _baseline_snapshot(work: Path, *, enabled: bool) -> Iterator[Path | None]:
-    """翻前快照 → fixloop ``baseline_dir``（normalize 后/翻译前的 pristine 树）。
-
-    worker ``ctx.base_dir`` 同位（normalize 过的英文树）——e2e 原地翻译
-    无常驻 base，``restore_support_from_src`` 要它逐字节复原被写脏的
-    support 件。fixloop 关闭时跳过（省一次全树 copytree）；快照放系统
-    tempdir 防污染 ``_scan_tree``/编译枚举，``with`` 出块即清理；快照
-    失败降级 None（修复臂旁路件，不该砸死主链）。
-    """
-    if not enabled:
-        yield None
-        return
-    with tempfile.TemporaryDirectory(prefix="texlate-baseline-") as td:
-        base = Path(td) / "base"
-        try:
-            shutil.copytree(work, base)
-        except (OSError, shutil.Error) as e:
-            log.warning("baseline snapshot failed (%s) → fixloop 无 baseline", e)
-            base = None
-        yield base
-
-
 # ---------------------------------------------------------------- 条件臂
-
-
-def _repair_chain(  # noqa: C901, PLR0913 -- 修复链开关面穿透 + 三级阶梯直铺
-    rec: dict,
-    job: PipeJob,
-    run: TreeRun,
-    res: CompRes,
-    *,
-    expect_cjk: bool,
-    l2_on: bool | None,
-    fixloop_on: bool | None,
-    l2_max_chunks: int,
-    route_engines: list[str] | None,
-    baseline_dir: Path | None = None,
-    sink: ReportSink = NULL_SINK,
-) -> CompRes:
-    """非 clean 后的修复链：precheck 预检 → L2 回灌 → fixloop；reports 直写 ``rec``。
-
-    顺序是设计约束：precheck（装缺件，fixloop 第 0 招独立相）先消
-    missing_file 类基建失败——它们进 L2 归因面只会把块拖去重译/回退
-    （``t_f74894ebc691aaf4`` algpseudocodex 实证）；L2 回灌先于
-    fixloop——fixloop 的 regex_rewrite 会被 L2 resplice 冲掉。
-    L2 崩不丢整条 rec（worker._l2_attempt 同款包）；fixloop 只在仍非
-    clean 时跑。返回最新 ``CompRes`` 供 ToUnicode 注入判产物。
-    ``engine_fn=engine_for`` 透传本模块全局——``e2e.engine_for`` 的
-    monkeypatch 缝（conftest RecordingEngine）随件保活。
-    """
-    policy = RepairPolicy.resolve(fixloop_on=fixloop_on, l2_on=l2_on)
-    fl, l2 = policy.fixloop, policy.l2
-
-    # —— 第 0 招: precheck 预检 (装缺件/解嵌套 tar/收割构建 flag) ——
-    # precheck 相全是增量件不碰 .tex 源——对 resplice 安全。装上缺件或
-    # 收割到 engine_flags 才重编 (空转省一发编译)；clean 即收工。
-    # reject:<rid> 不重编不跑 L2——路由拒绝交 fixloop 复现 + 跨引擎消费。
-    pre_reject = False
-    if fl:
-        sink.event("stage", {"stage": "precheck"})
-        pre = precheck_job(job, engine_fn=engine_for)
-        rec["precheck"] = pre
-        pre_reject = precheck_reject(pre)
-        pre_flags = [str(f) for f in pre.get("engine_flags") or []]
-        if not pre_reject and (pre.get("installed") or pre_flags):
-            tail0, res = compile_judge_tail(
-                job,
-                expect_cjk=expect_cjk,
-                flags=pre_flags or None,
-                engine_fn=engine_for,
-            )
-            rec.update(tail0)
-            if rec["status"] == "clean":
-                return res
-
-    if l2 and not pre_reject:
-        sink.event("stage", {"stage": "l2"})
-        try:
-            l2_rep, res, tail2 = l2_repair_job(
-                job, run, res, l2_max_chunks, engine_fn=engine_for, sink=sink
-            )
-        except Exception as e:  # noqa: BLE001 -- L2 崩不丢整条 rec（含首编 verdict）
-            rec["l2"] = {"enabled": True, "error": f"{type(e).__name__}: {e}"}
-        else:
-            rec["l2"] = l2_rep
-            if tail2 is not None:
-                rec.update(tail2)
-    elif not l2:
-        rec["l2"] = {"enabled": False, "reason": ENV_NO_L2}
-    else:
-        rec["l2"] = {"enabled": False, "reason": "precheck_reject"}
-
-    if rec["status"] != "clean" and fl:
-        sink.event("stage", {"stage": "fixloop"})
-        fl_rep, tail3, res = fixloop_job(
-            job,
-            route_engines or [job.eng_name],
-            res,
-            timeout=job.timeout,
-            expect_cjk=expect_cjk,
-            baseline_dir=baseline_dir,
-            engine_fn=engine_for,
-            sink=sink,
-        )
-        rec["fixloop"] = fl_rep
-        if tail3 is not None:
-            rec.update(tail3)
-    elif rec["status"] != "clean":
-        rec["fixloop"] = {"enabled": False, "reason": ENV_NO_FIXLOOP}
-    return res
 
 
 def pipe_condition(  # noqa: PLR0913 -- 修复链开关面（env 缺省，显式可覆盖）
@@ -337,59 +221,68 @@ def pipe_condition(  # noqa: PLR0913 -- 修复链开关面（env 缺省，显式
     ej = env_switch(ENV_ENV_JUDGE, explicit=env_judge, default=False)
     fl = RepairPolicy.resolve(fixloop_on=fixloop_on).fixloop
     ag = env_switch(ENV_AUTO_GLOSSARY, explicit=auto_glossary, default=False)
-    with _baseline_snapshot(work, enabled=fl) as baseline_dir:
-        sink.event("stage", {"stage": "translate"})
-        stats, run = _translate_tree(
-            work,
-            translator=translator,
-            env_judge=ej,
-            auto_glossary=ag,
-            front_matter=front_matter,
+    # baseline 快照在翻译写回前抓（pipecore.baseline_snapshot 单件——normalize
+    # 过的英文 pristine 树 → fixloop restore_support_from_src 的复原源）；
+    # ``td`` 须活到修复链收敛——局部绑定持到函数返回即随帧清理（bench
+    # ``_td`` 同法），快照寿命 = 修复链全程。
+    td = baseline_snapshot(work, enabled=fl)
+    baseline_dir = Path(td.name) / "base" if td is not None else None
+    sink.event("stage", {"stage": "translate"})
+    stats, run = _translate_tree(
+        work,
+        translator=translator,
+        env_judge=ej,
+        auto_glossary=ag,
+        front_matter=front_matter,
+        sink=sink,
+    )
+    rec["translate"] = stats
+    sink.event("stage", {"stage": "inject"})
+    try:
+        rec["inject"] = prepare_chinese(work, main_rel)
+    except InjectRejectError as e:
+        # 策略拒绝 → partial (降级链交付), reject_at+reason 留审计 (F3)
+        rec["status"] = "partial"
+        rec["reject_at"] = "inject"  # inject_reject 类: 与 route reject 分流
+        rec["verdict"] = {"status": "partial", "reasons": [e.reason]}
+        return rec
+    job = PipeJob(
+        work,
+        main_rel,
+        eng_name,
+        timeout,
+        probe_flags=_probe_flags_of(work, main_rel),
+    )
+    # 0-chunk 主文档 (includepdf 壳等) 无译文产出 → 不期待 CJK 渲染,
+    # cjk_chars=0 是其正确终态而非静默失败 (scout-cjk0 F 桶 11 格假阳)
+    expect_cjk = stats.get("chunks") != 0
+    sink.event("stage", {"stage": "compile", "engine": eng_name})
+    tail, res = compile_judge_tail(job, expect_cjk=expect_cjk, engine_fn=engine_for)
+    rec.update(tail)
+
+    if rec["status"] != "clean":
+        # 修复链 = pipecore.repair_chain 单件（precheck → L2 回灌 → fixloop，
+        # 与 bench 同一条链）；``engine_fn=engine_for`` 调用时查名保
+        # ``e2e.engine_for`` monkeypatch 缝（conftest RecordingEngine）。
+        res = repair_chain(
+            rec,
+            job,
+            run,
+            res,
+            expect_cjk=expect_cjk,
+            l2_on=l2_on,
+            fixloop_on=fl,
+            l2_max_chunks=l2_max_chunks,
+            route_engines=route_engines,
+            baseline_dir=baseline_dir,
+            engine_fn=engine_for,
             sink=sink,
         )
-        rec["translate"] = stats
-        sink.event("stage", {"stage": "inject"})
-        try:
-            rec["inject"] = prepare_chinese(work, main_rel)
-        except InjectRejectError as e:
-            # 策略拒绝 → partial (降级链交付), reject_at+reason 留审计 (F3)
-            rec["status"] = "partial"
-            rec["reject_at"] = "inject"  # inject_reject 类: 与 route reject 分流
-            rec["verdict"] = {"status": "partial", "reasons": [e.reason]}
-            return rec
-        job = PipeJob(
-            work,
-            main_rel,
-            eng_name,
-            timeout,
-            probe_flags=_probe_flags_of(work, main_rel),
-        )
-        # 0-chunk 主文档 (includepdf 壳等) 无译文产出 → 不期待 CJK 渲染,
-        # cjk_chars=0 是其正确终态而非静默失败 (scout-cjk0 F 桶 11 格假阳)
-        expect_cjk = stats.get("chunks") != 0
-        sink.event("stage", {"stage": "compile", "engine": eng_name})
-        tail, res = compile_judge_tail(job, expect_cjk=expect_cjk, engine_fn=engine_for)
-        rec.update(tail)
-
-        if rec["status"] != "clean":
-            res = _repair_chain(
-                rec,
-                job,
-                run,
-                res,
-                expect_cjk=expect_cjk,
-                l2_on=l2_on,
-                fixloop_on=fl,
-                l2_max_chunks=l2_max_chunks,
-                route_engines=route_engines,
-                baseline_dir=baseline_dir,
-                sink=sink,
-            )
-        # ToUnicode 注入在修复链收敛之后——L2 重编/fixloop 换编都会重写同一
-        # <stem>.pdf，只对最终落盘产物注一次（worker _embed_tounicode 同位）
-        if res.has_pdf and res.pdf is not None:
-            sink.event("stage", {"stage": "tounicode"})
-            rec["tounicode_fonts"] = _embed_tounicode(res.pdf)
+    # ToUnicode 注入在修复链收敛之后——L2 重编/fixloop 换编都会重写同一
+    # <stem>.pdf，只对最终落盘产物注一次（worker _embed_tounicode 同位）
+    if res.has_pdf and res.pdf is not None:
+        sink.event("stage", {"stage": "tounicode"})
+        rec["tounicode_fonts"] = _embed_tounicode(res.pdf)
     return rec
 
 

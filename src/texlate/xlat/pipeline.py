@@ -36,7 +36,7 @@ from .batch import (
     BATCH_MAX_ITEMS,
     BATCH_MIN_CHARS,
     CHUNK_HARD_LIMIT,
-    encode_batch,
+    encode_batch_members,
     pack_batches,
     parse_batch_response,
     split_long_chunk,
@@ -488,21 +488,26 @@ class XlatPipeline:
         return terms or {}
 
     def _materialize(
-        self, pending: list[ChunkIn], auto_terms: dict[str, str] | None = None
+        self, chunks: list[ChunkIn], auto_terms: dict[str, str] | None = None
     ) -> None:
-        """文档级术语表过滤一次——整个跑批期间 system prompt 逐字节恒定。"""
+        """文档级术语表过滤一次——整个跑批期间 system prompt 逐字节恒定。
+
+        ``chunks`` 是全量输入块（含 state 已完成块）而非 pending 子集——
+        ``doc_filter`` 与 ``_paper_ctx`` 锚定须见已完成块，续跑口径才与
+        全新跑逐字节一致（前缀缓存身份 + abstract 锚不漂）。
+        """
         self._doc_glossary = dict(auto_terms or {})
         if self.glossary is not None:
             # curated 五层表 update 在后赢同 key——auto 抽取层是底座
             self._doc_glossary.update(
-                self.glossary.doc_filter(c.content for c in pending)
+                self.glossary.doc_filter(c.content for c in chunks)
             )
         # 首个 abstract 块 masked 原文截断做 paper-context 锚定块（texglot
         # ``paper_context`` 同族）；[[X_n]] 保留无妨——值由 user 侧
         # placeholder_values 块供读。全量 chunks 扫描（含已完成块）——
         # 续跑口径与全新跑逐字节一致。
         self._paper_ctx = next(
-            (c.content[:PAPER_CTX_MAX_CHARS] for c in pending if c.kind == "abstract"),
+            (c.content[:PAPER_CTX_MAX_CHARS] for c in chunks if c.kind == "abstract"),
             "",
         )
         # 同实例二次 run 换了文档 → 术语块变了，prompt memo 必须失效重渲染
@@ -750,10 +755,11 @@ class XlatPipeline:
         """
         members = [c for _i, c in send]
         system = self._system_prompt(members[0].kind, batch=True)
-        # 各成员 ph_fragments 合并成批级 value-context 随 user 尾挂
-        user = encode_batch([c.content for c in members]) + (
-            prompts.render_value_context(_merged_value_frags(members))
-        )
+        # 各成员 ph_fragments 合并成批级 value-context 随 user 尾挂；成员编码
+        # 只跑一次——``enc_members[k]`` 直作下方 ``bare_token_audit`` 基线
+        #（与线发字节结构性同源，免逐成员二次 ``encode_newlines`` 重推导）
+        payload, enc_members = encode_batch_members([c.content for c in members])
+        user = payload + (prompts.render_value_context(_merged_value_frags(members)))
 
         raw: str | None = None
         try:
@@ -781,14 +787,13 @@ class XlatPipeline:
                 out[i] = await self._degrade_one(c, batch_id)
             return out
 
-        for (i, c), part in zip(send, parts, strict=True):
-            # 批成员按 ``encode_batch`` 同款编码形态对账锻造 token（D3）
+        for k, ((i, c), part) in enumerate(zip(send, parts, strict=True)):
+            # 批成员按 ``encode_batch_members`` 同款编码形态对账锻造 token（D3）——
+            # ``enc_members[k]`` 即 ``encode_newlines(c.content)[0]`` 的同源基线
             zh, err, warnings = assess_answer(
                 c.content,
                 placeholders.decode_newlines(part),
-                audit_err=bare_token_audit(
-                    placeholders.encode_newlines(c.content)[0], part
-                ),
+                audit_err=bare_token_audit(enc_members[k], part),
                 repair_fn=self._repair_fn(c),
                 validate_fn=self.validator,
             )
@@ -981,14 +986,15 @@ class XlatPipeline:
             if placeholders.is_placeholder_only(c.content.strip()):
                 r = self._passthrough_result(c)
                 done_map[cid] = r
-                # 与 _collect 同构的五点账本调用——BaseException 收 fatal
-                # 由 run() 序章尾统一重抛，Exception 档行为不变。
+                # 与 _collect 同构的账本调用（拦截网 + record + emit）——
+                # BaseException 收 fatal 由 run() 序章尾统一重抛，
+                # Exception 档行为不变。
                 self._ledger_outcome(fatal, r)
                 continue
             if "[[BIB_" in c.content:
                 # 用户裁决①：[[BIB_]]（\bibitem/bibliography 占位）块=文献域，
                 # 约定留英不送翻——直通 zh=src，占位符链下游照常还原。
-                # zh≡src 使三网 diff 恒空，intercept 形同虚设但账本调用与
+                # zh≡src 使各拦截网 diff 恒空，intercept 形同虚设但账本调用与
                 # placeholder_only 路保持同构（计量/auth 闸口径一致）。
                 r = self._passthrough_result(c, warnings=["bib_passthrough"])
                 done_map[cid] = r
@@ -1120,7 +1126,7 @@ class XlatPipeline:
             self._ledger_call(fatal, r, f"{net.name} intercept", _net_apply_fn(net))
 
     def _ledger_outcome(self, fatal: list[BaseException], r: ChunkResult) -> None:
-        """拦截 + auth 闸 + emit 的五点账本序列（``_route_chunks`` 与 ``_collect`` 共用）。"""
+        """拦截网 + auth 闸 + emit 的账本序列（``_route_chunks`` 与 ``_collect`` 共用；点数随 ``_INTERCEPT_NETS`` 注册表走）。"""
         self._ledger_intercepts(fatal, r)
         self._ledger_call(fatal, r, "auth_gate.record", self.auth_gate.record)
         self._ledger_call(fatal, r, "emit", self._emit)

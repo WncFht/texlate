@@ -44,6 +44,13 @@ PURE_PH_RX = re.compile(
     rf"\s*(?:{ANY_PH_RX.pattern})(?:\s+(?:{ANY_PH_RX.pattern}))*\s*"
 )
 
+#: 批量 ``[n]`` 协议的退化残留：回复只剩序号桩 = 实质空译。
+#: ``parse_batch_response`` 序号路径会把裸 ``[1]``（单块批的"空槽"回复）
+#: 原样当译文留下——插出去是根号渣，按空译判 unchanged。xlat/batch.py
+#: 的 ``_STUB_ONLY_RX`` 与 export/common.py 的 ``STUB_ONLY_RE`` 同口径
+#: 单源在此（export/common.py 已 import 本模块，方向不反）。
+STUB_ONLY_RX = re.compile(r"\s*(?:\[\d+\]\s*)+")
+
 #: 换行编码 token
 SOFT_NEWLINE = "[[SL]]"
 PARA_NEWLINE = "[[PL]]"

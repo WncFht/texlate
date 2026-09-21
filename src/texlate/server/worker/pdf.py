@@ -132,21 +132,13 @@ class _Pdf:
                 "message": scrub(run.error, ctx.secrets.api_key),
                 "retryable": True,
             }
-        self._mark_terminal(ctx, status)
-        self.store.transition(
-            ctx.task_id,
+        self._finish_terminal(
+            ctx,
             status,
-            progress=100,
-            error=err,
-            force=True,
-            message="完成" if status == "done" else "部分完成",
-        )
-        stats = self._stats(ctx)
-        stats["babeldoc"] = _scrub_deep(run.stats, ctx.secrets.api_key)
-        self.bus.publish(
-            ctx.task_id,
-            "done",
-            {"status": status, "artifacts": self._artifact_urls(ctx), "stats": stats},
+            err=err,
+            stats_extra={
+                "babeldoc": _scrub_deep(run.stats, ctx.secrets.api_key)
+            },
         )
 
     def _harvest_pdf_outputs(self, ctx: TaskCtx, run: BabeldocRun) -> None:
@@ -177,24 +169,16 @@ class _Pdf:
                 shutil.rmtree(d)  # retry 幂等：旧产物/旧 tracking 不混入本单
 
     async def _run_pdf(self, ctx: TaskCtx) -> None:
-        """upload_pdf：BabelDOC sidecar（AGPL 边界=独立进程，§2.4 + pdf-path §三）。
+        """upload_pdf：BabelDOC sidecar（AGPL 边界=独立进程，§2.4 + pdf-path §4）。
 
         产物面：en.pdf（原文回登记）+ mono→zh.pdf + dual→dual.pdf；
         ``run_babeldoc`` 的 status 判定（tracking/fallback/CJK 兜底）
         映射终态——ok→done、degraded→partial、failed→fault。
         """
         self._stage(ctx, "compiling", "BabelDOC 双语转换", 30)
-        uploads = sorted((ctx.root / "upload").glob("*"))
-        if not uploads:
-            self._fail(
-                ctx,
-                "internal",
-                "upload payload missing",
-                retryable=False,
-                stage="compiling",
-            )
+        src = self._first_upload(ctx, stage="compiling")
+        if src is None:
             return
-        src = uploads[0]
         outdir = ctx.root / "babeldoc-out"
         workdir = ctx.root / "babeldoc-work"
         await self._to_thread(ctx, self._prep_pdf_dirs, src, outdir, workdir)
@@ -256,17 +240,9 @@ class _Pdf:
         from texlate.export import export_document  # noqa: PLC0415 -- 重依赖惰性加载
         from texlate.export.common import ExportError  # noqa: PLC0415
 
-        uploads = sorted((ctx.root / "upload").glob("*"))
-        if not uploads:
-            self._fail(
-                ctx,
-                "internal",
-                "upload payload missing",
-                retryable=False,
-                stage="translating",
-            )
+        src = self._first_upload(ctx, stage="translating")
+        if src is None:
             return
-        src = uploads[0]
         await self._to_thread(ctx, self._register, "src_tar", f"upload/{src.name}")
         self._stage(ctx, "translating", "文档插译", PROGRESS["translating"][0])
         ext = src.suffix.lower()
@@ -348,24 +324,7 @@ class _Pdf:
                 ),
                 "retryable": bool(report.fault),
             }
-        self._mark_terminal(ctx, status)
-        self.store.transition(
-            ctx.task_id,
-            status,
-            progress=100,
-            error=err,
-            force=True,
-            message="完成" if status == "done" else "部分完成",
-        )
-        self.bus.publish(
-            ctx.task_id,
-            "done",
-            {
-                "status": status,
-                "artifacts": self._artifact_urls(ctx),
-                "stats": self._stats(ctx),
-            },
-        )
+        self._finish_terminal(ctx, status, err=err)
 
     def _doc_on_result(
         self, ctx: TaskCtx, counters: dict[str, int]

@@ -5,6 +5,7 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import json
+import re
 import time
 from http import HTTPStatus
 from pathlib import Path
@@ -23,6 +24,7 @@ from texlate.cli._output import (
     make_translate_progress,
     status,
 )
+from texlate.pipecore import FRONT_MATTER_NAMES
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -38,6 +40,11 @@ _THIN_TERMINAL = frozenset(
 _THIN_POLL_S = 2.0
 #: SSE 断流带 ``Last-Event-ID`` 重连上限——尽后剩余预算归 ``_thin_wait`` 轮询。
 _SSE_RETRIES = 2
+#: server 回收 task_id 白名单形（``new_task_id`` 产 ``t_``+hex；测试桩
+#: ``t_thin*`` 形兼容到 ``[A-Za-z0-9_-]``）——回收值直拼 URL 路径与
+#: 下载 dest 目录名，``/`` ``\\`` ``.`` 形会穿出 ``/api/task/`` namespace
+#: 或逃逸 dest 仓外，必须在 ``_thin_submit`` 边界挡下。
+_THIN_TASK_ID_RX = re.compile(r"t_[A-Za-z0-9_-]+")
 
 
 def _thin_run(  # noqa: C901, PLR0911, PLR0913 -- 与 run 的 --server 选项面一一对应
@@ -77,9 +84,10 @@ def _thin_run(  # noqa: C901, PLR0911, PLR0913 -- 与 run 的 --server 选项面
         headers["x-texlate-dialect"] = dialect
     opts: dict[str, object] = {"engine": engine}
     if front_matter is not None:
-        # 显式三键 dict——未列名 = 关（不落服务端缺省，CLI 白名单语义）
+        # 显式全集 dict——未列名 = 关（不落服务端缺省，CLI 白名单语义）；
+        # 键集单源 ``pipecore.FRONT_MATTER_NAMES``，sorted 保 wire 字节确定
         opts["front_matter"] = {
-            k: k in front_matter for k in ("abstract", "title", "author")
+            k: k in front_matter for k in sorted(FRONT_MATTER_NAMES)
         }
     payload: dict[str, object] = {"options": opts}
     if model:
@@ -144,16 +152,16 @@ def _thin_submit(
     if resp.status_code == HTTPStatus.CONFLICT:
         body = resp.json()
         task_id = str(body.get("task_id") or "") if isinstance(body, dict) else ""
-        if task_id:
+        if _THIN_TASK_ID_RX.fullmatch(task_id):
             typer.echo(f"attach 进行中任务 {task_id}", err=True)
             return task_id
     elif resp.status_code in (HTTPStatus.OK, HTTPStatus.ACCEPTED):
         body = resp.json()
         task_id = str(body.get("task_id") or "") if isinstance(body, dict) else ""
-        if task_id:
+        if _THIN_TASK_ID_RX.fullmatch(task_id):
             typer.echo(f"task {task_id} → {body.get('status')}", err=True)
             return task_id
-        # 畸形 2xx（缺 task_id）落通用错误行——不当成功 attach
+        # 畸形 2xx（缺/非法 task_id）落通用错误行——不当成功 attach
     typer.echo(f"translate {resp.status_code}: {resp.text[:300]}", err=True)
     return None
 
@@ -177,7 +185,11 @@ def _thin_wait(
     deadline = time.monotonic() + wait
     last = ""
     while True:
-        resp = client.get(f"/api/task/{task_id}")
+        # 单次快照请求不超剩余预算——连接 wedged 时 --wait 仍作数
+        resp = client.get(
+            f"/api/task/{task_id}",
+            timeout=min(120.0, max(1.0, deadline - time.monotonic())),
+        )
         if resp.status_code != HTTPStatus.OK:
             typer.echo(f"快照 {resp.status_code}: {resp.text[:200]}", err=True)
             return "lost"
@@ -325,8 +337,12 @@ class _SseFollow:
         if self._last_id:
             headers["Last-Event-ID"] = str(self._last_id)
         try:
+            # 读超时钉剩余等待预算——挂死连接的 stall 不得越过 --wait
             with self._client.stream(
-                "GET", f"/api/task/{self._task_id}", headers=headers
+                "GET",
+                f"/api/task/{self._task_id}",
+                headers=headers,
+                timeout=min(120.0, max(1.0, deadline - time.monotonic())),
             ) as resp:
                 if resp.status_code != HTTPStatus.OK:
                     return "status", "lost"

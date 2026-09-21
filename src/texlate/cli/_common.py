@@ -11,6 +11,9 @@ import typer
 from typer.models import TyperPath
 
 from texlate.textutil import env_raw, safe_is_dir, safe_is_file
+from texlate.textutil.osutil import (
+    ENV_CACHE_DIR,  # 名表单源登记处——facade 未转口 ENV_* 故叶直引（同 cli/export.py）
+)
 
 if TYPE_CHECKING:
     import click
@@ -28,7 +31,7 @@ def _cache_root() -> Path:
     不复用：已登记为 ctan filemap 叶目录（``compile/ctan.py``）。待 hoist 至
     ``textutil/osutil.py``——engine ``_cache``/``_xelatex``/``sandbox`` 同根消费。
     """
-    raw = env_raw("TEXLATE_CACHE_DIR")
+    raw = env_raw(ENV_CACHE_DIR)
     if raw:
         return Path(raw).expanduser()
     xdg = env_raw("XDG_CACHE_HOME")
@@ -113,4 +116,10 @@ def _main(
     from texlate.cli._output import console as _cli_console  # noqa: PLC0415
     from texlate.logsetup import configure_logging, level_from_flags  # noqa: PLC0415
 
-    configure_logging(level=level_from_flags(verbose, quiet), console=_cli_console)
+    # 级别决议序「旗标 > ``TEXLATE_LOG`` env > 缺省」：无旗标必须传
+    # ``None`` 让 ``_resolve_level`` 落到 env——恒传 int 会把 env 判死
+    # （``run`` 子命令位同名旗标 ``if verbose or quiet`` 同口径覆盖）。
+    configure_logging(
+        level=level_from_flags(verbose, quiet) if (verbose or quiet) else None,
+        console=_cli_console,
+    )

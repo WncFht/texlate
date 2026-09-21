@@ -75,6 +75,12 @@ from texlate.server.validate import (  # noqa: F401 -- 边界校验出叶
     validate_model,
 )
 from texlate.textutil import data_root, env_flag, env_raw, env_str
+from texlate.textutil.osutil import (
+    ENV_CACHE_SCOPE,
+    ENV_MODE,
+    ENV_MODEL_PROBE,
+    ENV_SHARE_DIR,
+)
 from texlate.xlat.client import API_DIALECTS, DEFAULT_BASE_URL, DEFAULT_MODEL
 from texlate.xlat.state import atomic_json
 
@@ -131,7 +137,7 @@ def data_dir() -> Path:
 
 def server_mode() -> str:
     """``TEXLATE_MODE``：``local``（默认）| ``server``（多租户部署形态）。"""
-    return env_str("TEXLATE_MODE") or "local"
+    return env_str(ENV_MODE) or "local"
 
 
 def cache_scope() -> str:
@@ -143,7 +149,7 @@ def cache_scope() -> str:
     译过某论文」的存在性 oracle，代价是缓存命中按 key 碎片化。
     旧名 ``tenant`` 同义 ``per_key``；非法值回落 ``shared``。
     """
-    v = env_str("TEXLATE_CACHE_SCOPE") or "shared"
+    v = env_str(ENV_CACHE_SCOPE) or "shared"
     if v in ("per_key", "tenant"):
         return "per_key"
     if v != "shared":
@@ -158,7 +164,7 @@ def share_dir(root: Path | None = None) -> Path:
     落此——指向静态托管/对象存储挂载点即完成发布（shared-cache.md §7
     文件级服务端形态）。惰性建目录（pack/index_append 各自 mkdir parents）。
     """
-    raw = env_raw("TEXLATE_SHARE_DIR")
+    raw = env_raw(ENV_SHARE_DIR)
     if raw:
         return Path(raw).expanduser()
     return (root if root is not None else data_dir()) / "share"
@@ -204,7 +210,7 @@ def _parse_origin(value: object) -> str | None:
         u.scheme not in ("http", "https")
         or not u.hostname
         or "@" in u.netloc  # 含 ``@host`` 空 userinfo 形
-        or (port is None and u.netloc.rpartition("@")[2].endswith(":"))
+        or (port is None and u.netloc.endswith(":"))  # ``h:``——``@`` 上条已拒
         or u.query
         or u.fragment
         or u.path not in ("", "/")
@@ -540,7 +546,11 @@ class SettingsStore:
                     raw = json.loads(self.path.read_text(encoding="utf-8"))
                     if isinstance(raw, dict):
                         data = {k: raw[k] for k in self.FIELDS if k in raw}
-                except (OSError, json.JSONDecodeError) as e:
+                except (OSError, UnicodeDecodeError, json.JSONDecodeError) as e:
+                    # UnicodeDecodeError 是 ValueError 非 JSONDecodeError——
+                    # GBK 存盘的手改文件漏它会炸穿 load()（每请求经 deps.auth
+                    # 调用），连带 save() 修复路径一并锁死；与 worker/share.py
+                    # ``dual.json`` 读径同口径
                     log.warning("settings.json 损坏（%s）→ 用默认值", e)
             out = self._normalize(data)
             self._load_cache = (sig, out)
@@ -627,7 +637,9 @@ class SettingsStore:
             return {}
         try:
             data = json.loads(self.connections_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            # 非 UTF-8 存盘（GBK 手改）同「损坏」口径回落空表——漏
+            # UnicodeDecodeError 会让 save() 的槽位找回步炸 500
             return {}
         if not isinstance(data, dict):
             return {}
@@ -688,7 +700,7 @@ def _cached_provider_models(base_url: str, api_key: str) -> list[str] | None:
 
 def _model_probe_enabled() -> bool:
     """``TEXLATE_MODEL_PROBE`` 标准旗标语义：非真值显式关闭 save 期探活（离线/CI 兜底闸）。"""
-    return env_flag("TEXLATE_MODEL_PROBE", default=True)
+    return env_flag(ENV_MODEL_PROBE, default=True)
 
 
 def model_availability_warning(base_url: str, api_key: str, model: str) -> str | None:

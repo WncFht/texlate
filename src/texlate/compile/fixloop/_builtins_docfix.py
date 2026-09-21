@@ -10,6 +10,7 @@ r"""_builtins_docfix — 文档结构/定义面打靶修复原语 (_builtins_csf
 from __future__ import annotations
 
 import re
+from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Any
 
 from texlate.compile._seams import find_docclass_ends
@@ -21,10 +22,13 @@ from texlate.compile.fixloop._builtins_common import (
     _inject_after_docclass,
     _live_matches,
     _load_elems,
+    _splice,
 )
 from texlate.textutil import mask_tex
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from texlate.compile.fixloop.engine import Engine, LoopCtx
 
 
@@ -49,9 +53,11 @@ def pdfstring_cs_disarm(
     上游脆面, 与类无关; tmp/lane-pdo 最小复现 ``$\times$`` in ``\title``)。
     上游文档化逃生舱 ``\pdfstringdefDisableCommands`` 只动书签域——
     正文排版零接触, 比 ``\texorpdfstring`` 逐处包源干净一个量级;
-    ``\def\cs{}`` 空降格顺带消掉 "removing `\cs'" 警告 (cs 在展开期
-    已消失)。注入走 docclass 缝+``\ifdefined`` 双闸: hyperref 缺席稿
-    整件死文本不炸。
+    空降格顺带消掉 "removing `\cs'" 警告 (cs 在展开期已消失)。
+    肇事名可能含 ``@`` (``\@x`` 族) —— 注入位宿主 @=12 时裸
+    ``\def\@x{}`` 断名成 ``\@``+裸字母, 故 def 走 ``\csname`` 形
+    (本叶 ``_let_cs``/``_undefine_cs`` 同纪律)。注入走 docclass 缝+
+    ``\ifdefined`` 双闸: hyperref 缺席稿整件死文本不炸。
     """
     del eng, payload, params
     blob = (ctx.err_head or "") + "\n" + _fixloop_log(ctx)
@@ -68,10 +74,14 @@ def pdfstring_cs_disarm(
     if main is None:
         return False, "no main file"
     t = ctx.read(main) or ""
-    todo = [n for n in names if f"\\def{n}{{}}" not in t]
+    todo = [
+        n for n in names if rf"\def\csname {n[1:]}\endcsname{{}}" not in t
+    ]
     if not todo:
         return False, "offenders already disarmed"
-    defs = "".join(f"\\def{n}{{}}" for n in todo)
+    defs = "".join(
+        rf"\expandafter\def\csname {n[1:]}\endcsname{{}}" for n in todo
+    )
     snippet = (
         "\\ifdefined\\pdfstringdefDisableCommands\n"
         f"  \\pdfstringdefDisableCommands{{{defs}}}\n"
@@ -205,7 +215,76 @@ def _mbd_pairs(blob: str) -> list[tuple[str, str, str]]:
     return out
 
 
-def premature_cs_guard(  # noqa: C901, PLR0912, PLR0915 - 双臂逐站分派 + seen 幂等, 逐门 decline 即归因
+def _tex_offender(ctx: LoopCtx, stem: str) -> Path | None:
+    """肇事件 ``<stem>.tex`` 定位 —— file:line 错误头的 stem 只带文件名。
+
+    ``name`` 精确优先, ``stem`` 大小写兜底 (``sub/Foo.tex`` 的 stem 与
+    错误头 ``Foo.tex`` 同名位)。
+    """
+    low = f"{stem}.tex".lower()
+    for f in ctx.tex_files((".tex",)):
+        if f.name.lower() == low:
+            return f
+    for f in ctx.tex_files((".tex",)):
+        if f.stem.lower() == stem.lower():
+            return f
+    return None
+
+
+def _prov_loaded_before(t: str, pos: int, prov: str) -> bool:
+    """``pos`` 位之前是否有 live 的 ``prov`` 装载点 —— 同文件执行序判定。"""
+    return any(
+        prov in _load_elems(m) and m.end() <= pos
+        for m in _live_matches(_LOAD_SITE_RE, t)
+    )
+
+
+#: ``\input``/``\include``/``\InputIfFileExists`` 的 ``{arg}`` 站位 —
+#: includer 内肇事件引用位 (seam 臂跨文件执行序判定用)。
+_INPUT_SITE_RE = re.compile(
+    r"\\(?:input|include|InputIfFileExists)\s*\{\s*([^{}\n]*)\}"
+)
+
+
+def _seam_prov_covered(
+    ctx: LoopCtx, stem: str, cs: str, prov: str, main: Path | None
+) -> bool:
+    r"""供方 ``prov`` 是否已先于肇事 ``\<cs>`` 调用点装载 (seam 臂豁免判)。
+
+    ``Missing \begin{document}`` 肇事 .tex: 调用点 = 件内首个 live
+    ``\<cs>`` 位; main 件直查, ``\input``/``\include`` 件查引用站位
+    (includer 内先于站位的装载先于件体执行)。供方**晚于**调用点装载
+    (序颠倒稿) 不豁免 —— 缝位注入仍须落。调用点不可考 (肇事件不在
+    工程/cs 经宏展开调用) → False, 保守仍注。
+    """
+    offender = _tex_offender(ctx, stem)
+    if offender is None:
+        return False
+    ot = ctx.read(offender) or ""
+    cs_m = next(
+        iter(_live_matches(re.compile(rf"\\{re.escape(cs)}(?![A-Za-z@])"), ot)),
+        None,
+    )
+    if cs_m is not None and _prov_loaded_before(ot, cs_m.start(), prov):
+        return True
+    if main is None or offender == main:
+        return False
+    for f in ctx.tex_files((".tex",)):
+        if f == offender:
+            continue
+        ft = ctx.read(f)
+        if not ft:
+            continue
+        for m in _live_matches(_INPUT_SITE_RE, ft):
+            p = PurePosixPath(m.group(1).strip())
+            if stem in (p.stem, p.name) and _prov_loaded_before(
+                ft, m.start(), prov
+            ):
+                return True
+    return False
+
+
+def premature_cs_guard(  # noqa: C901, PLR0912 - 双臂逐站分派 + seen 幂等, 逐门 decline 即归因
     ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
 ) -> tuple[bool, str]:
     r"""``Missing \begin{document}`` @件装载 → 供方包前置到消费方装载点。
@@ -217,14 +296,18 @@ def premature_cs_guard(  # noqa: C901, PLR0912, PLR0915 - 双臂逐站分派 + s
     之前 (供方先跑, 消费方整件覆盖, 真 def 语义无损 —— 非 gobble);
     同文件内已先装供方的站跳过 (含上轮自注行, 天然幂等)。肇事文件是
     .tex (main/``\input`` 件) 无 usepackage 锚点 → docclass 缝顶补供方
-    (先于一切 preamble 行); 肇事 ``.cls``/``.def``/``.clo`` 系 cls/包
-    内传递装载, 缝位对 cls 执行期鞭长莫及 → abstain 交下位。
+    (先于一切 preamble 行); 缝臂豁免按**执行序**判 —— 供方装载点须先
+    于肇事 ``\<cs>`` 调用位 (main 件直查/``\input`` 件查引用站位, 见
+    ``_seam_prov_covered``), 晚序装载不豁免 (旧「任意位已装即跳」把
+    供方晚于调用的序颠倒稿误当已供)。肇事 ``.cls``/``.def``/``.clo``
+    系 cls/包内传递装载, 缝位对 cls 执行期鞭长莫及 → abstain 交下位。
     """
     del payload
     table = dict(_PREMATURE_CS_PKG)
     table.update(params.get("cs_pkg") or {})
     stem_provs: dict[str, set[str]] = {}
     seam_provs: set[str] = set()
+    seam_pairs: set[tuple[str, str, str]] = set()
     blob = (ctx.err_head or "") + "\n" + _fixloop_log(ctx)
     for stem, ext, cs in _mbd_pairs(blob):
         prov = table.get(cs)
@@ -232,6 +315,7 @@ def premature_cs_guard(  # noqa: C901, PLR0912, PLR0915 - 双臂逐站分派 + s
             continue  # 表外肇事 cs —— 供方不可考, 不收
         if ext == "tex":
             seam_provs.add(prov)
+            seam_pairs.add((stem, cs, prov))
         elif ext == "sty":
             stem_provs.setdefault(stem.lower(), set()).add(prov)
         # cls/def/clo 系传递装载无用户件锚点 —— abstain
@@ -246,8 +330,7 @@ def premature_cs_guard(  # noqa: C901, PLR0912, PLR0915 - 双臂逐站分派 + s
             if not t:
                 continue
             seen: set[str] = set()
-            out: list[str] = []
-            prev = 0
+            edits: list[tuple[int, int, str]] = []
             for m in _live_matches(_LOAD_SITE_RE, t):  # 死区装载点不锚
                 elems = _load_elems(m)
                 provs = sorted(
@@ -266,26 +349,26 @@ def premature_cs_guard(  # noqa: C901, PLR0912, PLR0915 - 双臂逐站分派 + s
                     f"\\usepackage{{{p}}} % fixloop: premature provider\n"
                     for p in provs
                 )
-                out.append(t[prev : m.start()])
-                out.append(ins)
-                prev = m.start()
+                edits.append((m.start(), m.start(), ins))
                 seen.update(provs)
                 n_sites += 1
-            if out:
-                out.append(t[prev:])
-                ctx.write(f, "".join(out))
+            if edits:
+                ctx.write(f, _splice(t, edits))
     if n_sites:
         done.append(f"provider prepend at {n_sites} load site(s)")
 
     if seam_provs:
         main = ctx.main_path()
         main_t = (ctx.read(main) or "") if main is not None else ""
-        loaded = {
-            e
-            for m in _live_matches(_LOAD_SITE_RE, main_t)
-            for e in _load_elems(m)
-        }
-        todo = sorted(p for p in seam_provs if p not in loaded)
+        todo = sorted(
+            {
+                prov
+                for stem, cs, prov in seam_pairs
+                if f"\\RequirePackage{{{prov}}} % fixloop: premature provider"
+                not in main_t
+                and not _seam_prov_covered(ctx, stem, cs, prov, main)
+            }
+        )
         if todo and _inject_after_docclass(
             ctx,
             "\n".join(
@@ -476,6 +559,19 @@ def _atdef_sites(vis: str) -> list[tuple[int, int, bool]]:
     return sites
 
 
+def _live_atdef_sites(vis: str) -> list[tuple[int, int]]:
+    r"""``_atdef_sites`` 滤活面 → ``[(start, end)]``。
+
+    非 at_letter 站且域内含 ``\\<letters>@<letter>`` 断名 token —— 即
+    ``spacefactor_atdef_wrap`` 的实裹站点集。
+    """
+    return [
+        (s, e)
+        for s, e, al in _atdef_sites(vis)
+        if not al and _AT_TOKEN_RE.search(vis[s:e])
+    ]
+
+
 def spacefactor_atdef_wrap(
     ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
 ) -> tuple[bool, str]:
@@ -511,15 +607,12 @@ def spacefactor_atdef_wrap(
             continue
         vis = mask_tex(t)
         edits = [
-            (s, e)
-            for s, e, al in _atdef_sites(vis)
-            if not al and _AT_TOKEN_RE.search(vis[s:e])
+            (s, e, _AT_LETTER_PRE + t[s:e] + _AT_LETTER_POST)
+            for s, e in _live_atdef_sites(vis)
         ]
         if not edits:
             continue
-        out = t
-        for s, e in reversed(edits):
-            out = out[:s] + _AT_LETTER_PRE + out[s:e] + _AT_LETTER_POST + out[e:]
+        out = _splice(t, edits)
         if out != t:
             ctx.write(f, out)
             changed.append(f"{f.name}(x{len(edits)})")
@@ -713,9 +806,7 @@ def cs_delim_tail_fix(  # noqa: C901, PLR0912 - def 扫面 × 逐 cs 分派, 每
             )
             if not edits:
                 continue
-            out = t
-            for s, e, rep in reversed(edits):
-                out = out[:s] + rep + out[e:]
+            out = _splice(t, edits)
             if out != t:
                 ctx.write(f, out)
                 changed.append(f"{f.name}(\\{cs} x{len(edits)})")

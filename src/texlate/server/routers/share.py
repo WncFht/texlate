@@ -8,12 +8,9 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
-import json
 import logging
 import re
-import shutil
 import sqlite3
-from contextlib import suppress
 from typing import TYPE_CHECKING
 
 # FastAPI 注册期 eval_str 解析端点签名注解——Request/Response 须驻运行时
@@ -23,14 +20,14 @@ from fastapi.responses import JSONResponse
 from texlate.arxiv.fetch import normalize_arxiv_id, valid_id
 from texlate.pipecore import FRONT_MATTER_NAMES
 from texlate.server.http import (
-    UploadPart,
     _accepted,
     _ApiError,
-    _clean_task_options,
-    _form_text,
+    _discard_part,
+    _form_options,
     _json_error,
     _options_json_checked,
     _parse_multipart,
+    _require_file_part,
 )
 from texlate.server.settings import (
     TARGET_LANGS,
@@ -116,7 +113,7 @@ def _mirror_share_zip(deps: AppDeps, task_id: str, bundle: Path) -> tuple[int, s
     的包对 files manifest 不可达，拷一份任务目录内镜像上产物面。
     重 I/O——调用方 ``to_thread`` 卸载。
     """
-    dst = deps.root / "tasks" / task_id / "share.zip"
+    dst = deps.task_dir(task_id) / "share.zip"
     digest = hashlib.sha256()
     size = 0
     with bundle.open("rb") as src, dst.open("wb") as out:
@@ -159,22 +156,10 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 端
         重算——后来的 ``id@vN`` 请求经 ``find_reusable`` 真命中本产物。
         """
         form = await _parse_multipart(request, deps.spool_dir)
-        file = form.get("file")
-        if not isinstance(file, UploadPart):
-            raise _ApiError(
-                400,
-                {
-                    "detail": "multipart field 'file' required",
-                    "code": "invalid_request",
-                },
-            )
+        file = _require_file_part(form)
         try:
-            if file.size == 0:
-                raise _ApiError(
-                    400, {"detail": "empty upload", "code": "invalid_request"}
-                )
             tid = new_task_id()
-            tdir = deps.root / "tasks" / tid
+            tdir = deps.task_dir(tid)
 
             def _stage() -> ShareManifest:
                 bundle_dir = tdir / "upload"
@@ -188,20 +173,7 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 端
                 mf = await asyncio.to_thread(_stage)
                 parts = mf.key_parts
                 base, ver_s, model, lang, ver = _share_parts_checked(parts)
-                options_raw = _form_text(form, "options")
-                try:
-                    options = json.loads(options_raw) if options_raw else {}
-                except (ValueError, RecursionError):
-                    raise _ApiError(
-                        400,
-                        {
-                            "detail": "options 字段不是合法 JSON",
-                            "code": "invalid_request",
-                        },
-                    ) from None
-                if not isinstance(options, dict):
-                    options = {}
-                options = _clean_task_options(options)
+                options = _form_options(form)
                 # 审计载荷强制覆盖——调用方 options 不得伪造 share 来源字段。
                 # 注入在 64KB 闸之后发生（manifest 字段已经
                 # ``_manifest_field_max`` 收敛），注入后重跑尺寸闸兜底。
@@ -217,7 +189,9 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 端
                 # front_matter 在此被覆盖（∩NAMES 挡包内脏串）
                 bundle_fm = (
                     frozenset(
-                        x for x in str(parts.get("front_matter") or "").split(",") if x
+                        x.strip()
+                        for x in str(parts.get("front_matter") or "").split(",")
+                        if x.strip()
                     )
                     & FRONT_MATTER_NAMES
                 )
@@ -249,7 +223,7 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 端
                     incoming_bytes=file.size,
                 )
             except ShareError as e:
-                await asyncio.to_thread(shutil.rmtree, tdir, ignore_errors=True)
+                await deps.drop_task_dir(tid)
                 raise _ApiError(
                     400,
                     {
@@ -259,7 +233,7 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 端
                 ) from e
             except sqlite3.IntegrityError:
                 # reuse 语义下并发同键撞 ACTIVE 唯一索引——归 duplicate_active
-                await asyncio.to_thread(shutil.rmtree, tdir, ignore_errors=True)
+                await deps.drop_task_dir(tid)
                 raise _ApiError(
                     409,
                     {"detail": "active task exists", "code": "duplicate_active"},
@@ -267,15 +241,14 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 端
             except Exception:
                 # 落盘/解包/校验/建行/入队任何失败（含 _ApiError 与非预期异常）
                 # ——task 目录一并收掉，不留孤儿（upload 端点 B4 同口径）
-                await asyncio.to_thread(shutil.rmtree, tdir, ignore_errors=True)
+                await deps.drop_task_dir(tid)
                 raise
             if str(row["id"]) != tid:
                 # reuse/idempotent 命中旧行——本次解包现场作废（行从未建）
-                await asyncio.to_thread(shutil.rmtree, tdir, ignore_errors=True)
+                await deps.drop_task_dir(tid)
             return _accepted(row, status, extra)
         finally:
-            with suppress(OSError):
-                file.path.unlink(missing_ok=True)
+            _discard_part(file)
 
     @app.post("/api/task/{task_id}/share/pack")
     async def share_pack(request: Request, task_id: str) -> Response:  # noqa: C901, PLR0911 -- 守卫阶梯平铺
@@ -312,7 +285,7 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 端
                 f"任务状态 {row['status']}：仅 done/partial 终态可打包",
                 "invalid_state",
             )
-        task_root = deps.root / "tasks" / task_id
+        task_root = deps.task_dir(task_id)
         ctx = TaskCtx(
             store=deps.store,
             bus=deps.bus,

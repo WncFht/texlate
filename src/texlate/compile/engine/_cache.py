@@ -6,12 +6,13 @@ import json
 from pathlib import Path
 
 from texlate.textutil import env_raw
+from texlate.textutil.osutil import ENV_TLMGR_CACHE
 
 
 def tlmgr_search_cache_path() -> Path:
     """定位 tlmgr file→pkg 搜索的跨进程落盘缓存位（fixloop 共用约定）。"""
     return Path(
-        env_raw("TEXLATE_TLMGR_CACHE")
+        env_raw(ENV_TLMGR_CACHE)
         or str(Path.home() / ".cache" / "texlate" / "tlmgr-search-cache.json")
     )
 

@@ -16,6 +16,7 @@ import json
 import secrets
 import shutil
 import subprocess
+from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -38,7 +39,8 @@ if TYPE_CHECKING:
     from typing import BinaryIO
 
     from fastapi import Request
-    from starlette.types import Message
+    from starlette.datastructures import FormData
+    from starlette.types import Message, Scope
 
 
 def _probe_git_commit() -> str:
@@ -81,7 +83,7 @@ class _ApiError(Exception):
 
 
 def _api_error(
-    status: int, detail: str, code: str | None = None, **fields: Any
+    status: int, detail: str, code: str | None = None, **fields: object
 ) -> _ApiError:
     """``raise`` 侧统一错误面——``_json_error`` 的 raise 孪生。
 
@@ -214,19 +216,40 @@ async def _parse_multipart(
         raise _api_error(
             400, f"malformed multipart: {e}", "invalid_request"
         ) from e
+    return await _collect_form(form, spool_dir)
+
+
+async def _collect_form(
+    form: FormData, spool_dir: Path
+) -> dict[str, str | UploadPart]:
+    """逐字段收集：文件流式落 spool、str 直收；中途失败就地回收已落盘件。
+
+    异常面（累计额度 413/体闸/cancel）下调用方只收到异常拿不到 ``out``
+    ——已 spool 的 ``.part-*`` 不留给启动清扫（长跑进程在反复超限的多
+    文件上传下会攒孤儿），逐件 ``unlink`` 后原异常透传。
+    """
     out: dict[str, str | UploadPart] = {}
     file_bytes = 0
-    for name, val in form.multi_items():
-        if isinstance(val, StarletteUploadFile):
-            await val.seek(0)
-            tmp = spool_dir / f".part-{secrets.token_hex(8)}"
-            size = await asyncio.to_thread(
-                _spool_part, val.file, tmp, UPLOAD_CAP - file_bytes
-            )
-            file_bytes += size
-            out[name] = UploadPart(filename=val.filename or "", path=tmp, size=size)
-        elif isinstance(val, str):
-            out[name] = val
+    try:
+        for name, val in form.multi_items():
+            if isinstance(val, StarletteUploadFile):
+                await val.seek(0)
+                tmp = spool_dir / f".part-{secrets.token_hex(8)}"
+                size = await asyncio.to_thread(
+                    _spool_part, val.file, tmp, UPLOAD_CAP - file_bytes
+                )
+                file_bytes += size
+                out[name] = UploadPart(
+                    filename=val.filename or "", path=tmp, size=size
+                )
+            elif isinstance(val, str):
+                out[name] = val
+    except BaseException:
+        for val in out.values():
+            if isinstance(val, UploadPart):
+                with suppress(OSError):
+                    val.path.unlink()
+        raise
     return out
 
 
@@ -234,6 +257,50 @@ def _form_text(form: dict[str, str | UploadPart], name: str) -> str:
     """表单文本字段（文件字段同名时按缺省处理）。"""
     val = form.get(name)
     return val if isinstance(val, str) else ""
+
+
+def _discard_part(file: UploadPart) -> None:
+    """兜底清理 spool 件——已 rename 走则 ``unlink`` no-op，仍躺 spool 收掉。
+
+    upload/share 两域 multipart 消费面的 finally 幂等清理共用本件
+    （自 ``routers/upload.py`` 归位）。
+    """
+    with suppress(OSError):
+        file.path.unlink(missing_ok=True)
+
+
+def _require_file_part(form: dict[str, str | UploadPart]) -> UploadPart:
+    """``file`` 字段闸：缺席/非文件字段 → 400；空文件收掉 spool 件后 → 400。"""
+    file = form.get("file")
+    if not isinstance(file, UploadPart):
+        raise _ApiError(
+            400,
+            {
+                "detail": "multipart field 'file' required",
+                "code": "invalid_request",
+            },
+        )
+    if file.size == 0:
+        _discard_part(file)
+        raise _ApiError(
+            400, {"detail": "empty upload", "code": "invalid_request"}
+        )
+    return file
+
+
+def _form_options(form: dict[str, str | UploadPart]) -> dict[str, Any]:
+    """``options`` 字段 → 清洗后 dict：坏 JSON → 400；非 object → ``{}``。"""
+    options_raw = _form_text(form, "options")
+    try:
+        options = json.loads(options_raw) if options_raw else {}
+    except (ValueError, RecursionError):
+        raise _ApiError(
+            400,
+            {"detail": "options 字段不是合法 JSON", "code": "invalid_request"},
+        ) from None
+    if not isinstance(options, dict):
+        options = {}
+    return _clean_task_options(options)
 
 
 async def _read_body(request: Request) -> dict[str, Any]:
@@ -337,7 +404,9 @@ def _clean_task_options(
     if "concurrency" in options:
         try:
             options["concurrency"] = max(1, min(16, int(options["concurrency"])))
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):
+            # ``int(1e999)``/Infinity 抛 OverflowError——与 settings
+            # ``_check_concurrency`` 同口径归一 400，漏了会 500
             raise _api_error(
                 400, "options.concurrency 须为整数（clamp 1–16）", "invalid_request"
             ) from None
@@ -351,6 +420,26 @@ def _json_error(status: int, detail: str, code: str | None = None) -> JSONRespon
     if code:
         body["code"] = code
     return JSONResponse(body, status_code=status)
+
+
+def _route_path(scope: Scope) -> str:
+    """``scope["path"]`` 剥 ``root_path`` → 路由匹配路径视图。
+
+    starlette ``_utils.get_route_path`` 逐行 vendored——``_utils`` 是私件
+    （下划线模块无稳定性承诺），starlette 至今无公开口做这层剥离。
+    ``request.url.path`` 含 ``root_path``：``--root-path``/反代子路径部署下
+    ``/tex/api/…`` 会骗过 ``/api`` 前缀闸而路由照样命中——入站闸与
+    ``Cache-Control`` 判定必须用剥离后的视图。
+    """
+    path: str = scope["path"]
+    root_path = scope.get("root_path", "")
+    if not root_path or not path.startswith(root_path):
+        return path
+    if path == root_path:
+        return ""
+    if path[len(root_path)] == "/":
+        return path[len(root_path) :]
+    return path
 
 
 def _host_only(host: str) -> str:

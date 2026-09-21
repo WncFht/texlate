@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
 if TYPE_CHECKING:
-    from collections.abc import Container, Iterator
+    from collections.abc import Iterator
 
     from texlate.textutil import EncodingVerdict
 
@@ -51,6 +51,7 @@ from .shadow import _shadow_broken_system_packages
 from .transcode import (
     AUX_BIB_SUFFIXES,
     _hidden_path,
+    _iter_files,
     _record_verdict,
     _transcode_support_files,
 )
@@ -355,28 +356,50 @@ def normalize_manual_hyphens(text: str) -> str:
 
 
 # ---------------------------------------------------------------- 7. inputenc/fontenc
+#: ``\usepackage``/``\RequirePackage`` 名表手术共用定位形——
+#: ``strip_input_encodings``/``normalize_legacy_cjk`` 同扫。
+_USEPACKAGE_NAMES_RX: Final = re.compile(
+    r"\\(?:usepackage|RequirePackage)\s*(?:\[[^]]*\])?\s*\{([^}]+)\}"
+)
+
+
+def _filter_usepackage_names(
+    text: str, visible: str, drop: set[str], *, empty: str, suffix: str = ""
+) -> list[tuple[int, int, str]]:
+    r"""``\usepackage`` 名表剥 ``drop`` 成员的 ``apply_edits`` 编辑列表骨架。
+
+    两调用方只差三参：``empty`` = 名表剥光时的替换文本（strip 用 ``" "``
+    防行内相邻 token 粘连；cjk 用 ``""``——其 ``suffix`` 原生块以 ``\n``
+    起行自带隔离）；``suffix`` 追加在每条替换尾部（cjk 注入 xeCJK 装载块，
+    strip 为 ``""``）。``visible`` 复用调用方既有遮盖视图，不重复打。
+    """
+    edits = []
+    for match in _USEPACKAGE_NAMES_RX.finditer(visible):
+        names = [v.strip() for v in match[1].split(",")]
+        kept = [v for v in names if v not in drop]
+        if kept != names:
+            value = (
+                text[match.start() : match.start(1)] + ",".join(kept) + "}"
+                if kept
+                else empty
+            )
+            edits.append((match.start(), match.end(), value + suffix))
+    return edits
+
+
 def strip_input_encodings(text: str) -> str:
     r"""剥 `\usepackage{..}` 名字列表里的 inputenc/fontenc，其余保留。
 
     导入层已把所有 .tex 解码为 UTF-8；旧式输入/字体编码与 XeTeX 原生
     Unicode 字体冲突（latin-5 静默 U+FFFD 教训见 engine-matrix §3.3）。
     """
-    visible = visible_tex(text)
-    removals = []
-    for match in re.finditer(
-        r"\\(?:usepackage|RequirePackage)\s*(?:\[[^]]*\])?\s*\{([^}]+)\}", visible
-    ):
-        names = [v.strip() for v in match[1].split(",")]
-        kept = [v for v in names if v not in {"inputenc", "fontenc"}]
-        if kept != names:
-            # 整行删除留空行（span 不含行尾 \n）；" " 而非 "" 防行内相邻 token 粘连
-            value = (
-                text[match.start() : match.start(1)] + ",".join(kept) + "}"
-                if kept
-                else " "
-            )
-            removals.append((match.start(), match.end(), value))
-    return apply_edits(text, removals)
+    # 名表剥光落 " "（span 不含行尾 \n → 整行留空行）防行内相邻 token 粘连
+    return apply_edits(
+        text,
+        _filter_usepackage_names(
+            text, visible_tex(text), {"inputenc", "fontenc"}, empty=" "
+        ),
+    )
 
 
 # ---------------------------------------------------------------- 8. pdfinfo/pdfoutput/驱动选项
@@ -564,36 +587,11 @@ def _strip_lead_junk(blob: bytes) -> bytes:
 
 
 # ---------------------------------------------------------------- 树遍历/读件共享低层件
-def _iter_files(
-    root: Path, suffixes: Container[str] | None, *, skip_hidden: bool = True
-) -> Iterator[Path]:
-    r"""工程内常规文件迭代：软链豁免 + 后缀过滤 + 隐藏路径闸（原各站手卷同闸收束）。
-
-    ``os.walk(followlinks=False)`` 而非 ``rglob``——rglob 跟随目录符号链
-    且无环检测，unpack 放行的 in-tree symlink 环会炸 RecursionError
-    （``arxiv/locate.py`` ``_iter_files`` 同教训同款实现）；walk 下目录
-    软链不递归——此前 rglob 会穿进软链目录把链外件当包内件改写，现整支
-    豁免（软链下文件不读不写）。``suffixes=None`` 不按后缀过滤——
-    按文件名判定（``_neutralize_junk_files`` 名单件）或排除式
-    catch-all 面用。``skip_hidden=False`` 留给统计口径须含隐藏件的
-    调用方（``_normalize_tex_files`` 的 ``stats["files"]`` 先计后跳）。
-    """
-    for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
-        if skip_hidden:
-            # 隐藏目录整支不递归——_hidden_path 口径提前到目录层（.git 等）
-            dirnames[:] = [d for d in dirnames if not d.startswith(".")]
-        base = Path(dirpath)
-        for name in filenames:
-            path = base / name
-            if path.is_symlink() or not path.is_file():
-                continue  # 软链豁免：读写都会穿到 root 外目标（同 _transcode 臂）
-            if suffixes is not None and path.suffix.lower() not in suffixes:
-                continue
-            if skip_hidden and _hidden_path(path, root):
-                continue  # 隐藏路径整体豁免（同 _transcode 口径）
-            yield path
-
-
+# ``_iter_files`` 单源在 ``transcode.py``（import 回引，``judge.py`` 惰载
+# ``from .normalize import _iter_files`` 经本件命名空间再导出仍可达）：
+# ``suffixes=None`` 不按后缀过滤——按文件名判定（``_neutralize_junk_files``
+# 名单件）或排除式 catch-all 面用；``skip_hidden=False`` 留给统计口径须含
+# 隐藏件的调用方（``_normalize_tex_files`` 的 ``stats["files"]`` 先计后跳）。
 def _read_tex_path(path: Path) -> bytes | None:
     """读件原始字节；OSError（不可读件）/tar 伪装件 → ``None``。
 
@@ -685,7 +683,6 @@ def normalize_legacy_cjk(text: str, engine: str) -> str:
     保留原分组语义，剥掉 8-bit 字体编码层。
     """
     visible = visible_tex(text)
-    changes = []
     package = "luatexja-fontspec" if engine == "lualatex" else "xeCJK"
     command = "setmainjfont" if engine == "lualatex" else "setCJKmainfont"
     loader = "usepackage" if BEGIN_DOC_RX.search(visible) else "RequirePackage"
@@ -706,18 +703,9 @@ def normalize_legacy_cjk(text: str, engine: str) -> str:
             else ""
         )
     )
-    for match in re.finditer(
-        r"\\(?:usepackage|RequirePackage)\s*(?:\[[^]]*\])?\s*\{([^}]+)\}", visible
-    ):
-        names = [name.strip() for name in match[1].split(",")]
-        kept = [name for name in names if name not in {"CJK", "CJKutf8"}]
-        if len(kept) != len(names):
-            replacement = (
-                text[match.start() : match.start(1)] + ",".join(kept) + "}"
-                if kept
-                else ""
-            )
-            changes.append((match.start(), match.end(), replacement + native))
+    changes = _filter_usepackage_names(
+        text, visible, {"CJK", "CJKutf8"}, empty="", suffix=native
+    )
     changes.extend(
         (match.start(), match.end(), "{" if match[0].startswith(r"\begin") else "}")
         for match in re.finditer(

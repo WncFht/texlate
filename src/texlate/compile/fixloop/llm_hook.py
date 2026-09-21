@@ -38,6 +38,7 @@ from typing import TYPE_CHECKING, Any
 import httpx
 
 from texlate.textutil import JSON_FENCE_RX, env_raw, safe_resolve
+from texlate.textutil.osutil import ENV_BASE_URL, ENV_DIALECT, ENV_MODEL
 from texlate.xlat.client import (
     DEFAULT_BASE_URL,
     DEFAULT_MODEL,
@@ -88,14 +89,38 @@ _BANNED_NEW: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"\\pdfsystem\b"), "\\pdfsystem shell escape"),
     (re.compile(r"\\directlua\b"), "\\directlua (os.execute 面)"),
     (re.compile(r"\\input\s*\{?\s*[\"']?\s*\|"), "\\input| pipe escape"),
-    (
-        re.compile(
-            _PATH_MACRO + r"[^\S\n]*(?:\[[^\]\n]*\][^\S\n]*)?[\{=]?[^\S\n]*"
-            r"[\"']?[^\S\n]*(?:\.{1,2}[/\\]|[/\\]|[A-Za-z]:[/\\])"
-        ),
-        "absolute/.. path in file-loading macro",
-    ),
 ]
+
+#: 文件装载宏的调用面 —— ``arg``/``arg2`` 实参捕获供 ``_path_arg_escape``
+#: 逐组件判。可选流号/目标 cs 站位 (``\openout\w=``/``\read\w to\x``) 先吃
+#: 掉, 否则流号 cs 的 ``\`` 落进路径判定 —— 旧拼 ``[/\\]`` 尾哨兵把
+#: ``\openout\w=x`` 误当绝对路径拒。``arg2`` 收 ``\import{dir}{file}`` 双参形。
+_PATH_ARG_RX = re.compile(
+    _PATH_MACRO
+    + r"(?:[^\S\n]*\\[a-zA-Z@*]+[^\S\n]*"
+    r"(?:=|to[^\S\n]*\\[a-zA-Z@*]+))?"
+    r"[^\S\n]*(?:\[[^\]\n]*\][^\S\n]*)?[\{=]?[^\S\n]*[\"']?"
+    r"(?P<arg>\{[^{}\n]*\}|[^\s{}\"'=\\]+)"
+    r"(?:[^\S\n]*(?P<arg2>\{[^{}\n]*\}))?"
+)
+
+
+def _path_arg_escape(arg: str) -> bool:
+    r"""装载宏实参是否绝对/``.``/``..`` 穿越形 —— 逐组件判, 非首字符扫。
+
+    旧 ``.{1,2}[/\\]`` 前哨形只盖行首, ``{sub/../x}`` 中位 ``..`` 直通;
+    ``\`` 先归一成 ``/`` 再切组件 (TeX 侧 ``\``/``/`` 分隔双吃)。
+    """
+    s = arg.strip().strip("\"'").strip()
+    if s.startswith("{") and s.endswith("}"):
+        s = s[1:-1].strip()
+    if not s:
+        return False
+    s = s.replace("\\", "/")
+    if s.startswith("/") or re.match(r"[A-Za-z]:/", s):
+        return True
+    parts = s.split("/")
+    return "." in parts or ".." in parts
 
 _SYSTEM = """\
 You are a LaTeX compile-error repair engine inside an automated fix loop. \
@@ -292,6 +317,13 @@ def _banned(new: str) -> str | None:
     for rx, why in _BANNED_NEW:
         if rx.search(new):
             return why
+    for m in _PATH_ARG_RX.finditer(new):
+        if any(
+            _path_arg_escape(m.group(g))
+            for g in ("arg", "arg2")
+            if m.group(g) is not None
+        ):
+            return "absolute/.. path in file-loading macro"
     return None
 
 
@@ -354,10 +386,10 @@ class LlmFixer:
     ) -> None:
         """组装配置; ``translator=None`` 时 env 解析网关三件套。"""
         self.translator = translator
-        self.base_url = base_url or env_raw("TEXLATE_BASE_URL") or DEFAULT_BASE_URL
+        self.base_url = base_url or env_raw(ENV_BASE_URL) or DEFAULT_BASE_URL
         self.api_key = api_key if api_key is not None else env_key_for_url(self.base_url)
-        self.model = model or env_raw("TEXLATE_MODEL") or DEFAULT_MODEL
-        self.dialect = dialect or env_raw("TEXLATE_DIALECT") or "auto"
+        self.model = model or env_raw(ENV_MODEL) or DEFAULT_MODEL
+        self.dialect = dialect or env_raw(ENV_DIALECT) or "auto"
         self.timeout_s = timeout_s
         self.temperature = temperature
         self.max_tokens = max_tokens

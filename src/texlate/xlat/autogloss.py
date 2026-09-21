@@ -27,7 +27,7 @@ from collections import Counter
 from functools import partial
 from typing import TYPE_CHECKING
 
-from .client import REASONING_MIN_MAX_TOKENS, ChatError, ChatOptions
+from .client import DEFAULT_MODEL, REASONING_MIN_MAX_TOKENS, ChatError, ChatOptions
 from .retry import RetryPolicy, call_with_backoff
 
 if TYPE_CHECKING:
@@ -37,8 +37,9 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
-#: 抽取臂默认模型——非 judge 面（judge 用 swe-2-max），固定在免费集池内
-EXTRACT_MODEL = "swe-2-medium"
+#: 抽取臂默认模型——非 judge 面（judge 用 swe-2-max）；引 ``DEFAULT_MODEL``
+#: 钉在免费集池首，防 preference 轮换后字面量漂移（client.py 常量注同约定）
+EXTRACT_MODEL = DEFAULT_MODEL
 #: 一批打包上限（字）。L1 探针 2400 / L2 4000 两档实测均净，产品取保守档
 EXTRACT_BATCH_CHARS = 2400
 #: 单篇抽取调用封顶——巨篇防烧量（L2 实测 ~6 calls/paper）
@@ -189,14 +190,19 @@ def _norm_key(src: str) -> str:
 
 
 def _pick_corpus(texts: list[str], cap: int) -> list[str]:
-    """全篇等距抽 chunk 到 ~cap 字符——保整篇广度（胜于顺序头截断，L2 探针同款）。"""
+    """全篇等距抽 chunk 到 ~cap 字符——保整篇广度（胜于顺序头截断，L2 探针同款）。
+
+    首条等距候选恒进料（``picked`` 空时不查 cap）——``_pack_batches`` 的
+    oversized-singleton 同合同：整篇只有一号超大块也产一批，不把全篇
+    静默丢成 ``{}``。
+    """
     total = sum(len(t) for t in texts)
     if total <= cap:
         return list(texts)
     stride = max(1, -(-total // cap))  # ceil
     picked, acc = [], 0
     for t in texts[::stride]:
-        if acc + len(t) > cap:
+        if picked and acc + len(t) > cap:
             break
         picked.append(t)
         acc += len(t)

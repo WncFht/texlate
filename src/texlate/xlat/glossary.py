@@ -20,6 +20,7 @@ from __future__ import annotations
 import csv
 import logging
 import re
+import string
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -68,9 +69,80 @@ def _term_pattern(en: str) -> str:
 
     源码断行/不断行空格（``computer~vision``、``Maximum\\nLikelihood``）
     会把多词术语劈开——词内逐词 escape 后留缝，边界 lookaround 不动。
+    命中语义的正则成文合同——``doc_filter`` 热路径实现走 ``_term_hit``
+    扫描（等价口径见各 helper 注）。
     """
     parts = [p for p in re.split(r"[\s~]+", en.strip()) if p]
     return _TERM_BOUNDARY.format("[~\\s]+".join(re.escape(p) for p in parts))
+
+
+#: ASCII 词字符集——``_term_pattern`` 的 ``\w`` 在 ``re.ASCII`` 旗下口径
+_ASCII_WORD = frozenset(string.ascii_letters + string.digits + "_")
+#: ws-flex 缝字符集——``_term_pattern`` 的 ``[~\s]+``（``re.ASCII`` 旗下
+#: ``\s`` = 六空白符 + 字面 ``~``）
+_SEAM = frozenset("~ \t\n\r\f\v")
+#: 术语切词——``_term_pattern`` 内 ``re.split(r"[\s~]+")`` 同口径（unicode ``\s``）
+_TERM_SPLIT_RX = re.compile(r"[~\s]+")
+
+
+def _afold(s: str) -> str:
+    """ASCII-only 折大小写——``re.IGNORECASE | re.ASCII`` 等价口径。
+
+    非 ASCII 字母不折叠，与 ``str.lower`` 刻意区分。
+    """
+    return "".join(c.upper() if "a" <= c <= "z" else c for c in s)
+
+
+def _seam_match(words: list[str], fc: str, i: int) -> int:
+    r"""``fc`` 位置 ``i`` 起词序列缝扫——命中返尾位，否则 -1。
+
+    ``[~\s]+`` 贪心吃缝后接字面词；缝字符永不构成词首，故全吃即唯一
+    对法（正则回溯无路可退，语义等价）。
+    """
+    j = i + len(words[0])
+    for w in words[1:]:
+        k = j
+        while k < len(fc) and fc[k] in _SEAM:
+            k += 1
+        if k == j or not fc.startswith(w, k):
+            return -1
+        j = k + len(w)
+    return j
+
+
+def _zero_width_hit(fc: str) -> bool:
+    r"""空/纯缝 en 的 ``(?<!\w)(?!\w)`` 零宽断言——逐位扫描。"""
+    for i in range(len(fc) + 1):
+        pre_ok = i == 0 or fc[i - 1] not in _ASCII_WORD
+        post_ok = i == len(fc) or fc[i] not in _ASCII_WORD
+        if pre_ok and post_ok:
+            return True
+    return False
+
+
+def _term_hit(en: str, fc: str) -> bool:
+    """折后 corpus ``fc`` 上的 ``_term_pattern`` 命中判定（``doc_filter`` 热路径）。
+
+    逐术语 ``re.search``（O(#terms × corpus 字节)——725 词 × 150KB 实测
+    ~1.05s/篇）换成 corpus 一次 ``_afold`` + 首词 ``str.find`` 锚定 +
+    ``_seam_match`` 缝扫（~15×）。与 ``tests/test_fuzz_glossary.py`` 的
+    ``_oracle_term_hit`` 同算法——``test_fuzz_doc_filter_oracle`` 差分钉。
+    空/纯缝 en 退化 ``_zero_width_hit``（旧零宽断言口径保持）。
+    """
+    words = [_afold(w) for w in _TERM_SPLIT_RX.split(en.strip()) if w]
+    if not words:
+        return _zero_width_hit(fc)
+    first, start = words[0], 0
+    while True:
+        i = fc.find(first, start)
+        if i < 0:
+            return False
+        j = _seam_match(words, fc, i)
+        pre_ok = i == 0 or fc[i - 1] not in _ASCII_WORD
+        post_ok = j >= 0 and (j == len(fc) or fc[j] not in _ASCII_WORD)
+        if j >= 0 and pre_ok and post_ok:
+            return True
+        start = i + 1
 
 
 @dataclass
@@ -149,18 +221,20 @@ class Glossary:
     def doc_filter(self, texts: Iterable[str]) -> dict[str, str]:
         r"""扫全部 chunk 源文本，筛出本文实际出现的术语 → `{en: zh}` 有序表。
 
-        正则 `(?<!\\w)term(?!\\w)`（IGNORECASE|ASCII）整篇过滤一次——保证 system
-        prompt 恒定。渲染排序：真术语按 en（IGNORECASE）字典序、占位符按
-        `sort_key` 排尾——逐字节稳定是前缀缓存命中前提。
+        命中语义 = `(?<!\\w)term(?!\\w)`（IGNORECASE|ASCII、词内 `[~\\s]+` 缝）
+        整篇过滤一次——保证 system prompt 恒定；实现走 `_term_hit` 扫描
+        （corpus 只 `_afold` 一次，非逐术语 `re.search`）。渲染排序：真术语按
+        en（IGNORECASE）字典序、占位符按 `sort_key` 排尾——逐字节稳定是
+        前缀缓存命中前提。
         """
-        corpus = "\n".join(texts)
+        corpus = _afold("\n".join(texts))
         real: list[TermEntry] = []
         phs: list[TermEntry] = []
         for en, entry in self.terms.items():
             if entry.source == "placeholder":
                 phs.append(entry)
                 continue
-            if re.search(_term_pattern(en), corpus, re.IGNORECASE | re.ASCII):
+            if _term_hit(en, corpus):
                 real.append(entry)
         real.sort(key=lambda e: e.en.lower())
         phs.sort(key=lambda e: (sort_key(e.en), e.en))

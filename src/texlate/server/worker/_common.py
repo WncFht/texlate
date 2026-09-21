@@ -29,6 +29,7 @@ from texlate.server.settings import (
 )
 from texlate.server.store import row_json
 from texlate.textutil import env_float
+from texlate.textutil.osutil import ENV_COMPILE_TIMEOUT
 from texlate.xlat.client import (
     ChatClient,
     ChatError,
@@ -42,7 +43,7 @@ from texlate.xlat.prompts import PROMPT_VERSION
 from texlate.xlat.state import ChunkRecord, StateStore, atomic_json
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterable
+    from collections.abc import Callable, Iterable, Mapping
     from pathlib import Path
 
     from texlate.arxiv.html import HtmlDoc
@@ -104,7 +105,7 @@ def opt_bool(options: dict[str, Any], key: str, env_on: Callable[[], bool]) -> b
 #: 全链优先级 ``TEXLATE_COMPILE_TIMEOUT`` env > settings.json
 #: ``compile_timeout`` > 240s，``create_app`` 装配时解析透传；本常量
 #: 兜非 app 构造方（测试/内嵌直 new PipelineWorker 不走 settings）
-COMPILE_TIMEOUT = _env_timeout("TEXLATE_COMPILE_TIMEOUT", DEFAULT_COMPILE_TIMEOUT_S)
+COMPILE_TIMEOUT = _env_timeout(ENV_COMPILE_TIMEOUT, DEFAULT_COMPILE_TIMEOUT_S)
 
 #: files.kind → URL kind（§2.3 白名单表）
 KIND_URL = {
@@ -166,6 +167,19 @@ _SPLICE_STALE_KINDS = (
     "md_zip",
     "share_zip",
 )
+
+
+def _row_status_snap(rows: Iterable[dict[str, Any]]) -> dict[str, tuple[str, str]]:
+    """Chunks 行 → ``{chunk_id: (status, translation)}`` 快照——splice 失效对账面。
+
+    ``translate._translate_prep``/``_invalidate_splice`` 与 share 臂
+    ``_stage_share_apply`` 三处同款的单源；BLOB/None 格统一
+    ``str(... or "")`` coerce。
+    """
+    return {
+        r["chunk_id"]: (str(r["status"]), str(r["translation"] or ""))
+        for r in rows
+    }
 
 #: probe diff 聚合行的列表截断上限（一条行不刷屏，超出记 +N）
 _PROBE_LIST_CAP = 8
@@ -574,10 +588,29 @@ class SegmentCache:
         return out
 
 
+def _repend_puts(
+    cache: SegmentCache, puts: list[tuple[str, str, str, str]]
+) -> None:
+    """``drain()`` 已取走但落盘失败 → 回挂 pending 等下轮 flush 重投。
+
+    drain 元组是全键（``{prefix}:{seg_key}``）——剥前缀还原 seg_key 走
+    ``__setitem__`` 口径回挂；``_written`` 内读副本留着无碍（重投写库
+    幂等）。回挂本是 ``SegmentCache`` 接口义务（类无公共 repend 面），
+    本函数是就地实现。
+    """
+    cut = len(cache._prefix) + 1  # noqa: SLF001 -- 回挂须剥全键前缀（类无公共面）
+    for key, translation, _model, _lang in puts:
+        cache[key[cut:]] = translation
+
+
 # ---------------------------------------------------------------- 断点 state 桥
 
 # _DB_TO_PIPE/_PIPE_TO_DB 状态空间图单源在 texlate.pipecore——顶部别名导入，
 # 本包消费面（pdf.py/translate.py/__init__.py）不改名。
+
+#: chunks.status 的失败终态集（done 集 = ``_DB_TO_PIPE`` 键、pipecore
+#: 状态图单源，不另建常量）
+FAILED_DB = frozenset({"fallback_orig", "failed"})
 
 
 def chunk_error_code(rec: ChunkResult | ChunkRecord) -> str | None:
@@ -982,6 +1015,11 @@ def _translate_progress(done: int, total: int) -> int:
 def _tgt_lang(target_lang: str) -> str:
     """``zh-CN/zh-TW/en`` → prompt 语言名。"""
     return {"zh-TW": "Traditional Chinese", "en": "English"}.get(target_lang, "Chinese")
+
+
+def _glossary_option(ctx: TaskCtx, cfg: Mapping[str, Any]) -> str:
+    """生效 ``glossary`` 选项：``config.glossary``（settings 透传）> ``options.glossary``。"""
+    return str(cfg.get("glossary") or ctx.options().get("glossary") or "")
 
 
 class _Sink:

@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from ._base import Engine
 
 from texlate.compile.mask import visible_tex
+from texlate.compile.transcode import _iter_files
 from texlate.textutil import DOCSTYLE_RX, decode_tex_with
 
 from ._tectonic import TectonicEngine
@@ -62,7 +63,7 @@ _MINTED_PKG_RE = re.compile(
     r"\\(?:usepackage|RequirePackage)\s*(?:\[[^\]]*\])?\s*\{[^}]*\bminted2?\b"
 )
 _BITMAP_FONT_PKGS = re.compile(
-    r"\\usepackage(?:\[[^]]*\])?\{[^}]*\b("
+    r"\\(?:usepackage|RequirePackage)\s*(?:\[[^\]]*\])?\s*\{[^}]*\b("
     + "|".join(sorted(BITMAP_FONT_PKG_NAMES))
     + r")\b"
 )
@@ -152,9 +153,11 @@ def route_project(root: Path, *, prefer: str = "tectonic") -> RouteDecision:
     vis: dict[Path, str] = {}
     non_utf8 = False
     exts: set[str] = set()
-    for p in root.rglob("*"):
-        if not p.is_file():
-            continue
+    # ``_iter_files``（os.walk followlinks=False + 软链豁免）而非 rglob——
+    # rglob 跟随目录符号链且无环检测，unpack 放行的 in-tree symlink 环
+    # （``sub -> .``）会炸 RecursionError/挂死（normalize.py:567 同款教训）；
+    # skip_hidden=False 保 rglob 原口径的隐藏目录覆盖。
+    for p in _iter_files(root, None, skip_hidden=False):
         suffix = p.suffix.lower()
         exts.add(suffix)  # 全文件面后缀集（_route_sigs 的 eps/mf 信号源）
         if suffix != ".tex":

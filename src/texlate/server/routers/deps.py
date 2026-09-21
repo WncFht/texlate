@@ -19,7 +19,13 @@ from fastapi import HTTPException, Request
 
 from texlate.pipecore import front_matter_of
 from texlate.server.http import _ApiError
-from texlate.server.settings import AuthContext, resolve_auth, server_mode
+from texlate.server.settings import (
+    TARGET_LANGS,
+    AuthContext,
+    resolve_auth,
+    server_mode,
+    validate_model,
+)
 from texlate.server.store import new_task_id, valid_task_id
 from texlate.server.worker import Secrets, artifact_urls, cache_key_for
 
@@ -62,7 +68,7 @@ class AppDeps:
         不再枚举 ``X-Texlate-*`` 字面量。每请求缓存到 ``request.state``：
         一次请求内 header 与 settings 快照都不变，而 ``load()`` 每次都
         读盘解析——translate 单链决议 3+ 次（model 回落/cache_key/
-        _create_and_enqueue），缓存只读一次。失败不缓存（重试同路径重炸 400）。
+        create_and_enqueue），缓存只读一次。失败不缓存（重试同路径重炸 400）。
         """
         cached = getattr(request.state, "auth_ctx", None)
         if isinstance(cached, AuthContext):
@@ -90,6 +96,35 @@ class AppDeps:
         """重决议凭证 → 内存 ``Secrets``（retry/enqueue 用）。"""
         auth = self.auth(request)
         return Secrets.from_auth(auth, model=str(row["model"]))
+
+    def resolve_model_lang(
+        self, request: Request, model_raw: str, lang_raw: str
+    ) -> tuple[str, str]:
+        """``model``/``target_lang`` 入参决议 + 校验 → ``(model, target_lang)``。
+
+        空值回落 ``auth(request)`` 快照（``.model`` /
+        ``settings["target_lang"]``）——一次 auth 决议同时供两侧回落；
+        违例 → ``_ApiError(400, invalid_request)``。tasks/upload 两域
+        共用本闸（原 ``tasks._resolve_model_lang``/``_upload_fields``
+        双份实现收编于此）。
+        """
+        auth = self.auth(request)
+        try:
+            model = validate_model(model_raw or auth.model)
+        except ValueError as e:
+            raise _ApiError(
+                400, {"detail": str(e), "code": "invalid_request"}
+            ) from e
+        target_lang = lang_raw or str(auth.settings["target_lang"])
+        if target_lang not in TARGET_LANGS:
+            raise _ApiError(
+                400,
+                {
+                    "detail": f"target_lang ∈ {sorted(TARGET_LANGS)}",
+                    "code": "invalid_request",
+                },
+            )
+        return model, target_lang
 
     def task_dir(self, task_id: str) -> Path:
         """任务产物目录 ``root/tasks/<task_id>``——单源防各叶手拼漂移。"""
@@ -223,7 +258,7 @@ class AppDeps:
             if done is not None:
                 if server_mode() == "server" and str(done["tenant"]) != auth.tenant:
                     # 跨租户命中——直接回 hit 行的 task_id 对本租户是死链
-                    # （_get_task tenant 检恒 404）。改走建行+worker
+                    # （get_task tenant 检恒 404）。改走建行+worker
                     # post-resolve dedup：_materialize_reuse 把产物真拷进
                     # 本任务目录，租户拿到自己的可读任务句柄。
                     # 存 alias（无版本）键使 stored≠resolved——钉版请求

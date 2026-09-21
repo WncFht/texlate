@@ -39,19 +39,9 @@ _SOURCES: Final = {
     "tectonic_version": "texlate.compile.toolchain",
 }
 
-# 全名皆 ``__getattr__`` 惰性回指（``_SOURCES`` 单源）——F822 一律误报。
-__all__ = [
-    "download_allowed",  # noqa: F822
-    "ensure_tectonic",  # noqa: F822
-    "find_managed",  # noqa: F822
-    "find_tool",  # noqa: F822
-    "fixloop",  # noqa: F822
-    "install_tectonic",  # noqa: F822
-    "precheck_pass",  # noqa: F822
-    "resolve_tool",  # noqa: F822
-    "run_process",  # noqa: F822
-    "tectonic_version",  # noqa: F822
-]
+# 全名皆 ``__getattr__`` 惰性回指——``__all__`` 由 ``_SOURCES`` 键派生
+# （单源零漂移；计算值天然躲过 F822 静态点名）。
+__all__ = sorted(_SOURCES)  # noqa: PLE0605 -- ``_SOURCES`` 派生的计算值
 
 
 def __getattr__(name: str) -> object:

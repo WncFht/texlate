@@ -20,11 +20,16 @@ r"""TeX ``.log`` 词法原语 —— engine/l2/fixloop 三处文件栈收敛的�
 79 列折行可能把文件名劈到下一行——本模块逐字符扫，劈断的 token 因扩展名
 校验失败自然落入 ``None`` 占位，栈配对仍正确（近似即可，文件栈只用于
 缩小 rewrite 作用域与 escalate 上下文，不是精确解析器）。
+
+``log_text_of``（2026-09-21 自 ``repair`` 下沉）：``CompRes`` → 日志全文
+（``.log`` 非空优先、``stdout_tail`` 兜底）的共享口径件——叶子层定位使
+``compile.engine._xelatex`` 不再需要经 ``repair`` 的惰载环边取它。
 """
 
 from __future__ import annotations
 
 import re
+from contextlib import suppress
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -34,6 +39,8 @@ from texlate.textutil import safe_resolve
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator
+
+    from texlate.compile.engine import CompRes
 
 __all__ = [
     "CTX_LINES",
@@ -57,6 +64,7 @@ __all__ = [
     "is_dos_eps",
     "is_project_file",
     "iter_log_events",
+    "log_text_of",
     "looks_like_input_file",
     "match_error_line",
     "misschar_sweep_hits",
@@ -549,3 +557,20 @@ def iter_log_events(lines: Iterable[str]) -> Iterator[LogEvent]:
             inner=next((s for s in reversed(stack) if s), None),
             err=match_error_line(ln),
         )
+
+
+# ================================================================ CompRes 日志提取
+
+
+def log_text_of(res: CompRes) -> str:
+    """``CompRes`` → log 全文（``.log`` 非空优先、``stdout_tail`` 兜底）。
+
+    被杀编译会留 0 字节 ``.log``——``exists()`` 判据下空文件返空串会
+    让 missing-char 等只存在于 stdout 的信号静默丢失；缺席/空文件/读
+    失败一律退 ``stdout_tail``。
+    """
+    text = getattr(res, "log_text", "") or ""
+    if not text and res.log_path is not None:
+        with suppress(OSError):
+            text = res.log_path.read_text(encoding="utf-8", errors="replace")
+    return text or res.stdout_tail or ""

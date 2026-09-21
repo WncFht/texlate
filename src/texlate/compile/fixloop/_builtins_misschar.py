@@ -20,6 +20,7 @@ from texlate.compile.fixloop._builtins_common import (
     _MATH_SHIM_CS,
     _inject_after_docclass,
     _inject_before_begindoc,
+    _is_live,
     _map_tex_files,
     _mc_chr,
     _mc_hit,
@@ -1103,7 +1104,7 @@ def _clone_fix_text(t: str, resolve: Callable[[str], str | None]) -> tuple[str, 
     edits: list[tuple[int, int, str]] = []
     for rx, is_fam in ((_NAME_SITE_RE, False), (_FAM_SITE_RE, True)):
         for m in rx.finditer(masked):
-            if masked[m.start() : m.end()] != t[m.start() : m.end()]:
+            if not _is_live(m, masked, t):
                 continue
             sub = resolve(_font_stem(m["name"]))
             if sub is None:
@@ -1202,7 +1203,7 @@ def _strip_enc_opts(t: str, enc: str) -> tuple[str, int]:
     edits: list[tuple[int, int, str]] = []
     want = enc.casefold()
     for m in _FONTENC_LOAD_RE.finditer(masked):
-        if masked[m.start() : m.end()] != t[m.start() : m.end()]:
+        if not _is_live(m, masked, t):
             continue
         toks = [k.strip() for k in m[1].split(",")]
         kept = [k for k in toks if k and k.casefold() != want]
@@ -1231,7 +1232,7 @@ def _comment_enc_decl(t: str, enc: str) -> tuple[str, int]:
     edits = [
         (m.start(), m.end(), "%" + m[0])
         for m in rx.finditer(masked)
-        if masked[m.start() : m.end()] == t[m.start() : m.end()]
+        if _is_live(m, masked, t)
     ]
     if not edits:
         return t, 0
@@ -1419,7 +1420,7 @@ def _rewrite_enc_sites(t: str, rx: re.Pattern[str]) -> tuple[str, int]:
     edits = [
         (m.start(0) + len(m[1]), m.end(0), "{TU}")
         for m in rx.finditer(masked)
-        if masked[m.start() : m.end()] == t[m.start() : m.end()]
+        if _is_live(m, masked, t)
     ]
     if not edits:
         return t, 0
@@ -1430,9 +1431,7 @@ def _glyph_uses(t: str, glyph_re: re.Pattern[str]) -> set[str]:
     """活文本里命中的字形 cs 名集合 (遮盖区命中不计)。"""
     masked = mask_tex(t)
     return {
-        m[1]
-        for m in glyph_re.finditer(masked)
-        if masked[m.start() : m.end()] == t[m.start() : m.end()]
+        m[1] for m in glyph_re.finditer(masked) if _is_live(m, masked, t)
     }
 
 

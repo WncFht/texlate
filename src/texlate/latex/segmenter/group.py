@@ -281,7 +281,8 @@ class _Group:
         失配整走终止；``role``=``text``/``opt-text`` 不消费停界；
         ``env`` 非空时 ``opt``/``dpair`` 过 ``env_opt_is_format`` 闸
         （``d<>`` 恒版式豁免在归一侧）；``cont_ok`` 的组未闭承
-        ``_grp_open_tail`` 跨界续扫态。
+        ``_grp_open_tail`` 跨界续扫态；``no_cs`` 罩 ``test``/``dpair``
+        定界符的 cs 禁配（投影侧按原判面定）。
 
         结果投影：``end`` 各面通用；``cand`` 仅 ``opt``/``mand``/``marg``/
         ``bsbs`` 组参记录（``_grp_spec_walk``/``_grp_probe_end`` 的散文候
@@ -403,16 +404,19 @@ class _Group:
             elif kind == "test":  # ``t`` 测试字符（``no_cs`` 承字母表原判差）
                 if x.text == el.test_c and not (el.no_cs and x.kind == "cs"):
                     end = k + 1
-            elif kind == "dpair":  # ``d``/``D``/``r``/``R`` 定界对
-                if x.text != el.open_c:
+            elif kind == "dpair":  # ``d``/``D``/``r``/``R`` 定界对（``no_cs`` 承字母表原判差——开/闭符 cs 不配）
+                if x.text != el.open_c or (el.no_cs and x.kind == "cs"):
                     if el.req:
                         break
                 else:
                     k2 = k + 1
                     while (
                         k2 < n
-                        and toks[k2].text != el.close_c
                         and toks[k2].kind != "eol_par"
+                        and (
+                            toks[k2].text != el.close_c
+                            or (el.no_cs and toks[k2].kind == "cs")
+                        )
                     ):
                         k2 += 1
                     if k2 >= n:
@@ -780,5 +784,3 @@ class _Group:
             if toks[a0].kind == "lbrace"
             and _prose_arg_hit(name, nth, self._grp_surfs(toks[a0 + 1 : a1 - 1]))
         ]
-
-    # -------------------------------------------------------- 跨边界待绑参

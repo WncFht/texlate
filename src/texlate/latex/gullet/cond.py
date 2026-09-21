@@ -141,13 +141,7 @@ class _Cond:
             t = self._read_if_tok()
             if t is None or t.kind != "cs":
                 return None
-            return (
-                True
-                if self.macros.lookup(t.text) is not None
-                or t.text in _PRIMS
-                or t.text in _BUILTINS
-                else None
-            )
+            return True if self._is_defined(t.text) else None
         if name == "ifcsname":
             toks: list[Tok] = []
             while True:
@@ -158,12 +152,15 @@ class _Cond:
                     break
                 toks.append(x)
             cname = _surface(toks).strip()
-            return (
-                True
-                if self.macros.lookup(cname) is not None or cname in _BUILTINS
-                else None
-            )
+            return True if self._is_defined(cname) else None
         return None  # 未知 if* → 界标
+
+    def _is_defined(self, name: str) -> bool:
+        r"""``\ifdefined``/``\ifcsname``/``\@ifundefined`` 的"已定义"判定（§8.6）。
+
+        宏表命中或内建名集——``_BUILTINS`` 已含 ``_PRIMS``，原语名不必单列。
+        """
+        return self.macros.lookup(name) is not None or name in _BUILTINS
 
     def _read_if_tok(self) -> Tok | None:
         r"""``\if/\ifx`` 的一个比较 token（跳过空白）。"""

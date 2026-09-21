@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
 
 
-def mask_comments(text: str) -> str:
+def _mask_comments(text: str) -> str:
     r"""``%`` 到行尾等长空格遮盖；``\`` 后随字符整体跳过。保位不保内容。"""
     out = list(text)
     i, n = 0, len(text)
@@ -273,6 +273,22 @@ def _mask_tex(  # noqa: C901 -- 深度门新增两分支即语义面
 _mask_tex_memo = lru_cache(maxsize=_MEMO_MAXSIZE)(_mask_tex)
 
 
+def mask_comments(text: str) -> str:
+    r"""``%`` 到行尾等长空格遮盖；``\`` 后随字符整体跳过。保位不保内容。
+
+    纯函数走 ``mask_tex`` 同一 memo 口径——nets 三网逐段对各调
+    ``mask_comments(src)``/``mask_comments(zh)`` 共 6 次 O(n) 复扫，
+    内容键 lru_cache 消重；超 ``_MEMO_MAX_INPUT`` 直调实现，行为不变
+    仅失加速。
+    """
+    if len(text) > _MEMO_MAX_INPUT:
+        return _mask_comments(text)
+    return _mask_comments_memo(text)
+
+
+_mask_comments_memo = lru_cache(maxsize=_MEMO_MAXSIZE)(_mask_comments)
+
+
 # ---------------------------------------------------------------- 死尾截断
 
 #: 死尾边界：首个 ``\end{document}``/``\endinput`` 之后引擎不再读本文件——
@@ -307,6 +323,13 @@ def iter_depth(rx: re.Pattern[str], vis: str) -> Iterator[tuple[re.Match[str], i
     ``\bgroup``/``[..]`` 非字符花括号不计深度——与 TeX 语义一致。
     depth-0 过滤（``iter_depth0``）与逐深度分派
     （``inject.find_docclass_ends``）共用本走查。
+
+    契约：命中体内部不走配对走查（``pos = m.end()`` 直接越过），故
+    ``rx`` 不得匹配含未配对 ``{``/``}`` 的文本——一枚失衡花括号会
+    静默偏移其后全部命中的深度。现存消费方正则（``BEGIN_DOC_RX``/
+    ``DOCCLASS_RX``/``SUBDOC_CHILD_RX``/``DOCSTYLE_DECL_RX`` 族）皆
+    花括号自平衡；``_builtins_common`` 类接受调用方 anchor 的入口
+    须自行保证同契约。
     """
     depth = 0
     pos = 0

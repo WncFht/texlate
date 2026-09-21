@@ -19,6 +19,7 @@ from texlate.server.settings import (
     validate_model,
 )
 from texlate.textutil import env_flag, env_str
+from texlate.textutil.osutil import ENV_TRANSLATOR
 from texlate.validate.l0 import pair_feedback
 from texlate.xlat.client import DEFAULT_MODEL, ChatClient, UsageRecord
 from texlate.xlat.glossary import (
@@ -38,6 +39,7 @@ from texlate.xlat.placeholders import collect_doc_placeholders
 from texlate.xlat.prompts import PROMPT_VERSION
 
 from ._common import (
+    _DB_TO_PIPE,
     _FLUSH_MS,
     _FLUSH_N,
     _PIPE_TO_DB,
@@ -61,7 +63,7 @@ from .share import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable, Iterable
+    from collections.abc import Awaitable, Callable, Iterable, Mapping
 
     from texlate.latex.model import Chunk
 
@@ -70,6 +72,44 @@ from texlate.server.worker import seams
 log = logging.getLogger(__name__)
 
 _T = TypeVar("_T")
+
+#: chunks.status 的失败终态集（done 集 = ``_DB_TO_PIPE`` 键、pipecore
+#: 状态图单源，不另建常量）。候选归位点：``_common.py`` 的
+#: ``_DB_TO_PIPE`` 别名旁（或上游 ``pipecore`` 状态空间段）
+FAILED_DB = frozenset({"fallback_orig", "failed"})
+
+
+def _row_status_snap(rows: Iterable[dict[str, Any]]) -> dict[str, tuple[str, str]]:
+    """Chunks 行 → ``{chunk_id: (status, translation)}`` 快照——splice 失效对账面。
+
+    ``_translate_prep``/``_invalidate_splice`` 两处同款（worker ``share``
+    臂 ``_stage_share_apply`` 第三处同款未合——``_common.py`` 归位候选，
+    ``_SPLICE_STALE_KINDS`` 旁）；BLOB/None 格统一 ``str(... or "")`` coerce。
+    """
+    return {
+        r["chunk_id"]: (str(r["status"]), str(r["translation"] or ""))
+        for r in rows
+    }
+
+
+def _repend_puts(
+    cache: SegmentCache, puts: list[tuple[str, str, str, str]]
+) -> None:
+    """``drain()`` 已取走但落盘失败 → 回挂 pending 等下轮 flush 重投。
+
+    drain 元组是全键（``{prefix}:{seg_key}``）——剥前缀还原 seg_key 走
+    ``__setitem__`` 口径回挂；``_written`` 内读副本留着无碍（重投写库
+    幂等）。回挂本是 ``SegmentCache`` 接口义务（``repend()`` 候选——
+    ``_common.py`` 归位），本函数是就地实现。
+    """
+    cut = len(cache._prefix) + 1  # noqa: SLF001 -- 回挂须剥全键前缀（类无公共面）
+    for key, translation, _model, _lang in puts:
+        cache[key[cut:]] = translation
+
+
+def _glossary_option(ctx: TaskCtx, cfg: Mapping[str, Any]) -> str:
+    """生效 ``glossary`` 选项：``config.glossary``（settings 透传）> ``options.glossary``。"""
+    return str(cfg.get("glossary") or ctx.options().get("glossary") or "")
 
 
 class _Translate:
@@ -267,10 +307,7 @@ class _Translate:
             ],
             "seq_map": {r["chunk_id"]: int(r["seq"]) for r in rows},
             "status_map": {r["chunk_id"]: str(r["status"]) for r in rows},
-            "pre_rows": {
-                r["chunk_id"]: (str(r["status"]), str(r["translation"] or ""))
-                for r in rows
-            },
+            "pre_rows": _row_status_snap(rows),
         }
 
     def _flush_translate(
@@ -310,10 +347,9 @@ class _Translate:
                     },
                 )
             )
-        n_done = sum(
-            v in ("ok", "fallback_orig", "failed") for v in status_map.values()
-        )
-        n_failed = sum(v in ("fallback_orig", "failed") for v in status_map.values())
+        # done 集 = ``_DB_TO_PIPE`` 键（pipecore 状态图单源）；failed 子集 ``FAILED_DB``
+        n_done = sum(v in _DB_TO_PIPE for v in status_map.values())
+        n_failed = sum(v in FAILED_DB for v in status_map.values())
         counts = {
             "total": len(status_map),
             "done": n_done,
@@ -322,7 +358,14 @@ class _Translate:
             "tokens": ctx.tokens_est,
             "progress": _translate_progress(n_done, len(status_map)),
         }
-        self.store.flush_chunk_batch(ctx.task_id, updates, cache.drain(), counts)
+        puts = cache.drain()
+        try:
+            self.store.flush_chunk_batch(ctx.task_id, updates, puts, counts)
+        except Exception:
+            # 瞬逝 DB 错：drain 已取走的段缓存项回挂 pending——与下面
+            # ``state.buffer`` 滞留同口径，下轮 flush 重投不丢缓存项
+            _repend_puts(cache, puts)
+            raise
         ctx.chunks_cache = None  # chunks 行已写——物化缓存失效
         # 落盘成功才丢缓冲——瞬逝 DB 错时记录留 buffer 等下一轮 flush 重投
         state.buffer = []
@@ -358,10 +401,7 @@ class _Translate:
         sent = ctx.zh_dir / ".splice-done"
         if not sent.is_file():
             return
-        post = {
-            r["chunk_id"]: (str(r["status"]), str(r["translation"] or ""))
-            for r in self._all_chunks(ctx)
-        }
+        post = _row_status_snap(self._all_chunks(ctx))
         if post == pre_rows:
             return
         sent.unlink()
@@ -581,7 +621,7 @@ class _Translate:
         """
         if self._translator_factory is not None:
             return self._translator_factory(ctx)
-        force = env_str("TEXLATE_TRANSLATOR")
+        force = env_str(ENV_TRANSLATOR)
         if force == "mock":
             return MockTranslator()
         if force == "gateway" or ctx.secrets.api_key:
@@ -670,6 +710,31 @@ class _Translate:
         cand = ctx.base_dir / LOCAL_GLOSSARY_NAME
         return cand if cand.is_file() else None
 
+    def _glossary_layers(
+        self, ctx: TaskCtx, cfg: Mapping[str, Any], *, warn: bool
+    ) -> tuple[Path | None, Path | None]:
+        """生效术语层解析 → ``(confine 后 user 层|None, local 层|None)``——三面单源。
+
+        ``glossary`` 选项取 ``cfg.glossary > options.glossary``（``_glossary_option``）；
+        ``warn=True`` 经 ``_glossary_path`` confine——越界/无命中记
+        ``glossary_rejected`` warning（``_make_glossary``/share 对账面）；
+        ``warn=False`` 走静默 ``resolve_glossary_path``（``_make_cache``
+        指纹面不告警——告警由 load 路单发不双发）。``user_glossary_path``
+        缺省层回落不在内——各消费点按自身口径补（``Glossary.load`` 自带
+        缺省、cache 指纹须显式覆盖、share 哈希走 ``fallback_user`` 参数）。
+        """
+        gpath = _glossary_option(ctx, cfg)
+        local = self._local_glossary(ctx)
+        if not gpath:
+            return None, local
+        gdir = str(cfg.get("glossary_dir") or "")
+        user = (
+            self._glossary_path(ctx, gpath, gdir)
+            if warn
+            else resolve_glossary_path(gpath, gdir, ctx.base_dir)
+        )
+        return user, local
+
     def _arxiv_categories(self, ctx: TaskCtx) -> list[str]:
         """``options.arxiv_categories``（``_fetch_arxiv`` 持久化）→ category 层键。"""
         raw = ctx.options().get("arxiv_categories")
@@ -693,15 +758,9 @@ class _Translate:
         if mkey in ctx.memo:
             return ctx.memo[mkey]
         cfg = ctx.config()
-        gpath = str(cfg.get("glossary") or ctx.options().get("glossary") or "")
-        local = self._local_glossary(ctx)
         cats = self._arxiv_categories(ctx)
         try:
-            path = (
-                self._glossary_path(ctx, gpath, str(cfg.get("glossary_dir") or ""))
-                if gpath
-                else None
-            )
+            path, local = self._glossary_layers(ctx, cfg, warn=True)
             if path is None:
                 g = Glossary.load(
                     local_path=local, categories=cats, placeholders=placeholders
@@ -728,7 +787,12 @@ class _Translate:
         硬编公网模型名会在非公网端点上 404）。ctx.memo 备忘防 resume
         重抽——同一 task 的二次 ``pipe.run`` 复用首轮结果。
         """
-        if not ctx.options().get("auto_glossary") or not clients:
+        # ``auto_glossary`` 与 ``_make_cache`` 的 ag 指纹成分同读法——
+        # opt_bool 口径（"0"/"false" 字符串系判假），两站须同改
+        if (
+            not opt_bool(ctx.options(), "auto_glossary", lambda: False)
+            or not clients
+        ):
             return None
         client = clients[0]
         model = str(ctx.secrets.model or DEFAULT_MODEL)
@@ -748,22 +812,20 @@ class _Translate:
     def _make_cache(self, ctx: TaskCtx) -> SegmentCache:
         """段缓存门面（cfg 指纹前缀含 model/prompt_ver/lang[/key 指纹]）。"""
         cfg_row = ctx.config()
-        glossary = str(cfg_row.get("glossary") or ctx.options().get("glossary") or "")
-        local = self._local_glossary(ctx)
+        # user/local 层解析与 ``_make_glossary`` 同源（``warn=False``
+        # 静默 confine——告警由 load 路 ``_glossary_path`` 单发不双发）
+        gfile, local = self._glossary_layers(ctx, cfg_row, warn=False)
         local_sig = ""
         if local is not None:
-            # local 层内容进指纹——同名文件换内容/有无该层都改变有效术语表
-            local_sig = hashlib.sha256(local.read_bytes()).hexdigest()[:12]
+            # local 层内容进指纹——同名文件换内容/有无该层都改变有效术语表；
+            # 读失败与 user_sig 同态按无层（术语层是增强件不毁段）
+            try:
+                local_sig = hashlib.sha256(local.read_bytes()).hexdigest()[:12]
+            except OSError:
+                local_sig = ""
         # user 层同按内容进指纹（``_share_glossary_hash`` 同口径）：
         # 路径字符串当指纹会同名换内容串桶/异名同内容分桶；拒/缺席与
         # ``_make_glossary`` 同态回落 ``user_glossary_path`` 缺省层
-        gfile = (
-            resolve_glossary_path(
-                glossary, str(cfg_row.get("glossary_dir") or ""), ctx.base_dir
-            )
-            if glossary
-            else None
-        )
         if gfile is None and seams.user_glossary_path().is_file():
             gfile = seams.user_glossary_path()
         user_sig = ""
@@ -782,8 +844,11 @@ class _Translate:
         base = str(ctx.secrets.base_url or cfg_row.get("base_url") or "")
         # auto_glossary 开关进指纹：开=auto 抽取层进 system prompt → 同源句
         # 翻译函数变，须分桶防关态译文污染开态桶（术语内容本身非确定，
-        # 不进——temp 抽取逐跑微漂，进了会把桶锁死成单次跑）。
-        ag = "1" if ctx.options().get("auto_glossary") else "0"
+        # 不进——temp 抽取逐跑微漂，进了会把桶锁死成单次跑）。读法与
+        # ``_auto_glossary_fn`` 同走 opt_bool——指纹须与实际行为同源
+        ag = (
+            "1" if opt_bool(ctx.options(), "auto_glossary", lambda: False) else "0"
+        )
         cfg = hashlib.sha256(
             f"{ctx.row['model']}|{PROMPT_VERSION}|{ctx.row['target_lang']}"
             f"|{base}|u:{user_sig}|l:{local_sig}|c:{cats}|ag:{ag}".encode()

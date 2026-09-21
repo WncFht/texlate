@@ -275,6 +275,48 @@ def _derive_key(parts: Mapping[str, str]) -> str:
     )
 
 
+def share_manifest(  # noqa: PLR0913 -- 键材料组与 manifest 同面，参数面照 spec 平铺
+    *,
+    arxiv_base: str,
+    version: int | None,
+    model: str,
+    target_lang: str,
+    glossary_hash: str,
+    options: Mapping[str, Any],
+    contributor: str | None = None,
+) -> dict[str, object]:
+    """``KEY_PART_FIELDS`` 七组分 + ``front_matter``/``contributor`` manifest dict（单源）。
+
+    cli 臂（``cli.share`` 事后打包端点）与 worker 臂（``server.worker.share``
+    完成钩/API 打包）的同构 manifest 派生统一收口于此——两臂各自解析出
+    ``arxiv_base``/``version``/``glossary_hash`` 与实跑 ``options`` 喂参，
+    本件只管组分拼装口径：``prompt_ver``/``pipeline_ver`` 钉当前管线常量；
+    ``front_matter`` 记实跑前置发射集（∅ 记 ``""`` 兼容旧包重算——
+    ``_key_parts``/``share_key`` 对空串同口径省略）；给了 ``contributor``
+    才进 manifest（``pack_share`` 缺省自产 ``c-<16hex>`` 匿名 id）。
+    """
+    from texlate.pipecore import ran_front_matter  # noqa: PLC0415 -- 重依赖延迟导入
+    from texlate.server.worker import PIPELINE_VERSION  # noqa: PLC0415
+    from texlate.xlat.prompts import PROMPT_VERSION  # noqa: PLC0415
+
+    manifest: dict[str, object] = {
+        "arxiv_id": arxiv_base,
+        "version": f"v{version}" if version is not None else "",
+        "model": model,
+        "prompt_ver": PROMPT_VERSION,
+        "target_lang": target_lang,
+        "glossary_hash": glossary_hash,
+        # 前置发射集进 key_parts——不同 fm 的任务产物不同包（∅ 记 ""
+        # 兼容旧包重算）。实跑集还原：done 行经 parse 写回恒带显式 dict；
+        # 缺席 = pre-feature 行（实跑 ∅）不标缺省
+        "front_matter": ",".join(sorted(ran_front_matter(options))),
+        "pipeline_ver": PIPELINE_VERSION,
+    }
+    if contributor:
+        manifest["contributor"] = contributor
+    return manifest
+
+
 def _pack_member(
     zf: zipfile.ZipFile, name: str, src: Path
 ) -> tuple[dict[str, object], int]:
@@ -407,6 +449,24 @@ def _name_ok(name: object) -> bool:
     )
 
 
+def _read_member_capped(
+    zf: zipfile.ZipFile, info: zipfile.ZipInfo, cap: int, what: str
+) -> bytes:
+    """成员有界读：按 ``cap + 1`` 截断返回 blob（超限判定留给调用方）。
+
+    中央目录 ``file_size`` 可谎报——有界读防「声明小、实解大」解压放大
+    先于对账分配巨量。读取面异常一律归一 ``ShareError``（``_ZIP_ERRORS``
+    谱），``what`` 作消息头（调用方语义：``manifest.json unreadable`` /
+    ``corrupt member: <name>`` 等）。
+    """
+    try:
+        with zf.open(info) as fp:
+            return fp.read(cap + 1)
+    except _ZIP_ERRORS as e:
+        msg = f"{what}: {e}"
+        raise ShareError(msg) from e
+
+
 def _read_manifest(zf: zipfile.ZipFile) -> dict[str, Any]:
     """取并解析 manifest.json；不存在/超限/非 JSON object → ShareError。
 
@@ -421,12 +481,7 @@ def _read_manifest(zf: zipfile.ZipFile) -> dict[str, Any]:
     if info.file_size > _MANIFEST_MAX:
         msg = f"{MANIFEST_NAME} too large: {info.file_size}B"
         raise ShareError(msg)
-    try:
-        with zf.open(info) as fp:
-            blob = fp.read(_MANIFEST_MAX + 1)
-    except _ZIP_ERRORS as e:
-        msg = f"{MANIFEST_NAME} unreadable: {e}"
-        raise ShareError(msg) from e
+    blob = _read_member_capped(zf, info, _MANIFEST_MAX, f"{MANIFEST_NAME} unreadable")
     if len(blob) > _MANIFEST_MAX:
         msg = f"{MANIFEST_NAME} too large: {len(blob)}B"
         raise ShareError(msg)
@@ -541,14 +596,7 @@ def _extract_verified(
             f"manifest {art.size}B != member {info.file_size}B"
         )
         raise ShareError(msg)
-    try:
-        with zf.open(info) as fp:
-            # 声明尺寸 +1 截断读——中央目录 file_size 可能谎报，
-            # 有界读防「声明小、实解大」的内存炸弹先于对账分配巨量。
-            blob = fp.read(art.size + 1)
-    except _ZIP_ERRORS as e:
-        msg = f"corrupt member: {name}"
-        raise ShareError(msg) from e
+    blob = _read_member_capped(zf, info, art.size, f"corrupt member: {name}")
     if len(blob) != art.size or hashlib.sha256(blob).hexdigest() != art.sha256:
         msg = f"sha256 mismatch for artifact: {name}"
         raise ShareError(msg)
@@ -669,20 +717,25 @@ def index_append(
     return row
 
 
-def index_lookup(index_path: Path, share_key: str) -> dict[str, Any] | None:
-    """线性扫 index.jsonl 取 ``share_key`` 行；文件缺席/未命中 → ``None``。
+#: ``index_lookup`` 解析缓存：``{index_path: (st_mtime_ns, st_size, 行表)}``。
+#: append-only 索引每请求整读 + 逐行 ``json.loads`` 是 server share 查询
+#: 路径（``routers/share.py`` ``to_thread``）主开销；``stat`` 复核
+#: ``(mtime_ns, size)`` 一致才复用，变了即重解析。索引文件数 ≤ store 数
+#: （个位量级），超 ``_INDEX_CACHE_MAX`` 全清重建——有界兜底防长尾滞留。
+#: 行表按 ``share_key`` last-wins 建 dict（与原线性扫口径同义），行内
+#: 非 str ``share_key`` 字段按不收录计（原口径下本就永不命中 str 查询）。
+_INDEX_CACHE_MAX = 8
+_INDEX_CACHE: dict[Path, tuple[int, int, dict[str, dict[str, Any]]]] = {}
 
-    空行跳过；malformed 行（JSON 解析失败或非 object）跳过并在扫完记一条
-    warning 带行号——单行坏数据不毒死全索引（多源汇聚场景坏行只伤自身，
-    与 ``benchlib.iter_jsonl`` 容错账读同口径）。文件整体非 UTF-8 仍抛
-    ``UnicodeDecodeError``，由调用方降级。同 share_key 多行时 last-wins
-    （append-only 语义：重传行覆盖旧行）。
+
+def _index_rows(text: str) -> tuple[dict[str, dict[str, Any]], list[int]]:
+    """index.jsonl 文本 → ``({share_key: row} last-wins 表, 坏行行号)``。
+
+    空行跳过；malformed 行（JSON 解析失败或非 object）跳过记行号——单行
+    坏数据不毒死全索引。行内非 str ``share_key`` 字段不收录（str 查询
+    本就永不命中）。
     """
-    try:
-        text = index_path.read_text(encoding="utf-8")
-    except FileNotFoundError:
-        return None
-    found: dict[str, Any] | None = None
+    rows: dict[str, dict[str, Any]] = {}
     bad_lines: list[int] = []
     for lineno, line in enumerate(text.splitlines(), start=1):
         if not line.strip():
@@ -695,8 +748,37 @@ def index_lookup(index_path: Path, share_key: str) -> dict[str, Any] | None:
         if not isinstance(row, dict):
             bad_lines.append(lineno)
             continue
-        if row.get("share_key") == share_key:
-            found = row
+        key = row.get("share_key")
+        if isinstance(key, str):
+            rows[key] = row  # last-wins（append-only：重传行覆盖旧行）
+    return rows, bad_lines
+
+
+def index_lookup(index_path: Path, share_key: str) -> dict[str, Any] | None:
+    """扫 index.jsonl 取 ``share_key`` 行；文件缺席/未命中 → ``None``。
+
+    空行跳过；malformed 行（JSON 解析失败或非 object）跳过并在扫完记一条
+    warning 带行号——单行坏数据不毒死全索引（多源汇聚场景坏行只伤自身，
+    与 ``benchlib.iter_jsonl`` 容错账读同口径）。文件整体非 UTF-8 仍抛
+    ``UnicodeDecodeError``，由调用方降级。同 share_key 多行时 last-wins
+    （append-only 语义：重传行覆盖旧行）。解析结果经 ``_INDEX_CACHE``
+    按 ``(path, st_mtime_ns, st_size)`` 短缓存——stat 变即重扫。
+    """
+    try:
+        st = index_path.stat()
+    except FileNotFoundError:
+        return None
+    hit = _INDEX_CACHE.get(index_path)
+    if hit is not None and hit[0] == st.st_mtime_ns and hit[1] == st.st_size:
+        return hit[2].get(share_key)
+    try:
+        text = index_path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return None
+    rows, bad_lines = _index_rows(text)
     if bad_lines:
         log.warning("share index %s: skipped malformed lines %s", index_path, bad_lines)
-    return found
+    if len(_INDEX_CACHE) >= _INDEX_CACHE_MAX:
+        _INDEX_CACHE.clear()
+    _INDEX_CACHE[index_path] = (st.st_mtime_ns, st.st_size, rows)
+    return rows.get(share_key)

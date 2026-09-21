@@ -70,8 +70,20 @@ class FileRepo(_Repo):
         }
 
     def file_record(self, task_id: str, kind: str) -> dict[str, Any] | None:
-        """单条产物记录。"""
-        return self.files(task_id).get(kind)
+        """单条产物记录——``(task_id, kind)`` PK 直查，不拉全 kind 清单。"""
+        row = self.conn.execute(
+            "SELECT path, bytes, sha256, created_at FROM files"
+            " WHERE task_id = ? AND kind = ?",
+            (task_id, kind),
+        ).fetchone()
+        if row is None:
+            return None
+        return {
+            "path": row["path"],
+            "bytes": row["bytes"],
+            "sha256": row["sha256"],
+            "created_at": row["created_at"],
+        }
 
     def delete_file(self, task_id: str, kind: str) -> str | None:
         """删产物登记行 → 被删行的 ``path``；无行返回 ``None``。

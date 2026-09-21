@@ -19,10 +19,10 @@ import math
 import re
 from typing import TYPE_CHECKING, TypeVar
 
-from .placeholders import EOL_RX, encode_newlines
+from .placeholders import EOL_RX, PARA_NEWLINE, SOFT_NEWLINE, encode_newlines
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Iterator, Sequence
 
 #: 单批 payload 硬顶（含 `[n] ` 编号开销；12K 字符 ≈ 4.2K 输出 token——
 #: out_tok/字符产线 p90=0.348，max_tokens=8192 下 reasoning+content 留足余量；
@@ -317,19 +317,25 @@ def abbrev_cut(text: str, i: int) -> bool:
     （``Fig``/``Sec``/``Eq``/``Dr``）→ 缩写位。保守向偏欠切——``is.``/``wow!``
     这类真句尾小词也被放过，欠切只让块偏大，过切才毁句。
     """
-    m = _ABBREV_TAIL_RX.search(text[:i])
+    m = _ABBREV_TAIL_RX.search(text, 0, i)  # endpos 截窗——$ 语义同 text[:i]，免 O(i) 拷贝
     if m is None:
         return False
     w = m.group(1)
     return "." in w or len(w) <= _ABBREV_MAX_WORD
 
 
-def _best_split(text: str, limit: int) -> int:
-    """在 [limit//2, limit] 窗口里找最右闭合-scope 句号切点；找不到退化到 limit。"""
+def sentence_ends(text: str, stop: int | None = None) -> Iterator[int]:
+    r"""闭合-scope 句号切点逐枚产出：depth==0 的 ``.!?`` 后随空白处的 ``i+1`` 位。
+
+    后随判定吃 `` ``/``\n`` 与 ``[[SL]]``/``[[PL]]`` 编码换行 token——encoded
+    文本里换行全转 token（``encode_newlines`` 产物），不认 token 则换行分句
+    文本整段无切点（行级修复恒退 1 片不可达）。``\\`` 转义双跳 + ``{}`` 深度
+    跟踪 + ``abbrev_cut`` 缩写位豁免；``stop`` 限扫描窗。切位语义归消费方：
+    ``_split_lines_scoped`` 吸收后随空白/token 入前片，``_best_split`` 记窗内
+    最右切点。
+    """
     depth = 0
-    i, n = 0, min(len(text), limit)
-    lo = max(1, limit // 2)
-    best = -1
+    i, n = 0, len(text) if stop is None else min(len(text), stop)
     while i < n:
         c = text[i]
         if c == "\\":
@@ -343,11 +349,24 @@ def _best_split(text: str, limit: int) -> int:
             c in ".!?"
             and depth == 0
             and i + 1 < n
-            and text[i + 1] in " \n"
+            and (
+                text[i + 1] in " \n"
+                or text.startswith(SOFT_NEWLINE, i + 1)
+                or text.startswith(PARA_NEWLINE, i + 1)
+            )
             and not abbrev_cut(text, i)
         ):
-            best = i + 1  # 句号后切（含句号）
+            yield i + 1
         i += 1
+
+
+def _best_split(text: str, limit: int) -> int:
+    """在 [limit//2, limit] 窗口里找最右闭合-scope 句号切点；找不到退化到 limit。"""
+    n = min(len(text), limit)
+    lo = max(1, limit // 2)
+    best = -1
+    for cut in sentence_ends(text, stop=limit):
+        best = cut  # 句号后切（含句号）——取窗内最右
     if best >= lo:
         return _safe_cut(text, best, lo)
     # 兜底：找 limit 内最后一个换行/空格，再不行硬切

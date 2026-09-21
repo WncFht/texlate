@@ -190,7 +190,8 @@ def _parse_openai(payload: dict[str, Any], latency: float) -> ChatResult:
 #: anthropic ``stop_reason`` → openai ``finish_reason`` 词表（``_raise_for_finish``
 #: 只吃后者）——``_parse_anthropic`` 的唯一映射点；未收录值原样穿透，
 #: ``end_turn``/``stop_sequence``/``tool_use`` 等非异常终态不进异常分支，
-#: 原词保留进 ``ChatResult.finish_reason``（``probe_model`` 认这些词）
+#: 原词保留进 ``ChatResult.finish_reason``（``probe_model`` 认 ``end_turn``/
+#: ``stop_sequence``——``tool_use`` 不在其接受集，探活无 tools 正常不会出现）
 _ANTHROPIC_FINISH: dict[str, str] = {
     "max_tokens": "length",
     "refusal": "content_filter",
@@ -227,6 +228,8 @@ def _anthropic_body(
         body["temperature"] = options.temperature
     if stream:
         body["stream"] = True
+    if options.extra:
+        body.update(options.extra)
     return body
 
 

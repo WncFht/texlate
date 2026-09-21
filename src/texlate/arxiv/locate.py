@@ -214,6 +214,12 @@ def safe_rel(name: str) -> PurePosixPath | None:
     return rel
 
 
+def _parent_dir(rel: str) -> str:
+    """成员相对路径 → 父目录 posix 形；顶层归 ``""``（``parent`` 的 ``"."``）。"""
+    d = str(PurePosixPath(rel).parent)
+    return "" if d == "." else d
+
+
 def _resolve(
     arg: str,
     bases: list[str],
@@ -319,9 +325,7 @@ def _resolve_all(
     unresolved: list[InputRef] = []
     bibs: list[str] = []
     for rel, node in nodes.items():
-        incl_dir = str(PurePosixPath(rel).parent)
-        if incl_dir == ".":
-            incl_dir = ""
+        incl_dir = _parent_dir(rel)
         bases = _bases(main_dir, incl_dir)
         ctx = _ResolveCtx(bases, fileset, lowermap)
         out_edges: list[str] = []
@@ -345,7 +349,8 @@ def locate(root: Path, arxiv_id: str = "") -> LocateResult:
     root = Path(root)
     res = LocateResult(root=root, kind=DocKind.NONE)
     fileset = set(_iter_files(root))
-    lowermap = {p.lower(): p for p in fileset}
+    # sorted() 定序——大小写折叠撞名（Foo.tex vs foo.tex）时赢家确定性（末位者）
+    lowermap = {p.lower(): p for p in sorted(fileset)}
     tex_files = sorted(p for p in fileset if p.lower().endswith(TEX_EXT))
     if not tex_files:
         res.warnings.append("no_tex_files")
@@ -373,9 +378,7 @@ def locate(root: Path, arxiv_id: str = "") -> LocateResult:
     main = _choose(candidates, nodes, first, arxiv_id, res)
 
     # 第二遍：换上主文件目录基准（CWD 语义）出最终边/序
-    main_dir = str(PurePosixPath(main).parent)
-    if main_dir == ".":
-        main_dir = ""
+    main_dir = _parent_dir(main)
     final = _resolve_all(nodes, fileset, lowermap, main_dir)
     res.edges = final.edges
     res.unresolved = final.unresolved
@@ -384,7 +387,7 @@ def locate(root: Path, arxiv_id: str = "") -> LocateResult:
 
     _add_jobname_bbl(res, nodes, fileset, lowermap, main)
 
-    verdict = check_pdf_wrapper(nodes[main].stripped)
+    verdict = check_pdf_wrapper(nodes[main].stripped, pre_stripped=True)
     res.pdf_wrapper = verdict.is_wrapper
     if verdict.is_wrapper:
         res.warnings.append(
@@ -415,9 +418,9 @@ def _add_jobname_bbl(
     )
     if not has_bibref:
         return
-    main_dir = str(PurePosixPath(main).parent)
+    main_dir = _parent_dir(main)
     stem = PurePosixPath(main).stem
-    jobname_bbl = f"{main_dir}/{stem}.bbl" if main_dir != "." else f"{stem}.bbl"
+    jobname_bbl = f"{main_dir}/{stem}.bbl" if main_dir else f"{stem}.bbl"
     if jobname_bbl in res.bibliographies:
         return
     if jobname_bbl in fileset:

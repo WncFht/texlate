@@ -28,6 +28,7 @@ from texlate.server.validate import (
     validate_model,
 )
 from texlate.textutil import env_raw
+from texlate.textutil.osutil import ENV_BASE_URL, ENV_DIALECT, ENV_MODEL
 from texlate.xlat.client import (
     DEFAULT_BASE_URL,
     DEFAULT_MODEL,
@@ -45,7 +46,7 @@ def env_key_for(base_url: str) -> str:
 
 def env_base_url() -> str:
     """``TEXLATE_BASE_URL`` env 兜底（未配置返回空）。。"""
-    return env_raw("TEXLATE_BASE_URL")
+    return env_raw(ENV_BASE_URL)
 
 
 def env_model() -> str:
@@ -54,13 +55,13 @@ def env_model() -> str:
     与 ``header_model`` 臂同闸：控制字符（``\n`` 等）原样透传会进
     任务行/事件载荷构成日志注入面，env 是操作员配置面，错配即早炸。
     """
-    v = env_raw("TEXLATE_MODEL")
+    v = env_raw(ENV_MODEL)
     return validate_model(v) if v else ""
 
 
 def env_dialect() -> str:
     """``TEXLATE_DIALECT`` env 兜底——非空值过 ``validate_dialect``（同 env_model 口径）。"""
-    v = env_raw("TEXLATE_DIALECT")
+    v = env_raw(ENV_DIALECT)
     return validate_dialect(v) if v else ""
 
 
@@ -273,8 +274,13 @@ def resolve_auth(  # noqa: PLR0913 -- header 四槽/headers/mode/salt 即决议�
         settings_ok = not header_in["base_url"] or base_url == normalize_base_url(
             str(settings.get(url_spec.settings_key) or url_spec.default)
         )
+        try:
+            env_norm = validate_base_url(env_url) if env_url else ""
+        except ValueError:
+            # 畸形 TEXLATE_BASE_URL 只意味 env 槽不匹配——不升格为请求级 400
+            env_norm = ""
         env_ok = not header_in["base_url"] or (
-            bool(env_url) and base_url == validate_base_url(env_url)
+            bool(env_norm) and base_url == env_norm
         )
         api_key, source = "", "none"
         if settings_ok and settings.get(key_spec.settings_key):

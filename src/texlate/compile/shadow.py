@@ -8,10 +8,10 @@ r"""系统包遮蔽层（normalize.py 拆出）：invalid_utf8 修复臂三。
 
 from __future__ import annotations
 
-import glob
 import logging
+import os
 import re
-import shutil
+import shutil  # noqa: F401 -- 测试锚：tests patch ``shadow.shutil.which`` 落共享模块对象，``seams.find_tool`` 内部同拦
 import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING, Final
@@ -19,10 +19,11 @@ from typing import TYPE_CHECKING, Final
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+from texlate.compile import seams
 from texlate.textutil import DECL_TAIL, decode_tex, decode_tex_with
 
 from .mask import TEX_SOURCE_SUFFIXES, visible_tex
-from .transcode import _hidden_path
+from .transcode import _iter_files
 
 log = logging.getLogger(__name__)
 
@@ -129,6 +130,20 @@ def _collect_package_refs(text: str) -> tuple[set[str], set[str]]:
     return packages, classes
 
 
+def _tree_has_name(root: Path, name: str) -> bool:
+    """``root`` 内任意深度存在 ``name`` 条目（文件/目录/软链皆算）→ True。
+
+    ``os.walk(followlinks=False)`` 版 ``rglob`` 名单命中——rglob 跟随目录
+    符号链且无环检测（in-tree 软链环炸 RecursionError、穿链把 root 外件
+    误判成 vendored），隐藏目录整支剪掉（``.git`` 内部非 vendored 面）。
+    """
+    for _dirpath, dirnames, filenames in os.walk(root, followlinks=False):
+        dirnames[:] = [d for d in dirnames if not d.startswith(".")]
+        if name in filenames or name in dirnames:
+            return True
+    return False
+
+
 def _shadow_source(
     name: str,
     suffix: str,
@@ -143,7 +158,7 @@ def _shadow_source(
     if (
         name.startswith(("/", "~"))
         or ".." in Path(name).parts
-        or any(root.rglob(glob.escape(Path(req).name)))
+        or _tree_has_name(root, Path(req).name)
     ):
         return None
     resolved = resolve(req)
@@ -162,8 +177,8 @@ def _try_shadow(
     root: Path,
     main_dir: Path,
     resolve: Callable[[str], Path | None],
-) -> tuple[dict[str, str] | None, set[str]]:
-    """单包探测+遮蔽；返回 ``(台账条目, 遮蔽件内新引用包名)``，不遮蔽时 ``(None, set())``。"""
+) -> tuple[dict[str, str] | None, set[tuple[str, str]]]:
+    """单包探测+遮蔽；返回 ``(台账条目, 遮蔽件内新引用 (名, 后缀) 对)``，不遮蔽时 ``(None, set())``。"""
     req = name + suffix
     src = _shadow_source(name, suffix, root, resolve)
     if src is None:
@@ -201,14 +216,7 @@ def _try_shadow(
 def _collect_pending_refs(root: Path) -> set[tuple[str, str]]:
     r"""工程 tex 源的 ``\usepackage``/``\documentclass`` 名集 → (名, 后缀) 待探集。"""
     pending: set[tuple[str, str]] = set()
-    for path in root.rglob("*"):
-        if (
-            path.is_symlink()
-            or not path.is_file()
-            or path.suffix.lower() not in TEX_SOURCE_SUFFIXES
-            or _hidden_path(path, root)
-        ):
-            continue
+    for path in _iter_files(root, TEX_SOURCE_SUFFIXES):
         try:
             packages, classes = _collect_package_refs(decode_tex(path.read_bytes()))
         except OSError:
@@ -241,7 +249,8 @@ def _shadow_broken_system_packages(
     """
     if engine not in ("xelatex", "lualatex"):
         return []
-    kpse = shutil.which("kpsewhich")
+    # 工具发现单源走 seams（macOS 落点回退 + seams/toolchain 双锚 patch 面）。
+    kpse = seams.find_tool("kpsewhich")
     if not kpse:
         return []
     root = root.resolve()

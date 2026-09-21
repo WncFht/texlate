@@ -211,6 +211,11 @@ def _reconcile_aliases(res: UnpackResult) -> None:
     """
     if not res.members:
         return
+    if not any(m.kind == "symlink" for m in res.members):
+        # 别名只能经 kept symlink 祖先写穿产生（新鲜 dest 契约：调用方总是
+        # 解进新建 extracted/）——零 symlink 包跳过整轮 resolve 对账。
+        # dirty dest 理论上可借预存 symlink 别名，非契约场景不盖。
+        return
     dest_res = res.dest.resolve()
     locs = [_member_loc(dest_res, m.path) for m in res.members]
     winner = {loc: i for i, loc in enumerate(locs)}  # 后写序覆盖——最末为赢家

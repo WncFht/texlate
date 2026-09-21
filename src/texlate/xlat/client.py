@@ -45,6 +45,14 @@ from urllib.parse import urlsplit
 import httpx
 
 from texlate.textutil import env_flag, env_raw
+from texlate.textutil.osutil import (
+    ENV_API_KEY,
+    ENV_BASE_URL,
+    ENV_DIALECT,
+    ENV_GATEWAY_KEY,
+    ENV_MODEL,
+    ENV_STREAM_FALLBACK,
+)
 from texlate.xlat._dialects import (  # noqa: F401 -- 出叶回引：方言编解码与结果载具迁 _dialects，钉点名守恒
     _ANTHROPIC_FINISH,
     REASONING_MIN_MAX_TOKENS,
@@ -163,8 +171,8 @@ DEFAULT_MODEL = DEFAULT_MODEL_PREFERENCE[0]
 
 #: ``chat`` 流式兜底臂开关 env（``ChatClient(stream_fallback=)`` 显式值优先）。
 #: 默认关：失败路径请求数钉在降级臂合同内（半死网关不放大）；网关非流式
-#: 路由退化（2026-09-19 非流式全模型 502、stream 独活形态）时操作员一键开
-ENV_STREAM_FALLBACK = "TEXLATE_STREAM_FALLBACK"
+#: 路由退化（2026-09-19 非流式全模型 502、stream 独活形态）时操作员一键开——
+#: 名本体注册在 ``textutil.osutil``，同名回引
 
 
 # ---------------------------------------------------------------- provider 识别（host→provider，照 texglot providers.py）
@@ -176,7 +184,7 @@ def provider_for_url(base_url: str) -> str:
         host = (urlsplit(base_url).hostname or "").lower()
     except ValueError:
         host = ""  # 畸形 URL 按未知 host 处理（落空到 "custom"），请求期 InvalidURL→ChatError 再报
-    if host in {"127.0.0.1", "localhost", "::1"}:
+    if host in _LOOPBACK_HOSTS:
         return "gateway"
     if host == "api.anthropic.com":
         return "anthropic"
@@ -203,8 +211,8 @@ PROVIDER_KEY_ENV: dict[str, str] = {
     "anthropic": "ANTHROPIC_API_KEY",
     "deepseek": "DEEPSEEK_API_KEY",
     "qwen": "DASHSCOPE_API_KEY",
-    "gateway": "TEXLATE_GATEWAY_KEY",
-    "custom": "TEXLATE_API_KEY",
+    "gateway": ENV_GATEWAY_KEY,
+    "custom": ENV_API_KEY,
 }
 
 
@@ -216,10 +224,10 @@ def env_key_for_url(base_url: str) -> str:
     调用方须传**已决议**端点（默认网关也算）才够得着
     ``TEXLATE_GATEWAY_KEY``/``DASHSCOPE_API_KEY`` 等专名 env。
     """
-    api_key = env_raw("TEXLATE_API_KEY")
+    api_key = env_raw(ENV_API_KEY)
     if api_key:
         return api_key
-    env_name = PROVIDER_KEY_ENV.get(provider_for_url(base_url), "TEXLATE_API_KEY")
+    env_name = PROVIDER_KEY_ENV.get(provider_for_url(base_url), ENV_API_KEY)
     return env_raw(env_name)
 
 
@@ -231,12 +239,12 @@ def env_credentials() -> tuple[str, str, str, str]:
     env 未配端点时默认网关的 ``TEXLATE_GATEWAY_KEY`` 也读得到。
     model/dialect 原样透传——校验归各调用面边界（``validate_*``）。
     """
-    base_url = env_raw("TEXLATE_BASE_URL")
+    base_url = env_raw(ENV_BASE_URL)
     return (
         base_url,
         env_key_for_url(base_url or DEFAULT_BASE_URL),
-        env_raw("TEXLATE_MODEL"),
-        env_raw("TEXLATE_DIALECT"),
+        env_raw(ENV_MODEL),
+        env_raw(ENV_DIALECT),
     )
 
 

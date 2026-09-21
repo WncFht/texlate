@@ -151,6 +151,33 @@ def read_cmd_name(tex: str, i: int) -> tuple[str, int]:
     return "", j
 
 
+def strip_brace_comments(raw: str) -> str:
+    r"""``{arg}`` 花括实参内 ``%``→EOL 注释段剔除（tokenize 语义）。
+
+    ``\begin{%\ncomment}``/``\input{%\nfile}`` 的实参是 ``comment``/``file``
+    ——注释段留在名里会让 DEAD_ENVS 查表/missing_input 查找整体失手。
+    ``\X`` 跳双字符——``\%`` 转义名不剥。``env_name_at`` 与
+    ``flatten._try_input`` 共用的共享原语（经 ``model`` 再出口）。
+    """
+    if "%" not in raw:
+        return raw
+    out: list[str] = []
+    k = 0
+    while k < len(raw):
+        c = raw[k]
+        if c == "\\":
+            out.append(raw[k : k + 2])
+            k += 2
+            continue
+        if c == "%":
+            nl = raw.find("\n", k)
+            k = len(raw) if nl < 0 else nl + 1
+            continue
+        out.append(c)
+        k += 1
+    return "".join(out)
+
+
 def env_name_at(tex: str, i: int) -> tuple[str | None, int]:
     r"""``{name}`` 读取：ws 后 ``{env}`` → (名, ``}`` 后一位)；否则 (None, i)。
 
@@ -163,23 +190,7 @@ def env_name_at(tex: str, i: int) -> tuple[str | None, int]:
     if pos < len(tex) and tex[pos] == "{":
         e = match_brace(tex, pos)
         if e:
-            raw = tex[pos + 1 : e - 1]
-            if "%" in raw:
-                out: list[str] = []
-                k = 0
-                while k < len(raw):
-                    c = raw[k]
-                    if c == "\\":
-                        out.append(raw[k : k + 2])
-                        k += 2
-                        continue
-                    if c == "%":
-                        nl = raw.find("\n", k)
-                        k = len(raw) if nl < 0 else nl + 1
-                        continue
-                    out.append(c)
-                    k += 1
-                raw = "".join(out)
+            raw = strip_brace_comments(tex[pos + 1 : e - 1])
             return raw.strip(), e
     return None, i
 

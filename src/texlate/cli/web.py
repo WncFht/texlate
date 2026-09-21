@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import errno
 import json
 import os
 import webbrowser
@@ -15,9 +16,11 @@ from texlate.textutil import DEFAULT_BIND_HOST, DEFAULT_BIND_PORT, set_data_dir
 
 
 def _connect_url(host: str, port: int) -> str:
-    """浏览器可点地址：通配/空绑定回环化。"""
+    """浏览器可点地址：通配/空绑定回环化；IPv6 字面量加方括号。"""
     if host in ("0.0.0.0", "::", ""):  # noqa: S104 -- 比较非绑定：通配回环化
         return f"http://127.0.0.1:{port}"
+    if ":" in host:  # IPv6 字面量——不 bracket 则 host:port 拼出非法 URL
+        return f"http://[{host}]:{port}"
     return f"http://{host}:{port}"
 
 
@@ -46,7 +49,12 @@ def _service_lock(
         return None, None
     try:
         fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except OSError:
+    except OSError as e:
+        # 只有「锁被持有」族 errno 走已运行实例路径——其余（如 ENOLCK/
+        # 文件系统错）按退化契约放行，不误报「已在运行」
+        if e.errno not in (errno.EACCES, errno.EAGAIN, errno.EWOULDBLOCK):
+            fh.close()
+            return None, None
         url = ""
         try:
             fh.seek(0)
@@ -58,9 +66,15 @@ def _service_lock(
         return None, url or _connect_url(host, port)
     # "a+b" 写恒落 EOF——truncate(0) 显式清零再写，免得上任持有者的
     # 元数据残留拼出非法 JSON（读侧解析失败会回退 host/port 推断）。
-    fh.truncate(0)
-    fh.write(json.dumps({"pid": os.getpid(), "url": _connect_url(host, port)}).encode())
-    fh.flush()
+    try:
+        fh.truncate(0)
+        fh.write(
+            json.dumps({"pid": os.getpid(), "url": _connect_url(host, port)}).encode()
+        )
+        fh.flush()
+    except OSError:
+        # meta 写失败但 flock 有效——无 meta 放行优于崩（读侧会回退推断）
+        pass
     return fh, None
 
 
@@ -117,15 +131,18 @@ def web(
         )
         webbrowser.open(existing)
         return
-    typer.echo(f"texlate web → http://{host}:{port}", err=True)
+    typer.echo(f"texlate web → {_connect_url(host, port)}", err=True)
     warning = _exposed_bind_warning(host)
     if warning is not None:
         typer.echo(warning, err=True)
     from texlate.logsetup import configure_server_logging  # noqa: PLC0415
 
+    # try 只罩日志装/建 app——uvicorn 起服 bind 失败是自打日志 +
+    # ``SystemExit(1)`` 自退路径，不抛 OSError（原 except 永远捕不到）
     try:
         configure_server_logging(root)
-        uvicorn.run(create_app(), host=host, port=port)
+        asgi = create_app()
     except OSError as e:
         typer.echo(f"web 起服失败（{host}:{port}）: {e}", err=True)
         raise typer.Exit(1) from None
+    uvicorn.run(asgi, host=host, port=port)

@@ -24,13 +24,11 @@ from texlate.server._common import slim_terminal_tasks
 from texlate.server.events import sse_frame
 from texlate.server.http import (
     _accepted,
-    _ApiError,
     _clean_task_options,
     _json_error,
     _options_json_checked,
     _read_body,
 )
-from texlate.server.settings import TARGET_LANGS, validate_model
 from texlate.server.store import (
     ACTIVE_STATUSES,
     CHUNKS_PAGE_MAX,
@@ -49,34 +47,6 @@ if TYPE_CHECKING:
 
 #: ``/api/tasks?status=`` 过滤的合法值域——11 态机全集（ACTIVE+TERMINAL）。
 _ALL_STATUSES = ACTIVE_STATUSES | TERMINAL_STATUSES
-
-
-def _resolve_model_lang(
-    request: Request, deps: AppDeps, model_raw: str, lang_raw: str
-) -> tuple[str, str]:
-    """``model``/``target_lang`` 入参决议 + 校验 → ``(model, target_lang)``。
-
-    空值回落 ``deps.auth(request)`` 快照（``.model`` /
-    ``settings["target_lang"]``）——一次 auth 决议同时供两侧回落；
-    违例 → ``_ApiError(400, invalid_request)``（upload.py
-    ``_upload_fields`` 同款口径；待 hoist 至 ``AppDeps.resolve_model_lang``
-    两域共吃）。
-    """
-    auth = deps.auth(request)
-    try:
-        model = validate_model(model_raw or auth.model)
-    except ValueError as e:
-        raise _ApiError(400, {"detail": str(e), "code": "invalid_request"}) from e
-    target_lang = lang_raw or str(auth.settings["target_lang"])
-    if target_lang not in TARGET_LANGS:
-        raise _ApiError(
-            400,
-            {
-                "detail": f"target_lang ∈ {sorted(TARGET_LANGS)}",
-                "code": "invalid_request",
-            },
-        )
-    return model, target_lang
 
 
 def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 端点面平铺
@@ -98,16 +68,18 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 端
             return _json_error(
                 400, "options 须为 object 或 KV 对列表", "invalid_request"
             )
+        if body.get("glossary"):
+            # body 级 glossary 覆盖 options 同键——须先于
+            # ``_clean_task_options`` 注入，64KB 序列化闸
+            # （``_options_json_checked``）才罩得住它（后置注入可越帽落库）
+            options["glossary"] = str(body["glossary"])
         options = _clean_task_options(options)
         # ``_ApiError`` 直抛——app 级 handler 出 ``_json_error`` 同形 400
-        model, target_lang = _resolve_model_lang(
+        model, target_lang = deps.resolve_model_lang(
             request,
-            deps,
             str(body.get("model") or ""),
             str(body.get("target_lang") or ""),
         )
-        if body.get("glossary"):
-            options["glossary"] = str(body["glossary"])
         prefer = str(options.get("prefer") or "reuse")
         if prefer not in ("reuse", "fresh"):
             return _json_error(400, "options.prefer ∈ reuse|fresh", "invalid_request")
@@ -151,11 +123,7 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 端
         accept = request.headers.get("accept", "")
         # RFC 9110：媒体类型大小写不敏感——TEXT/EVENT-STREAM 也应进 SSE
         if "text/event-stream" not in accept.lower():
-            return JSONResponse(
-                deps.store.snapshot(
-                    task_id, artifacts=artifact_urls(deps.store, task_id)
-                )
-            )
+            return JSONResponse(deps.snapshot(task_id))
         try:
             last_id = int(request.headers.get("last-event-id", "0") or 0)
         except ValueError:
@@ -166,9 +134,7 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 端
         last_id = max(-(2**63), min(last_id, 2**63 - 1))
 
         async def gen() -> AsyncIterator[dict[str, Any]]:
-            snap = deps.store.snapshot(
-                task_id, artifacts=artifact_urls(deps.store, task_id)
-            )
+            snap = deps.snapshot(task_id)
             yield sse_frame({"seq": 0, "type": "snapshot", "data": snap})
             async for ev in deps.bus.stream(task_id, last_event_id=last_id):
                 yield sse_frame(ev)
@@ -252,6 +218,16 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 端
             limit=limit,
             offset=offset,
         )
+
+        # error_json 列可经直写腐化——坏 JSON/非 dict 按「无错」None 收，
+        # 不许单格坏值 500 掉列表端点（store.snapshot/row_json 同款容错口径）
+        def _err_obj(raw: str | None) -> dict[str, Any] | None:
+            try:
+                obj = json.loads(raw) if raw else None
+            except json.JSONDecodeError:
+                return None
+            return obj if isinstance(obj, dict) else None
+
         return JSONResponse(
             {
                 "tasks": [
@@ -276,9 +252,7 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 端
                             "failed": r["failed_chunks"],
                             "tokens": r["tokens"],
                         },
-                        "error": (
-                            json.loads(r["error_json"]) if r["error_json"] else None
-                        ),
+                        "error": _err_obj(r["error_json"]),
                         # 行快照水位——前端 refresh reconcile 据以拒旧读回退
                         "last_seq": r["last_seq"],
                     }
@@ -384,7 +358,7 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 端
                 # 与磁盘件并删——残行会让 files/reader 照发上一轮产物
                 # （en.pdf 也随 base/ 同死：换 main/引擎后它编译自另一棵树）
                 deps.store.delete_chunks(task_id)
-                task_root = deps.root / "tasks" / task_id
+                task_root = deps.task_dir(task_id)
                 recs = [
                     (kind, rec)
                     for kind, rec in deps.store.files(task_id).items()
@@ -421,7 +395,7 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 端
     async def chunk_retranslate(request: Request, task_id: str, seq: int) -> Response:
         """终态任务单块重译入队——202 ``{task_id, seq, status:"queued"}``。
 
-        守卫阶梯：任务存在 + tenant 隔离（``_get_task`` 404）→ 状态须
+        守卫阶梯：任务存在 + tenant 隔离（``get_task`` 404）→ 状态须
         done/partial（reader 消费面——ACTIVE 与其余终态 409）→ seq 须
         命中 chunks 表（404）→ ``auth_source=header`` 重带 key（401，
         retry 同口径：内存 secrets 随终态已摘）。``enqueue_retranslate``
@@ -487,9 +461,7 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 端
             )
         deps.runner.secrets.pop(task_id, None)
         # 任务目录可能是 GB 级产物树——rmtree 重 I/O 卸出 loop
-        await asyncio.to_thread(
-            shutil.rmtree, deps.root / "tasks" / task_id, ignore_errors=True
-        )
+        await deps.drop_task_dir(task_id)
         return JSONResponse({"task_id": task_id, "status": "deleted"})
 
     @app.post("/api/tasks/slim")

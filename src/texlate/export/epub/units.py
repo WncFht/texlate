@@ -7,7 +7,6 @@ hidden）与行内 marker 候选判定全在本叶。
 
 from __future__ import annotations
 
-import hashlib
 import logging
 from typing import TYPE_CHECKING
 
@@ -15,6 +14,7 @@ from bs4 import BeautifulSoup, NavigableString, Tag
 from lxml import etree
 
 from texlate.export.common import MalformedEpubError
+from texlate.export.docx import job_digest
 from texlate.export.filters import (
     is_unit_text,
     normalize_text,
@@ -353,7 +353,7 @@ def _iter_units(  # noqa: C901, PLR0912 -- 枚举主循环：记录趟/owner 趟
             for run_nodes, markers, text in runs:
                 if not is_unit_text(text):
                     continue
-                digest = hashlib.sha256(text.encode()).hexdigest()[:16]
+                digest = job_digest(text)
                 job_id = f"epub:{doc_index}:{path}:{seq}:{digest}"
                 seq += 1
                 yield Unit(
@@ -367,7 +367,9 @@ def _iter_units(  # noqa: C901, PLR0912 -- 枚举主循环：记录趟/owner 趟
                     soup=soup,
                 )
 
-    # NCX navLabel/text：EPUB2 目录的可见标签——翻成 ``原文 / 译文`` 双串。
+    # NCX 全部 ``<text>`` 本地名元素：navLabel/text 之外还覆盖 docTitle/
+    # docAuthor 的 ``<text>`` 子节点——EPUB2 目录的可见文本面，翻成
+    # ``原文 / 译文`` 双串（枚举面刻意比 navLabel 宽，二者同写回路径）。
     # 走加固 lxml 而非 bs4 "xml"（后者是裸 XMLParser）；解析失败只弃 NCX 面。
     if book.ncx_path and book.ncx_path in book.members:
         try:
@@ -383,7 +385,7 @@ def _iter_units(  # noqa: C901, PLR0912 -- 枚举主循环：记录趟/owner 趟
                 raw = normalize_text("".join(text_el.itertext()))
                 if not is_unit_text(raw):
                     continue
-                digest = hashlib.sha256(raw.encode()).hexdigest()[:16]
+                digest = job_digest(raw)
                 yield Unit(
                     job_id=f"epub:ncx:{i}:{digest}",
                     text=raw,

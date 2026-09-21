@@ -9,10 +9,10 @@
 
 from __future__ import annotations
 
-import json
 from typing import Any
 
 from texlate.textutil import env_raw
+from texlate.xlat._discovery import _model_ids_from
 from texlate.xlat.client import (
     DEFAULT_BASE_URL,
     DEFAULT_MODEL,
@@ -54,12 +54,13 @@ def list_provider_models(
         return None
     try:
         data = resp.json()
-    except json.JSONDecodeError:
+    except ValueError:
+        # JSONDecodeError + 非 UTF-8 体（GBK 错误页等）的
+        # UnicodeDecodeError 同属 ValueError——探活失败面收敛 None
         return None
     items = data.get("data") if isinstance(data, dict) else None
-    if not isinstance(items, list):
-        return None
-    return [str(m["id"]) for m in items if isinstance(m, dict) and "id" in m]
+    # 非 list → ``_model_ids_from`` 回 ``None``——与探活失败面同口径收敛
+    return _model_ids_from(items)
 
 
 def provider_presets(settings: dict[str, Any]) -> list[dict[str, Any]]:

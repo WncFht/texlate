@@ -51,11 +51,12 @@ def install_log_scrub(
     filt = RedactFilter(key_provider)
     loggers = [logging.getLogger(), *(logging.getLogger(n) for n in _LOG_NAMES)]
     for lg in loggers:
-        for old in (f for f in lg.filters if isinstance(f, RedactFilter)):
+        # 快照后再卸——removeFilter 原地改 filters，边遍历边删会跳过后邻旧件
+        for old in [f for f in lg.filters if isinstance(f, RedactFilter)]:
             lg.removeFilter(old)
         lg.addFilter(filt)
         for h in lg.handlers:
-            for old in (f for f in h.filters if isinstance(f, RedactFilter)):
+            for old in [f for f in h.filters if isinstance(f, RedactFilter)]:
                 h.removeFilter(old)
             h.addFilter(filt)
     return filt

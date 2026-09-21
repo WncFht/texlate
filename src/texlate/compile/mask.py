@@ -11,15 +11,14 @@ r"""遮蔽视图与 TeX 词法小件：normalize/inject 所有正则定位都打
 
 from __future__ import annotations
 
-import re
-
 from texlate.textutil import mask_comments, mask_tex
+
+# TeX cs/换行扫描正则与 ``textutil.mask`` 同一编译态单源——私名直引，
+# facade 私有转口未收此二件。
+from texlate.textutil.mask import _COMMAND_RX, _NL_RX
 
 #: 归一化层逐文件手术的扩展名集（.tex 之外，作者自带 .sty/.cls 同样要改）。
 TEX_SOURCE_SUFFIXES = {".tex", ".sty", ".cls", ".cfg", ".def", ".clo", ".fd", ".ltx"}
-
-_COMMAND_RE = re.compile(r"\\(?:[a-zA-Z@]+\*?|.)", re.DOTALL)
-_NL_RE = re.compile(r"[\r\n]")
 
 
 def without_comments(text: str) -> str:
@@ -55,10 +54,10 @@ def group_end(s: str, pos: int) -> int:
     while i < len(s):
         c = s[i]
         if c == "\\":
-            m = _COMMAND_RE.match(s, i)
+            m = _COMMAND_RX.match(s, i)
             i = m.end() if m else i + 2
         elif c == "%":
-            m = _NL_RE.search(s, i)
+            m = _NL_RX.search(s, i)
             i = len(s) if m is None else m.start() + 1
         elif c == "{":
             closers.append("}")

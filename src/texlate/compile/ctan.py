@@ -36,6 +36,7 @@ from pathlib import Path
 from typing import Any, Final
 
 from texlate.textutil import data_root, env_raw
+from texlate.textutil.osutil import ENV_CACHE
 
 __all__ = [
     "CtanFetchError",
@@ -53,7 +54,7 @@ __all__ = [
 MIRROR = "https://mirror.ctan.org/systems/texlive/tlnet"
 TLPDB_RELPATH = "tlpkg/texlive.tlpdb.xz"  # 探针纠错: 非 tlnet/texlive.tlpdb.gz (404)
 
-# 索引收录扩展名 (探针 §1: 在任务白名单上加 .clo/.vf/.ofm/.ovp ——
+# 索引收录扩展名 (探针 §2: 在任务白名单上加 .clo/.vf/.ofm/.ovp ——
 # ctex 有 .clo 字号文件, 不索引则无法从缺 .clo 反查包)。
 # .tex/.rtx 仅索引不平铺: binhex.tex/epsf.tex/tikzlibrary*.code.tex
 # 类缺名可反查真包, 但修复须走 usertree/tlmgr 安装 —— basename 平铺
@@ -79,7 +80,7 @@ INDEX_EXTS = {
 #: .tex 量大 (示例/文档源) 且 kpsewhich 本就跑不到, 收录只喂噪声候选。
 _RUNFILES_ONLY_EXTS = {".tex", ".rtx"}
 # 允许平铺进 cwd 的扩展名 = TeX 输入层; .pfb/.pk 物理字体对
-# tectonic xdvipdfmx 是死路 (探针 §3.5) 不投; .tex/.rtx 只索引不平铺
+# tectonic xdvipdfmx 是死路 (探针 §3.4) 不投; .tex/.rtx 只索引不平铺
 # (basename 平铺即撞名遮蔽工程源文件)。
 OVERLAY_EXTS = INDEX_EXTS - {".pfb", ".tex", ".rtx"}
 # tar 内已知顶层前缀 (探针 §2 踩坑: 前缀不统一)
@@ -158,7 +159,7 @@ DEFAULT_CAPS: Final = FetchCaps()
 
 def default_cache_dir() -> Path:
     """``$TEXLATE_CACHE`` > ``data_root()/cache`` (``TEXLATE_DATA_DIR`` > ``~/.texlate``)。"""
-    raw = env_raw("TEXLATE_CACHE")
+    raw = env_raw(ENV_CACHE)
     return Path(raw).expanduser() if raw else data_root() / "cache"
 
 
@@ -166,15 +167,17 @@ def _http_get(url: str, *, cap: int = DEFAULT_DOWNLOAD_CAP) -> bytes:
     """流式 GET + 下载体上限；超 cap 抛 CtanFetchError（防失陷镜像炸弹）。"""
     import httpx  # noqa: PLC0415  # 延迟加载: 纯索引路径不依赖网络栈
 
+    from texlate.compile.toolchain import _read_capped  # noqa: PLC0415  # 同上网段惰载
+
     with httpx.stream("GET", url, timeout=60.0, follow_redirects=True) as resp:
         resp.raise_for_status()
-        buf = io.BytesIO()
-        for chunk in resp.iter_bytes(1 << 20):
-            buf.write(chunk)
-            if buf.tell() > cap:
-                msg = f"download exceeds {cap} bytes: {url}"
-                raise CtanFetchError(msg)
-    return buf.getvalue()
+        return _read_capped(
+            resp,
+            cap,
+            on_over=lambda cap: CtanFetchError(
+                f"download exceeds {cap} bytes: {url}"
+            ),
+        )
 
 
 def _fetch_capped(url: str, fetcher: Fetcher | None, cap: int) -> bytes:
@@ -318,7 +321,7 @@ class TlpdbIndex:
         hits = self.table.get(basename, [])
         stem = basename.rsplit(".", 1)[0]
         # 消歧启发: 包名==stem 的排最前 (hyperxmp.sty→hyperxmp);
-        # 406 个多包 basename (探针 §1) 其余保持 tlpdb 序
+        # 406 个多包 basename (探针 §2) 其余保持 tlpdb 序
         return sorted(hits, key=lambda p: (p != stem, p))
 
     def suggest(self, stem: str, limit: int = 5) -> list[str]:

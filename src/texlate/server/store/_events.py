@@ -53,16 +53,24 @@ class EventRepo(_Repo):
         return seq
 
     def events_since(self, task_id: str, seq: int) -> list[dict[str, Any]]:
-        """``seq`` 之后的全部事件（Last-Event-ID 重放面）。"""
+        """``seq`` 之后的全部事件（Last-Event-ID 重放面）。
+
+        ``data`` 列可经直写腐化——单格坏 JSON 跳过该条不拖垮整段
+        resync（seq 序照旧连续，消费侧按 ``seq`` 字段对账不按位置）。
+        """
         rows = self.conn.execute(
             "SELECT seq, type, data FROM task_events WHERE task_id = ? AND seq > ?"
             " ORDER BY seq",
             (task_id, seq),
         ).fetchall()
-        return [
-            {"seq": int(r["seq"]), "type": r["type"], "data": json.loads(r["data"])}
-            for r in rows
-        ]
+        out: list[dict[str, Any]] = []
+        for r in rows:
+            try:
+                data = json.loads(r["data"])
+            except json.JSONDecodeError:
+                continue
+            out.append({"seq": int(r["seq"]), "type": r["type"], "data": data})
+        return out
 
     def last_seq(self, task_id: str) -> int:
         """任务当前最大事件 seq（snapshot.last_seq）。"""
@@ -89,7 +97,10 @@ class EventRepo(_Repo):
         rows.reverse()
         out: list[str] = []
         for r in rows:
-            data = json.loads(r["data"])
+            try:
+                data = json.loads(r["data"])
+            except json.JSONDecodeError:
+                continue  # 坏格不拖垮 snapshot warnings 回放
             if isinstance(data, dict) and "message" in data:
                 out.append(f"[{data.get('code', '?')}] {data['message']}")
             else:

@@ -49,6 +49,10 @@ __all__ = [
     "sniff_format",
 ]
 
+#: mimetype 嗅探有界读上限——``zf.read`` 会把整个成员解进内存，
+#: 上传 EPUB 是不可信面（inflate 炸弹），嗅探只用头 64B
+_SNIFF_HEAD_BYTES = 64
+
 
 def sniff_format(path: Path) -> str | None:
     """Zip 内容嗅探：``mimetype``/``word/document.xml`` → ``"epub"``/``"docx"``。
@@ -59,10 +63,10 @@ def sniff_format(path: Path) -> str | None:
         with zipfile.ZipFile(path) as zf:
             names = set(zf.namelist())
             if "mimetype" in names:
-                # 有界读：嗅探只用头 64B——zf.read 会把整个成员解进内存，
-                # 上传 EPUB 是不可信面（inflate 炸弹）
+                # 有界读：嗅探只用头 ``_SNIFF_HEAD_BYTES`` B——zf.read 会把
+                # 整个成员解进内存，上传 EPUB 是不可信面（inflate 炸弹）
                 with zf.open("mimetype") as fp:
-                    head = fp.read(64).strip()
+                    head = fp.read(_SNIFF_HEAD_BYTES).strip()
                 if head == b"application/epub+zip":
                     return "epub"
             if "word/document.xml" in names:
@@ -137,6 +141,9 @@ def export_document(  # noqa: PLR0913 -- 公共 API 面，关键字参数
 ) -> ExportReport:
     """按内容嗅探分派 EPUB/DOCX；``dst`` 缺省 ``{stem}_bilingual.{ext}``。
 
+    ``{ext}`` 沿用 ``src`` 后缀而非嗅探结果——嗅探只选引擎不改写文件名
+    （``odd.bin`` 装的 EPUB 字节产 ``odd_bilingual.bin``，pinned 于
+    ``test_suffix_ignored_content_sniffed``）。
     ``glossary`` 三形皆可：``Glossary`` 实例 / ``{en: zh}`` 平表 /
     yaml|csv 路径（归一见 ``common.coerce_glossary``）。
     """

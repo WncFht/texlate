@@ -23,7 +23,9 @@ _ENV_END_TAIL_RX = re.compile(r"\\end\{([^}]*)\}\s*$")
 # ``\endX``，故包它的宏（``\def\eea{\csname endeqnarray\endcsname}``）
 # 语义上就是 env_end 端点（R1：token 层 ``x.text=="end"+target`` 同规
 # 的表侧入口——csname 合成不经宏体表，不登记则配对扫描永远看不见它）。
-_CSNAME_END_RX = re.compile(r"\\csname\s*end([a-zA-Z@*]+)\s*\\endcsname")
+# 尾锚定 + 前缀无文本闸同 ``_ENV_END_TAIL_RX``（R7：``\relax`` 等收尾
+# 原语前缀不挡端点登记，带自然文本的前缀仍 TRANSPARENT）。
+_CSNAME_END_TAIL_RX = re.compile(r"\\csname\s*end([a-zA-Z@*]+)\s*\\endcsname\s*$")
 _STRIP_PARAM_RX = re.compile(r"#[1-9]?")
 _STRIP_CS_RX = re.compile(r"\\[a-zA-Z@]+\*?")
 _STRIP_CS1_RX = re.compile(r"\\[^a-zA-Z]")
@@ -67,7 +69,12 @@ def protected_param_positions(body: str, nargs: int) -> tuple[bool, ...]:  # noq
                 gprot.pop()
             armed = False
         elif tok == "[":
-            bracket += 1
+            # 只在 armed 期间计可选参嵌套——游离 ``[``（如 ``[0,1)`` 半开
+            # 区间）占住 bracket 会让 ``\cite#1`` 的 armed 永不消费、
+            # 后续 ``#j`` 被误标保护位；``]`` 不门控——``{``/``}`` 途中
+            # 清过 armed 时残留深度仍须对称回收
+            if armed:
+                bracket += 1
         elif tok == "]":
             bracket = max(bracket - 1, 0)
         elif tok[0] == "#":
@@ -94,6 +101,8 @@ def classify_body(body: str) -> tuple[MacroKind, str]:
     的真 ``\\end`` 也永远够不着，登记成 env_end 只会召回双输。
     ``\\begin`` 不做头匹配同理（``\\wrap{…\\begin{c}…\\end{c}}``
     被误登记 env_begin 会把调用点当 ``\\begin`` 处理）。
+    ``\\csname endX\\endcsname`` 臂同走 R7 尾匹配（``\\def\\eea{
+    \\relax\\csname endeqnarray\\endcsname}`` 前缀闸同口径）。
     """
     stripped = body.strip()
     b = _ENV_BEGIN_RX.fullmatch(stripped)
@@ -102,8 +111,8 @@ def classify_body(body: str) -> tuple[MacroKind, str]:
     e = _ENV_END_TAIL_RX.search(stripped)
     if e is not None and not body_has_text(stripped[: e.start()]):
         return MacroKind.ENV_END, e.group(1).strip()
-    c = _CSNAME_END_RX.fullmatch(stripped)
-    if c is not None:
+    c = _CSNAME_END_TAIL_RX.search(stripped)
+    if c is not None and not body_has_text(stripped[: c.start()]):
         return MacroKind.ENV_END, c.group(1).strip()
     return MacroKind.TRANSPARENT, ""
 

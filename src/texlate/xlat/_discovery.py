@@ -94,8 +94,9 @@ def is_free_gateway_url(base_url: str) -> bool:
 
     发现/探活链只准打这个面——公网 BYOK 预设（anthropic/deepseek/qwen/
     openai）与任意 custom 公网端点一律 False，一个探测请求都不发。
-    ``provider_for_url`` 单独不能当闸：默认 tailnet 网关解析成
-    ``"custom"``，BYOK 也可以是 custom——端点身份只能看网络位置。
+    ``provider_for_url`` 单独不能当闸：tailnet 网关（``*.ts.net``/
+    CGNAT）解析成 ``"custom"``，BYOK 也可以是 custom——端点身份只能
+    看网络位置。
     """
     try:
         host = (urlsplit(normalize_base_url(base_url)).hostname or "").lower()
@@ -141,17 +142,31 @@ async def _get_json(client: ChatClient, path: str) -> tuple[Any, str]:
         raise MalformedResponseError(msg) from e
 
 
+def _model_ids_from(items: object) -> list[str] | None:
+    """``/v1/models`` 的 ``data`` 成员 → 模型 id 列；非 list 回 ``None``。
+
+    ``list_models``（上方）与 ``server.providers.list_provider_models``
+    的同一形状合同——list 闸 + dict+``id`` 逐成员过滤 + ``str()`` 强转；
+    两侧只差失败包装（``MalformedResponseError`` vs ``None``）。
+    """
+    if not isinstance(items, list):
+        return None
+    return [str(m["id"]) for m in items if isinstance(m, dict) and "id" in m]
+
+
 async def list_models(client: ChatClient) -> list[str]:
     """`GET /v1/models` → 模型 id 列表。"""
     data, snippet = await client._get_json("/v1/models")  # noqa: SLF001 -- 出叶委托面（同模块实现组）
     if not isinstance(data, dict):
         msg = f"non-object JSON response: {snippet}"
         raise MalformedResponseError(msg)
-    items = data.get("data") or []
-    if not isinstance(items, list):
+    # ``or []``：``data`` 缺失/None/空值按空集过闸（非畸形）——与 providers
+    # 侧 ``data.get("data")`` 直取的 None 失败口径刻意不同，勿并
+    ids = _model_ids_from(data.get("data") or [])
+    if ids is None:
         msg = f"unexpected data field: {snippet}"
         raise MalformedResponseError(msg)
-    return [str(m["id"]) for m in items if isinstance(m, dict) and "id" in m]
+    return ids
 
 
 async def panel_models(client: ChatClient) -> list[dict[str, Any]]:

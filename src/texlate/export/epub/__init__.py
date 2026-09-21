@@ -26,7 +26,7 @@
 ``units`` 单元枚举 → ``insert`` 插译 → ``sanitize`` DOM 净化 →
 ``serialize`` 写回 → ``driver`` 全链驱动；本 ``__init__`` 是唯一对外面。
 
-v1 明确不做（spec §5 边界表）：单译模式、配对 marker、CSS 级联 display 解析
+v1 明确不做（doc-formats.md §5 边界一览）：单译模式、配对 marker、CSS 级联 display 解析
 （只查内联 ``display:none``+``hidden`` 属性）、披露页、epubcheck 全量对账、
 only/exclude_filelist。
 """

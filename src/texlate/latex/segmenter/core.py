@@ -24,10 +24,10 @@ from texlate.latex.tables import (
     CHUNK_MAX,
     CHUNK_MIN,
 )
-
 from texlate.textutil import (
     needs_seam_space,
 )
+
 from ._common import (
     _CLEAN_CMD_RX,
     _CLEAN_NONALPHA_RX,

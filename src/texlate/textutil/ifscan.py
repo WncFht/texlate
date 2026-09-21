@@ -44,6 +44,7 @@ from bisect import bisect_left
 from dataclasses import dataclass, field
 from typing import Final
 
+from texlate.textutil.decls import END_DOC_RX
 from texlate.textutil.mask import mask_tex
 
 #: if-prefixed cs that are NOT TeX conditionals (macro tests, never take ``\fi``)
@@ -92,6 +93,8 @@ NONCOND: Final = {
 #: cs whose next N cs-tokens are name/arg positions (not live opens)
 #: —— "let" 不在此列: 第二 token 是否为名取决于赋值对象形,
 #: 由 _let_operands lookahead 特判 (\\let\\sep=, 形第二 cs 是 live)。
+#: 预算按 token 计——operand 位花括号 (``\let\X{``/``\let\X}``) 亦抵一枚
+#: 且不开闭组; ``\let{`` 名位花括号例外, 仍开组不占预算。
 CONSUME: Final = {
     "newif": 1,
     "futurelet": 3,
@@ -187,8 +190,15 @@ COND_OPS: Final = {
     "ifhbox": 1,
     "ifvbox": 1,
 }
-TOKEN: Final = re.compile(r"\\([a-zA-Z@]+)|([{}])")
-STOP: Final = re.compile(r"\\end\s*\{document\}|\\endinput\b|\\stop\b|\\end\b(?!\s*\{)")
+#: 控制符号 (``\\``/``\{``/``\%`` …) 整枚成 token——转义花括号非组
+#: 开闭; group(1)/group(2) 皆 None, 由 dispatch 早跳 (operand 位仍占
+#: 一枚 token 预算: ``\ifx\{x`` 的 ``\{`` 是被比较 token)。
+TOKEN: Final = re.compile(r"\\([a-zA-Z@]+)|\\.|([{}])")
+#: 注入缝边界——``\end{document}`` 段与 decls.END_DOC_RX 同案源 (组
+#: 合式拼接待 ``DECL_TAIL`` 族)。
+STOP: Final = re.compile(
+    END_DOC_RX.pattern + r"|\\endinput\b|\\stop\b|\\end\b(?!\s*\{)"
+)
 _WS1: Final = re.compile(r"[ \t]*\n?[ \t]*")
 _WS_EQ: Final = re.compile(r"[ \t]*\n?[ \t]*=?[ \t]*\n?[ \t]*")
 #: operand 位的字面字符 token —— 条件 operand 按"下 N 个 token"计, gap
@@ -197,41 +207,48 @@ _WS_EQ: Final = re.compile(r"[ \t]*\n?[ \t]*=?[ \t]*\n?[ \t]*")
 _NON_WS: Final = re.compile(r"\S")
 
 
-def _let_operands(  # noqa: PLR0911 -- <name>/<equals>/<tok> 形态枚举即返回面
+def _let_operands(  # noqa: C901, PLR0911 -- <name>/<equals>/<tok> 形态枚举即返回面
     vis: str, pos: int
-) -> tuple[int, str | None, str | None]:
-    r"""``\let`` 在 ``pos`` 起的 operand 布局 → (消费 cs 数, 名 cs, operand cs)。
+) -> tuple[int, str | None, str | None, bool]:
+    r"""``\let`` 在 ``pos`` 起的 operand 布局 → (消费 token 数, 名 cs, operand cs, 名是 ``{``)。
 
     ``\let<name><sp*><=><sp*><tok>`` —— name 为紧邻 cs (``\let\X\iftrue``)
     或单字符 (``\let a=\iftrue``) 或 ``{`` (``\let{\iftrue``); operand 仅
-    在 gap 纯空白+可选 ``=`` 时是其后 cs —— ``\let\sep=,\fi`` 赋的是字符
+    在 gap 纯空白+可选 ``=`` 时是其后 token —— ``\let\sep=,\fi`` 赋的是字符
     ``,``, 其后 ``\fi`` 是 live close 非名 (elsarticle/IEEEtran CONSUME=2
     假开实证); ``\let ab\iftrue`` 名 ``a`` 字符 operand ``b``, 远端 cs live。
 
     名 cs/operand cs 供调用方做 if-alias 登记 (``\let\ok\iftrue`` → ``\ok``
     得 if_test cmd, 裸用即开臂 —— loop4-wave1 事故形); 字符名/``{`` 名
-    返回 None (非 cs token, 无 alias 可言)。
+    返回 None (非 cs token, 无 alias 可言)。operand 是花括号 token 时计
+    入消费数 (``\let\X{``/``\let\X}`` → 2)——主循环按 operand 位静默吃掉
+    不开闭组; 名位本身是 ``{`` 时 flag=True, 该 ``{`` 仍走主循环开组
+    (``\let{\iftrue`` 名位形), 不占 operand 预算。
     """
     nm = TOKEN.search(vis, pos)
     if nm is None:
-        return (0, None, None)
+        return (0, None, None, False)
     gap = vis[pos : nm.start()]
     if not _WS1.fullmatch(gap):
         # 非纯空白 gap → 首非空字符为名, 余部须 ws+可选 ``=`` 才合 <equals>;
-        # operand 是 nm 本身 (cs → 吃 1; ``{``/``}`` operand 非 cs 不吃)。
+        # operand 是 nm 本身 (cs/花括号 token 均占 operand 位吃 1)。
         rest = gap.lstrip()[1:]
-        if nm.group(1) is not None and _WS_EQ.fullmatch(rest):
-            return (1, None, nm.group(1))
-        return (0, None, None)
+        if _WS_EQ.fullmatch(rest):
+            if nm.group(1) is not None:
+                return (1, None, nm.group(1), False)
+            if nm.group(2) is not None:
+                return (1, None, None, False)
+        return (0, None, None, False)
     if nm.group(1) is not None:  # cs 名
         nm2 = TOKEN.search(vis, nm.end())
-        if (
-            nm2 is not None
-            and nm2.group(1) is not None
-            and _WS_EQ.fullmatch(vis[nm.end() : nm2.start()])
-        ):
-            return (2, nm.group(1), nm2.group(1))
-        return (1, nm.group(1), None)
+        if nm2 is not None and _WS_EQ.fullmatch(vis[nm.end() : nm2.start()]):
+            if nm2.group(1) is not None:
+                return (2, nm.group(1), nm2.group(1), False)
+            if nm2.group(2) is not None:
+                # operand 是花括号 token (``\let\X{``/``\let\X}``)——同占
+                # operand 位 (预算 2), 主循环抵扣时不开闭组。
+                return (2, nm.group(1), None, False)
+        return (1, nm.group(1), None, False)
     if nm.group(2) == "{":
         # ``{`` 即名 (begin-group 是合法 \let 名); { 由主循环开组,
         # operand 是组内首个 cs —— ``\let{\iftrue`` 的 \iftrue 被吃。
@@ -241,9 +258,9 @@ def _let_operands(  # noqa: PLR0911 -- <name>/<equals>/<tok> 形态枚举即返�
             and nm2.group(1) is not None
             and _WS_EQ.fullmatch(vis[nm.end() : nm2.start()])
         ):
-            return (1, None, nm2.group(1))
-        return (0, None, None)
-    return (0, None, None)  # ``}`` 不能为 \let 名
+            return (1, None, nm2.group(1), True)
+        return (0, None, None, True)
+    return (0, None, None, False)  # ``}`` 不能为 \let 名
 
 
 @dataclass
@@ -280,6 +297,10 @@ def scan_ifs(text: str) -> IfScan:  # noqa: C901, PLR0912, PLR0915 -- token 分�
     nl_offs = [i for i, ch in enumerate(vis) if ch == "\n"]  # 换行偏移表 —— 行号 bisect 查
     opens: list[tuple[str, int, int]] = []  # (name, line, region) region=0 live
     groups: list[str] = []  # per-{ kind: "grp"|"def"|"skip"
+    def_idx: list[int] = []  # groups 内 "def" 组的 1-based 位次栈 —— def_depth O(1) 口径
+    skip_n = 0  # groups 内 "skip" 组现数 —— 逐 token 线性扫组的 O(1) 替代
+    live_open_now = 0  # opens 内 r==0 现数 —— live_cond O(1) 口径
+    let_brace_name = False  # \let{ 名位形: 紧邻下枚 ``{`` 是名 —— 仍开组不占 operand 预算
     live_opens = live_closes = def_unclosed = 0
     consume = 0
     cond_ops = 0  # COND_OPS operand 预算 —— 下 N 个 token 是 operand 位
@@ -304,14 +325,10 @@ def scan_ifs(text: str) -> IfScan:  # noqa: C901, PLR0912, PLR0915 -- token 分�
         return bisect_left(nl_offs, pos) + 1
 
     def def_depth() -> int:
-        d = 0
-        for i, k in enumerate(groups):
-            if k == "def":
-                d = i + 1
-        return d
+        return def_idx[-1] if def_idx else 0
 
     def live_cond() -> int:
-        return sum(1 for _, _, r in opens if r == 0)
+        return live_open_now
 
     def check_phantom(cs: str, pos: int) -> None:
         # 非执行位 token 在活条件帧内 → 跳读扫描按其计 (phantom)。
@@ -324,17 +341,20 @@ def scan_ifs(text: str) -> IfScan:  # noqa: C901, PLR0912, PLR0915 -- token 分�
             phantoms.append((cs, line, "close"))
 
     def close_group() -> None:
-        nonlocal def_unclosed
+        nonlocal def_unclosed, skip_n
         kind = groups.pop() if groups else "grp"
         if kind == "def":
             while opens and opens[-1][2] == len(groups) + 1:
                 opens.pop()
                 def_unclosed += 1
+            def_idx.pop()
+        elif kind == "skip":
+            skip_n -= 1
 
     def push_group() -> None:
         # ``{``/``\bgroup`` 共用开组分派: pending 列队优先, 次 def_params
         # 体组, 余皆普通组。
-        nonlocal def_params
+        nonlocal def_params, skip_n
         kind = "grp"
         if pending:
             kind = pending.pop(0)
@@ -344,6 +364,10 @@ def scan_ifs(text: str) -> IfScan:  # noqa: C901, PLR0912, PLR0915 -- token 分�
         if kind == "name":
             kind = "skip"  # \newcommand{\foo} name brace: content unscanned
         groups.append(kind)
+        if kind == "def":
+            def_idx.append(len(groups))
+        elif kind == "skip":
+            skip_n += 1
 
     for tm in TOKEN.finditer(vis):
         cs, brace = tm.group(1), tm.group(2)
@@ -358,21 +382,40 @@ def scan_ifs(text: str) -> IfScan:  # noqa: C901, PLR0912, PLR0915 -- token 分�
                 cond_ops = 0
             else:
                 cond_ops -= ngap + 1
-                if brace is None:
+                if cs is not None:
                     check_phantom(cs, tm.start())
                 prev_end = tm.end()
                 continue
         prev_end = tm.end()
+        if cs is None and brace is None:
+            # 控制符号 token (``\\``/``\{``/``\%`` …)——非组非名不占结构位;
+            # operand 预算内则同占一枚 (``\string\%`` 的 ``\%`` 是 operand)。
+            if consume:
+                consume -= 1
+            continue
         if brace == "{":
+            if let_brace_name:
+                # ``\let{`` 名位花括号 (紧邻 \let 的下枚 token, 由
+                # _let_operands 报位)——不占 operand 预算, 仍按开组。
+                let_brace_name = False
+            elif consume:
+                # operand 位 ``{`` (``\let\X{`` 等) 是被赋 value token——
+                # 抵预算一枚, 不开组 (cond_ops 同款口径)。
+                consume -= 1
+                continue
             push_group()
             continue
         if brace == "}":
+            if consume:
+                # operand 位 ``}`` (``\let\X}``) 同理——抵预算不闭组。
+                consume -= 1
+                continue
             close_group()
             if def_params and not pending:
                 def_params = False
             continue
         # cs token
-        if any(k == "skip" for k in groups):
+        if skip_n:
             check_phantom(cs, tm.start())
             continue
         if consume:
@@ -407,8 +450,7 @@ def scan_ifs(text: str) -> IfScan:  # noqa: C901, PLR0912, PLR0915 -- token 分�
             close_aliases.discard(cs)
             continue
         if cs == "let":
-            n, name_cs, op_cs = _let_operands(vis, tm.end())
-            consume = n
+            consume, name_cs, op_cs, let_brace_name = _let_operands(vis, tm.end())
             if name_cs is not None and def_depth() == 0:
                 if op_cs is not None:
                     pending_alias = (name_cs, op_cs)
@@ -450,6 +492,7 @@ def scan_ifs(text: str) -> IfScan:  # noqa: C901, PLR0912, PLR0915 -- token 分�
             opens.append((cs, line_at(tm.start()), d))
             if d == 0:
                 live_opens += 1
+                live_open_now += 1
             elif live_cond() > 0:
                 # 活条件内的 def 区 open: 跳读同样计开 (已计入 opens,
                 # 此处仅上报 —— 不重复计 live/def 合计)。append 的是
@@ -467,6 +510,7 @@ def scan_ifs(text: str) -> IfScan:  # noqa: C901, PLR0912, PLR0915 -- token 分�
                 live_closes += 1
                 if opens and opens[-1][2] == 0:
                     opens.pop()
+                    live_open_now -= 1
     res = IfScan()
     res.unclosed_live = [o for o in opens if o[2] == 0]
     res.live_opens = live_opens

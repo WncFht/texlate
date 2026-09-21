@@ -10,10 +10,14 @@ import re
 from typing import TYPE_CHECKING, Any
 
 from texlate.compile.fixloop._builtins_common import (
+    _PKG_LOAD_RE,
     _USE_RE,
     _drop_pkg_loads,
+    _exact_restore_wrap,
     _fixloop_log,
     _live_matches,
+    _pkg_list_re,
+    _splice,
 )
 from texlate.textutil import mask_tex
 
@@ -25,59 +29,10 @@ if TYPE_CHECKING:
 
 
 # ════════════════════════════════════════════════════════════════
-# 跨 lane 单源原语 (hoist 候选: ``_builtins_common`` —— ``_USE_RE``/
-# ``_drop_pkg_loads``/``_AT_LETTER_*`` 同骨架件在彼侧, 归一后本叶改引)
+# 装载命令骨架件已归位 ``_builtins_common`` (``_PKG_LOAD_*``/
+# ``_pkg_list_re``/``_exact_restore_wrap``; ``_USE_RE``/``_AT_LETTER_*``
+# 在彼侧同源 rebase) —— 本叶直引。
 # ════════════════════════════════════════════════════════════════
-
-#: ``\\usepackage``/``\\RequirePackage`` 装载命令的规范骨架 (命名组单源)。
-#: 旧拼在同骨架上组位逐处漂移 (names 位在 g5/g3/g2 不等: ``_USE_RE``/
-#: ``_SIU_LIST_RE``/``load_pat``), 命名组替数字位收口。
-#: 组面: ``cmd``=命令名, ``opts``=整 ``[..]`` 段 (含括号), ``opts_inner``=
-#: 选项本体 (option_clash_merge 读内层需要), ``names``=花括号名单,
-#: ``head``=名单外的全部前缀。opts 字符集取 ``[^\\]]`` 允跨行 —— TeX
-#: 选项表换行合法且 ``_USE_RE``/``load_pat`` 原本即此口径; 遮盖视图里
-#: 注释内 ``]`` 已遮, 对 ``[^\\]\\n]`` 旧拼 (``_SIU_LIST_RE``/``_XY_LOAD_RE``/
-#: ``_PHYS_LOAD_RE``) 是严格超集, 只会多中真多行选项装载点。
-#: hoist 后 ``_USE_RE`` 可 rebased 为 ``re.compile(rf"^(\\s*){_PKG_LOAD_SRC}",
-#: re.MULTILINE)`` —— ``^`` 行首锚必须留, option_clash_merge 靠它防行内
-#: 装载点误并。
-_PKG_LOAD_HEAD_SRC = (
-    r"(?P<head>\\(?P<cmd>usepackage|RequirePackage)\s*"
-    r"(?P<opts>\[(?P<opts_inner>[^\]]*)\])?\s*)"
-)
-_PKG_LOAD_SRC = _PKG_LOAD_HEAD_SRC + r"\{(?P<names>[^}]*)\}"
-_PKG_LOAD_RE = re.compile(_PKG_LOAD_SRC)
-
-
-def _pkg_list_re(pkg: str) -> re.Pattern[str]:
-    r"""名单内含 ``pkg`` 的装载点变体 —— ``names`` 拆 ``before``/``after`` 双组。
-
-    ``\\b<pkg>\\b`` 界只挡字母续名 (``{physics-tools}`` 这类误中由调用方
-    元素级判定滤掉)。``_PHYS_LOAD_RE`` 与 ``_builtins_common._drop_pkg_loads``
-    内联 pat 的同形单源。
-    """
-    return re.compile(
-        _PKG_LOAD_HEAD_SRC
-        + rf"\{{(?P<before>[^}}]*)\b{re.escape(pkg)}\b(?P<after>[^}}]*)\}}"
-    )
-
-
-def _exact_restore_wrap(cs: str) -> tuple[str, str]:
-    r"""exact-restore @=11 包裹对的裸段 → ``(pre_seg, post_seg)``。
-
-    ``pre_seg`` = ``\\edef\\<cs>{\\catcode 64=\\the\\catcode 64\\relax}\\catcode 64=11\\relax``
-    (``\\edef`` 存 ``\\catcode 64`` 现值 → ``=11`` 读本族 @-cs), ``post_seg``
-    = ``\\<cs>`` (复元恒回原位)。分隔符 (空格/换行) 归属调用方拼 —
-    ``_SHIP_WRAP_*`` 尾空/头空, ``_SIU_PEACE_*`` 换行。
-
-    隐式耦合: 传入 ``cs`` 必须已登记进 ``_AMBIENT_AT_RE`` 的 restore 交替
-    组 (``\\TeXlate(?:At|StyIn)Restore``) —— 否则组作用域走查的 at_letter
-    跟踪把该 cs 当普通字符消费, ``\\catcode 64=11`` 事件配平丢失致状态误记。
-    """
-    return (
-        rf"\edef\{cs}{{\catcode 64=\the\catcode 64\relax}}\catcode 64=11\relax",
-        rf"\{cs}",
-    )
 
 
 def option_clash_merge(
@@ -96,30 +51,35 @@ def option_clash_merge(
         hits = [
             m
             for m in _live_matches(_USE_RE, t)
-            if payload in [x.strip() for x in m.group(5).split(",")]
+            if payload in [x.strip() for x in m["names"].split(",")]
         ]
         if len(hits) < 2:  # noqa: PLR2004 - 2 = 重复加载的最小命中数
             continue
         first = hits[0]
         merged = ",".join(
-            dict.fromkeys(o for h in hits for o in (h.group(4) or "").split(",") if o)
+            dict.fromkeys(
+                o for h in hits for o in (h["opts_inner"] or "").split(",") if o
+            )
         )
         m0 = first.group(0)
-        if first.group(3):
-            first_new = m0.replace(first.group(3), f"[{merged}]", 1)
+        if first["opts"]:
+            first_new = m0.replace(first["opts"], f"[{merged}]", 1)
         else:  # 首个加载无 [opts] → 在花括号前插 [merged]; spike L486
             # `str.replace("", ...)` 会逐位插入, 此处修掉该潜伏 bug
             brace = m0.rfind("{")
             first_new = m0[:brace] + f"[{merged}]" + m0[brace:]
-        # 首处后所有重复装载点全注释 —— 逆序 splice 保住未处理命中的偏移
-        for later in reversed(hits[1:]):
-            t = (
-                t[: later.start()]
-                + "% fixloop: merged into earlier \\usepackage\n% "
-                + later.group(0).replace("\n", "\n% ")
-                + t[later.end() :]
+        # 首处后所有重复装载点全注释 —— 编辑表交 ``_splice`` 排序回放
+        edits = [
+            (
+                later.start(),
+                later.end(),
+                "% fixloop: merged into earlier \\usepackage\n% "
+                + later.group(0).replace("\n", "\n% "),
             )
-        t = t[: first.start()] + first_new + t[first.end() :]
+            for later in hits[1:]
+        ]
+        edits.append((first.start(), first.end(), first_new))
+        t = _splice(t, edits)
         ctx.write(f, t)
         changed += 1
     return (changed > 0), f"merge \\usepackage{{{payload}}} opts in {changed} files"
@@ -145,7 +105,12 @@ def strip_inputenc(
         if t is None or "inputenc" not in t:
             continue
         nt, n_load = _drop_pkg_loads(t, "inputenc")
-        nt, n_enc = _INPUTENCODING_RE.subn("", nt)
+        # 遮盖视图定位 —— 注释/verbatim 内的假装载调用不剥
+        enc_edits = [
+            (m.start(), m.end(), "") for m in _live_matches(_INPUTENCODING_RE, nt)
+        ]
+        nt = _splice(nt, enc_edits)
+        n_enc = len(enc_edits)
         if nt != t:
             ctx.write(f, nt)
             changed.append(f"{f.name}(-{n_load}load,-{n_enc}enc)")
@@ -214,11 +179,12 @@ def _detach_physics_loads(
             hits.append((m, [p for p in pkgs if p and p != "physics"]))
     if not hits:
         return t, 0
-    out = t
-    need = add_input
-    for m, keep in reversed(hits):
-        if need:
-            need = False
+    edits: list[tuple[int, int, str]] = []
+    last = len(hits) - 1
+    for i, (m, keep) in enumerate(hits):
+        # 续载 ``\input`` 挂在文件序末站原位 (``add_input`` 由末站消费——
+        # 旧逆序遍历的首枚迭代位)。
+        if i == last and add_input:
             input_line = (
                 _SHIP_WRAP_PRE + "\\input{physics.sty}" + _SHIP_WRAP_POST
                 if letter_wrap
@@ -239,8 +205,8 @@ def _detach_physics_loads(
                 if t[ls : m.start()].strip()
                 else "% fixloop: stripped " + m.group(0).strip()
             )
-        out = out[: m.start()] + repl + out[m.end() :]
-    return out, len(hits)
+        edits.append((m.start(), m.end(), repl))
+    return _splice(t, edits), len(hits)
 
 
 def _scope_step(vis: str, pos: int) -> tuple[int, str | None]:
@@ -532,7 +498,7 @@ _SIU_PEACE_POST = (
 
 
 def _siunitx_load_sites(t: str) -> list[tuple[int, int, bool]]:
-    r"""siunitx 装载命令顶层 live 站 → ``[(start, end, at_letter)]``。
+    r"""Siunitx 装载命令顶层 live 站 → ``[(start, end, at_letter)]``。
 
     ``_scoped_sites`` 走查 (遮盖视图 + 深度 0 + ambient @ 栈), 宏体/组内
     ``\\usepackage`` 不算 (延迟执行语境, 注入文本会在定义点断 ``\\@`` 签名)。
@@ -550,7 +516,7 @@ def _siunitx_load_sites(t: str) -> list[tuple[int, int, bool]]:
 def siunitx_incompat_peace(
     ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
 ) -> tuple[bool, str]:
-    r"""siunitx v3 不兼容名单 (SIunits/sistyle/units/unitsdef/fancyunits) → 注销续载。
+    r"""Siunitx v3 不兼容名单 (SIunits/sistyle/units/unitsdef/fancyunits) → 注销续载。
 
     实证 (2105.03729, stagerun-loop3): ``\\usepackage[loose]{units}`` 先于
     ``\\usepackage{siunitx}`` —— siunitx ``\\__siunitx_load_check:n`` 对
@@ -571,11 +537,12 @@ def siunitx_incompat_peace(
         sites = _siunitx_load_sites(t)
         if not sites:
             continue
-        out = t
-        for start, end, _at_letter in reversed(sites):
+        edits: list[tuple[int, int, str]] = []
+        for start, end, _at_letter in sites:
             ls = t.rfind("\n", 0, start) + 1
-            out = out[:ls] + _SIU_PEACE_PRE + out[ls:end] + _SIU_PEACE_POST + out[end:]
-        ctx.write(f, out)
+            edits.append((ls, ls, _SIU_PEACE_PRE))
+            edits.append((end, end, _SIU_PEACE_POST))
+        ctx.write(f, _splice(t, edits))
         changed.append(f"{f.name}(x{len(sites)})")
     return (bool(changed)), f"siunitx evasion shim in {', '.join(changed)}"
 
@@ -608,7 +575,7 @@ def shipped_sty_input_wrap(
 def font_sub_shim(
     ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
 ) -> tuple[bool, str]:
-    r"""MF-only 字体包 → Type1 近亲 shim (docs/08:275, ctanfetch-probe §3.5)。
+    r"""MF-only 字体包 → Type1 近亲 shim (docs/08:275, ctanfetch-probe §3.4)。
 
     ``\\usepackage{bbm}`` → ``\\usepackage{dsfont}`` + cs 族改写
     (``\\mathbbm``→``\\mathds`` 等)。物理字体投放对 tectonic xdvipdfmx
@@ -628,21 +595,33 @@ def font_sub_shim(
             if not new_pkg:
                 continue
 
-            # 装载点: {bbm} 精确 / {a,bbm,c} 列表元素 (其余不动)
-            def _sw(m: re.Match[str], _o: str = old_pkg, _n: str = new_pkg) -> str:
-                parts = [x.strip() for x in m["names"].split(",")]
-                if _o not in parts:
-                    return m.group(0)
-                return (
+            # 装载点: {bbm} 精确 / {a,bbm,c} 列表元素 (其余不动); 遮盖视图
+            # 定位 —— 注释/verbatim 内的假装载点与假 cs 调用不改写。
+            edits = [
+                (
+                    m.start(),
+                    m.end(),
                     m["head"]
                     + "{"
-                    + ",".join(_n if p == _o else p for p in parts)
-                    + "}"
+                    + ",".join(
+                        new_pkg if p == old_pkg else p
+                        for p in [x.strip() for x in m["names"].split(",")]
+                    )
+                    + "}",
                 )
-
-            nt = _PKG_LOAD_RE.sub(_sw, nt)
+                for m in _live_matches(_PKG_LOAD_RE, nt)
+                if old_pkg in [x.strip() for x in m["names"].split(",")]
+            ]
+            if edits:
+                nt = _splice(nt, edits)
             for old_cs, new_cs in (spec.get("cs_map") or {}).items():
-                nt = re.sub(rf"\\{old_cs}\b", rf"\\{new_cs}", nt)
+                cs_rx = re.compile(rf"\\{re.escape(old_cs)}\b")
+                edits = [
+                    (m.start(), m.end(), "\\" + new_cs)
+                    for m in _live_matches(cs_rx, nt)
+                ]
+                if edits:
+                    nt = _splice(nt, edits)
         if nt != t:
             ctx.write(f, nt)
             changed.append(f.name)

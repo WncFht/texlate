@@ -35,6 +35,10 @@ from texlate.latex.tables import (
     VERBATIM_ENVS,
 )
 from texlate.repair import log_text_of
+from texlate.textutil.osutil import (  # noqa: F401 -- env 名钉点回引（字面量单源在 osutil 注册表）
+    ENV_ENV_JUDGE,
+    ENV_NO_L2,
+)
 from texlate.validate import l2 as l2_mod
 from texlate.xlat import prompts as xlat_prompts
 
@@ -217,9 +221,8 @@ def err_signatures_text(log_text: str, *, project_root: Path | None = None) -> s
 
 #: env judge 输入截断（长 env 体只喂前 N 字符）
 _ENV_JUDGE_MAX_CHARS = 2000
-#: 环境开关
-ENV_NO_L2 = "TEXLATE_NO_L2"
-ENV_ENV_JUDGE = "TEXLATE_ENV_JUDGE"
+#: 环境开关名（``ENV_NO_L2``/``ENV_ENV_JUDGE``）本体注册在
+#: ``textutil.osutil``——本模块同名回引保 ``repair_l2.ENV_*`` 钉点面
 
 #: 静态环境表（已知语义的 env 不问 judge——体是否可译已由表决定）
 _KNOWN_ENVS = MATH_ENVS | VERBATIM_ENVS | PROTECTED_ENVS | ARG_TRANSPARENT_ENVS
@@ -428,7 +431,11 @@ class L2Attr:
             found_in_span = True
         if not found_in_span:
             return False
-        return any(cs in (c.content or "") for c in sres.chunks)
+        # 块源文本侧同套边界尾——裸子串会把 ``\foo`` 误判成 ``\foobar`` 源携带
+        return any(
+            re.search(re.escape(cs) + tail, c.content or "") is not None
+            for c in sres.chunks
+        )
 
     def attr_error(  # noqa: PLR0911 -- 归因阶梯：豁免→结构→eof→白名单逐档直铺
         self, err: l2_mod.LogError
@@ -561,7 +568,12 @@ async def retranslate_hits(
 
 
 def _resplice_and_diffs(
-    run: TreeRun, work: Path, main_rel: str, fidxs: set[int]
+    run: TreeRun,
+    work: Path,
+    main_rel: str,
+    fidxs: set[int],
+    *,
+    diffs: bool = True,
 ) -> tuple[list[str], dict[str, list[str]]]:
     """受影响文件 reconstruct 重写 + 写入即 ``paired_slot_diff`` 对账（单遍）。
 
@@ -569,11 +581,13 @@ def _resplice_and_diffs(
     （``pipecore.translate_tree_run`` 同形）：主文件的 ``prepare_chinese``
     注入不污染 notes（旧盘后重读会把 demote/inject 改写面记成机位差）。
     ``prepare_chinese`` 重跑补 ctex 在全量写+diff 之后；注入后树级审计
-    由 ``machine_slot_audit``（judge）覆盖。
+    由 ``machine_slot_audit``（judge）覆盖。``diffs=False`` 跳过对账
+    （``_resplice`` 写盘臂——调用方另走 ``_slot_diffs`` 盘后真值口径，
+    在手 diff 算了也丢）。
     """
     main_path = work / main_rel
     rewritten: list[str] = []
-    diffs: dict[str, list[str]] = {}
+    diff_map: dict[str, list[str]] = {}
     touched_main = False
     for fidx in sorted(fidxs):
         f, res = run.scans[fidx]
@@ -581,23 +595,24 @@ def _resplice_and_diffs(
         f.write_text(zh, encoding="utf-8")
         rel = f.relative_to(work).as_posix()
         rewritten.append(rel)
-        if notes := paired_slot_diff(res.vtex, zh, rel):
-            diffs[rel] = notes
+        if diffs and (notes := paired_slot_diff(res.vtex, zh, rel)):
+            diff_map[rel] = notes
         touched_main = touched_main or f == main_path
     if touched_main:
         # 首注已过——同文件重注不会再触发 \documentstyle 拒绝
         with suppress(InjectRejectError):
             prepare_chinese(work, main_rel)
-    return rewritten, diffs
+    return rewritten, diff_map
 
 
 def _resplice(run: TreeRun, work: Path, main_rel: str, fidxs: set[int]) -> list[str]:
     """受影响文件 reconstruct 重写；主文件重跑 ``prepare_chinese`` 补 ctex。
 
     ``_resplice_and_diffs`` 的写盘臂（worker ``_retr_resplice`` 旧签名档——
-    其 ``_slot_diffs`` 盘后读回保留注入后磁盘真值口径）。
+    其 ``_slot_diffs`` 盘后读回保留注入后磁盘真值口径，在手 diff 臂
+    ``diffs=False`` 跳过不算）。
     """
-    return _resplice_and_diffs(run, work, main_rel, fidxs)[0]
+    return _resplice_and_diffs(run, work, main_rel, fidxs, diffs=False)[0]
 
 
 def _slot_diffs(run: TreeRun, work: Path, fidxs: set[int]) -> dict[str, list[str]]:

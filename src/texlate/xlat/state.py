@@ -125,6 +125,13 @@ def load_cache(path: Path) -> dict[str, str]:
         _quarantine(path, "cache %s corrupted (%s) → quarantined as %s", path, e)
         return {}
     if not isinstance(data, dict):
+        # 顶层非 dict 同属损坏——与 StateStore.load 同口径隔离留诊断现场
+        _quarantine(
+            path,
+            "cache %s malformed (top-level %s) → quarantined as %s",
+            path,
+            type(data).__name__,
+        )
         return {}
     # 逐条再校验：只留 str→str 条目
     return {k: v for k, v in data.items() if isinstance(k, str) and isinstance(v, str)}

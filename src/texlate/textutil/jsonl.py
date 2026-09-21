@@ -9,11 +9,11 @@ POSIX 侧 ``flock`` 串行化写临界区——append 账被 ``asyncio.to_thread
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
+    from pathlib import Path
 
 try:
     import fcntl

@@ -3,7 +3,8 @@ r"""docclass/bd 注入缝原语 —— inject.py 出叶（C4 拆分）。
 概念归属：``\documentclass``/``\documentstyle`` 缝位走查与回填原语——
 ``find_docclass_ends``（visible_tex 遮盖视图上的 depth-0 直缝 + 嵌套
 条件构造包容缝 + 宏包声明 proxy 缝）、``_splice_after_seams`` 逐缝回填、
-``_splice_before_document`` ``\begin{document}`` 前 depth-0 锚。
+``_splice_before_document`` ``\begin{document}`` 前 depth-0 锚、
+``_sentinel_wrap`` 多缝/多锚幂等哨兵包裹。
 消费侧 ``inject``（CJK 注入）/``layout``（FLOAT_SIZING/TABLE_FITTING）/
 ``normalize``（XETEX_EARLY_DEFS）/fixloop builtins 单向取用——本叶仅
 依赖 textutil/mask，零 compile 内回引，无环。
@@ -261,13 +262,31 @@ def _splice_after_seams(tex: str, hits: list[tuple[int, int, str]], block: str) 
     return out
 
 
+def _sentinel_wrap(
+    block: str, sentinel: str, *, what: str, why: str = "multi-seam"
+) -> str:
+    r"""多缝/多锚幂等哨兵包裹：活臂执行立 ``\def\<sentinel>{1}`` 哨，余点整块跳过。
+
+    ``\fi`` 配对安全前提：被包块内 ``\if`` 全成对（skip 计数平衡）。
+    docclass 多缝（``_splice_after_seams`` 侧消费方）与多 bd 锚
+    （``_splice_before_document``）共用本助手——``what`` 为注释面
+    标签、``why`` 为幂等语境缀（multi-seam/multi-bd），字节格式单源。
+    """
+    return (
+        f"% texlate: {what} ({why} idempotent)\n"
+        f"\\ifdefined\\{sentinel}\\else\n"
+        f"\\def\\{sentinel}{{1}}%\n" + block + "\\fi\n"
+    )
+
+
 def _splice_before_document(
     tex: str, block: str, *, after: int = 0, sentinel: str = "TeXlateMathFB"
 ) -> str:
     r"""``\begin{document}`` 前逐点 ``\n``+block 回填——preamble 尾锚。
 
-    多 bd 形态（条件双 bd/坏档）逐点注入 + 幂等哨兵（与 docclass 多缝
-    同款：活臂执行立哨，余点整块跳过）；右向左回填免 offset 簿记。
+    多 bd 形态（条件双 bd/坏档）逐点注入 + 幂等哨兵（``_sentinel_wrap``
+    单源包裹，与 docclass 多缝同款：活臂执行立哨，余点整块跳过）；
+    右向左回填免 offset 簿记。
     只认 ``after``（首个 docclass 缝位）之后的 bd——先于缝位的 bd 不是
     preamble 尾，锚在那里会把声明放到 ``\documentclass`` 行之前。
     bd 命中取 ``iter_depth0``：``\def\bd{\begin{document}}``/``\newcommand``
@@ -287,11 +306,7 @@ def _splice_before_document(
     if not positions:
         return tex
     if len(positions) > 1:
-        block = (
-            f"% texlate: {sentinel} (multi-bd idempotent)\n"
-            f"\\ifdefined\\{sentinel}\\else\n"
-            f"\\def\\{sentinel}{{1}}%\n" + block + "\\fi\n"
-        )
+        block = _sentinel_wrap(block, sentinel, what=sentinel, why="multi-bd")
     for pos in reversed(positions):
         tex = tex[:pos] + "\n" + block + tex[pos:]
     return tex

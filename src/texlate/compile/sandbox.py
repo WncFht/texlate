@@ -33,6 +33,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
 from texlate.textutil import env_flag, filtered_env
+from texlate.textutil.osutil import ENV_NO_BWRAP, ENV_TEX_BUNDLE
 
 from .proc import (  # noqa: F401  # 再出口: ``sandbox.X`` 旧路径仍在消费的名
     _SENTRY_KEEP,
@@ -58,7 +59,7 @@ _ENV_PASS_EXACT = {
     "USER",
     "LOGNAME",
     "SOURCE_DATE_EPOCH",
-    "TEXLATE_TEX_BUNDLE",
+    ENV_TEX_BUNDLE,
 }
 
 #: 透传父进程的 env 前缀（TeX/kpathsea 配置面）。
@@ -249,7 +250,7 @@ _BWRAP_ENV_RO: Final = {
     "TEXFONTMAPS",
     "ENCFONTS",
     "XDVIFONTS",
-    "TEXLATE_TEX_BUNDLE",
+    ENV_TEX_BUNDLE,
 }
 #: kpathsea 树变量：rw 侧是用户树；ro 侧是系统树（用户可写的经
 #: ``os.access(W_OK)`` 升 rw——存在用户可写 SYSVAR 的发行版布局）。
@@ -401,7 +402,7 @@ def _bwrap_capable() -> bool:
     ``kernel.unprivileged_userns_clone=0``）即返 False，编译退回 env-only
     而不是批量挂掉。``TEXLATE_NO_BWRAP`` 真值 = 显式关停（坏件逃生门）。
     """
-    if env_flag("TEXLATE_NO_BWRAP", default=False):
+    if env_flag(ENV_NO_BWRAP, default=False):
         return False
     tool = find_tool("bwrap")
     if tool is None:

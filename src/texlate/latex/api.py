@@ -96,7 +96,10 @@ def scan_tex_tree(
     r"""枚举树内 ``.tex`` → 四级分流（e2e/worker 两臂共享的扫描段单源）。
 
     门序：dotfile 跳过 → ``.rtx.tex`` 跳过 → ``.code.tex`` 记 support →
-    解析崩记 fault（不拖垮整树）→ 无散文记 support → 余者入 ``parsed``。
+    解析崩分两叉（解析闸内判定）：``OSError(EINVAL)``（tar 伪装 ``.tex``，
+    tar 闸在 ``parse_file`` 内）静默跳过——不进任何名单、逐字节保留；
+    其余解析崩记 fault（单文件崩不拖垮整树，原文保留）→
+    无散文记 support → 余者入 ``parsed``。
     ``on_file`` 逐文件回调——worker 取消轮询挂点，CLI/bench 臂缺省。
     ``front_matter`` = preamble 前置发射白名单（透传 ``parse_file``）。
     """

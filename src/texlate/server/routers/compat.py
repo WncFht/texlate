@@ -57,6 +57,9 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901 -- 端点面平
             )
         row = deps.store.find_latest_by_arxiv(deps.auth(request).tenant, base, ver)
         if row is None:
+            # 刻意不走统一 ``{"detail","code"}`` 错误面：hjfy 轮询客户端
+            # 按字面 ``{"error":"not_found"}`` 判定 404，tests/
+            # test_server_api_compat.py 以全等断言钉死该协议契约。
             raise _ApiError(404, {"error": "not_found"})
         return row
 

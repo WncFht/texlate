@@ -8,7 +8,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from texlate.server.store._common import CHUNKS_PAGE_MAX, _Repo
+from texlate.server.store._common import CHUNKS_PAGE_MAX, _qmarks, _Repo, _set_clause
+
+#: 预览窄列（``chunks_page``/``chunks_by_seqs`` 共用）——流式预览端点
+#: 消费的固定列集，``src_text``/``translation`` 全文列只走这两路出。
+_PREVIEW_COLS = "seq, chunk_id, kind, status, src_text, translation"
 
 
 class ChunkRepo(_Repo):
@@ -89,16 +93,11 @@ class ChunkRepo(_Repo):
         lim = max(0, min(int(limit), CHUNKS_PAGE_MAX))
         off = max(0, int(offset))
         rows = self.conn.execute(
-            "SELECT seq, chunk_id, kind, status, src_text, translation"
+            f"SELECT {_PREVIEW_COLS}"  # noqa: S608 -- 模块内固定列集常量，值全走绑定
             " FROM chunks WHERE task_id = ? ORDER BY seq LIMIT ? OFFSET ?",
             (task_id, lim, off),
         ).fetchall()
-        total = int(
-            self.conn.execute(
-                "SELECT COUNT(*) AS c FROM chunks WHERE task_id = ?", (task_id,)
-            ).fetchone()["c"]
-        )
-        return [dict(r) for r in rows], total
+        return [dict(r) for r in rows], self._count(task_id)
 
     def chunks_by_seqs(
         self, task_id: str, seqs: list[int]
@@ -108,24 +107,28 @@ class ChunkRepo(_Repo):
         ``(rows, total)``——rows 仅命中 seq，seq 升序；total 仍是全集大小
         （与 ``chunks_page`` 同契约，前端分页计数不换语义）。空 seqs 短路。
         """
-        total = int(
-            self.conn.execute(
-                "SELECT COUNT(*) AS c FROM chunks WHERE task_id = ?", (task_id,)
-            ).fetchone()["c"]
-        )
+        total = self._count(task_id)
         if not seqs:
             return [], total
-        marks = ",".join("?" for _ in seqs)
         rows = self.conn.execute(
-            "SELECT seq, chunk_id, kind, status, src_text, translation"  # noqa: S608 -- 下行 IN 占位符全为参数化生成
-            f" FROM chunks WHERE task_id = ? AND seq IN ({marks}) ORDER BY seq",
+            f"SELECT {_PREVIEW_COLS}"  # noqa: S608 -- 列集为模块常量；IN 占位符全为参数化生成
+            f" FROM chunks WHERE task_id = ? AND seq IN ({_qmarks(seqs)})"
+            " ORDER BY seq",
             (task_id, *seqs),
         ).fetchall()
         return [dict(r) for r in rows], total
 
+    def _count(self, task_id: str) -> int:
+        """任务 chunks 全集行数——``chunks_page``/``chunks_by_seqs`` 的 total 同契约。"""
+        return int(
+            self.conn.execute(
+                "SELECT COUNT(*) AS c FROM chunks WHERE task_id = ?", (task_id,)
+            ).fetchone()["c"]
+        )
+
     def update_chunk(self, task_id: str, chunk_id: str, fields: dict[str, Any]) -> None:
         """单块状态更新（由批量 flush 事务调用，不单独 commit）。"""
-        sets = ", ".join(f"{k} = ?" for k in fields)
+        sets = _set_clause(fields)
         self.conn.execute(
             f"UPDATE chunks SET {sets} WHERE task_id = ? AND chunk_id = ?",  # noqa: S608 -- 键名全为内部白名单
             (*fields.values(), task_id, chunk_id),

@@ -52,26 +52,24 @@ class CacheRepo(_Repo):
         return str(row["translation"])
 
     def cache_put_batch(self, cache_puts: list[tuple[str, str, str, str]]) -> None:
-        """段缓存批量 upsert——不 commit，骑 ``flush_chunk_batch`` 事务。"""
+        """段缓存批量 upsert——不 commit，骑 ``flush_chunk_batch`` 事务。
+
+        ``ON CONFLICT DO UPDATE`` 只覆写译件四列——``hit_count``/
+        ``created_at`` 冲突臂不动即保留（与 ``put_file``/``record_usage``
+        同式 upsert，免 ``INSERT OR REPLACE`` 的相关子查询探测 + 行删插）。
+        """
         now = time.time()
         for key, translation, model, lang in cache_puts:
             self.conn.execute(
-                "INSERT OR REPLACE INTO translation_cache"
+                "INSERT INTO translation_cache"
                 " (key, translation, model, target_lang, hit_count,"
-                "  created_at, last_hit_at) VALUES"
-                " (?,?,?,?, COALESCE((SELECT hit_count FROM translation_cache"
-                "  WHERE key = ?), 0), COALESCE((SELECT created_at FROM"
-                "  translation_cache WHERE key = ?), ?), ?)",
-                (
-                    key,
-                    translation,
-                    model,
-                    lang,
-                    key,
-                    key,
-                    now,
-                    now,
-                ),
+                "  created_at, last_hit_at) VALUES (?,?,?,?,0,?,?)"
+                " ON CONFLICT(key) DO UPDATE SET"
+                " translation = excluded.translation,"
+                " model = excluded.model,"
+                " target_lang = excluded.target_lang,"
+                " last_hit_at = excluded.last_hit_at",
+                (key, translation, model, lang, now, now),
             )
 
     def _flush_cache_hits(self) -> None:

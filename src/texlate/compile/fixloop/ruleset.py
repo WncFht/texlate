@@ -73,18 +73,31 @@ def _rx_problems(pat: Any, label: str) -> list[str]:  # noqa: ANN401  # 同上
     return []
 
 
-def _when_item_problems(item: dict[str, Any], label: str, tag: str) -> list[str]:
+def _when_item_problems(
+    item: dict[str, Any],
+    label: str,
+    tag: str,
+    cats: frozenset[str] | None = None,
+) -> list[str]:
     """单个 when 候选 (顶层 map 或 ``any[]`` 子项) 的值形校验。
 
     与 ``_when_ok`` 逐键消费形对齐: ``category`` 仅 str——评估侧
     ``c["category"] != cat`` 是标量比对, list 形永不等即静默
     fail-dead, OR 语义走 ``when.any`` 子项; ``payload_required``
     真值 (bool), ``main_head_contains`` ``in`` 子串 (str——非 str
-    触发 TypeError, _when_ok 在 try 外, 装载期拦)。
+    触发 TypeError, _when_ok 在 try 外, 装载期拦)。``cats`` 非空时
+    校验 ``category`` 值域 (可产出类集合, ``_producible_categories``)
+    ——域外值永不命中即死规则。
     """
     probs: list[str] = []
-    if "category" in item and not isinstance(item["category"], str):
-        probs.append(f"rule {tag}: {label}.category 必须是 str")
+    if "category" in item:
+        if not isinstance(item["category"], str):
+            probs.append(f"rule {tag}: {label}.category 必须是 str")
+        elif cats is not None and item["category"] not in cats:
+            probs.append(
+                f"rule {tag}: {label}.category 未知类别 {item['category']!r} "
+                "(taxonomy id/subclassify.into/引擎内建类之外, 永不命中)"
+            )
     if "payload_required" in item and not isinstance(item["payload_required"], bool):
         probs.append(f"rule {tag}: {label}.payload_required 必须是 bool")
     if "main_head_contains" in item and not isinstance(item["main_head_contains"], str):
@@ -92,8 +105,16 @@ def _when_item_problems(item: dict[str, Any], label: str, tag: str) -> list[str]
     return probs
 
 
-def _when_problems(when: Any, tag: str) -> list[str]:  # noqa: ANN401  # yaml 值天然 Any
-    """``when`` 段校验: 键白名单 + 值形 (typo 键在旧 _when_ok 下是 fail-open 面)。"""
+def _when_problems(
+    when: Any,  # noqa: ANN401  # yaml 值天然 Any
+    tag: str,
+    cats: frozenset[str] | None = None,
+) -> list[str]:
+    """``when`` 段校验: 键白名单 + 值形 (typo 键在旧 _when_ok 下是 fail-open 面)。
+
+    ``cats`` = ``_producible_categories`` 结果; ``None`` 时跳过
+    ``category`` 值域检查 (兼容不带 taxonomy 语境的直接调用)。
+    """
     if when is None:
         return []
     if not isinstance(when, dict):
@@ -102,7 +123,7 @@ def _when_problems(when: Any, tag: str) -> list[str]:  # noqa: ANN401  # yaml �
     if "always" in when and not isinstance(when["always"], bool):
         probs.append(f"rule {tag}: when.always 必须是 bool")
     # 顶层 map 自身即隐式候选 (``when.get("any") or [when]``)——同过值形。
-    probs.extend(_when_item_problems(when, "when", tag))
+    probs.extend(_when_item_problems(when, "when", tag, cats))
     anys = when.get("any")
     if anys is not None:
         if not isinstance(anys, list):
@@ -117,7 +138,7 @@ def _when_problems(when: Any, tag: str) -> list[str]:  # noqa: ANN401  # yaml �
                         for k in c
                         if k not in _WHEN_ITEM_KEYS
                     )
-                    probs.extend(_when_item_problems(c, f"when.any[{j}]", tag))
+                    probs.extend(_when_item_problems(c, f"when.any[{j}]", tag, cats))
     return probs
 
 
@@ -142,7 +163,13 @@ def _cond_value_problems(key: str, val: Any, tag: str) -> list[str]:  # noqa: AN
     if key == "engine_in":
         if not _str_list(val):
             return [f"rule {tag}: condition.engine_in 必须是 list[str]"]
-        return []
+        # 值域白名单——``ctx.engine_name not in v`` 下未知名是恒假死条件
+        # (与 engines.<name> 未知名同型死 spec)。
+        return [
+            f"rule {tag}: condition.engine_in 未知引擎 {e!r}"
+            for e in val
+            if e not in _ENGINE_NAMES
+        ]
     if key == "fileset":
         if not isinstance(val, dict):
             return [f"rule {tag}: condition.fileset 必须是 map"]
@@ -155,6 +182,16 @@ def _cond_value_problems(key: str, val: Any, tag: str) -> list[str]:  # noqa: AN
             f"rule {tag}: condition.fileset.{k} 必须是 list[str]"
             for k, v in val.items()
             if k in _FILESET_KEYS and not _str_list(v)
+        )
+        # 三键消费侧全与 ``Path.suffix`` 比对 (``e in {p.suffix}``/
+        # ``p.suffix.lower() in pool``)——suffix 恒带 ``.`` 前缀, 缺
+        # 点的值是永不命中的死配置 (``has_ext: [ins]`` 型 typo)。
+        probs.extend(
+            f"rule {tag}: condition.fileset.{k} 扩展名须带 '.' 前缀: {e!r}"
+            for k, v in val.items()
+            if k in _FILESET_KEYS and isinstance(v, list)
+            for e in v
+            if isinstance(e, str) and not e.startswith(".")
         )
         return probs
     if key == "package_version_ge":
@@ -199,7 +236,24 @@ def _scan_pattern_problems(sp: Any, label: str, tag: str) -> list[str]:  # noqa:
     if "regex" not in sp:
         probs.append(f"rule {tag}: {label} 缺 regex")
     else:
-        probs.extend(_rx_problems(sp["regex"], f"rule {tag}: {label}.regex"))
+        pat = sp["regex"]
+        if not isinstance(pat, str):
+            probs.append(f"rule {tag}: {label}.regex 必须是 str")
+        else:
+            try:
+                rx = regex.compile(pat)
+            except regex.error as e:
+                probs.append(f"rule {tag}: {label}.regex 正则不可编译: {e}")
+            else:
+                # ``_scan_names`` 无条件 ``m.group(1)``——无捕获组的 pattern
+                # 首命中即 IndexError (per-rule 兜底记 'rule crashed')。
+                # 注: 可选组不参与时 ``m.group(1)=None`` → ``nm.strip()``
+                # AttributeError 属同族崩面, 但非静态可查。
+                if rx.groups < 1:
+                    probs.append(
+                        f"rule {tag}: {label}.regex 需含捕获组 "
+                        "(_scan_names 无条件取 m.group(1))"
+                    )
     probs.extend(
         f"rule {tag}: {label}.{k} 必须是 str"
         for k in ("split", "suffix")
@@ -275,7 +329,9 @@ def _action_params_problems(kind: Any, params: dict[str, Any], tag: str) -> list
     逐函数定义 (各 ``_builtins_*`` 叶自查), 此处不限键名不检值。
     """
     probs: list[str] = []
-    vocab = _ACTION_PARAM_KEYS.get(kind)
+    # kind 非 str (如 list) 不可哈希——``.get`` 直接 TypeError; 该形已由
+    # rule 级 ``action.kind 非法`` 条目记名, 此处按未知 kind 放行跳过。
+    vocab = _ACTION_PARAM_KEYS.get(kind) if isinstance(kind, str) else None
     if vocab is not None:
         probs.extend(
             f"rule {tag}: params 未知键 {k!r} (kind={kind})"
@@ -312,6 +368,17 @@ def _action_params_problems(kind: Any, params: dict[str, Any], tag: str) -> list
             f"rule {tag}: params.{k} 必须是 list[str]"
             for k in ("try_exts", "font_related_exts")
             if k in params and not _str_list(params[k])
+        )
+        # try_exts 逐元素直拼 ``params["file"]`` 成候选名 (actions.py
+        # ``file + e``)——无 ``.`` 的值拼出无扩展名文件, 属 ``[ldf]`` 型
+        # typo 死配置; ``b.ldf`` 复合后缀 ({lang}b.ldf) 是出厂合法形,
+        # 故只查含点不查前缀。font_related_exts 消费面是 ``str.endswith``
+        # 且出厂值全为裸名 ([tfm, pfb, vf, fd, map, enc])——点前缀检查
+        # 会拦死出厂规则集, 刻意不查。
+        probs.extend(
+            f"rule {tag}: params.try_exts 扩展名须含 '.': {e!r}"
+            for e in params.get("try_exts") or []
+            if isinstance(e, str) and "." not in e
         )
         fa = params.get("file_aliases")
         if fa is not None:
@@ -371,9 +438,10 @@ def _dup_id_problems(rules: list[Any]) -> list[str]:  # yaml 值天然 Any
 
     rules/ 目录装载经 ``_yamlish._merge_into`` list 段 extend 不去重——两片
     同 ``id`` 曾静默拼成双规则 (``applied`` 键 ``{id}:{payload}`` 亦互相
-    遮蔽)。``(phase, order)`` 撞位不拦: 同序位合法——出厂四条 loop 规则
-    同挂 ``order: 9`` (rungen_stub/nonctan_input_stub/docstrip_generate/
-    svg_prepare, 触发面互斥、稳定序按分片文件名序)。
+    遮蔽)。``(phase, order)`` 撞位不拦: 同序位合法——出厂 order:9 族七条
+    loop 规则同挂 (fileset_relocate/rungen_stub/nonctan_input_stub/
+    docstrip_generate/tikz_library_install/pgf_library_install/svg_prepare,
+    触发面互斥、稳定序按分片文件名序)。
     """
     probs: list[str] = []
     seen: dict[str, int] = {}  # id → 合并表首见序位
@@ -388,6 +456,103 @@ def _dup_id_problems(rules: list[Any]) -> list[str]:  # yaml 值天然 Any
         else:
             seen[rid] = i
     return probs
+
+
+def _re_compilable(pat: Any, label: str) -> list[str]:  # noqa: ANN401  # yaml 值天然 Any
+    """Stdlib ``re`` 可编译校验 (``Taxonomy``/warnings 消费面引擎)。
+
+    ``logparse.py`` 用 stdlib ``re``, 与 ``_rx_problems`` 的 ``regex``
+    引擎不同源——同一 pattern 两引擎下可编译性可能分歧。
+    """
+    if not isinstance(pat, str):
+        return [f"{label} 必须是 str"]
+    try:
+        re.compile(pat)
+    except re.error as e:
+        return [f"{label} 正则不可编译: {e}"]
+    return []
+
+
+def _taxonomy_problems(tax: Any) -> list[str]:  # noqa: ANN401, C901, PLR0912  # yaml 值天然 Any; 校验项逐条即分支
+    """``taxonomy:`` 段条目校验——``Taxonomy.__init__``/``classify*`` 实读面。
+
+    ``scope`` 缺席默认 ``head``; head/tail 条目装载期即
+    ``re.compile(e["pattern"])`` (stdlib re + IGNORECASE), warnings
+    条目只消费 ``id``/``warn_id`` (``pattern`` 在其上是死键);
+    ``guard``/``payload_group``/``subclassify``/``preempts`` 为可选
+    消费键。异形条目原逃逸为 __init__/逐条分类的裸异常。
+    """
+    probs: list[str] = []
+    for i, e in enumerate(tax):
+        tag = f"taxonomy[{i}]"
+        if not isinstance(e, dict):
+            probs.append(f"{tag} 必须是 map")
+            continue
+        if not isinstance(e.get("id"), str):
+            probs.append(f"{tag}: id 缺或必须是 str")
+        scope = e.get("scope", "head")
+        if not isinstance(scope, str) or scope not in _TAXONOMY_SCOPES:
+            probs.append(f"{tag}: scope 非法 {scope!r} (缺席默认 head)")
+            continue
+        if scope == "warnings":
+            if not isinstance(e.get("warn_id"), str):
+                probs.append(f"{tag}: warnings scope 需 str warn_id")
+            if "pattern" in e:
+                probs.append(f"{tag}: warnings scope 不消费 pattern (死键)")
+        else:
+            probs.extend(_re_compilable(e.get("pattern"), f"{tag}: pattern"))
+        if "guard" in e:
+            probs.extend(_re_compilable(e["guard"], f"{tag}: guard"))
+        pg = e.get("payload_group")
+        if pg is not None and not isinstance(pg, int):
+            probs.append(f"{tag}: payload_group 必须是 int (显式 null = 无 payload)")
+        sub = e.get("subclassify")
+        if sub is not None:
+            if not isinstance(sub, dict):
+                probs.append(f"{tag}: subclassify 必须是 map")
+            else:
+                probs.extend(
+                    _re_compilable(sub.get("pattern"), f"{tag}: subclassify.pattern")
+                )
+                if not isinstance(sub.get("into"), str):
+                    probs.append(f"{tag}: subclassify.into 必须是 str")
+                spg = sub.get("payload_group")
+                if spg is not None and not isinstance(spg, int):
+                    probs.append(f"{tag}: subclassify.payload_group 必须是 int")
+        pre = e.get("preempts")
+        if pre is not None and not _str_list(pre):
+            probs.append(f"{tag}: preempts 必须是 list[str]")
+    return probs
+
+
+def _warnings_problems(warn: Any) -> list[str]:  # noqa: ANN401  # yaml 值天然 Any
+    """``warnings:`` 段条目校验——``logparse`` 无条件 ``w["id"]``/``w["pattern"]``。"""
+    probs: list[str] = []
+    for i, w in enumerate(warn):
+        tag = f"warnings[{i}]"
+        if not isinstance(w, dict):
+            probs.append(f"{tag} 必须是 map")
+            continue
+        if not isinstance(w.get("id"), str):
+            probs.append(f"{tag}: id 缺或必须是 str")
+        probs.extend(_re_compilable(w.get("pattern"), f"{tag}: pattern"))
+    return probs
+
+
+def _producible_categories(data: dict[str, Any]) -> frozenset[str]:
+    """``when.category`` 可命中域 = taxonomy ``id`` ∪ ``subclassify.into`` ∪ 引擎内建类。"""
+    cats = set(_BUILTIN_CATS)
+    tax = data.get("taxonomy")
+    if isinstance(tax, list):
+        for e in tax:
+            if not isinstance(e, dict):
+                continue
+            if isinstance(e.get("id"), str):
+                cats.add(e["id"])
+            sub = e.get("subclassify")
+            if isinstance(sub, dict) and isinstance(sub.get("into"), str):
+                cats.add(sub["into"])
+    return frozenset(cats)
 
 
 # ════════════════════════════════════════════════════════════════
@@ -463,6 +628,22 @@ _ENGINE_NAMES = frozenset({"xelatex", "tectonic"})
 #: ``_match_apply``/``_gate_eval``/``_precheck_phase`` 实读, via/note
 #: 是文档性注解。
 _ENGINE_SPEC_KEYS = frozenset({"mode", "degrade", "fallback", "via", "note"})
+#: ``engines.<name>.degrade`` 合法值——``skip`` 由 ``_match_apply``/``engine``
+#: 实读; ``ctan_fetch``/``ctan_fetch_font``/``partial`` 是降级通路文档值。
+#: typo 值 (``skpi``) 静默退不脱即 fail-open, 装载期拦。
+_DEGRADE_VALUES = frozenset({"skip", "ctan_fetch", "ctan_fetch_font", "partial"})
+#: ``engines.<name>.fallback`` 合法值——``escalate_llm``/``advisory`` 由
+#: ``_match_apply`` 实读; ``ctan_fetch`` 是降级臂的引擎侧兜底文档值
+#: (30-route static_precheck 出厂用例)。
+_FALLBACK_VALUES = frozenset({"escalate_llm", "advisory", "ctan_fetch"})
+#: taxonomy 条目 ``scope`` 合法值——缺席默认 ``head`` (``Taxonomy.__init__``
+#: ``e.get("scope", "head")`` 同口径); 未收名是静默死条目 (不进任一评估表)。
+_TAXONOMY_SCOPES = frozenset({"head", "tail", "warnings"})
+#: 引擎内建类别——``Taxonomy.classify``/``_round_cat`` 不经 taxonomy 段
+#: 直出的终态类 (timed_out/killed_signal/驱动 fatal/兜底)。
+_BUILTIN_CATS = frozenset(
+    {"timeout", "runaway_output", "driver_fatal", "killed", "other", "clean"}
+)
 #: ``when:`` 段合法键 (顶层) / ``any:`` 子项键 —— 键名 typo (``categry:``)
 #: 旧行为是对全 category 点火 (fail-open), 白名单 load 期拦 + _when_ok
 #: 对无可识别键的候选 fail-closed, 与 _cond_ok 未知键语义对称。
@@ -607,9 +788,11 @@ class Ruleset:
                     f"规则库 {where} 校验失败:\n" + "\n".join(file_probs)
                 )
             keep: list[dict[str, Any]] = []
-            for i, r in enumerate(data.get("rules") or []):
+            cats = _producible_categories(data)
+            rules = data.get("rules")
+            for i, r in enumerate(rules if isinstance(rules, list) else []):
                 tag = r.get("id", f"#{i}") if isinstance(r, dict) else f"#{i}"
-                probs = self._rule_problems(r, tag)
+                probs = self._rule_problems(r, tag, cats)
                 if probs:
                     self.skipped_rules.extend(probs)
                 else:
@@ -637,18 +820,68 @@ class Ruleset:
         }
 
     @staticmethod
-    def _file_problems(data: dict[str, Any]) -> list[str]:
-        """文件级校验项（version/顶层结构/dup id）——tolerant 也照常 raise。"""
+    def _file_problems(data: dict[str, Any]) -> list[str]:  # noqa: C901, PLR0912  # 顶层段形逐段即分支
+        """文件级校验项（version/顶层段形/meta.loop/段条目/dup id）——tolerant 也照常 raise。
+
+        顶层段异形原逃逸为裸异常 (``rules: 5`` 崩 ``_dup_id_problems``
+        自身、``meta: [1]`` 崩 ``__init__``、taxonomy/warnings 异形条目
+        崩 ``Taxonomy.__init__``/逐次 ``re.search``)——段形先拦再进
+        条目级校验, ``data.get(...) or {}`` 的 falsy 容错口径保持
+        (``None`` 视作缺席不拦)。
+        """
         if not isinstance(data, dict):
             return ["顶层必须是 map"]
         probs: list[str] = []
         if data.get("version") != 1:
             probs.append(f"version 应为 1, 得 {data.get('version')!r}")
-        probs.extend(_dup_id_problems(data.get("rules") or []))
+        for k in ("rules", "taxonomy", "warnings"):
+            v = data.get(k)
+            if v is not None and not isinstance(v, list):
+                probs.append(f"{k} 必须是 list")
+        for k in ("meta", "filemap", "capabilities"):
+            v = data.get(k)
+            if v is not None and not isinstance(v, dict):
+                probs.append(f"{k} 必须是 map")
+        meta = data.get("meta")
+        loop = meta.get("loop") if isinstance(meta, dict) else None
+        if loop is not None and not isinstance(loop, dict):
+            probs.append("meta.loop 必须是 map")
+        elif isinstance(loop, dict):
+            # engine.py:1749-1757 的 int()/float() 实读键——不可转即
+            # 运行时 ValueError, 装载期拦。
+            for k in (
+                "max_rounds",
+                "clean_err_max",
+                "compile_passes",
+                "stuck_sig_repeat",
+            ):
+                if k in loop:
+                    try:
+                        int(loop[k])
+                    except (TypeError, ValueError):
+                        probs.append(f"meta.loop.{k} 必须可转 int")
+            if "timeout_sec" in loop:
+                try:
+                    float(loop["timeout_sec"])
+                except (TypeError, ValueError):
+                    probs.append("meta.loop.timeout_sec 必须可转 float")
+        tax = data.get("taxonomy")
+        if isinstance(tax, list):
+            probs.extend(_taxonomy_problems(tax))
+        warn = data.get("warnings")
+        if isinstance(warn, list):
+            probs.extend(_warnings_problems(warn))
+        rules = data.get("rules")
+        if isinstance(rules, list):
+            probs.extend(_dup_id_problems(rules))
         return probs
 
     @staticmethod
-    def _rule_problems(r: Any, tag: str) -> list[str]:  # noqa: ANN401, C901, PLR0912, PLR0915  # yaml 值天然 Any; 校验项逐条即分支
+    def _rule_problems(  # noqa: C901, PLR0912, PLR0915  # 校验项逐条即分支
+        r: Any,  # noqa: ANN401  # yaml 值天然 Any
+        tag: str,
+        cats: frozenset[str] | None = None,
+    ) -> list[str]:
         """单条规则的校验项——tolerant 模式下命中即整条弃用。
 
         spec 子语言 schema: ``when``/``condition``/``action``(含 params)/
@@ -675,12 +908,11 @@ class Ruleset:
                 float(r["order"])
             except (TypeError, ValueError):
                 probs.append(f"rule {tag}: order 必须可转 float")
-        probs.extend(_when_problems(r.get("when"), tag))
+        probs.extend(_when_problems(r.get("when"), tag, cats))
         probs.extend(_cond_problems(r.get("condition"), tag))
         action = r.get("action")
         if action is not None and not isinstance(action, dict):
             probs.append(f"rule {tag}: action 必须是 map")
-            action = None
         action = action if isinstance(action, dict) else {}
         probs.extend(
             f"rule {tag}: action 未知键 {k!r}" for k in action if k not in _ACTION_KEYS
@@ -728,6 +960,20 @@ class Ruleset:
             mode = spec.get("mode")
             if not isinstance(mode, str) or mode not in _MODES:
                 probs.append(f"rule {tag}: engines.{eng_name}.mode 非法 {mode!r}")
+            # degrade/fallback 值域白名单——typo 值静默失效属 fail-open
+            # (``skpi`` 不脱 skip、``advisroy`` 不灭 advisory 记账)。
+            for dk, vocab in (
+                ("degrade", _DEGRADE_VALUES),
+                ("fallback", _FALLBACK_VALUES),
+            ):
+                dv = spec.get(dk)
+                if dv is not None and (not isinstance(dv, str) or dv not in vocab):
+                    probs.append(f"rule {tag}: engines.{eng_name}.{dk} 非法 {dv!r}")
+            if "degrade" in spec and mode != "degrade":
+                probs.append(
+                    f"rule {tag}: engines.{eng_name}.degrade 挂在 "
+                    f"mode={mode!r} 下 (死键——仅 mode: degrade 消费)"
+                )
         return probs
 
     @staticmethod
@@ -735,9 +981,11 @@ class Ruleset:
         probs = Ruleset._file_problems(data)
         if not isinstance(data, dict):
             return probs
-        for i, r in enumerate(data.get("rules") or []):
+        cats = _producible_categories(data)
+        rules = data.get("rules")
+        for i, r in enumerate(rules if isinstance(rules, list) else []):
             tag = r.get("id", f"#{i}") if isinstance(r, dict) else f"#{i}"
-            probs.extend(Ruleset._rule_problems(r, tag))
+            probs.extend(Ruleset._rule_problems(r, tag, cats))
         return probs
 
     @classmethod

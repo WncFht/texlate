@@ -7,23 +7,25 @@
 from __future__ import annotations
 
 import contextlib
+import os
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
-    from pathlib import Path
     from typing import Final
 
     from texlate.compile.loginfo import LogInfo
 
 import texlate.compile.engine as _eng
-from texlate.compile.deps import compiled_dependencies
 from texlate.compile.loginfo import parse_log
 from texlate.compile.sandbox import _apply_sandbox, _rc_to_signal, child_env
 from texlate.texlog import normalize_stderr_errors
 from texlate.textutil import env_opt, safe_is_file, safe_resolve
+from texlate.textutil.osutil import ENV_TEX_BUNDLE
 
-from ._base import DEFAULT_TIMEOUT, CompRes, _checked_main, _collect_compile_outputs
+from ._base import DEFAULT_TIMEOUT, CompRes, _collect_compile_outputs
+from ._xelatex import _harvest, _prepare_main
 
 _TECTONIC_ATTEMPTS = 2  # 冷 bundle 首拉超时后重试（缓存热身）
 
@@ -75,11 +77,20 @@ def _mirror_source_dirs(cwd: Path, out: Path) -> None:
     子目录时 aux 写 ``<out>/<sub>/*.aux`` 直接 os error 2（modec-tec
     实证 2308.00125）。
     """
-    for d in sorted(cwd.rglob("*")):
-        if d.is_dir() and not d.is_relative_to(out):
-            rel = d.relative_to(cwd)
-            if not any(part.startswith(".") for part in rel.parts):
-                (out / rel).mkdir(parents=True, exist_ok=True)
+    # os.walk(followlinks=False) 而非 rglob——rglob 跟随目录符号链且无环
+    # 检测，工程内 ``sub -> .`` 软链环会炸 RecursionError 并让 sorted()
+    # 物化无穷生成器（normalize.py ``_iter_files`` 同款教训）；walk 的
+    # dirnames 原地剪枝同步实现 dot 目录不镜像 + ``out`` 子树不递归，
+    # 软链目录只镜像自身（真目录落位供 aux 写入）不下钻。
+    for dirpath, dirnames, _files in os.walk(cwd, followlinks=False):
+        base = Path(dirpath)
+        dirnames[:] = [
+            d
+            for d in dirnames
+            if not d.startswith(".") and not (base / d).is_relative_to(out)
+        ]
+        for d in sorted(dirnames):
+            (out / (base / d).relative_to(cwd)).mkdir(parents=True, exist_ok=True)
 
 
 # ================================================================ tectonic
@@ -107,7 +118,7 @@ class TectonicEngine:
         self.binary = binary
         # 默认走 pin（docs/spec/compile.md）；env TEXLATE_TEX_BUNDLE 覆盖，
         # 置空串 = 引擎自带默认 bundle。
-        env_bundle = env_opt("TEXLATE_TEX_BUNDLE")
+        env_bundle = env_opt(ENV_TEX_BUNDLE)
         self.bundle = (
             bundle
             if bundle is not None
@@ -185,11 +196,13 @@ class TectonicEngine:
         main_name: str,
         *,
         best_effort: bool = False,
-        flags: Iterable[str] | None = None,
+        flag_toks: Iterable[str] | None = None,
     ) -> list[str]:
         """构造 tectonic V2 命令行（docs/spec/compile.md + continue-on-errors 语义对齐）。
 
-        ``flags`` 经 ``_map_flags`` 过滤——只放受支持子集（见该方法 docstring）。
+        ``flag_toks`` 是 ``_map_flags`` 已放行的 argv token——compile() 喂
+        过滤产物（``_map_flags`` 记账单点在 compile 头段，此处不复切；
+        xelatex ``_cmd`` 同款预切签名）。
         """
         cmd = [
             binary,
@@ -211,12 +224,11 @@ class TectonicEngine:
             cmd += [self._bundle_flag(binary), self.bundle]
         for hide in self.hide_paths:
             cmd += ["--hide", str(hide)]
-        toks, _dropped, _applied = self._map_flags(flags)
-        cmd += toks
+        cmd += list(flag_toks or ())
         cmd.append(main_name)
         return cmd
 
-    def compile(  # noqa: PLR0913, PLR0915 — 签名即 docs/spec/compile.md 规格面
+    def compile(  # noqa: PLR0913 — 签名即 docs/spec/compile.md 规格面
         self,
         wdir: Path,
         main: str,
@@ -234,26 +246,24 @@ class TectonicEngine:
         del passes  # tectonic 自动决定 pass 数
         res = CompRes(engine=self.name)
         flist = list(flags or ())
-        _toks, dropped, applied = self._map_flags(flist)
+        toks, dropped, applied = self._map_flags(flist)
         res.flags_dropped = dropped
         res.flags_applied = applied
         binary = self.detect()
         if binary is None:
             res.stdout_tail = "tectonic not found"
             return res
-        main_path = _checked_main(wdir, main)
-        cwd = main_path.parent
-        stem = main_path.stem
-        out = (outdir or cwd / "_tect_out").resolve()
-        out.mkdir(parents=True, exist_ok=True)
-        _mirror_source_dirs(cwd, out)
-        pdf, log = out / f"{stem}.pdf", out / f"{stem}.log"
-        deps_mk = out / "dependencies.mk"
-        for stale in (pdf, log, deps_mk):
-            stale.unlink(missing_ok=True)
+        main_path, cwd, _stem, out, pdf, log = _prepare_main(
+            wdir,
+            main,
+            outdir,
+            default_subdir="_tect_out",
+            extra_stale=("dependencies.mk",),
+        )
+        _mirror_source_dirs(cwd, out)  # 引擎私有步——aux 落子目录需预建
         env = child_env(env_extra)
         cmd = self._cmd(
-            binary, out, main_path.name, best_effort=best_effort, flags=flist
+            binary, out, main_path.name, best_effort=best_effort, flag_toks=toks
         )
         # tectonic 冷拉 bundle/包走进程内 HTTPS——不能像 xelatex 那样断网。
         cmd, res.sandbox_mode = _apply_sandbox(
@@ -297,13 +307,7 @@ class TectonicEngine:
                     normalize_stderr_errors(res.stdout_tail), project_root=wdir
                 )
         res.log = info
-        res.log_text = log_text
-        res.log_path = log if log.exists() else None
-        res.pdf = pdf if pdf.exists() else None
-        res.pdf_bytes = pdf.stat().st_size if pdf.exists() else 0
-        res.ok = not res.timed_out and res.rc is not None and res.rc >= 0
-        res.workdir = wdir
-        res.deps = compiled_dependencies(wdir, main, out, self.name)
+        _harvest(res, wdir, main, out, pdf, log, log_text)
         return res
 
     def probe_file(self, fname: str, *, cwd: Path | None = None) -> str | None:
@@ -340,14 +344,15 @@ class TectonicEngine:
         return False
 
     def parse_log(self, res: CompRes) -> LogInfo:
-        """读 res.log_path；缺席/空文件时退 stdout_tail + stderr 签名扫描。
+        """``res.log_text`` 优先、``.log_path`` 读盘兜底；皆空退 stdout_tail。
 
-        ``res.log_text`` 不可作 ``text`` 源——它已合并 stdout_tail，而下方
-        ``error:``/``fatal:`` 归一扫描门钉在「.log 文件侧为空」上（合并值
-        会把空 .log + 非空 stdout 的形态错挡在门外）。
+        ``log_text`` 是 compile 捕获的 .log 原文（未合并 stdout_tail）——
+        fixloop 快照/restore、workdir 迁移或测试 double 下 log_path 可缺席/
+        不可读，此时 log_text 是唯一真源（repair.log_text_of 同口径）。
+        下方 ``error:``/``fatal:`` 归一扫描门钉在「.log 侧文本为空」上。
         """
-        text = ""
-        if res.log_path is not None:
+        text = res.log_text or ""
+        if not text and res.log_path is not None:
             with contextlib.suppress(OSError):
                 text = res.log_path.read_text(encoding="utf-8", errors="replace")
         info = parse_log(text or res.stdout_tail, project_root=res.workdir)

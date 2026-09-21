@@ -31,7 +31,7 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 端
         # files 表一次取——file_record 每次全量 SELECT，本端点要查 4 个
         # kind（dual_json/zh_html/md_zip/zh_pdf），串发即 mini-N+1
         files = deps.store.files(task_id)
-        dual_path = deps.root / "tasks" / task_id / "dual.json"
+        dual_path = deps.task_dir(task_id) / "dual.json"
         if files.get("dual_json") is None:
             # 以登记行为准——磁盘孤儿件（登记前崩溃/失效清理残留）不服务
             return _json_error(404, "dual.json 未产出", "not_found")
@@ -65,7 +65,7 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 端
             if isinstance(docs.get(side), dict):
                 docs[side]["url"] = f"/api/files/{task_id}/{kind}"
         reading: dict[str, Any] = {}
-        rpath = deps.root / "tasks" / task_id / "reading.json"
+        rpath = deps.task_dir(task_id) / "reading.json"
         if rpath.is_file():
             try:
                 raw_reading = json.loads(rpath.read_text(encoding="utf-8"))
@@ -102,10 +102,12 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 端
         保存」抹掉对侧位置（``positions`` 再按侧键深合并，en/zh 互补）。
         """
         deps.get_task(request, task_id)
-        files = deps.store.files(task_id)  # 一次取——串发 file_record 是 mini-N+1
         body = await _read_body(request)
         want = str(body.get("document_version") or "")
         if want:
+            # files 一次取——串发 file_record 是 mini-N+1；仅版本校验臂需要，
+            # 不带 ``document_version`` 的 PUT 不付这趟 SELECT
+            files = deps.store.files(task_id)
             # arxiv_html 无 zh_pdf——回落 zh_html（dom 路也吃防旧版位置回灌）
             rec = files.get("zh_pdf") or files.get("zh_html")
             cur = str((rec or {}).get("sha256") or "")
@@ -118,7 +120,7 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 端
         }
 
         def _persist() -> None:
-            tdir = deps.root / "tasks" / task_id
+            tdir = deps.task_dir(task_id)
             tdir.mkdir(parents=True, exist_ok=True)
             path = tdir / "reading.json"
             existing: dict[str, Any] = {}

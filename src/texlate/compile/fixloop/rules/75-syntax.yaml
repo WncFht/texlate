@@ -1194,7 +1194,7 @@ rules:
       kind: run_tool
       params:
         argv:
-          - python3
+          - "{python}"
           - -c
           - |
             from pathlib import Path
@@ -1205,12 +1205,45 @@ rules:
             except Exception:
                 mask_tex = scan_ifs = None
 
+            if scan_ifs is None:
+                # PATH python3 ≠ texlate 宿主解释器的补救: fixloop 父进程所在
+                # venv/conda 前缀随子进程 env 继承 (VIRTUAL_ENV/CONDA_PREFIX),
+                # 经 site.addsitedir 挂其 site-packages —— 常规装的包目录直挂,
+                # editable .pth (纯路径与 import-hook 形) 一并执行, texlate
+                # src 根借此可见; 纯 python 包跨 minor 版本可 import;
+                # 借不到照旧走下方降级判词。
+                import glob
+                import os
+                import site
+
+                for _base in (
+                    os.environ.get("VIRTUAL_ENV"),
+                    os.environ.get("CONDA_PREFIX"),
+                ):
+                    if not _base:
+                        continue
+                    for _sp in (
+                        *glob.glob(
+                            os.path.join(_base, "lib", "python*", "site-packages")
+                        ),
+                        os.path.join(_base, "Lib", "site-packages"),
+                    ):
+                        if os.path.isdir(_sp):
+                            site.addsitedir(_sp)
+                try:
+                    from texlate.textutil import mask_tex, scan_ifs
+                except Exception:
+                    mask_tex = scan_ifs = None
+
             MARK = "texlate-fixloop-injected"
             EXTS = {".tex", ".sty", ".cls"}
             BEGDOC_RE = re.compile(r"\\begin\s*\{document\}")
 
             if scan_ifs is None:
-                print("ifclose: noop (texlate mask unavailable)")
+                # 判词故意不带 "ifclose:" 前缀 —— if_phantom_protect 的账本
+                # 凭据闸认该前缀为"扫描器本轮已跑"; 降级路径恰是扫描没跑成,
+                # 前缀在账会骗闸放行 \protected 改写。
+                print("ifclose-scan: unavailable (texlate mask unavailable)")
                 raise SystemExit(0)
             files = []
             for p in sorted(Path(".").rglob("*")):
@@ -1318,7 +1351,7 @@ rules:
       kind: run_tool
       params:
         argv:
-          - python3
+          - "{python}"
           - -c
           - |
             from pathlib import Path
@@ -1329,12 +1362,45 @@ rules:
             except Exception:
                 mask_tex = scan_ifs = None
 
+            if scan_ifs is None:
+                # PATH python3 ≠ texlate 宿主解释器的补救: fixloop 父进程所在
+                # venv/conda 前缀随子进程 env 继承 (VIRTUAL_ENV/CONDA_PREFIX),
+                # 经 site.addsitedir 挂其 site-packages —— 常规装的包目录直挂,
+                # editable .pth (纯路径与 import-hook 形) 一并执行, texlate
+                # src 根借此可见; 纯 python 包跨 minor 版本可 import;
+                # 借不到照旧走下方降级判词。
+                import glob
+                import os
+                import site
+
+                for _base in (
+                    os.environ.get("VIRTUAL_ENV"),
+                    os.environ.get("CONDA_PREFIX"),
+                ):
+                    if not _base:
+                        continue
+                    for _sp in (
+                        *glob.glob(
+                            os.path.join(_base, "lib", "python*", "site-packages")
+                        ),
+                        os.path.join(_base, "Lib", "site-packages"),
+                    ):
+                        if os.path.isdir(_sp):
+                            site.addsitedir(_sp)
+                try:
+                    from texlate.textutil import mask_tex, scan_ifs
+                except Exception:
+                    mask_tex = scan_ifs = None
+
             MARK = "texlate-fixloop-injected"
             EXTS = {".tex", ".sty", ".cls"}
             BEGDOC_RE = re.compile(r"\\begin\s*\{document\}")
 
             if scan_ifs is None:
-                print("ifclose: noop (texlate mask unavailable)")
+                # 判词故意不带 "ifclose:" 前缀 —— if_phantom_protect 的账本
+                # 凭据闸认该前缀为"扫描器本轮已跑"; 降级路径恰是扫描没跑成,
+                # 前缀在账会骗闸放行 \protected 改写。
+                print("ifclose-scan: unavailable (texlate mask unavailable)")
                 raise SystemExit(0)
             files = []
             for p in sorted(Path(".").rglob("*")):

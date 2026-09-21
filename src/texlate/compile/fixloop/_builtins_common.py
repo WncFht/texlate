@@ -14,13 +14,13 @@ from typing import TYPE_CHECKING
 
 from texlate.compile._seams import find_docclass_ends
 from texlate.texlog import _mc_parse_log
-from texlate.textutil import BEGIN_DOC_RX, iter_depth0, mask_tex
+from texlate.textutil import BEGIN_DOC_RX, iter_depth0, mask_tex, safe_is_file
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterable
+    from collections.abc import Callable, Iterable, Iterator
     from typing import Any
 
-    from texlate.compile.fixloop.engine import LoopCtx
+    from texlate.compile.fixloop.engine import Engine, LoopCtx
 
 # pdfTeX 原语清单 (spike L284-298 + 2410.00012 实证扩: 文档面对象/注释/资源族)
 PDFTEX_PRIMS = (
@@ -148,10 +148,42 @@ PDFTEX_PRIMS = (
 )
 
 
-_USE_RE = re.compile(
-    r"^(\s*)\\(usepackage|RequirePackage)\s*(\[([^\]]*)\])?\s*\{([^}]*)\}",
-    re.MULTILINE,
+# ════════════════════════════════════════════════════════════════
+# ``\usepackage``/``\RequirePackage`` 装载命令骨架 (命名组单源,
+# 自 _builtins_pkgload 归位 —— 旧拼在同骨架上组位逐处漂移,
+# names 位 g5/g3/g2 不等; 命名组替数字位收口)
+# ════════════════════════════════════════════════════════════════
+
+#: 装载命令规范骨架 (命名组): ``head``=名单外全部前缀, ``cmd``=命令名,
+#: ``opts``=整 ``[..]`` 段 (含括号), ``opts_inner``=选项本体,
+#: ``names``=花括号名单。opts 字符集 ``[^\]]`` 允跨行 —— TeX 选项表
+#: 换行合法 (旧 ``[^\]\n]`` 各拼形的严格超集)。
+_PKG_LOAD_HEAD_SRC = (
+    r"(?P<head>\\(?P<cmd>usepackage|RequirePackage)\s*"
+    r"(?P<opts>\[(?P<opts_inner>[^\]]*)\])?\s*)"
 )
+_PKG_LOAD_SRC = _PKG_LOAD_HEAD_SRC + r"\{(?P<names>[^}]*)\}"
+_PKG_LOAD_RE = re.compile(_PKG_LOAD_SRC)
+
+
+def _pkg_list_re(pkg: str) -> re.Pattern[str]:
+    r"""名单内含 ``pkg`` 的装载点变体 —— ``names`` 拆 ``before``/``after`` 双组。
+
+    ``\b<pkg>\b`` 界只挡字母续名 (``{physics-tools}`` 这类连字符兄弟名
+    的误中由调用方元素级判定滤掉)。``_builtins_pkgload._PHYS_LOAD_RE``
+    等同形名单变体的单源。
+    """
+    return re.compile(
+        _PKG_LOAD_HEAD_SRC
+        + rf"\{{(?P<before>[^}}]*)\b{re.escape(pkg)}\b(?P<after>[^}}]*)\}}"
+    )
+
+
+#: ``_PKG_LOAD_SRC`` + ``^(\s*)`` 行首锚变体 —— 锚必须留:
+#: option_clash_merge 靠它防行内装载点误并 (``\if..\RequirePackage``
+#: 同行形态不收)。组面 = 命名组 (head/cmd/opts/opts_inner/names) +
+#: 组1 行首空白。
+_USE_RE = re.compile(rf"^(\s*){_PKG_LOAD_SRC}", re.MULTILINE)
 
 
 # ════════════════════════════════════════════════════════════════
@@ -192,15 +224,34 @@ def _undefine_cs(name: str) -> str:
     return rf"\expandafter\let\csname {name}\endcsname\{_UNDEF_MARK}"
 
 
+def _exact_restore_wrap(cs: str) -> tuple[str, str]:
+    r"""exact-restore @=11 包裹对的裸段 → ``(pre_seg, post_seg)``。
+
+    ``pre_seg`` = ``\edef\<cs>{\catcode 64=\the\catcode 64\relax}\catcode 64=11\relax``
+    (``\edef`` 存 ``\catcode 64`` 现值 → ``=11`` 读本族 @-cs), ``post_seg``
+    = ``\<cs>`` (复元恒回原位)。分隔符 (空格/换行) 归属调用方拼 —
+    ``_SHIP_WRAP_*``/``_AT_LETTER_*`` 尾空/头空, ``_SIU_PEACE_*`` 换行。
+    (自 _builtins_pkgload 归位 —— 两侧包裹对字面量单源。)
+
+    隐式耦合: 传入 ``cs`` 必须已登记进 ambient-@ 事件表的 restore 交替
+    组 (pkgload ``_AMBIENT_AT_RE``/docfix ``_ATDEF_EVENT_RE`` 均
+    ``TeXlate(?:At|StyIn)Restore``) —— 否则组作用域走查的 at_letter
+    跟踪把该 cs 当普通字符消费, ``\catcode 64=11`` 事件配平丢失致状态
+    误记。
+    """
+    return (
+        rf"\edef\{cs}{{\catcode 64=\the\catcode 64\relax}}\catcode 64=11\relax",
+        rf"\{cs}",
+    )
+
+
 #: 多 @-cs 注入块的宿主不可知 @=11 包裹对 (svglov3.clo exact-restore
 #: idiom, 同 _builtins_pkgload._SHIP_WRAP_*): ``\edef`` 存 ``\catcode 64``
 #: 现值 → ``=11`` 读块 → 复元; @=letter 宿主恒等变换, @=other 亦回原位。
 #: restore cs 名纯字母 —— 宿主正处 @=other 时名里带 ``@`` 自断签名。
-_AT_LETTER_PRE = (
-    r"\edef\TeXlateAtRestore{\catcode 64=\the\catcode 64\relax}"
-    r"\catcode 64=11\relax "
-)
-_AT_LETTER_POST = r" \TeXlateAtRestore"
+_AT_LETTER_SEG = _exact_restore_wrap("TeXlateAtRestore")
+_AT_LETTER_PRE = _AT_LETTER_SEG[0] + " "
+_AT_LETTER_POST = " " + _AT_LETTER_SEG[1]
 
 
 # ════════════════════════════════════════════════════════════════
@@ -253,9 +304,7 @@ def _inject_write(
     """
     state = _injected_state(target, body)
     if state == "foreign":
-        adv = f"{name}: foreign file present, inject skipped"
-        if adv not in ctx.advisories:
-            ctx.advisories.append(adv)
+        _advise(ctx, f"{name}: foreign file present, inject skipped")
         return (False, f"{name} present (foreign) — inject skipped"), state
     if state == "current":
         return (True, f"{name} already current"), state
@@ -346,26 +395,32 @@ def _drop_pkg_loads(t: str, pkg: str) -> tuple[str, int]:
     r"""剥 ``\usepackage``/``\RequirePackage`` 对 pkg 的装载 → (新文本, 摘除数)。
 
     独载: 行首锚 (前缀全空白) → 整行注释; 行内嵌入 → 置空
-    (注释替换会误吃同行尾 token)。列表成员: 外科摘除元素保留其余。
+    (注释替换会误吃同行尾 token)。名单成员按逗号列**元素**判
+    (``_load_elems``) —— 旧的 ``\b<pkg>\b`` 子串形把 ``{physics-tools}``
+    的连字符兄弟名撕残 (``-tools`` 残留); 保留站点沿用原前缀文本
+    (不再顺手归并 cmd↔opts↔``{`` 间空白)。
     """
-    pat = re.compile(
-        rf"\\(usepackage|RequirePackage)(\s*\[[^\]\n]*\])?\s*\{{([^}}]*)\b{re.escape(pkg)}\b([^}}]*)\}}"
-    )
+    want = pkg.lower()
     n = 0
 
     def _sub(m: re.Match[str]) -> str:
         nonlocal n
-        pkgs = [p.strip() for p in (m.group(3) + "," + m.group(4)).split(",")]
-        keep = [p for p in pkgs if p and p != pkg]
+        if want not in _load_elems(m):
+            return m.group(0)
         n += 1
+        keep = [
+            p.strip()
+            for p in m.group(1).split(",")
+            if p.strip() and p.strip().lower() != want
+        ]
         if keep:
-            return f"\\{m.group(1)}{m.group(2) or ''}{{{','.join(keep)}}}"
+            return f"{m.group(0)[: m.start(1) - m.start(0)]}{','.join(keep)}}}"
         ls = m.string.rfind("\n", 0, m.start()) + 1
         if m.string[ls : m.start()].strip():
             return ""
         return "% fixloop: stripped " + m.group(0).strip()
 
-    return pat.sub(_sub, t), n
+    return _LOAD_SITE_RE.sub(_sub, t), n
 
 
 #: ``\usepackage``/``\RequirePackage`` 装载点 —— group(1)=花括内逗号列
@@ -493,23 +548,28 @@ def _inject_before_begindoc(
 # ════════════════════════════════════════════════════════════════
 
 
-def _fixloop_log(ctx: LoopCtx) -> str:
-    """本轮编译 log 定位 (通用版, 无内容过滤)。
+def _iter_log_candidates(ctx: LoopCtx) -> Iterable[Path]:
+    """本轮编译 log 候选枚举: ``{stem}.log`` → ``_tect_out/{stem}.log`` → 全树 ``*.log`` (名序)。
 
-    ``{stem}.log`` (xelatex) → ``_tect_out/{stem}.log`` (tectonic)
-    → 兜底首个非空 ``*.log``。misschar 域的 ``_compile_log_text`` 有
-    Missing character 内容门, 非缺字扫描不可复用。
+    ``_fixloop_log``/``_compile_log_text`` 共用的定位序 —— 两侧仅内容
+    门不同 (无门 vs ``Missing character`` 门), 枚举单源消漂移。
+    ``ctx.read`` 吞 OSError → ``None``, 缺件/目录同名天然滤除。
     """
     main = ctx.main_path()
     if main is not None:
         stem = main.stem
-        for p in (
-            ctx.wdir / f"{stem}.log",
-            ctx.wdir / "_tect_out" / f"{stem}.log",
-        ):
-            if p.is_file() and (t := ctx.read(p)):
-                return t
-    for p in sorted(ctx.wdir.rglob("*.log")):
+        yield ctx.wdir / f"{stem}.log"
+        yield ctx.wdir / "_tect_out" / f"{stem}.log"
+    yield from sorted(ctx.wdir.rglob("*.log"))
+
+
+def _fixloop_log(ctx: LoopCtx) -> str:
+    """本轮编译 log 定位 (通用版, 无内容过滤)。
+
+    首个非空候选即返 —— 候选序见 ``_iter_log_candidates``
+    (``{stem}.log`` → ``_tect_out/{stem}.log`` → 兜底 ``*.log``)。
+    """
+    for p in _iter_log_candidates(ctx):
         if t := ctx.read(p):
             return t
     return ""
@@ -518,21 +578,11 @@ def _fixloop_log(ctx: LoopCtx) -> str:
 def _compile_log_text(ctx: LoopCtx) -> str:
     """定位本轮编译 log (Missing character 内容门)。
 
-    ``{stem}.log`` (xelatex) → ``_tect_out/{stem}.log`` (tectonic)
-    → 任一含 Missing character 的 ``*.log`` (兜底)。
+    候选序同 ``_iter_log_candidates``; 首个含 Missing character
+    的非空 log 命中即返。
     """
-    main = ctx.main_path()
-    cands: list[Path] = []
-    if main is not None:
-        stem = main.stem
-        cands += [ctx.wdir / f"{stem}.log", ctx.wdir / "_tect_out" / f"{stem}.log"]
-    for p in cands:
-        t = ctx.read(p) if p.is_file() else None
-        if t and "Missing character" in t:
-            return t
-    for p in sorted(ctx.wdir.rglob("*.log")):
-        t = ctx.read(p)
-        if t and "Missing character" in t:
+    for p in _iter_log_candidates(ctx):
+        if (t := ctx.read(p)) and "Missing character" in t:
             return t
     return ""
 
@@ -670,6 +720,28 @@ def _mc_chr(cp: int) -> str | None:
 
 _FB_FONT = "Libertinus Serif"  # TL libertinus-fonts, 三带全覆盖实证
 
+
+def _fb_preamble_lines(fam: str, font: str) -> list[str]:
+    r"""回退字体族声明行 —— fontspec 守卫 + ``\newfontfamily`` 幂等声明。
+
+    ``_builtins_misschar._fb_snippet_lines`` 与 shim ``cs_rebind`` 共用
+    骨架: ``\ifdefined\<fam>`` 守卫使同族二次注入不炸 ``\newfontfamily``
+    重定义; ``fam`` 参数支持第二回退族 (``txlatecjkfb`` 等)。
+    """
+    return [
+        "\\ifdefined\\newfontfamily\\else\\RequirePackage{fontspec}\\fi",
+        f"\\ifdefined\\{fam}\\else\\newfontfamily\\{fam}{{{font}}}\\fi",
+    ]
+
+
+def _fb_font_body(fam: str, ch: str) -> str:
+    r"""``\ifmmode`` 数学/文本双域回退字体替换体 —— ``\mbox`` 逃回文本域。
+
+    活动字符/cs 在数学内也展开, 但 ``\<fam>`` 只切文本族 —— ``\mbox``
+    逃回文本域才能让回退字体生效 (scout-misschar math_font_chars 桶)。
+    """
+    return rf"\ifmmode\mbox{{\{fam} {ch}}}\else{{\{fam} {ch}}}\fi"
+
 #: 无参字母/符号 cs —— 文本域字形产出者, 在数学域无重音义 (\' \^ \~ 等
 #: 有数学义 = \acute \hat \tilde, 刻意不收)。cs 名 → 产出字符码位
 #: (scout-misschar math_font_chars 桶: ``Y$\i$lmaz``/``$\L^{\phi,p}$`` 实证)。
@@ -737,3 +809,75 @@ def _fp_diff(
         for p in set(before) | set(after)
         if before.get(p) != after.get(p) and p not in excl
     ]
+
+
+# ════════════════════════════════════════════════════════════════
+# 工程件遍历 (自 _builtins_shim 归位: misc ``_conv_sibling`` 同口径共用)
+# ════════════════════════════════════════════════════════════════
+
+#: 工程件遍历的排除目录 —— ``_texmf`` (wired vendored texmfhome) 与
+#: ``_tect_out`` (tectonic 产物树) 是引擎/注入侧封装件, 非稿自带件。
+#: (canonical 自 _builtins_graphics 归位 —— 彼侧副本删后回引本件。)
+_PDF_SANITIZE_SKIP_DIRS = frozenset({"_texmf", "_tect_out"})
+
+
+def _in_wdir(ctx: LoopCtx, p: Path) -> bool:
+    """``p`` resolve 后是否仍落 ``ctx.wdir`` 内 —— resolve 失败按逃逸论。"""
+    try:
+        p.resolve().relative_to(ctx.wdir.resolve())
+    except (OSError, RuntimeError, ValueError):
+        return False
+    return True
+
+
+def _wdir_project_files(ctx: LoopCtx) -> Iterator[tuple[Path, tuple[str, ...]]]:
+    """``wdir`` 工程件遍历 → ``(path, wdir 相对 parts)``, dot 段与引擎树排除。
+
+    dot 段路径 (``.git``/``.fixloop-*`` 类) 与任一段命中
+    ``_PDF_SANITIZE_SKIP_DIRS`` (``_texmf`` wired texmfhome / ``_tect_out``
+    tectonic 产物树) 的件都不算工程档——引擎封装件非稿自带, 归位/hoist
+    不得把它们当搬运源 (``parts[0]`` 判会漏嵌套位, 须 any-part)。
+    """
+    for p in ctx.wdir.rglob("*"):
+        if not safe_is_file(p):
+            continue
+        parts = p.relative_to(ctx.wdir).parts
+        if any(part.startswith(".") for part in parts) or any(
+            part in _PDF_SANITIZE_SKIP_DIRS for part in parts
+        ):
+            continue
+        yield p, parts
+
+
+# ════════════════════════════════════════════════════════════════
+# 引擎索引查包 + advisory 记账 (自 actions.py/_builtins_vendored 归位)
+# ════════════════════════════════════════════════════════════════
+
+
+def _index_candidates(eng: Engine, fname: str, *, suggest: bool = False) -> list[str]:
+    """``filemap`` + ``ctan_fetch.peek_index`` 索引查包链 (``_builtins_vendored._index_providers`` 同构)。
+
+    ``suggest=True`` 时 ``query`` 空集再退 ``suggest`` 前缀猜测——候选提示
+    面可宽; 遮蔽佐证面 (``_index_providers``) 应保持默认 ``False`` 只收精确命中。
+    """
+    pkgs = list(eng.filemap(fname))
+    if not pkgs:
+        fetcher = getattr(eng, "ctan_fetch", None)
+        peek = getattr(fetcher, "peek_index", None)
+        idx = peek() if callable(peek) else None
+        if idx is not None:
+            pkgs = idx.query(fname)
+            if suggest and not pkgs:
+                pkgs = idx.suggest(fname.rsplit(".", 1)[0])
+    return pkgs
+
+
+def _advise(ctx: LoopCtx, adv: str) -> None:
+    """幂等 advisory 记账 —— 同文条目不重复落 ``ctx.ledger.advisories``。
+
+    ``ctx.advisories`` 经 ``LoopCtx.__getattr__`` 转发到 ``ctx.ledger.advisories``
+    (engine.py forward 表 ``"advisories": "ledger"``), 两写形同列表 ——
+    actions.py 与 _builtins_vendored.py 两侧同构副本的单源。
+    """
+    if adv not in ctx.advisories:
+        ctx.advisories.append(adv)

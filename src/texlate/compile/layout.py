@@ -7,9 +7,9 @@ r"""版式手术 —— inject.py C4 拆分出叶。
 绕排落点依赖后续段落行数，译文缩短必然漂移，重则 caption 裁出版心，
 2609.19101 zh p6 双亚型实证）。
 
-缝原语（``_splice_*``/``find_docclass_ends``）与 CJK 注入同归 inject.py
-宿主——本叶单向 ``from .inject import`` 取用；inject 侧对本叶的公共名
-经 ``__getattr__`` 惰性回引，故顶层无双向 import 环。
+缝原语（``_splice_after_seams``/``_splice_before_document``/``find_docclass_ends``）
+已独立成 ``_seams`` 叶，本叶顶层 ``from ._seams import`` 取用；inject 侧
+对本叶公共名静态回引（缝原语出 ``_seams`` 后环断，顶层无双向 import 环）。
 """
 
 from __future__ import annotations
@@ -17,17 +17,18 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING, Final
 
+from texlate.latex.model import ws_skip
 from texlate.textutil import (
     BEGIN_DOC_RX,
     DOCCLASS_RX,
-    _tar_disguised,
-    decode_tex,
     iter_depth0,
 )
 
 from ._seams import _splice_after_seams, _splice_before_document, find_docclass_ends
 from .mainfile import _MAIN_TEX_SUFFIXES
 from .mask import apply_edits, group_end, visible_tex
+from .normalize import _read_tex
+from .transcode import _iter_files
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -89,18 +90,17 @@ def inject_float_sizing(root: Path) -> int:
     r"""FLOAT_SIZING 前导块：仅在工程确实含 figure/table 环境时注入主文件。
 
     超高 float 用 `\resizebox*` 缩进页高 + `\typeout{TeXlate-Float-Fit:}`
-    供日志回读。返回注入文件数（0/1）。
+    供日志回读。返回注入文件数——``_float_sized`` 对每个带 ``\documentclass``
+    的源档各注一份，多 docclass 工程（subfiles 子档）可 >1。
     """
+    # ``_iter_files``（os.walk followlinks=False + 软链/隐藏豁免）而非
+    # rglob——本函数会写回树内文件，rglob 穿软链目录会把链外件当包内件
+    # 改写（normalize.py ``_iter_files`` 同款教训）。
     sources = {}
-    for path in root.rglob("*"):
-        if path.is_file() and path.suffix.lower() in _MAIN_TEX_SUFFIXES:
-            try:
-                blob = path.read_bytes()
-            except OSError:
-                continue  # chmod-0 等不可读档跳过（consistency-audit）
-            if _tar_disguised(blob):
-                continue  # tar 伪装件——成员字节非手术面，写回即腐蚀 blob
-            sources[path] = decode_tex(blob)
+    for path in _iter_files(root, _MAIN_TEX_SUFFIXES):
+        text = _read_tex(path)  # 不可读档/tar 伪装件 → None（同闸）
+        if text is not None:
+            sources[path] = text
     if not any(
         re.search(r"\\begin\s*\{(?:figure|table)\*?\}", visible_tex(text))
         for text in sources.values()
@@ -166,13 +166,6 @@ _WRAP_CAPTYPE: Final = {"wrapfigure": "figure", "wraptable": "table"}
 _ZERO_DIM_RX: Final = re.compile(r"0*(?:\.0*)?\s*[a-z]{0,2}", re.IGNORECASE)
 
 
-def _skip_ws(vis: str, i: int) -> int:
-    """空白滑过（visible_tex 已遮蔽注释——视野内跳过的全是真空白）。"""
-    while i < len(vis) and vis[i] in " \t\n\r":
-        i += 1
-    return i
-
-
 def _wrap_args(
     vis: str, pos: int, kind: str
 ) -> tuple[int, str | None, str | None] | None:
@@ -182,7 +175,7 @@ def _wrap_args(
     """
     captype = None
     if kind == "wrapfloat":
-        i = _skip_ws(vis, pos)
+        i = ws_skip(vis, pos)
         if i >= len(vis) or vis[i] != "{":
             return None
         end = group_end(vis, i)
@@ -191,7 +184,7 @@ def _wrap_args(
     pos_seen = False
     i = pos
     while i < len(vis):
-        i = _skip_ws(vis, i)
+        i = ws_skip(vis, i)
         c = vis[i] if i < len(vis) else ""
         if c == "[":
             i = group_end(vis, i)  # nlines / overhang 可选组直接跳过
@@ -226,7 +219,7 @@ def _neg_space_edits(vis: str, lo: int, hi: int) -> list[tuple[int, int, str]]:
     """
     out: list[tuple[int, int, str]] = []
     for m in re.finditer(r"\\(?:vspace|hspace)\*?", vis[lo:hi]):
-        i = _skip_ws(vis, lo + m.end())
+        i = ws_skip(vis, lo + m.end())
         if i >= hi or vis[i] != "{":
             continue
         end = group_end(vis, i)
@@ -313,17 +306,13 @@ def demote_wrapfloats(root: Path) -> int:
 
     zh 侧手术（prepare_chinese 编排位）——en 树保持原文 wrapfig 排版保真。
     """
+    # ``_iter_files`` + ``_read_tex`` 同 inject_float_sizing——写回路径上
+    # rglob 会穿软链目录改写链外件，walk（followlinks=False）整支豁免。
     n = 0
-    for path in root.rglob("*"):
-        if not path.is_file() or path.suffix.lower() not in _MAIN_TEX_SUFFIXES:
+    for path in _iter_files(root, _MAIN_TEX_SUFFIXES):
+        text = _read_tex(path)  # 不可读档/tar 伪装件 → None（同闸）
+        if text is None:
             continue
-        try:
-            blob = path.read_bytes()
-        except OSError:
-            continue
-        if _tar_disguised(blob):
-            continue
-        text = decode_tex(blob)
         new_text, k = _demote_wrapfloats_text(text)
         if new_text != text:
             try:

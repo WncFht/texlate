@@ -822,25 +822,26 @@ def _broadcast_value(kind: str, ss: list[tuple[int, int]], src: str) -> str | No
 
 def _revert_file(
     src: str, zh: str, rxs: tuple[tuple[str, re.Pattern[str]], ...]
-) -> tuple[str, int, list[str]]:
-    r"""单文件 src/zh 配对 revert → ``(新 zh 文本, 改写数, 分歧项)``。
+) -> tuple[str, int, list[str], list[str]]:
+    r"""单文件 src/zh 配对 revert → ``(新 zh 文本, 改写数, 分歧项, 广播项)``。
 
     per-kind 序号对齐: k-th zh 命中 ↔ k-th src 命中; 三条件全中才改 —
     双侧相异 ∧ zh 参含 CJK ∧ src 参纯 ident (ASCII 白名单)。改集按
     起始位降序右→左应用, 同位/重叠第二刀跳 (envarg↔restatable 等同位
     多行扫重)。kind 双侧命中数分歧 → 该 kind 整跳记入 ``分歧项``;
     ``_BROADCAST_KINDS`` 内 kind (primgap) 先经 ``_broadcast_value``
-    判 unique-src 广播 —— src gap 值唯一则写进 zh 全部 CJK gap 站,
-    多值/空集才回退整跳。spec-holder 动态行由 ``src`` def 体逐文件
-    现查 (``_holder_rxs``)。
+    判 unique-src 广播 —— src gap 值唯一则写进 zh 全部 CJK gap 站
+    (记 ``广播项`` 而非分歧), 多值/空集才回退整跳。spec-holder 动态
+    行由 ``src`` def 体逐文件现查 (``_holder_rxs``)。
     """
     rxs = (*rxs, *_holder_rxs(src))
     src_by = _by_kind(_slot_spans(src, rxs))
     zh_by = _by_kind(_slot_spans(zh, rxs))
     if not zh_by:
-        return zh, 0, []
+        return zh, 0, [], []
     edits: list[tuple[int, int, str]] = []
     skipped: list[str] = []
+    broadcast: list[str] = []
     kinds = list(zh_by) + [k for k in src_by if k not in zh_by]
     for kind in kinds:
         ss, zs = src_by.get(kind, []), zh_by.get(kind, [])
@@ -850,7 +851,7 @@ def _revert_file(
                 skipped.append(f"{kind}({len(ss)}!={len(zs)})")
                 continue
             edits.extend((z0, z1, val) for z0, z1 in zs if CJK_RX.search(zh[z0:z1]))
-            skipped.append(f"{kind}({len(ss)}→{len(zs)} broadcast)")
+            broadcast.append(f"{kind}({len(ss)}→{len(zs)})")
             continue
         for (s0, s1), (z0, z1) in zip(ss, zs, strict=True):
             sarg, zarg = src[s0:s1], zh[z0:z1]
@@ -865,7 +866,7 @@ def _revert_file(
         zh = zh[:z0] + sarg + zh[z1:]
         floor = z0
         n += 1
-    return zh, n, skipped
+    return zh, n, skipped, broadcast
 
 
 def _full_rxs() -> tuple[tuple[str, re.Pattern[str]], ...]:
@@ -879,10 +880,11 @@ def _full_rxs() -> tuple[tuple[str, re.Pattern[str]], ...]:
 
 def _revert_tree(
     ctx: LoopCtx, base_root: Path, rxs: tuple[tuple[str, re.Pattern[str]], ...]
-) -> tuple[list[str], list[str], int]:
-    """逐 ``*.tex`` 与 baseline 同名件配对 revert → (件条目, 分歧项, 改数)。"""
+) -> tuple[list[str], list[str], list[str], int]:
+    """逐 ``*.tex`` 与 baseline 同名件配对 revert → (件条目, 分歧项, 广播项, 改数)。"""
     reverted: list[str] = []
     skipped: list[str] = []
+    broadcast: list[str] = []
     n_args = 0
     for f in ctx.tex_files((".tex",)):
         rel = f.relative_to(ctx.wdir).as_posix()
@@ -895,13 +897,14 @@ def _revert_tree(
             continue
         if src == zh:
             continue
-        new_text, n, sk = _revert_file(src, zh, rxs)
+        new_text, n, sk, bc = _revert_file(src, zh, rxs)
         skipped.extend(f"{rel}:{s}" for s in sk)
+        broadcast.extend(f"{rel}:{s}" for s in bc)
         if n:
             ctx.write(f, new_text)
             reverted.append(f"{rel}×{n}")
             n_args += n
-    return reverted, skipped, n_args
+    return reverted, skipped, broadcast, n_args
 
 
 def slot_arg_revert(
@@ -921,9 +924,11 @@ def slot_arg_revert(
     base_root = Path(str(base_dir))
     if not base_root.is_dir():
         return False, f"baseline_dir not a directory: {base_root}"
-    reverted, skipped, n_args = _revert_tree(ctx, base_root, _full_rxs())
+    reverted, skipped, broadcast, n_args = _revert_tree(ctx, base_root, _full_rxs())
     if not reverted:
         note = "no zh machine-slot args to revert"
+        if broadcast:
+            note += f"; broadcast: {', '.join(broadcast[:_NOTE_CAP])}"
         if skipped:
             note += f"; divergent: {', '.join(skipped[:_NOTE_CAP])}"
         return False, note
@@ -931,6 +936,8 @@ def slot_arg_revert(
     note += ", ".join(reverted[:_NOTE_CAP])
     if len(reverted) > _NOTE_CAP:
         note += f" +{len(reverted) - _NOTE_CAP} files"
+    if broadcast:
+        note += f"; broadcast: {', '.join(broadcast[:_NOTE_CAP])}"
     if skipped:
         note += f"; divergent: {', '.join(skipped[:_NOTE_CAP])}"
     return True, note

@@ -518,7 +518,7 @@ rules:
   # 字符 (xeCJK CJK 字/扩展 mathcode) 必炸 (tmp/mathchar 实证: \mathcode`这
   # operand scan 即炸, \mathcode`Ω 同炸非 CJK 专属; 裸 $这$/{\rm}/\tilde/
   # 上下标全不炸 —— 触发面只锁 \bm 族实参)。taxonomy 无专类归 other,
-  # ctx_suggests 锁错误签名。修法 = 序言守卫式重定义: \bm#1 → \bmorig{{#1}}
+  # ctx_suggests 锁错误签名。修法 = 序言守卫式重定义: \bm#1 → \TeXlateBM{{#1}}
   # 双花括号走 bm 自带 group 路径 (\bm@gr@@p→\boldmath), 遍历被跳过且粗体
   # 语义保留; \b/\unit 等 \newcommand 别名调用点重展开 \bm 同愈;
   # \boldsymbol/\heavysymbol (\let 别名) 经 \ifx 等义复核后重绑。

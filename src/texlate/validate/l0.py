@@ -7,7 +7,7 @@ r"""L0 规则校验层 —— stdlib always-on，src↔zh 相对判定（规格 
 设计原则 = "译文不得比原文更坏"：每条检查都是 src↔zh 比较而非 zh 绝对判定，
 src 自带的不平衡/不一致不追责（继承容忍），只报 zh 相对 src 的新增损伤。
 
-十三条规则（docs/spec/validate.md 表 + E21/E22 修订口径 + 注释区/粘合/回显/ph_in_cs/裸 cs/注释尾段/残英补丁）：
+十四条规则（docs/spec/validate.md 表 + E21/E22 修订口径 + 注释区/粘合/回显/ph_in_cs/裸 cs/注释尾段/残英补丁）：
 
   placeholder  ``[[TYPE_n]]``/``[[SL]]``/``[[PL]]`` multiset diff + lev≤2 修复建议；
                E22：严格序守恒降为 warn（``of X``→``X 的`` 合法换序占违例 ~95%），
@@ -43,11 +43,16 @@ src 自带的不平衡/不一致不追责（继承容忍），只报 zh 相对 s
   item_glue    ``\\item`` 紧跟 ASCII 字母粘成 ``\\itemFSU`` 类非法 cs（管线引入
                签名，8 篇实证 Undefined cs 编译炸弹）——zh 净多出计数 → warn；
                ``\\itemsep`` 等合法 cs 与 src 自带粘连靠 src↔zh 净差豁免。
+  ph_in_cs     ``\\cs名[[PH]]字母`` 双侧夹持签名 → error（splice 逐字节替换
+               后断 cs 成未定义命令、载荷不可复原——不进 fixloop，走重译/
+               回退；``\\cs[[PH]]`` 尾邻是合法高频形不判，注释区豁免，
+               src 同形按净差豁免）。
   bare_cs     译文裸 cs 注入两子类 → error（realpostfix2 0905.4907：
                ``\alpha 发射体`` 数学 cs 落文本域 → Missing $ 炸弹；
                ``\itemOC``/``\linebreakGF`` 前缀+含大写后缀粘合 → 未定义
                cs 炸弹）。泛新增 cs E24 起归 macro error，本规则只管
-               编译即炸的位置签名。
+               编译即炸的位置签名——命中名在 macro 泛 error 报表同现
+               一条（有意分层双报：泛条目不带文本域/粘合前缀定位）。
   protocol_echo 交付 zh 净多出协议字面 → error（repro-2410b §4b：corrector
                三段式节标/L0 反馈消息/``slot_validation_failures``/
                ``[compile_error]`` 被当正文回显——multiset 可吻合而载荷脏，
@@ -893,6 +898,11 @@ def _check_math(ctx: _Ctx) -> None:
         )
 
 
+def _cjk_latin_counts(s: str) -> tuple[int, int]:
+    """``(CJK 字符数, ASCII 拉丁字母数)``——same_source/length 的 CJK 占比判定共用口径。"""
+    return len(CJK_RX.findall(s)), sum(1 for c in s if c.isascii() and c.isalpha())
+
+
 def _check_same_source(ctx: _Ctx) -> None:
     """整段原文回显拒收（E24）：规范化等值 src==zh 且拉丁主导 → error。
 
@@ -909,8 +919,7 @@ def _check_same_source(ctx: _Ctx) -> None:
     ss, sz = ctx.prose_src.lower(), ctx.prose_zh.lower()
     if ctx.est_src < _MIN_PROSE_TOKENS or ss != sz:
         return
-    cjk = len(CJK_RX.findall(ss))
-    lat = sum(1 for c in ss if c.isascii() and c.isalpha())
+    cjk, lat = _cjk_latin_counts(ss)
     if lat >= _MIN_LATIN_FOR_CJK_CHECK and cjk / (cjk + lat) < CJK_SHARE_MIN:
         ctx.issues.append(
             Issue(
@@ -943,8 +952,7 @@ def _check_length(ctx: _Ctx) -> None:
                     f"(src~{ts:.0f} zh~{tz:.0f})",
                 )
             )
-    cjk = len(CJK_RX.findall(sz))
-    lat = sum(1 for c in sz if c.isascii() and c.isalpha())
+    cjk, lat = _cjk_latin_counts(sz)
     if lat >= _MIN_LATIN_FOR_CJK_CHECK:
         share = cjk / (cjk + lat)
         if share < CJK_SHARE_MIN:
@@ -1144,9 +1152,12 @@ def _check_ph_in_cs(ctx: _Ctx) -> None:
 def _check_bare_cs(ctx: _Ctx) -> None:
     r"""译文裸 cs 注入（realpostfix2 0905.4907 实证签名），两类编译炸弹。
 
-    ``macro`` 规则对新增 cs 只报泛 warn；本规则抓其中**编译即炸**的
-    两个子类升 error（余下新名仍归 macro warn，不重复报）。判定口径
-    单源在 ``textutil.bare_cs_net``（pipeline ``_intercept_bare_cs``
+    E24 起 ``macro`` 规则对**全部**新增 cs 已报泛 error——本规则把其中
+    **编译即炸**的两个子类再以位置签名单列 error（命中名在 macro
+    报表同现一条泛条目：有意分层而非重复缺陷——泛条目不带文本域/
+    粘合前缀定位，corrector 反馈与子类聚类需要本条的诊断载荷；
+    ``macro`` 的全名覆盖由 fuzz 分类 oracle 钉死，剔除会破坏钉面）。
+    判定口径单源在 ``textutil.bare_cs_net``（pipeline ``_intercept_bare_cs``
     副层共用），``nme in MATH_CS`` 拆子类：
 
     - **数学域外数学 cs**：``\alpha``/``\to`` 类数学模式命令出现在 zh

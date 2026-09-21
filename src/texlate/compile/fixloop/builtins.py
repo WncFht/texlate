@@ -62,13 +62,26 @@ if TYPE_CHECKING:
         premature_cs_guard,
         spacefactor_atdef_wrap,
     )
-    from texlate.compile.fixloop._builtins_graphics import (
-        _EPS_EXTS,
+    from texlate.compile.fixloop._builtins_gfx_missing import (
         _GRAPHIC_EXTS,
-        _GRAPHICS_PKGS_RE,
-        _GS_FLAGS,
         _INCLUDE_GFX_RE,
         _INCLUDE_PDF_RE,
+        _find_graphic_ci,
+        _graphic_ref_hit,
+        _opt_dim,
+        _rewrite_case_refs,
+        _stub_graphic_refs,
+        driver_missing_image_stub,
+        graphic_case_link,
+        graphic_missing_placeholder,
+        graphic_repair,
+        includepdf_missing_stub,
+        raster_pdf_rename,
+    )
+    from texlate.compile.fixloop._builtins_graphics import (
+        _EPS_EXTS,
+        _GRAPHICS_PKGS_RE,
+        _GS_FLAGS,
         _INCLUDESVG_RE,
         _LOAD_OPT_RE,
         _NUMERIC_EXT_RE,
@@ -76,28 +89,17 @@ if TYPE_CHECKING:
         _SVG_CONVERTERS,
         _SVG_OPT_KEEP,
         _convert_one,
-        _find_graphic_ci,
-        _graphic_ref_hit,
         _norm_graphic_name,
-        _opt_dim,
-        _rewrite_case_refs,
         _rewrite_eps_refs,
         _rewrite_includesvg,
         _run_convert,
         _strip_ps_driver_opts,
-        _stub_graphic_refs,
         _svg_convert_arm,
         _svg_convert_one,
         _try_gs_redistill,
-        driver_missing_image_stub,
         eps_to_pdf,
-        graphic_case_link,
-        graphic_missing_placeholder,
-        graphic_repair,
-        includepdf_missing_stub,
         pdf_asset_sanitize,
         pstricks_dvips_preflight,
-        raster_pdf_rename,
         svg_prepare,
         xbb_pregen,
     )
@@ -211,42 +213,44 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "premature_cs_guard",
         "spacefactor_atdef_wrap",
     ),
+    "_builtins_gfx_missing": (
+        "_GRAPHIC_EXTS",
+        "_INCLUDE_GFX_RE",
+        "_INCLUDE_PDF_RE",
+        "_find_graphic_ci",
+        "_graphic_ref_hit",
+        "_opt_dim",
+        "_rewrite_case_refs",
+        "_stub_graphic_refs",
+        "driver_missing_image_stub",
+        "graphic_case_link",
+        "graphic_missing_placeholder",
+        "graphic_repair",
+        "includepdf_missing_stub",
+        "raster_pdf_rename",
+    ),
     "_builtins_graphics": (
         "_EPS_EXTS",
         "_GRAPHICS_PKGS_RE",
-        "_GRAPHIC_EXTS",
         "_GS_FLAGS",
         "_INCLUDESVG_RE",
-        "_INCLUDE_GFX_RE",
-        "_INCLUDE_PDF_RE",
         "_LOAD_OPT_RE",
         "_NUMERIC_EXT_RE",
         "_PS_DRIVERS",
         "_SVG_CONVERTERS",
         "_SVG_OPT_KEEP",
         "_convert_one",
-        "_find_graphic_ci",
-        "_graphic_ref_hit",
         "_norm_graphic_name",
-        "_opt_dim",
-        "_rewrite_case_refs",
         "_rewrite_eps_refs",
         "_rewrite_includesvg",
         "_run_convert",
         "_strip_ps_driver_opts",
-        "_stub_graphic_refs",
         "_svg_convert_arm",
         "_svg_convert_one",
         "_try_gs_redistill",
-        "driver_missing_image_stub",
         "eps_to_pdf",
-        "graphic_case_link",
-        "graphic_missing_placeholder",
-        "graphic_repair",
-        "includepdf_missing_stub",
         "pdf_asset_sanitize",
         "pstricks_dvips_preflight",
-        "raster_pdf_rename",
         "svg_prepare",
         "xbb_pregen",
     ),
@@ -642,38 +646,20 @@ def keep_latin_tokens(m: re.Match[str]) -> str:
 _GIN_OBSOLETE_KEYS = frozenset({"type", "ext", "read"})
 
 
-def _kv_top_members(opts: str) -> list[str]:
-    """逗号分枚 opt 表 (brace 深度内逗号不切)。
-
-    与 ``_builtins_misschar._split_kv`` 同算法——待公共
-    ``textutil.split_top_level_commas`` 落地后两处收敛删本份。
-    """
-    out: list[str] = []
-    depth = 0
-    cur = ""
-    for ch in opts:
-        if ch == "{":
-            depth += 1
-        elif ch == "}":
-            depth = max(0, depth - 1)
-        if ch == "," and depth == 0:
-            out.append(cur)
-            cur = ""
-        else:
-            cur += ch
-    out.append(cur)
-    return out
-
-
 def graphics_kv_strip_obsolete(m: re.Match[str]) -> str:
     r"""``\includegraphics[...]`` opt 表剥 ``type=``/``ext=``/``read=`` 成员。
 
     组1 = ``\includegraphics`` 头 (含 ``*``), 组2 = 括号 opt 表。成员级
     ``key=`` 比对 (``subtype``/``breadth`` 类前缀不沾); 剥空即整括号摘除。
+    顶层逗号切分单源 = ``_builtins_misschar._split_kv``。
     """
+    from texlate.compile.fixloop._builtins_misschar import (  # noqa: PLC0415
+        _split_kv,  # 延迟: 本门面不 eager 拉叶链, 调用点已到运行期
+    )
+
     keep = [
         kv
-        for kv in _kv_top_members(m.group(2))
+        for kv in _split_kv(m.group(2))
         if kv.split("=", 1)[0].strip() not in _GIN_OBSOLETE_KEYS
     ]
     return m.group(1) + ("[" + ",".join(keep) + "]" if keep else "")

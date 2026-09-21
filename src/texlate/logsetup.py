@@ -33,6 +33,7 @@ from rich.console import Console
 from rich.logging import RichHandler
 
 from texlate.textutil import env_opt, env_str
+from texlate.textutil.osutil import ENV_LOG, ENV_LOG_FILE
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
@@ -48,10 +49,9 @@ __all__ = [
     "scrub",
 ]
 
-#: ``TEXLATE_LOG`` env——级别词（debug/info/warning/error/off）。
-ENV_LOG = "TEXLATE_LOG"
-#: ``TEXLATE_LOG_FILE`` env——文件路径 / ``off`` 关文件；未设走调用方默认。
-ENV_LOG_FILE = "TEXLATE_LOG_FILE"
+#: ``TEXLATE_LOG`` env——级别词（debug/info/warning/error/off）；
+#: ``TEXLATE_LOG_FILE``——文件路径 / ``off`` 关文件；未设走调用方默认。
+#: 名本体注册在 ``textutil.osutil``，同名回引保 ``__all__`` 钉点
 
 #: 级别词 → logging 常量（``off`` 单列——CRITICAL+1 全闸）。
 _LEVEL_NAMES: dict[str, int] = {
@@ -77,8 +77,9 @@ _LOG_FILE_BACKUPS = 3
 #: （窄形先跑会把 ``sk-…….`` 截成 ``***.尾`` 留残，单宽行无此坑）；
 #: ``key-`` 宽松形为日志面独有。纯 ``re`` 小件就地单表——底座层不反引
 #: ``xlat.client``（拖 httpx/asyncio/ssl 全栈），待提升 ``textutil`` 单源。
-#: ``scrub``/``RedactFilter._scrub`` 共用同一份迭代面（server
-#: ``logredact._KEY_PATTERNS`` 名字面同源）。
+#: 覆盖不变量由 ``tests/test_secret_patterns.py`` 钉住（基表新形态无
+#: 日志表覆盖即红）。``scrub``/``RedactFilter._scrub`` 共用同一份迭代面
+#: （server ``logredact._KEY_PATTERNS`` 名字面同源）。
 SECRET_LOG_PATTERNS = [
     re.compile(r"Bearer\s+\S+", re.IGNORECASE),
     re.compile(r"sk-[A-Za-z0-9._-]{4,}"),

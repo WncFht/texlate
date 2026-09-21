@@ -598,13 +598,13 @@ rules:
                 mv -f "$md/mnras.cls" "$md/mnras.cls.fixloop-iso"
               fi
               if [ ! -f "$md/mnras.cls" ]; then
-                python -c "import shutil; from texlate.compile.fixloop._builtins_vendored import _vendor_root; shutil.copyfile(str(_vendor_root({})/'files'/'mnras.cls'), '$md/mnras.cls')" 2>/dev/null || python3 -c "import shutil; from texlate.compile.fixloop._builtins_vendored import _vendor_root; shutil.copyfile(str(_vendor_root({})/'files'/'mnras.cls'), '$md/mnras.cls')" 2>/dev/null || true
+                "{python}" -c "import shutil; from texlate.compile.fixloop._builtins_vendored import _vendor_root; shutil.copyfile(str(_vendor_root({})/'files'/'mnras.cls'), '$md/mnras.cls')" 2>/dev/null || true
               fi
             fi
             exit 0
         timeout: 30
     risk: low # 零树外突变: usertree/宿主件只遮蔽不动; 退役仅及解析位稿自带病件 (pstadd 同型先例); 平铺件是 vendor 钉版补丁副本可逆
-    known_gap: "病件原位保留靠 main_dir 平铺遮蔽而非移除; 解析位槽被安全外来件占时平铺缺省 (该件已是 cwd 胜者无遮蔽需求); main_rel 怪径逃出 wdir → {main_dir} 退 '.' 平铺回 wdir 根 (对嵌套 main 不可见, DECLINE 口径); python 缺席 → 仅探测不投件; tectonic 无 kpsewhich → 宿主面缺探, wdir/兄弟面仍盖"
+    known_gap: "病件原位保留靠 main_dir 平铺遮蔽而非移除; 解析位槽被安全外来件占时平铺缺省 (该件已是 cwd 胜者无遮蔽需求); main_rel 怪径逃出 wdir → {main_dir} 退 '.' 平铺回 wdir 根 (对嵌套 main 不可见, DECLINE 口径); python 投件走 {python} 钉宿主解释器 (PATH python3 缺席不阻); tectonic 无 kpsewhich → 宿主面缺探, wdir/兄弟面仍盖"
     engines:
       xelatex: { mode: native }
       tectonic: { mode: same }

@@ -39,6 +39,7 @@ from .engine import (
 )
 from .latex209 import _KERNEL_OPTS
 from .mask import visible_tex
+from .transcode import _iter_files
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -411,7 +412,9 @@ def _append_diag_notes(ctx: _ScanCtx) -> None:
             f"dvips-only \\special{{psfile}} ×{ctx.psfile}"
             " → xelatex/tectonic 均不渲染，图件将缺（需 dvips 通道或预转换）"
         )
-    if any(p.suffix.lower() == ".mf" for p in ctx.root.rglob("*")):
+    # ``_iter_files`` 不跟目录软链（rglob 跟链无环检测，in-tree 环可挂死
+    # 本诊断分支）；隐藏目录整支剪掉——``.git`` 内 ``.mf`` 字样不算包内源。
+    if next(_iter_files(ctx.root, {".mf"}), None) is not None:
         rep.notes.append(
             "包内 .mf METAFONT 源 → tectonic 无 mf 链（xelatex 视 mktexfm 配置），"
             "真字体需求时字形必缺"

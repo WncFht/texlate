@@ -59,8 +59,11 @@ _DECLARED_CODECS: Final = {
     "euc-jp": "euc_jp",
     "sjis": "shift_jis",
 }
+#: 包花括号内允许逗号分隔多包（``[utf8]{inputenc,fontenc}``）——声明
+#: 提示只看选项串，包列表里有没有 inputenc 才是门。无选项的
+#: ``\usepackage{inputenc}`` 不含声明名，刻意仍不匹配。
 _INPUTENC_RX: Final = re.compile(
-    r"\\(?:usepackage|RequirePackage)\s*\[([^]]*)\]\s*\{inputenc\}"
+    r"\\(?:usepackage|RequirePackage)\s*\[([^]]*)\]\s*\{[^}]*\binputenc\b[^}]*\}"
     r"|\\inputencoding\s*\{([^}]+)\}",
     re.IGNORECASE,
 )
@@ -71,6 +74,13 @@ _MAGIC_RX: Final = re.compile(
 #: SWP ``CodePage:`` 头——5 位号存在（54936=GB18030），``\d{3,4}`` 会把
 #: ``54936`` 截成 ``5493`` 产出错名 ``cp5493``。
 _CODEPAGE_RX: Final = re.compile(r"CodePage:\s*(\d{3,5})")
+#: 声明面字节预扫——关键词零命中即无声明可寻：mask_tex/遮盖只会抹掉
+#: 命中不会新增，latin-1 视图与 blob 的 ASCII 区间一一对应。``inputenc``
+#: 前缀同盖 ``\inputencoding``；IGNORECASE 对 ``CodePage`` 属过度近似
+#: （真正则大小写敏感），假阳只多跑一趟真判定，不错判。
+_DECL_PRESCAN_RX: Final = re.compile(
+    rb"inputenc|!tex|coding|codepage", re.IGNORECASE
+)
 #: ``utf8`` 混入 usepackage 选项串的正则子项。
 _DECL_OPTION_RX: Final = re.compile(r"[a-zA-Z0-9_-]+")
 
@@ -86,14 +96,21 @@ class EncodingVerdict:
 
 
 def _declared_name(blob: bytes) -> str | None:
-    r"""文件自述编码：inputenc 选项 → ``\inputencoding`` → 魔数注释 → CodePage。
+    r"""文件自述编码：inputenc 选项/``\inputencoding`` → 魔数注释 → CodePage。
 
-    全文件按 latin-1 视读扫（声明必为 ASCII）；inputenc 多选项取最后一个
-    可识别名（TeX 语义同）。``\usepackage``/``\inputencoding`` 行在
-    comment/verbatim 遮盖面上扫——注释掉的旧声明与 verbatim 示例代码
-    不是作者先验（mask_tex 等长保 offset，``%`` 魔数注释恰属声明形态
-    故仍在原视图上扫）。
+    优先级为**末位命中生效**（收集序即上列序，取 ``names[-1]``）：
+    CodePage > 魔数 > inputenc 族；inputenc 族内 ``\usepackage`` 与
+    ``\inputencoding`` 按文档位序，同行多选项取最后一个可识别名
+    （TeX 语义同）。
+
+    全文件按 latin-1 视读扫（声明必为 ASCII）。``\usepackage``/
+    ``\inputencoding`` 行在 comment/verbatim 遮盖面上扫——注释掉的旧
+    声明与 verbatim 示例代码不是作者先验（mask_tex 等长保 offset，
+    ``%`` 魔数注释恰属声明形态故仍在原视图上扫）。
     """
+    # 字节预扫：无声明关键词的文件（多数）免 latin-1 整解 + mask_tex 全趟。
+    if not _DECL_PRESCAN_RX.search(blob):
+        return None
     view = blob.decode("latin-1")
     active = mask_tex(view)
     names: list[str] = []
@@ -289,7 +306,7 @@ def _score_text(text: str) -> float:  # noqa: C901, PLR0912 — 逐字计分，�
 
 #: 高字节界（≥0x80 即非 ASCII）。
 _HIGH_BYTE: Final = 0x80
-#: utf-16 无 BOM 判定：头采样窗 / 最小样本 / NUL 占比 ≥1/4。
+#: utf-16 无 BOM 判定：头采样窗 / 最小样本 / NUL 占比 >1/4。
 _UTF16_HEAD: Final = 4096
 _UTF16_MIN_LEN: Final = 16
 _UTF16_NUL_DIV: Final = 4
@@ -477,7 +494,8 @@ def _sniff_bom(blob: bytes) -> EncodingVerdict | None:
 
 def _sniff_utf16_nul(blob: bytes, declared_raw: str | None) -> EncodingVerdict | None:
     # utf-16le/be 无 BOM 时是合法 UTF-8（NUL+ASCII）——必须先于 strict 判定。
-    # 比例口径：头 4K 里 NUL 占 ≥1/4 即成案（utf-16 ASCII 区恒 ~50%）。
+    # 比例口径：头 4K 里 NUL 占 >1/4 即成案（utf-16 ASCII 区恒 ~50%；恰 1/4
+    # 的边界形不收——守卫是严格大于）。
     head = blob[:_UTF16_HEAD]
     if head.count(b"\x00") <= len(head) // _UTF16_NUL_DIV or len(head) < _UTF16_MIN_LEN:
         return None
@@ -531,13 +549,14 @@ def _sniff_cjk_family(
     # 判据喂满——1206.5832 的 7 个稀疏重音曾误判 gb18030，故改相邻口径）。
     # 守卫：坏点稀疏的「大体合法 UTF-8」文件不交双字节族——gb18030 会把
     # UTF-8 三字节当合法对整段吞成 CJK 乱码，该走 mixed 分段。
-    high = [i for i, b in enumerate(blob) if b >= _HIGH_BYTE]
-    if len(high) >= _GATE_MIN_HIGH:
-        adjacent = sum(1 for i in high if i > 0 and blob[i - 1] >= _HIGH_BYTE)
+    # run 口径：n_high=ΣL、adjacent=Σ(L-1)——不建逐字节索引表；utf8_bad
+    # 全量解码放在相邻闸后（latin/cyrillic 文跳过整趟 str 化）。
+    runs = [m.end() - m.start() for m in re.finditer(rb"[\x80-\xff]+", blob)]
+    n_high = sum(runs)
+    adjacent = n_high - len(runs)
+    if n_high >= _GATE_MIN_HIGH and adjacent / n_high >= _GATE_MIN_ADJACENT:
         utf8_bad = blob.decode("utf-8", errors="replace").count("\ufffd")
-        if adjacent / len(
-            high
-        ) >= _GATE_MIN_ADJACENT and utf8_bad * _UTF8_BAD_DIV > len(high):
+        if utf8_bad * _UTF8_BAD_DIV > n_high:
             best_enc, best_score = "", 0.0
             for enc in _CJK_CODECS:
                 try:
@@ -567,7 +586,7 @@ def _sniff_cjk_family(
                         best_enc,
                         "detector",
                         declared_raw,
-                        f"paired-bytes={adjacent / len(high):.2f}",
+                        f"paired-bytes={adjacent / n_high:.2f}",
                     )
     return None
 
@@ -592,11 +611,17 @@ def _sniff_arbitrate(  # noqa: C901 — argmax+声明采纳链即规格序
         candidates.append((enc, "detector", _score_text(text)))
     declared_text_score: float | None = None
     if declared:
-        try:
-            declared_text = blob.decode(declared)
-            declared_text_score = _score_text(declared_text)
-        except (UnicodeDecodeError, LookupError):
-            declared_text_score = None
+        # 声明 codec 已在候选列（cp1252/gb18030 等）→ 直接取该 candidates
+        # 分，免整 blob 二次 decode+score；列外怪名（iso8859-2/koi8-u/
+        # ascii）或列内解码失败者才单解——失败语义与重试一致（None）。
+        declared_text_score = next(
+            (s for e, _basis, s in candidates if e == declared), None
+        )
+        if declared_text_score is None:
+            try:
+                declared_text_score = _score_text(blob.decode(declared))
+            except (UnicodeDecodeError, LookupError):
+                declared_text_score = None
     if declared_text_score is not None:
         best = max(candidates, key=lambda c: c[2], default=None)
         # 声明是作者先验：解码非负且落后不超过一个标点级分差即采纳——

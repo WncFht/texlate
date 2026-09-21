@@ -14,6 +14,7 @@ r"""校验域知识件 —— net 检测器簇与共享口径件（validate/xlat
 from __future__ import annotations
 
 import re
+from bisect import bisect_right
 from collections import Counter
 from typing import Final
 
@@ -183,8 +184,18 @@ def _math_spans(evs: list[tuple[str, int]]) -> list[tuple[int, int]]:
 def _cs_out_of_math(
     evs: list[tuple[str, int]], spans: list[tuple[int, int]]
 ) -> Counter[str]:
-    """文本域 cs 名 Counter——span 内出现不计。"""
-    return Counter(n for n, p in evs if not any(a <= p < b for a, b in spans))
+    """文本域 cs 名 Counter——span 内出现不计。
+
+    ``_math_spans`` 产出的 span 按起点升序且互不重叠——bisect 定位
+    最后一个 ``a <= p`` 的 span 即唯一候选，免去逐 cs × 逐 span 的
+    O(#cs × #spans) 线性扫。
+    """
+    starts = [a for a, _ in spans]
+    return Counter(
+        n
+        for n, p in evs
+        if not ((i := bisect_right(starts, p) - 1) >= 0 and p < spans[i][1])
+    )
 
 
 def bare_cs_net(src: str, zh: str) -> Counter[str]:

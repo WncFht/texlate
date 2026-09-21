@@ -61,6 +61,7 @@ from texlate.repair_l2 import (
     unknown_env_of,
 )
 from texlate.textutil import PH_RX, env_flag, env_str
+from texlate.textutil.osutil import ENV_FRONT_MATTER
 from texlate.validate.l0 import pair_feedback
 from texlate.xlat.client import DEFAULT_MODEL
 from texlate.xlat.glossary import Glossary
@@ -194,7 +195,6 @@ NULL_SINK: ReportSink = _NullSink()
 #: preamble 前置发射名全集——`options.front_matter`/`TEXLATE_FRONT_MATTER`
 #: 的合法键面。
 FRONT_MATTER_NAMES = frozenset({"abstract", "title", "author"})
-ENV_FRONT_MATTER = "TEXLATE_FRONT_MATTER"
 
 #: ``options.front_matter`` 各键缺省（摘要+标题开、作者关——既定产品默认）。
 _FRONT_MATTER_DEFAULT: dict[str, bool] = {
@@ -205,10 +205,10 @@ _FRONT_MATTER_DEFAULT: dict[str, bool] = {
 
 
 def default_front_matter() -> frozenset[str]:
-    """Env 缺省集：``TEXLATE_FRONT_MATTER`` 逗号清单，未设取 ``abstract,title``。"""
+    """Env 缺省集：``TEXLATE_FRONT_MATTER`` 逗号清单，未设取 ``_FRONT_MATTER_DEFAULT`` 的开键。"""
     raw = env_str(ENV_FRONT_MATTER)
     if not raw:
-        return frozenset({"abstract", "title"})
+        return frozenset(k for k, v in _FRONT_MATTER_DEFAULT.items() if v)
     return frozenset(x.strip() for x in raw.split(",")) & FRONT_MATTER_NAMES
 
 
@@ -243,11 +243,13 @@ def scan_tree(
 
     扫描段单源 ``latex.api.scan_tex_tree``（文件名闸 ``.rtx.tex`` 运行时
     转储静默跳过、``.code.tex`` tikzlibrary 机制件记 support → 解析崩
-    记 ``fault_files`` → 无散文记 ``support_files``——pstricks/epsf/
-    宏件/gnuplot 转储送译即腐蚀，按原文保留；与 fault 分流：有意跳过
-    而非失败）。本壳只把 ``parsed`` 桶折成 ``(scans, chunks)``——
-    chunk_id ``{idx}:{c.id}`` 方案归本臂。``front_matter`` = preamble
-    前置发射白名单（透传 ``scan_tex_tree``）。
+    分两叉（解析闸内判定）：``OSError(EINVAL)``（tar 伪装 ``.tex``，tar
+    闸在 ``parse_file`` 内）静默跳过——不进任何名单、逐字节保留；其余
+    解析崩记 ``fault_files``（单文件崩不拖垮整树，原文保留）→ 无散文
+    记 ``support_files``——pstricks/epsf/宏件/gnuplot 转储送译即腐蚀，
+    按原文保留；与 fault 分流：有意跳过而非失败）。本壳只把 ``parsed``
+    桶折成 ``(scans, chunks)``——chunk_id ``{idx}:{c.id}`` 方案归本臂。
+    ``front_matter`` = preamble 前置发射白名单（透传 ``scan_tex_tree``）。
     """
     tree = scan_tex_tree(root, front_matter=front_matter)
     scans: list[tuple[Path, ScanResult]] = []
@@ -836,7 +838,7 @@ def fixloop_round(  # noqa: PLR0913 -- 开关面穿透两臂同一契约
 
     ``baseline_dir`` 在场时 ``ruleset_with_baseline`` 注入
     （``restore_support_from_src`` 的 pristine 源——worker ``ctx.base_dir``/
-    e2e ``_baseline_snapshot`` 同位），缺席走默认 ruleset（restore
+    e2e/bench ``baseline_snapshot`` 同位），缺席走默认 ruleset（restore
     fail-safe 空转）。实况出口经 ``sink``：round 帧（``on_round`` 未显式
     给时默认安装）、done 帧载全量 cell、cell ``log`` 行、主文件判定与
     ``main_rel`` 分歧行——e2e 臂 ``NULL_SINK`` 下全静默（与重构前一致）。

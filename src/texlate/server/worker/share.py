@@ -23,15 +23,13 @@ from texlate.share import (
 )
 from texlate.textutil import CJK_RX
 from texlate.validate.l0 import validate_pair
-from texlate.xlat.glossary import (
-    LOCAL_GLOSSARY_NAME,
-)
 from texlate.xlat.prompts import PROMPT_VERSION
 
 from ._common import (
     PIPELINE_VERSION,
     PROGRESS,
     TaskCtx,
+    _row_status_snap,
     _ShareRejectError,
 )
 
@@ -157,10 +155,7 @@ class _Share:
         """translating（共享臂）：包内 chunks 对账本地 chunks → 译文落库。"""
         self._stage(ctx, "translating", "共享译文对账", PROGRESS["translating"][0])
         # retry 换包重对账会改 chunks 行——同款快照供事后摘 .splice-done
-        pre_rows = {
-            r["chunk_id"]: (str(r["status"]), str(r["translation"] or ""))
-            for r in self._all_chunks(ctx)
-        }
+        pre_rows = _row_status_snap(self._all_chunks(ctx))
         ctx.share = await self._to_thread(ctx, self._share_apply)
         s = ctx.share
         self._log(
@@ -253,7 +248,7 @@ class _Share:
             front_matter=str(manifest.get("front_matter") or ""),
         )
 
-    def _share_lookup(self, ctx: TaskCtx) -> bool:  # noqa: C901, PLR0911 -- 守卫/回退阶梯平铺即 spec 的跳过面
+    def _share_lookup(self, ctx: TaskCtx) -> bool:  # noqa: C901, PLR0911, PLR0912 -- 守卫/回退阶梯平铺即 spec 的跳过面
         """隐式 share 命中查询（shared-cache.md §8）：``_run_tex`` 在 parse 后调。
 
         触发点选型：share_key 七组分此刻才全齐且与翻译时同口径——
@@ -277,7 +272,13 @@ class _Share:
         opts = ctx.options()
         if str(opts.get("prefer") or "reuse") == "fresh":
             return False
-        key = self._share_current_key(ctx)
+        try:
+            key = self._share_current_key(ctx)
+        except ShareError as e:
+            # key 派生要读生效术语层（strict 层读挂抛 ShareError）——
+            # 与索引/包/解包臂同口径降级 miss，绝不让查询面 fault 任务
+            self._log(ctx, f"share lookup: key 派生失败按 miss 处理: {e}")
+            return False
         marked = opts.get("share")
         if marked is not None:
             if (
@@ -396,23 +397,18 @@ class _Share:
     def _share_glossary_hash(self, ctx: TaskCtx, cfg: Mapping[str, Any]) -> str:
         """``glossary_hash`` 组分：翻译时**生效**的自定义术语层内容复合指纹。
 
-        口径对齐 ``_make_glossary``：配置的 ``glossary`` 路径经
-        ``_glossary_path`` confine——拒/缺席即与翻译时同态回落
-        ``user_glossary_path``（``Glossary.load`` 的缺省 user 层）；
-        local 层 ``base/glossary.local.yaml`` 恒进指纹。category/default
-        内建层随 ``pipeline_ver`` 走不进指纹（cli ``_share_glossary_hash``
-        同口径）。无自定义层 → ``""``。指纹口径单源在
-        ``share.glossary_content_hash``——本臂只保留 confine 解析策略；
-        全部层 strict = 读失败即 ShareError（与原裸 ``read_bytes`` 传播
-        同口径，异常型归一 ShareError）。
+        口径对齐 ``_make_glossary``：层解析走 ``_glossary_layers``
+        （``cfg.glossary > options.glossary`` 拾取 + ``_glossary_path``
+        confine + local 层探测，``warn=True`` 与翻译同面告警）——拒/缺席
+        即与翻译时同态回落 ``user_glossary_path``（``Glossary.load`` 的
+        缺省 user 层）；local 层 ``base/glossary.local.yaml`` 在场即进
+        指纹。category/default 内建层随 ``pipeline_ver`` 走不进指纹
+        （cli ``_share_glossary_hash`` 同口径）。无自定义层 → ``""``。
+        指纹口径单源在 ``share.glossary_content_hash``——本臂只保留
+        fallback/strict 策略；全部在场层 strict = 读失败即 ShareError
+        （与原裸 ``read_bytes`` 传播同口径，异常型归一 ShareError）。
         """
-        gpath = str(cfg.get("glossary") or ctx.options().get("glossary") or "")
-        gfile = (
-            self._glossary_path(ctx, gpath, str(cfg.get("glossary_dir") or ""))
-            if gpath
-            else None
-        )
-        local = ctx.base_dir / LOCAL_GLOSSARY_NAME
+        gfile, local = self._glossary_layers(ctx, cfg, warn=True)
         return glossary_content_hash(
             user_layer=gfile,
             local_layer=local,

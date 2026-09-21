@@ -21,15 +21,15 @@ from texlate.textutil import (
     DOCSTYLE_RX,
     INPUT_BARE_RX,
     INPUT_BRACED_RX,
-    _tar_disguised,
     clean_decl_name,
-    decode_tex,
     mask_tex,
     safe_is_file,
     safe_resolve,
 )
 
 from .mask import visible_tex
+from .normalize import _read_tex
+from .transcode import _iter_files
 
 if TYPE_CHECKING:
     from collections.abc import Iterator, Mapping
@@ -39,8 +39,8 @@ if TYPE_CHECKING:
 #: tuple 保序：``_resolve_input`` 无扩展名补全按 kpathsea 序先 .tex 后 .ltx。
 _MAIN_TEX_SUFFIXES = (".tex", ".ltx")
 
-#: ``_body_mass`` BFS 文件数上界——分数只是排序键，够分胜负即可，
-#: 病态工程（数千 .tex）不拖死选取。
+#: ``_body_mass``/``_walk_inputs`` 闭包走查文件数上界——分数只是排序键，
+#: 够分胜负即可，病态工程（数千 .tex）不拖死选取。
 _MASS_FILE_CAP = 1024
 
 #: ``filecontents`` 环境成员抽取：``\begin{filecontents[*]}{name}`` 写的文件
@@ -123,6 +123,21 @@ def _filecontents_bodies(kept: str) -> dict[str, str]:
     return out
 
 
+def _iter_input_args(vis: str) -> Iterator[tuple[re.Match[str], str | None]]:
+    r"""``\input`` 族 braced+bare 两形命中流：``(match, clean_decl_name(arg))``。
+
+    ``_walk_inputs``/probe ``_scan_inputs``/inject ``_input_hop_targets``
+    同款扫描——``match["verb"]`` 留给消费方判 ``\InputIfFileExists``
+    optional 与 ``\include`` 分流；噪声名（控制序列/括号/注释符）以
+    ``None`` 原样 yield，由消费方跳过。
+    """
+    for match in (
+        *INPUT_BRACED_RX.finditer(vis),
+        *INPUT_BARE_RX.finditer(vis),
+    ):
+        yield match, clean_decl_name(match["arg"])
+
+
 def _input_names(name: str) -> Iterator[str]:
     r"""``\input``/``\include`` 声明名 → 候选文件名流（kpathsea 序）。
 
@@ -163,10 +178,12 @@ def _resolve_virtual(
 
 
 def _resolve_input(root: Path, decl_dir: Path, name: str) -> Path | None:
-    r"""``\input``/``\include`` 目标 → 本地 .tex（声明目录→工程根两跳，kpathsea 序）。
+    r"""``\input``/``\include`` 目标 → 本地 .tex/.ltx（声明目录→工程根两跳，kpathsea 序）。
 
-    无扩展名补 ``.tex``；解析到非 .tex（``.bbl``/``.sty`` 等）或越出
-    工程根的目标不计入 body 量（probe.py ``_find_local`` 同口径）。
+    无扩展名按 ``_MAIN_TEX_SUFFIXES`` 序补 ``.tex``/``.ltx``；解析到非
+    tex 主档后缀（``.bbl``/``.sty`` 等）或越出工程根的目标不计入 body 量。
+    （probe.py ``_find_local`` 是刻意的单跳 cwd-only 口径——引擎 cwd 即
+    main 目录；本函数为闭包遍历保声明目录→根两跳，二者不同源。）
     """
     for fname in _input_names(name):
         for base in (decl_dir, root):
@@ -191,7 +208,7 @@ def _walk_inputs(
     .tex（``_resolve_input`` 口径：声明目录→工程根两跳、越出工程根不计）。
     ``virtual`` 非空时磁盘缺席再探 filecontents 虚拟成员（自解包形态）。
     ``text_cache`` 非空时 ``resolved path → 遮盖文本`` 命中即免
-    read_bytes/``_tar_disguised``/decode/遮盖整链——``find_main_tex``
+    ``_read_tex`` 读件/解码/遮盖整链——``find_main_tex``
     全树扫描产物直供，消逐候选×逐文件的重复盘读（decode/mask 本体已有
     内容键 memo，真收益是 I/O 消重与 >512 件/>2MB 件树的 lru_cache
     挤兑免疫）；表外件（tar 伪装、扫描时 OSError、扫描后新建）回落
@@ -202,11 +219,7 @@ def _walk_inputs(
     queue = list(seeds)
     while queue and len(seen) <= _MASS_FILE_CAP:
         src, vis = queue.pop()
-        for match in (
-            *INPUT_BRACED_RX.finditer(vis),
-            *INPUT_BARE_RX.finditer(vis),
-        ):
-            name = clean_decl_name(match["arg"])
+        for _match, name in _iter_input_args(vis):
             if name is None:
                 continue
             tgt = _resolve_input(root, src.parent, name)
@@ -226,13 +239,10 @@ def _walk_inputs(
             if text_cache is not None:
                 sub = text_cache.get(tgt)
             if sub is None:
-                try:
-                    blob = tgt.read_bytes()
-                except OSError:
+                raw = _read_tex(tgt)  # 不可读/tar 伪装件 → None（同闸）
+                if raw is None:
                     continue
-                if _tar_disguised(blob):
-                    continue  # tar 伪装件——成员字节不是闭包面（normalize._tex_sources 同闸）
-                sub = visible_tex(decode_tex(blob))
+                sub = visible_tex(raw)
             queue.append((tgt, sub))
             yield tgt, sub
 
@@ -305,7 +315,7 @@ def _body_mass(
     return mass
 
 
-def find_main_tex(root: Path) -> Path | None:  # noqa: C901, PLR0912, PLR0915 — 候选过滤+排序启发式平铺即算法本体
+def find_main_tex(root: Path) -> Path | None:  # noqa: C901, PLR0912 — 候选过滤+排序启发式平铺即算法本体
     r"""定位主 .tex：最浅、最像正文的 `\documentclass`+`\begin{document}` 文件。
 
     候选门槛：`\documentclass`/`\documentstyle` 必须在文件本体（遮盖视图），
@@ -333,16 +343,10 @@ def find_main_tex(root: Path) -> Path | None:  # noqa: C901, PLR0912, PLR0915 �
     resolved = root.resolve()
     scanned: list[tuple[Path, str, str]] = []
     kept_views: list[str] = []
-    from .normalize import _iter_files  # noqa: PLC0415 -- 循环，惰载
-
     for p in sorted(_iter_files(root, _MAIN_TEX_SUFFIXES)):
-        try:
-            blob = p.read_bytes()
-        except OSError:
-            continue
-        if _tar_disguised(blob):
-            continue  # tar 伪装件——成员文本可含 bd/dc 假信号且改写即腐蚀 blob
-        raw = decode_tex(blob)
+        raw = _read_tex(p)
+        if raw is None:
+            continue  # 不可读件/tar 伪装件——成员文本可含 bd/dc 假信号且改写即腐蚀 blob
         scanned.append((p.resolve(), p.relative_to(root).as_posix(), visible_tex(raw)))
         if "filecontents" in raw:
             kept_views.append(mask_tex(raw, keep_verbatim=True))
@@ -380,7 +384,7 @@ def find_main_tex(root: Path) -> Path | None:  # noqa: C901, PLR0912, PLR0915 �
     for p, rel, text in scanned:
         if not DOCCLASS_RX.search(text):
             continue
-        if not _closure_has_document(resolved, p, text, text_cache=text_cache):
+        if not _closure_has_document(resolved, p, text, virtual, text_cache):
             continue
         _admit(rel, text)
     if not candidates:
@@ -410,7 +414,11 @@ def find_main_tex(root: Path) -> Path | None:  # noqa: C901, PLR0912, PLR0915 �
 
     masses = {
         rel: _body_mass(
-            resolved, (resolved / rel).resolve(), bodies[rel], text_cache=text_cache
+            resolved,
+            (resolved / rel).resolve(),
+            bodies[rel],
+            virtual,
+            text_cache,
         )
         for rel in candidates
     }
@@ -465,16 +473,11 @@ def classify_no_main(root: Path) -> str | None:
     后缀、worker/e2e reason 后缀）；``None`` 时票面不变。
     """
     has_ds = has_bd = plain = False
-    from .normalize import _iter_files  # noqa: PLC0415 -- 循环，惰载
-
     for p in _iter_files(root, _MAIN_TEX_SUFFIXES):
-        try:
-            blob = p.read_bytes()
-        except OSError:
-            continue
-        if _tar_disguised(blob):
-            continue  # tar 伪装件——成员文本不供 dc/ds/bd/指纹判据
-        vis = visible_tex(decode_tex(blob))
+        raw = _read_tex(p)
+        if raw is None:
+            continue  # 不可读件/tar 伪装件——成员文本不供 dc/ds/bd/指纹判据
+        vis = visible_tex(raw)
         if DOCCLASS_ONLY_RX.search(vis):
             return None
         has_ds |= DOCSTYLE_RX.search(vis) is not None

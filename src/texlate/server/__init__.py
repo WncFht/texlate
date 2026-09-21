@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from texlate.server.__main__ import main
     from texlate.server.app import create_app
 
 __all__ = ["create_app", "main"]

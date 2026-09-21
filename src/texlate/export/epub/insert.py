@@ -145,11 +145,9 @@ def _insert_clone_translation(
     new_p.clear()
     new_p.string = text
     _strip_duplicate_ids(new_p)
-    _restamp_language(new_p, language)
-    cls = list(new_p.get("class") or [])
-    if "texlate-zh" not in cls:
-        cls.append("texlate-zh")
-    new_p["class"] = cls
+    # new_p 是 owner 的克隆——attrs 与 owner 相同，语言章继承源声明面 +
+    # ``texlate-zh`` class 即 ``_stamp_translation`` 两件事
+    _stamp_translation(new_p, owner, language)
     owner.insert_after(new_p)
     return new_p
 
@@ -237,7 +235,7 @@ def _insert_dom(unit: Unit, zh: str, language: str) -> str | None:
 def insert_translation(
     unit: Unit, zh_text: str, language: str, *, zh: str | None = None
 ) -> str | None:
-    """按 §1.4 形态集插译；返回警告行（marker 调和有动作时）。
+    """按 doc-formats.md §1 插译形态集插译；返回警告行（marker 调和有动作时）。
 
     ``zh_text`` 是生译文——marker 报告始终按它记调和动作。``zh`` 是调用方
     已按同口径（``reconcile_markers``+``sanitize_xml_text``）净化的译文，

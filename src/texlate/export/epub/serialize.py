@@ -35,10 +35,16 @@ _XML_DECL_ENCODING_RE = re.compile(
 )
 
 #: OPF ``dc:language`` 的外科式改写——整树 ET 重写会把 ``opf:file-as`` 之类
-#: 属性换成生成前缀，正则只动这一个元素的文本内容
+#: 属性换成生成前缀，正则只动这一个元素的文本内容；自闭合
+#: ``<dc:language/>`` 形一并命中（group(2) 为 ``None``——原地展开，不能落进
+#: elif 再插一条，否则产出两个 dc:language）
 _DC_LANGUAGE_RE = re.compile(
-    r"<([A-Za-z_][\w.-]*):language\b[^>]*>([^<]*)</\1:language>"
+    r"<([A-Za-z_][\w.-]*):language\b[^>]*(?:>([^<]*)</\1:language>|\s*/>)"
 )
+
+#: ``xmlns:dc`` 绑定判定——裸子串 ``in`` 会被 ``xmlns:dcterms`` 撞脸（其前缀
+#: 正是 ``xmlns:dc``），未绑定却补 ``<dc:language>`` 元素 = 产出非法 XML
+_DC_XMLNS_RE = re.compile(r"\bxmlns:dc\s*=")
 
 #: Windows 驱动器绝对形（``C:/x``）——POSIX 侧不挡但对按名落盘的
 #: Windows 提取器是 zip-slip 同族。
@@ -63,7 +69,7 @@ def _serialize_soup(soup: BeautifulSoup) -> bytes:
     净化在 str 层做（utf-8 多字节续字节 ≥0x80，不会误伤双字节序列）；
     decl 改写只认文档开头的 ``<?xml``（合法 decl 位置，顶多前带 BOM/空白）。
     """
-    text = sanitize_xml_text(soup.encode("utf-8").decode("utf-8"))
+    text = sanitize_xml_text(str(soup))
     text = _XML_DECL_ENCODING_RE.sub(r"\g<1>\g<2>utf-8\g<3>", text, count=1)
     return text.encode("utf-8")
 
@@ -83,7 +89,8 @@ def _restamp_opf(book: EpubBook, language: str | None) -> None:
     """首条 ``dc:language`` → 目标语言。
 
     ``dc:identifier`` 不动——它是字体混淆的密钥源，照抄 zip 条目即免处理
-    （spec §2.6）。``language=None``（非法 ``target_lang``）时整步跳过——
+    （doc-formats.md §2 收尾「EPUB 特有注意点」段；亦见 §5 边界表）。
+    ``language=None``（非法 ``target_lang``）时整步跳过——
     正则文本替换面对注入值没有转义层。
     """
     if language is None:
@@ -96,10 +103,19 @@ def _restamp_opf(book: EpubBook, language: str | None) -> None:
         return
     m = _DC_LANGUAGE_RE.search(text)
     if m:
-        # span 替换而非字符串 replace——语言码（la/an/gu…）可能是标签名/属性的
-        # 子串，replace 会先命中它们把元素改残（`dc:zh-CNnguage` 事故）
-        text = text[: m.start(2)] + language + text[m.end(2) :]
-    elif "</metadata>" in text and "xmlns:dc" in text:
+        if m.group(2) is not None:
+            # span 替换而非字符串 replace——语言码（la/an/gu…）可能是标签名/
+            # 属性的子串，replace 会先命中它们把元素改残（`dc:zh-CNnguage` 事故）
+            text = text[: m.start(2)] + language + text[m.end(2) :]
+        else:
+            # 自闭合 ``<dc:language/>``：在 ``/>`` 处原地展开成完整元素，
+            # 保留既有属性（正则尾即以 ``/>`` 收尾）
+            text = (
+                text[: m.end() - 2]
+                + f">{language}</{m.group(1)}:language>"
+                + text[m.end() :]
+            )
+    elif "</metadata>" in text and _DC_XMLNS_RE.search(text):
         # 只在 dc 前缀已声明时才补元素——裸 ``<dc:language>`` 是非法 XML
         text = text.replace(
             "</metadata>",
@@ -146,7 +162,6 @@ def save_epub(dst: Path | str, book: EpubBook) -> None:
     for name in book.members:
         _validate_member_name(name)
     with zipfile.ZipFile(dst, "w") as out:
-        # 输入缺 mimetype 是畸形但可翻——产出侧必须产合法包：写规范值兜底
         # 输入缺/坏 mimetype 都可能出现（畸形输入可翻），产出侧必须写规范值——
         # 照抄会让 sniff_format 连自家出包都认不出
         out.writestr(

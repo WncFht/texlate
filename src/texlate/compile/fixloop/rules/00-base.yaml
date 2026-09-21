@@ -231,4 +231,4 @@ filemap:
     "vietnamese.ldf": "babel-vietnamese"
   version_guard: # docs/spec/compile.md 第9条: ctan_fetch 版本前置检查
     enabled: true # tlnet 只发最新; 新版对 bundle 的 expl3/LaTeX2e 太旧会拒载
-    texlive_format_epoch: "2022-07-14" # tectonic bundle 快照年代 (ctanfetch-probe §3.4)
+    texlive_format_epoch: "2022-07-14" # tectonic bundle 快照年代 (ctanfetch-probe §3.3)

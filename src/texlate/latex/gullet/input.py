@@ -146,17 +146,14 @@ class _Input:
             return "".join(chars) or None
         if t is not None:
             self._pushback(trace, t)
-        chars = []
-        while True:
-            t = self._rt(trace)
-            if t is None:
-                break
-            if t.kind in ("letter", "other") and t.text in FILENAME_CHARS:
-                chars.append(t.text)
-                continue
-            self._pushback(trace, t)
-            break
-        return "".join(chars) or None
+        # ``_read_run`` 共用 read-while-pred 循环（cond.py）——同 _rt/_pushback 账
+        return (
+            self._read_run(
+                lambda x: x.kind in ("letter", "other") and x.text in FILENAME_CHARS,
+                trace,
+            )
+            or None
+        )
 
     def _file_dir_of(self, t: Tok) -> str:
         r"""Token 所在文件的目录（``\input`` 查找序第一级）。

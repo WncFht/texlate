@@ -10,7 +10,8 @@ texglot-patterns §5），服务 ``uv tool install`` 一键可用语义：
 - sha256 是**唯一信任锚**（无 PGP/sigstore）——不匹配即整体拒绝，先校验
   后落盘，绝不执行未过校验的产物。
 - 归档只提 ``tectonic`` 单文件（成员 basename 匹配且恰好一个）；先写
-  ``<tools>/tectonic.download`` → ``chmod 0o755`` → ``replace()`` 原子落位。
+  ``<tools>/tectonic.<pid唯一>.download`` staging → ``chmod 0o755`` →
+  ``replace()`` 原子落位（唯一 staging 名免并发 install 互踩）。
 - 托管根 ``TEXLATE_DATA_DIR`` > ``~/.texlate``（单源 ``textutil.data_root``——
   compile 层不反向依赖 server）。
 - 开关：``TEXLATE_NO_DOWNLOAD`` 真值关；``CI`` 真值环境默认关（CI 引擎腿
@@ -31,6 +32,7 @@ import shutil
 import subprocess
 import sys
 import tarfile
+import tempfile
 import zipfile
 from functools import lru_cache
 from pathlib import Path
@@ -40,6 +42,7 @@ import httpx
 
 from texlate.compile import seams
 from texlate.textutil import data_root, env_flag
+from texlate.textutil.osutil import ENV_NO_DOWNLOAD
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -85,8 +88,8 @@ def tools_dir() -> Path:
 
 def download_allowed() -> bool:
     """自动下载开关：``TEXLATE_NO_DOWNLOAD`` 显式设置优先；``CI`` 真值默认关。"""
-    if os.environ.get("TEXLATE_NO_DOWNLOAD") is not None:
-        return not env_flag("TEXLATE_NO_DOWNLOAD", default=False)
+    if os.environ.get(ENV_NO_DOWNLOAD) is not None:
+        return not env_flag(ENV_NO_DOWNLOAD, default=False)
     return not env_flag("CI", default=False)
 
 
@@ -203,11 +206,22 @@ def install_tectonic(
     else:
         dest = dest_dir
     dest.mkdir(parents=True, exist_ok=True)
-    tmp = dest / (binary_name + ".download")
-    tmp.write_bytes(data)
-    tmp.chmod(0o755)
     target = dest / binary_name
-    tmp.replace(target)
+    # 进程唯一 staging 名——并发 install 共用 ``binary_name.download`` 时
+    # A 写半 B 起写，B replace 的是自己被 A 截断/混写的字节（sha256 只保
+    # 归档对，不保 staging 文件没被邻居碰）。mkstemp 原子占位免此竞态。
+    fd, tmp_name = tempfile.mkstemp(
+        dir=dest, prefix=binary_name + ".", suffix=".download"
+    )
+    tmp = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(data)
+        tmp.chmod(0o755)
+        tmp.replace(target)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
     return target
 
 

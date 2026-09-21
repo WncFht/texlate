@@ -25,6 +25,10 @@ from bs4.element import (
 _XML_NAME_START = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_")
 _XML_NAME_CHARS = _XML_NAME_START | frozenset("0123456789.-:")
 
+#: NCName 字符集——QName 的 prefix/local 两段与 ``xmlns:`` 声明的 local
+#: 都不得含 ``:``（``a:b:c``/``xmlns:a:b`` 是非法 QName/声明）
+_XML_NCNAME_CHARS = _XML_NAME_CHARS - {":"}
+
 #: doctype 名的合法尾：``PUBLIC "lit" "lit"`` 或 ``SYSTEM "lit"``（引号配对）
 _DOCTYPE_TAIL_RE = re.compile(
     r"""(?:PUBLIC\s+(['"]).*?\1\s+(['"]).*?\2|SYSTEM\s+(['"]).*?\3)\s*\Z""",
@@ -36,21 +40,42 @@ def _is_xml_name(s: str) -> bool:
     return bool(s) and s[0] in _XML_NAME_START and all(c in _XML_NAME_CHARS for c in s)
 
 
-def _clean_xml_name(name: str, fallback: str) -> str:
-    """剥掉 XML Name 非法字符；剥到 NameStartChar 起算，剥空回退 ``fallback``。"""
-    kept = "".join(c for c in name if c in _XML_NAME_CHARS)
+def _is_xml_ncname(s: str) -> bool:
+    """NCName 判定：合法 Name 且无 ``:``（QName 两段/xmlns local 的合法形）。"""
+    return (
+        bool(s)
+        and s[0] in _XML_NAME_START
+        and all(c in _XML_NCNAME_CHARS for c in s)
+    )
+
+
+def _clean_xml_name(name: str, fallback: str, *, allow_colon: bool = True) -> str:
+    """剥掉 XML Name 非法字符；剥到 NameStartChar 起算，剥空回退 ``fallback``。
+
+    ``allow_colon=False`` 用于 QName 的 local 段——残留 ``:`` 同样是非法名。
+    """
+    chars = _XML_NAME_CHARS if allow_colon else _XML_NCNAME_CHARS
+    kept = "".join(c for c in name if c in chars)
     i = 0
     while i < len(kept) and kept[i] not in _XML_NAME_START:
         i += 1
     return kept[i:] or fallback
 
 
-def _prefix_bound(tag: Tag, prefix: str) -> bool:
-    """``prefix`` 在 tag 自身或祖先上有 ``xmlns:prefix`` 声明才算绑定。"""
-    for anc in (tag, *tag.parents):
-        if isinstance(anc, Tag) and f"xmlns:{prefix}" in anc.attrs:
-            return True
-    return False
+def _prefix_bound(tag: Tag, prefix: str, declared: set[str]) -> bool:
+    """``prefix`` 在净化后是否仍绑定。
+
+    ``xml`` 前缀恒绑定（XML Namespaces 保留）；``declared`` 是本元素上能
+    活过净化的 ``xmlns:`` 声明 local 集（非法声明自身即被剥除，不能给
+    前缀背书）；祖先链按 ``descendants`` 文档序已先净化，读到的
+    ``xmlns:prefix`` 都是存活形。
+    """
+    if prefix == "xml" or prefix in declared:
+        return True
+    return any(
+        isinstance(anc, Tag) and f"xmlns:{prefix}" in anc.attrs
+        for anc in tag.parents
+    )
 
 
 def _ensure_single_root(soup: BeautifulSoup) -> None:
@@ -79,27 +104,49 @@ def _ensure_single_root(soup: BeautifulSoup) -> None:
 
 
 def _sanitize_tag(tag: Tag) -> None:
-    """tag/attr 名整形：非法字符剥除；未绑定命名空间前缀取本地名。"""
-    if ":" in tag.name:
-        prefix, _sep, local = tag.name.partition(":")
-        src = tag.name if prefix == "xml" or _prefix_bound(tag, prefix) else local
-        tag.name = _clean_xml_name(src, "div")
-    else:
-        tag.name = _clean_xml_name(tag.name, "div")
+    """tag/attr 名整形：非法字符剥除；未绑定命名空间前缀取本地名。
+
+    QName 两段（prefix/local）各自须为合法 NCName——``a:b:c``/``xmlns:0x``
+    这类宽容构造原样透传会把非法 QName 写进产出；前缀绑定只认净化后能
+    活下来的 ``xmlns:prefix`` 声明（先算 ``declared`` 再整形，乱序属性
+    里后置声明同样算数）。
+    """
+    declared = {
+        key[len("xmlns:") :]
+        for key in tag.attrs
+        if key.startswith("xmlns:") and _is_xml_ncname(key[len("xmlns:") :])
+    }
     new_attrs: dict[str, object] = {}
     for key, val in tag.attrs.items():
-        if key == "xmlns" or key.startswith("xmlns:"):
-            clean_key = key  # 命名空间声明自身即绑定源，原样保留
+        if key == "xmlns":
+            clean_key = key  # 默认命名空间声明自身即绑定源，原样保留
+        elif key.startswith("xmlns:"):
+            # xmlns local 必须是合法 NCName——非法声明（``xmlns:0x``/``xmlns:a:b``）
+            # 原样保留等于给非法前缀背书
+            clean_key = key if _is_xml_ncname(key[len("xmlns:") :]) else ""
         elif ":" in key:
             prefix, _sep, local = key.partition(":")
-            src = key if prefix == "xml" or _prefix_bound(tag, prefix) else local
-            clean_key = _clean_xml_name(src, "")
+            clean_local = _clean_xml_name(local, "", allow_colon=False)
+            clean_key = (
+                f"{prefix}:{clean_local}"
+                if clean_local and _prefix_bound(tag, prefix, declared)
+                else clean_local
+            )
         else:
             clean_key = _clean_xml_name(key, "")
         if not clean_key or clean_key in new_attrs:
             continue  # 剥空/重名属性没有合法落位
         new_attrs[clean_key] = val
     tag.attrs = new_attrs
+    if ":" in tag.name:
+        prefix, _sep, local = tag.name.partition(":")
+        clean_local = _clean_xml_name(local, "", allow_colon=False)
+        if clean_local and _prefix_bound(tag, prefix, declared):
+            tag.name = f"{prefix}:{clean_local}"
+        else:
+            tag.name = clean_local or "div"
+    else:
+        tag.name = _clean_xml_name(tag.name, "div")
 
 
 def _sanitize_pi(soup: BeautifulSoup, node: ProcessingInstruction) -> None:

@@ -15,16 +15,11 @@ from texlate.arxiv.fetch import (
     AcquireStatus,
 )
 from texlate.arxiv.ratelimit import RateLimiter
-from texlate.arxiv.sniff import (
-    BlobKind,
-    SniffError,
-    sniff,
-)
 from texlate.arxiv.unpack import unpack_sniffed
 from texlate.pipecore import front_matter_of
 from texlate.server.store import TERMINAL_STATUSES
 from texlate.server.upload import (
-    _looks_text,
+    _classify_upload,
     _safe_name,
     unpack_zip,
 )
@@ -79,13 +74,15 @@ class _Fetch:
                 else self._fetch_arxiv
             )
             await self._to_thread(ctx, refetch)
-        (ctx.src_dir / ".fetch-done").write_text("", encoding="utf-8")
         if ctx.options().get("reuse_hit") is not None:
-            # 本跑自产——上轮的 reuse 标记随产物来历失效即摘
+            # 本跑自产——上轮的 reuse 标记随产物来历失效即摘。先于哨兵落盘：
+            # 崩在两步之间时 resume 无哨兵重跑 fetch（dedup 重查等幂）；反序
+            # 则哨兵在、本段被早返跳过——自产产物永挂命中来历
             self.store.update_fields(
                 ctx.task_id,
                 options_json=ctx.update_options(lambda o: o.pop("reuse_hit", None)),
             )
+        (ctx.src_dir / ".fetch-done").write_text("", encoding="utf-8")
         self._stage(ctx, "fetching", "取源完成", PROGRESS["fetching"][1])
         self._check_cancelled(ctx)
 
@@ -312,28 +309,34 @@ class _Fetch:
         # 取源落 .fetch-done 时摘除（标记只描述当前产物的来历）。
         upd["options_json"] = ctx.set_option("reuse_hit", str(hit["id"]))
         self.store.update_fields(ctx.task_id, **upd)
-        self._mark_terminal(ctx, "done")
-        self.store.transition(
-            ctx.task_id,
-            "done",
-            progress=100,
-            force=True,
-            message="完成",
-        )
-        self.bus.publish(
-            ctx.task_id,
-            "done",
-            {
-                "status": "done",
-                "artifacts": self._artifact_urls(ctx),
-                "stats": self._stats(ctx),
-            },
-        )
+        self._finish_terminal(ctx, "done")
+
+    def _upload_files(self, ctx: TaskCtx) -> list[Path]:
+        """``upload/`` 全件名序枚举——无 payload 回空表（失败口径归调用方）。"""
+        return sorted((ctx.root / "upload").glob("*"))
+
+    def _first_upload(
+        self, ctx: TaskCtx, *, stage: str, code: str = "internal"
+    ) -> Path | None:
+        """``upload/`` 首件；空载 ``_fail`` 后回 ``None``——调用方 ``return`` 即够。"""
+        uploads = self._upload_files(ctx)
+        if not uploads:
+            self._fail(
+                ctx, code, "upload payload missing", retryable=False, stage=stage
+            )
+            return None
+        return uploads[0]
 
     def _fetch_upload(self, ctx: TaskCtx) -> None:
-        """upload_tex：解包 ``upload/`` blob → ``src/``；原文登记 src_tar。"""
+        """upload_tex：解包 ``upload/`` blob → ``src/``；原文登记 src_tar。
+
+        判据级联单源在 ``upload._classify_upload``（与路由层 ``sniff_upload``
+        同一份序：``%PDF`` → ``PK`` → tar/single_gz → text → unknown）——
+        本段只做 kind → 解包器分派不自持魔数序：zip+tar polyglot 在路由
+        侧判 zip，此处同判走 ``unpack_zip``，不再被 ``sniff`` 抢道成 tar。
+        """
         self._abort_if_cancelled(ctx)
-        uploads = sorted((ctx.root / "upload").glob("*"))
+        uploads = self._upload_files(ctx)
         if not uploads:
             msg = "upload payload missing"
             raise _StageError(code="internal", message=msg)
@@ -341,23 +344,16 @@ class _Fetch:
         data = blob_path.read_bytes()
         ctx.src_dir.mkdir(parents=True, exist_ok=True)
         warnings: list[str] = []
-        try:
-            s = sniff(data)
-        except SniffError:
-            s = None
-        if s is not None and s.kind in (BlobKind.TAR, BlobKind.SINGLE):
+        kind, s = _classify_upload(data, blob_path.name)
+        if kind == "zip":
+            warnings = unpack_zip(data, ctx.src_dir)
+        elif kind in ("tar", "single_gz"):
+            assert s is not None  # noqa: S101 -- tar/single 臂恒带解压载荷
             res = unpack_sniffed(s, ctx.src_dir, stem_hint=blob_path.name)
             warnings = res.warnings
-        elif data[:4] == b"PK\x03\x04":
-            warnings = unpack_zip(data, ctx.src_dir)
-        elif _looks_text(data) or blob_path.suffix.lower() in (
-            ".tex",
-            ".ltx",
-            ".latex",
-            ".txt",
-        ):
+        elif kind == "text":
             (ctx.src_dir / _safe_name(blob_path.name)).write_bytes(data)
-        else:
+        else:  # pdf/unknown——路由层已分流/拒收，漏到 fetch 侧即不支持
             msg = f"unrecognized upload format: {blob_path.name}"
             raise _StageError(code="unsupported_format", message=msg)
         for w in warnings:

@@ -14,9 +14,13 @@ from __future__ import annotations
 
 import math
 import os
+import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Final
+from typing import TYPE_CHECKING, Final
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 # ---------------------------------------------------------------- 路径防御
@@ -33,32 +37,35 @@ def safe_resolve(path: Path) -> Path | None:
         return None
 
 
-def safe_is_file(path: Path) -> bool:
-    r"""``Path.is_file()`` 防御层：NUL ``ValueError`` + 非豁免 ``OSError`` → False。
+def _safe_pred(path: Path, op: Callable[[Path], bool]) -> bool:
+    r"""``Path`` 谓词防御层单源：NUL ``ValueError`` + 非豁免 ``OSError`` → False。
 
     pathlib 自吞 ``OSError``，但内嵌 NUL 字节的路径抛 ``ValueError`` 不豁免——
     攻击者可控名（``\\includegraphics`` 参数、fixloop 供给的 fname）直达即崩。
     """
     try:
-        return path.is_file()
+        return op(path)
     except (OSError, ValueError):
         return False
+
+
+def safe_is_file(path: Path) -> bool:
+    r"""``Path.is_file()`` 防御层：``_safe_pred`` 同口径——NUL ``ValueError``/``OSError`` → False。"""
+    return _safe_pred(path, Path.is_file)
 
 
 def safe_is_dir(path: Path) -> bool:
-    r"""``Path.is_dir()`` 防御层：``safe_is_file`` 同口径——NUL ``ValueError``/``OSError`` → False。"""
-    try:
-        return path.is_dir()
-    except (OSError, ValueError):
-        return False
+    r"""``Path.is_dir()`` 防御层：``_safe_pred`` 同口径——NUL ``ValueError``/``OSError`` → False。"""
+    return _safe_pred(path, Path.is_dir)
 
 
 # ------------------------------------------------------------------ env 名表
 # ``TEXLATE_*`` env **名**的单一事实源——包内逐名登记（bench/tests 私名不入
 # 表）；新 env 先在此登记再取，doctor/文档的 env 面即本表。叶子模块历史
 # 散名（``repair.ENV_NO_FIXLOOP``/``repair_l2.ENV_*``/``e2e.ENV_AUTO_GLOSSARY``/
-# ``pipecore.ENV_FRONT_MATTER``/``logsetup.ENV_LOG*``/``staticfiles.SPA_DIR_ENV``）
-# 统一别名本表常量，消费侧一律 ``env_flag(ENV_X, ...)``。
+# ``pipecore.ENV_FRONT_MATTER``/``logsetup.ENV_LOG*``/``staticfiles.SPA_DIR_ENV``/
+# ``xlat.client.ENV_STREAM_FALLBACK``）统一别名本表常量，消费侧一律
+# ``env_flag(ENV_X, ...)``。
 
 #: 网关/API key——provider 兜底名表 ``PROVIDER_KEY_ENV`` 前的直读名。
 ENV_API_KEY: Final = "TEXLATE_API_KEY"
@@ -115,6 +122,8 @@ ENV_OFFLINE: Final = "TEXLATE_OFFLINE"
 ENV_SHARE_DIR: Final = "TEXLATE_SHARE_DIR"
 #: SPA 产物目录——``TEXLATE_SPA_DIR`` > 包内 ``static/``。
 ENV_SPA_DIR: Final = "TEXLATE_SPA_DIR"
+#: ``chat`` 流式兜底臂开关（默认关；``ChatClient(stream_fallback=)`` 显式值优先）。
+ENV_STREAM_FALLBACK: Final = "TEXLATE_STREAM_FALLBACK"
 #: tectonic bundle 覆盖（``env_opt``——set-empty 有独立语义：引擎自带默认）。
 ENV_TEX_BUNDLE: Final = "TEXLATE_TEX_BUNDLE"
 #: tlmgr 缓存目录。
@@ -143,6 +152,15 @@ def env_flag(name: str, *, default: bool) -> bool:
     if raw is None:
         return default
     return raw.strip().lower() in _TRUE_WORDS
+
+
+def env_switch(name: str, *, explicit: bool | None, default: bool) -> bool:
+    """三态开关归一：显式参数优先，``None`` 才读 ``env_flag``。
+
+    env 仍在调用时读取——``monkeypatch.setenv`` 缝不受影响（``e2e`` 同形
+    本地件的沉淀单源）。
+    """
+    return explicit if explicit is not None else env_flag(name, default=default)
 
 
 def env_float(name: str, default: float) -> float:
@@ -181,9 +199,19 @@ def env_opt(name: str) -> str | None:
     return raw.strip() if raw is not None else None
 
 
+def translator_mode() -> str:
+    """``TEXLATE_TRANSLATOR`` 归一读取：``env_str`` 口径，未设/置空 → ``""``。
+
+    只归一不裁决——``TRANSLATOR_MODES`` 白名单的处置归消费侧
+    （``cli.export`` 未知值 exit 2 显式拒；server 三读点对未知值**静默按
+    auto 回落**——两侧 typo 语义不同口径、统一裁决待定）。
+    """
+    return env_str(ENV_TRANSLATOR)
+
+
 def data_root() -> Path:
     """数据根：``TEXLATE_DATA_DIR`` > ``~/.texlate``——只定位不 mkdir。"""
-    raw = os.environ.get(ENV_DATA_DIR)
+    raw = env_raw(ENV_DATA_DIR)
     return Path(raw).expanduser() if raw else Path.home() / ".texlate"
 
 
@@ -195,6 +223,23 @@ def set_data_dir(path: Path) -> None:
     不走参数传递。
     """
     os.environ[ENV_DATA_DIR] = str(path.expanduser())
+
+
+def cache_root() -> Path:
+    """缓存根：``TEXLATE_CACHE_DIR`` > ``$XDG_CACHE_HOME/texlate`` > ``~/.cache/texlate``——只定位不 mkdir。
+
+    ``data_root`` 的缓存侧对称件。``TEXLATE_CACHE`` 不复用：已登记为 ctan
+    filemap 叶目录（``compile/ctan.py``）。
+    """
+    raw = env_raw(ENV_CACHE_DIR)
+    if raw:
+        return Path(raw).expanduser()
+    xdg = env_raw("XDG_CACHE_HOME")
+    return (
+        Path(xdg).expanduser() / "texlate"
+        if xdg
+        else Path.home() / ".cache" / "texlate"
+    )
 
 
 # ------------------------------------------------------------ 派生共享件
@@ -227,3 +272,29 @@ def filtered_env(
     if forced:
         env.update(forced)
     return env
+
+
+def atomic_write(path: Path, data: bytes | str, *, mode: int | None = 0o600) -> None:
+    """tmp+replace 原子落盘：mkstemp 随机后缀 tmp 名防同路径并发撞名，异常清 tmp 不留尸。
+
+    ``os.replace`` 收尾（跨平台可覆盖——POSIX rename 语义）；``mode=None``
+    跳过 chmod，产物权限留 mkstemp 缺省 0600（bench ``atomic_write_text``
+    同构件的委托口径）。
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(
+        prefix=f".{path.name}.", suffix=".tmp", dir=path.parent
+    )
+    try:
+        if isinstance(data, str):
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write(data)
+        else:
+            with os.fdopen(fd, "wb") as f:
+                f.write(data)
+        if mode is not None:
+            Path(tmp_name).chmod(mode)
+        Path(tmp_name).replace(path)  # os.replace 同语义——跨平台原子覆盖
+    except BaseException:
+        Path(tmp_name).unlink(missing_ok=True)
+        raise

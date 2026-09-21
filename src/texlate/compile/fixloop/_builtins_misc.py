@@ -18,9 +18,12 @@ from typing import TYPE_CHECKING, Any
 from texlate.compile.fixloop._builtins_common import (
     _fixloop_log,
     _fp_diff,
+    _in_wdir,
     _live_matches,
     _map_tex_files,
+    _splice,
     _wdir_fingerprint,
+    _wdir_project_files,
 )
 from texlate.compile.fixloop._builtins_graphics import (
     _EPS_EXTS,
@@ -1024,10 +1027,7 @@ def graphics_include_strip(
         ]
         if not spans:
             continue
-        out = t
-        for start, end in reversed(spans):
-            out = out[:start] + out[end:]
-        ctx.write(f, out)
+        ctx.write(f, _splice(t, [(s, e, "") for s, e in spans]))
         done.append(f"{f.name}×{len(spans)}")
     return (bool(done)), f"gfx-target input sites stripped: {', '.join(done)}"
 
@@ -1276,17 +1276,11 @@ def _conv_sibling(ctx: LoopCtx, base: Path, stem: PurePosixPath) -> Path | None:
         if safe_is_file(cand):
             return cand
     low = name.lower()
-    hits = []
-    for p in ctx.wdir.rglob("*"):
-        if not p.is_file() or p.name.lower() != low:
-            continue
-        parts = p.relative_to(ctx.wdir).parts
-        if any(part.startswith(".") for part in parts) or parts[0] in {
-            "_texmf",
-            "_tect_out",
-        }:
-            continue
-        hits.append(p)
+    hits = [
+        p
+        for p, _parts in _wdir_project_files(ctx)
+        if p.name.lower() == low
+    ]
     if not hits:
         return None
     return min(hits, key=lambda p: (len(p.parts), p.as_posix()))
@@ -1370,9 +1364,7 @@ def eps_converted_alias(  # noqa: C901, PLR0912, PLR0915  # 逐门 decline note 
             conv = _conv_sibling(ctx, base, stem)
             if conv is None:
                 continue
-            try:
-                target.resolve().relative_to(ctx.wdir.resolve())
-            except ValueError:
+            if not _in_wdir(ctx, target):
                 continue
             try:
                 target.parent.mkdir(parents=True, exist_ok=True)
@@ -1410,9 +1402,7 @@ def eps_converted_alias(  # noqa: C901, PLR0912, PLR0915  # 逐门 decline note 
         t = ctx.read(f)
         if t is None:
             continue
-        for s, e, new in sorted(spans, reverse=True):
-            t = t[:s] + new + t[e:]
-        ctx.write(f, t)
+        ctx.write(f, _splice(t, spans))
         edited.append(f"{f.name}×{len(spans)}")
     if not made and not edited:
         return False, "no shipped -eps-converted-to.pdf sibling for missing refs"
@@ -1558,11 +1548,9 @@ def _tcb_edits(t: str) -> list[tuple[int, int, str]]:
 
 
 def _tcb_patch_text(t: str) -> tuple[str, int]:
-    """``_map_tex_files`` 适配: ``_tcb_edits`` 逆序落盘 → (新文本, 编辑数)。"""
+    """``_map_tex_files`` 适配: ``_tcb_edits`` 编辑表回放 → (新文本, 编辑数)。"""
     edits = _tcb_edits(t)
-    for s, e, new in sorted(edits, reverse=True):
-        t = t[:s] + new + t[e:]
-    return t, len(edits)
+    return _splice(t, edits), len(edits)
 
 
 def tcolorbox_breakable_inject(
@@ -1677,10 +1665,8 @@ def float_h_demote(
         if t is None:
             continue
         edits = _float_h_edits(t, rx)
-        for s, e, new in sorted(edits, reverse=True):
-            t = t[:s] + new + t[e:]
         if edits:
-            ctx.write(f, t)
+            ctx.write(f, _splice(t, edits))
             changed += 1
     if not changed:
         return False, "no [H] float option sites"

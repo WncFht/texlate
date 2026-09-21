@@ -1,6 +1,7 @@
 r"""Mouth：字符 → token（plasTeX ``Tokenizer.py:333-483`` 的移植）。
 
-逐条对应关系见 ``docs/research/latex/expansion-design.md`` §2.2 表。
+逐条对应关系见 ``docs/research/latex/expansion-design.md`` §3（Token 与
+Mouth，原对照表已改散文）。
 与规格的刻意分歧（已留档）：
 
 - ``Tok.pos`` 是 ``(file_id, start, end)`` 三元组而非规格的
@@ -8,7 +9,7 @@ r"""Mouth：字符 → token（plasTeX ``Tokenizer.py:333-483`` 的移植）。
   被丢弃的 ``\if`` 分支**不产 token**，它们的字节是 gap；已产 token 的
   ``[start, end)`` + gap = 原文逐字节。
 - 展开产物新增 ``origin`` 字段 = 最外层调用点 pos（沿嵌套展开传播）。
-  spec §2.3 同时要求"产物 pos=定义体区间"与"splice 用调用点 pos"，
+  spec §2 同时要求"产物 pos=定义体区间"与"splice 用调用点 pos"，
   ``origin`` 字段让两者同真：``src`` 属性 = ``origin or pos``。
 - ``^^X`` 序列不实现（语料 ≈0）；``\let`` 不在 Mouth 层解（gullet 建
   别名表项，宏表查找时解引用——等价且少一条 Mouth→Context 依赖）。
@@ -79,7 +80,7 @@ class Tok:
     r"""token。``kind`` ∈ cs|lbrace|rbrace|mathshift|param|space|eol_par|letter|other|active|consumed。
 
     ``pos`` = ``(file_id, start, end)`` 半开区间；展开产物的 pos = 定义体区间
-    且 ``gen>0``、``origin`` = 最外层调用点 pos（spec §2.3）。
+    且 ``gen>0``、``origin`` = 最外层调用点 pos（spec §2）。
     ``xprotect`` = ``\noexpand`` 打标（gullet 见标跳过一次展开）。
     ``consumed`` = gullet 静默消费段 marker（``\def``/``\if``/``\input`` 等），
     ``text`` = ``family:payload``，``pos`` 盖整个被消费区间——分段器

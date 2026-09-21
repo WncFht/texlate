@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     import sqlite3
-    from collections.abc import Iterable
+    from collections.abc import Iterable, Sized
     from pathlib import Path
 
     from texlate.server.store import Store
@@ -213,7 +213,7 @@ ERROR_CODES = frozenset(
         "auth_required",
         "unsupported_format",
         "upload_too_large",
-        # BabelDOC sidecar 判定码（pdf-path.md §三 assess → _run_pdf 透传）
+        # BabelDOC sidecar 判定码（pdf-path.md §4.2 assess → _run_pdf 透传）
         "timeout",
         "scanned_pdf",
         "babeldoc_translate",
@@ -236,14 +236,35 @@ _TASK_ID_LEN = len(_TASK_ID_PREFIX) + 16  # t_ + 16 hex
 _UNSET: Any = object()
 
 
+# ------------------------------------------------------------ SQL 拼块件
+# 包内占位符/SET 子句/枚举字面量渲染单源——叶 repo 一律从这里取，
+# 防各聚合手滚漂移。
+
+
+def _qmarks(items: Sized) -> str:
+    """IN 占位符串（``?,?,…``）——只产占位符，值全走绑定参数。"""
+    return ",".join("?" * len(items))
+
+
+def _set_clause(fields: dict[str, Any]) -> str:
+    """UPDATE SET 子句（``k = ?`` 逗号串）——键名全为调用方内部白名单。"""
+    return ", ".join(f"{k} = ?" for k in fields)
+
+
+def _sql_str_list(items: Iterable[str]) -> str:
+    """渲染 SQL 字符串字面量列表（``'a','b'``）——仅染内部枚举常量，外部输入禁入。"""
+    return ",".join(f"'{s}'" for s in items)
+
+
 def _dir_size(d: Path) -> int:
     """目录树文件字节合计（扫描期单文件 OSError 跳过，整目录缺席→0）。"""
     total = 0
     try:
         for p in d.rglob("*"):
             with contextlib.suppress(OSError):
-                if p.is_file():
-                    total += p.stat().st_size
+                st = p.stat()
+                if stat_mod.S_ISREG(st.st_mode):
+                    total += st.st_size
     except OSError:
         pass
     return total

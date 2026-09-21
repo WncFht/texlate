@@ -71,7 +71,9 @@ def _share_db(task_dir: Path, data_dir: Path | None) -> Path | None:
     ]
     if data_dir is not None:
         cands.insert(0, data_dir.expanduser() / "texlate.db")
-    cands.append(_share_data_root(data_dir) / "texlate.db")
+    else:
+        # 已给 --data-dir 时 insert(0) 即同一路径——缺省臂才补默认数据根
+        cands.append(_share_data_root(data_dir) / "texlate.db")
     for cand in cands:
         if _is_file(cand):
             return cand
@@ -132,7 +134,8 @@ def _share_verify_pipeline(  # noqa: PLR0913, PLR0917 -- 键材料组与 manifes
     **请求时**版本（钉版请求 → ver、latest 请求 → None），两种形态都试。
     ``TEXLATE_CACHE_SCOPE=per_key`` 时材料含凭证指纹，无 key 无法重算 →
     降级为 stderr 告警（不阻断）。``options`` = 任务 options_json 反序列化
-    ——``front_matter`` 是键成分（``|fm:``），重算必须同料。
+    ——``front_matter``（``|fm:``）与 ``source``（``|src:``）都是键成分，
+    重算必须同料。
     """
     from texlate.pipecore import ran_front_matter  # noqa: PLC0415
     from texlate.server.settings import cache_scope  # noqa: PLC0415
@@ -150,12 +153,17 @@ def _share_verify_pipeline(  # noqa: PLR0913, PLR0917 -- 键材料组与 manifes
         return
     # 实跑集还原（缺席 = pre-feature 行 ∅）——与 enqueue 侧进键同料
     fm = ran_front_matter(options)
+    # ``source`` 同料进键（routers/tasks enqueue 同式）——html 任务的键带
+    # ``|src:html`` 成分，漏传则重算恒为 eprint 形、html 产物全被拒。
+    # 注意 key_parts/manifest 尚无 source 组分（异源包寻址待 share 层扩位）。
+    source = str(options.get("source") or "eprint")
     expect = {
         cache_key_for(
             arxiv_id=base,
             version=v,
             model=model,
             target_lang=lang,
+            source=source,
             front_matter=fm,
         )
         for v in (ver, None)
@@ -167,6 +175,47 @@ def _share_verify_pipeline(  # noqa: PLR0913, PLR0917 -- 键材料组与 manifes
             err=True,
         )
         raise typer.Exit(1)
+
+
+def _share_manifest(  # noqa: PLR0913 -- 键材料组与 manifest 同面
+    *,
+    arxiv_base: str,
+    version: int | None,
+    model: str,
+    target_lang: str,
+    glossary_hash: str,
+    options: Mapping[str, Any],
+    contributor: str | None = None,
+) -> dict[str, object]:
+    """``KEY_PART_FIELDS`` 七组分 + ``front_matter``/``contributor`` manifest dict。
+
+    ``server/worker/share.py`` ``share_pack_manifest`` 是同构孪生——正式
+    单源目标位 ``texlate.share``（``KEY_PART_FIELDS``/``_key_parts``
+    邻居，签名 ``share_manifest(*, arxiv_base, version, model,
+    target_lang, glossary_hash, options, contributor=None)`` 与本件一致），
+    落地后本件退役改 import。
+    """
+    from texlate.pipecore import ran_front_matter  # noqa: PLC0415 -- 重依赖延迟导入
+    from texlate.server.worker import PIPELINE_VERSION  # noqa: PLC0415
+    from texlate.xlat.prompts import PROMPT_VERSION  # noqa: PLC0415
+
+    manifest: dict[str, object] = {
+        "arxiv_id": arxiv_base,
+        "version": f"v{version}" if version is not None else "",
+        "model": model,
+        "prompt_ver": PROMPT_VERSION,
+        "target_lang": target_lang,
+        "glossary_hash": glossary_hash,
+        # 前置发射集进 key_parts——不同 fm 的任务产物不同包（∅ 记 ""
+        # 兼容旧包重算；与 worker share_pack_manifest 同口径）。
+        # 实跑集还原：done 行经 parse 写回恒带显式 dict；缺席 =
+        # pre-feature 行（实跑 ∅）不标缺省
+        "front_matter": ",".join(sorted(ran_front_matter(options))),
+        "pipeline_ver": PIPELINE_VERSION,
+    }
+    if contributor:
+        manifest["contributor"] = contributor
+    return manifest
 
 
 def _share_glossary_hash(
@@ -264,10 +313,6 @@ def share_pack(
     ``prompt_ver``/``pipeline_ver`` 取本装管线常量、``glossary_hash`` 由
     自定义术语表层内容派生——取不到一律显式报错，不编造进键。
     """
-    from texlate.pipecore import ran_front_matter  # noqa: PLC0415
-    from texlate.server.worker import PIPELINE_VERSION  # noqa: PLC0415
-    from texlate.xlat.prompts import PROMPT_VERSION  # noqa: PLC0415
-
     task_dir = _share_task_dir(task, data_dir)
     db = _share_db(task_dir, data_dir)
     if db is None:
@@ -287,22 +332,15 @@ def share_pack(
     _share_verify_pipeline(row, base, ver, model, lang, opts)
     cfg = row_json(row, "config_json")
     try:
-        manifest: dict[str, object] = {
-            "arxiv_id": base,
-            "version": f"v{ver}" if ver is not None else "",
-            "model": model,
-            "prompt_ver": PROMPT_VERSION,
-            "target_lang": lang,
-            "glossary_hash": _share_glossary_hash(task_dir, cfg, opts),
-            # 前置发射集进 key_parts——不同 fm 的任务产物不同包（∅ 记 ""
-            # 兼容旧包重算；与 worker share_pack_manifest 同口径）。
-            # 实跑集还原：done 行经 parse 写回恒带显式 dict；缺席 =
-            # pre-feature 行（实跑 ∅）不标缺省
-            "front_matter": ",".join(sorted(ran_front_matter(opts))),
-            "pipeline_ver": PIPELINE_VERSION,
-        }
-        if contributor:
-            manifest["contributor"] = contributor
+        manifest = _share_manifest(
+            arxiv_base=base,
+            version=ver,
+            model=model,
+            target_lang=lang,
+            glossary_hash=_share_glossary_hash(task_dir, cfg, opts),
+            options=opts,
+            contributor=contributor,
+        )
         out_dir = (
             Path.cwd()
             if out is None

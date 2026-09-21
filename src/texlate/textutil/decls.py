@@ -10,7 +10,10 @@ r"""文档声明/结构探测正则族的单一事实源。
 from __future__ import annotations
 
 import re
-from typing import Final
+from typing import TYPE_CHECKING, Final
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 #: ``\begin{document}`` 探测（``\begin {document}`` 空白合法）。消费侧一律
 #: 在遮盖/剥注释视图上判定——注释/verbatim 内的字面命中不算数。
@@ -98,6 +101,22 @@ INPUT_BARE_RX: Final = re.compile(r"\\input\s+(?P<arg>[^\s{}%\\]+)")
 #: 双参（dir+file）、CatchFileBetweenTags 前导 token 参、bibliography 逗号
 #: 分片，per-command 参数组语义单正则承载不了；超集口径仍在
 #: ``arxiv.locate._REF_RES``。
+
+
+def _iter_input_args(vis: str) -> Iterator[tuple[re.Match[str], str | None]]:
+    r"""``\input`` 族 braced+bare 两形命中流：``(match, clean_decl_name(arg))``。
+
+    ``_walk_inputs``/probe ``_scan_inputs``/inject ``_input_hop_targets``
+    同款扫描——``match["verb"]`` 留给消费方判 ``\InputIfFileExists``
+    optional 与 ``\include`` 分流；噪声名（控制序列/括号/注释符）以
+    ``None`` 原样 yield，由消费方跳过。
+    """
+    for match in (
+        *INPUT_BRACED_RX.finditer(vis),
+        *INPUT_BARE_RX.finditer(vis),
+    ):
+        yield match, clean_decl_name(match["arg"])
+
 
 #: 声明名噪声过滤：``\w./+-`` 白名单字符集——含控制序列/括号/注释符的
 #: 噪声 token 一律拒（``\input`` 巨参、``\@tempb`` 类误捕；fixloop

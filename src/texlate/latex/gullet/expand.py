@@ -6,14 +6,15 @@ from texlate.latex.mouth import (
     Tok,
 )
 
+from .cond import (
+    _branch_markers,
+)
 from .entries import (
     ArgMismatch,
     MacroDef,
 )
 from .names import (
-    _BUILTINS,
     _EXPAND_KINDS,
-    _PRIMS,
 )
 
 # \romannumeral 减记表（TeX 产出小写罗马；n>3999 走 consumed 兜底不展开）
@@ -123,19 +124,30 @@ class _Expand:
             self._trace = saved
         return out
 
-    def _expand_once(self, t: Tok) -> list[Tok]:  # noqa: PLR0911 — 表项/原语各态一分支
-        r"""单步展开（``\expandafter`` 用）：可展宏/可展原语就地一步；其余 ``[t]``。"""
-        if t.kind != "cs":
-            return [t]
-        e = self.macros.lookup(t.text)
-        r = self.macros.resolve(e)
-        out = self._try_expand_macro(t, r)
-        if isinstance(out, list):
-            return out
-        if out is _BLOCKED or out is _MISMATCH:
-            return [t]
-        if isinstance(r, str):
-            return self._expand_once(Tok("cs", r, t.pos, t.gen, t.origin))
+    def _expand_once(self, t: Tok) -> list[Tok]:  # noqa: C901, PLR0911 — 表项/原语各态一分支 + 别名链迭代
+        r"""单步展开（``\expandafter`` 用）：可展宏/可展原语就地一步；其余 ``[t]``。
+
+        str 别名链逐跳迭代（``\let\a\b``+``\let\b\a`` 成环 → 按不可展交出
+        ``[t]``；``next_expanded`` 的单跳换名同径，不递归）。
+        """
+        seen = {t.text}
+        while True:
+            if t.kind != "cs":
+                return [t]
+            e = self.macros.lookup(t.text)
+            r = self.macros.resolve(e)
+            out = self._try_expand_macro(t, r)
+            if isinstance(out, list):
+                return out
+            if out is _BLOCKED or out is _MISMATCH:
+                return [t]
+            if isinstance(r, str):
+                if r in seen:
+                    return [t]  # 别名环/自指：断链交出本体
+                seen.add(r)
+                t = Tok("cs", r, t.pos, t.gen, t.origin)
+                continue
+            break
         if r is None and t.text == "expandafter":
             # ``\expandafter`` 链（``\expandafter\expandafter``）：递归单步——
             # 同 ``_do_expandafter`` 语义，产物入返回列而非 unread。
@@ -172,7 +184,9 @@ class _Expand:
                 start = t.pos
             if t.kind == "cs" and t.text == "endcsname":
                 break
-            name.append(str(t))
+            # cs token 贡献其**名**（不含 \）——str(t) 会注入反斜杠，
+            # 合成名带 \ 永不解析（\csname a\bf\endcsname → "abf" 非 "a\bf"）
+            name.append(t.text)
         pos = start if start is not None else (-1, -1, -1)
         return Tok("cs", "".join(name), pos)
 
@@ -192,31 +206,16 @@ class _Expand:
         f_arg = self._read_grouping(trace, "{", "}")
         t_arg = t_arg or []
         f_arg = f_arg or []
-        defined = (
-            self.macros.lookup(name) is not None or name in _PRIMS or name in _BUILTINS
-        )
+        defined = self._is_defined(name)
         sel = f_arg if defined else t_arg
-        # 界标夹心（同 process_if）：lead marker 盖到选支首 token，
-        # 尾 marker 随选支 unread 盖 [选支末, 调用末)——否则整调用
-        # literal 后选支 surface 再进 chunk → 译文面 literal 原文 +
-        # chunk 译文双发。
-        fid = trig.pos[0]
-        end = -1
-        tail: Tok | None = None
-        if trace and trace[-1].pos[0] == fid:
-            if sel and sel[0].pos[0] == fid and sel[-1].pos[0] == fid:
-                end = sel[0].pos[1]
-                call_end = trace[-1].pos[2]
-                if call_end > sel[-1].pos[2]:
-                    tail = Tok(
-                        "consumed",
-                        f"ifundefined-end:{name}",
-                        (fid, sel[-1].pos[2], call_end),
-                        trig.gen,
-                        trig.origin,
-                    )
-            elif not sel:
-                end = trace[-1].pos[2]
+        # 界标夹心（``_branch_markers`` 共用实现，同 process_if）：lead
+        # marker 盖到选支首 token，尾 marker 随选支 unread 盖 [选支末,
+        # 调用末)——否则整调用 literal 后选支 surface 再进 chunk →
+        # 译文面 literal 原文 + chunk 译文双发。
+        lead_end, tail = _branch_markers(
+            sel, trace[-1] if trace else None, trig, f"ifundefined-end:{name}"
+        )
+        end = lead_end if lead_end is not None else -1
         self.unread([*sel, *([tail] if tail is not None else [])])
         return self._consumed(f"ifundefined:{name}", trig, trace, end=end)
 

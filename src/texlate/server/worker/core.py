@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import inspect
 import logging
-import threading
 from http import HTTPStatus
 from typing import TYPE_CHECKING
 
@@ -136,10 +135,7 @@ class _Core:
     async def run(self, ctx: TaskCtx) -> None:  # noqa: C901, PLR0912 -- 异常阶梯平铺即 §2.2 错误码映射表
         """按 kind 跑全链；异常按错误码映射落 fault/cancelled。"""
         # resume：内存字段从行快照重建（main_tex/engine_resolved 持久化值）
-        self._loop = asyncio.get_running_loop()
-        self._loop_tid = threading.get_ident()
-        ctx.main_rel = str(ctx.row.get("main_tex") or "")
-        ctx.engine_name = str(ctx.options().get("engine_resolved") or "tectonic")
+        self._rehydrate_ctx(ctx)
         try:
             self._check_cancelled(ctx)
             if ctx.row["kind"] == "upload_pdf":

@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from texlate.textutil import env_raw
+from texlate.textutil.osutil import ENV_SPA_DIR as SPA_DIR_ENV
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
@@ -25,8 +26,8 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
-#: SPA 产物目录环境变量覆盖（dev 可直挂 ``web/dist``）
-SPA_DIR_ENV = "TEXLATE_SPA_DIR"
+#: SPA 产物目录环境变量覆盖（dev 可直挂 ``web/dist``）——名本体注册在
+#: ``textutil.osutil``（``ENV_SPA_DIR``），本模块历史钉点名 ``SPA_DIR_ENV`` 别名守恒
 
 
 def spa_dir() -> Path | None:

@@ -22,7 +22,10 @@ from texlate.compile.fixloop._builtins_common import (
     _FB_FONT,
     _MATH_SHIM_CS,
     PDFTEX_PRIMS,
+    _fb_font_body,
+    _fb_preamble_lines,
     _fixloop_log,
+    _in_wdir,
     _inject_after_docclass,
     _inject_before_begindoc,
     _inject_write,
@@ -32,14 +35,15 @@ from texlate.compile.fixloop._builtins_common import (
     _mc_seen,
     _mc_table,
     _resolve_site,
+    _wdir_project_files,
 )
 from texlate.compile.fixloop._builtins_csfix import _ensure_usepackage
-from texlate.compile.fixloop._builtins_graphics import _PDF_SANITIZE_SKIP_DIRS
+from texlate.compile.latex209 import REVTEX209_CORE
 from texlate.latex.tables import MATH_ENVS
 from texlate.textutil import DOCCLASS_OPTS_RX, mask_tex, safe_is_file
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Iterator
+    from collections.abc import Iterable
 
     from texlate.compile.fixloop.engine import Engine, LoopCtx
 
@@ -775,34 +779,6 @@ def _is_transient_name(name: str, suffix: str) -> bool:
     return suffix.lower() in _RELOCATE_TRANSIENT_EXTS or name.lower().endswith(
         _RELOCATE_TRANSIENT_NAME_EXTS
     )
-
-
-def _in_wdir(ctx: LoopCtx, p: Path) -> bool:
-    """``p`` resolve 后是否仍落 ``ctx.wdir`` 内 —— resolve 失败按逃逸论。"""
-    try:
-        p.resolve().relative_to(ctx.wdir.resolve())
-    except (OSError, RuntimeError, ValueError):
-        return False
-    return True
-
-
-def _wdir_project_files(ctx: LoopCtx) -> Iterator[tuple[Path, tuple[str, ...]]]:
-    """``wdir`` 工程件遍历 → ``(path, wdir 相对 parts)``, dot 段与引擎树排除。
-
-    dot 段路径 (``.git``/``.fixloop-*`` 类) 与任一段命中
-    ``_PDF_SANITIZE_SKIP_DIRS`` (``_texmf`` wired texmfhome / ``_tect_out``
-    tectonic 产物树) 的件都不算工程档——引擎封装件非稿自带, 归位/hoist
-    不得把它们当搬运源 (``parts[0]`` 判会漏嵌套位, 须 any-part)。
-    """
-    for p in ctx.wdir.rglob("*"):
-        if not safe_is_file(p):
-            continue
-        parts = p.relative_to(ctx.wdir).parts
-        if any(part.startswith(".") for part in parts) or any(
-            part in _PDF_SANITIZE_SKIP_DIRS for part in parts
-        ):
-            continue
-        yield p, parts
 
 
 def _find_relocate_src(ctx: LoopCtx, rel: PurePosixPath) -> Path | None:
@@ -1611,14 +1587,12 @@ def cs_rebind(
     fam = str(params.get("fallback_cs") or "txlatefallback")
     lines = [
         "% fixloop: cs-rebind — missing chars produced by cs under TFM fonts",
-        "\\ifdefined\\newfontfamily\\else\\RequirePackage{fontspec}\\fi",
-        f"\\ifdefined\\{fam}\\else\\newfontfamily\\{fam}{{{font}}}\\fi",
+        *_fb_preamble_lines(fam, font),
     ]
     for cp, cs in fresh:
         ch = _mc_chr(cp)
         lines.append(
-            rf"\AtBeginDocument{{\protected\def\{cs}"
-            rf"{{\ifmmode\mbox{{\{fam} {ch}}}\else{{\{fam} {ch}}}\fi}}}}"
+            rf"\AtBeginDocument{{\protected\def\{cs}{{{_fb_font_body(fam, ch)}}}}}"
         )
     if not _inject_after_docclass(ctx, "\n".join(lines)):
         return False, "cs-rebind block already present"
@@ -1656,12 +1630,10 @@ _REVTEX209_POLYFILL = (
     + _AT_LETTER_PRE
     + "\n\\frontmatter@init\n"
     "\\let\\frontmatter@init\\relax\n"
-    "\\providecommand{\\twocolumn}[1][]{#1}\n"
-    "\\@ifundefined{@makecol}"
-    "{\\def\\@makecol{\\setbox\\@outputbox\\vbox{\\unvbox\\@cclv}}}{}\n"
-    # \long\def: \pacs 实参可含空行/\and (revpacs 残案 —— 非 \long 版
-    # 撞 "Paragraph ended before \pacs"), 代价为零。
-    "\\AtBeginDocument{\\long\\def\\pacs#1{\\par\\noindent\\textbf{PACS:} #1\\par}}\n"
+    # ``\twocolumn``/``\@makecol``/``\pacs`` 三行共享负载核单源在
+    # latex209.REVTEX209_CORE (``_REVTEX209_SHIM`` 同引) —— 行内
+    # ``\long\def``/单 ``#1`` 契约注记见彼侧。
+    + REVTEX209_CORE
     + _AT_LETTER_POST
 )
 
@@ -1718,7 +1690,7 @@ def revtex209_surface_polyfill(
 #: 83912071=文; tmp/mathchar/probe4.tex 实证 ``\count@=\mathcode`这`` 文本
 #: 态同炸、``\the\mathcode`` 读取不炸; t1-t6 实证裸 ``$这$``/``{\rm 这}``/
 #: ``\tilde``/上下标全不炸 —— 修复面只锁 ``\bm`` 族)。
-#: ``\bm#1 → \bmorig{{#1}}`` 双花括号把实参改走 bm 自带 ``\bm@gr@@p``→
+#: ``\bm#1 → \TeXlateBM{{#1}}`` 双花括号把实参改走 bm 自带 ``\bm@gr@@p``→
 #: ``\boldmath`` 组路径 (遍历被跳过且粗体语义保留; fix3/fix4 全形零错)。
 #: ``\b``/``\unit`` 等 ``\newcommand`` 别名调用点重展开 ``\bm`` 自动受益;
 #: ``\boldsymbol``/``\heavysymbol`` 是 bm.sty 末行 ``\let`` 别名,

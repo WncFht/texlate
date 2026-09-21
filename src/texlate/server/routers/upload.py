@@ -6,10 +6,7 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import re
-import shutil
-from contextlib import suppress
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -22,11 +19,12 @@ from texlate.server.http import (
     UploadPart,
     _accepted,
     _ApiError,
-    _clean_task_options,
+    _discard_part,
+    _form_options,
     _form_text,
     _parse_multipart,
+    _require_file_part,
 )
-from texlate.server.settings import TARGET_LANGS, validate_model
 from texlate.server.store import new_task_id
 from texlate.server.worker import sniff_upload
 
@@ -63,48 +61,13 @@ def _check_upload_route(route: str, babeldoc: str | None, filename: str) -> None
         )
 
 
-def _discard_part(file: UploadPart) -> None:
-    """spool 件兜底清理——已 rename 走则 ``unlink`` no-op，仍躺 spool 收掉。
+def _sniff_upload_path(path: Path, filename: str) -> str:
+    """``read_bytes`` + ``sniff_upload`` 合体——80MB 整读同样压在线程内。
 
-    ``UploadPart.discard()`` 的本地件（share.py 同款 finally 幂等清理）——
-    待 hoist 至 ``server/http.py`` 两域共吃。
+    ``to_thread(sniff_upload, path.read_bytes(), ...)`` 的写法会让
+    ``read_bytes()`` 在事件循环上先求值——大文件同步读盘阻塞 loop。
     """
-    with suppress(OSError):
-        file.path.unlink(missing_ok=True)
-
-
-def _require_file_part(form: dict[str, str | UploadPart]) -> UploadPart:
-    """``file`` 字段闸：缺席/非文件字段 → 400；空文件收掉 spool 件后 → 400。"""
-    file = form.get("file")
-    if not isinstance(file, UploadPart):
-        raise _ApiError(
-            400,
-            {
-                "detail": "multipart field 'file' required",
-                "code": "invalid_request",
-            },
-        )
-    if file.size == 0:
-        _discard_part(file)
-        raise _ApiError(
-            400, {"detail": "empty upload", "code": "invalid_request"}
-        )
-    return file
-
-
-def _form_options(form: dict[str, str | UploadPart]) -> dict[str, Any]:
-    """``options`` 字段 → 清洗后 dict：坏 JSON → 400；非 object → ``{}``。"""
-    options_raw = _form_text(form, "options")
-    try:
-        options = json.loads(options_raw) if options_raw else {}
-    except (ValueError, RecursionError):
-        raise _ApiError(
-            400,
-            {"detail": "options 字段不是合法 JSON", "code": "invalid_request"},
-        ) from None
-    if not isinstance(options, dict):
-        options = {}
-    return _clean_task_options(options)
+    return sniff_upload(path.read_bytes(), filename)
 
 
 def _upload_fields(
@@ -112,21 +75,9 @@ def _upload_fields(
 ) -> tuple[str, str, dict[str, Any]]:
     """表单字段 → ``(model, target_lang, options)``；非法 → ``_ApiError``。"""
     options = _form_options(form)
-    try:
-        model = validate_model(_form_text(form, "model") or deps.auth(request).model)
-    except ValueError as e:
-        raise _ApiError(400, {"detail": str(e), "code": "invalid_request"}) from e
-    target_lang = _form_text(form, "target_lang") or str(
-        deps.auth(request).settings["target_lang"]
+    model, target_lang = deps.resolve_model_lang(
+        request, _form_text(form, "model"), _form_text(form, "target_lang")
     )
-    if target_lang not in TARGET_LANGS:
-        raise _ApiError(
-            400,
-            {
-                "detail": f"target_lang ∈ {sorted(TARGET_LANGS)}",
-                "code": "invalid_request",
-            },
-        )
     if _form_text(form, "main"):
         options["main"] = _form_text(form, "main")
     return model, target_lang, options
@@ -145,7 +96,7 @@ def register(app: FastAPI, deps: AppDeps) -> None:
             # 魔数路由读全 blob（gzip/zip 容器判定非头字节可定）——CPU+读盘
             # 秒级，卸出事件循环；临时 bytes 不出本函数域
             route = await asyncio.to_thread(
-                sniff_upload, file.path.read_bytes(), filename
+                _sniff_upload_path, file.path, filename
             )
             _check_upload_route(route, deps.babeldoc or find_tool("babeldoc"), filename)
             model, target_lang, options = _upload_fields(request, form, deps)
@@ -163,7 +114,7 @@ def register(app: FastAPI, deps: AppDeps) -> None:
                 )
             # 先落 blob（建行前），再建行+入队——task_id 两侧共用
             task_id = new_task_id()
-            updir = deps.root / "tasks" / task_id / "upload"
+            updir = deps.task_dir(task_id) / "upload"
 
             def _stage() -> None:
                 updir.mkdir(parents=True, exist_ok=True)
@@ -189,15 +140,11 @@ def register(app: FastAPI, deps: AppDeps) -> None:
             except Exception:
                 # 建行/入队任何失败——upload blob 目录一并收掉，不留孤儿（B4）；
                 # rmtree 是重 I/O，卸出事件循环
-                await asyncio.to_thread(
-                    shutil.rmtree, deps.root / "tasks" / task_id, ignore_errors=True
-                )
+                await deps.drop_task_dir(task_id)
                 raise
             if str(row["id"]) != task_id:
                 # idempotent 命中旧行——本次落盘 blob 成孤儿，连带目录清掉（B4）
-                await asyncio.to_thread(
-                    shutil.rmtree, deps.root / "tasks" / task_id, ignore_errors=True
-                )
+                await deps.drop_task_dir(task_id)
             return _accepted(row, status, extra)
         finally:
             # 仍躺 spool 即本次未消费——收掉（已 rename 走则 no-op）

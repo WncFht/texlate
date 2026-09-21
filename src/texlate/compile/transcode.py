@@ -3,22 +3,26 @@ r"""支持件字节卫生层（normalize.py 拆出）：非 ``.tex`` 手术面�
 invalid_utf8 输入侧修复臂：aux/bib/中间产物转码 + 中间件截尾整形 +
 EPS/PS ``%`` 注释行逐行净化 + ``%%BoundingBox: (atend)`` 头行回值 +
 catch-all 全树转码（``BINARY_SUFFIXES`` 豁免 + NUL 闸兜底）——实证依据
-见各函数 docstring。另收两个跨模块共享的树遍历低层件：``_hidden_path``
-（隐藏路径豁免口径单源）与 ``_record_verdict``（编码判定台账），
-``normalize.py``/``shadow.py`` 回引。
+见各函数 docstring。另收跨模块共享的树遍历/读件低层件：``_iter_files``
+（软链豁免树遍历单源）、``_hidden_path``（隐藏路径豁免口径单源）、
+``_read_tex_path``/``_read_tex``（读件 + tar 伪装闸 + 解码单源）与
+``_record_verdict``（编码判定台账），``normalize.py``/``shadow.py``/
+``layout.py``/``mainfile.py`` 等回引。
 """
 
 from __future__ import annotations
 
+import os
 import re
+from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
 if TYPE_CHECKING:
-    from pathlib import Path
+    from collections.abc import Container, Iterator
 
     from texlate.textutil import EncodingVerdict
 
-from texlate.textutil import decode_tex, decode_tex_with
+from texlate.textutil import _tar_disguised, decode_tex, decode_tex_with
 
 from .mask import TEX_SOURCE_SUFFIXES
 
@@ -166,10 +170,57 @@ _PS_DATA_BEGIN_RX: Final = re.compile(
 _PS_DATA_END_RX: Final = re.compile(rb"^[ \t]*%%End(?:Binary|Data|Document|Preview)\b")
 
 
-# ---------------------------------------------------------------- 树遍历/台账共享低层件
+# ------------------------------------------------------- 树遍历/读件/台账共享低层件
 def _hidden_path(path: Path, root: Path) -> bool:
     """任一路径段 ``.`` 前缀——隐藏件（``.git``/``.dotfile``）整体豁免手术与审计。"""
     return any(part.startswith(".") for part in path.relative_to(root).parts)
+
+
+def _iter_files(
+    root: Path, suffixes: Container[str] | None, *, skip_hidden: bool = True
+) -> Iterator[Path]:
+    r"""工程内常规文件迭代：软链豁免 + 后缀过滤 + 隐藏路径闸（compile 层单源）。
+
+    ``os.walk(followlinks=False)`` 而非 ``rglob``——rglob 跟随目录符号链
+    且无环检测，unpack 放行的 in-tree symlink 环会炸 RecursionError
+    （``normalize._iter_files``/``arxiv/locate.py`` ``_iter_files`` 同教训
+    同款实现）；walk 下目录软链不递归——rglob 会穿进软链目录把链外件当
+    包内件读写（写穿即 root 外腐蚀），现整支豁免。``skip_hidden`` 时隐藏
+    目录在 ``dirnames`` 层整支剪掉（``.git`` 不再下潜）。``suffixes=None``
+    不按后缀过滤——排除式 catch-all 面（``_transcode_support_files``）用。
+    """
+    for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
+        if skip_hidden:
+            # 隐藏目录整支不递归——_hidden_path 口径提前到目录层（.git 等）
+            dirnames[:] = [d for d in dirnames if not d.startswith(".")]
+        base = Path(dirpath)
+        for name in filenames:
+            path = base / name
+            if path.is_symlink() or not path.is_file():
+                continue  # 软链豁免：读写都会穿到 root 外目标
+            if suffixes is not None and path.suffix.lower() not in suffixes:
+                continue
+            if skip_hidden and _hidden_path(path, root):
+                continue  # 隐藏路径整体豁免
+            yield path
+
+
+def _read_tex_path(path: Path) -> bytes | None:
+    """读件原始字节；OSError（不可读件）/tar 伪装件 → ``None``。
+
+    tar 伪装件成员字节不是手术面——转码/改写都会腐蚀 blob。
+    """
+    try:
+        blob = path.read_bytes()
+    except OSError:
+        return None
+    return None if _tar_disguised(blob) else blob
+
+
+def _read_tex(path: Path) -> str | None:
+    """``_read_tex_path`` + ``decode_tex``——tex 源解码文本或 ``None``。"""
+    blob = _read_tex_path(path)
+    return None if blob is None else decode_tex(blob)
 
 
 def _record_verdict(
@@ -224,14 +275,17 @@ def _sanitize_ps_comments(blob: bytes) -> bytes:
         return blob
     out: list[bytes] = []
     changed = False
-    in_data = False
+    # 数据段按嵌套深度计数而非布尔——payload 内夹带的 ``%%End*`` 字样不能
+    # 提前放行外层段（其后的 ``%`` 行仍是数据字节），depth 归零才出段；
+    # in_data 期间到来的 Begin 行也只加深深度、不改变惰性语义。
+    depth = 0
     for raw_line in blob.split(b"\n"):
         line = raw_line
         if _PS_DATA_BEGIN_RX.match(line):
-            in_data = True
+            depth += 1
         elif _PS_DATA_END_RX.match(line):
-            in_data = False
-        elif not in_data and line.lstrip(b" \t").startswith(b"%"):
+            depth = max(0, depth - 1)
+        elif depth == 0 and line.lstrip(b" \t").startswith(b"%"):
             try:
                 line.decode("utf-8")
             except UnicodeDecodeError:
@@ -418,11 +472,7 @@ def _transcode_support_files(
         "purged_intermediates": [],
         "dos_eps_skipped": [],
     }
-    for path in root.rglob("*"):
-        if path.is_symlink() or not path.is_file():
-            continue
-        if _hidden_path(path, root):
-            continue
+    for path in _iter_files(root, None):
         rel = path.relative_to(root).as_posix()
         suffix = path.suffix.lower()
         if suffix in TEX_SOURCE_SUFFIXES or suffix in BINARY_SUFFIXES:

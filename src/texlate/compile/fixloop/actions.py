@@ -13,6 +13,7 @@ from __future__ import annotations
 import contextlib
 import re
 import shutil
+import sys
 from itertools import islice
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any
@@ -21,6 +22,7 @@ import regex
 
 from texlate.compile.fixloop import builtins
 from texlate.compile.fixloop._builtins_common import _fp_diff, _wdir_fingerprint
+from texlate.compile.fixloop._builtins_graphics import _PDF_SANITIZE_SKIP_DIRS
 from texlate.compile.fixloop.ruleset import _WHEN_ITEM_KEYS
 from texlate.texlog import is_project_file
 from texlate.textutil import mask_tex
@@ -43,6 +45,12 @@ def _probe(eng: Engine, fname: str, cwd: Path | None = None) -> str | None:
         except TypeError:
             pass  # 裸签名实现 → 退回 fname-only
     return eng.probe_file(fname)
+
+
+def _advise(ctx: LoopCtx, adv: str) -> None:
+    """幂等 advisory 记账 —— 同文条目不重复落 (``_builtins_vendored._advise`` 同口径)。"""
+    if adv not in ctx.advisories:
+        ctx.advisories.append(adv)
 
 
 # ════════════════════════════════════════════════════════════════
@@ -71,10 +79,19 @@ def _substitute(
     payload: str | None,
     ctx: LoopCtx | None = None,
 ) -> Any:  # noqa: ANN401  # 同上 (递归返回 yaml 值)
-    """Params 值里的 ``{payload}``/``{main_dir}`` 占位替换。"""
+    """Params 值里的 ``{payload}``/``{main_dir}``/``{python}`` 占位替换。
+
+    ``{python}`` → ``sys.executable``: run_tool argv 钉 texlate 宿主解释器
+    —— uvx/pipx/system-site 部署下 PATH python3 可能是另一份无 texlate
+    的解释器且无 VIRTUAL_ENV/CONDA_PREFIX 可借 (site.addsitedir 兜底不
+    到), 直接用宿主解释器跑 ``-c`` 内嵌脚本 ``import texlate`` 恒可解析。
+    executable 缺位 (嵌入式空串/None) 退回 ``python3`` 旧字面口径。
+    """
     if isinstance(v, str):
         if "{main_dir}" in v:
             v = v.replace("{main_dir}", _main_dir_rel(ctx))
+        if "{python}" in v:
+            v = v.replace("{python}", sys.executable or "python3")
         return v.replace("{payload}", payload or "")
     if isinstance(v, dict):
         return {k: _substitute(x, payload, ctx) for k, x in v.items()}
@@ -111,7 +128,11 @@ def _when_ok(
 
 
 def _package_version(eng: Engine, fname: str) -> int | None:
-    """Probe 到的包文件 ``vX.Y`` 主版本号 (package_version_ge 条件用)。"""
+    r"""Probe 到的包文件 ``vX.Y`` 主版本号 (package_version_ge 条件用)。
+
+    ``v`` 前缀必须显式——裸日期形 ``\ProvidesPackage{x}[2020/01/01]``
+    不再把 ``2020`` 误吃成主版本号 (date-only → ``None``)。
+    """
     found = eng.probe_file(fname)
     if not found:
         return None
@@ -120,7 +141,7 @@ def _package_version(eng: Engine, fname: str) -> int | None:
     except (OSError, ValueError):
         return None
     m = re.search(
-        r"\\Provides(?:Expl)?(?:Package|Class)\s*\{[^}]*\}[^v\n]*v?(\d+)", text
+        r"\\Provides(?:Expl)?(?:Package|Class)\s*\{[^}]*\}[^v\n]*v(\d+)", text
     )
     return int(m.group(1)) if m else None
 
@@ -166,10 +187,10 @@ _SOURCE_BLOB_EXTS = (".tex", ".sty", ".cls")
 
 
 def _cond_snap(ctx: LoopCtx) -> dict[str, Any]:
-    """条件快照槽 (挂 ``ctx.io._cond_snap`` 动态面): ``files``/``sig``/``blob`` 三槽惰性填。"""
+    """条件快照槽 (挂 ``ctx.io._cond_snap`` 动态面): ``files``/``sig``/``blob``/``shadows`` 四槽惰性填。"""
     snap = getattr(ctx.io, "_cond_snap", None)
     if snap is None:
-        snap = {"files": None, "sig": None, "blob": None}
+        snap = {"files": None, "sig": None, "blob": None, "shadows": None}
         ctx.io._cond_snap = snap  # noqa: SLF001 - 同上
     return snap
 
@@ -202,6 +223,24 @@ def _cond_blob(ctx: LoopCtx) -> str:
     return snap["blob"]
 
 
+def _cond_shadows(
+    ctx: LoopCtx, eng: Engine, exts: tuple[str, ...]
+) -> list[tuple[Path, tuple[int, int, int] | None, tuple[int, int, int] | None, str]]:
+    """``vendored_shadow`` 候选表快照 —— 按 ``exts`` 键 memo, 同派发窗内复用。
+
+    ``find_vendored_shadows`` 每调一次全量 ``ctx.tex_files`` + probe/read
+    系统副本——逐规则重跑纯属浪费; 窗内盘面突变仍由 ``_apply``/``_match_apply``
+    入口的整槽作废兜底 (与 files/blob 槽同不变量)。
+    """
+    snap = _cond_snap(ctx)
+    memo = snap["shadows"]
+    if memo is None:
+        memo = snap["shadows"] = {}
+    if exts not in memo:
+        memo[exts] = builtins.find_vendored_shadows(ctx, eng, exts)
+    return memo[exts]
+
+
 def _stem_sibling(ctx: LoopCtx, pay: str, exts: list[Any]) -> bool:
     r"""``fileset.sibling_exts`` 实现: payload stem 查图形族交替件。
 
@@ -211,8 +250,8 @@ def _stem_sibling(ctx: LoopCtx, pay: str, exts: list[Any]) -> bool:
     false-accept 只亏一轮 (剥名后仍缺 → 下轮占位臂收), false-abstain
     会把盘上真图换成占位框。stem 比对全小写; ``exts`` 各元带 ``.`` 前
     缀对 ``p.suffix``。引擎/封装树不计存活面: ``.`` 前缀部件
-    (``.git``/``.fixloop-*``) 与顶层 ``_texmf``/``_tect_out``
-    (``_PDF_SANITIZE_SKIP_DIRS`` 同口径——texmfhome 面与 tectonic 产
+    (``.git``/``.fixloop-*``) 与 ``_PDF_SANITIZE_SKIP_DIRS``
+    (顶层 ``_texmf``/``_tect_out`` 单源——texmfhome 面与 tectonic 产
     物树非文档内嵌图件)。stem 空 → False。
 
     ``<stem>-eps-converted-to.<ext>`` 归一为 ``<stem>`` 算 sibling:
@@ -226,10 +265,9 @@ def _stem_sibling(ctx: LoopCtx, pay: str, exts: list[Any]) -> bool:
     if not stem:
         return False
     pool = {str(e).lower() for e in exts}
-    skip_dirs = {"_texmf", "_tect_out"}
     for p in _cond_files(ctx):
         parts = p.relative_to(ctx.wdir).parts
-        if any(part.startswith(".") for part in parts) or parts[0] in skip_dirs:
+        if any(part.startswith(".") for part in parts) or parts[0] in _PDF_SANITIZE_SKIP_DIRS:
             continue
         s = p.stem.lower().removesuffix("-eps-converted-to")
         if s == stem and p.suffix.lower() in pool:
@@ -292,7 +330,7 @@ def _cond_ok(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0917  # 条件原语�
             if not any(ctx.wdir.glob(str(v))):
                 return False, f"无 {v} 匹配"
         elif key == "vendored_shadow":
-            if not builtins.find_vendored_shadows(ctx, eng, (".sty", ".cls")):
+            if not _cond_shadows(ctx, eng, (".sty", ".cls")):
                 return False, "无遮蔽候选"
         elif key == "package_version_ge":
             got = _package_version(eng, str(v.get("file", "")))
@@ -501,23 +539,8 @@ def _scan_vendored(
     for fname in missing:
         if fname in got:
             continue
-        rel = PurePosixPath(fname)
-        if rel.is_absolute() or ".." in rel.parts or "\x00" in fname:
-            continue
-        src = builtins._vendored_source(root, fname)  # noqa: SLF001 - 同上
-        if src is None:
-            continue
-        dst = builtins._resolve_site(ctx, rel)  # noqa: SLF001 - 落位口径单源
+        dst, _why = _vendored_drop(ctx, root, fname)
         if dst is None:
-            continue
-        if dst.exists():
-            continue  # 稿自带/前轮已投不覆写 (vendored_fetch_multi ``present`` 同闸;
-            # missing 探针是 wdir 视域, ``_resolve_site`` 落 ``main_dir/rel``
-            # 可触 wdir 根外的工程件——盲 copyfile 会覆写稿内同名件)
-        try:
-            dst.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(src, dst)
-        except OSError:
             continue
         out.append(fname)
         ctx.installed.append(fname)
@@ -527,16 +550,63 @@ def _scan_vendored(
     return out
 
 
-def _filemap_candidates(eng: Engine, fname: str) -> list[str]:
-    """``filemap`` 查询 + tectonic 侧 tlpdb 索引兜底 (CtanFetcher.peek_index)。"""
+def _vendored_drop(
+    ctx: LoopCtx, root: Path, fname: str
+) -> tuple[Path | None, str | None]:
+    """单件 vendored 落盘链: rel 守卫 → 查件 → 落位 → 覆写闸 → copy。
+
+    ``vendored_fetch_multi`` 同款五步 (``safe_rel``/``_vendored_source``/
+    ``_resolve_site``/exists-guard/copyfile)——(dst, None) 成 /
+    (None, reason) 败, reason 与该臂 notes 词表同口径
+    (``unsafe``/``not vendored``/``escapes wdir``/``present``/OSError 文)。
+    """
+    # 延迟 import: arxiv 链重, 与 _builtins_vendored 同单源
+    from texlate.arxiv.locate import (  # noqa: PLC0415
+        safe_rel,
+    )
+
+    rel = safe_rel(fname)
+    if rel is None:
+        return None, "unsafe"
+    src = builtins._vendored_source(root, fname)  # noqa: SLF001 - vendored 查件单源
+    if src is None:
+        return None, "not vendored"
+    dst = builtins._resolve_site(ctx, rel)  # noqa: SLF001 - 落位口径单源
+    if dst is None:
+        return None, "escapes wdir"
+    if dst.exists():
+        return None, "present"  # 稿自带/前轮已投不覆写 (vendored_fetch_multi ``present`` 同闸;
+        # missing 探针是 wdir 视域, ``_resolve_site`` 落 ``main_dir/rel``
+        # 可触 wdir 根外的工程件——盲 copyfile 会覆写稿内同名件)
+    try:
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(src, dst)
+    except OSError as e:
+        return None, str(e)
+    return dst, None
+
+
+def _index_candidates(eng: Engine, fname: str, *, suggest: bool = False) -> list[str]:
+    """``filemap`` + ``ctan_fetch.peek_index`` 索引查包链 (``_builtins_vendored._index_providers`` 同构)。
+
+    ``suggest=True`` 时 ``query`` 空集再退 ``suggest`` 前缀猜测——候选提示
+    面可宽; 遮蔽佐证面 (``_index_providers``) 应保持默认 ``False`` 只收精确命中。
+    """
     pkgs = list(eng.filemap(fname))
     if not pkgs:
         fetcher = getattr(eng, "ctan_fetch", None)
         peek = getattr(fetcher, "peek_index", None)
         idx = peek() if callable(peek) else None
         if idx is not None:
-            pkgs = idx.query(fname) or idx.suggest(fname.rsplit(".", 1)[0])
+            pkgs = idx.query(fname)
+            if suggest and not pkgs:
+                pkgs = idx.suggest(fname.rsplit(".", 1)[0])
     return pkgs
+
+
+def _filemap_candidates(eng: Engine, fname: str) -> list[str]:
+    """``filemap`` 查询 + tectonic 侧 tlpdb 索引兜底 (CtanFetcher.peek_index)。"""
+    return _index_candidates(eng, fname, suggest=True)
 
 
 #: 包文件行首依赖声明 —— 注释掉的 ``% \RequirePackage`` 不命中。
@@ -695,7 +765,7 @@ def _fd_case_variants(file: str) -> list[str]:
     return [lower, file] if lower != file else [file]
 
 
-def _apply_install_file(
+def _apply_install_file(  # noqa: C901  # 候选序×font_related×复核三分支即参数面
     ctx: LoopCtx, eng: Engine, params: dict[str, Any], rep: ErrReport
 ) -> tuple[bool, str]:
     """缺文件 → probe → install_file → 复核; font_related → rebuild_fontmaps (spike L264-276)。"""
@@ -736,7 +806,7 @@ def _apply_install_file(
             missed.append(f"no package provides {fname}{hint}")
             continue
         if not (installed := _probe(eng, fname, cwd=ctx.wdir)):
-            ctx.advisories.append(f"installed but {fname} still not found")
+            _advise(ctx, f"installed but {fname} still not found")
             continue
         ctx.installed.append(fname)
         _install_dep_closure(ctx, eng, fname, installed)
@@ -745,7 +815,8 @@ def _apply_install_file(
         return True, f"installed {fname}{fanout_note}"
     # 全候选失败才落 advisory——前候选 miss 后候选成 (裸名→.tex fallback)
     # 的常态路径不该污染归因统计 (scout-pst 实证噪音)
-    ctx.advisories.extend(missed)
+    for m in missed:
+        _advise(ctx, m)
     return False, f"no candidate file installed for {params['file']}{fanout_note}"
 
 
@@ -858,7 +929,7 @@ def _match_apply(  # noqa: C901, PLR0912, PLR0913, PLR0915, PLR0917  # spike pic
         if mode == "unsupported":
             if spec.get("fallback") == "escalate_llm" and pending_esc is None:
                 pending_esc = (rule, key)
-            ctx.advisories.append(f"{rule.id} unsupported on {ctx.engine_name}")
+            _advise(ctx, f"{rule.id} unsupported on {ctx.engine_name}")
             continue
         ok, why = _cond_ok(rule.condition, rule, ctx, eng, pay, rep)
         if not ok:
@@ -885,7 +956,7 @@ def _match_apply(  # noqa: C901, PLR0912, PLR0913, PLR0915, PLR0917  # spike pic
                 ctx.declined.append(d)
         fb = spec.get("fallback")
         if fb == "advisory":
-            ctx.advisories.append(f"{rule.id}: {note}")
+            _advise(ctx, f"{rule.id}: {note}")
     if pending_esc is not None and ctx.llm_hook is not None:
         rule, key = pending_esc
         applied, note = ctx.llm_hook(ctx, rep)

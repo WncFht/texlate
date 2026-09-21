@@ -24,6 +24,7 @@ from texlate.cli.thin import _thin_run
 from texlate.logsetup import configure_logging, level_from_flags
 from texlate.pipecore import FRONT_MATTER_NAMES, NULL_SINK
 from texlate.textutil import env_flag
+from texlate.textutil.osutil import ENV_OFFLINE
 from texlate.xlat.client import API_DIALECTS
 
 
@@ -182,7 +183,7 @@ def run(  # noqa: C901, PLR0913 -- CLI 选项面即参数面 + 本地/瘦客户�
         )
         raise typer.Exit(2)
 
-    off = offline or env_flag("TEXLATE_OFFLINE", default=False)
+    off = offline or env_flag(ENV_OFFLINE, default=False)
     if not _is_dir(Path(source).expanduser()) and not quiet:
         status(f"fetch {source}" + (" (offline)" if off else ""))
     src_dir = _resolve_source(source, cache, offline=off)

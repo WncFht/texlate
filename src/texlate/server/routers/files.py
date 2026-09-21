@@ -119,7 +119,7 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901 -- 嵌套端点
             # ``?version=<sha256>`` 内容寻址命中——响应随 sha 不变而异变，
             # 私有缓存可钉死。no_store_mw 认 request.state 标记。
             request.state.cache_control = "private, immutable"
-        task_root = (deps.root / "tasks" / task_id).resolve()
+        task_root = deps.task_dir(task_id).resolve()
         path = (task_root / rec["path"]).resolve()
         if not path.is_relative_to(task_root):
             return _json_error(404, "artifact file missing", "not_found")

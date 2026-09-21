@@ -162,9 +162,31 @@ def extract_tag_region(tex: str, tag: str) -> str | None:
     return tex[s.end() : e.start() if e else len(tex)]
 
 
-def _extract_tag_region(tex: str, tag: str) -> str | None:
-    r"""``extract_tag_region`` 薄代理——本模块 ``_try_input`` 调用点名。"""
-    return extract_tag_region(tex, tag)
+def _strip_brace_comments(raw: str) -> str:
+    r"""``{arg}`` 花括实参内 ``%``→EOL 注释段剔除（``chars.env_name_at`` 同款 tokenize 语义）。
+
+    ``\input{%\nfile}`` 的实参是 ``file``——注释段留在名里会让查找整体
+    失手（``missing_input`` 假告警 + 整调用回吐字面；v2 Mouth 在 tokenize
+    层天然吃掉同源注释）。``\X`` 跳双字符——``\%`` 转义名不剥，后续
+    ``"\\" in fname`` 拒斥兜底仍在（保守回吐字面）。
+    """
+    if "%" not in raw:
+        return raw
+    out: list[str] = []
+    k = 0
+    while k < len(raw):
+        c = raw[k]
+        if c == "\\":
+            out.append(raw[k : k + 2])
+            k += 2
+            continue
+        if c == "%":
+            nl = raw.find("\n", k)
+            k = len(raw) if nl < 0 else nl + 1
+            continue
+        out.append(c)
+        k += 1
+    return "".join(out)
 
 
 def flatten_inputs(  # noqa: C901, PLR0912, PLR0913, PLR0915 — 单遍逐字符主循环，分支序即语义（docs/spec/latex-pipeline.md 五条铁律）
@@ -297,7 +319,7 @@ def _try_input(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915, PLR0917 — �
             e = match_brace(tex, pos)
             if not e:
                 return None
-            fname, end = tex[pos + 1 : e - 1].strip(), e
+            fname, end = _strip_brace_comments(tex[pos + 1 : e - 1]).strip(), e
         elif name in ("input", "@input") and pos < n and tex[pos] == '"':
             # 引号裸名 \input"a b.tex"（web2c 带空格名）——收到闭引号，
             # 缺席按非输入尝试回吐（同未配对花括号）
@@ -317,7 +339,11 @@ def _try_input(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915, PLR0917 — �
             e = match_brace(tex, pos)
             if not e:
                 return None
-            fname, end, shell = tex[pos + 1 : e - 1].strip(), e, True
+            fname, end, shell = (
+                _strip_brace_comments(tex[pos + 1 : e - 1]).strip(),
+                e,
+                True,
+            )
         else:
             return None
     elif name in ("import", "subimport"):
@@ -325,13 +351,13 @@ def _try_input(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915, PLR0917 — �
             e = match_brace(tex, pos)
             if not e:
                 return None
-            subdir = tex[pos + 1 : e - 1].strip()
+            subdir = _strip_brace_comments(tex[pos + 1 : e - 1]).strip()
             p2 = ws_skip(tex, e)
             if p2 < n and tex[p2] == "{":
                 e3 = match_brace(tex, p2)
                 if not e3:
                     return None
-                fname, end = tex[p2 + 1 : e3 - 1].strip(), e3
+                fname, end = _strip_brace_comments(tex[p2 + 1 : e3 - 1]).strip(), e3
                 fname = str(Path(subdir) / fname) if subdir else fname
             else:
                 return None
@@ -342,7 +368,7 @@ def _try_input(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915, PLR0917 — �
             e = match_brace(tex, pos)
             if not e:
                 return None
-            fname, end = tex[pos + 1 : e - 1].strip(), e
+            fname, end = _strip_brace_comments(tex[pos + 1 : e - 1]).strip(), e
             # {then}{else} 参数留在流内继续逐字
         else:
             return None
@@ -356,13 +382,13 @@ def _try_input(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915, PLR0917 — �
             e = match_brace(tex, p)
             if not e:
                 return None
-            fname = tex[p + 1 : e - 1].strip()
+            fname = _strip_brace_comments(tex[p + 1 : e - 1]).strip()
             p2 = ws_skip(tex, e)
             if p2 < n and tex[p2] == "{":
                 e3 = match_brace(tex, p2)
                 if not e3:
                     return None
-                tag, end = tex[p2 + 1 : e3 - 1].strip(), e3
+                tag, end = _strip_brace_comments(tex[p2 + 1 : e3 - 1]).strip(), e3
             else:
                 return None
         else:
@@ -394,7 +420,7 @@ def _try_input(  # noqa: C901, PLR0911, PLR0912, PLR0913, PLR0915, PLR0917 — �
     if shell:
         sub = strip_doc_shell(sub)
     if tag is not None:
-        region = _extract_tag_region(sub, tag)
+        region = extract_tag_region(sub, tag)
         if region is None:
             return None
         sub = region

@@ -15,7 +15,7 @@ refactor-audit-2026-09-17 ★1 收口：两臂各自保留编排（报告形状�
   fixloop 调用包装与 dropped ``engine_flags`` 的 tectonic→xelatex
   跨引擎重试取优；``ruleset_with_baseline`` 把运行时 baseline
   树注入 restore_support_from_src（worker ``ctx.base_dir`` /
-  e2e ``_baseline_snapshot`` 两源同一注入件）。``fixloop``/
+  ``pipecore.baseline_snapshot`` 两源同一注入件）。``fixloop``/
   ``precheck_pass`` 调用点经 ``compile.seams`` 查名——patch 打
   ``seams.X`` 或 ``repair.X`` 旧锚同拦（回指语义见 seams docstring）
 - E2 批（2026-09-17 自 ``e2e`` 下沉）：glossary confine kernel
@@ -51,6 +51,10 @@ from texlate.compile.fixloop.engine import (
 )
 from texlate.compile.judge import judge
 from texlate.textutil import safe_is_file, safe_resolve
+from texlate.textutil.osutil import (  # noqa: F401 -- env 名钉点回引（字面量单源在 osutil 注册表）
+    ENV_FIXLOOP_LLM,  # fixloop ``escalate_llm`` 钩开关——默认值两臂有意不同（e2e opt-in False / worker BYOK 默认 True，见 ``_llm_hook_pack``）
+    ENV_NO_FIXLOOP,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Sequence
@@ -63,11 +67,8 @@ log = logging.getLogger(__name__)
 
 VERDICT_RANK = {"clean": 3, "partial": 2, "fail": 1, "reject": 0}
 
-#: 环境开关
-ENV_NO_FIXLOOP = "TEXLATE_NO_FIXLOOP"
-#: fixloop ``escalate_llm`` 钩开关——默认值两臂有意不同（e2e opt-in False /
-#: worker BYOK 默认 True，见 ``_llm_hook_pack``），本常量只单源名字
-ENV_FIXLOOP_LLM = "TEXLATE_FIXLOOP_LLM"
+#: 环境开关名（``ENV_NO_FIXLOOP``/``ENV_FIXLOOP_LLM``）本体注册在
+#: ``textutil.osutil``——本模块同名回引保 ``repair.ENV_*`` 钉点面
 
 
 def log_text_of(res: CompRes) -> str:
@@ -160,14 +161,20 @@ def fixloop_cell_parts(
     ``actions`` 按 ``str(round)`` 归并（一轮可多条），取首条的
     rule/detail 作该轮代表；``round=0/-1`` 是 precheck/gate 动作单列
     ``setup``；salvage 轮的 action 键为 ``"salvage"``，须按
-    ``r["salvage"]`` 标记对齐。
+    ``r["salvage"]`` 标记对齐。action 的 round 词表：轮号 int |
+    ``0``/``-1``（precheck/gate）| ``"salvage"`` | ``"post"``
+    （warn-preempt 退出点补位）——无轮条目认领的杂键（``"post"`` 等）
+    一并落 ``setup``，不落黑洞。
     """
     by_round: dict[str, list[dict[str, Any]]] = {}
     for a in cell.get("actions") or []:
         by_round.setdefault(str(a.get("round")), []).append(a)
+    claimed = set()
     rounds = []
     for r in cell.get("rounds") or []:
-        acts = by_round.get("salvage" if r.get("salvage") else str(r.get("round")), [])
+        key = "salvage" if r.get("salvage") else str(r.get("round"))
+        claimed.add(key)
+        acts = by_round.get(key, [])
         head = acts[0] if acts else {}
         rounds.append(
             {
@@ -183,7 +190,7 @@ def fixloop_cell_parts(
     setup = [
         {"rule": a.get("rule"), "result": a.get("detail")}
         for a in cell.get("actions") or []
-        if a.get("round") in (0, -1)
+        if a.get("round") in (0, -1) or str(a.get("round")) not in claimed
     ]
     return rounds, setup
 
@@ -248,7 +255,7 @@ def ruleset_with_baseline(baseline: Path) -> Ruleset:
     """加载默认 ruleset 并把 ``baseline`` 注入 baseline 消费型 transform 的 params。
 
     ``baseline_dir`` 是运行时路径（任务级 pristine base 树——worker 传
-    ``ctx.base_dir``，e2e 传 ``_baseline_snapshot`` 的译前快照），
+    ``ctx.base_dir``，e2e/bench 传 ``baseline_snapshot`` 的译前快照），
     ``_substitute`` 只展开 ``{payload}`` 模板，故按 transform 名直接
     改写加载后的规则 raw dict。规则行未落地时为空转 no-op。
     """
@@ -277,7 +284,7 @@ def cross_engine_retry(  # noqa: PLR0913 -- 开关面穿透两臂同一契约
     *,
     engine_name: str,
     route_engines: Iterable[str],
-    current_status: str,
+    status_of: Callable[[], str],
     work: Path,
     main_rel: str,
     timeout: float | None,
@@ -297,9 +304,12 @@ def cross_engine_retry(  # noqa: PLR0913 -- 开关面穿透两臂同一契约
     需求——tectonic 沙箱不收 → 换 xelatex 带全量请求 flag 经
     ``compile(flags=…)`` seam 重编，复判严格更优才 ``adopted``。
 
-    ``make_engine`` 由调用侧注入（构造旋钮曾两臂分歧，2026-09-17 裁决
-    统一为 best-effort ``halt_on_error=False``——retry 是交付路径终末
-    重编非轮内分类编译；测试面仍可经 ``engine_factory`` 注入）。
+    ``status_of`` 惰性取 incumbent 判据——先过 tectonic/xelatex 在候选
+    的廉价闸才调用（worker 臂是 ``judge_res`` 全量重判，非换编路径
+    不白费一轮）。``make_engine`` 由调用侧注入（构造旋钮曾两臂分歧，
+    2026-09-17 裁决统一为 best-effort ``halt_on_error=False``——retry
+    是交付路径终末重编非轮内分类编译；测试面仍可经 ``engine_factory``
+    注入）。
     """
     routed = reject_route == "xelatex"
     if (
@@ -308,6 +318,7 @@ def cross_engine_retry(  # noqa: PLR0913 -- 开关面穿透两臂同一契约
         or "xelatex" not in route_engines
     ):
         return None
+    current_status = status_of()
     if VERDICT_RANK.get(current_status, 0) >= VERDICT_RANK["clean"]:
         return None
     xres = make_engine().compile(
@@ -324,18 +335,14 @@ def cross_engine_retry(  # noqa: PLR0913 -- 开关面穿透两臂同一契约
         if dropped
         else f"fixloop route {reject_route}"
     )
+    better = VERDICT_RANK.get(xv.status, 0) > VERDICT_RANK.get(current_status, 0)
     info = {
         "engine": "xelatex",
         "status": xv.status,
         "reason": f"{why} → 换 xelatex",
-        "adopted": VERDICT_RANK.get(xv.status, 0) > VERDICT_RANK.get(current_status, 0),
+        "adopted": better,
     }
-    return CrossRetry(
-        res=xres,
-        verdict=xv,
-        info=info,
-        adopted=VERDICT_RANK.get(xv.status, 0) > VERDICT_RANK.get(current_status, 0),
-    )
+    return CrossRetry(res=xres, verdict=xv, info=info, adopted=better)
 
 
 def merge_flags(
@@ -381,7 +388,7 @@ def consume_engine_flags(  # noqa: PLR0913 -- 开关面穿透两臂同一契约
         xr = cross_engine_retry(
             engine_name=engine_name,
             route_engines=route_engines,
-            current_status=status_of(),
+            status_of=status_of,
             work=work,
             main_rel=main_rel,
             timeout=timeout,

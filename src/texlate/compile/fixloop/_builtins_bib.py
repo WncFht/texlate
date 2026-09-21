@@ -7,7 +7,9 @@ ADS 时代 cite-key 裸 ``&``/``_`` 双侧一致消毒 /
 
 from __future__ import annotations
 
+import os
 import re
+from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Any
 
 from texlate.compile.latex209 import wrap_math_cites
@@ -23,7 +25,11 @@ if TYPE_CHECKING:
 
     from texlate.compile.fixloop.engine import Engine, LoopCtx
 
-from texlate.compile.fixloop._builtins_common import _fixloop_log
+from texlate.compile.fixloop._builtins_common import (
+    _fixloop_log,
+    _live_matches,
+    _splice,
+)
 
 #: 同 normalize._AUTOBIB_DISARM —— revtex 系 ``\bibliography`` 顺带解除
 #: end-doc ``\auto@bib`` 探测；裸 ``\input`` 改写必须补回，否则
@@ -49,34 +55,51 @@ def bbl_stub_rewrite(
 ) -> tuple[bool, str]:
     r"""Tectonic stub bbl 断链: 有 .bbl 无 .bib → ``\\bibliography{x}`` → ``\\input{main.bbl}``。
 
-    实证根因 (ctanfetch-probe §3.3): tectonic 自动 bibtex 在无 .bib 时
+    实证根因 (ctanfetch-probe §3.2): tectonic 自动 bibtex 在无 .bib 时
     生成 24 行 stub bbl, 在内存文件层遮蔽磁盘真 bbl → 空 thebibliography。
+
+    与 ``normalize.use_bundled_bibliography`` 同口径收口: 只认含
+    ``\begin{thebibliography}`` 的真 bbl (24 行 stub/空壳不接);
+    ``\input`` 目标按编译 cwd (``main.parent``) 落 relpath —— 嵌套稿
+    引裸 basename 会断 (kpathsea 按 cwd 解析); 遮盖视图定位全量改写
+    —— 注释/verbatim 内假装载点不动, live 多站仍各印 (multibib 逐
+    call-site 本义, 非首站截断)。
     """
     del eng, payload
     exts = tuple(params.get("exts") or (".tex",))
-    bbls = {p.stem: p for p in ctx.wdir.rglob("*.bbl")}
+    bbls = {
+        p.stem: p
+        for p in sorted(ctx.wdir.rglob("*.bbl"))
+        if "\\begin{thebibliography}" in (ctx.read(p) or "")
+    }
     if not bbls:
-        return False, "no .bbl in project"
+        return False, "no usable .bbl in project"
     main = ctx.main_path()
     stem = main.stem if main is not None else None
-    target = bbls.get(stem) or next(iter(bbls.values()))
+    bbl = bbls.get(stem) or next(iter(bbls.values()))
+    base = main.parent if main is not None else ctx.wdir
+    target = PurePosixPath(os.path.relpath(bbl, base)).as_posix()
+    if ".." in PurePosixPath(target).parts:
+        return False, "bbl target escapes compile cwd"
     pat = re.compile(r"\\bibliography(\[[^\]]*\])?\{[^}]*\}")
     changed = 0
     for f in ctx.tex_files(exts):
         t = ctx.read(f)
         if t is None or "\\bibliography" not in t:
             continue
-        nt = pat.sub(
-            lambda _m: _AUTOBIB_DISARM + "\n\\input{" + target.name + "}",
-            t,
-            count=0,
-        )
+        edits = [
+            (m.start(), m.end(), _AUTOBIB_DISARM + "\n\\input{" + target + "}")
+            for m in _live_matches(pat, t)
+        ]
+        if not edits:
+            continue
+        nt = _splice(t, edits)
         if nt != t:
             ctx.write(f, nt)
             changed += 1
     return (
         changed > 0
-    ), f"\\bibliography -> \\input{{{target.name}}} in {changed} files"
+    ), f"\\bibliography -> \\input{{{target}}} in {changed} files"
 
 
 #: ``.bbl`` 头标 ``bbl format version X.Y`` (biber 产物首行) —— 版本元组提取。
@@ -172,9 +195,7 @@ def _rewrite_keylists(
             continue
         new = ",".join(k.replace("&", "A").replace("_", "-") for k in keys.split(","))
         edits.append((m.start(1), m.end(1), new))
-    for s, e, new in reversed(edits):
-        text = text[:s] + new + text[e:]
-    return text, len(edits)
+    return _splice(text, edits), len(edits)
 
 
 def citekey_sanitize(

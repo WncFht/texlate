@@ -199,7 +199,10 @@ def _doc_settings_raw(store: SettingsStore) -> dict[str, Any]:
         return {}
     try:
         parsed = json.loads(store.path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, RecursionError):
+        # UnicodeDecodeError 是 ValueError 非 JSONDecodeError——GBK/UTF-16 存盘
+        # 的手改 settings.json 漏它会炸穿 doctor 的只报告不炸契约；RecursionError
+        # 罩深嵌套 JSON 炸弹。与 worker/share.py ``dual.json`` 读径同口径。
         return {}
     return parsed if isinstance(parsed, dict) else {}
 

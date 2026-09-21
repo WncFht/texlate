@@ -183,10 +183,15 @@ def _visible_text(body: str) -> str:
 
 
 def check_pdf_wrapper(
-    source: str, *, text_cap: int = WRAPPER_TEXT_CAP
+    source: str, *, text_cap: int = WRAPPER_TEXT_CAP, pre_stripped: bool = False
 ) -> WrapperVerdict:
-    r"""检测 includepdf 包装壳。``source`` 为主文件全文（未剥注释亦可）。"""
-    stripped = strip_comments(source)
+    r"""检测 includepdf 包装壳。``source`` 为主文件全文（未剥注释亦可）。
+
+    ``pre_stripped=True`` 表示 ``source`` 已是 ``strip_comments`` 输出
+    （如 ``locate`` 的 ``FileNode.stripped`` 视图）——跳过内部重复剥离；
+    剥除是幂等变换，两口径结果一致。
+    """
+    stripped = source if pre_stripped else strip_comments(source)
     body = _body_text(stripped)
     includepdf_hits = _INCLUDEPDF_RE.findall(body)
     n_sections = len(_SECTION_RE.findall(body))

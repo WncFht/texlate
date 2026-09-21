@@ -51,6 +51,10 @@ from ._common import (
     _pick_cut,
     _prose_text_hit,
 )
+from .grpscan import (
+    _IMPORT2,
+    _verb_delim_tok,
+)
 
 if TYPE_CHECKING:
     from texlate.latex.model import ArgspecEntry
@@ -596,7 +600,7 @@ class _Args:
             # ``\url<delim>…<delim>`` 定界形（url.sty 同 \verb 规则，
             # EOL 上限——scanner-audit F11）。cs token 的定界字符 = `\`。
             d = "\\" if x.kind == "cs" else x.text
-            if len(d) == 1 and not d.isalnum() and d not in " \t\n\r%{}[]":
+            if _verb_delim_tok(x):
                 ftext = self.file_texts[fid]
                 e = ftext.find(d, x.pos[1] + 1)
                 eol = ftext.find("\n", x.pos[1] + 1)
@@ -759,7 +763,7 @@ class _Args:
             if hit is not None:
                 _inner, closer = hit
                 end = closer.pos[2]
-                if name in ("import", "subimport"):
+                if name in _IMPORT2:
                     # v1 此处 ws_skip（全空白）非 ws_skip_arg——跨 \n\n
                     p2: list[Tok] = []
                     y = self._read_skipws(src, p2)
@@ -1369,9 +1373,7 @@ class _Args:
             got = self._absorb_slots(src, fid, _pend_call_slots(ka))
             if got:
                 end = max(end, got[-1].pos[2])
-            if not any(
-                x.kind == "lbrace" or (x.kind == "other" and x.text == "[") for x in got
-            ):
+            if not any(x.kind == "lbrace" for x in got):
                 self.state.warnings.append(
                     ScanWarning("keyarg_unbound", len(self.vt), f"\\{ka} 尾参缺席")
                 )
@@ -1508,17 +1510,7 @@ class _Args:
                     and (
                         x.kind == "lbrace"
                         or (x.kind == "other" and x.text in "[*")
-                        or (
-                            ka in ("url", "path")
-                            and (
-                                x.kind == "cs"
-                                or (
-                                    len(x.text) == 1
-                                    and not x.text.isalnum()
-                                    and x.text not in " \t\n\r%{}[]"
-                                )
-                            )
-                        )
+                        or (ka in ("url", "path") and _verb_delim_tok(x))
                     )
                 )
                 self._unread_pulled(src, pulled, x)

@@ -287,7 +287,12 @@ def _depth0_line_start(masked: str, start: int) -> int:
 
 
 def _first_preamble_call(
-    name: str, texts: dict[Path, str], main: Path | None, *, has_bd: bool
+    name: str,
+    texts: dict[Path, str],
+    views: dict[Path, tuple[str, int | None]],
+    main: Path | None,
+    *,
+    has_bd: bool,
 ) -> tuple[Path, int] | None:
     r"""Fileset 内 ``\name`` 最早 preamble 调用点 → (文件, 落块行首 offset)。
 
@@ -299,6 +304,8 @@ def _first_preamble_call(
         时仅当**全 fileset** 都无 (2.09 ``\documentstyle``/plain 稿) 才候选 ——
         否则属 body 调用, ``\begin{document}`` 缝更靠前更划算 (aux 读面同罩)。
     主档候选优先, 余按文件序; 行首经 ``_depth0_line_start`` 校正。
+    ``views`` = 调用方预算的 ``{f: (mask_tex(t), 活 begin 位或 None)}`` ——
+    逐 wrap 宏共享一份, 不为每宏逐件重遮盖。
     """
     call_rx = re.compile(r"\\" + re.escape(name) + r"(?![A-Za-z@])")
     ordered = list(texts)
@@ -309,8 +316,7 @@ def _first_preamble_call(
         t = texts.get(f) or ""
         if not t:
             continue
-        masked = mask_tex(t)
-        bd = _live_begin_pos(t, masked)
+        masked, bd = views[f]
         load_file = f.suffix.lower() in _LOAD_EXTS
         if not load_file and bd is None and has_bd:
             continue
@@ -371,14 +377,22 @@ def _apply_wraps(
     """
     main = ctx.main_path()
     texts = {f: ctx.read(f) or "" for f in ctx.tex_files(_DEF_EXTS)}
+    # 遮盖视图 + 活 \begin{document} 位逐件只算一次 —— 逐 wrap 宏共享
+    # (_first_preamble_call 内不再重遮盖)。
+    views: dict[Path, tuple[str, int | None]] = {}
+    for f, t in texts.items():
+        if not t:
+            continue
+        masked = mask_tex(t)
+        views[f] = (masked, _live_begin_pos(t, masked))
     pool = "\n".join(texts.values())
-    has_bd = any(_live_begin_pos(t, mask_tex(t)) is not None for t in texts.values())
+    has_bd = any(bd is not None for _, bd in views.values())
     sites: dict[tuple[Path, int], list[str]] = {}
     rest: list[str] = []
     for name in wrap_names:
         if "\\TL@pl@" + name in pool:
             continue  # 别名指纹已在 fileset —— 跨件重注会造自指递归
-        site = _first_preamble_call(name, texts, main, has_bd=has_bd)
+        site = _first_preamble_call(name, texts, views, main, has_bd=has_bd)
         if site is None:
             rest.append(name)
         else:

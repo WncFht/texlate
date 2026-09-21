@@ -499,6 +499,12 @@ INPUT_SCAN_CMDS = {
     "subimport",
 }
 
+# ``\import{dir}{file}``/``\subimport{dir}{file}`` 双参族——``INPUT_CMDS``/
+# ``INPUT_SCAN_CMDS`` 成员中唯二吃两参的名（``{dir}`` 前缀拼 ``{file}``）。
+# gullet ``_do_input``、flatten、segmenter 主流/组内四路同款 tuple 的单源；
+# segmenter ``grpscan._IMPORT2`` 旧私有名废弃，一律归本表。
+IMPORT2_CMDS = ("import", "subimport")
+
 FILENAME_CHARS = frozenset(
     "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._/-"
 )

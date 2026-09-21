@@ -498,6 +498,37 @@ def _safe_rel_name(name: str) -> PurePosixPath | None:
     return safe_rel(name)
 
 
+def _vendored_drop(
+    ctx: LoopCtx, root: Path, fname: str
+) -> tuple[Path | None, str | None]:
+    """单件 vendored 落盘链: rel 守卫 → 查件 → 落位 → 覆写闸 → copy。
+
+    ``vendored_fetch_multi``/``actions._scan_vendored`` 共用五步
+    (``safe_rel``/``_vendored_source``/``_resolve_site``/exists-guard/copyfile)
+    ——(dst, None) 成 / (None, reason) 败, reason 与该臂 notes 词表同口径
+    (``unsafe``/``not vendored``/``escapes wdir``/``present``/OSError 文)。
+    """
+    rel = safe_rel(fname)
+    if rel is None:
+        return None, "unsafe"
+    src = _vendored_source(root, fname)
+    if src is None:
+        return None, "not vendored"
+    dst = _resolve_site(ctx, rel)
+    if dst is None:
+        return None, "escapes wdir"
+    if dst.exists():
+        return None, "present"  # 稿自带/前轮已投不覆写 (vendored_fetch_multi ``present`` 同闸;
+        # missing 探针是 wdir 视域, ``_resolve_site`` 落 ``main_dir/rel``
+        # 可触 wdir 根外的工程件——盲 copyfile 会覆写稿内同名件)
+    try:
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(src, dst)
+    except OSError as e:
+        return None, str(e)
+    return dst, None
+
+
 def vendored_fetch(
     ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
 ) -> tuple[bool, str]:
@@ -749,26 +780,9 @@ def vendored_fetch_multi(
     root = _vendor_root(params)
     dropped, notes = [], []
     for fname in files:
-        rel = _safe_rel_name(fname)
-        if rel is None:
-            notes.append(f"{fname}: unsafe")
-            continue
-        src = _vendored_source(root, fname)
-        if src is None:
-            notes.append(f"{fname}: not vendored")
-            continue
-        dst = _resolve_site(ctx, rel)
+        dst, why = _vendored_drop(ctx, root, fname)
         if dst is None:
-            notes.append(f"{fname}: escapes wdir")
-            continue
-        if dst.exists():
-            notes.append(f"{fname}: present")
-            continue
-        try:
-            dst.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(src, dst)
-        except OSError as e:
-            notes.append(f"{fname}: {e}")
+            notes.append(f"{fname}: {why}")
             continue
         dropped.append(dst.relative_to(ctx.wdir).as_posix())
     if not dropped:

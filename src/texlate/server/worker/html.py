@@ -18,8 +18,7 @@ from bs4 import BeautifulSoup
 if TYPE_CHECKING:
     from bs4.element import Tag
 
-from texlate.arxiv.cache import SourceCache
-from texlate.arxiv.fetch import normalize_arxiv_id, valid_id
+from texlate.arxiv.fetch import req_base_ver
 from texlate.arxiv.html import (
     HtmlDoc,
     HtmlFetchError,
@@ -27,7 +26,6 @@ from texlate.arxiv.html import (
     doc_chunks,
     reinsert,
 )
-from texlate.arxiv.ratelimit import RateLimiter
 from texlate.server.store import TERMINAL_STATUSES
 from texlate.server.worker import seams
 from texlate.xlat.state import atomic_json
@@ -100,6 +98,25 @@ def _resolved_version(html: str, base: str) -> int | None:
     return int(m.group(1)) if m else None
 
 
+def _dual_chunk_row(r: dict[str, Any]) -> dict[str, Any]:
+    """Dual.json chunks 行投影（tex 路 ``_build_dual`` 同构）。
+
+    ``zh`` 位 ``zh_slot`` 口径：TEXT 列动态类型可落 BLOB——非 str 译文
+    按空 coerce，不让单格 ``atomic_json`` TypeError 挡掉 dual.json 落盘；
+    非 ok 行（fallback/failed 装 en 原文回写）zh 位留空——原文进 zh 槽
+    阅读面会把英文当译文呈现。tex 路的条件 ``ph`` 键由调用方在本投影
+    上补（html 链无占位符表）。
+    """
+    return {
+        "seq": r["seq"],
+        "src_file": r["src_file"],
+        "en": r["src_text"],
+        "zh": zh_slot(r),
+        "kind": r["kind"],
+        "status": str(r["status"]),
+    }
+
+
 class _Html:
     """arxiv_html 链 mixin：fetch/parse/emit 三臂 + resume/scans 桥接。"""
 
@@ -117,15 +134,13 @@ class _Html:
         """
         self._abort_if_cancelled(ctx)
         arxiv_id = str(ctx.row["arxiv_id"])
-        base, pin = normalize_arxiv_id(arxiv_id)
-        if not valid_id(base) or (pin is not None and pin < 1):
-            raise _StageError(code="arxiv_fetch", message=f"bad arxiv id: {arxiv_id!r}")
-        cache = self._src_cache or SourceCache(self.data_dir / "src-cache")
-        own = self._fetcher is None
-        fetcher = self._fetcher or seams.Fetcher(
-            RateLimiter(cache.root / "ratelimit.json")
-        )
         try:
+            base, pin = req_base_ver(arxiv_id)
+        except ValueError as e:
+            raise _StageError(code="arxiv_fetch", message=str(e)) from e
+        # fetcher 借还/cache 兜底与 eprint 臂同件——注入臂 cache 可 None
+        # （本臂不消费 cache，只为自建 fetcher 的 RateLimiter 状态文件服务）
+        with self._borrow_fetcher() as (fetcher, _cache):
             try:
                 html = seams.fetch_html(base, version=pin, fetcher=fetcher)
             except HtmlNotAvailableError as e:
@@ -145,19 +160,7 @@ class _Html:
                 "title": doc.title,
             }
             # categories 喂 glossary category 层——eprint 臂同口径 best-effort
-            try:
-                meta = seams.fetch_metadata(arxiv_id, fetcher=fetcher)
-            except Exception as e:  # noqa: BLE001 -- 元数据臂不拦主链
-                self._log(ctx, f"arxiv meta: {type(e).__name__}: {e}")
-                meta = None
-            if meta is not None:
-                cats = [
-                    c
-                    for c in dict.fromkeys([meta.primary_category, *meta.categories])
-                    if c
-                ]
-                if cats:
-                    fields["options_json"] = ctx.set_option("arxiv_categories", cats)
+            fields.update(self._arxiv_meta_fields(ctx, arxiv_id, fetcher=fetcher))
             self._on_loop(self.store.update_fields, ctx.task_id, **fields)
             if self._post_resolve_reuse(ctx, base, ver, source="html"):
                 return  # 钉版键命中已完成任务——产物物化由 _stage_fetch 接管
@@ -166,10 +169,6 @@ class _Html:
             ctx.src_dir.mkdir(parents=True, exist_ok=True)
             (ctx.src_dir / "index.html").write_text(html, encoding="utf-8")
             self._register(ctx, "src_html", "src/index.html")
-        finally:
-            # 自建实例随任务关连接池；注入的 self._fetcher 归调用方所有
-            if own:
-                fetcher.close()
 
     # ------------------------------------------------------------ parsing 臂
 
@@ -276,24 +275,7 @@ class _Html:
                 },
             )
         )
-        self._mark_terminal(ctx, status)
-        self.store.transition(
-            ctx.task_id,
-            status,
-            progress=100,
-            error=err,
-            force=True,
-            message="完成" if status == "done" else "部分完成",
-        )
-        self.bus.publish(
-            ctx.task_id,
-            "done",
-            {
-                "status": status,
-                "artifacts": self._artifact_urls(ctx),
-                "stats": self._stats(ctx),
-            },
-        )
+        self._finish_terminal(ctx, status, err=err)
 
     def _emit_html_dom(self, ctx: TaskCtx) -> None:
         """序列化双侧 DOM 产物（worker 线程）。
@@ -404,20 +386,6 @@ class _Html:
                 "pages": n_pages,
             }
         doc["alignment"] = {"kind": "pages"}
-        doc["chunks"] = [
-            {
-                "seq": r["seq"],
-                "src_file": r["src_file"],
-                "en": r["src_text"],
-                # TEXT 列动态类型可落 BLOB——非 str 译文按空 coerce，
-                # 不让单格 atomic_json TypeError 挡掉 dual.json 落盘；
-                # 非 ok 行（fallback/failed 装 en 原文回写）zh 位留空——
-                # 原文进 zh 槽阅读面会把英文当译文呈现
-                "zh": zh_slot(r),
-                "kind": r["kind"],
-                "status": str(r["status"]),
-            }
-            for r in rows
-        ]
+        doc["chunks"] = [_dual_chunk_row(r) for r in rows]
         atomic_json(ctx.root / "dual.json", doc)
         self._register(ctx, "dual_json", "dual.json")

@@ -6,6 +6,10 @@ r"""元数据层：Atom API 主源 + OAI-PMH 兜底 + §5 降级链（docs/spec/
   版本史——Atom 不可用/无条目时降级 OAI-PMH ``GetRecord``，
   ``metadataPrefix=arXivRaw``（独占 ``<version>`` 版本史 + license 唯一
   机读源；OAI 已迁 ``oaipmh.arxiv.org``，独立第三限流桶，见 §1.1）。
+- ``fetch_metadata_batch``：``id_list`` 批量变体（≤200 ids/req 且
+  URL ≤8KB 分批，ADR-0008 校准）→ ``{base_id: PaperMeta}``——语料管线
+  浅补全用（cat 填充等），无 OAI 逐篇兜底，要兜底走单篇
+  ``fetch_metadata``。
 - ``resolve_version``：裸 id → 最新 ``vN``；带 ``want``（或 id 自带 vN 钉）
   → 存在性校验。版本天然连续 ``1..latest``，一次拉取够两种判断。
 - ``degrade``：L1 e-print 失败后的降级裁决（§5）——解析/编译失败走 L2
@@ -26,15 +30,18 @@ from datetime import UTC
 from email.utils import parsedate_to_datetime
 from enum import StrEnum
 from http import HTTPStatus
-from typing import Final
+from typing import TYPE_CHECKING, Final
 from urllib.parse import urlsplit
 
 import httpx
 from defusedxml import ElementTree
 from defusedxml.common import DefusedXmlException
 
-from texlate.arxiv.fetch import Fetcher, normalize_arxiv_id, valid_id
+from texlate.arxiv.fetch import Fetcher, normalize_arxiv_id, req_base_ver, valid_id
 from texlate.arxiv.ratelimit import BudgetExhaustedError, ParkedError
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 #: Atom API 端点（export 桶；arxiv.org/api 302 到此，直接打 canonical）
 ATOM_API: Final = "https://export.arxiv.org/api/query"
@@ -137,55 +144,68 @@ def _get(fetcher: Fetcher, url: str) -> httpx.Response | None:
     return resp if resp.status_code == HTTPStatus.OK else None
 
 
-def _parse_atom(body: bytes) -> PaperMeta | None:
-    """Atom feed → PaperMeta；错误 entry / 无有效 entry → None。
+def _atom_entry(entry: ElementTree.Element) -> PaperMeta | None:
+    """单 ``<entry>`` → PaperMeta；错误/无效 entry → None。
 
     坏 id 时 API 回 ``<title>Error</title>`` 形态的错误 entry——其 ``<id>``
     不是 abs URL，``normalize_arxiv_id`` + id 校验即滤除。
     """
-    root = ElementTree.fromstring(body)
-    for entry in root.findall(f"{{{_ATOM_NS}}}entry"):
-        eid, ver = normalize_arxiv_id(_text(entry, f"{{{_ATOM_NS}}}id"))
-        if not valid_id(eid):
+    eid, ver = normalize_arxiv_id(_text(entry, f"{{{_ATOM_NS}}}id"))
+    if not valid_id(eid):
+        return None
+    if _text(entry, f"{{{_ATOM_NS}}}title").lower() == "error":
+        return None
+    links: dict[str, str] = {}
+    for link in entry.findall(f"{{{_ATOM_NS}}}link"):
+        href = link.get("href", "")
+        if not href:
             continue
-        if _text(entry, f"{{{_ATOM_NS}}}title").lower() == "error":
-            continue
-        links: dict[str, str] = {}
-        for link in entry.findall(f"{{{_ATOM_NS}}}link"):
-            href = link.get("href", "")
-            if not href:
-                continue
-            if link.get("rel") == "alternate":
-                links.setdefault("abs", href)
-            elif link.get("title"):
-                links.setdefault(link.get("title", ""), href)
-        cats = tuple(
+        if link.get("rel") == "alternate":
+            links.setdefault("abs", href)
+        elif link.get("title"):
+            links.setdefault(link.get("title", ""), href)
+    cats = tuple(
+        t
+        for c in entry.findall(f"{{{_ATOM_NS}}}category")
+        if (t := c.get("term", ""))
+    )
+    pri = entry.find(f"{{{_ARXIV_NS}}}primary_category")
+    return PaperMeta(
+        arxiv_id=eid,
+        resolved_version=ver,
+        title=_text(entry, f"{{{_ATOM_NS}}}title"),
+        authors=tuple(
             t
-            for c in entry.findall(f"{{{_ATOM_NS}}}category")
-            if (t := c.get("term", ""))
-        )
-        pri = entry.find(f"{{{_ARXIV_NS}}}primary_category")
-        return PaperMeta(
-            arxiv_id=eid,
-            resolved_version=ver,
-            title=_text(entry, f"{{{_ATOM_NS}}}title"),
-            authors=tuple(
-                t
-                for a in entry.findall(f"{{{_ATOM_NS}}}author")
-                if (t := _text(a, f"{{{_ATOM_NS}}}name"))
-            ),
-            abstract=_text(entry, f"{{{_ATOM_NS}}}summary"),
-            primary_category="" if pri is None else pri.get("term", ""),
-            categories=cats,
-            published=_text(entry, f"{{{_ATOM_NS}}}published"),
-            updated=_text(entry, f"{{{_ATOM_NS}}}updated"),
-            doi=_text(entry, f"{{{_ARXIV_NS}}}doi"),
-            journal_ref=_text(entry, f"{{{_ARXIV_NS}}}journal_ref"),
-            comment=_text(entry, f"{{{_ARXIV_NS}}}comment"),
-            links=links,
-            source="atom",
-        )
-    return None
+            for a in entry.findall(f"{{{_ATOM_NS}}}author")
+            if (t := _text(a, f"{{{_ATOM_NS}}}name"))
+        ),
+        abstract=_text(entry, f"{{{_ATOM_NS}}}summary"),
+        primary_category="" if pri is None else pri.get("term", ""),
+        categories=cats,
+        published=_text(entry, f"{{{_ATOM_NS}}}published"),
+        updated=_text(entry, f"{{{_ATOM_NS}}}updated"),
+        doi=_text(entry, f"{{{_ARXIV_NS}}}doi"),
+        journal_ref=_text(entry, f"{{{_ARXIV_NS}}}journal_ref"),
+        comment=_text(entry, f"{{{_ARXIV_NS}}}comment"),
+        links=links,
+        source="atom",
+    )
+
+
+def _parse_atom_feed(body: bytes) -> list[PaperMeta]:
+    """Atom feed → 全部有效 entry 的 PaperMeta 列表（文档序）。"""
+    root = ElementTree.fromstring(body)
+    return [
+        m
+        for entry in root.findall(f"{{{_ATOM_NS}}}entry")
+        if (m := _atom_entry(entry)) is not None
+    ]
+
+
+def _parse_atom(body: bytes) -> PaperMeta | None:
+    """Atom feed → PaperMeta；错误 entry / 无有效 entry → None（首个有效件）。"""
+    metas = _parse_atom_feed(body)
+    return metas[0] if metas else None
 
 
 def _parse_oai(body: bytes, pin: int | None) -> PaperMeta | None:
@@ -288,14 +308,67 @@ def fetch_metadata(arxiv_id: str, *, fetcher: Fetcher) -> PaperMeta | None:
     为 ``None``——``or`` 短路会把版本史解析机会吞掉，故显式续走 OAI；
     OAI 也挂时 Atom 残值（无版本号的 meta）仍比 ``None`` 有用。
     """
-    base, pin = normalize_arxiv_id(arxiv_id)
-    if not valid_id(base):
-        msg = f"bad arxiv id: {arxiv_id!r}"
-        raise ValueError(msg)
+    base, pin = req_base_ver(arxiv_id)
     meta = _atom_meta(fetcher, base, pin)
     if meta is not None and meta.resolved_version is not None:
         return meta
     return _oai_meta(fetcher, base, pin) or meta
+
+
+#: Atom ``id_list`` 批量上界：≤200 ids/req + URL ≤8KB 分批（ADR-0008 /
+#: arXiv API 手册同口径——单 id ≤30 字符，8KB 闸先于 200 触顶仅理论态）。
+ATOM_BATCH_MAX: Final = 200
+ATOM_URL_MAX: Final = 8 * 1024
+
+
+def _atom_id_list_url(ids: list[str]) -> str:
+    """批量查询 URL——``max_results`` 须显式给批大小（默认 10 会截断）。"""
+    return f"{ATOM_API}?id_list={','.join(ids)}&max_results={len(ids)}"
+
+
+def fetch_metadata_batch(
+    arxiv_ids: Iterable[str], *, fetcher: Fetcher
+) -> dict[str, PaperMeta]:
+    """Atom ``id_list`` 批量拉取 → ``{base_id: PaperMeta}``（ADR-0008 批量规格）。
+
+    钉版 ``id vN`` 透传（该版 entry）；同 base 多钉后写覆盖。非法 id 抛
+    ``ValueError``（与 ``fetch_metadata`` 同调用方错误语义）。单批请求失败
+    （park/预算/非 200/解析错）该批缺席不抛；无 OAI 逐篇兜底——批量语义即
+    浅补全（语料 cat 填充等），要版本史兜底走单篇 ``fetch_metadata``。
+    """
+    wire: list[str] = []
+    seen: set[str] = set()
+    for raw in arxiv_ids:
+        base, pin = req_base_ver(raw)
+        w = f"{base}{_vsuf(pin)}"
+        if w not in seen:
+            seen.add(w)
+            wire.append(w)
+    batches: list[list[str]] = []
+    batch: list[str] = []
+    for w in wire:
+        trial = [*batch, w]
+        if batch and (
+            len(trial) > ATOM_BATCH_MAX
+            or len(_atom_id_list_url(trial)) > ATOM_URL_MAX
+        ):
+            batches.append(batch)
+            batch = [w]
+        else:
+            batch = trial
+    if batch:
+        batches.append(batch)
+    out: dict[str, PaperMeta] = {}
+    for ids in batches:
+        resp = _get(fetcher, _atom_id_list_url(ids))
+        if resp is None:
+            continue
+        try:
+            for meta in _parse_atom_feed(resp.content):
+                out[meta.arxiv_id] = meta
+        except (ElementTree.ParseError, DefusedXmlException):
+            continue
+    return out
 
 
 def resolve_version(
@@ -306,10 +379,7 @@ def resolve_version(
     一次裸 id 元数据拉取同时覆盖两种判断（版本连续 ``1..latest``）；
     主源 Atom、兜底 OAI arXivRaw 版本史，全挂 → None。
     """
-    base, pin = normalize_arxiv_id(arxiv_id)
-    if not valid_id(base):
-        msg = f"bad arxiv id: {arxiv_id!r}"
-        raise ValueError(msg)
+    base, pin = req_base_ver(arxiv_id)
     want = want if want is not None else pin
     meta = fetch_metadata(base, fetcher=fetcher)
     latest = meta.latest_version if meta is not None else None
@@ -437,11 +507,7 @@ def degrade(
     → 逐版本回退）→ L3；``pdf_only``/``not_found``/``stub`` → L3
     ``/pdf/{id}``（钉版 → 最新版）→ L2。全不可得 → ``tier=NONE``。
     """
-    base, pin = normalize_arxiv_id(arxiv_id)
-    ver_req = version if version is not None else pin
-    if not valid_id(base) or (ver_req is not None and ver_req < 1):
-        msg = f"bad arxiv id: {arxiv_id!r}"
-        raise ValueError(msg)
+    base, ver_req = req_base_ver(arxiv_id, version)
     first, second = (
         (_probe_html, _probe_pdf)
         if DegradeReason(reason) in _L2_FIRST

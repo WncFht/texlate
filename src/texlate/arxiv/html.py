@@ -39,7 +39,7 @@ from bs4.element import Comment, Declaration, Doctype, ProcessingInstruction
 from texlate.chunk import ChunkIn, normalize_kind
 from texlate.textutil import PH_RX
 
-from .fetch import Fetcher, normalize_arxiv_id, valid_id
+from .fetch import Fetcher, req_base_ver
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Mapping
@@ -520,7 +520,9 @@ def parse_arxiv_html(html: str, *, arxiv_id: str = "") -> HtmlDoc:
         HtmlBlock(key, context, text, ph)
         for _el, key, context, text, ph in _enumerate_blocks(art, ctx)
     ]
-    title_el = art.find("h1", class_="ltx_title_document") or _fallback_title(art)
+    # ctx.title_el 已在 _enumerate_blocks 枚举时判出（同 h1 短路 + titlepage
+    # 容器扫描）——直接复用，不再第二遍扫 DOM
+    title_el = art.find("h1", class_="ltx_title_document") or ctx.title_el
     title = (
         " ".join(title_el.get_text(" ", strip=True).split())
         if title_el is not None
@@ -587,11 +589,7 @@ def fetch_html(
     ``_request`` 退避重试、``_across_hosts`` export 镜像故障转移——与
     e-print 获取同一纪律。``fetcher=None`` 自建即用即关。
     """
-    base, pin = normalize_arxiv_id(arxiv_id)
-    ver = version if version is not None else pin
-    if not valid_id(base) or (ver is not None and ver < 1):
-        msg = f"bad arxiv id: {arxiv_id!r}"
-        raise ValueError(msg)
+    base, ver = req_base_ver(arxiv_id, version)
     own = fetcher is None
     f = fetcher or Fetcher()
     try:

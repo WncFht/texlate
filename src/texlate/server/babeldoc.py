@@ -1,4 +1,4 @@
-"""BabelDOC sidecar spawn 契约（docs/research/latex/pdf-path.md §三/§五）。
+"""BabelDOC sidecar spawn 契约（docs/research/latex/pdf-path.md §4/§5）。
 
 无 LaTeX 源论文的 PDF 降级翻译通路：把 ``babeldoc`` CLI 包成
 「提交 → 进度 → 产物 → fallback 判定」壳。进程边界 = AGPL 边界——
@@ -42,6 +42,7 @@ from typing import TYPE_CHECKING, Any
 
 from texlate.server.settings import TARGET_LANGS
 from texlate.textutil import env_float, filtered_env
+from texlate.textutil.osutil import ENV_BABELDOC_TIMEOUT
 from texlate.xlat.client import normalize_base_url, redact
 
 if TYPE_CHECKING:
@@ -57,6 +58,10 @@ except ImportError:  # Windows：无 pty → 退化纯管道模式
 
 #: 整单默认超时（``TEXLATE_BABELDOC_TIMEOUT`` 秒覆盖）
 DEFAULT_TIMEOUT_S = 3600.0
+
+#: ``-c`` 凭证 TOML 文件名——``write_config`` 落盘与 ``build_argv`` argv
+#: 引用同一成员名，单源防漂移
+_CONFIG_FILENAME = "babeldoc.toml"
 
 #: stderr pump 读块 / poll 周期
 _PUMP_CHUNK = 65536
@@ -172,7 +177,7 @@ def lang_out_for(target_lang: str) -> str:
 
 def default_timeout() -> float:
     """``TEXLATE_BABELDOC_TIMEOUT`` 秒；非法/缺省 → ``DEFAULT_TIMEOUT_S``。"""
-    v = env_float("TEXLATE_BABELDOC_TIMEOUT", 0.0)
+    v = env_float(ENV_BABELDOC_TIMEOUT, 0.0)
     return v if v > 0 else DEFAULT_TIMEOUT_S
 
 
@@ -221,7 +226,7 @@ def write_config(job: BabeldocJob) -> Path:
     （main.py:499-500）；默认本地网关不校验，真 provider 空 key 会
     在上游 401 如实报错。
     """
-    cfg = job.workdir / "babeldoc.toml"
+    cfg = job.workdir / _CONFIG_FILENAME
     cfg.parent.mkdir(parents=True, exist_ok=True)
     # os.open 带 mode 建文件——write_text 先 0644 再 chmod 的窗口内 key 可被同机读
     fd = os.open(cfg, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
@@ -269,7 +274,7 @@ def build_argv(job: BabeldocJob, binary: str) -> list[str]:
         "--watermark-output-mode",
         "no_watermark",
         "-c",
-        str(job.workdir / "babeldoc.toml"),
+        str(job.workdir / _CONFIG_FILENAME),
     ]
     if job.base_url:
         argv += ["--openai-base-url", _openai_sdk_root(job.base_url)]
@@ -583,7 +588,7 @@ def glob_escape(s: str) -> str:
     return glob.escape(s)
 
 
-def _judge_run(  # noqa: C901, PLR0913, PLR0911 -- 退出码判定表平铺即 §三 assess 契约
+def _judge_run(  # noqa: C901, PLR0913, PLR0911 -- 退出码判定表平铺即 §4.2 契约
     job: BabeldocJob,
     *,
     rc: int,
@@ -593,7 +598,7 @@ def _judge_run(  # noqa: C901, PLR0913, PLR0911 -- 退出码判定表平铺即 �
     track: dict[str, Any],
     stats: dict[str, Any],
 ) -> tuple[str, str | None, str, bool]:
-    """退出后判定 → ``(status, error_code, error, retryable)``（§三 assess）。"""
+    """退出后判定 → ``(status, error_code, error, retryable)``（§4.2）。"""
     if timed_out:
         return "failed", "timeout", f"babeldoc 超时（{int(job.timeout)}s）", True
     if feed.scanned:
@@ -619,7 +624,7 @@ def _judge_run(  # noqa: C901, PLR0913, PLR0911 -- 退出码判定表平铺即 �
         track["fallbacks"],
     )
     if total and errors >= total * 0.5:
-        # 过半段出错 → 判失败（pdf-path.md §三 assess）
+        # 过半段出错 → 判失败（pdf-path.md §4.2）
         err = (
             track["error_samples"][0]
             if track["error_samples"]
@@ -653,7 +658,7 @@ def _judge_run(  # noqa: C901, PLR0913, PLR0911 -- 退出码判定表平铺即 �
 
 
 def _child_env() -> dict[str, str]:
-    """babeldoc 子进程 env：白名单透传 + setdefault/强制三键。
+    """Babeldoc 子进程 env：白名单透传 + setdefault/强制三键。
 
     ``dict(os.environ)`` 全量继承会把 ``TEXLATE_API_KEY``/``OPENAI_API_KEY``
     等 secret 灌进第三方子进程及其 multiprocessing 孙链——白名单表见
@@ -739,7 +744,7 @@ def _kill_tree(proc: asyncio.subprocess.Process) -> None:
 
     ``start_new_session`` 后 pgid==子 pid。组已空 → 退化 ``proc.kill()``
     （send_signal 对已死进程压制 ProcessLookupError）。与
-    ``compile/sandbox._kill_proc`` 同一语义。
+    ``compile/proc._kill_tree`` 同一语义。
     """
     if sys.platform != "win32":
         try:
@@ -760,7 +765,7 @@ async def run_babeldoc(
     on_log: Callable[[str], None] | None = None,
     should_cancel: Callable[[], bool] | None = None,
 ) -> BabeldocRun:
-    """Spawn → stderr 刮取 → 产物收割 → fallback 判定（pdf-path §三 assess）。
+    """Spawn → stderr 刮取 → 产物收割 → fallback 判定（pdf-path §4.2）。
 
     ``should_cancel`` 真 → kill + ``CancelledError``（worker 段边界
     收敛同一语义）。超时 kill → ``status="failed"`` ``error_code=

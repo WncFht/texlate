@@ -104,7 +104,7 @@ rules:
     source_ref: "fixloop.py L335-341"
 
   # 新增 (docs/08:275): tectonic 下 missing_pfb 的改写出路 ——
-  # 物理字体投放已实证死路 (ctanfetch-probe §3.5), 换 Type1 近亲 shim
+  # 物理字体投放已实证死路 (ctanfetch-probe §3.4), 换 Type1 近亲 shim
   - id: font_sub_shim
     mechanisms: [W103]
     description: "MF-only 字体包 (bbm 等) → Type1 近亲 (dsfont/dsrom) shim 改写"
@@ -126,7 +126,7 @@ rules:
               cs_map:
                 { mathbbm: "mathds", mathbmss: "mathds", mathbmtt: "mathtt" },
             }
-          # 探针实证改写 (ctanfetch-probe §3.5): 注掉 bbm, dsfont 已在 bundle 内
+          # 探针实证改写 (ctanfetch-probe §3.4): 注掉 bbm, dsfont 已在 bundle 内
     engines:
       tectonic: { mode: native }
       xelatex: { mode: skip } # xelatex 有 updmap, 不需要 shim
@@ -136,7 +136,7 @@ rules:
           error: "xdvipdfmx: bbm10 physical font dead",
         }
     stats: { fires: 0, status: proposed }
-    source_ref: "docs/spec/compile.md L275; ctanfetch-probe.md §3.5"
+    source_ref: "docs/spec/compile.md L275; ctanfetch-probe.md §3.4"
 
   - id: px_to_bp
     description: "非法单位 px → bp 换算 (pdfTeX 缺省忠实: 1px = 1bp)"

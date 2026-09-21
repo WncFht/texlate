@@ -35,7 +35,7 @@ _EPUB_MEMBER_MAX = 256 << 20
 _EPUB_INFLATED_MAX = 512 << 20
 
 
-def load_epub(src: Path | str) -> EpubBook:  # noqa: C901, PLR0912, PLR0915 -- 拆包校验每分支即一条 spec 拒翻规则，拆开反而对不上 §2
+def load_epub(src: Path | str) -> EpubBook:  # noqa: C901, PLR0912, PLR0915 -- 拆包校验每分支即一条 doc-formats.md 拒翻规则，拆开反而对不上 §2
     """读全本：DRM 预检 → zip 成员表 → container → OPF → 文档面枚举。"""
     if check_epub(src) == "drm":
         raise DrmError(DRM_MESSAGE)
@@ -102,7 +102,8 @@ def load_epub(src: Path | str) -> EpubBook:  # noqa: C901, PLR0912, PLR0915 -- �
         msg = f"OPF 解析失败: {e}"
         raise MalformedEpubError(msg) from e
 
-    # fixed-layout（pre-paginated）插译必破版式——警告级拒翻（spec §2.6）
+    # fixed-layout（pre-paginated）插译必破版式——警告级拒翻
+    # （doc-formats.md §2 收尾「EPUB 特有注意点」段；亦见 §5 边界表）
     for meta in opf.iter(f"{_OPF_NS}meta"):
         if (
             meta.get("property") == "rendition:layout"
@@ -127,7 +128,7 @@ def load_epub(src: Path | str) -> EpubBook:  # noqa: C901, PLR0912, PLR0915 -- �
                 return path
         return None
 
-    manifest: dict[str, tuple[str, str, str]] = {}
+    manifest: dict[str, tuple[str, str]] = {}
     ncx_path: str | None = None
     for it in opf.iter(f"{_OPF_NS}item"):
         iid = it.get("id")
@@ -135,7 +136,7 @@ def load_epub(src: Path | str) -> EpubBook:  # noqa: C901, PLR0912, PLR0915 -- �
         mtype = it.get("media-type") or ""
         if not iid or not href:
             continue
-        manifest[iid] = (href, mtype, it.get("properties") or "")
+        manifest[iid] = (href, mtype)
         if mtype == "application/x-dtbncx+xml":
             ncx_path = member_path(href)
 
@@ -149,7 +150,7 @@ def load_epub(src: Path | str) -> EpubBook:  # noqa: C901, PLR0912, PLR0915 -- �
         if path is not None and path not in docs:
             docs.append(path)
     # spine 之外、manifest 里仍是 xhtml 的（不在 spine 的 nav/封面页）追加在尾
-    for href, mtype, _props in manifest.values():
+    for href, mtype in manifest.values():
         if mtype not in XHTML_MEDIA_TYPES:
             continue
         path = member_path(href)

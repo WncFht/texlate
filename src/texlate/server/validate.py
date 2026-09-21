@@ -41,6 +41,11 @@ def validate_base_url(value: str) -> str:
     拒：userinfo/query/fragment 内嵌、非 localhost/tailnet 的 http。返回归一化串。
     """
     v = value.strip().rstrip("/")
+    if any(c.isspace() or not c.isprintable() for c in v):
+        # urlsplit 对内嵌空白/控制字符不设防——``exa mple.com`` 会当合法
+        # hostname 落库，请求期才在 httpx 侧炸；先整串拒掉
+        msg = "invalid base_url（含空白/控制字符）"
+        raise ValueError(msg)
     u = urlsplit(v)
     try:
         port = u.port
@@ -53,7 +58,7 @@ def validate_base_url(value: str) -> str:
         u.scheme not in ("https", "http")
         or not u.hostname
         or "@" in u.netloc  # 任意 userinfo——``u.username`` 真值判漏空形 ``@host``
-        or (port is None and u.netloc.rpartition("@")[2].endswith(":"))  # ``h:``
+        or (port is None and u.netloc.endswith(":"))  # ``h:``——``@`` 上条已拒
         or u.query
         or u.fragment
     ):

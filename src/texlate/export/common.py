@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+import shutil
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -12,15 +13,17 @@ from typing import TYPE_CHECKING, Protocol
 
 import yaml
 
+from texlate.export.markers import reconcile_markers
 from texlate.xlat.glossary import Glossary, TermEntry
 from texlate.xlat.pipeline import ChunkIn, ChunkResult, XlatPipeline
 from texlate.xlat.placeholders import collect_doc_placeholders
+from texlate.xlat.placeholders import diff as _ph_diff
+from texlate.xlat.state import StateStore
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
 
     from texlate.xlat.pipeline import Translator
-    from texlate.xlat.state import StateStore
 
 log = logging.getLogger(__name__)
 
@@ -193,6 +196,19 @@ def apply_translations[U: _ApplyUnit](
     return counts
 
 
+def _export_validator(src: str, zh: str) -> str:
+    """``XlatPipeline`` 校验臂的 export 变体：marker 差异先调和再对账。
+
+    EPUB 单元签发的 ``[[TAG_n]]`` marker 由 ``reconcile_markers`` 宽容调和
+    （markers.py pinned 规则：绝不因 marker 重试——丢的句尾补回、臆造剥掉）。
+    默认 ``diff`` 直判会把丢/臆造 marker 当校验失败，白烧阶梯重试、三振后
+    整段回退原文。``issued=None`` 调和把 sent 内全部 marker 形 token 视同
+    签发（含书内字面同形 token——单现的丢字不再追责，多重集差仍抓），diff
+    随之对 marker 差异免疫；非 marker 校验口径与默认件一致。
+    """
+    return _ph_diff(src, reconcile_markers(src, zh)).describe()
+
+
 def drive_pipeline(  # noqa: PLR0913 -- 骨架即双驱共享参数面（chunks/翻译/断点/回调/apply/save 七件）
     chunks: list[ChunkIn],
     *,
@@ -218,6 +234,7 @@ def drive_pipeline(  # noqa: PLR0913 -- 骨架即双驱共享参数面（chunks/
         translator,
         state=store,
         glossary=g,
+        validator=_export_validator,
         on_result=on_result,
     )
 
@@ -250,3 +267,63 @@ def drive_pipeline(  # noqa: PLR0913 -- 骨架即双驱共享参数面（chunks/
     counts = apply_fn(results)
     save_fn(counts.translated)
     return results, counts
+
+
+def run_export(  # noqa: PLR0913 -- 双驱共享参数面（drive_pipeline 先例）
+    src: Path,
+    dst: Path,
+    translator: Translator,
+    *,
+    lang: str | None,  # noqa: ARG001 -- preamble 上收预留槽，与 EPUB 臂签名对齐（本尾不读）
+    state_dir: Path | None,
+    glossary: GlossaryArg | None,
+    on_result: Callable[[ChunkResult], None] | None,
+    chunks: list[ChunkIn],
+    apply_fn: Callable[[Mapping[str, ChunkResult]], ApplyCounts],
+    save_fn: Callable[[int], None],
+    err_cls: type[ExportError],
+    fmt: str,
+    documents: int,
+    pipeline_version: str,
+) -> ExportReport:
+    """枚举后段公共尾：``StateStore`` → ``drive_pipeline`` → 清理 → ``ExportReport``。
+
+    DOCX/EPUB 两驱动的枚举后段逐行同构（``state_dir`` 缺省、嵌套护栏、
+    state 清理、skipped 计数、报告装配）——``epub.driver.translate_epub``
+    直接复用本件；``err_cls``/``fmt``/``documents`` 是仅存的差异
+    参数面。``lang`` 属驱动侧闭包词法语境，本尾不读——签名留槽与 EPUB 臂
+    对齐（preamble 上收变体的挂点）。
+    """
+    state_dir = state_dir or dst.with_name(dst.name + ".state")
+    store = StateStore(state_dir, model="export", pipeline_version=pipeline_version)
+    try:
+        results, counts = drive_pipeline(
+            chunks,
+            translator=translator,
+            store=store,
+            glossary=glossary,
+            on_result=on_result,
+            apply_fn=apply_fn,
+            save_fn=save_fn,
+        )
+    except RecursionError as e:
+        # 超深 ``w:p`` 子树在 ``insert_after`` 的 deepcopy/序列化路径同样
+        # 撞 RecursionError——折进 ExportError 族，裸内置异常不许逃逸
+        msg = f"{fmt.upper()} 文档嵌套过深，无法翻译: {src.name}"
+        raise err_cls(msg) from e
+
+    if state_dir.exists():
+        shutil.rmtree(state_dir, ignore_errors=True)
+    n_skipped = sum(1 for r in results.values() if r.status == "skipped")
+    return ExportReport(
+        src=src,
+        dst=dst,
+        format=fmt,
+        units=len(chunks),
+        translated=counts.translated,
+        unchanged=counts.unchanged,
+        skipped=n_skipped,
+        fault=counts.fault,
+        documents=documents,
+        warnings=counts.warnings,
+    )

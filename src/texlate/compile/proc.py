@@ -121,9 +121,10 @@ _SENTRY_KEEP: Final = 4096
 #: ``n >= 已计最大值`` 入计；收敛文档万级非序方括数字（索引/引用阵
 #: 列）只贡献 ~ln(n) 个左向右极大值，不再假触（killsem2 census 开放缺
 #: 口——旧纯计数把任意 ``[\d+]`` 当页标）。
-#: ``_PAGE_MARK_RX``/``_RUNAWAY_PAGE_MAX`` 是 ``sandbox.py`` 再出口兼容面——
-#: 权威 str 源与阈值单源在 ``compile.logparse``（``_RUNAWAY_PAGE_MAX`` 经顶层
-#: import 转口），页标 bytes 形按同一 ``str.pattern.encode()`` 变换派生。
+#: 页标 ``[N]`` 的 bytes 编译形——权威 str 源与阈值单源在 ``compile.logparse``
+#: （顶层 import 转口），按同一 ``str.pattern.encode()`` 变换派生；
+#: ``logparse`` 的事后判据与本哨的流片判据同词素两介质（logparse:71 注记）。
+#: 活哨逐实例直用本编译形，免 ``__init__`` 重编译。
 _PAGE_MARK_RX: Final = re.compile(_RUNAWAY_PAGE_RX.pattern.encode())
 
 
@@ -150,7 +151,7 @@ class _RunawaySentry:
 
     def __init__(self) -> None:
         self._vbox_rx = re.compile(_RUNAWAY_VBOX_RX.pattern.encode())
-        self._page_rx = re.compile(_RUNAWAY_PAGE_RX.pattern.encode())
+        self._page_rx = _PAGE_MARK_RX
         self._vbox_min = _RUNAWAY_VBOX_MIN
         self._vbox_density = _RUNAWAY_VBOX_DENSITY
         self._page_max = _RUNAWAY_PAGE_MAX

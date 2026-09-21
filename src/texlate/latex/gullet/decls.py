@@ -2,6 +2,8 @@ r"""``latex/gullet`` 子模块——god-class 机械拆分（行为零变）：\
 
 from __future__ import annotations
 
+import sys
+
 from texlate.latex.macro_table import (
     scan_xparse,
 )
@@ -13,6 +15,9 @@ from texlate.latex.tables import (
     MATH_ENVS,
 )
 
+from .defcmd import (
+    _group_closed,
+)
 from .entries import (
     Alias,
     Arg,
@@ -23,6 +28,7 @@ from .entries import (
 )
 from .names import (
     _BUILTINS,
+    _DIGITS,
     _MATH_CS,
     _MATH_OPEN_CS,
     _PRIMS,
@@ -34,12 +40,6 @@ from .tokutil import (
 
 class _Decls:
     # ------------------------------------------------------------ \newcommand 族
-
-    def _eat_star(self, trace: list[Tok]) -> None:
-        r"""``\newcommand*`` 等的可选 ``*``：吃掉或回吐（仅占位不产参数）。"""
-        t = self._rt_skip(trace)
-        if t is not None and (t.kind == "cs" or t.text != "*"):
-            self._pushback(trace, t)
 
     def _read_def_name(self, trace: list[Tok]) -> str | None:
         r"""``{\cmd}`` 或 ``\cmd`` 读宏名（``name:cs``）。"""
@@ -56,16 +56,16 @@ class _Decls:
             return ""
         return None
 
-    def _read_opt_int(self, trace: list[Tok]) -> tuple[int | None, list[Tok] | None]:
-        """可选 ``[n]``：返回 ``(int 值, 原始 token 列)``；缺席 ``(None, None)``。"""
+    def _read_opt_int(self, trace: list[Tok]) -> int | None:
+        """可选 ``[n]``：返回 int 值；缺席 ``None``（组 token 照常入 ``trace``）。"""
         grp = self._read_grouping(trace, "[", "]")
         if grp is None:
-            return None, None
+            return None
         txt = _surface(grp).strip()
         try:
-            return int(txt or 0), grp
+            return int(txt or 0)
         except ValueError:
-            return 0, grp
+            return 0
 
     @staticmethod
     def _opt_default_spec(nargs: int | None, default: list[Tok] | None) -> list[Arg]:
@@ -127,16 +127,19 @@ class _Decls:
         N **含**可选位（plasTeX ``nargs-1`` ``__init__.py:1145-1147``）。
         """
         trace = self._trace = []
-        self._eat_star(trace)
+        self._read_star(trace, "*")
         mname = self._read_def_name(trace)
         if mname is None:
             return self._def_fail(trig, trace, "newcommand name")
-        nargs, _ = self._read_opt_int(trace)
+        nargs = self._read_opt_int(trace)
         default = self._read_grouping(trace, "[", "]")  # 缺省值是 token 列非 int
         brace = self._rt_skip(trace)
         if brace is None or brace.kind != "lbrace":
             return self._def_fail(trig, trace, "newcommand body")
+        bi = len(trace) - 1  # 开 ``{`` 在 trace 的索引（_rt_skip 刚入账）
         body = self._read_balanced(trace)
+        if not _group_closed(trace, bi):
+            return self._def_fail(trig, trace, "newcommand body unterminated")
         spec = self._opt_default_spec(nargs, default)
         return self._register_cmd(
             name, mname, spec, body, trig, trace, provide=name == "providecommand"
@@ -145,11 +148,11 @@ class _Decls:
     def _do_newenv(self, trig: Tok) -> Tok | None:
         r"""``\newenvironment[*]{env}[N][d]{before}{after}``（Definitions.py:42-51）。"""
         trace = self._trace = []
-        self._eat_star(trace)
+        self._read_star(trace, "*")
         envname = self._read_env_name(trace)
         if envname is None:
             return self._def_fail(trig, trace, "newenvironment name")
-        nargs, _ = self._read_opt_int(trace)
+        nargs = self._read_opt_int(trace)
         default = self._read_grouping(trace, "[", "]")
         before = self._read_grouping(trace, "{", "}")
         if before is None:
@@ -239,7 +242,7 @@ class _Decls:
     def _do_newtheorem(self, trig: Tok) -> Tok | None:
         r"""``\newtheorem{n}[c]{cap}[w]``（Definitions.py:61-90）→ 定理类 env。"""
         trace = self._trace = []
-        self._eat_star(trace)
+        self._read_star(trace, "*")
         envname = self._read_env_name(trace)
         if envname is None:
             return self._def_fail(trig, trace, "newtheorem name")
@@ -256,7 +259,7 @@ class _Decls:
     def _do_mathop(self, trig: Tok) -> Tok | None:
         r"""``\DeclareMathOperator[*]{\n}{B}`` → 体包 ``\operatorname{B}``（amsmath.py:111-123）。"""
         trace = self._trace = []
-        self._eat_star(trace)
+        self._read_star(trace, "*")
         mname = self._read_def_name(trace)
         if mname is None:
             return self._def_fail(trig, trace, "DeclareMathOperator name")
@@ -399,7 +402,8 @@ class _Decls:
         trace = self._trace = []
         scope = "global" if global_ else "local"
         nt = self._rt_skip(trace)
-        if nt is None or nt.kind not in ("cs", "active"):
+        # ``active`` 目标不登记：active token 永不查 macros，写进去只会毒同名 cs
+        if nt is None or nt.kind != "cs":
             self.unread(trace)
             return trig
         self._read_eq(trace)
@@ -451,17 +455,34 @@ class _Decls:
         return self._consumed(f"newif:{flag}", trig, trace, head)
 
     def _do_catcode(self, trig: Tok) -> Tok | None:
-        r"""``\catcode`<ch>=<num>``（Primitives.py:401-411）。"""
+        r"""``\catcode<num>=<num>``（Primitives.py:401-411）。
+
+        字符码位 = TeX ``<number>``：``` `` ``x`` 字符码 / 十进制 / ``'`` 八
+        进制 / ``"`` 十六进制；``\cs``/``{`` 起头的寄存器形不求值、回吐保
+        token（``_read_number`` 账外读，进了它肚的 token ``unread(trace)``
+        救不回——gate 只放字面数形首 token）。
+        """
         trace = self._trace = []
         t = self._rt_skip(trace)
-        if t is None or t.text != "`":
+        if t is None:
             self.unread(trace)
             return trig
-        ct = self._rt(trace)
-        if ct is None:
+        if t.text == "`":
+            ct = self._rt(trace)
+            if ct is None:
+                self.unread(trace)
+                return trig
+            ch = ct.text[0] if ct.text else "\x00"
+        elif t.kind != "cs" and (t.text in _DIGITS or t.text in ("'", '"')):
+            self._pushback(trace, t)
+            vn = self._read_number()
+            if vn is None or vn < 0 or vn > sys.maxunicode:
+                self.unread(trace)
+                return trig
+            ch = chr(int(vn))
+        else:
             self.unread(trace)
             return trig
-        ch = ct.text[0] if ct.text else "\x00"
         eq = self._rt_skip(trace)
         if eq is not None and eq.text != "=":
             self._pushback(trace, eq)  # '=' 可选

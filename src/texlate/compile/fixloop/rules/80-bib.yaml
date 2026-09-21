@@ -9,8 +9,9 @@
 version: 1
 
 rules:
-  # 新增 (docs/08:274): tectonic 自动 bibtex 产 stub bbl 在内存层遮蔽真 bbl
-  # (ctanfetch-probe §3.3 铁证: missing \item 真凶), 改写断链
+  # 新增 (docs/spec/compile.md §6.3 80-bib 分片行): tectonic 自动 bibtex
+  # 产 stub bbl 在内存层遮蔽真 bbl
+  # (ctanfetch-probe §3.2 铁证: missing \item 真凶), 改写断链
   - id: bbl_stub_shadow
     mechanisms: [W06, W16, W36]
     description: "有 .bbl 无 .bib → \\bibliography{x} 改写 \\input{main.bbl}, 阻断 tectonic 自动 bibtex stub 遮蔽"
@@ -30,11 +31,11 @@ rules:
       xelatex: { mode: skip } # xelatex 侧同症由 normalize.use_bundled_bibliography 无条件处理
     provenance:
       - {
-          corpus: "2305.14335 (ctanfetch-probe §3.3)",
+          corpus: "2305.14335 (ctanfetch-probe §3.2)",
           error: "missing \\item @ \\end{thebibliography} (stub bbl 遮蔽 360 行真 bbl)",
         }
     stats: { fires: 0, status: proposed }
-    source_ref: "docs/spec/compile.md L274; ctanfetch-probe.md §3.3"
+    source_ref: "docs/spec/compile.md §6.3 (80-bib 分片行) / §6.6 (_builtins_bib: bbl stub 改写); ctanfetch-probe.md §3.2"
 
   # 2026-09-17 wave-2 (apj-bib-scout §S4, 11 格): ADS/apj.bst 时代 .bbl
   # cite-key 裸 &/_ 在现代内核炸 Missing $/Misplaced alignment tab ——
