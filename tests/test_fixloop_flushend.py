@@ -11,24 +11,11 @@ err 落 other 桶。根修 = 成员级剥除 (逗号位精确, ``keeplastboxfoo`
 
 from pathlib import Path
 
-from texlate.compile.fixloop import actions, load_ruleset
-from texlate.compile.fixloop.engine import LoopCtx, Rule
-from texlate.compile.logparse import ErrReport
+from _fixloopkit import EngStub, apply, mk_ctx, rule
 
+from texlate.compile.fixloop import actions
 
-class _Eng:
-    """regex_rewrite/condition 路径的最小引擎替身 (不触 probe/install)。"""
-
-    name = "xelatex"
-
-    def probe_file(self, fname: str, cwd: Path | None = None) -> str | None:
-        del fname, cwd
-        return None
-
-    def filemap(self, fname: str) -> list[str]:
-        del fname
-        return []
-
+_RID = "flushend_keeplastbox_opt_strip"
 
 _OPT_ERR = (
     "! LaTeX Error: Unknown option `keeplastbox' for package `flushend'.\n"
@@ -36,42 +23,28 @@ _OPT_ERR = (
 )
 
 
-def _ctx(tmp_path: Path, err_head: str = _OPT_ERR) -> LoopCtx:
-    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel="main.tex")
-    ctx.err_head = err_head
-    return ctx
-
-
-def _rule() -> Rule:
-    return next(
-        r for r in load_ruleset().rules if r.id == "flushend_keeplastbox_opt_strip"
-    )
-
-
 def _apply(tmp_path: Path) -> tuple[bool, str]:
-    return actions._apply(  # noqa: SLF001 - 钉规则动作直驱
-        _rule(), _ctx(tmp_path), _Eng(), None, ErrReport()
-    )
+    return apply(_RID, mk_ctx(tmp_path), None)
 
 
 def _cond(tmp_path: Path, err_head: str = _OPT_ERR) -> tuple[bool, str]:
-    rule = _rule()
-    return actions._cond_ok(  # noqa: SLF001
-        rule.condition, rule, _ctx(tmp_path, err_head), _Eng(), None
+    r = rule(_RID)
+    return actions._cond_ok(  # noqa: SLF001 - 条件闸直驱
+        r.condition, r, mk_ctx(tmp_path, err_head=err_head), EngStub(), None
     )
 
 
 def test_flushend_rule_registered() -> None:
-    rule = _rule()
-    assert rule.order == 197  # noqa: PLR2004 - schema 断言值
-    assert rule.phase == "loop"
-    cats = {w.get("category") for w in rule.when["any"]}
+    r = rule(_RID)
+    assert r.order == 197  # noqa: PLR2004 - schema 断言值
+    assert r.phase == "loop"
+    cats = {w.get("category") for w in r.when["any"]}
     assert {"other", "unknown_option"} <= cats
-    assert rule.action["kind"] == "regex_rewrite"
-    rws = rule.action["params"]["rewrites"]
+    assert r.action["kind"] == "regex_rewrite"
+    rws = r.action["params"]["rewrites"]
     assert all(rw["match_surface"] == "masked" for rw in rws)
-    assert "keeplastbox" in rule.condition["ctx_suggests"]
-    assert "keeplastbox" in rule.condition["source_contains"]
+    assert "keeplastbox" in r.condition["ctx_suggests"]
+    assert "keeplastbox" in r.condition["source_contains"]
 
 
 def test_flushend_solo_bracket_stripped(tmp_path: Path) -> None:
@@ -108,18 +81,25 @@ def test_flushend_bracket_positions(tmp_path: Path) -> None:
         assert f"\\usepackage{after}{{flushend}}" in t, (before, t)
 
 
-def test_flushend_requirepackage_in_sty(tmp_path: Path) -> None:
-    """cls/sty 内 \\RequirePackage[keeplastbox]{flushend} 同剥 (exts 面)。"""
+def test_flushend_requirepackage_sites(tmp_path: Path) -> None:
+    """\\RequirePackage[keeplastbox]{flushend} 三载面同剥: .tex/.sty/.cls (exts+命令面)。"""
     (tmp_path / "main.tex").write_text(
-        "\\documentclass{article}\n\\usepackage{foo}\n", encoding="utf-8"
+        "\\documentclass{article}\n\\usepackage{foo}\n"
+        "\\RequirePackage[keeplastbox]{flushend}\n",
+        encoding="utf-8",
     )
     (tmp_path / "foo.sty").write_text(
         "\\RequirePackage[keeplastbox]{flushend}\n", encoding="utf-8"
     )
+    (tmp_path / "bar.cls").write_text(
+        "\\RequirePackage[keeplastbox]{flushend}\n", encoding="utf-8"
+    )
     ok, note = _apply(tmp_path)
     assert ok, note
-    t = (tmp_path / "foo.sty").read_text()
-    assert t == "\\RequirePackage{flushend}\n"
+    assert (tmp_path / "foo.sty").read_text() == "\\RequirePackage{flushend}\n"
+    assert (tmp_path / "bar.cls").read_text() == "\\RequirePackage{flushend}\n"
+    t = (tmp_path / "main.tex").read_text()
+    assert "\\RequirePackage{flushend}\n" in t
 
 
 def test_flushend_passoptions_forms(tmp_path: Path) -> None:
@@ -158,6 +138,8 @@ def test_flushend_near_names_untouched(tmp_path: Path) -> None:
         "\\usepackage[keeplastbox]{flushend}\n"
         "\\usepackage[xkeeplastbox]{foo}\n"
         "\\usepackage[keeplastboxfoo]{bar}\n"
+        "\\usepackage[a={x,keeplastbox}]{flushend}\n"
+        "\\PassOptionsToPackage{a={x,keeplastbox}}{flushend}\n"
         "\\PassOptionsToPackage{keeplastboxx}{flushend}\n",
         encoding="utf-8",
     )
@@ -167,7 +149,24 @@ def test_flushend_near_names_untouched(tmp_path: Path) -> None:
     assert "\\usepackage{flushend}\n" in t
     assert "\\usepackage[xkeeplastbox]{foo}" in t
     assert "\\usepackage[keeplastboxfoo]{bar}" in t
+    # 嵌套 brace 值内 keeplastbox 是 a= 的值成员非顶层键 —— usepackage/PassOptions 两形都不剥
+    assert "\\usepackage[a={x,keeplastbox}]{flushend}" in t
+    assert "\\PassOptionsToPackage{a={x,keeplastbox}}{flushend}" in t
     assert "\\PassOptionsToPackage{keeplastboxx}{flushend}" in t
+
+
+def test_flushend_nested_member_prefix_known_gap(tmp_path: Path) -> None:
+    """known_gap 钉死: PassOptions 首参 ``{a={x,y},keeplastbox}`` 的内层 ``}``
+    挡 ``[^}]`` → 顶层 keeplastbox 漏剥 (70-pkgopt.yaml 宣告罕形) —— 不剥不冤。"""
+    (tmp_path / "main.tex").write_text(
+        "\\PassOptionsToPackage{a={x,y},keeplastbox}{flushend}\n"
+        "\\usepackage{flushend}\n",
+        encoding="utf-8",
+    )
+    ok, _ = _apply(tmp_path)
+    assert not ok
+    t = (tmp_path / "main.tex").read_text()
+    assert "\\PassOptionsToPackage{a={x,y},keeplastbox}{flushend}" in t
 
 
 def test_flushend_other_pkg_same_name_kept(tmp_path: Path) -> None:
@@ -205,6 +204,10 @@ def test_flushend_commented_load_masked(tmp_path: Path) -> None:
         "% \\usepackage[keeplastbox]{flushend}\n\\usepackage{flushend}\n",
         encoding="utf-8",
     )
+    # wart 钉: cond 的 source_contains 走原文面不剥注释 → 纯注释载件闸仍绿,
+    # 由 apply 的 masked 面兜住不冤改 (cond 绿灯与 applied=False 并存是现行语义)。
+    ok, _ = _cond(tmp_path)
+    assert ok
     ok, _ = _apply(tmp_path)
     assert not ok
     t = (tmp_path / "main.tex").read_text()
@@ -220,9 +223,3 @@ def test_flushend_idempotent_second_round(tmp_path: Path) -> None:
     assert ok
     ok, _ = _cond(tmp_path)
     assert not ok
-
-
-def test_flushend_ruleset_loads() -> None:
-    rs = load_ruleset()
-    ids = [r.id for r in rs.rules]
-    assert len(ids) == len(set(ids))

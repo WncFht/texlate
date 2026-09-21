@@ -15,7 +15,8 @@ item 3 ``premature_cs_guard`` (shipclscen 2009.11053): 随源 mystyle.sty:33
 装载期 ``\\numberwithin`` 先于 amsmath 装载 → Missing ``\\begin{document}``
 级联。供方 ``\\usepackage`` 前置到肇事 sty 的每个 live 消费方装载点 (真
 def 就位非 gobble); .tex 肇事件退 docclass 缝顶; .cls/.def/.clo 传递装载
-无锚点 abstain。TRANSFORM_FNS 注册是 leader 待办 → 测试直取叶子函数。
+无锚点 abstain。已注册 TRANSFORM_FNS —— 测试经 ``_PREMATURE`` 句柄路由,
+``is`` pin 保注册面。
 
 item 4 扫描器双守 (aastex61if census): ``unclosed_if_close`` 内嵌扫描器
 假开两族 —— ``\\@boole@def`` caller-supplies-\\fi 习语 (aastex 5.2 ×5,
@@ -25,15 +26,16 @@ def 组冻结计) 与 ``\\let\\sep=,`` 字符赋值 CONSUME=2 吞真 ``\\fi``
 
 from pathlib import Path
 
-from texlate.compile.fixloop import actions, load_ruleset
+from _fixloopkit import apply, mk_ctx, rule
+
 from texlate.compile.fixloop._builtins_docfix import premature_cs_guard
 from texlate.compile.fixloop.builtins import TRANSFORM_FNS
-from texlate.compile.fixloop.engine import LoopCtx, Rule
-from texlate.compile.logparse import ErrReport
+from texlate.compile.fixloop.engine import LoopCtx
 from texlate.textutil import ifscan
 
 _UNDEF = TRANSFORM_FNS["undefine_for_redef"]
 _TARGETED = TRANSFORM_FNS["cs_targeted_fix"]
+_PREMATURE = TRANSFORM_FNS["premature_cs_guard"]
 _IFCLOSE_IDS = ("unclosed_if_close", "unclosed_if_close_eof")
 _MARK = "texlate-fixloop-injected"
 
@@ -77,10 +79,6 @@ class _EngMissing:
         return False
 
 
-def _ctx(tmp_path: Path, **kw: object) -> LoopCtx:
-    return LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel="main.tex", **kw)
-
-
 def _proj(tmp_path: Path, files: dict[str, str]) -> None:
     for rel, text in files.items():
         p = tmp_path / rel
@@ -109,7 +107,7 @@ def test_pkgloadsite_basic_prepend_before_usepackage(tmp_path: Path) -> None:
             "main.log": _BBBK_LOG,
         },
     )
-    ok, note = _UNDEF(_ctx(tmp_path), _EngStub(), "Bbbk", {})
+    ok, note = _UNDEF(mk_ctx(tmp_path), _EngStub(), "Bbbk", {})
     assert ok, note
     assert "pkg-load-site" in note
     text = _read(tmp_path, "main.tex")
@@ -138,7 +136,7 @@ def test_pkgloadsite_opts_and_comma_list(tmp_path: Path) -> None:
             "main.log": _BBBK_LOG,
         },
     )
-    ok, _ = _UNDEF(_ctx(tmp_path), _EngStub(), "Bbbk", {})
+    ok, _ = _UNDEF(mk_ctx(tmp_path), _EngStub(), "Bbbk", {})
     assert ok
     text = _read(tmp_path, "main.tex")
     assert (
@@ -161,7 +159,7 @@ def test_pkgloadsite_requirepackage_and_dup_sites(tmp_path: Path) -> None:
             "main.log": _BBBK_LOG,
         },
     )
-    ok, note = _UNDEF(_ctx(tmp_path), _EngStub(), "Bbbk", {})
+    ok, note = _UNDEF(mk_ctx(tmp_path), _EngStub(), "Bbbk", {})
     assert ok, note
     assert "2 usepackage site(s)" in note
     text = _read(tmp_path, "main.tex")
@@ -183,7 +181,7 @@ def test_pkgloadsite_dead_site_falls_back_docclass(tmp_path: Path) -> None:
             "main.log": _BBBK_LOG,
         },
     )
-    ok, note = _UNDEF(_ctx(tmp_path), _EngStub(), "Bbbk", {})
+    ok, note = _UNDEF(mk_ctx(tmp_path), _EngStub(), "Bbbk", {})
     assert ok, note
     assert "pkg-load-site" not in note
     text = _read(tmp_path, "main.tex")
@@ -209,7 +207,7 @@ def test_pkgloadsite_no_user_site_docclass_fallback(tmp_path: Path) -> None:
             "main.log": _BBBK_LOG,
         },
     )
-    ok, note = _UNDEF(_ctx(tmp_path), _EngStub(), "Bbbk", {})
+    ok, note = _UNDEF(mk_ctx(tmp_path), _EngStub(), "Bbbk", {})
     assert ok, note
     assert "docclass block" in note
     text = _read(tmp_path, "main.tex")
@@ -237,7 +235,7 @@ def test_pkgloadsite_sty_file_bare_let(tmp_path: Path) -> None:
             "main.log": _BBBK_LOG,
         },
     )
-    ok, _ = _UNDEF(_ctx(tmp_path), _EngStub(), "Bbbk", {})
+    ok, _ = _UNDEF(mk_ctx(tmp_path), _EngStub(), "Bbbk", {})
     assert ok
     sty = _read(tmp_path, "mypkg.sty")
     assert (
@@ -266,7 +264,7 @@ def test_pkgloadsite_endstar_name_excluded(tmp_path: Path) -> None:
             ),
         },
     )
-    ok, note = _UNDEF(_ctx(tmp_path), _EngStub(), "endfoo", {})
+    ok, note = _UNDEF(mk_ctx(tmp_path), _EngStub(), "endfoo", {})
     assert not ok
     assert "end*" in note
     text = _read(tmp_path, "main.tex")
@@ -287,10 +285,10 @@ def test_pkgloadsite_refire_idempotent(tmp_path: Path) -> None:
             "main.log": _BBBK_LOG,
         },
     )
-    ctx = _ctx(tmp_path)
+    ctx = mk_ctx(tmp_path)
     ok1, _ = _UNDEF(ctx, _EngStub(), "Bbbk", {})
     assert ok1
-    ctx2 = _ctx(tmp_path)
+    ctx2 = mk_ctx(tmp_path)
     ok2, note2 = _UNDEF(ctx2, _EngStub(), "Bbbk", {})
     assert not ok2
     assert "already cleared" in note2
@@ -308,7 +306,7 @@ def test_pkgloadsite_min_batch_gate(tmp_path: Path) -> None:
         "\\begin{document}\nx\n\\end{document}\n"
     )
     _proj(tmp_path, {"main.tex": tex, "main.log": _BBBK_LOG})
-    ok, note = _UNDEF(_ctx(tmp_path), _EngStub(), "Bbbk", {"min_batch": 2})
+    ok, note = _UNDEF(mk_ctx(tmp_path), _EngStub(), "Bbbk", {"min_batch": 2})
     assert not ok
     assert "<2" in note
 
@@ -321,7 +319,7 @@ def test_pkgloadsite_min_batch_gate(tmp_path: Path) -> None:
             "Command `\\Foo' already defined.\n",
         },
     )
-    ok2, _ = _UNDEF(_ctx(tmp2), _EngStub(), "Bbbk", {"min_batch": 2})
+    ok2, _ = _UNDEF(mk_ctx(tmp2), _EngStub(), "Bbbk", {"min_batch": 2})
     assert ok2
     text = _read(tmp2, "main.tex")
     assert (
@@ -345,7 +343,7 @@ def test_pkgloadsite_multi_err_stems_split(tmp_path: Path) -> None:
             "Command `\\mathscr' already defined.\n",
         },
     )
-    ok, note = _UNDEF(_ctx(tmp_path), _EngStub(), "Bbbk", {})
+    ok, note = _UNDEF(mk_ctx(tmp_path), _EngStub(), "Bbbk", {})
     assert ok, note
     text = _read(tmp_path, "main.tex")
     assert (
@@ -373,7 +371,7 @@ def test_reserveinserts_polyfill_pre_before_docclass(tmp_path: Path) -> None:
             )
         },
     )
-    ok, note = _TARGETED(_ctx(tmp_path), _EngStub(), "reserveinserts", {})
+    ok, note = _TARGETED(mk_ctx(tmp_path), _EngStub(), "reserveinserts", {})
     assert ok, note
     assert "pre-docclass" in note
     text = _read(tmp_path, "main.tex")
@@ -391,20 +389,25 @@ def test_reserveinserts_refire_applied_nothing(tmp_path: Path) -> None:
             "main.tex": "\\documentclass{WileyNJD-v2}\n\\begin{document}\nx\n\\end{document}\n"
         },
     )
-    ok1, _ = _TARGETED(_ctx(tmp_path), _EngStub(), "reserveinserts", {})
+    ok1, _ = _TARGETED(mk_ctx(tmp_path), _EngStub(), "reserveinserts", {})
     assert ok1
-    ok2, note2 = _TARGETED(_ctx(tmp_path), _EngStub(), "reserveinserts", {})
+    ok2, note2 = _TARGETED(mk_ctx(tmp_path), _EngStub(), "reserveinserts", {})
     assert not ok2
     assert "applied nothing" in note2
 
 
-# ═══════════ item 3: premature_cs_guard (供方前置, TRANSFORM_FNS 待注册) ═══════════
+# ═══════════ item 3: premature_cs_guard (供方前置) ═══════════
+
+
+def test_premature_registered() -> None:
+    """注册进 TRANSFORM_FNS (rules/*.yaml function: 面) —— 直取叶子时代结束。"""
+    assert TRANSFORM_FNS["premature_cs_guard"] is premature_cs_guard
 
 
 def _premature(
     ctx: LoopCtx, eng: object = None, params: dict | None = None
 ) -> tuple[bool, str]:
-    return premature_cs_guard(ctx, eng or _EngStub(), None, params or {})
+    return _PREMATURE(ctx, eng or _EngStub(), None, params or {})
 
 
 def test_premature_sty_consumer_site_prepend(tmp_path: Path) -> None:
@@ -427,7 +430,7 @@ def test_premature_sty_consumer_site_prepend(tmp_path: Path) -> None:
             "main.log": _MBD_STY_LOG,
         },
     )
-    ok, note = _premature(_ctx(tmp_path))
+    ok, note = _premature(mk_ctx(tmp_path))
     assert ok, note
     assert "provider prepend" in note
     text = _read(tmp_path, "main.tex")
@@ -452,7 +455,7 @@ def test_premature_sty_opts_comma_consumer(tmp_path: Path) -> None:
             "main.log": _MBD_STY_LOG,
         },
     )
-    ok, _ = _premature(_ctx(tmp_path))
+    ok, _ = _premature(mk_ctx(tmp_path))
     assert ok
     text = _read(tmp_path, "main.tex")
     assert (
@@ -477,7 +480,7 @@ def test_premature_sty_provider_already_first_noop(tmp_path: Path) -> None:
         },
     )
     tex = _read(tmp_path, "main.tex")
-    ok, note = _premature(_ctx(tmp_path))
+    ok, note = _premature(mk_ctx(tmp_path))
     assert not ok
     assert "no reachable consumer load site" in note
     assert _read(tmp_path, "main.tex") == tex
@@ -499,7 +502,7 @@ def test_premature_tex_stem_docclass_seam(tmp_path: Path) -> None:
             ),
         },
     )
-    ok, note = _premature(_ctx(tmp_path))
+    ok, note = _premature(mk_ctx(tmp_path))
     assert ok, note
     assert "docclass-seam provider amsmath" in note
     text = _read(tmp_path, "main.tex")
@@ -523,7 +526,7 @@ def test_premature_cls_stem_abstain(tmp_path: Path) -> None:
             ),
         },
     )
-    ok, note = _premature(_ctx(tmp_path))
+    ok, note = _premature(mk_ctx(tmp_path))
     assert not ok
     assert "no premature-cs pair" in note
     assert "\\usepackage{amsmath}" not in _read(tmp_path, "main.tex")
@@ -546,7 +549,7 @@ def test_premature_unknown_cs_decline(tmp_path: Path) -> None:
             ),
         },
     )
-    ok, note = _premature(_ctx(tmp_path))
+    ok, note = _premature(mk_ctx(tmp_path))
     assert not ok
     assert "no premature-cs pair" in note
 
@@ -565,9 +568,9 @@ def test_premature_refire_idempotent(tmp_path: Path) -> None:
             "main.log": _MBD_STY_LOG,
         },
     )
-    ok1, _ = _premature(_ctx(tmp_path))
+    ok1, _ = _premature(mk_ctx(tmp_path))
     assert ok1
-    ok2, note2 = _premature(_ctx(tmp_path))
+    ok2, note2 = _premature(mk_ctx(tmp_path))
     assert not ok2
     assert "no reachable" in note2
     assert _read(tmp_path, "main.tex").count("\\usepackage{amsmath}") == 1
@@ -586,7 +589,7 @@ def test_premature_err_head_source(tmp_path: Path) -> None:
             "mystyle.sty": "\\numberwithin{equation}{section}\n\\endinput\n",
         },
     )
-    ctx = _ctx(
+    ctx = mk_ctx(
         tmp_path,
         err_head=(
             "mystyle.sty:1: LaTeX Error: Missing \\begin{document}.\n"
@@ -612,7 +615,7 @@ def test_premature_missing_provider_warns(tmp_path: Path) -> None:
             "main.log": _MBD_STY_LOG,
         },
     )
-    ok, note = _premature(_ctx(tmp_path), _EngMissing())
+    ok, note = _premature(mk_ctx(tmp_path), _EngMissing())
     assert ok
     assert "WARNING: amsmath.sty not found" in note
 
@@ -620,24 +623,14 @@ def test_premature_missing_provider_warns(tmp_path: Path) -> None:
 # ═══════════ item 4: unclosed_if_close 扫描器双守 (196/196.5 同改) ═══════════
 
 
-def _rule(rid: str) -> Rule:
-    return next(r for r in load_ruleset().rules if r.id == rid)
-
-
 def _scan(tmp_path: Path, rid: str = "unclosed_if_close") -> tuple[bool, str]:
-    return actions._apply(  # noqa: SLF001 - 测试面直驱同 ifclose 先例
-        _rule(rid),
-        LoopCtx(wdir=tmp_path, engine_name="xelatex"),
-        None,
-        None,
-        ErrReport(),
-    )
+    return apply(rid, mk_ctx(tmp_path, main_rel=None), None)
 
 
 def test_scanner_both_copies_carry_guards() -> None:
     """196/196.5 双拷贝共用 ``textutil.ifscan`` —— ``@boole@def`` + ``let`` lookahead 特判在模块表。"""
     for rid in _IFCLOSE_IDS:
-        script = _rule(rid).action["params"]["argv"][2]
+        script = rule(rid).action["params"]["argv"][2]
         assert "scan_ifs" in script, rid
     assert "@boole@def" in ifscan.DEFCMD
     assert "let" not in ifscan.CONSUME

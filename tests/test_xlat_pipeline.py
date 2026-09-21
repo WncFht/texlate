@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from conftest import mk_chunk, run_pipeline
+from conftest import big_para, mk_chunk, pass_validate, run_pipeline
 
 from texlate.validate.l0 import CACHE_VETO_RULES, Severity, validate_pair
 from texlate.xlat import pipeline as pl
@@ -15,6 +15,11 @@ from texlate.xlat.client import AuthError
 from texlate.xlat.glossary import Glossary, TermEntry
 from texlate.xlat.retry import SLOTS_MAX_ROUNDS
 from texlate.xlat.state import StateStore
+
+
+def fail_validate(_src: str, _zh: str) -> str:
+    """恒败 validate hook——触发 fallback_orig/fault 路径。"""
+    return "always fails"
 
 
 class _BadBatchTranslator(pl.MockTranslator):
@@ -55,7 +60,7 @@ class TestEndToEnd:
         chunks = [
             mk_chunk("Short one [[MATH_1]]", "s1"),
             mk_chunk("Short two [[CITE_2]]", "s2"),
-            mk_chunk("Long prose " + "x" * 400 + " [[REF_3]]", "l1"),
+            big_para("l1", tail=" [[REF_3]]"),
             mk_chunk("Caption text " + "y" * 50, "cap1", kind="caption"),
             mk_chunk("[[MATH_9]]", "ph1"),
         ]
@@ -139,14 +144,10 @@ class TestEndToEnd:
 
     def test_validator_failure_falls_back(self) -> None:
         """validator 恒败 → fallback_orig → status=fault + skipped。"""
-
-        def always_bad(_src: str, _zh: str) -> str:
-            return "always fails"
-
         out = run_pipeline(
-            [mk_chunk("Long prose " + "y" * 400, "l")],
+            [big_para("l", fill="y")],
             translator=pl.MockTranslator(),
-            validator=always_bad,
+            validator=fail_validate,
         )
         assert out[0].status == "fault"
         assert out[0].fell_back
@@ -160,16 +161,16 @@ class TestEndToEnd:
                 return user + " [[MATH_99]]"  # 幻觉 token 穿透
 
         out = run_pipeline(
-            [mk_chunk("Long prose " + "x" * 400, "c1")],
+            [big_para("c1")],
             translator=Hallucinator(),
-            validator=lambda _s, _z: "",  # 校验放行——模拟 B7 穿透路径
+            validator=pass_validate,  # 校验放行——模拟 B7 穿透路径
         )
         assert out[0].status == "fault"
         assert out[0].translation == out[0].source
         assert "leftover_ph:1" in out[0].warnings
 
         clean = run_pipeline(
-            [mk_chunk("Long prose " + "x" * 400, "c2")],
+            [big_para("c2")],
             translator=pl.MockTranslator(),
         )
         assert not any(w.startswith("leftover_ph") for w in clean[0].warnings)
@@ -190,10 +191,31 @@ class TestEndToEnd:
         assert out[0].translation.endswith("[[MATH_1]] .")
 
 
+class _ExplodingState:
+    """``record()`` 恒抛的 StateStore 替身——``_emit`` state 臂注入面。
+
+    只实现 run() 实际触达的四个方法（load/start/record/finish）；
+    record 抛 RuntimeError 走 ``_ledger_call`` 的 Exception 档（log 续走）。
+    """
+
+    def load(self) -> tuple[set[str], dict[str, Any]]:
+        return set(), {}
+
+    def start(self, _total_chunks: int) -> None:
+        pass
+
+    def record(self, *_a: object, **_kw: object) -> None:
+        msg = "state exploded"
+        raise RuntimeError(msg)
+
+    def finish(self) -> None:
+        pass
+
+
 class TestResumeAndCache:
     def test_resume_skips_completed(self, tmp_path: Path) -> None:
         outdir = tmp_path / "out"
-        chunks = [mk_chunk("Long prose " + "x" * 400 + " [[MATH_1]]", "c1")]
+        chunks = [big_para("c1", tail=" [[MATH_1]]")]
         t1 = pl.MockTranslator()
         r1 = run_pipeline(chunks, translator=t1, state=StateStore(outdir))
         assert r1[0].status == "ok"
@@ -207,12 +229,12 @@ class TestResumeAndCache:
     def test_resume_retries_fault(self, tmp_path: Path) -> None:
         """fault/skipped 块不进 completed——续跑必须重试（瞬时失败不该永久冻结）。"""
         outdir = tmp_path / "out"
-        chunks = [mk_chunk("Long prose " + "x" * 400 + " [[MATH_1]]", "c1")]
+        chunks = [big_para("c1", tail=" [[MATH_1]]")]
         r1 = run_pipeline(
             chunks,
             translator=pl.MockTranslator(),
             state=StateStore(outdir),
-            validator=lambda _s, _z: "always fails",
+            validator=fail_validate,
         )
         assert r1[0].status == "fault"
 
@@ -224,11 +246,11 @@ class TestResumeAndCache:
     def test_resume_source_drift_retranslates(self, tmp_path: Path) -> None:
         """同 chunk_id 但 source 漂移 → 旧记录不命中、重翻覆盖（splice 残留防线）。"""
         outdir = tmp_path / "out"
-        old = [mk_chunk("Long prose " + "x" * 400 + " [[MATH_1]]", "c1")]
+        old = [big_para("c1", tail=" [[MATH_1]]")]
         r1 = run_pipeline(old, translator=pl.MockTranslator(), state=StateStore(outdir))
         assert r1[0].status == "ok"
 
-        new = [mk_chunk("Long prose " + "y" * 400 + " [[MATH_1]]", "c1")]
+        new = [big_para("c1", fill="y", tail=" [[MATH_1]]")]
         t2 = pl.MockTranslator()
         r2 = run_pipeline(new, translator=t2, state=StateStore(outdir))
         assert t2.calls  # 漂移不命中 → 真实重翻
@@ -238,7 +260,7 @@ class TestResumeAndCache:
     def test_worker_survives_emit_failure(self) -> None:
         """on_result/state 落盘抛错不能杀 worker——一死 queue.join() 就死等。"""
         chunks = [
-            mk_chunk("Long prose " + "x" * 400 + f" [[MATH_{i}]]", f"c{i}")
+            big_para(f"c{i}", tail=f" [[MATH_{i}]]")
             for i in range(1, 5)
         ]
 
@@ -252,9 +274,26 @@ class TestResumeAndCache:
         assert len(out) == len(chunks)
         assert all(r.status == "ok" for r in out)
 
+    def test_worker_survives_state_record_failure(self) -> None:
+        """``_emit`` 的 state.record 臂同样收账——record 恒抛不杀 worker，
+        且同一账本调用内 on_result 随之跳过（pipeline ``_emit`` 先 record
+        后 on_result，record 抛错即整臂短路）。"""
+        chunks = [big_para(f"c{i}", tail=f" [[MATH_{i}]]") for i in range(1, 4)]
+        seen: list[str] = []
+
+        out = run_pipeline(
+            chunks,
+            translator=pl.MockTranslator(),
+            state=_ExplodingState(),
+            on_result=lambda r: seen.append(r.chunk_id),
+        )
+        assert len(out) == len(chunks)
+        assert all(r.status == "ok" for r in out)
+        assert seen == []  # record 抛错 → 同 _ledger_call 内 on_result 不触达
+
     def test_segment_cache_hit(self) -> None:
         cache: dict[str, str] = {}
-        chunks = [mk_chunk("Long prose " + "x" * 400 + " [[MATH_1]]", "c1")]
+        chunks = [big_para("c1", tail=" [[MATH_1]]")]
         r1 = run_pipeline(chunks, translator=pl.MockTranslator(), cache=cache)
         assert cache  # 段级缓存已写
 
@@ -263,9 +302,11 @@ class TestResumeAndCache:
         assert t2.calls == []
         assert r2[0].translation == r1[0].translation
 
-    def test_state_records_five_tables(self, tmp_path: Path) -> None:
+    def test_pipeline_writes_state_completed_results_meta(
+        self, tmp_path: Path
+    ) -> None:
         outdir = tmp_path / "out"
-        chunks = [mk_chunk("Long prose " + "x" * 400, "c1")]
+        chunks = [big_para("c1")]
         run_pipeline(chunks, translator=pl.MockTranslator(), state=StateStore(outdir))
         data = json.loads((outdir / "state.json").read_text(encoding="utf-8"))
         assert data["completed"] == ["c1"]
@@ -402,7 +443,7 @@ class TestConfigClamps:
         cfg = pl.PipelineConfig(concurrency=0)
         assert cfg.concurrency == 1
         out = run_pipeline(
-            [mk_chunk("Long prose " + "x" * 400, "c")],
+            [big_para("c")],
             translator=pl.MockTranslator(),
             config=cfg,
         )
@@ -442,11 +483,11 @@ class TestPromptReset:
         t = pl.MockTranslator()
         pipe = pl.XlatPipeline(translator=t, glossary=g)
 
-        asyncio.run(pipe.run([mk_chunk("attention mechanism " + "x" * 400, "a")]))
+        asyncio.run(pipe.run([big_para("a", prefix="attention mechanism ")]))
         sys1 = t.calls[0]["system"]
         assert "注意力" in sys1
 
-        asyncio.run(pipe.run([mk_chunk("totally different " + "y" * 400, "b")]))
+        asyncio.run(pipe.run([big_para("b", fill="y", prefix="totally different ")]))
         sys2 = t.calls[-1]["system"]
         assert "注意力" not in sys2
 
@@ -460,9 +501,9 @@ class TestCachePoisonGuard:
                 return "译文 \\fo[[MATH_1]]o 其余照旧 " + "译" * 100
 
         cache: dict[str, str] = {}
-        c = mk_chunk("Long prose " + "x" * 400 + " [[MATH_1]]", "c1")
+        c = big_para("c1", tail=" [[MATH_1]]")
         r1 = run_pipeline(
-            [c], translator=Fuser(), cache=cache, validator=lambda _s, _z: ""
+            [c], translator=Fuser(), cache=cache, validator=pass_validate
         )
         assert r1[0].status == "fault"
         assert cache == {}  # ph_in_cs 毒译未落缓存
@@ -470,13 +511,13 @@ class TestCachePoisonGuard:
     def test_legacy_poisoned_entry_evicted_on_hit(self) -> None:
         """旧版写入侧放行过的毒条目：命中即清 + 落回重翻自愈。"""
         cache: dict[str, str] = {}
-        c = mk_chunk("Long prose " + "x" * 400 + " [[MATH_1]]", "c1")
+        c = big_para("c1", tail=" [[MATH_1]]")
         pipe = pl.XlatPipeline(translator=pl.MockTranslator(), cache=cache)
         key = pipe._seg_key(c)  # noqa: SLF001
         cache[key] = "译文 \\fo[[MATH_1]]o 其余照旧"
 
         t2 = pl.MockTranslator()
-        r2 = run_pipeline([c], translator=t2, cache=cache, validator=lambda _s, _z: "")
+        r2 = run_pipeline([c], translator=t2, cache=cache, validator=pass_validate)
         assert t2.calls  # 毒条目被清 → 真实重翻
         assert r2[0].status == "ok"
         assert "\\fo[[MATH_1]]o" not in cache[key]  # 已改写为干净译文
@@ -577,10 +618,10 @@ class TestValueContextInjection:
 
     def test_single_chunk_appends_block(self) -> None:
         t = pl.MockTranslator()
-        c = pl.ChunkIn(
+        c = big_para(
             "c1",
-            "Prose " + "x" * 400 + " [[MATH_1]]",
-            "para",
+            tail=" [[MATH_1]]",
+            prefix="Prose ",
             ph_fragments={"[[MATH_1]]": "$E=mc^2$"},
         )
         out = run_pipeline([c], translator=t)
@@ -593,15 +634,15 @@ class TestValueContextInjection:
 
     def test_no_frags_no_block(self) -> None:
         t = pl.MockTranslator()
-        run_pipeline([mk_chunk("Prose " + "x" * 400, "c1")], translator=t)
+        run_pipeline([big_para("c1", prefix="Prose ")], translator=t)
         assert prompts.VALUE_CONTEXT_HEADER not in t.calls[0]["user"]
 
     def test_frag_truncated_in_user(self) -> None:
         t = pl.MockTranslator()
-        c = pl.ChunkIn(
+        c = big_para(
             "c1",
-            "Prose " + "x" * 400 + " [[MATH_1]]",
-            "para",
+            tail=" [[MATH_1]]",
+            prefix="Prose ",
             ph_fragments={"[[MATH_1]]": "v" * 300},
         )
         run_pipeline([c], translator=t)
@@ -613,16 +654,17 @@ class TestValueContextInjection:
         """批 user = 编号行 + 合并 value 块；mock 批回显不受尾挂块影响。"""
         t = pl.MockTranslator()
         chunks = [
-            pl.ChunkIn(
+            big_para(
                 "a",
-                "Alpha " + "x" * 400 + " [[MATH_1]]",
-                "para",
+                tail=" [[MATH_1]]",
+                prefix="Alpha ",
                 ph_fragments={"[[MATH_1]]": "$x$"},
             ),
-            pl.ChunkIn(
+            big_para(
                 "b",
-                "Beta " + "y" * 400 + " [[CITE_2]]",
-                "para",
+                fill="y",
+                tail=" [[CITE_2]]",
+                prefix="Beta ",
                 ph_fragments={"[[CITE_2]]": "\\cite{z}"},
             ),
         ]
@@ -730,7 +772,7 @@ class TestPaperContext:
         abstract = "We present a masked study of [[MATH_1]] dynamics."
         chunks = [
             mk_chunk(abstract, "abs", kind="abstract"),
-            mk_chunk("Body prose " + "x" * 400, "p1"),
+            big_para("p1", prefix="Body prose "),
             mk_chunk("Caption " + "y" * 60, "cap", kind="caption"),
         ]
         run_pipeline(chunks, translator=t)
@@ -742,14 +784,14 @@ class TestPaperContext:
 
     def test_no_abstract_no_block(self) -> None:
         t = pl.MockTranslator()
-        run_pipeline([mk_chunk("Prose " + "x" * 400, "c1")], translator=t)
+        run_pipeline([big_para("c1", prefix="Prose ")], translator=t)
         assert "Paper context" not in t.calls[0]["system"]
 
     def test_abstract_truncated_at_6000(self) -> None:
         t = pl.MockTranslator()
         chunks = [
             mk_chunk("A" * 7000, "abs", kind="abstract"),
-            mk_chunk("Body " + "x" * 400, "p1"),
+            big_para("p1", prefix="Body "),
         ]
         run_pipeline(chunks, translator=t)
         for call in t.calls:
@@ -762,7 +804,7 @@ class TestPaperContext:
         pipe = pl.XlatPipeline(translator=t)
         asyncio.run(pipe.run([mk_chunk("Abstract here.", "a1", kind="abstract")]))
         assert "Paper context" in t.calls[0]["system"]
-        asyncio.run(pipe.run([mk_chunk("Plain prose " + "x" * 400, "p1")]))
+        asyncio.run(pipe.run([big_para("p1", prefix="Plain prose ")]))
         assert "Paper context" not in t.calls[-1]["system"]
 
 
@@ -798,9 +840,9 @@ def test_slots_fn_deep_model_output_counts_as_bad_json() -> None:
 
     spy = DeepSlots()
     out = run_pipeline(
-        [mk_chunk("Long prose " + "x" * 400, "deep")],
+        [big_para("deep")],
         translator=spy,
-        validator=lambda _s, _z: "always fails",
+        validator=fail_validate,
     )
     assert out[0].status == "fault"
     assert len(spy.slot_payloads) == SLOTS_MAX_ROUNDS  # 单批槽：每轮一次调用

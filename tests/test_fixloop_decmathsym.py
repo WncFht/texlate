@@ -12,14 +12,11 @@ space-后缀伴生名 ``\X␣`` (latex.ltx:13753-13763), 清 ``\X`` 本体是徒
 
 from pathlib import Path
 
+from _fixloopkit import mk_ctx
+
 from texlate.compile.fixloop.builtins import TRANSFORM_FNS
-from texlate.compile.fixloop.engine import LoopCtx
 
 _MAIN_DOCCLASS = "\\documentclass{article}\n"
-
-
-def _ctx(tmp_path: Path) -> LoopCtx:
-    return LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel="main.tex")
 
 
 def _write_main(tmp_path: Path, body: str) -> None:
@@ -45,7 +42,7 @@ def test_decmathsym_ifnfsstwo_arm_cluster(tmp_path: Path) -> None:
         "main.tex:5: LaTeX Error: Command `\\upartial' already defined.\n"
     )
     ok, note = TRANSFORM_FNS["undefine_for_redef"](
-        _ctx(tmp_path), None, "upi", {"min_batch": 2}
+        mk_ctx(tmp_path), None, "upi", {"min_batch": 2}
     )
     assert ok, note
     t = (tmp_path / "main.tex").read_text()
@@ -77,7 +74,7 @@ def test_decmathsym_all_four_decl_sites(tmp_path: Path) -> None:
         "main.tex:2: LaTeX Error: Command `\\upi' already defined.\n"
     )
     ok, note = TRANSFORM_FNS["undefine_for_redef"](
-        _ctx(tmp_path), None, "upi", {"min_batch": 2}
+        mk_ctx(tmp_path), None, "upi", {"min_batch": 2}
     )
     assert ok, note
     t = (tmp_path / "main.tex").read_text()
@@ -105,7 +102,7 @@ def test_decmathsym_unbraced_cs_site(tmp_path: Path) -> None:
         "main.tex:2: LaTeX Error: Command `\\upi' already defined.\n"
     )
     ok, note = TRANSFORM_FNS["undefine_for_redef"](
-        _ctx(tmp_path), None, "upi", {"min_batch": 2}
+        mk_ctx(tmp_path), None, "upi", {"min_batch": 2}
     )
     assert ok, note
     t = (tmp_path / "main.tex").read_text()
@@ -129,7 +126,7 @@ def test_decmathsym_endstar_name_keeps_let(tmp_path: Path) -> None:
     (tmp_path / "main.log").write_text(
         "main.tex:2: LaTeX Error: Command \\endbaz already defined.\n"
     )
-    ok, note = TRANSFORM_FNS["undefine_for_redef"](_ctx(tmp_path), None, "endbaz", {})
+    ok, note = TRANSFORM_FNS["undefine_for_redef"](mk_ctx(tmp_path), None, "endbaz", {})
     assert ok, note
     t = (tmp_path / "main.tex").read_text()
     assert (
@@ -153,7 +150,7 @@ def test_decmathsym_sty_site_no_catcode_wrap(tmp_path: Path) -> None:
         "foo.sty:1: LaTeX Error: Command `\\upi' already defined.\n"
     )
     ok, note = TRANSFORM_FNS["undefine_for_redef"](
-        _ctx(tmp_path), None, "upi", {"min_batch": 2}
+        mk_ctx(tmp_path), None, "upi", {"min_batch": 2}
     )
     assert ok, note
     t = (tmp_path / "foo.sty").read_text()
@@ -186,7 +183,7 @@ def test_decmathsym_unrelated_decls_untouched(tmp_path: Path) -> None:
         "main.tex:5: LaTeX Error: Command `\\umu' already defined.\n"
     )
     ok, note = TRANSFORM_FNS["undefine_for_redef"](
-        _ctx(tmp_path), None, "umu", {"min_batch": 2}
+        mk_ctx(tmp_path), None, "umu", {"min_batch": 2}
     )
     assert ok, note
     t = (tmp_path / "main.tex").read_text()
@@ -207,7 +204,7 @@ def test_decmathsym_single_site_declines_min_batch(tmp_path: Path) -> None:
         "main.tex:2: LaTeX Error: Command `\\upi' already defined.\n"
     )
     ok, note = TRANSFORM_FNS["undefine_for_redef"](
-        _ctx(tmp_path), None, "upi", {"min_batch": 2}
+        mk_ctx(tmp_path), None, "upi", {"min_batch": 2}
     )
     assert not ok
     assert "<2" in note
@@ -225,7 +222,7 @@ def test_decmathsym_commented_site_not_counted(tmp_path: Path) -> None:
         "main.tex:1: LaTeX Error: Command `\\upi' already defined.\n"
     )
     ok, note = TRANSFORM_FNS["undefine_for_redef"](
-        _ctx(tmp_path), None, "upi", {"min_batch": 2}
+        mk_ctx(tmp_path), None, "upi", {"min_batch": 2}
     )
     assert not ok
     assert "<2" in note

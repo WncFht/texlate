@@ -26,7 +26,9 @@ from texlate.compile.fixloop import (
 from texlate.compile.fixloop.engine import LoopCtx, Rule
 from texlate.compile.logparse import ErrReport
 
-_AXS_STY = "/usr/share/texmf-dist/tex/latex/axessibility/axessibility.sty"
+#: 合成 file_stack 帧 token —— texmf 系统件径形字符串道具, 只供
+#: err_outside_fileset 的 texmf 正则归类, 从不读盘 (非宿主机路径依赖)。
+_SYS_STY_FRAME = "/usr/share/texmf-dist/tex/latex/axessibility/axessibility.sty"
 
 _MAIN = (
     "\\documentclass{article}\n\\usepackage{somepkg}\n"
@@ -140,7 +142,7 @@ def test_route_unbraced_arg_site_to_argful_noop(tmp_path: Path) -> None:
 def test_route_argprim_outside_fileset(tmp_path: Path) -> None:
     """系统 sty 帧 + pdfcatalog payload → err_outside_fileset 臂 → argful noop。"""
     ctx = _ctx(tmp_path)
-    rep = ErrReport(file_stack=["./main.tex", _AXS_STY])
+    rep = ErrReport(file_stack=["./main.tex", _SYS_STY_FRAME])
     rule = _match(ctx, "pdfcatalog", rep)
     assert rule is not None
     assert rule.id == "pdftex_prim_polyfill"

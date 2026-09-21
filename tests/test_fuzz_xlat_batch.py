@@ -31,10 +31,9 @@ import asyncio
 import json
 import re
 from collections.abc import Awaitable, Callable
-from typing import Any
 
 import pytest
-from _fuzzkit import fuzz_rng
+from _fuzzkit import RecordingTranslator, fuzz_rng
 
 from texlate.xlat import batch as xb
 from texlate.xlat import pipeline as xp
@@ -48,7 +47,7 @@ _vst = rt._valid_slot_text  # noqa: SLF001 -- 私有契约正是被测面
 _make_slots = rt._make_slots  # noqa: SLF001
 _assemble = rt._assemble_slots  # noqa: SLF001
 _slots_round = rt._slots_round  # noqa: SLF001
-_stub_rx = xb._STUB_ONLY_RX  # noqa: SLF001
+_stub_rx = ph.STUB_ONLY_RX
 
 _FUZZ_MED = 1500
 
@@ -73,11 +72,12 @@ def _group_recorder(sink: list[list[str]]) -> _SlotsFn:
     return fn
 
 
-class _T:
+class _T(RecordingTranslator):
     """录制型 translator：``batch_fn`` 处理 ``[1]`` 起头的批请求，其余走 ``single_fn``。
 
     所有入参入账供断言（system 区分 batch 变体、rf 区分 slots 请求）；``batch_fn``
-    抛异常时原样穿透（错误注入用）。
+    抛异常时原样穿透（错误注入用）。``response_format`` 请求无 slots 短路——
+    与正文同走批/独员路由（本臂语义即无 rf 特判）。
     """
 
     def __init__(
@@ -85,32 +85,7 @@ class _T:
         batch_fn: Callable[[str], str],
         single_fn: Callable[[str], str] | None = None,
     ) -> None:
-        self.calls: list[dict[str, Any]] = []
-        self.batch_fn = batch_fn
-        self.single_fn = single_fn or (lambda u: u)
-
-    async def translate(
-        self,
-        *,
-        system: str,
-        user: str,
-        temperature: float,
-        max_tokens: int,
-        response_format: dict[str, str] | None = None,
-    ) -> str:
-        """路由应答并记录调用。"""
-        self.calls.append(
-            {
-                "system": system,
-                "user": user,
-                "temperature": temperature,
-                "max_tokens": max_tokens,
-                "rf": response_format,
-            }
-        )
-        if user.startswith("[1]"):
-            return self.batch_fn(user)
-        return self.single_fn(user)
+        super().__init__(slots_fill=None, batch_fn=batch_fn, single_fn=single_fn)
 
 
 def _cfg(**kw: object) -> xp.PipelineConfig:
@@ -519,18 +494,15 @@ class TestSlotsRound:
     def test_groups_of_eight_in_pending_order(self) -> None:
         # observed: pending 按插入序切 ≤8 组；attempts 按组计
         seen: list[list[str]] = []
-
-        async def fn(group: dict[str, str], _fb: str) -> dict[str, str]:
-            seen.append(sorted(group))
-            return dict.fromkeys(group, "zh")
-
-        ctx = _SlotCtx(fn)
+        ctx = _SlotCtx(_group_recorder(seen))
         pending = {f"⟪S{i:04d}⟫": f"p{i}" for i in range(20)}
-        want = sorted(pending)
+        want = list(pending)
         translated: dict[str, str] = {}
         asyncio.run(_slots_round(ctx, pending, translated, {}))
         assert [len(g) for g in seen] == [8, 8, 4]
         assert ctx.attempts == 3  # noqa: PLR2004 -- 3 组 3 次
+        # 拼接序 == pending 插入序——sorted() 会抹掉被测的次序语义
+        assert [k for g in seen for k in g] == want
         assert sorted(translated) == want
         assert not pending
 

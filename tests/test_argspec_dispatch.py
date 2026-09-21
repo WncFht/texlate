@@ -19,12 +19,11 @@ r"""argspec policy 分派黑盒测试——每条 policy 取真实宏端到端�
 """
 
 import pytest
-from conftest import ART
+from conftest import ART, BEAMER, check_invariants
 
 import texlate.latex.tables as tables_mod
-from texlate.latex import parse_tex, reconstruct
+from texlate.latex import parse_tex
 from texlate.latex.model import ArgspecEntry, PieceKind, ScanResult
-from texlate.latex.reconstruct import validate_result
 from texlate.latex.tables import (
     ACCENT_CHARS,
     BOUNDARY_NAMES,
@@ -41,14 +40,11 @@ from texlate.latex.tables import (
     argspec_tables,
 )
 
-BEAMER = "\\documentclass{beamer}\n\\begin{document}\n%s\n\\end{document}\n"
-
 
 def scan(body: str, preamble: str = "", doc: str = ART) -> ScanResult:
     tex = doc % (preamble, body) if doc is ART else doc % body
     res = parse_tex(tex)
-    assert reconstruct(res) == tex
-    assert validate_result(res) == []
+    check_invariants(res, tex)
     return res
 
 

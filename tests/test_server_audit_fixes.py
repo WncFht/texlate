@@ -21,11 +21,12 @@ import pytest
 
 pytest.importorskip("fastapi", reason="server extra 未装")
 
-from conftest import mk_task_row
+from conftest import mk_chunk_row, mk_task_row
 
 from texlate.server.events import EventBus
 from texlate.server.settings import (
     _CONNECTION_SLOTS,
+    _FIELD_SPECS,
     _MODEL_PROBE_FIELDS,
     BYOK_FIELDS,
     SettingsStore,
@@ -42,6 +43,7 @@ from texlate.server.store import (
 from texlate.server.worker import Secrets
 
 if TYPE_CHECKING:
+    import sqlite3
     from collections.abc import Iterator
     from pathlib import Path
 
@@ -58,6 +60,32 @@ def store(tmp_path: Path) -> Iterator[Store]:
 def _no_model_probe(clean_env: pytest.MonkeyPatch) -> None:
     """save 内 /v1/models 探活关掉——测试不打网络。"""
     clean_env.setenv("TEXLATE_MODEL_PROBE", "0")
+
+
+def _collect_stream(
+    bus: EventBus, tid: str, n: int | None = None, last_event_id: int = 0
+) -> list[dict[str, Any]]:
+    """同步收 ``bus.stream`` 前 ``n`` 帧（``None`` = 排干到流终），5s 护栏。"""
+
+    async def run() -> list[dict[str, Any]]:
+        out: list[dict[str, Any]] = []
+        async for ev in bus.stream(tid, last_event_id=last_event_id):
+            out.append(ev)
+            if n is not None and len(out) >= n:
+                break
+        return out
+
+    return asyncio.run(asyncio.wait_for(run(), 5))
+
+
+def _seed_cache_row(conn: sqlite3.Connection, key: str = "k") -> None:
+    """``translation_cache`` 单行种子——INSERT 字面量单源（命中计数测试前置）。"""
+    conn.execute(
+        "INSERT INTO translation_cache (key, translation, model,"
+        " target_lang, created_at, last_hit_at) VALUES (?, 'v', 'm', 'l', 0, 0)",
+        (key,),
+    )
+    conn.commit()
 
 
 # ------------------------------------------------------------------ wave 1
@@ -89,8 +117,14 @@ _LIST_COLS = (
 
 class TestListTasksPage:
     def test_page_and_total(self, store: Store) -> None:
-        for _ in range(5):
-            mk_task_row(store)
+        tids = [mk_task_row(store)["id"] for _ in range(5)]
+        # 显式钉 created_at 消除时钟分辨率并列（同 test_queued_rows_filters_and_orders
+        # 手法）——并列下排序对账依赖 tiebreak 口径一致，钉死即与口径无关
+        for i, tid in enumerate(tids):
+            store.conn.execute(
+                "UPDATE tasks SET created_at = ? WHERE id = ?", (100.0 + i, tid)
+            )
+        store.conn.commit()
         rows, total = store.list_tasks_page("local", limit=2, offset=0)
         assert total == 5  # noqa: PLR2004 -- 样本量
         assert len(rows) == 2  # noqa: PLR2004 -- page size
@@ -292,15 +326,10 @@ class TestRowJson:
 
 
 class TestSettingsLoadCache:
-    def _store(self, tmp_path: Path) -> SettingsStore:
-        root = tmp_path / "d"
-        root.mkdir()
-        return SettingsStore(root)
-
     def test_cache_hit_skips_parse(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        s = self._store(tmp_path)
+        s = _mk_settings(tmp_path)
         s.load()
         calls = 0
         orig = SettingsStore._normalize  # noqa: SLF001 -- 探 parse 次数
@@ -316,7 +345,7 @@ class TestSettingsLoadCache:
         assert calls == 0
 
     def test_file_change_reloads(self, tmp_path: Path) -> None:
-        s = self._store(tmp_path)
+        s = _mk_settings(tmp_path)
         s.save({"model": "m1"})
         assert s.load()["model"] == "m1"
         # 外部直写（手改文件）→ 签名变 → 重读
@@ -328,14 +357,14 @@ class TestSettingsLoadCache:
         assert got["api_key"] == "sk-x"
 
     def test_save_invalidates(self, tmp_path: Path) -> None:
-        s = self._store(tmp_path)
+        s = _mk_settings(tmp_path)
         s.load()  # 暖缓存（文件缺席签名）
         s.save({"model": "m9"})
         assert s.load()["model"] == "m9"
 
     def test_public_does_not_poison_cache(self, tmp_path: Path) -> None:
         """public() pop api_key 只动浅拷贝——后续 load 仍带 key。"""
-        s = self._store(tmp_path)
+        s = _mk_settings(tmp_path)
         s.save({"api_key": "sk-1"})
         s.load()  # 暖缓存
         pub = s.public()
@@ -373,11 +402,7 @@ class TestRecoverStartupTerminalFields:
 class TestCacheHitBatching:
     def test_hits_flush_with_batch(self, store: Store) -> None:
         tid = mk_task_row(store)["id"]
-        store.conn.execute(
-            "INSERT INTO translation_cache (key, translation, model,"
-            " target_lang, created_at, last_hit_at) VALUES ('k','v','m','l',0,0)"
-        )
-        store.conn.commit()
+        _seed_cache_row(store.conn)
         assert store.cache_get("k") == "v"
         assert store.cache_get("k") == "v"
         store.flush_chunk_batch(tid, [], [], {})
@@ -389,11 +414,7 @@ class TestCacheHitBatching:
     def test_hits_flush_on_close(self, tmp_path: Path) -> None:
         s = Store(tmp_path / "t.db")
         s.open()
-        s.conn.execute(
-            "INSERT INTO translation_cache (key, translation, model,"
-            " target_lang, created_at, last_hit_at) VALUES ('k','v','m','l',0,0)"
-        )
-        s.conn.commit()
+        _seed_cache_row(s.conn)
         assert s.cache_get("k") == "v"
         s.close()
         s2 = Store(tmp_path / "t.db")
@@ -418,15 +439,7 @@ class TestStaleDoneReplay:
         store.transition(tid, "queued")  # retry 复活
         bus.publish(tid, "stage", {"stage": "fetching"})  # seq3 — 新一轮
 
-        async def run() -> list[dict[str, Any]]:
-            out: list[dict[str, Any]] = []
-            async for ev in bus.stream(tid):
-                out.append(ev)
-                if len(out) == 2:  # noqa: PLR2004 -- 只收重放段两帧即撤
-                    break
-            return out
-
-        seen = asyncio.run(asyncio.wait_for(run(), 5))
+        seen = _collect_stream(bus, tid, 2)  # 只收重放段两帧即撤
         assert [(e["type"], e["seq"]) for e in seen] == [("stage", 1), ("stage", 3)]
 
     def test_done_last_and_terminal_ends(self, store: Store) -> None:
@@ -437,10 +450,7 @@ class TestStaleDoneReplay:
         store.transition(tid, "done", force=True)
         bus.publish(tid, "done", {"status": "done"})
 
-        async def run() -> list[dict[str, Any]]:
-            return [ev async for ev in bus.stream(tid)]
-
-        seen = asyncio.run(asyncio.wait_for(run(), 5))
+        seen = _collect_stream(bus, tid)
         assert [e["type"] for e in seen] == ["stage", "done"]
 
     def test_stale_done_skipped_when_refinished(self, store: Store) -> None:
@@ -454,10 +464,7 @@ class TestStaleDoneReplay:
         store.transition(tid, "done", force=True)
         bus.publish(tid, "done", {"status": "done"})  # seq3 本轮终帧
 
-        async def run() -> list[dict[str, Any]]:
-            return [ev async for ev in bus.stream(tid)]
-
-        seen = asyncio.run(asyncio.wait_for(run(), 5))
+        seen = _collect_stream(bus, tid)
         assert [(e["type"], e["seq"]) for e in seen] == [("stage", 2), ("done", 3)]
         assert seen[-1]["data"]["status"] == "done"
 
@@ -475,18 +482,7 @@ _CLAMP_MAX = 500
 
 
 def _mk_chunks(n: int) -> list[dict[str, Any]]:
-    return [
-        {
-            "seq": i,
-            "chunk_id": f"c{i}",
-            "src_file": "main.tex",
-            "byte_start": i * 10,
-            "byte_end": i * 10 + 9,
-            "kind": "text",
-            "src_text": f"src {i}",
-        }
-        for i in range(n)
-    ]
+    return [mk_chunk_row(i, src_text=f"src {i}") for i in range(n)]
 
 
 def _mk_settings(tmp_path: Path) -> SettingsStore:
@@ -792,15 +788,7 @@ class TestResyncGapFrame:
         self._seed(store, bus, tid)
 
         # last_event_id=2：客户端只见 seq≤2，seq3 已淘汰 → 缺口 3..3
-        async def run() -> list[dict[str, Any]]:
-            out: list[dict[str, Any]] = []
-            async for ev in bus.stream(tid, last_event_id=2):
-                out.append(ev)
-                if len(out) == 3:  # noqa: PLR2004 -- resync+2 重放帧
-                    break
-            return out
-
-        seen = asyncio.run(asyncio.wait_for(run(), 5))
+        seen = _collect_stream(bus, tid, 3, last_event_id=2)  # resync+2 重放帧
         assert seen[0] == {
             "seq": 3,
             "type": "resync",
@@ -814,15 +802,7 @@ class TestResyncGapFrame:
         self._seed(store, bus, tid)
 
         # last_event_id=3：下一可重放即 seq4——数值连续无缺口
-        async def run() -> list[dict[str, Any]]:
-            out: list[dict[str, Any]] = []
-            async for ev in bus.stream(tid, last_event_id=3):
-                out.append(ev)
-                if len(out) == 2:  # noqa: PLR2004 -- 两帧即撤
-                    break
-            return out
-
-        seen = asyncio.run(asyncio.wait_for(run(), 5))
+        seen = _collect_stream(bus, tid, 2, last_event_id=3)  # 两帧即撤
         assert [e["type"] for e in seen] == ["progress", "progress"]
 
     def test_fresh_connect_no_resync(self, store: Store) -> None:
@@ -831,15 +811,7 @@ class TestResyncGapFrame:
         bus = EventBus(store)
         self._seed(store, bus, tid)
 
-        async def run() -> list[dict[str, Any]]:
-            out: list[dict[str, Any]] = []
-            async for ev in bus.stream(tid):
-                out.append(ev)
-                if len(out) == 2:  # noqa: PLR2004 -- 两帧即撤
-                    break
-            return out
-
-        seen = asyncio.run(asyncio.wait_for(run(), 5))
+        seen = _collect_stream(bus, tid, 2)  # 两帧即撤
         assert [e["type"] for e in seen] == ["progress", "progress"]
 
 
@@ -848,15 +820,9 @@ class TestSettingsScalarGate:
 
     def test_str_fields_reject_containers(self, tmp_path: Path) -> None:
         s = _mk_settings(tmp_path)
-        for f in (
-            "base_url",
-            "model",
-            "api_key",
-            "glossary",
-            "glossary_dir",
-            "engine",
-            "target_lang",
-        ):
+        # 字段集由 _FIELD_SPECS 派生（同 BYOK_FIELDS/_CONNECTION_SLOTS 钉板手法）——
+        # 新增 str 标量字段（如 dialect）自动进闸，不再靠手抄名单
+        for f in [spec.name for spec in _FIELD_SPECS if spec.scalar is str]:
             with pytest.raises(ValueError, match="必须是字符串"):
                 s.save({f: {"x": 1}})
             with pytest.raises(ValueError, match="必须是字符串"):

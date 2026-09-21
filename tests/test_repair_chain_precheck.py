@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from conftest import RecordingEngine
+from conftest import RecordingEngine, failing_engine, make_project
 
 from texlate import e2e
 from texlate.pipecore import PipeJob, precheck_job
@@ -22,18 +22,6 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     import pytest
-
-#: 最小可解析工程（与 test_e2e._MAIN 同型——两段散文保证出 chunk）。
-_MAIN = (
-    "\\documentclass{article}\n"
-    "\\begin{document}\n"
-    "\\section{Intro}\n"
-    "This is a longer paragraph of English text that should definitely be\n"
-    "segmented into at least one chunk for translation purposes.\n"
-    "\n"
-    "And a second paragraph here.\n"
-    "\\end{document}\n"
-)
 
 #: tectonic 上 pstricks 是硬墙——precheck ``pstricks_route`` 预检拒。
 _PSTRICKS = (
@@ -47,12 +35,6 @@ _PSTRICKS = (
 )
 
 
-def _project(root: Path, main: str = _MAIN) -> Path:
-    root.mkdir(parents=True, exist_ok=True)
-    (root / "main.tex").write_text(main, encoding="utf-8")
-    return root
-
-
 def test_precheck_install_short_circuits_chain(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -63,7 +45,7 @@ def test_precheck_install_short_circuits_chain(
     走 xelatex——``static_precheck`` 在 tectonic 是 ``degrade: skip``
     （bundle 按需自拉，预检空转），装件臂只有 xelatex 真跑。
     """
-    work = _project(tmp_path / "p")
+    work = make_project(tmp_path / "p")
     n = [0]
 
     def factory(name: str, **kw: object) -> RecordingEngine:
@@ -92,14 +74,8 @@ def test_precheck_noop_falls_through_to_l2(
     fake_engine: dict[str, RecordingEngine],  # noqa: ARG001
 ) -> None:
     """装不上件（全 False 桩）+ 无 flag → 不重编 → L2/fixloop 照常跑。"""
-    work = _project(tmp_path / "p")
-
-    def factory(name: str, **kw: object) -> RecordingEngine:
-        eng = RecordingEngine(name, **kw)
-        eng.produce_pdf = False
-        return eng
-
-    monkeypatch.setattr(e2e, "engine_for", factory)
+    work = make_project(tmp_path / "p")
+    monkeypatch.setattr(e2e, "engine_for", failing_engine)
     report = e2e.pipeline_run(work, "auto", timeout=10.0)
 
     assert report["status"] == "fail"
@@ -119,14 +95,8 @@ def test_precheck_reject_skips_l2_routes_fixloop(
 
     ``route_engines=[tectonic]`` 掐掉跨引擎消费——拒绝原样落盘可断。
     """
-    work = _project(tmp_path / "p", main=_PSTRICKS)
-
-    def factory(name: str, **kw: object) -> RecordingEngine:
-        eng = RecordingEngine(name, **kw)
-        eng.produce_pdf = False
-        return eng
-
-    monkeypatch.setattr(e2e, "engine_for", factory)
+    work = make_project(tmp_path / "p", main=_PSTRICKS)
+    monkeypatch.setattr(e2e, "engine_for", failing_engine)
     rec = e2e.pipe_condition(
         work, "tectonic", "main.tex", 10.0, route_engines=["tectonic"]
     )
@@ -145,7 +115,7 @@ def test_compile_judge_engine_texmf_wired(
     fake_engine: dict[str, RecordingEngine],  # noqa: ARG001
 ) -> None:
     """编译尾段新造引擎接 ``work/_texmf``——precheck/fixloop 装件可见。"""
-    work = _project(tmp_path / "p")
+    work = make_project(tmp_path / "p")
     seen: list[RecordingEngine] = []
 
     def factory(name: str, **kw: object) -> RecordingEngine:
@@ -163,7 +133,7 @@ def test_compile_judge_engine_texmf_wired(
 
 def test_precheck_job_crash_returns_error_dict(tmp_path: Path) -> None:
     """precheck 崩 → ``{"enabled": True, "error": ...}``——不毁主报告。"""
-    work = _project(tmp_path / "p")
+    work = make_project(tmp_path / "p")
     job = PipeJob(work, "main.tex", "tectonic", 10.0)
 
     def boom(name: str, **kw: object) -> RecordingEngine:  # noqa: ARG001

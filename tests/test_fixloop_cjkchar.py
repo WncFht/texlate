@@ -8,9 +8,10 @@ singlesweep cjk-pkg-invalid-char 2 格 (1607.00157/2601.07372, base 臂;
 .tex+.cls iconv decode-fail 实证), 全 UTF-8 格 recode 自 decline。
 """
 
-import re
 from functools import lru_cache
 from pathlib import Path
+
+import regex
 
 from texlate.compile.fixloop import Ruleset, load_ruleset
 from texlate.compile.fixloop._builtins_misc import cjk_env_relax
@@ -130,10 +131,10 @@ def test_cjk_env_relax_rule_shape() -> None:
 def test_source_contains_gate() -> None:
     """CJK 标记稿过门, 纯字节损坏稿 (无 CJK) 拒门 → 落 97 recode。"""
     pat = _rule("cjk_env_relax").condition["source_contains"]
-    assert re.search(pat, "\\usepackage{CJKutf8}\n\\begin{document}\n")
-    assert re.search(pat, "\\usepackage{CJK,upgreek}\n\\begin{CJK*}{GB}{gbsn}\n")
-    assert re.search(pat, "\\begin{CJK}{UTF8}{}\n")
-    assert not re.search(pat, "\\documentclass{article}\n\\begin{document}\nx\n")
+    assert regex.search(pat, "\\usepackage{CJKutf8}\n\\begin{document}\n")
+    assert regex.search(pat, "\\usepackage{CJK,upgreek}\n\\begin{CJK*}{GB}{gbsn}\n")
+    assert regex.search(pat, "\\begin{CJK}{UTF8}{}\n")
+    assert not regex.search(pat, "\\documentclass{article}\n\\begin{document}\nx\n")
 
 
 def test_cjk_env_relax_utf8(tmp_path: Path) -> None:

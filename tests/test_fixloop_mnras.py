@@ -25,7 +25,7 @@ _MNRAS_CLS = _VENDOR_DIR / "files/mnras.cls"
 
 
 def _code_lines(text: str) -> list[str]:
-    """逐行剥注释 (cls 内 \\% 转义只出现在 :1401, \\ProcessOptions 之下)。"""
+    """逐行剥注释 (cls 内 \\% 转义只出现在 :1408, \\ProcessOptions 之下)。"""
     return [line.split("%", 1)[0] for line in text.splitlines()]
 
 
@@ -51,7 +51,7 @@ def test_graphicx_deferred_after_processoptions() -> None:
     """usegraphicx 补装钉在 \\ProcessOptions 与 geometry 之间 (最早可装点)。"""
     text = _MNRAS_CLS.read_text(encoding="utf-8")
     po = text.index("\\ProcessOptions\\relax")
-    gx = text.index("\\if@usegraphicx", po)  # 首个命中是 :80 \newif 声明
+    gx = text.index("\\if@usegraphicx", po)  # 自 po 起首个命中是 :119 补装块 (:78 \newif 声明在 po 之前)
     geo = text.index("\\usepackage[a4paper]{geometry}")
     assert po < gx < geo
     assert "\\usepackage{graphicx}" in text[gx:geo]

@@ -11,6 +11,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
+from _sharekit import bundle_manifest as _bundle_manifest
+from _sharekit import repack as _repack
 
 from texlate.share import (
     ARTIFACT_NAMES,
@@ -26,6 +28,7 @@ from texlate.share import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from typing import BinaryIO, Self
 
     from texlate.share import ShareManifest
@@ -59,27 +62,38 @@ def _make_work(root: Path) -> Path:
     return w
 
 
-def _bundle_manifest(bundle: Path) -> dict[str, object]:
-    """读出包内 manifest.json。"""
-    with zipfile.ZipFile(bundle) as zf:
-        doc = json.loads(zf.read(MANIFEST_NAME))
-    assert isinstance(doc, dict)
-    return doc
-
-
 def _payloads(bundle: Path) -> dict[str, bytes]:
     """读出包内全部产物成员。"""
     with zipfile.ZipFile(bundle) as zf:
         return {n: zf.read(n) for n in ARTIFACT_NAMES}
 
 
-def _repack(out: Path, manifest: dict[str, object], payloads: dict[str, bytes]) -> Path:
-    """按给定 manifest/payload 直写 bundle——篡改用例的构造器（不走 pack_share）。"""
-    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zf:
-        zf.writestr(MANIFEST_NAME, json.dumps(manifest, ensure_ascii=False))
-        for name, blob in payloads.items():
-            zf.writestr(name, blob)
-    return out
+def _tampered(
+    tmp_path: Path,
+    mutate_manifest: Callable[[dict[str, object]], None] | None = None,
+    mutate_payloads: Callable[[dict[str, bytes]], None] | None = None,
+    *,
+    parts: dict[str, object] | None = None,
+    out_name: str = "evil.share.zip",
+) -> Path:
+    """``_make_work → pack_share → 读回 manifest/payloads → 变异 → _repack`` 一条龙。
+
+    篡改/前向兼容用例的公共 prologue：``mutate_*`` 回调就地改 dict（``del``
+    或 isinstance 窄化写成局部 ``def`` 闭包抓参数）。manifest 变异不影响
+    ``_payloads`` 读出结果，固定先读后变异与原先 lazy 读等值；``parts``
+    可换打包组分（version 归一用例），``out_name`` 区分非 evil 语义的包。
+    """
+    work = _make_work(tmp_path)
+    bundle = pack_share(
+        work, parts if parts is not None else _PARTS, out_dir=tmp_path / "out"
+    )
+    manifest = _bundle_manifest(bundle)
+    payloads = _payloads(bundle)
+    if mutate_manifest is not None:
+        mutate_manifest(manifest)
+    if mutate_payloads is not None:
+        mutate_payloads(payloads)
+    return _repack(tmp_path / out_name, manifest, payloads)
 
 
 # ---------------------------------------------------------------- round-trip
@@ -185,86 +199,81 @@ def test_unpack_rejects_non_zip(tmp_path: Path) -> None:
 
 def test_tampered_artifact_rejected(tmp_path: Path) -> None:
     """成员内容被换（同长度，只 sha256 对不上）→ 拒绝。"""
-    work = _make_work(tmp_path)
-    bundle = pack_share(work, _PARTS, out_dir=tmp_path / "out")
-    manifest = _bundle_manifest(bundle)
-    payloads = _payloads(bundle)
-    payloads["zh.pdf"] = bytes(len(_PDF_BYTES))
-    evil = _repack(tmp_path / "evil.share.zip", manifest, payloads)
+
+    def swap(payloads: dict[str, bytes]) -> None:
+        payloads["zh.pdf"] = bytes(len(_PDF_BYTES))
+
+    evil = _tampered(tmp_path, mutate_payloads=swap)
     with pytest.raises(ShareError, match="sha256 mismatch"):
         unpack_share(evil, tmp_path / "d")
 
 
 def test_resized_artifact_rejected(tmp_path: Path) -> None:
     """成员尺寸对不上 manifest 声明 → 拒绝（size 头对账先开火）。"""
-    work = _make_work(tmp_path)
-    bundle = pack_share(work, _PARTS, out_dir=tmp_path / "out")
-    manifest = _bundle_manifest(bundle)
-    payloads = _payloads(bundle)
-    payloads["dual.json"] = b"{}"
-    evil = _repack(tmp_path / "evil.share.zip", manifest, payloads)
+
+    def shrink(payloads: dict[str, bytes]) -> None:
+        payloads["dual.json"] = b"{}"
+
+    evil = _tampered(tmp_path, mutate_payloads=shrink)
     with pytest.raises(ShareError, match="size mismatch"):
         unpack_share(evil, tmp_path / "d")
 
 
 def test_lied_manifest_hash_rejected(tmp_path: Path) -> None:
     """manifest 里声明的 sha256 被改（产物本身真）→ 拒绝。"""
-    work = _make_work(tmp_path)
-    bundle = pack_share(work, _PARTS, out_dir=tmp_path / "out")
-    manifest = _bundle_manifest(bundle)
-    arts = manifest["artifacts"]
-    assert isinstance(arts, dict)
-    arts["zh.pdf"] = {"sha256": _ZERO_SHA, "bytes": len(_PDF_BYTES)}
-    evil = _repack(tmp_path / "evil.share.zip", manifest, _payloads(bundle))
+
+    def lie(manifest: dict[str, object]) -> None:
+        arts = manifest["artifacts"]
+        assert isinstance(arts, dict)
+        arts["zh.pdf"] = {"sha256": _ZERO_SHA, "bytes": len(_PDF_BYTES)}
+
+    evil = _tampered(tmp_path, mutate_manifest=lie)
     with pytest.raises(ShareError, match="sha256 mismatch"):
         unpack_share(evil, tmp_path / "d")
 
 
 def test_member_missing_from_zip_rejected(tmp_path: Path) -> None:
     """manifest 登记了 zh.pdf 但包里没有该成员 → 拒绝。"""
-    work = _make_work(tmp_path)
-    bundle = pack_share(work, _PARTS, out_dir=tmp_path / "out")
-    manifest = _bundle_manifest(bundle)
-    payloads = _payloads(bundle)
-    del payloads["zh.pdf"]
-    evil = _repack(tmp_path / "evil.share.zip", manifest, payloads)
+
+    def drop_pdf(payloads: dict[str, bytes]) -> None:
+        del payloads["zh.pdf"]
+
+    evil = _tampered(tmp_path, mutate_payloads=drop_pdf)
     with pytest.raises(ShareError, match="missing"):
         unpack_share(evil, tmp_path / "d")
 
 
 @pytest.mark.parametrize("drop", ["format", "share_key", "key_parts", "artifacts"])
 def test_manifest_missing_top_fields_rejected(tmp_path: Path, drop: str) -> None:
-    work = _make_work(tmp_path)
-    bundle = pack_share(work, _PARTS, out_dir=tmp_path / "out")
-    manifest = _bundle_manifest(bundle)
-    del manifest[drop]
-    evil = _repack(tmp_path / "evil.share.zip", manifest, _payloads(bundle))
+    def drop_field(manifest: dict[str, object]) -> None:
+        del manifest[drop]
+
+    evil = _tampered(tmp_path, mutate_manifest=drop_field)
     with pytest.raises(ShareError):
         unpack_share(evil, tmp_path / "d")
 
 
 @pytest.mark.parametrize("field", ["model", "prompt_ver", "pipeline_ver"])
 def test_manifest_missing_key_part_rejected(tmp_path: Path, field: str) -> None:
-    work = _make_work(tmp_path)
-    bundle = pack_share(work, _PARTS, out_dir=tmp_path / "out")
-    manifest = _bundle_manifest(bundle)
-    parts = manifest["key_parts"]
-    assert isinstance(parts, dict)
-    del parts[field]
-    evil = _repack(tmp_path / "evil.share.zip", manifest, _payloads(bundle))
+    def drop_part(manifest: dict[str, object]) -> None:
+        parts = manifest["key_parts"]
+        assert isinstance(parts, dict)
+        del parts[field]
+
+    evil = _tampered(tmp_path, mutate_manifest=drop_part)
     with pytest.raises(ShareError, match="key part"):
         unpack_share(evil, tmp_path / "d")
 
 
 def test_unsafe_artifact_name_rejected(tmp_path: Path) -> None:
     """manifest artifacts 里出现 ``../`` 名 → 拒绝（zip-slip 闸）。"""
-    work = _make_work(tmp_path)
-    bundle = pack_share(work, _PARTS, out_dir=tmp_path / "out")
-    manifest = _bundle_manifest(bundle)
-    arts = manifest["artifacts"]
-    assert isinstance(arts, dict)
-    arts["../evil.tex"] = {"sha256": _ZERO_SHA, "bytes": 3}
-    evil = _repack(tmp_path / "evil.share.zip", manifest, _payloads(bundle))
+
+    def add_unsafe(manifest: dict[str, object]) -> None:
+        arts = manifest["artifacts"]
+        assert isinstance(arts, dict)
+        arts["../evil.tex"] = {"sha256": _ZERO_SHA, "bytes": 3}
+
+    evil = _tampered(tmp_path, mutate_manifest=add_unsafe)
     with pytest.raises(ShareError, match="unsafe"):
         unpack_share(evil, tmp_path / "d")
 
@@ -272,13 +281,13 @@ def test_unsafe_artifact_name_rejected(tmp_path: Path) -> None:
 @pytest.mark.parametrize("bad", ["a\x00b", "x" * 300])
 def test_bad_artifact_name_rejected(tmp_path: Path, bad: str) -> None:
     """NUL / 超 NAME_MAX(255B) 的产物名 → 拒绝（写盘前闸死，不放行成 500）。"""
-    work = _make_work(tmp_path)
-    bundle = pack_share(work, _PARTS, out_dir=tmp_path / "out")
-    manifest = _bundle_manifest(bundle)
-    arts = manifest["artifacts"]
-    assert isinstance(arts, dict)
-    arts[bad] = {"sha256": _ZERO_SHA, "bytes": 3}
-    evil = _repack(tmp_path / "evil.share.zip", manifest, _payloads(bundle))
+
+    def add_bad(manifest: dict[str, object]) -> None:
+        arts = manifest["artifacts"]
+        assert isinstance(arts, dict)
+        arts[bad] = {"sha256": _ZERO_SHA, "bytes": 3}
+
+    evil = _tampered(tmp_path, mutate_manifest=add_bad)
     with pytest.raises(ShareError, match="unsafe"):
         unpack_share(evil, tmp_path / "d")
 
@@ -410,11 +419,13 @@ def test_pack_share_key_mismatch_rejected(tmp_path: Path) -> None:
 
 def test_extra_zip_member_ignored(tmp_path: Path) -> None:
     """manifest 未登记的包内成员被忽略且不落地。"""
-    work = _make_work(tmp_path)
-    bundle = pack_share(work, _PARTS, out_dir=tmp_path / "out")
-    manifest = _bundle_manifest(bundle)
-    payloads = {**_payloads(bundle), "evil.txt": b"nope"}
-    repacked = _repack(tmp_path / "extra.share.zip", manifest, payloads)
+
+    def add_member(payloads: dict[str, bytes]) -> None:
+        payloads["evil.txt"] = b"nope"
+
+    repacked = _tampered(
+        tmp_path, mutate_payloads=add_member, out_name="extra.share.zip"
+    )
     dest = tmp_path / "d"
     mf = unpack_share(repacked, dest)
     assert set(mf.artifacts) == set(ARTIFACT_NAMES)
@@ -423,19 +434,20 @@ def test_extra_zip_member_ignored(tmp_path: Path) -> None:
 
 def test_extra_manifest_artifact_extracted(tmp_path: Path) -> None:
     """manifest 登记了标准三件套以外的成员 → 照样校验落地（前向兼容）。"""
-    work = _make_work(tmp_path)
-    bundle = pack_share(work, _PARTS, out_dir=tmp_path / "out")
-    manifest = _bundle_manifest(bundle)
-    arts = manifest["artifacts"]
-    assert isinstance(arts, dict)
     extra = b"future artifact payload"
-    arts["extra.txt"] = {
-        "sha256": hashlib.sha256(extra).hexdigest(),
-        "bytes": len(extra),
-    }
-    repacked = _repack(
-        tmp_path / "fwd.share.zip", manifest, {**_payloads(bundle), "extra.txt": extra}
-    )
+
+    def add_decl(manifest: dict[str, object]) -> None:
+        arts = manifest["artifacts"]
+        assert isinstance(arts, dict)
+        arts["extra.txt"] = {
+            "sha256": hashlib.sha256(extra).hexdigest(),
+            "bytes": len(extra),
+        }
+
+    def add_blob(payloads: dict[str, bytes]) -> None:
+        payloads["extra.txt"] = extra
+
+    repacked = _tampered(tmp_path, add_decl, add_blob, out_name="fwd.share.zip")
     dest = tmp_path / "d"
     mf = unpack_share(repacked, dest)
     assert "extra.txt" in mf.artifacts
@@ -444,13 +456,12 @@ def test_extra_manifest_artifact_extracted(tmp_path: Path) -> None:
 
 def _tampered_last_artifact(tmp_path: Path) -> Path:
     """造末位成员（dual.json）sha256 对账失败的包——前两成员校验均通过。"""
-    work = _make_work(tmp_path)
-    bundle = pack_share(work, _PARTS, out_dir=tmp_path / "out")
-    manifest = _bundle_manifest(bundle)
-    payloads = _payloads(bundle)
-    # 同长换内容：size 头对账过、sha256 开火——中途失败点
-    payloads["dual.json"] = bytes(len(payloads["dual.json"]))
-    return _repack(tmp_path / "evil.share.zip", manifest, payloads)
+
+    def zero_tail(payloads: dict[str, bytes]) -> None:
+        # 同长换内容：size 头对账过、sha256 开火——中途失败点
+        payloads["dual.json"] = bytes(len(payloads["dual.json"]))
+
+    return _tampered(tmp_path, mutate_payloads=zero_tail)
 
 
 def test_unpack_mid_failure_no_residue(tmp_path: Path) -> None:
@@ -590,29 +601,64 @@ def test_share_key_strips_whitespace() -> None:
     assert share_key(**{**_PARTS, "target_lang": "zh-CN "}) == share_key(**_PARTS)
 
 
+def test_share_key_front_matter_enters_material() -> None:
+    """``front_matter`` 非空 → 插 ``pipeline_ver`` 前进键；空串/缺席同键
+    （与前置全盖过的历史包同口径——七组分键不变）。"""
+    base = share_key(**_PARTS)
+    keyed = share_key(**_PARTS, front_matter="abstract,title")
+    assert keyed != base
+    assert keyed != share_key(**_PARTS, front_matter="title")
+    assert share_key(**_PARTS, front_matter="") == base
+    assert share_key(**_PARTS, front_matter="  ") == base  # strip 归一后同 ∅
+
+
+def test_share_key_rejects_pipe_in_front_matter() -> None:
+    """``front_matter`` 在 ``pipeline_ver`` 前进材料——含 ``|`` 撞分隔符
+    → ShareError（受 ``parts[:-1]`` 闸覆盖）。"""
+    with pytest.raises(ShareError, match="must not contain"):
+        share_key(**_PARTS, front_matter="abstract|title")
+
+
+def test_unpack_key_parts_empty_front_matter_omitted(tmp_path: Path) -> None:
+    """key_parts.front_matter 空串 → ``key_parts`` 不落该字段（∅ 与历史缺席
+    同形），share_key 重算仍命中七组分键。"""
+
+    def blank_fm(manifest: dict[str, object]) -> None:
+        parts = manifest["key_parts"]
+        assert isinstance(parts, dict)
+        parts["front_matter"] = ""
+
+    repacked = _tampered(tmp_path, blank_fm, out_name="fm.share.zip")
+    mf = unpack_share(repacked, tmp_path / "d")
+    assert "front_matter" not in mf.key_parts
+    assert mf.share_key == share_key(**_PARTS)
+
+
 def test_unpack_key_parts_extra_fields_tolerated(tmp_path: Path) -> None:
     """key_parts 多出未知字段 → 忽略（前向兼容），只用七组分派生。"""
-    work = _make_work(tmp_path)
-    bundle = pack_share(work, _PARTS, out_dir=tmp_path / "out")
-    manifest = _bundle_manifest(bundle)
-    parts = manifest["key_parts"]
-    assert isinstance(parts, dict)
-    parts["future_field"] = "x"
-    repacked = _repack(tmp_path / "fwd.share.zip", manifest, _payloads(bundle))
+
+    def add_field(manifest: dict[str, object]) -> None:
+        parts = manifest["key_parts"]
+        assert isinstance(parts, dict)
+        parts["future_field"] = "x"
+
+    repacked = _tampered(tmp_path, add_field, out_name="fwd.share.zip")
     mf = unpack_share(repacked, tmp_path / "d")
     assert mf.key_parts == _PARTS
 
 
 def test_unpack_key_parts_version_null(tmp_path: Path) -> None:
     """key_parts.version 为 JSON null → 归一 ``""``（latest 别名）照常解包。"""
-    work = _make_work(tmp_path)
     parts_empty = {**_PARTS, "version": ""}
-    bundle = pack_share(work, parts_empty, out_dir=tmp_path / "out")
-    manifest = _bundle_manifest(bundle)
-    kp = manifest["key_parts"]
-    assert isinstance(kp, dict)
-    kp["version"] = None  # JSON null 与 "" 同义
-    repacked = _repack(tmp_path / "null.share.zip", manifest, _payloads(bundle))
+
+    def null_version(manifest: dict[str, object]) -> None:
+        kp = manifest["key_parts"]
+        assert isinstance(kp, dict)
+        kp["version"] = None  # JSON null 与 "" 同义
+
+    repacked = _tampered(
+        tmp_path, null_version, parts=parts_empty, out_name="null.share.zip"
+    )
     mf = unpack_share(repacked, tmp_path / "d")
     assert mf.key_parts["version"] == ""
     assert mf.share_key == share_key(**parts_empty)

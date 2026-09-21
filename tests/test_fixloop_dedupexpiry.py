@@ -16,12 +16,14 @@ authored 账, 不稀释 dedup (stucksem 实证: 无差别过期让先火规则�
 
 from pathlib import Path
 
+from _fixloopkit import mk_ctx
+
 from texlate.compile.fixloop._builtins_misc import (
     _wdir_fingerprint,
     non_utf8_recode,
     purge_corrupt_intermediates,
 )
-from texlate.compile.fixloop.engine import LoopCtx, _landing_sync
+from texlate.compile.fixloop.engine import _landing_sync
 
 
 def test_recode_is_authored_preserves_dedup(tmp_path: Path) -> None:
@@ -32,7 +34,7 @@ def test_recode_is_authored_preserves_dedup(tmp_path: Path) -> None:
     """
     src = tmp_path / "main.tex"
     src.write_bytes("\\documentclass{article}\n\\title{café}\n".encode("latin-1"))
-    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel="main.tex")
+    ctx = mk_ctx(tmp_path)
     ctx.io.written.clear()  # 派发窗开始: 自产写从零计账 (与三处 wrap 点同约)
     ctx.ledger.applied.update({"ruleA:x", "ruleB:y"})
     before = _wdir_fingerprint(tmp_path)
@@ -57,7 +59,7 @@ def test_purge_is_authored_preserves_dedup(tmp_path: Path) -> None:
     )
     aux = tmp_path / "main.aux"
     aux.write_bytes(b"\\newlabel{x}{{1}{1}}\xc3")  # 多字节劈断 → 判腐蚀
-    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel="main.tex")
+    ctx = mk_ctx(tmp_path)
     assert ctx.read(aux) is not None  # errors=replace 下腐蚀件仍可读入缓存
     ctx.io.written.clear()
     ctx.ledger.applied.update({"ruleA:x", "ruleB:y"})
@@ -74,7 +76,7 @@ def test_purge_is_authored_preserves_dedup(tmp_path: Path) -> None:
 def test_external_landing_still_expires(tmp_path: Path) -> None:
     """对照钉: 同窗真外部落件 (install/vendor/run_tool 裸写同形) 依旧全量
     过期基线前烧键 —— authored 账只收编自产编辑, 不放水真落件。"""
-    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel="main.tex")
+    ctx = mk_ctx(tmp_path)
     ctx.io.written.clear()
     ctx.ledger.applied.update({"ruleA:x", "ruleB:y"})
     before = _wdir_fingerprint(tmp_path)

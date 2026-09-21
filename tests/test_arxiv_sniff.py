@@ -32,7 +32,7 @@ def _raw_blobs() -> list[Path]:
 @pytest.mark.slow
 @pytest.mark.skipif(not _HAS_V2, reason="corpus 数据不在场（gitignored）")
 def test_sniff_corpus_all() -> None:
-    """139 个真实包：魔数判别与构建期 meta.json 的 format 字段全部一致。"""
+    """manifest_v2 全量真实包：魔数判别与构建期 meta.json 的 format 字段全部一致。"""
     blobs = _raw_blobs()
     assert blobs
     kind_counts = {

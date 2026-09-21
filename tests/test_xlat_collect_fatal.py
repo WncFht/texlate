@@ -14,15 +14,20 @@
   收账——``run()`` 在 ``state.start()``/队列编前排 ``raise fatal[0]``，
   翻译请求零发出。
 
-注入点选择说明：``_intercept_<name>`` 包装函在 ``_one_chunk`` 内的调用由
-worker 级 ``except BaseException`` 覆盖，序章两臂已并同款账本（见
-``TestPrologueFatalLedger``）；``_collect`` 面 run 级注入走
-``AuthGate.record`` 与 ``on_result``（``_emit`` 槽位）——散文块路径下
-这两处仅在 ``_collect`` 内触达；interceptor 覆盖面由单元钉（直调
+注入点选择说明：``_intercept_<name>`` 包装函（apply 形）在 ``run()`` 内
+只经 ``_ledger_intercepts`` 账本触达——``_collect`` 与序章两臂逐点由
+``_ledger_call`` 收 ``BaseException``（见 ``TestPrologueFatalLedger``）；
+唯一裸调位是 ``retranslate_chunk`` 的 ``_INTERCEPT_NETS`` 尾循环
+（pipeline.py:722），它跑在 drain worker 环外（repair_l2
+``retranslate_hits`` / server worker ``retranslate.py``），不在本文件
+覆盖面。``_collect`` 面 run 级注入走 ``AuthGate.record`` 与
+``on_result``（``_emit`` 槽位）——散文块路径下这两处仅在 ``_collect``
+内触达；interceptor 覆盖面由单元钉（直调
 ``_collect``/``_route_chunks``/``_load_resumed``）承担。
 """
 
 import asyncio
+from collections.abc import Callable
 
 import pytest
 
@@ -57,6 +62,29 @@ def _run(p: pl.XlatPipeline, chunks: list[pl.ChunkIn]) -> list[pl.ChunkResult]:
     return asyncio.run(asyncio.wait_for(p.run(chunks), timeout=_DEADLOCK_S))
 
 
+def _raiser(exc: BaseException) -> Callable[..., None]:
+    """无条件抛 ``exc`` 的注入件——``*_a`` 同吃 1-arg 拦截槽位与
+    ``AuthGate.record`` 的 ``(self, r)`` 方法形。"""
+
+    def _f(*_a: object) -> None:
+        raise exc
+
+    return _f
+
+
+def _tag_recorder(
+    calls: list[tuple[str, str]], tag: str, exc: BaseException | None = None
+) -> Callable[[pl.ChunkResult], None]:
+    """``(tag, chunk_id)`` 记账闭包；``exc`` 非空时记完即抛（记账+点火合一）。"""
+
+    def _f(r: pl.ChunkResult) -> None:
+        calls.append((tag, r.chunk_id))
+        if exc is not None:
+            raise exc
+
+    return _f
+
+
 class TestCollectLedgerUnit:
     """单元面：直调 ``_collect``，interceptor 逐点注入。"""
 
@@ -72,19 +100,11 @@ class TestCollectLedgerUnit:
         boom = exc_cls("injected at leftover_ph")
         calls: list[tuple[str, str]] = []
 
-        def _boom(r: pl.ChunkResult) -> None:
-            calls.append(("leftover_ph", r.chunk_id))
-            raise boom
-
-        def _rec(tag: str) -> object:
-            def _f(r: pl.ChunkResult) -> None:
-                calls.append((tag, r.chunk_id))
-
-            return _f
-
-        monkeypatch.setattr(pl, "_intercept_leftover_ph", _boom)
-        monkeypatch.setattr(pl, "_intercept_ph_in_cs", _rec("ph_in_cs"))
-        monkeypatch.setattr(pl, "_intercept_bare_cs", _rec("bare_cs"))
+        monkeypatch.setattr(
+            pl, "_intercept_leftover_ph", _tag_recorder(calls, "leftover_ph", boom)
+        )
+        monkeypatch.setattr(pl, "_intercept_ph_in_cs", _tag_recorder(calls, "ph_in_cs"))
+        monkeypatch.setattr(pl, "_intercept_bare_cs", _tag_recorder(calls, "bare_cs"))
 
         fatal: list[BaseException] = []
         done_map: dict[str, pl.ChunkResult] = {}
@@ -188,10 +208,7 @@ class TestPrologueFatalLedger:
         p = pl.XlatPipeline(t, config=pl.PipelineConfig(concurrency=1))
         boom = exc_cls("injected at bare_cs prologue")
 
-        def _boom(_r: pl.ChunkResult) -> None:
-            raise boom
-
-        monkeypatch.setattr(pl, "_intercept_bare_cs", _boom)
+        monkeypatch.setattr(pl, "_intercept_bare_cs", _raiser(boom))
         with pytest.raises(exc_cls) as ei:
             _run(p, [pl.ChunkIn("p1", "[[X_1]]", "para")])
         assert ei.value is boom
@@ -206,10 +223,7 @@ class TestPrologueFatalLedger:
         p = pl.XlatPipeline(t, config=pl.PipelineConfig(concurrency=1))
         boom = exc_cls("injected at auth_gate.record prologue")
 
-        def _gated(_self: pl.AuthGate, _r: pl.ChunkResult) -> None:
-            raise boom
-
-        monkeypatch.setattr(pl.AuthGate, "record", _gated)
+        monkeypatch.setattr(pl.AuthGate, "record", _raiser(boom))
         with pytest.raises(exc_cls) as ei:
             _run(p, [pl.ChunkIn("p1", "[[X_1]]", "para")])
         assert ei.value is boom
@@ -219,14 +233,11 @@ class TestPrologueFatalLedger:
         """豁免臂 ``_emit`` 槽位经 ``on_result`` 注入——同契约。"""
         boom = KeyboardInterrupt("injected at on_result prologue")
 
-        def _gated_emit(_r: pl.ChunkResult) -> None:
-            raise boom
-
         t = pl.MockTranslator()
         p = pl.XlatPipeline(
             t,
             config=pl.PipelineConfig(concurrency=1, batch_max_items=1),
-            on_result=_gated_emit,
+            on_result=_raiser(boom),
         )
         with pytest.raises(KeyboardInterrupt) as ei:
             _run(p, [pl.ChunkIn("p1", "[[X_1]]", "para")])
@@ -240,11 +251,9 @@ class TestPrologueFatalLedger:
         t = pl.MockTranslator()
         p = pl.XlatPipeline(t, config=pl.PipelineConfig(concurrency=1))
 
-        def _boom(_r: pl.ChunkResult) -> None:
-            msg = "plain failure"
-            raise ValueError(msg)
-
-        monkeypatch.setattr(pl, "_intercept_bare_cs", _boom)
+        monkeypatch.setattr(
+            pl, "_intercept_bare_cs", _raiser(ValueError("plain failure"))
+        )
         out = _run(p, [pl.ChunkIn("p1", "[[X_1]]", "para")])
         assert [r.translation for r in out] == ["[[X_1]]"]  # 直落盘透传
 
@@ -254,23 +263,14 @@ class TestPrologueFatalLedger:
         p = pl.XlatPipeline(
             pl.MockTranslator(), on_result=lambda r: emitted.append(r.chunk_id)
         )
-        p.auth_gate = pl.AuthGate(5)  # run() 才建——直调先补位
         boom = KeyboardInterrupt("injected at leftover_ph prologue")
         calls: list[tuple[str, str]] = []
 
-        def _boom(r: pl.ChunkResult) -> None:
-            calls.append(("leftover_ph", r.chunk_id))
-            raise boom
-
-        def _rec(tag: str) -> object:
-            def _f(r: pl.ChunkResult) -> None:
-                calls.append((tag, r.chunk_id))
-
-            return _f
-
-        monkeypatch.setattr(pl, "_intercept_leftover_ph", _boom)
-        monkeypatch.setattr(pl, "_intercept_ph_in_cs", _rec("ph_in_cs"))
-        monkeypatch.setattr(pl, "_intercept_bare_cs", _rec("bare_cs"))
+        monkeypatch.setattr(
+            pl, "_intercept_leftover_ph", _tag_recorder(calls, "leftover_ph", boom)
+        )
+        monkeypatch.setattr(pl, "_intercept_ph_in_cs", _tag_recorder(calls, "ph_in_cs"))
+        monkeypatch.setattr(pl, "_intercept_bare_cs", _tag_recorder(calls, "bare_cs"))
 
         fatal: list[BaseException] = []
         done_map: dict[str, pl.ChunkResult] = {}
@@ -340,10 +340,7 @@ class TestPrologueFatalLedger:
         p = pl.XlatPipeline(t, state=stub)
         boom = exc_cls("injected at load_resumed run")
 
-        def _boom(_r: pl.ChunkResult) -> None:
-            raise boom
-
-        monkeypatch.setattr(pl, "_intercept_leftover_ph", _boom)
+        monkeypatch.setattr(pl, "_intercept_leftover_ph", _raiser(boom))
         with pytest.raises(exc_cls) as ei:
             _run(p, [_chunk("c0")])
         assert ei.value is boom

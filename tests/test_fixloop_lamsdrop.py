@@ -3,8 +3,10 @@ r"""lamsarrow lamsN TFM vendored-drop 规则单测 (assetlane #165, failmine3 3 
 实证背景 (0806.3683/1511.06948/1706.00345, stagerun-loop3):
 pb-diagram/lamsarrow.sty:89-93 ``\font\lamsfont@i=lams1``…``@v=lams5``
 —— LamS 箭头字体 texlive 全不收录 (CTAN pb-diagram 只装 .sty 不装字
-体); 设计尺寸加载无 "at Npt"、消息无字面 .tfm → missing_tfm 两模式
-全不中落 other, install_tfm(20) tlmgr 无件。修复面 = vendor
+体); 设计尺寸加载无 "at Npt"、消息无字面 .tfm → 旧 taxrow 两模式
+全不中落 other (修复后 taxonomy missing_tfm 臂扩展收此签, 今
+classify→(missing_tfm, lams1); 规则 when.any 双收 {other, missing_tfm}
+两态皆派), install_tfm(20) tlmgr 无件。修复面 = vendor
 lams{1..5}.{tfm,mf} 字节平铺 wdir: .tfm 让 ``\font`` 载入过, .mf 供
 mktexpk shipout 期生 Type 3 字形 (probe2 端到端实证出真箭头 PDF;
 tfm-only 撞 xdvipdfmx "Cannot proceed without .vf" 致命)。
@@ -57,8 +59,9 @@ def _params() -> dict:
 
 
 # ---------------------------------------------------------------- taxonomy
-def test_taxonomy_signature_is_other() -> None:
-    """设计尺寸 font 加载错: taxrow missing_tfm 无规格臂收 `Font \\X=lamsN not loadable`。"""
+def test_taxonomy_signature_missing_tfm() -> None:
+    """设计尺寸 font 加载错: taxonomy 臂后扩——`Font \\X=lamsN not loadable`
+    今归 missing_tfm (payload=lams1), 规则 when.any 双收 {other, missing_tfm}。"""
     rep = parse_text(_ERR_LINE + "\n" + _ERR_CTX)
     cat, _ = _rs().taxonomy.classify(rep)
     assert cat == "missing_tfm"

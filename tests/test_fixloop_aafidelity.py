@@ -17,18 +17,14 @@ article.cls:116 \\renewcommand\\baselinestretch{} 抹除。
 from __future__ import annotations
 
 import re
-import shutil
-import subprocess
 from pathlib import Path
 
 import pytest
+from _fixloopkit import n_err, requires_xelatex, run_xelatex
 
-STUBS = (
-    Path(__file__).resolve().parent.parent / "src/texlate/compile/fixloop/vendor/stubs"
-)
+import texlate.compile.fixloop as _fixloop_mod
 
-_XELATEX = shutil.which("xelatex")
-_COMPILE = pytest.mark.skipif(_XELATEX is None, reason="xelatex not installed")
+STUBS = Path(_fixloop_mod.__file__).parent / "vendor" / "stubs"
 
 _AA_BODY = (STUBS / "aa.cls").read_text(encoding="utf-8")
 
@@ -36,22 +32,6 @@ _AA_BODY = (STUBS / "aa.cls").read_text(encoding="utf-8")
 def _code_lines(body: str) -> str:
     """滤 % 注释行——pin 断言不得被注释文本夹带。"""
     return "\n".join(ln for ln in body.splitlines() if not ln.lstrip().startswith("%"))
-
-
-def _run(wdir: Path, tex: str) -> str:
-    (wdir / "main.tex").write_text(tex, encoding="utf-8")
-    subprocess.run(  # noqa: S603 -- argv[0] 来自 shutil.which 绝对路径
-        [_XELATEX, "-interaction=nonstopmode", "main.tex"],
-        cwd=wdir,
-        capture_output=True,
-        timeout=120,
-        check=False,
-    )
-    return (wdir / "main.log").read_text(encoding="utf-8", errors="replace")
-
-
-def _n_err(log: str) -> int:
-    return len(re.findall(r"^! ", log, re.MULTILINE))
 
 
 _PROBE = (
@@ -163,15 +143,15 @@ def test_aa_processoptions_loadclass() -> None:
 
 
 @pytest.mark.integration
-@_COMPILE
+@requires_xelatex
 def test_aa_bare_defaults_compile(tmp_path: Path) -> None:
     """裸 \\documentclass{aa} → twocolumn+twoside+a4paper+overfullrule=0。"""
-    shutil.copy(STUBS / "aa.cls", tmp_path / "aa.cls")
-    log = _run(
+    log = run_xelatex(
         tmp_path,
         "\\documentclass{aa}\n" + _PROBE + "\n\\begin{document}\nx\n\\end{document}\n",
+        extra={"aa.cls": _AA_BODY},
     )
-    assert _n_err(log) == 0
+    assert n_err(log) == 0
     assert "twocol=T" in log
     assert "twoside=T" in log
     assert "pw=597.50787pt" in log  # a4 宽
@@ -179,23 +159,23 @@ def test_aa_bare_defaults_compile(tmp_path: Path) -> None:
 
 
 @pytest.mark.integration
-@_COMPILE
+@requires_xelatex
 def test_aa_referee_onecolumn_doublespace(tmp_path: Path) -> None:
     """[referee] → onecolumn + baselinestretch=1.5（真身 v7.0 值）。"""
-    shutil.copy(STUBS / "aa.cls", tmp_path / "aa.cls")
-    log = _run(
+    log = run_xelatex(
         tmp_path,
         "\\documentclass[referee]{aa}\n"
         + _PROBE
         + "\n\\begin{document}\nx\n\\end{document}\n",
+        extra={"aa.cls": _AA_BODY},
     )
-    assert _n_err(log) == 0
+    assert n_err(log) == 0
     assert "twocol=F" in log
     assert "bs=1.5" in log
 
 
 @pytest.mark.integration
-@_COMPILE
+@requires_xelatex
 def test_aa_user_options_reach_article(tmp_path: Path) -> None:
     """用户选项经 catch-all 达 article：[onecolumn]/[letterpaper] 覆盖默认。"""
     for sub, opt, want in (
@@ -206,19 +186,19 @@ def test_aa_user_options_reach_article(tmp_path: Path) -> None:
     ):
         wdir = tmp_path / sub
         wdir.mkdir()
-        shutil.copy(STUBS / "aa.cls", wdir / "aa.cls")
-        log = _run(
+        log = run_xelatex(
             wdir,
             f"\\documentclass[{opt}]{{aa}}\n"
             + _PROBE
             + "\n\\begin{document}\nx\n\\end{document}\n",
+            extra={"aa.cls": _AA_BODY},
         )
-        assert _n_err(log) == 0, f"{opt} 编译出错"
+        assert n_err(log) == 0, f"{opt} 编译出错"
         assert want in log, f"{opt} 未生效 (want {want!r})"
 
 
 @pytest.mark.integration
-@_COMPILE
+@requires_xelatex
 def test_aa_unused_option_parity(tmp_path: Path) -> None:
     """警告面与真身一致：aa 专名吞位静默，未声明名仍 Unused-option 警告。"""
     for sub, opt, warns in (
@@ -229,11 +209,11 @@ def test_aa_unused_option_parity(tmp_path: Path) -> None:
     ):
         wdir = tmp_path / sub
         wdir.mkdir()
-        shutil.copy(STUBS / "aa.cls", wdir / "aa.cls")
-        log = _run(
+        log = run_xelatex(
             wdir,
             f"\\documentclass[{opt}]{{aa}}\n"
             "\\begin{document}\nx\n\\end{document}\n",
+            extra={"aa.cls": _AA_BODY},
         )
-        assert _n_err(log) == 0, f"{opt} 编译出错"
+        assert n_err(log) == 0, f"{opt} 编译出错"
         assert ("Unused global option" in log) is warns, f"{opt} 警告面与真身不一致"

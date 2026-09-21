@@ -51,7 +51,7 @@ def test_disarm_emitted_before_input_revtex(tmp_path: Path) -> None:
 
 
 def test_disarm_emitted_non_revtex_same_text(tmp_path: Path) -> None:
-    """非 revtex（article）同样落 disarm 文本——运行时 ``\\@ifundefined`` 守卫。"""
+    """非 revtex（article）同样落 disarm 文本——运行时 ``\\ifcsname`` 守卫。"""
     main = tmp_path / "main.tex"
     main.write_text(_doc("article"))
     _bbl(tmp_path)

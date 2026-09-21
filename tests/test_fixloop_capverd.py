@@ -8,12 +8,12 @@ r"""capacity input_stack verdict 路由 —— 上游递归帧 → ``unfixable:i
 ``cref@resetstack`` 是 texlate 可修面, 留 capacity 走修复派发)。
 """
 
-from functools import lru_cache
 from pathlib import Path
 
+from _fixloopkit import classify, rs
 from test_fixloop_loop import MockEngine, make_proj
 
-from texlate.compile.fixloop import Ruleset, fixloop, load_ruleset
+from texlate.compile.fixloop import fixloop
 from texlate.compile.logparse import parse_text
 
 _QUARK_LOG = (
@@ -42,18 +42,9 @@ _RESETSTACK_LOG = (
 )
 
 
-@lru_cache(maxsize=1)
-def _rs() -> Ruleset:
-    return load_ruleset()
-
-
-def _classify(log: str) -> tuple[str | None, str | None]:
-    return _rs().taxonomy.classify(parse_text(log))
-
-
 def test_quark_frame_routes_input_stack() -> None:
     """expl3 quark 哨兵 pending → ``input_stack`` 类 (非 capacity)。"""
-    assert _classify(_QUARK_LOG) == (
+    assert classify(_QUARK_LOG) == (
         "input_stack",
         "input_stack|__quark_if_recursion_tail:w",
     )
@@ -61,12 +52,12 @@ def test_quark_frame_routes_input_stack() -> None:
 
 def test_nomath_frame_routes_input_stack() -> None:
     """内核 ``\\@nomath`` 守卫帧 pending → ``input_stack`` 类。"""
-    assert _classify(_NOMATH_LOG) == ("input_stack", "input_stack|@nomath")
+    assert classify(_NOMATH_LOG) == ("input_stack", "input_stack|@nomath")
 
 
 def test_resetstack_stays_capacity() -> None:
     """``\\cref@resetstack`` 可修族不抢路由——留 capacity 走修复派发。"""
-    assert _classify(_RESETSTACK_LOG) == (
+    assert classify(_RESETSTACK_LOG) == (
         "capacity",
         "input_stack|cref@resetstack",
     )
@@ -79,7 +70,7 @@ def test_generic_frame_stays_capacity() -> None:
         "\\iterate ->\\iterate\n"
         "l.10 \\foo\n"
     )
-    assert _classify(log) == ("capacity", "input_stack|iterate")
+    assert classify(log) == ("capacity", "input_stack|iterate")
 
 
 def test_non_input_stack_tag_unaffected() -> None:
@@ -88,7 +79,7 @@ def test_non_input_stack_tag_unaffected() -> None:
         "! TeX capacity exceeded, sorry [main memory size=5000000].\n"
         "\\@nomath ->\\foo\n"
     )
-    assert _classify(log) == ("capacity", "main_memory|@nomath")
+    assert classify(log) == ("capacity", "main_memory|@nomath")
 
 
 def test_verdict_unfixable_input_stack(tmp_path: Path) -> None:
@@ -111,7 +102,7 @@ def test_verdict_resetstack_stays_repair_dispatch(tmp_path: Path) -> None:
 def test_err_candidates_carry_routed_cat() -> None:
     """次级错误派发同口径——capacity 孪生候选同样重路由。"""
     log = "! Missing $ inserted.\nl.5 x\n" + _QUARK_LOG
-    cands = _rs().taxonomy.err_candidates(parse_text(log))
+    cands = rs().taxonomy.err_candidates(parse_text(log))
     assert ("input_stack", "input_stack|__quark_if_recursion_tail:w") in [
         (c, p) for c, p, _e, _b in cands
     ]

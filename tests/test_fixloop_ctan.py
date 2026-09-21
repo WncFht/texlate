@@ -3,12 +3,11 @@
 全部离线: fetcher 注入返回内存构造的 tar.xz / tlpdb.xz; 不触网。
 """
 
-import io
 import lzma
-import tarfile
 from pathlib import Path
 
 import pytest
+from test_ctan_hardening import MIRROR, make_tarxz
 
 from texlate.compile.ctan import (
     CtanFetcher,
@@ -18,20 +17,6 @@ from texlate.compile.ctan import (
     default_cache_dir,
     fetch_package,
 )
-
-MIRROR = "https://m.test/tlnet"
-
-
-def make_tarxz(members: dict[str, bytes]) -> bytes:
-    """内存构造 ``archive/<pkg>.tar.xz`` 响应体。"""
-    buf = io.BytesIO()
-    with tarfile.open(fileobj=buf, mode="w") as tf:
-        for name, data in members.items():
-            ti = tarfile.TarInfo(name)
-            ti.size = len(data)
-            tf.addfile(ti, io.BytesIO(data))
-    return lzma.compress(buf.getvalue())
-
 
 TLPDB_TEXT = """\
 name foo

@@ -14,24 +14,12 @@ expl3 ``\cs_if_exist`` 恒拒 → ``Control sequence \chinese already defined``
 
 from pathlib import Path
 
+from _fixloopkit import EngStub, apply, mk_ctx, rule
+from test_fixloop_csfix2 import _proj
+
 from texlate.compile.fixloop import actions, load_ruleset
-from texlate.compile.fixloop.engine import LoopCtx, Rule
-from texlate.compile.logparse import ErrReport
 
-
-class _Eng:
-    """builtin_transform/condition 路径的最小引擎替身 (不触 probe/install)。"""
-
-    name = "xelatex"
-
-    def probe_file(self, fname: str, cwd: Path | None = None) -> str | None:
-        del fname, cwd
-        return None
-
-    def filemap(self, fname: str) -> list[str]:
-        del fname
-        return []
-
+_RID = "ctlseq_already_def_undefine"
 
 _ERR = (
     "/usr/share/texmf-dist/tex/latex/ctex/ctex.sty:500: LaTeX Error: "
@@ -46,40 +34,26 @@ _MAIN = (
 )
 
 
-def _ctx(tmp_path: Path, err_head: str = _ERR) -> LoopCtx:
-    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel="main.tex")
-    ctx.err_head = err_head
-    return ctx
-
-
-def _rule() -> Rule:
-    return next(
-        r for r in load_ruleset().rules if r.id == "ctlseq_already_def_undefine"
-    )
-
-
 def _apply(tmp_path: Path, err_head: str = _ERR) -> tuple[bool, str]:
-    return actions._apply(  # noqa: SLF001 - 钉规则动作直驱
-        _rule(), _ctx(tmp_path, err_head), _Eng(), None, ErrReport()
-    )
+    return apply(_RID, mk_ctx(tmp_path, err_head=err_head), None)
 
 
 def _cond(tmp_path: Path, err_head: str = _ERR) -> tuple[bool, str]:
-    rule = _rule()
+    r = rule(_RID)
     return actions._cond_ok(  # noqa: SLF001
-        rule.condition, rule, _ctx(tmp_path, err_head), _Eng(), None
+        r.condition, r, mk_ctx(tmp_path, err_head=err_head), EngStub(), None
     )
 
 
 def _write_main(tmp_path: Path, text: str = _MAIN) -> None:
-    (tmp_path / "main.tex").write_text(text)
+    _proj(tmp_path, {"main.tex": text})
 
 
 def test_ctlseq_rule_registered() -> None:
-    rule = _rule()
-    assert rule.order == 110.8  # noqa: PLR2004 - schema 断言值
-    assert rule.action["kind"] == "builtin_transform"
-    assert rule.action["function"] == "ctlseq_undefine"
+    r = rule(_RID)
+    assert r.order == 110.8  # noqa: PLR2004 - schema 断言值
+    assert r.action["kind"] == "builtin_transform"
+    assert r.action["function"] == "ctlseq_undefine"
 
 
 def test_ctlseq_cond_passes_signature() -> None:

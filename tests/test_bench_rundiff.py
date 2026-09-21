@@ -10,6 +10,7 @@ import json
 from typing import TYPE_CHECKING
 
 import rundiff
+from _reckit import make_rec
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -18,19 +19,9 @@ if TYPE_CHECKING:
 
 
 def _rec(pid: str, stage: str, status: str, **over: object) -> dict:
-    rec = {
-        "id": pid,
-        "stage": stage,
-        "arm": "zh",
-        "upstream": "mock",
-        "status": status,
-        "dur_s": 1.0,
-        "metrics": {},
-        "errors": [],
-        "sig": "",
-    }
-    rec.update(over)
-    return rec
+    """zh/mock 钉版记录——``_reckit.make_rec`` 原位包装（``**over`` 末位覆盖）。"""
+    kw: dict[str, object] = {"arm": "zh", "upstream": "mock"} | over
+    return make_rec(pid, stage, status, **kw)
 
 
 def _write_run(root: Path, name: str, stage_rows: dict) -> Path:

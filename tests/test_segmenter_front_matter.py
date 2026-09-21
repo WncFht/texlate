@@ -19,9 +19,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import pytest
+from _workerkit import mk_ctx
 from conftest import check_invariants
 
-from texlate.latex import parse_tex
+from texlate.latex import parse_tex, reconstruct
 from texlate.pipecore import (
     ENV_FRONT_MATTER,
     default_front_matter,
@@ -186,8 +187,6 @@ def test_fm_abstract_env_unclosed() -> None:
     )
     res = parse_tex(tex, front_matter=frozenset({"abstract"}))
     # 重建恒等 + 平铺仍成立（validate 可能有告警——只查不变式前两条）
-    from texlate.latex import reconstruct  # noqa: PLC0415
-
     assert reconstruct(res) == tex
 
 
@@ -231,35 +230,6 @@ def test_default_front_matter_env(monkeypatch: pytest.MonkeyPatch) -> None:
 # ------------------------------------------------------------- worker 链
 
 
-def _mk_ctx(tmp_path: Path, options: dict) -> tuple:
-    """真实任务行 + TaskCtx + worker（test_fuzz_worker._mk 同形精简版）。"""
-    from texlate.server.events import EventBus  # noqa: PLC0415
-    from texlate.server.store import Store, new_task_id  # noqa: PLC0415
-    from texlate.server.worker import PipelineWorker, Secrets, TaskCtx  # noqa: PLC0415
-
-    store = Store(tmp_path / "t.db")
-    store.open()
-    bus = EventBus(store)
-    worker = PipelineWorker(store, bus, tmp_path)
-    task_id = new_task_id()
-    row = store.create_task(
-        task_id=task_id,
-        kind="arxiv",
-        target_lang="zh-CN",
-        model="m",
-        options=options,
-    )
-    ctx = TaskCtx(
-        store=store,
-        bus=bus,
-        task_id=task_id,
-        row=row,
-        secrets=Secrets(),
-        root=tmp_path / "tasks" / task_id,
-    )
-    return ctx, worker, store
-
-
 @pytest.mark.parametrize(
     ("fm_opt", "expect_abs", "expect_caption_min"),
     [
@@ -291,10 +261,10 @@ def test_worker_parse_all_front_matter(
     """``options.front_matter`` 经 ``ctx.options()`` 进 ``scan_tex_tree``：
     kind=abstract 行出现与否即开/关裁决；title 开时 kind=caption 行 ≥1。
     """
-    ctx, worker, _store = _mk_ctx(tmp_path, fm_opt)
+    ctx, worker, _store = mk_ctx(tmp_path, options=fm_opt)
     ctx.base_dir.mkdir(parents=True)
     (ctx.base_dir / "main.tex").write_text(PRE_DOC, encoding="utf-8")
-    rows, _scans = worker._parse_all(ctx)  # noqa: SLF001 -- 段级直调面（同 test_fuzz_worker）
+    rows, _scans = worker.run_stage(ctx, "parse_all")
     kinds = [r["kind"] for r in rows]
     assert ("abstract" in kinds) is expect_abs
     assert sum(1 for k in kinds if k == "caption") >= expect_caption_min

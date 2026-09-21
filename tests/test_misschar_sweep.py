@@ -11,9 +11,8 @@ gate 132 → 0）；corpus loop3 全量 splice log 零误伤。
 
 from __future__ import annotations
 
-from pathlib import Path
+from conftest import make_comp_res
 
-from texlate.compile.engine import CompRes
 from texlate.compile.judge import count_missing_chars, judge
 from texlate.compile.loginfo import parse_log as eng_parse_log
 from texlate.redlines import REDLINES_BY_ID
@@ -51,17 +50,6 @@ def _sweep(font: str = _FONT, *, wrapped: bool = False) -> str:
         else:
             lines.append(_mc(font, _c0_name(cp), f"(U+{cp:04X})"))
     return "\n".join(lines)
-
-
-def _res(text: str) -> CompRes:
-    """有 pdf 的 CompRes——log 由 engine 真管线解析。"""
-    return CompRes(
-        engine="xelatex",
-        ok=True,
-        pdf=Path("/nonexistent.pdf"),
-        pdf_bytes=1024,
-        log=eng_parse_log(text),
-    )
 
 
 # ---------------------------------------------------------------- 扫掠豁免
@@ -104,7 +92,7 @@ def test_sweep_boundary_run_min() -> None:
 def test_judge_sweep_only_is_clean() -> None:
     """纯扫掠 log → judge clean + ``missing_character_sweep×N`` notes 观察项。"""
     text = _sweep() + "\n"
-    v = judge(_res(text), expect_cjk=True, log_text=text)
+    v = judge(make_comp_res(log_text=text), expect_cjk=True, log_text=text)
     assert v.missing_chars == 0
     assert f"missing_character_sweep×{_SWEEP_N}" in v.notes
     assert not any(r.startswith("missing_character×") for r in v.reasons)
@@ -134,7 +122,7 @@ def test_repeated_single_cp_still_counted() -> None:
 
 def test_ascending_non_c0_still_counted() -> None:
     """非 C0 升序链（U+0041..U+0059 可印字符）不属豁免域——测量盒签名限 C0+DEL。"""
-    lines = [_mc(_FONT, chr(cp), f"(U+{cp:04X})") for cp in range(0x41, 0x59)]
+    lines = [_mc(_FONT, chr(cp), f"(U+{cp:04X})") for cp in range(0x41, 0x5A)]
     text = "\n".join(lines) + "\n"
     assert misschar_sweep_hits(text) == 0
     assert count_missing_chars(text) == len(lines)
@@ -175,7 +163,7 @@ def test_mixed_sweep_plus_real_miss() -> None:
     assert count_missing_chars(text) == len(reals)
     info = eng_parse_log(text)
     assert "missing_chars" in info.warnings_hit
-    v = judge(_res(text), expect_cjk=True, log_text=text)
+    v = judge(make_comp_res(log_text=text), expect_cjk=True, log_text=text)
     assert v.missing_chars == len(reals)
     assert f"missing_character×{len(reals)}" in v.reasons
     assert f"missing_character_sweep×{_SWEEP_N}" in v.notes
@@ -184,7 +172,7 @@ def test_mixed_sweep_plus_real_miss() -> None:
 def test_sweep_after_nullfont_not_mixed() -> None:
     """nullfont 命中与扫掠并存：两豁免独立成立、各自进 notes。"""
     text = _mc("nullfont", ";", '("3B)') + "\n" + _sweep() + "\n"
-    v = judge(_res(text), expect_cjk=True, log_text=text)
+    v = judge(make_comp_res(log_text=text), expect_cjk=True, log_text=text)
     assert v.missing_chars == 0
     assert "missing_character_nullfont×1" in v.notes
     assert f"missing_character_sweep×{_SWEEP_N}" in v.notes

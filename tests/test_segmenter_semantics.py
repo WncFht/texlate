@@ -17,13 +17,11 @@ r"""分段器 S3 语义黑盒测试 —— ``parse_tex``/``parse_file`` 端到�
 from pathlib import Path
 
 import pytest
-from conftest import ART, check_invariants
+from conftest import ART, BEAMER, check_invariants
 
 from texlate.latex import parse_file, parse_tex
 from texlate.latex.gullet import Gullet
 from texlate.latex.model import PieceKind, ScanResult
-
-BEAMER = "\\documentclass{beamer}\n\\begin{document}\n%s\n\\end{document}\n"
 
 
 def scan(body: str, preamble: str = "", doc: str = ART) -> ScanResult:

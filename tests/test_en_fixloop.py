@@ -23,6 +23,7 @@ from texlate.server.store import Store, new_task_id
 from texlate.server.worker import PipelineWorker, Secrets, TaskCtx
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from pathlib import Path
 
 _TEX = (
@@ -34,8 +35,20 @@ _TEX = (
 )
 
 
+def _fixloop_spy() -> tuple[list[object], Callable[..., dict[str, object]]]:
+    """fixloop 调用探针：``(calls, stub)``——断言臂自熄/首编通过时零调用。"""
+    calls: list[object] = []
+
+    def _spy(*_a: object, **_kw: object) -> dict[str, object]:
+        calls.append(1)
+        return {}
+
+    return calls, _spy
+
+
 def _mk(
     tmp_path: Path,
+    request: pytest.FixtureRequest,
     *,
     options: dict[str, object] | None = None,
     engine: RecordingEngine | None = None,
@@ -43,6 +56,7 @@ def _mk(
     """最小 TaskCtx + worker：真 Store/EventBus + RecordingEngine 注入。"""
     store = Store(tmp_path / "t.db")
     store.open()
+    request.addfinalizer(store.close)
     bus = EventBus(store)
     eng = engine or RecordingEngine("tectonic")
     worker = PipelineWorker(store, bus, tmp_path, engine_factory=lambda _name: eng)  # type: ignore[arg-type]
@@ -76,13 +90,14 @@ class TestEnFixloop:
     def test_missing_pkg_rescued_and_registered(
         self,
         tmp_path: Path,
+        request: pytest.FixtureRequest,
         monkeypatch: pytest.MonkeyPatch,
         clean_env: pytest.MonkeyPatch,  # noqa: ARG002 -- fixture 副作用
     ) -> None:
         """缺包挂 → fixloop 救回出 pdf → en_pdf 登记 + ``cond="en"`` 透传。"""
         eng = RecordingEngine("tectonic")
         eng.produce_pdf = False  # 首编挂（未装 algpseudocodex）
-        ctx, worker, store = _mk(tmp_path, engine=eng)
+        ctx, worker, store = _mk(tmp_path, request, engine=eng)
         conds: list[object] = []
 
         def _stub(work: Path, proxy: object, **kw: object) -> dict[str, object]:
@@ -108,13 +123,14 @@ class TestEnFixloop:
     def test_fixloop_edits_not_written_back(
         self,
         tmp_path: Path,
+        request: pytest.FixtureRequest,
         monkeypatch: pytest.MonkeyPatch,
         clean_env: pytest.MonkeyPatch,  # noqa: ARG002 -- fixture 副作用
     ) -> None:
         """fixloop 在 build-en 内的改写/落件不泄进 ``base/`` pristine 树。"""
         eng = RecordingEngine("tectonic")
         eng.produce_pdf = False
-        ctx, worker, _store = _mk(tmp_path, engine=eng)
+        ctx, worker, _store = _mk(tmp_path, request, engine=eng)
 
         def _stub(work: Path, proxy: object, **_kw: object) -> dict[str, object]:
             (work / "algpseudocodex.sty").write_text("% stub\n", encoding="utf-8")
@@ -133,13 +149,14 @@ class TestEnFixloop:
     def test_still_no_pdf_warns_only(
         self,
         tmp_path: Path,
+        request: pytest.FixtureRequest,
         monkeypatch: pytest.MonkeyPatch,
         clean_env: pytest.MonkeyPatch,  # noqa: ARG002 -- fixture 副作用
     ) -> None:
         """fixloop 也救不出 → ``en_compile`` warning、无 en_pdf、流程不炸。"""
         eng = RecordingEngine("tectonic")
         eng.produce_pdf = False
-        ctx, worker, store = _mk(tmp_path, engine=eng)
+        ctx, worker, store = _mk(tmp_path, request, engine=eng)
         monkeypatch.setattr(
             "texlate.repair.fixloop",
             lambda *_a, **_kw: {"verdict": "fail", "rounds": [], "actions": []},
@@ -155,19 +172,17 @@ class TestEnFixloop:
     def test_fixloop_disabled_no_attempt(
         self,
         tmp_path: Path,
+        request: pytest.FixtureRequest,
         monkeypatch: pytest.MonkeyPatch,
         clean_env: pytest.MonkeyPatch,  # noqa: ARG002 -- fixture 副作用
     ) -> None:
         """``options.fixloop=False`` → 臂自熄，首挂直走 warning。"""
         eng = RecordingEngine("tectonic")
         eng.produce_pdf = False
-        ctx, worker, _store = _mk(tmp_path, engine=eng, options={"fixloop": False})
-        calls: list[object] = []
-
-        def _spy(*_a: object, **_kw: object) -> dict[str, object]:
-            calls.append(1)
-            return {}
-
+        ctx, worker, _store = _mk(
+            tmp_path, request, engine=eng, options={"fixloop": False}
+        )
+        calls, _spy = _fixloop_spy()
         monkeypatch.setattr("texlate.repair.fixloop", _spy)
         worker._compile_en(ctx)  # noqa: SLF001
         assert calls == []
@@ -176,17 +191,13 @@ class TestEnFixloop:
     def test_clean_first_pass_skips_fixloop(
         self,
         tmp_path: Path,
+        request: pytest.FixtureRequest,
         monkeypatch: pytest.MonkeyPatch,
         clean_env: pytest.MonkeyPatch,  # noqa: ARG002 -- fixture 副作用
     ) -> None:
         """首编即出 pdf → 不触发 fixloop（无无谓救援轮）。"""
-        ctx, worker, _store = _mk(tmp_path)
-        calls: list[object] = []
-
-        def _spy(*_a: object, **_kw: object) -> dict[str, object]:
-            calls.append(1)
-            return {}
-
+        ctx, worker, _store = _mk(tmp_path, request)
+        calls, _spy = _fixloop_spy()
         monkeypatch.setattr("texlate.repair.fixloop", _spy)
         worker._compile_en(ctx)  # noqa: SLF001
         assert calls == []

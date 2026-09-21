@@ -6,7 +6,6 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-from functools import partial
 from http import HTTPStatus
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -19,8 +18,11 @@ pytest.importorskip("starlette.testclient", reason="server extra 未装")
 from conftest import (
     MINI_TEX,
     FakeEngine,
-    make_app,
+    get_row,
+    live_app,
     make_targz,
+    task_events,
+    upload,
     wait_terminal,
 )
 from starlette.testclient import TestClient
@@ -129,30 +131,12 @@ class FlakyEngine:
 def _live_app(tmp_path: Path, **kw: object) -> FastAPI:
     """start_worker app：MockTranslator + 指定 engine（缺省 FakeEngine）。"""
     engine = kw.pop("engine", None) or FakeEngine()
-    return make_app(
+    return live_app(
         tmp_path,
-        start_worker=True,
-        translator_factory=lambda _ctx: MockTranslator(),
+        lambda _ctx: MockTranslator(),
         engine_factory=lambda _name: engine,
         **kw,
     )
-
-
-def _upload(client: TestClient, *, fields: dict[str, str] | None = None) -> dict:
-    """POST /api/upload 带额外表单字段（options/main/...）。"""
-    r = client.post(
-        "/api/upload",
-        files={"file": ("main.tex", MINI_TEX.encode(), "application/octet-stream")},
-        data=fields or {},
-    )
-    assert r.status_code == HTTPStatus.ACCEPTED, r.text
-    return r.json()  # type: ignore[no-any-return]
-
-
-def _events(client: TestClient, tid: str) -> list[dict]:
-    """task_events 全量回放（portal 回 loop 线程读 store）。"""
-    store: Store = client.app.state.store
-    return client.portal.call(partial(store.events_since, tid, 0))  # type: ignore[no-any-return]
 
 
 class TestMainOverrideConfine:
@@ -164,7 +148,7 @@ class TestMainOverrideConfine:
         clean_env: pytest.MonkeyPatch,  # noqa: ARG002
     ) -> None:
         with TestClient(_live_app(tmp_path)) as c:
-            tid = _upload(c, fields={"main": "/etc/passwd"})["task_id"]
+            tid = upload(c, fields={"main": "/etc/passwd"})["task_id"]
             snap = wait_terminal(c, tid)
         assert snap["status"] == "fault"
         assert snap["error"]["code"] == "parse"
@@ -176,7 +160,7 @@ class TestMainOverrideConfine:
         clean_env: pytest.MonkeyPatch,  # noqa: ARG002
     ) -> None:
         with TestClient(_live_app(tmp_path)) as c:
-            tid = _upload(
+            tid = upload(
                 c, fields={"options": json.dumps({"main": "../../etc/passwd"})}
             )["task_id"]
             snap = wait_terminal(c, tid)
@@ -190,7 +174,7 @@ class TestMainOverrideConfine:
         clean_env: pytest.MonkeyPatch,  # noqa: ARG002
     ) -> None:
         with TestClient(_live_app(tmp_path)) as c:
-            tid = _upload(c, fields={"main": "main.tex"})["task_id"]
+            tid = upload(c, fields={"main": "main.tex"})["task_id"]
             snap = wait_terminal(c, tid)
         assert snap["status"] == "done"
 
@@ -227,11 +211,11 @@ class TestGlossaryConfine:
         glossary_spy: list[dict],
     ) -> None:
         with TestClient(_live_app(tmp_path)) as c:
-            tid = _upload(
+            tid = upload(
                 c, fields={"options": json.dumps({"glossary": "/etc/passwd"})}
             )["task_id"]
             snap = wait_terminal(c, tid)
-            evs = _events(c, tid)
+            evs = task_events(c, tid)
         assert snap["status"] == "done"  # 拒后回落默认表，不阻塞任务
         assert _glossary_warnings(evs)
         assert glossary_spy[-1].get("user_path") is None
@@ -243,11 +227,11 @@ class TestGlossaryConfine:
         glossary_spy: list[dict],
     ) -> None:
         with TestClient(_live_app(tmp_path)) as c:
-            tid = _upload(c, fields={"options": json.dumps({"glossary": "../g.csv"})})[
+            tid = upload(c, fields={"options": json.dumps({"glossary": "../g.csv"})})[
                 "task_id"
             ]
             snap = wait_terminal(c, tid)
-            evs = _events(c, tid)
+            evs = task_events(c, tid)
         assert snap["status"] == "done"
         assert _glossary_warnings(evs)
         assert glossary_spy[-1].get("user_path") is None
@@ -259,11 +243,11 @@ class TestGlossaryConfine:
         glossary_spy: list[dict],
     ) -> None:
         with TestClient(_live_app(tmp_path)) as c:
-            tid = _upload(c, fields={"options": json.dumps({"glossary": "nope.csv"})})[
+            tid = upload(c, fields={"options": json.dumps({"glossary": "nope.csv"})})[
                 "task_id"
             ]
             snap = wait_terminal(c, tid)
-            evs = _events(c, tid)
+            evs = task_events(c, tid)
         assert snap["status"] == "done"
         assert _glossary_warnings(evs)
         assert glossary_spy[-1].get("user_path") is None
@@ -286,7 +270,7 @@ class TestGlossaryConfine:
             assert r.status_code == HTTPStatus.ACCEPTED, r.text
             tid = r.json()["task_id"]
             snap = wait_terminal(c, tid)
-            evs = _events(c, tid)
+            evs = task_events(c, tid)
         assert snap["status"] == "done"
         assert not _glossary_warnings(evs)
         used = glossary_spy[-1].get("user_path")
@@ -304,27 +288,27 @@ class TestGlossaryConfine:
         (gdir / "t.csv").write_text("tensor,张量\n", encoding="utf-8")
         with TestClient(_live_app(tmp_path)) as c:
             # 请求面塞不进根：options.glossary_dir 不进 config_json
-            tid = _upload(
+            tid = upload(
                 c,
                 fields={
                     "options": json.dumps({"glossary": "t.csv", "glossary_dir": "/etc"})
                 },
             )["task_id"]
             snap = wait_terminal(c, tid)
-            evs = _events(c, tid)
+            evs = task_events(c, tid)
             assert snap["status"] == "done"
             assert _glossary_warnings(evs)  # /etc 未生效 → 根内无 t.csv → 拒
-            row = c.portal.call(partial(c.app.state.store.get, tid))
+            row = get_row(c, tid)
             cfg = json.loads(row["config_json"])
             assert cfg.get("glossary_dir") in (None, "")
             # settings 侧根生效
             r = c.put("/api/settings", json={"glossary_dir": str(gdir)})
             assert r.status_code == HTTPStatus.OK, r.text
-            tid2 = _upload(c, fields={"options": json.dumps({"glossary": "t.csv"})})[
+            tid2 = upload(c, fields={"options": json.dumps({"glossary": "t.csv"})})[
                 "task_id"
             ]
             snap2 = wait_terminal(c, tid2)
-            evs2 = _events(c, tid2)
+            evs2 = task_events(c, tid2)
         assert snap2["status"] == "done"
         assert not _glossary_warnings(evs2)
         used = glossary_spy[-1].get("user_path")
@@ -572,9 +556,9 @@ class TestFixloopWiring:
     ) -> None:
         eng = FlakyEngine()
         with TestClient(_live_app(tmp_path, engine=eng)) as c:
-            tid = _upload(c)["task_id"]
+            tid = upload(c)["task_id"]
             snap = wait_terminal(c, tid)
-            evs = _events(c, tid)
+            evs = task_events(c, tid)
         assert snap["status"] == "done"
         fix_ev = [e for e in evs if e["type"] == "fixloop"]
         assert fix_ev, "fixloop 事件应落 task_events（可重放）"
@@ -595,7 +579,7 @@ class TestFixloopWiring:
     ) -> None:
         eng = FlakyEngine(always_fail=True)
         with TestClient(_live_app(tmp_path, engine=eng)) as c:
-            tid = _upload(c)["task_id"]
+            tid = upload(c)["task_id"]
             snap = wait_terminal(c, tid)
         assert snap["status"] == "fault"
         assert snap["error"]["code"] == "fixloop_exhausted"
@@ -611,11 +595,11 @@ class TestFixloopWiring:
     ) -> None:
         eng = FlakyEngine(always_fail=True)
         with TestClient(_live_app(tmp_path, engine=eng)) as c:
-            tid = _upload(c, fields={"options": json.dumps({"fixloop": False})})[
+            tid = upload(c, fields={"options": json.dumps({"fixloop": False})})[
                 "task_id"
             ]
             snap = wait_terminal(c, tid)
-            evs = _events(c, tid)
+            evs = task_events(c, tid)
         assert snap["status"] == "fault"
         assert snap["error"]["code"] == "compile"  # 未跑 fixloop → 普通编译错
         assert "fixloop" not in snap["error"]
@@ -633,7 +617,7 @@ class TestFixloopWiring:
         monkeypatch.setenv("TEXLATE_NO_FIXLOOP", "1")
         eng = FlakyEngine(always_fail=True)
         with TestClient(_live_app(tmp_path, engine=eng)) as c:
-            tid = _upload(c)["task_id"]
+            tid = upload(c)["task_id"]
             snap = wait_terminal(c, tid)
         assert snap["status"] == "fault"
         assert snap["error"]["code"] == "compile"

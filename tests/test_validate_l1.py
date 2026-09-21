@@ -72,9 +72,7 @@ def test_baseline_relative_mode(v: TsValidator) -> None:
 @pytest.mark.integration
 @need_l1
 def test_resident_mode() -> None:
-    with TsValidator(
-        node_path=BENCH_NM if (BENCH_NM / "tree-sitter").is_dir() else None
-    ) as daemon:
+    with TsValidator(node_path=BENCH_NM) as daemon:
         base = daemon.sign(SRC)
         res = daemon.validate(ZH_BROKEN, baseline=base, expect=["MATH_1"])
         assert res.ok_relative is False

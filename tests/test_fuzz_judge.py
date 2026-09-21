@@ -49,13 +49,14 @@ from __future__ import annotations
 
 import copy
 import dataclasses
-import importlib
 import re
 from collections import Counter
 from typing import TYPE_CHECKING, NamedTuple
 
 import pytest
 from _fuzzkit import fuzz_rng
+from _latex209kit import target_always_resolvable  # noqa: F401
+from conftest import judge_mod
 from pypdf import PdfReader, PdfWriter
 from pypdf.generic import (
     ArrayObject,
@@ -109,7 +110,6 @@ from texlate.validate import l2
 if TYPE_CHECKING:
     import random
     from pathlib import Path
-    from types import ModuleType
 
 # ================================================================ misschar 限界窗 oracle
 #: 独立重述「本消息体内可达 in font nullfont」：逐位停词扫描，不走 regex。
@@ -158,11 +158,6 @@ def _misschar_oracle(text: str) -> tuple[int, int]:
             gate += 1
         pos = i + len(_MISSCHAR_TAG)
     return gate, nf
-
-
-def _judge_mod() -> ModuleType:
-    """judge 子模块对象（包级 re-export 同名函数遮蔽模块属性路径）。"""
-    return importlib.import_module("texlate.compile.judge")
 
 
 # ================================================================ judge 判定组合
@@ -323,7 +318,7 @@ class TestJudge:
     ) -> None:
         """旗标矩阵 × log 汤：status/reasons/notes 逐字段对拍 + 结构不变量。"""
         rng = fuzz_rng(20260917)
-        jm = _judge_mod()
+        jm = judge_mod()
         for it in range(400):
             soup = _gen_log_soup(rng)
             res = CompRes(engine=rng.choice(["xelatex", "tectonic"]))
@@ -468,7 +463,7 @@ class TestJudge:
         p = tmp_path / "m.pdf"
         p.write_bytes(b"%PDF")
         res.pdf, res.pdf_bytes = p, 4
-        jm = _judge_mod()
+        jm = judge_mod()
         monkeypatch.setattr(jm, "pdf_cjk_chars", lambda _p: 19)
         v = judge(res, expect_cjk=True)
         assert v.reasons == [f"cjk_chars<{CJK_MIN_CHARS} (19)"]
@@ -832,12 +827,6 @@ class TestCjkmap:
 
 
 # ================================================================ latex209 受限升级
-@pytest.fixture(autouse=True)
-def _target_always_resolvable(monkeypatch: pytest.MonkeyPatch) -> None:
-    """豁免真机 kpsewhich——盲升闸自身的用例另行打桩。"""
-    monkeypatch.setattr(latex209, "_target_resolvable", lambda *_a: True)
-
-
 def _oracle_split(optspan: str | None) -> list[str]:
     """独立重述：非空白字符即选项文本，逗号切分丢空段。"""
     if not optspan:

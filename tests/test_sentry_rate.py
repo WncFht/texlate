@@ -31,6 +31,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+import texlate.compile.sandbox as sb
 from texlate.compile.engine import CompRes, _collect_compile_outputs
 from texlate.compile.fixloop.engine import _round_cat
 from texlate.compile.fixloop.ruleset import Ruleset
@@ -158,6 +159,16 @@ def test_below_min_warnings_no_trip() -> None:
     assert s.feed((_VBOX_B + b"\n") * 29) is False
     assert s.tripped is False
     assert s.reason is None
+
+
+def test_truncated_head_scanned_not_dropped() -> None:
+    """截断头仍入扫：无换行洪片超 ``_SENTRY_TAIL_CAP`` 时 ``tail[:-_SENTRY_KEEP]``
+    段补回 seg 计数——丢头重构会让 ~19K 页标蒸发、page_flood 静默漏杀。
+    （``test_livekill.test_sentry_tail_bounded`` 只钉留尾上界，本钉头被扫。）"""
+    s = _RunawaySentry()
+    assert s.feed(b"[0] " * 20_000) is True
+    assert s.reason == "page_flood"
+    assert len(s._tail) <= sb._SENTRY_KEEP  # noqa: SLF001
 
 
 # ------------------------------------------------------- 哨件单元：前缀语义（活哨 vs 事后判据）

@@ -255,7 +255,7 @@ def test_norm_parsed_kept_cap_and_field_norm() -> None:
         for i in range(3)
     )
     p = _norm_parsed(errs, 10)
-    assert len(p["errors"]) == 9  # noqa: PLR2004 -- 12 项截 10 去 1 junk
+    assert len(p["errors"]) == 9  # noqa: PLR2004 -- 13 项截 10 去 1 junk
     p2 = _norm_parsed(
         [
             {

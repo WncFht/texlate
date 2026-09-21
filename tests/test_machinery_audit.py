@@ -14,11 +14,24 @@ r"""segmenter 机制波回归（fixer-machinery，illegal_unit 机制半场）�
 文本参仍进 chunk）。
 """
 
-from conftest import ART, check_invariants, chunk_text
+from __future__ import annotations
 
-from texlate.latex import parse_tex
+from typing import TYPE_CHECKING
+
+from _segkit import scan_art
+from conftest import chunk_text
+
 from texlate.latex.macro_table import parse_argspec
 from texlate.latex.model import ArgSpec, PieceKind
+
+if TYPE_CHECKING:
+    from texlate.latex.model import ScanResult
+
+
+def _art_scan(pre: str, body: str) -> ScanResult:
+    """``ART % (pre, body)`` → ``parse_tex`` + ``check_invariants`` 三件套——
+    ``_segkit.scan_art``（``(body, defs)`` 序）按本文件模板槽序的适配。"""
+    return scan_art(body, defs=pre)
 
 # ------------------------------------------------------------- M1 in_arg lit 段
 
@@ -26,7 +39,7 @@ from texlate.latex.model import ArgSpec, PieceKind
 def test_parbox_inside_multirow_arg_no_lit_leak() -> None:
     r"""M1：``\multirow{2}{*}{\parbox{3cm}{text}}``——``{3cm}`` 参内字面段
     不落 chunk（``\parbox`` 非 TRANSPARENT_HEAD 族，走 argspec chunk-arg）。"""
-    tex = ART % (
+    res = _art_scan(
         "\\usepackage{multirow}\n",
         (
             "\\begin{table}\n\\begin{tabular}{lc}\n"
@@ -35,8 +48,6 @@ def test_parbox_inside_multirow_arg_no_lit_leak() -> None:
             "After text here to fill the paragraph out nicely and more.\n"
         ),
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     body = chunk_text(res)
     assert "3cm" not in body
     assert "parbox" not in body
@@ -46,15 +57,13 @@ def test_parbox_inside_multirow_arg_no_lit_leak() -> None:
 def test_framebox_opt_inside_caption_arg() -> None:
     r"""M1 参内多参形：``\caption{..\framebox[2cm][l]{x}..}`` 的 ``[2cm][l]``
     字面段全成 ``[[CMD]]``——参内 sub-scan 不挖洞但字面段不进 surface。"""
-    tex = ART % (
+    res = _art_scan(
         "",
         (
             "\\caption{Cap \\framebox[2cm][l]{Boxed inner} tail words}\n"
             "Body text here to fill the paragraph out nicely and more.\n"
         ),
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     body = chunk_text(res)
     assert "2cm" not in body
     assert "framebox" not in body
@@ -67,15 +76,13 @@ def test_framebox_opt_inside_caption_arg() -> None:
 def test_setlength_bare_cs_arg() -> None:
     r"""M2 主形：``\setlength\parskip{4pt}``——``\parskip`` 作 ``n`` 参直收、
     ``{4pt}`` 随调用进 LITERAL，双不漏。"""
-    tex = ART % (
+    res = _art_scan(
         "",
         (
             "\\setlength\\parskip{4pt}\n"
             "Body text here to fill the paragraph out nicely and more.\n"
         ),
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     body = chunk_text(res)
     assert "4pt" not in body
     assert "parskip" not in body
@@ -85,15 +92,13 @@ def test_setlength_bare_cs_arg() -> None:
 
 def test_setlength_braced_form_unchanged() -> None:
     r"""M2 花括号形回归：``\setlength{\parskip}{4pt}`` 照常全收。"""
-    tex = ART % (
+    res = _art_scan(
         "",
         (
             "\\setlength{\\parskip}{4pt}\n"
             "Body text here to fill the paragraph out nicely and more.\n"
         ),
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     body = chunk_text(res)
     assert "4pt" not in body
     assert "parskip" not in body
@@ -101,15 +106,13 @@ def test_setlength_braced_form_unchanged() -> None:
 
 def test_addtolength_bare_cs_arg() -> None:
     r"""M2 同族：``\addtolength\\parskip{2pt}`` 同收。"""
-    tex = ART % (
+    res = _art_scan(
         "",
         (
             "\\addtolength\\parskip{2pt}\n"
             "Body text here to fill the paragraph out nicely and more.\n"
         ),
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     body = chunk_text(res)
     assert "2pt" not in body
     assert "parskip" not in body
@@ -117,15 +120,13 @@ def test_addtolength_bare_cs_arg() -> None:
 
 def test_setlength_bare_cs_in_arg() -> None:
     r"""M2 参内形：``\caption{..\setlength\parskip{4pt}..}`` 整调用 ``[[CMD]]``。"""
-    tex = ART % (
+    res = _art_scan(
         "",
         (
             "\\caption{Cap \\setlength\\parskip{4pt} tail words}\n"
             "Body text here to fill the paragraph out nicely and more.\n"
         ),
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     body = chunk_text(res)
     assert "4pt" not in body
     assert "parskip" not in body
@@ -135,15 +136,13 @@ def test_setlength_bare_cs_in_arg() -> None:
 def test_setcounter_keeps_m_spec() -> None:
     r"""M2 签名核验：``\setcounter`` 首参是计数器名（字母非 cs）——留 ``m m``，
     ``\setcounter{page}{3}`` 照常全收。"""
-    tex = ART % (
+    res = _art_scan(
         "",
         (
             "\\setcounter{page}{3}\n"
             "Body text here to fill the paragraph out nicely and more.\n"
         ),
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     body = chunk_text(res)
     assert "{page}" not in body
     assert "{3}" not in body
@@ -154,7 +153,7 @@ def test_settowidth_family_bare_cs_arg() -> None:
     BOUNDARY_NAMES——裸名形 ``\settowidth\mylen{xx}`` 整调用 LITERAL，
     校准内容不译（迁前走 argspec ``key``：名本体 ``[[CMD]]`` + ``\mylen``
     孤探针，两碎片同罩但族语义不齐）。"""
-    tex = ART % (
+    res = _art_scan(
         "",
         (
             "\\settowidth\\mylen{Calib text one}\n"
@@ -163,8 +162,6 @@ def test_settowidth_family_bare_cs_arg() -> None:
             "Body text here to fill the paragraph out nicely and more.\n"
         ),
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     body = chunk_text(res)
     for tok in ("mylen", "myht", "mydp", "Calib text"):
         assert tok not in body
@@ -180,15 +177,13 @@ def test_settowidth_family_bare_cs_arg() -> None:
 def test_settowidth_braced_form() -> None:
     r"""M2 迁移花括号形：``\settowidth{\mylen}{xx}``——``n`` 槽认 ``{..}`` 组，
     整调用照常全收。"""
-    tex = ART % (
+    res = _art_scan(
         "",
         (
             "\\settowidth{\\mylen}{Calib text}\n"
             "Body text here to fill the paragraph out nicely and more.\n"
         ),
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     body = chunk_text(res)
     assert "Calib text" not in body
     assert "mylen" not in body
@@ -198,15 +193,13 @@ def test_settowidth_braced_form() -> None:
 
 def test_settowidth_bare_cs_in_arg() -> None:
     r"""M2 迁移参内形：``\caption{..\settowidth\mylen{x}..}`` 整调用 ``[[CMD]]``。"""
-    tex = ART % (
+    res = _art_scan(
         "",
         (
             "\\caption{Cap \\settowidth\\mylen{xx} tail words}\n"
             "Body text here to fill the paragraph out nicely and more.\n"
         ),
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     body = chunk_text(res)
     assert "mylen" not in body
     assert "xx" not in body
@@ -228,15 +221,13 @@ def test_parse_argspec_n_letter() -> None:
 
 def test_bsbs_dim_opt_protected() -> None:
     r"""M3：``a\\[4pt]b`` 的 ``[4pt]`` 随 ``\\`` 进 ``[[CMD]]`` 不译。"""
-    tex = ART % (
+    res = _art_scan(
         "",
         (
             "First line words here \\\\[4pt] second line words to fill "
             "the paragraph out nicely.\n"
         ),
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     body = chunk_text(res)
     assert "4pt" not in body
     assert "second line words" in body
@@ -244,15 +235,13 @@ def test_bsbs_dim_opt_protected() -> None:
 
 def test_bsbs_text_opt_conservative() -> None:
     r"""M3 保守面：``a\\[text]b`` 非 dim 形不吸——``[text]`` 照常进 chunk。"""
-    tex = ART % (
+    res = _art_scan(
         "",
         (
             "First line words here \\\\[text] second line words to fill "
             "the paragraph out nicely.\n"
         ),
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     assert "[text]" in chunk_text(res)
 
 
@@ -261,12 +250,10 @@ def test_bsbs_text_opt_conservative() -> None:
 
 def test_parindent_assign_with_eq() -> None:
     r"""M4：``\parindent=4pt`` 等号赋形随命令进 ``[[CMD]]``。"""
-    tex = ART % (
+    res = _art_scan(
         "",
         "\\parindent=4pt\nBody text here to fill the paragraph out nicely.\n",
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     body = chunk_text(res)
     assert "4pt" not in body
     assert "parindent" not in body
@@ -274,12 +261,10 @@ def test_parindent_assign_with_eq() -> None:
 
 def test_parindent_assign_no_eq() -> None:
     r"""M4：``\parindent 4pt`` 无等号赋形同收（dimen 尾 ``=?`` 可选）。"""
-    tex = ART % (
+    res = _art_scan(
         "",
         "\\parindent 4pt\nBody text here to fill the paragraph out nicely.\n",
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     body = chunk_text(res)
     assert "4pt" not in body
     assert "parindent" not in body
@@ -291,7 +276,7 @@ def test_parindent_assign_no_eq() -> None:
 def test_restatable_note_inside_brace_group() -> None:
     r"""M5：``{..\begin{restatable}[N]{t}{c}..}`` 组内 ``[N]`` 被 ``m`` 收——
     ``]{t}{c}`` 不漏进 surface。"""
-    tex = ART % (
+    res = _art_scan(
         "\\usepackage{thmtools}\n",
         (
             "{Pre \\begin{restatable}[N]{thm}{myc}\n"
@@ -300,8 +285,6 @@ def test_restatable_note_inside_brace_group() -> None:
             "After text to fill the paragraph out nicely and more.\n"
         ),
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     body = chunk_text(res)
     assert "[N]" not in body
     assert "{thm}" not in body
@@ -315,15 +298,13 @@ def test_restatable_note_inside_brace_group() -> None:
 def test_joref_all_args_protected() -> None:
     r"""残留修复：``\joref{a}{j}{v}{p}{y}`` 五参书目宏——签名 ``m×5`` 驱动
     ``mand``，尾参 ``{v}``/``{p}``/``{y}`` 不再漏。"""
-    tex = ART % (
+    res = _art_scan(
         "",
         (
             "See \\joref{AA}{JJ}{VV}{PP}{YY} for details and more words "
             "to fill the paragraph nicely.\n"
         ),
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     body = chunk_text(res)
     for a in ("AA", "JJ", "VV", "PP", "YY"):
         assert a not in body
@@ -333,15 +314,13 @@ def test_joref_all_args_protected() -> None:
 def test_crefrange_tail_arg_protected() -> None:
     r"""残留修复：``\crefrange{eq:a}{eq:b}`` 签名 ``s m m``——``{eq:b}``
     随 ``[[REF]]`` 进保护（此前硬编 mand=1 漏尾参）。"""
-    tex = ART % (
+    res = _art_scan(
         "\\usepackage{cleveref}\n",
         (
             "See \\crefrange{eq:a}{eq:b} for details and more words to "
             "fill the paragraph nicely.\n"
         ),
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     body = chunk_text(res)
     assert "eq:a" not in body
     assert "eq:b" not in body
@@ -351,15 +330,13 @@ def test_crefrange_tail_arg_protected() -> None:
 def test_cite_two_groups_unchanged() -> None:
     r"""回归闸：``\cite{a}{b}`` 签名 ``o m`` → mand=1——``{b}`` 仍当正文
     （既有刻意行为不变，``_cite_ref_mand`` 只放宽多参签名族）。"""
-    tex = ART % (
+    res = _art_scan(
         "",
         (
             "See \\cite{keya}{tail} for details and more words to fill "
             "the paragraph nicely.\n"
         ),
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     body = chunk_text(res)
     assert "keya" not in body
     assert "{tail}" in body
@@ -374,12 +351,10 @@ def test_cite_two_groups_unchanged() -> None:
 def test_raise_comma_decimal_dimen() -> None:
     r"""``\raise 1,5pt``——欧陆逗号小数（TeX 认 ``,`` 为小数点）进 dimen 尾扫
     （0806.4203：``1,5`` 残留 + ``pt`` 被译 → ``1,5 这是译文``）。"""
-    tex = ART % (
+    res = _art_scan(
         "",
         "Text \\raise 1,5pt \\hbox{,} tail words here to fill the paragraph.\n",
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     body = chunk_text(res)
     assert "1,5pt" not in body
     assert "raise" not in body
@@ -388,36 +363,30 @@ def test_raise_comma_decimal_dimen() -> None:
 
 def test_bsbs_comma_decimal_opt() -> None:
     r"""``\\[1,5cm]``——换行可选参同认逗号小数（0905.0575）。"""
-    tex = ART % (
+    res = _art_scan(
         "",
         "First line words here \\\\[1,5cm] second line words fill the para.\n",
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     assert "1,5cm" not in chunk_text(res)
 
 
 def test_bsbs_opt_after_newline() -> None:
     r"""``\\`` 行尾 + 次行 ``[8pt]``——单换行是 TeX 空白语义（hep-ph/0307181
     titlepage 区 ``[8这是译文]`` 残留）。"""
-    tex = ART % (
+    res = _art_scan(
         "",
         "First line words here \\\\\n[8pt] second line words fill the para.\n",
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     assert "8pt" not in chunk_text(res)
 
 
 def test_bsbs_opt_comment_interrupted() -> None:
     r"""``\\[0pt%`` + 次行 ``]``——``%`` 注释吞行尾后 ``]`` 续参
     （1511.06628 ``\\[0pt%`` 形）。"""
-    tex = ART % (
+    res = _art_scan(
         "",
         "First line \\\\\nmore \\\\[0pt%\n] tail words here fill the para.\n",
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     assert "0pt" not in chunk_text(res)
 
 
@@ -425,15 +394,13 @@ def test_tail_operand_after_newline() -> None:
     r"""``\\hskip`` 行尾 + 次行 ``1em plus..``——换行分隔操作数随尾扫
     （2105.00030 文献区 ``1em\\relax``→``1这是译文``）；``\\relax`` 归
     INLINE_LITERAL 不裸进 surface。"""
-    tex = ART % (
+    res = _art_scan(
         "",
         (
             "Text.\\hskip\n  1em plus 0.5em minus 0.4em\\relax Avignon "
             "words here to fill the paragraph out nicely.\n"
         ),
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     body = chunk_text(res)
     for tok in ("1em", "0.5em", "0.4em", "hskip", "relax"):
         assert tok not in body
@@ -442,24 +409,20 @@ def test_tail_operand_after_newline() -> None:
 
 def test_tail_operand_par_boundary_kept() -> None:
     r"""``\\hskip\\n\\n1em``——``\\n\\n`` 段界不跨：``1em`` 另起段是正文。"""
-    tex = ART % (
+    res = _art_scan(
         "",
         "Text.\\hskip\n\n1em next para words here to fill the paragraph.\n",
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     assert "1em" in chunk_text(res)
 
 
 def test_dimen_unit_no_letter_boundary() -> None:
     r"""``\\baselineskip=10ptReceived``——TeX 单位是定长关键字匹配（无词界），
     ``10pt`` 随尾扫、``Received`` 留正文（physics/9901057 center 块实证）。"""
-    tex = ART % (
+    res = _art_scan(
         "",
         "{\\footnotesize\\baselineskip=10ptReceived 3 October 1997 words.}\n",
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     body = chunk_text(res)
     assert "10pt" not in body
     assert "baselineskip" not in body
@@ -469,12 +432,10 @@ def test_dimen_unit_no_letter_boundary() -> None:
 def test_vskip_unit_prefix_word_split() -> None:
     r"""``\\vskip-0.015inside``——``in`` 是合法单位：收 ``-0.015in``、
     ``side`` 作正文（与 TeX 同式；旧前瞻拒配曾致整尾漏）。"""
-    tex = ART % (
+    res = _art_scan(
         "",
         "Text \\vskip-0.015inside tail words here to fill the paragraph.\n",
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     body = chunk_text(res)
     assert "0.015in" not in body
     assert "side" in body
@@ -484,15 +445,13 @@ def test_count_register_assigns() -> None:
     r"""计数器寄存器：``\\hangafter=1``/``\\looseness=-1``/``\\tolerance=800``/
     ``\\hbadness 10000``（无等号形）全收（M1-A 簇 ``hangafter=1这是译文``
     74 行粘连实证）。"""
-    tex = ART % (
+    res = _art_scan(
         "",
         (
             "Text \\hangafter=1 and \\looseness=-1 \\tolerance=800 \\hbadness "
             "10000 tail words fill the paragraph.\n"
         ),
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     body = chunk_text(res)
     for tok in ("hangafter", "looseness", "tolerance", "hbadness", "=1", "10000"):
         assert tok not in body
@@ -501,12 +460,10 @@ def test_count_register_assigns() -> None:
 
 def test_unknown_cs_bare_int_assign() -> None:
     r"""表外名 ``\\foo=2``——通用 assign 兜底裸整数（``=N`` 非散文）。"""
-    tex = ART % (
+    res = _art_scan(
         "",
         "Text \\foo=2 tail words here to fill the paragraph out nicely.\n",
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     body = chunk_text(res)
     assert "=2" not in body
     assert "foo" not in body
@@ -515,12 +472,10 @@ def test_unknown_cs_bare_int_assign() -> None:
 def test_hskip_dot_pt() -> None:
     r"""``\\hskip.pt``——裸 ``.``+单位 atom（TeX missing-number 形，覆盖保真
     优于 ``pt`` 漏译；1511.02686 文献区实证）。"""
-    tex = ART % (
+    res = _art_scan(
         "",
         "Preprint arXiv:\\hskip.pt 1504.00586v1 [math-ph] words to fill.\n",
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     assert ".pt" not in chunk_text(res)
 
 
@@ -528,12 +483,10 @@ def test_setlength_bare_cs_inside_group() -> None:
     r"""组内 ``{\\setlength\\arraycolsep{2pt} ..}``——BOUNDARY 臂改走
     ``_grp_spec_args_end`` 位序：``n`` 槽收裸 cs token（1608.02270
     ``\\setlength\\arraycolsep{2pt}`` 34 处残留实证）。"""
-    tex = ART % (
+    res = _art_scan(
         "",
         "{Pre \\setlength\\arraycolsep{2pt} post words here fill para.}\n",
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     body = chunk_text(res)
     assert "2pt" not in body
     assert "arraycolsep" not in body
@@ -544,7 +497,7 @@ def test_multirow_fixup_opt_args() -> None:
     r"""``\\multirow{2}{*}[2.5em]{text}``——签名 ``s m o m o m``：fixup
     可选参收、``{text}`` 可译留 surface（1608.02289/2009.11016/2104.00138
     ``[2.5em]``→``[2.5这是译文]`` 实证）。旧版 ``{n}[b]{w}{t}`` 序同盖。"""
-    tex = ART % (
+    res = _art_scan(
         "\\usepackage{multirow}\n",
         (
             "\\begin{tabular}{cc}\n"
@@ -554,8 +507,6 @@ def test_multirow_fixup_opt_args() -> None:
             "After words here to fill the paragraph out nicely and more.\n"
         ),
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     body = chunk_text(res)
     assert "2.5em" not in body
     assert "6]" not in body
@@ -565,7 +516,7 @@ def test_multirow_fixup_opt_args() -> None:
 def test_adjustwidth_env_dimen_args() -> None:
     r"""``\\begin{adjustwidth*}{1em}{0em}``——env argspec ``m m`` 收双
     dimen 参（1706.02447 ``{1这是译文}{0这是译文}`` 实证）；体是正文。"""
-    tex = ART % (
+    res = _art_scan(
         "\\usepackage{changepage}\n",
         (
             "\\begin{adjustwidth*}{1em}{0em}\n"
@@ -573,8 +524,6 @@ def test_adjustwidth_env_dimen_args() -> None:
             "\\end{adjustwidth*}\n"
         ),
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     body = chunk_text(res)
     assert "1em" not in body
     assert "0em" not in body
@@ -584,7 +533,7 @@ def test_adjustwidth_env_dimen_args() -> None:
 def test_hangparas_env_dimen_args() -> None:
     r"""``\\begin{hangparas}{.25in}{1}``——env argspec ``m m``
     （1803.00111 ``{.25这是译文}{1}``×36 实证）。"""
-    tex = ART % (
+    res = _art_scan(
         "\\usepackage{hanging}\n",
         (
             "\\begin{hangparas}{.25in}{1}\n"
@@ -592,8 +541,6 @@ def test_hangparas_env_dimen_args() -> None:
             "\\end{hangparas}\n"
         ),
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     body = chunk_text(res)
     assert ".25in" not in body
     assert "Reference text" in body
@@ -603,12 +550,10 @@ def test_genfrac_all_args_protected() -> None:
     r"""``\\genfrac{}{}{0pt}{}{a}{b}``——六参签名 + protect：math-literal 族
     空签名在散文漏 ``{0pt}``（2308.04175 ``\\be`` 未定义致数学区塌进
     散文的实证）。"""
-    tex = ART % (
+    res = _art_scan(
         "\\usepackage{amsmath}\n",
         "Text then \\genfrac{}{}{0pt}{}{a}{b} tail words fill the para.\n",
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     body = chunk_text(res)
     assert "0pt" not in body
     assert "genfrac" not in body
@@ -620,7 +565,7 @@ def test_percent_wall_tail_scan_no_redos() -> None:
     2^N 重分段回溯爆炸（0905.1090 等 6 格 parse 卡死）。原子组化 +
     ``_TAIL_CAP`` 窗帽后本用例即时间闸（旧码跑到套件超时被杀）。"""
     wall = "%" * 300 + "\n" + "%=" * 150 + "\n"
-    tex = ART % (
+    res = _art_scan(
         "",
         (
             "Head words \\vskip " + wall + "NOT_A_TAIL words fill the "
@@ -628,8 +573,6 @@ def test_percent_wall_tail_scan_no_redos() -> None:
             "Line one \\\\" + wall + "[text] tail words here fill up.\n"
         ),
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     body = chunk_text(res)
     assert "NOT_A_TAIL" in body
 
@@ -646,7 +589,7 @@ def test_percent_wall_tail_scan_no_redos() -> None:
 def test_varwidth_env_opt_dimen_args() -> None:
     r"""``\\begin{varwidth}[t]{2\linewidth}``——``o m``：opt + dimen 宽参
     全收（1706.00221 ``{2\linewidth}``/``{5cm}`` 实证）。"""
-    tex = ART % (
+    res = _art_scan(
         "\\usepackage{varwidth}\n",
         (
             "\\begin{varwidth}[t]{2\\linewidth}\n"
@@ -654,8 +597,6 @@ def test_varwidth_env_opt_dimen_args() -> None:
             "\\end{varwidth}\n"
         ),
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     body = chunk_text(res)
     assert "linewidth" not in body
     assert "Narrow text" in body
@@ -664,7 +605,7 @@ def test_varwidth_env_opt_dimen_args() -> None:
 def test_rotate_turn_env_angle_args() -> None:
     r"""``\\begin{rotate}{90}``/``\\begin{turn}{-90}``——rotating ``m``
     角度参（0905.0052/1907.00079 实证）。"""
-    tex = ART % (
+    res = _art_scan(
         "\\usepackage{rotating}\n",
         (
             "\\begin{rotate}{90}\nSideways words fill the paragraph.\n"
@@ -673,8 +614,6 @@ def test_rotate_turn_env_angle_args() -> None:
             "\\end{turn}\n"
         ),
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     body = chunk_text(res)
     assert "90" not in body
     assert "Sideways words" in body
@@ -683,7 +622,7 @@ def test_rotate_turn_env_angle_args() -> None:
 def test_numcases_env_label_arg() -> None:
     r"""``\\begin{numcases}{|x|=}``——cases ``m`` 标签参（2105.03733
     ``{}`` 空参实证；体按 text 走）。"""
-    tex = ART % (
+    res = _art_scan(
         "\\usepackage{cases}\n",
         (
             "\\begin{numcases}{|x|=}\n"
@@ -691,8 +630,6 @@ def test_numcases_env_label_arg() -> None:
             "\\end{numcases}\n"
         ),
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     body = chunk_text(res)
     assert "|x|=" not in body
 
@@ -700,7 +637,7 @@ def test_numcases_env_label_arg() -> None:
 def test_lrbox_env_cs_arg() -> None:
     r"""``\\begin{lrbox}{\\commentbox}``——latex2e ``m`` 存盒名参
     （1811.10096 实证；名参是 cs token，无签名即裸名落 surface）。"""
-    tex = ART % (
+    res = _art_scan(
         "",
         (
             "\\newsavebox{\\commentbox}\n"
@@ -709,8 +646,6 @@ def test_lrbox_env_cs_arg() -> None:
             "\\end{lrbox}\n"
         ),
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     body = chunk_text(res)
     assert "commentbox" not in body
     assert "Boxed words" in body
@@ -719,7 +654,7 @@ def test_lrbox_env_cs_arg() -> None:
 def test_boxedminipage_env_dimen_arg() -> None:
     r"""``\\begin{boxedminipage}{\\linewidth}``——boxedminipage ``m``
     宽参（1206.0136 ``{\\linewidth}``/``{13cm}`` 实证）。"""
-    tex = ART % (
+    res = _art_scan(
         "\\usepackage{boxedminipage}\n",
         (
             "\\begin{boxedminipage}{13cm}\n"
@@ -727,8 +662,6 @@ def test_boxedminipage_env_dimen_arg() -> None:
             "\\end{boxedminipage}\n"
         ),
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     body = chunk_text(res)
     assert "13cm" not in body
     assert "Framed words" in body
@@ -737,7 +670,7 @@ def test_boxedminipage_env_dimen_arg() -> None:
 def test_listing_env_verbatim_body() -> None:
     r"""``\\begin{listing}[1]{9}``——moreverb ``o m``（[start]{step} 行号
     参，cs--0111043 实证）+ verbatim 体整段保护。"""
-    tex = ART % (
+    res = _art_scan(
         "\\usepackage{moreverb}\n",
         (
             "\\begin{listing}[1]{9}\n"
@@ -746,8 +679,6 @@ def test_listing_env_verbatim_body() -> None:
             "\\end{listing}\n"
         ),
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     body = chunk_text(res)
     assert "render(line)" not in body
 
@@ -755,7 +686,7 @@ def test_listing_env_verbatim_body() -> None:
 def test_floatingfigure_env_opt_dimen_args() -> None:
     r"""``\\begin{floatingfigure}[r]{43mm}``——floatflt ``o m``
     （0707.3673 实证）。"""
-    tex = ART % (
+    res = _art_scan(
         "\\usepackage{floatflt}\n",
         (
             "\\begin{floatingfigure}[r]{43mm}\n"
@@ -763,8 +694,6 @@ def test_floatingfigure_env_opt_dimen_args() -> None:
             "\\end{floatingfigure}\n"
         ),
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     body = chunk_text(res)
     assert "43mm" not in body
     assert "Floated words" in body
@@ -774,7 +703,7 @@ def test_textblock_env_delimited_coord_arg() -> None:
     r"""``\\begin{textblock}{5cm}(130mm,-10mm)``——textpos ``m r()``：
     定界 ``(x,y)`` 坐标参随宽参同收（1404.0096 实证）；``r()`` 强制
     定界形免散文圆括号误吞。"""
-    tex = ART % (
+    res = _art_scan(
         "\\usepackage{textpos}\n",
         (
             "\\begin{textblock}{5cm}(130mm,-10mm)\n"
@@ -782,8 +711,6 @@ def test_textblock_env_delimited_coord_arg() -> None:
             "\\end{textblock}\n"
         ),
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     body = chunk_text(res)
     assert "5cm" not in body
     assert "130mm" not in body
@@ -793,7 +720,7 @@ def test_textblock_env_delimited_coord_arg() -> None:
 def test_changemargin_env_dimen_args() -> None:
     r"""``\\begin{changemargin}{.8cm}{.5cm}``——``m m`` 双 dimen
     （1206.5536 实证；chngpage/changepage cls-transitive → manual）。"""
-    tex = ART % (
+    res = _art_scan(
         "",
         (
             "\\begin{changemargin}{.8cm}{.5cm}\n"
@@ -801,8 +728,6 @@ def test_changemargin_env_dimen_args() -> None:
             "\\end{changemargin}\n"
         ),
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     body = chunk_text(res)
     assert ".8cm" not in body
     assert "Indented words" in body
@@ -812,7 +737,7 @@ def test_chapthebibliography_env_protect() -> None:
     r"""``\\begin{chapthebibliography}{9}``——manual ``m`` + protect：
     widest-label 参收、书目体整段保护（astro-ph/0408466 同
     thebibliography 形实证）。"""
-    tex = ART % (
+    res = _art_scan(
         "",
         (
             "\\begin{chapthebibliography}{9}\n"
@@ -820,8 +745,6 @@ def test_chapthebibliography_env_protect() -> None:
             "\\end{chapthebibliography}\n"
         ),
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     body = chunk_text(res)
     assert "Hidden entry" not in body
 
@@ -829,7 +752,7 @@ def test_chapthebibliography_env_protect() -> None:
 def test_dingautolist_env_symbol_arg() -> None:
     r"""``\\begin{dingautolist}{192}``——pifont ``m`` 符号编号参
     （nucl-ex/0111004 实证）。"""
-    tex = ART % (
+    res = _art_scan(
         "\\usepackage{pifont}\n",
         (
             "\\begin{dingautolist}{192}\n"
@@ -837,8 +760,6 @@ def test_dingautolist_env_symbol_arg() -> None:
             "\\end{dingautolist}\n"
         ),
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     body = chunk_text(res)
     assert "192" not in body
     assert "Listed words" in body
@@ -847,7 +768,7 @@ def test_dingautolist_env_symbol_arg() -> None:
 def test_lyxlist_env_label_arg() -> None:
     r"""``\\begin{lyxlist}{00.00.0000}``——LyX 纸面 ``\\newenvironment``
     稳定形（1003.5474 实证）→ manual ``m`` widest-label 参。"""
-    tex = ART % (
+    res = _art_scan(
         "",
         (
             "\\begin{lyxlist}{00.00.0000}\n"
@@ -855,8 +776,6 @@ def test_lyxlist_env_label_arg() -> None:
             "\\end{lyxlist}\n"
         ),
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     body = chunk_text(res)
     assert "00.00.0000" not in body
     assert "Dated words" in body
@@ -865,7 +784,7 @@ def test_lyxlist_env_label_arg() -> None:
 def test_addmargin_env_opt_dimen_args() -> None:
     r"""``\\begin{addmargin}[1em]{1.7em}``——KOMA scrextend ``o m``
     （1907.00141 实证；KOMA cls 传递加载无 \\usepackage → manual）。"""
-    tex = ART % (
+    res = _art_scan(
         "",
         (
             "\\begin{addmargin}[1em]{1.7em}\n"
@@ -873,8 +792,6 @@ def test_addmargin_env_opt_dimen_args() -> None:
             "\\end{addmargin}\n"
         ),
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     body = chunk_text(res)
     assert "1.7em" not in body
     assert "Shifted words" in body
@@ -883,7 +800,7 @@ def test_addmargin_env_opt_dimen_args() -> None:
 def test_chronology_env_multi_dimen_args() -> None:
     r"""``\\begin{chronology}[20]{1}{42}{3ex}{\\textwidth}``——``o m m m m``
     五参（1706.00177 实证）。"""
-    tex = ART % (
+    res = _art_scan(
         "\\usepackage{chronology}\n",
         (
             "\\begin{chronology}[20]{1}{42}{3ex}{\\textwidth}\n"
@@ -891,8 +808,6 @@ def test_chronology_env_multi_dimen_args() -> None:
             "\\end{chronology}\n"
         ),
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     body = chunk_text(res)
     assert "3ex" not in body
     assert "textwidth" not in body
@@ -915,7 +830,7 @@ def test_fontdimen_composite_operand() -> None:
     r"""``\\spaceskip=\\fontdimen2\\font plus 4\\fontdimen3\\font minus
     \\fontdimen4\\font\\relax``——fontdimen 复合 + 因子×基操作数
     （0806.2890/1404.5889/1706.02769 同机制实证）。"""
-    tex = ART % (
+    res = _art_scan(
         "",
         (
             "\\spaceskip=\\fontdimen2\\font plus 4\\fontdimen3\\font minus\n"
@@ -923,8 +838,6 @@ def test_fontdimen_composite_operand() -> None:
             "Entry text words here fill the paragraph out.\n"
         ),
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     body = chunk_text(res)
     assert "fontdimen" not in body
     assert "spaceskip" not in body
@@ -935,7 +848,7 @@ def test_macro_factor_operand() -> None:
     r"""``\\spaceskip=\\fontdimen2\\font plus \\stretch\\fontdimen3\\font``——
     宏因子×fontdimen（``\\BIBentryALTinterwordstretchfactor``→``4``
     展开形实证）。"""
-    tex = ART % (
+    res = _art_scan(
         "",
         (
             "\\def\\stretch{4}\n"
@@ -944,8 +857,6 @@ def test_macro_factor_operand() -> None:
             "Bib text words here fill the paragraph out.\n"
         ),
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     body = chunk_text(res)
     assert "fontdimen" not in body
     assert "Bib text" in body
@@ -954,15 +865,13 @@ def test_macro_factor_operand() -> None:
 def test_multiply_advance_by_keyword() -> None:
     r"""``\\multiply\\ione by 10``/``\\advance\\tione by \\ione``——arith
     种 ``by`` 间隔关键字（math/9901091 ``by`` 被译 5843 errs 实证）。"""
-    tex = ART % (
+    res = _art_scan(
         "",
         (
             "\\ione=5 \\multiply\\ione by 10 \\tione=0 \\advance\\tione by \\ione\n"
             "Figure text words here fill the paragraph out.\n"
         ),
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     body = chunk_text(res)
     assert "by" not in body
     assert "multiply" not in body
@@ -972,15 +881,13 @@ def test_multiply_advance_by_keyword() -> None:
 def test_skewchar_octal_assign() -> None:
     r"""``\\skewchar\\fivmi='177``——arith 种 cs 左值 + ``=`` + 八进制数
     （hep-th/9703214:201 形实证）。"""
-    tex = ART % (
+    res = _art_scan(
         "",
         (
             "\\skewchar\\fivmi='177 \\hyphenchar\\fivmi=45\n"
             "Font text words here fill the paragraph out.\n"
         ),
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     body = chunk_text(res)
     assert "177" not in body
     assert "Font text" in body
@@ -989,12 +896,10 @@ def test_skewchar_octal_assign() -> None:
 def test_setbox_hbox_to_tail() -> None:
     r"""``\\setbox0=\\hbox to3cm{x}``——arith rvalue 盒原语再叠
     ``to <dim>`` 规格尾（hep-th/9703214 ``to`` 被译实证）。"""
-    tex = ART % (
+    res = _art_scan(
         "",
         ("\\setbox0=\\hbox to3cm{Boxed inner words} tail text fills here.\n"),
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     body = chunk_text(res)
     assert "to3cm" not in body
     assert "to" not in body.split("Boxed")[0]
@@ -1005,15 +910,13 @@ def test_newskip_declares_cs_arg() -> None:
     r"""``\\newskip\\footskip\\footskip14pt plus 1pt minus 1pt``——声明
     名走 ``n`` 参收，次枚 ``\\footskip`` 正常 dimen 尾扫
     （hep-th/9703214:768 ``pt`` 被译实证）。"""
-    tex = ART % (
+    res = _art_scan(
         "",
         (
             "\\newskip\\footskip\\footskip14pt plus 1pt minus 1pt\n"
             "Body text words here fill the paragraph out.\n"
         ),
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     body = chunk_text(res)
     assert "footskip" not in body
     assert "14pt" not in body
@@ -1023,12 +926,10 @@ def test_newskip_declares_cs_arg() -> None:
 def test_hbox_to_spec_tail() -> None:
     r"""``\\hbox to\\hsize{..}``——boxspec 收 ``to``+dimen，体文续扫
     （hep-th/9703214:933 实证；``\\hbox`` 透明体语义不变）。"""
-    tex = ART % (
+    res = _art_scan(
         "",
         "\\hbox to\\hsize{Boxed words here fill the line} tail text.\n",
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     body = chunk_text(res)
     assert "hsize" not in body
     assert "Boxed words" in body
@@ -1036,12 +937,10 @@ def test_hbox_to_spec_tail() -> None:
 
 def test_hbox_plain_still_transparent() -> None:
     r"""``\\hbox{..}`` 无 to/spread 时维持透明（体文照常进 chunk）。"""
-    tex = ART % (
+    res = _art_scan(
         "",
         "\\hbox{Plain boxed words fill the line} tail text here.\n",
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     body = chunk_text(res)
     assert "Plain boxed words" in body
 
@@ -1050,7 +949,7 @@ def test_pictex_math_body_tolerates_blank_line() -> None:
     r"""``${\\beginpicture ..\\n\\n.. \\endpicture}$``——pictex 区内
     eol_par 不断段（1404.0443 ``at``/``from``/``units`` 关键字被译
     实证）；闭区外 ``$`` 配对照旧。"""
-    tex = ART % (
+    res = _art_scan(
         "",
         (
             "Lead text words here fill the paragraph out nicely.\n\n"
@@ -1062,8 +961,6 @@ def test_pictex_math_body_tolerates_blank_line() -> None:
             "Trail text words here fill the paragraph out too.\n"
         ),
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     body = chunk_text(res)
     assert "units" not in body
     assert "setplotarea" not in body

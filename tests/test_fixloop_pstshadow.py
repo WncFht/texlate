@@ -16,6 +16,8 @@ r"""pstlane (2026-09-19): pstricks 族两缺陷——wrapper+core 一体件与 p
 
 from pathlib import Path
 
+from _fixloopkit import ShadowEng, proj_texmf
+
 from texlate.compile.fixloop import actions, load_ruleset
 from texlate.compile.fixloop.builtins import (
     _provides_date,
@@ -23,27 +25,6 @@ from texlate.compile.fixloop.builtins import (
 )
 from texlate.compile.fixloop.engine import LoopCtx, Rule
 from texlate.compile.logparse import ErrReport
-
-
-class _ShadowEng:
-    """probe_file → ``texmf`` 目录直查 (模拟系统副本在场); extra 定点覆盖。"""
-
-    name = "xelatex"
-
-    def __init__(self, texmf: Path, extra: dict[str, Path] | None = None) -> None:
-        self.texmf = texmf
-        self.extra = extra or {}
-
-    def probe_file(self, fname: str, cwd: Path | None = None) -> str | None:
-        del cwd
-        if fname in self.extra:
-            return str(self.extra[fname])
-        p = self.texmf / fname
-        return str(p) if p.is_file() else None
-
-    def filemap(self, fname: str) -> list[str]:
-        del fname
-        return []
 
 
 def _ctx(tmp_path: Path) -> LoopCtx:
@@ -84,16 +65,13 @@ def test_provides_date_no_face_still_none() -> None:
 
 def test_paired_tex_core_retired_with_wrapper(tmp_path: Path) -> None:
     """0707.4206 形: 旧 sty+旧 tex 同退役 —— wrapper/core 一体不混栈。"""
-    wdir = tmp_path / "proj"
-    wdir.mkdir()
-    texmf = tmp_path / "texmf"
-    texmf.mkdir()
+    wdir, texmf = proj_texmf(tmp_path)
     (texmf / "pstricks.sty").write_text(_NEW_STY, encoding="utf-8")
     (texmf / "pstricks.tex").write_text(_NEW_CORE, encoding="utf-8")
     (wdir / "pstricks.sty").write_text(_OLD_STY, encoding="utf-8")
     (wdir / "pstricks.tex").write_text(_OLD_CORE, encoding="utf-8")
     ok, note = vendored_shadow_isolate(
-        _ctx(wdir), _ShadowEng(texmf), None, _isolate_params()
+        _ctx(wdir), ShadowEng(texmf), None, _isolate_params()
     )
     assert ok, note
     assert (wdir / "pstricks.sty.fixloop-iso").is_file()
@@ -103,15 +81,12 @@ def test_paired_tex_core_retired_with_wrapper(tmp_path: Path) -> None:
 
 def test_paired_core_no_system_replacement_stays(tmp_path: Path) -> None:
     """系统无 .tex 核可递补 → rename 即造 missing_file, 保守保留。"""
-    wdir = tmp_path / "proj"
-    wdir.mkdir()
-    texmf = tmp_path / "texmf"
-    texmf.mkdir()
+    wdir, texmf = proj_texmf(tmp_path)
     (texmf / "pstricks.sty").write_text(_NEW_STY, encoding="utf-8")
     (wdir / "pstricks.sty").write_text(_OLD_STY, encoding="utf-8")
     (wdir / "pstricks.tex").write_text(_OLD_CORE, encoding="utf-8")
     ok, note = vendored_shadow_isolate(
-        _ctx(wdir), _ShadowEng(texmf), None, _isolate_params()
+        _ctx(wdir), ShadowEng(texmf), None, _isolate_params()
     )
     assert ok, note
     assert (wdir / "pstricks.sty.fixloop-iso").is_file()
@@ -121,14 +96,11 @@ def test_paired_core_no_system_replacement_stays(tmp_path: Path) -> None:
 
 def test_paired_core_probe_inside_wdir_not_shadow(tmp_path: Path) -> None:
     """probe 命中 wdir 内副本 (kpsewhich cwd 毒化) → 非遮蔽证据, 保留。"""
-    wdir = tmp_path / "proj"
-    wdir.mkdir()
-    texmf = tmp_path / "texmf"
-    texmf.mkdir()
+    wdir, texmf = proj_texmf(tmp_path)
     (texmf / "pstricks.sty").write_text(_NEW_STY, encoding="utf-8")
     (wdir / "pstricks.sty").write_text(_OLD_STY, encoding="utf-8")
     (wdir / "pstricks.tex").write_text(_OLD_CORE, encoding="utf-8")
-    eng = _ShadowEng(texmf, extra={"pstricks.tex": wdir / "pstricks.tex"})
+    eng = ShadowEng(texmf, extra={"pstricks.tex": wdir / "pstricks.tex"})
     ok, note = vendored_shadow_isolate(_ctx(wdir), eng, None, _isolate_params())
     assert ok, note
     assert (wdir / "pstricks.tex").is_file()
@@ -136,10 +108,7 @@ def test_paired_core_probe_inside_wdir_not_shadow(tmp_path: Path) -> None:
 
 def test_paired_core_no_date_face_stays(tmp_path: Path) -> None:
     """vendored 核无日期面 → 新旧无证, 盲删必死, 保留。"""
-    wdir = tmp_path / "proj"
-    wdir.mkdir()
-    texmf = tmp_path / "texmf"
-    texmf.mkdir()
+    wdir, texmf = proj_texmf(tmp_path)
     (texmf / "pstricks.sty").write_text(_NEW_STY, encoding="utf-8")
     (texmf / "pstricks.tex").write_text(_NEW_CORE, encoding="utf-8")
     (wdir / "pstricks.sty").write_text(_OLD_STY, encoding="utf-8")
@@ -147,7 +116,7 @@ def test_paired_core_no_date_face_stays(tmp_path: Path) -> None:
         "% hand-rolled core, no date\n", encoding="utf-8"
     )
     ok, note = vendored_shadow_isolate(
-        _ctx(wdir), _ShadowEng(texmf), None, _isolate_params()
+        _ctx(wdir), ShadowEng(texmf), None, _isolate_params()
     )
     assert ok, note
     assert (wdir / "pstricks.tex").is_file()
@@ -156,16 +125,13 @@ def test_paired_core_no_date_face_stays(tmp_path: Path) -> None:
 
 def test_paired_core_vendored_newer_stays(tmp_path: Path) -> None:
     """vendored 核比系统新 (奇异混栈) → 不降级, 保留。"""
-    wdir = tmp_path / "proj"
-    wdir.mkdir()
-    texmf = tmp_path / "texmf"
-    texmf.mkdir()
+    wdir, texmf = proj_texmf(tmp_path)
     (texmf / "pstricks.sty").write_text(_NEW_STY, encoding="utf-8")
     (texmf / "pstricks.tex").write_text(_OLD_CORE, encoding="utf-8")
     (wdir / "pstricks.sty").write_text(_OLD_STY, encoding="utf-8")
     (wdir / "pstricks.tex").write_text(_NEW_CORE, encoding="utf-8")
     ok, note = vendored_shadow_isolate(
-        _ctx(wdir), _ShadowEng(texmf), None, _isolate_params()
+        _ctx(wdir), ShadowEng(texmf), None, _isolate_params()
     )
     assert ok, note
     assert (wdir / "pstricks.tex").is_file()
@@ -174,10 +140,7 @@ def test_paired_core_vendored_newer_stays(tmp_path: Path) -> None:
 
 def test_paired_core_injected_file_stays(tmp_path: Path) -> None:
     """同名核是本引擎注入件 (指纹认亲) → 退役即自拆台, 保留。"""
-    wdir = tmp_path / "proj"
-    wdir.mkdir()
-    texmf = tmp_path / "texmf"
-    texmf.mkdir()
+    wdir, texmf = proj_texmf(tmp_path)
     (texmf / "pstricks.sty").write_text(_NEW_STY, encoding="utf-8")
     (texmf / "pstricks.tex").write_text(_NEW_CORE, encoding="utf-8")
     (wdir / "pstricks.sty").write_text(_OLD_STY, encoding="utf-8")
@@ -185,7 +148,7 @@ def test_paired_core_injected_file_stays(tmp_path: Path) -> None:
         "% texlate-fixloop-injected: 0123abcdef45\n" + _OLD_CORE, encoding="utf-8"
     )
     ok, note = vendored_shadow_isolate(
-        _ctx(wdir), _ShadowEng(texmf), None, _isolate_params()
+        _ctx(wdir), ShadowEng(texmf), None, _isolate_params()
     )
     assert ok, note
     assert (wdir / "pstricks.tex").is_file()
@@ -194,14 +157,11 @@ def test_paired_core_injected_file_stays(tmp_path: Path) -> None:
 
 def test_paired_core_absent_clean(tmp_path: Path) -> None:
     """无同名核 → 正常退役 wrapper, note 无 paired 段。"""
-    wdir = tmp_path / "proj"
-    wdir.mkdir()
-    texmf = tmp_path / "texmf"
-    texmf.mkdir()
+    wdir, texmf = proj_texmf(tmp_path)
     (texmf / "pstricks.sty").write_text(_NEW_STY, encoding="utf-8")
     (wdir / "pstricks.sty").write_text(_OLD_STY, encoding="utf-8")
     ok, note = vendored_shadow_isolate(
-        _ctx(wdir), _ShadowEng(texmf), None, _isolate_params()
+        _ctx(wdir), ShadowEng(texmf), None, _isolate_params()
     )
     assert ok, note
     assert "paired core" not in note
@@ -225,7 +185,7 @@ def _apply_pstcol(tmp_path: Path) -> tuple[bool, str]:
     return actions._apply(  # noqa: SLF001 - 钉规则动作直驱
         _pstcol_rule(),
         LoopCtx(wdir=tmp_path, engine_name="xelatex"),
-        _ShadowEng(tmp_path / "texmf"),
+        ShadowEng(tmp_path / "texmf"),
         None,
         ErrReport(),
     )

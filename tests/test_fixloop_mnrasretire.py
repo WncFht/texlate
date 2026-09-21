@@ -1,4 +1,4 @@
-"""mnras texmf 遮蔽 stateless-drop 修复链单测 (可达病件指纹确证 → vendor 补丁件平铺 ./mnras.cls)。
+"""mnras texmf 遮蔽 stateless-drop 修复链单测 (可达病件指纹确证 → vendor 补丁件平铺 ``{main_dir}/mnras.cls``)。
 
 实证背景 (corpus 1206.0291, geomreverify #57 stagerun 残格):
 mn2e stub ``needs:["mnras.cls"]`` → ``eng.install_file`` → ``tlmgr
@@ -11,17 +11,27 @@ mn2e stub ``needs:["mnras.cls"]`` → ``eng.install_file`` → ``tlmgr
 设计: stateless DROP —— 退役→missing→vendored_fetch(11.5) 名义链不可达
 (``install_file``(10) 先截 missing_file: 宿主探得 already-present / tlmgr
 重装同病上游件 → 复毒死环), 且 mv usertree/宿主件是树外突变 —— 故指纹
-确证任一可达病形件 (wdir 根 / ``find . ../_texmf/home`` 双式 usertree /
-kpsewhich 宿主面) → vendor 补丁件平铺 wdir 根, kpathsea cwd 序压过一切
-texmf 树件; ``texlate patch`` / ``texlate-fixloop-injected`` 双标跳过防
-自拆; wdir 根稿自带病件先 mv ``.fixloop-iso`` 让位 (wdir 内退役, pstadd
-同型先例)。
+确证任一可达病形件 (``{main_dir}`` 解析位 / ``find . ../_texmf/home`` 双式
+usertree / kpsewhich 宿主面) → vendor 补丁件平铺 ``{main_dir}`` 解析位
+(平铺稿 = wdir 根, 嵌套 main 落 main.tex 所在目录 —— 嵌套臂钉见
+test_fixloop_sitehoist.py), kpathsea 编译 cwd 序压过一切 texmf 树件;
+``texlate patch`` / ``texlate-fixloop-injected`` 双标跳过防自拆; 解析位
+稿自带病件先 mv ``.fixloop-iso`` 让位 (wdir 内退役, pstadd 同型先例)。
 """
 
+import os
 import shutil
+import sys
+from functools import lru_cache
 from pathlib import Path
 
 import pytest
+from _fixloopkit import (
+    MNRAS_BUGGY_CLS,
+    XETEX_CLEAN_LOG,
+    ScriptEng,
+    sh_runner,
+)
 
 from texlate.compile.fixloop import Ruleset, actions, fixloop, load_ruleset
 from texlate.compile.fixloop.engine import LoopCtx, Rule
@@ -30,7 +40,14 @@ from texlate.compile.logparse import ErrReport, parse_text
 _VENDOR_DIR = (
     Path(__file__).resolve().parent.parent / "src/texlate/compile/fixloop/vendor/files"
 )
-_VENDOR_BYTES = (_VENDOR_DIR / "mnras.cls").read_text(encoding="utf-8")
+
+
+@lru_cache(maxsize=1)
+def _vendor_bytes() -> str:
+    """vendor 钉版件首用时读盘——收集期零 IO (缺件/坏件报 test fail 而非 collection error, nataux ``_rs`` 同约)。"""
+    return (_VENDOR_DIR / "mnras.cls").read_text(encoding="utf-8")
+
+
 _RULE_ID = "mnras_texmf_shadow_drop"
 #: mn2e_usegraphicx_defer (order 11.905) 指纹同签且文件盲 —— wdir 内病件
 #: (含 _texmf/host-texmf 子树) 被它先原位补丁, 本规则只盖 wdir 外病件。
@@ -59,15 +76,6 @@ _ERR_UNDEF = (
     "Undefined control sequence.\nl.200 \\mn@foo"
 )
 
-CLEAN_LOG = "This is XeTeX\nOutput written on main.pdf (1 page).\n"
-
-# 上游 v3.2 病件指纹形: \ds@usegraphicx 行内联 \usepackage
-_BUGGY_CLS = (
-    "% mnras.cls v3.2 (upstream)\n"
-    "\\newif\\if@usegraphicx\n"
-    "\\def\\ds@usegraphicx{\\@usegraphicxtrue\\usepackage{graphicx}}\n"
-    "\\ProcessOptions\\relax\n"
-)
 # vendor 补丁形 (无标外来件): ds@usegraphicx 行净 + usepackage 推迟到他行 → 指纹阴性
 _SAFE_CLS = (
     "% foreign safe copy\n"
@@ -104,7 +112,19 @@ def _classify(head_text: str) -> tuple[str | None, str | None]:
     return _rs().taxonomy.classify(rep)
 
 
-def _plant_cls(wdir: Path, body: str = _BUGGY_CLS) -> Path:
+@pytest.fixture(autouse=True)
+def _path_python_carries_texlate(monkeypatch: pytest.MonkeyPatch) -> None:
+    """run_tool 脚本 ``python -c 'import texlate…'`` vendor 平铺桥走 PATH——
+    pytest 解释器 bin 目录前置, 子进程 ``python``/``python3`` 落同 env 才能
+    import texlate; 否则桥尾 ``|| true`` 静默不投件, 平铺断言报
+    FileNotFoundError 而非桥因 (test_fixloop_sitehoist mnras 臂同暴露未钉)。"""
+    monkeypatch.setenv(
+        "PATH",
+        str(Path(sys.executable).parent) + os.pathsep + os.environ.get("PATH", ""),
+    )
+
+
+def _plant_cls(wdir: Path, body: str = MNRAS_BUGGY_CLS) -> Path:
     """usertree 生产内嵌布局落件: ``wdir/_texmf/home/tex/latex/mnras/mnras.cls``。"""
     f = wdir / "_texmf/home/tex/latex/mnras/mnras.cls"
     f.parent.mkdir(parents=True, exist_ok=True)
@@ -148,7 +168,7 @@ def test_taxonomy_undef_is_undefined_cs() -> None:
 # ---------------------------------------------------------------- 钉版面
 def test_vendored_mnras_pinned_patch() -> None:
     """vendor/files/mnras.cls 钉版: 补丁标 + ds@usegraphicx 行净 + 推迟载入块。"""
-    text = _VENDOR_BYTES
+    text = _vendor_bytes()
     assert "% texlate patch" in text
     assert "\\def\\ds@usegraphicx{\\@usegraphicxtrue}" in text
     assert "\\if@usegraphicx" in text
@@ -219,7 +239,7 @@ def test_cond_pass_sibling_usertree(tmp_path: Path) -> None:
     splice.mkdir()
     cls = tmp_path / "_texmf/home/tex/latex/mnras/mnras.cls"
     cls.parent.mkdir(parents=True)
-    cls.write_text(_BUGGY_CLS, encoding="utf-8")
+    cls.write_text(MNRAS_BUGGY_CLS, encoding="utf-8")
     ctx = LoopCtx(wdir=splice, engine_name="xelatex")
     ctx.err_head = _ERR_OPTIONS + "\n" + _ERR_OPTIONS_CTX
     ok, why = actions._cond_ok(_rule().condition, _rule(), ctx, None, None)  # noqa: SLF001
@@ -263,9 +283,9 @@ def test_apply_drops_when_usertree_buggy(tmp_path: Path) -> None:
     ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
     ok, note = actions._apply(_rule(), ctx, None, None, ErrReport())  # noqa: SLF001
     assert ok, note
-    assert cls.read_text(encoding="utf-8") == _BUGGY_CLS  # 病件不动
+    assert cls.read_text(encoding="utf-8") == MNRAS_BUGGY_CLS  # 病件不动
     assert not (cls.parent / "mnras.cls.fixloop-iso").exists()
-    assert (tmp_path / "mnras.cls").read_text(encoding="utf-8") == _VENDOR_BYTES
+    assert (tmp_path / "mnras.cls").read_text(encoding="utf-8") == _vendor_bytes()
 
 
 def test_apply_drops_sibling_usertree(tmp_path: Path) -> None:
@@ -274,22 +294,22 @@ def test_apply_drops_sibling_usertree(tmp_path: Path) -> None:
     splice.mkdir()
     cls = tmp_path / "_texmf/home/tex/latex/mnras/mnras.cls"
     cls.parent.mkdir(parents=True)
-    cls.write_text(_BUGGY_CLS, encoding="utf-8")
+    cls.write_text(MNRAS_BUGGY_CLS, encoding="utf-8")
     ctx = LoopCtx(wdir=splice, engine_name="xelatex")
     ok, note = actions._apply(_rule(), ctx, None, None, ErrReport())  # noqa: SLF001
     assert ok, note
-    assert cls.read_text(encoding="utf-8") == _BUGGY_CLS
-    assert (splice / "mnras.cls").read_text(encoding="utf-8") == _VENDOR_BYTES
+    assert cls.read_text(encoding="utf-8") == MNRAS_BUGGY_CLS
+    assert (splice / "mnras.cls").read_text(encoding="utf-8") == _vendor_bytes()
 
 
 def test_apply_root_buggy_retired_then_dropped(tmp_path: Path) -> None:
     """稿自带 ./mnras.cls 病件 (cwd 现胜者) → mv .fixloop-iso 让位 + vendor 递补。"""
-    (tmp_path / "mnras.cls").write_text(_BUGGY_CLS, encoding="utf-8")
+    (tmp_path / "mnras.cls").write_text(MNRAS_BUGGY_CLS, encoding="utf-8")
     ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
     ok, note = actions._apply(_rule(), ctx, None, None, ErrReport())  # noqa: SLF001
     assert ok, note
-    assert (tmp_path / "mnras.cls.fixloop-iso").read_text() == _BUGGY_CLS
-    assert (tmp_path / "mnras.cls").read_text(encoding="utf-8") == _VENDOR_BYTES
+    assert (tmp_path / "mnras.cls.fixloop-iso").read_text() == MNRAS_BUGGY_CLS
+    assert (tmp_path / "mnras.cls").read_text(encoding="utf-8") == _vendor_bytes()
 
 
 def test_apply_no_drop_when_patched_only(
@@ -354,7 +374,7 @@ def test_apply_no_clobber_safe_root(tmp_path: Path) -> None:
     assert ok, note
     assert (tmp_path / "mnras.cls").read_text(encoding="utf-8") == _SAFE_CLS
     assert not (tmp_path / "mnras.cls.fixloop-iso").exists()
-    assert cls.read_text(encoding="utf-8") == _BUGGY_CLS
+    assert cls.read_text(encoding="utf-8") == MNRAS_BUGGY_CLS
 
 
 @pytest.mark.integration
@@ -363,12 +383,12 @@ def test_apply_drops_when_only_host_buggy(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """病件只在宿主 TEXMFHOME (wdir/兄弟面零件) → kpsewhich 证病 → 平铺, 宿主件不动。"""
-    host = _fake_host(tmp_path, _BUGGY_CLS, monkeypatch)
+    host = _fake_host(tmp_path, MNRAS_BUGGY_CLS, monkeypatch)
     ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
     ok, note = actions._apply(_rule(), ctx, None, None, ErrReport())  # noqa: SLF001
     assert ok, note
-    assert (tmp_path / "mnras.cls").read_text(encoding="utf-8") == _VENDOR_BYTES
-    assert host.read_text(encoding="utf-8") == _BUGGY_CLS  # 零树外突变
+    assert (tmp_path / "mnras.cls").read_text(encoding="utf-8") == _vendor_bytes()
+    assert host.read_text(encoding="utf-8") == MNRAS_BUGGY_CLS  # 零树外突变
     assert not (tmp_path / "mnras.cls.fixloop-iso").exists()
 
 
@@ -380,66 +400,11 @@ def test_apply_idempotent_second_run(tmp_path: Path) -> None:
     ok2, _ = actions._apply(_rule(), ctx, None, None, ErrReport())  # noqa: SLF001
     assert ok1
     assert ok2
-    assert (tmp_path / "mnras.cls").read_text(encoding="utf-8") == _VENDOR_BYTES
+    assert (tmp_path / "mnras.cls").read_text(encoding="utf-8") == _vendor_bytes()
     assert not (tmp_path / "mnras.cls.fixloop-iso").exists()  # vendor 件不被退役
 
 
 # ---------------------------------------------------------------- e2e
-class _MockRes:
-    """impl CompRes duck-type 替身 (test_fixloop_pstadd 同款微缩)。"""
-
-    def __init__(self, wdir: Path, spec: dict) -> None:
-        self.log_path = wdir / "main.log"
-        self.log_path.write_text(spec.get("log", ""), encoding="utf-8")
-        self.pdf = wdir / "main.pdf" if spec.get("pdf") else None
-        if self.pdf is not None:
-            self.pdf.write_bytes(b"%PDF-1.4 fake")
-        self.pdf_bytes = self.pdf.stat().st_size if self.pdf else 0
-        self.timed_out = False
-        self.killed_signal = None
-        self.seconds = 0.05
-        self.stdout_tail = ""
-        self.log_text = ""
-
-    @property
-    def has_pdf(self) -> bool:
-        return self.pdf is not None and self.pdf_bytes > 0
-
-
-class _MockEngine:
-    """逐轮吐 spec; probe_file 只认 available 集 (模拟系统 texmf)。"""
-
-    name = "xelatex"
-    caps = frozenset({"kpsewhich", "tlmgr", "updmap"})
-
-    def __init__(self, script: list, *, available: set[str] | None = None) -> None:
-        self.script = list(script)
-        self.available = available or set()
-        self.rounds = 0
-
-    def compile(self, wdir: Path, main: str, **_kw: object) -> _MockRes:
-        del main  # mock 按轮吐 spec, 不编译真文件
-        i = min(self.rounds, len(self.script) - 1)
-        self.rounds += 1
-        return _MockRes(Path(wdir), self.script[i])
-
-    def probe_file(self, fname: str, cwd: Path | None = None) -> str | None:
-        if cwd is not None and (Path(cwd) / fname).is_file():
-            return str(Path(cwd) / fname)
-        return f"/texmf/{fname}" if fname in self.available else None
-
-    def install_file(self, fname: str, *, font_related: bool = False) -> bool:
-        del fname, font_related
-        return False  # 装不上 → 反证平铺臂独立收敛 (不靠 install_file 链)
-
-    def rebuild_fontmaps(self) -> bool:
-        return True
-
-    def filemap(self, fname: str) -> list[str]:
-        del fname
-        return []
-
-
 def _proj(tmp_path: Path) -> Path:
     """生产内嵌布局: wdir 根 + wdir/_texmf/home usertree 病件。"""
     (tmp_path / "main.tex").write_text(
@@ -460,40 +425,19 @@ def _proj_sibling(tmp_path: Path) -> Path:
     )
     cls = tmp_path / "_texmf/home/tex/latex/mnras/mnras.cls"
     cls.parent.mkdir(parents=True)
-    cls.write_text(_BUGGY_CLS, encoding="utf-8")
+    cls.write_text(MNRAS_BUGGY_CLS, encoding="utf-8")
     return splice
-
-
-def _sh_runner(
-    argv: list[str], timeout: int, wdir: Path
-) -> tuple[int, str, float, bool]:
-    """真跑 sh -c 的 runner (argv, timeout, wdir → rc,out,sec,to)。
-
-    不仿真脚本语义 —— subprocess 原样执行 (env 继承 → monkeypatch TEXMFHOME
-    可注宿主树), find/指纹闸/kpsewhich/平铺臂都走真件。
-    """
-    import subprocess  # noqa: PLC0415 - 测试替身局部用
-
-    p = subprocess.run(  # noqa: S603 - argv 列表无 shell 拼接; sh -c 是规则自身的原语
-        argv,
-        cwd=wdir,
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-        check=False,
-    )
-    return p.returncode, (p.stdout or "") + (p.stderr or ""), 0.0, False
 
 
 def test_e2e_mn2e_superset_patches_usertree_buggy(tmp_path: Path) -> None:
     """整链 (内嵌布局): mn2e 同病超集 —— wdir 内病件原位补丁 → clean; shadow 臂不发。"""
-    eng = _MockEngine(
+    eng = ScriptEng(
         [
             {"log": _ERR_OPTIONS + "\n" + _ERR_OPTIONS_CTX + "\n"},
-            {"log": CLEAN_LOG, "pdf": True},
+            {"log": XETEX_CLEAN_LOG, "pdf": True},
         ]
     )
-    cell = fixloop(_proj(tmp_path), eng, runner=_sh_runner)
+    cell = fixloop(_proj(tmp_path), eng, runner=sh_runner)
     assert cell["verdict"] == "clean"
     assert any(a["rule"] == _MN2E_RULE for a in cell["actions"])
     assert not any(a["rule"] == _RULE_ID for a in cell["actions"])
@@ -506,19 +450,19 @@ def test_e2e_mn2e_superset_patches_usertree_buggy(tmp_path: Path) -> None:
 
 def test_e2e_drop_sibling_layout(tmp_path: Path) -> None:
     """整链 (stagerun 兄弟式): ../_texmf/home 病件出 wdir → mn2e rglob 不达 → 本臂平铺。"""
-    eng = _MockEngine(
+    eng = ScriptEng(
         [
             {"log": _ERR_OPTIONS + "\n" + _ERR_OPTIONS_CTX + "\n"},
-            {"log": CLEAN_LOG, "pdf": True},
+            {"log": XETEX_CLEAN_LOG, "pdf": True},
         ]
     )
     splice = _proj_sibling(tmp_path)
-    cell = fixloop(splice, eng, runner=_sh_runner)
+    cell = fixloop(splice, eng, runner=sh_runner)
     assert cell["verdict"] == "clean"
     assert any(a["rule"] == _RULE_ID for a in cell["actions"])
     cls = tmp_path / "_texmf/home/tex/latex/mnras/mnras.cls"
-    assert cls.read_text(encoding="utf-8") == _BUGGY_CLS
-    assert (splice / "mnras.cls").read_text(encoding="utf-8") == _VENDOR_BYTES
+    assert cls.read_text(encoding="utf-8") == MNRAS_BUGGY_CLS
+    assert (splice / "mnras.cls").read_text(encoding="utf-8") == _vendor_bytes()
 
 
 @pytest.mark.integration
@@ -527,18 +471,18 @@ def test_e2e_mn2e_superset_patches_host_tree_buggy(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """整链 (假宿主树在 wdir 内): host-texmf 病件同被 mn2e rglob 原位补丁; 真宿主出 wdir 归 sibling 臂。"""
-    host = _fake_host(tmp_path, _BUGGY_CLS, monkeypatch)
+    host = _fake_host(tmp_path, MNRAS_BUGGY_CLS, monkeypatch)
     (tmp_path / "main.tex").write_text(
         "\\documentclass{mn2e}\n\\begin{document}\nx\n\\end{document}\n",
         encoding="utf-8",
     )
-    eng = _MockEngine(
+    eng = ScriptEng(
         [
             {"log": _ERR_OPTIONS + "\n" + _ERR_OPTIONS_CTX + "\n"},
-            {"log": CLEAN_LOG, "pdf": True},
+            {"log": XETEX_CLEAN_LOG, "pdf": True},
         ]
     )
-    cell = fixloop(tmp_path, eng, runner=_sh_runner)
+    cell = fixloop(tmp_path, eng, runner=sh_runner)
     assert cell["verdict"] == "clean"
     assert any(a["rule"] == _MN2E_RULE for a in cell["actions"])
     assert not any(a["rule"] == _RULE_ID for a in cell["actions"])
@@ -554,21 +498,21 @@ def test_e2e_no_fire_on_other_error(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     cls = _plant_cls(tmp_path)
-    eng = _MockEngine(
+    eng = ScriptEng(
         [
             {"log": "./main.tex:3: Undefined control sequence.\nl.3 \\foo\n"},
-            {"log": CLEAN_LOG, "pdf": True},
+            {"log": XETEX_CLEAN_LOG, "pdf": True},
         ]
     )
-    cell = fixloop(tmp_path, eng, runner=_sh_runner)
+    cell = fixloop(tmp_path, eng, runner=sh_runner)
     assert not any(a["rule"] == _RULE_ID for a in cell["actions"])
-    assert cls.read_text(encoding="utf-8") == _BUGGY_CLS
+    assert cls.read_text(encoding="utf-8") == MNRAS_BUGGY_CLS
     assert not (tmp_path / "mnras.cls").exists()
 
 
 def test_e2e_patched_then_shadow_converges_clean(tmp_path: Path) -> None:
     """mn2e 原位补丁后同签名错再报 → shadow 臂补投 vendor 件收敛 clean。"""
-    eng = _MockEngine(
+    eng = ScriptEng(
         [
             {"log": _ERR_OPTIONS + "\n" + _ERR_OPTIONS_CTX + "\n"},
             # r2 同签名错 (mn2e 补丁后指纹已灭 → mn2e decline; shadow 臂首投)
@@ -576,13 +520,13 @@ def test_e2e_patched_then_shadow_converges_clean(tmp_path: Path) -> None:
                 "log": "./mnras.cls:120: LaTeX Error: \\RequirePackage or "
                 "\\LoadClass in Options Section.\nl.120 \\fi\n"
             },
-            {"log": CLEAN_LOG, "pdf": True},
+            {"log": XETEX_CLEAN_LOG, "pdf": True},
         ]
     )
-    cell = fixloop(_proj(tmp_path), eng, runner=_sh_runner)
+    cell = fixloop(_proj(tmp_path), eng, runner=sh_runner)
     assert cell["verdict"] == "clean"
     rules = [a["rule"] for a in cell["actions"]]
     assert _MN2E_RULE in rules
     assert _RULE_ID in rules
-    assert (tmp_path / "mnras.cls").read_text(encoding="utf-8") == _VENDOR_BYTES
+    assert (tmp_path / "mnras.cls").read_text(encoding="utf-8") == _vendor_bytes()
     assert not (tmp_path / "mnras.cls.fixloop-iso").exists()

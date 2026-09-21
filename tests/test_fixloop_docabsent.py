@@ -22,39 +22,25 @@ B) ``fileset_relocate`` 批量树镜像: payload 顶层目录在 wdir 根成树
 
 from pathlib import Path
 
-from texlate.compile.fixloop import load_ruleset
+from _fixloopkit import EngStub, mk_ctx, rs, rule
+
 from texlate.compile.fixloop.builtins import TRANSFORM_FNS
-from texlate.compile.fixloop.engine import LoopCtx, Rule
+from texlate.compile.fixloop.engine import LoopCtx
 
 _RULE_STUB = "doc_absent_stub"
 _RULE_RELOC = "fileset_relocate"
 
 
-class _EngStub:
-    """builtin 直驱引擎替身 —— 两 builtin 均 ``del eng`` 不触引擎面。"""
-
-    def probe_file(self, fname: str, cwd: Path | None = None) -> None:
-        del fname, cwd
-
-    def install_file(self, fname: str, *, font_related: bool = False) -> bool:
-        del fname, font_related
-        return False
-
-
-def _rule(rid: str) -> Rule:
-    return next(r for r in load_ruleset().rules if r.id == rid)
-
-
-def _ctx(tmp_path: Path, main_rel: str | None = "main.tex") -> LoopCtx:
-    return LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel=main_rel)
-
-
 def _stub(ctx: LoopCtx, payload: str | None) -> tuple[bool, str]:
-    return TRANSFORM_FNS[_RULE_STUB](ctx, _EngStub(), payload, {})
+    """``doc_absent_stub`` 直驱 —— 经 ruleset 实载 params (同 ``_stub_wired``)。
+
+    旧版 ``{}`` 空参: builtin 退回 ``exts=('.tex',)`` 内兜, yaml 接线的
+    7-扩展名表被旁路 —— 委托 ``_stub_wired`` 保真。"""
+    return _stub_wired(ctx, payload)
 
 
 def _reloc(ctx: LoopCtx, payload: str | None) -> tuple[bool, str]:
-    return TRANSFORM_FNS[_RULE_RELOC](ctx, _EngStub(), payload, {})
+    return TRANSFORM_FNS[_RULE_RELOC](ctx, EngStub(), payload, {})
 
 
 def _mkfile(p: Path, body: str = "x\n") -> Path:
@@ -69,7 +55,7 @@ def _mkfile(p: Path, body: str = "x\n") -> Path:
 def test_rule_stub_order_after_real_content_arms() -> None:
     """序自洽: relocate(9) < install(10) < vendored(11.5) < shim(12.9) < stub —
     .tex payload 可以是真 CTAN 件 (pst-tools.tex 实证), stub 必须末位。"""
-    orders = {r.id: r.order for r in load_ruleset().phase("loop")}
+    orders = {r.id: r.order for r in rs().phase("loop")}
     assert orders["fileset_relocate"] < orders["install_file"]
     assert orders["install_file"] < orders["vendored_fetch"]
     assert orders["vendored_fetch"] < orders["legacy_pkg_shim_c3"]
@@ -80,7 +66,7 @@ def test_stub_rename_rescue_strips_new_suffix(tmp_path: Path) -> None:
     """payload ``sub/x_new.tex`` 缺席 + 同目录 ``x.tex`` → 搬真件 (2210.03294 形)。"""
     _mkfile(tmp_path / "sub" / "main.tex")
     real = _mkfile(tmp_path / "sub" / "x.tex", "\\section{Real}\\label{s:x}\n")
-    ctx = _ctx(tmp_path, "sub/main.tex")
+    ctx = mk_ctx(tmp_path, "sub/main.tex")
     ok, note = _stub(ctx, "sub/x_new.tex")
     assert ok, note
     assert "rename-rescue" in note
@@ -92,7 +78,7 @@ def test_stub_rename_rescue_adds_suffix(tmp_path: Path) -> None:
     """反向漂移: payload ``x.tex`` 缺席 + 同目录 ``x_new.tex`` → 搬真件。"""
     _mkfile(tmp_path / "main.tex")
     real = _mkfile(tmp_path / "x_new.tex", "real content\n")
-    ctx = _ctx(tmp_path)
+    ctx = mk_ctx(tmp_path)
     ok, note = _stub(ctx, "x.tex")
     assert ok, note
     assert "rename-rescue" in note
@@ -104,7 +90,7 @@ def test_stub_ambiguous_siblings_fall_to_empty(tmp_path: Path) -> None:
     _mkfile(tmp_path / "main.tex")
     _mkfile(tmp_path / "x_new.tex")
     _mkfile(tmp_path / "x_old.tex")
-    ctx = _ctx(tmp_path)
+    ctx = mk_ctx(tmp_path)
     ok, note = _stub(ctx, "x.tex")
     assert ok, note
     assert "doc-absent stub" in note
@@ -115,7 +101,7 @@ def test_stub_ambiguous_siblings_fall_to_empty(tmp_path: Path) -> None:
 def test_stub_empty_fallback_writes_resolve_site(tmp_path: Path) -> None:
     """无 sibling → 空 stub 落 ``main_dir/<payload>`` 解析位 (嵌套 main 形)。"""
     _mkfile(tmp_path / "4Num_Example" / "main.tex")
-    ctx = _ctx(tmp_path, "4Num_Example/main.tex")
+    ctx = mk_ctx(tmp_path, "4Num_Example/main.tex")
     ok, note = _stub(ctx, "4Num_Example/12step_dynamics_new.tex")
     assert ok, note
     dst = tmp_path / "4Num_Example" / "4Num_Example" / "12step_dynamics_new.tex"
@@ -125,7 +111,7 @@ def test_stub_empty_fallback_writes_resolve_site(tmp_path: Path) -> None:
 def test_stub_ext_gate_declines_cls_sty(tmp_path: Path) -> None:
     """非 .tex 让位 —— .cls/.sty 走 install/shim 域, 不该轮到本臂。"""
     _mkfile(tmp_path / "main.tex")
-    ctx = _ctx(tmp_path)
+    ctx = mk_ctx(tmp_path)
     ok, _ = _stub(ctx, "foo.cls")
     assert not ok
     ok, _ = _stub(ctx, "bar.sty")
@@ -135,7 +121,7 @@ def test_stub_ext_gate_declines_cls_sty(tmp_path: Path) -> None:
 def test_stub_transient_gate_declines(tmp_path: Path) -> None:
     """.aux/.bbl 缺位 = 上游病灶信号 (2609.20323 main.aux) —— stub 遮蔽真因。"""
     _mkfile(tmp_path / "main.tex")
-    ctx = _ctx(tmp_path)
+    ctx = mk_ctx(tmp_path)
     ok, note = _stub(ctx, "main.aux")
     assert not ok
     assert "transient" in note
@@ -145,7 +131,7 @@ def test_stub_fileset_presence_declines(tmp_path: Path) -> None:
     """fileset 内有同名件 → relocate 域 (防御性复核, dispatch 序漂移安全)。"""
     _mkfile(tmp_path / "main.tex")
     _mkfile(tmp_path / "elsewhere" / "deep" / "frag.tex")
-    ctx = _ctx(tmp_path)
+    ctx = mk_ctx(tmp_path)
     ok, note = _stub(ctx, "frag.tex")
     assert not ok
     assert "relocate" in note
@@ -155,7 +141,7 @@ def test_stub_foreign_at_site_not_overwritten(tmp_path: Path) -> None:
     """解析位已有外来件 → 指纹闸拒覆写, decline 交后续规则。"""
     _mkfile(tmp_path / "main.tex")
     site = _mkfile(tmp_path / "frag.tex", "author's own file\n")
-    ctx = _ctx(tmp_path)
+    ctx = mk_ctx(tmp_path)
     ok, _note = _stub(ctx, "frag.tex")
     assert not ok
     assert site.read_text() == "author's own file\n"
@@ -164,7 +150,7 @@ def test_stub_foreign_at_site_not_overwritten(tmp_path: Path) -> None:
 def test_stub_unsafe_names_decline(tmp_path: Path) -> None:
     """绝对径/.. 逃逸/空 payload → decline。"""
     _mkfile(tmp_path / "main.tex")
-    ctx = _ctx(tmp_path)
+    ctx = mk_ctx(tmp_path)
     for bad in (None, "", "/etc/x.tex", "../x.tex", "a/../../x.tex"):
         ok, _ = _stub(ctx, bad)
         assert not ok, bad
@@ -176,7 +162,7 @@ def test_stub_rescue_unique_among_noise(tmp_path: Path) -> None:
     _mkfile(tmp_path / "sub" / "12step_dynamics.tex", "real\n")
     _mkfile(tmp_path / "sub" / "other.tex")
     _mkfile(tmp_path / "sub" / "12step_dynamics_new.sty")  # 异扩展名不算
-    ctx = _ctx(tmp_path, "sub/main.tex")
+    ctx = mk_ctx(tmp_path, "sub/main.tex")
     ok, note = _stub(ctx, "sub/12step_dynamics_new.tex")
     assert ok, note
     assert "rename-rescue" in note
@@ -193,7 +179,7 @@ def test_relocate_batch_mirrors_top_tree(tmp_path: Path) -> None:
     _mkfile(tmp_path / "Content" / "a.tex")
     _mkfile(tmp_path / "Content" / "b.tex")
     _mkfile(tmp_path / "Content" / "sub" / "c.tex")
-    ctx = _ctx(tmp_path, "IEEEtran/main.tex")
+    ctx = mk_ctx(tmp_path, "IEEEtran/main.tex")
     ok, note = _reloc(ctx, "Content/a.tex")
     assert ok, note
     assert "+2 tree files" in note
@@ -208,7 +194,7 @@ def test_relocate_batch_skips_transient_and_dot(tmp_path: Path) -> None:
     _mkfile(tmp_path / "Content" / "a.tex")
     _mkfile(tmp_path / "Content" / "main.aux")  # 瞬态
     _mkfile(tmp_path / "Content" / ".hidden" / "x.tex")  # dot 段
-    ctx = _ctx(tmp_path, "sub/main.tex")
+    ctx = mk_ctx(tmp_path, "sub/main.tex")
     ok, note = _reloc(ctx, "Content/a.tex")
     assert ok, note
     assert "tree files" not in note  # 只剩瞬态+dot, 零镜像
@@ -221,7 +207,7 @@ def test_relocate_batch_no_recursive_nesting(tmp_path: Path) -> None:
     _mkfile(tmp_path / "4Num" / "main.tex")
     _mkfile(tmp_path / "4Num" / "a.tex")
     _mkfile(tmp_path / "4Num" / "b.tex")
-    ctx = _ctx(tmp_path, "4Num/main.tex")
+    ctx = mk_ctx(tmp_path, "4Num/main.tex")
     ok, _ = _reloc(ctx, "4Num/a.tex")
     assert ok
     assert (tmp_path / "4Num" / "4Num" / "b.tex").is_file()  # 首轮已镜像
@@ -235,7 +221,7 @@ def test_relocate_batch_flat_payload_noop(tmp_path: Path) -> None:
     """裸件名 payload (无顶层目录) 不触发镜像。"""
     _mkfile(tmp_path / "sub" / "main.tex")
     _mkfile(tmp_path / "frag.tex")
-    ctx = _ctx(tmp_path, "sub/main.tex")
+    ctx = mk_ctx(tmp_path, "sub/main.tex")
     ok, note = _reloc(ctx, "frag.tex")
     assert ok, note
     assert "tree files" not in note
@@ -245,7 +231,7 @@ def test_relocate_single_still_works_no_top_dir(tmp_path: Path) -> None:
     """顶层目录缺席时单件归位行为不变 (basename rglob 臂)。"""
     _mkfile(tmp_path / "sub" / "main.tex")
     _mkfile(tmp_path / "elsewhere" / "frag.tex")
-    ctx = _ctx(tmp_path, "sub/main.tex")
+    ctx = mk_ctx(tmp_path, "sub/main.tex")
     ok, note = _reloc(ctx, "frag.tex")
     assert ok, note
     assert (tmp_path / "sub" / "frag.tex").is_file()
@@ -264,15 +250,15 @@ def test_relocate_single_still_works_no_top_dir(tmp_path: Path) -> None:
 
 def _stub_wired(ctx: LoopCtx, payload: str | None) -> tuple[bool, str]:
     """经 ruleset 实载 ``rule.action.params`` 直驱 —— 钉 yaml→builtin 接线。"""
-    rule = _rule(_RULE_STUB)
+    r = rule(_RULE_STUB)
     return TRANSFORM_FNS[_RULE_STUB](
-        ctx, _EngStub(), payload, rule.action.get("params") or {}
+        ctx, EngStub(), payload, r.action.get("params") or {}
     )
 
 
 def test_stub_exts_param_table() -> None:
     """params.exts 钉死表内容 —— 回退 yaml 即红。"""
-    params = _rule(_RULE_STUB).action.get("params") or {}
+    params = rule(_RULE_STUB).action.get("params") or {}
     assert set(params.get("exts") or ()) == {
         ".tex",
         ".pdf_tex",
@@ -287,7 +273,7 @@ def test_stub_exts_param_table() -> None:
 def test_stub_pdf_tex_writes_empty_stub(tmp_path: Path) -> None:
     """``\\input{figure2a.pdf_tex}`` 双缺席 → 空 stub 落解析位。"""
     _mkfile(tmp_path / "main.tex")
-    ctx = _ctx(tmp_path)
+    ctx = mk_ctx(tmp_path)
     ok, note = _stub_wired(ctx, "figure2a.pdf_tex")
     assert ok, note
     assert "doc-absent stub" in (tmp_path / "figure2a.pdf_tex").read_text()
@@ -295,7 +281,7 @@ def test_stub_pdf_tex_writes_empty_stub(tmp_path: Path) -> None:
 
 def test_stub_tikzstyles_writes_empty_stub(tmp_path: Path) -> None:
     _mkfile(tmp_path / "main.tex")
-    ctx = _ctx(tmp_path)
+    ctx = mk_ctx(tmp_path)
     ok, note = _stub_wired(ctx, "my.tikzstyles")
     assert ok, note
     assert "doc-absent stub" in (tmp_path / "my.tikzstyles").read_text()
@@ -304,7 +290,7 @@ def test_stub_tikzstyles_writes_empty_stub(tmp_path: Path) -> None:
 def test_stub_ext_gate_still_declines_unlisted(tmp_path: Path) -> None:
     """表外扩展名经真 params 仍让位 (.cls/.sty/.def → install/shim 域)。"""
     _mkfile(tmp_path / "main.tex")
-    ctx = _ctx(tmp_path)
+    ctx = mk_ctx(tmp_path)
     ok, _ = _stub_wired(ctx, "foo.cls")
     assert not ok
     ok, _ = _stub_wired(ctx, "bar.def")

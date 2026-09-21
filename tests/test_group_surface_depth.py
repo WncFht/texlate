@@ -22,9 +22,9 @@ r"""``_close_group`` 展开组 eol_par 尾段「全或无」发射回归（Optio
 - ≥MIN → chunk 化（必要时 ``_split_bounds`` 切 part，每 part 全量落盘）。
 """
 
-from conftest import ART, check_invariants
+from _segkit import ph_bodies, scan_art
 
-from texlate.latex import parse_tex, reconstruct
+from texlate.latex import reconstruct
 from texlate.latex.model import ScanResult
 
 
@@ -38,16 +38,12 @@ def translated(res: ScanResult) -> str:
 
 def test_parbox_par_keeps_closing_brace_and_env_end() -> None:
     r"""9910403 形：``\parbox`` 参内 ``\par`` 不再切断 ``}``+``\end{center}``。"""
-    tex = ART % (
-        (
-            "\\renewcommand{\\abstract}[1]{\\begin{center}\\parbox{\\absize}"
-            "{#1\\setlength{\\baselineskip}{2.5ex}\\par}\\end{center}}\n"
-        ),
+    res = scan_art(
         "\\abstract{Alpha beta gamma delta epsilon zeta eta theta.}",
+        "\\renewcommand{\\abstract}[1]{\\begin{center}\\parbox{\\absize}"
+        "{#1\\setlength{\\baselineskip}{2.5ex}\\par}\\end{center}}\n",
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
-    envtags = [v for k, v in res.ph_map.items() if k.startswith("[[ENVTAG")]
+    envtags = ph_bodies(res, "ENVTAG")
     assert "\\begin{center}" in envtags
     assert "\\end{center}" in envtags  # 修复前：\end{center} 尾段蒸发
     out = translated(res)
@@ -57,13 +53,11 @@ def test_parbox_par_keeps_closing_brace_and_env_end() -> None:
 
 def test_wrap_macro_env_end_not_orphaned() -> None:
     r"""``\wrap`` 形：``\begin{center}…\par…\end{center}`` 环境端点同段。"""
-    tex = ART % (
-        "\\newcommand{\\wrap}[1]{\\begin{center}H\\par #1\\end{center}}\n",
+    res = scan_art(
         "\\wrap{Some wrapped text here.}",
+        "\\newcommand{\\wrap}[1]{\\begin{center}H\\par #1\\end{center}}\n",
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
-    envtags = [v for k, v in res.ph_map.items() if k.startswith("[[ENVTAG")]
+    envtags = ph_bodies(res, "ENVTAG")
     assert "\\begin{center}" in envtags
     assert "\\end{center}" in envtags
     [c] = res.chunks  # \begin/\end 与正文同 surface 段——没有孤儿尾段
@@ -76,12 +70,10 @@ def test_wrap_macro_env_end_not_orphaned() -> None:
 
 def test_inbrace_par_survives_as_blankline() -> None:
     r"""``\parbox{a}{x\par y}`` 形：结构内 ``\par`` → ``\n\n`` 段内分隔存活。"""
-    tex = ART % (
-        "\\def\\pb#1{\\parbox{3cm}{#1\\par tail words}}\n",
+    res = scan_art(
         "\\pb{Head words here.}",
+        "\\def\\pb#1{\\parbox{3cm}{#1\\par tail words}}\n",
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     [c] = res.chunks
     assert "\n\n" in c.content  # eol_par → 段内空行分隔
     assert "{" in c.content  # 花括号成对留段内
@@ -92,12 +84,10 @@ def test_inbrace_par_survives_as_blankline() -> None:
 
 def test_bgroup_egroup_par_not_split() -> None:
     r"""``\bgroup…\par…\egroup``：cs 形组原语内 eol_par 同样不丢尾。"""
-    tex = ART % (
-        "\\def\\bg#1{\\bgroup\\bf B#1\\par\\egroup rest}\n",
+    res = scan_art(
         "\\bg{Bold text inside bgroup here.}",
+        "\\def\\bg#1{\\bgroup\\bf B#1\\par\\egroup rest}\n",
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     [c] = res.chunks
     assert "\\egroup" in c.content  # 修复前：\par 切断 → \egroup 尾段险
     out = translated(res)
@@ -107,12 +97,10 @@ def test_bgroup_egroup_par_not_split() -> None:
 
 def test_unclosed_env_tail_not_dropped() -> None:
     r"""组内 ``\begin`` 无配对 ``\end``：全组合体一段——尾部文字不蒸发。"""
-    tex = ART % (
-        "\\def\\op#1{\\begin{center}H#1\\par more words\\par even more}\n",
+    res = scan_art(
         "\\op{Centered body text here.}",
+        "\\def\\op#1{\\begin{center}H#1\\par more words\\par even more}\n",
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     [c] = res.chunks
     assert "more words" in c.content
     assert "even more" in c.content
@@ -127,12 +115,10 @@ def test_depth0_par_merges_same_run() -> None:
     修复前沿 ``\par`` 切开两段（尾段 sub-MIN 有丢字节险）；现在段界变
     ``\n\n`` 段内分隔，前后两半同 chunk。
     """
-    tex = ART % (
-        "\\def\\two#1{#1\\par Second part with enough words to form a chunk.}\n",
+    res = scan_art(
         "\\two{First part words here for the test case.}",
+        "\\def\\two#1{#1\\par Second part with enough words to form a chunk.}\n",
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     [c] = res.chunks  # 同一 run 一次 flush → 单 chunk 含双侧
     assert "First part" in c.content
     assert "Second part" in c.content
@@ -141,12 +127,10 @@ def test_depth0_par_merges_same_run() -> None:
 
 def test_balanced_brace_then_par_still_merges() -> None:
     r"""``{x}\par y``：``}`` 闭组后 ``\par`` 同样合段（Option D 不看深度）。"""
-    tex = ART % (
-        "\\def\\bb#1{H{#1}\\par Tail part with enough words to chunk.}\n",
+    res = scan_art(
         "\\bb{Inner text body here.}",
+        "\\def\\bb#1{H{#1}\\par Tail part with enough words to chunk.}\n",
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     [c] = res.chunks
     assert "Tail part" in c.content
     assert "{" in c.content
@@ -157,22 +141,18 @@ def test_balanced_brace_then_par_still_merges() -> None:
 
 def test_expand_tail_dropped_warning_fires() -> None:
     r"""整组合体仍 sub-CHUNK_MIN 时 literal 冲刷丢 surface——必须留痕。"""
-    tex = ART % (
+    res = scan_art(
+        "\\mt\nAfter text.",
         # 组 surface 全 ph/结构字符（clean 剥 ph 后 < CHUNK_MIN）→ literal
         "\\newcommand{\\mt}{\\begin{center}\\par\\end{center}}\n",
-        "\\mt\nAfter text.",
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     assert any(w.kind == "expand_tail_dropped" for w in res.warnings)
 
 
 def test_no_warning_when_tail_survives() -> None:
     r"""正常面：合体 ≥CHUNK_MIN 成 chunk——零 ``expand_tail_dropped``。"""
-    tex = ART % (
-        "\\def\\pb#1{\\parbox{3cm}{#1\\par tail words}}\n",
+    res = scan_art(
         "\\pb{Head words here.}",
+        "\\def\\pb#1{\\parbox{3cm}{#1\\par tail words}}\n",
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     assert not any(w.kind == "expand_tail_dropped" for w in res.warnings)

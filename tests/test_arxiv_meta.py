@@ -1,5 +1,6 @@
 import httpx
 import pytest
+from conftest import FakeClock, mk_fetcher
 
 from texlate.arxiv.fetch import Fetcher
 from texlate.arxiv.meta import (
@@ -116,31 +117,6 @@ OAI_ERROR = """<?xml version="1.0" encoding="UTF-8"?>
 </OAI-PMH>"""
 
 
-class _Clock:
-    """注入限速器的假时钟：sleep 即前进。"""
-
-    def __init__(self) -> None:
-        self.t = 1_700_000_000.0
-
-    def now(self) -> float:
-        return self.t
-
-    def sleep(self, d: float) -> None:
-        self.t += d
-
-
-def _fetcher(
-    handler: httpx.MockTransport, clk: _Clock, *, redirects: bool = False
-) -> Fetcher:
-    client = httpx.Client(transport=handler, follow_redirects=redirects)
-    return Fetcher(
-        RateLimiter(clock=clk.now, sleep=clk.sleep),
-        client=client,
-        hosts=("arxiv.org", "export.arxiv.org"),
-        sleep=clk.sleep,
-    )
-
-
 def test_fetch_metadata_atom_parses_schema() -> None:
     seen: list[str] = []
 
@@ -148,7 +124,7 @@ def test_fetch_metadata_atom_parses_schema() -> None:
         seen.append(str(req.url))
         return httpx.Response(HTTP_OK, content=ATOM_FEED.encode())
 
-    f = _fetcher(httpx.MockTransport(handler), _Clock())
+    f = mk_fetcher(httpx.MockTransport(handler), FakeClock())
     meta = fetch_metadata("1412.6980", fetcher=f)
     assert meta is not None
     assert meta.source == "atom"
@@ -176,7 +152,7 @@ def test_fetch_metadata_pin_passthrough() -> None:
         seen.append(str(req.url))
         return httpx.Response(HTTP_OK, content=ATOM_FEED.encode())
 
-    f = _fetcher(httpx.MockTransport(handler), _Clock())
+    f = mk_fetcher(httpx.MockTransport(handler), FakeClock())
     meta = fetch_metadata("1412.6980v3", fetcher=f)
     assert "id_list=1412.6980v3" in seen[0]
     assert meta is not None
@@ -190,7 +166,7 @@ def test_fetch_metadata_oai_fallback_on_error_entry() -> None:
             return httpx.Response(HTTP_OK, content=ATOM_EMPTY.encode())
         return httpx.Response(HTTP_OK, content=OAI_RAW.encode())
 
-    f = _fetcher(httpx.MockTransport(handler), _Clock())
+    f = mk_fetcher(httpx.MockTransport(handler), FakeClock())
     meta = fetch_metadata("1412.6980", fetcher=f)
     assert meta is not None
     assert meta.source == "oai-raw"
@@ -213,7 +189,7 @@ def test_fetch_metadata_oai_fallback_on_transport_error() -> None:
             raise httpx.ConnectError(msg, request=req)
         return httpx.Response(HTTP_OK, content=OAI_RAW.encode())
 
-    f = _fetcher(httpx.MockTransport(handler), _Clock())
+    f = mk_fetcher(httpx.MockTransport(handler), FakeClock())
     meta = fetch_metadata("1412.6980", fetcher=f)
     assert meta is not None
     assert meta.source == "oai-raw"
@@ -228,12 +204,14 @@ def test_fetch_metadata_none_when_both_fail() -> None:
             raise httpx.ConnectError(msg, request=req)
         return httpx.Response(HTTP_OK, content=OAI_ERROR.encode())
 
-    f = _fetcher(httpx.MockTransport(handler), _Clock())
+    f = mk_fetcher(httpx.MockTransport(handler), FakeClock())
     assert fetch_metadata("1412.6980", fetcher=f) is None
 
 
 def test_fetch_metadata_bad_id_raises() -> None:
-    f = _fetcher(httpx.MockTransport(lambda _req: httpx.Response(HTTP_OK)), _Clock())
+    f = mk_fetcher(
+        httpx.MockTransport(lambda _req: httpx.Response(HTTP_OK)), FakeClock()
+    )
     with pytest.raises(ValueError, match="bad arxiv id"):
         fetch_metadata("a/../b", fetcher=f)
     with pytest.raises(ValueError, match="bad arxiv id"):
@@ -250,7 +228,7 @@ def test_fetch_metadata_decode_error_none() -> None:
             headers={"content-encoding": "gzip"},
         )
 
-    f = _fetcher(httpx.MockTransport(handler), _Clock())
+    f = mk_fetcher(httpx.MockTransport(handler), FakeClock())
     assert fetch_metadata("1412.6980", fetcher=f) is None
 
 
@@ -265,7 +243,7 @@ def test_degrade_request_error_falls_through() -> None:
         return httpx.Response(HTTP_NOT_FOUND)
 
     client = httpx.Client(transport=httpx.MockTransport(handler), follow_redirects=True)
-    clk = _Clock()
+    clk = FakeClock()
     f = Fetcher(
         RateLimiter(clock=clk.now, sleep=clk.sleep),
         client=client,
@@ -279,7 +257,9 @@ def test_degrade_request_error_falls_through() -> None:
 
 def test_degrade_version_zero_raises() -> None:
     """``version=0`` 与 ``idv0`` 钉版一样按调用方错误拒。"""
-    f = _fetcher(httpx.MockTransport(lambda _req: httpx.Response(HTTP_OK)), _Clock())
+    f = mk_fetcher(
+        httpx.MockTransport(lambda _req: httpx.Response(HTTP_OK)), FakeClock()
+    )
     with pytest.raises(ValueError, match="bad arxiv id"):
         degrade("1412.6980", fetcher=f, reason=DegradeReason.STUB, version=0)
     with pytest.raises(ValueError, match="bad arxiv id"):
@@ -290,7 +270,7 @@ def test_resolve_version_via_atom() -> None:
     def handler(_req: httpx.Request) -> httpx.Response:
         return httpx.Response(HTTP_OK, content=ATOM_FEED.encode())
 
-    f = _fetcher(httpx.MockTransport(handler), _Clock())
+    f = mk_fetcher(httpx.MockTransport(handler), FakeClock())
     assert resolve_version("1412.6980", fetcher=f) == LATEST
     assert resolve_version("1412.6980v3", fetcher=f) == V3
     assert resolve_version("1412.6980", want=V3, fetcher=f) == V3
@@ -323,7 +303,7 @@ def test_oai_version_history_sorted_and_v0_dropped() -> None:
             raise httpx.ConnectError(msg, request=req)
         return httpx.Response(HTTP_OK, content=body)
 
-    f = _fetcher(httpx.MockTransport(handler), _Clock())
+    f = mk_fetcher(httpx.MockTransport(handler), FakeClock())
     meta = fetch_metadata("1234.5678", fetcher=f)
     assert meta is not None
     assert [v.version for v in meta.versions] == [1, V3]  # v0 滤除 + 升序
@@ -339,7 +319,7 @@ def test_resolve_version_via_oai_when_atom_down() -> None:
             return httpx.Response(HTTP_TOO_MANY)
         return httpx.Response(HTTP_OK, content=OAI_RAW.encode())
 
-    f = _fetcher(httpx.MockTransport(handler), _Clock())
+    f = mk_fetcher(httpx.MockTransport(handler), FakeClock())
     # 429×2 后 (export,api) 断路器 park → Atom 放弃 → OAI 版本史兜底
     assert resolve_version("1412.6980", fetcher=f) == LATEST
     assert resolve_version("1412.6980", want=V2, fetcher=f) == V2
@@ -352,7 +332,7 @@ def test_resolve_version_none_when_nothing() -> None:
             return httpx.Response(HTTP_OK, content=ATOM_EMPTY.encode())
         return httpx.Response(HTTP_OK, content=OAI_ERROR.encode())
 
-    f = _fetcher(httpx.MockTransport(handler), _Clock())
+    f = mk_fetcher(httpx.MockTransport(handler), FakeClock())
     assert resolve_version("9999.99999", fetcher=f) is None
 
 
@@ -369,7 +349,7 @@ def test_degrade_parse_failed_html_latest() -> None:
             return httpx.Response(HTTP_OK)
         return httpx.Response(HTTP_NOT_FOUND)
 
-    f = _fetcher(httpx.MockTransport(handler), _Clock(), redirects=True)
+    f = mk_fetcher(httpx.MockTransport(handler), FakeClock(), redirects=True)
     res = degrade("1412.6980", fetcher=f, reason=DegradeReason.PARSE_FAILED)
     assert res.tier is DegradeTier.HTML
     assert res.url.endswith("/html/1412.6980v9")
@@ -386,7 +366,7 @@ def test_degrade_html_version_fallback() -> None:
             return httpx.Response(HTTP_OK)
         return httpx.Response(HTTP_NOT_FOUND)
 
-    f = _fetcher(httpx.MockTransport(handler), _Clock())
+    f = mk_fetcher(httpx.MockTransport(handler), FakeClock())
     res = degrade("1412.6980", fetcher=f, reason="compile_failed")
     assert res.tier is DegradeTier.HTML
     assert res.version == V2
@@ -408,7 +388,7 @@ def test_degrade_pdf_only_goes_pdf_first() -> None:
         msg = f"unexpected {req.url.path}"
         raise AssertionError(msg)
 
-    f = _fetcher(httpx.MockTransport(handler), _Clock(), redirects=True)
+    f = mk_fetcher(httpx.MockTransport(handler), FakeClock(), redirects=True)
     res = degrade("1412.6980", fetcher=f, reason=DegradeReason.PDF_ONLY)
     assert res.tier is DegradeTier.PDF
     assert res.version == LATEST
@@ -425,7 +405,7 @@ def test_degrade_stub_pdf_then_html_fallthrough() -> None:
             return httpx.Response(HTTP_OK)
         return httpx.Response(HTTP_NOT_FOUND)
 
-    f = _fetcher(httpx.MockTransport(handler), _Clock())
+    f = mk_fetcher(httpx.MockTransport(handler), FakeClock())
     res = degrade("1412.6980v1", fetcher=f, reason=DegradeReason.STUB)
     assert res.tier is DegradeTier.HTML
     assert res.version == 1
@@ -435,7 +415,7 @@ def test_degrade_all_tiers_fail_none() -> None:
     def handler(_req: httpx.Request) -> httpx.Response:
         return httpx.Response(HTTP_NOT_FOUND)
 
-    f = _fetcher(httpx.MockTransport(handler), _Clock())
+    f = mk_fetcher(httpx.MockTransport(handler), FakeClock())
     res = degrade("1412.6980", fetcher=f, reason=DegradeReason.NOT_FOUND)
     assert res.tier is DegradeTier.NONE
     assert res.probed
@@ -453,7 +433,7 @@ def test_degrade_mirror_failover() -> None:
             raise httpx.ConnectError(msg, request=req)
         return httpx.Response(HTTP_OK)
 
-    f = _fetcher(httpx.MockTransport(handler), _Clock())
+    f = mk_fetcher(httpx.MockTransport(handler), FakeClock())
     res = degrade("1412.6980v2", fetcher=f, reason=DegradeReason.PDF_ONLY)
     assert res.tier is DegradeTier.PDF
     assert "arxiv.org" in calls
@@ -469,7 +449,7 @@ def test_fetch_metadata_atom_nover_falls_back_to_oai() -> None:
             return httpx.Response(HTTP_OK, content=ATOM_FEED_NOVER.encode())
         return httpx.Response(HTTP_OK, content=OAI_RAW.encode())
 
-    f = _fetcher(httpx.MockTransport(handler), _Clock())
+    f = mk_fetcher(httpx.MockTransport(handler), FakeClock())
     meta = fetch_metadata("1412.6980", fetcher=f)
     assert meta is not None
     assert meta.source == "oai-raw"
@@ -485,7 +465,7 @@ def test_fetch_metadata_atom_nover_kept_when_oai_fails() -> None:
             return httpx.Response(HTTP_OK, content=ATOM_FEED_NOVER.encode())
         return httpx.Response(HTTP_OK, content=OAI_ERROR.encode())
 
-    f = _fetcher(httpx.MockTransport(handler), _Clock())
+    f = mk_fetcher(httpx.MockTransport(handler), FakeClock())
     meta = fetch_metadata("1412.6980", fetcher=f)
     assert meta is not None
     assert meta.source == "atom"

@@ -484,7 +484,7 @@ def test_inject_209_upgrade_paths() -> None:
     assert info["seams"] == 2  # noqa: PLR2004
     assert out.count("fontset=fandol,UTF8") == 2  # noqa: PLR2004
     # 拒因契约：裸声明 / ds@ 选项机类 / InjectRejectError 字段。
-    with pytest.raises(InjectRejectError, match="inject_reject:latex209"):
+    with pytest.raises(InjectRejectError, match="inject_reject:latex209_no_decl"):
         inject_cjk("\\documentstyle\n" + _DOC)
     with pytest.raises(InjectRejectError, match="inject_reject:latex209_ds_at"):
         inject_cjk("\\documentstyle[12pt]{ias}\n" + _DOC)
@@ -886,8 +886,8 @@ def test_prepare_shell_main_gaps(tmp_path: Path) -> None:
 
     dc 在 main、bd+figure+threeparttable 在 ``\input`` 子文件：ctex 注入
     落在 main（缝在）；FLOAT_SIZING 改 dc-only 门（``\AtBeginDocument``
-    钩子不在乎 bd 落哪个文件）→ 1；threeparttable 门只读 main 文本 →
-    TABLE_FITTING 不注。
+    钩子不在乎 bd 落哪个文件）→ 1；threeparttable 门走树级判、
+    TABLE_FITTING 经 dc 缝 fallback 落 main preamble → 注。
     """
     (tmp_path / "main.tex").write_text("\\documentclass{article}\n\\input{body}\n")
     (tmp_path / "body.tex").write_text(
@@ -900,7 +900,7 @@ def test_prepare_shell_main_gaps(tmp_path: Path) -> None:
     text = (tmp_path / "main.tex").read_text()
     assert CTEX_LINE in text
     assert "fit complete oversized float boxes" in text
-    assert "TeXlateFitTable" not in text
+    assert "TeXlateFitTable" in text
 
 
 # --------------------------------------------------------------- 随机 fuzz
@@ -977,4 +977,4 @@ def test_fuzz_regex_and_scan_bounded() -> None:
     assert info["status"] == "injected"
     assert len(out) > len(hostile)
     assert re.search(r"a{5000}", out)
-    assert CJK_PRESENT_RE.search("[" * 2000 + "{ctex}") is None or True
+    assert CJK_PRESENT_RE.search("[" * 2000 + "{ctex}") is None

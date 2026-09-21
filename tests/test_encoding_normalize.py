@@ -1,6 +1,6 @@
 r"""ENC 族机制钉（L6 车道）：normalize/decode 项目级编码归一化实证。
 
-蓝图 family-plan.md L6 七机制逐条钉位。stagerun-loop1 records 实证
+L6 车道七机制逐条钉位。stagerun-loop1 records 实证
 （19 例 zh 臂全零 ``warn:invalid_utf8``——裸源 base 臂的 warn 即对照组）：
 B02/W08/W13/W42/W43/W72 的编码层在生产路径已修对，本文件把
 「裸源坏字节 → ``normalize_project`` → 盘上干净 UTF-8」端到端钉死；

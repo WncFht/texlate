@@ -19,29 +19,18 @@ Cell B (2609.19944, soak-2026-09-18): ``Package fontspec Error:`` 裸头首错
 try_exts 复原扩展名投递; 排 missing_tfm 全臂之前 (评估序)。
 """
 
-from functools import lru_cache
-from typing import Any
+from _fixloopkit import rs
 
-from texlate.compile.fixloop import Ruleset, load_ruleset
 from texlate.compile.logparse import parse_text
 
 
-@lru_cache(maxsize=1)
-def _rs() -> Ruleset:
-    """ruleset 首用时加载——收集期不 IO。"""
-    return load_ruleset()
-
-
-def _warn() -> list[dict[str, Any]]:
-    return _rs().warn_patterns
-
-
 def classify(text: str) -> tuple[str | None, str | None]:
-    return _rs().taxonomy.classify(parse_text(text, _warn()))
+    """warn-aware 分类——``warn_patterns`` 透传 ``parse_text`` (warn_* 伪类别面)。"""
+    return rs().taxonomy.classify(parse_text(text, rs().warn_patterns))
 
 
 def classify_errs(text: str) -> list[tuple[str | None, str | None]]:
-    return _rs().taxonomy.classify_errs(parse_text(text, _warn()))
+    return rs().taxonomy.classify_errs(parse_text(text, rs().warn_patterns))
 
 
 # ── Cell A 实证行 (stagerun-overnite-2026-09-20 2512.04896, harmony.sty:62/:63) ──
@@ -66,12 +55,8 @@ def test_missing_tfm_scaled_spec_lowercase_cs() -> None:
     assert classify(_SCALED_NOTEN_LOWER_LOG) == ("missing_tfm", "musix11")
 
 
-def test_missing_tfm_at_pt_spec_regression() -> None:
-    # 原 ``at Npt`` 规格形不受 ``scaled`` 交替影响
-    assert classify("! Font \\X=cmr10 at 10pt not loadable.\nl.5 x\n") == (
-        "missing_tfm",
-        "cmr10",
-    )
+# ``at Npt`` 回归钉在 test_fixloop_taxrow.test_missing_tfm_spec_arms_regression
+# (同字面 ``! Font \X=cmr10 at 10pt not loadable.`` + scaled 臂双钉)——不重复。
 
 
 def test_missing_tfm_nfss_u_encoding_regression() -> None:

@@ -123,7 +123,7 @@ from texlate.xlat.placeholders import ANY_PH_RX, is_placeholder_only
 
 if TYPE_CHECKING:
     import random
-    from collections.abc import Callable
+    from collections.abc import Callable, Iterable
     from pathlib import Path
 
     from lxml.etree import _Element
@@ -303,12 +303,17 @@ def _xhtml(
     ).encode()
 
 
-def _pack(members: dict[str, bytes]) -> bytes:
+def zip_bytes(members: Iterable[tuple[str, bytes]]) -> bytes:
+    """``(成员名, 字节)`` 序列写 zip——``dict.items()`` 直喂, 重复名亦可表达。"""
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w") as z:
-        for name, blob in members.items():
+        for name, blob in members:
             z.writestr(name, blob)
     return buf.getvalue()
+
+
+def _pack(members: dict[str, bytes]) -> bytes:
+    return zip_bytes(members.items())
 
 
 def _write_epub(tmp: Path, name: str, members: dict[str, bytes]) -> Path:
@@ -322,8 +327,10 @@ def _book_soups(book: EpubBook) -> dict[str, BeautifulSoup]:
     return book_soups(book)
 
 
-def _mini_book(body: str, *, ncx_labels: list[str] | None = None) -> dict[str, bytes]:
-    """L2 直喂用最小书：单文档 + img，可选 ncx。"""
+def _single_doc_book(
+    ch1: bytes, *, ncx_labels: list[str] | None = None
+) -> dict[str, bytes]:
+    """单文档 + img 最小书骨架 (可选 ncx)——``_mini_book``/``_pin_book`` 共用。"""
     items = [
         ("c0", "ch1.xhtml", "application/xhtml+xml"),
         ("img", "i.png", "image/png"),
@@ -331,7 +338,7 @@ def _mini_book(body: str, *, ncx_labels: list[str] | None = None) -> dict[str, b
     members = {
         "mimetype": _MIMETYPE,
         _CONTAINER_PATH: _container_xml("OEBPS/content.opf").encode(),
-        "OEBPS/ch1.xhtml": _xhtml(body),
+        "OEBPS/ch1.xhtml": ch1,
         "OEBPS/i.png": b"\x89PNG",
     }
     if ncx_labels is not None:
@@ -339,6 +346,11 @@ def _mini_book(body: str, *, ncx_labels: list[str] | None = None) -> dict[str, b
         members["OEBPS/toc.ncx"] = _ncx(ncx_labels).encode()
     members["OEBPS/content.opf"] = _opf(items, ["c0"]).encode()
     return members
+
+
+def _mini_book(body: str, *, ncx_labels: list[str] | None = None) -> dict[str, bytes]:
+    """L2 直喂用最小书：单文档 + img，可选 ncx。"""
+    return _single_doc_book(_xhtml(body), ncx_labels=ncx_labels)
 
 
 # ------------------------------------------------------------------ 生成器（EPUB）
@@ -801,6 +813,34 @@ _CHAOS_VARIANTS: list[Callable[[str, list[str]], str]] = [
 ]
 
 
+def _protocol_reply(
+    user: str,
+    response_format: dict[str, str] | None,
+    *,
+    slot_fn: Callable[[object], str],
+    line_fn: Callable[[re.Match[str]], str],
+    fallback_fn: Callable[[str], str],
+) -> str:
+    """MockTranslator 协议骨架——json_object slots / ``[n]`` 编号行 / 裸文回退。
+
+    ``_ChaosTranslator``/``_EmptyTranslator`` 共用；``line_fn`` 独立参化——
+    ``_Empty`` 的纯序号桩 ``[n]``（无空格无体）是被钉的 wire 形，不得并成
+    统一 ``[n] body`` 前缀。
+    """
+    if response_format is not None and response_format.get("type") == "json_object":
+        try:
+            slots = json.loads(user).get("slots") or {}
+        except json.JSONDecodeError:
+            return "{}"
+        return json.dumps({k: slot_fn(v) for k, v in slots.items()}, ensure_ascii=False)
+    lines = user.split("\n")
+    if lines and all(_NUM_LINE_RE.match(ln) for ln in lines if ln.strip()):
+        return "\n".join(
+            line_fn(m) if (m := _NUM_LINE_RE.match(ln)) else ln for ln in lines
+        )
+    return fallback_fn(user)
+
+
 class _ChaosTranslator:
     """确定性对抗译文器：变体 = md5(content) % N——同输入恒同输出。
 
@@ -830,24 +870,13 @@ class _ChaosTranslator:
     ) -> str:
         """MockTranslator 同协议：批行回显编号 / JSON slots 同构。"""
         self.calls.append(user)
-        if response_format is not None and response_format.get("type") == "json_object":
-            try:
-                slots = json.loads(user).get("slots") or {}
-            except json.JSONDecodeError:
-                return "{}"
-            return json.dumps(
-                {k: self._zh(str(v)) for k, v in slots.items()},
-                ensure_ascii=False,
-            )
-        lines = user.split("\n")
-        if lines and all(_NUM_LINE_RE.match(ln) for ln in lines if ln.strip()):
-            return "\n".join(
-                f"{m.group(1)} {self._zh(m.group(2))}"
-                if (m := _NUM_LINE_RE.match(ln))
-                else ln
-                for ln in lines
-            )
-        return self._zh(user)
+        return _protocol_reply(
+            user,
+            response_format,
+            slot_fn=lambda v: self._zh(str(v)),
+            line_fn=lambda m: f"{m.group(1)} {self._zh(m.group(2))}",
+            fallback_fn=self._zh,
+        )
 
 
 class _EmptyTranslator:
@@ -866,18 +895,13 @@ class _EmptyTranslator:
         response_format: dict[str, str] | None = None,
     ) -> str:
         self.calls.append(user)
-        if response_format is not None and response_format.get("type") == "json_object":
-            try:
-                slots = json.loads(user).get("slots") or {}
-            except json.JSONDecodeError:
-                return "{}"
-            return json.dumps(dict.fromkeys(slots, ""), ensure_ascii=False)
-        lines = user.split("\n")
-        if lines and all(_NUM_LINE_RE.match(ln) for ln in lines if ln.strip()):
-            return "\n".join(
-                m.group(1) if (m := _NUM_LINE_RE.match(ln)) else ln for ln in lines
-            )
-        return ""
+        return _protocol_reply(
+            user,
+            response_format,
+            slot_fn=lambda _v: "",
+            line_fn=lambda m: m.group(1),
+            fallback_fn=lambda _u: "",
+        )
 
 
 class _AuthFailTranslator:
@@ -1084,6 +1108,12 @@ def test_fuzz_safe_language() -> None:
 def test_fuzz_ordinals_and_marker_names() -> None:
     """``Ordinals.allocate`` 永不发占用 token；``marker_name`` 恒 ``[A-Z_]+``。"""
     rng = fuzz_rng(20260921)
+    # find_markers 首现序去重（模块 docstring 声称的不变量——确定性钉在 fuzz 环外）
+    assert find_markers("[[ZZ_9]] [[ZZ_9]]") == ["[[ZZ_9]]"]
+    assert find_markers("a [[ZZ_9]] b [[X_1]] c [[ZZ_9]]") == [
+        "[[ZZ_9]]",
+        "[[X_1]]",
+    ]
     for _ in range(_ITERS_PURE):
         ords = Ordinals(start=rng.randint(0, 3))
         occupied = (
@@ -1498,11 +1528,7 @@ def _docx_inject_footnotes(blob: bytes, rng: random.Random) -> bytes:
         'officeDocument/2006/relationships/footnotes" Target="footnotes.xml"/>'
         "</Relationships>",
     ).encode()
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w") as z:
-        for name, data in members.items():
-            z.writestr(name, data)
-    return buf.getvalue()
+    return zip_bytes(members.items())
 
 
 def _is_zh_para(p_el: _Element) -> bool:
@@ -1543,7 +1569,13 @@ def _para_text_oracle(p_el: _Element) -> str:
                 break
             if anc.tag == qn("w:r"):
                 rpr = anc.find(qn("w:rPr"))
-                if rpr is not None and any(rpr.find(h) is not None for h in hidden):
+                # CT_OnOff 镜像 docx._protected：w:val 缺省=开，0/false/off 显式关
+                if rpr is not None and any(
+                    (prop_el := rpr.find(h)) is not None
+                    and (prop_el.get(qn("w:val")) or "true").lower()
+                    not in ("0", "false", "off")
+                    for h in hidden
+                ):
                     prot = True
                     break
             anc = anc.getparent()
@@ -1728,20 +1760,8 @@ def test_fuzz_sniff_format(tmp_path: Path) -> None:
 
 def _pin_book(doc: str | bytes, tmp: Path, name: str) -> Path:
     """单文档回归钉书：str → ``_xhtml`` 包裹；bytes → 全档逐字节。"""
-    members = {
-        "mimetype": _MIMETYPE,
-        _CONTAINER_PATH: _container_xml("OEBPS/content.opf").encode(),
-        "OEBPS/content.opf": _opf(
-            [
-                ("c0", "ch1.xhtml", "application/xhtml+xml"),
-                ("img", "i.png", "image/png"),
-            ],
-            ["c0"],
-        ).encode(),
-        "OEBPS/ch1.xhtml": doc if isinstance(doc, bytes) else _xhtml(doc),
-        "OEBPS/i.png": b"\x89PNG",
-    }
-    return _write_epub(tmp, name, members)
+    ch1 = doc if isinstance(doc, bytes) else _xhtml(doc)
+    return _write_epub(tmp, name, _single_doc_book(ch1))
 
 
 @pytest.mark.parametrize(
@@ -1883,3 +1903,27 @@ def test_deep_nesting_recursion(tmp_path: Path) -> None:
     except ExportError:
         return  # 干净拒绝也合格
     assert rep.dst == dst
+
+
+def test_src_zh_class_still_retranslated(tmp_path: Path) -> None:
+    """源侧 ``texlate-zh`` 段不豁免枚举——现状钉：照常克隆重译。
+
+    ``_ancestor_skip_reason`` 无类名豁免条款：源文自带 ``texlate-zh`` 的段
+    仍进 ``iter_units`` 并被克隆插译——输出 zh 节点 = 源侧原有 + 新插克隆
+    （本例 1 + 2 = 3），``translated`` 只计新插（2）。若改判「已译跳过」
+    语义此钉须随改。
+    """
+    src = _pin_book(
+        '<p class="texlate-zh">Already translated src.</p>'
+        "<p>Fresh para words here.</p>",
+        tmp_path,
+        "zhsrc",
+    )
+    book = load_epub(src)
+    n_units = len(list(iter_units(book, _book_soups(book))))
+    dst = tmp_path / "zhsrc.out.epub"
+    rep = translate_epub(src, dst, MockTranslator())
+    out = BeautifulSoup(zipfile.ZipFile(dst).read("OEBPS/ch1.xhtml"), "html.parser")
+    # 源侧 zh 段照常枚举计数；zh 节点 = 新插克隆 + 源侧自带 1
+    assert rep.translated == n_units
+    assert len(out.select(".texlate-zh")) == rep.translated + 1

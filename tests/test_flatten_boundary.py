@@ -17,19 +17,13 @@ r"""flatten 边界契约钉（L4 车道）：W19/W51/W73/W104/B03 五机制。
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from conftest import write_tex as _w
+
 from texlate.latex.flatten import _resolve, flatten_inputs
 from texlate.latex.tables import MAX_INPUTS
 
 if TYPE_CHECKING:
     from texlate.latex.model import ScanWarning
-
-
-def _w(tmp: Path, name: str, text: str) -> Path:
-    p = tmp / name
-    p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(text, encoding="utf-8")
-    return p
-
 
 _DEEP = 5  # 深链钉的层数（≥3 即 B03 深度面）
 

@@ -11,7 +11,8 @@ exact-restore idiom: ``\edef`` 存 ``\catcode 64`` 现值 → ``=11`` 读件
 
 from pathlib import Path
 
-from texlate.compile.fixloop import actions, load_ruleset
+from _fixloopkit import apply, mk_ctx, rule
+
 from texlate.compile.fixloop._builtins_pkgload import (
     _SHIP_STY_INPUT_RE,
     _SHIP_WRAP_POST,
@@ -19,47 +20,21 @@ from texlate.compile.fixloop._builtins_pkgload import (
     _sty_input_sites,
     _wrap_shipped_sty_inputs,
 )
-from texlate.compile.fixloop.engine import LoopCtx, Rule
-from texlate.compile.logparse import ErrReport
 
-
-class _Eng:
-    """builtin_transform 路径的最小引擎替身 (不触 probe/install)。"""
-
-    name = "xelatex"
-
-    def probe_file(self, fname: str, cwd: Path | None = None) -> str | None:
-        del fname, cwd
-        return None
-
-    def filemap(self, fname: str) -> list[str]:
-        del fname
-        return []
-
-
-def _ctx(tmp_path: Path, err_head: str = "") -> LoopCtx:
-    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel="main.tex")
-    ctx.err_head = err_head
-    return ctx
-
-
-def _rule() -> Rule:
-    return next(r for r in load_ruleset().rules if r.id == "shipped_sty_input_wrap")
+_RULE_ID = "shipped_sty_input_wrap"
 
 
 def _apply(tmp_path: Path) -> tuple[bool, str]:
-    return actions._apply(  # noqa: SLF001 - 钉规则动作直驱
-        _rule(), _ctx(tmp_path), _Eng(), None, ErrReport()
-    )
+    return apply(_RULE_ID, mk_ctx(tmp_path), None)
 
 
 def test_shipwrap_rule_registered() -> None:
-    rule = _rule()
-    assert rule.phase == "precheck"
-    assert rule.order == -0.5  # noqa: PLR2004 - schema 断言值
-    assert rule.action["kind"] == "builtin_transform"
-    assert rule.action["function"] == "shipped_sty_input_wrap"
-    assert "input" in rule.condition["source_contains"]
+    rl = rule(_RULE_ID)
+    assert rl.phase == "precheck"
+    assert rl.order == -0.5  # noqa: PLR2004 - schema 断言值
+    assert rl.action["kind"] == "builtin_transform"
+    assert rl.action["function"] == "shipped_sty_input_wrap"
+    assert "input" in rl.condition["source_contains"]
 
 
 def test_wrap_braced_site() -> None:

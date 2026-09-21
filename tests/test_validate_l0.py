@@ -1,15 +1,8 @@
-"""L0 七规则正反例 + 已知误报陷阱用例（B6 变异器防误报面）。"""
+"""L0 规则正反例 + 已知误报陷阱用例（B6 变异器防误报面）。"""
 
-from texlate.validate.l0 import L0Report, Severity, validate_pair
+from conftest import _issues, l0_sev
 
-
-def _sev(rep: L0Report, rule: str) -> list[Severity]:
-    return [i.severity for i in rep.issues if i.rule == rule]
-
-
-def _issues(rep: L0Report, rule: str) -> list:
-    return [i for i in rep.issues if i.rule == rule]
-
+from texlate.validate.l0 import Severity, validate_pair
 
 # ---------------------------------------------------------------- 干净对
 
@@ -48,7 +41,7 @@ def test_placeholder_missing() -> None:
     zh = "见 [[MATH_1]]。"
     rep = validate_pair(src, zh)
     assert not rep.ok
-    assert Severity.ERROR in _sev(rep, "placeholder")
+    assert Severity.ERROR in l0_sev(rep, "placeholder")
     assert any("CITE_2" in i.message for i in rep.issues)
 
 
@@ -83,7 +76,7 @@ def test_placeholder_reorder_is_warn_not_error() -> None:
     zh = "模型 [[REF_2]] 的损失 [[MATH_1]] 在 [[CITE_3]] 下"
     rep = validate_pair(src, zh)
     assert rep.ok, str(rep)  # 多重集一致 → 无 error
-    assert Severity.WARN in _sev(rep, "placeholder")
+    assert Severity.WARN in l0_sev(rep, "placeholder")
 
 
 def test_placeholder_bibitem_offline_error() -> None:
@@ -118,7 +111,7 @@ def test_brace_net_imbalance() -> None:
     zh = "用 \\emph{method 说明。"  # 丢 }
     rep = validate_pair(src, zh)
     assert not rep.ok
-    assert Severity.ERROR in _sev(rep, "brace")
+    assert Severity.ERROR in l0_sev(rep, "brace")
 
 
 def test_brace_overdraw() -> None:
@@ -134,7 +127,7 @@ def test_brace_inherited_imbalance_tolerated() -> None:
     src = "公式 ${x$ 残文。"  # src 自带不平衡
     zh = "公式 ${x$ 残文（中文）。"
     rep = validate_pair(src, zh)
-    assert Severity.ERROR not in _sev(rep, "brace")
+    assert Severity.ERROR not in l0_sev(rep, "brace")
 
 
 def test_brace_count_diff_but_balanced_warn() -> None:
@@ -143,14 +136,14 @@ def test_brace_count_diff_but_balanced_warn() -> None:
     zh = "关键 idea"  # 掉 \\emph 组
     rep = validate_pair(src, zh)
     assert rep.ok, str(rep)
-    assert Severity.WARN in _sev(rep, "brace")
+    assert Severity.WARN in l0_sev(rep, "brace")
 
 
 def test_brace_escaped_and_comment_exempt() -> None:
     src = "100\\% 增长 % 注释里有 { 不平衡\n结束 \\{ok\\}"
     zh = "100\\% 增长 % 注释里有 { 不平衡\n结束 \\{ok\\}（中文）"
     rep = validate_pair(src, zh)
-    assert Severity.ERROR not in _sev(rep, "brace")
+    assert Severity.ERROR not in l0_sev(rep, "brace")
 
 
 # ---------------------------------------------------------------- env
@@ -161,7 +154,7 @@ def test_env_rename_end() -> None:
     zh = "\\begin{equation}\nE=mc^2\n\\end{equationx}"  # \end 改名
     rep = validate_pair(src, zh)
     assert not rep.ok
-    assert Severity.ERROR in _sev(rep, "env")
+    assert Severity.ERROR in l0_sev(rep, "env")
 
 
 def test_env_deleted_end() -> None:
@@ -183,7 +176,7 @@ def test_env_inherited_mismatch_tolerated() -> None:
     src = "\\begin{a}x\\end{b}"  # src 自身不匹配
     zh = "\\begin{a}x（译）\\end{b}"
     rep = validate_pair(src, zh)
-    assert Severity.ERROR not in _sev(rep, "env")
+    assert Severity.ERROR not in l0_sev(rep, "env")
 
 
 # ---------------------------------------------------------------- key
@@ -204,22 +197,22 @@ def test_key_hallucinated_key_warn_macro_error() -> None:
     zh = "见 \\cite{a} 和 \\cite{bogus2024}。"
     rep = validate_pair(src, zh)
     assert not rep.ok
-    assert Severity.WARN in _sev(rep, "key")
-    assert Severity.ERROR in _sev(rep, "macro")
+    assert Severity.WARN in l0_sev(rep, "key")
+    assert Severity.ERROR in l0_sev(rep, "macro")
 
 
 def test_key_space_before_brace() -> None:
     src = "\\cite {vaswani2017} 提出。"
     zh = "\\cite {vaswani2017} 提出（译）。"
     rep = validate_pair(src, zh)
-    assert Severity.ERROR not in _sev(rep, "key")
+    assert Severity.ERROR not in l0_sev(rep, "key")
 
 
 def test_key_optional_arg_exempt() -> None:
     src = "\\citep[see][ch.2]{vaswani2017} 所述。"
     zh = "\\citep{vaswani2017} 所述。"  # 丢可选参不追责（key 保留）
     rep = validate_pair(src, zh)
-    assert Severity.ERROR not in _sev(rep, "key")
+    assert Severity.ERROR not in l0_sev(rep, "key")
 
 
 # ---------------------------------------------------------------- math
@@ -230,7 +223,7 @@ def test_math_dollar_dropped() -> None:
     zh = "其中 $x>0$ 且 y<1。"  # 丢一对 $
     rep = validate_pair(src, zh)
     assert not rep.ok
-    assert Severity.ERROR in _sev(rep, "math")
+    assert Severity.ERROR in l0_sev(rep, "math")
 
 
 def test_math_display_unpaired() -> None:
@@ -245,7 +238,7 @@ def test_math_odd_dollar_inherited_warn() -> None:
     zh = "成本是 $5 美元（译）。"
     rep = validate_pair(src, zh)
     assert rep.ok
-    assert Severity.WARN in _sev(rep, "math")
+    assert Severity.WARN in l0_sev(rep, "math")
 
 
 # ---------------------------------------------------------------- length
@@ -262,7 +255,7 @@ def test_length_ratio_cjk_compression_ok() -> None:
     assert rep.ok, str(rep)
     zh2 = "我们在多个基准数据集上对所提方法进行了综合评估与验证。"
     rep2 = validate_pair(src, zh2)
-    assert not _sev(rep2, "length"), str(rep2)
+    assert not l0_sev(rep2, "length"), str(rep2)
 
 
 def test_length_ratio_too_short() -> None:
@@ -270,7 +263,7 @@ def test_length_ratio_too_short() -> None:
     src = "x" * 100 + " 的长段落说明文字，包含足够的上下文内容。"
     zh = "短。"
     rep = validate_pair(src, zh)
-    assert Severity.ERROR in _sev(rep, "length")
+    assert Severity.ERROR in l0_sev(rep, "length")
     assert not rep.ok
 
 
@@ -279,7 +272,7 @@ def test_length_ratio_too_long() -> None:
     src = "We propose a simple method for the general case of interest here."
     zh = "我们提出了一种简单的方法。" * 20  # 退化重复膨胀
     rep = validate_pair(src, zh)
-    assert Severity.ERROR in _sev(rep, "length")
+    assert Severity.ERROR in l0_sev(rep, "length")
     assert not rep.ok
 
 
@@ -289,6 +282,14 @@ def test_length_ratio_placeholder_heavy_exempt() -> None:
     zh = "见 [[MATH_1]] 与 [[MATH_2]]，其中推导从略，详细展开全部省略了。"
     rep = validate_pair(src, zh)
     assert not [i for i in _issues(rep, "length") if "长度比" in i.message], str(rep)
+
+
+def test_length_cjk_share_low() -> None:
+    src = "the transformer architecture uses attention mechanisms."
+    zh = "the transformer architecture uses attention mechanisms."  # 未翻译
+    rep = validate_pair(src, zh)
+    assert Severity.WARN in l0_sev(rep, "length")
+    assert any("未翻译" in i.message for i in rep.issues)
 
 
 # ---------------------------------------------------------------- same_source
@@ -350,14 +351,6 @@ def test_same_source_near_echo_not_flagged() -> None:
     assert rep.ok, str(rep)
 
 
-def test_length_cjk_share_low() -> None:
-    src = "the transformer architecture uses attention mechanisms."
-    zh = "the transformer architecture uses attention mechanisms."  # 未翻译
-    rep = validate_pair(src, zh)
-    assert Severity.WARN in _sev(rep, "length")
-    assert any("未翻译" in i.message for i in rep.issues)
-
-
 # ---------------------------------------------------------------- macro
 
 
@@ -375,7 +368,7 @@ def test_macro_new_nonstructural_error() -> None:
     zh = "普通文本一段，长度足够用于检查各种情况才行。\\foo{bar}"
     rep = validate_pair(src, zh)
     assert not rep.ok
-    assert Severity.ERROR in _sev(rep, "macro")
+    assert Severity.ERROR in l0_sev(rep, "macro")
 
 
 def test_macro_new_escape_family_exempt() -> None:
@@ -446,7 +439,7 @@ def test_ph_in_cs_fused_error() -> None:
     src = "Text \\footnote{note words} more."
     zh = "文本 \\fo[[CMD_1]]o 注记其余。"
     rep = validate_pair(src, zh)
-    assert _sev(rep, "ph_in_cs") == [Severity.ERROR]
+    assert l0_sev(rep, "ph_in_cs") == [Severity.ERROR]
     assert not rep.ok
 
 
@@ -455,7 +448,7 @@ def test_ph_in_cs_tail_adjacent_legit() -> None:
     src = "See \\protect[[REF_1]] and \\em[[CMD_1]] words."
     zh = "见 \\protect[[REF_1]] 与 \\em[[CMD_1]] 词。"
     rep = validate_pair(src, zh)
-    assert not _sev(rep, "ph_in_cs")
+    assert not l0_sev(rep, "ph_in_cs")
 
 
 def test_ph_in_cs_comment_masked() -> None:
@@ -463,7 +456,7 @@ def test_ph_in_cs_comment_masked() -> None:
     src = "Text words here."
     zh = "文本词 % \\fo[[CMD_1]]o 注释内不算\n其余。"
     rep = validate_pair(src, zh)
-    assert not _sev(rep, "ph_in_cs")
+    assert not l0_sev(rep, "ph_in_cs")
 
 
 def test_ph_in_cs_net_diff_inherited_exempt() -> None:
@@ -471,7 +464,7 @@ def test_ph_in_cs_net_diff_inherited_exempt() -> None:
     src = "Head \\fo[[CMD_1]]o tail words."
     zh = "头 \\fo[[CMD_1]]o 尾词。"
     rep = validate_pair(src, zh)
-    assert not _sev(rep, "ph_in_cs")
+    assert not l0_sev(rep, "ph_in_cs")
 
 
 def test_ph_in_cs_control_symbol_not_hit() -> None:
@@ -479,7 +472,7 @@ def test_ph_in_cs_control_symbol_not_hit() -> None:
     src = "Line \\\\[[MATH_1]] break."
     zh = "行 \\\\[[MATH_1]] 断。"
     rep = validate_pair(src, zh)
-    assert not _sev(rep, "ph_in_cs")
+    assert not l0_sev(rep, "ph_in_cs")
 
 
 def test_ph_in_cs_at_letter_and_count() -> None:
@@ -487,7 +480,7 @@ def test_ph_in_cs_at_letter_and_count() -> None:
     src = "Text \\foo{x} and \\bar{y} end."
     zh = "文本 \\fo[[CMD_1]]o 甲 \\b[[CMD_2]]@r 乙。"
     rep = validate_pair(src, zh)
-    assert _sev(rep, "ph_in_cs") == [Severity.ERROR]
+    assert l0_sev(rep, "ph_in_cs") == [Severity.ERROR]
     [issue] = [i for i in rep.issues if i.rule == "ph_in_cs"]
     assert "×2" in issue.message
 
@@ -502,7 +495,7 @@ def test_bare_cs_math_in_text_error() -> None:
     src = "The flux of alpha emitters is large."
     zh = "\\alpha 发射体的通量很大。"
     rep = validate_pair(src, zh)
-    assert _sev(rep, "bare_cs") == [Severity.ERROR]
+    assert l0_sev(rep, "bare_cs") == [Severity.ERROR]
     [issue] = [i for i in rep.issues if i.rule == "bare_cs"]
     assert "\\alpha" in issue.message
 
@@ -512,7 +505,7 @@ def test_bare_cs_math_multiple_aggregate() -> None:
     src = "Alpha particles decay to lead over time."
     zh = "\\alpha 粒子经 \\to 衰变后 \\alpha 变铅。"
     rep = validate_pair(src, zh)
-    assert _sev(rep, "bare_cs") == [Severity.ERROR]
+    assert l0_sev(rep, "bare_cs") == [Severity.ERROR]
     [issue] = [i for i in rep.issues if i.rule == "bare_cs"]
     assert "×3" in issue.message
     assert "\\to" in issue.message
@@ -524,7 +517,7 @@ def test_bare_cs_inside_zh_math_exempt() -> None:
     src = "Alpha emitters decay."
     zh = "$\\alpha$ 发射体衰变。"
     rep = validate_pair(src, zh)
-    assert not _sev(rep, "bare_cs")
+    assert not l0_sev(rep, "bare_cs")
 
 
 def test_bare_cs_display_math_exempt() -> None:
@@ -532,7 +525,7 @@ def test_bare_cs_display_math_exempt() -> None:
     src = "Alpha emitters decay."
     zh = "$$\\alpha$$ 发射体衰变。"
     rep = validate_pair(src, zh)
-    assert not _sev(rep, "bare_cs")
+    assert not l0_sev(rep, "bare_cs")
 
 
 def test_bare_cs_inherited_src_same_count() -> None:
@@ -540,7 +533,7 @@ def test_bare_cs_inherited_src_same_count() -> None:
     src = "Text \\alpha emitters decay."
     zh = "文本 \\alpha 发射体衰变。"
     rep = validate_pair(src, zh)
-    assert not _sev(rep, "bare_cs")
+    assert not l0_sev(rep, "bare_cs")
 
 
 def test_bare_cs_net_delta_counts() -> None:
@@ -548,7 +541,7 @@ def test_bare_cs_net_delta_counts() -> None:
     src = "Text \\alpha here."
     zh = "文本 \\alpha 甲 \\alpha 乙。"
     rep = validate_pair(src, zh)
-    assert _sev(rep, "bare_cs") == [Severity.ERROR]
+    assert l0_sev(rep, "bare_cs") == [Severity.ERROR]
 
 
 def test_bare_cs_comment_masked() -> None:
@@ -556,7 +549,7 @@ def test_bare_cs_comment_masked() -> None:
     src = "Alpha emitters decay."
     zh = "% \\alpha 注记\n发射体衰变。"
     rep = validate_pair(src, zh)
-    assert not _sev(rep, "bare_cs")
+    assert not l0_sev(rep, "bare_cs")
 
 
 def test_bare_cs_fused_item_oc_error() -> None:
@@ -565,7 +558,7 @@ def test_bare_cs_fused_item_oc_error() -> None:
     src = "\\item First point words here enough."
     zh = "\\itemOC 第一条要点文字。"
     rep = validate_pair(src, zh)
-    assert _sev(rep, "bare_cs") == [Severity.ERROR]
+    assert l0_sev(rep, "bare_cs") == [Severity.ERROR]
     [issue] = [i for i in rep.issues if i.rule == "bare_cs"]
     assert "item" in issue.message
     assert "OC" in issue.message
@@ -576,7 +569,7 @@ def test_bare_cs_fused_linebreak_gf() -> None:
     src = "Line \\linebreak break here."
     zh = "行 \\linebreakGF 断处。"
     rep = validate_pair(src, zh)
-    assert _sev(rep, "bare_cs") == [Severity.ERROR]
+    assert l0_sev(rep, "bare_cs") == [Severity.ERROR]
 
 
 def test_bare_cs_fused_csname_bibitem() -> None:
@@ -584,7 +577,7 @@ def test_bare_cs_fused_csname_bibitem() -> None:
     src = "See \\csname x\\endcsname here."
     zh = "见 \\csnamebibitemNoStop 处。"
     rep = validate_pair(src, zh)
-    assert _sev(rep, "bare_cs") == [Severity.ERROR]
+    assert l0_sev(rep, "bare_cs") == [Severity.ERROR]
 
 
 def test_bare_cs_lowercase_suffix_legit() -> None:
@@ -593,7 +586,7 @@ def test_bare_cs_lowercase_suffix_legit() -> None:
     src = "See \\cite{a} here."
     zh = "见 \\citep{a} 处。"
     rep = validate_pair(src, zh)
-    assert not _sev(rep, "bare_cs")
+    assert not l0_sev(rep, "bare_cs")
 
 
 def test_bare_cs_refname_legit() -> None:
@@ -601,7 +594,7 @@ def test_bare_cs_refname_legit() -> None:
     src = "See \\ref{a} here."
     zh = "见 \\refname 处。"
     rep = validate_pair(src, zh)
-    assert not _sev(rep, "bare_cs")
+    assert not l0_sev(rep, "bare_cs")
 
 
 def test_bare_cs_textbf_not_fusion() -> None:
@@ -609,7 +602,7 @@ def test_bare_cs_textbf_not_fusion() -> None:
     src = "A \\text{x} here."
     zh = "一 \\textbf{x} 处。"
     rep = validate_pair(src, zh)
-    assert not _sev(rep, "bare_cs")
+    assert not l0_sev(rep, "bare_cs")
 
 
 def test_bare_cs_text_mode_cs_no_flag() -> None:
@@ -618,7 +611,7 @@ def test_bare_cs_text_mode_cs_no_flag() -> None:
     src = "The project site is online."
     zh = "该项目 \\LaTeX 站已上线。"
     rep = validate_pair(src, zh)
-    assert not _sev(rep, "bare_cs")
+    assert not l0_sev(rep, "bare_cs")
 
 
 # ---------------------------------------------------------------- 审计修复面
@@ -630,13 +623,13 @@ def test_fuzzy_ph_fullwidth_cjk_bracket_not_flagged() -> None:
     src = "Results in [Fig 1] and [2] show [[MATH_1]]."
     zh = "结果见【图1】和【2】，显示 [[MATH_1]]。"
     rep = validate_pair(src, zh)
-    assert not _sev(rep, "placeholder"), str(rep)
+    assert not l0_sev(rep, "placeholder"), str(rep)
 
 
 def test_fuzzy_ph_fullwidth_variant_pairs() -> None:
     r"""``【MATH_1】`` 全角括号变体仍是占位符拼错——lev 配对给修复建议。"""
     rep = validate_pair("见 [[MATH_1]] 式。", "见【MATH_1】式。")
-    sev = _sev(rep, "placeholder")
+    sev = l0_sev(rep, "placeholder")
     assert sev == [Severity.ERROR]
     iss = next(i for i in rep.issues if i.rule == "placeholder")
     assert iss.expected == "[[MATH_1]]"
@@ -687,13 +680,13 @@ def test_item_glue_legit_item_cs_no_flag() -> None:
     src = "\\item a\n\\item b"
     zh = "\\item 甲\n\\itemsep 2pt\n\\item 乙"
     rep = validate_pair(src, zh)
-    assert not _sev(rep, "item_glue"), str(rep)
+    assert not l0_sev(rep, "item_glue"), str(rep)
 
 
 def test_item_glue_uppercase_suffix_flagged() -> None:
     r"""``\\itemFSU`` 大写尾粘合仍是编译炸弹签名。"""
     rep = validate_pair("\\item First", "\\itemFSU 第一")
-    assert _sev(rep, "item_glue") == [Severity.WARN]
+    assert l0_sev(rep, "item_glue") == [Severity.WARN]
 
 
 def test_fragile_space_newline_equiv() -> None:

@@ -50,38 +50,21 @@ stagerun-tarrecheck/, stagerun-flipcheck/ 同名 records。
 
 import re
 import shutil
-import subprocess
 from pathlib import Path
 
 import pytest
-
-from texlate.compile.fixloop import load_ruleset
-
-STUBS = (
-    Path(__file__).resolve().parent.parent / "src/texlate/compile/fixloop/vendor/stubs"
+from _fixloopkit import (
+    SHIMS,
+    STUBS,
+    VENDOR_FILES,
+    code_lines,
+    n_err,
+    requires_xelatex,
+    run_xelatex,
+    shim_body,
+    shim_map,
+    write_shim,
 )
-SHIMS = STUBS.parent / "shims"  # .cls 替身 stub 归位层 (F2)
-VENDOR_FILES = STUBS.parent / "files"
-
-_XELATEX = shutil.which("xelatex")
-_COMPILE = pytest.mark.skipif(_XELATEX is None, reason="xelatex not installed")
-
-
-def _run(wdir: Path, tex: str) -> str:
-    (wdir / "main.tex").write_text(tex, encoding="utf-8")
-    subprocess.run(  # noqa: S603 -- argv[0] 来自 shutil.which 绝对路径
-        [_XELATEX, "-interaction=nonstopmode", "main.tex"],
-        cwd=wdir,
-        capture_output=True,
-        timeout=120,
-        check=False,
-    )
-    return (wdir / "main.log").read_text(encoding="utf-8", errors="replace")
-
-
-def _n_err(log: str) -> int:
-    return len(re.findall(r"^! ", log, re.MULTILINE))
-
 
 # ------------------------------------------------------- 源码级 pin (免编译)
 
@@ -130,15 +113,10 @@ def test_svjour3_natbib_option_declared() -> None:
     assert "\\AtEndOfClass{\\RequirePackage{natbib}" in body
 
 
-def _code_lines(body: str) -> str:
-    """滤 % 注释行后拼接——pin 断言不得被注释文本夹带。"""
-    return "\n".join(ln for ln in body.splitlines() if not ln.lstrip().startswith("%"))
-
-
 def test_tcilatex_qqq_two_arg_definer() -> None:
     r"""tcilatex \QQQ 真件 2 参元数据机 pin（cond-mat/9910091
     \QQQ{Language}{American English} 漏参 Missing\begin{document} 实证）。"""
-    code = _code_lines((STUBS / "tcilatex.tex").read_text(encoding="utf-8"))
+    code = code_lines((STUBS / "tcilatex.tex").read_text(encoding="utf-8"))
     assert (
         "\\long\\def\\QQQ#1#2{\\long\\expandafter\\def\\csname#1\\endcsname{#2}}"
         in code
@@ -150,7 +128,7 @@ def test_sw20_tag_machinery_present() -> None:
     r"""SW20 tag 机 pin：tcilatex/sw20lart 双件各立全套
     （cond-mat/9910091 \tag×115 undefined_cs 实证）。"""
     for name in ("tcilatex.tex", "sw20lart.sty"):
-        code = _code_lines((STUBS / name).read_text(encoding="utf-8"))
+        code = code_lines((STUBS / name).read_text(encoding="utf-8"))
         for frag in (
             "\\newif\\iftag@",
             "\\def\\tag{\\@ifnextchar*{\\@tagstar}{\\@tag}}",
@@ -165,7 +143,7 @@ def test_sw20_tag_machinery_present() -> None:
 def test_boxedeps_iface_present() -> None:
     r"""BoxedEPS kit pin（cond-mat/0408520 16 undefined_cs 实证）：
     实证面 + 兄弟件齐全，\BoxedEPSF 退化 \includegraphics。"""
-    code = _code_lines((STUBS / "BoxedEPS.tex").read_text(encoding="utf-8"))
+    code = code_lines((STUBS / "BoxedEPS.tex").read_text(encoding="utf-8"))
     for frag in (
         "\\def\\ForceWidth#1",
         "\\def\\ForceHeight#1",
@@ -181,7 +159,7 @@ def test_boxedeps_iface_present() -> None:
 def test_aipproc_author_dual_signature_and_references() -> None:
     r"""aipproc \author 双签名 + references env pin（0104007 :250
     keyval 爆 + env_undefined/\@listctr×12 实证）。"""
-    code = _code_lines((SHIMS / "aipproc.cls").read_text(encoding="utf-8"))
+    code = code_lines((SHIMS / "aipproc.cls").read_text(encoding="utf-8"))
     assert "\\renewcommand{\\author}[1]" in code
     assert "\\@ifnextchar\\bgroup{\\fixaip@author@kv" in code
     assert "\\renewcommand{\\author}[2]" not in code
@@ -193,12 +171,12 @@ def test_aipproc_author_dual_signature_and_references() -> None:
 
 
 @pytest.mark.integration
-@_COMPILE
+@requires_xelatex
 def test_mn2e_usenatbib_loads_natbib(tmp_path: Path) -> None:
     """mn2e stub + usenatbib → mnras \\ds@usenatbib 点火 → \\citealt 定义。"""
     shutil.copy(SHIMS / "mn2e.cls", tmp_path / "mn2e.cls")
     shutil.copy(VENDOR_FILES / "mnras.cls", tmp_path / "mnras.cls")
-    log = _run(
+    log = run_xelatex(
         tmp_path,
         r"""\documentclass[usenatbib]{mn2e}
 \begin{document}
@@ -207,17 +185,17 @@ text \citealt{key}
 """,
     )
     assert "natbib.sty" in log, "usenatbib 未转发, natbib 未装"
-    assert _n_err(log) == 0, f"仍 {_n_err(log)} 个 '!' 错"
+    assert n_err(log) == 0, f"仍 {n_err(log)} 个 '!' 错"
     assert (tmp_path / "main.pdf").is_file()
 
 
 @pytest.mark.integration
-@_COMPILE
+@requires_xelatex
 def test_mn_usenatbib_loads_natbib(tmp_path: Path) -> None:
     """mn stub 同体转发 (mn.cls→mnras 同路径)。"""
     shutil.copy(SHIMS / "mn.cls", tmp_path / "mn.cls")
     shutil.copy(VENDOR_FILES / "mnras.cls", tmp_path / "mnras.cls")
-    log = _run(
+    log = run_xelatex(
         tmp_path,
         r"""\documentclass[usenatbib]{mn}
 \begin{document}
@@ -226,16 +204,16 @@ text \citet{key}
 """,
     )
     assert "natbib.sty" in log
-    assert _n_err(log) == 0
+    assert n_err(log) == 0
 
 
 @pytest.mark.integration
-@_COMPILE
+@requires_xelatex
 @pytest.mark.parametrize("sty", ["aaspp4", "aasms4"])
 def test_aas4_markcite_reference_consume_key(tmp_path: Path, sty: str) -> None:
     """\\markcite{Na_95}/\\reference{Al_96}: {key} 不泄正文, 无 Missing $。"""
     shutil.copy(STUBS / f"{sty}.sty", tmp_path / f"{sty}.sty")
-    log = _run(
+    log = run_xelatex(
         tmp_path,
         rf"""\documentclass{{article}}
 \usepackage{{{sty}}}
@@ -247,17 +225,17 @@ text \markcite{{Na_95}}Nakajima et al. 1995
 \end{{document}}
 """,
     )
-    assert _n_err(log) == 0, f"{sty} 仍 {_n_err(log)} 个 '!' 错 (key 泄正文)"
+    assert n_err(log) == 0, f"{sty} 仍 {n_err(log)} 个 '!' 错 (key 泄正文)"
     assert (tmp_path / "main.pdf").is_file()
 
 
 @pytest.mark.integration
-@_COMPILE
+@requires_xelatex
 @pytest.mark.parametrize("sty", ["jheppub", "jinstpub"])
 def test_sissa_stub_provides_natbib(tmp_path: Path, sty: str) -> None:
     """SISSA kit stub 镜像真件装载面 → \\citep 等 natbib 面可用。"""
     shutil.copy(STUBS / f"{sty}.sty", tmp_path / f"{sty}.sty")
-    log = _run(
+    log = run_xelatex(
         tmp_path,
         rf"""\documentclass{{article}}
 \usepackage{{{sty}}}
@@ -268,15 +246,15 @@ text \citep{{key}}
     )
     assert "natbib.sty" in log, f"{sty} 未装 natbib"
     assert "graphicx.sty" in log, f"{sty} 未装 graphicx"
-    assert _n_err(log) == 0, f"{sty} 仍 {_n_err(log)} 个 '!' 错"
+    assert n_err(log) == 0, f"{sty} 仍 {n_err(log)} 个 '!' 错"
 
 
 @pytest.mark.integration
-@_COMPILE
+@requires_xelatex
 def test_svjour3_natbib_option(tmp_path: Path) -> None:
     """\\documentclass[natbib]{svjour3} → natbib 装载 (真件选项面)。"""
     shutil.copy(SHIMS / "svjour3.cls", tmp_path / "svjour3.cls")
-    log = _run(
+    log = run_xelatex(
         tmp_path,
         r"""\documentclass[natbib]{svjour3}
 \begin{document}
@@ -285,15 +263,15 @@ text \citep{key}
 """,
     )
     assert "natbib.sty" in log, "natbib 类选项未生效"
-    assert _n_err(log) == 0
+    assert n_err(log) == 0
 
 
 @pytest.mark.integration
-@_COMPILE
+@requires_xelatex
 def test_aipproc_provides_graphicx_url(tmp_path: Path) -> None:
     """aipproc stub 镜像真件装载面: graphicx/url 由类提供。"""
     shutil.copy(SHIMS / "aipproc.cls", tmp_path / "aipproc.cls")
-    log = _run(
+    log = run_xelatex(
         tmp_path,
         r"""\documentclass{aipproc}
 \begin{document}
@@ -303,16 +281,16 @@ see \url{https://example.org}
     )
     assert "graphicx.sty" in log
     assert "url.sty" in log
-    assert _n_err(log) == 0
+    assert n_err(log) == 0
 
 
 @pytest.mark.integration
-@_COMPILE
+@requires_xelatex
 def test_tcilatex_qqq_defines_name_and_no_preamble_leak(tmp_path: Path) -> None:
     r"""\QQQ{Language}{American English} → \Language 定义（真件元数据机），
     次参不漏 preamble → 无 Missing\begin{document}。"""
     shutil.copy(STUBS / "tcilatex.tex", tmp_path / "tcilatex.tex")
-    log = _run(
+    log = run_xelatex(
         tmp_path,
         r"""\documentclass{article}
 \input tcilatex
@@ -322,13 +300,13 @@ lang=\Language.
 \end{document}
 """,
     )
-    assert _n_err(log) == 0, f"仍 {_n_err(log)} 个 '!' 错"
+    assert n_err(log) == 0, f"仍 {n_err(log)} 个 '!' 错"
     assert "Missing \\begin{document}" not in log
     assert (tmp_path / "main.pdf").is_file()
 
 
 @pytest.mark.integration
-@_COMPILE
+@requires_xelatex
 @pytest.mark.parametrize("kit", ["tcilatex", "sw20lart"])
 def test_sw20_tag_in_equation_and_eqnarray(tmp_path: Path, kit: str) -> None:
     r"""\tag{N}/\tag*{lit} 在 equation 与 eqnarray 两族皆消费
@@ -339,7 +317,7 @@ def test_sw20_tag_in_equation_and_eqnarray(tmp_path: Path, kit: str) -> None:
     else:
         shutil.copy(STUBS / "sw20lart.sty", tmp_path / "sw20lart.sty")
         load = "\\usepackage{sw20lart}"
-    log = _run(
+    log = run_xelatex(
         tmp_path,
         rf"""\documentclass{{article}}
 {load}
@@ -350,16 +328,16 @@ def test_sw20_tag_in_equation_and_eqnarray(tmp_path: Path, kit: str) -> None:
 \end{{document}}
 """,
     )
-    assert _n_err(log) == 0, f"{kit} 仍 {_n_err(log)} 个 '!' 错"
+    assert n_err(log) == 0, f"{kit} 仍 {n_err(log)} 个 '!' 错"
     assert (tmp_path / "main.pdf").is_file()
 
 
 @pytest.mark.integration
-@_COMPILE
+@requires_xelatex
 def test_boxedeps_iface_degrades_to_includegraphics(tmp_path: Path) -> None:
     r"""\input BoxedEPS + 全实证面调用面 0 错；\BoxedEPSF→\includegraphics。"""
     shutil.copy(STUBS / "BoxedEPS.tex", tmp_path / "BoxedEPS.tex")
-    log = _run(
+    log = run_xelatex(
         tmp_path,
         r"""\documentclass{article}
 \input BoxedEPS.tex
@@ -375,17 +353,17 @@ fig2: \BoxedEPSF{fig2.eps}
 """,
     )
     assert "graphicx.sty" in log, "BoxedEPS 未装 graphicx"
-    assert _n_err(log) == 0, f"仍 {_n_err(log)} 个 '!' 错"
+    assert n_err(log) == 0, f"仍 {n_err(log)} 个 '!' 错"
     assert (tmp_path / "main.pdf").is_file()
 
 
 @pytest.mark.integration
-@_COMPILE
+@requires_xelatex
 def test_aipproc_one_arg_author_and_references(tmp_path: Path) -> None:
     r"""REVTeX3 式 \author{names} + \address{} + references env
     （0104007 实证面）：不吞 \address、\bibitem 在 list 内工作。"""
     shutil.copy(SHIMS / "aipproc.cls", tmp_path / "aipproc.cls")
-    log = _run(
+    log = run_xelatex(
         tmp_path,
         r"""\documentclass{aipproc}
 \begin{document}
@@ -400,16 +378,16 @@ text \cite{Moore00}.
 \end{document}
 """,
     )
-    assert _n_err(log) == 0, f"仍 {_n_err(log)} 个 '!' 错"
+    assert n_err(log) == 0, f"仍 {n_err(log)} 个 '!' 错"
     assert (tmp_path / "main.pdf").is_file()
 
 
 @pytest.mark.integration
-@_COMPILE
+@requires_xelatex
 def test_aipproc_two_arg_author_kept(tmp_path: Path) -> None:
     r"""新 keyval 双参 \author{Name}{address={..}} 不回潮（1306.2177 面）。"""
     shutil.copy(SHIMS / "aipproc.cls", tmp_path / "aipproc.cls")
-    log = _run(
+    log = run_xelatex(
         tmp_path,
         r"""\documentclass{aipproc}
 \begin{document}
@@ -421,7 +399,7 @@ text.
 \end{document}
 """,
     )
-    assert _n_err(log) == 0, f"仍 {_n_err(log)} 个 '!' 错"
+    assert n_err(log) == 0, f"仍 {n_err(log)} 个 '!' 错"
     assert (tmp_path / "main.pdf").is_file()
 
 
@@ -433,7 +411,7 @@ def test_svglov3_clo_catcode_immune() -> None:
     禁裸 ``\makeatletter``/``\makeatother``——class-load 语境 ``\input``
     返回后 @ 字母位不得被改写；``\catcode 64`` 存复对 + ``size10.clo``
     字体段 (真件内联同件) + ``\validfor``/``\if@runhead`` cls 校验点。"""
-    code = _code_lines((STUBS / "svglov3.clo").read_text(encoding="utf-8"))
+    code = code_lines((STUBS / "svglov3.clo").read_text(encoding="utf-8"))
     assert "\\makeatletter" not in code
     assert "\\makeatother" not in code
     assert "\\catcode 64" in code
@@ -442,36 +420,11 @@ def test_svglov3_clo_catcode_immune() -> None:
     assert "\\def\\validfor{svjour3}" in code
 
 
-def _shim_map() -> dict[str, dict]:
-    rules = {r.id: r for r in load_ruleset().rules}
-    return rules["legacy_pkg_shim"].action["params"]["shim_map"]
-
-
-def _vendor_file(name: str) -> Path | None:
-    """shim_map 槽已删名 (routeclean 2026-09-20) → vendored_fetch 实件。"""
-    for layer in (SHIMS, STUBS, VENDOR_FILES):
-        vend = layer / name
-        if vend.is_file():
-            return vend
-    return None
-
-
-def _shim_body(name: str) -> str:
-    spec = _shim_map().get(name)
-    if spec is None:
-        vend = _vendor_file(name)
-        if vend is not None:
-            return vend.read_text(encoding="utf-8")
-        raise KeyError(name)
-    assert "body" in spec, f"{name} 无 body 键"
-    return spec["body"]
-
-
 def test_cimento_frontmatter_kit() -> None:
     r"""cimento body pin（0905.4620 随稿签名 ``\author{..\from{ins:x}}`` +
     ``\instlist{\inst{ins:x} ..}`` + ``\PACSes{..\PACSit{c}{d}..}``）。
     ``\instlist``/``\PACSes`` preamble 期调用 → 存值 + ``\AtBeginDocument``。"""
-    body = _shim_body("cimento.cls")
+    body = shim_body("cimento.cls")
     for frag in (
         "\\providecommand{\\from}[1]",
         "\\providecommand{\\inst}[1]",
@@ -488,7 +441,7 @@ def test_pasj00_kit() -> None:
     ``\DeclareAbbreviation`` 2 参定义件 + frontmatter 面 + natbib/amssymb/
     graphicx 装载面 + 期刊缩写内建集 + ``\FigureFile`` + AAS 式 ``\altaffil*``
     + ``\rm`` 2.09 字件。"""
-    body = _shim_body("pasj00.cls")
+    body = shim_body("pasj00.cls")
     for frag in (
         "\\providecommand{\\DeclareAbbreviation}[2]",
         "\\providecommand{\\SetRunningHead}[2]",
@@ -517,7 +470,7 @@ def test_pos_kit() -> None:
     r"""PoS body pin（1306.5919 随稿签名）：``\ShortTitle/\speaker/\email``
     + 命令形 ``\abstract{}`` + ``\FullConference`` + ``acknowledgments``
     env + graphicx 装载面（PoS 无 env 形, JINST 条同形先例）。"""
-    body = _shim_body("PoS.cls")
+    body = shim_body("PoS.cls")
     for frag in (
         "\\providecommand{\\ShortTitle}[1]",
         "\\providecommand{\\speaker}[1]",
@@ -535,7 +488,7 @@ def test_imsart_arxiv_thanksref() -> None:
     r"""imsart body 增量 pin（1003.1513 随稿签名 ``\arxiv{math.PR/0000512}``
     + ``\thanksref{t2}`` + 结构 env 面 + ``\kwd/\ead/\printead`` +
     单参 ``\address``）。"""
-    body = _shim_body("imsart.cls")
+    body = shim_body("imsart.cls")
     for frag in (
         "\\providecommand{\\arxiv}[1]",
         "\\providecommand{\\thanksref}[1]",
@@ -557,7 +510,7 @@ def test_imsart_arxiv_thanksref() -> None:
 def test_aa501_loads_aa_needs_aa() -> None:
     r"""aa501 桥 pin（0104346 实证面）：``loads`` 桥 + ``needs`` 依赖
     aa.cls 同仓 shim——leader 核准形。"""
-    spec = _shim_map()["aa501.cls"]
+    spec = shim_map()["aa501.cls"]
     assert spec.get("loads") == "aa"
     assert spec.get("needs") == ["aa.cls"]
     assert "body" not in spec
@@ -566,39 +519,15 @@ def test_aa501_loads_aa_needs_aa() -> None:
 def test_flushrt_shim_present() -> None:
     r"""flushrt shim pin（9910310 ``\usepackage{aaspp4,flushrt}`` 升级稿
     实证）：noop+``\raggedleft`` 语义即可——缺失态 2.09 option 链断点。"""
-    body = _shim_body("flushrt.sty")
+    body = shim_body("flushrt.sty")
     assert "\\raggedleft" in body
 
 
 # ------------------------------------------------------- round-2: shim body 真编译钉
 
 
-def _write_shim(wdir: Path, name: str) -> None:
-    r"""把 shim_map body (或 loads 模板) 物化成 wdir/<name>——复刻
-    ``_builtins_shim`` 的 emit 面, 编译钉直打真实生成物。槽已删名
-    改物化 vendored_fetch 实件 (同服务物)。"""
-    spec = _shim_map().get(name)
-    if spec is None:
-        vend = _vendor_file(name)
-        if vend is None:
-            raise KeyError(name)
-        (wdir / name).write_text(vend.read_text(encoding="utf-8"), encoding="utf-8")
-        return
-    body = spec.get("body")
-    if body is None:
-        loads = spec["loads"]
-        stem = name.rsplit(".", 1)[0]
-        body = (
-            "\\NeedsTeXFormat{LaTeX2e}\n"
-            f"\\ProvidesClass{{{stem}}}[2026/09/19 fixloop legacy shim -> {loads}]\n"
-            f"\\LoadClassWithOptions{{{loads}}}\n"
-            "\\endinput\n"
-        )
-    (wdir / name).write_text(body, encoding="utf-8")
-
-
 @pytest.mark.integration
-@_COMPILE
+@requires_xelatex
 def test_svglov3_clo_input_mid_class_load(tmp_path: Path) -> None:
     r"""class-load 语境 ``\input svglov3.clo`` 后 ``\@``-cs/``\p@`` 仍可解析
     ——catcode 泄漏实测（1608.06693 ``15\p@`` 断读签名复现位）。"""
@@ -611,7 +540,7 @@ def test_svglov3_clo_input_mid_class_load(tmp_path: Path) -> None:
         "\\LoadClass{article}\n",
         encoding="utf-8",
     )
-    log = _run(
+    log = run_xelatex(
         tmp_path,
         r"""\documentclass{minicls}
 \begin{document}
@@ -619,17 +548,17 @@ len ok
 \end{document}
 """,
     )
-    assert _n_err(log) == 0, f"仍 {_n_err(log)} 个 '!' 错 (catcode 泄漏回潮)"
+    assert n_err(log) == 0, f"仍 {n_err(log)} 个 '!' 错 (catcode 泄漏回潮)"
     assert (tmp_path / "main.pdf").is_file()
 
 
 @pytest.mark.integration
-@_COMPILE
+@requires_xelatex
 def test_cimento_polyfills_compile(tmp_path: Path) -> None:
     r"""cimento shim body 编译钉：0905.4620 签名面——``\instlist``/``\PACSes``
     preamble 期调用（:14/:16, ``\begin{document}``:25）0 错无泄漏。"""
-    _write_shim(tmp_path, "cimento.cls")
-    log = _run(
+    write_shim(tmp_path, "cimento.cls")
+    log = run_xelatex(
         tmp_path,
         r"""\documentclass{cimento}
 \title{T}
@@ -642,19 +571,19 @@ text.
 \end{document}
 """,
     )
-    assert _n_err(log) == 0, f"仍 {_n_err(log)} 个 '!' 错"
+    assert n_err(log) == 0, f"仍 {n_err(log)} 个 '!' 错"
     assert "Missing \\begin{document}" not in log
     assert (tmp_path / "main.pdf").is_file()
 
 
 @pytest.mark.integration
-@_COMPILE
+@requires_xelatex
 def test_pasj00_polyfills_compile(tmp_path: Path) -> None:
     r"""pasj00 shim body 编译钉：1003.0945 签名面——``\DeclareAbbreviation``
     preamble 定义件 + frontmatter in-doc 调用（:77-114 实位）+ ``\citet``
     natbib 面 + ``\altaffil*`` AAS 件，0 错。"""
-    _write_shim(tmp_path, "pasj00.cls")
-    log = _run(
+    write_shim(tmp_path, "pasj00.cls")
+    log = run_xelatex(
         tmp_path,
         r"""\documentclass{pasj00}
 \DeclareAbbreviation\apj{Astrophys. J.}
@@ -676,19 +605,19 @@ ref \apj\ and \mnras; \citet{key} said.
 \end{document}
 """,
     )
-    assert _n_err(log) == 0, f"仍 {_n_err(log)} 个 '!' 错"
+    assert n_err(log) == 0, f"仍 {n_err(log)} 个 '!' 错"
     assert "Missing \\begin{document}" not in log
     assert (tmp_path / "main.pdf").is_file()
 
 
 @pytest.mark.integration
-@_COMPILE
+@requires_xelatex
 def test_pos_polyfills_compile(tmp_path: Path) -> None:
     r"""PoS shim body 编译钉：1306.5919 签名面——``\ShortTitle``/``\author``
     /命令形 ``\abstract``/``\FullConference`` 全在 preamble（:8-37,
     ``\begin{document}``:41）+ ``acknowledgments`` env，0 错无泄漏。"""
-    _write_shim(tmp_path, "PoS.cls")
-    log = _run(
+    write_shim(tmp_path, "PoS.cls")
+    log = run_xelatex(
         tmp_path,
         r"""\documentclass{PoS}
 \ShortTitle{From p+p to Pb+Pb}
@@ -705,18 +634,18 @@ Thanks.
 \end{document}
 """,
     )
-    assert _n_err(log) == 0, f"仍 {_n_err(log)} 个 '!' 错"
+    assert n_err(log) == 0, f"仍 {n_err(log)} 个 '!' 错"
     assert "Missing \\begin{document}" not in log
     assert (tmp_path / "main.pdf").is_file()
 
 
 @pytest.mark.integration
-@_COMPILE
+@requires_xelatex
 def test_imsart_arxiv_compile(tmp_path: Path) -> None:
     r"""imsart 编译钉（1003.1513 签名面）：``\arxiv`` preamble 期 +``frontmatter``/``aug``/``keyword`` 结构 env + ``\kwd/\ead/\thanksref``。
     稿内无 ``\maketitle``——frontmatter env 尾触之。"""
-    _write_shim(tmp_path, "imsart.cls")
-    log = _run(
+    write_shim(tmp_path, "imsart.cls")
+    log = run_xelatex(
         tmp_path,
         r"""\documentclass{imsart}
 \arxiv{math.PR/0000512}
@@ -742,19 +671,19 @@ text.
 \end{document}
 """,
     )
-    assert _n_err(log) == 0, f"仍 {_n_err(log)} 个 '!' 错"
+    assert n_err(log) == 0, f"仍 {n_err(log)} 个 '!' 错"
     assert "Missing \\begin{document}" not in log
     assert (tmp_path / "main.pdf").is_file()
 
 
 @pytest.mark.integration
-@_COMPILE
+@requires_xelatex
 def test_aa501_bridges_aa_shim(tmp_path: Path) -> None:
     r"""aa501→aa 链编译钉：``loads`` 桥 emit + aa.cls body 双件物化,
     A&A polyfill 面 (``\offprints/\inst/\keywords``) 可用。"""
-    _write_shim(tmp_path, "aa501.cls")
-    _write_shim(tmp_path, "aa.cls")
-    log = _run(
+    write_shim(tmp_path, "aa501.cls")
+    write_shim(tmp_path, "aa.cls")
+    log = run_xelatex(
         tmp_path,
         r"""\documentclass{aa501}
 \offprints{A. Author}
@@ -768,7 +697,7 @@ text.
 \end{document}
 """,
     )
-    assert _n_err(log) == 0, f"仍 {_n_err(log)} 个 '!' 错"
+    assert n_err(log) == 0, f"仍 {n_err(log)} 个 '!' 错"
     assert (tmp_path / "main.pdf").is_file()
 
 
@@ -784,7 +713,7 @@ def test_geom_kit() -> None:
     ``proof``/``Figure`` env 基座（稿仅 ``\renewenvironment``）+
     ``\provedbox``/``\captionskip``/``\@captionmargin``/``\@captionwidth``
     + ``\prooftag`` 0 参（``\pro@f[\prooftag]`` 当值用）+ catcode 免疫段。"""
-    body = _shim_body("geom.sty")
+    body = shim_body("geom.sty")
     for frag in (
         "\\newif\\ifproofing \\proofingtrue",
         "\\newif\\ifautolabel \\autolabeltrue",
@@ -820,14 +749,14 @@ def test_geom_kit() -> None:
 
 
 @pytest.mark.integration
-@_COMPILE
+@requires_xelatex
 def test_geom_polyfills_compile(tmp_path: Path) -> None:
     r"""geom shim 编译钉（0806.0904 装载形复刻）：稿 ``\makeatletter`` 区内
     ``\input{geom.sty}``（@=11 装载）→ ``\newtheorem`` 双形态派工 +
     ``\renewenvironment{proof}``/``{Figure}`` 基座 + ``\ifstarredcontents``
     直读 + ``\prooftag`` 值位 + ``\Bbb`` + ``\margins`` preamble 期，0 错。"""
-    _write_shim(tmp_path, "geom.sty")
-    log = _run(
+    write_shim(tmp_path, "geom.sty")
+    log = run_xelatex(
         tmp_path,
         r"""\documentclass{article}
 \makeatletter
@@ -849,7 +778,7 @@ $\Bbb R^2$ \prooftag {\raggedcenter x}
 \end{document}
 """,
     )
-    assert _n_err(log) == 0, f"仍 {_n_err(log)} 个 '!' 错"
+    assert n_err(log) == 0, f"仍 {n_err(log)} 个 '!' 错"
     assert "Missing \\begin{document}" not in log
     assert (tmp_path / "main.pdf").is_file()
 

@@ -29,10 +29,10 @@ arm 3 ``url``/``nolinkurl`` (×3+1: 1306.0187/1404.6110/0806.0347 +
 """
 
 import re
-from functools import lru_cache
 from pathlib import Path
 
-from texlate.compile.fixloop import Ruleset, load_ruleset
+from _fixloopkit import rule
+
 from texlate.compile.fixloop.builtins import TRANSFORM_FNS
 from texlate.compile.fixloop.engine import LoopCtx
 
@@ -71,14 +71,9 @@ def _read(tmp_path: Path) -> str:
     return (tmp_path / "main.tex").read_text(encoding="utf-8")
 
 
-@lru_cache(maxsize=1)
-def _rs() -> Ruleset:
-    return load_ruleset()
-
-
-def _cs_params() -> dict:
-    """``cs_targeted_fix`` 规则真 params —— yaml cs_table 叠默认表, 同 builtin 合并语义。"""
-    return next(r for r in _rs().rules if r.id == "cs_targeted_fix").action["params"]
+def _params(rid: str) -> dict:
+    """按 rid 取规则 ``action.params``——cs_table/shim_map/直驱 params 的单入口。"""
+    return rule(rid).action["params"]
 
 
 # ═══════════════════════ arm 1: sortlist bbl-2.8 读者 ═══════════════════════
@@ -159,7 +154,7 @@ def test_sortlist_no_split_fallback(tmp_path: Path) -> None:
 def test_currentcolor_guard_early_hook(tmp_path: Path) -> None:
     """``begindocument/before`` 钩注入 —— 先于一切 begindocument 块执行。"""
     ctx = _ctx(tmp_path)
-    ok, note = _TARGETED(ctx, _Eng(), "current@color", _cs_params())
+    ok, note = _TARGETED(ctx, _Eng(), "current@color", _params("cs_targeted_fix"))
     assert ok, note
     text = _read(tmp_path)
     assert "\\AddToHook{begindocument/before}" in text
@@ -171,8 +166,8 @@ def test_currentcolor_guard_early_hook(tmp_path: Path) -> None:
 
 def test_currentcolor_idempotent(tmp_path: Path) -> None:
     ctx = _ctx(tmp_path)
-    assert _TARGETED(ctx, _Eng(), "current@color", _cs_params())[0]
-    ok, _ = _TARGETED(ctx, _Eng(), "current@color", _cs_params())
+    assert _TARGETED(ctx, _Eng(), "current@color", _params("cs_targeted_fix"))[0]
+    ok, _ = _TARGETED(ctx, _Eng(), "current@color", _params("cs_targeted_fix"))
     assert not ok
 
 
@@ -183,7 +178,7 @@ def test_url_usepackage_and_probe(tmp_path: Path) -> None:
     """``\\RequirePackage{url}`` 注入 + url.sty 探装。"""
     eng = _Eng()
     ctx = _ctx(tmp_path)
-    ok, note = _TARGETED(ctx, eng, "url", _cs_params())
+    ok, note = _TARGETED(ctx, eng, "url", _params("cs_targeted_fix"))
     assert ok, note
     assert "\\RequirePackage{url}" in _read(tmp_path)
     assert "url.sty" in eng.probed
@@ -194,7 +189,7 @@ def test_nolinkurl_polyfill_detokenize(tmp_path: Path) -> None:
     (aastex shim 面下真 url.sty 夺回 ``\\url`` 定义风险)。"""
     eng = _Eng()
     ctx = _ctx(tmp_path)
-    ok, note = _TARGETED(ctx, eng, "nolinkurl", _cs_params())
+    ok, note = _TARGETED(ctx, eng, "nolinkurl", _params("cs_targeted_fix"))
     assert ok, note
     text = _read(tmp_path)
     assert "\\providecommand{\\nolinkurl}[1]{\\texttt{\\detokenize{#1}}}" in text
@@ -209,10 +204,10 @@ def test_aastex6x_body_nolinkurl_delegate() -> None:
     """``aastex6x_body`` 锚共享 —— 存活锚条目同获 ``\\nolinkurl``
     (routeclean: aastex62.cls 槽删→vendor/files 真件; clsbridge:
     AASTeX62.cls 混合大写死键删 —— shim_map 键大小写敏感永不可达)。"""
-    shim_map = next(r for r in _rs().rules if r.id == "legacy_pkg_shim").action[
-        "params"
-    ]["shim_map"]
-    body = shim_map["aastex61.cls"]["body"]
-    assert "\\providecommand{\\nolinkurl}[1]{\\url{#1}}" in body
-    for cls in ("aastex63.cls", "aastex631.cls"):
-        assert "\\nolinkurl" in shim_map[cls]["body"]
+    shim_map = _params("legacy_pkg_shim")["shim_map"]
+    delegate = "\\providecommand{\\nolinkurl}[1]{\\url{#1}}"
+    for cls in ("aastex61.cls", "aastex63.cls", "aastex631.cls"):
+        assert delegate in shim_map[cls]["body"], cls
+    # docstring 钉的两条删除键——回潮即哑 (shim_map 键大小写敏感)
+    assert "aastex62.cls" not in shim_map
+    assert "AASTeX62.cls" not in shim_map

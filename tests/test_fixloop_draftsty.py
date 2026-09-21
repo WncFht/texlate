@@ -20,9 +20,11 @@ no-op exit 0), 首个 ``\\endinput`` 前 (缺席则 EOF) 注入良性
 
 from pathlib import Path
 
-from texlate.compile.fixloop import Ruleset, actions, fixloop, load_ruleset
-from texlate.compile.fixloop.engine import LoopCtx, Rule
-from texlate.compile.logparse import ErrReport, parse_text
+from _fixloopkit import apply, classify, mk_ctx, rs, rule
+from test_fixloop_loop import MockEngine
+
+from texlate.compile.fixloop import actions, fixloop
+from texlate.compile.fixloop.engine import Rule
 
 _RULE_ID = "abstract_edef_capture_neutralize"
 
@@ -58,30 +60,21 @@ _HACK_STY = (
 )
 
 
-def _rs() -> Ruleset:
-    return load_ruleset()
-
-
 def _rule() -> Rule:
-    return next(r for r in _rs().rules if r.id == _RULE_ID)
-
-
-def _classify(head_text: str) -> tuple[str | None, str | None]:
-    rep = parse_text(head_text + "\n")
-    return _rs().taxonomy.classify(rep)
+    return rule(_RULE_ID)
 
 
 # ---------------------------------------------------------------- taxonomy
 def test_taxonomy_incomplete_iffalse_is_incomplete_if() -> None:
     """实证签名: `! Incomplete \\iffalse` → incomplete_if (taxrow 专属行, payload=条件 cs)。"""
-    cat, pay = _classify(_ERR_IFFALSE)
+    cat, pay = classify(_ERR_IFFALSE)
     assert cat == "incomplete_if"
     assert pay == "\\iffalse"
 
 
 def test_taxonomy_edef_eof_is_runaway_scan() -> None:
     """姊妹死法: File ended while scanning use of \\protected@edef → runaway_scan。"""
-    cat, pay = _classify(_ERR_EDEF_EOF)
+    cat, pay = classify(_ERR_EDEF_EOF)
     assert cat == "runaway_scan"
     assert pay == "\\protected@edef"
 
@@ -113,7 +106,7 @@ def test_rule_wired_loop_phase() -> None:
 
 def test_rule_order_after_pstadd_before_legacy_shim() -> None:
     """order 排序自洽: pstricks_add_pair_retire(11.9) < 本规则 < legacy_pkg_shim(12)。"""
-    orders = {r.id: r.order for r in _rs().phase("loop")}
+    orders = {r.id: r.order for r in rs().phase("loop")}
     assert orders["pstricks_add_pair_retire"] < orders[_RULE_ID]
     assert orders[_RULE_ID] < orders["legacy_pkg_shim"]
 
@@ -121,8 +114,7 @@ def test_rule_order_after_pstadd_before_legacy_shim() -> None:
 # ---------------------------------------------------------------- condition 闸
 def test_cond_skip_when_no_sty(tmp_path: Path) -> None:
     """wdir 无 .sty → cache_dir_glob 闸拒。"""
-    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
-    ctx.err_head = _ERR_IFFALSE
+    ctx = mk_ctx(tmp_path, err_head=_ERR_IFFALSE)
     ok, why = actions._cond_ok(  # noqa: SLF001 - 闸行为直驱
         _rule().condition, _rule(), ctx, None, None
     )
@@ -133,8 +125,9 @@ def test_cond_skip_when_no_sty(tmp_path: Path) -> None:
 def test_cond_skip_when_ctx_unsigned(tmp_path: Path) -> None:
     """.sty 在场但错误无 Incomplete/edef 签名 → ctx_suggests any 闸拒。"""
     (tmp_path / "draft.sty").write_text(_HACK_STY, encoding="utf-8")
-    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
-    ctx.err_head = "./main.tex:10: Undefined control sequence.\nl.10 \\foo\n"
+    ctx = mk_ctx(
+        tmp_path, err_head="./main.tex:10: Undefined control sequence.\nl.10 \\foo\n"
+    )
     ok, _ = actions._cond_ok(_rule().condition, _rule(), ctx, None, None)  # noqa: SLF001
     assert not ok
 
@@ -142,8 +135,7 @@ def test_cond_skip_when_ctx_unsigned(tmp_path: Path) -> None:
 def test_cond_pass_on_iffalse_signature(tmp_path: Path) -> None:
     """.sty + `Incomplete \\iffalse` err blob → 条件过。"""
     (tmp_path / "draft.sty").write_text(_HACK_STY, encoding="utf-8")
-    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
-    ctx.err_head = _ERR_IFFALSE
+    ctx = mk_ctx(tmp_path, err_head=_ERR_IFFALSE)
     ok, why = actions._cond_ok(_rule().condition, _rule(), ctx, None, None)  # noqa: SLF001
     assert ok, why
 
@@ -151,8 +143,7 @@ def test_cond_pass_on_iffalse_signature(tmp_path: Path) -> None:
 def test_cond_pass_on_edef_eof_signature(tmp_path: Path) -> None:
     """.sty + File-ended-\\protected@edef err blob → 条件过 (姊妹死法臂)。"""
     (tmp_path / "draft.sty").write_text(_HACK_STY, encoding="utf-8")
-    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
-    ctx.err_head = _ERR_EDEF_EOF
+    ctx = mk_ctx(tmp_path, err_head=_ERR_EDEF_EOF)
     ok, why = actions._cond_ok(_rule().condition, _rule(), ctx, None, None)  # noqa: SLF001
     assert ok, why
 
@@ -161,8 +152,8 @@ def test_cond_pass_on_edef_eof_signature(tmp_path: Path) -> None:
 def test_apply_patches_signed_sty(tmp_path: Path) -> None:
     """_apply 真跑 sh: hack 件 → \\endinput 前注入良性覆写, 其余逐字节保留。"""
     (tmp_path / "draft.sty").write_text(_HACK_STY, encoding="utf-8")
-    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
-    ok, note = actions._apply(_rule(), ctx, None, None, ErrReport())  # noqa: SLF001
+    ctx = mk_ctx(tmp_path)
+    ok, note = apply(_RULE_ID, ctx, None)
     assert ok, note
     patched = (tmp_path / "draft.sty").read_text(encoding="utf-8")
     assert "texlate-fixloop-injected" in patched
@@ -185,8 +176,8 @@ def test_apply_skips_unsigned_sty(tmp_path: Path) -> None:
     """无签名件 → 脚本 continue, 文件逐字节不动。"""
     clean = "\\ProvidesPackage{foo}\\newcommand*\\foo{bar}\n\\endinput\n"
     (tmp_path / "foo.sty").write_text(clean, encoding="utf-8")
-    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
-    ok, note = actions._apply(_rule(), ctx, None, None, ErrReport())  # noqa: SLF001
+    ctx = mk_ctx(tmp_path)
+    ok, note = apply(_RULE_ID, ctx, None)
     assert ok, note  # run_tool 恒 applied (rc=0 no-op)
     assert (tmp_path / "foo.sty").read_text(encoding="utf-8") == clean
 
@@ -194,12 +185,12 @@ def test_apply_skips_unsigned_sty(tmp_path: Path) -> None:
 def test_apply_idempotent_second_run(tmp_path: Path) -> None:
     """指纹闸: 二次 _apply 同件不再补丁 (防重投/重复注入)。"""
     (tmp_path / "draft.sty").write_text(_HACK_STY, encoding="utf-8")
-    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
-    ok1, _ = actions._apply(_rule(), ctx, None, None, ErrReport())  # noqa: SLF001
+    ctx = mk_ctx(tmp_path)
+    ok1, _ = apply(_RULE_ID, ctx, None)
     assert ok1
     once = (tmp_path / "draft.sty").read_text(encoding="utf-8")
     assert once.count("texlate-fixloop-injected") == 1
-    ok2, _ = actions._apply(_rule(), ctx, None, None, ErrReport())  # noqa: SLF001
+    ok2, _ = apply(_RULE_ID, ctx, None)
     assert ok2
     assert (tmp_path / "draft.sty").read_text(encoding="utf-8") == once
 
@@ -208,8 +199,8 @@ def test_apply_appends_when_no_endinput(tmp_path: Path) -> None:
     """无 \\endinput 件 → 覆写落 EOF (仍在 hack 定义后 → 执行层赢)。"""
     no_eof = _HACK_STY.replace("\\endinput\n", "")
     (tmp_path / "draft.sty").write_text(no_eof, encoding="utf-8")
-    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
-    ok, note = actions._apply(_rule(), ctx, None, None, ErrReport())  # noqa: SLF001
+    ctx = mk_ctx(tmp_path)
+    ok, note = apply(_RULE_ID, ctx, None)
     assert ok, note
     patched = (tmp_path / "draft.sty").read_text(encoding="utf-8")
     assert patched.startswith(no_eof)
@@ -222,8 +213,8 @@ def test_apply_patches_signed_cls(tmp_path: Path) -> None:
     """.cls 臂: hack 在 cls 件 (sty 伴生在旁过 glob 闸) → cls 同获补丁。"""
     (tmp_path / "draft.cls").write_text(_HACK_STY, encoding="utf-8")
     (tmp_path / "dummy.sty").write_text("\\ProvidesPackage{dummy}\n", encoding="utf-8")
-    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
-    ok, note = actions._apply(_rule(), ctx, None, None, ErrReport())  # noqa: SLF001
+    ctx = mk_ctx(tmp_path)
+    ok, note = apply(_RULE_ID, ctx, None)
     assert ok, note
     assert "texlate-fixloop-injected" in (tmp_path / "draft.cls").read_text(
         encoding="utf-8"
@@ -235,8 +226,8 @@ def test_apply_patches_signed_cls(tmp_path: Path) -> None:
 
 def test_apply_noop_when_dir_empty(tmp_path: Path) -> None:
     """空 wdir → *.sty 字面量不命中, [ -f ] 兜住 → exit 0 no-op。"""
-    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
-    ok, note = actions._apply(_rule(), ctx, None, None, ErrReport())  # noqa: SLF001
+    ctx = mk_ctx(tmp_path)
+    ok, note = apply(_RULE_ID, ctx, None)
     assert ok, note
     assert list(tmp_path.iterdir()) == []
 
@@ -252,65 +243,17 @@ def test_apply_skips_comment_only_signature(tmp_path: Path) -> None:
         "\\endinput\n"
     )
     (tmp_path / "foo.sty").write_text(comment_only, encoding="utf-8")
-    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
-    ok, note = actions._apply(_rule(), ctx, None, None, ErrReport())  # noqa: SLF001
+    ctx = mk_ctx(tmp_path)
+    ok, note = apply(_RULE_ID, ctx, None)
     assert ok, note
     assert (tmp_path / "foo.sty").read_text(encoding="utf-8") == comment_only
 
 
 # ---------------------------------------------------------------- e2e
-class _MockRes:
-    """impl CompRes duck-type 替身 (test_fixloop_pstadd 同款微缩)。"""
+class _MockEngine(MockEngine):
+    """逐轮吐 spec——``caps`` 钉 ``{kpsewhich,tlmgr}`` 变体 (无 updmap 面)。"""
 
-    def __init__(self, wdir: Path, spec: dict) -> None:
-        self.log_path = wdir / "main.log"
-        self.log_path.write_text(spec.get("log", ""), encoding="utf-8")
-        self.pdf = wdir / "main.pdf" if spec.get("pdf") else None
-        if self.pdf is not None:
-            self.pdf.write_bytes(b"%PDF-1.4 fake")
-        self.pdf_bytes = self.pdf.stat().st_size if self.pdf else 0
-        self.timed_out = False
-        self.killed_signal = None
-        self.seconds = 0.05
-        self.stdout_tail = ""
-        self.log_text = ""
-
-    @property
-    def has_pdf(self) -> bool:
-        return self.pdf is not None and self.pdf_bytes > 0
-
-
-class _MockEngine:
-    """逐轮吐 spec。"""
-
-    name = "xelatex"
     caps = frozenset({"kpsewhich", "tlmgr"})
-
-    def __init__(self, script: list) -> None:
-        self.script = list(script)
-        self.rounds = 0
-
-    def compile(self, wdir: Path, main: str, **_kw: object) -> _MockRes:
-        del main
-        i = min(self.rounds, len(self.script) - 1)
-        self.rounds += 1
-        return _MockRes(Path(wdir), self.script[i])
-
-    def probe_file(self, fname: str, cwd: Path | None = None) -> str | None:
-        if cwd is not None and (Path(cwd) / fname).is_file():
-            return str(Path(cwd) / fname)
-        return None
-
-    def install_file(self, fname: str, *, font_related: bool = False) -> bool:
-        del fname, font_related
-        return False
-
-    def rebuild_fontmaps(self) -> bool:
-        return True
-
-    def filemap(self, fname: str) -> list[str]:
-        del fname
-        return []
 
 
 def _proj(tmp_path: Path) -> Path:

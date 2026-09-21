@@ -19,9 +19,7 @@ opaque 宏臂 4bca3a1 + 主流探针臂 22df2e5）。
 零告警 + pieces 无缝平铺。
 """
 
-import re
-
-from conftest import ART, blob, check_invariants
+from conftest import ART, blob, check_invariants, cmd_bodies
 
 from texlate.latex import parse_tex
 from texlate.latex.model import ScanResult
@@ -39,13 +37,6 @@ def scan_grp(call: str, defs: str = "") -> ScanResult:
     res = parse_tex(tex)
     check_invariants(res, tex)
     return res
-
-
-def cmd_bodies(res: ScanResult) -> list[str]:
-    """全部 ``[[CMD_n]]`` ph 体（组内为 token 级重建文本）。"""
-    return [
-        body for ph, body in res.ph_map.items() if re.fullmatch(r"\[\[CMD_\d+\]\]", ph)
-    ]
 
 
 def test_grp_probe_prose_arg_surfaces() -> None:

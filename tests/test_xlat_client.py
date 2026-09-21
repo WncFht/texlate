@@ -1,18 +1,28 @@
 """client：状态码分类（含 429 body retry_after）/ provider 识别 / 脱敏 / 选模。
 
-线路主面（chat/stream/panel/discover）由 test_xlat_client_wire 覆盖；
-本文件补钉它没碰的分支：usage_sink 记账、EmptyContentError 合同属性、
-anthropic 显式预算/多 system 拼接、stream 传输错误、max_probe 截断等。
+线路主面（chat/stream/panel/discover，含 anthropic/responses 方言全线
+套件）由 test_xlat_client_wire 覆盖；本文件补钉它没碰的分支：
+usage_sink 记账、EmptyContentError 合同属性、anthropic 显式预算/
+多 system 拼接、stream 传输错误、max_probe 截断等。
 """
 
 from __future__ import annotations
 
 import asyncio
 import json
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import httpx
 import pytest
+from _xlatkit import (
+    chat_payload,
+    connect_error,
+    drain,
+    json_resp,
+    mock_client,
+    panel_entry,
+    recording,
+)
 
 from texlate.xlat import client as cl
 
@@ -148,27 +158,11 @@ def _mock(
     base_url: str = _BASE,
     api_key: str = "k",
     usage_sink: Callable[[cl.UsageRecord], None] | None = None,
-    dialect: str | None = None,
 ) -> cl.ChatClient:
-    http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
-    return cl.ChatClient(
-        base_url, api_key, http=http, usage_sink=usage_sink, dialect=dialect
+    """本文件默认 ``_BASE``/``"k"`` 的 mock client——透传 ``_xlatkit.mock_client``。"""
+    return mock_client(
+        handler, base_url=base_url, api_key=api_key, usage_sink=usage_sink
     )
-
-
-def _chat_payload(
-    content: str = "OK", *, finish: str = "stop", model: str = "m1"
-) -> dict[str, Any]:
-    return {
-        "model": model,
-        "choices": [
-            {
-                "message": {"role": "assistant", "content": content},
-                "finish_reason": finish,
-            }
-        ],
-        "usage": {"prompt_tokens": 11, "completion_tokens": 7},
-    }
 
 
 _ANTHROPIC_OK = {
@@ -178,24 +172,6 @@ _ANTHROPIC_OK = {
     "usage": {"input_tokens": 3, "output_tokens": 2},
 }
 
-_RESPONSES_OK = {
-    "id": "resp_1",
-    "status": "completed",
-    "model": "m1",
-    "output": [
-        {
-            "type": "message",
-            "role": "assistant",
-            "content": [{"type": "output_text", "text": "译"}],
-        }
-    ],
-    "usage": {
-        "input_tokens": 11,
-        "output_tokens": 7,
-        "input_tokens_details": {"cached_tokens": 3},
-    },
-}
-
 
 class TestUsageSink:
     """usage_sink 记账合同：成功一次记一笔；HTTP 失败不记；sink 炸不拖垮调用。"""
@@ -203,7 +179,7 @@ class TestUsageSink:
     def test_sink_receives_record(self) -> None:
         recs: list[cl.UsageRecord] = []
         c = _mock(
-            lambda _r: httpx.Response(200, json=_chat_payload()),
+            lambda _r: json_resp(chat_payload("OK")),
             usage_sink=recs.append,
         )
         r = asyncio.run(c.chat("m1", _MSGS))
@@ -217,7 +193,7 @@ class TestUsageSink:
 
     def test_sink_not_fired_on_http_error(self) -> None:
         recs: list[cl.UsageRecord] = []
-        c = _mock(lambda _r: httpx.Response(500, json={"e": 1}), usage_sink=recs.append)
+        c = _mock(lambda _r: json_resp({"e": 1}, status=500), usage_sink=recs.append)
         with pytest.raises(cl.RetryableHTTPError):
             asyncio.run(c.chat("m1", _MSGS))
         assert recs == []
@@ -227,7 +203,7 @@ class TestUsageSink:
             msg = "accounting down"
             raise RuntimeError(msg)
 
-        c = _mock(lambda _r: httpx.Response(200, json=_chat_payload()), usage_sink=boom)
+        c = _mock(lambda _r: json_resp(chat_payload("OK")), usage_sink=boom)
         r = asyncio.run(c.chat("m1", _MSGS))
         assert r.content == "OK"
 
@@ -235,7 +211,7 @@ class TestUsageSink:
 class TestChatEdges:
     def test_empty_content_error_contract(self) -> None:
         """EmptyContentError：status=200 记真实 HTTP 码 + retryable + 总尝试封顶 2。"""
-        c = _mock(lambda _r: httpx.Response(200, json=_chat_payload("  ")))
+        c = _mock(lambda _r: json_resp(chat_payload("  ")))
         with pytest.raises(cl.EmptyContentError) as ei:
             asyncio.run(c.chat("m1", _MSGS))
         assert ei.value.status == 200  # noqa: PLR2004
@@ -260,23 +236,19 @@ class TestAnthropicEdges:
     def test_explicit_max_tokens_honored(self) -> None:
         """显式 max_tokens 不被 REASONING_MIN_MAX_TOKENS 默认值覆盖。"""
         reqs: list[httpx.Request] = []
-
-        def handler(r: httpx.Request) -> httpx.Response:
-            reqs.append(r)
-            return httpx.Response(200, json=_ANTHROPIC_OK)
-
-        c = _mock(handler, base_url=_ANTHROPIC_BASE)
+        c = _mock(
+            recording(lambda _r: json_resp(_ANTHROPIC_OK), reqs),
+            base_url=_ANTHROPIC_BASE,
+        )
         asyncio.run(c.chat("claude-x", _MSGS, options=cl.ChatOptions(max_tokens=123)))
         assert json.loads(reqs[0].content)["max_tokens"] == 123  # noqa: PLR2004
 
     def test_multiple_system_messages_joined(self) -> None:
         reqs: list[httpx.Request] = []
-
-        def handler(r: httpx.Request) -> httpx.Response:
-            reqs.append(r)
-            return httpx.Response(200, json=_ANTHROPIC_OK)
-
-        c = _mock(handler, base_url=_ANTHROPIC_BASE)
+        c = _mock(
+            recording(lambda _r: json_resp(_ANTHROPIC_OK), reqs),
+            base_url=_ANTHROPIC_BASE,
+        )
         msgs = [
             {"role": "system", "content": "a"},
             {"role": "system", "content": "b"},
@@ -293,25 +265,17 @@ class TestAnthropicEdges:
             "stop_reason": "end_turn",
             "content": [{"type": "text", "text": "  "}],
         }
-        c = _mock(
-            lambda _r: httpx.Response(200, json=payload), base_url=_ANTHROPIC_BASE
-        )
+        c = _mock(lambda _r: json_resp(payload), base_url=_ANTHROPIC_BASE)
         with pytest.raises(cl.EmptyContentError):
             asyncio.run(c.chat("m", _MSGS))
 
     def test_transport_error_retryable(self) -> None:
-        def boom(_r: httpx.Request) -> httpx.Response:
-            msg = "refused"
-            raise httpx.ConnectError(msg)
-
-        c = _mock(boom, base_url=_ANTHROPIC_BASE)
+        c = _mock(connect_error("refused"), base_url=_ANTHROPIC_BASE)
         with pytest.raises(cl.RetryableHTTPError, match="transport error"):
             asyncio.run(c.chat("m", _MSGS))
 
     def test_http_error_classified_same(self) -> None:
-        c = _mock(
-            lambda _r: httpx.Response(401, json={"e": 1}), base_url=_ANTHROPIC_BASE
-        )
+        c = _mock(lambda _r: json_resp({"e": 1}, status=401), base_url=_ANTHROPIC_BASE)
         with pytest.raises(cl.AuthError):
             asyncio.run(c.chat("m", _MSGS))
 
@@ -349,255 +313,25 @@ class TestDialectSelection:
             cl.dialect_for_url(_BASE, "bogus")
 
 
-class TestResponsesDialect:
-    """Responses 方言：``/v1/responses`` + instructions/input 体 + output/status 解析。
-
-    ``dialect="responses"`` 面向 responses-only 反代等 host 识别不了的
-    BYOK 端点——请求组装/响应解析/错误归约三方各有钉点。
-    """
-
-    def test_request_shape(self) -> None:
-        reqs: list[httpx.Request] = []
-
-        def handler(r: httpx.Request) -> httpx.Response:
-            reqs.append(r)
-            return httpx.Response(200, json=_RESPONSES_OK)
-
-        c = _mock(handler, dialect="responses")
-        msgs = [
-            {"role": "system", "content": "s1"},
-            {"role": "system", "content": "s2"},
-            {"role": "user", "content": "u"},
-            {"role": "assistant", "content": "a"},
-        ]
-        asyncio.run(
-            c.chat(
-                "m1",
-                msgs,
-                options=cl.ChatOptions(
-                    max_tokens=64, response_format={"type": "json_object"}
-                ),
-            )
-        )
-        req = reqs[0]
-        assert req.url.path == "/v1/responses"
-        assert req.headers["authorization"] == "Bearer k"
-        body = json.loads(req.content)
-        assert body["model"] == "m1"
-        assert body["instructions"] == "s1\ns2"
-        assert [i["role"] for i in body["input"]] == ["user", "assistant"]
-        assert body["input"][0]["content"] == [{"type": "input_text", "text": "u"}]
-        assert body["input"][1]["content"] == [{"type": "output_text", "text": "a"}]
-        assert body["max_output_tokens"] == 64  # noqa: PLR2004
-        assert body["text"] == {"format": {"type": "json_object"}}
-        assert "messages" not in body
-        assert "max_tokens" not in body
-
-    def test_parse_completed(self) -> None:
-        payload = {
-            "status": "completed",
-            "model": "m1",
-            "output": [
-                {
-                    "type": "reasoning",
-                    "summary": [{"type": "summary_text", "text": "想"}],
-                },
-                {
-                    "type": "message",
-                    "content": [{"type": "output_text", "text": "译"}],
-                },
-            ],
-            "usage": {
-                "input_tokens": 11,
-                "output_tokens": 7,
-                "input_tokens_details": {"cached_tokens": 3},
-            },
-        }
-        c = _mock(lambda _r: httpx.Response(200, json=payload), dialect="responses")
-        r = asyncio.run(c.chat("m1", _MSGS))
-        assert r.content == "译"
-        assert r.reasoning == "想"
-        assert r.finish_reason == "stop"
-        assert r.usage.prompt_tokens == 11  # noqa: PLR2004
-        assert r.usage.completion_tokens == 7  # noqa: PLR2004
-        assert r.usage.cached_tokens == 3  # noqa: PLR2004
-        assert r.model == "m1"
-
-    def test_incomplete_maps_length(self) -> None:
-        """``incomplete`` + 非 filter reason → ``LengthTruncatedError`` 带 partial。"""
-        payload = {
-            "status": "incomplete",
-            "incomplete_details": {"reason": "max_output_tokens"},
-            "output": [
-                {
-                    "type": "message",
-                    "content": [{"type": "output_text", "text": "半"}],
-                }
-            ],
-        }
-        c = _mock(lambda _r: httpx.Response(200, json=payload), dialect="responses")
-        with pytest.raises(cl.LengthTruncatedError) as ei:
-            asyncio.run(c.chat("m1", _MSGS))
-        assert ei.value.partial_content == "半"
-
-    def test_incomplete_content_filter(self) -> None:
-        payload = {
-            "status": "incomplete",
-            "incomplete_details": {"reason": "content_filter"},
-            "output": [],
-        }
-        c = _mock(lambda _r: httpx.Response(200, json=payload), dialect="responses")
-        with pytest.raises(cl.ContentFilterError):
-            asyncio.run(c.chat("m1", _MSGS))
-
-    def test_refusal_block(self) -> None:
-        payload = {
-            "status": "completed",
-            "output": [
-                {
-                    "type": "message",
-                    "content": [{"type": "refusal", "refusal": "拒答"}],
-                }
-            ],
-        }
-        c = _mock(lambda _r: httpx.Response(200, json=payload), dialect="responses")
-        with pytest.raises(cl.ContentFilterError):
-            asyncio.run(c.chat("m1", _MSGS))
-
-    def test_failed_status(self) -> None:
-        payload = {
-            "status": "failed",
-            "error": {"code": "server_error", "message": "boom"},
-        }
-        c = _mock(lambda _r: httpx.Response(200, json=payload), dialect="responses")
-        with pytest.raises(cl.ChatError, match="boom"):
-            asyncio.run(c.chat("m1", _MSGS))
-
-    def test_top_level_error_object(self) -> None:
-        payload = {"type": "error", "error": {"code": "x", "message": "bad"}}
-        c = _mock(lambda _r: httpx.Response(200, json=payload), dialect="responses")
-        with pytest.raises(cl.ChatError, match="bad"):
-            asyncio.run(c.chat("m1", _MSGS))
-
-    def test_empty_content(self) -> None:
-        payload = {"status": "completed", "output": []}
-        c = _mock(lambda _r: httpx.Response(200, json=payload), dialect="responses")
-        with pytest.raises(cl.EmptyContentError):
-            asyncio.run(c.chat("m1", _MSGS))
-
-    @pytest.mark.parametrize(
-        "payload",
-        [
-            {"status": "completed", "output": "not-a-list"},
-            {"status": "queued", "output": []},
-            {"status": "completed", "output": [5]},
-            {
-                "status": "completed",
-                "output": [
-                    {
-                        "type": "message",
-                        "content": [{"type": "output_text", "text": 5}],
-                    }
-                ],
-            },
-        ],
-    )
-    def test_malformed_shapes(self, payload: dict[str, Any]) -> None:
-        """output 非 list / 非终态 status / 非 dict 成员 / text 非 str → Malformed。"""
-        c = _mock(lambda _r: httpx.Response(200, json=payload), dialect="responses")
-        with pytest.raises(cl.MalformedResponseError):
-            asyncio.run(c.chat("m1", _MSGS))
-
-    def test_stream_events(self) -> None:
-        """SSE：output_text.delta→content、reasoning_summary→reasoning、completed→done。"""
-        sse = (
-            b'data: {"type":"response.output_text.delta","delta":"x"}\n\n'
-            b'data: {"type":"response.reasoning_summary_text.delta",'
-            b'"delta":"r"}\n\n'
-            b'data: {"type":"response.completed","response":{"status":"completed"}}\n\n'
-        )
-        c = _mock(lambda _r: httpx.Response(200, content=sse), dialect="responses")
-
-        async def collect() -> list[cl.StreamEvent]:
-            return [ev async for ev in c.chat_stream("m1", _MSGS)]
-
-        events = asyncio.run(collect())
-        assert [(e.kind, e.delta) for e in events[:2]] == [
-            ("content", "x"),
-            ("reasoning", "r"),
-        ]
-        assert events[-1].kind == "done"
-        assert events[-1].finish_reason == "stop"
-
-    def test_stream_incomplete_finish(self) -> None:
-        sse = (
-            b'data: {"type":"response.incomplete","response":'
-            b'{"incomplete_details":{"reason":"max_output_tokens"}}}\n\n'
-        )
-        c = _mock(lambda _r: httpx.Response(200, content=sse), dialect="responses")
-
-        async def collect() -> list[cl.StreamEvent]:
-            return [ev async for ev in c.chat_stream("m1", _MSGS)]
-
-        events = asyncio.run(collect())
-        assert events[-1].kind == "done"
-        assert events[-1].finish_reason == "length"
-
-    def test_stream_failed_raises(self) -> None:
-        sse = (
-            b'data: {"type":"response.failed","response":'
-            b'{"error":{"message":"die"}}}\n\n'
-        )
-        c = _mock(lambda _r: httpx.Response(200, content=sse), dialect="responses")
-
-        async def collect() -> list[cl.StreamEvent]:
-            return [ev async for ev in c.chat_stream("m1", _MSGS)]
-
-        with pytest.raises(cl.ChatError, match="die"):
-            asyncio.run(collect())
-
-    def test_probe_model_uses_responses_endpoint(self) -> None:
-        """探活随方言——responses client 的 ``probe_model`` 打 ``/v1/responses``。"""
-        reqs: list[httpx.Request] = []
-
-        def handler(r: httpx.Request) -> httpx.Response:
-            reqs.append(r)
-            return httpx.Response(200, json=_RESPONSES_OK)
-
-        c = _mock(handler, dialect="responses")
-        fm = asyncio.run(c.probe_model("m1"))
-        assert fm.probe_ok
-        assert reqs[0].url.path == "/v1/responses"
-
-
 class TestStreamEdges:
     def test_transport_error_retryable(self) -> None:
-        def boom(_r: httpx.Request) -> httpx.Response:
-            msg = "reset"
-            raise httpx.ConnectError(msg)
-
-        c = _mock(boom)
-
-        async def collect() -> list[cl.StreamEvent]:
-            return [ev async for ev in c.chat_stream("m1", _MSGS)]
+        c = _mock(connect_error("reset"))
 
         with pytest.raises(cl.RetryableHTTPError, match="transport error"):
-            asyncio.run(collect())
+            asyncio.run(drain(c, "m1", _MSGS))
 
 
 class TestProbeEdges:
     def test_finish_length_rejected(self) -> None:
         """非 stop 收尾即使 content 非空也判探活失败。"""
-        c = _mock(
-            lambda _r: httpx.Response(200, json=_chat_payload("OK", finish="length"))
-        )
+        c = _mock(lambda _r: json_resp(chat_payload("OK", finish="length")))
         fm = asyncio.run(c.probe_model("m1"))
         assert not fm.probe_ok
         assert "finish" in fm.probe_error
 
     def test_finish_absent_accepted(self) -> None:
         payload = {"choices": [{"message": {"content": "OK"}}]}
-        c = _mock(lambda _r: httpx.Response(200, json=payload))
+        c = _mock(lambda _r: json_resp(payload))
         assert asyncio.run(c.probe_model("m1")).probe_ok
 
     def test_probe_error_redacts_api_key(self) -> None:
@@ -614,29 +348,17 @@ class TestProbeEdges:
         assert "Bearer" not in fm.probe_error
 
 
-def _panel_entry(uid: str) -> dict[str, Any]:
-    return {
-        "uid": uid,
-        "cost_tier": "free",
-        "promo": {"active": True, "end_date": "2026-10-01"},
-        "context_tokens": 131072,
-        "max_output_tokens": 8192,
-    }
-
-
 class TestDiscoverCap:
     def _handler(
         self, uids: list[str], probed: list[str]
     ) -> Callable[[httpx.Request], httpx.Response]:
         def handler(req: httpx.Request) -> httpx.Response:
             if req.url.path == "/panel/api/models":
-                return httpx.Response(
-                    200, json={"models": [_panel_entry(u) for u in uids]}
-                )
+                return json_resp({"models": [panel_entry(u) for u in uids]})
             if req.url.path == "/v1/models":
-                return httpx.Response(503, json={"e": 1})  # 退化为只信 panel
+                return json_resp({"e": 1}, status=503)  # 退化为只信 panel
             probed.append(json.loads(req.content)["model"])
-            return httpx.Response(200, json=_chat_payload("OK"))
+            return json_resp(chat_payload("OK"))
 
         return handler
 
@@ -658,7 +380,7 @@ class TestDiscoverCap:
         assert set(probed) == {"a", "b"}
 
     def test_panel_scalar_payload_empty(self) -> None:
-        c = _mock(lambda _r: httpx.Response(200, json="nope"))
+        c = _mock(lambda _r: json_resp("nope"))
         assert asyncio.run(c.panel_models()) == []
 
 
@@ -695,9 +417,7 @@ class TestContentFilter:
     def test_finish_content_filter_with_partial_content(self) -> None:
         """200 ``finish_reason=content_filter`` + 非空 content 不许静默落盘。"""
         c = _mock(
-            lambda _r: httpx.Response(
-                200, json=_chat_payload("半截译文", finish="content_filter")
-            )
+            lambda _r: json_resp(chat_payload("半截译文", finish="content_filter"))
         )
         with pytest.raises(cl.ContentFilterError):
             asyncio.run(c.chat("m1", _MSGS))
@@ -706,9 +426,7 @@ class TestContentFilter:
         """过滤空响应须归 ``ContentFilterError``——``EmptyContentError`` 同模
         重试必同死，还吃掉 finish 语义。"""
         c = _mock(
-            lambda _r: httpx.Response(
-                200, json=_chat_payload("", finish="content_filter")
-            )
+            lambda _r: json_resp(chat_payload("", finish="content_filter"))
         )
         with pytest.raises(cl.ContentFilterError):
             asyncio.run(c.chat("m1", _MSGS))
@@ -716,7 +434,7 @@ class TestContentFilter:
     def test_anthropic_refusal(self) -> None:
         payload = {**_ANTHROPIC_OK, "stop_reason": "refusal"}
         c = _mock(
-            lambda _r: httpx.Response(200, json=payload),
+            lambda _r: json_resp(payload),
             base_url=_ANTHROPIC_BASE,
         )
         with pytest.raises(cl.ContentFilterError):
@@ -772,11 +490,7 @@ def test_client_deep_json_success_body_is_malformed(call: str) -> None:
         return httpx.Response(200, content=_DEEP_JSON.encode())
 
     async def go() -> None:
-        c = cl.ChatClient(
-            "http://gw.test",
-            "k",
-            http=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
-        )
+        c = mock_client(handler, base_url="http://gw.test", api_key="k")
         if call == "chat":
             coro = c.chat("m", [{"role": "user", "content": "hi"}])
         elif call == "list_models":

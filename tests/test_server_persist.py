@@ -10,6 +10,8 @@
 - ``reader_get`` 以 ``dual_json`` 登记行为准（磁盘孤儿件不服务）。
 - ``EventBus.stream``：任务行已删 → 不空等（delete 的 done 事件先于
   删行发出，晚注册订阅者靠行缺席兜底）。
+- ``worker._opt_int`` ≤0/非数值钳位 + ``bad_option`` 告警事件（下游旋钮
+  无 ``__post_init__`` 兜底）。
 """
 
 from __future__ import annotations
@@ -27,7 +29,7 @@ pytest.importorskip("fastapi", reason="server extra 未装")
 pytest.importorskip("starlette.testclient", reason="server extra 未装")
 
 from _workerkit import mk_ctx
-from conftest import mk_task_row
+from conftest import mk_chunk_row, mk_task_row
 
 from texlate.server.events import EventBus
 from texlate.server.store import Store, new_task_id
@@ -44,6 +46,21 @@ if TYPE_CHECKING:
 
     from starlette.testclient import TestClient
 
+# 产物 kind→磁盘文件名全表：两处 seed 与 purge 断言同源派生——
+# 新增产物 kind 不会静默漏掉清理面覆盖。
+ARTIFACT_FILES = (
+    ("src_tar", "src.tar"),
+    ("en_pdf", "en.pdf"),
+    ("zh_pdf", "zh.pdf"),
+    ("zh_src_zip", "zh-src.zip"),
+    ("dual_json", "dual.json"),
+    ("compile_log", "compile.log"),
+    ("md_zip", "md.zip"),
+)
+# splice 摘哨兵只清依赖 chunks 的派生产物——en_pdf（base/ 编译）与
+# src_tar（源件）不依赖 chunks，属保留侧。
+_SPLICE_KEPT = ("en_pdf", "src_tar")
+
 
 def _mk_store(tmp_path: Path) -> Store:
     s = Store(tmp_path / "t.db")
@@ -52,15 +69,7 @@ def _mk_store(tmp_path: Path) -> Store:
 
 
 def _chunk(seq: int, cid: str | None = None) -> dict:
-    return {
-        "seq": seq,
-        "chunk_id": cid or f"c{seq}",
-        "src_file": "main.tex",
-        "byte_start": seq,
-        "byte_end": seq + 1,
-        "kind": "text",
-        "src_text": f"t{seq}",
-    }
+    return mk_chunk_row(seq, chunk_id=cid or f"c{seq}")
 
 
 class TestDeleteFile:
@@ -137,15 +146,7 @@ class TestSpliceInvalidationArtifacts:
         """上一轮产物现场：哨兵 + files 行 + 磁盘件。"""
         ctx.zh_dir.mkdir(parents=True)
         (ctx.zh_dir / ".splice-done").write_text("", encoding="utf-8")
-        for kind, name in (
-            ("src_tar", "src.tar"),
-            ("en_pdf", "en.pdf"),
-            ("zh_pdf", "zh.pdf"),
-            ("zh_src_zip", "zh-src.zip"),
-            ("dual_json", "dual.json"),
-            ("compile_log", "compile.log"),
-            ("md_zip", "md.zip"),
-        ):
+        for kind, name in ARTIFACT_FILES:
             (ctx.root / name).write_bytes(b"old")
             store.put_file(ctx.task_id, kind, name, data_dir=ctx.root)
 
@@ -191,9 +192,10 @@ class TestSpliceInvalidationArtifacts:
             )
             self._teardown(worker, ctx, store, pre)
             assert not (ctx.zh_dir / ".splice-done").exists()
-            for kind in ("zh_pdf", "zh_src_zip", "dual_json", "compile_log", "md_zip"):
+            stale = [(k, n) for k, n in ARTIFACT_FILES if k not in _SPLICE_KEPT]
+            for kind, _name in stale:
                 assert store.file_record(ctx.task_id, kind) is None, kind
-            for name in ("zh.pdf", "zh-src.zip", "dual.json", "compile.log", "md.zip"):
+            for _kind, name in stale:
                 assert not (ctx.root / name).exists(), name
             # en_pdf（base/ 编译）与 src_tar 不依赖 chunks——保留
             assert store.file_record(ctx.task_id, "en_pdf") is not None
@@ -227,13 +229,7 @@ class TestRetryMainChangeCleanup:
         tid = new_task_id()
 
         async def setup() -> None:
-            store.create_task(
-                task_id=tid,
-                kind="arxiv",
-                target_lang="zh-CN",
-                model="m",
-                arxiv_id="2401.00001",
-            )
+            mk_task_row(store, task_id=tid, arxiv_id="2401.00001")
             store.update_fields(tid, main_tex="main.tex")
             store.insert_chunks(tid, [_chunk(0), _chunk(1)])
             store.transition(tid, "fault", force=True, error={"code": "compile"})
@@ -248,15 +244,7 @@ class TestRetryMainChangeCleanup:
         (tdir / "build-zh").mkdir()
 
         async def register() -> None:
-            for kind, name in (
-                ("src_tar", "src.tar"),
-                ("en_pdf", "en.pdf"),
-                ("zh_pdf", "zh.pdf"),
-                ("dual_json", "dual.json"),
-                ("zh_src_zip", "zh-src.zip"),
-                ("compile_log", "compile.log"),
-                ("md_zip", "md.zip"),
-            ):
+            for kind, name in ARTIFACT_FILES:
                 (tdir / name).write_bytes(b"old")
                 store.put_file(tid, kind, name, data_dir=tdir)
 
@@ -270,17 +258,12 @@ class TestRetryMainChangeCleanup:
         tid, tdir = self._seed(client, store, tmp_path)
         r = client.post(f"/api/task/{tid}/retry", json={"main": "other.tex"})
         assert r.status_code == HTTPStatus.ACCEPTED, r.text
+        # retry 清全部非 src_tar 产物行/磁盘件——断言随 ARTIFACT_FILES 派生
+        purged = [(k, n) for k, n in ARTIFACT_FILES if k != "src_tar"]
 
         async def inspect() -> None:
             assert store.all_chunks(tid) == []
-            for kind in (
-                "en_pdf",
-                "zh_pdf",
-                "dual_json",
-                "zh_src_zip",
-                "compile_log",
-                "md_zip",
-            ):
+            for kind, _name in purged:
                 assert store.file_record(tid, kind) is None, kind
             assert store.file_record(tid, "src_tar") is not None
             assert store.get(tid)["status"] == "queued"
@@ -288,14 +271,7 @@ class TestRetryMainChangeCleanup:
             assert opts["main"] == "other.tex"
 
         client.portal.call(inspect)
-        for name in (
-            "en.pdf",
-            "zh.pdf",
-            "dual.json",
-            "zh-src.zip",
-            "compile.log",
-            "md.zip",
-        ):
+        for _kind, name in purged:
             assert not (tdir / name).exists(), name
         assert (tdir / "src.tar").is_file()
         assert (tdir / "src" / ".fetch-done").is_file()
@@ -350,7 +326,7 @@ class TestReaderDualGate:
         tid = new_task_id()
 
         async def setup() -> None:
-            store.create_task(task_id=tid, kind="arxiv", target_lang="zh-CN", model="m")
+            mk_task_row(store, task_id=tid)
             store.transition(tid, "done", force=True)
 
         client.portal.call(setup)

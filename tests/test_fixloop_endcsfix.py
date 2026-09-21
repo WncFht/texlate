@@ -13,7 +13,7 @@ r"""endsfix lane (task #213, 2026-09-19): Missing \endcsname 双修钉。
    旧形炸 xeCJK.sty:4544 ``<to be read again> \protect``, 新形
    clean 且 ``\catcode`・=\active`` 生效。)
 
-2. ``babel_preclass_rawopts_seed`` (rules/75-syntax.yaml:199): 稿首
+2. ``babel_preclass_rawopts_seed`` (rules/75-syntax.yaml, order 199): 稿首
    ``\RequirePackage[british]{babel}`` 先于 ``\documentclass`` 时
    ``\@raw@classoptionslist`` 尚是 kernel ``\relax`` (latex.ltx:18355,
    首个 class 选项处理才 ``\gdef``) → babel.sty:4230 把它当 1-项
@@ -122,12 +122,14 @@ def test_fb_snippet_math_escape_preserved() -> None:
 
 def test_fb_snippet_deferred_postpatch_contract() -> None:
     """全部 ``\\newunicodechar`` 行落在单个 ``\\AtBeginDocument{...}``
-    内; ``\\usepackage``/``\\newfontfamily`` 行留在钩外导言区。"""
+    内; ``\\RequirePackage``/``\\newfontfamily`` 行留在钩外导言区。"""
     got = _fb_snippet_lines([0x0100, 0x30FB], "Noto Serif", "txlatecjkfb")
     text = "\n".join(got)
     assert "\\AtBeginDocument{%" in text
     assert text.index("\\AtBeginDocument{%") < text.index("\\newunicodechar{Ā}")
-    assert "\\usepackage{newunicodechar}" not in text.split("\\AtBeginDocument", 1)[1]
+    tail_head_forms = ("\\RequirePackage{newunicodechar}", "\\newfontfamily\\txlatecjkfb")
+    for form in tail_head_forms:
+        assert form not in text.split("\\AtBeginDocument", 1)[1]
     acts = [ln for ln in got if ln.startswith("\\newunicodechar")]
     assert len(acts) == 2  # noqa: PLR2004 - 钉双码位契约
     tail = text.split("\\AtBeginDocument{%", 1)[1]
@@ -140,7 +142,7 @@ def test_fb_snippet_deferred_empty_acts_no_hook() -> None:
     assert not any("\\AtBeginDocument" in ln for ln in got)
 
 
-# ═══════════════ item 2: babel_preclass_rawopts_seed (75-syntax:199) ═══════════════
+# ═══════════ item 2: babel_preclass_rawopts_seed (75-syntax order 199) ════════════
 
 
 def test_taxonomy_missing_endcsname_is_syntax() -> None:

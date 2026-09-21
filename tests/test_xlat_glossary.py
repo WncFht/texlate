@@ -6,6 +6,10 @@ import pytest
 
 from texlate.xlat import glossary as gl
 
+#: 跳过 user 术语表层的哨兵路径（永不存在的文件——user_path=None 会改走
+#: USER_GLOSSARY_PATH 默认位，语义不同，勿换）。
+NO_USER = Path("/nonexistent")
+
 
 @pytest.fixture
 def terms_dir(tmp_path: Path) -> Path:
@@ -24,7 +28,7 @@ def terms_dir(tmp_path: Path) -> Path:
 
 class TestTieredMerge:
     def test_default_fallback(self, terms_dir: Path) -> None:
-        g = gl.Glossary.load(terms_dir=terms_dir, user_path=Path("/nonexistent"))
+        g = gl.Glossary.load(terms_dir=terms_dir, user_path=NO_USER)
         assert g.terms["attention"].zh == "注意力"
         assert g.terms["AGI"].zh == "AGI"  # 保原语条目
 
@@ -32,7 +36,7 @@ class TestTieredMerge:
         g = gl.Glossary.load(
             terms_dir=terms_dir,
             categories=["cs.LG", "cs.CV"],
-            user_path=Path("/nonexistent"),
+            user_path=NO_USER,
         )
         assert g.terms["loss"].zh == "损失"
         assert g.terms["feature"].zh == "特征"
@@ -53,7 +57,7 @@ class TestTieredMerge:
         g = gl.Glossary.load(
             terms_dir=terms_dir,
             categories=["cs.LG"],
-            user_path=Path("/nonexistent"),
+            user_path=NO_USER,
             local_path=local,
         )
         assert g.terms["model"].zh == "本地模型"
@@ -69,7 +73,7 @@ class TestPlaceholderIdentity:
     def test_ph_injected_lowest_priority(self, terms_dir: Path) -> None:
         g = gl.Glossary.load(
             terms_dir=terms_dir,
-            user_path=Path("/nonexistent"),
+            user_path=NO_USER,
             placeholders=["[[MATH_2]]", "[[MATH_10]]", "[[SL]]"],
         )
         assert g.terms["[[MATH_2]]"].zh == "[[MATH_2]]"
@@ -90,25 +94,25 @@ class TestPlaceholderIdentity:
 
 class TestDocFilter:
     def test_filters_to_doc_occurrence(self, terms_dir: Path) -> None:
-        g = gl.Glossary.load(terms_dir=terms_dir, user_path=Path("/nonexistent"))
+        g = gl.Glossary.load(terms_dir=terms_dir, user_path=NO_USER)
         out = g.doc_filter(["we use attention here", "no match text"])
         assert "attention" in out
         assert "model" not in out  # 未出现则不入表
 
     def test_boundary_respects_word_chars(self, terms_dir: Path) -> None:
-        g = gl.Glossary.load(terms_dir=terms_dir, user_path=Path("/nonexistent"))
+        g = gl.Glossary.load(terms_dir=terms_dir, user_path=NO_USER)
         out = g.doc_filter(["the models are great"])  # "models" 不命中 "model"
         assert "model" not in out
 
     def test_case_insensitive(self, terms_dir: Path) -> None:
-        g = gl.Glossary.load(terms_dir=terms_dir, user_path=Path("/nonexistent"))
+        g = gl.Glossary.load(terms_dir=terms_dir, user_path=NO_USER)
         out = g.doc_filter(["ATTENTION is all you need"])
         assert "attention" in out
 
     def test_placeholders_always_included_sorted(self, terms_dir: Path) -> None:
         g = gl.Glossary.load(
             terms_dir=terms_dir,
-            user_path=Path("/nonexistent"),
+            user_path=NO_USER,
             placeholders=["[[MATH_10]]", "[[CITE_1]]", "[[MATH_2]]"],
         )
         out = g.doc_filter(["irrelevant text"])
@@ -129,7 +133,7 @@ class TestDocFilterWsFlex:
             "domain adaptation,域适应\nsingle,单词\n",
             encoding="utf-8",
         )
-        return gl.Glossary.load(terms_dir=d, user_path=Path("/nonexistent"))
+        return gl.Glossary.load(terms_dir=d, user_path=NO_USER)
 
     def test_tilde_joined(self, g: gl.Glossary) -> None:
         assert "computer vision" in g.doc_filter(["we use computer~vision here"])
@@ -154,7 +158,7 @@ class TestDocFilterWsFlex:
         d = tmp_path / "terms"
         d.mkdir()
         (d / "default.csv").write_text("a~b,甲乙\n", encoding="utf-8")
-        g = gl.Glossary.load(terms_dir=d, user_path=Path("/nonexistent"))
+        g = gl.Glossary.load(terms_dir=d, user_path=NO_USER)
         assert "a~b" in g.doc_filter(["x a b y"])
         assert "a~b" in g.doc_filter(["x a~b y"])
 

@@ -11,7 +11,7 @@ import pytest
 
 pytest.importorskip("fastapi", reason="server extra 未装")
 
-from conftest import mk_api_task
+from conftest import get_row, mk_api_task, refused_base_url
 
 if TYPE_CHECKING:
     from starlette.testclient import TestClient
@@ -26,14 +26,14 @@ class TestPriorityChain:
         tid = mk_api_task(client, ARXIV, model="m", headers=HDR)
         sec = client.app.state.runner.secrets[tid]
         assert sec.api_key == "sk-header-secret-1"
-        row = client.portal.call(partial(client.app.state.store.get, tid))
+        row = get_row(client, tid)
         assert row["auth_source"] == "header"
 
     def test_settings_fallback(self, client: TestClient) -> None:
         client.put("/api/settings", json={"api_key": "sk-settings-key"})
         tid = mk_api_task(client, ARXIV, model="m")
         assert client.app.state.runner.secrets[tid].api_key == "sk-settings-key"
-        row = client.portal.call(partial(client.app.state.store.get, tid))
+        row = get_row(client, tid)
         assert row["auth_source"] == "settings"
 
     def test_env_fallback(
@@ -51,27 +51,25 @@ class TestPriorityChain:
 class TestTenant:
     def test_local_tenant(self, client: TestClient) -> None:
         tid = mk_api_task(client, ARXIV, model="m", headers=HDR)
-        row = client.portal.call(partial(client.app.state.store.get, tid))
+        row = get_row(client, tid)
         assert row["tenant"] == "local"
 
-    def test_server_mode_key_fingerprint(
-        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.setenv("TEXLATE_MODE", "server")
-        tid = mk_api_task(client, ARXIV, model="m", headers={"X-Texlate-Key": "k-A"})
-        row = client.portal.call(partial(client.app.state.store.get, tid))
+    def test_server_mode_key_fingerprint(self, server_client: TestClient) -> None:
+        tid = mk_api_task(
+            server_client, ARXIV, model="m", headers={"X-Texlate-Key": "k-A"}
+        )
+        row = get_row(server_client, tid)
         assert row["tenant"].startswith("k_")
         assert "k-A" not in row["tenant"]
 
-    def test_server_mode_isolation(
-        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_server_mode_isolation(self, server_client: TestClient) -> None:
         """server 模式下别的租户看不到本任务（404）。"""
-        monkeypatch.setenv("TEXLATE_MODE", "server")
-        tid = mk_api_task(client, ARXIV, model="m", headers={"X-Texlate-Key": "k-A"})
-        r = client.get(f"/api/task/{tid}", headers={"X-Texlate-Key": "k-B"})
+        tid = mk_api_task(
+            server_client, ARXIV, model="m", headers={"X-Texlate-Key": "k-A"}
+        )
+        r = server_client.get(f"/api/task/{tid}", headers={"X-Texlate-Key": "k-B"})
         assert r.status_code == HTTPStatus.NOT_FOUND
-        r = client.get("/api/tasks", headers={"X-Texlate-Key": "k-B"})
+        r = server_client.get("/api/tasks", headers={"X-Texlate-Key": "k-B"})
         assert r.json()["tasks"] == []
 
 
@@ -126,18 +124,14 @@ class TestNoKeyLeak:
 class TestSettingsTest:
     def test_unreachable_endpoint(self, client: TestClient) -> None:
         """探活打不通 → ok:false，detail 已脱敏、不含 key。"""
-        import socket  # noqa: PLC0415 -- 仅此用例要占即释端口
-
         # bind 但不 listen：用例期间一直占住端口（免疫外部抢占窗口），
         # 入站 SYN 仍必吃 RST → 探活确定 ECONNREFUSED，不依赖本机 :3003 状态。
-        with socket.socket() as sock:
-            sock.bind(("127.0.0.1", 0))
-            port = sock.getsockname()[1]
+        with refused_base_url() as base_url:
             client.put("/api/settings", json={"api_key": "sk-probe-key"})
             r = client.post(
                 "/api/settings/test",
                 json={
-                    "base_url": f"http://127.0.0.1:{port}",
+                    "base_url": base_url,
                     "api_key": "sk-probe-key",  # SEC-4：base_url 覆盖须同给 key
                 },
             )

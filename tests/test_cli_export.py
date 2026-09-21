@@ -9,10 +9,10 @@ stderr、``ExportError`` 各族（unsupported/DRM/fixed-layout/malformed）一�
 
 from __future__ import annotations
 
-import io
 import zipfile
 from typing import TYPE_CHECKING
 
+from _exportkit import _epub, _write_epub, _zip_only
 from docx import Document
 from typer.testing import CliRunner
 
@@ -25,81 +25,6 @@ if TYPE_CHECKING:
     import pytest
 
 _RUNNER = CliRunner()
-
-_CONTAINER_XML = """<?xml version="1.0"?>
-<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
-  <rootfiles>
-    <rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/>
-  </rootfiles>
-</container>
-"""
-
-_XHTML_TMPL = """<?xml version="1.0" encoding="utf-8"?>
-<html xmlns="http://www.w3.org/1999/xhtml">
-<head><title>t</title></head>
-<body>{body}</body>
-</html>
-"""
-
-
-def _opf(chapters: list[str], *, fixed: bool = False) -> str:
-    items = "\n".join(
-        f'    <item id="c{i}" href="{name}" media-type="application/xhtml+xml"/>'
-        for i, name in enumerate(chapters)
-    )
-    refs = "\n".join(f'    <itemref idref="c{i}"/>' for i in range(len(chapters)))
-    layout = (
-        '    <meta property="rendition:layout">pre-paginated</meta>\n' if fixed else ""
-    )
-    return f"""<?xml version="1.0"?>
-<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bid">
-  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
-    <dc:identifier id="bid">test-book</dc:identifier>
-    <dc:title>Test</dc:title>
-    <dc:language>en</dc:language>
-{layout}  </metadata>
-  <manifest>
-{items}
-  </manifest>
-  <spine>
-{refs}
-  </spine>
-</package>
-"""
-
-
-def _epub(
-    chapters: dict[str, str],
-    *,
-    extra: dict[str, bytes | str] | None = None,
-    fixed: bool = False,
-) -> bytes:
-    """最小合法 EPUB zip：mimetype + container + OPF + spine 章节。"""
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w") as z:
-        z.writestr("mimetype", "application/epub+zip", compress_type=zipfile.ZIP_STORED)
-        z.writestr("META-INF/container.xml", _CONTAINER_XML)
-        z.writestr("OEBPS/content.opf", _opf(list(chapters), fixed=fixed))
-        for name, body in chapters.items():
-            z.writestr(f"OEBPS/{name}", _XHTML_TMPL.format(body=body))
-        for name, blob in (extra or {}).items():
-            z.writestr(name, blob)
-    return buf.getvalue()
-
-
-def _zip_only(members: dict[str, str]) -> bytes:
-    """裸 zip（嗅探用例的阴性/畸形输入）。"""
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w") as z:
-        for name, blob in members.items():
-            z.writestr(name, blob)
-    return buf.getvalue()
-
-
-def _write_epub(tmp_path: Path, blob: bytes, name: str = "book.epub") -> Path:
-    src = tmp_path / name
-    src.write_bytes(blob)
-    return src
 
 
 def _make_docx(path: Path, paras: list[str]) -> Path:
@@ -116,7 +41,7 @@ _CH1 = {"ch1.xhtml": "<p>Hello world this is a paragraph for export.</p>"}
 class TestExport:
     def test_epub_mock_default_out(self, tmp_path: Path) -> None:
         """--mock → 缺省 ``{stem}_bilingual.epub`` + stderr 报告行 + 无 state 残留。"""
-        src = _write_epub(tmp_path, _epub(_CH1))
+        src = _write_epub(tmp_path, _epub(_CH1, ncx=False))
         result = _RUNNER.invoke(app, ["export", str(src), "--mock"])
 
         assert result.exit_code == 0, result.output
@@ -154,7 +79,7 @@ class TestExport:
     ) -> None:
         """无 --mock 且无 TEXLATE_API_KEY → 缺省 MockTranslator（零触网仍成跑），
         隐式回落打 stderr 提示——占位译文不当真译文。"""
-        src = _write_epub(tmp_path, _epub(_CH1))
+        src = _write_epub(tmp_path, _epub(_CH1, ncx=False))
         result = _RUNNER.invoke(app, ["export", str(src)])
 
         assert result.exit_code == 0, result.output
@@ -167,7 +92,7 @@ class TestExport:
         clean_env: pytest.MonkeyPatch,  # noqa: ARG002 -- fixture 副作用（env 清洗）
     ) -> None:
         """显式 --mock 是用户明知 → 不打隐式回落提示。"""
-        src = _write_epub(tmp_path, _epub(_CH1))
+        src = _write_epub(tmp_path, _epub(_CH1, ncx=False))
         result = _RUNNER.invoke(app, ["export", str(src), "--mock"])
 
         assert result.exit_code == 0, result.output
@@ -181,7 +106,7 @@ class TestExport:
         """``TEXLATE_TRANSLATOR=gateway`` 无 key → exit 2 显式拒（必败不静默）。"""
         clean_env.setenv("TEXLATE_TRANSLATOR", "gateway")
         clean_env.delenv("TEXLATE_API_KEY", raising=False)
-        src = _write_epub(tmp_path, _epub(_CH1))
+        src = _write_epub(tmp_path, _epub(_CH1, ncx=False))
         result = _RUNNER.invoke(app, ["export", str(src)])
 
         assert result.exit_code == 2  # noqa: PLR2004 -- 用法错（配置自相矛盾）
@@ -190,7 +115,7 @@ class TestExport:
 
     def test_suffix_ignored_content_sniffed(self, tmp_path: Path) -> None:
         """epub 字节命名 ``.bin`` → 内容嗅探照走（help 承诺「不看后缀」）。"""
-        src = _write_epub(tmp_path, _epub(_CH1), name="odd.bin")
+        src = _write_epub(tmp_path, _epub(_CH1, ncx=False), name="odd.bin")
         result = _RUNNER.invoke(app, ["export", str(src), "--mock"])
 
         assert result.exit_code == 0, result.output
@@ -217,7 +142,7 @@ class TestExport:
         """META-INF/rights.xml 声明 → DrmError → exit 1 且不产 dst。"""
         src = _write_epub(
             tmp_path,
-            _epub(_CH1, extra={"META-INF/rights.xml": "<rights/>"}),
+            _epub(_CH1, ncx=False, extra={"META-INF/rights.xml": "<rights/>"}),
         )
         result = _RUNNER.invoke(app, ["export", str(src), "--mock"])
 
@@ -227,7 +152,7 @@ class TestExport:
 
     def test_fixed_layout_exit_1(self, tmp_path: Path) -> None:
         """``rendition:layout=pre-paginated`` → FixedLayoutError → exit 1。"""
-        src = _write_epub(tmp_path, _epub(_CH1, fixed=True))
+        src = _write_epub(tmp_path, _epub(_CH1, ncx=False, fixed=True))
         result = _RUNNER.invoke(app, ["export", str(src), "--mock"])
 
         assert result.exit_code == 1

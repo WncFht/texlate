@@ -242,7 +242,7 @@ def test_epsfbox_not_stripped(tmp_path: Path) -> None:
     assert "\\epsfbox{p.eps}" in (tmp_path / "main.tex").read_text()
 
 
-def test_rule_order_between_relax_and_eps_to_pdf() -> None:
+def test_rule_order_between_promote_and_relocate() -> None:
     # order 8.6: fileset_relocate(9) 前拿派发窗 —— 2403.05444 实证 relocate
     # 逐轮搬一张 .eps, 13 图 > 8 轮预算饿死; conv 家须一轮全愈。
     ids = [r.id for r in load_ruleset().phase("loop")]

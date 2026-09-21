@@ -18,8 +18,10 @@ unfixable/stuck。修复 = 每个规则应用点前后做 wdir 指纹 diff
 
 from pathlib import Path
 
+from test_fixloop_loop import MockEngine, MockRes
+
 from texlate.compile.fixloop import fixloop, load_ruleset
-from texlate.compile.fixloop._builtins_misc import _wdir_fingerprint
+from texlate.compile.fixloop._builtins_common import _wdir_fingerprint
 from texlate.compile.fixloop.engine import LoopCtx, _landing_sync
 
 _ALDEF_ZZ = (
@@ -67,36 +69,11 @@ _FOO_V1 = "\\ProvidesPackage{foo}\n"
 _FOO_V2 = "\\ProvidesPackage{foo}\n\\NewDocumentCommand{\\ww}{}{FOO}\n"
 
 
-class _Res:
-    """impl CompRes 的 duck-type 替身 (最小面, 同 test_secdispatch)。"""
-
-    def __init__(self, wdir: Path, main: str, spec: dict | str) -> None:
-        if isinstance(spec, str):
-            spec = {"log": spec}
-        stem = Path(main).stem
-        self.log_path = wdir / f"{stem}.log"
-        self.log_path.write_text(spec.get("log", ""), encoding="utf-8")
-        self.pdf = wdir / f"{stem}.pdf" if spec.get("pdf") else None
-        if self.pdf is not None:
-            self.pdf.write_bytes(b"%PDF-1.4 fake")
-        self.pdf_bytes = self.pdf.stat().st_size if self.pdf else 0
-        self.timed_out = False
-        self.killed_signal = None
-        self.seconds = 0.05
-        self.stdout_tail = spec.get("tail", "")
-        self.log_text = ""
-
-    @property
-    def has_pdf(self) -> bool:
-        return self.pdf is not None and self.pdf_bytes > 0
-
-
-class _LandEngine:
-    """剧本引擎 + 落件表: ``install_file`` 把 ``drops[fname]`` 写进 wdir,
+class _LandEngine(MockEngine):
+    """MockEngine + 落件表: ``install_file`` 把 ``drops[fname]`` 写进 wdir,
     ``side_writes`` 为 dep-fanout/vendor 伴写替身; ``probe_file`` 先查
     cwd 内实件再查 ``texmf`` 表 (kpathsea 替身)。"""
 
-    name = "xelatex"
     caps = frozenset({"kpsewhich", "tlmgr"})
     halt_on_error = False  # 无次级探针——单错 log miss 直落裁决, 剧本确定性
 
@@ -108,19 +85,16 @@ class _LandEngine:
         side_writes: dict[str, str] | None = None,
         texmf: dict[str, str] | None = None,
     ) -> None:
-        self.script = list(script)
+        super().__init__(script)
         self.drops = dict(drops or {})
         self.side_writes = dict(side_writes or {})
         self.texmf = dict(texmf or {})
-        self.calls = 0
         self.installed: list[str] = []
         self._wdir: Path | None = None
 
-    def compile(self, wdir: Path, main: str, **_kw: object) -> _Res:
+    def compile(self, wdir: Path, main: str, **kw: object) -> MockRes:
         self._wdir = Path(wdir)
-        spec = self.script[min(self.calls, len(self.script) - 1)]
-        self.calls += 1
-        return _Res(Path(wdir), main, spec)
+        return super().compile(wdir, main, **kw)
 
     def probe_file(self, fname: str, cwd: Path | None = None) -> str | None:
         if cwd is not None:
@@ -141,13 +115,6 @@ class _LandEngine:
             p.write_text(text, encoding="utf-8")
         self.installed.append(rel)
         return True
-
-    def rebuild_fontmaps(self) -> None:
-        return None
-
-    def filemap(self, fname: str) -> list[str]:
-        del fname
-        return []
 
 
 def _proj(tmp_path: Path, files: dict[str, str]) -> Path:

@@ -101,6 +101,15 @@ from typing import TYPE_CHECKING, Any
 import httpx
 import pytest
 from _fuzzkit import fuzz_rng
+from _xlatkit import (
+    chat_payload,
+    connect_error,
+    drain,
+    json_resp,
+    mock_client,
+    panel_entry,
+    recording,
+)
 
 from texlate.xlat import client as cl
 from texlate.xlat.retry import RetryPolicy, _backoff_delay
@@ -139,38 +148,10 @@ def _mock(
     api_key: str = _KEY,
     usage_sink: Callable[[cl.UsageRecord], None] | None = None,
 ) -> cl.ChatClient:
-    http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
-    return cl.ChatClient(base_url, api_key, http=http, usage_sink=usage_sink)
-
-
-def _json(payload: object, status: int = 200, **headers: str) -> httpx.Response:
-    return httpx.Response(status, json=payload, headers=httpx.Headers(headers))
-
-
-def _chat_payload(
-    content: str = "OK", *, finish: str = "stop", model: str = "m1"
-) -> dict[str, Any]:
-    return {
-        "model": model,
-        "choices": [
-            {
-                "message": {"role": "assistant", "content": content},
-                "finish_reason": finish,
-            }
-        ],
-        "usage": {"prompt_tokens": 11, "completion_tokens": 7},
-    }
-
-
-def _panel_entry(uid: object, **kw: object) -> dict[str, Any]:
-    base: dict[str, Any] = {
-        "uid": uid,
-        "cost_tier": "free",
-        "promo": {"active": True, "end_date": "2026-10-01"},
-        "context_tokens": 131072,
-    }
-    base.update(kw)
-    return base
+    """本文件默认 ``_BASE``/``_KEY`` 的 mock client——透传 ``_xlatkit.mock_client``。"""
+    return mock_client(
+        handler, base_url=base_url, api_key=api_key, usage_sink=usage_sink
+    )
 
 
 # ---------------------------------------------------------------- JSON 形状发生器
@@ -590,10 +571,7 @@ class TestSseEvents:
         )
         c = _mock(lambda _r: httpx.Response(200, content=sse))
 
-        async def collect() -> list[cl.StreamEvent]:
-            return [ev async for ev in c.chat_stream("m", _MSGS)]
-
-        events = asyncio.run(collect())
+        events = asyncio.run(drain(c, "m", _MSGS))
         assert [e.delta for e in events if e.kind == "content"] == ["a", "b"]
 
     def test_stream_dialect_routed(self) -> None:
@@ -601,8 +579,7 @@ class TestSseEvents:
         + ``x-api-key``，消费 anthropic SSE 事件族（不再恒走 OpenAI 方言）。"""
         reqs: list[httpx.Request] = []
 
-        def handler(r: httpx.Request) -> httpx.Response:
-            reqs.append(r)
+        def handler(_r: httpx.Request) -> httpx.Response:
             sse = (
                 b'data: {"type":"content_block_delta","delta":'
                 b'{"type":"text_delta","text":"hi"}}\n\n'
@@ -610,12 +587,9 @@ class TestSseEvents:
             )
             return httpx.Response(200, content=sse)
 
-        c = _mock(handler, base_url=_ANTHROPIC)
+        c = _mock(recording(handler, reqs), base_url=_ANTHROPIC)
 
-        async def collect() -> list[cl.StreamEvent]:
-            return [ev async for ev in c.chat_stream("m", _MSGS)]
-
-        events = asyncio.run(collect())
+        events = asyncio.run(drain(c, "m", _MSGS))
         assert reqs[0].url.path == "/v1/messages"
         assert reqs[0].headers["x-api-key"] == _KEY
         assert "authorization" not in reqs[0].headers
@@ -641,7 +615,7 @@ class TestParseOpenaiFuzz:
     def test_fuzz_payload_escape_family(self) -> None:
         """随机协议形状载荷 → ChatResult | ChatError | C3 逃逸族，三分天下。"""
         rng = fuzz_rng(20261108)
-        c = _mock(lambda _r: _json({}))
+        c = _mock(lambda _r: json_resp({}))
         outcomes: dict[str, int] = {"result": 0, "chaterror": 0, "escape": 0}
         for _ in range(_FUZZ_ITERS):
             payload = _gen_openai_payload(rng)
@@ -688,7 +662,7 @@ class TestParseOpenaiFuzz:
     )
     def test_malformed_shapes_typed_error(self, payload: dict[str, Any]) -> None:
         """C3：形状错 200 体应抛 ``MalformedResponseError`` 而非裸逃逸。"""
-        c = _mock(lambda _r: _json(payload), base_url=_BYOK)
+        c = _mock(lambda _r: json_resp(payload), base_url=_BYOK)
         with pytest.raises(cl.MalformedResponseError):
             asyncio.run(c.chat("m1", _MSGS))
 
@@ -705,7 +679,7 @@ class TestParseOpenaiFuzz:
     def test_result_field_type_pollution_observed(self) -> None:
         """P9 观测：``model``/``finish_reason``/``reasoning_content`` 非 str
         原样进 ``ChatResult``——不校验不强转。"""
-        c = _mock(lambda _r: _json({}))
+        c = _mock(lambda _r: json_resp({}))
         r = c._parse_openai(  # noqa: SLF001
             {
                 "choices": [
@@ -734,10 +708,10 @@ class TestParseOpenaiFuzz:
         def handler(r: httpx.Request) -> httpx.Response:
             reqs.append(r.url.path)
             if r.url.path == "/v1/chat/completions":
-                return _json({"choices": [None]})
+                return json_resp({"choices": [None]})
             if r.url.path == "/panel/api/models":
-                return _json({"models": [_panel_entry("alt")]})
-            return _json({"data": [{"id": "alt"}]})
+                return json_resp({"models": [panel_entry("alt")]})
+            return json_resp({"data": [{"id": "alt"}]})
 
         c = _mock(handler)  # loopback 网关——触发发现链
         with pytest.raises(cl.MalformedResponseError):
@@ -753,7 +727,7 @@ class TestParseOpenaiFuzz:
 class TestParseAnthropicFuzz:
     def test_fuzz_payload_escape_family(self) -> None:
         rng = fuzz_rng(20261109)
-        c = _mock(lambda _r: _json({}), base_url=_ANTHROPIC)
+        c = _mock(lambda _r: json_resp({}), base_url=_ANTHROPIC)
         outcomes: dict[str, int] = {"result": 0, "chaterror": 0, "escape": 0}
         for _ in range(_FUZZ_ITERS):
             payload = _gen_anthropic_payload(rng)
@@ -802,14 +776,14 @@ class TestParseAnthropicFuzz:
     )
     def test_malformed_shapes_typed_error(self, payload: dict[str, Any]) -> None:
         """C4：anthropic 形状错 200 体应抛类型化错误而非裸逃逸。"""
-        c = _mock(lambda _r: _json(payload), base_url=_ANTHROPIC)
+        c = _mock(lambda _r: json_resp(payload), base_url=_ANTHROPIC)
         with pytest.raises(cl.ChatError):
             asyncio.run(c.chat("m", _MSGS))
 
     def test_anthropic_body_malformed_messages_observed(self) -> None:
         """P6 观测钉：缺键/非 dict messages → ``KeyError``/``TypeError`` 裸逃
         ``chat()``（调用方输入边界无校验）。"""
-        c = _mock(lambda _r: _json({}), base_url=_ANTHROPIC)
+        c = _mock(lambda _r: json_resp({}), base_url=_ANTHROPIC)
         with pytest.raises(KeyError):  # P6 WONTFIX：调用方输入边界不校验
             asyncio.run(c.chat("m", [{"role": "system"}]))
         with pytest.raises(KeyError):  # 缺 role
@@ -830,12 +804,12 @@ class TestDiscoverFuzz:
     ) -> Callable[[httpx.Request], httpx.Response]:
         def handler(req: httpx.Request) -> httpx.Response:
             if req.url.path == "/panel/api/models":
-                return _json({"models": members})
+                return json_resp({"models": members})
             if req.url.path == "/v1/models":
-                return _json({"data": [{"id": u} for u in v1]})
+                return json_resp({"data": [{"id": u} for u in v1]})
             if req.url.path == "/v1/chat/completions":
                 probed.append(str(json.loads(req.content)["model"]))
-                return _json(_chat_payload("OK"))
+                return json_resp(chat_payload("OK"))
             return httpx.Response(404)
 
         return handler
@@ -902,11 +876,11 @@ class TestDiscoverFuzz:
     @pytest.mark.parametrize(
         "member",
         [
-            _panel_entry("a", promo="yes"),
-            _panel_entry("a", promo=1),
-            _panel_entry("a", promo=[{"active": True}]),
-            _panel_entry("a", context_tokens="abc"),
-            _panel_entry("a", context_tokens=[1]),
+            panel_entry("a", promo="yes"),
+            panel_entry("a", promo=1),
+            panel_entry("a", promo=[{"active": True}]),
+            panel_entry("a", context_tokens="abc"),
+            panel_entry("a", context_tokens=[1]),
         ],
     )
     def test_malformed_member_typed(self, member: dict[str, Any]) -> None:
@@ -932,8 +906,8 @@ class TestDiscoverFuzz:
                     ),
                 )
             if req.url.path == "/v1/models":
-                return _json({"data": [{"id": "a"}]})
-            return _json(_chat_payload("OK"))
+                return json_resp({"data": [{"id": "a"}]})
+            return json_resp(chat_payload("OK"))
 
         c = _mock(handler)
         out = asyncio.run(c.discover_free_models(probe=False))
@@ -943,7 +917,7 @@ class TestDiscoverFuzz:
     def test_malformed_member_filtered_via_fallback_observed(self) -> None:
         """C5 修复钉：``promo`` 非 dict 成员在过滤层被剔除——
         ``fallback_candidates`` 得 ``[]``（修复前靠臂级 ``except Exception`` 兜底）。"""
-        c = _mock(self._gateway([_panel_entry("a", promo="yes")], ["a"], []))
+        c = _mock(self._gateway([panel_entry("a", promo="yes")], ["a"], []))
         assert asyncio.run(c.fallback_candidates()) == []
 
     def test_member_field_coercion_observed(self) -> None:
@@ -952,10 +926,10 @@ class TestDiscoverFuzz:
         ``disabled`` 按真值计。"""
         probed: list[str] = []
         members = [
-            _panel_entry(5),
-            _panel_entry(["x"]),
-            _panel_entry("gone", disabled="yes"),
-            _panel_entry("live", promo={"active": "yes", "end_date": 2026}),
+            panel_entry(5),
+            panel_entry(["x"]),
+            panel_entry("gone", disabled="yes"),
+            panel_entry("live", promo={"active": "yes", "end_date": 2026}),
         ]
         c = _mock(self._gateway(members, [], probed))
         out = asyncio.run(c.discover_free_models(probe=False))
@@ -966,7 +940,7 @@ class TestDiscoverFuzz:
 class TestListPanelAsymmetry:
     def test_scalar_toplevel_asymmetry_observed(self) -> None:
         """P12 观测：顶层标量 ``"nope"`` → panel 回 ``[]``、list 抛 Malformed。"""
-        c = _mock(lambda _r: _json("nope"), base_url=_BYOK)
+        c = _mock(lambda _r: json_resp("nope"), base_url=_BYOK)
         assert asyncio.run(c.panel_models()) == []
         with pytest.raises(cl.MalformedResponseError):
             asyncio.run(c.list_models())
@@ -974,7 +948,7 @@ class TestListPanelAsymmetry:
     @pytest.mark.parametrize("field", [5, True])
     def test_noniterable_models_field_typed(self, field: object) -> None:
         """C6：``{"models": <非可迭代>}`` 应与 ``list_models`` 同口径 ``MalformedResponseError``。"""
-        c = _mock(lambda _r: _json({"models": field}), base_url=_BYOK)
+        c = _mock(lambda _r: json_resp({"models": field}), base_url=_BYOK)
         with pytest.raises(cl.MalformedResponseError):
             asyncio.run(c.panel_models())
 
@@ -986,14 +960,14 @@ class TestListPanelAsymmetry:
             ([[1], {"uid": "x"}, "junk"], [{"uid": "x"}]),
             (None, []),
         ]:
-            c = _mock(lambda _r, f=field: _json({"models": f}), base_url=_BYOK)
+            c = _mock(lambda _r, f=field: json_resp({"models": f}), base_url=_BYOK)
             assert asyncio.run(c.panel_models()) == want
 
     def test_list_models_id_coercion_observed(self) -> None:
         """P4 观测：``str(m["id"])`` 强转——``None``→``"None"``、``""`` 原样、
         ``true``→``"True"``、容器转 repr。"""
         c = _mock(
-            lambda _r: _json(
+            lambda _r: json_resp(
                 {
                     "data": [
                         {"id": None},
@@ -1122,7 +1096,7 @@ class TestUrlSurfaces:
         u = "http://local\nhost:3003"
         assert cl.provider_for_url(u) == "gateway"
         assert cl.is_free_gateway_url(u)
-        c = _mock(lambda _r: _json(_chat_payload()), base_url=u)
+        c = _mock(lambda _r: json_resp(chat_payload("OK")), base_url=u)
         with pytest.raises(cl.ChatError, match="invalid request URL"):
             asyncio.run(c.chat("m1", _MSGS))
 
@@ -1235,12 +1209,12 @@ class TestRedactFuzz:
 class TestRequestAssembly:
     def test_openai_headers_empty_key(self) -> None:
         """空 key → 零 Authorization 头（不发明凭证）。"""
-        c = _mock(lambda _r: _json({}), api_key="")
+        c = _mock(lambda _r: json_resp({}), api_key="")
         assert c._openai_headers() == {}  # noqa: SLF001
 
     def test_anthropic_headers_always_send_key_observed(self) -> None:
         """观测：anthropic 头恒发 ``x-api-key``——空 key 也发空值。"""
-        c = _mock(lambda _r: _json({}), api_key="")
+        c = _mock(lambda _r: json_resp({}), api_key="")
         h = c._anthropic_headers()  # noqa: SLF001
         assert h["x-api-key"] == ""
         assert h["anthropic-version"] == "2023-06-01"
@@ -1263,7 +1237,7 @@ class TestRequestAssembly:
 
         def handler(r: httpx.Request) -> httpx.Response:
             reqs.append(r)
-            return _json(
+            return json_resp(
                 {
                     "type": "message",
                     "stop_reason": "end_turn",
@@ -1278,7 +1252,7 @@ class TestRequestAssembly:
 
     def test_nonascii_api_key_typed(self) -> None:
         """C7：``künstlîch`` 类 key 应报 ``ChatError`` 而非裸 UnicodeEncodeError。"""
-        c = _mock(lambda _r: _json(_chat_payload()), api_key="künstlîch")
+        c = _mock(lambda _r: json_resp(chat_payload("OK")), api_key="künstlîch")
         with pytest.raises(cl.ChatError):
             asyncio.run(c.chat("m1", _MSGS))
 
@@ -1310,18 +1284,18 @@ class TestFallbackArm:
 
         def handler(req: httpx.Request) -> httpx.Response:
             if req.url.path == "/panel/api/models":
-                return _json({"models": [_panel_entry(u) for u in uids]})
+                return json_resp({"models": [panel_entry(u) for u in uids]})
             if req.url.path == "/v1/models":
-                return _json({"data": [{"id": u} for u in uids]})
+                return json_resp({"data": [{"id": u} for u in uids]})
             if req.url.path == "/v1/chat/completions":
                 body = json.loads(req.content)
                 uid = str(body["model"])
                 if body["messages"][0]["content"] == _PROBE_TEXT:
-                    return _json(_chat_payload("OK", model=uid))  # 探活恒活
+                    return json_resp(chat_payload("OK", model=uid))  # 探活恒活
                 status = chat_status.get(uid, 200)
                 if status != 200:  # noqa: PLR2004
-                    return _json({"e": 1}, status=status)
-                return _json(_chat_payload("OK", model=uid))
+                    return json_resp({"e": 1}, status=status)
+                return json_resp(chat_payload("OK", model=uid))
             return httpx.Response(404)
 
         return handler
@@ -1425,7 +1399,7 @@ class TestUsageSinkFuzz:
         """P3 观测：sink 记响应自报 ``model``——缺字段记 ``""``，非请求模型。"""
         recs: list[cl.UsageRecord] = []
         c = _mock(
-            lambda _r: _json({"choices": [{"message": {"content": "OK"}}]}),
+            lambda _r: json_resp({"choices": [{"message": {"content": "OK"}}]}),
             usage_sink=recs.append,
         )
         asyncio.run(c.chat("requested-model", _MSGS))
@@ -1466,12 +1440,7 @@ class TestProbeFuzz:
 
     def test_probe_error_capped_200(self) -> None:
         """观测：异常文本进 ``probe_error`` 截 200 字符。"""
-
-        def boom(_r: httpx.Request) -> httpx.Response:
-            msg = "x" * 500
-            raise httpx.ConnectError(msg)
-
-        c = _mock(boom)
+        c = _mock(connect_error("x" * 500))
         fm = asyncio.run(c.probe_model("m1"))
         assert not fm.probe_ok
         assert len(fm.probe_error) <= 200  # noqa: PLR2004
@@ -1565,13 +1534,7 @@ class TestChatWireFuzz:
             body = ("\n\n".join(lines) + "\n\n").encode()
             c = _mock(lambda _r, b=body: httpx.Response(200, content=b))
             try:
-
-                async def collect(
-                    client: cl.ChatClient = c,
-                ) -> list[cl.StreamEvent]:
-                    return [ev async for ev in client.chat_stream("m", _MSGS)]
-
-                events = asyncio.run(collect())
+                events = asyncio.run(drain(c, "m", _MSGS))
             except cl.ChatError:
                 continue
             except _SSE_ESCAPES:

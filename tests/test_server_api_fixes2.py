@@ -21,7 +21,15 @@ pytest.importorskip("fastapi", reason="server extra 未装")
 pytest.importorskip("starlette.testclient", reason="server extra 未装")
 pytest.importorskip("uvicorn", reason="server extra 未装")
 
-from conftest import make_app, mk_api_task, upload_tex
+from conftest import (
+    force_status,
+    get_row,
+    make_app,
+    mk_api_task,
+    mk_chunk_row,
+    reg_artifact,
+    upload_tex,
+)
 from starlette.testclient import TestClient
 
 from texlate.share import (
@@ -32,35 +40,11 @@ from texlate.share import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
     from pathlib import Path
 
 ARXIV = "2401.00071"
 KEY_B = {"X-Texlate-Key": "sk-tenant-b"}
 KEY_C = {"X-Texlate-Key": "sk-tenant-c"}
-
-
-@pytest.fixture
-def server_client(
-    tmp_path: Path,
-    clean_env: pytest.MonkeyPatch,  # noqa: ARG001 -- fixture 副作用
-    monkeypatch: pytest.MonkeyPatch,
-) -> Iterator[TestClient]:
-    """server 形态 TestClient（worker 按住）。"""
-    monkeypatch.setenv("TEXLATE_MODE", "server")
-    with TestClient(make_app(tmp_path)) as c:
-        yield c
-
-
-def _force(client: TestClient, tid: str, status: str) -> None:
-    """store.transition force 通道——把任务钉到指定状态。"""
-    client.portal.call(
-        partial(client.app.state.store.transition, tid, status, force=True)
-    )
-
-
-def _get_row(client: TestClient, tid: str) -> dict | None:
-    return client.portal.call(partial(client.app.state.store.get, tid))
 
 
 def _mk_chunks(client: TestClient, tid: str, n: int) -> None:
@@ -70,15 +54,12 @@ def _mk_chunks(client: TestClient, tid: str, n: int) -> None:
             client.app.state.store.insert_chunks,
             tid,
             [
-                {
-                    "seq": i,
-                    "chunk_id": f"c{i:03d}",
-                    "src_file": "main.tex",
-                    "byte_start": i * 10,
-                    "byte_end": i * 10 + 9,
-                    "kind": "para",
-                    "src_text": f"english segment {i}",
-                }
+                mk_chunk_row(
+                    i,
+                    chunk_id=f"c{i:03d}",
+                    kind="para",
+                    src_text=f"english segment {i}",
+                )
                 for i in range(n)
             ],
         )
@@ -213,24 +194,24 @@ class TestRetryOptions:
     def test_absent_source_not_rewritten(self, client: TestClient) -> None:
         """retry 合并臂不注 ``source`` 默认——html 任务的存量 ``"html"`` 保留。"""
         tid = mk_api_task(client, ARXIV, options={"source": "html"})
-        _force(client, tid, "fault")
+        force_status(client, tid, "fault")
         r = client.post(f"/api/task/{tid}/retry", json={"options": {"concurrency": 2}})
         assert r.status_code == HTTPStatus.ACCEPTED
-        opts = json.loads(_get_row(client, tid)["options_json"])
+        opts = json.loads(get_row(client, tid)["options_json"])
         assert opts["source"] == "html"  # 旧 bug：被合并器改回 "eprint"
         assert opts["concurrency"] == 2  # noqa: PLR2004
 
     def test_explicit_source_overrides(self, client: TestClient) -> None:
         """body 真实出现的 ``source`` 仍校验+回写——白名单外值 400。"""
         tid = mk_api_task(client, ARXIV, options={"source": "html"})
-        _force(client, tid, "fault")
+        force_status(client, tid, "fault")
         r = client.post(
             f"/api/task/{tid}/retry", json={"options": {"source": "eprint"}}
         )
         assert r.status_code == HTTPStatus.ACCEPTED
-        opts = json.loads(_get_row(client, tid)["options_json"])
+        opts = json.loads(get_row(client, tid)["options_json"])
         assert opts["source"] == "eprint"
-        _force(client, tid, "fault")
+        force_status(client, tid, "fault")
         bad = client.post(
             f"/api/task/{tid}/retry", json={"options": {"source": "nope"}}
         )
@@ -423,19 +404,7 @@ class TestHealthDepth:
 class TestFilesCacheControl:
     def _register(self, client: TestClient, tid: str) -> str:
         """落 zh.pdf + 登记 → 返回 sha256。"""
-        tdir = client.app.state.data_dir / "tasks" / tid
-        tdir.mkdir(parents=True, exist_ok=True)
-        (tdir / "zh.pdf").write_bytes(b"%PDF-1.4 fake")
-        rec = client.portal.call(
-            partial(
-                client.app.state.store.put_file,
-                tid,
-                "zh_pdf",
-                "zh.pdf",
-                data_dir=tdir,
-            )
-        )
-        return rec["sha256"]
+        return reg_artifact(client, tid, "zh_pdf", "zh.pdf")["sha256"]
 
     def test_version_match_immutable(self, client: TestClient) -> None:
         """``?version=<sha256>`` 命中 → ``private, immutable``（be#11）。"""

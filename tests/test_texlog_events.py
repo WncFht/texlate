@@ -1,4 +1,4 @@
-r"""texlog 单遍事件流 + C3 归位 shim 钉点。
+r"""texlog 单遍事件流钉点。
 
 - ``iter_log_events``：``stack``/``popped``/``inner``/``err`` 投影 ==
   逐行手工重放 oracle（``update_file_stack``+``patch_graphic_top``）。
@@ -18,7 +18,6 @@ from texlate.texlog import (
     patch_graphic_top,
     update_file_stack,
 )
-from texlate.textutil import AUX_CITEKEY_RE, BIBITEM_KEY_RE, CITE_FAMILY_RE
 from texlate.validate.l2 import _match_error_line, parse_log_text
 
 
@@ -147,18 +146,3 @@ def test_parse_text_attr_warns_projection() -> None:
     rep = clp.parse_text(log, pats, project_root=None)
     assert rep.warnings == []  # texmf 系统件源不驱 warn_*
     assert rep.warnings_sys == ["invalid_utf8@pkg.sty"]
-
-
-# ---------------------------------------------------------------- textutil cite 叶
-
-
-def test_cite_leaf_regexes() -> None:
-    """键表抽取正则行为面——facade 导出直测（旧 ``_builtins_bib`` 私有表同形）。"""
-    m = CITE_FAMILY_RE.search(r"see \citet[§2]{foo&a,b_2} and \cite{c3}")
-    assert m is not None
-    assert m.group(1) == "foo&a,b_2"
-    m = BIBITEM_KEY_RE.search(r"\bibitem[label]{key_1}")
-    assert m is not None
-    assert m.group(1) == "key_1"
-    assert AUX_CITEKEY_RE.search(r"\bibcite{k1}{1}").group(1) == "k1"  # type: ignore[union-attr]
-    assert AUX_CITEKEY_RE.search(r"\citation{a,b}").group(1) == "a,b"  # type: ignore[union-attr]

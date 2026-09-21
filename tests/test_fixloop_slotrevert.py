@@ -12,13 +12,10 @@ False 空转。
 
 from pathlib import Path
 
+from _fixloopkit import mk_ctx
+
 from texlate.compile.fixloop import builtins
 from texlate.compile.fixloop.builtins import slot_arg_revert
-from texlate.compile.fixloop.engine import LoopCtx
-
-
-def _ctx(wdir: Path) -> LoopCtx:
-    return LoopCtx(wdir=wdir, engine_name="xelatex", main_rel="main.tex", runner=None)
 
 
 def _trees(root: Path) -> tuple[Path, Path]:
@@ -35,7 +32,7 @@ def _pair(work: Path, base: Path, name: str, src: str, zh: str) -> None:
 
 
 def _run(work: Path, base: Path) -> tuple[bool, str]:
-    return slot_arg_revert(_ctx(work), None, None, {"baseline_dir": str(base)})
+    return slot_arg_revert(mk_ctx(work), None, None, {"baseline_dir": str(base)})
 
 
 # ---------------------------------------------------------------- 各 kind 正向还原
@@ -93,6 +90,66 @@ def test_envarg_opt_only(tmp_path: Path) -> None:
     ok, _note = _run(work, base)
     assert ok
     assert (work / "main.tex").read_text(encoding="utf-8") == src
+
+
+def test_envarg_newline_arg_reverted(tmp_path: Path) -> None:
+    r"""2609.19556 实证: ``\begin{promptbox}{General\ninstructions}
+    {colframe=black!60}`` —— src 参带字面换行 ``_ARG`` 捕不进, zh 平
+    参站双侧 26≠28 → envarg 整跳 7 站全漏; ``_ARGNL`` 跨行容忍后对
+    齐, kv 参还原; 参1 含 ``\n`` 非严格 ident 保留 zh (title 散文位)。"""
+    work, base = _trees(tmp_path)
+    src = (
+        "\\begin{promptbox}{General\ninstructions}{colframe=black!60}\n"
+        "body\n\\end{promptbox}\n"
+        "\\begin{promptbox}{Exhaustion}{colframe=blue!50!black}\n"
+        "body\n\\end{promptbox}\n"
+    )
+    zh = (
+        "\\begin{promptbox}{这是译文这是译文}{这是译文!60}\n"
+        "正文\n\\end{promptbox}\n"
+        "\\begin{promptbox}{这是译文}{这是译文这是译文}\n"
+        "正文\n\\end{promptbox}\n"
+    )
+    _pair(work, base, "main.tex", src, zh)
+    ok, _note = _run(work, base)
+    assert ok
+    out = (work / "main.tex").read_text(encoding="utf-8")
+    assert "\\begin{promptbox}{这是译文这是译文}{colframe=black!60}" in out
+    assert "\\begin{promptbox}{Exhaustion}{colframe=blue!50!black}" in out
+
+
+def test_envarg_newline_divergence_healed(tmp_path: Path) -> None:
+    """计数分歧不再整跳后, 同文件无关 envarg 站 (``Mizar`` 尾参) 照
+    常还原 —— 跨行参站补齐后 28=28 对齐。"""
+    work, base = _trees(tmp_path)
+    src = (
+        "\\begin{promptbox}{General\ninstructions}{colframe=black!60}\n"
+        "x\n\\end{promptbox}\n"
+        "\\begin{Mizar}{x,Y,A}\ny\n\\end{Mizar}\n"
+    )
+    zh = (
+        "\\begin{promptbox}{这是译文}{这是译文!60}\n"
+        "x\n\\end{promptbox}\n"
+        "\\begin{Mizar}{x,译文,A}\ny\n\\end{Mizar}\n"
+    )
+    _pair(work, base, "main.tex", src, zh)
+    ok, _note = _run(work, base)
+    assert ok
+    out = (work / "main.tex").read_text(encoding="utf-8")
+    assert "{colframe=black!60}" in out
+    assert "\\begin{Mizar}{x,Y,A}" in out
+
+
+def test_envarg_blank_line_still_breaks(tmp_path: Path) -> None:
+    r"""``\n\n``=``\par`` 仍截断 arg 扫描 —— 含空行的组双侧都不捕
+    (``_ARGNL`` 只放单 ``\n``, 不过度放宽)。"""
+    work, base = _trees(tmp_path)
+    src = "\\begin{e}{a\n\nb}\nx\n\\end{e}\n"
+    zh = "\\begin{e}{a\n\n这是译文}\nx\n\\end{e}\n"
+    _pair(work, base, "main.tex", src, zh)
+    ok, _note = _run(work, base)
+    assert not ok
+    assert (work / "main.tex").read_text(encoding="utf-8") == zh
 
 
 def test_restatable_double_args(tmp_path: Path) -> None:
@@ -264,7 +321,7 @@ def test_no_baseline_counterpart(tmp_path: Path) -> None:
 
 def test_missing_baseline_param_failsafe(tmp_path: Path) -> None:
     """无 ``baseline_dir`` param → False 不抛。"""
-    ok, note = slot_arg_revert(_ctx(tmp_path), None, None, {})
+    ok, note = slot_arg_revert(mk_ctx(tmp_path), None, None, {})
     assert not ok
     assert "baseline_dir" in note
 
@@ -272,7 +329,7 @@ def test_missing_baseline_param_failsafe(tmp_path: Path) -> None:
 def test_nonexistent_baseline_dir_failsafe(tmp_path: Path) -> None:
     """``baseline_dir`` 指不存在目录 → False 不抛。"""
     ok, note = slot_arg_revert(
-        _ctx(tmp_path), None, None, {"baseline_dir": str(tmp_path / "nope")}
+        mk_ctx(tmp_path), None, None, {"baseline_dir": str(tmp_path / "nope")}
     )
     assert not ok
     assert "not a directory" in note
@@ -292,651 +349,3 @@ def test_idempotent_second_run(tmp_path: Path) -> None:
 def test_slot_arg_revert_registered() -> None:
     """注册进 TRANSFORM_FNS (rules.yaml ``function:`` 面)。"""
     assert builtins.TRANSFORM_FNS["slot_arg_revert"] is slot_arg_revert
-
-
-# ------------------------------------------------- arrayresid: 列 spec 机位 (2026-09-19)
-
-
-def test_colspec_env_arg_reverted(tmp_path: Path) -> None:
-    """``\\begin{tabular}{|c|}`` spec 参 zh 化 —— envarg 同位但严格
-    ident 拒收 ``|``/空格 → colspec kind 可打印 ASCII ident 还原。"""
-    work, base = _trees(tmp_path)
-    src = "\\begin{tabular}{| cc | l |}\na&b\\\\\n\\end{tabular}\n"
-    zh = "\\begin{tabular}{| 这是译文 |}\na&b\\\\\n\\end{tabular}\n"
-    _pair(work, base, "main.tex", src, zh)
-    ok, _note = _run(work, base)
-    assert ok
-    assert (work / "main.tex").read_text(encoding="utf-8") == src
-
-
-def test_colspec_two_arg_env(tmp_path: Path) -> None:
-    """``\\begin{tabularx}{dimen}{spec}`` 双参全机位 —— dimen 参含
-    反斜杠 (``\\textwidth``) 严格 ident 拒收, colspec 收。"""
-    work, base = _trees(tmp_path)
-    src = "\\begin{tabularx}{\\textwidth}{|X|X|}\na&b\\\\\n\\end{tabularx}\n"
-    zh = "\\begin{tabularx}{这是译文}{这是译文}\na&b\\\\\n\\end{tabularx}\n"
-    _pair(work, base, "main.tex", src, zh)
-    ok, _note = _run(work, base)
-    assert ok
-    assert (work / "main.tex").read_text(encoding="utf-8") == src
-
-
-def test_colspec_multicolumn(tmp_path: Path) -> None:
-    """``\\multicolumn{n}{spec}{text}`` n+spec 还原, text 散文不碰。"""
-    work, base = _trees(tmp_path)
-    src = "\\multicolumn{8}{c|}{Head}\n"
-    zh = "\\multicolumn{这是译文}{这是译文}{标题译文}\n"
-    _pair(work, base, "main.tex", src, zh)
-    ok, _note = _run(work, base)
-    assert ok
-    out = (work / "main.tex").read_text(encoding="utf-8")
-    assert "\\multicolumn{8}{c|}{标题译文}" in out  # text 参保留 zh
-
-
-def test_colspec_holder_betb(tmp_path: Path) -> None:
-    """1502.01845 实证锚点: ``\\betb`` = ``\\begin{center}\\begin{tabular}``
-    doc 自定义 spec-holder → def 体尾部 spec-env ``\\begin`` 断言发现,
-    调用站 zh 化 spec 还原; 纯字母 spec 双侧一致不动。"""
-    work, base = _trees(tmp_path)
-    src = (
-        "\\newcommand\\betb{\\begin{center}\\begin{tabular}}\n"
-        "\\betb{cccc|ccc}\nx\n"
-        "\\betb{| cc cc  cc  cc | lc lc lc lc| }\ny\n"
-    )
-    zh = (
-        "\\newcommand\\betb{\\begin{center}\\begin{tabular}}\n"
-        "\\betb{cccc|ccc}\nx\n"
-        "\\betb{| 这是译文 | 这是译文| }\ny\n"
-    )
-    _pair(work, base, "main.tex", src, zh)
-    ok, _note = _run(work, base)
-    assert ok
-    assert (work / "main.tex").read_text(encoding="utf-8") == src
-
-
-def test_colspec_holder_def_site_not_counted(tmp_path: Path) -> None:
-    """def 行 ``\\betb{body}`` 体含花括号天然不匹配调用站 rx ——
-    src/zh 双侧计数只算真调用站。"""
-    work, base = _trees(tmp_path)
-    src = (
-        "\\def\\mytab{\\begin{array}}\n\\mytab{cc}\n"
-        "\\def\\other{not-a-spec}\n\\other{intro}\n"
-    )
-    zh = (
-        "\\def\\mytab{\\begin{array}}\n\\mytab{译文}\n"
-        "\\def\\other{not-a-spec}\n\\other{这是译文散文}\n"
-    )
-    _pair(work, base, "main.tex", src, zh)
-    ok, _note = _run(work, base)
-    assert ok
-    out = (work / "main.tex").read_text(encoding="utf-8")
-    assert "\\mytab{cc}" in out  # array-holder 还原
-    assert "\\other{这是译文散文}" in out  # 非 holder 散文位不碰
-
-
-def test_colspec_holder_argc_macro_skipped(tmp_path: Path) -> None:
-    """带 ``[n]`` 形参表的宏不是 holder (实参被 #n 消费不进流)。"""
-    work, base = _trees(tmp_path)
-    src = "\\newcommand\\ftab[1]{\\begin{tabular}}\n\\ftab{cc}\n"
-    zh = "\\newcommand\\ftab[1]{\\begin{tabular}}\n\\ftab{译文}\n"
-    _pair(work, base, "main.tex", src, zh)
-    ok, _note = _run(work, base)
-    assert not ok
-    assert (work / "main.tex").read_text(encoding="utf-8") == zh
-
-
-def test_colspec_no_false_revert_clean_spec(tmp_path: Path) -> None:
-    """spec 双侧一致 → 不动; holder 散文位不存在的负向核验。"""
-    work, base = _trees(tmp_path)
-    src = "\\begin{tabular}{|c|c|}\nx\n\\end{tabular}\n"
-    _pair(work, base, "main.tex", src, src)
-    ok, _note = _run(work, base)
-    assert not ok
-
-
-def test_colspec_divergent_counts_skip(tmp_path: Path) -> None:
-    """zh 侧多一个 ``\\begin{tabular}`` → colspec kind 整跳 (分歧保护)。"""
-    work, base = _trees(tmp_path)
-    src = "\\begin{tabular}{cc}\nx\n\\end{tabular}\n"
-    zh = "\\begin{tabular}{译文}\nx\n\\end{tabular}\n\\begin{tabular}{cc}\ny\n\\end{tabular}\n"
-    _pair(work, base, "main.tex", src, zh)
-    ok, note = _run(work, base)
-    assert not ok
-    assert "divergent" in note
-
-
-# ------------------------------------------------- kvcen: mathpartir inferkv 机位
-
-
-def test_inferkv_opt_kv_reverted(tmp_path: Path) -> None:
-    r"""mathpartir ``\inferrule*[left = \rlabel{Rec}]`` opt kv 键 zh 化
-    (1708.07366 实证) —— opt 位 spec 域 ident 整体还原; premise 多层
-    花括号/跨行参 ``_ARG`` 吃不进, kv 行盖不到 → inferkv opt-only 独盖;
-    空 ``[]`` 双侧一致不占改写。"""
-    work, base = _trees(tmp_path)
-    src = (
-        "\\inferrule*[left = \\rlabel{Rec}]\n"
-        "{\n  \\inferrule*[left = \\rlabel{Alt}]{P\\to Q}{C}\n}\n{D}\n"
-        "\\inferrule*[]\n{A}\n{B}\n"
-    )
-    zh = (
-        "\\inferrule*[这是译文 = \\rlabel{Rec}]\n"
-        "{\n  \\inferrule*[这是译文 = \\rlabel{Alt}]{P\\to Q}{C}\n}\n{D}\n"
-        "\\inferrule*[]\n{A}\n{B}\n"
-    )
-    _pair(work, base, "main.tex", src, zh)
-    ok, _note = _run(work, base)
-    assert ok
-    assert (work / "main.tex").read_text(encoding="utf-8") == src
-
-
-def test_inferkv_bare_infer_covered(tmp_path: Path) -> None:
-    r"""``\infer``/``\infer*`` 同族 opt 位同盖 (mathpartir ``\mpr@infer``
-    双形同收 ``[opt]``)。"""
-    work, base = _trees(tmp_path)
-    src = "\\infer[lab = \\u{X}]{P}{C}\n\\infer*[right = \\u{Y}]{Q}{D}\n"
-    zh = "\\infer[这是译文 = \\u{X}]{P}{C}\n\\infer*[这是译文 = \\u{Y}]{Q}{D}\n"
-    _pair(work, base, "main.tex", src, zh)
-    ok, _note = _run(work, base)
-    assert ok
-    assert (work / "main.tex").read_text(encoding="utf-8") == src
-
-
-def test_inferkv_no_opt_sites_not_slots(tmp_path: Path) -> None:
-    r"""无 ``[]`` 的 ``\infer{a}{b}`` mand 参非机位 (premise/conclusion
-    是数学面) —— zh 化也不还原; 一致 opt 不改写。"""
-    work, base = _trees(tmp_path)
-    src = "\\inferrule*[l=x]{P}{C}\n\\infer{A}{B}\n\\label{s}\n"
-    zh = "\\inferrule*[l=x]{P}{C}\n\\infer{文}{B}\n\\label{文}\n"
-    _pair(work, base, "main.tex", src, zh)
-    ok, _note = _run(work, base)
-    assert ok
-    out = (work / "main.tex").read_text(encoding="utf-8")
-    assert "\\infer{文}{B}" in out  # mand 参非机位, zh 保留
-    assert "\\inferrule*[l=x]{P}{C}" in out  # 双侧一致 opt 未动
-    assert "\\label{s}" in out
-
-
-def test_inferkv_cjk_src_opt_not_reverted(tmp_path: Path) -> None:
-    """baseline opt 自带 CJK (合法中文 label) → 非 ASCII, 不碰。"""
-    work, base = _trees(tmp_path)
-    _pair(
-        work,
-        base,
-        "main.tex",
-        "\\inferrule*[left = 归纳]{P}{C}\n",
-        "\\inferrule*[left = 假设]{P}{C}\n",
-    )
-    ok, _note = _run(work, base)
-    assert not ok
-
-
-# ------------------------------------------------- primgap: 原语 pre-{ gap 机位 (2026-09-20)
-
-
-def test_primgap_vadjust_reverted(tmp_path: Path) -> None:
-    """2609.19815 实证: ``\\vadjust 这是译文{\\vskip 1pt}`` —— CJK 落在
-    原语 cs 与 ``{``-组之间 (``pre`` keyword 被译), 3↔3 序号还原。"""
-    work, base = _trees(tmp_path)
-    src = (
-        "$r^2$\\vadjust pre{\\vskip 1pt}\n"
-        "$s^2$\\vadjust pre{\\vskip 1pt}\n"
-        "$t^2$\\vadjust pre{\\vskip 1pt}\n"
-    )
-    zh = (
-        "$r^2$\\vadjust 这是译文{\\vskip 1pt}\n"
-        "$s^2$\\vadjust 这是译文{\\vskip 1pt}\n"
-        "$t^2$\\vadjust 这是译文{\\vskip 1pt}\n"
-    )
-    _pair(work, base, "main.tex", src, zh)
-    ok, _note = _run(work, base)
-    assert ok
-    assert (work / "main.tex").read_text(encoding="utf-8") == src
-
-
-def test_primgap_leaders_broadcast(tmp_path: Path) -> None:
-    """2609.20633 实证: baseline ``\\leaders\\hbox to .55em{...}`` 只在
-    ``\\tocdots`` def 站 ×1, zh 展开把字面量倍增到调用站 → 计数分歧,
-    unique-src ``\\hbox to .55em`` 广播到全部 CJK gap; def 站 zh 双侧
-    一致不动, 无关 ``\\hbox`` 站不碰。"""
-    work, base = _trees(tmp_path)
-    src = (
-        "\\newcommand{\\tocdots}{\\leaders\\hbox to .55em{\\hfil.\\hfil}\\hfill}\n"
-        "\\newcommand{\\tocmain}[1]{#1 \\tocdots}\n"
-        "\\tocmain{Alpha}\n\\tocmain{Beta}\n"
-    )
-    zh = (
-        "\\newcommand{\\tocdots}{\\leaders\\hbox to .55em{\\hfil.\\hfil}\\hfill}\n"
-        "\\newcommand{\\tocmain}[1]{#1 \\tocdots}\n"
-        "条目甲 \\leaders\\hbox 这是译文{\\hfil.\\hfil}\\hfill\n"
-        "条目乙 \\leaders\\hbox 这是译文{\\hfil.\\hfil}\\hfill\n"
-        "条目丙 \\leaders\\hbox 这是译文{\\hfil.\\hfil}\\hfill\n"
-        "\\hbox to\\texlate@floatwidth{injected}\n"
-    )
-    _pair(work, base, "main.tex", src, zh)
-    ok, note = _run(work, base)
-    assert ok
-    assert "broadcast" in note
-    out = (work / "main.tex").read_text(encoding="utf-8")
-    assert "这是译文" not in out
-    for tag in "甲乙丙":
-        assert f"条目{tag} \\leaders\\hbox to .55em{{\\hfil.\\hfil}}\\hfill" in out
-    assert "\\leaders\\hbox to .55em" in out.splitlines()[0]  # def 站原样
-    assert "\\hbox to\\texlate@floatwidth{injected}" in out  # 非 CJK gap 不动
-
-
-def test_primgap_multi_src_values_skip(tmp_path: Path) -> None:
-    """src gap 多值 (``pre``/``to .55em``) 遇计数分歧 → 不广播整跳。"""
-    work, base = _trees(tmp_path)
-    src = "\\vadjust pre{\\vskip 1pt}\n\\hbox to .55em{x}\n"
-    zh = (
-        "\\vadjust 这是译文{\\vskip 1pt}\n"
-        "\\hbox 这是译文{x}\n"
-        "\\vadjust 这是译文{\\vskip 1pt}\n"
-    )
-    _pair(work, base, "main.tex", src, zh)
-    ok, note = _run(work, base)
-    assert not ok
-    assert "primgap(2!=3)" in note
-    assert (work / "main.tex").read_text(encoding="utf-8") == zh
-
-
-def test_primgap_non_cjk_gap_untouched(tmp_path: Path) -> None:
-    """zh gap 相异但零 CJK (``to 4em`` vs ``to 3em`` ASCII 改动) → 不动。"""
-    work, base = _trees(tmp_path)
-    _pair(
-        work,
-        base,
-        "main.tex",
-        "\\vadjust pre{\\vskip 1pt}\n\\hbox to 3em{x}\n",
-        "\\vadjust pre{\\vskip 1pt}\n\\hbox to 4em{x}\n",
-    )
-    ok, _note = _run(work, base)
-    assert not ok
-    assert "\\hbox to 4em{x}" in (work / "main.tex").read_text(encoding="utf-8")
-
-
-def test_primgap_empty_src_gap_skip(tmp_path: Path) -> None:
-    """``\\hbox{`` → ``\\hbox 这是译文{`` 形: 空 gap 非 ident → 不还原
-    (strip 臂有意不做 —— 丢 ``to <dimen>`` 语义, 仅证不误伤)。"""
-    work, base = _trees(tmp_path)
-    _pair(work, base, "main.tex", "\\hbox{x}\n", "\\hbox 这是译文{x}\n")
-    ok, _note = _run(work, base)
-    assert not ok
-    assert (work / "main.tex").read_text(encoding="utf-8") == "\\hbox 这是译文{x}\n"
-
-
-def test_primgap_idempotent(tmp_path: Path) -> None:
-    """改写后重跑 → gap 双侧一致, False 空转。"""
-    work, base = _trees(tmp_path)
-    _pair(
-        work,
-        base,
-        "main.tex",
-        "\\vadjust pre{\\vskip 1pt}\n",
-        "\\vadjust 这是译文{\\vskip 1pt}\n",
-    )
-    ok, _note = _run(work, base)
-    assert ok
-    ok, _note = _run(work, base)
-    assert not ok
-    assert (work / "main.tex").read_text(
-        encoding="utf-8"
-    ) == "\\vadjust pre{\\vskip 1pt}\n"
-
-
-# ------------------------------------------------- slotfix: envarg 跨行参 + tcb kv 组 (2026-09-20)
-
-
-def test_envarg_newline_arg_reverted(tmp_path: Path) -> None:
-    r"""2609.19556 实证: ``\begin{promptbox}{General\ninstructions}
-    {colframe=black!60}`` —— src 参带字面换行 ``_ARG`` 捕不进, zh 平
-    参站双侧 26≠28 → envarg 整跳 7 站全漏; ``_ARGNL`` 跨行容忍后对
-    齐, kv 参还原; 参1 含 ``\n`` 非严格 ident 保留 zh (title 散文位)。"""
-    work, base = _trees(tmp_path)
-    src = (
-        "\\begin{promptbox}{General\ninstructions}{colframe=black!60}\n"
-        "body\n\\end{promptbox}\n"
-        "\\begin{promptbox}{Exhaustion}{colframe=blue!50!black}\n"
-        "body\n\\end{promptbox}\n"
-    )
-    zh = (
-        "\\begin{promptbox}{这是译文这是译文}{这是译文!60}\n"
-        "正文\n\\end{promptbox}\n"
-        "\\begin{promptbox}{这是译文}{这是译文这是译文}\n"
-        "正文\n\\end{promptbox}\n"
-    )
-    _pair(work, base, "main.tex", src, zh)
-    ok, _note = _run(work, base)
-    assert ok
-    out = (work / "main.tex").read_text(encoding="utf-8")
-    assert "\\begin{promptbox}{这是译文这是译文}{colframe=black!60}" in out
-    assert "\\begin{promptbox}{Exhaustion}{colframe=blue!50!black}" in out
-
-
-def test_envarg_newline_divergence_healed(tmp_path: Path) -> None:
-    """计数分歧不再整跳后, 同文件无关 envarg 站 (``Mizar`` 尾参) 照
-    常还原 —— 跨行参站补齐后 28=28 对齐。"""
-    work, base = _trees(tmp_path)
-    src = (
-        "\\begin{promptbox}{General\ninstructions}{colframe=black!60}\n"
-        "x\n\\end{promptbox}\n"
-        "\\begin{Mizar}{x,Y,A}\ny\n\\end{Mizar}\n"
-    )
-    zh = (
-        "\\begin{promptbox}{这是译文}{这是译文!60}\n"
-        "x\n\\end{promptbox}\n"
-        "\\begin{Mizar}{x,译文,A}\ny\n\\end{Mizar}\n"
-    )
-    _pair(work, base, "main.tex", src, zh)
-    ok, _note = _run(work, base)
-    assert ok
-    out = (work / "main.tex").read_text(encoding="utf-8")
-    assert "{colframe=black!60}" in out
-    assert "\\begin{Mizar}{x,Y,A}" in out
-
-
-def test_tcbopt_env_multiline_group_reverted(tmp_path: Path) -> None:
-    r"""2609.20423 实证: ``\begin{tcblisting}{multi-line nested kv}``
-    整组 zh 化 → ``/tcb/这是译文`` pgfkeys 错; ``_ARGB`` 平衡组 (≤2
-    层嵌套+跨行) 捕获 + kvnl ident 整组换回; 体内散文保 zh。"""
-    work, base = _trees(tmp_path)
-    src = (
-        "\\begin{tcblisting}{\n"
-        "  enhanced,\n"
-        "  breakable,\n"
-        "  listing options={\n"
-        "    basicstyle=\\ttfamily\\footnotesize,\n"
-        "    breaklines=true,\n"
-        "  }\n"
-        "}\n"
-        "body\n\\end{tcblisting}\n"
-    )
-    zh = (
-        "\\begin{tcblisting}{  这是译文这是译文={  这是译文=\\ttfamily"
-        "\\footnotesize,  这是译文  } }\n"
-        "正文\n\\end{tcblisting}\n"
-    )
-    _pair(work, base, "main.tex", src, zh)
-    ok, _note = _run(work, base)
-    assert ok
-    out = (work / "main.tex").read_text(encoding="utf-8")
-    assert out.startswith(src.split("body", maxsplit=1)[0])  # 整组换回 baseline 字节
-    assert "正文\n\\end{tcblisting}" in out  # env 体内散文保 zh
-
-
-def test_tcbopt_opt_head_reverted(tmp_path: Path) -> None:
-    """``\\begin{tcolorbox}[multi-line kv]`` ``[]`` 头形 zh 化 → 还原。"""
-    work, base = _trees(tmp_path)
-    src = "\\begin{tcolorbox}[\n  enhanced,\n  colback=red!5,\n]\nx\n\\end{tcolorbox}\n"
-    zh = "\\begin{tcolorbox}[这是译文这是译文]\nx\n\\end{tcolorbox}\n"
-    _pair(work, base, "main.tex", src, zh)
-    ok, _note = _run(work, base)
-    assert ok
-    assert (work / "main.tex").read_text(encoding="utf-8") == src
-
-
-def test_tcbopt_def_tail_reverted(tmp_path: Path) -> None:
-    """``\\newtcblisting{name}[n]{kv}``/``\\newtcolorbox`` def 尾选项
-    组 zh 化 → 整组还原 (``#n`` 形参位同域, 2609.19556 def 站实证)。"""
-    work, base = _trees(tmp_path)
-    src = (
-        "\\newtcblisting{promptbox}[2]{\n"
-        "  enhanced, title=#1,\n"
-        "  listing options={breaklines=true},\n"
-        "  #2\n"
-        "}\n"
-        "\\newtcolorbox{mybox}[2][red]{colback=#2, title=#1}\n"
-        "\\NewTColorBox{xbox}{m O{red}}{colback=#2}\n"
-    )
-    zh = (
-        "\\newtcblisting{promptbox}[2]{\n"
-        "  这是译文, title=#1,\n"
-        "  listing options={这是译文=true},\n"
-        "  #2\n"
-        "}\n"
-        "\\newtcolorbox{mybox}[2][red]{这是译文这是译文}\n"
-        "\\NewTColorBox{xbox}{m O{red}}{这是译文}\n"
-    )
-    _pair(work, base, "main.tex", src, zh)
-    ok, _note = _run(work, base)
-    assert ok
-    assert (work / "main.tex").read_text(encoding="utf-8") == src
-
-
-def test_tcbopt_flat_arg_dedup(tmp_path: Path) -> None:
-    """tcb env 单行平参 —— envarg 严格 ident 与 tcbopt kvnl 双面同位
-    重扫去重, 行为不变 (``listing only`` 裸键 + ``,`` kv 形)。"""
-    work, base = _trees(tmp_path)
-    src = "\\begin{tcblisting}{listing only, breakable}\nx\n\\end{tcblisting}\n"
-    zh = "\\begin{tcblisting}{这是译文这是译文}\nx\n\\end{tcblisting}\n"
-    _pair(work, base, "main.tex", src, zh)
-    ok, _note = _run(work, base)
-    assert ok
-    assert (work / "main.tex").read_text(encoding="utf-8") == src
-
-
-# ------------------------------------- 负向: 空行截断/散文组/非 tcb 面
-
-
-def test_envarg_blank_line_still_breaks(tmp_path: Path) -> None:
-    r"""``\n\n``=``\par`` 仍截断 arg 扫描 —— 含空行的组双侧都不捕
-    (``_ARGNL`` 只放单 ``\n``, 不过度放宽)。"""
-    work, base = _trees(tmp_path)
-    src = "\\begin{e}{a\n\nb}\nx\n\\end{e}\n"
-    zh = "\\begin{e}{a\n\n这是译文}\nx\n\\end{e}\n"
-    _pair(work, base, "main.tex", src, zh)
-    ok, _note = _run(work, base)
-    assert not ok
-    assert (work / "main.tex").read_text(encoding="utf-8") == zh
-
-
-def test_tcbopt_prose_group_not_reverted(tmp_path: Path) -> None:
-    r"""``\begin{tcolorbox}`` 后散文 ``{multi\nline prose}`` 组 ——
-    kvnl 白名单能 fullmatch 纯 ASCII 散文, kv 形断言 (``=``/``,``/
-    ``#``) 兜底拒收。"""
-    work, base = _trees(tmp_path)
-    src = "\\begin{tcolorbox}\n{Dear reviewer\nwe thank you}\n"
-    zh = "\\begin{tcolorbox}\n{尊敬的审稿人\n我们感谢您}\n"
-    _pair(work, base, "main.tex", src, zh)
-    ok, _note = _run(work, base)
-    assert not ok
-    assert (work / "main.tex").read_text(encoding="utf-8") == zh
-
-
-def test_tcbopt_bare_key_not_reverted(tmp_path: Path) -> None:
-    """``{listing only}`` 裸键站 —— 无 ``=``/``,``/``#`` kv 形宁可
-    漏收 (错位 revert 比不复原更糟)。"""
-    work, base = _trees(tmp_path)
-    src = "\\begin{tcblisting}{listing only}\nx\n\\end{tcblisting}\n"
-    zh = "\\begin{tcblisting}{这是译文这是译文}\nx\n\\end{tcblisting}\n"
-    _pair(work, base, "main.tex", src, zh)
-    ok, _note = _run(work, base)
-    assert not ok
-
-
-def test_tcbopt_non_tcb_env_untouched(tmp_path: Path) -> None:
-    """非 tcb env 跨行 kv 形组 —— envarg ``_ARGNL`` 捕到但严格
-    ident 拒 (空格/换行), tcbopt 名单不盖 → 不还原。"""
-    work, base = _trees(tmp_path)
-    src = "\\begin{myenv}{key=value\nfoo=bar}\nx\n\\end{myenv}\n"
-    zh = "\\begin{myenv}{这是译文=这是译文\n这是译文=这是译文}\nx\n\\end{myenv}\n"
-    _pair(work, base, "main.tex", src, zh)
-    ok, _note = _run(work, base)
-    assert not ok
-    assert (work / "main.tex").read_text(encoding="utf-8") == zh
-
-
-# ------------------------------------ zhleakimpl: _ARGB 平衡组 spec + pgtable (2026-09-20)
-
-
-def test_colspec_xltabular_multiline_nested_spec(tmp_path: Path) -> None:
-    r"""2609.20179 实证: ``\begin{xltabular}{\textwidth}{`` 跨行
-    ``>{...}`` 嵌组 spec —— src 多行参 ``_ARG`` 捕不进, zh 压平
-    单行 ``p``/``X`` → ``这是译文`` ×6; ``_ARGB`` 整参捕获 + ws
-    spec ident 一次性换回 baseline 字节 (6 漏点一参覆盖), env 体
-    内散文保 zh; 二次跑幂等空转。"""
-    work, base = _trees(tmp_path)
-    src = (
-        "\\begin{xltabular}{\\textwidth}{\n"
-        "\t\t>{\\raggedright\\arraybackslash}p{0.13\\textwidth}\n"
-        "\t\t>{\\raggedright\\arraybackslash}p{0.17\\textwidth}\n"
-        "\t\t>{\\raggedright\\arraybackslash}X\n"
-        "\t}\n"
-        "a & b & c \\\\\n\\end{xltabular}\n"
-    )
-    zh = (
-        "\\begin{xltabular}{\\textwidth}{  >{\\raggedright\\arraybackslash}"
-        "这是译文{0.13\\textwidth}  >{\\raggedright\\arraybackslash}"
-        "这是译文{0.17\\textwidth}  >{\\raggedright\\arraybackslash}这是译文  }\n"
-        "甲 & 乙 & 丙 \\\\\n\\end{xltabular}\n"
-    )
-    _pair(work, base, "main.tex", src, zh)
-    ok, _note = _run(work, base)
-    assert ok
-    out = (work / "main.tex").read_text(encoding="utf-8")
-    assert out.startswith(src.split("a & b", maxsplit=1)[0])  # spec 整参复原
-    assert "甲 & 乙 & 丙" in out  # env 体散文保 zh
-    ok, _note = _run(work, base)
-    assert not ok  # 幂等
-
-
-def test_colspec_nested_decl_one_arg_env(tmp_path: Path) -> None:
-    r"""单参臂同盲区: ``\begin{tabular}{>{\raggedright}p{3cm}c}`` 与
-    ``\begin{tblr}{colspec={Q[l]Q[c]}}`` 嵌组 spec zh 化 → ``_ARGB``
-    + ws ident 还原。"""
-    work, base = _trees(tmp_path)
-    src = (
-        "\\begin{tabular}{>{\\raggedright}p{3cm}c}\nx\n\\end{tabular}\n"
-        "\\begin{tblr}{colspec={Q[l]Q[c]}, row{1}={c}}\ny\n\\end{tblr}\n"
-    )
-    zh = (
-        "\\begin{tabular}{>{\\raggedright}这是译文{3cm}这是译文}\nx\n\\end{tabular}\n"
-        "\\begin{tblr}{这是译文={这是译文}这是译文}\ny\n\\end{tblr}\n"
-    )
-    _pair(work, base, "main.tex", src, zh)
-    ok, _note = _run(work, base)
-    assert ok
-    assert (work / "main.tex").read_text(encoding="utf-8") == src
-
-
-def test_colspec_xtabular_and_multicolumn_nested(tmp_path: Path) -> None:
-    r"""``xtabular`` 回单参臂 (xtab.sty ``\@supertabular[#1]#2`` 单
-    mand 参实测) + ``\multicolumn{n}{>{...}c}{text}`` spec 位嵌组
-    —— zh 化还原, multicolumn text 散文不碰。"""
-    work, base = _trees(tmp_path)
-    src = (
-        "\\begin{xtabular}{>{\\footnotesize}lX}\nx\n\\end{xtabular}\n"
-        "\\multicolumn{2}{>{\\raggedright}c|}{Head}\n"
-    )
-    zh = (
-        "\\begin{xtabular}{>{\\footnotesize}这是译文这是译文}\nx\n\\end{xtabular}\n"
-        "\\multicolumn{2}{>{\\raggedright}这是译文|}{标题}\n"
-    )
-    _pair(work, base, "main.tex", src, zh)
-    ok, _note = _run(work, base)
-    assert ok
-    out = (work / "main.tex").read_text(encoding="utf-8")
-    assert "\\begin{xtabular}{>{\\footnotesize}lX}" in out
-    assert "\\multicolumn{2}{>{\\raggedright}c|}{标题}" in out  # text 保 zh
-
-
-def test_colspec_non_spec_env_prose_untouched(tmp_path: Path) -> None:
-    r"""负向: 非 spec-env 后 ``{...}`` 散文组 —— colspec env 名单
-    不收; envarg 同位捕获但严格 ident 拒空格散文 → 双面皆不碰,
-    zh 保留 (ws-spec ident 不外溢到非机位)。"""
-    work, base = _trees(tmp_path)
-    src = "\\begin{myenv}{Dear reviewer}\nx\n\\end{myenv}\n"
-    zh = "\\begin{myenv}{这是译文}\nx\n\\end{myenv}\n"
-    _pair(work, base, "main.tex", src, zh)
-    ok, _note = _run(work, base)
-    assert not ok
-    assert (work / "main.tex").read_text(encoding="utf-8") == zh
-
-
-def test_pgtable_read_inline_numeric_table(tmp_path: Path) -> None:
-    r"""2609.19828 实证: ``\pgfplotstableread{内联数值表}\cs`` 整参
-    zh 化 (头行标识 + ``7.045e-03`` 的 ``e`` → ``这是译文``) ——
-    纯数值表无 ``=``,``/``#`` kv 形, spec 域 (无门控) ident 还原;
-    ``[col sep=...]`` opt 同机位; ``\cs`` 尾巴不碰; 幂等。"""
-    work, base = _trees(tmp_path)
-    src = (
-        "\\pgfplotstableread{\n"
-        "gpus cells dofs cg_time\n"
-        "4 4194304 269748225 7.045e-03\n"
-        "8 8388608 538970625 7.256e-03\n"
-        "}\\tableWeakFour\n"
-        "\\pgfplotstableread[col sep=space]{\n"
-        "a b\n1 2\n}\\tableWeakFive\n"
-    )
-    zh = (
-        "\\pgfplotstableread{\n"
-        "这是译文这是译文这是译文这是译文\n"
-        "4 4194304 269748225 7.045这是译文-02\n"
-        "8 8388608 538970625 7.256这是译文-02\n"
-        "}\\tableWeakFour\n"
-        "\\pgfplotstableread[这是译文]{\n"
-        "这是译文这是译文\n1 2\n}\\tableWeakFive\n"
-    )
-    _pair(work, base, "main.tex", src, zh)
-    ok, _note = _run(work, base)
-    assert ok
-    assert (work / "main.tex").read_text(encoding="utf-8") == src
-    ok, _note = _run(work, base)
-    assert not ok  # 幂等
-
-
-def test_pgtable_addplot_keyword_and_bare_expr(tmp_path: Path) -> None:
-    r"""``\addplot`` 系: ``table[x expr={...}]{\cs}`` opt+data 双机位
-    还原 (opt 含 ``{}`` ``_OPTB`` 收); 裸 ``{expr}`` 无 keyword 同盖
-    (pgfplots 语法 ``{...}`` 恒为 plot spec); ``\addplot[opt] 散文
-    {..}`` keyword 门控不收 —— 散文组保 zh。"""
-    work, base = _trees(tmp_path)
-    src = (
-        "\\addplot table[x expr={\\thisrowno{0}/4}, y expr={\\thisrowno{5}}] {\\tableMG};\n"
-        "\\addplot[domain=1:128, dashed] {3.6*x};\n"
-        "\\addplot[red] prose {keepme}\n"
-    )
-    zh = (
-        "\\addplot table[这是译文={\\thisrowno{0}/4}, 这是译文={\\thisrowno{5}}] {这是译文};\n"
-        "\\addplot[domain=1:128, dashed] {这是译文};\n"
-        "\\addplot[red] prose {这是译文}\n"
-    )
-    _pair(work, base, "main.tex", src, zh)
-    ok, _note = _run(work, base)
-    assert ok
-    out = (work / "main.tex").read_text(encoding="utf-8")
-    assert "x expr={\\thisrowno{0}/4}, y expr={\\thisrowno{5}}] {\\tableMG}" in out
-    assert "{3.6*x}" in out  # 裸 expr 还原
-    assert "prose {这是译文}" in out  # keyword 门控, 散文不碰
-
-
-def test_pgtable_divergent_counts_skip(tmp_path: Path) -> None:
-    """zh 侧多一个 ``\\pgfplotstableread`` → pgtable kind 整跳 (分歧
-    保护, note 记 colspec 同款 ``kind(n!=m)``)。"""
-    work, base = _trees(tmp_path)
-    src = "\\pgfplotstableread{\na b\n1 2\n}\\ta\n"
-    zh = (
-        "\\pgfplotstableread{\n这是译文这是译文\n1 2\n}\\ta\n"
-        "\\pgfplotstableread{\nc d\n3 4\n}\\tb\n"
-    )
-    _pair(work, base, "main.tex", src, zh)
-    ok, note = _run(work, base)
-    assert not ok
-    assert "pgtable(1!=2)" in note
-
-
-def test_pgtable_src_cjk_data_not_reverted(tmp_path: Path) -> None:
-    """baseline 数据参自带 CJK (合法中文表头) → 非 ASCII ws-ident,
-    不碰。"""
-    work, base = _trees(tmp_path)
-    _pair(
-        work,
-        base,
-        "main.tex",
-        "\\pgfplotstableread{\n列名 值\n1 2\n}\\ta\n",
-        "\\pgfplotstableread{\n其他列 值\n1 2\n}\\ta\n",
-    )
-    ok, _note = _run(work, base)
-    assert not ok
-    assert "其他列" in (work / "main.tex").read_text(encoding="utf-8")

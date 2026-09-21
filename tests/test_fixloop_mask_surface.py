@@ -10,33 +10,15 @@
 from pathlib import Path
 
 import pytest
+from _fixloopkit import apply, mk_ctx
 
 from texlate.compile.fixloop import actions
-from texlate.compile.fixloop.engine import LoopCtx, Rule
+from texlate.compile.fixloop.engine import Rule
 from texlate.compile.fixloop.ruleset import (
     Ruleset,
     RulesetError,
     load_ruleset,
 )
-from texlate.compile.logparse import ErrReport
-
-
-class _Eng:
-    """regex_rewrite 路径的最小引擎替身 (该 kind 不触 probe/install)。"""
-
-    name = "xelatex"
-
-    def probe_file(self, fname: str, cwd: Path | None = None) -> str | None:
-        del fname, cwd
-        return None
-
-    def filemap(self, fname: str) -> list[str]:
-        del fname
-        return []
-
-
-def _ctx(tmp_path: Path) -> LoopCtx:
-    return LoopCtx(wdir=tmp_path, engine_name="xelatex")
 
 
 def _rewrite_rule(rewrites: list[dict]) -> Rule:
@@ -53,10 +35,6 @@ def _rewrite_rule(rewrites: list[dict]) -> Rule:
     )
 
 
-def _apply(rule: Rule, ctx: LoopCtx) -> tuple[bool, str]:
-    return actions._apply(rule, ctx, _Eng(), None, ErrReport())  # noqa: SLF001
-
-
 _BEGINDOC_RW = {
     "pattern": "(\\\\begin\\{document\\})",
     "repl": "INJ\n\\g<0>",
@@ -68,8 +46,10 @@ def test_masked_skips_comment_match(tmp_path: Path) -> None:
     (tmp_path / "main.tex").write_text(
         "% see \\begin{document} for details\n\\begin{document}\nx\n"
     )
-    ok, note = _apply(
-        _rewrite_rule([{**_BEGINDOC_RW, "match_surface": "masked"}]), _ctx(tmp_path)
+    ok, note = apply(
+        _rewrite_rule([{**_BEGINDOC_RW, "match_surface": "masked"}]),
+        mk_ctx(tmp_path),
+        None,
     )
     assert ok, note
     t = (tmp_path / "main.tex").read_text()
@@ -79,7 +59,7 @@ def test_masked_skips_comment_match(tmp_path: Path) -> None:
 def test_raw_default_still_matches_in_comments(tmp_path: Path) -> None:
     # (b) 不带字段 → 原文 sub 旧行为保留 (注释内照常命中——潜伏面钉档)
     (tmp_path / "main.tex").write_text("% \\begin{document} noted\n")
-    ok, note = _apply(_rewrite_rule([dict(_BEGINDOC_RW)]), _ctx(tmp_path))
+    ok, note = apply(_rewrite_rule([dict(_BEGINDOC_RW)]), mk_ctx(tmp_path), None)
     assert ok, note
     assert (tmp_path / "main.tex").read_text() == "% INJ\n\\begin{document} noted\n"
 
@@ -91,8 +71,10 @@ def test_masked_skips_verbatim_and_dead_env(tmp_path: Path) -> None:
         "\\begin{comment}\n\\begin{document}\n\\end{comment}\n"
         "\\begin{document}\n"
     )
-    ok, _ = _apply(
-        _rewrite_rule([{**_BEGINDOC_RW, "match_surface": "masked"}]), _ctx(tmp_path)
+    ok, _ = apply(
+        _rewrite_rule([{**_BEGINDOC_RW, "match_surface": "masked"}]),
+        mk_ctx(tmp_path),
+        None,
     )
     assert ok
     t = (tmp_path / "main.tex").read_text()
@@ -109,8 +91,10 @@ def test_masked_multimatch_right_to_left_splice(tmp_path: Path) -> None:
         "\\begin{document}\nb\n"
         "\\begin{document}\n"
     )
-    ok, _ = _apply(
-        _rewrite_rule([{**_BEGINDOC_RW, "match_surface": "masked"}]), _ctx(tmp_path)
+    ok, _ = apply(
+        _rewrite_rule([{**_BEGINDOC_RW, "match_surface": "masked"}]),
+        mk_ctx(tmp_path),
+        None,
     )
     assert ok
     t = (tmp_path / "main.tex").read_text()
@@ -125,7 +109,7 @@ def test_masked_multimatch_right_to_left_splice(tmp_path: Path) -> None:
 def test_masked_repl_group_backrefs_expand(tmp_path: Path) -> None:
     # 视图 group 展开: 活面命中区与原文逐字节一致, \\g<1> 取回原文 token
     (tmp_path / "main.tex").write_text("x \\foo{bar} % \\foo{dead}\n")
-    ok, _ = _apply(
+    ok, _ = apply(
         _rewrite_rule(
             [
                 {
@@ -135,7 +119,8 @@ def test_masked_repl_group_backrefs_expand(tmp_path: Path) -> None:
                 }
             ]
         ),
-        _ctx(tmp_path),
+        mk_ctx(tmp_path),
+        None,
     )
     assert ok
     assert (tmp_path / "main.tex").read_text() == "x [bar] % \\foo{dead}\n"

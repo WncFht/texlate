@@ -31,6 +31,7 @@ def _fake_run(  # noqa: PLR0913 -- mock 签名对齐 run_process
     calls: dict,
     *,
     aux: str | None = _AUX_CITE,
+    extra_aux: dict[str, str] | None = None,
     bcf: bool = False,
     bbl: str | None = _BBL_OK,
     tool_rc: int = 0,
@@ -40,7 +41,9 @@ def _fake_run(  # noqa: PLR0913 -- mock 签名对齐 run_process
     """run_process 替身：xelatex 趟写 aux/pdf(+bcf)，工具趟按参数写 bbl。
 
     ``calls`` 收集 ``{"xelatex": n, "tools": [argv...]}``；``bbl=None``
-    表示工具不落 .bbl（rc 失败形）。
+    表示工具不落 .bbl（rc 失败形）；``extra_aux`` 追加 ``\\include`` 子件
+    aux（``{相对径: 内容}``，与 main.aux 同趟落盘）。产物落 argv 内
+    ``-output-directory=`` 目标——``outdir`` 编译下 aux/bbl 面仍在 ``out``。
     """
 
     def run(  # noqa: PLR0913
@@ -55,12 +58,23 @@ def _fake_run(  # noqa: PLR0913 -- mock 签名对齐 run_process
         _ = (env, timeout, out_cap, should_cancel)
         if cmd[0] == _XE:
             calls["xelatex"] += 1
+            out = Path(
+                next(
+                    t.split("=", 1)[1]
+                    for t in cmd
+                    if t.startswith("-output-directory=")
+                )
+            )
             if aux is not None:
-                (cwd / "main.aux").write_text(aux, encoding="utf-8")
+                (out / "main.aux").write_text(aux, encoding="utf-8")
+            for rel, body in (extra_aux or {}).items():
+                sub_aux = out / rel
+                sub_aux.parent.mkdir(parents=True, exist_ok=True)
+                sub_aux.write_text(body, encoding="utf-8")
             if bcf:
-                (cwd / "main.bcf").write_text("<bcf/>", encoding="utf-8")
-            (cwd / "main.pdf").write_bytes(b"%PDF-fake")
-            (cwd / "main.log").write_text("Output written\n", encoding="utf-8")
+                (out / "main.bcf").write_text("<bcf/>", encoding="utf-8")
+            (out / "main.pdf").write_bytes(b"%PDF-fake")
+            (out / "main.log").write_text("Output written\n", encoding="utf-8")
             to = first_to and calls["xelatex"] == 1
             return 0, out_s, 0.1, to
         calls["tools"].append(cmd)
@@ -233,35 +247,58 @@ def test_multi_aux_each_gets_bibtex(
 ) -> None:
     """逐 aux 算法：``\\include`` 子件 aux 同吃（multibib/章节 .aux）。"""
     (tmp_path / "main.tex").write_text("x\n", encoding="utf-8")
-    (tmp_path / "sub").mkdir()
     calls: dict = {"xelatex": 0, "tools": []}
-
-    def run(  # noqa: PLR0913 -- mock 签名对齐 run_process
-        cmd: list[str],
-        *,
-        cwd: Path,
-        env: dict[str, str],
-        timeout: float,
-        out_cap: int = 8 * 1024 * 1024,
-        should_cancel: Callable[[], bool] | None = None,
-    ) -> tuple[int | None, str, float, bool]:
-        _ = (env, timeout, out_cap, should_cancel)
-        if cmd[0] == _XE:
-            calls["xelatex"] += 1
-            (cwd / "main.aux").write_text(_AUX_CITE, encoding="utf-8")
-            (cwd / "sub" / "ch1.aux").write_text(_AUX_CITE, encoding="utf-8")
-            (cwd / "main.pdf").write_bytes(b"%PDF-fake")
-            (cwd / "main.log").write_text("Output written\n", encoding="utf-8")
-            return 0, "", 0.1, False
-        calls["tools"].append(cmd)
-        (cwd / f"{cmd[1]}.bbl").write_text(_BBL_OK, encoding="utf-8")
-        return 0, "", 0.1, False
-
-    eng = _eng(monkeypatch, run)
+    eng = _eng(monkeypatch, _fake_run(calls, extra_aux={"sub/ch1.aux": _AUX_CITE}))
     res = eng.compile(tmp_path, "main.tex", sandbox=False)
     assert calls["tools"] == [["/x/bibtex", "main"], ["/x/bibtex", "sub/ch1"]]
     assert res.bib_ran == ["bibtex:main", "bibtex:sub/ch1"]
     assert (tmp_path / "sub" / "ch1.bbl").exists()
+
+
+def test_bibtex_rc_fail_complete_bbl_adopted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """bibtex 臂 rc 钝感：完整 .bbl 落盘即采纳（纯文件态闸，rc 不参与）——
+    biber 臂 ``rc!=0`` 必弃的对照面（败北自删 poison 是 biber 独有行为）。"""
+    (tmp_path / "main.tex").write_text("x\n", encoding="utf-8")
+    calls: dict = {"xelatex": 0, "tools": []}
+    eng = _eng(monkeypatch, _fake_run(calls, tool_rc=1, bbl=_BBL_OK))
+    res = eng.compile(tmp_path, "main.tex", sandbox=False)
+    assert calls["tools"] == [["/x/bibtex", "main"]]
+    assert res.bib_ran == ["bibtex:main"]
+    assert res.passes == 3  # noqa: PLR2004 - 采纳同延趟
+    assert (tmp_path / "main.bbl").read_text(encoding="utf-8") == _BBL_OK
+
+
+def test_outdir_bib_pass_fires(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """outdir 落点：aux 扫描与 bbl 采纳走 ``out`` 面——bibtex 照常触发。"""
+    (tmp_path / "main.tex").write_text("x\n", encoding="utf-8")
+    outdir = tmp_path / "build"
+    calls: dict = {"xelatex": 0, "tools": []}
+    eng = _eng(monkeypatch, _fake_run(calls))
+    res = eng.compile(tmp_path, "main.tex", outdir=outdir, sandbox=False)
+    assert calls["tools"] == [["/x/bibtex", "main"]]
+    assert res.bib_ran == ["bibtex:main"]
+    assert (outdir / "main.bbl").read_text(encoding="utf-8") == _BBL_OK
+    assert not (tmp_path / "main.bbl").exists()  # 产物全落 outdir，源树不染
+
+
+def test_aux_scan_sorted_truncated_at_cap(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """9+ aux 截断：``sorted(rglob)[:_BIB_AUX_SCAN_MAX]`` 序首 8 件吃 bibtex。"""
+    (tmp_path / "main.tex").write_text("x\n", encoding="utf-8")
+    for letter in "abcdefghij":  # 10 件 > _BIB_AUX_SCAN_MAX=8
+        (tmp_path / f"{letter}.aux").write_text(_AUX_CITE, encoding="utf-8")
+    calls: dict = {"xelatex": 0, "tools": []}
+    eng = _eng(monkeypatch, _fake_run(calls, aux=None))
+    res = eng.compile(tmp_path, "main.tex", passes=2, sandbox=False)
+    assert calls["tools"] == [["/x/bibtex", letter] for letter in "abcdefgh"]
+    assert res.bib_ran == [f"bibtex:{letter}" for letter in "abcdefgh"]
+    assert not (tmp_path / "i.bbl").exists()  # 截断面外 —— sorted 尾两件不扫
+    assert not (tmp_path / "j.bbl").exists()
 
 
 def test_missing_tool_no_crash(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

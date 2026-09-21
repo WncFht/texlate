@@ -17,30 +17,23 @@ import pytest
 pytest.importorskip("fastapi", reason="server extra 未装")
 pytest.importorskip("starlette.testclient", reason="server extra 未装")
 
-from conftest import MINI_TEX, make_app, upload_tex
+from conftest import MINI_TEX, make_app, refused_base_url, upload_tex
 from starlette.testclient import TestClient
 
 from texlate.server.settings import SettingsStore, resolve_auth, validate_model
-from texlate.share import SHARE_FORMAT, ShareError, share_key, unpack_share
+from texlate.share import (
+    _ARTIFACT_MAX,
+    SHARE_FORMAT,
+    ShareError,
+    share_key,
+    unpack_share,
+)
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
     from pathlib import Path
 
 ARXIV = "2401.00031"
 KEY = {"X-Texlate-Key": "sk-tenant-a"}
-
-
-@pytest.fixture
-def server_client(
-    tmp_path: Path,
-    clean_env: pytest.MonkeyPatch,  # noqa: ARG001 -- fixture 副作用
-    monkeypatch: pytest.MonkeyPatch,
-) -> Iterator[TestClient]:
-    """server 形态 TestClient（worker 按住）。"""
-    monkeypatch.setenv("TEXLATE_MODE", "server")
-    with TestClient(make_app(tmp_path)) as c:
-        yield c
 
 
 def _bundle(
@@ -85,12 +78,20 @@ def _bundle(
     return path
 
 
+def _flood_arts() -> dict[str, bytes]:
+    """``_ARTIFACT_MAX``+1 条的洪泛产物集——两枚合法名 + junk 填满到超 cap 一条。"""
+    arts = {"zh-src.zip": b"x", "dual.json": b"{}"}
+    arts.update(
+        {f"junk-{i}.bin": b"z" for i in range(_ARTIFACT_MAX + 1 - len(arts))}
+    )
+    return arts
+
+
 class TestShareInflateCaps:
     """SEC-1：artifacts 条数上限 + 聚合解压上限，拒绝全落 ShareError。"""
 
     def test_artifact_count_cap(self, tmp_path: Path) -> None:
-        arts = {"zh-src.zip": b"x", "dual.json": b"{}"}
-        arts.update({f"junk-{i}.bin": b"z" for i in range(63)})
+        arts = _flood_arts()
         with pytest.raises(ShareError, match="too many artifacts"):
             unpack_share(_bundle(tmp_path / "b.zip", arts), tmp_path / "out")
 
@@ -127,9 +128,7 @@ class TestShareInflateCaps:
 
     def test_http_import_flood_400(self, client: TestClient, tmp_path: Path) -> None:
         """HTTP 面：洪泛包经 /api/share/import → 400 share_invalid。"""
-        arts = {"zh-src.zip": b"x", "dual.json": b"{}"}
-        arts.update({f"junk-{i}.bin": b"z" for i in range(63)})
-        bundle = _bundle(tmp_path / "b.zip", arts)
+        bundle = _bundle(tmp_path / "b.zip", _flood_arts())
         r = client.post(
             "/api/share/import",
             files={"file": ("b.share.zip", bundle.read_bytes())},
@@ -349,15 +348,11 @@ class TestSettingsTestCrossSlot:
         assert r.status_code == HTTPStatus.BAD_REQUEST
 
     def test_base_url_with_key_probes(self, client: TestClient) -> None:
-        import socket  # noqa: PLC0415 -- 占即释端口免疫外部抢占
-
-        with socket.socket() as sock:
-            sock.bind(("127.0.0.1", 0))
-            port = sock.getsockname()[1]
+        with refused_base_url() as base_url:
             r = client.post(
                 "/api/settings/test",
                 json={
-                    "base_url": f"http://127.0.0.1:{port}",
+                    "base_url": base_url,
                     "api_key": "sk-explicit",
                 },
             )

@@ -44,6 +44,7 @@ PIN 缺陷（tmp/engine-fuzz/ 探针实证钉死，2026-09-17 九钉全修——
 
 from __future__ import annotations
 
+import functools
 import io
 import json
 import re
@@ -146,6 +147,44 @@ def _isolate(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
         fn.cache_clear()
 
 
+def _record_call(
+    calls: list[dict[str, object]],
+    cmd: list[str],
+    *,
+    cwd: Path,
+    env: dict[str, str],
+    timeout: float,
+) -> None:
+    """``calls`` 追加 (cmd, cwd, env, timeout) 四元组快照——假件统一记账面。"""
+    calls.append(
+        {"cmd": list(cmd), "cwd": Path(cwd), "env": dict(env), "timeout": timeout}
+    )
+
+
+def _fake_sig(
+    fn: Callable[[list[str], Path, dict[str, str], float], tuple[int | None, str, float, bool]],
+) -> Callable[..., tuple[int | None, str, float, bool]]:
+    """run_process 假件签名适配——impl 实参面 ``out_cap``/``should_cancel`` 在此吞掉。
+
+    包装后假件只需 ``(cmd, cwd, env, timeout)`` 四参函数体，签名簿记一处收口。
+    """
+
+    @functools.wraps(fn)
+    def fake(  # noqa: PLR0913
+        cmd: list[str],
+        *,
+        cwd: Path,
+        env: dict[str, str],
+        timeout: float,
+        out_cap: int = 8 * 1024 * 1024,
+        should_cancel: Callable[[], bool] | None = None,
+    ) -> tuple[int | None, str, float, bool]:
+        del out_cap, should_cancel
+        return fn(cmd, cwd, env, timeout)
+
+    return fake
+
+
 def _fake_run(  # noqa: PLR0913
     calls: list[dict[str, object]],
     *,
@@ -157,19 +196,11 @@ def _fake_run(  # noqa: PLR0913
 ) -> Callable[..., tuple[int | None, str, float, bool]]:
     """捕获 (cmd, cwd, env, timeout) 的假 run_process；side 在记账后跑。"""
 
-    def fake(  # noqa: PLR0913
-        cmd: list[str],
-        *,
-        cwd: Path,
-        env: dict[str, str],
-        timeout: float,
-        out_cap: int = 8 * 1024 * 1024,
-        should_cancel: Callable[[], bool] | None = None,
+    @_fake_sig
+    def fake(
+        cmd: list[str], cwd: Path, env: dict[str, str], timeout: float
     ) -> tuple[int | None, str, float, bool]:
-        del out_cap, should_cancel
-        calls.append(
-            {"cmd": list(cmd), "cwd": Path(cwd), "env": dict(env), "timeout": timeout}
-        )
+        _record_call(calls, cmd, cwd=cwd, env=env, timeout=timeout)
         if side is not None:
             side(list(cmd), Path(cwd), len(calls))
         return rc, out, sec, to
@@ -203,19 +234,11 @@ def _seq_run(
     """按步表回放 ``(rc, out, to)`` 的假 run_process——多趟异态脚本进程。"""
     it = iter(steps)
 
-    def fake(  # noqa: PLR0913
-        cmd: list[str],
-        *,
-        cwd: Path,
-        env: dict[str, str],
-        timeout: float,
-        out_cap: int = 8 * 1024 * 1024,
-        should_cancel: Callable[[], bool] | None = None,
+    @_fake_sig
+    def fake(
+        cmd: list[str], cwd: Path, env: dict[str, str], timeout: float
     ) -> tuple[int | None, str, float, bool]:
-        del out_cap, should_cancel
-        calls.append(
-            {"cmd": list(cmd), "cwd": Path(cwd), "env": dict(env), "timeout": timeout}
-        )
+        _record_call(calls, cmd, cwd=cwd, env=env, timeout=timeout)
         rc, out, to = next(it)
         if side is not None:
             side(list(cmd), Path(cwd), len(calls))
@@ -712,22 +735,9 @@ def test_xelatex_midloop_signal_retained(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """中途被信号杀、末趟跑完：killed_signal 留 SIGPIPE，ok 照末趟 rc。"""
-    rcs = iter([-13, 0])
-
-    def seq(  # noqa: PLR0913
-        cmd: list[str],  # noqa: ARG001
-        *,
-        cwd: Path,
-        env: dict[str, str],
-        timeout: float,
-        out_cap: int = 8 * 1024 * 1024,
-        should_cancel: Callable[[], bool] | None = None,
-    ) -> tuple[int | None, str, float, bool]:
-        del env, timeout, out_cap, should_cancel
-        (cwd / "main.pdf").write_bytes(b"%PDF")
-        return next(rcs), "", 0.1, False
-
-    monkeypatch.setattr(eng_mod, "run_process", seq)
+    monkeypatch.setattr(
+        eng_mod, "run_process", _seq_run([], [(-13, "", False), (0, "", False)])
+    )
     (tmp_path / "main.tex").write_text("x")
     res = XelatexEngine(binary="/bin/true").compile(
         tmp_path, "main.tex", passes=2, sandbox=False
@@ -973,16 +983,11 @@ def test_xelatex_probe_memo_hit_and_miss(
     monkeypatch.setattr(eng_mod, "find_tool", lambda _n: "/x/kpsewhich")
     calls: list[str] = []
 
-    def probe_run(  # noqa: PLR0913
-        cmd: list[str],
-        *,
-        cwd: Path,
-        env: dict[str, str],
-        timeout: float,
-        out_cap: int = 8 * 1024 * 1024,
-        should_cancel: Callable[[], bool] | None = None,
+    @_fake_sig
+    def probe_run(
+        cmd: list[str], cwd: Path, env: dict[str, str], timeout: float
     ) -> tuple[int | None, str, float, bool]:
-        del cwd, env, timeout, out_cap, should_cancel
+        del cwd, env, timeout
         name = cmd[-1]
         calls.append(name)
         if name.startswith("have"):
@@ -1012,16 +1017,11 @@ def test_xelatex_probe_memo_cleared_on_install(
     monkeypatch.setattr(XelatexEngine, "_fontconfig_conf", lambda _s: None)
     calls: list[str] = []
 
-    def run(  # noqa: PLR0913
-        cmd: list[str],
-        *,
-        cwd: Path,
-        env: dict[str, str],
-        timeout: float,
-        out_cap: int = 8 * 1024 * 1024,
-        should_cancel: Callable[[], bool] | None = None,
+    @_fake_sig
+    def run(
+        cmd: list[str], cwd: Path, env: dict[str, str], timeout: float
     ) -> tuple[int | None, str, float, bool]:
-        del cwd, env, timeout, out_cap, should_cancel
+        del cwd, env, timeout
         calls.append(Path(cmd[0]).name)
         if "kpsewhich" in cmd[0]:
             return 1, "", 0.01, False  # 树里始终没有
@@ -1040,22 +1040,11 @@ def test_xelatex_stdout_tail_last_only(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """stdout_tail = 末趟输出的尾部 4000——前趟内容不拼接。"""
-    outs = iter(["A" * 5000, "B" * 100])
-
-    def seq(  # noqa: PLR0913
-        cmd: list[str],  # noqa: ARG001
-        *,
-        cwd: Path,
-        env: dict[str, str],
-        timeout: float,
-        out_cap: int = 8 * 1024 * 1024,
-        should_cancel: Callable[[], bool] | None = None,
-    ) -> tuple[int | None, str, float, bool]:
-        del env, timeout, out_cap, should_cancel
-        (cwd / "main.pdf").write_bytes(b"%PDF")
-        return 0, next(outs), 0.1, False
-
-    monkeypatch.setattr(eng_mod, "run_process", seq)
+    monkeypatch.setattr(
+        eng_mod,
+        "run_process",
+        _seq_run([], [(0, "A" * 5000, False), (0, "B" * 100, False)]),
+    )
     (tmp_path / "main.tex").write_text("x")
     res = XelatexEngine(binary="/bin/true").compile(
         tmp_path, "main.tex", passes=2, sandbox=False
@@ -1289,16 +1278,11 @@ def test_tectonic_retry_clears_timed_out(
     """首趟超时重试成功：timed_out 取**末趟**态——首拉超时不再背 fail。"""
     state = {"n": 0}
 
-    def seq(  # noqa: PLR0913
-        cmd: list[str],
-        *,
-        cwd: Path,
-        env: dict[str, str],
-        timeout: float,
-        out_cap: int = 8 * 1024 * 1024,
-        should_cancel: Callable[[], bool] | None = None,
+    @_fake_sig
+    def seq(
+        cmd: list[str], cwd: Path, env: dict[str, str], timeout: float
     ) -> tuple[int | None, str, float, bool]:
-        del env, out_cap, should_cancel
+        del env
         state["n"] += 1
         if state["n"] == 1:
             return None, "", timeout, True
@@ -1872,8 +1856,9 @@ def test_bwrap_mounts_anchor(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) ->
     assert str(home) not in rw and str(home) not in ro  # noqa: PT018
     assert "/krw" in rw and "/kro" in ro  # noqa: PT018
     assert str(home / ".fonts") in ro
-    # /usr/bin 下的引擎被 _BWRAP_SYS_RO 覆盖——不额外锚
-    assert "/usr/bin" not in ro or True  # 覆盖即不再追加 anchor  # noqa: SIM222
+    # /usr/bin 下的引擎被 _BWRAP_SYS_RO 覆盖——不额外锚：覆盖失守时锚点
+    # 会退化为二进制本体 (parent³=/ 遭拒 → anchor=real) 落进 ro，钉其缺席。
+    assert str(Path("/usr/bin/xelatex").resolve()) not in ro
     # 前缀外引擎：锚 <dist>/bin/<arch>/<tool> 上三级——root/out 必须落在
     # dist 之外，否则二进制本就被 root 挂载覆盖、锚分支无从触发
     root2 = tmp_path / "root2"
@@ -2294,8 +2279,8 @@ def test_asset_for_matrix_and_aliases() -> None:
     url3, _s3, _n3 = tc.asset_for("Linux", "aarch64")
     assert "aarch64-unknown-linux-musl.tar.gz" in url3
     _u, _s, name_w = tc.asset_for("Windows", "x86_64")
-    assert name_w == "tectonic.exe" and url.endswith(".zip") if False else True
     assert name_w == "tectonic.exe"
+    assert _u.endswith(".zip")
     for bad_sys in ("linux", "FreeBSD", "Darwin9"):  # system 不归一——大小写敏感
         with pytest.raises(RuntimeError, match="无预置编译器"):
             tc.asset_for(bad_sys, "x86_64")

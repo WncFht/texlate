@@ -7,53 +7,22 @@ static_precheck ``_scan_vendored`` round-0 平铺, ``missing_file`` 不再
 noop-env 链整段失效 (math/0104250 / math/0408052 实证链)。
 """
 
-import re
 import shutil
-import subprocess
 from pathlib import Path
 
 import pytest
+from _fixloopkit import EngStub, mk_ctx, n_err, requires_xelatex, rule, run_xelatex
 
+import texlate.compile.fixloop as _fixloop_mod
 from texlate.compile.fixloop.builtins import TRANSFORM_FNS
-from texlate.compile.fixloop.engine import LoopCtx, _apply_scan_install
+from texlate.compile.fixloop.engine import _apply_scan_install
 
-VENDOR = Path(__file__).resolve().parent.parent / "src/texlate/compile/fixloop/vendor"
-
-
-def _ctx(tmp_path: Path) -> LoopCtx:
-    return LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel="main.tex")
-
-
-class _EngNoInstall:
-    """probe 全缺 / install 全败的最小引擎替身 (vendored 兜底才有得走)。"""
-
-    name = "xelatex"
-
-    def __init__(self) -> None:
-        self.install_calls: list[str] = []
-
-    def probe_file(self, fname: str, cwd: Path | None = None) -> None:  # noqa: ARG002
-        return None
-
-    def install_file(self, fname: str, *, font_related: bool = False) -> bool:  # noqa: ARG002
-        self.install_calls.append(fname)
-        return False
-
-
-# 30-route.yaml static_precheck 的 \input 扫描 pattern (suffix 补 .tex)。
-_INPUT_SCAN = [
-    {
-        "regex": (
-            r"\\(?:input|include|InputIfFileExists)(?=[^a-zA-Z])"
-            r"\s*\{?([^\s{}%\\]+)"
-        ),
-        "suffix": ".tex",
-    }
-]
+VENDOR = Path(_fixloop_mod.__file__).parent / "vendor"
 
 
 def _scan_params(**kw: object) -> dict:
-    p = {"vendored": True, "scan_patterns": _INPUT_SCAN}
+    """30-route.yaml ``static_precheck`` 的活 params (随 yaml 漂移) + kw 覆写。"""
+    p = dict(rule("static_precheck").action.get("params") or {})
     p.update(kw)
     return p
 
@@ -73,13 +42,14 @@ def test_scan_install_drops_real_diagrams_tex(tmp_path: Path) -> None:
         "\\documentclass{article}\n\\input{diagrams}\n\\input diagrams\n",
         encoding="utf-8",
     )
-    ctx, eng = _ctx(tmp_path), _EngNoInstall()
+    ctx, eng = mk_ctx(tmp_path), EngStub()
     ok, note = _apply_scan_install(ctx, eng, _scan_params())
     assert ok
     landed = tmp_path / "diagrams.tex"
     assert landed.is_file()
     assert "diagrams.tex" in ctx.installed
-    assert "vendored ['diagrams.tex']" in note
+    assert "vendored" in note
+    assert "diagrams.tex" in note
     body = landed.read_text(encoding="utf-8")
     # 真环境定义在场 (空 shim 仅 % 注释 + \endinput)
     assert "\\def\\diagram" in body
@@ -96,7 +66,7 @@ def test_scan_install_drops_real_diagrams_tex(tmp_path: Path) -> None:
 
 def test_vendored_fetch_diagrams_tex(tmp_path: Path) -> None:
     """missing_file|diagrams.tex payload → vendored_fetch 同款落件。"""
-    ctx = _ctx(tmp_path)
+    ctx = mk_ctx(tmp_path)
     ok, note = TRANSFORM_FNS["vendored_fetch"](ctx, None, "diagrams.tex", {})
     assert ok, note
     assert "vendored[stubs]" in note
@@ -105,13 +75,14 @@ def test_vendored_fetch_diagrams_tex(tmp_path: Path) -> None:
 
 
 @pytest.mark.integration
-@pytest.mark.skipif(shutil.which("xelatex") is None, reason="xelatex not installed")
+@requires_xelatex
 def test_diagrams_tex_input_compiles(tmp_path: Path) -> None:
     """``\\input{diagrams}`` preamble 装入真编译钉: {diagram} env /
     plain 式 / \\newarrow 自定义族全零 ``!`` 错 (math/0104250 形)。
     """
     shutil.copy(VENDOR / "stubs" / "diagrams.tex", tmp_path / "diagrams.tex")
-    (tmp_path / "main.tex").write_text(
+    log = run_xelatex(
+        tmp_path,
         r"""% !TeX program = xelatex
 \documentclass{article}
 \usepackage{amsmath}
@@ -130,17 +101,6 @@ X &\rTo& Y \\ \dTo && \dTo \\ Z &\rTo& W
 \diagram E &\rTo& F \cr G &\dTo& H \enddiagram
 \end{document}
 """,
-        encoding="utf-8",
     )
-    xelatex = shutil.which("xelatex")
-    subprocess.run(  # noqa: S603 -- argv[0] 来自 shutil.which 绝对路径
-        [xelatex, "-interaction=nonstopmode", "main.tex"],
-        cwd=tmp_path,
-        capture_output=True,
-        timeout=120,
-        check=False,
-    )
-    log = (tmp_path / "main.log").read_text(encoding="utf-8", errors="replace")
-    n_err = len(re.findall(r"^! ", log, re.MULTILINE))
-    assert n_err == 0, f"vendored diagrams.tex 装入后仍 {n_err} 个 '!' 错"
+    assert n_err(log) == 0, f"vendored diagrams.tex 装入后仍 {n_err(log)} 个 '!' 错"
     assert (tmp_path / "main.pdf").is_file()

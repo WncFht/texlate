@@ -54,15 +54,33 @@ def _job(tmp_path: Path, timeout: float = 1.0) -> bd.BabeldocJob:
     )
 
 
+def _write_fake_babeldoc(tmp_path: Path, body: str = _FAKE_GC) -> Path:
+    """shebang + body 落 ``fake_babeldoc.py`` + 0755——可执行替身脚本。"""
+    fake = tmp_path / "fake_babeldoc.py"
+    fake.write_text(f"#!{sys.executable}\n" + body, encoding="utf-8")
+    fake.chmod(0o755)
+    return fake
+
+
+def _assert_reaped(pid: int, label: str = "killpg") -> None:
+    """轮询 ``os.kill(pid, 0)`` 至 ProcessLookupError——孤儿被 init 收割需一瞬。"""
+    for _ in range(40):
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            break
+        time.sleep(0.05)
+    else:
+        pytest.fail(f"grandchild {pid} survived {label}")
+
+
 @pytest.mark.integration
 class TestKillTree:
     """``_kill_tree`` + ``start_new_session``：孙进程随组灭，泵立即 EOF。"""
 
     @pytest.mark.skipif(sys.platform == "win32", reason="killpg/pty 是 POSIX 语义")
     def test_timeout_kills_process_group(self, tmp_path: Path) -> None:
-        fake = tmp_path / "fake_babeldoc.py"
-        fake.write_text(f"#!{sys.executable}\n" + _FAKE_GC, encoding="utf-8")
-        fake.chmod(0o755)
+        fake = _write_fake_babeldoc(tmp_path)
         t0 = time.monotonic()
         run = asyncio.run(bd.run_babeldoc(_job(tmp_path), binary=str(fake)))
         elapsed = time.monotonic() - t0
@@ -73,21 +91,12 @@ class TestKillTree:
         gcpid = tmp_path / "work" / "gcpid"
         assert gcpid.is_file()
         pid = int(gcpid.read_text(encoding="utf-8").strip())
-        for _ in range(40):  # 孤儿被 init 收割需要一瞬间
-            try:
-                os.kill(pid, 0)
-            except ProcessLookupError:
-                break
-            time.sleep(0.05)
-        else:
-            pytest.fail(f"grandchild {pid} survived killpg")
+        _assert_reaped(pid)
 
     def test_cancel_kills_process_group(self, tmp_path: Path) -> None:
         if sys.platform == "win32":
             pytest.skip("killpg/pty 是 POSIX 语义")
-        fake = tmp_path / "fake_babeldoc.py"
-        fake.write_text(f"#!{sys.executable}\n" + _FAKE_GC, encoding="utf-8")
-        fake.chmod(0o755)
+        fake = _write_fake_babeldoc(tmp_path)
         flag = {"cancel": False}
 
         async def go() -> None:
@@ -105,14 +114,7 @@ class TestKillTree:
 
         asyncio.run(go())
         pid = int((tmp_path / "work" / "gcpid").read_text(encoding="utf-8").strip())
-        for _ in range(40):
-            try:
-                os.kill(pid, 0)
-            except ProcessLookupError:
-                break
-            time.sleep(0.05)
-        else:
-            pytest.fail(f"grandchild {pid} survived cancel killpg")
+        _assert_reaped(pid, "cancel killpg")
 
 
 class TestFeedBounds:

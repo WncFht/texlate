@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 import httpx
@@ -36,6 +37,39 @@ def _cp(
     return subprocess.CompletedProcess(
         args=[], returncode=rc, stdout=stdout, stderr=stderr
     )
+
+
+_RunStub = (
+    bytes
+    | subprocess.CompletedProcess[bytes]
+    | Callable[[list[str]], subprocess.CompletedProcess[bytes]]
+)
+
+
+def _fake_run(
+    tools: dict[str, _RunStub], *, default: bytes | None = None
+) -> Callable[..., subprocess.CompletedProcess[bytes]]:
+    """``subprocess.run`` 桩工厂——按 ``argv[0]`` 基名派发应答。
+
+    应答值三形：``bytes`` → ``_cp(stdout=..)`` 命中；``CompletedProcess`` →
+    原样返回；``callable`` → ``fn(argv)`` 参级再分发。未列名工具回通用
+    版本串（``default`` 缺省 ``<tool> 1.2.3``）。
+    """
+
+    def _run(argv: list[str], **_kw: object) -> subprocess.CompletedProcess[bytes]:
+        tool = argv[0].rsplit("/", 1)[-1]
+        resp = tools.get(tool)
+        if callable(resp):
+            return resp(argv)
+        if isinstance(resp, bytes):
+            return _cp(stdout=resp)
+        if resp is not None:
+            return resp
+        return _cp(
+            stdout=default if default is not None else f"{tool} 1.2.3\n".encode()
+        )
+
+    return _run
 
 
 def _statuses(output: str) -> dict[str, str]:
@@ -68,17 +102,20 @@ def doctor_env(tmp_path: Path, clean_env: pytest.MonkeyPatch) -> pytest.MonkeyPa
     clean_env.setattr(cli, "find_tool", lambda name: f"/fake/{name}")
     clean_env.setattr(cli, "find_spec", lambda _m: object())
 
-    def _run(argv: list[str], **_kw: object) -> subprocess.CompletedProcess[bytes]:
-        tool = argv[0].rsplit("/", 1)[-1]
-        if tool == "kpsewhich":
-            return _cp(stdout=f"/texmf/{argv[1]}\n".encode())
-        if tool == "fc-list":
-            return _cp(stdout=b"Noto Sans CJK SC\n")
-        if tool == "pdftotext":  # poppler -v 版本走 stderr
-            return _cp(stderr=b"pdftotext version 24.01\n")
-        return _cp(stdout=f"{tool} 1.2.3\n".encode())
-
-    clean_env.setattr(subprocess, "run", _run)
+    clean_env.setattr(
+        subprocess,
+        "run",
+        _fake_run(
+            {
+                "kpsewhich": lambda argv: _cp(
+                    stdout=f"/texmf/{argv[1]}\n".encode()
+                ),
+                "fc-list": b"Noto Sans CJK SC\n",
+                # poppler -v 版本走 stderr
+                "pdftotext": _cp(stderr=b"pdftotext version 24.01\n"),
+            }
+        ),
+    )
     return clean_env
 
 
@@ -174,14 +211,11 @@ class TestDoctor:
 
     def test_cjk_fonts_warn(self, doctor_env: pytest.MonkeyPatch) -> None:
         """可探但全空（kpsewhich 无 ctex/fandol + fc-list 无 zh）→ warn。"""
-
-        def _run(argv: list[str], **_kw: object) -> subprocess.CompletedProcess[bytes]:
-            tool = argv[0].rsplit("/", 1)[-1]
-            if tool in ("kpsewhich", "fc-list"):
-                return _cp()  # 空输出 = 未命中
-            return _cp(stdout=b"t 1.0\n")
-
-        doctor_env.setattr(subprocess, "run", _run)
+        doctor_env.setattr(
+            subprocess,
+            "run",
+            _fake_run({"kpsewhich": b"", "fc-list": b""}, default=b"t 1.0\n"),
+        )
         r = _RUNNER.invoke(app, ["doctor"])
         assert r.exit_code == 0, r.output
         assert _statuses(r.stdout)["cjk-fonts"] == "warn"
@@ -189,18 +223,20 @@ class TestDoctor:
     def test_cjk_fonts_sys_zh_ok(self, doctor_env: pytest.MonkeyPatch) -> None:
         """fandol 缺但系统 zh 字体在 → ok（ctex fontset 可回落）。"""
 
-        def _run(argv: list[str], **_kw: object) -> subprocess.CompletedProcess[bytes]:
-            tool = argv[0].rsplit("/", 1)[-1]
-            if tool == "kpsewhich":
-                # ctex.sty 命中、fandol 不命中
-                if argv[1] == "ctex.sty":
-                    return _cp(stdout=b"/texmf/ctex.sty\n")
-                return _cp()
-            if tool == "fc-list":
-                return _cp(stdout=b"Noto Sans CJK\n")
-            return _cp(stdout=b"t 1.0\n")
+        def _kpsewhich(argv: list[str]) -> subprocess.CompletedProcess[bytes]:
+            # ctex.sty 命中、fandol 不命中
+            if argv[1] == "ctex.sty":
+                return _cp(stdout=b"/texmf/ctex.sty\n")
+            return _cp()
 
-        doctor_env.setattr(subprocess, "run", _run)
+        doctor_env.setattr(
+            subprocess,
+            "run",
+            _fake_run(
+                {"kpsewhich": _kpsewhich, "fc-list": b"Noto Sans CJK\n"},
+                default=b"t 1.0\n",
+            ),
+        )
         r = _RUNNER.invoke(app, ["doctor"])
         assert r.exit_code == 0, r.output
         assert _statuses(r.stdout)["cjk-fonts"] == "ok"

@@ -12,23 +12,10 @@
 
 from pathlib import Path
 
+from _fixloopkit import mk_ctx, mk_vendor, vendored_fetch
+
 from texlate.compile.fixloop.builtins import TRANSFORM_FNS
 from texlate.compile.fixloop.engine import LoopCtx
-
-
-def _ctx(wdir: Path, main_rel: str | None = "main.tex") -> LoopCtx:
-    return LoopCtx(wdir=wdir, engine_name="xelatex", main_rel=main_rel)
-
-
-def _vendor(tmp_path: Path) -> Path:
-    root = tmp_path / "vendor"
-    (root / "files").mkdir(parents=True)
-    (root / "stubs").mkdir(parents=True)
-    return root
-
-
-def _fetch(ctx: LoopCtx, payload: str, root: Path) -> tuple[bool, str]:
-    return TRANSFORM_FNS["vendored_fetch"](ctx, None, payload, {"dir": str(root)})
 
 
 def _nested_ctx(tmp_path: Path) -> LoopCtx:
@@ -37,7 +24,7 @@ def _nested_ctx(tmp_path: Path) -> LoopCtx:
     main_dir = wdir / "templates" / "arxiv"
     main_dir.mkdir(parents=True)
     (main_dir / "main.tex").write_text("\\documentclass{article}\n")
-    return _ctx(wdir, "templates/arxiv/main.tex")
+    return mk_ctx(wdir, "templates/arxiv/main.tex")
 
 
 # ------------------------------------------------------- 落点: nested main
@@ -45,10 +32,10 @@ def _nested_ctx(tmp_path: Path) -> LoopCtx:
 
 def test_vendored_fetch_nested_main_lands_at_main_dir(tmp_path: Path) -> None:
     """嵌套 main: 落 ``<main_dir>/x.sty`` (kpathsea 解析位), 不落 wdir 根。"""
-    root = _vendor(tmp_path)
+    root = mk_vendor(tmp_path)
     (root / "files" / "fixes.sty").write_text("% fixes\n", encoding="utf-8")
     ctx = _nested_ctx(tmp_path)
-    ok, note = _fetch(ctx, "fixes.sty", root)
+    ok, note = vendored_fetch(ctx, "fixes.sty", root)
     assert ok, note
     assert (ctx.wdir / "templates" / "arxiv" / "fixes.sty").is_file()
     assert not (ctx.wdir / "fixes.sty").exists()
@@ -57,47 +44,47 @@ def test_vendored_fetch_nested_main_lands_at_main_dir(tmp_path: Path) -> None:
 
 def test_vendored_fetch_nested_payload_relpath(tmp_path: Path) -> None:
     """payload 相对径在 main_dir 下保持 (``\\input{sub/x}`` 期径)。"""
-    root = _vendor(tmp_path)
+    root = mk_vendor(tmp_path)
     (root / "files" / "x.sty").write_text("% x\n", encoding="utf-8")
     ctx = _nested_ctx(tmp_path)
-    ok, _ = _fetch(ctx, "sub/x.sty", root)
+    ok, _ = vendored_fetch(ctx, "sub/x.sty", root)
     assert ok
     assert (ctx.wdir / "templates" / "arxiv" / "sub" / "x.sty").is_file()
 
 
 def test_vendored_fetch_flat_main_unchanged(tmp_path: Path) -> None:
     """平铺 main 回归: main_dir == wdir → 仍落 wdir 根。"""
-    root = _vendor(tmp_path)
+    root = mk_vendor(tmp_path)
     (root / "files" / "aastex.cls").write_text("% real\n", encoding="utf-8")
     wdir = tmp_path / "w"
     wdir.mkdir()
     (wdir / "main.tex").write_text("\\documentclass{aastex}\n")
-    ctx = _ctx(wdir)
-    ok, _ = _fetch(ctx, "aastex.cls", root)
+    ctx = mk_ctx(wdir)
+    ok, _ = vendored_fetch(ctx, "aastex.cls", root)
     assert ok
     assert (wdir / "aastex.cls").is_file()
 
 
 def test_vendored_fetch_no_main_falls_back_wdir(tmp_path: Path) -> None:
     """main 未知 (main_rel=None): 退 wdir 根平铺 (harness/无 main 旧行为)。"""
-    root = _vendor(tmp_path)
+    root = mk_vendor(tmp_path)
     (root / "files" / "x.sty").write_text("% x\n", encoding="utf-8")
     wdir = tmp_path / "w"
     wdir.mkdir()
-    ctx = _ctx(wdir, None)
-    ok, _ = _fetch(ctx, "x.sty", root)
+    ctx = mk_ctx(wdir, None)
+    ok, _ = vendored_fetch(ctx, "x.sty", root)
     assert ok
     assert (wdir / "x.sty").is_file()
 
 
 def test_vendored_fetch_main_rel_escape_declines(tmp_path: Path) -> None:
     """怪 main_rel 致解析位逃出 wdir → decline, 不泄出工程外。"""
-    root = _vendor(tmp_path)
+    root = mk_vendor(tmp_path)
     (root / "files" / "x.sty").write_text("% x\n", encoding="utf-8")
     wdir = tmp_path / "w"
     wdir.mkdir()
-    ctx = _ctx(wdir, "../evil.tex")
-    ok, note = _fetch(ctx, "x.sty", root)
+    ctx = mk_ctx(wdir, "../evil.tex")
+    ok, note = vendored_fetch(ctx, "x.sty", root)
     assert not ok
     assert "escapes wdir" in note
     assert not (tmp_path / "x.sty").exists()
@@ -113,13 +100,13 @@ def test_vendored_fetch_already_current_declines(tmp_path: Path) -> None:
     dedup → 同规则 refire → (True, "already current") 占位 → 更低 order
     候选整轮被挡。
     """
-    root = _vendor(tmp_path)
+    root = mk_vendor(tmp_path)
     (root / "files" / "x.sty").write_text("% x\n", encoding="utf-8")
-    ctx = _ctx(tmp_path / "w")
+    ctx = mk_ctx(tmp_path / "w")
     ctx.wdir.mkdir()
-    ok, _ = _fetch(ctx, "x.sty", root)
+    ok, _ = vendored_fetch(ctx, "x.sty", root)
     assert ok
-    ok2, note2 = _fetch(ctx, "x.sty", root)
+    ok2, note2 = vendored_fetch(ctx, "x.sty", root)
     assert not ok2
     assert "already current" in note2
     assert "no-op" in note2
@@ -127,18 +114,18 @@ def test_vendored_fetch_already_current_declines(tmp_path: Path) -> None:
 
 def test_vendored_fetch_stale_still_applies(tmp_path: Path) -> None:
     """旧代注入件 (stale) 仍覆写刷新 —— no-op 翻译只挡 current。"""
-    root = _vendor(tmp_path)
+    root = mk_vendor(tmp_path)
     (root / "files" / "x.sty").write_text("% new body\n", encoding="utf-8")
-    ctx = _ctx(tmp_path / "w")
+    ctx = mk_ctx(tmp_path / "w")
     ctx.wdir.mkdir()
-    ok, _ = _fetch(ctx, "x.sty", root)
+    ok, _ = vendored_fetch(ctx, "x.sty", root)
     assert ok
     # 篡改落盘件 → 指纹失配成 stale
     (ctx.wdir / "x.sty").write_text(
         "% texlate-fixloop-injected: 000000000000\n% old body\n"
     )
     ctx.invalidate(ctx.wdir / "x.sty")
-    ok2, note2 = _fetch(ctx, "x.sty", root)
+    ok2, note2 = vendored_fetch(ctx, "x.sty", root)
     assert ok2, note2
     assert "refreshed" in note2
     assert (ctx.wdir / "x.sty").read_text().endswith("% new body\n")
@@ -146,12 +133,12 @@ def test_vendored_fetch_stale_still_applies(tmp_path: Path) -> None:
 
 def test_vendored_fetch_foreign_still_declines(tmp_path: Path) -> None:
     """外来件 (稿自带无指纹) → foreign decline 路径不受 no-op 翻译影响。"""
-    root = _vendor(tmp_path)
+    root = mk_vendor(tmp_path)
     (root / "files" / "x.sty").write_text("% vendored\n", encoding="utf-8")
-    ctx = _ctx(tmp_path / "w")
+    ctx = mk_ctx(tmp_path / "w")
     ctx.wdir.mkdir()
     (ctx.wdir / "x.sty").write_text("% author shipped\n")
-    ok, note = _fetch(ctx, "x.sty", root)
+    ok, note = vendored_fetch(ctx, "x.sty", root)
     assert not ok
     assert "foreign" in note
     assert (ctx.wdir / "x.sty").read_text() == "% author shipped\n"
@@ -162,7 +149,7 @@ def test_vendored_fetch_foreign_still_declines(tmp_path: Path) -> None:
 
 def test_vendored_fetch_multi_nested_main(tmp_path: Path) -> None:
     """multi 字节平铺同走解析位: 嵌套 main 落 main_dir; 已存在 → skip。"""
-    root = _vendor(tmp_path)
+    root = mk_vendor(tmp_path)
     (root / "files" / "lamsarrow.tfm").write_bytes(b"\x00\x01binary")
     ctx = _nested_ctx(tmp_path)
     params = {"dir": str(root), "files": ["lamsarrow.tfm"]}
@@ -215,7 +202,7 @@ def test_revtex_delegate_flat_main_unchanged(tmp_path: Path) -> None:
     (wdir / "main.tex").write_text("\\documentclass{revtex4}\n")
     (wdir / "_texmf").mkdir()
     (wdir / "_texmf" / "revtex4.cls").write_text(_V40A)
-    ctx = _ctx(wdir)
+    ctx = mk_ctx(wdir)
     ok, note = TRANSFORM_FNS["revtex_era_retire"](ctx, _ShadowEng(), None, {})
     assert ok, note
     assert (wdir / "revtex4.cls").is_file()

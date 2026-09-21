@@ -31,38 +31,16 @@
 
 from pathlib import Path
 
+from _fixloopkit import DOC, rule
+from test_fixloop_csfix7 import (
+    _fix,
+    _proj,
+    check_backslash_payload,
+    check_refire_idempotent,
+    check_unknown_cs_decline,
+)
+
 from texlate.compile.fixloop._builtins_csfix import _CS_FIX_TABLE
-from texlate.compile.fixloop.builtins import TRANSFORM_FNS
-from texlate.compile.fixloop.engine import LoopCtx
-
-_TARGETED = TRANSFORM_FNS["cs_targeted_fix"]
-
-
-class _EngStub:
-    """probe 恒命中 / install 恒成 —— usepackage 臂走通支路。"""
-
-    def probe_file(self, fname: str, cwd: Path | None = None) -> str:
-        del cwd
-        return f"/texmf/{fname}"
-
-    def install_file(self, fname: str, *, font_related: bool = False) -> bool:
-        del fname, font_related
-        return True
-
-
-def _ctx(tmp_path: Path) -> LoopCtx:
-    return LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel="main.tex")
-
-
-def _proj(tmp_path: Path, tex: str) -> None:
-    (tmp_path / "main.tex").write_text(tex, encoding="utf-8")
-
-
-def _fix(tmp_path: Path, cs: str) -> tuple[bool, str]:
-    return _TARGETED(_ctx(tmp_path), _EngStub(), cs, {})
-
-
-_DOC = "\\documentclass{article}\n\\begin{document}\nx\n\\end{document}\n"
 
 
 def test_table_entries_present() -> None:
@@ -78,7 +56,7 @@ def test_table_entries_present() -> None:
 
 def test_cref_section_splitter_patch(tmp_path: Path) -> None:
     """crossreftools 字段层 splitter 补丁: #3\\fi 定界 + begindocument/before 钩。"""
-    _proj(tmp_path, _DOC)
+    _proj(tmp_path, DOC)
     ok, note = _fix(tmp_path, "cref@section")
     assert ok, note
     assert "polyfill injected" in note
@@ -94,16 +72,14 @@ def test_cref_section_splitter_patch(tmp_path: Path) -> None:
 
 def test_cref_payload_backslash_form(tmp_path: Path) -> None:
     """log payload 带反斜杠 (``\\cref@section``) → lstrip 归一同键命中。"""
-    _proj(tmp_path, _DOC)
-    ok, _ = _fix(tmp_path, "\\cref@section")
-    assert ok
-    text = (tmp_path / "main.tex").read_text(encoding="utf-8")
-    assert "\\crt@cref@splitter@counter" in text
+    check_backslash_payload(
+        tmp_path, "\\cref@section", "\\crt@cref@splitter@counter"
+    )
 
 
 def test_bar_deferred_provide(tmp_path: Path) -> None:
     """eulervm ``\\let\\bar\\undefined`` 格 → AtBeginDocument 复查点 overline 替身。"""
-    _proj(tmp_path, _DOC)
+    _proj(tmp_path, DOC)
     ok, _ = _fix(tmp_path, "bar")
     assert ok
     text = (tmp_path / "main.tex").read_text(encoding="utf-8")
@@ -112,7 +88,7 @@ def test_bar_deferred_provide(tmp_path: Path) -> None:
 
 def test_inputencoding_gobble(tmp_path: Path) -> None:
     """xelatex 裸 ``\\inputencoding`` 调用 → 一参 gobble。"""
-    _proj(tmp_path, _DOC)
+    _proj(tmp_path, DOC)
     ok, _ = _fix(tmp_path, "inputencoding")
     assert ok
     text = (tmp_path / "main.tex").read_text(encoding="utf-8")
@@ -124,7 +100,7 @@ def test_inputencoding_gobble(tmp_path: Path) -> None:
 
 def test_red_xcolor_and_polyfill(tmp_path: Path) -> None:
     """``\\red`` doc 自有色切 → ``\\RequirePackage{xcolor}`` + provide 替身。"""
-    _proj(tmp_path, _DOC)
+    _proj(tmp_path, DOC)
     ok, note = _fix(tmp_path, "red")
     assert ok, note
     assert "xcolor" in note
@@ -136,7 +112,7 @@ def test_red_xcolor_and_polyfill(tmp_path: Path) -> None:
 
 def test_plus_tabbing_accent_gobble(tmp_path: Path) -> None:
     """``\\+'e`` 裸调 → 零参 gobble (tabbing env 内 ``\\+`` 自重绑不受扰)。"""
-    _proj(tmp_path, _DOC)
+    _proj(tmp_path, DOC)
     ok, _ = _fix(tmp_path, "+")
     assert ok
     text = (tmp_path / "main.tex").read_text(encoding="utf-8")
@@ -145,22 +121,14 @@ def test_plus_tabbing_accent_gobble(tmp_path: Path) -> None:
 
 def test_refire_applied_nothing(tmp_path: Path) -> None:
     """二轮重火: snippet 已在文 → applied nothing, 不重复注入。"""
-    _proj(tmp_path, _DOC)
-    ok1, _ = _fix(tmp_path, "inputencoding")
-    assert ok1
-    ok2, note2 = _fix(tmp_path, "inputencoding")
-    assert not ok2
-    assert "applied nothing" in note2
-    text = (tmp_path / "main.tex").read_text(encoding="utf-8")
-    assert text.count("\\providecommand\\inputencoding[1]{}") == 1
+    check_refire_idempotent(
+        tmp_path, "inputencoding", "\\providecommand\\inputencoding[1]{}"
+    )
 
 
 def test_unknown_cs_still_declines(tmp_path: Path) -> None:
     """非表键 payload → 拆分臂亦不中, 诚实 decline 落 guess 链。"""
-    _proj(tmp_path, _DOC)
-    ok, note = _fix(tmp_path, "xyzzyqq")
-    assert not ok
-    assert "not in cs-fix table" in note
+    check_unknown_cs_decline(tmp_path)
 
 
 # ──────────────────── provides_date_daypad (1511.06717) ────────────────────
@@ -169,12 +137,11 @@ def test_unknown_cs_still_declines(tmp_path: Path) -> None:
 
 import regex  # noqa: E402
 
-from texlate.compile.fixloop import load_ruleset  # noqa: E402
 from texlate.compile.fixloop.ruleset import Rule  # noqa: E402
 
 
 def _daypad_rule() -> Rule:
-    return next(r for r in load_ruleset().rules if r.id == "provides_date_daypad")
+    return rule("provides_date_daypad")
 
 
 def _apply_rewrites(text: str) -> str:

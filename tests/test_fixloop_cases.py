@@ -1,9 +1,11 @@
 """cases — cases.jsonl 沉淀 / triage / 回放三门 单测 (docs/spec/compile.md)。"""
 
-from functools import lru_cache
 from pathlib import Path
 
-from texlate.compile.fixloop import CaseSink, Ruleset, load_cases, load_ruleset
+from _fixloopkit import rs
+from test_fixloop_loop import CLEAN_LOG, MockEngine, make_proj
+
+from texlate.compile.fixloop import CaseSink, load_cases
 from texlate.compile.fixloop.cases import (
     replay_all,
     replay_case,
@@ -11,68 +13,6 @@ from texlate.compile.fixloop.cases import (
     triage,
 )
 from texlate.compile.fixloop.engine import fixloop
-
-
-@lru_cache(maxsize=1)
-def _rs() -> Ruleset:
-    """ruleset 首用时加载——收集期不 IO（坏 yaml 报 test fail 而非 collection error）。"""
-    return load_ruleset()
-
-
-MAIN_TEX = "\\documentclass{article}\n\\begin{document}\nhi\n\\end{document}\n"
-CLEAN_LOG = "This is pdfTeX\nOutput written on main.pdf (1 page).\n"
-
-
-class _Res:
-    def __init__(self, wdir: Path, main: str, log: str, *, pdf: bool) -> None:
-        stem = Path(main).stem
-        self.log_path = wdir / f"{stem}.log"
-        self.log_path.write_text(log)
-        self.pdf = wdir / f"{stem}.pdf" if pdf else None
-        if self.pdf:
-            self.pdf.write_bytes(b"%PDF-fake")
-        self.pdf_bytes = self.pdf.stat().st_size if self.pdf else 0
-        self.timed_out = False
-        self.seconds = 0.01
-        self.stdout_tail = ""
-
-    @property
-    def has_pdf(self) -> bool:
-        return bool(self.pdf and self.pdf_bytes)
-
-
-class _Eng:
-    """script: (log, pdf) 序列。"""
-
-    name = "xelatex"
-    caps = frozenset({"kpsewhich", "tlmgr"})
-
-    def __init__(self, script: list) -> None:
-        self.script = list(script)
-        self.n = 0
-
-    def compile(self, wdir: Path, main: str, passes: int = 2, **_kw: object) -> _Res:
-        del passes, _kw  # mock 不需要
-        i = min(self.n, len(self.script) - 1)
-        self.n += 1
-        log, pdf = self.script[i]
-        return _Res(Path(wdir), main, log, pdf=pdf)
-
-    def probe_file(self, fname: str, cwd: Path | None = None) -> str | None:
-        if cwd is not None and (Path(cwd) / fname).is_file():
-            return str(Path(cwd) / fname)
-        return None
-
-    def install_file(self, fname: str, *, font_related: bool = False) -> bool:
-        del fname, font_related  # mock 一律装不上
-        return False
-
-    def rebuild_fontmaps(self) -> bool:
-        return True
-
-    def filemap(self, fname: str) -> list[str]:
-        del fname
-        return []
 
 
 def _cell(verdict: str, **kw: object) -> dict:
@@ -132,9 +72,14 @@ def test_gate_reject_records_gate_fired(tmp_path: Path) -> None:
     rules_fired 是「动作跑过」面; REJECT 是终止决策不跑动作列 (gate/loop
     相 append 在判 REJECT 之后), ``gate_fired`` 是 census/stats 的互补面。
     """
-    (tmp_path / "main.tex").write_text(L209_TEX)
+    make_proj(tmp_path, L209_TEX)
     sink = CaseSink(tmp_path / "cases.jsonl")
-    cell = fixloop(tmp_path, _Eng([(L209_LOG, False)]), ruleset=_rs(), case_sink=sink)
+    cell = fixloop(
+        tmp_path,
+        MockEngine([{"log": L209_LOG, "pdf": False}]),
+        ruleset=rs(),
+        case_sink=sink,
+    )
     assert cell["verdict"] == "reject:latex209_reject"
     assert cell["reject_route"] == "latex+dvips"
     assert cell["gate_fired"] == ["latex209_reject"]
@@ -175,29 +120,31 @@ def test_triage_filters_failure_verdicts() -> None:
 
 # ---------------------------------------------------------------- 回放门 ①②
 def test_replay_case_gate1(tmp_path: Path) -> None:
-    (tmp_path / "main.tex").write_text(MAIN_TEX)
+    make_proj(tmp_path)
     case = {
         "corpus": "p",
         "cond": "c",
         "verdict": "unfixable:missing_file",
         "started_fail": True,
     }
-    res = replay_case(case, tmp_path, _Eng([(CLEAN_LOG, True)]), _rs())
+    res = replay_case(
+        case, tmp_path, MockEngine([{"log": CLEAN_LOG, "pdf": True}]), rs()
+    )
     assert res.verdict_after == "clean"
     assert res.gate1_rescued is True
 
 
 def test_replay_case_fail_stays(tmp_path: Path) -> None:
-    (tmp_path / "main.tex").write_text(MAIN_TEX)
+    make_proj(tmp_path)
     case = {"corpus": "p", "cond": "c", "verdict": "unfixable:x", "started_fail": True}
-    eng = _Eng([("! Bizarre\n", False)])
-    res = replay_case(case, tmp_path, eng, _rs())
+    eng = MockEngine([{"log": "! Bizarre\n", "pdf": False}])
+    res = replay_case(case, tmp_path, eng, rs())
     assert res.gate1_rescued is False
     assert res.verdict_after.startswith("unfixable")
 
 
 def test_replay_all_gate2_regression(tmp_path: Path) -> None:
-    (tmp_path / "main.tex").write_text(MAIN_TEX)
+    make_proj(tmp_path)
     clean_case = {"corpus": "a", "cond": "c", "verdict": "clean", "started_fail": False}
     fail_case = {
         "corpus": "b",
@@ -210,8 +157,8 @@ def test_replay_all_gate2_regression(tmp_path: Path) -> None:
     results = replay_all(
         [clean_case, fail_case],
         resolve_proj=lambda _c: tmp_path,
-        engine_factory=lambda _c: _Eng([(CLEAN_LOG, True)]),
-        ruleset=_rs(),
+        engine_factory=lambda _c: MockEngine([{"log": CLEAN_LOG, "pdf": True}]),
+        ruleset=rs(),
     )
     assert len(results) == 2  # noqa: PLR2004
     assert all(not r.regressed for r in results)
@@ -221,8 +168,10 @@ def test_replay_all_gate2_regression(tmp_path: Path) -> None:
     results = replay_all(
         [clean_case],
         resolve_proj=lambda _c: tmp_path,
-        engine_factory=lambda _c: _Eng([("! File `x.sty' not found.\n", False)]),
-        ruleset=_rs(),
+        engine_factory=lambda _c: MockEngine(
+            [{"log": "! File `x.sty' not found.\n", "pdf": False}]
+        ),
+        ruleset=rs(),
     )
     assert results[0].regressed is True
     assert results[0].floor_restored is True
@@ -233,8 +182,8 @@ def test_replay_all_skips_missing_proj(tmp_path: Path) -> None:
     results = replay_all(
         [{"corpus": "ghost", "verdict": "unfixable:x"}],
         resolve_proj=lambda _c: tmp_path / "absent",
-        engine_factory=lambda _c: _Eng([(CLEAN_LOG, True)]),
-        ruleset=_rs(),
+        engine_factory=lambda _c: MockEngine([{"log": CLEAN_LOG, "pdf": True}]),
+        ruleset=rs(),
     )
     assert results == []
 
@@ -266,13 +215,13 @@ def test_stats_backfill_counts_and_promotes() -> None:
 
 
 def test_fixloop_writes_case_via_sink(tmp_path: Path) -> None:
-    (tmp_path / "main.tex").write_text(MAIN_TEX)
+    make_proj(tmp_path)
     path = tmp_path / "out" / "cases.jsonl"
     sink = CaseSink(path)
     fixloop(
         tmp_path,
-        _Eng([("! LaTeX Error: File `x.sty' not found.\n", False)]),
-        ruleset=_rs(),
+        MockEngine([{"log": "! LaTeX Error: File `x.sty' not found.\n", "pdf": False}]),
+        ruleset=rs(),
         corpus_id="corp",
         cond="zh",
         case_sink=sink,
@@ -292,12 +241,12 @@ def test_fixloop_case_records_rules_declined(tmp_path: Path) -> None:
     vendored_fetch 查无件 → 两轮重复 decline 去重后各一条；
     已应用规则 (legacy_pkg_shim) 经 applied 闸在前, 不进拒修面。
     """
-    (tmp_path / "main.tex").write_text(MAIN_TEX)
+    make_proj(tmp_path)
     path = tmp_path / "out" / "cases.jsonl"
     fixloop(
         tmp_path,
-        _Eng([("! LaTeX Error: File `x.sty' not found.\n", False)]),
-        ruleset=_rs(),
+        MockEngine([{"log": "! LaTeX Error: File `x.sty' not found.\n", "pdf": False}]),
+        ruleset=rs(),
         corpus_id="corp",
         cond="zh",
         case_sink=CaseSink(path),

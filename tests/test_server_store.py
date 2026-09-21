@@ -162,6 +162,18 @@ def _chunk(seq: int) -> dict:
     }
 
 
+def _legacy_store(tmp_path: Path, ddl: str) -> Store:
+    """老 schema 库造件：``old.db`` 铺旧 DDL → ``Store.open()`` 迁移臂接管。"""
+    db = tmp_path / "old.db"
+    conn = sqlite3.connect(db)
+    conn.executescript(ddl)
+    conn.commit()
+    conn.close()
+    s = Store(db)
+    s.open()
+    return s
+
+
 class TestChunks:
     def test_insert_and_counts(self, store: Store) -> None:
         row = mk_task_row(store)
@@ -223,18 +235,13 @@ class TestChunks:
 
     def test_warnings_column_migration(self, tmp_path: Path) -> None:
         """老库（chunks 无 warnings 列）→ open() 探测补列（幂等）。"""
-        db = tmp_path / "old.db"
-        conn = sqlite3.connect(db)
-        conn.executescript(
+        s = _legacy_store(
+            tmp_path,
             "CREATE TABLE chunks ("
             " task_id TEXT NOT NULL, seq INTEGER NOT NULL,"
             " chunk_id TEXT NOT NULL, status TEXT DEFAULT 'pending',"
-            " PRIMARY KEY (task_id, chunk_id));"
+            " PRIMARY KEY (task_id, chunk_id));",
         )
-        conn.commit()
-        conn.close()
-        s = Store(db)
-        s.open()
         try:
             cols = {str(r["name"]) for r in s.conn.execute("PRAGMA table_info(chunks)")}
             assert "warnings" in cols
@@ -269,9 +276,8 @@ class TestIdempotencyKey:
 
     def test_column_migration_backfill(self, tmp_path: Path) -> None:
         """老库（tasks 无 idempotency_key 列）→ open() 补列 + options_json 回填。"""
-        db = tmp_path / "old.db"
-        conn = sqlite3.connect(db)
-        conn.executescript(
+        s = _legacy_store(
+            tmp_path,
             "CREATE TABLE tasks ("
             " id TEXT PRIMARY KEY, kind TEXT NOT NULL,"
             " status TEXT NOT NULL DEFAULT 'queued',"
@@ -292,12 +298,8 @@ class TestIdempotencyKey:
             " started_at REAL, finished_at REAL);"
             "INSERT INTO tasks (id, kind, target_lang, model, options_json,"
             " created_at, updated_at) VALUES ('t_old', 'arxiv', 'zh-CN', 'm',"
-            ' \'{"idempotency_key":"k-old"}\', 1, 1);'
+            ' \'{"idempotency_key":"k-old"}\', 1, 1);',
         )
-        conn.commit()
-        conn.close()
-        s = Store(db)
-        s.open()
         try:
             cols = {str(r["name"]) for r in s.conn.execute("PRAGMA table_info(tasks)")}
             assert "idempotency_key" in cols

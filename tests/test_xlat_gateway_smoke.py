@@ -1,4 +1,4 @@
-"""真网关冒烟：http://127.0.0.1:3003 一次 swe-2-medium 往返验证硬契约。
+"""真网关冒烟：DEFAULT_BASE_URL（现 http://127.0.0.1:3033）一次 swe-2-medium 往返验证硬契约。
 
 默认 skip——`TEXLATE_LIVE=1` + `TEXLATE_GATEWAY_KEY` 俱备才跑（网络测试，CI 默认不触网）：
 
@@ -10,9 +10,9 @@ import os
 import pytest
 
 from texlate.xlat import placeholders
-from texlate.xlat.client import ChatClient, ChatOptions
+from texlate.xlat.client import DEFAULT_BASE_URL, ChatClient, ChatOptions
 
-GATEWAY_URL = os.environ.get("TEXLATE_GATEWAY_URL", "http://127.0.0.1:3003")
+GATEWAY_URL = os.environ.get("TEXLATE_GATEWAY_URL", DEFAULT_BASE_URL)
 GATEWAY_KEY = os.environ.get("TEXLATE_GATEWAY_KEY", "")
 
 _LIVE = os.environ.get("TEXLATE_LIVE") == "1"

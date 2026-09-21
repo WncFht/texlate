@@ -22,7 +22,6 @@ _INDEX = TlpdbIndex(
         "hyperref.sty": ["hyperref"],
         "minted.sty": ["minted"],
         "pstricks.sty": ["pstricks"],
-        "revtex4-2.cls": ["revtex"],
     }
 )
 
@@ -154,15 +153,17 @@ def test_dead_tail_input_not_scanned(tmp_path: Path) -> None:
 
 def test_main_outside_root_empty_report(tmp_path: Path) -> None:
     """main_rel 越出 work_dir → 空报告 + 注记（此前静默空inputs无解释）。"""
-    outside = tmp_path.parent / f"{tmp_path.name}-outside.tex"
-    outside.write_text("\\documentclass{article}\n\\begin{document}x\\end{document}\n")
-    _write(tmp_path, "main.tex", "\\documentclass{article}\n")
-    rep = target_probe(tmp_path, f"../{outside.name}", _INDEX)
-    try:
-        assert rep.inputs == []
-        assert any("越出" in n for n in rep.notes)
-    finally:
-        outside.unlink()
+    work = tmp_path / "work"
+    work.mkdir()
+    _write(work, "main.tex", "\\documentclass{article}\n")
+    _write(
+        tmp_path,
+        "outside.tex",
+        "\\documentclass{article}\n\\begin{document}x\\end{document}\n",
+    )
+    rep = target_probe(work, "../outside.tex", _INDEX)
+    assert rep.inputs == []
+    assert any("越出" in n for n in rep.notes)
 
 
 def test_circular_input_terminates(tmp_path: Path) -> None:
@@ -270,9 +271,8 @@ def test_missing_main_empty_report(tmp_path: Path) -> None:
     assert any("nope.tex" in n for n in rep.notes)
 
 
-def test_deps_diff_authoritative(tmp_path: Path) -> None:
+def test_deps_diff_authoritative() -> None:
     """expected vs recorded 差分：seen/unseen/extra + saw() basename 兜底。"""
-    del tmp_path
     diff = deps_diff(
         ["main.tex", "macros.tex", "gone.sty"],
         ["main.tex", "macros.tex", "extra.def"],

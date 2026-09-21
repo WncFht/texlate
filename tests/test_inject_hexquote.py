@@ -17,11 +17,11 @@ TIE_ACCENT_FIX 的 ``"0361`` 直接改十进制 ``865``（下游 ``\\char`` 数�
 """
 
 import re
-import shutil
 import subprocess
 from pathlib import Path
 
 import pytest
+from _fixloopkit import XELATEX, requires_xelatex
 
 from texlate.compile.inject import (
     CJK_MATH_FALLBACK,
@@ -114,29 +114,28 @@ _DOC_TEMPLATE = (
 )
 
 
+def _compile(tmp_path: Path, name: str, tex: str) -> str:
+    """写 ``{name}.tex`` → nonstopmode 编译 → 回读 ``{name}.log``（fontgate 同形）。"""
+    p = tmp_path / f"{name}.tex"
+    p.write_text(tex, encoding="utf-8")
+    subprocess.run(  # noqa: S603 -- argv[0] 来自 shutil.which 绝对路径
+        [XELATEX, "-interaction=nonstopmode", p.name],
+        cwd=tmp_path,
+        capture_output=True,
+        timeout=120,
+        check=False,
+    )
+    return (tmp_path / f"{name}.log").read_text(encoding="utf-8", errors="replace")
+
+
 @pytest.mark.integration
-@pytest.mark.skipif(shutil.which("xelatex") is None, reason="xelatex not installed")
+@requires_xelatex
 def test_mathmap_real_compile_poisoned_quote(tmp_path: Path) -> None:
     r"""真编译双投毒臂：``"``=catcode-11（cyr 态）与 ``"``=active（quotes 态）
 
     下注入产物零 Missing number、数学内 CJK 零缺字。对照臂（未守护的
     旧块形状）在 ``"``=11 下复现 census 签名。
     """
-    xelatex = shutil.which("xelatex")
-    assert xelatex is not None
-
-    def _compile(name: str, tex: str) -> str:
-        p = tmp_path / f"{name}.tex"
-        p.write_text(tex, encoding="utf-8")
-        subprocess.run(  # noqa: S603 -- argv[0] 来自 shutil.which 绝对路径
-            [xelatex, "-interaction=nonstopmode", p.name],
-            cwd=tmp_path,
-            capture_output=True,
-            timeout=120,
-            check=False,
-        )
-        return (tmp_path / f"{name}.log").read_text(encoding="utf-8", errors="replace")
-
     for tag, poison in (
         ("cat11", '\\catcode`\\"=11'),
         ("active", '\\catcode`\\"=\\active'),
@@ -144,7 +143,7 @@ def test_mathmap_real_compile_poisoned_quote(tmp_path: Path) -> None:
         doc = _DOC_TEMPLATE % poison
         out, info = inject_cjk(doc, mode="ctex")
         assert info["status"] == "injected"
-        log = _compile(f"poison_{tag}", out)
+        log = _compile(tmp_path, f"poison_{tag}", out)
         n_missing_num = len(re.findall(r"Missing number", log))
         assert n_missing_num == 0, f"{tag}: {n_missing_num} 个 Missing number"
         n_missing_chr = len(re.findall(r"Missing character", log))
@@ -156,12 +155,12 @@ def test_mathmap_real_compile_poisoned_quote(tmp_path: Path) -> None:
     ctl = out.replace(_GUARD_SAVE + _GUARD_SET, "")
     ctl = ctl.replace(_GUARD_RESTORE, "")
     assert _GUARD_SET not in ctl
-    ctl_log = _compile("ctl_cat11", ctl)
+    ctl_log = _compile(tmp_path, "ctl_cat11", ctl)
     assert len(re.findall(r"Missing number", ctl_log)) > 0
 
 
 @pytest.mark.integration
-@pytest.mark.skipif(shutil.which("xelatex") is None, reason="xelatex not installed")
+@requires_xelatex
 def test_clsmap_real_compile_poisoned_quote(tmp_path: Path) -> None:
     r"""TEXT_8BIT_FALLBACK 裸块贴进 ``"``=11 前导区——守护后 clsmap 正常执行。
 
@@ -169,8 +168,6 @@ def test_clsmap_real_compile_poisoned_quote(tmp_path: Path) -> None:
     （kpathsea 字体树）——裸贴场景补 ``\\usepackage{fontspec}`` 令门真开，
     才能实测到 ``\\TeXlate@clsmap`` 的 ``"``-hex 路径。
     """
-    xelatex = shutil.which("xelatex")
-    assert xelatex is not None
     doc = (
         "\\documentclass{article}\n"
         "\\usepackage{fontspec}\n"
@@ -178,30 +175,10 @@ def test_clsmap_real_compile_poisoned_quote(tmp_path: Path) -> None:
         + TEXT_8BIT_FALLBACK
         + "\\begin{document}\nx\\end{document}\n"
     )
-    p = tmp_path / "clsmap_cat11.tex"
-    p.write_text(doc, encoding="utf-8")
-    subprocess.run(  # noqa: S603 -- argv[0] 来自 shutil.which 绝对路径
-        [xelatex, "-interaction=nonstopmode", p.name],
-        cwd=tmp_path,
-        capture_output=True,
-        timeout=120,
-        check=False,
-    )
-    log = (tmp_path / "clsmap_cat11.log").read_text(encoding="utf-8", errors="replace")
+    log = _compile(tmp_path, "clsmap_cat11", doc)
     n_missing = len(re.findall(r"Missing number", log))
     assert n_missing == 0, f"{n_missing} 个 Missing number"
     # 对照：剥守护行后同投毒必崩。
     ctl = doc.replace(_GUARD_SAVE + _GUARD_SET, "").replace(_GUARD_RESTORE, "")
-    p2 = tmp_path / "clsmap_ctl.tex"
-    p2.write_text(ctl, encoding="utf-8")
-    subprocess.run(  # noqa: S603 -- argv[0] 来自 shutil.which 绝对路径
-        [xelatex, "-interaction=nonstopmode", p2.name],
-        cwd=tmp_path,
-        capture_output=True,
-        timeout=120,
-        check=False,
-    )
-    ctl_log = (tmp_path / "clsmap_ctl.log").read_text(
-        encoding="utf-8", errors="replace"
-    )
+    ctl_log = _compile(tmp_path, "clsmap_ctl", ctl)
     assert len(re.findall(r"Missing number", ctl_log)) > 0

@@ -12,42 +12,27 @@ bib_backend_biber_swap —— covered_preexisting 臂面缺口的第三批 soul/
 """
 
 import re
+from functools import lru_cache
 from pathlib import Path
 
-from texlate.compile.fixloop import actions, load_ruleset
+from _fixloopkit import apply, mk_ctx
+
+from texlate.compile.fixloop import Ruleset, actions, load_ruleset
 from texlate.compile.fixloop.engine import LoopCtx, Rule
-from texlate.compile.logparse import ErrReport
 
 
-class _Eng:
-    """builtin_transform/condition 评估的最小引擎替身。"""
-
-    name = "xelatex"
-
-    def probe_file(self, fname: str, cwd: Path | None = None) -> str | None:
-        del fname, cwd
-        return None
-
-    def filemap(self, fname: str) -> list[str]:
-        del fname
-        return []
-
-
-_RS = load_ruleset()
+@lru_cache(maxsize=1)
+def _rs() -> Ruleset:
+    """ruleset 首用时加载——收集期不 IO（坏 yaml 报 test fail 而非 collection error）。"""
+    return load_ruleset()
 
 
 def _rule(rid: str) -> Rule:
-    return next(r for r in _RS.rules if r.id == rid)
-
-
-def _ctx(tmp_path: Path, main_rel: str = "main.tex") -> LoopCtx:
-    return LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel=main_rel)
+    return next(r for r in _rs().rules if r.id == rid)
 
 
 def _apply(rid: str, ctx: LoopCtx, pay: str | None = None) -> tuple[bool, str]:
-    return actions._apply(  # noqa: SLF001 - 钉规则动作直驱
-        _rule(rid), ctx, _Eng(), pay, ErrReport()
-    )
+    return apply(_rule(rid), ctx, pay)
 
 
 def _tex(tmp_path: Path, body: str, name: str = "main.tex") -> Path:
@@ -73,7 +58,7 @@ def test_soul_multi_registered() -> None:
 
 def test_soul_multi_when_gate(tmp_path: Path) -> None:
     rule = _rule("soul_multi_mbox")
-    ctx = _ctx(tmp_path)
+    ctx = mk_ctx(tmp_path)
     assert actions._when_ok(rule.when, "soul_err", None, ctx)  # noqa: SLF001
     for cat in ("syntax", "other", "inputenc_unicode", None):
         assert not actions._when_ok(rule.when, cat, None, ctx)  # noqa: SLF001
@@ -82,7 +67,7 @@ def test_soul_multi_when_gate(tmp_path: Path) -> None:
 def test_soul_multi_wraps_cs_group_arg(tmp_path: Path) -> None:
     r"""1107.0598 def-站签名: ``\so{\MakeTextUppercase{#1}}`` → mbox 裹。"""
     _tex(tmp_path, "\\newcommand\\secformat[1]{\\so{\\MakeTextUppercase{#1}}}")
-    ok, note = _apply("soul_multi_mbox", _ctx(tmp_path))
+    ok, note = _apply("soul_multi_mbox", mk_ctx(tmp_path))
     assert ok, note
     out = (tmp_path / "main.tex").read_text()
     assert "\\so{\\mbox{\\MakeTextUppercase{#1}}}" in out
@@ -91,7 +76,7 @@ def test_soul_multi_wraps_cs_group_arg(tmp_path: Path) -> None:
 def test_soul_multi_wraps_caps_variant(tmp_path: Path) -> None:
     r"""同格姊妹站 ``\caps{\MakeTextLowercase{#1}}`` 同裹。"""
     _tex(tmp_path, "\\caps{\\MakeTextLowercase{#1}}")
-    ok, _ = _apply("soul_multi_mbox", _ctx(tmp_path))
+    ok, _ = _apply("soul_multi_mbox", mk_ctx(tmp_path))
     assert ok
     assert (
         "\\caps{\\mbox{\\MakeTextLowercase{#1}}}" in (tmp_path / "main.tex").read_text()
@@ -101,7 +86,7 @@ def test_soul_multi_wraps_caps_variant(tmp_path: Path) -> None:
 def test_soul_multi_wraps_text_plus_cs(tmp_path: Path) -> None:
     r"""soul_cs_mbox 记档缺面 ``\hl{a \model}`` 文本+cs 混合实参同收。"""
     _tex(tmp_path, "\\hl{a \\model}")
-    ok, _ = _apply("soul_multi_mbox", _ctx(tmp_path))
+    ok, _ = _apply("soul_multi_mbox", mk_ctx(tmp_path))
     assert ok
     assert "\\hl{\\mbox{a \\model}}" in (tmp_path / "main.tex").read_text()
 
@@ -109,7 +94,7 @@ def test_soul_multi_wraps_text_plus_cs(tmp_path: Path) -> None:
 def test_soul_multi_declines_no_cs(tmp_path: Path) -> None:
     r"""无 cs 纯文本实参不收 —— 字面 CJK 归 soul_cjk_mbox, 纯拉丁不同机理。"""
     _tex(tmp_path, "\\so{plain} and \\so{中文}")
-    ok, _ = _apply("soul_multi_mbox", _ctx(tmp_path))
+    ok, _ = _apply("soul_multi_mbox", mk_ctx(tmp_path))
     assert not ok
     assert "\\mbox" not in (tmp_path / "main.tex").read_text()
 
@@ -117,12 +102,12 @@ def test_soul_multi_declines_no_cs(tmp_path: Path) -> None:
 def test_soul_multi_idempotent(tmp_path: Path) -> None:
     r"""已裹站点 (本臂/soul_cs_mbox 产出 ``\mbox`` 首实参) 不二裹。"""
     _tex(tmp_path, "\\so{\\MakeTextUppercase{#1}}")
-    ok, _ = _apply("soul_multi_mbox", _ctx(tmp_path))
+    ok, _ = _apply("soul_multi_mbox", mk_ctx(tmp_path))
     assert ok
-    ok, _ = _apply("soul_multi_mbox", _ctx(tmp_path))
+    ok, _ = _apply("soul_multi_mbox", mk_ctx(tmp_path))
     assert not ok
     _tex(tmp_path, "\\hl{\\mbox{\\model}}")  # soul_cs_mbox(102) 产出形
-    ok, _ = _apply("soul_multi_mbox", _ctx(tmp_path))
+    ok, _ = _apply("soul_multi_mbox", mk_ctx(tmp_path))
     assert not ok
 
 
@@ -132,7 +117,7 @@ def test_soul_multi_comment_shielded(tmp_path: Path) -> None:
         tmp_path,
         "% \\so{\\MakeTextUppercase{#1}}\n\\so{\\MakeTextLowercase{#2}}",
     )
-    ok, _ = _apply("soul_multi_mbox", _ctx(tmp_path))
+    ok, _ = _apply("soul_multi_mbox", mk_ctx(tmp_path))
     assert ok
     out = (tmp_path / "main.tex").read_text()
     assert "% \\so{\\MakeTextUppercase{#1}}" in out
@@ -142,7 +127,7 @@ def test_soul_multi_comment_shielded(tmp_path: Path) -> None:
 def test_soul_multi_deep_nest_untouched(tmp_path: Path) -> None:
     r"""两层花括号嵌套实参超 [^{}] 窗 → 记档 known_gap, 不收。"""
     _tex(tmp_path, "\\so{\\textbf{a {b}}}")
-    ok, _ = _apply("soul_multi_mbox", _ctx(tmp_path))
+    ok, _ = _apply("soul_multi_mbox", mk_ctx(tmp_path))
     assert not ok
 
 
@@ -162,7 +147,7 @@ def test_inputenc_shadow_registered() -> None:
 def test_inputenc_shadow_drops_noop(tmp_path: Path) -> None:
     r"""投放 noop inputenc.sty 到 compile cwd; 内容 = option-tolerant noop。"""
     _tex(tmp_path, "x")
-    ok, note = _apply("inputenc_noop_shadow", _ctx(tmp_path))
+    ok, note = _apply("inputenc_noop_shadow", mk_ctx(tmp_path))
     assert ok, note
     dst = tmp_path / "inputenc.sty"
     assert dst.is_file()
@@ -176,7 +161,7 @@ def test_inputenc_shadow_lands_at_main_dir(tmp_path: Path) -> None:
     r"""嵌套 main 落点是 main_dir (kpathsea ``.`` 解析位) 非 wdir 根 —
     _resolve_site 口径钉, 系统 cls 装载链遮蔽靠它。"""
     _tex(tmp_path, "x", name="sub/main.tex")
-    ctx = _ctx(tmp_path, main_rel="sub/main.tex")
+    ctx = mk_ctx(tmp_path, main_rel="sub/main.tex")
     ok, note = _apply("inputenc_noop_shadow", ctx)
     assert ok, note
     assert (tmp_path / "sub" / "inputenc.sty").is_file()
@@ -186,9 +171,9 @@ def test_inputenc_shadow_lands_at_main_dir(tmp_path: Path) -> None:
 def test_inputenc_shadow_idempotent(tmp_path: Path) -> None:
     r"""dst 在场 (前轮已投/稿自带) → 跳过不覆写 → applied=False。"""
     _tex(tmp_path, "x")
-    ok, _ = _apply("inputenc_noop_shadow", _ctx(tmp_path))
+    ok, _ = _apply("inputenc_noop_shadow", mk_ctx(tmp_path))
     assert ok
-    ok, _ = _apply("inputenc_noop_shadow", _ctx(tmp_path))
+    ok, _ = _apply("inputenc_noop_shadow", mk_ctx(tmp_path))
     assert not ok
 
 
@@ -197,7 +182,7 @@ def test_inputenc_shadow_declines_foreign_file(tmp_path: Path) -> None:
     _tex(tmp_path, "x")
     foreign = tmp_path / "inputenc.sty"
     foreign.write_text("% doc-shipped inputenc\n\\endinput\n", encoding="utf-8")
-    ok, _ = _apply("inputenc_noop_shadow", _ctx(tmp_path))
+    ok, _ = _apply("inputenc_noop_shadow", mk_ctx(tmp_path))
     assert not ok
     assert "doc-shipped" in foreign.read_text()
 
@@ -234,7 +219,7 @@ def test_biber_swap_rewrites_options() -> None:
 def test_biber_swap_apply(tmp_path: Path) -> None:
     r"""2605.29672 签名: 装载行改写后 .bcf→biber 通道产净 .bbl。"""
     _tex(tmp_path, "\\usepackage[style=authoryear,backend=bibtex]{biblatex}\nx")
-    ok, note = _apply("bib_backend_biber_swap", _ctx(tmp_path))
+    ok, note = _apply("bib_backend_biber_swap", mk_ctx(tmp_path))
     assert ok, note
     out = (tmp_path / "main.tex").read_text()
     assert "backend=biber" in out
@@ -244,7 +229,7 @@ def test_biber_swap_apply(tmp_path: Path) -> None:
 def test_biber_swap_bibtex8_untouched(tmp_path: Path) -> None:
     r"""``backend=bibtex8`` 词界不收 —— 记档 known_gap, 不误改。"""
     _tex(tmp_path, "\\usepackage[backend=bibtex8]{biblatex}")
-    ok, _ = _apply("bib_backend_biber_swap", _ctx(tmp_path))
+    ok, _ = _apply("bib_backend_biber_swap", mk_ctx(tmp_path))
     assert not ok
     assert "backend=bibtex8" in (tmp_path / "main.tex").read_text()
 
@@ -252,7 +237,7 @@ def test_biber_swap_bibtex8_untouched(tmp_path: Path) -> None:
 def test_biber_swap_non_biblatex_untouched(tmp_path: Path) -> None:
     r"""同文件他包 backend=bibtex 选项不带 biblatex 锚 → 不改写。"""
     _tex(tmp_path, "\\usepackage[backend=bibtex]{otherpkg}\n\\usepackage{biblatex}")
-    ok, _ = _apply("bib_backend_biber_swap", _ctx(tmp_path))
+    ok, _ = _apply("bib_backend_biber_swap", mk_ctx(tmp_path))
     assert not ok
     assert "backend=bibtex" in (tmp_path / "main.tex").read_text()
 
@@ -260,15 +245,15 @@ def test_biber_swap_non_biblatex_untouched(tmp_path: Path) -> None:
 def test_biber_swap_comment_shielded(tmp_path: Path) -> None:
     r"""masked 面: 注释掉的装载行不改写。"""
     _tex(tmp_path, "% \\usepackage[backend=bibtex]{biblatex}")
-    ok, _ = _apply("bib_backend_biber_swap", _ctx(tmp_path))
+    ok, _ = _apply("bib_backend_biber_swap", mk_ctx(tmp_path))
     assert not ok
 
 
 def test_biber_swap_idempotent(tmp_path: Path) -> None:
     _tex(tmp_path, "\\usepackage[backend=bibtex]{biblatex}")
-    ok, _ = _apply("bib_backend_biber_swap", _ctx(tmp_path))
+    ok, _ = _apply("bib_backend_biber_swap", mk_ctx(tmp_path))
     assert ok
-    ok, _ = _apply("bib_backend_biber_swap", _ctx(tmp_path))
+    ok, _ = _apply("bib_backend_biber_swap", mk_ctx(tmp_path))
     assert not ok
 
 
@@ -276,7 +261,7 @@ def test_biber_swap_idempotent(tmp_path: Path) -> None:
 
 
 def test_armgap_ruleset_loads() -> None:
-    ids = [r.id for r in _RS.rules]
+    ids = [r.id for r in _rs().rules]
     assert len(ids) == len(set(ids))
     for rid in ("soul_multi_mbox", "inputenc_noop_shadow", "bib_backend_biber_swap"):
         assert rid in ids

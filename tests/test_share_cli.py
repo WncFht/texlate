@@ -16,15 +16,15 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
+from _sharekit import share_parts
 from typer.testing import CliRunner
 
 from texlate.arxiv.fetch import normalize_arxiv_id
 from texlate.cli import app
 from texlate.pipecore import front_matter_of
 from texlate.server.store import DDL
-from texlate.server.worker import PIPELINE_VERSION, cache_key_for
+from texlate.server.worker import cache_key_for
 from texlate.share import MANIFEST_NAME, pack_share, share_key
-from texlate.xlat.prompts import PROMPT_VERSION
 
 if TYPE_CHECKING:
     from click.testing import Result
@@ -125,16 +125,12 @@ class TestSharePack:
         assert res.exit_code == 0, res.output
         report = json.loads(res.stdout)
         kp = report["key_parts"]
-        assert kp == {
-            "arxiv_id": "0707.0110",
-            "version": "v1",
-            "model": "deepseek-chat",
-            "prompt_ver": PROMPT_VERSION,
-            "target_lang": "zh-CN",
-            "glossary_hash": "",
-            "front_matter": "abstract,title",
-            "pipeline_ver": PIPELINE_VERSION,
-        }
+        assert kp == share_parts(
+            arxiv_id="0707.0110",
+            version="v1",
+            model="deepseek-chat",
+            target_lang="zh-CN",
+        )
         assert report["share_key"] == share_key(**kp)
         bundle = out_dir / f"{report['share_key']}.share.zip"
         assert bundle.is_file()
@@ -344,15 +340,13 @@ class TestShareUnpack:
             zf.writestr("main.tex", _ZH_TEX)
         return pack_share(
             work,
-            {
-                "arxiv_id": "1706.03762",
-                "version": "v5",
-                "model": "m",
-                "prompt_ver": PROMPT_VERSION,
-                "target_lang": "zh-CN",
-                "glossary_hash": "",
-                "pipeline_ver": PIPELINE_VERSION,
-            },
+            share_parts(
+                arxiv_id="1706.03762",
+                version="v5",
+                model="m",
+                target_lang="zh-CN",
+                front_matter="",
+            ),
             out_dir=tmp_path,
         )
 

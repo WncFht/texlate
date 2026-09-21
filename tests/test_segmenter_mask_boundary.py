@@ -13,9 +13,8 @@ r"""xlat-mask 桶回归（wontfix-scout 裁决 §2，2026-09-18）。
   仅在无 pending 内层开符时作 outer 闭符。
 """
 
-from conftest import DOC, check_invariants, chunk_text
-
-from texlate.latex import parse_tex
+from _segkit import scan_art
+from conftest import chunk_text
 
 
 def _phs(res: object, prefix: str) -> list[str]:
@@ -32,15 +31,13 @@ def _phs(res: object, prefix: str) -> list[str]:
 
 def test_author_keyval_second_arg_protected() -> None:
     r"""``\author{N}{key=val,..}``：keyval 第二参整组并入 ``[[AUTHOR]]``。"""
-    tex = DOC % (
+    res = scan_art(
         "\\author{P.~G.~Hofmeister}{\n"
         '  address={TU Braunschweig, Institut f\\"ur Geophysik},\n'
         "  email={p@example.com}\n"
         "}\n"
         "Body text here long enough to be its own chunk for sure yes."
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     assert _phs(res, "[[AUTHOR") == [
         (
             "\\author{P.~G.~Hofmeister}{\n"
@@ -57,12 +54,10 @@ def test_author_keyval_second_arg_protected() -> None:
 
 def test_author_opt_then_keyval_protected() -> None:
     r"""``\author[opt]{N}{key=val}``：``[opt]``+双组一并保护。"""
-    tex = DOC % (
+    res = scan_art(
         "\\author[P. Hofmeister]{P.~G.~Hofmeister}{address={TU}}"
         "Body text here long enough to be its own chunk for sure."
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     assert _phs(res, "[[AUTHOR") == [
         "\\author[P. Hofmeister]{P.~G.~Hofmeister}{address={TU}}"
     ]
@@ -71,29 +66,27 @@ def test_author_opt_then_keyval_protected() -> None:
 
 def test_author_prose_group_not_swallowed() -> None:
     r"""反例：``\author{N}{散文组}`` 非 keyval 形——第二组照常进 chunk。"""
-    tex = DOC % (
+    res = scan_art(
         "\\author{Some One}{A prose group long enough to be its own chunk text.}"
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     assert _phs(res, "[[AUTHOR") == ["\\author{Some One}"]
     assert "A prose group" in chunk_text(res)
 
 
 def test_author_keyval_after_blank_line_not_swallowed() -> None:
     r"""``\author{N}`` 后空行再 ``{key=val}``：段界分隔即非参数——不收。"""
-    tex = DOC % ("\\author{Some One}\n\n{flag,address={TU}}Body text for chunk yes.")
-    res = parse_tex(tex)
-    check_invariants(res, tex)
+    res = scan_art(
+        "\\author{Some One}\n\n{flag,address={TU}}Body text for chunk yes."
+    )
     assert _phs(res, "[[AUTHOR") == ["\\author{Some One}"]
     assert "address" in chunk_text(res)
 
 
 def test_author_flag_prefixed_keyval_protected() -> None:
     r"""``{flag,address={..}}`` 裸键位前缀的 keyval 组同样收。"""
-    tex = DOC % ("\\author{Some One}{flag,address={TU}}Body text for chunk yes.")
-    res = parse_tex(tex)
-    check_invariants(res, tex)
+    res = scan_art(
+        "\\author{Some One}{flag,address={TU}}Body text for chunk yes."
+    )
     assert _phs(res, "[[AUTHOR") == ["\\author{Some One}{flag,address={TU}}"]
     assert "address" not in chunk_text(res)
 
@@ -103,18 +96,13 @@ def test_author_flag_prefixed_keyval_protected() -> None:
 
 def test_math_inner_paren_depth_redefined_close() -> None:
     r"""1306.6030：``\def\({\left(}`` 面 ``$H\((..\dots)\)=..$`` 整段单 MATH。"""
-    tex = (
-        "\\documentclass{article}\n"
-        "\\def\\({\\left(}\\def\\){\\right)}\n"
-        "\\begin{document}\n"
+    res = scan_art(
         "\\begin{enumerate}\n"
         "\\item $H\\((\\infty,\\infty,0,0,\\dots)\\)=\\mathbb Z[\\frac16]$.\n"
         "\\item $H\\((0,1,1,1,1,\\dots)\\)$ is the subgroup of rationals.\n"
-        "\\end{enumerate}\n"
-        "\\end{document}\n"
+        "\\end{enumerate}",
+        defs="\\def\\({\\left(}\\def\\){\\right)}\n",
     )
-    res = parse_tex(tex)
-    check_invariants(res, tex)
     assert _phs(res, "[[MATH") == [
         "$H\\((\\infty,\\infty,0,0,\\dots)\\)=\\mathbb Z[\\frac16]$",
         "$H\\((0,1,1,1,1,\\dots)\\)$",
@@ -125,24 +113,18 @@ def test_math_inner_paren_depth_redefined_close() -> None:
 
 def test_math_mixed_closer_no_inner_open_still_closes() -> None:
     r"""0806.1984 不回退：无内层 ``\(`` 时 ``\)`` 仍当 ``$`` 闭符。"""
-    tex = DOC % "We have $\\alpha(x)\\), for all $p \\in S$ the claim holds."
-    res = parse_tex(tex)
-    check_invariants(res, tex)
+    res = scan_art("We have $\\alpha(x)\\), for all $p \\in S$ the claim holds.")
     assert _phs(res, "[[MATH") == ["$\\alpha(x)\\)", "$p \\in S$"]
     assert ", for all " in chunk_text(res)
 
 
 def test_math_inner_bracket_depth_display() -> None:
     r"""``$$a \[b\] c$$``：``\[``/``\]`` 内层配对——``\]`` 不提前关 display。"""
-    tex = DOC % "Display $$a \\[b\\] c$$ then trailing words for the chunk."
-    res = parse_tex(tex)
-    check_invariants(res, tex)
+    res = scan_art("Display $$a \\[b\\] c$$ then trailing words for the chunk.")
     assert _phs(res, "[[MATH") == ["$$a \\[b\\] c$$"]
 
 
 def test_math_inner_open_unclosed_dollar_still_closes() -> None:
     r"""``$a \( b$``：内层 ``\(`` 未配对——``$`` 照常闭（``\left(`` 不悬 ``$`` 界）。"""
-    tex = DOC % "Math $a \\( b$ here and trailing words fill out the chunk."
-    res = parse_tex(tex)
-    check_invariants(res, tex)
+    res = scan_art("Math $a \\( b$ here and trailing words fill out the chunk.")
     assert _phs(res, "[[MATH") == ["$a \\( b$"]

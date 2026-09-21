@@ -72,6 +72,27 @@ def test_custom_route_param(tmp_path: Path) -> None:
     assert "REJECT: route=dvips" in note
 
 
+def test_skew_rglob_arm_nested_log(tmp_path: Path) -> None:
+    """stem 两候选均缺 → ``sorted(wdir.rglob("*.log"))`` 首非空兜底收签名。"""
+    logs = tmp_path / "logs"
+    logs.mkdir()
+    (logs / "x.log").write_text(f"junk\n{_SKEW}", encoding="utf-8")
+    ok, _note = biber_biblatex_skew_route(_ctx(tmp_path), None, None, {})
+    assert ok
+
+
+def test_skew_stale_main_log_shadows_tect_out(tmp_path: Path) -> None:
+    """``{stem}.log`` 先于 ``_tect_out/{stem}.log`` —— 陈旧 main.log 遮罩
+    新鲜 _tect_out 签名即拒（pin 现行候选优先级）。"""
+    (tmp_path / "main.log").write_text("stale no-skew\n", encoding="utf-8")
+    tect = tmp_path / "_tect_out"
+    tect.mkdir()
+    (tect / "main.log").write_text(f"dump\n{_SKEW}", encoding="utf-8")
+    ok, note = biber_biblatex_skew_route(_ctx(tmp_path), None, None, {})
+    assert not ok
+    assert "no biber/biblatex skew" in note
+
+
 def test_registered() -> None:
     """注册进 TRANSFORM_FNS (rules/*.yaml function: 面)。"""
     assert builtins.TRANSFORM_FNS["biber_biblatex_skew_route"] is (

@@ -7,10 +7,10 @@ from pathlib import Path
 
 import httpx
 import pytest
-from conftest import make_targz
+from conftest import FakeClock, make_targz, mk_fetcher
 
 from texlate.arxiv import fetch as fetch_mod
-from texlate.arxiv.cache import CacheError, SourceCache
+from texlate.arxiv.cache import SourceCache
 from texlate.arxiv.fetch import (
     AcquireStatus,
     Fetcher,
@@ -19,22 +19,6 @@ from texlate.arxiv.fetch import (
     normalize_arxiv_id,
 )
 from texlate.arxiv.ratelimit import RateLimiter
-
-
-class _Clock:
-    """注入限速器的假时钟：sleep 即前进。"""
-
-    def __init__(self) -> None:
-        self.t = 1_700_000_000.0
-        self.slept: list[float] = []
-
-    def now(self) -> float:
-        return self.t
-
-    def sleep(self, d: float) -> None:
-        self.slept.append(d)
-        self.t += d
-
 
 TINY_TEX = b"\\documentclass{article}\n\\begin{document}hi\\end{document}\n"
 TINY_TAR_GZ = make_targz({"main.tex": TINY_TEX, "figs/x.eps": b"EPS"})
@@ -57,16 +41,6 @@ def _head_headers(arxiv_id: str, ver: int, ext: str, etag: str) -> dict[str, str
         "etag": etag,
         "content-length": "1234",
     }
-
-
-def _fetcher(handler: httpx.MockTransport, clk: _Clock) -> Fetcher:
-    client = httpx.Client(transport=handler)
-    return Fetcher(
-        RateLimiter(clock=clk.now, sleep=clk.sleep),
-        client=client,
-        hosts=("arxiv.org", "export.arxiv.org"),
-        sleep=clk.sleep,
-    )
 
 
 def test_normalize_arxiv_id() -> None:
@@ -98,11 +72,11 @@ def test_head_src_parses_version_format() -> None:
     def handler(req: httpx.Request) -> httpx.Response:
         assert req.method == "HEAD"
         return httpx.Response(
-            HTTP_OK,
+            HTTPStatus.OK,
             headers=_head_headers("2001.00001", 2, ".tar.gz", '"E1"'),
         )
 
-    f = _fetcher(httpx.MockTransport(handler), _Clock())
+    f = mk_fetcher(httpx.MockTransport(handler), FakeClock())
     head = f.head_src("2001.00001")
     assert head.resolved_version == VER_2
     assert head.kind_hint == "tar.gz"
@@ -113,11 +87,11 @@ def test_get_src_ok_sniffs_tar() -> None:
     def handler(req: httpx.Request) -> httpx.Response:
         if req.method == "HEAD":
             return httpx.Response(
-                HTTP_OK, headers=_head_headers("2001.00001", 1, ".tar.gz", '"E1"')
+                HTTPStatus.OK, headers=_head_headers("2001.00001", 1, ".tar.gz", '"E1"')
             )
-        return httpx.Response(HTTP_OK, content=TINY_TAR_GZ)
+        return httpx.Response(HTTPStatus.OK, content=TINY_TAR_GZ)
 
-    f = _fetcher(httpx.MockTransport(handler), _Clock())
+    f = mk_fetcher(httpx.MockTransport(handler), FakeClock())
     res = f.get_src("2001.00001")
     assert res.status is FetchStatus.OK
     assert res.sniffed is not None
@@ -128,15 +102,15 @@ def test_get_src_304_and_404() -> None:
     def handler(req: httpx.Request) -> httpx.Response:
         if req.method == "HEAD":
             if "missing" in req.url.path:
-                return httpx.Response(HTTP_NOT_FOUND)
+                return httpx.Response(HTTPStatus.NOT_FOUND)
             return httpx.Response(
-                HTTP_OK, headers=_head_headers("2001.00001", 1, ".tar.gz", '"E1"')
+                HTTPStatus.OK, headers=_head_headers("2001.00001", 1, ".tar.gz", '"E1"')
             )
         if req.headers.get("if-none-match") == '"E1"':
-            return httpx.Response(HTTP_NOT_MODIFIED)
-        return httpx.Response(HTTP_OK, content=TINY_TAR_GZ)
+            return httpx.Response(HTTPStatus.NOT_MODIFIED)
+        return httpx.Response(HTTPStatus.OK, content=TINY_TAR_GZ)
 
-    f = _fetcher(httpx.MockTransport(handler), _Clock())
+    f = mk_fetcher(httpx.MockTransport(handler), FakeClock())
     res = f.get_src("2001.00001", etag='"E1"')
     assert res.status is FetchStatus.NOT_MODIFIED
     res404 = f.get_src("missing/9999999")
@@ -152,10 +126,10 @@ def test_failover_to_export_host() -> None:
             msg = "down"
             raise httpx.ConnectError(msg, request=req)
         return httpx.Response(
-            HTTP_OK, headers=_head_headers("2001.00001", 1, ".gz", '"E1"')
+            HTTPStatus.OK, headers=_head_headers("2001.00001", 1, ".gz", '"E1"')
         )
 
-    f = _fetcher(httpx.MockTransport(handler), _Clock())
+    f = mk_fetcher(httpx.MockTransport(handler), FakeClock())
     head = f.head_src("2001.00001")
     assert head.kind_hint == "gz"
     assert "arxiv.org" in calls
@@ -179,9 +153,9 @@ def test_env_proxy_transport_failure_falls_back_direct(
         direct.append(request.method)
         if request.method == "HEAD":
             return httpx.Response(
-                HTTP_OK, headers=_head_headers("2001.00001", 1, ".tar.gz", '"E1"')
+                HTTPStatus.OK, headers=_head_headers("2001.00001", 1, ".tar.gz", '"E1"')
             )
-        return httpx.Response(HTTP_OK, content=TINY_TAR_GZ)
+        return httpx.Response(HTTPStatus.OK, content=TINY_TAR_GZ)
 
     def fake_make(*, trust_env: bool) -> httpx.Client:
         handler = dead if trust_env else live
@@ -190,7 +164,7 @@ def test_env_proxy_transport_failure_falls_back_direct(
         )
 
     monkeypatch.setattr(fetch_mod, "_make_client", fake_make)
-    clk = _Clock()
+    clk = FakeClock()
     f = Fetcher(
         RateLimiter(clock=clk.now, sleep=clk.sleep),
         hosts=("arxiv.org", "export.arxiv.org"),
@@ -223,7 +197,7 @@ def test_no_env_proxy_no_direct_fallback(
             transport=httpx.MockTransport(dead), follow_redirects=True
         ),
     )
-    clk = _Clock()
+    clk = FakeClock()
     f = Fetcher(
         RateLimiter(clock=clk.now, sleep=clk.sleep),
         hosts=("arxiv.org",),
@@ -241,12 +215,12 @@ def test_acquire_end_to_end_and_cache_hit(tmp_path: Path) -> None:
     def handler(req: httpx.Request) -> httpx.Response:
         if req.method == "HEAD":
             return httpx.Response(
-                HTTP_OK, headers=_head_headers("2001.00001", 1, ".tar.gz", '"E1"')
+                HTTPStatus.OK, headers=_head_headers("2001.00001", 1, ".tar.gz", '"E1"')
             )
-        return httpx.Response(HTTP_OK, content=TINY_TAR_GZ)
+        return httpx.Response(HTTPStatus.OK, content=TINY_TAR_GZ)
 
-    clk = _Clock()
-    f = _fetcher(httpx.MockTransport(handler), clk)
+    clk = FakeClock()
+    f = mk_fetcher(httpx.MockTransport(handler), clk)
     cache = SourceCache(tmp_path / "cache")
     res = acquire_source("2001.00001", fetcher=f, cache=cache)
     assert res.status is AcquireStatus.OK
@@ -267,11 +241,11 @@ def test_acquire_pdf_only(tmp_path: Path) -> None:
     def handler(req: httpx.Request) -> httpx.Response:
         if req.method == "HEAD":
             return httpx.Response(
-                HTTP_OK, headers=_head_headers("2001.00002", 1, ".pdf", '"P1"')
+                HTTPStatus.OK, headers=_head_headers("2001.00002", 1, ".pdf", '"P1"')
             )
-        return httpx.Response(HTTP_OK, content=b"%PDF-1.4 fake")
+        return httpx.Response(HTTPStatus.OK, content=b"%PDF-1.4 fake")
 
-    f = _fetcher(httpx.MockTransport(handler), _Clock())
+    f = mk_fetcher(httpx.MockTransport(handler), FakeClock())
     res = acquire_source("2001.00002", fetcher=f, cache=SourceCache(tmp_path))
     assert res.status is AcquireStatus.PDF_ONLY
 
@@ -298,9 +272,9 @@ def test_version_zero_kwarg_rejected(tmp_path: Path) -> None:
 
     def handler(req: httpx.Request) -> httpx.Response:
         calls.append(str(req.url))
-        return httpx.Response(HTTP_OK)
+        return httpx.Response(HTTPStatus.OK)
 
-    f = _fetcher(httpx.MockTransport(handler), _Clock())
+    f = mk_fetcher(httpx.MockTransport(handler), FakeClock())
     res = acquire_source(
         "2001.00001", fetcher=f, cache=SourceCache(tmp_path), version=0
     )
@@ -321,16 +295,16 @@ def test_decode_error_classified_not_crash(tmp_path: Path) -> None:
     def handler(req: httpx.Request) -> httpx.Response:
         if req.method == "HEAD":
             return httpx.Response(
-                HTTP_OK, headers=_head_headers("2001.00001", 1, ".tar.gz", '"E1"')
+                HTTPStatus.OK, headers=_head_headers("2001.00001", 1, ".tar.gz", '"E1"')
             )
         calls.append(req.url.host)
         return httpx.Response(
-            HTTP_OK,
+            HTTPStatus.OK,
             content=b"not-a-gzip-body",
             headers={"content-encoding": "gzip"},
         )
 
-    f = _fetcher(httpx.MockTransport(handler), _Clock())
+    f = mk_fetcher(httpx.MockTransport(handler), FakeClock())
     res = acquire_source("2001.00001", fetcher=f, cache=SourceCache(tmp_path))
     assert res.status is AcquireStatus.ERROR
     # 确定性解码失败不原地重试（白烧预算）；每 host 恰一次 = 纯 failover
@@ -344,7 +318,7 @@ def test_redirect_loop_classified_not_crash(tmp_path: Path) -> None:
         return httpx.Response(301, headers={"location": str(req.url)})
 
     client = httpx.Client(transport=httpx.MockTransport(handler), follow_redirects=True)
-    clk = _Clock()
+    clk = FakeClock()
     f = Fetcher(
         RateLimiter(clock=clk.now, sleep=clk.sleep),
         client=client,
@@ -361,7 +335,7 @@ def test_cd_filename_case_insensitive(tmp_path: Path) -> None:
     def handler(req: httpx.Request) -> httpx.Response:
         if req.method == "HEAD":
             return httpx.Response(
-                HTTP_OK,
+                HTTPStatus.OK,
                 headers={
                     "content-disposition": (
                         'attachment; filename="arXiv-2001.00001V2.TAR.GZ"'
@@ -369,9 +343,9 @@ def test_cd_filename_case_insensitive(tmp_path: Path) -> None:
                     "etag": '"E1"',
                 },
             )
-        return httpx.Response(HTTP_OK, content=TINY_TAR_GZ)
+        return httpx.Response(HTTPStatus.OK, content=TINY_TAR_GZ)
 
-    f = _fetcher(httpx.MockTransport(handler), _Clock())
+    f = mk_fetcher(httpx.MockTransport(handler), FakeClock())
     head = f.head_src("2001.00001")
     assert head.resolved_version == VER_2
     assert head.kind_hint == "tar.gz"
@@ -381,38 +355,15 @@ def test_cd_filename_case_insensitive(tmp_path: Path) -> None:
     assert res.resolved_version == VER_2
 
 
-def test_cache_meta_nondict_treated_as_miss(tmp_path: Path) -> None:
-    """meta.json 合法 JSON 但非对象（手改/半写）→ 按未命中而非 AttributeError。"""
-    cache = SourceCache(tmp_path)
-    d = tmp_path / "2001.00001v1"
-    d.mkdir()
-    (d / "meta.json").write_text("[1,2,3]", encoding="utf-8")
-    assert cache.get("2001.00001", 1) is None
-    assert cache.get_latest("2001.00001") is None
-
-
-def test_find_versions_dotdot_no_escape(tmp_path: Path) -> None:
-    """``..`` 段过 ``_SAFE_GLOB_ID`` 字符白名单——glob 逃逸须按段拒。
-
-    构造 ``{tmp}/xv1`` 外部目录：若 ``..`` 放进 glob 会匹到 ``{tmp}/xv1``，
-    泄漏根外条目（随后 ``entry_dir`` 才拦——防御链断一节）。
-    """
-    cache = SourceCache(tmp_path / "cache")
-    cache.root.mkdir()
-    (tmp_path / "xv1").mkdir()
-    assert cache.find_versions("../x") == []
-    assert cache.find_versions("a/../x") == []
-
-
 def test_bad_id_rejected_before_network(tmp_path: Path) -> None:
     """``a/../b`` 形 id：URL 归一化后能拿 200，但缓存键会被污染/逃逸——取源前拒。"""
     calls: list[str] = []
 
     def handler(req: httpx.Request) -> httpx.Response:
         calls.append(str(req.url))
-        return httpx.Response(HTTP_OK)
+        return httpx.Response(HTTPStatus.OK)
 
-    f = _fetcher(httpx.MockTransport(handler), _Clock())
+    f = mk_fetcher(httpx.MockTransport(handler), FakeClock())
     res = acquire_source("a/../b", fetcher=f, cache=SourceCache(tmp_path))
     assert res.status is AcquireStatus.ERROR
     assert "bad_id" in res.detail
@@ -421,15 +372,6 @@ def test_bad_id_rejected_before_network(tmp_path: Path) -> None:
         f.head_src("../x")
     with pytest.raises(ValueError, match="bad arxiv id"):
         f.get_src("..")
-
-
-def test_cache_key_traversal_defense(tmp_path: Path) -> None:
-    """缓存层兜底：entry_dir 逃逸拒、find_versions glob 元字符空集。"""
-    cache = SourceCache(tmp_path)
-    with pytest.raises(CacheError, match="escapes"):
-        cache.entry_dir("../x", 1)
-    assert cache.find_versions("*") == []
-    assert cache.find_versions("../x") == []
 
 
 def test_hit_passthrough_terminal_status(tmp_path: Path) -> None:
@@ -441,11 +383,11 @@ def test_hit_passthrough_terminal_status(tmp_path: Path) -> None:
     def handler(req: httpx.Request) -> httpx.Response:
         if req.method == "HEAD":
             return httpx.Response(
-                HTTP_OK, headers=_head_headers("2001.00002", 1, ".pdf", '"P1"')
+                HTTPStatus.OK, headers=_head_headers("2001.00002", 1, ".pdf", '"P1"')
             )
-        return httpx.Response(HTTP_OK, content=b"%PDF-1.4 fake")
+        return httpx.Response(HTTPStatus.OK, content=b"%PDF-1.4 fake")
 
-    f = _fetcher(httpx.MockTransport(handler), _Clock())
+    f = mk_fetcher(httpx.MockTransport(handler), FakeClock())
     cache = SourceCache(tmp_path)
     res1 = acquire_source("2001.00002", fetcher=f, cache=cache)
     assert res1.status is AcquireStatus.PDF_ONLY
@@ -460,15 +402,15 @@ def test_304_passthrough_terminal_status(tmp_path: Path) -> None:
     def handler(req: httpx.Request) -> httpx.Response:
         if req.method == "HEAD":
             return httpx.Response(
-                HTTP_OK,
+                HTTPStatus.OK,
                 headers=_head_headers("2001.00002", 1, ".pdf", state["etag"]),
             )
         if not state["got"]:
             state["got"] = True
-            return httpx.Response(HTTP_OK, content=b"%PDF-1.4 fake")
-        return httpx.Response(HTTP_NOT_MODIFIED)
+            return httpx.Response(HTTPStatus.OK, content=b"%PDF-1.4 fake")
+        return httpx.Response(HTTPStatus.NOT_MODIFIED)
 
-    f = _fetcher(httpx.MockTransport(handler), _Clock())
+    f = mk_fetcher(httpx.MockTransport(handler), FakeClock())
     cache = SourceCache(tmp_path)
     acquire_source("2001.00002", fetcher=f, cache=cache)
     state["etag"] = '"P2"'
@@ -486,16 +428,16 @@ def test_hit_stale_hint_when_feed_newer(tmp_path: Path) -> None:
     def handler(req: httpx.Request) -> httpx.Response:
         if req.method == "HEAD":
             return httpx.Response(
-                HTTP_OK,
+                HTTPStatus.OK,
                 headers=_head_headers("2001.00001", 1, ".tar.gz", state["etag"]),
             )
         if "/api/query" in req.url.path:
-            return httpx.Response(HTTP_OK, content=_ATOM_LATEST_V2.encode())
+            return httpx.Response(HTTPStatus.OK, content=_ATOM_LATEST_V2.encode())
         if req.headers.get("if-none-match") == '"E1"':
-            return httpx.Response(HTTP_NOT_MODIFIED)
-        return httpx.Response(HTTP_OK, content=TINY_TAR_GZ)
+            return httpx.Response(HTTPStatus.NOT_MODIFIED)
+        return httpx.Response(HTTPStatus.OK, content=TINY_TAR_GZ)
 
-    f = _fetcher(httpx.MockTransport(handler), _Clock())
+    f = mk_fetcher(httpx.MockTransport(handler), FakeClock())
     cache = SourceCache(tmp_path)
     seeded = acquire_source("2001.00001v1", fetcher=f, cache=cache)
     assert seeded.status is AcquireStatus.OK
@@ -517,13 +459,13 @@ def test_hit_no_stale_when_pinned_is_latest(tmp_path: Path) -> None:
     def handler(req: httpx.Request) -> httpx.Response:
         if req.method == "HEAD":
             return httpx.Response(
-                HTTP_OK, headers=_head_headers("2001.00001", 2, ".tar.gz", '"E1"')
+                HTTPStatus.OK, headers=_head_headers("2001.00001", 2, ".tar.gz", '"E1"')
             )
         if "/api/query" in req.url.path:
-            return httpx.Response(HTTP_OK, content=_ATOM_LATEST_V2.encode())
-        return httpx.Response(HTTP_OK, content=TINY_TAR_GZ)
+            return httpx.Response(HTTPStatus.OK, content=_ATOM_LATEST_V2.encode())
+        return httpx.Response(HTTPStatus.OK, content=TINY_TAR_GZ)
 
-    f = _fetcher(httpx.MockTransport(handler), _Clock())
+    f = mk_fetcher(httpx.MockTransport(handler), FakeClock())
     cache = SourceCache(tmp_path)
     acquire_source("2001.00001v2", fetcher=f, cache=cache)
     hit = acquire_source("2001.00001v2", fetcher=f, cache=cache)
@@ -537,13 +479,13 @@ def test_hit_stale_unpinned_feed_ahead(tmp_path: Path) -> None:
     def handler(req: httpx.Request) -> httpx.Response:
         if req.method == "HEAD":
             return httpx.Response(
-                HTTP_OK, headers=_head_headers("2001.00001", 1, ".tar.gz", '"E1"')
+                HTTPStatus.OK, headers=_head_headers("2001.00001", 1, ".tar.gz", '"E1"')
             )
         if "/api/query" in req.url.path:
-            return httpx.Response(HTTP_OK, content=_ATOM_LATEST_V2.encode())
-        return httpx.Response(HTTP_OK, content=TINY_TAR_GZ)
+            return httpx.Response(HTTPStatus.OK, content=_ATOM_LATEST_V2.encode())
+        return httpx.Response(HTTPStatus.OK, content=TINY_TAR_GZ)
 
-    f = _fetcher(httpx.MockTransport(handler), _Clock())
+    f = mk_fetcher(httpx.MockTransport(handler), FakeClock())
     cache = SourceCache(tmp_path)
     acquire_source("2001.00001", fetcher=f, cache=cache)
     hit = acquire_source("2001.00001", fetcher=f, cache=cache)
@@ -558,14 +500,14 @@ def test_hit_stale_check_survives_meta_outage(tmp_path: Path) -> None:
     def handler(req: httpx.Request) -> httpx.Response:
         if req.method == "HEAD":
             return httpx.Response(
-                HTTP_OK, headers=_head_headers("2001.00001", 1, ".tar.gz", '"E1"')
+                HTTPStatus.OK, headers=_head_headers("2001.00001", 1, ".tar.gz", '"E1"')
             )
         if "/api/query" in req.url.path or req.url.path == "/oai":
             msg = "meta down"
             raise httpx.ConnectError(msg, request=req)
-        return httpx.Response(HTTP_OK, content=TINY_TAR_GZ)
+        return httpx.Response(HTTPStatus.OK, content=TINY_TAR_GZ)
 
-    f = _fetcher(httpx.MockTransport(handler), _Clock())
+    f = mk_fetcher(httpx.MockTransport(handler), FakeClock())
     cache = SourceCache(tmp_path)
     acquire_source("2001.00001v1", fetcher=f, cache=cache)
     hit = acquire_source("2001.00001v1", fetcher=f, cache=cache)
@@ -579,10 +521,10 @@ def test_get_newer_version_commits_resolved(tmp_path: Path) -> None:
     def handler(req: httpx.Request) -> httpx.Response:
         if req.method == "HEAD":
             return httpx.Response(
-                HTTP_OK, headers=_head_headers("2001.00003", 1, ".tar.gz", '"E1"')
+                HTTPStatus.OK, headers=_head_headers("2001.00003", 1, ".tar.gz", '"E1"')
             )
         return httpx.Response(
-            HTTP_OK,
+            HTTPStatus.OK,
             content=TINY_TAR_GZ,
             headers={
                 "content-disposition": "attachment; "
@@ -591,7 +533,7 @@ def test_get_newer_version_commits_resolved(tmp_path: Path) -> None:
             },
         )
 
-    f = _fetcher(httpx.MockTransport(handler), _Clock())
+    f = mk_fetcher(httpx.MockTransport(handler), FakeClock())
     cache = SourceCache(tmp_path)
     res = acquire_source("2001.00003", fetcher=f, cache=cache)
     assert res.status is AcquireStatus.OK
@@ -602,20 +544,9 @@ def test_get_newer_version_commits_resolved(tmp_path: Path) -> None:
     assert meta["etag"] == '"E2"'
 
 
-def test_commit_old_style_id_on_fresh_cache(tmp_path: Path) -> None:
-    """旧式 id（cond-mat/…）的 dest 嵌在子目录——commit 需自建父目录。"""
-    cache = SourceCache(tmp_path / "cache")
-    staging = cache.stage()
-    (staging / "meta.json").write_text('{"etag": "\\"E1\\""}', encoding="utf-8")
-    entry = cache.commit(staging, "cond-mat/0408438", 1)
-    assert entry.dir == tmp_path / "cache" / "cond-mat" / "0408438v1"
-    assert (entry.dir / "meta.json").is_file()
-    assert cache.get("cond-mat/0408438", 1) is not None
-
-
 def _online_seed(handler: httpx.MockTransport, tmp_path: Path) -> Fetcher:
     """先在线取一遍铺缓存，返回同一个 fetcher 供离线臂复用。"""
-    f = _fetcher(handler, _Clock())
+    f = mk_fetcher(handler, FakeClock())
     res = acquire_source("2001.00001", fetcher=f, cache=SourceCache(tmp_path))
     assert res.status is AcquireStatus.OK
     return f
@@ -629,9 +560,9 @@ def test_offline_hit_zero_network(tmp_path: Path) -> None:
         calls.append(str(req.url))
         if req.method == "HEAD":
             return httpx.Response(
-                HTTP_OK, headers=_head_headers("2001.00001", 1, ".tar.gz", '"E1"')
+                HTTPStatus.OK, headers=_head_headers("2001.00001", 1, ".tar.gz", '"E1"')
             )
-        return httpx.Response(HTTP_OK, content=TINY_TAR_GZ)
+        return httpx.Response(HTTPStatus.OK, content=TINY_TAR_GZ)
 
     f = _online_seed(httpx.MockTransport(handler), tmp_path)
     cache = SourceCache(tmp_path)
@@ -660,13 +591,13 @@ def test_offline_miss_no_silent_fallback(tmp_path: Path) -> None:
         calls.append(str(req.url))
         if req.method == "HEAD":
             return httpx.Response(
-                HTTP_OK, headers=_head_headers("2001.00001", 1, ".tar.gz", '"E1"')
+                HTTPStatus.OK, headers=_head_headers("2001.00001", 1, ".tar.gz", '"E1"')
             )
-        return httpx.Response(HTTP_OK, content=TINY_TAR_GZ)
+        return httpx.Response(HTTPStatus.OK, content=TINY_TAR_GZ)
 
     transport = httpx.MockTransport(handler)
     cache = SourceCache(tmp_path)
-    f = _fetcher(transport, _Clock())
+    f = mk_fetcher(transport, FakeClock())
     res = acquire_source("2001.00001", fetcher=f, cache=cache, offline=True)
     assert res.status is AcquireStatus.ERROR
     assert "offline_no_cache" in res.detail
@@ -688,22 +619,17 @@ def test_offline_hit_passthrough_terminal_status(tmp_path: Path) -> None:
     def handler(req: httpx.Request) -> httpx.Response:
         if req.method == "HEAD":
             return httpx.Response(
-                HTTP_OK, headers=_head_headers("2001.00002", 1, ".pdf", '"P1"')
+                HTTPStatus.OK, headers=_head_headers("2001.00002", 1, ".pdf", '"P1"')
             )
-        return httpx.Response(HTTP_OK, content=b"%PDF-1.4 fake")
+        return httpx.Response(HTTPStatus.OK, content=b"%PDF-1.4 fake")
 
-    f = _fetcher(httpx.MockTransport(handler), _Clock())
+    f = mk_fetcher(httpx.MockTransport(handler), FakeClock())
     cache = SourceCache(tmp_path)
     seeded = acquire_source("2001.00002", fetcher=f, cache=cache)
     assert seeded.status is AcquireStatus.PDF_ONLY
     res = acquire_source("2001.00002", fetcher=f, cache=cache, offline=True)
     assert res.status is AcquireStatus.PDF_ONLY
     assert res.detail == "offline"
-
-
-HTTP_OK = 200
-HTTP_NOT_MODIFIED = 304
-HTTP_NOT_FOUND = 404
 
 
 # ---- 小流量实测（默认跳过，TEXLATE_LIVE=1 打开） ----
@@ -757,7 +683,7 @@ def test_retry_delay_huge_finite_retry_after_terminal() -> None:
 
 def test_request_huge_retry_after_sleeps_nothing() -> None:
     """端面实证：429+``Retry-After: 1e6`` → 不睡巨值、429 原样上交终态。"""
-    clk = _Clock()
+    clk = FakeClock()
 
     def handler(_req: httpx.Request) -> httpx.Response:
         return httpx.Response(429, headers={"retry-after": "1000000"})

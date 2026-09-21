@@ -11,8 +11,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from _fixloopkit import mk_ctx_files
+
 from texlate.compile.fixloop.builtins import graphic_missing_placeholder
-from texlate.compile.fixloop.engine import LoopCtx
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -30,17 +31,9 @@ _BODY = (
 )
 
 
-def _ctx(tmp_path: Path, files: dict[str, str], main: str = "main.tex") -> LoopCtx:
-    for rel, txt in files.items():
-        p = tmp_path / rel
-        p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(txt, encoding="utf-8")
-    return LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel=main)
-
-
 def test_single_round_stubs_all_missing_across_files(tmp_path: Path) -> None:
     """halt_on_error 只曝 logo.jpg —— 枚举补全余下 3 件 (跨文件 + kv 形)."""
-    ctx = _ctx(
+    ctx = mk_ctx_files(
         tmp_path,
         {"main.tex": _MAIN, "sec/body.tex": _BODY},
     )
@@ -58,7 +51,7 @@ def test_single_round_stubs_all_missing_across_files(tmp_path: Path) -> None:
 
 
 def test_extless_ref_stubbed_as_eps(tmp_path: Path) -> None:
-    ctx = _ctx(
+    ctx = mk_ctx_files(
         tmp_path,
         {
             "main.tex": (
@@ -76,7 +69,7 @@ def test_extless_ref_stubbed_as_eps(tmp_path: Path) -> None:
 
 def test_filedir_and_graphicspath_resolution_skip(tmp_path: Path) -> None:
     """filedir (sec/ 旁件) 与 \\graphicspath 命中的引用不算缺件 —— 不误占位."""
-    ctx = _ctx(
+    ctx = mk_ctx_files(
         tmp_path,
         {
             "main.tex": (
@@ -102,7 +95,7 @@ def test_filedir_and_graphicspath_resolution_skip(tmp_path: Path) -> None:
 
 def test_macro_arg_skipped_stays_log_driven(tmp_path: Path) -> None:
     """``\\imgdir/x.pdf`` 宏拼名静态不可判 —— 枚举不收, 不落怪名占位."""
-    ctx = _ctx(
+    ctx = mk_ctx_files(
         tmp_path,
         {
             "main.tex": (
@@ -129,7 +122,7 @@ def test_probe_file_texmf_hit_not_stubbed(tmp_path: Path) -> None:
                 "/texmf/mwe/example-image.pdf" if fname == "example-image.pdf" else None
             )
 
-    ctx = _ctx(
+    ctx = mk_ctx_files(
         tmp_path,
         {
             "main.tex": (

@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-import io
-import zipfile
-from functools import partial
 from http import HTTPStatus
 from typing import TYPE_CHECKING
 
@@ -12,7 +9,7 @@ import pytest
 
 pytest.importorskip("fastapi", reason="server extra 未装")
 
-from conftest import MINI_TEX, mk_api_task
+from conftest import MINI_TEX, force_status, make_zip, mk_api_task
 
 if TYPE_CHECKING:
     from starlette.testclient import TestClient
@@ -22,10 +19,7 @@ _TASKS_LEN = 1
 
 
 def _docx() -> bytes:
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w") as zf:
-        zf.writestr("word/document.xml", "<doc/>")
-    return buf.getvalue()
+    return make_zip({"word/document.xml": "<doc/>"})
 
 
 class TestHealth:
@@ -104,8 +98,7 @@ class TestArxivTranslate:
 class TestCacheReuse:
     def test_reuse_after_done(self, client: TestClient) -> None:
         tid = mk_api_task(client, ARXIV, model="mock-m")
-        store = client.app.state.store
-        client.portal.call(partial(store.transition, tid, "done", force=True))
+        force_status(client, tid, "done")
         r = client.post(f"/api/arxiv/{ARXIV}/translate", json={"model": "mock-m"})
         assert r.status_code == HTTPStatus.OK
         assert r.json()["reused"] is True

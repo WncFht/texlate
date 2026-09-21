@@ -122,7 +122,7 @@ def test_stray_small_mark_mid_flood_still_trips() -> None:
 def test_pagenumbering_reset_benign() -> None:
     """pin e：``\\pagenumbering`` 复位两段序贯 ``[1..400][1..600]``——
     包络计 ~600（复位段 1..399 跳计），远低于 10K 闸；叠加逐页慢性
-    vbox 告警时密度分母走原始计数 1000，30≯4×1000 也不误杀。"""
+    vbox 告警时密度分母走原始计数 1000，1000≯4×1000 也不误杀。"""
     s = _RunawaySentry()
     blob = b"".join(b"[%d]\n" % i for i in range(1, 401))
     blob += b"".join(b"[%d]\n" % i for i in range(1, 601))
@@ -151,7 +151,8 @@ def test_vbox_noise_inflates_denominator_safe() -> None:
 
 
 def test_vbox_benign_with_noise_still_safe() -> None:
-    """阴性钉：30 签名 + 40 真序贯页标 + 非序噪声——密度 30≤4×40 放行。"""
+    """阴性钉：30 签名 + 40 真序贯页标 + 非序噪声——密度分母按原始
+    页标计数（含噪声共 20040），30≤4×20040 放行。"""
     s = _RunawaySentry()
     blob = b"".join(b"[%d]\n" % i for i in range(40))
     blob += _descending_blob(2)

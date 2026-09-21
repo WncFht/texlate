@@ -7,10 +7,11 @@ r"""sabotage/perturb 臂注入与台账契约钉——``translators_bench`` + ``
   未知臂 ``ValueError``——不存在静默降级 mock 的路径。
 - 注入决策确定性：``_plan_b``/``_apply_c`` = f(段内容哈希 blake2s)，同输入
   跨调用同决策；``_canon`` 把 encoded/corrector-raw 归一→阶梯各阶段同决策。
-- ``finalize`` 交付谓词 = ``e2e._delivered``（ok | partial+译文），与
+- ``finalize`` 交付谓词 = ``pipecore.delivered``（ok | partial+译文，
+  pipecore.py:132——translators_bench/e2e_mock_bench 同引此单源），与
   splice/e2e 台账同构——partial（阶梯 recovered）译文照进 zh/，严卡 ok
-  会把脏 partial 记 caught 漏 escaped（e2e_mock:424 同款修复的 stagerun 侧
-  漂移，本次收敛单源）。
+  会把脏 partial 记 caught 漏 escaped（旧 e2e_mock ``_delivered`` 的
+  stagerun 侧漂移收敛于此）。
 - Mode C 挪位保持占位符 multiset（过 L0 的设计前提）。
 """
 
@@ -34,6 +35,7 @@ from texlate.xlat.pipeline import (  # noqa: E402
 from texlate.xlat.placeholders import encode_newlines  # noqa: E402
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from pathlib import Path
 
 _SRC = "Paragraph body carries [[MATH_1]] and [[EQ_2]] tokens here."
@@ -47,23 +49,53 @@ def _mk(cid: str, source: str, trans: str, status: str, **kw: object) -> ChunkRe
     )
 
 
-def _corruptible_seg() -> str:
-    for i in range(500):
-        s = f"Probe segment {i} embeds [[MATH_{i}]] plus [[EQ_{i}]] inline."
-        if emb._plan_b(s):  # noqa: SLF001
+def _scan_seg(
+    fmt: str, pred: Callable[[str], object], *, tries: int = 3000, label: str = "planned"
+) -> str:
+    """确定性计划扫描：``fmt`` 内 ``{i}`` 逐枚探测段，``pred`` 命中即返。"""
+    for i in range(tries):
+        s = fmt.format(i=i)
+        if pred(s):
             return s
-    pytest.fail("no corruptible seg in 500")
+    pytest.fail(f"no {label} seg in {tries}")
     return ""  # unreachable — pytest.fail raises
 
 
+def _corruptible_seg() -> str:
+    return _scan_seg(
+        "Probe segment {i} embeds [[MATH_{i}]] plus [[EQ_{i}]] inline.",
+        emb._plan_b,  # noqa: SLF001
+        tries=500,
+        label="corruptible",
+    )
+
+
 def _seg_of_kind(kind: str | None, prefix: str) -> str:
-    """确定性计划扫描：找 ``_plan_b`` 判 ``kind``（None = 计划外）的探测段。"""
-    for i in range(3000):
-        s = f"{prefix} {i} embeds [[MATH_{i}]] plus [[EQ_{i}]] inline."
-        if emb._plan_b(s) == kind:  # noqa: SLF001
-            return s
-    pytest.fail(f"no {kind} seg in 3000")
-    return ""  # unreachable
+    """找 ``_plan_b`` 判 ``kind``（None = 计划外）的探测段。"""
+    return _scan_seg(
+        prefix + " {i} embeds [[MATH_{i}]] plus [[EQ_{i}]] inline.",
+        lambda s: emb._plan_b(s) == kind,  # noqa: SLF001
+        label=str(kind),
+    )
+
+
+def _movable_seg(prefix: str) -> tuple[str, int]:
+    """``_apply_c`` 复算 ``moved>0`` 的探测段 + moved 数（同一次扫描返回）。"""
+    mv = 0
+
+    def hit(s: str) -> bool:
+        nonlocal mv
+        _, mv = emb._apply_c(  # noqa: SLF001
+            _mock_translate_text(s, "这是译文"), s
+        )
+        return bool(mv)
+
+    seg = _scan_seg(
+        prefix + " {i} has [[MATH_{i}]] and [[EQ_{i}]] plus [[FIG_{i}]] text.",
+        hit,
+        label="movable",
+    )
+    return seg, mv
 
 
 class TestArmFactory:
@@ -102,12 +134,12 @@ class TestInjection:
 
     def test_b_deterministic_across_forms(self) -> None:
         """encoded 单块 / corrector 三段式 / 重试尾拼 → 同一段同决策。"""
-        for i in range(500):
-            seg = f"First line {i} here.\nSecond carries [[MATH_{i}]] plus [[EQ_{i}]]."
-            if emb._plan_b(seg):  # noqa: SLF001
-                break
-        else:
-            pytest.fail("no corruptible multiline seg")
+        seg = _scan_seg(
+            "First line {i} here.\nSecond carries [[MATH_{i}]] plus [[EQ_{i}]].",
+            emb._plan_b,  # noqa: SLF001
+            tries=500,
+            label="corruptible multiline",
+        )
         enc = encode_newlines(seg)[0]
         assert emb._plan_b(enc) == emb._plan_b(seg)  # noqa: SLF001 -- canon 归一
         forms = [
@@ -148,18 +180,7 @@ class TestInjection:
         assert tr.events == []
 
     def test_c_moves_and_keeps_multiset(self) -> None:
-        seg = ""
-        mv = 0
-        for i in range(3000):
-            cand = f"Gamma {i} has [[MATH_{i}]] and [[EQ_{i}]] plus [[FIG_{i}]] text."
-            _, mv = emb._apply_c(  # noqa: SLF001
-                _mock_translate_text(cand, "这是译文"), cand
-            )
-            if mv:
-                seg = cand
-                break
-        if not seg:
-            pytest.fail("no movable seg in 3000")
+        seg, mv = _movable_seg("Gamma")
         tr = tb.make_translator("perturb")
         out = asyncio.run(
             tr.translate(system="s", user=seg, temperature=0, max_tokens=99)
@@ -191,7 +212,8 @@ class TestFinalizeLedger:
         assert led["escaped_ids"] == ["0:2"]
 
     def test_b_partial_corrupt_is_escaped_not_caught(self) -> None:
-        """交付谓词钉：partial+译文进 splice（stage_xlat:142/_delivered），
+        """交付谓词钉：partial+译文进 splice（``pipecore.delivered``——
+        translators_bench 经 ``_delivered`` 别名消费 pipecore.py:132 单源），
         残留破坏必须记 escaped——严卡 ok 会把脏 partial 吞成 caught 绕过门槛。"""
         tr = self._b_tr_with_event()
         led = tr.finalize([_mk("0:0", _SRC, _CORRUPT_ZH, "partial")])
@@ -368,17 +390,7 @@ class TestResumeRecheck:
 
     def test_mode_c_restored_row_spliced(self) -> None:
         """Mode C 恢复行：规范形 ``_apply_c`` 复算 moved>0 → spliced + moved 入账。"""
-        seg = mv = 0
-        for i in range(3000):
-            cand = f"Delta {i} has [[MATH_{i}]] and [[EQ_{i}]] plus [[FIG_{i}]] text."
-            _, mv = emb._apply_c(  # noqa: SLF001
-                _mock_translate_text(cand, "这是译文"), cand
-            )
-            if mv:
-                seg = cand
-                break
-        if not seg:
-            pytest.fail("no movable seg in 3000")
+        seg, mv = _movable_seg("Delta")
         pert, _ = emb._apply_c(  # noqa: SLF001
             _mock_translate_text(seg, "这是译文"), seg
         )

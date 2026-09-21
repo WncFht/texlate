@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from conftest import DOC, scan_doc
+from conftest import DOC, blob, scan_doc, text_of
 
 from texlate.latex import parse_file, reconstruct
 from texlate.latex.gullet import Arg, Gullet, MacroDef
@@ -21,13 +21,14 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
-def surface(ts: list[Tok]) -> str:
-    """展开 token 流表面文本（consumed marker 是事件非文本）。"""
-    return "".join(
-        ("\\" + t.text) if t.kind == "cs" else t.text
-        for t in ts
-        if t.kind != "consumed"
-    )
+def _ab_body() -> list[Tok]:
+    """``A #1 Z`` 四 token 宏体——C4 两钉共用（Tok 会被展开消费，每次新造）。"""
+    return [
+        Tok("letter", "A", (0, 0, 1)),
+        Tok("param", "#", (0, 1, 2)),
+        Tok("other", "1", (0, 2, 3)),
+        Tok("letter", "Z", (0, 3, 4)),
+    ]
 
 
 # ---------------------------------------------------------------- C1 路径闸
@@ -41,7 +42,7 @@ def test_audit_c1_input_abs_path_denied(tmp_path: Path) -> None:
     root.mkdir()
     g = Gullet(root_dir=str(root), top_dir=str(root))
     g.push_source(f"\\input{{{outside}}}\ndone", str(root / "main.tex"))
-    out = surface(g.expand_all())
+    out = text_of(g.expand_all())
     assert "SECRET-ABS-CONTENT" not in out
     assert "done" in out
     assert any(w.kind == "missing_input" for w in g.warnings)
@@ -55,7 +56,7 @@ def test_audit_c1_input_dotdot_escape_denied(tmp_path: Path) -> None:
     root.mkdir()
     g = Gullet(root_dir=str(root), top_dir=str(root))
     g.push_source("\\input{../outside_secret}\ndone2", str(root / "main.tex"))
-    out = surface(g.expand_all())
+    out = text_of(g.expand_all())
     assert "SECRET-REL-CONTENT" not in out
     assert "done2" in out
     assert any(w.kind == "missing_input" for w in g.warnings)
@@ -70,7 +71,7 @@ def test_audit_c1_input_symlink_escape_denied(tmp_path: Path) -> None:
     (root / "evil.tex").symlink_to(outside)
     g = Gullet(root_dir=str(root), top_dir=str(root))
     g.push_source("\\input{evil}\ndone3", str(root / "main.tex"))
-    out = surface(g.expand_all())
+    out = text_of(g.expand_all())
     assert "SECRET-LINK-CONTENT" not in out
     assert "done3" in out
 
@@ -148,36 +149,26 @@ def test_audit_c4_bracket_arg_respects_brace_shield() -> None:
     res = scan_doc(body)
     assert reconstruct(res) == DOC % body
     # 展开体里 {]} 整组代入——若 ] 早闭合，} 会滞留流面
-    b = "\n".join(c.content for c in res.chunks)
+    b = blob(res)
     assert "SEE {]} END" in b
 
 
 def test_audit_c4_nested_bracket_still_counts() -> None:
     r"""对照：``\foo[[x]]Y`` 裸 ``[`` 仍嵌套计数——arg = ``[x]``。"""
     g = Gullet()
-    body = [
-        Tok("letter", "A", (0, 0, 1)),
-        Tok("param", "#", (0, 1, 2)),
-        Tok("other", "1", (0, 2, 3)),
-        Tok("letter", "Z", (0, 3, 4)),
-    ]
+    body = _ab_body()
     g.macros.set(
         "foo",
         MacroDef(name="foo", spec=[Arg("o")], body=body, kind="transparent_expand"),
     )
     g.push_source("\\foo[[x]]Y")
-    assert surface(g.expand_all()) == "A[x]ZY"
+    assert text_of(g.expand_all()) == "A[x]ZY"
 
 
 def test_audit_c4_angle_delim_shielded() -> None:
     r"""``d<>`` 定界参同款：``<a{>}b>`` 的 ``{>}`` 不提前闭合。"""
     g = Gullet()
-    body = [
-        Tok("letter", "A", (0, 0, 1)),
-        Tok("param", "#", (0, 1, 2)),
-        Tok("other", "1", (0, 2, 3)),
-        Tok("letter", "Z", (0, 3, 4)),
-    ]
+    body = _ab_body()
     g.macros.set(
         "foo",
         MacroDef(
@@ -188,7 +179,7 @@ def test_audit_c4_angle_delim_shielded() -> None:
         ),
     )
     g.push_source("\\foo<a{>}b>Q")
-    assert surface(g.expand_all()) == "Aa{>}bZQ"
+    assert text_of(g.expand_all()) == "Aa{>}bZQ"
 
 
 # ---------------------------------------------------------------- F5 \if 嵌套
@@ -201,7 +192,7 @@ def test_audit_f5_ifsetter_not_counted_as_if() -> None:
     ``if_unterminated`` + 文尾吞进死支（整文 0 chunk）。
     """
     g = Gullet("\\newif\\ififx\n\\ififx TRUE-PATH \\ifxtrue SETTER \\fi AFTER-FI-TEXT.")
-    out = surface(g.expand_all())
+    out = text_of(g.expand_all())
     assert not any(w.kind == "if_unterminated" for w in g.warnings)
     assert "AFTER-FI-TEXT" in out
     # dead 支的 \ifxtrue 未执行（收集走 raw read，无 setter 副作用）
@@ -211,7 +202,7 @@ def test_audit_f5_ifsetter_not_counted_as_if() -> None:
 def test_audit_f5_dead_branch_setter_no_side_effect() -> None:
     r"""被跳过分支内 ``\abctrue`` 不改旗标——死支收集是 raw read。"""
     g = Gullet("\\newif\\ifabc\n\\iffalse \\abctrue \\else KEEP \\fi TAIL")
-    out = surface(g.expand_all())
+    out = text_of(g.expand_all())
     assert "KEEP" in out
     assert "TAIL" in out
     assert g.ifflags["abc"] is False
@@ -220,7 +211,7 @@ def test_audit_f5_dead_branch_setter_no_side_effect() -> None:
 def test_audit_f5_live_branch_setter_fires() -> None:
     r"""对照：选中支内的 IfSetter 照常在流内执行（TeX 语义）。"""
     g = Gullet("\\newif\\ifabc\n\\iftrue KEEP \\abctrue \\else DROP \\fi TAIL")
-    out = surface(g.expand_all())
+    out = text_of(g.expand_all())
     assert "KEEP" in out
     assert g.ifflags["abc"] is True
 
@@ -233,7 +224,7 @@ def test_audit_f5_unregistered_if_macro_not_counted() -> None:
     ``\iffalse`` 形选支空 → 文尾整段 literalize。
     """
     g = Gullet("\\iftrue KEEP \\ifdef{X}{Y} DROP \\fi TAIL")
-    out = surface(g.expand_all())
+    out = text_of(g.expand_all())
     assert not any(w.kind == "if_unterminated" for w in g.warnings)
     assert "\\ifdef" in out
     assert "TAIL" in out
@@ -243,7 +234,7 @@ def test_audit_f5_unregistered_if_macro_not_counted() -> None:
 def test_audit_f5_unregistered_if_macro_dead_branch() -> None:
     r"""``\iffalse`` 变体：未注册 ``\ifdef`` 在死支内也不计——选支正常。"""
     g = Gullet("\\iffalse DROP \\ifdef{X}{Y} \\else KEEP \\fi TAIL")
-    out = surface(g.expand_all())
+    out = text_of(g.expand_all())
     assert not any(w.kind == "if_unterminated" for w in g.warnings)
     assert "KEEP" in out
     assert "TAIL" in out
@@ -252,7 +243,7 @@ def test_audit_f5_unregistered_if_macro_dead_branch() -> None:
 def test_audit_f5_registered_ifcond_still_counts() -> None:
     r"""对照：``\newif`` 注册的 IfCond 仍是真条件——计嵌套。"""
     g = Gullet("\\newif\\ifpdf\n\\iftrue A \\ifpdf B \\else C \\fi D \\fi E")
-    out = surface(g.expand_all())
+    out = text_of(g.expand_all())
     assert not any(w.kind == "if_unterminated" for w in g.warnings)
     # \ifpdf（flag 初 False）选 else 支 → C 支入流
     assert "C" in out
@@ -263,7 +254,7 @@ def test_audit_f5_registered_ifcond_still_counts() -> None:
 def test_audit_f5_prim_if_still_counts() -> None:
     r"""对照：原语 ``\ifnum`` 仍计嵌套——``\iftrue A \ifnum1<2 B\else C\fi D\fi``。"""
     g = Gullet("\\iftrue A \\ifnum 1<2 B \\else C \\fi D \\fi E")
-    out = surface(g.expand_all())
+    out = text_of(g.expand_all())
     assert not any(w.kind == "if_unterminated" for w in g.warnings)
     assert "B" in out
     assert "E" in out
@@ -278,7 +269,7 @@ def test_audit_f9b_protected_def_no_leak() -> None:
     r"""``\protected\def\pd{A}``：``\protected`` 不再泄独立 literal piece。"""
     g = Gullet("\\protected\\def\\pd{A}x")
     out = g.expand_all()
-    assert surface(out) == "x"
+    assert text_of(out) == "x"
     e = g.macros.lookup("pd")
     assert e is not None
     # consumed marker 从 \protected 起算（整段 def 覆盖，src 同）
@@ -296,7 +287,7 @@ def test_audit_f9b_protected_chain_orders() -> None:
         ("\\outer\\protected\\long\\gdef\\xgd{D}t", "xgd"),
     ]:
         g = Gullet(src)
-        out = surface(g.expand_all())
+        out = text_of(g.expand_all())
         assert g.macros.lookup(name) is not None, src
         assert out == "t", src  # 前缀 token 无残留
 
@@ -334,7 +325,7 @@ def test_audit_f9b_local_let_still_pops() -> None:
 def test_audit_f9b_prefix_unknown_target_passthrough() -> None:
     r"""``\protected``/``\global`` 后接非定义族 → 前缀回吐走普通流（保守）。"""
     g = Gullet("\\protected x\\global y")
-    out = surface(g.expand_all())
+    out = text_of(g.expand_all())
     assert "\\protected" in out
     assert "\\global" in out
     assert "x" in out

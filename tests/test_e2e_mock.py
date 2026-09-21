@@ -14,11 +14,11 @@ r"""跨模块集成测试（M0）：``parse_file → XlatPipeline(Mock+L0) → r
 合成用例不依赖语料（CI 可跑），含 tmp_path 多文件 flatten 一例。
 """
 
-import asyncio
 import re
 from pathlib import Path
 
 import pytest
+from conftest import ART, run_pipeline
 
 from texlate.latex import (
     parse_file,
@@ -35,7 +35,6 @@ from texlate.xlat.pipeline import (
     ChunkResult,
     MockTranslator,
     PipelineConfig,
-    XlatPipeline,
 )
 from texlate.xlat.prompts import all_kinds, normalize_kind
 
@@ -57,8 +56,6 @@ _CORPUS_PAPERS = [
 ]
 
 _STRUCTURAL_WARN_KINDS = {"dangling_ph", "dangling_chunk_ref", "pieces_gap"}
-
-_DOC = "\\documentclass{article}\n%s\n\\begin{document}\n%s\n\\end{document}\n"
 
 _SYNTH_PREAMBLE = (
     "\\newcommand{\\vect}[1]{\\mathbf{#1}}\n\\usepackage{amsmath}\n% preamble 注释"
@@ -102,12 +99,12 @@ def _inputs(res: ScanResult) -> list[ChunkIn]:
 def _run_mock(res: ScanResult, **kw: object) -> list[ChunkResult]:
     """Mock 管线跑完整篇（默认把 L0 接进 validator 位——生产同款接线）。"""
     kw.setdefault("validator", _l0_feedback)
-    pipe = XlatPipeline(
+    return run_pipeline(
+        _inputs(res),
         translator=MockTranslator(),
         config=PipelineConfig(concurrency=4),
         **kw,
     )
-    return asyncio.run(pipe.run(_inputs(res)))
 
 
 def _translations(res: ScanResult, results: list[ChunkResult]) -> dict[int, str]:
@@ -163,7 +160,7 @@ def _assert_mock_chain(res: ScanResult, flat: str) -> str:
 
 def test_synthetic_full_chain() -> None:
     """单文件合成 doc：宏定义/注释/~ref/cite/inline math/itemize/公式环境。"""
-    src = _DOC % (_SYNTH_PREAMBLE, _SYNTH_BODY)
+    src = ART % (_SYNTH_PREAMBLE + "\n", _SYNTH_BODY)
     res = parse_tex(src)
     assert res.chunks, "合成 doc 未产出 chunk"
     assert reconstruct(res) == src  # identity 逐字节
@@ -204,7 +201,7 @@ def test_all_fault_splices_source() -> None:
     = 原文而非阶梯 best_zh 残译文——``skipped`` 门控仍是正确姿势，但下游
     即使误读 .translation 也只会拿到原文，名实相符。
     """
-    res = parse_tex(_DOC % ("", _SYNTH_BODY))
+    res = parse_tex(ART % ("", _SYNTH_BODY))
     results = _run_mock(res, validator=lambda _s, _z: "always fails")
 
     non_trivial = [r for r in results if r.source.strip()]
@@ -218,13 +215,13 @@ def test_all_fault_splices_source() -> None:
     # v2：fallback 拼回的是 chunk.content（token surface）——run 内单 \n 与
     # 空白折叠成一个 space（eol_par "\n\n" 不受影响）。逐字节断言放宽为空白
     # 不敏感等价；identity 逐字节由 res.vtex / reconstruct(res) 承担。
-    assert _ws_fold(out) == _ws_fold(_DOC % ("", _SYNTH_BODY))
+    assert _ws_fold(out) == _ws_fold(ART % ("", _SYNTH_BODY))
     _assert_no_placeholder_leak(res, out)
 
 
 def test_kind_mapping_covers_six() -> None:
     """Chunk.context → ChunkIn.kind 归一：产出值必在六 kind 词表内。"""
-    res = parse_tex(_DOC % ("", _SYNTH_BODY))
+    res = parse_tex(ART % ("", _SYNTH_BODY))
     kinds = {c.kind for c in _inputs(res)}
     assert kinds <= set(all_kinds())
     assert "para" in kinds  # 段落路径走到了

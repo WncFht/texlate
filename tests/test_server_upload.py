@@ -12,7 +12,7 @@ import pytest
 pytest.importorskip("fastapi", reason="server extra 未装")
 pytest.importorskip("starlette.testclient", reason="server extra 未装")
 
-from conftest import make_app, wait_terminal
+from conftest import live_app, make_app, task_events, upload, wait_terminal
 from starlette.testclient import TestClient
 
 from texlate.server.settings import SettingsStore
@@ -41,17 +41,6 @@ def _epub() -> bytes:
     return buf.getvalue()
 
 
-def _post(client: TestClient, name: str, data: bytes, **fields: str) -> dict:
-    """上传辅助：``fields`` 走 multipart 文本槽（model/target_lang/options）。"""
-    r = client.post(
-        "/api/upload",
-        files={"file": (name, data, "application/octet-stream")},
-        data=fields,
-    )
-    assert r.status_code == HTTPStatus.ACCEPTED, r.text
-    return r.json()
-
-
 def _task_kind(client: TestClient, task_id: str) -> str:
     """tasks 列表反查 kind（建行断言——worker 未跑时仍可读）。"""
     rows = client.get("/api/tasks").json()["tasks"]
@@ -63,19 +52,19 @@ class TestUploadDocRoute:
     """docx/epub → 202 + kind 建行 + upload blob 落盘（不再 501）。"""
 
     def test_docx_202_kind(self, client: TestClient) -> None:
-        body = _post(client, "报告.docx", _docx())
+        body = upload(client, name="报告.docx", data=_docx())
         assert body["status"] == "queued"
         assert _task_kind(client, body["task_id"]) == "docx"
 
     def test_epub_202_kind(self, client: TestClient) -> None:
-        body = _post(client, "book.epub", _epub())
+        body = upload(client, name="book.epub", data=_epub())
         assert body["status"] == "queued"
         assert _task_kind(client, body["task_id"]) == "epub"
 
     def test_blob_persisted(self, client: TestClient) -> None:
         """upload/{safe_name} 落盘：建行前写 blob，worker _run_doc 以此为源。"""
         payload = _epub()
-        body = _post(client, "my book.epub", payload)
+        body = upload(client, name="my book.epub", data=payload)
         updir = client.app.state.data_dir / "tasks" / body["task_id"] / "upload"
         blobs = list(updir.glob("*"))
         assert len(blobs) == 1
@@ -86,13 +75,15 @@ class TestUploadDocRoute:
 
     def test_fields_accepted(self, client: TestClient) -> None:
         """model/target_lang/options 表单字段与 tex 路同面解析。"""
-        body = _post(
+        body = upload(
             client,
-            "a.docx",
-            _docx(),
-            model="mock-m",
-            target_lang="zh-TW",
-            options='{"prefer":"fresh"}',
+            name="a.docx",
+            data=_docx(),
+            fields={
+                "model": "mock-m",
+                "target_lang": "zh-TW",
+                "options": '{"prefer":"fresh"}',
+            },
         )
         snap = client.get(f"/api/task/{body['task_id']}").json()
         assert snap["model"] == "mock-m"
@@ -191,11 +182,7 @@ class TestDocPipeline:
         """worker 起跑的 client（MockTranslator——export 侧实际被 fake 短路）。"""
         from texlate.xlat.pipeline import MockTranslator  # noqa: PLC0415
 
-        app = make_app(
-            tmp_path,
-            start_worker=True,
-            translator_factory=lambda _ctx: MockTranslator(),
-        )
+        app = live_app(tmp_path, lambda _ctx: MockTranslator())
         return TestClient(app)
 
     def test_docx_done(
@@ -206,7 +193,7 @@ class TestDocPipeline:
     ) -> None:
         calls = self._fake_export(monkeypatch)
         with self._live(tmp_path) as c:
-            body = _post(c, "a.docx", _docx())
+            body = upload(c, name="a.docx", data=_docx())
             snap = wait_terminal(c, body["task_id"])
             assert snap["status"] == "done"
             assert calls
@@ -224,7 +211,7 @@ class TestDocPipeline:
     ) -> None:
         calls = self._fake_export(monkeypatch)
         with self._live(tmp_path) as c:
-            body = _post(c, "book", _epub())  # 无 .epub 后缀——kind 兜底命名
+            body = upload(c, name="book", data=_epub())  # 无 .epub 后缀——kind 兜底命名
             snap = wait_terminal(c, body["task_id"])
             assert snap["status"] == "done"
             assert calls[0]["dst"].name.endswith("_bilingual.epub")
@@ -241,20 +228,11 @@ class TestDocPipeline:
 
         self._fake_export(monkeypatch, raise_exc=DrmError("drm protected"))
         with self._live(tmp_path) as c:
-            body = _post(c, "a.epub", _epub())
+            body = upload(c, name="a.epub", data=_epub())
             snap = wait_terminal(c, body["task_id"])
             assert snap["status"] == "fault"
             assert snap["error"]["code"] == "unsupported_format"
             assert snap["error"]["retryable"] is False
-
-    @staticmethod
-    def _events(client: TestClient, task_id: str) -> list[dict[str, object]]:
-        """任务事件落盘面（``events_since`` 同步读——chunk/warning 都过这）。"""
-        from functools import partial  # noqa: PLC0415
-
-        return client.portal.call(  # type: ignore[no-any-return]
-            partial(client.app.state.store.events_since, task_id, 0)
-        )
 
     def test_glossary_kwarg_unconditional(
         self,
@@ -270,7 +248,7 @@ class TestDocPipeline:
 
         calls = self._fake_export(monkeypatch)
         with self._live(tmp_path) as c:
-            body = _post(c, "a.docx", _docx())
+            body = upload(c, name="a.docx", data=_docx())
             snap = wait_terminal(c, body["task_id"])
             assert snap["status"] == "done"
         g = calls[0]["kw"]["glossary"]
@@ -299,11 +277,14 @@ class TestDocPipeline:
         doc.add_paragraph("The transformer architecture relies on attention.")
         doc.save(buf)
         mock = MockTranslator()
-        app = make_app(
-            tmp_path, start_worker=True, translator_factory=lambda _ctx: mock
-        )
+        app = live_app(tmp_path, lambda _ctx: mock)
         with TestClient(app) as c:
-            body = _post(c, "a.docx", buf.getvalue(), options='{"glossary":"g.yaml"}')
+            body = upload(
+                c,
+                name="a.docx",
+                data=buf.getvalue(),
+                fields={"options": '{"glossary":"g.yaml"}'},
+            )
             snap = wait_terminal(c, body["task_id"])
             assert snap["status"] == "done"
         systems = [str(call["system"]) for call in mock.calls]
@@ -329,7 +310,7 @@ class TestDocPipeline:
                 orig(tid, **fields)
 
             monkeypatch.setattr(store, "update_fields", _spy)
-            body = _post(c, "a.docx", _docx())
+            body = upload(c, name="a.docx", data=_docx())
             snap = wait_terminal(c, body["task_id"])
             assert snap["status"] == "done"
             assert snap["counters"]["done"] == 1
@@ -338,7 +319,7 @@ class TestDocPipeline:
             assert "usage" not in snap  # MockTranslator 无 client → 不落 usage 行
             chunks = [
                 e["data"]
-                for e in self._events(c, body["task_id"])
+                for e in task_events(c, body["task_id"])
                 if e["type"] == "chunk"
             ]
             assert chunks == [
@@ -363,12 +344,12 @@ class TestDocPipeline:
         self._fake_export(monkeypatch)
         app = make_app(tmp_path, start_worker=True)  # 无 translator_factory
         with TestClient(app) as c:
-            body = _post(c, "a.docx", _docx())
+            body = upload(c, name="a.docx", data=_docx())
             snap = wait_terminal(c, body["task_id"])
             assert snap["status"] == "done"
             warns = [
                 e["data"]["code"]
-                for e in self._events(c, body["task_id"])
+                for e in task_events(c, body["task_id"])
                 if e["type"] == "warning"
             ]
             assert warns == ["mock_translator"]
@@ -384,12 +365,12 @@ class TestDocPipeline:
         self._fake_export(monkeypatch)
         app = make_app(tmp_path, start_worker=True)
         with TestClient(app) as c:
-            body = _post(c, "a.docx", _docx())
+            body = upload(c, name="a.docx", data=_docx())
             snap = wait_terminal(c, body["task_id"])
             assert snap["status"] == "done"
             warns = [
                 e["data"]["code"]
-                for e in self._events(c, body["task_id"])
+                for e in task_events(c, body["task_id"])
                 if e["type"] == "warning"
             ]
             assert "mock_translator" not in warns

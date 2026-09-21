@@ -18,9 +18,8 @@ pytest.importorskip("starlette.testclient", reason="server extra 未装")
 
 from conftest import (
     MINI_TEX,
-    FakeEngine,
     FakeFetcher,
-    make_app,
+    live_app,
     make_targz,
     upload_tex,
     wait_terminal,
@@ -43,9 +42,10 @@ if TYPE_CHECKING:
 
 _CHUNK_ID_LEN = 24  # sha256[:24]
 
-#: 假翻译应答的拉丁→中文映射——``[[X_n]]`` 占位符原样保留，其余拉丁词
-#: 变「文」（residual_en 网下合法的纯中文应答形）。
-_SINICIZE_RX = re.compile(r"(\[\[[A-Z][A-Z0-9_]*(?:_\d+)?\]\])|([A-Za-z]+)")
+#: 假翻译应答的拉丁→中文映射——typed ``[[X_n]]`` 占位符与裸 ``[[SL]]``/``[[PL]]``
+#: 族标记一律原样保留（裸标记被sinicize会撞占位符对账、整chunk跳过），其余
+#: 拉丁词变「文」（residual_en 网下合法的纯中文应答形）。
+_SINICIZE_RX = re.compile(r"(\[\[[A-Z][A-Z0-9_]*\]\])|([A-Za-z]+)")
 
 
 def _sinicize(s: str) -> str:
@@ -76,12 +76,9 @@ def arxiv_client(
     clean_env: pytest.MonkeyPatch,  # noqa: ARG001 -- fixture 副作用
 ) -> Iterator[TestClient]:
     """arxiv 路 e2e：FakeFetcher 供 tar.gz、Mock 翻译、Fake 引擎。"""
-    engine = FakeEngine()
-    app = make_app(
+    app = live_app(
         tmp_path,
-        start_worker=True,
-        translator_factory=lambda _ctx: MockTranslator(),
-        engine_factory=lambda _name: engine,
+        lambda _ctx: MockTranslator(),
         fetcher=FakeFetcher(make_targz({"main.tex": MINI_TEX})),
         source_cache=SourceCache(tmp_path / "src-cache"),
     )
@@ -163,12 +160,7 @@ class TestFaultPaths:
             msg = "bad key"
             raise AuthError(msg, status=401)
 
-        app = make_app(
-            tmp_path,
-            start_worker=True,
-            translator_factory=boom_factory,
-            engine_factory=lambda _name: FakeEngine(),
-        )
+        app = live_app(tmp_path, boom_factory)
         with TestClient(app) as c:
             tid = upload_tex(c)["task_id"]
             snap = wait_terminal(c, tid)
@@ -188,12 +180,7 @@ class TestFaultPaths:
                 msg = "provider down"
                 raise ChatError(msg, status=500, retryable=False)
 
-        app = make_app(
-            tmp_path,
-            start_worker=True,
-            translator_factory=lambda _ctx: Boom(),
-            engine_factory=lambda _name: FakeEngine(),
-        )
+        app = live_app(tmp_path, lambda _ctx: Boom())
         with TestClient(app) as c:
             tid = upload_tex(c)["task_id"]
             snap = wait_terminal(c, tid)
@@ -228,12 +215,7 @@ class TestFaultPaths:
                 msg = "denied"
                 raise AuthError(msg, status=401)
 
-        app = make_app(
-            tmp_path,
-            start_worker=True,
-            translator_factory=lambda _ctx: Denied(),
-            engine_factory=lambda _name: FakeEngine(),
-        )
+        app = live_app(tmp_path, lambda _ctx: Denied())
         with TestClient(app) as c:
             tid = upload_tex(c, tex=_MULTI_TEX)["task_id"]
             snap = wait_terminal(c, tid)
@@ -300,11 +282,8 @@ class TestFaultPaths:
 
         http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
         chat_client = ChatClient("http://127.0.0.1:3003", "k", http=http)
-        app = make_app(
-            tmp_path,
-            start_worker=True,
-            translator_factory=lambda _ctx: GatewayTranslator(chat_client, "m1"),
-            engine_factory=lambda _name: FakeEngine(),
+        app = live_app(
+            tmp_path, lambda _ctx: GatewayTranslator(chat_client, "m1")
         )
         with TestClient(app) as c:
             tid = upload_tex(c)["task_id"]
@@ -341,13 +320,7 @@ class TestStageErrorCodes:
 
     def _live(self, tmp_path: Path, **overrides: object) -> TestClient:
         """worker 起跑的 client（Mock 翻译 + Fake 引擎——失败先于两者触发）。"""
-        app = make_app(
-            tmp_path,
-            start_worker=True,
-            translator_factory=lambda _ctx: MockTranslator(),
-            engine_factory=lambda _name: FakeEngine(),
-            **overrides,
-        )
+        app = live_app(tmp_path, lambda _ctx: MockTranslator(), **overrides)
         return TestClient(app)
 
     def test_pdf_only_no_latex_source(
@@ -503,13 +476,7 @@ class TestResume:
                 await asyncio.sleep(30)  # 永不返回 → 测试靠 cancel 杀
                 return None
 
-        engine = FakeEngine()
-        app = make_app(
-            tmp_path,
-            start_worker=True,
-            translator_factory=lambda _ctx: HangTranslator(),
-            engine_factory=lambda _name: engine,
-        )
+        app = live_app(tmp_path, lambda _ctx: HangTranslator())
         with TestClient(app) as c:
             tid = upload_tex(c)["task_id"]
             # 等到 chunks 已入库（parsing 完成）

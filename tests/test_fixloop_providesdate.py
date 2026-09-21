@@ -138,25 +138,34 @@ def test_braced_indirect_def_spaced_forms() -> None:
 
 def test_braced_indirect_tl_assignment() -> None:
     """expl3 ``\\tl_(const|set|gset):Nn \\c_*_date_tl {d}`` 赋值面 (acro 族实证)。"""
-    t = (
-        "\\tl_const:Nn \\c_acro_date_tl {2022/04/01}\n"
-        "\\ProvidesExplPackage\n"
-        "  {\\c_acro_package_name_tl}\n"
-        "  {\\c_acro_date_tl}\n"
-        "  {\\c_acro_version_tl}\n"
-    )
-    assert _provides_date(t) == (2022, 4, 1)
+    for assign in ("\\tl_const:Nn", "\\tl_set:Nn", "\\tl_gset:Nn"):
+        t = (
+            f"{assign} \\c_acro_date_tl {{2022/04/01}}\n"
+            "\\ProvidesExplPackage\n"
+            "  {\\c_acro_package_name_tl}\n"
+            "  {\\c_acro_date_tl}\n"
+            "  {\\c_acro_version_tl}\n"
+        )
+        assert _provides_date(t) == (2022, 4, 1), assign
 
 
 def test_braced_indirect_newcommand_def() -> None:
-    """``\\newcommand*\\cs{date}`` LaTeX2e 赋值面 (pgfmath-xfp 实证, texmf 11 处)。"""
-    t = (
-        "\\newcommand*\\pgfmxfpDate{2025-01-11}\n"
-        "\\ProvidesExplPackage\n"
-        "  {pgfmath-xfp}     {\\pgfmxfpDate}\n"
-        "  {\\pgfmxfpVersion} {d}\n"
-    )
-    assert _provides_date(t) == (2025, 1, 11)
+    """``\\*command`` LaTeX2e 赋值面 (pgfmath-xfp 实证, texmf 11 处)。"""
+    for assign in (
+        "\\newcommand*\\pgfmxfpDate",  # 实证形
+        "\\newcommand\\pgfmxfpDate",
+        "\\renewcommand*\\pgfmxfpDate",
+        "\\renewcommand\\pgfmxfpDate",
+        "\\providecommand{\\pgfmxfpDate}",
+        "\\newcommand{\\pgfmxfpDate}",  # 花括号 csname 形
+    ):
+        t = (
+            f"{assign}{{2025-01-11}}\n"
+            "\\ProvidesExplPackage\n"
+            "  {pgfmath-xfp}     {\\pgfmxfpDate}\n"
+            "  {\\pgfmxfpVersion} {d}\n"
+        )
+        assert _provides_date(t) == (2025, 1, 11), assign
 
 
 def test_arg_separator_comment_text() -> None:
@@ -218,8 +227,10 @@ def test_indirect_unresolvable_is_none() -> None:
 
 
 def test_indirect_def_non_date_value_is_none() -> None:
-    """cs 有 ``\\def`` 但值非日期 (如 ``\\ExplFileName``=包名) → None。"""
+    """cs 有 ``\\def`` 但值非日期 (``\\ExplFileName``=包名) → None；
+    且非 ``ExplFileDate`` 的间址不查 ``\\GetIdInfo`` 兜底。"""
     t = (
+        "\\def\\ExplFileName{ctex}\n"
         "\\GetIdInfo$Id: ctex.dtx 1.0 2022-07-14 00:00:00 +0000 x$\n"
         "\\ProvidesExplPackage{ctex}{\\ExplFileName}{v}{d}\n"
     )
@@ -277,6 +288,31 @@ def test_literal_beats_later_indirect() -> None:
         "\\ProvidesPackage{b}[2020-01-01 literal]\n"
     )
     assert _provides_date(t) == (2020, 1, 1)
+
+
+def test_dual_indirect_first_in_text_wins() -> None:
+    """bracket/brace 两间址形同文: 谁文本在前解谁——首间址无解即 ``None``,
+    不回退到后出现的可解间址。"""
+    t = (
+        "\\GetIdInfo$Id: b.dtx 1.0 2022-07-14 00:00:00 +0000 x$\n"
+        "\\ProvidesPackage{a}[\\boguscs\\space v]\n"
+        "\\ProvidesExplPackage{b}{\\ExplFileDate}{v}{d}\n"
+    )
+    # 在前的 bracket 间址 ``\boguscs`` 无解 → None (不落到可解的 ``\ExplFileDate``)
+    assert _provides_date(t) is None
+    t2 = (
+        "\\def\\cs@date{2021-03-04}\n"
+        "\\ProvidesPackage{a}[\\cs@date\\space v]\n"
+        "\\ProvidesExplPackage{b}{\\neverdefined}{v}{d}\n"
+    )
+    assert _provides_date(t2) == (2021, 3, 4)
+    # 反序同口径——brace 间址在前且无解时, 后出现的可解 bracket 间址不兜底
+    t3 = (
+        "\\def\\cs@date{2021-03-04}\n"
+        "\\ProvidesExplPackage{b}{\\neverdefined}{v}{d}\n"
+        "\\ProvidesPackage{a}[\\cs@date\\space v]\n"
+    )
+    assert _provides_date(t3) is None
 
 
 # ------------------------------------------------------- 遮蔽比对 e2e

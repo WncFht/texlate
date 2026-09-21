@@ -64,7 +64,7 @@ import re
 from typing import TYPE_CHECKING
 
 import pytest
-from _fuzzkit import fuzz_rng
+from _fuzzkit import fuzz_rng, soup_join, soup_pick
 
 from texlate.compile.mask import (
     TEX_SOURCE_SUFFIXES,
@@ -341,9 +341,10 @@ _FLAG_COMBOS = (
 
 def _soup(rng: random.Random, n_tok: int) -> str:
     """token 汤 + 偶发成对环境包裹 / 未闭合 begin / 孤立 end。"""
-    toks = [rng.choice(_SOUP_TOKENS) for _ in range(n_tok)]
+    toks = [soup_pick(rng, _SOUP_TOKENS) for _ in range(n_tok)]
     if rng.random() < _P_ENV_WRAP and toks:
-        env = rng.choice(
+        env = soup_pick(
+            rng,
             [
                 "verbatim",
                 "verbatim*",
@@ -352,20 +353,20 @@ def _soup(rng: random.Random, n_tok: int) -> str:
                 "minted",
                 "comment",
                 "filecontents",
-            ]
+            ],
         )
         a, b = sorted((rng.randrange(len(toks)), rng.randrange(len(toks))))
-        toks[a] = f"\\begin{{{env}}}" + rng.choice(["", " "]) + toks[a]
-        toks[b] = toks[b] + rng.choice(["", "x", " "]) + f"\\end{{{env}}}"
+        toks[a] = f"\\begin{{{env}}}" + soup_pick(rng, ["", " "]) + toks[a]
+        toks[b] = toks[b] + soup_pick(rng, ["", "x", " "]) + f"\\end{{{env}}}"
     if rng.random() < _P_ENV_UNCLOSED:
         toks.insert(
             rng.randrange(len(toks) + 1),
-            f"\\begin{{{rng.choice(['verbatim', 'comment', 'lstlisting'])}}}",
+            f"\\begin{{{soup_pick(rng, ['verbatim', 'comment', 'lstlisting'])}}}",
         )
     if rng.random() < _P_LONE_END:
         toks.insert(
             rng.randrange(len(toks) + 1),
-            f"\\end{{{rng.choice(['verbatim', 'comment', 'minted'])}}}",
+            f"\\end{{{soup_pick(rng, ['verbatim', 'comment', 'minted'])}}}",
         )
     return "".join(toks)
 
@@ -473,7 +474,7 @@ _GE_DEPTH = 80  # 远低于递归上限——深嵌套 RecursionError 已由 tes
 
 
 def _ge_soup(rng: random.Random) -> str:
-    parts = [rng.choice(_GE_TOKENS) for _ in range(rng.randint(0, 30))]
+    parts = [soup_pick(rng, _GE_TOKENS) for _ in range(rng.randint(0, 30))]
     if rng.random() < 0.25:  # noqa: PLR2004 -- 偶发有界深嵌套
         d = rng.randint(1, _GE_DEPTH)
         parts.insert(rng.randrange(len(parts) + 1), "{" * d + "}" * d)
@@ -504,7 +505,7 @@ def test_fuzz_group_end_never_raise() -> None:
     rng = fuzz_rng(20260921)
     alpha = [*_GE_TOKENS, "\r", "\r\n", "\x00", "\ud800", "%\rx", "中"]
     for _ in range(2000):
-        s = "".join(rng.choice(alpha) for _ in range(rng.randint(0, 30)))
+        s = soup_join(rng, alpha, 0, 30)
         if rng.random() < 0.15:  # noqa: PLR2004
             s += "{" * rng.randint(1, _GE_DEPTH)
         for _ in range(3):
@@ -545,7 +546,7 @@ def test_fuzz_apply_edits_oracle() -> None:
         for p in points:
             end = rng.randint(p, min(n, p + 8))
             if p >= cursor:
-                edits.append((p, end, rng.choice(repl_pool)))
+                edits.append((p, end, soup_pick(rng, repl_pool)))
                 cursor = end
         rng.shuffle(edits)
         got = apply_edits(text, edits)

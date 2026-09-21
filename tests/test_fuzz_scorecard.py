@@ -12,10 +12,15 @@
 - ``gate_scorecard.last_records``：同 str id 末行胜；非 str/空 id 丢弃；
   upstream 缺失/None/空串按 mock；arm_mismatch 错误行剔除。
 - ``pick_final`` 真值表封闭：fix 接管 iff c.status∈COMPILED ∧ upstream
-  相容 ∧ 新鲜度过门——``metrics.compile_fp`` 为真值 str 时按指纹比对
-  （同态陈旧拦 ``fp_mismatch``），否则回退 ``compile_status_before``
-  状态等值（``no_csb``/``stale``）；drop_reason ∈ {None,
-  over_noncompiled, no_csb, stale, fp_mismatch, upstream_mismatch}。
+  相容 ∧ 新鲜度过门——先过记录内部一致性闸（``metrics.post.status``
+  与顶 status 相悖 = 拼账/腐记录拦 ``post_inconsistent``）；
+  ``metrics.compile_fp`` 为真值 str 时按指纹比对（同态陈旧拦
+  ``fp_mismatch``；指纹匹配而 csb 相悖 = 拼账拦 ``csb_contradicts_fp``），
+  否则回退 ``compile_status_before`` 状态等值（``no_csb``/``stale``；
+  等值且调用侧注入 ``window_suspect`` 时再拦 ``window_stale``——
+  run_meta 波次窗判定在调用方，``_oracle_fresh`` 不复制）；
+  drop_reason ∈ {None, over_noncompiled, post_inconsistent, fp_mismatch,
+  csb_contradicts_fp, no_csb, stale, window_stale, upstream_mismatch}。
 - ``compile_fp``：同记录同指纹；status/sig/first_error/code 变 → 变；
   计时字段(seconds/dur_s)变 → 不变；脏 metrics 不崩。
 - ``gate_scorecard.main``：Σ end == cells；pdf ≤ cells；clean ≤ pdf；
@@ -48,7 +53,8 @@ import benchlib
 import gate_scorecard
 import pytest
 import triage
-from _fuzzkit import fuzz_rng
+from _fuzzkit import fuzz_rng, write_jsonl_rows
+from _reckit import make_rec
 
 if TYPE_CHECKING:
     import random
@@ -162,29 +168,6 @@ def _rand_verdict(rng: random.Random) -> dict:
         "payload": rng.choice(_PAYLOAD),
         "reasons": [rng.choice(_REASON_TOK) for _ in range(rng.randrange(4))],
     }
-
-
-def _rec(pid: str, stage: str, status: object, **over: object) -> dict:
-    r = {
-        "id": pid,
-        "stage": stage,
-        "arm": "-",
-        "upstream": "",
-        "status": status,
-        "dur_s": 1.0,
-        "metrics": {},
-        "errors": [],
-        "sig": "",
-    }
-    r.update(over)
-    return r
-
-
-def _write_jsonl(path: Path, rows: list) -> None:
-    with path.open("w", encoding="utf-8") as f:
-        for r in rows:
-            f.write(r if isinstance(r, str) else json.dumps(r, ensure_ascii=False))
-            f.write("\n")
 
 
 # ================================================================ verdict_sig
@@ -472,7 +455,7 @@ def test_gate_last_records_filters(tmp_path: Path) -> None:
         {"id": "d", "arm": "zh", "status": "fail", "upstream": None},
         {"id": "e", "arm": "zh", "status": "fail", "upstream": ""},
     ]
-    _write_jsonl(tmp_path / "compile.jsonl", rows)
+    write_jsonl_rows(tmp_path / "compile.jsonl", rows)
     last = gate_scorecard.last_records(
         tmp_path / "compile.jsonl", arm="zh", upstream="mock"
     )
@@ -514,7 +497,7 @@ def test_gate_last_records_fuzz_conservation(tmp_path: Path) -> None:
             and pid
         ):
             oracle[pid] = r
-    _write_jsonl(tmp_path / "compile.jsonl", rows)
+    write_jsonl_rows(tmp_path / "compile.jsonl", rows)
     last = gate_scorecard.last_records(
         tmp_path / "compile.jsonl", arm="zh", upstream="mock"
     )
@@ -530,8 +513,8 @@ def test_pick_final_truth_table() -> None:
         "status": "clean",
         "metrics": {"compile_status_before": "fail"},
     }
-    # 与循环内 _rec("p","compile","fail",upstream="u1") 同形的指纹
-    fp_hit = gate_scorecard.compile_fp(_rec("p", "compile", "fail", upstream="u1"))
+    # 与循环内 make_rec("p","compile","fail",upstream="u1") 同形的指纹
+    fp_hit = gate_scorecard.compile_fp(make_rec("p", "compile", "fail", upstream="u1"))
     cases = [
         # (c_status, fix 记录, 期望 stage, 期望 drop)
         ("fail", None, "compile", None),
@@ -589,7 +572,7 @@ def test_pick_final_truth_table() -> None:
         ),
     ]
     for c_status, f, want_stage, want_drop in cases:
-        c = _rec("p", "compile", c_status, upstream="u1")
+        c = make_rec("p", "compile", c_status, upstream="u1")
         stage, r, drop = gate_scorecard.pick_final(c, f)
         assert stage == want_stage, (c_status, f)
         assert drop == want_drop, (c_status, f)
@@ -606,8 +589,8 @@ def _gate_run(
     """写 records 跑 main() → (cells, pdf, clean, stdout)。"""
     recdir = tmp_path / "records"
     recdir.mkdir(exist_ok=True)
-    _write_jsonl(recdir / "compile.jsonl", comp_rows)
-    _write_jsonl(recdir / "fixloop.jsonl", fix_rows)
+    write_jsonl_rows(recdir / "compile.jsonl", comp_rows)
+    write_jsonl_rows(recdir / "fixloop.jsonl", fix_rows)
     monkeypatch.setattr(sys, "argv", ["gate_scorecard", str(recdir)])
     assert gate_scorecard.main() == 0
     out = capsys.readouterr().out
@@ -740,7 +723,7 @@ def test_gate_errors_nondict(tmp_path: Path, errs: object) -> None:
     "bad_metrics", ["x", [1], 5, True], ids=["str", "list", "int", "bool"]
 )
 def test_pick_final_nondict_metrics(bad_metrics: object) -> None:
-    c = _rec("p", "compile", "fail")
+    c = make_rec("p", "compile", "fail")
     f = {"id": "p", "status": "clean", "metrics": bad_metrics}
     stage, _r, drop = gate_scorecard.pick_final(c, f)
     # 合理终态：metrics 视为缺 → no_csb（compile 自留）
@@ -750,7 +733,7 @@ def test_pick_final_nondict_metrics(bad_metrics: object) -> None:
 # ---------------------------------------------------------------- 指纹校验
 def test_compile_fp_stability() -> None:
     """指纹确定性 + 同态陈旧敏感 + 计时噪声免疫。"""
-    c = _rec(
+    c = make_rec(
         "p",
         "compile",
         "fail",
@@ -780,7 +763,7 @@ def test_compile_fp_stability() -> None:
     assert gate_scorecard.compile_fp(c5) != fp
     # 脏输入面：metrics 非 dict / 空记录 → 不崩仍出摘要
     assert isinstance(
-        gate_scorecard.compile_fp(_rec("p", "compile", "fail", metrics="junk")),
+        gate_scorecard.compile_fp(make_rec("p", "compile", "fail", metrics="junk")),
         str,
     )
     assert isinstance(gate_scorecard.compile_fp({}), str)
@@ -792,7 +775,7 @@ def test_pick_final_fingerprint_path() -> None:
     同态陈旧锚点：compile 重跑 status 不变 sig 已换——csb 等值放行而
     指纹拦下。fp 非 str/空值 → 视为缺席回退 legacy csb 路径。
     """
-    c = _rec("p", "compile", "fail", sig="syntax:brace", code="abc")
+    c = make_rec("p", "compile", "fail", sig="syntax:brace", code="abc")
     good = {
         "id": "p",
         "status": "clean",
@@ -845,8 +828,8 @@ def test_gate_union_best_of(
             "metrics": {"compile_status_before": "fail"},
         },
     ]
-    _write_jsonl(recdir / "compile.jsonl", comp)
-    _write_jsonl(recdir / "fixloop.jsonl", fix)
+    write_jsonl_rows(recdir / "compile.jsonl", comp)
+    write_jsonl_rows(recdir / "fixloop.jsonl", fix)
     monkeypatch.setattr(sys, "argv", ["gate_scorecard", str(recdir), "--json"])
     assert gate_scorecard.main() == 0
     d = json.loads(capsys.readouterr().out)
@@ -972,8 +955,8 @@ def test_gate_union_conservation_fuzz(
         exp_uni[uni_status] += 1
     recdir = tmp_path / "records"
     recdir.mkdir()
-    _write_jsonl(recdir / "compile.jsonl", comp_rows)
-    _write_jsonl(recdir / "fixloop.jsonl", list(fix_by_id.values()))
+    write_jsonl_rows(recdir / "compile.jsonl", comp_rows)
+    write_jsonl_rows(recdir / "fixloop.jsonl", list(fix_by_id.values()))
     monkeypatch.setattr(sys, "argv", ["gate_scorecard", str(recdir), "--json"])
     assert gate_scorecard.main() == 0
     d = json.loads(capsys.readouterr().out)
@@ -994,7 +977,7 @@ def test_gate_union_conservation_fuzz(
     "bad_metrics", ["x", [1], 5, True], ids=["str", "list", "int", "bool"]
 )
 def test_compute_metrics_nondict_metrics(tmp_path: Path, bad_metrics: object) -> None:
-    recs = [_rec("p", "fixloop", "fail", arm="fix", metrics=bad_metrics)]
+    recs = [make_rec("p", "fixloop", "fail", arm="fix", metrics=bad_metrics)]
     line = triage.compute_metrics(tmp_path, recs, None)
     assert isinstance(line["wall_s"], float)
 
@@ -1068,7 +1051,7 @@ def test_load_records_conservation_fuzz(tmp_path: Path) -> None:
                 lines.append(json.dumps({"note": f"noid-{i}"}))
                 noid += 1
             else:
-                rec = _rec(
+                rec = make_rec(
                     rng.choice(["a", "b", "c", "d"]),
                     stage,
                     rng.choice(_REC_STATUS),
@@ -1085,7 +1068,7 @@ def test_load_records_conservation_fuzz(tmp_path: Path) -> None:
                     str(rec["upstream"] or ""),
                 )
                 seen[key] = i
-        _write_jsonl(rdir / f"{stage}.jsonl", lines)
+        write_jsonl_rows(rdir / f"{stage}.jsonl", lines)
         total_oracle += len(seen) + noid
         for k, i in seen.items():
             last_val[(stage, *k)] = i
@@ -1109,7 +1092,7 @@ def test_record_sig_deterministic_fuzz() -> None:
     """record_sig 确定性 + 恒 str；空 sig → errors[0] 合成 → nosig:status 兜底。"""
     rng = fuzz_rng(_SEED + 21)
     for _ in range(_ITERS):
-        rec = _rec(
+        rec = make_rec(
             "p",
             rng.choice(["compile", "xlat", "fixloop"]),
             rng.choice(_REC_STATUS),
@@ -1120,9 +1103,9 @@ def test_record_sig_deterministic_fuzz() -> None:
         s2 = triage.record_sig(json.loads(json.dumps(rec)))
         assert isinstance(s1, str)
         assert s1 == s2
-    assert triage.record_sig(_rec("p", "s", "fail")) == "nosig:fail"
-    assert triage.record_sig(_rec("p", "s", "")) == "nosig:unknown"
-    r = _rec("p", "s", "fail", errors=[{"code": "c", "cat": "k", "payload": "v"}])
+    assert triage.record_sig(make_rec("p", "s", "fail")) == "nosig:fail"
+    assert triage.record_sig(make_rec("p", "s", "")) == "nosig:unknown"
+    r = make_rec("p", "s", "fail", errors=[{"code": "c", "cat": "k", "payload": "v"}])
     assert triage.record_sig(r) == "k:v"
 
 
@@ -1155,7 +1138,7 @@ def test_build_tickets_conservation_fuzz(tmp_path: Path) -> None:
     """Σ count == 非豁免记录数；桶不相交（每记录恰一 (stage,sig)）；排序+sig_id 唯一。"""
     rng = fuzz_rng(_SEED + 22)
     recs = [
-        _rec(
+        make_rec(
             f"p{i}",
             rng.choice(["compile", "xlat", "fixloop"]),
             rng.choice(_REC_STATUS),
@@ -1187,9 +1170,9 @@ def test_build_tickets_conservation_fuzz(tmp_path: Path) -> None:
 def test_build_tickets_ok_with_sig_warning() -> None:
     """ok 记录带显式 sig 仍出票（warning 级）——豁免条件是 (无 sig ∧ 无 errors)。"""
     recs = [
-        _rec("p1", "compile", "ok", sig="warn:invalid_utf8"),
-        _rec("p2", "compile", "ok"),  # 无 sig 无 errors → 豁免
-        _rec(
+        make_rec("p1", "compile", "ok", sig="warn:invalid_utf8"),
+        make_rec("p2", "compile", "ok"),  # 无 sig 无 errors → 豁免
+        make_rec(
             "p3",
             "compile",
             "ok",
@@ -1209,7 +1192,7 @@ def test_compute_metrics_conservation_fuzz(tmp_path: Path) -> None:
     rescued ≤ attempted；pipeline_introduced 归因口径。"""
     rng = fuzz_rng(_SEED + 23)
     recs = [
-        _rec(
+        make_rec(
             rng.choice(["a", "b", "c", "d", "e"]),
             rng.choice(["compile", "fixloop", "xlat", "parse"]),
             rng.choice(_REC_STATUS),
@@ -1278,8 +1261,8 @@ def test_compute_metrics_conservation_fuzz(tmp_path: Path) -> None:
 def test_compute_metrics_rate_drop(tmp_path: Path) -> None:
     """rate_drop 回归：prev 同 stage/arm rate 高 → 报；相等/无 prev → 不报。"""
     recs = [
-        _rec("a", "compile", "ok", arm="zh"),
-        _rec("b", "compile", "fail", arm="zh"),
+        make_rec("a", "compile", "ok", arm="zh"),
+        make_rec("b", "compile", "fail", arm="zh"),
     ]
     prev = {"run_id": "prev", "stage_rates": {"compile": {"zh": {"rate": 0.9}}}}
     line = triage.compute_metrics(tmp_path, recs, prev)
@@ -1293,7 +1276,7 @@ def test_compute_metrics_rate_drop(tmp_path: Path) -> None:
 
 
 def test_triage_errors_dict(tmp_path: Path) -> None:
-    bad = _rec(
+    bad = make_rec(
         "p",
         "xlat",
         "skip",
@@ -1308,7 +1291,7 @@ def test_triage_errors_dict(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize("bad_dur", ["abc", {"a": 1}, [1]], ids=["str", "dict", "list"])
 def test_wall_s_nonstr_dur(tmp_path: Path, bad_dur: object) -> None:
-    recs = [_rec("p", "compile", "fail", dur_s=bad_dur)]
+    recs = [make_rec("p", "compile", "fail", dur_s=bad_dur)]
     line = triage.compute_metrics(tmp_path, recs, None)
     assert math.isfinite(line["wall_s"])
 
@@ -1319,14 +1302,14 @@ def test_wall_s_nonstr_dur(tmp_path: Path, bad_dur: object) -> None:
     ids=["nan", "inf", "-inf"],
 )
 def test_wall_s_nonfinite(tmp_path: Path, bad_dur: float) -> None:
-    recs = [_rec("p", "compile", "fail", dur_s=bad_dur)]
+    recs = [make_rec("p", "compile", "fail", dur_s=bad_dur)]
     line = triage.compute_metrics(tmp_path, recs, None)
     assert math.isfinite(line["wall_s"])
 
 
 def test_fixloop_degraded_skip_false_positive(tmp_path: Path) -> None:
     recs = [
-        _rec(
+        make_rec(
             "p1",
             "fixloop",
             "skip",
@@ -1342,7 +1325,7 @@ def test_fixloop_degraded_skip_false_positive(tmp_path: Path) -> None:
 def test_missing_character_count_fragments(tmp_path: Path) -> None:
     sigs = ["missing_character", "missing_character:x1", "missing_character:x17"]
     recs = [
-        _rec(
+        make_rec(
             f"p{i}",
             "compile",
             "partial",
@@ -1577,10 +1560,10 @@ def test_selftest_synthetic_oracle(tmp_path: Path) -> None:
     (rdir / "work").mkdir()
     rows = {
         "compile": [
-            _rec("a", "compile", "ok", arm="zh"),
-            _rec("b", "compile", "fail", arm="zh", sig="missing_file:x.cls"),
-            _rec("b", "compile", "clean", arm="zh"),  # 同键末条胜 → b clean
-            _rec(
+            make_rec("a", "compile", "ok", arm="zh"),
+            make_rec("b", "compile", "fail", arm="zh", sig="missing_file:x.cls"),
+            make_rec("b", "compile", "clean", arm="zh"),  # 同键末条胜 → b clean
+            make_rec(
                 "c",
                 "compile",
                 "skip",
@@ -1590,7 +1573,7 @@ def test_selftest_synthetic_oracle(tmp_path: Path) -> None:
             ),
         ],
         "fixloop": [
-            _rec(
+            make_rec(
                 "b",
                 "fixloop",
                 "fail",
@@ -1600,7 +1583,7 @@ def test_selftest_synthetic_oracle(tmp_path: Path) -> None:
         ],
     }
     for stage, rs in rows.items():
-        _write_jsonl(rdir / "records" / f"{stage}.jsonl", rs)
+        write_jsonl_rows(rdir / "records" / f"{stage}.jsonl", rs)
     recs = triage.load_records(rdir)
     tickets = triage.build_tickets(recs, rdir)
     # b 末条 clean 无 sig → 豁免；c upstream 门 skip → 豁免；只剩 fixloop b

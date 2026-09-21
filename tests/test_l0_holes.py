@@ -16,12 +16,14 @@
 """
 
 import pytest
+from conftest import _issues
 
 from texlate.validate.l0 import L0Report, Severity, validate_pair
 
 
-def _issues(rep: L0Report, rule: str) -> list:
-    return [i for i in rep.issues if i.rule == rule]
+def _comment_ph_issues(rep: L0Report) -> list:
+    """注释区臆造占位符命中集（``注释`` 字样 message 的 placeholder 子集）。"""
+    return [i for i in _issues(rep, "placeholder") if "注释" in i.message]
 
 
 # ---------------------------------------------------------------- item_glue
@@ -96,7 +98,7 @@ def test_comment_placeholder_hallucinated_caught() -> None:
     zh = "公式 [[MATH_1]] 如下。\n% 备注 [[MATH_966]]"
     rep = validate_pair(src, zh)
     assert not rep.ok
-    hits = [i for i in _issues(rep, "placeholder") if "注释" in i.message]
+    hits = _comment_ph_issues(rep)
     assert hits, str(rep)
     assert hits[0].severity is Severity.ERROR
     assert "MATH_966" in hits[0].message
@@ -161,7 +163,7 @@ def test_comment_placeholder_real_escape_1012_5411() -> None:
     )
     rep = validate_pair(src, zh)
     assert not rep.ok
-    hits = [i for i in _issues(rep, "placeholder") if "注释" in i.message]
+    hits = _comment_ph_issues(rep)
     assert hits, str(rep)
     assert "MATH_966" in hits[0].message
 
@@ -174,7 +176,7 @@ def test_comment_placeholder_midline_and_double_percent() -> None:
     src = "公式 [[MATH_1]] 如下。"
     for tail in ("% 注 [[MATH_966]]", "%% 注 [[MATH_966]]"):
         rep = validate_pair(src, f"公式 [[MATH_1]] 如下。{tail}")
-        hits = [i for i in _issues(rep, "placeholder") if "注释" in i.message]
+        hits = _comment_ph_issues(rep)
         assert hits, tail
         assert "MATH_966" in hits[0].message
 
@@ -193,7 +195,7 @@ def test_comment_placeholder_multiple_tokens_each_reported() -> None:
     src = "公式 [[MATH_1]] 如下。"
     zh = "公式 [[MATH_1]] 如下。\n% [[MATH_966]] 与 [[ENV_7]]"
     rep = validate_pair(src, zh)
-    hits = [i for i in _issues(rep, "placeholder") if "注释" in i.message]
+    hits = _comment_ph_issues(rep)
     assert {i.found for i in hits} == {"[[MATH_966]]", "[[ENV_7]]"}
     assert all(i.severity is Severity.ERROR for i in hits)
 

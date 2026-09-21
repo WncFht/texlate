@@ -3,23 +3,26 @@ r"""flatten_inputs 的单测：``\input`` 八形态、壳剥离、tag 提取、�
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from conftest import write_tex as _w
+
 from texlate.latex.flatten import flatten_inputs, strip_doc_shell
+from texlate.latex.tables import MAX_INPUTS
 
 if TYPE_CHECKING:
     from texlate.latex.model import ScanWarning
-
-
-def _w(tmp: Path, name: str, text: str) -> Path:
-    p = tmp / name
-    p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(text, encoding="utf-8")
-    return p
 
 
 def test_input_brace(tmp_path: Path) -> None:
     _w(tmp_path, "chap.tex", "CHAP CONTENT")
     out = flatten_inputs("A\n\\input{chap}\nB", str(tmp_path))
     assert "CHAP CONTENT" in out
+
+
+def test_input_brace_inline_comment(tmp_path: Path) -> None:
+    r"""``\input{%\nfile}``：花括实参内 ``%``→EOL 注释段剔除——实参 ``file`` 照常内联。"""
+    _w(tmp_path, "file.tex", "BRACE COMMENT CONTENT")
+    out = flatten_inputs("A\n\\input{%\nfile}\nB", str(tmp_path))
+    assert "BRACE COMMENT CONTENT" in out
 
 
 def test_input_bare_filename(tmp_path: Path) -> None:
@@ -191,10 +194,17 @@ def test_missing_input_warning(tmp_path: Path) -> None:
 
 
 def test_depth_cap() -> None:
-    r"""``MAX_INPUTS`` 深度上限：超限原样返回。"""
-    deep = "\\input{x}" * 1
-    out = flatten_inputs(deep, "/nonexistent-dir", depth=99)
+    r"""``MAX_INPUTS`` 深度上限：``depth > MAX_INPUTS`` 原样返回。"""
+    deep = "\\input{x}"
+    out = flatten_inputs(deep, "/nonexistent-dir", depth=MAX_INPUTS + 1)
     assert out == deep
+
+
+def test_depth_cap_at_boundary_still_expands(tmp_path: Path) -> None:
+    r"""``depth == MAX_INPUTS`` 未触闸——真 ``x.tex`` 照常内联（界内臂钉）。"""
+    _w(tmp_path, "x.tex", "X CONTENT")
+    out = flatten_inputs("\\input{x}", str(tmp_path), depth=MAX_INPUTS)
+    assert "X CONTENT" in out
 
 
 def test_strip_doc_shell_no_begin() -> None:

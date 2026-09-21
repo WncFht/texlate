@@ -5,17 +5,17 @@ r"""latex 层 tar 伪装 .tex 闸（``_tar_disguised`` 宿于 ``textutil.encodin
 兜底），tar 成员文本里的 ``\documentclass``/散文会让伪装件被
 ``scan_tex_tree`` 枚举进翻译集、被 ``\input`` 展平内联，splice 写回即
 腐蚀 blob。逐点验证：枚举跳过（三桶皆不入）、直读入口按 OSError 拒、
-展平不内联成员文本；文本里 ``ustar`` 字样不假阳（chksum 轻校验挡）。
+展平不内联成员文本；文本里 ``ustar`` 字样不假阳（魔数+版本域 8B 校验
+先挡，chksum 值校验殿后——``targate._tar_header_ok`` 双闸）。
 """
 
 from __future__ import annotations
 
 import errno
-import io
-import tarfile
 from typing import TYPE_CHECKING
 
 import pytest
+from _tarkit import _tar_blob as _tar_kit
 
 from texlate.latex.api import parse_file, scan_tex_tree
 from texlate.latex.flatten import flatten_inputs
@@ -34,15 +34,7 @@ _PROSE = (
 
 def _tar_blob(*members: tuple[str, bytes]) -> bytes:
     """ustar blob——成员文本默认含 dc/bd 文档形态（latin-1 解出即假阳面）。"""
-    buf = io.BytesIO()
-    with tarfile.open(fileobj=buf, mode="w", format=tarfile.USTAR_FORMAT) as tf:
-        for name, data in members or [
-            ("inner/doc.tex", _DOC.encode()),
-        ]:
-            info = tarfile.TarInfo(name)
-            info.size = len(data)
-            tf.addfile(info, io.BytesIO(data))
-    return buf.getvalue()
+    return _tar_kit(*(members or (("inner/doc.tex", _DOC.encode()),)))
 
 
 def test_scan_tex_tree_skips_tar(tmp_path: Path) -> None:
@@ -97,7 +89,8 @@ def test_flatten_inputs_real_still_inlines(tmp_path: Path) -> None:
 
 
 def test_ustar_text_no_false_positive(tmp_path: Path) -> None:
-    """正文含 ``ustar`` 字样（恰落魔数偏移 257）：chksum 校验挡假阳。"""
+    """正文含 ``ustar`` 字样（恰落魔数偏移 257）：魔数+版本域 8B 校验挡假阳——
+    ``ustar\\n`` 不是合法 ``ustar\\0``+``00``/``ustar  \\0`` 域，chksum 层未达。"""
     head = b"\\documentclass{article}\n"
     blob = head + b"x" * (257 - len(head)) + b"ustar\n" + _PROSE.encode()
     assert blob[257:262] == b"ustar"  # 魔数落正位——纯文本照过闸
@@ -106,3 +99,23 @@ def test_ustar_text_no_false_positive(tmp_path: Path) -> None:
     assert res is not None
     tree = scan_tex_tree(tmp_path)
     assert [rel for _f, rel, _res in tree.parsed] == ["main.tex"]
+
+
+def test_ustar_magic_field_bad_checksum_still_text(tmp_path: Path) -> None:
+    """POSIX 魔数+版本域全真 (``ustar\\0``+``00``) 且 chksum 位恰呈八进制形
+    (``012345␣␣``)——值不等于头余字节和仍按纯文本过闸
+    (镜像 test_fixloop_tarmember.py 的校验和层独测, 走 latex 闸面)。"""
+    blob = (
+        b"% "
+        + b"y" * 190
+        + b"012345  "  # 恰落 hdr+148: 八进制形态正确但值 != 头校验和
+        + b"y" * 101
+        + b"ustar\x0000"  # hdr+257: 魔数+版本域全真
+        + b"z" * 400
+    )
+    (tmp_path / "main.tex").write_bytes(blob)
+    res = parse_file(tmp_path / "main.tex", flatten=False)
+    assert res is not None  # OSError(EINVAL) 未发——chksum 校验把伪装件挡回文本
+    tree = scan_tex_tree(tmp_path)
+    assert [rel for rel, _exc in tree.fault] == []
+    assert (tmp_path / "main.tex").read_bytes() == blob

@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any
 
 import httpx
 import pytest
+from _xlatkit import chat_payload, json_resp, mock_client, panel_entry, recording
 
 from texlate.xlat import client as cl
 
@@ -22,7 +23,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
 
 GATEWAY = "http://127.0.0.1:3003"
-TAILNET_GW = "http://100.64.0.1:3003"  # settings.DEFAULT_BASE_URL 同款
+TAILNET_GW = "http://100.64.0.1:3003"  # tailnet/CGNAT 形网关端点（非缺省——缺省为 127.0.0.1:3033）
 BYOK = "https://api.deepseek.com"
 CUSTOM_PUBLIC = "https://relay.example.com"
 KEY = "k"
@@ -36,46 +37,36 @@ def _client(
     handler: Callable[[httpx.Request], httpx.Response],
     base_url: str = GATEWAY,
 ) -> cl.ChatClient:
-    def recording(req: httpx.Request) -> httpx.Response:
-        _REQS.append(req)
-        return handler(req)
-
-    http = httpx.AsyncClient(transport=httpx.MockTransport(recording))
-    return cl.ChatClient(base_url, KEY, http=http)
-
-
-def _json(payload: object, status: int = 200) -> httpx.Response:
-    return httpx.Response(status, json=payload)
+    """本文件默认 ``GATEWAY``/``KEY`` + ``_REQS`` 登记——透传 ``_xlatkit`` 骨架。"""
+    return mock_client(recording(handler, _REQS), base_url=base_url, api_key=KEY)
 
 
 def _chat_payload(content: str = "译文", *, model: str = "m") -> dict[str, Any]:
-    return {
-        "model": model,
-        "choices": [
-            {
-                "message": {"role": "assistant", "content": content},
-                "finish_reason": "stop",
-            }
-        ],
-        "usage": {"prompt_tokens": 3, "completion_tokens": 2},
-    }
+    """本文件默认 ``"译文"``/``"m"``/usage 3/2——透传 ``_xlatkit.chat_payload``。"""
+    return chat_payload(
+        content, model=model, usage={"prompt_tokens": 3, "completion_tokens": 2}
+    )
 
 
 def _panel_entry(uid: str) -> dict[str, Any]:
-    return {
-        "uid": uid,
-        "cost_tier": "free",
-        "disabled": False,
-        "promo": {"active": True, "end_date": "2026-10-16"},
-    }
+    """本文件钉 ``disabled=False``/promo 2026-10-16——kit 默认 10-01 漂移面见 kit 注记。"""
+    return panel_entry(
+        uid, disabled=False, promo={"active": True, "end_date": "2026-10-16"}
+    )
 
 
-def _chat_models() -> list[str]:
-    """已发 POST /v1/chat/completions 的 model 序列（含探活）。"""
+def _posted_model(req: httpx.Request) -> str:
+    """POST 请求体里的 ``model`` 字段。"""
+    return str(json.loads(req.content)["model"])
+
+
+def _chat_models(*, include_probes: bool = True) -> list[str]:
+    """已发 POST /v1/chat/completions 的 model 序列（默认含探活）。"""
     return [
-        str(json.loads(r.content)["model"])
+        _posted_model(r)
         for r in _REQS
         if r.url.path == "/v1/chat/completions"
+        and (include_probes or not _is_probe(r))
     ]
 
 
@@ -86,7 +77,9 @@ def _is_probe(req: httpx.Request) -> bool:
 
 
 @pytest.fixture(autouse=True)
-def _clear_reqs() -> Iterator[None]:
+def _clear_reqs(clean_env: pytest.MonkeyPatch) -> Iterator[None]:  # noqa: ARG001 -- fixture 副作用（env 清洗）
+    """请求登记清零 + ``TEXLATE_*`` env 全扫——行为旗标（如
+    ``TEXLATE_STREAM_FALLBACK``）不得泄入请求计数断言。"""
     _REQS.clear()
     yield
     _REQS.clear()
@@ -102,7 +95,7 @@ class TestGate:
             "http://localhost:3003/v1",
             "http://[::1]:3003",
             TAILNET_GW,
-            "http://100.64.0.1:3003",
+            "http://100.100.0.1:3003",  # CGNAT 段另一地址（不随 TAILNET_GW 常量值漂移）
             "https://node.tail12345.ts.net",
         ):
             assert cl.is_free_gateway_url(url), url
@@ -119,7 +112,7 @@ class TestGate:
     @pytest.mark.parametrize("base_url", [BYOK, CUSTOM_PUBLIC])
     def test_byok_zero_discovery_requests(self, base_url: str) -> None:
         """BYOK/公网端点：chat 失败后一个探测请求都不发，原错误上抛。"""
-        c = _client(lambda _r: _json({"e": 1}, status=500), base_url=base_url)
+        c = _client(lambda _r: json_resp({"e": 1}, status=500), base_url=base_url)
 
         async def go() -> None:
             with pytest.raises(cl.RetryableHTTPError):
@@ -133,7 +126,7 @@ class TestGate:
     @pytest.mark.parametrize("base_url", [BYOK, CUSTOM_PUBLIC])
     def test_byok_never_calls_discovery(self, base_url: str) -> None:
         """闸短路在 ``fallback_candidates`` 入口——连 discover_free_models 都不进。"""
-        c = _client(lambda _r: _json({}), base_url=base_url)
+        c = _client(lambda _r: json_resp({}), base_url=base_url)
         calls = 0
 
         async def spy(*_a: object, **_k: object) -> list[cl.FreeModel]:
@@ -158,16 +151,16 @@ class TestGatewayFallback:
 
         def handler(req: httpx.Request) -> httpx.Response:
             if req.url.path == "/panel/api/models":
-                return _json(
+                return json_resp(
                     {"models": [_panel_entry("aa-free"), _panel_entry("swe-2-high")]}
                 )
             if req.url.path == "/v1/models":
-                return _json({"data": [{"id": "aa-free"}, {"id": "swe-2-high"}]})
+                return json_resp({"data": [{"id": "aa-free"}, {"id": "swe-2-high"}]})
             if req.url.path == "/v1/chat/completions":
-                uid = str(json.loads(req.content)["model"])
+                uid = _posted_model(req)
                 if uid in dead:
-                    return _json({"e": 1}, status=503)
-                return _json(_chat_payload(model=uid))
+                    return json_resp({"e": 1}, status=503)
+                return json_resp(_chat_payload(model=uid))
             return httpx.Response(404)
 
         return handler
@@ -186,7 +179,7 @@ class TestGatewayFallback:
         assert {"aa-free", "swe-2-high"} <= set(posts[1:-1])
 
     def test_tailnet_gateway_allowed(self) -> None:
-        """默认 tailnet 网关 URL（provider_for_url→custom）同样允许发现。"""
+        """tailnet 形网关 URL（provider_for_url→custom）同样允许发现。"""
         c = _client(self._gateway(), base_url=TAILNET_GW)
         assert asyncio.run(c.fallback_candidates()) == ["swe-2-high", "aa-free"]
 
@@ -196,10 +189,10 @@ class TestGatewayFallback:
 
         def handler(req: httpx.Request) -> httpx.Response:
             if req.url.path == "/v1/chat/completions":
-                uid = str(json.loads(req.content)["model"])
+                uid = _posted_model(req)
                 if uid in dead:
-                    return _json({"e": 1}, status=404)
-                return _json(_chat_payload(model=uid))
+                    return json_resp({"e": 1}, status=404)
+                return json_resp(_chat_payload(model=uid))
             return self._gateway()(req)
 
         c = _client(handler)
@@ -216,24 +209,20 @@ class TestGatewayFallback:
 
         def handler(req: httpx.Request) -> httpx.Response:
             if req.url.path == "/v1/chat/completions" and not _is_probe(req):
-                uid = str(json.loads(req.content)["model"])
+                uid = _posted_model(req)
                 if uid in dead:
-                    return _json({"e": 1}, status=503)
+                    return json_resp({"e": 1}, status=503)
             return base(req)
 
         c = _client(handler)
         with pytest.raises(cl.RetryableHTTPError):
             asyncio.run(c.chat("m", _MSGS))
-        real = [
-            json.loads(r.content)["model"]
-            for r in _REQS
-            if r.url.path == "/v1/chat/completions" and not _is_probe(r)
-        ]
+        real = _chat_models(include_probes=False)
         assert real == ["m", "swe-2-high", "aa-free"]
 
     def test_non_switchable_no_discovery(self) -> None:
         """auth/请求级错误不切模——panel/v1 一个请求都不发。"""
-        c = _client(lambda _r: _json({"e": 1}, status=401))
+        c = _client(lambda _r: json_resp({"e": 1}, status=401))
         with pytest.raises(cl.AuthError):
             asyncio.run(c.chat("m", _MSGS))
         assert len(_REQS) == 1
@@ -273,8 +262,8 @@ class TestDegrade:
 
         def handler(req: httpx.Request) -> httpx.Response:
             if req.url.path == "/panel/api/models":
-                return _json({"e": 1}, status=503)
-            return _json({"e": 1}, status=503)
+                return json_resp({"e": 1}, status=503)
+            return json_resp({"e": 1}, status=503)
 
         c = _client(handler)
         with pytest.raises(cl.RetryableHTTPError) as ei:
@@ -288,10 +277,10 @@ class TestDegrade:
 
         def handler(req: httpx.Request) -> httpx.Response:
             if req.url.path == "/panel/api/models":
-                return _json({"models": []})
+                return json_resp({"models": []})
             if req.url.path == "/v1/models":
-                return _json({"data": []})
-            return _json({"e": 1}, status=503)
+                return json_resp({"data": []})
+            return json_resp({"e": 1}, status=503)
 
         c = _client(handler)
         with pytest.raises(cl.RetryableHTTPError):
@@ -303,10 +292,10 @@ class TestDegrade:
 
         def handler(req: httpx.Request) -> httpx.Response:
             if req.url.path == "/panel/api/models":
-                return _json({"models": [_panel_entry("ghost")]})
+                return json_resp({"models": [_panel_entry("ghost")]})
             if req.url.path == "/v1/models":
-                return _json({"data": [{"id": "ghost"}]})
-            return _json({"e": 1}, status=503)
+                return json_resp({"data": [{"id": "ghost"}]})
+            return json_resp({"e": 1}, status=503)
 
         c = _client(handler)
         with pytest.raises(cl.RetryableHTTPError):

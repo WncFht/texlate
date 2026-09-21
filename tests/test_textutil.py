@@ -7,6 +7,9 @@ cs 被误报文本域裸 cs）。
 
 from texlate import textutil
 from texlate.textutil import (
+    AUX_CITEKEY_RE,
+    BIBITEM_KEY_RE,
+    CITE_FAMILY_RE,
     END_DOC_RX,
     LOADER_CMDS,
     _declared_name,
@@ -199,3 +202,19 @@ def test_loader_cmds_membership() -> None:
         == LOADER_CMDS
     )
     assert not (LOADER_CMDS & {"documentclass", "documentstyle"})
+
+
+def test_cite_leaf_regexes() -> None:
+    """键表抽取正则行为面——facade 导出直测（旧 ``_builtins_bib`` 私有表同形）。"""
+    m = CITE_FAMILY_RE.search(r"see \citet[§2]{foo&a,b_2} and \cite{c3}")
+    assert m is not None
+    assert m.group(1) == "foo&a,b_2"
+    m = BIBITEM_KEY_RE.search(r"\bibitem[label]{key_1}")
+    assert m is not None
+    assert m.group(1) == "key_1"
+    m = AUX_CITEKEY_RE.search(r"\bibcite{k1}{1}")
+    assert m is not None
+    assert m.group(1) == "k1"
+    m = AUX_CITEKEY_RE.search(r"\citation{a,b}")
+    assert m is not None
+    assert m.group(1) == "a,b"

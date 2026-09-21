@@ -12,9 +12,10 @@ NUL 的支持件不做兼容前导块注入（转码与其余手术照旧——�
 
 from __future__ import annotations
 
-import io
 import tarfile
 from typing import TYPE_CHECKING
+
+from _tarkit import _tar_blob
 
 from texlate.compile.normalize import normalize_project
 
@@ -22,23 +23,19 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
-def _tar_blob() -> bytes:
-    """含 ``\\begin{document}`` 成员的 ustar blob——``has_document`` 命中形态。"""
-    buf = io.BytesIO()
-    with tarfile.open(fileobj=buf, mode="w", format=tarfile.USTAR_FORMAT) as tf:
-        member = (
-            b"\\documentclass{article}\n\\begin{document}\n"
-            b"member \\usepackage{inputenc}\n\\end{document}\n"
-        )
-        info = tarfile.TarInfo("inner/doc.tex")
-        info.size = len(member)
-        tf.addfile(info, io.BytesIO(member))
-    return buf.getvalue()
-
-
 def test_tar_blob_sty_byte_identical(tmp_path: Path) -> None:
     """tar 伪装 .sty：prologue 不注、转码不写——逐字节原样留 fixloop 解包臂。"""
     blob = _tar_blob()
+    (tmp_path / "AMSbsy.sty").write_bytes(blob)
+    stats = normalize_project(tmp_path, "xelatex")
+    assert (tmp_path / "AMSbsy.sty").read_bytes() == blob
+    assert stats["rewritten"] == 0
+
+
+def test_tar_blob_gnu_format_byte_identical(tmp_path: Path) -> None:
+    """GNU tar（``ustar  \\x00`` 魔数+版本域）同闸——非 POSIX ustar 变体也逐字节留。"""
+    blob = _tar_blob(fmt=tarfile.GNU_FORMAT)
+    assert blob[257:265] == b"ustar  \x00"  # GNU 魔数域（POSIX 是 ``ustar\\x0000``）
     (tmp_path / "AMSbsy.sty").write_bytes(blob)
     stats = normalize_project(tmp_path, "xelatex")
     assert (tmp_path / "AMSbsy.sty").read_bytes() == blob
@@ -74,7 +71,9 @@ def test_nonutf8_sty_no_prologue(tmp_path: Path) -> None:
     normalize_project(tmp_path, "xelatex")
     out = (tmp_path / "latin.sty").read_text(encoding="utf-8")
     assert "\\PassOptionsToPackage{no-math}{fontspec}" not in out
-    assert "\\providecommand{\\DeclareUnicodeCharacter}" not in out
+    # XETEX_COMPATIBILITY 体标记——支持件真闸面（EARLY_DEFS 的
+    # \DeclareUnicodeCharacter 本就 doc_source 限定，钉了也证不了闸）。
+    assert "\\TeXlatePstObject" not in out
 
 
 def test_nul_blob_sty_no_prologue(tmp_path: Path) -> None:
@@ -84,7 +83,7 @@ def test_nul_blob_sty_no_prologue(tmp_path: Path) -> None:
     normalize_project(tmp_path, "xelatex")
     out = (tmp_path / "bin.sty").read_bytes()
     assert b"\\PassOptionsToPackage{no-math}{fontspec}" not in out
-    assert b"\\providecommand{\\DeclareUnicodeCharacter}" not in out
+    assert b"\\TeXlatePstObject" not in out  # 同上——兼容块体标记才算真闸
 
 
 def test_nonutf8_tex_doc_keeps_prologue(tmp_path: Path) -> None:

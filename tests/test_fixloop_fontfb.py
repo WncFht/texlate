@@ -19,7 +19,8 @@ r"""fontfb (2026-09-20): fontspec_missing 克隆替换 + enc.def 摘除两臂 (t
 
 from pathlib import Path
 
-from texlate.compile.fixloop import load_ruleset
+from _fixloopkit import EngStub, mk_ctx, rule
+
 from texlate.compile.fixloop._builtins_misschar import (
     _CLONE_TABLE,
     _font_stem,
@@ -28,13 +29,10 @@ from texlate.compile.fixloop.builtins import (
     fontenc_enc_relax,
     fontspec_clone_sub,
 )
-from texlate.compile.fixloop.engine import LoopCtx, Rule
 
 
-class _FontEng:
+class _FontEng(EngStub):
     """probe_file → ``avail`` 白名单在档 (模拟 texmf 文件形名可达)。"""
-
-    name = "xelatex"
 
     def __init__(self, avail: set[str]) -> None:
         self.avail = avail
@@ -42,14 +40,6 @@ class _FontEng:
     def probe_file(self, fname: str, cwd: Path | None = None) -> str | None:
         del cwd
         return f"/texmf/{fname}" if fname in self.avail else None
-
-    def filemap(self, fname: str) -> list[str]:
-        del fname
-        return []
-
-
-def _ctx(wdir: Path) -> LoopCtx:
-    return LoopCtx(wdir=wdir, engine_name="xelatex", main_rel="main.tex")
 
 
 def _params() -> dict:
@@ -104,7 +94,7 @@ def test_clone_sub_nimbus_trio(tmp_path: Path) -> None:
     """2609.19582 形: Nimbus 三站点同轮收敛 → TeX Gyre 文件形克隆。"""
     (tmp_path / "main.tex").write_text(_NIMBUS_SRC, encoding="utf-8")
     ok, note = fontspec_clone_sub(
-        _ctx(tmp_path), _FontEng(_GRE_CLONES), "Nimbus Roman", _params()
+        mk_ctx(tmp_path), _FontEng(_GRE_CLONES), "Nimbus Roman", _params()
     )
     assert ok, note
     t = (tmp_path / "main.tex").read_text()
@@ -122,7 +112,7 @@ def test_clone_sub_tinos_path_bind_strip(tmp_path: Path) -> None:
     )
     (tmp_path / "anthology-ch.cls").write_text(src, encoding="utf-8")
     ok, note = fontspec_clone_sub(
-        _ctx(tmp_path), _FontEng({"Tinos-Regular.ttf"}), "Tinos-Regular", _params()
+        mk_ctx(tmp_path), _FontEng({"Tinos-Regular.ttf"}), "Tinos-Regular", _params()
     )
     assert ok, note
     t = (tmp_path / "anthology-ch.cls").read_text()
@@ -139,7 +129,7 @@ def test_clone_sub_fam_form_mid_opts(tmp_path: Path) -> None:
     )
     (tmp_path / "main.tex").write_text(src, encoding="utf-8")
     ok, note = fontspec_clone_sub(
-        _ctx(tmp_path), _FontEng({"NotoSerif-Regular.ttf"}), "NotoSerif", _params()
+        mk_ctx(tmp_path), _FontEng({"NotoSerif-Regular.ttf"}), "NotoSerif", _params()
     )
     assert ok, note
     t = (tmp_path / "main.tex").read_text()
@@ -155,7 +145,7 @@ def test_clone_sub_preopts_and_keeps_render_opts(tmp_path: Path) -> None:
     )
     (tmp_path / "main.tex").write_text(src, encoding="utf-8")
     eng = _FontEng({"Tinos-Regular.ttf", "texgyreheros-regular.otf"})
-    ok, note = fontspec_clone_sub(_ctx(tmp_path), eng, "Tinos", _params())
+    ok, note = fontspec_clone_sub(mk_ctx(tmp_path), eng, "Tinos", _params())
     assert ok, note
     t = (tmp_path / "main.tex").read_text()
     assert "\\setmainfont[Scale=0.95, Ligatures=TeX]{Tinos-Regular.ttf}" in t
@@ -167,7 +157,7 @@ def test_clone_sub_amiri_declines_unfixable(tmp_path: Path) -> None:
     src = "\\babelfont[arabic]{rm}{Amiri-Regular.ttf}\n"
     (tmp_path / "main.tex").write_text(src, encoding="utf-8")
     ok, note = fontspec_clone_sub(
-        _ctx(tmp_path), _FontEng(set()), "Amiri-Regular", _params()
+        mk_ctx(tmp_path), _FontEng(set()), "Amiri-Regular", _params()
     )
     assert not ok
     assert "no clone-table entry" in note
@@ -178,7 +168,7 @@ def test_clone_sub_clone_unresolvable_declines(tmp_path: Path) -> None:
     """表项在而克隆件 kpathsea 不可达 → decline 落回 LM 兜底臂。"""
     (tmp_path / "main.tex").write_text(_NIMBUS_SRC, encoding="utf-8")
     ok, note = fontspec_clone_sub(
-        _ctx(tmp_path), _FontEng(set()), "Nimbus Roman", _params()
+        mk_ctx(tmp_path), _FontEng(set()), "Nimbus Roman", _params()
     )
     assert not ok
     assert "not resolvable" in note
@@ -189,7 +179,7 @@ def test_clone_sub_masked_comment_untouched(tmp_path: Path) -> None:
     src = "% \\setmainfont{Nimbus Roman}\nx\n"
     (tmp_path / "main.tex").write_text(src, encoding="utf-8")
     ok, _ = fontspec_clone_sub(
-        _ctx(tmp_path), _FontEng(_GRE_CLONES), "Nimbus Roman", _params()
+        mk_ctx(tmp_path), _FontEng(_GRE_CLONES), "Nimbus Roman", _params()
     )
     assert not ok
     assert (tmp_path / "main.tex").read_text() == src
@@ -201,7 +191,7 @@ def test_clone_sub_no_matching_site_declines(tmp_path: Path) -> None:
         "\\setmainfont{Latin Modern Roman}\n", encoding="utf-8"
     )
     ok, note = fontspec_clone_sub(
-        _ctx(tmp_path), _FontEng(_GRE_CLONES), "Nimbus Roman", _params()
+        mk_ctx(tmp_path), _FontEng(_GRE_CLONES), "Nimbus Roman", _params()
     )
     assert not ok
     assert "no fontspec sites" in note
@@ -215,7 +205,7 @@ def test_enc_strip_unused_t2a_whole_optlist(tmp_path: Path) -> None:
     src = "\\documentclass{article}\n\\usepackage[T2A]{fontenc}\n\\begin{document}\nx\\end{document}\n"
     (tmp_path / "main.tex").write_text(src, encoding="utf-8")
     ok, note = fontenc_enc_relax(
-        _ctx(tmp_path), _FontEng(set()), "t2aenc.def", _params()
+        mk_ctx(tmp_path), _FontEng(set()), "t2aenc.def", _params()
     )
     assert ok, note
     t = (tmp_path / "main.tex").read_text()
@@ -228,7 +218,7 @@ def test_enc_strip_keeps_sibling_opts(tmp_path: Path) -> None:
     src = "\\usepackage[T2A,T1]{fontenc}\n"
     (tmp_path / "main.tex").write_text(src, encoding="utf-8")
     ok, note = fontenc_enc_relax(
-        _ctx(tmp_path), _FontEng(set()), "t2aenc.def", _params()
+        mk_ctx(tmp_path), _FontEng(set()), "t2aenc.def", _params()
     )
     assert ok, note
     t = (tmp_path / "main.tex").read_text()
@@ -241,7 +231,7 @@ def test_enc_decl_commented_with_opt(tmp_path: Path) -> None:
     src = "\\usepackage[T2A]{fontenc}\n\\DeclareFontEncoding{T2A}{}{}\nx\n"
     (tmp_path / "main.tex").write_text(src, encoding="utf-8")
     ok, note = fontenc_enc_relax(
-        _ctx(tmp_path), _FontEng(set()), "t2aenc.def", _params()
+        mk_ctx(tmp_path), _FontEng(set()), "t2aenc.def", _params()
     )
     assert ok, note
     t = (tmp_path / "main.tex").read_text()
@@ -254,7 +244,7 @@ def test_enc_in_use_declines(tmp_path: Path) -> None:
     src = "\\usepackage[LGR,T1]{fontenc}\n{\\fontencoding{LGR}\\selectfont α}\n"
     (tmp_path / "main.tex").write_text(src, encoding="utf-8")
     ok, note = fontenc_enc_relax(
-        _ctx(tmp_path), _FontEng(set()), "lgrenc.def", _params()
+        mk_ctx(tmp_path), _FontEng(set()), "lgrenc.def", _params()
     )
     assert not ok
     assert "selected in source" in note
@@ -266,7 +256,7 @@ def test_enc_declaretext_use_declines(tmp_path: Path) -> None:
     src = "\\usepackage[T2A]{fontenc}\n\\DeclareTextSymbol{\\cyrA}{T2A}{192}\n"
     (tmp_path / "main.tex").write_text(src, encoding="utf-8")
     ok, note = fontenc_enc_relax(
-        _ctx(tmp_path), _FontEng(set()), "t2aenc.def", _params()
+        mk_ctx(tmp_path), _FontEng(set()), "t2aenc.def", _params()
     )
     assert not ok
     assert "selected in source" in note
@@ -276,14 +266,14 @@ def test_enc_use_in_comment_not_use(tmp_path: Path) -> None:
     """注释内 ``\\fontencoding`` 遮盖面不计使用 —— 仍摘除。"""
     src = "% {\\fontencoding{T2A}\\selectfont x}\n\\usepackage[T2A]{fontenc}\n"
     (tmp_path / "main.tex").write_text(src, encoding="utf-8")
-    ok, _ = fontenc_enc_relax(_ctx(tmp_path), _FontEng(set()), "t2aenc.def", _params())
+    ok, _ = fontenc_enc_relax(mk_ctx(tmp_path), _FontEng(set()), "t2aenc.def", _params())
     assert ok
     assert "\\usepackage{fontenc}" in (tmp_path / "main.tex").read_text()
 
 
 def test_enc_non_encdef_payload_declines(tmp_path: Path) -> None:
     """非 ``<enc>enc.def`` payload (foo.sty) → decline。"""
-    ok, note = fontenc_enc_relax(_ctx(tmp_path), _FontEng(set()), "foo.sty", _params())
+    ok, note = fontenc_enc_relax(mk_ctx(tmp_path), _FontEng(set()), "foo.sty", _params())
     assert not ok
     assert "not an <enc>enc.def" in note
 
@@ -292,7 +282,7 @@ def test_enc_transitive_no_load_site_declines(tmp_path: Path) -> None:
     """装载点不在 fileset (babel ldf 内传递请求) → decline。"""
     (tmp_path / "main.tex").write_text("\\usepackage{inputenc}\nx\n", encoding="utf-8")
     ok, note = fontenc_enc_relax(
-        _ctx(tmp_path), _FontEng(set()), "t2aenc.def", _params()
+        mk_ctx(tmp_path), _FontEng(set()), "t2aenc.def", _params()
     )
     assert not ok
     assert "transitive" in note
@@ -301,26 +291,29 @@ def test_enc_transitive_no_load_site_declines(tmp_path: Path) -> None:
 # ------------------------------------------------------- 规则注册钉
 
 
-def _rule(rid: str) -> Rule:
-    return next(r for r in load_ruleset().rules if r.id == rid)
-
-
 def test_clone_sub_rule_registered() -> None:
     """order 30.5 —— install(30) 后 LM 兜底(31) 前; 仅 fontspec_missing 点火。"""
-    rule = _rule("fontspec_clone_sub")
-    assert rule.order == 30.5  # noqa: PLR2004 - schema 断言值
-    assert rule.when["category"] == "fontspec_missing"
-    assert rule.when["payload_required"] is True
-    assert rule.action["kind"] == "builtin_transform"
-    assert rule.action["function"] == "fontspec_clone_sub"
-    assert "amiri" not in rule.action["params"]["clone_table"]
+    r = rule("fontspec_clone_sub")
+    assert r.order == 30.5  # noqa: PLR2004 - schema 断言值
+    assert r.when["category"] == "fontspec_missing"
+    assert r.when["payload_required"] is True
+    assert r.action["kind"] == "builtin_transform"
+    assert r.action["function"] == "fontspec_clone_sub"
+    assert "amiri" not in r.action["params"]["clone_table"]
+    # yaml clone_table 是 builtin ``_CLONE_TABLE`` 的显式重述 (60-misschar.yaml
+    # 注明「同表」) —— ``params.get(...) or _CLONE_TABLE`` 让 yaml 整表顶替
+    # builtin, 全表等值钉防两份拷贝静默漂移。
+    assert {
+        _font_stem(str(k)): str(v)
+        for k, v in r.action["params"]["clone_table"].items()
+    } == _CLONE_TABLE
 
 
 def test_enc_relax_rule_registered() -> None:
     """order 11.995 —— 全真件臂后 shim 前; enc.def 签名限定点火。"""
-    rule = _rule("fontenc_enc_relax")
-    assert rule.order == 11.995  # noqa: PLR2004 - schema 断言值
-    assert rule.when["category"] == "missing_file"
-    assert "enc" in rule.condition["ctx_suggests"]
-    assert rule.action["kind"] == "builtin_transform"
-    assert rule.action["function"] == "fontenc_enc_relax"
+    r = rule("fontenc_enc_relax")
+    assert r.order == 11.995  # noqa: PLR2004 - schema 断言值
+    assert r.when["category"] == "missing_file"
+    assert "enc" in r.condition["ctx_suggests"]
+    assert r.action["kind"] == "builtin_transform"
+    assert r.action["function"] == "fontenc_enc_relax"

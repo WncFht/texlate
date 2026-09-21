@@ -17,40 +17,18 @@ caption ``\caption@prepareanchor`` (starred \newcommand)。``\abrace@next``
 import subprocess
 from pathlib import Path
 
-import pytest
+from _fixloopkit import XELATEX, EngStub, mk_ctx, requires_xelatex, write_file
 
 from texlate.compile.fixloop._builtins_paralong import (
     _WRAP_TABLE,
     _wrap_block,
     para_longize,
 )
-from texlate.compile.fixloop.engine import LoopCtx
-
-
-class _Eng:
-    name = "xelatex"
-
-
-def _ctx(tmp_path: Path, err_head: str) -> LoopCtx:
-    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel="main.tex")
-    ctx.err_head = err_head
-    return ctx
-
-
-def _write(tmp_path: Path, name: str, text: str) -> Path:
-    p = tmp_path / name
-    p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(text, encoding="utf-8")
-    return p
-
-
-_XELATEX = "/usr/bin/xelatex"
-_HAS_XELATEX = Path(_XELATEX).exists()
 
 
 def _xelatex(wdir: Path) -> subprocess.CompletedProcess[str]:
     return subprocess.run(  # noqa: S603 — 固定 argv, 测试面实弹编译
-        [_XELATEX, "-interaction=nonstopmode", "-halt-on-error", "main.tex"],
+        [XELATEX, "-interaction=nonstopmode", "-halt-on-error", "main.tex"],
         cwd=wdir,
         capture_output=True,
         text=True,
@@ -83,14 +61,16 @@ def test_wrap_table_institutesig_wave7() -> None:
 def test_abstract_alias_wrap(tmp_path: Path) -> None:
     r"""aa.cls 别名机制钉: ``\def\abstract`` 不存在 → def-site 零命中,
     wrap 兜底; ``\abstract`` 在 begindoc 前被调 → preamble 调用点缝。"""
-    main = _write(
+    main = write_file(
         tmp_path,
         "main.tex",
         "\\documentclass{article}\n\\abstract{a\n\nb}\n"
         "\\begin{document}\nx\n\\end{document}\n",
     )
-    ctx = _ctx(tmp_path, "main.tex:2: Paragraph ended before \\abstract was complete.")
-    ok, note = para_longize(ctx, _Eng(), None, {})
+    ctx = mk_ctx(
+        tmp_path, err_head="main.tex:2: Paragraph ended before \\abstract was complete."
+    )
+    ok, note = para_longize(ctx, EngStub(), None, {})
     assert ok, note
     assert "wrap" in note
     t = main.read_text()
@@ -101,15 +81,15 @@ def test_abstract_alias_wrap(tmp_path: Path) -> None:
 
 def test_abrace_next_denied(tmp_path: Path) -> None:
     r"""``\abrace@next`` 是 abraces.sty ``\let``-派发暂存 → 拒收 (2105.00115)。"""
-    main = _write(
+    main = write_file(
         tmp_path,
         "main.tex",
         "\\documentclass{article}\n\\begin{document}\nx\n\\end{document}\n",
     )
-    ctx = _ctx(
-        tmp_path, "main.tex:3: Paragraph ended before \\abrace@next was complete."
+    ctx = mk_ctx(
+        tmp_path, err_head="main.tex:3: Paragraph ended before \\abrace@next was complete."
     )
-    ok, note = para_longize(ctx, _Eng(), None, {})
+    ok, note = para_longize(ctx, EngStub(), None, {})
     assert not ok
     assert "denied" in note
     assert "TL@pl@" not in main.read_text()
@@ -150,7 +130,7 @@ def test_mt_is_char_delimited_block() -> None:
     )
 
 
-@pytest.mark.skipif(not _HAS_XELATEX, reason="xelatex not installed")
+@requires_xelatex
 def test_xelatex_abstract_alias_e2e(tmp_path: Path) -> None:
     r"""真 xelatex aa.cls 机制: ``\let\abstract\aaabstract`` 别名 + preamble
     调用 —— def-site 收不到, wrap 快照别名实义剥 \par 后忠实转发。"""
@@ -161,12 +141,14 @@ def test_xelatex_abstract_alias_e2e(tmp_path: Path) -> None:
         "\\abstract{first para\n\nsecond para}\n"
         "\\begin{document}\\typeout{ABS:\\absstore}x\\end{document}\n"
     )
-    _write(tmp_path, "main.tex", src)
+    write_file(tmp_path, "main.tex", src)
     _xelatex(tmp_path)
     log = (tmp_path / "main.log").read_text(errors="replace")
     assert "Paragraph ended before \\abstract" in log
-    ctx = _ctx(tmp_path, "main.tex:4: Paragraph ended before \\abstract was complete.")
-    ok, note = para_longize(ctx, _Eng(), None, {})
+    ctx = mk_ctx(
+        tmp_path, err_head="main.tex:4: Paragraph ended before \\abstract was complete."
+    )
+    ok, note = para_longize(ctx, EngStub(), None, {})
     assert ok, note
     r2 = _xelatex(tmp_path)
     log2 = (tmp_path / "main.log").read_text(errors="replace")
@@ -175,7 +157,7 @@ def test_xelatex_abstract_alias_e2e(tmp_path: Path) -> None:
     assert "ABS:first para" in log2
 
 
-@pytest.mark.skipif(not _HAS_XELATEX, reason="xelatex not installed")
+@requires_xelatex
 def test_xelatex_put_pictex_e2e(tmp_path: Path) -> None:
     r"""真 xelatex pictex 形非 \long ``\put#1#2 at #3 #4 ``: 参内空行炸
     para_ended; wrap 后 `` at ``/空格定界链剥 \par 忠实转发 (1404.0443)。"""
@@ -185,16 +167,18 @@ def test_xelatex_put_pictex_e2e(tmp_path: Path) -> None:
         "\\begin{document}\n\\put{obj} at 1 2\n\\put{o\n\nbj} at 3 4\n"
         "\\end{document}\n"
     )
-    _write(tmp_path, "main.tex", src)
+    write_file(tmp_path, "main.tex", src)
     _xelatex(tmp_path)
     log = (tmp_path / "main.log").read_text(errors="replace")
     assert "Paragraph ended before \\put" in log
-    ctx = _ctx(tmp_path, "main.tex:5: Paragraph ended before \\put was complete.")
-    ok, note = para_longize(ctx, _Eng(), None, {})
+    ctx = mk_ctx(
+        tmp_path, err_head="main.tex:5: Paragraph ended before \\put was complete."
+    )
+    ok, note = para_longize(ctx, EngStub(), None, {})
     assert ok, note
     r2 = _xelatex(tmp_path)
     log2 = (tmp_path / "main.log").read_text(errors="replace")
     assert r2.returncode == 0
     assert "Paragraph ended" not in log2
     assert "PUT:obj||1|2" in log2  # 无参调用忠实转发
-    assert "PUT:o bj||3|4" in log2 or "PUT:obj||3|4" in log2
+    assert "PUT:o bj||3|4" in log2

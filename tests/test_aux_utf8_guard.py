@@ -7,6 +7,8 @@ shipped 非 UTF-8 .aux/.toc 被引擎首遍回读即 "Invalid UTF-8 byte"
 
 from pathlib import Path
 
+from conftest import DOC
+
 from texlate.compile.normalize import normalize_project
 from texlate.textutil import decode_tex, sniff_tex_encoding
 
@@ -43,10 +45,7 @@ def test_sniff_latin1_tail_accent_not_truncated() -> None:
 
 def test_normalize_transcodes_shipped_aux(tmp_path: Path) -> None:
     """shipped GBK .aux → UTF-8 写回 + 进 transcoded_aux 台账。"""
-    (tmp_path / "main.tex").write_text(
-        "\\documentclass{article}\n\\begin{document}\nx\n\\end{document}\n",
-        encoding="utf-8",
-    )
+    (tmp_path / "main.tex").write_text(DOC % "x", encoding="utf-8")
     aux_gbk = "\\newlabel{fig:x}{{1}{1}{中文标题}{}}\n".encode("gbk")
     (tmp_path / "main.aux").write_bytes(aux_gbk)
     stats = normalize_project(tmp_path, "xelatex")
@@ -56,10 +55,7 @@ def test_normalize_transcodes_shipped_aux(tmp_path: Path) -> None:
 
 def test_normalize_transcodes_toc_and_out(tmp_path: Path) -> None:
     """同族回读中间产物（.toc/.out）一并覆盖。"""
-    (tmp_path / "main.tex").write_text(
-        "\\documentclass{article}\n\\begin{document}\nx\n\\end{document}\n",
-        encoding="utf-8",
-    )
+    (tmp_path / "main.tex").write_text(DOC % "x", encoding="utf-8")
     (tmp_path / "main.toc").write_bytes("第一章 标题\n".encode("gbk"))
     (tmp_path / "main.out").write_bytes("中文书签\n".encode("gbk"))
     stats = normalize_project(tmp_path, "xelatex")
@@ -68,10 +64,7 @@ def test_normalize_transcodes_toc_and_out(tmp_path: Path) -> None:
 
 
 def test_normalize_keeps_valid_utf8_aux(tmp_path: Path) -> None:
-    (tmp_path / "main.tex").write_text(
-        "\\documentclass{article}\n\\begin{document}\nx\n\\end{document}\n",
-        encoding="utf-8",
-    )
+    (tmp_path / "main.tex").write_text(DOC % "x", encoding="utf-8")
     (tmp_path / "main.aux").write_text(
         "\\newlabel{a}{{1}{1}{已是中文}{}}\n", encoding="utf-8"
     )

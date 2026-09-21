@@ -22,9 +22,10 @@
 
 from pathlib import Path
 
+from _fixloopkit import DOC, mk_ctx, rule
+
 from texlate.compile.fixloop._builtins_csfix import _CS_FIX_TABLE
 from texlate.compile.fixloop.builtins import TRANSFORM_FNS
-from texlate.compile.fixloop.engine import LoopCtx
 
 _TARGETED = TRANSFORM_FNS["cs_targeted_fix"]
 
@@ -41,19 +42,42 @@ class _EngStub:
         return True
 
 
-def _ctx(tmp_path: Path) -> LoopCtx:
-    return LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel="main.tex")
-
-
 def _proj(tmp_path: Path, tex: str) -> None:
     (tmp_path / "main.tex").write_text(tex, encoding="utf-8")
 
 
 def _fix(tmp_path: Path, cs: str) -> tuple[bool, str]:
-    return _TARGETED(_ctx(tmp_path), _EngStub(), cs, {})
+    return _TARGETED(mk_ctx(tmp_path), _EngStub(), cs, {})
 
 
-_DOC = "\\documentclass{article}\n\\begin{document}\nx\n\\end{document}\n"
+# ── csfix7/csfix8 共用断言助手 (cs_table 通用面, 逐文件逐字节同体) ──
+
+
+def check_backslash_payload(tmp_path: Path, pay: str, needle: str) -> None:
+    """log payload 带反斜杠形 → ``lstrip`` 归一同键命中。"""
+    _proj(tmp_path, DOC)
+    ok, note = _fix(tmp_path, pay)
+    assert ok, note
+    assert needle in (tmp_path / "main.tex").read_text(encoding="utf-8")
+
+
+def check_refire_idempotent(tmp_path: Path, cs: str, needle: str) -> None:
+    """二轮重火: snippet 已在文 → applied nothing, 不重复注入。"""
+    _proj(tmp_path, DOC)
+    ok1, _ = _fix(tmp_path, cs)
+    assert ok1
+    ok2, note2 = _fix(tmp_path, cs)
+    assert not ok2
+    assert "applied nothing" in note2
+    assert (tmp_path / "main.tex").read_text(encoding="utf-8").count(needle) == 1
+
+
+def check_unknown_cs_decline(tmp_path: Path) -> None:
+    """非表键 payload → 拆分臂亦不中, 诚实 decline 落 guess 链。"""
+    _proj(tmp_path, DOC)
+    ok, note = _fix(tmp_path, "xyzzyqq")
+    assert not ok
+    assert "not in cs-fix table" in note
 
 
 def test_table_entries_present() -> None:
@@ -65,7 +89,7 @@ def test_table_entries_present() -> None:
 
 def test_z_atdelim_polyfill_injected(tmp_path: Path) -> None:
     """``\\z@`` 分词残骸 → @-分隔 ``\\def\\z@{0pt}``, ``\\ifdefined`` 护名。"""
-    _proj(tmp_path, _DOC)
+    _proj(tmp_path, DOC)
     ok, note = _fix(tmp_path, "z")
     assert ok, note
     assert "polyfill injected" in note
@@ -78,16 +102,12 @@ def test_z_atdelim_polyfill_injected(tmp_path: Path) -> None:
 
 def test_z_payload_backslash_form(tmp_path: Path) -> None:
     """log payload 带反斜杠 (``\\z``) → ``lstrip`` 归一同键命中。"""
-    _proj(tmp_path, _DOC)
-    ok, note = _fix(tmp_path, "\\z")
-    assert ok, note
-    text = (tmp_path / "main.tex").read_text(encoding="utf-8")
-    assert "\\def\\z@{0pt}" in text
+    check_backslash_payload(tmp_path, "\\z", "\\def\\z@{0pt}")
 
 
 def test_oldcr_newline_body(tmp_path: Path) -> None:
     """``\\newline`` 替身 —— 非 ``\\\\`` 本体 (\\\\-rebind 自指死循环免疫)。"""
-    _proj(tmp_path, _DOC)
+    _proj(tmp_path, DOC)
     ok, note = _fix(tmp_path, "oldcr")
     assert ok, note
     text = (tmp_path / "main.tex").read_text(encoding="utf-8")
@@ -97,7 +117,7 @@ def test_oldcr_newline_body(tmp_path: Path) -> None:
 
 def test_refpar_verbatim_stub_body(tmp_path: Path) -> None:
     """aaspp4 env 内定义同体: ``\\par\\hangindent=3em\\hangafter=1``。"""
-    _proj(tmp_path, _DOC)
+    _proj(tmp_path, DOC)
     ok, note = _fix(tmp_path, "refpar")
     assert ok, note
     text = (tmp_path / "main.tex").read_text(encoding="utf-8")
@@ -106,22 +126,12 @@ def test_refpar_verbatim_stub_body(tmp_path: Path) -> None:
 
 def test_refire_applied_nothing(tmp_path: Path) -> None:
     """二轮重火: snippet 已在文 → applied nothing, 文件不重复注入。"""
-    _proj(tmp_path, _DOC)
-    ok1, _ = _fix(tmp_path, "z")
-    assert ok1
-    ok2, note2 = _fix(tmp_path, "z")
-    assert not ok2
-    assert "applied nothing" in note2
-    text = (tmp_path / "main.tex").read_text(encoding="utf-8")
-    assert text.count("\\def\\z@{0pt}") == 1
+    check_refire_idempotent(tmp_path, "z", "\\def\\z@{0pt}")
 
 
 def test_unknown_cs_still_declines(tmp_path: Path) -> None:
     """非表键 payload → 拆分臂亦不中, 诚实 decline 落 guess 链。"""
-    _proj(tmp_path, _DOC)
-    ok, note = _fix(tmp_path, "xyzzyqq")
-    assert not ok
-    assert "not in cs-fix table" in note
+    check_unknown_cs_decline(tmp_path)
 
 
 # ────────────────────────── breakurl_ifpdf_hook (task #289) ──────────────────────────
@@ -133,7 +143,6 @@ def test_unknown_cs_still_declines(tmp_path: Path) -> None:
 
 import regex  # noqa: E402
 
-from texlate.compile.fixloop import load_ruleset  # noqa: E402
 from texlate.compile.fixloop.ruleset import Rule  # noqa: E402
 
 _HOOK_BEFORE = (
@@ -144,7 +153,7 @@ _HOOK_AFTER = "\\AddToHook{package/breakurl/after}{\\let\\ifpdf\\TeXlateSavedIfp
 
 
 def _breakurl_rule() -> Rule:
-    return next(r for r in load_ruleset().rules if r.id == "breakurl_ifpdf_hook")
+    return rule("breakurl_ifpdf_hook")
 
 
 def test_breakurl_rule_shape() -> None:
@@ -169,7 +178,7 @@ def test_breakurl_hook_injected_before_docclass() -> None:
     """rewrite 在 \\documentclass 行前注 hook 对 —— 与 normalize snippet 同体。"""
     rw = _breakurl_rule().action["params"]["rewrites"][0]
     flags = regex.M if "M" in rw.get("flags", []) else 0
-    out = regex.sub(rw["pattern"], rw["repl"], _DOC, flags=flags)
+    out = regex.sub(rw["pattern"], rw["repl"], DOC, flags=flags)
     assert _HOOK_BEFORE in out
     assert _HOOK_AFTER in out
     assert out.index(_HOOK_BEFORE) < out.index("\\documentclass")

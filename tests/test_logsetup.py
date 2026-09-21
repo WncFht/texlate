@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from texlate.logsetup import (
+    _MANAGED_ATTR,
     ENV_LOG,
     ENV_LOG_FILE,
     RedactFilter,
@@ -25,6 +26,11 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 _TEXLATE_LOG = logging.getLogger("texlate")
+
+
+def _managed(lg: logging.Logger) -> list[logging.Handler]:
+    """logsetup 自装 handler 列表——``_texlate_managed`` 私有标记探测单点。"""
+    return [h for h in lg.handlers if getattr(h, _MANAGED_ATTR, False)]
 
 
 @pytest.fixture(autouse=True)
@@ -79,7 +85,7 @@ class TestConfigureLogging:
 
     def test_installs_stderr_handler(self) -> None:
         lg = configure_logging()
-        managed = [h for h in lg.handlers if getattr(h, "_texlate_managed", False)]
+        managed = _managed(lg)
         assert len(managed) == 1
         assert lg.level == logging.WARNING
 
@@ -89,7 +95,7 @@ class TestConfigureLogging:
         lg2 = configure_logging(level="info")
         assert lg2 is lg
         assert all(h not in lg.handlers for h in first)
-        managed = [h for h in lg.handlers if getattr(h, "_texlate_managed", False)]
+        managed = _managed(lg)
         assert len(managed) == 1
         assert lg.level == logging.INFO
 
@@ -147,7 +153,7 @@ class TestFileHandler:
         blocker = tmp_path / "blocker"
         blocker.write_text("not a dir", encoding="utf-8")
         lg = configure_logging(file=blocker / "sub" / "t.log")
-        managed = [h for h in lg.handlers if getattr(h, "_texlate_managed", False)]
+        managed = _managed(lg)
         assert len(managed) == 1  # 仅 stderr，文件降级不炸
 
 

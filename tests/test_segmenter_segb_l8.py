@@ -20,36 +20,24 @@ r"""L8 SEGB 道钉版 —— args.py 散文挖掘收尾面 + ``_protect_cs`` 键
 零告警 + pieces 无缝平铺。
 """
 
-import re
-
-from conftest import ART, blob, check_invariants
+from _segkit import (
+    KEY,
+    PROSE,
+    cmd_bodies,
+    ph_bodies,
+)
+from _segkit import (
+    scan_art as scan,
+)
+from conftest import blob, check_invariants
 
 from texlate.latex import parse_tex
 from texlate.latex.model import ScanResult
 
-PROSE = "We consider a two form antisymmetric tensor field theory in detail"
-KEY = "dalianis2020"
-
-
-def scan(body: str, defs: str = "", art: str = ART) -> ScanResult:
-    tex = art % (defs, body)
-    res = parse_tex(tex)
-    check_invariants(res, tex)
-    return res
-
-
-def cmd_bodies(res: ScanResult) -> list[str]:
-    """全部 ``[[CMD_n]]`` ph 体（覆盖区间原文）。"""
-    return [
-        body for ph, body in res.ph_map.items() if re.fullmatch(r"\[\[CMD_\d+\]\]", ph)
-    ]
-
 
 def author_bodies(res: ScanResult) -> list[str]:
     """全部 ``[[AUTHOR_n]]`` ph 体。"""
-    return [
-        b for ph, b in res.ph_map.items() if re.fullmatch(r"\[\[AUTHOR_\d+\]\]", ph)
-    ]
+    return ph_bodies(res, "AUTHOR")
 
 
 # ------------------------------------------------------------------ W27 死参门
@@ -294,9 +282,7 @@ def test_cite_range_key_warns() -> None:
     ``cite_range_key`` 告警。"""
     res = scan("See \\cite{15-20} for background material and more context.")
     assert any(w.kind == "cite_range_key" for w in res.warnings)
-    assert any(
-        b == "\\cite{15-20}" for ph, b in res.ph_map.items() if ph.startswith("[[CITE_")
-    )
+    assert "\\cite{15-20}" in ph_bodies(res, "CITE")
 
 
 def test_cite_range_in_list_warns() -> None:
@@ -326,7 +312,7 @@ def test_lyx_protect_caption_surfaces() -> None:
 def test_url_nonascii_protected() -> None:
     r"""``\\url{…∼…}`` 非 ASCII（W12）：整调用 ``[[URL]]`` 逐字保真。"""
     res = scan("See \\url{http://web-docs.gsi.de/∼misko/overlap/} for data.")
-    assert any("∼misko" in b for ph, b in res.ph_map.items() if ph.startswith("[[URL_"))
+    assert any("∼misko" in b for b in ph_bodies(res, "URL"))
     assert "misko" not in blob(res)
 
 
@@ -400,11 +386,7 @@ def test_renewcommand_cite_still_cite() -> None:
         "As shown in \\cite{key1,key2} the results hold. Tail words here.",
         "\\renewcommand{\\cite}[1]{\\citep{#1}}\n",
     )
-    assert any(
-        b == "\\cite{key1,key2}"
-        for ph, b in res.ph_map.items()
-        if ph.startswith("[[CITE_")
-    )
+    assert "\\cite{key1,key2}" in ph_bodies(res, "CITE")
 
 
 def test_let_cite_still_cite() -> None:
@@ -413,9 +395,7 @@ def test_let_cite_still_cite() -> None:
         "As shown in \\cite{key3} the results hold. Tail words here.",
         "\\let\\cite\\citep\n",
     )
-    assert any(
-        b == "\\cite{key3}" for ph, b in res.ph_map.items() if ph.startswith("[[CITE_")
-    )
+    assert "\\cite{key3}" in ph_bodies(res, "CITE")
 
 
 def test_comment_macro_stays_macro() -> None:
@@ -427,9 +407,7 @@ def test_comment_macro_stays_macro() -> None:
         "\\newcommand{\\comment}[1]{}\n",
     )
     assert "Hidden Name" not in blob(res)
-    assert any(
-        "Hidden Name" in b for ph, b in res.ph_map.items() if ph.startswith("[[MACRO_")
-    )
+    assert any("Hidden Name" in b for b in ph_bodies(res, "MACRO"))
 
 
 def test_requirepackage_before_docclass() -> None:
@@ -458,7 +436,7 @@ def test_citenum_cite_ph() -> None:
     r"""``\citenum{k}``（W97 非 ``\cite`` 引用面）：argspec ``o o m`` →
     ``[[CITE]]`` 键面正确。"""
     res = scan("See \\citenum{Karney-lh}--\\citenum{Karney-ec} for range.")
-    cites = [b for ph, b in res.ph_map.items() if ph.startswith("[[CITE_")]
+    cites = ph_bodies(res, "CITE")
     assert "\\citenum{Karney-lh}" in cites
     assert "\\citenum{Karney-ec}" in cites
 
@@ -469,4 +447,4 @@ def test_ref_cs_arg_prose_surfaces() -> None:
     res = scan("Text with \\ref\\sezgin{some label words here} inside the body prose.")
     text = blob(res)
     assert "some label words here" in text
-    assert any(b == "\\ref" for ph, b in res.ph_map.items() if ph.startswith("[[REF_"))
+    assert "\\ref" in ph_bodies(res, "REF")

@@ -37,6 +37,9 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 from _fuzzkit import fuzz_rng
+from conftest import chunk_row as _chunk_row
+from conftest import mk_store as _store
+from conftest import mk_task_id
 
 from texlate.server.events import _RESYNC, _SUB_QUEUE_MAX, EventBus, sse_frame
 from texlate.server.store import (
@@ -80,13 +83,6 @@ _PARK_MS = 0.05
 _WAKE_TIMEOUT_S = 1.0
 
 
-def _store(tmp_path: Path, name: str = "x.db") -> Store:
-    """开好连接的 Store（DDL 已落）。"""
-    s = Store(tmp_path / name)
-    s.open()
-    return s
-
-
 def _mk_task(
     s: Store,
     *,
@@ -94,35 +90,19 @@ def _mk_task(
     tenant: str = "local",
     cache_key: str | None = None,
 ) -> str:
-    """建行（默认 settings 源）→ task_id。"""
-    tid = new_task_id()
-    s.create_task(
-        task_id=tid,
-        kind="arxiv",
+    """建行（默认 settings 源，``target_lang="zh"``）→ task_id。"""
+    return mk_task_id(
+        s,
         target_lang="zh",
-        model="m",
         auth_source=auth_source,
         tenant=tenant,
         cache_key=cache_key,
     )
-    return tid
 
 
 def _install(s: Store, tid: str, status: str) -> None:
     """force 通道把任务钉进任意状态（含非法值——测守卫对脏现状的拒绝）。"""
     s.transition(tid, status, force=True)
-
-
-def _chunk_row(seq: int, chunk_id: str | None = None) -> dict[str, Any]:
-    return {
-        "seq": seq,
-        "chunk_id": chunk_id or f"c{seq}",
-        "src_file": "main.tex",
-        "byte_start": seq * 10,
-        "byte_end": seq * 10 + 9,
-        "kind": "text",
-        "src_text": f"text {seq}",
-    }
 
 
 def _legal(cur: str, to: str) -> bool:

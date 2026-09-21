@@ -16,6 +16,8 @@
 import re
 from pathlib import Path
 
+from _fixloopkit import mk_vendor, vendored_fetch
+
 from texlate.compile.fixloop import load_ruleset
 from texlate.compile.fixloop._builtins_common import (
     _FINGERPRINT_RE,
@@ -42,13 +44,6 @@ class _Eng:
 
 def _ctx(tmp_path: Path) -> LoopCtx:
     return LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel="main.tex")
-
-
-def _vendor(tmp_path: Path) -> Path:
-    root = tmp_path / "vendor"
-    (root / "files").mkdir(parents=True)
-    (root / "stubs").mkdir(parents=True)
-    return root
 
 
 # ------------------------------------------------------- _injected_state 四分判
@@ -129,26 +124,22 @@ def test_inject_write_foreign_protected(tmp_path: Path) -> None:
 # ------------------------------------------------------- vendored_fetch 端到端
 
 
-def _fetch(ctx: LoopCtx, payload: str, root: Path) -> tuple[bool, str]:
-    return TRANSFORM_FNS["vendored_fetch"](ctx, None, payload, {"dir": str(root)})
-
-
 def test_vendored_fetch_absent_then_current(tmp_path: Path) -> None:
     """absent → 带指纹落盘; 同 payload 再投 → already current 不重写。
 
     current 翻 decline (vendorcwd): 零字节改动不算 apply —— True 会烧掉
     本轮 dispatch 并挡住同签名低 order 候选 (2609.19664 实证)。
     """
-    root = _vendor(tmp_path)
+    root = mk_vendor(tmp_path)
     (root / "stubs" / "slashbox.sty").write_text("% stub\n", encoding="utf-8")
     ctx = _ctx(tmp_path / "w")
     ctx.wdir.mkdir()
-    ok, _ = _fetch(ctx, "slashbox.sty", root)
+    ok, _ = vendored_fetch(ctx, "slashbox.sty", root)
     assert ok
     assert _FINGERPRINT_RE.search(
         (ctx.wdir / "slashbox.sty").read_text(encoding="utf-8")
     )
-    ok, note = _fetch(ctx, "slashbox.sty", root)
+    ok, note = vendored_fetch(ctx, "slashbox.sty", root)
     assert not ok
     assert "already current" in note
     assert "no-op" in note
@@ -156,14 +147,14 @@ def test_vendored_fetch_absent_then_current(tmp_path: Path) -> None:
 
 def test_vendored_fetch_legacy_stub_refreshed(tmp_path: Path) -> None:
     """旧代落盘 stub (无指纹行头认亲) → 覆写刷新, hep-ph/0408075 情景。"""
-    root = _vendor(tmp_path)
+    root = mk_vendor(tmp_path)
     (root / "stubs" / "espcrc2.sty").write_text("% new stub\n", encoding="utf-8")
     ctx = _ctx(tmp_path / "w")
     ctx.wdir.mkdir()
     (ctx.wdir / "espcrc2.sty").write_text(
         "% texlate vendored stub — 原许可禁分发\n% old gen\n", encoding="utf-8"
     )
-    ok, note = _fetch(ctx, "espcrc2.sty", root)
+    ok, note = vendored_fetch(ctx, "espcrc2.sty", root)
     assert ok
     assert "refreshed" in note
     assert (
@@ -173,13 +164,13 @@ def test_vendored_fetch_legacy_stub_refreshed(tmp_path: Path) -> None:
 
 def test_vendored_fetch_foreign_never_clobbered(tmp_path: Path) -> None:
     """稿自带同名件 → decline + advisory, 内容原样。"""
-    root = _vendor(tmp_path)
+    root = mk_vendor(tmp_path)
     (root / "stubs" / "x.sty").write_text("% stub\n", encoding="utf-8")
     ctx = _ctx(tmp_path / "w")
     ctx.wdir.mkdir()
     sentinel = "% shipped with the paper\n"
     (ctx.wdir / "x.sty").write_text(sentinel, encoding="utf-8")
-    ok, note = _fetch(ctx, "x.sty", root)
+    ok, note = vendored_fetch(ctx, "x.sty", root)
     assert not ok
     assert "foreign" in note
     assert (ctx.wdir / "x.sty").read_text(encoding="utf-8") == sentinel

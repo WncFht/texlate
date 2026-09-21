@@ -17,62 +17,17 @@ r"""optfix lane (2026-09-20): singlesweep 选项/驱动松弛三臂钉。
 
 覆盖确认 (无新码): pkg_order_hyperxmp_relocate 收 2105.00033
 hyperxmp↔hyperref 序对 (acmart.cls:494-497 \let 三明治形); undefine_for_redef
-包装载点清先定义臂收 2509.13676 ``\eth already defined at amssymb load``。
+包装载点清先定义臂收 2509.13676 ``\eth already defined at amssymb load``
+—— 钉在 ``test_undefine_redef_pkgloadsite_eth``。
 """
 
-from functools import lru_cache
 from pathlib import Path
 
-from texlate.compile.fixloop import Ruleset, actions, load_ruleset
-from texlate.compile.fixloop.engine import LoopCtx, Rule
-from texlate.compile.logparse import ErrReport
+from _fixloopkit import EngStub, apply, mk_ctx, rule
 
-
-@lru_cache(maxsize=1)
-def _rs() -> Ruleset:
-    return load_ruleset()
-
-
-def _rule(rid: str) -> Rule:
-    return next(r for r in _rs().rules if r.id == rid)
-
-
-def _ctx(tmp_path: Path, err_head: str = "") -> LoopCtx:
-    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel="main.tex")
-    ctx.err_head = err_head
-    return ctx
-
-
-class _Eng:
-    """regex_rewrite/condition/builtin 路径的最小引擎替身 (不触 probe/install)。"""
-
-    name = "xelatex"
-
-    def probe_file(self, fname: str, cwd: Path | None = None) -> str | None:
-        del fname, cwd
-        return None
-
-    def filemap(self, fname: str) -> list[str]:
-        del fname
-        return []
-
-
-def _apply(
-    rule: Rule,
-    tmp_path: Path,
-    pay: str = "",
-    err_head: str = "",
-) -> tuple[bool, str]:
-    return actions._apply(  # noqa: SLF001 - 钉规则动作直驱
-        rule, _ctx(tmp_path, err_head), _Eng(), pay, ErrReport()
-    )
-
+from texlate.compile.fixloop import actions
 
 # ═════════════════════════ hyperref_driver_neutralize 扩臂 ═════════════════════
-
-_WEBOCS_ERR = (
-    "hyperref.sty:4072: Package hyperref Error: Wrong DVI mode driver option `dvips',\n"
-)
 
 
 def test_driver_newcommand_assignment(tmp_path: Path) -> None:
@@ -87,7 +42,7 @@ def test_driver_newcommand_assignment(tmp_path: Path) -> None:
         "\\RequirePackage[dvips]{hyperref}\n",
         encoding="utf-8",
     )
-    ok, note = _apply(_rule("hyperref_driver_neutralize"), tmp_path)
+    ok, note = apply("hyperref_driver_neutralize", mk_ctx(tmp_path), "")
     assert ok, note
     t = cls.read_text()
     assert "\\newcommand\\woc@driver{xetex}" in t
@@ -104,7 +59,7 @@ def test_driver_newcommand_braced_cs(tmp_path: Path) -> None:
         "\\RequirePackage[dvips]{hyperref}\n",
         encoding="utf-8",
     )
-    ok, _ = _apply(_rule("hyperref_driver_neutralize"), tmp_path)
+    ok, _ = apply("hyperref_driver_neutralize", mk_ctx(tmp_path), "")
     assert ok
     t = cls.read_text()
     assert "\\newcommand{\\woc@driver}{xetex}" in t
@@ -135,7 +90,7 @@ def test_driver_inline_ifnum_conditional(tmp_path: Path) -> None:
         "{hyperref}\n",
         encoding="utf-8",
     )
-    ok, note = _apply(_rule("hyperref_driver_neutralize"), tmp_path)
+    ok, note = apply("hyperref_driver_neutralize", mk_ctx(tmp_path), "")
     assert ok, note
     t = cls.read_text()
     assert "dvips" not in t
@@ -159,7 +114,7 @@ def test_driver_conditional_outside_bracket_untouched(tmp_path: Path) -> None:
         "\\begin{document}x\\end{document}\n",
         encoding="utf-8",
     )
-    ok, _ = _apply(_rule("hyperref_driver_neutralize"), tmp_path)
+    ok, _ = apply("hyperref_driver_neutralize", mk_ctx(tmp_path), "")
     # 无 bracket 内驱动词/指派 → 本规则整体 applied=False
     assert not ok
     t = (tmp_path / "main.tex").read_text()
@@ -172,10 +127,10 @@ def test_driver_condition_gate_newcommand_form(tmp_path: Path) -> None:
         "\\newcommand\\woc@driver{dvips}\n\\RequirePackage[\\woc@driver]{hyperref}\n",
         encoding="utf-8",
     )
-    ctx = _ctx(tmp_path)
-    rule = _rule("hyperref_driver_neutralize")
+    ctx = mk_ctx(tmp_path)
+    r = rule("hyperref_driver_neutralize")
     ok, why = actions._cond_ok(  # noqa: SLF001
-        rule.condition, rule, ctx, _Eng(), "dvips"
+        r.condition, r, ctx, EngStub(), "dvips"
     )
     assert ok, why
 
@@ -185,10 +140,10 @@ def test_driver_condition_gate_clean_doc_rejects(tmp_path: Path) -> None:
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n\\usepackage{amsmath}\n", encoding="utf-8"
     )
-    ctx = _ctx(tmp_path)
-    rule = _rule("hyperref_driver_neutralize")
+    ctx = mk_ctx(tmp_path)
+    r = rule("hyperref_driver_neutralize")
     ok, _ = actions._cond_ok(  # noqa: SLF001
-        rule.condition, rule, ctx, _Eng(), None
+        r.condition, r, ctx, EngStub(), None
     )
     assert not ok
 
@@ -213,7 +168,9 @@ def test_microtype_expansion_multiline_flip(tmp_path: Path) -> None:
         "]{microtype}\n",
         encoding="utf-8",
     )
-    ok, note = _apply(_rule("microtype_expansion_off"), tmp_path, err_head=_MT_ERR)
+    ok, note = apply(
+        "microtype_expansion_off", mk_ctx(tmp_path, err_head=_MT_ERR), ""
+    )
     assert ok, note
     t = (tmp_path / "main.tex").read_text()
     assert "expansion=false," in t
@@ -231,7 +188,9 @@ def test_microtype_expansion_passoptions(tmp_path: Path) -> None:
         "\\usepackage{microtype}\n",
         encoding="utf-8",
     )
-    ok, _ = _apply(_rule("microtype_expansion_off"), tmp_path, err_head=_MT_ERR)
+    ok, _ = apply(
+        "microtype_expansion_off", mk_ctx(tmp_path, err_head=_MT_ERR), ""
+    )
     assert ok
     t = (tmp_path / "main.tex").read_text()
     assert "\\PassOptionsToPackage{protrusion,expansion=false}{microtype}" in t
@@ -243,7 +202,9 @@ def test_microtype_activate_fallback(tmp_path: Path) -> None:
         "\\usepackage[activate={true,nocompatibility},final]{microtype}\n",
         encoding="utf-8",
     )
-    ok, _ = _apply(_rule("microtype_expansion_off"), tmp_path, err_head=_MT_ERR)
+    ok, _ = apply(
+        "microtype_expansion_off", mk_ctx(tmp_path, err_head=_MT_ERR), ""
+    )
     assert ok
     t = (tmp_path / "main.tex").read_text()
     assert "activate={true,nocompatibility},final,expansion=false]" in t
@@ -253,7 +214,9 @@ def test_microtype_expansion_false_noop(tmp_path: Path) -> None:
     """expansion=false 已备 → applied=False 不重复点火。"""
     src = "\\usepackage[expansion=false]{microtype}\n"
     (tmp_path / "main.tex").write_text(src, encoding="utf-8")
-    ok, _ = _apply(_rule("microtype_expansion_off"), tmp_path, err_head=_MT_ERR)
+    ok, _ = apply(
+        "microtype_expansion_off", mk_ctx(tmp_path, err_head=_MT_ERR), ""
+    )
     assert not ok
     assert (tmp_path / "main.tex").read_text() == src
 
@@ -262,20 +225,22 @@ def test_microtype_other_pkg_bracket_untouched(tmp_path: Path) -> None:
     """expansion 键在他包括号不动 —— `]{microtype}` 后缀绑定。"""
     src = "\\usepackage[expansion=true]{otherpkg}\n\\usepackage{microtype}\n"
     (tmp_path / "main.tex").write_text(src, encoding="utf-8")
-    ok, _ = _apply(_rule("microtype_expansion_off"), tmp_path, err_head=_MT_ERR)
+    ok, _ = apply(
+        "microtype_expansion_off", mk_ctx(tmp_path, err_head=_MT_ERR), ""
+    )
     assert not ok
     assert (tmp_path / "main.tex").read_text() == src
 
 
 def test_microtype_condition_gate(tmp_path: Path) -> None:
     """ctx_suggests 闸: err_head 无 'expansion does not work' → 拒。"""
-    rule = _rule("microtype_expansion_off")
+    r = rule("microtype_expansion_off")
     ok, why = actions._cond_ok(  # noqa: SLF001
-        rule.condition, rule, _ctx(tmp_path, "! some other error"), _Eng(), None
+        r.condition, r, mk_ctx(tmp_path, err_head="! some other error"), EngStub(), None
     )
     assert not ok, why
     ok, why = actions._cond_ok(  # noqa: SLF001
-        rule.condition, rule, _ctx(tmp_path, _MT_ERR), _Eng(), None
+        r.condition, r, mk_ctx(tmp_path, err_head=_MT_ERR), EngStub(), None
     )
     assert ok, why
 
@@ -291,10 +256,10 @@ _XY_ERR = (
 
 def test_xy_rule_registered() -> None:
     """规则面: builtin_transform xy_option_load, other+syntax 双臂。"""
-    rule = _rule("xy_option_load")
-    assert rule.action["kind"] == "builtin_transform"
-    assert rule.action["function"] == "xy_option_load"
-    cats = [c["category"] for c in rule.when["any"]]
+    r = rule("xy_option_load")
+    assert r.action["kind"] == "builtin_transform"
+    assert r.action["function"] == "xy_option_load"
+    cats = [c["category"] for c in r.when["any"]]
     assert "other" in cats
     assert "syntax" in cats
 
@@ -306,7 +271,7 @@ def test_xy_group_load_inject(tmp_path: Path) -> None:
         "\\begin{document}\\xymatrix{A \\ar@/_1pc/[r] & B}\\end{document}\n",
         encoding="utf-8",
     )
-    ok, note = _apply(_rule("xy_option_load"), tmp_path, err_head=_XY_ERR)
+    ok, note = apply("xy_option_load", mk_ctx(tmp_path, err_head=_XY_ERR), "")
     assert ok, note
     t = (tmp_path / "main.tex").read_text()
     assert "xypic}\n\\xyoption{curve}" in t
@@ -315,7 +280,7 @@ def test_xy_group_load_inject(tmp_path: Path) -> None:
 def test_xy_bare_xy_pkg(tmp_path: Path) -> None:
     """\\usepackage{xy} 独载形同愈 (xy.sty 直载面)。"""
     (tmp_path / "main.tex").write_text("\\usepackage{xy}\n", encoding="utf-8")
-    ok, _ = _apply(_rule("xy_option_load"), tmp_path, err_head=_XY_ERR)
+    ok, _ = apply("xy_option_load", mk_ctx(tmp_path, err_head=_XY_ERR), "")
     assert ok
     assert "\\xyoption{curve}" in (tmp_path / "main.tex").read_text()
 
@@ -330,7 +295,9 @@ def test_xy_feature_phrasings(tmp_path: Path) -> None:
         d = tmp_path / ext
         d.mkdir()
         (d / "main.tex").write_text("\\usepackage{xypic}\n", encoding="utf-8")
-        ok, note = _apply(_rule("xy_option_load"), d, err_head=head + "\n")
+        ok, note = apply(
+            "xy_option_load", mk_ctx(d, err_head=head + "\n"), ""
+        )
         assert ok, (head, note)
         assert f"\\xyoption{{{ext}}}" in (d / "main.tex").read_text()
 
@@ -339,7 +306,7 @@ def test_xy_idempotent_live_loaded(tmp_path: Path) -> None:
     """live \\xyoption{curve} 已备 → applied=False。"""
     src = "\\usepackage{xypic}\n\\xyoption{curve}\n"
     (tmp_path / "main.tex").write_text(src, encoding="utf-8")
-    ok, _ = _apply(_rule("xy_option_load"), tmp_path, err_head=_XY_ERR)
+    ok, _ = apply("xy_option_load", mk_ctx(tmp_path, err_head=_XY_ERR), "")
     assert not ok
     assert (tmp_path / "main.tex").read_text() == src
 
@@ -349,7 +316,7 @@ def test_xy_commented_xyoption_still_injects(tmp_path: Path) -> None:
     (tmp_path / "main.tex").write_text(
         "\\usepackage{xypic}\n% \\xyoption{curve}\n", encoding="utf-8"
     )
-    ok, _ = _apply(_rule("xy_option_load"), tmp_path, err_head=_XY_ERR)
+    ok, _ = apply("xy_option_load", mk_ctx(tmp_path, err_head=_XY_ERR), "")
     assert ok
     t = (tmp_path / "main.tex").read_text()
     assert "xypic}\n\\xyoption{curve}" in t
@@ -359,14 +326,16 @@ def test_xy_commented_xyoption_still_injects(tmp_path: Path) -> None:
 def test_xy_no_load_site_noop(tmp_path: Path) -> None:
     """工程无 xy/xypic 装载点 → applied=False (err 有签名也无处挂)。"""
     (tmp_path / "main.tex").write_text("\\usepackage{amsmath}\n", encoding="utf-8")
-    ok, _ = _apply(_rule("xy_option_load"), tmp_path, err_head=_XY_ERR)
+    ok, _ = apply("xy_option_load", mk_ctx(tmp_path, err_head=_XY_ERR), "")
     assert not ok
 
 
 def test_xy_no_error_noop(tmp_path: Path) -> None:
     """err_head/log 无扩展缺失句式 → applied=False。"""
     (tmp_path / "main.tex").write_text("\\usepackage{xypic}\n", encoding="utf-8")
-    ok, _ = _apply(_rule("xy_option_load"), tmp_path, err_head="! unrelated")
+    ok, _ = apply(
+        "xy_option_load", mk_ctx(tmp_path, err_head="! unrelated"), ""
+    )
     assert not ok
 
 
@@ -374,7 +343,7 @@ def test_xy_commented_load_untouched(tmp_path: Path) -> None:
     """masked 面: 注释内假装载点不挂 —— 唯一 xypic 站是死站 → applied=False。"""
     src = "% \\usepackage{xypic}\n\\usepackage{amsmath}\n"
     (tmp_path / "main.tex").write_text(src, encoding="utf-8")
-    ok, _ = _apply(_rule("xy_option_load"), tmp_path, err_head=_XY_ERR)
+    ok, _ = apply("xy_option_load", mk_ctx(tmp_path, err_head=_XY_ERR), "")
     assert not ok
     assert (tmp_path / "main.tex").read_text() == src
 
@@ -391,8 +360,44 @@ def test_hyperxmp_relocate_covers_let_sandwich(tmp_path: Path) -> None:
         "\\RequirePackage[bookmarksnumbered,unicode]{hyperref}\n",
         encoding="utf-8",
     )
-    ok, note = _apply(_rule("pkg_order_hyperxmp_relocate"), tmp_path, pay="hyperxmp")
+    ok, note = apply(
+        "pkg_order_hyperxmp_relocate", mk_ctx(tmp_path), "hyperxmp"
+    )
     assert ok, note
     t = (tmp_path / "acmart.cls").read_text()
     assert t.index("{hyperref}") < t.index("{hyperxmp}")
     assert "\\let\\ACM@lr@list\\@empty" in t
+
+
+def test_undefine_redef_pkgloadsite_eth(tmp_path: Path) -> None:
+    r"""2509.13676 实钉: 随源 sty 的 ``\newcommand{\eth}`` 先定义撞 amssymb
+    装载 → ``\usepackage{amssymb}`` 装载点前 csname-let 清位
+    (undefine_for_redef 包装载点臂; 站点臂在 mymacros.sty 内同轮并施,
+    \Bbbk 同族钉在 test_fixloop_csfix2 pkgloadsite 簇)。
+
+    先定义站点须另件隔离——同文件紧邻时站点臂的清位串落进装载点臂的
+    256 字幂等窗, 会把它当"已覆盖"跳过。"""
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n"
+        "\\usepackage{mymacros}\n"
+        "\\usepackage{amssymb}\n"
+        "\\begin{document}\nx\n\\end{document}\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "mymacros.sty").write_text(
+        "\\ProvidesPackage{mymacros}\n\\newcommand{\\eth}{ETH}\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "main.log").write_text(
+        "/texmf/amsfonts/amssymb.sty:261: LaTeX Error: "
+        "Command `\\eth' already defined.\n",
+        encoding="utf-8",
+    )
+    ok, note = apply("already_def_undefine", mk_ctx(tmp_path), "eth")
+    assert ok, note
+    t = (tmp_path / "main.tex").read_text()
+    assert (
+        "\\expandafter\\let\\csname eth\\endcsname\\TeXlateUndefCs\n"
+        "\\usepackage{amssymb}" in t
+    )
+    assert "pkg-load-site" in note

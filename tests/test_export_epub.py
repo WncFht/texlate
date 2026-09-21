@@ -98,6 +98,24 @@ def _opf(chapters: list[str], *, ncx: bool = True, fixed: bool = False) -> str:
 """
 
 
+def _epub_zip(members: dict[str, bytes | str], *, mimetype: bool = True) -> bytes:
+    """最小 EPUB zip 构造：``mimetype`` 恒首件且 ZIP_STORED（规范要求）。
+
+    其余成员按 dict 序写入；``mimetype=False`` 造缺首件的畸形包。
+    """
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        if mimetype:
+            z.writestr(
+                "mimetype",
+                "application/epub+zip",
+                compress_type=zipfile.ZIP_STORED,
+            )
+        for name, blob in members.items():
+            z.writestr(name, blob)
+    return buf.getvalue()
+
+
 def _epub(
     chapters: dict[str, str],
     *,
@@ -105,18 +123,16 @@ def _epub(
     extra: dict[str, bytes | str] | None = None,
     fixed: bool = False,
 ) -> bytes:
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w") as z:
-        z.writestr("mimetype", "application/epub+zip", compress_type=zipfile.ZIP_STORED)
-        z.writestr("META-INF/container.xml", CONTAINER_XML)
-        z.writestr("OEBPS/content.opf", _opf(list(chapters), ncx=ncx, fixed=fixed))
-        for name, body in chapters.items():
-            z.writestr(f"OEBPS/{name}", XHTML_TMPL.format(body=body))
-        if ncx:
-            z.writestr("OEBPS/toc.ncx", NCX_XML)
-        for name, blob in (extra or {}).items():
-            z.writestr(name, blob)
-    return buf.getvalue()
+    members: dict[str, bytes | str] = {
+        "META-INF/container.xml": CONTAINER_XML,
+        "OEBPS/content.opf": _opf(list(chapters), ncx=ncx, fixed=fixed),
+    }
+    for name, body in chapters.items():
+        members[f"OEBPS/{name}"] = XHTML_TMPL.format(body=body)
+    if ncx:
+        members["OEBPS/toc.ncx"] = NCX_XML
+    members.update(extra or {})
+    return _epub_zip(members)
 
 
 def _write_epub(tmp_path: Path, blob: bytes, name: str = "book.epub") -> Path:
@@ -127,13 +143,13 @@ def _write_epub(tmp_path: Path, blob: bytes, name: str = "book.epub") -> Path:
 
 def _epub_raw(xhtml: str) -> bytes:
     """整篇 xhtml 原文进包——绕过 ``_epub`` 的 ``<body>`` 模板，畸形文档专用。"""
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w") as z:
-        z.writestr("mimetype", "application/epub+zip", compress_type=zipfile.ZIP_STORED)
-        z.writestr("META-INF/container.xml", CONTAINER_XML)
-        z.writestr("OEBPS/content.opf", _opf(["ch1.xhtml"], ncx=False))
-        z.writestr("OEBPS/ch1.xhtml", xhtml)
-    return buf.getvalue()
+    return _epub_zip(
+        {
+            "META-INF/container.xml": CONTAINER_XML,
+            "OEBPS/content.opf": _opf(["ch1.xhtml"], ncx=False),
+            "OEBPS/ch1.xhtml": xhtml,
+        }
+    )
 
 
 class _EchoTranslator:
@@ -196,13 +212,16 @@ def test_dc_language_with_attributes(tmp_path: Path) -> None:
         '<dc:language xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" '
         'xsi:type="dcterms:RFC4646">la</dc:language>',
     )
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w") as z:
-        z.writestr("mimetype", "application/epub+zip", compress_type=zipfile.ZIP_STORED)
-        z.writestr("META-INF/container.xml", CONTAINER_XML)
-        z.writestr("OEBPS/content.opf", opf)
-        z.writestr("OEBPS/ch1.xhtml", XHTML_TMPL.format(body="<p>Textus unus.</p>"))
-    src = _write_epub(tmp_path, buf.getvalue())
+    src = _write_epub(
+        tmp_path,
+        _epub_zip(
+            {
+                "META-INF/container.xml": CONTAINER_XML,
+                "OEBPS/content.opf": opf,
+                "OEBPS/ch1.xhtml": XHTML_TMPL.format(body="<p>Textus unus.</p>"),
+            }
+        ),
+    )
     dst = tmp_path / "out.epub"
     translate_epub(src, dst, MockTranslator())
     with zipfile.ZipFile(dst) as z:
@@ -496,15 +515,18 @@ def test_percent_encoded_href_resolves(tmp_path: Path) -> None:
     ``manifest 里没有可翻的 xhtml 文档`` 拒掉。真书（InDesign/转换器产物）
     空格/非 ASCII 文件名普遍 percent-encoded。
     """
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w") as z:
-        z.writestr("mimetype", "application/epub+zip", compress_type=zipfile.ZIP_STORED)
-        z.writestr("META-INF/container.xml", CONTAINER_XML)
-        z.writestr("OEBPS/content.opf", _opf_href("ch%201.xhtml"))
-        z.writestr(
-            "OEBPS/ch 1.xhtml", XHTML_TMPL.format(body="<p>Spaced name doc.</p>")
-        )
-    src = _write_epub(tmp_path, buf.getvalue())
+    src = _write_epub(
+        tmp_path,
+        _epub_zip(
+            {
+                "META-INF/container.xml": CONTAINER_XML,
+                "OEBPS/content.opf": _opf_href("ch%201.xhtml"),
+                "OEBPS/ch 1.xhtml": XHTML_TMPL.format(
+                    body="<p>Spaced name doc.</p>"
+                ),
+            }
+        ),
+    )
     dst = tmp_path / "out.epub"
     report = translate_epub(src, dst, MockTranslator())
     assert report.translated == 1
@@ -576,13 +598,16 @@ def test_non_utf8_decl_restamped(tmp_path: Path) -> None:
     latin = XHTML_TMPL.format(body="<p>Caf\xe9 latin text here.</p>").replace(
         'encoding="utf-8"', 'encoding="ISO-8859-1"'
     )
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w") as z:
-        z.writestr("mimetype", "application/epub+zip", compress_type=zipfile.ZIP_STORED)
-        z.writestr("META-INF/container.xml", CONTAINER_XML)
-        z.writestr("OEBPS/content.opf", _opf(["ch1.xhtml"], ncx=False))
-        z.writestr("OEBPS/ch1.xhtml", latin.encode("latin-1"))
-    src = _write_epub(tmp_path, buf.getvalue())
+    src = _write_epub(
+        tmp_path,
+        _epub_zip(
+            {
+                "META-INF/container.xml": CONTAINER_XML,
+                "OEBPS/content.opf": _opf(["ch1.xhtml"], ncx=False),
+                "OEBPS/ch1.xhtml": latin.encode("latin-1"),
+            }
+        ),
+    )
     dst = tmp_path / "out.epub"
     translate_epub(src, dst, MockTranslator())
     with zipfile.ZipFile(dst) as z:
@@ -594,12 +619,17 @@ def test_non_utf8_decl_restamped(tmp_path: Path) -> None:
 
 def test_missing_mimetype_gets_canonical(tmp_path: Path) -> None:
     """输入缺 mimetype（畸形但可翻）→ 产出补规范首件，出包是合法 EPUB。"""
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w") as z:
-        z.writestr("META-INF/container.xml", CONTAINER_XML)
-        z.writestr("OEBPS/content.opf", _opf(["ch1.xhtml"], ncx=False))
-        z.writestr("OEBPS/ch1.xhtml", XHTML_TMPL.format(body="<p>No mimetype.</p>"))
-    src = _write_epub(tmp_path, buf.getvalue())
+    src = _write_epub(
+        tmp_path,
+        _epub_zip(
+            {
+                "META-INF/container.xml": CONTAINER_XML,
+                "OEBPS/content.opf": _opf(["ch1.xhtml"], ncx=False),
+                "OEBPS/ch1.xhtml": XHTML_TMPL.format(body="<p>No mimetype.</p>"),
+            },
+            mimetype=False,
+        ),
+    )
     dst = tmp_path / "out.epub"
     report = translate_epub(src, dst, MockTranslator())
     assert report.translated == 1
@@ -616,27 +646,24 @@ def test_nav_stray_text_no_dup_landmark(tmp_path: Path) -> None:
         '<nav epub:type="doc-toc" xmlns:epub="http://www.idpf.org/2007/ops">'
         "Stray nav heading text<ol><li><a href='c1.xhtml'>Ch One</a></li></ol></nav>"
     )
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w") as z:
-        z.writestr("mimetype", "application/epub+zip", compress_type=zipfile.ZIP_STORED)
-        z.writestr("META-INF/container.xml", CONTAINER_XML)
-        z.writestr(
-            "OEBPS/content.opf",
-            _opf(["c1.xhtml"], ncx=False).replace(
-                "</manifest>",
-                '    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml"'
-                ' properties="nav"/>\n  </manifest>',
-            ),
-        )
-        z.writestr(
-            "OEBPS/nav.xhtml",
-            XHTML_TMPL.format(body=nav_body),
-        )
-        z.writestr(
-            "OEBPS/c1.xhtml",
-            XHTML_TMPL.format(body="<p>Chapter content paragraph.</p>"),
-        )
-    src = _write_epub(tmp_path, buf.getvalue())
+    src = _write_epub(
+        tmp_path,
+        _epub_zip(
+            {
+                "META-INF/container.xml": CONTAINER_XML,
+                "OEBPS/content.opf": _opf(["c1.xhtml"], ncx=False).replace(
+                    "</manifest>",
+                    '    <item id="nav" href="nav.xhtml"'
+                    ' media-type="application/xhtml+xml" properties="nav"/>\n'
+                    "  </manifest>",
+                ),
+                "OEBPS/nav.xhtml": XHTML_TMPL.format(body=nav_body),
+                "OEBPS/c1.xhtml": XHTML_TMPL.format(
+                    body="<p>Chapter content paragraph.</p>"
+                ),
+            }
+        ),
+    )
     dst = tmp_path / "out.epub"
     report = translate_epub(src, dst, MockTranslator())
     assert report.fault == 0
@@ -663,11 +690,7 @@ def test_hostile_target_lang_no_opf_injection(tmp_path: Path) -> None:
 
 def test_sniff_unsupported_compression_method(tmp_path: Path) -> None:
     """未知压缩方法的 zip 条目 → sniff 返回 None 而非裸 NotImplementedError。"""
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w") as z:
-        z.writestr("mimetype", "application/epub+zip", compress_type=zipfile.ZIP_STORED)
-        z.writestr("META-INF/container.xml", "<x/>")
-    blob = bytearray(buf.getvalue())
+    blob = bytearray(_epub_zip({"META-INF/container.xml": "<x/>"}))
     blob[8] = 99  # local header compress_type
     blob[9] = 0
     cd = blob.find(b"PK\x01\x02")

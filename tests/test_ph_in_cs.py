@@ -13,7 +13,7 @@ import asyncio
 import re
 from pathlib import Path
 
-from conftest import mk_chunk, pass_validate, run_pipeline
+from conftest import big_para, mk_chunk, pass_validate, run_pipeline
 
 from texlate.latex import parse_tex, reconstruct
 from texlate.xlat import pipeline as pl
@@ -21,6 +21,9 @@ from texlate.xlat.state import ChunkRecord, StateStore
 
 _FUSE_RX = re.compile(r"\\textbf\{?(\[\[[A-Z]+_\d+\]\])\}?")
 _FUSE_TO = r"\\te\1xtbf"
+
+#: 融合缺陷复现源文——``\textbf[[MATH_1]]`` 待 _Fuser 融名 + 垫长过块下限。
+_FUSED_SRC = "Long prose \\textbf[[MATH_1]] " + "x" * 400
 
 
 class _Fuser(pl.MockTranslator):
@@ -61,7 +64,7 @@ class TestIntercept:
 
     def test_fused_chunk_faults_and_falls_back(self) -> None:
         """单翻路径：``\\te[[MATH_1]]xtbf`` → fault，translation=源文。"""
-        src = "Long prose \\textbf[[MATH_1]] " + "x" * 400
+        src = _FUSED_SRC
         out = run_pipeline(
             [mk_chunk(src, "c1")], translator=_Fuser(), validator=pass_validate
         )
@@ -76,8 +79,8 @@ class TestIntercept:
     def test_mixed_run_only_dirty_chunk_faults(self) -> None:
         """论文级降格粒度：脏块 fault、净块 ok——不拖全篇。"""
         chunks = [
-            mk_chunk("dirty-marker prose \\textbf[[MATH_1]] " + "x" * 400, "dirty"),
-            mk_chunk("clean prose " + "y" * 400, "clean"),
+            mk_chunk("dirty-marker prose " + _FUSED_SRC, "dirty"),
+            big_para("clean", fill="y", prefix="clean prose "),
         ]
         out = run_pipeline(
             chunks, translator=_Fuser(marker="dirty-marker"), validator=pass_validate
@@ -92,9 +95,8 @@ class TestNoFalsePositive:
 
     def test_tail_adjacent_cs_ph_ok(self) -> None:
         """``\\protect[[REF_1]]`` 尾邻合法形（corpus 高频）——不拦。"""
-        src = "Long prose \\protect[[REF_1]] " + "x" * 400
         out = run_pipeline(
-            [mk_chunk(src, "c1")],
+            [big_para("c1", prefix="Long prose \\protect[[REF_1]] ")],
             translator=pl.MockTranslator(),
             validator=pass_validate,
         )
@@ -108,15 +110,16 @@ class TestNoFalsePositive:
             async def translate(self, *, user: str, **_kw: object) -> str:
                 return user
 
-        src = "Long prose \\lq[[CMD_1]]angular-momentum " + "x" * 400
         out = run_pipeline(
-            [mk_chunk(src, "c1")], translator=Echo(), validator=pass_validate
+            [big_para("c1", prefix="Long prose \\lq[[CMD_1]]angular-momentum ")],
+            translator=Echo(),
+            validator=pass_validate,
         )
         assert out[0].status == "ok"
 
     def test_zh_comment_fused_exempt(self) -> None:
         """zh 注释内的融合形被 ``mask_comments`` 屏蔽——不拦。"""
-        src = "Long prose \\textbf[[MATH_1]] " + "x" * 400
+        src = _FUSED_SRC
 
         class CommentFuser(pl.MockTranslator):
             async def translate(self, *, user: str, **kw: object) -> str:
@@ -134,7 +137,7 @@ class TestCacheAndResume:
 
     def test_poisoned_cache_hit_evicted_and_retranslated(self) -> None:
         """脏缓存命中 → 命中即清 + 落回重翻自愈（曾永远 fault 冻结：命中→拦截→fault 每轮循环）。"""
-        c = mk_chunk("Long prose \\textbf[[MATH_1]] " + "x" * 400, "c1")
+        c = mk_chunk(_FUSED_SRC, "c1")
         cache: dict[str, str] = {}
         t = pl.MockTranslator()
         pipe = pl.XlatPipeline(t, cache=cache)
@@ -149,7 +152,7 @@ class TestCacheAndResume:
     def test_resume_stale_ok_record_retranslates(self, tmp_path: Path) -> None:
         """warning 时代落盘的 ok 融合记录 → 续跑降 fault 重翻。"""
         outdir = tmp_path / "out"
-        src = "Long prose \\textbf[[MATH_1]] " + "x" * 400
+        src = _FUSED_SRC
         store = StateStore(outdir)
         store.start(1)
         store.record(
@@ -198,7 +201,7 @@ class TestDownstreamContract:
     def test_retranslate_fused_falls_back(self) -> None:
         """L2 回灌同受拦截——重译产物带融合 → fault，调用方回落原文。"""
         pipe = pl.XlatPipeline(translator=_Fuser(), validator=pass_validate)
-        c = mk_chunk("Long prose \\textbf[[MATH_1]] " + "x" * 400, "c1")
+        c = mk_chunk(_FUSED_SRC, "c1")
         r = asyncio.run(pipe.retranslate_chunk(c, "compile error here"))
         assert r is not None
         assert r.status == "fault"
@@ -210,7 +213,7 @@ class TestDownstreamContract:
         """真发过请求的拦截块计 non_auth——与正常非-auth 结果同口径。"""
         pipe = pl.XlatPipeline(translator=_Fuser(), validator=pass_validate)
         out = asyncio.run(
-            pipe.run([mk_chunk("Long prose \\textbf[[MATH_1]] " + "x" * 400, "c1")])
+            pipe.run([mk_chunk(_FUSED_SRC, "c1")])
         )
         assert out[0].error_kind == "validate"
         assert pipe.auth_gate.non_auth == 1

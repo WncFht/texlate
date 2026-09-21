@@ -37,15 +37,23 @@ _OPTCOND = next(r for r in _RS.rules if r.id == "optlist_cond_hoist")
 _SHIM = next(r for r in _RS.rules if r.id == "legacy_pkg_shim")
 
 
-def _sub_all(rule: Rule, text: str) -> str:
-    """rewrite 列表全条目依序过真管线 (B4 同形条目逐条剥一块)。"""
+def _sub_all(rule: Rule, text: str) -> str | None:
+    """rewrite 列表全条目依序过真管线 (B4 同形条目逐条剥一块)。
+
+    任一条超时 (``_masked_sub``/``_bounded_sub`` 返 None) → 返 None 让断言
+    响亮失败 (test_fixloop_unk26._sub 同款; 不可 ``continue`` —— 原文返回
+    会静默满足 decline/幂等断言)。"""
     for pat, repl, masked in actions._compile_rewrites(  # noqa: SLF001
         rule.action["params"]["rewrites"]
     ):
-        if masked:
-            text = actions._masked_sub(pat, repl, text)  # noqa: SLF001
-        else:
-            text = actions._bounded_sub(pat, repl, text)  # noqa: SLF001
+        nxt = (
+            actions._masked_sub(pat, repl, text)  # noqa: SLF001
+            if masked
+            else actions._bounded_sub(pat, repl, text)  # noqa: SLF001
+        )
+        if nxt is None:
+            return None
+        text = nxt
     return text
 
 

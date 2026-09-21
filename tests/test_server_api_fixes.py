@@ -19,7 +19,7 @@ pytest.importorskip("fastapi", reason="server extra 未装")
 pytest.importorskip("starlette.testclient", reason="server extra 未装")
 pytest.importorskip("uvicorn", reason="server extra 未装")
 
-from conftest import make_app, mk_api_task
+from conftest import force_status, get_row, make_app, mk_api_task, reg_artifact
 from starlette.testclient import TestClient
 from typer.testing import CliRunner
 
@@ -28,36 +28,12 @@ from texlate.server.app import _loopback_bind
 from texlate.server.store import StoreError
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
     from pathlib import Path
 
 ARXIV = "2401.00031"
 KEY_A = {"X-Texlate-Key": "sk-tenant-a"}
 KEY_B = {"X-Texlate-Key": "sk-tenant-b"}
 _RUNNER = CliRunner()
-
-
-@pytest.fixture
-def server_client(
-    tmp_path: Path,
-    clean_env: pytest.MonkeyPatch,  # noqa: ARG001 -- fixture 副作用
-    monkeypatch: pytest.MonkeyPatch,
-) -> Iterator[TestClient]:
-    """server 形态 TestClient（worker 按住）。"""
-    monkeypatch.setenv("TEXLATE_MODE", "server")
-    with TestClient(make_app(tmp_path)) as c:
-        yield c
-
-
-def _force(client: TestClient, tid: str, status: str) -> None:
-    """store.transition force 通道——把任务钉到指定状态。"""
-    client.portal.call(
-        partial(client.app.state.store.transition, tid, status, force=True)
-    )
-
-
-def _get_row(client: TestClient, tid: str) -> dict | None:
-    return client.portal.call(partial(client.app.state.store.get, tid))
 
 
 class TestPeerGate:
@@ -136,7 +112,7 @@ class TestTasksPagination:
 
     def test_status_filter(self, client: TestClient) -> None:
         tid = mk_api_task(client, "2401.00050")
-        _force(client, tid, "done")
+        force_status(client, tid, "done")
         mk_api_task(client, "2401.00051")  # queued
         body = client.get("/api/tasks", params={"status": "done"}).json()
         assert body["total"] == 1
@@ -172,19 +148,8 @@ class TestFileGetToctou:
         """登记在册、盘上已删的产物 → 404 JSON（旧路径 FileResponse 惰性
         stat 抛 RuntimeError 裸 500）。"""
         tid = mk_api_task(client, ARXIV)
-        tdir = client.app.state.data_dir / "tasks" / tid
-        tdir.mkdir(parents=True, exist_ok=True)
-        target = tdir / "zh.pdf"
-        target.write_bytes(b"%PDF-1.4 fake")
-        client.portal.call(
-            partial(
-                client.app.state.store.put_file,
-                tid,
-                "zh_pdf",
-                "zh.pdf",
-                data_dir=tdir,
-            )
-        )
+        rec = reg_artifact(client, tid, "zh_pdf", "zh.pdf")
+        target = client.app.state.data_dir / "tasks" / tid / rec["path"]
         target.unlink()
         r = client.get(f"/api/files/{tid}/zh.pdf")
         assert r.status_code == HTTPStatus.NOT_FOUND
@@ -192,18 +157,7 @@ class TestFileGetToctou:
 
     def test_present_artifact_serves(self, client: TestClient) -> None:
         tid = mk_api_task(client, ARXIV)
-        tdir = client.app.state.data_dir / "tasks" / tid
-        tdir.mkdir(parents=True, exist_ok=True)
-        (tdir / "zh.pdf").write_bytes(b"%PDF-1.4 fake")
-        client.portal.call(
-            partial(
-                client.app.state.store.put_file,
-                tid,
-                "zh_pdf",
-                "zh.pdf",
-                data_dir=tdir,
-            )
-        )
+        reg_artifact(client, tid, "zh_pdf", "zh.pdf")
         r = client.get(f"/api/files/{tid}/zh.pdf")
         assert r.status_code == HTTPStatus.OK
         assert r.content == b"%PDF-1.4 fake"
@@ -218,7 +172,7 @@ class TestRetryOrdering:
         client.portal.call(
             partial(client.app.state.store.update_fields, tid, main_tex="main.tex")
         )
-        _force(client, tid, "fault")
+        force_status(client, tid, "fault")
 
         def _boom(*_a: object, **_k: object) -> None:
             msg = "boom"
@@ -228,12 +182,12 @@ class TestRetryOrdering:
         monkeypatch.setattr(store, "update_fields", _boom)
         r = client.post(f"/api/task/{tid}/retry", json={"main": "other.tex"})
         assert r.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
-        assert _get_row(client, tid)["status"] == "fault"
+        assert get_row(client, tid)["status"] == "fault"
 
     def test_double_retry_second_409(self, client: TestClient) -> None:
         """守卫迁移先行——行已 queued 时第二发 retry 纯 409，不动 chunks。"""
         tid = mk_api_task(client, ARXIV)
-        _force(client, tid, "fault")
+        force_status(client, tid, "fault")
         r1 = client.post(f"/api/task/{tid}/retry", json={})
         assert r1.status_code == HTTPStatus.ACCEPTED
         r2 = client.post(f"/api/task/{tid}/retry", json={})
@@ -246,29 +200,29 @@ class TestDeleteGuard:
         tdir = client.app.state.data_dir / "tasks" / tid
         tdir.mkdir(parents=True, exist_ok=True)
         (tdir / "keep.bin").write_bytes(b"x")
-        _force(client, tid, "done")
+        force_status(client, tid, "done")
         r = client.delete(f"/api/task/{tid}")
         assert r.status_code == HTTPStatus.OK
-        assert _get_row(client, tid) is None
+        assert get_row(client, tid) is None
         assert not tdir.exists()
 
     def test_active_delete_409(self, client: TestClient) -> None:
         tid = mk_api_task(client, ARXIV)  # queued = ACTIVE
         r = client.delete(f"/api/task/{tid}")
         assert r.status_code == HTTPStatus.CONFLICT
-        assert _get_row(client, tid) is not None
+        assert get_row(client, tid) is not None
 
     def test_guard_false_409(
         self, client: TestClient, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """条件写兜底臂：读时终态、删时被并发激活 → False → 409 不删。"""
         tid = mk_api_task(client, ARXIV)
-        _force(client, tid, "done")
+        force_status(client, tid, "done")
         store = client.app.state.store
         monkeypatch.setattr(store, "delete_task_guard", lambda *_a, **_k: False)
         r = client.delete(f"/api/task/{tid}")
         assert r.status_code == HTTPStatus.CONFLICT
-        assert _get_row(client, tid) is not None
+        assert get_row(client, tid) is not None
 
 
 class TestOrphanSweep:
@@ -303,7 +257,7 @@ class TestCrossTenantReuse:
         """跨租户 done 命中 → 202 建行（存 alias 键逼 worker 物化），
         不再回对方永远读不到的 task_id。"""
         tid_a = mk_api_task(server_client, f"{ARXIV}v1", headers=KEY_A)
-        _force(server_client, tid_a, "done")
+        force_status(server_client, tid_a, "done")
         r = server_client.post(
             f"/api/arxiv/{ARXIV}v1/translate", json={}, headers=KEY_B
         )
@@ -313,8 +267,8 @@ class TestCrossTenantReuse:
         # B 拿到自己租户的可读句柄（旧 bug：直回 A 的 id → _get_task 恒 404）
         got = server_client.get(f"/api/task/{tid_b}", headers=KEY_B)
         assert got.status_code == HTTPStatus.OK
-        row_a = _get_row(server_client, tid_a)
-        row_b = _get_row(server_client, tid_b)
+        row_a = get_row(server_client, tid_a)
+        row_b = get_row(server_client, tid_b)
         assert row_b["tenant"] != row_a["tenant"]
         # alias（无版本）键——stored≠resolved 触发 _post_resolve_reuse 物化
         assert "@" not in row_b["cache_key"]
@@ -322,7 +276,7 @@ class TestCrossTenantReuse:
     def test_same_tenant_done_hit_reuses(self, server_client: TestClient) -> None:
         """同租户命中仍走 200 reuse 直返。"""
         tid_a = mk_api_task(server_client, f"{ARXIV}v2", headers=KEY_A)
-        _force(server_client, tid_a, "done")
+        force_status(server_client, tid_a, "done")
         r = server_client.post(
             f"/api/arxiv/{ARXIV}v2/translate", json={}, headers=KEY_A
         )

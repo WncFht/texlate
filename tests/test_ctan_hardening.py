@@ -5,7 +5,6 @@ codehealth H3（overlay="tree" 只挡 ``../`` 前缀、解压无上限）与
 「tar dir 成员不做 casefold 碰撞检查」两条发现的回归面。
 """
 
-import io
 import lzma
 import tarfile
 from pathlib import Path
@@ -30,13 +29,9 @@ def make_tarxz(
     members: dict[str, bytes] | list[tuple[tarfile.TarInfo, bytes]],
 ) -> bytes:
     """内存构造 ``archive/<pkg>.tar.xz`` 响应体（dict 形为常规成员）。"""
-    buf = io.BytesIO()
-    with tarfile.open(fileobj=buf, mode="w") as tf:
-        if isinstance(members, dict):
-            members = [(tar_reg(n, len(d)), d) for n, d in members.items()]
-        for info, data in members:
-            tf.addfile(info, io.BytesIO(data))
-    return lzma.compress(buf.getvalue())
+    if isinstance(members, dict):
+        members = [(tar_reg(n, len(d)), d) for n, d in members.items()]
+    return lzma.compress(make_tar(members))
 
 
 # ---------------------------------------------------------------- 成员名穿越（tree 档主战场，flat 档同口径拒收）

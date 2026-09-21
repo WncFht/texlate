@@ -42,6 +42,15 @@ def _wait_sub(bus: EventBus, tid: str, timeout: float = 5.0) -> None:
         time.sleep(0.01)
 
 
+async def _await_sub(bus: EventBus, tid: str) -> None:
+    """``_wait_sub`` 的协程版——loop 内 ``sleep(0)`` 让步自旋到订阅注册。"""
+    for _ in range(100):
+        if _has_sub(bus, tid):
+            break
+        await asyncio.sleep(0)
+    assert _has_sub(bus, tid), f"task {tid} 订阅未注册"
+
+
 class TestBusStream:
     """直连 EventBus（不走路由层）——重放/实时/done 语义。"""
 
@@ -62,11 +71,8 @@ class TestBusStream:
                 return [ev async for ev in b.stream(tid)]
 
             task = asyncio.create_task(sub())
-            for _ in range(100):  # sub 首步即挂 _subs——订阅确定再发，走 live 段
-                if _has_sub(b, tid):
-                    break
-                await asyncio.sleep(0)
-            assert _has_sub(b, tid)
+            # sub 首步即挂 _subs——订阅确定再发，走 live 段
+            await _await_sub(b, tid)
             b.publish(tid, "stage", {"stage": "parsing"})
             b.publish(tid, "done", {"status": "done"})
             return await asyncio.wait_for(task, 5)
@@ -126,10 +132,7 @@ class TestBusStream:
                 out.extend([ev async for ev in b.stream(tid)])
 
             task = asyncio.create_task(sub())
-            for _ in range(100):
-                if _has_sub(b, tid):
-                    break
-                await asyncio.sleep(0)
+            await _await_sub(b, tid)
             # cap=2：第 3 发触发 QueueFull——积压被清、订阅摘除、哨兵断流
             for i in range(3):
                 b.publish(tid, "stage", {"i": i})
@@ -160,11 +163,7 @@ class TestBusStream:
                 out.extend([ev async for ev in b.stream(tid)])
 
             task = asyncio.create_task(sub())
-            for _ in range(100):
-                if _has_sub(b, tid):
-                    break
-                await asyncio.sleep(0)
-            assert _has_sub(b, tid)
+            await _await_sub(b, tid)
             b.close_all()
             await asyncio.wait_for(task, 5)
             return out

@@ -108,7 +108,6 @@ def test_expand_group_boundary_tail_arg_protected() -> None:
     assert reconstruct(res) == _PHANTOM
     raw = _raw_surface(res)
     assert "{2mm}" not in raw
-    assert re.search(r"\[\[CMD_\d+\]\]", raw)
     ph = re.search(r"\[\[CMD_\d+\]\]", raw)
     assert ph is not None
     assert res.ph_map[ph.group(0)] == "\\vspace{2mm}"

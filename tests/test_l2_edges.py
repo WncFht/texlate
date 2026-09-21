@@ -35,7 +35,7 @@ def test_file_line_warning_lines_exempt() -> None:
     assert v.first_error is not None
     assert "Undefined control sequence" in v.first_error.head
     wc = v.warnings.by_class
-    assert v.warnings.total == 3  # noqa: PLR2004 - 两条 Warning 豁免行+一条泛型
+    assert v.warnings.total == 3  # noqa: PLR2004 - 三条豁免行（reference×1 + generic×2）
     assert wc.get("reference") == 1  # file:line 前缀 Warning 仍入归类
     assert wc.get("generic") == 2  # noqa: PLR2004 - Package/Class Warning 无规则落 generic
 

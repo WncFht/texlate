@@ -18,6 +18,10 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 #: 最小可解析工程（对齐 test_e2e 惯例：两段散文保证出 chunk）。
+#: 刻意不直接用 conftest.MINI_TEX / test_e2e._MAIN——本副本去掉了
+#: ``\section{Intro}`` 行：``section`` ctx 走 PROSE_CONTEXTS 结构救回臂
+#: （零功能词也算散文），留着它 main.tex 的 ``file_has_prose`` 判定就不
+#: 依赖功能词臂，功能词门回归时本文件用例照样全绿——恰是本文件要钉的面。
 _MAIN = (
     "\\documentclass{article}\n"
     "\\begin{document}\n"
@@ -30,6 +34,7 @@ _MAIN = (
 
 
 def _project(root: Path) -> Path:
+    """test_e2e._project 的裁剪版——本文件无用例覆盖 ``main`` 参数，故省。"""
     root.mkdir(parents=True, exist_ok=True)
     (root / "main.tex").write_text(_MAIN, encoding="utf-8")
     return root

@@ -21,7 +21,7 @@ import re
 from pathlib import Path
 
 import pytest
-from conftest import DOC, blob, check_invariants
+from conftest import ART, DOC, blob, check_invariants
 
 from texlate.latex import parse_file, parse_tex
 from texlate.latex.model import ScanResult
@@ -36,17 +36,7 @@ _CHOPPED_CS_RX = re.compile(r"\\[pt]\s")
 
 
 def scan(body: str, preamble: str = "") -> ScanResult:
-    tex = (
-        DOC % body
-        if not preamble
-        else (
-            "\\documentclass{article}\n"
-            + preamble
-            + "\n\\begin{document}\n"
-            + body
-            + "\n\\end{document}\n"
-        )
-    )
+    tex = DOC % body if not preamble else ART % (preamble + "\n", body)
     res = parse_tex(tex)
     check_invariants(res, tex)
     return res
@@ -130,6 +120,5 @@ def test_pstricks_no_chopped_cs_fragments() -> None:
     for chopped in ("p", "t", "new", "@", "@@", "begin@O"):
         assert chopped not in names
     content = blob(res)
-    assert not _CHOPPED_CS_RX.search(content), (
-        "斩名残段进 chunk：" + _CHOPPED_CS_RX.search(content).group(0)  # type: ignore[union-attr]
-    )
+    m = _CHOPPED_CS_RX.search(content)
+    assert m is None, "斩名残段进 chunk：" + m.group(0)

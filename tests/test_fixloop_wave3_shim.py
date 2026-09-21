@@ -80,11 +80,19 @@ def test_aa_shim_abstract_single_arg_with_absorb() -> None:
 
 
 def test_aa_shim_stub_writes(tmp_path: Path) -> None:
-    """vendored_fetch 落盘面: 替身 stub 物化 wdir + absorb 机制随件。"""
-    (tmp_path / "aa.cls").write_text(
+    """vendored_fetch 落盘面: 替身 stub 经真动作物化 wdir + absorb 机制随件。"""
+    root = tmp_path / "vendor"
+    (root / "stubs").mkdir(parents=True)
+    (root / "stubs" / "aa.cls").write_text(
         _AA_STUB.read_text(encoding="utf-8"), encoding="utf-8"
     )
-    stub = (tmp_path / "aa.cls").read_text()
+    ctx = _ctx(tmp_path / "w")
+    ctx.wdir.mkdir()
+    ok, note = TRANSFORM_FNS["vendored_fetch"](
+        ctx, None, "aa.cls", {"dir": str(root)}
+    )
+    assert ok, note
+    stub = (ctx.wdir / "aa.cls").read_text()
     assert "\\aa@absorb" in stub
     assert "\\LoadClass{article}" in stub
 

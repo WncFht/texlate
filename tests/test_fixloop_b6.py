@@ -19,12 +19,11 @@ post warn-preempt 统一入账点) 即补一发非 best_effort 编译, entry
 
 from pathlib import Path
 
-from test_fixloop_loop import CLEAN_LOG, MockEngine, make_proj, mini_rs
+from _fixloopkit import CLEAN_LOG, MockEngine, make_proj, mini_rs
+from test_fixloop_loop import BOOM_LOG, BOOM_TAXONOMY, run_tool_rules
 
 from texlate.compile.fixloop import Ruleset, fixloop
 
-BOOM_TAXONOMY = [{"id": "boom", "scope": "head", "pattern": "BOOM"}]
-BOOM_LOG = "! BOOM every time\n"
 MC_LOG = BOOM_LOG + "Missing character: There is no A (U+0041) in font cmr10\n"
 # 0 错 + missing_char 警告行——warn-cat 分类入口 (warn_id 命中 warnings)。
 WARN_LOG = (
@@ -46,44 +45,19 @@ def _rs(rules: list[dict], loop_cfg: dict | None = None) -> Ruleset:
 
 def _warn_rs(rules: list[dict], loop_cfg: dict | None = None) -> Ruleset:
     """带 missing_char warnings 面 + warn-cat 分类行的合成 ruleset。"""
-    return Ruleset(
-        {
-            "version": 1,
-            "meta": {
-                "loop": {
-                    "max_rounds": 4,
-                    "stuck_sig_repeat": 3,
-                    "clean_err_max": 3,
-                    "compile_passes": 2,
-                    **(loop_cfg or {}),
-                }
+    return mini_rs(
+        rules=rules,
+        taxonomy=[
+            *BOOM_TAXONOMY,
+            {
+                "id": "warn_missing_char",
+                "scope": "warnings",
+                "warn_id": "missing_char",
             },
-            "taxonomy": [
-                {"id": "boom", "scope": "head", "pattern": "BOOM"},
-                {
-                    "id": "warn_missing_char",
-                    "scope": "warnings",
-                    "warn_id": "missing_char",
-                },
-            ],
-            "warnings": [{"id": "missing_char", "pattern": "Missing character:"}],
-            "rules": rules,
-        }
+        ],
+        loop_cfg=loop_cfg,
+        warnings=[{"id": "missing_char", "pattern": "Missing character:"}],
     )
-
-
-def _tool_rules(n: int) -> list[dict]:
-    """boom 类 run_tool 规则 ×n——跨轮 apply/dedup 占位派发件。"""
-    return [
-        {
-            "id": f"fix{i}",
-            "phase": "loop",
-            "order": i,
-            "when": {"category": "boom"},
-            "action": {"kind": "run_tool", "params": {"argv": ["true"]}},
-        }
-        for i in range(1, n + 1)
-    ]
 
 
 def _runner(_a: object, _t: object, _w: object) -> tuple[int, str, float, bool]:
@@ -97,7 +71,7 @@ def test_final_round_write_reverify_promotes(tmp_path: Path) -> None:
     无复验时 ``rounds[-1]`` 是写前 BOOM 证据, verdict 压 dirty/acceptable;
     复验 entry 的 0 错新证让既有公式自然落成 clean。
     """
-    rs = _rs(_tool_rules(2), {"max_rounds": 2, "compile_passes": 1})
+    rs = _rs(run_tool_rules(2), {"max_rounds": 2, "compile_passes": 1})
     eng = MockEngine(
         [
             {"log": BOOM_LOG, "pdf": True},
@@ -119,7 +93,7 @@ def test_reverify_residual_error_stays_dirty(tmp_path: Path) -> None:
 
     复验不捏造修复——写后残错如实记账, 升档走既有 acceptable 公式。
     """
-    rs = _rs(_tool_rules(2), {"max_rounds": 2, "compile_passes": 1})
+    rs = _rs(run_tool_rules(2), {"max_rounds": 2, "compile_passes": 1})
     eng = MockEngine([{"log": BOOM_LOG, "pdf": True}])
     cell = fixloop(make_proj(tmp_path), eng, ruleset=rs, runner=_runner)
     last = cell["rounds"][-1]
@@ -131,7 +105,7 @@ def test_reverify_residual_error_stays_dirty(tmp_path: Path) -> None:
 # ---------------------------------------------------------------- b) clean 零开销
 def test_clean_exit_zero_extra_compile(tmp_path: Path) -> None:
     """pin b-1: 首轮收敛 → 无派发无写 → 复验门构造性不燃, 零复编。"""
-    rs = _rs(_tool_rules(1), {"compile_passes": 1})
+    rs = _rs(run_tool_rules(1), {"compile_passes": 1})
     eng = MockEngine([{"log": CLEAN_LOG, "pdf": True}])
     cell = fixloop(make_proj(tmp_path), eng, ruleset=rs, runner=_runner)
     assert cell["verdict"] == "clean"
@@ -145,7 +119,7 @@ def test_clean_after_apply_no_reverify(tmp_path: Path) -> None:
     轮内 apply 的写由下一轮编译天然复验——只有「末次」编译后的写
     才欠一发复编 (构造保证 clean 出路零复验)。
     """
-    rs = _rs(_tool_rules(1), {"compile_passes": 1})
+    rs = _rs(run_tool_rules(1), {"compile_passes": 1})
     eng = MockEngine(
         [
             {"log": BOOM_LOG, "pdf": True},
@@ -161,7 +135,7 @@ def test_clean_after_apply_no_reverify(tmp_path: Path) -> None:
 # ---------------------------------------------------------------- c) 无写不复验
 def test_no_post_final_write_no_reverify(tmp_path: Path) -> None:
     """pin c: 末轮派发枯竭 (dedup miss) 收场 → 树自末编未变, 不复验。"""
-    rs = _rs(_tool_rules(1), {"compile_passes": 1})
+    rs = _rs(run_tool_rules(1), {"compile_passes": 1})
     eng = MockEngine([{"log": BOOM_LOG, "pdf": True}])
     cell = fixloop(make_proj(tmp_path), eng, ruleset=rs, runner=_runner)
     # r1 apply fix1; r2 fix1 dedup → 无 apply → dirty_pdf → acceptable
@@ -177,7 +151,7 @@ def test_halt_reverify_error_blocks_acceptable(tmp_path: Path) -> None:
     复验 entry 与轮 entry 同字段面——Guard A/B 的
     died/log_truncated/pdf_bytes 读取零改兼容。
     """
-    rs = _rs(_tool_rules(2), {"max_rounds": 2, "compile_passes": 1})
+    rs = _rs(run_tool_rules(2), {"max_rounds": 2, "compile_passes": 1})
     eng = _HaltEngine([{"log": BOOM_LOG, "pdf": True}])
     cell = fixloop(make_proj(tmp_path), eng, ruleset=rs, runner=_runner)
     last = cell["rounds"][-1]
@@ -207,7 +181,7 @@ def test_halt_reverify_error_blocks_acceptable(tmp_path: Path) -> None:
 def test_warn_preempt_apply_triggers_reverify(tmp_path: Path) -> None:
     """pin e: 末轮 warn-preempt apply 同属 post-final 写 → 复验点火。"""
     rules = [
-        *_tool_rules(1),
+        *run_tool_rules(1),
         {
             "id": "mcfix",
             "phase": "loop",
@@ -216,7 +190,7 @@ def test_warn_preempt_apply_triggers_reverify(tmp_path: Path) -> None:
             "action": {"kind": "run_tool", "params": {"argv": ["true"]}},
         },
     ]
-    rs = _rs(rules, {"max_rounds": 2, "compile_passes": 1})
+    rs = _warn_rs(rules, {"max_rounds": 2, "compile_passes": 1})
     eng = MockEngine(
         [
             {"log": MC_LOG, "pdf": True},

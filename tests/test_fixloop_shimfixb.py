@@ -21,67 +21,66 @@ current alignment" 级联:
 import re
 import shutil
 import subprocess
-from functools import lru_cache
 from pathlib import Path
 
 import pytest
+from _fixloopkit import (
+    EngStub,
+    mk_ctx,
+    n_err,
+    requires_xelatex,
+    rule,
+    run_xelatex,
+)
 
-from texlate.compile.fixloop import Ruleset, load_ruleset
 from texlate.compile.fixloop.builtins import TRANSFORM_FNS
-from texlate.compile.fixloop.engine import LoopCtx
+from texlate.latex.chars import match_brace
 
 VENDOR = Path(__file__).resolve().parent.parent / "src/texlate/compile/fixloop/vendor"
 
 
-@lru_cache(maxsize=1)
-def _rs() -> Ruleset:
-    return load_ruleset()
+def _params(rid: str) -> dict:
+    """按 rid 取规则 ``action.params``——cs_table/shim_map/直驱 params 的单入口。"""
+    return rule(rid).action["params"]
 
 
 def _cs_table() -> dict:
-    rule = next(r for r in _rs().rules if r.id == "cs_targeted_fix")
-    return rule.action["params"]["cs_table"]
+    return _params("cs_targeted_fix")["cs_table"]
 
 
 def _shim_map() -> dict:
-    rule = next(r for r in _rs().rules if r.id == "legacy_pkg_shim")
-    return rule.action["params"]["shim_map"]
-
-
-def _ctx(tmp_path: Path) -> LoopCtx:
-    return LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel="main.tex")
-
-
-class _Eng:
-    name = "xelatex"
-    caps = frozenset({"kpsewhich", "tlmgr"})
+    return _params("legacy_pkg_shim")["shim_map"]
 
 
 def _def_body(src: str, head_pat: str) -> str:
     """``\\providecommand{\\x}[1]{<body>}`` / ``\\def\\x#1{<body>}`` 取 body 段。"""
     m = re.search(head_pat, src)
     assert m, f"{head_pat} 不在发射体"
-    start = m.end()
-    depth, i = 1, start
-    while depth:
-        assert i < len(src), "花括不平衡"
-        if src[i] == "{":
-            depth += 1
-        elif src[i] == "}":
-            depth -= 1
-        i += 1
-    return src[start : i - 1]
+    assert src[m.end() - 1] == "{", "head_pat 须以 \\{ 收尾"
+    end = match_brace(src, m.end() - 1)
+    assert end is not None, "花括不平衡"
+    return src[m.end() : end - 1]
 
 
 def _enclosing_group(text: str, pos: int) -> tuple[int, int] | None:
     """最小包含 pos 的花括组 (start, end); 顶层返回 None。"""
     spans: list[tuple[int, int]] = []
     stack: list[int] = []
-    for i, ch in enumerate(text):
+    i, n = 0, len(text)
+    while i < n:
+        ch = text[i]
+        if ch == "\\":  # \X 跳两字符——match_brace 同轨
+            i += 2
+            continue
+        if ch == "%":  # 注释至 EOL 内括号不计
+            k = text.find("\n", i)
+            i = n if k < 0 else k + 1
+            continue
         if ch == "{":
             stack.append(i)
         elif ch == "}" and stack:
             spans.append((stack.pop(), i))
+        i += 1
     inside = [(s, e) for s, e in spans if s < pos < e]
     return min(inside, key=lambda se: se[1] - se[0]) if inside else None
 
@@ -122,7 +121,7 @@ def test_authorblock_a_arg_alignment_safe(key: str) -> None:
 
 def test_authorblock_n_arg_alignment_safe() -> None:
     """\\authorblockN 发射体 #1 同查 (裸 #1 / tabular 皆合法)。"""
-    for key in ("maketitle", "authorblockN"):
+    for key in ("maketitle", "authorblockN", "authorblockA"):
         body = _def_body(
             _cs_table()[key]["polyfill"], r"\\providecommand\{\\authorblockN\}\[1\]\{"
         )
@@ -151,22 +150,6 @@ def test_aipproc_addr_inner_tabular() -> None:
 # ── 真编译 e2e (transform 注入链 + 发射体原文) ────────────────────
 
 
-def _xelatex(wdir: Path) -> str:
-    xelatex = shutil.which("xelatex")
-    subprocess.run(  # noqa: S603 -- argv[0] 来自 shutil.which 绝对路径
-        [xelatex, "-interaction=nonstopmode", "main.tex"],
-        cwd=wdir,
-        capture_output=True,
-        timeout=120,
-        check=False,
-    )
-    return (wdir / "main.log").read_text(encoding="utf-8", errors="replace")
-
-
-def _n_err(log: str) -> int:
-    return len(re.findall(r"^! ", log, re.MULTILINE))
-
-
 _IEEE_DOC = (
     "\\documentclass[conference]{IEEEtran}\n"
     "\\title{T}\n"
@@ -177,7 +160,7 @@ _IEEE_DOC = (
 
 
 @pytest.mark.integration
-@pytest.mark.skipif(shutil.which("xelatex") is None, reason="xelatex not installed")
+@requires_xelatex
 @pytest.mark.skipif(shutil.which("kpsewhich") is None, reason="kpsewhich not installed")
 def test_authorblock_ieeetran_e2e(tmp_path: Path) -> None:
     """payload authorblockA → polyfill 注 docclass 缝 → IEEEtran \\\\-bearing
@@ -190,38 +173,36 @@ def test_authorblock_ieeetran_e2e(tmp_path: Path) -> None:
         pytest.skip("IEEEtran.cls 不在 texmf")
     (tmp_path / "main.tex").write_text(_IEEE_DOC)
     ok, note = TRANSFORM_FNS["cs_targeted_fix"](
-        _ctx(tmp_path), _Eng(), "authorblockA", _cs_table_params()
+        mk_ctx(tmp_path), EngStub(), "authorblockA", _params("cs_targeted_fix")
     )
     assert ok, note
-    log = _xelatex(tmp_path)
-    assert _n_err(log) == 0, f"注入后仍 {_n_err(log)} 个 '!' 错"
-
-
-def _cs_table_params() -> dict:
-    return next(r for r in _rs().rules if r.id == "cs_targeted_fix").action["params"]
+    # 注入件已落盘——回写同文即就地编译 post-injection 稿
+    log = run_xelatex(tmp_path, (tmp_path / "main.tex").read_text(encoding="utf-8"))
+    assert n_err(log) == 0, f"注入后仍 {n_err(log)} 个 '!' 错"
 
 
 @pytest.mark.integration
-@pytest.mark.skipif(shutil.which("xelatex") is None, reason="xelatex not installed")
+@requires_xelatex
 def test_authorblock_fallback_e2e(tmp_path: Path) -> None:
     """article 面 (\\IEEEauthorblockA 缺席) → else 臂内层 tabular 零 ``!`` 错。"""
     doc = _IEEE_DOC.replace("[conference]{IEEEtran}", "{article}")
     (tmp_path / "main.tex").write_text(doc)
     ok, note = TRANSFORM_FNS["cs_targeted_fix"](
-        _ctx(tmp_path), _Eng(), "authorblockA", _cs_table_params()
+        mk_ctx(tmp_path), EngStub(), "authorblockA", _params("cs_targeted_fix")
     )
     assert ok, note
-    log = _xelatex(tmp_path)
-    assert _n_err(log) == 0, f"fallback 臂仍 {_n_err(log)} 个 '!' 错"
+    # 注入件已落盘——回写同文即就地编译 post-injection 稿
+    log = run_xelatex(tmp_path, (tmp_path / "main.tex").read_text(encoding="utf-8"))
+    assert n_err(log) == 0, f"fallback 臂仍 {n_err(log)} 个 '!' 错"
 
 
 @pytest.mark.integration
-@pytest.mark.skipif(shutil.which("xelatex") is None, reason="xelatex not installed")
+@requires_xelatex
 def test_crckapb_institute_e2e(tmp_path: Path) -> None:
     """shim_map 发射 crckapb.cls + 双 \\institute 多行机构 → 零 ``!`` 错
     (astro-ph/9901364 格形)。"""
-    (tmp_path / "crckapb.cls").write_text(_shim_map()["crckapb.cls"]["body"])
-    (tmp_path / "main.tex").write_text(
+    log = run_xelatex(
+        tmp_path,
         "\\documentclass{crckapb}\n"
         "\\title{Topology of the Universe}\n"
         "\\author{Jean-Pierre Luminet$^1$}\n"
@@ -230,7 +211,7 @@ def test_crckapb_institute_e2e(tmp_path: Path) -> None:
         "5 place Jules Janssen, \\\\\nF-92195 Meudon Cedex, France}\n"
         "\\institute{$^2$Institut d'Astrophysique de Paris\\\\\n"
         "$^3$IUCAA, Post Bag 4\\\\ Ganeshkhind, Pune, India}\n"
-        "\\begin{document}\nx\n\\end{document}\n"
+        "\\begin{document}\nx\n\\end{document}\n",
+        extra={"crckapb.cls": _shim_map()["crckapb.cls"]["body"]},
     )
-    log = _xelatex(tmp_path)
-    assert _n_err(log) == 0, f"crckapb shim 仍 {_n_err(log)} 个 '!' 错"
+    assert n_err(log) == 0, f"crckapb shim 仍 {n_err(log)} 个 '!' 错"

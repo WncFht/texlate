@@ -65,18 +65,19 @@ _STUB_P = 0.08
 _REPAIR_P = 0.5
 
 
-def _sym(name: str, linkname: str) -> tarfile.TarInfo:
+def _linkinfo(name: str, linkname: str, tar_type: bytes) -> tarfile.TarInfo:
     info = tarfile.TarInfo(name)
-    info.type = tarfile.SYMTYPE
+    info.type = tar_type
     info.linkname = linkname
     return info
+
+
+def _sym(name: str, linkname: str) -> tarfile.TarInfo:
+    return _linkinfo(name, linkname, tarfile.SYMTYPE)
 
 
 def _lnk(name: str, linkname: str) -> tarfile.TarInfo:
-    info = tarfile.TarInfo(name)
-    info.type = tarfile.LNKTYPE
-    info.linkname = linkname
-    return info
+    return _linkinfo(name, linkname, tarfile.LNKTYPE)
 
 
 def _real_loc(dest: Path, rel: str) -> Path:
@@ -186,11 +187,12 @@ def _check_disk(res: UnpackResult, dest: Path) -> None:
         _check_winner(m, loc, dest_res)
     files, dirs, links, others = _walk(dest_res)
     assert others == []
-    # 盘上实体与"赢家"（各落点最末成员）对账
+    # 盘上实体与"赢家"（各落点最末成员）对账——按下标判赢，同 loc 的
+    # 非赢家成员不进 win（别名共享落点时只按赢家计字节/实体）
     win = [
         (loc, m)
-        for m, loc in zip(members, locs, strict=True)
-        if loc == locs[winner[loc]]
+        for i, (m, loc) in enumerate(zip(members, locs, strict=True))
+        if i == winner[loc]
     ]
     # 别名条目的 size 与赢家同记一份——字节总量只按各落点赢家对账
     assert res.extracted_bytes >= sum(
@@ -379,22 +381,58 @@ _TYPE_MAKERS = {
     "lnk": lambda n: (_lnk(n, "tgt.tex"), b""),
 }
 
+#: 冲突决策告警——对成员 ``x`` 的位移裁决只走这两个前缀。
+#: （link_kept/hardlink_materialized/stub_member 是声明/落账簿记，不在此列。）
+_DECISION_WARNS = ("dup_member_overwrite", "reject_dir_clash")
+
+#: 4×4 同路径异类型重复矩阵的实测口径：(first, second) → (赢家 kind, x 决策告警集)。
+#: file/sym/lnk 互覆 = 后到者赢 + dup_member_overwrite；dir 参与 = 先到者赢 +
+#: reject_dir_clash。两个已登记 wart 照实钉死（未来收口时本表同步改红）：
+#:   * dir→{file,sym,lnk}：_claim 先发 dup_member_overwrite 再 reject_dir_clash
+#:     ——overwrite 实际未发生，告警名不副实；
+#:   * lnk→dir：_dir_member._drop_pending 静默摘掉 pending hardlink 声明，
+#:     零告警——其余位移路径全有 dup_member_overwrite。
+_DUP_OUTCOMES: dict[tuple[str, str], tuple[str, set[str]]] = {
+    ("file", "file"): ("file", {"dup_member_overwrite:x"}),
+    ("file", "dir"): ("file", {"reject_dir_clash:x"}),
+    ("file", "sym"): ("symlink", {"dup_member_overwrite:x"}),
+    ("file", "lnk"): ("hardlink", {"dup_member_overwrite:x"}),
+    ("dir", "file"): ("dir", {"dup_member_overwrite:x", "reject_dir_clash:x"}),
+    ("dir", "dir"): ("dir", set()),
+    ("dir", "sym"): ("dir", {"dup_member_overwrite:x", "reject_dir_clash:x"}),
+    ("dir", "lnk"): ("dir", {"dup_member_overwrite:x", "reject_dir_clash:x"}),
+    ("sym", "file"): ("file", {"dup_member_overwrite:x"}),
+    ("sym", "dir"): ("symlink", {"reject_dir_clash:x"}),
+    ("sym", "sym"): ("symlink", {"dup_member_overwrite:x"}),
+    ("sym", "lnk"): ("hardlink", {"dup_member_overwrite:x"}),
+    ("lnk", "file"): ("file", {"dup_member_overwrite:x"}),
+    ("lnk", "dir"): ("dir", set()),
+    ("lnk", "sym"): ("symlink", {"dup_member_overwrite:x"}),
+    ("lnk", "lnk"): ("hardlink", {"dup_member_overwrite:x"}),
+}
+
 
 @pytest.mark.parametrize("first", list(_TYPE_MAKERS))
 @pytest.mark.parametrize("second", list(_TYPE_MAKERS))
-def test_dup_member_cross_type_last_wins(
+def test_dup_member_cross_type_matrix(
     tmp_path: Path, first: str, second: str
 ) -> None:
-    """同路径异类型重复成员全矩阵：后到者语义 + mtree 与盘上一致。"""
+    """同路径异类型重复成员全矩阵：赢家 kind + 决策告警逐格钉死
+    （``_DUP_OUTCOMES`` 口径表），mtree 与盘上一致。"""
     tgt = tar_reg("tgt.tex", 5)
     members = [(tgt, b"TTTTT"), _TYPE_MAKERS[first]("x"), _TYPE_MAKERS[second]("x")]
     res = unpack_tar(make_tar(members), tmp_path / "d")
     _check_result(res, tmp_path / "d")
+    want_kind, want_warns = _DUP_OUTCOMES[(first, second)]
     xs = [m for m in res.members if m.path == "x"]
-    assert len(xs) <= 1  # 留下至多一条，且不留幽灵
+    assert [m.kind for m in xs] == [want_kind]  # 恰好一条赢家，不留幽灵
+    decision = {
+        w for w in res.warnings if w.split(":", 1)[0] in _DECISION_WARNS
+    }
+    assert decision == want_warns
 
 
-def test_alias_via_symlinked_dir_lies_in_mtime(tmp_path: Path) -> None:
+def test_alias_via_symlinked_dir_lies_in_mtree(tmp_path: Path) -> None:
     """别名落点对账回归钉：``d``→``e`` symlink 后，``d/x`` 与 ``e/x`` 别名
     同实文件——后到写穿先到，``_reconcile_aliases`` 把先到条目的 sha 改记
     为盘上实况（赢家 B），并记 ``dup_member_overwrite``。"""

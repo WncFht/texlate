@@ -13,40 +13,23 @@ passopts(122) 需 ``\n\documentclass`` 锚点而本篇 documentclass 居文件 0
 
 from pathlib import Path
 
-from texlate.compile.fixloop import actions, load_ruleset
-from texlate.compile.fixloop.engine import LoopCtx, Rule
-from texlate.compile.logparse import ErrReport
+from _fixloopkit import EngStub, apply, mk_ctx, rule
 
+from texlate.compile.fixloop import actions
 
-class _Eng:
-    """regex_rewrite/condition 路径的最小引擎替身 (不触 probe/install)。"""
-
-    name = "xelatex"
-
-    def probe_file(self, fname: str, cwd: Path | None = None) -> str | None:
-        del fname, cwd
-        return None
-
-    def filemap(self, fname: str) -> list[str]:
-        del fname
-        return []
-
-
-def _ctx(tmp_path: Path, err_head: str = "") -> LoopCtx:
-    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel="main.tex")
-    ctx.err_head = err_head
-    return ctx
-
-
-def _rule() -> Rule:
-    return next(
-        r for r in load_ruleset().rules if r.id == "option_clash_geometry_hoist"
-    )
+_RID = "option_clash_geometry_hoist"
 
 
 def _apply(tmp_path: Path) -> tuple[bool, str]:
-    return actions._apply(  # noqa: SLF001 - 钉规则动作直驱
-        _rule(), _ctx(tmp_path), _Eng(), "geometry", ErrReport()
+    """钉规则动作直驱——kit ``apply`` 收口 (eng 缺省 ``EngStub``, ErrReport 内置)。"""
+    return apply(_RID, mk_ctx(tmp_path), "geometry")
+
+
+def _cond(tmp_path: Path, err_head: str, pay: str) -> tuple[bool, str]:
+    """``actions._cond_ok`` 直驱——SLF001 豁免一处收口。"""
+    r = rule(_RID)
+    return actions._cond_ok(  # noqa: SLF001 - 钉规则条件直驱
+        r.condition, r, mk_ctx(tmp_path, err_head=err_head), EngStub(), pay
     )
 
 
@@ -57,15 +40,15 @@ _GEOM_ERR = (
 
 
 def test_geom_rule_registered() -> None:
-    rule = _rule()
-    assert rule.order == 186  # noqa: PLR2004 - schema 断言值
-    assert rule.phase == "loop"
-    assert rule.when["category"] == "option_clash"
-    assert rule.action["kind"] == "regex_rewrite"
-    rw = rule.action["params"]["rewrites"][0]
+    r = rule(_RID)
+    assert r.order == 186  # noqa: PLR2004 - schema 断言值
+    assert r.phase == "loop"
+    assert r.when["category"] == "option_clash"
+    assert r.action["kind"] == "regex_rewrite"
+    rw = r.action["params"]["rewrites"][0]
     assert rw["match_surface"] == "masked"
-    assert "geometry" in rule.condition["source_contains"]
-    assert "geometry" in rule.condition["ctx_suggests"]
+    assert "geometry" in r.condition["source_contains"]
+    assert "geometry" in r.condition["ctx_suggests"]
 
 
 def test_geomclash_rewrite_real_shape(tmp_path: Path) -> None:
@@ -158,32 +141,24 @@ def test_geomclash_multiple_files_all_hoisted(tmp_path: Path) -> None:
 
 def test_geomclash_condition_geometry_binding(tmp_path: Path) -> None:
     """ctx+source 双闸: 错面须 geometry 撞名, 源面须有括号 geometry 载点。"""
-    rule = _rule()
     (tmp_path / "main.tex").write_text(
         "\\usepackage[a4paper]{geometry}\n", encoding="utf-8"
     )
-    ok, _ = actions._cond_ok(  # noqa: SLF001
-        rule.condition, rule, _ctx(tmp_path, _GEOM_ERR), _Eng(), "geometry"
-    )
+    ok, _ = _cond(tmp_path, _GEOM_ERR, "geometry")
     assert ok
     # 他包撞名 (payload=xcolor): 源面有括号 geometry 载点也不点火
     xcol_err = "! LaTeX Error: Option clash for package xcolor.\nl.5 \\usepackage"
-    ok, why = actions._cond_ok(  # noqa: SLF001
-        rule.condition, rule, _ctx(tmp_path, xcol_err), _Eng(), "xcolor"
-    )
+    ok, why = _cond(tmp_path, xcol_err, "xcolor")
     assert not ok, why
 
 
 def test_geomclash_commented_gate_passes_masked_skips(tmp_path: Path) -> None:
     """注释内括号载点过 source_contains 闸 (raw 面), 但 masked 重写不动 → applied=False。"""
-    rule = _rule()
     (tmp_path / "main.tex").write_text(
         "\\usepackage{geometry}\n% \\usepackage[a4paper]{geometry}\n",
         encoding="utf-8",
     )
-    ok, _ = actions._cond_ok(  # noqa: SLF001
-        rule.condition, rule, _ctx(tmp_path, _GEOM_ERR), _Eng(), "geometry"
-    )
+    ok, _ = _cond(tmp_path, _GEOM_ERR, "geometry")
     assert ok  # 闸过许可 (注释载点计入), masked 重写层才是真判
     ok, _note = _apply(tmp_path)
     assert not ok
@@ -193,9 +168,6 @@ def test_geomclash_commented_gate_passes_masked_skips(tmp_path: Path) -> None:
 
 def test_geomclash_condition_no_load_declines(tmp_path: Path) -> None:
     """工程完全无 geometry 载点 → source_contains 拒, 不空转。"""
-    rule = _rule()
     (tmp_path / "main.tex").write_text("\\documentclass{article}\n")
-    ok, why = actions._cond_ok(  # noqa: SLF001
-        rule.condition, rule, _ctx(tmp_path, _GEOM_ERR), _Eng(), "geometry"
-    )
+    ok, why = _cond(tmp_path, _GEOM_ERR, "geometry")
     assert not ok, why

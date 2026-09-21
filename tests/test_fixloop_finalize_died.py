@@ -6,11 +6,13 @@ r"""fixloop 同轮终编臂 (finalize) 的死编译否决 —— 2403.05523 幻�
 mid-\shipout) 同样产 pdf + 截断干净 log, 漏闸后同轮重编正好读上
 刚被截在半行的 main.aux → 幻影 ``aux_scan_eof`` 轮自续 (auxeof
 普查 2026-09-19, aux 恰截于 16384B 边界实证)。修 = 臂条件改
-``not _res_died(res)``, 与 clean 门 (:905) 同一否决语义。
+``not _res_died(res)``, 与 ``_round_verdict`` clean 门同一否决语义。
 """
 
 from functools import lru_cache
 from pathlib import Path
+
+from test_fixloop_loop import MAIN_TEX, MockEngine
 
 from texlate.compile.fixloop import Ruleset, load_ruleset
 from texlate.compile.fixloop.engine import fixloop
@@ -22,61 +24,12 @@ def _rs() -> Ruleset:
 
 
 CLEAN_LOG = "This is XeTeX\nOutput written on main.pdf (1 page).\n"
-MAIN_TEX = "\\documentclass{article}\n\\begin{document}\nhi\n\\end{document}\n"
 _CLEAN_PLUS_FINAL = 2  # pass-1 收敛 + 同轮终编复编
 
 
-class _Res:
-    """impl CompRes 的 duck-type 替身 (同 test_fixloop_aux_eof 口径)
-    + ``killed_signal`` 槽 (spec["killed"]=信号号)。"""
-
-    def __init__(self, wdir: Path, main: str, spec: dict) -> None:
-        stem = Path(main).stem
-        self.log_path = wdir / f"{stem}.log"
-        self.log_path.write_text(spec.get("log", ""), encoding="utf-8")
-        self.pdf = wdir / f"{stem}.pdf" if spec.get("pdf") else None
-        if self.pdf is not None:
-            self.pdf.write_bytes(b"%PDF-1.4 fake")
-        self.pdf_bytes = self.pdf.stat().st_size if self.pdf else 0
-        self.timed_out = spec.get("timed_out", False)
-        self.killed_signal = spec.get("killed")
-        self.seconds = 0.01
-        self.stdout_tail = ""
-
-
-class _Eng:
-    name = "xelatex"
-    caps = frozenset({"kpsewhich", "tlmgr", "updmap"})
-
-    def __init__(self, script: list) -> None:
-        self.script = list(script)
-        self.rounds = 0
-
-    def compile(self, wdir: Path, main: str, *, passes: int = 2, **_kw: object) -> _Res:
-        del passes, _kw
-        i = min(self.rounds, len(self.script) - 1)
-        self.rounds += 1
-        return _Res(Path(wdir), main, self.script[i])
-
-    def probe_file(self, fname: str, cwd: Path | None = None) -> str | None:
-        del fname, cwd
-        return None
-
-    def install_file(self, fname: str, *, font_related: bool = False) -> bool:
-        del fname, font_related
-        return False
-
-    def rebuild_fontmaps(self) -> bool:
-        return True
-
-    def filemap(self, fname: str) -> list[str]:
-        del fname
-        return []
-
-
-def _run(tmp_path: Path, script: list) -> tuple[dict, _Eng]:
+def _run(tmp_path: Path, script: list) -> tuple[dict, MockEngine]:
     (tmp_path / "main.tex").write_text(MAIN_TEX, encoding="utf-8")
-    eng = _Eng(script)
+    eng = MockEngine(script)
     cell = fixloop(tmp_path, eng, ruleset=_rs())
     return cell, eng
 
@@ -95,7 +48,7 @@ def test_finalize_arm_skips_killed_signal(tmp_path: Path) -> None:
     cell, _eng = _run(
         tmp_path,
         [
-            {"log": CLEAN_LOG, "pdf": True, "killed": 13},
+            {"log": CLEAN_LOG, "pdf": True, "killed_signal": 13},
             {"log": CLEAN_LOG, "pdf": True},
         ],
     )

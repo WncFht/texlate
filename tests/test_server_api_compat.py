@@ -13,9 +13,7 @@
 
 from __future__ import annotations
 
-import io
 import json
-import zipfile
 from http import HTTPStatus
 from typing import TYPE_CHECKING
 
@@ -23,7 +21,7 @@ import pytest
 
 pytest.importorskip("fastapi", reason="server extra 未装")
 
-from conftest import mk_api_task
+from conftest import make_zip, mk_api_task, mk_chunk_row
 
 from texlate.server.store import new_task_id
 
@@ -35,25 +33,6 @@ if TYPE_CHECKING:
     from texlate.server.store import Store
 
 ARXIV = "2401.00001"
-
-
-def _chunk(seq: int) -> dict:
-    return {
-        "seq": seq,
-        "chunk_id": f"c{seq}",
-        "src_file": "main.tex",
-        "byte_start": seq,
-        "byte_end": seq + 1,
-        "kind": "text",
-        "src_text": f"t{seq}",
-    }
-
-
-def _mk_zip() -> bytes:
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w") as zf:
-        zf.writestr("main.tex", "\\documentclass{article}")
-    return buf.getvalue()
 
 
 class TestRetryEngineWipe:
@@ -81,7 +60,7 @@ class TestRetryEngineWipe:
                 options=options,
             )
             store.update_fields(tid, main_tex="main.tex")
-            store.insert_chunks(tid, [_chunk(0), _chunk(1)])
+            store.insert_chunks(tid, [mk_chunk_row(0), mk_chunk_row(1)])
             store.transition(tid, "fault", force=True, error={"code": "compile"})
 
         client.portal.call(setup)
@@ -382,7 +361,9 @@ class TestShareZipArtifact:
         client.portal.call(setup)
         tdir = tmp_path / "data" / "tasks" / tid
         tdir.mkdir(parents=True)
-        (tdir / "zh-src.zip").write_bytes(_mk_zip())
+        (tdir / "zh-src.zip").write_bytes(
+            make_zip({"main.tex": "\\documentclass{article}"})
+        )
         (tdir / "dual.json").write_text('{"chunks": []}', encoding="utf-8")
         return tid, tdir
 
@@ -447,22 +428,20 @@ class TestRetranslate:
             store.create_task(
                 task_id=tid, kind="arxiv", target_lang="zh-CN", model="m", **kw
             )
-            store.insert_chunks(tid, [_chunk(0), _chunk(1)])
+            store.insert_chunks(tid, [mk_chunk_row(0), mk_chunk_row(1)])
             store.transition(tid, status, force=True)
 
         client.portal.call(setup)
         return tid
 
     def _spy(self, client: TestClient, monkeypatch: pytest.MonkeyPatch) -> list:
-        """``enqueue_retranslate`` 桩（runner 侧由任务 #3 实装）→ 调用记录。"""
+        """``runner.enqueue_retranslate`` 桩 → 调用记录（不入队真 job）。"""
         calls: list[tuple] = []
 
         def fake(task_id: str, seq: int, secrets: object) -> None:
             calls.append((task_id, seq, secrets))
 
-        monkeypatch.setattr(
-            client.app.state.runner, "enqueue_retranslate", fake, raising=False
-        )
+        monkeypatch.setattr(client.app.state.runner, "enqueue_retranslate", fake)
         return calls
 
     def test_202_enqueues(

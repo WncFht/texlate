@@ -10,9 +10,10 @@ main/tar ``\input`` 目标的成员声明不入账、文件本身照常登记、
 
 from __future__ import annotations
 
-import io
-import tarfile
 from typing import TYPE_CHECKING
+
+from _tarkit import _tar_blob
+from conftest import _write
 
 from texlate.compile.ctan import TlpdbIndex
 from texlate.compile.probe import target_probe
@@ -37,28 +38,11 @@ _MEMBER_TEX = (
 )
 
 
-def _tar_blob(*members: tuple[str, bytes]) -> bytes:
-    """ustar blob——成员文本含 dc/bd 与宏包声明（latin-1 解出即污染面）。"""
-    buf = io.BytesIO()
-    with tarfile.open(fileobj=buf, mode="w", format=tarfile.USTAR_FORMAT) as tf:
-        for name, data in members or [
-            ("inner/doc.tex", _MEMBER_TEX.encode()),
-        ]:
-            info = tarfile.TarInfo(name)
-            info.size = len(data)
-            tf.addfile(info, io.BytesIO(data))
-    return buf.getvalue()
-
-
-def _write(root: Path, rel: str, text: str) -> None:
-    p = root / rel
-    p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(text, encoding="utf-8")
-
-
 def test_tar_main_members_not_scanned(tmp_path: Path) -> None:
     """唯一 .tex 是 tar：main 照常进 inputs，成员声明全部不入 census。"""
-    (tmp_path / "main.tex").write_bytes(_tar_blob())
+    (tmp_path / "main.tex").write_bytes(
+        _tar_blob(("inner/doc.tex", _MEMBER_TEX.encode()))
+    )
     rep = target_probe(tmp_path, "main.tex", _INDEX)
     assert rep.inputs == ["main.tex"]
     assert rep.deps == []
@@ -77,7 +61,9 @@ def test_tar_input_members_not_scanned(tmp_path: Path) -> None:
         "main.tex",
         "\\documentclass{article}\n\\input{chap}\n\\begin{document}x\\end{document}\n",
     )
-    (tmp_path / "chap.tex").write_bytes(_tar_blob())
+    (tmp_path / "chap.tex").write_bytes(
+        _tar_blob(("inner/doc.tex", _MEMBER_TEX.encode()))
+    )
     rep = target_probe(tmp_path, "main.tex", _INDEX)
     by_name = {d.fname: d for d in rep.deps}
     assert by_name["chap.tex"].resolved == "local"

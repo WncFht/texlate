@@ -13,27 +13,20 @@ compat 读 ``aipproc.cls``); 0707.0382 ``AMSbsy.sty`` tar 无同名成员
 → 不写不错位, texlive 真件兜 ``\\usepackage{AMSbsy}``。
 """
 
-import io
-import tarfile
 from pathlib import Path
 
+from _fixloopkit import mk_ctx
+from conftest import tar_bytes
+
 from texlate.compile.fixloop import builtins
-from texlate.compile.fixloop.engine import LoopCtx
 
 
 def _write_tar(path: Path, members: dict[str, bytes]) -> None:
-    """POSIX tar 写出 (ustar 格式——``ustar`` 魔数 @257 必现)。"""
-    buf = io.BytesIO()
-    with tarfile.open(fileobj=buf, mode="w", format=tarfile.USTAR_FORMAT) as tf:
-        for name, data in members.items():
-            info = tarfile.TarInfo(name)
-            info.size = len(data)
-            tf.addfile(info, io.BytesIO(data))
-    path.write_bytes(buf.getvalue())
+    path.write_bytes(tar_bytes(members))
 
 
 def _extract(wdir: Path) -> tuple[bool, str]:
-    ctx = LoopCtx(wdir=wdir, engine_name="xelatex")
+    ctx = mk_ctx(wdir, main_rel=None)
     return builtins.TRANSFORM_FNS["extract_tar_blobs"](ctx, None, None, {})
 
 
@@ -144,13 +137,10 @@ def test_traversal_member_rejected_sibling_still_fills(tmp_path: Path) -> None:
 def test_displaced_magic_variant_writes_expected(tmp_path: Path) -> None:
     """前置注入变异件同补: prologue 推位 tar 的同名/stem 成员仍落槽位。"""
     member = b"% aipproc impl\n"
-    buf = io.BytesIO()
-    with tarfile.open(fileobj=buf, mode="w", format=tarfile.USTAR_FORMAT) as tf:
-        info = tarfile.TarInfo("./aipproc.sty")
-        info.size = len(member)
-        tf.addfile(info, io.BytesIO(member))
     prologue = b"\\PassOptionsToPackage{no-math}{fontspec}\n% injected\n"
-    (tmp_path / "aipproc.cls").write_bytes(prologue + buf.getvalue())
+    (tmp_path / "aipproc.cls").write_bytes(
+        prologue + tar_bytes({"./aipproc.sty": member})
+    )
     ok, note = _extract(tmp_path)
     assert ok, note
     assert (tmp_path / "aipproc.cls").read_bytes() == member
@@ -192,51 +182,3 @@ def test_ustar_magic_field_bad_checksum_not_renamed(tmp_path: Path) -> None:
     assert not ok, note
     assert (tmp_path / "fake.tex").is_file()
     assert not (tmp_path / "fake.tex.tarblob").exists()
-
-
-# ------------------------------------------- docstrip 兄弟产出缓存失效 (logcache 病族)
-def _docstrip(ctx: LoopCtx, payload: str) -> tuple[bool, str]:
-    return builtins.TRANSFORM_FNS["docstrip_generate"](
-        ctx, None, payload, {"drivers": ["sh"]}
-    )
-
-
-def test_docstrip_sibling_outputs_invalidated(tmp_path: Path) -> None:
-    """None-poison 主案: pre-run 读过缺件缓存 miss→None, docstrip 一次
-    抽多件落地后, 请求件与兄弟产出的缓存同让位 (旧码只 invalidate hit,
-    兄弟 stale-None 毒化下游)。runner 注入面写两件, 不跑真 latex。"""
-    (tmp_path / "foo.ins").write_text("\\input docstrip\n", encoding="utf-8")
-
-    def _runner(_argv: list[str], _timeout: int, wdir: Path) -> tuple:
-        (wdir / "foo.cls").write_text("\\ProvidesClass{foo}\n", encoding="utf-8")
-        (wdir / "foosub.sty").write_text(
-            "\\ProvidesPackage{foosub}\n", encoding="utf-8"
-        )
-        return 0, "ok", 0.0, False
-
-    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex", runner=_runner)
-    assert ctx.read(tmp_path / "foo.cls") is None
-    assert ctx.read(tmp_path / "foosub.sty") is None  # miss→None 毒化入缓存
-    ok, note = _docstrip(ctx, "foo.cls")
-    assert ok, note
-    assert ctx.read(tmp_path / "foo.cls") == "\\ProvidesClass{foo}\n"
-    assert ctx.read(tmp_path / "foosub.sty") == "\\ProvidesPackage{foosub}\n"
-
-
-def test_docstrip_rewritten_sibling_invalidated(tmp_path: Path) -> None:
-    """改写臂: 既有件 v1 已入缓存, docstrip 重写 v2 → 缓存让位见新文
-    (mtime+size 指纹 diff 命中改写, 不只新建)。"""
-    (tmp_path / "foo.ins").write_text("\\input docstrip\n", encoding="utf-8")
-    sibling = tmp_path / "foo.cfg"
-    sibling.write_text("% v1\n", encoding="utf-8")
-
-    def _runner(_argv: list[str], _timeout: int, wdir: Path) -> tuple:
-        (wdir / "foo.cls").write_text("\\ProvidesClass{foo}\n", encoding="utf-8")
-        (wdir / "foo.cfg").write_text("% v2 rewritten\n", encoding="utf-8")
-        return 0, "ok", 0.0, False
-
-    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex", runner=_runner)
-    assert ctx.read(sibling) == "% v1\n"  # 旧文入缓存
-    ok, note = _docstrip(ctx, "foo.cls")
-    assert ok, note
-    assert ctx.read(sibling) == "% v2 rewritten\n"

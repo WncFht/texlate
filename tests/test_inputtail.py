@@ -22,29 +22,11 @@ r"""``\input`` 尾参操作数排除 + pending.py COND 镜像钉版（inputtail 
 每条过公共不变式（``reconstruct == tex`` + 校验零告警 + 无缝平铺）。
 """
 
-import re
-
-from conftest import ART, blob, check_invariants
-
-from texlate.latex import parse_tex
-from texlate.latex.model import ScanResult
-
-
-def scan(body: str, defs: str = "") -> ScanResult:
-    tex = ART % (defs, body)
-    res = parse_tex(tex)
-    check_invariants(res, tex)
-    return res
-
-
-def ph_bodies(res: ScanResult, kind: str = "CMD") -> list[str]:
-    """全部 ``[[KIND_n]]`` ph 覆盖原文。"""
-    return [
-        body
-        for ph, body in res.ph_map.items()
-        if re.fullmatch(rf"\[\[{kind}_\d+\]\]", ph)
-    ]
-
+from _segkit import ph_bodies, scan_prose
+from _segkit import (
+    scan_art as scan,
+)
+from conftest import blob
 
 # ----------------------------------------------------------- ``\input`` 操作数排除
 
@@ -52,12 +34,10 @@ def ph_bodies(res: ScanResult, kind: str = "CMD") -> list[str]:
 def test_input_after_count_assign_not_operand() -> None:
     r"""``\clubpenalty=5000\input{f}`` 实格形——``\input`` 不进 ``[[CMD]]``
     操作数，``{file}`` 组随 input 路绑定不裸译。"""
-    res = scan(
-        "Prose before keeps the run alive and gives context here.\n"
+    res = scan_prose(
         "\\begin{sloppypar}\\hyphenpenalty=5000\\widowpenalty=500"
         "\\clubpenalty=5000\\input{EXO-22-011-public-authorlist.tex}"
-        "\\end{sloppypar}\n"
-        "Trailing prose after the block keeps going here."
+        "\\end{sloppypar}"
     )
     assert "EXO-22-011-public-authorlist" not in blob(res)
     assert not any("clubpenalty=5000\\input" in b for b in ph_bodies(res))
@@ -69,22 +49,14 @@ def test_input_after_count_assign_not_operand() -> None:
 
 def test_include_after_assign_not_operand() -> None:
     r"""``\\tolerance=500\\include{ch1}``——``\\include`` 同族排除。"""
-    res = scan(
-        "Prose before keeps the run alive and gives context here.\n"
-        "\\tolerance=500\\include{chapter-one}\n"
-        "Trailing prose after the block keeps going here."
-    )
+    res = scan_prose("\\tolerance=500\\include{chapter-one}")
     assert "chapter-one" not in blob(res)
     assert not any("tolerance=500\\include" in b for b in ph_bodies(res))
 
 
 def test_import_two_arg_after_assign() -> None:
     r"""``\\count0=5\\import{dir}{file}`` 双参形——两 ``{..}`` 都不裸译。"""
-    res = scan(
-        "Prose before keeps the run alive and gives context here.\n"
-        "\\count0=5\\import{subdir}{the-file}\n"
-        "Trailing prose after the block keeps going here."
-    )
+    res = scan_prose("\\count0=5\\import{subdir}{the-file}")
     assert "subdir" not in blob(res)
     assert "the-file" not in blob(res)
     assert not any("count0=5\\import" in b for b in ph_bodies(res))
@@ -105,11 +77,7 @@ def test_register_cs_operand_still_eaten() -> None:
     r"""回归闸：合法 cs 操作数照收——``\\hskip0.5\\baselineskip`` 全尾连进
     一个 literal 覆盖段（寄存器是 ``<dimen>`` 真因子，不在排除表；skip 类
     尾不出 ``[[CMD]]`` ph 而整段落 literal piece）。"""
-    res = scan(
-        "Prose before keeps the run alive and gives context here.\n"
-        "\\hskip0.5\\baselineskip plus 1pt\n"
-        "Trailing prose after the block keeps going here."
-    )
+    res = scan_prose("\\hskip0.5\\baselineskip plus 1pt")
     assert "baselineskip" not in blob(res)
     assert "plus" not in blob(res)
     assert "\\hskip0.5\\baselineskip plus 1pt" in res.protected_tex
@@ -117,11 +85,7 @@ def test_register_cs_operand_still_eaten() -> None:
 
 def test_chained_operand_still_eaten() -> None:
     r"""回归闸：因子×基链照收——``\\multiply\\count0 by -4\\count1``。"""
-    res = scan(
-        "Prose before keeps the run alive and gives context here.\n"
-        "\\multiply\\count0 by -4\\count1\n"
-        "Trailing prose after the block keeps going here."
-    )
+    res = scan_prose("\\multiply\\count0 by -4\\count1")
     assert "count1" not in blob(res)
     assert any("by -4\\count1" in b for b in ph_bodies(res))
 
@@ -129,11 +93,7 @@ def test_chained_operand_still_eaten() -> None:
 def test_dimen_plus_relax_tail_still_eaten() -> None:
     r"""回归闸：``\\vskip 3pt plus 1pt\\relax`` 全尾连进一个 literal 覆盖段
     （``\\relax`` 终止符同被吸收，``plus`` 胶续不泄 surface）。"""
-    res = scan(
-        "Prose before keeps the run alive and gives context here.\n"
-        "\\vskip 3pt plus 1pt\\relax\n"
-        "Trailing prose after the block keeps going here."
-    )
+    res = scan_prose("\\vskip 3pt plus 1pt\\relax")
     assert "3pt" not in blob(res)
     assert "\\vskip 3pt plus 1pt\\relax" in res.protected_tex
 

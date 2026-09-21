@@ -26,29 +26,11 @@ Fig.~1]`` 散文不过门）判形；``_keyval_tail_end`` 吃调用后 ``{kv}``/
 每条过公共不变式（``reconstruct == tex`` + 零告警 + 无缝平铺）。
 """
 
-import re
-
-from conftest import ART, blob, check_invariants
-
-from texlate.latex import parse_tex
-from texlate.latex.model import ScanResult
-
-
-def scan(body: str, defs: str = "") -> ScanResult:
-    tex = ART % (defs, body)
-    res = parse_tex(tex)
-    check_invariants(res, tex)
-    return res
-
-
-def ph_bodies(res: ScanResult, kind: str = "CMD") -> list[str]:
-    """全部 ``[[KIND_n]]`` ph 覆盖原文。"""
-    return [
-        body
-        for ph, body in res.ph_map.items()
-        if re.fullmatch(rf"\[\[{kind}_\d+\]\]", ph)
-    ]
-
+from _segkit import ph_bodies
+from _segkit import (
+    scan_art as scan,
+)
+from conftest import blob
 
 # ----------------------------------------------------------- cluster 1: tikzstyle ``=[kv]`` 尾列
 

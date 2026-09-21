@@ -15,23 +15,12 @@ nonletter 回显噪声滤除) → 中间展开层末位 cs → None。
 pgflibrary 形无 tikzlib 孪生故须双探)。
 """
 
-from functools import lru_cache
 from pathlib import Path
 
-from test_fixloop_loop import MockEngine, make_proj
+from _fixloopkit import classify, rs
+from test_fixloop_loop import CLEAN_LOG, MockEngine, make_proj
 
-from texlate.compile.fixloop import Ruleset, fixloop, load_ruleset
-from texlate.compile.logparse import parse_text
-
-
-@lru_cache(maxsize=1)
-def _rs() -> Ruleset:
-    """ruleset 首用时加载——收集期不 IO。"""
-    return load_ruleset()
-
-
-CLEAN_LOG = "This is pdfTeX\nOutput written on main.pdf (1 page).\n"
-
+from texlate.compile.fixloop import fixloop
 
 # ── 2105.03751 形: GenericError ctx + l.N 行末 \footnote ──
 _UNDEF_FOOTNOTE_LOG = (
@@ -89,7 +78,7 @@ _TIKZ_LIB_ERR = (
 
 def test_undef_scan_footnote_ln_tail() -> None:
     """2105.03751: 内核渲染宏排除 → l.N 行末位 ``footnote`` (旧抓 GenericError)。"""
-    assert _rs().taxonomy.classify(parse_text(_UNDEF_FOOTNOTE_LOG)) == (
+    assert classify(_UNDEF_FOOTNOTE_LOG) == (
         "undefined_cs",
         "footnote",
     )
@@ -97,7 +86,7 @@ def test_undef_scan_footnote_ln_tail() -> None:
 
 def test_undef_scan_diagchar_mid_ln_letter_only() -> None:
     r"""0712.1016: l.N 行中段冒犯 —— ``\diagchar`` 取到而 ``\)`` nonletter 噪声滤除。"""
-    assert _rs().taxonomy.classify(parse_text(_UNDEF_DIAGCHAR_LOG)) == (
+    assert classify(_UNDEF_DIAGCHAR_LOG) == (
         "undefined_cs",
         "diagchar",
     )
@@ -105,7 +94,7 @@ def test_undef_scan_diagchar_mid_ln_letter_only() -> None:
 
 def test_undef_scan_diagchar_endgroup_interior() -> None:
     r"""0712.1016 第四错: 中间层 ``\endgroup`` 残片不得抢 l.N 行的 ``\diagchar``。"""
-    assert _rs().taxonomy.classify(parse_text(_UNDEF_DIAGCHAR_ENDGROUP_LOG)) == (
+    assert classify(_UNDEF_DIAGCHAR_ENDGROUP_LOG) == (
         "undefined_cs",
         "diagchar",
     )
@@ -113,7 +102,7 @@ def test_undef_scan_diagchar_endgroup_interior() -> None:
 
 def test_undef_scan_plain_topline_unchanged() -> None:
     """非 GenericError ctx: 顶行末位抓取与旧 regex 语义逐字节守恒。"""
-    assert _rs().taxonomy.classify(parse_text(_UNDEF_PLAIN_LOG)) == (
+    assert classify(_UNDEF_PLAIN_LOG) == (
         "undefined_cs",
         "foo",
     )
@@ -121,32 +110,33 @@ def test_undef_scan_plain_topline_unchanged() -> None:
 
 def test_tikz_library_missing_file_taxonomy() -> None:
     """tikz 库缺档 → missing_file|库名 (库名非文件名——裸装必 miss 的拦点)。"""
-    assert _rs().taxonomy.classify(parse_text(_TIKZ_LIB_ERR)) == (
+    assert classify(_TIKZ_LIB_ERR) == (
         "missing_file",
         "quantikz",
     )
     q2 = _TIKZ_LIB_ERR.replace("quantikz", "quantikz2")
-    assert _rs().taxonomy.classify(parse_text(q2)) == (
+    assert classify(q2) == (
         "missing_file",
         "quantikz2",
     )
 
 
 def test_tikz_library_install_arms_shape() -> None:
-    """两臂形态钉: order<10 居 install_file 前, ctx_suggests 签名闸, 命名约定 file。"""
+    """两臂形态钉: order 居 install_file 前, ctx_suggests 签名闸, 命名约定 file。"""
     arms = {
         r.id: r
-        for r in _rs().rules
-        if r.id in {"tikz_library_install", "pgf_library_install"}
+        for r in rs().rules
+        if r.id in {"tikz_library_install", "pgf_library_install", "install_file"}
     }
-    assert set(arms) == {"tikz_library_install", "pgf_library_install"}
+    assert "install_file" in arms
+    install_order = arms["install_file"].order
     for rid, tmpl in [
         ("tikz_library_install", "tikzlibrary{payload}.code.tex"),
         ("pgf_library_install", "pgflibrary{payload}.code.tex"),
     ]:
         arm = arms[rid]
         assert arm.phase == "loop"
-        assert arm.order < 10  # noqa: PLR2004 - install_file(10) 前截流
+        assert arm.order < install_order  # install_file 前截流
         assert arm.when == {"category": "missing_file", "payload_required": True}
         assert "did not find the tikz library" in arm.condition["ctx_suggests"]
         assert arm.action["kind"] == "install_file"

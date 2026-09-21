@@ -23,28 +23,13 @@ inputtail（0697124）只排 ``INPUT_SCAN_CMDS``∪``{endinput}``——operandce
 
 import re
 
-from conftest import ART, blob, check_invariants
+from _segkit import ph_bodies, scan_prose
+from _segkit import (
+    scan_art as scan,
+)
+from conftest import blob
 
-from texlate.latex import parse_tex
-from texlate.latex.model import ScanResult
 from texlate.latex.segmenter._common import _OPERAND_CS
-
-
-def scan(body: str, defs: str = "") -> ScanResult:
-    tex = ART % (defs, body)
-    res = parse_tex(tex)
-    check_invariants(res, tex)
-    return res
-
-
-def ph_bodies(res: ScanResult, kind: str = "CMD") -> list[str]:
-    """全部 ``[[KIND_n]]`` ph 覆盖原文。"""
-    return [
-        body
-        for ph, body in res.ph_map.items()
-        if re.fullmatch(rf"\[\[{kind}_\d+\]\]", ph)
-    ]
-
 
 _OPERAND_CS_RX = re.compile(_OPERAND_CS)
 
@@ -125,11 +110,7 @@ def test_if_family_pattern_excluded() -> None:
 def test_setbox_hbox_body_transparent() -> None:
     r"""``\setbox0=\hbox{..}``——``\setbox0=`` 收，``\hbox`` 回透明档连名
     带体原文进 surface（盒结构保留），体文照译；``=`` 不裸落。"""
-    res = scan(
-        "Prose before keeps the run alive and gives context here.\n"
-        "\\setbox0=\\hbox{hello world box body}\n"
-        "Trailing prose after the block keeps going here."
-    )
+    res = scan_prose("\\setbox0=\\hbox{hello world box body}")
     assert "\\hbox{hello world box body}" in blob(res)
     assert "=" not in blob(res)
     assert any(b.rstrip().endswith("\\setbox0=") for b in ph_bodies(res))
@@ -138,11 +119,7 @@ def test_setbox_hbox_body_transparent() -> None:
 def test_setbox_vbox_body_clean() -> None:
     r"""``\setbox0=\vbox{..}``——``\vbox`` 走未知/盒规格路，体文不带花括号
     进 chunk（孤儿 ``{..}`` 字面花括号不再漏 surface）。"""
-    res = scan(
-        "Prose before keeps the run alive and gives context here.\n"
-        "\\setbox0=\\vbox{hello world box body}\n"
-        "Trailing prose after the block keeps going here."
-    )
+    res = scan_prose("\\setbox0=\\vbox{hello world box body}")
     assert "hello world box body" in blob(res)
     assert "{hello" not in blob(res)
     assert "=" not in blob(res)
@@ -151,11 +128,7 @@ def test_setbox_vbox_body_clean() -> None:
 def test_setbox_hbox_spec_tail() -> None:
     r"""``\setbox0=\hbox to3cm{..}``——``\setbox0=`` 收后 ``\hbox`` 回
     boxspec 路收 ``to3cm`` 规格尾，``to`` 关键字不进 surface。"""
-    res = scan(
-        "Prose before keeps the run alive and gives context here.\n"
-        "\\setbox0=\\hbox to3cm{hello world box body}\n"
-        "Trailing prose after the block keeps going here."
-    )
+    res = scan_prose("\\setbox0=\\hbox to3cm{hello world box body}")
     assert "to3cm" not in blob(res)
     assert "hello world box body" in blob(res)
     assert "=" not in blob(res)
@@ -163,11 +136,7 @@ def test_setbox_hbox_spec_tail() -> None:
 
 def test_setbox_box_ref_operand_kept() -> None:
     r"""回归闸：盒引用仍是合法 rval——``\setbox0=\box1`` 全链照吃。"""
-    res = scan(
-        "Prose before keeps the run alive and gives context here.\n"
-        "\\setbox0=\\box1\n"
-        "Trailing prose after the block keeps going here."
-    )
+    res = scan_prose("\\setbox0=\\box1")
     assert "box1" not in blob(res)
     assert "\\setbox0=\\box1" in ph_bodies(res)
 
@@ -178,11 +147,7 @@ def test_setbox_box_ref_operand_kept() -> None:
 def test_message_log_payload_protected() -> None:
     r"""``\count0=5\message{..}``——``\message`` 回探针路整参进
     ``[[CMD]]``，日志载荷不再孤儿化裸译进正文。"""
-    res = scan(
-        "Prose before keeps the run alive and gives context here.\n"
-        "\\count0=5\\message{oops log text}\n"
-        "Trailing prose after the block keeps going here."
-    )
+    res = scan_prose("\\count0=5\\message{oops log text}")
     assert "oops log text" not in blob(res)
     assert "message" not in blob(res)
 
@@ -191,22 +156,14 @@ def test_write_file_payload_not_orphaned() -> None:
     r"""``\count0=5\write16{..}``——``\write`` 不收操作数，cs 连流号连参
     整段原文驻留 surface（raw-preserve）：无孤儿 ``{``、无裸 ``16``，
     cs 语境保住参界——载荷语义仍随段译出（已知取舍，结构不破）。"""
-    res = scan(
-        "Prose before keeps the run alive and gives context here.\n"
-        "\\count0=5\\write16{write payload text}\n"
-        "Trailing prose after the block keeps going here."
-    )
+    res = scan_prose("\\count0=5\\write16{write payload text}")
     assert "\\write16{write payload text}" in blob(res)
 
 
 def test_vskip_plus_minus_tail_intact() -> None:
     r"""``\count0=5\vskip3pt plus1pt``——``\vskip`` 回 boundary 自带 dimen
     扫，``plus``/``minus`` 胶续与单位不再断链漏出。"""
-    res = scan(
-        "Prose before keeps the run alive and gives context here.\n"
-        "\\count0=5\\vskip3pt plus1pt\n"
-        "Trailing prose after the block keeps going here."
-    )
+    res = scan_prose("\\count0=5\\vskip3pt plus1pt")
     assert "plus" not in blob(res)
     assert "3pt" not in blob(res)
     assert "vskip" not in blob(res)
@@ -215,11 +172,7 @@ def test_vskip_plus_minus_tail_intact() -> None:
 def test_setlength_spec_bound() -> None:
     r"""``\count0=5\setlength\parskip{3pt}``——``\setlength`` 回 boundary
     参扫，``{3pt}`` 组随 spec 收不裸译。"""
-    res = scan(
-        "Prose before keeps the run alive and gives context here.\n"
-        "\\count0=5\\setlength\\parskip{3pt}\n"
-        "Trailing prose after the block keeps going here."
-    )
+    res = scan_prose("\\count0=5\\setlength\\parskip{3pt}")
     assert "3pt" not in blob(res)
     assert "parskip" not in blob(res)
 
@@ -244,11 +197,7 @@ def test_par_boundary_survives() -> None:
 def test_end_env_not_orphaned() -> None:
     r"""``\count0=5\end{env}``——``\end`` 回 env 分派，``{env}`` 名组不
     孤儿化（环境名裸译会破坏 ``\end`` 配对）。"""
-    res = scan(
-        "Prose before keeps the run alive and gives context here.\n"
-        "\\begin{sloppypar}inner words \\count0=5\\end{sloppypar}\n"
-        "Trailing prose after the block keeps going here."
-    )
+    res = scan_prose("\\begin{sloppypar}inner words \\count0=5\\end{sloppypar}")
     assert "{sloppypar}" not in blob(res)
 
 
@@ -258,22 +207,14 @@ def test_end_env_not_orphaned() -> None:
 def test_toks_eq_sign_covered() -> None:
     r"""``\toks0={..}``——裸 ``=`` 臂收赋值关键子：``=`` 不再漏 surface
     （orphan 组形不变，``=`` 单字泄漏收编）。"""
-    res = scan(
-        "Prose before keeps the run alive and gives context here.\n"
-        "\\toks0={tok body text}\n"
-        "Trailing prose after the block keeps going here."
-    )
+    res = scan_prose("\\toks0={tok body text}")
     assert "=" not in blob(res)
 
 
 def test_count_eq_before_stop_cs() -> None:
     r"""``\count0=\message{..}``——rval 是终止符时 ``=`` 随 ``\count0=``
     收编；``\message`` 探针路护住载荷。"""
-    res = scan(
-        "Prose before keeps the run alive and gives context here.\n"
-        "\\count0=\\message{oops log text}\n"
-        "Trailing prose after the block keeps going here."
-    )
+    res = scan_prose("\\count0=\\message{oops log text}")
     assert "oops log text" not in blob(res)
     assert "=" not in blob(res)
 
@@ -284,22 +225,14 @@ def test_count_eq_before_stop_cs() -> None:
 def test_register_chain_still_eaten() -> None:
     r"""``\multiply\count0 by -4\count1``——``by`` 间隔关键子与 cs 因子
     链照收（``\count`` 是合法操作数不排）。"""
-    res = scan(
-        "Prose before keeps the run alive and gives context here.\n"
-        "\\multiply\\count0 by -4\\count1\n"
-        "Trailing prose after the block keeps going here."
-    )
+    res = scan_prose("\\multiply\\count0 by -4\\count1")
     assert "count1" not in blob(res)
     assert "by" not in blob(res)
 
 
 def test_dimen_register_factor_kept() -> None:
     r"""``\hskip0.5\baselineskip``——寄存器因子链照收。"""
-    res = scan(
-        "Prose before keeps the run alive and gives context here.\n"
-        "\\hskip0.5\\baselineskip plus 1pt\n"
-        "Trailing prose after the block keeps going here."
-    )
+    res = scan_prose("\\hskip0.5\\baselineskip plus 1pt")
     assert "baselineskip" not in blob(res)
     assert "hskip" not in blob(res)
     assert "plus" not in blob(res)
@@ -307,22 +240,14 @@ def test_dimen_register_factor_kept() -> None:
 
 def test_fontdimen_operand_kept() -> None:
     r"""``\fontdimen3\font=5pt``——``\font`` 字体标识符仍作操作数。"""
-    res = scan(
-        "Prose before keeps the run alive and gives context here.\n"
-        "\\fontdimen3\\font=5pt\n"
-        "Trailing prose after the block keeps going here."
-    )
+    res = scan_prose("\\fontdimen3\\font=5pt")
     assert "5pt" not in blob(res)
     assert "\\fontdimen3\\font=5pt" in ph_bodies(res)
 
 
 def test_vsplit_operand_kept() -> None:
     r"""``\setbox0=\vsplit1 to3cm``——盒引用 + ``to`` 规格尾全链照吃。"""
-    res = scan(
-        "Prose before keeps the run alive and gives context here.\n"
-        "\\setbox0=\\vsplit1 to3cm\n"
-        "Trailing prose after the block keeps going here."
-    )
+    res = scan_prose("\\setbox0=\\vsplit1 to3cm")
     assert "vsplit" not in blob(res)
     assert "\\setbox0=\\vsplit1 to3cm" in ph_bodies(res)
 

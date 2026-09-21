@@ -9,9 +9,8 @@ chunk。``\r``/``\S`` 等单字母名与 accent/INLINE_LITERAL 族撞名走各�
 既有行（``\r a`` 是 ring accent）——S3 用 ``\R`` 避开撞名面。
 """
 
-from conftest import DOC, blob, scan_doc
+from conftest import DOC, blob, check_invariants, scan_doc
 
-from texlate.latex import reconstruct
 from texlate.latex.model import ScanResult
 
 PROSE = " and the paragraph continues with enough plain prose to form a chunk."
@@ -19,7 +18,7 @@ PROSE = " and the paragraph continues with enough plain prose to form a chunk."
 
 def scan(body: str) -> ScanResult:
     res = scan_doc(body)
-    assert reconstruct(res) == DOC % body  # 每个用例都过 identity
+    check_invariants(res, DOC % body)  # 每个用例都过 identity+validate+平铺
     return res
 
 

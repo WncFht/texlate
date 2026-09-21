@@ -15,10 +15,13 @@ v3.94 ``:742 \\colorlet`` 错会退役→重投→死循环)。
 
 from pathlib import Path
 
-from texlate.compile.fixloop import Ruleset, actions, fixloop, load_ruleset
+from _fixloopkit import classify, rs, rule
+from test_fixloop_loop import MockEngine
+
+from texlate.compile.fixloop import actions, fixloop
 from texlate.compile.fixloop.builtins import TRANSFORM_FNS
-from texlate.compile.fixloop.engine import LoopCtx, Rule
-from texlate.compile.logparse import ErrReport, parse_text
+from texlate.compile.fixloop.engine import LoopCtx
+from texlate.compile.logparse import ErrReport
 
 _VENDOR_DIR = (
     Path(__file__).resolve().parent.parent / "src/texlate/compile/fixloop/vendor/files"
@@ -44,35 +47,22 @@ _BANG_ERR = "! Undefined control sequence.\n" + _ERR_UNDEF_CTX
 CLEAN_LOG = "This is XeTeX\nOutput written on main.pdf (1 page).\n"
 
 
-def _rs() -> Ruleset:
-    return load_ruleset()
-
-
-def _rule() -> Rule:
-    return next(r for r in _rs().rules if r.id == _RULE_ID)
-
-
-def _classify(head_text: str) -> tuple[str | None, str | None]:
-    rep = parse_text(head_text + "\n")
-    return _rs().taxonomy.classify(rep)
-
-
 # ---------------------------------------------------------------- taxonomy
 def test_taxonomy_undef_signature() -> None:
     """实证签名: file-line Undefined cs → undefined_cs。"""
-    cat, _ = _classify(_ERR_UNDEF + "\n" + _ERR_UNDEF_CTX)
+    cat, _ = classify(_ERR_UNDEF + "\n" + _ERR_UNDEF_CTX + "\n")
     assert cat == "undefined_cs"
 
 
 def test_taxonomy_missing_number_is_syntax() -> None:
     """Missing number → syntax (tickstyle 内件消失的姊妹错)。"""
-    cat, _ = _classify(_ERR_MISSINGNUM)
+    cat, _ = classify(_ERR_MISSINGNUM + "\n")
     assert cat == "syntax"
 
 
 def test_taxonomy_xkeyval_pin() -> None:
     """Package xkeyval Error → taxrow 归 key_unknown (dx/dy 键移除签名)。"""
-    cat, _ = _classify(_ERR_XKV)
+    cat, _ = classify(_ERR_XKV + "\n")
     assert cat == "key_unknown"
 
 
@@ -88,14 +78,14 @@ def test_vendored_pstadd_pinned_pair() -> None:
 # ---------------------------------------------------------------- 规则接线
 def test_rule_wired_loop_phase() -> None:
     """规则挂 loop 相 order 11.9 → run_tool sh -c 成对 mv .fixloop-iso。"""
-    rule = _rule()
-    assert rule.order == 11.9  # noqa: PLR2004 - schema 断言值
-    cats = {c.get("category") for c in rule.when["any"]}
+    r = rule(_RULE_ID)
+    assert r.order == 11.9  # noqa: PLR2004 - schema 断言值
+    cats = {c.get("category") for c in r.when["any"]}
     assert cats == {"syntax", "undefined_cs", "other", "key_unknown"}
-    assert rule.condition["cache_dir_glob"] == "pstricks-add.tex"
-    assert "pstricks-add" in rule.condition["ctx_suggests"]
-    assert rule.action["kind"] == "run_tool"
-    argv = rule.action["params"]["argv"]
+    assert r.condition["cache_dir_glob"] == "pstricks-add.tex"
+    assert "pstricks-add" in r.condition["ctx_suggests"]
+    assert r.action["kind"] == "run_tool"
+    argv = r.action["params"]["argv"]
     assert argv[:2] == ["sh", "-c"]
     assert "pstricks-add.sty" in argv[2]
     assert "pstricks-add.tex" in argv[2]
@@ -104,7 +94,7 @@ def test_rule_wired_loop_phase() -> None:
 
 def test_rule_order_before_legacy_shim() -> None:
     """order 排序自洽: csvsimple_l3_kernel_retire(11.8) < 本规则 < legacy_pkg_shim(12)。"""
-    orders = {r.id: r.order for r in _rs().phase("loop")}
+    orders = {r.id: r.order for r in rs().phase("loop")}
     assert orders["csvsimple_l3_kernel_retire"] < orders[_RULE_ID]
     assert orders[_RULE_ID] < orders["legacy_pkg_shim"]
 
@@ -115,7 +105,7 @@ def test_cond_skip_when_file_absent(tmp_path: Path) -> None:
     ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
     ctx.err_head = _ERR_UNDEF + "\n" + _ERR_UNDEF_CTX
     ok, why = actions._cond_ok(  # noqa: SLF001 - 闸行为直驱
-        _rule().condition, _rule(), ctx, None, None
+        rule(_RULE_ID).condition, rule(_RULE_ID), ctx, None, None
     )
     assert not ok
     assert "pstricks-add.tex" in why
@@ -126,7 +116,7 @@ def test_cond_skip_when_error_elsewhere(tmp_path: Path) -> None:
     (tmp_path / "pstricks-add.tex").write_text("% stub\n", encoding="utf-8")
     ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
     ctx.err_head = "./main.tex:10: Undefined control sequence.\nl.10 \\foo\n"
-    ok, _ = actions._cond_ok(_rule().condition, _rule(), ctx, None, None)  # noqa: SLF001
+    ok, _ = actions._cond_ok(rule(_RULE_ID).condition, rule(_RULE_ID), ctx, None, None)  # noqa: SLF001
     assert not ok
 
 
@@ -135,7 +125,7 @@ def test_cond_pass_bang_form(tmp_path: Path) -> None:
     (tmp_path / "pstricks-add.tex").write_text("% stub\n", encoding="utf-8")
     ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
     ctx.err_head = _BANG_ERR
-    ok, why = actions._cond_ok(_rule().condition, _rule(), ctx, None, None)  # noqa: SLF001
+    ok, why = actions._cond_ok(rule(_RULE_ID).condition, rule(_RULE_ID), ctx, None, None)  # noqa: SLF001
     assert ok, why
 
 
@@ -147,7 +137,7 @@ def test_apply_retires_both_files(tmp_path: Path) -> None:
     (tmp_path / "pstricks-add.tex").write_text(old_tex, encoding="utf-8")
     (tmp_path / "pstricks-add.sty").write_text(old_sty, encoding="utf-8")
     ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
-    ok, note = actions._apply(_rule(), ctx, None, None, ErrReport())  # noqa: SLF001
+    ok, note = actions._apply(rule(_RULE_ID), ctx, None, None, ErrReport())  # noqa: SLF001
     assert ok, note
     assert not (tmp_path / "pstricks-add.tex").exists()
     assert not (tmp_path / "pstricks-add.sty").exists()
@@ -159,7 +149,7 @@ def test_apply_retires_tex_only_when_sty_absent(tmp_path: Path) -> None:
     """单件残局: 只有 .tex 在场 → 只退它, 脚本不炸。"""
     (tmp_path / "pstricks-add.tex").write_text("% old\n", encoding="utf-8")
     ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
-    ok, note = actions._apply(_rule(), ctx, None, None, ErrReport())  # noqa: SLF001
+    ok, note = actions._apply(rule(_RULE_ID), ctx, None, None, ErrReport())  # noqa: SLF001
     assert ok, note
     assert not (tmp_path / "pstricks-add.tex").exists()
     assert (tmp_path / "pstricks-add.tex.fixloop-iso").exists()
@@ -171,7 +161,7 @@ def test_apply_skips_fingerprinted_injection(tmp_path: Path) -> None:
     (tmp_path / "pstricks-add.tex").write_text(inj, encoding="utf-8")
     (tmp_path / "pstricks-add.sty").write_text("% bundled old sty\n", encoding="utf-8")
     ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
-    ok, note = actions._apply(_rule(), ctx, None, None, ErrReport())  # noqa: SLF001
+    ok, note = actions._apply(rule(_RULE_ID), ctx, None, None, ErrReport())  # noqa: SLF001
     assert ok, note
     assert (tmp_path / "pstricks-add.tex").read_text(encoding="utf-8") == inj
     assert (tmp_path / "pstricks-add.sty.fixloop-iso").exists()
@@ -199,61 +189,6 @@ def test_vendored_fetch_foreign_not_overwritten(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------- e2e
-class _MockRes:
-    """impl CompRes duck-type 替身 (test_fixloop_csvsimple 同款微缩)。"""
-
-    def __init__(self, wdir: Path, spec: dict) -> None:
-        self.log_path = wdir / "main.log"
-        self.log_path.write_text(spec.get("log", ""), encoding="utf-8")
-        self.pdf = wdir / "main.pdf" if spec.get("pdf") else None
-        if self.pdf is not None:
-            self.pdf.write_bytes(b"%PDF-1.4 fake")
-        self.pdf_bytes = self.pdf.stat().st_size if self.pdf else 0
-        self.timed_out = False
-        self.killed_signal = None
-        self.seconds = 0.05
-        self.stdout_tail = ""
-        self.log_text = ""
-
-    @property
-    def has_pdf(self) -> bool:
-        return self.pdf is not None and self.pdf_bytes > 0
-
-
-class _MockEngine:
-    """逐轮吐 spec; probe_file 只认 available 集 (模拟系统 texmf)。"""
-
-    name = "xelatex"
-    caps = frozenset({"kpsewhich", "tlmgr", "updmap"})
-
-    def __init__(self, script: list, *, available: set[str] | None = None) -> None:
-        self.script = list(script)
-        self.available = available or set()
-        self.rounds = 0
-
-    def compile(self, wdir: Path, main: str, **_kw: object) -> _MockRes:
-        del main  # mock 按轮吐 spec, 不编译真文件
-        i = min(self.rounds, len(self.script) - 1)
-        self.rounds += 1
-        return _MockRes(Path(wdir), self.script[i])
-
-    def probe_file(self, fname: str, cwd: Path | None = None) -> str | None:
-        if cwd is not None and (Path(cwd) / fname).is_file():
-            return str(Path(cwd) / fname)
-        return f"/texmf/{fname}" if fname in self.available else None
-
-    def install_file(self, fname: str, *, font_related: bool = False) -> bool:
-        del fname, font_related
-        return False  # 装不上 → 落 vendored_fetch 递补通路
-
-    def rebuild_fontmaps(self) -> bool:
-        return True
-
-    def filemap(self, fname: str) -> list[str]:
-        del fname
-        return []
-
-
 def _proj(tmp_path: Path) -> Path:
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n\\usepackage{pst-all}\n"
@@ -295,7 +230,7 @@ def _sh_runner(
 
 def test_e2e_retire_then_system_resolves(tmp_path: Path) -> None:
     """整链: undefined_cs 签名 → 成对 mv 退役 → 下轮系统件载入 → clean。"""
-    eng = _MockEngine(
+    eng = MockEngine(
         [
             {"log": _ERR_UNDEF + "\n" + _ERR_UNDEF_CTX + "\n"},
             {"log": CLEAN_LOG, "pdf": True},
@@ -313,7 +248,7 @@ def test_e2e_retire_then_system_resolves(tmp_path: Path) -> None:
 
 def test_e2e_retire_then_vendored_fallback(tmp_path: Path) -> None:
     """系统缺件: 退役 → missing_file → vendored_fetch 递 v3.94 对 → clean。"""
-    eng = _MockEngine(
+    eng = MockEngine(
         [
             {"log": _ERR_UNDEF + "\n" + _ERR_UNDEF_CTX + "\n"},
             {
@@ -348,7 +283,7 @@ def test_e2e_no_fire_on_other_error(tmp_path: Path) -> None:
     )
     (tmp_path / "pstricks-add.tex").write_text("% old\n", encoding="utf-8")
     (tmp_path / "pstricks-add.sty").write_text("% old\n", encoding="utf-8")
-    eng = _MockEngine(
+    eng = MockEngine(
         [
             {"log": "./main.tex:3: Undefined control sequence.\nl.3 \\foo\n"},
             {"log": CLEAN_LOG, "pdf": True},
@@ -362,7 +297,7 @@ def test_e2e_no_fire_on_other_error(tmp_path: Path) -> None:
 
 def test_e2e_injected_not_retired_breaks_loop(tmp_path: Path) -> None:
     """vendor v3.94 注入后再报同名错: 指纹闸保件不退役 —— 无退役→重投环。"""
-    eng = _MockEngine(
+    eng = MockEngine(
         [
             {"log": _ERR_UNDEF + "\n" + _ERR_UNDEF_CTX + "\n"},
             {

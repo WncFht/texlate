@@ -14,32 +14,43 @@ texmf 全集在位, tectonic 走 bundle/ctan_fetch) 是唯一正解。
 不存在, 不收 (收了注入后仍 undefined → applied 假火)。
 """
 
-import re
 import shutil
 import subprocess
+from functools import lru_cache
 from pathlib import Path
 
 import pytest
+from _fixloopkit import DOC, XELATEX, mk_ctx, n_err, run_xelatex
 
 from texlate.compile.fixloop import load_ruleset
 from texlate.compile.fixloop.builtins import TRANSFORM_FNS
-from texlate.compile.fixloop.engine import LoopCtx
 
 _TARGETED = TRANSFORM_FNS["cs_targeted_fix"]
-_PARAMS = next(r for r in load_ruleset().rules if r.id == "cs_targeted_fix").action[
-    "params"
-]
-_CSTABLE = _PARAMS["cs_table"]
 
-_XELATEX = shutil.which("xelatex")
+
+@lru_cache(maxsize=1)
+def _params() -> dict:
+    """cs_targeted_fix params——首用时装 ruleset, 收集期不 IO (同 aux_eof 口径)。"""
+    return next(r for r in load_ruleset().rules if r.id == "cs_targeted_fix").action[
+        "params"
+    ]
+
+
+def _cstable() -> dict:
+    return _params()["cs_table"]
+
+
 _COMPILE = pytest.mark.skipif(
-    _XELATEX is None or shutil.which("kpsewhich") is None,
+    XELATEX is None or shutil.which("kpsewhich") is None,
     reason="xelatex/kpsewhich not installed",
 )
 
 
 class _EngStub:
-    """probe 恒命中 / install 恒成 —— usepackage 臂走通支路。"""
+    """probe 恒命中 / install 恒成 —— usepackage 臂走通支路。
+
+    (与 kit ``EngStub`` 反形——恒 miss/恒拒替身过不了 cs_targeted_fix 的
+    probe 复核, 本桩是故意保留的异形。)"""
 
     def probe_file(self, fname: str, cwd: Path | None = None) -> str:
         del cwd
@@ -50,35 +61,28 @@ class _EngStub:
         return True
 
 
-def _ctx(tmp_path: Path) -> LoopCtx:
-    return LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel="main.tex")
-
-
 def _fix(tmp_path: Path, cs: str) -> tuple[bool, str]:
-    return _TARGETED(_ctx(tmp_path), _EngStub(), cs, _PARAMS)
-
-
-_DOC = "\\documentclass{article}\n\\begin{document}\nx\n\\end{document}\n"
+    return _TARGETED(mk_ctx(tmp_path), _EngStub(), cs, _params())
 
 
 def test_table_entries_present() -> None:
     """双公共名均挂 ``usepackage: letltxmacro`` —— 真包臂, 非 gobble。"""
     for cs in ("LetLtxMacro", "GlobalLetLtxMacro"):
-        assert _CSTABLE.get(cs) == {"usepackage": "letltxmacro"}, cs
+        assert _cstable().get(cs) == {"usepackage": "letltxmacro"}, cs
 
 
 def test_no_gobble_or_plain_let() -> None:
     """判词钉死: 表内不得有 LetLtxMacro 的 polyfill/cs_map 错义修。"""
-    spec = _CSTABLE["LetLtxMacro"]
+    spec = _cstable()["LetLtxMacro"]
     assert "polyfill" not in spec
     assert "cs_map" not in spec
-    assert "LetLtxMacroOpt" not in _CSTABLE
+    assert "LetLtxMacroOpt" not in _cstable()
 
 
 @pytest.mark.parametrize("cs", ["LetLtxMacro", "GlobalLetLtxMacro"])
 def test_usepackage_injected_after_docclass(tmp_path: Path, cs: str) -> None:
     """``\\RequirePackage{letltxmacro}`` 落 ``\\documentclass`` 缝后。"""
-    (tmp_path / "main.tex").write_text(_DOC, encoding="utf-8")
+    (tmp_path / "main.tex").write_text(DOC, encoding="utf-8")
     ok, note = _fix(tmp_path, cs)
     assert ok, note
     text = (tmp_path / "main.tex").read_text(encoding="utf-8")
@@ -102,24 +106,12 @@ def test_already_loaded_no_double_inject(tmp_path: Path) -> None:
 
 def test_refire_no_duplicate_line(tmp_path: Path) -> None:
     """二轮重火: 已装载判定使注入幂等 —— 文件内仍只有一行装载行。"""
-    (tmp_path / "main.tex").write_text(_DOC, encoding="utf-8")
+    (tmp_path / "main.tex").write_text(DOC, encoding="utf-8")
     ok1, _ = _fix(tmp_path, "LetLtxMacro")
     assert ok1
     _fix(tmp_path, "LetLtxMacro")
     text = (tmp_path / "main.tex").read_text(encoding="utf-8")
     assert text.count("\\RequirePackage{letltxmacro}") == 1
-
-
-def _compile(wdir: Path, tex: str) -> str:
-    (wdir / "main.tex").write_text(tex, encoding="utf-8")
-    subprocess.run(  # noqa: S603 -- argv[0] 来自 shutil.which 绝对路径
-        [_XELATEX, "-interaction=nonstopmode", "main.tex"],
-        cwd=wdir,
-        capture_output=True,
-        timeout=120,
-        check=False,
-    )
-    return (wdir / "main.log").read_text(encoding="utf-8", errors="replace")
 
 
 @pytest.mark.integration
@@ -148,9 +140,8 @@ def test_robust_cs_copy_compiles(tmp_path: Path) -> None:
     (tmp_path / "main.tex").write_text(tex, encoding="utf-8")
     ok, note = _fix(tmp_path, "LetLtxMacro")
     assert ok, note
-    log = _compile(tmp_path, (tmp_path / "main.tex").read_text(encoding="utf-8"))
-    errs = re.findall(r"^! ", log, re.MULTILINE)
-    assert not errs, (
+    log = run_xelatex(tmp_path, (tmp_path / "main.tex").read_text(encoding="utf-8"))
+    assert not n_err(log), (
         f"compile errors remain: {log[log.find('!') : log.find('!') + 300]}"
     )
     assert (tmp_path / "main.pdf").is_file()
@@ -168,6 +159,6 @@ def test_without_fix_is_undefined(tmp_path: Path) -> None:
         "\\LetLtxMacro{\\oldcite}{\\citeX}\n"
         "\\begin{document}\nx\n\\end{document}\n"
     )
-    log = _compile(tmp_path, tex)
+    log = run_xelatex(tmp_path, tex)
     assert "Undefined control sequence" in log
     assert "\\LetLtxMacro" in log

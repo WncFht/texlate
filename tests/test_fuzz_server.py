@@ -53,7 +53,7 @@ pytest.importorskip("fastapi", reason="server extra 未装")
 pytest.importorskip("starlette.testclient", reason="server extra 未装")
 
 from _fuzzkit import fuzz_rng, short
-from conftest import mk_api_task
+from conftest import chunk_row, force_status, mk_api_task, mk_store, mk_task_id
 
 from texlate.server import settings as srv_settings
 from texlate.server.app import (
@@ -64,11 +64,11 @@ from texlate.server.app import (
 from texlate.server.events import EventBus
 from texlate.server.store import (
     ACTIVE_STATUSES,
+    CHUNKS_PAGE_MAX,
     RETRYABLE_FROM,
     STAGES,
     TERMINAL_STATUSES,
     Store,
-    new_task_id,
 )
 from texlate.server.worker import Secrets, TaskCtx
 from texlate.server.worker._common import opt_bool
@@ -85,43 +85,17 @@ ARXIV = "2401.00042"
 _FAT = 60000
 #: snapshot.warnings 回放帽（store._WARNINGS_CAP 口径）。
 _WARN_N = 200
-#: ``chunks_page`` 越帽探测的块量。
-_CHUNK_N = 700
+#: ``chunks_page`` 越帽探测的块量（``CHUNKS_PAGE_MAX`` 帽上余量）。
+_CHUNK_N = CHUNKS_PAGE_MAX + 200
 #: 钳位探测的小块量与页宽。
 _CHUNK_EDGE = 30
 _PAGE_EDGE = 10
-#: 合法分页宽度（``_CHUNKS_PAGE_MAX`` 内）。
+#: 合法分页宽度（``CHUNKS_PAGE_MAX`` 内）。
 _PAGE_OK = 200
 #: append_event seq 单调性探测的事件量。
 _EVENT_N = 60
 
 _parse_origin = srv_settings._parse_origin  # noqa: SLF001 -- 白盒钉私有归一化件
-
-
-def _store(tmp_path: Path, name: str = "x.db") -> Store:
-    s = Store(tmp_path / name)
-    s.open()
-    return s
-
-
-def _mk(
-    s: Store,
-    *,
-    tenant: str = "local",
-    auth_source: str = "settings",
-    **kw: Any,  # noqa: ANN401 -- create_task 键参透传
-) -> str:
-    tid = new_task_id()
-    s.create_task(
-        task_id=tid,
-        kind="arxiv",
-        target_lang="zh-CN",
-        model="m",
-        tenant=tenant,
-        auth_source=auth_source,
-        **kw,
-    )
-    return tid
 
 
 def _ctx(store: Store, options: dict[str, Any]) -> TaskCtx:
@@ -135,28 +109,8 @@ def _ctx(store: Store, options: dict[str, Any]) -> TaskCtx:
     )
 
 
-def _force(client: TestClient, tid: str, status: str) -> None:
-    client.portal.call(
-        partial(client.app.state.store.transition, tid, status, force=True)
-    )
-
-
 def _insert_chunks(store: Store, tid: str, n: int) -> None:
-    store.insert_chunks(
-        tid,
-        [
-            {
-                "seq": i,
-                "chunk_id": f"c{i}",
-                "src_file": "main.tex",
-                "byte_start": i * 10,
-                "byte_end": i * 10 + 9,
-                "kind": "para",
-                "src_text": f"text {i}",
-            }
-            for i in range(n)
-        ],
-    )
+    store.insert_chunks(tid, [chunk_row(i, kind="para") for i in range(n)])
 
 
 # ---------------------------------------------------------------- CONFIRMED
@@ -167,7 +121,7 @@ class TestRetryMergedOptionsCap:
 
     def test_merge_over_cap_rejected(self, client: TestClient) -> None:
         tid = mk_api_task(client, ARXIV, options={"note_a": "x" * _FAT})
-        _force(client, tid, "fault")
+        force_status(client, tid, "fault")
         r = client.post(
             f"/api/task/{tid}/retry",
             json={"options": {"note_b": "y" * _FAT}},
@@ -178,7 +132,7 @@ class TestRetryMergedOptionsCap:
     def test_merge_under_cap_ok(self, client: TestClient) -> None:
         """合并后仍在帽内 → 202，且存量键保留（对照组——本臂绿）。"""
         tid = mk_api_task(client, ARXIV, options={"note_a": "x"})
-        _force(client, tid, "fault")
+        force_status(client, tid, "fault")
         r = client.post(f"/api/task/{tid}/retry", json={"options": {"note_b": "y"}})
         assert r.status_code == HTTPStatus.ACCEPTED, r.text
         row = client.portal.call(partial(client.app.state.store.get, tid))
@@ -207,12 +161,14 @@ class TestChunksLimitContract:
         client.portal.call(
             partial(_insert_chunks, client.app.state.store, tid, _CHUNK_N)
         )
-        r = client.get(f"/api/task/{tid}/chunks?limit=1000")
+        over = CHUNKS_PAGE_MAX * 2
+        r = client.get(f"/api/task/{tid}/chunks?limit={over}")
+        n = len(r.json().get("chunks") or [])
         # 期望契约：要么 API 拒超帽值（422），要么按 limit 全量返回——
         # 不得 200 截断（分页方按 total 翻页会静默丢尾部 200 块）
         assert r.status_code == HTTPStatus.BAD_REQUEST or (
-            r.status_code == HTTPStatus.OK and len(r.json()["chunks"]) == _CHUNK_N
-        ), f"limit=1000 → {r.status_code} + {len(r.json()['chunks'])} rows"
+            r.status_code == HTTPStatus.OK and n == _CHUNK_N
+        ), f"limit={over} → {r.status_code} + {n} rows"
 
     def test_limit_boundaries(self, client: TestClient) -> None:
         """声明界内返回正常；界外（0/1001）被 Query 校验拒。"""
@@ -223,15 +179,15 @@ class TestChunksLimitContract:
         r = client.get(f"/api/task/{tid}/chunks?limit={_PAGE_OK}")
         assert r.status_code == HTTPStatus.OK
         assert len(r.json()["chunks"]) == _PAGE_OK
-        for bad in (0, 1001, -5):
+        for bad in (0, CHUNKS_PAGE_MAX + 1, -5):
             r = client.get(f"/api/task/{tid}/chunks?limit={bad}")
             # RequestValidationError 归一化 400（app._validation_400）
             assert r.status_code == HTTPStatus.BAD_REQUEST, bad
 
     def test_store_clamps_direct(self, tmp_path: Path) -> None:
         """store 层钳位本身是把守的（负值/超帽按边界收）——缺口只在 API 口径。"""
-        s = _store(tmp_path)
-        tid = _mk(s)
+        s = mk_store(tmp_path)
+        tid = mk_task_id(s)
         _insert_chunks(s, tid, _CHUNK_EDGE)
         rows, total = s.chunks_page(tid, offset=0, limit=-1)
         assert rows == []
@@ -262,7 +218,7 @@ class TestChunksLimitContract:
         )
         r = client.get(f"/api/task/{tid}/chunks?seqs=a,b")
         assert r.status_code == HTTPStatus.BAD_REQUEST
-        many = ",".join(str(i) for i in range(501))  # >CHUNKS_PAGE_MAX=500
+        many = ",".join(str(i) for i in range(CHUNKS_PAGE_MAX + 1))  # >CHUNKS_PAGE_MAX
         r = client.get(f"/api/task/{tid}/chunks?seqs={many}")
         assert r.status_code == HTTPStatus.BAD_REQUEST
         r = client.get(f"/api/task/{tid}/chunks?seqs=999")
@@ -301,8 +257,8 @@ class TestForceTransitionBlastRadius:
     """force 通道无枚举闸——越界状态行的可见面全钉（OBSERVED）。"""
 
     def test_garbage_status_invisible(self, tmp_path: Path) -> None:
-        s = _store(tmp_path)
-        tid = _mk(s)
+        s = mk_store(tmp_path)
+        tid = mk_task_id(s)
         out = s.transition(tid, "bogus_state", force=True)
         assert out["status"] == "bogus_state"
         # 不落任何状态集：finished_at 缺位、stage 保留（非 STAGES 非 TERMINAL）
@@ -318,8 +274,8 @@ class TestForceTransitionBlastRadius:
 
     def test_force_to_terminal_clears_stage(self, tmp_path: Path) -> None:
         """对照组：合法终态的字段表正常（finished_at+stage 清场）。"""
-        s = _store(tmp_path)
-        tid = _mk(s)
+        s = mk_store(tmp_path)
+        tid = mk_task_id(s)
         s.transition(tid, "translating", force=True)
         out = s.transition(tid, "done", force=True)
         assert out["finished_at"] is not None
@@ -330,7 +286,7 @@ class TestBoolCoercionDivergence:
     """``opt_bool`` vs ``_share_pack_opt_in`` 的 ``""`` 分叉（OBSERVED）。"""
 
     def test_empty_string_divergence(self, tmp_path: Path) -> None:
-        s = _store(tmp_path)
+        s = mk_store(tmp_path)
         ctx = _ctx(s, {"share_pack": ""})
         # 同族两个布尔归一化件对 "" 判定相反：opt_bool 认开、share 件认关
         assert opt_bool({"k": ""}, "k", lambda: False) is True
@@ -407,8 +363,8 @@ class TestListTasksPageTie:
     """``list_tasks_page`` ``, id DESC`` 显式 tiebreak——并列时间戳分页稳定。"""
 
     def test_equal_created_at_pagination(self, tmp_path: Path) -> None:
-        s = _store(tmp_path)
-        ids = [_mk(s) for _ in range(7)]
+        s = mk_store(tmp_path)
+        ids = [mk_task_id(s) for _ in range(7)]
         for tid in ids:
             s.update_fields(tid, created_at=1000.0)
         seen: list[str] = []
@@ -422,8 +378,8 @@ class TestListTasksPageTie:
 
     def test_tiebreak_order_is_id_desc(self, tmp_path: Path) -> None:
         """并列 created_at 时按 id DESC 收序——与 DESC 语义一致。"""
-        s = _store(tmp_path)
-        ids = [_mk(s) for _ in range(4)]
+        s = mk_store(tmp_path)
+        ids = [mk_task_id(s) for _ in range(4)]
         for tid in ids:
             s.update_fields(tid, created_at=1000.0)
         rows, _ = s.list_tasks_page("local", limit=10)
@@ -437,8 +393,8 @@ class TestSnapshotEcho:
     """snapshot options/glossary 回显的摘键契约（正向钉）。"""
 
     def test_internal_keys_dropped(self, tmp_path: Path) -> None:
-        s = _store(tmp_path)
-        tid = _mk(
+        s = mk_store(tmp_path)
+        tid = mk_task_id(
             s,
             options={
                 "main": "main.tex",
@@ -458,15 +414,15 @@ class TestSnapshotEcho:
         assert snap["glossary"] == "g.yaml"
 
     def test_no_user_fields_absent(self, tmp_path: Path) -> None:
-        s = _store(tmp_path)
-        tid = _mk(s)
+        s = mk_store(tmp_path)
+        tid = mk_task_id(s)
         snap = s.snapshot(tid, artifacts={})
         assert "options" not in snap
         assert "glossary" not in snap
 
     def test_corrupt_options_json_tolerated(self, tmp_path: Path) -> None:
-        s = _store(tmp_path)
-        tid = _mk(s)
+        s = mk_store(tmp_path)
+        tid = mk_task_id(s)
         s.update_fields(tid, options_json="{corrupt")
         snap = s.snapshot(tid, artifacts={})
         assert "options" not in snap
@@ -476,14 +432,14 @@ class TestEventBusEdge:
     """publish 哨兵与 warnings 回放（正向钉）。"""
 
     def test_publish_missing_task_zero(self, tmp_path: Path) -> None:
-        s = _store(tmp_path)
+        s = mk_store(tmp_path)
         bus = EventBus(s)
         assert bus.publish("t_ghost", "log", {"message": "x"}) == 0
         assert s.events_since("t_ghost", 0) == []
 
     def test_warnings_cap_and_order(self, tmp_path: Path) -> None:
-        s = _store(tmp_path)
-        tid = _mk(s)
+        s = mk_store(tmp_path)
+        tid = mk_task_id(s)
         for i in range(_WARN_N + 30):
             s.append_event(tid, "warning", {"code": "w", "message": f"m{i}"})
         snap = s.snapshot(tid, artifacts={})
@@ -498,10 +454,10 @@ class TestQueuedRowsHeaderExclusion:
     """``queued_rows`` 排除 header 源（正向钉——凭证随进程死亡的语义面）。"""
 
     def test_header_source_excluded(self, tmp_path: Path) -> None:
-        s = _store(tmp_path)
-        kept = _mk(s, auth_source="settings")
-        _mk(s, auth_source="header")
-        _mk(s, auth_source="env")
+        s = mk_store(tmp_path)
+        kept = mk_task_id(s, auth_source="settings")
+        mk_task_id(s, auth_source="header")
+        mk_task_id(s, auth_source="env")
         got = {str(r["id"]) for r in s.queued_rows()}
         assert kept in got
         assert len(got) == 2  # noqa: PLR2004 -- settings+env 两源入队钉
@@ -569,15 +525,20 @@ class TestCleanTaskOptions:
             out = _clean_task_options(dict(opts))
             for k in reserved:
                 assert k not in out, short(opts)
+            # 合法键原样过（值与类型都不动——bool/int 归一化也算漂移）
+            for k, v in opts.items():
+                if k not in reserved:
+                    assert out[k] == v, short(opts)
+                    assert type(out[k]) is type(v), short(opts)
 
 
 class TestStoreQueriesEdge:
     """store 查询面残余边角（正向钉）。"""
 
     def test_status_filter_and_total(self, tmp_path: Path) -> None:
-        s = _store(tmp_path)
-        a = _mk(s)
-        b = _mk(s)
+        s = mk_store(tmp_path)
+        a = mk_task_id(s)
+        b = mk_task_id(s)
         s.transition(a, "translating", force=True)
         s.transition(b, "done", force=True)
         rows, total = s.list_tasks_page("local", status="done")
@@ -589,17 +550,17 @@ class TestStoreQueriesEdge:
 
     def test_find_active_includes_interrupted(self, tmp_path: Path) -> None:
         """interrupted 占 dedup 槽（部分唯一索引覆盖集语义钉）。"""
-        s = _store(tmp_path)
-        tid = _mk(s, cache_key="ck1")
+        s = mk_store(tmp_path)
+        tid = mk_task_id(s, cache_key="ck1")
         s.transition(tid, "interrupted", force=True)
         hit = s.find_active_by_cache_key("ck1")
         assert hit is not None
         assert hit["id"] == tid
 
-    def test_append_event_seq_monotone_after_cap(self, tmp_path: Path) -> None:
-        """EVENT_CAP 滚动后 seq 不回绕——重放凭据单调。"""
-        s = _store(tmp_path)
-        tid = _mk(s)
+    def test_append_event_seq_monotone(self, tmp_path: Path) -> None:
+        """seq 递增单调——重放凭据（cap 滚动面见 test_fuzz_store::test_events_cap_rolling_window）。"""
+        s = mk_store(tmp_path)
+        tid = mk_task_id(s)
         last = 0
         for i in range(_EVENT_N):
             last = s.append_event(tid, "log", {"i": i})
@@ -611,7 +572,7 @@ class TestTaskCtxOptions:
     """TaskCtx.options/update_options/set_option 的 JSON 回写契约（正向钉）。"""
 
     def test_options_roundtrip(self, tmp_path: Path) -> None:
-        s = _store(tmp_path)
+        s = mk_store(tmp_path)
         ctx = _ctx(s, {"a": 1})
         assert ctx.options() == {"a": 1}
         out = ctx.update_options(lambda o: o.update({"b": 2}))
@@ -621,7 +582,7 @@ class TestTaskCtxOptions:
         assert json.loads(out)["c"] == 3  # noqa: PLR2004 -- set_option 回显值钉
 
     def test_corrupt_options_empty(self, tmp_path: Path) -> None:
-        s = _store(tmp_path)
+        s = mk_store(tmp_path)
         ctx = TaskCtx(
             store=s,
             bus=None,  # type: ignore[arg-type]
@@ -637,8 +598,8 @@ class TestTransitionFieldMatrix:
     """force 迁移字段表的残余面（与 fuzz_store 矩阵互补——钉 row 级副作用）。"""
 
     def test_queued_clears_terminal_fields(self, tmp_path: Path) -> None:
-        s = _store(tmp_path)
-        tid = _mk(s)
+        s = mk_store(tmp_path)
+        tid = mk_task_id(s)
         s.transition(tid, "fault", force=True, error={"code": "x"})
         out = s.transition(tid, "queued", force=True)
         assert out["finished_at"] is None

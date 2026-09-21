@@ -10,7 +10,7 @@ r"""argspec.json 表 + 分段器接线：签名分派 / env 体路由。
 分派）与 ``_handle_env_begin``（族表不知的 env → body_role 路由）。
 """
 
-from conftest import ART
+from conftest import ART, BEAMER
 
 from texlate.latex import parse_tex, reconstruct
 from texlate.latex.model import ScanResult
@@ -19,8 +19,6 @@ from texlate.latex.tables import (
     argspec_lookup_env,
     argspec_tables,
 )
-
-BEAMER = "\\documentclass{beamer}\n\\begin{document}\n%s\n\\end{document}\n"
 
 
 def scan(body: str, preamble: str = "", doc: str = ART) -> ScanResult:
@@ -42,7 +40,7 @@ def test_loader_tables() -> None:
     assert frame.arg_roles[-2:] == ("text", "text")
 
 
-def test_lookup_gating() -> None:
+def test_lookup_ungated() -> None:
     r"""宏侧与环境侧查表均不门控：名出现即工程级加载证据。
 
     per-file ``pkgs`` 查不到跨文件导言包——体文件 ``\\crefrange`` 在

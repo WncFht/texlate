@@ -8,23 +8,9 @@ W45/W46/W81/W83/W94/W105）：展开层语义的逐机制回归面。
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from conftest import expanded_text, text_of
 
 from texlate.latex.gullet import Gullet
-
-if TYPE_CHECKING:
-    from texlate.latex.mouth import Tok
-
-
-def text_of(ts: list[Tok]) -> str:
-    """token 流 → 表面文本（consumed marker 是事件非文本）。"""
-    return "".join(str(t) for t in ts if t.kind != "consumed")
-
-
-def expanded_text(src: str) -> str:
-    """Gullet 全量展开后的表面文本。"""
-    return text_of(list(Gullet(src)))
-
 
 # ---------------------------------------------------------------- T25/W81 @ 宏
 
@@ -123,7 +109,7 @@ def test_w41_ifmain_macro_not_if_nesting() -> None:
     out = expanded_text(src)
     assert "\\ifmain{X}" in out
     assert out.endswith("tail")
-    assert "F" not in out.split("\\ifmain")[0].replace("\\iftrue T ", "")
+    assert "F" not in out  # else 支死文本不得漏出（consumed 不在 surface）
 
 
 def test_w41_hidden_end_document_in_arg() -> None:
@@ -146,7 +132,7 @@ def test_w45_redefined_frac_callsite_kept() -> None:
 def test_w45_redef_single_letter_bare_alias() -> None:
     r"""W45：``\def\l{\left}`` 原语/内建被重绑 → 宏表先行按作者绑定展开。"""
     out = expanded_text("\\def\\l{\\left}A \\l B")
-    assert out == "A \\left B".replace("\\left ", "\\left")
+    assert out == "A \\leftB"  # cs 后空格 token 被吞——``\l``→``\left`` 换名直出
 
 
 def test_w45_renew_math_opacity() -> None:
@@ -173,7 +159,7 @@ def test_w46_let_to_builtin_cite_renames() -> None:
 def test_w46_let_undefined_stays_literal() -> None:
     r"""W46：``\let`` 到未定义名 → ``\ra`` 原样（不编造绑定）。"""
     out = expanded_text("\\let\\a\\totallyunknown A \\a B")
-    assert out == "A \\a B".replace("\\a ", "\\a")
+    assert out == "A \\aB"  # cs 后空格 token 被吞
 
 
 # ---------------------------------------------------------------- W83 换行分隔必选参

@@ -28,7 +28,7 @@ import sys
 from collections import Counter
 from typing import TYPE_CHECKING
 
-from _fuzzkit import fuzz_rng
+from _fuzzkit import fuzz_rng, soup_join
 
 from texlate import textutil
 from texlate.textutil import (
@@ -54,6 +54,15 @@ if TYPE_CHECKING:
     import random
 
 # ---------------------------------------------------------------- mask_comments
+
+
+def _check_mask_view(src: str, masked: str) -> None:
+    """等长遮盖视图公共不变量（mask_comments/mask_tex 两节共用）。"""
+    assert len(masked) == len(src)
+    for a, b in zip(src, masked, strict=True):
+        assert b in {a, " "}
+        if a in "\r\n":
+            assert b == a, "换行位被遮盖"
 
 
 #: ``%`` 起点判定 oracle——逐位「前导连续反斜杠计数奇偶」口径（独立代码路径，
@@ -98,14 +107,10 @@ def test_fuzz_mask_comments_oracle() -> None:
     恒为奇数反斜杠 run 后。"""
     rng = fuzz_rng(20260917)
     for _ in range(4000):
-        t = "".join(rng.choice(_COMMENT_ALPHA) for _ in range(rng.randint(0, 50)))
+        t = soup_join(rng, _COMMENT_ALPHA, 0, 50)
         m = mask_comments(t)
         assert m == _oracle_mask_comments(t), repr(t)
-        assert len(m) == len(t)
-        for a, b in zip(t, m, strict=True):
-            assert b in {a, " "}
-            if a in "\r\n":
-                assert b == a
+        _check_mask_view(t, m)
         assert mask_comments(m) == m, f"非幂等: {t!r} -> {m!r}"
 
 
@@ -155,21 +160,12 @@ _TEX_TOKENS = [
 ]
 
 
-def _check_mask_view(src: str, masked: str) -> None:
-    """等长遮盖视图公共不变量。"""
-    assert len(masked) == len(src)
-    for a, b in zip(src, masked, strict=True):
-        assert b in {a, " "}
-        if a in "\r\n":
-            assert b == a, "换行位被遮盖"
-
-
 def test_fuzz_mask_tex_invariants() -> None:
     """随机 TeX 汤 × 三种 flag 组合：等长 + 逐字白名单 + 换行保留 + 幂等。"""
     rng = fuzz_rng(20260918)
     kws = [{}, {"mask_dead": False}, {"keep_verbatim": True}]
     for _ in range(3000):
-        t = "".join(rng.choice(_TEX_TOKENS) for _ in range(rng.randint(0, 40)))
+        t = soup_join(rng, _TEX_TOKENS, 0, 40)
         for kw in kws:
             m = mask_tex(t, **kw)
             _check_mask_view(t, m)
@@ -194,7 +190,7 @@ def test_fuzz_mask_tex_equals_mask_comments_no_cs() -> None:
         "\r",
     ]
     for _ in range(3000):
-        t = "".join(rng.choice(alpha) for _ in range(rng.randint(0, 60)))
+        t = soup_join(rng, alpha, 0, 60)
         assert mask_tex(t) == mask_comments(t), repr(t)
 
 
@@ -218,8 +214,8 @@ def test_fuzz_lev_capped_matches_full_oracle() -> None:
     rng = fuzz_rng(20260920)
     alpha = "abc中"
     for _ in range(20000):
-        a = "".join(rng.choice(alpha) for _ in range(rng.randint(0, 7)))
-        b = "".join(rng.choice(alpha) for _ in range(rng.randint(0, 7)))
+        a = soup_join(rng, alpha, 0, 7)
+        b = soup_join(rng, alpha, 0, 7)
         cap = rng.randint(0, 6)
         got = lev_capped(a, b, cap)
         want = min(_lev_full(a, b), cap + 1)
@@ -271,7 +267,7 @@ def _gen_blob(rng: random.Random) -> bytes:
     if r < _P_BLOB_NOISE:
         parts.append(rng.randbytes(rng.randint(0, 400)))
     elif r < _P_BLOB_UTF8:
-        s = "".join(rng.choice("ab\\%{} \né中") for _ in range(rng.randint(0, 100)))
+        s = soup_join(rng, "ab\\%{} \né中", 0, 100)
         blob = s.encode("utf-8")
         parts.append(
             blob[: rng.randrange(len(blob))]
@@ -339,7 +335,7 @@ def test_fuzz_decode_tex_utf8_roundtrip() -> None:
         + ["\t", "\n", "\\", "%", "{", "}", "$", "\r", "\r\n"]
     )
     for _ in range(3000):
-        s = "".join(rng.choice(pool) for _ in range(rng.randint(0, 80)))
+        s = soup_join(rng, pool, 0, 80)
         if s.startswith("\ufeff"):
             continue
         want = _eol_norm(s)
@@ -376,8 +372,8 @@ def test_fuzz_ph_in_cs_net_properties() -> None:
     """``net(a,b)``/``net(b,a)`` 键集恒不交、自净差空、键恒夹持形、计数正。"""
     rng = fuzz_rng(20260924)
     for _ in range(3000):
-        src = "".join(rng.choice(_NET_ALPHA) for _ in range(rng.randint(0, 25)))
-        zh = "".join(rng.choice(_NET_ALPHA) for _ in range(rng.randint(0, 25)))
+        src = soup_join(rng, _NET_ALPHA, 0, 25)
+        zh = soup_join(rng, _NET_ALPHA, 0, 25)
         fwd = ph_in_cs_net(src, zh)
         rev = ph_in_cs_net(zh, src)
         assert set(fwd).isdisjoint(set(rev)), (src, zh, fwd, rev)
@@ -391,8 +387,8 @@ def test_fuzz_bare_cs_net_properties() -> None:
     """自净差空；产出键恒为 zh 遮盖面实存 cs 名且计数不超 zh 实计数。"""
     rng = fuzz_rng(20260925)
     for _ in range(3000):
-        src = "".join(rng.choice(_NET_ALPHA) for _ in range(rng.randint(0, 25)))
-        zh = "".join(rng.choice(_NET_ALPHA) for _ in range(rng.randint(0, 25)))
+        src = soup_join(rng, _NET_ALPHA, 0, 25)
+        zh = soup_join(rng, _NET_ALPHA, 0, 25)
         out = bare_cs_net(src, zh)
         assert all(v > 0 for v in out.values())
         zh_names = _CS_NAME_RX.findall(mask_comments(zh))
@@ -412,7 +408,7 @@ def test_fuzz_eol_norm_oracle() -> None:
     oracle = re.compile(r"\r\n|\r")
     alpha = [*"ab\t", "\r\n", "\n", "\r", "\n\r", "\r\r\n"]
     for _ in range(3000):
-        t = "".join(rng.choice(alpha) for _ in range(rng.randint(0, 60)))
+        t = soup_join(rng, alpha, 0, 60)
         out = _eol_norm(t)
         assert out == oracle.sub("\n", t)
         assert "\r" not in out
@@ -426,9 +422,7 @@ def test_json_fence_rx_roundtrip() -> None:
     """构造 fence 串：body 组逐字还原；非 fence 形不匹配。"""
     rng = fuzz_rng(20260927)
     for _ in range(300):
-        inner = "".join(
-            rng.choice("ab{} \n\t\"':,数据") for _ in range(rng.randint(0, 40))
-        )
+        inner = soup_join(rng, "ab{} \n\t\"':,数据", 0, 40)
         # body 组逐字还原要求 inner 首尾不带会被 ``\s*\n``/``\n?\s*`` 吞掉的空白。
         if (
             "```" in inner
@@ -456,9 +450,7 @@ def test_verbatim_envs_registry_consistent() -> None:
         src = f"\\begin{{{env}}}{body}\\end{{{env}}}{tail}"
         masked = mask_tex(src)
         stop = len(f"\\begin{{{env}}}{body}\\end{{{env}}}")
-        assert masked[:stop] == " " * stop or masked[:stop].strip() == "", (
-            f"{env}: env 体未遮盖"
-        )
+        assert masked[:stop].strip() == "", f"{env}: env 体未遮盖"
         assert masked[stop:] == tail, env
 
 

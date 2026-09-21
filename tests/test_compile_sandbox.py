@@ -60,6 +60,22 @@ def _fake_run(calls: list[dict[str, Any]]) -> FakeRun:
     return fake
 
 
+def _capture_calls(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, *, probe: bool = True
+) -> list[dict[str, Any]]:
+    """``_fake_run`` 捕获安装 + 最小 ``main.tex`` 写盘的用例头——返回捕获 list。
+
+    ``probe=True`` 连沙箱内探针（bwrap capable/kpse）走的 ``sb.run_process``
+    一起 intercept——与引擎侧 ``eng_mod.run_process`` 是分开的绑定。
+    """
+    calls: list[dict[str, Any]] = []
+    monkeypatch.setattr(eng_mod, "run_process", _fake_run(calls))
+    if probe:
+        monkeypatch.setattr(sb, "run_process", _fake_run(calls))
+    (tmp_path / "main.tex").write_text("x\n")
+    return calls
+
+
 def _bind_sources(cmd: list[str]) -> set[str]:
     """抽出 bwrap argv 里全部 bind 系旗标的源路径。"""
     flags = {"--bind", "--bind-try", "--ro-bind", "--ro-bind-try", "--dev-bind"}
@@ -94,17 +110,22 @@ def test_child_env_strips_realistic_secret_names(
     assert env["TECTONIC_UNTRUSTED_MODE"] == "1"
 
 
+def test_child_env_whitelist_strips_secrets(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TEST_TEXLATE_MUST_STRIP", "leakme")
+    env = child_env()
+    assert "TEST_TEXLATE_MUST_STRIP" not in env
+    assert env["openin_any"] == "p"
+    assert env["shell_escape"] == "f"
+    assert env["TECTONIC_UNTRUSTED_MODE"] == "1"
+
+
 def test_compile_subprocess_env_has_no_secrets(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """穿透到 run_process 的 env 也无 secret（引擎层端到端口径）。"""
     for name in _SECRETS:
         monkeypatch.setenv(name, "leak")
-    calls: list[dict[str, Any]] = []
-    monkeypatch.setattr(eng_mod, "run_process", _fake_run(calls))
-    # 沙箱内探针（bwrap capable/kpse）走 sb 绑定——与引擎侧调用分开 intercept
-    monkeypatch.setattr(sb, "run_process", _fake_run(calls))
-    (tmp_path / "main.tex").write_text("x\n")
+    calls = _capture_calls(monkeypatch, tmp_path)
     XelatexEngine(binary="/bin/true").compile(
         tmp_path, "main.tex", passes=1, sandbox=True
     )
@@ -123,10 +144,7 @@ def test_bwrap_wraps_xelatex_argv(
     """xelatex sandbox=True：bwrap 包裹 + 断网 + $HOME 本体不挂。"""
     monkeypatch.setattr(sb, "_bwrap_capable", lambda: True)
     monkeypatch.setattr(sb, "find_tool", lambda n: f"/fake/{n}")
-    calls: list[dict[str, Any]] = []
-    monkeypatch.setattr(eng_mod, "run_process", _fake_run(calls))
-    monkeypatch.setattr(sb, "run_process", _fake_run(calls))
-    (tmp_path / "main.tex").write_text("x\n")
+    calls = _capture_calls(monkeypatch, tmp_path)
     res = XelatexEngine(binary="/fake/xelatex").compile(
         tmp_path, "main.tex", passes=1, sandbox=True
     )
@@ -160,10 +178,7 @@ def test_bwrap_wraps_tectonic_keeps_net(
     """tectonic 冷拉 bundle 走进程内 HTTPS——包裹保留网络、仍有 --untrusted。"""
     monkeypatch.setattr(sb, "_bwrap_capable", lambda: True)
     monkeypatch.setattr(sb, "find_tool", lambda n: f"/fake/{n}")
-    calls: list[dict[str, Any]] = []
-    monkeypatch.setattr(eng_mod, "run_process", _fake_run(calls))
-    monkeypatch.setattr(sb, "run_process", _fake_run(calls))
-    (tmp_path / "main.tex").write_text("x\n")
+    calls = _capture_calls(monkeypatch, tmp_path)
     res = TectonicEngine(binary="/fake/tectonic", bundle="").compile(
         tmp_path, "main.tex", sandbox=True
     )
@@ -184,10 +199,7 @@ def test_bwrap_home_secret_dirs_unbound(
     """$HOME 下只挂白名单子路径——~/.ssh、~/.aws、~/.gnupg 不得出现在挂面。"""
     monkeypatch.setattr(sb, "_bwrap_capable", lambda: True)
     monkeypatch.setattr(sb, "find_tool", lambda n: f"/fake/{n}")
-    calls: list[dict[str, Any]] = []
-    monkeypatch.setattr(eng_mod, "run_process", _fake_run(calls))
-    monkeypatch.setattr(sb, "run_process", _fake_run(calls))
-    (tmp_path / "main.tex").write_text("x\n")
+    calls = _capture_calls(monkeypatch, tmp_path)
     XelatexEngine(binary="/fake/xelatex").compile(
         tmp_path, "main.tex", passes=1, sandbox=True
     )
@@ -208,9 +220,7 @@ def test_bwrap_home_secret_dirs_unbound(
 def test_sandbox_false_passthrough(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    calls: list[dict[str, Any]] = []
-    monkeypatch.setattr(eng_mod, "run_process", _fake_run(calls))
-    (tmp_path / "main.tex").write_text("x\n")
+    calls = _capture_calls(monkeypatch, tmp_path, probe=False)
     res = XelatexEngine(binary="/bin/true").compile(
         tmp_path, "main.tex", passes=1, sandbox=False
     )
@@ -224,9 +234,7 @@ def test_bwrap_incapable_falls_back_to_env(
 ) -> None:
     """bwrap 缺席/内核禁用 → sandbox=True 退回 env-only，不挂编译。"""
     monkeypatch.setattr(sb, "_bwrap_capable", lambda: False)
-    calls: list[dict[str, Any]] = []
-    monkeypatch.setattr(eng_mod, "run_process", _fake_run(calls))
-    (tmp_path / "main.tex").write_text("x\n")
+    calls = _capture_calls(monkeypatch, tmp_path, probe=False)
     res = XelatexEngine(binary="/bin/true").compile(
         tmp_path, "main.tex", passes=1, sandbox=True
     )
@@ -317,6 +325,7 @@ def test_write18_ran_but_contained_by_bwrap(tmp_path: Path) -> None:
         home_target.unlink(missing_ok=True)
 
 
+@pytest.mark.integration
 def test_tectonic_real_compile_sandboxed(tmp_path: Path) -> None:
     """tectonic 实跑：binary 在系统前缀外时按文件挂入 + 留网拉 bundle。"""
     eng = TectonicEngine()
@@ -335,6 +344,35 @@ def test_tectonic_real_compile_sandboxed(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------- 审计修复面
+def test_sandbox_wrap_passthrough_on_nondarwin(tmp_path: Path) -> None:
+    cmd = ["echo", "hi"]
+    wrapped = sandbox_wrap(cmd, root=tmp_path, out=tmp_path)
+    if sys.platform == "darwin" and Path("/usr/bin/sandbox-exec").exists():
+        assert wrapped[0].endswith("sandbox-exec")
+        assert wrapped[-2:] == cmd
+    else:
+        assert wrapped == cmd
+
+
+def test_sandbox_profile_shape(tmp_path: Path) -> None:
+    """profile 结构性回归——2211.13013 SIGPIPE 三案根的防护：
+
+    - ``literal``+``subpath`` 双发：subpath 不含目录自身，cd/stat 会漏；
+    - TMPDIR canonical 形：/var→/private/var 软链，字面路径打不中；
+    - ``file-read-metadata`` on $HOME：shell cd/getcwd 要 stat 祖先目录。
+    三者缺一，mktexpk 装 pk 字体失败 → xdvipdfmx 死 → xelatex SIGPIPE。
+    """
+    if not (sys.platform == "darwin" and Path("/usr/bin/sandbox-exec").exists()):
+        pytest.skip("sandbox-exec 仅 macOS")
+    wrapped = sandbox_wrap(["xelatex"], root=tmp_path, out=tmp_path)
+    profile = wrapped[2]
+    assert "(literal" in profile
+    assert "(subpath" in profile
+    assert "file-read-metadata" in profile
+    assert "/private/var/" in profile  # canonical TMPDIR
+    assert "Library/texlive" in profile  # TEXMFVAR 读白名单
+
+
 def test_sandbox_wrap_darwin_deny_network(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -423,6 +461,22 @@ def test_run_process_timeout_reap_bounded(
     assert rc == -9  # noqa: PLR2004 - SIGKILL
 
 
+def test_rc_to_signal_wrapper_128n() -> None:
+    """bwrap 把子死信号上报为 128+N：128+SIGPIPE 在 env/off 下按字面
+    退出码、bwrap/sandbox-exec 下解码回信号号；>192 按字面退出码。"""
+    f = sb._rc_to_signal  # noqa: SLF001
+    assert f(-signal.SIGPIPE, "bwrap") == signal.SIGPIPE
+    assert f(-signal.SIGKILL, "off") == signal.SIGKILL
+    assert f(128 + signal.SIGPIPE, "bwrap") == signal.SIGPIPE
+    assert f(128 + signal.SIGPIPE, "sandbox-exec") == signal.SIGPIPE
+    assert f(128 + signal.SIGPIPE, "env") is None
+    assert f(128 + signal.SIGPIPE, "off") is None
+    assert f(200, "bwrap") is None
+    assert f(128, "bwrap") is None
+    assert f(0, "bwrap") is None
+    assert f(None, "bwrap") is None
+
+
 # ---------------------------------------------------------------- rlimits
 requires_posix = pytest.mark.skipif(sys.platform == "win32", reason="rlimits 仅 POSIX")
 
@@ -443,6 +497,7 @@ def test_cap_rlimit_lowers_only() -> None:
         resource.setrlimit(what, (soft, hard))
 
 
+@pytest.mark.integration
 @requires_posix
 def test_run_process_rlimit_as_kills_hog(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -460,6 +515,7 @@ def test_run_process_rlimit_as_kills_hog(
     assert "MemoryError" in out
 
 
+@pytest.mark.integration
 @requires_posix
 def test_run_process_rlimit_cpu_sigxcpu(tmp_path: Path) -> None:
     """RLIMIT_CPU 实证：_cap_rlimit 装 2s CPU 帽的自旋子进程被 SIGXCPU 收。
@@ -481,6 +537,7 @@ def test_run_process_rlimit_cpu_sigxcpu(tmp_path: Path) -> None:
     assert proc.returncode == -signal.SIGXCPU
 
 
+@pytest.mark.integration
 @requires_posix
 def test_run_process_rlimit_nofile_emfile(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -506,6 +563,7 @@ def test_run_process_rlimit_nofile_emfile(
 
 
 # ------------------------------------------------------------- 有界排干环
+@pytest.mark.integration
 @requires_posix
 def test_run_process_exits_on_child_death_not_eof(tmp_path: Path) -> None:
     """孙进程握写端不挡收割：父死即收——旧 ``communicate`` 等 EOF 会烧满
@@ -522,6 +580,7 @@ def test_run_process_exits_on_child_death_not_eof(tmp_path: Path) -> None:
     assert "done" in out
 
 
+@pytest.mark.integration
 @requires_posix
 def test_run_process_timeout_kills_and_salvages(tmp_path: Path) -> None:
     """真超时臂：killpg 收树 + 已读输出经异常带出（echo 先于 sleep 落管）。"""

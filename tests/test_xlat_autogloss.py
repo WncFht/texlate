@@ -12,6 +12,7 @@ from typing import Any
 
 import httpx
 import pytest
+from _xlatkit import chat_payload, json_resp, mock_client
 
 from texlate.xlat import autogloss as ag
 from texlate.xlat import client as cl
@@ -20,20 +21,16 @@ _BASE = "http://mock.local:3033"
 
 
 def _chat_payload(content: str) -> dict[str, Any]:
-    return {
-        "model": "swe-2-medium",
-        "choices": [
-            {
-                "message": {"role": "assistant", "content": content},
-                "finish_reason": "stop",
-            }
-        ],
-        "usage": {"prompt_tokens": 10, "completion_tokens": 5},
-    }
+    """本文件钉 ``"swe-2-medium"``/usage 10/5——透传 ``_xlatkit.chat_payload``。"""
+    return chat_payload(
+        content,
+        model="swe-2-medium",
+        usage={"prompt_tokens": 10, "completion_tokens": 5},
+    )
 
 
 def _ok(content: str) -> httpx.Response:
-    return httpx.Response(200, json=_chat_payload(content))
+    return json_resp(_chat_payload(content))
 
 
 def _mock(plan: list[httpx.Response]) -> tuple[cl.ChatClient, list[httpx.Request]]:
@@ -44,8 +41,7 @@ def _mock(plan: list[httpx.Response]) -> tuple[cl.ChatClient, list[httpx.Request
         reqs.append(r)
         return plan[min(len(reqs), len(plan)) - 1]
 
-    http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
-    return cl.ChatClient(_BASE, "k", http=http), reqs
+    return mock_client(handler, base_url=_BASE, api_key="k"), reqs
 
 
 class TestParsePairs:

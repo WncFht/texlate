@@ -70,8 +70,11 @@ def _proj(tmp_path: Path, tex: str) -> Path:
 
 
 # ---------------------------------------------------------------- 规则接线
-def test_ruleset_rule_count_unchanged() -> None:
-    """条目是 cs_table 表内键值非新规则 —— 总数仍 ≥112 不增量。"""
+def test_ruleset_rule_count_floor() -> None:
+    """条目是 cs_table 表内键值非新规则 —— 总数守住 ≥112 地板线。
+
+    (``>=`` 只证「不缩水」证不了「不增量」——dup id 由 ruleset 装载期
+    ``_dup_id_problems`` 硬拒, 不在本钉射程。)"""
     assert len(load_ruleset().rules) >= 112  # noqa: PLR2004 - schema 断言值
 
 

@@ -238,7 +238,7 @@ class TestValidateModel:
             "line\nbreak",
             "ctl\x7fchar",
             "c1\x9fsep",
-            "sep line",  # U+2028 不可打印
+            "sep\u2028line",  # U+2028 不可打印
             "x\ud800y",  # 孤 surrogate 不可打印
         ):
             with pytest.raises(ValueError, match="invalid model"):

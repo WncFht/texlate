@@ -3,7 +3,10 @@
 覆盖 gate_scorecard 终态合成与缺口公式、benchlib 原子写/账读、
 e2e_mock 种子回退与崩残键、triage 状态词汇边界、compilebench_v3 报告
 容忍度、build_corpus_v3 fetch_one 腐文件重抓。bench/py 纯 stdlib 目经
-pyproject pythonpath 直进；重 import 链（texlate.*）importorskip 延迟。
+pyproject pythonpath 直进；重 bench 模块（gate_scorecard/e2e_mock_bench/
+compilebench_v3/build_corpus_v3/build_corpus_expand）在测试内 importorskip
+延迟；texlate.compile 助手（CompRes/parse_log）模块顶 eager import，
+texlate.e2e/judge 在用点函数级延迟。
 """
 
 from __future__ import annotations
@@ -16,6 +19,7 @@ from typing import TYPE_CHECKING
 import benchlib
 import pytest
 import triage
+from _reckit import make_rec
 
 from texlate.compile.engine import CompRes
 from texlate.compile.loginfo import parse_log
@@ -28,9 +32,9 @@ N_TEX_FILES = 2
 
 
 def _rec(pid: str, status: str, **over: object) -> dict:
-    rec = {"id": pid, "stage": "compile", "arm": "zh", "status": status, "sig": ""}
-    rec.update(over)
-    return rec
+    """compile/zh 钉版记录——``_reckit.make_rec`` 原位包装。"""
+    kw: dict[str, object] = {"arm": "zh"} | over
+    return make_rec(pid, str(kw.pop("stage", "compile")), status, **kw)
 
 
 # ---------------------------------------------------------------- gate_scorecard

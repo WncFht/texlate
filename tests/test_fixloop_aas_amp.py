@@ -34,41 +34,19 @@ stub 宽容面而非真件镜像; aastex61/62 的 ``&``-active 仅限其
 deluxetable 机制内部, 与书目区无关。
 """
 
-import re
-import shutil
-import subprocess
 from pathlib import Path
 
 import pytest
+from _fixloopkit import n_err, requires_xelatex, run_xelatex
+from test_fixloop_aafidelity import _code_lines as _code
 
-STUBS = (
-    Path(__file__).resolve().parent.parent / "src/texlate/compile/fixloop/vendor/stubs"
-)
+import texlate.compile.fixloop as _fixloop_mod
 
-_XELATEX = shutil.which("xelatex")
-_COMPILE = pytest.mark.skipif(_XELATEX is None, reason="xelatex not installed")
-
-
-def _run(wdir: Path, tex: str, passes: int = 1) -> str:
-    (wdir / "main.tex").write_text(tex, encoding="utf-8")
-    for _ in range(passes):
-        subprocess.run(  # noqa: S603 -- argv[0] 来自 shutil.which 绝对路径
-            [_XELATEX, "-interaction=nonstopmode", "main.tex"],
-            cwd=wdir,
-            capture_output=True,
-            timeout=120,
-            check=False,
-        )
-    return (wdir / "main.log").read_text(encoding="utf-8", errors="replace")
+STUBS = Path(_fixloop_mod.__file__).parent / "vendor" / "stubs"
 
 
-def _n_err(log: str) -> int:
-    return len(re.findall(r"^! ", log, re.MULTILINE))
-
-
-def _code(body: str) -> str:
-    """滤 % 注释行 —— pin 断言不得被注释文本夹带。"""
-    return "\n".join(ln for ln in body.splitlines() if not ln.lstrip().startswith("%"))
+def _stub_body(name: str) -> str:
+    return (STUBS / name).read_text(encoding="utf-8")
 
 
 # ------------------------------------------------------- 源码级 pin (免编译)
@@ -106,12 +84,11 @@ def test_wrapper_deferred_to_begin_document(name: str) -> None:
 
 
 @pytest.mark.integration
-@_COMPILE
+@requires_xelatex
 @pytest.mark.parametrize("sty", ["aasms4", "aaspp4"])
 def test_aas4_raw_amp_in_bibitem_label(tmp_path: Path, sty: str) -> None:
     r"""0111599 型: ``\bibitem[.. & ..]`` 裸 ``&`` 不再 misplaced-&。"""
-    shutil.copy(STUBS / f"{sty}.sty", tmp_path / f"{sty}.sty")
-    log = _run(
+    log = run_xelatex(
         tmp_path,
         rf"""\documentclass{{article}}
 \usepackage{{{sty}}}
@@ -127,9 +104,10 @@ a & b
 \end{{tabular}}
 \end{{document}}
 """,
+        extra={f"{sty}.sty": _stub_body(f"{sty}.sty")},
         passes=2,
     )
-    assert _n_err(log) == 0, f"{sty} 仍 {_n_err(log)} 个 '!' 错"
+    assert n_err(log) == 0, f"{sty} 仍 {n_err(log)} 个 '!' 错"
     assert (tmp_path / "main.pdf").is_file()
     aux = (tmp_path / "main.aux").read_text(encoding="utf-8")
     # 裸 & label 落 aux 与 \& 转义形同构 —— 二轮回读不再炸
@@ -137,11 +115,10 @@ a & b
 
 
 @pytest.mark.integration
-@_COMPILE
+@requires_xelatex
 def test_aas4_bare_references_env_raw_amp(tmp_path: Path) -> None:
     r"""bare ``\references..\endreferences`` (2.09 裸用形) env 内裸 ``&`` 收。"""
-    shutil.copy(STUBS / "aasms4.sty", tmp_path / "aasms4.sty")
-    log = _run(
+    log = run_xelatex(
         tmp_path,
         r"""\documentclass{article}
 \usepackage{aasms4}
@@ -152,17 +129,17 @@ text
 \endreferences
 \end{document}
 """,
+        extra={"aasms4.sty": _stub_body("aasms4.sty")},
     )
-    assert _n_err(log) == 0
+    assert n_err(log) == 0
     assert (tmp_path / "main.pdf").is_file()
 
 
 @pytest.mark.integration
-@_COMPILE
+@requires_xelatex
 def test_aa_cls_raw_amp_in_bibitem_label(tmp_path: Path) -> None:
     r"""0104331 型: aa.cls + natbib ``\bibitem[de Thije & Katgert 1999]`` 裸 ``&``。"""
-    shutil.copy(STUBS / "aa.cls", tmp_path / "aa.cls")
-    log = _run(
+    log = run_xelatex(
         tmp_path,
         r"""\documentclass{aa}
 \begin{document}
@@ -176,9 +153,10 @@ a & b
 \end{tabular}
 \end{document}
 """,
+        extra={"aa.cls": _stub_body("aa.cls")},
         passes=2,
     )
-    assert _n_err(log) == 0, f"aa.cls 仍 {_n_err(log)} 个 '!' 错"
+    assert n_err(log) == 0, f"aa.cls 仍 {n_err(log)} 个 '!' 错"
     assert (tmp_path / "main.pdf").is_file()
     aux = (tmp_path / "main.aux").read_text(encoding="utf-8")
     # natbib label 槽内 \& 化 —— 与手写转义同构

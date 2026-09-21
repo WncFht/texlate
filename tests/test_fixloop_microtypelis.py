@@ -10,53 +10,30 @@ pdfTeX≥1.30/LuaTeX 可达, XeTeX 族下 microtype 抛可恢复 ``\PackageError
 保真不动其他行)。
 """
 
-from functools import lru_cache
 from pathlib import Path
 
-from texlate.compile.fixloop import Ruleset, actions, load_ruleset
+from _fixloopkit import EngStub, apply, mk_ctx, rs, rule
+
+from texlate.compile.fixloop import actions
 from texlate.compile.fixloop.engine import LoopCtx, Rule
 from texlate.compile.logparse import ErrReport, parse_text
 
 
-@lru_cache(maxsize=1)
-def _rs() -> Ruleset:
-    return load_ruleset()
-
-
 def _rule(rid: str) -> Rule:
-    return next(r for r in _rs().rules if r.id == rid)
+    return rule(rid)
 
 
 def _ctx(tmp_path: Path, err_head: str = "") -> LoopCtx:
-    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel="main.tex")
-    ctx.err_head = err_head
-    return ctx
+    return mk_ctx(tmp_path, err_head=err_head)
 
 
 def _classify(text: str) -> tuple[str | None, str | None]:
-    return _rs().taxonomy.classify(parse_text(text, _rs().warn_patterns))
+    """kit ``classify`` 尚未透传 ``warn_patterns`` —— 本地保真版留本文件。"""
+    return rs().taxonomy.classify(parse_text(text, rs().warn_patterns))
 
 
-class _Eng:
-    """regex_rewrite/condition 路径的最小引擎替身 (不触 probe/install)。"""
-
-    name = "xelatex"
-
-    def probe_file(self, fname: str, cwd: Path | None = None) -> str | None:
-        del fname, cwd
-        return None
-
-    def filemap(self, fname: str) -> list[str]:
-        del fname
-        return []
-
-
-def _apply(
-    rule: Rule, tmp_path: Path, pay: str, eng: _Eng | None = None
-) -> tuple[bool, str]:
-    return actions._apply(  # noqa: SLF001 - 钉规则动作直驱
-        rule, _ctx(tmp_path), eng or _Eng(), pay, ErrReport()
-    )
+def _apply(r: Rule, tmp_path: Path, pay: str) -> tuple[bool, str]:
+    return apply(r, mk_ctx(tmp_path), pay)
 
 
 _ERR_HEAD = (
@@ -93,7 +70,7 @@ def test_condition_gate_needs_signature(tmp_path: Path) -> None:
     """ctx_suggests 闸: err_head 无签名 → condition 拒 (other 桶不盲点火)。"""
     rule = _rule("microtype_lig_off")
     ok, why = actions._cond_ok(  # noqa: SLF001
-        rule.condition, rule, _ctx(tmp_path, "! some other error"), _Eng(), None
+        rule.condition, rule, _ctx(tmp_path, "! some other error"), EngStub(), None
     )
     assert not ok, why
 
@@ -102,7 +79,7 @@ def test_condition_gate_accepts_signature(tmp_path: Path) -> None:
     """err_head 含 Disabling ligatures → condition 放行。"""
     rule = _rule("microtype_lig_off")
     ok, why = actions._cond_ok(  # noqa: SLF001
-        rule.condition, rule, _ctx(tmp_path, _ERR_HEAD), _Eng(), None
+        rule.condition, rule, _ctx(tmp_path, _ERR_HEAD), EngStub(), None
     )
     assert ok, why
 
@@ -193,7 +170,7 @@ def test_match_apply_routes(tmp_path: Path) -> None:
         )
         ctx = _ctx(sub, _ERR_HEAD)
         rule, note = actions._match_apply(  # noqa: SLF001
-            _rs(), ctx, _Eng(), cat, None, ErrReport()
+            rs(), ctx, EngStub(), cat, None, ErrReport()
         )
         assert rule is not None, f"{cat}: {note}"
         assert rule.id == "microtype_lig_off"
@@ -209,7 +186,7 @@ def test_xetexglyph_arm_unaffected(tmp_path: Path) -> None:
         rule.condition,
         rule,
         _ctx(tmp_path, "! Cannot use XeTeXglyph with ptmr8c"),
-        _Eng(),
+        EngStub(),
         "ptmr8c",
     )
     assert not ok

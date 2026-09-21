@@ -1,6 +1,6 @@
 r"""分派表逐行覆盖（docs/spec/latex-pipeline.md 顺序即语义）。"""
 
-from conftest import DOC, scan_doc
+from conftest import DOC, ph_bodies, scan_doc
 
 from texlate.latex import parse_tex, reconstruct
 from texlate.latex.gullet import IfSetter
@@ -193,7 +193,7 @@ def test_row16_display_math_delims() -> None:
 def test_row17_inline_literals() -> None:
     res = scan_doc(r"Word \LaTeX\ and 50\% off, caf\'e {\bf bold} end.")
     # 无 ph 泄漏：inline 字面命令整行进 run
-    assert all("\\LaTeX" not in v or True for v in res.ph_map.values())
+    assert all("\\LaTeX" not in v for v in res.ph_map.values())
     assert (
         reconstruct(res) == DOC % r"Word \LaTeX\ and 50\% off, caf\'e {\bf bold} end."
     )
@@ -225,9 +225,7 @@ def test_row18_macro_protect_args() -> None:
         r"\newcommand{\secc}[1]{Section~\ref{#1}}"
         "\nSee \\secc{sec:x} at the end of this longer sentence here."
     )
-    assert any(
-        k.startswith("[[REF_") and v == "\\ref{sec:x}" for k, v in res.ph_map.items()
-    )
+    assert "\\ref{sec:x}" in ph_bodies(res, "REF")
     assert all("sec:x" not in c.content for c in res.chunks)
 
 
@@ -241,9 +239,7 @@ def test_row7_ref_beats_macro() -> None:
         r"\newcommand{\secref}[1]{Section~\ref{#1}}"
         "\nSee \\secref{sec:x} at the end of this longer sentence here."
     )
-    assert any(
-        k.startswith("[[REF_") and v == "\\ref{sec:x}" for k, v in res.ph_map.items()
-    )
+    assert "\\ref{sec:x}" in ph_bodies(res, "REF")
 
 
 def test_row19_unknown_cmd_with_args() -> None:

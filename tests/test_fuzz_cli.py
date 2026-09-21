@@ -24,7 +24,6 @@ from __future__ import annotations
 import io
 import json
 import os
-import random
 import re
 import zipfile
 from pathlib import Path
@@ -32,6 +31,7 @@ from typing import TYPE_CHECKING, ClassVar
 
 import httpx
 import pytest
+from _fuzzkit import fuzz_rng
 from conftest import FakeFetcher, make_targz, mk_task_dir
 from typer.testing import CliRunner, Result
 
@@ -293,7 +293,7 @@ class TestArxivIdFuzz:
         no_network: _TripwireFetcher,  # noqa: ARG002 -- fixture 副作用（断网绊线）
     ) -> None:
         """种子随机汤：id 字符域内任意拼接 → 干净拒收，从不触网不 traceback。"""
-        rng = random.Random(_SEED)  # noqa: S311 -- 非加密用途
+        rng = fuzz_rng(_SEED)
         alphabet = "0123456789.vV/abcxyz-_.:?#\t\x00éü字"
         for _ in range(250):
             arxiv_id = "".join(rng.choice(alphabet) for _ in range(rng.randrange(40)))

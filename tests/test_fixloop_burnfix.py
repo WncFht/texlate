@@ -20,6 +20,7 @@ fix 3 ``bbl_stub_rewrite`` count=0: multibib 双 ``\bibliography`` 档
 
 from pathlib import Path
 
+from _fixloopkit import mk_ctx
 from test_fixloop_loop import MockEngine
 
 from texlate.compile.fixloop._builtins_bib import bbl_stub_rewrite
@@ -32,15 +33,12 @@ from texlate.compile.fixloop._builtins_misschar import (
 )
 from texlate.compile.fixloop._builtins_paralong import para_longize
 from texlate.compile.fixloop._builtins_shim import cs_rebind
-from texlate.compile.fixloop.engine import LoopCtx
+from texlate.compile.fixloop.builtins import TRANSFORM_FNS
+
+_PREMATURE = TRANSFORM_FNS["premature_cs_guard"]
 
 
-def _ctx(tmp_path: Path, err_head: str = "") -> LoopCtx:
-    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel="main.tex")
-    ctx.err_head = err_head
-    return ctx
-
-
+# _fixloopkit.write_file 落位后与 paralong/institutesig 同体归并（needs_hoist 已记）。
 def _write(tmp_path: Path, name: str, text: str) -> Path:
     p = tmp_path / name
     p.parent.mkdir(parents=True, exist_ok=True)
@@ -86,7 +84,7 @@ def test_hidden_docclass_head_prepend_safe(tmp_path: Path) -> None:
         "[lmroman10-regular]:mapping=tex-text;!\n",
     )
     eng = MockEngine([], available={"newunicodechar.sty"})
-    ok, note = font_fallback(_ctx(tmp_path), eng, None, {})
+    ok, note = font_fallback(mk_ctx(tmp_path), eng, None, {})
     assert ok, note
     t = (tmp_path / "main.tex").read_text()
     assert t.startswith("\\IfFileExists")
@@ -100,7 +98,7 @@ def test_ensure_usepackage_head_prepend(tmp_path: Path) -> None:
     """``_ensure_usepackage`` 嵌套 docclass 缝注 —— ``\\RequirePackage`` 落构造后行。"""
     _write(tmp_path, "main.tex", _HIDDEN_DOCCLASS)
     eng = MockEngine([], available={"url.sty"})
-    out = _ensure_usepackage(_ctx(tmp_path), eng, "url")
+    out = _ensure_usepackage(mk_ctx(tmp_path), eng, "url")
     assert any("url" in s for s in out)
     t = (tmp_path / "main.tex").read_text()
     assert t.split("\n", 2)[1] == "\\RequirePackage{url} % fixloop: cs-fix"
@@ -116,11 +114,16 @@ def test_cs_rebind_emits_requirepackage(tmp_path: Path) -> None:
     _write(
         tmp_path, "main.log", 'Missing character: There is no § ("A7) in font cmr10!\n'
     )
-    ok, note = cs_rebind(_ctx(tmp_path), None, None, {})
+    ok, note = cs_rebind(mk_ctx(tmp_path), None, None, {})
     assert ok, note
     t = (tmp_path / "main.tex").read_text()
     assert "\\RequirePackage{fontspec}" in t
     assert "\\usepackage" not in t
+
+
+def test_premature_registered() -> None:
+    """注册进 TRANSFORM_FNS (rules/*.yaml function: 面) —— 直取叶子时代结束。"""
+    assert TRANSFORM_FNS["premature_cs_guard"] is premature_cs_guard
 
 
 def test_premature_seam_emits_requirepackage(tmp_path: Path) -> None:
@@ -136,8 +139,8 @@ def test_premature_seam_emits_requirepackage(tmp_path: Path) -> None:
         "main.log",
         "./main.tex:2: LaTeX Error: Missing \\begin{document}.\nl.2 \\numberwithin{e\n",
     )
-    ok, note = premature_cs_guard(
-        _ctx(tmp_path), MockEngine([], available={"amsmath.sty"}), None, {}
+    ok, note = _PREMATURE(
+        mk_ctx(tmp_path), MockEngine([], available={"amsmath.sty"}), None, {}
     )
     assert ok, note
     t = (tmp_path / "main.tex").read_text()
@@ -147,7 +150,7 @@ def test_premature_seam_emits_requirepackage(tmp_path: Path) -> None:
 def test_inject_after_docclass_head_prepend_path(tmp_path: Path) -> None:
     """机制钉: 零 docclass 缝时 ``_inject_after_docclass`` 确走头注。"""
     _write(tmp_path, "main.tex", _DEF_BODY_DOCCLASS)
-    ctx = _ctx(tmp_path)
+    ctx = mk_ctx(tmp_path)
     assert _inject_after_docclass(ctx, "SNIP")
     t = (tmp_path / "main.tex").read_text()
     assert t.startswith("SNIP\n\\newcommand")
@@ -176,7 +179,7 @@ def test_para_longize_cap_covers_ten(tmp_path: Path) -> None:
     """10 肇事宏 (旧 cap 8 截断面) —— cap 64 下全收 ``\\long``。"""
     names = [f"mac{chr(97 + i)}" for i in range(10)]  # maca..macj
     main = _para_proj(tmp_path, names)
-    ctx = _ctx(tmp_path, _para_head(names))
+    ctx = mk_ctx(tmp_path, err_head=_para_head(names))
     ok, note = para_longize(ctx, None, None, {})
     assert ok, note
     t = main.read_text()
@@ -189,7 +192,7 @@ def test_para_longize_truncation_noted(tmp_path: Path) -> None:
     (dedup 键已烧, 滞留宏靠已知残面留痕, 非静默)。"""
     names = [f"mac{chr(97 + i // 26)}{chr(97 + i % 26)}" for i in range(70)]
     main = _para_proj(tmp_path, names)
-    ctx = _ctx(tmp_path, _para_head(names))
+    ctx = mk_ctx(tmp_path, err_head=_para_head(names))
     ok, note = para_longize(ctx, None, None, {})
     assert ok, note
     t = main.read_text()
@@ -215,7 +218,7 @@ def test_bbl_stub_rewrite_all_bibliographies(tmp_path: Path) -> None:
         "main.bbl",
         "\\begin{thebibliography}{9}\\end{thebibliography}\n",
     )
-    ok, note = bbl_stub_rewrite(_ctx(tmp_path), None, None, {})
+    ok, note = bbl_stub_rewrite(mk_ctx(tmp_path), None, None, {})
     assert ok, note
     t = (tmp_path / "main.tex").read_text()
     assert t.count("\\input{main.bbl}") == 2  # noqa: PLR2004

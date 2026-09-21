@@ -20,18 +20,10 @@ test_args_kvdig.py 钉住，本文件只钉花括号第二参形。
 
 import re
 
-from conftest import ART, check_invariants
+from conftest import blob, scan
 
-from texlate.latex import parse_tex
 from texlate.latex.model import ScanResult
 from texlate.latex.reconstruct import reconstruct
-
-
-def scan(body: str, defs: str = "") -> ScanResult:
-    tex = ART % (defs, body)
-    res = parse_tex(tex)
-    check_invariants(res, tex)
-    return res
 
 
 def mock_splice(res: ScanResult) -> str:
@@ -94,6 +86,10 @@ def test_author_nonkv_second_group_stays_diggable() -> None:
     out = mock_splice(res)
     assert "\\author{Someone}" in out
     assert "这是译文" in out  # 散文第二组被译——键值门不误吞
+    # 负例钉版：第二组文本须真进 chunk 面（全组被吸收时两条都挂——
+    # 「回放可挖」与「静默保护/丢弃」光靠 ``这是译文`` 区分不开）
+    assert "and a second prose group" in blob(res)
+    assert "and a second prose group here" not in out
 
 
 def test_bare_key_list_second_arg_absorbed() -> None:

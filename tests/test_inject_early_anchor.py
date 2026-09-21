@@ -7,7 +7,7 @@ r"""``\documentclass`` 缝后早期定义锚（``normalize.XETEX_EARLY_DEFS``）
 main.tex:40 的调用先于定义 → undefined_cs → partial。
 
 修：preamble 消费的仿真定义从文件顶兼容块拆出，走 docclass 缝后锚
-（inject.find_docclass_ends/_splice_after_seams），不挂 bd/子档闸；
+（_seams.find_docclass_ends/_splice_after_seams），不挂 bd/子档闸；
 ``\documentstyle`` 缝滤除（209 无 ``\providecommand``）。
 """
 

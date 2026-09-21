@@ -41,6 +41,7 @@ def _ctx(
     tmp_path: Path,
     err_head: str = _ERR_HEAD,
     files: dict[str, str] | None = None,
+    main_rel: str = "main.tex",
 ) -> LoopCtx:
     for rel, txt in (files or {}).items():
         p = tmp_path / rel
@@ -49,7 +50,7 @@ def _ctx(
     return LoopCtx(
         wdir=tmp_path,
         engine_name="xelatex",
-        main_rel="main.tex",
+        main_rel=main_rel,
         err_head=err_head,
     )
 
@@ -176,17 +177,12 @@ def test_payload_eps_drops_text_placeholder(tmp_path: Path) -> None:
 
 def test_main_in_subdir_bases_at_main_dir(tmp_path: Path) -> None:
     """main 住子目录 → 占位落 main_dir (TeX cwd 解析位) 非 wdir 根。"""
-    files = {"sub/main.tex": "\\documentclass{article}\n"}
-    for rel, txt in files.items():
-        p = tmp_path / rel
-        p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(txt, encoding="utf-8")
-    ctx = LoopCtx(
-        wdir=tmp_path,
-        engine_name="xelatex",
-        main_rel="sub/main.tex",
+    ctx = _ctx(
+        tmp_path,
         err_head="! xdvipdfmx:fatal: Image inclusion failed. "
         "Could not find file: figs/a.png",
+        files={"sub/main.tex": "\\documentclass{article}\n"},
+        main_rel="sub/main.tex",
     )
     ok, note = driver_missing_image_stub(ctx, _Eng(), None, {})
     assert ok, note
@@ -259,6 +255,24 @@ def test_payload_err_head_dedupes_same_name(tmp_path: Path) -> None:
     assert ok, note
     assert "swept" not in note
     assert (tmp_path / "image/shufflenet.png").is_file()
+
+
+def test_sweep_arm_covers_second_missing(tmp_path: Path) -> None:
+    """多缺件格 (2501.01611 双缺面): err_head 只曝首件, 源枚举臂补
+    ``\\includegraphics`` 第二缺件 —— 单补即 ``{rid}:None`` 封派发会卡 stuck,
+    sweep 一轮尽列双落占位。"""
+    ctx = _ctx(
+        tmp_path,
+        files={
+            "main.tex": "\\documentclass{article}\n\\begin{document}\n"
+            "\\includegraphics{other/missing.png}\n\\end{document}\n"
+        },
+    )
+    ok, note = driver_missing_image_stub(ctx, _Eng(), None, {})
+    assert ok, note
+    assert "swept" in note
+    assert (tmp_path / "image/shufflenet.png").is_file()
+    assert (tmp_path / "other/missing.png").is_file()
 
 
 def test_apply_via_rule_other_path(tmp_path: Path) -> None:

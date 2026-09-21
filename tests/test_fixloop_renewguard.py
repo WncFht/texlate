@@ -15,21 +15,16 @@ no-op。``guard`` emission 恒走 ``\\expandafter\\providecommand\\expandafter
 (cls 执行期 → ``guard_pre`` 面)。
 """
 
-import re
-import shutil
-import subprocess
 from pathlib import Path
 
-import pytest
+from _fixloopkit import mk_ctx, n_err, requires_xelatex, run_xelatex
 
 from texlate.compile.fixloop._builtins_csfix import _guard_snippet
 from texlate.compile.fixloop.builtins import TRANSFORM_FNS
-from texlate.compile.fixloop.engine import LoopCtx
 
 _TARGETED = TRANSFORM_FNS["cs_targeted_fix"]
 
-_XELATEX = shutil.which("xelatex")
-_COMPILE = pytest.mark.skipif(_XELATEX is None, reason="xelatex not installed")
+_ctx = mk_ctx
 
 
 class _EngStub:
@@ -42,10 +37,6 @@ class _EngStub:
     def install_file(self, fname: str, *, font_related: bool = False) -> bool:
         del fname, font_related
         return True
-
-
-def _ctx(tmp_path: Path, **kw: object) -> LoopCtx:
-    return LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel="main.tex", **kw)
 
 
 def _proj(tmp_path: Path, files: dict[str, str]) -> None:
@@ -263,29 +254,16 @@ def test_guard_existing_table_entries_intact(tmp_path: Path) -> None:
 # ═══════════════════════ xelatex 端到端 (有引擎才跑) ═══════════════════════
 
 
-@_COMPILE
+@requires_xelatex
 def test_e2e_renew_after_guard_compiles(tmp_path: Path) -> None:
     """guard 预置 → doc 侧 ``\\renewcommand`` 合法接管 —— 2609.20238 全真形。"""
-    _proj(
-        tmp_path,
-        {
-            "main.tex": (
-                "\\documentclass{article}\n"
-                "\\renewcommand*\\backref[1]{#1}\n"
-                "\\begin{document}\nx\n\\end{document}\n"
-            )
-        },
+    tex = (
+        "\\documentclass{article}\n"
+        "\\renewcommand*\\backref[1]{#1}\n"
+        "\\begin{document}\nx\n\\end{document}\n"
     )
     # 预检: 无 guard 时即 "Command \backref undefined" 死形
-    before = subprocess.run(  # noqa: S603
-        [_XELATEX, "-interaction=nonstopmode", "main.tex"],
-        cwd=tmp_path,
-        capture_output=True,
-        timeout=120,
-        check=False,
-    )
-    del before
-    log0 = _read(tmp_path, "main.log")
+    log0 = run_xelatex(tmp_path, tex)
     assert "Command \\backref undefined" in log0 or "Undefined control sequence" in log0
 
     ok, note = _TARGETED(
@@ -295,20 +273,14 @@ def test_e2e_renew_after_guard_compiles(tmp_path: Path) -> None:
         {"cs_table": {"backref": {"guard": "[1]"}}},
     )
     assert ok, note
-    subprocess.run(  # noqa: S603
-        [_XELATEX, "-interaction=nonstopmode", "main.tex"],
-        cwd=tmp_path,
-        capture_output=True,
-        timeout=120,
-        check=False,
-    )
-    log1 = _read(tmp_path, "main.log")
+    # 第二趟须编译**改写后**的 main.tex——回读现文喂回 run_xelatex (不覆盖 seed)
+    log1 = run_xelatex(tmp_path, _read(tmp_path, "main.tex"))
     assert "Command \\backref undefined" not in log1
-    assert not re.search(r"^! ", log1, re.MULTILINE)
+    assert n_err(log1) == 0
     assert (tmp_path / "main.pdf").exists()
 
 
-@_COMPILE
+@requires_xelatex
 def test_e2e_at_name_renew_via_makeatletter(tmp_path: Path) -> None:
     """@-名 seed → ``\\makeatletter`` 域内 ``\\renewcommand`` 接管。"""
     _proj(
@@ -328,19 +300,14 @@ def test_e2e_at_name_renew_via_makeatletter(tmp_path: Path) -> None:
         {"cs_table": {"NAT@force@numbers": {"guard": True}}},
     )
     assert ok, note
-    subprocess.run(  # noqa: S603
-        [_XELATEX, "-interaction=nonstopmode", "main.tex"],
-        cwd=tmp_path,
-        capture_output=True,
-        timeout=120,
-        check=False,
-    )
-    log = _read(tmp_path, "main.log")
-    assert "undefined" not in log.lower() or "Command" not in log
-    assert not re.search(r"^! ", log, re.MULTILINE)
+    log = run_xelatex(tmp_path, _read(tmp_path, "main.tex"))
+    # 严格形 (实编译复核 log 全文无 undefined 字样): renew 死形
+    # ``Command \NAT@force@numbers undefined`` 与裸 undefined_cs 一并收。
+    assert "undefined" not in log.lower()
+    assert n_err(log) == 0
 
 
-@_COMPILE
+@requires_xelatex
 def test_e2e_naive_at_name_form_dies(tmp_path: Path) -> None:
     """对照死形: 裸 ``\\providecommand\\foo@bar`` 字面注入静默错义 —
     ``\\foo`` 被定义、``@bar`` 成裸文, 目标名恒 ``\\relax``。"""
@@ -357,19 +324,12 @@ def test_e2e_naive_at_name_form_dies(tmp_path: Path) -> None:
             )
         },
     )
-    subprocess.run(  # noqa: S603
-        [_XELATEX, "-interaction=nonstopmode", "main.tex"],
-        cwd=tmp_path,
-        capture_output=True,
-        timeout=120,
-        check=False,
-    )
-    log = _read(tmp_path, "main.log")
+    log = run_xelatex(tmp_path, _read(tmp_path, "main.tex"))
     # 裸形 = 断名错义: ``foo@bar`` 仍未定义 —— guard csname emission 存在性旁证
     assert "RGVERDICT=DEAD" in log
 
 
-@_COMPILE
+@requires_xelatex
 def test_e2e_csname_form_seeds_at_name(tmp_path: Path) -> None:
     """正面对照: guard emission 形手工复写 → ``foo@bar`` 真被预置。"""
     _proj(
@@ -386,13 +346,6 @@ def test_e2e_csname_form_seeds_at_name(tmp_path: Path) -> None:
             )
         },
     )
-    subprocess.run(  # noqa: S603
-        [_XELATEX, "-interaction=nonstopmode", "main.tex"],
-        cwd=tmp_path,
-        capture_output=True,
-        timeout=120,
-        check=False,
-    )
-    log = _read(tmp_path, "main.log")
+    log = run_xelatex(tmp_path, _read(tmp_path, "main.tex"))
     assert "RGVERDICT=LIVE" in log
-    assert not re.search(r"^! ", log, re.MULTILINE)
+    assert n_err(log) == 0

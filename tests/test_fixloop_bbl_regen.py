@@ -8,6 +8,8 @@ format version``; .bcf+.bib 在场 → ``biber <stem>`` 重生成 (输出落 .bc
 
 from pathlib import Path
 
+from _fixloopkit import biber_ok
+
 from texlate.compile.fixloop import builtins
 from texlate.compile.fixloop.builtins import bbl_regen
 from texlate.compile.fixloop.engine import LoopCtx, RunFn
@@ -17,12 +19,6 @@ def _ctx(tmp_path: Path, runner: RunFn | None = None) -> LoopCtx:
     return LoopCtx(
         wdir=tmp_path, engine_name="xelatex", main_rel="main.tex", runner=runner
     )
-
-
-def _biber_ok(argv: list[str], _timeout: int, wdir: Path) -> tuple:
-    """模拟 biber: 落 ``<stem>.bbl``, rc=0。"""
-    (wdir / f"{argv[1]}.bbl").write_text("% regen", encoding="utf-8")
-    return 0, "INFO - This is Biber 2.22", 0.5, False
 
 
 def _biber_fail(_argv: list[str], _timeout: int, _wdir: Path) -> tuple:
@@ -37,7 +33,7 @@ def test_bbl_regen_ok(tmp_path: Path) -> None:
 
     def _spy(argv: list[str], t: int, w: Path) -> tuple:
         calls.append(argv)
-        return _biber_ok(argv, t, w)
+        return biber_ok(argv, t, w)
 
     ok, note = bbl_regen(_ctx(tmp_path, runner=_spy), None, "\\sortlist", {})
     assert ok
@@ -89,7 +85,7 @@ def test_bbl_regen_multi_bcf_partial(tmp_path: Path) -> None:
     def _mixed(argv: list[str], _t: int, w: Path) -> tuple:
         calls.append(argv)
         if argv[1] == "a":
-            return _biber_ok(argv, _t, w)
+            return biber_ok(argv, _t, w)
         return 2, "boom", 0.1, False
 
     ok, note = bbl_regen(_ctx(tmp_path, runner=_mixed), None, None, {})
@@ -107,7 +103,7 @@ def test_bbl_regen_nested_bcf(tmp_path: Path) -> None:
 
     def _spy(argv: list[str], _t: int, w: Path) -> tuple:
         calls.append(argv)
-        return _biber_ok(argv, _t, w)
+        return biber_ok(argv, _t, w)
 
     ok, _note = bbl_regen(_ctx(tmp_path, runner=_spy), None, None, {})
     assert ok

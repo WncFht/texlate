@@ -19,37 +19,14 @@
 
 import re
 import shutil
-import subprocess
 from pathlib import Path
 
-import pytest
+from _fixloopkit import STUBS, n_err, requires_xelatex, run_xelatex
 
 from texlate.compile.fixloop.builtins import TRANSFORM_FNS
 from texlate.compile.fixloop.engine import LoopCtx
 
-STUB = (
-    Path(__file__).resolve().parent.parent
-    / "src/texlate/compile/fixloop/vendor/stubs/slashbox.sty"
-)
-
-_XELATEX = shutil.which("xelatex")
-_COMPILE = pytest.mark.skipif(_XELATEX is None, reason="xelatex not installed")
-
-
-def _run(wdir: Path, tex: str) -> str:
-    (wdir / "main.tex").write_text(tex, encoding="utf-8")
-    subprocess.run(  # noqa: S603 -- argv[0] 来自 shutil.which 绝对路径
-        [_XELATEX, "-interaction=nonstopmode", "main.tex"],
-        cwd=wdir,
-        capture_output=True,
-        timeout=120,
-        check=False,
-    )
-    return (wdir / "main.log").read_text(encoding="utf-8", errors="replace")
-
-
-def _n_err(log: str) -> int:
-    return len(re.findall(r"^! ", log, re.MULTILINE))
+STUB = STUBS / "slashbox.sty"
 
 
 def _code(body: str) -> str:
@@ -117,11 +94,11 @@ def test_vendored_fetch_drops_stub_default_root(tmp_path: Path) -> None:
 # ------------------------------------------------------- 真编译钉
 
 
-@_COMPILE
+@requires_xelatex
 def test_both_macros_render_in_tabular(tmp_path: Path) -> None:
     r"""tabular 单元格内双宏 + 可选宽 + 参内 \\ (1109.5364 形) 全零 '!' 错。"""
     shutil.copy(STUB, tmp_path / "slashbox.sty")
-    log = _run(
+    log = run_xelatex(
         tmp_path,
         r"""\documentclass{article}
 \usepackage{slashbox}
@@ -137,15 +114,15 @@ def test_both_macros_render_in_tabular(tmp_path: Path) -> None:
 \end{document}
 """,
     )
-    assert _n_err(log) == 0, f"仍 {_n_err(log)} 个 '!' 错"
+    assert n_err(log) == 0, f"仍 {n_err(log)} 个 '!' 错"
     assert (tmp_path / "main.pdf").is_file()
 
 
-@_COMPILE
+@requires_xelatex
 def test_backslashbox_inside_multirow(tmp_path: Path) -> None:
     r"""1109.5364 实录形: \multirow{2}{*} \protect{\backslashbox{..}{..}}。"""
     shutil.copy(STUB, tmp_path / "slashbox.sty")
-    log = _run(
+    log = run_xelatex(
         tmp_path,
         r"""\documentclass{article}
 \usepackage{slashbox}
@@ -159,15 +136,15 @@ def test_backslashbox_inside_multirow(tmp_path: Path) -> None:
 \end{document}
 """,
     )
-    assert _n_err(log) == 0, f"仍 {_n_err(log)} 个 '!' 错"
+    assert n_err(log) == 0, f"仍 {n_err(log)} 个 '!' 错"
     assert (tmp_path / "main.pdf").is_file()
 
 
-@_COMPILE
+@requires_xelatex
 def test_usepackage_comma_list_form(tmp_path: Path) -> None:
     r"""1404.0561 形: \usepackage{...,slashbox,...} 逗号装载列表。"""
     shutil.copy(STUB, tmp_path / "slashbox.sty")
-    log = _run(
+    log = run_xelatex(
         tmp_path,
         r"""\documentclass{article}
 \usepackage{amsmath,array,graphicx,slashbox,multirow}
@@ -178,5 +155,5 @@ def test_usepackage_comma_list_form(tmp_path: Path) -> None:
 \end{document}
 """,
     )
-    assert _n_err(log) == 0, f"仍 {_n_err(log)} 个 '!' 错"
+    assert n_err(log) == 0, f"仍 {n_err(log)} 个 '!' 错"
     assert (tmp_path / "main.pdf").is_file()

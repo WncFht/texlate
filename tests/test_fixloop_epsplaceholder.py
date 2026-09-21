@@ -9,8 +9,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from _fixloopkit import mk_ctx_files
+
 from texlate.compile.fixloop.builtins import graphic_missing_placeholder
-from texlate.compile.fixloop.engine import LoopCtx
 from texlate.compile.fixloop.ruleset import load_ruleset
 
 if TYPE_CHECKING:
@@ -22,16 +23,8 @@ _MAIN = (
 )
 
 
-def _ctx(tmp_path: Path, files: dict[str, str], main: str = "main.tex") -> LoopCtx:
-    for rel, txt in files.items():
-        p = tmp_path / rel
-        p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(txt, encoding="utf-8")
-    return LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel=main)
-
-
 def test_eps_payload_writes_placeholder_in_subdir(tmp_path: Path) -> None:
-    ctx = _ctx(tmp_path, {"main.tex": _MAIN})
+    ctx = mk_ctx_files(tmp_path, {"main.tex": _MAIN})
     ok, note = graphic_missing_placeholder(ctx, None, "FIGS/plot.eps", {})
     assert ok, note
     out = tmp_path / "FIGS/plot.eps"
@@ -41,7 +34,7 @@ def test_eps_payload_writes_placeholder_in_subdir(tmp_path: Path) -> None:
 
 
 def test_non_ps_suffix_refused(tmp_path: Path) -> None:
-    ctx = _ctx(tmp_path, {"main.tex": "x\n"})
+    ctx = mk_ctx_files(tmp_path, {"main.tex": "x\n"})
     ok, note = graphic_missing_placeholder(ctx, None, "foo.sty", {})
     assert not ok
     assert "not a known graphic ext" in note
@@ -49,7 +42,7 @@ def test_non_ps_suffix_refused(tmp_path: Path) -> None:
 
 
 def test_extless_payload_needs_live_graphic_ref(tmp_path: Path) -> None:
-    ctx = _ctx(
+    ctx = mk_ctx_files(
         tmp_path,
         {
             "main.tex": (
@@ -65,7 +58,7 @@ def test_extless_payload_needs_live_graphic_ref(tmp_path: Path) -> None:
 
 def test_extless_without_live_ref_refused(tmp_path: Path) -> None:
     # \input{chap2} 缺件 payload 是 extless —— 无图形引用作证时绝不落假图
-    ctx = _ctx(
+    ctx = mk_ctx_files(
         tmp_path,
         {
             "main.tex": (
@@ -81,7 +74,7 @@ def test_extless_without_live_ref_refused(tmp_path: Path) -> None:
 
 
 def test_epsfig_kv_form_counts_as_live_ref(tmp_path: Path) -> None:
-    ctx = _ctx(
+    ctx = mk_ctx_files(
         tmp_path,
         {
             "main.tex": (
@@ -98,7 +91,7 @@ def test_epsfig_kv_form_counts_as_live_ref(tmp_path: Path) -> None:
 
 def test_commented_ref_does_not_count(tmp_path: Path) -> None:
     # mask_tex 遮盖视图: 注释内 \includegraphics 不作存活证据
-    ctx = _ctx(
+    ctx = mk_ctx_files(
         tmp_path,
         {"main.tex": "% \\includegraphics{ghost}\nx\n"},
     )
@@ -108,7 +101,7 @@ def test_commented_ref_does_not_count(tmp_path: Path) -> None:
 
 
 def test_path_traversal_refused(tmp_path: Path) -> None:
-    ctx = _ctx(tmp_path, {"main.tex": "x\n"})
+    ctx = mk_ctx_files(tmp_path, {"main.tex": "x\n"})
     ok, note = graphic_missing_placeholder(ctx, None, "../evil.eps", {})
     assert not ok
     assert "traversal" in note
@@ -116,14 +109,14 @@ def test_path_traversal_refused(tmp_path: Path) -> None:
 
 
 def test_existing_file_not_clobbered(tmp_path: Path) -> None:
-    ctx = _ctx(tmp_path, {"main.tex": "x\n", "a.eps": "real content"})
+    ctx = mk_ctx_files(tmp_path, {"main.tex": "x\n", "a.eps": "real content"})
     ok, _note = graphic_missing_placeholder(ctx, None, "a.eps", {})
     assert not ok
     assert (tmp_path / "a.eps").read_text() == "real content"
 
 
 def test_empty_payload_refused(tmp_path: Path) -> None:
-    ctx = _ctx(tmp_path, {"main.tex": "x\n"})
+    ctx = mk_ctx_files(tmp_path, {"main.tex": "x\n"})
     ok, note = graphic_missing_placeholder(ctx, None, "", {})
     assert not ok
     assert "no graphic payload" in note

@@ -8,12 +8,12 @@ r"""e2e 修复链接线——fixloop / L2 回灌 / engine_flags / env judge / �
 from __future__ import annotations
 
 import asyncio
-import importlib
 import json
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
+from conftest import judge_mod, make_project
 
 from texlate import e2e, repair_l2
 from texlate.latex.model import Chunk, Span
@@ -23,17 +23,6 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from texlate.compile.engine import CompRes
-
-_MAIN = (
-    "\\documentclass{article}\n"
-    "\\begin{document}\n"
-    "\\section{Intro}\n"
-    "This is a longer paragraph of English text that should definitely be\n"
-    "segmented into at least one chunk for translation purposes.\n"
-    "\n"
-    "And a second paragraph here.\n"
-    "\\end{document}\n"
-)
 
 #: 未知 env（静态表外）——env judge 的目标输入
 _UNK_ENV_TEX = (
@@ -53,12 +42,6 @@ def _clean_switches(monkeypatch: pytest.MonkeyPatch) -> None:
     """三个开关 env 全部钉成缺省——本机/CI 环境差异免疫。"""
     for k in ("TEXLATE_NO_FIXLOOP", "TEXLATE_NO_L2", "TEXLATE_ENV_JUDGE"):
         monkeypatch.delenv(k, raising=False)
-
-
-def _project(root: Path, main: str = _MAIN) -> Path:
-    root.mkdir(parents=True, exist_ok=True)
-    (root / "main.tex").write_text(main, encoding="utf-8")
-    return root
 
 
 # ---------------------------------------------------------------- 剧本引擎
@@ -170,8 +153,8 @@ def engines(monkeypatch: pytest.MonkeyPatch) -> dict[str, ScriptedEngine]:
         return eng
 
     monkeypatch.setattr(e2e, "engine_for", factory)
-    judge_mod = importlib.import_module("texlate.compile.judge")
-    monkeypatch.setattr(judge_mod, "pdf_cjk_chars", lambda _p: 500)
+    # 包级 re-export 的 judge 函数遮蔽同名子模块属性路径——按模块对象打
+    monkeypatch.setattr(judge_mod(), "pdf_cjk_chars", lambda _p: 500)
     return table
 
 
@@ -182,7 +165,7 @@ def test_fixloop_runs_on_fail_and_recovers(
     tmp_path: Path, engines: dict[str, ScriptedEngine]
 ) -> None:
     """首编 fail（不可归因）→ L2 无命中直通 → fixloop r1 clean → 终态 clean。"""
-    work = _project(tmp_path / "p")
+    work = make_project(tmp_path / "p")
     engines["xelatex"] = ScriptedEngine("xelatex", [_fail_unattributable, _clean])
 
     report = e2e.pipeline_run(work, "xelatex", timeout=30.0)
@@ -209,7 +192,7 @@ def test_fixloop_disabled_by_env(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """``TEXLATE_NO_FIXLOOP=1`` → fixloop 不跑，终态保持 fail。"""
-    work = _project(tmp_path / "p")
+    work = make_project(tmp_path / "p")
     engines["xelatex"] = ScriptedEngine("xelatex", [_fail_unattributable])
     monkeypatch.setenv("TEXLATE_NO_FIXLOOP", "1")
 
@@ -224,7 +207,7 @@ def test_fixloop_crash_does_not_atexit(
     tmp_path: Path, engines: dict[str, ScriptedEngine], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """fixloop 自身崩 → 记 error、终态仍是修复前 verdict（修复臂不毁报告）。"""
-    work = _project(tmp_path / "p")
+    work = make_project(tmp_path / "p")
     engines["xelatex"] = ScriptedEngine("xelatex", [_fail_unattributable])
 
     def boom(*_a: object, **_kw: object) -> dict:
@@ -245,7 +228,7 @@ def test_l2_retranslate_then_recompile(
     tmp_path: Path, engines: dict[str, ScriptedEngine]
 ) -> None:
     """file:line: 命中译文 chunk → 重译 → resplice → 重编 clean → fixloop 不跑。"""
-    work = _project(tmp_path / "p")
+    work = make_project(tmp_path / "p")
     engines["xelatex"] = ScriptedEngine("xelatex", [_fail_at_last_zh, _clean])
     tr = MockTranslator()
 
@@ -288,7 +271,7 @@ def test_l2_fallback_to_source(
                 response_format=response_format,
             )
 
-    work = _project(tmp_path / "p")
+    work = make_project(tmp_path / "p")
     engines["xelatex"] = ScriptedEngine("xelatex", [_fail_at_last_zh, _clean])
     report = e2e.pipeline_run(work, "xelatex", timeout=30.0, translator=BadFix())
 
@@ -309,7 +292,7 @@ def test_l2_fallback_verified_fixloop_off(
     ``TEXLATE_NO_FIXLOOP`` 时交付树零验证。新码回落后恒裸编并把第三态
     verdict 当终态。
     """
-    work = _project(tmp_path / "p")
+    work = make_project(tmp_path / "p")
     engines["xelatex"] = ScriptedEngine(
         "xelatex", [_fail_at_last_zh, _fail_at_last_zh, _clean]
     )
@@ -331,7 +314,7 @@ def test_l2_cap_limits_retranslate(
     tmp_path: Path, engines: dict[str, ScriptedEngine]
 ) -> None:
     """per-doc 上限：``l2_max_chunks=1`` 时多个命中也只重译第一块。"""
-    work = _project(tmp_path / "p")
+    work = make_project(tmp_path / "p")
     engines["xelatex"] = ScriptedEngine("xelatex", [_fail_at_last_zh, _clean])
     tr = MockTranslator()
 
@@ -350,7 +333,7 @@ def test_engine_flags_cross_engine_consumed(
     tmp_path: Path, engines: dict[str, ScriptedEngine], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """fixloop 产 engine_flags + tectonic 仍挂 → 换 xelatex 重编取优。"""
-    work = _project(tmp_path / "p")
+    work = make_project(tmp_path / "p")
     engines["tectonic"] = ScriptedEngine("tectonic", [_fail_unattributable])
     engines["xelatex"] = ScriptedEngine("xelatex", [_clean])
 
@@ -412,7 +395,7 @@ def test_route_engines_narrowed_by_explicit_engine(
     "auto" else [opt_engine]``，parse.py:71-75）：route 候选里虽有 xelatex，
     dropped engine_flags 也不许把显式选型换掉；auto 则保留全量候选。
     """
-    work = _project(tmp_path / "p")
+    work = make_project(tmp_path / "p")
     engines["tectonic"] = ScriptedEngine("tectonic", [_fail_unattributable])
     engines["xelatex"] = ScriptedEngine("xelatex", [_clean])
 
@@ -453,7 +436,7 @@ def test_reject_route_cross_engine_consumed(
     令牌换编取优；``verdict reject:*`` rank 0，xelatex 任何 ≥fail 判定即
     adopted。显式 engine= 收窄 route_engines 时臂自熄（尊重显式选型）。
     """
-    work = _project(tmp_path / "p")
+    work = make_project(tmp_path / "p")
     engines["tectonic"] = ScriptedEngine("tectonic", [_fail_unattributable])
     engines["xelatex"] = ScriptedEngine("xelatex", [_clean])
 
@@ -482,7 +465,7 @@ def test_reject_verdict_without_route_no_cross(
     tmp_path: Path, engines: dict[str, ScriptedEngine], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """裸 ``reject:*``（无 route 令牌）→ 不触发跨引擎臂，死路标签原样。"""
-    work = _project(tmp_path / "p")
+    work = make_project(tmp_path / "p")
     engines["tectonic"] = ScriptedEngine("tectonic", [_fail_unattributable])
     engines["xelatex"] = ScriptedEngine("xelatex", [_clean])
 
@@ -507,7 +490,7 @@ def test_fixloop_ruleset_receives_presplice_baseline(
     base 树，baseline = normalize 后/翻译前的 pristine 快照（
     ``_baseline_snapshot``），fixloop 收敛后 tempdir 即回收。
     """
-    work = _project(tmp_path / "p")
+    work = make_project(tmp_path / "p")
     engines["xelatex"] = ScriptedEngine("xelatex", [_fail_unattributable])
     seen: dict[str, str] = {}
 
@@ -559,7 +542,7 @@ class _JudgeVeto(MockTranslator):
 
 def test_env_judge_default_off(tmp_path: Path) -> None:
     """默认不开：未知 env 照常翻，stats 里 enabled=False。"""
-    work = _project(tmp_path / "p", main=_UNK_ENV_TEX)
+    work = make_project(tmp_path / "p", main=_UNK_ENV_TEX)
     stats = e2e.translate_tree(work)
     assert stats["env_judge"]["enabled"] is False
     out = (work / "main.tex").read_text(encoding="utf-8")
@@ -568,7 +551,7 @@ def test_env_judge_default_off(tmp_path: Path) -> None:
 
 def test_env_judge_reverts_false(tmp_path: Path) -> None:
     """开启后 judge=False 的未知 env 块回落原文，不进 splice。"""
-    work = _project(tmp_path / "p", main=_UNK_ENV_TEX)
+    work = make_project(tmp_path / "p", main=_UNK_ENV_TEX)
     stats = e2e.translate_tree(work, translator=_JudgeVeto(), env_judge=True)
     ej = stats["env_judge"]
     assert ej["enabled"] is True
@@ -651,7 +634,7 @@ def test_tounicode_embed_after_clean(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """clean 落地 → 对最终 ``<stem>.pdf`` 调一次 embed，计数进报告。"""
-    work = _project(tmp_path / "p")
+    work = make_project(tmp_path / "p")
     engines["xelatex"] = ScriptedEngine("xelatex", [_clean])
     calls: list[Path] = []
 
@@ -673,7 +656,7 @@ def test_tounicode_embed_once_after_fixloop(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """修复链收敛后才注：首编 fail → fixloop r1 clean → embed 仍只调一次。"""
-    work = _project(tmp_path / "p")
+    work = make_project(tmp_path / "p")
     engines["xelatex"] = ScriptedEngine("xelatex", [_fail_unattributable, _clean])
     calls: list[Path] = []
     monkeypatch.setattr(e2e, "embed_cjk_mappings", lambda pdf: calls.append(pdf) or 1)
@@ -692,7 +675,7 @@ def test_tounicode_skipped_without_pdf(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """全链无 pdf 产出 → embed 不调、报告无 tounicode_fonts 键。"""
-    work = _project(tmp_path / "p")
+    work = make_project(tmp_path / "p")
     engines["xelatex"] = ScriptedEngine("xelatex", [_fail_unattributable])
     calls: list[Path] = []
     monkeypatch.setattr(e2e, "embed_cjk_mappings", lambda pdf: calls.append(pdf) or 1)
@@ -707,7 +690,7 @@ def test_tounicode_embed_best_effort(
     tmp_path: Path, engines: dict[str, ScriptedEngine]
 ) -> None:
     """真 embed 在假 pdf 字节上崩 → best-effort 壳吞掉，管线终态不受拖累。"""
-    work = _project(tmp_path / "p")
+    work = make_project(tmp_path / "p")
     engines["xelatex"] = ScriptedEngine("xelatex", [_clean])
 
     report = e2e.pipeline_run(work, "xelatex", timeout=30.0)

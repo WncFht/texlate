@@ -23,7 +23,7 @@ import pytest
 pytest.importorskip("fastapi", reason="server extra 未装")
 pytest.importorskip("starlette.testclient", reason="server extra 未装")
 
-from conftest import MINI_TEX, make_app, mk_api_task
+from conftest import MINI_TEX, force_status, make_app, mk_api_task
 from starlette.testclient import TestClient
 
 from texlate.server.settings import SettingsStore
@@ -61,13 +61,6 @@ def raw_client(
     """``raise_server_exceptions=False``——探测 5xx 错误面专用。"""
     with TestClient(make_app(tmp_path), raise_server_exceptions=False) as c:
         yield c
-
-
-def _force(client: TestClient, tid: str, status: str) -> None:
-    """store.transition force 通道（portal 线程纪律）。"""
-    client.portal.call(
-        partial(client.app.state.store.transition, tid, status, force=True)
-    )
 
 
 def _publish_done(client: TestClient, tid: str) -> None:
@@ -643,7 +636,7 @@ class TestSseBoundary:
 
     def test_huge_last_event_id_graceful(self, client: TestClient) -> None:
         tid = mk_api_task(client, ARXIV)
-        _force(client, tid, "done")
+        force_status(client, tid, "done")
         # 期望：超界 last_id 被夹住/视为空——流干净终结（无已发事件可放）
         events = self._sse_events(client, tid, str(2**80))
         assert events == ["snapshot"]
@@ -652,7 +645,7 @@ class TestSseBoundary:
         """int64 上限内：无重放事件（seq 全 ≤id）→ snapshot 帧后即终。"""
         tid = mk_api_task(client, ARXIV)
         _publish_done(client, tid)
-        _force(client, tid, "done")
+        force_status(client, tid, "done")
         events = self._sse_events(client, tid, str(_INT64_MAX))
         assert events == ["snapshot"]
 
@@ -663,14 +656,14 @@ class TestSseBoundary:
         """解析失败/负值 → last_id=0 → 全量重放含 done 帧收尾。"""
         tid = mk_api_task(client, ARXIV)
         _publish_done(client, tid)
-        _force(client, tid, "done")
+        force_status(client, tid, "done")
         events = self._sse_events(client, tid, leid)
         assert events == ["snapshot", "stage", "done"]
 
     def test_accept_media_type_case(self, client: TestClient) -> None:
         tid = mk_api_task(client, ARXIV)
         _publish_done(client, tid)
-        _force(client, tid, "done")
+        force_status(client, tid, "done")
         r = client.get(f"/api/task/{tid}", headers={"Accept": "TEXT/EVENT-STREAM"})
         assert r.headers["content-type"].startswith("text/event-stream")
 
@@ -685,7 +678,7 @@ class TestSseBoundary:
     def test_accept_superset_still_sse(self, client: TestClient, accept: str) -> None:
         tid = mk_api_task(client, ARXIV)
         _publish_done(client, tid)
-        _force(client, tid, "done")
+        force_status(client, tid, "done")
         r = client.get(f"/api/task/{tid}", headers={"Accept": accept})
         assert r.headers["content-type"].startswith("text/event-stream")
 
@@ -764,7 +757,7 @@ class TestSharePackIndexHostility:
     def _done_arxiv_task(self, client: TestClient) -> tuple[str, str]:
         """done 任务 + 真 share_key（manifest 派生与端点同口径）。"""
         tid = mk_api_task(client, ARXIV)
-        _force(client, tid, "done")
+        force_status(client, tid, "done")
         store = client.app.state.store
         row = client.portal.call(partial(store.get, tid))
         root = client.app.state.data_dir

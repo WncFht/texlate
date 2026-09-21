@@ -26,15 +26,21 @@ from collections.abc import Callable
 from pathlib import Path
 
 import pytest
-from test_fixloop_loop import CLEAN_LOG, MockEngine, MockRes, make_proj, mini_rs
+from test_fixloop_loop import (
+    BOOM_LOG,
+    BOOM_TAXONOMY,
+    CLEAN_LOG,
+    MockEngine,
+    MockRes,
+    make_proj,
+    mini_rs,
+    run_tool_rules,
+)
 
 from texlate.compile.engine import CompRes, XelatexEngine
 from texlate.compile.fixloop import Ruleset, fixloop
 from texlate.compile.judge import judge
 from texlate.compile.loginfo import LogInfo
-
-BOOM_TAXONOMY = [{"id": "boom", "scope": "head", "pattern": "BOOM"}]
-BOOM_LOG = "! BOOM every time\n"
 
 
 class _SizedMockRes(MockRes):
@@ -65,20 +71,6 @@ class _SizedEngine(MockEngine):
 
 def _rs(loop_cfg: dict | None = None) -> Ruleset:
     return mini_rs(rules=[], taxonomy=BOOM_TAXONOMY, loop_cfg=loop_cfg)
-
-
-def _run_tool_rules(n: int) -> list[dict]:
-    """boom 类 run_tool 规则 ×n —— 跨轮 apply/dedup 用的占位派发件。"""
-    return [
-        {
-            "id": f"fix{i}",
-            "phase": "loop",
-            "order": i,
-            "when": {"category": "boom"},
-            "action": {"kind": "run_tool", "params": {"argv": ["true"]}},
-        }
-        for i in range(1, n + 1)
-    ]
 
 
 # ---------------------------------------------------------------- Guard A
@@ -117,7 +109,7 @@ def test_stuck_truncated_end_blocked(tmp_path: Path) -> None:
     烧轮终止路径 (verdict 集合 None/max_rounds/stuck 的 split 臂) 同样
     受闸——截断轮只经 ``last.get("log_truncated")`` 进入 dirty 判定。
     """
-    rs = mini_rs(rules=_run_tool_rules(2), taxonomy=BOOM_TAXONOMY)
+    rs = mini_rs(rules=run_tool_rules(2), taxonomy=BOOM_TAXONOMY)
     eng = _SizedEngine([{"log": BOOM_LOG, "pdf": True}], halt_on_error=True)
     cell = fixloop(
         make_proj(tmp_path),
@@ -269,7 +261,7 @@ def test_guard_b_peak_baseline(tmp_path: Path) -> None:
     floor=0 (入口无 pdf) 格也被 run 内峰值覆盖——census ``no_baseline``
     盲区的关闭面。r1 派发 apply → r2 同签 dedup miss → dirty_pdf 收尾。
     """
-    rs = mini_rs(rules=_run_tool_rules(1), taxonomy=BOOM_TAXONOMY)
+    rs = mini_rs(rules=run_tool_rules(1), taxonomy=BOOM_TAXONOMY)
     eng = _SizedEngine(
         [
             {"log": BOOM_LOG, "pdf": True, "pdf_size": 9000},

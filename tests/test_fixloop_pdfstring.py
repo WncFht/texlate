@@ -4,9 +4,10 @@ r"""pdfstring_cs_disarm 内建 —— moving-arg 数学 cs 犯 pdfstring 扫描�
 ``\title{... $\times$ ...}`` → ``\maketitle`` 触发 ``\pdfstringdef``
 书签展开, 去 math shift 后做 `` `\<cs> `` 字母常量扫描, 多字符 cs
 (`` `\times ``) 非法 → ``Improper alphabetic constant`` + intcalc
-级联。修复 = 文档化逃生舱 ``\pdfstringdefDisableCommands{\def\<cs>{}}``
-——排版侧零接触; 肇事名取日志 ``<to be read again>`` 行, ``len>2``
-滤单字符合法形 (`` `\x `` TeX 不报)。
+级联。修复 = 文档化逃生舱 ``\pdfstringdefDisableCommands{...\csname
+\<name>\endcsname{} 空降格}`` ——排版侧零接触, ``\csname`` 形兼容肇事
+名含 ``@`` (宿主 @=12 下裸 ``\def\@x{}`` 断名); 肇事名取日志
+``<to be read again>`` 行, ``len>2`` 滤单字符合法形 (`` `\x `` TeX 不报)。
 """
 
 from pathlib import Path
@@ -31,11 +32,13 @@ _MAIN = (
 
 
 def _ctx(tmp_path: Path, err_head: str = "") -> LoopCtx:
-    ctx = LoopCtx(
-        wdir=tmp_path, engine_name="xelatex", main_rel="main.tex", runner=None
+    return LoopCtx(
+        wdir=tmp_path,
+        engine_name="xelatex",
+        main_rel="main.tex",
+        runner=None,
+        err_head=err_head,
     )
-    ctx.err_head = err_head
-    return ctx
 
 
 def _main(tmp_path: Path, text: str = _MAIN) -> None:
@@ -49,7 +52,10 @@ def test_fires_injects_guarded_disarm(tmp_path: Path) -> None:
     assert ok, note
     t = (tmp_path / "main.tex").read_text(encoding="utf-8")
     assert "\\ifdefined\\pdfstringdefDisableCommands" in t
-    assert "\\pdfstringdefDisableCommands{\\def\\times{}}" in t
+    assert (
+        "\\pdfstringdefDisableCommands{\\expandafter\\def\\csname times\\endcsname{}}"
+        in t
+    )
     assert "\\fi" in t
     # 注入位: docclass 之后, \begin{document} 之前
     assert (
@@ -66,7 +72,7 @@ def test_offender_from_log_not_err_head(tmp_path: Path) -> None:
     ok, note = pdfstring_cs_disarm(_ctx(tmp_path), None, None, {})
     assert ok, note
     t = (tmp_path / "main.tex").read_text(encoding="utf-8")
-    assert "\\def\\times{}" in t
+    assert "\\def\\csname times\\endcsname{}" in t
 
 
 def test_multi_offenders_single_pass(tmp_path: Path) -> None:
@@ -80,8 +86,8 @@ def test_multi_offenders_single_pass(tmp_path: Path) -> None:
     ok, note = pdfstring_cs_disarm(_ctx(tmp_path, err), None, None, {})
     assert ok, note
     t = (tmp_path / "main.tex").read_text(encoding="utf-8")
-    assert "\\def\\times{}" in t
-    assert "\\def\\pdo{}" in t
+    assert "\\def\\csname times\\endcsname{}" in t
+    assert "\\def\\csname pdo\\endcsname{}" in t
 
 
 def test_idempotent_second_call(tmp_path: Path) -> None:

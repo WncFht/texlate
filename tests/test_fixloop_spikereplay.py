@@ -36,30 +36,35 @@ NEED_WORK = pytest.mark.skipif(
     not WORK.is_dir(), reason="bench/work_fixloop 不在本机 (gitignored 重产物)"
 )
 
-# 入库真 log 锚点: 路径 → (n_bang, taxonomy 类, payload)
-# fixtures/logs/ 行派生自 manifest.json fixloop 字段；顶级两件为 manifest 前
-# 入库的早期 fixture, 不在 logs/ 内故保持手写。
-_FIXTURE_CATS: dict[Path, tuple[int, str, str | None]] = {
-    LOGS / row["file"]: (
-        row["fixloop"]["n_bang"],
-        row["fixloop"]["category"],
-        row["fixloop"]["payload"],
-    )
-    for row in json.loads((LOGS / "manifest.json").read_text(encoding="utf-8"))
-}
-_FIXTURE_CATS[FIXTURES / "xelatex-missing-file.log"] = (
-    2,
-    "missing_file",
-    "setstack.sty",
-)
-_FIXTURE_CATS[FIXTURES / "xelatex-fileline-syntax.log"] = (2, "syntax", None)
+
+@lru_cache(maxsize=1)
+def _fixture_cats() -> dict[Path, tuple[int, str, str | None]]:
+    """入库真 log 锚点: 路径 → (n_bang, taxonomy 类, payload)——首用时读
+    manifest (收集期不 IO, 同 ``_rs`` 口径; manifest 缺席只炸消费用例)。
+
+    fixtures/logs/ 行派生自 manifest.json fixloop 字段；顶级两件为 manifest
+    前入库的早期 fixture, 不在 logs/ 内故保持手写。
+    """
+    cats: dict[Path, tuple[int, str, str | None]] = {
+        LOGS / row["file"]: (
+            row["fixloop"]["n_bang"],
+            row["fixloop"]["category"],
+            row["fixloop"]["payload"],
+        )
+        for row in json.loads((LOGS / "manifest.json").read_text(encoding="utf-8"))
+    }
+    cats[FIXTURES / "xelatex-missing-file.log"] = (2, "missing_file", "setstack.sty")
+    cats[FIXTURES / "xelatex-fileline-syntax.log"] = (2, "syntax", None)
+    return cats
 
 
 def _main_logs() -> list[Path]:
     """``work_fixloop/<corpus>/<cond>/*.log`` —— 排除 missfont 侧log 与 _texmf 家务目录。"""
     out = []
     for p in sorted(WORK.rglob("*.log")):
-        if p.name == "missfont.log" or any(part.startswith("_") for part in p.parts):
+        if p.name == "missfont.log" or any(
+            part.startswith("_") for part in p.relative_to(WORK).parts
+        ):
             continue
         out.append(p)
     return out
@@ -67,7 +72,7 @@ def _main_logs() -> list[Path]:
 
 def test_fixture_logs_classify() -> None:
     """入库真 log 走 taxonomy —— manifest 全行 + 顶级两件, 干净 clone 常跑。"""
-    for path, (n_bang, cat, pay) in _FIXTURE_CATS.items():
+    for path, (n_bang, cat, pay) in _fixture_cats().items():
         rep = parse_log(path, _rs().warn_patterns)
         assert rep.n_bang == n_bang
         assert rep.tail is not None
@@ -96,6 +101,8 @@ def test_all_main_logs_parseable() -> None:
 def test_known_residual_categories() -> None:
     soul = WORK / "2005.11401/zh/neurips_2020.log"
     tfm = WORK / "2106.09685/ctex/iclr2022_conference.log"
+    if not (soul.exists() or tfm.exists()):
+        pytest.skip("bench/work_fixloop 存在但两个残错锚点均缺席 (部分清理/重建)")
     if soul.exists():
         cat, _ = _rs().taxonomy.classify(parse_log(soul, _rs().warn_patterns))
         assert cat == "soul_err"  # spike 唯一未救回残错

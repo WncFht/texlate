@@ -40,16 +40,18 @@ DOC = (
     "\\end{document}\n"
 )
 
+#: 双模注入钉共用的最小文档壳。
+_MINIMAL_DOC = "\\documentclass{article}\n\\begin{document}\nx\\end{document}\n"
 
-def test_math_fallback_injected_both_modes() -> None:
+
+@pytest.mark.parametrize("mode", ["ctex", "xecjk"])
+def test_math_fallback_injected_both_modes(mode: str) -> None:
     """ctex 与 xecjk 两条注入路径都带数学兜底块。"""
-    tex = "\\documentclass{article}\n\\begin{document}\nx\\end{document}\n"
-    for mode in ("ctex", "xecjk"):
-        out, info = inject_cjk(tex, mode=mode)
-        assert info["status"] == "injected"
-        assert "\\DeclareSymbolFont{texlatecjk}" in out
-        assert "\\Umathcode" in out
-        assert "FandolSong-Regular.otf" in out
+    out, info = inject_cjk(_MINIMAL_DOC, mode=mode)
+    assert info["status"] == "injected"
+    assert "\\DeclareSymbolFont{texlatecjk}" in out
+    assert "\\Umathcode" in out
+    assert "FandolSong-Regular.otf" in out
 
 
 def test_math_fallback_engine_guard() -> None:
@@ -74,22 +76,21 @@ def test_math_fallback_skipped_when_cjk_present() -> None:
     out, info = inject_cjk(tex)
     assert info["status"] == "already"
     assert "texlatecjk" not in out
-    assert "first-use warmup" not in out
+    assert CJK_FIRST_USE_WARMUP.strip() not in out
 
 
-def test_first_use_warmup_injected_both_modes() -> None:
+@pytest.mark.parametrize("mode", ["ctex", "xecjk"])
+def test_first_use_warmup_injected_both_modes(mode: str) -> None:
     """两条注入路径都带首用 warmup，且注册点在 CJK 宏包加载之后（启用点序正确）。"""
-    tex = "\\documentclass{article}\n\\begin{document}\nx\\end{document}\n"
     anchors = {
         "ctex": r"\usepackage[fontset=fandol,UTF8,zihao=false]{ctex}",
         "xecjk": r"\setCJKmainfont",
     }
-    for mode in ("ctex", "xecjk"):
-        out, info = inject_cjk(tex, mode=mode)
-        assert info["status"] == "injected"
-        assert "first-use warmup" in out
-        assert "\\AtBeginDocument{\\setbox0=\\hbox{字}}" in out
-        assert out.index(anchors[mode]) < out.index("first-use warmup")
+    out, info = inject_cjk(_MINIMAL_DOC, mode=mode)
+    assert info["status"] == "injected"
+    assert CJK_FIRST_USE_WARMUP.strip() in out
+    assert "\\AtBeginDocument{\\setbox0=\\hbox{字}}" in out
+    assert out.index(anchors[mode]) < out.index(CJK_FIRST_USE_WARMUP.strip())
 
 
 def test_first_use_warmup_engine_guard() -> None:
@@ -101,7 +102,9 @@ def test_first_use_warmup_engine_guard() -> None:
 
 
 def test_math_fallback_covers_unified_ranges() -> None:
-    """兜底码位覆盖 CJK 统一表意文字主段 + ext-A + 兼容/标点/假名/全角 + astral ext-B..F。"""
+    """兜底码位覆盖 CJK 统一表意文字主段 + ext-A + 部首补充(2E80-2FDF)
+    + 兼容/标点/假名/全角 + astral ext-B(20000-2A6DF) 与 ext-C..F 段
+    (2A700-2EBEF)——``\\TeXlate@mathmap\\symtexlatecjk`` 九段全钉。"""
     for rng in (
         "4E00-9FFF",
         "3400-4DBF",
@@ -109,20 +112,21 @@ def test_math_fallback_covers_unified_ranges() -> None:
         "FF00-FFEF",
         "3040-30FF",
         "F900-FAFF",
+        "2E80-2FDF",
         "20000-2A6DF",
+        "2A700-2EBEF",
     ):
         assert rng in CJK_MATH_FALLBACK
 
 
-def test_tie_accent_fix_injected_both_modes() -> None:
+@pytest.mark.parametrize("mode", ["ctex", "xecjk"])
+def test_tie_accent_fix_injected_both_modes(mode: str) -> None:
     r"""``\t`` TU 声明随两条注入路径落盘，包在 ``\UnicodeEncodingName`` 门内。"""
     assert "\\ifdefined\\UnicodeEncodingName" in TIE_ACCENT_FIX
     assert "\\DeclareUnicodeAccent{\\t}" in TIE_ACCENT_FIX
-    tex = "\\documentclass{article}\n\\begin{document}\nx\\end{document}\n"
-    for mode in ("ctex", "xecjk"):
-        out, info = inject_cjk(tex, mode=mode)
-        assert info["status"] == "injected"
-        assert "\\DeclareUnicodeAccent{\\t}" in out
+    out, info = inject_cjk(_MINIMAL_DOC, mode=mode)
+    assert info["status"] == "injected"
+    assert "\\DeclareUnicodeAccent{\\t}" in out
 
 
 @pytest.mark.integration

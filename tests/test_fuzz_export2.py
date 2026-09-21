@@ -92,6 +92,7 @@ from _fuzzkit import (
     soup_join,
     soup_pick,
 )
+from _zipkit import ed, encdoc, wzip
 
 from texlate.export import sniff_format
 from texlate.export.common import (
@@ -137,10 +138,7 @@ _XHTML = (
 
 def _wzip(path: Path, members: dict[str, bytes]) -> Path:
     """写 zip（成员序 = dict 序）；目录条目与重名走调用方手写。"""
-    with zipfile.ZipFile(path, "w") as z:
-        for name, blob in members.items():
-            z.writestr(name, blob)
-    return path
+    return wzip(path, members, compress=zipfile.ZIP_STORED)
 
 
 def _container(opf_path: str | None) -> bytes:
@@ -183,27 +181,6 @@ def _opf(
     )
 
 
-def _encdoc(inner: bytes) -> bytes:
-    return (
-        b'<?xml version="1.0"?>'
-        b'<encryption xmlns="urn:oasis:names:tc:opendocument:xmlns:container" '
-        b'xmlns:enc="http://www.w3.org/2001/04/xmlenc#">' + inner + b"</encryption>"
-    )
-
-
-def _ed(alg: str | None) -> bytes:
-    if alg is None:
-        m = b"<enc:EncryptionMethod/>"
-    else:
-        m = f'<enc:EncryptionMethod Algorithm="{alg}"/>'.encode()
-    return (
-        b"<enc:EncryptedData>"
-        + m
-        + b'<enc:CipherData><enc:CipherReference URI=""/></enc:CipherData>'
-        + b"</enc:EncryptedData>"
-    )
-
-
 def _book(members: dict[str, bytes], order: list[str] | None = None) -> EpubBook:
     return EpubBook(
         members=members,
@@ -231,21 +208,21 @@ class TestCheckEpub:
             ({"META-INF/signatures.xml": b"<x/>"}, "ok"),  # 签名≠保护（刻意缺席）
             ({"meta-inf/rights.xml": b"<x/>"}, "ok"),  # 大小写精确（观察钉）
             ({"META-INF/rights.xml/": b"x"}, "ok"),  # 尾斜杠是另一名字（观察钉）
-            ({_ENC: _encdoc(_ed(_FONT_OBF))}, "ok"),  # 纯字体混淆
-            ({_ENC: _encdoc(_ed("http://ns.adobe.com/pdf/enc#RC"))}, "ok"),
-            ({_ENC: _encdoc(_ed(_AES))}, "drm"),
-            ({_ENC: _encdoc(_ed(_FONT_OBF) + _ed(_AES))}, "drm"),  # 混排一票否决
-            ({_ENC: _encdoc(_ed(None))}, "drm"),  # 不报算法
-            ({_ENC: _encdoc(_ed(""))}, "drm"),  # 空算法
+            ({_ENC: encdoc(ed(_FONT_OBF))}, "ok"),  # 纯字体混淆
+            ({_ENC: encdoc(ed("http://ns.adobe.com/pdf/enc#RC"))}, "ok"),
+            ({_ENC: encdoc(ed(_AES))}, "drm"),
+            ({_ENC: encdoc(ed(_FONT_OBF) + ed(_AES))}, "drm"),  # 混排一票否决
+            ({_ENC: encdoc(ed(None))}, "drm"),  # 不报算法
+            ({_ENC: encdoc(ed(""))}, "drm"),  # 空算法
             (
-                {_ENC: _encdoc(_ed("http://www.idpf.org/2008/Embedding"))},
+                {_ENC: encdoc(ed("http://www.idpf.org/2008/Embedding"))},
                 "drm",
             ),  # 大小写
-            ({_ENC: _encdoc(_ed(_FONT_OBF + " "))}, "drm"),  # 尾随空白精确匹配
-            ({_ENC: _encdoc(b"<enc:EncryptionData/>")}, "drm"),  # 无 EncryptedData 组
+            ({_ENC: encdoc(ed(_FONT_OBF + " "))}, "drm"),  # 尾随空白精确匹配
+            ({_ENC: encdoc(b"<enc:EncryptionData/>")}, "drm"),  # 无 EncryptedData 组
             (
                 {
-                    _ENC: _encdoc(
+                    _ENC: encdoc(
                         b"<enc:EncryptedData><enc:CipherData/></enc:EncryptedData>"
                     )
                 },
@@ -253,7 +230,7 @@ class TestCheckEpub:
             ),  # 无方法
             (
                 {
-                    _ENC: _encdoc(
+                    _ENC: encdoc(
                         b"<enc:EncryptedData><enc:CipherData>"
                         b'<x:EncryptionMethod xmlns:x="u" Algorithm="'
                         + _AES.encode()
@@ -264,8 +241,8 @@ class TestCheckEpub:
             ),  # 藏在 CipherData 深处的方法不算声明
             ({_ENC: b""}, "drm"),  # 读不懂的声明按有害读
             ({_ENC: b"not xml <<<"}, "drm"),
-            ({_ENC: b"\xef\xbb\xbf" + _encdoc(_ed(_FONT_OBF))}, "ok"),  # BOM 容忍
-            ({_ENC: _encdoc(_ed(_FONT_OBF)) + b"GARBAGE"}, "drm"),  # 尾随垃圾
+            ({_ENC: b"\xef\xbb\xbf" + encdoc(ed(_FONT_OBF))}, "ok"),  # BOM 容忍
+            ({_ENC: encdoc(ed(_FONT_OBF)) + b"GARBAGE"}, "drm"),  # 尾随垃圾
             ({_ENC: b"<r><x></r>"}, "drm"),
             (
                 {
@@ -345,13 +322,13 @@ class TestCheckEpub:
         for i in range(200):
             r = rng.random()
             if r < 0.3:  # noqa: PLR2004 -- soup 概率档
-                body = _encdoc(
+                body = encdoc(
                     b"".join(
-                        _ed(soup_pick(rng, alg_soup)) for _ in range(rng.randint(0, 3))
+                        ed(soup_pick(rng, alg_soup)) for _ in range(rng.randint(0, 3))
                     )
                 )
             elif r < 0.6:  # noqa: PLR2004
-                body = _encdoc(
+                body = encdoc(
                     b"".join(
                         soup_pick(rng, frag_soup) for _ in range(rng.randint(1, 4))
                     )
@@ -823,9 +800,23 @@ class TestMarkerReport:
 
 
 class _BoomTranslator:
-    """永抛 translator——管线内部降级面。"""
+    """永抛 translator——管线内部降级面。
 
-    async def translate(self, req: object) -> object:  # noqa: ARG002 -- 鸭子型桩签名
+    签名须与 ``Translator`` 协议一致（kw-only，``_TripTranslator`` 注同款
+    坑）——``translate(self, req)`` 形桩会让 ``TypeError`` 先于
+    ``RuntimeError`` 爆出，钉的是契约违反而非调用内失败臂。
+    """
+
+    async def translate(
+        self,
+        *,
+        system: str,
+        user: str,
+        temperature: float,
+        max_tokens: int,
+        response_format: dict[str, str] | None = None,
+    ) -> str:
+        del system, user, temperature, max_tokens, response_format
         msg = "translator boom"
         raise RuntimeError(msg)
 

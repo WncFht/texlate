@@ -23,14 +23,10 @@ polyfill 走 ``\\newcount\\<prim>\\<prim>=1`` —— ``\\chardef`` 形对写型�
 
 from pathlib import Path
 
-from texlate.compile.fixloop import (
-    Ruleset,
-    _builtins_shim,
-    actions,
-    builtins,
-    load_ruleset,
-)
-from texlate.compile.fixloop.engine import LoopCtx, Rule
+from _fixloopkit import EngStub, match, mk_ctx, rule
+
+from texlate.compile.fixloop import _builtins_shim, actions, builtins
+from texlate.compile.fixloop.engine import LoopCtx
 from texlate.compile.logparse import ErrReport
 
 # 系统 texmf 帧 token (file_stack_at 实录形态: 相对帧 ./ 前缀, 系统帧绝对)。
@@ -41,14 +37,6 @@ _MAIN = (
     "\\documentclass{article}\n\\usepackage{somepkg}\n"
     "\\begin{document}\nx\n\\end{document}\n"
 )
-
-
-def _rs() -> Ruleset:
-    return load_ruleset()
-
-
-def _rule(rid: str) -> Rule:
-    return next(r for r in _rs().rules if r.id == rid)
 
 
 def _rep_sty() -> ErrReport:
@@ -63,23 +51,14 @@ def _rep_glyph() -> ErrReport:
 
 def _ctx(tmp_path: Path, main: str = _MAIN) -> LoopCtx:
     (tmp_path / "main.tex").write_text(main, encoding="utf-8")
-    return LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel="main.tex")
-
-
-def _match(
-    ctx: LoopCtx, pay: str, rep: ErrReport, cat: str = "pdftex_prim"
-) -> Rule | None:
-    rule, _note = actions._match_apply(  # noqa: SLF001 - 路由行为直驱
-        _rs(), ctx, None, cat, pay, rep
-    )
-    return rule
+    return mk_ctx(tmp_path)
 
 
 # ---------------------------------------------------------------- 接线
 def test_widened_conditions_carry_err_outside_fileset() -> None:
     """两臂 condition.any 各挂 err_outside_fileset 备选。"""
     for rid in ("pdftex_prim_polyfill", "glyphtounicode_shadow"):
-        cond = _rule(rid).condition
+        cond = rule(rid).condition
         assert {"err_outside_fileset": True} in cond["any"], rid
 
 
@@ -97,9 +76,9 @@ def test_new_prims_registered_countish() -> None:
 def test_cond_err_outside_fileset_system_site_passes(tmp_path: Path) -> None:
     """file_stack 内层帧 = 系统 texmf 件 → err_outside_fileset 过。"""
     ctx = _ctx(tmp_path)
-    rule = _rule("pdftex_prim_polyfill")
+    r = rule("pdftex_prim_polyfill")
     ok, why = actions._cond_ok(  # noqa: SLF001
-        rule.condition, rule, ctx, None, "pdfcompresslevel", _rep_sty()
+        r.condition, r, ctx, EngStub(), "pdfcompresslevel", _rep_sty()
     )
     assert ok, why
 
@@ -108,9 +87,9 @@ def test_cond_err_outside_fileset_popped_fallback(tmp_path: Path) -> None:
     """runaway 空栈 → popped_files[-1] 回退帧判 (同 _requester_paths 口径)。"""
     ctx = _ctx(tmp_path)
     rep = ErrReport(file_stack=[], popped_files=["./main.tex", _AXS_STY])
-    rule = _rule("pdftex_prim_polyfill")
+    r = rule("pdftex_prim_polyfill")
     ok, why = actions._cond_ok(  # noqa: SLF001
-        rule.condition, rule, ctx, None, "pdfcompresslevel", rep
+        r.condition, r, ctx, EngStub(), "pdfcompresslevel", rep
     )
     assert ok, why
 
@@ -119,9 +98,9 @@ def test_cond_err_outside_fileset_project_site_declines(tmp_path: Path) -> None:
     """内层帧相对/工程内件 + 源无读型 → 仍拒 (拓宽不放行 fileset 内件)。"""
     ctx = _ctx(tmp_path)
     rep = ErrReport(file_stack=["./main.tex", "./pkg/mypkg.sty"])
-    rule = _rule("pdftex_prim_polyfill")
+    r = rule("pdftex_prim_polyfill")
     ok, _why = actions._cond_ok(  # noqa: SLF001
-        rule.condition, rule, ctx, None, "pdfcompresslevel", rep
+        r.condition, r, ctx, EngStub(), "pdfcompresslevel", rep
     )
     assert not ok
 
@@ -130,11 +109,11 @@ def test_cond_err_outside_fileset_no_rep_fails_closed(tmp_path: Path) -> None:
     """rep=None (直驱/旧调用面) 与空栈证据 → fail-closed。"""
     ctx = _ctx(tmp_path)
     cond = {"err_outside_fileset": True}
-    rule = _rule("pdftex_prim_polyfill")
-    ok, _ = actions._cond_ok(cond, rule, ctx, None, "pdfcompresslevel", None)  # noqa: SLF001
+    r = rule("pdftex_prim_polyfill")
+    ok, _ = actions._cond_ok(cond, r, ctx, EngStub(), "pdfcompresslevel", None)  # noqa: SLF001
     assert not ok
     ok, _ = actions._cond_ok(  # noqa: SLF001
-        cond, rule, ctx, None, "pdfcompresslevel", ErrReport()
+        cond, r, ctx, EngStub(), "pdfcompresslevel", ErrReport()
     )
     assert not ok
 
@@ -143,9 +122,9 @@ def test_cond_err_outside_fileset_no_rep_fails_closed(tmp_path: Path) -> None:
 def test_route_out_of_fileset_write_site_to_polyfill(tmp_path: Path) -> None:
     """axessibility 形: 源无 prim → guard/shadow 弃守 → polyfill 接住注入。"""
     ctx = _ctx(tmp_path)
-    rule = _match(ctx, "pdfcompresslevel", _rep_sty())
-    assert rule is not None
-    assert rule.id == "pdftex_prim_polyfill"
+    r = match(ctx, "pdfcompresslevel", "pdftex_prim", _rep_sty())
+    assert r is not None
+    assert r.id == "pdftex_prim_polyfill"
     out = (tmp_path / "main.tex").read_text(encoding="utf-8")
     # 整型原语 → \\newcount 形 (非 spec 旧述 \\chardef —— 见模块 docstring)
     assert (
@@ -162,9 +141,9 @@ def test_route_out_of_fileset_write_site_to_polyfill(tmp_path: Path) -> None:
 def test_route_second_prim_round_polyfill(tmp_path: Path) -> None:
     """axessibility :350 形: pdfoptionpdfminorversion 同路 polyfill。"""
     ctx = _ctx(tmp_path)
-    rule = _match(ctx, "pdfoptionpdfminorversion", _rep_sty())
-    assert rule is not None
-    assert rule.id == "pdftex_prim_polyfill"
+    r = match(ctx, "pdfoptionpdfminorversion", "pdftex_prim", _rep_sty())
+    assert r is not None
+    assert r.id == "pdftex_prim_polyfill"
     out = (tmp_path / "main.tex").read_text(encoding="utf-8")
     assert "\\newcount\\pdfoptionpdfminorversion" in out
 
@@ -172,9 +151,9 @@ def test_route_second_prim_round_polyfill(tmp_path: Path) -> None:
 def test_route_glyphtounicode_payload_to_shadow(tmp_path: Path) -> None:
     """源无 glyphtounicode 引用 + 站点系统 glyphtounicode.tex → shadow 落 stub。"""
     ctx = _ctx(tmp_path)
-    rule = _match(ctx, "pdfglyphtounicode", _rep_glyph())
-    assert rule is not None
-    assert rule.id == "glyphtounicode_shadow"
+    r = match(ctx, "pdfglyphtounicode", "pdftex_prim", _rep_glyph())
+    assert r is not None
+    assert r.id == "glyphtounicode_shadow"
     stub = (tmp_path / "glyphtounicode.tex").read_text(encoding="utf-8")
     assert "\\def\\pdfglyphtounicode#1#2{}" in stub
     assert "\\newcount\\pdfgentounicode" in stub
@@ -187,9 +166,9 @@ def test_route_in_fileset_read_form_unchanged(tmp_path: Path) -> None:
         "\\documentclass{article}\n\\ifnum\\pdfoutput=0 x\\fi\n"
         "\\begin{document}\nx\n\\end{document}\n",
     )
-    rule = _match(ctx, "pdfoutput", ErrReport())  # 空 rep: 不走新臂
-    assert rule is not None
-    assert rule.id == "pdftex_prim_polyfill"
+    r = match(ctx, "pdfoutput", "pdftex_prim", ErrReport())  # 空 rep: 不走新臂
+    assert r is not None
+    assert r.id == "pdftex_prim_polyfill"
     out = (tmp_path / "main.tex").read_text(encoding="utf-8")
     assert "\\newcount\\pdfoutput" in out
 
@@ -201,9 +180,9 @@ def test_route_in_fileset_write_form_guard_first(tmp_path: Path) -> None:
         "\\documentclass{article}\n\\pdfoutput=1\n"
         "\\begin{document}\nx\n\\end{document}\n",
     )
-    rule = _match(ctx, "pdfoutput", ErrReport())
-    assert rule is not None
-    assert rule.id == "pdftex_prim_guard"
+    r = match(ctx, "pdfoutput", "pdftex_prim", ErrReport())
+    assert r is not None
+    assert r.id == "pdftex_prim_guard"
     out = (tmp_path / "main.tex").read_text(encoding="utf-8")
     assert "\\ifdefined\\pdfoutput\\pdfoutput=1\\fi" in out
 
@@ -216,9 +195,9 @@ def test_route_shadow_still_prefers_source_evidence(tmp_path: Path) -> None:
         "\\begin{document}\nx\n\\end{document}\n",
     )
     rep = ErrReport(file_stack=["./main.tex"])  # 工程内站点
-    rule = _match(ctx, "pdfglyphtounicode", rep)
-    assert rule is not None
-    assert rule.id == "glyphtounicode_shadow"
+    r = match(ctx, "pdfglyphtounicode", "pdftex_prim", rep)
+    assert r is not None
+    assert r.id == "glyphtounicode_shadow"
     assert (tmp_path / "glyphtounicode.tex").is_file()
 
 
@@ -227,7 +206,7 @@ def test_guard_arm_declines_out_of_fileset(tmp_path: Path) -> None:
     """guard 对 fileset 外站点 0-edit 弃守 (patch 面只有 ctx.tex_files)。"""
     ctx = _ctx(tmp_path)
     ok, note = actions._apply(  # noqa: SLF001
-        _rule("pdftex_prim_guard"), ctx, None, "pdfcompresslevel", _rep_sty()
+        rule("pdftex_prim_guard"), ctx, None, "pdfcompresslevel", _rep_sty()
     )
     assert not ok
     assert "0 files" in note

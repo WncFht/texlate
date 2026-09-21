@@ -11,24 +11,13 @@ usepackage/RequirePackage 括号与 ``\PassOptionsToPackage`` 首参三位置; u
 
 from pathlib import Path
 
-from texlate.compile.fixloop import actions, load_ruleset
-from texlate.compile.fixloop.engine import LoopCtx, Rule
-from texlate.compile.logparse import ErrReport
+from _fixloopkit import EngStub, apply, mk_ctx, rule
 
+from texlate.compile.fixloop import actions
+from texlate.compile.fixloop.ruleset import Rule
 
-class _Eng:
-    """regex_rewrite/condition 路径的最小引擎替身 (不触 probe/install)。"""
-
-    name = "xelatex"
-
-    def probe_file(self, fname: str, cwd: Path | None = None) -> str | None:
-        del fname, cwd
-        return None
-
-    def filemap(self, fname: str) -> list[str]:
-        del fname
-        return []
-
+_RID_UCS = "ucs_mathletters_opt_strip"
+_RID_BXC = "bxcjkjatype_engine_retire"
 
 _OPT_ERR = (
     "! LaTeX Error: Unknown option `mathletters' for package `ucs'.\n"
@@ -36,31 +25,23 @@ _OPT_ERR = (
 )
 
 
-def _ctx(tmp_path: Path, err_head: str = _OPT_ERR) -> LoopCtx:
-    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel="main.tex")
-    ctx.err_head = err_head
-    return ctx
+def _rule(rid: str) -> Rule:
+    return rule(rid)
 
 
-def _rule() -> Rule:
-    return next(r for r in load_ruleset().rules if r.id == "ucs_mathletters_opt_strip")
+def _apply(tmp_path: Path, rid: str, err_head: str) -> tuple[bool, str]:
+    return apply(rid, mk_ctx(tmp_path, err_head=err_head), None)
 
 
-def _apply(tmp_path: Path) -> tuple[bool, str]:
-    return actions._apply(  # noqa: SLF001 - 钉规则动作直驱
-        _rule(), _ctx(tmp_path), _Eng(), None, ErrReport()
-    )
-
-
-def _cond(tmp_path: Path, err_head: str = _OPT_ERR) -> tuple[bool, str]:
-    rule = _rule()
+def _cond(tmp_path: Path, rid: str, err_head: str) -> tuple[bool, str]:
+    r = rule(rid)
     return actions._cond_ok(  # noqa: SLF001
-        rule.condition, rule, _ctx(tmp_path, err_head), _Eng(), None
+        r.condition, r, mk_ctx(tmp_path, err_head=err_head), EngStub(), None
     )
 
 
 def test_ucs_rule_registered() -> None:
-    rule = _rule()
+    rule = _rule(_RID_UCS)
     assert rule.order == 200  # noqa: PLR2004 - schema 断言值
     assert rule.phase == "loop"
     cats = {w.get("category") for w in rule.when["any"]}
@@ -81,7 +62,7 @@ def test_ucs_solo_bracket_stripped(tmp_path: Path) -> None:
         "\\begin{document}\nx\n\\end{document}\n",
         encoding="utf-8",
     )
-    ok, note = _apply(tmp_path)
+    ok, note = _apply(tmp_path, _RID_UCS, _OPT_ERR)
     assert ok, note
     t = (tmp_path / "main.tex").read_text()
     assert "\\usepackage{ucs}\n" in t
@@ -101,7 +82,7 @@ def test_ucs_bracket_positions(tmp_path: Path) -> None:
         (tmp_path / "main.tex").write_text(
             f"\\usepackage{before}{{ucs}}\n", encoding="utf-8"
         )
-        ok, note = _apply(tmp_path)
+        ok, note = _apply(tmp_path, _RID_UCS, _OPT_ERR)
         assert ok, f"{before}: {note}"
         t = (tmp_path / "main.tex").read_text()
         assert f"\\usepackage{after}{{ucs}}" in t, (before, t)
@@ -115,7 +96,7 @@ def test_ucs_requirepackage_in_sty(tmp_path: Path) -> None:
     (tmp_path / "foo.sty").write_text(
         "\\RequirePackage[mathletters]{ucs}\n", encoding="utf-8"
     )
-    ok, note = _apply(tmp_path)
+    ok, note = _apply(tmp_path, _RID_UCS, _OPT_ERR)
     assert ok, note
     t = (tmp_path / "foo.sty").read_text()
     assert t == "\\RequirePackage{ucs}\n"
@@ -134,7 +115,7 @@ def test_ucs_passoptions_forms(tmp_path: Path) -> None:
             f"\\PassOptionsToPackage{before}{{ucs}}\n\\usepackage{{ucs}}\n",
             encoding="utf-8",
         )
-        ok, note = _apply(tmp_path)
+        ok, note = _apply(tmp_path, _RID_UCS, _OPT_ERR)
         assert ok, f"{before}: {note}"
         t = (tmp_path / "main.tex").read_text()
         assert f"\\PassOptionsToPackage{after}{{ucs}}" in t, (before, t)
@@ -145,7 +126,7 @@ def test_ucs_group_load_bracket_stripped(tmp_path: Path) -> None:
     (tmp_path / "main.tex").write_text(
         "\\usepackage[mathletters,postscript]{ucs,other}\n", encoding="utf-8"
     )
-    ok, note = _apply(tmp_path)
+    ok, note = _apply(tmp_path, _RID_UCS, _OPT_ERR)
     assert ok, note
     t = (tmp_path / "main.tex").read_text()
     assert "\\usepackage[postscript]{ucs,other}" in t
@@ -160,7 +141,7 @@ def test_ucs_near_names_untouched(tmp_path: Path) -> None:
         "\\PassOptionsToPackage{mathlettersx}{ucs}\n",
         encoding="utf-8",
     )
-    ok, note = _apply(tmp_path)
+    ok, note = _apply(tmp_path, _RID_UCS, _OPT_ERR)
     assert ok, note
     t = (tmp_path / "main.tex").read_text()
     assert "\\usepackage{ucs}\n" in t
@@ -175,7 +156,7 @@ def test_ucs_other_pkg_same_name_kept(tmp_path: Path) -> None:
         "\\usepackage[mathletters]{ucs}\n\\usepackage[mathletters]{other}\n",
         encoding="utf-8",
     )
-    ok, note = _apply(tmp_path)
+    ok, note = _apply(tmp_path, _RID_UCS, _OPT_ERR)
     assert ok, note
     t = (tmp_path / "main.tex").read_text()
     assert "\\usepackage{ucs}\n" in t
@@ -187,14 +168,14 @@ def test_ucs_cond_declines_wrong_err(tmp_path: Path) -> None:
     (tmp_path / "main.tex").write_text(
         "\\usepackage[mathletters]{ucs}\n", encoding="utf-8"
     )
-    ok, _ = _cond(tmp_path, "! LaTeX Error: Unknown option `override'.")
+    ok, _ = _cond(tmp_path, _RID_UCS, "! LaTeX Error: Unknown option `override'.")
     assert not ok
 
 
 def test_ucs_cond_declines_no_source(tmp_path: Path) -> None:
     """源面无 mathletters → source_contains 拒 (err/source 双闸 AND)。"""
     (tmp_path / "main.tex").write_text("\\usepackage{ucs}\n", encoding="utf-8")
-    ok, _ = _cond(tmp_path)
+    ok, _ = _cond(tmp_path, _RID_UCS, _OPT_ERR)
     assert not ok
 
 
@@ -204,7 +185,7 @@ def test_ucs_commented_load_masked(tmp_path: Path) -> None:
         "% \\usepackage[mathletters]{ucs}\n\\usepackage{ucs}\n",
         encoding="utf-8",
     )
-    ok, _ = _apply(tmp_path)
+    ok, _ = _apply(tmp_path, _RID_UCS, _OPT_ERR)
     assert not ok
     t = (tmp_path / "main.tex").read_text()
     assert "% \\usepackage[mathletters]{ucs}" in t
@@ -215,9 +196,9 @@ def test_ucs_idempotent_second_round(tmp_path: Path) -> None:
     (tmp_path / "main.tex").write_text(
         "\\usepackage[mathletters]{ucs}\n", encoding="utf-8"
     )
-    ok, _ = _apply(tmp_path)
+    ok, _ = _apply(tmp_path, _RID_UCS, _OPT_ERR)
     assert ok
-    ok, _ = _cond(tmp_path)
+    ok, _ = _cond(tmp_path, _RID_UCS, _OPT_ERR)
     assert not ok
 
 
@@ -228,25 +209,8 @@ _BXC_ERR = (
 )
 
 
-def _bxc_rule() -> Rule:
-    return next(r for r in load_ruleset().rules if r.id == "bxcjkjatype_engine_retire")
-
-
-def _bxc_apply(tmp_path: Path) -> tuple[bool, str]:
-    return actions._apply(  # noqa: SLF001 - 钉规则动作直驱
-        _bxc_rule(), _ctx(tmp_path, _BXC_ERR), _Eng(), None, ErrReport()
-    )
-
-
-def _bxc_cond(tmp_path: Path, err_head: str = _BXC_ERR) -> tuple[bool, str]:
-    rule = _bxc_rule()
-    return actions._cond_ok(  # noqa: SLF001
-        rule.condition, rule, _ctx(tmp_path, err_head), _Eng(), None
-    )
-
-
 def test_bxc_rule_registered() -> None:
-    rule = _bxc_rule()
+    rule = _rule(_RID_BXC)
     assert rule.order == 201  # noqa: PLR2004 - schema 断言值
     assert rule.phase == "loop"
     cats = {w.get("category") for w in rule.when["any"]}
@@ -266,7 +230,7 @@ def test_bxc_usepackage_commented(tmp_path: Path) -> None:
         "\\begin{document}\nx\n\\end{document}\n",
         encoding="utf-8",
     )
-    ok, note = _bxc_apply(tmp_path)
+    ok, note = _apply(tmp_path, _RID_BXC, _BXC_ERR)
     assert ok, note
     t = (tmp_path / "main.tex").read_text()
     assert "%\\usepackage[whole]{bxcjkjatype}\n" in t
@@ -276,7 +240,7 @@ def test_bxc_usepackage_commented(tmp_path: Path) -> None:
 def test_bxc_no_option_form(tmp_path: Path) -> None:
     """无括号形 \\usepackage{bxcjkjatype} 同收 (引擎自爆与选项无关)。"""
     (tmp_path / "main.tex").write_text("\\usepackage{bxcjkjatype}\n", encoding="utf-8")
-    ok, note = _bxc_apply(tmp_path)
+    ok, note = _apply(tmp_path, _RID_BXC, _BXC_ERR)
     assert ok, note
     t = (tmp_path / "main.tex").read_text()
     assert t == "%\\usepackage{bxcjkjatype}\n"
@@ -290,7 +254,7 @@ def test_bxc_requirepackage_in_sty(tmp_path: Path) -> None:
     (tmp_path / "foo.sty").write_text(
         "\\RequirePackage[whole]{bxcjkjatype}\n", encoding="utf-8"
     )
-    ok, note = _bxc_apply(tmp_path)
+    ok, note = _apply(tmp_path, _RID_BXC, _BXC_ERR)
     assert ok, note
     t = (tmp_path / "foo.sty").read_text()
     assert t == "%\\RequirePackage[whole]{bxcjkjatype}\n"
@@ -304,7 +268,7 @@ def test_bxc_neighbors_untouched(tmp_path: Path) -> None:
         "\\usepackage{bxcjkjatype,xother}\n",
         encoding="utf-8",
     )
-    ok, note = _bxc_apply(tmp_path)
+    ok, note = _apply(tmp_path, _RID_BXC, _BXC_ERR)
     assert ok, note
     t = (tmp_path / "main.tex").read_text()
     assert "%\\usepackage[whole]{bxcjkjatype}\n" in t
@@ -318,14 +282,14 @@ def test_bxc_cond_declines_wrong_err(tmp_path: Path) -> None:
     (tmp_path / "main.tex").write_text(
         "\\usepackage[whole]{bxcjkjatype}\n", encoding="utf-8"
     )
-    ok, _ = _bxc_cond(tmp_path, "! LaTeX Error: Unknown option `utf8'.")
+    ok, _ = _cond(tmp_path, _RID_BXC, "! LaTeX Error: Unknown option `utf8'.")
     assert not ok
 
 
 def test_bxc_cond_declines_no_source(tmp_path: Path) -> None:
     """源面无 bxcjkjatype → source_contains 拒 (err/source 双闸 AND)。"""
     (tmp_path / "main.tex").write_text("\\usepackage{xeCJK}\n", encoding="utf-8")
-    ok, _ = _bxc_cond(tmp_path)
+    ok, _ = _cond(tmp_path, _RID_BXC, _BXC_ERR)
     assert not ok
 
 
@@ -334,7 +298,7 @@ def test_bxc_commented_load_masked(tmp_path: Path) -> None:
     (tmp_path / "main.tex").write_text(
         "% \\usepackage[whole]{bxcjkjatype}\n", encoding="utf-8"
     )
-    ok, _ = _bxc_apply(tmp_path)
+    ok, _ = _apply(tmp_path, _RID_BXC, _BXC_ERR)
     assert not ok
     t = (tmp_path / "main.tex").read_text()
     assert "% \\usepackage[whole]{bxcjkjatype}" in t
@@ -346,9 +310,9 @@ def test_bxc_idempotent_second_round(tmp_path: Path) -> None:
     (tmp_path / "main.tex").write_text(
         "\\usepackage[whole]{bxcjkjatype}\n", encoding="utf-8"
     )
-    ok, _ = _bxc_apply(tmp_path)
+    ok, _ = _apply(tmp_path, _RID_BXC, _BXC_ERR)
     assert ok
-    ok, _ = _bxc_apply(tmp_path)
+    ok, _ = _apply(tmp_path, _RID_BXC, _BXC_ERR)
     assert not ok
     t = (tmp_path / "main.tex").read_text()
     assert t.count("%\\usepackage[whole]{bxcjkjatype}") == 1

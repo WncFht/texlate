@@ -12,90 +12,26 @@ babelinv 普查钉组 (2026-09-19): 51 枚 ``.ldf`` 显式钉入
 ``polytonicgreek`` 裸选项收进 ``babel_opt_polutoniko_rewrite`` 源面。
 """
 
-from functools import lru_cache
 from pathlib import Path
 
-from texlate.compile.fixloop import Ruleset, actions, load_ruleset
-from texlate.compile.fixloop.engine import (
-    LoopCtx,
-    Rule,
-    _wire_filemap_overrides,
-)
-from texlate.compile.logparse import ErrReport, parse_text
+from _fixloopkit import EngInstall, EngStub, apply, classify, mk_ctx, rs, rule
 
-
-@lru_cache(maxsize=1)
-def _rs() -> Ruleset:
-    return load_ruleset()
-
-
-def _rule(rid: str) -> Rule:
-    return next(r for r in _rs().rules if r.id == rid)
-
-
-def _ctx(tmp_path: Path, err_head: str = "") -> LoopCtx:
-    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel="main.tex")
-    ctx.err_head = err_head
-    return ctx
-
-
-def _classify(text: str) -> tuple[str | None, str | None]:
-    return _rs().taxonomy.classify(parse_text(text, _rs().warn_patterns))
-
-
-class _Eng:
-    """regex_rewrite/condition 路径的最小引擎替身 (不触 probe/install)。"""
-
-    name = "xelatex"
-
-    def probe_file(self, fname: str, cwd: Path | None = None) -> str | None:
-        del fname, cwd
-        return None
-
-    def filemap(self, fname: str) -> list[str]:
-        del fname
-        return []
-
-
-class _EngInstall(_Eng):
-    """_Eng + install_file: installable 集合内名落 fake texmf, probe 复核命中。"""
-
-    def __init__(self, texmf: Path, installable: set[str]) -> None:
-        self.texmf = texmf
-        self.texmf.mkdir(parents=True, exist_ok=True)
-        self.installable = set(installable)
-        self.install_calls: list[str] = []
-
-    def probe_file(self, fname: str, cwd: Path | None = None) -> str | None:
-        if cwd is not None and (Path(cwd) / fname).is_file():
-            return str(Path(cwd) / fname)
-        hit = self.texmf / fname
-        return str(hit) if hit.is_file() else None
-
-    def install_file(self, fname: str, *, font_related: bool = False) -> bool:
-        del font_related
-        self.install_calls.append(fname)
-        if fname not in self.installable:
-            return False
-        (self.texmf / fname).write_text("", encoding="utf-8")
-        return True
-
-    def rebuild_fontmaps(self) -> bool:
-        return True
+from texlate.compile.fixloop import actions
+from texlate.compile.fixloop.engine import _wire_filemap_overrides
+from texlate.compile.logparse import ErrReport
 
 
 def _apply(
-    rule: Rule, tmp_path: Path, pay: str, eng: _Eng | None = None
+    rid: str, tmp_path: Path, pay: str, eng: EngStub | None = None
 ) -> tuple[bool, str]:
-    return actions._apply(  # noqa: SLF001 - 钉规则动作直驱
-        rule, _ctx(tmp_path), eng or _Eng(), pay, ErrReport()
-    )
+    """kit ``apply`` 的 ``tmp_path`` 便捷壳——rid 直传、缺省 ``EngStub``。"""
+    return apply(rid, mk_ctx(tmp_path), pay, eng=eng)
 
 
 # ──────────────────────────── taxonomy: babel_undef ────────────────────────────
 def test_taxonomy_babel_undef_signature() -> None:
     """'You haven't defined the language X' → babel_undef, payload=X。"""
-    cat, pay = _classify(
+    cat, pay = classify(
         "! Package babel Error: You haven't defined the language `ngerman' yet.\n"
         "l.740 \\iflanguage{ngerman}\n"
     )
@@ -104,21 +40,21 @@ def test_taxonomy_babel_undef_signature() -> None:
 
 def test_taxonomy_babel_opt_not_shadowed() -> None:
     """新增 babel_undef 签不抢 babel_opt 老签 (Unknown option/language)。"""
-    cat, pay = _classify(
+    cat, pay = classify(
         "! Package babel Error: Unknown option `francais'.\nl.5 \\ProcessOptions"
     )
     assert (cat, pay) == ("babel_opt", "francais")
-    cat, pay = _classify("! Package babel Error: Unknown language `german'.")
+    cat, pay = classify("! Package babel Error: Unknown language `german'.")
     assert (cat, pay) == ("babel_opt", "german")
 
 
 # ───────────────────── babel_lang_ldf_install: file_aliases ────────────────────
 def test_ldf_install_aliases_registered() -> None:
     """file_aliases 表装载: ukrainian→ukraineb + 抽查全表项。"""
-    rule = _rule("babel_lang_ldf_install")
-    assert rule.order == 11  # noqa: PLR2004 - schema 断言值
-    assert rule.when["category"] == "babel_opt"
-    aliases = rule.action["params"]["file_aliases"]
+    r = rule("babel_lang_ldf_install")
+    assert r.order == 11  # noqa: PLR2004 - schema 断言值
+    assert r.when["category"] == "babel_opt"
+    aliases = r.action["params"]["file_aliases"]
     assert aliases["ukrainian"] == ["ukraineb.ldf"]
     assert aliases["hungarian"] == ["magyar.ldf"]
     assert aliases["ukenglish"] == ["UKenglish.ldf"]
@@ -129,7 +65,7 @@ def test_ldf_install_aliases_registered() -> None:
 
 def test_filemap_pins_cover_alias_targets() -> None:
     """别名目标档全数钉进 filemap overrides (.ldf 不入索引 → 钉才确定)。"""
-    overrides = _rs().filemap_cfg["overrides"]
+    overrides = rs().filemap_cfg["overrides"]
     for fname, pkg in {
         "ukraineb.ldf": "babel-ukrainian",
         "magyar.ldf": "babel-hungarian",
@@ -150,8 +86,8 @@ def test_filemap_pins_cover_alias_targets() -> None:
 
 def test_ldf_install_ukrainian_alias_first(tmp_path: Path) -> None:
     """ukrainian payload: 别名 ukraineb.ldf 为首个试装候选 (1306.0435 实档名)。"""
-    eng = _EngInstall(tmp_path / "texmf", {"ukraineb.ldf"})
-    ok, note = _apply(_rule("babel_lang_ldf_install"), tmp_path, "ukrainian", eng)
+    eng = EngInstall(tmp_path / "texmf", {"ukraineb.ldf"})
+    ok, note = _apply("babel_lang_ldf_install", tmp_path, "ukrainian", eng)
     assert ok, note
     assert eng.install_calls == ["ukraineb.ldf"]
     assert "ukraineb.ldf" in note
@@ -159,35 +95,35 @@ def test_ldf_install_ukrainian_alias_first(tmp_path: Path) -> None:
 
 def test_ldf_install_alias_falls_through_to_exts(tmp_path: Path) -> None:
     """别名装不上 → 续试本名 try_exts 扩展 (别名失败不吞后续候选)。"""
-    eng = _EngInstall(tmp_path / "texmf", {"ukrainian.ldf"})
-    ok, _note = _apply(_rule("babel_lang_ldf_install"), tmp_path, "ukrainian", eng)
+    eng = EngInstall(tmp_path / "texmf", {"ukrainian.ldf"})
+    ok, _note = _apply("babel_lang_ldf_install", tmp_path, "ukrainian", eng)
     assert ok
     assert eng.install_calls == ["ukraineb.ldf", "ukrainian.ldf"]
 
 
 def test_ldf_install_russian_b_ext(tmp_path: Path) -> None:
     """russian 无别名 → try_exts 双候选 [russian.ldf, russianb.ldf] 顺试。"""
-    eng = _EngInstall(tmp_path / "texmf", {"russianb.ldf"})
-    ok, _note = _apply(_rule("babel_lang_ldf_install"), tmp_path, "russian", eng)
+    eng = EngInstall(tmp_path / "texmf", {"russianb.ldf"})
+    ok, _note = _apply("babel_lang_ldf_install", tmp_path, "russian", eng)
     assert ok
     assert eng.install_calls == ["russian.ldf", "russianb.ldf"]
 
 
 def test_ldf_install_no_alias_no_match_declines(tmp_path: Path) -> None:
     """francais (弃名, TL 无档): 全候选失败 → applied=False 落改写规则。"""
-    eng = _EngInstall(tmp_path / "texmf", set())
-    ok, _note = _apply(_rule("babel_lang_ldf_install"), tmp_path, "francais", eng)
+    eng = EngInstall(tmp_path / "texmf", set())
+    ok, _note = _apply("babel_lang_ldf_install", tmp_path, "francais", eng)
     assert not ok
     assert eng.install_calls == ["francais.ldf", "francaisb.ldf"]
 
 
 # ─────────────────────── babel_opt_francais_rewrite ────────────────────────────
 def test_francais_rule_registered() -> None:
-    rule = _rule("babel_opt_francais_rewrite")
-    assert rule.order == 13.5  # noqa: PLR2004 - schema 断言值
-    assert rule.when["category"] == "babel_opt"
-    assert rule.action["kind"] == "regex_rewrite"
-    assert "francais" in rule.condition["source_contains"]
+    r = rule("babel_opt_francais_rewrite")
+    assert r.order == 13.5  # noqa: PLR2004 - schema 断言值
+    assert r.when["category"] == "babel_opt"
+    assert r.action["kind"] == "regex_rewrite"
+    assert "francais" in r.condition["source_contains"]
 
 
 def test_francais_option_brackets_renamed(tmp_path: Path) -> None:
@@ -197,7 +133,7 @@ def test_francais_option_brackets_renamed(tmp_path: Path) -> None:
         "\\usepackage[english,francais]{babel}\n",
         encoding="utf-8",
     )
-    ok, note = _apply(_rule("babel_opt_francais_rewrite"), tmp_path, "francais")
+    ok, note = _apply("babel_opt_francais_rewrite", tmp_path, "francais")
     assert ok, note
     t = (tmp_path / "main.tex").read_text()
     assert "\\documentclass[a4paper,french]{article}" in t
@@ -215,7 +151,7 @@ def test_francais_body_selectors_renamed(tmp_path: Path) -> None:
         "\\begin{otherlanguage}{francais}x\\end{otherlanguage}\n",
         encoding="utf-8",
     )
-    ok, _ = _apply(_rule("babel_opt_francais_rewrite"), tmp_path, "francais")
+    ok, _ = _apply("babel_opt_francais_rewrite", tmp_path, "francais")
     assert ok
     t = (tmp_path / "main.tex").read_text()
     assert "francais" not in t
@@ -227,17 +163,17 @@ def test_francais_word_boundary_respected(tmp_path: Path) -> None:
     """\\b 词界: francais2/xfrancais 非弃名不命中; 无 francais → applied=False。"""
     src = "\\usepackage[franc]{babel}\n\\selectlanguage{xfrancais}\n"
     (tmp_path / "main.tex").write_text(src, encoding="utf-8")
-    ok, _ = _apply(_rule("babel_opt_francais_rewrite"), tmp_path, "francais")
+    ok, _ = _apply("babel_opt_francais_rewrite", tmp_path, "francais")
     assert not ok
     assert (tmp_path / "main.tex").read_text() == src
 
 
 def test_francais_condition_gate(tmp_path: Path) -> None:
     """source_contains 闸: 工程无 francais 字样 → condition 拒, 不空转。"""
-    rule = _rule("babel_opt_francais_rewrite")
+    r = rule("babel_opt_francais_rewrite")
     (tmp_path / "main.tex").write_text("\\usepackage[french]{babel}\n")
     ok, why = actions._cond_ok(  # noqa: SLF001
-        rule.condition, rule, _ctx(tmp_path), _Eng(), "francais"
+        r.condition, r, mk_ctx(tmp_path), EngStub(), "francais"
     )
     assert not ok, why
 
@@ -247,22 +183,22 @@ def test_francais_match_apply_fallthrough(tmp_path: Path) -> None:
     (tmp_path / "main.tex").write_text(
         "\\usepackage[english,francais]{babel}\n", encoding="utf-8"
     )
-    eng = _EngInstall(tmp_path / "texmf", set())  # francais.ldf 类全装不上
-    ctx = _ctx(tmp_path, "! Package babel Error: Unknown option `francais'.")
-    rule, note = actions._match_apply(  # noqa: SLF001
-        _rs(), ctx, eng, "babel_opt", "francais", ErrReport()
+    eng = EngInstall(tmp_path / "texmf", set())  # francais.ldf 类全装不上
+    ctx = mk_ctx(tmp_path, err_head="! Package babel Error: Unknown option `francais'.")
+    r, note = actions._match_apply(  # noqa: SLF001
+        rs(), ctx, eng, "babel_opt", "francais", ErrReport()
     )
-    assert rule is not None, note
-    assert rule.id == "babel_opt_francais_rewrite"
+    assert r is not None, note
+    assert r.id == "babel_opt_francais_rewrite"
     assert "\\usepackage[english,french]{babel}" in (tmp_path / "main.tex").read_text()
 
 
 # ─────────────────────── babel_undeclared_option ───────────────────────────────
 def test_undeclared_rule_registered() -> None:
-    rule = _rule("babel_undeclared_option")
-    assert rule.order == 14  # noqa: PLR2004 - schema 断言值
-    assert rule.when["category"] == "babel_undef"
-    assert rule.when["payload_required"] is True
+    r = rule("babel_undeclared_option")
+    assert r.order == 14  # noqa: PLR2004 - schema 断言值
+    assert r.when["category"] == "babel_undef"
+    assert r.when["payload_required"] is True
 
 
 def test_undeclared_usepackage_head_insert(tmp_path: Path) -> None:
@@ -270,7 +206,7 @@ def test_undeclared_usepackage_head_insert(tmp_path: Path) -> None:
     (tmp_path / "main.tex").write_text(
         "\\usepackage[german]{babel}\n", encoding="utf-8"
     )
-    ok, note = _apply(_rule("babel_undeclared_option"), tmp_path, "ngerman")
+    ok, note = _apply("babel_undeclared_option", tmp_path, "ngerman")
     assert ok, note
     assert "\\usepackage[ngerman,german]{babel}" in (tmp_path / "main.tex").read_text()
 
@@ -280,7 +216,7 @@ def test_undeclared_main_position_preserved(tmp_path: Path) -> None:
     (tmp_path / "main.tex").write_text(
         "\\usepackage[english,german]{babel}\n", encoding="utf-8"
     )
-    ok, _ = _apply(_rule("babel_undeclared_option"), tmp_path, "ngerman")
+    ok, _ = _apply("babel_undeclared_option", tmp_path, "ngerman")
     assert ok
     assert (
         "\\usepackage[ngerman,english,german]{babel}"
@@ -293,7 +229,7 @@ def test_undeclared_bare_and_group_usepackage(tmp_path: Path) -> None:
     (tmp_path / "main.tex").write_text(
         "\\usepackage{babel}\n\\usepackage{graphicx,babel}\n", encoding="utf-8"
     )
-    ok, _ = _apply(_rule("babel_undeclared_option"), tmp_path, "french")
+    ok, _ = _apply("babel_undeclared_option", tmp_path, "french")
     assert ok
     t = (tmp_path / "main.tex").read_text()
     assert "\\usepackage[french]{babel}" in t
@@ -306,7 +242,7 @@ def test_undeclared_docclass_global_options(tmp_path: Path) -> None:
         "\\documentclass[12pt]{article}\n\\usepackage[english]{babel}\n",
         encoding="utf-8",
     )
-    ok, _ = _apply(_rule("babel_undeclared_option"), tmp_path, "ngerman")
+    ok, _ = _apply("babel_undeclared_option", tmp_path, "ngerman")
     assert ok
     t = (tmp_path / "main.tex").read_text()
     assert "\\documentclass[ngerman,12pt]{article}" in t
@@ -321,7 +257,7 @@ def test_undeclared_passoptions_babel_only(tmp_path: Path) -> None:
         "\\usepackage{babel}\n",
         encoding="utf-8",
     )
-    ok, _ = _apply(_rule("babel_undeclared_option"), tmp_path, "french")
+    ok, _ = _apply("babel_undeclared_option", tmp_path, "french")
     assert ok
     t = (tmp_path / "main.tex").read_text()
     assert "\\PassOptionsToPackage{french,english}{babel}" in t
@@ -332,7 +268,7 @@ def test_undeclared_no_surface_declines(tmp_path: Path) -> None:
     """无 babel 载点且无 docclass 选项面 → applied=False (不硬改无关文件)。"""
     src = "\\usepackage[dvips]{graphicx}\nhello\n"
     (tmp_path / "main.tex").write_text(src, encoding="utf-8")
-    ok, _ = _apply(_rule("babel_undeclared_option"), tmp_path, "ngerman")
+    ok, _ = _apply("babel_undeclared_option", tmp_path, "ngerman")
     assert not ok
     assert (tmp_path / "main.tex").read_text() == src
 
@@ -342,7 +278,7 @@ def test_undeclared_payload_substituted(tmp_path: Path) -> None:
     (tmp_path / "main.tex").write_text(
         "\\usepackage[english]{babel}\n", encoding="utf-8"
     )
-    ok, _ = _apply(_rule("babel_undeclared_option"), tmp_path, "french")
+    ok, _ = _apply("babel_undeclared_option", tmp_path, "french")
     assert ok
     assert "\\usepackage[french,english]{babel}" in (tmp_path / "main.tex").read_text()
 
@@ -352,27 +288,27 @@ def test_undeclared_match_apply_routes(tmp_path: Path) -> None:
     (tmp_path / "main.tex").write_text(
         "\\usepackage[german]{babel}\n", encoding="utf-8"
     )
-    ctx = _ctx(
+    ctx = mk_ctx(
         tmp_path,
-        "! Package babel Error: You haven't defined the language `ngerman' yet.",
+        err_head="! Package babel Error: You haven't defined the language `ngerman' yet.",
     )
-    rule, note = actions._match_apply(  # noqa: SLF001
-        _rs(),
+    r, note = actions._match_apply(  # noqa: SLF001
+        rs(),
         ctx,
-        _EngInstall(tmp_path / "texmf", set()),
+        EngInstall(tmp_path / "texmf", set()),
         "babel_undef",
         "ngerman",
         ErrReport(),
     )
-    assert rule is not None, note
-    assert rule.id == "babel_undeclared_option"
+    assert r is not None, note
+    assert r.id == "babel_undeclared_option"
     assert "\\usepackage[ngerman,german]{babel}" in (tmp_path / "main.tex").read_text()
 
 
 # ─────────────── babelinv 普查钉组 (tmp/lane-babelinv/ldf_pins.yaml) ───────────
 def test_census_pins_registered() -> None:
     """51 钉全量入 overrides —— 抽查代表项 + 包名异形格 (samin/turkmen)。"""
-    overrides = _rs().filemap_cfg["overrides"]
+    overrides = rs().filemap_cfg["overrides"]
     for fname, pkg in {
         "bulgarian.ldf": "babel-bulgarian",
         "catalan.ldf": "babel-catalan",
@@ -392,8 +328,8 @@ def test_census_pins_registered() -> None:
 
 def test_census_pins_wire_filemap(tmp_path: Path) -> None:
     """overrides 接线后 eng.filemap 先答钉表: 钉中 → [pkg], null → []。"""
-    eng = _Eng()
-    _wire_filemap_overrides(eng, _rs().filemap_cfg["overrides"], _ctx(tmp_path))
+    eng = EngStub()
+    _wire_filemap_overrides(eng, rs().filemap_cfg["overrides"], mk_ctx(tmp_path))
     assert eng.filemap("bulgarian.ldf") == ["babel-bulgarian"]
     assert eng.filemap("catalan.ldf") == ["babel-catalan"]
     assert eng.filemap("german-traditional.ldf") == []
@@ -402,18 +338,18 @@ def test_census_pins_wire_filemap(tmp_path: Path) -> None:
 
 def test_ldf_install_census_pins(tmp_path: Path) -> None:
     """bulgarian/catalan 直名 .ldf 经 try_exts 首候选装上收口 (live repro 形)。"""
-    eng = _EngInstall(tmp_path / "texmf", {"bulgarian.ldf", "catalan.ldf"})
-    ok, note = _apply(_rule("babel_lang_ldf_install"), tmp_path, "bulgarian", eng)
+    eng = EngInstall(tmp_path / "texmf", {"bulgarian.ldf", "catalan.ldf"})
+    ok, note = _apply("babel_lang_ldf_install", tmp_path, "bulgarian", eng)
     assert ok, note
-    ok, note = _apply(_rule("babel_lang_ldf_install"), tmp_path, "catalan", eng)
+    ok, note = _apply("babel_lang_ldf_install", tmp_path, "catalan", eng)
     assert ok, note
     assert eng.install_calls == ["bulgarian.ldf", "catalan.ldf"]
 
 
 def test_ldf_install_unpinned_declines(tmp_path: Path) -> None:
     """无钉无档语言 (klingon): try_exts 双候选全败 → applied=False。"""
-    eng = _EngInstall(tmp_path / "texmf", set())
-    ok, _note = _apply(_rule("babel_lang_ldf_install"), tmp_path, "klingon", eng)
+    eng = EngInstall(tmp_path / "texmf", set())
+    ok, _note = _apply("babel_lang_ldf_install", tmp_path, "klingon", eng)
     assert not ok
     assert eng.install_calls == ["klingon.ldf", "klingonb.ldf"]
 
@@ -421,7 +357,7 @@ def test_ldf_install_unpinned_declines(tmp_path: Path) -> None:
 # ─────────────── babel_opt_polutoniko_rewrite: polytonicgreek 源 ───────────────
 def test_taxonomy_polytonicgreek_payload() -> None:
     """Unknown option 'polytonicgreek' → babel_opt, payload=polytonicgreek。"""
-    cat, pay = _classify(
+    cat, pay = classify(
         "! Package babel Error: Unknown option 'polytonicgreek'.\nl.3 \\ProcessOptions"
     )
     assert (cat, pay) == ("babel_opt", "polytonicgreek")
@@ -429,10 +365,10 @@ def test_taxonomy_polytonicgreek_payload() -> None:
 
 def test_polytonicgreek_condition_gate(tmp_path: Path) -> None:
     """condition any 第三 disjunct: 源含裸 polytonicgreek → 放行。"""
-    rule = _rule("babel_opt_polutoniko_rewrite")
+    r = rule("babel_opt_polutoniko_rewrite")
     (tmp_path / "main.tex").write_text("\\usepackage[polytonicgreek]{babel}\n")
     ok, why = actions._cond_ok(  # noqa: SLF001
-        rule.condition, rule, _ctx(tmp_path), _Eng(), "polytonicgreek"
+        r.condition, r, mk_ctx(tmp_path), EngStub(), "polytonicgreek"
     )
     assert ok, why
 
@@ -444,7 +380,7 @@ def test_polytonicgreek_option_brackets_rewritten(tmp_path: Path) -> None:
         "\\usepackage[english,polytonicgreek]{babel}\n",
         encoding="utf-8",
     )
-    ok, note = _apply(_rule("babel_opt_polutoniko_rewrite"), tmp_path, "polytonicgreek")
+    ok, note = _apply("babel_opt_polutoniko_rewrite", tmp_path, "polytonicgreek")
     assert ok, note
     t = (tmp_path / "main.tex").read_text()
     assert "\\documentclass[greek.polytonic]{article}" in t
@@ -459,7 +395,7 @@ def test_polytonicgreek_passoptions_rewritten(tmp_path: Path) -> None:
         "\\PassOptionsToClass{polytonicgreek}{article}\n",
         encoding="utf-8",
     )
-    ok, note = _apply(_rule("babel_opt_polutoniko_rewrite"), tmp_path, "polytonicgreek")
+    ok, note = _apply("babel_opt_polutoniko_rewrite", tmp_path, "polytonicgreek")
     assert ok, note
     t = (tmp_path / "main.tex").read_text()
     assert "\\PassOptionsToPackage{greek.polytonic}{babel}" in t
@@ -471,6 +407,6 @@ def test_polytonicgreek_no_surface_declines(tmp_path: Path) -> None:
     """无选项位命中 (polytonicgreek 仅在正文) → applied=False, 源不动。"""
     src = "\\usepackage[english]{babel}\n% polytonicgreek mentioned\n"
     (tmp_path / "main.tex").write_text(src, encoding="utf-8")
-    ok, _ = _apply(_rule("babel_opt_polutoniko_rewrite"), tmp_path, "polytonicgreek")
+    ok, _ = _apply("babel_opt_polutoniko_rewrite", tmp_path, "polytonicgreek")
     assert not ok
     assert (tmp_path / "main.tex").read_text() == src

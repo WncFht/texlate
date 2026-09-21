@@ -43,9 +43,9 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from texlate.latex import flatten_inputs, parse_file, reconstruct, validate_result
+from texlate.latex import parse_file, reconstruct, validate_result
 from texlate.latex.placeholder import CHUNK_RX, PH_RX
-from texlate.textutil import DOCCLASS_DECL_RX, decode_tex, mask_tex
+from texlate.textutil import DOCCLASS_DECL_RX, mask_tex
 
 if TYPE_CHECKING:
     from types import FrameType
@@ -54,23 +54,34 @@ if TYPE_CHECKING:
 
 FIXTURES = Path(__file__).resolve().parent.parent / "bench" / "fixtures"
 
+#: (相对 ``FIXTURES`` 的 posix 名, 路径)——名随路径派生，改名不会与
+#: ``_FIXTURE_TOPDIR``/``_PARSED`` 键失同步。
 FIXTURE_FILES = [
-    ("tricky.tex", FIXTURES / "tricky.tex"),
-    ("tricky-209.tex", FIXTURES / "tricky-209.tex"),
-    ("tricky-multi/main.tex", FIXTURES / "tricky-multi" / "main.tex"),
-    ("xlat-traps.tex", FIXTURES / "xlat-traps.tex"),
-    ("tricky-w.tex", FIXTURES / "tricky-w.tex"),
-    ("tricky-w73/main/main.tex", FIXTURES / "tricky-w73" / "main" / "main.tex"),
-    ("tricky-wenc.tex", FIXTURES / "tricky-wenc.tex"),
-    ("tricky-dollar.tex", FIXTURES / "tricky-dollar.tex"),
-    ("tricky-mask.tex", FIXTURES / "tricky-mask.tex"),
+    (p.relative_to(FIXTURES).as_posix(), p)
+    for p in (
+        FIXTURES / "tricky.tex",
+        FIXTURES / "tricky-209.tex",
+        FIXTURES / "tricky-multi" / "main.tex",
+        FIXTURES / "xlat-traps.tex",
+        FIXTURES / "tricky-w.tex",
+        FIXTURES / "tricky-w73" / "main" / "main.tex",
+        FIXTURES / "tricky-wenc.tex",
+        FIXTURES / "tricky-dollar.tex",
+        FIXTURES / "tricky-mask.tex",
+    )
 ]
 
 # 泄漏扫描口径（spike 同表）：可译 chunk 内不得出现这些构造
 LEAK_PATTERNS = {
     "dollar": re.compile(r"\$"),
     "cite_family": re.compile(r"\\cite[a-zA-Z]*"),
-    "ref_family": re.compile(r"\\(?:eq|auto|c|page|name|sub)?ref(?![a-zA-Z])"),
+    # 前缀位覆盖 eq/auto/name/sub/labelc + 单字母族（c/C/v/V/f/F），中段可选
+    # ``page``、尾段可选 ``range``——\cref \Cref \crefrange \vref \vpageref
+    # \fref \labelcref \cpageref 等 cleveref/varioref/fancyref 变体同闸；
+    # ``\href`` 等不以 ref 收尾的 cs 不中（xlat-traps 的 \href 文本照样可译）。
+    "ref_family": re.compile(
+        r"\\(?:eq|auto|name|sub|labelc|[cCvVfF])?(?:page)?ref(?:range)?(?![a-zA-Z])"
+    ),
     "begin_env": re.compile(r"\\begin\{"),
     "conditional": re.compile(r"\\(?:if[a-zA-Z]+|else|fi)(?![a-zA-Z])"),
     "input_include": re.compile(r"\\(?:input|include)\{"),
@@ -139,6 +150,38 @@ def classify_recon(orig: str, recon: str) -> tuple[str, float, int]:
     return "diverged", round(ratio, 4), i
 
 
+def _meta_row(res: ScanResult, recon_fake: str) -> dict[str, str]:
+    """``_meta`` info 行：chunk/ph 计数 + 假译文重建的占位符残留计数。"""
+    return {
+        "status": "info",
+        "detail": f"chunks={len(res.chunks)} ph={len(res.ph_map)} "
+        f"residue_chunk={len(CHUNK_RX.findall(recon_fake))} "
+        f"residue_prot={len(PH_RX.findall(recon_fake))}",
+    }
+
+
+def _all_re(chunks: str, rxs: tuple[str, ...], note: str) -> dict[str, str]:
+    """``rxs`` 全部命中 ``chunks`` → pass 行，缺一即 fail。"""
+    missing = [rx for rx in rxs if not re.search(rx, chunks)]
+    return {
+        "status": "fail" if missing else "pass",
+        "detail": f"missing {missing} in chunks" if missing else note,
+    }
+
+
+def _ph_roundtrip(
+    chunks: str, recon: str, rx: str, needle: str, note: str
+) -> dict[str, str]:
+    """``rx`` 命中 ``chunks`` 且 ``needle`` 存活于 identity ``recon`` → pass 行。"""
+    ok = re.search(rx, chunks) and needle in recon
+    return {
+        "status": "pass" if ok else "fail",
+        "detail": note
+        if ok
+        else f"rx={rx!r} in chunks / {needle!r} in recon: false",
+    }
+
+
 @dataclass
 class FixtureScan:
     """单个 fixture 的解析 + 双重重建测量包（断言函数的输入）。"""
@@ -147,9 +190,8 @@ class FixtureScan:
     ok: bool
     wall_ms: float
     res: ScanResult | None = None
-    recon: str = ""  # identity 重建（对比基准是展平后原文）
+    recon: str = ""  # identity 重建（对比基准是 res.vtex——见 test_identity_reconstruct）
     recon_fake: str = ""  # 假译文重建
-    flat: str = ""  # flatten_inputs 后的原文
     error: str = ""
     residue_chunk_ph: int = -1
     residue_protect_ph: int = -1
@@ -179,11 +221,6 @@ def run_fixture(
     recon = reconstruct(res)
     translated = {c.id: fake_translation(c, i) for i, c in enumerate(res.chunks)}
     recon_fake = reconstruct(res, translated)
-    flat = flatten_inputs(
-        decode_tex(path.read_bytes()),
-        str(path.parent),
-        str(path.parent),
-    )
     return FixtureScan(
         name=name,
         ok=True,
@@ -191,7 +228,6 @@ def run_fixture(
         res=res,
         recon=recon,
         recon_fake=recon_fake,
-        flat=flat,
         residue_chunk_ph=len(CHUNK_RX.findall(recon_fake)),
         residue_protect_ph=len(PH_RX.findall(recon_fake)),
     )
@@ -440,13 +476,7 @@ def assert_tricky(  # noqa: PLR0915 — 逐条断言平铺即清单（spike 同�
         "detail": "footnote arg -> own chunk",
     }
 
-    res_chunk = len(CHUNK_RX.findall(recon_fake))
-    res_prot = len(PH_RX.findall(recon_fake))
-    out["_meta"] = {
-        "status": "info",
-        "detail": f"chunks={len(res.chunks)} ph={len(res.ph_map)} "
-        f"residue_chunk={res_chunk} residue_prot={res_prot}",
-    }
+    out["_meta"] = _meta_row(res, recon_fake)
     return out
 
 
@@ -608,13 +638,7 @@ def assert_w(
     # W92 注释内 $ \cite{ghost} \begin{equation} → 注释不可见
     absent("W92", "ghost", "comment body invisible to scanner")
 
-    res_chunk = len(CHUNK_RX.findall(recon_fake))
-    res_prot = len(PH_RX.findall(recon_fake))
-    out["_meta"] = {
-        "status": "info",
-        "detail": f"chunks={len(res.chunks)} ph={len(res.ph_map)} "
-        f"residue_chunk={res_chunk} residue_prot={res_prot}",
-    }
+    out["_meta"] = _meta_row(res, recon_fake)
     return out
 
 
@@ -655,25 +679,9 @@ def assert_dollar(
     chunks = chunks_blob(res)
     out: dict[str, dict[str, str]] = {}
 
-    def all_re(tid: str, rxs: tuple[str, ...], note: str) -> None:
-        missing = [rx for rx in rxs if not re.search(rx, chunks)]
-        out[tid] = {
-            "status": "fail" if missing else "pass",
-            "detail": f"missing {missing} in chunks" if missing else note,
-        }
-
-    def ph_roundtrip(tid: str, rx: str, needle: str, note: str) -> None:
-        ok = re.search(rx, chunks) and needle in recon
-        out[tid] = {
-            "status": "pass" if ok else "fail",
-            "detail": note
-            if ok
-            else f"rx={rx!r} in chunks / {needle!r} in recon: false",
-        }
-
     # D01 散文内 \$ → CMD ph（corpus 主族：\$25 / `\$AAPL' / US\$240B）
-    all_re(
-        "D01",
+    out["D01"] = _all_re(
+        chunks,
         (
             r"\[\[CMD_\d+\]\]25 ",
             r"`\[\[CMD_\d+\]\]AAPL'",
@@ -682,73 +690,71 @@ def assert_dollar(
         "prose \\$ escapes -> [[CMD_n]]",
     )
     # D02 \section{} 组参内 \$ → group surface CMD ph
-    all_re(
-        "D02",
+    out["D02"] = _all_re(
+        chunks,
         (r"The \[\[CMD_\d+\]\]5 problem and its \[\[CMD_\d+\]\]10 variants",),
         "section-arg \\$ -> CMD ph",
     )
     # D03 \textit 组参内 \$（corpus \textit{\$KEEP} 形）
-    all_re(
-        "D03",
+    out["D03"] = _all_re(
+        chunks,
         (r"\\textit\{\[\[CMD_\d+\]\]KEEP\}", r"\\textit\{\[\[CMD_\d+\]\]DELETE\}"),
         "textit-arg \\$ -> CMD ph",
     )
     # D04 \item 文本内 \$（corpus 2009.10990 pmpm 形）
-    all_re(
-        "D04",
+    out["D04"] = _all_re(
+        chunks,
         (r"equals \[\[CMD_\d+\]\]1 million", r"cost \[\[CMD_\d+\]\]100,000"),
         "item-text \\$ -> CMD ph",
     )
     # D05 footnote 内 \href 文本参 \$（corpus 2211.04509 形）
-    all_re(
-        "D05",
+    out["D05"] = _all_re(
+        chunks,
         (r"the US \[\[CMD_\d+\]\]326 Billion",),
         "footnote href-arg \\$ -> CMD ph",
     )
     # D06 $$..\begin{array} 区内空行..$$：env 容忍 → 单条 MATH ph 照常配对
-    ph_roundtrip(
-        "D06",
+    out["D06"] = _ph_roundtrip(
+        chunks,
+        recon,
         r"We obtain \[\[MATH_\d+\]\] as well as",
         "$$\n   M =",
         "$$..array(blank-lines)..$$ paired -> [[MATH_n]]",
     )
     # D07 $$..<未展开宏闭符 \ek>+\par → 孤 $$ -> CMD ph + unpaired_dollar
-    ph_roundtrip(
-        "D07",
+    out["D07"] = _ph_roundtrip(
+        chunks,
+        recon,
         r"Weaker condition\n?\s*\[\[CMD_\d+\]\]",
         "$$\n\\nabla",
         "stranded $$ -> CMD ph, $$ survives in recon",
     )
     # D08 散文裸单 $ 不配对 → CMD ph
-    ph_roundtrip(
-        "D08",
+    out["D08"] = _ph_roundtrip(
+        chunks,
+        recon,
         r"25 \[\[CMD_\d+\]\] per unit",
         "25 $ per unit",
         "bare $ -> CMD ph, literal $ in recon",
     )
     # D09 散文裸 $$ 不配对 → CMD ph
-    ph_roundtrip(
-        "D09",
+    out["D09"] = _ph_roundtrip(
+        chunks,
+        recon,
         r"before\. \[\[CMD_\d+\]\] broken",
         "$$ broken math",
         "bare $$ -> CMD ph, literal $$ in recon",
     )
     # D10 \$ 与 $x$ 同行混排 → CMD + MATH 两路并行
-    all_re(
-        "D10",
+    out["D10"] = _all_re(
+        chunks,
         (
             r"Paid \[\[CMD_\d+\]\]5 for \[\[MATH_\d+\]\] tokens and \[\[CMD_\d+\]\]10 more",
         ),
         "mixed \\$ + $x$ -> CMD+MATH dual track",
     )
 
-    res_chunk = len(CHUNK_RX.findall(recon_fake))
-    res_prot = len(PH_RX.findall(recon_fake))
-    out["_meta"] = {
-        "status": "info",
-        "detail": f"chunks={len(res.chunks)} ph={len(res.ph_map)} "
-        f"residue_chunk={res_chunk} residue_prot={res_prot}",
-    }
+    out["_meta"] = _meta_row(res, recon_fake)
     return out
 
 
@@ -761,26 +767,11 @@ def assert_mask(
     chunks = chunks_blob(res)
     out: dict[str, dict[str, str]] = {}
 
-    def all_re(tid: str, rxs: tuple[str, ...], note: str) -> None:
-        missing = [rx for rx in rxs if not re.search(rx, chunks)]
-        out[tid] = {
-            "status": "fail" if missing else "pass",
-            "detail": f"missing {missing} in chunks" if missing else note,
-        }
-
-    def ph_roundtrip(tid: str, rx: str, needle: str, note: str) -> None:
-        ok = re.search(rx, chunks) and needle in recon
-        out[tid] = {
-            "status": "pass" if ok else "fail",
-            "detail": note
-            if ok
-            else f"rx={rx!r} in chunks / {needle!r} in recon: false",
-        }
-
     # M01 W92 注释尾孤立 $ 不参配对（hep-ph/9910434 %$ 形）——footnote 参内
     # $^{\dag}$ 正常配对，尾随 %$ 的 $ 不抢不泄
-    ph_roundtrip(
-        "M01",
+    out["M01"] = _ph_roundtrip(
+        chunks,
+        recon,
         r"Published version\.\[\[MATH_\d+\]\]",
         r"$^{\dag}$",
         "comment-trailing isolated $ ignored, dagger math paired",
@@ -796,22 +787,24 @@ def assert_mask(
         else "debt_repair fired or math pairing broken",
     }
     # M03 W84 $%$ 跨行拼接（nucl-th/9703052）——单条 MATH 跨注释闭合
-    ph_roundtrip(
-        "M03",
+    out["M03"] = _ph_roundtrip(
+        chunks,
+        recon,
         r"The shell \[\[MATH_\d+\]\] orbitals",
         "$%\n(N) $",
         "$..%<NL>..$ joined into one MATH",
     )
     # M04 W84 \overline{%<NL>\chi} 参内注释拼接——arg 边界跳注释
-    ph_roundtrip(
-        "M04",
+    out["M04"] = _ph_roundtrip(
+        chunks,
+        recon,
         r"We write \[\[MATH_\d+\]\] for the averaged",
         "$\\overline{%\n\\chi }$",
         "\\overline{%<NL>\\chi} arg-intact MATH",
     )
     # M05 W84 文本组内注释拼接：Mouth 吃注释 → 参数一体单 chunk
-    all_re(
-        "M05",
+    out["M05"] = _all_re(
+        chunks,
         (r"A braced \\textbf\{grouped  word\} stays one argument\.",),
         "comment-joined textbf arg stays one chunk",
     )
@@ -875,19 +868,13 @@ def assert_mask(
         else "dead body leaked or live tail lost",
     }
     # M11 W92 整行注释内孤立 $ 不参配对——$z$ 正常配对
-    all_re(
-        "M11",
+    out["M11"] = _all_re(
+        chunks,
         (r"Live tail \[\[MATH_\d+\]\] closes the file body\.",),
         "full-line comment $ ignored",
     )
 
-    res_chunk = len(CHUNK_RX.findall(recon_fake))
-    res_prot = len(PH_RX.findall(recon_fake))
-    out["_meta"] = {
-        "status": "info",
-        "detail": f"chunks={len(res.chunks)} ph={len(res.ph_map)} "
-        f"residue_chunk={res_chunk} residue_prot={res_prot}",
-    }
+    out["_meta"] = _meta_row(res, recon_fake)
     return out
 
 

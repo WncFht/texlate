@@ -4,7 +4,7 @@ n100-postcutover 逐签名归因产物:
 - F1: shim_map 新增 ~38 条 (elsart 家族→elsarticle, sig-alternate→acmart,
   aastex6x→emulateapj, prl/apl→revtex4-2, siamltex/osa/JHEP 家族→article+polyfill
   等), 实证见 bench/results/fixloop-tickets-F1F2-2026-09-16.md。
-- F2: cs_targeted_fix cs_table 新增 24 条 splice/join 合并残骸 (cs+后 token
+- F2: cs_targeted_fix cs_table 新增 31 条 splice/join 合并残骸 (cs+后 token
   粘连, 如 \\itemFSU ← \\item + 首词 FSU), 全部 cs_map 拆回原形。
 单测打 transform 层: stub 落盘 / needs→install 调用 / cs_map 改写及词边界。
 真编译冒烟: tmp/shimtest/ (xelatex 36/36 PASS, 见证据文件)。
@@ -15,6 +15,7 @@ from functools import lru_cache
 from pathlib import Path
 
 import pytest
+from test_fixloop_loop import MockEngine
 
 from texlate.compile.fixloop import Ruleset, load_ruleset
 from texlate.compile.fixloop.builtins import TRANSFORM_FNS
@@ -46,33 +47,6 @@ def _cs_table() -> dict:
 _SHIM_MAP_MIN = 38  # 2026-09-16 扩表后规模哨兵 (原 3 条 + 新增 ~38)
 
 
-class _Eng:
-    name = "xelatex"
-    caps = frozenset({"kpsewhich", "tlmgr"})
-
-    def __init__(
-        self,
-        probe_map: dict[str, str] | None = None,
-        installable: tuple[str, ...] = (),
-    ) -> None:
-        self.probe_map = probe_map or {}
-        self.installable = set(installable)
-        self.install_calls: list[str] = []
-
-    def probe_file(self, fname: str, cwd: Path | None = None) -> str | None:
-        del cwd
-        return self.probe_map.get(fname)
-
-    def install_file(self, fname: str, *, font_related: bool = False) -> bool:
-        del font_related
-        self.install_calls.append(fname)
-        return fname in self.installable
-
-    def filemap(self, fname: str) -> list[str]:
-        del fname
-        return []
-
-
 def _ctx(tmp_path: Path) -> LoopCtx:
     ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
     ctx.main_rel = "main.tex"
@@ -86,7 +60,7 @@ def test_shim_map_every_entry_fires(tmp_path: Path) -> None:
     """shim_map 全表 (含旧条目): transform 落 stub + needs 走 install_file。"""
     assert len(_shim_map()) >= _SHIM_MAP_MIN
     for payload, spec in _shim_map().items():
-        ctx, eng = _ctx(tmp_path), _Eng()
+        ctx, eng = _ctx(tmp_path), MockEngine([])
         ok, note = TRANSFORM_FNS["legacy_pkg_shim"](ctx, eng, payload, _shim_params())
         assert ok, (payload, note)
         stub = (tmp_path / payload).read_text()
@@ -110,7 +84,7 @@ def test_shim_map_loads_entries_are_cls_and_delegate(tmp_path: Path) -> None:
         if "loads" not in spec:
             continue
         assert payload.endswith(".cls"), f"{payload}: loads 模板仅适用 .cls"
-        ctx, eng = _ctx(tmp_path), _Eng()
+        ctx, eng = _ctx(tmp_path), MockEngine([])
         ok, _ = TRANSFORM_FNS["legacy_pkg_shim"](ctx, eng, payload, _shim_params())
         assert ok
         stub = (tmp_path / payload).read_text()
@@ -135,7 +109,7 @@ def test_shim_map_evolved_class_targets(tmp_path: Path, payload: str) -> None:
     m = re.search(r"\\LoadClassWithOptions\{([^}]*)\}", spec.get("body") or "")
     target = spec.get("loads") or (m.group(1) if m else None)
     assert target in {"elsarticle", "acmart", "nature"}
-    ctx, eng = _ctx(tmp_path), _Eng()
+    ctx, eng = _ctx(tmp_path), MockEngine([])
     ok, note = TRANSFORM_FNS["legacy_pkg_shim"](ctx, eng, payload, _shim_params())
     assert ok, note
 
@@ -149,7 +123,7 @@ def test_shim_map_elsart_siblings_body_form(tmp_path: Path, payload: str) -> Non
     spec = _shim_map()[payload]
     assert "loads" not in spec
     assert "\\LoadClassWithOptions{elsarticle}" in spec["body"]
-    ctx, eng = _ctx(tmp_path), _Eng()
+    ctx, eng = _ctx(tmp_path), MockEngine([])
     ok, note = TRANSFORM_FNS["legacy_pkg_shim"](ctx, eng, payload, _shim_params())
     assert ok, note
     stub = (tmp_path / payload).read_text()
@@ -166,7 +140,7 @@ def test_shim_map_elsart_body_form(tmp_path: Path) -> None:
     assert "\\newdimen\\@bls" in spec["body"]
     for cs in ("\\@maxlistdepth", "\\if@TwoColumn", "\\if@ussrhead", "\\if@Elproofing"):
         assert cs in spec["body"]
-    ctx, eng = _ctx(tmp_path), _Eng()
+    ctx, eng = _ctx(tmp_path), MockEngine([])
     ok, note = TRANSFORM_FNS["legacy_pkg_shim"](
         ctx, eng, "elsart1p.cls", _shim_params()
     )
@@ -195,12 +169,12 @@ def test_shim_map_needs_drive_install(
     tmp_path: Path, payload: str, needs: list[str]
 ) -> None:
     """needs 依赖逐一走 eng.install_file; 装不上记 note 不炸 (下轮归因)。"""
-    ctx, eng = _ctx(tmp_path), _Eng()
+    ctx, eng = _ctx(tmp_path), MockEngine([])
     ok, _ = TRANSFORM_FNS["legacy_pkg_shim"](ctx, eng, payload, _shim_params())
     assert ok
     assert eng.install_calls == needs
     # 全部装不上 → note 报缺
-    ctx2, eng2 = _ctx(tmp_path), _Eng()
+    ctx2, eng2 = _ctx(tmp_path), MockEngine([])
     (tmp_path / payload).unlink()
     ok2, note2 = TRANSFORM_FNS["legacy_pkg_shim"](ctx2, eng2, payload, _shim_params())
     assert ok2
@@ -229,7 +203,7 @@ def test_shim_map_body_invariants() -> None:
 
 
 def test_shim_map_unknown_payload_noop(tmp_path: Path) -> None:
-    ctx, eng = _ctx(tmp_path), _Eng()
+    ctx, eng = _ctx(tmp_path), MockEngine([])
     ok, note = TRANSFORM_FNS["legacy_pkg_shim"](
         ctx, eng, "noshim123.cls", _shim_params()
     )
@@ -289,7 +263,7 @@ def test_cs_table_merge_artifact_rewrite(
     (tmp_path / "main.tex").write_text(
         f"\\documentclass{{article}}\n\\begin{{document}}\n{src}\n\\end{{document}}\n"
     )
-    ctx, eng = _ctx(tmp_path), _Eng()
+    ctx, eng = _ctx(tmp_path), MockEngine([])
     ok, note = TRANSFORM_FNS["cs_targeted_fix"](ctx, eng, payload, _cs_params())
     assert ok, note
     assert want in (tmp_path / "main.tex").read_text()
@@ -301,7 +275,7 @@ def test_cs_table_word_boundary_protects_longer_cs(tmp_path: Path) -> None:
         "\\documentclass{article}\n\\begin{document}\n"
         "\\itemFSUbar keep\n\\parindent=10pt\n\\paria safe\n\\end{document}\n"
     )
-    ctx, eng = _ctx(tmp_path), _Eng()
+    ctx, eng = _ctx(tmp_path), MockEngine([])
     # 零替换 → "applied nothing" False —— 关键断言是更长 cs 未被误改
     TRANSFORM_FNS["cs_targeted_fix"](ctx, eng, "itemFSU", _cs_params())
     t = (tmp_path / "main.tex").read_text()
@@ -316,7 +290,7 @@ def test_cs_table_rewrite_leaves_sty(tmp_path: Path) -> None:
     """cs_map 改写面含 .sty (fixloop 产物可能粘进注入的 sty 片段)。"""
     (tmp_path / "main.tex").write_text("\\documentclass{article}\n")
     (tmp_path / "local.sty").write_text("\\def\\x{\\ddt}\n")
-    ctx, eng = _ctx(tmp_path), _Eng()
+    ctx, eng = _ctx(tmp_path), MockEngine([])
     ok, _ = TRANSFORM_FNS["cs_targeted_fix"](ctx, eng, "ddt", _cs_params())
     assert ok
     assert "\\dd t" in (tmp_path / "local.sty").read_text()
@@ -327,7 +301,7 @@ def test_cs_table_usepackage_inject(tmp_path: Path) -> None:
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n\\begin{document}\n\\citep{x}\n\\end{document}\n"
     )
-    ctx, eng = _ctx(tmp_path), _Eng(installable=("natbib.sty",))
+    ctx, eng = _ctx(tmp_path), MockEngine([], installable=("natbib.sty",))
     ok, note = TRANSFORM_FNS["cs_targeted_fix"](ctx, eng, "citep", _cs_params())
     assert ok, note
     t = (tmp_path / "main.tex").read_text()
@@ -336,8 +310,8 @@ def test_cs_table_usepackage_inject(tmp_path: Path) -> None:
     assert "\\citep{x}" in t  # cs 本身不改写
 
 
-def test_cs_table_all_entries_cs_map_only() -> None:
-    """本批 24 条全部是纯 cs_map (无装包/剥包副作用) —— 合并残骸语义锁。"""
+def test_cs_cases_batch_cs_map_only() -> None:
+    """本批 31 条全部是纯 cs_map (无装包/剥包副作用) —— 合并残骸语义锁。"""
     for payload in [c[0] for c in _CS_CASES]:
         spec = _cs_table()[payload]
         assert set(spec) == {"cs_map"}, payload
@@ -365,7 +339,7 @@ def test_cs_split_fallback_new_residue(
     (tmp_path / "main.tex").write_text(
         f"\\documentclass{{article}}\n\\begin{{document}}\n{src}\n\\end{{document}}\n"
     )
-    ctx, eng = _ctx(tmp_path), _Eng()
+    ctx, eng = _ctx(tmp_path), MockEngine([])
     ok, note = TRANSFORM_FNS["cs_targeted_fix"](ctx, eng, payload, _cs_params())
     assert ok, note
     assert want in (tmp_path / "main.tex").read_text()
@@ -392,7 +366,7 @@ def test_cs_split_fallback_rejects(tmp_path: Path, payload: str) -> None:
     (tmp_path / "main.tex").write_text(
         f"\\documentclass{{article}}\n\\begin{{document}}\n\\{payload} x\n\\end{{document}}\n"
     )
-    ctx, eng = _ctx(tmp_path), _Eng()
+    ctx, eng = _ctx(tmp_path), MockEngine([])
     ok, note = TRANSFORM_FNS["cs_targeted_fix"](ctx, eng, payload, _cs_params())
     assert not ok, note
     assert f"\\{payload} x" in (tmp_path / "main.tex").read_text()  # 零改写
@@ -403,7 +377,7 @@ def test_cs_split_exact_table_precedence(tmp_path: Path) -> None:
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n\\begin{document}\n\\citep{x}\n\\end{document}\n"
     )
-    ctx, eng = _ctx(tmp_path), _Eng(installable=("natbib.sty",))
+    ctx, eng = _ctx(tmp_path), MockEngine([], installable=("natbib.sty",))
     ok, _ = TRANSFORM_FNS["cs_targeted_fix"](ctx, eng, "citep", _cs_params())
     assert ok
     assert "\\RequirePackage{natbib}" in (tmp_path / "main.tex").read_text()
@@ -415,7 +389,7 @@ def test_cs_split_none_residue_terminates(tmp_path: Path) -> None:
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n\\begin{document}\n$\\dd$\n\\end{document}\n"
     )
-    ctx, eng = _ctx(tmp_path), _Eng()
+    ctx, eng = _ctx(tmp_path), MockEngine([])
     ok, note = TRANSFORM_FNS["cs_targeted_fix"](ctx, eng, "dd", _cs_params())
     assert not ok, note
     assert "$\\dd$" in (tmp_path / "main.tex").read_text()

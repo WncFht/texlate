@@ -1,14 +1,17 @@
 """``run_process`` 内嵌 ``_RunawaySentry`` 活哨——病态 ``\\output`` 暴走的
-活杀测试。
+活杀测试（哨件本体在 ``compile.proc``，``compile.sandbox`` 仅 re-export）。
 
-签名/阈值与 ``compile.logparse`` 事后判据单源（``_RUNAWAY_VBOX_RX`` ×
-30；``[N]`` shipout 页标 10K 第二闸）。越阈排干环抛 ``TimeoutExpired``
+签名/阈值与 ``compile.logparse`` 事后判据单源，两闸：
+vbox 密度闸——``_RUNAWAY_VBOX_RX`` 命中 ≥ ``_RUNAWAY_VBOX_MIN``(30) 且
+签名数 > ``_RUNAWAY_VBOX_DENSITY``(4)× ``[N]`` 页标原始计数（密度语义
+钉见 ``test_sentry_rate.py``）；页标闸——``[N]`` shipout 页标单调包络
+计数 ≥ ``_RUNAWAY_PAGE_MAX``(10K)，只 ``n >= _page_last`` 入计（包络语义
+钉见 ``test_sentry_pageflood.py``）。越阈排干环抛 ``TimeoutExpired``
 → ``run_process`` 既有 killpg 收树臂 → ``timed_out`` 槽回吐截杀臂名
 （``vbox_flood``/``page_flood`` str）+ SIGKILL——``_res_died``/
 ``runaway_output`` 归因凭记录臂名命中，病态编译不再烧满墙钟
 （gr-qc/0104075：96K+ 签名行 / ~97K 页烧 240s 实证）；逐页一条的慢性
-vbox 告警（1003.2165：46签名/46页）密度判据放行不杀，密度语义钉见
-``test_sentry_rate.py``。
+vbox 告警（1003.2165：46签名/46页）密度判据放行不杀。
 哨件只活在 POSIX 排干环——win32 分片 communicate 与无 stdout 替身
 （测试注入面）不装哨，runner 注入缝原样。
 """
@@ -46,7 +49,8 @@ def _emit_then_sleep(payload: str, sleep_s: int = 60) -> list[str]:
 
 # ---------------------------------------------------------------- 哨件单元
 def test_sentry_vbox_threshold() -> None:
-    """29 行不误伤、第 30 行越阈——与 logparse 事后判据同阈值。"""
+    """零页标前提前 29 行不误伤、第 30 行越阈——密度闸在 page_marks=0
+    时退化为纯 ``_RUNAWAY_VBOX_MIN`` 计数（``_SIG`` 尾 ``[]`` 无数字）。"""
     s = _RunawaySentry()
     for _ in range(29):
         assert s.feed(_SIG_B + b"\n") is False

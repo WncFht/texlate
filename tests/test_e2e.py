@@ -19,7 +19,7 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING
 
-from conftest import RecordingEngine
+from conftest import MINI_TEX, RecordingEngine, failing_engine, make_project
 
 from texlate import e2e
 from texlate.compile.engine import RouteDecision
@@ -31,18 +31,6 @@ if TYPE_CHECKING:
 
     import pytest
 
-#: 最小可解析工程：两段散文保证出 chunk（单行 body 可能零 chunk）。
-_MAIN = (
-    "\\documentclass{article}\n"
-    "\\begin{document}\n"
-    "\\section{Intro}\n"
-    "This is a longer paragraph of English text that should definitely be\n"
-    "segmented into at least one chunk for translation purposes.\n"
-    "\n"
-    "And a second paragraph here.\n"
-    "\\end{document}\n"
-)
-
 _DOCSTYLE = (
     "\\documentstyle{ias}\n"
     "\\begin{document}\n"
@@ -51,18 +39,12 @@ _DOCSTYLE = (
 )
 
 
-def _project(root: Path, main: str = _MAIN) -> Path:
-    root.mkdir(parents=True, exist_ok=True)
-    (root / "main.tex").write_text(main, encoding="utf-8")
-    return root
-
-
 # ---------------------------------------------------------------- translate_tree
 
 
 def test_translate_tree_two_files(tmp_path: Path) -> None:
     """两文件树：per-file chunk_id 前缀隔离、译文写回、占位符零残留。"""
-    _project(tmp_path)
+    make_project(tmp_path)
     (tmp_path / "sub.tex").write_text(
         "A third paragraph in a second file that should also be translated here.\n",
         encoding="utf-8",
@@ -102,7 +84,7 @@ def test_translate_tree_parse_fault_isolated(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """单文件 parse 崩 → 记名进 fault_files，其余文件照常翻译写回。"""
-    _project(tmp_path)
+    make_project(tmp_path)
     (tmp_path / "broken.tex").write_text("Anything\n", encoding="utf-8")
 
     real_parse_file = latex_api.parse_file
@@ -126,7 +108,7 @@ def test_translate_tree_validator_fault_keeps_source(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """校验器恒败 → 全 chunk fault → 不写回（文件保持原文）。"""
-    _project(tmp_path)
+    make_project(tmp_path)
 
     class AlwaysBad:
         def feedback(self) -> str:
@@ -137,12 +119,12 @@ def test_translate_tree_validator_fault_keeps_source(
 
     assert stats["fault_chunks"] == stats["chunks"] > 0
     assert stats["files"] == 0
-    assert (tmp_path / "main.tex").read_text(encoding="utf-8") == _MAIN
+    assert (tmp_path / "main.tex").read_text(encoding="utf-8") == MINI_TEX
 
 
 def test_translate_tree_uppercase_ext(tmp_path: Path) -> None:
     """``.TEX`` 主文件进翻译集——不再被 rglob 大小写盲点跳过。"""
-    (tmp_path / "PAPER.TEX").write_text(_MAIN, encoding="utf-8")
+    (tmp_path / "PAPER.TEX").write_text(MINI_TEX, encoding="utf-8")
     stats = e2e.translate_tree(tmp_path)
 
     assert stats["fault_files"] == []
@@ -152,7 +134,7 @@ def test_translate_tree_uppercase_ext(tmp_path: Path) -> None:
 
 def test_translate_tree_rtx_dump_uppercase_still_excluded(tmp_path: Path) -> None:
     """``.RTX.TEX`` 运行时转储依旧排除——枚举变宽不放大排除例外。"""
-    (tmp_path / "main.tex").write_text(_MAIN, encoding="utf-8")
+    (tmp_path / "main.tex").write_text(MINI_TEX, encoding="utf-8")
     (tmp_path / "paper.RTX.TEX").write_text("runtime dump\n", encoding="utf-8")
     stats = e2e.translate_tree(tmp_path)
 
@@ -163,8 +145,9 @@ def test_translate_tree_rtx_dump_uppercase_still_excluded(tmp_path: Path) -> Non
 def test_delivered_requires_nonempty_translation() -> None:
     """ok+空译文不交付——worker ``_build_zh`` 同口径。
 
-    ``status=="ok" and r["translation"]``（server/worker/compile.py:297）：
-    空串进 splice 会把该块内容从 zh 树静默擦除，与失败块同回落原文。
+    ``status=="ok" and r["translation"]``（``texlate.pipecore.delivered`` /
+    ``delivered_db``；``e2e._delivered`` 是其兼容别名）：空串进 splice
+    会把该块内容从 zh 树静默擦除，与失败块同回落原文。
     """
 
     def mk(status: str, zh: str) -> ChunkResult:
@@ -187,7 +170,7 @@ def test_pipeline_run_happy(
     tmp_path: Path, fake_engine: dict[str, RecordingEngine]
 ) -> None:
     """全链：route → normalize → mock 翻译 → ctex 注入 → fake 编译 → clean。"""
-    work = _project(tmp_path / "p")
+    work = make_project(tmp_path / "p")
     report = e2e.pipeline_run(work, "auto", timeout=60.0)
 
     assert report["status"] == "clean"
@@ -223,7 +206,7 @@ def test_pipeline_run_sink_events(
         def event(self, etype: str, payload: dict) -> None:
             events.append((etype, payload))
 
-    work = _project(tmp_path / "p")
+    work = make_project(tmp_path / "p")
     report = e2e.pipeline_run(work, "auto", timeout=60.0, sink=_Sink())
 
     assert report["status"] == "clean"
@@ -251,7 +234,7 @@ def test_pipeline_run_default_sink_silent(
     fake_engine: dict[str, RecordingEngine],  # noqa: ARG001 -- fixture 副作用（换引擎）
 ) -> None:
     """缺省 ``NULL_SINK`` 不炸——e2e/bench 臂零事件面契约。"""
-    work = _project(tmp_path / "p")
+    work = make_project(tmp_path / "p")
     report = e2e.pipeline_run(work, "auto", timeout=60.0)
     assert report["status"] == "clean"
 
@@ -260,7 +243,7 @@ def test_pipeline_run_xelatex_halt_flag(
     tmp_path: Path, fake_engine: dict[str, RecordingEngine]
 ) -> None:
     """engine_opt='xelatex'：构造 kwargs 带 halt_on_error=False（best-effort 语义）。"""
-    work = _project(tmp_path / "p")
+    work = make_project(tmp_path / "p")
     report = e2e.pipeline_run(work, "xelatex", timeout=30.0)
 
     assert report["engine"] == "xelatex"
@@ -271,7 +254,7 @@ def test_pipeline_run_route_reject(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """route.reject 非空 → 短路终态 reject，不进 normalize/编译。"""
-    work = _project(tmp_path / "p")
+    work = make_project(tmp_path / "p")
     monkeypatch.setattr(
         e2e,
         "route_project",
@@ -303,7 +286,7 @@ def test_pipeline_run_inject_reject_documentstyle(
     tmp_path: Path, fake_engine: dict[str, RecordingEngine]
 ) -> None:
     r"""``\documentstyle`` → route 只打 suspect、inject 层真拒（分流可审计）。"""
-    work = _project(tmp_path / "p", main=_DOCSTYLE)
+    work = make_project(tmp_path / "p", main=_DOCSTYLE)
     report = e2e.pipeline_run(work, "auto", timeout=10.0)
 
     assert report["status"] == "partial"  # F3: inject 拒绝合成 partial
@@ -319,7 +302,7 @@ def test_base_condition(
     fake_engine: dict[str, RecordingEngine],  # noqa: ARG001 -- fixture 副作用
 ) -> None:
     """base：不动源码编译+判定（expect_cjk=False → 无 CJK 检查）。"""
-    work = _project(tmp_path / "p")
+    work = make_project(tmp_path / "p")
     rec = e2e.base_condition(work, "tectonic", "main.tex", timeout=45.0)
 
     assert rec["status"] == "clean"
@@ -328,7 +311,7 @@ def test_base_condition(
     assert "translate" not in rec
     assert "inject" not in rec
     # 源码未被改写（对照臂语义）
-    assert (work / "main.tex").read_text(encoding="utf-8") == _MAIN
+    assert (work / "main.tex").read_text(encoding="utf-8") == MINI_TEX
 
 
 def test_pipeline_run_repair_chain_fail(
@@ -339,14 +322,8 @@ def test_pipeline_run_repair_chain_fail(
     RecordingEngine 带全协议桩（caps/probe/install/filemap/best_effort），
     fixloop 真跑自然收敛而非走 ``_run_fixloop`` 的 error 兜底。
     """
-    work = _project(tmp_path / "p")
-
-    def factory(name: str, **kw: object) -> RecordingEngine:
-        eng = RecordingEngine(name, **kw)
-        eng.produce_pdf = False
-        return eng
-
-    monkeypatch.setattr(e2e, "engine_for", factory)
+    work = make_project(tmp_path / "p")
+    monkeypatch.setattr(e2e, "engine_for", failing_engine)
     for key in ("TEXLATE_ENV_JUDGE", "TEXLATE_NO_L2", "TEXLATE_NO_FIXLOOP"):
         monkeypatch.delenv(key, raising=False)
     report = e2e.pipeline_run(work, "auto", timeout=10.0)

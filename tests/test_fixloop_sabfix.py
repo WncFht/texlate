@@ -25,6 +25,8 @@ fontenc 载入归名 fontenc.sty:115, cat=options_section)。
 import re
 from pathlib import Path
 
+from test_fixloop_loop import MockEngine
+
 from texlate.compile.fixloop import Ruleset, actions, fixloop, load_ruleset
 from texlate.compile.fixloop._builtins_bib import (
     _AUTOBIB_DISARM as _DISARM_FIXLOOP,
@@ -137,6 +139,15 @@ def _plant_mn2e(wdir: Path, body: str = _MN2E_BUGGY) -> Path:
     return f
 
 
+def _ctx(
+    tmp_path: Path, err_head: str = "", main_rel: str | None = None
+) -> LoopCtx:
+    """xelatex LoopCtx 工厂——``err_head`` 直注构造器 (不再后置赋值)。"""
+    return LoopCtx(
+        wdir=tmp_path, engine_name="xelatex", main_rel=main_rel, err_head=err_head
+    )
+
+
 # ---------------------------------------------------------------- FIX A: \\string@ 发射
 def test_disarm_sites_byte_identical() -> None:
     """normalize 与 fixloop 双发射位字节同一 —— 单侧漂移即另一臂复毒。"""
@@ -171,7 +182,7 @@ def test_bbl_stub_rewrite_emits_string_guard(tmp_path: Path) -> None:
     """fixloop 臂: ``bbl_stub_rewrite`` 改写补同款 ``\\string@`` disarm。"""
     (tmp_path / "main.tex").write_text(_doc())
     _bbl(tmp_path)
-    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel="main.tex")
+    ctx = _ctx(tmp_path, main_rel="main.tex")
     ok, _note = bbl_stub_rewrite(ctx, None, None, {})
     assert ok
     out = (tmp_path / "main.tex").read_text()
@@ -238,8 +249,7 @@ def test_rule_order_neighbors() -> None:
 def test_cond_pass_shipped_buggy_fontenc_err(tmp_path: Path) -> None:
     """实证形: 稿自带病件在场 + fontenc 归名 Options Section 签名 → 闸过。"""
     _plant_mn2e(tmp_path)
-    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
-    ctx.err_head = _ERR_FONTENC + _ERR_FONTENC_CTX
+    ctx = _ctx(tmp_path, err_head=_ERR_FONTENC + _ERR_FONTENC_CTX)
     ok, why = actions._cond_ok(_rule().condition, _rule(), ctx, None, None)  # noqa: SLF001
     assert ok, why
 
@@ -247,8 +257,7 @@ def test_cond_pass_shipped_buggy_fontenc_err(tmp_path: Path) -> None:
 def test_cond_pass_bang_form(tmp_path: Path) -> None:
     """'!' 形态: 文件名缺席但 "Options Section" 字面在 rep.first → 同闸收。"""
     _plant_mn2e(tmp_path)
-    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
-    ctx.err_head = _BANG_ERR + _ERR_FONTENC_CTX
+    ctx = _ctx(tmp_path, err_head=_BANG_ERR + _ERR_FONTENC_CTX)
     ok, why = actions._cond_ok(_rule().condition, _rule(), ctx, None, None)  # noqa: SLF001
     assert ok, why
 
@@ -256,8 +265,7 @@ def test_cond_pass_bang_form(tmp_path: Path) -> None:
 def test_cond_pass_mn2e_attr_form(tmp_path: Path) -> None:
     """mn2e.cls 点名归名变体 → ctx_suggests 第二备选收 (双签名通道)。"""
     _plant_mn2e(tmp_path)
-    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
-    ctx.err_head = _ERR_MN2E_ATTR + _ERR_FONTENC_CTX
+    ctx = _ctx(tmp_path, err_head=_ERR_MN2E_ATTR + _ERR_FONTENC_CTX)
     ok, why = actions._cond_ok(_rule().condition, _rule(), ctx, None, None)  # noqa: SLF001
     assert ok, why
 
@@ -265,16 +273,14 @@ def test_cond_pass_mn2e_attr_form(tmp_path: Path) -> None:
 def test_cond_skip_when_error_elsewhere(tmp_path: Path) -> None:
     """错误不点名 mn2e.cls/Options Section (别包错) → ctx_suggests 闸拒。"""
     _plant_mn2e(tmp_path)
-    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
-    ctx.err_head = "./main.tex:10: Undefined control sequence.\nl.10 \\foo\n"
+    ctx = _ctx(tmp_path, err_head="./main.tex:10: Undefined control sequence.\nl.10 \\foo\n")
     ok, _ = actions._cond_ok(_rule().condition, _rule(), ctx, None, None)  # noqa: SLF001
     assert not ok
 
 
 def test_cond_skip_when_mn2e_absent(tmp_path: Path) -> None:
     """wdir 无 mn2e.cls → cache_dir_glob 闸拒 (同轮落 mnras 面零成本)。"""
-    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
-    ctx.err_head = _ERR_FONTENC + _ERR_FONTENC_CTX
+    ctx = _ctx(tmp_path, err_head=_ERR_FONTENC + _ERR_FONTENC_CTX)
     ok, _ = actions._cond_ok(_rule().condition, _rule(), ctx, None, None)  # noqa: SLF001
     assert not ok
 
@@ -282,8 +288,7 @@ def test_cond_skip_when_mn2e_absent(tmp_path: Path) -> None:
 def test_cond_skip_when_shim_shape(tmp_path: Path) -> None:
     """vendor shim mn2e.cls (\\mn@graphicx 旗, 无 \\@usegraphicxtrue) → 指纹阴性拒。"""
     _plant_mn2e(tmp_path, _MN2E_SHIM)
-    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
-    ctx.err_head = _ERR_FONTENC + _ERR_FONTENC_CTX
+    ctx = _ctx(tmp_path, err_head=_ERR_FONTENC + _ERR_FONTENC_CTX)
     ok, _ = actions._cond_ok(_rule().condition, _rule(), ctx, None, None)  # noqa: SLF001
     assert not ok
 
@@ -291,8 +296,7 @@ def test_cond_skip_when_shim_shape(tmp_path: Path) -> None:
 def test_cond_skip_when_mnras_patched_shape(tmp_path: Path) -> None:
     """补丁 mnras.cls 同指纹形 (ds@ 行净): \\@usegraphicxtrue 紧邻 } → 阴性拒。"""
     _plant_mn2e(tmp_path, _MNRAS_PATCHED)
-    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
-    ctx.err_head = _ERR_FONTENC + _ERR_FONTENC_CTX
+    ctx = _ctx(tmp_path, err_head=_ERR_FONTENC + _ERR_FONTENC_CTX)
     ok, _ = actions._cond_ok(_rule().condition, _rule(), ctx, None, None)  # noqa: SLF001
     assert not ok
 
@@ -301,7 +305,7 @@ def test_cond_skip_when_mnras_patched_shape(tmp_path: Path) -> None:
 def test_apply_patches_buggy_in_place(tmp_path: Path) -> None:
     """病件原位补丁: 内联 \\usepackage 裹 \\AtEndOfClass + 注入标, 其余字节不动。"""
     cls = _plant_mn2e(tmp_path)
-    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
+    ctx = _ctx(tmp_path)
     ok, note = actions._apply(_rule(), ctx, None, None, ErrReport())  # noqa: SLF001
     assert ok, note
     out = cls.read_text(encoding="utf-8")
@@ -315,7 +319,7 @@ def test_apply_patches_buggy_in_place(tmp_path: Path) -> None:
 def test_apply_preserves_driver_option(tmp_path: Path) -> None:
     """``[xetex]`` 驱动选项原样保留进 \\AtEndOfClass 参数 (verbatim 搬运)。"""
     cls = _plant_mn2e(tmp_path)
-    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
+    ctx = _ctx(tmp_path)
     ok, _ = actions._apply(_rule(), ctx, None, None, ErrReport())  # noqa: SLF001
     assert ok
     out = cls.read_text(encoding="utf-8")
@@ -325,7 +329,7 @@ def test_apply_preserves_driver_option(tmp_path: Path) -> None:
 def test_apply_noopt_and_reqpkg_variants(tmp_path: Path) -> None:
     """无选项 ``\\usepackage{graphicx}`` 与 ``\\RequirePackage`` 变体同裹。"""
     cls = _plant_mn2e(tmp_path, _MN2E_BUGGY_NOOPT + _MN2E_BUGGY_REQPKG)
-    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
+    ctx = _ctx(tmp_path)
     ok, _ = actions._apply(_rule(), ctx, None, None, ErrReport())  # noqa: SLF001
     assert ok
     out = cls.read_text(encoding="utf-8")
@@ -336,7 +340,7 @@ def test_apply_noopt_and_reqpkg_variants(tmp_path: Path) -> None:
 def test_apply_declines_shim_shape(tmp_path: Path) -> None:
     """shim 件 (无 \\@usegraphicxtrue\\usepackage 紧邻指纹) → 零改写 decline。"""
     cls = _plant_mn2e(tmp_path, _MN2E_SHIM)
-    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
+    ctx = _ctx(tmp_path)
     ok, _ = actions._apply(_rule(), ctx, None, None, ErrReport())  # noqa: SLF001
     assert not ok
     assert cls.read_text(encoding="utf-8") == _MN2E_SHIM
@@ -345,7 +349,7 @@ def test_apply_declines_shim_shape(tmp_path: Path) -> None:
 def test_apply_idempotent_second_run(tmp_path: Path) -> None:
     """二跑幂等: 补丁后紧邻指纹消失 → decline, 文件不再变。"""
     cls = _plant_mn2e(tmp_path)
-    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
+    ctx = _ctx(tmp_path)
     ok1, _ = actions._apply(_rule(), ctx, None, None, ErrReport())  # noqa: SLF001
     once = cls.read_text(encoding="utf-8")
     ok2, _ = actions._apply(_rule(), ctx, None, None, ErrReport())  # noqa: SLF001
@@ -359,68 +363,13 @@ def test_apply_cls_scope_only(tmp_path: Path) -> None:
     tex = tmp_path / "main.tex"
     tex.write_text(_MN2E_BUGGY, encoding="utf-8")
     _plant_mn2e(tmp_path, _MN2E_SHIM)
-    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
+    ctx = _ctx(tmp_path)
     ok, _ = actions._apply(_rule(), ctx, None, None, ErrReport())  # noqa: SLF001
     assert not ok
     assert tex.read_text(encoding="utf-8") == _MN2E_BUGGY
 
 
 # ---------------------------------------------------------------- e2e
-class _MockRes:
-    """impl CompRes duck-type 替身 (test_fixloop_mnrasretire 同款微缩)。"""
-
-    def __init__(self, wdir: Path, spec: dict) -> None:
-        self.log_path = wdir / "main.log"
-        self.log_path.write_text(spec.get("log", ""), encoding="utf-8")
-        self.pdf = wdir / "main.pdf" if spec.get("pdf") else None
-        if self.pdf is not None:
-            self.pdf.write_bytes(b"%PDF-1.4 fake")
-        self.pdf_bytes = self.pdf.stat().st_size if self.pdf else 0
-        self.timed_out = False
-        self.killed_signal = None
-        self.seconds = 0.05
-        self.stdout_tail = ""
-        self.log_text = ""
-
-    @property
-    def has_pdf(self) -> bool:
-        return self.pdf is not None and self.pdf_bytes > 0
-
-
-class _MockEngine:
-    """逐轮吐 spec; probe_file 只认 cwd 在场件 (稿自带 mn2e.cls 直达)。"""
-
-    name = "xelatex"
-    caps = frozenset({"kpsewhich", "tlmgr", "updmap"})
-
-    def __init__(self, script: list, *, available: set[str] | None = None) -> None:
-        self.script = list(script)
-        self.available = available or set()
-        self.rounds = 0
-
-    def compile(self, wdir: Path, main: str, **_kw: object) -> _MockRes:
-        del main  # mock 按轮吐 spec, 不编译真文件
-        i = min(self.rounds, len(self.script) - 1)
-        self.rounds += 1
-        return _MockRes(Path(wdir), self.script[i])
-
-    def probe_file(self, fname: str, cwd: Path | None = None) -> str | None:
-        if cwd is not None and (Path(cwd) / fname).is_file():
-            return str(Path(cwd) / fname)
-        return f"/texmf/{fname}" if fname in self.available else None
-
-    def install_file(self, fname: str, *, font_related: bool = False) -> bool:
-        del fname, font_related
-        return False
-
-    def rebuild_fontmaps(self) -> bool:
-        return True
-
-    def filemap(self, fname: str) -> list[str]:
-        del fname
-        return []
-
-
 def _proj(tmp_path: Path, body: str = _MN2E_BUGGY) -> Path:
     """1107.0009 稿自带布局: wdir 根 main.tex + 病件 mn2e.cls。"""
     (tmp_path / "main.tex").write_text(
@@ -442,7 +391,7 @@ def _null_runner(
 
 def test_e2e_patch_flips_cell_clean(tmp_path: Path) -> None:
     """整链: Options Section → 原位补丁 → clean; 病件带注入标, 驱动选项存。"""
-    eng = _MockEngine(
+    eng = MockEngine(
         [
             {"log": _ERR_FONTENC + _ERR_FONTENC_CTX + "\n"},
             {"log": CLEAN_LOG, "pdf": True},
@@ -463,7 +412,7 @@ def test_e2e_no_fire_on_other_error(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     cls = _plant_mn2e(tmp_path)
-    eng = _MockEngine(
+    eng = MockEngine(
         [
             {"log": "./main.tex:3: Undefined control sequence.\nl.3 \\foo\n"},
             {"log": CLEAN_LOG, "pdf": True},
@@ -476,7 +425,7 @@ def test_e2e_no_fire_on_other_error(tmp_path: Path) -> None:
 
 def test_e2e_shim_mn2e_untouched(tmp_path: Path) -> None:
     """shim 形 mn2e.cls + Options Section 签名: 指纹阴性 → 零改写, 格照走。"""
-    eng = _MockEngine(
+    eng = MockEngine(
         [
             {"log": _ERR_FONTENC + _ERR_FONTENC_CTX + "\n"},
             {"log": CLEAN_LOG, "pdf": True},

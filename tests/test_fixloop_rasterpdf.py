@@ -13,9 +13,11 @@ includepdf_missing_stub 落 ``\clearpage\null`` 诚实降级。
 
 from pathlib import Path
 
-from texlate.compile.fixloop import actions, load_ruleset
+from _fixloopkit import mk_ctx, rs, rule
+
+from texlate.compile.fixloop import actions
 from texlate.compile.fixloop.builtins import TRANSFORM_FNS
-from texlate.compile.fixloop.engine import LoopCtx, Rule
+from texlate.compile.fixloop.engine import LoopCtx
 
 _RULE = "raster_pdf_rename"
 
@@ -25,23 +27,10 @@ _JPEG = b"\xff\xd8\xff\xe0" + b"\x00" * 32
 _REAL_PDF = b"%PDF-1.4\n" + b"\x00" * 32
 
 
-class _EngStub:
-    """builtin 直驱引擎替身 —— raster_pdf_rename ``del eng`` 不触引擎面。"""
-
-    def probe_file(self, fname: str, cwd: Path | None = None) -> None:
-        del fname, cwd
-
-
-def _rule() -> Rule:
-    return next(r for r in load_ruleset().rules if r.id == _RULE)
-
-
-def _ctx(tmp_path: Path, main_rel: str | None = "main.tex") -> LoopCtx:
-    return LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel=main_rel)
-
-
 def _run(ctx: LoopCtx, payload: str | None = "x.pdf") -> tuple[bool, str]:
-    return TRANSFORM_FNS[_RULE](ctx, _EngStub(), payload, {})
+    # raster_pdf_rename ``del eng`` 不触引擎面 —— None 直传
+    # (test_fixloop_restore_support 同款先例)。
+    return TRANSFORM_FNS[_RULE](ctx, None, payload, {})
 
 
 # ════════════════════════════ 规则接线 ════════════════════════════
@@ -49,20 +38,20 @@ def _run(ctx: LoopCtx, payload: str | None = "x.pdf") -> tuple[bool, str]:
 
 def test_rule_wired() -> None:
     """order 17.7 + builtin_transform + missing_graphic/missing_file 双臂。"""
-    rule = _rule()
-    assert rule.order == 17.7  # noqa: PLR2004 - schema 断言值
-    assert rule.action["kind"] == "builtin_transform"
-    assert rule.action["function"] == _RULE
+    r = rule(_RULE)
+    assert r.order == 17.7  # noqa: PLR2004 - schema 断言值
+    assert r.action["kind"] == "builtin_transform"
+    assert r.action["function"] == _RULE
     ctx = LoopCtx(wdir=Path("/nonexistent"), engine_name="xelatex")
-    assert actions._when_ok(rule.when, "missing_graphic", "x.pdf", ctx)  # noqa: SLF001
-    assert actions._when_ok(rule.when, "missing_file", "x.pdf", ctx)  # noqa: SLF001
-    assert not actions._when_ok(rule.when, "missing_graphic", None, ctx)  # noqa: SLF001
-    assert not actions._when_ok(rule.when, "other", "x.pdf", ctx)  # noqa: SLF001
+    assert actions._when_ok(r.when, "missing_graphic", "x.pdf", ctx)  # noqa: SLF001
+    assert actions._when_ok(r.when, "missing_file", "x.pdf", ctx)  # noqa: SLF001
+    assert not actions._when_ok(r.when, "missing_graphic", None, ctx)  # noqa: SLF001
+    assert not actions._when_ok(r.when, "other", "x.pdf", ctx)  # noqa: SLF001
 
 
 def test_rule_order_before_repair() -> None:
     """序自洽: placeholder(17.6) < raster_pdf_rename < graphic_repair(18)。"""
-    orders = {r.id: r.order for r in load_ruleset().phase("loop")}
+    orders = {r.id: r.order for r in rs().phase("loop")}
     assert orders["graphic_missing_placeholder"] < orders[_RULE]
     assert orders[_RULE] < orders["graphic_repair"]
 
@@ -80,7 +69,7 @@ def test_png_explicit_arg_renamed_and_rewritten(tmp_path: Path) -> None:
         "\\end{document}\n",
         encoding="utf-8",
     )
-    ok, note = _run(_ctx(tmp_path), "figure/icon.pdf")
+    ok, note = _run(mk_ctx(tmp_path), "figure/icon.pdf")
     assert ok, note
     assert not (tmp_path / "figure" / "icon.pdf").exists()
     assert (tmp_path / "figure" / "icon.png").read_bytes() == _PNG
@@ -99,7 +88,7 @@ def test_jpeg_subdir_arg_renamed_jpg(tmp_path: Path) -> None:
         "\\end{document}\n",
         encoding="utf-8",
     )
-    ok, note = _run(_ctx(tmp_path), "plots/mlp_noise.pdf")
+    ok, note = _run(mk_ctx(tmp_path), "plots/mlp_noise.pdf")
     assert ok, note
     assert (tmp_path / "plots" / "mlp_noise.jpg").read_bytes() == _JPEG
     assert "{plots/mlp_noise.jpg}" in (tmp_path / "main.tex").read_text(
@@ -116,7 +105,7 @@ def test_extless_arg_self_heals_untouched(tmp_path: Path) -> None:
         "\\end{document}\n",
         encoding="utf-8",
     )
-    ok, note = _run(_ctx(tmp_path), "fig5.pdf")
+    ok, note = _run(mk_ctx(tmp_path), "fig5.pdf")
     assert ok, note
     assert (tmp_path / "fig5.png").read_bytes() == _PNG
     assert "{fig5}" in (tmp_path / "main.tex").read_text(encoding="utf-8")
@@ -128,7 +117,7 @@ def test_real_pdf_untouched(tmp_path: Path) -> None:
     (tmp_path / "main.tex").write_text(
         "\\includegraphics{paper.pdf}\n", encoding="utf-8"
     )
-    ok, note = _run(_ctx(tmp_path), "paper.pdf")
+    ok, note = _run(mk_ctx(tmp_path), "paper.pdf")
     assert not ok
     assert "no raster-bytes" in note
     assert (tmp_path / "paper.pdf").read_bytes() == _REAL_PDF
@@ -140,7 +129,7 @@ def test_sweep_covers_unreferenced_and_multi(tmp_path: Path) -> None:
     (tmp_path / "a.pdf").write_bytes(_PNG)
     (tmp_path / "b.pdf").write_bytes(_JPEG)
     (tmp_path / "main.tex").write_text("\\includegraphics{a.pdf}\n", encoding="utf-8")
-    ok, note = _run(_ctx(tmp_path), "a.pdf")
+    ok, note = _run(mk_ctx(tmp_path), "a.pdf")
     assert ok, note
     assert (tmp_path / "a.png").is_file()
     assert (tmp_path / "b.jpg").is_file()
@@ -154,7 +143,7 @@ def test_commented_ref_not_rewritten(tmp_path: Path) -> None:
         "% \\includegraphics{x.pdf}\n\\includegraphics{x}\n",
         encoding="utf-8",
     )
-    ok, _ = _run(_ctx(tmp_path), "x.pdf")
+    ok, _ = _run(mk_ctx(tmp_path), "x.pdf")
     assert ok
     t = (tmp_path / "main.tex").read_text(encoding="utf-8")
     assert "% \\includegraphics{x.pdf}" in t  # 注释原样
@@ -167,7 +156,7 @@ def test_includepdf_arg_not_rewritten(tmp_path: Path) -> None:
         "\\includepdf{supp.pdf}\n\\includegraphics{supp}\n",
         encoding="utf-8",
     )
-    ok, _ = _run(_ctx(tmp_path), "supp.pdf")
+    ok, _ = _run(mk_ctx(tmp_path), "supp.pdf")
     assert ok
     assert (tmp_path / "supp.png").is_file()
     t = (tmp_path / "main.tex").read_text(encoding="utf-8")
@@ -179,7 +168,7 @@ def test_collision_declines_file_not_overwrite(tmp_path: Path) -> None:
     (tmp_path / "x.pdf").write_bytes(_PNG)
     (tmp_path / "x.png").write_bytes(b"real png\n")
     (tmp_path / "main.tex").write_text("\\includegraphics{x.pdf}\n", encoding="utf-8")
-    ok, note = _run(_ctx(tmp_path), "x.pdf")
+    ok, note = _run(mk_ctx(tmp_path), "x.pdf")
     assert not ok
     assert "exists" in note
     assert (tmp_path / "x.png").read_bytes() == b"real png\n"
@@ -194,7 +183,7 @@ def test_skip_dirs_and_main_pdf_excluded(tmp_path: Path) -> None:
     (tmp_path / ".hidden" / "x.pdf").write_bytes(_PNG)
     (tmp_path / "main.tex").write_text("\\documentclass{article}\n", encoding="utf-8")
     (tmp_path / "main.pdf").write_bytes(_PNG)  # 产物 pdf 非内嵌图件
-    ok, note = _run(_ctx(tmp_path), "x.pdf")
+    ok, note = _run(mk_ctx(tmp_path), "x.pdf")
     assert not ok
     assert "no raster-bytes" in note
     assert (tmp_path / "_tect_out" / "mid.pdf").is_file()
@@ -209,7 +198,46 @@ def test_basename_hit_via_graphicspath(tmp_path: Path) -> None:
         "\\graphicspath{{figure/}}\n\\includegraphics{icon.pdf}\n",
         encoding="utf-8",
     )
-    ok, _ = _run(_ctx(tmp_path), "figure/icon.pdf")
+    ok, _ = _run(mk_ctx(tmp_path), "figure/icon.pdf")
     assert ok
     assert (tmp_path / "figure" / "icon.png").is_file()
     assert "{icon.png}" in (tmp_path / "main.tex").read_text(encoding="utf-8")
+
+
+def test_sty_ext_arg_rewritten(tmp_path: Path) -> None:
+    """``.sty`` 内 ``\\includegraphics{x.pdf}`` 同扫 —— exts=('.tex','.sty') 覆盖面。"""
+    (tmp_path / "x.pdf").write_bytes(_PNG)
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{article}\n\\usepackage{mypkg}\n"
+        "\\begin{document}\nx\n\\end{document}\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "mypkg.sty").write_text(
+        "\\ProvidesPackage{mypkg}\n\\newcommand{\\splash}{\\includegraphics{x.pdf}}\n",
+        encoding="utf-8",
+    )
+    ok, note = _run(mk_ctx(tmp_path), "x.pdf")
+    assert ok, note
+    assert (tmp_path / "x.png").is_file()
+    sty = (tmp_path / "mypkg.sty").read_text(encoding="utf-8")
+    assert "\\includegraphics{x.png}" in sty
+    assert "x.pdf" not in sty
+
+
+def test_partial_skip_note_lists_collision(tmp_path: Path) -> None:
+    """a.pdf→a.png 成、b.pdf→b.jpg 撞名跳过 → True + note 带 ``; skipped:``。"""
+    (tmp_path / "a.pdf").write_bytes(_PNG)
+    (tmp_path / "b.pdf").write_bytes(_JPEG)
+    (tmp_path / "b.jpg").write_bytes(b"real jpg\n")
+    (tmp_path / "main.tex").write_text(
+        "\\includegraphics{a.pdf}\n\\includegraphics{b.pdf}\n", encoding="utf-8"
+    )
+    ok, note = _run(mk_ctx(tmp_path), "a.pdf")
+    assert ok, note
+    assert "; skipped:" in note
+    assert "b.jpg exists" in note
+    assert (tmp_path / "a.png").is_file()
+    assert "{a.png}" in (tmp_path / "main.tex").read_text(encoding="utf-8")
+    # 撞名件原地保留不覆写
+    assert (tmp_path / "b.pdf").read_bytes() == _JPEG
+    assert (tmp_path / "b.jpg").read_bytes() == b"real jpg\n"

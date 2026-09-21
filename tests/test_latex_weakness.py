@@ -27,7 +27,7 @@ def test_w11_preamble_commented_begin() -> None:
     r"""W11 已修：注释里的 ``\begin{document}`` 不再误命中（mask_tex 视图）。
 
     假 begin 在前、真 begin 在后——preamble 必须切到真标记；
-    无真标记时（全注释场景）preamble_end=0 整文按正文扫，不炸。
+    无真标记时（全注释场景）``doc_begin=-1`` 整文按正文扫，不炸。
     """
     tex = (
         "\\documentclass{article}\n% \\begin{document} fake\n"
@@ -38,10 +38,11 @@ def test_w11_preamble_commented_begin() -> None:
     assert res.protected_tex.startswith("\\documentclass{article}")
     assert "\\begin{document}\nBody." in res.protected_tex
     assert all("documentclass" not in c.content for c in res.chunks)
-    # 只有假标记：不识别为 preamble，但解析不炸
+    # 只有假标记：不识别为 preamble——整文逐字节按正文扫（全 literal，零 chunk）
     tex2 = "% \\begin{document} fake\n\\documentclass{article}\nreal body\n"
     res2 = parse_tex(tex2)
-    assert res2 is not None
+    assert res2.protected_tex == tex2
+    assert res2.chunks == []
 
 
 def test_w11_normal_preamble() -> None:

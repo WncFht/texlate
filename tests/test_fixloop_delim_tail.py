@@ -11,37 +11,18 @@ r"""csdelim lane (2026-09-19): ``cs_delim_tail_fix`` 走查单元。
 
 from pathlib import Path
 
+from _fixloopkit import EngStub, mk_ctx
+
 from texlate.compile.fixloop._builtins_docfix import (
     _DEF_TAIL_RE,
     cs_delim_tail_fix,
 )
-from texlate.compile.fixloop.engine import LoopCtx
 
 _ERR = "Use of \\c doesn't match its definition."
 
 
-class _Eng:
-    """builtin_transform 路径的最小引擎替身。"""
-
-    name = "xelatex"
-
-    def probe_file(self, fname: str, cwd: Path | None = None) -> str | None:
-        del fname, cwd
-        return None
-
-    def filemap(self, fname: str) -> list[str]:
-        del fname
-        return []
-
-
-def _ctx(tmp_path: Path, err_head: str = _ERR) -> LoopCtx:
-    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel="main.tex")
-    ctx.err_head = err_head
-    return ctx
-
-
 def _fix(tmp_path: Path, err_head: str = _ERR) -> tuple[bool, str]:
-    return cs_delim_tail_fix(_ctx(tmp_path, err_head), _Eng(), None, {})
+    return cs_delim_tail_fix(mk_ctx(tmp_path, err_head=err_head), EngStub(), None, {})
 
 
 def test_def_tail_re() -> None:

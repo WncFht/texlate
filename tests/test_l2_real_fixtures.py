@@ -34,7 +34,18 @@ def _rs() -> Ruleset:
 @pytest.mark.parametrize("row", _ROWS, ids=[r["file"] for r in _ROWS])
 def test_manifest_row(row: dict) -> None:
     """manifest 每行声明字段逐断言（值以裁后件实算为准）。"""
-    root = REPO / row["project_root"] if row["project_root"] else None
+    pr = row["project_root"]
+    # pathlib 右操作数优先：绝对 project_root 会静默吃掉 REPO 前缀，
+    # 干净 clone 上 sys_hits 归因被悄然改写——repo-relative 硬门槛拦早。
+    assert pr is None or not Path(pr).is_absolute(), (
+        f"{row['file']}: project_root must be repo-relative, got {pr!r}"
+    )
+    root = REPO / pr if pr else None
+    if root is not None:
+        assert root.is_relative_to(REPO), (
+            f"{row['file']}: project_root {pr!r} escapes repo"
+        )
+        assert root.is_dir(), f"{row['file']}: project_root {pr!r} does not exist"
     v = parse_log(LOGS / row["file"], project_root=root)
     assert not v.log_missing
     assert v.engine == row["engine"]
@@ -115,9 +126,18 @@ def test_tectonic_engine_none() -> None:
         assert parse_log(LOGS / name).engine is None
 
 
+def test_manifest_covers_all_fixtures() -> None:
+    """入库 .log 必须有 manifest 行——孤儿 fixture 会静默逃掉断言面。"""
+    on_disk = {p.name for p in LOGS.glob("*.log")}
+    declared = {r["file"] for r in _ROWS}
+    assert declared == on_disk, f"diff: {declared ^ on_disk}"
+
+
 def test_fixtures_no_private_paths() -> None:
-    """入库硬门槛：fixture 不得含本机 /home/ /Users/ 私路径。"""
-    for p in sorted(LOGS.glob("*.log")):
+    """入库硬门槛：fixture 全件（含 manifest.json）不得含 /home/ /Users/ 私路径。"""
+    for p in sorted(LOGS.iterdir()):
+        if not p.is_file():
+            continue
         text = p.read_text(encoding="utf-8")
         assert "/home/" not in text, p.name
         assert "/Users/" not in text, p.name

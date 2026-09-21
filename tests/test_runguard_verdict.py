@@ -1,6 +1,7 @@
 """runguard verdict 钉 —— 死编译(超时/信号杀)否决 clean/acceptable_pdf。
 
-gr-qc/0104075 residdiag 实证 (docs/research/overseer-selfimp.md:296):
+gr-qc/0104075 residdiag 实证
+(tmp/old-docs-2026-09-20/docs/research/overseer-selfimp.md:300):
 240s SIGKILL 编译解析 0 错误 → fixloop_verdict=clean → post-verdict 再烧
 240s;同档 ``\\end{document}`` 期 ``\\clearpage`` 死循环刷屏 73,595 行
 ``Overfull \\vbox while \\output is active`` → ``runaway_output`` 与普通
@@ -290,8 +291,9 @@ def test_judge_livekill_stdout_tail_fallback() -> None:
         log=LogInfo(tail="partial output\n"),
         stdout_tail="some normal lines\n",
     )
-    assert judge(res2).category == "timeout"
-    assert "timeout" in v.reasons
+    v2 = judge(res2)
+    assert v2.category == "timeout"
+    assert "timeout" in v2.reasons  # res2 的 verdict——非上方 runaway 的 v
 
     res2 = CompRes(engine="xelatex", timed_out=True, log=LogInfo(tail="partial\n"))
     v2 = judge(res2)

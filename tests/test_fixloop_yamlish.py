@@ -12,7 +12,12 @@ RULES_DIR = Path(__file__).resolve().parents[1] / "src/texlate/compile/fixloop/r
 def _shipped_rule_count() -> int:
     """rules/ 各分片 rules: 段条目数合计——计数不硬编码，按分片装载现算。"""
     return sum(
-        len(load_yaml(f).get("rules") or []) for f in sorted(RULES_DIR.glob("*.yaml"))
+        len(load_yaml(f).get("rules") or [])
+        for f in sorted(
+            p
+            for p in RULES_DIR.iterdir()
+            if p.is_file() and p.suffix in {".yaml", ".yml"}
+        )
     )
 
 
@@ -44,6 +49,39 @@ def test_load_yaml_dir_scalar_conflict_rejected(tmp_path: Path) -> None:
     (tmp_path / "b.yaml").write_text("version: 2\n")
     with pytest.raises(YamlishError, match="冲突"):
         load_yaml(tmp_path)
+
+
+def test_load_yaml_dir_nested_maps_merge(tmp_path: Path) -> None:
+    """map 段递归合并：嵌套 dict 逐键并、嵌套 list 拼接（meta/filemap 同款路径）。"""
+    (tmp_path / "10-a.yaml").write_text(
+        "meta:\n  loop:\n    a: 1\n    xs: [x]\n"
+    )
+    (tmp_path / "20-b.yaml").write_text(
+        "meta:\n  loop:\n    b: 2\n    xs: [y]\n"
+    )
+    data = load_yaml(tmp_path)
+    assert data["meta"]["loop"] == {"a": 1, "b": 2, "xs": ["x", "y"]}
+
+
+def test_load_yaml_dir_nested_leaf_conflict(tmp_path: Path) -> None:
+    """嵌套叶子异值 → 冲突报错带点路径（``键 meta.loop.a 与已有分片冲突``）。"""
+    (tmp_path / "a.yaml").write_text("meta: {loop: {a: 1}}\n")
+    (tmp_path / "b.yaml").write_text("meta: {loop: {a: 2}}\n")
+    with pytest.raises(YamlishError, match=r"键 meta\.loop\.a 与已有分片冲突"):
+        load_yaml(tmp_path)
+
+
+def test_load_yaml_dir_non_map_shard_rejected(tmp_path: Path) -> None:
+    """分片顶层非 map（list 文档）→ ``顶层必须是 map``。"""
+    (tmp_path / "a.yaml").write_text("- x\n- y\n")
+    with pytest.raises(YamlishError, match="顶层必须是 map"):
+        load_yaml(tmp_path)
+
+
+def test_load_yaml_dir_accepts_yml_suffix(tmp_path: Path) -> None:
+    """装载面收 ``.yml`` 后缀分片（与 ``_shipped_rule_count`` 后缀集同口径）。"""
+    (tmp_path / "a.yml").write_text("rules: [{id: y}]\n")
+    assert load_yaml(tmp_path)["rules"] == [{"id": "y"}]
 
 
 def test_load_yaml_empty_dir_rejected(tmp_path: Path) -> None:

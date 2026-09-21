@@ -14,6 +14,7 @@ import shutil
 from pathlib import Path
 
 import pytest
+from _fixloopkit import which_only
 
 from texlate.compile.fixloop import _builtins_graphics, builtins
 from texlate.compile.fixloop.builtins import (
@@ -49,12 +50,13 @@ def _gs_fail(_argv: list[str], _timeout: int, _wdir: Path) -> tuple:
     return 1, "gs: corrupted xref", 0.1, False
 
 
-def _which_gs(name: str) -> str | None:
-    return "/usr/bin/gs" if name == "gs" else None
+def _spy(calls: list[list[str]]) -> RunFn:
+    """argv 记录间谍 runner —— 断言本轮 gs/convert 未被调用。"""
+    def _run(argv: list[str], _t: int, _w: Path) -> tuple:
+        calls.append(argv)
+        return 0, "", 0.1, False
 
-
-def _which_none(_name: str) -> None:
-    return None
+    return _run
 
 
 # ─────────────────────────── graphic_case_link ───────────────────────────
@@ -153,7 +155,7 @@ def test_case_link_unrelated_resolving_ref_untouched(tmp_path: Path) -> None:
 
 def test_repair_redistill_ok(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """gs 在 → pdfwrite 重蒸馏就地覆盖, 原件留 .fixloop-rd 旁记。"""
-    monkeypatch.setattr(shutil, "which", _which_gs)
+    monkeypatch.setattr(shutil, "which", which_only("gs"))
     (tmp_path / "figDY.pdf").write_bytes(b"%PDF-corrupt-ish")
     (tmp_path / "main.tex").write_text(MAIN_FIGDY, encoding="utf-8")
     ok, note = graphic_repair(_ctx(tmp_path, runner=_gs_ok), None, "figDY.pdf", {})
@@ -171,7 +173,7 @@ def test_repair_no_gs_falls_to_stub(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """无 gs → 降级 stub: ``\\fbox{\\rule{0pt}{H}\\rule{W}{0pt}}`` 保 width= 尺寸。"""
-    monkeypatch.setattr(shutil, "which", _which_none)
+    monkeypatch.setattr(shutil, "which", which_only())
     (tmp_path / "figDY.pdf").write_bytes(b"%PDF-corrupt")
     (tmp_path / "main.tex").write_text(MAIN_FIGDY, encoding="utf-8")
     ok, note = graphic_repair(_ctx(tmp_path), None, "figDY.pdf", {})
@@ -187,7 +189,7 @@ def test_repair_gs_fail_falls_to_stub(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """gs 失败 → 同 call 内降级 stub; 无残留 .fixloop-tmp。"""
-    monkeypatch.setattr(shutil, "which", _which_gs)
+    monkeypatch.setattr(shutil, "which", which_only("gs"))
     (tmp_path / "figDY.pdf").write_bytes(b"%PDF-corrupt")
     (tmp_path / "main.tex").write_text(MAIN_FIGDY, encoding="utf-8")
     ok, note = graphic_repair(_ctx(tmp_path, runner=_gs_fail), None, "figDY.pdf", {})
@@ -202,17 +204,14 @@ def test_repair_marker_skips_redistill(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """上轮蒸馏过仍拒载 → .fixloop-rd marker 短路直落 stub, gs 不再跑。"""
-    monkeypatch.setattr(shutil, "which", _which_gs)
+    monkeypatch.setattr(shutil, "which", which_only("gs"))
     calls: list[list[str]] = []
-
-    def _spy(argv: list[str], _t: int, _w: Path) -> tuple:
-        calls.append(argv)
-        return 0, "", 0.1, False
-
     (tmp_path / "figDY.pdf").write_bytes(b"%PDF-redistilled")
     (tmp_path / "figDY.pdf.fixloop-rd").write_bytes(b"%PDF-orig")
     (tmp_path / "main.tex").write_text(MAIN_FIGDY, encoding="utf-8")
-    ok, note = graphic_repair(_ctx(tmp_path, runner=_spy), None, "figDY.pdf", {})
+    ok, note = graphic_repair(
+        _ctx(tmp_path, runner=_spy(calls)), None, "figDY.pdf", {}
+    )
     assert ok
     assert "stub" in note
     assert "already redistilled" in note
@@ -223,17 +222,12 @@ def test_repair_force_stub_skips_gs(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """params.force_stub → 跳过蒸馏直接 stub (rules.yaml 独立 stub 规则面)。"""
-    monkeypatch.setattr(shutil, "which", _which_gs)
+    monkeypatch.setattr(shutil, "which", which_only("gs"))
     calls: list[list[str]] = []
-
-    def _spy(argv: list[str], _t: int, _w: Path) -> tuple:
-        calls.append(argv)
-        return 0, "", 0.1, False
-
     (tmp_path / "figDY.pdf").write_bytes(b"%PDF")
     (tmp_path / "main.tex").write_text(MAIN_FIGDY, encoding="utf-8")
     ok, note = graphic_repair(
-        _ctx(tmp_path, runner=_spy), None, "figDY.pdf", {"force_stub": True}
+        _ctx(tmp_path, runner=_spy(calls)), None, "figDY.pdf", {"force_stub": True}
     )
     assert ok
     assert "force_stub" in note
@@ -246,7 +240,7 @@ def test_repair_force_stub_skips_gs(
 
 def test_repair_stub_both_dims(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """width=+height= 双全 → 占位框取原尺寸。"""
-    monkeypatch.setattr(shutil, "which", _which_none)
+    monkeypatch.setattr(shutil, "which", which_only())
     (tmp_path / "x.pdf").write_bytes(b"%PDF")
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n\\begin{document}\n"
@@ -273,7 +267,7 @@ def test_repair_stub_idempotent(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """stub 后无 ``\\includegraphics`` 引用 → 二次触火 False 不重复改。"""
-    monkeypatch.setattr(shutil, "which", _which_none)
+    monkeypatch.setattr(shutil, "which", which_only())
     (tmp_path / "figDY.pdf").write_bytes(b"%PDF-corrupt")
     (tmp_path / "main.tex").write_text(MAIN_FIGDY, encoding="utf-8")
     ctx = _ctx(tmp_path)
@@ -295,16 +289,16 @@ def _fake_convert(_tool: str, _src: Path, dst: Path) -> tuple:
     return 0, "", False
 
 
-def _which_convert(name: str) -> str | None:
-    return f"/usr/bin/{name}" if name in {"epstopdf", "gs"} else None
-
-
-def test_eps_to_pdf_metapost_numeric_ext(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """0806.4589 形: ``diag1.1``/``diag1.10`` 进转换面 → ``name+'.pdf'`` dst 防互塌。"""
-    monkeypatch.setattr(shutil, "which", _which_convert)
+@pytest.fixture
+def _convert_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """eps_to_pdf 转换面双钉: epstopdf/gs 在场 + ``_run_convert`` 假转换器。"""
+    monkeypatch.setattr(shutil, "which", which_only("epstopdf", "gs"))
     monkeypatch.setattr(_builtins_graphics, "_run_convert", _fake_convert)
+
+
+@pytest.mark.usefixtures("_convert_env")
+def test_eps_to_pdf_metapost_numeric_ext(tmp_path: Path) -> None:
+    """0806.4589 形: ``diag1.1``/``diag1.10`` 进转换面 → ``name+'.pdf'`` dst 防互塌。"""
     (tmp_path / "diag1.1").write_bytes(b"%!PS-Adobe-3.0 EPSF")
     (tmp_path / "diag1.10").write_bytes(b"%!PS-Adobe-3.0 EPSF")
     (tmp_path / "main.tex").write_text(
@@ -322,12 +316,9 @@ def test_eps_to_pdf_metapost_numeric_ext(
     assert "\\includegraphics{diag1.10.pdf}" in t
 
 
-def test_eps_to_pdf_numeric_idempotent(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+@pytest.mark.usefixtures("_convert_env")
+def test_eps_to_pdf_numeric_idempotent(tmp_path: Path) -> None:
     """二次触火: dst 已存在复用, ``diag1.1.pdf`` 不被叠成 ``diag1.1.pdf.pdf``。"""
-    monkeypatch.setattr(shutil, "which", _which_convert)
-    monkeypatch.setattr(_builtins_graphics, "_run_convert", _fake_convert)
     (tmp_path / "diag1.1").write_bytes(b"%!PS-Adobe-3.0 EPSF")
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n\\begin{document}\n"
@@ -344,12 +335,9 @@ def test_eps_to_pdf_numeric_idempotent(
     assert "diag1.1.pdf.pdf" not in t
 
 
-def test_eps_to_pdf_mps_and_uppercase(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+@pytest.mark.usefixtures("_convert_env")
+def test_eps_to_pdf_mps_and_uppercase(tmp_path: Path) -> None:
     """``.mps`` 与 ``.EPS`` 大写后缀同进转换面。"""
-    monkeypatch.setattr(shutil, "which", _which_convert)
-    monkeypatch.setattr(_builtins_graphics, "_run_convert", _fake_convert)
     (tmp_path / "fig.mps").write_bytes(b"%!PS-Adobe-3.0 EPSF")
     (tmp_path / "OLD.EPS").write_bytes(b"%!PS-Adobe-3.0 EPSF")
     (tmp_path / "main.tex").write_text(
@@ -367,10 +355,9 @@ def test_eps_to_pdf_mps_and_uppercase(
     assert "\\includegraphics{OLD.pdf}" in t
 
 
-def test_eps_to_pdf_dos_exts(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.usefixtures("_convert_env")
+def test_eps_to_pdf_dos_exts(tmp_path: Path) -> None:
     """``.epsi``/``.epsf`` (DOS 约定 EPS) 与 PS_GRAPHIC_SUFFIXES 同步进转换面。"""
-    monkeypatch.setattr(shutil, "which", _which_convert)
-    monkeypatch.setattr(_builtins_graphics, "_run_convert", _fake_convert)
     (tmp_path / "fig.epsi").write_bytes(b"%!PS-Adobe-3.0 EPSF")
     (tmp_path / "plot.EPSF").write_bytes(b"%!PS-Adobe-3.0 EPSF")
     (tmp_path / "main.tex").write_text(
@@ -387,7 +374,7 @@ def test_eps_to_pdf_dos_exts(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) ->
 
 def test_eps_to_pdf_no_sources(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """无 PS 族源文件 → False。"""
-    monkeypatch.setattr(shutil, "which", _which_convert)
+    monkeypatch.setattr(shutil, "which", which_only("epstopdf", "gs"))
     (tmp_path / "main.tex").write_text(MAIN, encoding="utf-8")
     ok, note = eps_to_pdf(_ctx(tmp_path), None, None, {})
     assert not ok

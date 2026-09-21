@@ -27,22 +27,11 @@ import pytest
 pytest.importorskip("fastapi", reason="server extra 未装")
 pytest.importorskip("starlette.testclient", reason="server extra 未装")
 
-from conftest import (
-    MINI_TEX,
-    FakeEngine,
-    FakeFetcher,
-    RecordingEngine,
-    make_app,
-    make_targz,
-    wait_terminal,
-)
+from _sharekit import mk_share_apps, share_parts
+from conftest import RecordingEngine, make_app, wait_terminal
 from starlette.testclient import TestClient
 
-from texlate.arxiv.cache import SourceCache
-from texlate.server.worker import PIPELINE_VERSION
 from texlate.share import MANIFEST_NAME, pack_share
-from texlate.xlat.pipeline import MockTranslator
-from texlate.xlat.prompts import PROMPT_VERSION
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -58,26 +47,9 @@ _ARXIV = "2401.00003"
 def _apps(
     tmp_path: Path, *, imp_engine: object | None = None
 ) -> tuple[FastAPI, FastAPI, Path]:
-    """生产/导入双 app——独立 data_dir + SourceCache，同一 FakeFetcher 载荷。"""
-    prod_engine = FakeEngine()
-    prod = make_app(
-        tmp_path / "pa",
-        start_worker=True,
-        translator_factory=lambda _ctx: MockTranslator(),
-        engine_factory=lambda _name: prod_engine,
-        fetcher=FakeFetcher(make_targz({"main.tex": MINI_TEX})),
-        source_cache=SourceCache(tmp_path / "pa" / "src-cache"),
-    )
-    ie = imp_engine or FakeEngine()
-    imp = make_app(
-        tmp_path / "pb",
-        start_worker=True,
-        translator_factory=lambda _ctx: MockTranslator(),
-        engine_factory=lambda _name: ie,
-        fetcher=FakeFetcher(make_targz({"main.tex": MINI_TEX})),
-        source_cache=SourceCache(tmp_path / "pb" / "src-cache"),
-    )
-    return prod, imp, tmp_path / "pa" / "data"
+    """``mk_share_apps`` 薄壳——导入端 = 消费端，只回生产端 data_dir。"""
+    prod, cons, pa_data, _pb_data = mk_share_apps(tmp_path, cons_engine=imp_engine)
+    return prod, cons, pa_data
 
 
 @pytest.fixture
@@ -98,18 +70,14 @@ def _produce_pack(pa: TestClient, data_dir: Path, **kp_over: str) -> tuple[bytes
     tid = r.json()["task_id"]
     snap = wait_terminal(pa, tid)
     assert snap["status"] == "done", snap
-    parts = {
-        "arxiv_id": _ARXIV,
-        "version": "v1",
-        "model": snap["model"],
-        "prompt_ver": PROMPT_VERSION,
-        "target_lang": snap["target_lang"],
-        "glossary_hash": "",
-        # 生产端默认 fm={abstract,title}——与 share_pack_manifest 实跑
-        # 还原口径一致，不带此键的包会被标成 ∅ 集（dedup 不同桶）
-        "front_matter": "abstract,title",
-        "pipeline_ver": PIPELINE_VERSION,
-    }
+    # 生产端默认 fm={abstract,title}——与 share_pack_manifest 实跑
+    # 还原口径一致，不带此键的包会被标成 ∅ 集（dedup 不同桶）
+    parts = share_parts(
+        arxiv_id=_ARXIV,
+        version="v1",
+        model=snap["model"],
+        target_lang=snap["target_lang"],
+    )
     parts.update(kp_over)
     tdir = data_dir / "tasks" / tid
     return pack_share(tdir, parts, out_dir=tdir).read_bytes(), snap
@@ -128,17 +96,10 @@ def _synth_bundle(tmp_path: Path, chunks: list[dict], **kp_over: str) -> bytes:
     )
     with zipfile.ZipFile(work / "zh-src.zip", "w") as zf:
         zf.writestr("main.tex", "\\documentclass{article}x")
-    parts = {
-        "arxiv_id": _ARXIV,
-        "version": "v1",
-        "model": "synth-model",
-        "prompt_ver": PROMPT_VERSION,
-        "target_lang": "zh-CN",
-        "glossary_hash": "",
-        # 与默认产物包同口径（要 ∅ 标签的包传 front_matter="" 覆盖）
-        "front_matter": "abstract,title",
-        "pipeline_ver": PIPELINE_VERSION,
-    }
+    # 与默认产物包同口径（要 ∅ 标签的包传 front_matter="" 覆盖）
+    parts = share_parts(
+        arxiv_id=_ARXIV, version="v1", model="synth-model", target_lang="zh-CN"
+    )
     parts.update(kp_over)
     return pack_share(work, parts, out_dir=tmp_path).read_bytes()
 

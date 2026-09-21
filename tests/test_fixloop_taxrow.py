@@ -1,8 +1,9 @@
 r"""taxrow 56-行签面 —— taxcen 普查 (333 other|None → 224 实缺 → 79 簇 →
 56 提案覆盖 223/224) 落 ``10-taxonomy.yaml`` 的逐行钉测。
 
-行分两层: **37 全新类 id** (pkg/class 自报硬错、内核装载语义、数值/数学
-引擎错) 与 **19 近失扩写** (既有行臂补/措辞并收——missing_tfm 无规格形、
+行分两层: **全新类 id** (提案账 37 类, 落地并表实钉 44 类 / 71 签行;
+pkg/class 自报硬错、内核装载语义、数值/数学引擎错) 与 **近失扩写**
+(提案账 19 条, 落地 17 钉: 既有行臂补/措辞并收——missing_tfm 无规格形、
 runaway_scan ``_:`` cs 名、invalid_in_math 花括号参、undefined_color
 model 变体、key_unknown pgfkeys/xkeyval 两措辞、missing_graphic noBB/
 open-fail、missing_file 裸名兜底、pkg_version_skew need-version 族、
@@ -46,7 +47,7 @@ def _log(head: str) -> str:
     return f"! {head}\nl.1 x\n"
 
 
-# ── 全新类 id (44 行, clusters_raw verbatim heads) ──
+# ── 全新类 id (44 类 / 71 签行, clusters_raw verbatim heads) ──
 _HEAD_PINS: list[tuple[str, str, str | None]] = [
     # (head, cat, payload) — 每行一条 verbatim 实证签
     (

@@ -1,7 +1,7 @@
-import json
 import gzip
 import hashlib
 import io
+import json
 import tarfile
 from pathlib import Path
 
@@ -36,11 +36,21 @@ def _warn_kinds(warnings: list[str]) -> set[str]:
     return {w.split(":", 1)[0] for w in warnings}
 
 
+def _fix_ustar_checksum(raw: bytearray, off: int) -> None:
+    """重算 ``off`` 处 ustar 头 checksum（直改 raw 头字段后封头必备）。"""
+    chksum = (
+        sum(raw[off : off + 148])
+        + sum(b"        ")
+        + sum(raw[off + 156 : off + 512])
+    )
+    raw[off + 148 : off + 156] = f"{chksum:06o}\x00 ".encode()
+
+
 @pytest.mark.slow
 @pytest.mark.skipif(not BLOBS, reason="corpus not present")
 @pytest.mark.parametrize("blob", BLOBS, ids=[b.parent.name for b in BLOBS])
 def test_unpack_corpus(blob: Path, tmp_path: Path) -> None:
-    """139 个真实包全量解包：零逃逸 + mtree 清单与落盘字节 sha256 逐一对拍。"""
+    """manifest_v2 全量真实包解包：零逃逸 + mtree 清单与落盘字节 sha256 逐一对拍。"""
     s = sniff(blob.read_bytes())
     dest = tmp_path / "extracted"
     res = unpack_sniffed(s, dest, stem_hint="arXiv-testv1.tar.gz")
@@ -351,8 +361,7 @@ def test_non_utf8_member_name_rejected(tmp_path: Path) -> None:
         tf.addfile(info, io.BytesIO(b"xxx"))
     raw = bytearray(buf.getvalue())
     raw[0:7] = b"caf\xe9.te"  # ustar name 头段塞 raw 0xE9（非法 UTF-8）
-    chksum = sum(raw[:148]) + sum(b"        ") + sum(raw[156:512])
-    raw[148:156] = f"{chksum:06o}\x00 ".encode()
+    _fix_ustar_checksum(raw, 0)
     res = unpack_tar(bytes(raw), tmp_path)
     assert res.files == []
     assert "reject_path" in _warn_kinds(res.warnings)
@@ -506,12 +515,7 @@ def test_surrogate_linkname_rejected(tmp_path: Path) -> None:
     # ln.tex 是第 2 个成员：ok 头(512)+数据(512)、ln 头在 offset 1024；
     # ustar linkname 字段在头内 offset 157
     raw[1024 + 157 : 1024 + 160] = b"t\xe9t"
-    chksum = (
-        sum(raw[1024 : 1024 + 148])
-        + sum(b"        ")
-        + sum(raw[1024 + 156 : 1024 + 512])
-    )
-    raw[1024 + 148 : 1024 + 156] = f"{chksum:06o}\x00 ".encode()
+    _fix_ustar_checksum(raw, 1024)
     res = unpack_tar(bytes(raw), tmp_path)
     assert res.files == ["ok.tex"]
     assert not any(m.kind == "symlink" for m in res.members)

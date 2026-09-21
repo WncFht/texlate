@@ -16,6 +16,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import pytest
+
 from texlate.compile.normalize import (
     PIXEL_COMPATIBILITY,
     normalize_engine,
@@ -42,29 +44,61 @@ _STANDALONE_CHILD = (
 )
 
 
-def test_subfiles_child_no_preamble_prologue() -> None:
-    """xelatex 子档：含 preamble-only cs 的前置块全闸。"""
-    out = normalize_engine(_CHILD, "xelatex")
+def _assert_prologue_gated(out: str, engine: str) -> None:
+    """子档前导块闸共言：含 preamble-only cs 的前置块全闸。
+
+    XETEX_COMPATIBILITY（``allowfontchangeintitle``）在 preamble_ok 下两
+    引擎同注同闸（无引擎条件）；``dsrom`` 是 TECTONIC_FONT_COMPATIBILITY
+    字体名标记，仅 tectonic 臂查。
+    """
     assert "\\PassOptionsToPackage{no-math}{fontspec}" not in out
     assert "\\providecommand{\\DeclareUnicodeCharacter}" not in out
     assert "allowfontchangeintitle" not in out
+    if engine == "tectonic":
+        assert "dsrom" not in out
 
 
-def test_subfiles_child_tectonic_no_prologue() -> None:
-    """tectonic 子档：XETEX/TECTONIC/fontspec 前置全闸。"""
-    out = normalize_engine(_CHILD, "tectonic")
-    assert "\\PassOptionsToPackage{no-math}{fontspec}" not in out
-    assert "\\providecommand{\\DeclareUnicodeCharacter}" not in out
-    assert "dsrom" not in out  # TECTONIC_FONT_COMPATIBILITY 字体名标记
+@pytest.mark.parametrize(
+    ("child", "head"),
+    [
+        pytest.param(
+            _CHILD, "\\documentclass[../root.tex]{subfiles}", id="subfiles"
+        ),
+        pytest.param(
+            _STANDALONE_CHILD,
+            "\\documentclass[tikz,border=4pt]{standalone}",
+            id="standalone",
+        ),
+    ],
+)
+@pytest.mark.parametrize("engine", ["xelatex", "tectonic"])
+def test_child_no_preamble_prologue(child: str, head: str, engine: str) -> None:
+    """xelatex/tectonic × subfiles/standalone 子档：含 preamble-only cs 的前置块全闸。"""
+    out = normalize_engine(child, engine)
+    assert out.startswith(head)
+    _assert_prologue_gated(out, engine)
 
 
-def test_subfiles_child_keeps_pixel() -> None:
+@pytest.mark.parametrize(
+    ("child", "needle", "pixel"),
+    [
+        pytest.param(
+            _CHILD, "child body", "child \\pdfpxdimen body", id="subfiles"
+        ),
+        pytest.param(
+            _STANDALONE_CHILD,
+            "\\tikz\\draw(0,0)--(1,1);",
+            "w=10\\pdfpxdimen",
+            id="standalone",
+        ),
+    ],
+)
+def test_child_keeps_pixel(child: str, needle: str, pixel: str) -> None:
     """子档 body 用 ``\\pdfpxdimen``：PIXEL 块（body 合法）仍前置保覆盖。"""
-    child = _CHILD.replace("child body", "child \\pdfpxdimen body")
-    out = normalize_engine(child, "xelatex")
+    out = normalize_engine(child.replace(needle, pixel), "xelatex")
     assert out.startswith(PIXEL_COMPATIBILITY.splitlines()[0])
     assert "\\newdimen\\pdfpxdimen" in out
-    assert "\\PassOptionsToPackage{no-math}{fontspec}" not in out
+    _assert_prologue_gated(out, "xelatex")
 
 
 def test_subfiles_child_body_surgeries_still_run() -> None:
@@ -103,32 +137,6 @@ def test_subfiles_marker_in_macro_body_not_gated() -> None:
     )
     out = normalize_engine(doc, "xelatex")
     assert "\\PassOptionsToPackage{no-math}{fontspec}" in out
-
-
-def test_standalone_child_no_preamble_prologue() -> None:
-    """``[tikz]{standalone}`` 图件子档：含 preamble-only cs 的前置块全闸。"""
-    out = normalize_engine(_STANDALONE_CHILD, "xelatex")
-    assert out.startswith("\\documentclass[tikz,border=4pt]{standalone}")
-    assert "\\PassOptionsToPackage{no-math}{fontspec}" not in out
-    assert "\\providecommand{\\DeclareUnicodeCharacter}" not in out
-    assert "allowfontchangeintitle" not in out
-
-
-def test_standalone_child_tectonic_no_prologue() -> None:
-    """tectonic standalone 子档：XETEX/TECTONIC/fontspec 前置全闸。"""
-    out = normalize_engine(_STANDALONE_CHILD, "tectonic")
-    assert "\\PassOptionsToPackage{no-math}{fontspec}" not in out
-    assert "\\providecommand{\\DeclareUnicodeCharacter}" not in out
-    assert "dsrom" not in out
-
-
-def test_standalone_child_keeps_pixel() -> None:
-    """standalone 子档 body 用 ``\\pdfpxdimen``：PIXEL 块仍前置保覆盖。"""
-    child = _STANDALONE_CHILD.replace("\\tikz\\draw(0,0)--(1,1);", "w=10\\pdfpxdimen")
-    out = normalize_engine(child, "xelatex")
-    assert out.startswith(PIXEL_COMPATIBILITY.splitlines()[0])
-    assert "\\newdimen\\pdfpxdimen" in out
-    assert "\\PassOptionsToPackage{no-math}{fontspec}" not in out
 
 
 def test_standalone_bare_class_gated() -> None:

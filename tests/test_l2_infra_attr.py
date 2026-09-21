@@ -29,19 +29,7 @@ def _localize(
     tmp_path: Path, log: str
 ) -> tuple[dict[str, dict[str, object]], int, list[int]]:
     """单文件工程 + 假 CompRes → （归因表， 错误总数， 全部 chunk.id）。"""
-    tex = DOC % _BODY
-    main = tmp_path / "main.tex"
-    main.write_text(tex, encoding="utf-8")
-    scan = scan_doc(_BODY)
-    run = TreeRun(
-        scans=[(main, scan)],
-        trans={},
-        chunk_ins={},
-        pipe=None,  # localize 不触 pipe——重译臂才用
-    )
-    res = CompRes(engine="fake", ok=False, workdir=tmp_path, log_text=log)
-    hits, n_err = _l2_localize(tmp_path, run, res)
-    return hits, n_err, [c.id for c in scan.chunks]
+    return _localize_doc(tmp_path, file_text=DOC % _BODY, scan_body=_BODY, log=log)
 
 
 def test_missing_sty_not_attributed(tmp_path: Path) -> None:
@@ -223,7 +211,7 @@ def test_non_infra_error_still_attributed(tmp_path: Path) -> None:
     assert set(hits) == {f"0:{cid}" for cid in cids}
 
 
-def _localize_doc(
+def _localize_doc(  # noqa: PLR0913 -- 文件/扫描体/译文/基线四槽可分离是本助手存在意义
     tmp_path: Path,
     *,
     file_text: str,
@@ -342,4 +330,4 @@ def test_baseline_sigs_filter_en_carried(tmp_path: Path) -> None:
         baseline_sigs=sig,
     )
     assert hits == {}
-    assert n_err == 2
+    assert n_err == 2  # noqa: PLR2004 -- 两条 infra 错（分段+段尾）

@@ -12,26 +12,32 @@ apply 轮次只续窗口不占判负; 真耗尽格烧轮止于派发枯竭, 不�
 
 from pathlib import Path
 
-from test_fixloop_loop import CLEAN_LOG, MockEngine, make_proj, mini_rs
+from test_fixloop_loop import (
+    BOOM_LOG,
+    BOOM_TAXONOMY,
+    CLEAN_LOG,
+    MockEngine,
+    make_proj,
+    mini_rs,
+)
 
 from texlate.compile.fixloop import fixloop
 
-BOOM_LOG = "! BOOM every time\n"
-
-
-def _boom_taxonomy() -> list[dict]:
-    return [{"id": "boom", "scope": "head", "pattern": "BOOM"}]
-
 
 def _rewrite_rule(
-    rid: str, order: int, marker: str, *, gate: str | None = None
+    rid: str,
+    order: int,
+    marker: str,
+    *,
+    category: str = "boom",
+    gate: str | None = None,
 ) -> dict:
     """种 marker 注释的 regex_rewrite 规则; ``gate`` 非空时挂 source_contains 凭据门。"""
     rule = {
         "id": rid,
         "phase": "loop",
         "order": order,
-        "when": {"category": "boom"},
+        "when": {"category": category},
         "action": {
             "kind": "regex_rewrite",
             "params": {
@@ -71,7 +77,7 @@ def test_gated_rule_dispatches_at_streak3(tmp_path: Path) -> None:
             _rewrite_rule("fix2", 2, "G2", gate="%G1"),
             _rewrite_rule("fix3", 3, "G3", gate="%G2"),
         ],
-        taxonomy=_boom_taxonomy(),
+        taxonomy=BOOM_TAXONOMY,
     )
     eng = MockEngine([{"log": BOOM_LOG}] * 3 + [{"log": CLEAN_LOG, "pdf": True}])
     cell = fixloop(tmp_path, eng, ruleset=rs)
@@ -92,7 +98,7 @@ def test_apply_apply_miss_settles_stuck(tmp_path: Path) -> None:
             _rewrite_rule("fix1", 1, "G1"),
             _rewrite_rule("fix2", 2, "G2"),
         ],
-        taxonomy=_boom_taxonomy(),
+        taxonomy=BOOM_TAXONOMY,
     )
     cell = fixloop(tmp_path, MockEngine([{"log": BOOM_LOG}]), ruleset=rs)
     assert cell["verdict"] == "stuck"
@@ -105,7 +111,7 @@ def test_apply_miss_streak2_unfixable(tmp_path: Path) -> None:
     make_proj(tmp_path)
     rs = mini_rs(
         rules=[_rewrite_rule("fix1", 1, "G1")],
-        taxonomy=_boom_taxonomy(),
+        taxonomy=BOOM_TAXONOMY,
     )
     cell = fixloop(tmp_path, MockEngine([{"log": BOOM_LOG}]), ruleset=rs)
     assert cell["verdict"] == "unfixable:boom"
@@ -125,7 +131,7 @@ def test_apply_streak_extends_window_then_stuck(tmp_path: Path) -> None:
             _rewrite_rule("fix2", 2, "G2"),
             _rewrite_rule("fix3", 3, "G3"),
         ],
-        taxonomy=_boom_taxonomy(),
+        taxonomy=BOOM_TAXONOMY,
     )
     cell = fixloop(tmp_path, MockEngine([{"log": BOOM_LOG}]), ruleset=rs)
     assert cell["verdict"] == "stuck"
@@ -140,32 +146,8 @@ def test_sig_alternation_never_stuck(tmp_path: Path) -> None:
         rules=[
             _rewrite_rule("fixA1", 1, "A1"),
             _rewrite_rule("fixA2", 2, "A2"),
-            {
-                "id": "fixB1",
-                "phase": "loop",
-                "order": 3,
-                "when": {"category": "boomb"},
-                "action": {
-                    "kind": "regex_rewrite",
-                    "params": {
-                        "exts": [".tex"],
-                        "rewrites": [{"pattern": "hi", "repl": "hi %B1"}],
-                    },
-                },
-            },
-            {
-                "id": "fixB2",
-                "phase": "loop",
-                "order": 4,
-                "when": {"category": "boomb"},
-                "action": {
-                    "kind": "regex_rewrite",
-                    "params": {
-                        "exts": [".tex"],
-                        "rewrites": [{"pattern": "hi", "repl": "hi %B2"}],
-                    },
-                },
-            },
+            _rewrite_rule("fixB1", 3, "B1", category="boomb"),
+            _rewrite_rule("fixB2", 4, "B2", category="boomb"),
         ],
         taxonomy=[
             {"id": "boom", "scope": "head", "pattern": "BOOMA"},
@@ -188,11 +170,11 @@ def test_first_miss_settles_immediately(tmp_path: Path) -> None:
                 "id": "other_cat_rule",
                 "phase": "loop",
                 "order": 1,
-                "when": {"category": "nomatch"},
+                "when": {"category": "other"},
                 "action": {"kind": "run_tool", "params": {"argv": ["true"]}},
             }
         ],
-        taxonomy=_boom_taxonomy(),
+        taxonomy=BOOM_TAXONOMY,
     )
     cell = fixloop(tmp_path, MockEngine([{"log": BOOM_LOG}]), ruleset=rs)
     assert cell["verdict"] == "unfixable:boom"

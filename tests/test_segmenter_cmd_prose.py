@@ -27,33 +27,21 @@ token 参），任一参消费即整调用折进单个 ``[[CMD_n]]``——花括
 零告警 + pieces 无缝平铺。
 """
 
-import re
-
-from conftest import ART, blob, check_invariants
-
-from texlate.latex import parse_tex
-from texlate.latex.model import ScanResult
-
-PROSE = "We consider a two form antisymmetric tensor field theory in detail"
-KEY = "dalianis2020"
+from _segkit import (
+    KEY,
+    PROSE,
+    cmd_bodies,
+    nested_probe_call,
+    ph_bodies,
+)
+from _segkit import (
+    scan_art as scan,
+)
+from conftest import blob
 
 #: beamer 包条目（``\only``/``\onslide``）——argspec 表不按包门控后
 #: docclass 不再 load-bearing：同名 cs 在 article 下也走 argspec 臂。
 BEAMER = "\\documentclass{beamer}\n%s\\begin{document}\n%s\n\\end{document}\n"
-
-
-def scan(body: str, defs: str = "", art: str = ART) -> ScanResult:
-    tex = art % (defs, body)
-    res = parse_tex(tex)
-    check_invariants(res, tex)
-    return res
-
-
-def cmd_bodies(res: ScanResult) -> list[str]:
-    """全部 ``[[CMD_n]]`` ph 体（覆盖区间原文）。"""
-    return [
-        body for ph, body in res.ph_map.items() if re.fullmatch(r"\[\[CMD_\d+\]\]", ph)
-    ]
 
 
 def test_probe_prose_arg_surfaces() -> None:
@@ -177,23 +165,14 @@ def test_opaque_swallow_name_stays_opaque() -> None:
         "\\def\\comment#1{}\n",
     )
     assert PROSE not in blob(res)
-    macro_bodies = [
-        body
-        for ph, body in res.ph_map.items()
-        if re.fullmatch(r"\[\[MACRO_\d+\]\]", ph)
-    ]
+    macro_bodies = ph_bodies(res, "MACRO")
     assert f"\\comment{{{PROSE}.}}" in macro_bodies
 
 
 def test_probe_gen_backpressure() -> None:
     r"""嵌套散文参递归子扫到 ``MAX_GEN``：内层 ``\\f{prose}`` 不挖，
     整调用 opaque + ``gen_overflow`` 告警；外层散文照常出 surface。"""
-    depth = 40
-    inner = f"{PROSE} deep."
-    body = f"\\f{{{inner}}}"
-    for _ in range(depth):
-        body = f"\\f{{Outer prose words wrap around {body} tail.}}"
-    res = scan(body)
+    res = scan(nested_probe_call())
     kinds = [w.kind for w in res.warnings]
     assert "gen_overflow" in kinds
     text = blob(res)
@@ -325,11 +304,7 @@ def test_opaque_keyval_arg_stays_opaque() -> None:
         "\\kv{pdftitle={Some Really Long Paper Title}}",
         "\\makeatletter\n\\def\\kv#1{\\@store{#1}}\n\\makeatother\n",
     )
-    macro_bodies = [
-        body
-        for ph, body in res.ph_map.items()
-        if re.fullmatch(r"\[\[MACRO_\d+\]\]", ph)
-    ]
+    macro_bodies = ph_bodies(res, "MACRO")
     assert "\\kv{pdftitle={Some Really Long Paper Title}}" in macro_bodies
     assert "Really Long" not in blob(res)
 

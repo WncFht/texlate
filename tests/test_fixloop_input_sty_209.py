@@ -41,14 +41,9 @@ def _sibling() -> Rule:
     return next(r for r in load_ruleset().rules if r.id == _SIBLING_ID)
 
 
-def _pat() -> regex.Pattern[str]:
-    rw = _rule().raw["action"]["params"]["rewrites"][0]
-    return regex.compile(rw["pattern"])
-
-
 def _sub(src: str) -> str:
     rw = _rule().raw["action"]["params"]["rewrites"][0]
-    return _pat().sub(rw["repl"], src)
+    return regex.compile(rw["pattern"]).sub(rw["repl"], src)
 
 
 def test_rule_shape_precheck_first() -> None:

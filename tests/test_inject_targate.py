@@ -10,11 +10,11 @@ r"""inject.py 的 tar 伪装 .tex 闸（``_tar_disguised`` 复用 ``normalize.py
 
 from __future__ import annotations
 
-import io
-import tarfile
 from typing import TYPE_CHECKING
 
 import pytest
+from _tarkit import _tar_blob as _tar_kit
+from conftest import tar_bytes
 
 from texlate.compile.inject import (
     FLOAT_SIZING,
@@ -31,17 +31,18 @@ if TYPE_CHECKING:
 _DOC = "\\documentclass{article}\n\\begin{document}\nx\n\\end{document}\n"
 
 
+def ustar_blob(members: list[tuple[str, bytes]]) -> bytes:
+    """USTAR 裸 tar 构造——``_tar_disguised`` 字节面判定吃 USTAR_FORMAT 钉。
+
+    tar-gate 簇共用（probe_targate 经 ``from test_inject_targate import``
+    取件）——勿换 gnu/pax 变体。实现归 conftest ``tar_bytes``（USTAR 缺省）。
+    """
+    return tar_bytes(members)
+
+
 def _tar_blob(*members: tuple[str, bytes]) -> bytes:
     """ustar blob——成员文本默认含 dc/bd 文档形态（latin-1 解出即假阳面）。"""
-    buf = io.BytesIO()
-    with tarfile.open(fileobj=buf, mode="w", format=tarfile.USTAR_FORMAT) as tf:
-        for name, data in members or [
-            ("inner/doc.tex", _DOC.encode()),
-        ]:
-            info = tarfile.TarInfo(name)
-            info.size = len(data)
-            tf.addfile(info, io.BytesIO(data))
-    return buf.getvalue()
+    return _tar_kit(*(members or (("inner/doc.tex", _DOC.encode()),)))
 
 
 def test_tar_tex_not_main_candidate(tmp_path: Path) -> None:

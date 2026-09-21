@@ -1,6 +1,6 @@
 r"""M1 展开层（mouth/gullet）单元测试：docs/spec/latex-pipeline.md 验收面。
 
-逐条锁 ``docs/research/latex/expansion-design.md`` §12 移植表的行为：
+逐条锁 ``docs/research/latex/expansion-design.md`` 的行为契约：
 三态 tokenize / 注释吞行 / ``\def`` 定界参数族 / ``\newcommand`` 调用点 /
 ``\makeatletter`` / ``\if`` 两档 / 预算降级。corpus 级验证在 bench 侧。
 """
@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from conftest import expand, expanded_text, text_of, toks
+
 from texlate.latex.gullet import BUDGET, Gullet
 from texlate.latex.mouth import CC_LETTER, CatTable, Mouth, Tok
 
@@ -16,28 +18,6 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     import pytest
-
-
-def toks(src: str) -> list[Tok]:
-    """Mouth 全量 tokenize。"""
-    return list(Mouth(src))
-
-
-def text_of(ts: list[Tok]) -> str:
-    """token 流 → 表面文本（cs 反带 ``\\``；``consumed`` marker 是事件非文本）。"""
-    return "".join(str(t) for t in ts if t.kind != "consumed")
-
-
-def expand(src: str) -> tuple[list[Tok], Gullet]:
-    """Gullet 全量展开，返回 (tokens, gullet) 便于查 warnings。"""
-    g = Gullet(src)
-    return list(g), g
-
-
-def expanded_text(src: str) -> str:
-    """展开到不动点后的表面文本。"""
-    ts, _ = expand(src)
-    return text_of(ts)
 
 
 # ---------------------------------------------------------------- Mouth 三态
@@ -157,7 +137,7 @@ def test_gullet_def_undelimited_params() -> None:
 
 
 def test_gullet_def_delimited_params() -> None:
-    r"""``\def\ra[#1 #2 #3]{got #1|#2|#3}\ra[A B C]`` ——语料实测形（§12 锚点）。"""
+    r"""``\def\ra[#1 #2 #3]{got #1|#2|#3}\ra[A B C]`` ——语料实测形（§5.1 ``\def`` 参数文本编译锚点）。"""
     out = expanded_text("\\def\\ra[#1 #2 #3]{got #1|#2|#3}\\ra[A B C]")
     assert out == "got A|B|C"
 
@@ -195,7 +175,7 @@ def test_gullet_def_literal_hash_in_body() -> None:
 
 
 def test_gullet_def_arg_mismatch_passthrough() -> None:
-    r"""参数失配 → 已读回吐 + ``\name`` 本体交出（§3.5 降级线）。"""
+    r"""参数失配 → 已读回吐 + ``\name`` 本体交出（§4.2 展开失败降级线）。"""
     ts, g = expand("\\def\\m[#1]{mm #1}\\m x")
     assert text_of(ts).startswith("\\m")
     assert not any(w.kind == "def_parse_fail" for w in g.warnings)
@@ -209,7 +189,7 @@ def test_gullet_def_parse_fail_unwinds() -> None:
 
 
 def test_gullet_def_products_carry_origin() -> None:
-    r"""展开产物 ``gen>0`` 且 ``origin`` = 调用点 pos（§2.3 splice 语义）。"""
+    r"""展开产物 ``gen>0`` 且 ``origin`` = 调用点 pos（§2 展开产物的 pos 规则——splice 语义）。"""
     ts, _ = expand("\\def\\a{xy}p\\a q")
     prods = [t for t in ts if t.gen > 0]
     assert prods
@@ -219,8 +199,9 @@ def test_gullet_def_products_carry_origin() -> None:
 def test_gullet_products_origin_covers_full_call() -> None:
     r"""``origin`` = 整调用区间（含 args）——``\\sw{a}{b}`` 的 args 字节不漏出。
 
-    segmenter-integration §4 表首行：``expand_def`` 原只打 ``trig.pos``
-    （cs 名区间）→ ``_invoke`` 返回前按 ``_trace`` 末位补打。
+    segmenter-integration §4「``_stamp_call_origin`` 补打整调用区间」项：
+    ``expand_def`` 原只打 ``trig.pos``（cs 名区间）→ ``_invoke`` 返回前
+    按 ``_trace`` 末位补打。
     """
     src = "\\def\\sw#1#2{#2 and #1}\\sw{a}{b}"
     ts, _ = expand(src)

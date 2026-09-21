@@ -16,6 +16,8 @@ _ZH_ECHO = (
     "甲介绍句。The quick brown fox jumps over the lazy dog repeatedly "
     "near the barn. 尾部到此。"
 )
+#: 干净 zh 对照件——net/L0/intercept 三臂共享同一夹具串。
+_CLEAN_ZH = "甲介绍句。敏捷棕狐反复跳过谷仓旁的懒狗。尾部到此。"
 
 
 class TestNet:
@@ -33,8 +35,7 @@ class TestNet:
         assert len(residual_en_net(_SRC, zh)) == 2  # noqa: PLR2004
 
     def test_clean_zh_no_hit(self) -> None:
-        zh = "甲介绍句。敏捷棕狐反复跳过谷仓旁的懒狗。尾部到此。"
-        assert residual_en_net(_SRC, zh) == []
+        assert residual_en_net(_SRC, _CLEAN_ZH) == []
 
     def test_inline_term_no_hit(self) -> None:
         assert residual_en_net(_SRC, "这个 Transformer 架构很强。") == []
@@ -103,8 +104,7 @@ class TestL0Rule:
         assert not rep.ok
 
     def test_clean_pair_no_issue(self) -> None:
-        zh = "甲介绍句。敏捷棕狐反复跳过谷仓旁的懒狗。尾部到此。"
-        rep = validate_pair(_SRC, zh)
+        rep = validate_pair(_SRC, _CLEAN_ZH)
         assert all(i.rule != "residual_en" for i in rep.issues)
 
 
@@ -152,7 +152,7 @@ class TestIntercept:
         r = pl.ChunkResult(
             chunk_id="c",
             source=_SRC,
-            translation="甲介绍句。敏捷棕狐反复跳过谷仓旁的懒狗。尾部到此。",
+            translation=_CLEAN_ZH,
             kind="para",
             status="ok",
             attempts=1,

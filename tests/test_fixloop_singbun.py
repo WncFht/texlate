@@ -1,4 +1,4 @@
-r"""singbun lane (2026-09-20): failmine6+gapmine 七格 singles bundle 修复面钉。
+r"""singbun lane (2026-09-20): failmine6+gapmine 八格 singles bundle 修复面钉。
 
 每格 diagnose 自 verbatim 签名, 钉 classify → when+condition 派发 →
 apply → decline/幂等 四层 (aux_eof 同口径)。格↔臂映射:
@@ -29,65 +29,20 @@ apply → decline/幂等 四层 (aux_eof 同口径)。格↔臂映射:
   ``mncite_absent_retire`` (70-pkgopt 202) 装载行注释中和。
 """
 
-from functools import lru_cache
 from pathlib import Path
 
-from texlate.compile.fixloop import Ruleset, actions, load_ruleset
-from texlate.compile.fixloop.builtins import TRANSFORM_FNS
-from texlate.compile.fixloop.engine import LoopCtx, Rule
-from texlate.compile.logparse import ErrReport, parse_text
+from _fixloopkit import apply, mk_ctx, rs, when_cond_ok
 
-
-@lru_cache(maxsize=1)
-def _rs() -> Ruleset:
-    """ruleset 首用时加载 —— 坏 yaml 报 test fail 而非 collection error。"""
-    return load_ruleset()
-
-
-class _Eng:
-    """regex_rewrite/builtin 路径最小引擎替身 (不触 probe/install/filemap)。"""
-
-    name = "xelatex"
-
-    def probe_file(self, fname: str, cwd: Path | None = None) -> str | None:
-        del fname, cwd
-        return None
-
-    def filemap(self, fname: str) -> list[str]:
-        del fname
-        return []
-
-
-def _rule(rid: str) -> Rule:
-    return next(r for r in _rs().rules if r.id == rid)
-
-
-def _ctx(tmp_path: Path, err_head: str = "") -> LoopCtx:
-    return LoopCtx(
-        wdir=tmp_path, engine_name="xelatex", main_rel="main.tex", err_head=err_head
-    )
+from texlate.compile.logparse import parse_text
 
 
 def _write(tmp_path: Path, body: str, name: str = "main.tex") -> None:
     (tmp_path / name).write_text(body, encoding="utf-8")
 
 
-def _dispatch(
-    rid: str, cat: str | None, pay: str | None, err_head: str, tmp_path: Path
-) -> bool:
-    """when+condition 联合判定 —— pick_and_apply 同口径 (actions 原语直调)。"""
-    rule = _rule(rid)
-    ctx = _ctx(tmp_path, err_head)
-    w_ok = actions._when_ok(rule.when, cat, pay, ctx)  # noqa: SLF001
-    c_ok = actions._cond_ok(rule.condition, rule, ctx, _Eng(), pay)[0]  # noqa: SLF001
-    return w_ok and c_ok
-
-
 def _apply(rid: str, tmp_path: Path, pay: str | None = None) -> tuple[bool, str]:
-    """action 直驱 (when/cond 由 _dispatch 钉)。"""
-    return actions._apply(  # noqa: SLF001 - 钉规则动作直驱
-        _rule(rid), _ctx(tmp_path), _Eng(), pay, ErrReport()
-    )
+    """action 直驱 (when/cond 由 when_cond_ok 钉)。"""
+    return apply(rid, mk_ctx(tmp_path), pay)
 
 
 # ════════════════════════════════════════════════════════════════
@@ -104,7 +59,7 @@ _SVG_LOG = (
 def test_svg_missing_classifies_graphic_with_payload() -> None:
     """svg 包 ``is missing`` 措辞 → missing_graphic|.svg 名 (新 taxonomy 行)。"""
     rep = parse_text(_SVG_LOG)
-    cat, pay = _rs().taxonomy.classify(rep)
+    cat, pay = rs().taxonomy.classify(rep)
     assert (cat, pay) == ("missing_graphic", "modified-recoverability.svg")
 
 
@@ -118,7 +73,7 @@ def test_svg_tex_pdf_intermediate_not_graphic() -> None:
     rep = parse_text(
         "main.tex:579: Package svg Error: File `x_svg-tex.pdf' is missing.\nl.1 x\n"
     )
-    cat, _ = _rs().taxonomy.classify(rep)
+    cat, _ = rs().taxonomy.classify(rep)
     assert cat != "missing_graphic"
 
 
@@ -131,7 +86,7 @@ def test_svg_demote_dispatch_apply(tmp_path: Path) -> None:
         "\\includesvg[width=\\textwidth]{modified-recoverability.svg}\n"
         "\\includesvg{fig2.svg}\n\\end{document}\n",
     )
-    assert _dispatch(
+    assert when_cond_ok(
         "svg_missing_demote",
         "missing_graphic",
         "modified-recoverability.svg",
@@ -150,7 +105,7 @@ def test_svg_demote_declines_no_includesvg(tmp_path: Path) -> None:
     """无 \\includesvg 站 → source_contains 闸拒 + apply 空转。"""
     head = parse_text(_SVG_LOG).first or ""
     _write(tmp_path, "\\documentclass{article}\n\\begin{document}x\\end{document}\n")
-    assert not _dispatch(
+    assert not when_cond_ok(
         "svg_missing_demote", "missing_graphic", "x.svg", head, tmp_path
     )
     ok, _ = _apply("svg_missing_demote", tmp_path, "x.svg")
@@ -175,10 +130,10 @@ def test_svg_demoted_ref_next_round_reaches_placeholder(tmp_path: Path) -> None:
         "main.tex:10: Unable to load picture or PDF file 'modified-recoverability.pdf'\n"
         "l.10 x\n"
     )
-    cat, pay = _rs().taxonomy.classify(rep)
+    cat, pay = rs().taxonomy.classify(rep)
     assert (cat, pay) == ("missing_graphic", "modified-recoverability.pdf")
     head = (rep.first or "") + "\n" + (rep.ctx or "")
-    assert _dispatch("graphic_missing_placeholder", cat, pay, head, tmp_path)
+    assert when_cond_ok("graphic_missing_placeholder", cat, pay, head, tmp_path)
 
 
 # ════════════════════════════════════════════════════════════════
@@ -190,7 +145,7 @@ _MNCITE_HEAD = "! LaTeX Error: File `mncite.sty' not found.\nl.164 \\usepackage{
 
 def test_mncite_classifies_missing_file() -> None:
     rep = parse_text(_MNCITE_HEAD)
-    cat, pay = _rs().taxonomy.classify(rep)
+    cat, pay = rs().taxonomy.classify(rep)
     assert (cat, pay) == ("missing_file", "mncite.sty")
 
 
@@ -201,7 +156,7 @@ def test_mncite_retire_dispatch_apply(tmp_path: Path) -> None:
         "\\documentclass[useAMS,usenatbib]{mn2e}\n\\usepackage{mncite}\n"
         "\\begin{document}\n\\citep{a}\n\\end{document}\n",
     )
-    assert _dispatch(
+    assert when_cond_ok(
         "mncite_absent_retire", "missing_file", "mncite.sty", _MNCITE_HEAD, tmp_path
     )
     ok, note = _apply("mncite_absent_retire", tmp_path, "mncite.sty")
@@ -215,7 +170,7 @@ def test_mncite_retire_declines_other_missing(tmp_path: Path) -> None:
     """ctx 无 mncite.sty 签名 → cond 拒 (其他 missing_file 不抢)。"""
     _write(tmp_path, "\\usepackage{mncite}\n")
     head = "! LaTeX Error: File `foo.sty' not found.\nl.1 x"
-    assert not _dispatch(
+    assert not when_cond_ok(
         "mncite_absent_retire", "missing_file", "foo.sty", head, tmp_path
     )
 
@@ -231,7 +186,7 @@ def test_mncite_retire_masked_idempotent(tmp_path: Path) -> None:
         "\\begin{document}x\\end{document}\n"
     )
     _write(tmp_path, src)
-    assert _dispatch(
+    assert when_cond_ok(
         "mncite_absent_retire", "missing_file", "mncite.sty", _MNCITE_HEAD, tmp_path
     )
     ok, _ = _apply("mncite_absent_retire", tmp_path, "mncite.sty")
@@ -264,14 +219,14 @@ _CITE_DOC = (
 
 def test_citex_clash_classifies_syntax() -> None:
     rep = parse_text(_CITEX_HEAD)
-    cat, _ = _rs().taxonomy.classify(rep)
+    cat, _ = rs().taxonomy.classify(rep)
     assert cat == "syntax"
 
 
 def test_cite_clash_dispatch_apply(tmp_path: Path) -> None:
     """\\ifx 死支内活装载行注释中和; natbib 行不动。"""
     _write(tmp_path, _CITE_DOC)
-    assert _dispatch("cite_natbib_clash_retire", "syntax", None, _CITEX_HEAD, tmp_path)
+    assert when_cond_ok("cite_natbib_clash_retire", "syntax", None, _CITEX_HEAD, tmp_path)
     ok, note = _apply("cite_natbib_clash_retire", tmp_path)
     assert ok, note
     t = (tmp_path / "main.tex").read_text()
@@ -282,7 +237,7 @@ def test_cite_clash_dispatch_apply(tmp_path: Path) -> None:
 def test_cite_clash_declines_cite_only(tmp_path: Path) -> None:
     """单载 cite 无 natbib → 双前瞻闸拒 (无 arity 冲突不退役)。"""
     _write(tmp_path, "\\usepackage{cite}\n\\begin{document}x\\end{document}\n")
-    assert not _dispatch(
+    assert not when_cond_ok(
         "cite_natbib_clash_retire", "syntax", None, _CITEX_HEAD, tmp_path
     )
 
@@ -293,7 +248,7 @@ def test_cite_clash_masked_no_double_comment(tmp_path: Path) -> None:
         "\\usepackage{natbib}\n%\\usepackage{cite}\n\\begin{document}x\\end{document}\n"
     )
     _write(tmp_path, src)
-    assert _dispatch("cite_natbib_clash_retire", "syntax", None, _CITEX_HEAD, tmp_path)
+    assert when_cond_ok("cite_natbib_clash_retire", "syntax", None, _CITEX_HEAD, tmp_path)
     ok, _ = _apply("cite_natbib_clash_retire", tmp_path)
     assert not ok
     assert (tmp_path / "main.tex").read_text() == src
@@ -308,7 +263,7 @@ _NOALIGN_HEAD = "WOM33varsearchV4.tex:673: Misplaced \\noalign.\nl.673 \\hline"
 
 def test_noalign_classifies_syntax() -> None:
     rep = parse_text(_NOALIGN_HEAD)
-    cat, _ = _rs().taxonomy.classify(rep)
+    cat, _ = rs().taxonomy.classify(rep)
     assert cat == "syntax"
 
 
@@ -320,7 +275,7 @@ def test_noalign_dispatch_apply(tmp_path: Path) -> None:
         "\\input{ebaslist.tex}\n\\hline\n\\end{tabular}\n",
     )
     (tmp_path / "ebaslist.tex").write_text("b \\\\\n", encoding="utf-8")
-    assert _dispatch("input_noalign_primitive", "syntax", None, _NOALIGN_HEAD, tmp_path)
+    assert when_cond_ok("input_noalign_primitive", "syntax", None, _NOALIGN_HEAD, tmp_path)
     ok, note = _apply("input_noalign_primitive", tmp_path)
     assert ok, note
     t = (tmp_path / "main.tex").read_text()
@@ -364,7 +319,7 @@ _DELIM_HEAD = "main.tex:359: Missing delimiter (. inserted).\nl.359 $x$"
 
 def test_fullwidth_delim_classifies_syntax() -> None:
     rep = parse_text(_DELIM_HEAD)
-    cat, _ = _rs().taxonomy.classify(rep)
+    cat, _ = rs().taxonomy.classify(rep)
     assert cat == "syntax"
 
 
@@ -374,7 +329,7 @@ def test_fullwidth_delim_dispatch_apply(tmp_path: Path) -> None:
         tmp_path,
         "\\begin{document}\n$\\big（x+y\\big）$ and $\\left（z\\right）$\n\\end{document}\n",
     )
-    assert _dispatch("big_fullwidth_delim_fix", "syntax", None, _DELIM_HEAD, tmp_path)
+    assert when_cond_ok("big_fullwidth_delim_fix", "syntax", None, _DELIM_HEAD, tmp_path)
     ok, note = _apply("big_fullwidth_delim_fix", tmp_path)
     assert ok, note
     t = (tmp_path / "main.tex").read_text()
@@ -385,7 +340,7 @@ def test_fullwidth_delim_dispatch_apply(tmp_path: Path) -> None:
 def test_fullwidth_delim_declines_ascii(tmp_path: Path) -> None:
     """ASCII () 原稿形 → cond 拒 + apply 空转 (幂等面)。"""
     _write(tmp_path, "$\\big(x\\big)$\n")
-    assert not _dispatch(
+    assert not when_cond_ok(
         "big_fullwidth_delim_fix", "syntax", None, _DELIM_HEAD, tmp_path
     )
     ok, _ = _apply("big_fullwidth_delim_fix", tmp_path)
@@ -411,7 +366,7 @@ _CLS_STALE = "\\def\\LT@endpbox{%\n  \\@finalstrut\\@arstrutbox\\egroup\n}\n"
 
 def test_endpbox_classifies_syntax() -> None:
     rep = parse_text(_ENDBOX_HEAD)
-    cat, _ = _rs().taxonomy.classify(rep)
+    cat, _ = rs().taxonomy.classify(rep)
     assert cat == "syntax"
 
 
@@ -419,7 +374,7 @@ def test_endpbox_dispatch_apply_cls(tmp_path: Path) -> None:
     """\\@finalstrut\\@arstrutbox↔\\egroup 间插 \\color@endgroup。"""
     _write(tmp_path, _CLS_STALE, name="emulateapj.cls")
     _write(tmp_path, "\\documentclass{emulateapj}\n\\begin{document}x\\end{document}\n")
-    assert _dispatch("lt_endpbox_color_fix", "syntax", None, _ENDBOX_HEAD, tmp_path)
+    assert when_cond_ok("lt_endpbox_color_fix", "syntax", None, _ENDBOX_HEAD, tmp_path)
     ok, note = _apply("lt_endpbox_color_fix", tmp_path)
     assert ok, note
     t = (tmp_path / "emulateapj.cls").read_text()
@@ -430,7 +385,7 @@ def test_endpbox_declines_tex_site(tmp_path: Path) -> None:
     """同名 def 落 .tex 不收 (exts [.cls,.sty] cls 域专属) —— cond 过
     (source_contains 全域见字面) apply decline。"""
     _write(tmp_path, _CLS_STALE)
-    assert _dispatch("lt_endpbox_color_fix", "syntax", None, _ENDBOX_HEAD, tmp_path)
+    assert when_cond_ok("lt_endpbox_color_fix", "syntax", None, _ENDBOX_HEAD, tmp_path)
     ok, _ = _apply("lt_endpbox_color_fix", tmp_path)
     assert not ok
     assert "\\color@endgroup" not in (tmp_path / "main.tex").read_text()
@@ -454,14 +409,14 @@ _REDACT_HEAD = "! File ended while scanning use of \\redactcite.\nl.562 x"
 
 def test_redactcite_classifies_runaway_payload() -> None:
     rep = parse_text(_REDACT_HEAD)
-    cat, pay = _rs().taxonomy.classify(rep)
+    cat, pay = rs().taxonomy.classify(rep)
     assert (cat, pay) == ("runaway_scan", "\\redactcite")
 
 
 def test_redactcite_brace_close_dispatch_apply(tmp_path: Path) -> None:
     """\\redactcite{\\cite{key}。 → \\redactcite{\\cite{key}}。"""
     _write(tmp_path, "正文 \\redactcite{\\cite{thompson_ssl_cv_dataset_2026}。 下段\n")
-    assert _dispatch(
+    assert when_cond_ok(
         "redactcite_brace_close",
         "runaway_scan",
         "\\redactcite",
@@ -478,7 +433,7 @@ def test_redactcite_declines_healthy(tmp_path: Path) -> None:
     """双括健康稿前瞻 ``(?![ \\t\\n]*\\})`` 拒中 —— 原文不动 (天然幂等)。"""
     src = "x \\redactcite{\\cite{a}} y\n"
     _write(tmp_path, src)
-    assert _dispatch(
+    assert when_cond_ok(
         "redactcite_brace_close",
         "runaway_scan",
         "\\redactcite",
@@ -493,35 +448,18 @@ def test_redactcite_declines_healthy(tmp_path: Path) -> None:
 def test_aux_purge_redactcite_arm_dispatches(tmp_path: Path) -> None:
     """指派表侧: aux_purge_regen (b) 臂 ctx_suggests 已含 redactcite —
     runaway_scan|\\redactcite when+cond 均过 (65-encoding:92 表列名)。"""
-    assert _dispatch(
+    assert when_cond_ok(
         "aux_purge_regen", "runaway_scan", "\\redactcite", _REDACT_HEAD, tmp_path
     )
 
 
 def test_aux_purge_redactcite_declines_healthy_aux(tmp_path: Path) -> None:
     """该格实机非 aux 回读 (main.aux 0 redactcite 写件) —— 健康 aux 上
-    purge_corrupt_intermediates decline 钉死: 指派表臂语义一致族表列
-    名补全, 真修归 redactcite_brace_close doc 级臂。"""
+    aux_purge_regen 全链 (kind 派发→params→purge_corrupt_intermediates)
+    decline 钉死: 指派表臂语义一致族表列名补全, 真修归
+    redactcite_brace_close doc 级臂。"""
     (tmp_path / "main.aux").write_bytes(b"\\relax\n\\newlabel{a}{{1}{1}{ok}}\n")
-    params = {
-        "exts": [
-            ".aux",
-            ".out",
-            ".toc",
-            ".lof",
-            ".lot",
-            ".nav",
-            ".snm",
-            ".vrb",
-            ".ent",
-        ],
-        "payload_purge_cs": "^(abx|blx|zref|oddpage|abspage|lastpage|NAT|hyper)@[A-Za-z@]*$",
-        "payload_purge_exts": [".aux"],
-    }
-    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
-    ok, _ = TRANSFORM_FNS["purge_corrupt_intermediates"](
-        ctx, None, "\\redactcite", params
-    )
+    ok, _ = _apply("aux_purge_regen", tmp_path, "\\redactcite")
     assert not ok
     assert (tmp_path / "main.aux").exists()
 
@@ -535,7 +473,7 @@ _UM_HEAD = "method.tex:7: Missing { inserted.\n<to be read again> \\__um_group_b
 
 def test_um_script_classifies_syntax() -> None:
     rep = parse_text(_UM_HEAD)
-    cat, _ = _rs().taxonomy.classify(rep)
+    cat, _ = rs().taxonomy.classify(rep)
     assert cat == "syntax"
 
 
@@ -546,7 +484,7 @@ def test_um_script_dispatch_apply(tmp_path: Path) -> None:
         "\\begin{document}\n$f^\\mathcal{P}$ and $g_\\mathcal{C}$ "
         "and $h^\\mathcal P$\n\\end{document}\n",
     )
-    assert _dispatch("um_script_alphabet_brace", "syntax", None, _UM_HEAD, tmp_path)
+    assert when_cond_ok("um_script_alphabet_brace", "syntax", None, _UM_HEAD, tmp_path)
     ok, note = _apply("um_script_alphabet_brace", tmp_path)
     assert ok, note
     t = (tmp_path / "main.tex").read_text()

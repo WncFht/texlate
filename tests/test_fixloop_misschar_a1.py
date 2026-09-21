@@ -15,28 +15,20 @@ params) 验替换:
 
 from pathlib import Path
 
+from _fixloopkit import mk_ctx, rule
+
 from texlate.compile.fixloop.builtins import missing_char_fix
-from texlate.compile.fixloop.engine import LoopCtx
-from texlate.compile.fixloop.ruleset import load_ruleset
-
-
-def _ctx(tmp_path: Path) -> LoopCtx:
-    return LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel="main.tex")
 
 
 def _missing_char_fix_params() -> dict:
     """落地 ruleset 里 ``missing_char_fix`` 的真 params (测 yaml 条目本身)。"""
-    for r in load_ruleset().phase("loop"):
-        if r.id == "missing_char_fix":
-            return r.action.get("params") or {}
-    msg = "missing_char_fix rule not found"
-    raise AssertionError(msg)
+    return rule("missing_char_fix").action.get("params") or {}
 
 
 def _fix(tmp_path: Path, main: str, log: str) -> tuple[bool, str]:
     (tmp_path / "main.tex").write_text(main, encoding="utf-8")
     (tmp_path / "main.log").write_text(log, encoding="utf-8")
-    return missing_char_fix(_ctx(tmp_path), None, None, _missing_char_fix_params())
+    return missing_char_fix(mk_ctx(tmp_path), None, None, _missing_char_fix_params())
 
 
 def test_char_table_a1_entries_registered() -> None:

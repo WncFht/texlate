@@ -5,10 +5,8 @@
 
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import json
-import threading
 import zipfile
 from typing import TYPE_CHECKING
 
@@ -17,17 +15,21 @@ import pytest
 pytest.importorskip("fastapi", reason="server extra 未装")
 pytest.importorskip("starlette.testclient", reason="server extra 未装")
 
+from _drivekit import drive
+from _workerkit import mk_ctx
 from conftest import MINI_TEX, RecordingEngine
 
 from texlate.compile.ctan import TlpdbIndex
-from texlate.server.events import EventBus
-from texlate.server.store import Store, new_task_id
-from texlate.server.worker import PIPELINE_VERSION, PipelineWorker, Secrets, TaskCtx
+from texlate.server.settings import share_dir
+from texlate.server.worker import PIPELINE_VERSION
 from texlate.share import REQUIRED_ARTIFACTS, index_lookup, unpack_share
 from texlate.xlat.prompts import PROMPT_VERSION
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+    from texlate.server.store import Store
+    from texlate.server.worker import PipelineWorker, TaskCtx
 
 
 def _mk(
@@ -39,30 +41,12 @@ def _mk(
     worker_kw: dict[str, object] | None = None,
 ) -> tuple[TaskCtx, PipelineWorker, Store]:
     """真实任务行 + TaskCtx + worker（``_stage_compile`` 级直调面）。"""
-    store = Store(tmp_path / "t.db")
-    store.open()
-    bus = EventBus(store)
-    kw: dict[str, object] = {"deps_index": TlpdbIndex({})}
-    kw.update(worker_kw or {})
-    worker = PipelineWorker(store, bus, tmp_path, **kw)  # type: ignore[arg-type]
-    task_id = new_task_id()
-    row = store.create_task(
-        task_id=task_id,
-        kind=kind,
-        target_lang="zh-CN",
-        model="m",
-        arxiv_id=arxiv_id,
-        options=options or {},
+    return mk_ctx(
+        tmp_path,
+        options=options,
+        worker_kw={"deps_index": TlpdbIndex({}), **(worker_kw or {})},
+        task_kw={"kind": kind, "arxiv_id": arxiv_id},
     )
-    ctx = TaskCtx(
-        store=store,
-        bus=bus,
-        task_id=task_id,
-        row=row,
-        secrets=Secrets(),
-        root=tmp_path / "tasks" / task_id,
-    )
-    return ctx, worker, store
 
 
 def _seed_done(ctx: TaskCtx, store: Store, *, zh_src: bool = True) -> None:
@@ -83,20 +67,6 @@ def _seed_done(ctx: TaskCtx, store: Store, *, zh_src: bool = True) -> None:
         store.put_file(ctx.task_id, "zh_src_zip", "zh-src.zip", data_dir=ctx.root)
 
 
-def _drive_compile(ctx: TaskCtx, worker: PipelineWorker) -> None:
-    async def drive() -> None:
-        worker._loop = asyncio.get_running_loop()  # noqa: SLF001
-        worker._loop_tid = threading.get_ident()  # noqa: SLF001
-        await worker._stage_compile(ctx)  # noqa: SLF001 -- 单测直驱
-
-    asyncio.run(drive())
-
-
-def _share_root(ctx: TaskCtx) -> Path:
-    """默认发布目录 ``<data_dir>/share``（``share_dir(self.data_dir)``）。"""
-    return ctx.root.parent.parent / "share"
-
-
 def _events(store: Store, task_id: str, etype: str) -> list[dict[str, object]]:
     rows = store.conn.execute(
         "SELECT data FROM task_events WHERE task_id = ? AND type = ?",
@@ -111,9 +81,9 @@ class TestOptInPack:
     def test_done_packs_and_indexes(self, tmp_path: Path) -> None:
         ctx, worker, store = _mk(tmp_path, options={"share_pack": True})
         _seed_done(ctx, store)
-        _drive_compile(ctx, worker)
+        drive(worker, worker._stage_compile(ctx))  # noqa: SLF001 -- 单测直驱
         assert store.get(ctx.task_id)["status"] == "done"
-        share_root = _share_root(ctx)
+        share_root = share_dir(worker.data_dir)
         bundles = list(share_root.glob("*.share.zip"))
         assert len(bundles) == 1
         mf = unpack_share(bundles[0], tmp_path / "verify")
@@ -140,15 +110,15 @@ class TestOptInPack:
     def test_opt_out_no_pack(self, tmp_path: Path) -> None:
         ctx, worker, store = _mk(tmp_path)
         _seed_done(ctx, store)
-        _drive_compile(ctx, worker)
+        drive(worker, worker._stage_compile(ctx))  # noqa: SLF001 -- 单测直驱
         assert store.get(ctx.task_id)["status"] == "done"
-        assert not _share_root(ctx).exists()
+        assert not share_dir(worker.data_dir).exists()
 
     def test_falsey_string_no_pack(self, tmp_path: Path) -> None:
         ctx, worker, store = _mk(tmp_path, options={"share_pack": "off"})
         _seed_done(ctx, store)
-        _drive_compile(ctx, worker)
-        assert not _share_root(ctx).exists()
+        drive(worker, worker._stage_compile(ctx))  # noqa: SLF001 -- 单测直驱
+        assert not share_dir(worker.data_dir).exists()
 
 
 class TestGuards:
@@ -157,17 +127,17 @@ class TestGuards:
     def test_share_kind_never_packs(self, tmp_path: Path) -> None:
         ctx, worker, store = _mk(tmp_path, kind="share", options={"share_pack": True})
         _seed_done(ctx, store)
-        _drive_compile(ctx, worker)
-        assert not _share_root(ctx).exists()
+        drive(worker, worker._stage_compile(ctx))  # noqa: SLF001 -- 单测直驱
+        assert not share_dir(worker.data_dir).exists()
 
     def test_no_arxiv_id_skips(self, tmp_path: Path) -> None:
         ctx, worker, store = _mk(
             tmp_path, kind="upload_tex", arxiv_id=None, options={"share_pack": True}
         )
         _seed_done(ctx, store)
-        _drive_compile(ctx, worker)
+        drive(worker, worker._stage_compile(ctx))  # noqa: SLF001 -- 单测直驱
         assert store.get(ctx.task_id)["status"] == "done"
-        assert not _share_root(ctx).exists()
+        assert not share_dir(worker.data_dir).exists()
         logs = _events(store, ctx.task_id, "log")
         assert any("不参与共享寻址" in str(e.get("line")) for e in logs)
 
@@ -178,9 +148,9 @@ class TestErrorDiscipline:
     def test_missing_artifact_keeps_done(self, tmp_path: Path) -> None:
         ctx, worker, store = _mk(tmp_path, options={"share_pack": True})
         _seed_done(ctx, store, zh_src=False)  # zh-src.zip 缺席 → ShareError
-        _drive_compile(ctx, worker)
+        drive(worker, worker._stage_compile(ctx))  # noqa: SLF001 -- 单测直驱
         assert store.get(ctx.task_id)["status"] == "done"
-        assert not _share_root(ctx).exists()
+        assert not share_dir(worker.data_dir).exists()
         warns = _events(store, ctx.task_id, "warning")
         assert any(e.get("code") == "share_pack" for e in warns)
 
@@ -216,9 +186,9 @@ class TestPartialPack:
             zf.writestr("main.tex", MINI_TEX)
         store.put_file(ctx.task_id, "zh_src_zip", "zh-src.zip", data_dir=ctx.root)
 
-        _drive_compile(ctx, worker)
+        drive(worker, worker._stage_compile(ctx))  # noqa: SLF001 -- 单测直驱
         assert store.get(ctx.task_id)["status"] == "fault"
-        share_root = _share_root(ctx)
+        share_root = share_dir(worker.data_dir)
         bundles = list(share_root.glob("*.share.zip"))
         assert len(bundles) == 1
         mf = unpack_share(bundles[0], tmp_path / "verify")

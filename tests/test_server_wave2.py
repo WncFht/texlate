@@ -6,7 +6,6 @@ from __future__ import annotations
 import asyncio
 import json
 import zipfile
-from functools import partial
 from http import HTTPStatus
 from typing import TYPE_CHECKING
 
@@ -15,11 +14,17 @@ import pytest
 pytest.importorskip("fastapi", reason="server extra 未装")
 pytest.importorskip("starlette.testclient", reason="server extra 未装")
 
-from conftest import FakeEngine, make_app, wait_terminal
+from _serverkit import FlakyEngine, preset_settings
+from conftest import (
+    FakeEngine,
+    live_app,
+    make_app,
+    store_call,
+    upload,
+    wait_terminal,
+)
 from starlette.testclient import TestClient
-from test_server_security import FlakyEngine, _live_app, _upload
 
-from texlate.server.settings import SettingsStore
 from texlate.server.store import Store
 from texlate.server.worker import (
     PipelineWorker,
@@ -35,12 +40,6 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from httpx import Response
-
-
-def _settings(data_root: Path, **updates: object) -> None:
-    """create_app 之前预写 settings.json（CORS/quota 等 create 期读取的项用）。"""
-    data_root.mkdir(parents=True, exist_ok=True)
-    SettingsStore(data_root).save(updates)
 
 
 def _md_zip_members(data_root: Path, tid: str) -> dict[str, str]:
@@ -63,11 +62,16 @@ class TestMdZip:
         clean_env: pytest.MonkeyPatch,  # noqa: ARG002
     ) -> None:
         eng = FlakyEngine(always_fail=True)
-        with TestClient(_live_app(tmp_path, engine=eng)) as c:
-            tid = _upload(c)["task_id"]
+        app = live_app(
+            tmp_path,
+            lambda _ctx: MockTranslator(),
+            engine_factory=lambda _n: eng,
+        )
+        with TestClient(app) as c:
+            tid = upload(c)["task_id"]
             snap = wait_terminal(c, tid)
             assert snap["status"] == "fault"
-            rec = c.portal.call(partial(c.app.state.store.file_record, tid, "md_zip"))
+            rec = store_call(c, c.app.state.store.file_record, tid, "md_zip")
             assert rec is not None
             assert rec["bytes"]
             members = _md_zip_members(tmp_path / "data", tid)
@@ -89,11 +93,12 @@ class TestMdZip:
         tmp_path: Path,
         clean_env: pytest.MonkeyPatch,  # noqa: ARG002
     ) -> None:
-        with TestClient(_live_app(tmp_path)) as c:
-            tid = _upload(c)["task_id"]
+        app = live_app(tmp_path, lambda _ctx: MockTranslator())
+        with TestClient(app) as c:
+            tid = upload(c)["task_id"]
             snap = wait_terminal(c, tid)
             assert snap["status"] == "done"
-            rec = c.portal.call(partial(c.app.state.store.file_record, tid, "md_zip"))
+            rec = store_call(c, c.app.state.store.file_record, tid, "md_zip")
             assert rec is None
             assert c.get(f"/api/task/{tid}/reader").json()["view"] == "pdf"
 
@@ -104,18 +109,17 @@ class TestMdZip:
     ) -> None:
         """fault 期登记的 md_zip 在 retry 出 pdf 后不把视图钉死在 html。"""
         engs = [FlakyEngine(always_fail=True)]
-        app = make_app(
+        app = live_app(
             tmp_path,
-            start_worker=True,
-            translator_factory=lambda _ctx: MockTranslator(),
+            lambda _ctx: MockTranslator(),
             engine_factory=lambda _n: engs[0],
         )
         with TestClient(app) as c:
-            tid = _upload(c)["task_id"]
+            tid = upload(c)["task_id"]
             snap = wait_terminal(c, tid)
             assert snap["status"] == "fault"
             assert (
-                c.portal.call(partial(c.app.state.store.file_record, tid, "md_zip"))
+                store_call(c, c.app.state.store.file_record, tid, "md_zip")
                 is not None
             )
             engs[0] = FakeEngine()
@@ -123,7 +127,7 @@ class TestMdZip:
             assert r.status_code == HTTPStatus.ACCEPTED, r.text
             snap = wait_terminal(c, tid)
             assert snap["status"] == "done"
-            rec = c.portal.call(partial(c.app.state.store.file_record, tid, "md_zip"))
+            rec = store_call(c, c.app.state.store.file_record, tid, "md_zip")
             assert rec is not None  # 旧降级产物仍在（可下载留档）
             assert c.get(f"/api/task/{tid}/reader").json()["view"] == "pdf"
 
@@ -172,7 +176,7 @@ class TestCorsAllowlist:
         clean_env: pytest.MonkeyPatch,  # noqa: ARG002
     ) -> None:
         monkeypatch.setenv("TEXLATE_MODE", "server")
-        _settings(tmp_path / "data", cors_origins=["https://ok.example"])
+        preset_settings(tmp_path / "data", cors_origins=["https://ok.example"])
         with TestClient(make_app(tmp_path)) as c:
             r = c.options(
                 "/api/health",
@@ -224,7 +228,7 @@ class TestCorsAllowlist:
         clean_env: pytest.MonkeyPatch,  # noqa: ARG002
     ) -> None:
         monkeypatch.setenv("TEXLATE_MODE", "local")
-        _settings(tmp_path / "data", cors_origins=["https://ok.example"])
+        preset_settings(tmp_path / "data", cors_origins=["https://ok.example"])
         with TestClient(make_app(tmp_path)) as c:
             r = c.options(
                 "/api/health",
@@ -248,7 +252,7 @@ class TestTenantQuota:
         tmp_path: Path,
         clean_env: pytest.MonkeyPatch,  # noqa: ARG002
     ) -> None:
-        _settings(tmp_path / "data", quota_max_tasks=1)
+        preset_settings(tmp_path / "data", quota_max_tasks=1)
         with TestClient(make_app(tmp_path)) as c:
             assert self._arxiv(c, "2401.00001").status_code == HTTPStatus.ACCEPTED
             r = self._arxiv(c, "2401.00002")
@@ -260,7 +264,7 @@ class TestTenantQuota:
         tmp_path: Path,
         clean_env: pytest.MonkeyPatch,  # noqa: ARG002
     ) -> None:
-        _settings(tmp_path / "data", quota_max_bytes=10)
+        preset_settings(tmp_path / "data", quota_max_bytes=10)
         with TestClient(make_app(tmp_path)) as c:
             r = c.post(
                 "/api/upload",
@@ -289,7 +293,7 @@ class TestTenantQuota:
         须换一个对端地址。
         """
         monkeypatch.setenv("TEXLATE_MODE", "server")
-        _settings(tmp_path / "data", quota_max_tasks=1)
+        preset_settings(tmp_path / "data", quota_max_tasks=1)
         app = make_app(tmp_path)
         with TestClient(app) as c:
             assert self._arxiv(c, "2401.00003", key="sk-A").status_code == (
@@ -454,20 +458,18 @@ class TestRetryModel:
         """真管线：primary 每发都 429（retryable）→ 备选模型译文进 chunks。"""
         primary = _BoomTranslator(ChatError("rate", status=429, retryable=True))
         fallback = _OkTranslator("备选译文")
-        app = make_app(
+        app = live_app(
             tmp_path,
-            start_worker=True,
-            translator_factory=lambda _ctx: _FallbackTranslator(
+            lambda _ctx: _FallbackTranslator(
                 primary,  # type: ignore[arg-type]
                 fallback,  # type: ignore[arg-type]
             ),
-            engine_factory=lambda _n: FakeEngine(),
         )
         with TestClient(app) as c:
-            tid = _upload(c)["task_id"]
+            tid = upload(c)["task_id"]
             snap = wait_terminal(c, tid)
             assert snap["status"] == "done"
-            rows = c.portal.call(partial(c.app.state.store.all_chunks, tid))
+            rows = store_call(c, c.app.state.store.all_chunks, tid)
         assert primary.calls > 0
         assert fallback.calls > 0
         assert any("备选译文" in (r["translation"] or "") for r in rows)

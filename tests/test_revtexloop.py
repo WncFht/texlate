@@ -8,15 +8,9 @@ ltxgrid 输出例程页盒丈量失同步——``\\end{document}`` ``\\clearpage
 """
 
 import pytest
+from _latex209kit import target_always_resolvable  # noqa: F401
 
-from texlate.compile import latex209
 from texlate.compile.latex209 import upgrade_209
-
-
-@pytest.fixture(autouse=True)
-def _target_always_resolvable(monkeypatch: pytest.MonkeyPatch) -> None:
-    """改名目标类放行——结果不依赖测试机 texmf。"""
-    monkeypatch.setattr(latex209, "_target_resolvable", lambda *_a: True)
 
 
 def test_topskip_dropped_on_revtex_upgrade() -> None:

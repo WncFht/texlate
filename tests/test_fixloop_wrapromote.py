@@ -12,9 +12,11 @@
 
 from pathlib import Path
 
-from texlate.compile.fixloop import actions, load_ruleset
+from _fixloopkit import EngStub, mk_ctx, rule
+
+from texlate.compile.fixloop import actions
 from texlate.compile.fixloop.builtins import TRANSFORM_FNS
-from texlate.compile.fixloop.engine import LoopCtx, Rule
+from texlate.compile.fixloop.engine import LoopCtx
 
 _RULE = "main_wrapper_promote"
 
@@ -30,27 +32,8 @@ _WRAPPER = (
 _INTRO = "intro body\n"
 
 
-class _EngStub:
-    """builtin 直驱引擎替身 —— ``main_wrapper_promote`` ``del eng`` 不触引擎面。"""
-
-    def probe_file(self, fname: str, cwd: Path | None = None) -> None:
-        del fname, cwd
-
-    def install_file(self, fname: str, *, font_related: bool = False) -> bool:
-        del fname, font_related
-        return False
-
-
-def _rule(rid: str) -> Rule:
-    return next(r for r in load_ruleset().rules if r.id == rid)
-
-
-def _ctx(tmp_path: Path, main_rel: str | None) -> LoopCtx:
-    return LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel=main_rel)
-
-
 def _promote(ctx: LoopCtx) -> tuple[bool, str]:
-    return TRANSFORM_FNS[_RULE](ctx, _EngStub(), None, {})
+    return TRANSFORM_FNS[_RULE](ctx, EngStub(), None, {})
 
 
 def _mk_cell(tmp_path: Path, *, wrapper: bool = True) -> None:
@@ -66,7 +49,7 @@ def _mk_cell(tmp_path: Path, *, wrapper: bool = True) -> None:
 def test_wrapper_promote_flips_main(tmp_path: Path) -> None:
     """fragment main + 单 wrapper → applied, main_rel 翻到 wrapper。"""
     _mk_cell(tmp_path)
-    ctx = _ctx(tmp_path, "sections/00_preamble.tex")
+    ctx = mk_ctx(tmp_path, "sections/00_preamble.tex")
     applied, note = _promote(ctx)
     assert applied, note
     assert ctx.io.main_rel == "retd.tex"
@@ -76,7 +59,7 @@ def test_wrapper_promote_flips_main(tmp_path: Path) -> None:
 def test_wrapper_promote_no_wrapper_abstain(tmp_path: Path) -> None:
     """fragment main 无 wrapper 吞 → 让位 (无救)。"""
     _mk_cell(tmp_path, wrapper=False)
-    ctx = _ctx(tmp_path, "sections/00_preamble.tex")
+    ctx = mk_ctx(tmp_path, "sections/00_preamble.tex")
     applied, note = _promote(ctx)
     assert not applied
     assert "no \\end{document}-reaching wrapper" in note
@@ -90,7 +73,7 @@ def test_wrapper_promote_ambiguous_abstain(tmp_path: Path) -> None:
         "\\input{sections/00_preamble}\n\\input{sections/08_conclusion}\n",
         encoding="utf-8",
     )
-    ctx = _ctx(tmp_path, "sections/00_preamble.tex")
+    ctx = mk_ctx(tmp_path, "sections/00_preamble.tex")
     applied, note = _promote(ctx)
     assert not applied
     assert "ambiguous" in note
@@ -104,7 +87,7 @@ def test_wrapper_promote_main_with_end_abstain(tmp_path: Path) -> None:
     (sec / "00_preamble.tex").write_text(
         _FRAGMENT + "\\input{sections/08_conclusion}\n", encoding="utf-8"
     )
-    ctx = _ctx(tmp_path, "sections/00_preamble.tex")
+    ctx = mk_ctx(tmp_path, "sections/00_preamble.tex")
     applied, note = _promote(ctx)
     assert not applied
     assert "already reaches" in note
@@ -113,15 +96,15 @@ def test_wrapper_promote_main_with_end_abstain(tmp_path: Path) -> None:
 
 def test_rule_wrapromote_dispatch(tmp_path: Path) -> None:
     """wired 规则: emergency + ``no legal \\end found`` 签名即过闸。"""
-    rule = _rule(_RULE)
-    ctx = _ctx(tmp_path, "main.tex")
-    assert actions._when_ok(rule.when, "emergency", None, ctx)  # noqa: SLF001
-    assert not actions._when_ok(rule.when, "missing_file", "x.sty", ctx)  # noqa: SLF001
+    rl = rule(_RULE)
+    ctx = mk_ctx(tmp_path, "main.tex")
+    assert actions._when_ok(rl.when, "emergency", None, ctx)  # noqa: SLF001
+    assert not actions._when_ok(rl.when, "missing_file", "x.sty", ctx)  # noqa: SLF001
     ctx.err_head = (
         "! Emergency stop.\n<*> retd.tex\n*** (job aborted, no legal \\end found)\n"
     )
-    ok, why = actions._cond_ok(rule.condition, rule, ctx, _EngStub(), None)  # noqa: SLF001
+    ok, why = actions._cond_ok(rl.condition, rl, ctx, EngStub(), None)  # noqa: SLF001
     assert ok, why
     ctx.err_head = "! Emergency stop.\n<*> x.tex\n"
-    ok, _why = actions._cond_ok(rule.condition, rule, ctx, _EngStub(), None)  # noqa: SLF001
+    ok, _why = actions._cond_ok(rl.condition, rl, ctx, EngStub(), None)  # noqa: SLF001
     assert not ok

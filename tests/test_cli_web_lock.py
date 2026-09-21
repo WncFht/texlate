@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import webbrowser
 from typing import TYPE_CHECKING
@@ -16,12 +17,34 @@ from typer.testing import CliRunner
 from texlate.cli import app
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
     from pathlib import Path
 
 fcntl = pytest.importorskip("fcntl", reason="无 fcntl 平台锁语义不适用")
 pytest.importorskip("uvicorn", reason="server extra 未装")
 
 _RUNNER = CliRunner()
+
+
+@contextlib.contextmanager
+def _held_lock(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, meta: bytes = b""
+) -> Iterator[list[str]]:
+    """持 ``service.lock`` + ``webbrowser.open`` 捕获——contended 测试的占用侧脚手架。
+
+    ``meta`` 非空则先写入锁文件（持有者登记的 {pid,url} 元数据）。"""
+    holder = (tmp_path / "service.lock").open("a+b")
+    if meta:
+        holder.write(meta)
+        holder.flush()
+    fcntl.flock(holder, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    opened: list[str] = []
+    monkeypatch.setattr(webbrowser, "open", opened.append)
+    try:
+        yield opened
+    finally:
+        fcntl.flock(holder, fcntl.LOCK_UN)
+        holder.close()
 
 
 @pytest.fixture
@@ -36,19 +59,12 @@ class TestServiceLock:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """锁被持有 → 读锁文件 url → webbrowser.open + exit 0（不起服）。"""
-        holder = (tmp_path / "service.lock").open("a+b")
-        holder.write(b'{"pid": 1, "url": "http://127.0.0.1:8765"}')
-        holder.flush()
-        fcntl.flock(holder, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        opened: list[str] = []
-        monkeypatch.setattr(webbrowser, "open", opened.append)
-        try:
+        with _held_lock(
+            tmp_path, monkeypatch, b'{"pid": 1, "url": "http://127.0.0.1:8765"}'
+        ) as opened:
             result = _RUNNER.invoke(
                 app, ["web", "--data-dir", str(tmp_path), "--port", "9999"]
             )
-        finally:
-            fcntl.flock(holder, fcntl.LOCK_UN)
-            holder.close()
         assert result.exit_code == 0, result.output
         assert "已在运行" in result.stderr
         # 锁文件里的 url（8765）优先于本次请求的 --port 9999
@@ -58,17 +74,10 @@ class TestServiceLock:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """锁文件无元数据 → 回退按 host/port 推断已运行实例地址。"""
-        holder = (tmp_path / "service.lock").open("a+b")
-        fcntl.flock(holder, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        opened: list[str] = []
-        monkeypatch.setattr(webbrowser, "open", opened.append)
-        try:
+        with _held_lock(tmp_path, monkeypatch) as opened:
             result = _RUNNER.invoke(
                 app, ["web", "--data-dir", str(tmp_path), "--port", "9999"]
             )
-        finally:
-            fcntl.flock(holder, fcntl.LOCK_UN)
-            holder.close()
         assert result.exit_code == 0, result.output
         assert opened == ["http://127.0.0.1:9999"]
 

@@ -15,11 +15,10 @@ depth-0 命中行为字节级不变。
 
 from pathlib import Path
 
-from test_fixloop_loop import MockEngine  # noqa: F401 — ctx 夹具同族约定
+from _fixloopkit import mk_ctx
 
 from texlate.compile._seams import find_docclass_ends
 from texlate.compile.fixloop._builtins_common import _inject_after_docclass
-from texlate.compile.fixloop.engine import LoopCtx
 from texlate.compile.inject import inject_cjk
 
 _DOC = "\\begin{document}\nx\n\\end{document}\n"
@@ -46,10 +45,6 @@ _HIDDEN_MULTILINE = (
     "\\documentclass[12pt]{amsart}\\let\\Subsection\\subsection}\n"
     "\\setcounter{tocdepth}{1}\n" + _DOC
 )
-
-
-def _ctx(tmp_path: Path) -> LoopCtx:
-    return LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel="main.tex")
 
 
 def test_iffileexists_both_branches_single_seam() -> None:
@@ -165,7 +160,7 @@ def test_inject_cjk_nested_prologue_placement() -> None:
 def test_inject_after_docclass_nested_seam(tmp_path: Path) -> None:
     """fixloop 消费侧：``_inject_after_docclass`` 走缝位而非头注（B5a 正解）。"""
     (tmp_path / "main.tex").write_text(_HIDDEN_1LINE, encoding="utf-8")
-    ctx = _ctx(tmp_path)
+    ctx = mk_ctx(tmp_path)
     assert _inject_after_docclass(ctx, "SNIP")
     t = (tmp_path / "main.tex").read_text(encoding="utf-8")
     assert not t.startswith("SNIP")

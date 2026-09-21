@@ -21,9 +21,11 @@ item 3 ``\\newfont`` 站点命令 (astro-ph/0307459): ``\\newfont{\\Bbb}{msbm10
 
 from pathlib import Path
 
+from _fixloopkit import mk_ctx
+from test_fixloop_csfix2 import _proj, _read
+
 from texlate.compile.fixloop._builtins_csfix import _site_clear_line
 from texlate.compile.fixloop.builtins import TRANSFORM_FNS
-from texlate.compile.fixloop.engine import LoopCtx
 
 _UNDEF = TRANSFORM_FNS["undefine_for_redef"]
 
@@ -67,21 +69,6 @@ class _EngStub:
         return True
 
 
-def _ctx(tmp_path: Path, **kw: object) -> LoopCtx:
-    return LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel="main.tex", **kw)
-
-
-def _proj(tmp_path: Path, files: dict[str, str]) -> None:
-    for rel, text in files.items():
-        p = tmp_path / rel
-        p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(text, encoding="utf-8")
-
-
-def _read(tmp_path: Path, rel: str) -> str:
-    return (tmp_path / rel).read_text(encoding="utf-8")
-
-
 # ═══════════════════════ item 1: .bbl 站点面 ═══════════════════════
 
 
@@ -102,7 +89,7 @@ def test_bbl_site_prepend_csname(tmp_path: Path) -> None:
             "main.log": _BBL_LOG,
         },
     )
-    ok, note = _UNDEF(_ctx(tmp_path), _EngStub(), "enquote", {})
+    ok, note = _UNDEF(mk_ctx(tmp_path), _EngStub(), "enquote", {})
     assert ok, note
     assert "site-prepend" in note
     bbl = _read(tmp_path, "madminer.bbl")
@@ -134,7 +121,7 @@ def test_bbl_site_cluster_expanded_provide_skipped(tmp_path: Path) -> None:
             "main.log": _BBL_LOG,
         },
     )
-    ok, note = _UNDEF(_ctx(tmp_path), _EngStub(), "enquote", {"min_batch": 2})
+    ok, note = _UNDEF(mk_ctx(tmp_path), _EngStub(), "enquote", {"min_batch": 2})
     assert ok, note
     bbl = _read(tmp_path, "madminer.bbl")
     assert (
@@ -159,10 +146,10 @@ def test_bbl_refire_no_double_prepend(tmp_path: Path) -> None:
         "main.log": _BBL_LOG,
     }
     _proj(tmp_path, files)
-    ok, _ = _UNDEF(_ctx(tmp_path), _EngStub(), "enquote", {})
+    ok, _ = _UNDEF(mk_ctx(tmp_path), _EngStub(), "enquote", {})
     assert ok
     before = _read(tmp_path, "madminer.bbl")
-    _UNDEF(_ctx(tmp_path), _EngStub(), "enquote", {})
+    _UNDEF(mk_ctx(tmp_path), _EngStub(), "enquote", {})
     after = _read(tmp_path, "madminer.bbl")
     assert after == before
     assert after.count("\\csname enquote\\endcsname\\TeXlateUndefCs") == 1
@@ -185,7 +172,7 @@ def test_bbl_dead_site_masked(tmp_path: Path) -> None:
             "main.log": _BBL_LOG,
         },
     )
-    ok, note = _UNDEF(_ctx(tmp_path), _EngStub(), "enquote", {})
+    ok, note = _UNDEF(mk_ctx(tmp_path), _EngStub(), "enquote", {})
     assert ok, note
     assert "docclass block" in note
     bbl = _read(tmp_path, "madminer.bbl")
@@ -198,7 +185,7 @@ def test_bbl_dead_site_masked(tmp_path: Path) -> None:
 def test_abd_hook_injected_pre_docclass(tmp_path: Path) -> None:
     """归因行 ``\\begin{document}`` → 声明点前注首钩位清位, docclass 块不发。"""
     _proj(tmp_path, {"main.tex": _SH_TEX, "main.log": _SH_LOG})
-    ok, note = _UNDEF(_ctx(tmp_path), _EngStub(), "sh", {})
+    ok, note = _UNDEF(mk_ctx(tmp_path), _EngStub(), "sh", {})
     assert ok, note
     assert "AtBeginDocument" in note
     text = _read(tmp_path, "main.tex")
@@ -228,7 +215,7 @@ def test_abd_line_not_begindoc_falls_to_docclass(tmp_path: Path) -> None:
             ),
         },
     )
-    ok, note = _UNDEF(_ctx(tmp_path), _EngStub(), "zz", {})
+    ok, note = _UNDEF(mk_ctx(tmp_path), _EngStub(), "zz", {})
     assert ok, note
     assert "docclass block" in note
     text = _read(tmp_path, "main.tex")
@@ -247,7 +234,7 @@ def test_abd_no_docclass_declines_to_block(tmp_path: Path) -> None:
             ),
         },
     )
-    ok, note = _UNDEF(_ctx(tmp_path), _EngStub(), "sh", {})
+    ok, note = _UNDEF(mk_ctx(tmp_path), _EngStub(), "sh", {})
     assert ok, note
     assert "docclass block" in note
     text = _read(tmp_path, "main.tex")
@@ -258,9 +245,9 @@ def test_abd_no_docclass_declines_to_block(tmp_path: Path) -> None:
 def test_abd_refire_idempotent(tmp_path: Path) -> None:
     """钩已注册 → 不重注; 立即 ``\\let`` 亦不重发 → "already cleared" 收束。"""
     _proj(tmp_path, {"main.tex": _SH_TEX, "main.log": _SH_LOG})
-    ok, _ = _UNDEF(_ctx(tmp_path), _EngStub(), "sh", {})
+    ok, _ = _UNDEF(mk_ctx(tmp_path), _EngStub(), "sh", {})
     assert ok
-    ok2, note2 = _UNDEF(_ctx(tmp_path), _EngStub(), "sh", {})
+    ok2, note2 = _UNDEF(mk_ctx(tmp_path), _EngStub(), "sh", {})
     assert not ok2
     assert "already cleared" in note2
     assert _read(tmp_path, "main.tex").count("\\AtBeginDocument{") == 1
@@ -269,7 +256,7 @@ def test_abd_refire_idempotent(tmp_path: Path) -> None:
 def test_abd_hook_via_err_head(tmp_path: Path) -> None:
     """归因证据在 ``ctx.err_head`` (本轮错误 blob) 亦可触发钩臂。"""
     _proj(tmp_path, {"main.tex": _SH_TEX})
-    ctx = _ctx(tmp_path, err_head=_SH_LOG)
+    ctx = mk_ctx(tmp_path, err_head=_SH_LOG)
     ok, note = _UNDEF(ctx, _EngStub(), "sh", {})
     assert ok, note
     assert (
@@ -296,7 +283,7 @@ def test_newfont_brace_site_prepend(tmp_path: Path) -> None:
             "main.log": _NEWFONT_LOG,
         },
     )
-    ok, note = _UNDEF(_ctx(tmp_path), _EngStub(), "Bbb", {})
+    ok, note = _UNDEF(mk_ctx(tmp_path), _EngStub(), "Bbb", {})
     assert ok, note
     assert "site-prepend" in note
     text = _read(tmp_path, "main.tex")
@@ -323,7 +310,7 @@ def test_newfont_bare_form_alloc_guarded(tmp_path: Path) -> None:
             "main.log": _NEWFONT_LOG,
         },
     )
-    ok, note = _UNDEF(_ctx(tmp_path), _EngStub(), "Bbb", {})
+    ok, note = _UNDEF(mk_ctx(tmp_path), _EngStub(), "Bbb", {})
     assert not ok
     assert "allocated" in note
 

@@ -19,34 +19,10 @@ Mac Finder-info/资源叉二进制前缀剥除, 行首 ``\documentstyle``/
 
 from pathlib import Path
 
-from texlate.compile.fixloop import actions, load_ruleset
-from texlate.compile.fixloop.engine import LoopCtx, Rule
-from texlate.compile.logparse import ErrReport
+from _fixloopkit import EngStub, apply, mk_ctx, rule
+
+from texlate.compile.fixloop import actions
 from texlate.compile.normalize import _strip_lead_junk, normalize_project
-
-
-class _Eng:
-    """regex_rewrite/condition 路径的最小引擎替身 (不触 probe/install)。"""
-
-    name = "xelatex"
-
-    def probe_file(self, fname: str, cwd: Path | None = None) -> str | None:
-        del fname, cwd
-        return None
-
-    def filemap(self, fname: str) -> list[str]:
-        del fname
-        return []
-
-
-def _ctx(tmp_path: Path, err_head: str = "") -> LoopCtx:
-    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel="main.tex")
-    ctx.err_head = err_head
-    return ctx
-
-
-def _rule(rid: str) -> Rule:
-    return next(r for r in load_ruleset().rules if r.id == rid)
 
 
 def _write(tmp_path: Path, body: str, name: str = "main.tex") -> None:
@@ -54,15 +30,15 @@ def _write(tmp_path: Path, body: str, name: str = "main.tex") -> None:
 
 
 def _apply(rid: str, tmp_path: Path, err_head: str = "") -> tuple[bool, str]:
-    return actions._apply(  # noqa: SLF001 - 钉规则动作直驱
-        _rule(rid), _ctx(tmp_path, err_head), _Eng(), None, ErrReport()
-    )
+    """钉规则动作直驱——kit ``apply`` 收口 (eng 缺省 ``EngStub``, ErrReport 内置)。"""
+    return apply(rid, mk_ctx(tmp_path, err_head=err_head), None)
 
 
 def _cond(rid: str, tmp_path: Path, err_head: str = "") -> tuple[bool, str]:
-    rule = _rule(rid)
+    """``actions._cond_ok`` 直驱——SLF001 豁免一处收口。"""
+    r = rule(rid)
     return actions._cond_ok(  # noqa: SLF001
-        rule.condition, rule, _ctx(tmp_path, err_head), _Eng(), None
+        r.condition, r, mk_ctx(tmp_path, err_head=err_head), EngStub(), None
     )
 
 
@@ -70,21 +46,21 @@ def _cond(rid: str, tmp_path: Path, err_head: str = "") -> tuple[bool, str]:
 
 
 def test_mathbd_rules_registered() -> None:
-    soul = _rule("soul_cs_mbox")
+    soul = rule("soul_cs_mbox")
     assert soul.phase == "loop"
     assert soul.order == 102  # noqa: PLR2004 - schema 断言值
     assert soul.when == {"category": "soul_err"}
     assert soul.action["kind"] == "regex_rewrite"
 
-    rev = _rule("math_alphabet_209_revert")
+    rev = rule("math_alphabet_209_revert")
     assert rev.order == 190  # noqa: PLR2004
     assert rev.when == {"category": "syntax"}
 
-    bm = _rule("bm_symbfit_alias")
+    bm = rule("bm_symbfit_alias")
     assert bm.order == 191  # noqa: PLR2004
     assert bm.when == {"category": "syntax"}
     # 须在 pdfstring_cs_disarm(193) 之前收 \mit<cs> offender 形
-    assert bm.order < _rule("pdfstring_cs_disarm").order
+    assert bm.order < rule("pdfstring_cs_disarm").order
 
 
 def test_soul_cs_mbox_wraps_single_cs_arg(tmp_path: Path) -> None:
@@ -219,6 +195,13 @@ def test_lead_junk_stripped_at_anchor() -> None:
     out = _strip_lead_junk(blob)
     assert out.startswith(b"\\documentstyle")
     assert b"\x00" not in out[:100]
+
+
+def test_lead_junk_stripped_at_fmt_anchor() -> None:
+    """``%&`` fmt 锚点臂: 含 NUL 垃圾前缀剥至 ``%&`` 行。"""
+    assert _strip_lead_junk(
+        b"\x00junk\x00\n%&latex\n\\documentclass{article}\n"
+    ) == b"%&latex\n\\documentclass{article}\n"
 
 
 def test_lead_junk_text_prefix_kept() -> None:

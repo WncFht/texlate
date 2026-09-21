@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import json
 from functools import lru_cache
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -24,20 +23,28 @@ import pytest
 pytest.importorskip("fastapi", reason="server extra 未装")
 pytest.importorskip("starlette.testclient", reason="server extra 未装")
 
-from conftest import MINI_TEX, RecordingEngine, wait_terminal
+from _workerkit import _insert_chunk, mk_ctx
+from conftest import (
+    MINI_TEX,
+    RecordingEngine,
+    live_app,
+    task_events,
+    upload_tex,
+    wait_terminal,
+)
 from starlette.testclient import TestClient
-from test_server_l2 import L2FlakyEngine, _events, _live_app, _upload
+from test_fixloop_loop import MockEngine
+from test_server_l2 import L2FlakyEngine
 
 from texlate.compile.engine import CompRes, LogInfo
 from texlate.compile.fixloop import Ruleset, load_ruleset
 from texlate.compile.fixloop.engine import fixloop
-from texlate.server.events import EventBus
 from texlate.server.store import Store, new_task_id
-from texlate.server.worker import PipelineWorker, Secrets, TaskCtx
 from texlate.xlat.pipeline import MockTranslator
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+    from pathlib import Path
 
 
 @lru_cache(maxsize=1)
@@ -54,119 +61,6 @@ _CLEAN_LOG = "This is XeTeX\nOutput written on main.pdf (1 page).\n"
 MAIN_TEX = "\\documentclass{article}\n\\begin{document}\nhi\n\\end{document}\n"
 
 
-class _Res:
-    """impl CompRes 的 duck-type 替身（同 test_fixloop_aux_eof 口径）。"""
-
-    def __init__(self, wdir: Path, main: str, spec: dict) -> None:
-        stem = Path(main).stem
-        self.log_path = wdir / f"{stem}.log"
-        self.log_path.write_text(spec.get("log", ""), encoding="utf-8")
-        self.pdf = wdir / f"{stem}.pdf" if spec.get("pdf") else None
-        if self.pdf is not None:
-            self.pdf.write_bytes(b"%PDF-1.4 fake")
-        self.pdf_bytes = self.pdf.stat().st_size if self.pdf else 0
-        self.timed_out = False
-        self.seconds = 0.01
-        self.stdout_tail = ""
-
-    @property
-    def has_pdf(self) -> bool:
-        return self.pdf is not None and self.pdf_bytes > 0
-
-
-class _Eng:
-    """script 逐轮吐 spec；本规则不触 install 路径，余桩一律 False/None。"""
-
-    name = "xelatex"
-    caps = frozenset({"kpsewhich", "tlmgr", "updmap"})
-
-    def __init__(self, script: list) -> None:
-        self.script = list(script)
-        self.rounds = 0
-
-    def compile(self, wdir: Path, main: str, *, passes: int = 2, **_kw: object) -> _Res:
-        del passes, _kw
-        i = min(self.rounds, len(self.script) - 1)
-        self.rounds += 1
-        return _Res(Path(wdir), main, self.script[i])
-
-    def probe_file(self, fname: str, cwd: Path | None = None) -> str | None:
-        del fname, cwd
-        return None
-
-    def install_file(self, fname: str, *, font_related: bool = False) -> bool:
-        del fname, font_related
-        return False
-
-    def rebuild_fontmaps(self) -> bool:
-        return True
-
-    def filemap(self, fname: str) -> list[str]:
-        del fname
-        return []
-
-
-def _mk(
-    tmp_path: Path,
-    *,
-    options: dict[str, object] | None = None,
-    worker_kw: dict[str, object] | None = None,
-) -> tuple[TaskCtx, PipelineWorker, Store]:
-    """真实任务行 + TaskCtx + worker（段级直调面；conn 在主线程）。"""
-    store = Store(tmp_path / "t.db")
-    store.open()
-    bus = EventBus(store)
-    worker = PipelineWorker(store, bus, tmp_path, **(worker_kw or {}))  # type: ignore[arg-type]
-    task_id = new_task_id()
-    row = store.create_task(
-        task_id=task_id,
-        kind="arxiv",
-        target_lang="zh-CN",
-        model="m",
-        arxiv_id="2401.00001",
-        options=options or {},
-    )
-    ctx = TaskCtx(
-        store=store,
-        bus=bus,
-        task_id=task_id,
-        row=row,
-        secrets=Secrets(),
-        root=tmp_path / "tasks" / task_id,
-    )
-    return ctx, worker, store
-
-
-def _insert_chunk(  # noqa: PLR0913 -- 最小行构造面同 test_fuzz_worker
-    store: Store,
-    task_id: str,
-    chunk_id: str = "c1",
-    *,
-    seq: int = 0,
-    src: str = "hello world",
-    status: str = "pending",
-) -> None:
-    """最小 chunks 行（``insert_chunks`` 合法面），status 非 pending 走 update。"""
-    store.insert_chunks(
-        task_id,
-        [
-            {
-                "chunk_id": chunk_id,
-                "seq": seq,
-                "src_file": "main.tex",
-                "src_text": src,
-                "kind": "para",
-                "byte_start": 0,
-                "byte_end": len(src),
-            }
-        ],
-    )
-    if status != "pending":
-        # update_chunk 契约是 flush 事务内复用不 commit——测试侧补 commit 收尾
-        store.update_chunk(task_id, chunk_id, {"status": status})
-        store.conn.commit()
-
-
 class TestEngineOnRound:
     """``fixloop(on_round=…``：每轮 entry 落 ``cell["rounds"]`` 即同步回调。"""
 
@@ -176,7 +70,9 @@ class TestEngineOnRound:
         (tmp_path / "main.aux").write_bytes(
             b"\\newlabel{a}{{1}{1}{\xe4\xb8}}\n\\newlabel{b}{{2}{2}{ok}}\n"
         )
-        eng = _Eng([{"log": _EOF_LOG, "pdf": False}, {"log": _CLEAN_LOG, "pdf": True}])
+        eng = MockEngine(
+            [{"log": _EOF_LOG, "pdf": False}, {"log": _CLEAN_LOG, "pdf": True}]
+        )
         fired: list[dict] = []
         cell = fixloop(tmp_path, eng, ruleset=_rs(), on_round=fired.append)
         assert cell["verdict"] == "clean"
@@ -189,7 +85,7 @@ class TestEngineOnRound:
         (tmp_path / "main.tex").write_text(MAIN_TEX, encoding="utf-8")
         # 健康 aux：签名命中但无可清件 → 规则 applied=False → 耗尽 → salvage
         (tmp_path / "main.aux").write_bytes(b"\\newlabel{a}{{1}{1}{ok}}\n")
-        eng = _Eng([{"log": _EOF_LOG, "pdf": False}] * 8)
+        eng = MockEngine([{"log": _EOF_LOG, "pdf": False}] * 8)
         fired: list[dict] = []
         cell = fixloop(tmp_path, eng, ruleset=_rs(), on_round=fired.append)
         assert cell["verdict"] != "clean"
@@ -200,7 +96,7 @@ class TestEngineOnRound:
     def test_no_callback_unchanged(self, tmp_path: Path) -> None:
         """``on_round=None``（默认）零开销——e2e/bench 直调臂行为不变。"""
         (tmp_path / "main.tex").write_text(MAIN_TEX, encoding="utf-8")
-        eng = _Eng([{"log": _CLEAN_LOG, "pdf": True}])
+        eng = MockEngine([{"log": _CLEAN_LOG, "pdf": True}])
         cell = fixloop(tmp_path, eng, ruleset=_rs())
         assert cell["verdict"] == "clean"
         assert len(cell["rounds"]) == 1
@@ -216,7 +112,7 @@ class TestWorkerFixloopFrames:
         clean_env: pytest.MonkeyPatch,  # noqa: ARG002
     ) -> None:
         """stub fixloop 点火两轮 → 事件序 [round, round, done]；done 载完整 cell。"""
-        ctx, worker, store = _mk(tmp_path)
+        ctx, worker, store = mk_ctx(tmp_path)
         ctx.main_rel = "main.tex"
         work = ctx.root / "build-zh"
         work.mkdir(parents=True)
@@ -270,7 +166,7 @@ class TestWorkerFixloopFrames:
         clean_env: pytest.MonkeyPatch,  # noqa: ARG002
     ) -> None:
         """fixloop 抛错 → crashed done 帧收尾（前端卡片不挂）+ 原 CompRes 回传。"""
-        ctx, worker, store = _mk(tmp_path)
+        ctx, worker, store = mk_ctx(tmp_path)
         work = ctx.root / "build-zh"
         work.mkdir(parents=True)
         ctx.zh_dir.mkdir(parents=True)
@@ -311,11 +207,16 @@ class TestL2LiveFrames:
         """n_fail=1 → L2 修好即终：帧序 start/progress/done，done 带计数+report。"""
         eng = L2FlakyEngine(n_fail=1)
         translator = MockTranslator()
-        with TestClient(_live_app(tmp_path, translator=translator, engine=eng)) as c:
-            tid = _upload(c)["task_id"]
+        app = live_app(
+            tmp_path,
+            lambda _ctx: translator,
+            engine_factory=lambda _name: eng,
+        )
+        with TestClient(app) as c:
+            tid = upload_tex(c)["task_id"]
             snap = wait_terminal(c, tid)
             assert snap["status"] == "done", snap
-            evs = _events(c, tid)
+            evs = task_events(c, tid)
         l2 = [e["data"] for e in evs if e["type"] == "l2"]
         assert [e["phase"] for e in l2] == ["start", "progress", "progress", "done"]
         done = l2[-1]
@@ -380,7 +281,7 @@ class TestDualChunkStatus:
 
     def test_chunk_status_per_segment(self, tmp_path: Path) -> None:
         """ok/fallback_orig 两段 → dual.json status 逐段落 + fallback zh 空。"""
-        ctx, worker, store = _mk(tmp_path)
+        ctx, worker, store = mk_ctx(tmp_path)
         ctx.root.mkdir(parents=True, exist_ok=True)
         _insert_chunk(store, ctx.task_id, chunk_id="c1", seq=0, status="ok")
         _insert_chunk(store, ctx.task_id, chunk_id="c2", seq=1, status="fallback_orig")

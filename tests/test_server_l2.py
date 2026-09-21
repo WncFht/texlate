@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import asyncio
 import time
-from functools import partial
 from http import HTTPStatus
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -20,7 +19,16 @@ import pytest
 pytest.importorskip("fastapi", reason="server extra 未装")
 pytest.importorskip("starlette.testclient", reason="server extra 未装")
 
-from conftest import MINI_TEX, FakeEngine, make_app, wait_terminal
+from conftest import (
+    MINI_TEX,
+    FakeEngine,
+    live_app,
+    mk_task_row,
+    store_call,
+    task_events,
+    upload_tex,
+    wait_terminal,
+)
 from starlette.testclient import TestClient
 
 from texlate.compile.engine import CompRes, parse_log
@@ -67,13 +75,6 @@ ENV_TEX = (
     "\\end{mybox}\n"
     "\\end{document}\n"
 )
-
-
-@pytest.fixture(autouse=True)
-def _l2_env_pins(monkeypatch: pytest.MonkeyPatch) -> None:
-    """钉死修复链 env 缺省——本机 TEXLATE_NO_L2/ENV_JUDGE 不污染断言。"""
-    monkeypatch.delenv("TEXLATE_NO_L2", raising=False)
-    monkeypatch.delenv("TEXLATE_ENV_JUDGE", raising=False)
 
 
 class L2FlakyEngine:
@@ -228,35 +229,12 @@ def _live_app(
     """start_worker app：可注入 translator/engine（缺省 Mock+Fake）。"""
     t = translator if translator is not None else MockTranslator()
     e = engine if engine is not None else FakeEngine()
-    return make_app(
-        tmp_path,
-        start_worker=True,
-        translator_factory=lambda _ctx: t,
-        engine_factory=lambda _name: e,
-        **kw,
-    )
-
-
-def _upload(client: TestClient, tex: str = MINI_TEX) -> dict:
-    """POST /api/upload 指定 tex 内容。"""
-    r = client.post(
-        "/api/upload",
-        files={"file": ("main.tex", tex.encode(), "application/octet-stream")},
-    )
-    assert r.status_code == HTTPStatus.ACCEPTED, r.text
-    return r.json()  # type: ignore[no-any-return]
-
-
-def _events(client: TestClient, tid: str) -> list[dict]:
-    """task_events 全量回放（portal 回 loop 线程读 store）。"""
-    store: Store = client.app.state.store
-    return client.portal.call(partial(store.events_since, tid, 0))  # type: ignore[no-any-return]
+    return live_app(tmp_path, lambda _ctx: t, engine_factory=lambda _name: e, **kw)
 
 
 def _chunks(client: TestClient, tid: str) -> list[dict]:
     """chunks 表全量（portal 回 loop 线程）。"""
-    store: Store = client.app.state.store
-    return client.portal.call(partial(store.all_chunks, tid))  # type: ignore[no-any-return]
+    return store_call(client, client.app.state.store.all_chunks, tid)
 
 
 class TestL2Repair:
@@ -271,10 +249,10 @@ class TestL2Repair:
         eng = L2FlakyEngine(n_fail=1)
         translator = MockTranslator()
         with TestClient(_live_app(tmp_path, translator=translator, engine=eng)) as c:
-            tid = _upload(c)["task_id"]
+            tid = upload_tex(c)["task_id"]
             snap = wait_terminal(c, tid)
             assert snap["status"] == "done", snap
-            evs = _events(c, tid)
+            evs = task_events(c, tid)
             l2_evs = [e for e in evs if e["type"] == "l2"]
             l2_done = [e["data"] for e in l2_evs if e["data"].get("phase") == "done"]
             assert len(l2_done) == 1
@@ -295,10 +273,10 @@ class TestL2Repair:
         """L2 重编仍败 → 回落原文 → 回落态裸编仍败 → fixloop 兜底：事件序 l2 < fixloop。"""
         eng = L2FlakyEngine(n_fail=3)
         with TestClient(_live_app(tmp_path, engine=eng)) as c:
-            tid = _upload(c)["task_id"]
+            tid = upload_tex(c)["task_id"]
             snap = wait_terminal(c, tid)
             assert snap["status"] == "partial", snap
-            evs = _events(c, tid)
+            evs = task_events(c, tid)
             seqs = {
                 e["type"]: int(e["seq"]) for e in evs if e["type"] in ("l2", "fixloop")
             }
@@ -332,11 +310,11 @@ class TestL2Repair:
         monkeypatch.setenv("TEXLATE_NO_FIXLOOP", "1")
         eng = L2FlakyEngine(n_fail=2)
         with TestClient(_live_app(tmp_path, engine=eng)) as c:
-            tid = _upload(c)["task_id"]
+            tid = upload_tex(c)["task_id"]
             snap = wait_terminal(c, tid)
             # fallback_orig 块存在 → 终态 partial（降级交付语义，非 done）
             assert snap["status"] == "partial", snap
-            evs = _events(c, tid)
+            evs = task_events(c, tid)
             l2_data = next(
                 e["data"]
                 for e in evs
@@ -365,10 +343,10 @@ class TestL2Repair:
         monkeypatch.setenv("TEXLATE_NO_L2", "1")
         eng = L2FlakyEngine(n_fail=2)
         with TestClient(_live_app(tmp_path, engine=eng)) as c:
-            tid = _upload(c)["task_id"]
+            tid = upload_tex(c)["task_id"]
             snap = wait_terminal(c, tid)
             assert snap["status"] == "done", snap
-            evs = _events(c, tid)
+            evs = task_events(c, tid)
             assert not [e for e in evs if e["type"] == "l2"]
             assert [e for e in evs if e["type"] == "fixloop"]
             done = next(e for e in evs if e["type"] == "done")
@@ -388,7 +366,7 @@ class TestEnvJudge:
         monkeypatch.setenv("TEXLATE_ENV_JUDGE", "1")
         translator = EnvJudgeNoTranslator()
         with TestClient(_live_app(tmp_path, translator=translator)) as c:
-            tid = _upload(c, ENV_TEX)["task_id"]
+            tid = upload_tex(c, ENV_TEX)["task_id"]
             snap = wait_terminal(c, tid)
             assert snap["status"] == "partial", snap
             rows = _chunks(c, tid)
@@ -411,7 +389,7 @@ class TestEnvJudge:
         """缺省关：未知 env 块照常进 splice，不问 judge。"""
         translator = MockTranslator()
         with TestClient(_live_app(tmp_path, translator=translator)) as c:
-            tid = _upload(c, ENV_TEX)["task_id"]
+            tid = upload_tex(c, ENV_TEX)["task_id"]
             snap = wait_terminal(c, tid)
             assert snap["status"] == "done", snap
             assert not any(
@@ -431,7 +409,7 @@ class TestCompileHoles:
         """interrupted resume：``.compile-done`` + zh_pdf 在 → 不重编。"""
         eng = FakeEngine()
         with TestClient(_live_app(tmp_path, engine=eng)) as c:
-            tid = _upload(c)["task_id"]
+            tid = upload_tex(c)["task_id"]
             snap = wait_terminal(c, tid)
             assert snap["status"] == "done"
             n_calls = len(eng.calls)
@@ -446,7 +424,7 @@ class TestCompileHoles:
                 )
                 store.conn.commit()
 
-            c.portal.call(partial(_flip, c.app.state.store))
+            store_call(c, _flip, c.app.state.store)
             r = c.post(f"/api/task/{tid}/retry", json={})
             assert r.status_code == HTTPStatus.ACCEPTED, r.text
             snap = wait_terminal(c, tid)
@@ -473,7 +451,7 @@ class TestCompileHoles:
 
         monkeypatch.setattr(PipelineWorker, "_zip_zh", boom)
         with TestClient(_live_app(tmp_path)) as c:
-            tid = _upload(c)["task_id"]
+            tid = upload_tex(c)["task_id"]
             snap = wait_terminal(c, tid)
             assert snap["status"] == "fault"
             zh = tmp_path / "data" / "tasks" / tid / "zh"
@@ -483,8 +461,8 @@ class TestCompileHoles:
             snap = wait_terminal(c, tid)
             assert snap["status"] == "done"
             assert (zh / ".splice-done").exists()
-            rec = c.portal.call(
-                partial(c.app.state.store.file_record, tid, "zh_src_zip")
+            rec = store_call(
+                c, c.app.state.store.file_record, tid, "zh_src_zip"
             )
             assert rec is not None
             assert rec["bytes"]
@@ -511,9 +489,7 @@ class TestCompileHoles:
             engine_factory=lambda _n: FakeEngine(),
         )
         tid = new_task_id()
-        row = store.create_task(
-            task_id=tid, kind="upload_tex", target_lang="zh-CN", model="m"
-        )
+        row = mk_task_row(store, task_id=tid, kind="upload_tex")
         root = tmp_path / "data" / "tasks" / tid
         (root / "upload").mkdir(parents=True)
         (root / "upload" / "main.tex").write_text(MINI_TEX, encoding="utf-8")
@@ -552,9 +528,7 @@ class TestCompileHoles:
         store.open()
         bus = EventBus(store)
         tid = new_task_id()
-        store.create_task(
-            task_id=tid, kind="upload_tex", target_lang="zh-CN", model="m"
-        )
+        mk_task_row(store, task_id=tid, kind="upload_tex")
         store.conn.execute("UPDATE tasks SET status='interrupted' WHERE id=?", (tid,))
         store.conn.commit()
 
@@ -572,11 +546,11 @@ class TestCompileHoles:
     ) -> None:
         """``_fail`` 的 error 事件 stage 取库内现值（非入队快照的 None）。"""
         with TestClient(_live_app(tmp_path, engine=_BangEngine())) as c:
-            tid = _upload(c)["task_id"]
+            tid = upload_tex(c)["task_id"]
             snap = wait_terminal(c, tid)
             assert snap["status"] == "fault"
             assert snap["error"]["code"] == "internal"
-            err_evs = [e for e in _events(c, tid) if e["type"] == "error"]
+            err_evs = [e for e in task_events(c, tid) if e["type"] == "error"]
             assert err_evs
             assert err_evs[0]["data"]["stage"] == "compiling"
 
@@ -600,9 +574,7 @@ class TestCompileHoles:
             runner = TaskRunner(store, bus, _HangWorker(tmp_path))  # type: ignore[arg-type]
             runner.start()
             tid = new_task_id()
-            store.create_task(
-                task_id=tid, kind="upload_tex", target_lang="zh-CN", model="m"
-            )
+            mk_task_row(store, task_id=tid, kind="upload_tex")
             runner.enqueue(tid)
             deadline = time.time() + 5
             while runner._current is None and time.time() < deadline:  # noqa: SLF001, ASYNC110 -- 轮询 pickup,无事件可挂

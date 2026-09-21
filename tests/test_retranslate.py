@@ -26,7 +26,7 @@ from texlate.xlat.client import ChatError
 from texlate.xlat.pipeline import MockTranslator
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Callable, Iterator
     from pathlib import Path
 
 #: 重译标记串——MockTranslator(zh=…) 散文段替换桩，与初译「这是译文」可区分
@@ -91,6 +91,40 @@ def _chunk(db: Path, tid: str, seq: int) -> dict:
         return next(r for r in s2.all_chunks(tid) if int(r["seq"]) == seq)
     finally:
         s2.close()
+
+
+def _retranslate_keeps_chunk(
+    tmp_path: Path,
+    *,
+    needle: str,
+    factory: Callable[[object], object] | None = None,
+) -> tuple[FakeEngine, Path, str, dict, dict]:
+    """失败臂公共流：upload→done→enqueue→等 ``needle`` 事件→原译保留/引擎零触碰。
+
+    ``factory=None`` 即不注入 ``translator_factory``（无 BYOK 臂）；
+    返回 ``(engine, db, tid, before, after)`` 供各钉补断言。
+    """
+    engine = FakeEngine()
+    overrides: dict[str, object] = {
+        "start_worker": True,
+        "engine_factory": lambda _name: engine,
+    }
+    if factory is not None:
+        overrides["translator_factory"] = factory
+    app = make_app(tmp_path, **overrides)
+    with TestClient(app) as c:
+        tid = upload_tex(c)["task_id"]
+        assert wait_terminal(c, tid)["status"] == "done"
+        db = tmp_path / "data" / "texlate.db"
+        before = _chunk(db, tid, 0)
+        calls0 = len(engine.calls)
+        c.portal.call(partial(c.app.state.runner.enqueue_retranslate, tid, 0))
+        _wait_event(db, tid, needle)
+        after = _chunk(db, tid, 0)
+    assert after["translation"] == before["translation"]
+    # 重译失败不重编——zh.pdf/产物面零触碰
+    assert len(engine.calls) == calls0
+    return engine, db, tid, before, after
 
 
 class TestRetranslateJob:
@@ -160,34 +194,21 @@ class TestRetranslateJob:
         clean_env: pytest.MonkeyPatch,  # noqa: ARG002 -- fixture 副作用
     ) -> None:
         """传输崩 → error_code=provider_error 记名，原译/终态原样保留。"""
-        engine = FakeEngine()
-        app = make_app(
+        _eng, db, tid, before, after = _retranslate_keeps_chunk(
             tmp_path,
-            start_worker=True,
-            translator_factory=lambda _ctx: _BoomTranslator(),
-            engine_factory=lambda _name: engine,
+            needle="传输层失败",
+            factory=lambda _ctx: _BoomTranslator(),
         )
-        with TestClient(app) as c:
-            tid = upload_tex(c)["task_id"]
-            assert wait_terminal(c, tid)["status"] == "done"
-            db = tmp_path / "data" / "texlate.db"
-            before = _chunk(db, tid, 0)
-            calls0 = len(engine.calls)
-            c.portal.call(partial(c.app.state.runner.enqueue_retranslate, tid, 0))
-            _wait_event(db, tid, "传输层失败")
-            after = _chunk(db, tid, 0)
-            assert after["translation"] == before["translation"]
-            assert after["status"] == before["status"]
-            assert after["error_code"] == "provider_error"
-            # 重译失败不重编——zh.pdf/产物面零触碰
-            assert len(engine.calls) == calls0
-            s2 = _store(db)
-            try:
-                row = s2.get(tid)
-            finally:
-                s2.close()
-            assert row is not None
-            assert row["status"] == "done"
+        assert after["status"] == before["status"]
+        assert after["error_code"] == "provider_error"
+        # 任务本体不迁终态——重译失败是终态后的旁路 job
+        s2 = _store(db)
+        try:
+            row = s2.get(tid)
+        finally:
+            s2.close()
+        assert row is not None
+        assert row["status"] == "done"
 
     def test_no_key_skips_mock_overwrite(
         self,
@@ -195,23 +216,7 @@ class TestRetranslateJob:
         clean_env: pytest.MonkeyPatch,  # noqa: ARG002 -- fixture 副作用
     ) -> None:
         """无 BYOK key + 无注入厂 → 拒绝落 MockTranslator 占位译文（闸守真译）。"""
-        engine = FakeEngine()
-        app = make_app(
-            tmp_path,
-            start_worker=True,
-            engine_factory=lambda _name: engine,
-        )
-        with TestClient(app) as c:
-            tid = upload_tex(c)["task_id"]
-            assert wait_terminal(c, tid)["status"] == "done"
-            db = tmp_path / "data" / "texlate.db"
-            before = _chunk(db, tid, 0)
-            calls0 = len(engine.calls)
-            c.portal.call(partial(c.app.state.runner.enqueue_retranslate, tid, 0))
-            _wait_event(db, tid, "无 BYOK")
-            after = _chunk(db, tid, 0)
-            assert after["translation"] == before["translation"]
-            assert len(engine.calls) == calls0
+        _retranslate_keeps_chunk(tmp_path, needle="无 BYOK")
 
 
 class TestEnqueueGates:

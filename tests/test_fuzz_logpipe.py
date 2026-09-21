@@ -32,9 +32,9 @@ from typing import TYPE_CHECKING
 
 import pytest
 from _fuzzkit import fuzz_rng
+from conftest import make_comp_res
 
 from texlate.compile._yamlish import load_yaml
-from texlate.compile.engine import CompRes
 from texlate.compile.fixloop.engine import RULES_PATH
 from texlate.compile.judge import (
     _MISSCHAR_GATE_RX,
@@ -63,8 +63,13 @@ def _mc(font: str = "cmr10", ch: str = "中", ann: str = "(U+4E2D)") -> str:
     return f"Missing character: There is no {ch} {ann} in font {font}!"
 
 
-def _real_logs() -> list[Path]:
-    """fixture 全量 + bench 语料确定性抽样（gitignored 重产物缺席即跳）。"""
+@pytest.fixture(scope="module")
+def real_logs() -> list[Path]:
+    """fixture 全量 + bench 语料确定性抽样（gitignored 重产物缺席即跳）。
+
+    module 域惰性求值——bench rglob+stat 扫描仅在慢钉被选跑时付，collection
+    期零成本。
+    """
     files = sorted(_FIXTURE_DIR.glob("*.log"))
     if _BENCH_ROOT.is_dir():
         pool = sorted(
@@ -75,9 +80,6 @@ def _real_logs() -> list[Path]:
         step = max(1, len(pool) // 400)
         files += pool[::step]
     return files
-
-
-_REAL_LOGS = _real_logs()
 
 
 def _three(text: str) -> tuple[int, int, int]:
@@ -252,10 +254,11 @@ def test_fuzz_sys_hits_only_invalid_utf8() -> None:
 # ---------------------------------------------------------------- 三层错误计数一致
 
 
-def test_real_logs_three_layer_error_count() -> None:
+@pytest.mark.slow
+def test_real_logs_three_layer_error_count(real_logs: list[Path]) -> None:
     """真实 log 三层 n_errors/n_bang 一致 + 首错文本一致。"""
-    assert _REAL_LOGS, "no logs found"
-    for p in _REAL_LOGS:
+    assert real_logs, "no logs found"
+    for p in real_logs:
         text = p.read_text(errors="replace")
         e = eng_parse_log(text)
         v = parse_log_text(text)
@@ -282,10 +285,11 @@ def test_fuzz_canonical_log_three_layer_agree() -> None:
             assert e.file_stack == list(v.first_error.file_stack) == f.file_stack
 
 
-def test_fuzz_mutated_real_log_agreement() -> None:
+@pytest.mark.slow
+def test_fuzz_mutated_real_log_agreement(real_logs: list[Path]) -> None:
     """真实 log 注入 `!`/fileline 伪错 → 三层同步 +1；抽掉首行 → engine=None。"""
     rng = fuzz_rng(20260921)
-    for p in _REAL_LOGS:
+    for p in real_logs:
         lines = p.read_text(errors="replace").splitlines()
         base = _three("\n".join(lines) + "\n")
         pos = rng.randrange(len(lines) + 1)
@@ -294,7 +298,7 @@ def test_fuzz_mutated_real_log_agreement() -> None:
         got = _three("\n".join(mut) + "\n")
         assert got == tuple(b + 1 for b in base), f"{p} @{pos}: {base}->{got}"
         if (
-            lines
+            len(lines) > 1
             and lines[0].startswith("This is ")
             and not lines[1].startswith("This is ")
         ):
@@ -377,21 +381,10 @@ def test_fuzz_update_file_stack_parens() -> None:
 # ---------------------------------------------------------------- judge 面
 
 
-def _res(text: str) -> CompRes:
-    """有 pdf 的 CompRes——log 由 engine 真管线解析。"""
-    return CompRes(
-        engine="xelatex",
-        ok=True,
-        pdf=Path("/nonexistent.pdf"),
-        pdf_bytes=1024,
-        log=eng_parse_log(text),
-    )
-
-
 def test_judge_nullfont_only_is_clean() -> None:
     """纯 nullfont 缺字 → clean：门控零计数 + nullfont 进 notes 观察项。"""
     text = _mc("nullfont", ";", '("3B)') + "\n" + _mc("nullfont", "1", '("31)') + "\n"
-    v = judge(_res(text), expect_cjk=True, log_text=text)
+    v = judge(make_comp_res(log_text=text), expect_cjk=True, log_text=text)
     assert v.missing_chars == 0
     assert "missing_character_nullfont×2" in v.notes
     assert not any(r.startswith("missing_character") for r in v.reasons)
@@ -402,7 +395,7 @@ def test_judge_nullfont_only_is_clean() -> None:
 
 def test_judge_warn_hit_propagation() -> None:
     """warnings_hit→``warn:*`` reasons；warnings_sys→``sys_warn:*`` notes 只读。"""
-    res = _res("noise\n")
+    res = make_comp_res(log_text="noise\n")
     res.log.warnings_hit = ["missing_chars", "fffd_glyph"]
     res.log.warnings_sys = ["invalid_utf8@old.sty"]
     v = judge(res, log_text="noise\n")
@@ -413,8 +406,8 @@ def test_judge_warn_hit_propagation() -> None:
 
 
 # ================================================================ 钉账区
-# 本节含已核销回归钉（docstring 留「原 strict-xfail」注脚）与当前唯一活钉
-# test_xfail_error_line_filename_width——拆一枚清一枚。
+# 本节现仅存修复后回归钉（各钉 docstring 留「原 strict-xfail」注脚）——
+# 全部 xfail 已拆，钉账史见模块 docstring「历史钉账」节。
 
 
 def test_fffd_nullfont_benign() -> None:
@@ -423,8 +416,8 @@ def test_fffd_nullfont_benign() -> None:
 
     text = 'Missing character: There is no ("FFFD) in font nullfont!\n'
     info = eng_parse_log(text)
-    assert "fffd_glyph" not in info.warnings_hit  # 现状: 命中 → warn:fffd_glyph
-    v = judge(_res(text), log_text=text)
+    assert "fffd_glyph" not in info.warnings_hit  # nullfont 豁免——不进 warnings_hit
+    v = judge(make_comp_res(log_text=text), log_text=text)
     assert "warn:fffd_glyph" not in v.reasons
     assert v.status == "clean"
 
@@ -495,7 +488,7 @@ def test_utf8_variant_cross_layer(line: str) -> None:
     text = "(./main.tex\n" + line + "\n)\n"
     v = parse_log_text(text)
     assert v.warnings.by_class.get("invalid_utf8") == 1  # l2 已认
-    assert "invalid_utf8" in eng_parse_log(text).warnings_hit  # engine 漏
+    assert "invalid_utf8" in eng_parse_log(text).warnings_hit  # engine 已认
 
 
 def test_graphic_frame_parity() -> None:

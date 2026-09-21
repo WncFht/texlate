@@ -13,8 +13,8 @@ pytest.importorskip("fastapi", reason="server extra 未装")
 pytest.importorskip("starlette.testclient", reason="server extra 未装")
 
 from conftest import (
-    FakeEngine,
-    make_app,
+    get_row,
+    live_app,
     upload_tex,
     wait_terminal,
 )
@@ -66,12 +66,7 @@ class TestF3RejectPartial:
                 engines=[], reject="policy_deny", reasons=["deny"]
             ),
         )
-        app = make_app(
-            tmp_path,
-            start_worker=True,
-            translator_factory=lambda _ctx: MockTranslator(),
-            engine_factory=lambda _name: FakeEngine(),
-        )
+        app = live_app(tmp_path, lambda _ctx: MockTranslator())
         with TestClient(app) as c:
             tid = upload_tex(c)["task_id"]
             snap = wait_terminal(c, tid)
@@ -371,27 +366,24 @@ class TestTaskDelete:
         )
         assert rows == {"chunks": 0, "files": 0, "events": 0}
 
-    def test_delete_tenant_isolated(
-        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_delete_tenant_isolated(self, server_client: TestClient) -> None:
         """server 模式：租户 B 删不到租户 A 的任务（404 存在性遮蔽）。"""
-        monkeypatch.setenv("TEXLATE_MODE", "server")
-        r = client.post(
+        r = server_client.post(
             "/api/arxiv/2401.00009/translate",
             json={"model": "m"},
             headers={"X-Texlate-Key": "k-A"},
         )
         tid = r.json()["task_id"]
-        client.post(f"/api/task/{tid}/cancel", headers={"X-Texlate-Key": "k-A"})
+        server_client.post(f"/api/task/{tid}/cancel", headers={"X-Texlate-Key": "k-A"})
         assert (
-            client.delete(
+            server_client.delete(
                 f"/api/task/{tid}", headers={"X-Texlate-Key": "k-B"}
             ).status_code
             == HTTPStatus.NOT_FOUND
         )
         # 本租户可删
         assert (
-            client.delete(
+            server_client.delete(
                 f"/api/task/{tid}", headers={"X-Texlate-Key": "k-A"}
             ).status_code
             == HTTPStatus.OK
@@ -414,19 +406,18 @@ class TestCrossTenantReuse:
     _ARXIV = "2401.00011"
 
     def test_shared_scope_reuses_across_tenants(
-        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+        self, server_client: TestClient
     ) -> None:
-        monkeypatch.setenv("TEXLATE_MODE", "server")
         hdr_a = {"X-Texlate-Key": "k-A"}
         hdr_b = {"X-Texlate-Key": "k-B"}
-        tid = client.post(
+        tid = server_client.post(
             f"/api/arxiv/{self._ARXIV}/translate",
             json={"model": "m"},
             headers=hdr_a,
         ).json()["task_id"]
-        store = client.app.state.store
-        client.portal.call(partial(store.transition, tid, "done", force=True))
-        r = client.post(
+        store = server_client.app.state.store
+        server_client.portal.call(partial(store.transition, tid, "done", force=True))
+        r = server_client.post(
             f"/api/arxiv/{self._ARXIV}/translate",
             json={"model": "m"},
             headers=hdr_b,
@@ -436,29 +427,29 @@ class TestCrossTenantReuse:
         tid_b = r.json()["task_id"]
         assert tid_b != tid
         assert (
-            client.get(f"/api/task/{tid_b}", headers=hdr_b).status_code == HTTPStatus.OK
+            server_client.get(f"/api/task/{tid_b}", headers=hdr_b).status_code
+            == HTTPStatus.OK
         )
-        row_a = client.portal.call(partial(store.get, tid))
-        row_b = client.portal.call(partial(store.get, tid_b))
+        row_a = get_row(server_client, tid)
+        row_b = get_row(server_client, tid_b)
         assert row_b["tenant"] != row_a["tenant"]
         # alias（无版本）键——stored≠resolved 触发 _post_resolve_reuse 物化臂
         assert "@" not in row_b["cache_key"]
 
     def test_per_key_scope_no_cross_reuse(
-        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+        self, server_client: TestClient, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.setenv("TEXLATE_MODE", "server")
         monkeypatch.setenv("TEXLATE_CACHE_SCOPE", "per_key")
         hdr_a = {"X-Texlate-Key": "k-A"}
         hdr_b = {"X-Texlate-Key": "k-B"}
-        tid = client.post(
+        tid = server_client.post(
             f"/api/arxiv/{self._ARXIV}/translate",
             json={"model": "m"},
             headers=hdr_a,
         ).json()["task_id"]
-        store = client.app.state.store
-        client.portal.call(partial(store.transition, tid, "done", force=True))
-        r = client.post(
+        store = server_client.app.state.store
+        server_client.portal.call(partial(store.transition, tid, "done", force=True))
+        r = server_client.post(
             f"/api/arxiv/{self._ARXIV}/translate",
             json={"model": "m"},
             headers=hdr_b,

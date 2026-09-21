@@ -7,12 +7,12 @@ tmp_path，``find_tool`` 钉 None 免疫宿主 PATH 上的真 tectonic。
 import hashlib
 import io
 import os
-import tarfile
 import zipfile
 from pathlib import Path
 
 import httpx
 import pytest
+from conftest import make_targz
 
 from texlate.compile import toolchain
 from texlate.compile.engine import TECTONIC_BUNDLE_PIN, TectonicEngine
@@ -28,16 +28,6 @@ def _isolate(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     for key in ("TEXLATE_NO_DOWNLOAD", "CI", "TEXLATE_TEX_BUNDLE"):
         monkeypatch.delenv(key, raising=False)
     monkeypatch.setattr(toolchain, "find_tool", lambda _name: None)
-
-
-def _targz(members: dict[str, bytes]) -> bytes:
-    buf = io.BytesIO()
-    with tarfile.open(fileobj=buf, mode="w:gz") as tf:
-        for name, blob in members.items():
-            info = tarfile.TarInfo(name)
-            info.size = len(blob)
-            tf.addfile(info, io.BytesIO(blob))
-    return buf.getvalue()
 
 
 def _zip(members: dict[str, bytes]) -> bytes:
@@ -132,7 +122,7 @@ def test_asset_unsupported_platform() -> None:
 # ---------------------------------------------------------------- 安装
 def test_install_targz_atomic(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """tar.gz：单文件提取 + 0o755 + replace 落位 + 无 .download 残留。"""
-    archive = _targz({"tectonic": _FAKE_BIN})
+    archive = make_targz({"tectonic": _FAKE_BIN})
     _pin(monkeypatch, "Linux", "x86_64", "x86_64-unknown-linux-musl.tar.gz", archive)
     dest = tmp_path / "tools"
     out = toolchain.install_tectonic(
@@ -160,7 +150,7 @@ def test_install_sha256_rejects(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """digest 不匹配 → 整体拒绝且不落任何文件（校验先于 mkdir）。"""
-    archive = _targz({"tectonic": _FAKE_BIN})
+    archive = make_targz({"tectonic": _FAKE_BIN})
     monkeypatch.setitem(
         toolchain.ASSETS,
         ("Linux", "x86_64"),
@@ -178,7 +168,7 @@ def test_install_multi_member_rejects(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """归档里 basename 匹配数 != 1 → 拒绝（sha256 过也不放行布局异常）。"""
-    archive = _targz({"a/tectonic": b"1", "b/tectonic": b"2"})
+    archive = make_targz({"a/tectonic": b"1", "b/tectonic": b"2"})
     _pin(monkeypatch, "Linux", "x86_64", "x86_64-unknown-linux-musl.tar.gz", archive)
     dest = tmp_path / "tools"
     with pytest.raises(RuntimeError, match="布局异常"):
@@ -253,7 +243,7 @@ def test_ensure_ci_explicit_opt_in(monkeypatch: pytest.MonkeyPatch) -> None:
     """TEXLATE_NO_DOWNLOAD=0 显式覆盖 CI 默认 → 仍下载。"""
     monkeypatch.setenv("CI", "true")
     monkeypatch.setenv("TEXLATE_NO_DOWNLOAD", "0")
-    archive = _targz({"tectonic": _FAKE_BIN})
+    archive = make_targz({"tectonic": _FAKE_BIN})
     _pin(monkeypatch, "Linux", "x86_64", "x86_64-unknown-linux-musl.tar.gz", archive)
     out = toolchain.ensure_tectonic(
         system="Linux", machine="x86_64", client=_client(archive)
@@ -301,7 +291,7 @@ def test_ensure_smoke_failure_removes_binary(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """sha256 过但产物不可执行 → 删掉再返 None（防 find_managed 毒化）。"""
-    archive = _targz({"tectonic": b"exit 1\n"})  # /bin/sh 兜底执行 rc=1
+    archive = make_targz({"tectonic": b"exit 1\n"})  # /bin/sh 兜底执行 rc=1
     _pin(
         monkeypatch,
         "Linux",

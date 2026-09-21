@@ -6,19 +6,9 @@
 ``<to be read again>`` 续行 token、截断缺 bracket、未收名兜底。
 """
 
-from functools import lru_cache
+from _fixloopkit import classify, rs
 
-from texlate.compile.fixloop import Ruleset, load_ruleset
 from texlate.compile.logparse import parse_text
-
-
-@lru_cache(maxsize=1)
-def _rs() -> Ruleset:
-    return load_ruleset()
-
-
-def _classify(log: str) -> tuple[str | None, str | None]:
-    return _rs().taxonomy.classify(parse_text(log))
 
 
 def test_input_stack_bang_macro() -> None:
@@ -31,7 +21,7 @@ def test_input_stack_bang_macro() -> None:
         "If you really absolutely need more capacity,\n"
         "you can ask a wizard to enlarge me.\n"
     )
-    assert _classify(log) == ("capacity", "input_stack|@restorepar")
+    assert classify(log) == ("capacity", "input_stack|@restorepar")
 
 
 def test_main_memory_fileline_macro() -> None:
@@ -43,7 +33,7 @@ def test_main_memory_fileline_macro() -> None:
         "l.75 have been obtained in \\Ref{Vanderzande92}\n"
         "If you really absolutely need more capacity,\n"
     )
-    assert _classify(log) == ("capacity", "main_memory|reserved@a")
+    assert classify(log) == ("capacity", "main_memory|reserved@a")
 
 
 def test_save_size_wrapped_bracket_argument() -> None:
@@ -56,7 +46,7 @@ def test_save_size_wrapped_bracket_argument() -> None:
         "l.643 \\xeCJKResetCharClass\n"
         "If you really absolutely need more capacity,\n"
     )
-    assert _classify(log) == ("capacity", "save_size|l__xeCJK_tmp_int")
+    assert classify(log) == ("capacity", "save_size|l__xeCJK_tmp_int")
 
 
 def test_to_be_read_again_continuation() -> None:
@@ -67,7 +57,7 @@ def test_to_be_read_again_continuation() -> None:
         "                   \\iterate\n"
         "l.10 \\foo\n"
     )
-    assert _classify(log) == ("capacity", "input_stack|iterate")
+    assert classify(log) == ("capacity", "input_stack|iterate")
 
 
 def test_ln_row_pending_cs() -> None:
@@ -76,7 +66,7 @@ def test_ln_row_pending_cs() -> None:
         "! TeX capacity exceeded, sorry [main memory size=5000000].\n"
         "l.75 have been obtained in \\Ref{Vanderzande92}\n"
     )
-    assert _classify(log) == ("capacity", "main_memory|Ref")
+    assert classify(log) == ("capacity", "main_memory|Ref")
 
 
 def test_ln_row_no_cs_falls_to_continuation() -> None:
@@ -86,31 +76,31 @@ def test_ln_row_no_cs_falls_to_continuation() -> None:
         "l.9 plain text\n"
         "          \\foo\n"
     )
-    assert _classify(log) == ("capacity", "pool_size|foo")
+    assert classify(log) == ("capacity", "pool_size|foo")
 
 
 def test_bracket_only_no_ctx() -> None:
     """无 ctx (裸错误行): pay 退 <tag>。"""
     log = "! TeX capacity exceeded, sorry [input stack size=10000].\n"
-    assert _classify(log) == ("capacity", "input_stack")
+    assert classify(log) == ("capacity", "input_stack")
 
 
 def test_truncated_no_bracket_token_only() -> None:
     """截断 log 无 bracket: pay=?|<cs> 保两字段形。"""
     log = "! TeX capacity exceeded, sorry\n\\iterate ->\\iterate\nl.5 \\iterate\n"
-    assert _classify(log) == ("capacity", "?|iterate")
+    assert classify(log) == ("capacity", "?|iterate")
 
 
 def test_no_bracket_no_ctx_none() -> None:
     """旧签 ``sorry.`` 无 bracket 无 ctx: pay=None (logparse 既有断言口径)。"""
     log = "! TeX capacity exceeded, sorry.\n"
-    assert _classify(log) == ("capacity", None)
+    assert classify(log) == ("capacity", None)
 
 
 def test_unlisted_bracket_snake_fallback() -> None:
     """未收 bracket 名走全词 snake 兜底。"""
     log = "! TeX capacity exceeded, sorry [trie size=1000000].\n\\@foo ->\\bar\n"
-    assert _classify(log) == ("capacity", "trie_size|@foo")
+    assert classify(log) == ("capacity", "trie_size|@foo")
 
 
 def test_indented_continuation_not_layer_head() -> None:
@@ -121,7 +111,7 @@ def test_indented_continuation_not_layer_head() -> None:
         "                                              \\@savsf \\spacefactor \\fi \n"
         "l.80 }\n"
     )
-    assert _classify(log) == ("capacity", "input_stack|@bsphack")
+    assert classify(log) == ("capacity", "input_stack|@bsphack")
 
 
 def test_secondary_error_candidates_carry_payload() -> None:
@@ -133,5 +123,5 @@ def test_secondary_error_candidates_carry_payload() -> None:
         "\\iterate ->\\iterate\n"
         "l.9 \\iterate\n"
     )
-    cands = _rs().taxonomy.err_candidates(parse_text(log))
+    cands = rs().taxonomy.err_candidates(parse_text(log))
     assert ("capacity", "input_stack|iterate") in [(c, p) for c, p, _e, _b in cands]

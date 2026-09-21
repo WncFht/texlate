@@ -5,7 +5,7 @@ r"""bm_extended_mathchar_wrap 内建 —— \bm{<CJK>} 撞 XeTeX mathchar 墙的
 ``\count@\mathcode`#1`` —— >0xFF 字符在 XeTeX legacy 15-bit mathchar
 扫描位必炸 "Extended mathchar used as mathchar" (tmp/mathchar/ t1-t6/
 probe4-5 实证: 裸 ``$这$`` 不炸、``\bm{这}`` 即炸、``\mathcode`Ω`` 同炸
-非 CJK 专属)。修复 = 序言守卫式 ``\bm#1 → \bmorig{{#1}}`` 双花括号走
+非 CJK 专属)。修复 = 序言守卫式 ``\bm#1 → \TeXlateBM{{#1}}`` 双花括号走
 bm 自带 ``\bm@group``→``\boldmath`` 组路径 (fix3/fix4 全形零错)。
 """
 

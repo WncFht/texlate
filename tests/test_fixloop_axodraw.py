@@ -19,26 +19,21 @@ stub 保真面 (真件 v1898, corpus hep-ph/0307200 extracted 签名源):
   68 色名单参保文字臂——本文件不回测色面，只钉 axodraw-lane 新增面。
 """
 
-import re
 import shutil
 import subprocess
 from pathlib import Path
 
 import pytest
+from _fixloopkit import STUBS, n_err, requires_xelatex, run_xelatex
 
 from texlate.compile import latex209
 from texlate.compile.fixloop.builtins import TRANSFORM_FNS
 from texlate.compile.fixloop.engine import LoopCtx
 from texlate.compile.latex209 import upgrade_209
 
-_STUB = (
-    Path(__file__).resolve().parent.parent
-    / "src/texlate/compile/fixloop/vendor/stubs/axodraw.sty"
-)
+_STUB = STUBS / "axodraw.sty"
 
-_XELATEX = shutil.which("xelatex")
 _PDFTOTEXT = shutil.which("pdftotext")
-_COMPILE = pytest.mark.skipif(_XELATEX is None, reason="xelatex not installed")
 
 #: hep-ph/0111339 main.tex:1 逐字节实证行。
 _DOCSTYLE_0111339 = "\\documentstyle[preprint,aps,epsfig,axodraw]{revtex}\nx\n"
@@ -53,22 +48,6 @@ def _target_always_resolvable(monkeypatch: pytest.MonkeyPatch) -> None:
 def _code_lines(body: str) -> str:
     """滤 % 注释行后拼接——pin 断言不得被注释文本夹带。"""
     return "\n".join(ln for ln in body.splitlines() if not ln.lstrip().startswith("%"))
-
-
-def _run(wdir: Path, tex: str) -> str:
-    (wdir / "main.tex").write_text(tex, encoding="utf-8")
-    subprocess.run(  # noqa: S603 -- argv[0] 来自 shutil.which 绝对路径
-        [_XELATEX, "-interaction=nonstopmode", "main.tex"],
-        cwd=wdir,
-        capture_output=True,
-        timeout=120,
-        check=False,
-    )
-    return (wdir / "main.log").read_text(encoding="utf-8", errors="replace")
-
-
-def _n_err(log: str) -> int:
-    return len(re.findall(r"^! ", log, re.MULTILINE))
 
 
 # ------------------------------------------------- 209 option → pkg 提升链
@@ -162,12 +141,11 @@ def test_stub_curve_and_vertex_family_present() -> None:
 # ------------------------------------------------- 编译级验证
 
 
-@_COMPILE
+@requires_xelatex
 @pytest.mark.integration
 def test_stub_loads_and_call_shapes_clean(tmp_path: Path) -> None:
     """0111339 调用形 + 全族代表面：装 stub 后 xelatex 零 '!' 错。"""
-    shutil.copy(_STUB, tmp_path / "axodraw.sty")
-    log = _run(
+    log = run_xelatex(
         tmp_path,
         r"""\documentclass{article}
 \usepackage{axodraw}
@@ -203,18 +181,18 @@ def test_stub_loads_and_call_shapes_clean(tmp_path: Path) -> None:
 \end{picture}
 \end{document}
 """,
+        extra={"axodraw.sty": _STUB.read_text(encoding="utf-8")},
     )
-    assert _n_err(log) == 0, f"仍 {_n_err(log)} 个 '!' 错"
+    assert n_err(log) == 0, f"仍 {n_err(log)} 个 '!' 错"
     assert (tmp_path / "main.pdf").is_file()
 
 
-@_COMPILE
+@requires_xelatex
 @pytest.mark.integration
 @pytest.mark.skipif(_PDFTOTEXT is None, reason="pdftotext not installed")
 def test_stub_arc_does_not_gobble_following_text(tmp_path: Path) -> None:
     """\\ArrowArc 正确 arity 下后继文字全留存；多吞臂会吃掉前两字母。"""
-    shutil.copy(_STUB, tmp_path / "axodraw.sty")
-    _run(
+    run_xelatex(
         tmp_path,
         r"""\documentclass{article}
 \usepackage{axodraw}
@@ -225,6 +203,7 @@ def test_stub_arc_does_not_gobble_following_text(tmp_path: Path) -> None:
 \end{picture}
 \end{document}
 """,
+        extra={"axodraw.sty": _STUB.read_text(encoding="utf-8")},
     )
     out = subprocess.run(  # noqa: S603 -- argv[0] 来自 shutil.which
         [_PDFTOTEXT, "main.pdf", "-"],

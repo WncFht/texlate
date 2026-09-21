@@ -29,6 +29,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from _fixloopkit import mk_ctx_files
 
 from texlate.arxiv._texutil import TEX_EXT
 from texlate.arxiv.locate import locate
@@ -61,15 +62,6 @@ class _Eng:
         return []
 
 
-def _ctx(tmp_path: Path, files: dict[str, str], engine: str = "xelatex") -> LoopCtx:
-    """wdir 落文件树 + LoopCtx（main_rel 取首个文件）。"""
-    for rel, content in files.items():
-        p = tmp_path / rel
-        p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(content, encoding="utf-8")
-    return LoopCtx(wdir=tmp_path, engine_name=engine, main_rel=next(iter(files)))
-
-
 def _rule(rid: str) -> Rule:
     """ruleset 里按 id 取规则。"""
     rule = next(r for r in load_ruleset().rules if r.id == rid)
@@ -88,7 +80,7 @@ def _mech_set(rid: str) -> set[str]:
 
 def test_w37_plain_sigs_reject(tmp_path: Path) -> None:
     """纯 plain TeX（\\font cm 签名 + \\bye 收尾）→ REJECT route=tex-plain。"""
-    ctx = _ctx(
+    ctx = mk_ctx_files(
         tmp_path,
         {"main.tex": "\\font\\tenrm=cmr10\n\\magnification=1200\nHello\n\\bye\n"},
     )
@@ -99,7 +91,7 @@ def test_w37_plain_sigs_reject(tmp_path: Path) -> None:
 
 def test_w37_latex_docclass_not_rejected(tmp_path: Path) -> None:
     """活 \\documentclass 在场 → 不拒（负例防误伤）。"""
-    ctx = _ctx(
+    ctx = mk_ctx_files(
         tmp_path,
         {"m.tex": "\\documentclass{article}\n\\begin{document}\nHi\n\\end{document}\n"},
     )
@@ -110,7 +102,7 @@ def test_w37_latex_docclass_not_rejected(tmp_path: Path) -> None:
 
 def test_w68_pure_amstex_bye_rejected(tmp_path: Path) -> None:
     """amsTeX 系 \\input amstex + 裸 \\bye → 同签名面拒收。"""
-    ctx = _ctx(tmp_path, {"m.tex": "\\input amstex\n\\topmatter\n\\bye\n"})
+    ctx = mk_ctx_files(tmp_path, {"m.tex": "\\input amstex\n\\topmatter\n\\bye\n"})
     applied, note = plain_format_detect(ctx, _Eng(), None, {})
     assert applied
     assert "tex-plain" in note
@@ -118,7 +110,7 @@ def test_w68_pure_amstex_bye_rejected(tmp_path: Path) -> None:
 
 def test_w68_documentstyle_arm_not_rejected(tmp_path: Path) -> None:
     """\\documentstyle{amsppt} 在场 → plain_format_detect 不拒（latex209 臂接管）。"""
-    ctx = _ctx(
+    ctx = mk_ctx_files(
         tmp_path,
         {"m.tex": "\\input amstex\n\\documentstyle{amsppt}\n\\topmatter\n\\end\n"},
     )
@@ -140,7 +132,7 @@ def test_w37_w68_route_rule_mechanisms() -> None:
 
 def test_w58_arara_shell_on(tmp_path: Path) -> None:
     """``% arara: pdflatex: { shell: on }`` → engine_flags + advisory。"""
-    ctx = _ctx(
+    ctx = mk_ctx_files(
         tmp_path,
         {"m.tex": "% arara: pdflatex: { shell: on }\n\\documentclass{a}\n"},
     )
@@ -152,7 +144,7 @@ def test_w58_arara_shell_on(tmp_path: Path) -> None:
 
 def test_w58_tex_program_advisory(tmp_path: Path) -> None:
     """``% !TEX program = xelatex`` → advisory 账本（不改源不请 flag）。"""
-    ctx = _ctx(tmp_path, {"m.tex": "% !TEX program = xelatex\n\\documentclass{a}\n"})
+    ctx = mk_ctx_files(tmp_path, {"m.tex": "% !TEX program = xelatex\n\\documentclass{a}\n"})
     applied, _ = harvest_build_directives(ctx, _Eng(), None, {})
     assert applied
     assert any("xelatex" in a for a in ctx.advisories)
@@ -161,7 +153,7 @@ def test_w58_tex_program_advisory(tmp_path: Path) -> None:
 
 def test_w58_no_directive_noop(tmp_path: Path) -> None:
     """无构建指令 → False 不占轮。"""
-    ctx = _ctx(tmp_path, {"m.tex": "\\documentclass{article}\n"})
+    ctx = mk_ctx_files(tmp_path, {"m.tex": "\\documentclass{article}\n"})
     applied, _ = harvest_build_directives(ctx, _Eng(), None, {})
     assert not applied
 
@@ -179,7 +171,7 @@ def test_w58_rule_mechanisms() -> None:
 
 def test_w79_openout_target_stubbed(tmp_path: Path) -> None:
     r"""``\immediate\openout\ftfile=foots.tmp`` 目标缺档 → wdir 空 stub。"""
-    ctx = _ctx(
+    ctx = mk_ctx_files(
         tmp_path,
         {"main.tex": "\\immediate\\openout\\ftfile=foots.tmp\n\\input foots.tmp\n"},
     )
@@ -191,7 +183,7 @@ def test_w79_openout_target_stubbed(tmp_path: Path) -> None:
 
 def test_w79_non_openout_miss(tmp_path: Path) -> None:
     """payload 不在 \\openout 目标集 → False 让位 install_file。"""
-    ctx = _ctx(
+    ctx = mk_ctx_files(
         tmp_path,
         {"main.tex": "\\immediate\\openout\\ftfile=foots.tmp\n"},
     )
@@ -212,7 +204,7 @@ def test_w79_rule_mechanisms() -> None:
 
 def test_w18_pstex_t_stubbed(tmp_path: Path) -> None:
     """.pstex_t 覆盖层缺档 → wdir 空 stub（惠及宏体间接 \\input 全部调用点）。"""
-    ctx = _ctx(tmp_path, {"s.tex": "\\newcommand{\\x}{\\input #2.pstex_t}\n"})
+    ctx = mk_ctx_files(tmp_path, {"s.tex": "\\newcommand{\\x}{\\input #2.pstex_t}\n"})
     applied, note = generated_stub(ctx, _Eng(), "fig1.pstex_t", {"faces": ["overlay"]})
     assert applied
     assert "overlay" in note
@@ -221,7 +213,7 @@ def test_w18_pstex_t_stubbed(tmp_path: Path) -> None:
 
 def test_w18_non_overlay_miss(tmp_path: Path) -> None:
     """普通 .sty payload → False。"""
-    ctx = _ctx(tmp_path, {"s.tex": "x\n"})
+    ctx = mk_ctx_files(tmp_path, {"s.tex": "x\n"})
     applied, _ = generated_stub(ctx, _Eng(), "normal.sty", {"faces": ["overlay"]})
     assert not applied
 
@@ -246,7 +238,7 @@ def test_w102_docstrip_generates_cls(tmp_path: Path) -> None:
         (wdir / "aipproc.cls").write_text("\\ProvidesClass{aipproc}\n")
         return 0, "generated", 0.1, False
 
-    ctx = _ctx(
+    ctx = mk_ctx_files(
         tmp_path,
         {"aipproc.ins": "% fake ins\n", "aipproc.dtx": "% fake dtx\n"},
     )
@@ -260,7 +252,7 @@ def test_w102_docstrip_generates_cls(tmp_path: Path) -> None:
 
 def test_w102_no_matching_ins(tmp_path: Path) -> None:
     """多个 .ins 且 stem 全不对应 → False 落 install_file 兜底。"""
-    ctx = _ctx(
+    ctx = mk_ctx_files(
         tmp_path,
         {"a.ins": "x", "b.ins": "x"},
     )
@@ -295,7 +287,7 @@ def test_w102_real_latex_driver(tmp_path: Path) -> None:
 
 def test_w66_missing_includepdf_stubbed(tmp_path: Path) -> None:
     """\\includepdf{supp.pdf} 缺件 → 整调用改写 \\clearpage\\null。"""
-    ctx = _ctx(
+    ctx = mk_ctx_files(
         tmp_path,
         {
             "main.tex": (
@@ -312,7 +304,7 @@ def test_w66_missing_includepdf_stubbed(tmp_path: Path) -> None:
 def test_w66_present_pdf_untouched(tmp_path: Path) -> None:
     """payload 在盘 → 引用本可解析，不改写。"""
     (tmp_path / "supp.pdf").write_bytes(b"%PDF-1.4 x")
-    ctx = _ctx(
+    ctx = mk_ctx_files(
         tmp_path,
         {"m.tex": "\\begin{document}\n\\includepdf{supp.pdf}\n\\end{document}\n"},
     )
@@ -331,7 +323,7 @@ def test_w66_rule_mechanisms() -> None:
 
 def test_w31_svg_route_cond_matches(tmp_path: Path) -> None:
     """tectonic 臂 + \\usepackage{svg} → svg_route 条件命中（行锚注释安全）。"""
-    ctx = _ctx(
+    ctx = mk_ctx_files(
         tmp_path,
         {"main.tex": "\\documentclass{a}\n\\usepackage{svg}\n\\begin{document}\n"},
         engine="tectonic",
@@ -343,7 +335,7 @@ def test_w31_svg_route_cond_matches(tmp_path: Path) -> None:
 
 def test_w31_svg_route_cond_xelatex_arm_skipped(tmp_path: Path) -> None:
     """xelatex 引擎不触 svg_route 条件（engine_in tectonic；xelatex 臂走 svg_prepare）。"""
-    ctx = _ctx(tmp_path, {"m.tex": "\\usepackage{svg}\n"})
+    ctx = mk_ctx_files(tmp_path, {"m.tex": "\\usepackage{svg}\n"})
     rule = _rule("svg_route")
     ok, _ = _cond_ok(rule.condition, rule, ctx, _Eng(), None)
     assert not ok
@@ -351,7 +343,7 @@ def test_w31_svg_route_cond_xelatex_arm_skipped(tmp_path: Path) -> None:
 
 def test_w31_svg_route_cond_comment_immune(tmp_path: Path) -> None:
     """注释掉的 \\usepackage{svg} 不触条件（行锚 ^ 起）。"""
-    ctx = _ctx(
+    ctx = mk_ctx_files(
         tmp_path,
         {"m.tex": "% \\usepackage{svg}\n\\documentclass{a}\n"},
         engine="tectonic",
@@ -363,7 +355,7 @@ def test_w31_svg_route_cond_comment_immune(tmp_path: Path) -> None:
 
 def test_w31_svg_prepare_flag_arm(tmp_path: Path) -> None:
     """inkscape 在 PATH → engine_flags 请 -shell-escape。"""
-    ctx = _ctx(
+    ctx = mk_ctx_files(
         tmp_path,
         {"m.tex": "\\usepackage{svg}\n\\begin{document}\n\\includesvg{d}\n"},
     )
@@ -387,7 +379,7 @@ def test_w31_svg_prepare_convert_arm(tmp_path: Path) -> None:
         return 0, "", 0.1, False
 
     svg = '<svg xmlns="http://www.w3.org/2000/svg"/>'
-    ctx = _ctx(
+    ctx = mk_ctx_files(
         tmp_path,
         {
             "m.tex": "\\usepackage{svg}\n\\begin{document}\n\\includesvg{diagram}\n",
@@ -408,7 +400,7 @@ def test_w31_svg_prepare_convert_arm(tmp_path: Path) -> None:
 
 
 def test_w31_no_svg_noop(tmp_path: Path) -> None:
-    ctx = _ctx(tmp_path, {"m.tex": "\\documentclass{a}\n\\begin{document}\n"})
+    ctx = mk_ctx_files(tmp_path, {"m.tex": "\\documentclass{a}\n\\begin{document}\n"})
     applied, _ = svg_prepare(ctx, _Eng(), None, {})
     assert not applied
 

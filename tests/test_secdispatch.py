@@ -10,6 +10,8 @@ option_clash 类规则够到真根因。
 
 from pathlib import Path
 
+from test_fixloop_loop import MockEngine, MockRes, make_proj, mini_rs
+
 from texlate.compile.fixloop import fixloop, load_ruleset
 from texlate.compile.fixloop.ruleset import Ruleset
 from texlate.compile.logparse import Taxonomy, parse_text
@@ -70,42 +72,15 @@ _FIX_CLASH = {
 }
 
 
-class _Res:
-    """impl CompRes 的 duck-type 替身 (最小面)。"""
-
-    def __init__(self, wdir: Path, main: str, spec: dict | str) -> None:
-        if isinstance(spec, str):
-            spec = {"log": spec}
-        stem = Path(main).stem
-        self.log_path = wdir / f"{stem}.log"
-        self.log_path.write_text(spec.get("log", ""), encoding="utf-8")
-        self.pdf = wdir / f"{stem}.pdf" if spec.get("pdf") else None
-        if self.pdf is not None:
-            self.pdf.write_bytes(b"%PDF-1.4 fake")
-        self.pdf_bytes = self.pdf.stat().st_size if self.pdf else 0
-        self.timed_out = bool(spec.get("timed_out"))
-        self.killed_signal = spec.get("killed_signal")
-        self.seconds = 0.05
-        self.stdout_tail = spec.get("tail", "")
-        self.log_text = spec.get("log_text", "")
-
-    @property
-    def has_pdf(self) -> bool:
-        return self.pdf is not None and self.pdf_bytes > 0
-
-
-class _HaltEngine:
+class _HaltEngine(MockEngine):
     """xelatex ``halt_on_error`` 替身: 普通轮吐 ``script``, best_effort
     探针/兜底轮吐 ``be_script`` (各自脚本耗尽后重放末条)。"""
 
-    name = "xelatex"
-    caps = frozenset({"kpsewhich", "tlmgr", "updmap"})
     halt_on_error = True
 
     def __init__(self, script: list, be_script: list | None = None) -> None:
-        self.script = list(script)
+        super().__init__(script)
         self.be_script = list(be_script or [{"log": ""}])
-        self.rounds = 0
         self.calls: list[dict] = []
 
     def compile(
@@ -116,7 +91,7 @@ class _HaltEngine:
         passes: int = 2,
         best_effort: bool = False,
         **_kw: object,
-    ) -> _Res:
+    ) -> MockRes:
         self.calls.append({"passes": passes, "best_effort": best_effort})
         script, i = (
             (self.be_script, sum(1 for c in self.calls if c["best_effort"]) - 1)
@@ -125,50 +100,16 @@ class _HaltEngine:
         )
         if not best_effort:
             self.rounds += 1
-        return _Res(Path(wdir), main, script[min(i, len(script) - 1)])
-
-    def probe_file(self, fname: str, cwd: Path | None = None) -> str | None:
-        if cwd is not None and (Path(cwd) / fname).is_file():
-            return str(Path(cwd) / fname)
-        return None
-
-    def install_file(self, fname: str, *, font_related: bool = False) -> bool:
-        del fname, font_related
-        return False
-
-    def rebuild_fontmaps(self) -> None:
-        return None
-
-    def filemap(self, fname: str) -> list[str]:
-        del fname
-        return []
+        return MockRes(Path(wdir), main, script[min(i, len(script) - 1)])
 
 
-def _rs(
-    rules: list[dict], taxonomy: list[dict] | None = None, **loop_over: int
-) -> Ruleset:
+def _rs(rules: list[dict], **loop_over: int) -> Ruleset:
     """合成 ruleset (compile_passes=1 → 每轮恰一编译, 探针/兜底另计)。"""
-    return Ruleset(
-        {
-            "version": 1,
-            "meta": {
-                "loop": {
-                    "max_rounds": 4,
-                    "stuck_sig_repeat": 3,
-                    "clean_err_max": 3,
-                    "compile_passes": 1,
-                    **loop_over,
-                }
-            },
-            "taxonomy": taxonomy if taxonomy is not None else _TAX,
-            "rules": rules,
-        }
+    return mini_rs(
+        rules=rules,
+        taxonomy=_TAX,
+        loop_cfg={"compile_passes": 1, **loop_over},
     )
-
-
-def _proj(tmp_path: Path, main: str = _MAIN) -> Path:
-    (tmp_path / "main.tex").write_text(main, encoding="utf-8")
-    return tmp_path
 
 
 def _tax() -> Taxonomy:
@@ -286,7 +227,7 @@ def test_real_taxonomy_12060291_twin_surface() -> None:
 # ------------------------------------------------------------- 引擎 miss 面
 def test_secondary_dispatch_free_candidates_no_probe(tmp_path: Path) -> None:
     """nonstop log 自带孪生 (n_bang≥2): 免费候选直派, 零探针编译。"""
-    _proj(tmp_path)
+    make_proj(tmp_path, _MAIN)
     eng = _HaltEngine([{"log": _TWIN_LOG}, {"log": _CLEAN_LOG, "pdf": True}])
     cell = fixloop(tmp_path, eng, ruleset=_rs([_FIX_CLASH]))
     assert cell["verdict"] == "clean"
@@ -299,7 +240,7 @@ def test_secondary_dispatch_free_candidates_no_probe(tmp_path: Path) -> None:
 
 def test_secondary_dispatch_xelatex_probe(tmp_path: Path) -> None:
     """halt_on_error 单错 log: miss → best_effort 探针见孪生 → 派发命中。"""
-    _proj(tmp_path)
+    make_proj(tmp_path, _MAIN)
     eng = _HaltEngine(
         [{"log": _HALT_LOG}, {"log": _CLEAN_LOG, "pdf": True}],
         be_script=[{"log": _TWIN_LOG}],
@@ -314,7 +255,7 @@ def test_secondary_dispatch_xelatex_probe(tmp_path: Path) -> None:
 
 def test_probe_result_reused_by_salvage(tmp_path: Path) -> None:
     """候选全灭 → 原裁决; 探针结果兜底复用——全程恰一发 best_effort 编译。"""
-    _proj(tmp_path)
+    make_proj(tmp_path, _MAIN)
     # 条件要 xcolor 撞名——探针孪生是 geometry → 候选点火失败, 原裁决
     rule = {
         **_FIX_CLASH,
@@ -335,7 +276,7 @@ def test_probe_result_reused_by_salvage(tmp_path: Path) -> None:
 
 def test_probe_budget_max_two(tmp_path: Path) -> None:
     """探针预算 ≤2/格: 两轮次级修复后再 miss → 预算尽直落原裁决。"""
-    _proj(tmp_path)
+    make_proj(tmp_path, _MAIN)
     rules = [
         _FIX_CLASH,
         {
@@ -378,7 +319,7 @@ def test_probe_budget_max_two(tmp_path: Path) -> None:
 
 def test_probe_gated_on_no_pdf(tmp_path: Path) -> None:
     """dirty-pdf miss (有产出): 只给免费候选——halt 单错 log 下零派发零探针。"""
-    _proj(tmp_path)
+    make_proj(tmp_path, _MAIN)
     eng = _HaltEngine(
         [{"log": _HALT_LOG, "pdf": True}],
         be_script=[{"log": _TWIN_LOG, "pdf": True}],
@@ -393,7 +334,7 @@ def test_probe_gated_on_no_pdf(tmp_path: Path) -> None:
 
 def test_primary_hit_never_dispatches(tmp_path: Path) -> None:
     """主错命中既有路径: 孪生在场也不派发——零探针, actions 无 via。"""
-    _proj(tmp_path)
+    make_proj(tmp_path, _MAIN)
     rule = {
         "id": "fix_syntax",
         "phase": "loop",
@@ -417,7 +358,7 @@ def test_primary_hit_never_dispatches(tmp_path: Path) -> None:
 
 def test_secondary_apply_dedupes_on_twin_payload(tmp_path: Path) -> None:
     """``applied`` 键用次级 payload: 同规则不同 twin pay 各火一次。"""
-    _proj(
+    make_proj(
         tmp_path,
         "\\documentclass{article}\nclash-geometry clash-xcolor\n"
         "\\begin{document}\nx\n\\end{document}\n",
@@ -454,7 +395,7 @@ def test_secondary_apply_dedupes_on_twin_payload(tmp_path: Path) -> None:
 
 def test_secondary_reject_route_propagates(tmp_path: Path) -> None:
     """次级派发命中 reject_route 规则 → 同样落 reject verdict。"""
-    _proj(tmp_path)
+    make_proj(tmp_path, _MAIN)
     rule = {
         "id": "clash_reject",
         "phase": "loop",

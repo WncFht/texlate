@@ -3,7 +3,7 @@ r"""fix#9 cut-2 文本 run 批量化 pin——``_dispatch`` gen=0 文本头快�
 不变量：批量化 = 纯优化快路——``_text_run_end`` 返回 ``None`` 即落回
 ``_rappend_tok`` 逐 token 路径，产品输出与不批量化逐字节等价。等价口径
 = protected_tex/vtex/chunks(content+context)/ph_map/warnings 全等；
-``_FORCE_OFF``（``_text_run_end`` 恒 ``None``）即关闭开关。
+``_force_off``（``_text_run_end`` 恒 ``None``）即关闭开关。
 
 钉点：
 
@@ -21,9 +21,9 @@ r"""fix#9 cut-2 文本 run 批量化 pin——``_dispatch`` gen=0 文本头快�
 from __future__ import annotations
 
 import pytest
-from conftest import DOC, check_invariants
+from conftest import DOC, check_invariants, chunk_text
 
-from texlate.latex import parse_tex, reconstruct
+from texlate.latex import parse_tex
 from texlate.latex.gullet import Gullet
 from texlate.latex.model import ScanResult, ScanState
 from texlate.latex.mouth import CatTable, Mouth
@@ -49,15 +49,15 @@ def _force_off(_self: object, _t: object, _src: object) -> None:
     """``_text_run_end`` 关闭桩——恒 ``None`` 强制逐 token fallback。"""
 
 
-def _scan_pair(tex: str) -> tuple[ScanResult, ScanResult]:
-    """同输入跑 batched / 强制 fallback 两臂。"""
+def _scan_pair(
+    tex: str, monkeypatch: pytest.MonkeyPatch
+) -> tuple[ScanResult, ScanResult]:
+    """同输入跑 batched / 强制 fallback 两臂——两臂皆过公共不变量。"""
     res_new = parse_tex(tex)
-    orig = _MainLoop._text_run_end  # noqa: SLF001 — pin 的就是这条快路
-    try:
-        _MainLoop._text_run_end = _force_off  # noqa: SLF001
-        res_old = parse_tex(tex)
-    finally:
-        _MainLoop._text_run_end = orig  # noqa: SLF001
+    check_invariants(res_new, tex)
+    monkeypatch.setattr(_MainLoop, "_text_run_end", _force_off)
+    res_old = parse_tex(tex)
+    check_invariants(res_old, tex)
     return res_new, res_old
 
 
@@ -99,38 +99,39 @@ _EQUIV_BODIES = [
 
 
 @pytest.mark.parametrize("body", _EQUIV_BODIES)
-def test_batched_equals_fallback(body: str) -> None:
+def test_batched_equals_fallback(body: str, monkeypatch: pytest.MonkeyPatch) -> None:
     """run 边界族：批量化臂与强制逐 token 臂输出逐字节全等。"""
     tex = DOC % body
-    res_new, res_old = _scan_pair(tex)
-    check_invariants(res_new, tex)
+    res_new, res_old = _scan_pair(tex, monkeypatch)
     assert _digest(res_new) == _digest(res_old)
 
 
 # ------------------------------------------------------------- 猫码切换
 
 
-def test_catcode_switch_invalidates_run_rx() -> None:
+def test_catcode_switch_invalidates_run_rx(monkeypatch: pytest.MonkeyPatch) -> None:
     r"""``\catcode`@=9`` 后 ``@`` 进 IGNORED——``a@b`` surface 须为 ``ab``。
 
     旧正则缓存不重建会把 ``@`` 当文本批进 surface（``a@b``≠``ab`` 静默错切）。
     """
     res, res_old = _scan_pair(
-        DOC % "lead {\\catcode`@=9 inside a@b and more text words} tail."
+        DOC % "lead {\\catcode`@=9 inside a@b and more text words} tail.",
+        monkeypatch,
     )
     assert _digest(res) == _digest(res_old)
-    joined = " ".join(c.content for c in res.chunks)
+    joined = chunk_text(res)
     assert "inside ab and more" in joined  # @ 被 IGNORED 吞掉
     assert "a@b" not in joined
 
 
-def test_catcode_into_active_exits_run_set() -> None:
+def test_catcode_into_active_exits_run_set(monkeypatch: pytest.MonkeyPatch) -> None:
     r"""``\catcode`z=13`` 把 ``z`` 改 ACTIVE——出 run 集，run 在 ``z`` 前断。
 
     旧缓存会把 ``z`` 继续当文本批进 run（surface 同值但项界合并错切）。
     """
     res, res_old = _scan_pair(
-        DOC % "lead {\\catcode`z=13 inside azb and more text words} tail."
+        DOC % "lead {\\catcode`z=13 inside azb and more text words} tail.",
+        monkeypatch,
     )
     assert _digest(res) == _digest(res_old)
 
@@ -216,7 +217,7 @@ def test_listsource_folded_gap_not_merged() -> None:
 # ------------------------------------------------------------- 边界语义
 
 
-def test_active_tilde_never_inside_run() -> None:
+def test_active_tilde_never_inside_run(monkeypatch: pytest.MonkeyPatch) -> None:
     r"""``~`` 剔出 run 集：run 项含 ``~`` 时 ``~`` 必在项首（只能当头）。"""
     surfaces: list[str] = []
     orig = _Core._rappend  # noqa: SLF001
@@ -226,52 +227,42 @@ def test_active_tilde_never_inside_run() -> None:
         orig(self, surface, ident, vspan)
 
     tex = DOC % "aa~bb cc~dd"
-    _Core._rappend = spy  # noqa: SLF001
-    try:
-        res = parse_tex(tex)
-    finally:
-        _Core._rappend = orig  # noqa: SLF001
+    monkeypatch.setattr(_Core, "_rappend", spy)
+    res = parse_tex(tex)
     check_invariants(res, tex)
     for s in surfaces:
         if "~" in s:
             assert s.startswith("~"), s  # ~ 出现在 run 项内部 = 批化越界
 
 
-def test_over_chunkmax_single_run() -> None:
+def test_over_chunkmax_single_run(monkeypatch: pytest.MonkeyPatch) -> None:
     """>CHUNK_MAX 连续文本 run 单项化：切点 snap 到项尾——一段一 chunk。"""
     body = "Alpha " * 750 + "omega."  # ~4506 字符纯文本 run（单空格夹心）
     tex = DOC % body
-    res_new, res_old = _scan_pair(tex)
-    check_invariants(res_new, tex)
-    assert reconstruct(res_new) == tex
+    res_new, res_old = _scan_pair(tex, monkeypatch)
     # snap 到项界：批量化臂整 run 一个 chunk；逐 token 臂按项界前移切分
     assert len(res_new.chunks) == 1
     assert len(res_old.chunks) > len(res_new.chunks)
     assert res_new.chunks[0].content == body + " " or res_new.chunks[0].content == body
 
 
-def test_batch_actually_skips_tokenization() -> None:
+def test_batch_actually_skips_tokenization(monkeypatch: pytest.MonkeyPatch) -> None:
     """批量化真在推进：文本段内字符不物化 token——``Mouth.next`` 计数暴降。"""
     tex = DOC % ("word " * 60 + "end.")
     calls = 0
     orig_next = Mouth.next
-    orig_end = _MainLoop._text_run_end  # noqa: SLF001
 
     def spy(self: Mouth) -> object:
         nonlocal calls
         calls += 1
         return orig_next(self)
 
-    Mouth.next = spy  # type: ignore[method-assign]
-    try:
-        res_new = parse_tex(tex)
-        batched_calls = calls
-        calls = 0
-        _MainLoop._text_run_end = _force_off  # noqa: SLF001
-        res_old = parse_tex(tex)
-        base_calls = calls
-    finally:
-        Mouth.next = orig_next  # type: ignore[method-assign]
-        _MainLoop._text_run_end = orig_end  # noqa: SLF001
+    monkeypatch.setattr(Mouth, "next", spy)
+    res_new = parse_tex(tex)
+    batched_calls = calls
+    calls = 0
+    monkeypatch.setattr(_MainLoop, "_text_run_end", _force_off)
+    res_old = parse_tex(tex)
+    base_calls = calls
     assert _digest(res_new) == _digest(res_old)
     assert batched_calls < base_calls * 0.5  # 300+ token 文本段应省大半

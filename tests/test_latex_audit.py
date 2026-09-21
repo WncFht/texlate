@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 from _fuzzkit import fuzz_rng
-from conftest import DOC, blob, scan_doc
+from conftest import DOC, blob, ph_bodies, scan_doc
 
 from texlate.latex import parse_file, parse_tex, reconstruct
 from texlate.latex.flatten import flatten_inputs
@@ -643,7 +643,7 @@ def test_audit_minor_escaped_bracket_not_math_close() -> None:
     res = scan_doc(body)
     assert reconstruct(res) == DOC % body
     # \\[..\\] 整段一个 MATH 占位符——体含 \\] 残片
-    math_bodies = [v for k, v in res.ph_map.items() if k.startswith("[[MATH_")]
+    math_bodies = ph_bodies(res, "MATH")
     assert any("\\\\]" in v for v in math_bodies)
 
 

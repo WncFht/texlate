@@ -10,8 +10,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from _fixloopkit import mk_ctx_files
+
 from texlate.compile.fixloop._builtins_misc import graphics_include_strip
-from texlate.compile.fixloop.engine import LoopCtx
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -24,16 +25,8 @@ _MAIN = (
 )
 
 
-def _ctx(tmp_path: Path, files: dict[str, str], main: str = "main.tex") -> LoopCtx:
-    for rel, txt in files.items():
-        p = tmp_path / rel
-        p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(txt, encoding="utf-8")
-    return LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel=main)
-
-
 def test_eps_include_stripped(tmp_path: Path) -> None:
-    ctx = _ctx(tmp_path, {"main.tex": _MAIN})
+    ctx = mk_ctx_files(tmp_path, {"main.tex": _MAIN})
     ok, note = graphics_include_strip(ctx, None, None, {})
     assert ok, note
     out = (tmp_path / "main.tex").read_text(encoding="utf-8")
@@ -47,7 +40,7 @@ def test_tex_target_inputs_kept(tmp_path: Path) -> None:
         "\\input{chap1}\n\\include{chap2.tex}\n\\InputIfFileExists{chap3}{x}{y}\n"
         "\\end{document}\n"
     )
-    ctx = _ctx(tmp_path, {"main.tex": src})
+    ctx = mk_ctx_files(tmp_path, {"main.tex": src})
     ok, _note = graphics_include_strip(ctx, None, None, {})
     assert not ok
     assert (tmp_path / "main.tex").read_text(encoding="utf-8") == src
@@ -59,7 +52,7 @@ def test_all_gfx_exts_stripped(tmp_path: Path) -> None:
         "\\input{a.pdf} \\input{b.png} \\input{c.jpg} \\input{d.ps} \\input{e.svg}\n"
         "\\end{document}\n"
     )
-    ctx = _ctx(tmp_path, {"main.tex": src})
+    ctx = mk_ctx_files(tmp_path, {"main.tex": src})
     ok, note = graphics_include_strip(ctx, None, None, {})
     assert ok, note
     out = (tmp_path / "main.tex").read_text(encoding="utf-8")
@@ -74,7 +67,7 @@ def test_commented_and_verbatim_sites_untouched(tmp_path: Path) -> None:
         "\\begin{verbatim}\n\\input{inverb.png}\n\\end{verbatim}\n"
         "\\end{document}\n"
     )
-    ctx = _ctx(tmp_path, {"main.tex": src})
+    ctx = mk_ctx_files(tmp_path, {"main.tex": src})
     ok, _note = graphics_include_strip(ctx, None, None, {})
     assert not ok
     assert (tmp_path / "main.tex").read_text(encoding="utf-8") == src
@@ -86,8 +79,27 @@ def test_line_remainder_preserved(tmp_path: Path) -> None:
         "before \\input{fig.eps} after\n"
         "\\end{document}\n"
     )
-    ctx = _ctx(tmp_path, {"main.tex": src})
+    ctx = mk_ctx_files(tmp_path, {"main.tex": src})
     ok, _note = graphics_include_strip(ctx, None, None, {})
     assert ok
     out = (tmp_path / "main.tex").read_text(encoding="utf-8")
     assert "before  after" in out
+
+
+def test_gfx_exts_param_override_replaces_default(tmp_path: Path) -> None:
+    """``params.gfx_exts`` 整表顶替 ``_GFX_INPUT_EXTS`` (replace 非 union):
+
+    覆盖后 ``.xyz`` 进剥离面而默认 ``.eps`` 反而不再命中——钉死
+    ``params.get(key) or <default>`` 逃生舱的语义向。
+    """
+    src = (
+        "\\documentclass{article}\n\\begin{document}\n"
+        "\\input{a.xyz} \\input{b.eps}\n"
+        "\\end{document}\n"
+    )
+    ctx = mk_ctx_files(tmp_path, {"main.tex": src})
+    ok, note = graphics_include_strip(ctx, None, None, {"gfx_exts": {".xyz"}})
+    assert ok, note
+    out = (tmp_path / "main.tex").read_text(encoding="utf-8")
+    assert "a.xyz" not in out
+    assert "\\input{b.eps}" in out

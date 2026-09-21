@@ -108,14 +108,8 @@ class TestBackoff:
         assert out == "ok"
         assert calls["n"] == 2  # noqa: PLR2004 -- 第二试成功
 
-    def test_429_floor_and_retry_after(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_429_floor_and_retry_after(self, recorded_sleeps: list[float]) -> None:
         """429 → 3^attempt 且 ≥rate_limit_floor；Retry-After 从其值。"""
-        sleeps: list[float] = []
-
-        async def fake_sleep(d: float) -> None:
-            sleeps.append(d)
-
-        monkeypatch.setattr(asyncio, "sleep", fake_sleep)
 
         async def rate_limited() -> str:
             msg = "slow down"
@@ -127,9 +121,9 @@ class TestBackoff:
         with pytest.raises(RetryableHTTPError):
             asyncio.run(rt.call_with_backoff(rate_limited, policy=pol))
         # attempt0: max(5, 1·3^0)=5；attempt1: max(5, 1·3^1)=5
-        assert sleeps == [5.0, 5.0]
+        assert recorded_sleeps == [5.0, 5.0]
 
-        sleeps.clear()
+        recorded_sleeps.clear()
 
         async def retry_after_err() -> str:
             msg = "with header"
@@ -137,16 +131,9 @@ class TestBackoff:
 
         with pytest.raises(RetryableHTTPError):
             asyncio.run(rt.call_with_backoff(retry_after_err, policy=pol))
-        assert sleeps == [2.5, 2.5]
+        assert recorded_sleeps == [2.5, 2.5]
 
-    def test_timeout_floor(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        sleeps: list[float] = []
-
-        async def fake_sleep(d: float) -> None:
-            sleeps.append(d)
-
-        monkeypatch.setattr(asyncio, "sleep", fake_sleep)
-
+    def test_timeout_floor(self, recorded_sleeps: list[float]) -> None:
         async def slow() -> str:
             raise TimeoutError
 
@@ -155,7 +142,7 @@ class TestBackoff:
         )
         with pytest.raises(ChatError, match="timeout"):
             asyncio.run(rt.call_with_backoff(slow, policy=pol))
-        assert sleeps == [10.0]
+        assert recorded_sleeps == [10.0]
 
 
 class TestLadder:
@@ -459,8 +446,8 @@ def test_make_slots_bisects_long_prose() -> None:
     assert joined.replace("\n", "") == (seg + "tail words").replace("\n", "")
 
 
-def test_make_slots_short_prose_single_slot() -> None:
-    """短散文不切——回归原单槽行为。"""
+def test_make_slots_short_prose_unsplit() -> None:
+    """短散文不二分——每段散文 run 各成一槽（本例 ph 两侧两个 run → 两槽）。"""
     slots, seq = rt._make_slots("short prose [[MATH_1]] tail")  # noqa: SLF001
     assert len(slots) == 2  # noqa: PLR2004
     assert [k for k, _ in seq] == ["slot", "ph", "slot"]

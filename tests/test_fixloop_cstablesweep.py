@@ -21,24 +21,22 @@ PDFTEX_PRIMS + _PRIM_COUNTISH 双表; diagrams 双子 stub 补 Onto/Into
 
 from pathlib import Path
 
+from _fixloopkit import DOC, EngStub, mk_ctx, rule
+
 import texlate.compile.fixloop as _fixloop_mod
-from texlate.compile.fixloop import load_ruleset
 from texlate.compile.fixloop._builtins_common import PDFTEX_PRIMS
 from texlate.compile.fixloop._builtins_shim import _PRIM_COUNTISH
 from texlate.compile.fixloop.builtins import TRANSFORM_FNS
-from texlate.compile.fixloop.engine import LoopCtx
 
 _TARGETED = TRANSFORM_FNS["cs_targeted_fix"]
-_PARAMS = next(r for r in load_ruleset().rules if r.id == "cs_targeted_fix").action[
-    "params"
-]
+_PARAMS = rule("cs_targeted_fix").action["params"]
 _CSTABLE = _PARAMS["cs_table"]
 
 _STUB_DIR = Path(_fixloop_mod.__file__).parent / "vendor" / "stubs"
 
 
-class _EngStub:
-    """probe 恒命中 / install 恒成 —— usepackage 臂走通支路。"""
+class _EngStub(EngStub):
+    """probe 恒命中 / install 恒成 —— usepackage 臂走通支路（kit EngStub 恒 miss 的反语义）。"""
 
     def probe_file(self, fname: str, cwd: Path | None = None) -> str:
         del cwd
@@ -49,19 +47,13 @@ class _EngStub:
         return True
 
 
-def _ctx(tmp_path: Path) -> LoopCtx:
-    return LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel="main.tex")
-
-
 def _proj(tmp_path: Path, tex: str) -> None:
     (tmp_path / "main.tex").write_text(tex, encoding="utf-8")
 
 
 def _fix(tmp_path: Path, cs: str) -> tuple[bool, str]:
-    return _TARGETED(_ctx(tmp_path), _EngStub(), cs, _PARAMS)
+    return _TARGETED(mk_ctx(tmp_path), _EngStub(), cs, _PARAMS)
 
-
-_DOC = "\\documentclass{article}\n\\begin{document}\nx\n\\end{document}\n"
 
 #: 本批落表的 cs → 期望 spec 键 (epstopdf 为扩行, 非新行)。
 _EXPECTED_SPECS = {
@@ -107,7 +99,7 @@ def test_polyfill_bodies_carry_nl_prefix() -> None:
 
 def test_endproof_guard_form_not_providecommand(tmp_path: Path) -> None:
     """W151: ``end*`` 名走 ``\\ifdefined..\\else\\def`` 守卫, 非 providecommand。"""
-    _proj(tmp_path, _DOC)
+    _proj(tmp_path, DOC)
     ok, note = _fix(tmp_path, "endproof")
     assert ok, note
     text = (tmp_path / "main.tex").read_text(encoding="utf-8")
@@ -136,7 +128,7 @@ def test_z_csmap_typo_plus_deferred_provide(tmp_path: Path) -> None:
 
 def test_msg_expl3_csmap(tmp_path: Path) -> None:
     """``\\msg_term:n`` → ``\\iow_term:n``: ``:n`` 属 cs 名, 词界在 m 后。"""
-    tex = _DOC.replace("x", "\\ExplSyntaxOn\n\\msg_term:n{hi}\n\\ExplSyntaxOff")
+    tex = DOC.replace("x", "\\ExplSyntaxOn\n\\msg_term:n{hi}\n\\ExplSyntaxOff")
     _proj(tmp_path, tex)
     ok, _ = _fix(tmp_path, "msg")
     assert ok
@@ -147,7 +139,7 @@ def test_msg_expl3_csmap(tmp_path: Path) -> None:
 
 def test_bbb_csmap_spares_bbbk(tmp_path: Path) -> None:
     """``\\Bbb{R}`` → ``\\mathbb{R}``; 词界定 ``\\Bbbk`` 不误伤。"""
-    tex = _DOC.replace("x", "$\\Bbb{R}$ and $\\Bbbk$")
+    tex = DOC.replace("x", "$\\Bbb{R}$ and $\\Bbbk$")
     _proj(tmp_path, tex)
     ok, _ = _fix(tmp_path, "Bbb")
     assert ok
@@ -159,7 +151,7 @@ def test_bbb_csmap_spares_bbbk(tmp_path: Path) -> None:
 
 def test_line_usepackage_pict2e(tmp_path: Path) -> None:
     """axodraw ``\\Line`` → pict2e 原生同签名宏, 装真包臂。"""
-    _proj(tmp_path, _DOC)
+    _proj(tmp_path, DOC)
     ok, _ = _fix(tmp_path, "Line")
     assert ok
     text = (tmp_path / "main.tex").read_text(encoding="utf-8")
@@ -169,7 +161,7 @@ def test_line_usepackage_pict2e(tmp_path: Path) -> None:
 
 def test_epstopdf_extended_arm(tmp_path: Path) -> None:
     """epstopdf xelatex abort → usepackage + 3-cs polyfill 双臂。"""
-    _proj(tmp_path, _DOC)
+    _proj(tmp_path, DOC)
     ok, _ = _fix(tmp_path, "epstopdfDeclareGraphicsRule")
     assert ok
     text = (tmp_path / "main.tex").read_text(encoding="utf-8")
@@ -181,7 +173,7 @@ def test_epstopdf_extended_arm(tmp_path: Path) -> None:
 
 def test_transparent_gobble(tmp_path: Path) -> None:
     """transparent xelatex abort → 吞参 noop (装包臂不可达)。"""
-    _proj(tmp_path, _DOC)
+    _proj(tmp_path, DOC)
     ok, _ = _fix(tmp_path, "transparent")
     assert ok
     text = (tmp_path / "main.tex").read_text(encoding="utf-8")
@@ -191,7 +183,7 @@ def test_transparent_gobble(tmp_path: Path) -> None:
 
 def test_tfrac_dual_arm(tmp_path: Path) -> None:
     """amsmath 装包为主 + ``\\textstyle\\frac`` provide 兜底。"""
-    _proj(tmp_path, _DOC)
+    _proj(tmp_path, DOC)
     ok, _ = _fix(tmp_path, "tfrac")
     assert ok
     text = (tmp_path / "main.tex").read_text(encoding="utf-8")
@@ -201,7 +193,7 @@ def test_tfrac_dual_arm(tmp_path: Path) -> None:
 
 def test_hangcaption_dual_form(tmp_path: Path) -> None:
     """``\\hangcaption[short]{long}`` 可选首参双形。"""
-    _proj(tmp_path, _DOC)
+    _proj(tmp_path, DOC)
     ok, _ = _fix(tmp_path, "hangcaption")
     assert ok
     text = (tmp_path / "main.tex").read_text(encoding="utf-8")
@@ -210,7 +202,7 @@ def test_hangcaption_dual_form(tmp_path: Path) -> None:
 
 def test_htmladdnormallink_href_or_text(tmp_path: Path) -> None:
     """latex2html 宏 → ``\\href`` 在场真链, 缺席落锚文本。"""
-    _proj(tmp_path, _DOC)
+    _proj(tmp_path, DOC)
     ok, _ = _fix(tmp_path, "htmladdnormallink")
     assert ok
     text = (tmp_path / "main.tex").read_text(encoding="utf-8")
@@ -222,7 +214,7 @@ def test_refire_idempotent(tmp_path: Path) -> None:
     """二轮重火: usepackage 判重 + polyfill snippet 判重 → 文件幂等;
     arm probe 注记保 done 非空 → 返回 True 不落 guess (pgffix 升级后
     ``tikzset`` 挂 ``usepackage: tikz`` 臂, 与 letltxmacro 同语义)。"""
-    _proj(tmp_path, _DOC)
+    _proj(tmp_path, DOC)
     ok1, _ = _fix(tmp_path, "tikzset")
     assert ok1
     ok2, _ = _fix(tmp_path, "tikzset")

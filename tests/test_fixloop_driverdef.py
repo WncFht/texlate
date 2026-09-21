@@ -9,6 +9,7 @@ option `dvipdfmx'`` (fixloop 零命中, best_effort_pdf 52 错)。根修 = def �
 与括号剥词臂语义一致 (xetex 家族下这些驱动本就走不通)。
 """
 
+from collections.abc import Callable
 from pathlib import Path
 
 from texlate.compile.fixloop import actions, load_ruleset
@@ -39,21 +40,34 @@ def _ctx(tmp_path: Path, err_head: str = _DRV_ERR) -> LoopCtx:
     return ctx
 
 
-def _rule() -> Rule:
-    return next(r for r in load_ruleset().rules if r.id == "hyperref_driver_neutralize")
+def _lane(
+    rid: str,
+    pay: str | None,
+) -> tuple[
+    Callable[[], Rule],
+    Callable[[Path], tuple[bool, str]],
+    Callable[..., tuple[bool, str]],
+]:
+    """rid+payload 参数化的 ``_rule``/``_apply``/``_cond`` 三件套——driver 臂同构直驱面。"""
+
+    def _rule() -> Rule:
+        return next(r for r in load_ruleset().rules if r.id == rid)
+
+    def _apply(tmp_path: Path) -> tuple[bool, str]:
+        return actions._apply(  # noqa: SLF001 - 钉规则动作直驱
+            _rule(), _ctx(tmp_path), _Eng(), pay, ErrReport()
+        )
+
+    def _cond(tmp_path: Path, err_head: str = _DRV_ERR) -> tuple[bool, str]:
+        rule = _rule()
+        return actions._cond_ok(  # noqa: SLF001
+            rule.condition, rule, _ctx(tmp_path, err_head), _Eng(), pay
+        )
+
+    return _rule, _apply, _cond
 
 
-def _apply(tmp_path: Path) -> tuple[bool, str]:
-    return actions._apply(  # noqa: SLF001 - 钉规则动作直驱
-        _rule(), _ctx(tmp_path), _Eng(), "dvipdfmx", ErrReport()
-    )
-
-
-def _cond(tmp_path: Path, err_head: str = _DRV_ERR) -> tuple[bool, str]:
-    rule = _rule()
-    return actions._cond_ok(  # noqa: SLF001
-        rule.condition, rule, _ctx(tmp_path, err_head), _Eng(), "dvipdfmx"
-    )
+_rule, _apply, _cond = _lane("hyperref_driver_neutralize", "dvipdfmx")
 
 
 _KAIST_CLS = (
@@ -199,8 +213,13 @@ def test_driverdef_apply_whitespace_in_braces(tmp_path: Path) -> None:
 
 
 def test_driverdef_ruleset_loads() -> None:
-    rs = load_ruleset()
-    assert len(rs.rules) >= 113  # noqa: PLR2004 - 库规模断言
+    """本文件钉的三条 driver 规则全在库（规模地板已被甩开, 改在场钉）。"""
+    ids = {r.id for r in load_ruleset().rules}
+    assert {
+        "hyperref_driver_neutralize",
+        "pdftex_driver_opt_strip",
+        "iftex_engine_guard_neutralize",
+    } <= ids
 
 
 # ────────────────────────────────────────────────────────────────
@@ -211,21 +230,7 @@ def test_driverdef_ruleset_loads() -> None:
 # ────────────────────────────────────────────────────────────────
 
 
-def _opt_rule() -> Rule:
-    return next(r for r in load_ruleset().rules if r.id == "pdftex_driver_opt_strip")
-
-
-def _opt_apply(tmp_path: Path) -> tuple[bool, str]:
-    return actions._apply(  # noqa: SLF001 - 钉规则动作直驱
-        _opt_rule(), _ctx(tmp_path), _Eng(), "pdfcolorstack", ErrReport()
-    )
-
-
-def _opt_cond(tmp_path: Path) -> tuple[bool, str]:
-    rule = _opt_rule()
-    return actions._cond_ok(  # noqa: SLF001
-        rule.condition, rule, _ctx(tmp_path), _Eng(), "pdfcolorstack"
-    )
+_opt_rule, _opt_apply, _opt_cond = _lane("pdftex_driver_opt_strip", "pdfcolorstack")
 
 
 def test_pdftexopt_rule_registered() -> None:
@@ -446,23 +451,7 @@ def test_pdftexopt_apply_newcommand_non_driver_untouched(tmp_path: Path) -> None
 # ────────────────────────────────────────────────────────────────
 
 
-def _guard_rule() -> Rule:
-    return next(
-        r for r in load_ruleset().rules if r.id == "iftex_engine_guard_neutralize"
-    )
-
-
-def _guard_apply(tmp_path: Path) -> tuple[bool, str]:
-    return actions._apply(  # noqa: SLF001 - 钉规则动作直驱
-        _guard_rule(), _ctx(tmp_path), _Eng(), None, ErrReport()
-    )
-
-
-def _guard_cond(tmp_path: Path) -> tuple[bool, str]:
-    rule = _guard_rule()
-    return actions._cond_ok(  # noqa: SLF001
-        rule.condition, rule, _ctx(tmp_path), _Eng(), None
-    )
+_guard_rule, _guard_apply, _guard_cond = _lane("iftex_engine_guard_neutralize", None)
 
 
 def test_iftexguard_rule_registered() -> None:

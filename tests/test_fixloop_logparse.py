@@ -9,10 +9,10 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from _fixloopkit import mk_ctx, rule, when_cond_ok
 
 from texlate.compile.fixloop import Ruleset, actions, load_ruleset
-from texlate.compile.fixloop.actions import _cond_ok, _when_ok
-from texlate.compile.fixloop.engine import LoopCtx
+from texlate.compile.fixloop.actions import _when_ok
 from texlate.compile.logparse import (
     ErrReport,
     Taxonomy,
@@ -435,10 +435,9 @@ def test_undefined_color_backtick_reaches_fallback_rule(tmp_path: Path) -> None:
     log = "! Package xcolor Error: Undefined color `MAROON'."
     cat, pay = classify(log)
     assert (cat, pay) == ("undefined_color", "MAROON")
-    rule = next(r for r in _rs().rules if r.id == "undefined_color_fallback")
-    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel="main.tex")
-    ctx.err_head = log
-    assert _when_ok(rule.when, cat, pay, ctx)
+    r = rule("undefined_color_fallback")
+    ctx = mk_ctx(tmp_path, err_head=log)
+    assert _when_ok(r.when, cat, pay, ctx)
 
 
 def test_undefined_color_kernel_issuer_reaches_fallback_rule(
@@ -448,10 +447,9 @@ def test_undefined_color_kernel_issuer_reaches_fallback_rule(
     log = "! LaTeX Error: Undefined color `mygray'."
     cat, pay = classify(log)
     assert (cat, pay) == ("undefined_color", "mygray")
-    rule = next(r for r in _rs().rules if r.id == "undefined_color_fallback")
-    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel="main.tex")
-    ctx.err_head = log
-    assert _when_ok(rule.when, cat, pay, ctx)
+    r = rule("undefined_color_fallback")
+    ctx = mk_ctx(tmp_path, err_head=log)
+    assert _when_ok(r.when, cat, pay, ctx)
 
 
 def test_undefined_color_fallback_emits_braced_name(tmp_path: Path) -> None:
@@ -463,10 +461,10 @@ def test_undefined_color_fallback_emits_braced_name(tmp_path: Path) -> None:
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n\\begin{document}\nx\n\\end{document}\n"
     )
-    rule = next(r for r in _rs().rules if r.id == "undefined_color_fallback")
-    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel="main.tex")
+    r = rule("undefined_color_fallback")
+    ctx = mk_ctx(tmp_path)
     ok, note = actions._apply(  # noqa: SLF001 - 钉规则动作直驱
-        rule, ctx, None, "mygray", ErrReport()
+        r, ctx, None, "mygray", ErrReport()
     )
     assert ok, note
     t = (tmp_path / "main.tex").read_text()
@@ -484,22 +482,22 @@ def test_already_def_backtick_reaches_undefine_rule(tmp_path: Path) -> None:
     log = "! LaTeX Error: Command `\\Bbbk' already defined."
     cat, pay = classify(log)
     assert (cat, pay) == ("already_def", "Bbbk")
-    rule = next(r for r in _rs().rules if r.id == "already_def_undefine")
-    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel="main.tex")
-    ctx.err_head = "amssymb.sty:261: LaTeX Error: Command `\\Bbbk' already defined."
-    assert _when_ok(rule.when, cat, pay, ctx)
-    ok, why = _cond_ok(rule.condition, rule, ctx, None, pay)
-    assert ok, why
+    assert when_cond_ok(
+        "already_def_undefine",
+        cat,
+        pay,
+        "amssymb.sty:261: LaTeX Error: Command `\\Bbbk' already defined.",
+        tmp_path,
+    )
 
 
 def test_already_def_backtick_reaches_renew_rule(tmp_path: Path) -> None:
     """姊妹闸: ``already_def_newcmd_renew`` (75-syntax:111) 同样可接。"""
     log = "! LaTeX Error: Command `\\Bbbk' already defined."
     cat, pay = classify(log)
-    rule = next(r for r in _rs().rules if r.id == "already_def_newcmd_renew")
-    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel="main.tex")
-    ctx.err_head = log
-    assert _when_ok(rule.when, cat, pay, ctx)
+    r = rule("already_def_newcmd_renew")
+    ctx = mk_ctx(tmp_path, err_head=log)
+    assert _when_ok(r.when, cat, pay, ctx)
 
 
 def test_undefined_cs_subclassifies_pdftex_prim() -> None:

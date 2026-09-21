@@ -56,7 +56,12 @@ from typing import TYPE_CHECKING, Any
 
 import httpx
 import pytest
-from _fuzzkit import fuzz_rng
+from _fuzzkit import (
+    RecordingTranslator,
+    fuzz_rng,
+    soup_join,
+    strip_feedback_reply,
+)
 
 from texlate.textutil import residual_en_net
 from texlate.validate.l0 import validate_pair
@@ -171,7 +176,6 @@ _P_LC_SCALAR = 0.6
 
 _KINDS = ("para", "caption", "section_title", "abstract", "table_text", "env_text")
 
-_MOCK_NUM = re.compile(r"^\[\d+\]")
 _NL_RUN = re.compile(r"\n+")
 
 
@@ -193,15 +197,11 @@ def _oracle_nl_counts(s: str) -> tuple[int, int]:
     return sl, pl
 
 
-def _gen_soup_text(rng: random.Random, soup: list[str], lo: int, hi: int) -> str:
-    return "".join(rng.choice(soup) for _ in range(rng.randint(lo, hi)))
-
-
 def test_fuzz_newline_codec_roundtrip() -> None:
     """任意 soup 文本 round-trip 逐字节还原（归一化后）。"""
     rng = fuzz_rng(20261001)
     for _ in range(_FUZZ_ITERS):
-        s = _gen_soup_text(rng, _CODEC_SOUP, 0, 30)
+        s = soup_join(rng, _CODEC_SOUP, 0, 30)
         enc, _counts = ph.encode_newlines(s)
         assert ph.decode_newlines(enc) == _norm_nl(s), f"round-trip broke: {s!r}"
 
@@ -210,7 +210,7 @@ def test_fuzz_encode_counts_oracle() -> None:
     """``source_sl``/``source_pl`` 计数 == 独立 run 重放 oracle。"""
     rng = fuzz_rng(20261002)
     for _ in range(_FUZZ_ITERS):
-        s = _gen_soup_text(rng, _CODEC_SOUP, 0, 30)
+        s = soup_join(rng, _CODEC_SOUP, 0, 30)
         _enc, counts = ph.encode_newlines(s)
         sl, pl = _oracle_nl_counts(_norm_nl(s))
         assert (counts["source_sl"], counts["source_pl"]) == (sl, pl)
@@ -250,7 +250,7 @@ def test_fuzz_batch_encode_parse_roundtrip() -> None:
         contents = [
             s
             for _ in range(rng.randint(1, 8))
-            if (s := _gen_soup_text(rng, _CODEC_SOUP, 1, 8))
+            if (s := soup_join(rng, _CODEC_SOUP, 1, 8))
             # 独段 ``@@`` 成员上线即成残码行（剥除→段空→整批拒收），生成面排除
             and ph.encode_newlines(s)[0].strip() not in ("", "@@")
         ]
@@ -310,7 +310,7 @@ def test_fuzz_split_partition_oracle() -> None:
     rng = fuzz_rng(20261006)
     for _ in range(_FUZZ_ITERS_MED):
         limit = rng.choice([1, 3, 40, 120, 500])
-        text = _gen_soup_text(rng, _TEXT_SOUP, 1, 40)
+        text = soup_join(rng, _TEXT_SOUP, 1, 40)
         pieces = xb.split_long_chunk(text, max_chars=limit)
         assert pieces
         if len(text) <= limit:
@@ -332,11 +332,11 @@ def test_fuzz_diff_identity_clean_pool() -> None:
     """干净池（无 fuzzy 形）逐字拷贝 → ``ok``；永不在脏输入上抛。"""
     rng = fuzz_rng(20261007)
     for _ in range(_FUZZ_ITERS):
-        s = _gen_soup_text(rng, _TEXT_SOUP, 0, 25)
+        s = soup_join(rng, _TEXT_SOUP, 0, 25)
         d = ph.diff(s, s)
         assert d.ok, f"identity diff not ok: {s!r} -> {d.describe()}"
         # 脏 zh 侧不抛——diff 是不可信输入面
-        zh = _gen_soup_text(rng, _TEXT_SOUP, 0, 25)
+        zh = soup_join(rng, _TEXT_SOUP, 0, 25)
         ph.diff(s, zh)
 
 
@@ -379,7 +379,7 @@ def test_fuzz_is_placeholder_only_oracle() -> None:
 # ---------------------------------------------------------------- fault 驱动 pipeline
 
 
-class ScriptedTranslator:
+class ScriptedTranslator(RecordingTranslator):
     """内容驱动 fault 注入——行为只看 ``user`` 文本，与 asyncio 调度序无关。
 
     - marker → 对应异常（检查序 = AUTH→E500→E5XX→CRASH，批级连坐按此推）；
@@ -390,39 +390,18 @@ class ScriptedTranslator:
     """
 
     def __init__(self) -> None:
-        self.calls: list[str] = []
-
-    async def translate(
-        self,
-        *,
-        system: str,  # noqa: ARG002
-        user: str,
-        temperature: float,  # noqa: ARG002
-        max_tokens: int,  # noqa: ARG002
-        response_format: dict[str, str] | None = None,
-    ) -> str:
-        """按内容决定应答/异常。"""
-        self.calls.append(user)
-        if _M_AUTH in user:
-            msg = "denied"
-            raise AuthError(msg, status=401)
-        if _M_E500 in user:
-            msg = "boom500"
-            raise ChatError(msg, status=500, retryable=False)
-        if _M_E5XX in user:
-            msg = "boom5xx"
-            raise ChatError(msg, status=500, retryable=True)
-        if _M_CRASH in user:
-            msg = "scripted crash"
-            raise RuntimeError(msg)
-        if response_format is not None:
-            payload = json.loads(user)
-            slots = payload.get("slots") or {}
-            return json.dumps(dict.fromkeys(slots, ""), ensure_ascii=False)
-        lines = user.split("\n")
-        if lines and all(_MOCK_NUM.match(ln) for ln in lines if ln.strip()):
-            return user  # 批协议恒等回显——parse 后 decode 回原文
-        return user.split("\n\n[previous_validation_error]", maxsplit=1)[0]
+        super().__init__(
+            record="user",
+            markers=[
+                (_M_AUTH, AuthError("denied", status=401)),
+                (_M_E500, ChatError("boom500", status=500, retryable=False)),
+                (_M_E5XX, ChatError("boom5xx", status=500, retryable=True)),
+                (_M_CRASH, RuntimeError("scripted crash")),
+            ],
+            slots_fill="",
+            batch_match="lines",
+            single_fn=strip_feedback_reply,
+        )
 
 
 def _fuzz_validator(src: str, zh: str) -> str:
@@ -449,14 +428,14 @@ def _gen_doc(rng: random.Random, base: int) -> list[ChunkIn]:
                 for _ in range(rng.randint(1, 3))
             )
         elif r < _P_PURE + _P_BIB:
-            content = f"[[BIB_{rng.randint(1, 9)}]] " + _gen_soup_text(
+            content = f"[[BIB_{rng.randint(1, 9)}]] " + soup_join(
                 rng, _TEXT_SOUP, 2, 8
             )
         elif r < _P_PURE + _P_BIB + _P_LONG:
-            body = _gen_soup_text(rng, _TEXT_SOUP, 20, 60) + " tail."
+            body = soup_join(rng, _TEXT_SOUP, 20, 60) + " tail."
             content = body * (600 // max(1, len(body)) + 1)
         else:
-            content = _gen_soup_text(rng, _TEXT_SOUP, 1, 10)
+            content = soup_join(rng, _TEXT_SOUP, 1, 10)
             if rng.random() < _P_MARKER:
                 content += rng.choice(_MARKERS)
         if not ph.is_placeholder_only(content.strip()):
@@ -817,7 +796,7 @@ def test_fuzz_redact_key_forms() -> None:
     rng = fuzz_rng(20261018)
     for _ in range(500):
         key = f"sk-{rng.randbytes(8).hex()}"
-        text = _gen_soup_text(rng, _TEXT_SOUP, 0, 6) + key + " tail"
+        text = soup_join(rng, _TEXT_SOUP, 0, 6) + key + " tail"
         assert key not in redact(text, key)
 
 
@@ -828,7 +807,7 @@ def test_fuzz_segment_key_oracle() -> None:
     """``segment_key`` == 独立材料拼装的 sha256；逐成分敏感。"""
     rng = fuzz_rng(20261013)
     for _ in range(_FUZZ_ITERS_MED):
-        src = _gen_soup_text(rng, _TEXT_SOUP, 0, 12)
+        src = soup_join(rng, _TEXT_SOUP, 0, 12)
         role = rng.choice(["", "para", "caption"])
         tags = [rng.choice(["accent", "decl", "ord"]) for _ in range(rng.randint(0, 3))]
         snap = rng.choice(["", "[]", "['MATH']"])

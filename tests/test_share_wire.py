@@ -18,20 +18,12 @@ import pytest
 pytest.importorskip("fastapi", reason="server extra 未装")
 pytest.importorskip("starlette.testclient", reason="server extra 未装")
 
-from conftest import (
-    MINI_TEX,
-    FakeEngine,
-    FakeFetcher,
-    make_app,
-    make_targz,
-    wait_terminal,
-)
+from _sharekit import mk_share_apps, share_parts
+from conftest import wait_terminal
 from starlette.testclient import TestClient
 
-from texlate.arxiv.cache import SourceCache
-from texlate.server.worker import PIPELINE_VERSION, share_pack_publish
+from texlate.server.worker import share_pack_publish
 from texlate.xlat.pipeline import MockTranslator
-from texlate.xlat.prompts import PROMPT_VERSION
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -46,27 +38,9 @@ def _apps(
     tmp_path: Path,
     consumer_mock: MockTranslator,
 ) -> tuple[FastAPI, FastAPI, Path, Path]:
-    """生产/消费双 app——独立 data_dir + SourceCache，同一 FakeFetcher 载荷。
-
-    消费端 translator 注入共享 ``consumer_mock``——零 token 断言数其调用。
-    """
-    prod = make_app(
-        tmp_path / "pa",
-        start_worker=True,
-        translator_factory=lambda _ctx: MockTranslator(),
-        engine_factory=lambda _name: FakeEngine(),
-        fetcher=FakeFetcher(make_targz({"main.tex": MINI_TEX})),
-        source_cache=SourceCache(tmp_path / "pa" / "src-cache"),
-    )
-    cons = make_app(
-        tmp_path / "pb",
-        start_worker=True,
-        translator_factory=lambda _ctx: consumer_mock,
-        engine_factory=lambda _name: FakeEngine(),
-        fetcher=FakeFetcher(make_targz({"main.tex": MINI_TEX})),
-        source_cache=SourceCache(tmp_path / "pb" / "src-cache"),
-    )
-    return prod, cons, tmp_path / "pa" / "data", tmp_path / "pb" / "data"
+    """``mk_share_apps`` 薄壳——消费端 translator 注入共享 ``consumer_mock``，
+    零 token 断言数其调用。"""
+    return mk_share_apps(tmp_path, cons_mock=consumer_mock)
 
 
 @pytest.fixture
@@ -87,18 +61,14 @@ def _seed_index(pa: TestClient, pa_dir: Path, pb_dir: Path) -> dict:
     assert r.status_code == HTTPStatus.ACCEPTED, r.text
     snap = wait_terminal(pa, r.json()["task_id"])
     assert snap["status"] == "done", snap
-    parts = {
-        "arxiv_id": _ARXIV,
-        "version": "v1",
-        "model": snap["model"],
-        "prompt_ver": PROMPT_VERSION,
-        "target_lang": snap["target_lang"],
-        "glossary_hash": "",
-        # 生产端默认 fm={abstract,title}（parse 写回后 manifest 同口径）
-        # ——消费端键组分含 fm，seed 不带此键必 miss
-        "front_matter": "abstract,title",
-        "pipeline_ver": PIPELINE_VERSION,
-    }
+    # 生产端默认 fm={abstract,title}（parse 写回后 manifest 同口径）
+    # ——消费端键组分含 fm，seed 不带此键必 miss
+    parts = share_parts(
+        arxiv_id=_ARXIV,
+        version="v1",
+        model=snap["model"],
+        target_lang=snap["target_lang"],
+    )
     tdir = pa_dir / "tasks" / str(snap["task_id"])
     share_pack_publish(tdir, parts, pb_dir / "share")
     return snap
@@ -200,14 +170,6 @@ class TestImplicitShareHit:
         """键命中但对账零命中（包与本源不对应）→ 摘标记回退自译——不替用户拒包。"""
         mock = MockTranslator()
         # 生产端源 = MINI_TEX；消费端源 = 完全不同的工程 → 对账必零命中
-        prod = make_app(
-            tmp_path / "pa",
-            start_worker=True,
-            translator_factory=lambda _ctx: MockTranslator(),
-            engine_factory=lambda _name: FakeEngine(),
-            fetcher=FakeFetcher(make_targz({"main.tex": MINI_TEX})),
-            source_cache=SourceCache(tmp_path / "pa" / "src-cache"),
-        )
         other_tex = (
             "\\documentclass{article}\n"
             "\\begin{document}\n"
@@ -215,16 +177,11 @@ class TestImplicitShareHit:
             "Completely unrelated content that shares no chunks at all.\n"
             "\\end{document}\n"
         )
-        cons = make_app(
-            tmp_path / "pb",
-            start_worker=True,
-            translator_factory=lambda _ctx: mock,
-            engine_factory=lambda _name: FakeEngine(),
-            fetcher=FakeFetcher(make_targz({"main.tex": other_tex})),
-            source_cache=SourceCache(tmp_path / "pb" / "src-cache"),
+        prod, cons, pa_dir, pb_dir = mk_share_apps(
+            tmp_path, cons_mock=mock, cons_tex=other_tex
         )
         with TestClient(prod) as pa, TestClient(cons) as pb:
-            snap = _seed_index(pa, tmp_path / "pa" / "data", tmp_path / "pb" / "data")
+            snap = _seed_index(pa, pa_dir, pb_dir)
             hit = _request(pb, snap["model"])
             assert hit["status"] == "done", hit
             assert len(mock.calls) > 0

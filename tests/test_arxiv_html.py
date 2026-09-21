@@ -3,9 +3,11 @@ from http import HTTPStatus
 import httpx
 import pytest
 from bs4 import BeautifulSoup
+from conftest import FakeClock, mk_fetcher
 
-from texlate.arxiv.fetch import Fetcher
 from texlate.arxiv.html import (
+    HtmlBlock,
+    HtmlDoc,
     HtmlFetchError,
     HtmlNotAvailableError,
     doc_chunks,
@@ -14,31 +16,6 @@ from texlate.arxiv.html import (
     parse_arxiv_html,
     reinsert,
 )
-from texlate.arxiv.ratelimit import RateLimiter
-
-
-class _Clock:
-    """注入限速器的假时钟：sleep 即前进。"""
-
-    def __init__(self) -> None:
-        self.t = 1_700_000_000.0
-
-    def now(self) -> float:
-        return self.t
-
-    def sleep(self, d: float) -> None:
-        self.t += d
-
-
-def _fetcher(handler: httpx.MockTransport, clk: _Clock) -> Fetcher:
-    client = httpx.Client(transport=handler)
-    return Fetcher(
-        RateLimiter(clock=clk.now, sleep=clk.sleep),
-        client=client,
-        hosts=("arxiv.org", "export.arxiv.org"),
-        sleep=clk.sleep,
-    )
-
 
 #: 手工小样本——覆盖 para/title/abstract/keywords/caption/bibitem/figure/
 #: math/cite/ref/note/listing/pagination + article 外 chrome。
@@ -81,8 +58,13 @@ FIXTURE = """<!DOCTYPE html><html><body>
 MIN_CHUNKS = 10
 
 
-def _doc() -> object:
+def _doc() -> HtmlDoc:
     return parse_arxiv_html(FIXTURE, arxiv_id="2501.00001")
+
+
+def _block(doc: HtmlDoc, key: str) -> HtmlBlock:
+    """``doc.blocks`` 按 key 取块——找不到即 StopIteration（断言即查找失败）。"""
+    return next(b for b in doc.blocks if b.key == key)
 
 
 def _ctx_seq() -> list[tuple[str, str]]:
@@ -126,7 +108,7 @@ def test_title_contexts() -> None:
 
 def test_math_placeholder_roundtrip() -> None:
     doc = _doc()
-    abs_block = next(b for b in doc.blocks if b.key == "abs1.1")
+    abs_block = _block(doc, "abs1.1")
     assert "[[MATH_" in abs_block.text
     assert "x^2" not in abs_block.text
     tok = abs_block.text.split("[[")[1].split("]]")[0]
@@ -139,7 +121,7 @@ def test_math_placeholder_roundtrip() -> None:
 
 def test_display_eq_token_in_para() -> None:
     doc = _doc()
-    p2 = next(b for b in doc.blocks if b.key == "S1.p2")
+    p2 = _block(doc, "S1.p2")
     assert "Before eq." in p2.text
     assert "After eq" in p2.text
     assert "[[MATH_" in p2.text
@@ -150,7 +132,7 @@ def test_display_eq_token_in_para() -> None:
 
 def test_cite_ref_extlink() -> None:
     doc = _doc()
-    p1 = next(b for b in doc.blocks if b.key == "S1.p1")
+    p1 = _block(doc, "S1.p1")
     assert "[[CITE_" in p1.text
     assert "[[REF_" in p1.text
     assert "Doe, 2020" not in p1.text  # cite 渲染文本被保护
@@ -159,17 +141,17 @@ def test_cite_ref_extlink() -> None:
 
 def test_error_cmd_token() -> None:
     doc = _doc()
-    p3 = next(b for b in doc.blocks if b.key == "S1.p3")
+    p3 = _block(doc, "S1.p3")
     assert "[[CMD_" in p3.text
     assert "\\badcmd" not in p3.text
 
 
 def test_footnote_block() -> None:
     doc = _doc()
-    fn = next(b for b in doc.blocks if b.key == "fn1")
+    fn = _block(doc, "fn1")
     assert fn.context == "footnote"
     assert fn.text == "Note text here."
-    p2 = next(b for b in doc.blocks if b.key == "S1.p2")
+    p2 = _block(doc, "S1.p2")
     assert "[[NOTE_" in p2.text
 
 
@@ -185,7 +167,7 @@ def test_caption_inside_figure() -> None:
 def test_support_blocks_no_text() -> None:
     doc = _doc()
     for key, ctx in [("bib.b1", "bibitem"), ("S2.F1", "figure"), ("S2.L1", "listing")]:
-        b = next(b for b in doc.blocks if b.key == key)
+        b = _block(doc, key)
         assert b.context == ctx
         assert b.text == ""
 
@@ -229,10 +211,10 @@ def test_keywords_block() -> None:
 
 def test_item_para_text() -> None:
     doc = _doc()
-    item = next(b for b in doc.blocks if b.key == "S1.i1.p1")
+    item = _block(doc, "S1.i1.p1")
     assert item.text == "Item text one."
     # 宿主 para 不吞 item 文本
-    p2 = next(b for b in doc.blocks if b.key == "S1.p2")
+    p2 = _block(doc, "S1.p2")
     assert "Item text" not in p2.text
 
 
@@ -275,7 +257,7 @@ def test_fallback_title_titlepage() -> None:
     assert title.text == "Old Style Title With [[MATH_2]] Math"
     assert doc.title == "Old Style Title With Q 2 Q^2 Math"
     # 宿主 p 只留 {centering} CMD token——标题文本不双计
-    host = next(b for b in doc.blocks if b.key == "id1.2")
+    host = _block(doc, "id1.2")
     assert host.text == "[[CMD_1]]"
     # titlepage 其余 p 仍按 para 产出
     keys = [b.key for b in doc.blocks]
@@ -289,7 +271,7 @@ def test_fallback_title_logical_block() -> None:
     assert title.key == "p1.1.1"
     assert title.text == "ALL CAPS OLD TITLE"
     assert doc.title == "ALL CAPS OLD TITLE"
-    host = next(b for b in doc.blocks if b.key == "p1")
+    host = _block(doc, "p1")
     assert "ALL CAPS" not in host.text
     assert "A. AUTHOR, B. AUTHOR" in host.text
 
@@ -334,7 +316,7 @@ def test_fetch_ok_versioned() -> None:
         seen.append(str(req.url))
         return httpx.Response(200, text=FIXTURE)
 
-    f = _fetcher(httpx.MockTransport(handler), _Clock())
+    f = mk_fetcher(httpx.MockTransport(handler), FakeClock())
     out = fetch_html("2501.12948v2", fetcher=f)
     assert "ltx_document" in out
     assert "/html/2501.12948v2" in seen[0]
@@ -344,7 +326,7 @@ def test_fetch_404() -> None:
     def handler(_req: httpx.Request) -> httpx.Response:
         return httpx.Response(404, text="withdrawn")
 
-    f = _fetcher(httpx.MockTransport(handler), _Clock())
+    f = mk_fetcher(httpx.MockTransport(handler), FakeClock())
     with pytest.raises(HtmlNotAvailableError) as ei:
         fetch_html("cond-mat/0501286", fetcher=f)
     assert ei.value.status == HTTPStatus.NOT_FOUND
@@ -356,7 +338,7 @@ def test_fetch_stub_200() -> None:
             200, text="<html><body>no html for this paper</body></html>"
         )
 
-    f = _fetcher(httpx.MockTransport(handler), _Clock())
+    f = mk_fetcher(httpx.MockTransport(handler), FakeClock())
     with pytest.raises(HtmlNotAvailableError) as ei:
         fetch_html("1501.00001", fetcher=f)
     assert ei.value.status == HTTPStatus.OK
@@ -366,7 +348,7 @@ def test_fetch_other_status() -> None:
     def handler(_req: httpx.Request) -> httpx.Response:
         return httpx.Response(403, text="forbidden")
 
-    f = _fetcher(httpx.MockTransport(handler), _Clock())
+    f = mk_fetcher(httpx.MockTransport(handler), FakeClock())
     with pytest.raises(HtmlFetchError) as ei:
         fetch_html("1501.00001", fetcher=f)
     assert ei.value.status == HTTPStatus.FORBIDDEN
@@ -382,7 +364,7 @@ def test_fetch_transport_retry() -> None:
             raise httpx.ConnectError(msg, request=req)
         return httpx.Response(200, text=FIXTURE)
 
-    f = _fetcher(httpx.MockTransport(handler), _Clock())
+    f = mk_fetcher(httpx.MockTransport(handler), FakeClock())
     assert "ltx_document" in fetch_html("1501.00001", fetcher=f)
     assert calls["n"] == 2  # noqa: PLR2004 -- 重试 1 次后成功，断言即调用计数
 
@@ -391,7 +373,7 @@ def test_fetch_bad_id() -> None:
     def handler(_req: httpx.Request) -> httpx.Response:
         return httpx.Response(500)
 
-    f = _fetcher(httpx.MockTransport(handler), _Clock())
+    f = mk_fetcher(httpx.MockTransport(handler), FakeClock())
     with pytest.raises(ValueError, match="bad arxiv id"):
         fetch_html("../etc/passwd", fetcher=f)
 
@@ -400,7 +382,7 @@ def test_fetch_parse_integration() -> None:
     def handler(_req: httpx.Request) -> httpx.Response:
         return httpx.Response(200, text=FIXTURE)
 
-    f = _fetcher(httpx.MockTransport(handler), _Clock())
+    f = mk_fetcher(httpx.MockTransport(handler), FakeClock())
     doc = parse_arxiv_html(fetch_html("1501.00001", fetcher=f))
     chunks = doc_chunks(doc)
     assert len(chunks) >= MIN_CHUNKS
@@ -434,11 +416,11 @@ def test_marked_html_no_article() -> None:
 
 
 def test_parse_arxiv_html_unchanged_after_extract() -> None:
-    """_enumerate_blocks 抽取回归哨：parse 产物与重构前快照逐字段等价。"""
+    """_enumerate_blocks 抽取回归哨：钉住块 (key, context) 序位与 footnote 相邻。"""
     doc = _doc()
-    got = [(b.key, b.context, b.text, sorted(b.ph)) for b in doc.blocks]
-    # 关键序位与文本快照（FIXTURE 改动时同步更新——锁的是枚举语义不是样本）
-    assert got[0][:2] == ("b1", "title")
-    assert got[1][:2] == ("b2", "authors")
+    got = [(b.key, b.context) for b in doc.blocks]
+    # 关键序位抽查（FIXTURE 改动时同步更新——锁的是枚举语义不是样本）
+    assert got[0] == ("b1", "title")
+    assert got[1] == ("b2", "authors")
     keys = [g[0] for g in got]
     assert keys.index("fn1") == keys.index("S1.p2") + 1  # footnote 紧跟宿主

@@ -53,26 +53,35 @@ def _make_docx(path: Path, paras: list[tuple[str, str | None]]) -> Path:
     return path
 
 
-def _inject_footnotes(path: Path) -> None:
-    """给已存 docx 追加 ``word/footnotes.xml`` part（content-type + rel 全配）。"""
+def _zip_rewrite(path: Path, mutate: Callable[[dict[str, bytes]], None]) -> None:
+    """整包读出 → ``mutate(members)`` 原地改成员字典 → 全量 DEFLATE 写回。"""
     with zipfile.ZipFile(path) as z:
         members = {i.filename: z.read(i) for i in z.infolist()}
-    ct = (
-        members["[Content_Types].xml"]
-        .decode("utf-8")
-        .replace("</Types>", f"{_FOOTNOTE_CT}</Types>")
-    )
-    rels = (
-        members["word/_rels/document.xml.rels"]
-        .decode("utf-8")
-        .replace("</Relationships>", f"{_FOOTNOTE_REL}</Relationships>")
-    )
-    members["[Content_Types].xml"] = ct.encode("utf-8")
-    members["word/_rels/document.xml.rels"] = rels.encode("utf-8")
-    members["word/footnotes.xml"] = FOOTNOTES_XML.encode("utf-8")
+    mutate(members)
     with zipfile.ZipFile(path, "w") as z:
         for name, blob in members.items():
             z.writestr(name, blob, compress_type=zipfile.ZIP_DEFLATED)
+
+
+def _inject_footnotes(path: Path) -> None:
+    """给已存 docx 追加 ``word/footnotes.xml`` part（content-type + rel 全配）。"""
+
+    def _add(members: dict[str, bytes]) -> None:
+        ct = (
+            members["[Content_Types].xml"]
+            .decode("utf-8")
+            .replace("</Types>", f"{_FOOTNOTE_CT}</Types>")
+        )
+        rels = (
+            members["word/_rels/document.xml.rels"]
+            .decode("utf-8")
+            .replace("</Relationships>", f"{_FOOTNOTE_REL}</Relationships>")
+        )
+        members["[Content_Types].xml"] = ct.encode("utf-8")
+        members["word/_rels/document.xml.rels"] = rels.encode("utf-8")
+        members["word/footnotes.xml"] = FOOTNOTES_XML.encode("utf-8")
+
+    _zip_rewrite(path, _add)
 
 
 class _EchoTranslator:
@@ -278,12 +287,11 @@ def test_header_part_translated(tmp_path: Path) -> None:
 
 def _rewrite_member(path: Path, name: str, transform: Callable[[bytes], bytes]) -> None:
     """把 zip 成员 ``name`` 读出 → ``transform(bytes)->bytes`` → 原样写回。"""
-    with zipfile.ZipFile(path) as z:
-        members = {i.filename: z.read(i) for i in z.infolist()}
-    members[name] = transform(members[name])
-    with zipfile.ZipFile(path, "w") as z:
-        for n, blob in members.items():
-            z.writestr(n, blob, compress_type=zipfile.ZIP_DEFLATED)
+
+    def _mutate(members: dict[str, bytes]) -> None:
+        members[name] = transform(members[name])
+
+    _zip_rewrite(path, _mutate)
 
 
 def test_no_body_rejected(tmp_path: Path) -> None:

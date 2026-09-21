@@ -52,6 +52,7 @@ from _fuzzkit import (
     soup_pick,
     write_findings,
 )
+from conftest import text_of
 
 from texlate.latex.gullet import Gullet
 from texlate.latex.tables import MAX_INPUTS
@@ -135,15 +136,6 @@ _FNAME_SOUP = [
 
 
 # ---------------------------------------------------------------- 小件
-
-
-def _surf(ts: list[Tok]) -> str:
-    """展开 token 流表面文本（``consumed`` marker 是事件非文本）。"""
-    return "".join(
-        ("\\" + t.text) if t.kind == "cs" else t.text
-        for t in ts
-        if t.kind != "consumed"
-    )
 
 
 def _drive(g: Gullet, cap: int = _TOKEN_CAP) -> list[Tok]:
@@ -370,7 +362,7 @@ def test_fuzz_random_graph_closure(tmp_path: Path) -> None:
         entry = soup_pick(rng, [*pool, "missing_entry"])
         g = Gullet(f"\\input{{{entry}}}", root_dir=str(root))
         ts = _drive(g)
-        surf = _surf(ts)
+        surf = text_of(ts)
         assert "SECRET-NEVER" not in surf, short(entry)
         for w in g.warnings:
             assert w.kind == "missing_input", short((entry, w.kind, w.detail))
@@ -407,7 +399,7 @@ def test_fuzz_depth_gate_cutoff(tmp_path: Path) -> None:
             nxt = f"\\input{{f{j + 1}}}" if j + 1 < depth else ""
             _mkfile(root / f"f{j}.tex", f"C{j} {nxt} E{j}")
         g = Gullet("\\input{f0}", root_dir=str(root))
-        surf = _surf(_drive(g))
+        surf = text_of(_drive(g))
         landed = min(depth, MAX_INPUTS)
         for j in range(landed):
             assert f"C{j}" in surf, short((depth, j))
@@ -429,12 +421,12 @@ def test_fuzz_sibling_reinclude(tmp_path: Path) -> None:
         _mkfile(root / "c.tex", f"CHILD{i}X")
         k = rng.randint(1, 4)
         src = " mid ".join("\\input{c}" for _ in range(k))
-        surf = _surf(_drive(Gullet(src, root_dir=str(root))))
+        surf = text_of(_drive(Gullet(src, root_dir=str(root))))
         assert surf.count(f"CHILD{i}X") == k, short(src)
         # 双亲同包含：p/q 各 \input{c} → 兄弟位两侧各进一次
         _mkfile(root / "p.tex", "P \\input{c} P2")
         _mkfile(root / "q.tex", "Q \\input{c} Q2")
-        surf2 = _surf(_drive(Gullet("\\input{p} \\input{q}", root_dir=str(root))))
+        surf2 = text_of(_drive(Gullet("\\input{p} \\input{q}", root_dir=str(root))))
         assert surf2.count(f"CHILD{i}X") == 2, short(surf2)  # noqa: PLR2004 -- p/q 双亲各进一次
 
 
@@ -483,11 +475,11 @@ def test_fuzz_input_forms_hit_miss(tmp_path: Path) -> None:
         ]
         form, miss, expected = soup_pick(rng, cases)
         g = Gullet(form, root_dir=str(root))
-        surf = _surf(_drive(g))
+        surf = text_of(_drive(g))
         assert expected in surf, short((form, surf))
         assert not any(w.kind == "missing_input" for w in g.warnings), short(form)
         g2 = Gullet(miss, root_dir=str(root))
-        surf2 = _surf(_drive(g2))
+        surf2 = text_of(_drive(g2))
         assert any(w.kind == "missing_input" for w in g2.warnings), short(miss)
         assert expected not in surf2
 
@@ -518,7 +510,7 @@ def test_fuzz_filename_shapes(tmp_path: Path) -> None:
         fname = soup_pick(rng, [*list(shapes), "inner/../a b", "inner//sib"])
         g = Gullet(f"\\input{{{fname}}}", root_dir=str(root))
         ts = _drive(g)
-        surf = _surf(ts)
+        surf = text_of(ts)
         want = _oracle_resolve(fname, str(root), str(root), str(root))
         if want is None:
             assert any(w.kind == "missing_input" for w in g.warnings), short(fname)
@@ -556,7 +548,7 @@ class TestContractCorners:
         _mkfile(tmp_path / "a.tex", "AA \\input{b} A2")
         _mkfile(tmp_path / "b.tex", "BB \\input{c} B2")
         _mkfile(tmp_path / "c.tex", "CC")
-        surf = _surf(_drive(Gullet("\\input{a}", root_dir=str(tmp_path))))
+        surf = text_of(_drive(Gullet("\\input{a}", root_dir=str(tmp_path))))
         assert surf.index("AA") < surf.index("BB") < surf.index("CC")
         assert surf.index("CC") < surf.index("B2") < surf.index("A2")
 
@@ -565,7 +557,7 @@ class TestContractCorners:
         _mkfile(tmp_path / "a.tex", "Aa \\input{b} a2")
         _mkfile(tmp_path / "b.tex", "Bb \\input{a} b2")
         g = Gullet("\\input{a}", root_dir=str(tmp_path))
-        surf = _surf(_drive(g))
+        surf = text_of(_drive(g))
         assert "Bb" in surf
         assert "\\input{a}" in surf
         assert not g.warnings  # 断环不告警——与缺件路径不对称（观察钉）
@@ -576,7 +568,7 @@ class TestContractCorners:
         _mkfile(main, "M \\input{main} E")
         g = Gullet(root_dir=str(tmp_path))
         g.push_source(main.read_text(encoding="utf-8"), str(main))
-        surf = _surf(_drive(g))
+        surf = text_of(_drive(g))
         assert "\\input{main}" in surf
         assert not g.warnings
 
@@ -584,34 +576,34 @@ class TestContractCorners:
         r"""命中目录 → ``read_bytes`` OSError → ``missing_input`` + 本体回吐。"""
         (tmp_path / "adir").mkdir()
         g = Gullet("\\input{adir}", root_dir=str(tmp_path))
-        surf = _surf(_drive(g))
+        surf = text_of(_drive(g))
         assert any(w.kind == "missing_input" for w in g.warnings)
         assert "\\input{adir}" in surf
 
     def test_cs_name_passthrough_silent(self, tmp_path: Path) -> None:
         r"""``\input{\jobname}`` 计算式名 → 静默回吐（不计 missing_input）。"""
         g = Gullet("\\input{\\jobname}", root_dir=str(tmp_path))
-        surf = _surf(_drive(g))
+        surf = text_of(_drive(g))
         assert "\\input" in surf
         assert not g.warnings
 
     def test_empty_group_passthrough_silent(self, tmp_path: Path) -> None:
         r"""``\input{}`` 空名 → 静默回吐。"""
         g = Gullet("\\input{}", root_dir=str(tmp_path))
-        assert "\\input{}" in _surf(_drive(g))
+        assert "\\input{}" in text_of(_drive(g))
         assert not g.warnings
 
     def test_unclosed_group_passthrough_silent(self, tmp_path: Path) -> None:
         r"""``\input{a`` 流尽未闭 → ``ArgMismatch`` 回吐，静默。"""
         g = Gullet("\\input{a", root_dir=str(tmp_path))
-        surf = _surf(_drive(g))
+        surf = text_of(_drive(g))
         assert "\\input" in surf
         assert not g.warnings
 
     def test_no_roots_always_miss(self) -> None:
         r"""内存源 + 全空根集 → 恒 miss：``missing_input`` + 本体回吐。"""
         g = Gullet("\\input{x}")
-        surf = _surf(_drive(g))
+        surf = text_of(_drive(g))
         assert any(w.kind == "missing_input" for w in g.warnings)
         assert "\\input{x}" in surf
 
@@ -619,7 +611,7 @@ class TestContractCorners:
         r"""观察钉：``\input{nodir/foo}`` → basename 回退命中 ``root/foo.tex``。"""
         _mkfile(tmp_path / "foo.tex", "BASE-LIFT")
         g = Gullet("\\input{nodir/foo}", root_dir=str(tmp_path))
-        surf = _surf(_drive(g))
+        surf = text_of(_drive(g))
         assert "BASE-LIFT" in surf
         assert not g.warnings
 
@@ -627,7 +619,7 @@ class TestContractCorners:
         r"""观察钉：``\InputIfFileExists`` 命中后 ``{then}{else}`` 双组留流面。"""
         _mkfile(tmp_path / "h.tex", "HH")
         g = Gullet("\\InputIfFileExists{h}{YES}{NO}", root_dir=str(tmp_path))
-        surf = _surf(_drive(g))
+        surf = text_of(_drive(g))
         assert "HH" in surf
         assert "{YES}{NO}" in surf
         assert not g.warnings

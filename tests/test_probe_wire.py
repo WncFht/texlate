@@ -9,21 +9,23 @@ missing 集与路由信号进 log 事件、``rep.flags`` 透传 ``compile(flags=
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
+from conftest import FakeEngine
 
 pytest.importorskip("fastapi", reason="server extra 未装")
 
 from texlate.compile.ctan import TlpdbIndex
-from texlate.compile.engine import CompRes
 from texlate.server.events import EventBus
 from texlate.server.store import Store
 from texlate.server.worker import PipelineWorker, Secrets, TaskCtx
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterable
+    from collections.abc import Iterable
+    from pathlib import Path
+
+    from texlate.compile.engine import CompRes
 
 #: minted → ``-shell-escape`` flag；ghostpkg 本地/tlpdb 两空 → missing
 _TEX_MINTED = (
@@ -56,46 +58,36 @@ _TEX_INPUT = (
 )
 
 
-class _ProbeEngine:
-    """``engine_factory`` 注入件：记录 ``flags`` 请求 + 可控 ``res.deps``。
+class _ProbeEngine(FakeEngine):
+    """``engine_factory`` 注入件：``FakeEngine`` + flags 记录 + 可控 ``res.deps``。
 
-    conftest ``FakeEngine`` 不吃 flags/deps 字段——接线断言需要看到
-    ``compile(flags=…)`` 实参与权威集差分行为，故自带假引擎。
+    conftest ``FakeEngine`` 的 calls 只记 wdir/main、``CompRes`` 无 deps——
+    接线断言需要看到 ``compile(flags=…)`` 实参与权威集差分行为，故薄覆
+    ``compile``：假 pdf/CompRes 构造走父类，尾条 calls 补 ``flags``、
+    ``res.deps`` 按构造参回填。
     """
 
     name = "probe-fake"
 
     def __init__(self, deps: list[str] | None = None) -> None:
         """deps=None → 引擎未产依赖记录（authoritative=False 路径）。"""
+        super().__init__()
         self._deps = deps
-        self.calls: list[dict[str, object]] = []
 
-    def compile(  # noqa: PLR0913 -- 与 Engine.compile 同签名，kwarg 名是接口
+    def compile(
         self,
         wdir: Path,
         main: str,
         *,
-        passes: int = 1,  # noqa: ARG002
-        timeout: float | None = None,  # noqa: ARG002
-        outdir: Path | None = None,  # noqa: ARG002
-        sandbox: bool = True,  # noqa: ARG002
-        env_extra: dict[str, str] | None = None,  # noqa: ARG002
-        best_effort: bool = False,  # noqa: ARG002
         flags: Iterable[str] | None = None,
-        should_cancel: Callable[[], bool] | None = None,  # noqa: ARG002
+        **kw: object,
     ) -> CompRes:
-        """写假 pdf 返回 CompRes；``deps`` 按构造参数回填。"""
-        pdf = wdir / f"{Path(main).stem}.pdf"
-        pdf.write_bytes(b"%PDF-1.4\n% fake pdf for probe-wire tests\n")
-        self.calls.append({"wdir": str(wdir), "flags": list(flags or ())})
-        return CompRes(
-            engine="fake",
-            ok=True,
-            pdf=pdf,
-            pdf_bytes=pdf.stat().st_size,
-            rc=0,
-            deps=self._deps,
-        )
+        """父类假编译透传；``best_effort`` 收下不转（父类签名无此旋钮）。"""
+        kw.pop("best_effort", None)
+        res = super().compile(wdir, main, flags=list(flags or ()), **kw)
+        self.calls[-1]["flags"] = list(flags or ())
+        res.deps = self._deps
+        return res
 
 
 def _ctx(

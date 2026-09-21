@@ -6,85 +6,31 @@ taxonomy ``aux_scan_eof`` 接 ``File ended while scanning use of \@newl@bel``
 引擎自产件的运行时截断。
 """
 
-from functools import lru_cache
 from pathlib import Path
 
-from texlate.compile.fixloop import Ruleset, actions, load_ruleset
+from _fixloopkit import (
+    MAIN_TEX,
+    XETEX_CLEAN_LOG,
+    MockEngine,
+    params,
+    rs,
+    when_cond_ok,
+)
+
 from texlate.compile.fixloop.builtins import TRANSFORM_FNS
-from texlate.compile.fixloop.engine import LoopCtx, Rule, fixloop
+from texlate.compile.fixloop.engine import LoopCtx, fixloop
 from texlate.compile.logparse import parse_text
-
-
-@lru_cache(maxsize=1)
-def _rs() -> Ruleset:
-    """ruleset 首用时加载——收集期不 IO（坏 yaml 报 test fail 而非 collection error）。"""
-    return load_ruleset()
-
 
 _EOF_LOG = (
     "This is XeTeX\n(./main.aux\n! File ended while scanning use of \\@newl@bel.\n"
     "<inserted text>\n                \\par\nl.5 \\begin{document}\n"
 )
-CLEAN_LOG = "This is XeTeX\nOutput written on main.pdf (1 page).\n"
-MAIN_TEX = "\\documentclass{article}\n\\begin{document}\nhi\n\\end{document}\n"
-
-
-class _Res:
-    """impl CompRes 的 duck-type 替身（同 test_fixloop_loop.MockRes 口径）。"""
-
-    def __init__(self, wdir: Path, main: str, spec: dict) -> None:
-        stem = Path(main).stem
-        self.log_path = wdir / f"{stem}.log"
-        self.log_path.write_text(spec.get("log", ""), encoding="utf-8")
-        self.pdf = wdir / f"{stem}.pdf" if spec.get("pdf") else None
-        if self.pdf is not None:
-            self.pdf.write_bytes(b"%PDF-1.4 fake")
-        self.pdf_bytes = self.pdf.stat().st_size if self.pdf else 0
-        self.timed_out = False
-        self.seconds = 0.01
-        self.stdout_tail = ""
-
-    @property
-    def has_pdf(self) -> bool:
-        return self.pdf is not None and self.pdf_bytes > 0
-
-
-class _Eng:
-    """script 逐轮吐 spec；本规则不触 install 路径，余桩一律 False/None。"""
-
-    name = "xelatex"
-    caps = frozenset({"kpsewhich", "tlmgr", "updmap"})
-
-    def __init__(self, script: list) -> None:
-        self.script = list(script)
-        self.rounds = 0
-
-    def compile(self, wdir: Path, main: str, *, passes: int = 2, **_kw: object) -> _Res:
-        del passes, _kw
-        i = min(self.rounds, len(self.script) - 1)
-        self.rounds += 1
-        return _Res(Path(wdir), main, self.script[i])
-
-    def probe_file(self, fname: str, cwd: Path | None = None) -> str | None:
-        del fname, cwd
-        return None
-
-    def install_file(self, fname: str, *, font_related: bool = False) -> bool:
-        del fname, font_related
-        return False
-
-    def rebuild_fontmaps(self) -> bool:
-        return True
-
-    def filemap(self, fname: str) -> list[str]:
-        del fname
-        return []
 
 
 # ---------------------------------------------------------------- taxonomy
 def test_aux_eof_classifies_with_payload() -> None:
     rep = parse_text(_EOF_LOG)
-    cat, pay = _rs().taxonomy.classify(rep)
+    cat, pay = rs().taxonomy.classify(rep)
     assert cat == "aux_scan_eof"
     assert pay == "newl@bel"  # payload_group=1 抓到回读宏名
 
@@ -93,14 +39,14 @@ def test_aux_eof_beats_emergency_in_ctx8() -> None:
     """'!' 行后 ctx8 混入 Emergency stop 不抢签（条目先于 emergency 评估）。"""
     log = _EOF_LOG + "Emergency stop\n!  ==> Fatal error occurred\n"
     rep = parse_text(log)
-    cat, _ = _rs().taxonomy.classify(rep)
+    cat, _ = rs().taxonomy.classify(rep)
     assert cat == "aux_scan_eof"
 
 
 def test_generic_scan_eof_not_aux() -> None:
     """非回读宏的 EOF 扫描（如截断的 main.tex 撞上 \\section）不归本类。"""
     rep = parse_text("! File ended while scanning use of \\section.\nl.9 x\n")
-    cat, _ = _rs().taxonomy.classify(rep)
+    cat, _ = rs().taxonomy.classify(rep)
     assert cat == "runaway_scan"  # 2026-09-17 通用签名接管非 aux 宏 (aux 族仍专属)
 
 
@@ -149,8 +95,8 @@ def test_fixloop_aux_eof_roundtrip(tmp_path: Path) -> None:
     """
     (tmp_path / "main.tex").write_text(MAIN_TEX, encoding="utf-8")
     (tmp_path / "main.aux").write_bytes(b"\\newlabel{a}{{1}{1}{t\xe4\xb8")
-    eng = _Eng([{"log": CLEAN_LOG, "pdf": True}])
-    cell = fixloop(tmp_path, eng, ruleset=_rs())
+    eng = MockEngine([{"log": XETEX_CLEAN_LOG, "pdf": True}], probe_cwd=False)
+    cell = fixloop(tmp_path, eng, ruleset=rs())
     assert cell["verdict"] == "clean"
     assert not (tmp_path / "main.aux").exists()  # 损坏件已删, 下遍引擎重生成
 
@@ -162,8 +108,11 @@ def test_fixloop_aux_eof_purge_fallback(tmp_path: Path) -> None:
     (tmp_path / "main.aux").write_bytes(
         b"\\newlabel{a}{{1}{1}{\xe4\xb8}}\n\\newlabel{b}{{2}{2}{ok}}\n"
     )
-    eng = _Eng([{"log": _EOF_LOG, "pdf": False}, {"log": CLEAN_LOG, "pdf": True}])
-    cell = fixloop(tmp_path, eng, ruleset=_rs())
+    eng = MockEngine(
+        [{"log": _EOF_LOG, "pdf": False}, {"log": XETEX_CLEAN_LOG, "pdf": True}],
+        probe_cwd=False,  # 原 _Eng 恒 probe→None 保真
+    )
+    cell = fixloop(tmp_path, eng, ruleset=rs())
     assert cell["verdict"] == "clean"
     assert any(a["rule"] == "aux_purge_regen" for a in cell["actions"])
     assert not (tmp_path / "main.aux").exists()
@@ -173,8 +122,8 @@ def test_fixloop_aux_eof_no_corrupt_falls_through(tmp_path: Path) -> None:
     """签名命中但无损坏件 → 规则 applied=False, 不误伤健康 aux。"""
     (tmp_path / "main.tex").write_text(MAIN_TEX, encoding="utf-8")
     (tmp_path / "main.aux").write_bytes(b"\\newlabel{a}{{1}{1}{ok}}\n")
-    eng = _Eng([{"log": _EOF_LOG, "pdf": False}] * 4)
-    cell = fixloop(tmp_path, eng, ruleset=_rs())
+    eng = MockEngine([{"log": _EOF_LOG, "pdf": False}] * 4, probe_cwd=False)
+    cell = fixloop(tmp_path, eng, ruleset=rs())
     assert cell["verdict"] != "clean"
     assert (tmp_path / "main.aux").exists()
     assert all(a["rule"] != "aux_purge_regen" for a in cell["actions"])
@@ -194,69 +143,56 @@ _RUNAWAY_ABX_LOG = (
 _UNDEF_AUX_LOG = (
     "root.aux:67: Undefined control sequence.\nl.67 \\abx@aux@cite{0}{SAUMON20221}\n"
 )
-_PARAMS = {
-    "exts": [".aux", ".out", ".toc", ".lof", ".lot", ".nav", ".snm", ".vrb", ".ent"],
-    "payload_purge_cs": "^(abx|blx|zref|oddpage|abspage|lastpage|NAT|hyper)@[A-Za-z@]*$",
-    "payload_purge_exts": [".aux"],
-}
 
 
-def _rule() -> Rule:
-    return next(r for r in _rs().rules if r.id == "aux_purge_regen")
-
-
-def _dispatch(cat: str, pay: str | None, err_head: str, wdir: Path) -> bool:
-    """when+condition 联合判定 —— 与 pick_and_apply 同口径 (actions 原语直调)。"""
-    ctx = LoopCtx(wdir=wdir, engine_name="xelatex", err_head=err_head)
-    rule = _rule()
-    w_ok = actions._when_ok(rule.when, cat, pay, ctx)  # noqa: SLF001
-    c_ok = actions._cond_ok(rule.condition, rule, ctx, _Eng([]), pay)[0]  # noqa: SLF001
-    return w_ok and c_ok
+def _params() -> dict:
+    """shipped ``aux_purge_regen`` params 直取——yaml 改值即测新面, 不养陈旧拷贝。"""
+    return dict(params("aux_purge_regen"))
 
 
 def _purge2(wdir: Path, payload: str | None) -> tuple[bool, str]:
     ctx = LoopCtx(wdir=wdir, engine_name="xelatex")
-    return TRANSFORM_FNS["purge_corrupt_intermediates"](ctx, None, payload, _PARAMS)
+    return TRANSFORM_FNS["purge_corrupt_intermediates"](ctx, None, payload, _params())
 
 
 # ---------------------------------------------------------------- 派发臂
 def test_runaway_abx_arm_dispatches(tmp_path: Path) -> None:
     """(b) runaway_scan|\\abx@aux@cite —— zh 2503.10110 实签名。"""
     rep = parse_text(_RUNAWAY_ABX_LOG)
-    cat, pay = _rs().taxonomy.classify(rep)
+    cat, pay = rs().taxonomy.classify(rep)
     assert (cat, pay) == ("runaway_scan", "\\abx@aux@cite")
     head = (rep.first or "") + "\n" + (rep.ctx or "")
-    assert _dispatch(cat, pay, head, tmp_path)
+    assert when_cond_ok("aux_purge_regen", cat, pay, head, tmp_path)
 
 
 def test_undefined_cs_aux_site_dispatches(tmp_path: Path) -> None:
     """(c) undefined_cs @ *.aux:N —— base 2503.10110 root.aux:67 实签名。"""
     rep = parse_text(_UNDEF_AUX_LOG)
-    cat, pay = _rs().taxonomy.classify(rep)
+    cat, pay = rs().taxonomy.classify(rep)
     assert (cat, pay) == ("undefined_cs", "abx@aux@cite")
     head = (rep.first or "") + "\n" + (rep.ctx or "")
-    assert _dispatch(cat, pay, head, tmp_path)
+    assert when_cond_ok("aux_purge_regen", cat, pay, head, tmp_path)
 
 
 def test_runaway_non_aux_reader_rejected(tmp_path: Path) -> None:
     """runaway_scan|\\next 等非 aux 读端不抢 —— 让位 163.5/164 规则。"""
     rep = parse_text("! File ended while scanning use of \\next.\nl.9 x\n")
-    cat, pay = _rs().taxonomy.classify(rep)
+    cat, pay = rs().taxonomy.classify(rep)
     assert cat == "runaway_scan"
     head = (rep.first or "") + "\n" + (rep.ctx or "")
-    assert not _dispatch(cat, pay, head, tmp_path)
+    assert not when_cond_ok("aux_purge_regen", cat, pay, head, tmp_path)
 
 
 def test_undefined_cs_tex_site_rejected(tmp_path: Path) -> None:
     """undefined_cs @ .tex 站点不归本簇 —— cs_targeted_fix 等下游处理。"""
     head = "main.tex:5: Undefined control sequence.\nl.5 \\myfoo\n"
-    assert not _dispatch("undefined_cs", "myfoo", head, tmp_path)
+    assert not when_cond_ok("aux_purge_regen", "undefined_cs", "myfoo", head, tmp_path)
 
 
 def test_undefined_cs_no_payload_rejected(tmp_path: Path) -> None:
     """payload_required —— 无 payload 的 undefined_cs 不进 (b)(c) 臂。"""
     head = "root.aux:67: Undefined control sequence.\nl.67 x\n"
-    assert not _dispatch("undefined_cs", None, head, tmp_path)
+    assert not when_cond_ok("aux_purge_regen", "undefined_cs", None, head, tmp_path)
 
 
 # ---------------------------------------------------------------- payload 锚定删
@@ -312,8 +248,11 @@ def test_fixloop_runaway_bibcite_corrupt_roundtrip(tmp_path: Path) -> None:
         b"\\bibcite{k}{{\xe4\xb8}}\n\\newlabel{a}{{1}{1}{ok}}\n"
     )
     log = "(./main.aux\n! File ended while scanning use of \\bibcite.\nl.5 x\n"
-    eng = _Eng([{"log": log, "pdf": False}, {"log": CLEAN_LOG, "pdf": True}])
-    cell = fixloop(tmp_path, eng, ruleset=_rs())
+    eng = MockEngine(
+        [{"log": log, "pdf": False}, {"log": XETEX_CLEAN_LOG, "pdf": True}],
+        probe_cwd=False,
+    )
+    cell = fixloop(tmp_path, eng, ruleset=rs())
     assert cell["verdict"] == "clean"
     assert any(a["rule"] == "aux_purge_regen" for a in cell["actions"])
     assert not (tmp_path / "main.aux").exists()
@@ -325,7 +264,10 @@ def test_fixloop_undefined_cs_skewed_aux_roundtrip(tmp_path: Path) -> None:
     (tmp_path / "root.aux").write_bytes(
         b"\\relax\n\\abx@aux@cite{0}{SAUMON20221}\n\\abx@aux@segm{0}{0}{x}\n"
     )
-    eng = _Eng([{"log": _UNDEF_AUX_LOG, "pdf": False}, {"log": CLEAN_LOG, "pdf": True}])
-    cell = fixloop(tmp_path, eng, ruleset=_rs())
+    eng = MockEngine(
+        [{"log": _UNDEF_AUX_LOG, "pdf": False}, {"log": XETEX_CLEAN_LOG, "pdf": True}],
+        probe_cwd=False,
+    )
+    cell = fixloop(tmp_path, eng, ruleset=rs())
     assert any(a["rule"] == "aux_purge_regen" for a in cell["actions"])
     assert not (tmp_path / "root.aux").exists()

@@ -1,7 +1,8 @@
 """export 管线 ``glossary`` 透传：三入参形 → ``XlatPipeline`` → system prompt 术语块。
 
-回归背景：``export_document`` 签名无 ``glossary``，``epub.py``/``docx.py`` 建
-``XlatPipeline`` 时不传——用户传表被静默丢弃。钉住面：
+回归背景：``export_document`` 签名曾无 ``glossary``，epub/docx 两臂建
+``XlatPipeline``（今 ``common.drive_pipeline``）时不传——用户传表被静默丢弃。
+钉住面：
 
 - ``Glossary``/``dict``/``Path``(yaml|csv|str 形) 入参归一（``coerce_glossary``）；
 - 词条经文档级过滤进 ``<Glossary>`` 尾块（``MockTranslator.calls`` 的 system 断言）；

@@ -8,23 +8,22 @@ aaai2026.sty 实件抄 (``\\affiliations``/``\\equalcontrib``/copyright 族/
 (espcrc2 先例)。
 """
 
-import re
-import shutil
-import subprocess
 from pathlib import Path
 
 import pytest
+from _fixloopkit import n_err, requires_xelatex, run_xelatex
 
+import texlate.compile.fixloop as _fixloop_mod
 from texlate.compile.fixloop._builtins_vendored import _vendored_source
 from texlate.compile.fixloop.builtins import TRANSFORM_FNS
 from texlate.compile.fixloop.engine import LoopCtx
 
-_VENDOR = Path(__file__).resolve().parent.parent / "src/texlate/compile/fixloop/vendor"
+STUBS = Path(_fixloop_mod.__file__).parent / "vendor" / "stubs"
 
 
 def test_aaai23_vendored_resolution() -> None:
     """包内 vendor 根 basename 查件: aaai23.sty → stubs 层命中。"""
-    src = _vendored_source(_VENDOR, "aaai23.sty")
+    src = _vendored_source(STUBS.parent, "aaai23.sty")
     assert src is not None
     assert src.parent.name == "stubs"
 
@@ -39,7 +38,7 @@ def test_aaai23_fetch_drops(tmp_path: Path) -> None:
 
 
 @pytest.mark.integration
-@pytest.mark.skipif(shutil.which("xelatex") is None, reason="xelatex not installed")
+@requires_xelatex
 def test_aaai23_stub_surface_compiles(tmp_path: Path) -> None:
     """stub 宏面真编译钉: [submission] 选项吞 + \\affiliations 附 \\@author
     + \\equalcontrib→\\thanks + copyright/keywords/pubnote 族 —— 全零 ``!`` 错。
@@ -47,9 +46,8 @@ def test_aaai23_stub_surface_compiles(tmp_path: Path) -> None:
     实证基线 2303.16206/supp.tex: \\usepackage[submission]{aaai23} +
     \\affiliations{…\\textsuperscript{\\rm 1}…\\\\…} + \\author{…\\equalcontrib…}。
     """
-    stub = _VENDOR / "stubs" / "aaai23.sty"
-    shutil.copy(stub, tmp_path / "aaai23.sty")
-    (tmp_path / "main.tex").write_text(
+    log = run_xelatex(
+        tmp_path,
         r"""% !TeX program = xelatex
 \documentclass[letterpaper]{article}
 \usepackage[submission]{aaai23}
@@ -78,17 +76,7 @@ Abstract body.
 Body text.
 \end{document}
 """,
-        encoding="utf-8",
+        extra={"aaai23.sty": (STUBS / "aaai23.sty").read_text(encoding="utf-8")},
     )
-    xelatex = shutil.which("xelatex")
-    subprocess.run(  # noqa: S603 -- argv[0] 来自 shutil.which 绝对路径
-        [xelatex, "-interaction=nonstopmode", "main.tex"],
-        cwd=tmp_path,
-        capture_output=True,
-        timeout=120,
-        check=False,
-    )
-    log = (tmp_path / "main.log").read_text(encoding="utf-8", errors="replace")
-    n_err = len(re.findall(r"^! ", log, re.MULTILINE))
-    assert n_err == 0, f"aaai23 stub 宏面仍 {n_err} 个 '!' 错"
+    assert n_err(log) == 0, f"aaai23 stub 宏面仍 {n_err(log)} 个 '!' 错"
     assert (tmp_path / "main.pdf").is_file()

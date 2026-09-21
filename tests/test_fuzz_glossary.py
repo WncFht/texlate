@@ -396,16 +396,20 @@ def test_glossary_path_normalization(
     )  # 预检拒，不看 resolve 终点
 
 
-def test_glossary_path_missing_and_relative_roots(tmp_path: Path) -> None:
+def test_glossary_path_missing_and_relative_roots(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """缺/空根优雅 None；相对 ``glossary_dir`` resolve 到进程 CWD（观察钉：
 
     生产不可达——``settings._check_glossary_dir`` 强制绝对+现存目录；
-    纯函数层面 CWD 相关性如实钉住）。
+    纯函数层面 CWD 相关性如实钉住）。``monkeypatch.chdir`` 把 CWD 钉进
+    per-test ``tmp_path``——探针目录不落 worktree 根。
     """
     base = tmp_path / "nobase"
     assert resolve_glossary_path("x.yaml", "", base) is None
     assert resolve_glossary_path("x.yaml", str(tmp_path / "nogdir"), tmp_path) is None
     # 相对 glossary_dir → CWD 下找
+    monkeypatch.chdir(tmp_path)
     cwd_rel = Path.cwd() / "relgdir-probe"
     cwd_rel.mkdir(exist_ok=True)
     try:

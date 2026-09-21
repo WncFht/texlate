@@ -2,7 +2,7 @@ r"""killsem lane (2026-09-20): runaway_output 修复面双臂钉。
 
 ``sentry:page_flood`` 谱 (unbreakable box > ``\textheight`` → ``\output``
 永空页 SIGKILL) 的 ``tcolorbox_breakable_inject``/``float_h_demote`` 两规
-(95-targeted.yaml:1235+)。sentry-killed 轮 ``err_head`` 为空 →
+(95-targeted.yaml)。sentry-killed 轮 ``err_head`` 为空 →
 ``ctx_suggests`` 不可用, 门全走 ``source_contains`` 粗筛 + builtin 内
 ``mask_tex``/``_live_matches`` 实判。实证: 2311.04163 zh +breakable →
 57p rc=0; 2504.11741 zh → 47p; 2608.09867 [H]-demote 未实测 (同机理族)。

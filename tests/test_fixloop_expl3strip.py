@@ -11,37 +11,15 @@ corpus 普查驱动词恒单枚, 残余面=同表非连排多驱动词 (known_ga
 
 from pathlib import Path
 
-from texlate.compile.fixloop import actions, load_ruleset
-from texlate.compile.fixloop.engine import LoopCtx, Rule
-from texlate.compile.logparse import ErrReport
+from _fixloopkit import apply, mk_ctx, rule
 
+from texlate.compile.fixloop import actions
 
-class _Eng:
-    """regex_rewrite 路径的最小引擎替身 (不触 probe/install)。"""
-
-    name = "xelatex"
-
-    def probe_file(self, fname: str, cwd: Path | None = None) -> str | None:
-        del fname, cwd
-        return None
-
-    def filemap(self, fname: str) -> list[str]:
-        del fname
-        return []
-
-
-def _ctx(tmp_path: Path) -> LoopCtx:
-    return LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel="main.tex")
-
-
-def _rule() -> Rule:
-    return next(r for r in load_ruleset().rules if r.id == "expl3_driver_opt_strip")
+_RID = "expl3_driver_opt_strip"
 
 
 def _apply(tmp_path: Path) -> tuple[bool, str]:
-    return actions._apply(  # noqa: SLF001 - 钉规则动作直驱
-        _rule(), _ctx(tmp_path), _Eng(), None, ErrReport()
-    )
+    return apply(_RID, mk_ctx(tmp_path), None)
 
 
 def _roundtrip(tmp_path: Path, docclass_line: str) -> str:
@@ -55,22 +33,22 @@ def _roundtrip(tmp_path: Path, docclass_line: str) -> str:
 
 
 def test_expl3strip_rule_registered() -> None:
-    rule = _rule()
-    assert rule.order == 35  # noqa: PLR2004 - schema 断言值
-    assert rule.phase == "loop"
-    assert rule.when["category"] == "expl3_backend"
-    assert rule.action["kind"] == "regex_rewrite"
-    assert rule.action["params"]["exts"] == [".tex"]
-    assert len(rule.action["params"]["rewrites"]) == 4  # noqa: PLR2004
+    r = rule(_RID)
+    assert r.order == 35  # noqa: PLR2004 - schema 断言值
+    assert r.phase == "loop"
+    assert r.when["category"] == "expl3_backend"
+    assert r.action["kind"] == "regex_rewrite"
+    assert r.action["params"]["exts"] == [".tex"]
+    assert len(r.action["params"]["rewrites"]) == 4  # noqa: PLR2004
 
 
 def test_expl3strip_when_gate_declines_other_categories(tmp_path: Path) -> None:
     """签名缺席: category != expl3_backend → when 闸拒 (本规则无 condition)。"""
-    rule = _rule()
-    ctx = _ctx(tmp_path)
-    assert actions._when_ok(rule.when, "expl3_backend", None, ctx)  # noqa: SLF001
+    r = rule(_RID)
+    ctx = mk_ctx(tmp_path)
+    assert actions._when_ok(r.when, "expl3_backend", None, ctx)  # noqa: SLF001
     for cat in ("hyperref_driver", "other", "pdftex_prim", None):
-        assert not actions._when_ok(rule.when, cat, None, ctx)  # noqa: SLF001
+        assert not actions._when_ok(r.when, cat, None, ctx)  # noqa: SLF001
 
 
 def test_expl3strip_declines_no_driver_options(tmp_path: Path) -> None:
@@ -218,10 +196,3 @@ def test_expl3strip_idempotent_second_round(tmp_path: Path) -> None:
     assert ok
     ok, _ = _apply(tmp_path)
     assert not ok
-
-
-def test_expl3strip_ruleset_loads() -> None:
-    rs = load_ruleset()
-    ids = [r.id for r in rs.rules]
-    assert len(ids) == len(set(ids))
-    assert "expl3_driver_opt_strip" in ids

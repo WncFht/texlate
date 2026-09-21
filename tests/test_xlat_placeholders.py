@@ -40,11 +40,18 @@ class TestNewlineCodec:
         """源文本自带 [[SL_RAW]] 也不能被还原错。"""
         src = "has [[SL_RAW]] literal"
         enc, _ = ph.encode_newlines(src)
-        assert "[[SL_RAW]]" not in enc or "LIT" in enc
+        # [[SL_RAW]] 升一级成 [[__TEXLATE_SL_LIT__]]——钉死 sentinel 形态
+        assert "[[SL_RAW]]" not in enc
+        assert "[[__TEXLATE_SL_LIT__]]" in enc
         assert ph.decode_newlines(enc) == src
 
     def test_decode_unknown_markers_pass_through(self) -> None:
         assert ph.decode_newlines("a[[MATH_1]]b") == "a[[MATH_1]]b"
+
+    def test_decode_non_crlf_eols(self) -> None:
+        r"""``EOL_RX`` 非 CRLF 臂：``\x0b``/``\x0c``/``\x85``/`` ``/`` ``
+        全归一 ``\n``——批解析 ``_EOL_RX`` 不盖 ``decode_newlines`` 直调面。"""
+        assert ph.decode_newlines("x\x0b\x0c\x85  y") == "x\n\n\n\n\ny"
 
     def test_fragile_space_masked(self) -> None:
         r"""`\ ` 脆弱间距 → ``[[SP]]`` 占位符（吃 C9 保护契约），decode 还原。"""
@@ -132,6 +139,31 @@ class TestDiff:
     def test_extra(self) -> None:
         d = ph.diff("a", "甲 [[MATH_9]]")
         assert d.extra == ["[[MATH_9]]"]
+
+    def test_benign_nbsp_extra_tolerated(self) -> None:
+        """模型多回 ``[[NBSP]]``（幂等无载荷）→ ``real_extra`` 豁免、``ok`` 放行。
+
+        ``_BENIGN_EXTRA_TYPES`` 臂——批内 NBSP 喷发不应触发成员级重翻。
+        """
+        d = ph.diff("Fig.~1 x", "图[[NBSP]]1")
+        assert d.ok
+        assert d.extra == ["[[NBSP]]"]
+        assert d.real_extra == []
+
+    def test_non_benign_extra_still_real(self) -> None:
+        """豁免只盖 ``NBSP`` 型——``[[THINSP]]`` 仍落 ``real_extra`` 判负。"""
+        d = ph.diff("Fig.~1 x", "图[[NBSP]]1[[THINSP]]")
+        assert d.extra == ["[[NBSP]]", "[[THINSP]]"]
+        assert d.real_extra == ["[[THINSP]]"]
+        assert not d.ok
+
+    def test_nbsp_raw_extra_also_benign(self) -> None:
+        """``[[NBSP_RAW]]`` 经 ``ph_type`` 同归 ``NBSP``——extra 豁免，missing 仍计。"""
+        d = ph.diff("a [[NBSP]]", "甲 [[NBSP_RAW]]")
+        assert d.extra == ["[[NBSP_RAW]]"]
+        assert d.real_extra == []
+        assert d.missing == ["[[NBSP]]"]
+        assert not d.ok
 
     def test_misspelled_lev2(self) -> None:
         """[[MATH_1]] → [MATH_1] 单层括号化是 lev=2 模糊候选，进 misspelled。"""

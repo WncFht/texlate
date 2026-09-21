@@ -19,7 +19,20 @@ import pytest
 pytest.importorskip("fastapi", reason="server extra 未装")
 pytest.importorskip("starlette.testclient", reason="server extra 未装")
 
-from conftest import MINI_TEX, make_app, make_targz, mk_api_task, upload_tex
+from _workerkit import _insert_chunk as _wk_insert_chunk
+from conftest import (
+    MINI_TEX,
+    force_status,
+    get_row,
+    make_app,
+    make_targz,
+    mk_api_task,
+    refused_base_url,
+    reg_artifact,
+    store_call,
+    task_events,
+    upload_tex,
+)
 from starlette.testclient import TestClient
 
 import texlate.server.app as app_mod
@@ -61,25 +74,6 @@ def _epub() -> bytes:
     return buf.getvalue()
 
 
-def _reg_file(
-    client: TestClient, tid: str, kind: str, name: str, blob: bytes = b"%PDF-1.4 fake"
-) -> dict:
-    """tasks/{tid}/{name} 落盘 + files 表登记 → rec（含 sha256）。"""
-    tdir = client.app.state.data_dir / "tasks" / tid
-    tdir.mkdir(parents=True, exist_ok=True)
-    (tdir / name).write_bytes(blob)
-    return client.portal.call(
-        partial(client.app.state.store.put_file, tid, kind, name, data_dir=tdir)
-    )
-
-
-def _force(client: TestClient, tid: str, status: str) -> None:
-    """store.transition force 通道——把任务钉到指定终态。"""
-    client.portal.call(
-        partial(client.app.state.store.transition, tid, status, force=True)
-    )
-
-
 def _chunks(client: TestClient, tid: str) -> int:
     store = client.app.state.store
     return client.portal.call(
@@ -92,21 +86,14 @@ def _chunks(client: TestClient, tid: str) -> int:
 
 
 def _insert_chunk(client: TestClient, tid: str) -> None:
+    """最小 chunks 行——委托 ``_workerkit._insert_chunk``（kind=para 与断言无干）。"""
     client.portal.call(
         partial(
-            client.app.state.store.insert_chunks,
+            _wk_insert_chunk,
+            client.app.state.store,
             tid,
-            [
-                {
-                    "seq": 0,
-                    "chunk_id": "c0",
-                    "src_file": "main.tex",
-                    "byte_start": 0,
-                    "byte_end": 5,
-                    "kind": "text",
-                    "src_text": "hello",
-                }
-            ],
+            chunk_id="c0",
+            src="hello",
         )
     )
 
@@ -212,7 +199,7 @@ class TestTranslateEdges:
     def test_glossary_field(self, client: TestClient) -> None:
         """body.glossary 落 options_json（worker glossary confine 的入口）。"""
         tid = mk_api_task(client, ARXIV, glossary="terms.yaml")
-        row = client.portal.call(partial(client.app.state.store.get, tid))
+        row = get_row(client, tid)
         assert json.loads(row["options_json"])["glossary"] == "terms.yaml"
 
     def test_idempotent_replay_skips_quota(
@@ -248,7 +235,7 @@ class TestTaskGetEdges:
         """Last-Event-ID 非整数 → last_id=0 → 全量重放（不 4xx）。"""
         tid = mk_api_task(client, ARXIV)
         bus = client.app.state.bus
-        _force(client, tid, "done")  # done 帧只对真终态任务终结重放
+        force_status(client, tid, "done")  # done 帧只对真终态任务终结重放
         client.portal.call(partial(bus.publish, tid, "stage", {"stage": "parsing"}))
         client.portal.call(partial(bus.publish, tid, "done", {"status": "done"}))
         with client.stream(
@@ -262,7 +249,7 @@ class TestTaskGetEdges:
     def test_snapshot_artifacts_url_kind(self, client: TestClient) -> None:
         """snapshot.artifacts 键是 db kind、URL 用 KIND_URL 映射（md_zip→md）。"""
         tid = mk_api_task(client, ARXIV)
-        _reg_file(client, tid, "md_zip", "md.zip", b"PKfake")
+        reg_artifact(client, tid, "md_zip", "md.zip", b"PKfake")
         snap = client.get(f"/api/task/{tid}").json()
         assert snap["artifacts"]["md_zip"].endswith(f"/api/files/{tid}/md")
 
@@ -291,7 +278,7 @@ class TestTaskGetEdges:
 class TestFilesList:
     def test_shape(self, client: TestClient) -> None:
         tid = mk_api_task(client, ARXIV)
-        rec = _reg_file(client, tid, "zh_pdf", "zh.pdf")
+        rec = reg_artifact(client, tid, "zh_pdf", "zh.pdf")
         r = client.get(f"/api/files/{tid}")
         assert r.status_code == HTTPStatus.OK
         art = r.json()["artifacts"]["zh_pdf"]
@@ -304,14 +291,14 @@ class TestFilesList:
 class TestFileGet:
     def test_version_match_200(self, client: TestClient) -> None:
         tid = mk_api_task(client, ARXIV)
-        rec = _reg_file(client, tid, "zh_pdf", "zh.pdf")
+        rec = reg_artifact(client, tid, "zh_pdf", "zh.pdf")
         r = client.get(f"/api/files/{tid}/zh.pdf", params={"version": rec["sha256"]})
         assert r.status_code == HTTPStatus.OK
         assert r.content == b"%PDF-1.4 fake"
 
     def test_version_mismatch_409(self, client: TestClient) -> None:
         tid = mk_api_task(client, ARXIV)
-        _reg_file(client, tid, "zh_pdf", "zh.pdf")
+        reg_artifact(client, tid, "zh_pdf", "zh.pdf")
         r = client.get(f"/api/files/{tid}/zh.pdf", params={"version": "deadbeef"})
         assert r.status_code == HTTPStatus.CONFLICT
         assert r.json()["code"] == "version_mismatch"
@@ -319,9 +306,7 @@ class TestFileGet:
     def test_record_without_disk_file_404(self, client: TestClient) -> None:
         """files 行在、磁盘文件不在 → 404 artifact file missing。"""
         tid = mk_api_task(client, ARXIV)
-        client.portal.call(
-            partial(client.app.state.store.put_file, tid, "zh_pdf", "zh.pdf")
-        )
+        store_call(client, client.app.state.store.put_file, tid, "zh_pdf", "zh.pdf")
         r = client.get(f"/api/files/{tid}/zh.pdf")
         assert r.status_code == HTTPStatus.NOT_FOUND
         assert "missing" in r.json()["detail"]
@@ -331,8 +316,8 @@ class TestFileGet:
         tid = mk_api_task(client, ARXIV)
         root = client.app.state.data_dir
         (root / "evil.pdf").write_bytes(b"%PDF-1.4 outside")
-        client.portal.call(
-            partial(client.app.state.store.put_file, tid, "zh_pdf", "../../evil.pdf")
+        store_call(
+            client, client.app.state.store.put_file, tid, "zh_pdf", "../../evil.pdf"
         )
         r = client.get(f"/api/files/{tid}/zh.pdf")
         assert r.status_code == HTTPStatus.NOT_FOUND
@@ -340,23 +325,23 @@ class TestFileGet:
     def test_download_filename_upload(self, client: TestClient) -> None:
         """upload 任务无 arxiv_id → Content-Disposition 用 task_id 做 stem。"""
         tid = upload_tex(client)["task_id"]
-        _reg_file(client, tid, "zh_pdf", "zh.pdf")
+        reg_artifact(client, tid, "zh_pdf", "zh.pdf")
         r = client.get(f"/api/files/{tid}/zh.pdf", params={"download": 1})
         assert f'filename="texlate-{tid}-zh.pdf"' in r.headers["Content-Disposition"]
 
     def test_download_filename_arxiv(self, client: TestClient) -> None:
         tid = mk_api_task(client, ARXIV)
-        _reg_file(client, tid, "zh_pdf", "zh.pdf")
+        reg_artifact(client, tid, "zh_pdf", "zh.pdf")
         r = client.get(f"/api/files/{tid}/zh.pdf", params={"download": 1})
         assert f'filename="texlate-{ARXIV}-zh.pdf"' in r.headers["Content-Disposition"]
 
     def test_media_types(self, client: TestClient) -> None:
         tid = mk_api_task(client, ARXIV)
-        _reg_file(client, tid, "compile_log", "compile.log", b"log line\n")
+        reg_artifact(client, tid, "compile_log", "compile.log", b"log line\n")
         r = client.get(f"/api/files/{tid}/compile.log")
         assert r.status_code == HTTPStatus.OK
         assert r.headers["content-type"].startswith("text/plain")
-        _reg_file(client, tid, "dual_json", "dual.json", b"{}")
+        reg_artifact(client, tid, "dual_json", "dual.json", b"{}")
         r = client.get(f"/api/files/{tid}/dual.json")
         assert r.headers["content-type"].startswith("application/json")
 
@@ -371,19 +356,19 @@ class TestFileGet:
         """
         monkeypatch.setitem(app_mod.URL_KIND, "zh.html", "zh_html")
         tid = _mk_kind_task(client, "arxiv_html")
-        _reg_file(client, tid, "zh_html", "zh.html", b"<html/>")
+        reg_artifact(client, tid, "zh_html", "zh.html", b"<html/>")
         r = client.get(f"/api/files/{tid}/zh.html")
         assert r.status_code == HTTPStatus.OK
         assert r.headers["content-type"].startswith("text/html")
         assert r.headers["content-security-policy"] == "sandbox"
-        _reg_file(client, tid, "dual_json", "dual.json", b"{}")
+        reg_artifact(client, tid, "dual_json", "dual.json", b"{}")
         r = client.get(f"/api/files/{tid}/dual.json")
         assert "content-security-policy" not in r.headers
 
     def test_src_tar_media_arxiv_gzip(self, client: TestClient) -> None:
         """arxiv 任务的 src.tar 是 e-print tar.gz → application/gzip。"""
         tid = mk_api_task(client, ARXIV)
-        _reg_file(client, tid, "src_tar", "src.tar", make_targz({"a.tex": "x"}))
+        reg_artifact(client, tid, "src_tar", "src.tar", make_targz({"a.tex": "x"}))
         r = client.get(f"/api/files/{tid}/src.tar")
         assert r.headers["content-type"].startswith("application/gzip")
 
@@ -394,7 +379,7 @@ class TestFileGet:
             files={"file": ("a.docx", _docx(), "application/octet-stream")},
         )
         did = r.json()["task_id"]
-        _reg_file(client, did, "src_tar", "upload/a.docx", _docx())
+        reg_artifact(client, did, "src_tar", "upload/a.docx", _docx())
         r = client.get(f"/api/files/{did}/src.tar")
         assert r.headers["content-type"].startswith(
             "application/vnd.openxmlformats-officedocument"
@@ -405,24 +390,26 @@ class TestFileGet:
             files={"file": ("a.epub", _epub(), "application/octet-stream")},
         )
         eid = r.json()["task_id"]
-        _reg_file(client, eid, "src_tar", "upload/a.epub", _epub())
+        reg_artifact(client, eid, "src_tar", "upload/a.epub", _epub())
         r = client.get(f"/api/files/{eid}/src.tar")
         assert r.headers["content-type"].startswith("application/epub+zip")
 
     def test_src_tar_media_upload_tex_sniffed(self, client: TestClient) -> None:
         """upload_tex 的 blob 按魔数：gzip→gzip、裸 .tex→octet-stream。"""
         tid = upload_tex(client)["task_id"]
-        _reg_file(client, tid, "src_tar", "upload/p.tar.gz", make_targz({"a.tex": "x"}))
+        reg_artifact(
+            client, tid, "src_tar", "upload/p.tar.gz", make_targz({"a.tex": "x"})
+        )
         r = client.get(f"/api/files/{tid}/src.tar")
         assert r.headers["content-type"].startswith("application/gzip")
-        _reg_file(client, tid, "src_tar", "upload/main.tex", MINI_TEX.encode())
+        reg_artifact(client, tid, "src_tar", "upload/main.tex", MINI_TEX.encode())
         r = client.get(f"/api/files/{tid}/src.tar")
         assert r.headers["content-type"].startswith("application/octet-stream")
 
     def test_download_filename_old_arxiv_sanitized(self, client: TestClient) -> None:
         """旧式 arxiv id 含 '/'（hep-th/9901001）——filename 消毒防畸形 header。"""
         tid = mk_api_task(client, "hep-th/9901001")
-        _reg_file(client, tid, "zh_pdf", "zh.pdf")
+        reg_artifact(client, tid, "zh_pdf", "zh.pdf")
         r = client.get(f"/api/files/{tid}/zh.pdf", params={"download": 1})
         cd = r.headers["Content-Disposition"]
         assert 'filename="texlate-hep-th_9901001-zh.pdf"' in cd
@@ -625,7 +612,7 @@ class TestUploadEdges:
         )
         assert r.status_code == HTTPStatus.ACCEPTED
         body = r.json()
-        row = client.portal.call(partial(client.app.state.store.get, body["task_id"]))
+        row = get_row(client, body["task_id"])
         assert row["kind"] == "docx"
         assert "reader_url" not in body
         assert "events_url" in body
@@ -692,7 +679,7 @@ class TestCancelEdges:
         """cancel 同步补 done{cancelled} 事件——SSE 订阅者正常收尾。"""
         tid = mk_api_task(client, ARXIV)
         client.post(f"/api/task/{tid}/cancel")
-        evs = client.portal.call(partial(client.app.state.store.events_since, tid, 0))
+        evs = task_events(client, tid)
         done = [e for e in evs if e["type"] == "done"]
         assert done
         assert done[-1]["data"]["status"] == "cancelled"
@@ -707,14 +694,14 @@ class TestRetryEdges:
     def test_retry_done_409(self, client: TestClient) -> None:
         """done ∉ RETRYABLE_FROM → 409 invalid_transition。"""
         tid = mk_api_task(client, ARXIV)
-        _force(client, tid, "done")
+        force_status(client, tid, "done")
         r = client.post(f"/api/task/{tid}/retry", json={})
         assert r.status_code == HTTPStatus.CONFLICT
         assert r.json()["code"] == "invalid_transition"
 
     def test_retry_fault_202(self, client: TestClient) -> None:
         tid = mk_api_task(client, ARXIV)
-        _force(client, tid, "fault")
+        force_status(client, tid, "fault")
         r = client.post(f"/api/task/{tid}/retry", json={})
         assert r.status_code == HTTPStatus.ACCEPTED
         assert client.get(f"/api/task/{tid}").json()["status"] == "queued"
@@ -738,7 +725,7 @@ class TestRetryEdges:
             f"/api/task/{tid}/retry", json={"options": {"retry_model": "alt"}}
         )
         assert r.status_code == HTTPStatus.ACCEPTED
-        row = client.portal.call(partial(client.app.state.store.get, tid))
+        row = get_row(client, tid)
         opts = json.loads(row["options_json"])
         assert opts["glossary"] == "a.yaml"
         assert opts["retry_model"] == "alt"
@@ -763,7 +750,7 @@ class TestRetryEdges:
         assert _chunks(client, tid) == 0
         for d in ("base", "zh", "build-en", "build-zh"):
             assert not (tdir / d).exists()
-        row = client.portal.call(partial(client.app.state.store.get, tid))
+        row = get_row(client, tid)
         assert json.loads(row["options_json"])["main"] == "other.tex"
 
     def test_retry_same_main_preserves(self, client: TestClient) -> None:
@@ -787,10 +774,8 @@ class TestRetryEdges:
         raw_client.portal.call(
             partial(raw_client.app.state.store.update_fields, tid, main_tex="main.tex")
         )
-        _force(raw_client, tid, "done")
-        before = raw_client.portal.call(partial(raw_client.app.state.store.get, tid))[
-            "options_json"
-        ]
+        force_status(raw_client, tid, "done")
+        before = get_row(raw_client, tid)["options_json"]
         r = raw_client.post(
             f"/api/task/{tid}/retry",
             json={"main": "other.tex", "options": {"zap": "1"}},
@@ -798,9 +783,7 @@ class TestRetryEdges:
         assert r.status_code == HTTPStatus.CONFLICT
         assert _chunks(raw_client, tid) == 1
         assert (tdir / "base").exists()
-        after = raw_client.portal.call(partial(raw_client.app.state.store.get, tid))[
-            "options_json"
-        ]
+        after = get_row(raw_client, tid)["options_json"]
         assert after == before
 
     def test_retry_unknown_keys_400(self, client: TestClient) -> None:
@@ -858,7 +841,7 @@ class TestReaderGet:
     def test_corrupted_dual_500(self, client: TestClient) -> None:
         """已登记但磁盘件损坏 → 解析 500（未登记孤儿件 404 由 test_server_persist 钉）。"""
         tid = mk_api_task(client, ARXIV)
-        _reg_file(client, tid, "dual_json", "dual.json", b"{{{not json")
+        reg_artifact(client, tid, "dual_json", "dual.json", b"{{{not json")
         r = client.get(f"/api/task/{tid}/reader")
         assert r.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
         assert r.json()["code"] == "internal"
@@ -866,7 +849,7 @@ class TestReaderGet:
     def test_dual_non_dict_500(self, client: TestClient) -> None:
         """dual.json 是合法 JSON 但顶层非 object → 结构化 500（非裸 AttributeError）。"""
         tid = mk_api_task(client, ARXIV)
-        _reg_file(client, tid, "dual_json", "dual.json", b'["not", "a", "dict"]')
+        reg_artifact(client, tid, "dual_json", "dual.json", b'["not", "a", "dict"]')
         r = client.get(f"/api/task/{tid}/reader")
         assert r.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
         assert r.json()["code"] == "internal"
@@ -912,9 +895,9 @@ class TestReaderGet:
         """md_zip 在而 zh_pdf 不在 → view=html；zh_pdf 补上 → pdf。"""
         tid = mk_api_task(client, ARXIV)
         _write_dual(client, tid, {"documents": {}, "chunks": []})
-        _reg_file(client, tid, "md_zip", "md.zip", b"PKfake")
+        reg_artifact(client, tid, "md_zip", "md.zip", b"PKfake")
         assert client.get(f"/api/task/{tid}/reader").json()["view"] == "html"
-        _reg_file(client, tid, "zh_pdf", "zh.pdf")
+        reg_artifact(client, tid, "zh_pdf", "zh.pdf")
         assert client.get(f"/api/task/{tid}/reader").json()["view"] == "pdf"
 
     def test_view_dom_zh_html(self, client: TestClient) -> None:
@@ -922,7 +905,7 @@ class TestReaderGet:
         优先级高于 md_zip/pdf 判定。"""
         tid = _mk_kind_task(client, "arxiv_html")
         _write_dual(client, tid, {"documents": {}, "chunks": []})
-        _reg_file(client, tid, "zh_html", "zh.html", b"<html/>")
+        reg_artifact(client, tid, "zh_html", "zh.html", b"<html/>")
         assert client.get(f"/api/task/{tid}/reader").json()["view"] == "dom"
 
     def test_dom_documents_urls(self, client: TestClient) -> None:
@@ -939,7 +922,7 @@ class TestReaderGet:
                 "chunks": [],
             },
         )
-        _reg_file(client, tid, "zh_html", "zh.html", b"<html/>")
+        reg_artifact(client, tid, "zh_html", "zh.html", b"<html/>")
         doc = client.get(f"/api/task/{tid}/reader").json()
         assert doc["documents"]["original"]["url"] == f"/api/files/{tid}/en.html"
         assert doc["documents"]["translated"]["url"] == f"/api/files/{tid}/zh.html"
@@ -972,7 +955,7 @@ class TestReaderGet:
 class TestReaderPut:
     def test_document_version_mismatch_409(self, client: TestClient) -> None:
         tid = mk_api_task(client, ARXIV)
-        rec = _reg_file(client, tid, "zh_pdf", "zh.pdf")
+        rec = reg_artifact(client, tid, "zh_pdf", "zh.pdf")
         r = client.put(
             f"/api/task/{tid}/reader/position",
             json={"positions": {"original": 1}, "document_version": "stale"},
@@ -991,7 +974,7 @@ class TestReaderPut:
     def test_document_version_zh_html_fallback(self, client: TestClient) -> None:
         """无 zh_pdf 的 arxiv_html → 版本闸回落 ``zh_html`` sha256。"""
         tid = _mk_kind_task(client, "arxiv_html")
-        rec = _reg_file(client, tid, "zh_html", "zh.html", b"<html/>")
+        rec = reg_artifact(client, tid, "zh_html", "zh.html", b"<html/>")
         r = client.put(
             f"/api/task/{tid}/reader/position",
             json={"positions": {"original": 1}, "document_version": "stale"},
@@ -1126,16 +1109,12 @@ class TestSettingsTestEdge:
 
     def test_body_key_scrubbed(self, client: TestClient) -> None:
         """body.api_key 探活失败回显必须脱敏。"""
-        import socket  # noqa: PLC0415 -- 仅此用例要占即释端口
-
         # bind 但不 listen：占住端口防外部抢占，入站连接仍必 ECONNREFUSED。
-        with socket.socket() as sock:
-            sock.bind(("127.0.0.1", 0))
-            port = sock.getsockname()[1]
+        with refused_base_url() as base_url:
             r = client.post(
                 "/api/settings/test",
                 json={
-                    "base_url": f"http://127.0.0.1:{port}",
+                    "base_url": base_url,
                     "api_key": "sk-body-secret-9",
                 },
             )
@@ -1210,10 +1189,9 @@ class TestTenantShadowing:
     """
 
     @pytest.fixture
-    def alien(self, client: TestClient, monkeypatch: pytest.MonkeyPatch) -> str:
+    def alien(self, server_client: TestClient) -> str:
         """k-A 租户名下的任务 id；探测方持 k-B。"""
-        monkeypatch.setenv("TEXLATE_MODE", "server")
-        r = client.post(
+        r = server_client.post(
             f"/api/arxiv/{ARXIV}/translate",
             json={"model": "m"},
             headers={"X-Texlate-Key": "k-A"},
@@ -1223,37 +1201,37 @@ class TestTenantShadowing:
 
     _HDR_B: ClassVar[dict[str, str]] = {"X-Texlate-Key": "k-B"}
 
-    def test_files_list(self, client: TestClient, alien: str) -> None:
-        r = client.get(f"/api/files/{alien}", headers=self._HDR_B)
+    def test_files_list(self, server_client: TestClient, alien: str) -> None:
+        r = server_client.get(f"/api/files/{alien}", headers=self._HDR_B)
         assert r.status_code == HTTPStatus.NOT_FOUND
 
-    def test_file_get(self, client: TestClient, alien: str) -> None:
-        r = client.get(f"/api/files/{alien}/zh.pdf", headers=self._HDR_B)
+    def test_file_get(self, server_client: TestClient, alien: str) -> None:
+        r = server_client.get(f"/api/files/{alien}/zh.pdf", headers=self._HDR_B)
         assert r.status_code == HTTPStatus.NOT_FOUND
 
-    def test_cancel(self, client: TestClient, alien: str) -> None:
-        r = client.post(f"/api/task/{alien}/cancel", headers=self._HDR_B)
+    def test_cancel(self, server_client: TestClient, alien: str) -> None:
+        r = server_client.post(f"/api/task/{alien}/cancel", headers=self._HDR_B)
         assert r.status_code == HTTPStatus.NOT_FOUND
 
-    def test_retry(self, client: TestClient, alien: str) -> None:
-        r = client.post(f"/api/task/{alien}/retry", json={}, headers=self._HDR_B)
+    def test_retry(self, server_client: TestClient, alien: str) -> None:
+        r = server_client.post(f"/api/task/{alien}/retry", json={}, headers=self._HDR_B)
         assert r.status_code == HTTPStatus.NOT_FOUND
 
-    def test_reader(self, client: TestClient, alien: str) -> None:
-        r = client.get(f"/api/task/{alien}/reader", headers=self._HDR_B)
+    def test_reader(self, server_client: TestClient, alien: str) -> None:
+        r = server_client.get(f"/api/task/{alien}/reader", headers=self._HDR_B)
         assert r.status_code == HTTPStatus.NOT_FOUND
 
-    def test_reader_position(self, client: TestClient, alien: str) -> None:
-        r = client.put(
+    def test_reader_position(self, server_client: TestClient, alien: str) -> None:
+        r = server_client.put(
             f"/api/task/{alien}/reader/position",
             json={"positions": {}},
             headers=self._HDR_B,
         )
         assert r.status_code == HTTPStatus.NOT_FOUND
 
-    def test_sse_stream(self, client: TestClient, alien: str) -> None:
+    def test_sse_stream(self, server_client: TestClient, alien: str) -> None:
         """SSE 通道同检——跨租户订不到事件流。"""
-        r = client.get(
+        r = server_client.get(
             f"/api/task/{alien}",
             headers={**self._HDR_B, "Accept": "text/event-stream"},
         )
@@ -1329,7 +1307,7 @@ class TestOptionsGate:
 
     def test_engine_valid_202(self, client: TestClient) -> None:
         tid = mk_api_task(client, ARXIV, options={"engine": "xelatex"})
-        row = client.portal.call(partial(client.app.state.store.get, tid))
+        row = get_row(client, tid)
         assert json.loads(row["options_json"])["engine"] == "xelatex"
 
     def test_source_invalid_400(self, client: TestClient) -> None:
@@ -1349,16 +1327,14 @@ class TestOptionsGate:
         )
         assert r.status_code == HTTPStatus.ACCEPTED, r.text
         assert "reader_url" in r.json()
-        row = client.portal.call(
-            partial(client.app.state.store.get, r.json()["task_id"])
-        )
+        row = get_row(client, r.json()["task_id"])
         assert row["kind"] == "arxiv_html"
         assert json.loads(row["options_json"])["source"] == "html"
 
     def test_source_default_eprint(self, client: TestClient) -> None:
         """缺省 source → kind=arxiv 原链 + ``"eprint"`` 规范回写 options。"""
         tid = mk_api_task(client, ARXIV)
-        row = client.portal.call(partial(client.app.state.store.get, tid))
+        row = get_row(client, tid)
         assert row["kind"] == "arxiv"
         assert json.loads(row["options_json"])["source"] == "eprint"
 
@@ -1375,7 +1351,7 @@ class TestOptionsGate:
     def test_concurrency_clamped(self, client: TestClient) -> None:
         """settings 同口径 1–16 clamp（0→1、99→16）。"""
         tid = mk_api_task(client, ARXIV, options={"concurrency": 99})
-        row = client.portal.call(partial(client.app.state.store.get, tid))
+        row = get_row(client, tid)
         assert json.loads(row["options_json"])["concurrency"] == 16  # noqa: PLR2004
         assert json.loads(row["config_json"])["concurrency"] == 16  # noqa: PLR2004
 
@@ -1393,7 +1369,7 @@ class TestOptionsGate:
                 "prefer": "fresh",
             },
         )
-        row = client.portal.call(partial(client.app.state.store.get, tid))
+        row = get_row(client, tid)
         opts = json.loads(row["options_json"])
         for k in (
             "reuse_hit",
@@ -1408,7 +1384,7 @@ class TestOptionsGate:
     def test_stripped_reuse_hit_no_pack_422(self, client: TestClient) -> None:
         """注入 reuse_hit 被摘 → share_pack 走到产物检查（artifacts 码区分分支）。"""
         tid = mk_api_task(client, ARXIV, options={"reuse_hit": "t_deadbeefdeadbeef"})
-        _force(client, tid, "done")
+        force_status(client, tid, "done")
         r = client.post(f"/api/task/{tid}/share/pack")
         assert r.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
         # reuse_hit 分支是 share_pack_rejected；摘除后是缺产物分支
@@ -1428,9 +1404,7 @@ class TestOptionsGate:
             data={"options": '{"reuse_hit":"t_x","concurrency":99}'},
         )
         assert r.status_code == HTTPStatus.ACCEPTED
-        row = client.portal.call(
-            partial(client.app.state.store.get, r.json()["task_id"])
-        )
+        row = get_row(client, r.json()["task_id"])
         opts = json.loads(row["options_json"])
         assert "reuse_hit" not in opts
         assert opts["concurrency"] == 16  # noqa: PLR2004
@@ -1449,7 +1423,7 @@ class TestOptionsGate:
             json={"options": {"reuse_hit": "t_x", "concurrency": 99}},
         )
         assert r.status_code == HTTPStatus.ACCEPTED
-        row = client.portal.call(partial(client.app.state.store.get, tid))
+        row = get_row(client, tid)
         opts = json.loads(row["options_json"])
         assert "reuse_hit" not in opts
         assert opts["concurrency"] == 16  # noqa: PLR2004
@@ -1467,54 +1441,41 @@ class TestServerModeSettingsGate:
     但裁部署拓扑字段（glossary_dir/cors_origins/data_dir/has_env_key）。
     """
 
-    def test_put_settings_403(
-        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.setenv("TEXLATE_MODE", "server")
+    def test_put_settings_403(self, server_client: TestClient) -> None:
         # 带 key 才过匿名 401 闸、够到 write gate 的 403
-        r = client.put(
+        r = server_client.put(
             "/api/settings",
             json={"base_url": "https://evil.example"},
             headers={"X-Texlate-Key": "k-A"},
         )
         assert r.status_code == HTTPStatus.FORBIDDEN
         # 未落盘——settings.json 根本没被写
-        assert not (client.app.state.data_dir / "settings.json").exists()
+        assert not (server_client.app.state.data_dir / "settings.json").exists()
 
-    def test_settings_test_403(
-        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.setenv("TEXLATE_MODE", "server")
-        r = client.post("/api/settings/test", json={}, headers={"X-Texlate-Key": "k-A"})
+    def test_settings_test_403(self, server_client: TestClient) -> None:
+        r = server_client.post(
+            "/api/settings/test", json={}, headers={"X-Texlate-Key": "k-A"}
+        )
         assert r.status_code == HTTPStatus.FORBIDDEN
 
-    def test_read_paths_open(
-        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_read_paths_open(self, server_client: TestClient) -> None:
         """GET settings/providers/health 是公共读面——server 模式不闸。"""
-        monkeypatch.setenv("TEXLATE_MODE", "server")
-        assert client.get("/api/settings").status_code == HTTPStatus.OK
-        assert client.get("/api/providers").status_code == HTTPStatus.OK
-        assert client.get("/api/health").status_code == HTTPStatus.OK
+        assert server_client.get("/api/settings").status_code == HTTPStatus.OK
+        assert server_client.get("/api/providers").status_code == HTTPStatus.OK
+        assert server_client.get("/api/health").status_code == HTTPStatus.OK
 
-    def test_health_minimal(
-        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_health_minimal(self, server_client: TestClient) -> None:
         """server 模式 health = 探活 + 深度集 ``{ok, db, queue_depth}``——
         version/compilers/data_dir 属部署拓扑仍不外露。"""
-        monkeypatch.setenv("TEXLATE_MODE", "server")
-        assert client.get("/api/health").json() == {
+        assert server_client.get("/api/health").json() == {
             "ok": True,
             "db": True,
             "queue_depth": 0,
         }
 
-    def test_settings_topology_hidden(
-        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_settings_topology_hidden(self, server_client: TestClient) -> None:
         """server 模式 settings 摘 glossary_dir/cors_origins；租户可见面保留。"""
-        monkeypatch.setenv("TEXLATE_MODE", "server")
-        body = client.get("/api/settings").json()
+        body = server_client.get("/api/settings").json()
         assert "glossary_dir" not in body
         assert "cors_origins" not in body
         assert "api_key" not in body
@@ -1524,12 +1485,11 @@ class TestServerModeSettingsGate:
         assert "has_api_key" in body
 
     def test_providers_env_key_hidden(
-        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+        self, server_client: TestClient, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """server 模式 providers 摘 has_env_key——部署方 env 凭据配置面。"""
-        monkeypatch.setenv("TEXLATE_MODE", "server")
         monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-x")
-        body = client.get("/api/providers").json()
+        body = server_client.get("/api/providers").json()
         assert all("has_env_key" not in p for p in body["providers"])
 
     def test_local_mode_full_read_surface(self, client: TestClient) -> None:
@@ -1567,8 +1527,8 @@ class TestTasksSlim:
         self, client: TestClient
     ) -> None:
         tid = _mk_kind_task(client, "arxiv")
-        _force(client, tid, "done")
-        _reg_file(client, tid, "zh_pdf", "zh.pdf")
+        force_status(client, tid, "done")
+        reg_artifact(client, tid, "zh_pdf", "zh.pdf")
         tdir = self._seed(client, tid)
         r = client.post("/api/tasks/slim")
         assert r.status_code == HTTPStatus.OK
@@ -1590,8 +1550,8 @@ class TestTasksSlim:
     ) -> None:
         """fault 终态不可重译——zh/base 同中间件一并清，只留登记件。"""
         tid = _mk_kind_task(client, "arxiv")
-        _force(client, tid, "fault")
-        _reg_file(client, tid, "compile_log", "compile.log")
+        force_status(client, tid, "fault")
+        reg_artifact(client, tid, "compile_log", "compile.log")
         tdir = self._seed(client, tid)
         r = client.post("/api/tasks/slim")
         assert r.status_code == HTTPStatus.OK
@@ -1601,7 +1561,7 @@ class TestTasksSlim:
 
     def test_active_task_untouched(self, client: TestClient) -> None:
         tid = _mk_kind_task(client, "arxiv")
-        _force(client, tid, "translating")
+        force_status(client, tid, "translating")
         tdir = self._seed(client, tid)
         r = client.post("/api/tasks/slim")
         assert r.status_code == HTTPStatus.OK
@@ -1613,8 +1573,8 @@ class TestTasksSlim:
     ) -> None:
         """``?dry=1``：同口径只算不删——UI 清理菜单的「约可释放 X」预估。"""
         tid = _mk_kind_task(client, "arxiv")
-        _force(client, tid, "done")
-        _reg_file(client, tid, "zh_pdf", "zh.pdf")
+        force_status(client, tid, "done")
+        reg_artifact(client, tid, "zh_pdf", "zh.pdf")
         tdir = self._seed(client, tid)
         r = client.post("/api/tasks/slim?dry=1")
         assert r.status_code == HTTPStatus.OK
@@ -1623,7 +1583,7 @@ class TestTasksSlim:
         assert (tdir / "build-zh" / "a.aux").is_file()
         assert (tdir / "orphan.bin").is_file()
         # 再 dry 同值；真跑后 dry 归零——预估口径与执行口径一致
-        assert client.post("/api/tasks/slim?dry=1").json()["freed_bytes"] == 60
+        assert client.post("/api/tasks/slim?dry=1").json()["freed_bytes"] == 60  # noqa: PLR2004 -- a.aux 50 + orphan.bin 10
         client.post("/api/tasks/slim")
         assert client.post("/api/tasks/slim?dry=1").json() == {
             "slimmed": 0,

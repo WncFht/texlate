@@ -1,12 +1,16 @@
-r"""四条泄漏机制的回归测试（rewrite-spec 泄漏表 + docs/spec/latex-pipeline.md）。
+r"""泄漏机制回归测试（rewrite-spec 泄漏表 A–D 起步，后扩 E/F + 辅助面 +
+docs/spec/latex-pipeline.md）。
 
 A ``_args`` 单 token 兜底吞 ``$``/``\\``；
-B in-arg 注释；C1 env 名 ``*`` 归一；C2 in-arg 未知 env；D in-arg 条件式。
+B in-arg 注释；C1 env 名 ``*`` 归一；C2 in-arg 未知 env；D in-arg 条件式；
+E ``@-cs`` 展开体 opaque；F in-arg 裸 ``\input`` 文件名。
+辅助覆盖：``_group_surface`` 展开组内再生段、``_cover_gap`` 间隙剖分、
+宏展开洞（modec-misschar-2026-09-16）、综合节。
 """
 
 import re
 
-from conftest import DOC, blob, scan_doc
+from conftest import DOC, blob, ph_bodies, scan_doc
 
 from texlate.latex import parse_tex, reconstruct
 
@@ -178,9 +182,7 @@ def test_group_href_url_protected() -> None:
     留可译 surface（主版 ``_handle_href`` 同形）。"""
     body = "\\newcommand{\\hh}{\\href{http://x.y/z}{click me link}}\nSee \\hh ok."
     res = scan_doc(body)
-    assert any(
-        k.startswith("[[HREF_") and v == "{http://x.y/z}" for k, v in res.ph_map.items()
-    )
+    assert "{http://x.y/z}" in ph_bodies(res, "HREF")
     assert "http://x.y/z" not in blob(res)
     assert "click me link" in blob(res)
     assert reconstruct(res) == DOC % body
@@ -190,10 +192,7 @@ def test_group_url_delim_form() -> None:
     r"""展开组内 ``\url|http://..|`` 定界形 → ``[[URL]]``（主版 verbatim 支对价）。"""
     body = "\\newcommand{\\uu}{\\url|http://x.y/|}\nSee \\uu tail text here."
     res = scan_doc(body)
-    assert any(
-        k.startswith("[[URL_") and v == "\\url|http://x.y/|"
-        for k, v in res.ph_map.items()
-    )
+    assert "\\url|http://x.y/|" in ph_bodies(res, "URL")
     assert "http://x.y/" not in blob(res)
     assert reconstruct(res) == DOC % body
 
@@ -237,15 +236,15 @@ def test_gap_before_envtag_in_arg() -> None:
 
 def test_gap_before_math_and_verb_in_arg() -> None:
     r"""``$``/``\\(``/``\\verb`` 前被吞空格不丢——渲染面 ``\\foo [[X]]``。"""
-    for pat, ph, body in (
+    for src, ph, want in (
         (r"\section{A\foo $x$ tail}", "[[MATH_1]]", "$x$"),
         (r"\section{A\foo \(x\) tail}", "[[MATH_1]]", "\\(x\\)"),
         (r"\section{A\foo \verb|v| tail}", "[[VERB_1]]", "\\verb|v|"),
     ):
-        res = scan_doc(pat)
-        assert f"A\\foo {ph} tail" in blob(res), pat
-        assert res.ph_map[ph] == body
-        assert reconstruct(res) == DOC % pat
+        res = scan_doc(src)
+        assert f"A\\foo {ph} tail" in blob(res), src
+        assert res.ph_map[ph] == want
+        assert reconstruct(res) == DOC % src
 
 
 def test_gap_before_opaque_macro_in_arg() -> None:
@@ -287,7 +286,7 @@ def test_alias_newcommand_env_endpoints_protect_math() -> None:
         "Tail prose sentence with enough letters here."
     )
     res = scan_doc(body)
-    assert any(t.startswith("[[MATH_") and "\\tau" in v for t, v in res.ph_map.items())
+    assert any("\\tau" in v for v in ph_bodies(res, "MATH"))
     assert not any(
         "\\tau" in c.content or "regionword" in c.content for c in res.chunks
     )
@@ -319,7 +318,7 @@ def test_user_env_math_role_eqnarray_tail() -> None:
     env = res.macros.lookup_env("subeqnarray")
     assert env is not None
     assert env.body_role == "math"
-    maths = [v for k, v in res.ph_map.items() if k.startswith("[[MATH_")]
+    maths = ph_bodies(res, "MATH")
     assert any("\\varphi^U_\\Omega" in v for v in maths)
     assert any("\\sba" in v for v in maths)
     assert not any(
@@ -336,10 +335,8 @@ def test_user_env_math_role_in_arg() -> None:
     )
     res = scan_doc(body)
     assert any(
-        k.startswith("[[MATH_")
-        and "\\begin{subeqnarray}" in v
-        and "\\end{subeqnarray}" in v
-        for k, v in res.ph_map.items()
+        "\\begin{subeqnarray}" in v and "\\end{subeqnarray}" in v
+        for v in ph_bodies(res, "MATH")
     )
     assert reconstruct(res) == DOC % body
 

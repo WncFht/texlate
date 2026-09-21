@@ -297,7 +297,7 @@ def test_load_nonfinite_and_out_of_range_state(tmp_path: Path) -> None:
     assert not clk.slept  # ParkedError 先于 pacing——没有 inf 睡眠
     # export/api 桶：last_ts 1e18→钳 now、park_until NaN→0 —— 正常放行
     rl.acquire("https://export.arxiv.org/api/query")
-    assert clk.slept == pytest.approx([3.05])  # 只睡一个 gap
+    assert clk.slept == pytest.approx([GAP])  # 只睡一个 gap
 
 
 def test_report_high_park_step_no_overflow() -> None:

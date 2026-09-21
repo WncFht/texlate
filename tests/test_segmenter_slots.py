@@ -26,7 +26,7 @@ r"""非文本槽位保护回归 —— loop1 stagerun 五类腐蚀形态钉版�
 + pieces 无缝平铺 ``[0, len(vtex))``。
 """
 
-from conftest import DOC, blob, check_invariants
+from conftest import DOC, blob, check_invariants, ph_bodies
 
 from texlate.latex import parse_tex
 from texlate.latex.model import PieceKind, ScanResult
@@ -174,7 +174,7 @@ def test_slot_textcolor_head() -> None:
     [c] = res.chunks
     assert c.content == "Para [[CMD_1]]{warning words here} tail more words."
     assert res.ph_map["[[CMD_1]]"] == "\\textcolor{red}"
-    assert "red" not in blob(res).replace("warning", "")
+    assert "red" not in blob(res)
 
 
 def test_slot_colorbox_head() -> None:
@@ -209,7 +209,7 @@ def test_slot_deluxetable_preamble() -> None:
         "\\begin{deluxetable}{lRLc}\\tablecaption{Cap words here}"
         "a&b\\end{deluxetable}\nTail words here enough."
     )
-    [env] = [v for k, v in res.ph_map.items() if k.startswith("[[ENV_")]
+    [env] = ph_bodies(res, "ENV")
     assert env.startswith("\\begin{deluxetable}{lRLc}")
     assert env.endswith("\\end{deluxetable}")
     assert "\\tablecaption{[[CHUNK_" in env

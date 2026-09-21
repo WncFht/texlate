@@ -1,4 +1,4 @@
-"""upload_pdf → BabelDOC sidecar 通路（pdf-path §三契约的假 CLI + 模块单测）。"""
+"""upload_pdf → BabelDOC sidecar 通路（pdf-path §4 契约的假 CLI + 模块单测）。"""
 
 from __future__ import annotations
 
@@ -15,7 +15,8 @@ import pytest
 pytest.importorskip("fastapi", reason="server extra 未装")
 pytest.importorskip("starlette.testclient", reason="server extra 未装")
 
-from conftest import make_app, wait_terminal
+from _serverkit import sse_frames
+from conftest import make_app, upload, wait_terminal
 from starlette.testclient import TestClient
 
 from texlate.server import babeldoc as bd
@@ -97,27 +98,32 @@ _PDF_BYTES = b"%PDF-1.4 fake bytes for upload"
 
 
 def _upload_pdf(client: TestClient, **kw: object) -> str:
-    r = client.post(
-        "/api/upload",
-        files={"file": ("paper.pdf", _PDF_BYTES, "application/pdf")},
-        **kw,  # type: ignore[arg-type]
+    body = upload(
+        client,
+        name="paper.pdf",
+        data=_PDF_BYTES,
+        content_type="application/pdf",
+        **kw,
     )
-    assert r.status_code == HTTPStatus.ACCEPTED, r.text
-    return str(r.json()["task_id"])
+    return str(body["task_id"])
 
 
 def _sse_events(client: TestClient, tid: str) -> list[tuple[str, dict]]:
     """终态后重放 SSE：``[(event, data)]``（done 帧自然终流）。"""
-    with client.stream(
-        "GET", f"/api/task/{tid}", headers={"Accept": "text/event-stream"}
-    ) as r:
-        lines = [ln for ln in r.iter_lines() if ln]
-    out: list[tuple[str, dict]] = []
-    for i, ln in enumerate(lines):
-        nxt = lines[i + 1] if i + 1 < len(lines) else ""
-        if ln.startswith("event:") and nxt.startswith("data:"):
-            out.append((ln[7:], json.loads(nxt.removeprefix("data: "))))
-    return out
+    return [(ev, d) for _i, ev, d in sse_frames(client, tid)]
+
+
+def _job(tmp_path: Path, **kw: object) -> bd.BabeldocJob:
+    """``BabeldocJob`` 小工厂——默认面与 ``test_server_m3_fixes._job`` 同体。"""
+    base = {
+        "src": tmp_path / "a.pdf",
+        "outdir": tmp_path / "o",
+        "workdir": tmp_path / "w",
+        "model": "m1",
+        "base_url": "http://gw.local:3003",
+    }
+    base.update(kw)
+    return bd.BabeldocJob(**base)  # type: ignore[arg-type]
 
 
 @pytest.fixture
@@ -270,14 +276,7 @@ class TestUnit:
         assert bd.default_timeout() == bd.DEFAULT_TIMEOUT_S
 
     def test_build_argv_contract(self, tmp_path: Path) -> None:
-        job = bd.BabeldocJob(
-            src=tmp_path / "a.pdf",
-            outdir=tmp_path / "o",
-            workdir=tmp_path / "w",
-            model="m1",
-            base_url="http://gw.local:3003",
-            api_key="sk-secret",
-        )
+        job = _job(tmp_path, api_key="sk-secret")
         argv = bd.build_argv(job, "/bin/babeldoc")
         assert "--working-dir" in argv
         assert "-c" in argv
@@ -290,13 +289,7 @@ class TestUnit:
         assert argv[j + 1] == "http://gw.local:3003/v1"  # openai SDK 根要 /v1
 
     def test_openai_base_url_v1_suffix(self, tmp_path: Path) -> None:
-        job = bd.BabeldocJob(
-            src=tmp_path / "a.pdf",
-            outdir=tmp_path / "o",
-            workdir=tmp_path / "w",
-            model="m1",
-            base_url="http://gw.local:3003/v1",
-        )
+        job = _job(tmp_path, base_url="http://gw.local:3003/v1")
         argv = bd.build_argv(job, "/bin/babeldoc")
         j = argv.index("--openai-base-url")
         assert argv[j + 1] == "http://gw.local:3003/v1"  # 已带 /v1 不重复
@@ -305,14 +298,7 @@ class TestUnit:
         assert argv[argv.index("--openai-base-url") + 1] == "http://gw.local:3003/v1"
 
     def test_write_config_0600(self, tmp_path: Path) -> None:
-        job = bd.BabeldocJob(
-            src=tmp_path / "a.pdf",
-            outdir=tmp_path / "o",
-            workdir=tmp_path / "w",
-            model="m1",
-            base_url="",
-            api_key="k-secret",
-        )
+        job = _job(tmp_path, base_url="", api_key="k-secret")
         p = bd.write_config(job)
         assert stat.S_IMODE(p.stat().st_mode) == stat.S_IRUSR | stat.S_IWUSR
         body = p.read_text(encoding="utf-8")

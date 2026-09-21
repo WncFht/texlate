@@ -14,6 +14,7 @@ from functools import lru_cache
 from pathlib import Path
 
 import regex
+from _fixloopkit import MAIN_TEX, XETEX_CLEAN_LOG, EngStub, ScriptEng
 
 from texlate.compile.fixloop import Ruleset, actions, fixloop, load_ruleset
 from texlate.compile.fixloop.engine import LoopCtx, Rule
@@ -43,8 +44,6 @@ _COMPAT_LOG = (
     "./main.aux:32: Package natbib Error: Bibliography not compatible "
     "with author-year citations.\nl.32 \\NAT@force@numbers\n"
 )
-CLEAN_LOG = "This is XeTeX\nOutput written on main.pdf (1 page).\n"
-MAIN_TEX = "\\documentclass{article}\n\\begin{document}\nhi\n\\end{document}\n"
 
 
 def _pat() -> regex.Pattern[str]:
@@ -60,20 +59,6 @@ def _sub(src: str) -> str:
     return _pat().sub(rw["repl"], src)
 
 
-class _Eng:
-    """regex_rewrite/condition 路径的最小引擎替身 (不触 probe/install)。"""
-
-    name = "xelatex"
-
-    def probe_file(self, fname: str, cwd: Path | None = None) -> str | None:
-        del fname, cwd
-        return None
-
-    def filemap(self, fname: str) -> list[str]:
-        del fname
-        return []
-
-
 def _ctx(wdir: Path, err_head: str = "") -> LoopCtx:
     ctx = LoopCtx(wdir=wdir, engine_name="xelatex", main_rel="main.tex")
     ctx.err_head = err_head
@@ -82,51 +67,8 @@ def _ctx(wdir: Path, err_head: str = "") -> LoopCtx:
 
 def _apply(wdir: Path) -> tuple[bool, str]:
     return actions._apply(  # noqa: SLF001 - 钉规则动作直驱
-        _rule(), _ctx(wdir), _Eng(), None, ErrReport()
+        _rule(), _ctx(wdir), EngStub(), None, ErrReport()
     )
-
-
-class _Res:
-    """impl CompRes 的 duck-type 替身 (同 test_fixloop_aux_eof 口径)。"""
-
-    def __init__(self, wdir: Path, main: str, spec: dict) -> None:
-        stem = Path(main).stem
-        self.log_path = wdir / f"{stem}.log"
-        self.log_path.write_text(spec.get("log", ""), encoding="utf-8")
-        self.pdf = wdir / f"{stem}.pdf" if spec.get("pdf") else None
-        if self.pdf is not None:
-            self.pdf.write_bytes(b"%PDF-1.4 fake")
-        self.pdf_bytes = self.pdf.stat().st_size if self.pdf else 0
-        self.timed_out = False
-        self.seconds = 0.01
-        self.stdout_tail = ""
-
-    @property
-    def has_pdf(self) -> bool:
-        return self.pdf is not None and self.pdf_bytes > 0
-
-
-class _ScriptEng(_Eng):
-    """script 逐轮吐 spec。"""
-
-    caps = frozenset({"kpsewhich", "tlmgr", "updmap"})
-
-    def __init__(self, script: list) -> None:
-        self.script = list(script)
-        self.rounds = 0
-
-    def compile(self, wdir: Path, main: str, *, passes: int = 2, **_kw: object) -> _Res:
-        del passes, _kw
-        i = min(self.rounds, len(self.script) - 1)
-        self.rounds += 1
-        return _Res(Path(wdir), main, self.script[i])
-
-    def install_file(self, fname: str, *, font_related: bool = False) -> bool:
-        del fname, font_related
-        return False
-
-    def rebuild_fontmaps(self) -> bool:
-        return True
 
 
 # ---------------------------------------------------------------- taxonomy
@@ -240,7 +182,7 @@ def test_cond_requires_signature(tmp_path: Path) -> None:
     """err_head 无 compat 签名 → cond 拒。"""
     (tmp_path / "main.aux").write_text(_AUX_MARKED, encoding="utf-8")
     ok, why = actions._cond_ok(  # noqa: SLF001 - 闸行为直驱
-        _rule().condition, _rule(), _ctx(tmp_path), _Eng(), None
+        _rule().condition, _rule(), _ctx(tmp_path), EngStub(), None
     )
     assert not ok
     assert "err ctx" in why
@@ -253,7 +195,7 @@ def test_cond_requires_aux_fileset(tmp_path: Path) -> None:
         _rule().condition,
         _rule(),
         _ctx(tmp_path, err_head="x:32: Bibliography not compatible with author-year"),
-        _Eng(),
+        EngStub(),
         None,
     )
     assert not ok
@@ -267,7 +209,7 @@ def test_cond_passes_on_signature_plus_aux(tmp_path: Path) -> None:
         _rule().condition,
         _rule(),
         _ctx(tmp_path, err_head=_COMPAT_LOG),
-        _Eng(),
+        EngStub(),
         None,
     )
     assert ok
@@ -278,12 +220,13 @@ def test_fixloop_e2e_stale_aux_purged(tmp_path: Path) -> None:
     """同签接力: numbers_pass(r1) 注入防再写 → 本规则(r2) 剥陈旧标记 → r3 净。"""
     (tmp_path / "main.tex").write_text(MAIN_TEX, encoding="utf-8")
     (tmp_path / "main.aux").write_text(_AUX_MARKED, encoding="utf-8")
-    eng = _ScriptEng(
+    eng = ScriptEng(
         [
             {"log": _COMPAT_LOG, "pdf": False},
             {"log": _COMPAT_LOG, "pdf": False},
-            {"log": CLEAN_LOG, "pdf": True},
-        ]
+            {"log": XETEX_CLEAN_LOG, "pdf": True},
+        ],
+        probe_cwd=False,
     )
     cell = fixloop(tmp_path, eng, ruleset=_rs())
     assert cell["verdict"] == "clean"
@@ -301,7 +244,7 @@ def test_fixloop_e2e_no_marker_falls_through(tmp_path: Path) -> None:
     (tmp_path / "main.aux").write_text(
         "\\relax\n\\newlabel{a}{{1}{1}{ok}}\n", encoding="utf-8"
     )
-    eng = _ScriptEng([{"log": _COMPAT_LOG, "pdf": False}] * 4)
+    eng = ScriptEng([{"log": _COMPAT_LOG, "pdf": False}] * 4, probe_cwd=False)
     cell = fixloop(tmp_path, eng, ruleset=_rs())
     assert all(a["rule"] != "natbib_aux_force_purge" for a in cell["actions"])
     assert "\\newlabel{a}" in (tmp_path / "main.aux").read_text(encoding="utf-8")

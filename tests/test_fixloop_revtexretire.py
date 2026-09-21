@@ -15,9 +15,10 @@ e-print/user-texmf 自带 revtex4.cls v4.0a 内嵌 textcase v0.06 ——
 from collections.abc import Callable
 from pathlib import Path
 
-from texlate.compile.fixloop import Ruleset, actions, load_ruleset
+from _fixloopkit import ShadowEng, mk_ctx, proj_texmf, rs, rule
+
+from texlate.compile.fixloop import actions
 from texlate.compile.fixloop.builtins import TRANSFORM_FNS
-from texlate.compile.fixloop.engine import LoopCtx, Rule
 from texlate.compile.logparse import parse_text
 
 _RULE_ID = "revtex_era_retire"
@@ -51,47 +52,8 @@ _MODERN_TEXTCASE = (
 )
 
 
-class _ShadowEng:
-    """probe_file → ``texmf`` 目录直查 (amsretire 测试同款微缩)。"""
-
-    name = "xelatex"
-
-    def __init__(self, texmf: Path) -> None:
-        self.texmf = texmf
-
-    def probe_file(self, fname: str, cwd: Path | None = None) -> str | None:
-        del cwd
-        p = self.texmf / fname
-        return str(p) if p.is_file() else None
-
-    def filemap(self, fname: str) -> list[str]:
-        del fname
-        return []
-
-
-def _rs() -> Ruleset:
-    return load_ruleset()
-
-
-def _rule() -> Rule:
-    return next(r for r in _rs().rules if r.id == _RULE_ID)
-
-
-def _ctx(wdir: Path) -> LoopCtx:
-    return LoopCtx(wdir=wdir, engine_name="xelatex", main_rel="main.tex")
-
-
 def _fn() -> Callable[..., tuple[bool, str]]:
     return TRANSFORM_FNS["revtex_era_retire"]
-
-
-def _proj_texmf(tmp_path: Path) -> tuple[Path, Path]:
-    """wdir=proj/ 与 texmf=兄弟目录 (probe 命中 wdir 外才算树外遮蔽)。"""
-    proj = tmp_path / "proj"
-    proj.mkdir()
-    texmf = tmp_path / "texmf"
-    texmf.mkdir()
-    return proj, texmf
 
 
 def _42(texmf: Path) -> None:
@@ -103,32 +65,32 @@ def _42(texmf: Path) -> None:
 def test_taxonomy_reserved_a_is_syntax() -> None:
     """实证签名 Illegal parameter number → syntax (0806.4149 final_cat)。"""
     rep = parse_text(_ERR_RESERVED)
-    cat, _ = _rs().taxonomy.classify(rep)
+    cat, _ = rs().taxonomy.classify(rep)
     assert cat == "syntax"
 
 
 def test_taxonomy_citex_pin() -> None:
     """实证签名 \\@citex doesn't match → taxrow 归 cs_mismatch (1003.0910)。"""
     rep = parse_text(_ERR_CITEX)
-    cat, _ = _rs().taxonomy.classify(rep)
+    cat, _ = rs().taxonomy.classify(rep)
     assert cat == "cs_mismatch"
 
 
 # ---------------------------------------------------------------- 规则接线
 def test_rule_wired() -> None:
     """挂 loop 相 order 11.98 → builtin_transform revtex_era_retire。"""
-    rule = _rule()
-    assert rule.order == 11.98  # noqa: PLR2004 - schema 断言值
-    cats = {c.get("category") for c in rule.when["any"]}
+    rl = rule(_RULE_ID)
+    assert rl.order == 11.98  # noqa: PLR2004 - schema 断言值
+    cats = {c.get("category") for c in rl.when["any"]}
     assert {"syntax", "other", "early_eof", "undefined_cs"} <= cats
-    assert "reserved@a" in rule.condition["ctx_suggests"]
-    assert rule.action["kind"] == "builtin_transform"
-    assert rule.action["function"] == "revtex_era_retire"
+    assert "reserved@a" in rl.condition["ctx_suggests"]
+    assert rl.action["kind"] == "builtin_transform"
+    assert rl.action["function"] == "revtex_era_retire"
 
 
 def test_rule_order_in_retire_family() -> None:
     """order 自洽: lamsarrow(11.97) < 本规则 < legacy_pkg_shim(12)。"""
-    orders = {r.id: r.order for r in _rs().phase("loop")}
+    orders = {r.id: r.order for r in rs().phase("loop")}
     assert orders["lamsarrow_lams_fonts_drop"] < orders[_RULE_ID]
     assert orders[_RULE_ID] < orders["legacy_pkg_shim"]
 
@@ -136,39 +98,44 @@ def test_rule_order_in_retire_family() -> None:
 # ---------------------------------------------------------------- condition 闸
 def test_cond_skip_unrelated(tmp_path: Path) -> None:
     """err_head 无签名 → ctx_suggests 闸拒。"""
-    ctx = _ctx(tmp_path)
+    ctx = mk_ctx(tmp_path)
     ctx.err_head = "./main.tex:10: LaTeX Error: Something else.\nl.10 x\n"
-    ok, _ = actions._cond_ok(_rule().condition, _rule(), ctx, None, None)  # noqa: SLF001
+    rl = rule(_RULE_ID)
+    ok, _ = actions._cond_ok(rl.condition, rl, ctx, None, None)  # noqa: SLF001
     assert not ok
 
 
 def test_cond_skip_revtex42_name(tmp_path: Path) -> None:
     """err_head 只提 revtex4-2.cls → ``revtex4\\.cls`` 带点锚不命中。"""
-    ctx = _ctx(tmp_path)
+    ctx = mk_ctx(tmp_path)
     ctx.err_head = "./revtex4-2.cls:10: LaTeX Error: boom.\nl.10 x\n"
-    ok, _ = actions._cond_ok(_rule().condition, _rule(), ctx, None, None)  # noqa: SLF001
+    rl = rule(_RULE_ID)
+    ok, _ = actions._cond_ok(rl.condition, rl, ctx, None, None)  # noqa: SLF001
     assert not ok
 
 
 def test_cond_pass_reserved_a(tmp_path: Path) -> None:
-    ctx = _ctx(tmp_path)
+    ctx = mk_ctx(tmp_path)
     ctx.err_head = _ERR_RESERVED
-    ok, why = actions._cond_ok(_rule().condition, _rule(), ctx, None, None)  # noqa: SLF001
+    rl = rule(_RULE_ID)
+    ok, why = actions._cond_ok(rl.condition, rl, ctx, None, None)  # noqa: SLF001
     assert ok, why
 
 
 def test_cond_pass_citex(tmp_path: Path) -> None:
-    ctx = _ctx(tmp_path)
+    ctx = mk_ctx(tmp_path)
     ctx.err_head = _ERR_CITEX
-    ok, why = actions._cond_ok(_rule().condition, _rule(), ctx, None, None)  # noqa: SLF001
+    rl = rule(_RULE_ID)
+    ok, why = actions._cond_ok(rl.condition, rl, ctx, None, None)  # noqa: SLF001
     assert ok, why
 
 
 def test_cond_pass_filename(tmp_path: Path) -> None:
     """file-line 点名 revtex4.cls → 第三签命中。"""
-    ctx = _ctx(tmp_path)
+    ctx = mk_ctx(tmp_path)
     ctx.err_head = "./revtex4.cls:3737: LaTeX Error: boom.\nl.3737 x\n"
-    ok, why = actions._cond_ok(_rule().condition, _rule(), ctx, None, None)  # noqa: SLF001
+    rl = rule(_RULE_ID)
+    ok, why = actions._cond_ok(rl.condition, rl, ctx, None, None)  # noqa: SLF001
     assert ok, why
 
 
@@ -179,10 +146,10 @@ def test_stale_revtex4_retired_with_delegate(tmp_path: Path) -> None:
     本名亦须 delegate —— 系统 TL 无 ``revtex4`` 名递补 (唯 revtex4-2),
     裸退役即 missing_file/再中毒 (与 amsmath 本名无 delegate 形不同)。
     """
-    wdir, texmf = _proj_texmf(tmp_path)
+    wdir, texmf = proj_texmf(tmp_path)
     _42(texmf)
     (wdir / "revtex4.cls").write_text(_STALE_REVTEX4, encoding="utf-8")
-    ok, note = _fn()(_ctx(wdir), _ShadowEng(texmf), None, {})
+    ok, note = _fn()(mk_ctx(wdir), ShadowEng(texmf), None, {})
     assert ok, note
     assert (wdir / "revtex4.cls.fixloop-iso").is_file()
     body = (wdir / "revtex4.cls").read_text(encoding="utf-8")
@@ -193,10 +160,10 @@ def test_stale_revtex4_retired_with_delegate(tmp_path: Path) -> None:
 
 def test_renamed_copy_gets_stem_delegate(tmp_path: Path) -> None:
     """改名件 revtex4old.cls (体内仍署 {revtex4}) → 退役 + stem 名 delegate。"""
-    wdir, texmf = _proj_texmf(tmp_path)
+    wdir, texmf = proj_texmf(tmp_path)
     _42(texmf)
     (wdir / "revtex4old.cls").write_text(_STALE_REVTEX4, encoding="utf-8")
-    ok, note = _fn()(_ctx(wdir), _ShadowEng(texmf), None, {})
+    ok, note = _fn()(mk_ctx(wdir), ShadowEng(texmf), None, {})
     assert ok, note
     assert (wdir / "revtex4old.cls.fixloop-iso").is_file()
     body = (wdir / "revtex4old.cls").read_text(encoding="utf-8")
@@ -206,30 +173,30 @@ def test_renamed_copy_gets_stem_delegate(tmp_path: Path) -> None:
 
 def test_modern_revtex42_untouched(tmp_path: Path) -> None:
     """\\ProvidesClass{revtex4-2} 纵含同名机 → 名锚不中, 不动。"""
-    wdir, texmf = _proj_texmf(tmp_path)
+    wdir, texmf = proj_texmf(tmp_path)
     _42(texmf)
     (wdir / "revtex4-2.cls").write_text(_NEW_42, encoding="utf-8")
-    ok, _ = _fn()(_ctx(wdir), _ShadowEng(texmf), None, {})
+    ok, _ = _fn()(mk_ctx(wdir), ShadowEng(texmf), None, {})
     assert not ok
     assert (wdir / "revtex4-2.cls").is_file()
 
 
 def test_modern_textcase_untouched(tmp_path: Path) -> None:
     """uclc 单锚 (现代 textcase.sty 同机) → 不动 —— 双锚必要性。"""
-    wdir, texmf = _proj_texmf(tmp_path)
+    wdir, texmf = proj_texmf(tmp_path)
     _42(texmf)
     (wdir / "textcase.cls").write_text(_MODERN_TEXTCASE, encoding="utf-8")
-    ok, _ = _fn()(_ctx(wdir), _ShadowEng(texmf), None, {})
+    ok, _ = _fn()(mk_ctx(wdir), ShadowEng(texmf), None, {})
     assert not ok
 
 
 def test_idempotent_second_call(tmp_path: Path) -> None:
     """二轮直驱: delegate 无 uclc 锚 + 指纹行 → False 幂等。"""
-    wdir, texmf = _proj_texmf(tmp_path)
+    wdir, texmf = proj_texmf(tmp_path)
     _42(texmf)
     (wdir / "revtex4.cls").write_text(_STALE_REVTEX4, encoding="utf-8")
-    ctx = _ctx(wdir)
-    eng = _ShadowEng(texmf)
+    ctx = mk_ctx(wdir)
+    eng = ShadowEng(texmf)
     ok1, _ = _fn()(ctx, eng, None, {})
     assert ok1
     ok2, _ = _fn()(ctx, eng, None, {})
@@ -239,12 +206,12 @@ def test_idempotent_second_call(tmp_path: Path) -> None:
 # ---------------------------------------------------------------- pass 2 树外遮蔽
 def test_texmf_shadow_dropped_not_moved(tmp_path: Path) -> None:
     """~/texmf v4.0a 遮蔽 → 根 delegate 落盘, texmf 原件只读不动。"""
-    wdir, texmf = _proj_texmf(tmp_path)
+    wdir, texmf = proj_texmf(tmp_path)
     _42(texmf)
-    # _ShadowEng 直查 texmf/<fname> —— 放 texmf/revtex4.cls 让 probe 命中
+    # ShadowEng 直查 texmf/<fname> —— 放 texmf/revtex4.cls 让 probe 命中
     shallow = texmf / "revtex4.cls"
     shallow.write_text(_STALE_REVTEX4, encoding="utf-8")
-    ok, note = _fn()(_ctx(wdir), _ShadowEng(texmf), None, {})
+    ok, note = _fn()(mk_ctx(wdir), ShadowEng(texmf), None, {})
     assert ok, note
     body = (wdir / "revtex4.cls").read_text(encoding="utf-8")
     assert body.startswith("% texlate-fixloop-injected:")
@@ -255,22 +222,22 @@ def test_texmf_shadow_dropped_not_moved(tmp_path: Path) -> None:
 
 def test_texmf_modern_no_delegate(tmp_path: Path) -> None:
     """probe 命中系统 revtex4-2/modern → 指纹不中, 不落 delegate。"""
-    wdir, texmf = _proj_texmf(tmp_path)
+    wdir, texmf = proj_texmf(tmp_path)
     (texmf / "revtex4.cls").write_text(_NEW_42, encoding="utf-8")
     _42(texmf)
-    ok, _ = _fn()(_ctx(wdir), _ShadowEng(texmf), None, {})
+    ok, _ = _fn()(mk_ctx(wdir), ShadowEng(texmf), None, {})
     assert not ok
     assert not (wdir / "revtex4.cls").exists()
 
 
 def test_wdir_texmf_subtree_skipped(tmp_path: Path) -> None:
     """wdir/_texmf 引擎树内指纹件 → pass 1 跳过 (非稿自带), 根 delegate 遮蔽。"""
-    wdir, texmf = _proj_texmf(tmp_path)
+    wdir, texmf = proj_texmf(tmp_path)
     _42(texmf)
     inner = wdir / "_texmf" / "home" / "tex" / "latex" / "revtex4"
     inner.mkdir(parents=True)
     (inner / "revtex4.cls").write_text(_STALE_REVTEX4, encoding="utf-8")
-    ok, note = _fn()(_ctx(wdir), _ShadowEng(texmf), None, {})
+    ok, note = _fn()(mk_ctx(wdir), ShadowEng(texmf), None, {})
     assert ok, note
     # _texmf 件不 mv (引擎树) —— 根 delegate 经 cwd 序遮蔽即可
     assert (inner / "revtex4.cls").is_file()
@@ -285,10 +252,10 @@ def test_wdir_texmf_subtree_skipped(tmp_path: Path) -> None:
 # ---------------------------------------------------------------- 递补闸
 def test_replacement_missing_refuses(tmp_path: Path) -> None:
     """revtex4-2 probe/vendor 双空 → 拒动 (delegate 死路闸)。"""
-    wdir, texmf = _proj_texmf(tmp_path)
+    wdir, texmf = proj_texmf(tmp_path)
     (wdir / "revtex4.cls").write_text(_STALE_REVTEX4, encoding="utf-8")
     empty_vendor = tmp_path / "novendor"
-    ok, _ = _fn()(_ctx(wdir), _ShadowEng(texmf), None, {"dir": str(empty_vendor)})
+    ok, _ = _fn()(mk_ctx(wdir), ShadowEng(texmf), None, {"dir": str(empty_vendor)})
     assert not ok
     assert (wdir / "revtex4.cls").is_file()  # 原样保留
     assert not (wdir / "revtex4.cls.fixloop-iso").exists()

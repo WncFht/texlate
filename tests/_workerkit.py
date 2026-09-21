@@ -1,11 +1,17 @@
-"""worker 测试公共骨架——``mk_ctx`` 五件套 + ``scan_base`` 解析直通 + ``_insert_chunk`` 最小行。
+"""worker 测试公共骨架——``mk_ctx`` 五件套 + ``mk_runner`` TaskRunner 装配 +
+``scan_base`` 解析直通 + ``_insert_chunk`` 最小行。
 
 ``PipelineWorker`` 段级直调面（``run_stage`` 前门）的配套 harness：
 Store+EventBus+PipelineWorker+真实任务行+TaskCtx 一次装配。原
 ``test_worker_audit_fixes``/``test_fuzz_worker``/``test_worker_term_dict``
-三处同构 ``_mk``/``_scan`` 归此一处（``_insert_chunk`` 另收
-``test_fixloop_live_events`` 同形件）；异形 ctx（raw row dict、_NullBus、
-api_key Secrets 等 per-test 定制）仍留各文件本地。
+三处同构 ``_mk``/``_scan`` 归此一处；``_insert_chunk`` 最小行件备此供
+worker 道复用（``test_fixloop_live_events``/``test_fuzz_worker`` 已收编；
+``test_app_endpoints`` 的 ``client`` 形异形件签名不同，仍本地）。
+``mk_runner`` 是 ``TaskRunner(store, bus, worker)`` 一次装配件
+（``test_worker_cancel_protocol`` 本地件收编，``worker=`` 形参留予
+_HangWorker 类覆写站点）。
+异形 ctx（raw row dict、_NullBus、api_key Secrets 等 per-test 定制）
+仍留各文件本地。
 """
 
 from __future__ import annotations
@@ -16,7 +22,7 @@ from conftest import mk_task_row
 
 from texlate.server.events import EventBus
 from texlate.server.store import Store
-from texlate.server.worker import PipelineWorker, Secrets, TaskCtx
+from texlate.server.worker import PipelineWorker, Secrets, TaskCtx, TaskRunner
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -49,6 +55,20 @@ def mk_ctx(
         root=tmp_path / "tasks" / str(row["id"]),
     )
     return ctx, worker, store
+
+
+def mk_runner(
+    store: Store,
+    tmp_path: Path,
+    *,
+    worker: PipelineWorker | None = None,
+    bus: EventBus | None = None,
+) -> TaskRunner:
+    """``TaskRunner(store, bus, worker)`` 一次装配——缺省自造
+    EventBus/PipelineWorker；传入既有 worker 时共 bus（生产 app.py 同 wiring）。"""
+    bus = bus or EventBus(store)
+    worker = worker or PipelineWorker(store, bus, tmp_path)
+    return TaskRunner(store, bus, worker)
 
 
 def scan_base(ctx: TaskCtx, worker: PipelineWorker, store: Store, tex: str) -> None:

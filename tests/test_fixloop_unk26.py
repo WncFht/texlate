@@ -27,12 +27,12 @@ kernel-verbatim ``\ifdefined``-守卫 ``\DeclareOldFontCommand`` 全家族
 polyfill。
 """
 
-import re
 from pathlib import Path
 
 import regex
+from _fixloopkit import EngStub, apply, mk_ctx, rs, rule
 
-from texlate.compile.fixloop import actions, load_ruleset
+from texlate.compile.fixloop import actions
 from texlate.compile.fixloop._builtins_common import (
     _AT_LETTER_POST,
     _AT_LETTER_PRE,
@@ -41,17 +41,14 @@ from texlate.compile.fixloop.builtins import (
     spacefactor_atdef_wrap,
     vendored_shadow_isolate,
 )
-from texlate.compile.fixloop.engine import LoopCtx, Rule
-from texlate.compile.logparse import ErrReport
 
-_RS = load_ruleset()
-_ERA = next(r for r in _RS.rules if r.id == "era_bundle_shadow_retire")
-_MICRO = next(r for r in _RS.rules if r.id == "microtype_era_cfg_retire")
-_DEMOTE = next(r for r in _RS.rules if r.id == "doc_ifx_errmessage_demote")
-_PSFILE = next(r for r in _RS.rules if r.id == "special_psfile_abspath_basename")
-_ATDEF = next(r for r in _RS.rules if r.id == "atdef_cat_wrap")
-_CS = next(r for r in _RS.rules if r.id == "cs_targeted_fix")
-_CSTABLE = _CS.action["params"]["cs_table"]
+# 规则 rid 常量——经 ``rule()``/``rs()`` 惰性取件（收集期不 IO 约定）。
+_ERA_ID = "era_bundle_shadow_retire"
+_MICRO_ID = "microtype_era_cfg_retire"
+_DEMOTE_ID = "doc_ifx_errmessage_demote"
+_PSFILE_ID = "special_psfile_abspath_basename"
+_ATDEF_ID = "atdef_cat_wrap"
+_CS_ID = "cs_targeted_fix"
 
 _VENDOR_PSFIG = (
     Path(__file__).resolve().parent.parent
@@ -59,22 +56,8 @@ _VENDOR_PSFIG = (
 )
 
 
-class _Eng:
-    """builtin_transform 路径的最小引擎替身 (不触 probe/install)。"""
-
-    name = "xelatex"
-
-    def probe_file(self, fname: str, cwd: Path | None = None) -> str | None:
-        del fname, cwd
-        return None
-
-    def filemap(self, fname: str) -> list[str]:
-        del fname
-        return []
-
-
 class _ShadowEng:
-    """probe_file → ``texmf`` 目录直查 (模拟系统副本在场)。"""
+    """probe_file → ``texmf`` 目录直查 (模拟系统副本在场; kit 无对应件)。"""
 
     name = "xelatex"
 
@@ -91,33 +74,23 @@ class _ShadowEng:
         return []
 
 
-def _ctx(wdir: Path, err_head: str = "") -> LoopCtx:
-    ctx = LoopCtx(wdir=wdir, engine_name="xelatex", main_rel="main.tex")
-    ctx.err_head = err_head
-    return ctx
+def _era_params() -> dict:
+    return dict(rule(_ERA_ID).action["params"])
 
 
-def _apply(
-    rule: Rule,
-    wdir: Path,
-    eng: object | None = None,
-    pay: str | None = None,
-    err_head: str = "",
-) -> tuple[bool, str]:
-    return actions._apply(  # noqa: SLF001 - 钉规则动作直驱
-        rule, _ctx(wdir, err_head), eng or _Eng(), pay, ErrReport()
-    )
+def _cstable() -> dict:
+    return rule(_CS_ID).action["params"]["cs_table"]
 
 
-def _subs(rule: Rule) -> list:
+def _subs(rid: str) -> list:
     return actions._compile_rewrites(  # noqa: SLF001
-        rule.action["params"]["rewrites"]
+        rule(rid).action["params"]["rewrites"]
     )
 
 
-def _sub(rule: Rule, text: str) -> str | None:
+def _sub(rid: str, text: str) -> str | None:
     """经 _compile_rewrites/_masked_sub 真管线跑全部 rewrite (_patch_files 序)。"""
-    for pat, repl, masked in _subs(rule):
+    for pat, repl, masked in _subs(rid):
         nxt = (
             actions._masked_sub(pat, repl, text)  # noqa: SLF001
             if masked
@@ -134,34 +107,36 @@ def _sub(rule: Rule, text: str) -> str | None:
 
 def test_ruleset_registers_unk26_rules() -> None:
     """五新臂在册且位次钉死 (共仓兄弟 lane 并发加规则, 只钉下界)。"""
-    assert len(_RS.rules) >= 200  # noqa: PLR2004 - 落地时 200+5
-    assert _ERA.order == 11.92  # noqa: PLR2004
-    assert _MICRO.order == 11.93  # noqa: PLR2004
-    assert _DEMOTE.order == 11.94  # noqa: PLR2004
-    assert _PSFILE.order == 18.55  # noqa: PLR2004 - 18.5 后 18.6 占位臂前
-    assert _ATDEF.order == 198.6  # noqa: PLR2004 - spacefactor_atdef_wrap(198.5) 后
+    assert len(rs().rules) >= 200  # noqa: PLR2004 - 落地时 200+5
+    assert rule(_ERA_ID).order == 11.92  # noqa: PLR2004
+    assert rule(_MICRO_ID).order == 11.93  # noqa: PLR2004
+    assert rule(_DEMOTE_ID).order == 11.94  # noqa: PLR2004
+    assert rule(_PSFILE_ID).order == 18.55  # noqa: PLR2004 - 18.5 后 18.6 占位臂前
+    assert rule(_ATDEF_ID).order == 198.6  # noqa: PLR2004 - spacefactor_atdef_wrap(198.5) 后
 
 
 def test_era_rule_shape() -> None:
     """B1: builtin_transform vendored_shadow_isolate + 宽 exts + timeout 在 when。"""
-    assert _ERA.action["kind"] == "builtin_transform"
-    assert _ERA.action["function"] == "vendored_shadow_isolate"
+    era = rule(_ERA_ID)
+    assert era.action["kind"] == "builtin_transform"
+    assert era.action["function"] == "vendored_shadow_isolate"
     # spec 原案 exts 含 .tex —— 与 _retire_paired_tex_core 道 double-move
     # 撞缺件 (builtin 无 moved 卫); .tex 留 paired 道独担 (同干核仍退役)
-    assert _ERA.action["params"]["exts"] == [".sty", ".cls", ".def", ".cfg"]
-    assert _ERA.condition["vendored_shadow"] is True
-    cats = {w["category"] for w in _ERA.when["any"]}
+    assert era.action["params"]["exts"] == [".sty", ".cls", ".def", ".cfg"]
+    assert era.condition["vendored_shadow"] is True
+    cats = {w["category"] for w in era.when["any"]}
     assert "timeout" in cats  # 0103262 超时装载格
     assert {"undefined_cs", "syntax", "other"} <= cats
 
 
 def test_micro_rule_shape() -> None:
     """B6: run_tool sh 名单退役, ctx+glob+tool 三闸。"""
-    assert _MICRO.action["kind"] == "run_tool"
-    assert _MICRO.condition["cache_dir_glob"] == "microtype.cfg"
-    assert _MICRO.condition["tool_available"] == "sh"
-    assert "DeclareMicrotypeSet" in _MICRO.condition["ctx_suggests"]
-    argv = _MICRO.action["params"]["argv"]
+    micro = rule(_MICRO_ID)
+    assert micro.action["kind"] == "run_tool"
+    assert micro.condition["cache_dir_glob"] == "microtype.cfg"
+    assert micro.condition["tool_available"] == "sh"
+    assert "DeclareMicrotypeSet" in micro.condition["ctx_suggests"]
+    argv = micro.action["params"]["argv"]
     body = argv[argv.index("-c") + 1]
     for name in ("microtype.sty", "microtype.cfg", "letterspace.sty", "mt-*.cfg"):
         assert name in body
@@ -170,27 +145,30 @@ def test_micro_rule_shape() -> None:
 
 def test_demote_rule_shape() -> None:
     """B3: regex_rewrite 双条 (else 支 + 真支), exts .tex。"""
-    assert _DEMOTE.action["kind"] == "regex_rewrite"
-    assert _DEMOTE.action["params"]["exts"] == [".tex"]
-    assert len(_DEMOTE.action["params"]["rewrites"]) == 2  # noqa: PLR2004
-    assert "errmessage" in _DEMOTE.condition["source_contains"]
+    demote = rule(_DEMOTE_ID)
+    assert demote.action["kind"] == "regex_rewrite"
+    assert demote.action["params"]["exts"] == [".tex"]
+    assert len(demote.action["params"]["rewrites"]) == 2  # noqa: PLR2004
+    assert "errmessage" in demote.condition["source_contains"]
 
 
 def test_psfile_rule_shape() -> None:
     """B4: 双闸 AND (驱动签名 ∧ 绝对径 psfile), exts .tex。"""
-    assert _PSFILE.action["kind"] == "regex_rewrite"
-    assert "Image inclusion failed" in _PSFILE.condition["ctx_suggests"]
-    assert "psfile" in _PSFILE.condition["source_contains"]
-    cats = {w["category"] for w in _PSFILE.when["any"]}
+    psfile = rule(_PSFILE_ID)
+    assert psfile.action["kind"] == "regex_rewrite"
+    assert "Image inclusion failed" in psfile.condition["ctx_suggests"]
+    assert "psfile" in psfile.condition["source_contains"]
+    cats = {w["category"] for w in psfile.when["any"]}
     assert {"driver_fatal", "other"} == cats
 
 
 def test_atdef_rule_shape() -> None:
     """B5: 同 builtin 无签名门版; 原臂默认参数不变。"""
-    assert _ATDEF.action["kind"] == "builtin_transform"
-    assert _ATDEF.action["function"] == "spacefactor_atdef_wrap"
-    assert _ATDEF.action["params"]["gate_terms"] == []
-    cats = {w["category"] for w in _ATDEF.when["any"]}
+    atdef = rule(_ATDEF_ID)
+    assert atdef.action["kind"] == "builtin_transform"
+    assert atdef.action["function"] == "spacefactor_atdef_wrap"
+    assert atdef.action["params"]["gate_terms"] == []
+    cats = {w["category"] for w in atdef.when["any"]}
     assert "cs_mismatch" in cats
 
 
@@ -202,10 +180,6 @@ _OLD_CORE = "\\def\\filedate{1999/03/24}\n\\input pst-key\n"
 _NEW_CORE = "\\def\\filedate{2025/12/13}\n"
 _OLD_NODE = "\\ProvidesPackage{pst-node}[1999/11/24 era]\n"
 _NEW_NODE = "\\ProvidesPackage{pst-node}[2024/01/01 v1.45]\n"
-
-
-def _era_params() -> dict:
-    return dict(_ERA.action["params"])
 
 
 def test_era_isolate_wide_exts(tmp_path: Path) -> None:
@@ -226,7 +200,7 @@ def test_era_isolate_wide_exts(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     ok, note = vendored_shadow_isolate(
-        _ctx(wdir), _ShadowEng(texmf), None, _era_params()
+        mk_ctx(wdir), _ShadowEng(texmf), None, _era_params()
     )
     assert ok, note
     for name in ("pstricks.sty", "pstricks.tex", "pst-node.sty"):
@@ -254,7 +228,7 @@ def test_era_isolate_negatives(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     ok, _note = vendored_shadow_isolate(
-        _ctx(wdir), _ShadowEng(texmf), None, _era_params()
+        mk_ctx(wdir), _ShadowEng(texmf), None, _era_params()
     )
     assert ok  # pst-node.sty 退役 → applied
     assert (wdir / "pstricks.sty").is_file()
@@ -266,7 +240,7 @@ def test_era_isolate_negatives(tmp_path: Path) -> None:
     clean.mkdir()
     (clean / "main.tex").write_text("\\documentclass{article}\nx\n", encoding="utf-8")
     ok2, _note2 = vendored_shadow_isolate(
-        _ctx(clean), _ShadowEng(texmf), None, _era_params()
+        mk_ctx(clean), _ShadowEng(texmf), None, _era_params()
     )
     assert not ok2
 
@@ -295,27 +269,27 @@ def test_psfig_vendor_is_epsfig_bridge() -> None:
 def test_demote_else_branch() -> None:
     """9612213 verbatim 形: \\ifx\\href\\undefined \\else\\errmessage \\fi → typeout。"""
     src = "\\ifx\\href\\undefined\n\\else\\errmessage{Don't use hypertex}\n\\fi"
-    out = _sub(_DEMOTE, src)
+    out = _sub(_DEMOTE_ID, src)
     assert "\\errmessage" not in out
     assert "\\typeout{Don't use hypertex}" in out
     assert "\\ifx\\href\\undefined" in out
     assert "texlate-fixloop-injected" in out
-    assert _sub(_DEMOTE, out) == out  # errmessage 消失天然幂等
+    assert _sub(_DEMOTE_ID, out) == out  # errmessage 消失天然幂等
 
 
 def test_demote_true_branch() -> None:
     """真支变体 (无 \\else): \\ifx\\foo\\undefined\\errmessage{..}\\fi → typeout。"""
     src = "\\ifx\\foo\\undefined \\errmessage{no pdftex}\\fi"
-    out = _sub(_DEMOTE, src)
+    out = _sub(_DEMOTE_ID, src)
     assert "\\typeout{no pdftex}" in out
     assert "\\errmessage" not in out
 
 
 def test_demote_negatives() -> None:
     """阴性: 裸 \\errmessage / 无 \\undefined 护栏形不动。"""
-    assert _sub(_DEMOTE, "\\errmessage{fatal}\n") == "\\errmessage{fatal}\n"
+    assert _sub(_DEMOTE_ID, "\\errmessage{fatal}\n") == "\\errmessage{fatal}\n"
     assert (
-        _sub(_DEMOTE, "\\ifx\\foo\\bar \\errmessage{x}\\fi")
+        _sub(_DEMOTE_ID, "\\ifx\\foo\\bar \\errmessage{x}\\fi")
         == "\\ifx\\foo\\bar \\errmessage{x}\\fi"
     )
 
@@ -325,7 +299,7 @@ def test_demote_apply_tex_only(tmp_path: Path) -> None:
     guard = "\\ifx\\href\\undefined \\else\\errmessage{Don't use hypertex}\\fi\n"
     (tmp_path / "main.tex").write_text(guard, encoding="utf-8")
     (tmp_path / "pkg.sty").write_text(guard, encoding="utf-8")
-    ok, _note = _apply(_DEMOTE, tmp_path)
+    ok, _note = apply(_DEMOTE_ID, mk_ctx(tmp_path), None)
     assert ok
     assert "\\typeout" in (tmp_path / "main.tex").read_text()
     assert "\\errmessage" in (tmp_path / "pkg.sty").read_text()
@@ -337,7 +311,7 @@ def test_demote_apply_tex_only(tmp_path: Path) -> None:
 def test_psfile_abspath_stripped() -> None:
     """9412001 verbatim 形: 作者机绝对径 → basename。"""
     src = "\\special{psfile=/home/enomoto/kekm.ps hscale=0.7 vscale=0.7 hoffset=-150 voffset=-220}"
-    out = _sub(_PSFILE, src)
+    out = _sub(_PSFILE_ID, src)
     assert "psfile=kekm.ps" in out
     assert "/home/enomoto" not in out
     assert "hscale=0.7" in out  # 尾参原样
@@ -345,14 +319,14 @@ def test_psfile_abspath_stripped() -> None:
 
 def test_psfile_quoted_abspath() -> None:
     """引号形绝对径同剥 (组1 保引号)。"""
-    out = _sub(_PSFILE, 'psfile="/abs/dir/x.ps"')
+    out = _sub(_PSFILE_ID, 'psfile="/abs/dir/x.ps"')
     assert out == 'psfile="x.ps"'
 
 
 def test_psfile_relative_untouched() -> None:
     """阴性: 相对径与裸名不动 (前导 /|\\ 闸)。"""
-    assert _sub(_PSFILE, "psfile=figs/x.ps") == "psfile=figs/x.ps"
-    assert _sub(_PSFILE, "psfile=kekm.ps") == "psfile=kekm.ps"
+    assert _sub(_PSFILE_ID, "psfile=figs/x.ps") == "psfile=figs/x.ps"
+    assert _sub(_PSFILE_ID, "psfile=kekm.ps") == "psfile=kekm.ps"
 
 
 def test_psfile_apply(tmp_path: Path) -> None:
@@ -361,7 +335,7 @@ def test_psfile_apply(tmp_path: Path) -> None:
     (tmp_path / "main.tex").write_text(
         "\\special{psfile=/home/enomoto/kekm.ps hscale=0.7}\n", encoding="utf-8"
     )
-    ok, _note = _apply(_PSFILE, tmp_path)
+    ok, _note = apply(_PSFILE_ID, mk_ctx(tmp_path), None)
     assert ok
     assert "psfile=kekm.ps" in (tmp_path / "main.tex").read_text()
 
@@ -379,8 +353,10 @@ def test_atdef_wraps_newtheorem_env(tmp_path: Path) -> None:
         "\\begin{document}\nx\n\\end{document}\n",
         encoding="utf-8",
     )
-    ok, note = _apply(
-        _ATDEF, tmp_path, err_head="Use of \\@ doesn't match its definition"
+    ok, note = apply(
+        _ATDEF_ID,
+        mk_ctx(tmp_path, err_head="Use of \\@ doesn't match its definition"),
+        None,
     )
     assert ok, note
     t = (tmp_path / "main.tex").read_text()
@@ -400,10 +376,10 @@ def test_atdef_idempotent(tmp_path: Path) -> None:
         "\\begin{document}\nx\n\\end{document}\n",
         encoding="utf-8",
     )
-    ok, _ = _apply(_ATDEF, tmp_path, err_head="syntax junk")
+    ok, _ = apply(_ATDEF_ID, mk_ctx(tmp_path, err_head="syntax junk"), None)
     assert ok
     first = (tmp_path / "main.tex").read_text()
-    _apply(_ATDEF, tmp_path, err_head="syntax junk")
+    apply(_ATDEF_ID, mk_ctx(tmp_path, err_head="syntax junk"), None)
     assert (tmp_path / "main.tex").read_text() == first
     assert first.count("\\catcode 64=11") == 1
 
@@ -412,7 +388,7 @@ def test_atdef_no_at_def_declines(tmp_path: Path) -> None:
     """阴性: 无 @-token def 站 → decline 不改文。"""
     src = "\\documentclass{article}\n\\def\\ok{1}\n\\begin{document}\nx\n"
     (tmp_path / "main.tex").write_text(src, encoding="utf-8")
-    ok, _note = _apply(_ATDEF, tmp_path, err_head="syntax junk")
+    ok, _note = apply(_ATDEF_ID, mk_ctx(tmp_path, err_head="syntax junk"), None)
     assert not ok
     assert (tmp_path / "main.tex").read_text() == src
 
@@ -424,14 +400,17 @@ def test_gate_terms_default_preserves_spacefactor(tmp_path: Path) -> None:
     )
     # 无参 (默认 gate) + 无签名 → decline
     ok, note = spacefactor_atdef_wrap(
-        _ctx(tmp_path, "Undefined control sequence \\foo"), _Eng(), None, {}
+        mk_ctx(tmp_path, err_head="Undefined control sequence \\foo"),
+        EngStub(),
+        None,
+        {},
     )
     assert not ok
     assert "gate" in note
     # gate_terms:[] + 无签名 → 裹
     ok2, _ = spacefactor_atdef_wrap(
-        _ctx(tmp_path, "Undefined control sequence \\foo"),
-        _Eng(),
+        mk_ctx(tmp_path, err_head="Undefined control sequence \\foo"),
+        EngStub(),
         None,
         {"gate_terms": []},
     )
@@ -452,8 +431,10 @@ def test_micro_retire_listed_files(tmp_path: Path) -> None:
     (tmp_path / "microtype-fix.cfg").write_text(
         "% texlate-fixloop-injected: a1b2c3d4e5f6\n", encoding="utf-8"
     )
-    ok, note = _apply(
-        _MICRO, tmp_path, err_head="Package microtype Error \\DeclareMicrotypeSet"
+    ok, note = apply(
+        _MICRO_ID,
+        mk_ctx(tmp_path, err_head="Package microtype Error \\DeclareMicrotypeSet"),
+        None,
     )
     assert ok, note
     for name in ("microtype.sty", "microtype.cfg", "letterspace.sty", "mt-cmr.cfg"):
@@ -471,7 +452,7 @@ def test_micro_fingerprint_skipped(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     (tmp_path / "microtype.sty").write_text("% era\n", encoding="utf-8")
-    ok, _note = _apply(_MICRO, tmp_path)
+    ok, _note = apply(_MICRO_ID, mk_ctx(tmp_path), None)
     assert ok  # run_tool 臂恒 applied (跑了即算)
     assert (tmp_path / "microtype.cfg").is_file()
     assert not (tmp_path / "microtype.sty").exists()
@@ -483,15 +464,18 @@ def test_micro_fingerprint_skipped(tmp_path: Path) -> None:
 
 def test_oldfont_when_widened() -> None:
     """B7: when.any 收 oldfont_cmd (payload_required)。"""
-    entries = [w for w in _CS.when["any"] if w.get("category") == "oldfont_cmd"]
+    entries = [
+        w for w in rule(_CS_ID).when["any"] if w.get("category") == "oldfont_cmd"
+    ]
     assert entries
     assert all(w.get("payload_required") for w in entries)
 
 
 def test_oldfont_table_keys() -> None:
     """七键同体: kernel-verbatim 全家族 \\ifdefined-守卫 DeclareOldFontCommand。"""
+    cstable = _cstable()
     for key in ("rm", "sf", "tt", "bf", "it", "sl", "sc"):
-        body = _CSTABLE[key]["polyfill"]
+        body = cstable[key]["polyfill"]
         assert body.startswith("\n")  # eol-注释缝约
         for cs in ("rm", "sf", "tt", "bf", "it", "sl", "sc"):
             assert f"\\ifdefined\\{cs}\\else\\DeclareOldFontCommand{{\\{cs}}}" in body
@@ -506,7 +490,7 @@ def test_oldfont_polyfill_injected(tmp_path: Path) -> None:
         "\\documentclass{scrartcl}\n\\begin{document}\n{\\bf X}\n\\end{document}\n",
         encoding="utf-8",
     )
-    ok, note = _apply(_CS, tmp_path, pay="\\bf")
+    ok, note = apply(_CS_ID, mk_ctx(tmp_path), "\\bf")
     assert ok, note
     t = (tmp_path / "main.tex").read_text()
     pos = t.index("\\documentclass{scrartcl}")
@@ -521,15 +505,19 @@ def test_oldfont_unknown_cs_declines(tmp_path: Path) -> None:
     (tmp_path / "main.tex").write_text(
         "\\documentclass{scrartcl}\n\\begin{document}\nx\n", encoding="utf-8"
     )
-    ok, _note = _apply(_CS, tmp_path, pay="\\zznope")
+    ok, _note = apply(_CS_ID, mk_ctx(tmp_path), "\\zznope")
     assert not ok
 
 
-def test_oldfont_csname_payload_stripped() -> None:
-    """payload 剥反斜杠查表 (taxonomy payload=`\\bf` 形)。"""
-    assert "bf" in _CSTABLE
-    # \\bf → bf 命中; 裸 bf 亦中 (lstrip 幂等)
-    assert "\\DeclareOldFontCommand" in _CSTABLE["bf"]["polyfill"]
+def test_oldfont_csname_payload_stripped(tmp_path: Path) -> None:
+    """payload 剥反斜杠查表：裸 ``bf``（无 ``\\`` 前缀）经 lstrip 同命中 cs_table 键。"""
+    (tmp_path / "main.tex").write_text(
+        "\\documentclass{scrartcl}\n\\begin{document}\n{\\bf X}\n\\end{document}\n",
+        encoding="utf-8",
+    )
+    ok, note = apply(_CS_ID, mk_ctx(tmp_path), "bf")
+    assert ok, note
+    assert "\\DeclareOldFontCommand{\\bf}" in (tmp_path / "main.tex").read_text()
 
 
 # ------------------------------------------------------- 条件 pattern 直钉 (regex 面)
@@ -537,7 +525,7 @@ def test_oldfont_csname_payload_stripped() -> None:
 
 def test_demote_condition_pattern() -> None:
     """source_contains 闸: \\ifx..\\undefined..\\errmessage 形才收。"""
-    pat = _DEMOTE.condition["source_contains"]
+    pat = rule(_DEMOTE_ID).condition["source_contains"]
     assert regex.search(pat, "\\ifx\\href\\undefined\\else\\errmessage{x}")
     assert regex.search(pat, "\\ifx\\@foo\\undefined x\n\\errmessage{y}")
     assert regex.search(pat, "\\errmessage{x}") is None
@@ -546,7 +534,7 @@ def test_demote_condition_pattern() -> None:
 
 def test_psfile_condition_pattern() -> None:
     """source_contains 闸: \\special{..psfile=<绝对径>} 形才收。"""
-    pat = _PSFILE.condition["source_contains"]
+    pat = rule(_PSFILE_ID).condition["source_contains"]
     assert regex.search(pat, "\\special{psfile=/home/x/y.ps}")
     assert regex.search(pat, '\\special{psfile="\\srv\\x.ps"')  # UNC 径
     assert regex.search(pat, "\\special{psfile=x.ps}") is None
@@ -557,7 +545,7 @@ def test_psfile_condition_pattern() -> None:
 
 def test_atdef_condition_pattern() -> None:
     """source_contains 闸: def 命令行带 @ 才收。"""
-    pat = _ATDEF.condition["source_contains"]
+    pat = rule(_ATDEF_ID).condition["source_contains"]
     assert regex.search(pat, "\\newtheorem{@#1}{#2}[section]")
     assert regex.search(pat, "\\newenvironment{clm}{\\begin{@clm}}")
     assert regex.search(pat, "\\def\\the@clm{x}")
@@ -567,12 +555,12 @@ def test_atdef_condition_pattern() -> None:
 
 def test_micro_ctx_pattern() -> None:
     """ctx_suggests 闸: microtype 签名族。"""
-    pat = _MICRO.condition["ctx_suggests"]
+    pat = rule(_MICRO_ID).condition["ctx_suggests"]
     for sig in (
         "Package microtype Error",
         "\\DeclareMicrotypeSet",
         "\\MT@foo",
         "letterspace",
     ):
-        assert re.search(pat, sig), sig
-    assert re.search(pat, "Undefined control sequence") is None
+        assert regex.search(pat, sig), sig
+    assert regex.search(pat, "Undefined control sequence") is None

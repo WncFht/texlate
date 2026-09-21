@@ -20,15 +20,9 @@ r"""Opaque 宏散文参挖掘钉版 —— ``_handle_opaque_macro`` 逐参散文
 + pieces 无缝平铺。
 """
 
-import re
+from conftest import KEY, PROSE, blob, ph_bodies, scan_art
 
-from conftest import ART, blob, check_invariants
-
-from texlate.latex import parse_tex
 from texlate.latex.model import ScanResult
-
-PROSE = "We consider a two form antisymmetric tensor field theory in detail"
-KEY = "dalianis2020"
 
 #: 体含 ``@``-cs → opaque 档（``_classify`` 的 ``_has_at_cs`` 早退）。
 #: ``\makeatletter`` 区段内 ``\def`` 让 ``\@x`` 成单枚 cs token。
@@ -42,19 +36,13 @@ DEFS = (
 
 
 def scan(body: str, defs: str = DEFS) -> ScanResult:
-    tex = ART % (defs, body)
-    res = parse_tex(tex)
-    check_invariants(res, tex)
-    return res
+    """ART 模板 + DEFS 导言位的 ``scan_art`` 外包——缺省导言是本文件的 opaque 档。"""
+    return scan_art(body, defs)
 
 
 def macro_bodies(res: ScanResult) -> list[str]:
     """全部 ``[[MACRO_n]]`` ph 体（覆盖区间原文）。"""
-    return [
-        body
-        for ph, body in res.ph_map.items()
-        if re.fullmatch(r"\[\[MACRO_\d+\]\]", ph)
-    ]
+    return ph_bodies(res, "MACRO")
 
 
 def test_prose_arg_surfaces() -> None:
@@ -101,7 +89,9 @@ def test_both_args_prose() -> None:
     text = blob(res)
     assert PROSE in text
     assert p2 in text
-    assert all("\\pair" not in c or "MACRO" in c for c in (text,))
+    # 宏名 cs 不裸落 surface——只能裹在 [[MACRO_n]] ph 体里
+    assert "\\pair" not in text
+    assert any("\\pair{" in b for b in macro_bodies(res))
 
 
 def test_nested_cs_in_prose_arg() -> None:

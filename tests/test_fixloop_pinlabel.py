@@ -145,7 +145,10 @@ def _have_pinlabel() -> bool:
         return False
     return (
         subprocess.run(  # noqa: S603
-            [_KPSEWHICH, "pinlabel.sty"], capture_output=True, check=False
+            [_KPSEWHICH, "pinlabel.sty"],
+            capture_output=True,
+            timeout=30,
+            check=False,
         ).returncode
         == 0
     )
@@ -153,13 +156,15 @@ def _have_pinlabel() -> bool:
 
 @pytest.mark.integration
 @pytest.mark.skipif(_XELATEX is None, reason="xelatex not installed")
-@pytest.mark.skipif(not _have_pinlabel(), reason="pinlabel.sty not in texmf")
 def test_real_xelatex_repro_and_fix(tmp_path: Path) -> None:
     """全真链钉: 无 polyfill → Undefined \\pdfximage; 注入后 → 零 '!' 错。
 
     fig.pdf 由 xelatex 自身产出 (保证 xdvipdfmx 可解析); 未修态复现
     真稿签名 (l.N 行归 \\includegraphics), 修复态要求零错 + PDF 出。
     """
+    # kpsewhich 探针进测试体——收集期不跑子进程 (deselect 零开销)
+    if not _have_pinlabel():
+        pytest.skip("pinlabel.sty not in texmf")
     (tmp_path / "figsrc.tex").write_text(
         "\\documentclass{article}\n\\usepackage{graphicx}\n"
         "\\begin{document}\n\\rule{2cm}{2cm}\n\\end{document}\n",

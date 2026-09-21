@@ -18,7 +18,9 @@
 
 from pathlib import Path
 
-from texlate.compile.fixloop import Ruleset, actions, load_ruleset
+from _fixloopkit import apply, rs
+
+from texlate.compile.fixloop import actions
 from texlate.compile.fixloop.engine import LoopCtx, Rule
 from texlate.compile.logparse import ErrReport
 
@@ -28,32 +30,22 @@ _MAIN = (
 )
 
 
-def _rs() -> Ruleset:
-    return load_ruleset()
-
-
-def _rule(rid: str) -> Rule:
-    return next(r for r in _rs().rules if r.id == rid)
-
-
 def _ctx(tmp_path: Path, main: str = _MAIN) -> LoopCtx:
     (tmp_path / "main.tex").write_text(main, encoding="utf-8")
     return LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel="main.tex")
 
 
 def _apply_guard(ctx: LoopCtx, payload: str = "pdfobj") -> tuple[bool, str]:
-    return actions._apply(  # noqa: SLF001 - arm 直驱
-        _rule("pdftex_prim_guard"), ctx, None, payload, ErrReport()
-    )
+    return apply("pdftex_prim_guard", ctx, payload)
 
 
 def _match(
     ctx: LoopCtx, pay: str, rep: ErrReport, cat: str = "pdftex_prim"
 ) -> Rule | None:
-    rule, _note = actions._match_apply(  # noqa: SLF001 - 路由行为直驱
-        _rs(), ctx, None, cat, pay, rep
+    hit, _note = actions._match_apply(  # noqa: SLF001 - 路由行为直驱
+        rs(), ctx, None, cat, pay, rep
     )
-    return rule
+    return hit
 
 
 def _out(ctx: LoopCtx) -> str:

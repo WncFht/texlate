@@ -1,9 +1,9 @@
 """worker.py 审计修复批（task #52）逐条钉样：ph 武装 / glossary 五层 /
-cancel 孤儿 / 旁路 usage+术语 / fixloop reject+跨引擎 / _build_dual 出
-loop / queued 重放 / _stage 终态守卫 / zip 前缀冲突 / IndirectObject 字体。
+cancel 孤儿 / 旁路 usage+术语 / _build_dual 出 loop / queued 重放 /
+_stage 终态守卫 / zip 前缀冲突 / IndirectObject 字体 / _spawn pty fd 清理。
 
-server-residual 波补钉：_auth 每请求单读 / connections 分槽不互染 /
-settings load 字段级容错 / server_salt 空文件重生成 / _spawn pty fd 清理。"""
+题域切出：fixloop → test_worker_fixloop.py；share → test_worker_share.py；
+parse 段 → test_worker_parse.py；server settings/salt → test_server_settings.py。"""
 
 from __future__ import annotations
 
@@ -15,19 +15,19 @@ import os
 import sqlite3
 import threading
 import zipfile
-from http import HTTPStatus
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import pytest
 
 pytest.importorskip("fastapi", reason="server extra 未装")
 pytest.importorskip("starlette.testclient", reason="server extra 未装")
 
+from _drivekit import drive
 from _workerkit import mk_ctx, scan_base
-from conftest import MINI_TEX, FakeFetcher, RecordingEngine, make_targz
+from conftest import MINI_TEX, FakeFetcher, make_targz
 
 import texlate.server.babeldoc as babeldoc_mod
+import texlate.server.worker as worker_mod
 from texlate.arxiv.cache import SourceCache
 from texlate.arxiv.meta import PaperMeta
 from texlate.arxiv.unpack import UnpackError
@@ -35,8 +35,7 @@ from texlate.compile.cjkmap import embed_cjk_mappings
 from texlate.compile.engine import CompRes, LogInfo
 from texlate.pipecore import front_matter_of
 from texlate.server.events import EventBus
-from texlate.server.settings import SettingsStore, server_salt, share_dir
-from texlate.server.store import ERROR_CODES, Store, StoreError, new_task_id
+from texlate.server.store import Store, StoreError, new_task_id
 from texlate.server.worker import (
     DBStateBridge,
     PipelineWorker,
@@ -44,12 +43,10 @@ from texlate.server.worker import (
     SegmentCache,
     TaskCtx,
     TaskRunner,
-    _ShareRejectError,
     cache_key_for,
     chunk_db_id,
     unpack_zip,
 )
-from texlate.share import ShareError
 from texlate.xlat.client import ChatClient
 from texlate.xlat.pipeline import (
     ChunkIn,
@@ -58,11 +55,6 @@ from texlate.xlat.pipeline import (
     XlatPipeline,
 )
 from texlate.xlat.state import ChunkRecord
-
-if TYPE_CHECKING:
-    from typing import Any
-
-    from starlette.testclient import TestClient
 
 _MATH_TEX = (
     "\\documentclass{article}\n"
@@ -286,218 +278,12 @@ class TestBypassArms:
         assert run.pipe.cache is None
 
 
-class TestFixloopFix:
-    """Fix5：``reject:*`` verdict → partial+reject_at；engine_flags 跨引擎臂。"""
-
-    def test_fixloop_reject_maps_partial(self, tmp_path: Path) -> None:
-        assert "fixloop_reject" in ERROR_CODES
-        ctx, worker, store = mk_ctx(tmp_path)
-        ctx.main_rel = "main.tex"
-        ctx.engine_name = "tectonic"
-        ctx.base_dir.mkdir(parents=True, exist_ok=True)
-        ctx.zh_dir.mkdir(parents=True, exist_ok=True)
-        # 哨兵旁路：splice/compile 产物预置，直抵终态分派
-        (ctx.zh_dir / ".splice-done").write_text("", encoding="utf-8")
-        (ctx.zh_dir / ".compile-done").write_text("", encoding="utf-8")
-        (ctx.root / "zh.pdf").write_bytes(b"%PDF-1.4 fake")
-        (ctx.root / "en.pdf").write_bytes(b"%PDF-1.4 fake")
-        store.put_file(ctx.task_id, "zh_pdf", "zh.pdf", data_dir=ctx.root)
-        store.put_file(ctx.task_id, "en_pdf", "en.pdf", data_dir=ctx.root)
-        ctx.fixloop = {"verdict": "reject:r42", "trace": []}
-
-        async def drive() -> None:
-            worker._loop = asyncio.get_running_loop()  # noqa: SLF001
-            worker._loop_tid = threading.get_ident()  # noqa: SLF001
-            await worker.run_stage(ctx, "stage_compile")
-
-        asyncio.run(drive())
-        row = store.get(ctx.task_id)
-        assert row["status"] == "partial"
-        err = json.loads(str(row["error_json"]))
-        assert err["code"] == "fixloop_reject"
-        assert err["reject_at"] == "fixloop"
-        assert err["fixloop"]["verdict"] == "reject:r42"
-
-    def test_fixloop_cross_engine_arm(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """dropped flags + tectonic + xelatex 候选 + verdict<clean → xelatex 重编取优。"""
-        xeng = RecordingEngine("xelatex")
-        teng = RecordingEngine("tectonic")
-
-        def factory(name: str, **_kw: object) -> RecordingEngine:
-            return {"xelatex": xeng, "tectonic": teng}[name]
-
-        ctx, worker, _store = mk_ctx(
-            tmp_path,
-            options={
-                "engine_resolved": "tectonic",
-                "route_engines": ["tectonic", "xelatex"],
-            },
-            worker_kw={"engine_factory": factory},
-        )
-        ctx.main_rel = "main.tex"
-        ctx.engine_name = "tectonic"
-        work = ctx.root / "build-zh"
-        work.mkdir(parents=True)
-        ctx.zh_dir.mkdir(parents=True)
-        (work / "main.tex").write_text(MINI_TEX, encoding="utf-8")
-        (ctx.zh_dir / "main.tex").write_text(MINI_TEX, encoding="utf-8")
-        cell = {
-            "verdict": "fail",
-            "engine_flags": ["-shell-escape"],
-            "engine_flags_dropped": ["-shell-escape"],
-            "rounds": [],
-            "actions": [],
-        }
-        monkeypatch.setattr("texlate.repair.fixloop", lambda *_a, **_kw: cell)
-        first = CompRes(engine="tectonic", ok=True, pdf=None, log=LogInfo(n_errors=2))
-        res = worker.run_stage(ctx, "run_fixloop", work, teng, first)
-        assert xeng.calls, "xelatex 跨引擎臂应被触发"
-        assert xeng.calls[0]["flags"] == ["-shell-escape"]
-        assert res.engine == "xelatex"  # clean/partial > fail → 取优换臂
-        assert ctx.fixloop is not None
-        assert ctx.fixloop["engine_flags_dropped"] == ["-shell-escape"]
-        assert ctx.fixloop["cross_engine"]["engine"] == "xelatex"
-
-    def test_fixloop_cross_engine_halt_on_error_false(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """cross_engine_retry 臂 xelatex 构造 ``halt_on_error=False``（2026-09-17 裁决口径）。
-
-        retry 是 fixloop 结束后的交付路径终末重编——与主编译/salvage
-        同属 best-effort 族，nonstopmode 续跑才能把 incumbent=fail 的树
-        救成 partial；``-halt-on-error`` 首错即停会让唯一 rescue 窗失效
-        （tmp/b8-e2e/halt-on-error-ruling.md）。无 ``engine_factory``
-        时经 ``engine_for`` 真路径构造，钉住旋钮方向。
-        """
-
-        ctx, worker, _store = mk_ctx(
-            tmp_path,
-            options={
-                "engine_resolved": "tectonic",
-                "route_engines": ["tectonic", "xelatex"],
-            },
-        )
-        ctx.main_rel = "main.tex"
-        ctx.engine_name = "tectonic"
-        work = ctx.root / "build-zh"
-        work.mkdir(parents=True)
-        ctx.zh_dir.mkdir(parents=True)
-        (work / "main.tex").write_text(MINI_TEX, encoding="utf-8")
-        (ctx.zh_dir / "main.tex").write_text(MINI_TEX, encoding="utf-8")
-
-        built: list[dict[str, object]] = []
-
-        def fake_engine_for(name: str, **kw: object) -> RecordingEngine:
-            built.append({"name": name, **kw})
-            return RecordingEngine(name)
-
-        cell = {
-            "verdict": "fail",
-            "engine_flags": ["-shell-escape"],
-            "engine_flags_dropped": ["-shell-escape"],
-            "rounds": [],
-            "actions": [],
-        }
-        monkeypatch.setattr("texlate.repair.fixloop", lambda *_a, **_kw: cell)
-        monkeypatch.setattr("texlate.server.worker.seams.engine_for", fake_engine_for)
-        first = CompRes(engine="tectonic", ok=True, pdf=None, log=LogInfo(n_errors=2))
-        res = worker.run_stage(
-            ctx, "run_fixloop", work, RecordingEngine("tectonic"), first
-        )
-        assert {"name": "xelatex", "halt_on_error": False} in built
-        assert res.engine == "xelatex"  # 救回 partial/clean > fail → adopted
-
-    def test_fixloop_reject_route_cross_engine_arm(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """``reject_route=xelatex`` cell 令牌 → 无 dropped flag 也换臂。
-
-        t_c9249919e8d7a13f 实证面：biber/biblatex bcf 错配是 tectonic
-        bundle 内无解的工具链硬墙——``verdict reject:*`` rank 0，xelatex
-        任何 ≥fail 判定即 adopted，死路标签变真路由。
-        """
-        xeng = RecordingEngine("xelatex")
-        teng = RecordingEngine("tectonic")
-
-        def factory(name: str, **_kw: object) -> RecordingEngine:
-            return {"xelatex": xeng, "tectonic": teng}[name]
-
-        ctx, worker, _store = mk_ctx(
-            tmp_path,
-            options={
-                "engine_resolved": "tectonic",
-                "route_engines": ["tectonic", "xelatex"],
-            },
-            worker_kw={"engine_factory": factory},
-        )
-        ctx.main_rel = "main.tex"
-        ctx.engine_name = "tectonic"
-        work = ctx.root / "build-zh"
-        work.mkdir(parents=True)
-        ctx.zh_dir.mkdir(parents=True)
-        (work / "main.tex").write_text(MINI_TEX, encoding="utf-8")
-        (ctx.zh_dir / "main.tex").write_text(MINI_TEX, encoding="utf-8")
-        cell = {
-            "verdict": "reject:biber_biblatex_skew_route",
-            "reject_route": "xelatex",
-            "engine_flags": [],
-            "engine_flags_dropped": [],
-            "rounds": [],
-            "actions": [],
-        }
-        monkeypatch.setattr("texlate.repair.fixloop", lambda *_a, **_kw: cell)
-        first = CompRes(engine="tectonic", ok=True, pdf=None, log=LogInfo(n_errors=2))
-        res = worker.run_stage(ctx, "run_fixloop", work, teng, first)
-        assert xeng.calls, "xelatex 跨引擎臂应被触发"
-        assert res.engine == "xelatex"  # reject rank 0 → 任何 ≥fail 判定即 adopted
-        assert ctx.fixloop is not None
-        assert ctx.fixloop["reject_route"] == "xelatex"
-        assert ctx.fixloop["cross_engine"]["adopted"] is True
-
-    def test_fixloop_reject_adopted_skips_policy_reject(self, tmp_path: Path) -> None:
-        """``cross_engine.adopted`` 时 reject verdict 让位实际产物判定 → done。
-
-        _stage_compile 的 reject 短路只挡「未换臂」的死路拒绝；换编被采用
-        代表终态已按 xelatex 复判取优，策略标签不应盖掉真实产物。
-        """
-        ctx, worker, store = mk_ctx(tmp_path)
-        ctx.main_rel = "main.tex"
-        ctx.engine_name = "tectonic"
-        ctx.base_dir.mkdir(parents=True, exist_ok=True)
-        ctx.zh_dir.mkdir(parents=True, exist_ok=True)
-        (ctx.zh_dir / ".splice-done").write_text("", encoding="utf-8")
-        (ctx.zh_dir / ".compile-done").write_text("", encoding="utf-8")
-        (ctx.root / "zh.pdf").write_bytes(b"%PDF-1.4 fake")
-        (ctx.root / "en.pdf").write_bytes(b"%PDF-1.4 fake")
-        store.put_file(ctx.task_id, "zh_pdf", "zh.pdf", data_dir=ctx.root)
-        store.put_file(ctx.task_id, "en_pdf", "en.pdf", data_dir=ctx.root)
-        ctx.fixloop = {
-            "verdict": "reject:biber_biblatex_skew_route",
-            "reject_route": "xelatex",
-            "cross_engine": {"engine": "xelatex", "adopted": True},
-            "trace": [],
-        }
-
-        async def drive() -> None:
-            worker._loop = asyncio.get_running_loop()  # noqa: SLF001
-            worker._loop_tid = threading.get_ident()  # noqa: SLF001
-            await worker.run_stage(ctx, "stage_compile")
-
-        asyncio.run(drive())
-        row = store.get(ctx.task_id)
-        assert row["status"] == "done"
-
-
 class TestBuildDualThread:
     """Fix6：``_build_dual`` 在 worker 线程跑（store 读经 ``_on_loop`` 回弹）。"""
 
     def test_build_dual_off_loop(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        import texlate.server.worker as worker_mod  # noqa: PLC0415
-
         ctx, worker, store = mk_ctx(tmp_path)
         ctx.root.mkdir(parents=True, exist_ok=True)
         (ctx.root / "en.pdf").write_bytes(b"%PDF-1.4 fake")
@@ -514,13 +300,8 @@ class TestBuildDualThread:
 
         monkeypatch.setattr(worker_mod.seams, "build_alignment", spy_align)
 
-        async def drive() -> int:
-            worker._loop = asyncio.get_running_loop()  # noqa: SLF001
-            worker._loop_tid = threading.get_ident()  # noqa: SLF001
-            await asyncio.to_thread(worker._build_dual, ctx)  # noqa: SLF001
-            return threading.get_ident()
-
-        loop_tid = asyncio.run(drive())
+        drive(worker, asyncio.to_thread(worker._build_dual, ctx))  # noqa: SLF001
+        loop_tid = worker._loop_tid  # noqa: SLF001
         assert seen_tid, "build_alignment 应被调用"
         assert seen_tid[0] != loop_tid, "pypdf 对齐扫描必须跑在非 loop 线程"
         doc = json.loads((ctx.root / "dual.json").read_text(encoding="utf-8"))
@@ -759,11 +540,6 @@ class TestPostResolveDedup:
         store.transition(hit_id, "done", force=True)
         return hit_id
 
-    async def _drive(self, worker: PipelineWorker, ctx: TaskCtx) -> None:
-        worker._loop = asyncio.get_running_loop()  # noqa: SLF001
-        worker._loop_tid = threading.get_ident()  # noqa: SLF001
-        await worker.run_stage(ctx, "run_tex")
-
     def test_second_dedup_hit(
         self,
         tmp_path: Path,
@@ -773,7 +549,7 @@ class TestPostResolveDedup:
         """钉版键有完成行 → 产物物化 + 终态 done，parse/translate 不跑。"""
         ctx, worker, store = self._mk_alias(tmp_path, monkeypatch)
         self._hit_task(tmp_path, store)
-        asyncio.run(self._drive(worker, ctx))
+        drive(worker, worker.run_stage(ctx, "run_tex"))
         row = store.get(ctx.task_id)
         assert row["status"] == "done"
         assert (ctx.root / "zh.pdf").read_bytes() == b"%PDF-1.4 hit"
@@ -823,7 +599,7 @@ class TestPostResolveDedup:
         ctx, worker, store = self._mk_alias(tmp_path, monkeypatch)
         self._hit_task(tmp_path, store)
         store.transition(ctx.task_id, "cancelled")
-        asyncio.run(self._drive(worker, ctx))
+        drive(worker, worker.run_stage(ctx, "run_tex"))
         row = store.get(ctx.task_id)
         assert row["status"] == "cancelled"
         assert not (ctx.root / "zh.pdf").exists()
@@ -985,77 +761,6 @@ class TestChunkSpansMirror:
         assert spans[c1.id] is not None
 
 
-class TestLlmHookShareGates:
-    """Item C：llm_hook BYOK 接线 + share 零 token 结构闸。"""
-
-    def test_share_no_llm_hook_with_key(
-        self,
-        tmp_path: Path,
-        clean_env: pytest.MonkeyPatch,  # noqa: ARG002 -- fixture 副作用
-    ) -> None:
-        """kind=share 有真 api_key 也不给 llm_hook——零 token 是结构承诺。"""
-        ctx, worker, _store = mk_ctx(tmp_path)
-        ctx.row["kind"] = "share"
-        ctx.secrets = Secrets(api_key="k", base_url="http://b", model="m")
-        hook, usage, clients = worker._llm_hook_pack(ctx)  # noqa: SLF001
-        assert hook is None
-        assert usage is None
-        assert clients == []
-
-    def test_share_l2_env_judge_off(
-        self,
-        tmp_path: Path,
-        clean_env: pytest.MonkeyPatch,  # noqa: ARG002 -- fixture 副作用
-    ) -> None:
-        """share 任务 options/env 全开也压不住——三处 LLM 面结构关。"""
-        ctx, worker, _store = mk_ctx(
-            tmp_path, options={"l2": True, "env_judge": True, "llm_hook": True}
-        )
-        ctx.row["kind"] = "share"
-        assert worker._l2_enabled(ctx) is False  # noqa: SLF001
-        assert worker._env_judge_enabled(ctx) is False  # noqa: SLF001
-        hook, _u, _c = worker._llm_hook_pack(ctx)  # noqa: SLF001
-        assert hook is None
-
-    def test_llm_hook_byok_default_on(
-        self,
-        tmp_path: Path,
-        clean_env: pytest.MonkeyPatch,  # noqa: ARG002 -- fixture 副作用
-    ) -> None:
-        """arxiv 任务带真 key → hook 建，translator 是 per-call BYOK 面。"""
-        from texlate.server.worker import _PerCallTranslator  # noqa: PLC0415
-
-        ctx, worker, _store = mk_ctx(tmp_path)
-        ctx.secrets = Secrets(api_key="k", base_url="http://b", model="m9")
-        hook, usage, clients = worker._llm_hook_pack(ctx)  # noqa: SLF001
-        assert hook is not None
-        assert isinstance(hook.translator, _PerCallTranslator)  # type: ignore[attr-defined]
-        assert usage is not None
-        assert usage["calls"] == 0
-        assert clients == [], "per-call client 即弃，无长存连接要关"
-
-    def test_llm_hook_off_without_key(
-        self,
-        tmp_path: Path,
-        clean_env: pytest.MonkeyPatch,  # noqa: ARG002 -- fixture 副作用
-    ) -> None:
-        """无 BYOK key → None（裸 env-key client 会绕开计费面）。"""
-        ctx, worker, _store = mk_ctx(tmp_path)
-        hook, usage, _c = worker._llm_hook_pack(ctx)  # noqa: SLF001
-        assert hook is None
-        assert usage is None
-
-    def test_llm_hook_opt_out(
-        self,
-        tmp_path: Path,
-        clean_env: pytest.MonkeyPatch,  # noqa: ARG002 -- fixture 副作用
-    ) -> None:
-        """``options.llm_hook=False`` / ``TEXLATE_FIXLOOP_LLM=0`` 显式关。"""
-        ctx, worker, _store = mk_ctx(tmp_path, options={"llm_hook": False})
-        ctx.secrets = Secrets(api_key="k", base_url="http://b", model="m")
-        assert worker._llm_hook_pack(ctx)[0] is None  # noqa: SLF001
-
-
 class TestHeartbeatLoop:
     """``_heartbeat_loop``：store 故障只留 debug 痕，ticker 不死（sweep 钉样）。"""
 
@@ -1081,9 +786,18 @@ class TestHeartbeatLoop:
             monkeypatch.setattr(store, "heartbeat", _boom)
             monkeypatch.setattr("texlate.server.worker.seams._HEARTBEAT_S", 0.01)
 
+            ctx = TaskCtx(
+                store=store,
+                bus=bus,
+                task_id="t1",
+                row={},
+                secrets=Secrets(),
+                root=tmp_path,
+            )
+
             async def drive() -> None:
                 dummy = asyncio.create_task(asyncio.sleep(60))
-                runner._current = ("t1", dummy)  # noqa: SLF001
+                runner._current = (ctx.task_id, ctx, dummy)  # noqa: SLF001
                 ticker = asyncio.create_task(runner._heartbeat_loop())  # noqa: SLF001
                 await asyncio.sleep(0.05)
                 runner._current = None  # noqa: SLF001 -- 中途清当前任务不得崩 ticker
@@ -1119,20 +833,6 @@ class TestDocEmitTerminalGuard:
         assert store.last_seq(ctx.task_id) == seq0, "终态后不许再发 chunk 事件"
 
 
-class TestShareLookupIndexDecode:
-    """#148：index.jsonl 非 UTF-8 → miss 回退（``index_lookup`` 漏 UnicodeDecodeError）。"""
-
-    def test_bad_index_bytes_falls_back(self, tmp_path: Path) -> None:
-        from texlate.server.settings import share_dir  # noqa: PLC0415
-
-        ctx, worker, store = mk_ctx(tmp_path)
-        scan_base(ctx, worker, store, _MATH_TEX)
-        out_dir = share_dir(tmp_path)
-        out_dir.mkdir(parents=True, exist_ok=True)
-        (out_dir / "index.jsonl").write_bytes(b"\xff\xfe\x00bad")
-        assert worker.run_stage(ctx, "share_lookup") is False
-
-
 class TestPersistUsageReplace:
     """#148：doc 路唯一记账臂用真账**替换**字符估算（``_teardown_translate`` 同口径）。"""
 
@@ -1158,93 +858,6 @@ class TestPersistUsageReplace:
         ctx.tokens_est = 100  # 主链真账钉样
         worker.run_stage(ctx, "persist_usage", self._usage())
         assert ctx.tokens_est == 108  # noqa: PLR2004 -- 100+5+3
-
-
-class TestParseEndCheckpoint:
-    """#148：``_stage_parse`` 尾检查点——parse 期 cancel 当场收敛不漂进 translate。"""
-
-    def test_cancel_during_parse_converges(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        ctx, worker, store = mk_ctx(tmp_path)
-        ctx.base_dir.mkdir(parents=True, exist_ok=True)
-        (ctx.base_dir / ".base-done").write_text("", encoding="utf-8")
-
-        def fake_parse(_ctx: TaskCtx) -> tuple[list, dict]:
-            worker._on_loop(store.transition, ctx.task_id, "cancelled")  # noqa: SLF001
-            return [], {}
-
-        monkeypatch.setattr(worker, "_parse_all", fake_parse)
-
-        async def drive() -> None:
-            worker._loop = asyncio.get_running_loop()  # noqa: SLF001
-            worker._loop_tid = threading.get_ident()  # noqa: SLF001
-            await worker.run_stage(ctx, "stage_parse")
-
-        with pytest.raises(asyncio.CancelledError):
-            asyncio.run(drive())
-        assert store.get(ctx.task_id)["status"] == "cancelled"
-
-
-class TestOffLoopHeavySegments:
-    """#148：重 FS/解析段一律 ``asyncio.to_thread`` 出 loop；store 读弹回 loop。"""
-
-    def test_ensure_scans_parses_off_loop(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """resume 形态（chunks 在库 + scans 空）：``_parse_all`` 必须在 worker 线程。"""
-        ctx, worker, store = mk_ctx(tmp_path)
-        scan_base(ctx, worker, store, _MATH_TEX)
-        ctx.scans = {}
-        seen: list[int] = []
-        real = worker._parse_all  # noqa: SLF001
-
-        def spy(_ctx: TaskCtx) -> tuple[list, dict]:
-            seen.append(threading.get_ident())
-            return real(_ctx)
-
-        monkeypatch.setattr(worker, "_parse_all", spy)
-
-        async def drive() -> int:
-            worker._loop = asyncio.get_running_loop()  # noqa: SLF001
-            worker._loop_tid = threading.get_ident()  # noqa: SLF001
-            await worker.run_stage(ctx, "ensure_scans")
-            return threading.get_ident()
-
-        loop_tid = asyncio.run(drive())
-        assert seen, "_parse_all 应被调用"
-        assert seen[0] != loop_tid, "_parse_all 必须跑在 worker 线程"
-        assert ctx.scans, "scans 应被补建"
-
-    def test_build_md_zip_store_read_on_loop(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """``_build_md_zip`` 跑 worker 线程时 ``all_chunks`` 弹回 loop 线程。"""
-        ctx, worker, store = mk_ctx(tmp_path)
-        scan_base(ctx, worker, store, _MATH_TEX)
-        row = store.all_chunks(ctx.task_id)[0]
-        store.update_chunk(
-            ctx.task_id, row["chunk_id"], {"status": "ok", "translation": "译文"}
-        )
-        seen: list[int] = []
-        real = store.all_chunks
-
-        def spy(task_id: str) -> list[dict]:
-            seen.append(threading.get_ident())
-            return real(task_id)
-
-        monkeypatch.setattr(store, "all_chunks", spy)
-
-        async def drive() -> int:
-            worker._loop = asyncio.get_running_loop()  # noqa: SLF001
-            worker._loop_tid = threading.get_ident()  # noqa: SLF001
-            await asyncio.to_thread(worker._build_md_zip, ctx)  # noqa: SLF001
-            return threading.get_ident()
-
-        loop_tid = asyncio.run(drive())
-        assert seen, "all_chunks 应被调用"
-        assert all(t == loop_tid for t in seen), "store 读必须弹回 loop 线程"
-        assert store.file_record(ctx.task_id, "md_zip") is not None
 
 
 class TestPrepHarvestDirs:
@@ -1300,8 +913,6 @@ class TestAcloseTolerated:
     def test_teardown_llm_hook_aclose_boom(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        import texlate.server.worker as worker_mod  # noqa: PLC0415
-
         ctx, worker, _store = mk_ctx(tmp_path)
 
         async def boom(_clients: list) -> None:
@@ -1311,67 +922,6 @@ class TestAcloseTolerated:
         monkeypatch.setattr(worker_mod.seams, "_aclose_clients", boom)
         client = ChatClient("http://127.0.0.1:9", "k")
         worker._teardown_llm_hook(ctx, None, [client])  # noqa: SLF001 -- 不抛即过
-
-
-class TestParseAllUpperTex:
-    """#148 追加：``_parse_all`` rglob 大小写盲区——``.TEX`` 主文件不再零块。"""
-
-    def test_uppercase_tex_parsed(self, tmp_path: Path) -> None:
-        ctx, worker, _store = mk_ctx(tmp_path)
-        ctx.base_dir.mkdir(parents=True, exist_ok=True)
-        (ctx.base_dir / "MAIN.TEX").write_text(_MATH_TEX, encoding="utf-8")
-        rows, scans = worker.run_stage(ctx, "parse_all")
-        assert "MAIN.TEX" in scans
-        assert rows, "大写 .TEX 应产出 chunk"
-
-
-class TestParseAllRtxSkip:
-    """REVTeX 运行时转储 ``*.rtx.tex`` 不进翻译集——与 e2e/stagerun 同口径。
-
-    实测案例 1206.0660 ``aps.rtx.tex`` 曾被翻出 +24 CJK。
-    """
-
-    def test_rtx_dump_excluded(self, tmp_path: Path) -> None:
-        ctx, worker, _store = mk_ctx(tmp_path)
-        ctx.base_dir.mkdir(parents=True, exist_ok=True)
-        (ctx.base_dir / "main.tex").write_text(_MATH_TEX, encoding="utf-8")
-        (ctx.base_dir / "aps.rtx.tex").write_text(_MATH_TEX, encoding="utf-8")
-        (ctx.base_dir / "UP.RTX.TEX").write_text(_MATH_TEX, encoding="utf-8")
-        rows, scans = worker.run_stage(ctx, "parse_all")
-        assert set(scans) == {"main.tex"}
-        assert all(r["src_file"] == "main.tex" for r in rows)
-
-
-class TestParseAllProseGate:
-    """散文门：``.code.tex`` 机制件与无散文件分流 support 不送译（同 e2e 口径）。"""
-
-    def test_code_tex_and_nonprose_to_support(self, tmp_path: Path) -> None:
-        ctx, worker, _store = mk_ctx(tmp_path)
-        ctx.base_dir.mkdir(parents=True, exist_ok=True)
-        (ctx.base_dir / "main.tex").write_text(_MATH_TEX, encoding="utf-8")
-        (ctx.base_dir / "tikzlibraryfoo.code.tex").write_text(
-            "\\def\\psunit{1cm}\\def\\plot{\\psline}", encoding="utf-8"
-        )
-        (ctx.base_dir / "macros.tex").write_text(
-            "\\newcommand{\\foo}[1]{#1}\\def\\bar{baz}", encoding="utf-8"
-        )
-        rows, scans = worker.run_stage(ctx, "parse_all")
-        assert set(scans) == {"main.tex"}
-        assert all(r["src_file"] == "main.tex" for r in rows)
-        assert set(ctx.support_files) == {
-            "tikzlibraryfoo.code.tex",
-            "macros.tex",
-        }
-
-    def test_support_files_reset_on_rerun(self, tmp_path: Path) -> None:
-        """``_ensure_scans`` 会二次调 ``_parse_all``——support 清单须幂等。"""
-        ctx, worker, _store = mk_ctx(tmp_path)
-        ctx.base_dir.mkdir(parents=True, exist_ok=True)
-        (ctx.base_dir / "main.tex").write_text(_MATH_TEX, encoding="utf-8")
-        (ctx.base_dir / "x.code.tex").write_text("\\def\\a{1}", encoding="utf-8")
-        worker.run_stage(ctx, "parse_all")
-        worker.run_stage(ctx, "parse_all")
-        assert ctx.support_files == ["x.code.tex"]
 
 
 class TestOptIntTolerant:
@@ -1453,18 +1003,16 @@ class TestRegisterPrecomputed:
         monkeypatch.setattr(hashlib, "sha256", spy_sha)
         monkeypatch.setattr(store, "put_file", spy_put)
 
-        async def drive() -> int:
-            worker._loop = asyncio.get_running_loop()  # noqa: SLF001
-            worker._loop_tid = threading.get_ident()  # noqa: SLF001
-            await asyncio.to_thread(
+        drive(
+            worker,
+            asyncio.to_thread(
                 worker._register,  # noqa: SLF001
                 ctx,
                 "blob",
                 "big.bin",
-            )
-            return threading.get_ident()
-
-        loop_tid = asyncio.run(drive())
+            ),
+        )
+        loop_tid = worker._loop_tid  # noqa: SLF001
         assert sha_tids, "sha256 应被调用"
         assert sha_tids[0] != loop_tid, "sha256 必须在调用线程算"
         assert put_tids, "put_file 应被调用"
@@ -1473,88 +1021,6 @@ class TestRegisterPrecomputed:
         assert rec is not None
         assert rec["bytes"] == 64  # noqa: PLR2004 -- fixture 大小钉样
         assert rec["sha256"] == hashlib.sha256(b"x" * 64).hexdigest()
-
-
-# ------------------------------------------------------------ server-residual 波
-
-
-class TestAuthOncePerRequest:
-    """``_auth`` 每请求缓存：translate 单链决议 3+ 次，settings.json 只读一次。"""
-
-    def test_translate_loads_settings_once(
-        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        store = client.app.state.settings_store
-        calls = 0
-        orig = store.load
-
-        def spy() -> dict:
-            nonlocal calls
-            calls += 1
-            return orig()
-
-        monkeypatch.setattr(store, "load", spy)
-        r = client.post("/api/arxiv/2401.00022/translate", json={})
-        assert r.status_code == HTTPStatus.ACCEPTED, r.text
-        assert calls == 1, (
-            f"一次 translate 请求读了 {calls} 次 settings.json"
-            "（_auth/model/target_lang/quota 应共享同一快照）"
-        )
-
-
-class TestConnectionsSlotPreserve:
-    """``save`` 换 endpoint 不带 key：找回新槽历史 key，旧槽原 key 不丢。
-
-    旧实现把 restore 值写进 ``old``——conns 回写按 ``cfg.base_url`` 分槽，
-    旧 endpoint 槽被错写成新 endpoint 的 key（切回时把它发错门）。
-    """
-
-    def test_switch_without_key_keeps_old_slot(self, tmp_path: Path) -> None:
-        st = SettingsStore(tmp_path)
-        st.save({"base_url": "https://a.example", "api_key": "key-a"})
-        st.save({"base_url": "https://b.example"})  # 无 key 切换 → B 槽空
-        assert st.load()["api_key"] == ""
-        st.save({"base_url": "https://a.example"})  # 切回 A → 找回 key-a
-        assert st.load()["api_key"] == "key-a"
-
-    def test_switch_roundtrip_both_slots(self, tmp_path: Path) -> None:
-        st = SettingsStore(tmp_path)
-        st.save({"base_url": "https://a.example", "api_key": "key-a"})
-        st.save({"base_url": "https://b.example", "api_key": "key-b"})
-        st.save({"base_url": "https://a.example"})
-        assert st.load()["api_key"] == "key-a"
-        st.save({"base_url": "https://b.example"})
-        assert st.load()["api_key"] == "key-b"
-
-
-class TestSettingsLoadTolerant:
-    """``load()`` 字段级容错——文件级损坏已有兜底，手改字段留垃圾不能炸 500。"""
-
-    def test_corrupt_concurrency_falls_back(self, tmp_path: Path) -> None:
-        (tmp_path / "settings.json").write_text(
-            '{"concurrency": "abc"}', encoding="utf-8"
-        )
-        assert SettingsStore(tmp_path).load()["concurrency"] == 3  # noqa: PLR2004 -- 缺省值钉样
-
-    def test_zero_and_negative_concurrency(self, tmp_path: Path) -> None:
-        (tmp_path / "settings.json").write_text('{"concurrency": 0}', encoding="utf-8")
-        assert SettingsStore(tmp_path).load()["concurrency"] == 3  # noqa: PLR2004 -- 0 → 缺省
-        (tmp_path / "settings.json").write_text('{"concurrency": -2}', encoding="utf-8")
-        assert SettingsStore(tmp_path).load()["concurrency"] == 1  # 负 → clamp
-
-
-class TestServerSaltEmpty:
-    """空/全空白 salt 文件重生成——空盐下租户指纹退成裸 sha256(key)。"""
-
-    def test_empty_file_regenerated(self, tmp_path: Path) -> None:
-        (tmp_path / "server_salt").write_text("", encoding="utf-8")
-        salt = server_salt(tmp_path)
-        assert salt
-        assert (tmp_path / "server_salt").read_text(encoding="utf-8") == salt
-
-    def test_valid_file_kept(self, tmp_path: Path) -> None:
-        (tmp_path / "server_salt").write_text("deadcafe", encoding="utf-8")
-        assert server_salt(tmp_path) == "deadcafe"
 
 
 def _pty_dev_fds() -> list[str]:
@@ -1634,8 +1100,6 @@ class TestSyncFixedSourcesUnderscore:
     """``_sync_fixed_sources`` 删除侧与 copy 侧同口径排除 ``_*`` 顶层项。"""
 
     def test_underscore_dir_survives(self, tmp_path: Path) -> None:
-        import texlate.server.worker as worker_mod  # noqa: PLC0415
-
         work = tmp_path / "work"
         zh = tmp_path / "zh"
         (work / "_minted-main").mkdir(parents=True)
@@ -1691,8 +1155,6 @@ class TestAcloseClientsResilience:
     """单个 aclose 抛错不挡其余、不上浮。"""
 
     def test_one_failure_does_not_block_rest(self) -> None:
-        import texlate.server.worker as worker_mod  # noqa: PLC0415
-
         bad = _FailClient("a", boom=True)
         good = _FailClient("b")
 
@@ -1789,8 +1251,6 @@ class TestCacheUserGlossarySig:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """缺省 ``USER_GLOSSARY_PATH`` 层内容也进指纹（与 _make_glossary 缺省口径一致）。"""
-        import texlate.server.worker as worker_mod  # noqa: PLC0415
-
         udir = tmp_path / "user-g"
         udir.mkdir()
         ufile = udir / "glossary.yaml"
@@ -1801,153 +1261,6 @@ class TestCacheUserGlossarySig:
         ufile.write_text("x: 二\n", encoding="utf-8")
         p2 = worker._make_cache(ctx)._prefix  # noqa: SLF001
         assert p1 != p2
-
-
-class TestRunFixloopWiring:
-    """``_run_fixloop`` 把 ``compile_timeout`` 带给 fixloop（e2e parity）。"""
-
-    def test_compile_timeout_passthrough(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        timeout = 7.5
-        ctx, worker, _store = mk_ctx(tmp_path, worker_kw={"compile_timeout": timeout})
-        captured: dict[str, object] = {}
-
-        def fake_fixloop(*_a: object, **kw: object) -> dict:
-            captured.update(kw)
-            return {"verdict": "clean", "rounds": [], "actions": []}
-
-        monkeypatch.setattr("texlate.repair.fixloop", fake_fixloop)
-        work = tmp_path / "build-zh"
-        work.mkdir()
-        first = object()
-        out = worker.run_stage(  # run_stage 直驱
-            ctx,
-            "run_fixloop",
-            work,
-            RecordingEngine("tectonic"),
-            first,  # type: ignore[arg-type]
-        )
-        assert captured["compile_timeout"] == timeout
-        assert out is first
-
-    def test_summary_carries_log_excerpt(self) -> None:
-        import texlate.server.worker as worker_mod  # noqa: PLC0415
-
-        cell = {
-            "verdict": "dirty_pdf",
-            "main": "main.tex",
-            "rounds": [
-                {
-                    "round": 1,
-                    "category": "font",
-                    "payload": "x",
-                    "pdf": True,
-                    "n_errors": 2,
-                }
-            ],
-            "actions": [{"round": 1, "rule": "r1", "detail": "patched"}],
-            "log_excerpt": "! error context tail",
-        }
-        s = worker_mod._fixloop_summary(cell)  # noqa: SLF001
-        assert s["log_excerpt"] == "! error context tail"
-        assert s["trace"][0]["rule"] == "r1"
-
-    def test_xelatex_fixloop_halt_on_error(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """fixloop 轮内 xelatex 独立构造 ``halt_on_error=True``（e2e 权威口径）。
-
-        主编译引擎是 best-effort nonstopmode（False）——续跑日志会让
-        post-fix 复判混入下游错误、分类签名漂移，故不复用传入引擎。
-        """
-        import texlate.repair as repair_mod  # noqa: PLC0415
-        import texlate.server.worker as worker_mod  # noqa: PLC0415
-
-        ctx, worker, _store = mk_ctx(tmp_path)
-        ctx.engine_name = "xelatex"
-        built: list[dict[str, object]] = []
-
-        def fake_engine_for(name: str, **kw: object) -> RecordingEngine:
-            built.append({"name": name, **kw})
-            return RecordingEngine(name)
-
-        captured: dict[str, object] = {}
-
-        def fake_fixloop(_w: object, eng: object, **_kw: object) -> dict:
-            captured["eng"] = eng
-            return {"verdict": "clean", "rounds": [], "actions": []}
-
-        monkeypatch.setattr(worker_mod.seams, "engine_for", fake_engine_for)
-        monkeypatch.setattr("texlate.repair.fixloop", fake_fixloop)
-        work = tmp_path / "build-zh"
-        work.mkdir()
-        main_eng = RecordingEngine("xelatex")
-        worker.run_stage(ctx, "run_fixloop", work, main_eng, object())
-        assert built == [{"name": "xelatex", "halt_on_error": True}]
-        rec = captured["eng"]
-        assert isinstance(rec, repair_mod.ResProxy)
-        assert rec._inner is not main_eng  # noqa: SLF001
-
-    def test_tectonic_fixloop_reuses_passed_engine(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """tectonic 无 halt_on_error 旋钮——fixloop 仍用传入引擎，不重建。"""
-        import texlate.server.worker as worker_mod  # noqa: PLC0415
-
-        ctx, worker, _store = mk_ctx(tmp_path)
-        captured: dict[str, object] = {}
-
-        def fake_fixloop(_w: object, eng: object, **_kw: object) -> dict:
-            captured["eng"] = eng
-            return {"verdict": "clean", "rounds": [], "actions": []}
-
-        def forbidden(*_a: object, **_kw: object) -> None:
-            raise AssertionError
-
-        monkeypatch.setattr("texlate.repair.fixloop", fake_fixloop)
-        monkeypatch.setattr(worker_mod.seams, "engine_for", forbidden)
-        work = tmp_path / "build-zh"
-        work.mkdir()
-        main_eng = RecordingEngine("tectonic")
-        worker.run_stage(ctx, "run_fixloop", work, main_eng, object())
-        rec = captured["eng"]
-        assert rec._inner is main_eng  # noqa: SLF001
-
-    def test_xelatex_fixloop_respects_engine_factory(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """``engine_factory`` 在场时 fixloop xelatex 引擎也走注入面（不经 engine_for）。"""
-        import texlate.repair as repair_mod  # noqa: PLC0415
-        import texlate.server.worker as worker_mod  # noqa: PLC0415
-
-        made: list[str] = []
-        ctx, worker, _store = mk_ctx(
-            tmp_path,
-            worker_kw={
-                "engine_factory": lambda name: (
-                    made.append(name) or RecordingEngine(name)
-                )
-            },
-        )
-        ctx.engine_name = "xelatex"
-        captured: dict[str, object] = {}
-
-        def fake_fixloop(_w: object, eng: object, **_kw: object) -> dict:
-            captured["eng"] = eng
-            return {"verdict": "clean", "rounds": [], "actions": []}
-
-        def forbidden(*_a: object, **_kw: object) -> None:
-            raise AssertionError
-
-        monkeypatch.setattr("texlate.repair.fixloop", fake_fixloop)
-        monkeypatch.setattr(worker_mod.seams, "engine_for", forbidden)
-        work = tmp_path / "build-zh"
-        work.mkdir()
-        worker.run_stage(ctx, "run_fixloop", work, RecordingEngine("xelatex"), object())
-        assert made == ["xelatex"]
-        rec = captured["eng"]
-        assert isinstance(rec, repair_mod.ResProxy)
 
 
 class TestFetcherOwnership:
@@ -1970,8 +1283,6 @@ class TestFetcherOwnership:
     def test_self_built_fetcher_closed(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        import texlate.server.worker as worker_mod  # noqa: PLC0415
-
         closed: list[bool] = []
 
         class _RecFetcher(FakeFetcher):
@@ -1998,8 +1309,6 @@ class TestFetcherOwnership:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """acquire_source 抛错路径同样收口——泄漏点正在异常臂。"""
-        import texlate.server.worker as worker_mod  # noqa: PLC0415
-
         closed: list[bool] = []
 
         class _RecFetcher(FakeFetcher):
@@ -2022,84 +1331,6 @@ class TestFetcherOwnership:
         with pytest.raises(OSError, match="boom"):
             worker.run_stage(ctx, "fetch_arxiv")
         assert closed == [True]
-
-
-class TestSharePoolZhGuard:
-    """worker-share-fix：包内 dual ``zh`` 位污染条目不进对账池。
-
-    源任务 ``fallback_orig``/``failed`` 行的 dual.json zh 位装的是
-    src_text 回写或空串——``validate_pair`` 对无占位符 src 放行这两形态
-    （CJK 占比仅 WARN），收进池会让英文原文/空译文以 ``ok`` 落库续传、
-    matched 计数造假甚至绕过零命中拒绝。``zh == en`` 含 CJK 是合法恒等
-    译文（原文即中文段），照常放行。
-    """
-
-    @staticmethod
-    def _row(src: str) -> dict[str, Any]:
-        return {
-            "status": "pending",
-            "src_file": "main.tex",
-            "src_text": src,
-            "chunk_id": "c1",
-        }
-
-    def test_echo_src_counts_as_miss(self) -> None:
-        """``zh == en`` 无 CJK = 原文回写 → 不进池 → missed/share_miss。"""
-        import texlate.server.worker as worker_mod  # noqa: PLC0415
-
-        src = "English prose that fell back to original on the origin side."
-        pool = worker_mod._share_pool(  # noqa: SLF001
-            [{"src_file": "main.tex", "en": src, "zh": src}]
-        )
-        assert ("main.tex", src) not in pool
-        outcome, upd = worker_mod._share_row(self._row(src), pool)  # noqa: SLF001
-        assert outcome == "missed"
-        assert upd == {
-            "status": "fallback_orig",
-            "translation": src,
-            "error_code": "share_miss",
-        }
-
-    def test_empty_blank_and_nonstr_zh_not_pooled(self) -> None:
-        """``zh == ""``/空白串/非 str → 不进池 → missed。"""
-        import texlate.server.worker as worker_mod  # noqa: PLC0415
-
-        src = "A paragraph whose translation never landed upstream."
-        pool = worker_mod._share_pool(  # noqa: SLF001
-            [
-                {"src_file": "main.tex", "en": src, "zh": ""},
-                {"src_file": "main.tex", "en": "blank", "zh": "   \n "},
-                {"src_file": "main.tex", "en": "nonstr", "zh": 123},
-                {"src_file": "main.tex", "en": "missing"},
-            ]
-        )
-        assert pool == {}
-        outcome, upd = worker_mod._share_row(self._row(src), pool)  # noqa: SLF001
-        assert outcome == "missed"
-        assert upd is not None
-        assert upd["error_code"] == "share_miss"
-
-    def test_cjk_identity_and_real_zh_pass(self) -> None:
-        """``zh == en`` 含 CJK（原文即中文段）与真译文照常入池对账。"""
-        import texlate.server.worker as worker_mod  # noqa: PLC0415
-
-        cjk_src = "本节给出全文总结与后续工作展望。"
-        en_src = "Experiments show our approach outperforms strong baselines."
-        zh = "实验表明我们的方法优于强基线。"
-        pool = worker_mod._share_pool(  # noqa: SLF001
-            [
-                {"src_file": "main.tex", "en": cjk_src, "zh": cjk_src},
-                {"src_file": "main.tex", "en": en_src, "zh": zh},
-            ]
-        )
-        outcome, upd = worker_mod._share_row(self._row(cjk_src), pool)  # noqa: SLF001
-        assert outcome == "ok"
-        assert upd is not None
-        assert upd["translation"] == cjk_src
-        outcome, upd = worker_mod._share_row(self._row(en_src), pool)  # noqa: SLF001
-        assert outcome == "ok"
-        assert upd is not None
-        assert upd["translation"] == zh
 
 
 class TestLogTextOfFallback:
@@ -2213,40 +1444,6 @@ class TestFlushTranslateSync:
         assert row["translation"] == "译文落盘"
 
 
-class TestShareLookupExceptSurface:
-    """worker-share-fix：``_share_lookup`` 的 ``index_lookup`` except 面钉死。
-
-    ``index_lookup`` 真实异常面只有 OSError/UnicodeDecodeError
-    （FileNotFoundError 归 None、坏行内吞记 warning）——原
-    ``except (ShareError, ...)`` 是死代码；删掉后 ShareError 冒出来即
-    实现漂移信号，宁可 fault 暴露也不当 miss 静默。
-    """
-
-    def test_index_oserror_degrades_to_miss(self, tmp_path: Path) -> None:
-        """index.jsonl 是目录（IsADirectoryError ⊂ OSError）→ 仍按 miss 降级。"""
-        ctx, worker, store = mk_ctx(tmp_path)
-        scan_base(ctx, worker, store, MINI_TEX)  # has_chunks → 才走到 index_lookup
-        idx = share_dir(worker.data_dir) / "index.jsonl"
-        idx.mkdir(parents=True)
-        assert worker.run_stage(ctx, "share_lookup") is False
-
-    def test_share_error_propagates(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """index_lookup 抛 ShareError → 传播（钉死 except 不含 ShareError）。"""
-        import texlate.server.worker as worker_mod  # noqa: PLC0415
-
-        ctx, worker, store = mk_ctx(tmp_path)
-        scan_base(ctx, worker, store, MINI_TEX)
-
-        def boom(*_a: object, **_kw: object) -> None:
-            raise ShareError
-
-        monkeypatch.setattr(worker_mod.seams, "index_lookup", boom)
-        with pytest.raises(ShareError):
-            worker.run_stage(ctx, "share_lookup")
-
-
 class TestResidAuditLoops:
     """#278：dispatcher/heartbeat 对 sqlite3 异常面存活钉样。
 
@@ -2351,23 +1548,6 @@ class TestResidAuditLoops:
         assert calls["n"] >= 2, "首拍炸后 ticker 必须续拍"  # noqa: PLR2004
 
 
-class TestResidAuditShareApply:
-    """#278：``dual.json`` 非 UTF-8 → ``_ShareRejectError`` 而非逃逸。
-
-    UnicodeDecodeError 是 ValueError 但非 ``json.JSONDecodeError``——漏捕
-    时隐式命中路走 ``run()`` 的 parse 臂把任务 fault 掉（违反「隐式命中
-    是优化不是承诺」）；kind=share 应归 partial+share_verify 而非 fault。
-    """
-
-    def test_bad_utf8_dual_rejects(self, tmp_path: Path) -> None:
-        ctx, worker, _store = mk_ctx(tmp_path, options={})
-        ctx.row["kind"] = "share"
-        (ctx.root / "share").mkdir(parents=True)
-        (ctx.root / "share" / "dual.json").write_bytes(b'{"chunks": [\xff\xfe]}')
-        with pytest.raises(_ShareRejectError):
-            worker.run_stage(ctx, "share_apply")
-
-
 class TestResidAuditGlossary:
     """#278：``_make_glossary`` 降级面——Glossary.load 的 TypeError
     （顶层非 mapping）与 yaml.YAMLError 皆回落 None，不许 fault 任务。"""
@@ -2387,49 +1567,6 @@ class TestResidAuditGlossary:
             "key: [unclosed\n  bad: : :\n", encoding="utf-8"
         )
         assert worker._make_glossary(ctx) is None  # noqa: SLF001
-
-
-class TestResidAuditSharePackGate:
-    """#278：``_share_pack_try`` 终态闸——弃单系终态（cancelled/
-    interrupted/needs_auth）不进公共 index；fault/partial/done 照旧
-    （§9 fixloop_exhausted 型放行语义不变）。"""
-
-    @staticmethod
-    def _drive(ctx: TaskCtx, worker: PipelineWorker) -> int:
-        calls = 0
-
-        def fake_publish(_root: Path, manifest: object, _out: Path) -> object:
-            nonlocal calls
-            calls += 1
-            return Path("fake.share.zip"), manifest
-
-        import texlate.server.worker as worker_mod  # noqa: PLC0415
-
-        orig_publish = worker_mod.seams.share_pack_publish
-        orig_manifest = PipelineWorker.share_pack_manifest
-        worker_mod.seams.share_pack_publish = fake_publish
-        PipelineWorker.share_pack_manifest = lambda _s, _c, _r: object()  # type: ignore[method-assign]
-        try:
-            worker._share_pack_try(ctx)  # noqa: SLF001 -- 主线程直调（_loop 未钉）
-        finally:
-            worker_mod.seams.share_pack_publish = orig_publish
-            PipelineWorker.share_pack_manifest = orig_manifest  # type: ignore[method-assign]
-        return calls
-
-    def test_cancelled_not_published(self, tmp_path: Path) -> None:
-        ctx, worker, store = mk_ctx(tmp_path, options={"share_pack": True})
-        store.transition(ctx.task_id, "cancelled")
-        assert self._drive(ctx, worker) == 0
-
-    def test_interrupted_not_published(self, tmp_path: Path) -> None:
-        ctx, worker, store = mk_ctx(tmp_path, options={"share_pack": True})
-        store.transition(ctx.task_id, "interrupted", force=True)
-        assert self._drive(ctx, worker) == 0
-
-    def test_fault_still_published(self, tmp_path: Path) -> None:
-        ctx, worker, store = mk_ctx(tmp_path, options={"share_pack": True})
-        store.transition(ctx.task_id, "fault", force=True)
-        assert self._drive(ctx, worker) == 1
 
 
 class TestSetOption:

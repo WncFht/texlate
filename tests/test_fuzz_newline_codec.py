@@ -548,7 +548,7 @@ class TestSeededFuzz:
     def test_edge_heavy_fuzz(self) -> None:
         """边缘重采样——首尾强制 token/lit/换行原子，中段随机。"""
         rng = fuzz_rng(20260919)
-        edge_atoms = [a for a in _ATOMS if a.startswith("[[") or a in _SPACE_LITS]
+        edge_atoms = [a for a in _ATOMS if a.startswith("[[")]
         edge_atoms += [lit for _tok, lit in _SPACE_LITS] + ["\n", "\n\n", "\r\n"]
         for i in range(250):
             s = (

@@ -5,21 +5,20 @@ r"""``\pacs`` polyfill —— ``\AtBeginDocument`` 参数内 ``#`` 单写约定�
 "Parameters must be numbered consecutively" ×2, 残留 ``\pacs`` 成 ``#1``-
 定界宏, 调用点扫参越过花括号撞 \par → "Paragraph ended before \pacs was
 complete" (loop2/rt1/guardsmoke 7 格三连签实证, 错误行=调用后首个空行)。
-内建 emit ``_builtins_shim._REVTEX209_POLYFILL`` 已修单 ``#`` 并注释声明与
-``shim_map.revtex.cls`` 同义——本测试钉住 yaml 侧同步形态, 并对全部
-shim_map body 扫 ``\AtBeginDocument`` 顶层 ``##`` (嵌套 def 体内的 ``##``
-合法, 不计)。
+
+当前钉面 (routeclean 2026-09-20 后, shim_map 的 revtex.cls 槽已删):
+vendored ``vendor/shims/revtex.cls`` stub 覆盖 ``\pacs`` 且全件 ``##``-free;
+全部 shim_map body 的 ``\AtBeginDocument`` 参数顶层扫 ``##`` (嵌套 def
+体内的 ``##`` 合法, 不计); 内建 emit ``_builtins_shim._REVTEX209_POLYFILL``
+单 ``#`` 形与 vendored 替身钉语义平 (两链机制已异构: def-in-hook vs
+外 def+内 let)。
 """
 
-import re
 from pathlib import Path
 
 from texlate.compile.fixloop import load_ruleset
 from texlate.compile.fixloop._builtins_shim import _REVTEX209_POLYFILL
-
-_PACS_LINE = (
-    "\\AtBeginDocument{\\long\\def\\pacs#1{\\par\\noindent\\textbf{PACS:} #1\\par}}"
-)
+from texlate.latex.chars import match_brace
 
 
 def _shim_map() -> dict[str, dict[str, str]]:
@@ -28,7 +27,7 @@ def _shim_map() -> dict[str, dict[str, str]]:
 
 
 def _at_begin_doc_args(body: str) -> list[str]:
-    r"""抽出每个 ``\AtBeginDocument{...}`` 的参数文本 (花括号配平)。"""
+    r"""抽出每个 ``\AtBeginDocument{...}`` 的参数文本 (``match_brace`` 配平)。"""
     args = []
     idx = 0
     tag = "\\AtBeginDocument{"
@@ -36,24 +35,29 @@ def _at_begin_doc_args(body: str) -> list[str]:
         i = body.find(tag, idx)
         if i < 0:
             return args
-        j = i + len(tag)
-        depth = 1
-        while j < len(body) and depth:
-            if body[j] == "{":
-                depth += 1
-            elif body[j] == "}":
-                depth -= 1
-            j += 1
-        args.append(body[i + len(tag) : j - 1])
-        idx = j
+        e = match_brace(body, i + len(tag) - 1)
+        if e is None:  # 括号未闭合 → 无顶层可言, 停扫
+            return args
+        args.append(body[i + len(tag) : e - 1])
+        idx = e
 
 
 def _top_level_double_hash(arg: str) -> str | None:
-    r"""``\AtBeginDocument`` 参数顶层 (未入任何 ``{}``) 的 ``##`` —— 必炸。"""
+    r"""``\AtBeginDocument`` 参数顶层 (未入任何 ``{}``) 的 ``##`` —— 必炸。
+
+    ``\X`` 转义跳两字符、``%`` 注释跳至行尾——与 ``match_brace`` 同口径。
+    """
     depth = 0
     i = 0
     while i < len(arg):
         c = arg[i]
+        if c == "\\":
+            i += 2
+            continue
+        if c == "%":
+            j = arg.find("\n", i)
+            i = len(arg) if j < 0 else j + 1
+            continue
         if c == "{":
             depth += 1
         elif c == "}":

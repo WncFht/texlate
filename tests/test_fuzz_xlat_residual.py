@@ -68,9 +68,6 @@ OBSERVED 钉（现行行为留档，定性待裁）：
 from __future__ import annotations
 
 import asyncio
-import json
-import re
-import tempfile
 from pathlib import Path
 from types import SimpleNamespace
 from typing import TYPE_CHECKING
@@ -78,10 +75,13 @@ from typing import TYPE_CHECKING
 import pytest
 from _fuzzkit import (
     Finding,
+    RecordingTranslator,
     fuzz_rng,
     soup_join,
     soup_pick,
     write_findings,
+    zh_lines_reply,
+    zh_prefix_reply,
 )
 
 from texlate.xlat import pipeline as xp
@@ -93,7 +93,6 @@ from texlate.xlat.state import ChunkRecord, StateStore
 
 if TYPE_CHECKING:
     from collections.abc import Callable
-    from typing import Any
 
     from texlate.xlat.client import ChatOptions
 
@@ -122,7 +121,7 @@ _SENT_BLOCK = "sentence body number nine. "  # 铺 split/长度控制的底料
 _HARD = 120  # 与 _cfg 的 hard_limit 同源——oracle 复算切点用
 
 
-class _T:
+class _T(RecordingTranslator):
     """录制型 marker translator——行为只看 ``user`` 内容，与调度序无关。
 
     - ``_M_AUTH`` → AuthError(401)；``_M_E5XX`` → retryable ChatError；
@@ -137,52 +136,15 @@ class _T:
         batch_fn: Callable[[str], str] | None = None,
         single_fn: Callable[[str], str] | None = None,
     ) -> None:
-        self.calls: list[dict[str, Any]] = []
-        self.batch_fn = batch_fn
-        self.single_fn = single_fn or (lambda u: f"zh:{u}")
-
-    async def translate(
-        self,
-        *,
-        system: str,
-        user: str,
-        temperature: float,
-        max_tokens: int,
-        response_format: dict[str, str] | None = None,
-    ) -> str:
-        """按内容路由应答/异常。"""
-        self.calls.append(
-            {
-                "system": system,
-                "user": user,
-                "temperature": temperature,
-                "max_tokens": max_tokens,
-                "rf": response_format,
-            }
+        super().__init__(
+            markers=[
+                (_M_AUTH, AuthError("denied", status=401)),
+                (_M_E5XX, ChatError("boom5xx", status=500, retryable=True)),
+                (_M_KI, KeyboardInterrupt("simulated")),
+            ],
+            batch_fn=batch_fn or zh_lines_reply,
+            single_fn=single_fn or zh_prefix_reply,
         )
-        if _M_AUTH in user:
-            msg = "denied"
-            raise AuthError(msg, status=401)
-        if _M_E5XX in user:
-            msg = "boom5xx"
-            raise ChatError(msg, status=500, retryable=True)
-        if _M_KI in user:
-            msg = "simulated"
-            raise KeyboardInterrupt(msg)
-        if response_format is not None:
-            payload = json.loads(user)
-            slots = payload.get("slots") or {}
-            return json.dumps(dict.fromkeys(slots, "槽译"), ensure_ascii=False)
-        if user.startswith("[1]"):
-            if self.batch_fn is not None:
-                return self.batch_fn(user)
-            return "\n".join(
-                f"{m.group(1)} zh:{m.group(2)}"
-                if (m := re.match(r"^(\[\d+\])\s?(.*)$", ln, re.DOTALL))
-                else ln
-                for ln in user.split("\n")
-            )
-        return self.single_fn(user)
 
 
 def _cfg(**kw: object) -> xp.PipelineConfig:
@@ -561,10 +523,10 @@ class TestEmptyChunk:
         assert res[1].status == "ok"
         assert any(call["user"] == "" for call in t.calls)  # 空 user 真发了请求
 
-    def test_resumed_poisoned_record_self_heals(self) -> None:
+    def test_resumed_poisoned_record_self_heals(self, tmp_path: Path) -> None:
         """observed：state 里 status=ok 但含源外 token 的毒记录 → 装载时被
         leftover 网降 fault、滤出 completed → 本轮重翻自愈（不落 splice）。"""
-        d = Path(tempfile.mkdtemp(dir="tmp/fuzz-xlat-batch"))
+        d = tmp_path
         st = StateStore(d)
         st.start(1)
         st.record(
@@ -879,7 +841,10 @@ class TestCollectFatalLedger:
 def test_write_findings_ledger() -> None:
     """台账写出——``tmp/fuzz-xlat-batch/findings.txt``（jsonl/md 由报告侧产出）。"""
     write_findings(
-        Path("tmp/fuzz-xlat-batch/findings.txt"),
+        Path(__file__).resolve().parents[1]
+        / "tmp"
+        / "fuzz-xlat-batch"
+        / "findings.txt",
         title="xlat-residual-fuzz — B11 残余面台账",
         scope=(
             "pipeline split 臂簿记 / decode_newlines 先于校验的裸 token 锻造面 / "
@@ -887,7 +852,7 @@ def test_write_findings_ledger() -> None:
             "GatewayTranslator 放大臂 / worker BaseException"
         ),
         test_file="tests/test_fuzz_xlat_residual.py",
-        status="4 CONFIRMED xfail-strict / 2 PLAUSIBLE / 观察钉一簇",
+        status="4 FIXED (assertion-pinned) / 2 PLAUSIBLE / 观察钉一簇",
         confirmed=[
             Finding(
                 "D1",
@@ -903,6 +868,7 @@ def test_write_findings_ledger() -> None:
                     "修法: split 臂聚合 attempts=sum(piece.attempts)；或 "
                     "AuthGate.record 增认 split 完成证据"
                 ),
+                status=" [FIXED]",
             ),
             Finding(
                 "D2",
@@ -917,6 +883,7 @@ def test_write_findings_ledger() -> None:
                     "修法: fault 父块 translation 回填 parent.source（或 "
                     "skipped 不置——两头都须保不变量）"
                 ),
+                status=" [FIXED]",
             ),
             Finding(
                 "D3",
@@ -936,6 +903,7 @@ def test_write_findings_ledger() -> None:
                     "修法: 校验前置到 decode 前按 token 多重集对账；或对 "
                     "decode 产物增字符级网（\\!\\:\\; 文本域检出）"
                 ),
+                status=" [FIXED]",
             ),
             Finding(
                 "D4",
@@ -950,6 +918,7 @@ def test_write_findings_ledger() -> None:
                     "修法: _build_work_items/_one_batch 前置逐成员 _cache_hit "
                     "短路（命中成员直接 _collect ok，不进批）"
                 ),
+                status=" [FIXED]",
             ),
         ],
         observed=[

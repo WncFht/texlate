@@ -368,12 +368,9 @@ class TestB3HealthBuildStamp:
         monkeypatch.setattr(app_mod.shutil, "which", lambda _n: None)
         assert app_mod._probe_git_commit() == ""  # noqa: SLF001
 
-    def test_server_mode_health_minimal(
-        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_server_mode_health_minimal(self, server_client: TestClient) -> None:
         """server 模式 health = ``{ok, db, queue_depth}`` 深度探活——部署拓扑键仍摘。"""
-        monkeypatch.setenv("TEXLATE_MODE", "server")
-        assert client.get("/api/health").json() == {
+        assert server_client.get("/api/health").json() == {
             "ok": True,
             "db": True,
             "queue_depth": 0,

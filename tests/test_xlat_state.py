@@ -80,6 +80,17 @@ class TestStateStore:
         assert recs["c2"].skipped
         assert recs["c2"].skip_reason == "boom"
 
+    def test_clean_run_no_errors_report(self, tmp_path: Path) -> None:
+        """零 error 的干净跑不落独立 ``errors_report.json``（``flush`` 的
+        ``if self._errors`` 门另一半）——state.json 内键仍在但为空表。"""
+        store = st.StateStore(tmp_path)
+        store.start(1)
+        store.record(st.ChunkRecord(chunk_id="c1", source="s", translation="t"))
+        store.finish()
+        assert not (tmp_path / "errors_report.json").exists()
+        data = json.loads((tmp_path / "state.json").read_text(encoding="utf-8"))
+        assert data["errors_report"] == []
+
     def test_corrupt_state_restarts(self, tmp_path: Path) -> None:
         p = tmp_path / "state.json"
         p.write_text("{not json", encoding="utf-8")

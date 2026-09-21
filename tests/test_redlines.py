@@ -193,15 +193,20 @@ def test_restatable_probe_behavior() -> None:
 def test_no_orphan_misschar_literal() -> None:
     """反漂移哨兵：消费层不再持有脱离 registry 的 tempered misschar 字面量。"""
     src = Path(texlate.redlines.__file__).parent
-    pat = re.compile(r"Missing character\(\?!")
+    # 冒号头可选 + 两种 lookahead——真字面量是 ``Missing character:(?!`` /
+    # ``Missing character:(?=``（redlines.py ``_MISSCHAR_*``），无冒号的
+    # 哨兵永远匹配不到真 tempered 拷贝。
+    pat = re.compile(r"Missing character:?\(\?[=!]")
     # engine 已拆包（``compile/engine.py``→``compile/engine/*.py``）——
-    # 单文件与包两形态都扫，谁在场扫谁。
+    # 单文件与包两形态都扫，谁在场扫谁；texlog.py 另有两枚手搓 misschar
+    # 正则（``_MISS_CHAR_RX``/提取面），同扫防未来 tempered 拷贝混入。
     files = [src / "compile" / "engine.py"]
     files += sorted((src / "compile" / "engine").glob("*.py"))
     files += [
         src / "compile" / "loginfo.py",
         src / "compile" / "judge.py",
         src / "validate" / "l2.py",
+        src / "texlog.py",
     ]
     offenders = [
         f"{f.relative_to(src)}:{i}"

@@ -37,6 +37,7 @@ import pytest
 
 pytest.importorskip("fastapi", reason="server extra 未装")
 
+from _drivekit import drive
 from _fuzzkit import fuzz_rng
 from _workerkit import _insert_chunk, mk_ctx
 
@@ -135,14 +136,17 @@ class TestUnpackZipAdversarial:
         with contextlib.suppress(UnpackError):
             unpack_zip(_zip_bytes([(n, b"x") for n in self._NAMES]), dest)
         root = dest.resolve()
-        for f in dest.rglob("*"):
+        # 扫 tmp_path 而非 dest——``..`` 逃逸件落在 dest 之外（tmp_path 下），
+        # 只扫 dest 永远看不到；tmp_path 是本测试独占根，dest 是唯一合法落点
+        for f in tmp_path.rglob("*"):
             assert f.resolve().is_relative_to(root), f"越界落盘: {f}"
 
     def test_fuzz_names_confined(self, tmp_path: Path) -> None:
         rng = fuzz_rng(41)
         soup = ["../", "a", "b.tex", "C:", "\\\\", "/", ".", "..", "中", "x" * 200]
         # 限总长 ≤240B：单段超 NAME_MAX(255B) 的逃逸面由 W7 钉样另测
-        for _ in range(200):
+        seen: set[Path] = set()
+        for case in range(200):
             names = [
                 n
                 for n in (
@@ -151,14 +155,18 @@ class TestUnpackZipAdversarial:
                 )
                 if 0 < len(n.encode()) <= 240  # noqa: PLR2004
             ]
-            dest = tmp_path / f"z{len(list(tmp_path.iterdir()))}"
-            try:
+            dest = tmp_path / f"z{case}"
+            with contextlib.suppress(UnpackError):
                 unpack_zip(_zip_bytes([(n, b"x") for n in names]), dest)
-            except UnpackError:
-                continue
             root = dest.resolve()
-            for f in dest.rglob("*"):
+            # 扫 tmp_path 全树而非 dest——``../x``/``a/../../x`` 逃逸件落 dest
+            # 之外（tmp_path 任意深度），dest.rglob 永远看不到；seen 快照跳过
+            # 历轮合法落件，本轮新增件必须 confine 在本轮 dest
+            for f in tmp_path.rglob("*"):
+                if f in seen:
+                    continue
                 assert f.resolve().is_relative_to(root), f"逃逸: {names} → {f}"
+                seen.add(f)
 
     def test_member_name_too_long_member_warns_not_raises(self, tmp_path: Path) -> None:
         dest = tmp_path / "out"
@@ -905,16 +913,14 @@ class TestOnLoop:
         _ctx, worker, _store = mk_ctx(tmp_path)
         ran_on: list[int] = []
 
-        async def drive() -> int:
-            worker._loop = asyncio.get_running_loop()  # noqa: SLF001
-            worker._loop_tid = threading.get_ident()  # noqa: SLF001
+        async def bounce() -> int:
             await asyncio.to_thread(
                 worker._on_loop,  # noqa: SLF001
                 lambda: ran_on.append(threading.get_ident()),
             )
             return threading.get_ident()
 
-        loop_tid = asyncio.run(drive())
+        loop_tid = drive(worker, bounce())
         assert ran_on == [loop_tid], "worker 线程调用必须回弹 loop 线程"
 
 

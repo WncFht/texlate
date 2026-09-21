@@ -3,9 +3,9 @@ r"""Ruleset._validate 跨分片同 id 拦检 (A5) + ``_DEP_INPUT_RE`` 花括号�
 rules/ 目录装载经 ``_yamlish._merge_into`` list 段 extend 不去重——分片间同
 ``id`` 规则曾静默拼双 (applied 键 ``{id}:{payload}`` 亦互相遮蔽);
 ``_validate`` 现以 seen_ids (id → 合并表首见序位) 拦检, 报错带双出处。
-同 phase 同 order **不拦**：出厂 rules/ 四条 loop 规则同挂 ``order: 9``
-(rungen_stub/nonctan_input_stub/docstrip_generate/svg_prepare, 触发面互斥、
-稳定序按分片文件名序——见 test_fixloop_rules.test_phase_ordering 注释),
+同 phase 同 order **不拦**：出厂 rules/ 多条 loop 规则同挂 ``order: 9``
+(触发面互斥、稳定序按分片文件名序——权威清单见
+test_fixloop_rules.test_phase_ordering 的 ``loop[:11]`` 钉),
 撞位即合法并列, 不判冲突。
 
 ``_DEP_INPUT_RE``: ``\\input{x}`` 零空白花括号形 (LaTeX 主导) 曾因 ``\\s+``
@@ -38,9 +38,19 @@ _RULE_BAD_BUILTIN = (
 
 
 def _shard(*rules: str) -> str:
-    """单片 yaml 文本: version + rules 列表 (元素为 flow-map 行)。"""
+    """单片 yaml 文本: version + taxonomy 单行 + rules 列表 (元素为 flow-map 行)。
+
+    ``taxonomy`` 声明 ``missing_file``——``_producible_categories`` 值域
+    校验要求 ``when.category`` 命中片内可产出类 (_GOOD/ok2 钉用),
+    无 taxonomy 的合成片只剩内建类集会误弃合法规则。
+    """
     body = "\n".join(f"  - {r}" for r in rules)
-    return f"version: 1\nrules:\n{body}\n"
+    return (
+        "version: 1\n"
+        "taxonomy:\n"
+        "  - {id: missing_file, pattern: 'x'}\n"
+        f"rules:\n{body}\n"
+    )
 
 
 def test_cross_shard_dup_id_rejected(tmp_path: Path) -> None:
@@ -69,7 +79,7 @@ def test_dup_id_message_names_both_origins(tmp_path: Path) -> None:
 
 
 def test_same_phase_order_tie_allowed(tmp_path: Path) -> None:
-    """同 phase 同 order 撞位合法 (出厂 loop order:9 四件即此形)——两条都进表。"""
+    """同 phase 同 order 撞位合法 (出厂 loop order:9 族即此形)——两条都进表。"""
     shard = tmp_path / "a.yaml"
     shard.write_text(_shard(_RULE_A, _RULE_B), encoding="utf-8")
     rs = Ruleset.load(shard)
@@ -721,3 +731,13 @@ def test_shipped_ruleset_passes_schema() -> None:
     """出厂 rules/ 全量过新 schema——深度校验上线对现态零误伤 (acceptance a)。"""
     rs = Ruleset.load()
     assert rs.rules
+
+
+def test_shipped_ruleset_scale_pin() -> None:
+    """出厂 rules/ 规模唯一权威钉: ``len(rules) >= 209`` (当前真实条数)。
+
+    各 lane 测试文件里发散的 ``len(rules) >= N`` 下界钉 (112/113/114/196/
+    200/… 约 8 处) 以本钉为 canonical——lane 落地只加新规则, 库规模
+    只增不减; 后续扩容抬升本钉即可, lane 文件不再各自钉数。
+    """
+    assert len(load_ruleset().rules) >= 209  # noqa: PLR2004 - 库规模权威钉

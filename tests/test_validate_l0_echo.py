@@ -12,48 +12,16 @@
 """
 
 import pytest
+from conftest import _issues
 
-from texlate.validate.l0 import L0Report, Severity, validate_pair
-
-
-def _issues(rep: L0Report, rule: str) -> list:
-    return [i for i in rep.issues if i.rule == rule]
-
+from texlate.validate.l0 import _ECHO_SIGS, Severity, validate_pair
 
 # ---------------------------------------------------------------- protocol_echo
 
 
-@pytest.mark.parametrize(
-    "sig",
-    [
-        "占位符缺失:",
-        "占位符疑似拼错",
-        "多余/未识别占位符:",
-        "结构占位符",
-        "注释区内臆造占位符",
-        "[Original]",
-        "[Translation]",
-        "[Error]",
-        "previous_validation_error",
-        "slot_validation_failures",
-        "[compile_error]",
-    ],
-    ids=[
-        "missing",
-        "typo",
-        "extra",
-        "structural",
-        "comment-fab",
-        "original",
-        "translation",
-        "error",
-        "prev-err",
-        "slot-field",
-        "compile-err",
-    ],
-)
+@pytest.mark.parametrize("sig", _ECHO_SIGS)
 def test_echo_each_literal_caught(sig: str) -> None:
-    """DIRTY_SIGS 全 11 签名逐个入 zh → protocol_echo error（子串口径）。"""
+    """``_ECHO_SIGS`` 全签名逐个入 zh → protocol_echo error（子串口径）。"""
     src = "结果见 [[MATH_1]] 与 [[MATH_2]]。"
     zh = f"结果见 [[MATH_1]] 与 [[MATH_2]]。\n{sig} 若干内容"
     rep = validate_pair(src, zh)

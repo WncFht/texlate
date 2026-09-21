@@ -24,8 +24,9 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from _fixloopkit import biber_ok
 
-from texlate.compile.fixloop import Ruleset, actions, load_ruleset
+from texlate.compile.fixloop import actions, load_ruleset
 from texlate.compile.fixloop.builtins import TRANSFORM_FNS
 from texlate.compile.fixloop.engine import LoopCtx, Rule, RunFn
 from texlate.compile.logparse import ErrReport
@@ -59,12 +60,12 @@ _BBL = (
 )
 
 
-def _rs() -> Ruleset:
-    return load_ruleset()
+#: 规则库只读共享（dedup 态在 ctx.applied 而非 ruleset 上）——一次装载。
+_RS = load_ruleset()
 
 
 def _rule(rid: str = _RULE_ID) -> Rule:
-    return next(r for r in _rs().rules if r.id == rid)
+    return next(r for r in _RS.rules if r.id == rid)
 
 
 def _params(rid: str = _RULE_ID) -> dict:
@@ -86,17 +87,11 @@ def _ctx(
     )
 
 
-def _biber_ok(argv: list[str], _timeout: int, wdir: Path) -> tuple:
-    """模拟 biber: 落 ``<stem>.bbl``, rc=0 (同 test_fixloop_bbl_regen 形)。"""
-    (wdir / f"{argv[1]}.bbl").write_text("% regen", encoding="utf-8")
-    return 0, "INFO - This is Biber 2.22", 0.5, False
-
-
 def _match(
     ctx: LoopCtx, pay: str | None, cat: str = "undefined_cs"
 ) -> tuple[Rule | None, str]:
     rep = ErrReport(file_stack=["./main.tex"])
-    return actions._match_apply(_rs(), ctx, None, cat, pay, rep)  # noqa: SLF001
+    return actions._match_apply(_RS, ctx, None, cat, pay, rep)  # noqa: SLF001
 
 
 # ----------------------------------------------------------------- 表形
@@ -115,9 +110,9 @@ def test_table_keys_exact_four() -> None:
 
 def test_polyfill_guard_forms() -> None:
     """polyfill 体: 三处 ifx-csname 守卫 + lossort provide; end* 不走 provide。"""
-    body = next(
-        iter({_params()["cs_table"][k]["polyfill"] for k in _params()["cs_table"]})
-    )
+    bodies = {v["polyfill"] for v in _params()["cs_table"].values()}
+    assert len(bodies) == 1  # yaml 锚点: 四键同块
+    body = bodies.pop()
     assert "\\AddToHook{begindocument/before}" in body
     for cs in ("blx@dlist@type", "blx@dlist@name", "endlossort"):
         assert f"\\expandafter\\ifx\\csname {cs}\\endcsname\\relax" in body, cs
@@ -146,8 +141,8 @@ def test_fires_on_dlist_name_payload(tmp_path: Path) -> None:
 
 
 def test_fires_on_all_four_payloads(tmp_path: Path) -> None:
-    """@type/lossort/endlossort 独立 payload 同派本 arm。"""
-    for pay in ("blx@dlist@type", "lossort", "endlossort"):
+    """@name/@type/lossort/endlossort 四个独立 payload 各自派本 arm。"""
+    for pay in ("blx@dlist@name", "blx@dlist@type", "lossort", "endlossort"):
         sub = tmp_path / pay.replace("@", "_")
         sub.mkdir()
         ctx = _ctx(sub)
@@ -200,7 +195,7 @@ def test_refire_idempotent(tmp_path: Path) -> None:
 # ----------------------------------------------------------------- 排序闸
 def test_order_after_bbl_regen() -> None:
     """order 序位: bbl_regen(158) < 本 arm(166.5), loop 相内同序。"""
-    loop = _rs().phase("loop")
+    loop = _RS.phase("loop")
     by_id = {r.id: r for r in loop}
     regen, mine = by_id["bbl_regen"], by_id[_RULE_ID]
     assert regen.order < mine.order
@@ -216,7 +211,7 @@ def test_bbl_regen_wins_when_bcf_present(tmp_path: Path) -> None:
     None → failed —— 该形已在 test_fixloop_bbl_regen 覆盖; 本钉只证
     门过时的派发序位)。
     """
-    ctx = _ctx(tmp_path, runner=_biber_ok)
+    ctx = _ctx(tmp_path, runner=biber_ok)
     (tmp_path / "main.bcf").write_text(
         '<?xml version="1.0" encoding="UTF-8"?>\n<bcf/>\n', encoding="utf-8"
     )
@@ -241,6 +236,9 @@ def _have_biblatex() -> bool:
     )
 
 
+_HAVE_BIBLATEX = _have_biblatex()
+
+
 def _xelatex(tmp_path: Path) -> None:
     subprocess.run(  # noqa: S603
         [_XELATEX, "-interaction=nonstopmode", "main.tex"],
@@ -253,7 +251,7 @@ def _xelatex(tmp_path: Path) -> None:
 
 @pytest.mark.integration
 @pytest.mark.skipif(_XELATEX is None, reason="xelatex not installed")
-@pytest.mark.skipif(not _have_biblatex(), reason="biblatex.sty not in texmf")
+@pytest.mark.skipif(not _HAVE_BIBLATEX, reason="biblatex.sty not in texmf")
 def test_real_xelatex_repro_and_fix(tmp_path: Path) -> None:
     """全真链钉: 裸 \\entry .bbl 未修 → Undefined \\blx@dlist@name; 注入后零错。
 
@@ -280,7 +278,7 @@ def test_real_xelatex_repro_and_fix(tmp_path: Path) -> None:
 
 @pytest.mark.integration
 @pytest.mark.skipif(_XELATEX is None, reason="xelatex not installed")
-@pytest.mark.skipif(not _have_biblatex(), reason="biblatex.sty not in texmf")
+@pytest.mark.skipif(not _HAVE_BIBLATEX, reason="biblatex.sty not in texmf")
 def test_real_xelatex_ifx_guard_sentinel(tmp_path: Path) -> None:
     """ifx 守卫实证: cs 预定义 → polyfill 不重 def —— 混合格/已定义格零副作用。
 

@@ -16,7 +16,6 @@ import pytest
 
 from texlate.cli._output import (
     CliSink,
-    console,
     fixloop_round_line,
     log_line_filtered,
 )
@@ -35,18 +34,9 @@ def _default_level(monkeypatch: pytest.MonkeyPatch) -> None:
     _LOG.manager._clear_cache()  # noqa: SLF001
 
 
-@pytest.fixture(autouse=True)
-def _plain_terminal_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    """钉无色彩端——纯文本断言前提。
-
-    ``FORCE_COLOR``/``TTY_COMPATIBLE`` 会把 rich ``is_terminal`` 顶成 True
-    （capsys 捕获非 tty 也出 ANSI），须摘除；``console._color_system`` 又在
-    import 时已按当时环境冻结，运行期摘 env 不改已缓存的色域——须置 None
-    让 ``style.render`` 走无色路径。
-    """
-    for key in ("FORCE_COLOR", "TTY_COMPATIBLE"):
-        monkeypatch.delenv(key, raising=False)
-    monkeypatch.setattr(console, "_color_system", None)
+#: 钉无色彩端——纯文本断言前提；conftest ``plain_terminal`` 是 opt-in 件，
+#: 本文件全量消费故 usefixtures 全模块钉版（test_cli.py 逐字节同体已并轨）。
+pytestmark = pytest.mark.usefixtures("plain_terminal")
 
 
 def _round(**kw: object) -> dict[str, Any]:

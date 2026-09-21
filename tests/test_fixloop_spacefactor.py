@@ -11,7 +11,8 @@ idiom, 宿主 ambient 不可测时恒等)。
 
 from pathlib import Path
 
-from texlate.compile.fixloop import actions, load_ruleset
+from _fixloopkit import apply, mk_ctx, rule
+
 from texlate.compile.fixloop._builtins_common import (
     _AT_LETTER_POST,
     _AT_LETTER_PRE,
@@ -19,64 +20,33 @@ from texlate.compile.fixloop._builtins_common import (
     _undefine_cs,
 )
 from texlate.compile.fixloop._builtins_docfix import (
-    _AT_TOKEN_RE,
     _atdef_sites,
+    _live_atdef_sites,
 )
-from texlate.compile.fixloop.engine import LoopCtx, Rule
-from texlate.compile.logparse import ErrReport
 from texlate.textutil import mask_tex
 
 _ERR_VMODE = "You can't use `\\spacefactor' in vertical mode."
 
-
-class _Eng:
-    """builtin_transform 路径的最小引擎替身 (不触 probe/install)。"""
-
-    name = "xelatex"
-
-    def probe_file(self, fname: str, cwd: Path | None = None) -> str | None:
-        del fname, cwd
-        return None
-
-    def filemap(self, fname: str) -> list[str]:
-        del fname
-        return []
-
-
-def _ctx(tmp_path: Path, err_head: str = _ERR_VMODE) -> LoopCtx:
-    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel="main.tex")
-    ctx.err_head = err_head
-    return ctx
-
-
-def _rule() -> Rule:
-    return next(r for r in load_ruleset().rules if r.id == "spacefactor_atdef_wrap")
+_RULE_ID = "spacefactor_atdef_wrap"
 
 
 def _apply(tmp_path: Path, err_head: str = _ERR_VMODE) -> tuple[bool, str]:
-    return actions._apply(  # noqa: SLF001 - 钉规则动作直驱
-        _rule(), _ctx(tmp_path, err_head), _Eng(), None, ErrReport()
-    )
+    return apply(_RULE_ID, mk_ctx(tmp_path, err_head=err_head), None)
 
 
 def _flagged(src: str) -> list[tuple[int, int]]:
-    """``_atdef_sites`` + ``@`` token 判定的完整站点面 (builtin 内部同款)。"""
-    vis = mask_tex(src)
-    return [
-        (s, e)
-        for s, e, al in _atdef_sites(vis)
-        if not al and _AT_TOKEN_RE.search(vis[s:e])
-    ]
+    """``_live_atdef_sites`` 的完整站点面 (builtin 内部同款)。"""
+    return _live_atdef_sites(mask_tex(src))
 
 
 def test_rule_registered() -> None:
-    rule = _rule()
-    assert rule.phase == "loop"
-    assert rule.order == 198.5  # noqa: PLR2004 - schema 断言值
-    assert rule.action["kind"] == "builtin_transform"
-    assert rule.action["function"] == "spacefactor_atdef_wrap"
-    assert rule.when["category"] == "other"
-    assert "spacefactor" in rule.condition["ctx_suggests"]
+    rl = rule(_RULE_ID)
+    assert rl.phase == "loop"
+    assert rl.order == 198.5  # noqa: PLR2004 - schema 断言值
+    assert rl.action["kind"] == "builtin_transform"
+    assert rl.action["function"] == "spacefactor_atdef_wrap"
+    assert rl.when["category"] == "other"
+    assert "spacefactor" in rl.condition["ctx_suggests"]
 
 
 def test_wrap_renewcommand_lsection() -> None:

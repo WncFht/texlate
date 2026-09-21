@@ -18,9 +18,11 @@ draftsty-phantom (展开态 \\iffalse 源件字面平衡) 判别器, 平衡即 n
 
 from pathlib import Path
 
-from texlate.compile.fixloop import Ruleset, actions, fixloop, load_ruleset
+from _fixloopkit import apply, classify, mk_ctx, rs, rule
+from test_fixloop_loop import MockEngine
+
+from texlate.compile.fixloop import actions, fixloop
 from texlate.compile.fixloop.engine import LoopCtx, Rule
-from texlate.compile.logparse import ErrReport, parse_text
 
 _RULE_ID = "unclosed_if_close"
 _RULE_ID_EOF = "unclosed_if_close_eof"
@@ -38,21 +40,19 @@ _ERR_IFX_EOF = (
 CLEAN_LOG = "This is XeTeX\nOutput written on main.pdf (1 page).\n"
 
 
-def _rs() -> Ruleset:
-    return load_ruleset()
-
-
-def _rule(rid: str = _RULE_ID) -> Rule:
-    return next(r for r in _rs().rules if r.id == rid)
-
-
 def _classify(text: str) -> tuple[str | None, str | None]:
-    return _rs().taxonomy.classify(parse_text(text + "\n"))
+    """kit ``classify`` + 补尾换行——旧 ``_classify`` 对 ``parse_text`` 先 ``+"\\n"``。"""
+    return classify(text + "\n")
 
 
-def _apply(rule: Rule, wdir: Path) -> tuple[bool, str]:
-    ctx = LoopCtx(wdir=wdir, engine_name="xelatex")
-    return actions._apply(rule, ctx, None, None, ErrReport())  # noqa: SLF001
+def _cond(rid: str, ctx: LoopCtx) -> tuple[bool, str]:
+    """cond 闸直驱——SLF001 豁免一处收口 (kit ``cond_ok`` 待入后归并)。"""
+    return actions._cond_ok(rule(rid).condition, rule(rid), ctx, None, None)  # noqa: SLF001
+
+
+def _apply(r: Rule | str, wdir: Path) -> tuple[bool, str]:
+    """kit ``apply`` + ``mk_ctx(main_rel=None)``——原就地 ``LoopCtx`` 口径保持。"""
+    return apply(r, mk_ctx(wdir, main_rel=None), None)
 
 
 # ---------------------------------------------------------------- taxonomy
@@ -73,34 +73,35 @@ def test_taxonomy_end_occurred_ifx_is_early_eof() -> None:
 # ---------------------------------------------------------------- 规则接线
 def test_rule_other_arm_wired() -> None:
     """other 臂: when=other, ctx_suggests Incomplete \\if + python3, run_tool。"""
-    rule = _rule()
-    assert rule.order == 196  # noqa: PLR2004 - schema 断言值
-    cats = {c.get("category") for c in rule.when["any"]}
+    r = rule(_RULE_ID)
+    assert r.order == 196  # noqa: PLR2004 - schema 断言值
+    cats = {c.get("category") for c in r.when["any"]}
     assert cats == {"other", "incomplete_if"}
-    assert rule.condition["ctx_suggests"] == "Incomplete \\\\if"
-    assert rule.condition["tool_available"] == "python3"
-    assert rule.action["kind"] == "run_tool"
-    argv = rule.action["params"]["argv"]
-    assert argv[:2] == ["python3", "-c"]
+    assert r.condition["ctx_suggests"] == "Incomplete \\\\if"
+    assert r.condition["tool_available"] == "python3"
+    assert r.action["kind"] == "run_tool"
+    argv = r.action["params"]["argv"]
+    assert argv[:2] == ["{python}", "-c"]
     script = argv[2]
     assert "texlate-fixloop-injected" in script
     assert "scan_ifs" in script  # 扫描器在 textutil.ifscan (注释/verb 经 mask_tex 剥)
-    assert "\\\\fi" in script or "\\fi" in script
+    # 注入碎片是转义字面 `"\\fi" * len(pre/post)`——脚本注释里的裸 `\fi` 不算
+    assert "\\\\fi" in script
 
 
 def test_rule_eof_arm_wired() -> None:
     """early_eof 臂: payload_required 滤 generic no-pages, source_contains 门。"""
-    rule = _rule(_RULE_ID_EOF)
-    assert rule.order == 196.5  # noqa: PLR2004 - schema 断言值
-    assert rule.when == {"category": "early_eof", "payload_required": True}
-    assert rule.condition["source_contains"] == "\\\\if"
-    assert rule.condition["tool_available"] == "python3"
-    assert rule.action["params"]["argv"][:2] == ["python3", "-c"]
+    r = rule(_RULE_ID_EOF)
+    assert r.order == 196.5  # noqa: PLR2004 - schema 断言值
+    assert r.when == {"category": "early_eof", "payload_required": True}
+    assert r.condition["source_contains"] == "\\\\if"
+    assert r.condition["tool_available"] == "python3"
+    assert r.action["params"]["argv"][:2] == ["{python}", "-c"]
 
 
 def test_rule_order_after_pdfstring_before_sentinel() -> None:
     """order 排序自洽: pdfstring_cs_disarm(193) < 本双臂 < undefined_cs_guess(900)。"""
-    orders = {r.id: r.order for r in _rs().phase("loop")}
+    orders = {r.id: r.order for r in rs().phase("loop")}
     assert orders["pdfstring_cs_disarm"] < orders[_RULE_ID]
     assert orders[_RULE_ID] < orders[_RULE_ID_EOF]
     assert orders[_RULE_ID_EOF] < orders["undefined_cs_guess"]
@@ -111,46 +112,40 @@ def test_rule_order_after_pdfstring_before_sentinel() -> None:
 # ---------------------------------------------------------------- condition 闸
 def test_cond_other_arm_pass_on_incomplete_ctx(tmp_path: Path) -> None:
     """ctx 带 Incomplete \\if 签名 → other 臂条件过。"""
-    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
-    ctx.err_head = _ERR_IFFALSE
-    ok, why = actions._cond_ok(  # noqa: SLF001 - 闸行为直驱
-        _rule().condition, _rule(), ctx, None, None
-    )
+    ctx = mk_ctx(tmp_path, main_rel=None, err_head=_ERR_IFFALSE)
+    ok, why = _cond(_RULE_ID, ctx)
     assert ok, why
 
 
 def test_cond_other_arm_reject_unsigned_ctx(tmp_path: Path) -> None:
     """other 错误无 Incomplete 签名 → 闸拒 (防任意 other 烧 dedup 槽)。"""
-    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
-    ctx.err_head = "./main.tex:10: Undefined control sequence.\nl.10 \\foo\n"
-    ok, _ = actions._cond_ok(_rule().condition, _rule(), ctx, None, None)  # noqa: SLF001
+    ctx = mk_ctx(
+        tmp_path,
+        main_rel=None,
+        err_head="./main.tex:10: Undefined control sequence.\nl.10 \\foo\n",
+    )
+    ok, _ = _cond(_RULE_ID, ctx)
     assert not ok
 
 
 def test_cond_eof_arm_pass_on_if_source(tmp_path: Path) -> None:
     """源件含 \\if → early_eof 臂条件过 (err_head 空不依赖 ctx)。"""
     (tmp_path / "main.tex").write_text("\\ifx\\a\\b x\n", encoding="utf-8")
-    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
-    ok, why = actions._cond_ok(  # noqa: SLF001
-        _rule(_RULE_ID_EOF).condition, _rule(_RULE_ID_EOF), ctx, None, None
-    )
+    ok, why = _cond(_RULE_ID_EOF, mk_ctx(tmp_path, main_rel=None))
     assert ok, why
 
 
 def test_cond_eof_arm_reject_no_if_source(tmp_path: Path) -> None:
     """源件无 \\if → 闸拒。"""
     (tmp_path / "main.tex").write_text("plain text\n", encoding="utf-8")
-    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex")
-    ok, _ = actions._cond_ok(  # noqa: SLF001
-        _rule(_RULE_ID_EOF).condition, _rule(_RULE_ID_EOF), ctx, None, None
-    )
+    ok, _ = _cond(_RULE_ID_EOF, mk_ctx(tmp_path, main_rel=None))
     assert not ok
 
 
 def test_when_eof_arm_payload_required() -> None:
     """early_eof 裸 no-pages (pay=None) → _when_ok 拒; \\ifx payload → 过。"""
-    ctx = LoopCtx(wdir=Path("/nonexistent"), engine_name="xelatex")
-    when = _rule(_RULE_ID_EOF).when
+    ctx = mk_ctx(Path("/nonexistent"), main_rel=None)
+    when = rule(_RULE_ID_EOF).when
     assert not actions._when_ok(when, "early_eof", None, ctx)  # noqa: SLF001
     assert actions._when_ok(when, "early_eof", "\\ifx", ctx)  # noqa: SLF001
     assert not actions._when_ok(when, "other", "\\ifx", ctx)  # noqa: SLF001
@@ -164,7 +159,7 @@ def test_apply_unclosed_iffalse_injects_before_enddoc(tmp_path: Path) -> None:
         "\\iffalse\nhidden\n\\end{document}\n"
     )
     (tmp_path / "main.tex").write_text(main, encoding="utf-8")
-    ok, note = _apply(_rule(), tmp_path)
+    ok, note = _apply(_RULE_ID, tmp_path)
     assert ok, note
     patched = (tmp_path / "main.tex").read_text(encoding="utf-8")
     assert "texlate-fixloop-injected" in patched
@@ -182,7 +177,7 @@ def test_apply_unclosed_in_input_file(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     (tmp_path / "sec.tex").write_text("text\n\\ifnum 1=2\nhidden\n", encoding="utf-8")
-    ok, note = _apply(_rule(), tmp_path)
+    ok, note = _apply(_RULE_ID, tmp_path)
     assert ok, note
     sec = (tmp_path / "sec.tex").read_text(encoding="utf-8")
     assert "texlate-fixloop-injected" in sec
@@ -199,7 +194,7 @@ def test_apply_balanced_doc_untouched(tmp_path: Path) -> None:
         "\\ifnum 1=1\nyes\n\\fi\ntext\n\\end{document}\n"
     )
     (tmp_path / "main.tex").write_text(main, encoding="utf-8")
-    ok, note = _apply(_rule(), tmp_path)
+    ok, note = _apply(_RULE_ID, tmp_path)
     assert ok, note
     assert (tmp_path / "main.tex").read_text(encoding="utf-8") == main
 
@@ -211,7 +206,7 @@ def test_apply_comment_line_if_skipped(tmp_path: Path) -> None:
         "% \\iffalse hidden in comment\nreal\n\\end{document}\n"
     )
     (tmp_path / "main.tex").write_text(main, encoding="utf-8")
-    ok, note = _apply(_rule(), tmp_path)
+    ok, note = _apply(_RULE_ID, tmp_path)
     assert ok, note
     assert (tmp_path / "main.tex").read_text(encoding="utf-8") == main
 
@@ -223,11 +218,11 @@ def test_apply_idempotent_second_run(tmp_path: Path) -> None:
         "\\end{document}\n",
         encoding="utf-8",
     )
-    ok1, _ = _apply(_rule(), tmp_path)
+    ok1, _ = _apply(_RULE_ID, tmp_path)
     assert ok1
     once = (tmp_path / "main.tex").read_text(encoding="utf-8")
     assert once.count("texlate-fixloop-injected") == 1
-    ok2, _ = _apply(_rule(), tmp_path)
+    ok2, _ = _apply(_RULE_ID, tmp_path)
     assert ok2
     assert (tmp_path / "main.tex").read_text(encoding="utf-8") == once
 
@@ -239,7 +234,7 @@ def test_apply_multi_deficit_injects_n_fi(tmp_path: Path) -> None:
         "\\iffalse more\n\\end{document}\n",
         encoding="utf-8",
     )
-    ok, note = _apply(_rule(), tmp_path)
+    ok, note = _apply(_RULE_ID, tmp_path)
     assert ok, note
     patched = (tmp_path / "main.tex").read_text(encoding="utf-8")
     assert "\\fi\\fi % texlate-fixloop-injected" in patched
@@ -255,7 +250,7 @@ def test_apply_endinput_cls_injects_before_endinput(tmp_path: Path) -> None:
     (tmp_path / "mycls.cls").write_text(
         "\\ProvidesClass{mycls}\n\\iffalse\nhidden\n\\endinput\n", encoding="utf-8"
     )
-    ok, note = _apply(_rule(), tmp_path)
+    ok, note = _apply(_RULE_ID, tmp_path)
     assert ok, note
     cls = (tmp_path / "mycls.cls").read_text(encoding="utf-8")
     assert cls.index("\\fi % texlate-fixloop-injected") < cls.index("\\endinput")
@@ -274,7 +269,7 @@ def test_apply_def_body_open_no_inject(tmp_path: Path) -> None:
         "\\endinput\n"
     )
     (tmp_path / "mycls.cls").write_text(cls, encoding="utf-8")
-    ok, note = _apply(_rule(), tmp_path)
+    ok, note = _apply(_RULE_ID, tmp_path)
     assert ok, note
     assert (tmp_path / "mycls.cls").read_text(encoding="utf-8") == cls
     assert "texlate-fixloop-injected" not in (tmp_path / "main.tex").read_text(
@@ -291,7 +286,7 @@ def test_apply_crossfile_borrow_noop(tmp_path: Path) -> None:
     part = "\\fi\nrestored\n"
     (tmp_path / "main.tex").write_text(main, encoding="utf-8")
     (tmp_path / "part.tex").write_text(part, encoding="utf-8")
-    ok, note = _apply(_rule(), tmp_path)
+    ok, note = _apply(_RULE_ID, tmp_path)
     assert ok, note
     assert (tmp_path / "main.tex").read_text(encoding="utf-8") == main
     assert (tmp_path / "part.tex").read_text(encoding="utf-8") == part
@@ -316,7 +311,7 @@ def test_apply_draftsty_phantom_no_misfire(tmp_path: Path) -> None:
     )
     (tmp_path / "main.tex").write_text(main, encoding="utf-8")
     (tmp_path / "draft.sty").write_text(sty, encoding="utf-8")
-    ok, note = _apply(_rule(), tmp_path)
+    ok, note = _apply(_RULE_ID, tmp_path)
     assert ok, note
     assert (tmp_path / "main.tex").read_text(encoding="utf-8") == main
     assert (tmp_path / "draft.sty").read_text(encoding="utf-8") == sty
@@ -331,7 +326,7 @@ def test_apply_newif_and_loop_repeat_balanced(tmp_path: Path) -> None:
         "\\newcommand{\\ifbar}{x}\n\\end{document}\n"
     )
     (tmp_path / "main.tex").write_text(main, encoding="utf-8")
-    ok, note = _apply(_rule(), tmp_path)
+    ok, note = _apply(_RULE_ID, tmp_path)
     assert ok, note
     assert (tmp_path / "main.tex").read_text(encoding="utf-8") == main
 
@@ -343,7 +338,7 @@ def test_apply_eof_arm_same_scanner(tmp_path: Path) -> None:
         "\\end{document}\n",
         encoding="utf-8",
     )
-    ok, note = _apply(_rule(_RULE_ID_EOF), tmp_path)
+    ok, note = _apply(_RULE_ID_EOF, tmp_path)
     assert ok, note
     assert "\\fi % texlate-fixloop-injected" in (tmp_path / "main.tex").read_text(
         encoding="utf-8"
@@ -351,60 +346,6 @@ def test_apply_eof_arm_same_scanner(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------- e2e
-class _MockRes:
-    """impl CompRes duck-type 替身 (test_fixloop_draftsty 同款微缩)。"""
-
-    def __init__(self, wdir: Path, spec: dict) -> None:
-        self.log_path = wdir / "main.log"
-        self.log_path.write_text(spec.get("log", ""), encoding="utf-8")
-        self.pdf = wdir / "main.pdf" if spec.get("pdf") else None
-        if self.pdf is not None:
-            self.pdf.write_bytes(b"%PDF-1.4 fake")
-        self.pdf_bytes = self.pdf.stat().st_size if self.pdf else 0
-        self.timed_out = False
-        self.killed_signal = None
-        self.seconds = 0.05
-        self.stdout_tail = ""
-        self.log_text = ""
-
-    @property
-    def has_pdf(self) -> bool:
-        return self.pdf is not None and self.pdf_bytes > 0
-
-
-class _MockEngine:
-    """逐轮吐 spec。"""
-
-    name = "xelatex"
-    caps = frozenset({"kpsewhich", "tlmgr"})
-
-    def __init__(self, script: list) -> None:
-        self.script = list(script)
-        self.rounds = 0
-
-    def compile(self, wdir: Path, main: str, **_kw: object) -> _MockRes:
-        del main
-        i = min(self.rounds, len(self.script) - 1)
-        self.rounds += 1
-        return _MockRes(Path(wdir), self.script[i])
-
-    def probe_file(self, fname: str, cwd: Path | None = None) -> str | None:
-        if cwd is not None and (Path(cwd) / fname).is_file():
-            return str(Path(cwd) / fname)
-        return None
-
-    def install_file(self, fname: str, *, font_related: bool = False) -> bool:
-        del fname, font_related
-        return False
-
-    def rebuild_fontmaps(self) -> bool:
-        return True
-
-    def filemap(self, fname: str) -> list[str]:
-        del fname
-        return []
-
-
 def _proj(tmp_path: Path, body: str) -> Path:
     (tmp_path / "main.tex").write_text(
         "\\documentclass{article}\n\\begin{document}\n" + body + "\\end{document}\n",
@@ -416,7 +357,7 @@ def _proj(tmp_path: Path, body: str) -> Path:
 def test_e2e_iffalse_injected_then_clean(tmp_path: Path) -> None:
     """整链: Incomplete \\iffalse 首错 → \\fi 注入 → 下轮 clean。"""
     _proj(tmp_path, "hello\n\\iffalse\nhidden\n")
-    eng = _MockEngine(
+    eng = MockEngine(
         [
             {"log": _ERR_IFFALSE + "\n"},
             {"log": CLEAN_LOG, "pdf": True},
@@ -433,7 +374,7 @@ def test_e2e_iffalse_injected_then_clean(tmp_path: Path) -> None:
 def test_e2e_eof_arm_injected_then_clean(tmp_path: Path) -> None:
     """整链: \\end-occurred-\\ifx early_eof → eof 臂注入 → 下轮 clean。"""
     _proj(tmp_path, "hello\n\\ifx\\a\\b hidden\n")
-    eng = _MockEngine(
+    eng = MockEngine(
         [
             {"log": _ERR_IFX_EOF + "\n"},
             {"log": CLEAN_LOG, "pdf": True},
@@ -451,7 +392,7 @@ def test_e2e_balanced_doc_no_fire(tmp_path: Path) -> None:
     """Incomplete 签名但源件平衡 → 规则 fire 但 noop (不注入)。"""
     main_body = "hello\n\\ifnum 1=1\nyes\n\\fi\n"
     _proj(tmp_path, main_body)
-    eng = _MockEngine(
+    eng = MockEngine(
         [
             {"log": _ERR_IFFALSE + "\n"},
             {"log": CLEAN_LOG, "pdf": True},

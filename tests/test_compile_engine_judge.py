@@ -1,22 +1,24 @@
-"""engine.py（parse_log/classify/route/deps）与 judge.py 的单测。
+"""``compile/engine`` 包（parse_log/classify/route/deps/tlmgr/flags）的单测。
+
+judge verdict 与机位审计单测在 ``test_compile_judge.py``（``_res`` 现为
+conftest ``make_comp_res`` 的原位别名——salvage/utf8 用例仍消费，judge
+套件经 ``from test_compile_engine_judge import _res`` 借用，
+``test_fixloop_loop`` 中枢同款先例）；sandbox/child_env 单测在
+``test_compile_sandbox.py``。
 
 引擎实跑不进单测——由 bench/py/e2e_mock_bench.py 驱动覆盖。
 """
 
 import contextlib
-import importlib
 import json
 import os
-import signal
-import sys
 from collections.abc import Callable
 from pathlib import Path
-from types import ModuleType
 
 import pytest
+from conftest import make_comp_res
 
 import texlate.compile.loginfo as loginfo_mod
-import texlate.compile.sandbox as sb_mod
 from texlate.compile import engine as eng_mod
 from texlate.compile._yamlish import load_yaml
 from texlate.compile.engine import (
@@ -29,8 +31,39 @@ from texlate.compile.engine import (
     route_project,
 )
 from texlate.compile.fixloop.engine import RULES_PATH
-from texlate.compile.judge import count_missing_chars, judge
-from texlate.compile.sandbox import child_env, sandbox_wrap
+from texlate.compile.judge import judge
+
+# ---------------------------------------------------------------- 共享测试件
+#: ``_res`` 原位名——conftest ``make_comp_res`` 同体别名（tmp_path 槽变可选是
+#: 超集面；test_compile_judge 经 ``from test_compile_engine_judge import _res``
+#: 借用的既有面不改名）。
+_res = make_comp_res
+
+
+def _run_stub(
+    handler: Callable[
+        [list[str], float], tuple[int | None, str, float, bool | str]
+    ],
+) -> Callable[..., tuple[int | None, str, float, bool | str]]:
+    """``run_process`` canonical 形参的 fake_run 工厂——body 只收 ``(cmd, timeout)``。
+
+    第 4 槽 ``bool | str`` 与产码同宽：活哨截杀臂名（``vbox_flood`` 等）经
+    ``timed_out`` 槽回吐——此前 stub 标纯 ``bool`` 已漂移。
+    """
+
+    def fake_run(  # noqa: PLR0913
+        cmd: list[str],
+        *,
+        cwd: Path,
+        env: dict[str, str],
+        timeout: float,
+        out_cap: int = 8 * 1024 * 1024,
+        should_cancel: Callable[[], bool] | None = None,
+    ) -> tuple[int | None, str, float, bool | str]:
+        _ = (cwd, env, out_cap, should_cancel)  # mock 签名对齐 run_process
+        return handler(cmd, timeout)
+
+    return fake_run
 
 
 # ---------------------------------------------------------------- parse_log
@@ -126,8 +159,9 @@ def test_classify_clean() -> None:
 def test_classify_enter_filename_tail() -> None:
     """无 '!' 首错时回溯 tail：文件名提示符死 → missing_file。"""
     tail = "! File `foo.sty' not found.\nEnter file name:\n! Emergency stop."
-    cat, _pay = classify_error("! Emergency stop.", None, tail, timed_out=False)
-    assert cat in {"emergency", "missing_file"}
+    cat, pay = classify_error("! Emergency stop.", None, tail, timed_out=False)
+    assert cat == "missing_file"
+    assert pay == "foo.sty"
 
 
 def test_classify_eps_hard_wall() -> None:
@@ -281,263 +315,6 @@ def test_route_non_utf8_flag(tmp_path: Path) -> None:
     assert d.non_utf8
 
 
-# ---------------------------------------------------------------- judge
-def _res(
-    tmp_path: Path,
-    *,
-    pdf: bool = True,
-    log_text: str = "",
-    timed_out: bool = False,
-    rc: int | None = 0,
-) -> CompRes:
-    res = CompRes(engine="xelatex")
-    res.ok = not timed_out
-    res.timed_out = timed_out
-    res.rc = rc
-    if pdf:
-        p = tmp_path / "main.pdf"
-        p.write_bytes(b"%PDF-fake")
-        res.pdf = p
-        res.pdf_bytes = p.stat().st_size
-    res.log = parse_log(log_text)
-    return res
-
-
-def test_judge_no_pdf_fail(tmp_path: Path) -> None:
-    v = judge(_res(tmp_path, pdf=False))
-    assert v.status == "fail"
-    assert "no_pdf" in v.reasons
-
-
-def test_judge_timeout_fail(tmp_path: Path) -> None:
-    v = judge(_res(tmp_path, pdf=False, timed_out=True))
-    assert v.status == "fail"
-    assert "timeout" in v.reasons
-
-
-def test_judge_clean(tmp_path: Path) -> None:
-    v = judge(_res(tmp_path, pdf=True, log_text="all good\n"))
-    assert v.status == "clean"
-
-
-def test_judge_many_errors_partial(tmp_path: Path) -> None:
-    log = "".join(f"! error {i}\nl.{i}\n" for i in range(10))
-    v = judge(_res(tmp_path, pdf=True, log_text=log))
-    assert v.status == "partial"
-
-
-def test_judge_missing_file_first_error_dirty(tmp_path: Path) -> None:
-    log = "! LaTeX Error: File `x.sty' not found.\nl.1\n"
-    v = judge(_res(tmp_path, pdf=True, log_text=log))
-    assert v.status == "partial"
-    assert v.category == "missing_file"
-
-
-def test_judge_error_composition(tmp_path: Path) -> None:
-    """error_cats 收全量错误行构成；首错复用 ctx 权威对（payload 不丢）。
-
-    quant-ph/9703040 形态：首错与 bulk 不同族——构成数据让签名聚合
-    能纠「首错遮 bulk」。
-    """
-    log = "! Undefined control sequence.\nl.1 \\x\n" + "".join(
-        f"! Missing number, treated as zero.\nl.{i} \\bffam\n" for i in range(2, 8)
-    )
-    v = judge(_res(tmp_path, pdf=True, log_text=log))
-    assert v.error_cats == {"undefined_cs": 1, "syntax": 6}
-    assert v.error_pay == {"undefined_cs": "x"}
-    assert v.category == "undefined_cs"  # category 仍是首错语义
-
-
-def test_judge_error_composition_no_pdf(tmp_path: Path) -> None:
-    """no_pdf 早退支路同样收构成（构成覆盖全部错误行）。"""
-    log = "! Missing number, treated as zero.\nl.1 \\x\n! Undefined control sequence.\n"
-    v = judge(_res(tmp_path, pdf=False, log_text=log))
-    assert v.status == "fail"
-    assert sum(v.error_cats.values()) == v.n_errors
-
-
-def test_judge_error_composition_empty(tmp_path: Path) -> None:
-    """无错误行 → 空构成（sig 回退首错路径）。"""
-    v = judge(_res(tmp_path, pdf=True, log_text="all good\n"))
-    assert v.error_cats == {}
-    assert v.error_pay == {}
-
-
-def test_judge_utf8_warning_dirty(tmp_path: Path) -> None:
-    log = "Invalid UTF-8 byte or sequence at line 9 replaced by U+FFFD.\n"
-    v = judge(_res(tmp_path, pdf=True, log_text=log))
-    assert v.status == "partial"
-
-
-def test_judge_signal_death_attribution(tmp_path: Path) -> None:
-    """2211.13013 实证：xdvipdfmx 死 → xelatex 收 SIGPIPE(rc=-13)，
-    aux/log 截断的下游症状（invalid_utf8）曾顶包归因——rc<0 必须
-    单独进 reasons/notes，且有 pdf 也判 partial（死进程产出不可信）。"""
-    log = "Invalid UTF-8 byte or sequence at line 9 replaced by U+FFFD.\n"
-    v = judge(_res(tmp_path, pdf=True, log_text=log, rc=-13))
-    assert v.status == "partial"
-    assert "killed_by_signal:13" in v.reasons
-    assert any("engine_killed:SIG13" in n for n in v.notes)
-
-
-def test_judge_signal_death_no_pdf(tmp_path: Path) -> None:
-    """信号杀死 + 无 pdf：fail 且真凶在 reasons，不是哑巴 no_pdf。"""
-    v = judge(_res(tmp_path, pdf=False, rc=-9))
-    assert v.status == "fail"
-    assert "killed_by_signal:9" in v.reasons
-    assert "no_pdf" in v.reasons
-
-
-def test_judge_signal_death_clean_log_still_dirty(tmp_path: Path) -> None:
-    """log 表面干净但引擎被杀（罕见：写完 pdf 后崩）——仍判 partial。"""
-    v = judge(_res(tmp_path, pdf=True, log_text="all good\n", rc=-13))
-    assert v.status == "partial"
-    assert "killed_by_signal:13" in v.reasons
-
-
-def test_judge_signal_death_masked_by_later_pass(tmp_path: Path) -> None:
-    """pass1 被杀、pass2 跑完 rc=0：res.rc 末值掩不掉 killed_signal 归因。"""
-    res = _res(tmp_path, pdf=True, log_text="all good\n", rc=0)
-    res.killed_signal = 13  # 引擎侧 mid-loop 死亡记录
-    v = judge(res)
-    assert v.status == "partial"
-    assert "killed_by_signal:13" in v.reasons
-
-
-def _judge_mod() -> ModuleType:
-    """judge 子模块对象（包级 re-export 的同名函数遮蔽了模块属性路径）。"""
-    return importlib.import_module("texlate.compile.judge")
-
-
-def test_judge_cjk_zero_dirty(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """hep-th 教训：有 pdf 但 0 中文字节 → tofu 否决 fail（非 partial 交付）。"""
-    monkeypatch.setattr(_judge_mod(), "pdf_cjk_chars", lambda _p: 0)
-    v = judge(_res(tmp_path, pdf=True), expect_cjk=True)
-    assert v.status == "fail"
-    assert "cjk_chars=0" in v.reasons
-    assert "tofu_veto" in v.notes
-
-
-def test_judge_cjk_rendered_clean(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(_judge_mod(), "pdf_cjk_chars", lambda _p: 5000)
-    v = judge(_res(tmp_path, pdf=True), expect_cjk=True)
-    assert v.status == "clean"
-
-
-def test_judge_cjk_unverified_not_dirty(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """pdftotext 缺席且无负信号 → 不判 dirty，只记 note。"""
-    monkeypatch.setattr(_judge_mod(), "pdf_cjk_chars", lambda _p: -1)
-    v = judge(_res(tmp_path, pdf=True), expect_cjk=True)
-    assert v.status == "clean"
-    assert any("cjk_unverified" in n for n in v.notes)
-
-
-def test_count_missing_chars() -> None:
-    log = "Missing character: There is no a in font\nMissing character: x\n"
-    assert count_missing_chars(log) == 2  # noqa: PLR2004 - 两行 Missing character
-
-
-# ---------------------------------------------------------------- 机位审计
-def _slot_res(tmp_path: Path, tex_body: str, name: str = "main.tex") -> CompRes:
-    """pdf-clean CompRes + workdir 内置一份 .tex——机位审计的最小输入。"""
-    res = _res(tmp_path, pdf=True, log_text="all good\n")
-    res.workdir = tmp_path
-    (tmp_path / name).write_text(tex_body, encoding="utf-8")
-    return res
-
-
-def _slot_notes(v) -> list[str]:  # noqa: ANN001 - Verdict 私有探针面
-    return [n for n in v.notes if n.startswith("machine_slot_nonascii:")]
-
-
-def test_machine_slot_fires_per_kind(tmp_path: Path) -> None:
-    """全机位命中：env/label/cite/bib/csname/input 路径/restatable 头。"""
-    body = (
-        "\\begin{定理环境}\n"
-        "\\label{sec:引理}\n"
-        "\\citep{张三2020}\n"
-        "\\bibliography{中文文献}\n"
-        "\\csname 中文体\\endcsname\n"
-        "\\input{中文文件}\n"
-        "\\end{定理环境}\n"
-    )
-    v = judge(_slot_res(tmp_path, body))
-    kinds = {n.split(":")[1] for n in _slot_notes(v)}
-    assert {"env", "ref", "cite", "bib", "csname", "input"} <= kinds
-    assert v.status == "clean"  # note 级——不污染 verdict
-
-
-def test_machine_slot_restatable_double_args(tmp_path: Path) -> None:
-    """restatable 头双机位参：env 名或 cskey 任一中招都记（原窄探针面）。"""
-    v = judge(_slot_res(tmp_path, "\\begin{restatable}{定理}{main}\nx\n"))
-    assert any(n.startswith("machine_slot_nonascii:restatable:") for n in v.notes)
-    v2 = judge(_slot_res(tmp_path, "\\begin{restatable}{theorem}{中文键}\nx\n"))
-    assert any(n.startswith("machine_slot_nonascii:restatable:") for n in v2.notes)
-
-
-def test_machine_slot_optional_and_text_args_silent(tmp_path: Path) -> None:
-    """FP 闸：可选位/文位 CJK 不命中——\\section/\\caption/[opt] 全哑。"""
-    body = (
-        "\\section{中文标题}\n"
-        "\\caption{中文说明}\n"
-        "\\citep[见][中文注]{key}\n"
-        "\\includegraphics[width=中文]{fig.png}\n"
-        "\\footnote{中文脚注}\n"
-        "\\begin{restatable}[中文注]{theorem}{main}\nx\\end{restatable}\n"
-    )
-    v = judge(_slot_res(tmp_path, body))
-    assert _slot_notes(v) == []
-
-
-def test_machine_slot_ascii_silent(tmp_path: Path) -> None:
-    """ASCII 机位参全静默：label/cite/env/input/bib 零命中。"""
-    body = (
-        "\\begin{theorem}\\label{thm:a}\\end{theorem}\n"
-        "\\cite{knuth84}\\ref{thm:a}\\eqref{eq:1}\\bibliography{refs}\n"
-        "\\input{macros}\\include{ch1}\\includegraphics{fig.png}\n"
-        "\\csname foo\\endcsname\n"
-    )
-    v = judge(_slot_res(tmp_path, body))
-    assert _slot_notes(v) == []
-
-
-def test_machine_slot_masked_regions_silent(tmp_path: Path) -> None:
-    """注释/verbatim/死区同形 token 非活机位——mask_tex 视图挡 FP。"""
-    body = (
-        "% \\label{注释键}\n"
-        "\\begin{verbatim}\n\\cite{逐字键}\n\\end{verbatim}\n"
-        "\\begin{document}\nx\n\\end{document}\n"
-        "\\label{死区键}\n"
-    )
-    v = judge(_slot_res(tmp_path, body))
-    assert _slot_notes(v) == []
-
-
-def test_machine_slot_no_workdir_no_crash(tmp_path: Path) -> None:
-    """workdir 缺席 → 探针短路不炸（手工 CompRes 面）。"""
-    v = judge(_res(tmp_path, pdf=True, log_text="all good\n"))
-    assert _slot_notes(v) == []
-
-
-def test_machine_slot_includegraphics_required_arg(tmp_path: Path) -> None:
-    """``\\includegraphics{中文.png}`` 必填路径中招（可选位排除不误伤）。"""
-    v = judge(_slot_res(tmp_path, "\\includegraphics[width=2cm]{中文.png}\n"))
-    assert any(n == "machine_slot_nonascii:path:main.tex:'中文.png'" for n in v.notes)
-
-
-def test_machine_slot_note_cap(tmp_path: Path) -> None:
-    """note 封顶：>20 命中截断 + capped 标记，不刷屏。"""
-    body = "".join(f"\\label{{k{i}:中文}}\n" for i in range(25))
-    v = judge(_slot_res(tmp_path, body))
-    notes = _slot_notes(v)
-    assert len(notes) == 21  # noqa: PLR2004 - 20 命中 + capped 标记
-    assert notes[-1] == "machine_slot_nonascii:capped@20"
-
-
 # ---------------------------------------------------------------- compiled_dependencies
 def test_compiled_dependencies_fls(tmp_path: Path) -> None:
     out = tmp_path
@@ -557,45 +334,6 @@ def test_compiled_dependencies_fls(tmp_path: Path) -> None:
 
 def test_compiled_dependencies_missing_record(tmp_path: Path) -> None:
     assert compiled_dependencies(tmp_path, "main.tex", tmp_path, "xelatex") is None
-
-
-# ---------------------------------------------------------------- sandbox
-def test_child_env_whitelist_strips_secrets(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("TEST_TEXLATE_MUST_STRIP", "leakme")
-    env = child_env()
-    assert "TEST_TEXLATE_MUST_STRIP" not in env
-    assert env["openin_any"] == "p"
-    assert env["shell_escape"] == "f"
-    assert env["TECTONIC_UNTRUSTED_MODE"] == "1"
-
-
-def test_sandbox_wrap_passthrough_on_nondarwin(tmp_path: Path) -> None:
-    cmd = ["echo", "hi"]
-    wrapped = sandbox_wrap(cmd, root=tmp_path, out=tmp_path)
-    if sys.platform == "darwin" and Path("/usr/bin/sandbox-exec").exists():
-        assert wrapped[0].endswith("sandbox-exec")
-        assert wrapped[-2:] == cmd
-    else:
-        assert wrapped == cmd
-
-
-def test_sandbox_profile_shape(tmp_path: Path) -> None:
-    """profile 结构性回归——2211.13013 SIGPIPE 三案根的防护：
-
-    - ``literal``+``subpath`` 双发：subpath 不含目录自身，cd/stat 会漏；
-    - TMPDIR canonical 形：/var→/private/var 软链，字面路径打不中；
-    - ``file-read-metadata`` on $HOME：shell cd/getcwd 要 stat 祖先目录。
-    三者缺一，mktexpk 装 pk 字体失败 → xdvipdfmx 死 → xelatex SIGPIPE。
-    """
-    if not (sys.platform == "darwin" and Path("/usr/bin/sandbox-exec").exists()):
-        pytest.skip("sandbox-exec 仅 macOS")
-    wrapped = sandbox_wrap(["xelatex"], root=tmp_path, out=tmp_path)
-    profile = wrapped[2]
-    assert "(literal" in profile
-    assert "(subpath" in profile
-    assert "file-read-metadata" in profile
-    assert "/private/var/" in profile  # canonical TMPDIR
-    assert "Library/texlive" in profile  # TEXMFVAR 读白名单
 
 
 # ---------------------------------------------------------------- 引擎检测
@@ -621,16 +359,9 @@ def test_tectonic_retry_success_clears_timed_out(
     outdir = tmp_path / "out"
     calls = {"n": 0}
 
-    def fake_run(  # noqa: PLR0913
-        cmd: list[str],
-        *,
-        cwd: Path,
-        env: dict[str, str],
-        timeout: float,
-        out_cap: int = 8 * 1024 * 1024,
-        should_cancel: Callable[[], bool] | None = None,
-    ) -> tuple[int | None, str, float, bool]:
-        _ = (cmd, cwd, env, out_cap, should_cancel)  # mock 签名对齐 run_process
+    def fake_run(
+        _cmd: list[str], timeout: float
+    ) -> tuple[int | None, str, float, bool | str]:
         calls["n"] += 1
         if calls["n"] == 1:
             return None, "", timeout, True  # 首拉超时
@@ -638,7 +369,7 @@ def test_tectonic_retry_success_clears_timed_out(
         (outdir / "main.pdf").write_bytes(b"%PDF-fake")
         return 0, "", 5.0, False
 
-    monkeypatch.setattr("texlate.compile.engine.run_process", fake_run)
+    monkeypatch.setattr("texlate.compile.engine.run_process", _run_stub(fake_run))
     res = eng.compile(tmp_path, "main.tex", outdir=outdir, sandbox=False)
     assert calls["n"] == 2  # noqa: PLR2004 -- 超时重试恰一次
     assert res.timed_out is False
@@ -754,22 +485,15 @@ def test_xelatex_compile_flags_in_argv(
     main.write_text("\\documentclass{article}\\begin{document}x\\end{document}")
     captured: dict[str, list[str]] = {}
 
-    def fake_run(  # noqa: PLR0913
-        cmd: list[str],
-        *,
-        cwd: Path,
-        env: dict[str, str],
-        timeout: float,
-        out_cap: int = 8 * 1024 * 1024,
-        should_cancel: Callable[[], bool] | None = None,
-    ) -> tuple[int | None, str, float, bool]:
-        _ = (cwd, env, timeout, out_cap, should_cancel)  # mock 签名对齐 run_process
+    def fake_run(
+        cmd: list[str], _timeout: float
+    ) -> tuple[int | None, str, float, bool | str]:
         captured["cmd"] = cmd
         (tmp_path / "main.pdf").write_bytes(b"%PDF-fake")
         (tmp_path / "main.log").write_text("Output written\n", encoding="utf-8")
         return 0, "", 1.0, False
 
-    monkeypatch.setattr("texlate.compile.engine.run_process", fake_run)
+    monkeypatch.setattr("texlate.compile.engine.run_process", _run_stub(fake_run))
     eng = XelatexEngine(binary="/bin/true")
     res = eng.compile(
         tmp_path,
@@ -820,23 +544,16 @@ def test_tectonic_compile_flags_map_and_drop(
     outdir = tmp_path / "out"
     captured: dict[str, list[str]] = {}
 
-    def fake_run(  # noqa: PLR0913
-        cmd: list[str],
-        *,
-        cwd: Path,
-        env: dict[str, str],
-        timeout: float,
-        out_cap: int = 8 * 1024 * 1024,
-        should_cancel: Callable[[], bool] | None = None,
-    ) -> tuple[int | None, str, float, bool]:
-        _ = (cwd, env, timeout, out_cap, should_cancel)  # mock 签名对齐 run_process
+    def fake_run(
+        cmd: list[str], _timeout: float
+    ) -> tuple[int | None, str, float, bool | str]:
         captured["cmd"] = cmd
         outdir.mkdir(parents=True, exist_ok=True)
         (outdir / "main.pdf").write_bytes(b"%PDF-fake")
         (outdir / "main.log").write_text("Output written\n", encoding="utf-8")
         return 0, "", 1.0, False
 
-    monkeypatch.setattr("texlate.compile.engine.run_process", fake_run)
+    monkeypatch.setattr("texlate.compile.engine.run_process", _run_stub(fake_run))
     eng = TectonicEngine(binary="/bin/true", bundle="")
     res = eng.compile(
         tmp_path,
@@ -1026,19 +743,12 @@ def test_compile_ok_false_on_exec_failure(
     """run_process rc=None（二进制 exec 失败）→ ok=False——此前错报 ok=True。"""
     (tmp_path / "main.tex").write_text("x\n", encoding="utf-8")
 
-    def fake_run(  # noqa: PLR0913
-        cmd: list[str],
-        *,
-        cwd: Path,
-        env: dict[str, str],
-        timeout: float,
-        out_cap: int = 8 * 1024 * 1024,
-        should_cancel: Callable[[], bool] | None = None,
-    ) -> tuple[int | None, str, float, bool]:
-        _ = (cmd, cwd, env, timeout, out_cap, should_cancel)
+    def fake_run(
+        _cmd: list[str], _timeout: float
+    ) -> tuple[int | None, str, float, bool | str]:
         return None, "exec failed: nope", 0.1, False
 
-    monkeypatch.setattr("texlate.compile.engine.run_process", fake_run)
+    monkeypatch.setattr("texlate.compile.engine.run_process", _run_stub(fake_run))
     res = XelatexEngine(binary="/x/xelatex").compile(
         tmp_path, "main.tex", passes=1, sandbox=False
     )
@@ -1052,19 +762,12 @@ def test_compile_ok_false_on_signal_kill(
     """末 pass 被信号杀（rc<0）→ ok=False + killed_signal 记录信号号。"""
     (tmp_path / "main.tex").write_text("x\n", encoding="utf-8")
 
-    def fake_run(  # noqa: PLR0913
-        cmd: list[str],
-        *,
-        cwd: Path,
-        env: dict[str, str],
-        timeout: float,
-        out_cap: int = 8 * 1024 * 1024,
-        should_cancel: Callable[[], bool] | None = None,
-    ) -> tuple[int | None, str, float, bool]:
-        _ = (cmd, cwd, env, timeout, out_cap, should_cancel)
+    def fake_run(
+        _cmd: list[str], _timeout: float
+    ) -> tuple[int | None, str, float, bool | str]:
         return -11, "", 0.1, False  # SIGSEGV
 
-    monkeypatch.setattr("texlate.compile.engine.run_process", fake_run)
+    monkeypatch.setattr("texlate.compile.engine.run_process", _run_stub(fake_run))
     res = XelatexEngine(binary="/x/xelatex").compile(
         tmp_path, "main.tex", passes=1, sandbox=False
     )
@@ -1132,22 +835,15 @@ def test_install_file_init_usertree_failure_not_latched(
     )
     runs: list[list[str]] = []
 
-    def fake_run(  # noqa: PLR0913
-        cmd: list[str],
-        *,
-        cwd: Path,
-        env: dict[str, str],
-        timeout: float,
-        out_cap: int = 8 * 1024 * 1024,
-        should_cancel: Callable[[], bool] | None = None,
-    ) -> tuple[int | None, str, float, bool]:
-        _ = (cwd, env, timeout, out_cap, should_cancel)
+    def fake_run(
+        cmd: list[str], _timeout: float
+    ) -> tuple[int | None, str, float, bool | str]:
         runs.append(list(cmd))
         if "init-usertree" in cmd:
             return 1, "", 0.1, False  # init 失败
         return 0, "", 0.1, False  # install 成功
 
-    monkeypatch.setattr("texlate.compile.engine.run_process", fake_run)
+    monkeypatch.setattr("texlate.compile.engine.run_process", _run_stub(fake_run))
     assert eng.install_file("x.sty") is True
     assert eng._usertree_inited is False  # noqa: SLF001 - 内部态断言
     assert any("init-usertree" in c for c in runs)
@@ -1177,21 +873,14 @@ def test_install_file_ambient_texmfhome_fetch_dest(
     monkeypatch.setattr(eng, "filemap", lambda _f: ["pkg"])
     monkeypatch.setattr("texlate.compile.engine.find_tool", lambda _n: "/x/tlmgr")
 
-    def fake_run(  # noqa: PLR0913
-        cmd: list[str],
-        *,
-        cwd: Path,
-        env: dict[str, str],
-        timeout: float,
-        out_cap: int = 8 * 1024 * 1024,
-        should_cancel: Callable[[], bool] | None = None,
-    ) -> tuple[int | None, str, float, bool]:
-        _ = (cwd, env, timeout, out_cap, should_cancel)
+    def fake_run(
+        cmd: list[str], _timeout: float
+    ) -> tuple[int | None, str, float, bool | str]:
         if "init-usertree" in cmd:
             return 1, "", 0.1, False
         return 0, "", 0.1, False
 
-    monkeypatch.setattr("texlate.compile.engine.run_process", fake_run)
+    monkeypatch.setattr("texlate.compile.engine.run_process", _run_stub(fake_run))
     assert eng.install_file("x.sty") is False
     assert captured["dest"] == amb
 
@@ -1207,22 +896,15 @@ def test_tectonic_compile_dropped_z_not_in_flags_applied(
     )
     outdir = tmp_path / "out"
 
-    def fake_run(  # noqa: PLR0913
-        cmd: list[str],
-        *,
-        cwd: Path,
-        env: dict[str, str],
-        timeout: float,
-        out_cap: int = 8 * 1024 * 1024,
-        should_cancel: Callable[[], bool] | None = None,
-    ) -> tuple[int | None, str, float, bool]:
-        _ = (cmd, cwd, env, timeout, out_cap, should_cancel)
+    def fake_run(
+        _cmd: list[str], _timeout: float
+    ) -> tuple[int | None, str, float, bool | str]:
         outdir.mkdir(parents=True, exist_ok=True)
         (outdir / "main.pdf").write_bytes(b"%PDF-fake")
         (outdir / "main.log").write_text("Output written\n", encoding="utf-8")
         return 0, "", 1.0, False
 
-    monkeypatch.setattr("texlate.compile.engine.run_process", fake_run)
+    monkeypatch.setattr("texlate.compile.engine.run_process", _run_stub(fake_run))
     eng = TectonicEngine(binary="/bin/true", bundle="")
     res = eng.compile(
         tmp_path,
@@ -1233,22 +915,6 @@ def test_tectonic_compile_dropped_z_not_in_flags_applied(
     )
     assert res.flags_applied == ["-synctex=1"]
     assert res.flags_dropped == ["-Z shell-escape"]
-
-
-def test_rc_to_signal_wrapper_128n() -> None:
-    """bwrap 把子死信号上报为 128+N：128+SIGPIPE 在 env/off 下按字面
-    退出码、bwrap/sandbox-exec 下解码回信号号；>192 按字面退出码。"""
-    f = sb_mod._rc_to_signal  # noqa: SLF001
-    assert f(-signal.SIGPIPE, "bwrap") == signal.SIGPIPE
-    assert f(-signal.SIGKILL, "off") == signal.SIGKILL
-    assert f(128 + signal.SIGPIPE, "bwrap") == signal.SIGPIPE
-    assert f(128 + signal.SIGPIPE, "sandbox-exec") == signal.SIGPIPE
-    assert f(128 + signal.SIGPIPE, "env") is None
-    assert f(128 + signal.SIGPIPE, "off") is None
-    assert f(200, "bwrap") is None
-    assert f(128, "bwrap") is None
-    assert f(0, "bwrap") is None
-    assert f(None, "bwrap") is None
 
 
 def test_probe_file_nul_fname_guarded(tmp_path: Path) -> None:

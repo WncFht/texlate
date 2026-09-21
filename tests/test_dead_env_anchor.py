@@ -14,20 +14,16 @@ comment.sty 排除环境按**行**吞体：``\end{env}`` 须列 0 起、行内�
 
 from pathlib import Path
 
-from conftest import DOC, blob
+from conftest import DOC, blob, check_invariants, scan_doc
 
-from texlate.latex import parse_tex, reconstruct
 from texlate.latex.flatten import flatten_inputs
 from texlate.latex.model import ScanResult
-from texlate.latex.reconstruct import validate_result
 from texlate.textutil import dead_end_anchored, dead_env_end
 
 
 def scan_v2(body: str) -> ScanResult:
-    tex = DOC % body
-    res = parse_tex(tex)
-    assert reconstruct(res) == tex
-    assert validate_result(res) == []
+    res = scan_doc(body)
+    check_invariants(res, DOC % body)
     return res
 
 

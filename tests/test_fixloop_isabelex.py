@@ -15,12 +15,15 @@ detab 闸: 原 ``when: {category: runaway_scan}`` 裸类对全 payload 盲发—
 (comment.sty 行扫描器) 族, 其他 runaway cs 不进。
 """
 
-from functools import lru_cache
 from pathlib import Path
 
-from texlate.compile.fixloop import actions, load_ruleset
-from texlate.compile.fixloop.engine import LoopCtx, Rule, Ruleset
-from texlate.compile.logparse import ErrReport, parse_text
+from _fixloopkit import EngStub, apply, classify, mk_ctx, rs, rule
+
+from texlate.compile.fixloop import actions
+from texlate.compile.fixloop.engine import Rule
+from texlate.compile.logparse import ErrReport
+
+_RID = "comment_csform_isabelle_env"
 
 _NEXT_ERR = (
     "Including 'isadelimtheory' comment.)\n"
@@ -32,53 +35,18 @@ _NEXT_ERR = (
 )
 
 
-class _Eng:
-    """regex_rewrite/condition 路径的最小引擎替身 (不触 probe/install)。"""
-
-    name = "xelatex"
-
-    def probe_file(self, fname: str, cwd: Path | None = None) -> str | None:
-        del fname, cwd
-        return None
-
-    def filemap(self, fname: str) -> list[str]:
-        del fname
-        return []
-
-
-@lru_cache(maxsize=1)
-def _rs() -> Ruleset:
-    return load_ruleset()
-
-
-def _rule(rid: str = "comment_csform_isabelle_env") -> Rule:
-    return next(r for r in _rs().rules if r.id == rid)
-
-
-def _ctx(tmp_path: Path, err_head: str = _NEXT_ERR) -> LoopCtx:
-    ctx = LoopCtx(wdir=tmp_path, engine_name="xelatex", main_rel="main.tex")
-    ctx.err_head = err_head
-    return ctx
-
-
 def _apply(
     tmp_path: Path, err_head: str = _NEXT_ERR, pay: str = "\\next"
 ) -> tuple[bool, str]:
-    return actions._apply(  # noqa: SLF001 - 钉规则动作直驱
-        _rule(), _ctx(tmp_path, err_head), _Eng(), pay, ErrReport()
-    )
+    return apply(rule(_RID), mk_ctx(tmp_path, err_head=err_head), pay)
 
 
 def _cond(
-    rule: Rule, tmp_path: Path, err_head: str, pay: str = "\\next"
+    rule_: Rule, tmp_path: Path, err_head: str, pay: str = "\\next"
 ) -> tuple[bool, str]:
     return actions._cond_ok(  # noqa: SLF001
-        rule.condition, rule, _ctx(tmp_path, err_head), _Eng(), pay
+        rule_.condition, rule_, mk_ctx(tmp_path, err_head=err_head), EngStub(), pay
     )
-
-
-def _classify(text: str) -> tuple[str | None, str | None]:
-    return _rs().taxonomy.classify(parse_text(text, _rs().warn_patterns))
 
 
 _CSFORM_DOC = (
@@ -107,35 +75,35 @@ _CSFORM_DOC = (
 
 # ---------------------------------------------------------------- 规则注册
 def test_isabelex_rule_registered() -> None:
-    rule = _rule()
-    assert rule.phase == "loop"
-    assert rule.order == 163.5  # noqa: PLR2004 - schema 断言值: detab(164) 前
-    assert rule.when["category"] == "runaway_scan"
-    assert rule.when["payload_required"] is True
-    assert rule.action["kind"] == "regex_rewrite"
-    rws = rule.action["params"]["rewrites"]
+    r = rule(_RID)
+    assert r.phase == "loop"
+    assert r.order == 163.5  # noqa: PLR2004 - schema 断言值: detab(164) 前
+    assert r.when["category"] == "runaway_scan"
+    assert r.when["payload_required"] is True
+    assert r.action["kind"] == "regex_rewrite"
+    rws = r.action["params"]["rewrites"]
     assert len(rws) == 4  # noqa: PLR2004 - delim/tag × begin/end 四臂
-    assert set(rule.action["params"]["exts"]) == {".tex"}
+    assert set(r.action["params"]["exts"]) == {".tex"}
     assert all(rw.get("match_surface") == "masked" for rw in rws)
 
 
 def test_isabelex_before_detab() -> None:
     """同 \\next 族内 cs 形先收——env 形+缩进残面才落 detab。"""
-    ids = [r.id for r in _rs().phase("loop")]
+    ids = [r.id for r in rs().phase("loop")]
     assert ids.index("comment_csform_isabelle_env") < ids.index("detab_end_scanlines")
 
 
 # ---------------------------------------------------------------- 分类路由
 def test_taxonomy_next_runaway_payload() -> None:
     """comment.sty 扫描器 runaway → runaway_scan 携 ``\\next`` payload。"""
-    cat, pay = _classify(_NEXT_ERR)
+    cat, pay = classify(_NEXT_ERR)
     assert (cat, pay) == ("runaway_scan", "\\next")
 
 
 # ---------------------------------------------------------------- 条件闸
 def test_cond_passes_on_next_csform(tmp_path: Path) -> None:
     (tmp_path / "main.tex").write_text(_CSFORM_DOC, encoding="utf-8")
-    ok, why = _cond(_rule(), tmp_path, _NEXT_ERR)
+    ok, why = _cond(rule(_RID), tmp_path, _NEXT_ERR)
     assert ok, why
 
 
@@ -144,7 +112,7 @@ def test_cond_skips_other_runaway_payload(tmp_path: Path) -> None:
     (tmp_path / "main.tex").write_text(_CSFORM_DOC, encoding="utf-8")
     for cs in ("\\GetTitle", "\\protected@edef", "\\@xdblarg"):
         err = f"! File ended while scanning use of {cs}.\nl.1 x\n"
-        ok, why = _cond(_rule(), tmp_path, err, pay=cs)
+        ok, why = _cond(rule(_RID), tmp_path, err, pay=cs)
         assert not ok, f"{cs} 应被 \\next 闸拦下 ({why})"
 
 
@@ -157,7 +125,7 @@ def test_cond_skips_env_form_source(tmp_path: Path) -> None:
         "\\end{isabellebody}%\n"
     )
     (tmp_path / "main.tex").write_text(doc, encoding="utf-8")
-    ok, why = _cond(_rule(), tmp_path, _NEXT_ERR)
+    ok, why = _cond(rule(_RID), tmp_path, _NEXT_ERR)
     assert not ok
     assert "源码无" in why
 
@@ -235,23 +203,21 @@ def test_apply_env_form_declines(tmp_path: Path) -> None:
 
 # ---------------------------------------------------------------- detab 签名闸
 def test_detab_gated_to_next_payload() -> None:
-    rule = _rule("detab_end_scanlines")
-    assert rule.when["category"] == "runaway_scan"
-    assert rule.when["payload_required"] is True
+    r = rule("detab_end_scanlines")
+    assert r.when["category"] == "runaway_scan"
+    assert r.when["payload_required"] is True
 
 
 def test_detab_cond_next_reaches(tmp_path: Path) -> None:
     """\\next runaway + 缩进 \\end{ 在源 → detab 闸过且仍去缩进。"""
     doc = "\\begin{CCSXML}\n<ccs/>\n\t\\end{CCSXML}\n\\end{document}\n"
     (tmp_path / "main.tex").write_text(doc, encoding="utf-8")
-    ok, why = _cond(_rule("detab_end_scanlines"), tmp_path, _NEXT_ERR)
+    ok, why = _cond(rule("detab_end_scanlines"), tmp_path, _NEXT_ERR)
     assert ok, why
-    applied, note = actions._apply(  # noqa: SLF001
-        _rule("detab_end_scanlines"),
-        _ctx(tmp_path, _NEXT_ERR),
-        _Eng(),
+    applied, note = apply(
+        rule("detab_end_scanlines"),
+        mk_ctx(tmp_path, err_head=_NEXT_ERR),
         "\\next",
-        ErrReport(),
     )
     assert applied, note
     assert "\n\\end{CCSXML}\n" in (tmp_path / "main.tex").read_text(encoding="utf-8")
@@ -263,7 +229,7 @@ def test_detab_cond_skips_other_payloads(tmp_path: Path) -> None:
     (tmp_path / "main.tex").write_text(doc, encoding="utf-8")
     for cs in ("\\GetTitle", "\\protected@edef", "\\@xdblarg", "\\arg"):
         err = f"! File ended while scanning use of {cs}.\nl.1 x\n"
-        ok, _why = _cond(_rule("detab_end_scanlines"), tmp_path, err, pay=cs)
+        ok, _why = _cond(rule("detab_end_scanlines"), tmp_path, err, pay=cs)
         assert not ok, f"{cs} 应被 \\next 闸拦下"
         assert (tmp_path / "main.tex").read_text(encoding="utf-8") == doc
 
@@ -273,7 +239,7 @@ def test_detab_cond_nextfoo_no_false_positive(tmp_path: Path) -> None:
     doc = "\\begin{CCSXML}\n<ccs/>\n\t\\end{CCSXML}\n\\end{document}\n"
     (tmp_path / "main.tex").write_text(doc, encoding="utf-8")
     err = "! File ended while scanning use of \\nextfoo.\nl.1 x\n"
-    ok, _ = _cond(_rule("detab_end_scanlines"), tmp_path, err, pay="\\nextfoo")
+    ok, _ = _cond(rule("detab_end_scanlines"), tmp_path, err, pay="\\nextfoo")
     assert not ok
 
 
@@ -281,29 +247,29 @@ def test_detab_cond_nextfoo_no_false_positive(tmp_path: Path) -> None:
 def test_match_apply_prefers_isabelex_on_csform(tmp_path: Path) -> None:
     """cs 形稿 + \\next → 全库派发首个命中即 isabelex (detab 不抢轮)。"""
     (tmp_path / "main.tex").write_text(_CSFORM_DOC, encoding="utf-8")
-    rule, _note = actions._match_apply(  # noqa: SLF001
-        _rs(),
-        _ctx(tmp_path, _NEXT_ERR),
-        _Eng(),
+    hit, _note = actions._match_apply(  # noqa: SLF001
+        rs(),
+        mk_ctx(tmp_path, err_head=_NEXT_ERR),
+        EngStub(),
         "runaway_scan",
         "\\next",
         ErrReport(first="! File ended while scanning use of \\next.", ctx="l.3 x"),
     )
-    assert rule is not None
-    assert rule.id == "comment_csform_isabelle_env"
+    assert hit is not None
+    assert hit.id == "comment_csform_isabelle_env"
 
 
 def test_match_apply_detab_on_envform_indented(tmp_path: Path) -> None:
     """env 形+缩进 \\end → isabelex 让位, detab 接住同签名。"""
     doc = "\\begin{CCSXML}\n<ccs/>\n\t\\end{CCSXML}\n\\end{document}\n"
     (tmp_path / "main.tex").write_text(doc, encoding="utf-8")
-    rule, _note = actions._match_apply(  # noqa: SLF001
-        _rs(),
-        _ctx(tmp_path, _NEXT_ERR),
-        _Eng(),
+    hit, _note = actions._match_apply(  # noqa: SLF001
+        rs(),
+        mk_ctx(tmp_path, err_head=_NEXT_ERR),
+        EngStub(),
         "runaway_scan",
         "\\next",
         ErrReport(first="! File ended while scanning use of \\next.", ctx="l.3 x"),
     )
-    assert rule is not None
-    assert rule.id == "detab_end_scanlines"
+    assert hit is not None
+    assert hit.id == "detab_end_scanlines"

@@ -15,54 +15,36 @@ import shutil
 from pathlib import Path
 
 import pytest
+from _fixloopkit import EngStub, apply, mk_ctx, rule
 
-from texlate.compile.fixloop import actions, builtins, load_ruleset
+from texlate.compile.fixloop import actions, builtins
 from texlate.compile.fixloop.builtins import xbb_pregen
-from texlate.compile.fixloop.engine import LoopCtx, Rule
-from texlate.compile.logparse import ErrReport
-
-
-class _Eng:
-    """builtin_transform/condition 路径的最小引擎替身 (不触 probe/install)。"""
-
-    name = "xelatex"
-
-    def probe_file(self, fname: str, cwd: Path | None = None) -> str | None:
-        del fname, cwd
-        return None
-
-    def filemap(self, fname: str) -> list[str]:
-        del fname
-        return []
-
+from texlate.compile.fixloop.engine import LoopCtx
 
 _PIPE_ERR = "LaTeX Error: Cannot run pipe command. Try --shell-escape"
 _XBB_ERR = "LaTeX Error: Cannot determine size of graphic in fig1.xbb (no BoundingBox)."
 _ERR_HEAD = _PIPE_ERR + "\n" + _XBB_ERR
 
+_RID = "xbb_pregen"
 
-def _ctx(tmp_path: Path, err_head: str = _ERR_HEAD, runner: object = None) -> LoopCtx:
-    ctx = LoopCtx(
-        wdir=tmp_path, engine_name="xelatex", main_rel="main.tex", runner=runner
-    )
-    ctx.err_head = err_head
+
+def _ctx(
+    tmp_path: Path, err_head: str = _ERR_HEAD, runner: object = None
+) -> LoopCtx:
+    """``mk_ctx`` + runner 构造后注入 (kit 工厂无 runner kwarg)。"""
+    ctx = mk_ctx(tmp_path, err_head=err_head)
+    ctx.deps.runner = runner
     return ctx
 
 
-def _rule() -> Rule:
-    return next(r for r in load_ruleset().rules if r.id == "xbb_pregen")
-
-
 def _apply(tmp_path: Path, runner: object = None) -> tuple[bool, str]:
-    return actions._apply(  # noqa: SLF001 - 钉规则动作直驱
-        _rule(), _ctx(tmp_path, runner=runner), _Eng(), None, ErrReport()
-    )
+    return apply(_RID, _ctx(tmp_path, runner=runner), None)
 
 
 def _cond(tmp_path: Path, err_head: str = _ERR_HEAD) -> tuple[bool, str]:
-    rule = _rule()
-    return actions._cond_ok(  # noqa: SLF001
-        rule.condition, rule, _ctx(tmp_path, err_head), _Eng(), None
+    r = rule(_RID)
+    return actions._cond_ok(  # noqa: SLF001 - 条件闸直驱
+        r.condition, r, _ctx(tmp_path, err_head), EngStub(), None
     )
 
 
@@ -92,10 +74,10 @@ def _extractbb_fail(argv: list[str], _timeout: int, wdir: Path) -> tuple:
 
 
 def test_xbbpregen_rule_registered() -> None:
-    rule = _rule()
-    assert rule.order == 15.5  # noqa: PLR2004 - schema 断言值
-    assert rule.action["kind"] == "builtin_transform"
-    assert rule.action["function"] == "xbb_pregen"
+    r = rule(_RID)
+    assert r.order == 15.5  # noqa: PLR2004 - schema 断言值
+    assert r.action["kind"] == "builtin_transform"
+    assert r.action["function"] == "xbb_pregen"
     assert builtins.TRANSFORM_FNS["xbb_pregen"] is xbb_pregen
 
 
@@ -165,6 +147,51 @@ def test_xbbpregen_generates_xbb_for_all_graphics(
         assert (tmp_path / rel).is_file(), rel
 
 
+def test_xbbpregen_skips_texmf_and_hidden_dirs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """glob 排除面钉: ``_texmf``/``_tect_out``/点部件内图形不产 .xbb。
+
+    ``_xbb_targets`` 走 ``_iter_project_files`` 单源排除面 —— 与
+    ``_pdf_asset_targets``/sanitize 各扫描臂同口径: 引擎封装树与
+    dot-隐藏面非文档源件, ``.xbb`` 旁件只贴真实工程图形。排除面
+    外正常图形照转 (排除非全灭)。若收敛全量口径须同步本钉。
+    """
+    monkeypatch.setattr(shutil, "which", _which_extractbb)
+    (tmp_path / "fig0.pdf").write_bytes(b"%fake")  # 排除面外对照件
+    for d, name in (
+        ("_texmf", "figA.pdf"),
+        ("_tect_out", "figC.png"),
+        (".hidden", "figB.png"),
+    ):
+        (tmp_path / d).mkdir()
+        (tmp_path / d / name).write_bytes(b"%fake")
+    ok, note = _apply(tmp_path, runner=_extractbb_ok)
+    assert ok, note
+    assert "1 new" in note
+    assert (tmp_path / "fig0.xbb").is_file()
+    for rel in ("_texmf/figA.xbb", "_tect_out/figC.xbb", ".hidden/figB.xbb"):
+        assert not (tmp_path / rel).exists(), rel
+
+
+def test_xbbpregen_err_head_stem_respects_exclusion(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """err_head 裸 stem 回映同守排除面: ``_texmf``/点段 stem 不探件。"""
+    monkeypatch.setattr(shutil, "which", _which_extractbb)
+    (tmp_path / "_texmf").mkdir()
+    (tmp_path / "_texmf" / "figA.pdf").write_bytes(b"%fake")
+    ctx = _ctx(
+        tmp_path,
+        err_head="LaTeX Error: Cannot determine size of graphic in "
+        "_texmf/figA.xbb (no BoundingBox).",
+    )
+    ok, note = xbb_pregen(ctx, EngStub(), None, {})
+    assert not ok
+    assert "no extractbb-capable" in note
+    assert not (tmp_path / "_texmf" / "figA.xbb").exists()
+
+
 def test_xbbpregen_idempotent_second_fire(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -172,8 +199,8 @@ def test_xbbpregen_idempotent_second_fire(
     monkeypatch.setattr(shutil, "which", _which_extractbb)
     (tmp_path / "fig1.pdf").write_bytes(b"%fake")
     ctx = _ctx(tmp_path, runner=_extractbb_ok)
-    ok1, _n1 = xbb_pregen(ctx, _Eng(), None, {})
-    ok2, note2 = xbb_pregen(ctx, _Eng(), None, {})
+    ok1, _n1 = xbb_pregen(ctx, EngStub(), None, {})
+    ok2, note2 = xbb_pregen(ctx, EngStub(), None, {})
     assert ok1
     assert not ok2
     assert "already fresh" in note2
@@ -244,11 +271,6 @@ def test_xbbpregen_no_extractbb_builtin_false(
     """builtin 直调 (绕闸): extractbb 缺席 → False (condition 之外再保险)。"""
     monkeypatch.setattr(shutil, "which", _which_none)
     (tmp_path / "fig1.pdf").write_bytes(b"%fake")
-    ok, note = xbb_pregen(_ctx(tmp_path), _Eng(), None, {})
+    ok, note = xbb_pregen(_ctx(tmp_path), EngStub(), None, {})
     assert not ok
     assert "no extractbb" in note
-
-
-def test_xbbpregen_ruleset_loads() -> None:
-    rs = load_ruleset()
-    assert len(rs.rules) >= 114  # noqa: PLR2004 - 库规模断言

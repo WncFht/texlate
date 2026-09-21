@@ -18,6 +18,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import sys
 import threading
 import time
 from typing import TYPE_CHECKING
@@ -27,10 +28,11 @@ import pytest
 pytest.importorskip("fastapi", reason="server extra 未装")
 pytest.importorskip("starlette.testclient", reason="server extra 未装")
 
-from _workerkit import mk_ctx
+from _drivekit import drive
+from _workerkit import mk_ctx, mk_runner
 
 import texlate.server.worker.emit as worker_emit
-from texlate.server.events import EventBus
+from texlate.compile.sandbox import run_process
 from texlate.server.store import Store, new_task_id
 from texlate.server.worker import (
     _FLUSH_N,
@@ -38,7 +40,6 @@ from texlate.server.worker import (
     Secrets,
     SegmentCache,
     TaskCtx,
-    TaskRunner,
     _AbortingTranslator,
     _SectionAbort,
 )
@@ -166,7 +167,7 @@ class TestCancelFlagProducers:
 
     def test_cancel_running_sets_flag(self, tmp_path: Path) -> None:
         ctx, worker, store = mk_ctx(tmp_path)
-        runner = TaskRunner(store, EventBus(store), worker)
+        runner = mk_runner(store, tmp_path, worker=worker, bus=ctx.bus)
 
         async def drive() -> None:
             task = asyncio.create_task(asyncio.sleep(30))
@@ -182,7 +183,7 @@ class TestCancelFlagProducers:
 
     def test_stop_sets_flag(self, tmp_path: Path) -> None:
         ctx, worker, store = mk_ctx(tmp_path)
-        runner = TaskRunner(store, EventBus(store), worker)
+        runner = mk_runner(store, tmp_path, worker=worker, bus=ctx.bus)
 
         async def drive() -> None:
             worker_task = asyncio.create_task(asyncio.sleep(30))
@@ -201,7 +202,7 @@ class TestDispatchFault:
 
     def test_queued_transitions_fault(self, tmp_path: Path) -> None:
         ctx, worker, store = mk_ctx(tmp_path)
-        runner = TaskRunner(store, EventBus(store), worker)
+        runner = mk_runner(store, tmp_path, worker=worker, bus=ctx.bus)
         runner._dispatch_fault(ctx.task_id)  # noqa: SLF001
         row = store.get(ctx.task_id)
         assert row["status"] == "fault"
@@ -215,7 +216,7 @@ class TestDispatchFault:
     def test_non_queued_untouched(self, tmp_path: Path) -> None:
         ctx, worker, store = mk_ctx(tmp_path)
         store.transition(ctx.task_id, "done", progress=100, force=True)
-        runner = TaskRunner(store, EventBus(store), worker)
+        runner = mk_runner(store, tmp_path, worker=worker, bus=ctx.bus)
         runner._dispatch_fault(ctx.task_id)  # noqa: SLF001
         assert store.get(ctx.task_id)["status"] == "done"
         assert not any(e["type"] == "error" for e in store.events_since(ctx.task_id, 0))
@@ -406,13 +407,7 @@ class TestReuseZeroMaterialize:
                 c.reuse_hit = dict(donor)
 
         monkeypatch.setattr(worker, "_fetch_arxiv", fake_fetch)
-
-        async def drive() -> None:
-            worker._loop = asyncio.get_running_loop()  # noqa: SLF001
-            worker._loop_tid = threading.get_ident()  # noqa: SLF001
-            await worker.run_stage(ctx, "stage_fetch")
-
-        asyncio.run(drive())
+        drive(worker, worker.run_stage(ctx, "stage_fetch"))
         assert calls["n"] == 2, "零物化必须回退重跑 fetch"  # noqa: PLR2004
         assert ctx.reuse_dead
         assert ctx.reuse_hit is None
@@ -453,10 +448,6 @@ class TestRunProcessShouldCancel:
     """
 
     def test_should_cancel_kills_sleeper(self, tmp_path: Path) -> None:
-        import sys  # noqa: PLC0415
-
-        from texlate.compile.sandbox import run_process  # noqa: PLC0415
-
         flag = threading.Event()
         timer = threading.Timer(0.2, flag.set)
         timer.start()
@@ -476,10 +467,6 @@ class TestRunProcessShouldCancel:
 
     def test_should_cancel_pre_set(self, tmp_path: Path) -> None:
         """旗标在 communicate 前已置位——首个轮询点即抛不空转。"""
-        import sys  # noqa: PLC0415
-
-        from texlate.compile.sandbox import run_process  # noqa: PLC0415
-
         with pytest.raises(asyncio.CancelledError):
             run_process(
                 [sys.executable, "-c", "print('never')"],
@@ -491,10 +478,6 @@ class TestRunProcessShouldCancel:
 
     def test_no_flag_unchanged(self, tmp_path: Path) -> None:
         """``should_cancel=None`` 旧路径：单发 communicate 正常回。"""
-        import sys  # noqa: PLC0415
-
-        from texlate.compile.sandbox import run_process  # noqa: PLC0415
-
         rc, out, _s, timed_out = run_process(
             [sys.executable, "-c", "print('ok-line')"],
             cwd=tmp_path,
@@ -633,13 +616,7 @@ class TestBabeldocProgressThrottle:
             return BabeldocRun(rc=0, seconds=0.1, status="ok", outputs={})
 
         monkeypatch.setattr(pdf_mod, "run_babeldoc", fake_run)
-
-        async def drive() -> None:
-            worker._loop = asyncio.get_running_loop()  # noqa: SLF001
-            worker._loop_tid = threading.get_ident()  # noqa: SLF001
-            await worker.run_stage(ctx, "run_pdf")
-
-        asyncio.run(drive())
+        drive(worker, worker.run_stage(ctx, "run_pdf"))
         assert 1 <= len(writes) <= ticks // 2, "0.4pt 步进的 tick 大多被节流"
         assert store.get(ctx.task_id)["status"] == "done"
 
@@ -653,9 +630,7 @@ class TestPendingEnqueue:
         store = Store(tmp_path / "t.db")
         store.open()
         try:
-            bus = EventBus(store)
-            worker = PipelineWorker(store, bus, tmp_path)
-            runner = TaskRunner(store, bus, worker)
+            runner = mk_runner(store, tmp_path)
             row = store.create_task(
                 task_id=new_task_id(),
                 kind="arxiv",

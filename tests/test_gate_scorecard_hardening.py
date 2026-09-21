@@ -31,6 +31,8 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 import gate_scorecard
+from _fuzzkit import write_jsonl_rows
+from _reckit import make_rec
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -42,33 +44,17 @@ _OLD = _NOW - 86400 * 3  # 三天前——稳超 write-window
 
 
 def _rec(pid: str, stage: str, status: object, **over: object) -> dict:
-    r = {
-        "id": pid,
-        "stage": stage,
-        "arm": "zh" if stage == "compile" else "fix",
-        "upstream": "mock",
-        "status": status,
-        "metrics": {},
-        "errors": [],
-        "sig": "",
-    }
-    r.update(over)
-    return r
-
-
-def _write_jsonl(path: Path, rows: list) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8") as f:
-        for r in rows:
-            f.write(r if isinstance(r, str) else json.dumps(r, ensure_ascii=False))
-            f.write("\n")
+    """records 行——``arm`` 按 stage 派生（compile→zh 否则 fix）、``upstream`` 钉 mock。"""
+    over.setdefault("arm", "zh" if stage == "compile" else "fix")
+    over.setdefault("upstream", "mock")
+    return make_rec(pid, stage, status, **over)
 
 
 def _mk_run(tmp_path: Path, comp_rows: list, fix_rows: list, meta: dict | None) -> Path:
     """run/records 两层结构 + 可选 run_meta.json → records_dir。"""
     recdir = tmp_path / "run" / "records"
-    _write_jsonl(recdir / "compile.jsonl", comp_rows)
-    _write_jsonl(recdir / "fixloop.jsonl", fix_rows)
+    write_jsonl_rows(recdir / "compile.jsonl", comp_rows)
+    write_jsonl_rows(recdir / "fixloop.jsonl", fix_rows)
     if meta is not None:
         (tmp_path / "run" / "run_meta.json").write_text(
             json.dumps(meta, ensure_ascii=False), encoding="utf-8"
@@ -388,7 +374,7 @@ def test_scan_file_torn_detection(
 ) -> None:
     """读前后 stat 双采样不一致 → torn=True（读到混合截面）。"""
     p = tmp_path / "compile.jsonl"
-    _write_jsonl(p, [{"id": "a", "arm": "zh", "status": "clean"}])
+    write_jsonl_rows(p, [{"id": "a", "arm": "zh", "status": "clean"}])
     seq = iter([(10, 1), (99, 2)])  # pre/post sig 不同 → 读中被改写
     monkeypatch.setattr(gate_scorecard, "_stat_sig", lambda _p: next(seq, (99, 2)))
     _recs, _st, info = gate_scorecard._scan_file(  # noqa: SLF001 -- 白盒钉双采样
@@ -566,7 +552,7 @@ def test_scan_records_population_conservation(tmp_path: Path) -> None:
         },
     ]
     p = tmp_path / "compile.jsonl"
-    _write_jsonl(p, rows)
+    write_jsonl_rows(p, rows)
     latest, st = gate_scorecard.scan_records(p, arm="zh", upstream="mock")
     assert sorted(latest) == ["a"]  # c 被 upstream 滤——(upstream or mock) 口径
     assert st["rows"] == 7  # noqa: PLR2004 -- 钉行数即断言对象

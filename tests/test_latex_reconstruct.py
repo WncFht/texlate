@@ -5,7 +5,7 @@ import re
 from conftest import DOC, scan_doc
 
 from texlate.latex import reconstruct
-from texlate.latex.model import Chunk
+from texlate.latex.model import Chunk, ScanResult
 from texlate.latex.reconstruct import (
     cjk_glue_fix,
     cjk_punct_close_guard,
@@ -129,13 +129,24 @@ def test_chunk_split_max() -> None:
             assert re.match(r"\[\[[A-Z_]+_\d+\]\]", c.content[m.start() :])
 
 
+#: 短参折叠钉样共用的 figure+caption 体（1109.5963 实案形态——``$K$`` 出 math ph）。
+_CAPTION_BODY = (
+    "\\begin{figure}\\caption{The allowed region by $K$ mixing here.}\\end{figure}"
+)
+
+
+def _caption_scan() -> tuple[ScanResult, Chunk, str]:
+    """扫 ``_CAPTION_BODY`` → (ScanResult, caption chunk, 其 ``[[MATH_`` token)。"""
+    res = scan_doc(_CAPTION_BODY)
+    cap = next(c for c in res.chunks if c.context == "caption")
+    math_tok = next(t for t in cap.placeholders if t.startswith("[[MATH_"))
+    return res, cap, math_tok
+
+
 def test_short_arg_par_collapse() -> None:
     r"""短参（caption）译文内的 ``\n\n`` 压单 ``\n``——``\par`` 进非 ``\long``
     移动参（nameref ``\NR@gettitle`` 等）即 runaway（1109.5963 实证）。"""
-    res = scan_doc(
-        "\\begin{figure}\\caption{The allowed region by $K$ mixing here.}\\end{figure}"
-    )
-    cap = next(c for c in res.chunks if c.context == "caption")
+    res, cap, _math_tok = _caption_scan()
     out = reconstruct(res, {cap.id: "由\n\n  $K$ 混合允许的区域。"})
     m = re.search(r"\\caption\{([^}]*)\}", out)
     assert m is not None
@@ -146,11 +157,7 @@ def test_short_arg_par_collapse() -> None:
 def test_short_arg_par_collapse_ph_boundary() -> None:
     r"""译文尾 ``\n`` 叠 ph 体前导 ``\n  `` 在参数内合成 ``\n\n`` —— 边界合并
     形态同压（1109.5963 实际机理：``由\n`` + ``[[MATH]]``=``\n  $K..$``）。"""
-    res = scan_doc(
-        "\\begin{figure}\\caption{The allowed region by $K$ mixing here.}\\end{figure}"
-    )
-    cap = next(c for c in res.chunks if c.context == "caption")
-    math_tok = next(t for t in cap.placeholders if t.startswith("[[MATH_"))
+    res, cap, math_tok = _caption_scan()
     res.ph_map[math_tok] = "\n  " + res.ph_map[math_tok]  # 复刻当次 ph 前导换行
     out = reconstruct(res, {cap.id: f"由\n{math_tok} 混合允许的区域。"})
     m = re.search(r"\\caption\{([^}]*)\}", out)
@@ -162,11 +169,7 @@ def test_short_arg_par_collapse_ph_boundary() -> None:
 def test_short_arg_fold_preserves_ph_internal_pars() -> None:
     r"""短参折叠不穿透嵌套 ph 体——ph 展开体内部 ``\n\n``（受保环境的真
     段落界）原样保留；只有字面段与字面↔ph 接缝进折叠域（S3）。"""
-    res = scan_doc(
-        "\\begin{figure}\\caption{The allowed region by $K$ mixing here.}\\end{figure}"
-    )
-    cap = next(c for c in res.chunks if c.context == "caption")
-    math_tok = next(t for t in cap.placeholders if t.startswith("[[MATH_"))
+    res, cap, math_tok = _caption_scan()
     res.ph_map[math_tok] = "$K$\n\ninner par"  # ph 体内真段落界
     out = reconstruct(res, {cap.id: f"由 {math_tok} 混合。"})
     assert "$K$\n\ninner par" in out
@@ -182,11 +185,8 @@ def test_para_chunk_keeps_par_break() -> None:
 
 def test_short_arg_untranslated_identity() -> None:
     r"""未译短参保持原文逐字（identity 面不受折叠影响）。"""
-    body = (
-        "\\begin{figure}\\caption{The allowed region by $K$ mixing here.}\\end{figure}"
-    )
-    res = scan_doc(body)
-    assert reconstruct(res) == DOC % body
+    res = scan_doc(_CAPTION_BODY)
+    assert reconstruct(res) == DOC % _CAPTION_BODY
 
 
 # ------------------------------------------------------- bug-B 接缝守卫（seg_join）

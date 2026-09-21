@@ -12,7 +12,10 @@ r"""``texlate.e2e._scan_tree`` 文件闸契约 fuzz——三 runner 共享扫描
 2. ``*.rtx.tex``（``name.lower()`` 判定）静默跳过——REVTeX 运行时转储；
 3. ``*.code.tex`` → ``support_files``——tikzlibrary 机制件硬抛，**不解析**
    （装真散文也拦下，闸只看名不看内容）；
-4. ``parse_file`` 崩 → ``fault_files``——单文件崩不拖垮整树，原文保留；
+4. ``parse_file`` 崩分两叉（解析闸内判定）：``OSError(EINVAL)``
+   （tar 伪装 ``.tex``，tar 闸在 ``parse_file`` 内）→ 静默跳过——
+   不进任何名单、逐字节保留；其余解析崩 → ``fault_files``——
+   单文件崩不拖垮整树，原文保留；
 5. 解析出但 ``file_has_prose`` False → ``support_files``——有意跳过而非
    失败（空文件/纯宏件同路：零块即零散文）；
 6. 枚举面 ``is_file`` + ``suffix.lower() == ".tex"``：``.TEX`` 大写收录、
@@ -25,11 +28,12 @@ r"""``texlate.e2e._scan_tree`` 文件闸契约 fuzz——三 runner 共享扫描
 from __future__ import annotations
 
 import asyncio
-import random
 import re
 from typing import TYPE_CHECKING
 
 import pytest
+from _fuzzkit import fuzz_rng
+from conftest import _write
 
 from texlate import e2e
 from texlate.latex import api as latex_api
@@ -51,14 +55,6 @@ _MACROS = "\\newcommand{\\zz}{b}\n\\psset{unit=1cm}\npstverb moveto neg def set\
 #: 三 runner 共享的闸记名键（translate stats 契约面）。
 _GATE_KEYS = ("fault_files", "support_files", "support_skipped")
 _CID_RX = re.compile(r"^\d+:\d+$")
-
-
-def _write(root: Path, rel: str, text: str) -> Path:
-    """``root/rel`` 写文件（父目录随需建）；返回该路径。"""
-    p = root / rel
-    p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(text, encoding="utf-8")
-    return p
 
 
 def _crash_on(monkeypatch: pytest.MonkeyPatch, names: set[str]) -> None:
@@ -389,7 +385,7 @@ def test_scan_tree_random_partition(
     逐枚举行按文件名规则独立分类（dotfile→rtx→code→crash→prose 判序与
     固定夹具互证）；fidx 命名空间与 chunk 全覆盖在此做集合级断言。
     """
-    rng = random.Random(20260917)  # noqa: S311 -- 固定种子复现，非密码学
+    rng = fuzz_rng(20260917)
     dirs = ["", "sub", "sub/deep", "a/b/c"]
     kinds = [
         "prose",

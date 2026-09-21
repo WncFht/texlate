@@ -34,20 +34,16 @@ F2. aipproc.cls ``\author`` 双签名分歧 —— 新 keyval 双参
     ``\@ifnextchar\bgroup`` peek: 仅紧随 ``{`` 组才消费次参。
 """
 
-import re
 import shutil
-import subprocess
 from pathlib import Path
 
 import pytest
+from _fixloopkit import code_lines, n_err, requires_xelatex, run_xelatex
 
 STUBS = (
     Path(__file__).resolve().parent.parent / "src/texlate/compile/fixloop/vendor/stubs"
 )
 SHIMS = STUBS.parent / "shims"  # .cls 替身 stub 归位层 (F2)
-
-_XELATEX = shutil.which("xelatex")
-_COMPILE = pytest.mark.skipif(_XELATEX is None, reason="xelatex not installed")
 
 # (stub 文件名, 命名空间前缀) —— aa.cls 用 aa@, aas4 系共享 aas@ (双载守卫互斥)
 _AMP_STUBS = [
@@ -57,35 +53,13 @@ _AMP_STUBS = [
 ]
 
 
-def _run(wdir: Path, tex: str, passes: int = 2) -> str:
-    (wdir / "main.tex").write_text(tex, encoding="utf-8")
-    for _ in range(passes):
-        subprocess.run(  # noqa: S603 -- argv[0] 来自 shutil.which 绝对路径
-            [_XELATEX, "-interaction=nonstopmode", "main.tex"],
-            cwd=wdir,
-            capture_output=True,
-            timeout=120,
-            check=False,
-        )
-    return (wdir / "main.log").read_text(encoding="utf-8", errors="replace")
-
-
-def _n_err(log: str) -> int:
-    return len(re.findall(r"^! ", log, re.MULTILINE))
-
-
-def _code(body: str) -> str:
-    """滤 % 注释行 —— pin 断言不得被注释文本夹带。"""
-    return "\n".join(ln for ln in body.splitlines() if not ln.lstrip().startswith("%"))
-
-
 # ------------------------------------------------------- F1 源码级 pin
 
 
 @pytest.mark.parametrize(("name", "_ns"), _AMP_STUBS)
 def test_ifincsname_guard_shape(name: str, _ns: str) -> None:
     r"""active ``&`` 本体 = ``\ifincsname\string&\else\&\fi`` 护臂形。"""
-    code = _code((STUBS / name).read_text(encoding="utf-8"))
+    code = code_lines((STUBS / name).read_text(encoding="utf-8"))
     assert (
         r"\begingroup\catcode`\&=\active"
         r"\gdef&{\ifincsname\string&\else\&\fi}\endgroup" in code
@@ -101,7 +75,7 @@ def test_sanitize_wrap_on_begindocument_before(name: str, ns: str) -> None:
     罩 ``\bibcite``/``\@newl@bel``/``\@testdef`` 三路 +
     ``\NAT@testdef`` 守卫形 (不得无条件预定义 —— 否则后载 natbib
     ``\newcommand`` 撞名)。"""
-    code = _code((STUBS / name).read_text(encoding="utf-8"))
+    code = code_lines((STUBS / name).read_text(encoding="utf-8"))
     assert r"\AddToHook{begindocument/before}" in code
     assert rf"\def\{ns}sanl@bel#1#2" in code
     hook = code.split(r"\AddToHook{begindocument/before}", 1)[1]
@@ -115,7 +89,7 @@ def test_sanitize_wrap_on_begindocument_before(name: str, ns: str) -> None:
 def test_sanitize_edefs_key_arg_only(name: str, ns: str) -> None:
     r"""消洗件只 ``\edef`` key 参 (``\protect``→∅, ``\&``→cat12-&),
     label/data 参 (``#2`` 之后的全部) 原样移交原宏。"""
-    code = _code((STUBS / name).read_text(encoding="utf-8"))
+    code = code_lines((STUBS / name).read_text(encoding="utf-8"))
     assert rf"\let\&\{ns}bibamp" in code
     assert r"\let\protect\@empty" in code
     assert rf"\edef\{ns}tmp{{\endgroup\noexpand#1{{#2}}}}\{ns}tmp" in code
@@ -126,7 +100,7 @@ def test_sanitize_edefs_key_arg_only(name: str, ns: str) -> None:
 
 def test_aipproc_author_peeks_second_group() -> None:
     r"""``\author`` = 单参 + ``\@ifnextchar\bgroup`` peek 双签名岔路。"""
-    code = _code((SHIMS / "aipproc.cls").read_text(encoding="utf-8"))
+    code = code_lines((SHIMS / "aipproc.cls").read_text(encoding="utf-8"))
     assert r"\renewcommand{\author}[1]{%" in code
     assert (
         r"\@ifnextchar\bgroup{\fixaip@author@kv{#1}}{\fixaip@author@plain{#1}}" in code
@@ -139,12 +113,12 @@ def test_aipproc_author_peeks_second_group() -> None:
 
 
 @pytest.mark.integration
-@_COMPILE
+@requires_xelatex
 def test_aa_cls_amp_citekey_two_pass(tmp_path: Path) -> None:
     r"""1003.0851 型: ``\citep{Rieke&Lebofsky}`` + ``\bibitem`` &-key
     两轮 clean; aux 烤 ``\&`` 形由读侧消洗臂收。"""
     shutil.copy(STUBS / "aa.cls", tmp_path / "aa.cls")
-    log = _run(
+    log = run_xelatex(
         tmp_path,
         r"""\documentclass{aa}
 \begin{document}
@@ -157,8 +131,9 @@ Section \ref{sec:A&A} here.
 \end{thebibliography}
 \end{document}
 """,
+        passes=2,
     )
-    assert _n_err(log) == 0, f"aa.cls 仍 {_n_err(log)} 个 '!' 错"
+    assert n_err(log) == 0, f"aa.cls 仍 {n_err(log)} 个 '!' 错"
     assert (tmp_path / "main.pdf").is_file()
     aux = (tmp_path / "main.aux").read_text(encoding="utf-8")
     # key 内 active-& 烤成字面 \& —— 读侧消洗臂的回读对象
@@ -168,12 +143,12 @@ Section \ref{sec:A&A} here.
 
 
 @pytest.mark.integration
-@_COMPILE
+@requires_xelatex
 @pytest.mark.parametrize("sty", ["aaspp4", "aasms4"])
 def test_aas4_amp_citekey_two_pass(tmp_path: Path, sty: str) -> None:
     r"""astro-ph/0103009 型: aas4 系 + natbib ``\citep{K&K}`` 两轮 clean。"""
     shutil.copy(STUBS / f"{sty}.sty", tmp_path / f"{sty}.sty")
-    log = _run(
+    log = run_xelatex(
         tmp_path,
         rf"""\documentclass{{article}}
 \usepackage{{{sty}}}
@@ -186,20 +161,21 @@ See \citep{{Rieke&Lebofsky}} and \citep{{1990A&A...231...19S}}.
 \end{{thebibliography}}
 \end{{document}}
 """,
+        passes=2,
     )
-    assert _n_err(log) == 0, f"{sty} 仍 {_n_err(log)} 个 '!' 错"
+    assert n_err(log) == 0, f"{sty} 仍 {n_err(log)} 个 '!' 错"
     assert (tmp_path / "main.pdf").is_file()
     aux = (tmp_path / "main.aux").read_text(encoding="utf-8")
     assert r"\bibcite{Rieke\&Lebofsky}" in aux
 
 
 @pytest.mark.integration
-@_COMPILE
+@requires_xelatex
 def test_aipproc_onearg_author_address(tmp_path: Path) -> None:
     r"""astro-ph/0104007 型: 单参 ``\author`` + 散调 ``\address`` 不炸;
     双参 keyval 形共存。"""
     shutil.copy(SHIMS / "aipproc.cls", tmp_path / "aipproc.cls")
-    log = _run(
+    log = run_xelatex(
         tmp_path,
         r"""\documentclass{aipproc}
 \begin{document}
@@ -214,5 +190,5 @@ x
 """,
         passes=1,
     )
-    assert _n_err(log) == 0, f"aipproc 仍 {_n_err(log)} 个 '!' 错"
+    assert n_err(log) == 0, f"aipproc 仍 {n_err(log)} 个 '!' 错"
     assert (tmp_path / "main.pdf").is_file()

@@ -144,6 +144,19 @@ def test_upgrade_ds_at_dynamic(tmp_path: Path) -> None:
     assert info["reason"] == "latex209_ds_at"
 
 
+def test_upgrade_bare_documentstyle_no_decl_reject() -> None:
+    r"""``\documentstyle`` 无类名组（裸写/只带选项）→ ``latex209_no_decl`` 拒转。
+
+    残余 ``DOCSTYLE_RX`` 检出走独立子码而非泛 ``no-docstyle``——台账归因
+    靠 ``reason`` 精确值区分「全文无声明」与「声明残缺」。
+    """
+    for tex in ("\\documentstyle\nx\n", "\\documentstyle[12pt]\n"):
+        out, info = upgrade_209(tex)
+        assert out == tex  # 拒转不改写原文
+        assert info["status"] == "reject"
+        assert info["reason"] == "latex209_no_decl"
+
+
 def test_upgrade_dynamic_check_skips_mapped_and_std(tmp_path: Path) -> None:
     """映射类/标准类不吃随源 ds@ 探测——shipped revtex.sty 不改变 revtex4-2 映射。"""
     (tmp_path / "revtex.sty").write_text("\\def\\ds@prl{\\relax}\n")
@@ -194,7 +207,9 @@ def test_upgrade_revtex_multicol_passthrough_shim() -> None:
     out, info = upgrade_209(tex)
     assert info["stripped"] == ["multicol"]
     assert "\\newenvironment{multicols}" in out
-    assert "\\newcount\\col@number" in out
+    # multicols* 只在 _MULTICOLS_SHIM 里——判别透传 shim 真被附（``\newcount
+    # \col@number`` 由通用 COMPAT_SHIM 无条件供，那条断言钉不死本路径）
+    assert "\\newenvironment{multicols*}" in out
     assert "\\begin{multicols}{2}" in out  # 正文原样保留
 
 
@@ -312,6 +327,14 @@ def test_inject_cjk_no_target_reject_reason(
         inject_cjk("\\documentstyle{jpsj}\nx\n", root=tmp_path)
     assert exc.value.reason == "latex209_no_target"
     assert "inject_reject:latex209_no_target" in str(exc.value)
+
+
+def test_inject_cjk_no_decl_reject_reason() -> None:
+    r"""``latex209_no_decl`` 透传 inject 层——``InjectRejectError.reason`` 裸码。"""
+    with pytest.raises(InjectRejectError) as exc:
+        inject_cjk("\\documentstyle\nx\n")
+    assert exc.value.reason == "latex209_no_decl"
+    assert "inject_reject:latex209_no_decl" in str(exc.value)
 
 
 def test_upgrade_census_whitelist_names() -> None:
