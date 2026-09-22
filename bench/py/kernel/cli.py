@@ -1584,6 +1584,7 @@ _DISPATCH = {
     "xlat-report": _cmd_verb,
     "xlat-rejudge": _cmd_verb,
     "qual-report": _cmd_verb,
+    "booster-select": _cmd_verb,
 }
 
 

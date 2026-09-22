@@ -15,18 +15,10 @@ node_modules/
 
 # bench 重产物 (可重建,不入库)
 bench/corpus/*/
-bench/corpus/progress_v2.json
-bench/corpus/build_v2.log
-bench/corpus_daily/
 bench/corpus_iclr_pdf/
 bench/zh-store/*/
 bench/archive-*/*
 !bench/archive-*/README.md
-bench/work_*/
-# bench 运行产物与内部台账——不入发布仓（本地保留，可重建）
-bench/results/
-bench/queue/
-bench/py/scratch/
 
 # 交接台账——本机保留，不入发布仓
 docs/HANDOFF-*.md

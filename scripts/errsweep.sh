@@ -67,7 +67,7 @@ cd "$WT" || exit 1
 # --add-dir 双授权：~/.texlate（DB/workdir，只读语义）+ 主仓根（未入库 soak 结果）
 # timeout 6h 保险丝：模型免费不设预算闸，但防真卡死空转（正常一跑 <2h）
 timeout 6h env -u CLAUDECODE -u CLAUDE_CODE_ENTRYPOINT claude -p \
-  "你是 texlate errsweep agent，今天是 $DATE，工作目录是分支 $BR 的隔离 worktree。完整工作指令在 docs/dev/errsweep-runbook.md——先通读再开工。要点：soak 结果在主仓 $ROOT/bench/results/soak-*/ 下（worktree 里未必有，经 --add-dir 读）；回放副本放 $REPLAY_DIR；报告除随分支提交外复制一份到 $STATE/errsweep-$DATE-report.md。" \
+  "你是 texlate errsweep agent，今天是 $DATE，工作目录是分支 $BR 的隔离 worktree。完整工作指令在 docs/dev/errsweep-runbook.md——先通读再开工。要点：soak 账本在 $TEXLATE_BENCH_ROOT/runs/ 下（worktree 里未必有，经 --add-dir 读），分诊走 uv run python $ROOT/bench/py/bench triage；回放副本放 $REPLAY_DIR；报告除随分支提交外复制一份到 $STATE/errsweep-$DATE-report.md。" \
   --dangerously-skip-permissions \
   --add-dir "$HOME/.texlate" \
   --add-dir "$ROOT"

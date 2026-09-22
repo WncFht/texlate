@@ -61,10 +61,10 @@ fi
 if [[ $REAL == 1 ]]; then
   echo
   echo "=== 4/4 真翻译（swe-2-medium 经网关）==="
-  GW=${TEXLATE_BASE_URL:-http://127.0.0.1:3003}
+  GW=${TEXLATE_BASE_URL:-http://127.0.0.1:3033}
   curl -s -o /dev/null -w "gw healthz: %{http_code}\n" -m 5 "$GW/healthz" || true
-  timeout 600 uv run python bench/py/e2e_real_bench.py \
-    --ids "$ID" --base-url "$GW" --model swe-2-medium --base never --tag demo | tail -15
+  timeout 600 uv run python bench/py/bench run e2e_real \
+    ids="$ID" model=swe-2-medium base=never | tail -15
 else
   echo
   echo "=== 4/4 真翻译（跳过，--real 开启；需网关）==="

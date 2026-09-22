@@ -15,8 +15,6 @@ repos:
         entry: ./node_modules/.bin/markdownlint-cli2 --fix
         language: system
         types: [markdown]
-        # --fix 是改写型，与 cli2 配置 ignores 同口径划出 bench/results
-        exclude: "^bench/results/"
       - id: ruff-format-md
         name: ruff format (md python fences)
         # CI `ruff format --check .` 连 md 内 python 栅栏一起查；gfs stdin
@@ -25,46 +23,36 @@ repos:
         entry: ruff format
         language: system
         types: [markdown]
-        exclude: "^bench/results/"
       - id: prettier-md
         name: autocorrect + prettier (staged content)
         entry: ./node_modules/.bin/git-format-staged --formatter "autocorrect --stdin | ./node_modules/.bin/prettier --stdin-filepath {}"
         language: system
         types: [markdown]
-        # bench/results/ 是脚本产出目录：gfs 走 stdin 不吃 .prettierignore，
-        # 显式划出防 regen-commit 循环格式化 churn
-        exclude: "^bench/results/"
       - id: prettier-yaml
         name: prettier (staged content)
         entry: ./node_modules/.bin/git-format-staged --formatter "./node_modules/.bin/prettier --stdin-filepath {}"
         language: system
         types: [yaml]
-        exclude: "^bench/results/"
       - id: prettier-js
         name: prettier (staged content)
         entry: ./node_modules/.bin/git-format-staged --formatter "./node_modules/.bin/prettier --stdin-filepath {}"
         language: system
         files: '\.(jsx?|mjs|cjs|json)$'
-        exclude: "^bench/results/"
       - id: shfmt
         name: shfmt (staged content; zsh passthrough)
         entry: ./node_modules/.bin/git-format-staged --formatter "bash scripts/fmt-shell.sh"
         language: system
         types: [shell]
-        exclude: "^bench/results/"
       - id: ruff-format
         name: ruff format (staged content)
         entry: ./node_modules/.bin/git-format-staged --formatter "ruff format -"
         language: system
         types: [python]
-        # gfs stdin 通道拿不到文件名，ruff.toml 的 extend-exclude 兜不住——显式划出
-        exclude: "^bench/results/"
       - id: taplo
         name: taplo fmt (staged content)
         entry: ./node_modules/.bin/git-format-staged --formatter "taplo fmt -"
         language: system
         types: [toml]
-        exclude: "^bench/results/"
       - id: shellcheck
         name: shellcheck (bash only; zsh skipped)
         entry: bash -c 'for f in "$@"; do head -1 "$f" | grep -q "^#!.*zsh" || shellcheck -S warning "$f"; done' --
@@ -94,7 +82,7 @@ repos:
         # pre-commit stash 后工作区即 staged 态，load 的就是待提交内容。
         # Ruleset.load() 默认装载 rules/ 目录合并视图——任一分片改动即
         # 触发全量校验（分片间合并冲突/引用断链只能整表验）。
-        # 在飞窗口 --no-verify 绕过是约定逃生口；stagerun 波前
+        # 在飞窗口 --no-verify 绕过是约定逃生口；bench run 波前
         # Ruleset.load() preflight 兜底拦截。
         entry: uv run python -c "from texlate.compile.fixloop import Ruleset; Ruleset.load()"
         language: system

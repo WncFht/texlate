@@ -1,8 +1,8 @@
 #!/bin/bash
 # loc.sh — 仓库代码量统计（口径：git 跟踪文件，剔除生成数据快照）。
 #
-# 本仓 bench/results/ 入库了大量评测 JSON 快照（百万行级），裸 cloc 会把数据
-# 当代码；所以先 git ls-files 圈定跟踪集，再按目录分桶 + 剔数据后缀。
+# 评测 JSON 快照不入跟踪（旧 bench/results/ 已随 Wave-F 删），但 corpus
+# manifest 等数据文件仍在跟踪集；先 git ls-files 圈定，再按目录分桶剔数据后缀。
 # 分桶口径：buckets 具名桶 + 根级文件 (root) + 兜底 (other)（带 / 但未认领的
 #   跟踪路径——新顶层目录不会再静默漏计）；exclude_dirs 显式排除
 #   .agents（vendor+生成 skill 资产）、shots（纯 PNG 截图）、.vscode（编辑器配置）。
