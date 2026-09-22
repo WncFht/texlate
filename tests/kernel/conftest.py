@@ -40,3 +40,20 @@ def broot(tmp_path, monkeypatch):
     paths.ensure_layout()
     write_verify_stamp()
     return root
+
+
+# prepend 模式下本文件与 tests/conftest.py 共用 sys.modules["conftest"] 键，
+# 后加载者（本文件，kernel/ 字母序先于 test_*）把根件顶掉——根目录 115 个
+# 老测试裸 `from conftest import …` 会拿到本模块然后 ImportError。把根件
+# 以私有名 exec 一遍、缺失名嫁接进本模块，两侧消费者各取所需；pytest 内部
+# 按模块对象注册 conftest 插件，fixture 解析不受影响。
+import importlib.util as _ilu  # noqa: E402
+
+_root_conftest = Path(__file__).resolve().parents[1] / "conftest.py"
+_spec = _ilu.spec_from_file_location("_root_conftest", _root_conftest)
+if _spec is not None and _spec.loader is not None:
+    _mod = _ilu.module_from_spec(_spec)
+    _spec.loader.exec_module(_mod)
+    for _k in dir(_mod):
+        if not _k.startswith("__") and _k not in globals():
+            globals()[_k] = getattr(_mod, _k)
