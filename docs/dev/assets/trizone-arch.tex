@@ -164,8 +164,8 @@
   {importer\\[-2pt]
    {\scriptsize bench.db · zh-store · jsonl}\\[-2pt]
    {\scriptsize → redact + canon}};
-\node[mach, minimum width=3.9cm, minimum height=1.1cm] (exp) at (5.85,-12.7)
-  {exporter\\[-2pt]{\scriptsize index · run 分片 → legacy 面}};
+\node[mach, minimum width=3.9cm, minimum height=1.1cm] (der) at (5.85,-12.7)
+  {derive · report\\[-2pt]{\scriptsize index 投影 → run 报告}};
 \node[mach, dashed, minimum width=6.0cm, minimum height=1.1cm]
   (swp) at (11.2,-12.7)
   {sweep 收割者\\[-2pt]
@@ -176,8 +176,8 @@
 
 \draw[flow] ([xshift=-1.1cm]imp.north) -- (0.6,-9.4);
 \node[lab, anchor=west] at (0.75,-10.9) {导入};
-\draw[flow] (5.1,-9.75) -- ([xshift=-0.75cm]exp.north);
-\node[lab, anchor=east] at (4.95,-11.35) {导出};
+\draw[flow] (5.1,-9.75) -- ([xshift=-0.75cm]der.north);
+\node[lab, anchor=east] at (4.95,-11.35) {报表};
 
 % ===================== 底部含义框 =====================
 \node[draw=mgray!35, fill=mgray!5, rounded corners=3pt, anchor=north west,

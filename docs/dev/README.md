@@ -7,7 +7,7 @@
 | `repository.md`       | 仓库布局与代码现状基线：各包职责、入口面、约定                                                                                     |
 | `tools-runbook.md`    | 工具与运维手册：产品 CLI 简表、`scripts/` 全脚本、`bench/py/` 评测器与批跑件分域清单、`bench/ts/` 与 `web/` 冒烟工具、运维手法沉淀 |
 | `benches.md`          | bench/ 全量普查表：每个 bench 是什么/怎么跑/吃什么吐什么/成本/状态（2026-09-20 口径）                                              |
-| `bench-redesign-v2-trizone.md` | bench 终态设计：三区账本法——事件账唯一事实源 + 字节按再生成本分区 + fail-closed 付费裁决；架构总览图 `assets/trizone-arch.svg`，`bench/py/kernel/` 已按图落地并验收（2026-09-22） |
+| `bench-redesign-v2-trizone.md` | bench 终态设计：三区账本法——事件账唯一事实源 + 字节按再生成本分区 + fail-closed 付费裁决，绿地口径不设历史兼容面；架构总览图 `assets/trizone-arch.svg`，`bench/py/kernel/` 已按图落地并验收（2026-09-22） |
 | `bench-redesign-plan.md` | bench 重做早期方案（thin-runner + 薄门面）：已被 v2 取代，留档备查                                                                |
 | `assets/`             | dev 文档图源与渲染件（`trizone-arch.{tex,pdf,svg,png}`，TikZ + xelatex 可重编）                                                   |
 | `errsweep-runbook.md` | errsweep 清扫 agent 完整工作指令与人工审计契约（`scripts/errsweep.sh` 每日喂给 agent 的文本）                                      |
