@@ -2,7 +2,7 @@
 
 > **结论**：TeXlate 于 2026-09-14 立项，一周内从空白仓库走到「arXiv LaTeX 源码 → LLM 段落级翻译 → ctex 中文 PDF」全链实质可用；本文件是逐日大事记，当日档案明细见各日期目录。
 > **状态**：现行
-> **日期**：2026-09-20
+> **日期**：2026-09-22
 
 本时间线覆盖 2026-09 项目周期（09-14 立项 → 09-20 迁入本库）。每日一节，先记里程碑与关键数字，再列当日归档出处。归档文件按「当日口径」保留原文快照——前后数字不一致时以较晚日期的测量为准，口径漂移的说明见文末注记。重建前文档是平铺文件 `docs/01-*.md`–`docs/10-*.md` 与旧 `docs/research/` 树（与现行六分区中的 `docs/research/` 同名不同物——旧树在 `5ebc9797` 重建时移除，内容仅存 git 历史），本层引用这些是当日口径的历史指针，一律经本仓库 git 历史（`git log -- docs/`、`git show <commit>:<path>`）检索。逐日 `docs/HANDOFF-*.md` 交接文档原已入库，2026-09-18 由 `d39a1b23` 移出跟踪（发布前整理，文件仍留盘），经 `git show d39a1b23^:docs/HANDOFF-<date>.md` 调阅；本机另有未跟踪副本存 `tmp/old-docs-2026-09-20/docs/`。
 
@@ -34,12 +34,21 @@
 
 本文件写作时点：texmf 复测 19/26 篇复活；3,000-id 隔夜批与 wave-13/14 修复清单在飞；fixloop 规则库自 143 条续增至约 185 条（分片目录口径），zh-leak 与 taxonomy 行级修复仍在落；错误沉淀→根因蒸馏的 errsweep 日更机制上线。本目录两份档案（audit-2026-09-16、roadmap-2026-09-17）于当日迁入本库重编。
 
+## 2026-09-21 · census2 收口与内核奠基日
+
+census2 全仓重构清扫当日收尾：src/web/bench/tests/agents 各面分批落盘，公共 seam（textutil/compile/http/pipecore 助手、ENV_* 单源、store/_common、axsearch/task-row 组件叶、_fixloopkit 等测试套件）全数收编，文档侧 spec/roadmap 漂移同步。同日 trizone-ledger v2 bench 内核开工并落地前两波：Wave A 基础件（idnorm/locks/ledger/index/fsutil/cas，`0804c246`）与 Wave B 分区件（vault/runs/lake/dedup/importer/exporter，`251d927b`）。日更 soak 链退役（`f7a2f32c`）。
+
+## 2026-09-22 · bench 内核验收日
+
+Wave C 运行径落地（spec/ctx/paid/kernel、sweep/doctor、cli/specs，`205606d7`；另有 dedup 预修 `45123054`、`f431c4fd`），`bench/py/kernel/` 25 模块约 15.1k 行全部就位。Wave-D 对抗验证两轮收口：首轮三车道裁决落 `76dc3341`/`bb78edff`/`147e6766`；第二轮六车道复审产出 94 条发现（13 fatal/43 major，汇总件 `tmp/jr_wf_7b0ace3b-589.txt`）全数裁决，落 `b7a7dd07`/`c203c1e6`/`56a13b12`/`5254b776` 四批——含 export 路径逃逸、redact 漏面、registry 污染、封存段不可见与封存机制悬空等 fatal 级修复。`tests/kernel/` 546 例通过 / 2 例按设计跳过。收官报告：[2026-09-22-bench内核wave-d收官.md](2026-09-22-bench内核wave-d收官.md)。全量 bench 重建为下一阶段，未启动。
+
 ## 本层档案索引
 
 | 路径 | 内容 |
 | --- | --- |
 | [audit-2026-09-16/](audit-2026-09-16/README.md) | 2026-09-16 十三维度全仓只读审计，15 件（其 README 为逐维索引与收口建议） |
 | [roadmap-2026-09-17/](roadmap-2026-09-17/ROADMAP.md) | 2026-09-17 现状报告与排期 ROADMAP + inputs/ 八路侦察底档（架构/bench 扩展/缺陷台账/文档健康/前端/测量/性能/产品缺口），9 件 |
+| [2026-09-22-bench内核wave-d收官.md](2026-09-22-bench内核wave-d收官.md) | trizone-ledger v2 bench 内核四波构建 + Wave-D 两轮对抗验证收口报告（94 条 round-2 发现全裁决、7 个修复提交、546 例测试绿） |
 
 ## 口径注记
 
