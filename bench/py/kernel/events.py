@@ -12,7 +12,8 @@ Eleven event types (design §3.1 + run_registered + lake_cell + case):
     tombstone      {id, idc, arm, variant, kind, reason, lost_run, ts}
     note           {run, seq, id?, text, level}
     finished       {run, seq, wall_s, counts, cost_usd}
-    lake_cell      {id, idc, state, source, bytes, ts}
+    lake_cell      {id, idc, state, source, bytes, pinned, manifested,
+                    orphan, regen_cost, last_used_at, ts}
     case           {run, seq, id, idc, arm, up, variant, stage, payload}
                    — author per-sample eval rows (Ctx.emit_case); buffered
                    in the cell's terminal batch so a crashed cell leaves
@@ -93,7 +94,10 @@ OPTIONAL_KEYS: dict[str, frozenset[str]] = {
         "id", "idc", "arm", "up", "variant", "stage", "kind", "safe_id",
     }),
     T_FINISHED: frozenset({"cost_usd", "accounting_ok"}),
-    T_LAKE_CELL: frozenset({"source", "bytes"}),
+    T_LAKE_CELL: frozenset({
+        "source", "bytes", "pinned", "manifested", "orphan",
+        "regen_cost", "last_used_at",
+    }),
     T_CASE: frozenset({"arm", "up", "variant", "stage"}),
 }
 
@@ -115,7 +119,8 @@ CLAIM_OPS = frozenset({"acquire", "release", "reap"})
 ASSET_KINDS = frozenset({"zh", "splice", "state", "pdf", "report"})
 ASSET_STATES = frozenset({"pending", "verified", "tombstone", "adopted", "staged"})
 LAKE_STATES = frozenset({
-    "skeleton", "hydrating", "hydrated", "pinned", "raw_only", "failed", "evicted",
+    "skeleton", "hydrating", "hydrated", "pinned", "raw_only", "failed",
+    "evicted", "empty",
 })
 NOTE_LEVELS = frozenset({"info", "warn", "error"})
 
@@ -165,7 +170,7 @@ _STR_OPT: dict[str, tuple[str, ...]] = {
     T_ASSET: ("sha", "zone", "verdict", "model", "source_run", "altseq"),
     T_TOMBSTONE: ("lost_run", "zone", "source_run"),
     T_NOTE: ("id", "idc", "arm", "up", "variant", "stage", "kind", "safe_id"),
-    T_LAKE_CELL: ("source",),
+    T_LAKE_CELL: ("source", "regen_cost"),
     T_CASE: ("arm", "up", "variant", "stage"),
 }
 
@@ -175,7 +180,7 @@ _NUM_OPT: dict[str, tuple[str, ...]] = {
     T_CELL: ("dur_s",),
     T_FINISHED: ("cost_usd",),
     T_ASSET: ("bytes",),
-    T_LAKE_CELL: ("bytes",),
+    T_LAKE_CELL: ("bytes", "last_used_at"),
 }
 
 
@@ -248,8 +253,12 @@ def validate(ev: dict) -> None:
             raise EventError(f"bad asset kind {ev.get('kind')!r}")
         if ev.get("state") not in ASSET_STATES:
             raise EventError(f"bad asset state {ev.get('state')!r}")
-    if etype == T_LAKE_CELL and ev.get("state") not in LAKE_STATES:
-        raise EventError(f"bad lake state {ev.get('state')!r}")
+    if etype == T_LAKE_CELL:
+        if ev.get("state") not in LAKE_STATES:
+            raise EventError(f"bad lake state {ev.get('state')!r}")
+        for k in ("pinned", "manifested", "orphan"):
+            if ev.get(k) is not None and not isinstance(ev.get(k), bool):
+                raise EventError(f"lake_cell {k} must be bool|None")
     if etype == T_NOTE and ev.get("level") not in NOTE_LEVELS:
         raise EventError(f"bad note level {ev.get('level')!r}")
     if etype == T_CASE and not isinstance(ev.get("payload"), dict):
