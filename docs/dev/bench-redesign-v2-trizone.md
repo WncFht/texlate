@@ -2,7 +2,9 @@
 
 > 本设计经完备性批评与多轮对抗复查（数十条 major/fatal 级攻击），成立项已全部吸收为正文决定。**口径：绿地终态，不设任何历史兼容面**——无旧式投影、无双写并存、无新旧锁桥、无旧驱动 shim；存量资产一次性普查进场，旧数据面验证后整体删除。
 
-> **实现状态（2026-09-22）**：内核件面已按本设计四波落地——`bench/py/kernel/` 25 模块约 15.1k 行，`tests/kernel/` 546 例通过 / 2 例按设计跳过；Wave-D 两轮对抗验证收口（round-2 六车道 94 条发现全数裁决）。收官报告见 `../log/2026-09-22-bench内核wave-d收官.md`。数据进场与旧面清场为下一阶段，开工条件见 §6。
+> **实现状态（2026-09-22）**：内核件面已按本设计四波落地——`bench/py/kernel/` 25 模块约 15.1k 行，`tests/kernel/` 546 例通过 / 2 例按设计跳过；Wave-D 两轮对抗验证收口（round-2 六车道 94 条发现全数裁决）。收官报告见 `../log/2026-09-22-bench内核wave-d收官.md`。
+>
+> **Phase 0 已收口（2026-09-22）**：进程普查零写者（status_panel 只读常驻除外；errsweep timer 已 vanished 不会自动触发，最后实跑 9-20）；zh-store manifest 110 行未 commit delta 拷出双份（sha `2ecd0840`）；`git fsck --connectivity-only` 通过。**真账册勘定**：repo 根 `bench.db` 是 0B 空壳，真身 `tmp/benchxp-sqlite/bench.db`（457MB，sha `3e0a638c`，160 run / 197,460 records + 6,524 eval + 36,904 cases + 7,323 cells，xp.py 于 9-21 17:53 自 records/cases/cells 归并）。异地两份：`$ROOT/backup/phase0-20260922/`（4.3G/24,981 文件）与 fht-mba `~/texlate-bench-backup/phase0-20260922/`（指纹远验一致）。manifest↔字节对账：5,026 账载 id ↔ 297 在盘 id——4,747 有账无字节（丢失总清单）、18 孤儿（recovered-replay-0920）、117 账实不符（账称 has_zh 实仅 splice）+19 zone 错位，报告在两份备份 `docs/` 及 `tmp/phase0-20260922/reconcile.*`。`$ROOT/PAUSE` 已挂：run/plan 拒跑、import 不受影响；`scripts/errsweep.sh` 已接 PAUSE 首检。「errsweep 一轮绿」判据不适用（timer 已撤，重部署裁决推迟到 Phase 3）。数据进场进行中。
 
 ---
 
@@ -347,29 +349,29 @@ spec = Spec(
 
 ### 5.1 数据进场清单（一次性，幂等）
 
-| 资产 | 进场方式 | 落点 |
-| --- | --- | --- |
-| 账本历史：bench.db + 工作树 records/*.jsonl + archive 账（≈197k 行） | `bench ledger import`——行内容 hash 幂等去重、secrets redact（原值 sha256 供核验）、序敏感键出 quarantine 清单按 §3.3 保守侧解 | ledger/events + index |
-| zh-store 付费字节树（含 \_quarantine/、\_alt/） | 字节普查三态对账（§3.10.9）；provenance 进 meta | vault zh/splice/state + manifest + meta |
-| corpus manifest\*.jsonl（分层选择清单） | 保持 git-tracked 不动；`bench lake register` 播种 skeleton | repo + lake catalog |
-| 语料 payload 在盘部分 | 幂等 absorb CAS 化 → catalog hydrated | lake/objects + corpus/ |
-| id 裁决种子（544 歧义尾 + 垃圾行 + .bak-mock 行） | id_overrides.jsonl（人写 tracked)+ idresolve.jsonl(durable 衍生） | bench/corpus/ + lake/durable/ |
-| 贵再生派生件（frame.parquet、iclr map、状态看板件） | 搬移，重建以小时计的东西不放可删层 | lake/durable/（进备份集） |
-| nominations 评审清单 | 搬移 + 引用更新 | bench/nominations/（tracked） |
+| 资产                                                                 | 进场方式                                                                                                                      | 落点                                    |
+| -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| 账本历史：bench.db + 工作树 records/*.jsonl + archive 账（≈197k 行） | `bench ledger import`——行内容 hash 幂等去重、secrets redact（原值 sha256 供核验）、序敏感键出 quarantine 清单按 §3.3 保守侧解 | ledger/events + index                   |
+| zh-store 付费字节树（含 \_quarantine/、\_alt/）                      | 字节普查三态对账（§3.10.9）；provenance 进 meta                                                                               | vault zh/splice/state + manifest + meta |
+| corpus manifest\*.jsonl（分层选择清单）                              | 保持 git-tracked 不动；`bench lake register` 播种 skeleton                                                                    | repo + lake catalog                     |
+| 语料 payload 在盘部分                                                | 幂等 absorb CAS 化 → catalog hydrated                                                                                         | lake/objects + corpus/                  |
+| id 裁决种子（544 歧义尾 + 垃圾行 + .bak-mock 行）                    | id_overrides.jsonl（人写 tracked)+ idresolve.jsonl(durable 衍生）                                                             | bench/corpus/ + lake/durable/           |
+| 贵再生派生件（frame.parquet、iclr map、状态看板件）                  | 搬移，重建以小时计的东西不放可删层                                                                                            | lake/durable/（进备份集）               |
+| nominations 评审清单                                                 | 搬移 + 引用更新                                                                                                               | bench/nominations/（tracked）           |
 
 ### 5.2 消费方重写清单（无 shim，全量 spec/verb 化）
 
-| 消费方 | 终态形态 |
-| --- | --- |
-| errsweep（在役 timer） | `bench run errsweep` spec；授权面/runbook/prompt/scheduled_tasks 与 spec 同 commit 演进；runbook 版本戳 fail-closed |
-| triage/gate/dossier/status_panel | `bench` 分析动词：triage 保非 canon 审计语义（§3.7）、dossier pick_run 按 run_seq、gate 冻结信号由 spec_env+index 按 run 重建、status 读 index+heartbeat |
-| e2e 类 bespoke 写者（扁形产物、\_xlat_state/\_state） | spec 化：mock→variant、real→paid+dedup_key；StateStore→work/{id}/state/ |
-| xlatbench/qualbench 类评测型付费 | spec + 自声明 dedup_key，预算闸照套 |
-| 单体评测器族（compile/parse/valid/wrapfloat/gullet/fixture/translators/align/quality/l2 探针） | spec 重写队列，逐驱动审计清单（status 映射+done 定义+分母守恒）；跨 run 产物读 index/ctx.upstream_rec/bench derive |
-| corpus builders（7 件） | 双目标写：manifest 留 repo tracked、payload 落 lake；git-check 钩断言 manifest\*.jsonl 保持 tracked |
-| iclr 研究件 | spec/子命令化；产物落 lake/durable/ |
-| bench/ts（6 件） | 路径常量换根 |
-| 死件（report/ 一次性件、_benchkit、死导出 ≈4,400 LOC） | 随旧面删除，不移植 |
+| 消费方                                                                                         | 终态形态                                                                                                                                                 |
+| ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| errsweep（在役 timer）                                                                         | `bench run errsweep` spec；授权面/runbook/prompt/scheduled_tasks 与 spec 同 commit 演进；runbook 版本戳 fail-closed                                      |
+| triage/gate/dossier/status_panel                                                               | `bench` 分析动词：triage 保非 canon 审计语义（§3.7）、dossier pick_run 按 run_seq、gate 冻结信号由 spec_env+index 按 run 重建、status 读 index+heartbeat |
+| e2e 类 bespoke 写者（扁形产物、\_xlat_state/\_state）                                          | spec 化：mock→variant、real→paid+dedup_key；StateStore→work/{id}/state/                                                                                  |
+| xlatbench/qualbench 类评测型付费                                                               | spec + 自声明 dedup_key，预算闸照套                                                                                                                      |
+| 单体评测器族（compile/parse/valid/wrapfloat/gullet/fixture/translators/align/quality/l2 探针） | spec 重写队列，逐驱动审计清单（status 映射+done 定义 + 分母守恒）；跨 run 产物读 index/ctx.upstream_rec/bench derive                                     |
+| corpus builders（7 件）                                                                        | 双目标写：manifest 留 repo tracked、payload 落 lake；git-check 钩断言 manifest\*.jsonl 保持 tracked                                                      |
+| iclr 研究件                                                                                    | spec/子命令化；产物落 lake/durable/                                                                                                                      |
+| bench/ts（6 件）                                                                               | 路径常量换根                                                                                                                                             |
+| 死件（report/ 一次性件、_benchkit、死导出 ≈4,400 LOC）                                         | 随旧面删除，不移植                                                                                                                                       |
 
 ### 5.3 旧面删除清单（verify 绿后一次性执行，单向门）
 
@@ -401,12 +403,12 @@ spec = Spec(
 绿判据：manifest↔字节双向对账平；tombstone 清单作为**用户 regen 决策单**交付。回退点：原树保留到 verify 全绿。
 
 **Phase 3 — lake catalog 与首个 run(2~3 天）**
-`bench lake register` 播种 skeleton + 在盘 payload absorb；首个真实 run 用无付费 spec(compile/census 类）验全套机械（八步+锁序+claims/slots+auth 熔断+needs 域+executor+PAUSE);errsweep 上 `bench run errsweep`,status-panel 供数切换。
+`bench lake register` 播种 skeleton + 在盘 payload absorb；首个真实 run 用无付费 spec(compile/census 类）验全套机械（八步 + 锁序+claims/slots+auth 熔断+needs 域+executor+PAUSE);errsweep 上 `bench run errsweep`,status-panel 供数切换。
 **首火闸**（无人值守付费的机器门）:`bench plan` dedup 覆盖报告 + index sealed 标记 + `vault verify`<24h 新鲜度——任一不满足，付费臂拒跑。
 绿判据：errsweep 一轮全程新路径 + 账务方程校验。
 
 **Phase 4 — spec 全覆盖与清场（滚动）**
-spec 按使用频率重写，每驱动带审计清单 + 分母守恒对拍；分析动词上齐；`lake/cache` 全局段缓存；旧面删除清单（§5.3）一次性执行；文档+工具链+scheduled_tasks 同 commit。回退点：删除步之前每个 spec 独立可验；删除步是单向门，排最后。
+spec 按使用频率重写，每驱动带审计清单 + 分母守恒对拍；分析动词上齐；`lake/cache` 全局段缓存；旧面删除清单（§5.3）一次性执行；文档 + 工具链+scheduled_tasks 同 commit。回退点：删除步之前每个 spec 独立可验；删除步是单向门，排最后。
 
 ---
 
@@ -427,36 +429,36 @@ spec 按使用频率重写，每驱动带审计清单 + 分母守恒对拍；分
 
 ## 8. 风险对策表
 
-| #   | 攻击                                          | 对策落点                                                                                                                               |
-| --- | --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| R1  | bench.db+records 含明文 key;import 扩散       | import 管道 redact+sha 核验；spec_env/invocations 记名；lint --secrets 进 CI;**备份副本同密级**；轮换属用户操作                        |
+| #   | 攻击                                          | 对策落点                                                                                                                          |
+| --- | --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| R1  | bench.db+records 含明文 key;import 扩散       | import 管道 redact+sha 核验；spec_env/invocations 记名；lint --secrets 进 CI;**备份副本同密级**；轮换属用户操作                   |
 | R2  | "promo 剩 ~25 天应先翻译不是重构"             | 绿地路径反而最短：Phase 0-2 共 ~4 天即达付费就绪，首火闸 Phase 3 先行；配额算术不划算则 Phase 4 spec 重写推迟，内核与数据进场照旧 |
-| R3  | 并发 wipe 复发                                | 三区在 checkout 外+P0 异地备份+libexec 副本化+stray-dir doctor                                                                         |
-| R4  | harvest 中途死=字节无标记被误判               | meta.json 提交标记+staging 同卷 rename+pending→reconcile+harvest-pending 队列+verify<24h 首火闸                                        |
-| R5  | 跨设备 harvest copy+ 删源                     | .staging 在 vault 内构造保证同卷；sentinel 防空挂载点写入                                                                              |
-| R6  | 跨 run 双烧（快照 plan 看漏在飞格）           | claims 租约 + 锁内复查 + 并发退化串行 skip;plan 打印 dedup 交集计数                                                                    |
-| R7  | 僵尸 run 占 claim 骗 done-set                 | sweep 收割：heartbeat 死→lost 事件+claim/slot 回收；孤儿字节 adopt                                                                     |
-| R8  | dirty-sha 进 fp 炸 done-set                   | fp=instrument 源 hash;fp 只标 stale 不进 done;selector 旋钮禁入 params                                                                 |
-| R9  | lake fetch 风暴写爆盘                         | --max-fetch/--refetch 显式+per-run pin+plan 期 disk watermark 预检+lake 驱逐动词（清 payload 留 manifest)                              |
-| R10 | prune 误删异常格/在飞格                       | 内核所有 prune+ 异常格保留预算（age+cap)+prune 先取 cell.lock+**prune 判据=vault meta 验证非账行存在**+xlat-state 豁免                 |
-| R11 | triage 非 canon 审计信号被杀                  | 写边界归一、读侧双谓词 id:/idc:，注释固化                                                                                              |
-| R12 | id 三形态 +322 歧义尾 +45 改名 archive        | 内核 canon+papers 别名表+adjudication 队列 + 契约测试"任一拼写入 done-set 仍命中"                                                      |
-| R13 | timer 切换漏发/重发/Persistent 即点火         | disable→drain→delta-import→switch→enable;Persistent=false;libexec 副本+daemon-reload 断言+spawn 契约检查                               |
-| R14 | errsweep 授权半径/prompt 漂移                 | --add-dir+runbook+prompt+scheduled_tasks 同 commit;runbook 版本戳 fail-closed;doc-contract 测试                                        |
-| R15 | spec 微调→run 身份重算跑步机                  | 身份=(kind,date,slug);spec_hash 只进 invocation;run_seq 锁内 mint                                                                      |
-| R16 | torn tail/胶水行丢账                          | emit() 唯一写径 + 开档尾检截换行 + 水位=末换行 offset+ 读侧容错+compact 原地 truncate 禁 replace                                       |
-| R17 | xlat-state 丢=resume 变全量重烧               | work/ 必备层+prune 豁免+lake/cache 全局段缓存                                                                                          |
-| R18 | 全局缓存新毒源                                | file_cache_key 全维 + 只复用 done+ 写前 verify;partial 毒前科注释固化                                                                  |
-| R19 | 账本变大 tail 成本                            | (run_seq,seq) 水位增量 ingest;per-run 分片限损；393MB/20 万行实证十年不是事                                                            |
-| R20 | errors[0].cat='upstream' 语义漂移             | schema 注释固化三用面；needs accept 用上游自声明口径                                                                                   |
-| R21 | **锁 inode 脚枪**（删目重建=新 inode=双写者） | locks 永不 unlink；生命周期操作锁内做；LOCK_NB fail-fast(errsweep 先例）                                                               |
-| R22 | **detach 丢锁**(Popen close_fds 放掉父锁）    | detach 协议：child 先 flock 再向 parent 管道回执；契约测试"连发两次第二次必须拒"                                                       |
-| R23 | **ENOSPC 同卷连锅端**                         | 分区可分裂 + 分卷推荐；disk watermark 前置；ledger+vault 保留余量；prune 内核化带预算                                                  |
-| R24 | **dedup 维错配**(model 抖动/变体撞库）        | dedup 键 (idc,arm,variant),model 仅 advisory;spec 模型≠库存多数模型时 plan 强制 --force 确认                                           |
-| R25 | **eval 型付费无资产键**(qualbench judge/e2e)  | spec.dedup_key 自声明进 claims 空间；预算闸全民化；网关侧对账测旁路                                                                    |
-| R26 | **进场窗在飞写**                              | Phase 0 快照先行 + 普查 delta-pass 收尾；provenance 入 meta                                                                            |
-| R27 | **report.md 散文=不可再生**                   | keep 层清单化；derived authored=true 豁免；runs/ 永不整体标 trash                                                                      |
-| R28 | **empty-plan 静默成功**                       | plan 空集→note warn 非静默（欠账自愈 selectors 用"≤date 最新 manifest"保留）                                                           |
+| R3  | 并发 wipe 复发                                | 三区在 checkout 外+P0 异地备份+libexec 副本化+stray-dir doctor                                                                    |
+| R4  | harvest 中途死=字节无标记被误判               | meta.json 提交标记+staging 同卷 rename+pending→reconcile+harvest-pending 队列+verify<24h 首火闸                                   |
+| R5  | 跨设备 harvest copy+ 删源                     | .staging 在 vault 内构造保证同卷；sentinel 防空挂载点写入                                                                         |
+| R6  | 跨 run 双烧（快照 plan 看漏在飞格）           | claims 租约 + 锁内复查 + 并发退化串行 skip;plan 打印 dedup 交集计数                                                               |
+| R7  | 僵尸 run 占 claim 骗 done-set                 | sweep 收割：heartbeat 死→lost 事件+claim/slot 回收；孤儿字节 adopt                                                                |
+| R8  | dirty-sha 进 fp 炸 done-set                   | fp=instrument 源 hash;fp 只标 stale 不进 done;selector 旋钮禁入 params                                                            |
+| R9  | lake fetch 风暴写爆盘                         | --max-fetch/--refetch 显式+per-run pin+plan 期 disk watermark 预检+lake 驱逐动词（清 payload 留 manifest)                         |
+| R10 | prune 误删异常格/在飞格                       | 内核所有 prune+ 异常格保留预算（age+cap)+prune 先取 cell.lock+**prune 判据=vault meta 验证非账行存在**+xlat-state 豁免            |
+| R11 | triage 非 canon 审计信号被杀                  | 写边界归一、读侧双谓词 id:/idc:，注释固化                                                                                         |
+| R12 | id 三形态 +322 歧义尾 +45 改名 archive        | 内核 canon+papers 别名表+adjudication 队列 + 契约测试"任一拼写入 done-set 仍命中"                                                 |
+| R13 | timer 切换漏发/重发/Persistent 即点火         | disable→drain→delta-import→switch→enable;Persistent=false;libexec 副本+daemon-reload 断言+spawn 契约检查                          |
+| R14 | errsweep 授权半径/prompt 漂移                 | --add-dir+runbook+prompt+scheduled_tasks 同 commit;runbook 版本戳 fail-closed;doc-contract 测试                                   |
+| R15 | spec 微调→run 身份重算跑步机                  | 身份=(kind,date,slug);spec_hash 只进 invocation;run_seq 锁内 mint                                                                 |
+| R16 | torn tail/胶水行丢账                          | emit() 唯一写径 + 开档尾检截换行 + 水位=末换行 offset+ 读侧容错+compact 原地 truncate 禁 replace                                  |
+| R17 | xlat-state 丢=resume 变全量重烧               | work/ 必备层+prune 豁免+lake/cache 全局段缓存                                                                                     |
+| R18 | 全局缓存新毒源                                | file_cache_key 全维 + 只复用 done+ 写前 verify;partial 毒前科注释固化                                                             |
+| R19 | 账本变大 tail 成本                            | (run_seq,seq) 水位增量 ingest;per-run 分片限损；393MB/20 万行实证十年不是事                                                       |
+| R20 | errors[0].cat='upstream' 语义漂移             | schema 注释固化三用面；needs accept 用上游自声明口径                                                                              |
+| R21 | **锁 inode 脚枪**（删目重建=新 inode=双写者） | locks 永不 unlink；生命周期操作锁内做；LOCK_NB fail-fast(errsweep 先例）                                                          |
+| R22 | **detach 丢锁**(Popen close_fds 放掉父锁）    | detach 协议：child 先 flock 再向 parent 管道回执；契约测试"连发两次第二次必须拒"                                                  |
+| R23 | **ENOSPC 同卷连锅端**                         | 分区可分裂 + 分卷推荐；disk watermark 前置；ledger+vault 保留余量；prune 内核化带预算                                             |
+| R24 | **dedup 维错配**(model 抖动/变体撞库）        | dedup 键 (idc,arm,variant),model 仅 advisory;spec 模型≠库存多数模型时 plan 强制 --force 确认                                      |
+| R25 | **eval 型付费无资产键**(qualbench judge/e2e)  | spec.dedup_key 自声明进 claims 空间；预算闸全民化；网关侧对账测旁路                                                               |
+| R26 | **进场窗在飞写**                              | Phase 0 快照先行 + 普查 delta-pass 收尾；provenance 入 meta                                                                       |
+| R27 | **report.md 散文=不可再生**                   | keep 层清单化；derived authored=true 豁免；runs/ 永不整体标 trash                                                                 |
+| R28 | **empty-plan 静默成功**                       | plan 空集→note warn 非静默（欠账自愈 selectors 用"≤date 最新 manifest"保留）                                                      |
 
 ---
 

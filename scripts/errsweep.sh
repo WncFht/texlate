@@ -28,6 +28,13 @@ if ! flock -n 9; then
   exit 0
 fi
 
+# PAUSE 首检:bench 手术期 stop-the-world(bench-redesign-v2 §6 Phase 0),全线静默
+BENCH_ROOT="${TEXLATE_BENCH_ROOT:-$HOME/.local/share/texlate-bench}"
+if [ -f "$BENCH_ROOT/PAUSE" ]; then
+  echo "PAUSE engaged ($BENCH_ROOT/PAUSE) — errsweep skips this round"
+  exit 0
+fi
+
 cd "$ROOT" || exit 1
 
 # 网关凭证——systemd --user 干净环境不继承会话 ANTHROPIC_*，必须显式 source
