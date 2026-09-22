@@ -1,0 +1,199 @@
+\documentclass[tikz,border=8pt]{standalone}
+\usepackage[UTF8,fontset=fandol]{ctex}
+\usepackage{amsmath,amssymb}
+\usetikzlibrary{arrows.meta,calc,backgrounds}
+
+\definecolor{mteal}{HTML}{4F8FA5}
+\definecolor{morange}{HTML}{EE995B}
+\definecolor{mcoral}{HTML}{C95B5B}
+\definecolor{mviolet}{HTML}{8A74B5}
+\definecolor{mgray}{HTML}{85898F}
+
+\begin{document}
+\begin{tikzpicture}[
+  font=\small,
+  mach/.style={draw=mgray!60, fill=mgray!10, rounded corners=2pt,
+               align=center, inner sep=5pt},
+  ib/.style={rounded corners=1.5pt, align=center, font=\scriptsize,
+             inner sep=4pt, fill=white},
+  chip/.style={rounded corners=2pt, align=center, font=\scriptsize,
+               inner sep=3.5pt, minimum height=0.72cm},
+  ptit/.style={anchor=north west, align=left, font=\small\bfseries},
+  pnote/.style={anchor=west, font=\scriptsize, text=black!62},
+  flow/.style={-{Stealth[length=2.2mm]}, draw=black!60, line width=0.7pt},
+  ctl/.style={-{Stealth[length=2.2mm]}, draw=black!55, line width=0.6pt,
+              dashed},
+  lab/.style={font=\scriptsize, text=black!60, inner sep=1.2pt},
+]
+
+% ===================== 顶部：两条核心方程 =====================
+\node[anchor=north] at (10.1,0.15) {\large $\displaystyle
+  \mathcal{S} \;=\; \mathrm{fold}\bigl(\mathrm{apply},\;
+    \mathrm{sealed}^{*}\!\Vert\;\mathtt{events.jsonl}\bigr)$};
+\node[anchor=north] at (10.1,-0.72) {\large $\displaystyle
+  \mathrm{check}(\mathrm{idc},\mathrm{arm},\mathrm{variant}) \;\in\;
+  \{\mathtt{unsealed}\!\succ\!\mathtt{claimed}\!\succ\!\mathtt{verified}\!
+    \succ\!\mathtt{missing}\!\succ\!\mathtt{absent}\}$};
+
+% ===================== 写径机械行 =====================
+\node[mach, minimum width=2.7cm, minimum height=0.95cm] (spec) at (1.4,-2.75)
+  {spec + ctx\\[-2pt]{\scriptsize 规格 · 上下文}};
+\node[mach, minimum width=5.3cm, minimum height=0.95cm] (kern) at (6.05,-2.75)
+  {kernel.run 八步 · cell 临界区\\[-2pt]
+   {\scriptsize lock → oracle 复查 → claim → paid\_slot → emit}};
+\node[mach, minimum width=3.1cm, minimum height=0.95cm] (emit) at (10.85,-2.75)
+  {emit() 唯一写径\\[-2pt]{\scriptsize flock · 整行 write · fsync}};
+\draw[flow] (spec.east) -- (kern.west);
+\draw[flow] (kern.east) -- (emit.west);
+
+% emit 扇出：热尾 + run 分片（双写）
+\draw[flow] (9.9,-3.22) |- (-0.4,-3.45) |- (0.25,-5.62);
+\draw[flow] (11.3,-3.22) |- (10.15,-3.68) |- (10.65,-5.62);
+\node[lab, anchor=west] at (11.5,-3.52) {emit 双写：热尾 + run 分片};
+
+% harvest 驱动（控制面，虚线）
+\draw[ctl] (8.0,-3.22) |- (15.35,-3.86) |- (15.9,-5.62);
+\node[lab, fill=white] at (12.6,-3.86) {harvest 驱动 · 两阶段提交};
+
+% ===================== 四区面板 =====================
+\begin{scope}[on background layer]
+\draw[fill=mviolet!8,  draw=mviolet!55, rounded corners=3pt]
+  (0,-4.2) rectangle (4.6,-9.4);
+\draw[fill=morange!9,  draw=morange!55, rounded corners=3pt]
+  (5.2,-4.2) rectangle (9.8,-9.4);
+\draw[fill=mteal!8,    draw=mteal!55,   rounded corners=3pt]
+  (10.4,-4.2) rectangle (15.0,-9.4);
+\draw[fill=mcoral!8,   draw=mcoral!55,  rounded corners=3pt]
+  (15.6,-4.2) rectangle (20.2,-9.4);
+\end{scope}
+
+% ---- ledger/ ----
+\node[ptit, text=mviolet!85] at (0.25,-4.32)
+  {ledger/ · 账\\{\mdseries\scriptsize 唯一事实源}};
+\node[ib, draw=mviolet!55, minimum width=4.1cm, minimum height=0.5cm]
+  (evj) at (2.3,-5.62) {events.jsonl 热尾};
+\node[ib, draw=mviolet!55, minimum width=4.1cm, minimum height=0.68cm]
+  (sld) at (2.3,-6.78) {sealed/*.jsonl(.zst)\\[-2pt]seals.jsonl 哈希链};
+\node[ib, draw=mviolet!55, fill=mviolet!16, minimum width=4.1cm,
+      minimum height=0.68cm]
+  (idx) at (2.3,-8.0) {index.sqlite 派生投影\\[-2pt]回放 sealed+热尾 · 可弃重建};
+\draw[flow] (evj.south) -- (sld.north);
+\node[lab, anchor=west] at (2.45,-6.2) {seal：>256MB $\vee$ 30d};
+\draw[flow] (sld.south) -- (idx.north);
+\node[lab, anchor=west] at (2.45,-7.42) {zst 验 · 回放};
+\node[pnote] at (0.3,-8.75) {quarantine · runs.jsonl · locks/};
+\node[pnote] at (0.3,-9.15) {seal\_gc：zst验 $\wedge$ index水位 $\wedge$ 7d};
+
+% ---- lake/ ----
+\node[ptit, text=morange!80] at (5.45,-4.32)
+  {lake/ · 湖\\{\mdseries\scriptsize 免费载荷 · 可再生}};
+\node[ib, draw=morange!60, minimum width=4.1cm, minimum height=0.5cm]
+  (lkc) at (7.5,-5.62) {corpus/\{src\}/\{safe\_id\}/ 载荷};
+\node[pnote] at (5.45,-6.3)  {catalog.jsonl 状态机};
+\node[pnote] at (5.45,-6.85) {skeleton→hydrated$\rightleftarrows$pinned};
+\node[pnote] at (5.45,-7.4)  {durable/ · cache/ · tmp/};
+\node[pnote] at (5.45,-7.95) {可驱逐 · 损坏即弃 · 可重抓};
+
+% ---- runs/ ----
+\node[ptit, text=mteal!85] at (10.65,-4.32)
+  {runs/ · 执行档案\\{\mdseries\scriptsize run\_id=(kind,date,slug)}};
+\node[ib, draw=mteal!60, minimum width=4.1cm, minimum height=0.5cm]
+  (shd) at (12.7,-5.62) {events.jsonl 分片（双写）};
+\node[pnote] at (10.65,-6.35) {spec · plan · cases · report · heartbeat};
+\node[pnote] at (10.65,-6.9)  {work/\{safe\_id\}/ · derived/ 工作树};
+\node[pnote] at (10.65,-7.45) {run.lock · 心跳闸 → zombie 判定};
+
+% ---- vault/ ----
+\node[ptit, text=mcoral!85] at (15.85,-4.32)
+  {vault/ · 保险库\\{\mdseries\scriptsize 付费字节 · 不可再生}};
+\node[ib, draw=mcoral!60, minimum height=0.5cm, inner sep=3pt]
+  (stg) at (16.42,-5.62) {.staging};
+\node[ib, draw=mcoral!60, minimum height=0.5cm, inner sep=3pt]
+  (mta) at (17.72,-5.62) {meta/*.json};
+\node[ib, draw=mcoral!60, minimum height=0.5cm, inner sep=3pt]
+  (mfst) at (19.25,-5.62) {manifest};
+\draw[flow] (stg.east) -- (mta.west);
+\draw[flow] (mta.east) -- (mfst.west);
+\node[pnote] at (15.85,-6.3)  {同卷 rename → meta → manifest};
+\node[pnote] at (15.85,-6.85) {zh/ · splice/ · state/ 字节树};
+\node[pnote] at (15.85,-7.4)  {pending→primary|quar|alt};
+\node[pnote] at (15.85,-7.95) {tombstone 事件 = 封存删除};
+
+% 区际字节流
+\draw[flow] (9.8,-6.5) -- (10.4,-6.5);
+\node[lab, rotate=90] at (10.1,-6.5) {水化};
+\draw[flow] (15.0,-6.5) -- (15.6,-6.5);
+\node[lab, rotate=90] at (15.3,-6.5) {字节};
+
+% ===================== 读通道：快照证据 → oracle =====================
+\draw[black!55, line width=0.7pt]
+  (idx.east) -- (4.9,-8.0) |- (7.7,-9.75);
+\draw[black!55, line width=0.7pt]
+  (mfst.east) -- (20.0,-5.62) |- (7.7,-9.75);
+\fill[black!55] (7.7,-9.75) circle (1.4pt);
+\draw[flow] (7.7,-9.75) -- (7.7,-10.33);
+\node[lab, anchor=east] at (4.75,-9.55) {index 投影};
+\node[lab, anchor=east] at (19.85,-9.55) {manifest 尾};
+\node[lab, anchor=east] at (7.55,-10.05) {snapshot};
+
+% ===================== 裁决行 =====================
+\node[mach, minimum width=4.6cm, minimum height=1.0cm] (ora) at (7.7,-10.85)
+  {DedupOracle\\[-2pt]
+   {\scriptsize snapshot(index+manifest+pool+flock)}};
+\draw[flow] (ora.east) -- (10.4,-10.85);
+\node[lab] at (10.15,-10.52) {\tiny check()};
+
+\node[chip, draw=mgray!55,   fill=mgray!14]   at (11.33,-10.85)
+  {unsealed\\[-2pt]拒·未追平};
+\node[chip, draw=mviolet!55, fill=mviolet!18] at (13.31,-10.85)
+  {claimed\\[-2pt]跳·活租约};
+\node[chip, draw=mviolet!60, fill=mviolet!32] at (15.29,-10.85)
+  {verified\\[-2pt]复用·字节在};
+\node[chip, draw=morange!60, fill=morange!24] at (17.27,-10.85)
+  {missing\\[-2pt]门·须regen};
+\node[chip, draw=mteal!60,   fill=mteal!24]   at (19.25,-10.85)
+  {absent\\[-2pt]放·才付费};
+
+% gate 回授：仅 absent 放行
+\draw[flow] (20.18,-10.85) -- (20.75,-10.85) |- (6.5,-1.95)
+            -- (6.5,-2.28);
+\node[lab, anchor=north] at (15.0,-1.98) {gate：仅 absent 放行付费 cell};
+
+% ===================== 边界与维护行 =====================
+\node[mach, minimum width=3.4cm, minimum height=1.1cm] (imp) at (1.7,-12.7)
+  {importer\\[-2pt]
+   {\scriptsize bench.db · zh-store · jsonl}\\[-2pt]
+   {\scriptsize → redact + canon}};
+\node[mach, minimum width=3.9cm, minimum height=1.1cm] (exp) at (5.85,-12.7)
+  {exporter\\[-2pt]{\scriptsize index · run 分片 → legacy 面}};
+\node[mach, dashed, minimum width=6.0cm, minimum height=1.1cm]
+  (swp) at (11.2,-12.7)
+  {sweep 收割者\\[-2pt]
+   {\scriptsize 轻档：僵尸·claim \; 全档：+meta·孤儿·permafail·封存}};
+\node[mach, dashed, minimum width=5.0cm, minimum height=1.1cm]
+  (doc) at (17.7,-12.7)
+  {doctor · fsck\\[-2pt]{\scriptsize 只读断言对账 · 坏件 → quarantine}};
+
+\draw[flow] ([xshift=-1.1cm]imp.north) -- (0.6,-9.4);
+\node[lab, anchor=west] at (0.75,-10.9) {导入};
+\draw[flow] (5.1,-9.75) -- ([xshift=-0.75cm]exp.north);
+\node[lab, anchor=east] at (4.95,-11.35) {导出};
+
+% ===================== 底部含义框 =====================
+\node[draw=mgray!35, fill=mgray!5, rounded corners=3pt, anchor=north west,
+      text width=19.4cm, align=left, inner sep=8pt] at (0,-13.6) {%
+  \textbf{轴}\; 四区按再生成本分层：lake 免费可重抓 → runs 执行档案可弃
+    → ledger 账唯一事实 → vault 付费不可再生；寿命轴：热尾 → 封存段
+    → gc（7d $\wedge$ zst验 $\wedge$ index 水位）\\[3pt]
+  \textbf{对象}\; 事件=唯一事实（id/idc 双列）· index=可弃投影 ·
+    run\_id=(kind,date,slug) 路径物化 · 字节分 paid(vault)/free(lake) 两户\\[3pt]
+  \textbf{机制}\; emit=锁内整行 write+fsync+分片双写 ·
+    harvest 两阶段 .staging→meta→manifest ·
+    oracle 五值 fail-closed——不确定即不花钱};
+
+\node[font=\scriptsize, text=mgray!80] at (10.1,-16.35)
+  {trizone-ledger v2 内核架构：事件账唯一事实 · 字节按再生成本分区 ·
+   付费格 fail-closed 裁决};
+
+\end{tikzpicture}
+\end{document}

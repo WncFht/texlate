@@ -280,7 +280,7 @@ SolidJS + Vite + TypeScript + vitest + eslint（`eslint-plugin-solid`）；独�
 
 ## 6. `tests/`
 
-350+ 个 `test_*.py`；共享件 `conftest.py`（env 清洗——`TEXLATE_` 前缀全扫 + 外部 key 名单、fake engine/fetcher、client 工厂；autouse 仅术语表钉缺席与 `RedactFilter` 还原两件无副作用隔离件）、`_fuzzkit.py`（fuzz 公共骨架：种子 RNG/汤表驱动/xfail 缺陷钉/findings 台账）、`_workerkit.py`（`PipelineWorker` 段级直调 harness）、`fixtures/`（真 xelatex log 实物）。守卫方式：`pyproject.toml` 注册 `slow`（corpus/重产物数据）与 `integration`（外部工具/网络/真进程）两个 pytest 标记，用例级 `pytest.mark.skipif` + `shutil.which`（node/xelatex/kpsewhich/babeldoc 缺席即跳）+ env 闸（`TEXLATE_LIVE`/`TEXLATE_API_KEY` 等真网关用例）——干净 clone 全绿。pytest 配置：`testpaths=["tests"]`、`pythonpath=["bench/py"]`（`triage`/`rundiff`/`benchlib` 供 `test_bench_*` 直接 import）、`norecursedirs` 划掉 bench/web/tmp/node_modules。
+350+ 个 `test_*.py`；共享件 `conftest.py`（env 清洗——`TEXLATE_` 前缀全扫 + 外部 key 名单、fake engine/fetcher、client 工厂；autouse 仅术语表钉缺席与 `RedactFilter` 还原两件无副作用隔离件）、`_fuzzkit.py`（fuzz 公共骨架：种子 RNG/汤表驱动/xfail 缺陷钉/findings 台账）、`_workerkit.py`（`PipelineWorker` 段级直调 harness）、`fixtures/`（真 xelatex log 实物）。守卫方式：`pyproject.toml` 注册 `slow`（corpus/重产物数据）与 `integration`（外部工具/网络/真进程）两个 pytest 标记，用例级 `pytest.mark.skipif` + `shutil.which`（node/xelatex/kpsewhich/babeldoc 缺席即跳）+ env 闸（`TEXLATE_LIVE`/`TEXLATE_API_KEY` 等真网关用例）——干净 clone 全绿。pytest 配置：`testpaths=["tests"]`、`pythonpath=["bench/py"]`（`triage`/`rundiff`/`benchlib` 供 `test_bench_*` 直接 import）、`norecursedirs` 划掉 bench/web/tmp/node_modules。`tests/kernel/` 是 trizone-ledger bench 内核的专属套件（conftest `broot` 夹具给每例隔离 `$TEXLATE_BENCH_ROOT`；`from kernel import …` 经 `pythonpath=["bench/py"]` 直引；`test_contracts.py`/`test_adversarial_fixes.py`/`test_integration.py` 是 Wave-D 对抗验证的钉案层）——2026-09-22 收口时 546 例通过 / 2 例按设计跳过。
 
 ## 7. `bench/`
 
@@ -289,12 +289,13 @@ SolidJS + Vite + TypeScript + vitest + eslint（`eslint-plugin-solid`）；独�
 | 路径 | 角色 |
 | --- | --- |
 | `py/` | python 侧评测与批量管线：`stagerun.py`（分阶段 DAG 批量驱动——ingest/parse/xlat/compile/fixloop 子命令 + append 式 records jsonl + `work/{id}/` 产物树 + 按 (id, arm, upstream) resume）、`parsebench.py`（`texlate.latex` 产品管线评测器 v2）、`compilebench_v3.py`/`e2e_mock_bench.py`/`e2e_real_bench.py`/`fixloop_bench.py`/`validbench.py`/`alignbench.py`/`gullet_bench.py`/`qualbench.py`/`translators_bench.py`/`wrapfloat_bench.py` 等评测器、`gate_scorecard.py`/`triage.py`/`rundiff.py`/`status_panel.py`/`wave.py`（判分/归因/看板/波段编排）、`corpus/`（语料管线：`build_corpus_{v2,v3,m1k,layers,expand,sw}` + `build_hot_layer`）、`iclr_*`（ICLR PDF 研究臂）、`runbook_loop.md`（L3 操作单）、`report/`、`.venv_babeldoc/`（babeldoc 对照专用 venv，gitignored） |
+| `py/kernel/` | trizone-ledger v2 bench 内核（设计 `docs/dev/bench-redesign-v2-trizone.md`，架构图 `docs/dev/assets/trizone-arch.svg`）：25 模块——基础件 `idnorm/locks/fsutil/cas`，账本 `ledger`（emit/seal/seal_gc）+ `index`（sqlite 可弃投影回放），三区件 `runs/vault/lake`，付费闸 `dedup/claims/paid`，维护 `sweep/doctor`，边界 `importer/exporter`，运行径 `spec/ctx/executors/kernel` 与 `cli.py` 全动词入口；规格库 `bench/py/specs/`；测试 `tests/kernel/`（2026-09-22 Wave-D 收口，全量重建未启动） |
 | `ts/` | js 侧对照评测：latex-utensils/unified-latex/tree-sitter-latex（独立 `package.json`，CommonJS，`npm ci` 装依赖；L1 校验件也可经 `TEXLATE_TS_NODE_PATH` 吃这里 node_modules） |
 | `fixtures/` | 陷阱构造 `.tex`：`% @Tnn`/`@Wnn`/`@Xn` 标记，逐字节即语义——不格式化、不润色 |
 | `corpus_v3/` | 主语料物理根（规划目标名；磁盘与 git index 上仍是合一的 `corpus/`，拆分未登记）：~14k 篇 arXiv e-print 解压原样（gitignored），入库层化 manifest（core 1000 / booster 200 / expand 3866 / hot 166 / `manifest_dev_{failmine,vol,recent}` 开发层 / `manifest_holdout` 留出评测层）+ `mechanisms.jsonl` 机制台账 + `MANIFEST.md` 口径文档 + `nominations/` 提名审计轨迹 |
 | `corpus_m1k/` | m1k 四层语料的独立 manifest 根（规划目标名，磁盘/index 尚不存在） |
 | `corpus_v2/` | v2 分层随机语料 manifest + 构建脚本（规划目标名，磁盘/index 尚不存在） |
-| `corpus_daily/` | soak 滚动窗口语料（每日增删，独立生命周期，不并入主库） |
+| `corpus_daily/` | soak 滚动窗口语料——日更链 2026-09-21 退役（timer/脚本/daily_arxiv.py 已删），目录废弃留盘勿重建 |
 | `corpus_iclr_pdf/` | ICLR PDF 产物库（非 e-print 树） |
 | `zh-store/` | real 臂 LLM 译文资产库：`{canon_id}/{zh,splice,provenance.json}` 不可再生；`_quarantine/` 是已译非 clean 格隔离区（付费字节保留供日后免费重试），`_alt/` 是同 id 重译落选副本 |
 | `archive-2026-09-20/` | results 归零前的账本镜像与审计留痕（数据 gitignored，README 入库） |
@@ -325,6 +326,7 @@ CI（`.github/workflows/ci.yml`）八 job 与本地同源：`format`（prettier 
 | 数据目录 | `TEXLATE_DATA_DIR` 或家目录下 `.texlate/` | `texlate.db`（SQLite 任务库）、`tasks/`（任务工作树）、`tmp/upload-spool`（上传暂存）、`settings.json`（0600，BYOK）、`service.lock`（单实例锁）、`logs/texlate.log`（轮转日志） |
 | 共享包目录 | `TEXLATE_SHARE_DIR`（缺省在数据目录下） | `.share.zip` 共享包导入/发布暂存 |
 | 编译工作目录 | `mkdtemp`（`run --work-dir`/`--keep` 指定/保留） | normalize/zh/splice 树与编译产物 |
+| bench 根 | `TEXLATE_BENCH_ROOT` 或家目录下 `.local/share/texlate-bench/` | trizone-ledger 内核四区 `ledger/`（事件账+sealed+index）·`runs/`（run 自描述档案）·`vault/`（付费字节）·`lake/`（免费载荷）——必须在 git checkout 之外 |
 
 主要 `TEXLATE_*` env：`TEXLATE_OFFLINE`（零网络）、`TEXLATE_LOG`/`TEXLATE_LOG_FILE`（日志级别/落盘）、`TEXLATE_DATA_DIR`/`TEXLATE_SHARE_DIR`（目录）、`TEXLATE_CACHE_SCOPE`（段缓存 `shared` 跨租户共享 / `per_key` 按凭证分桶）、`TEXLATE_MODE`（local/server 形态）、`TEXLATE_MODEL`/`TEXLATE_BASE_URL`/`TEXLATE_API_KEY`（BYOK env 逃生舱）、`TEXLATE_NO_FIXLOOP`/`TEXLATE_ENV_JUDGE`（修复链开关）、`TEXLATE_COMPILE_TIMEOUT`、`TEXLATE_TS_NODE_PATH`/`TEXLATE_TS_WORKER`（L1 node 侧覆盖）、`TEXLATE_TRANSLATOR`/`TEXLATE_MODEL_PROBE`、`TEXLATE_NO_DOWNLOAD`、`TEXLATE_LIVE`（测试闸）。上游 LLM 网关以 OpenAI 兼容协议对接（方言 auto/openai/anthropic/responses）。
 

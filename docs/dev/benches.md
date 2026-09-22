@@ -4,6 +4,8 @@
 >
 > **状态口径**：`active` = 现役（被引用/有产出）；`one-shot` = 已完成使命、留作复现；`asset` = 数据/文档资产；`broken` = 当前跑不了（注明原因）；`dead` = 已死/被取代。
 > **时效注记**：普查时点另一 lane 正在做语料重拆分（`bench/corpus*` 分库 staged-rename）与 bench 瘦身（`nightwatch.py`、`compilebench_v2.py`、`stage_timing.py`、`bench/py/scratch/` 已在 worktree 删除、未提交）；下文以 † 标注在飞删除件，留档备查。`bench/results/` 于 2026-09-20 归零重建，存活口径见 `bench/RETENTION.md`。
+>
+> **后注（2026-09-22）**：trizone-ledger v2 新内核已落地 `bench/py/kernel/` 25 模块（设计 `bench-redesign-v2-trizone.md`，架构图 `assets/trizone-arch.svg`），日更 soak 链 2026-09-21 退役；下表普查的是旧世界 harness——新内核接管前它们仍是现役面。
 
 ## 总表
 

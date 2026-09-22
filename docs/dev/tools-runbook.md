@@ -27,7 +27,6 @@
 | `agent-links.sh` | 重建 agent 入口软链层（`CLAUDE.md`→`AGENTS.md`、`.claude/skills/`→`.agents/skills/`），clone 后跑一次；目标是实体文件时拒绝覆盖 |
 | `build-web.sh` | web SPA 构建并拷入 `src/texlate/server/static/`（gitignored 产物）；`--no-install` 跳过 `npm ci` |
 | `crossnote-links.sh` | MPE 预览 `.crossnote` 链接层重建（软链 + 硬链混合，编辑器原子保存换 inode 后需重跑） |
-| `daily-soak.sh` | arXiv 日更 soak 全流程编排（枚举→取源→stagerun 五阶段→日报），幂等 + flock 单实例；见 `dev/automation.md` |
 | `demo.sh [id] [--real]` | 端到端冒烟演示：fetch→parse→mock run→pdftotext 验 CJK；`--real` 追加真翻译段 |
 | `dev-smoke.sh [--keep]` | web 前端 e2e 一条龙：起 vite→从 dev 日志解析实际端口（漂移安全）→mock 鉴别→playwright 冒烟→只杀自己进程 |
 | `errsweep.sh` | 错误清扫 agent 启动器：隔离 worktree 上按 runbook 蒸馏修复，flock 单实例；见 `dev/automation.md` |
@@ -95,8 +94,12 @@
 ### 3.5 共享件与子目录
 
 - `benchlib.py` — records jsonl 读写/manifest/编译常量，纯 stdlib 零 IO，系统 python3 与 uv 皆可载。
-- `corpus/` — 语料管线：`build_corpus_v2.py`（分层随机层）、`build_corpus_v3.py`（簇下载→成员扫描→配额抽样 core/booster）、`build_corpus_expand.py`（扩库增量）、`build_corpus_layers.py`（holdout/dev_vol/dev_failmine 层）、`build_corpus_m1k.py`（m1k 四源评测集）、`build_hot_layer.py`（OpenAlex 高引近期 hot 层）、`build_sw_layer.py`（scholarweave 脱水通道 dev_recent）、`daily_arxiv.py`（RSS 日更枚举 + 取源，见 `dev/automation.md`）。
+- `corpus/` — 语料管线：`build_corpus_v2.py`（分层随机层）、`build_corpus_v3.py`（簇下载→成员扫描→配额抽样 core/booster）、`build_corpus_expand.py`（扩库增量）、`build_corpus_layers.py`（holdout/dev_vol/dev_failmine 层）、`build_corpus_m1k.py`（m1k 四源评测集）、`build_hot_layer.py`（OpenAlex 高引近期 hot 层）、`build_sw_layer.py`（scholarweave 脱水通道 dev_recent）。日更链 2026-09-21 退役，`daily_arxiv.py` 已删（见 `dev/automation.md`）。
 - `report/` — 一次性审计/横评/归因脚本（19 件，均含 `sys.path` shim 引顶层 lib）：外部库选型横评（`bench_pylatexenc`/`texsoup_bench`/`texsoup_diverge`/`plastex_bench`/`ieeA_bench`，选型期已结案）、质量评测工具链（`qualanchor`/`qualdrift`/`qualfreeze`/`qualsample`/`qualstats`）、台账与反查（`defect_ledger`/`dossier`/`mech_ids`/`mech_backfill`）、专项探针（`export_realbook`/`extract_l2_fixture`/`l2_attr_probe`/`layout_bench`/`v2_diff`）。
+
+### 3.6 trizone-ledger 内核（`kernel/`）
+
+`kernel/` 是新 bench 内核（设计 `dev/bench-redesign-v2-trizone.md`，架构图 `dev/assets/trizone-arch.svg`），单一 CLI 入口 `PYTHONPATH=bench/py python -m kernel <verb>`（prog 名 `bench`），操作 `$TEXLATE_BENCH_ROOT` 下四区。子命令族：`init / run / plan / status / export / derive / sweep / prune / backup / doctor / fsck / spec`，`vault {verify,restore,adopt,tombstone}`，`ledger {import,ingest,rebuild-index,tail-ingest}`，`lake {status,evict,register}`，`triage/gate/dossier` 是未迁移桩（exit 2）。契约：写命令先跑轻档 sweep；`run`/`plan` 在 `$ROOT/PAUSE` 存在时拒跑；`--detach` 经 `locks.detach_with_lock` 重 exec、付费 spec 强制 `--max-cost`。旧世界 stagerun 族（§3.2）仍是现役评测面，内核接管前两者并存。
 
 ## 4. `bench/ts/` — JS 侧解析库横评
 
@@ -106,6 +109,7 @@
 
 - `web/dev/mock-api.ts` — vite dev 中间件 mock 后端（默认 ON，`VITE_MOCK_API=0` 关）；`/api/health` 回 `version:"mock"` 即 mock/真后端鉴别器；seed 任务覆盖各终态档。
 - `web/scripts/smoke.mjs` — playwright-core e2e 冒烟（首页→提交→进度→阅读器→下载→响应式），自带 `package.json`；`WEB_BASE`/`PW_EXE` 覆盖，截图留 `scripts/shots/`。`guide_probe.mjs`/`guide_shot.mjs` 是一次性截图探针。
+- `web/scripts/cite_verify.mjs` — 引用 UX 行为级实测（hover 卡/Esc/click 跳+split 镜像/nav chip ↩↪/Backspace/触屏 tap/L2 meta/零 console 错，16 断言），打活服 `127.0.0.1:8765` + 真实任务 `t_d7c669e8b3c92149`（`TASK` 可换）。**环境坑**：本机 `/tmp` tmpfs 近满时 chromium `--disable-dev-shm-usage` 共享内存落盘即渲染进程 SIGTRAP（随机 Target crashed）——脚本内置 `TMPDIR=~/.cache/pw-tmp` 根治，新 playwright 脚本照抄此两行；另 `evaluate("string",arg)` 字符串函数不收 arg（静默 undefined），传参必须写真函数。`blender_verify.mjs`/`paper_theme_verify.mjs` 是 PDF 暗色管线的同款实测。
 - 三件套自检：`npx tsc --noEmit && npx eslint . && npx vitest run`。
 
 ## 6. 运维手法沉淀（通用）
