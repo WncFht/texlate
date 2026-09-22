@@ -44,9 +44,9 @@ by run name.
 from __future__ import annotations
 
 import errno
+import hashlib
 import json
 import os
-import re
 import shutil
 import time
 from datetime import UTC, datetime
@@ -73,7 +73,53 @@ def _iso(ts) -> str | None:
     """epoch ts -> ISO-8601 UTC; anything else -> None."""
     if isinstance(ts, bool) or not isinstance(ts, (int, float)):
         return None
-    return datetime.fromtimestamp(ts, UTC).isoformat()
+    try:
+        return datetime.fromtimestamp(ts, UTC).isoformat()
+    except (OverflowError, ValueError, OSError):
+        return None
+
+
+_SAFE_NAME_CHARS = frozenset(
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-"
+)
+
+
+def _safe_name(s) -> str:
+    """Injective filesystem-safe encoding of a data-controlled name.
+
+    '~' doubles; '/' becomes '--' (the legacy run-dir flatten); a literal
+    '--' becomes '-~' so it can never be mistaken for an encoded slash;
+    every other char outside [A-Za-z0-9._-] encodes as ~<hex>~. The output
+    decodes greedily ('-~' unmerges to '--', '--' back to '/'), so two
+    distinct names can never share one file/dir — the plain '/'
+    ->'--' flatten let 'a/b' and 'a--b' merge, and the '_'-squash before
+    it let 'a b' overwrite 'a_b'. Pure-dot residues ('.', '..') are fully
+    dot-encoded so the result is never a traversal primitive."""
+    s = str(s)
+    out = []
+    i, n = 0, len(s)
+    while i < n:
+        ch = s[i]
+        if ch == "~":
+            out.append("~~")
+        elif ch == "/":
+            out.append("--")
+        elif s.startswith("--", i):
+            out.append("-~")
+            i += 1
+        elif ch in _SAFE_NAME_CHARS:
+            out.append(ch)
+        else:
+            out.append(f"~{ord(ch):x}~")
+        i += 1
+    enc = "".join(out)
+    if not enc:
+        return "~_"  # '~_' is unproducible by the encoder
+    if set(enc) <= {"."}:
+        enc = "~2e~" * len(enc)
+    if len(enc) > 200:
+        enc = enc[:180] + "~h" + hashlib.sha256(enc.encode()).hexdigest()[:12]
+    return enc
 
 
 def _upstream(up) -> str:
@@ -81,21 +127,14 @@ def _upstream(up) -> str:
     return "" if up in _EMPTY else str(up)
 
 
-_BLOB_SHA_RE = re.compile(r"[0-9a-f]{64}")
-
-
 def _unblob(val, blob_dir: Path | None):
-    """Resolve a {"$blob": sha} metrics/errors offload marker back to the
-    payload stored under run derived/blobs/. Marker is kept verbatim when the
-    blob file is unreadable — a projection must not invent data. The sha must
-    be a full lowercase hex digest — anything else would be a path-traversal
-    primitive pointing outside blob_dir."""
-    if not (
-        isinstance(val, dict)
-        and isinstance(val.get("$blob"), str)
-        and _BLOB_SHA_RE.fullmatch(val["$blob"])
-        and blob_dir is not None
-    ):
+    """Resolve a {"$blob": sha, "$bytes": n} metrics/errors offload marker
+    back to the payload stored under run derived/blobs/. Marker is kept
+    verbatim when the blob file is unreadable — a projection must not invent
+    data. Only the strict marker shape resolves: a dict that merely carries
+    a "$blob" key is payload (the sha is a full lowercase hex digest, so the
+    join cannot escape blob_dir either way)."""
+    if not (events.is_blob_marker(val) and blob_dir is not None):
         return val
     p = blob_dir / f"{val['$blob']}.json"
     try:
@@ -164,15 +203,25 @@ def _iter_index_events(index, etype: str, run: str | None = None):
 
 
 def _iter_shard_events(rundir: Path | None, etype: str):
-    """Yield event dicts of one type from a run dir's events.jsonl shard."""
+    """Yield event dicts of one type from a run dir's events.jsonl shard.
+
+    Shard lines are re-validated on read — the shard is dual-written data,
+    not a validated view, so a torn or hand-edited line must not reach the
+    projections (the index mirror it stands in for only holds rows that
+    passed validate() at emit time)."""
     if rundir is None:
         return
     p = rundir / "events.jsonl"
     if not p.is_file():
         return
     for _ln, ev, _raw in events.iter_jsonl(p):
-        if isinstance(ev, dict) and ev.get("type") == etype:
-            yield ev
+        if not isinstance(ev, dict) or ev.get("type") != etype:
+            continue
+        try:
+            events.validate(ev)
+        except events.EventError:
+            continue
+        yield ev
 
 
 def _cell_events(index, info: dict) -> list[dict]:
@@ -355,10 +404,19 @@ def _write_text(path: Path, text: str, files: list) -> None:
 
 def _link_or_copy(src: Path, dst: Path, files: list) -> None:
     """Hardlink src -> dst (same-inode projection); EXDEV falls back to
-    copyfile so cross-volume exports still work."""
+    copyfile so cross-volume exports still work. A pre-existing dst
+    (repeat/retried export) is replaced — the projection owns its tree."""
     dst.parent.mkdir(parents=True, exist_ok=True)
     try:
         os.link(src, dst)
+    except FileExistsError:
+        dst.unlink()
+        try:
+            os.link(src, dst)
+        except OSError as exc:
+            if exc.errno != errno.EXDEV:
+                raise
+            shutil.copyfile(src, dst)
     except OSError as exc:
         if exc.errno != errno.EXDEV:
             raise
@@ -489,14 +547,21 @@ def _export_soak(index, info: dict, out: Path) -> dict:
         else:
             by_stage.setdefault(str(ev.get("stage") or "unknown"), []).append(row)
         n += 1
+    # records/ is projection-owned — drop it wholesale so a re-export can't
+    # leave stage files behind that no longer exist in the source events.
+    recdir = out / "records"
+    if recdir.is_dir():
+        shutil.rmtree(recdir)
     for stage in sorted(by_stage):
-        # stage is data-controlled — never let it join a path verbatim
-        # ('/abs/x' discards the prefix; '../..' escapes the export tree).
-        fname = re.sub(r"[^A-Za-z0-9._-]+", "_", stage) or "unknown"
-        _write_jsonl(out / "records" / f"{fname}.jsonl", by_stage[stage],
-                     files)
+        # stage is data-controlled — injective encode, never a verbatim join
+        # ('/abs/x' discards the prefix; 'a b'/'a_b' must not share a file).
+        _write_jsonl(
+            recdir / f"{_safe_name(stage)}.jsonl", by_stage[stage], files
+        )
     if eval_rows:
         _write_jsonl(out / "eval-records.jsonl", eval_rows, files)
+    else:
+        (out / "eval-records.jsonl").unlink(missing_ok=True)
     _export_cases(index, info, out, files)
     _export_meta(index, info, out, files)
     if rdir is not None:
@@ -518,23 +583,29 @@ def _cond_key(ev: dict) -> str:
     return str(arm) if arm_ok else "-"
 
 
+# Record fields a cond column must never clobber: 'id'/'status' are written
+# by the projection itself, the _CASE_LIFT names by the metrics lift.
+_RESERVED_COLS = frozenset({"id", "status", *_CASE_LIFT})
+
+
 def _cond_keys(evs: list[dict]) -> dict[tuple, str]:
     """(arm, variant) -> column key for one run's event set. Legacy base
-    spellings survive unless several DISTINCT pairs share one base key;
-    colliding pairs alone get a qualified 'arm@var' spelling ('x@-' vs
-    '-@x'), '~'-bumped if even that spelling is already a base key."""
+    spellings survive unless several DISTINCT pairs share one base key OR the
+    key names a reserved record field; those pairs alone get a qualified
+    'arm@var' spelling ('x@-' vs '-@x'), '~'-bumped if even that spelling is
+    already a base key."""
     base2pairs: dict[str, set] = {}
     for ev in evs:
         base2pairs.setdefault(_cond_key(ev), set()).add(
             (ev.get("arm"), ev.get("variant")))
     pair2key: dict[tuple, str] = {}
-    used = set(base2pairs)
+    used = set(base2pairs) | _RESERVED_COLS
     for ev in evs:
         pair = (ev.get("arm"), ev.get("variant"))
         if pair in pair2key:
             continue
         ck = _cond_key(ev)
-        if len(base2pairs[ck]) > 1:
+        if len(base2pairs[ck]) > 1 or ck in _RESERVED_COLS:
             ck = f"{ev.get('arm')}@{ev.get('variant')}"
             while ck in used:
                 ck += "~"
@@ -602,7 +673,7 @@ def _export_e2e(index, info: dict, out: Path) -> dict:
         "| 工程 | main | " + " | ".join(cols) + " |",
         "| --- | --- | " + " | ".join("---" for _ in cols) + " |",
     ]
-    for pid in sorted(cases):
+    for pid in sorted(cases, key=repr):
         r = cases[pid]
         marks = [
             _verdict_mark(r.get(c), statuses.get((pid, c))) for c in cols
@@ -644,6 +715,13 @@ def _export_e2e(index, info: dict, out: Path) -> dict:
 
     if eval_rows:
         _write_jsonl(out / "eval-records.jsonl", eval_rows, files)
+    else:
+        (out / "eval-records.jsonl").unlink(missing_ok=True)
+    # an earlier soak-family export of the same run leaves a records/ dir
+    # behind — e2e owns no per-stage files, so the stale dir must go
+    recdir = out / "records"
+    if recdir.is_dir():
+        shutil.rmtree(recdir)
     _export_cases(index, info, out, files)
     _export_meta(index, info, out, files)
     return {"files": files, "rows": len(recs)}
@@ -656,18 +734,14 @@ def export_run(index, rundir_or_name, out_dir, mode: str = "auto") -> dict:
     """Export one run to out_dir/{run}/ in its legacy family layout.
 
     rundir_or_name: a run dir path (any dir inside runs/{kind}/{date}/{slug})
-    or a run name resolvable via the index runs table. `run` slashes are
-    flattened to "--" for the output dir name. Returns
-    {files: [str...], rows: n, run, family}.
+    or a run name resolvable via the index runs table. The run name is
+    injectively encoded for the output dir ('a/b' and 'a--b' can never
+    merge; '..' can't escape). Returns {files: [str...], rows: n, run,
+    family}.
     """
     info = _resolve(index, rundir_or_name)
     fam = _family(mode, info["kind"])
-    # run is data-controlled — charset-filter, then reject dot-only residues
-    # ('..' with no slash survives the filter and escapes out_dir).
-    safe = re.sub(r"[^A-Za-z0-9._-]+", "_", str(info["run"]).replace("/", "--"))
-    if set(safe) <= {"."}:
-        safe = "_"
-    out = Path(out_dir) / safe
+    out = Path(out_dir) / _safe_name(info["run"])
     out.mkdir(parents=True, exist_ok=True)
     res = _export_e2e(index, info, out) if fam == "e2e" else _export_soak(
         index, info, out

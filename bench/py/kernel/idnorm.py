@@ -68,6 +68,33 @@ _NEW_TO_OLD = {new: old for old, new in ARCHIVE_RENAMED.items()}
 # 'math.qa' both mean math.QA) — minted old archives are all-lowercase.
 _NEW_CANON = {new.lower(): new for new in _NEW_TO_OLD}
 
+# Official mixed-case spellings of arXiv archives — cat.lower() -> the
+# spelling arXiv minted. Lowercase archives need no entry. Without this a
+# lowercase fold mints 'math.gt'/'stat.ml' — spellings arXiv never wrote —
+# and splits one paper across 'math.GT/…' and 'math.gt/…' canon ids.
+_MIXED_ARCHIVES: dict[str, str] = {a.lower(): a for a in (
+    "math.AC", "math.AG", "math.AP", "math.AT", "math.CA", "math.CO",
+    "math.CT", "math.CV", "math.DG", "math.DS", "math.FA", "math.GM",
+    "math.GN", "math.GR", "math.GT", "math.HO", "math.IT", "math.KT",
+    "math.LO", "math.MG", "math.MP", "math.NA", "math.NT", "math.OA",
+    "math.OC", "math.PR", "math.PT", "math.QA", "math.RA", "math.RT",
+    "math.SG", "math.SP", "math.ST",
+    "nlin.AO", "nlin.CD", "nlin.CG", "nlin.PS", "nlin.SI",
+    "cs.AI", "cs.AR", "cs.CC", "cs.CE", "cs.CG", "cs.CL", "cs.CR",
+    "cs.CV", "cs.CY", "cs.DB", "cs.DC", "cs.DL", "cs.DM", "cs.DS",
+    "cs.ET", "cs.FL", "cs.GL", "cs.GR", "cs.GT", "cs.HC", "cs.IR",
+    "cs.IT", "cs.LG", "cs.LO", "cs.MA", "cs.MM", "cs.MS", "cs.NA",
+    "cs.NE", "cs.NI", "cs.OH", "cs.OS", "cs.PF", "cs.PL", "cs.RO",
+    "cs.SC", "cs.SD", "cs.SE", "cs.SI", "cs.SY",
+    "q-bio.BM", "q-bio.CB", "q-bio.GN", "q-bio.MN", "q-bio.NC",
+    "q-bio.OT", "q-bio.PE", "q-bio.QM", "q-bio.SC", "q-bio.TO",
+    "q-fin.CP", "q-fin.EC", "q-fin.GN", "q-fin.MF", "q-fin.PM",
+    "q-fin.PR", "q-fin.RM", "q-fin.ST", "q-fin.TR",
+    "stat.AP", "stat.CO", "stat.ME", "stat.ML", "stat.OT", "stat.TH",
+    "eess.AS", "eess.IV", "eess.SP", "eess.SY",
+    "econ.EM", "econ.GN", "econ.TH",
+)}
+
 # Shape validators. [0-9] not \d — unicode digits must not leak into canon.
 _CAT_RE = re.compile(r"[A-Za-z0-9]+(?:[.-][A-Za-z0-9]+)*")
 _NUM_OLD_RE = re.compile(r"[0-9]{7,8}")  # YYMM(4) + NNN(3..4) — the old
@@ -98,6 +125,10 @@ _DENY_CATS = frozenset(
     }
 )
 _DENY_SUFFIXES = ("-mock", "-fixture", "-test")
+
+# 'arxiv' names the site, never an archive — 'arxiv/0704001' is a phantom
+# minted from a bare number plus a site prefix, not a real old-style id.
+_DENY_CATS = _DENY_CATS | {"arxiv"}
 
 # Sources that prove a bare tail's cat is arXiv-real — required for the
 # |cats|=1 -> ok gate. Ledger/vault/manual rows are untrusted breadth only.
@@ -184,12 +215,22 @@ def _cat_ok(cat: str) -> bool:
 
 
 def _cat_canon(cat: str) -> str:
-    """Canonical archive spelling: minted archives are all-lowercase;
-    renamed archives keep their official mixed-case NEW name ('MATH.QA',
-    'math.qa', 'Math.Qa' all canonicalize to 'math.QA'). Same paper can
-    never split into two canon ids over case."""
+    """Canonical archive spelling: renamed archives keep their official
+    mixed-case NEW name ('MATH.QA', 'math.qa', 'Math.Qa' → 'math.QA');
+    other mixed-case archives keep THEIR minted spelling ('math.gt' →
+    'math.GT'); everything else is already lowercase. Same paper can never
+    split into two canon ids over case."""
     c = cat.lower()
-    return _NEW_CANON.get(c, c)
+    return _NEW_CANON.get(c) or _MIXED_ARCHIVES.get(c) or c
+
+
+def _minted_cat(cat: str) -> str:
+    """The spelling arXiv minted for this cat — for renamed archives that
+    is the OLD name ('math.QA' → 'q-alg'), else the canonical spelling.
+    Registry storage (known/tails/resolutions) always uses this form so a
+    'math.QA/9703043' feed and a 'q-alg/9703043' feed land on one idc."""
+    c = _cat_canon(cat)
+    return _NEW_TO_OLD.get(c, c)
 
 
 def _form_of(t: str) -> tuple | None:
@@ -240,7 +281,8 @@ def parse_ia_member(name: str) -> tuple[str, str | None, str | None] | None:
     if not name:
         return None
     base = name.rsplit("/", 1)[-1].strip()
-    base = base.removeprefix("arXiv-")
+    if base.lower().startswith("arxiv-"):
+        base = base[len("arxiv-"):]
     m = _IA_NEW.match(base)
     if m:
         yymm_nn, ver, ext = m.groups()
@@ -252,7 +294,9 @@ def parse_ia_member(name: str) -> tuple[str, str | None, str | None] | None:
         cat, num, ver, ext = m.groups()
         if _form_of(f"{cat}/{num}") is None:
             return None
-        return f"{_cat_canon(cat)}/{num}", (f"v{ver}" if ver else None), ext
+        # minted spelling — 'arXiv-math.QA9703043.gz' is q-alg/9703043
+        return (f"{_minted_cat(cat)}/{num}",
+                (f"v{ver}" if ver else None), ext)
     return None
 
 
@@ -282,25 +326,30 @@ class PapersRegistry:
 
     def add(self, idc: str, src: str = "manual") -> bool:
         """Register one id. The spelling is normalized first (safe form
-        decoded, vN peeled); non-canon input is ignored. Returns True when
-        the id was accepted."""
+        decoded, vN peeled); non-canon input is ignored. Storage is always
+        the MINTED spelling ('math.QA/9703043' lands as 'q-alg/9703043',
+        'COND-MAT/…' as 'cond-mat/…') so case/spelling variants of one paper
+        share one idc. Returns True when the id was accepted."""
         if not isinstance(idc, str):
             return False
         norm, _ver, _sf = _normalize_token(idc.strip())
         form = _form_of(norm)
         if form is None:
             return False
-        self.known.add(norm)
         if form[0] == "old":
-            cat, num = form[1], form[2]
+            cat, num = _minted_cat(form[1]), form[2]
+            self.known.add(f"{cat}/{num}")
             self.tails.setdefault(num, set()).add(cat)
             self.tail_src.setdefault(num, set()).add(src)
+        else:
+            self.known.add(norm)
         return True
 
     def resolve_tail(self, tail: str, idc: str, src: str = "override") -> bool:
         """Record an explicit tail7 -> idc adjudication. The target must be a
         valid old-style idc whose numeric part IS the tail — a mismatched
-        resolution row is rejected (fail-closed)."""
+        resolution row is rejected (fail-closed). The stored resolution is
+        the minted spelling, keeping canon_id idempotent across aliases."""
         if not isinstance(tail, str) or not _BARE_RE.fullmatch(tail):
             return False
         if not isinstance(idc, str):
@@ -309,17 +358,24 @@ class PapersRegistry:
         form = _form_of(norm)
         if form is None or form[0] != "old" or form[2] != tail:
             return False
-        self.resolutions[tail] = norm
-        self.add(norm, src=src)
+        canon = f"{_minted_cat(form[1])}/{form[2]}"
+        self.resolutions[tail] = canon
+        self.add(canon, src=src)
         return True
 
     # -- queries -----------------------------------------------------------------
 
     def has(self, idc: str) -> bool:
-        """Membership check, tolerant of safe-form/versioned spellings."""
+        """Membership check, tolerant of safe-form/versioned/alias
+        spellings — 'math.QA/9703043' matches a stored 'q-alg/9703043'."""
         if not isinstance(idc, str):
             return False
         norm, _ver, _sf = _normalize_token(idc.strip())
+        form = _form_of(norm)
+        if form is None:
+            return norm in self.known
+        if form[0] == "old":
+            return f"{_minted_cat(form[1])}/{form[2]}" in self.known
         return norm in self.known
 
     def cats_for_tail(self, tail7: str) -> set[str]:

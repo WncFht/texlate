@@ -337,14 +337,29 @@ def _ensure_import_run(index, run_name: str, *, date: str, slug: str,
     rdir = paths.run_dir("import", date, slug)
     if index is not None:
         row = index.conn.execute(
-            "SELECT run_seq FROM runs WHERE run=?", (run_name,)
+            "SELECT run_seq, kind, date, slug FROM runs WHERE run=?",
+            (run_name,),
         ).fetchone()
         if row is not None:
+            # rebuild the shard dir from the MINTED (kind,date,slug) — a
+            # re-import after the source's date moved must land in the
+            # run's original shard, not split events across two dirs.
+            if all(isinstance(row[k], str) for k in ("kind", "date", "slug")):
+                rdir = paths.run_dir(row["kind"], row["date"], row["slug"])
             return int(row["run_seq"]), rdir, False, None
     # Ledger-side recovery: the shard exists => a previous mint happened
     # (e.g. a crash between mint and index-apply). Reuse, never re-mint.
+    # Gate on the run_registered SHAPE — a shard whose first line is a
+    # stray cell event (torn rr write, reused dir) must not crash on a
+    # missing run_seq or bind the wrong run's identity.
     rr = _first_shard_event(rdir)
-    if rr is not None and rr.get("run") == run_name:
+    if (
+        rr is not None
+        and rr.get("type") == events.T_RUN_REGISTERED
+        and rr.get("run") == run_name
+        and isinstance(rr.get("run_seq"), int)
+        and not isinstance(rr.get("run_seq"), bool)
+    ):
         return int(rr["run_seq"]), rdir, False, rr
     if dry:
         return -1, rdir, False, None
@@ -463,7 +478,9 @@ def _norm_jsonl_row(row: dict, *, fname: str, file_ts: float,
         "stage": stage,
         "status": row.get("status"),
         "dur_s": row.get("dur_s") or row.get("seconds"),
-        "eval": fname == "eval-records.jsonl" or bool(row.get("eval")),
+        "eval": fname == "eval-records.jsonl"
+        or row.get("eval") in (True, 1),  # strict: "false"/"0" strings are
+        # not eval flags — bool() on a data field misroutes the row
         "metrics": row.get("metrics") if "metrics" in row else row,
         "errors": row.get("errors"),
         "sig": row.get("sig"),
@@ -551,6 +568,17 @@ def _rec_to_event(rec: dict, *, run_name: str, run_seq: int,
         if not raw_res.ok or raw_res.idc != res.idc:
             drift = raw_res.idc if raw_res.ok else str(id_raw)
 
+    def _num_field(v):
+        """Numeric event fields (dur_s/queue_wait_s): a float can smuggle
+        the key substring (240127.0), and any non-numeric value drops out
+        here rather than tripping schema-quarantine for the whole row."""
+        if isinstance(v, bool) or not isinstance(v, (int, float)):
+            return None
+        if _KEY_SUBSTR in repr(v):
+            stats["redacted"] += 1
+            return None
+        return v
+
     ev = {
         "type": events.T_CELL,
         "v": events.SCHEMA_V,
@@ -565,7 +593,7 @@ def _rec_to_event(rec: dict, *, run_name: str, run_seq: int,
         "variant": vocab["variant"],
         "stage": vocab["stage"],
         "status": status,
-        "dur_s": rec.get("dur_s"),
+        "dur_s": _num_field(rec.get("dur_s")),
         "metrics": metrics,
         "errors": errors,
         "sig": sig,
@@ -577,8 +605,13 @@ def _rec_to_event(rec: dict, *, run_name: str, run_seq: int,
         ev["canon_drift_of"] = drift
     if rec.get("eval"):
         ev["eval"] = 1
-    if rec.get("queue_wait_s") is not None:
-        ev["queue_wait_s"] = rec["queue_wait_s"]
+    qw = rec.get("queue_wait_s")
+    if isinstance(qw, str):
+        qw, nqw = redact(qw)
+        stats["redacted"] += nqw
+    qw = _num_field(qw)
+    if qw is not None:
+        ev["queue_wait_s"] = qw
     try:
         events.validate(ev)
     except events.EventError as exc:
@@ -604,13 +637,20 @@ def _rec_to_event(rec: dict, *, run_name: str, run_seq: int,
 def _preferred_last(group: list, paid: bool):
     """The event that must land LAST for a conservative projection.
 
-    paid arm -> done-ish terminal (ok|partial|clean) protects quota;
+    paid arm -> done-ish terminal (ok|partial|clean) protects quota; with
+    none, a negative terminal (fail|fault|…) still protects it — falling
+    back to a RETRIABLE row would rerun a paid cell and burn quota.
     free -> retriable (skip|error) prefers rerun, else a negative
-    terminal (fail|fault|reject|dirty_pdf) over a positive one.
+    terminal over a positive one.
     """
     if paid:
         cand = [e for e in group if e.get("status") in _DONE_ISH]
-        return cand[-1] if cand else group[-1]
+        if cand:
+            return cand[-1]
+        cand = [e for e in group if e.get("status") in _NEG_TERM]
+        if cand:
+            return cand[-1]
+        return group[-1]
     cand = [e for e in group if e.get("status") in events.STATUS_RETRIABLE]
     if cand:
         return cand[-1]
@@ -640,17 +680,19 @@ def _resolve_order(evs: list, *, run_name: str, src: str, stats: dict,
             paid = k[1] in PAID_ARMS
             pref = _preferred_last(g, paid)
             g = [e for e in g if e is not pref] + [pref]
-            quar.append({
+            quar_row, n_red = redact({
                 "type": "import_order_sensitive",
                 "src": src,
                 "run": run_name,
                 "idc": k[0], "arm": k[1], "up": k[2],
                 "variant": k[3], "stage": k[4],
                 "n": len(g),
-                "statuses": sorted(set(statuses)),
+                "statuses": sorted(set(statuses), key=repr),
                 "chosen": pref.get("status"),
                 "paid": paid,
             })
+            stats["redacted"] += n_red
+            quar.append(quar_row)
             stats["order_sensitive"] += 1
         out.extend(g)
     return out
@@ -1054,18 +1096,24 @@ def import_zhstore(manifest_path, bytes_root, index, registry=None,
     for _ln, row, raw in iter_jsonl(manifest_path):
         stats["rows"] += 1
         if row is None:
+            payload, n_red = redact(raw)
+            stats["redacted"] += n_red
             quar.append({
                 "type": "import_quarantine", "src": "zhstore",
                 "run": run_name, "reason": "bad_line",
+                "payload": payload,
                 "dedup_sha": _sha(raw), "ts": file_ts,
             })
             stats["quarantined"] += 1
             stats["bad_lines"] += 1
             continue
         if not isinstance(row, dict):
+            payload, n_red = redact(row)
+            stats["redacted"] += n_red
             quar.append({
                 "type": "import_quarantine", "src": "zhstore",
                 "run": run_name, "reason": "non_object",
+                "payload": payload,
                 "dedup_sha": _sha(raw), "ts": file_ts,
             })
             stats["quarantined"] += 1
@@ -1109,7 +1157,20 @@ def import_zhstore(manifest_path, bytes_root, index, registry=None,
             quar.append(quar_row)
             stats["quarantined"] += 1
             continue
-        arm = str(row.get("arm") or "-")
+        def _clean(v, default: str) -> str:
+            """Manifest string fields are data-controlled — a secret in
+            arm/model/source_run must not reach the ledger verbatim."""
+            s = str(v) if v is not None else default
+            if isinstance(s, str) and _scalar_secret(s):
+                stats["redacted"] += 1
+                s = _redact_str(s)
+            return s
+
+        arm = _clean(row.get("arm"), "-")
+        model = _clean(row.get("model"), "")
+        source_run = _clean(row.get("source_run"), "")
+        altseq = _clean(row.get("altseq"), "0")
+        id_clean = _clean(id_raw, str(id_raw)) if id_raw is not None else None
         base = None
         for cand in _zh_dir_candidates(bytes_root, row, idc):
             if cand.is_dir():
@@ -1137,7 +1198,7 @@ def import_zhstore(manifest_path, bytes_root, index, registry=None,
                     "run": run_name,
                     "run_seq": run_seq,
                     "seq": next_seq(),
-                    "id": id_raw,
+                    "id": id_clean,
                     "idc": idc,
                     "arm": arm,
                     "variant": "-",
@@ -1148,9 +1209,9 @@ def import_zhstore(manifest_path, bytes_root, index, registry=None,
                     "state": "verified",
                     "zone": zone,
                     "verdict": zone,
-                    "altseq": str(row.get("altseq") or "0"),
-                    "model": row.get("model") or "",
-                    "source_run": row.get("source_run") or "",
+                    "altseq": altseq,
+                    "model": model,
+                    "source_run": source_run,
                     "import_src": "zhstore",
                 })
             else:
@@ -1158,13 +1219,13 @@ def import_zhstore(manifest_path, bytes_root, index, registry=None,
                     "type": events.T_TOMBSTONE,
                     "v": events.SCHEMA_V,
                     "ts": ts,
-                    "id": id_raw,
+                    "id": id_clean,
                     "idc": idc,
                     "arm": arm,
                     "variant": "-",
                     "kind": kind,
                     "reason": "zhstore_declared_missing",
-                    "lost_run": row.get("source_run") or "zhstore",
+                    "lost_run": source_run or "zhstore",
                     "zone": zone,
                     "import_src": "zhstore",
                 })

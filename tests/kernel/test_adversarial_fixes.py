@@ -341,3 +341,143 @@ def test_rec_to_event_redacts_vocab_but_keeps_event(broot):
     assert ev is not None                     # redacted, not quarantined
     assert ev["arm"].startswith("$redact-")
     assert stats["redacted"] >= 1
+
+
+# -- round-2: exporter collisions/gating + mint shard binding -------------------
+
+
+def _cell_ev(run, seq, stage="s", status="ok", **kw):
+    return events.make_event(
+        events.T_CELL, run=run, seq=seq,
+        id=kw.pop("id", "2101.12345"), idc=kw.pop("idc", "2101.12345"),
+        arm=kw.pop("arm", "a"), up=kw.pop("up", "-"),
+        variant=kw.pop("variant", "-"), stage=stage, status=status, **kw)
+
+
+def test_safe_name_injective():
+    enc = exporter._safe_name
+    # the '/''->'--' flatten let these merge into one dir — now distinct
+    assert enc("a/b") != enc("a--b")
+    # the '_'-squash let these share one stage file — now distinct
+    assert enc("a b") != enc("a_b")
+    assert enc("x/y") != enc("x_y")
+    # dot-only residues are fully encoded, never traversal primitives
+    for dots in (".", "..", "..."):
+        out = enc(dots)
+        assert set(out) - {"."}
+        assert "/" not in out
+    # ordinary spellings pass through byte-identical
+    assert enc("smoke/2026-09-22/s1") == "smoke--2026-09-22--s1"
+    assert enc("xlat") == "xlat"
+    assert enc("a_b") == "a_b"
+
+
+def test_export_all_distinct_dirs_for_flattened_names(broot, tmp_path):
+    idx = Index()
+    for seq, run in ((1, "a/b"), (2, "a--b")):
+        idx.conn.execute(
+            "INSERT INTO runs(run,run_seq,kind,date,slug,spec_hash,ts_start)"
+            " VALUES (?,?,?,?,?,?,0.0)",
+            (run, seq, "soak", "2026-01-01", f"s{seq}", "h"))
+    idx.conn.commit()
+    exporter.export_all(idx, tmp_path / "out")
+    names = {p.name for p in (tmp_path / "out").iterdir()}
+    assert names == {"a--b", "a-~b"}  # 'a/b'->'a--b', 'a--b'->'a-~b'
+
+
+def test_stage_sanitize_collision_writes_two_files(broot, tmp_path):
+    idx = Index()
+    idx.conn.execute(
+        "INSERT INTO runs(run,run_seq,kind,date,slug,spec_hash,ts_start)"
+        " VALUES ('r1',1,'soak','2026-01-01','s','h',0.0)")
+    idx.apply_event(_cell_ev("r1", 1, stage="a b"))
+    idx.apply_event(_cell_ev("r1", 2, stage="a_b"))
+    exporter.export_run(idx, "r1", tmp_path / "out")
+    rec_files = sorted((tmp_path / "out" / "r1" / "records").iterdir())
+    assert len(rec_files) == 2
+    total = sum(len(f.read_text().splitlines()) for f in rec_files)
+    assert total == 2  # neither stage's rows silently overwritten
+
+
+def test_unblob_strict_marker_shape(tmp_path):
+    blobs = tmp_path / "blobs"
+    blobs.mkdir()
+    sha = "a" * 64
+    (blobs / f"{sha}.json").write_text('{"injected": true}')
+    # a dict merely CONTAINING "$blob" is payload, not a marker
+    payload = {"$blob": sha, "victim": True}
+    assert exporter._unblob(payload, blobs) is payload
+    # the well-formed marker resolves
+    marker = {"$blob": sha, "$bytes": 17}
+    assert exporter._unblob(marker, blobs) == {"injected": True}
+
+
+def test_iter_shard_events_drops_invalid_lines(tmp_path):
+    rdir = tmp_path / "rd"
+    rdir.mkdir()
+    good = _cell_ev("r1", 1)
+    (rdir / "events.jsonl").write_text(
+        events.dumps(good) + "\n"
+        + '{"type":"cell","status":"ok","arm":"a"}\n'          # missing keys
+        + '{"type":"cell","run":"r1","seq":2,"id":"x","idc":"x",'
+          '"arm":"a","up":"-","variant":"-","stage":"s",'
+          '"status":"bogus-status"}\n')                        # bad status
+    got = list(exporter._iter_shard_events(rdir, events.T_CELL))
+    assert [e["seq"] for e in got] == [1]
+
+
+def test_link_or_copy_repeat_export_no_eexist(tmp_path):
+    src = tmp_path / "src.jsonl"
+    src.write_text("{}\n")
+    files: list = []
+    exporter._link_or_copy(src, tmp_path / "d" / "f.jsonl", files)
+    exporter._link_or_copy(src, tmp_path / "d" / "f.jsonl", files)
+    assert (tmp_path / "d" / "f.jsonl").read_text() == "{}\n"
+
+
+def test_cond_keys_reserved_fields_qualified():
+    evs = [{"arm": "id", "variant": "-"},
+           {"arm": "status", "variant": "-"},
+           {"arm": "main", "variant": "-"},
+           {"arm": "zh", "variant": "-"}]
+    keys = exporter._cond_keys(evs)
+    for ck in keys.values():
+        assert ck not in {"id", "status", "main", "route", "layer"}
+    assert keys[("zh", "-")] == "zh"  # untouched legacy spelling
+
+
+def test_mint_run_seq_refuses_shared_triple(broot):
+    ledger.mint_run_seq("r-one", "soak", "2026-01-01", "s", "h")
+    with pytest.raises(events.EventError):
+        ledger.mint_run_seq("r-two", "soak", "2026-01-01", "s", "h")
+
+
+def test_iso_extreme_ts_returns_none():
+    assert exporter._iso(1e20) is None
+    assert exporter._iso(float("inf")) is None
+    assert exporter._iso(float("nan")) is None
+    assert exporter._iso(0) is not None
+
+
+def test_reexport_drops_stale_stage_and_eval_files(broot, tmp_path):
+    idx = Index()
+    idx.conn.execute(
+        "INSERT INTO runs(run,run_seq,kind,date,slug,spec_hash,ts_start)"
+        " VALUES ('r1',1,'soak','2026-01-01','s','h',0.0)")
+    out_dir = tmp_path / "out"
+    idx.apply_event(_cell_ev("r1", 1, stage="old"))
+    ev = _cell_ev("r1", 2, stage="judge")
+    ev["eval"] = 1
+    idx.apply_event(ev)
+    exporter.export_run(idx, "r1", out_dir)
+    rdir = out_dir / "r1"
+    assert (rdir / "records" / "old.jsonl").is_file()
+    assert (rdir / "eval-records.jsonl").is_file()
+    # the source events lose the 'old' stage and the eval row; re-export
+    # into the same dir must not leave either behind
+    idx.conn.execute("DELETE FROM events")
+    idx.apply_event(_cell_ev("r1", 3, stage="new"))
+    exporter.export_run(idx, "r1", out_dir)
+    assert (rdir / "records" / "new.jsonl").is_file()
+    assert not (rdir / "records" / "old.jsonl").exists()
+    assert not (rdir / "eval-records.jsonl").exists()

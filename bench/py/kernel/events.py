@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import time
 from pathlib import Path
 
@@ -132,6 +133,43 @@ def _type_ok(v, *types) -> bool:
     return v is None or (isinstance(v, types) and not isinstance(v, bool))
 
 
+# Required string fields per type — a structural field that is present but
+# the wrong type (run=None, id=42, arm=["x"]) is as corrupting as a missing
+# one: projections key on them.
+_STR_REQ: dict[str, tuple[str, ...]] = {
+    T_RUN_REGISTERED: ("run", "kind", "date", "slug", "spec_hash"),
+    T_CELL_QUEUED: ("run", "id", "idc", "arm", "up", "variant", "stage"),
+    T_CELL_STARTED: ("run", "id", "idc", "arm", "up", "variant", "stage"),
+    T_CELL: ("run", "id", "idc", "arm", "up", "variant", "stage"),
+    T_CLAIM: ("run", "id", "idc", "arm", "variant"),
+    T_ASSET: ("run", "id", "idc", "arm", "variant", "kind", "path", "state"),
+    T_TOMBSTONE: ("id", "idc", "arm", "variant", "kind", "reason"),
+    T_NOTE: ("run", "text"),
+    T_FINISHED: ("run",),
+    T_LAKE_CELL: ("id", "idc", "state"),
+}
+
+# Optional string fields per type (None allowed).
+_STR_OPT: dict[str, tuple[str, ...]] = {
+    T_CELL_STARTED: ("claim_id",),
+    T_CELL: ("sig", "code", "fp"),
+    T_CLAIM: ("slot", "fate"),
+    T_ASSET: ("sha", "zone", "verdict", "model", "source_run", "altseq"),
+    T_TOMBSTONE: ("lost_run", "zone", "source_run"),
+    T_NOTE: ("id", "idc", "arm", "up", "variant", "stage", "kind", "safe_id"),
+    T_LAKE_CELL: ("source",),
+}
+
+# Optional numeric fields (int|float, bool excluded by _type_ok).
+_NUM_OPT: dict[str, tuple[str, ...]] = {
+    T_RUN_REGISTERED: ("ts_start",),
+    T_CELL: ("dur_s",),
+    T_FINISHED: ("cost_usd",),
+    T_ASSET: ("bytes",),
+    T_LAKE_CELL: ("bytes",),
+}
+
+
 def validate(ev: dict) -> None:
     etype = ev.get("type")
     if etype not in EVENT_TYPES:
@@ -149,21 +187,45 @@ def validate(ev: dict) -> None:
     for k in ("seq", "run_seq"):
         if not _type_ok(ev.get(k), int):
             raise EventError(f"{etype} {k} must be int|None: {ev.get(k)!r}")
+    if not _type_ok(ev.get("ts"), int, float):
+        raise EventError(f"{etype} ts must be number|None: {ev.get('ts')!r}")
+    if not _type_ok(ev.get("queue_wait_s"), int, float):
+        raise EventError("queue_wait_s must be number|None")
+    if not _type_ok(ev.get("attempt"), int):
+        raise EventError("attempt must be int|None")
+    for k in ("import_src", "canon_drift_of"):
+        if not _type_ok(ev.get(k), str):
+            raise EventError(f"{etype} {k} must be str|None")
+    at = ev.get("auth_tripped")
+    if at is not None and not isinstance(at, (bool, int)):
+        raise EventError("auth_tripped must be bool|int|None")
+    for k in _STR_REQ[etype]:
+        if not isinstance(ev.get(k), str):
+            raise EventError(f"{etype} {k} must be str: {ev.get(k)!r}")
+    for k in _STR_OPT.get(etype, ()):
+        if not _type_ok(ev.get(k), str):
+            raise EventError(f"{etype} {k} must be str|None")
+    for k in _NUM_OPT.get(etype, ()):
+        if not _type_ok(ev.get(k), int, float):
+            raise EventError(f"{etype} {k} must be number|None")
+    if etype == T_CELL_QUEUED and not _type_ok(ev.get("needs"), list):
+        raise EventError("cell_queued needs must be list|None")
+    if etype == T_FINISHED:
+        if not isinstance(ev.get("wall_s"), (int, float)) \
+                or isinstance(ev.get("wall_s"), bool):
+            raise EventError("finished wall_s must be number")
+        if not isinstance(ev.get("counts"), dict):
+            raise EventError("finished counts must be dict")
+        ao = ev.get("accounting_ok")
+        if ao is not None and not isinstance(ao, (bool, int)):
+            raise EventError("accounting_ok must be bool|int|None")
     if etype == T_CELL:
         if ev.get("status") not in ALL_STATUSES:
             raise EventError(f"unknown cell status {ev.get('status')!r}")
-        for k in ("id", "idc", "arm", "up", "variant", "stage"):
-            if not isinstance(ev.get(k), str):
-                raise EventError(f"cell {k} must be str: {ev.get(k)!r}")
         if not _type_ok(ev.get("metrics"), dict):
             raise EventError("cell metrics must be dict|None")
         if not _type_ok(ev.get("errors"), list):
             raise EventError("cell errors must be list|None")
-        if not _type_ok(ev.get("dur_s"), int, float):
-            raise EventError("cell dur_s must be number|None")
-        for k in ("sig", "code", "fp"):
-            if not _type_ok(ev.get(k), str):
-                raise EventError(f"cell {k} must be str|None")
         cat = ev.get("cat")
         if cat is not None and cat not in CATS:
             raise EventError(f"unknown cell cat {cat!r}")
@@ -192,13 +254,32 @@ def content_hash(ev: dict) -> str:
     return hashlib.sha256(dumps(ev).encode("utf-8")).hexdigest()
 
 
+_BLOB_SHA_RE = re.compile(r"[0-9a-f]{64}")
+
+
+def is_blob_marker(val) -> bool:
+    """Well-formed offload marker — exactly {"$blob": <64-hex>, "$bytes":
+    int}. A dict that merely CONTAINS a "$blob" key is payload, not a
+    marker: letting it pass would keep an attacker-chosen blob reference
+    inline for export to resolve."""
+    return (
+        isinstance(val, dict)
+        and set(val) == {"$blob", "$bytes"}
+        and isinstance(val["$blob"], str)
+        and _BLOB_SHA_RE.fullmatch(val["$blob"]) is not None
+        and isinstance(val["$bytes"], int)
+        and not isinstance(val["$bytes"], bool)
+    )
+
+
 def maybe_offload(ev: dict, blob_dir: Path | None) -> dict:
     """Offload oversized metrics/errors payloads to blob_dir/<sha>.json.
 
     Returns the (possibly rewritten) event. No-op when blob_dir is None or
     payloads are under the threshold. Blobs are content-addressed and the
-    write is atomic — a truncated blob is healed on the next offload, never
-    pinned by a bare exists() check.
+    write is atomic — an existing blob is trusted only after its bytes
+    re-hash to the marker sha, so truncation AND same-size corruption both
+    heal on the next offload.
     """
     if blob_dir is None:
         return ev
@@ -206,7 +287,7 @@ def maybe_offload(ev: dict, blob_dir: Path | None) -> dict:
     ev = dict(ev)
     for field in ("metrics", "errors"):
         val = ev.get(field)
-        if val is None or (isinstance(val, dict) and "$blob" in val):
+        if val is None or is_blob_marker(val):
             continue
         try:
             raw = json.dumps(
@@ -220,11 +301,10 @@ def maybe_offload(ev: dict, blob_dir: Path | None) -> dict:
         blob_dir.mkdir(parents=True, exist_ok=True)
         blob_path = blob_dir / f"{sha}.json"
         try:
-            if blob_path.stat().st_size == len(raw):
-                pass  # intact content-addressed blob — nothing to do
-            else:
-                fsutil.atomic_write(blob_path, raw)  # heal a truncated blob
+            intact = fsutil._sha256_file(blob_path) == sha
         except OSError:
+            intact = False
+        if not intact:
             fsutil.atomic_write(blob_path, raw)
         ev[field] = {"$blob": sha, "$bytes": len(raw)}
     return ev

@@ -45,6 +45,7 @@ if TYPE_CHECKING:
 from kernel import paths
 from kernel.events import (
     T_RUN_REGISTERED,
+    EventError,
     dumps,
     iter_jsonl,
     make_event,
@@ -362,6 +363,20 @@ def mint_run_seq(run: str, kind: str, date: str, slug: str, spec_hash: str) -> i
             ts_start=round(time.time(), 3),
         )
         rdir = paths.run_dir(kind, date, slug)
+        # The (kind,date,slug) triple alone names the run dir — two runs
+        # sharing it would interleave one shard (two run_registered rows,
+        # merged cells/cases/work). Refuse when the shard is already bound:
+        # a run_registered line is the dir's ownership marker.
+        shard = rdir / _RUN_EVENTS_NAME
+        if shard.is_file():
+            for _ln, prev, _raw in iter_jsonl(shard):
+                if isinstance(prev, dict) and prev.get("type") == T_RUN_REGISTERED:
+                    raise EventError(
+                        f"{rdir} shard already bound to run "
+                        f"{prev.get('run')!r} (run_seq="
+                        f"{prev.get('run_seq')!r}) — refusing to share a "
+                        "shard across runs"
+                    )
         _emit_lines_locked([dumps(ev).encode("utf-8") + b"\n"], rdir)
         _fsync_dir(rdir)  # dirent durability for the freshly created run dir
         return n
