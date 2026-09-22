@@ -43,6 +43,8 @@ from pathlib import Path
 
 from kernel import (
     cache as cachemod,
+)
+from kernel import (
     cas,
     events,
     fsutil,
@@ -773,16 +775,25 @@ def _cmd_lake_status(_args) -> int:
     cat = lake.LakeCatalog.load()
     rows = cat.rows()
     tally: dict[str, int] = {}
+    pinned_rows: list[dict] = []
     for r in rows.values():
         st = str(r.get("state", "?"))
         tally[st] = tally.get(st, 0) + 1
+        if lake._pinned(r):
+            pinned_rows.append(r)
     corpus = paths.lake_corpus_dir()
     nbytes = fsutil.dir_size(corpus) if corpus.exists() else 0
+    pin_bytes = 0
+    for r in pinned_rows:
+        d = lake.cell_dir(r["idc"], r.get("source") or "arxiv")
+        if d.is_dir():
+            pin_bytes += fsutil.dir_size(d)
     cap_gb = os.environ.get("TEXLATE_LAKE_CAP_GB", "100")
     print(f"lake: {paths.lake_dir()}")
     print(f"  cells={len(rows)} corpus_bytes={nbytes} cap_gb={cap_gb}")
     for st, n in sorted(tally.items()):
         print(f"  {st:<12} {n}")
+    print(f"  pinned={len(pinned_rows)} pinned_bytes={pin_bytes}")
     try:
         ostat = cas.stat()
     except Exception:
@@ -793,6 +804,36 @@ def _cmd_lake_status(_args) -> int:
             f" files={ostat.get('file', {}).get('n', 0)}"
         )
     return EXIT_OK
+
+
+def _cmd_lake_pin(args, *, unpin: bool = False) -> int:
+    """``bench lake pin|unpin <id>...`` — cell-side PINNED marker + catalog
+    ``pinned`` field; canon 归一 same as the register arm."""
+    _pre_write()
+    verb = "unpin" if unpin else "pin"
+    cat = lake.LakeCatalog.load()
+    bad = 0
+    for raw in args.ids:
+        res = idnorm.canon_id(raw)
+        if not res.ok:
+            _err(f"{verb}: {raw!r} is not canon ({res.state} {res.reason})")
+            bad += 1
+            continue
+        if unpin:
+            row = cat.unpin(res.idc, source=args.source)
+            if row is None:
+                print(f"{res.idc}: not pinned (absent)")
+            else:
+                print(f"unpinned {res.idc}")
+        else:
+            cat.pin(res.idc, source=args.source)
+            print(f"pinned {res.idc} -> "
+                  f"{lake.cell_dir(res.idc, args.source)}")
+    return EXIT_FAIL if bad else EXIT_OK
+
+
+def _cmd_lake_unpin(args) -> int:
+    return _cmd_lake_pin(args, unpin=True)
 
 
 def _cmd_lake_evict(args) -> int:
@@ -1294,7 +1335,34 @@ def _cmd_spec_list(_args) -> int:
     return EXIT_OK
 
 
-# --- analysis-verb stubs --------------------------------------------------------------
+# --- analysis verbs -------------------------------------------------------------------
+
+
+def _lazy_verb(name: str):
+    """Import the module REGISTRY maps ``name`` to; (module, None) or
+    (None, err). Hyphenated verb names share a module leaf."""
+    leaf = _verb_registry().get(name, (name,))[0]
+    try:
+        return importlib.import_module(f"verbs.{leaf}"), None
+    except Exception as exc:
+        return None, exc
+
+
+def _verb_registry() -> dict:
+    """verbs.REGISTRY — pure-data import, safe at parser-build time."""
+    try:
+        return dict(importlib.import_module("verbs").REGISTRY)
+    except Exception:
+        return {}
+
+
+def _cmd_verb(args) -> int:
+    """Generic verb dispatch: lazy-load verbs.<cmd> and call main(args)."""
+    mod, err = _lazy_verb(args.cmd)
+    if mod is None or not hasattr(mod, "main"):
+        _err(f"{args.cmd}: verb not installed ({err or 'no main'})")
+        return EXIT_REFUSED
+    return int(mod.main(args) or 0)
 
 
 def _cmd_not_implemented(args) -> int:
@@ -1421,6 +1489,15 @@ def _build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--manifests", nargs="+", default=None,
                     help="manifest*.jsonl files or dirs to bulk-seed from")
     sp.add_argument("--dry", action="store_true")
+    sp = ksub.add_parser(
+        "pin", help="pin cells against eviction (PINNED marker + "
+                    "catalog pinned field)")
+    sp.add_argument("ids", nargs="+")
+    sp.add_argument("--source", default="arxiv",
+                    help="lake source namespace (default arxiv)")
+    sp = ksub.add_parser("unpin", help="lift a cell's pin")
+    sp.add_argument("ids", nargs="+")
+    sp.add_argument("--source", default="arxiv")
     sp = ksub.add_parser("absorb",
                        help="CAS-ify an on-disk corpus tree into the lake")
     sp.add_argument("--root", required=True,
@@ -1480,8 +1557,11 @@ def _build_parser() -> argparse.ArgumentParser:
     ssub = spp.add_subparsers(dest="ssub", required=True)
     ssub.add_parser("list", help="list bench/py/specs/*.py")
 
-    for name in ("triage", "gate", "dossier"):
-        sub.add_parser(name, help=_NOT_IMPLEMENTED)
+    for vname, (_vleaf, vhelp) in _verb_registry().items():
+        vsp = sub.add_parser(vname, help=vhelp)
+        vmod, _verr = _lazy_verb(vname)
+        if vmod is not None and hasattr(vmod, "add_args"):
+            vmod.add_args(vsp)
 
     return p
 
@@ -1497,9 +1577,13 @@ _DISPATCH = {
     "backup": _cmd_backup,
     "doctor": _cmd_doctor,
     "fsck": _cmd_fsck,
-    "triage": _cmd_not_implemented,
-    "gate": _cmd_not_implemented,
-    "dossier": _cmd_not_implemented,
+    "triage": _cmd_verb,
+    "rundiff": _cmd_verb,
+    "gate": _cmd_verb,
+    "dossier": _cmd_verb,
+    "xlat-report": _cmd_verb,
+    "xlat-rejudge": _cmd_verb,
+    "qual-report": _cmd_verb,
 }
 
 
@@ -1531,6 +1615,8 @@ def main(argv=None) -> int:
             "evict": _cmd_lake_evict,
             "register": _cmd_lake_register,
             "absorb": _cmd_lake_absorb,
+            "pin": _cmd_lake_pin,
+            "unpin": _cmd_lake_unpin,
         }[args.ksub](args)
     if cmd == "cache":
         return {
