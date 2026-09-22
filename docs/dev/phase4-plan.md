@@ -1,0 +1,114 @@
+# Phase 4 实施计划 — spec 全覆盖与清场
+
+> 调研底稿：43-agent 深读普查（2026-09-22,`tmp/phase4-research-20260922/research.json`，逐驱动含 done_today/spec_draft/audit_checklist/denominator 全字段）。本文是裁决与排序；审计细节查底稿。
+
+## 0. 总判定
+
+36 个对象全数裁决：**spec 化 15 件、分析动词 4 件、dual-write 5 件、absorb-lib 2 件、delete 8 件（组）、defer 2 件**。全景与 §5.2 一致，但 critic 补出 9 个漏项与 3 个待驳回的 delete 判定（§6）。
+
+**排序原则**：内核缺口 → 共享件落点 → 生产主线（soak spec）→ 评测器 → 付费评测/e2e → 动词 → corpus/iclr → 文档清场 → 删除单向门。每 spec 独立可验，删除永远最后。
+
+## 1. 内核缺口（阻塞项先行，G 序）
+
+| # | 缺口 | 阻塞谁 | 处置 |
+|---|------|--------|------|
+| G1 | `items()` 零参物化，params 无法影响枚举；`--sel` 只喂 regen 门 | soak（--n/--seed/--ids/--layers）、xlatbench、qualbench、e2e | kernel 长 `items(params)` 或 plan-filter 通道；soak spec 前必须落 |
+| G2 | 评测型付费 `dedup_key` 自声明被 linter 禁（spec.py:603-611 只许资产键），与 §4/§5.2 直接冲突 | xlatbench、qualbench | linter 按 §4 放开评测型键空间 + 审计清单加「dedup_key 与历史 eval_records 键域对拍」 |
+| G3 | lake/cache 只有空目录：无 cache.py、无 ctx.seg_cache、无终态 ok 提交钩子、无逐出/doctor 覆盖、无 vault→cache 重建动词、命中指标口径未定 | stage_xlat、e2e_real（首个付费翻译 spec 前落） | 新建 kernel/cache.py：桶键=file_cache_key 全维（src/texlate/xlat/state.py:71-115 公式复用）、段键=segment_key；写入口径「cell 终态 ok 后才 flush」;hits/misses/stores 经 ctx.emit 进 metrics；修复/校正写手旁路（server compile.py:832 前科——hint 语境不在键里会污染命名空间） |
+| G4 | 无水化钩子：ctx.lake_path/src_path 纯路径返回，spec 无法声明 fetch_fn；§3.10 承诺的 plan 期批量水化+lookahead 未实现 | soak ingest、一切 corpus 消费 spec | ctx.lake_ensure() 或 spec 级 fetch_fn 声明；§3.10.8 编排 |
+| G5 | `gateway_factory` 须 spec 模块自带，无 bench 侧标准 factory helper | 一切付费 spec | kernel 或 specs/_shared 落一个标准 helper（session 懒建+prices/meter 跨 run 共享语义写清） |
+| G6 | 无 run 级聚合/finalize 钩子（needs 是 cell 级行谓词） | xlatbench report、e2e results.json 聚合 | 裁决：聚合落 bench derive/分析动词，内核不加 stage 类型（推荐——聚合=读面） |
+| G7 | `Stage.mutates` 词表 {zh,splice,state} 窄于 ASSET_KINDS（另有 pdf/report） | compile 类驱动产 PDF 的声明 | 语义正确（pdf 可从 vault 字节重派生），维持现状+doc 注记，或扩词表——裁决项 |
+| G8 | `executor='process'` 现态必炸：kernel.py:997 提交的是闭包，ProcessPoolExecutor.map pickle 不过 | parse（CPU 密集唯一可能用户） | 修内核（提交可 pickle 的 callable）或 parse 先 thread——裁决项 |
+| G9 | `runs.add_case` 零调用孤儿，Ctx 无 emit_case 桥——评测型驱动无 per-sample 账行通道 | qualbench（逐 chunk 判定行）、xlatbench（逐 sample 行） | 接 Ctx.emit_case→cases 表，或约定 metrics blob——按查询需求裁决 |
+| G10 | 事件词表封闭（10 类写死） | 潜在新账行形态 | 需要时改 events.py+index schema（内核变更，逐案评） |
+| G11 | status_panel 是 daemon 不是 verb：§5.2 派 verb 道、§5.3 收删除单，实无对应物；cli.py 无 status-panel 位 | 删除清单 | 裁决：一行改 RESULTS_DIR 续命 vs 正式退役（写面已在新根，读面仍 bench/results） |
+| G12 | `sig` 不自动合成：内核终态行只透传 fn 给的 sig，旧世界 errors_sig 是 benchlib 合成 | 一切依赖 triage 聚类的 spec | spec 内复刻 cat:pay 合成行，或内核加默认合成——建议内核加（少一处每 spec 重抄） |
+
+## 2. 共享件落点（依赖边，必须先定主在家）
+
+| 件 | 现位置 | 被谁引用 | 落点裁决 |
+|----|--------|----------|----------|
+| LEAK_PATTERNS 六族正则 | parsebench.py | quality_proxies ← stage_compile/stage_xlat | 挪 texlate 侧或 kernel 共享位——**先于 parsebench spec 化**，否则连坐掐断 leak 口径 |
+| sabotage Mode B/C 注入 | e2e_mock_bench.py | translators_bench（唯一事实源）+ tests/test_sabotage_arms | 抽独立模块（bench/py/ 或 texlate 侧），e2e_mock spec 与 tb 吸收同案定主 |
+| pick_final 跨 run 终判 | gate_scorecard.py | harvest.py | 随 gate verb 落地保留；harvest 死后逻辑不能死 |
+| translate_tree_async | stage_xlat.py | e2e_real_bench | 抽共享 helper（kernel ctx 或 absorbed lib），两 spec 不各抄一份 |
+| canon_id/load_latest/workdir/errors_sig | benchlib.py | 40+ 文件 | 逐个函数归 kernel/随 spec/删；errors_sig 合成见 G12 |
+| fixloop 修复配方库 | fixloop_bench.py | stage_fixloop、e2e_real_bench | fixloop_bench 双判：B3 evaluator→spec 道 + 配方库→absorb-lib |
+| 断言矩阵 | tests/test_bench_regression.py | fixture_assert 反向 import | vendor 进 bench 可 import 面（spec import tests 是反模式） |
+
+## 3. spec 重写队列（按使用频率）
+
+历史账（160 run/197k records）:stagerun 五段管线占 ~41% 且独占 real 付费臂。**P0=生产在跑，P1=近 30 天，P2=冷，defer=外部队列**。
+
+### Wave A — soak 主线（P0，五 stage 单 spec 链）
+
+`kind="soak"`:ingest→parse→xlat(paid)→compile→fixloop(paid) 单 run 内串行——旗舰用例，杀死「五 run/日」账务碎裂。
+
+| stage | 源 | 要点（详见底稿） |
+|-------|-----|------------------|
+| ingest | stage_ingest.py 131 行 | 分类树平移：catalog failed/empty→reject、skeleton/absent/hydrating→skip；**陷阱**:src_path() 对 empty 态返 cell_dir→伪 ok，必须先按 catalog state 分类；下游一律自调 ctx.src_path()（跨 run dedup 后本 run 无 work/src） |
+| parse | stage_parse.py | route_project→normalize→scan→zh/ + parse.json;process executor 取决于 G8 |
+| xlat | stage_xlat.py 649 行 | paid=True+executor="async-owned"；构造点 XlatPipeline 传 cache=(G3 落地后接）；scan_tree 切 chunk/oversize 语义平移；429/自适应并发闸语义来自 gwpilot——裁决收编或弃 |
+| compile | stage_compile.py | 双臂 zh+base 归因；mutates=[zh,splice]；错误分类表平移 |
+| fixloop | stage_fixloop.py + fixloop_bench.py 配方 | paid；Ruleset yaml 引擎+迭代上限；与 compile 往返协议 needs/on 边 |
+
+**分母守恒对拍（整条链）**：同一批 id 上旧 records 逐 stage 末条 status 多重集 ↔ 新 index 逐 cell 终态多重集逐项相等，白名单豁免（eprint_fetch_unwired/no_item→skip、catalog empty→reject、torn→error/skip）+ metrics.n_files 逐 id 相等。
+
+### Wave B — 单体评测器族（P1，7+1 件）
+
+compilebench_v3（分层抽样 38 格 stratum_cell→fp_input）、parsebench（**先动 LEAK_PATTERNS**)、validbench（B6 破坏检出）、wrapfloat_bench（兼 demote_wrapfloats 生产函数回归）、gullet_bench（宏展开抽干）、fixture_assert（B2，先解 tests 反向 import)、alignbench(B7 锚点保留率）、fixloop_bench B3 臂（营救率）。
+
+### Wave C — 付费评测 + e2e（P1)
+
+xlatbench（B4a 硬契约回归；dedup_key 自声明=model/rep/sample——依赖 G2)、qualbench(ESA esa2 LLM-judge;per-chunk 账行依赖 G9)、e2e_mock(mock→variant；依赖 sabotage 落点）、e2e_real(real→paid+dedup_key;StateStore→work/{id}/state/；依赖 translate_tree_async 共享位 + G3 段缓存）。
+
+### Wave D — 分析动词（P0-P1，errsweep 依赖）
+
+`bench triage`(records 聚类→index events;**errsweep runbook 同 commit 改指**)、`bench rundiff`（依赖 triage 同批）、`bench gate`(pick_final 随它活）、`bench dossier`(pick_run 按 run_seq)、status_panel 裁决（G11)。cli.py 已有 NOT_IMPLEMENTED 桩位。
+
+### Wave E — corpus builders 双目标写（P2)
+
+build_corpus_v3（主管线，frame-lookup 读 bench/frame/frame.parquet)、expand+layers、hot+sw_layer+select_booster（路径实为 bench/corpus/select_booster.py)。manifest 留 repo tracked、payload 落 lake；git-check 钩断言 manifest*.jsonl 保持 tracked。**隐藏阻断**:build_corpus_expand 实读 bench/results/e2e-real-*/results.json——results/ 删除前须改读面。
+
+### Wave F — iclr 六件（defer 到 10 月）
+
+用户裁定 10 月续做；spec/子命令化，产物落 lake/durable。注意 runbook 称 corpus_iclr_pdf 663 PDF 在盘——**实已不存在**，续跑手册前提须重估。
+
+## 4. 不做/删除判定（§5.3 供料）
+
+- **delete**:stagerun.py+stagerun_lib.py、wave.py、harvest.py（逻辑归 gate)、preflight_batch.py（先核 doctor/spec 覆盖六票闸）、gwpilot.py+md（先驳「自适应并发闸 429 砍半+rpm 预算」内核无等价物——收编进 xlat spec 或弃）、build_corpus_v2/m1k、report/ 18 件除 dossier（实测 ~11k 行，半数活件已挑出）、runbook_loop.md、bench.db(0B 孤儿）、nullxyz.mjs
+- **defer**:bench/ts 7 件（选型期横评套件；CI ci.yml pytest 绑了 npm ci——defer 转 delete 时同步摘除）、iclr 六件（10 月）
+- **已消失**:work_*/、corpus_daily/——§5.3 该两项是清引用不是删目录
+
+## 5. 删除单向门（§5.3）前置阻断清单
+
+1. **errsweep runbook arm-ectomy**:spec PROMPT+runbook 仍指挥读 bench/results/soak-*/records+triage.py——删 results/ 前必须改臂+重钉 RUNBOOK_SHA256；且须先定义新错误沉淀源（daily-soak 退役后只剩 web texlate.db 一臂）
+2. **staged-add 幽灵**:daily-soak.sh、texlate-daily-soak.{service,timer}、corpus/daily_arxiv.py 在 index 是 add、worktree 已删——下个 commit 前 `git rm --cached`
+3. **zh-store manifest.jsonl 未 commit delta**——落盘或显式接受损失
+4. **tests/ 处置**:6 文件硬 import 旧驱动（benchlib/triage/rundiff/gate_scorecard/qualbench）删除即 collection error;test_fuzz_scorecard.py:1401 实读 bench/results——迁移合成 fixture 或显式记覆盖缺口；corpus 门控测试（CORPUS_DIR=bench/corpus）失根——lake 锚或微语料集
+5. **配置面同剪**:.gitignore/.markdownlint/.pre-commit/.dockerignore/pyproject sdist 注释 ~20 处死目录条目（corpus/*/、fixtures 豁免要留）
+6. **PAUSE 裁决**:$ROOT/PAUSE 在场——Phase-4 全程保持挂载（既定），删除步前再确认
+7. **importer 重导入源注记**：删后 importer 源路径失效——记「再导入只认 backup/phase0-20260922 副本」
+8. **archive README 约定失效**:docs 旧 run 名→archive 前缀自解析随删除悬空，MAINTENANCE 注记交代
+9. **备份确认**：删除前异地备份再验（Phase-0 双副本在案）
+10. **license 面**:bench/zh-store README、archive README 随目录删
+
+## 6. critic 驳回/补裁清单
+
+- gwpilot→delete **先驳**：自适应并发闸（cap=外部占用∧rpm 预算、429 砍半+冷却）内核无对应——xlat spec 化时裁决收编（executor/网关层）或显式弃
+- preflight_batch→delete **先核**：六票批前闸（import walk/mock 链/磁盘/manifest/工具链/网关探活）对 doctor+compile_checks+首火闸逐票核实覆盖面
+- select_booster.py 路径更正：bench/corpus/ 非 bench/py/corpus/
+- status_panel/task_ping 补判：写面已迁新根，读面仍旧——一行 RESULTS_DIR 续命 or 退役，随 Wave D 裁决
+- fixloop_bench 补判：spec+absorb-lib 双判（见 §2)
+- bench/fixtures/(keep——B2 底材）、bench/frame/(keep——抽样框，gitignored parquet + tracked MANIFEST)、bench/py/bench shim(keep——ExecStart 目标）
+
+## 7. 时序约束
+
+- swe-2 promo **2026-10-16 到期**（剩 ~24 天）：付费 spec(xlat/soak 付费段、e2e_real、xlat/qualbench）越早验越安全；Wave A/C 优先于 D/E
+- PAUSE 保持挂载至迁移收口（付费 spec 实跑前逐案摘）
+- 每 spec 落 = 审计清单三条全过（status 映射/done 定义/分母守恒对拍）才准 commit
+
+---
+
+*底稿：tmp/phase4-research-20260922/research.json(655KB，逐驱动 audit_checklist+risks+io 全字段）*
