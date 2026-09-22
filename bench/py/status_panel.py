@@ -36,16 +36,17 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
-RESULTS_DIR = REPO / "bench" / "results"
 try:
     from kernel import paths as _kpaths
     BENCH_ROOT = _kpaths.root()
+    RUNS_DIR = _kpaths.runs_dir()
 except Exception:  # kernel.paths is stdlib-only; fallback mirrors it
     BENCH_ROOT = Path(
         os.environ.get(
             "TEXLATE_BENCH_ROOT",
             Path.home() / ".local" / "share" / "texlate-bench")
     ).expanduser()
+    RUNS_DIR = BENCH_ROOT / "runs"
 PANEL_DIR = BENCH_ROOT / "state" / "status-panel"
 PIDFILE = PANEL_DIR / "panel.pid"
 TASKS_DIR = PANEL_DIR / "tasks.d"
@@ -224,7 +225,11 @@ def scorecard_raw() -> str:
     def collect() -> str:
         if not VENV_PY.exists():
             return f".venv python missing: {VENV_PY}"
-        return run_cmd([str(VENV_PY), "bench/py/gate_scorecard.py", "--json"], 180)
+        # gate 动词（bench/py/kernel/cli.py REGISTRY）= gate_scorecard.py
+        # 新世界等价物；未落地时 stderr 进面板、scorecard_data {} 兜底。
+        return run_cmd(
+            [str(VENV_PY), str(REPO / "bench" / "py" / "bench"),
+             "gate", "--json"], 180)
 
     return cached("scorecard", 60, collect)
 
@@ -307,22 +312,71 @@ def _rate_sample(done: int) -> tuple[float | None, float]:
     return None, 0.0
 
 
-def _n200_dir() -> Path | None:
-    """realn200-*/e2e-* run 目录自动发现：records.jsonl + run_meta.json
-    双双在盘的候选里 run_meta mtime 最新者。硬钉目录名在 run 归档/改名后
-    会让整个面板拿不到 n200 账；无候选 → None（collect 走零形兜底）。
-    """
-    cands = [
-        d
-        for pat in ("realn200-*", "e2e-*")
-        for d in RESULTS_DIR.glob(pat)
-        if d.is_dir()
-        and (d / "run_meta.json").is_file()
-        and (d / "records.jsonl").is_file()
-    ]
-    if not cands:
+def _unblob(val, blob_dir: Path | None):
+    """{"$blob": sha, "$bytes": n} 卸载标记 → run derived/blobs/ 载荷
+    （kernel.report._unblob 同式——panel 保持轻依赖不 import kernel.report）。"""
+    if not (
+        isinstance(val, dict)
+        and set(val) == {"$blob", "$bytes"}
+        and blob_dir is not None
+    ):
+        return val
+    p = blob_dir / f"{val['$blob']}.json"
+    try:
+        return json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return val
+
+
+#: n200 段盯的 e2e 批 kind 集（realn200 是 importer 旧账名）。
+_N200_KINDS = ("e2e_real", "realn200", "e2e")
+
+#: 产出过 pdf 的终态词（compile/fixloop 段共用口径）。
+_PDF_STATUS = {
+    "ok",
+    "clean",
+    "partial",
+    "dirty_pdf",
+    "acceptable_pdf",
+    "best_effort_pdf",
+}
+
+#: e2e 链 stage 序——done 判据 = 五段全有终态行（needs-skip 也落账）。
+_N200_STAGES = ("route", "xlat", "compile", "fixloop", "base")
+
+
+def _n200_run(conn: sqlite3.Connection | None) -> tuple[str, Path] | None:
+    """最新 e2e 批 → (run_name, rundir)：runs 表 kind 过滤 run_seq 最大者。
+
+    旧 RESULTS_DIR glob realn200-*/e2e-* 的等价面；无候选 → None
+    （collect 走零形兜底）。"""
+    if conn is None:
         return None
-    return max(cands, key=lambda d: (d / "run_meta.json").stat().st_mtime)
+    r = None
+    for kind in _N200_KINDS:  # 序即优先级——e2e_real 先于旧账名
+        r = conn.execute(
+            "SELECT run,kind,date,slug FROM runs WHERE kind=? "
+            "ORDER BY run_seq DESC LIMIT 1",
+            (kind,),
+        ).fetchone()
+        if r is not None:
+            break
+    if r is None:
+        return None
+    return r[0], RUNS_DIR / r[1] / r[2] / r[3]
+
+
+def _paper_status(sm: dict[str, dict]) -> str:
+    """篇目终态词：compile 实编结果优先，上游死法回退 xlat/route。"""
+    comp = str((sm.get("compile") or {}).get("status") or "")
+    if comp in ("clean", "partial", "fail", "reject", "dirty_pdf"):
+        return "partial" if comp == "dirty_pdf" else comp
+    x = str((sm.get("xlat") or {}).get("status") or "")
+    if x in ("fail", "reject"):
+        return x
+    if str((sm.get("route") or {}).get("status") or "") == "reject":
+        return "reject"
+    return "skipped"
 
 
 def _n200_empty() -> dict:
@@ -354,24 +408,72 @@ def _n200_empty() -> dict:
 
 def n200_stats() -> dict:
     def collect() -> dict:
-        nd = _n200_dir()
-        if nd is None:
+        conn = _kernel_index()
+        found = _n200_run(conn)
+        if found is None:
             return _n200_empty()
-        records = nd / "records.jsonl"
-        meta = json.loads((nd / "run_meta.json").read_text())
-        # e2e 单行 schema（pipe-xel/pipe-fix/base-xel）非 stagerun 账——全行
-        # 计数口径（chunks/秒数逐行累加），不套 benchlib.latest_records 的
-        # id 末条胜去重；目录在而账腐仍 fail-loud——是面板对腐账的有意态度
-        # （由 render 的 section/chip 隔离兜底不炸整页）。
-        recs = [
-            json.loads(line)
-            for line in records.read_bytes().splitlines()
-            if line.strip()
-        ]
-        total = len(meta.get("sample_ids", [])) or meta.get("n_requested") or 0
-        started = dt.datetime.fromisoformat(meta["started_at"])
-        elapsed = (dt.datetime.now(dt.UTC) - started).total_seconds()
-        top = collections.Counter(r.get("status", "?") for r in recs)
+        run_name, nd = found
+        # plan.json 冻结全集 → total/sample_ids/run_params；runs.ts_start
+        # 是起跑戳。records 表逐格终态行（needs-skip 也落账）按 idc×stage
+        # 重组篇目账——末条胜（重试格覆盖）。
+        sample_ids: list[str] = []
+        meta: dict = {}
+        plan_p = nd / "plan.json"
+        if plan_p.is_file():
+            try:
+                plan = json.loads(plan_p.read_text())
+                cells = plan.get("cells") or []
+                sample_ids = sorted(
+                    {
+                        str(c.get("idc") or c.get("id") or "")
+                        for c in cells
+                    }
+                    - {""}
+                )
+                if cells:
+                    meta["run_params"] = dict(
+                        cells[0].get("run_params") or {}
+                    )
+            except (ValueError, OSError):
+                pass
+        total = len(sample_ids)
+        rrow = conn.execute(
+            "SELECT ts_start FROM runs WHERE run=?", (run_name,)
+        ).fetchone()
+        started = (
+            dt.datetime.fromtimestamp(rrow[0], dt.UTC)
+            if rrow and rrow[0]
+            else None
+        )
+        elapsed = (
+            (dt.datetime.now(dt.UTC) - started).total_seconds()
+            if started
+            else 0.0
+        )
+        blob_dir = nd / "derived" / "blobs"
+        if not blob_dir.is_dir():
+            blob_dir = None
+        per: dict[str, dict[str, dict]] = {}
+        mtime = 0.0
+        for row in conn.execute(
+            "SELECT idc,stage,status,metrics,ts FROM records "
+            "WHERE run=? ORDER BY seq",
+            (run_name,),
+        ):
+            idc, stage, status, mraw, ts = row
+            m = None
+            if mraw:
+                try:
+                    m = _unblob(json.loads(mraw), blob_dir)
+                except ValueError:
+                    m = None
+            per.setdefault(str(idc), {})[str(stage)] = {
+                "status": status,
+                "metrics": m if isinstance(m, dict) else {},
+            }
+            if ts and ts > mtime:
+                mtime = ts
+        top = collections.Counter()
         fix_stat = collections.Counter()
         base_stat = collections.Counter()
         chunks = collections.Counter()
@@ -379,52 +481,51 @@ def n200_stats() -> dict:
         strip = []
         xlat_secs = 0.0
         xlat_exec = pdf_pipe = pdf_union = 0
-        for r in recs:
-            px = r.get("pipe-xel") or {}
-            t = px.get("translate") or {}
+        for idc in sorted(per):
+            sm = per[idc]
+            pst = _paper_status(sm)
+            top[pst] += 1
+            strip.append((idc, pst))
+            t = ((sm.get("xlat") or {}).get("metrics") or {}).get(
+                "translate"
+            ) or {}
             xlat_secs += t.get("seconds", 0) or 0
             if t.get("chunks"):
                 xlat_exec += 1
-            for k in ("ok", "partial", "fault", "skipped", "chunks", "leftover_ph"):
+            for k in ("ok", "partial", "fault", "skipped", "chunks",
+                      "leftover_ph"):
                 chunks[k] += t.get(k, 0) or 0
-            pipe_pdf = bool((px.get("compile") or {}).get("pdf_bytes"))
-            fix_pdf = bool(
-                ((r.get("pipe-fix") or {}).get("compile") or {}).get("pdf_bytes")
-            )
+            pipe_pdf = (sm.get("compile") or {}).get("status") in _PDF_STATUS
+            fix_pdf = (sm.get("fixloop") or {}).get("status") in _PDF_STATUS
             pdf_pipe += pipe_pdf
             pdf_union += pipe_pdf or fix_pdf
-            v = px.get("verdict") or {}
+            v = ((sm.get("compile") or {}).get("metrics") or {}).get(
+                "verdict"
+            ) or {}
             for rs in v.get("reasons", []):
                 reasons[re.sub(r"\s*\(\d+\)\s*$", "", rs)] += 1
-            if "pipe-fix" in r:
-                fix_stat[(r.get("pipe-fix") or {}).get("status", "?")] += 1
-            if "base-xel" in r:
-                base_stat[(r.get("base-xel") or {}).get("status", "?")] += 1
-            strip.append((r.get("id", "?"), r.get("status", "?")))
-        seen_ids: set[str] = set()
-        in_flight: list[str] = []
-        log = nd / "run.log"
-        if log.exists():
-            lines = log.read_text(errors="replace").splitlines()
-            last_result = -1
-            for i, line in enumerate(lines):
-                m = re.match(r"===== \[(\d+)/\d+\] (\S+)(.*)", line)
-                if m:
-                    seen_ids.add(m.group(2))
-                    if "->" in m.group(3):  # `cached -> status` inline
-                        last_result = i
-                    continue
-                if re.match(r"\s*->\s*status=", line):
-                    last_result = i
-            for line in lines[last_result + 1 :]:
-                m = re.match(r"===== \[\d+/\d+\] (\S+)", line)
-                if m:
-                    in_flight.append(m.group(1))
-        queued = [i for i in meta.get("sample_ids", []) if i not in seen_ids]
-        rate_ps, rate_span = _rate_sample(len(recs))
+            if "fixloop" in sm:
+                fix_stat[sm["fixloop"]["status"] or "?"] += 1
+            if "base" in sm:
+                base_stat[sm["base"]["status"] or "?"] += 1
+        done_ids = {
+            i for i, sm in per.items()
+            if all(s in sm for s in _N200_STAGES)
+        }
+        in_flight = sorted(
+            i for i, sm in per.items() if i not in done_ids
+        )
+        queued = [i for i in sample_ids if i not in per]
+        meta["sample_ids"] = sample_ids
+        # devin-2api 钉死面（specs/_shared.DEFAULT_BASE_URL）——gw 探活源
+        meta.setdefault("base_url", "http://127.0.0.1:3033")
+        meta["concurrency"] = (meta.get("run_params") or {}).get(
+            "concurrency"
+        )
+        rate_ps, rate_span = _rate_sample(len(done_ids))
         return {
-            "done": len(recs),
-            "total": total,
+            "done": len(done_ids),
+            "total": total or len(per),
             "elapsed": elapsed,
             "rate_ps": rate_ps,
             "rate_span": rate_span,
@@ -440,10 +541,10 @@ def n200_stats() -> dict:
             "xlat_exec": xlat_exec,
             "pdf_pipe": pdf_pipe,
             "pdf_union": pdf_union,
-            "mtime": records.stat().st_mtime,
+            "mtime": mtime or None,
             "in_flight": in_flight,
             "queued": queued,
-            "dir": nd.name,
+            "dir": run_name,
         }
 
     return cached("n200", 30, collect)
@@ -652,9 +753,8 @@ def sec_n200() -> str:
     done, total = st["done"], st["total"]
     if not total:
         return (
-            "<div class='prow'>未发现 realn200-*/e2e-* run 目录"
-            "（records.jsonl + run_meta.json 双双在盘才算入列）——"
-            "跑批归档或尚未启动。</div>"
+            "<div class='prow'>runs 表无 e2e_real/realn200 run——"
+            "批尚未启动。</div>"
         )
     if st["rate_ps"] is not None:
         rate = st["rate_ps"] * 3600
@@ -667,10 +767,11 @@ def sec_n200() -> str:
     conc = st["meta"].get("concurrency")
     pid, note = N200_PID, "钉选"
     if not pid_alive(pid):
-        # pgrep 模式跟随实际发现的 run 目录名（runner cmdline 含 --dir 路径）；
-        # run_cmd 无输出哨兵是 "(exit N, no output)"——probe[0] 会是 "(exit"
+        # pgrep 模式跟随 run slug（bench run 命令行带 --slug）；run_cmd
+        # 无输出哨兵是 "(exit N, no output)"——probe[0] 会是 "(exit"
         # 而非空，须 isdigit 兜底否则 int() 崩坏整节。
-        pat = f"e2e_real_bench.*{re.escape(st.get('dir') or 'realn200')}"
+        slug = str(st.get("dir") or "").rsplit("/", 1)[-1] or "e2e"
+        pat = f"bench.*{re.escape(slug)}"
         probe = run_cmd(["pgrep", "-f", pat], 5).split()
         pid, note = (
             (int(probe[0]), "自动发现")
@@ -977,12 +1078,23 @@ def sec_sessions() -> str:
 
 
 def sec_reports() -> str:
-    dirs = [d for d in RESULTS_DIR.iterdir() if d.is_dir() and d.name != "status-panel"]
+    """runs/ 三层 walk（kind/date/slug）→ 最近 12 个 run + 摘要行。"""
+    dirs = (
+        [d for d in RUNS_DIR.glob("*/*/*") if d.is_dir()]
+        if RUNS_DIR.is_dir()
+        else []
+    )
     dirs.sort(key=lambda d: d.stat().st_mtime, reverse=True)
     rows = []
     for d in dirs[:12]:
         title = ""
-        for cand in ("report.md", "summary.md", "README.md", "REPORT.md"):
+        for cand in (
+            "report.md",
+            "derived/report.md",
+            "summary.md",
+            "README.md",
+            "REPORT.md",
+        ):
             f = d / cand
             if f.exists():
                 for raw_ln in f.read_text(errors="replace").splitlines():
@@ -997,11 +1109,11 @@ def sec_reports() -> str:
         rows.append(
             [
                 esc(fmt_age(d.stat().st_mtime)),
-                f"<code>{esc(d.name)}</code>",
+                f"<code>{esc('/'.join(d.parts[-3:]))}</code>",
                 esc(title),
             ]
         )
-    return table(["更新", "目录", "摘要"], rows)
+    return table(["更新", "run", "摘要"], rows)
 
 
 def sec_scorecard() -> str:
@@ -1140,7 +1252,7 @@ SECTIONS = [
     ("M2 门 · scorecard", sec_scorecard),
     ("在跑进程", sec_jobs),
     ("舰队花名册", sec_sessions),
-    ("最新产出 bench/results", sec_reports),
+    ("最新产出 runs/", sec_reports),
     ("资源", sec_resources),
     ("台账摘要", sec_ledger),
 ]
