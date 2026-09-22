@@ -73,7 +73,7 @@
 - 内部端口与部署细节（网关 shim、转发器、内部 systemd 实例等）；
 - 个人账户信息。
 
-LLM 网关统一表述为「内部 OpenAI 兼容网关」，不点名具体私有服务；模型名与公开 API 端点可写。开发机证据现场（`bench/results/`、`tmp/`、未入库工作区）只允许「结论已摘要进正文」式提及，不作依赖链接——fresh clone 不存在属预期。
+LLM 网关统一表述为「内部 OpenAI 兼容网关」，不点名具体私有服务；模型名与公开 API 端点可写。开发机证据现场（`$TEXLATE_BENCH_ROOT/runs/`、`tmp/`、未入库工作区）只允许「结论已摘要进正文」式提及，不作依赖链接——fresh clone 不存在属预期。
 
 ## 7. 索引登记
 
@@ -95,3 +95,5 @@ LLM 网关统一表述为「内部 OpenAI 兼容网关」，不点名具体私�
 ## 10. 历史路径约定
 
 2026-09-20 文档库重建前，文档位于 `docs/01-*.md`–`docs/10-*.md` 扁平编号件（01–05 决策史、06–10 规格）与旧 `docs/research/` 树等路径——旧 `research/` 树仅存于 git 历史（5ebc9797 前的口径），与现行六分区 `docs/research/` 非同一棵。冻结档案（`log/` 与 `research/` 快照）内仍可能引用这些旧路径——它们是「当日口径」的历史指针，入库件经 git 历史（`git log -- docs/`、`git show <commit>:<path>`）检索，不逐条回填新路径；`docs/HANDOFF-*.md` 等内部工作件曾入库、2026-09-18 由 d39a1b23 移出跟踪，可经 `git show d39a1b23^:docs/HANDOFF-<date>.md` 取回（本机另有未跟踪副本在 `tmp/old-docs-2026-09-20/docs/`），其当日口径结论已蒸馏进 `log/` 时间线。
+
+2026-09-23 Wave-F（trizone-ledger 迁移收口）：`bench/results/`、`bench/work_*/`、`bench/queue/` 产物目录清零，旧 harness 脚本全删——被删件的取证走 git 历史；仓外账本根 `$TEXLATE_BENCH_ROOT/` 下 `backup/phase0-20260922/` 是迁移前 results/zh-store/bench.db/lanes/archive 镜像的唯一再导入源（`bench ledger import` 只认它），勿当普通备份轮转掉。`bench/archive-*/README.md` 前缀约定继续有效：数据 gitignored、README 入库作目录身份说明。

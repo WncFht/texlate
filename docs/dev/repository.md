@@ -280,16 +280,18 @@ SolidJS + Vite + TypeScript + vitest + eslint（`eslint-plugin-solid`）；独�
 
 ## 6. `tests/`
 
-350+ 个 `test_*.py`；共享件 `conftest.py`（env 清洗——`TEXLATE_` 前缀全扫 + 外部 key 名单、fake engine/fetcher、client 工厂；autouse 仅术语表钉缺席与 `RedactFilter` 还原两件无副作用隔离件）、`_fuzzkit.py`（fuzz 公共骨架：种子 RNG/汤表驱动/xfail 缺陷钉/findings 台账）、`_workerkit.py`（`PipelineWorker` 段级直调 harness）、`fixtures/`（真 xelatex log 实物）。守卫方式：`pyproject.toml` 注册 `slow`（corpus/重产物数据）与 `integration`（外部工具/网络/真进程）两个 pytest 标记，用例级 `pytest.mark.skipif` + `shutil.which`（node/xelatex/kpsewhich/babeldoc 缺席即跳）+ env 闸（`TEXLATE_LIVE`/`TEXLATE_API_KEY` 等真网关用例）——干净 clone 全绿。pytest 配置：`testpaths=["tests"]`、`pythonpath=["bench/py"]`（`triage`/`rundiff`/`benchlib` 供 `test_bench_*` 直接 import）、`norecursedirs` 划掉 bench/web/tmp/node_modules。`tests/kernel/` 是 trizone-ledger bench 内核的专属套件（conftest `broot` 夹具给每例隔离 `$TEXLATE_BENCH_ROOT`；`from kernel import …` 经 `pythonpath=["bench/py"]` 直引；`test_contracts.py`/`test_adversarial_fixes.py`/`test_integration.py` 是 Wave-D 对抗验证的钉案层）——2026-09-22 收口时 546 例通过 / 2 例按设计跳过。
+350+ 个 `test_*.py`；共享件 `conftest.py`（env 清洗——`TEXLATE_` 前缀全扫 + 外部 key 名单、fake engine/fetcher、client 工厂；autouse 仅术语表钉缺席与 `RedactFilter` 还原两件无副作用隔离件）、`_fuzzkit.py`（fuzz 公共骨架：种子 RNG/汤表驱动/xfail 缺陷钉/findings 台账）、`_workerkit.py`（`PipelineWorker` 段级直调 harness）、`fixtures/`（真 xelatex log 实物）。守卫方式：`pyproject.toml` 注册 `slow`（corpus/重产物数据）与 `integration`（外部工具/网络/真进程）两个 pytest 标记，用例级 `pytest.mark.skipif` + `shutil.which`（node/xelatex/kpsewhich/babeldoc 缺席即跳）+ env 闸（`TEXLATE_LIVE`/`TEXLATE_API_KEY` 等真网关用例）——干净 clone 全绿。pytest 配置：`testpaths=["tests"]`、`pythonpath=["bench/py"]`（`kernel`/`specs`/`verbs` 供 `tests/kernel/` 与 spec 关联用例直接 import）、`norecursedirs` 划掉 bench/web/tmp/node_modules。`tests/kernel/` 是 trizone-ledger bench 内核的专属套件（conftest `broot` 夹具给每例隔离 `$TEXLATE_BENCH_ROOT`；`from kernel import …` 经 `pythonpath=["bench/py"]` 直引；`test_contracts.py`/`test_adversarial_fixes.py`/`test_integration.py` 是 Wave-D 对抗验证的钉案层）——2026-09-22 收口时 546 例通过 / 2 例按设计跳过。
 
 ## 7. `bench/`
 
-两份契约文档管这一层：`TIERS.md`（验证分层：L0 单元/L1 机制覆盖/L2 子集回归/L3 全量集成，「能低不高」）、`RETENTION.md`（产物寿命与删除谓词）。fixtures 陷阱断言登记在 `tests/test_bench_regression.py` 的 TRICKY_IDS 与 fixtures 内联 `% @Tnn`；逐库横评协议 `PROTOCOL.md` 已于 2026-09-20 退役删除（原文见 git 历史）。
+两份契约文档管这一层：`TIERS.md`（验证分层：L0 单元/L1 机制覆盖/L2 子集回归/L3 全量集成，「能低不高」）；`RETENTION.md` 已随 Wave-F（2026-09-23）删除——`results/` 产物目录清零后留存契约失效。fixtures 陷阱断言登记在 `tests/test_bench_regression.py` 的 TRICKY_IDS 与 fixtures 内联 `% @Tnn`；逐库横评协议 `PROTOCOL.md` 已于 2026-09-20 退役删除（原文见 git 历史）。
 
 | 路径 | 角色 |
 | --- | --- |
-| `py/` | python 侧评测与批量管线：`stagerun.py`（分阶段 DAG 批量驱动——ingest/parse/xlat/compile/fixloop 子命令 + append 式 records jsonl + `work/{id}/` 产物树 + 按 (id, arm, upstream) resume）、`parsebench.py`（`texlate.latex` 产品管线评测器 v2）、`compilebench_v3.py`/`e2e_mock_bench.py`/`e2e_real_bench.py`/`fixloop_bench.py`/`validbench.py`/`alignbench.py`/`gullet_bench.py`/`qualbench.py`/`translators_bench.py`/`wrapfloat_bench.py` 等评测器、`gate_scorecard.py`/`triage.py`/`rundiff.py`/`status_panel.py`/`wave.py`（判分/归因/看板/波段编排）、`corpus/`（语料管线：`build_corpus_{v2,v3,m1k,layers,expand,sw}` + `build_hot_layer`）、`iclr_*`（ICLR PDF 研究臂）、`runbook_loop.md`（L3 操作单）、`report/`、`.venv_babeldoc/`（babeldoc 对照专用 venv，gitignored） |
-| `py/kernel/` | trizone-ledger v2 bench 内核（设计 `docs/dev/bench-redesign-v2-trizone.md`，架构图 `docs/dev/assets/trizone-arch.svg`）：25 模块——基础件 `idnorm/locks/fsutil/cas`，账本 `ledger`（emit/seal/seal_gc）+ `index`（sqlite 可弃投影回放），三区件 `runs/vault/lake`，付费闸 `dedup/claims/paid`，维护 `sweep/doctor`，边界 `importer/report`（进场/derive 投影），运行径 `spec/ctx/executors/kernel` 与 `cli.py` 全动词入口；规格库 `bench/py/specs/`；测试 `tests/kernel/`（2026-09-22 Wave-D 收口，全量重建未启动） |
+| `py/` | bench 统一入口 `bench`（shim → `kernel/cli.py`）+ 三子目录 `kernel/`、`specs/`、`verbs/`；顶层残留独立件 `status_panel.py`（只读状态面板）、`task_ping.py`（看板心跳写入）、`translators_bench.py`（translator 工厂，specs/_sabotage 引用）、`iclr_*`（ICLR PDF 研究臂，暂停至 10 月）、`.venv_babeldoc/`（babeldoc 对照专用 venv，gitignored）。旧 harness（stagerun/stage_*/评测器脚本/triage/rundiff/gate_scorecard/benchlib/wave/harvest/preflight_batch/gwpilot/corpus build_*/report/）已于 Wave-F 全部删除 |
+| `py/kernel/` | trizone-ledger v2 bench 内核（设计 `docs/dev/bench-redesign-v2-trizone.md`，架构图 `docs/dev/assets/trizone-arch.svg`）：基础件 `idnorm/locks/fsutil/cas`，账本 `ledger`（emit/seal/seal_gc）+ `index`（sqlite 可弃投影回放）+ `events`，三区件 `runs/vault/lake`+`cache`，付费闸 `dedup/claims/paid`，维护 `sweep/doctor`，边界 `importer/report`（进场/derive 投影），运行径 `spec/ctx/executors/kernel` 与 `cli.py` 全动词入口；测试 `tests/kernel/`（Phase-4 Wave-F 收口：24 spec + 8 分析动词全部落位） |
+| `py/specs/` | spec 库（`bench run <spec>` 起批）：B1–B7 评测器重写（`parsebench`/`fixture_assert`/`compilebench`/`fixloop_bench`/`xlatbench`/`qualbench`/`e2e_mock`/`e2e_real`/`validbench`/`alignbench`/`gullet`/`wrapfloat`）、管线 spec（`soak`/`smoke`/`census`/`quality`/`errsweep`/`paid_stub`）、语料谱系（`frame_build`/`corpus_{v3,layers,expand,hot,sw}`）+ `_*.py` 共享叶 |
+| `py/verbs/` | 分析动词（`bench <verb>`）：`triage`/`rundiff`/`gate`/`dossier`/`xlat-report`/`xlat-rejudge`/`qual-report`/`booster-select` |
 | `ts/` | js 侧对照评测：latex-utensils/unified-latex/tree-sitter-latex（独立 `package.json`，CommonJS，`npm ci` 装依赖；L1 校验件也可经 `TEXLATE_TS_NODE_PATH` 吃这里 node_modules） |
 | `fixtures/` | 陷阱构造 `.tex`：`% @Tnn`/`@Wnn`/`@Xn` 标记，逐字节即语义——不格式化、不润色 |
 | `corpus_v3/` | 主语料物理根（规划目标名；磁盘与 git index 上仍是合一的 `corpus/`，拆分未登记）：~14k 篇 arXiv e-print 解压原样（gitignored），入库层化 manifest（core 1000 / booster 200 / expand 3866 / hot 166 / `manifest_dev_{failmine,vol,recent}` 开发层 / `manifest_holdout` 留出评测层）+ `mechanisms.jsonl` 机制台账 + `MANIFEST.md` 口径文档 + `nominations/` 提名审计轨迹 |
@@ -299,16 +301,13 @@ SolidJS + Vite + TypeScript + vitest + eslint（`eslint-plugin-solid`）；独�
 | `corpus_iclr_pdf/` | ICLR PDF 产物库（非 e-print 树） |
 | `zh-store/` | real 臂 LLM 译文资产库：`{canon_id}/{zh,splice,provenance.json}` 不可再生；`_quarantine/` 是已译非 clean 格隔离区（付费字节保留供日后免费重试），`_alt/` 是同 id 重译落选副本 |
 | `archive-2026-09-20/` | results 归零前的账本镜像与审计留痕（数据 gitignored，README 入库） |
-| `results/` | bench 产出目录：stagerun/soak/评测器三件套，脚本重写；全链划出格式化（prettier/gfs/eslint/autocorrect/markdownlint/ruff 均不覆盖） |
-| `work_*/` | 编译/fixloop 工作区（gitignored 重产物） |
-| `frame/` | 抽样框资产（parquet/csv：分层、簇、配额、覆盖率簿记） |
-| `queue/` | 工作队列暂存（gitignored） |
+| `frame/` | 抽样框资产（parquet/csv：分层、簇、配额、覆盖率簿记；`bench run frame_build` 可再生） |
 
 ## 8. 构建与工具链
 
 Python 侧：`pyproject.toml` + `uv.lock`，hatchling 构建、`src` 布局，`requires-python >=3.12`；运行时依赖 beautifulsoup4/defusedxml/httpx/lxml/pypdf/python-docx/pyyaml/regex/rich/typer，`server` extra 加 fastapi/python-multipart/uvicorn/sse-starlette，`ts-validator` 是空占位 extra（L1 依赖在 node 侧）；dev group 只有 pytest + pytest-asyncio。wheel 经 hatch `artifacts` 强制收编 `src/texlate/server/static/`（SPA 产物拷入位）；sdist 白名单只收 `/src`、`/tests`、README、pyproject（防 bench 重产物入包）。
 
-lint/format 链：`ruff.toml` 是 `select=ALL` 严格集 + 逐条注明豁免（`src/**` 吃 docstring/类型标注/异常纪律全集；`bench/**`、`tests/**` 的脚本式豁免在 per-file-ignores）。`.pre-commit-config.yaml` 顺序即语义：原地改写型 fixer 在前（markdownlint-cli2 `--fix`、md 内 python 栅栏 ruff format——改写即 fail 一次 re-add），git-format-staged 链式 formatter 收尾（autocorrect+prettier 走 md、prettier 走 yaml/js/json、shfmt 走 shell、ruff format 走 py、taplo 走 toml——只写 index 并同步工作区，commit 不被格式化阻断）；check 类 hook 拦提交（shellcheck、ruff check、eslint、actionlint、fixloop `rules/` 整表 `Ruleset.load()` 校验、gitleaks secret 门）。formatter 版本以根 `package.json` 为唯一事实源（prettier/eslint/markdownlint-cli2/git-format-staged）。`bench/results/` 全链划出；`bench/fixtures/` 的 `.tex` 不入链（字节即语义）。
+lint/format 链：`ruff.toml` 是 `select=ALL` 严格集 + 逐条注明豁免（`src/**` 吃 docstring/类型标注/异常纪律全集；`bench/**`、`tests/**` 的脚本式豁免在 per-file-ignores）。`.pre-commit-config.yaml` 顺序即语义：原地改写型 fixer 在前（markdownlint-cli2 `--fix`、md 内 python 栅栏 ruff format——改写即 fail 一次 re-add），git-format-staged 链式 formatter 收尾（autocorrect+prettier 走 md、prettier 走 yaml/js/json、shfmt 走 shell、ruff format 走 py、taplo 走 toml——只写 index 并同步工作区，commit 不被格式化阻断）；check 类 hook 拦提交（shellcheck、ruff check、eslint、actionlint、fixloop `rules/` 整表 `Ruleset.load()` 校验、gitleaks secret 门）。formatter 版本以根 `package.json` 为唯一事实源（prettier/eslint/markdownlint-cli2/git-format-staged）。`bench/fixtures/` 的 `.tex` 不入链（字节即语义）。
 
 `web/` 独立工具链：`tsc --noEmit` + eslint + vitest + `vite build`，本地 pre-commit eslint glob 只盖 `js/mjs/cjs`（web 的 `.ts` 由 web toolchain/CI 把关，不假设 `web/node_modules` 在场）。`bench/ts/` 另有一套 CommonJS `package.json`。
 

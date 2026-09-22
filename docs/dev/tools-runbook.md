@@ -35,71 +35,91 @@
 | `git-stash-export.sh` | stash 事故无损取证：tracked + untracked 两树导出 scratch，只读 stash 不动工作区/索引 |
 | `gw-health.sh` | 网关多路健康探测聚合单行报告，任一失败 exit 1（URL/超时均可 env 覆盖） |
 | `gw-tunnel.sh` | 网关 SSH 隧道常驻管理（`start/stop/status/logs`）：重连循环 + setsid 脱管，产品链要求 localhost 端点时把远端服务映射回本地 |
-| `loc.sh [--cloc]` | 代码量统计：git 跟踪文件分桶 + 剔数据快照后缀 + 未跟踪档单列（`bench/results/` 有百万行级生成 JSON，裸 cloc 会把数据当代码） |
+| `loc.sh [--cloc]` | 代码量统计：git 跟踪文件分桶 + 剔数据快照后缀 + 未跟踪档单列 |
 | `pyspy-triage.sh <PID>` | py-spy 钉栈 triage：N 次 dump 栈签名逐项比对 + CPU 增量——全同+CPU 前进=疑似死循环/ReDoS、全同+CPU 平=阻塞待机、变动=健康推进 |
 | `server-smoke.sh [port] [dir]` | `texlate web` 全链 curl 冒烟：起服→health→SPA→openapi→upload→SSE→产物 sha256→收尾只杀自己 PID |
 | `tcp-relay.py <lport> <rhost> <rport>` | 微型 asyncio TCP 转发（纯 stdlib），让只认 localhost 的组件吃到远端服务 |
 
 两个子目录：`scripts/systemd/` 是 errsweep 的 systemd --user service/timer 样例（`ExecStart` 指向 `scripts/errsweep.sh`，部署时按本机路径调整）；`scripts/gwcap/` 是本机网关并发闸组件（nftables REDIRECT + 信号量代理 + bypass 规则维护），属单机部署载荷、已退役留档。
 
-## 3. `bench/py/` — 评测器与批跑件
+## 3. `bench/py/` — spec 套、分析动词与内核
 
-执行纪律：import `texlate.*` 产品代码的脚本必须 `uv run python bench/py/…`（venv 才有 httpx/typer 等依赖）；纯 stdlib 工具（triage、rundiff、benchlib、status_panel 等）系统 python3 可跑，各文件头有注明。
+执行纪律：统一入口 `uv run python bench/py/bench …`——跑批 `bench run <spec> [k=v …]`（参数为位置序 `k=v`，各 spec 的合法键见文件头 docstring），分析 `bench <verb>`。spec 经 `specs/_shared.py` 接线引 `texlate.*`，必须走 uv venv；不引产品代码的 verbs/kernel 面系统 python3 可跑（个别 verb 内置 venv 自重 exec 兜底）。
 
-### 3.1 B1–B7 评测器（对应评测规格，分层见 `dev/bench-harness.md`）
+### 3.1 spec 套（`bench/py/specs/`，`bench run <名>` 起批）
 
-| 脚本 | 对应 | 用途 |
+B1–B7 评测规格对应（分层契约见 `dev/bench-harness.md`）：
+
+| spec | 对应 | 用途 |
 | --- | --- | --- |
-| `parsebench.py` | B1 | 产品解析管线评测器：identity/leak/dead_ph/漏斗 + 分层加权池化统计 |
-| `fixture_assert.py` | B2 | 陷阱断言跑分（`bench/fixtures/*.tex` 的 @Tnn/@Wnn/@Xn） |
-| `compilebench_v3.py` | B3 | corpus base 臂编译基线：分层抽样 × 原文直编 × 双引擎 |
-| `fixloop_bench.py` | B3 | fixloop 救回率 + 配方单源（tlnet 索引、CaseSink 沉淀） |
-| `xlatbench.py` | B4a | 翻译硬契约回归：网关模型分层抽样，逐调用过 L0 校验 |
-| `qualbench.py` | B4b | LLM-judge 翻译质量臂（ESA 协议错误标注 + 0–100 分） |
-| `e2e_mock_bench.py` | B5-A | mock 端到端基线（产品 API 全链 + 破坏臂 pipeB/pipeC） |
-| `e2e_real_bench.py` | B5-B/D | 真网关翻译 E2E：`--fixloop onfail` 救回臂、`--base onfail` 归因臂；自带零网络 preflight |
-| `validbench.py` | B6 | 校验器破坏检出基准（L0/L1 逐 case 计时 + 对抗探针） |
-| `alignbench.py` | B7 | named-dest 锚点保留率（en/zh PDF 对配对） |
+| `parsebench` | B1 | 产品解析管线评测：identity/leak/dead_ph/漏斗 + 分层加权池化；`n/seed/ids/layers/only`（layers 默认 core） |
+| `fixture_assert` | B2 | 陷阱断言跑分（`bench/fixtures/*.tex` 的 @Tnn/@Wnn/@Xn） |
+| `compilebench` | B3 | corpus base 臂编译基线：分层抽样 × 原文直编 × 双引擎 |
+| `fixloop_bench` | B3 | fixloop 救回率 + 配方单源（tlnet 索引、CaseSink 沉淀） |
+| `xlatbench` | B4a | 翻译硬契约回归：网关模型分层抽样，逐调用过 L0 校验（付费） |
+| `qualbench` | B4b | LLM-judge 翻译质量臂（ESA 协议错误标注 + 0–100 分）（付费） |
+| `e2e_mock` | B5-A | mock 端到端基线（产品 API 全链 + 破坏臂 pipeB/pipeC） |
+| `e2e_real` | B5-B/D | 真网关翻译 E2E：`fixloop`/`base` 臂位 + `ids/only/model/concurrency/timeout/oversize_cap/no_probe`（付费） |
+| `validbench` | B6 | 校验器破坏检出基准（L0/L1 逐 case 计时 + 对抗探针） |
+| `alignbench` | B7 | named-dest 锚点保留率（en/zh PDF 对配对） |
+| `gullet` | — | 展开机 corpus 实测：耗时/token 数/warning 分类 + 不动点重喂 |
+| `wrapfloat` | — | wrapfig 绕排碰撞检出 + 降级修复验证（poppler 信号） |
 
-另有两件专项 bench：`gullet_bench.py`（展开机 corpus 实测：耗时/token 数/warning 分类 + 不动点重喂）与 `wrapfloat_bench.py`（wrapfig 绕排碰撞检出 + 降级修复验证，poppler 信号）。
+管线与内核自检 spec：
 
-### 3.2 stagerun 分阶段批跑族
+| spec | 用途 |
+| --- | --- |
+| `soak` | 生产主线五段链单 run 串行：ingest→parse→xlat→compile→fixloop（付费臂在内） |
+| `smoke` | 检出自检 spec：三免费 stage 跑合成件，证明 checkout 可用 |
+| `census` | 湖审计 spec：全部 manifested cell 走一遍，零付费 |
+| `quality` | 质量面代理指标 rescore：对既有 run 的账重算 leak/term/landmark 三族，纯本地 |
+| `errsweep` | 错误沉淀清扫的 kernel run 形态（协议见 `dev/errsweep-runbook.md`） |
+| `paid_stub` | 付费门全链 spec：可注入网关工厂，零真实花费验证 paid gate |
+
+语料构建谱系（旧 `bench/py/corpus/build_*.py` 的 spec 重写）：
+
+| spec | 用途 |
+| --- | --- |
+| `frame_build` | `bench/frame/` 抽样框资产再生（corpus_* 的 ord-0 前置） |
+| `corpus_v3` | P2 主管线：簇下载→成员扫描→配额抽样→湖化物化→自检 |
+| `corpus_layers` | 扩库层构建：holdout / dev_vol / dev_failmine / dev_recent |
+| `corpus_expand` | 扩库增量管线（→ 总 ~5000 篇） |
+| `corpus_hot` | OpenAlex 高引近期 hot 层：免费渠道抽样→钉版取源→湖/清单双写 |
+| `corpus_sw` | scholarweave/arxiv-latex (HF) 通道适配器 + dev_recent 层 |
+
+### 3.2 分析动词（`bench/py/verbs/`，`bench <verb>` 调用）
+
+| verb | 用途 |
+| --- | --- |
+| `bench triage` | records 聚类分诊 → triage 票 + index events |
+| `bench rundiff` | 两 run 逐格终态迁移对比 |
+| `bench gate` | pick_final 跨 run 终判 + scorecard（出口门） |
+| `bench dossier` | run 档案汇编（pick_run 按 run_seq） |
+| `bench xlat-report` | xlatbench eval_records → 模型榜 |
+| `bench xlat-rejudge` | 存 src/zh 本地重判（免网关） |
+| `bench qual-report` | qualbench 评判汇总 |
+| `bench booster-select` | nominations 池 → booster 选择集（确定性变换） |
+
+### 3.3 观测与共享件
 
 | 件 | 用途 |
 | --- | --- |
-| `stagerun.py` | 分阶段批量驱动：`ingest/parse/xlat/compile/fixloop` 五子命令，append 式 records jsonl，按 `(id, arm, upstream)` resume，`--sem` 网关信号量 |
-| `stagerun_lib.py` | stagerun 内核：records 账/resume 谓词/run_meta/选样；不引 `texlate.*`，`TEXLATE_SRC` 快照接线也在这里 |
-| `stage_{ingest,parse,xlat,compile,fixloop}.py` | 五个 stage 各自的 executor（`work/{id}/` 产物树契约见 stagerun 模块 docstring） |
-| `translators_bench.py` | `xlat --arm` 的 translator 工厂：mock/sabotage-b/sabotage-c/perturb + 破坏台账面 |
-| `preflight_batch.py` | 批前一票闸：import walk + mock 链 + 磁盘 + manifest + 工具链 + 网关认证，`--no-net` 离线 |
-| `runbook_loop.md` | 整批操作单：前置检查→五 stage 序列→triage→波次，含估时表与排序约束 |
-
-### 3.3 归因、编排与观测
-
-| 件 | 用途 |
-| --- | --- |
-| `triage.py` | records→`tickets.jsonl` 签名聚类 + `metrics.jsonl` 趋势 + report 生成；`--selftest` 合成自检；冒烟跑必带 `--no-global`（全局 metrics 是跟踪文件） |
-| `rundiff.py` | 两个 stagerun 结果目录逐格迁移矩阵（A→B 改善/退化/单侧，`--deep` 同态 churn 清单） |
-| `wave.py` | 修复波编排壳：`run`（id 集/机制标签/规则反查开波）+ `postmortem`（rundiff+ 案卷 join）+ `scorecard`，只编排不重实现 |
-| `gate_scorecard.py` | 出口门记分卡：compile/fixloop 末条 records 按 end-state 与 union 两口径并列 |
-| `status_panel.py` | 只读本机状态面板：单页自刷新 HTML，采集器各自故障隔离，脱管常驻 |
+| `status_panel.py` | 只读本机状态面板：单页自刷新 HTML，采集器各自故障隔离，脱管常驻；账本面已改指 kernel runs/index |
 | `task_ping.py` | 任务看板写入端：原子写 `tasks.d/*.json`，任何 agent/脚本可报进度 |
-| `gwpilot.py`（+`gwpilot.md`） | 见缝插针批跑驱动：断点续跑队列 + 无分级网关场景的自适应并发闸代理兜底 |
-| `quality_proxies.py` | 质量面代理指标后算：leak 残留率/术语一致率/named-dest 存活率，对既有 run 目录纯后算 |
+| `translators_bench.py` | translator 工厂：mock/sabotage-b/sabotage-c/perturb + 破坏台账面——被 `specs/_sabotage.py` 与 `e2e_mock` 引用 |
+| `specs/_*.py` | spec 共享叶：`_shared`（base_url/接线）、`_benchlite`（records/编译常量，旧 benchlib 吸收面）、`_corpus_common`、`_sabotage`、`_fixloop`、`_fixture_matrix`、`_leak`、`_qmetrics`、`_qualframe`、`_xlat_async` |
 
 ### 3.4 ICLR 章节长度研究件
 
 `iclr_map.py`（OpenReview 标题→arXiv id 三档映射）→ `iclr_fetch.py`（e-print 取源物化）/ `iclr_pdf.py`（无 arXiv 映射的 OpenReview PDF 兜底）→ `iclr_sections.py`（LaTeX 臂章节词数）/ `iclr_pdf_sections.py`（PDF 臂同口径）→ `iclr_stats.py`（双臂汇总 + 重叠论文校准 PDF 臂偏差）。
 
-### 3.5 共享件与子目录
+### 3.5 已删面（Wave-F 2026-09-23）
 
-- `benchlib.py` — records jsonl 读写/manifest/编译常量，纯 stdlib 零 IO，系统 python3 与 uv 皆可载。
-- `corpus/` — 语料管线：`build_corpus_v2.py`（分层随机层）、`build_corpus_v3.py`（簇下载→成员扫描→配额抽样 core/booster）、`build_corpus_expand.py`（扩库增量）、`build_corpus_layers.py`（holdout/dev_vol/dev_failmine 层）、`build_corpus_m1k.py`（m1k 四源评测集）、`build_hot_layer.py`（OpenAlex 高引近期 hot 层）、`build_sw_layer.py`（scholarweave 脱水通道 dev_recent）。日更链 2026-09-21 退役，`daily_arxiv.py` 已删（见 `dev/automation.md`）。
-- `report/` — 一次性审计/横评/归因脚本（19 件，均含 `sys.path` shim 引顶层 lib）：外部库选型横评（`bench_pylatexenc`/`texsoup_bench`/`texsoup_diverge`/`plastex_bench`/`ieeA_bench`，选型期已结案）、质量评测工具链（`qualanchor`/`qualdrift`/`qualfreeze`/`qualsample`/`qualstats`）、台账与反查（`defect_ledger`/`dossier`/`mech_ids`/`mech_backfill`）、专项探针（`export_realbook`/`extract_l2_fixture`/`l2_attr_probe`/`layout_bench`/`v2_diff`）。
+旧 harness 全部件已删、功能由 §3.1–§3.2 继任：`stagerun*.py`/`stage_*.py`/`wave.py`/`harvest.py`/`preflight_batch.py`/`gwpilot.*`（批跑 → `bench run` spec 套）；`triage.py`/`rundiff.py`/`gate_scorecard.py`/`quality_proxies.py`（→ 同名 verb / quality spec）；`parsebench.py`/`compilebench_v3.py`/`xlatbench.py`/`qualbench.py`/`validbench.py`/`alignbench.py`/`fixloop_bench.py`/`fixture_assert.py`/`gullet_bench.py`/`wrapfloat_bench.py`/`e2e_mock_bench.py`/`e2e_real_bench.py`（→ 同名 spec）；`benchlib.py`（→ `specs/_benchlite.py`）；`corpus/build_*.py` ×7（→ `corpus_*`/`frame_build` spec）；`report/` 19 件一次性横评/审计脚本（选型期已结案）；`runbook_loop.md`（→ `bench plan` + 各 spec docstring）。批前闸职责改由 `bench doctor`（环境/工具链/网关）与 `bench plan`（格数/估时预报）分担。
 
 ### 3.6 trizone-ledger 内核（`kernel/`）
 
-`kernel/` 是新 bench 内核（设计 `dev/bench-redesign-v2-trizone.md`——绿地口径不设历史兼容面，架构图 `dev/assets/trizone-arch.svg`），单一 CLI 入口 `PYTHONPATH=bench/py python -m kernel <verb>`（prog 名 `bench`），操作 `$TEXLATE_BENCH_ROOT` 下四区。子命令族：`init / run / plan / status / derive / sweep / prune / backup / doctor / fsck / spec`，`vault {verify,restore,adopt,tombstone}`，`ledger {import,ingest,rebuild-index,tail-ingest}`，`lake {status,evict,register}`，`triage/gate/dossier` 现为桩（exit 2)，按设计为读 index 的分析动词。契约：写命令先跑轻档 sweep；`run`/`plan` 在 `$ROOT/PAUSE` 存在时拒跑；`--detach` 经 `locks.detach_with_lock` 重 exec、付费 spec 强制 `--max-cost`。旧 harness（§3.2–§3.5 普查面）按设计 §5.3 整体废弃待删——spec 重写完成前本表保留作盘点依据。
+`kernel/` 是 bench 内核（设计 `dev/bench-redesign-v2-trizone.md`——绿地口径不设历史兼容面，架构图 `dev/assets/trizone-arch.svg`），单一 CLI 入口 `uv run python bench/py/bench <verb>`（等价 `PYTHONPATH=bench/py python -m kernel`），操作 `$TEXLATE_BENCH_ROOT` 下四区。子命令族：`init / run / plan / status / derive / sweep / prune / backup / doctor / fsck / spec`，`vault {verify,restore,adopt,tombstone,seed}`，`ledger {import,ingest,rebuild-index,tail-ingest}`，`lake {status,evict,register,absorb,pin,unpin}`，`cache {status,evict,rebuild}`，外加 §3.2 分析动词（verbs/ 惰性加载）。契约：写命令先跑轻档 sweep；`run`/`plan` 在 `$ROOT/PAUSE` 存在时拒跑；`--detach` 经 `locks.detach_with_lock` 重 exec、付费 spec 强制 `--max-cost`。
 
 ## 4. `bench/ts/` — JS 侧解析库横评
 
@@ -116,13 +136,12 @@
 
 ### 6.1 批跑与长任务
 
-- **records append 即账目**：`records/{stage}.jsonl` 行在盘上 = done，同参重启即无损续跑；同一结果目录同时只许一个 stagerun 进程（单写者 append，双开会重复跑且行交错）。`results.json` 式整体重写文件崩一次全丢，新批一律走 append 账。
-- **后台长批脱管**：超过半小时的批量一律 `setsid nohup` 脱离会话 + 日志直写文件 + 靠产物文件面监控进度，不挂在交互会话里等。
-- **`--layers` 默认只 core**：stagerun/e2e_real_bench 要全量必须显式 `--layers core,booster,hot`（实际层名以 manifest 为准）。
-- **`zh/` 是臂间共享就地演化树**：compile zh(mock) 必先于 real/sabotage；sabotage 两臂放全批最后（污染 zh/）；续跑靠同 `--n/--seed/--layers` 确定性选样 + `--xlat-arm` 钉 provenance。
+- **落账即 done**：`records/<stage>.jsonl` 行在盘上 = done，同 spec 同参重启按 `(idc,arm,variant)` dedup 无损续跑；同一 run 目录同时只许一个写者进程（kernel lock 强制）。`results.json` 式整体重写文件崩一次全丢，批一律走 append 账。
+- **后台长批脱管**：超过半小时的批量一律 `setsid nohup` 脱离会话 + 日志直写文件 + 靠产物文件面监控进度，不挂在交互会话里等（或 `bench run --detach` 走 kernel 脱管）。
+- **子集与层参数**：选样类 spec 默认只跑 core 层——要全量显式 `layers=core,booster,hot`（层名以 manifest 为准）；定点子集 `ids=<csv>`，抽样 `n=<N> seed=<S>`。
 - **fixloop 收格口径**：floor 机制落地后收 fail + 特定 partial（floor_snap 保入场 PDF 回退），inject reject 不救。
-- **快照隔离**：churn 期 `TEXLATE_SRC` 指 frozen src 快照（或 `cp -al` hardlink farm——语料快照必须 hardlink，顶层遍历不跟 symlink 目录），隔离 bench 与在飞改动。
-- **批前闸**：大批量前跑 `preflight_batch.py`（import walk + mock 链 + 磁盘 + manifest + 网关认证），429 先判瞬时限流再判死。
+- **快照隔离**：churn 期用 `cp -al` hardlink farm 钉语料/src 快照（顶层遍历不跟 symlink 目录，快照必须 hardlink），隔离 bench 与在飞改动。
+- **批前闸**：大批量前跑 `bench doctor`（环境/工具链/网关逐项判定）+ `bench plan <spec>`（格数/dedup 桶/估时预报），429 先判瞬时限流再判死。
 - **签名可分辨度**：发生率 p 的签名要看 ≥3 次需 n≈3/p 的样本量。
 
 ### 6.2 排障
