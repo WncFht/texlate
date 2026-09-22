@@ -1,0 +1,40 @@
+{"id": "1012.1548", "layer": "expand", "cat_group": "hep-phys", "era": "new", "bytes": 44992, "format": "single_gz", "fp_input": "53a90fb72463eeeee04b228081d5764366e23b86f33d21aa4f99068ee7205e85"}
+{"id": "1510.08484", "layer": "hot", "cat_group": "Computer Science", "era": "new", "bytes": 45389, "format": "tar", "fp_input": "8acef6577777f511706e985f20c9a754a5a8da6c1b6100c74179c4a7ce781719"}
+{"id": "1608.02683", "layer": "expand", "cat_group": "math", "era": "new", "bytes": 4306818, "format": "tar", "fp_input": "f54ba178c693cb3de96e8afb02688bbed1e5e8609a5913cc4c47f7cc990540cc"}
+{"id": "1610.02136", "layer": "hot", "cat_group": "Computer Science", "era": "new", "bytes": 121778, "format": "tar", "fp_input": "3ab88cd1f759bfa8f1f5ead594a88c8b6f9eab4e89595122d2cdfeceb3c0e966"}
+{"id": "1706.02386", "layer": "expand", "cat_group": "cs", "era": "new", "bytes": 3794204, "format": "tar", "fp_input": "4dd5d12804d617f70ab25b2bdb63c26a1b5f9d153f350bb9f3acb8890401f253"}
+{"id": "2402.07927", "layer": "hot", "cat_group": "Computer Science", "era": "new", "bytes": 118767, "format": "tar", "fp_input": "8c47c0d91e40268a8c2e2799cce0869a4ebb21a2ee80c26438e48a3cc4c14a2c"}
+{"id": "2403.05143", "layer": "hot", "cat_group": "Mathematics", "era": "new", "bytes": 5071255, "format": "tar", "fp_input": "7ed8cd3de5f9f1f61a290b4f1a5bc0af8990fe88b7bb4bb7066ae549d88ea1e8"}
+{"id": "2403.05234", "layer": "hot", "cat_group": "Computer Science", "era": "new", "bytes": 7416618, "format": "tar", "fp_input": "7440948a244c2348e0a9974a6fdff85266dd11b3813b3006dcb2e55b501421b0"}
+{"id": "2403.08295", "layer": "hot", "cat_group": "Computer Science", "era": "new", "bytes": 128401, "format": "tar", "fp_input": "d89fb6931df3385261c0ef166d61565894df51f2e6d1ca38524925c444544180"}
+{"id": "2403.14117", "layer": "hot", "cat_group": "Computer Science", "era": "new", "bytes": 1094674, "format": "tar", "fp_input": "9849d99e5463de4d76f796b4979c1b33a8fd3cdcfc89868ba21fff948f25763c"}
+{"id": "2404.04248", "layer": "hot", "cat_group": "Physics and Astronomy", "era": "new", "bytes": 2620137, "format": "tar", "fp_input": "5c3e3043b6353ec3bdc42c6b54cdc9a705169e1d5b53a712632c808ad4edb931"}
+{"id": "2408.03794", "layer": "hot", "cat_group": "Engineering", "era": "new", "bytes": 9429517, "format": "tar", "fp_input": "5f33688a34f7b99dfc8d47fe2e0b695d88328325e860b5a9b1ded31c60b06b99"}
+{"id": "2411.12022", "layer": "hot", "cat_group": "Physics and Astronomy", "era": "new", "bytes": 3679171, "format": "tar", "fp_input": "875158ef7eb16c16c860ad197f1d54ec60746d68a934dedc8f5cace321157f4f"}
+{"id": "2501.02903", "layer": "dev_recent", "cat_group": "hep-phys", "era": "new", "bytes": 11993, "format": "single_gz", "fp_input": "d3ef2adc322ecb14b4e4faf9115c743a83a50bc6f210281bb78bbb353807b8f2"}
+{"id": "2502.15152", "layer": "dev_recent", "cat_group": "cs", "era": "new", "bytes": 21011962, "format": "tar", "fp_input": "109f6868e86946b880de33b8129f410a412b3bdd1b1ca361a40c3cdcff131cfd"}
+{"id": "2503.07868", "layer": "dev_recent", "cat_group": "recent", "era": "new", "bytes": 288100, "format": "tar", "fp_input": "9eab0f78044ce06cc1d6aee0b8ff3f8b09d5fce7661717f4d41815ab2eb079c9"}
+{"id": "2503.08606", "layer": "dev_recent", "cat_group": "other", "era": "new", "bytes": 327448, "format": "tar", "fp_input": "5f3377834f788b8d8cc7a61e62754cdf411c41e49cfd736186b9aaf3c74c3a3d"}
+{"id": "2503.10867", "layer": "dev_recent", "cat_group": "recent", "era": "new", "bytes": 15890, "format": "single_gz", "fp_input": "beca1a8bfa5bd21dba9e14fc2e863f06c7d40e362bba78c8872f407ea37d3e59"}
+{"id": "2503.13006", "layer": "dev_recent", "cat_group": "math", "era": "new", "bytes": 43079, "format": "tar", "fp_input": "c76b76a1c8a316266cf7996516e57d2510a22c9cbeb073b80a97fe6a4d95286d"}
+{"id": "2504.01669", "layer": "hot", "cat_group": "Physics and Astronomy", "era": "new", "bytes": 21401740, "format": "tar", "fp_input": "5096b669bc8ec96d63623e7ce27ef6ff7eafc1fe191d3db7164bf01c8558c97d"}
+{"id": "2504.08827", "layer": "dev_recent", "cat_group": "recent", "era": "new", "bytes": 1115588, "format": "tar", "fp_input": "35263183e8e155ff2e8556319e0bfe4ef11a12b150d675c6a7fcfb0132588798"}
+{"id": "2505.16322", "layer": "dev_recent", "cat_group": "cs", "era": "new", "bytes": 420856, "format": "tar", "fp_input": "983321abb6bc6c4472b4b7a946659148492308028ca2f2988ee0d308e98228aa"}
+{"id": "2505.19467", "layer": "dev_recent", "cat_group": "recent", "era": "new", "bytes": 5228968, "format": "tar", "fp_input": "bde22266e6f4f372dcb48777e687512c7311d82345708b208150f775ce03f0e4"}
+{"id": "2508.02657", "layer": "dev_recent", "cat_group": "cs", "era": "new", "bytes": 817642, "format": "tar", "fp_input": "7b86ee66f9d9ec7379875aa0b4ef44cb9d739124ff8fc34ad96ce49cda1c0627"}
+{"id": "2508.06849", "layer": "dev_recent", "cat_group": "cs", "era": "new", "bytes": 457255, "format": "tar", "fp_input": "6fec1db33ff22cda01d8b5f9ebaa02d70c907a0ff1b18716f8a158fa0d75fc7f"}
+{"id": "2508.10958", "layer": "dev_recent", "cat_group": "hep-phys", "era": "new", "bytes": 133851, "format": "tar", "fp_input": "4266ff15049a1295ebd8c8f7bc5ff5149e6b0ec428bade474cc6b12ba0991294"}
+{"id": "2509.04718", "layer": "dev_recent", "cat_group": "recent", "era": "new", "bytes": 156870, "format": "tar", "fp_input": "d5f5dd95fb6a99540ffeb679e6d378b722bb02c86ee6fd214aa561173515bdd6"}
+{"id": "2510.10471", "layer": "dev_recent", "cat_group": "recent", "era": "new", "bytes": 14079868, "format": "tar", "fp_input": "65b478b7192a96277e91e74b0391df91b339d853b868c3712594c81253e32fc8"}
+{"id": "2512.00609", "layer": "dev_recent", "cat_group": "other", "era": "new", "bytes": 180589, "format": "tar", "fp_input": "4579542f80700882ce244d0182bd21949893360682ebae5b9f59f1e4a45e931b"}
+{"id": "2512.01407", "layer": "dev_recent", "cat_group": "recent", "era": "new", "bytes": 5757098, "format": "tar", "fp_input": "70089502ec0a02e323807d8f4505c012c11b995222d9d86e0934b31b99d42355"}
+{"id": "2601.02468", "layer": "dev_recent", "cat_group": "recent", "era": "new", "bytes": 3484076, "format": "tar", "fp_input": "978e41cabf45a364298597c50509b63da2ae0cd859b6e662386f324c149344d4"}
+{"id": "2603.20206", "layer": "dev_recent", "cat_group": "cs", "era": "new", "bytes": 672131, "format": "tar", "fp_input": "ae166f253db645860b02ed42f89cd35e6f5b7b2361a2d8699e229df58700f604"}
+{"id": "2605.06276", "layer": "dev_recent", "cat_group": "cs", "era": "new", "bytes": 508515, "format": "tar", "fp_input": "b13d0fcf600b107ca31a9e6017d524eccfea5163b28877539fafc9e618a5f02e"}
+{"id": "2605.25645", "layer": "hot", "cat_group": "Computer Science", "era": "new", "bytes": 1025862, "format": "tar", "fp_input": "a7a293fe6aba0a0205ffbeb160ae00acb4c28a33256d963d10a91032f470fdc1"}
+{"id": "2606.23298", "layer": "dev_recent", "cat_group": "recent", "era": "new", "bytes": 11011845, "format": "tar", "fp_input": "6ada3b6b6c824665b04d2c87a0168580e28209de59dcbdc92bd3df6ba03a9348"}
+{"id": "2606.25822", "layer": "dev_recent", "cat_group": "recent", "era": "new", "bytes": 13519, "format": "tar", "fp_input": "b524353605d552a18010de059d4bd0890e2f72853b12338f0062f54734ec48e3"}
+{"id": "2607.04366", "layer": "hot", "cat_group": "Mathematics", "era": "new", "bytes": 20390, "format": "tar", "fp_input": "e089a91780d80a234925adea5fd3d2e023f0131743157554c4a479f3e3f65a48"}
+{"id": "2607.06115", "layer": "dev_recent", "cat_group": "cs", "era": "new", "bytes": 2578459, "format": "tar", "fp_input": "b1bece291dbb28777de394ecc1c7bb04bd1c7cf8305fe70532f69cbb3d03cb48"}
+{"id": "2608.13064", "layer": "dev_recent", "cat_group": "cs", "era": "new", "bytes": 4432532, "format": "tar", "fp_input": "a4fc687748b7987671fbc27f414557909ac83a36b134fad526a10e690b387c71"}
+{"id": "2608.25736", "layer": "dev_recent", "cat_group": "recent", "era": "new", "bytes": 11484663, "format": "tar", "fp_input": "748b77b0b3be73f8ef726d9edc01e1301f6b67b660dbfeac255e61faaabdc00a"}
