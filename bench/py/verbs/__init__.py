@@ -23,4 +23,5 @@ REGISTRY = {
     "xlat-report": ("xlat", "xlatbench eval_records → 模型榜"),
     "xlat-rejudge": ("xlat", "存 src/zh 本地重判（免网关）"),
     "qual-report": ("qual", "qualbench 评判汇总"),
+    "booster-select": ("booster", "nominations 池 → booster 选择集（确定性变换）"),
 }
