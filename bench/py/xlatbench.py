@@ -8,7 +8,7 @@ r"""xlatbench — B4a 翻译硬契约回归跑分器 (gwbench 扶正版).
 (如 layer=core), ``--docs N`` 跨 cluster 轮转取 N 篇 (seed 定簇内序),
 每篇 locate() 定主 tex → 候选 chunk (300–1200 字符且含占位符) 按
 context-kind 分桶, 每桶等距取 ``--per-kind`` 个; 尾部挂 S1–S4 合成压力
-(与 bench/fixtures/xlat-traps.tex @Xn 遮蔽输出逐字一致, test_bench_regression
+(与 bench/fixtures/xlat-traps.tex @Xn 遮蔽输出逐字一致, specs._fixture_matrix
 assert_xlat 钉住产品口径).
 
 判定口径 (E22 定案, docs/decisions/background.md E22):
@@ -93,7 +93,7 @@ CS_RX = re.compile(r"\\[a-zA-Z]+")
 DEFAULT_MANIFEST = REPO / "bench" / "corpus" / "manifest.jsonl"
 
 # 合成压力样例: 与 bench/fixtures/xlat-traps.tex @X1–@X4 遮蔽输出逐字一致
-# (产品口径 —— BIB_/HREF_/URL_ 全局跨类编号), test_bench_regression.assert_xlat
+# (产品口径 —— BIB_/HREF_/URL_ 全局跨类编号), specs._fixture_matrix.assert_xlat
 # 钉住 parser 侧; 改任一边先跑该测试对拍.
 SYNTHETIC = [
     {

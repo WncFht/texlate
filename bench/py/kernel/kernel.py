@@ -550,6 +550,116 @@ def _note(env, text: str, level: str = "info"):
         pass
 
 
+# --- lake lookahead prefetcher (§3.10.3 预取双机制) ------------------------------------
+
+# Window bounds: at most this many hydrated-but-unconsumed cells — or this
+# many bytes of them — may sit ahead of the execution frontier.
+LOOKAHEAD_CELLS = 32
+LOOKAHEAD_BYTES = 512 * 1024 ** 2
+
+
+class _Lookahead:
+    """Run-internal lake prefetcher. One daemon thread walks the plan's
+    distinct idcs in order, hydrating each through the spec's fetch_fn,
+    holding at most LOOKAHEAD_CELLS cells (or LOOKAHEAD_BYTES of payload)
+    not yet consumed by a started cell. At run start the window is empty
+    so the first ≤32 cells hydrate immediately — that burst IS the
+    plan-time batch warm-up; sustained operation IS the run-internal
+    lookahead. The two named mechanisms are one thread.
+
+    Prefetch is advisory: a hydrate failure is a note, never fatal — the
+    consumer's own ctx.lake_ensure retries under the same per-cell lease
+    (one-fetch-one-wait). Window bookkeeping tolerates races: a cell that
+    starts before its prefetch record lands is remembered ``consumed``
+    so the late record is dropped instead of leaking a slot."""
+
+    def __init__(self, env, spec: Spec) -> None:
+        self._env = env
+        self._spec = spec
+        self._stop = threading.Event()
+        self._cond = threading.Condition()
+        self._pending: dict[str, int] = {}   # idc -> hydrated bytes
+        self._consumed: set[str] = set()     # started before prefetch landed
+        self._thread: threading.Thread | None = None
+
+    def _window_open(self) -> bool:
+        return (len(self._pending) < LOOKAHEAD_CELLS
+                and sum(self._pending.values()) < LOOKAHEAD_BYTES)
+
+    def cell_started(self, idc: str) -> None:
+        """Frontier bump — a started cell claims its prefetched bytes."""
+        with self._cond:
+            if idc in self._pending:
+                del self._pending[idc]
+            else:
+                self._consumed.add(idc)
+            self._cond.notify_all()
+
+    def _loop(self, idcs: list) -> None:
+        spec = self._spec
+        env = self._env
+        run_seq = getattr(env["rd"], "run_seq", 0) or 0
+        source = getattr(spec, "lake_source", "arxiv") or "arxiv"
+        for idc in idcs:
+            if self._stop.is_set() or env["abort"].is_set():
+                return
+            with self._cond:
+                while not (self._stop.is_set() or env["abort"].is_set()
+                           or self._window_open()):
+                    self._cond.wait(timeout=2.0)
+                if self._stop.is_set() or env["abort"].is_set():
+                    return
+            if not lake.admit(0):
+                _note(env, "lake lookahead paused: zone over capacity cap "
+                           "or fs floor — consumers still self-hydrate",
+                      level="warn")
+                return
+            try:
+                d = lake.hydrate(idc, fetch_fn=spec.fetch_fn,
+                                 source=source, run_seq=run_seq)
+            except Exception as exc:  # noqa: BLE001 - advisory lane
+                _note(env, f"lake prefetch {idc} failed: "
+                           f"{type(exc).__name__}: {exc}", level="warn")
+                continue
+            if d is None:
+                continue                  # lazy-unfetchable — no slot used
+            try:
+                size = fsutil.dir_size(d)
+            except OSError:
+                size = 0
+            with self._cond:
+                if idc not in self._consumed:
+                    self._pending[idc] = size
+
+    def start(self, cells: list, terminal_keys: set) -> None:
+        """Spawn the prefetcher over plan-order distinct idcs whose cells
+        still owe this run a terminal (already-terminal cells need no
+        warm bytes — and never claim a window slot)."""
+        idcs, seen = [], set()
+        for c in cells:
+            k = (str(c["idc"]), str(c.get("arm", "-")), str(c.get("up", "-")),
+                 str(c.get("variant", "-")), str(c["stage"]))
+            if k in terminal_keys:
+                continue
+            idc = str(c["idc"])
+            if idc not in seen:
+                seen.add(idc)
+                idcs.append(idc)
+        if not idcs:
+            return
+        self._thread = threading.Thread(
+            target=self._loop, args=(idcs,), daemon=True,
+            name="lake-lookahead")
+        self._thread.start()
+
+    def stop(self) -> None:
+        self._stop.set()
+        with self._cond:
+            self._cond.notify_all()
+        if self._thread is not None:
+            self._thread.join(timeout=10)
+
+
 # --- the cell critical section ----------------------------------------------------------
 
 
@@ -639,6 +749,12 @@ def _run_cell(env, cell: dict) -> dict:
     # ExitStack second so claim release unwinds INSIDE cell.lock on every
     # path — an emit failure mid-cell must not strand the lease held.
     with runs.cell_lock(rd, safe), contextlib.ExitStack() as _stack:
+        # lookahead frontier bump — inside cell_lock: a cell queued on the
+        # lock has not consumed its prefetched bytes yet
+        la = env.get("lookahead")
+        if la is not None:
+            la.cell_started(idc)
+
         # 0. run-level abort flag (auth breaker tripped mid-run)
         if env["abort"].is_set():
             return quick("error", cat="auth_dead")
@@ -1066,6 +1182,15 @@ def run(spec_or_path, params=None, *, date=None, slug=None, resume=False,
             emit(f"run {rd.run}: {len(queued)} cells queued "
                  f"({len(cells) - len(queued)} already terminal)")
 
+            # 6.5 lake lookahead prefetcher (§3.10.3): plan-order walk,
+            #     bounded window ahead of the execution frontier; the
+            #     initial burst IS the plan-time batch warm-up
+            lookahead = None
+            if spec.lake and spec.prefetch:
+                lookahead = _Lookahead(env, spec)
+                env["lookahead"] = lookahead
+                lookahead.start(cells, env["terminal_keys"])
+
             # 7. executor pass — cells partitioned by effective executor
             by_exec: dict[str, list] = {}
             for c in cells:
@@ -1073,17 +1198,21 @@ def run(spec_or_path, params=None, *, date=None, slug=None, resume=False,
                 ex = (st.executor if st and st.executor else spec.executor)
                 by_exec.setdefault(ex, []).append(c)
             results = []
-            for ex, group in by_exec.items():
-                if env["abort"].is_set():
-                    results.extend(
-                        (c, {"cell": None, "status": "aborted"})
-                        for c in group)
-                    continue
-                results.extend(executors.execute_cells(
-                    group,
-                    lambda c: _run_cell(env, c),
-                    executor=ex, jobs=jobs,
-                    same_id_serial=spec.same_id_serial))
+            try:
+                for ex, group in by_exec.items():
+                    if env["abort"].is_set():
+                        results.extend(
+                            (c, {"cell": None, "status": "aborted"})
+                            for c in group)
+                        continue
+                    results.extend(executors.execute_cells(
+                        group,
+                        lambda c: _run_cell(env, c),
+                        executor=ex, jobs=jobs,
+                        same_id_serial=spec.same_id_serial))
+            finally:
+                if lookahead is not None:
+                    lookahead.stop()
             env["results"] = results
 
             # aborted-run drain: cells the executor never reached still owe

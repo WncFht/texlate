@@ -222,14 +222,9 @@ def parse_one(path: Path, timeout_s: int) -> dict:
         signal.alarm(0)
 
 
-LEAK_PATTERNS = {
-    "dollar": re.compile(r"\$"),
-    "cite_family": re.compile(r"\\cite[a-zA-Z]*"),
-    "ref_family": re.compile(r"\\(?:eq|auto|c|page|name|sub)?ref(?![a-zA-Z])"),
-    "begin_env": re.compile(r"\\begin\{"),
-    "conditional": re.compile(r"\\(?:if[a-zA-Z]+|else|fi)(?![a-zA-Z])"),
-    "input_include": re.compile(r"\\(?:input|include)\{"),
-}
+# 六族泄漏正则已迁 specs/_leak.py（Wave-A1 共享件落点）——本模块保持
+# re-export 防旧引用断链，新代码一律 import specs._leak。
+from specs._leak import LEAK_PATTERNS
 
 
 def scan_chunks(res: ScanResult) -> dict:

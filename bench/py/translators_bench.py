@@ -3,9 +3,9 @@ r"""translators_bench.py — stagerun ``xlat --arm`` 的 translator 适配层。
 
 臂名 → translator 工厂（``make_translator``）+ 破坏台账面（``.ledger`` /
 ``.finalize(results)``）。Sabotage/Perturb 的 **注入实现继承自**
-``e2e_mock_bench``（Mode B/C 扰动逻辑的唯一事实源——子类只叠台账面，
-逐字节一致由构造保证而非拷贝；e2e_mock 自身的 ``pipe_mode_condition``
-仍用原类，两不相扰）。
+``specs._sabotage``（Mode B/C 扰动逻辑的唯一事实源——子类只叠台账面，
+逐字节一致由构造保证而非拷贝；e2e_mock 的 ``pipe_mode_condition``
+经 re-export 用同类，两不相扰）。
 
 接线契约（stagerun 与回归测试共用）：
 
@@ -20,7 +20,7 @@ r"""translators_bench.py — stagerun ``xlat --arm`` 的 translator 适配层。
 - 台账：sabotage/perturb 实例带 ``.ledger`` dict 与 ``.events`` 明细
   list（``ledger["events"]`` 即同一 list 对象，translate 期间逐次
   append ``{seg, kind, detail}`` / ``{seg, moved}``）。pipeline 跑完后
-  调 ``.finalize(results)`` 做逐块归因（``e2e_mock_bench._seg_of`` 同
+  调 ``.finalize(results)`` 做逐块归因（``specs._sabotage._seg_of`` 同
   口径：段可能是 encoded 全段/行切片/原文），就地填计数器并返回
   ``ledger``——stagerun 落 ``rec["metrics"]["sabotage"]``。幂等：
   重复 finalize 先清零重数。
@@ -57,7 +57,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # bench/py 同目录 import
 
-import e2e_mock_bench as _emb  # Mode B/C 注入实现唯一事实源
+import specs._sabotage as _sab  # Mode B/C 注入实现唯一事实源
 
 from texlate.latex.placeholder import PH_RX
 from texlate.pipecore import delivered as _delivered
@@ -93,10 +93,10 @@ def _replan(r: ChunkResult, mode: str, *, zh: str = MOCK_ZH) -> tuple[bool, int]
         enc = encode_newlines(piece)[0]
         if mode == "B":
             targeted = targeted or (
-                _emb._plan_b(enc) is not None or _emb._plan_b(piece) is not None
+                _sab._plan_b(enc) is not None or _sab._plan_b(piece) is not None
             )
         else:
-            _, mv = _emb._apply_c(_mock_translate_text(enc, zh), enc)
+            _, mv = _sab._apply_c(_mock_translate_text(enc, zh), enc)
             moved += mv
     if mode == "C":
         targeted = moved > 0
@@ -123,7 +123,7 @@ def _finalize(
     else:
         ledger.update(spliced=0, dropped=0)
     for r in results:
-        evs = [e for e in events if _emb._seg_of(r.source, e["seg"])]
+        evs = [e for e in events if _sab._seg_of(r.source, e["seg"])]
         if evs:
             targeted = True
             n_moved = sum(e.get("moved", 0) for e in evs)
@@ -172,7 +172,7 @@ class _Ledgered:
         )
 
 
-class SabotageTranslator(_Ledgered, _emb.SabotageTranslator):
+class SabotageTranslator(_Ledgered, _sab.SabotageTranslator):
     """Mode B 幻觉破坏臂（丢/造占位符）+ 台账。"""
 
     _MODE = "B"
@@ -182,7 +182,7 @@ class SabotageTranslator(_Ledgered, _emb.SabotageTranslator):
         self._init_ledger()
 
 
-class PerturbTranslator(_Ledgered, _emb.PerturbTranslator):
+class PerturbTranslator(_Ledgered, _sab.PerturbTranslator):
     """Mode C 占位符挪位臂（multiset 保持 → 过 L0 后 splice 错位）+ 台账。"""
 
     _MODE = "C"

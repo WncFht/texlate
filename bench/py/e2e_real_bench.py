@@ -69,15 +69,15 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, os.environ.get("TEXLATE_SRC", str(ROOT / "src")))
 
 # fixloop 配方（TUNA 镜像钉 / usertree 三件套 / tlpdb 离线索引 / _NoSandbox）
-# 单源复用 fixloop_bench——同目录脚本经 sys.path[0] 可 import，其模块级无 IO。
+# 单源在 specs/_fixloop（bench 三面共用；其模块级无 IO，RS/tlpdb 皆惰性）。
 import benchlib
-import fixloop_bench as _fl
 
-# 编排单源：translate_tree 委托 stage_xlat.translate_tree_async。
-# TEXLATE_SRC 冻结快照语义不靠本处序位：stagerun_lib/e2e_mock_bench 在
-# stage_xlat 链内各自 sys.path.insert(TEXLATE_SRC)，texlate 包一经落地
-# __path__ 即钉快照侧——链中 texlate.* 子模块全部同源。
-import stage_xlat
+from specs import _fixloop as _fl
+
+# 编排单源：translate_tree 委托 specs._xlat_async.translate_tree_async
+# （原 stage_xlat.translate_tree_async）。TEXLATE_SRC 冻结快照语义由本文件
+# 顶部 sys.path.insert 自保，不靠 import 序位。
+from specs._xlat_async import translate_tree_async
 
 from texlate.compile.engine import XelatexEngine, engine_for, route_project
 from texlate.compile.fixloop import CaseSink, fixloop
@@ -152,7 +152,7 @@ async def translate_tree(
 ) -> dict:
     """work 内可译 .tex → XlatPipeline(GatewayTranslator)+L0 → splice 写回。
 
-    编排单源 ``stage_xlat.translate_tree_async``（扫描 → oversize 闸 →
+    编排单源 ``specs._xlat_async.translate_tree_async``（扫描 → oversize 闸 →
     StateStore → XlatPipeline → 逐块对账 → reconstruct 写回），本函数只剩
     注入面 + results 丢弃。相对旧就地副本收编两处漂移：交付谓词
     ``pipecore.delivered``（``ok``+空译不回填 splice）与畸形 chunk_id 的
@@ -163,7 +163,7 @@ async def translate_tree(
     四门口径（dotfile/``.rtx.tex``/``.code.tex``/无散文 support_files）
     与 e2e/mock 臂同 ``pipecore.scan_tree`` 单源不漂移。
     """
-    stats, _results = await stage_xlat.translate_tree_async(
+    stats, _results = await translate_tree_async(
         work,
         translator,
         state_dir,

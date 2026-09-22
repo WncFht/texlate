@@ -37,6 +37,27 @@
 | fixloop 修复配方库 | fixloop_bench.py | stage_fixloop、e2e_real_bench | fixloop_bench 双判：B3 evaluator→spec 道 + 配方库→absorb-lib |
 | 断言矩阵 | tests/test_bench_regression.py | fixture_assert 反向 import | vendor 进 bench 可 import 面（spec import tests 是反模式） |
 
+### 2.1 benchlib.py 逐函数归类（40+ 引用面的处置表）
+
+kernel 已有等价物直接对位；spec 域函数随消费它的 spec 落 `specs/_*.py`；
+纯旧世界投影随驱动一起进 §5.3 删除单。
+
+| benchlib 成员 | 落点 | 依据 |
+|---|---|---|
+| `safe_id` / `canon_id` | **kernel/idnorm**（已有：`safe_id`、`canon_id`→CanonResult） | id 归一单解 §3.10.7；benchlib 版是 str 壳，调用方随 spec 重写换 CanonResult |
+| `iter_jsonl` / `read_jsonl` / `write_jsonl` / `append_jsonl` | **kernel/events+fsutil**（`iter_jsonl` 已有；写径用 `runs._append_row`/`ledger.emit`） | jsonl 读写是 kernel 原语 |
+| `atomic_write` / `atomic_write_text` / `copytree_ignore` | **kernel/fsutil**（`atomic_write` 已有） | fs 原语 |
+| `latest_by` / `rec_key` / `load_records` / `latest_records` / `seed_run_records` / `cond_status` / `fetch_done` | **删** | 旧 records.jsonl 投影面，被 index `records` 表取代 |
+| `OK_STATUS`/`SKIP_STATUS`/`RESCUED_STATUS`/`DONE_STATUS`/`RETRIABLE_STATUS`/`COMPILED_STATUS`/`STATUS_RANK`/`TERMINAL_WORDS`/`BENCH_ERROR_STATUS` | **随 spec** | kernel 有 `events.STATUS_DONE` + status_class；bench 语义集（rescued/dirty_pdf 等）由消费 spec 自声明 |
+| `errors_sig` | **kernel 终态合成**（Wave-A0 已落：`sig`=首个 errors cat） | G12 已裁内核合成；`cat:pay` 细形由 triage verb 再聚类 |
+| `fixloop_attr` / `fixloop_sig` / `verdict_sig` / `judge_dict` / `_fixloop_rs` / `_taxonomy_of` / `misschar_partial` / `_strkey` / `compile_fp` | **随 spec**（fixloop_bench/xlatbench 吸收道） | 域内 sig/verdict 合成，不进 kernel |
+| `manifest_paths` / `load_manifest_rows` / `manifest_layers` / `corpus_ids` / `dev_layers` / `EVAL_ONLY_LAYERS` / `pick_sample` | **Wave-E corpus builders** | corpus manifest 选择层，与 builders 同案迁 |
+| `materialize_entry` | **soak ingest stage**（Wave-A2） | corpus→work 物化逻辑归 ingest |
+| `code_stamp` | **kernel/spec**（`specmod.code_sha` 已有） | 钉版口径已在内核 |
+| `load_env` / `ENV_FP` / `rss_preflight` | **删** | daily-soak 遗物（已退役 0921） |
+| `quantile` / `strip_comments` | **specs/_shared** 按需 | 小工具，哪个 spec 用随哪个引 |
+| `MAX_TOTAL_CHARS` / `AUTH_DEAD_STREAK` | **随 spec** | 付费循环常量，归消费它的 stage |
+
 ## 3. spec 重写队列（按使用频率）
 
 历史账（160 run/197k records）:stagerun 五段管线占 ~41% 且独占 real 付费臂。**P0=生产在跑，P1=近 30 天，P2=冷，defer=外部队列**。

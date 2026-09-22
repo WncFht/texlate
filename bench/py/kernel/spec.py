@@ -292,7 +292,9 @@ class Spec:
                  env_probes=None, code_deps=None, foreign_runs=None,
                  allowed_layers=None, lake: bool = False,
                  same_id_serial: bool = True, dedup_key=None,
-                 eval: bool = False, gateway_factory=None, select=None):
+                 eval: bool = False, gateway_factory=None, select=None,
+                 fetch_fn=None, prefetch: bool = True,
+                 lake_source: str = "arxiv"):
         self.kind = str(kind)
         self.params = dict(params or {})
         self.stages = list(stages or [])
@@ -313,6 +315,22 @@ class Spec:
         # Applied post-normalization, pre-canon inside _enumerate_cells;
         # NEVER at compile_checks (selector params only exist at run time).
         self.select = select
+        # ``fetch_fn(idc, stage_dir) -> dict|None`` — the spec-declared
+        # corpus hydrator (§3.10.3): populate ``{stage}/extracted/``
+        # (payload) and optionally ``{stage}/raw/``; the returned dict
+        # merges into the cell's meta.json. Wired into lake.hydrate by
+        # ctx.lake_ensure and by the run-internal lookahead prefetcher —
+        # stage fns never write their own fetchers.
+        self.fetch_fn = fetch_fn
+        # ``prefetch`` gates the lookahead thread (32 cells / 512 MiB
+        # window ahead of the execution frontier — §3.10.3 预取双机制;
+        # the t=0 burst IS the plan-time batch warm-up). Only runs when
+        # ``lake`` is set. False = hydrate strictly on ctx.lake_ensure
+        # demand (cold-miss instruments).
+        self.prefetch = bool(prefetch)
+        # Corpus-source dim for lake cell dirs (§3.10.3
+        # lake/corpus/{source}/{safe_id}) — sw/iclr layers declare their own.
+        self.lake_source = str(lake_source)
         # Paid gateway the run falls back to when the caller doesn't
         # inject one — GatewayFactory | callable | None. Config, not
         # semantics: deliberately excluded from to_dict/spec_hash.
@@ -390,6 +408,11 @@ class Spec:
             "select": (None if self.select is None else
                        getattr(self.select, "__qualname__",
                                repr(self.select))),
+            "fetch_fn": (None if self.fetch_fn is None else
+                         getattr(self.fetch_fn, "__qualname__",
+                                 repr(self.fetch_fn))),
+            "prefetch": self.prefetch,
+            "lake_source": self.lake_source,
             "items": self.iter_items(),
         }
 
@@ -479,6 +502,15 @@ def compile_checks(spec: Spec) -> list[str]:
         problems.append(
             f"select {spec.select!r} is not callable — the plan-filter "
             "channel takes (item, resolved_params) -> bool")
+    if spec.fetch_fn is not None:
+        if not callable(spec.fetch_fn):
+            problems.append(
+                f"fetch_fn {spec.fetch_fn!r} is not callable — the "
+                "corpus hydrator takes (idc, stage_dir) -> dict|None")
+        elif not spec.lake:
+            problems.append(
+                "fetch_fn declared but lake=False — a corpus hydrator "
+                "is only meaningful on a lake-consuming spec")
     if spec.executor not in EXECUTORS:
         problems.append(
             f"executor {spec.executor!r} not in {sorted(EXECUTORS)}")

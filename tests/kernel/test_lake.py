@@ -153,7 +153,8 @@ def test_register_skeleton_manifested_no_bytes(broot: Path) -> None:
 
 
 def test_hydrate_fetch_builds_complete_cell(broot: Path) -> None:
-    def fetch(stage: Path) -> dict:
+    def fetch(idc: str, stage: Path) -> dict:
+        assert idc == IDC           # fetcher receives the cell's idc
         ex = stage / "extracted"
         ex.mkdir(parents=True)
         (ex / "a.tex").write_bytes(b"tex")
@@ -176,7 +177,7 @@ def test_hydrate_fetch_builds_complete_cell(broot: Path) -> None:
 def test_hydrate_double_check_under_lock_no_refetch(broot: Path) -> None:
     calls = []
 
-    def fetch(stage: Path) -> None:
+    def fetch(_idc: str, stage: Path) -> None:
         calls.append(stage)
         ex = stage / "extracted"
         ex.mkdir(parents=True)
@@ -195,7 +196,7 @@ def test_hydrate_dest_occupied_first_wins(broot: Path) -> None:
     d = _mk_cell(IDC, {"orig.tex": b"original"}, meta={"n_files": 1})
     calls = []
 
-    def fetch(stage: Path) -> None:
+    def fetch(_idc: str, stage: Path) -> None:
         calls.append(stage)
         ex = stage / "extracted"
         ex.mkdir(parents=True)
@@ -212,7 +213,7 @@ def test_hydrate_replaces_torn_dest(broot: Path) -> None:
     # occupied but INCOMPLETE dest is the hydrator's to finish
     d = _mk_cell(IDC, {"half.tex": b"half"}, meta={"n_files": 9})
 
-    def fetch(stage: Path) -> None:
+    def fetch(_idc: str, stage: Path) -> None:
         ex = stage / "extracted"
         ex.mkdir(parents=True)
         (ex / "full.tex").write_bytes(b"full")
@@ -248,7 +249,7 @@ def test_hydrate_raw_only_reextracts_locally(broot: Path) -> None:
 
 
 def test_hydrate_fetch_failure_cleans_stage_and_raises(broot: Path) -> None:
-    def boom(stage: Path) -> None:
+    def boom(_idc: str, stage: Path) -> None:
         (stage / "extracted").mkdir(parents=True)
         (stage / "extracted" / "x").write_bytes(b"x")
         raise RuntimeError("fetch exploded")

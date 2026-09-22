@@ -256,11 +256,30 @@ class Ctx:
                 out[k] = d
         return out
 
+    def lake_ensure(self, idc: str | None = None,
+                    source: str | None = None) -> Path | None:
+        """Ensure the lake cell for ``idc`` (default: this cell's) is
+        materialized; return its cell dir. Routes through the spec's
+        declared ``fetch_fn`` when the cell isn't locally rebuildable —
+        the §3.10.3 read predicate (a non-complete cell self-hydrates
+        under the same lease; a paid cell never projects a half tree).
+        ``source`` defaults to the spec's ``lake_source``. None when
+        unfetchable (no fetch_fn and no local raw layer)."""
+        idc = idc or self.idc
+        fetch = getattr(self.spec, "fetch_fn", None) \
+            if self.spec is not None else None
+        if source is None:
+            source = getattr(self.spec, "lake_source", "arxiv") \
+                if self.spec is not None else "arxiv"
+        run_seq = getattr(self.rundir, "run_seq", 0) or 0
+        return lake.hydrate(idc, fetch_fn=fetch, source=source,
+                            run_seq=run_seq)
+
     def src_path(self) -> Path | None:
         """Read-only projection of the lake cell's extracted tree into
         paper_dir()/src (hardlink farm). None when the lake can't provide
         the id."""
-        cell_dir = lake.hydrate(self.idc)
+        cell_dir = self.lake_ensure()
         if cell_dir is None:
             return None
         extracted = Path(cell_dir) / "extracted"
@@ -274,8 +293,9 @@ class Ctx:
 
     def lake_path(self, idc: str | None = None) -> Path | None:
         """Path to the lake cell dir for ``idc`` (default: this cell).
-        Hydrates on demand; None when unfetchable."""
-        return lake.hydrate(idc or self.idc)
+        Hydrates on demand (spec fetch_fn wired); None when
+        unfetchable."""
+        return self.lake_ensure(idc)
 
     # --- paid surface -------------------------------------------------------------------
 

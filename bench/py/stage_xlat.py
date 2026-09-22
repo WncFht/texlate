@@ -28,11 +28,9 @@ import quality_proxies as qp  # S5 质量代理件（leak/term 指标 + TERM_ARM
 import stagerun_lib as sl
 import translators_bench as tb  # xlat 臂工厂 + sabotage 台账（e2e_mock 注入逻辑由此封装）
 
-from texlate.latex.placeholder import PH_RX
-from texlate.latex.reconstruct import reconstruct
-from texlate.pipecore import delivered
+from specs._xlat_async import translate_tree_async  # noqa: F401 — 编排单源已迁共享位
 from texlate.pipecore import scan_tree as _scan_tree
-from texlate.validate.l0 import pair_feedback, validate_pair
+from texlate.validate.l0 import validate_pair
 from texlate.xlat.client import ChatClient
 from texlate.xlat.glossary import LOCAL_GLOSSARY_NAME, Glossary
 from texlate.xlat.pipeline import (
@@ -42,11 +40,9 @@ from texlate.xlat.pipeline import (
     XlatPipeline,
 )
 from texlate.xlat.placeholders import collect_doc_placeholders
-from texlate.xlat.state import StateStore
 
 if TYPE_CHECKING:
     import argparse
-    from collections.abc import Callable
     from pathlib import Path
 
 
@@ -136,143 +132,6 @@ def _instrument_translator(translator: object) -> dict:
 
     translator.translate = outer_timed
     return rec
-
-
-async def translate_tree_async(
-    root: Path,
-    translator: object,
-    state_dir: Path,
-    cfg: PipelineConfig,
-    *,
-    oversize_cap: int = 0,
-    glossary_fn: Callable | None = None,
-    scan_fn: Callable | None = None,
-    validator: Callable | None = None,
-    post_run: Callable | None = None,
-) -> tuple[dict, list]:
-    """bench 两臂共享的 async 翻译编排体——``benchlib.translate_tree_async`` 候升位。
-
-    ``e2e_real_bench.translate_tree`` 与本文件原 ``_translate_tree`` 的同构单源：
-    扫描 → oversize 闸 → StateStore → XlatPipeline → 逐块对账 → splice 写回，
-    恒返 ``(stats, results)``（e2e_real 弃 results 不用）。注入面全 kw-only：
-
-    - ``glossary_fn(chunks) -> Glossary | None``：回调式术语表注入——
-      ``Glossary.load`` 的 ``placeholders`` 要 post-scan chunks 经
-      ``collect_doc_placeholders`` 算，调用方预计算即双扫，故按回调给。
-    - ``post_run(pipe) -> None``：``pipe.run`` 后调一次——term_dict 落盘等
-      要 ``pipe._doc_glossary``/``pipe.state`` 面的观测件由此接。
-    - ``scan_fn``/``validator``：调用侧**显式**传自家模块全局
-      （``scan_fn=_scan_tree``、``validator=lambda s,z: validate_pair(s,z)
-      .feedback()``）——test_fuzz_scan_tree 的 ``_scan_spy`` monkeypatch
-      缝靠 from-import 属性查找保活（同 e2e._translate_tree 注入格局）；
-      缺省回退 ``_scan_tree``/``pair_feedback``（L0→str 适配单源）。
-    - 交付谓词 ``pipecore.delivered``：``ok``+空译不回填 splice（旧式
-      ``status=="ok" or (partial and zh)`` 会把块内容从 zh 树静默擦除），
-      与产品臂 ``translate_tree_run`` 同口径。
-    - 畸形 ``chunk_id`` 守备解析记 fault+bad_chunk_id 不炸整篇——
-      续跑腐记录/translator 违约向量下比对拍裸解更稳（e2e_real 裸解形
-      是已漂移副本，勿回抄）。
-    """
-    scans, chunks, fault_files, support_files = (scan_fn or _scan_tree)(root)
-    total_chars = sum(len(c.content) for c in chunks)
-    if oversize_cap and total_chars > oversize_cap:
-        # 保守闸（同 e2e_real）：超上限不烧网关配额——调用侧记 oversize 终态
-        return (
-            {
-                "files": 0,
-                "chunks": len(chunks),
-                "ok": 0,
-                "partial": 0,
-                "fault": 0,
-                "skipped": 0,
-                "attempts": 0,
-                "batched": 0,
-                "leftover_ph": 0,
-                "fault_files": fault_files,
-                "support_files": support_files,
-                "support_skipped": len(support_files),
-                "warn_kinds": {},
-                "seconds": 0.0,
-                "src_chars": total_chars,
-                "oversize": True,
-                "max_total_chars": oversize_cap,
-            },
-            [],
-        )
-    stats: dict[str, int] = {
-        "ok": 0,
-        "partial": 0,
-        "fault": 0,
-        "skipped": 0,
-        "attempts": 0,
-        "batched": 0,
-    }
-    t0 = time.monotonic()
-    state_dir.mkdir(parents=True, exist_ok=True)
-    state = StateStore(state_dir, model=getattr(translator, "model", "") or "")
-    pipe = XlatPipeline(
-        translator,
-        config=cfg,
-        glossary=glossary_fn(chunks) if glossary_fn is not None else None,
-        state=state,
-        validator=validator or pair_feedback,
-    )
-    results = await pipe.run(chunks)
-    if post_run is not None:
-        post_run(pipe)
-    translate_s = time.monotonic() - t0
-
-    by_file: dict[int, dict[int, str]] = {}
-    warn_kinds: dict[str, int] = {}
-    for r in results:
-        try:
-            fidx, cid = (int(x) for x in r.chunk_id.split(":", 1))
-        except ValueError:
-            # 畸形 chunk_id（translator 违约）——记 fault+名，不让整篇崩
-            stats["fault"] += 1
-            warn_kinds["bad_chunk_id"] = warn_kinds.get("bad_chunk_id", 0) + 1
-            continue
-        stats["attempts"] += r.attempts
-        stats["batched"] += int(r.batched)
-        if r.status in stats:
-            stats[r.status] += 1
-        else:
-            stats["fault"] += 1
-        if delivered(r):
-            by_file.setdefault(fidx, {})[cid] = r.translation
-        for w in r.warnings:
-            key = w.split(":", 1)[0][:60]
-            warn_kinds[key] = warn_kinds.get(key, 0) + 1
-        if r.skip_reason:
-            key = "skip:" + r.skip_reason.split(":", 1)[0][:60]
-            warn_kinds[key] = warn_kinds.get(key, 0) + 1
-
-    n_files = n_leftover = 0
-    for idx, (f, res) in enumerate(scans):
-        trans = by_file.get(idx)
-        if not trans:
-            continue
-        zh = reconstruct(res, trans)
-        f.write_text(zh, encoding="utf-8")
-        n_files += 1
-        n_leftover += len(PH_RX.findall(zh))
-    stats_d = {
-        "files": n_files,
-        "chunks": len(chunks),
-        **stats,
-        "leftover_ph": n_leftover,
-        "fault_files": fault_files,
-        "support_files": support_files,
-        "support_skipped": len(support_files),
-        "warn_kinds": dict(sorted(warn_kinds.items())),
-        "seconds": round(translate_s, 1),
-        "src_chars": total_chars,
-        # AuthGate 设计口径「跨论文熔断由调用方累计」（e2e_real 同款键）：
-        # 整篇全 auth 败时 drive 连记 N 篇即收摊（篇内阈值块熔断走
-        # AuthTrippedError 即停，本键兜篇均不足阈值块的慢速失血）。
-        "auth_all_failed": pipe.auth_gate.all_failed,
-    }
-    return stats_d, results
 
 
 async def _translate_tree(

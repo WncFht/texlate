@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 r"""fixture_assert — B2 陷阱断言跑分器: bench/fixtures/*.tex → 契约三件套.
 
-断言矩阵来自 tests/test_bench_regression.py (spike miniscanner_test 移植,
+断言矩阵来自 bench/py/specs/_fixture_matrix.py (spike miniscanner_test 移植,
 跑在 texlate.latex 产品解析器上); 本脚本只做计时执行 + 契约产出落盘.
 覆盖 9 fixture: tricky.tex T01–T29 (26 条 + _meta), tricky-209.tex
 (3 条 + parse_ok; parse 失败也跑 assert_209(None)), tricky-multi/main.tex
@@ -23,10 +23,7 @@ import sys
 import time
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO / "tests"))
-
-import test_bench_regression as tbr
+from specs import _fixture_matrix as fm
 
 
 def _guarded(fn, *fields: str):
@@ -35,7 +32,7 @@ def _guarded(fn, *fields: str):
     ``fields`` 是 FixtureScan 的字段名序——按序解出传给 ``fn``。
     """
 
-    def run(p: tbr.FixtureScan) -> dict:
+    def run(p: fm.FixtureScan) -> dict:
         if not p.ok:
             return {"_parse": {"status": "fail", "detail": p.error}}
         return fn(*(getattr(p, f) for f in fields))
@@ -49,15 +46,15 @@ def _guarded(fn, *fields: str):
 #: tricky-209 有意不走 _guarded：assert_209 自身处理 res=None（parse_ok
 #: 断言覆盖解析失败路径）。
 _ASSERTS = {
-    "tricky.tex": _guarded(tbr.assert_tricky, "res", "recon", "recon_fake"),
-    "tricky-209.tex": lambda p: tbr.assert_209(p.res if p.ok else None, p.recon),
-    "tricky-multi/main.tex": _guarded(tbr.assert_multi, "recon"),
-    "xlat-traps.tex": _guarded(tbr.assert_xlat, "res"),
-    "tricky-w.tex": _guarded(tbr.assert_w, "res", "recon", "recon_fake"),
-    "tricky-w73/main/main.tex": _guarded(tbr.assert_w73, "res"),
-    "tricky-wenc.tex": _guarded(tbr.assert_wenc, "res"),
-    "tricky-dollar.tex": _guarded(tbr.assert_dollar, "res", "recon", "recon_fake"),
-    "tricky-mask.tex": _guarded(tbr.assert_mask, "res", "recon", "recon_fake"),
+    "tricky.tex": _guarded(fm.assert_tricky, "res", "recon", "recon_fake"),
+    "tricky-209.tex": lambda p: fm.assert_209(p.res if p.ok else None, p.recon),
+    "tricky-multi/main.tex": _guarded(fm.assert_multi, "recon"),
+    "xlat-traps.tex": _guarded(fm.assert_xlat, "res"),
+    "tricky-w.tex": _guarded(fm.assert_w, "res", "recon", "recon_fake"),
+    "tricky-w73/main/main.tex": _guarded(fm.assert_w73, "res"),
+    "tricky-wenc.tex": _guarded(fm.assert_wenc, "res"),
+    "tricky-dollar.tex": _guarded(fm.assert_dollar, "res", "recon", "recon_fake"),
+    "tricky-mask.tex": _guarded(fm.assert_mask, "res", "recon", "recon_fake"),
 }
 
 
@@ -72,9 +69,9 @@ def main() -> None:
     cases: list[dict] = []
     cells: dict[str, dict] = {}
 
-    # 复用 pytest 侧模块级测量包 (tbr import 时已逐 fixture parse+重建，
+    # 复用矩阵模块级测量包 (fm import 时已逐 fixture parse+重建，
     # wall_ms 随包带); 断言函数与 pytest 侧共享同一份
-    parsed = tbr._PARSED
+    parsed = fm._PARSED
 
     asserts: dict[str, dict] = {}
     for name, p in parsed.items():
@@ -86,7 +83,7 @@ def main() -> None:
 
     for name, p in parsed.items():
         if p.ok:
-            status, _ratio, _first = tbr.classify_recon(p.res.vtex, p.recon)
+            status, _ratio, _first = fm.classify_recon(p.res.vtex, p.recon)
             identity = {"identical": "strict"}.get(status, status)
             n_chunks = len(p.res.chunks) if p.res else 0
             n_ph = len(p.res.ph_map) if p.res else 0
@@ -140,7 +137,7 @@ def main() -> None:
             fh.write(json.dumps(c, ensure_ascii=False) + "\n")
     (out / "cells.json").write_text(
         json.dumps(
-            {"fixtures_dir": str(tbr.FIXTURES), "wall_s": wall, "cells": cells},
+            {"fixtures_dir": str(fm.FIXTURES), "wall_s": wall, "cells": cells},
             ensure_ascii=False,
             indent=2,
         ),

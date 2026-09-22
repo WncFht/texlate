@@ -425,7 +425,7 @@ def hydrate(idc: str, fetch_fn: Callable | None = None,
        never re-fetched: two same-cell hydrations degrade to one-fetch
        one-wait).
     3. Build whole-cell in ``lake/tmp/rebuild/{run_seq}/{safe}.stage``:
-       ``fetch_fn(stage)`` when provided — it must populate
+       ``fetch_fn(idc, stage)`` when provided — it must populate
        ``{stage}/extracted/`` (payload) and may populate ``{stage}/raw/``
        and return a dict of extra meta fields — else, when the existing
        cell still holds ``raw/``, re-extract locally at zero network cost
@@ -489,7 +489,7 @@ def hydrate(idc: str, fetch_fn: Callable | None = None,
             shutil.rmtree(stage)
         stage.mkdir(parents=True)
         try:
-            ret = fetch_fn(stage)
+            ret = fetch_fn(idc, stage)
             meta_extra = dict(ret) if isinstance(ret, dict) else {}
             n = _payload_count(stage)
             meta = {**old_meta, "idc": idc, "source": source,

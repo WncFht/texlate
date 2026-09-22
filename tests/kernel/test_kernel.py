@@ -18,6 +18,7 @@ from kernel import (
     events,
     index as indexmod,
     kernel,
+    lake,
     ledger,
     locks,
     paid,
@@ -707,3 +708,141 @@ def test_process_executor_refused_loudly(broot: Path):
     spec2.stages[0].executor = "process"
     with pytest.raises(kernel.RunError, match="process"):
         kernel.run(spec2, **_quiet())
+
+
+# --- lake wiring (G4): fetch_fn + lake_ensure + lookahead -----------------------------
+
+
+def _lake_fetch(calls, files=None):
+    """A spec.fetch_fn: populate {stage}/extracted/, record the idc."""
+    def fetch(idc, stage):
+        calls.append(idc)
+        ex = Path(stage) / "extracted"
+        ex.mkdir(parents=True)
+        for name, body in (files or {"a.tex": "tex"}).items():
+            p = ex / name
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(body, encoding="utf-8")
+    return fetch
+
+
+def test_lake_ensure_fetches_via_spec_fetch_fn(broot: Path, monkeypatch):
+    """G4: a stage fn hydrates through ctx.lake_ensure — the spec's
+    fetch_fn supplies the bytes; one-fetch-one-wait makes the prefetcher
+    and the consumer agree on a single fetch."""
+    monkeypatch.setenv("TEXLATE_LAKE_FLOOR_GB", "0")
+    calls = []
+
+    def fn(ctx):
+        d = ctx.lake_ensure()
+        return "ok" if d is not None and (d / "extracted" / "a.tex") \
+            .is_file() else "error"
+
+    spec = _free_spec({"a": fn}, [{"id": "9901.00010"}],
+                      lake=True, fetch_fn=_lake_fetch(calls))
+    res = kernel.run(spec, **_quiet())
+    rd = runs.load_run(spec.kind, res["date"], res["slug"])
+    assert [r["status"] for r in _cell_rows(rd)] == ["ok"]
+    assert calls == ["9901.00010"]           # exactly one fetch (lock-dedup)
+    assert lake.is_complete("9901.00010")
+    meta = json.loads(
+        (lake.cell_dir("9901.00010") / "meta.json").read_text())
+    assert meta["run_seq"] == rd.run_seq
+
+
+def test_src_path_projects_hydrated_tree(broot: Path, monkeypatch):
+    """src_path rides lake_ensure: spec fetch_fn -> hardlink projection
+    into work/{id}/src."""
+    monkeypatch.setenv("TEXLATE_LAKE_FLOOR_GB", "0")
+    calls = []
+
+    def fn(ctx):
+        src = ctx.src_path()
+        if src is None:
+            return "error"
+        return "ok" if (src / "a.tex").read_text() == "tex" else "error"
+
+    spec = _free_spec({"a": fn}, [{"id": "9901.00011"}],
+                      lake=True, fetch_fn=_lake_fetch(calls))
+    res = kernel.run(spec, **_quiet())
+    rd = runs.load_run(spec.kind, res["date"], res["slug"])
+    assert [r["status"] for r in _cell_rows(rd)] == ["ok"]
+    assert calls == ["9901.00011"]
+
+
+def test_prefetch_disabled_leaves_lake_lazy(broot: Path):
+    """prefetch=False: no lookahead thread, and a stage fn that never
+    asks leaves the cell unfetched."""
+    calls = []
+    spec = _free_spec({"a": lambda ctx: "ok"}, [{"id": "9901.00012"}],
+                      lake=True, prefetch=False,
+                      fetch_fn=_lake_fetch(calls))
+    res = kernel.run(spec, **_quiet())
+    rd = runs.load_run(spec.kind, res["date"], res["slug"])
+    assert [r["status"] for r in _cell_rows(rd)] == ["ok"]
+    assert calls == []
+    assert not lake.is_complete("9901.00012")
+
+
+def test_lookahead_burst_hydrates_all(broot: Path, monkeypatch):
+    """The t=0 burst IS the plan-time batch warm-up: driven directly, the
+    prefetcher hydrates every non-terminal planned idc; cells already
+    terminal are skipped; early cell_started races are absorbed by the
+    consumed-set instead of leaking a window slot."""
+    monkeypatch.setenv("TEXLATE_LAKE_FLOOR_GB", "0")
+    from types import SimpleNamespace
+    calls = []
+    spec = Spec(kind="tlake", stages=[], items=[], lake=True,
+                fetch_fn=_lake_fetch(calls))
+    env = {"abort": threading.Event(),
+           "rd": SimpleNamespace(run_seq=1, run="tlake/2026-01-01/x")}
+    la = kernel._Lookahead(env, spec)
+    cells = [{"id": i, "idc": i, "arm": "-", "up": "-", "variant": "-",
+              "stage": "a"}
+             for i in (f"9901.0002{i}" for i in range(4))]
+    # the last cell is already terminal this run — filtered out
+    terminal = {("9901.00023", "-", "-", "-", "a")}
+    la.start(cells, terminal)
+    # consume two while the loop may still be walking — the consumed-set
+    # drops their (possibly not-yet-recorded) pending entries
+    la.cell_started("9901.00020")
+    la.cell_started("9901.00021")
+    la._thread.join(timeout=10)
+    assert not la._thread.is_alive()
+    assert sorted(calls) == ["9901.00020", "9901.00021", "9901.00022"]
+    for i in calls:
+        assert lake.is_complete(i)
+    # never-consumed hydrations sit in the window; consumed ones don't
+    assert set(la._pending) == {"9901.00022"}
+
+
+def test_lookahead_window_bounded(broot: Path, monkeypatch):
+    """Window bound: with LOOKAHEAD_CELLS=2 the prefetcher never runs
+    more than 2 hydrations ahead of the execution frontier."""
+    monkeypatch.setenv("TEXLATE_LAKE_FLOOR_GB", "0")
+    monkeypatch.setattr(kernel, "LOOKAHEAD_CELLS", 2)
+    monkeypatch.setattr(kernel, "LOOKAHEAD_BYTES", 10 ** 12)
+    state = {"fetched": 0, "started": 0, "viol": 0}
+    lock = threading.Lock()
+
+    def fetch(idc, stage):
+        with lock:
+            if state["fetched"] - state["started"] > 2:
+                state["viol"] += 1
+            state["fetched"] += 1
+        ex = Path(stage) / "extracted"
+        ex.mkdir(parents=True)
+        (ex / "a.tex").write_text("x")
+
+    def fn(ctx):
+        with lock:
+            state["started"] += 1
+        time.sleep(0.01)                   # let the prefetcher run ahead
+        return "ok"
+
+    spec = _free_spec(
+        {"a": fn},
+        [{"id": f"9901.0004{i}"} for i in range(6)],
+        lake=True, fetch_fn=fetch)
+    kernel.run(spec, **_quiet())
+    assert state["viol"] == 0

@@ -47,7 +47,7 @@ from pathlib import Path
 
 import benchlib
 import stagerun_lib as sl  # sys.path 设置 + canon_id/load_latest/workdir
-from parsebench import LEAK_PATTERNS  # 六族正则单源——勿复制防口径漂移
+from specs._leak import LEAK_PATTERNS  # 六族正则单源——勿复制防口径漂移
 
 from texlate.align import _category, extract_landmarks
 from texlate.textutil import safe_is_file

@@ -12,8 +12,9 @@ import time
 from typing import TYPE_CHECKING
 
 import benchlib
-import fixloop_bench as flb
 import stagerun_lib as sl
+
+from specs import _fixloop as flb  # 冷 usertree 引擎配方单源（原 fixloop_bench）；名留 flb 保 monkeypatch 缝
 
 from texlate.compile.engine import XelatexEngine
 from texlate.compile.fixloop import CaseSink, Ruleset, fixloop
