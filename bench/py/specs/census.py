@@ -23,6 +23,7 @@ Stages per cell:
 """
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 
@@ -79,10 +80,8 @@ def _probe(ctx):
         return "partial"
     complete = lake.is_complete(ctx.idc)
     meta = {}
-    try:
+    with contextlib.suppress(OSError, ValueError):
         meta = json.loads(meta_path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        pass
     ctx.emit({
         "stage": "probe", "metric": "lake_cell",
         "present": 1, "complete": int(complete),

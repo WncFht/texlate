@@ -212,7 +212,7 @@ def run_fixture(
         return FixtureScan(
             name=name, ok=False, wall_ms=timeout_s * 1000.0, error="Timeout(>30s)"
         )
-    except Exception as e:  # noqa: BLE001 — 断言跑分语义：解析失败记为 fail 行而非抛出
+    except Exception as e:  # 断言跑分语义：解析失败记为 fail 行而非抛出
         ms = round((time.perf_counter() - t0) * 1000, 1)
         return FixtureScan(
             name=name, ok=False, wall_ms=ms, error=f"{type(e).__name__}: {e}"
@@ -238,7 +238,7 @@ def run_fixture(
 # ---------------------------------------------------------------- tricky.tex 断言矩阵
 
 
-def assert_tricky(  # noqa: PLR0915 — 逐条断言平铺即清单（spike 同构）
+def assert_tricky(  # 逐条断言平铺即清单（spike 同构）
     res: ScanResult, recon: str, recon_fake: str
 ) -> dict[str, dict[str, str]]:
     """tricky.tex 逐条陷阱断言（spike 移植；``_meta`` 是 info 行非断言）。"""

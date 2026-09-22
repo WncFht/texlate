@@ -62,8 +62,8 @@ def _state_dir() -> Path:
 def _run_env() -> dict:
     env = {k: v for k, v in os.environ.items() if k not in _STRIP_ENV}
     try:
-        for line in _ENV_FILE.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
+        for raw in _ENV_FILE.read_text(encoding="utf-8").splitlines():
+            line = raw.strip()
             if not line or line.startswith("#") or "=" not in line:
                 continue
             k, _, v = line.partition("=")
@@ -117,7 +117,7 @@ def _prep(ctx):
     reused = wt.is_dir()
     if not reused:
         has_branch = subprocess.run(
-            ["git", "-C", str(REPO), "show-ref", "--verify", "--quiet",
+            ["git", "-C", str(REPO), "show-ref", "--verify", "--quiet",  # noqa: S607 — PATH 解析系统 git 是刻意
              f"refs/heads/{br}"]).returncode == 0
         cmd = (["git", "-C", str(REPO), "worktree", "add", str(wt), br]
                if has_branch else
@@ -148,7 +148,7 @@ def _sweep(ctx):
     with open(log, "w", encoding="utf-8") as lf:
         try:
             r = subprocess.run(
-                ["timeout", f"{timeout_s}s", "claude", "-p", prompt,
+                ["timeout", f"{timeout_s}s", "claude", "-p", prompt,  # noqa: S607 — timeout+claude 走 PATH 是刻意
                  "--dangerously-skip-permissions",
                  "--add-dir", str(Path.home() / ".texlate"),
                  "--add-dir", str(REPO)],
@@ -171,9 +171,9 @@ def _post(ctx):
     p = _paths(ctx)
     wt = p["worktree"]
     r = subprocess.run(
-        ["uv", "run", "python", "-c",
-         "from texlate.compile.fixloop.ruleset import Ruleset; "
-         "Ruleset.load()"],
+        ["uv", "run", "python", "-c",  # noqa: S607 — uv 走 PATH 是刻意
+         ("from texlate.compile.fixloop.ruleset import Ruleset; "
+          "Ruleset.load()")],
         cwd=wt if wt.is_dir() else REPO,
         capture_output=True, text=True, timeout=300)
     ruleset_ok = r.returncode == 0
