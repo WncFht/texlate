@@ -467,11 +467,11 @@ def topo_stages(spec: Spec) -> list[Stage] | None:
     indeg = {st.name: 0 for st in spec.stages}
     adj: dict[str, set[str]] = {st.name: set() for st in spec.stages}
     for st in spec.stages:
-        for up, _acc in st.needs:
-            if up in names:
-                adj[up].add(st.name)
-                indeg[st.name] += 1
-        for up in st.on:
+        # needs+on to the SAME upstream are one logical edge (accept set
+        # unions) — counting them twice strands indeg above zero and
+        # false-positives the cycle check (fixloop's needs+on to compile
+        # is the designed shape).
+        for up in {u for u, _ in st.needs} | set(st.on):
             if up in names:
                 adj[up].add(st.name)
                 indeg[st.name] += 1

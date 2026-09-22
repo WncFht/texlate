@@ -19,11 +19,14 @@ from __future__ import annotations
 
 import asyncio
 import threading
+import time
+from types import SimpleNamespace
 
 from kernel import paid as paidmod
 
 __all__ = ["DEFAULT_BASE_URL", "DEFAULT_MODEL", "DEFAULT_PRICES",
-           "GatewayChat", "devin_factory"]
+           "GatewayChat", "PaidEscape", "SessionClient",
+           "SessionTranslator", "TimedTranslator", "devin_factory"]
 
 # The one and only paid endpoint — texlate is hard-pinned to the local
 # devin-2api gateway + swe-2-medium (see project memory: all shims fold
@@ -142,3 +145,163 @@ def devin_factory(*, base_url: str | None = None, api_key: str | None = None,
 
     return paidmod.GatewayFactory(
         build, prices=dict(prices or DEFAULT_PRICES), nslots=nslots)
+
+
+# ---------------------------------------------------------------- paid bridge
+#
+# The consuming side of the paid lane: adapters that let texlate's async
+# machinery (GatewayTranslator / XlatPipeline / fixloop llm_hook) ride a
+# kernel PaidSession, so every wire call stays inside claim / paid_slot /
+# meter / PAUSE / AUTH_DEAD / abort / budget enforcement.
+
+_PAID_ESCAPE = (
+    paidmod.PaidPause,
+    paidmod.PaidAbortRun,
+    paidmod.PaidAbortCell,
+    paidmod.BudgetExceeded,
+)
+
+
+class PaidEscape(BaseException):
+    """Escape pod for kernel paid exceptions raised inside a pipeline.
+
+    ``XlatPipeline``'s per-chunk ``except Exception`` nets (worker/batch/
+    warmup paths) would otherwise swallow ``PaidPause``/``PaidAbortRun``/
+    ``PaidAbortCell``/``BudgetExceeded`` into skipped chunks — a TERMINAL
+    fail that never retries, which breaks the PAUSE contract (cells
+    burned mid-pause must land ``error``/``cat=pause`` so a later run
+    picks them up) and silently drops PaidAbortRun's run-abort and
+    BudgetExceeded's reject semantics. As a ``BaseException`` the pod
+    rides the pipeline's fatal lane (``except BaseException`` → fatal
+    ledger → ``_drain`` re-raise) out through ``asyncio.run``; the stage
+    fn then unwraps with ``except PaidEscape as e: raise e.orig`` and
+    the kernel's paid exception map sees the original.
+
+    ``BaseException`` is load-bearing: anything less gets eaten by the
+    very nets this exists to escape.
+    """
+
+    def __init__(self, orig: BaseException) -> None:
+        super().__init__(f"{type(orig).__name__}: {orig}")
+        self.orig = orig
+
+
+def _respot_paid(exc: BaseException, *, feed_gate: bool) -> BaseException:
+    """Re-pot a kernel paid exception for its journey through texlate.
+
+    ``feed_gate=True`` (the XlatPipeline lane): ``paid.AuthError``
+    converts to texlate ``xlat._errors.AuthError`` — a ChatError, so
+    ``_kind_of`` files it "auth" and the designed AuthGate threshold →
+    AuthTrippedError lane survives the bridge (unconverted it would
+    classify "crash" and the circuit never trips on bridged 401s).
+    ``feed_gate=False`` (fixloop llm_hook — no gate downstream): AuthError
+    escapes with the rest of the family so dead credentials kill the
+    cell (kernel error+auth_dead) instead of degrading rounds silently.
+    """
+    if feed_gate and isinstance(exc, paidmod.AuthError):
+        from texlate.xlat._errors import AuthError as XlatAuth
+        return XlatAuth(
+            str(exc), status=int(getattr(exc, "status", 0) or 401))
+    if isinstance(exc, (*_PAID_ESCAPE, paidmod.AuthError)):
+        return PaidEscape(exc)
+    return exc
+
+
+class SessionClient:
+    """ChatClient-shaped async shim over a PaidSession (GatewayTranslator side).
+
+    ``chat()`` runs ``session.request`` via ``asyncio.to_thread`` so the
+    paid-slot wait never freezes the caller's loop — ``chat_s`` therefore
+    includes queueing time (consuming specs note the req_timing skew).
+    ``chat_calls``/``chat_s`` are the wire-level counters.
+    """
+
+    def __init__(self, session) -> None:
+        self._s = session
+        self.chat_s = 0.0
+        self.chat_calls = 0
+
+    async def chat(self, model, messages, *, options=None):
+        t0 = time.monotonic()
+        try:
+            res = await asyncio.to_thread(
+                self._s.request, "chat", model, messages, options=options)
+        except Exception as e:
+            respotted = _respot_paid(e, feed_gate=True)
+            if respotted is e:
+                raise
+            raise respotted from e
+        finally:
+            self.chat_s += time.monotonic() - t0
+            self.chat_calls += 1
+        return SimpleNamespace(
+            content=res["text"],
+            reasoning=res.get("reasoning") or "",
+            finish_reason=res.get("finish_reason") or "",
+            model=res.get("model") or model,
+            latency_s=res.get("latency_s") or 0.0,
+        )
+
+
+class TimedTranslator:
+    """``translate()`` outer span/call counter — pass-through attrs via
+    ``__getattr__`` (``StateStore(model=translator.model)`` keeps working)."""
+
+    def __init__(self, inner) -> None:
+        self._i = inner
+        self.calls = 0
+        self.span_s = 0.0
+
+    def __getattr__(self, k: str):
+        if k == "_i":
+            raise AttributeError(k)
+        return getattr(self._i, k)
+
+    async def translate(self, **kw):
+        t0 = time.monotonic()
+        try:
+            return await self._i.translate(**kw)
+        finally:
+            self.span_s += time.monotonic() - t0
+            self.calls += 1
+
+
+class SessionTranslator:
+    """Translator-protocol shim over a PaidSession (fixloop llm_hook side).
+
+    A bare ChatClient here would bypass meter/claim/slot enforcement —
+    every paid call must ride the session. Whole paid family escapes
+    (AuthError included): the hook lane has no auth gate to feed.
+    """
+
+    def __init__(self, session, model: str) -> None:
+        self._s = session
+        self.model = model
+
+    async def translate(
+        self, *, system, user, temperature, max_tokens, response_format=None
+    ) -> str:
+        from texlate.xlat._dialects import ChatOptions
+
+        msgs = [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ]
+        try:
+            res = await asyncio.to_thread(
+                self._s.request,
+                "chat",
+                self.model,
+                msgs,
+                options=ChatOptions(
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    response_format=response_format,
+                ),
+            )
+        except Exception as e:
+            respotted = _respot_paid(e, feed_gate=False)
+            if respotted is e:
+                raise
+            raise respotted from e
+        return res["text"]

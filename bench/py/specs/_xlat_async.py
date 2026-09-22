@@ -35,6 +35,7 @@ async def translate_tree_async(
     scan_fn: Callable | None = None,
     validator: Callable | None = None,
     post_run: Callable | None = None,
+    cache: dict | None = None,
 ) -> tuple[dict, list]:
     """bench 两臂共享的 async 翻译编排体——``benchlib.translate_tree_async`` 候升位。
 
@@ -102,6 +103,7 @@ async def translate_tree_async(
         glossary=glossary_fn(chunks) if glossary_fn is not None else None,
         state=state,
         validator=validator or pair_feedback,
+        cache=cache,
     )
     results = await pipe.run(chunks)
     if post_run is not None:
