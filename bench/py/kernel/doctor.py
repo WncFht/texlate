@@ -485,6 +485,28 @@ def _check_queues(checks: list, idx: index.Index | None) -> None:
     _check(checks, "queues", True, "; ".join(parts))
 
 
+def _check_cache(checks: list) -> None:
+    """§3.9 segment-cache coverage: bucket count/bytes, malformed names,
+    cap watermark. Report-only — eviction belongs to `bench cache evict`."""
+    try:
+        from kernel import cache as cachemod
+        st = cachemod.status()
+    except Exception as exc:  # noqa: BLE001 - doctor must not crash
+        _check(checks, "cache", False, f"cache status failed: {exc}")
+        return
+    problems = []
+    if st["malformed"]:
+        problems.append(f"{st['malformed']} non-bucket file(s) under "
+                        "lake/cache")
+    if st["over_cap"]:
+        problems.append(f"{st['bytes'] / 1024 ** 3:.1f}GiB over "
+                        f"{st['cap_gb']}GiB cap — `bench cache evict`")
+    detail = ("; ".join(problems) if problems else
+              f"{st['buckets']} buckets {st['bytes'] / 1024 ** 2:.1f}MiB "
+              f"under {st['cap_gb']}GiB cap")
+    _check(checks, "cache", not problems, detail)
+
+
 # --- switch-ok (§3.10.9 drain gate) ----------------------------------------------------
 
 def _live_lane_writers(now: float) -> list[str]:
@@ -577,6 +599,7 @@ def doctor(fix: bool = False, switch_ok: bool = False) -> dict:
         _check_index(checks, idx)
         _check_paid(checks, idx)
         _check_capacity(checks)
+        _check_cache(checks)
         _check_queues(checks, idx)
         if switch_ok:
             _check_switch_ok(checks)

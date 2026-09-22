@@ -54,7 +54,7 @@ def test_doctor_clean_root_all_green(
     assert rep["ok"] is True, rep["checks"]
     assert _names(rep) == {
         "layout", "root_location", "stray_dirs", "lock_invariants",
-        "ledger", "index", "paid", "capacity", "queues",
+        "ledger", "index", "paid", "capacity", "cache", "queues",
     }
     # root_location is warn-only — it can never gate (test roots live
     # inside the checkout by design)

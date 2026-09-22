@@ -53,6 +53,7 @@ import time
 from pathlib import Path
 
 from kernel import (
+    cache as cachemod,
     claims,
     dedup as dedupmod,
     events,
@@ -828,7 +829,12 @@ def _run_cell(env, cell: dict) -> dict:
         # (identity keys drop, scalars last-win, unknown keys -> metrics);
         # metrics/sig/code were already applied above and re-apply as
         # no-ops. Without this a returned {"errors": [...]} silently dies.
-        for ob in _merge_outbox(ev, [result, *ctx._outbox]):
+        merge_rows = [result, *ctx._outbox]
+        if ctx._caches:
+            # §3.9 metrics lane — probe/store counters ride the terminal
+            merge_rows.append(
+                {"metrics": {"cache": cachemod.metrics_of(ctx._caches)}})
+        for ob in _merge_outbox(ev, merge_rows):
             if "seq" not in ob or ob.get("seq") is None:
                 ob["seq"] = alloc()
             ob.setdefault("run", rd.run)
@@ -857,6 +863,19 @@ def _run_cell(env, cell: dict) -> dict:
                 except OSError as exc:
                     _note(env, f"cases.jsonl append failed for "
                                f"{idc}/{stage_name}: {exc}", level="warn")
+        # Segment-cache flush (§3.9): buffered stores land ONLY on a
+        # flush-worthy terminal — failed/crashed cells' segments never
+        # reach the shared buckets. Ledger-first ordering: the verdict
+        # row already committed; a flush failure is a note, not an error.
+        for _sc in ctx._caches:
+            try:
+                if status in cachemod.FLUSH_STATUSES:
+                    _sc.flush()
+                else:
+                    _sc.discard()
+            except OSError as exc:
+                _note(env, f"seg-cache flush failed for "
+                           f"{idc}/{stage_name}: {exc}", level="warn")
         if lease is not None:
             lease.release()
         if ctx.claim_lease is not None:

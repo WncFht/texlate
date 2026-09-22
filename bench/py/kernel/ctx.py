@@ -107,6 +107,7 @@ class Ctx:
         self.last_cost_usd = 0.0
         self.last_usage = None
         self._session = None
+        self._caches: list = []
         self.stage_obj = spec.stage(self.stage) if spec is not None else None
 
     # --- upstream records ------------------------------------------------------------
@@ -305,6 +306,25 @@ class Ctx:
                 "(construction IS the paid assertion)")
         self._session = self.factory.session(self)
         return self._session
+
+    # --- segment cache (§3.9) ------------------------------------------------------
+
+    def seg_cache(self, *, writable: bool = True, **key_dims):
+        """Open the global segment-cache bucket for these key dims
+        (``prompt_version``, ``base_url``, ``model``, ``lang``, optional
+        ``glossary``/``context`` — file_cache_key's six). Returns a
+        SegCache dict — hand it to ``XlatPipeline(cache=...)`` directly.
+
+        Stores buffer in-process; the kernel flushes ONLY on a
+        flush-worthy terminal ({ok, clean, partial}) — a failed cell's
+        segments never reach the shared bucket. Correction/fix writers
+        pass ``writable=False`` (hint-conditioned output must not enter
+        the shared namespace) or a distinct ``context`` dim.
+        """
+        from kernel import cache as cachemod
+        sc = cachemod.open_bucket(writable=writable, **key_dims)
+        self._caches.append(sc)
+        return sc
 
     # --- emit ---------------------------------------------------------------------------
 

@@ -42,6 +42,7 @@ from collections import deque
 from pathlib import Path
 
 from kernel import (
+    cache as cachemod,
     cas,
     events,
     fsutil,
@@ -858,6 +859,48 @@ def _cmd_lake_absorb(args) -> int:
     return EXIT_OK
 
 
+# --- cache (§3.9) ------------------------------------------------------------------
+
+
+def _cmd_cache_status(_args) -> int:
+    _print_json(cachemod.status())
+    return EXIT_OK
+
+
+def _cmd_cache_evict(args) -> int:
+    _pre_write()
+    if args.to_free is None:
+        removed = cachemod.cap_evict()
+    else:
+        try:
+            target = _parse_size(args.to_free)
+        except ValueError as exc:
+            _err(str(exc))
+            return EXIT_REFUSED
+        removed = cachemod.evict(target)
+    print(f"evicted {len(removed)} bucket(s):")
+    for p in removed:
+        print(f"  {p}")
+    return EXIT_OK
+
+
+def _cmd_cache_rebuild(args) -> int:
+    _pre_write()
+    glossary = None
+    if args.glossary_json is not None:
+        try:
+            glossary = json.loads(args.glossary_json)
+        except ValueError as exc:
+            _err(f"--glossary-json: {exc}")
+            return EXIT_REFUSED
+    res = cachemod.rebuild_from_vault(
+        prompt_version=args.prompt_version, base_url=args.base_url,
+        model=args.model, lang=args.lang, glossary=glossary,
+        context=args.context, dry=args.dry, progress=print)
+    _print_json(res)
+    return EXIT_OK
+
+
 # --- derive / prune / sweep / backup --------------------------------------------------
 
 
@@ -1387,6 +1430,25 @@ def _build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--source", default="arxiv")
     sp.add_argument("--dry", action="store_true")
 
+    cp = sub.add_parser("cache", help="global segment-cache verbs (§3.9)")
+    csub = cp.add_subparsers(dest="csub", required=True)
+    csub.add_parser("status", help="bucket count/bytes/cap + malformed")
+    sp = csub.add_parser("evict", help="LRU evict buckets (or enforce cap)")
+    sp.add_argument("--to-free", default=None,
+                    help="bytes to free (K/M/G/T suffix ok); omit to "
+                         "enforce the TEXLATE_CACHE_CAP_GB cap")
+    sp = csub.add_parser(
+        "rebuild", help="vault/state -> bucket(s): replay stored "
+                        "xlat-state results through segment_key")
+    sp.add_argument("--prompt-version", required=True)
+    sp.add_argument("--base-url", required=True)
+    sp.add_argument("--model", required=True)
+    sp.add_argument("--lang", default="zh")
+    sp.add_argument("--glossary-json", default=None,
+                    help="JSON literal for the glossary key dim")
+    sp.add_argument("--context", default="")
+    sp.add_argument("--dry", action="store_true")
+
     sp = sub.add_parser("derive", help="re-run report/projection for a run")
     sp.add_argument("--run", required=True)
     sp.add_argument("--out", default=None,
@@ -1470,6 +1532,12 @@ def main(argv=None) -> int:
             "register": _cmd_lake_register,
             "absorb": _cmd_lake_absorb,
         }[args.ksub](args)
+    if cmd == "cache":
+        return {
+            "status": _cmd_cache_status,
+            "evict": _cmd_cache_evict,
+            "rebuild": _cmd_cache_rebuild,
+        }[args.csub](args)
     if cmd == "spec":
         return {"list": _cmd_spec_list}[args.ssub](args)
     return _DISPATCH[cmd](args)
