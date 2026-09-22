@@ -314,12 +314,9 @@ def create_run(kind: str, slug: str | None = None, date: str | None = None,
         spec_hash = hashlib.sha256(blob).hexdigest()
 
     run_id = f"{kind}/{date}/{slug}"
+    # mint_run_seq appends the runs.jsonl report row in the mint lock
+    # window — no separate append here (import mints take the same path).
     run_seq = ledger.mint_run_seq(run_id, kind, date, slug, spec_hash)
-    ledger.append_run_row({
-        "run": run_id, "run_seq": run_seq, "kind": kind, "date": date,
-        "slug": slug, "spec_hash": spec_hash,
-        "ts_start": round(time.time(), 3),
-    })
     return RunDir(path=rdir, kind=kind, date=date, slug=slug, run_seq=run_seq)
 
 

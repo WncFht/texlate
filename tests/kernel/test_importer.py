@@ -463,6 +463,8 @@ def test_seed_vault_zhstore(broot, tmp_path):
     prov = rows[0]["provenance"]
     assert prov["arm"] == "real"
     assert prov["api_key"] != "sk-240127-secret"  # redacted on the way in
+    # migration marker: doctor's paid reconciliation exempts seeded bytes
+    assert rows[0]["import_src"] == "import-zhstore-vault-seed"
 
     # quar-by-container beats the manifest's claimed primary zone
     q34 = vault.query("0712.0034", "real", "-")

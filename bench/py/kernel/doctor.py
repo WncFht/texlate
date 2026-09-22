@@ -409,7 +409,19 @@ def _check_paid(checks: list, idx: index.Index | None) -> None:
                    + "; ".join(detail_parts))
             return
     missing_bytes = sorted(pool - manifest_keys, key=repr)
-    unpaid_bytes = sorted(manifest_keys - pool, key=repr)
+    unpaid = manifest_keys - pool
+    # Census-seeded copies carry meta.import_src — migration bytes whose
+    # payment predates the claim machinery (the ledger-side mirror of
+    # _scan_paid_evidence's import_src exclusion). Exempt from the bypass
+    # alarm, but counted so the exemption is never silent.
+    seeded = set()
+    for _mp, mkey, meta in vault._iter_metas():
+        if mkey is not None and meta and meta.get("import_src"):
+            seeded.add(mkey[:3])
+    seeded_unpaid = unpaid & seeded
+    unpaid_bytes = sorted(unpaid - seeded_unpaid, key=repr)
+    if seeded_unpaid:
+        detail_parts.append(f"seeded-exempt={len(seeded_unpaid)}")
     problems = []
     if missing_bytes:
         problems.append(

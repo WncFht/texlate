@@ -378,6 +378,18 @@ def mint_run_seq(run: str, kind: str, date: str, slug: str, spec_hash: str) -> i
                         "shard across runs"
                     )
         _emit_lines_locked([dumps(ev).encode("utf-8") + b"\n"], rdir)
+        # runs.jsonl is report-only but the §3.10.5 doctor invariant expects
+        # mint parity — every mint (real-run AND import-run path) appends
+        # its row in the same lock window.
+        row = {
+            "run": run, "run_seq": n, "kind": kind, "date": date,
+            "slug": slug, "spec_hash": spec_hash,
+            "ts_start": ev["ts_start"],
+        }
+        _append_payload_locked(
+            paths.runs_jsonl_path(),
+            json.dumps(row, ensure_ascii=False, sort_keys=True,
+                       separators=(",", ":")).encode("utf-8") + b"\n")
         _fsync_dir(rdir)  # dirent durability for the freshly created run dir
         return n
 

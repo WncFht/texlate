@@ -341,6 +341,16 @@ def _ensure_import_run(index, run_name: str, *, date: str, slug: str,
     applied to the index but NEVER re-emitted to the ledger.
     """
     rdir = paths.run_dir("import", date, slug)
+
+    def _ret(run_seq: int, minted: bool, rr_ev):
+        # The run .lock is minted once and never unlinked (R21) — import
+        # runs mint through ledger.mint_run_seq, not runs.mint, so the
+        # immortal lock file is the importer's own job. Touch on every
+        # non-dry resolution: self-heals dirs minted before this rule.
+        if rdir.is_dir():
+            (rdir / ".lock").touch()
+        return run_seq, rdir, minted, rr_ev
+
     if index is not None:
         row = index.conn.execute(
             "SELECT run_seq, kind, date, slug FROM runs WHERE run=?",
@@ -352,7 +362,7 @@ def _ensure_import_run(index, run_name: str, *, date: str, slug: str,
             # run's original shard, not split events across two dirs.
             if all(isinstance(row[k], str) for k in ("kind", "date", "slug")):
                 rdir = paths.run_dir(row["kind"], row["date"], row["slug"])
-            return int(row["run_seq"]), rdir, False, None
+            return _ret(int(row["run_seq"]), False, None)
     # Ledger-side recovery: the shard exists => a previous mint happened
     # (e.g. a crash between mint and index-apply). Reuse, never re-mint.
     # Gate on the run_registered SHAPE — a shard whose first line is a
@@ -366,11 +376,11 @@ def _ensure_import_run(index, run_name: str, *, date: str, slug: str,
         and isinstance(rr.get("run_seq"), int)
         and not isinstance(rr.get("run_seq"), bool)
     ):
-        return int(rr["run_seq"]), rdir, False, rr
+        return _ret(int(rr["run_seq"]), False, rr)
     if dry:
         return -1, rdir, False, None
     run_seq = ledger.mint_run_seq(run_name, "import", date, slug, spec_hash)
-    return run_seq, rdir, True, _first_shard_event(rdir)
+    return _ret(run_seq, True, _first_shard_event(rdir))
 
 
 # ---------------------------------------------------------------------------
@@ -1399,8 +1409,11 @@ def seed_vault_zhstore(manifest_path, bytes_root, index, registry=None,
             meta["provenance"] = prov
         if adopted:
             meta["adopted_from"] = str(base)
-        if prov or adopted:
-            vault._write_meta(mpath, meta)
+        # import_src marks migration-seeded bytes: payment predates the
+        # claim machinery, so doctor's paid reconciliation exempts them
+        # (the meta-plane mirror of the events' import_src convention).
+        meta["import_src"] = run_name
+        vault._write_meta(mpath, meta)
         stats["bytes"] += int(meta.get("bytes") or 0)
 
     # -- pass 1: manifest rows (last-wins per id, file order = claim order) --
@@ -1452,6 +1465,23 @@ def seed_vault_zhstore(manifest_path, bytes_root, index, registry=None,
                 covered.update(m["files"].keys())
         if covered and set(assets) <= covered:
             stats["already"] += 1
+            # converge metas on re-run — a copy committed before the
+            # provenance/import_src merge picks the markers up here
+            # (vault-plane rewrite only; the ledger stays quiet).
+            prov = _provenance(base, stats)
+            for m in vault.query(idc, arm, "-"):
+                if not m.get("bytes_ok") or not m.get("meta_path"):
+                    continue
+                meta = vault._read_meta(Path(m["meta_path"])) or {}
+                changed = False
+                if prov and "provenance" not in meta:
+                    meta["provenance"] = prov
+                    changed = True
+                if meta.get("import_src") != run_name:
+                    meta["import_src"] = run_name
+                    changed = True
+                if changed and not dry:
+                    vault._write_meta(Path(m["meta_path"]), meta)
             continue
         if _in_quar(base):
             zone = verdict = "quar"
