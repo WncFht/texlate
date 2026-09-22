@@ -102,12 +102,13 @@ def _open_index() -> index.Index | None:
 def _shard_state(rdir: Path) -> dict:
     """One tolerant pass over a run's events.jsonl shard.
 
-    Returns {queued, started, terminal, claims} keyed dicts; claims maps
-    (idc,arm,variant) -> the LAST claim event in shard order."""
+    Returns {queued, started, terminal, claims, finished} keyed dicts;
+    claims maps (idc,arm,variant) -> the LAST claim event in shard order."""
     queued: dict[tuple, dict] = {}
     started: dict[tuple, dict] = {}
     terminal: dict[tuple, dict] = {}
     claim_ops: dict[tuple, dict] = {}
+    finished = False
     shard = rdir / "events.jsonl"
     if shard.exists():
         for _ln, ev, _raw in events.iter_jsonl(shard):
@@ -127,9 +128,12 @@ def _shard_state(rdir: Path) -> dict:
                     str(ev.get("variant") or "-"),
                 )
                 claim_ops[ckey] = ev
+            elif t == events.T_FINISHED:
+                finished = True
     return {
         "queued": queued, "started": started,
         "terminal": terminal, "claims": claim_ops,
+        "finished": finished,
     }
 
 
@@ -162,6 +166,10 @@ def _emit_claim_reap(rd: runs.RunDir | None, run: str, idc: str,
 def _reap_zombie(rd: runs.RunDir, report: dict) -> None:
     """Reap one zombie run: 'lost' terminals + claim reaps + note."""
     st = _shard_state(rd.path)
+    if st["finished"]:
+        # Closed run — the accounting equation already enforced one
+        # terminal per queued cell at finish; nothing reapable remains.
+        return
     unfinished = {
         k: ev for k, ev in {**st["queued"], **st["started"]}.items()
         if k not in st["terminal"]
@@ -192,6 +200,10 @@ def _reap_zombie(rd: runs.RunDir, report: dict) -> None:
             {"idc": idc, "arm": arm, "variant": variant, "run": rd.run})
     entry = {"run": rd.run, "lost_cells": len(reaped),
              "live_cells": len(alive), "claims_reaped": len(claims_reaped)}
+    if not (reaped or alive or claims_reaped):
+        # Quiescent dead run — a reap that touches nothing is not worth a
+        # warn line on every sweep for the rest of the ledger's life.
+        return
     report["zombies"].append(entry)
     runs._emit_note(
         rd,
@@ -212,7 +224,16 @@ def _sweep_zombies(report: dict) -> None:
         stale = age is None or age >= ZOMBIE_AGE_S
         if not stale:
             continue
-        if not locks.lock_free(rdir / ".lock"):
+        if not (rdir / ".lock").exists():
+            # .lock is minted once at runs.mint and never unlinked — a
+            # run dir without one never hosted a live runner (imported /
+            # projected shard), so there is no zombie to reap. A dir
+            # whose shard is absent or empty is the half-created case
+            # and still falls through to the run_seq==0 warning below.
+            shard = rdir / "events.jsonl"
+            if shard.exists() and shard.stat().st_size > 0:
+                continue
+        elif not locks.lock_free(rdir / ".lock"):
             continue  # lock held — alive regardless of heartbeat
         kind, date, slug = rdir.relative_to(base).parts
         rd = runs.load_run(kind, date, slug)
