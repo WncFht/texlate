@@ -422,7 +422,9 @@ def test_plan_prints_buckets(broot: Path, monkeypatch: pytest.MonkeyPatch, capsy
     assert "would run: 2" in out
 
 
-def test_pause_refuses_run_and_plan(broot: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture) -> None:
+def test_pause_refuses_paid_run_only(broot: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture) -> None:
+    """PAUSE is a paid-spend fence (§6 Phase-3 rescope): paid specs refuse,
+    free specs and plan run straight through."""
     called = []
     monkeypatch.setitem(
         sys.modules, "kernel.kernel",
@@ -432,9 +434,30 @@ def test_pause_refuses_run_and_plan(broot: Path, monkeypatch: pytest.MonkeyPatch
     )
     paths.pause_path().write_text("stop the world\n")
     assert locks.pause_engaged()
-    assert cli.main(["run", "smoke"]) == cli.EXIT_REFUSED
-    assert cli.main(["plan", "smoke"]) == cli.EXIT_REFUSED
-    assert called == []                     # PAUSE gates BEFORE dispatch
+    # plan is never refused — it produces the first-fire coverage report
+    assert cli.main(["plan", "smoke"]) == cli.EXIT_OK
+    # a free spec runs straight through the fence
+    assert cli.main(["run", "smoke"]) == cli.EXIT_OK
+    assert called == ["plan", "run"]
+    # a paid spec refuses BEFORE dispatch — nothing executes under PAUSE
+    assert cli.main(["run", "paid_stub"]) == cli.EXIT_REFUSED
+    assert called == ["plan", "run"]
+    assert "PAUSE" in capsys.readouterr().err
+
+
+def test_pause_fails_closed_on_unprovable_spec(broot: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture) -> None:
+    """paidness=None (spec won't even load) is refused under PAUSE."""
+    called = []
+    monkeypatch.setitem(
+        sys.modules, "kernel.kernel",
+        _fake("kernel.kernel",
+              run=lambda *_a, **_k: called.append("run") or {"ok": True}),
+    )
+    broken = broot / "broken_spec.py"
+    broken.write_text("raise RuntimeError('import-time boom')\n")
+    paths.pause_path().touch()
+    assert cli.main(["run", str(broken)]) == cli.EXIT_REFUSED
+    assert called == []
     assert "PAUSE" in capsys.readouterr().err
 
 

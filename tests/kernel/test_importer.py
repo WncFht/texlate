@@ -600,3 +600,191 @@ def test_blob_offload(broot, tmp_path):
     again = import_jsonl_file(f, run="import-blob", index=index)
     assert again["emitted"] == 0
     assert len(_ledger_lines()) == n_lines
+
+
+# -- lake register + absorb (Phase 3) ------------------------------------------
+
+
+def _mk_manifests(tmp_path: Path) -> Path:
+    """Two manifest files exercising: plain skeleton, failed seeds (bad
+    status, stub format), mixed history (bad+ok -> skeleton), layer/channel
+    union across files, canon-fail quarantine."""
+    d = tmp_path / "manifests"
+    d.mkdir()
+    (d / "manifest_a.jsonl").write_text("\n".join(json.dumps(r) for r in [
+        {"id": "0707.0978", "layer": "v1", "channel": "ia",
+         "format": "tar", "n_files": 11},
+        {"id": "astro-ph/0605048", "layer": "booster", "channel": "ia",
+         "format": "stub", "status": None},
+        {"id": "0806.1413", "layer": "v1", "channel": "ia",
+         "format": "gz", "status": "fetch_error:406"},
+        {"id": "1003.1513", "layer": "v1", "channel": "ia",
+         "format": "tar", "status": "fetch_error:406"},
+        {"id": "bad id", "layer": "v1"},
+    ]) + "\n")
+    (d / "manifest_b.jsonl").write_text("\n".join(json.dumps(r) for r in [
+        {"id": "0707.0978", "layer": "hot", "channel": "arxiv_eprint",
+         "format": "tar"},
+        {"id": "1003.1513", "layer": "v2", "channel": "ia",
+         "format": "tar", "status": "ok"},
+    ]) + "\n")
+    return d
+
+
+def test_register_lake_manifests(broot, tmp_path):
+    from kernel import lake
+    from kernel.importer import register_lake_manifests
+
+    mdir = _mk_manifests(tmp_path)
+    index = Index()
+    stats = register_lake_manifests([mdir], index, registry=_registry())
+
+    assert stats["rows"] == 7
+    assert stats["quarantined"] == 1                    # 'bad id'
+    assert stats["seeded_skeleton"] == 2                # 0707.0978, 1003.1513
+    assert stats["seeded_failed"] == 2                  # astro-ph stub, 0806 406
+
+    cat = lake.LakeCatalog.load()
+    assert cat.state("0707.0978") == "skeleton"
+    row = cat.rows()["0707.0978"]
+    assert row["manifested"] is True
+    assert sorted(row["layers"]) == ["hot", "v1"]       # union across files
+    assert sorted(row["channels"]) == ["arxiv_eprint", "ia"]
+    assert cat.state("astro-ph/0605048") == "failed"
+    assert cat.rows()["astro-ph/0605048"]["regen_cost"] == "network"
+    # mixed history (one bad row + one ok row) -> skeleton, not failed
+    assert cat.state("1003.1513") == "skeleton"
+
+    # skeleton dirs anchored, failed seeds are catalog-only
+    assert lake.cell_dir("0707.0978").is_dir()
+    assert not lake.cell_dir("astro-ph/0605048").exists()
+
+    # idempotent: a re-run appends nothing
+    n_lines = len(_ledger_lines())
+    n_cat = len(paths.lake_catalog_path().read_text().splitlines())
+    again = register_lake_manifests([mdir], index, registry=_registry())
+    assert again["seeded_skeleton"] == 0 and again["seeded_failed"] == 0
+    assert again["skipped_present"] == 4
+    assert len(_ledger_lines()) == n_lines
+    assert len(paths.lake_catalog_path().read_text().splitlines()) == n_cat
+
+
+def test_register_lake_manifests_never_downgrades(broot, tmp_path):
+    from kernel import lake
+    from kernel.importer import register_lake_manifests
+
+    mdir = _mk_manifests(tmp_path)
+    index = Index()
+    # pre-hydrate 0707.0978, then register — hydrated must survive
+    lake.register_skeleton("0707.0978")
+    lake.LakeCatalog.load().set("0707.0978", "hydrated", n_files=3)
+    stats = register_lake_manifests([mdir], index, registry=_registry())
+    cat = lake.LakeCatalog.load()
+    assert cat.state("0707.0978") == "hydrated"
+    # but its new memberships still merged in
+    assert sorted(cat.rows()["0707.0978"]["layers"]) == ["hot", "v1"]
+    assert stats["meta_merged"] == 1
+
+
+def _mk_legacy_cell(root: Path, name: str, *, raw: bool = True,
+                    extracted: int = 2, meta: dict | None = None) -> Path:
+    d = root / name
+    (d / "extracted" / "sub").mkdir(parents=True)
+    if raw:
+        (d / "raw.tar.gz").write_bytes(b"%RAW-" + name.encode())
+    for i in range(extracted):
+        (d / "extracted" / f"f{i}.tex").write_bytes(b"tex-%d" % i)
+    (d / "extracted" / "sub" / "s.sty").write_bytes(b"sty")
+    (d / "meta.json").write_text(json.dumps(meta or {
+        "arxiv_id": name, "format": "tar", "n_files": extracted + 1,
+        "raw_file": "raw.tar.gz"}))
+    (d / "files.txt").write_text("f0.tex\n")
+    return d
+
+
+def test_absorb_corpus(broot, tmp_path):
+    from kernel import cas, lake
+    from kernel.importer import absorb_corpus
+
+    corpus = tmp_path / "corpus"
+    corpus.mkdir()
+    _mk_legacy_cell(corpus, "0707.0978")               # new-style spelling
+    _mk_legacy_cell(corpus, "astro-ph--0605048")       # safe-form spelling
+    rawonly = corpus / "1003.1513"
+    rawonly.mkdir()
+    (rawonly / "raw.gz").write_bytes(b"%RAWGZ")
+    (rawonly / "meta.json").write_text("{}")
+    (corpus / "nominations").mkdir()                   # noncanon junk dir
+    (corpus / "empty-cell").mkdir()                    # canon? no payload
+    mdir = _mk_manifests(tmp_path)
+
+    index = Index()
+    stats = absorb_corpus(corpus, index, registry=_registry(),
+                          manifests=[mdir])
+    assert stats["absorbed"] == 3
+    assert stats["raw_only"] == 1
+    assert "nominations" in stats["noncanon_dirs"]
+    # 'empty-cell' canon-fails too (bare name is not an arxiv id) — it
+    # lands in noncanon before the payload check
+    assert "empty-cell" in stats["noncanon_dirs"]
+
+    # cells are complete + read-only projections of CAS objects
+    assert lake.is_complete("0707.0978")
+    assert lake.is_complete("astro-ph/0605048")
+    dest = lake.cell_dir("0707.0978")
+    meta = json.loads((dest / "meta.json").read_text())
+    assert meta["absorb"] is True and meta["idc"] == "0707.0978"
+    assert meta["n_files"] == 3                         # 2 tex + 1 sty
+    leaf = dest / "extracted" / "f0.tex"
+    assert leaf.read_bytes() == b"tex-0"
+    assert leaf.stat().st_mode & 0o222 == 0             # 0444 projection
+    raw_leaf = dest / "raw" / "raw.tar.gz"
+    assert raw_leaf.read_bytes() == b"%RAW-0707.0978"
+    # CAS holds the bytes; the projection hardlinks the same inode
+    sha = meta["raw_sha256"]
+    assert cas.object_path(sha, "blob").stat().st_ino == raw_leaf.stat().st_ino
+    # bookkeeping carried across
+    assert (dest / "files.txt").is_file()
+
+    cat = lake.LakeCatalog.load()
+    assert cat.state("0707.0978") == "hydrated"
+    assert cat.state("1003.1513") == "raw_only"
+    assert cat.rows()["0707.0978"]["manifested"] is True
+    # 1003.1513 is in the manifests -> manifested even though raw_only
+    assert cat.rows()["1003.1513"]["manifested"] is True
+    # source tree untouched + still writable
+    assert (corpus / "0707.0978" / "raw.tar.gz").exists()
+    assert (corpus / "0707.0978" / "extracted" / "f0.tex").stat().st_mode \
+        & 0o222
+
+    # idempotent re-run: zero absorbs, zero new catalog rows
+    n_cat = len(paths.lake_catalog_path().read_text().splitlines())
+    again = absorb_corpus(corpus, index, registry=_registry(),
+                          manifests=[mdir])
+    assert again["absorbed"] == 0
+    assert again["already"] == 3
+    assert len(paths.lake_catalog_path().read_text().splitlines()) == n_cat
+
+    # crash-heal: wipe the catalog row, re-run re-seeds without re-absorb
+    rows = [json.loads(l) for l in
+            paths.lake_catalog_path().read_text().splitlines() if l]
+    rows = [r for r in rows if r.get("idc") != "0707.0978"]
+    paths.lake_catalog_path().write_text(
+        "".join(json.dumps(r) + "\n" for r in rows))
+    heal = absorb_corpus(corpus, index, registry=_registry(),
+                         manifests=[mdir])
+    assert heal["absorbed"] == 0
+    assert lake.LakeCatalog.load().state("0707.0978") == "hydrated"
+
+
+def test_absorb_corpus_dry(broot, tmp_path):
+    from kernel import lake
+    from kernel.importer import absorb_corpus
+
+    corpus = tmp_path / "corpus"
+    corpus.mkdir()
+    _mk_legacy_cell(corpus, "0707.0978")
+    stats = absorb_corpus(corpus, Index(), dry=True)
+    assert stats["absorbed"] == 1
+    assert not lake.cell_dir("0707.0978").exists()
+    assert not paths.lake_catalog_path().exists()

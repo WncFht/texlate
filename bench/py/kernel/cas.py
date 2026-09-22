@@ -225,17 +225,21 @@ def gc_sweep(grace_s: float = 86400) -> list[Path]:
 
 
 def stat() -> dict:
-    """``{"objects": n, "bytes": apparent_total}`` over the whole objects dir."""
+    """Per-kind object census: ``{"<kind>": {"n": int, "bytes": int}}``
+    over the whole objects dir (kind = the first path segment —
+    objects/{blob,file}/…)."""
     base = paths.lake_objects_dir()
-    n = 0
-    total = 0
+    out: dict[str, dict] = {}
     if base.exists():
         for p, kind in fsutil._iter_tree(base):
             if kind != "file":
                 continue
+            rel = p.relative_to(base).parts
+            k = rel[0] if len(rel) > 1 else "?"
+            slot = out.setdefault(k, {"n": 0, "bytes": 0})
             try:
-                total += p.stat(follow_symlinks=False).st_size
+                slot["bytes"] += p.stat(follow_symlinks=False).st_size
             except FileNotFoundError:
                 continue  # raced with a sweep — skip, census is approximate
-            n += 1
-    return {"objects": n, "bytes": total}
+            slot["n"] += 1
+    return out

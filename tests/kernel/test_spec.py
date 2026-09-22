@@ -309,3 +309,37 @@ def test_load_spec_missing_spec_object(tmp_path: Path):
     src.write_text("x = 1\n")
     with pytest.raises(SpecError):
         load_spec(src)
+
+
+# --- shipped specs ----------------------------------------------------------
+
+SPECS_DIR = Path(__file__).resolve().parents[2] / "bench" / "py" / "specs"
+
+
+def test_shipped_specs_compile(broot):
+    """Every spec shipped under bench/py/specs must compile clean — a
+    broken spec would otherwise only surface at `bench run` time."""
+    names = sorted(p.stem for p in SPECS_DIR.glob("*.py")
+                   if p.stem != "__init__")
+    assert names, "SPECS_DIR drifted"
+    for name in names:
+        spec = load_spec(SPECS_DIR / f"{name}.py")
+        assert spec.kind == name
+
+
+def test_errsweep_prep_runbook_drift_fails_closed(broot, monkeypatch):
+    """The runbook sha pin is the fail-closed contract: drift must kill
+    prep before any worktree/agent machinery runs."""
+    import types
+
+    from kernel.ctx import Ctx
+    from specs import errsweep as es
+
+    monkeypatch.setattr(es, "RUNBOOK_SHA256", "0" * 64)
+    ctx = Ctx("errsweep/2026-09-22/t",
+              {"id": "sweep", "idc": "sweep", "stage": "prep"},
+              None, es.spec,
+              rundir=types.SimpleNamespace(date="2026-09-22"))
+    assert es._prep(ctx) == "fail"
+    notes = [e for e in ctx._outbox if e.get("type") == events.T_NOTE]
+    assert any("sha drifted" in e.get("text", "") for e in notes)

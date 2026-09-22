@@ -1,8 +1,8 @@
 """Report task progress to the status-panel task board.
 
-Writes bench/results/status-panel/tasks.d/<slug>.json atomically;
-the panel at http://127.0.0.1:8766/ renders it in the 任务看板 section.
-Any agent/script can call this — stdlib only, no imports beyond that.
+Writes $TEXLATE_BENCH_ROOT/state/status-panel/tasks.d/<slug>.json
+atomically; the panel at http://127.0.0.1:8766/ renders it in the
+任务看板 section. Any agent/script can call this — stdlib only.
 
 Examples:
     python3 bench/py/task_ping.py realn200 --status running \
@@ -23,13 +23,20 @@ import sys
 import time
 from pathlib import Path
 
-TASKS_DIR = (
-    Path(__file__).resolve().parents[2]
-    / "bench"
-    / "results"
-    / "status-panel"
-    / "tasks.d"
-)
+try:
+    from kernel import paths as _kpaths
+    TASKS_DIR = _kpaths.status_panel_dir() / "tasks.d"
+except Exception:  # kernel.paths is stdlib-only; fallback mirrors it
+    TASKS_DIR = (
+        Path(
+            os.environ.get(
+                "TEXLATE_BENCH_ROOT",
+                Path.home() / ".local" / "share" / "texlate-bench")
+        ).expanduser()
+        / "state"
+        / "status-panel"
+        / "tasks.d"
+    )
 STATUSES = ("starting", "running", "blocked", "done", "failed")
 
 

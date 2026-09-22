@@ -129,6 +129,12 @@ def vault_pending_mirror_path() -> Path:
     return vault_dir() / ".pending-mirror"
 
 
+def vault_verify_stamp_path() -> Path:
+    """Freshness stamp written by `bench vault verify` on a clean pass —
+    the first-fire gate's <24h evidence leg (§6 Phase-3 首火闸)."""
+    return vault_dir() / ".verify-stamp.json"
+
+
 def vault_kind_dir(kind: str) -> Path:
     """kind in {zh, splice, state}; quarantine lives under vault/quar/<kind>."""
     if kind == "quar":
@@ -212,6 +218,16 @@ def backup_dir() -> Path:
     return root() / "backup"
 
 
+def state_dir() -> Path:
+    """$ROOT/state — non-ledger operational state (status-panel board, …)."""
+    return root() / "state"
+
+
+def status_panel_dir() -> Path:
+    """status_panel.py / task_ping.py share this dir (pid, tasks.d, cache)."""
+    return state_dir() / "status-panel"
+
+
 # --- layout bootstrap ---------------------------------------------------------
 
 _SENTINEL_TEXT = "texlate-bench zone sentinel — if this file is missing the mount is wrong\n"
@@ -234,7 +250,7 @@ def ensure_layout() -> Path:
         lake_cache_dir(), lake_tmp_dir(), lake_daily_dir(),
         lake_locks_dir(), lake_items_dir(),
         locks_dir(), claims_locks_dir(), slots_dir(),
-        import_src_dir(), backup_dir(),
+        import_src_dir(), backup_dir(), status_panel_dir(),
     ):
         d.mkdir(parents=True, exist_ok=True)
 

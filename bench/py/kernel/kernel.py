@@ -30,7 +30,8 @@ Cell critical section (§2.1, §3.6, §3.10.6), inside cell_lock:
     (unsealed->error/index_unsealed | claimed->claimed | verified->dedup
      | missing->regen gate | absent->proceed) -> meter pre-check ->
     needs eval (no domain DONE row -> skip; done but product lost ->
-    fault/upstream-lost) -> PAUSE -> AUTH_DEAD -> claim NB-acquire ->
+    fault/upstream-lost) -> PAUSE (paid cells only) -> AUTH_DEAD ->
+    claim NB-acquire ->
     claim acquire event + cell_started -> fn(ctx) -> status_class
     classify (unclassified -> fault + note) -> last-mutating harvest
     BEFORE terminal emit (§3.5) -> ONE emit_batch {terminal + outbox +
@@ -56,6 +57,7 @@ from kernel import (
     dedup as dedupmod,
     events,
     executors,
+    fsutil,
     idnorm,
     index as indexmod,
     lake,
@@ -154,6 +156,80 @@ def _shard_terminal_keys(rd: runs.RunDir) -> set:
         if isinstance(ev, dict) and events.is_terminal_cell(ev):
             out.add(runs._cell_key(ev))
     return out
+
+
+# --- first-fire gate (§6 Phase-3 首火闸) -----------------------------------------
+
+
+_VERIFY_FRESH_S = 24 * 3600
+
+
+def _first_fire_gate(spec: Spec, oracle, cells: list, rd) -> dict:
+    """The no-attendance paid-spend machine gate.
+
+    Three legs, ALL must hold or the paid spec refuses to run:
+
+    1. dedup coverage — ``oracle.quote`` over the unique paid cell keys;
+    2. sealed index — ``quote['sealed']`` AND zero 'unsealed' buckets
+       (a stale index errs toward re-pay; fail-closed);
+    3. vault verify freshness — ``vault/.verify-stamp.json`` written by a
+       clean `bench vault verify` within 24h.
+
+    coverage.json lands in the run's derived/ either way — the refused
+    attempt leaves its evidence behind.
+    """
+    paid_keys = set()
+    for c in cells:
+        st = spec.stage(c["stage"])
+        if st is not None and st.paid:
+            paid_keys.add(spec.dedup_key_of(st, c))
+    quote = oracle.quote(sorted(paid_keys))
+    stamp = None
+    try:
+        stamp = json.loads(
+            paths.vault_verify_stamp_path().read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        pass
+    verify_age = (time.time() - stamp["ts"]
+                  if isinstance(stamp, dict)
+                  and isinstance(stamp.get("ts"), (int, float))
+                  else None)
+    verify_fresh = verify_age is not None and verify_age < _VERIFY_FRESH_S
+    coverage = {
+        "ts": round(time.time(), 3),
+        "paid_keys": len(paid_keys),
+        "quote": {k: quote[k] for k in
+                  ("new", "reuse", "missing", "claimed", "attempted",
+                   "unsealed", "total")},
+        "sealed": bool(quote["sealed"]),
+        "verify_age_s": (round(verify_age, 1)
+                         if verify_age is not None else None),
+        "verify_fresh": verify_fresh,
+    }
+    try:
+        d = rd.derived()
+        d.mkdir(parents=True, exist_ok=True)
+        fsutil.atomic_write(
+            d / "coverage.json",
+            (json.dumps(coverage, ensure_ascii=False, sort_keys=True,
+                        indent=2) + "\n").encode("utf-8"))
+    except OSError:
+        pass  # evidence write is best-effort; the gate still binds
+    fails = []
+    if not coverage["sealed"] or coverage["quote"]["unsealed"]:
+        fails.append(
+            f"index unsealed (sealed={coverage['sealed']} "
+            f"unsealed={coverage['quote']['unsealed']})")
+    if not verify_fresh:
+        fails.append(
+            "vault verify stale/missing "
+            f"(age_s={coverage['verify_age_s']}, need <{_VERIFY_FRESH_S}s — "
+            "run `bench vault verify`)")
+    if fails:
+        raise RunError(
+            "first-fire gate refused paid run: " + "; ".join(fails)
+            + f" (coverage: {coverage['quote']})")
+    return coverage
 
 
 class _SeqAlloc:
@@ -590,8 +666,9 @@ def _run_cell(env, cell: dict) -> dict:
             return quick("fault", cat="upstream-lost")
         upstream_rec = payload
 
-        # 5. PAUSE — retriable hold, checked per cell before paid ops
-        if locks.pause_engaged():
+        # 5. PAUSE — retriable hold, PAID cells only (Phase 3 rescope: the
+        #    fence stops spend, not free work — the migration runs under it)
+        if stage is not None and stage.paid and locks.pause_engaged():
             return quick("error", cat="pause")
 
         # 6. paid: AUTH_DEAD + claim mutex (NB — the oracle just probed
@@ -870,6 +947,16 @@ def run(spec_or_path, params=None, *, date=None, slug=None, resume=False,
 
             # 4. frozen plan (verbatim on resume unless --replan)
             cells = runs.freeze_plan(rd, cells, replan=replan)
+
+            # 4.5 first-fire gate (§6 Phase-3 首火闸): paid specs show
+            #     dedup coverage + sealed index + fresh vault verify, or
+            #     the paid arm refuses — evidence lands in coverage.json
+            if spec.has_paid():
+                try:
+                    _first_fire_gate(spec, oracle, cells, rd)
+                except RunError as exc:
+                    _note(env, str(exc), level="warn")
+                    raise
 
             for p in problems:
                 _note(env, f"canon drop: {p}", level="warn")

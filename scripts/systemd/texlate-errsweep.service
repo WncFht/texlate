@@ -4,5 +4,5 @@ Description=texlate errsweep (error sediment → root-cause fixes via headless c
 [Service]
 Type=oneshot
 Environment=PATH=/home/fanghaotian/.local/bin:/home/fanghaotian/.cargo/bin:/usr/local/bin:/usr/bin
-ExecStart=/home/fanghaotian/src/texlate/scripts/errsweep.sh
+ExecStart=/home/fanghaotian/src/texlate/bench/py/bench run errsweep
 TimeoutStartSec=0

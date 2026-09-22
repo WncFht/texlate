@@ -173,6 +173,7 @@ CREATE TABLE IF NOT EXISTS runs (
     ts_start  REAL
 );
 CREATE INDEX IF NOT EXISTS idx_events_type ON events(type);
+CREATE INDEX IF NOT EXISTS idx_events_line_no ON events(line_no);
 CREATE INDEX IF NOT EXISTS idx_records_cell
     ON records(idc, arm, up, variant, stage);
 CREATE INDEX IF NOT EXISTS idx_claims_key ON claims(idc, arm, variant);
@@ -277,13 +278,50 @@ class Index:
         self.conn.row_factory = sqlite3.Row
         self.conn.execute("PRAGMA journal_mode=WAL")
         self.conn.execute("PRAGMA synchronous=NORMAL")
-        self.conn.execute("PRAGMA busy_timeout=5000")
+        # Generous writer patience: batch writers (import drivers, tail_ingest
+        # during a run) legitimately share the single WAL writer slot, and a
+        # near-saturated writer starves short-timeout openers (observed: a
+        # 14k-event emit_batch sink grind failed a concurrent Index() open at
+        # the 5s mark).
+        self.conn.execute("PRAGMA busy_timeout=30000")
         self._line_no_hwm = 0
         self._init_schema(force=force_schema)
 
     # -- schema ---------------------------------------------------------------
 
+    def _schema_current(self) -> bool:
+        """Read-only probe: True when meta exists at the current schema_v
+        with every counter key and the claims.fate column already present.
+
+        WAL readers never block, so a steady-state Index() open performs
+        ZERO writes and cannot collide with a live writer — init writes only
+        run when something is actually missing (first open, migration).
+        """
+        try:
+            if self._meta_get("schema_v") != str(INDEX_SCHEMA_V):
+                return False
+            keys = {
+                r["key"] for r in self.conn.execute("SELECT key FROM meta")
+            }
+            if any(k not in keys for k in _META_COUNTERS):
+                return False
+            cols = {
+                r["name"]
+                for r in self.conn.execute("PRAGMA table_info(claims)")
+            }
+            if "fate" not in cols:
+                return False
+            idxs = {
+                r["name"]
+                for r in self.conn.execute("PRAGMA index_list(events)")
+            }
+            return "idx_events_line_no" in idxs
+        except sqlite3.OperationalError:
+            return False
+
     def _init_schema(self, *, force: bool) -> None:
+        if not force and self._schema_current():
+            return
         # Create-missing first so a torn create can never leave meta without
         # its sibling tables (the txn seeder reads events).
         self.conn.executescript(_SCHEMA)
@@ -306,6 +344,19 @@ class Index:
         }
         if "fate" not in cols:
             self.conn.execute("ALTER TABLE claims ADD COLUMN fate TEXT")
+        # idx_events_line_no — additive, no schema bump. Without it every
+        # _txn's MAX(line_no) full-scans the events mirror (observed: a
+        # per-event sink ground at ~2.5GB/s of page reads on a 500k-row
+        # table); indexed, the probe is O(log n).
+        idxs = {
+            r["name"]
+            for r in self.conn.execute("PRAGMA index_list(events)")
+        }
+        if "idx_events_line_no" not in idxs:
+            self.conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_events_line_no"
+                " ON events(line_no)"
+            )
 
     def _drop_all(self) -> None:
         with self._txn():

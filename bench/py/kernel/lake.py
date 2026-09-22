@@ -238,7 +238,8 @@ class LakeCatalog:
         """Current state string; ``'absent'`` for unknown cells."""
         return self._rows.get(idc, {}).get("state", "absent")
 
-    def set(self, idc: str, state: str, **kw) -> dict:
+    def set(self, idc: str, state: str, sink=None, run_dir=None,
+            **kw) -> dict:
         """Transition ``idc`` to ``state``: emit the ledger lake_cell event
         FIRST, then append the merged row to catalog.jsonl — the catalog is
         declared a projection of the event stream, so a crash between the
@@ -249,15 +250,50 @@ class LakeCatalog:
         row's fields. Returns the stored row."""
         row = {**_latest_row(idc), "idc": idc, "state": state,
                "ts": round(time.time(), 3), **kw}
-        ev_kw = {"source": row.get("source", "arxiv")}
-        if row.get("bytes") is not None:
-            ev_kw["bytes"] = row["bytes"]
-        ledger.emit(make_event(
-            events.T_LAKE_CELL, id=idc, idc=idc, state=state, **ev_kw
-        ))
+        ledger.emit(_lake_event(row), run_dir=run_dir, sink=sink)
         _append_row(paths.lake_catalog_path(), row)
         self._rows[idc] = row
         return row
+
+    def set_bulk(self, updates, sink=None, run_dir=None) -> list:
+        """Import-scale variant of ``set``: one file rescan + one
+        emit_batch + one catalog append for the whole ``updates`` iterable
+        of ``(idc, state, kw)`` triples, instead of per-row work (the
+        per-row file rescan in ``set`` is O(n²) over a 10⁴-row seeding).
+
+        Same crash order as ``set`` — all events land on the ledger before
+        any catalog row — and the same non-atomic merge window (fresh file
+        state read once up front; a concurrent writer interleaving between
+        the rescan and the append can lose fields, identical to ``set``).
+        Returns the stored rows."""
+        updates = list(updates)
+        if not updates:
+            return []
+        p = paths.lake_catalog_path()
+        latest: dict[str, dict] = {}
+        if p.exists():
+            for _ln, row, _raw in iter_jsonl(p):
+                if isinstance(row, dict) and isinstance(row.get("idc"), str):
+                    latest[row["idc"]] = row
+        now = round(time.time(), 3)
+        rows = []
+        for idc, state, kw in updates:
+            row = {**latest.get(idc, {}), "idc": idc, "state": state,
+                   "ts": now, **kw}
+            rows.append(row)
+            latest[idc] = row
+        ledger.emit_batch(
+            [_lake_event(r) for r in rows], run_dir=run_dir, sink=sink
+        )
+        payload = b"".join(
+            json.dumps(r, ensure_ascii=False, sort_keys=True,
+                       separators=(",", ":")).encode("utf-8") + b"\n"
+            for r in rows
+        )
+        _append_line(p, payload)
+        for r in rows:
+            self._rows[r["idc"]] = r
+        return rows
 
     def mark_used(self, idc: str) -> dict:
         """Cheap last_used_at touch (LRU feed, §3.10.3): append-only row,
@@ -270,6 +306,17 @@ class LakeCatalog:
 
 
 # --- skeleton ---------------------------------------------------------------------------
+
+
+def _lake_event(row: dict) -> dict:
+    """Catalog row -> T_LAKE_CELL event (the catalog's ledger projection)."""
+    ev_kw = {"source": row.get("source", "arxiv")}
+    if row.get("bytes") is not None:
+        ev_kw["bytes"] = row["bytes"]
+    return make_event(
+        events.T_LAKE_CELL, id=row["idc"], idc=row["idc"],
+        state=row["state"], **ev_kw
+    )
 
 
 def _latest_row(idc: str) -> dict:

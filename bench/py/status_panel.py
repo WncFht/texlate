@@ -7,13 +7,13 @@ independently fault-isolated and cached.
 
 Run detached:
     setsid nohup python3 bench/py/status_panel.py \
-        >> bench/results/status-panel/run.log 2>&1 </dev/null &
+        >> "$TEXLATE_BENCH_ROOT/state/status-panel/run.log" 2>&1 </dev/null &
 Stop:
-    kill "$(cat bench/results/status-panel/panel.pid)"
+    kill "$(cat "$TEXLATE_BENCH_ROOT/state/status-panel/panel.pid")"
 
 Task board convention: agents report progress via
     python3 bench/py/task_ping.py <name> --status running --done N --total M
-(see bench/results/status-panel/README.md)
+(board lives at $TEXLATE_BENCH_ROOT/state/status-panel/tasks.d)
 """
 
 from __future__ import annotations
@@ -27,6 +27,7 @@ import json
 import os
 import re
 import signal
+import sqlite3
 import subprocess
 import time
 import urllib.error
@@ -36,7 +37,16 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 RESULTS_DIR = REPO / "bench" / "results"
-PANEL_DIR = RESULTS_DIR / "status-panel"
+try:
+    from kernel import paths as _kpaths
+    BENCH_ROOT = _kpaths.root()
+except Exception:  # kernel.paths is stdlib-only; fallback mirrors it
+    BENCH_ROOT = Path(
+        os.environ.get(
+            "TEXLATE_BENCH_ROOT",
+            Path.home() / ".local" / "share" / "texlate-bench")
+    ).expanduser()
+PANEL_DIR = BENCH_ROOT / "state" / "status-panel"
 PIDFILE = PANEL_DIR / "panel.pid"
 TASKS_DIR = PANEL_DIR / "tasks.d"
 #: run 目录由 _n200_dir() 自动发现（realn200-*/e2e-* 最新含账者）——
@@ -604,7 +614,7 @@ def sec_tasks() -> str:
         "<div class='cap'>上报：<code>python3 bench/py/task_ping.py "
         "&lt;名&gt; --status running --done N --total M --note …"
         "</code> · 完结 <code>--finish</code> · 撤下 <code>--remove</code>"
-        "（约定见 bench/results/status-panel/README.md）</div>"
+        "（看板目录 $TEXLATE_BENCH_ROOT/state/status-panel/tasks.d）</div>"
     )
     if not ts:
         return hint + "<div class='prow'>看板为空</div>"
@@ -768,6 +778,130 @@ def sec_n200() -> str:
             "<div class='cap'>非 clean 原因</div>"
             + "".join(hbar(k, v, mx, C_FAIL) for k, v in st["reasons"].most_common(8))
         )
+    return "".join(parts)
+
+
+def _kernel_index() -> sqlite3.Connection | None:
+    """Read-only handle on ledger/index.sqlite — ``query_only`` pragma,
+    pure SELECTs; WAL readers never block the writer, and the section's
+    exception isolation covers a momentarily-absent db."""
+    p = BENCH_ROOT / "ledger" / "index.sqlite"
+    if not p.is_file():
+        return None
+    conn = sqlite3.connect(str(p), timeout=5)
+    conn.execute("PRAGMA query_only=ON")
+    return conn
+
+
+def sec_kernel() -> str:
+    """Trizone-ledger kernel feed — index.sqlite projections + lock
+    sentinels + run heartbeats (the v2 supply; legacy collectors below
+    stay until Phase 4)."""
+    parts = []
+    flags = []
+    if (BENCH_ROOT / "PAUSE").exists():
+        flags.append(badge("PAUSE", C_FAIL))
+    if (BENCH_ROOT / "locks" / "AUTH_DEAD").exists():
+        flags.append(badge("AUTH_DEAD", C_FAIL))
+    if (BENCH_ROOT / ".kernel-active").exists():
+        flags.append(badge("kernel-active", C_INFO))
+    parts.append(
+        "<div class='prow'>栅栏 "
+        + (" ".join(flags) if flags else badge("无闸", C_CLEAN))
+        + "</div>"
+    )
+    ev = BENCH_ROOT / "ledger" / "events.jsonl"
+    if ev.exists():
+        st = ev.stat()
+        parts.append(
+            f"<div class='prow'>ledger events.jsonl "
+            f"{st.st_size / 1048576:.1f} MiB · 最后写入 {fmt_age(st.st_mtime)}</div>"
+        )
+    conn = _kernel_index()
+    if conn is None:
+        return "".join(parts) + "<div class='prow'>index.sqlite 尚未建立</div>"
+    try:
+        meta = {
+            r[0]: r[1]
+            for r in conn.execute("SELECT key, value FROM meta")
+        }
+        dirty = (BENCH_ROOT / "ledger" / ".index-dirty").exists()
+        parts.append(
+            f"<div class='prow'>index sealed_gen "
+            f"<b>{esc(meta.get('sealed_gen', '0'))}</b> · watermark "
+            f"{esc(meta.get('watermark', '0'))} · "
+            + (badge("dirty", C_FAIL) if dirty else badge("sealed", C_CLEAN))
+            + "</div>"
+        )
+        # 最近 run + heartbeat 活性（heartbeat 文件 15s 一拍）
+        rows = conn.execute(
+            "SELECT run, kind, ts_start FROM runs "
+            "ORDER BY ts_start DESC LIMIT 8"
+        ).fetchall()
+        if rows:
+            trs = []
+            for run, kind, ts in rows:
+                # run = kind/date/slug — heartbeat lives at that path
+                hb = BENCH_ROOT / "runs" / str(run) / "heartbeat"
+                hb_age = fmt_age(hb.stat().st_mtime) if hb.exists() else "—"
+                trs.append(
+                    [
+                        f"<code>{esc(run)}</code>",
+                        esc(kind),
+                        esc(fmt_age(ts or 0)),
+                        esc(hb_age),
+                    ]
+                )
+            parts.append(
+                table(["run", "kind", "起跑", "心跳"], trs)
+            )
+        mix = conn.execute(
+            "SELECT status, COUNT(*) FROM cells GROUP BY status"
+        ).fetchall()
+        if mix:
+            total = sum(n for _, n in mix)
+            parts.append(
+                "<div class='cap'>cells 状态面（末条胜）</div>"
+                + stacked(
+                    [(s, n, STATUS_COLOR.get(s, C_SKIP)) for s, n in mix],
+                    total,
+                )
+            )
+        held = conn.execute(
+            "SELECT COUNT(*) FROM claims c1 WHERE op='acquire' AND rowid=("
+            "SELECT MAX(rowid) FROM claims c2 WHERE "
+            "c2.idc=c1.idc AND c2.arm=c1.arm AND c2.variant=c1.variant)"
+        ).fetchone()[0]
+        if held:
+            parts.append(
+                f"<div class='prow'>claims 持有 <b>{held}</b></div>"
+            )
+    finally:
+        conn.close()
+    # lake catalog — last-wins state counts
+    cat = BENCH_ROOT / "lake" / "corpus" / "catalog.jsonl"
+    if cat.is_file():
+        states: dict[str, int] = {}
+        try:
+            for line in cat.read_bytes().splitlines():
+                if not line.strip():
+                    continue
+                row = json.loads(line)
+                idc, state = row.get("idc"), row.get("state")
+                if isinstance(idc, str):
+                    states[idc] = state or "?"
+        except (OSError, json.JSONDecodeError):
+            pass
+        counts = collections.Counter(states.values())
+        if counts:
+            parts.append(
+                "<div class='cap'>lake catalog</div>"
+                + stacked(
+                    [(s, n, C_INFO if s == "hydrated" else C_SKIP)
+                     for s, n in counts.most_common()],
+                    sum(counts.values()),
+                )
+            )
     return "".join(parts)
 
 
@@ -1000,6 +1134,7 @@ def sec_ledger() -> str:
 
 SECTIONS = [
     ("里程碑", sec_milestones),
+    ("trizone kernel", sec_kernel),
     ("任务看板（agent 上报）", sec_tasks),
     ("实时跑批 · realn200", sec_n200),
     ("M2 门 · scorecard", sec_scorecard),

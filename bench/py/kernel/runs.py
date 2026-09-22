@@ -473,9 +473,9 @@ def accounting_check(rundir: RunDir) -> dict:
     exactly one terminal cell event — finished-time validation. Returns::
 
         {plan, queued, terminal,            # counts
-         missing_terminal,                  # queued keys with 0 terminals
+         missing_terminal,                  # queued keys short a terminal
          extra_queued,                      # queued keys absent from plan
-         dup_terminal,                      # queued keys with >1 terminal
+         dup_terminal,                      # queued keys with extra terminals
          extra_terminal,                    # terminal events on unqueued keys
          ok}
     """
@@ -496,16 +496,24 @@ def accounting_check(rundir: RunDir) -> dict:
             if ev.get("type") == events.T_CELL_QUEUED:
                 k = _cell_key(ev)
                 queued[k] = queued.get(k, 0) + 1
-            elif events.is_terminal_cell(ev):
+            elif ev.get("type") == events.T_CELL:
+                # ANY cell event is the queue entry's terminal — the
+                # equation detects LOST cells, so retriable statuses
+                # (error/skip) count too. is_terminal_cell is the
+                # done-set predicate (resume/sweep), not this.
                 k = _cell_key(ev)
                 terminal[k] = terminal.get(k, 0) + 1
 
     extra_queued = sorted(queued.keys() - plan_keys, key=repr)
+    # Pairwise equality: a --resume re-queues retried cells into the same
+    # shard, so the invariant is terminal[k] == queued[k] per key — fewer
+    # means a lost execution, more means a double-emit. (missing keeps its
+    # zero-terminal reading for readability of first-attempt losses.)
     missing_terminal = sorted(
-        (k for k in queued if terminal.get(k, 0) == 0), key=repr
+        (k for k in queued if terminal.get(k, 0) < queued[k]), key=repr
     )
     dup_terminal = sorted(
-        (k for k, n in terminal.items() if n > 1 and k in queued), key=repr
+        (k for k in queued if terminal.get(k, 0) > queued[k]), key=repr
     )
     extra_terminal = sorted(
         (k for k in terminal if k not in queued), key=repr

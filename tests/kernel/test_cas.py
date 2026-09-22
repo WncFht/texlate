@@ -54,7 +54,7 @@ def test_store_bytes_roundtrip_and_mode(broot):
 
 def test_store_bytes_idempotent(broot):
     assert cas.store_bytes(b"same") == cas.store_bytes(b"same")
-    assert cas.stat()["objects"] == 1
+    assert cas.stat()["blob"]["n"] == 1
 
 
 def test_store_dedup_hit_refreshes_liveness(broot):
@@ -84,7 +84,7 @@ def test_store_file_idempotent(broot, tmp_path):
     src = tmp_path / "f"
     src.write_bytes(b"x")
     assert cas.store_file(src) == cas.store_file(src)
-    assert cas.stat()["objects"] == 1
+    assert cas.stat()["file"]["n"] == 1
 
 
 def test_store_file_rejects_special_and_missing(broot, tmp_path):
@@ -209,12 +209,15 @@ def test_gc_isolates_kinds(broot, tmp_path):
 
 
 def test_stat_counts_objects_and_bytes(broot, tmp_path):
-    assert cas.stat() == {"objects": 0, "bytes": 0}
+    assert cas.stat() == {}
     cas.store_bytes(b"12345678")                     # 8 B blob
     f = tmp_path / "f"
     f.write_bytes(b"12")
     cas.store_file(f)                                # 2 B file
-    assert cas.stat() == {"objects": 2, "bytes": 10}
+    assert cas.stat() == {
+        "blob": {"n": 1, "bytes": 8},
+        "file": {"n": 1, "bytes": 2},
+    }
     # a projection outside the objects dir does not inflate the census
     cas.link_out(hashlib.sha256(b"12345678").hexdigest(), tmp_path / "p")
-    assert cas.stat()["objects"] == 2
+    assert cas.stat()["blob"]["n"] == 1

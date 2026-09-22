@@ -19,6 +19,9 @@ import threading
 import time
 from pathlib import Path
 
+import pytest
+
+from conftest import write_verify_stamp
 from kernel import (
     doctor,
     events,
@@ -114,6 +117,7 @@ def _switch_root(monkeypatch, root: Path) -> Path:
     """Point the whole zone at a second isolated root (paths read env live)."""
     monkeypatch.setenv(paths.ENV_ROOT, str(root))
     paths.ensure_layout()
+    write_verify_stamp()
     return root
 
 
@@ -380,18 +384,21 @@ def test_s10_cli_subprocess_surface(broot, tmp_path):
     assert r.returncode == 0, r.stderr
     assert "ingest" in r.stdout
 
-    # CLI-level PAUSE gate — run/plan refuse before side effects (exit 2)
+    # CLI-level PAUSE gate (§6 Phase-3 rescope — a paid-spend fence):
+    # paid specs refuse (exit 2); free specs and plan run straight through.
     pause = Path(broot) / "PAUSE"
     pause.touch()
     try:
-        r = cli("run", "smoke", "--date", DATE, "--slug", "paused")
+        r = cli("run", "paid_stub", "--date", DATE, "--slug", "paused")
         assert r.returncode == 2, f"{r.stdout}\n{r.stderr}"
         assert "PAUSE" in r.stderr
         r = cli("plan", "smoke")
-        assert r.returncode == 2, f"{r.stdout}\n{r.stderr}"
+        assert r.returncode == 0, f"{r.stdout}\n{r.stderr}"
+        r = cli("run", "smoke", "--date", DATE, "--slug", "freeok")
+        assert r.returncode == 0, f"{r.stdout}\n{r.stderr}"
     finally:
         pause.unlink()
-    assert not (Path(broot) / "runs" / "smoke" / DATE / "paused").exists()
+    assert not (Path(broot) / "runs" / "paid_stub" / DATE / "paused").exists()
 
     # paid spec without --max-cost — the §3.6 fuse refusal (exit != 0),
     # and the refusal lands BEFORE the run dir materializes
@@ -585,12 +592,14 @@ def test_s05_pause_gate(broot, tmp_path, monkeypatch):
         **_quiet(),
     )
     rd1 = runs.load_run("paid_stub", DATE, "pz1")
-    # ingest cells reach the PAUSE gate and refuse; downstream cells never
-    # get that far (needs eval precedes the pause check) — either way the
-    # paid cells are held and NOTHING is spent.
+    # §6 Phase-3 rescope — PAUSE fences PAID spend only: free ingest cells
+    # run to ok under the fence, paid xlat cells hit the per-cell pause
+    # gate, and report cells skip on the unmet need. Nothing is spent.
     for e in _cells(rd1, "ingest"):
+        assert e["status"] == "ok"
+    for e in _cells(rd1, "xlat"):
         assert e["status"] == "error" and e["cat"] == "pause"
-    for e in _cells(rd1, "xlat") + _cells(rd1, "report"):
+    for e in _cells(rd1, "report"):
         assert e["status"] == "skip"
     assert client.calls == 0
 
@@ -690,17 +699,24 @@ def test_s06_index_unsealed_no_spend(broot):
     factory = _factory(client)
 
     paths.index_dirty_path().touch()  # poison the seal (§3.10.6 ③)
-    kernel.run(
-        str(PAID_SPEC),
-        date=DATE,
-        slug="iu1",
-        max_cost=5.0,
-        gateway_factory=factory,
-        **_quiet(),
-    )
+    # §6 Phase-3 first-fire gate: a paid spec under an unsealed index
+    # refuses the RUN at pre-flight (coverage.json keeps the evidence);
+    # the per-cell index_unsealed path remains for mid-run seal loss.
+    with pytest.raises(kernel.RunError):
+        kernel.run(
+            str(PAID_SPEC),
+            date=DATE,
+            slug="iu1",
+            max_cost=5.0,
+            gateway_factory=factory,
+            **_quiet(),
+        )
     rd1 = runs.load_run("paid_stub", DATE, "iu1")
-    for e in _cells(rd1, "xlat"):
-        assert e["status"] == "error" and e["cat"] == "index_unsealed"
+    assert _cells(rd1) == []  # refused before any cell ran
+    assert _typed(rd1, events.T_CELL_QUEUED) == []  # or even queued
+    cov = json.loads(
+        (rd1.derived() / "coverage.json").read_text(encoding="utf-8"))
+    assert cov["sealed"] is False
     assert client.calls == 0  # fail-closed: zero spend while unsealed
 
     # recovery path: rebuild the projection (kernel idle -> allowed), then
@@ -729,6 +745,40 @@ def test_s06_index_unsealed_no_spend(broot):
         f"calls={client.calls} — a FREE stage's ok was counted as "
         "paid-verified bytes"
     )
+
+
+def test_s06b_first_fire_gate_stamp(broot):
+    """§6 Phase-3 首火闸: no fresh vault-verify stamp -> the paid spec
+    refuses at the gate (coverage.json keeps the evidence, zero spend);
+    a fresh stamp -> the refused run resumes and pays."""
+    client = _FakeClient()
+    paths.vault_verify_stamp_path().unlink()  # broot stamped; remove it
+    with pytest.raises(kernel.RunError):
+        kernel.run(
+            str(PAID_SPEC),
+            date=DATE,
+            slug="ff1",
+            max_cost=5.0,
+            gateway_factory=_factory(client),
+            **_quiet(),
+        )
+    rd = runs.load_run("paid_stub", DATE, "ff1")
+    cov = json.loads(
+        (rd.derived() / "coverage.json").read_text(encoding="utf-8"))
+    assert cov["verify_fresh"] is False and cov["sealed"] is True
+    assert _cells(rd) == [] and client.calls == 0
+
+    write_verify_stamp()  # `bench vault verify` clean-pass evidence
+    kernel.run(
+        str(PAID_SPEC),
+        resume=True,
+        date=DATE,
+        slug="ff1",
+        max_cost=5.0,
+        gateway_factory=_factory(client),
+        **_quiet(),
+    )
+    assert client.calls == 2
 
 
 # --- scenario 9: AUTH_DEAD refuses pre-flight --------------------------------------

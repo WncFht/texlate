@@ -196,17 +196,22 @@ def test_cell_exception_is_error_not_crash(broot: Path):
     row = _cell_rows(rd)[0]
     assert row["status"] == "error"
     assert "kapow" in row["errors"][0]["msg"]
-    # retriable endings leave the accounting equation loud (§3.1)
-    assert res["accounting"]["ok"] is False
-    assert res["ok"] is False
+    # a retriable ending still emitted its terminal — the queue drained,
+    # so the accounting equation (which detects LOST cells) balances
+    assert res["accounting"]["ok"] is True
+    assert res["ok"] is True
 
 
-def test_pause_holds_cells_without_calling_fn(broot: Path):
+def test_pause_holds_paid_cells_without_calling_fn(broot: Path):
+    """PAUSE is a paid-spend fence (§6 Phase-3 rescope): a paid cell held
+    at the per-cell gate lands error/pause without ever calling its fn;
+    free cells proceed under the fence (covered by cli/integration)."""
     calls = []
-    spec = _free_spec({"a": lambda ctx: calls.append(1) or "ok"},
+    spec = _paid_spec(lambda ctx: calls.append(1) or "ok",
                       [{"id": "x"}])
     paths.pause_path().touch()
-    res = kernel.run(spec, **_quiet())
+    res = kernel.run(spec, max_cost=5.0,
+                     gateway_factory=_factory(object()), **_quiet())
     rd = runs.load_run(spec.kind, res["date"], res["slug"])
     row = _cell_rows(rd)[0]
     assert row["status"] == "error" and row["cat"] == "pause"
@@ -252,13 +257,14 @@ def test_resume_reruns_retriable_cells(broot: Path):
 
     spec = _free_spec({"a": fn}, [{"id": "x"}])
     r1 = kernel.run(spec, date="2026-09-21", slug="r1", **_quiet())
-    assert r1["ok"] is False                          # error = not terminal
+    assert r1["ok"] is True  # error cell emitted its terminal — balanced
     r2 = kernel.run(spec, resume=True, date="2026-09-21", slug="r1",
                     **_quiet())
     rd = runs.load_run(spec.kind, "2026-09-21", "r1")
     rows = _cell_rows(rd)
     assert [r["status"] for r in rows] == ["error", "ok"]
-    # queued twice, terminal once -> balanced
+    # queued twice, terminal twice -> pairwise balanced
+    assert r2["accounting"]["ok"] is True
     assert r2["ok"] is True
 
 
@@ -393,14 +399,20 @@ def test_claimed_skip_via_held_lease(broot: Path):
         lease.release()
 
 
-def test_unsealed_index_lands_index_unsealed(broot: Path):
+def test_unsealed_index_first_fire_refusal(broot: Path):
+    """A poisoned seal refuses the paid RUN at the first-fire gate
+    (§6 Phase-3): RunError + coverage.json evidence; the per-cell
+    index_unsealed path remains for seal loss mid-run."""
     paths.index_dirty_path().touch()                 # poison the seal
     spec = _paid_spec(lambda ctx: "ok", [{"id": "2401.00001"}])
-    res = kernel.run(spec, max_cost=1.0,
-                     gateway_factory=_factory(object()), **_quiet())
-    rd = runs.load_run(spec.kind, res["date"], res["slug"])
-    row = _cell_rows(rd)[0]
-    assert row["status"] == "error" and row["cat"] == "index_unsealed"
+    with pytest.raises(kernel.RunError):
+        kernel.run(spec, max_cost=1.0, date="2026-09-22", slug="uu",
+                   gateway_factory=_factory(object()), **_quiet())
+    rd = runs.load_run(spec.kind, "2026-09-22", "uu")
+    assert _cell_rows(rd) == []
+    cov = json.loads(
+        (rd.derived() / "coverage.json").read_text(encoding="utf-8"))
+    assert cov["sealed"] is False
 
 
 def test_regen_gate_rejects_tombstoned_cell(broot: Path):

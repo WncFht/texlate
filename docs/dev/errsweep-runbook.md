@@ -79,6 +79,6 @@ soak：`triage.py records` 出 tickets 榜 + `load_cases+triage` 出 case 队列
 
 - 凭证：XDG 配置根下 `texlate/errsweep.env`（0600，gitignore 外）——`ANTHROPIC_BASE_URL=<内部 Anthropic 兼容端点>` + `ANTHROPIC_AUTH_TOKEN` + `ANTHROPIC_MODEL=claude-opus-4-6`（2026-09-19 裁决：与会话同款，不换 swe-2）。systemd 干净环境不继承会话 env，launcher 显式 source；换模型改这里。
 - 装 timer：`systemctl --user link <repo>/scripts/systemd/texlate-errsweep.service <repo>/scripts/systemd/texlate-errsweep.timer && systemctl --user daemon-reload && systemctl --user enable --now texlate-errsweep.timer`
-- 手动跑一次：`scripts/errsweep.sh`（flock 单实例；日志 XDG state 根下 `texlate/errsweep-<date>.log`）
+- 手动跑一次：`bench run errsweep`（trizone-ledger run 路径；spec 在 `bench/py/specs/errsweep.py`，单实例由 run 锁保证；agent 日志在 `runs/errsweep/<date>/<slug>/derived/sweep.log`）
 - 审修复：`git log errsweep/<date>` + 报告 → merge/cherry-pick → `git worktree remove <state>/texlate/errsweep-wt-<date>` + `git branch -d errsweep/<date>`
 - 遗留 worktree 定期清：`git worktree list` 里 `errsweep-wt-*` 已合并即删。

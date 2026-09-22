@@ -11,8 +11,9 @@ Contract baked here:
 - Write commands run a light sweep first (§2.4 — the reaper has an owner).
   The sweep module is a wave-C sibling; while it is absent the hook is a
   loud no-op, never a silent skip.
-- ``run``/``plan`` refuse while $ROOT/PAUSE exists (locks.pause_engaged) —
-  the stop-the-world flag gates paid work before it can start.
+- ``run`` refuses while $ROOT/PAUSE exists only for PAID specs
+  (locks.pause_engaged + spec.has_paid — Phase 3 rescope: the fence stops
+  spend, not free work; ``plan`` always runs).
 - ``--detach`` re-execs through locks.detach_with_lock (R22: the child
   holds the lock itself); a paid spec additionally requires --max-cost
   (§3.6 — detach forces the budget flag).
@@ -116,15 +117,30 @@ def _collect_params(args) -> dict:
     return out
 
 
-def _pause_refused(what: str) -> bool:
-    """PAUSE is the stop-the-world flag — run/plan never start paid work."""
-    if locks.pause_engaged():
+def _pause_refused(what: str, paid) -> bool:
+    """PAUSE is a paid-spend fence (Phase 3 rescope): only specs carrying a
+    paid stage are refused; free work and ``plan`` run straight through so
+    the migration can proceed while the fence stays up. ``paid=None``
+    (unprovable spec) fails closed."""
+    if paid is not False and locks.pause_engaged():
         _err(
             f"{what}: refused — PAUSE engaged ({paths.pause_path()}); "
-            "remove the file to resume bench work"
+            "paid work stays fenced, free specs are unaffected"
         )
         return True
     return False
+
+
+def _spec_paidness(spec_path: Path):
+    """True/False when the spec module can prove it, else None."""
+    smod, _serr = _lazy("spec")
+    loader = getattr(smod, "load_spec", None) if smod is not None else None
+    if loader is None:
+        return None
+    try:
+        return loader(str(spec_path)).has_paid()
+    except Exception:
+        return None
 
 
 def _try_sweep(light: bool):
@@ -332,10 +348,10 @@ def _detach_run(args, spec_path: Path) -> int:
 
 
 def _cmd_run(args) -> int:
-    if _pause_refused("run"):
-        return EXIT_REFUSED
     spec_path = _resolve_spec(args.spec)
     if spec_path is None:
+        return EXIT_REFUSED
+    if _pause_refused("run", _spec_paidness(spec_path)):
         return EXIT_REFUSED
     if args.detach:
         return _detach_run(args, spec_path)
@@ -366,8 +382,8 @@ def _cmd_run(args) -> int:
 
 
 def _cmd_plan(args) -> int:
-    if _pause_refused("plan"):
-        return EXIT_REFUSED
+    # plan is a dry-run: allowed under PAUSE (it produces the dedup
+    # coverage report the first-fire gate consumes)
     spec_path = _resolve_spec(args.spec)
     if spec_path is None:
         return EXIT_REFUSED
@@ -560,6 +576,18 @@ def _cmd_vault_verify(args) -> int:
     for m in rep["meta_missing"][:20]:
         print(f"  meta_missing (orphan dir): {m}")
     bad = rep["bad"] or rep["meta_bad"]
+    if not bad:
+        # first-fire gate evidence (§6 Phase-3 首火闸): only a CLEAN pass
+        # refreshes freshness — a verify that found rot must not stamp.
+        stamp = {
+            "ts": round(time.time(), 3), "level": rep["level"],
+            "metas": rep["metas"], "checked": rep["checked"],
+            "meta_missing": len(rep["meta_missing"]),
+        }
+        fsutil.atomic_write(
+            paths.vault_verify_stamp_path(),
+            (json.dumps(stamp, sort_keys=True) + "\n").encode("utf-8"),
+        )
     return EXIT_FAIL if bad else EXIT_OK
 
 
@@ -782,6 +810,22 @@ def _cmd_lake_evict(args) -> int:
 
 def _cmd_lake_register(args) -> int:
     _pre_write()
+    if args.manifests:
+        idx = _open_index()
+        try:
+            res = importer.register_lake_manifests(
+                args.manifests, idx, registry=_load_registry(),
+                dry=args.dry)
+        except Exception as exc:
+            _err(f"lake register failed: {exc}")
+            return EXIT_FAIL
+        finally:
+            idx.close()
+        _print_json(res)
+        return EXIT_OK
+    if not args.ids:
+        _err("register: give ids or --manifests")
+        return EXIT_REFUSED
     bad = 0
     for raw in args.ids:
         res = idnorm.canon_id(raw)
@@ -792,6 +836,26 @@ def _cmd_lake_register(args) -> int:
         d = lake.register_skeleton(res.idc)
         print(f"registered {res.idc} -> {d}")
     return EXIT_FAIL if bad else EXIT_OK
+
+
+def _cmd_lake_absorb(args) -> int:
+    _pre_write()
+    if not Path(args.root).is_dir():
+        _err(f"absorb root not found: {args.root}")
+        return EXIT_REFUSED
+    idx = _open_index()
+    try:
+        res = importer.absorb_corpus(
+            args.root, idx, registry=_load_registry(),
+            manifests=args.manifests, dry=args.dry,
+            source=args.source)
+    except Exception as exc:
+        _err(f"lake absorb failed: {exc}")
+        return EXIT_FAIL
+    finally:
+        idx.close()
+    _print_json(res)
+    return EXIT_OK
 
 
 # --- derive / prune / sweep / backup --------------------------------------------------
@@ -1310,7 +1374,18 @@ def _build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--to-free", required=True,
                     help="bytes to free (K/M/G/T suffix ok)")
     sp = ksub.add_parser("register", help="manifest cells (skeleton rows)")
-    sp.add_argument("ids", nargs="+")
+    sp.add_argument("ids", nargs="*")
+    sp.add_argument("--manifests", nargs="+", default=None,
+                    help="manifest*.jsonl files or dirs to bulk-seed from")
+    sp.add_argument("--dry", action="store_true")
+    sp = ksub.add_parser("absorb",
+                       help="CAS-ify an on-disk corpus tree into the lake")
+    sp.add_argument("--root", required=True,
+                    help="legacy corpus dir (e.g. bench/corpus)")
+    sp.add_argument("--manifests", nargs="*", default=None,
+                    help="manifests for the manifested flag (files or dirs)")
+    sp.add_argument("--source", default="arxiv")
+    sp.add_argument("--dry", action="store_true")
 
     sp = sub.add_parser("derive", help="re-run report/projection for a run")
     sp.add_argument("--run", required=True)
@@ -1393,6 +1468,7 @@ def main(argv=None) -> int:
             "status": _cmd_lake_status,
             "evict": _cmd_lake_evict,
             "register": _cmd_lake_register,
+            "absorb": _cmd_lake_absorb,
         }[args.ksub](args)
     if cmd == "spec":
         return {"list": _cmd_spec_list}[args.ssub](args)
