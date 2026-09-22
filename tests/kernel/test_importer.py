@@ -405,6 +405,19 @@ def test_import_all(broot, tmp_path):
     (scan / "runx" / "records.xlat.jsonl").write_text(json.dumps(
         {"id": "2101.00003", "stage": "xlat", "arm": "real",
          "status": "ok"}) + "\n")
+    # stagerun stage ledgers: records/{stage}.jsonl — stage comes from
+    # the file stem when the row itself doesn't carry one.
+    (scan / "runx" / "records").mkdir()
+    (scan / "runx" / "records" / "compile.jsonl").write_text(json.dumps(
+        {"id": "2101.00006", "arm": "mock", "status": "ok"}) + "\n")
+    # recovered eval/cells ledgers: stage by file family, default ok.
+    (scan / "runx" / "eval-records-recovered.jsonl").write_text(
+        json.dumps({"id": "2101.00007", "route": {"engines": ["xelatex"]},
+                    "status": "ok"}) + "\n")
+    (scan / "runx" / "cells-recovered.jsonl").write_text(
+        json.dumps({"id": "2101.00008", "band": "b",
+                    "route": {"engines": ["xelatex"]},
+                    "status": "ok"}) + "\n")
 
     index = Index()
     total = import_all(
@@ -415,9 +428,15 @@ def test_import_all(broot, tmp_path):
     assert "benchdb" in total["per_source"]
     assert "zhstore" in total["per_source"]
     assert "jsonl" in total["per_source"]
-    assert total["rows"] == 15               # db 13 + zh manifest 1 + scan 1
+    assert total["rows"] == 18               # db 13 + zh 1 + scan 4
     assert index.last_cell("2101.00003", "real", "-", "-",
                            "xlat")["status"] == "ok"
+    assert index.last_cell("2101.00006", "mock", "-", "-",
+                           "compile")["status"] == "ok"
+    assert index.last_cell("2101.00007", "-", "-", "-",
+                           "eval_records")["status"] == "ok"
+    assert index.last_cell("2101.00008", "-", "-", "-",
+                           "cells")["status"] == "ok"
     assert ("0712.0031", "real", "-") in index.vault_bytes_ok()
 
 

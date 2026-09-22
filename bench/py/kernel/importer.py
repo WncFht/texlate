@@ -62,6 +62,12 @@ EMIT_CHUNK = 5000
 # bench.db has no paid flag per stage; the gateway arm is 'real'.
 PAID_ARMS = frozenset({"real"})
 
+# scan_root sweep patterns: flat ledgers + case files + recovered
+# eval/cells ledgers; stagerun stage files (records/{stage}.jsonl)
+# are picked up via records/ dir contents in import_all.
+_SCAN_PATTERNS = ("records*.jsonl", "cases.jsonl",
+                  "eval-records*.jsonl", "cells*.jsonl")
+
 # Conservative-resolution preference sets (§3.3).
 _DONE_ISH = frozenset({"ok", "partial", "clean"})
 _NEG_TERM = frozenset({"fail", "fault", "reject", "dirty_pdf"})
@@ -468,8 +474,17 @@ def _norm_jsonl_row(row: dict, *, fname: str, file_ts: float,
             "default_status": "ok",
             "dedup_sig": _jcanon(row),
         }
-    stage = row.get("stage") or stage_map.get(fname) or stage_map.get("*") \
-        or "records"
+    stage = row.get("stage") or stage_map.get(fname) or stage_map.get("*")
+    default_status = "fault"
+    if stage is None:
+        if fname.startswith("eval-records"):
+            # eval/cells recovery ledgers: row existence IS the record
+            # (same convention as the bench.db eval_records/cells tables).
+            stage, default_status = "eval_records", "ok"
+        elif fname.startswith("cells"):
+            stage, default_status = "cells", "ok"
+        else:
+            stage = "records"
     return {
         "id": row.get("id"),
         "arm": row.get("arm") or "-",
@@ -478,7 +493,7 @@ def _norm_jsonl_row(row: dict, *, fname: str, file_ts: float,
         "stage": stage,
         "status": row.get("status"),
         "dur_s": row.get("dur_s") or row.get("seconds"),
-        "eval": fname == "eval-records.jsonl"
+        "eval": fname.startswith("eval-records")
         or row.get("eval") in (True, 1),  # strict: "false"/"0" strings are
         # not eval flags — bool() on a data field misroutes the row
         "metrics": row.get("metrics") if "metrics" in row else row,
@@ -487,7 +502,7 @@ def _norm_jsonl_row(row: dict, *, fname: str, file_ts: float,
         "code": row.get("code"),
         "queue_wait_s": row.get("queue_wait_s"),
         "ts": ts if ts is not None else file_ts,
-        "default_status": "fault",
+        "default_status": default_status,
         "dedup_sig": _jcanon(row),
     }
 
@@ -1326,13 +1341,32 @@ def import_all(sources: dict, index, registry=None, dry: bool = False) -> dict:
     scan = sources.get("scan_root")
     if scan:
         scan = Path(scan)
-        for pat in ("records*.jsonl", "cases.jsonl"):
+        seen: set[Path] = set()
+
+        def _add(f: Path) -> None:
+            if not f.is_file() or f in seen:
+                return
+            seen.add(f)
+            rel = f.relative_to(scan).with_suffix("").as_posix()
+            files.append((f, f"import-{_slugify(rel)}"))
+
+        for pat in _SCAN_PATTERNS:
             for f in sorted(scan.rglob(pat)):
-                rel = f.relative_to(scan).with_suffix("").as_posix()
-                files.append((f, f"import-{_slugify(rel)}"))
+                _add(f)
+        # stagerun stage ledgers live as records/{stage}.jsonl — the
+        # stage name is the file stem, so the records-dir sweep is the
+        # only way "records jsonl 全扫" actually reaches them.
+        for d in sorted(scan.rglob("records")):
+            if d.is_dir():
+                for f in sorted(d.glob("*.jsonl")):
+                    _add(f)
     acc = _stats()
     for f, run_name in files:
+        stage_map = (
+            {f.name: f.stem} if f.parent.name == "records" else None
+        )
         r = import_jsonl_file(f, run=run_name, index=index,
+                              stage_map=stage_map,
                               registry=registry, dry=dry)
         for k, v in r.items():
             if isinstance(v, int) and k in acc:
