@@ -1,0 +1,8 @@
+[Unit]
+Description=texlate bench minimal backup (ledger + vault meta + run keep-tier)
+
+[Service]
+Type=oneshot
+Environment=PATH=/home/fanghaotian/.local/bin:/home/fanghaotian/.cargo/bin:/usr/local/bin:/usr/bin
+ExecStart=/home/fanghaotian/src/texlate/scripts/bench-backup.sh
+TimeoutStartSec=0

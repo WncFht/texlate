@@ -620,6 +620,33 @@ def _cmd_vault_tombstone(args) -> int:
     return EXIT_OK
 
 
+def _cmd_vault_seed(args) -> int:
+    """Phase-2 live-byte census — zh-store bytes -> vault (§3.10.9)."""
+    _pre_write()
+    if not Path(args.manifest).is_file():
+        _err(f"manifest not found: {args.manifest}")
+        return EXIT_REFUSED
+    if not Path(args.bytes_root).is_dir():
+        _err(f"bytes root not found: {args.bytes_root}")
+        return EXIT_REFUSED
+    idx = _open_index()
+    try:
+        res = importer.seed_vault_zhstore(
+            args.manifest,
+            args.bytes_root,
+            idx,
+            registry=_load_registry(),
+            dry=args.dry,
+        )
+    except Exception as exc:
+        _err(f"vault seed failed: {exc}")
+        return EXIT_FAIL
+    finally:
+        idx.close()
+    _print_json(res)
+    return EXIT_OK
+
+
 # --- ledger -------------------------------------------------------------------------
 
 
@@ -1252,6 +1279,10 @@ def _build_parser() -> argparse.ArgumentParser:
                     choices=sorted(vault.KINDS))
     sp.add_argument("--reason", required=True)
     sp.add_argument("--lost-run", default="")
+    sp = vsub.add_parser("seed", help="Phase-2 zh-store byte census -> vault")
+    sp.add_argument("--manifest", required=True, help="zh-store manifest.jsonl")
+    sp.add_argument("--bytes-root", required=True, help="zh-store payload root")
+    sp.add_argument("--dry", action="store_true")
 
     lp = sub.add_parser("ledger", help="event ledger verbs")
     lsub = lp.add_subparsers(dest="lsub", required=True)
@@ -1348,6 +1379,7 @@ def main(argv=None) -> int:
             "restore": _cmd_vault_restore,
             "adopt": _cmd_vault_adopt,
             "tombstone": _cmd_vault_tombstone,
+            "seed": _cmd_vault_seed,
         }[args.vsub](args)
     if cmd == "ledger":
         return {

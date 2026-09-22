@@ -62,3 +62,7 @@ errsweep 是一个 headless agent：输入是**已沉淀的错误**，产出是*
 ### 2.5 人工侧契约
 
 调度由每日定时触发（soak 批沉淀大半天之后）；手动跑一次即直接执行 `scripts/errsweep.sh`（flock 单实例，日志落状态目录）。审修复走 `git log errsweep/<date>` + 报告 → merge/cherry-pick → 清理 worktree 与分支。完整的 agent 工作指令（即喂给清扫 agent 的 runbook，也是人工审计契约）在 `docs/dev/errsweep-runbook.md`。
+
+## 3. bench 账本备份（`scripts/bench-backup.sh`）
+
+`texlate-bench-backup.timer`（`scripts/systemd/`，已 enable）每日 04:52 跑 `bench backup`：tar 最小备份单元（ledger 全文 + vault meta/manifest + lake durable/catalog + run keep-tier）落 `$TEXLATE_BENCH_ROOT/backup/`。vault 负载字节与 work 树不进此 tar——付费字节由 restic（03:45 日备）与 §3.10.4 的 rsync 镜像条款覆盖。

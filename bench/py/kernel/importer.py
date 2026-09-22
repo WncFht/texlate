@@ -1306,6 +1306,258 @@ def import_zhstore(manifest_path, bytes_root, index, registry=None,
 
 
 # ---------------------------------------------------------------------------
+# Phase 2 — vault seeding (live-byte census, §3.10.9)
+# ---------------------------------------------------------------------------
+
+# zh-store kinds the census harvests — 'state' (xlat-state) joins the
+# manifest-declared pair only when a state/ subtree physically exists.
+_VAULT_SCAN_KINDS = ("zh", "splice", "state")
+
+
+def _provenance(base: Path, stats: dict) -> dict | None:
+    """zh-store <id>/provenance.json -> redacted dict for meta['provenance']."""
+    p = base / "provenance.json"
+    if not p.is_file():
+        return None
+    try:
+        obj = json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        stats["errors"] += 1
+        return None
+    out, n = redact(obj)
+    stats["redacted"] += n
+    return out if isinstance(out, dict) else {"_raw": out}
+
+
+def seed_vault_zhstore(manifest_path, bytes_root, index, registry=None,
+                       dry: bool = False) -> dict:
+    """Phase-2 live-byte census: physically seed zh-store bytes into vault.
+
+    This is a byte census, not a manifest replay (§3.10.9): the disk is
+    walked and reconciled three ways against the manifest rows.
+
+    - Row + bytes present -> vault.harvest() the non-empty {zh,splice,
+      state} subtrees. The physical container beats the claimed zone:
+      anything found under _quarantine/ lands quar/quar regardless of the
+      manifest's zone field. primary rows land primary/verified (the
+      census itself is the verification — harvest sha256s every file into
+      files.sha256). alt rows land alt/alt.
+    - Row declared but bytes absent -> already tombstoned by
+      import_zhstore; counted as still_missing, nothing re-emitted.
+    - Dir on disk whose id never canon-resolves (no manifest row, or a
+      canon-fail row like *.bak-mock) -> noncanon_bytes report. The vault
+      _check_idc gate refuses them by design; mock/junk payloads never
+      enter the paid-byte store. They stay in place for the operator.
+    - provenance.json (per-id) merges into the harvested meta under
+      'provenance'.
+
+    Idempotent: a (idc, arm, '-') copy that already bytes_ok and declares
+    every on-disk kind is skipped, so a crashed census re-run continues
+    without duplicating copies (altseq bumps) or events.
+    """
+    from kernel import vault  # local: keeps the ledger-only import cheap
+
+    stats = _stats()
+    stats.update({"harvested": 0, "kinds_harvested": 0, "bytes": 0,
+                  "already": 0, "still_missing": 0, "partial": 0,
+                  "orphan_dirs": [], "noncanon_dirs": [], "conflicts": []})
+    manifest_path = Path(manifest_path)
+    bytes_root = Path(bytes_root)
+    file_ts = manifest_path.stat().st_mtime
+    date = datetime.fromtimestamp(file_ts, tz=timezone.utc).strftime(
+        "%Y-%m-%d")
+    run_name = "import-zhstore-vault-seed"
+    run_seq, rdir, minted, rr = _ensure_import_run(
+        index, run_name, date=date, slug="vault-seed",
+        spec_hash="zhstore-vault-seed", dry=dry)
+    stats["runs"] += 1
+    stats["runs_minted"] += int(minted)
+    if rr is not None and index is not None and not dry:
+        index.apply_events([rr])
+    sink = index.apply_event if index is not None else None
+
+    seq = 0
+
+    def next_seq() -> int:
+        nonlocal seq
+        seq += 1
+        return seq
+
+    def _in_quar(base: Path) -> bool:
+        for cont in _QUAR_CONTAINERS:
+            try:
+                base.relative_to(bytes_root / cont)
+                return True
+            except ValueError:
+                continue
+        return False
+
+    def _patch_meta(mpath: Path, base: Path, adopted: bool) -> None:
+        meta = vault._read_meta(mpath) or {}
+        prov = _provenance(base, stats)
+        if prov:
+            meta["provenance"] = prov
+        if adopted:
+            meta["adopted_from"] = str(base)
+        if prov or adopted:
+            vault._write_meta(mpath, meta)
+        stats["bytes"] += int(meta.get("bytes") or 0)
+
+    # -- pass 1: manifest rows (last-wins per id, file order = claim order) --
+    rows_by_id: dict[str, dict] = {}
+    for _ln, row, _raw in iter_jsonl(manifest_path):
+        if isinstance(row, dict) and row.get("id"):
+            rows_by_id[str(row["id"])] = row
+    stats["rows"] = len(rows_by_id)
+
+    claimed_dirs: set[Path] = set()
+
+    for raw_id, row in rows_by_id.items():
+        res = _canon_gate(raw_id, registry)
+        # resolve the physical dir even for canon-fail rows (dir name is
+        # the manifest id spelled verbatim, e.g. *.bak-mock)
+        if res.ok:
+            cands = _zh_dir_candidates(bytes_root, row, res.idc)
+        else:
+            cands = [bytes_root / raw_id] + [
+                bytes_root / cont / raw_id for cont in _QUAR_CONTAINERS]
+        base = next((c for c in cands if c.is_dir()), None)
+        if base is None:
+            # byte-less row — tombstone already on the ledger
+            if res.ok:
+                stats["still_missing"] += 1
+            continue
+        claimed_dirs.add(base)
+        assets = {k: base / k for k in _VAULT_SCAN_KINDS
+                  if (base / k).is_dir() and _tree_has_file(base / k)}
+        if not res.ok:
+            if assets:
+                stats["noncanon_dirs"].append(
+                    str(base.relative_to(bytes_root)))
+            continue
+        if not assets:
+            stats["still_missing"] += 1
+            continue
+        idc = res.idc
+        arm = str(row.get("arm") or "-")
+        # kinds the manifest claims but the dir does not carry -> partial
+        declared = {k for k in ("zh", "splice") if row.get(f"has_{k}")}
+        if declared - set(assets):
+            stats["partial"] += 1
+        # idempotency: an intact copy declaring every on-disk kind already
+        # vouches for this cell — re-runs must not mint altseq duplicates.
+        covered = set()
+        for m in vault.query(idc, arm, "-"):
+            if m.get("bytes_ok") and isinstance(m.get("files"), dict):
+                covered.update(m["files"].keys())
+        if covered and set(assets) <= covered:
+            stats["already"] += 1
+            continue
+        if _in_quar(base):
+            zone = verdict = "quar"
+        else:
+            zone = _ZONE_VERDICT.get(str(row.get("zone") or "primary"),
+                                     "quar")
+            verdict = {"primary": "verified", "alt": "alt",
+                       "quarantine": "quar"}[zone]
+        if dry:
+            stats["harvested"] += 1
+            stats["kinds_harvested"] += len(assets)
+            continue
+        try:
+            mpath = vault.harvest(
+                idc, arm, "-", assets,
+                source_run=str(row.get("source_run") or "zhstore"),
+                zone=zone, verdict=verdict,
+                model=str(row.get("model") or "") or None,
+                id=str(row.get("id") or idc),
+                seq=next_seq, run_dir=rdir, sink=sink)
+        except vault.DestOccupied as exc:
+            stats["conflicts"].append(f"{idc}: {exc}")
+            stats["errors"] += 1
+            continue
+        _patch_meta(mpath, base, adopted=False)
+        stats["harvested"] += 1
+        stats["kinds_harvested"] += len(assets)
+        stats["events"] += len(assets)
+        stats["emitted"] += len(assets)
+        if index is not None:
+            stats["applied"] += len(assets)
+
+    # -- pass 2: byte dirs with no canon-resolvable row -> quar --
+    containers = [("", bytes_root)] + [
+        (c, bytes_root / c) for c in _QUAR_CONTAINERS]
+    for cont, cdir in containers:
+        if not cdir.is_dir():
+            continue
+        for child in sorted(cdir.iterdir()):
+            if not child.is_dir() or child.name.startswith("."):
+                continue
+            if not cont and child.name in _QUAR_CONTAINERS:
+                continue
+            if child in claimed_dirs:
+                continue
+            assets = {k: child / k for k in _VAULT_SCAN_KINDS
+                      if (child / k).is_dir() and _tree_has_file(child / k)}
+            if not assets:
+                continue
+            stats["orphan_dirs"].append(
+                str(child.relative_to(bytes_root)))
+            res = _canon_gate(idnorm.idc_from_safe(child.name), registry)
+            if not res.ok:
+                stats["noncanon_dirs"].append(
+                    str(child.relative_to(bytes_root)))
+                continue
+            # the dir carries no arm identity of its own — an intact copy
+            # covering its kinds under ANY arm already vouches for it
+            covered = set()
+            for m in vault.query(res.idc):
+                if m.get("bytes_ok") and isinstance(m.get("files"), dict):
+                    covered.update(m["files"].keys())
+            if covered and set(assets) <= covered:
+                stats["already"] += 1
+                continue
+            if dry:
+                stats["harvested"] += 1
+                continue
+            prov = _provenance(child, stats) or {}
+            try:
+                mpath = vault.harvest(
+                    res.idc, str(prov.get("arm") or "-"), "-", assets,
+                    source_run=str(prov.get("source_run") or "orphan"),
+                    zone="quar", verdict="quar",
+                    model=str(prov.get("model") or "") or None,
+                    id=child.name, seq=next_seq, run_dir=rdir, sink=sink)
+            except vault.DestOccupied as exc:
+                stats["conflicts"].append(f"{child.name}: {exc}")
+                stats["errors"] += 1
+                continue
+            _patch_meta(mpath, child, adopted=True)
+            stats["harvested"] += 1
+            stats["kinds_harvested"] += len(assets)
+            stats["events"] += len(assets)
+            stats["emitted"] += len(assets)
+            if index is not None:
+                stats["applied"] += len(assets)
+
+    # -- census note (the summary row lives on the ledger, not stdout) --
+    # gated on harvested alone: a quiet re-run (noncanon dirs still sit on
+    # disk by design) must not append an identical note every census.
+    if not dry and stats["harvested"]:
+        ev = events.make_event(
+            events.T_NOTE, run=run_name,
+            run_seq=run_seq, seq=next_seq(), level="info",
+            text=(f"vault seed census: {stats['harvested']} copies "
+                  f"harvested, {stats['already']} already present, "
+                  f"{stats['still_missing']} still missing, "
+                  f"{len(stats['orphan_dirs'])} orphan dirs, "
+                  f"{len(stats['noncanon_dirs'])} noncanon byte dirs"))
+        ledger.emit(ev, run_dir=rdir, sink=sink)
+        stats["events"] += 1
+    return stats
+
+
+# ---------------------------------------------------------------------------
 # Umbrella
 # ---------------------------------------------------------------------------
 

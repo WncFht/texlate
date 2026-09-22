@@ -25,6 +25,7 @@ from kernel.importer import (
     import_jsonl_file,
     import_zhstore,
     redact,
+    seed_vault_zhstore,
 )
 
 
@@ -383,6 +384,137 @@ def test_import_zhstore(broot, tmp_path):
     again = import_zhstore(manifest, zh, index, registry=_registry())
     assert again["emitted"] == 0 and again["applied"] == 0
     assert len(_ledger_lines()) == n_lines
+
+
+# -- seed_vault_zhstore (Phase 2 census) ---------------------------------------
+
+
+def _mk_zhstore(tmp_path: Path) -> tuple[Path, Path]:
+    """Synthetic zh-store: 2 primary rows with bytes, 1 quar row whose
+    bytes sit under _quarantine/, 1 primary-row-whose-bytes-are-in-quar,
+    1 byte-less row, 1 canon-fail row with bytes, 1 unclaimed orphan dir,
+    1 noncanon orphan dir."""
+    zh = tmp_path / "zh-store"
+    zh.mkdir()
+
+    def put(rel: str, payload: bytes = b"%PDF") -> None:
+        p = zh / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_bytes(payload)
+
+    put("0712.0031/zh/main.pdf", b"%PDF-zh")
+    put("0712.0031/splice/m.pdf", b"%PDF-sp")
+    (zh / "0712.0031" / "provenance.json").write_text(json.dumps(
+        {"arm": "real", "source_run": "run-a",
+         "api_key": "sk-240127-secret"}))
+    put("_quarantine/0712.0033/splice/s.pdf", b"%PDF-q")
+    put("_quarantine/0712.0034/zh/m.pdf", b"%PDF-pq")
+    put("bad id/zh/m.pdf", b"%PDF-bad")
+    put("0909.9999/zh/m.pdf", b"%PDF-orphan")
+    put("0712.0099.bak-mock/zh/m.pdf", b"%PDF-mock")
+
+    rows = [
+        {"id": "0712.0031", "arm": "real", "model": "m1",
+         "source_run": "run-a", "has_zh": True, "has_splice": True,
+         "zone": "primary", "moved_at": "2026-09-20T10:00:00+00:00"},
+        {"id": "0712.0032", "arm": "real", "model": "",
+         "source_run": "run-b", "has_zh": True, "has_splice": False,
+         "zone": "primary"},
+        {"id": "0712.0033", "arm": "real", "model": "",
+         "source_run": "run-c", "has_zh": False, "has_splice": True,
+         "zone": "_quarantine"},
+        {"id": "0712.0034", "arm": "real", "model": "",
+         "source_run": "run-d", "has_zh": True, "has_splice": False,
+         "zone": "primary"},
+        {"id": "bad id", "arm": "real", "has_zh": True,
+         "has_splice": False, "zone": "primary"},
+    ]
+    manifest = zh / "manifest.jsonl"
+    manifest.write_text("\n".join(json.dumps(r) for r in rows) + "\n")
+    return zh, manifest
+
+
+def test_seed_vault_zhstore(broot, tmp_path):
+    from kernel import vault
+
+    zh, manifest = _mk_zhstore(tmp_path)
+    index = Index()
+    stats = seed_vault_zhstore(manifest, zh, index, registry=_registry())
+
+    assert stats["rows"] == 5
+    # harvested: 0712.0031 (zh+splice), 0712.0033 quar, 0712.0034
+    # quar-by-location, orphan 0909.9999 -> 4 copies / 5 kinds
+    assert stats["harvested"] == 4
+    assert stats["kinds_harvested"] == 5
+    assert stats["still_missing"] == 1            # 0712.0032
+    assert sorted(stats["orphan_dirs"]) == [
+        "0712.0099.bak-mock", "0909.9999"]
+    assert stats["noncanon_dirs"] == ["0712.0099.bak-mock", "bad id"] or \
+        sorted(stats["noncanon_dirs"]) == ["0712.0099.bak-mock", "bad id"]
+    assert stats["bytes"] > 0
+    assert not stats["conflicts"]
+
+    # primary copy: verdict verified, provenance merged + redacted
+    rows = vault.query("0712.0031", "real", "-")
+    assert len(rows) == 1 and rows[0]["bytes_ok"]
+    assert rows[0]["zone"] == "primary"
+    assert rows[0]["verdict"] == "verified"
+    assert set(rows[0]["files"]) == {"zh", "splice"}
+    prov = rows[0]["provenance"]
+    assert prov["arm"] == "real"
+    assert prov["api_key"] != "sk-240127-secret"  # redacted on the way in
+
+    # quar-by-container beats the manifest's claimed primary zone
+    q34 = vault.query("0712.0034", "real", "-")
+    assert len(q34) == 1 and q34[0]["zone"] == "quar"
+    q33 = vault.query("0712.0033", "real", "-")
+    assert len(q33) == 1 and q33[0]["zone"] == "quar"
+
+    # orphan adopted into quar with adopted_from marker
+    orph = vault.query("0909.9999", "-", "-")
+    assert len(orph) == 1 and orph[0]["zone"] == "quar"
+    assert orph[0]["verdict"] == "quar"
+    assert orph[0]["adopted_from"].endswith("0909.9999")
+
+    # noncanon bytes stayed out of the vault entirely (the query layer
+    # itself canon-gates, so absence is proven via the index projection)
+    assert index.conn.execute(
+        "SELECT COUNT(*) c FROM vault_meta WHERE idc LIKE '%bak-mock%' "
+        "OR idc LIKE '%bad%'").fetchone()["c"] == 0
+
+    # physical payload is in the vault tree, fused read-only
+    leaf = (paths.vault_dir() / "zh" / "0712.0031" / "real"
+            / "main.pdf")
+    assert leaf.is_file() and leaf.read_bytes() == b"%PDF-zh"
+    assert not (leaf.stat().st_mode & 0o222)
+
+    # dedup oracle now covers the seeded cells
+    assert vault.dedup_hit("0712.0031", "real", "-")
+    assert vault.dedup_hit("0712.0033", "real", "-")
+    assert vault.dedup_hit("0909.9999", "-", "-")
+    assert not vault.dedup_hit("0712.0032", "real", "-")
+
+    rep = vault.verify("full")
+    assert rep["bad"] == [] and rep["meta_bad"] == []
+    assert rep["meta_missing"] == []
+
+    # idempotent: a second census harvests nothing new
+    n_lines = len(_ledger_lines())
+    again = seed_vault_zhstore(manifest, zh, index, registry=_registry())
+    assert again["harvested"] == 0
+    assert again["already"] == 4
+    assert len(_ledger_lines()) == n_lines  # quiet: no events, no note
+
+
+def test_seed_vault_zhstore_dry(broot, tmp_path):
+    zh, manifest = _mk_zhstore(tmp_path)
+    index = Index()
+    stats = seed_vault_zhstore(
+        manifest, zh, index, registry=_registry(), dry=True)
+    assert stats["harvested"] == 4
+    for kind in ("zh", "splice", "state", "quar"):
+        d = paths.vault_dir() / kind
+        assert not d.exists() or not list(d.rglob("*"))
 
 
 # -- import_all ----------------------------------------------------------------

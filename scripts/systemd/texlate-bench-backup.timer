@@ -1,0 +1,9 @@
+[Unit]
+Description=daily texlate bench backup at 04:52 (after restic 03:45, before workday)
+
+[Timer]
+OnCalendar=*-*-* 04:52:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
