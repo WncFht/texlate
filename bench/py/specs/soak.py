@@ -1146,7 +1146,10 @@ spec = Spec(
             "fixloop",
             _fixloop,
             needs=[("compile", {"clean", "partial"})],
-            on={"compile": {"fail", "dirty_pdf"}},
+            # reject 也必须送 fn 落 ok+ran=False 终态——needs-skip 会把
+            # 付费 zh/state 字节滞留 work/ 等 sweep（_ON_PRED 全排
+            # reject，进 fn 即走无修必要短路）。
+            on={"compile": {"fail", "dirty_pdf", "reject"}},
             paid=True,
             mutates=["splice"],
             dedup_key=("idc", "arm", "variant"),
