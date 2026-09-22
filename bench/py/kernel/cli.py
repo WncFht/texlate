@@ -2,9 +2,9 @@
 
 Every bench verb is a subcommand of one argparse program::
 
-    bench init | run | plan | status | export | vault | ledger | lake
+    bench init | run | plan | status | vault | ledger | lake
     bench derive | sweep | prune | backup | doctor | fsck | spec
-    bench triage | gate | dossier          (not-yet-migrated stubs)
+    bench triage | gate | dossier          (analysis verbs — §5.2 queue)
 
 Contract baked here:
 
@@ -22,7 +22,7 @@ Contract baked here:
   "not yet available" (exit 2) for the rest instead of crashing.
 
 Exit codes: 0 ok · 1 command ran but reported failure · 2 refused /
-unavailable / not yet migrated.
+unavailable / not yet implemented.
 """
 from __future__ import annotations
 
@@ -43,13 +43,13 @@ from pathlib import Path
 from kernel import (
     cas,
     events,
-    exporter,
     fsutil,
     idnorm,
     importer,
     lake,
     locks,
     paths,
+    report,
     runs,
     vault,
 )
@@ -61,7 +61,7 @@ EXIT_OK = 0
 EXIT_FAIL = 1
 EXIT_REFUSED = 2
 
-_NOT_MIGRATED = "not yet migrated — use legacy bench/py/{name}.py"
+_NOT_IMPLEMENTED = "not yet implemented — index-reading analysis verb lands with the §5.2 rewrite queue"
 
 
 # --- small helpers ---------------------------------------------------------------
@@ -541,29 +541,6 @@ def _cmd_status(args) -> int:
         idx.close()
 
 
-# --- export -------------------------------------------------------------------------
-
-
-def _cmd_export(args) -> int:
-    _pre_write()
-    idx = _open_index()
-    try:
-        if args.all:
-            res = exporter.export_all(idx, args.out)
-        elif args.run:
-            res = exporter.export_run(idx, args.run, args.out, mode=args.mode)
-        else:
-            _err("export: --run R or --all required")
-            return EXIT_REFUSED
-    finally:
-        idx.close()
-    print(
-        f"exported: out={args.out} rows={res.get('rows')}"
-        f" files={len(res.get('files', []))}"
-    )
-    return EXIT_OK
-
-
 # --- vault --------------------------------------------------------------------------
 
 
@@ -811,7 +788,7 @@ def _cmd_derive(args) -> int:
     out = args.out or (rd.derived() / "projected")
     idx = _open_index()
     try:
-        res = exporter.export_run(idx, rd.path, out)
+        res = report.build_run_report(idx, rd.path, out, accounting=rep)
     finally:
         idx.close()
     print(
@@ -1183,11 +1160,11 @@ def _cmd_spec_list(_args) -> int:
     return EXIT_OK
 
 
-# --- not-yet-migrated stubs -----------------------------------------------------------
+# --- analysis-verb stubs --------------------------------------------------------------
 
 
-def _cmd_not_migrated(args) -> int:
-    _err(f"{args.cmd}: {_NOT_MIGRATED.format(name=args.cmd)}")
+def _cmd_not_implemented(args) -> int:
+    _err(f"{args.cmd}: {_NOT_IMPLEMENTED}")
     return EXIT_REFUSED
 
 
@@ -1246,16 +1223,6 @@ def _build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--id", help="cell state + vault copies for an id")
     sp.add_argument("--tail", type=int, default=None,
                     help="last N ledger events")
-
-    sp = sub.add_parser("export", help="project a run to the legacy layout")
-    sp.add_argument("--legacy", action="store_true",
-                    help="legacy projection (the only family today)")
-    sp.add_argument("--run", help="run name (kind/date/slug)")
-    sp.add_argument("--all", action="store_true", help="every registered run")
-    sp.add_argument("--out", required=True, help="output dir")
-    sp.add_argument("--mode", default="auto",
-                    choices=["auto", "soak", "e2e"],
-                    help="projection family (default auto)")
 
     vp = sub.add_parser("vault", help="paid-bytes zone verbs")
     vsub = vp.add_subparsers(dest="vsub", required=True)
@@ -1346,7 +1313,7 @@ def _build_parser() -> argparse.ArgumentParser:
     ssub.add_parser("list", help="list bench/py/specs/*.py")
 
     for name in ("triage", "gate", "dossier"):
-        sub.add_parser(name, help=_NOT_MIGRATED.format(name=name))
+        sub.add_parser(name, help=_NOT_IMPLEMENTED)
 
     return p
 
@@ -1356,16 +1323,15 @@ _DISPATCH = {
     "run": _cmd_run,
     "plan": _cmd_plan,
     "status": _cmd_status,
-    "export": _cmd_export,
     "derive": _cmd_derive,
     "sweep": _cmd_sweep,
     "prune": _cmd_prune,
     "backup": _cmd_backup,
     "doctor": _cmd_doctor,
     "fsck": _cmd_fsck,
-    "triage": _cmd_not_migrated,
-    "gate": _cmd_not_migrated,
-    "dossier": _cmd_not_migrated,
+    "triage": _cmd_not_implemented,
+    "gate": _cmd_not_implemented,
+    "dossier": _cmd_not_implemented,
 }
 
 

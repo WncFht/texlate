@@ -22,13 +22,13 @@ from pathlib import Path
 from kernel import (
     doctor,
     events,
-    exporter,
     index as indexmod,
     kernel,
     ledger,
     locks,
     paid,
     paths,
+    report,
     runs,
     spec as specmod,
     vault,
@@ -140,35 +140,32 @@ def test_s01_smoke_spec_end_to_end(broot, tmp_path):
     acct = runs.accounting_check(rd)
     assert acct["ok"] is True and acct["terminal"] == 9
 
-    # export --legacy: kind 'smoke' -> soak family -> records/{stage}.jsonl
+    # derive: native report projection -> cells.jsonl + report.md + cases.jsonl
     idx = indexmod.Index()
     try:
         idx.tail_ingest()
-        out_dir = tmp_path / "export"
-        exporter.export_run(idx, res["run"], str(out_dir))
+        out_dir = tmp_path / "derived"
+        report.build_run_report(idx, res["run"], str(out_dir))
     finally:
         idx.close()
-    exp = out_dir / "smoke--2026-09-22--s1"
-    for stage in ("ingest", "transform", "report"):
-        f = exp / "records" / f"{stage}.jsonl"
-        assert f.is_file(), f"missing legacy export {f}"
-        rows = [
-            json.loads(ln)
-            for ln in f.read_text(encoding="utf-8").splitlines()
-            if ln.strip()
-        ]
-        assert len(rows) == 3, f"{stage}: {len(rows)} rows"
-        assert {r["id"] for r in rows} == set(SMOKE_IDS)
-        assert all(r["status"] == "ok" for r in rows)
-    rep_rows = [
+    cells_f = out_dir / "cells.jsonl"
+    assert cells_f.is_file()
+    rows = [
         json.loads(ln)
-        for ln in (exp / "records" / "report.jsonl")
-        .read_text(encoding="utf-8")
-        .splitlines()
+        for ln in cells_f.read_text(encoding="utf-8").splitlines()
         if ln.strip()
     ]
+    assert len(rows) == 9, f"cells.jsonl: {len(rows)} rows"
+    for stage in ("ingest", "transform", "report"):
+        stage_rows = [r for r in rows if r["stage"] == stage]
+        assert len(stage_rows) == 3, f"{stage}: {len(stage_rows)} rows"
+        assert {r["id"] for r in stage_rows} == set(SMOKE_IDS)
+        assert all(r["status"] == "ok" for r in stage_rows)
+    rep_rows = [r for r in rows if r["stage"] == "report"]
     assert all(r["metrics"].get("chars") for r in rep_rows)
-    assert (exp / "run_meta.json").is_file()
+    rep_md = (out_dir / "report.md").read_text(encoding="utf-8")
+    assert "status tally" in rep_md
+    assert (out_dir / "cases.jsonl").is_file()
 
 
 # --- scenario 2: resume is a done-set no-op --------------------------------------
@@ -318,7 +315,7 @@ def test_s08_accounting_equation_detects_gap(broot):
 
 def test_s10_cli_subprocess_surface(broot, tmp_path):
     """`bench` shim end-to-end against $TEXLATE_BENCH_ROOT: init, spec list,
-    plan, run, status, export --legacy, doctor — sane exit codes."""
+    plan, run, status, derive, doctor — sane exit codes."""
     repo_bench = tmp_path / "repo-bench"
     repo_bench.mkdir()  # keeps doctor's stray-dir scan off the real bench/
     env = dict(os.environ)
@@ -408,19 +405,11 @@ def test_s10_cli_subprocess_surface(broot, tmp_path):
     assert r.returncode == 0, r.stderr
     assert "quote" in r.stdout
 
-    out_dir = tmp_path / "cli-export"
-    r = cli(
-        "export",
-        "--run",
-        "smoke/2026-09-22/cli1",
-        "--out",
-        str(out_dir),
-        "--legacy",
-    )
+    out_dir = tmp_path / "cli-derived"
+    r = cli("derive", "--run", "smoke/2026-09-22/cli1", "--out", str(out_dir))
     assert r.returncode == 0, f"{r.stdout}\n{r.stderr}"
-    exp = out_dir / "smoke--2026-09-22--cli1"
-    for stage in ("ingest", "transform", "report"):
-        assert (exp / "records" / f"{stage}.jsonl").is_file()
+    for f in ("cells.jsonl", "cases.jsonl", "report.md"):
+        assert (out_dir / f).is_file()
 
     r = cli("doctor")
     assert r.returncode == 0, f"{r.stdout}\n{r.stderr}"

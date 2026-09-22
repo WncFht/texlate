@@ -90,9 +90,9 @@ def test_spec_list_finds_specs(broot: Path, capsys: pytest.CaptureFixture) -> No
 
 
 @pytest.mark.parametrize("name", ["triage", "gate", "dossier"])
-def test_not_migrated_stubs_exit_2(broot: Path, capsys: pytest.CaptureFixture, name: str) -> None:
+def test_stub_verbs_exit_2(broot: Path, capsys: pytest.CaptureFixture, name: str) -> None:
     assert cli.main([name]) == cli.EXIT_REFUSED
-    assert "not yet migrated" in capsys.readouterr().err
+    assert "not yet implemented" in capsys.readouterr().err
 
 
 # --- status ------------------------------------------------------------------------
@@ -472,22 +472,7 @@ def test_detach_paid_spec_requires_max_cost(broot: Path, monkeypatch: pytest.Mon
     assert "detached: pid=4242" in capsys.readouterr().out
 
 
-# --- export / derive --------------------------------------------------------------------
-
-
-def test_export_run_produces_tree(broot: Path, tmp_path: Path,
-                                  capsys: pytest.CaptureFixture) -> None:
-    rd = runs.create_run("soak", date="2026-09-21",
-                         spec_dict={"kind": "soak"})
-    _emit(rd, 1, "9901.00001")
-    _emit(rd, 2, "9901.00001", status="ok")
-    out_dir = tmp_path / "exported"
-
-    assert cli.main([
-        "export", "--legacy", "--run", rd.run, "--out", str(out_dir),
-    ]) == cli.EXIT_OK
-    assert "exported" in capsys.readouterr().out
-    assert any(p.is_file() for p in out_dir.rglob("*"))
+# --- derive ---------------------------------------------------------------------
 
 
 def test_derive_balanced_run(broot: Path, capsys: pytest.CaptureFixture) -> None:
@@ -501,7 +486,10 @@ def test_derive_balanced_run(broot: Path, capsys: pytest.CaptureFixture) -> None
     out = capsys.readouterr().out
     assert "ok=True" in out
     assert "derived:" in out
-    assert (rd.derived() / "projected").is_dir()
+    proj = rd.derived() / "projected"
+    assert (proj / "report.md").is_file()
+    assert (proj / "cells.jsonl").is_file()
+    assert (proj / "cases.jsonl").is_file()
 
 
 def test_derive_unknown_run(broot: Path) -> None:

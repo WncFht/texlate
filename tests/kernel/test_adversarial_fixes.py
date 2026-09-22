@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from kernel import events, exporter, idnorm, importer, kernel, ledger, paths
+from kernel import events, idnorm, importer, kernel, ledger, paths, report
 from kernel.index import Index
 from kernel.spec import Spec, Stage
 
@@ -224,52 +224,16 @@ def test_import_zhstore_unknown_zone_quarantines(broot, tmp_path):
     assert stats["quarantined"] >= 1
 
 
-# -- exporter: path safety + injective cond keys ---------------------------------
+# -- report: $blob offload-marker resolution --------------------------------------
 
 
 def test_unblob_rejects_non_sha_marker(tmp_path):
     blobs = tmp_path / "blobs"
     blobs.mkdir()
     val = {"$blob": "../../../etc/passwd"}
-    assert exporter._unblob(val, blobs) is val
+    assert report._unblob(val, blobs) is val
     ok = {"$blob": "a" * 64}
-    assert exporter._unblob(ok, blobs) is ok  # missing file -> marker kept
-
-
-def test_cond_keys_collision_disambiguated():
-    evs = [
-        {"arm": "x", "variant": "-"},
-        {"arm": "-", "variant": "x"},
-        {"arm": "-", "variant": "plain"},
-    ]
-    keys = exporter._cond_keys(evs)
-    k1, k2, k3 = keys[("x", "-")], keys[("-", "x")], keys[("-", "plain")]
-    assert k1 != k2                    # the collision is repaired
-    assert k3 == "plain"               # non-colliding keeps legacy spelling
-
-
-def test_cond_keys_legacy_when_no_collision():
-    evs = [{"arm": "-", "variant": "pipe-xel"},
-           {"arm": "zh", "variant": "-"},
-           {"arm": "zh", "variant": "v2"}]
-    keys = exporter._cond_keys(evs)
-    assert keys[("-", "pipe-xel")] == "pipe-xel"
-    assert keys[("zh", "-")] == "zh"
-    assert keys[("zh", "v2")] == "zh@v2"
-
-
-def test_export_run_dotdot_name_stays_inside(broot, tmp_path):
-    idx = Index()
-    idx.conn.execute(
-        "INSERT INTO runs(run,run_seq,kind,date,slug,spec_hash,ts_start)"
-        " VALUES ('..',1,'soak','2026-01-01','x','h',0.0)")
-    idx.conn.commit()
-    out_dir = tmp_path / "out"
-    res = exporter.export_run(idx, "..", out_dir)
-    # '..' must not escape: the export tree root IS out_dir/<safe>
-    assert out_dir.is_dir()
-    assert all(str(out_dir) in f for f in res["files"])
-    assert res["files"]  # wrote something, just not into tmp_path itself
+    assert report._unblob(ok, blobs) is ok  # missing file -> marker kept
 
 
 # -- eval lane: spec -> terminal stamp -> eval_records ----------------------------
@@ -343,7 +307,7 @@ def test_rec_to_event_redacts_vocab_but_keeps_event(broot):
     assert stats["redacted"] >= 1
 
 
-# -- round-2: exporter collisions/gating + mint shard binding -------------------
+# -- round-2: report shard gating + mint shard binding ------------------------------
 
 
 def _cell_ev(run, seq, stage="s", status="ok", **kw):
@@ -354,51 +318,6 @@ def _cell_ev(run, seq, stage="s", status="ok", **kw):
         variant=kw.pop("variant", "-"), stage=stage, status=status, **kw)
 
 
-def test_safe_name_injective():
-    enc = exporter._safe_name
-    # the '/''->'--' flatten let these merge into one dir — now distinct
-    assert enc("a/b") != enc("a--b")
-    # the '_'-squash let these share one stage file — now distinct
-    assert enc("a b") != enc("a_b")
-    assert enc("x/y") != enc("x_y")
-    # dot-only residues are fully encoded, never traversal primitives
-    for dots in (".", "..", "..."):
-        out = enc(dots)
-        assert set(out) - {"."}
-        assert "/" not in out
-    # ordinary spellings pass through byte-identical
-    assert enc("smoke/2026-09-22/s1") == "smoke--2026-09-22--s1"
-    assert enc("xlat") == "xlat"
-    assert enc("a_b") == "a_b"
-
-
-def test_export_all_distinct_dirs_for_flattened_names(broot, tmp_path):
-    idx = Index()
-    for seq, run in ((1, "a/b"), (2, "a--b")):
-        idx.conn.execute(
-            "INSERT INTO runs(run,run_seq,kind,date,slug,spec_hash,ts_start)"
-            " VALUES (?,?,?,?,?,?,0.0)",
-            (run, seq, "soak", "2026-01-01", f"s{seq}", "h"))
-    idx.conn.commit()
-    exporter.export_all(idx, tmp_path / "out")
-    names = {p.name for p in (tmp_path / "out").iterdir()}
-    assert names == {"a--b", "a-~b"}  # 'a/b'->'a--b', 'a--b'->'a-~b'
-
-
-def test_stage_sanitize_collision_writes_two_files(broot, tmp_path):
-    idx = Index()
-    idx.conn.execute(
-        "INSERT INTO runs(run,run_seq,kind,date,slug,spec_hash,ts_start)"
-        " VALUES ('r1',1,'soak','2026-01-01','s','h',0.0)")
-    idx.apply_event(_cell_ev("r1", 1, stage="a b"))
-    idx.apply_event(_cell_ev("r1", 2, stage="a_b"))
-    exporter.export_run(idx, "r1", tmp_path / "out")
-    rec_files = sorted((tmp_path / "out" / "r1" / "records").iterdir())
-    assert len(rec_files) == 2
-    total = sum(len(f.read_text().splitlines()) for f in rec_files)
-    assert total == 2  # neither stage's rows silently overwritten
-
-
 def test_unblob_strict_marker_shape(tmp_path):
     blobs = tmp_path / "blobs"
     blobs.mkdir()
@@ -406,10 +325,10 @@ def test_unblob_strict_marker_shape(tmp_path):
     (blobs / f"{sha}.json").write_text('{"injected": true}')
     # a dict merely CONTAINING "$blob" is payload, not a marker
     payload = {"$blob": sha, "victim": True}
-    assert exporter._unblob(payload, blobs) is payload
+    assert report._unblob(payload, blobs) is payload
     # the well-formed marker resolves
     marker = {"$blob": sha, "$bytes": 17}
-    assert exporter._unblob(marker, blobs) == {"injected": True}
+    assert report._unblob(marker, blobs) == {"injected": True}
 
 
 def test_iter_shard_events_drops_invalid_lines(tmp_path):
@@ -422,28 +341,8 @@ def test_iter_shard_events_drops_invalid_lines(tmp_path):
         + '{"type":"cell","run":"r1","seq":2,"id":"x","idc":"x",'
           '"arm":"a","up":"-","variant":"-","stage":"s",'
           '"status":"bogus-status"}\n')                        # bad status
-    got = list(exporter._iter_shard_events(rdir, events.T_CELL))
+    got = list(report._iter_shard_events(rdir, events.T_CELL))
     assert [e["seq"] for e in got] == [1]
-
-
-def test_link_or_copy_repeat_export_no_eexist(tmp_path):
-    src = tmp_path / "src.jsonl"
-    src.write_text("{}\n")
-    files: list = []
-    exporter._link_or_copy(src, tmp_path / "d" / "f.jsonl", files)
-    exporter._link_or_copy(src, tmp_path / "d" / "f.jsonl", files)
-    assert (tmp_path / "d" / "f.jsonl").read_text() == "{}\n"
-
-
-def test_cond_keys_reserved_fields_qualified():
-    evs = [{"arm": "id", "variant": "-"},
-           {"arm": "status", "variant": "-"},
-           {"arm": "main", "variant": "-"},
-           {"arm": "zh", "variant": "-"}]
-    keys = exporter._cond_keys(evs)
-    for ck in keys.values():
-        assert ck not in {"id", "status", "main", "route", "layer"}
-    assert keys[("zh", "-")] == "zh"  # untouched legacy spelling
 
 
 def test_mint_run_seq_refuses_shared_triple(broot):
@@ -453,31 +352,7 @@ def test_mint_run_seq_refuses_shared_triple(broot):
 
 
 def test_iso_extreme_ts_returns_none():
-    assert exporter._iso(1e20) is None
-    assert exporter._iso(float("inf")) is None
-    assert exporter._iso(float("nan")) is None
-    assert exporter._iso(0) is not None
-
-
-def test_reexport_drops_stale_stage_and_eval_files(broot, tmp_path):
-    idx = Index()
-    idx.conn.execute(
-        "INSERT INTO runs(run,run_seq,kind,date,slug,spec_hash,ts_start)"
-        " VALUES ('r1',1,'soak','2026-01-01','s','h',0.0)")
-    out_dir = tmp_path / "out"
-    idx.apply_event(_cell_ev("r1", 1, stage="old"))
-    ev = _cell_ev("r1", 2, stage="judge")
-    ev["eval"] = 1
-    idx.apply_event(ev)
-    exporter.export_run(idx, "r1", out_dir)
-    rdir = out_dir / "r1"
-    assert (rdir / "records" / "old.jsonl").is_file()
-    assert (rdir / "eval-records.jsonl").is_file()
-    # the source events lose the 'old' stage and the eval row; re-export
-    # into the same dir must not leave either behind
-    idx.conn.execute("DELETE FROM events")
-    idx.apply_event(_cell_ev("r1", 3, stage="new"))
-    exporter.export_run(idx, "r1", out_dir)
-    assert (rdir / "records" / "new.jsonl").is_file()
-    assert not (rdir / "records" / "old.jsonl").exists()
-    assert not (rdir / "eval-records.jsonl").exists()
+    assert report._iso(1e20) is None
+    assert report._iso(float("inf")) is None
+    assert report._iso(float("nan")) is None
+    assert report._iso(0) is not None

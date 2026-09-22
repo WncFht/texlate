@@ -21,7 +21,6 @@ import pytest
 from kernel import (
     claims,
     events,
-    exporter,
     fsutil,
     idnorm,
     importer,
@@ -31,6 +30,7 @@ from kernel import (
     locks,
     paid,
     paths,
+    report,
     runs,
     sweep,
     vault,
@@ -765,10 +765,10 @@ def test_plan_freeze_verbatim_on_rerun(broot):
 
 
 # ---------------------------------------------------------------------------
-# §3.7 — exporter keeps the original id spelling
+# §3.7 — report projection keeps the original id spelling
 # ---------------------------------------------------------------------------
 
-def test_exporter_keeps_original_id_spelling(broot):
+def test_report_keeps_original_id_spelling(broot, tmp_path):
     """§3.7 read-side asymmetry: projection must keep the writer's raw `id`
     spelling — canon normalization is a write-boundary act, never a
     read-time rewrite."""
@@ -781,9 +781,17 @@ def test_exporter_keeps_original_id_spelling(broot):
     idx = indexmod.Index()
     try:
         idx.tail_ingest()
-        rows = exporter.project_records(idx)
+        out = tmp_path / "rep"
+        report.build_run_report(idx, "t/x/y", str(out))
+        rows = [
+            json.loads(ln)
+            for ln in (out / "cells.jsonl")
+            .read_text(encoding="utf-8")
+            .splitlines()
+            if ln.strip()
+        ]
     finally:
         idx.close()
     assert len(rows) == 1
     assert rows[0]["id"] == "Cond-Mat/9601002", (
-        "exported row lost the original id spelling")
+        "projected row lost the original id spelling")
