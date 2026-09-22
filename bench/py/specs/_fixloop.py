@@ -33,8 +33,7 @@ import threading
 import time
 from pathlib import Path
 
-import benchlib
-
+from specs import _benchlite as benchlib
 from texlate.compile import (
     TectonicEngine,
     XelatexEngine,

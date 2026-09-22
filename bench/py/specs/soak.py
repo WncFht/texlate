@@ -55,11 +55,11 @@ sys.path.insert(
     ),
 )
 
-import benchlib
 from kernel import events, idnorm, lake, paths, vault
 from kernel import paid as paidmod
 from kernel.spec import EVAL_LAYERS, Param, Spec, Stage
 
+from specs import _benchlite as benchlib
 from specs import _fixloop as flb  # 冷 usertree 引擎配方单源
 from specs import _qmetrics as qp  # S5 指标单源（quality_proxies 叶化）
 from specs._shared import (

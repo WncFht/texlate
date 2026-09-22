@@ -88,10 +88,10 @@ _BENCH_PY = str(Path(__file__).resolve().parents[1])
 if _BENCH_PY not in sys.path:
     sys.path.insert(0, _BENCH_PY)
 
-import benchlib
 from kernel import idnorm, lake, paths
 from kernel.spec import EVAL_LAYERS, Param, Spec, Stage
 
+from specs import _benchlite as benchlib
 from specs._leak import LEAK_PATTERNS
 from texlate.latex import (
     flatten_inputs,
@@ -1047,7 +1047,7 @@ spec = Spec(
     code_deps=[
         "src/texlate/latex",
         "src/texlate/textutil",
-        "bench/py/benchlib.py",
+        "bench/py/specs/_benchlite.py",
         "bench/py/specs/_leak.py",
     ],
     lake=True,

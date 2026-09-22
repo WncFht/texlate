@@ -48,11 +48,6 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import NamedTuple
 
-try:
-    import fcntl
-except ImportError:  # 无 fcntl 平台 → append_jsonl 退化为无锁
-    fcntl = None  # type: ignore[assignment]
-
 REPO = Path(__file__).resolve().parents[3]
 CORPUS = REPO / "bench" / "corpus"
 FRAME = REPO / "bench" / "frame"
@@ -74,45 +69,14 @@ def log(msg: str) -> None:
 
 
 # ---------------------------------------------------------------- jsonl / 文件 IO
-def iter_jsonl(path: Path, *, on_bad="skip", errors: str = "replace"):
-    """逐行 yield 解析值；空行跳过，坏 json 行按 ``on_bad`` 处置。"""
-    bad = 0
-    for raw in path.read_text(encoding="utf-8", errors=errors).splitlines():
-        line = raw.strip()
-        if not line:
-            continue
-        try:
-            yield json.loads(line)
-        except json.JSONDecodeError as e:
-            bad += 1
-            if callable(on_bad):
-                on_bad(raw, e)
-    if bad and on_bad == "warn":
-        print(f"  warn: {path.name} 跳过 {bad} 行坏 json", file=sys.stderr)
-
-
-def read_jsonl(path: Path) -> list[dict]:
-    """jsonl → list[dict]（不存在 → 空表）。"""
-    return list(iter_jsonl(path)) if path.exists() else []
-
-
-def write_jsonl(fh, rec: dict) -> None:
-    """持有句柄上写一行 + flush（per-item 落盘粒度）。"""
-    fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
-    fh.flush()
-
-
-def append_jsonl(path: Path, rec: dict) -> None:
-    """一次性 open-append-close；flock 串行化防行交错。"""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a", encoding="utf-8") as fh:
-        if fcntl is not None:
-            fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
-        try:
-            fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
-        finally:
-            if fcntl is not None:
-                fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+# jsonl 三件 + strip_comments 正本在 _benchlite（benchlib 收编叶）——本叶
+# re-export 保旧调用形，勿再长第三份 verbatim。
+from specs._benchlite import (
+    append_jsonl,
+    iter_jsonl,
+    read_jsonl,
+    strip_comments,
+)
 
 
 def atomic_write_text(path: Path, text: str) -> None:
@@ -130,30 +94,6 @@ def atomic_write_text(path: Path, text: str) -> None:
 def canon_id(pid: str) -> str:
     """论文 id 规范形：``--`` → ``/``——safe_id 的逆（混合双形归一）。"""
     return str(pid).replace("--", "/")
-
-
-def strip_comments(tex: str) -> str:
-    r"""去注释：``\X`` 先吃两字符，裸 ``%`` 删到行尾（保留换行）。
-
-    verbatim 内 ``%`` 误剥是既有口径（仅用于主文件定位/路由标签场景），
-    勿擅加 verbatim 感知。"""
-    out, i, n = [], 0, len(tex)
-    while i < n:
-        c = tex[i]
-        if c == "\\":
-            out.append(tex[i : i + 2])
-            i += 2
-            continue
-        if c == "%":
-            k = tex.find("\n", i)
-            if k < 0:
-                break
-            out.append("\n")
-            i = k + 1
-            continue
-        out.append(c)
-        i += 1
-    return "".join(out)
 
 
 # ---------------------------------------------------------------- manifest

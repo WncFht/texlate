@@ -59,9 +59,10 @@ sys.path.insert(
     ),
 )
 
-import benchlib
 from kernel import fsutil, idnorm, lake
 from kernel.spec import EVAL_LAYERS, Param, Spec, Stage
+
+from specs import _benchlite as benchlib
 
 ROOT = Path(__file__).resolve().parents[3]
 CORPUS = Path(os.environ.get("TEXLATE_CORPUS", str(ROOT / "bench/corpus")))

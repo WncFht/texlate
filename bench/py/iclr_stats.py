@@ -30,7 +30,7 @@ from collections import defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-import benchlib
+from specs import _benchlite as benchlib
 
 REPO = Path(__file__).resolve().parents[2]
 WORK = REPO / "bench" / "work_iclr"

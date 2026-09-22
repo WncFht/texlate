@@ -66,9 +66,10 @@ try:
 except ImportError:
     _PYPDF_V = None
 
-import benchlib
 from kernel import fsutil, idnorm, vault
 from kernel.spec import Param, Spec, Stage
+
+from specs import _benchlite as benchlib
 
 ROOT = Path(__file__).resolve().parents[3]
 

@@ -38,8 +38,8 @@ PDF_DIR = REPO / "bench" / "corpus_iclr_pdf"
 OUT = REPO / "bench" / "work_iclr" / "sections_pdf.jsonl"
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import benchlib
 from iclr_sections import canon_section, count_words  # noqa: E402
+from specs import _benchlite as benchlib
 
 #: stderr 时间戳日志——benchlib 单源（iclr_* 系同源件）。
 log = benchlib.log

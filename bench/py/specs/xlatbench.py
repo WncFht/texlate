@@ -50,12 +50,12 @@ import sys
 import time
 from pathlib import Path
 
-import benchlib
 import httpx
 from kernel import idnorm, lake
 from kernel import paid as paidmod
 from kernel.spec import Param, Spec, Stage
 
+from specs import _benchlite as benchlib
 from specs._shared import devin_factory
 from texlate.arxiv.locate import locate
 from texlate.latex import parse_file

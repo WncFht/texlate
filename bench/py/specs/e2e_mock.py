@@ -59,10 +59,10 @@ sys.path.insert(
     ),
 )
 
-import benchlib
 from kernel import events, fsutil, idnorm, lake
 from kernel.spec import EVAL_LAYERS, Param, Spec, Stage
 
+from specs import _benchlite as benchlib
 from specs._sabotage import (
     PerturbTranslator,
     SabotageTranslator,

@@ -82,11 +82,11 @@ sys.path.insert(
     ),
 )
 
-import benchlib
 from kernel import events, fsutil, idnorm, vault
 from kernel import paid as paidmod
 from kernel.spec import Param, Spec, Stage
 
+from specs import _benchlite as benchlib
 from specs import _fixloop as flb  # 冷 usertree 引擎配方单源
 from specs._shared import (
     DEFAULT_MODEL,

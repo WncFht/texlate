@@ -28,8 +28,8 @@ import unicodedata
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-import benchlib
 import httpx
+from specs import _benchlite as benchlib
 
 REPO = Path(__file__).resolve().parents[2]
 WORK = REPO / "bench" / "work_iclr"

@@ -53,10 +53,10 @@ sys.path.insert(
     ),
 )
 
-import benchlib
 from kernel import idnorm, lake
 from kernel.spec import Param, Spec, Stage
 
+from specs import _benchlite as benchlib
 from texlate.arxiv.locate import locate
 from texlate.latex.gullet import ArgMismatch, Gullet, _tok_eq
 from texlate.textutil import decode_tex

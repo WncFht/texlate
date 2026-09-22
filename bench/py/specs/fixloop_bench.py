@@ -70,10 +70,10 @@ import sqlite3
 import time
 from pathlib import Path
 
-import benchlib
 from kernel import fsutil, idnorm, paths
 from kernel.spec import Param, Spec, Stage
 
+from specs import _benchlite as benchlib
 from specs import _fixloop as _flx
 from texlate.compile import route_project
 from texlate.compile.fixloop import CaseSink, fixloop
