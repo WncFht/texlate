@@ -790,14 +790,15 @@ def seal_if_needed(
         return zst
 
 
-def seal_gc(now_ts: float | None = None, min_age_s: float = SEAL_GC_MIN_AGE_S) -> list[Path]:
+def seal_gc(now_ts: float | None = None, min_age_s: float = SEAL_GC_MIN_AGE_S,
+            *, ingested: set | None = None) -> list[Path]:
     """Delete raw sealed .jsonl segments whose .zst is verified and aged out.
 
     Per §3.10.5 a raw segment is deletable when its .zst is verified, the
     index watermark has passed it, and it is older than the grace age. The
-    index-watermark leg is not implementable yet (no index module) — this
-    implements verify + seals-row + age, and callers must gate on the
-    watermark externally until then. Returns the deleted raw paths.
+    watermark leg arrives via ``ingested`` — stem names the index reports
+    fully replayed (``Index.sealed_done()``); None means the caller asserts
+    coverage. Returns the deleted raw paths.
     """
     now = time.time() if now_ts is None else float(now_ts)
     deleted: list[Path] = []
@@ -815,6 +816,8 @@ def seal_gc(now_ts: float | None = None, min_age_s: float = SEAL_GC_MIN_AGE_S) -
             row = rows.get(zst.name)
             if row is None or not zst.exists():
                 continue  # not a completed seal — recovery's job, never gc's
+            if ingested is not None and raw.name not in ingested:
+                continue  # index hasn't replayed this segment yet
             ts = row.get("ts")
             age_base = ts if isinstance(ts, (int, float)) else raw.stat().st_mtime
             if now - age_base <= min_age_s:

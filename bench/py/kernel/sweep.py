@@ -24,6 +24,9 @@ the full pass on its hourly timer. Duties:
    queue, not an invisible hole.
 5. **Permanently-failed cells** past age → tombstone events; the error
    rows stay on the books.
+6. **Ledger seal** (§3.10.5): the periodic driver for the >256MB/30d
+   rotation trigger plus verified-raw gc gated on the index's replayed
+   segment set.
 
 Concurrency: the whole sweep runs under a single NB flock
 (``locks/sweep.lock``) inside a ``kernel_active_hold`` SH hold — a second
@@ -523,17 +526,33 @@ def _sweep_permafail(idx: index.Index | None, report: dict,
 
 # --- entry point ----------------------------------------------------------------------
 
+def _sweep_seal(idx: index.Index | None, report: dict) -> None:
+    """§3.10.5 ledger seal — the periodic driver for the size/age
+    double-trigger. Also runs seal_gc: a raw segment is deleted only when
+    its .zst verifies AND the index reports the segment fully replayed
+    (sealed_done is the 'watermark past the tail' leg); with no index open
+    nothing is deletable — raw retention is the fail-safe direction."""
+    zst = ledger.seal_if_needed()
+    if zst is not None:
+        report["sealed"].append(zst.name)
+    ingested = idx.sealed_done() if idx is not None else set()
+    for raw in ledger.seal_gc(ingested=ingested):
+        report["seal_gc"].append(raw.name)
+
+
 def sweep(light: bool = False) -> dict:
     """Run the reaper. light=True is the fast auto-pass at write-command
     start: zombies + stale claims only (the duties that keep claim/slot
     truth before a new run pays). The full pass adds pending-meta
-    reconcile, orphan adoption, harvest-pending and permafail tombstones.
+    reconcile, orphan adoption, harvest-pending, permafail tombstones and
+    the ledger seal.
     """
     report: dict = {
         "light": bool(light),
         "zombies": [], "reaped_claims": [], "promoted": [],
         "adopted": [], "harvest_pending": [], "tombstoned": [],
         "meta_less": [], "lake_orphans": [], "errors": [],
+        "sealed": [], "seal_gc": [],
     }
     try:
         with locks.flock(_sweep_lock_path(), exclusive=True, blocking=False):
@@ -553,6 +572,7 @@ def sweep(light: bool = False) -> dict:
                     _sweep_lake_orphans(report)
                     _sweep_harvest_pending(idx, report)
                     _sweep_permafail(idx, report, now)
+                    _sweep_seal(idx, report)
                 finally:
                     if idx is not None:
                         idx.close()

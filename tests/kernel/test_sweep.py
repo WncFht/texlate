@@ -383,3 +383,62 @@ def test_sweep_permafail_regen_gate_not_an_attempt(
     monkeypatch.setattr(sweep, "FAIL_TOMBSTONE_AGE_S", 0)
     rep = sweep.sweep()
     assert rep["tombstoned"] == []
+
+
+# --- duty 6: ledger seal ------------------------------------------------------------
+
+
+def test_sweep_full_pass_seals_aged_tail(broot: Path) -> None:
+    """The full pass is the §3.10.5 driver — an over-age tail rotates into
+    sealed/ and the hot tail is recreated empty."""
+    old = events.make_event(
+        events.T_NOTE, run="r", seq=1, text="old", level="info",
+        ts=time.time() - 40 * 86400)
+    ledger.emit(old)
+
+    rep = sweep.sweep(light=True)
+    assert rep["sealed"] == []          # light pass never seals
+    assert paths.events_path().stat().st_size > 0
+
+    rep = sweep.sweep()
+    assert len(rep["sealed"]) == 1
+    zst = paths.sealed_dir() / rep["sealed"][0]
+    assert zst.exists()
+    # fresh seal — the raw survives the same pass's gc on age alone
+    assert Path(str(zst)[: -len(".zst")]).exists()
+    assert rep["seal_gc"] == []
+    assert paths.events_path().exists()
+    assert paths.events_path().stat().st_size == 0
+
+
+def test_sweep_seal_gc_requires_index_replay(broot: Path) -> None:
+    """seal_gc's watermark leg is Index.sealed_done(): a verified, aged raw
+    segment is deleted only once the index reports it replayed — and with
+    no index open at all nothing is deletable."""
+    ledger.emit(events.make_event(
+        events.T_NOTE, run="r", seq=1, text="old", level="info",
+        ts=time.time() - 40 * 86400))
+    # pre-age the seals row so age + zst-verification both pass and only
+    # the watermark leg decides
+    aged = time.time() - 8 * 86400
+    zst = ledger.seal_if_needed(now_ts=aged, max_bytes=1)
+    assert zst is not None
+    raw = Path(str(zst)[: -len(".zst")])
+    assert raw.exists()
+
+    # no index.db → _open_index() returns None → ingested=set() → kept
+    rep = sweep.sweep()
+    assert rep["seal_gc"] == []
+    assert raw.exists()
+
+    # replay the segment into the index — the next sweep may delete
+    idx = index.Index()
+    try:
+        idx.tail_ingest()
+        assert raw.name in idx.sealed_done()
+    finally:
+        idx.close()
+    rep = sweep.sweep()
+    assert rep["seal_gc"] == [raw.name]
+    assert not raw.exists()
+    assert zst.exists()                # the compressed anchor survives gc

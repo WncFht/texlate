@@ -644,6 +644,11 @@ class Index:
         except ValueError:
             return set()
 
+    def sealed_done(self) -> set:
+        """Sealed-segment stems fully replayed into the index — the
+        'index watermark past the tail' leg for ledger.seal_gc."""
+        return self._sealed_done_set()
+
     def _sealed_covered(self) -> bool:
         """Every sealed segment present on disk is ingested — an uningested
         segment is a blind spot: it can hold tombstone/missing evidence the
