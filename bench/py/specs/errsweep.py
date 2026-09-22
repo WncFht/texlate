@@ -32,21 +32,23 @@ import subprocess
 import time
 from pathlib import Path
 
+from kernel import paths
 from kernel.spec import Param, Spec, Stage
 
 REPO = Path(__file__).resolve().parents[3]
 RUNBOOK = REPO / "docs" / "dev" / "errsweep-runbook.md"
 RUNBOOK_SHA256 = (
-    "40c19d126af7268fc0461965f341cf182a1cd09ad62235bb2b4ed3448d595fea"
+    "75d893116c44fd492ab4500e327a2f50b53e17c49d8902cb4f06089eb119df62"
 )
 
 PROMPT = (
     "你是 texlate errsweep agent，今天是 {date}，工作目录是分支 "
     "errsweep/{date} 的隔离 worktree。完整工作指令在 "
-    "docs/dev/errsweep-runbook.md——先通读再开工。要点：soak 结果在主仓 "
-    "{root}/bench/results/soak-*/ 下（worktree 里未必有，经 --add-dir "
-    "读）；回放副本放 {replay}；报告除随分支提交外复制一份到 "
-    "{state}/errsweep-{date}-report.md。"
+    "docs/dev/errsweep-runbook.md——先通读再开工。要点：soak run 在 "
+    "bench store {bench_root}/runs/soak/<date>/<slug>/ 下（--add-dir "
+    "已授权读）；签名榜跑 `bench triage soak/<date>/<slug>` 落 run 的 "
+    "derived/tickets.jsonl；回放副本放 {replay}；报告除随分支提交外复制"
+    "一份到 {state}/errsweep-{date}-report.md。"
 )
 
 # env keys whose values are injected into the agent subprocess — read
@@ -142,6 +144,7 @@ def _sweep(ctx):
     log = ctx.rundir.derived() / "sweep.log"
     log.parent.mkdir(parents=True, exist_ok=True)
     prompt = PROMPT.format(date=p["date"], root=REPO,
+                           bench_root=paths.root(),
                            replay=p["replay"], state=p["state"])
     timeout_s = int(ctx.params.get("timeout_s", 6 * 3600))
     t0 = time.time()
@@ -151,7 +154,8 @@ def _sweep(ctx):
                 ["timeout", f"{timeout_s}s", "claude", "-p", prompt,  # noqa: S607 — timeout+claude 走 PATH 是刻意
                  "--dangerously-skip-permissions",
                  "--add-dir", str(Path.home() / ".texlate"),
-                 "--add-dir", str(REPO)],
+                 "--add-dir", str(REPO),
+                 "--add-dir", str(paths.root())],
                 cwd=wt, env=_run_env(), stdout=lf,
                 stderr=subprocess.STDOUT, timeout=timeout_s + 120)
             rc = r.returncode
