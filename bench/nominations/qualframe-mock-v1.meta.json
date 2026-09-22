@@ -1,0 +1,38 @@
+{
+ "papers": [
+  {
+   "id": "2501.02896",
+   "n_pairs": 8,
+   "n_blocks": 377
+  },
+  {
+   "id": "2507.14402",
+   "n_pairs": 8,
+   "n_blocks": 40
+  },
+  {
+   "id": "2512.01407",
+   "n_pairs": 8,
+   "n_blocks": 131
+  },
+  {
+   "id": "2608.26800",
+   "n_pairs": 8,
+   "n_blocks": 274
+  },
+  {
+   "id": "2609.20218",
+   "n_pairs": 8,
+   "n_blocks": 72
+  },
+  {
+   "id": "2609.20563",
+   "n_pairs": 8,
+   "n_blocks": 195
+  }
+ ],
+ "pool": 2587,
+ "cmd": "mock",
+ "judge": "mock-judge",
+ "seed": 42
+}

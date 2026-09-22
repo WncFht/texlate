@@ -1,0 +1,31 @@
+{
+ "papers": [
+  {
+   "id": "1901.00051",
+   "model": "swe-2-medium",
+   "arm": "real",
+   "n_pairs": 8,
+   "n_unjudged": 0,
+   "state": "/home/fanghaotian/.local/share/texlate-bench/backup/phase0-20260922/lanes/lane-flip15/replay/work/1901.00051/xlat-state/real/state.json"
+  },
+  {
+   "id": "2609.19511",
+   "model": "swe-2-medium",
+   "arm": "real",
+   "n_pairs": 8,
+   "n_unjudged": 3,
+   "state": "/home/fanghaotian/.local/share/texlate-bench/backup/phase0-20260922/lanes/lane-flip14/replay/work/2609.19511/xlat-state/real/state.json"
+  },
+  {
+   "id": "2609.19969",
+   "model": "swe-2-medium",
+   "arm": "real",
+   "n_pairs": 8,
+   "n_unjudged": 11,
+   "state": "/home/fanghaotian/.local/share/texlate-bench/backup/phase0-20260922/lanes/lane-flip14/replay/work/2609.19969/xlat-state/real/state.json"
+  }
+ ],
+ "cmd": "state",
+ "judge": "swe-2-max",
+ "seed": 42
+}
