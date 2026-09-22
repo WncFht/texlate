@@ -257,6 +257,11 @@ def _enumerate_cells(spec: Spec, registry, resolved: dict):
     cells: list[dict] = []
     problems: list[str] = []
     for item in spec.iter_items():
+        # G1 plan-filter: spec.select(item, resolved_params) narrows the
+        # frame per-run BEFORE canon — rejected items never pay a registry
+        # lookup, and raw-id selectors (--ids) match the author's spelling.
+        if spec.select is not None and not spec.select(item, resolved):
+            continue
         raw = item.get("id")
         if spec.eval:
             idc = str(raw)
@@ -271,7 +276,7 @@ def _enumerate_cells(spec: Spec, registry, resolved: dict):
         for st in stage_order:
             if wanted and st.name != wanted:
                 continue
-            cells.append({
+            cell = {
                 "id": str(raw), "idc": idc,
                 "arm": str(item.get("arm", "-")),
                 "up": str(item.get("up", "-")),
@@ -283,7 +288,15 @@ def _enumerate_cells(spec: Spec, registry, resolved: dict):
                 "params": dict(item.get("params") or {}),
                 "run_params": dict(resolved),
                 "layer": item.get("layer"),
-            })
+            }
+            # Extra item fields ride the cell verbatim (eval dedup_key
+            # callables read them — e.g. cell["model"]/["rep"]). Framework
+            # keys are already set above and never overwritten; "id"/"idc"/
+            # "stage" are the canonical spellings, also already set.
+            for k, v in item.items():
+                if k not in cell:
+                    cell[k] = v
+            cells.append(cell)
     return cells, problems
 
 
@@ -480,6 +493,20 @@ def _merge_outbox(terminal_ev: dict, outbox: list) -> list:
     return extra
 
 
+def _synth_sig(errors) -> str | None:
+    """errors[0] -> ``cat:pay`` default sig (the benchlib.errors_sig triage
+    contract as a kernel-side default — a fn returning its own sig always
+    wins; this only fires when the row would otherwise carry none)."""
+    if not isinstance(errors, list) or not errors:
+        return None
+    e0 = errors[0]
+    if not isinstance(e0, dict):
+        return None
+    cat = str(e0.get("cat") or e0.get("code") or "error")
+    pay = str(e0.get("payload") or "")
+    return f"{cat}:{pay}".rstrip(":")
+
+
 def _terminal_ev(env, cell, status: str, *, seq: int, cat=None, dur_s=None,
                  fp=None, metrics=None, errors=None, sig=None, code=None,
                  extra=None) -> dict:
@@ -502,6 +529,8 @@ def _terminal_ev(env, cell, status: str, *, seq: int, cat=None, dur_s=None,
         ev["metrics"] = metrics
     if errors is not None:
         ev["errors"] = errors
+    if sig is None:
+        sig = _synth_sig(errors)
     if sig is not None:
         ev["sig"] = sig
     if code is not None:
@@ -622,11 +651,18 @@ def _run_cell(env, cell: dict) -> dict:
         #    evidence. 'lost'/'claimed'/'unpaid_gate' are KERNEL
         #    adjudication states (swept zombie, live-lock mask, gate
         #    refusal) — deduping them bricks a never-completed cell
-        #    forever. PAID STAGES SKIP THIS ENTIRELY: the step-3 oracle
-        #    owns every paid cell (verified -> dedup, missing -> regen
-        #    gate, absent -> budget fuse).
+        #    forever. ASSET-PAID STAGES SKIP THIS ENTIRELY: the step-3
+        #    oracle owns them (verified -> dedup, missing -> regen gate,
+        #    absent -> budget fuse) because a DONE row without verified
+        #    bytes is poison. EVAL-PAID stages with no mutates have no
+        #    bytes to lose — their own DONE row IS the paid evidence and
+        #    dedups here (§4 eval keyspace).
         last = _last_outcome(idx, idc, arm, up, variant, stage_name)
-        if (last is not None and not (stage is not None and stage.paid)
+        stage_paid = stage is not None and stage.paid
+        eval_paid_nobytes = bool(
+            stage_paid and not stage.mutates
+            and (spec.eval or getattr(stage, "eval", False)))
+        if (last is not None and (not stage_paid or eval_paid_nobytes)
                 and last["status"] in events.STATUS_DONE | {"dedup"}):
             return quick("dedup")
 
@@ -787,11 +823,20 @@ def _run_cell(env, cell: dict) -> dict:
                           sig=result.get("sig"), code=result.get("code"),
                           extra=extra)
         batch = [ev]
-        for ob in _merge_outbox(ev, ctx._outbox):
+        # the fn's own return dict is the FIRST outbox row — its errors /
+        # sig / extra keys fold through the same merge path as emit() rows
+        # (identity keys drop, scalars last-win, unknown keys -> metrics);
+        # metrics/sig/code were already applied above and re-apply as
+        # no-ops. Without this a returned {"errors": [...]} silently dies.
+        for ob in _merge_outbox(ev, [result, *ctx._outbox]):
             if "seq" not in ob or ob.get("seq") is None:
                 ob["seq"] = alloc()
             ob.setdefault("run", rd.run)
             batch.append(ob)
+        # outbox errors fold into the terminal AFTER _terminal_ev ran —
+        # re-synthesize sig when the merge introduced the first error row
+        if ev.get("sig") is None and ev.get("errors"):
+            ev["sig"] = _synth_sig(ev["errors"])
         if claim_acquired:
             fate = ctx.claim_fate or (
                 "verified" if status in ("ok", "partial", "clean")
@@ -802,6 +847,16 @@ def _run_cell(env, cell: dict) -> dict:
                 idc=k_idc, arm=k_arm, variant=k_var, op="release",
                 fate=fate))
         _emit_batch(env, idx, batch)
+        # CaseSink file lane: the batch's case events mirror into
+        # cases.jsonl AFTER the ledger commit (ledger is truth; the file
+        # is the per-run derived artifact and rebuildable from events).
+        for bev in batch:
+            if bev.get("type") == events.T_CASE:
+                try:
+                    runs.add_case(rd, bev)
+                except OSError as exc:
+                    _note(env, f"cases.jsonl append failed for "
+                               f"{idc}/{stage_name}: {exc}", level="warn")
         if lease is not None:
             lease.release()
         if ctx.claim_lease is not None:
@@ -887,6 +942,19 @@ def run(spec_or_path, params=None, *, date=None, slug=None, resume=False,
             "no paid stage declares cost_hook — every request would "
             "account $0 and the mandatory --max-cost fuse could never "
             "bind (§3.6)")
+    # executor='process' is declared in the vocabulary but not wired: the
+    # submitted callable must cross a pickle boundary (env holds
+    # thread-local Index/Oracle/factory — none picklable) and the cost
+    # meter/abort flag are process-local. Refuse loudly rather than dying
+    # on a pickle error mid-pipeline. Free CPU-bound stages can still run
+    # per-stage executor='thread' (parse shells out — the GIL is not its
+    # bottleneck).
+    for _st in spec.stages:
+        if (_st.executor or spec.executor) == "process":
+            raise RunError(
+                "executor='process' is not wired yet (env/alloc/meter "
+                "cannot cross the pickle boundary) — use 'thread' or "
+                "'async-owned' for now")
 
     # 2. items + canon (eval specs run verbatim — no registry gate)
     registry = None if spec.eval else idnorm.PapersRegistry.load()
@@ -1151,7 +1219,11 @@ def plan(spec_or_path, params=None, *, date=None, slug=None, replan=False,
         qcells = []
         for c in cells:
             st = spec.stage(c["stage"])
-            k = (c["idc"], c.get("arm", "-"), c.get("variant", "-"))
+            # The oracle's unit of account is the cell's CLAIM key —
+            # dedup_key_of, not the raw cell triple (eval specs claim on
+            # a remapped keyspace; quoting cell keys would misquote them).
+            k = (spec.dedup_key_of(st, c) if st is not None
+                 else (c["idc"], c.get("arm", "-"), c.get("variant", "-")))
             if k in seen:
                 continue
             seen.add(k)

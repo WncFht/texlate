@@ -160,6 +160,44 @@ def test_compile_paid_stage_needs_dedup_key():
     assert not any("dedup_key required" in p for p in compile_checks(spec2))
 
 
+def test_compile_paid_dedup_remap_banned_for_non_eval():
+    """§4 eval keyspace: a remapped dedup_key on an ASSET-paid stage reads
+    'absent' forever (evidence legs are cell-keyed) — compile error."""
+    st = _stage("x", paid=True,
+                dedup_key=lambda c: (c["idc"], "mA", "0"))
+    spec = _spec(stages=[st])
+    assert any("remap" in p and "re-burns" in p
+               for p in compile_checks(spec))
+    # a non-default TUPLE remap is equally banned
+    st2 = _stage("x", paid=True, dedup_key=("idc", "arm"))
+    assert any("remap" in p
+               for p in compile_checks(_spec(stages=[st2])))
+    # eval lifts the ban (records lane carries the evidence)
+    st3 = _stage("x", paid=True,
+                 dedup_key=lambda c: (c["idc"], "mA", "0"))
+    assert not any("remap" in p
+                   for p in compile_checks(_spec(stages=[st3], eval=True)))
+
+
+def test_compile_paid_dedup_remap_mutates_banned():
+    """Remap + mutates splits evidence: vault bytes land on the cell key
+    while claims ride the remap — banned even on eval specs."""
+    st = _stage("x", paid=True, mutates=["zh"],
+                dedup_key=lambda c: (c["idc"], "mA", "0"))
+    spec = _spec(stages=[st], eval=True)
+    assert any("remap" in p and "splits evidence" in p
+               for p in compile_checks(spec))
+
+
+def test_compile_select_must_be_callable():
+    spec = _spec(select="id == 'x'")
+    assert any("select" in p and "not callable" in p
+               for p in compile_checks(spec))
+    assert not any("select" in p
+                   for p in compile_checks(
+                       _spec(select=lambda it, p: True)))
+
+
 def test_compile_duplicate_item_cells():
     spec = _spec(items=[{"id": "a"}, {"id": "a"}])
     assert any("duplicate item cell key" in p for p in compile_checks(spec))
@@ -318,9 +356,10 @@ SPECS_DIR = Path(__file__).resolve().parents[2] / "bench" / "py" / "specs"
 
 def test_shipped_specs_compile(broot):
     """Every spec shipped under bench/py/specs must compile clean — a
-    broken spec would otherwise only surface at `bench run` time."""
+    broken spec would otherwise only surface at `bench run` time.
+    Underscore-prefixed files are shared helper modules, not specs."""
     names = sorted(p.stem for p in SPECS_DIR.glob("*.py")
-                   if p.stem != "__init__")
+                   if not p.stem.startswith("_"))
     assert names, "SPECS_DIR drifted"
     for name in names:
         spec = load_spec(SPECS_DIR / f"{name}.py")

@@ -292,7 +292,7 @@ class Spec:
                  env_probes=None, code_deps=None, foreign_runs=None,
                  allowed_layers=None, lake: bool = False,
                  same_id_serial: bool = True, dedup_key=None,
-                 eval: bool = False, gateway_factory=None):
+                 eval: bool = False, gateway_factory=None, select=None):
         self.kind = str(kind)
         self.params = dict(params or {})
         self.stages = list(stages or [])
@@ -307,6 +307,12 @@ class Spec:
         self.same_id_serial = bool(same_id_serial)
         self.dedup_key = dedup_key
         self.eval = bool(eval)
+        # ``select(item, resolved_params) -> bool`` — the plan-filter
+        # channel: items() enumerates the full frame once, select narrows
+        # it per-run by run params (soak --n/--seed/--ids/--layers).
+        # Applied post-normalization, pre-canon inside _enumerate_cells;
+        # NEVER at compile_checks (selector params only exist at run time).
+        self.select = select
         # Paid gateway the run falls back to when the caller doesn't
         # inject one — GatewayFactory | callable | None. Config, not
         # semantics: deliberately excluded from to_dict/spec_hash.
@@ -381,6 +387,9 @@ class Spec:
                 else getattr(self.dedup_key, "__qualname__", repr(self.dedup_key))
             ),
             "eval": self.eval,
+            "select": (None if self.select is None else
+                       getattr(self.select, "__qualname__",
+                               repr(self.select))),
             "items": self.iter_items(),
         }
 
@@ -466,6 +475,10 @@ def compile_checks(spec: Spec) -> list[str]:
         return [f"spec object is {type(spec).__name__}, not a kernel Spec"]
     if not _NAME_RE.fullmatch(spec.kind or ""):
         problems.append(f"kind {spec.kind!r} is not a safe path component")
+    if spec.select is not None and not callable(spec.select):
+        problems.append(
+            f"select {spec.select!r} is not callable — the plan-filter "
+            "channel takes (item, resolved_params) -> bool")
     if spec.executor not in EXECUTORS:
         problems.append(
             f"executor {spec.executor!r} not in {sorted(EXECUTORS)}")
@@ -601,14 +614,29 @@ def compile_checks(spec: Spec) -> list[str]:
                     "(asset default None is fine — declare it explicitly "
                     "at stage or spec level)")
             eff = st.dedup_key if st.dedup_key is not None else spec.dedup_key
-            if callable(eff) or (eff is not None
-                                 and tuple(eff) != ("idc", "arm", "variant")):
+            remapped = callable(eff) or (
+                eff is not None and tuple(eff) != ("idc", "arm", "variant"))
+            # §4 eval keyspace: eval specs/stages may claim on a custom
+            # (idc,arm,variant) triple (xlatbench model/rep/sample) —
+            # cell-keyed evidence legs read 'absent' there BY DESIGN (no
+            # assets exist under the eval keyspace; the claim mutex and
+            # records lane are what dedup re-runs). Asset-paid stages keep
+            # the hard ban — a remapped key reads 'absent' forever and
+            # re-burns spend.
+            if remapped and not (spec.eval or st.eval):
                 problems.append(
                     f"paid stage {st.name!r}: dedup_key remap {eff!r} "
                     "voids cell-keyed evidence legs — manifest/claim/"
                     "paid_pool evidence is keyed (idc,arm,variant), so a "
                     "remapped key always reads 'absent' and re-burns. "
-                    "Paid stages must claim on the asset default.")
+                    "Only eval specs/stages may remap the claim keyspace.")
+            if remapped and (spec.eval or st.eval) and st.mutates:
+                problems.append(
+                    f"paid stage {st.name!r}: dedup_key remap {eff!r} on a "
+                    "mutating eval stage splits evidence — vault/manifest "
+                    "bytes land on the CELL key while claims ride the "
+                    "remap, so a re-run dedups neither lane cleanly. Drop "
+                    "mutates or keep the asset default key.")
     # Clarify: asset default IS 'no explicit key'; the check above only
     # fires when the author forgot the knob entirely AND spec lacks one.
     # An explicit dedup_key=None on the stage reads as the asset default.

@@ -1,6 +1,6 @@
 """Event schema for ledger/events.jsonl — the sole source of truth.
 
-Ten event types (design §3.1 + run_registered + lake_cell):
+Eleven event types (design §3.1 + run_registered + lake_cell + case):
 
     run_registered {run, run_seq, kind, date, slug, spec_hash, ts_start}
     cell_queued    {run, seq, id, idc, arm, up, variant, stage, needs, fp_input}
@@ -13,6 +13,10 @@ Ten event types (design §3.1 + run_registered + lake_cell):
     note           {run, seq, id?, text, level}
     finished       {run, seq, wall_s, counts, cost_usd}
     lake_cell      {id, idc, state, source, bytes, ts}
+    case           {run, seq, id, idc, arm, up, variant, stage, payload}
+                   — author per-sample eval rows (Ctx.emit_case); buffered
+                   in the cell's terminal batch so a crashed cell leaves
+                   no orphan cases, and projected into index ``cases``.
 
 Rules baked here:
     - `id` is the writer's original spelling, `idc` the canon form — both always
@@ -42,10 +46,11 @@ T_TOMBSTONE = "tombstone"
 T_NOTE = "note"
 T_FINISHED = "finished"
 T_LAKE_CELL = "lake_cell"
+T_CASE = "case"
 
 EVENT_TYPES = frozenset({
     T_RUN_REGISTERED, T_CELL_QUEUED, T_CELL_STARTED, T_CELL, T_CLAIM,
-    T_ASSET, T_TOMBSTONE, T_NOTE, T_FINISHED, T_LAKE_CELL,
+    T_ASSET, T_TOMBSTONE, T_NOTE, T_FINISHED, T_LAKE_CELL, T_CASE,
 })
 
 REQUIRED: dict[str, frozenset[str]] = {
@@ -59,6 +64,7 @@ REQUIRED: dict[str, frozenset[str]] = {
     T_NOTE: frozenset({"run", "seq", "text", "level"}),
     T_FINISHED: frozenset({"run", "seq", "wall_s", "counts"}),
     T_LAKE_CELL: frozenset({"id", "idc", "state"}),
+    T_CASE: frozenset({"run", "seq", "id", "idc", "payload"}),
 }
 
 # Optional top-level keys whitelisted by the spec (§3.1); anything else is rejected.
@@ -88,6 +94,7 @@ OPTIONAL_KEYS: dict[str, frozenset[str]] = {
     }),
     T_FINISHED: frozenset({"cost_usd", "accounting_ok"}),
     T_LAKE_CELL: frozenset({"source", "bytes"}),
+    T_CASE: frozenset({"arm", "up", "variant", "stage"}),
 }
 
 # Status vocabulary (§3.1). DONE = terminal; RETRIABLE = may retry as a new attempt.
@@ -147,6 +154,7 @@ _STR_REQ: dict[str, tuple[str, ...]] = {
     T_NOTE: ("run", "text"),
     T_FINISHED: ("run",),
     T_LAKE_CELL: ("id", "idc", "state"),
+    T_CASE: ("run", "id", "idc"),
 }
 
 # Optional string fields per type (None allowed).
@@ -158,6 +166,7 @@ _STR_OPT: dict[str, tuple[str, ...]] = {
     T_TOMBSTONE: ("lost_run", "zone", "source_run"),
     T_NOTE: ("id", "idc", "arm", "up", "variant", "stage", "kind", "safe_id"),
     T_LAKE_CELL: ("source",),
+    T_CASE: ("arm", "up", "variant", "stage"),
 }
 
 # Optional numeric fields (int|float, bool excluded by _type_ok).
@@ -243,6 +252,8 @@ def validate(ev: dict) -> None:
         raise EventError(f"bad lake state {ev.get('state')!r}")
     if etype == T_NOTE and ev.get("level") not in NOTE_LEVELS:
         raise EventError(f"bad note level {ev.get('level')!r}")
+    if etype == T_CASE and not isinstance(ev.get("payload"), dict):
+        raise EventError("case payload must be a dict")
 
 
 def dumps(ev: dict) -> str:

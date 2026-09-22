@@ -16,6 +16,7 @@ from kernel import (
     claims,
     dedup,
     events,
+    index as indexmod,
     kernel,
     ledger,
     locks,
@@ -535,3 +536,174 @@ def test_auth_dead_sentinel_refuses_paid_cell(broot: Path):
     rd = runs.load_run(spec.kind, res["date"], res["slug"])
     row = _cell_rows(rd)[0]
     assert row["status"] == "error" and row["cat"] == "auth_dead"
+
+
+# --- Wave-A0 kernel gaps ------------------------------------------------------------
+
+
+def test_select_filters_plan_by_params(broot: Path):
+    """G1: spec.select(item, resolved) narrows the frame per-run — run and
+    plan share the filter, rejected items never pay a canon lookup."""
+    spec = _free_spec(
+        {"a": lambda c: "ok"},
+        [{"id": "x"}, {"id": "y"}, {"id": "z"}],
+        params={"keep": Param(str, default="x")},
+        select=lambda it, p: it["id"] == p["keep"])
+    res = kernel.run(spec, {"keep": "y"}, **_quiet())
+    rd = runs.load_run(spec.kind, res["date"], res["slug"])
+    assert [r["idc"] for r in _cell_rows(rd)] == ["y"]
+    q = kernel.plan(spec, {"keep": "z"}, **_quiet())
+    assert [c["idc"] for c in q["cells"]] == ["z"]
+
+
+def test_extra_item_fields_reach_cell(broot: Path):
+    """G2 passthrough: item fields beyond the framework keys land on the
+    cell dict verbatim — eval dedup_key callables read them."""
+    seen = []
+
+    def fn(ctx):
+        seen.append((ctx.cell.get("model"), ctx.cell.get("rep")))
+        return "ok"
+
+    spec = _free_spec({"a": fn}, [{"id": "x", "model": "mA", "rep": 2}])
+    kernel.run(spec, **_quiet())
+    assert seen == [("mA", 2)]
+    # and the frozen plan carries the extras (resume fidelity)
+    res = kernel.run(_free_spec({"a": fn},
+                                [{"id": "x", "model": "mA", "rep": 2}]),
+                     **_quiet())
+    rd = runs.load_run(spec.kind, res["date"], res["slug"])
+    plan_cell = json.loads(rd.plan_path().read_text())["cells"][0]
+    assert plan_cell["model"] == "mA" and plan_cell["rep"] == 2
+
+
+def test_sig_synthesized_from_first_error(broot: Path):
+    """G12: errors[0] -> 'cat:pay' when the fn doesn't return a sig."""
+
+    def fn(ctx):
+        return {"status": "fail",
+                "errors": [{"cat": "compile", "code": "runaway",
+                            "payload": "tcb"}]}
+
+    spec = _free_spec({"a": fn}, [{"id": "x"}])
+    res = kernel.run(spec, **_quiet())
+    rd = runs.load_run(spec.kind, res["date"], res["slug"])
+    assert _cell_rows(rd)[0]["sig"] == "compile:tcb"
+
+
+def test_sig_explicit_wins_over_synthesis(broot: Path):
+    spec = _free_spec(
+        {"a": lambda ctx: {"status": "fail", "sig": "custom:sig",
+                           "errors": [{"cat": "x"}]}},
+        [{"id": "x"}])
+    res = kernel.run(spec, **_quiet())
+    rd = runs.load_run(spec.kind, res["date"], res["slug"])
+    assert _cell_rows(rd)[0]["sig"] == "custom:sig"
+
+
+def test_sig_synthesized_for_emit_errors(broot: Path):
+    """Errors folded in via ctx.emit AFTER _terminal_ev ran still get a
+    synthesized sig (the post-merge re-check)."""
+
+    def fn(ctx):
+        ctx.emit({"errors": [{"cat": "late", "msg": "m"}]})
+        return "fail"
+
+    spec = _free_spec({"a": fn}, [{"id": "x"}])
+    res = kernel.run(spec, **_quiet())
+    rd = runs.load_run(spec.kind, res["date"], res["slug"])
+    assert _cell_rows(rd)[0]["sig"] == "late"
+
+
+def test_emit_case_lands_ledger_file_and_index(broot: Path):
+    """G9: emit_case rows ride the terminal batch -> case events ->
+    cases.jsonl + index.cases, all atomically with the cell verdict."""
+
+    def fn(ctx):
+        ctx.emit_case({"chunk": 0, "verdict": "pass"})
+        ctx.emit_case({"chunk": 1, "verdict": "fail", "esa": 0.4})
+        return "ok"
+
+    spec = _free_spec({"a": fn}, [{"id": "x"}])
+    res = kernel.run(spec, **_quiet())
+    rd = runs.load_run(spec.kind, res["date"], res["slug"])
+    cases = [e for e in _shard(rd) if e["type"] == "case"]
+    assert [c["payload"]["chunk"] for c in cases] == [0, 1]
+    assert all(c["stage"] == "a" and c["idc"] == "x" for c in cases)
+    cl = rd.cases_path()
+    rows = [json.loads(l) for l in cl.read_text().splitlines()]
+    assert len(rows) == 2 and rows[0]["payload"]["verdict"] == "pass"
+    idx = indexmod.Index()
+    try:
+        idx.tail_ingest()
+        got = idx.conn.execute(
+            "SELECT stage, payload FROM cases WHERE idc='x'").fetchall()
+    finally:
+        idx.close()
+    author_rows = [r for r in got
+                   if "chunk" in json.loads(r["payload"])]
+    assert len(author_rows) == 2
+    assert all(r["stage"] == "a" for r in author_rows)
+
+
+def test_emit_case_dies_with_failed_cell(broot: Path):
+    """A crashed cell emits no case rows — the buffer only flushes inside
+    the terminal batch."""
+    def fn(ctx):
+        ctx.emit_case({"chunk": 0})
+        raise RuntimeError("boom")
+
+    spec = _free_spec({"a": fn}, [{"id": "x"}])
+    res = kernel.run(spec, **_quiet())
+    rd = runs.load_run(spec.kind, res["date"], res["slug"])
+    # the error terminal still flushes the batch — the case row lands too
+    # (partial eval evidence is deliberately preserved for fail cells)
+    assert _cell_rows(rd)[0]["status"] == "error"
+    cases = [e for e in _shard(rd) if e["type"] == "case"]
+    assert len(cases) == 1  # buffered pre-crash rows DO land — doc'd choice
+
+
+def test_eval_paid_remapped_dedup_key_runs_and_dedups(broot: Path):
+    """G2: an eval paid stage may claim on a remapped keyspace; the cell's
+    own DONE row dedups the re-run (no mutates => no bytes to lose). Cell
+    uniqueness still rides arm/variant — the remap moves the CLAIM space."""
+    calls = []
+    spec = Spec(
+        kind="tevpaid", eval=True,
+        dedup_key=lambda c: (c["idc"], c.get("model", "-"),
+                             str(c.get("rep", "-"))),
+        items=[{"id": "s1", "variant": "v0", "model": "mA", "rep": 0},
+               {"id": "s1", "variant": "v1", "model": "mA", "rep": 1}],
+        stages=[_stage("judge",
+                       lambda ctx: calls.append(ctx.cell["rep"]) or "ok",
+                       paid=True)])
+    assert specmod.compile_checks(spec) == []
+    factory = _factory(object())
+    res = kernel.run(spec, max_cost=1.0, gateway_factory=factory, **_quiet())
+    rd = runs.load_run(spec.kind, res["date"], res["slug"])
+    assert [r["status"] for r in _cell_rows(rd)] == ["ok", "ok"]
+    assert calls == [0, 1]
+    claim_evs = [e for e in _shard(rd)
+                 if e["type"] == "claim" and e.get("op") == "acquire"]
+    keys = {(e["idc"], e["arm"], e["variant"]) for e in claim_evs}
+    assert keys == {("s1", "mA", "0"), ("s1", "mA", "1")}
+    calls.clear()
+    res2 = kernel.run(spec, max_cost=1.0, gateway_factory=factory,
+                      **_quiet())
+    rd2 = runs.load_run(spec.kind, res2["date"], res2["slug"])
+    assert [r["status"] for r in _cell_rows(rd2)] == ["dedup", "dedup"]
+    assert calls == []
+
+
+def test_process_executor_refused_loudly(broot: Path):
+    """G8 deferred: executor='process' fails fast at run entry, not on a
+    pickle error deep in the executor pass."""
+    spec = _free_spec({"a": lambda c: "ok"}, [{"id": "x"}],
+                      executor="process")
+    with pytest.raises(kernel.RunError, match="process"):
+        kernel.run(spec, **_quiet())
+    # stage-level override refuses identically
+    spec2 = _free_spec({"a": lambda c: "ok"}, [{"id": "x"}])
+    spec2.stages[0].executor = "process"
+    with pytest.raises(kernel.RunError, match="process"):
+        kernel.run(spec2, **_quiet())

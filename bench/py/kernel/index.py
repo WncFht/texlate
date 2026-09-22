@@ -132,7 +132,8 @@ CREATE TABLE IF NOT EXISTS eval_records (
     fp TEXT, dur_s REAL, metrics TEXT, errors TEXT, ts REAL
 );
 CREATE TABLE IF NOT EXISTS cases (
-    run TEXT, seq INTEGER, id TEXT, idc TEXT, payload TEXT, ts REAL
+    run TEXT, seq INTEGER, id TEXT, idc TEXT, stage TEXT,
+    payload TEXT, ts REAL
 );
 CREATE TABLE IF NOT EXISTS assets (
     idc TEXT, arm TEXT, variant TEXT, kind TEXT, path TEXT, sha TEXT,
@@ -311,6 +312,12 @@ class Index:
             }
             if "fate" not in cols:
                 return False
+            ccols = {
+                r["name"]
+                for r in self.conn.execute("PRAGMA table_info(cases)")
+            }
+            if "stage" not in ccols:
+                return False
             idxs = {
                 r["name"]
                 for r in self.conn.execute("PRAGMA index_list(events)")
@@ -344,6 +351,13 @@ class Index:
         }
         if "fate" not in cols:
             self.conn.execute("ALTER TABLE claims ADD COLUMN fate TEXT")
+        # cases.stage — additive, no schema bump (nullable; a rebuild
+        # backfills it for every row since both sources carry stage).
+        ccols = {
+            r["name"] for r in self.conn.execute("PRAGMA table_info(cases)")
+        }
+        if "stage" not in ccols:
+            self.conn.execute("ALTER TABLE cases ADD COLUMN stage TEXT")
         # idx_events_line_no — additive, no schema bump. Without it every
         # _txn's MAX(line_no) full-scans the events mirror (observed: a
         # per-event sink ground at ~2.5GB/s of page reads on a 500k-row
@@ -541,6 +555,15 @@ class Index:
         cur = self.conn
         if t in (events.T_CELL_QUEUED, events.T_CELL_STARTED, events.T_CELL):
             self._proj_cell(cur, ev, t)
+        elif t == events.T_CASE:
+            # Author eval rows (Ctx.emit_case) — same sink as the queued
+            # manifest; payload is the author's dict, not the whole event.
+            cur.execute(
+                "INSERT INTO cases(run,seq,id,idc,stage,payload,ts)"
+                " VALUES (?,?,?,?,?,?,?)",
+                (ev.get("run"), ev.get("seq"), ev.get("id"), ev.get("idc"),
+                 ev.get("stage"), _j(ev.get("payload")), ev.get("ts")),
+            )
         elif t == events.T_CLAIM:
             self._proj_claim(cur, ev)
         elif t == events.T_ASSET:
@@ -593,10 +616,10 @@ class Index:
         )
         if t == events.T_CELL_QUEUED:
             cur.execute(
-                "INSERT INTO cases(run,seq,id,idc,payload,ts)"
-                " VALUES (?,?,?,?,?,?)",
+                "INSERT INTO cases(run,seq,id,idc,stage,payload,ts)"
+                " VALUES (?,?,?,?,?,?,?)",
                 (ev.get("run"), ev.get("seq"), ev.get("id"), ev.get("idc"),
-                 events.dumps(ev), ev.get("ts")),
+                 ev.get("stage"), events.dumps(ev), ev.get("ts")),
             )
         elif t == events.T_CELL:
             row = (

@@ -325,6 +325,22 @@ class Ctx:
         self._outbox.append(dict(row or {}))
         return row
 
+    def emit_case(self, row: dict) -> dict:
+        """Per-sample eval account row — the CaseSink lane (§3.2 layout).
+
+        ``row`` is the author's free-form payload dict (chunk verdict,
+        sample score, ...). Buffered with the cell's terminal batch: the
+        row lands as a ``case`` ledger event (index ``cases`` table) AND
+        a cases.jsonl line atomically with the terminal — a crashed cell
+        leaves no orphan cases, and an index rebuild replays them.
+        """
+        ev = events.make_event(
+            events.T_CASE, run=self.run, seq=None, id=self.id, idc=self.idc,
+            arm=self.arm, up=self.up, variant=self.variant,
+            stage=self.stage, payload=dict(row or {}))
+        self._outbox.append(ev)
+        return ev
+
     def emit_note(self, text: str, level: str = "info"):
         """Author → note event. Buffered with the cell batch when no
         emit_note_fn is wired."""
