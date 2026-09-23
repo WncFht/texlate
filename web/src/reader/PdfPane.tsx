@@ -94,9 +94,15 @@ export interface PaneHandle extends PaneLike {
     /** 点击坐标 → Pos（sent-align PDF 源侧臂）：elementFromPoint 命中页 →
         {page, 页内 top-down 分位}；容器外/页间缝 null */
     posAtPoint?(x: number, y: number): Pos | null;
+    /** 点击坐标 → seq（elementFromPoint 命中 markedContent span——
+        TLXC 锚文档精确序；无锚命中/未渲染页 null，调用方按兜底语义走） */
+    seqAtPoint?(x: number, y: number): number | null;
     /** Pos 落点闪示（sent-align PDF→PDF 臂）：命中页 textLayer 分位行带
         加 .sa-flash——单轨，新闪清旧闪 */
     flashAtPos?(pos: Pos): void;
+    /** seq 锚闪示（sent-align seq 精度臂）：seqEls 命中则整组闪；
+        无已渲染锚（懒渲染页/en.pdf 无标）→ pos 在场落回 flashAtPos */
+    flashSeq?(seq: number, pos: Pos | null): void;
     /** find-usages pdf 臂：cite.<key> dest 反查 link annot 站集开卡 */
     openUsagesFor?(
         target: Element | string | null,
@@ -656,6 +662,16 @@ export default function PdfPane(props: Props) {
             ].filter((el) => seqOfMarkedSpan(el) === seq);
         },
         seqPage: (seq) => seqPageMap.get(seq)?.page ?? null,
+        seqAtPoint: (x, y) => {
+            const c = viewer()?.container;
+            if (!c) return null;
+            // markedContent span 或其内层文本片——closest 上爬取锚宿主
+            const sp = c.ownerDocument
+                .elementFromPoint(x, y)
+                ?.closest<HTMLElement>(MARKED_SEL);
+            if (!sp || !c.contains(sp)) return null;
+            return seqOfMarkedSpan(sp);
+        },
         posAtPoint: (x, y) => {
             const c = viewer()?.container;
             if (!c) return null;
@@ -673,6 +689,14 @@ export default function PdfPane(props: Props) {
                         ? Math.min(Math.max((y - r.top) / r.height, 0), 1)
                         : 0,
             };
+        },
+        flashSeq(seq, pos) {
+            const els = this.seqEls?.(seq) ?? [];
+            if (els.length) {
+                saFlash(els);
+                return;
+            }
+            if (pos) this.flashAtPos?.(pos);
         },
         flashAtPos: (pos) => {
             const views = (

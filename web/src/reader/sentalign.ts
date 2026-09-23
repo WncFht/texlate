@@ -451,6 +451,14 @@ export interface SentAlignDeps {
     ): Promise<{ pre: Pos; post: Pos } | null>;
     /** PDF→PDF 落点闪示（PdfPane.flashAtPos 桥——r.post 分位行带） */
     pdfFlash?(dst: SaSide, pos: Pos): void;
+    /** seq+侧 → Pos（服务端 seqpos——seq 精度直锚，seq 臂优先于
+        mapPos 分位插值）；不可查返回 null */
+    seqPos?(seq: number, side: SaSide): Pos | null;
+    /** data-chunk key → seq（ReaderView seqOf 桥——DOM 侧 seq 定位） */
+    seqOfChunk?(key: string): number | null;
+    /** seq 锚闪示（PdfPane.flashSeq 桥——markedContent 整组闪；
+        缺省调用方落回 pdfFlash 行带） */
+    pdfFlashSeq?(dst: SaSide, seq: number, pos: Pos | null): void;
     /** 增量重注防抖（ms，缺省 60——LivePane rAF 分片一拍内合批） */
     debounceMs?: number;
     /** flash 时长（ms，缺省 1400——cite-flash 同款） */
@@ -518,13 +526,15 @@ export class SentAlignSession {
         this.pdfTargets.add(side);
     }
 
-    /** pdf 源侧点击（PDF→PDF 补臂）：el 上 delegated click → posAtPoint
-        命中 → jumpPosToPdf。守卫与 attachBody.onClick 同口径——链接/
-        按钮/批注层/悬浮卡让位，拖选收尾不跳。幂等重挂。 */
+    /** pdf 源侧点击（PDF→PDF/PDF→DOM 补臂）：el 上 delegated click →
+        seqAtPoint 命中 seq → jumpSeq（seq 精度快路）；无 seq 兜底
+        posAtPoint → jumpPosToPdf。守卫与 attachBody.onClick 同口径——
+        链接/按钮/批注层/悬浮卡让位，拖选收尾不跳。幂等重挂。 */
     mountPdfClickSource(
         side: SaSide,
         el: HTMLElement,
         posAtPoint: (x: number, y: number) => Pos | null,
+        seqAtPoint?: (x: number, y: number) => number | null,
     ): void {
         this.pdfClickDetach.get(side)?.();
         const onClick = (e: MouseEvent) => {
@@ -537,6 +547,8 @@ export class SentAlignSession {
                 return;
             const sel = el.ownerDocument?.getSelection?.();
             if (sel && !sel.isCollapsed) return;
+            const seq = seqAtPoint?.(e.clientX, e.clientY) ?? null;
+            if (seq != null && this.jumpSeq(side, seq)) return;
             const pos = posAtPoint(e.clientX, e.clientY);
             if (!pos) return;
             this.jumpPosToPdf(side, pos);
@@ -824,11 +836,80 @@ export class SentAlignSession {
         this.deps.recordJump?.(dst, pre, post);
     }
 
-    /** DOM→PDF（v1.5）：源句 sid → chunk Pos + 句内分位 → mapPos →
-        pdfDest 合成 XYZ dest → pdfJump → recordJump。 */
+    /** seq 精度点击分派（v2）：PDF 源侧 seqAtPoint 命中后的快路。
+        dst 是 DOM → seqOfChunk 找块元素滚位+sa-flash；dst 是 pdf →
+        seqPos 直锚 → pdfDest/pdfJump → pdfFlashSeq（锚闪）/pdfFlash
+        （行带兜底）。不可落地 → false（调用方走位置映射兜底）。 */
+    private jumpSeq(src: SaSide, seq: number): boolean {
+        const dst = other(src);
+        const st = this.sides.get(dst);
+        if (st?.body && this.deps.seqOfChunk) {
+            const els = [
+                ...st.body.querySelectorAll("[data-chunk]"),
+            ].filter(
+                (el) =>
+                    this.deps.seqOfChunk!(
+                        el.getAttribute("data-chunk") ?? "",
+                    ) === seq,
+            );
+            if (els.length) {
+                this.deps.navBegin?.();
+                const pre = st.capture?.() ?? null;
+                const first = els[0] as HTMLElement;
+                const sr = st.scroller.getBoundingClientRect();
+                st.scroller.scrollTop +=
+                    first.getBoundingClientRect().top - sr.top - 12;
+                this.flash(els);
+                const post = st.capture?.() ?? null;
+                this.deps.recordJump?.(dst, pre, post);
+                return true;
+            }
+        }
+        const pos = this.deps.seqPos?.(seq, dst) ?? null;
+        if (!pos || !this.deps.pdfDest || !this.deps.pdfJump) return false;
+        this.deps.navBegin?.();
+        void Promise.resolve(this.deps.pdfDest(dst, pos)).then((dest) => {
+            if (!dest) return;
+            return this.deps.pdfJump!(dst, dest).then((r) => {
+                if (!r) return;
+                this.deps.recordJump?.(dst, r.pre, r.post);
+                if (this.deps.pdfFlashSeq)
+                    this.deps.pdfFlashSeq(dst, seq, r.post);
+                else this.deps.pdfFlash?.(dst, r.post);
+            });
+        });
+        return true;
+    }
+
+    /** DOM→PDF：seq 快路优先（chunk key→seq→seqPos 直锚，seq 精度+
+        锚闪）；seqpos 缺席落回 sid 分位→mapPos→pdfDest 旧臂
+        （sidPos 以块序充 page——对齐 kind:"pages" 才成立，pdf 视图
+        下是粗近似兜底）。 */
     private jumpSidToPdf(src: SaSide, sp: Element): void {
         const dst = other(src);
         if (!this.pdfTargets.has(dst) && !this.deps.pdfJump) return;
+        const key = sp
+            .closest("[data-chunk]")
+            ?.getAttribute("data-chunk");
+        const seq =
+            key != null ? (this.deps.seqOfChunk?.(key) ?? null) : null;
+        const sPos =
+            seq != null ? (this.deps.seqPos?.(seq, dst) ?? null) : null;
+        if (sPos && this.deps.pdfDest && this.deps.pdfJump) {
+            void Promise.resolve(this.deps.pdfDest(dst, sPos)).then(
+                (dest) => {
+                    if (!dest) return;
+                    return this.deps.pdfJump!(dst, dest).then((r) => {
+                        if (!r) return;
+                        this.deps.recordJump?.(dst, r.pre, r.post);
+                        if (this.deps.pdfFlashSeq && seq != null)
+                            this.deps.pdfFlashSeq(dst, seq, r.post);
+                        else this.deps.pdfFlash?.(dst, r.post);
+                    });
+                },
+            );
+            return;
+        }
         if (!this.deps.mapPos || !this.deps.pdfDest || !this.deps.pdfJump)
             return;
         const pos = this.sidPos(src, sp);
@@ -837,7 +918,9 @@ export class SentAlignSession {
         void Promise.resolve(this.deps.pdfDest(dst, mapped)).then((dest) => {
             if (!dest) return;
             return this.deps.pdfJump!(dst, dest).then((r) => {
-                if (r) this.deps.recordJump?.(dst, r.pre, r.post);
+                if (!r) return;
+                this.deps.recordJump?.(dst, r.pre, r.post);
+                this.deps.pdfFlash?.(dst, r.post);
             });
         });
     }

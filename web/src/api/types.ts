@@ -382,6 +382,10 @@ export interface ReaderInfo {
         translated?: ReaderDoc;
     };
     alignment?: Alignment;
+    /** seq 级双侧 Pos（服务端 seqpos.json 懒算产物，{seq:{o,t}}）——
+        顶层独立键不进 alignment（dual()?.alignment 优先级会盖掉注入值，
+        前端经 pdfseqpos.ts 自行消费）；不可算任务缺席/{} */
+    seqpos?: Record<string, { o?: Pos; t?: Pos }>;
     reading?: ReadingState | null;
 }
 

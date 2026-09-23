@@ -37,9 +37,11 @@ import { bindMenuDismiss } from "../components/menuNav";
 import {
     createPositionMapper,
     other,
+    type Alignment,
     type DocId,
     type Pos,
 } from "./alignment";
+import { nearestSeq, seqPairs, seqPos } from "./pdfseqpos";
 import { annotFileName, zoomToFontPx } from "./paneUtils";
 import { capturePos, jumpTo, scrollTopFor, SyncEngine } from "./sync";
 import { buildCiteIndex, type BibEntry, type RefMeta } from "./citations";
@@ -273,7 +275,8 @@ export default function ReaderView(props: Props) {
                     capture: () => capturePos(h),
                 });
             } else {
-                // pdf 窗格无 DOM 体——DOM→PDF 跳转目标 + PDF→PDF 点击源
+                // pdf 窗格无 DOM 体——DOM→PDF 跳转目标 + PDF 点击源
+                // （seqAtPoint：TLXC 锚命中优先，未命中 nearestSeq 兜底）
                 out.push({
                     kind: "pdf",
                     side: saSide,
@@ -288,6 +291,19 @@ export default function ReaderView(props: Props) {
                         "posAtPoint" in h
                             ? (h.posAtPoint?.(x, y) ?? null)
                             : null,
+                    seqAtPoint: (x, y) => {
+                        if ("seqAtPoint" in h) {
+                            const s = h.seqAtPoint?.(x, y);
+                            if (s != null) return s;
+                        }
+                        const p =
+                            "posAtPoint" in h
+                                ? h.posAtPoint?.(x, y)
+                                : null;
+                        return p
+                            ? nearestSeq(seqposMap(), saSide, p)
+                            : null;
+                    },
                 });
             }
         }
@@ -326,6 +342,16 @@ export default function ReaderView(props: Props) {
                 const h =
                     handles()[dst === "zh" ? "translated" : "original"];
                 if (h && "flashAtPos" in h) h.flashAtPos?.(pos);
+            },
+            // seq 臂：seqpos 直锚（Option B 服务端注入的消费口）
+            seqPos: (seq, side) => seqPos(seqposMap(), seq, side),
+            seqOfChunk: (key) => seqOf().get(key) ?? null,
+            pdfFlashSeq: (dst, seq, pos) => {
+                const h =
+                    handles()[dst === "zh" ? "translated" : "original"];
+                if (h && "flashSeq" in h) h.flashSeq?.(seq, pos);
+                else if (h && "flashAtPos" in h && pos)
+                    h.flashAtPos?.(pos);
             },
         },
     });
@@ -378,6 +404,10 @@ export default function ReaderView(props: Props) {
         zh 盲区兜底与 sent-align 的 live 侧登记共用此源） */
     const liveBodyEl = (): HTMLElement | null =>
         document.querySelector<HTMLElement>(".live-pane .pane-html-body");
+
+    /** GET /reader 顶层 seqpos——seq 级双侧 Pos（服务端懒算缓存）。
+        mapper landmarks 合流与 sent-align seq 臂共用此源 */
+    const seqposMap = createMemo(() => info()?.seqpos ?? {});
 
     /** chunk_id→seq 映射（dom 键）+ seq 串直解（html 键）双登记 */
     const seqOf = createMemo(() => {
@@ -1072,12 +1102,21 @@ export default function ReaderView(props: Props) {
         };
     });
 
-    const mapper = createMemo(() =>
-        createPositionMapper(
-            dual()?.alignment ?? info()?.alignment,
-            pageCounts(),
-        ),
-    );
+    const mapper = createMemo(() => {
+        const al = dual()?.alignment ?? info()?.alignment;
+        const sp = seqPairs(seqposMap());
+        if (!sp.length) return createPositionMapper(al, pageCounts());
+        // seq pairs 合流 landmarks——kind:"pages"（或无 alignment）需
+        // 翻牌才生效（createPositionMapper 的 useLandmarks 闸）；旧
+        // pairs 保留，mapper 内部按两侧各自排序（浮动体出序诚实成结）
+        const merged: Alignment = {
+            kind: al?.kind === "pages" || !al ? "landmarks" : al.kind,
+            heights: al?.heights,
+            regions: al?.regions,
+            pairs: [...(al?.pairs ?? []), ...sp],
+        };
+        return createPositionMapper(merged, pageCounts());
+    });
 
     /** split + 两侧 handle 就位 → 建引擎；否则销毁（handles() 是响应源）。
      *  syncing 不参与本 effect——开/关同步不再整台引擎重挂（滚动监听重绑是白烧） */

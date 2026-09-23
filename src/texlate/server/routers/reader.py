@@ -11,6 +11,7 @@ from fastapi import Request, Response  # noqa: TC002
 from fastapi.responses import JSONResponse
 
 from texlate.server.http import _json_error, _read_body
+from texlate.server.seqpos import seqpos_for_task
 from texlate.xlat.state import atomic_json
 
 if TYPE_CHECKING:
@@ -73,10 +74,17 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 端
                 raw_reading = {}
             if isinstance(raw_reading, dict):
                 reading = raw_reading
+        # seq 级对位——懒算缓存 seqpos.json，注入顶层字段而非 alignment
+        # （前端 dual()?.alignment 优先级高于本响应的 alignment，注进
+        # 里面会被盖掉；seqpos 独立键前端自行消费）。失败/缺席降级 {}。
+        seqpos = await asyncio.to_thread(
+            seqpos_for_task, deps.task_dir(task_id), dual
+        )
         return JSONResponse(
             {
                 "documents": docs,
                 "alignment": dual.get("alignment") or {"kind": "pages"},
+                "seqpos": seqpos or {},
                 "reading": reading,
                 # zh_html = arxiv_html 链 DOM 产物 → dom 视图（pages 语义即
                 # 锚点数）；md_zip = 无 PDF 路的降级登记物；zh_pdf 在则 pdf

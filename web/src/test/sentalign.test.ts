@@ -537,4 +537,190 @@ describe("SentAlignSession", () => {
         expect(calls).toEqual([]);
         s.destroy();
     });
+
+    it("PDF→PDF seq 快路：seqAtPoint 命中 → seqPos/pdfDest/pdfJump → recordJump+pdfFlashSeq（posAtPoint/mapPos 不碰）", async () => {
+        const pdf = paneBody(
+            `<div class="textLayer"><span>line one.</span></div>`,
+        );
+        const calls: string[] = [];
+        const s = new SentAlignSession({
+            navBegin: () => calls.push("navBegin"),
+            seqPos: (seq, side) => {
+                calls.push(`seqPos:${seq}:${side}`);
+                return { page: 6, fraction: 0.3 };
+            },
+            pdfDest: (_d, pos) => {
+                calls.push(`pdfDest:${pos.page}`);
+                return [pos.page - 1, { name: "XYZ" }, 0, 100, null];
+            },
+            pdfJump: (_d, dest) => {
+                calls.push(`pdfJump:${(dest as unknown[])[0]}`);
+                return Promise.resolve({
+                    pre: { page: 1, fraction: 0 },
+                    post: { page: 6, fraction: 0.3 },
+                });
+            },
+            recordJump: (d, pre, post) =>
+                calls.push(`recordJump:${d}:${pre?.page}->${post?.page}`),
+            pdfFlash: (d, pos) => calls.push(`pdfFlash:${d}:${pos.page}`),
+            pdfFlashSeq: (d, seq, pos) =>
+                calls.push(`pdfFlashSeq:${d}:${seq}:${pos?.page}`),
+            mapPos: () => {
+                calls.push("mapPos");
+                return { page: 0, fraction: 0 };
+            },
+        });
+        s.mountPdfSide("zh");
+        s.mountPdfClickSource(
+            "en",
+            pdf,
+            (x, y) => {
+                calls.push(`posAtPoint:${x},${y}`);
+                return { page: 2, fraction: 0.5 };
+            },
+            (x, y) => {
+                calls.push(`seqAtPoint:${x},${y}`);
+                return 42;
+            },
+        );
+        const sp = pdf.querySelector("span")!;
+        sp.dispatchEvent(
+            new MouseEvent("click", {
+                bubbles: true,
+                clientX: 10,
+                clientY: 20,
+            }),
+        );
+        await tick();
+        // seq 快路全程不碰 posAtPoint/mapPos——seqPos 直锚 + 锚闪
+        // （navBegin 在 seqPos 落定后——不可落地不静音导航）
+        expect(calls).toEqual([
+            "seqAtPoint:10,20",
+            "seqPos:42:zh",
+            "navBegin",
+            "pdfDest:6",
+            "pdfJump:5",
+            "recordJump:zh:1->6",
+            "pdfFlashSeq:zh:42:6",
+        ]);
+        s.destroy();
+    });
+
+    it("seq 快路不可落地（seqPos null）→ 落回 posAtPoint 兜底臂", async () => {
+        const pdf = paneBody(`<div class="textLayer"><span>x.</span></div>`);
+        const calls: string[] = [];
+        const s = new SentAlignSession({
+            seqPos: () => null,
+            mapPos: () => ({ page: 3, fraction: 0.5 }),
+            pdfDest: (_d, pos) => [pos.page - 1, { name: "XYZ" }, 0, 0, null],
+            pdfJump: () =>
+                Promise.resolve({
+                    pre: { page: 1, fraction: 0 },
+                    post: { page: 3, fraction: 0.5 },
+                }),
+            recordJump: (d) => calls.push(`recordJump:${d}`),
+        });
+        s.mountPdfSide("zh");
+        s.mountPdfClickSource(
+            "en",
+            pdf,
+            () => {
+                calls.push("posAtPoint");
+                return { page: 2, fraction: 0.4 };
+            },
+            () => {
+                calls.push("seqAtPoint");
+                return 7;
+            },
+        );
+        pdf.querySelector("span")!.dispatchEvent(
+            new MouseEvent("click", { bubbles: true, clientX: 1, clientY: 1 }),
+        );
+        await tick();
+        // seqAtPoint 给了 seq 但 seqPos 查不到 → jumpSeq false → 兜底
+        expect(calls).toEqual(["seqAtPoint", "posAtPoint", "recordJump:zh"]);
+        s.destroy();
+    });
+
+    it("PDF→DOM：seq 命中对侧 DOM → 块滚位 + sa-flash + recordJump", async () => {
+        const pdf = paneBody(`<div class="textLayer"><span>x.</span></div>`);
+        const zh = paneBody(
+            `<div data-chunk="S1.p1"><p>甲。</p></div>` +
+                `<div data-chunk="S1.p2"><p>乙二。</p></div>`,
+        );
+        const calls: string[] = [];
+        const pos: Pos = { page: 1, fraction: 0 };
+        const s = new SentAlignSession({
+            navBegin: () => calls.push("navBegin"),
+            seqOfChunk: (k) => (k === "S1.p2" ? 7 : null),
+            recordJump: (d, pre, post) =>
+                calls.push(`recordJump:${d}:${pre?.page}->${post?.page}`),
+        });
+        await s.mountSide("zh", zh, { capture: () => pos });
+        s.mountPdfClickSource(
+            "en",
+            pdf,
+            () => {
+                calls.push("posAtPoint");
+                return { page: 2, fraction: 0.4 };
+            },
+            () => 7,
+        );
+        pdf.querySelector("span")!.dispatchEvent(
+            new MouseEvent("click", { bubbles: true, clientX: 5, clientY: 5 }),
+        );
+        await tick();
+        expect(calls).toEqual(["navBegin", "recordJump:zh:1->1"]);
+        // 落点闪示打在 seq 对应的 chunk 块上
+        const flashed = zh.querySelectorAll(".sa-flash");
+        expect(flashed).toHaveLength(1);
+        expect(flashed[0]!.getAttribute("data-chunk")).toBe("S1.p2");
+        s.destroy();
+    });
+
+    it("DOM→PDF seq 快路：sid 点击 → seqOfChunk+seqPos 直锚（mapPos 不碰）+ pdfFlashSeq", async () => {
+        const en = paneBody(
+            `<div data-chunk="c0"><p>First half. Second half.</p></div>`,
+        );
+        const calls: string[] = [];
+        const s = new SentAlignSession({
+            seqOfChunk: (k) => (k === "c0" ? 11 : null),
+            seqPos: (seq, side) => {
+                calls.push(`seqPos:${seq}:${side}`);
+                return { page: 8, fraction: 0.2 };
+            },
+            pdfDest: (_d, pos) => {
+                calls.push(`pdfDest:${pos.page}`);
+                return [pos.page - 1, { name: "XYZ" }, 0, 50, null];
+            },
+            pdfJump: (_d, dest) => {
+                calls.push(`pdfJump:${(dest as unknown[])[0]}`);
+                return Promise.resolve({
+                    pre: { page: 1, fraction: 0 },
+                    post: { page: 8, fraction: 0.2 },
+                });
+            },
+            recordJump: (d, pre, post) =>
+                calls.push(`recordJump:${d}:${pre?.page}->${post?.page}`),
+            pdfFlashSeq: (d, seq, pos) =>
+                calls.push(`pdfFlashSeq:${d}:${seq}:${pos?.page}`),
+            mapPos: () => {
+                calls.push("mapPos");
+                return { page: 0, fraction: 0 };
+            },
+        });
+        await s.mountSide("en", en);
+        s.mountPdfSide("zh");
+        const sp = en.querySelector('[data-sid="c0.1"]')!;
+        sp.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        await tick();
+        expect(calls).toEqual([
+            "seqPos:11:zh",
+            "pdfDest:8",
+            "pdfJump:7",
+            "recordJump:zh:1->8",
+            "pdfFlashSeq:zh:11:8",
+        ]);
+        s.destroy();
+    });
 });

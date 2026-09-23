@@ -45,10 +45,13 @@ export interface SentAlignPane {
     scroller?: HTMLElement;
     /** Pos 快照（recordJump 记账的 pre/post 源——handle.capture 绑定形） */
     capture?(): Pos;
-    /** pdf 源侧点击挂点（PDF→PDF 臂——viewer 容器；dom 侧不给） */
+    /** pdf 源侧点击挂点（PDF→PDF/PDF→DOM 臂——viewer 容器；dom 侧不给） */
     clickEl?: HTMLElement;
     /** 点击坐标 → Pos（PdfPane.posAtPoint 桥） */
     posAtPoint?(x: number, y: number): Pos | null;
+    /** 点击坐标 → seq（PdfPane.seqAtPoint 桥 + 宿主 nearestSeq 兜底——
+        在场时点击走 seq 精度快路，Pos 臂降为兜底） */
+    seqAtPoint?(x: number, y: number): number | null;
 }
 
 export interface SentAlignAttachOpts {
@@ -102,7 +105,8 @@ export function attachSentAlign(opts: SentAlignAttachOpts): SentAlignHandle {
                 });
             } else {
                 // 无 body 的侧（pdf 窗格）——DOM→PDF 目标登记；
-                // clickEl+posAtPoint 在场同侧挂 PDF→PDF 点击源
+                // clickEl+posAtPoint 在场同侧挂 PDF 点击源（seqAtPoint
+                // 可选项——给了点击先走 seq 快路，缺席纯 Pos 臂）
                 mounted.delete(side);
                 session.unmountSide(side);
                 session.mountPdfSide(side);
@@ -111,6 +115,7 @@ export function attachSentAlign(opts: SentAlignAttachOpts): SentAlignHandle {
                         side,
                         p.clickEl,
                         p.posAtPoint,
+                        p.seqAtPoint,
                     );
             }
         }
