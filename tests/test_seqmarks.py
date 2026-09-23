@@ -21,6 +21,7 @@ from conftest import DOC, scan_doc
 
 from texlate.latex.reconstruct import (
     _MARK_CLOSE,
+    SEQ_MARK_RX,
     _Expander,
     _mark_open,
     reconstruct,
@@ -28,7 +29,7 @@ from texlate.latex.reconstruct import (
     strip_seq_marks,
     translation_tokens,
 )
-from texlate.repair_l2 import TreeRun, _resplice
+from texlate.repair_l2 import L2Attr, TreeRun, _resplice
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -336,6 +337,31 @@ def test_resplice_imbalance_self_heal(
     assert "TLXC" not in zh
     assert "pdf:code EMC" not in zh
     assert "imbalanced" in caplog.text
+
+
+def test_attribute_through_bdc_line_head(tmp_path: Path) -> None:
+    """行首 BDC 前缀把 span 起点推出行首 off——attribute 须视同含行首。
+
+    回归钉：标记态 file:line 归因曾 forward-fallback 错贴前块（e2e
+    ``test_l2_retranslate_then_recompile`` 实证 hits '0:1' 而非 '0:2'）。
+    """
+    work, run = _mk_run(tmp_path, {"main.tex": (_BODY2, dict(_ZH2))})
+    _resplice(run, work, "main.tex", {0}, seq_marks=True)
+    lines = (work / "main.tex").read_text(encoding="utf-8").splitlines()
+    line2 = next(i + 1 for i, ln in enumerate(lines) if _mcid(1) in ln)
+    attr = L2Attr(run=run, work=work)
+    attr.file_state(0)
+    assert attr.attribute(0, line2) == 1
+    # 对照：剥锚重写后同位置仍归 1——修复不破坏无锚归因
+    (work / "main.tex").write_text(
+        SEQ_MARK_RX.sub("", (work / "main.tex").read_text(encoding="utf-8")),
+        encoding="utf-8",
+    )
+    attr2 = L2Attr(run=run, work=work)
+    attr2.file_state(0)
+    stripped = (work / "main.tex").read_text(encoding="utf-8").splitlines()
+    line2s = next(i + 1 for i, ln in enumerate(stripped) if _ZH2[1] in ln)
+    assert attr2.attribute(0, line2s) == 1
 
 
 # ---------------------------------------------------------------- xelatex 实证

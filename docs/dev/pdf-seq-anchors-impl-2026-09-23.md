@@ -198,3 +198,12 @@ seqOfMarkedSpan(el): number | null      // id 尾 _mc<N> 且 N>=50000 → N-5000
 外科注锚实证路径（活服旧码不重启的验证法）记 `tmp/zzmark_real_task.py`
 ——task zh/ 拷贝→`\n\n` 段块 CJK≥20 前 8 枚包 BDC/EMC→xelatex→pypdf
 自检→unlink+换 zh.pdf（硬链接件不可原地写）。
+
+**提交后回归修复**（同日复盘）：823107dc 落地后 e2e 两例红
+（`test_l2_retranslate_then_recompile`/`test_l2_fallback_verified_fixloop_off`）
+——行首 `\special{BDC}` 前缀把 chunk span 起点推出行首偏移 `off`，
+`L2Attr.attribute` 的 `s<=off<e` 含行判失败 → forward-fallback 把行错贴给
+**前一块**（实证 hits '0:1' 而非 '0:2'，重译误入长块触发 L0 长度比 revert）。
+修复 = `attribute` 增「行首到 span 起点仅 seq 锚/空白即视同含行首」判据
+（repair_l2.py:413）；回归钉 `test_attribute_through_bdc_line_head`（49/49）。
+教训：锚是**行内字节**——凡按行首偏移做含行判的消费面都要过这一闸。

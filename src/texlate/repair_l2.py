@@ -25,6 +25,7 @@ from texlate.compile.inject import InjectRejectError, prepare_chinese
 from texlate.compile.judge import paired_slot_diff
 from texlate.latex.reconstruct import (
     MARK_MOVING_UNSAFE_RX,
+    SEQ_MARK_RX,
     _Expander,
     reconstruct,
     seq_mark_issues,
@@ -398,6 +399,7 @@ class L2Attr:
         offs = self.line_off[fidx]
         if not (1 <= tex_line <= len(offs) - 1):
             return None
+        text = self.texts[fidx]
         off = offs[tex_line - 1]
         line_end = offs[tex_line]
         best_cid, best_gap = None, _L2_ATTR_WINDOW + 1
@@ -406,6 +408,10 @@ class L2Attr:
                 continue
             s, e = sp
             if s <= off < e:
+                return cid
+            # 行首到 span 起点仅 seq 锚/空白 = span 视同含行首：BDC 前缀把
+            # span 起点推出 off，行错会被 forward-fallback 错贴给前块
+            if off < s < line_end and not SEQ_MARK_RX.sub("", text[off:s]).strip():
                 return cid
             if not nearest or s >= line_end:
                 continue
