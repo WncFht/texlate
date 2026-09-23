@@ -100,14 +100,14 @@ export function chunkUntranslated(c: {
 // DOM 文本节点反查替换：公式体补定界符交给下游 KaTeX auto-render，引用/
 // 链接/抄录剥壳成可读文本，纯排版命令与内部标记静默隐去；ph 缺席
 // （live 轮询行/旧产物）token 降级成 muted chip，不露掩码原形。
-const PH_TOKEN_RX = /\[\[\s*([A-Z]+)\s*_?(\d+)\s*\]\]/g;
+export const PH_TOKEN_RX = /\[\[\s*([A-Z]+)\s*_?(\d+)\s*\]\]/g;
 const PH_PROBE = /\[\[\s*[A-Z]+\s*_?\d+\s*\]\]/;
 
 // 未走掩码直接漏进文本的 LaTeX 残件——纯排版命令/断行/排版空白清掉，
 // 带参格式命令剥壳留文本，转义字符回本字，`{-}`（显式连字符）→ `-`，
 // `~`（排版 nbsp）→ 空格。剥壳类规则可生新残件（嵌套 `\textbf{a \emph{b}}`），
 // pushText 侧做定点复扫。
-const RESIDUE_RULES: [RegExp, string][] = [
+export const RESIDUE_RULES: [RegExp, string][] = [
     // 断行可选参须先于 \\\\ 清理——`\\[0.2in]` 先吃 `\\` 会留 `[0.2in]`
     [/\\\\\s*\[[\d.]+[a-z]{2}\]/gi, " "],
     [/\\\[[\d.]+[a-z]{2}\]/gi, " "],
@@ -164,7 +164,7 @@ function braceGroups(body: string): string[] {
 }
 
 /** 单枚占位符 → 阅读文本；null = 静默隐去（内部标记类） */
-function phText(kind: string, body: string): string | null {
+export function phText(kind: string, body: string): string | null {
     const b = body.trim();
     switch (kind) {
         case "MATH": {
@@ -231,7 +231,13 @@ export function unmaskLatex(
     while ((n = w.nextNode())) {
         const t = n as Text;
         const p = t.parentElement;
-        if (!p || p.closest("code,pre,.ph-tok,.katex")) continue;
+        // [data-ph]/.cite-ref/.bib-anchor 是本函数产出的插桩包装——重跑
+        //（重译重绘在同 el 上再进 finishChunk）时它们的正文绝不再扫
+        if (
+            !p ||
+            p.closest("code,pre,.ph-tok,.katex,[data-ph],.cite-ref,.bib-anchor")
+        )
+            continue;
         if (PH_PROBE.test(t.data) || RESIDUE_PROBE.test(t.data))
             nodes.push(t);
     }
@@ -261,7 +267,39 @@ export function unmaskLatex(
             const body = phm[`[[${m[1]}_${m[2]}]]`];
             const rep = body != null ? phText(m[1], body) : null;
             if (rep != null) {
-                frag.appendChild(document.createTextNode(rep));
+                // §2.2 微插桩：MATH 替身包 span[data-ph]（值=原掩码键
+                // verbatim——copy-latex 反查锚）；CITE 替身包
+                // a.cite-ref[data-key]（cite 悬浮卡/收藏键面——多键
+                // \cite{a,b} 保逗号串）。其余替身仍走裸文本节点。
+                if (m[1] === "MATH") {
+                    const sp = document.createElement("span");
+                    sp.dataset.ph = `[[${m[1]}_${m[2]}]]`;
+                    sp.textContent = rep;
+                    frag.appendChild(sp);
+                } else if (m[1] === "CITE") {
+                    const a = document.createElement("a");
+                    a.className = "cite-ref";
+                    const km =
+                        /\\cite\w*\*?\s*(?:\[[^\]]*\]\s*)*\{([^}]*)\}/.exec(
+                            body,
+                        );
+                    if (km) a.dataset.key = km[1];
+                    a.textContent = rep;
+                    frag.appendChild(a);
+                } else if (m[1] === "BIB") {
+                    // bib 目标载体：html 臂 find-usages 的条目宿主锚
+                    // （\bibitem[opt]{key}——bibAt/usageEntryFromCiteMap
+                    // 的 data-bib-key 索引键与 usages.ts BIBITEM_KEY_RX 同口径）
+                    const sp = document.createElement("span");
+                    sp.className = "bib-anchor";
+                    const km =
+                        /\\bibitem\s*(?:\[[^\]]*\]\s*)?\{([^}]*)\}/.exec(body);
+                    if (km) sp.dataset.bibKey = km[1];
+                    sp.textContent = rep;
+                    frag.appendChild(sp);
+                } else {
+                    frag.appendChild(document.createTextNode(rep));
+                }
             } else if (body == null) {
                 const chip = document.createElement("span");
                 chip.className = "ph-tok";

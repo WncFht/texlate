@@ -11,9 +11,11 @@ import { createSignal, Show } from "solid-js";
 import PdfPane, { type PaneHandle } from "./PdfPane";
 import HtmlPane, { type HtmlPaneHandle } from "./HtmlPane";
 import DomPane, { type DomPaneHandle } from "./DomPane";
-import type { DocId } from "./alignment";
-import type { DualChunk } from "../api/client";
+import type { DocId, Pos } from "./alignment";
+import type { BibEntry, CiteIndex, RefMeta } from "./citations";
+import type { DualChunk, KeptRef, TaskSnapshot } from "../api/client";
 import type { ReaderViewState } from "./view";
+import { keptRefs } from "../stores/keptRefs";
 import { t } from "../i18n";
 
 /** 三种窗格上报的 handle 联合（同步引擎/持久化走 PaneLike 公共面） */
@@ -32,6 +34,9 @@ interface Props {
     /** 单段重译通路（仅 HtmlPane 用）：taskId + 终态可重译 */
     taskId?: string;
     canRetranslate?: boolean;
+    /** 在飞重译 seq 集（sel-system：ReaderView 持有并喂 hitctx
+        chunk.pending——与 HtmlPane 内部防抖同一份才实时） */
+    retxPending?: Set<number>;
     /** 「下载带批注副本」文件名（仅 PdfPane 用） */
     annotName: string;
     active: boolean;
@@ -41,12 +46,26 @@ interface Props {
     grow?: number;
     /** 同步关闭漂移 >500px → 显示跳回钮 */
     drift?: boolean;
+    /** 引用索引（pdf 卡内容）+ L2 元数据回调 */
+    citeIndex?: CiteIndex;
+    citeMeta?(key: string): RefMeta | undefined;
+    /** 文献「翻译此文」提交 + 任务行查询（cite-translate lane——
+        目前仅 PdfPane 卡路接通；dom 侧卡宿主不在本批权属） */
+    onTranslateRef?(entry: BibEntry): void | Promise<unknown>;
+    refStatusOf?(arxivId: string): TaskSnapshot | undefined;
+    /** 跳回栈深度（反应式）——nav chip 显隐 */
+    navDepth?(): { back: boolean; fwd: boolean };
+    onNavBack?(): void;
+    onNavFwd?(): void;
     onReady(h: AnyHandle): void;
     onDispose(h: AnyHandle): void;
     onPageChange(n: number): void;
     onActivate(): void;
     onScroll(): void;
     onJumpBack(): void;
+    /** 程序导航窗口开始 / named-dest 跳落定（pdf+dom 同口径回传） */
+    onNavBegin?(): void;
+    onDestJump?(dest: unknown, pre: Pos, post: Pos): void;
     /** PDF metadata Title 上报（仅 pdf 视图） */
     onDocTitle?(title: string): void;
 }
@@ -56,6 +75,14 @@ export default function PaneSlot(props: Props) {
     const [pdfNonce, bumpPdfNonce] = createSignal(0);
     const pdfKey = () =>
         props.version ? `${props.version}#${pdfNonce()}` : undefined;
+
+    // kept refs（M4）：模块单例直读——ReaderView 不透传这两个回调，
+    // taskId 是本槽既有 prop。toggle 在 store 内乐观+串行落库。
+    const citeKept = (key: string) => keptRefs.isKept(key);
+    const onToggleKeep = (key: string, payload: KeptRef) => {
+        const id = props.taskId;
+        if (id) keptRefs.toggle(id, key, payload);
+    };
 
     return (
         <div
@@ -81,11 +108,19 @@ export default function PaneSlot(props: Props) {
                             <DomPane
                                 side={props.side}
                                 url={props.url}
+                                chunks={props.chunks}
                                 active={props.active}
+                                citeMeta={props.citeMeta}
+                                citeKept={citeKept}
+                                onToggleKeep={onToggleKeep}
                                 onReady={(h) => props.onReady(h)}
                                 onDispose={(h) => props.onDispose(h)}
                                 onActivate={() => props.onActivate()}
                                 onScroll={() => props.onScroll()}
+                                onNavBegin={() => props.onNavBegin?.()}
+                                onDestJump={(d, pre, post) =>
+                                    props.onDestJump?.(d, pre, post)
+                                }
                             />
                         )}
                     </Show>
@@ -99,11 +134,16 @@ export default function PaneSlot(props: Props) {
                             chunks={props.chunks}
                             taskId={props.taskId}
                             canRetranslate={props.canRetranslate}
+                            retxPending={props.retxPending}
                             active={props.active}
                             onReady={(h) => props.onReady(h)}
                             onDispose={(h) => props.onDispose(h)}
                             onActivate={() => props.onActivate()}
                             onScroll={() => props.onScroll()}
+                            onNavBegin={() => props.onNavBegin?.()}
+                            onDestJump={(d, pre, post) =>
+                                props.onDestJump?.(d, pre, post)
+                            }
                         />
                     }
                 >
@@ -122,11 +162,21 @@ export default function PaneSlot(props: Props) {
                                 side={props.side}
                                 annotName={props.annotName}
                                 active={props.active}
+                                citeIndex={props.citeIndex}
+                                citeMeta={props.citeMeta}
+                                citeKept={citeKept}
+                                onToggleKeep={onToggleKeep}
+                                onTranslateRef={props.onTranslateRef}
+                                refStatusOf={props.refStatusOf}
                                 onReady={(h) => props.onReady(h)}
                                 onDispose={(h) => props.onDispose(h)}
                                 onPageChange={(p) => props.onPageChange(p)}
                                 onActivate={() => props.onActivate()}
                                 onScroll={() => props.onScroll()}
+                                onNavBegin={() => props.onNavBegin?.()}
+                                onDestJump={(d, pre, post) =>
+                                    props.onDestJump?.(d, pre, post)
+                                }
                                 onDocTitle={(ti) => props.onDocTitle?.(ti)}
                                 onReload={() => bumpPdfNonce((n) => n + 1)}
                             />
@@ -142,6 +192,35 @@ export default function PaneSlot(props: Props) {
                 >
                     ⌖ {t.reader.jumpBack}
                 </button>
+            </Show>
+            {/* 导航栈 chip——压栈过才显；与 drift 钮共存时导航栈语义优先
+                （程序跳转窗口内 ReaderView 已抑 drift 重算） */}
+            <Show
+                when={
+                    props.navDepth &&
+                    (props.navDepth().back || props.navDepth().fwd)
+                }
+            >
+                <div class="nav-chip">
+                    <Show when={props.navDepth?.().back}>
+                        <button
+                            type="button"
+                            class="nav-chip-btn"
+                            onClick={() => props.onNavBack?.()}
+                        >
+                            ↩ {t.cite.navBack}
+                        </button>
+                    </Show>
+                    <Show when={props.navDepth?.().fwd}>
+                        <button
+                            type="button"
+                            class="nav-chip-btn"
+                            onClick={() => props.onNavFwd?.()}
+                        >
+                            ↪ {t.cite.navFwd}
+                        </button>
+                    </Show>
+                </div>
             </Show>
         </div>
     );

@@ -7,25 +7,86 @@ import { createSignal } from "solid-js";
 import type { DiscoverHit } from "../api/client";
 import { createDebouncedAxSearch } from "../axsearch";
 
-// 与服务端 fetch.normalize_arxiv_id 同口径：旧形学科类目 . 后首字母必
-// 大写（_OLD_ID_RE 无 IGNORECASE——/i 只留给前缀/URL 剥壳，不进 id 本体）、
-// vN 限 1–3 位且非零（v0/v1234 服务端同拒）。比服务端窄是刻意的：大写
-// V 版与 v0N 前导零不收，怪输入留给服务端 400 回来报错。
-const ARXIV_RE =
-    /^(?:\d{4}\.\d{4,5}(?:v[1-9]\d{0,2})?|[a-zA-Z-]+(?:\.[A-Z][a-zA-Z]+)?\/\d{7}(?:v[1-9]\d{0,2})?)$/;
+// 与服务端 arxiv/fetch.canon 同口径（arxiv-id-canon-spec §2 剥离序管线
+// 的 JS 镜像）：strip → safe_id `--`→`/` 回流 → 锚定前缀循环剥 → ?# 截断
+// → 首尾 / → [class] 尾注 → 扩展名循环剥 → vN 钉版 → 旧形 class 剥壳 →
+// archive 小写 → MM+era 白名单校验。锚定前缀剥（不 urlparse 任意 host）
+// 结构性拒端口/双斜杠/怪 scheme/寄生域名；仍比服务端窄是刻意的——
+// 怪输入留给服务端 400 回来报错。
 
-// 服务端 normalize_arxiv_id 的轻量版：剥 arXiv: 前缀、各路径段 URL、
-// 尾部斜杠与 .pdf，再按新/旧 id 形白名单判
+// 前缀剥壳组（循环至不动点——`arXiv:10.48550/arXiv.…` 链式前缀逐层剥）。
+// arxiv.org 臂 scheme 可省但子域必须点界（[\w.-]+\. 的 . 结尾挡死
+// notarxiv.org 寄生域）；ar5iv/alphaxiv 白名单臂 scheme 必带、动词限
+// abs|pdf|html（/overview 等未实证动词不收）。
+const PREFIX_RXS = [
+    /^(?:https?:\/\/)?(?:[\w.-]+\.)?arxiv\.org\/(?:abs|pdf|src|e-print|html|format)\/+/i,
+    /^https?:\/\/(?:[\w.-]+\.)?(?:ar5iv|alphaxiv)\.org\/(?:abs|pdf|html)\/+/i,
+    /^https?:\/\/(?:dx\.|www\.)?doi\.org\//i,
+    /^doi:\s*/i,
+    /^10\.48550\/ar[Xx]iv\./,
+    /^oai\s*:\s*arxiv\.org\s*:\s*/i,
+    /^arxiv\s*[:.]\s*/i,
+];
+// [cs.CL] 引用尾注 / 下载扩展名尾（循环剥：x.tar.gz 逐层）
+const TAILNOTE_RX = /\s*\[[^\]]{1,20}\]$/;
+const EXT_RX = /\.(?:pdf|ps|eps|dvi|gz|tgz|tar\.gz)$/i;
+const VER_RX = /^(.+?)[vV](\d{1,3})$/;
+// 旧形剥 class：archive(.class)?/NNNNNNN → archive/NNNNNNN
+const CLASS_RX = /^([-a-zA-Z]+)(?:\.[A-Za-z][A-Za-z-]*)?\/(\d{7})$/;
+const ID_NEW_RX = /^(\d{2})(\d{2})\.(\d{4,5})$/;
+const ID_OLD_RX = /^([a-z-]+)\/(\d{2})(\d{2})\d{3}$/;
+
+/**
+ * 用户输入 → canon arXiv id（`base` 或 `basevN`）；不可解析 → null。
+ * era 闸：新形 YYMM∈[0704,当前YYMM]（9912=2099-12 未来态拒——spec
+ * 「YYMM≥0704」的不可能 id 判例靠上界实现）；旧形 YYMM∈9107..9912∪
+ * 0000..0703。v0/v1234 拒；v03→v3、V→v 归一。
+ */
 export function parseArxivId(raw: string): string | null {
-    const s = raw.trim().replace(/^arxiv\s*:\s*/i, "");
-    const bare = s.replace(/\.pdf$/i, "");
-    if (ARXIV_RE.test(bare)) return bare;
-    // URL 形锚在 raw 头部（同服务端 _ID_URL_RE 的 ^ 口径）——「notarxiv.org」
-    // 寄生域名与「arXiv: <url>」双前缀串不再误食
-    const m = raw.trim().match(
-        /^(?:(?:https?:\/\/)?(?:[\w.-]+\.)?arxiv\.org\/(?:abs|pdf|html|src|e-print|format)\/+)([^\s?#]+?)\/*?(?:\.pdf)?(?:[?#].*)?$/i,
-    );
-    return m && ARXIV_RE.test(m[1]) ? m[1] : null;
+    // safe_id 回流：`--` 永不可能在合法 id 内（archive 只带单 `-`）——无歧义
+    let s = raw.trim().replace(/--/g, "/");
+    // 前缀循环剥至不动点（doi.org → 10.48550/arXiv. 链式）
+    for (;;) {
+        const before = s;
+        for (const rx of PREFIX_RXS) s = s.replace(rx, "");
+        if (s === before) break;
+    }
+    s = s.replace(/[?#].*$/, "");
+    s = s.trim().replace(/^\/+|\/+$/g, "");
+    s = s.replace(TAILNOTE_RX, "");
+    for (;;) {
+        const t = s.replace(EXT_RX, "");
+        if (t === s) break;
+        s = t;
+    }
+    let ver: number | null = null;
+    const vm = VER_RX.exec(s);
+    if (vm) {
+        ver = Number(vm[2]);
+        if (ver < 1) return null; // v0 判非法（不静默去钉）
+        s = vm[1];
+    }
+    const cm = CLASS_RX.exec(s);
+    if (cm) s = `${cm[1].toLowerCase()}/${cm[2]}`;
+
+    const now = new Date();
+    const curYYMM =
+        (now.getFullYear() % 100) * 100 + (now.getMonth() + 1);
+    const nm = ID_NEW_RX.exec(s);
+    if (nm) {
+        const mm = Number(nm[2]);
+        const yymm = Number(nm[1]) * 100 + mm;
+        if (mm < 1 || mm > 12) return null;
+        if (yymm < 704 || yymm > curYYMM) return null;
+    } else {
+        const om = ID_OLD_RX.exec(s);
+        if (!om) return null;
+        const mm = Number(om[3]);
+        const yymm = Number(om[2]) * 100 + mm;
+        if (mm < 1 || mm > 12) return null;
+        if (!(yymm >= 9107 || yymm <= 703)) return null;
+    }
+    return ver != null ? `${s}v${ver}` : s;
 }
 
 export function createHomeSuggest(deps: {

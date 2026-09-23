@@ -1,0 +1,57 @@
+/* sent-align —— 句级双语对位（v1 纯前端注入 span.ens/zhs 的交互色面）。
+   三态：sa-hot=本侧悬停句、sa-peer=对侧 bead 伴显、sa-flash=点击落点闪示。
+   全部 background/box-shadow 落笔——不动 border/outline 几何防重排；
+   多片段 sid 天然逐片着色（49% 多片段实证）。 */
+
+/* 本侧悬停句——朱砂淡染（与 ::selection 18% 同族但更轻） */
+.sa-hot {
+    background: color-mix(in srgb, var(--cinnabar) 13%, transparent);
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+/* 对侧 bead 伴显——赭石淡染（色相分侧：悬停源暖红、对位目标暖黄，
+   一眼辨主从；m:n bead 多片同染即组高亮语义） */
+.sa-peer {
+    background: color-mix(in srgb, var(--ochre) 16%, transparent);
+    border-radius: 3px;
+    box-shadow: 0 0 0 1px
+        color-mix(in srgb, var(--ochre) 22%, transparent);
+}
+
+/* 点击落点闪示——cite-flash 同款节奏（28% 峰值→透明 1.4s） */
+.sa-flash {
+    animation: sa-flash 1.4s ease-out;
+    border-radius: 3px;
+}
+
+@keyframes sa-flash {
+    0%,
+    28% {
+        background: color-mix(in srgb, var(--cinnabar) 30%, transparent);
+        box-shadow: 0 0 0 1px
+            color-mix(in srgb, var(--cinnabar) 30%, transparent);
+    }
+    100% {
+        background: transparent;
+        box-shadow: 0 0 0 1px transparent;
+    }
+}
+
+/* 暗色——淡染比例上调一档才压得住深底（暗底吸收色料） */
+[data-theme="dark"] .sa-hot {
+    background: color-mix(in srgb, var(--cinnabar) 20%, transparent);
+}
+
+[data-theme="dark"] .sa-peer {
+    background: color-mix(in srgb, var(--ochre) 24%, transparent);
+    box-shadow: 0 0 0 1px
+        color-mix(in srgb, var(--ochre) 32%, transparent);
+}
+
+/* 动效收敛（prefers-reduced-motion——闪示改单次定色渐隐） */
+@media (prefers-reduced-motion: reduce) {
+    .sa-flash {
+        animation-duration: 0.6s;
+    }
+}

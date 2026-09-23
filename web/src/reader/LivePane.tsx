@@ -81,6 +81,10 @@ interface Props {
     taskId: string;
     /** true=源数据已冻结（compiling 段）——补末拍后退订停轮询 */
     frozen?: boolean;
+    /** sel-system 挂点：body 元素出口（live 在 .panes 容器外，宿主经此
+        拿文本宿主——hitctx bodies / 未来 sentseg/cursor 挂点）；
+        挂载回调元素、卸载回调 null */
+    bodyRef?(el: HTMLDivElement | null): void;
 }
 
 /** 重绘时间盒——一拍几十段全 marked+KaTeX 会卡帧，切片跨帧让出主线程 */
@@ -101,6 +105,7 @@ export default function LivePane(props: Props) {
     let alive = true;
     let unsubscribe: (() => void) | undefined;
     let froze = false;
+    onCleanup(() => props.bodyRef?.(null));
     /** 面板开合态（初值对应 JSX 的 open 属性），toggle 事件同步 */
     let isOpen = true;
     /** 折叠期间积下的脏 seq——重开时按 acc 快照补渲（paint 内逐 seq 摘除） */
@@ -274,7 +279,13 @@ export default function LivePane(props: Props) {
                     .replace("{n}", String(okN()))
                     .replace("{total}", String(total()))}
             </summary>
-            <div ref={(el) => (bodyEl = el)} class="pane-html-body live-body" />
+            <div
+                ref={(el) => {
+                    bodyEl = el;
+                    props.bodyRef?.(el);
+                }}
+                class="pane-html-body live-body"
+            />
         </details>
     );
 }

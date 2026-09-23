@@ -159,6 +159,54 @@
     background: var(--panel);
     border-bottom: 1px solid var(--line);
     color: var(--ink-2);
+    position: relative;
+}
+
+/* 折叠钮——右上角贴边；展开态横幅内容高，给它让出右上角 */
+.result-banner .rb-fold {
+    position: absolute;
+    top: 5px;
+    right: 10px;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+    opacity: 0.75;
+}
+
+.result-banner .rb-fold:hover {
+    opacity: 1;
+    background: color-mix(in srgb, currentColor 10%, transparent);
+}
+
+/* 折叠态：收成单行细条，整行点击展开 */
+.result-banner.folded {
+    padding: 3px 14px;
+}
+
+.result-banner .rb-fold-line {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+    text-align: left;
+    padding: 0;
+}
+
+.result-banner .rb-fold-line .rb-fold-hint {
+    opacity: 0.65;
+    font-size: 12px;
+    flex: none;
 }
 
 /* M1：结果横幅直接按任务态着色——st-* 与既有 warn/bad 修饰同规则复用 */

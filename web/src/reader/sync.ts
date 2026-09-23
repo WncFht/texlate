@@ -186,6 +186,9 @@ export interface ChunkPaneHandle extends PaneLike {
     scrollTopFor(pos: Pos): number | null;
     /** html/dom 缩放落点：正文字号（px） */
     setFontSize?(px: number): void;
+    /** dom 链镜像锚跳：#id → 滚动就位，回 pre/post 供 ReaderView 记 dst 栈；
+        null=本侧无该锚。不压栈不回传 nav 事件（走 ReaderView 统一记账） */
+    gotoAnchor?(id: string): { pre: Pos; post: Pos } | null;
 }
 
 /** PaneLike + capture/jump/scrollTopFor/gotoPage/setFontSize 的共享构造 */
@@ -230,10 +233,14 @@ export class SyncEngine {
     private ignoreTop = new WeakMap<HTMLElement, number>();
     private disposers: (() => void)[] = [];
 
+    /** navHoldUntil：宿主持有的「静音截止时刻」访问器（performance.now
+        时钟）。时间戳而非计数器——引擎在导航在飞时被重建（split 重挂），
+        新实例照样读到未逝的截止点；计数器 release 绑旧实例会泄漏丢失。 */
     constructor(
         private A: PaneLike,
         private B: PaneLike,
         private map: PosMap,
+        private navHoldUntil?: () => number,
     ) {
         for (const p of [A, B]) {
             const listener = () => this.onScroll(p);
@@ -250,6 +257,10 @@ export class SyncEngine {
         this.disposers = [];
     }
 
+    get navMuted(): boolean {
+        return (this.navHoldUntil?.() ?? 0) > performance.now();
+    }
+
     /** 立即把 dst 对齐到 src 当前位置（开同步、模式切换、初次挂载后用） */
     alignNow(src: PaneLike) {
         const dst = src === this.A ? this.B : this.A;
@@ -259,7 +270,7 @@ export class SyncEngine {
     }
 
     private onScroll(src: PaneLike) {
-        if (!this.syncing) return;
+        if (!this.syncing || this.navMuted) return;
         const it = this.ignoreTop.get(src.el);
         if (it !== undefined && Math.abs(src.el.scrollTop - it) < 1) return; // 自己程序跳转的回声
         this.ignoreTop.delete(src.el);
@@ -270,7 +281,7 @@ export class SyncEngine {
             this.scheduled = false;
             const s = this.pendingSrc;
             this.pendingSrc = null;
-            if (!s || this.dead || !this.syncing) return;
+            if (!s || this.dead || !this.syncing || this.navMuted) return;
             const pos = capturePos(s); // 帧时刻读最新位置——滚动突发合并为一次几何采样
             const dst = s === this.A ? this.B : this.A;
             const target = this.map(pos, s.side);

@@ -2,16 +2,14 @@
 
 import { createEffect, createSignal, For, Show, untrack } from "solid-js";
 import Segmented from "./Segmented";
-import ThemeToggle, {
-    cycleTheme,
-    themeIcon,
-    themeLabel,
-} from "./ThemeToggle";
 import { settingsStore } from "../stores/settings";
+import { taskStore } from "../stores/tasks";
+import { PAPER_LABEL, PAPER_THEME_IDS } from "../reader/pdfTheme";
 import { bindMenuDismiss, menuRoving, menuTriggerKey } from "./menuNav";
 import type { FileKind, TaskStatus } from "../api/client";
 import { isTerminal } from "../api/client";
 import { t } from "../i18n";
+import { ctText } from "../reader/citeTranslate";
 
 export type Mode = "original" | "translated" | "split" | "guide";
 
@@ -48,6 +46,11 @@ interface Props {
     onShare?(): void;
     shareOpen?: boolean;
     shareBtnRef?(el: HTMLButtonElement): void;
+    /** 「文献」钮——onRefs 在且 refsTotal>0（citeIndex.size）才出；
+        角标=refsCount 可译条数（0 不出角标）；≤640px 副本在 ⋯ 菜单 */
+    onRefs?(): void;
+    refsTotal?: number;
+    refsCount?: number;
 }
 
 const ZOOMS = [
@@ -66,7 +69,6 @@ const ZOOM_LABEL: Record<string, string> = {
     "page-width": t.reader.zoomWidth,
     auto: t.reader.zoomAuto,
 };
-
 export default function Toolbar(props: Props) {
     const [menuOpen, setMenuOpen] = createSignal(false);
     const [moreOpen, setMoreOpen] = createSignal(false);
@@ -132,6 +134,31 @@ export default function Toolbar(props: Props) {
             >
                 ← {t.reader.back}
             </button>
+            {/* 任务观测 chip——reader 页 .topnav 隐藏留下的真空洞由它补：
+                点击→#/tasks；计数与 App.tsx 徽标同口径（非终态数，
+                interrupted 属终态不计）。桌面常显——绝不能挂 .tb-opt
+                （≤640px 会被连带藏掉）；窄屏副本在 ⋯ 菜单首项 */}
+            <a class="tb-btn" href="#/tasks" title={t.nav.tasks}>
+                {t.nav.tasks}
+                <Show when={taskStore.activeCount() > 0}>
+                    <span class="nav-badge">{taskStore.activeCount()}</span>
+                </Show>
+            </a>
+            {/* 「文献」钮——refsTotal>0 才出（父层 citeIndex.size 闸）；
+                角标=可译条数。窄屏 .tb-opt 藏，副本在 ⋯ 菜单 */}
+            <Show when={props.onRefs && (props.refsTotal ?? 0) > 0}>
+                <button
+                    type="button"
+                    class="tb-btn tb-opt"
+                    onClick={() => props.onRefs?.()}
+                    title={ctText("panelTitle")}
+                >
+                    {ctText("refs")}
+                    <Show when={(props.refsCount ?? 0) > 0}>
+                        <span class="nav-badge">{props.refsCount}</span>
+                    </Show>
+                </button>
+            </Show>
             <span class="tb-title" title={props.title}>
                 {props.title}
             </span>
@@ -166,6 +193,42 @@ export default function Toolbar(props: Props) {
                             menuRoving(e, () => setMoreOpen(false))
                         }
                     >
+                        {/* 任务入口副本（≤640px ⋯ 菜单才翻出）——role=menuitem
+                            才入 menuRoving 漫游圈；hash 跳走顺手收菜单 */}
+                        <a
+                            role="menuitem"
+                            tabIndex={-1}
+                            href="#/tasks"
+                            onClick={() => setMoreOpen(false)}
+                        >
+                            {t.nav.tasks}
+                            <Show when={taskStore.activeCount() > 0}>
+                                <span class="nav-badge">
+                                    {taskStore.activeCount()}
+                                </span>
+                            </Show>
+                        </a>
+                        {/* 「文献」窄屏副本——同显隐闸；role=menuitem 入
+                            menuRoving 漫游圈 */}
+                        <Show when={props.onRefs && (props.refsTotal ?? 0) > 0}>
+                            <button
+                                type="button"
+                                role="menuitem"
+                                tabIndex={-1}
+                                onClick={() => {
+                                    props.onRefs?.();
+                                    setMoreOpen(false);
+                                }}
+                            >
+                                {ctText("refs")}
+                                <Show when={(props.refsCount ?? 0) > 0}>
+                                    <span class="nav-badge">
+                                        {props.refsCount}
+                                    </span>
+                                </Show>
+                            </button>
+                        </Show>
+                        <div class="tb-menu-sep" />
                         <Show when={props.mode === "split"}>
                             <button
                                 type="button"
@@ -191,18 +254,43 @@ export default function Toolbar(props: Props) {
                                 ⇄ {t.reader.swap}
                             </button>
                         </Show>
-                        <button
-                            type="button"
-                            role="menuitem"
-                            tabIndex={-1}
-                            onClick={() => {
-                                cycleTheme();
-                                setMoreOpen(false);
-                            }}
-                        >
-                            {themeIcon[settingsStore.theme()]} {t.settings.theme}
-                            ：{themeLabel(settingsStore.theme())}
-                        </button>
+                        <label class="tb-menu-row">
+                            {t.reader.appearance}
+                            <select
+                                class="tb-select tx-select"
+                                role="menuitem"
+                                tabIndex={-1}
+                                value={settingsStore.paperTheme()}
+                                onChange={(e) =>
+                                    settingsStore.setPaperTheme(
+                                        e.currentTarget
+                                            .value as Parameters<
+                                            typeof settingsStore.setPaperTheme
+                                        >[0],
+                                    )
+                                }
+                                onKeyDown={(e) => {
+                                    if (
+                                        e.key === "ArrowDown" ||
+                                        e.key === "ArrowUp" ||
+                                        e.key === "ArrowLeft" ||
+                                        e.key === "ArrowRight" ||
+                                        e.key === "Home" ||
+                                        e.key === "End"
+                                    ) {
+                                        e.stopPropagation();
+                                    }
+                                }}
+                            >
+                                <For each={PAPER_THEME_IDS}>
+                                    {(id) => (
+                                        <option value={id}>
+                                            {PAPER_LABEL[id]}
+                                        </option>
+                                    )}
+                                </For>
+                            </select>
+                        </label>
                         <label class="tb-menu-row">
                             {t.reader.zoom}
                             {/* role=menuitem 收进 menuRoving 漫游圈（≤640px 时
@@ -417,7 +505,25 @@ export default function Toolbar(props: Props) {
                 </button>
             </Show>
 
-            <ThemeToggle class="tb-btn tb-opt" />
+            {/* 外观（纸面色板即阅读主题,chrome 跟随派生）——阅读器内唯一
+                主题控件;窄屏收进 ⋯ 菜单里的同款 select */}
+            <select
+                class="tb-select tb-opt tx-select"
+                value={settingsStore.paperTheme()}
+                onChange={(e) =>
+                    settingsStore.setPaperTheme(
+                        e.currentTarget.value as Parameters<
+                            typeof settingsStore.setPaperTheme
+                        >[0],
+                    )
+                }
+                aria-label={t.reader.appearance}
+                title={t.reader.appearance}
+            >
+                <For each={PAPER_THEME_IDS}>
+                    {(id) => <option value={id}>{PAPER_LABEL[id]}</option>}
+                </For>
+            </select>
 
             <button
                 type="button"

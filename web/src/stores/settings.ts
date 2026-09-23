@@ -7,79 +7,118 @@ const [settings, setSettings] = createSignal<Settings | null>(null);
 const [providers, setProviders] = createSignal<Provider[]>([]);
 const [loaded, setLoaded] = createSignal(false);
 
-// ---- 主题（U6）：auto=跟随 prefers-color-scheme；<html data-theme> 供 CSS 覆盖 ----
-export type ThemeChoice = "auto" | "light" | "dark";
-const THEME_KEY = "texlate-theme";
+// ---- 外观（单轴合并，§ADR-0020 二次追加）----
+// 8 档色板是全站唯一外观轴：纸面配色与 chrome 同源派生，不再存在独立
+// 「界面主题」。auto=OS 对（亮→原纸+亮 chrome；暗→暖黑对）；
+// none=原纸+OS chrome（逃生口：暗 OS 下仍可达白纸+暗界面）；
+// 命名槽=锁定 {纸面,chrome} 对。OS 监听与 chrome 落点在 pdfTheme.ts。
+export type PaperThemeChoice =
+    | "auto"
+    | "none"
+    | "dark"
+    | "onedark"
+    | "black"
+    | "snow"
+    | "sepia"
+    | "paper";
+const PAPER_KEY = "texlate-paper-theme";
 
-const readTheme = (): ThemeChoice => {
+const readPaperTheme = (): PaperThemeChoice => {
     try {
-        const v = localStorage.getItem(THEME_KEY);
-        if (v === "light" || v === "dark" || v === "auto") return v;
+        const v = localStorage.getItem(PAPER_KEY);
+        if (
+            v === "auto" ||
+            v === "none" ||
+            v === "dark" ||
+            v === "onedark" ||
+            v === "black" ||
+            v === "snow" ||
+            v === "sepia" ||
+            v === "paper"
+        )
+            return v;
+        if (v === null) {
+            // 单轴合并迁移：旧全局主题键折成语义等价的锁定色板档
+            // （light→暖纸=旧亮 chrome 原值；dark→暖黑=旧暗 chrome+暗纸对）
+            const t0 = localStorage.getItem("texlate-theme");
+            if (t0 === "dark") return "dark";
+            if (t0 === "light") return "paper";
+        }
     } catch {
         /* localStorage 禁用/node 环境 */
     }
     return "auto";
 };
 
-const darkQuery = () =>
-    typeof window !== "undefined" &&
-    typeof window.matchMedia === "function"
-        ? window.matchMedia("(prefers-color-scheme: dark)")
-        : null;
+const [paperTheme, setPaperThemeSig] =
+    createSignal<PaperThemeChoice>(readPaperTheme());
 
-// 首绘 applyTheme 由 index.html 预置脚本先行——模块内第一次调用属复述,
-// 不触发过渡;之后(用户切换/系统翻转)才挂 .theme-anim 做 200ms 同色过渡
-let themeBooted = false;
-let themeAnimTimer = 0;
+// ---- 划词浮条（sel-system FloatBar 总开关，默认开）----
+// localStorage "texlate-floatbar"：'0'/'off'/'false' → 关；缺省/其他 → 开。
+const FLOATBAR_KEY = "texlate-floatbar";
 
-const THEME_COLOR: Record<"light" | "dark", string> = {
-    light: "#f5f1e8", // --paper
-    dark: "#17140f",
+const readFloatbar = (): boolean => {
+    try {
+        const v = localStorage.getItem(FLOATBAR_KEY);
+        if (v === "0" || v === "off" || v === "false") return false;
+    } catch {
+        /* localStorage 禁用/node 环境 */
+    }
+    return true;
 };
 
-function applyTheme(choice: ThemeChoice) {
-    if (typeof document === "undefined") return;
-    const dark =
-        choice === "dark" || (choice === "auto" && !!darkQuery()?.matches);
-    const resolved = dark ? "dark" : "light";
-    const root = document.documentElement;
-    if (themeBooted && root.dataset.theme !== resolved) {
-        root.classList.add("theme-anim");
-        window.clearTimeout(themeAnimTimer);
-        themeAnimTimer = window.setTimeout(
-            () => root.classList.remove("theme-anim"),
-            240,
-        );
-    }
-    themeBooted = true;
-    root.dataset.theme = resolved;
-    // 移动/PWA 浏览器外壳着色跟随实际主题而非系统媒体查询
-    document
-        .querySelector('meta[name="theme-color"]')
-        ?.setAttribute("content", THEME_COLOR[resolved]);
-}
+const [floatbar, setFloatbarSig] = createSignal<boolean>(readFloatbar());
 
-const [theme, setThemeSig] = createSignal<ThemeChoice>(readTheme());
-applyTheme(theme());
-// auto 模式下跟随系统切换（监听一次，内部按当前 choice 判）
-darkQuery()?.addEventListener?.("change", () => {
-    if (theme() === "auto") applyTheme("auto");
-});
+// ---- 句级双语对位（sent-align 总开关，默认开）----
+// localStorage "texlate-sent-align"：'0'/'off'/'false' → 关；缺省/其他 → 开。
+// 关掉即全剥注入 span（features/sentalign 的 enabled() 源）。
+const SENT_ALIGN_KEY = "texlate-sent-align";
+
+const readSentAlign = (): boolean => {
+    try {
+        const v = localStorage.getItem(SENT_ALIGN_KEY);
+        if (v === "0" || v === "off" || v === "false") return false;
+    } catch {
+        /* localStorage 禁用/node 环境 */
+    }
+    return true;
+};
+
+const [sentAlign, setSentAlignSig] = createSignal<boolean>(readSentAlign());
 
 export const settingsStore = {
     settings,
     providers,
     loaded,
-    theme,
+    paperTheme,
+    floatbar,
+    sentAlign,
 
-    setTheme(choice: ThemeChoice) {
-        setThemeSig(choice);
+    setPaperTheme(choice: PaperThemeChoice) {
+        setPaperThemeSig(choice);
         try {
-            localStorage.setItem(THEME_KEY, choice);
+            localStorage.setItem(PAPER_KEY, choice);
         } catch {
             /* 同上 */
         }
-        applyTheme(choice);
+    },
+
+    setFloatbar(on: boolean) {
+        setFloatbarSig(on);
+        try {
+            localStorage.setItem(FLOATBAR_KEY, on ? "1" : "0");
+        } catch {
+            /* 同上 */
+        }
+    },
+
+    setSentAlign(on: boolean) {
+        setSentAlignSig(on);
+        try {
+            localStorage.setItem(SENT_ALIGN_KEY, on ? "1" : "0");
+        } catch {
+            /* 同上 */
+        }
     },
 
     async refresh() {

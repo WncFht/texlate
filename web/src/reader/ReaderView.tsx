@@ -27,6 +27,7 @@ import {
     api,
     type DualJson,
     type FileKind,
+    type KeptRef,
     type ReaderInfo,
     type ReadingState,
     type TaskStatus,
@@ -41,13 +42,55 @@ import {
 } from "./alignment";
 import { annotFileName, zoomToFontPx } from "./paneUtils";
 import { capturePos, jumpTo, scrollTopFor, SyncEngine } from "./sync";
+import { buildCiteIndex, type BibEntry, type RefMeta } from "./citations";
+import { NavStack } from "./navstack";
 import type { PaneHandle } from "./PdfPane";
 import type { HtmlPaneHandle } from "./HtmlPane";
 import type { DomPaneHandle } from "./DomPane";
 import PaneSlot, { type AnyHandle } from "./PaneSlot";
 import GuidePane from "./GuidePane";
 import type { ReaderViewState } from "./view";
-import { t } from "../i18n";
+import { taskStore } from "../stores/tasks";
+import { toast } from "../stores/toastStore";
+import { keptRefs } from "../stores/keptRefs";
+import { settingsStore } from "../stores/settings";
+import { fmt, t } from "../i18n";
+import { attachReaderKeys } from "./keymap";
+import { Registry } from "./cmd/cmdreg";
+import {
+    makeCmdCtx,
+    registerCommands,
+    type CmdCtx,
+    type CmdDeps,
+} from "./cmd/commands";
+import {
+    snapshotHit,
+    type HitCtx,
+    type PaneSide,
+} from "./cmd/hitctx";
+import {
+    cmdLabel,
+    menuItemsFor,
+    useContextMenu,
+} from "./ContextMenu";
+import { FloatBar, type FloatBarApi, type FloatBarItem } from "./FloatBar";
+import { collapseSelection, hasLiveSelection } from "./sel/selection";
+import { segmentDoc, type SegSide, type SentMark } from "./sel/sentseg";
+import { makeCursor, type Cursor } from "./sel/cursor";
+import { chunkUntranslated } from "./markdown";
+import CiteCard, { CiteCardBody } from "./CiteCard";
+import { registerFindUsages } from "./features/findusages";
+import {
+    registerCopyLatex,
+    type CopyLatexPane,
+} from "./features/copylatex";
+import { registerCiteTranslate } from "./features/citetranslate";
+import {
+    attachSentAlign,
+    registerSentAlign,
+    type SentAlignPane,
+} from "./features/sentalign";
+import RefsPanel from "./RefsPanel";
 
 const JUMPBACK_PX = 500;
 const SAVE_DEBOUNCE_MS = 1000;
@@ -120,6 +163,22 @@ export default function ReaderView(props: Props) {
     let shareBtnEl: HTMLButtonElement | undefined;
 
     let engine: SyncEngine | null = null;
+    /** 程序导航静音计数——引用跳转/镜像/栈回放窗口内抑 drift 重算；
+        navMuteUntil 是同窗口给 SyncEngine 的时间戳（对象持有——
+        引擎重建后新实例读同一截止点） */
+    let navHolds = 0;
+    const navMuteUntil = { at: 0 };
+    /** dst 侧 handle 缺席时的待镜像 {dest,pair}——paneReady/重试补投
+        （每侧一槽，新镜像覆盖旧的，last-wins） */
+    const pendingMirror = new Map<DocId, { dest: unknown; pair: number }>();
+    /** 镜像跳配对号——cite 跳每发一次 +1，双侧栈同号入栈；↩/↪ 命中
+        pair 项时对侧栈顶同号即联动（见 navBack/navFwd） */
+    let navPairSeq = 0;
+    /** 每侧一栈：named-dest 跳转压栈（滚动永不入栈）；sioyek 回写语义 */
+    const navStacks: Record<DocId, NavStack> = {
+        original: new NavStack(),
+        translated: new NavStack(),
+    };
     let pendingJump: { from: DocId; pos: Pos } | null = null;
     /** 进 guide 时抓的活侧位置——隐藏期 scrollTop 读 0/写无效（实测 chromium），
         出 guide 须用这张回程票对齐，不能吃 capturePos 的 0 值 */
@@ -143,67 +202,745 @@ export default function ReaderView(props: Props) {
         gotoPage(Math.min(total, Math.max(1, cur + d)));
     };
 
-    // 键盘面：1/2/3 模式、s 同步、[/] 翻页（段）、? 帮助浮层。
-    // 输入控件/编辑区聚焦时不抢键；Ctrl/Cmd+F 路由到活动窗格 findbar。
-    onMount(() => {
-        const onKey = (e: KeyboardEvent) => {
-            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") {
-                const h = handles()[active()];
-                if (h && "openFind" in h) {
-                    e.preventDefault();
-                    h.openFind();
+    // ---------- sel-system：命令注册表 + 命中快照 + 右键菜单/划词浮条 +
+    // Esc 层栈 + 句游标（cmd/sel 内核 Wave B 的 Wave C/D 挂载契约） ----------
+
+    /** menu-spec 18 命令注册表——deps 不进 registerCommands（run 读
+        ctx.deps），逐命中经 makeCmdCtx 注入 */
+    const reg = new Registry<CmdCtx>();
+    registerCommands(reg, {});
+    // find-usages lane 自注册（menu-spec 外项）——open 按 hit 解命中侧
+    // handle 直开 usages 卡；无 openUsagesFor 的 pane 静默 no-op
+    registerFindUsages(reg, {
+        open: (c) => {
+            const h = handles()[sideOfHit(c.hit)];
+            if (h && "openUsagesFor" in h)
+                h.openUsagesFor?.(
+                    c.hit.cite.targetEl ?? c.hit.cite.targetId,
+                    c.hit.cite.anchorEl,
+                );
+        },
+    });
+
+    // copy-latex lane：math/chunk/sel 三命令 + document 级公式点击委托。
+    // cardOpen/closeCard 并进 layerOpen/closeLayer 的 'cite' 层 +
+    // FloatBar suppressed 名单（LatexCard 自带 Esc capture 先杀事件——
+    // 栈层只承担「开着」的可见性判定）
+    const clPanes = (): CopyLatexPane[] => {
+        const out: CopyLatexPane[] = [];
+        for (const side of ["original", "translated"] as const) {
+            const h = handles()[side];
+            if (!h) continue;
+            out.push({
+                kind: props.view,
+                bodyEl: "bodyEl" in h ? h.bodyEl() : undefined,
+                side: side === "translated" ? "zh" : "en",
+            });
+        }
+        // live-pane 无 .pane 壳（paneSide=null 盲区）——zh 侧身份显式给
+        const live = liveBodyEl();
+        if (live) out.push({ kind: "live", bodyEl: live, side: "zh" });
+        return out;
+    };
+    const cl = registerCopyLatex(reg, {
+        taskId: () => props.taskId,
+        panes: clPanes,
+        dual: () => dual(),
+        toastOk: (m) => toast.ok(m),
+        toastErr: (m) => toast.err(m),
+    });
+
+    // sent-align lane：会话 attach + sent.gotoPeer 命令注册。
+    // paneReady/paneDisposed/settings.sentAlign 翻转三处都调
+    // sa.syncPanes()——bodyEl 同体免重挂，enabled 假则全剥注入标引
+    const saPanes = (): SentAlignPane[] => {
+        const out: SentAlignPane[] = [];
+        // live-pane 列头——attach 内 want 同侧后写胜，真 zh pane 在场时
+        // live 只作候补（live 独占 zh 侧时才实际挂载）
+        const live = liveBodyEl();
+        if (live) out.push({ kind: "live", side: "zh", bodyEl: live });
+        for (const side of ["original", "translated"] as const) {
+            const h = handles()[side];
+            if (!h) continue;
+            const saSide = side === "translated" ? "zh" : "en";
+            if ("bodyEl" in h && typeof h.bodyEl === "function") {
+                out.push({
+                    kind: props.view,
+                    side: saSide,
+                    bodyEl: h.bodyEl(),
+                    scroller: h.el,
+                    capture: () => capturePos(h),
+                });
+            } else {
+                // pdf 窗格无 DOM 体——登记为 DOM→PDF 跳转目标侧
+                out.push({ kind: "pdf", side: saSide });
+            }
+        }
+        return out;
+    };
+    const sa = attachSentAlign({
+        panes: saPanes,
+        enabled: () => settingsStore.sentAlign(),
+        deps: {
+            navBegin: () => onNavBegin(),
+            recordJump: (dst, pre, post) => {
+                if (!pre || !post || samePos(pre, post)) return;
+                navStacks[
+                    dst === "zh" ? "translated" : "original"
+                ].recordJump(pre, post, ++navPairSeq);
+            },
+            mapPos: (pos, from) =>
+                mapper()(pos, from === "zh" ? "translated" : "original"),
+            pdfDest: (dst, pos) => {
+                const h =
+                    handles()[dst === "zh" ? "translated" : "original"];
+                return h && "posDest" in h
+                    ? (h.posDest?.(pos) ?? Promise.resolve(null))
+                    : Promise.resolve(null);
+            },
+            pdfJump: (dst, dest) => {
+                const h =
+                    handles()[dst === "zh" ? "translated" : "original"];
+                return Promise.resolve(
+                    h && "mirrorDest" in h
+                        ? (h.mirrorDest?.(dest) ?? null)
+                        : null,
+                );
+            },
+        },
+    });
+    const saReg = registerSentAlign(reg, { session: sa.session });
+    // 开关翻转 → 差异重扫（关=剥光 .ens/.zhs 标引，开=重注入）
+    createEffect(() => {
+        settingsStore.sentAlign();
+        sa.syncPanes();
+    });
+    /** 在飞重译 seq 集——经 PaneSlot 与 HtmlPane 共享（hitctx
+        chunk.pending 与按钮防抖读同一份才实时） */
+    const retxPending = new Set<number>();
+    /** FloatBar 控制器 + 最后一次 itemsFor 的 ctx（onAction 复用同快照） */
+    let barApi: FloatBarApi | null = null;
+    let barCtx: CmdCtx | null = null;
+    /** 双侧分句表（原位重灌——cursor.otherSents 持同引用才不失效） +
+        句游标/观察器登记 */
+    const sents: Record<DocId, SentMark[]> = {
+        original: [],
+        translated: [],
+    };
+    const cursors: Partial<Record<DocId, Cursor>> = {};
+    const segMOs = new Map<DocId, MutationObserver>();
+    const segTimers = new Map<DocId, number>();
+    let liveEl: HTMLDivElement | undefined;
+    /** 菜单级引用卡（右键 cite.card / 'c' 键路开卡）——锚 rect + 命中快照 */
+    const [menuCard, setMenuCard] = createSignal<{
+        rect: DOMRect;
+        hit: HitCtx;
+    } | null>(null);
+
+    /** hit.paneSide → DocId；panes 内非 pane 目标落活动侧 */
+    const sideOfHit = (hit: HitCtx): DocId =>
+        hit.paneSide === "en"
+            ? "original"
+            : hit.paneSide === "zh"
+              ? "translated"
+              : active();
+
+    /** 本侧文本宿主（dom/html 的 bodyEl 挂点）；pdf/缺席 → null */
+    const bodyOf = (side: DocId): HTMLElement | null => {
+        const h = handles()[side];
+        return h && "bodyEl" in h && typeof h.bodyEl === "function"
+            ? h.bodyEl()
+            : null;
+    };
+
+    /** live-pane 文本宿主——LivePane 挂在 TaskProgress（.panes 外、非
+        handles() 体系），partial 共屏/同页时经 DOM 现查（copy-latex
+        zh 盲区兜底与 sent-align 的 live 侧登记共用此源） */
+    const liveBodyEl = (): HTMLElement | null =>
+        document.querySelector<HTMLElement>(".live-pane .pane-html-body");
+
+    /** chunk_id→seq 映射（dom 键）+ seq 串直解（html 键）双登记 */
+    const seqOf = createMemo(() => {
+        const m = new Map<string, number>();
+        for (const c of dual()?.chunks ?? []) {
+            if (c.chunk_id) m.set(c.chunk_id, c.seq);
+            m.set(String(c.seq), c.seq);
+        }
+        return m;
+    });
+
+    /** chunk 文本解析：dual 行优先（raw en/zh——chunkSideText 的 en 回退会
+        谎报 hasZh）；dom 链无行则退对侧 pane 同键块 textContent */
+    const chunkText = (key: string, lang: PaneSide): string | null => {
+        const row = (dual()?.chunks ?? []).find(
+            (c) => String(c.seq) === key || c.chunk_id === key,
+        );
+        if (row) {
+            const raw = lang === "en" ? row.en : row.zh;
+            return raw?.trim() || null;
+        }
+        const body = bodyOf(lang === "en" ? "original" : "translated");
+        const sel = `[data-chunk="${key.replace(/(["\\])/g, "\\$1")}"]`;
+        return body?.querySelector(sel)?.textContent?.trim() || null;
+    };
+
+    /** zh 未译外部判定（en 侧命中无从看 badge——按 chunks 行补） */
+    const zhUntranslated = (key: string): boolean => {
+        const row = (dual()?.chunks ?? []).find(
+            (c) => String(c.seq) === key || c.chunk_id === key,
+        );
+        return row ? chunkUntranslated(row) : false;
+    };
+
+    /** hit 侧 named-dest 集（pdf dests() 预扫子集；dom/html 侧 undefined——
+        只查命中侧防对侧 pdf 同名 dest 谎报 targetExists） */
+    const destsOfHit = (target: Element | null) => {
+        const raw = target?.closest(".pane")?.getAttribute("data-side");
+        const side: DocId = raw === "translated" ? "translated" : "original";
+        const h = handles()[side];
+        return h && "dests" in h ? h.dests?.() : undefined;
+    };
+
+    /** 事件时刻命中快照：双侧 bodies + 目标就近宿主（跨 pane 选区并集）；
+        caps 基底 discover 常驻，快照后按 hit 侧补丁 nav/find/retx */
+    const snap = (target: Element | null): HitCtx => {
+        const bodies: Element[] = [];
+        for (const s of ["original", "translated"] as const) {
+            const b = bodyOf(s);
+            if (b) bodies.push(b);
+        }
+        const extra = target?.closest?.(
+            ".pane-html-body, .textLayer, .pane-body",
+        );
+        if (extra && !bodies.includes(extra)) bodies.push(extra);
+        const hit = snapshotHit(target, undefined, {
+            bodies: bodies.length ? bodies : undefined,
+            seqOf: seqOf(),
+            pending: retxPending,
+            chunkText,
+            zhUntranslated,
+            citeIndex: citeIndex(),
+            dests: destsOfHit(target),
+            caps: { discover: true, linkScheme: true },
+        });
+        const side = sideOfHit(hit);
+        const h = handles()[side];
+        hit.caps.navBack = navStacks[side].canBack();
+        hit.caps.navFwd = navStacks[side].canFwd();
+        hit.caps.findInPane = !!h && "openFind" in h;
+        hit.caps.retx = canRetranslate() && hit.view === "html";
+        // assist 恒 false（无端点）；linkScheme 真——#/reader/{id}?seq=N
+        // 已入 App.parseHash，chunk.copyLink 产物回本阅读器可消费
+        return hit;
+    };
+
+    /** 命中侧依赖面——openFind/nav/citeJump/retx 全绑 hit 侧 handle */
+    const depsFor = (hit: HitCtx): CmdDeps => {
+        const staticSide = sideOfHit(hit);
+        return {
+            openFind: (q) => {
+                const h = handles()[staticSide];
+                if (h && "openFind" in h) h.openFind(q);
+            },
+            navBack: () => navBack(staticSide),
+            navFwd: () => navFwd(staticSide),
+            citeCard: () => openMenuCard(hit),
+            citeJump: () => jumpToCite(hit),
+            discoverOverview: (id) => api.discoverOverview(id),
+            retranslate: (seq) => retxSeq(seq, hit),
+            chunkText,
+            chunkLink: (chunk) =>
+                chunk.intSeq != null
+                    ? `${window.location.origin}${window.location.pathname}#/reader/${props.taskId}?seq=${chunk.intSeq}`
+                    : null,
+            toastOk: (m) => toast.ok(m),
+            toastErr: (m) => toast.err(m),
+        };
+    };
+
+    /** cite → BibEntry：citeIndex 三形命中（hitctx 同口径）→ 合成兜底
+        （entryText/arxiv/doi 来自 hitctx 已抽字段） */
+    const citeLookup = (bibkey: string | null): BibEntry | undefined =>
+        !bibkey
+            ? undefined
+            : (citeIndex().lookup(bibkey) ??
+              citeIndex().lookup(bibkey.replace(/^bib\./, "")) ??
+              citeIndex().lookup(`cite.${bibkey}`));
+    const citeEntryOf = (
+        cite: HitCtx["cite"],
+    ): Pick<BibEntry, "label" | "text" | "arxivId" | "doi"> => {
+        const e = citeLookup(cite.bibkey);
+        return (
+            e ?? {
+                label: "",
+                text: cite.entryText ?? "",
+                arxivId: cite.arxivId ?? undefined,
+                doi: cite.doi ?? undefined,
+            }
+        );
+    };
+    /** kept/meta 键——与 PdfPane citeKey 同口径（entry.key ?? bibkey） */
+    const citeKeyOf = (cite: HitCtx["cite"]): string =>
+        citeLookup(cite.bibkey)?.key ?? cite.bibkey ?? cite.targetId ?? "";
+    const citeKeepPayload = (cite: HitCtx["cite"]): KeptRef => {
+        const e = citeEntryOf(cite);
+        return {
+            label: e.label || undefined,
+            text: e.text || undefined,
+            arxivId: e.arxivId,
+            doi: e.doi,
+            meta: citeMeta(citeKeyOf(cite)),
+        };
+    };
+
+    /** 跳至引用目标——dom 走 jumpAnchor（record=true：onNavBegin+
+        onDestJump 全链）；pdf 走包装版 goToDestination（navChain 串行+
+        死链预检+压栈+镜像）；html 兜底 scrollIntoView + 同口径记账 */
+    const jumpToCite = (hit: HitCtx) => {
+        const side = sideOfHit(hit);
+        const h = handles()[side];
+        const id = hit.cite.targetId;
+        if (!h || !id) return;
+        if ("jumpAnchor" in h && typeof h.jumpAnchor === "function") {
+            h.jumpAnchor(id);
+            return;
+        }
+        const ls = (h as PaneHandle).slick?.linkService;
+        if (ls) {
+            void ls.goToDestination(id);
+            return;
+        }
+        const tel = hit.cite.targetEl;
+        if (tel instanceof HTMLElement) {
+            onNavBegin();
+            const pre = capturePos(h);
+            tel.scrollIntoView({ block: "start" });
+            onDestJump(side, id, pre, capturePos(h));
+        }
+    };
+
+    /** 单段重译——复用 HtmlPane [data-retx] 钮全链（pending/poll/repaint
+        都在 pane 内）；命中侧优先，对侧兜底 */
+    const retxSeq = (seq: number, hit: HitCtx) => {
+        for (const s of [sideOfHit(hit), other(sideOfHit(hit))]) {
+            const btn = bodyOf(s)?.querySelector<HTMLButtonElement>(
+                `button.chunk-retx[data-retx="${seq}"]`,
+            );
+            if (btn && !btn.disabled) {
+                btn.click();
+                return;
+            }
+        }
+        toast.err(t.live.retxFail);
+    };
+
+    const openMenuCard = (hit: HitCtx) => {
+        const a = hit.cite.anchorEl;
+        if (!a) return;
+        const rect = a.getClientRects()[0] ?? a.getBoundingClientRect();
+        setMenuCard({ rect, hit });
+    };
+
+    // ---------- 划词浮条 + 右键菜单（.panes 容器级委托，pane 重渲免重绑） ----------
+
+    const selAnchorEl = (): Element | null => {
+        const n = document.getSelection()?.anchorNode ?? null;
+        if (!n) return null;
+        return n.nodeType === 3 ? n.parentElement : (n as Element);
+    };
+
+    /** 条钮集：锚须在 pane/live-pane 内；enabled+bar 前 5 项，ctx 留存
+        供 onAction 复用（与展示同一份快照） */
+    const barItemsFor = (_range: Range): FloatBarItem[] => {
+        const aEl = selAnchorEl();
+        if (!aEl?.closest?.(".pane, .live-pane")) {
+            barCtx = null;
+            return [];
+        }
+        const hit = snap(aEl);
+        const cmd = makeCmdCtx(hit, depsFor(hit));
+        barCtx = cmd;
+        return reg
+            .enabled(cmd)
+            .filter((c) => c.bar)
+            .slice(0, 5)
+            .map((c) => ({
+                id: c.id,
+                label: cmdLabel(c),
+                hint: c.keys?.[0],
+            }));
+    };
+
+    const barAction = (id: string) => {
+        const cmd = barCtx;
+        if (!cmd) return;
+        void reg
+            .runUnchecked(id, cmd)
+            .catch(() => toast.err(t.menu.actionFailed));
+    };
+
+    /** RO 目标：panes 容器 + 双侧滚动宿主（pane 拉宽/字体回流全量重估） */
+    const barObserveEls = () => {
+        const out: (Element | null)[] = [panesEl];
+        for (const s of ["original", "translated"] as const) {
+            try {
+                out.push(handles()[s]?.el ?? null);
+            } catch {
+                out.push(null); // pdf slick 拆解期 getter 抛
+            }
+        }
+        return out;
+    };
+
+    /** cite.jump 动态文案：按 targetKind 换目标名（menu-spec 注） */
+    const citeJumpLabel = (hit: HitCtx): string => {
+        const name =
+            hit.cite.targetKind === "bib"
+                ? t.menu.cite.targetBib
+                : hit.cite.targetKind === "figure"
+                  ? t.menu.cite.targetFigure
+                  : hit.cite.targetKind === "table"
+                    ? t.menu.cite.targetTable
+                    : hit.cite.targetKind === "equation"
+                      ? t.menu.cite.targetEquation
+                      : hit.cite.targetKind === "theorem"
+                        ? t.menu.cite.targetTheorem
+                        : hit.cite.targetKind === "section"
+                          ? t.menu.cite.targetSection
+                          : t.menu.cite.targetOther;
+        return fmt(t.menu.cite.jumpTo, { target: name });
+    };
+
+    const ctxm = useContextMenu(
+        (o) =>
+            o.cmd
+                ? menuItemsFor(reg, o.cmd, {
+                      label: (c, cctx) =>
+                          c.id === "cite.jump"
+                              ? citeJumpLabel(cctx.hit)
+                              : undefined,
+                      onError: () => toast.err(t.menu.actionFailed),
+                  })
+                : [],
+        {
+            snapshot: (e, _base) => {
+                const target = e.target as Element | null;
+                // .panes 容器级委托——pane 外（顶栏/横幅/导读）放出原生菜单；
+                // live-pane 在 .panes 外由 document 级监听转送进来
+                if (
+                    !target ||
+                    (!panesEl.contains(target) &&
+                        !target.closest(".live-pane"))
+                )
+                    return null;
+                if (target.closest(".guide")) return null;
+                const hit = snap(target);
+                const cmd = makeCmdCtx(hit, depsFor(hit));
+                // 可见命令为空 → veto 不拦（原生菜单照常）
+                if (!reg.visible(cmd).length) return null;
+                return { hit, cmd };
+            },
+            bypass: (e) => e.shiftKey, // Shift+右键 = 原生菜单
+            // FloatBar 互斥：开单/关单都重估展示闸（allowShow 保锚重现）
+            onOpen: () => barApi?.refresh(),
+            onClose: () => barApi?.refresh(),
+        },
+    );
+
+    // ---------- Esc 层栈（keymap 缺省栈经 isOpen/close 回调接本面） ----------
+
+    /** pane 级 Esc 面聚合：escOpen 任一为真 / escClose 双侧广播
+        （DomPane 'cite' 卡 / PdfPane 'cite'+'find'+'info' 各管各层） */
+    const forEachEsc = (m: "escOpen" | "escClose", layer: string): boolean => {
+        let any = false;
+        for (const s of ["original", "translated"] as const) {
+            const h = handles()[s] as PaneHandle | DomPaneHandle | undefined;
+            const fn = h?.[m];
+            if (typeof fn !== "function") continue;
+            const r = (fn as (layer: string) => unknown).call(h, layer);
+            if (m === "escOpen") any = !!r || any;
+        }
+        return any;
+    };
+
+    const layerOpen = (l: string): boolean => {
+        switch (l) {
+            case "help":
+                return helpOpen();
+            case "menu":
+                return ctxm.isOpen() || shareOpen();
+            case "cite":
+                return (
+                    menuCard() != null ||
+                    cl.cardOpen() ||
+                    refsOpen() ||
+                    forEachEsc("escOpen", "cite")
+                );
+            case "find":
+                return forEachEsc("escOpen", "find");
+            case "info":
+                return forEachEsc("escOpen", "info");
+            case "sel":
+                return hasLiveSelection(document);
+            default:
+                return false;
+        }
+    };
+
+    const closeLayer = (l: string) => {
+        switch (l) {
+            case "help":
+                setHelpOpen(false);
+                return;
+            case "menu":
+                // ctxm 关单自带回焦；share 弹层回焦分享钮（menuNav 同义）
+                if (ctxm.isOpen()) ctxm.close();
+                else {
+                    setShareOpen(false);
+                    shareBtnEl?.focus();
                 }
                 return;
-            }
-            if (e.ctrlKey || e.metaKey || e.altKey) return;
-            const tgt = e.target as HTMLElement | null;
-            const tag = tgt?.tagName;
-            if (
-                tag === "INPUT" ||
-                tag === "TEXTAREA" ||
-                tag === "SELECT" ||
-                tgt?.isContentEditable
-            )
-                return;
-            switch (e.key) {
-                case "1":
-                    planModeChange("split");
-                    break;
-                case "2":
-                    planModeChange("translated");
-                    break;
-                case "3":
-                    planModeChange("original");
-                    break;
-                case "4":
-                    planModeChange("guide");
-                    break;
-                case "s":
-                case "S":
-                    setSync(!syncing());
-                    break;
-                case "[":
-                    stepPage(-1);
-                    break;
-                case "]":
-                    stepPage(1);
-                    break;
-                case "?":
-                    setHelpOpen((v) => !v);
-                    break;
-                case "Escape":
-                    if (helpOpen()) {
-                        setHelpOpen(false);
-                        e.preventDefault();
-                    }
-                    break;
-                default:
+            case "cite":
+                if (menuCard() != null) {
+                    setMenuCard(null);
                     return;
+                }
+                // copy-latex 卡 / 文献面板同层归并（各件自带 Esc capture 先
+                // 杀事件——走到这里说明事件漏出或程序化 closeLayer 调用）
+                if (cl.cardOpen()) {
+                    cl.closeCard();
+                    return;
+                }
+                if (refsOpen()) {
+                    setRefsOpen(false);
+                    return;
+                }
+                forEachEsc("escClose", "cite");
+                return;
+            case "find":
+            case "info":
+                forEachEsc("escClose", l);
+                return;
+            case "sel":
+                collapseSelection(document);
+                return;
+        }
+    };
+
+    /** pdf.js 批注编辑器态聚合——双侧任一为真即占（keymap 占有判定） */
+    const pdfjsAgg = () => {
+        let armed = false;
+        let selected = false;
+        for (const s of ["original", "translated"] as const) {
+            const st = (handles()[s] as PaneHandle | undefined)
+                ?.pdfjsState?.();
+            if (st) {
+                armed = armed || st.armed;
+                selected = selected || st.selected;
             }
-        };
-        document.addEventListener("keydown", onKey);
-        onCleanup(() => document.removeEventListener("keydown", onKey));
+        }
+        return { armed, selected };
+    };
+
+    /** 键位命令路：选区锚 → hitctx → cmdreg（未注册 id 自然 no-op） */
+    const runKeyCmd = (id: string) => {
+        const hit = snap(selAnchorEl() ?? document.body);
+        void reg
+            .run(id, makeCmdCtx(hit, depsFor(hit)))
+            .catch(() => toast.err(t.menu.actionFailed));
+    };
+
+    /** 'c' 键落在 cite 锚上：卡可填开卡，否则跳目标 */
+    const openCiteAtFocus = () => {
+        const hit = snap(document.activeElement);
+        const cmd = makeCmdCtx(hit, depsFor(hit));
+        if (hit.cite.cardFillable) void reg.run("cite.card", cmd);
+        else void reg.run("cite.jump", cmd);
+    };
+
+    const dispatchAction = (action: string) => {
+        switch (action) {
+            case "ui:find": {
+                const h = handles()[active()];
+                if (h && "openFind" in h) h.openFind();
+                return;
+            }
+            case "ui:help":
+                setHelpOpen((v) => !v);
+                return;
+            case "ui:sync":
+                setSync(!syncing());
+                return;
+            case "nav:back":
+                navBack(active());
+                return;
+            case "nav:fwd":
+                navFwd(active());
+                return;
+            case "page:-1":
+                stepPage(-1);
+                return;
+            case "page:+1":
+                stepPage(1);
+                return;
+            case "mode:1":
+                planModeChange("split");
+                return;
+            case "mode:2":
+                planModeChange("translated");
+                return;
+            case "mode:3":
+                planModeChange("original");
+                return;
+            case "mode:4":
+                planModeChange("guide");
+                return;
+            case "sel:copy":
+                runKeyCmd("sel.copy");
+                return;
+            case "sel:xlat":
+                runKeyCmd("sel.xlat"); // 未注册——sel-translate lane 挂点
+                return;
+            case "sel:lookup":
+                runKeyCmd("sel.find");
+                return;
+            case "cite:open":
+                openCiteAtFocus();
+                return;
+            default:
+                return; // noop:sel / esc:* / pass / pdfjs:own ——栈内已消化
+        }
+    };
+
+    // 键盘面：attachReaderKeys 单分发器（Esc 层栈/输入区豁免/Alt+←→/
+    // pdfjs 占有/键表 11 步管线——替换原手排 switch）。
+    onMount(() => {
+        const keys = attachReaderKeys({
+            act: (kind, detail) => {
+                if (kind !== "dispatch") return;
+                const a = (detail as { action?: string } | undefined)?.action;
+                if (a) dispatchAction(a);
+            },
+            isOpen: layerOpen,
+            close: closeLayer,
+            hasSelection: () => hasLiveSelection(document),
+            onCite: (tgt) =>
+                !!(tgt as Element | null)?.closest?.(
+                    "a[href^='#bib.'], a[href^='#cite.'], a.cite-ref, .ltx_cite",
+                ),
+            pdfjs: pdfjsAgg,
+        });
+        onCleanup(() => keys.dispose());
     });
+
+    // ---------- 句游标（v 进入；dom/html 双侧各一，pdf 侧不建） ----------
+
+    const segSideOf = (side: DocId): SegSide =>
+        side === "translated" ? "zh" : "en";
+
+    /** 重分句：旧 .sb 全摘再 segmentDoc 重钉，数组原位换血
+        （cursor.otherSents 持引用——换新数组会让对侧查找失真） */
+    const resegment = (side: DocId) => {
+        const body = bodyOf(side);
+        if (!body) return;
+        for (const el of body.querySelectorAll(".sb")) el.remove();
+        const marks = segmentDoc(body, segSideOf(side));
+        sents[side].length = 0;
+        sents[side].push(...marks);
+    };
+
+    /** 游标本体：ctor 自挂的 bubble 监听摘掉换 CAPTURE 重挂——模态内按键
+        须先于 bubble 阶的 keymap 吃掉（'['双发、Esc 错塌 sel 两坑由此免）；
+        浮层在场时模式内按键让路给层内导航 */
+    const ensureCursor = (side: DocId) => {
+        if (cursors[side] || !sents[side].length) return;
+        const h = handles()[side];
+        const body = bodyOf(side);
+        if (!h || !body) return;
+        const cur = makeCursor({
+            pane: h.el, // ChunkPaneHandle.el = .pane 滚动宿主
+            body,
+            sents: sents[side],
+            otherSents: sents[other(side)],
+            live: liveEl ?? null,
+            variant: "roving",
+        });
+        cur.dispose(); // 摘 ctor 自挂的 bubble 监听——换 capture 重挂
+        const onKey = (e: KeyboardEvent): string | null => {
+            // 浮层在场（菜单/帮助/引用卡/信息/分享/查找条）→ 层内键盘导航优先；
+            // find 在 ESC_ORDER 序位高于 sel——findbar 开着时 Esc 先收条而非退模态
+            if (
+                cur.state.mode !== "idle" &&
+                (ctxm.isOpen() ||
+                    shareOpen() ||
+                    helpOpen() ||
+                    layerOpen("cite") ||
+                    layerOpen("find") ||
+                    layerOpen("info"))
+            )
+                return null;
+            return cur.onKey(e);
+        };
+        document.addEventListener("keydown", onKey, true);
+        cursors[side] = {
+            ...cur,
+            dispose: () =>
+                document.removeEventListener("keydown", onKey, true),
+        };
+    };
+
+    const dropCursor = (side: DocId) => {
+        cursors[side]?.dispose();
+        delete cursors[side];
+        sents[side].length = 0;
+    };
+
+    /** 游标重建：chunkFirst 快照在 ctor 建——sents 换血后必须重造，
+        否则 ]/[ 跳块按旧表落错句 */
+    const rebuildCursor = (side: DocId) => {
+        const cur = cursors[side];
+        if (cur) {
+            if (cur.state.mode !== "idle") cur.exit(false);
+            cur.dispose();
+            delete cursors[side];
+        }
+        ensureCursor(side);
+    };
+
+    /** body 观察：childList 直子级变化（HtmlPane retx replaceWith /
+        LivePane insertBefore / DomPane 分片 append 全落这层）→ 120ms
+        防抖重分句；.sb 钉在块内部不触发本层——自环天然免 */
+    const watchBody = (side: DocId, body: HTMLElement) => {
+        segMOs.get(side)?.disconnect();
+        const mo = new MutationObserver(() => {
+            window.clearTimeout(segTimers.get(side));
+            segTimers.set(
+                side,
+                window.setTimeout(() => {
+                    resegment(side);
+                    rebuildCursor(side); // DOM 换血后 marker 全换，模态内退模态保命
+                }, 120),
+            );
+        });
+        mo.observe(body, { childList: true });
+        segMOs.set(side, mo);
+    };
+
+    /** pane 挂点三件套：bodyEl 在场才分段/观察/建游标（pdf 侧不建） */
+    const wireSelPane = (side: DocId) => {
+        const body = bodyOf(side);
+        if (!body) return;
+        resegment(side);
+        watchBody(side, body);
+        ensureCursor(side);
+    };
+    const unwireSelPane = (side: DocId) => {
+        segMOs.get(side)?.disconnect();
+        segMOs.delete(side);
+        window.clearTimeout(segTimers.get(side));
+        segTimers.delete(side);
+        dropCursor(side);
+    };
 
     // pagehide 冲刷：关 tab/退导航时防抖窗口内的最后位置，
     // keepalive 让请求活到发出为止（普通 fetch 随页面销毁被掐）
@@ -211,6 +948,17 @@ export default function ReaderView(props: Props) {
         const onHide = () => saveNow({ keepalive: true });
         window.addEventListener("pagehide", onHide);
         onCleanup(() => window.removeEventListener("pagehide", onHide));
+    });
+
+    // 后台回前台补一拍任务面：reader 停留期间槽外任务只靠共享列表
+    // 轮询（无轮询集时整面停摆），回前台即刻校准徽标/任务行——
+    // ttl=0 恒刷（lastFreshAt 门在 ensureFresh 内，节拍天然去重）
+    onMount(() => {
+        const onVis = () => {
+            if (!document.hidden) void taskStore.ensureFresh(0);
+        };
+        document.addEventListener("visibilitychange", onVis);
+        onCleanup(() => document.removeEventListener("visibilitychange", onVis));
     });
 
     // pane 外窄区（分栏条/jump-back/占位 veil）的滚轮 → 活动窗格滚动口；
@@ -235,9 +983,30 @@ export default function ReaderView(props: Props) {
         onCleanup(() => panesEl.removeEventListener("wheel", onWheel));
     });
 
+    // live-pane（TaskProgress 宿主，.panes 外）右键 → 命令菜单同一委托；
+    // snapshot 内 veto 已放宽 live 目标（见 ctxm.snapshot 注释）
+    onMount(() => {
+        const onCtx = (e: Event) => {
+            const t = e.target as Element | null;
+            if (t?.closest?.(".live-pane"))
+                ctxm.onContextMenu(e as MouseEvent);
+        };
+        document.addEventListener("contextmenu", onCtx);
+        onCleanup(() => document.removeEventListener("contextmenu", onCtx));
+    });
+
     onCleanup(() => {
         engine?.dispose();
         if (driftRaf) window.cancelAnimationFrame(driftRaf);
+        // sel-system：双侧游标/观察器/分句表卸载（幂等——paneDisposed 可能已清）
+        for (const s of ["original", "translated"] as const)
+            unwireSelPane(s);
+        // Wave C lanes：copy-latex 委托/卡、sent-align 会话+命令、
+        // cite-translate 两命令全卸（注册面幂等——重挂不叠）
+        cl.dispose();
+        sa.dispose();
+        saReg.dispose();
+        ctf.dispose();
         // 卸载冲刷：防抖窗口内离开（重试回进度视图/返回列表/切任务）不丢最后一段阅读位置
         if (saveTimer) {
             window.clearTimeout(saveTimer);
@@ -280,7 +1049,7 @@ export default function ReaderView(props: Props) {
         const a = handles().original;
         const b = handles().translated;
         if (!a || !b) return;
-        const e = new SyncEngine(a, b, mapper());
+        const e = new SyncEngine(a, b, mapper(), () => navMuteUntil.at);
         e.syncing = untrack(syncing);
         engine = e;
         onCleanup(() => e.dispose());
@@ -301,6 +1070,172 @@ export default function ReaderView(props: Props) {
             }
         }
         if (!on) updateDrift();
+        persistPosition();
+    };
+
+    // ---------- 引用索引 + 跳回栈 + 双栏镜像 ----------
+
+    /** dual.json ph → bibkey 索引；无 ph 时 size=0（卡片走 dest 懒抽取） */
+    const citeIndex = createMemo(() => buildCiteIndex(dual()));
+    const [refMeta, setRefMeta] = createSignal<Record<string, RefMeta>>({});
+    const citeMeta = (key: string) => refMeta()[key];
+
+    // cite-translate lane：cite.translate/cite.refsAll 两命令 + 顶栏
+    // 「文献」钮 + RefsPanel 宿主。onNeedAuth 在面板未开时暂存 retry——
+    // RefsPanel 挂载自登记 authHost 时由下方包装回放进内联 key 框
+    const [refsOpen, setRefsOpen] = createSignal(false);
+    let pendingAuth: ((apiKey: string) => Promise<void>) | undefined;
+    const ctf = registerCiteTranslate(reg, {
+        citeIndex: () => citeIndex(),
+        citeMeta,
+        task: () => taskStore.task(props.taskId),
+        openRefsPanel: () => setRefsOpen(true),
+        onNeedAuth: (retry) => {
+            pendingAuth = retry;
+            setRefsOpen(true);
+        },
+    });
+    const innerSetAuthHost = ctf.ct.setAuthHost.bind(ctf.ct);
+    ctf.ct.setAuthHost = (host) => {
+        innerSetAuthHost(host);
+        if (host && pendingAuth) {
+            const r = pendingAuth;
+            pendingAuth = undefined;
+            host(r);
+        }
+    };
+
+    // L2 远端增强：文档打开即批量查（S2 scholarphi「打开即批拉、hover 零
+    // 等待」同款）——有 arXiv/DOI 线索的条目才送上游；失败静默降级
+    createEffect(() => {
+        const idx = citeIndex();
+        setRefMeta({});
+        const refs = idx
+            .entries()
+            .filter((e) => e.arxivId || e.doi)
+            .map((e) => ({ key: e.key, arxivId: e.arxivId, doi: e.doi }));
+        if (!refs.length) return;
+        void api
+            .refsLookup(refs)
+            // eslint-disable-next-line solid/reactivity -- .then 投递期读 citeIndex() 判迟到是有意的
+            .then((res) => {
+                if (citeIndex() !== idx) return; // 文档已换——丢弃迟到回包
+                setRefMeta(res.meta ?? {});
+            })
+            .catch(() => undefined);
+    });
+
+    /** 程序导航窗口开始：drift 计数与引擎时间戳各起一拍，
+        600ms 自释放——回声窗口覆盖「跳转+镜像+rAF 合帧」全程 */
+    const onNavBegin = () => {
+        navHolds++;
+        navMuteUntil.at = performance.now() + 600;
+        window.setTimeout(() => {
+            navHolds--;
+        }, 600);
+    };
+
+    /** 跳前≈跳后判同——dest 已在视口内的点击不产生栈项（幻影 entry 会
+        截断前进栈）。fraction/viewport 双阈值容 capture 像素抖动 */
+    const samePos = (a: Pos, b: Pos): boolean =>
+        a.page === b.page &&
+        Math.abs(a.fraction - b.fraction) < 0.002 &&
+        Math.abs((a.viewport ?? 0) - (b.viewport ?? 0)) < 0.01;
+
+    /** 镜像到 dst 侧：handle 缺席挂 pendingMirror（paneReady 补投）；
+        失败且仍 split 时留 1200ms 重试——dst 重挂窗口期丢镜像比
+        晚到镜像更伤。成功且有位移才记 dst 栈（同 pair 入栈供联动回跳） */
+    const mirrorTo = (
+        dstSide: DocId,
+        dest: unknown,
+        tries: number,
+        pair: number,
+    ): void => {
+        const dh = handles()[dstSide];
+        if (!dh) {
+            pendingMirror.set(dstSide, { dest, pair });
+            return;
+        }
+        onNavBegin(); // dst 滚动回声窗
+        void (async () => {
+            let r: { pre: Pos; post: Pos } | null | undefined;
+            try {
+                if ("mirrorDest" in dh && dh.mirrorDest) {
+                    r = await dh.mirrorDest(dest);
+                } else if (
+                    "gotoAnchor" in dh &&
+                    dh.gotoAnchor &&
+                    typeof dest === "string"
+                ) {
+                    r = dh.gotoAnchor(dest);
+                }
+            } catch {
+                r = null;
+            }
+            if (r) {
+                pendingMirror.delete(dstSide);
+                if (!samePos(r.pre, r.post))
+                    navStacks[dstSide].recordJump(r.pre, r.post, pair);
+                // 镜像落定后的余波回声（图像/字体晚载的二次滚）再补一拍
+                navMuteUntil.at = performance.now() + 250;
+                return;
+            }
+            if (mode() === "split" && tries > 0) {
+                const item = { dest, pair };
+                pendingMirror.set(dstSide, item);
+                window.setTimeout(() => {
+                    // 槽位已被新镜像/paneReady 覆盖即放弃——只重试自己的项
+                    if (pendingMirror.get(dstSide) !== item) return;
+                    pendingMirror.delete(dstSide);
+                    mirrorTo(dstSide, dest, tries - 1, pair);
+                }, 1200);
+            }
+        })();
+    };
+
+    /** named-dest 跳落定：本侧压栈（pre≈post 幻影跳不记）；split 下同侧
+        镜像对侧（dst 栈也记，两侧各自的 ↩ 都能回到自己跳前的位置）。
+        镜像条件只管 split——syncing 无关（cite 跳是刻意导航不是滚动传播）；
+        同步引擎的回声已由 navMuteUntil 窗口吞掉，syncing off 时引擎本就短路 */
+    const onDestJump = (side: DocId, dest: unknown, pre: Pos, post: Pos) => {
+        const pair = ++navPairSeq;
+        if (!samePos(pre, post)) navStacks[side].recordJump(pre, post, pair);
+        if (mode() !== "split") return;
+        mirrorTo(other(side), dest, 2, pair);
+    };
+
+    const navBack = (side: DocId) => {
+        const h = handles()[side];
+        if (!h) return;
+        onNavBegin();
+        const r = navStacks[side].back(capturePos(h));
+        if (r) h.jump(r.pos);
+        // 成对回跳：对侧栈顶是同一镜像跳 → 一起回（各自回自己跳前位）
+        if (r?.pair !== undefined && mode() === "split") {
+            const bs = other(side);
+            const bh = handles()[bs];
+            if (bh && navStacks[bs].topPair() === r.pair) {
+                const rb = navStacks[bs].back(capturePos(bh));
+                if (rb) bh.jump(rb.pos);
+            }
+        }
+        persistPosition();
+    };
+    const navFwd = (side: DocId) => {
+        const h = handles()[side];
+        if (!h) return;
+        onNavBegin();
+        const r = navStacks[side].fwd(capturePos(h));
+        if (r) h.jump(r.pos);
+        // 成对前跳：对侧前进票是同一镜像跳 → 一起前
+        if (r?.pair !== undefined && mode() === "split") {
+            const bs = other(side);
+            const bh = handles()[bs];
+            if (bh && navStacks[bs].nextPair() === r.pair) {
+                const rb = navStacks[bs].fwd(capturePos(bh));
+                if (rb) bh.jump(rb.pos);
+            }
+        }
         persistPosition();
     };
 
@@ -359,6 +1294,21 @@ export default function ReaderView(props: Props) {
         persistPosition();
     };
 
+    /** 深链 seq（chunk.copyLink 产物回本阅读器 #/reader/{id}?seq=N）——
+        hash 一次性快照；pdf 视图 chunk 序≠页序不落（deepSeqTarget 判空） */
+    const deepSeq = (() => {
+        const m = /[?&]seq=(\d+)/.exec(window.location.hash);
+        return m ? Number(m[1]) : null;
+    })();
+    /** seq → chunk 序 Pos（[data-chunk] 文档序页 + 顶分位 0）；
+        晚到 dual（info 先渲）/seq 不在档 → null 落回 saved 恢复 */
+    const deepSeqTarget = (): Pos | null => {
+        if (deepSeq == null || props.view === "pdf") return null;
+        const chunks = dual()?.chunks ?? [];
+        const i = chunks.findIndex((c) => c.seq === deepSeq);
+        return i >= 0 ? { page: i + 1, fraction: 0 } : null;
+    };
+
     const paneReady = (side: DocId, h: AnyHandle) => {
         setHandles((prev) => ({ ...prev, [side]: h }));
         if (pendingJump) {
@@ -368,21 +1318,38 @@ export default function ReaderView(props: Props) {
             const target = from === side ? pos : mapper()(pos, from);
             requestAnimationFrame(() => h.jump(target));
         } else if (!restoredSides.has(side)) {
-            const saved = info()?.reading?.positions?.[side];
-            if (saved) queueMicrotask(() => h.jump(saved));
+            // 深链优先于服务端恢复位——#/reader/{id}?seq=N 是显式意图
+            const ds = deepSeqTarget();
+            const saved = ds ? null : info()?.reading?.positions?.[side];
+            const target = ds ?? saved;
+            if (target) queueMicrotask(() => h.jump(target));
         } else if (engine?.syncing && side !== active()) {
             engine.alignNow(handles()[active()] ?? h);
         }
         restoredSides.add(side);
+        // 待镜像补投：引用跳转在 dst 窗格重挂窗口期发起——此刻 handle 就位
+        const pd = pendingMirror.get(side);
+        if (pd !== undefined) {
+            pendingMirror.delete(side);
+            mirrorTo(side, pd.dest, 2, pd.pair);
+        }
+        // sel-system 挂点：bodyEl 在场才分段/观察/建游标（pdf 侧空转）
+        wireSelPane(side);
+        // sent-align：新 pane 就位重扫（重挂后注入标引要补回）
+        sa.syncPanes();
     };
 
-    const paneDisposed = (side: DocId, h: AnyHandle) =>
+    const paneDisposed = (side: DocId, h: AnyHandle) => {
+        if (handles()[side] === h) unwireSelPane(side);
         setHandles((prev) => {
             if (prev[side] !== h) return prev;
             const next = { ...prev };
             delete next[side];
             return next;
         });
+        // sent-align：handle 摘表后重扫——旧 bodyEl 引用不再挂在 panes()
+        sa.syncPanes();
+    };
 
     const paneVisible = (side: DocId) => mode() === "split" || mode() === side;
 
@@ -477,7 +1444,9 @@ export default function ReaderView(props: Props) {
                     /* 拆解期 slick 已空 */
                 }
             }
-            updateDrift();
+            // 程序导航窗口内不重算 drift——cite 跳双侧同动，跳后 drift
+            // 必是程序位移的假象（导航栈语义优先于漂移钮，§8-Q5 裁决）
+            if (navHolds === 0) updateDrift();
         });
     };
 
@@ -576,6 +1545,7 @@ export default function ReaderView(props: Props) {
             chunks={dual()?.chunks ?? []}
             taskId={props.taskId}
             canRetranslate={canRetranslate()}
+            retxPending={retxPending}
             annotName={annotFileName(props.taskId, side)}
             active={active() === side}
             hidden={!paneVisible(side)}
@@ -587,12 +1557,24 @@ export default function ReaderView(props: Props) {
                     : undefined
             }
             drift={drift()[side]}
+            citeIndex={citeIndex()}
+            citeMeta={citeMeta}
+            onTranslateRef={(entry) => ctf.translateEntry(entry)}
+            refStatusOf={(id) => taskStore.taskByArxiv(id)}
+            navDepth={() => ({
+                back: navStacks[side].canBack(),
+                fwd: navStacks[side].canFwd(),
+            })}
+            onNavBack={() => navBack(side)}
+            onNavFwd={() => navFwd(side)}
             onReady={(h) => paneReady(side, h)}
             onDispose={(h) => paneDisposed(side, h)}
             onPageChange={(p) => setPageNums((s) => ({ ...s, [side]: p }))}
             onActivate={() => setActive(side)}
             onScroll={() => onUserScroll(side)}
             onJumpBack={() => jumpBack(side)}
+            onNavBegin={onNavBegin}
+            onDestJump={(d, pre, post) => onDestJump(side, d, pre, post)}
             onDocTitle={(ti) => props.onDocTitle?.(side, ti)}
         />
     );
@@ -603,6 +1585,9 @@ export default function ReaderView(props: Props) {
         ["S", t.reader.helpSync],
         ["[ / ]", t.reader.helpPages],
         ["Ctrl+F", t.reader.helpFind],
+        ["Backspace", t.reader.helpNavBack],
+        ["Alt+←/→", t.reader.helpNavHist],
+        ["V", t.reader.helpCursor],
         ["?", t.reader.helpHelp],
     ];
 
@@ -647,6 +1632,9 @@ export default function ReaderView(props: Props) {
                     }
                     shareOpen={shareOpen()}
                     shareBtnRef={(el) => (shareBtnEl = el)}
+                    onRefs={ctf.openPanel}
+                    refsTotal={ctf.refsTotal()}
+                    refsCount={ctf.refsCount()}
                 />
                 <Show when={shareOpen()}>
                     <div
@@ -658,6 +1646,14 @@ export default function ReaderView(props: Props) {
                         {props.sharePanel}
                     </div>
                 </Show>
+                {/* 文献翻译面板（cite-translate lane——顶栏「文献」钮 /
+                    cite.refsAll / 凭证门暂存回放三面同开） */}
+                <Show when={refsOpen()}>
+                    <RefsPanel
+                        {...ctf.panelProps()}
+                        onClose={() => setRefsOpen(false)}
+                    />
+                </Show>
             </div>
             {props.banner}
             <div
@@ -668,6 +1664,7 @@ export default function ReaderView(props: Props) {
                     single: mode() !== "split",
                     guide: mode() === "guide",
                 }}
+                on:contextmenu={ctxm.onContextMenu}
             >
                 {renderSlot("original")}
                 <Show when={mode() === "split"}>
@@ -693,6 +1690,62 @@ export default function ReaderView(props: Props) {
                     <GuidePane arxivId={props.arxivId} />
                 </Show>
             </div>
+            {/* sel-system 挂载面：右键菜单（Portal→body）/ 划词浮条
+                （settings 开关，默认开）/ 菜单级引用卡 / 句游标 aria-live */}
+            {ctxm.menu()}
+            <Show when={settingsStore.floatbar()}>
+                <FloatBar
+                    itemsFor={barItemsFor}
+                    onAction={barAction}
+                    suppressed={() =>
+                        ctxm.isOpen() ||
+                        shareOpen() ||
+                        helpOpen() ||
+                        menuCard() != null ||
+                        cl.cardOpen() ||
+                        refsOpen() ||
+                        // pane 侧 cite 层（UsagesCard 等 escOpen 申报者）
+                        forEachEsc("escOpen", "cite")
+                    }
+                    observeEls={barObserveEls}
+                    apiRef={(a) => (barApi = a)}
+                />
+            </Show>
+            <Show when={menuCard()} keyed>
+                {(c) => (
+                    <CiteCard rect={c.rect} onClose={() => setMenuCard(null)}>
+                        <CiteCardBody
+                            entry={citeEntryOf(c.hit.cite)}
+                            meta={() => citeMeta(citeKeyOf(c.hit.cite))}
+                            kept={keptRefs.isKept(citeKeyOf(c.hit.cite))}
+                            onToggleKeep={() =>
+                                keptRefs.toggle(
+                                    props.taskId,
+                                    citeKeyOf(c.hit.cite),
+                                    citeKeepPayload(c.hit.cite),
+                                )
+                            }
+                            onJump={() => {
+                                const hit = c.hit;
+                                setMenuCard(null);
+                                jumpToCite(hit);
+                            }}
+                            onTranslate={() =>
+                                ctf.translateEntry({
+                                    key: citeKeyOf(c.hit.cite),
+                                    arxivId: citeEntryOf(c.hit.cite).arxivId,
+                                })
+                            }
+                            refTask={(id) => taskStore.taskByArxiv(id)}
+                        />
+                    </CiteCard>
+                )}
+            </Show>
+            <div
+                class="sr-only"
+                aria-live="polite"
+                ref={(el) => (liveEl = el)}
+            />
             <Show when={helpOpen()}>
                 <div
                     class="kbd-help"

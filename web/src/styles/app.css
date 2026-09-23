@@ -24,3 +24,10 @@
 @import "./progress-chrome.css"; /* 排队/ETA/段耗时/fixloop·L2 面板/日志命中/结果面板细分统计 */
 @import "./retrymenu.css"; /* 任务行 ↻ 重试迷你菜单 / share.zip / 棋盘格可点格 */
 @import "./guide.css"; /* 导读窗格（alphaXiv overview 文档级版面） */
+
+@import "./cite.css"; /* 引用悬浮卡 / 跳回栈 chip / dom 锚闪记 */
+@import "./selsys.css"; /* 划词浮条 / 右键菜单 / 句游标哨兵（sel-system） */
+@import "./copylatex.css"; /* copy-latex：公式源卡 + approx 徽标 */
+@import "./sentalign.css"; /* sent-align：句级双语对位高亮（.ens/.zhs） */
+@import "./usages.css"; /* find-usages 悬浮卡 / cite-ref 标记 / bib 锚 */
+@import "./toast.css"; /* app 级 toast 栈（ToastHost + toastStore） */

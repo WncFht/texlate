@@ -387,6 +387,9 @@ export interface ReaderInfo {
 
 export interface DualChunk {
     seq: number;
+    /** 服务端 chunk_id 投影（data-chunk 锚值如 S1.p4/b5）——dom 视图
+        data-chunk key→seq 映射的数据面；旧产物缺席 */
+    chunk_id?: string;
     src_file?: string;
     en?: string;
     zh?: string;
@@ -413,6 +416,8 @@ export interface DualJson {
 /** GET /task/{id}/chunks 分页行（流式预览/延迟载入用） */
 export interface TaskChunkRow {
     seq: number;
+    /** 服务端 chunk_id 投影（同 DualChunk.chunk_id——缺席=旧版服务端） */
+    chunk_id?: string;
     kind: string;
     status: string;
     en: string;
@@ -565,6 +570,52 @@ export const apiErrText = (e: unknown): string =>
 
 /** 上传进度回调（loaded/total 字节——lengthComputable 才发） */
 export type UploadProgress = (loaded: number, total: number) => void;
+
+// ---------- refs：文献条目远端元数据代理（引用悬浮卡 L2 增强） ----------
+
+export interface RefLookupItem {
+    key: string;
+    arxivId?: string;
+    doi?: string;
+}
+
+/** 服务端 refs 代理回包的单条元数据——字段缺位即无（前端缺位隐藏） */
+export interface RefMeta {
+    title?: string;
+    authors?: string[];
+    year?: number;
+    venue?: string;
+    citationCount?: number;
+    tldr?: string;
+    arxivId?: string;
+    doi?: string;
+}
+
+export interface RefsLookupResponse {
+    /** bibkey → 元数据；解析不到的 key 缺席 */
+    meta: Record<string, RefMeta>;
+    /** true = 上游部分/全部失败——已尽力返回，前端不报错 */
+    degraded?: boolean;
+}
+
+// ---------- kept refs：文献收藏（CiteCard ☆ → refs.bib 导出 keys 子集） ----------
+
+/** kept_refs 单条快照——payload 自含即真相：text/meta 是收藏时刻看到的
+ *  版本，key（bibkey 或 dom 链 bib.bibN 序数）漂移后导出仍走快照。
+ *  服务端 payload ≤64KB/条。 */
+export interface KeptRef {
+    label?: string;
+    text?: string;
+    arxivId?: string;
+    doi?: string;
+    /** 收藏时刻的 L2 元数据快照（meta 缺位/迟到也可能为空） */
+    meta?: RefMeta;
+}
+
+/** GET /task/{id}/refs/kept 回包 */
+export interface KeptRefsResponse {
+    kept: Record<string, KeptRef>;
+}
 
 const TERMINAL: ReadonlySet<TaskStatus> = new Set([
     "done",

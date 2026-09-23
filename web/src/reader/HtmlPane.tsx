@@ -19,7 +19,7 @@ import {
     untrack,
 } from "solid-js";
 
-import type { DocId } from "./alignment";
+import type { DocId, Pos } from "./alignment";
 import { escapeHtml } from "./sanitize";
 import {
     chunkSideText,
@@ -37,6 +37,19 @@ import {
     onPaneScroll,
     type ChunkPaneHandle,
 } from "./sync";
+import {
+    attachUsages,
+    type UsagesCtl,
+    type UsagesOpen,
+    type UsagesSource,
+} from "./features/findusages";
+import {
+    buildCiteUsageMap,
+    usageEntryFromCiteMap,
+    type UsageEntry,
+    type UsageSite,
+} from "./usages";
+import UsagesCard, { usagesText } from "./UsagesCard";
 import { api, apiErrText, type DualChunk } from "../api/client";
 import { t } from "../i18n";
 
@@ -45,7 +58,25 @@ const RETX_POLL_MS = 2000;
 const RETX_TIMEOUT_MS = 60_000;
 const RETX_TOAST_MS = 4500;
 
-export type HtmlPaneHandle = ChunkPaneHandle;
+/** HtmlPane 把手——ChunkPaneHandle + sel-system 挂点：
+    bodyEl()  文本宿主（hitctx bodies / sentseg 分段根 / cursor 域）
+    openUsagesFor/mirrorDest/usageIndex/esc*  find-usages 臂
+    （cite token 反向索引适配 UsagesSource，跳回协议同 DomPane 口径） */
+export interface HtmlPaneHandle extends ChunkPaneHandle {
+    bodyEl(): HTMLElement;
+    /** 命令层开卡：目标元素或 bibkey/cite.key/bib.key 串 */
+    openUsagesFor?(
+        target: Element | string | null,
+        anchor?: Element | null,
+    ): boolean;
+    /** 索引面出口（调试/测试——forEl/forId 同 UsagesSource 形） */
+    usageIndex?(): UsagesSource | undefined;
+    /** 镜像收端：{u:1,id,ord,chunkOrd} 复合 dest → seq+fraction Pos 跳；
+        串 dest 剥 cite./bib. 前缀按 bibkey 落点解（bibAt） */
+    mirrorDest?(dest: unknown): { pre: Pos; post: Pos } | null;
+    escOpen?(layer: string): boolean;
+    escClose?(layer: string): void;
+}
 
 interface Props {
     side: DocId;
@@ -53,11 +84,18 @@ interface Props {
     /** 单段重译通路：两者俱有才挂「重译」钮（终态 done/partial 由调用方判） */
     taskId?: string;
     canRetranslate?: boolean;
+    /** 在飞重译 seq 集外置共享（sel-system：hitctx chunk.pending 闸须与
+        本 pane 的 pending 同一份——宿主经 PaneSlot 注入；缺省内部自建） */
+    retxPending?: Set<number>;
     active?: boolean;
     onReady?(h: HtmlPaneHandle): void;
     onDispose?(h: HtmlPaneHandle): void;
     onActivate?(): void;
     onScroll?(): void;
+    /** 程序导航窗口开始 / usages 跳落定（ReaderView 跳回栈+镜像入口，
+        与 DomPane 同口径回传） */
+    onNavBegin?(): void;
+    onDestJump?(dest: unknown, pre: Pos, post: Pos): void;
 }
 
 /* —— finishChunk 仍是共享骨架的本地副本（forEachSliced/onPaneScroll 已随
@@ -89,8 +127,10 @@ export default function HtmlPane(props: Props) {
     let libs: MdLibs | null = null;
     /** 重译更新的段覆盖层（props.chunks 是不可变快照，zh 落地写这里） */
     const overrides = new Map<number, DualChunk>();
-    /** 在飞重译 seq——按钮防抖 + 卸载断 poll */
-    const pending = new Set<number>();
+    /** 在飞重译 seq——按钮防抖 + 卸载断 poll；宿主注入则共享
+        （hitctx chunk.pending 读同一份 → 菜单 chunk.retx disabled 实时） */
+    // eslint-disable-next-line solid/reactivity -- 宿主共享的 Set 引用，挂载拍快照是有意的
+    const pending = props.retxPending ?? new Set<number>();
     const [note, setNote] = createSignal("");
     let noteTimer = 0;
 
@@ -99,7 +139,161 @@ export default function HtmlPane(props: Props) {
         scroller: () => scrollEl,
         body: () => bodyEl,
         geom,
-    });
+    }) as HtmlPaneHandle; // sel-system 挂点（bodyEl）下方挂上
+    handle.bodyEl = () => bodyEl;
+
+    // ---------------- find-usages 臂（html 链）----------------
+    // dual.json [[CITE_n]]/[[BIB_n]] token → bibkey 反向索引；卡面经
+    // UsagesCard 呈现，跳转走 Pos（seq→文档序页 + charOff/enLen 分位）。
+    // keyReliable=false（ph 编号漂移档）时条目仍出、label 尾缀 degraded
+    // 注记——「有句无键」语义由索引层数据保持，表面只做诚实信号。
+    const [ucard, setUcard] = createSignal<UsagesOpen | null>(null);
+    let usagesCtl: UsagesCtl | null = null;
+    /** props.chunks 是 dual 快照（en/ph 稳态——重译只改 zh，卡内 zhText
+        滞后一拍可接受）；索引不随响应式重建 */
+    const citeMap = buildCiteUsageMap({ chunks: untrack(() => props.chunks) });
+    /** seq → [data-chunk] 文档序（Pos.page-1）——mount 段落后建 */
+    const seqIndex = new Map<number, number>();
+
+    /** bibkey 剥装饰前缀——html 臂键域=dual 里的裸 bibkey */
+    const bareKey = (id: string): string => id.replace(/^(?:cite|bib)\./, "");
+    /** [data-bib-key] 内联查——key 含引号/反斜杠按 hitctx byId 同口径转义 */
+    const bibAnchorEl = (key: string): HTMLElement | null =>
+        bodyEl.querySelector<HTMLElement>(
+            `[data-bib-key="${key.replace(/(["\\])/g, "\\$1")}"]`,
+        );
+
+    /** 键 → UsageEntry：byKey/bibAt 双表任一在手才算「可索引目标」；
+        target.el 补上 bib-anchor（usageEntryFromCiteMap 产 null 壳——
+        委托 hover/tap/contextmenu 触发链要求宿主元素非空） */
+    const usageEntryFor = (
+        key: string,
+        anchor: HTMLElement | null,
+    ): UsageEntry | undefined => {
+        if (!citeMap.byKey.has(key) && !citeMap.bibAt.has(key))
+            return undefined;
+        const base = (anchor?.textContent ?? "").trim() || key;
+        const label = citeMap.keyReliable
+            ? base
+            : `${base} · ${usagesText("degraded")}`;
+        const e = usageEntryFromCiteMap(citeMap, key, label);
+        if (anchor) e.target.el = anchor;
+        return e;
+    };
+
+    const usageSrc: UsagesSource = {
+        forEl(el) {
+            const anchor = el?.closest?.("[data-bib-key]") ?? null;
+            if (!(anchor instanceof HTMLElement)) return undefined;
+            const key = anchor.getAttribute("data-bib-key") ?? "";
+            if (!key) return undefined;
+            return usageEntryFor(key, anchor);
+        },
+        forId(id) {
+            const key = bareKey(id);
+            return usageEntryFor(key, bibAnchorEl(key));
+        },
+    };
+
+    /** seq+fraction → Pos 跳（seqIndex 缺席/未命中 → null 不跳） */
+    const jumpSeq = (
+        seq: number | null,
+        fraction: number,
+    ): { pre: Pos; post: Pos } | null => {
+        const idx = seq != null ? seqIndex.get(seq) : undefined;
+        if (idx == null) return null;
+        const pre = handle.capture();
+        handle.jump({ page: idx + 1, fraction });
+        return { pre, post: handle.capture() };
+    };
+
+    /** usages 句项 → 该引用点在正文的 seq 分位（dest 载荷同 DomPane 口径） */
+    const jumpToUsage = (site: UsageSite) => {
+        const a = site.anchors[0];
+        const seq = site.seq ?? a?.seq ?? null;
+        if (seq == null || !seqIndex.has(seq)) return;
+        const pre = handle.capture();
+        props.onNavBegin?.();
+        usagesCtl?.close();
+        handle.jump({
+            page: (seqIndex.get(seq) ?? 0) + 1,
+            fraction: site.fraction ?? 0,
+        });
+        const post = handle.capture();
+        props.onDestJump?.(
+            {
+                u: 1,
+                id: a?.id ?? "",
+                ord: a?.ord ?? 0,
+                chunkOrd: a?.chunkOrd ?? -1,
+            },
+            pre,
+            post,
+        );
+    };
+
+    /** 跳到 bib-anchor 目标本体——优先元素滚位（DomPane jumpToEl 同款） */
+    const jumpToTarget = () => {
+        const u = ucard();
+        const el = u?.entry.target.el;
+        if (!u || !(el instanceof HTMLElement) || !el.isConnected) return;
+        const pre = handle.capture();
+        props.onNavBegin?.();
+        usagesCtl?.close();
+        const sr = scrollEl.getBoundingClientRect();
+        scrollEl.scrollTop += el.getBoundingClientRect().top - sr.top - 12;
+        const post = handle.capture();
+        props.onDestJump?.(u.entry.target.id, pre, post);
+    };
+
+    // sel-system 挂点：cite 层 Esc 归并（与 menuCard 同层）、命令开卡、
+    // 镜像收端——ReaderView 经 AnyHandle 联合调这几个可选槽
+    // eslint-disable-next-line solid/reactivity -- 命令式 handle 槽：ucard() 在调用期读是有意的
+    handle.escOpen = (l) => l === "cite" && ucard() != null;
+    handle.escClose = (l) => {
+        if (l === "cite") usagesCtl?.close();
+    };
+    handle.openUsagesFor = (target, anchor) =>
+        usagesCtl?.openFor(target, anchor) ?? false;
+    handle.usageIndex = () => (citeMap.hasTokens ? usageSrc : undefined);
+    handle.mirrorDest = (dest) => {
+        const d = dest as
+            | { u?: number; id?: string; ord?: number; chunkOrd?: number }
+            | string;
+        if (typeof d === "string") {
+            // 串 dest 兜底：bibkey（可带 cite./bib. 前缀）→ 条目落点
+            const at = citeMap.bibAt.get(bareKey(d));
+            return at
+                ? jumpSeq(at.seq, at.enLen > 0 ? at.charOff / at.enLen : 0)
+                : null;
+        }
+        if (d && d.u === 1 && typeof d.id === "string") {
+            const key = bareKey(d.id);
+            const occs = citeMap.byKey.get(key) ?? [];
+            const occ = occs[d.ord ?? 0] ?? occs[0];
+            if (occ)
+                return jumpSeq(
+                    occ.seq,
+                    occ.enLen > 0 ? occ.charOff / occ.enLen : 0,
+                );
+            // 句点落空退条目落点（bibAt 兜底臂——DomPane chunkOrd 兜底同位）
+            const at = citeMap.bibAt.get(key);
+            if (at)
+                return jumpSeq(
+                    at.seq,
+                    at.enLen > 0 ? at.charOff / at.enLen : 0,
+                );
+        }
+        return null;
+    };
+
+    /** 卡/触发面 arming：usagesCtl 的 figure/table/bibitem tabindex 补 +
+        html 臂自产 .bib-anchor 同待遇（focus 触发要它可聚焦） */
+    const armUsageTargets = (root: HTMLElement) => {
+        usagesCtl?.armTargets(root);
+        for (const el of root.querySelectorAll<HTMLElement>(".bib-anchor"))
+            if (el.tabIndex < 0) el.tabIndex = 0;
+    };
 
     const toast = (msg: string) => {
         setNote(msg);
@@ -136,6 +330,8 @@ export default function HtmlPane(props: Props) {
         sec.replaceWith(fresh);
         // 重绘段含新外链——初始渲染挂过，就地重绘也要挂（与 mount 路径同口径）
         finishChunk(fresh, libs, c.ph);
+        // 重绘段的 .bib-anchor 是新元素——tabindex 重新武装
+        armUsageTargets(fresh);
         // childList 变化已排 MO 整绑——同步再绑一遍是纯重复，只清缓存
         geom.invalidate();
     };
@@ -214,6 +410,17 @@ export default function HtmlPane(props: Props) {
 
     let disposed = false;
     onMount(async () => {
+        // usages 委托先挂——citeMap 在 hasTokens=0 时 source()=undefined
+        // 天然静默；zhText 已由 dual 携带，跨 pane 配对索引不缺
+        usagesCtl = attachUsages(
+            { el: scrollEl, bodyEl: () => bodyEl },
+            {
+                source: () => (citeMap.hasTokens ? usageSrc : undefined),
+                pairIndex: () => undefined, // 站点自带 zhText——无需对侧索引
+                open: (p) => setUcard(p),
+                close: () => setUcard(null),
+            },
+        );
         libs = await loadMdLibs().catch(() => null);
         if (disposed) return;
         if (!props.chunks.length) {
@@ -238,6 +445,15 @@ export default function HtmlPane(props: Props) {
             if (disposed) return;
         }
         bodyEl.addEventListener("click", onBodyClick);
+        // seq→文档序索引（Pos.page-1）——bib 落点/引用句的 Pos 跳都查它
+        seqIndex.clear();
+        bodyEl
+            .querySelectorAll<HTMLElement>("[data-chunk]")
+            .forEach((el, i) => {
+                const n = Number(el.getAttribute("data-chunk"));
+                if (Number.isInteger(n)) seqIndex.set(n, i);
+            });
+        armUsageTargets(bodyEl);
         geom.rebind();
         setReady(true);
         props.onReady?.(handle);
@@ -246,6 +462,8 @@ export default function HtmlPane(props: Props) {
         disposed = true;
         window.clearTimeout(noteTimer);
         bodyEl.removeEventListener("click", onBodyClick);
+        usagesCtl?.dispose();
+        usagesCtl = null;
         geom.dispose();
         props.onDispose?.(handle);
     });
@@ -279,6 +497,20 @@ export default function HtmlPane(props: Props) {
                         aria-label={t.pane.loading}
                     />
                 </div>
+            </Show>
+            {/* find-usages 悬浮卡（html 臂——cite token 索引驱动） */}
+            <Show when={ucard()} keyed>
+                {(u) => (
+                    <UsagesCard
+                        rect={u.rect}
+                        entry={u.entry}
+                        onClose={() => usagesCtl?.close(true)}
+                        onCardEnter={() => usagesCtl?.cardEnter()}
+                        onCardLeave={() => usagesCtl?.cardLeave()}
+                        onJump={(s) => jumpToUsage(s)}
+                        onJumpTarget={jumpToTarget}
+                    />
+                )}
             </Show>
         </div>
     );

@@ -1,7 +1,10 @@
 /* ---------- pdfjs viewer 微调（pdfslick pdf_viewer.css 之上） ---------- */
 
 .pdfSlickContainer {
-    background: var(--paper-2) !important;
+    /* 页周衬底=纸面压暗色（--gutter），不是下沉 chrome 面 --paper-2：
+       暗板下后者比纸亮会出「亮框裱暗纸」，null 主题下它是暖米色、
+       与原生白纸色相不同源 */
+    background: var(--gutter) !important;
 }
 
 .pdfSlickViewer .page {
@@ -9,11 +12,8 @@
     border: 0 !important;
 }
 
-/* ---------- 暗色页面对位（跟随 data-theme） ----------
+/* ---------- 页面对位 ----------
    canvas 像素由 Blender 渲染期接管（web/src/reader/blender.ts + pdfTheme.ts,
-   ADR-0018)——中性色映射 --paper/--ink ramp、彩色保 Lab 色相、图片按类分治。
-   这里只剩 .page 底色同步 --page-bg-color:reset 重渲间隙/未渲染页不闪白。 */
-[data-theme="dark"] .pdfSlickViewer {
-    --page-bg-color: var(--paper);
-}
-
+   ADR-0020)——中性色映射色板 ramp、彩色保 Lab 色相、图片按类分治。
+   .page 底色 --page-bg-color 与 --gutter 是全局文档面 token，
+   由 applyPaletteChrome 在 documentElement 落（null 主题回 base.css 默认）。 */

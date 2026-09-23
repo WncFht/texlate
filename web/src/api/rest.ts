@@ -11,9 +11,13 @@ import {
     type FileKind,
     type FileManifest,
     type Health,
+    type KeptRef,
+    type KeptRefsResponse,
     type Provider,
     type ReaderInfo,
     type ReaderKeep,
+    type RefLookupItem,
+    type RefsLookupResponse,
     type Settings,
     type SharePackResponse,
     type SlimReport,
@@ -395,6 +399,69 @@ export const api = {
     /** OG 卡 PNG 直链（img src 用，不经 request——二进制非 JSON） */
     discoverOgUrl: (arxivId: string) =>
         `${BASE}/discover/og/${encodeURIComponent(arxivId)}`,
+
+    // ---------- refs：引用悬浮卡 L2 远端增强（机会型；失败静默降级） ----------
+    refsLookup: (refs: RefLookupItem[]) =>
+        request<RefsLookupResponse>("/refs/lookup", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ refs }),
+        }),
+
+    // ---------- kept refs：文献收藏（M4 Phase B；refs.bib 的 keys 子集源） ----------
+    /** 任务 kept 全集 {key: payload}——reader mount 时一次取回 */
+    refsKept: (taskId: string) =>
+        request<KeptRefsResponse>(`/task/${taskId}/refs/kept`),
+    /**
+     * kept 写——payload=null 即 unkeep。契约两形并行期兼容：先试
+     * keyed path（PUT/DELETE /refs/kept/{key}），404/405 回退设计
+     * 文档的 collection PUT（{key,payload}/{key,payload:null}）。
+     */
+    async refsKeepWrite(
+        taskId: string,
+        key: string,
+        payload: KeptRef | null,
+    ): Promise<void> {
+        const keyed = `/task/${taskId}/refs/kept/${encodeURIComponent(key)}`;
+        const json = (b: unknown): RequestInit => ({
+            method: "PUT",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(b),
+        });
+        try {
+            return await request<void>(
+                keyed,
+                payload === null
+                    ? { method: "DELETE" }
+                    : json({ key, payload }),
+            );
+        } catch (e) {
+            if (
+                !(e instanceof ApiError) ||
+                (e.status !== 404 && e.status !== 405)
+            )
+                throw e;
+        }
+        return request<void>(
+            `/task/${taskId}/refs/kept`,
+            json({ key, payload }),
+        );
+    },
+    /**
+     * refs.bib 导出直链——keys 缺省=kept 全集（无 kept 则全可解 key），
+     * all=1 恒全量；download=1 让服务端落 Content-Disposition。
+     */
+    refsBibUrl(
+        taskId: string,
+        opts?: { keys?: string[]; all?: boolean; download?: boolean },
+    ): string {
+        const q = new URLSearchParams();
+        if (opts?.keys?.length) q.set("keys", opts.keys.join(","));
+        if (opts?.all) q.set("all", "1");
+        if (opts?.download) q.set("download", "1");
+        const qs = q.toString();
+        return `${BASE}/task/${taskId}/refs.bib${qs ? `?${qs}` : ""}`;
+    },
 
     getSettings: () => request<Settings>("/settings"),
     putSettings: (s: Settings) =>

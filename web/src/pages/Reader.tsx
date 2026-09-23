@@ -19,20 +19,23 @@ import {
     isTerminal,
     REQUEST_TIMEOUT_MS,
     type DualJson,
+    type FileKind,
     type FileManifest,
     type ReaderInfo,
     type TaskSnapshot,
 } from "../api/client";
+import { keptRefs } from "../stores/keptRefs";
 import { taskStore } from "../stores/tasks";
 import { downloadItems } from "../taskFiles";
 import { mergeResultStats } from "../taskStats";
 import ProgressGrid from "../components/ProgressGrid";
 import type { DownloadItem, Mode } from "../components/Toolbar";
 import type { DocId } from "../reader/alignment";
+import { buildCiteIndex } from "../reader/citations";
 import { resolveReaderView } from "../reader/view";
 import ReaderView from "../reader/ReaderView";
 import TaskProgress from "../reader/TaskProgress";
-import ResultBody from "../reader/ResultBody";
+import ResultBody, { RESULT_TEXT } from "../reader/ResultBody";
 import ShareBlock, { createSharePack } from "../reader/ShareBlock";
 import { createHtmlFallback, createTaskRetry } from "../reader/taskActions";
 import { t } from "../i18n";
@@ -56,6 +59,8 @@ export default function Reader(props: {
     const [active, setActive] = createSignal<DocId>("original");
     const [swapped, setSwapped] = createSignal(false);
     const [fatal, setFatal] = createSignal("");
+    // 终态横幅折叠：partial/fault 的结果条占纵向空间大，用户可收成细条
+    const [bannerFold, setBannerFold] = createSignal(false);
     // reader 404 于终态任务：doc 类任务无 dual.json（设计如此）→ 产物下载面板
     const [readerGone, setReaderGone] = createSignal(false);
     // §6 事后共享：done/partial + 非 share 导入 + 有 arxiv 源 → 可打 .share.zip
@@ -71,6 +76,7 @@ export default function Reader(props: {
             setDual(undefined);
             setManifest(null);
             setReaderGone(false);
+            setBannerFold(false);
             readerRequested = false;
             setTask((cur) =>
                 cur
@@ -175,7 +181,12 @@ export default function Reader(props: {
         void boot();
     };
 
-    onMount(() => void boot());
+    onMount(() => {
+        void boot();
+        // kept refs（M4）：reader mount 即取回——CiteCard ★ 态与
+        // refs.bib 下载项都消费这份快照；App 按 taskId keyed 重挂本页
+        void keptRefs.load(props.taskId);
+    });
 
     // 卸载摘 pin：watch 的 SSE 槽/pin 意愿不随组件消失自动释放（M2）
     onCleanup(() => taskStore.unwatch(props.taskId));
@@ -277,6 +288,9 @@ export default function Reader(props: {
         return !!s && !isTerminal(s.status);
     };
 
+    // cite 图谱规模：refs.bib 下载项的现身闸之一（M4）——buildCiteIndex
+    // 吃 dual 三态信号，未拉完/拉失败都归 0
+    const citeSize = createMemo(() => buildCiteIndex(dual()).size);
     const downloads = createMemo<DownloadItem[]>(() => {
         const m = manifest();
         // manifest 拉取失败（loadReader 吞错置 null）时退 done.artifacts/
@@ -286,13 +300,30 @@ export default function Reader(props: {
                   Object.entries(m.artifacts).map(([k, e]) => [k, e.url]),
               )
             : (live()?.done?.artifacts ?? task()?.artifacts ?? {});
-        return downloadItems(arts);
+        const items = downloadItems(arts);
+        // refs.bib（M4）：有引用图谱或有收藏即有义；空集服务端也兜底出空
+        // bib。kind 走 "refs.bib" as FileKind——FileKind 联合不扩，保持
+        // api.fileUrl 对真实 manifest kind 诚实
+        if (citeSize() > 0 || keptRefs.count() > 0)
+            items.push({
+                kind: "refs.bib" as FileKind,
+                label: t.files["refs.bib"],
+                url: api.refsBibUrl(props.taskId, { download: true }),
+            });
+        return items;
     });
 
     /** 终态非 done → 结果面板/横幅的状态键；done 或进行中 → null */
     const resultStatus = () => {
         const s = task()?.status;
         return s && isTerminal(s) && s !== "done" ? s : null;
+    };
+
+    /** done 但带 warnings（keyless mock_translator 等）→ 阅读器内常驻
+        横幅（M1）——与 resultStatus 互斥拼成横幅状态键 */
+    const doneWarnings = () => {
+        const s = task();
+        return s?.status === "done" && (s.warnings?.length ?? 0) > 0;
     };
 
     /** 结果面板统计：done.stats 优先 + 快照 counters/usage 兜底（taskStats.ts） */
@@ -340,7 +371,8 @@ export default function Reader(props: {
         );
     };
 
-    /** 终态面板主体：状态文案 + 错误 + 警告 + 统计 + 重试（横幅与整页共用） */
+    /** 终态面板主体：状态文案 + 错误 + 警告 + 统计 + 重试（横幅与整页共用）。
+        done 态（warnings 横幅）不注 share 槽——工具栏 sharePanel 已覆盖 */
     const renderResultBody = (st: string) => (
         <ResultBody
             st={st}
@@ -356,7 +388,7 @@ export default function Reader(props: {
             onTryHtml={() => void html.run()}
             stats={resultStats()}
             grid={gridSlot()}
-            share={renderShare()}
+            share={st === "done" ? undefined : renderShare()}
         />
     );
 
@@ -442,13 +474,55 @@ export default function Reader(props: {
                         setDocTitles((m) => ({ ...m, [side]: ti }))
                     }
                     banner={
-                        // 有产物的非干净终态（partial 等）：横幅提示，不挡阅读
-                        <Show when={resultStatus()}>
-                            <section
-                                class={`result-banner st-${resultStatus()}`}
-                            >
-                                {renderResultBody(resultStatus()!)}
-                            </section>
+                        // 有产物的非干净终态（partial 等）：横幅提示，可收成细条；
+                        // 重试入口在工具栏（非 done 终态）仍可达，折叠不丢动作。
+                        // done+warnings（M1 mock_translator 等）也借此槽常驻
+                        <Show
+                            when={
+                                resultStatus() ??
+                                (doneWarnings() ? "done" : null)
+                            }
+                        >
+                            {(st) => (
+                                <section
+                                    class={`result-banner st-${st()}`}
+                                    classList={{ folded: bannerFold() }}
+                                >
+                                    <Show
+                                        when={!bannerFold()}
+                                        fallback={
+                                            <button
+                                                type="button"
+                                                class="rb-fold-line"
+                                                title={t.reader.resultExpand}
+                                                onClick={() =>
+                                                    setBannerFold(false)
+                                                }
+                                            >
+                                                <span>
+                                                    {RESULT_TEXT[st()] ??
+                                                        t.status[st()] ??
+                                                        st()}
+                                                </span>
+                                                <span class="rb-fold-hint">
+                                                    {t.reader.resultExpand} ⌄
+                                                </span>
+                                            </button>
+                                        }
+                                    >
+                                        {renderResultBody(st())}
+                                        <button
+                                            type="button"
+                                            class="rb-fold"
+                                            aria-label={t.reader.resultFold}
+                                            title={t.reader.resultFold}
+                                            onClick={() => setBannerFold(true)}
+                                        >
+                                            ⌃ {t.reader.resultFold}
+                                        </button>
+                                    </Show>
+                                </section>
+                            )}
                         </Show>
                     }
                     sharePanel={

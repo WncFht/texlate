@@ -1,0 +1,83 @@
+/* app 级 toast 栈 —— 窗格外事件回执（SSE 断流 / 删除 / 提交回执 / 引用翻译）。
+   视觉沿用 .pane-toast 的 pill 口径（ink 底 paper 字圆胶囊），改 fixed 视口
+   底中纵向栈；层级须压过全部常驻件（现存最高 z-index 40=kbdhelp/tasklist） */
+
+.toast-host {
+    position: fixed;
+    left: 50%;
+    bottom: 18px;
+    transform: translateX(-50%);
+    z-index: 60;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    width: max-content;
+    max-width: min(92vw, 560px);
+    /* 栈壳不挡下层交互；命中面在 .toast 自身 */
+    pointer-events: none;
+}
+
+.toast {
+    pointer-events: auto;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 14px;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--paper);
+    background: var(--ink);
+    border-radius: 999px;
+    box-shadow: var(--shadow-pop);
+    max-width: 100%;
+}
+
+/* 档级前缀点：ok=松绿 / err=朱砂（双主题 token 同口径） */
+.toast::before {
+    content: "";
+    flex: none;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--pine);
+}
+
+.toast.t-err::before {
+    background: var(--cinnabar);
+}
+
+.toast-msg {
+    overflow-wrap: anywhere;
+}
+
+/* 行内动作钮/链——暗底上反白描边小胶囊 */
+.toast-act {
+    flex: none;
+    padding: 2px 10px;
+    font-size: 12px;
+    color: inherit;
+    background: transparent;
+    border: 1px solid currentcolor;
+    border-radius: 999px;
+    cursor: pointer;
+    text-decoration: none;
+}
+
+.toast-act:hover {
+    background: color-mix(in srgb, currentcolor 16%, transparent);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .toast {
+        animation: toast-in 0.15s ease-out;
+    }
+}
+
+@keyframes toast-in {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+}

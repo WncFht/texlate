@@ -1,0 +1,184 @@
+/* 引用悬浮卡 + 跳回栈 chip + dom 锚闪记
+   （同锚双语义 hover=卡/click=跳+压栈 的样式面——见 reader/CiteCard.tsx） */
+
+.cite-card {
+    position: fixed;
+    z-index: 30;
+    background: var(--paper);
+    color: var(--ink);
+    border: 1px solid var(--line-strong);
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+    font-size: 13px;
+    line-height: 1.55;
+    max-height: min(420px, 60vh);
+    overflow-y: auto;
+    animation: cite-card-in 0.12s ease-out;
+}
+
+@keyframes cite-card-in {
+    from {
+        opacity: 0;
+        transform: translateY(3px);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+.cite-card-inner {
+    padding: 10px 14px 10px;
+}
+
+.cite-card-label {
+    font-weight: 600;
+    color: var(--cinnabar-deep);
+    margin-bottom: 4px;
+}
+
+.cite-card-title {
+    font-weight: 600;
+    margin-bottom: 2px;
+}
+
+.cite-card-sub {
+    color: var(--ink-2);
+    font-size: 12px;
+    margin-bottom: 4px;
+}
+
+.cite-card-tldr {
+    color: var(--ink-2);
+    font-size: 12px;
+    border-inline-start: 2px solid var(--line-strong);
+    padding-inline-start: 8px;
+    margin: 6px 0;
+}
+
+.cite-card-meta {
+    margin-bottom: 6px;
+}
+
+.cite-card-text {
+    overflow-wrap: break-word;
+}
+
+.cite-card-text.muted {
+    color: var(--ink-2);
+}
+
+.cite-card-clone {
+    /* dom 链克隆的 li.ltx_bibitem——产物自带 ltx_* 样式原样生效 */
+    list-style: none;
+}
+
+.cite-card-clone li.ltx_bibitem {
+    margin: 0;
+    padding: 0;
+}
+
+.cite-card-foot {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--line);
+}
+
+.cite-card-jump {
+    padding: 4px 12px;
+    background: var(--ink);
+    color: var(--paper);
+    border: 0;
+    border-radius: 999px;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.cite-card-jump:hover {
+    background: var(--cinnabar-deep);
+}
+
+.cite-card-ext {
+    font-size: 12px;
+    color: var(--cinnabar-deep);
+    text-decoration: none;
+}
+
+.cite-card-ext:hover {
+    text-decoration: underline;
+}
+
+/* kept_refs 收藏钮（M4）——jump 同族 pill，空心态区分主动作；
+   .on（已收）填朱砂底与 jump 同级显眼 */
+.cite-card-keep {
+    padding: 4px 12px;
+    background: transparent;
+    color: var(--ink);
+    border: 1px solid var(--line-strong);
+    border-radius: 999px;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.cite-card-keep:hover {
+    border-color: var(--cinnabar);
+    color: var(--cinnabar-deep);
+}
+
+.cite-card-keep.on {
+    background: var(--cinnabar-deep);
+    border-color: var(--cinnabar-deep);
+    color: var(--paper);
+}
+
+/* ---- 跳回栈 chip：贴窗格右下（drift 钮底部居中，互不抢位） ---- */
+
+.nav-chip {
+    position: absolute;
+    bottom: 22px;
+    right: 14px;
+    z-index: 10;
+    display: flex;
+    gap: 8px;
+}
+
+.nav-chip-btn {
+    padding: 7px 14px;
+    background: var(--paper);
+    color: var(--ink);
+    border: 1px solid var(--line-strong);
+    border-radius: 999px;
+    font-size: 12px;
+    box-shadow: var(--shadow);
+    cursor: pointer;
+}
+
+.nav-chip-btn:hover {
+    border-color: var(--cinnabar);
+    color: var(--cinnabar-deep);
+}
+
+/* chip 与 drift 钮同挂底部时会撞车（窄窗格居中钮伸到右下）——
+   两物同存时 drift 钮抬到 chip 上方 */
+.pane-slot:has(.nav-chip) .jump-back {
+    bottom: 66px;
+}
+
+/* ---- dom 链锚跳目标闪记 ---- */
+
+.cite-flash {
+    animation: cite-flash 1.4s ease-out;
+    border-radius: 3px;
+}
+
+@keyframes cite-flash {
+    0% {
+        background: color-mix(in srgb, var(--cinnabar) 28%, transparent);
+    }
+    100% {
+        background: transparent;
+    }
+}

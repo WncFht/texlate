@@ -37,12 +37,16 @@ interface Props {
     share?: JSX.Element;
 }
 
-const RESULT_TEXT: Record<string, string> = {
+// 折叠态细条复用同一份文案（Reader 横幅槽）
+export const RESULT_TEXT: Record<string, string> = {
     fault: t.reader.resultFault,
     partial: t.reader.resultPartial,
     cancelled: t.reader.resultCancelled,
     interrupted: t.reader.resultInterrupted,
     needs_auth: t.reader.resultNeedsAuth,
+    // done 仅作「完成但带 warnings」横幅态由 Reader 闸注入——非 done
+    // 常态不渲染本件
+    done: t.reader.resultDone,
 };
 
 /** done.stats.stage_seconds 短键 → 阶段名（t.status 键） */
@@ -54,6 +58,12 @@ const STAGE_LABEL: Record<string, string> = {
 };
 
 export default function ResultBody(props: Props) {
+    // warnings 是 "[code] message" 串——mock_translator 命中即「keyless
+    // 走了 mock 翻译」信号，done 态给重试 + key 输入（M1 止血）
+    const mockWarn = () =>
+        (props.task?.warnings ?? []).some((w) =>
+            w.includes("mock_translator"),
+        );
     return (
         <>
             <h2 class="rp-status">{RESULT_TEXT[props.st] ?? t.status[props.st] ?? props.st}</h2>
@@ -177,7 +187,14 @@ export default function ResultBody(props: Props) {
             </Show>
             {props.grid}
             <div class="rp-actions">
-                <Show when={props.st === "needs_auth"}>
+                {/* needs_auth 恒给 key 输入；done+mock 也给——keyless mock
+                    落地产物要重译成真翻译（M1） */}
+                <Show
+                    when={
+                        props.st === "needs_auth" ||
+                        (props.st === "done" && mockWarn())
+                    }
+                >
                     <input
                         type="password"
                         class="auth-key-input"
@@ -188,14 +205,21 @@ export default function ResultBody(props: Props) {
                         onInput={(e) => props.onAuthKey(e.currentTarget.value)}
                     />
                 </Show>
-                <button
-                    type="button"
-                    class="tb-btn"
-                    disabled={props.retrying}
-                    onClick={() => props.onRetry()}
-                >
-                    {props.retrying ? t.reader.retrying : t.reader.retry}
-                </button>
+                {/* done 常态不渲染重试（done 无 warnings 时本件根本不挂）；
+                    done+mock 恢复重试入口 */}
+                <Show when={props.st !== "done" || mockWarn()}>
+                    <button
+                        type="button"
+                        class="tb-btn"
+                        disabled={props.retrying}
+                        onClick={() => props.onRetry()}
+                    >
+                        {props.retrying ? t.reader.retrying : t.reader.retry}
+                    </button>
+                </Show>
+                <Show when={props.st === "done" && mockWarn()}>
+                    <span class="muted">{t.reader.mockNotice}</span>
+                </Show>
                 <Show when={props.canTryHtml}>
                     <button
                         type="button"

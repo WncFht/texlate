@@ -31,8 +31,11 @@ export interface TransportHooks {
     /** 任务已删（本地 remove/deleted 帧/轮询 404/探活 404）：状态面全清 */
     onDrop(taskId: string): void;
     /**
-     * 非 pin 观测面的共享列表轮询一拍——store 侧一次 /api/tasks 归并
-     * （水位防回退 + 终态收敛 + 消失即删），替代每任务各开 snapshot 轮询
+     * 非 pin 观测面的共享列表轮询一拍——store 侧一次 /api/tasks 整表归并
+     * （水位防回退 + 终态收敛 + 外来非终态行自动 wanted(pin:false) +
+     * 非 pin 消失行即删），替代每任务各开 snapshot 轮询。
+     * ids（拍发起时的 listPolled 快照）仅作传输侧空集短路依据，
+     * store 实现按整表归并可忽略之。
      */
     pollListWanted(ids: readonly string[]): Promise<void>;
     /** resync 帧清 chunk 派生态——水位线已被 client 重置，累积值不可信 */

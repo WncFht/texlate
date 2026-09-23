@@ -41,10 +41,12 @@ export default function Home(props: {
     /** #/arxiv/{id} 深链——预填输入框 + 聚焦翻译钮，不自动提交 */
     arxivId?: string;
 }) {
-    // 表单共享态：busy 是 submit/upload 互斥门，error/idBad 是输入行反馈
+    // 表单共享态：busy 是 submit/upload 互斥门，error/idBad 是输入行反馈；
+    // authErr 是 401/auth_required 的结构化错误面（内联 key 输入 + 设置链）
     const [arxivId, setArxivId] = createSignal("");
     const [busy, setBusy] = createSignal(false);
     const [error, setError] = createSignal("");
+    const [authErr, setAuthErr] = createSignal<string | null>(null);
     // id 解析失败态：aria-invalid 只标格式错，服务端错误不占位
     const [idBad, setIdBad] = createSignal(false);
     let fileInput!: HTMLInputElement;
@@ -78,6 +80,7 @@ export default function Home(props: {
         busy,
         setBusy,
         setError,
+        setAuthErr,
         markIdBad: () => setIdBad(true),
         alive: () => alive,
         options: opts,
@@ -215,6 +218,39 @@ export default function Home(props: {
                 <Show when={error()}>
                     <p class="form-error" role="alert">
                         {error()}
+                    </p>
+                </Show>
+                {/* 401/auth_required：内联 key 输入（写 opts.optKey，下次
+                    提交随 byok 透传）+ 设置页链——复用 ResultBody 模式（M1） */}
+                <Show when={authErr()}>
+                    {(msg) => (
+                        <div class="form-error" role="alert">
+                            <p>{msg()}</p>
+                            <input
+                                type="password"
+                                class="auth-key-input"
+                                placeholder={t.reader.authKeyPlaceholder}
+                                aria-label={t.reader.authKeyPlaceholder}
+                                value={opts.optKey()}
+                                onInput={(e) =>
+                                    opts.setOptKey(e.currentTarget.value)
+                                }
+                            />
+                            <a href="#/settings">{t.home.goSettings}</a>
+                        </div>
+                    )}
+                </Show>
+                {/* 服务端无 key 且用户未填 BYOK 时的软提示（M1）——不禁钮：
+                    keyless 通道仍可能直过，auth 失败才落上面的富错误面 */}
+                <Show
+                    when={
+                        settingsStore.settings()?.has_api_key === false &&
+                        !opts.optKey().trim() &&
+                        !authErr()
+                    }
+                >
+                    <p class="muted">
+                        <a href="#/settings">{t.home.noKeyHint}</a>
                     </p>
                 </Show>
                 <UploadBar uploading={up.uploading} upPct={up.upPct} />

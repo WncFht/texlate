@@ -27,10 +27,11 @@ const SHOTS = new URL("./shots/", import.meta.url).pathname;
 mkdirSync(SHOTS, { recursive: true });
 
 // 主视区第一页 canvas 的平均亮度(步长采样) + 近 bg/fg 像素占比
-const SAMPLE = `(() => {
+const SAMPLE = `(() => { try {
     const cv = document.querySelector(".pdfSlickViewer .page canvas");
-    if (!cv || !cv.width) return null;
+    if (!cv || !cv.width || !cv.height) return null;
     const x = cv.getContext("2d");
+    if (!x) return null;
     const d = x.getImageData(0, 0, cv.width, cv.height).data;
     let sum = 0, n = 0, darkish = 0, lightish = 0;
     for (let i = 0; i < d.length; i += 4 * 97) {
@@ -40,9 +41,9 @@ const SAMPLE = `(() => {
         if (l > 200) lightish++;
     }
     return { avg: +(sum / n).toFixed(1), darkPct: +(darkish / n * 100).toFixed(1), lightPct: +(lightish / n * 100).toFixed(1) };
-})()`;
+    } catch { return null; } })()`;
 
-const THUMB_SAMPLE = `(() => {
+const THUMB_SAMPLE = `(() => { try {
     const cv = document.querySelector(".pane-pdf .thumbnailImage") ||
                document.querySelector(".pdfSlickThumbnail canvas") ||
                document.querySelector(".thumbnailImage canvas") ||
@@ -62,7 +63,7 @@ const THUMB_SAMPLE = `(() => {
     let s = 0, n = 0;
     for (let i = 0; i < d.length; i += 4 * 13) { s += 0.2126*d[i]+0.7152*d[i+1]+0.0722*d[i+2]; n++; }
     return { avg: +(s/n).toFixed(1) };
-})()`;
+    } catch { return null; } })()`;
 
 const browser = await chromium.launch({ executablePath: EXE });
 const ctx = await browser.newContext({ viewport: { width: 1400, height: 950 } });

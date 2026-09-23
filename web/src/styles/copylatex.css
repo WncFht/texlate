@@ -1,0 +1,102 @@
+/* copy-latex：公式源卡（.latex-card）+ 近似徽标（.latex-approx）
+   皮肤面与 cite.css 同源（--paper/--ink/--line-strong/--shadow 卡片外观
+   变量组）；定位骨架尺寸由 LatexCard.tsx 内联写入（left/top/width）。 */
+
+.latex-card {
+    position: fixed;
+    z-index: 30;
+    background: var(--paper);
+    color: var(--ink);
+    border: 1px solid var(--line-strong);
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+    font-size: 13px;
+    line-height: 1.55;
+    max-height: min(420px, 60vh);
+    display: flex;
+    flex-direction: column;
+    animation: cite-card-in 0.12s ease-out;
+}
+
+.latex-card-inner {
+    padding: 10px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-height: 0;
+}
+
+/* LaTeX 源等宽区——textContent 注入，横向长式可滚 */
+.latex-src {
+    margin: 0;
+    padding: 8px 10px;
+    background: var(--paper-2);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+    overflow-y: auto;
+    max-height: 260px;
+    /* 复制失败的退路：卡内文本恒可选手动复制（spec 风险 10） */
+    user-select: text;
+    cursor: text;
+}
+
+.latex-empty {
+    padding: 6px 2px;
+}
+
+.latex-card .muted,
+.latex-card .latex-count {
+    color: var(--ink-2);
+    font-size: 12px;
+}
+
+.latex-foot {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-top: 1px solid var(--line);
+    padding-top: 8px;
+    flex-wrap: wrap;
+}
+
+.latex-copy {
+    padding: 4px 12px;
+    background: var(--ink);
+    color: var(--paper);
+    border: 0;
+    border-radius: 999px;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.latex-copy:hover {
+    background: var(--cinnabar-deep);
+}
+
+/* approx 徽标：赭石边空心——区别于主按钮的实体色 */
+.latex-approx {
+    padding: 1px 8px;
+    border: 1px solid var(--ochre);
+    border-radius: 999px;
+    color: var(--ochre-deep);
+    font-size: 11px;
+}
+
+.latex-delim {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    color: var(--ink-2);
+    cursor: pointer;
+    user-select: none;
+}
+
+.latex-delim input {
+    accent-color: var(--cinnabar);
+}

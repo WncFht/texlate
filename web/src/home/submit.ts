@@ -17,6 +17,9 @@ export function createHomeSubmit(deps: {
     busy(): boolean;
     setBusy(v: boolean): void;
     setError(v: string): void;
+    /** auth_required/401 → 结构化错误面（文案 + #/settings 链 + 内联 key
+        输入），裸文本 error 的姊妹信号——null 即清 */
+    setAuthErr(v: string | null): void;
     /** id 解析失败——aria-invalid 只标格式错，服务端错误不占位 */
     markIdBad(): void;
     /** 卸载闸——在飞请求落地不得再动状态/劫持路由 */
@@ -32,10 +35,12 @@ export function createHomeSubmit(deps: {
         const id = parseArxivId(deps.id());
         if (!id) {
             deps.setError(t.home.invalidId);
+            deps.setAuthErr(null);
             deps.markIdBad();
             return;
         }
         deps.setError("");
+        deps.setAuthErr(null);
         deps.setBusy(true);
         try {
             const res = await api.translate(
@@ -56,6 +61,15 @@ export function createHomeSubmit(deps: {
                     deps.onExisting(existing);
                     return;
                 }
+            }
+            // 401/auth_required → 富错误面（内联 key 输入 + #/settings 链）——
+            // 裸文本时代用户只能干瞪眼（M1）
+            if (
+                e instanceof ApiError &&
+                (e.code === "auth_required" || e.status === 401)
+            ) {
+                deps.setAuthErr(apiErrText(e));
+                return;
             }
             deps.setError(apiErrText(e));
         } finally {

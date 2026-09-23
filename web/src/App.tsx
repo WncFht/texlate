@@ -3,6 +3,7 @@
 // 路由级分包，首屏不付解析成本；落地后空闲预取，点进任务时基本即时。
 
 import {
+    createEffect,
     createSignal,
     lazy,
     Match,
@@ -16,8 +17,8 @@ import Home from "./pages/Home";
 import Tasks from "./pages/Tasks";
 import Discover from "./pages/Discover";
 import Settings from "./pages/Settings";
-import ThemeToggle from "./components/ThemeToggle";
-import { isTerminal } from "./api/client";
+import ToastHost from "./components/ToastHost";
+import { applyPaletteChrome } from "./reader/pdfTheme";
 import { taskStore } from "./stores/tasks";
 import { t } from "./i18n";
 
@@ -27,12 +28,20 @@ type Route =
     | { page: "home"; arxivId?: string }
     | { page: "tasks" }
     | { page: "discover" }
-    | { page: "reader"; taskId: string }
+    | { page: "reader"; taskId: string; seq?: number }
     | { page: "settings" };
 
 export function parseHash(hash: string): Route {
     const m = hash.match(/^#\/reader\/([A-Za-z0-9_-]+)/);
-    if (m) return { page: "reader", taskId: m[1] };
+    if (m) {
+        // chunk.copyLink 深链 #/reader/{id}?seq=N——ReaderView 挂载期消费
+        const sm = /[?&]seq=(\d+)/.exec(hash);
+        return {
+            page: "reader",
+            taskId: m[1],
+            seq: sm ? Number(sm[1]) : undefined,
+        };
+    }
     // #/arxiv/{id} 深链：预填首页输入框（Home 侧守卫，不自动提交）
     const a = hash.match(/^#\/arxiv\/([A-Za-z0-9][A-Za-z0-9._/-]*)/);
     if (a) {
@@ -57,6 +66,9 @@ export default function App() {
         parseHash(window.location.hash),
     );
     const onHash = () => setRoute(parseHash(window.location.hash));
+    // 色板即全站主题(单轴合并):chrome 唯一写者——paperTheme/osDark
+    // 信号读即依赖,选板与系统明暗翻转自动重放,全页面同源跟随
+    createEffect(() => applyPaletteChrome(document.documentElement));
     onMount(() => {
         window.addEventListener("hashchange", onHash);
         // 任务列表全局面：徽标/进行中提示/Tasks 页共享一份 store——
@@ -75,12 +87,8 @@ export default function App() {
         const r = route();
         return r.page === "home" ? r.arxivId : undefined;
     };
-    /** 顶导航「任务」徽标：进行中（非终态）任务计数 */
-    const activeCount = () =>
-        taskStore.state.tasks.reduce(
-            (n, x) => n + (isTerminal(x.status) ? 0 : 1),
-            0,
-        );
+    /** 顶导航「任务」徽标：进行中（非终态）任务计数（taskStore 单源） */
+    const activeCount = () => taskStore.activeCount();
 
     return (
         <div class="app">
@@ -112,7 +120,6 @@ export default function App() {
                 >
                     {t.nav.settings}
                 </a>
-                <ThemeToggle />
             </nav>
             <Suspense
                 fallback={
@@ -147,6 +154,8 @@ export default function App() {
                     </Match>
                 </Switch>
             </Suspense>
+            {/* app 级 toast 栈——窗格外事件回执统一收口（fixed 定位，页面无关） */}
+            <ToastHost />
         </div>
     );
 }

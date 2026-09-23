@@ -25,6 +25,14 @@
     --shadow-sm: 0 1px 2px rgb(33 27 18 / 12%);
     --shadow-pop: 0 8px 28px rgb(0 0 0 / 18%);
     --shadow-modal: 0 12px 40px rgb(0 0 0 / 25%);
+    /* 文档面色（与 chrome 面分族）：纸面本色 + 衬底 + 纸面墨色阶梯。
+       默认原生纸=白纸 + 中性浅灰衬底；命名色板由 pdfTheme.applyPaletteChrome
+       内联覆写（--paper-2 是下沉 chrome 面,不许再拿去当纸面衬底） */
+    --page-bg-color: #fff;
+    --page-fg: #1a1a1a;
+    --page-fg-2: #595959;
+    --page-fg-3: #737373;
+    --gutter: #e8e8e8;
     --font-ui:
         "Inter", "PingFang SC", "Source Han Sans SC", "Noto Sans CJK SC",
         system-ui, sans-serif;
@@ -59,6 +67,9 @@
     --shadow-sm: 0 1px 2px rgb(0 0 0 / 40%);
     --shadow-pop: 0 8px 28px rgb(0 0 0 / 55%);
     --shadow-modal: 0 12px 40px rgb(0 0 0 / 60%);
+    /* none 逃生口（暗 chrome+白纸面）：衬底归 chrome 下沉面——
+       中性浅灰衬底在暗界面里是眩光，暗衬底才兜得住（Zotero/pdf.js 同惯例） */
+    --gutter: var(--paper-2);
     color-scheme: dark;
 }
 
@@ -116,7 +127,6 @@ button {
     .tb-select,
     .tb-page input,
     .topnav a,
-    .theme-toggle,
     .rail-btn,
     .fb-btn,
     .fb-input,
@@ -207,28 +217,12 @@ button {
     vertical-align: 1px;
 }
 
-/* 顶栏主题快切钮（ThemeToggle）——margin-left:auto 顶到行尾；
-   阅读器侧复用 .tb-btn 皮肤，这里只管 topnav 语境 */
-.topnav .theme-toggle {
-    margin-left: auto;
-    align-self: center;
-    padding: 2px 4px;
-    border: 0;
-    background: none;
-    color: var(--ink-2);
-    font-size: 14px;
-    line-height: 1;
-    border-radius: 4px;
-}
-
-.topnav .theme-toggle:hover {
-    color: var(--ink);
-}
-
 /* ---------- 内页壳（Tasks / Discover 共用） ---------- */
-/* 与 .home 同理：容器全宽撑滚动区，内容靠侧 padding 居中 */
+/* 与 .home 同理：容器全宽撑滚动区，内容靠侧 padding 居中；
+   必须限定 main——pdf.js 页容器同名 .page，裸类名会把 padding
+   打进 PDF 页几何（canvas 按 padding box 定位→位图拉伸模糊） */
 
-.page {
+main.page {
     flex: 1;
     overflow: auto;
     padding: 36px max(24px, calc((100% - 980px) / 2));

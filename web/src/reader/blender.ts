@@ -139,8 +139,10 @@ class Color {
             } else if (str.startsWith("rgba(")) {
                 [this._rgb, this._alpha] = Color.parseRGBA(str);
             }
+            // 字符串解析失败的兜底只在字符串路径生效——lab 构造走惰性
+            // _rgb??=fromLab,提前填黑会短路换算(gradient 恒黑的根因)
+            this._rgb ??= [0, 0, 0];
         }
-        this._rgb ??= [0, 0, 0];
     }
 
     get hex(): string {
@@ -191,7 +193,7 @@ class Color {
 
     toHex(alpha = 1): string {
         let hex = this.rgb.map(Color.compToHex).join("");
-        if (alpha !== 1) hex += Color.compToHex(alpha);
+        if (alpha !== 1 && !isNaN(alpha)) hex += Color.compToHex(alpha);
         return "#" + hex;
     }
 
@@ -205,7 +207,13 @@ class Color {
     }
     static parseRGBA(str: string): [number[], number] {
         const parts = str.slice(str.indexOf("(") + 1, -1).split(",");
-        return [parts.slice(0, 3).map((c) => parseInt(c) / 255), parseFloat(parts[3])];
+        // rgb() 只有三分量:alpha 缺省=1,否则 NaN 会经 toHex 拼出非法串
+        // 被 canvas 静默忽略(保持旧值=默认黑,整页漆黑的根因)
+        const alpha = parts.length > 3 ? parseFloat(parts[3]) : 1;
+        return [
+            parts.slice(0, 3).map((c) => parseInt(c) / 255),
+            isNaN(alpha) ? 1 : alpha,
+        ];
     }
     static compToHex(c: number): string {
         return Math.round(Math.min(Math.max(c * 255, 0), 255))

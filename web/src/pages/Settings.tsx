@@ -11,6 +11,7 @@ import {
     TARGET_LANGS,
 } from "../options";
 import { t, langChoice, setLang, type LangChoice } from "../i18n";
+import { PAPER_LABEL, PAPER_THEME_IDS } from "../reader/pdfTheme";
 
 /** 并发夹取 1..16——与 Home 任务选项（home/options.ts）同一口径 */
 const clampConcurrency = (v: number) => Math.max(1, Math.min(16, Math.floor(v)));
@@ -38,6 +39,13 @@ export default function Settings() {
     const [provider, setProvider] = createSignal("");
     // store.refresh 内部吞错——settings() 仍 null 即加载失败（与"还没配置"区分）
     const [loadErr, setLoadErr] = createSignal(false);
+    // 任务完成通知权限态（localStorage 无关——浏览器 Notification 权限；
+    // 非 default 态按钮即禁，「开启」只在用户手势里 requestPermission）
+    const [notifyPerm, setNotifyPerm] = createSignal<string>(
+        typeof Notification === "undefined"
+            ? "unsupported"
+            : Notification.permission,
+    );
     let msgTimer = 0;
 
     onCleanup(() => window.clearTimeout(msgTimer));
@@ -129,6 +137,19 @@ export default function Settings() {
             fail(`${t.settings.clearFailed}：${errText(e)}`);
         } finally {
             setClearing(false);
+        }
+    };
+
+    /** 通知权限请求——须落在点击手势内；旧实现不返 Promise 的走 catch 兜底 */
+    const requestNotify = async () => {
+        if (typeof Notification === "undefined") {
+            setNotifyPerm("unsupported");
+            return;
+        }
+        try {
+            setNotifyPerm(await Notification.requestPermission());
+        } catch {
+            setNotifyPerm(Notification.permission);
         }
     };
 
@@ -381,18 +402,88 @@ export default function Settings() {
                         onInput={(e) => setGlossary(e.currentTarget.value)}
                     />
                 </label>
+                {/* 外观=色板即全站主题(ADR-0020 二次追加):纸面+chrome 同源
+                    配对,唯一外观轴——不再存在独立的界面亮暗选择 */}
+                <label>
+                    <span>
+                        {t.settings.appearance}
+                        <em class="muted">{t.settings.appearanceHint}</em>
+                    </span>
+                    <select
+                        class="tx-select"
+                        value={settingsStore.paperTheme()}
+                        onChange={(e) =>
+                            settingsStore.setPaperTheme(
+                                e.currentTarget.value as Parameters<
+                                    typeof settingsStore.setPaperTheme
+                                >[0],
+                            )
+                        }
+                    >
+                        <For each={PAPER_THEME_IDS}>
+                            {(id) => (
+                                <option value={id}>{PAPER_LABEL[id]}</option>
+                            )}
+                        </For>
+                    </select>
+                </label>
+                {/* 划词浮条 + 句游标提示（sel-system——localStorage 即时生效，
+                    不走后端 settings 通道） */}
                 <div class="settings-field">
-                    <span>{t.settings.theme}</span>
+                    <span>
+                        {t.settings.floatbar}
+                        <em class="muted">{t.settings.floatbarHint}</em>
+                    </span>
                     <Segmented
                         options={[
-                            { value: "auto", label: t.settings.themeAuto },
-                            { value: "light", label: t.settings.themeLight },
-                            { value: "dark", label: t.settings.themeDark },
+                            { value: "on", label: t.home.optOn },
+                            { value: "off", label: t.home.optOff },
                         ]}
-                        value={settingsStore.theme()}
-                        onChange={(v) => settingsStore.setTheme(v)}
-                        ariaLabel={t.settings.theme}
+                        value={settingsStore.floatbar() ? "on" : "off"}
+                        onChange={(v) =>
+                            settingsStore.setFloatbar(v === "on")
+                        }
+                        ariaLabel={t.settings.floatbar}
                     />
+                    <em class="muted">{t.settings.cursorHint}</em>
+                </div>
+                {/* 句级双语对位（sent-align——localStorage 即时生效） */}
+                <div class="settings-field">
+                    <span>
+                        {t.settings.sentAlign}
+                        <em class="muted">{t.settings.sentAlignHint}</em>
+                    </span>
+                    <Segmented
+                        options={[
+                            { value: "on", label: t.home.optOn },
+                            { value: "off", label: t.home.optOff },
+                        ]}
+                        value={settingsStore.sentAlign() ? "on" : "off"}
+                        onChange={(v) =>
+                            settingsStore.setSentAlign(v === "on")
+                        }
+                        ariaLabel={t.settings.sentAlign}
+                    />
+                </div>
+                {/* 任务完成通知（notifyDone 闸=document.hidden+permission===
+                    granted——本页只做权限请求入口与态显示，无独立开关） */}
+                <div class="settings-field">
+                    <span>
+                        {t.settings.notify}
+                        <em class="muted">{t.settings.notifyHint}</em>
+                    </span>
+                    <button
+                        type="button"
+                        class="btn-ghost"
+                        disabled={notifyPerm() !== "default"}
+                        onClick={() => void requestNotify()}
+                    >
+                        {notifyPerm() === "granted"
+                            ? t.settings.notifyOn
+                            : notifyPerm() === "default"
+                              ? t.settings.notifyEnable
+                              : t.settings.notifyDenied}
+                    </button>
                 </div>
                 <div class="settings-field">
                     <span>{t.settings.lang}</span>

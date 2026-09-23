@@ -23,6 +23,7 @@ const CARDS: { key: CardKey; label: () => string }[] = [
 export default function GuidePane(props: { arxivId?: string }) {
     const [ov, setOv] = createSignal<AxOverview | null>(null);
     const [state, setState] = createSignal<State>(
+        // eslint-disable-next-line solid/reactivity -- 初态快照；真正的响应读取在下面 createEffect
         props.arxivId ? "loading" : "empty",
     );
     const [libs, setLibs] = createSignal<MdLibs | null>(null);

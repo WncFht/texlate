@@ -32,8 +32,23 @@ export function sanitizeHtml(html: string): string {
 const DOM_PROFILE = {
     USE_PROFILES: { html: true, mathMl: true, svg: true, svgFilters: true },
     FORBID_TAGS: ["iframe", "object", "embed", "form", "base", "link", "meta"],
-    // data-chunk 是 sync 几何锚——data-* DOMPurify 默认放行，显式声明防回归
-    ADD_ATTR: ["data-chunk", "target"],
+    // data-chunk 是 sync 几何锚——data-* DOMPurify 默认放行，显式声明防回归；
+    // alttext 是 LaTeXML <math alttext="…"> 的 copy-latex 载体（§2.2 微插桩）
+    // ——semantics/annotation 是 mXSS 向量仍禁，只放行这一枚属性；
+    // data-sid/data-bead 是 sent-align 注入的句级锚（{chunk}.{k}/{chunk}.{b}）
+    // ——缺白名单时 sanitize 复跑会把注入标引剥成哑 span；
+    // data-ph/data-key/data-bib-key 是 unmaskLatex 的掩码替身锚
+    // （MATH 源反查 / cite-ref 键串 / bib-anchor 条目键）
+    ADD_ATTR: [
+        "data-chunk",
+        "target",
+        "alttext",
+        "data-sid",
+        "data-bead",
+        "data-ph",
+        "data-key",
+        "data-bib-key",
+    ],
 };
 
 const PANE_SCOPE = ".pane-html-body";

@@ -10,11 +10,13 @@ import {
     ApiError,
     errText,
     forgetTaskEvents,
+    isFailed,
     isTerminal,
     liveSeqWatermark,
     type ChunkItem,
     type TaskChannel,
     type TaskSnapshot,
+    type TaskStatus,
 } from "../api/client";
 import {
     chunkCap,
@@ -24,6 +26,8 @@ import {
     type TaskLive,
 } from "./liveFrames";
 import { createTransport } from "./taskTransport";
+import { toast } from "./toastStore";
+import { currentLang, fmt, t } from "../i18n";
 
 // 门面再导出：live 面类型与传输调参常量是 store 公开面的一部分——
 // 消费方（TaskProgress/tests）从 tasks.ts 单点拿，不追内部文件布局
@@ -53,6 +57,72 @@ const freshLive = (): TaskLive => ({
 
 function ensureLive(taskId: string): void {
     setState("live", taskId, (l) => l ?? freshLive());
+}
+
+// ---------------------------------------------------------------------------
+// B2 观测面：track/intents/taskByArxiv + 完成通知（cite-translate §D 挂法 A）
+// ---------------------------------------------------------------------------
+
+/** intents 竞态桥 TTL——POST 已回 task_id、列表行尚未物化的窗口期 */
+const INTENT_TTL_MS = 60_000;
+
+interface TaskIntent {
+    taskId: string;
+    /** 调用方给的原始 arxiv 形（合成占位行的 arxiv_id 展示用） */
+    arxiv: string;
+    at: number;
+}
+
+/**
+ * arxivId(canon 键) → taskId 竞态桥：cite 卡/批译 POST 返回后列表行未
+ * 物化前，taskByArxiv 仍能解析到任务。惰性过期（读时判+dropTask 反向清）。
+ * 测试可经 taskStore.intents 读/清；业务面只走 track/taskByArxiv。
+ */
+const intents = new Map<string, TaskIntent>();
+
+/**
+ * arXiv id 匹配键（taskByArxiv 双侧归一）：剥 URL/arXiv:/DOI/OAI 前缀、
+ * ?#尾、vN 版本、尾注 [class]、下载扩展名、旧式 class
+ * （archive.CLASS/NNNNNNN → archive/NNNNNNN）、`--`→`/`、全小写。
+ * 服务端落库 arxiv_id 的历史行保留 class 与大小写、M2 后为 canon.base
+ * ——两侧都过本函数才比，两种落库形同键。
+ * 注意：这是 taskByArxiv 私有最小实现（不做校验、不抛错——坏输入只是
+ * 匹配不上）；misc-pack M2 的共享 canon 落地后应换绑单源
+ * （tmp/ux-research-20260922/arxiv-id-canon-spec.md 管线序照抄）。
+ */
+export function canonArxivKey(raw: string): string {
+    let s = raw.trim();
+    // 存储拼写回流：`--` 不可能出现在合法 id 内，unfold 无歧义
+    s = s.replace(/--/g, "/");
+    // 前缀循环至不动点（URL/DOI/OAI/arXiv: 可叠套）
+    for (;;) {
+        const prev = s;
+        s = s.replace(
+            /^(?:https?:\/\/)?[\w.-]*arxiv\.org\/(?:abs|pdf|src|e-print|html|format)\/+/i,
+            "",
+        );
+        s = s.replace(/^https?:\/\/(?:dx\.|www\.)?doi\.org\//i, "");
+        s = s.replace(/^doi:\s*/i, "");
+        s = s.replace(/^10\.48550\/arxiv\./i, "");
+        s = s.replace(/^oai\s*:\s*arxiv\.org\s*:\s*/i, "");
+        s = s.replace(/^arxiv\s*[:.]\s*/i, "");
+        if (s === prev) break;
+    }
+    s = s.replace(/[?#].*$/, ""); // ?query/#frag 尾
+    s = s.replace(/[\s/]+$/, ""); // 尾 "/" 与空白
+    s = s.replace(/\s*\[[^\]]{1,20}\]\s*$/, ""); // [cs.CL] 引用尾注
+    for (;;) {
+        const prev = s;
+        s = s.replace(/\.(pdf|ps|eps|dvi|gz|tgz|tar\.gz)$/i, "");
+        if (s === prev) break;
+    }
+    s = s.replace(/^(.+?)[vV](\d{1,3})$/, "$1"); // 版本尾 vN
+    // 旧式 base 剥 class + archive 小写（math.GT/0309136 → math/0309136）
+    s = s.replace(
+        /^([-a-zA-Z]+)(?:\.[A-Za-z][A-Za-z-]*)?\/(\d{7})$/,
+        (_m, a: string, d: string) => `${a.toLowerCase()}/${d}`,
+    );
+    return s.toLowerCase();
 }
 
 /** task_id 行定位一处口径（upsert/stage/done/patch/task 共用） */
@@ -133,6 +203,66 @@ function settleLive(taskId: string) {
 }
 
 /**
+ * 完成通知（cite-translate §D 挂法 A）：live.done 物化是唯一汇聚面——
+ * 全部终态入径（SSE done 帧/snapshot 终态/共享列表轮询/refresh/独轮询
+ * tick/探活/resync）收敛到 2 个写点：convergeTerminal 的 `!live.done`
+ * 守卫内一发 + done handler 的 hadDone 快照后置守卫一发，每轮恰一次。
+ * 天然免报：refresh/轮询首见终态的存量行（未 wanted 不 converge）、
+ * deleted 帧；retry 新轮 resetLive 清 done rearm 后再报一次。
+ */
+
+/**
+ * i18n 键 t.taskNotify.* 由 misc-frontend lane 合入——合入前经安全取键
+ * 拿模板/按钮文案，缺席回落拼装串（类型面不报错的运行期兜底）。
+ */
+function notifyTpl(): { done?: string; failed?: string; view: string } {
+    const k = (t as unknown as Record<string, unknown>).taskNotify as
+        | { done?: string; failed?: string; view?: string }
+        | undefined;
+    return {
+        done: k?.done,
+        failed: k?.failed,
+        view: k?.view ?? (currentLang() === "zh" ? "查看" : "View"),
+    };
+}
+
+function notifyDone(task: TaskSnapshot): void {
+    // node 测试环境无通知面——store 状态路径不受影响
+    if (typeof window === "undefined" || typeof document === "undefined")
+        return;
+    const keys = notifyTpl();
+    const status = task.status;
+    const title = task.title ?? task.arxiv_id ?? task.task_id;
+    const tpl =
+        (isFailed(status) ? keys.failed : keys.done) ?? "{title} · {status}";
+    const text = fmt(tpl, {
+        title,
+        status: t.status[status] ?? status,
+    });
+    const key = `texlate-${task.task_id}`;
+    // 显示门：页面藏起且已授权 → 系统通知（tag 幂等去重）；其余 in-app toast
+    if (
+        document.hidden &&
+        typeof Notification !== "undefined" &&
+        Notification.permission === "granted"
+    ) {
+        try {
+            const n = new Notification(text, { tag: key });
+            n.onclick = () => {
+                window.focus();
+                location.hash = `#/reader/${task.task_id}`;
+            };
+            return;
+        } catch {
+            /* 构造被拒（非安全上下文等）——回落 toast */
+        }
+    }
+    const action = { label: keys.view, href: `#/reader/${task.task_id}` };
+    if (isFailed(status)) toast.err(text, { key, action });
+    else toast.ok(text, { key, action });
+}
+
+/**
  * 终态收敛统一入口：合成 done 兜底 + settleLive + unwant。
  *
  * 非 done 帧探到终态时真实 done 帧可能永不到达——SSE snapshot(seq=0)
@@ -144,7 +274,7 @@ function settleLive(taskId: string) {
  */
 function convergeTerminal(taskId: string, s: TaskSnapshot) {
     ensureLive(taskId);
-    if (!state.live[taskId]?.done)
+    if (!state.live[taskId]?.done) {
         setState("live", taskId, "done", {
             status: s.status,
             // 拷一份再入 store——s.artifacts 与 reconcile 后的行 artifacts
@@ -152,6 +282,9 @@ function convergeTerminal(taskId: string, s: TaskSnapshot) {
             artifacts: { ...(s.artifacts ?? {}) },
             stats: {},
         });
+        // 守卫内发一次——迟到的真实 done 帧见 live.done 已在即不重发
+        notifyDone(s);
+    }
     settleLive(taskId);
     tp.unwant(taskId);
 }
@@ -160,6 +293,10 @@ function convergeTerminal(taskId: string, s: TaskSnapshot) {
 function dropTask(taskId: string) {
     tp.drop(taskId);
     forgetTaskEvents(taskId);
+    // 竞态桥里指向已删任务的登记一并清——否则 taskByArxiv 在 TTL 内
+    // 继续合成「幽灵 queued 占位行」
+    for (const [k, it] of intents)
+        if (it.taskId === taskId) intents.delete(k);
     setState("tasks", (list) => list.filter((t) => t.task_id !== taskId));
     setState(
         "live",
@@ -179,31 +316,43 @@ const tp = createTransport({
     upsertTask,
     onTerminal: convergeTerminal,
     onDrop: dropTask,
-    // 非 pin 观测面共享列表轮询：一拍 /api/tasks 归并——与 refresh 同
-    // 水位口径（现行行更新则列表旧读不回退），消失=已删按轮询 404 收敛
-    pollListWanted: async (ids) => {
+    // 非 pin 观测面共享列表轮询：一拍 /api/tasks 整表归并——与 refresh
+    // 同水位口径（现行行更新则列表旧读不回退）。整表而非只 wanted ids：
+    // 响应本含全表，顺带归并外来行让徽标/Tasks 页对「别处新开的任务」
+    // 也精确（修 reader 停留期盲区）；新非终态行自动 wanted(pin:false)、
+    // 消失行收敛为已删（pin 行除外——其 404 生命周期由自有通道探活管，
+    // 列表可能因翻页/竞态短暂缺席，不能一帧缺席就拆 reader 的聚焦）。
+    pollListWanted: async () => {
         const list = await api.tasks();
-        const byId = new Map(list.map((t) => [t.task_id, t]));
-        const curById = new Map(state.tasks.map((r) => [r.task_id, r]));
+        const byId = new Map(state.tasks.map((r) => [r.task_id, r]));
+        const ids = new Set<string>();
         let dirty = false;
-        for (const id of ids) {
-            if (!tp.wanted.has(id)) continue; // 拍间被摘除——迟到响应不回写
-            const s = byId.get(id);
-            if (!s) {
-                dropTask(id);
-                dirty = true;
-                continue;
-            }
-            const cur = curById.get(id);
+        for (const s of list) {
+            if (!ids.add(s.task_id)) continue; // 翻页重复行兜底（refresh 同口径）
+            const cur = byId.get(s.task_id);
             const m = mergeRow(s, cur);
-            if (m === cur) continue; // 旧读不回写——stale 行也不进终态收敛
-            upsertTask(m);
-            if (isTerminal(m.status)) {
-                // 收敛喂归并后行——原始列表行缺 artifacts，直喂会把
-                // live.done 的 artifacts 合成成 {}（refresh 路同口径）
-                convergeTerminal(id, m);
+            if (m !== cur) {
+                upsertTask(m);
+                if (isTerminal(m.status) && tp.wanted.has(s.task_id)) {
+                    // 收敛喂归并后行——原始列表行缺 artifacts，直喂会把
+                    // live.done 的 artifacts 合成成 {}（refresh 路同口径）
+                    convergeTerminal(s.task_id, m);
+                    dirty = true;
+                }
+            }
+            if (!isTerminal(m.status) && !tp.wanted.has(s.task_id)) {
+                // 外来在跑行——登记非 pin 观测（下拍起在归并面内）
+                tp.wanted.set(s.task_id, { pin: false });
                 dirty = true;
             }
+        }
+        // 列表里消失的行 = 已删：pin 行留着（reader 聚焦面的 404 由
+        // settleSnapshot/探活精确收敛），其余整行清
+        for (const row of [...state.tasks]) {
+            if (ids.has(row.task_id)) continue;
+            if (tp.wanted.get(row.task_id)?.pin) continue;
+            dropTask(row.task_id);
+            dirty = true;
         }
         if (dirty) tp.rebalance();
     },
@@ -280,6 +429,9 @@ const tp = createTransport({
                 return;
             }
             const status = e.status; // 窄化在闭包外——batch 内不继承 narrowing
+            // 通知守卫快照须抢在 batch 前——done 落地后 live.done 必在场，
+            // 拍晚了守卫恒真（恰一次语义毁于时序而非逻辑）
+            const hadDone = state.live[taskId]?.done !== undefined;
             batch(() => {
                 setState("live", taskId, "done", e);
                 const i = rowIndex(taskId);
@@ -294,6 +446,12 @@ const tp = createTransport({
             });
             tp.unwant(taskId);
             tp.rebalance();
+            // snapshot 终态已先行合成 live.done（convergeTerminal 已报）的
+            // 迟到 done 帧不重发；首见 done 才报（行不在册则无从跳转，不报）
+            if (!hadDone) {
+                const row = rowOf(taskId);
+                if (row) notifyDone(row);
+            }
         },
     }),
 });
@@ -332,6 +490,11 @@ export const taskStore = {
             // reconcile 按 task_id 匹配：在册行字段级合并（引用不变，
             // <For> 行不重挂）；新行插入、消失行移除——一次原子替换
             setState("tasks", reconcile(merged, { key: "task_id" }));
+            // reconcile 收缩路径可产稀疏数组洞——下游 find/forEach 遇洞
+            // 拿 undefined 行即 TypeError（sparse 实证；retention_loop
+            // 周期性删终态行后首次 refresh 就触发）。一次 filter 压紧：
+            // 元素引用原样保留，<For> 不整行重挂
+            setState("tasks", (l) => l.filter((x) => x != null));
             setState("loaded", true);
             setState("loadError", undefined);
             const ids = new Set(merged.map((t) => t.task_id));
@@ -398,6 +561,22 @@ export const taskStore = {
         tp.revive(taskId); // 新轮给 SSE 一次复活机会
         tp.unwant(taskId); // watchHandles 保留——watch() 复用同一句柄
         setState("live", taskId, freshLive());
+        // merge 语义不清缺席键——上一轮散叶残件显式清：陈旧 live.done
+        // 泄进新轮会让 Reader 拿旧 artifacts、完成通知守卫恒真不再 rearm
+        for (const k of [
+            "stage",
+            "chunk",
+            "done",
+            "error",
+            "fixloop",
+            "l2",
+        ] as const)
+            (setState as (...a: unknown[]) => void)(
+                "live",
+                taskId,
+                k,
+                undefined,
+            );
         taskStore.watch(taskId);
     },
 
@@ -407,5 +586,97 @@ export const taskStore = {
 
     task(taskId: string): TaskSnapshot | undefined {
         return rowOf(taskId);
+    },
+
+    /**
+     * 非 pin 登记（cite 卡/批译等外部提交桥的观测入口）：入 wanted
+     * (pin:false)——槽空按 updated_at 序可占 SSE 槽，槽满降级共享列表
+     * 轮询；已有 wanted 登记的行不动既有 pin 标记（幂等）。
+     * 带 arxivId 时记 intents 竞态桥（TTL 60s）——POST 已回 task_id、
+     * 列表行未物化的窗口内 taskByArxiv 仍能解到。
+     * 注意：只登记在跑任务；pin 槽是 reader 聚焦专属，卡/徽标面一律
+     * 走本件而非 watch()。
+     */
+    track(taskId: string, opts: { arxivId?: string } = {}) {
+        if (!tp.wanted.has(taskId)) tp.wanted.set(taskId, { pin: false });
+        if (opts.arxivId) {
+            const key = canonArxivKey(opts.arxivId);
+            if (key)
+                intents.set(key, {
+                    taskId,
+                    arxiv: opts.arxivId,
+                    at: Date.now(),
+                });
+        }
+        tp.rebalance();
+    },
+
+    /** 竞态桥本体（facade 只读面；测试清桶 cast 回 Map）；业务面只经 track/taskByArxiv 读写 */
+    intents: intents as ReadonlyMap<string, TaskIntent>,
+
+    /**
+     * arxivId → 任务行派生选择器（双侧 canon 归一后匹配）：
+     * 行内多命中按 可读终态(done|partial) > 在跑 > 败终态 取档，
+     * 同档取 updated_at 最新；行内无命中回退 intents 竞态桥——TTL 内
+     * 合成 queued 占位行（task_id 保真，卡片可先跳「排队中」态）。
+     */
+    taskByArxiv(arxivId: string): TaskSnapshot | undefined {
+        const key = canonArxivKey(arxivId);
+        if (!key) return undefined;
+        let best: TaskSnapshot | undefined;
+        let bestRank = -1;
+        for (const row of state.tasks) {
+            if (!row.arxiv_id) continue;
+            if (canonArxivKey(row.arxiv_id) !== key) continue;
+            const rank =
+                row.status === "done" || row.status === "partial"
+                    ? 2
+                    : isTerminal(row.status)
+                      ? 0
+                      : 1;
+            if (
+                rank > bestRank ||
+                (rank === bestRank &&
+                    (row.updated_at ?? 0) > (best?.updated_at ?? 0))
+            ) {
+                best = row;
+                bestRank = rank;
+            }
+        }
+        if (best) return best;
+        const it = intents.get(key);
+        if (!it) return undefined;
+        if (Date.now() - it.at > INTENT_TTL_MS) {
+            intents.delete(key);
+            return undefined;
+        }
+        const row = rowOf(it.taskId);
+        if (row) return row;
+        return {
+            task_id: it.taskId,
+            kind: "arxiv",
+            status: "queued",
+            progress: 0,
+            created_at: Math.floor(it.at / 1000),
+            updated_at: Math.floor(it.at / 1000),
+            arxiv_id: it.arxiv,
+        };
+    },
+
+    /** taskByArxiv 的状态投影——卡钮/徽标只问相时的便捷形 */
+    taskStatusOf(arxivId: string): TaskStatus | undefined {
+        return taskStore.taskByArxiv(arxivId)?.status;
+    },
+
+    /**
+     * 进行中（非终态）任务计数——App.tsx 顶导航徽标同口径单源化：
+     * active=queued/fetching/parsing/translating/compiling 五态，
+     * interrupted 属 UI 终态不计。细粒度订阅只跟 status 叶。
+     */
+    activeCount(): number {
+        return state.tasks.reduce(
+            (n, x) => n + (isTerminal(x.status) ? 0 : 1),
+            0,
+        );
     },
 };

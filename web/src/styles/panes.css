@@ -123,9 +123,10 @@
     display: block;
 }
 
+/* 缩略图占位是「页的替身」——落纸面本色而非下沉 chrome 面 */
 .thumb-ph {
     display: block;
-    background: var(--paper-2);
+    background: var(--page-bg-color);
 }
 
 .thumb-num {
@@ -376,7 +377,11 @@
 
 .pane-html {
     overflow: auto;
-    background: var(--panel);
+    /* 译文/序列化 DOM 是文档面不是 chrome——吃纸面本色+纸面墨色,
+       与 PDF 页同族(none+暗 下 --ink 是浅色的,必须换 page-fg 才不致
+       浅字落白纸) */
+    background: var(--page-bg-color);
+    color: var(--page-fg);
     /* 滚动条出现/消失不引起内容宽度突变,保住双栏同步对齐 */
     scrollbar-gutter: stable;
 }
@@ -423,7 +428,8 @@
 }
 
 .chunk-empty {
-    color: var(--ink-2);
+    /* 纸面上的弱化文本走纸面墨色阶梯——pane-html 语境专属类 */
+    color: var(--page-fg-2);
     text-align: center;
     padding: 40px 0;
 }

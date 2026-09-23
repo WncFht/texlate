@@ -1,5 +1,5 @@
-/* 主题切换瞬时换肤会闪——.theme-anim 只在 setTheme/系统切换后 200ms 内挂上,
-   让底色/文字/描边同色过渡;首绘不挂(见 settings.ts applyTheme 的 boot 门) */
+/* 外观换档瞬时换肤会闪——.theme-anim 只在选板/系统翻转后 200ms 内挂上,
+   让底色/文字/描边同色过渡;首绘不挂(见 pdfTheme.applyPaletteChrome boot 门) */
 @media (prefers-reduced-motion: no-preference) {
     html.theme-anim,
     html.theme-anim * {

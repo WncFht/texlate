@@ -1,0 +1,129 @@
+/* usages —— find-usages 悬浮卡 + html 视图引用标记件。
+   卡体复用 cite.css 的 cite-card 形态（fixed 弹层/半径/阴影同口径）；
+   .cite-flash 复用既有类（cite.css）。 */
+
+.usage-card {
+    position: fixed;
+    z-index: 30; /* 与 .cite-card 同层——两卡互斥不会同框 */
+    max-height: min(420px, 60vh);
+    overflow: auto;
+    background: var(--card-bg, #1e2126);
+    color: var(--fg, #e8eaed);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.4);
+    padding: 10px 12px;
+    font: 13px/1.5 system-ui, sans-serif;
+}
+.usage-card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+    font-weight: 600;
+    margin-bottom: 6px;
+}
+.usage-card-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.usage-card-count {
+    opacity: 0.6;
+    font-weight: 400;
+    flex: none;
+}
+.usage-card-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.usage-card-item {
+    display: flex;
+    gap: 6px;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: 0;
+    color: inherit;
+    padding: 5px 6px;
+    border-radius: 6px;
+    cursor: pointer;
+    font: inherit;
+}
+.usage-card-item:hover,
+.usage-card-item:focus-visible {
+    background: rgba(120, 160, 255, 0.14);
+    outline: none;
+}
+.usage-card-idx {
+    opacity: 0.55;
+    flex: none;
+}
+.usage-card-sents {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+.usage-card-sent-zh {
+    opacity: 0.62;
+    font-size: 12px;
+}
+.usage-card-empty {
+    opacity: 0.6;
+    padding: 4px 2px;
+}
+.usage-card-foot {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.09);
+}
+.usage-card-jump {
+    background: none;
+    border: 0;
+    color: var(--accent, #7aa2ff);
+    cursor: pointer;
+    padding: 2px 0;
+    font: inherit;
+    font-size: 12.5px;
+}
+.usage-card-jump:hover,
+.usage-card-jump:focus-visible {
+    text-decoration: underline;
+    outline: none;
+}
+
+/* CiteCard 脚部「N 处引用 →」切换钮——与 cite-card-jump 同系 */
+.cite-card-usages {
+    background: none;
+    border: 0;
+    color: var(--accent, #7aa2ff);
+    cursor: pointer;
+    padding: 0;
+    font: inherit;
+    font-size: 12px;
+}
+.cite-card-usages:hover,
+.cite-card-usages:focus-visible {
+    text-decoration: underline;
+    outline: none;
+}
+
+/* html 视图引用标记件：unmaskLatex 的 CITE 替身 a.cite-ref —
+   点线指示可点（fu-jump click.mjs 提案面）；BIB→.bib-anchor 是
+   整合期待落件（markdown.ts marks 模式），样式先行无副作用。 */
+.cite-ref {
+    color: var(--accent, #7aa2ff);
+    text-decoration: underline dotted;
+    text-underline-offset: 2px;
+    cursor: pointer;
+}
+.bib-anchor {
+    /* 条目序号件本身不抢视觉——仅作 hover/contextmenu 锚 */
+}

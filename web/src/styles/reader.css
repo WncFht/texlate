@@ -235,7 +235,7 @@
     flex: 1;
     display: flex;
     min-height: 0;
-    background: var(--paper-2);
+    background: var(--gutter);
 }
 
 .panes.swapped {
@@ -294,7 +294,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--paper-2);
+    background: var(--gutter);
     color: var(--ink-2);
     font-size: 13px;
     z-index: 4;
