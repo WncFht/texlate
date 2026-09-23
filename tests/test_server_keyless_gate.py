@@ -30,7 +30,9 @@ ARXIV = "2401.00001"
 KEY = {"X-Texlate-Key": "sk-test-key"}
 
 
-def _mk_done(client: TestClient, *, mock_run: bool, cache_key: str | None = None) -> str:
+def _mk_done(
+    client: TestClient, *, mock_run: bool, cache_key: str | None = None
+) -> str:
     """直建行 → force done（``mock_run``/``cache_key`` 可控的终态行工厂）。"""
     opts = {"mock_run": 1} if mock_run else {}
     row = client.portal.call(
@@ -77,13 +79,20 @@ class TestKeylessGate:
                 get_row(client, body["task_id"])["cache_key"],
             )
         )
-        assert rows is not None and rows["id"] == body["task_id"]
+        assert rows is not None
+        assert rows["id"] == body["task_id"]
 
     def test_keyless_upload_lands_needs_auth(self, client: TestClient) -> None:
         """upload 路径同闸（kind=upload_tex ≠ share——share 链零 token 豁免）。"""
         r = client.post(
             "/api/upload",
-            files={"file": ("main.tex", b"\\documentclass{article}\n\\begin{document}hi\\end{document}", "application/octet-stream")},
+            files={
+                "file": (
+                    "main.tex",
+                    b"\\documentclass{article}\n\\begin{document}hi\\end{document}",
+                    "application/octet-stream",
+                )
+            },
         )
         assert r.status_code == HTTPStatus.ACCEPTED, r.text
         assert r.json()["status"] == "needs_auth"
@@ -135,7 +144,8 @@ class TestMockRunGate:
         # 对照：未标记行同键照常命中（排除谓词不误伤）
         real_tid = _mk_done(client, mock_run=False, cache_key=ck)
         hit = client.portal.call(partial(store.find_reusable, ck))
-        assert hit is not None and hit["id"] == real_tid
+        assert hit is not None
+        assert hit["id"] == real_tid
 
     def test_find_active_excludes_mock_run(self, client: TestClient) -> None:
         """同键 active mock 行不进 find_active_by_cache_key（唯一槽仍由它占）。"""
@@ -149,7 +159,6 @@ class TestMockRunGate:
         plain = client.portal.call(
             partial(mk_task_row, store, arxiv_id=ARXIV, cache_key="ck-plain-1")
         )
-        hit = client.portal.call(
-            partial(store.find_active_by_cache_key, "ck-plain-1")
-        )
-        assert hit is not None and hit["id"] == plain["id"]
+        hit = client.portal.call(partial(store.find_active_by_cache_key, "ck-plain-1"))
+        assert hit is not None
+        assert hit["id"] == plain["id"]
