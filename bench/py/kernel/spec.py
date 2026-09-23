@@ -34,6 +34,7 @@ Rules baked here:
 - items may be dicts, tuples (id[,arm[,up[,variant[,stage]]]]) or bare ids;
   a callable/generator is materialized ONCE into spec.items at check time.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -80,8 +81,10 @@ STATUS_CLASSES = frozenset({"terminal", "retriable", "upstream"})
 # shipped specs rely on this).
 DEFAULT_STATUS_CLASS = dict(
     sorted(
-        {**dict.fromkeys(events.STATUS_DONE, "terminal"),
-         **dict.fromkeys(events.STATUS_RETRIABLE, "retriable")}.items()
+        {
+            **dict.fromkeys(events.STATUS_DONE, "terminal"),
+            **dict.fromkeys(events.STATUS_RETRIABLE, "retriable"),
+        }.items()
     )
 )
 
@@ -97,11 +100,13 @@ PARAM_TYPES = (str, int, float, bool)
 # kernel-internal masks (those are emitted by the kernel, never the fn).
 _FN_STATUSES = events.ALL_STATUSES - events.STATUS_KERNEL
 
-_MUTATE_KINDS = frozenset({"zh", "splice", "state"})
+_MUTATE_KINDS = frozenset({"zh", "splice", "state", "layoutqc"})
 
 _NAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 _STAGE_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_-]{0,63}")
-_RUN_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*/[0-9]{4}-[0-9]{2}-[0-9]{2}/[A-Za-z0-9][A-Za-z0-9._-]*")
+_RUN_RE = re.compile(
+    r"[A-Za-z0-9][A-Za-z0-9._-]*/[0-9]{4}-[0-9]{2}-[0-9]{2}/[A-Za-z0-9][A-Za-z0-9._-]*"
+)
 
 
 class SpecError(ValueError):
@@ -124,8 +129,14 @@ class Param:
     poison fingerprints.
     """
 
-    def __init__(self, type=str, default=None, required: bool = False,  # noqa: A002 -- 公开 kwarg：Param(type=int)
-                 choices=None, fp=None):
+    def __init__(
+        self,
+        type=str,
+        default=None,
+        required: bool = False,  # noqa: A002 -- 公开 kwarg：Param(type=int)
+        choices=None,
+        fp=None,
+    ):
         self.type = type
         self.default = default
         self.required = bool(required)
@@ -158,13 +169,9 @@ class Param:
                     [f"param {name!r}: {raw!r} is not a {self.type.__name__}"]
                 ) from None
         if not isinstance(v, self.type):
-            raise SpecError(
-                [f"param {name!r}: {v!r} is not a {self.type.__name__}"]
-            )
+            raise SpecError([f"param {name!r}: {v!r} is not a {self.type.__name__}"])
         if self.choices is not None and v not in self.choices:
-            raise SpecError(
-                [f"param {name!r}: {v!r} not in choices {self.choices}"]
-            )
+            raise SpecError([f"param {name!r}: {v!r} not in choices {self.choices}"])
         return v
 
     def to_dict(self, name: str) -> dict:
@@ -233,10 +240,20 @@ class Stage:
             whole run).
     """
 
-    def __init__(self, name, fn, needs=None, paid: bool = False,
-                 executor=None, cost_hook=None, mutates=None, on=None,
-                 status_class=None, dedup_key=None,
-                 eval: bool = False):  # noqa: A002 -- 公开 kwarg：Stage(eval=True)
+    def __init__(
+        self,
+        name,
+        fn,
+        needs=None,
+        paid: bool = False,
+        executor=None,
+        cost_hook=None,
+        mutates=None,
+        on=None,
+        status_class=None,
+        dedup_key=None,
+        eval: bool = False,
+    ):  # noqa: A002 -- 公开 kwarg：Stage(eval=True)
         self.name = str(name)
         self.fn = fn
         self.needs = [_norm_need(n) for n in (needs or [])]
@@ -245,8 +262,9 @@ class Stage:
         self.cost_hook = cost_hook
         self.mutates = [str(m) for m in (mutates or [])]
         self.on = {str(k): frozenset(v) for k, v in (on or {}).items()}
-        self.status_class = (dict(status_class) if status_class
-                             else dict(DEFAULT_STATUS_CLASS))
+        self.status_class = (
+            dict(status_class) if status_class else dict(DEFAULT_STATUS_CLASS)
+        )
         self.dedup_key = dedup_key
         self.eval = bool(eval)
 
@@ -259,7 +277,9 @@ class Stage:
 
     def to_dict(self) -> dict:
         fn = self.fn
-        fnref = f"{getattr(fn, '__module__', '')}.{getattr(fn, '__qualname__', repr(fn))}"
+        fnref = (
+            f"{getattr(fn, '__module__', '')}.{getattr(fn, '__qualname__', repr(fn))}"
+        )
         return {
             "name": self.name,
             "fn": fnref,
@@ -267,14 +287,17 @@ class Stage:
             "paid": self.paid,
             "executor": self.executor,
             "cost_hook": getattr(self.cost_hook, "__qualname__", None)
-            if self.cost_hook else None,
+            if self.cost_hook
+            else None,
             "mutates": list(self.mutates),
             "on": {k: sorted(v) for k, v in self.on.items()},
             "status_class": self.status_class,
             "eval": self.eval,
             "dedup_key": (
-                None if self.dedup_key is None
-                else list(self.dedup_key) if isinstance(self.dedup_key, (list, tuple))
+                None
+                if self.dedup_key is None
+                else list(self.dedup_key)
+                if isinstance(self.dedup_key, (list, tuple))
                 else getattr(self.dedup_key, "__qualname__", repr(self.dedup_key))
             ),
         }
@@ -286,15 +309,28 @@ class Stage:
 class Spec:
     """The bench definition — one per spec file."""
 
-    def __init__(self, kind, params=None, stages=None, items=None,
-                 freeze_plan: bool = True, executor: str = "thread",
-                 env_probes=None, code_deps=None, foreign_runs=None,
-                 allowed_layers=None, lake: bool = False,
-                 same_id_serial: bool = True, dedup_key=None,
-                 eval: bool = False,  # noqa: A002 -- 公开 kwarg：Spec(eval=True)
-                 gateway_factory=None, select=None,
-                 fetch_fn=None, prefetch: bool = True,
-                 lake_source: str = "arxiv"):
+    def __init__(
+        self,
+        kind,
+        params=None,
+        stages=None,
+        items=None,
+        freeze_plan: bool = True,
+        executor: str = "thread",
+        env_probes=None,
+        code_deps=None,
+        foreign_runs=None,
+        allowed_layers=None,
+        lake: bool = False,
+        same_id_serial: bool = True,
+        dedup_key=None,
+        eval: bool = False,  # noqa: A002 -- 公开 kwarg：Spec(eval=True)
+        gateway_factory=None,
+        select=None,
+        fetch_fn=None,
+        prefetch: bool = True,
+        lake_source: str = "arxiv",
+    ):
         self.kind = str(kind)
         self.params = dict(params or {})
         self.stages = list(stages or [])
@@ -397,17 +433,23 @@ class Spec:
             "lake": self.lake,
             "same_id_serial": self.same_id_serial,
             "dedup_key": (
-                None if self.dedup_key is None
-                else list(self.dedup_key) if isinstance(self.dedup_key, (list, tuple))
+                None
+                if self.dedup_key is None
+                else list(self.dedup_key)
+                if isinstance(self.dedup_key, (list, tuple))
                 else getattr(self.dedup_key, "__qualname__", repr(self.dedup_key))
             ),
             "eval": self.eval,
-            "select": (None if self.select is None else
-                       getattr(self.select, "__qualname__",
-                               repr(self.select))),
-            "fetch_fn": (None if self.fetch_fn is None else
-                         getattr(self.fetch_fn, "__qualname__",
-                                 repr(self.fetch_fn))),
+            "select": (
+                None
+                if self.select is None
+                else getattr(self.select, "__qualname__", repr(self.select))
+            ),
+            "fetch_fn": (
+                None
+                if self.fetch_fn is None
+                else getattr(self.fetch_fn, "__qualname__", repr(self.fetch_fn))
+            ),
             "prefetch": self.prefetch,
             "lake_source": self.lake_source,
             "items": self.iter_items(),
@@ -422,8 +464,11 @@ class Spec:
         """
         key = stage.dedup_key if stage.dedup_key is not None else self.dedup_key
         if key is None:
-            return (str(cell.get("idc")), str(cell.get("arm", "-")),
-                    str(cell.get("variant", "-")))
+            return (
+                str(cell.get("idc")),
+                str(cell.get("arm", "-")),
+                str(cell.get("variant", "-")),
+            )
         if callable(key):
             out = key(cell)
             idc, arm, variant = ([*list(out), "-", "-"])[:3]
@@ -498,23 +543,26 @@ def compile_checks(spec: Spec) -> list[str]:
     if spec.select is not None and not callable(spec.select):
         problems.append(
             f"select {spec.select!r} is not callable — the plan-filter "
-            "channel takes (item, resolved_params) -> bool")
+            "channel takes (item, resolved_params) -> bool"
+        )
     if spec.fetch_fn is not None:
         if not callable(spec.fetch_fn):
             problems.append(
                 f"fetch_fn {spec.fetch_fn!r} is not callable — the "
-                "corpus hydrator takes (idc, stage_dir) -> dict|None")
+                "corpus hydrator takes (idc, stage_dir) -> dict|None"
+            )
         elif not spec.lake:
             problems.append(
                 "fetch_fn declared but lake=False — a corpus hydrator "
-                "is only meaningful on a lake-consuming spec")
+                "is only meaningful on a lake-consuming spec"
+            )
     if spec.executor not in EXECUTORS:
-        problems.append(
-            f"executor {spec.executor!r} not in {sorted(EXECUTORS)}")
+        problems.append(f"executor {spec.executor!r} not in {sorted(EXECUTORS)}")
     problems.extend(
         f"foreign_runs entry {fr!r} is not kind/date/slug"
         for fr in spec.foreign_runs
-        if not _RUN_RE.fullmatch(str(fr)))
+        if not _RUN_RE.fullmatch(str(fr))
+    )
 
     # -- params ----------------------------------------------------------------------
     for name, p in spec.params.items():
@@ -524,24 +572,25 @@ def compile_checks(spec: Spec) -> list[str]:
         if p.type not in PARAM_TYPES:
             problems.append(
                 f"param {name!r}: type {p.type!r} not in "
-                f"{[t.__name__ for t in PARAM_TYPES]}")
+                f"{[t.__name__ for t in PARAM_TYPES]}"
+            )
         if p.required and p.default is not None:
-            problems.append(
-                f"param {name!r}: required=True but default is set")
+            problems.append(f"param {name!r}: required=True but default is set")
         if p.default is not None and not isinstance(p.default, p.type):
             problems.append(
                 f"param {name!r}: default {p.default!r} is not a "
-                f"{getattr(p.type, '__name__', p.type)}")
+                f"{getattr(p.type, '__name__', p.type)}"
+            )
         if p.choices is not None:
             if not p.choices:
                 problems.append(f"param {name!r}: empty choices list")
             elif p.default is not None and p.default not in p.choices:
-                problems.append(
-                    f"param {name!r}: default {p.default!r} not in choices")
+                problems.append(f"param {name!r}: default {p.default!r} not in choices")
         if p.fp is True and name in SELECTOR_PARAMS:
             problems.append(
                 f"param {name!r}: selector knob cannot carry fp=True "
-                "(§3.4 — selector churn must not poison fingerprints)")
+                "(§3.4 — selector churn must not poison fingerprints)"
+            )
 
     # -- stages ----------------------------------------------------------------------
     seen: set[str] = set()
@@ -559,12 +608,13 @@ def compile_checks(spec: Spec) -> list[str]:
         if st.executor is not None and st.executor not in EXECUTORS:
             problems.append(
                 f"stage {st.name!r}: executor {st.executor!r} not in "
-                f"{sorted(EXECUTORS)}")
+                f"{sorted(EXECUTORS)}"
+            )
         problems.extend(
-            f"stage {st.name!r}: mutates kind {k!r} not in "
-            f"{sorted(_MUTATE_KINDS)}"
+            f"stage {st.name!r}: mutates kind {k!r} not in {sorted(_MUTATE_KINDS)}"
             for k in st.mutates
-            if k not in _MUTATE_KINDS)
+            if k not in _MUTATE_KINDS
+        )
 
     names = {st.name for st in spec.stages if isinstance(st, Stage)}
 
@@ -574,27 +624,26 @@ def compile_checks(spec: Spec) -> list[str]:
             continue
         for up, accept in st.needs:
             if up not in names:
-                problems.append(
-                    f"stage {st.name!r}: needs unknown stage {up!r}")
+                problems.append(f"stage {st.name!r}: needs unknown stage {up!r}")
             if up == st.name:
                 problems.append(f"stage {st.name!r}: needs itself")
             if not accept:
-                problems.append(
-                    f"stage {st.name!r}: needs {up!r} has empty accept")
+                problems.append(f"stage {st.name!r}: needs {up!r} has empty accept")
             bad = set(accept) - _FN_STATUSES
             if bad:
                 problems.append(
                     f"stage {st.name!r}: needs {up!r} accept holds "
-                    f"non-instrument statuses {sorted(bad)}")
+                    f"non-instrument statuses {sorted(bad)}"
+                )
         for up, statuses in st.on.items():
             if up not in names:
-                problems.append(
-                    f"stage {st.name!r}: on unknown stage {up!r}")
+                problems.append(f"stage {st.name!r}: on unknown stage {up!r}")
             bad = set(statuses) - _FN_STATUSES
             if bad:
                 problems.append(
                     f"stage {st.name!r}: on {up!r} holds non-instrument "
-                    f"statuses {sorted(bad)}")
+                    f"statuses {sorted(bad)}"
+                )
 
     if topo_stages(spec) is None:
         problems.append("needs/on edges form a cycle")
@@ -616,23 +665,27 @@ def compile_checks(spec: Spec) -> list[str]:
         if bad_keys:
             problems.append(
                 f"stage {st.name!r}: status_class keys {sorted(bad_keys)} "
-                "are not instrument statuses (kernel statuses are banned)")
+                "are not instrument statuses (kernel statuses are banned)"
+            )
         bad_vals = set(sc.values()) - STATUS_CLASSES
         if bad_vals:
             problems.append(
                 f"stage {st.name!r}: status_class values {sorted(bad_vals)} "
-                f"not in {sorted(STATUS_CLASSES)}")
+                f"not in {sorted(STATUS_CLASSES)}"
+            )
         for status, cls in sc.items():
             if status in events.STATUS_DONE and cls == "retriable":
                 problems.append(
                     f"stage {st.name!r}: DONE status {status!r} mapped to "
-                    "retriable (§3.1 — pseudo-terminal must never retry)")
+                    "retriable (§3.1 — pseudo-terminal must never retry)"
+                )
         must = {"ok"} | accepted_downstream.get(st.name, set())
         missing = {s for s in must if s in _FN_STATUSES and s not in sc}
         if missing:
             problems.append(
                 f"stage {st.name!r}: status_class does not classify "
-                f"{sorted(missing)} (ok + downstream-accepted statuses)")
+                f"{sorted(missing)} (ok + downstream-accepted statuses)"
+            )
 
     # paid stages need a dedup_key somewhere (§4)
     for st in spec.stages:
@@ -641,10 +694,12 @@ def compile_checks(spec: Spec) -> list[str]:
                 problems.append(
                     f"paid stage {st.name!r}: dedup_key required "
                     "(asset default None is fine — declare it explicitly "
-                    "at stage or spec level)")
+                    "at stage or spec level)"
+                )
             eff = st.dedup_key if st.dedup_key is not None else spec.dedup_key
             remapped = callable(eff) or (
-                eff is not None and tuple(eff) != ("idc", "arm", "variant"))
+                eff is not None and tuple(eff) != ("idc", "arm", "variant")
+            )
             # §4 eval keyspace: eval specs/stages may claim on a custom
             # (idc,arm,variant) triple (xlatbench model/rep/sample) —
             # cell-keyed evidence legs read 'absent' there BY DESIGN (no
@@ -658,14 +713,16 @@ def compile_checks(spec: Spec) -> list[str]:
                     "voids cell-keyed evidence legs — manifest/claim/"
                     "paid_pool evidence is keyed (idc,arm,variant), so a "
                     "remapped key always reads 'absent' and re-burns. "
-                    "Only eval specs/stages may remap the claim keyspace.")
+                    "Only eval specs/stages may remap the claim keyspace."
+                )
             if remapped and (spec.eval or st.eval) and st.mutates:
                 problems.append(
                     f"paid stage {st.name!r}: dedup_key remap {eff!r} on a "
                     "mutating eval stage splits evidence — vault/manifest "
                     "bytes land on the CELL key while claims ride the "
                     "remap, so a re-run dedups neither lane cleanly. Drop "
-                    "mutates or keep the asset default key.")
+                    "mutates or keep the asset default key."
+                )
     # Clarify: asset default IS 'no explicit key'; the check above only
     # fires when the author forgot the knob entirely AND spec lacks one.
     # An explicit dedup_key=None on the stage reads as the asset default.
@@ -687,22 +744,26 @@ def compile_checks(spec: Spec) -> list[str]:
             if allowed and layer not in allowed:
                 problems.append(
                     f"item {it.get('id')!r}: layer {layer!r} not in "
-                    f"allowed_layers {sorted(allowed)}")
+                    f"allowed_layers {sorted(allowed)}"
+                )
             if layer in EVAL_LAYERS and not spec.eval:
                 problems.append(
-                    f"item {it.get('id')!r}: layer {layer!r} requires "
-                    "spec.eval=True")
+                    f"item {it.get('id')!r}: layer {layer!r} requires spec.eval=True"
+                )
         stages = [it["stage"]] if it.get("stage") else [st.name for st in spec.stages]
         for sname in stages:
             if sname not in names:
-                problems.append(
-                    f"item {it.get('id')!r}: unknown stage {sname!r}")
+                problems.append(f"item {it.get('id')!r}: unknown stage {sname!r}")
                 continue
-            key = (str(it["id"]), str(it["arm"]), str(it["up"]),
-                   str(it["variant"]), str(sname))
+            key = (
+                str(it["id"]),
+                str(it["arm"]),
+                str(it["up"]),
+                str(it["variant"]),
+                str(sname),
+            )
             if key in keys:
-                problems.append(
-                    f"duplicate item cell key {key}")
+                problems.append(f"duplicate item cell key {key}")
             keys.add(key)
     return problems
 
@@ -726,8 +787,7 @@ def code_sha(spec: Spec, path=None) -> str:
     if spec._code_sha is not None and path is None:
         return spec._code_sha
     h = hashlib.sha256()
-    p = Path(path) if path is not None else (
-        Path(spec._path) if spec._path else None)
+    p = Path(path) if path is not None else (Path(spec._path) if spec._path else None)
     if p is not None and p.is_file():
         h.update(b"spec-file\x00")
         h.update(p.read_bytes())
@@ -759,8 +819,9 @@ def spec_hash(spec: Spec, path=None) -> str:
         "code": code_sha(spec, path),
         "spec": spec.to_dict(),
     }
-    blob = json.dumps(payload, ensure_ascii=False, sort_keys=True,
-                      separators=(",", ":")).encode("utf-8")
+    blob = json.dumps(
+        payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
     return hashlib.sha256(blob).hexdigest()
 
 
@@ -775,7 +836,8 @@ def cell_fp(spec: Spec, cell: dict) -> str:
     merged = dict(cell.get("run_params") or {})
     merged.update(cell.get("params") or {})
     fp_params = {
-        k: v for k, v in sorted(merged.items())
+        k: v
+        for k, v in sorted(merged.items())
         if k in spec.params and spec.params[k].fp_effective(k)
     }
     payload = {
@@ -783,8 +845,9 @@ def cell_fp(spec: Spec, cell: dict) -> str:
         "input": cell.get("fp_input"),
         "params": fp_params,
     }
-    blob = json.dumps(payload, ensure_ascii=False, sort_keys=True,
-                      separators=(",", ":")).encode("utf-8")
+    blob = json.dumps(
+        payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
     return hashlib.sha256(blob).hexdigest()
 
 
@@ -816,8 +879,7 @@ def load_spec(path) -> Spec:
         cands = [v for v in vars(module).values() if isinstance(v, Spec)]
         spec = cands[0] if len(cands) == 1 else None
     if not isinstance(spec, Spec):
-        raise SpecError(
-            [f"{p} exports no `spec` Spec object"])
+        raise SpecError([f"{p} exports no `spec` Spec object"])
     spec._path = str(p)
     problems = compile_checks(spec)
     if problems:

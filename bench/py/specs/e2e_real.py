@@ -59,6 +59,7 @@ ingest→parse→xlat→compile→fixloop 的资产流，本 spec 是旧 B5 驱�
   窄化经 select()。帧 sha 经 route metrics.frame 留痕（不进 cell
   键域——帧改版不烧付费 dedup）。
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -77,9 +78,7 @@ from pathlib import Path
 # specs/_sabotage.py 同款自举；TEXLATE_SRC 冻结快照语义一致。
 sys.path.insert(
     0,
-    os.environ.get(
-        "TEXLATE_SRC", str(Path(__file__).resolve().parents[3] / "src")
-    ),
+    os.environ.get("TEXLATE_SRC", str(Path(__file__).resolve().parents[3] / "src")),
 )
 
 from kernel import events, fsutil, idnorm, vault
@@ -190,8 +189,9 @@ def _last_row(ctx, stage: str, *, done_only: bool = False) -> dict | None:
     return d
 
 
-def _gate(status: str, code: str, cat: str, payload,
-          metrics: dict | None = None) -> dict:
+def _gate(
+    status: str, code: str, cat: str, payload, metrics: dict | None = None
+) -> dict:
     """stagerun gate_rec 的 return-dict 版（soak 同式）：status + 单条
     errors + 可选 metrics；sig 由内核 errors[0] cat:pay 自动合成。"""
     out = {
@@ -224,8 +224,7 @@ def _ensure_kind(ctx, kind: str) -> Path | None:
     if d is not None:
         return d
     with contextlib.suppress(vault.VaultError):
-        vault.restore(ctx.idc, ctx.arm, ctx.variant, ctx.paper_dir(),
-                      mode="copy")
+        vault.restore(ctx.idc, ctx.arm, ctx.variant, ctx.paper_dir(), mode="copy")
     return ctx.upstream_asset_dir(kind)
 
 
@@ -332,8 +331,9 @@ def _route(ctx) -> dict:
     src = ctx.src_path()
     if src is None:
         metrics["reject_at"] = "route"
-        return _gate("reject", "no_extracted", "route",
-                     "lake cell unfetchable", metrics)
+        return _gate(
+            "reject", "no_extracted", "route", "lake cell unfetchable", metrics
+        )
     main = find_main_tex(src)
     if main is None:
         sub = classify_no_main(src)
@@ -352,8 +352,7 @@ def _route(ctx) -> dict:
     }
     if route.reject:
         metrics["reject_at"] = "route"
-        return _gate("reject", "route_reject", "route", route.reject,
-                     metrics)
+        return _gate("reject", "route_reject", "route", route.reject, metrics)
     return {"status": "ok", "metrics": metrics}
 
 
@@ -378,8 +377,9 @@ def _xlat(ctx) -> dict:
 
     src = ctx.src_path()
     if src is None:
-        return _gate("error", "no_extracted", "upstream",
-                     "lake cell unfetchable post-route")
+        return _gate(
+            "error", "no_extracted", "upstream", "lake cell unfetchable post-route"
+        )
     rrec = _last_done(ctx, "route") or {}
     main_rel = (rrec.get("metrics") or {}).get("main_rel")
     staging = paper / ".xlat-stage"
@@ -389,8 +389,9 @@ def _xlat(ctx) -> dict:
     if not main_rel:
         found = find_main_tex(staging)
         if found is None:
-            return _gate("error", "no_main_tex", "upstream",
-                         classify_no_main(staging) or "")
+            return _gate(
+                "error", "no_main_tex", "upstream", classify_no_main(staging) or ""
+            )
         main_rel = found.relative_to(staging).as_posix()
 
     metrics: dict = {"main_rel": main_rel, "engine": "xelatex"}
@@ -400,9 +401,7 @@ def _xlat(ctx) -> dict:
     if not ctx.params.get("no_probe"):
         session.probe_model()  # GatewayChat 无 probe_model → 门检后即 True
     client = SessionClient(session)
-    translator = TimedTranslator(
-        GatewayTranslator(client, str(ctx.params["model"]))
-    )
+    translator = TimedTranslator(GatewayTranslator(client, str(ctx.params["model"])))
     cfg = PipelineConfig(concurrency=int(ctx.params["concurrency"]))
     try:
         stats, results = asyncio.run(
@@ -440,8 +439,11 @@ def _xlat(ctx) -> dict:
         shutil.rmtree(staging, ignore_errors=True)
         metrics["reject_at"] = "xlat"
         return _gate(
-            "reject", "oversize", "xlat",
-            f"src_chars={stats['src_chars']}", metrics,
+            "reject",
+            "oversize",
+            "xlat",
+            f"src_chars={stats['src_chars']}",
+            metrics,
         )
 
     # 逐块明细随 state.- 进 vault（triage/契约审计原料）。
@@ -465,15 +467,17 @@ def _xlat(ctx) -> dict:
     n_bad = stats["fault"] + stats["skipped"]
     if stats["leftover_ph"] > 0:
         shutil.rmtree(staging, ignore_errors=True)
-        return _gate("fail", "leftover_ph", "xlat",
-                     str(stats["leftover_ph"]), metrics)
+        return _gate("fail", "leftover_ph", "xlat", str(stats["leftover_ph"]), metrics)
     if n_bad:
         # retriable——坏块账在 state.-，续跑只重翻 fault/skipped 块
         # （_paper_done 同口径；「全坏」被本支吞掉属刻意：旧谓词同样
         # 重试，而 chunk state 让重试不重烧已成交块）。
         return _gate(
-            "error", "chunks_retriable", "xlat",
-            f"fault={stats['fault']} skipped={stats['skipped']}", metrics,
+            "error",
+            "chunks_retriable",
+            "xlat",
+            f"fault={stats['fault']} skipped={stats['skipped']}",
+            metrics,
         )
     # 树可交付（ok/partial 路径）才落 zh.- + marker。
     (staging / ".xlat-arm.json").write_text(
@@ -490,7 +494,9 @@ def _xlat(ctx) -> dict:
     _swap_in(staging, zh)
     if stats["partial"] or stats["fault_files"]:
         return _gate(
-            "partial", "chunks_partial", "xlat",
+            "partial",
+            "chunks_partial",
+            "xlat",
             f"partial={stats['partial']} fault_files={stats['fault_files']}",
             metrics,
         )
@@ -517,8 +523,13 @@ def _compile(ctx) -> dict:
     zh = _ensure_kind(ctx, "zh")
     marker_doc = _xlat_marker(zh) if zh is not None else None
     if marker_doc is None:
-        return _gate("skip", "not_translated", "upstream",
-                     "zh.- missing or no .xlat-arm.json", metrics)
+        return _gate(
+            "skip",
+            "not_translated",
+            "upstream",
+            "zh.- missing or no .xlat-arm.json",
+            metrics,
+        )
     metrics["xlat_ts"] = marker_doc.get("ts")
     splice = ctx.asset_dir("splice")
     if splice.exists():
@@ -529,14 +540,20 @@ def _compile(ctx) -> dict:
     if not main_rel:
         found = find_main_tex(splice)
         if found is None:
-            return _gate("reject", "no_main_tex", "compile",
-                         classify_no_main(splice) or "", metrics)
+            return _gate(
+                "reject",
+                "no_main_tex",
+                "compile",
+                classify_no_main(splice) or "",
+                metrics,
+            )
         main_rel = found.relative_to(splice).as_posix()
     metrics["main_rel"] = main_rel
     timeout = float(ctx.params["timeout"])
     try:
         metrics["inject"] = prepare_chinese(
-            splice, main_rel, layout_marks=bool(ctx.params["marks"]))
+            splice, main_rel, layout_marks=bool(ctx.params["marks"])
+        )
     except InjectRejectError as e:
         metrics["verdict"] = {"status": "reject", "reasons": [e.reason]}
         metrics["reject_at"] = "inject"
@@ -550,8 +567,11 @@ def _compile(ctx) -> dict:
     tail = _compile_judge(splice, main_rel, timeout, expect_cjk=expect_cjk)
     metrics.update(tail)
     v = tail["verdict"]
-    out = {"status": v["status"], "metrics": metrics,
-           "sig": benchlib.verdict_sig(v, tail["compile"].get("first_error"))}
+    out = {
+        "status": v["status"],
+        "metrics": metrics,
+        "sig": benchlib.verdict_sig(v, tail["compile"].get("first_error")),
+    }
     if v["status"] not in ("clean", "partial"):
         out["errors"] = [
             {
@@ -605,8 +625,7 @@ def _want_fix(mode: str, compile_status, verdict: dict, reject_at) -> bool:
     if mode == "always" or v == "fail":
         return True
     return v == "partial" and (
-        benchlib.misschar_partial(v, verdict)
-        or (verdict.get("n_errors") or 0) > 0
+        benchlib.misschar_partial(v, verdict) or (verdict.get("n_errors") or 0) > 0
     )
 
 
@@ -650,20 +669,21 @@ def _fixloop(ctx) -> dict:
         # 的瞬态），「in flight」把终态误读成竞态（e2e_real-2 六例）。
         last_c = _last_row(ctx, "compile")
         last_s = (last_c or {}).get("status") or "absent"
-        return _gate("error", "compile_flux", "upstream",
-                     f"compile has no DONE row (last={last_s})")
+        return _gate(
+            "error",
+            "compile_flux",
+            "upstream",
+            f"compile has no DONE row (last={last_s})",
+        )
     cm = comp_rec.get("metrics") or {}
     cst = comp_rec.get("status")
-    if not _want_fix(mode, cst, cm.get("verdict") or {},
-                     cm.get("reject_at")):
+    if not _want_fix(mode, cst, cm.get("verdict") or {}, cm.get("reject_at")):
         return _decline("not_wanted", {"compile_status_before": cst})
 
     splice_src = _ensure_kind(ctx, "splice")
     if splice_src is None:
-        return _gate("skip", "no_splice", "upstream",
-                     "splice.- missing post-compile")
-    metrics: dict = {"mode": mode, "fixloop_ran": True,
-                     "compile_status_before": cst}
+        return _gate("skip", "no_splice", "upstream", "splice.- missing post-compile")
+    metrics: dict = {"mode": mode, "fixloop_ran": True, "compile_status_before": cst}
     work = ctx.paper_dir() / ".pipe-fix"
     if work.exists():
         shutil.rmtree(work)
@@ -672,8 +692,9 @@ def _fixloop(ctx) -> dict:
     if not main_rel:
         found = find_main_tex(work)
         if found is None:
-            return _gate("error", "no_main_tex", "fixloop",
-                         classify_no_main(work) or "", metrics)
+            return _gate(
+                "error", "no_main_tex", "fixloop", classify_no_main(work) or "", metrics
+            )
         main_rel = found.relative_to(work).as_posix()
     metrics["main_rel"] = main_rel
 
@@ -689,9 +710,10 @@ def _fixloop(ctx) -> dict:
         rs = Ruleset.load()
         for rule in rs.rules:
             act = rule.raw.get("action") or {}
-            if act.get("kind") == "builtin_transform" and act.get(
-                "function"
-            ) in {"restore_support_from_src", "slot_arg_revert"}:
+            if act.get("kind") == "builtin_transform" and act.get("function") in {
+                "restore_support_from_src",
+                "slot_arg_revert",
+            }:
                 act.setdefault("params", {})["baseline_dir"] = str(src)
     timeout = float(ctx.params["timeout"])
     try:
@@ -747,8 +769,7 @@ def _fixloop(ctx) -> dict:
             "n_actions": len(cell.get("actions") or []),
             "rules_fired": list(
                 dict.fromkeys(
-                    str(a["rule"]) for a in (cell.get("actions") or [])
-                    if a.get("rule")
+                    str(a["rule"]) for a in (cell.get("actions") or []) if a.get("rule")
                 )
             ),
             "gate_fired": list(cell.get("gate_fired") or []),
@@ -769,8 +790,11 @@ def _fixloop(ctx) -> dict:
             "metrics": metrics,
             "errors": [{"code": fv, "cat": fcat, "payload": fpay}],
         }
-    out = {"status": v["status"], "metrics": metrics,
-           "sig": benchlib.fixloop_sig(fv, fcat, fpay)}
+    out = {
+        "status": v["status"],
+        "metrics": metrics,
+        "sig": benchlib.fixloop_sig(fv, fcat, fpay),
+    }
     if v["status"] != "clean":
         out["errors"] = [{"code": fv, "cat": fcat, "payload": fpay}]
     return out
@@ -788,31 +812,47 @@ def _base(ctx) -> dict:
     mode = str(ctx.params.get("base") or "onfail")
     metrics: dict = {"mode": mode, "engine": "xelatex"}
     if mode == "never":
-        return {"status": "reject", "sig": "declined:base_never",
-                "metrics": {**metrics, "gate": "base_never"}}
+        return {
+            "status": "reject",
+            "sig": "declined:base_never",
+            "metrics": {**metrics, "gate": "base_never"},
+        }
     if mode == "onfail":
         xr = _last_done(ctx, "xlat")
         tr = ((xr or {}).get("metrics") or {}).get("translate") or {}
         if tr.get("oversize"):
-            return {"status": "reject", "sig": "declined:oversize",
-                    "metrics": {**metrics, "gate": "oversize"}}
+            return {
+                "status": "reject",
+                "sig": "declined:oversize",
+                "metrics": {**metrics, "gate": "oversize"},
+            }
         cr = _last_done(ctx, "compile")
         cv = ((cr or {}).get("metrics") or {}).get("verdict") or {}
         if cv.get("status") == "clean":
-            return {"status": "reject", "sig": "declined:compile_clean",
-                    "metrics": {**metrics, "gate": "compile_clean"}}
+            return {
+                "status": "reject",
+                "sig": "declined:compile_clean",
+                "metrics": {**metrics, "gate": "compile_clean"},
+            }
 
     src = ctx.src_path()
     if src is None:
-        return _gate("error", "no_extracted", "upstream",
-                     "lake cell unfetchable", metrics)
+        return _gate(
+            "error", "no_extracted", "upstream", "lake cell unfetchable", metrics
+        )
     rrec = _last_done(ctx, "route") or {}
     main_rel = (rrec.get("metrics") or {}).get("main_rel")
     main = find_main_tex(src)
     if main is None:
-        return {"status": "reject", "sig": "declined:no_main_tex",
-                "metrics": {**metrics, "gate": "no_main_tex",
-                            "no_main_sub": classify_no_main(src)}}
+        return {
+            "status": "reject",
+            "sig": "declined:no_main_tex",
+            "metrics": {
+                **metrics,
+                "gate": "no_main_tex",
+                "no_main_sub": classify_no_main(src),
+            },
+        }
     if not main_rel:
         main_rel = main.relative_to(src).as_posix()
     metrics["main_rel"] = main_rel
@@ -823,13 +863,14 @@ def _base(ctx) -> dict:
     # en 基线臂同样打 marks——跨臂浮体对照（drift/lost/inversion）的真值源
     if ctx.params["marks"]:
         metrics["base_marks"] = inject_layout_marks(work)
-    rec = base_condition(work, "xelatex", main_rel,
-                         float(ctx.params["timeout"]))
+    rec = base_condition(work, "xelatex", main_rel, float(ctx.params["timeout"]))
     metrics.update(rec)
     v = rec.get("verdict") or {}
-    out = {"status": v.get("status") or "fail", "metrics": metrics,
-           "sig": benchlib.verdict_sig(
-               v, (rec.get("compile") or {}).get("first_error"))}
+    out = {
+        "status": v.get("status") or "fail",
+        "metrics": metrics,
+        "sig": benchlib.verdict_sig(v, (rec.get("compile") or {}).get("first_error")),
+    }
     if v.get("status") not in ("clean", "partial"):
         out["errors"] = [
             {
@@ -857,40 +898,61 @@ def _layoutqc(ctx) -> dict:
     cm = comp.get("metrics") or {}
     main_rel = cm.get("main_rel")
     if not main_rel:
-        main_rel = ((_last_done(ctx, "route") or {}).get("metrics")
-                    or {}).get("main_rel")
+        main_rel = ((_last_done(ctx, "route") or {}).get("metrics") or {}).get(
+            "main_rel"
+        )
     splice = ctx.upstream_asset_dir("splice")
     if splice is None or not main_rel:
-        return {"status": "reject", "sig": "declined:qc_no_input",
-                "metrics": {"gate": "qc_no_input",
-                            "has_splice": splice is not None,
-                            "has_main_rel": bool(main_rel)}}
+        return {
+            "status": "reject",
+            "sig": "declined:qc_no_input",
+            "metrics": {
+                "gate": "qc_no_input",
+                "has_splice": splice is not None,
+                "has_main_rel": bool(main_rel),
+            },
+        }
     base_dir = ctx.paper_dir() / "build-base"
     if not base_dir.is_dir():
         base_dir = None
     src = ctx.src_path()
     out_dir = ctx.asset_dir("layoutqc")
-    qc = qc_paper(splice_dir=splice, main_rel=main_rel,
-                  base_dir=base_dir, src_dir=src,
-                  marks_era=bool(ctx.params["marks"]),
-                  flag_dir=out_dir / "flagged")
+    qc = qc_paper(
+        splice_dir=splice,
+        main_rel=main_rel,
+        base_dir=base_dir,
+        src_dir=src,
+        marks_era=bool(ctx.params["marks"]),
+        flag_dir=out_dir / "flagged",
+    )
     findings = qc["findings"]
-    metrics = {"main_rel": main_rel, "n_findings": len(findings),
-               "qc_tier": qc["qc_tier"],
-               "sig_counts": qc["sig_counts"],
-               "flagged_pages": qc["flagged_pages"],
-               "qc": qc["metrics"]}
+    metrics = {
+        "main_rel": main_rel,
+        "n_findings": len(findings),
+        "qc_tier": qc["qc_tier"],
+        "sig_counts": qc["sig_counts"],
+        "flagged_pages": qc["flagged_pages"],
+        "qc": qc["metrics"],
+    }
     # 质检包：qc.json + 双臂 .txlm（<stem>.zh.txlm / .base.txlm）
     stem = Path(main_rel).stem
     try:
         (out_dir / "qc.json").write_text(
-            json.dumps({"idc": ctx.idc, "main_rel": main_rel,
-                        "qc_tier": qc["qc_tier"],
-                        "sig_counts": qc["sig_counts"],
-                        "flagged_pages": qc["flagged_pages"],
-                        "findings": findings, "metrics": qc["metrics"]},
-                       ensure_ascii=False, indent=1),
-            encoding="utf-8")
+            json.dumps(
+                {
+                    "idc": ctx.idc,
+                    "main_rel": main_rel,
+                    "qc_tier": qc["qc_tier"],
+                    "sig_counts": qc["sig_counts"],
+                    "flagged_pages": qc["flagged_pages"],
+                    "findings": findings,
+                    "metrics": qc["metrics"],
+                },
+                ensure_ascii=False,
+                indent=1,
+            ),
+            encoding="utf-8",
+        )
         zh_t = splice / Path(main_rel).parent / f"{stem}.txlm"
         if zh_t.exists():
             shutil.copy2(zh_t, out_dir / f"{stem}.zh.txlm")
@@ -901,12 +963,18 @@ def _layoutqc(ctx) -> dict:
     except OSError as e:
         metrics["qc_write_error"] = str(e)
     status = "clean" if not findings else "ok"
-    out = {"status": status, "metrics": metrics,
-           "sig": findings[0]["sig"] if findings else "qc:clean"}
+    out = {
+        "status": status,
+        "metrics": metrics,
+        "sig": findings[0]["sig"] if findings else "qc:clean",
+    }
     if findings:
         out["errors"] = [
-            {"code": f["sig"], "cat": "layoutqc",
-             "payload": json.dumps(f, ensure_ascii=False)[:300]}
+            {
+                "code": f["sig"],
+                "cat": "layoutqc",
+                "payload": json.dumps(f, ensure_ascii=False)[:300],
+            }
             for f in findings
         ]
     return out
@@ -923,12 +991,13 @@ spec = Spec(
         "model": Param(str, default=DEFAULT_MODEL, fp=True),
         "concurrency": Param(int, default=10, fp=True),
         "timeout": Param(float, default=240.0, fp=True),
-        "oversize_cap": Param(int, default=benchlib.MAX_TOTAL_CHARS,
-                              fp=True),
-        "base": Param(str, default="onfail",
-                      choices=["always", "onfail", "never"], fp=True),
-        "fixloop": Param(str, default="onfail",
-                         choices=["always", "onfail", "never"], fp=True),
+        "oversize_cap": Param(int, default=benchlib.MAX_TOTAL_CHARS, fp=True),
+        "base": Param(
+            str, default="onfail", choices=["always", "onfail", "never"], fp=True
+        ),
+        "fixloop": Param(
+            str, default="onfail", choices=["always", "onfail", "never"], fp=True
+        ),
         "no_probe": Param(bool, default=False, fp=False),
         # \pdfsavepos 版面真值注入（compile/marks.py）——bench 默认开，
         # 开销 <1%；zh 臂走 prepare_chinese kwarg，en 臂走 _base 直注
@@ -1006,8 +1075,7 @@ spec = Spec(
             # needs+on 双写在 compile=reject 时 needs-skip，付费
             # zh.-/state.- 滞留 work/（本 spec 不复制该洞）。
             on={
-                "compile": {"clean", "partial", "fail", "reject",
-                            "dirty_pdf"},
+                "compile": {"clean", "partial", "fail", "reject", "dirty_pdf"},
             },
             mutates=["splice"],
             status_class={
@@ -1032,6 +1100,7 @@ spec = Spec(
                 "fail": "terminal",
                 "reject": "terminal",
                 "dirty_pdf": "terminal",
+                "skip": "upstream",
                 "error": "retriable",
             },
         ),
@@ -1043,10 +1112,26 @@ spec = Spec(
             # 成为 last_mutating_stage → harvest 触发点从 fixloop 移此，
             # splice/zh/state 内容不变、多封 qc.json+txlm 质检包。
             on={
-                "fixloop": {"clean", "ok", "partial", "fail", "reject",
-                            "dirty_pdf", "skip", "error"},
-                "base": {"clean", "ok", "partial", "fail", "reject",
-                         "dirty_pdf", "skip", "error"},
+                "fixloop": {
+                    "clean",
+                    "ok",
+                    "partial",
+                    "fail",
+                    "reject",
+                    "dirty_pdf",
+                    "skip",
+                    "error",
+                },
+                "base": {
+                    "clean",
+                    "ok",
+                    "partial",
+                    "fail",
+                    "reject",
+                    "dirty_pdf",
+                    "skip",
+                    "error",
+                },
             },
             mutates=["layoutqc"],
             status_class={

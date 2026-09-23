@@ -58,6 +58,7 @@ restore. Meta reads are lock-free (atomic_write means readers only ever
 see complete files). Ledger events are emitted AFTER the lock is dropped
 so the vault critical section never blocks on the ledger's own lock.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -104,8 +105,9 @@ __all__ = [
     "verify",
 ]
 
-# Asset kinds the vault physically stores (§3.10.1: xlat-state is the third).
-KINDS = frozenset({"zh", "splice", "state"})
+# Asset kinds the vault physically stores (§3.10.1: xlat-state is the third;
+# layoutqc is the fourth——qc.json+txlm 质检包随末段 mutates 格收割).
+KINDS = frozenset({"zh", "splice", "state", "layoutqc"})
 
 # Zone vocabulary: pending/primary/alt live in the kind roots; quar keeps a
 # physical separate root under vault/quar/<kind>/.
@@ -126,8 +128,12 @@ _FILES_MANIFEST = ".files.jsonl"
 _HEAL_TMP_SUFFIX = ".heal-tmp"
 
 # zone -> vault-relative root tag (which physical namespace a copy lives in).
-_ZONE_TAG = {"pending": "primary", "primary": "primary", "alt": "primary",
-             "quar": "quar"}
+_ZONE_TAG = {
+    "pending": "primary",
+    "primary": "primary",
+    "alt": "primary",
+    "quar": "quar",
+}
 
 # restore() preference when several copies of a cell exist.
 _ZONE_RANK = {"primary": 0, "alt": 1, "quar": 2, "pending": 3}
@@ -151,6 +157,7 @@ class AmbiguousDonor(VaultError):
 
 
 # --- naming (credential components — injective escaping, §3.10.4) ---------------
+
 
 def _comp(v, default: str = "-") -> str:
     return default if v is None or v == "" else str(v)
@@ -191,8 +198,7 @@ def _norm_verdict(verdict) -> str:
     v = _ZONE_ALIASES.get(verdict, verdict)
     if v not in VERDICTS:
         msg = f"bad vault verdict {verdict!r} (allowed: {sorted(VERDICTS)})"
-        raise ValueError(
-            msg)
+        raise ValueError(msg)
     return v
 
 
@@ -297,16 +303,16 @@ def _work_dirname(kind: str, arm: str, variant: str) -> str:
 
 # --- small IO helpers --------------------------------------------------------------
 
+
 def _require_sentinel() -> None:
     """R5: refuse vault writes when the mount proof is absent — an empty
     mount point must never silently swallow paid bytes."""
     if not paths.vault_sentinel_path().exists():
         msg = (
             f"vault sentinel {paths.vault_sentinel_path()} missing — "
-                        "refusing to write into a possibly-unmounted vault dir"
+            "refusing to write into a possibly-unmounted vault dir"
         )
-        raise VaultError(
-            msg)
+        raise VaultError(msg)
 
 
 def _fsync_file(p: Path) -> None:
@@ -398,8 +404,7 @@ def _iter_files(root: Path) -> list[tuple[Path, str]]:
 def _non_regular(root: Path) -> list[Path]:
     """Entries that are neither regular file nor dir — symlinks and special
     files are refused loudly (vault holds regular bytes only)."""
-    return [p for p, kind in fsutil._iter_tree(Path(root))
-            if kind in ("link", "other")]
+    return [p for p, kind in fsutil._iter_tree(Path(root)) if kind in ("link", "other")]
 
 
 def _safe_rel(rel) -> str | None:
@@ -436,8 +441,7 @@ def _append_manifest_locked(row: dict) -> None:
     """Append one manifest row inside vault/.lock. Reuses the ledger's
     append primitive — same torn-tail heal + single-write + fsync contract."""
     line = (
-        json.dumps(row, ensure_ascii=False, sort_keys=True,
-                   separators=(",", ":"))
+        json.dumps(row, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
         + "\n"
     ).encode("utf-8")
     ledger._append_payload_locked(paths.vault_manifest_path(), line)
@@ -460,11 +464,15 @@ def _iter_metas():
 
 def manifest_rows() -> list[dict]:
     """All parseable manifest.jsonl rows in append order (tolerant read)."""
-    return [r for _ln, r, _raw in events.iter_jsonl(paths.vault_manifest_path())
-            if isinstance(r, dict)]
+    return [
+        r
+        for _ln, r, _raw in events.iter_jsonl(paths.vault_manifest_path())
+        if isinstance(r, dict)
+    ]
 
 
 # --- commit path -----------------------------------------------------------------
+
 
 def _slot_taken(idc: str, arm: str, variant: str, altseq: str) -> bool:
     """Credential occupancy: meta exists OR any kind dir exists in EITHER
@@ -481,8 +489,12 @@ def _slot_taken(idc: str, arm: str, variant: str, altseq: str) -> bool:
     return False
 
 
-def _choose_altseq(idc: str, arm: str, variant: str, altseq,
-                   ) -> str:
+def _choose_altseq(
+    idc: str,
+    arm: str,
+    variant: str,
+    altseq,
+) -> str:
     """altseq=None -> first free slot '0','1','2',... (the ``.{altseq}``
     disambiguation of §3.10.4); explicit altseq -> use it or refuse."""
     if altseq is not None:
@@ -501,19 +513,34 @@ def _choose_altseq(idc: str, arm: str, variant: str, altseq,
     msg = f"no free altseq slot for ({idc},{arm},{variant})"
     raise VaultError(msg)
 
+
 def _group_files(rows: list[dict]) -> dict:
     """[{kind,path,size,sha256}] -> {kind: [{path,size,sha256}]} for meta."""
     out: dict[str, list[dict]] = {}
     for r in rows:
         out.setdefault(r["kind"], []).append(
-            {"path": r["path"], "size": r["size"], "sha256": r["sha256"]})
+            {"path": r["path"], "size": r["size"], "sha256": r["sha256"]}
+        )
     return out
 
 
-def harvest(idc, arm, variant, assets: dict, source_run: str = "adhoc",
-            altseq=None, verdict: str = "pending", zone=None, model=None,
-            id=None, seq=None, staged: bool = False, sink=None,  # noqa: A002 -- id=/seq= 是事件行键名，调用方以 kwarg 传入
-            run_dir=None, _op: str = "harvest") -> Path:
+def harvest(
+    idc,
+    arm,
+    variant,
+    assets: dict,
+    source_run: str = "adhoc",
+    altseq=None,
+    verdict: str = "pending",
+    zone=None,
+    model=None,
+    id=None,
+    seq=None,
+    staged: bool = False,
+    sink=None,  # noqa: A002 -- id=/seq= 是事件行键名，调用方以 kwarg 传入
+    run_dir=None,
+    _op: str = "harvest",
+) -> Path:
     """THE commit path — stage, fuse, rename, meta-last, manifest, emit.
 
     assets = {kind: src_dir} for kind in {zh,splice,state}. The whole write
@@ -529,8 +556,11 @@ def harvest(idc, arm, variant, assets: dict, source_run: str = "adhoc",
     arm = _comp(arm)
     variant = _comp(variant)
     verdict = _norm_verdict(verdict)
-    zone = (_norm_zone(zone) if zone is not None
-            else ("quar" if verdict == "quar" else "pending"))
+    zone = (
+        _norm_zone(zone)
+        if zone is not None
+        else ("quar" if verdict == "quar" else "pending")
+    )
     _require_sentinel()
     paths.assert_vault_same_volume()
     if not isinstance(assets, dict) or not assets:
@@ -565,8 +595,11 @@ def harvest(idc, arm, variant, assets: dict, source_run: str = "adhoc",
         key = dir_key(arm, variant, chosen)
         dests = {k: _kind_root(zone, k) / sid / key for k in kinds}
         paths.vault_staging_dir().mkdir(parents=True, exist_ok=True)
-        tag = Path(tempfile.mkdtemp(prefix=f"hv-{sid[:32]}-",
-                                    dir=str(paths.vault_staging_dir())))
+        tag = Path(
+            tempfile.mkdtemp(
+                prefix=f"hv-{sid[:32]}-", dir=str(paths.vault_staging_dir())
+            )
+        )
         mpath = meta_path(idc, arm, variant, chosen)
         moved: list[str] = []
         fused: dict[str, dict] = {}
@@ -578,15 +611,22 @@ def harvest(idc, arm, variant, assets: dict, source_run: str = "adhoc",
                 total = 0
                 for p, rel in _iter_files(tag / k):
                     st = p.stat()
-                    rows.append({"kind": k, "path": rel, "size": st.st_size,
-                                 "sha256": fsutil._sha256_file(p)})
+                    rows.append(
+                        {
+                            "kind": k,
+                            "path": rel,
+                            "size": st.st_size,
+                            "sha256": fsutil._sha256_file(p),
+                        }
+                    )
                     total += st.st_size
                 kind_bytes[k] = total
             rows.sort(key=lambda r: (r["kind"], r["path"]))
             blob = "".join(
-                json.dumps(r, ensure_ascii=False, sort_keys=True,
-                           separators=(",", ":")) + "\n"
-                for r in rows).encode("utf-8")
+                json.dumps(r, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+                + "\n"
+                for r in rows
+            ).encode("utf-8")
             asset_sha = hashlib.sha256(blob).hexdigest()
             fman = tag / _FILES_MANIFEST
             fman.write_bytes(blob)
@@ -610,24 +650,40 @@ def harvest(idc, arm, variant, assets: dict, source_run: str = "adhoc",
                 moved.append(k)
             # meta is the commit marker — it lands LAST, durably.
             meta = {
-                "v": 1, "idc": idc, "arm": arm, "variant": variant,
-                "altseq": chosen, "zone": zone, "verdict": verdict,
-                "asset_sha": asset_sha, "files": _group_files(rows),
-                "kinds": kinds, "bytes": sum(kind_bytes.values()),
-                "source_run": source_run, "staged": True,
+                "v": 1,
+                "idc": idc,
+                "arm": arm,
+                "variant": variant,
+                "altseq": chosen,
+                "zone": zone,
+                "verdict": verdict,
+                "asset_sha": asset_sha,
+                "files": _group_files(rows),
+                "kinds": kinds,
+                "bytes": sum(kind_bytes.values()),
+                "source_run": source_run,
+                "staged": True,
                 "ts": round(time.time(), 3),
             }
             if model is not None:
                 meta["model"] = model
             _write_meta(mpath, meta)
             row = {
-                "op": _op, "idc": idc, "arm": arm, "variant": variant,
-                "altseq": chosen, "zone": zone, "verdict": verdict,
+                "op": _op,
+                "idc": idc,
+                "arm": arm,
+                "variant": variant,
+                "altseq": chosen,
+                "zone": zone,
+                "verdict": verdict,
                 "path": f"{sid}/{key}",
                 "dirs": {k: _rel_leaf(zone, k, sid, key) for k in kinds},
-                "kinds": kinds, "bytes": sum(kind_bytes.values()),
-                "bytes_ok": True, "sha": asset_sha,
-                "source_run": source_run, "ts": round(time.time(), 3),
+                "kinds": kinds,
+                "bytes": sum(kind_bytes.values()),
+                "bytes_ok": True,
+                "sha": asset_sha,
+                "source_run": source_run,
+                "ts": round(time.time(), 3),
             }
             if model is not None:
                 row["model"] = model
@@ -671,19 +727,40 @@ def harvest(idc, arm, variant, assets: dict, source_run: str = "adhoc",
     seq_fn = seq if callable(seq) else (lambda: seq)
     for k in kinds:
         ev = events.make_event(
-            events.T_ASSET, run=source_run, seq=seq_fn(), id=id or idc,
-            idc=idc, arm=arm, variant=variant, kind=k,
-            path=_rel_leaf(zone, k, sid, key), sha=asset_sha,
-            bytes=kind_bytes[k], state=state, verdict=verdict, zone=zone,
-            altseq=chosen)
+            events.T_ASSET,
+            run=source_run,
+            seq=seq_fn(),
+            id=id or idc,
+            idc=idc,
+            arm=arm,
+            variant=variant,
+            kind=k,
+            path=_rel_leaf(zone, k, sid, key),
+            sha=asset_sha,
+            bytes=kind_bytes[k],
+            state=state,
+            verdict=verdict,
+            zone=zone,
+            altseq=chosen,
+        )
         ledger.emit(ev, run_dir=run_dir, sink=sink)
     return mpath
 
 
 # --- promote (zone/verdict bookkeeping; quar moves bytes) ---------------------------
 
-def promote(idc, arm, variant, altseq, zone, verdict,
-            source_run: str = "reconcile", sink=None, run_dir=None) -> None:
+
+def promote(
+    idc,
+    arm,
+    variant,
+    altseq,
+    zone,
+    verdict,
+    source_run: str = "reconcile",
+    sink=None,
+    run_dir=None,
+) -> None:
     """pending -> primary|quar|alt (and quar -> primary|alt back).
 
     primary/alt are pure metadata zones — promote is a meta rewrite plus a
@@ -757,23 +834,46 @@ def promote(idc, arm, variant, altseq, zone, verdict,
         meta["prev_zone"] = old_zone
         meta["ts"] = round(time.time(), 3)
         _write_meta(mpath, meta)
-        _append_manifest_locked({
-            "op": "promote", "idc": idc, "arm": arm, "variant": variant,
-            "altseq": altseq, "zone": zone, "verdict": verdict,
-            "from_zone": old_zone, "path": f"{sid}/{key}",
-            "moved": moved, "missing": missing,
-            "bytes_ok": _copy_intact(meta),
-            "source_run": source_run, "ts": round(time.time(), 3)})
+        _append_manifest_locked(
+            {
+                "op": "promote",
+                "idc": idc,
+                "arm": arm,
+                "variant": variant,
+                "altseq": altseq,
+                "zone": zone,
+                "verdict": verdict,
+                "from_zone": old_zone,
+                "path": f"{sid}/{key}",
+                "moved": moved,
+                "missing": missing,
+                "bytes_ok": _copy_intact(meta),
+                "source_run": source_run,
+                "ts": round(time.time(), 3),
+            }
+        )
     for k in meta.get("files", {}):
         ev = events.make_event(
-            events.T_ASSET, run=source_run, seq=None, id=idc, idc=idc,
-            arm=arm, variant=variant, kind=k,
-            path=_rel_leaf(zone, k, sid, key), sha=meta.get("asset_sha"),
-            state="verified", verdict=verdict, zone=zone, altseq=altseq)
+            events.T_ASSET,
+            run=source_run,
+            seq=None,
+            id=idc,
+            idc=idc,
+            arm=arm,
+            variant=variant,
+            kind=k,
+            path=_rel_leaf(zone, k, sid, key),
+            sha=meta.get("asset_sha"),
+            state="verified",
+            verdict=verdict,
+            zone=zone,
+            altseq=altseq,
+        )
         ledger.emit(ev, run_dir=run_dir, sink=sink)
 
 
 # --- dedup criterion ---------------------------------------------------------------
+
 
 def _copy_intact(meta: dict) -> bool:
     """Physical intactness of one copy: meta's declared kinds each resolve
@@ -868,8 +968,15 @@ def query(idc, arm: str = "*", variant: str = "*") -> list[dict]:
         if variant not in ("*", kvar):
             continue
         row = dict(meta) if meta is not None else {}
-        row.update({"idc": kidc, "arm": karm, "variant": kvar,
-                    "altseq": kalt, "meta_path": str(mp)})
+        row.update(
+            {
+                "idc": kidc,
+                "arm": karm,
+                "variant": kvar,
+                "altseq": kalt,
+                "meta_path": str(mp),
+            }
+        )
         if meta is None:
             row["_parse_error"] = True
             row["bytes_ok"] = False
@@ -888,16 +995,23 @@ def pending_metas() -> list[dict]:
             continue
         if meta.get("zone") == "pending":
             row = dict(meta)
-            row.update({"idc": key[0], "arm": key[1], "variant": key[2],
-                        "altseq": key[3], "meta_path": str(mp)})
+            row.update(
+                {
+                    "idc": key[0],
+                    "arm": key[1],
+                    "variant": key[2],
+                    "altseq": key[3],
+                    "meta_path": str(mp),
+                }
+            )
             out.append(row)
     return out
 
 
 # --- verify / heal ------------------------------------------------------------------
 
-def verify(level: str = "stat", sample_frac: float = 0.05,
-           seed=None) -> dict:
+
+def verify(level: str = "stat", sample_frac: float = 0.05, seed=None) -> dict:
     """Three-tier vault check (§3.10.4), under a shared vault lock.
 
     stat   — meta parseable + declared files exist + sizes match
@@ -919,8 +1033,16 @@ def verify(level: str = "stat", sample_frac: float = 0.05,
 
 
 def _verify_scan(level: str, sample_frac: float, rng) -> dict:
-    report = {"level": level, "metas": 0, "checked": 0, "inodes": 0,
-              "bad": [], "meta_missing": [], "meta_bad": [], "extra": []}
+    report = {
+        "level": level,
+        "metas": 0,
+        "checked": 0,
+        "inodes": 0,
+        "bad": [],
+        "meta_missing": [],
+        "meta_bad": [],
+        "extra": [],
+    }
     inode_map: dict[tuple, list] = {}
     covered_leaves: list[tuple[Path, set]] = []
     for mp, key, meta in _iter_metas():
@@ -930,9 +1052,12 @@ def _verify_scan(level: str, sample_frac: float, rng) -> dict:
             continue
         kidc, karm, kvar, kalt = key
         # the filename is the credential — content must agree with it
-        if (meta.get("idc") != kidc or _comp(meta.get("arm")) != karm
-                or _comp(meta.get("variant")) != kvar
-                or str(meta.get("altseq", "0")) != kalt):
+        if (
+            meta.get("idc") != kidc
+            or _comp(meta.get("arm")) != karm
+            or _comp(meta.get("variant")) != kvar
+            or str(meta.get("altseq", "0")) != kalt
+        ):
             report["meta_bad"].append(str(mp))
             continue
         try:
@@ -958,27 +1083,40 @@ def _verify_scan(level: str, sample_frac: float, rng) -> dict:
                 report["checked"] += 1
                 rel = _safe_rel(ent.get("path"))
                 if rel is None:
-                    report["bad"].append({
-                        "paths": [str(leaf / str(ent.get("path")))],
-                        "reason": "unsafe_declared_path",
-                        "sha": [ent.get("sha256")], "inode": None})
+                    report["bad"].append(
+                        {
+                            "paths": [str(leaf / str(ent.get("path")))],
+                            "reason": "unsafe_declared_path",
+                            "sha": [ent.get("sha256")],
+                            "inode": None,
+                        }
+                    )
                     continue
                 declared.add(rel)
                 fp = leaf / rel
                 try:
                     st = fp.stat()
                 except OSError:
-                    report["bad"].append({
-                        "paths": [str(fp)], "reason": "missing",
-                        "sha": [ent.get("sha256")], "inode": None})
+                    report["bad"].append(
+                        {
+                            "paths": [str(fp)],
+                            "reason": "missing",
+                            "sha": [ent.get("sha256")],
+                            "inode": None,
+                        }
+                    )
                     continue
                 if not stat.S_ISREG(st.st_mode):
-                    report["bad"].append({
-                        "paths": [str(fp)], "reason": "non_regular",
-                        "sha": [ent.get("sha256")], "inode": None})
+                    report["bad"].append(
+                        {
+                            "paths": [str(fp)],
+                            "reason": "non_regular",
+                            "sha": [ent.get("sha256")],
+                            "inode": None,
+                        }
+                    )
                     continue
-                inode_map.setdefault((st.st_dev, st.st_ino), []).append(
-                    (fp, ent))
+                inode_map.setdefault((st.st_dev, st.st_ino), []).append((fp, ent))
             covered_leaves.append((leaf, declared))
     # one check per inode; a bad inode damns every alias at once
     for (dev, ino), aliases in sorted(inode_map.items()):
@@ -987,15 +1125,21 @@ def _verify_scan(level: str, sample_frac: float, rng) -> dict:
         expected = {ent.get("sha256") for _p, ent in aliases}
         size_bad = any(st.st_size != ent.get("size") for _p, ent in aliases)
         sha_bad = False
-        if (not size_bad and level != "stat"
-                and (level == "full" or rng.random() < sample_frac)):
+        if (
+            not size_bad
+            and level != "stat"
+            and (level == "full" or rng.random() < sample_frac)
+        ):
             sha_bad = fsutil._sha256_file(aliases[0][0]) not in expected
         if size_bad or sha_bad:
-            report["bad"].append({
-                "paths": [str(p) for p, _e in aliases],
-                "reason": "size_mismatch" if size_bad else "sha_mismatch",
-                "sha": sorted(s for s in expected if s),
-                "inode": [dev, ino]})
+            report["bad"].append(
+                {
+                    "paths": [str(p) for p, _e in aliases],
+                    "reason": "size_mismatch" if size_bad else "sha_mismatch",
+                    "sha": sorted(s for s in expected if s),
+                    "inode": [dev, ino],
+                }
+            )
     for leaf, declared in covered_leaves:
         if not leaf.is_dir():
             continue
@@ -1023,16 +1167,16 @@ def heal(verify_report: dict | None = None) -> int:
         touched: set = set()
         healed = 0
         for bad in verify_report.get("bad", []):
-            if bad.get("reason") not in ("sha_mismatch", "size_mismatch",
-                                         "missing"):
+            if bad.get("reason") not in ("sha_mismatch", "size_mismatch", "missing"):
                 continue
             shas = [s for s in (bad.get("sha") or []) if s]
             if len(set(shas)) != 1:
                 continue  # nothing or ambiguous expected — not relink-healable
             want = shas[0]
             bad_ino = tuple(bad["inode"]) if bad.get("inode") else None
-            cands = {ino: p for ino, p in donors.get(want, {}).items()
-                     if ino != bad_ino}
+            cands = {
+                ino: p for ino, p in donors.get(want, {}).items() if ino != bad_ino
+            }
             if len(cands) > 1:
                 msg = (
                     f"multiple good inodes carry sha {want[:16]}… — refusing "
@@ -1102,8 +1246,7 @@ def _donor_map() -> dict:
                 continue
             leaf = _kind_root(zone, kind) / sid / k
             for ent in flist:
-                rel = _safe_rel(ent.get("path")
-                                if isinstance(ent, dict) else None)
+                rel = _safe_rel(ent.get("path") if isinstance(ent, dict) else None)
                 if rel is None:
                     continue
                 fp = leaf / rel
@@ -1125,9 +1268,18 @@ def _donor_map() -> dict:
 
 # --- adopt / restore / tombstone / orphan scan ---------------------------------------
 
-def adopt(src_dir, idc, arm: str = "-", variant: str = "-",
-          reason: str = "orphan", kind: str = "zh", id=None,  # noqa: A002 -- 事件行键名
-          sink=None, run_dir=None) -> Path:
+
+def adopt(
+    src_dir,
+    idc,
+    arm: str = "-",
+    variant: str = "-",
+    reason: str = "orphan",
+    kind: str = "zh",
+    id=None,  # noqa: A002 -- 事件行键名
+    sink=None,
+    run_dir=None,
+) -> Path:
     """Orphan bytes -> quarantine. The whole tree becomes one quar-zone copy
     via the normal two-phase commit (verdict='quar', state='adopted'), then
     a note event records the adoption. Refuses non-regular files — a stray
@@ -1144,21 +1296,35 @@ def adopt(src_dir, idc, arm: str = "-", variant: str = "-",
         raise VaultError(msg)
     offenders = _non_regular(src)
     if offenders:
-        msg = (
-            f"adopt refuses non-regular files: "
-            f"{[str(o) for o in offenders[:5]]}"
-        )
+        msg = f"adopt refuses non-regular files: {[str(o) for o in offenders[:5]]}"
         raise VaultError(msg)
-    mpath = harvest(idc, arm, variant, {kind: src}, source_run="adopt",
-                    verdict="quar", zone="quar", id=id, sink=sink,
-                    run_dir=run_dir, _op="adopt")
+    mpath = harvest(
+        idc,
+        arm,
+        variant,
+        {kind: src},
+        source_run="adopt",
+        verdict="quar",
+        zone="quar",
+        id=id,
+        sink=sink,
+        run_dir=run_dir,
+        _op="adopt",
+    )
     meta = _read_meta(mpath) or {}
     ev = events.make_event(
-        events.T_NOTE, run="adopt", seq=None, id=id or idc, idc=idc,
-        text=(f"adopted orphan bytes {src} -> vault quar "
-              f"({idc},{arm},{variant},{meta.get('altseq', '0')}) "
-              f"reason={reason}"),
-        level="warn")
+        events.T_NOTE,
+        run="adopt",
+        seq=None,
+        id=id or idc,
+        idc=idc,
+        text=(
+            f"adopted orphan bytes {src} -> vault quar "
+            f"({idc},{arm},{variant},{meta.get('altseq', '0')}) "
+            f"reason={reason}"
+        ),
+        level="warn",
+    )
     ledger.emit(ev, run_dir=run_dir, sink=sink)
     return leaf_dir("quar", kind, idc, arm, variant, meta.get("altseq", "0"))
 
@@ -1190,10 +1356,7 @@ def restore(idc, arm, variant, dest, altseq=None, mode: str = "copy") -> int:
     with locks.flock(paths.vault_lock_path(), exclusive=False):
         meta = _select_copy(idc, arm, variant, altseq)
         if meta is None:
-            msg = (
-                f"no intact committed copy for "
-                f"({idc},{arm},{variant},{altseq})"
-            )
+            msg = f"no intact committed copy for ({idc},{arm},{variant},{altseq})"
             raise VaultError(msg)
         zone = _norm_zone(meta.get("zone", "pending"))
         sid = idnorm.safe_id(idc)
@@ -1232,8 +1395,17 @@ def _select_copy(idc: str, arm: str, variant: str, altseq) -> dict | None:
     return cands[0][2]
 
 
-def tombstone(idc, arm, variant, kind, reason, lost_run: str = "",
-              id=None, sink=None, run_dir=None) -> None:  # noqa: A002 -- 事件行键名
+def tombstone(
+    idc,
+    arm,
+    variant,
+    kind,
+    reason,
+    lost_run: str = "",
+    id=None,
+    sink=None,
+    run_dir=None,
+) -> None:  # noqa: A002 -- 事件行键名
     """Register lost bytes: a manifest tombstone row inside the vault lock,
     then a first-class tombstone event in the ledger (§3.1 — tombstones are
     events, not separate files). The regen gate reads these rows upstream."""
@@ -1243,13 +1415,30 @@ def tombstone(idc, arm, variant, kind, reason, lost_run: str = "",
     _require_sentinel()
     ts = round(time.time(), 3)
     with locks.flock(paths.vault_lock_path(), exclusive=True):
-        _append_manifest_locked({
-            "op": "tombstone", "idc": idc, "arm": arm, "variant": variant,
-            "kind": kind, "reason": reason, "lost_run": lost_run,
-            "zone": "tombstone", "ts": ts})
+        _append_manifest_locked(
+            {
+                "op": "tombstone",
+                "idc": idc,
+                "arm": arm,
+                "variant": variant,
+                "kind": kind,
+                "reason": reason,
+                "lost_run": lost_run,
+                "zone": "tombstone",
+                "ts": ts,
+            }
+        )
     ev = events.make_event(
-        events.T_TOMBSTONE, id=id or idc, idc=idc, arm=arm, variant=variant,
-        kind=kind, reason=reason, lost_run=lost_run, ts=ts)
+        events.T_TOMBSTONE,
+        id=id or idc,
+        idc=idc,
+        arm=arm,
+        variant=variant,
+        kind=kind,
+        reason=reason,
+        lost_run=lost_run,
+        ts=ts,
+    )
     ledger.emit(ev, run_dir=run_dir, sink=sink)
 
 
