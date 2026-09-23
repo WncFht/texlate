@@ -409,10 +409,10 @@ def _offpage_findings(zh: dict, offpage_pt: float) -> list[dict]:
     return out
 
 
-def _cross_findings(
+def _cross_findings(  # noqa: PLR0913 -- 同 compare_marks 旋钮面直通
     zh: dict,
     base: dict,
-    *,  # noqa: PLR0913 -- 同 compare_marks 旋钮面直通
+    *,
     zh_decl: list[str] | None,
     base_decl: list[str] | None,
     zh_pages: int | None,
@@ -465,10 +465,10 @@ def _cross_findings(
     return out
 
 
-def compare_marks(
+def compare_marks(  # noqa: PLR0913 -- 检测旋钮面穿透（decl 主键/页数外推/阈值各臂）
     zh: dict,
     base: dict | None,
-    *,  # noqa: PLR0913 -- 检测旋钮面穿透（decl 主键/页数外推/阈值各臂）
+    *,
     zh_decl: list[str] | None = None,
     base_decl: list[str] | None = None,
     zh_pages: int | None = None,

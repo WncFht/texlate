@@ -131,9 +131,9 @@ class Param:
 
     def __init__(
         self,
-        type=str,
+        type=str,  # noqa: A002 -- 公开 kwarg：Param(type=int)
         default=None,
-        required: bool = False,  # noqa: A002 -- 公开 kwarg：Param(type=int)
+        required: bool = False,
         choices=None,
         fp=None,
     ):
@@ -252,8 +252,8 @@ class Stage:
         on=None,
         status_class=None,
         dedup_key=None,
-        eval: bool = False,
-    ):  # noqa: A002 -- 公开 kwarg：Stage(eval=True)
+        eval: bool = False,  # noqa: A002 -- 公开 kwarg：Stage(eval=True)
+    ):
         self.name = str(name)
         self.fn = fn
         self.needs = [_norm_need(n) for n in (needs or [])]

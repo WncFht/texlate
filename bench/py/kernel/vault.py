@@ -534,10 +534,10 @@ def harvest(
     verdict: str = "pending",
     zone=None,
     model=None,
-    id=None,
+    id=None,  # noqa: A002 -- id=/seq= 是事件行键名，调用方以 kwarg 传入
     seq=None,
     staged: bool = False,
-    sink=None,  # noqa: A002 -- id=/seq= 是事件行键名，调用方以 kwarg 传入
+    sink=None,
     run_dir=None,
     _op: str = "harvest",
 ) -> Path:
@@ -1402,10 +1402,10 @@ def tombstone(
     kind,
     reason,
     lost_run: str = "",
-    id=None,
+    id=None,  # noqa: A002 -- 事件行键名
     sink=None,
     run_dir=None,
-) -> None:  # noqa: A002 -- 事件行键名
+) -> None:
     """Register lost bytes: a manifest tombstone row inside the vault lock,
     then a first-class tombstone event in the ledger (§3.1 — tombstones are
     events, not separate files). The regen gate reads these rows upstream."""
