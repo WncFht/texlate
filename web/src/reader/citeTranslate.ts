@@ -39,6 +39,7 @@ import { taskStore, type TaskLive } from "../stores/tasks";
 import { toast, type ToastAction } from "../stores/toastStore";
 import { currentLang, fmt, t } from "../i18n";
 import { canonRefId, type BibEntry } from "./citations";
+import { readerHashWithFrom } from "./tasknav";
 
 // ---------------------------------------------------------------- i18n 键面
 // 整合期合入 zh.ts/en.ts 的键清单（两份表同键）；合入前经 ctText 双语兜底。
@@ -442,7 +443,7 @@ export interface CiteTranslateDeps {
     ): Promise<TranslateResponse>;
 }
 
-const OPEN_HASH = (taskId: string) => `#/reader/${taskId}`;
+const OPEN_HASH = (taskId: string) => readerHashWithFrom(taskId);
 
 export interface CiteTranslate {
     submit(

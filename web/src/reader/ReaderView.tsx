@@ -91,6 +91,7 @@ import {
     type SentAlignPane,
 } from "./features/sentalign";
 import RefsPanel from "./RefsPanel";
+import { fromParamOf } from "./tasknav";
 
 const JUMPBACK_PX = 500;
 const SAVE_DEBOUNCE_MS = 1000;
@@ -272,8 +273,22 @@ export default function ReaderView(props: Props) {
                     capture: () => capturePos(h),
                 });
             } else {
-                // pdf 窗格无 DOM 体——登记为 DOM→PDF 跳转目标侧
-                out.push({ kind: "pdf", side: saSide });
+                // pdf 窗格无 DOM 体——DOM→PDF 跳转目标 + PDF→PDF 点击源
+                out.push({
+                    kind: "pdf",
+                    side: saSide,
+                    clickEl: (() => {
+                        try {
+                            return h.el;
+                        } catch {
+                            return undefined;
+                        }
+                    })(),
+                    posAtPoint: (x, y) =>
+                        "posAtPoint" in h
+                            ? (h.posAtPoint?.(x, y) ?? null)
+                            : null,
+                });
             }
         }
         return out;
@@ -306,6 +321,11 @@ export default function ReaderView(props: Props) {
                         ? (h.mirrorDest?.(dest) ?? null)
                         : null,
                 );
+            },
+            pdfFlash: (dst, pos) => {
+                const h =
+                    handles()[dst === "zh" ? "translated" : "original"];
+                if (h && "flashAtPos" in h) h.flashAtPos?.(pos);
             },
         },
     });
@@ -624,21 +644,40 @@ export default function ReaderView(props: Props) {
                 : [],
         {
             snapshot: (e, _base) => {
-                const target = e.target as Element | null;
+                let target = e.target as Element | null;
+                const inScope = (el: Element | null): el is Element =>
+                    !!el &&
+                    (panesEl.contains(el) || !!el.closest(".live-pane"));
+                // pdf 命中面退化回补：右键焦点 scrollIntoView 会把 e.target
+                // 从 linkAnnotation 锚挤成 textLayer span（注层重建期甚至落
+                // 到 pane 外 HTML）——同点元素栈里捞真锚顶替
+                const altAnchor = () =>
+                    document
+                        .elementsFromPoint(e.clientX, e.clientY)
+                        .find(
+                            (el) =>
+                                inScope(el) &&
+                                el.matches(
+                                    "section.linkAnnotation a[href^='#']",
+                                ),
+                        ) ?? null;
                 // .panes 容器级委托——pane 外（顶栏/横幅/导读）放出原生菜单；
                 // live-pane 在 .panes 外由 document 级监听转送进来
-                if (
-                    !target ||
-                    (!panesEl.contains(target) &&
-                        !target.closest(".live-pane"))
-                )
-                    return null;
+                if (!inScope(target)) target = altAnchor();
+                if (!inScope(target)) return null;
                 if (target.closest(".guide")) return null;
-                const hit = snap(target);
+                let hit = snap(target);
+                if (target.closest(".pane-pdf") && !hit.cite.anchorEl) {
+                    const alt = altAnchor();
+                    if (alt && alt !== target) {
+                        target = alt;
+                        hit = snap(alt);
+                    }
+                }
                 const cmd = makeCmdCtx(hit, depsFor(hit));
                 // 可见命令为空 → veto 不拦（原生菜单照常）
                 if (!reg.visible(cmd).length) return null;
-                return { hit, cmd };
+                return { hit, cmd, target };
             },
             bypass: (e) => e.shiftKey, // Shift+右键 = 原生菜单
             // FloatBar 互斥：开单/关单都重估展示闸（allowShow 保锚重现）
@@ -1209,6 +1248,10 @@ export default function ReaderView(props: Props) {
         if (!h) return;
         onNavBegin();
         const r = navStacks[side].back(capturePos(h));
+        if (!r && fromTask) {
+            returnToSrc();
+            return;
+        }
         if (r) h.jump(r.pos);
         // 成对回跳：对侧栈顶是同一镜像跳 → 一起回（各自回自己跳前位）
         if (r?.pair !== undefined && mode() === "split") {
@@ -1307,6 +1350,16 @@ export default function ReaderView(props: Props) {
         const chunks = dual()?.chunks ?? [];
         const i = chunks.findIndex((c) => c.seq === deepSeq);
         return i >= 0 ? { page: i + 1, fraction: 0 } : null;
+    };
+
+    /** 跨任务回程票：#/reader/{id}?from={src}——chip 跳带来的源任务 id */
+    const fromTask = (() => {
+        const f = fromParamOf(window.location.hash);
+        // eslint-disable-next-line solid/reactivity -- keyed Match 按 taskId 整树重挂，挂载拍快照是有意的
+        return f && f !== props.taskId ? f : null;
+    })();
+    const returnToSrc = () => {
+        if (fromTask) location.hash = `#/reader/${fromTask}`;
     };
 
     const paneReady = (side: DocId, h: AnyHandle) => {
@@ -1655,6 +1708,26 @@ export default function ReaderView(props: Props) {
                     />
                 </Show>
             </div>
+            <Show when={fromTask}>
+                <button
+                    type="button"
+                    class="tb-btn"
+                    style={{
+                        position: "fixed",
+                        top: "56px",
+                        left: "12px",
+                        "z-index": 28,
+                    }}
+                    title={taskStore.task(fromTask!)?.title ?? fromTask!}
+                    onClick={returnToSrc}
+                >
+                    ← {t.reader.back} ·{" "}
+                    {(taskStore.task(fromTask!)?.title ?? fromTask!).slice(
+                        0,
+                        24,
+                    )}
+                </button>
+            </Show>
             {props.banner}
             <div
                 class="panes"

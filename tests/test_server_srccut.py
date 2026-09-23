@@ -164,12 +164,19 @@ class TestSpansBySeqs:
 
 class TestWhole:
     def test_whole_baseline(self, client: TestClient) -> None:
-        """whole+gaps:false → ``decode_tex`` 切片逐字节 ``\\n\\n`` 连接。"""
+        """whole+gaps:false → 逐块切片 + 壳边扩展，``\\n\\n`` 连接。
+
+        P1 壳头界=前一空白行右端——其前注释/``\\label`` 行随壳入切。
+        """
         tid = _mk_main_task(client)
         r = _post(client, tid, {"seqs": [0, 1, 2], "mode": "whole", "gaps": False})
         assert r.status_code == HTTPStatus.OK, r.text
         body = r.json()
-        assert body["latex"] == f"{_P0}\n\n{_P1}\n\n{_P2}"
+        assert body["latex"] == (
+            f"{_P0}\n\n"
+            f"% comment line between paragraphs\n\\label{{sec:one}}\n{_P1}\n\n"
+            f"{_P2}"
+        )
         assert body["chunks"] == 3  # noqa: PLR2004 -- 三切片
         assert body["files"] == ["main.tex"]
         assert body["mode_used"] == "whole"

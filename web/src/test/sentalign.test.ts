@@ -472,4 +472,69 @@ describe("SentAlignSession", () => {
         ]);
         s.destroy();
     });
+
+    it("PDF→PDF：pdf 源侧 click → posAtPoint → mapPos/pdfDest/pdfJump → recordJump+pdfFlash", async () => {
+        const pdf = paneBody(
+            `<div class="textLayer"><span>line one.</span></div>`,
+        );
+        const calls: string[] = [];
+        const s = new SentAlignSession({
+            navBegin: () => calls.push("navBegin"),
+            mapPos: (pos) => {
+                calls.push(`mapPos:${pos.page}:${pos.fraction.toFixed(2)}`);
+                return { page: 4, fraction: 0.25 };
+            },
+            pdfDest: (_d, pos) => {
+                calls.push(`pdfDest:${pos.page}`);
+                return [pos.page - 1, { name: "XYZ" }, 0, 100, null];
+            },
+            pdfJump: (_d, dest) => {
+                calls.push(`pdfJump:${(dest as unknown[])[0]}`);
+                return Promise.resolve({
+                    pre: { page: 1, fraction: 0 },
+                    post: { page: 4, fraction: 0.25 },
+                });
+            },
+            recordJump: (d, pre, post) =>
+                calls.push(`recordJump:${d}:${pre?.page}->${post?.page}`),
+            pdfFlash: (d, pos) => calls.push(`pdfFlash:${d}:${pos.page}`),
+        });
+        s.mountPdfSide("zh");
+        s.mountPdfClickSource("en", pdf, (x, y) => {
+            calls.push(`posAtPoint:${x},${y}`);
+            return { page: 2, fraction: 0.5 };
+        });
+        const sp = pdf.querySelector("span")!;
+        sp.dispatchEvent(
+            new MouseEvent("click", {
+                bubbles: true,
+                clientX: 10,
+                clientY: 20,
+            }),
+        );
+        await tick();
+        expect(calls).toEqual([
+            "posAtPoint:10,20",
+            "navBegin",
+            "mapPos:2:0.50",
+            "pdfDest:4",
+            "pdfJump:3",
+            "recordJump:zh:1->4",
+            "pdfFlash:zh:4",
+        ]);
+        // posAtPoint null（页间缝/容器外）→ 不跳
+        calls.length = 0;
+        s.mountPdfClickSource("en", pdf, () => null);
+        sp.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        await tick();
+        expect(calls).toEqual([]);
+        // unmountSide 摘监听——点击源随侧卸载
+        s.unmountSide("en");
+        s.mountPdfClickSource("en", pdf, () => ({ page: 2, fraction: 0 }));
+        s.unmountSide("en");
+        sp.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        await tick();
+        expect(calls).toEqual([]);
+        s.destroy();
+    });
 });

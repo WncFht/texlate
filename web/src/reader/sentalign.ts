@@ -449,6 +449,8 @@ export interface SentAlignDeps {
         dst: SaSide,
         dest: unknown[],
     ): Promise<{ pre: Pos; post: Pos } | null>;
+    /** PDF→PDF 落点闪示（PdfPane.flashAtPos 桥——r.post 分位行带） */
+    pdfFlash?(dst: SaSide, pos: Pos): void;
     /** 增量重注防抖（ms，缺省 60——LivePane rAF 分片一拍内合批） */
     debounceMs?: number;
     /** flash 时长（ms，缺省 1400——cite-flash 同款） */
@@ -462,6 +464,7 @@ export interface SentAlignDeps {
 export class SentAlignSession {
     private sides = new Map<SaSide, SideState>();
     private pdfTargets = new Set<SaSide>();
+    private pdfClickDetach = new Map<SaSide, () => void>();
     private hotEls: Element[] = [];
     private peerEls: Element[] = [];
     private lastKey = "";
@@ -515,7 +518,38 @@ export class SentAlignSession {
         this.pdfTargets.add(side);
     }
 
+    /** pdf 源侧点击（PDF→PDF 补臂）：el 上 delegated click → posAtPoint
+        命中 → jumpPosToPdf。守卫与 attachBody.onClick 同口径——链接/
+        按钮/批注层/悬浮卡让位，拖选收尾不跳。幂等重挂。 */
+    mountPdfClickSource(
+        side: SaSide,
+        el: HTMLElement,
+        posAtPoint: (x: number, y: number) => Pos | null,
+    ): void {
+        this.pdfClickDetach.get(side)?.();
+        const onClick = (e: MouseEvent) => {
+            const t = e.target as Element | null;
+            if (
+                t?.closest?.(
+                    "a, button, .annotationLayer, .cite-card, .usage-card",
+                )
+            )
+                return;
+            const sel = el.ownerDocument?.getSelection?.();
+            if (sel && !sel.isCollapsed) return;
+            const pos = posAtPoint(e.clientX, e.clientY);
+            if (!pos) return;
+            this.jumpPosToPdf(side, pos);
+        };
+        el.addEventListener("click", onClick);
+        this.pdfClickDetach.set(side, () =>
+            el.removeEventListener("click", onClick),
+        );
+    }
+
     unmountSide(side: SaSide): void {
+        this.pdfClickDetach.get(side)?.();
+        this.pdfClickDetach.delete(side);
         const st = this.sides.get(side);
         if (!st) {
             this.pdfTargets.delete(side);
@@ -536,7 +570,7 @@ export class SentAlignSession {
     }
 
     destroy(): void {
-        for (const s of [...this.sides.keys()] as SaSide[]) this.unmountSide(s);
+        for (const s of ["en", "zh"] as const) this.unmountSide(s);
         window.clearTimeout(this.flashTimer);
         this.clearFlash();
     }
@@ -804,6 +838,26 @@ export class SentAlignSession {
             if (!dest) return;
             return this.deps.pdfJump!(dst, dest).then((r) => {
                 if (r) this.deps.recordJump?.(dst, r.pre, r.post);
+            });
+        });
+    }
+
+    /** PDF→PDF：源侧点击位 Pos → mapPos → pdfDest → pdfJump →
+        recordJump + pdfFlash（jumpSidToPdf 同构，免 sidPos 句定位）。
+        chunk/行带级精度上限——真句级 quad 高亮属 v2（需后端句锚）。 */
+    private jumpPosToPdf(src: SaSide, pos: Pos): void {
+        const dst = other(src);
+        if (!this.pdfTargets.has(dst) && !this.deps.pdfJump) return;
+        if (!this.deps.mapPos || !this.deps.pdfDest || !this.deps.pdfJump)
+            return;
+        this.deps.navBegin?.();
+        const mapped = this.deps.mapPos(pos, src);
+        void Promise.resolve(this.deps.pdfDest(dst, mapped)).then((dest) => {
+            if (!dest) return;
+            return this.deps.pdfJump!(dst, dest).then((r) => {
+                if (!r) return;
+                this.deps.recordJump?.(dst, r.pre, r.post);
+                this.deps.pdfFlash?.(dst, r.post);
             });
         });
     }

@@ -15,6 +15,7 @@ import { api, apiErrText, type TaskSnapshot } from "../api/client";
 import { taskStore } from "../stores/tasks";
 import { toast } from "../stores/toastStore";
 import { ctText, refViewOf, type RefView } from "./citeTranslate";
+import { readerHashWithFrom } from "./tasknav";
 import type { TaskLive } from "../stores/liveFrames";
 
 interface Props {
@@ -76,7 +77,7 @@ export default function RefTaskChip(props: Props) {
                 (props.retry ?? retryDefault)(v.taskId),
             ).finally(() => setBusy(false));
         } else if (v.phase === "needsAuth" && v.taskId) {
-            (props.onAuth ?? ((id) => (location.hash = `#/reader/${id}`)))(
+            (props.onAuth ?? ((id) => (location.hash = readerHashWithFrom(id))))(
                 v.taskId,
             );
         }
@@ -138,7 +139,7 @@ export default function RefTaskChip(props: Props) {
                     failed_chunks 角标（降级交付语义） */}
                 <a
                     class="ref-task-chip is-done"
-                    href={`#/reader/${view().taskId}`}
+                    href={readerHashWithFrom(view().taskId ?? "")}
                 >
                     {label()}
                     <Show when={view().failedChunks > 0}>

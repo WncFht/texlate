@@ -90,6 +90,12 @@ export interface PaneHandle extends PaneLike {
     seqEls?(seq: number): HTMLElement[];
     /** seq → 页码（idle seqmap 渐进充填——未扫到/无锚 null） */
     seqPage?(seq: number): number | null;
+    /** 点击坐标 → Pos（sent-align PDF 源侧臂）：elementFromPoint 命中页 →
+        {page, 页内 top-down 分位}；容器外/页间缝 null */
+    posAtPoint?(x: number, y: number): Pos | null;
+    /** Pos 落点闪示（sent-align PDF→PDF 臂）：命中页 textLayer 分位行带
+        加 .sa-flash——单轨，新闪清旧闪 */
+    flashAtPos?(pos: Pos): void;
     /** find-usages pdf 臂：cite.<key> dest 反查 link annot 站集开卡 */
     openUsagesFor?(
         target: Element | string | null,
@@ -191,6 +197,19 @@ export default function PdfPane(props: Props) {
         entry: UsageEntry;
     } | null>(null);
     let usageJumps: { page: number; y: number }[] = [];
+    // sent-align 落点闪（单轨——连点两落点旧带当场清算，cite-flash 同款）
+    let saFlashEls: HTMLElement[] = [];
+    let saFlashTimer = 0;
+    const saFlash = (els: HTMLElement[]) => {
+        for (const el of saFlashEls) el.classList.remove("sa-flash");
+        window.clearTimeout(saFlashTimer);
+        saFlashEls = els;
+        for (const el of els) el.classList.add("sa-flash");
+        saFlashTimer = window.setTimeout(() => {
+            for (const el of els) el.classList.remove("sa-flash");
+            saFlashEls = [];
+        }, 1400);
+    };
     let openTimer = 0;
     let closeTimer = 0;
     let cardSeq = 0;
@@ -576,6 +595,39 @@ export default function PdfPane(props: Props) {
             ].filter((el) => seqOfMarkedSpan(el) === seq);
         },
         seqPage: (seq) => seqPageMap.get(seq)?.page ?? null,
+        posAtPoint: (x, y) => {
+            const c = viewer()?.container;
+            if (!c) return null;
+            const pg = c.ownerDocument
+                .elementFromPoint(x, y)
+                ?.closest<HTMLElement>("[data-page-number]");
+            if (!pg || !c.contains(pg)) return null;
+            const page = Number(pg.getAttribute("data-page-number"));
+            if (!Number.isFinite(page) || page < 1) return null;
+            const r = pg.getBoundingClientRect();
+            return {
+                page,
+                fraction:
+                    r.height > 0
+                        ? Math.min(Math.max((y - r.top) / r.height, 0), 1)
+                        : 0,
+            };
+        },
+        flashAtPos: (pos) => {
+            const views = (
+                viewer() as unknown as { _pages?: PdfPageViewLike[] }
+            )?._pages;
+            const div = views?.[pos.page - 1]?.div;
+            if (!div) return;
+            const y = pos.fraction * div.offsetHeight;
+            const els = [
+                ...div.querySelectorAll<HTMLElement>(".textLayer span"),
+            ].filter(
+                (sp) =>
+                    sp.offsetTop <= y && y < sp.offsetTop + sp.offsetHeight,
+            );
+            if (els.length) saFlash(els);
+        },
         openUsagesFor,
         async mirrorDest(dest) {
             const s = pdfSlick();
@@ -692,6 +744,7 @@ export default function PdfPane(props: Props) {
         waitPages();
     });
     onCleanup(() => cancelAnimationFrame(rafId));
+    onCleanup(() => window.clearTimeout(saFlashTimer));
     onCleanup(() => {
         destScanAbort = true;
     });
@@ -973,8 +1026,10 @@ export default function PdfPane(props: Props) {
         // 只扫增量 addedNodes——全容器 qSA 在滚动翻页期是每批 mutation
         // O(全锚) 的热路径浪费
         const labelAnchor = (a: HTMLAnchorElement) => {
-            if (a.hasAttribute("aria-label")) return;
             const dest = destOf(a);
+            // 渲染即播种 destNames——cite.targetExists 不等 idle 全扫
+            if (dest) destNames.add(dest);
+            if (a.hasAttribute("aria-label")) return;
             if (!dest?.startsWith("cite.")) return;
             const entry = props.citeIndex?.lookup(dest);
             a.setAttribute(
@@ -1097,6 +1152,17 @@ export default function PdfPane(props: Props) {
                                 loading={c().loading}
                                 notFound={c().notFound}
                                 kept={props.citeKept?.(citeKey(c()))}
+                                onShowUsages={
+                                    destNames.has(c().dest) ||
+                                    destSites.get(c().dest)?.length
+                                        ? () =>
+                                              openUsagesFor(
+                                                  c().dest,
+                                                  curAnchor,
+                                              )
+                                        : undefined
+                                }
+                                usagesCount={destSites.get(c().dest)?.length}
                                 onToggleKeep={
                                     props.onToggleKeep
                                         ? () =>

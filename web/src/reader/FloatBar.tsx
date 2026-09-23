@@ -220,6 +220,16 @@ export function createFloatBar(opts: CreateFloatBarOpts = {}): FloatBarApi {
         offscreenHide &&
         (r.bottom < 0 || r.top > vh() || r.right < 0 || r.left > vw());
 
+    const liveSel = (): boolean => {
+        const sel = win.getSelection();
+        return (
+            !!sel &&
+            sel.rangeCount > 0 &&
+            !sel.isCollapsed &&
+            String(sel).length > 0
+        );
+    };
+
     /** 选区 anchor 端所在 pane（跨 pane 选区的锚侧判定源） */
     const anchorPane = (): Element | null => {
         const sel = win.getSelection?.();
@@ -357,8 +367,16 @@ export function createFloatBar(opts: CreateFloatBarOpts = {}): FloatBarApi {
         }
     }
 
-    function onPointerDown() {
+    function onPointerDown(e: Event) {
         pointerDown = true;
+        const t = e.target;
+        if (
+            shown &&
+            (e as PointerEvent).button === 0 &&
+            t instanceof Node &&
+            !el.contains(t)
+        )
+            hide();
     }
     function onPointerUp() {
         pointerDown = false;
@@ -377,6 +395,7 @@ export function createFloatBar(opts: CreateFloatBarOpts = {}): FloatBarApi {
         rafId = win.requestAnimationFrame(() => {
             rafId = 0;
             if (destroyed || !curRange) return;
+            if (!liveSel()) return hide();
             const rect = anchorRect(curRange);
             if (!rect) return hide();
             if (offscreen(rect)) return hide(true);
@@ -389,6 +408,7 @@ export function createFloatBar(opts: CreateFloatBarOpts = {}): FloatBarApi {
 
     function onResize() {
         if (!curRange) return;
+        if (!liveSel()) return hide();
         const rect = anchorRect(curRange);
         if (!rect) return hide();
         if (offscreen(rect)) return hide(true);

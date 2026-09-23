@@ -33,6 +33,7 @@ import {
     type RefItem,
 } from "./citeTranslate";
 import { type BibEntry, type RefMeta } from "./citations";
+import { readerHashWithFrom } from "./tasknav";
 import RefTaskChip from "./RefTaskChip";
 
 const PANEL_Z = 45;
@@ -434,7 +435,7 @@ export default function RefsPanel(props: Props) {
                                     >
                                         {(tid) => (
                                             <a
-                                                href={`#/reader/${tid()}`}
+                                                href={readerHashWithFrom(tid())}
                                                 style={{
                                                     display: "-webkit-box",
                                                     "-webkit-line-clamp": "2",

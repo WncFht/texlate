@@ -3,7 +3,9 @@
 //
 // attachSentAlign(opts) —— 持有 SentAlignSession，按 opts.panes() 现扫
 //   把各 DOM 窗格挂成一侧：bodyEl 变化才重挂（pane 重渲零成本），
-//   kind=='pdf' 或无 bodyEl 的 pane 只登记为 DOM→PDF 跳转目标侧；
+//   kind=='pdf' 或无 bodyEl 的 pane 登记为 DOM→PDF 跳转目标侧——
+//   clickEl+posAtPoint 在场时同侧另挂 PDF→PDF 点击源（位置映射跳，
+//   行带级落点闪；句级 quad 高亮属 v2 句锚面）；
 //   opts.enabled() 假 → 全侧卸载（开关关闭零残留——注入 span 全剥）。
 //   整合调用点：paneReady/paneDisposed/视图换型后 syncPanes()；组件卸载
 //   dispose()。enabled 挂 settingsStore.sentAlign 时建议另起 effect 在
@@ -43,6 +45,10 @@ export interface SentAlignPane {
     scroller?: HTMLElement;
     /** Pos 快照（recordJump 记账的 pre/post 源——handle.capture 绑定形） */
     capture?(): Pos;
+    /** pdf 源侧点击挂点（PDF→PDF 臂——viewer 容器；dom 侧不给） */
+    clickEl?: HTMLElement;
+    /** 点击坐标 → Pos（PdfPane.posAtPoint 桥） */
+    posAtPoint?(x: number, y: number): Pos | null;
 }
 
 export interface SentAlignAttachOpts {
@@ -95,10 +101,17 @@ export function attachSentAlign(opts: SentAlignAttachOpts): SentAlignHandle {
                     capture: p.capture,
                 });
             } else {
-                // 无 body 的侧（pdf 窗格）——DOM→PDF 目标登记
+                // 无 body 的侧（pdf 窗格）——DOM→PDF 目标登记；
+                // clickEl+posAtPoint 在场同侧挂 PDF→PDF 点击源
                 mounted.delete(side);
                 session.unmountSide(side);
                 session.mountPdfSide(side);
+                if (p.clickEl && p.posAtPoint)
+                    session.mountPdfClickSource(
+                        side,
+                        p.clickEl,
+                        p.posAtPoint,
+                    );
             }
         }
     };

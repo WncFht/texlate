@@ -1,9 +1,9 @@
 """copy-latex 服务端纯件：选区 seqs → 原始 ``.tex`` 切片。
 
 ``POST /api/task/{id}/latex`` 的核（copy-latex 实现文档 §后端改动）：
-请求闸 + 每块三级回落切片 + sent 档 anchor 裁剪 + gap 料回收 + 界标拼接，
-全部同步纯逻辑——文件 IO 由路由叶 ``asyncio.to_thread`` 卸载
-（``routers/reader.py`` 同款分工）。
+请求闸 + 每块三级回落切片 + sent 档 anchor 裁剪 + 连续 run 原文回收 +
+壳边扩展 + 界标拼接，全部同步纯逻辑——文件 IO 由路由叶
+``asyncio.to_thread`` 卸载（``routers/reader.py`` 同款分工）。
 
 坐标系钉死（cl-seq-map / cl-span-extract 实证）：
 
@@ -46,6 +46,10 @@ _ANCHOR_MIN_CONF = 0.6
 _ANCHOR_MIN_LEN = 4
 #: ph 反掩码递归轮帽（cl-span-extract 同款）
 _UNMASK_ROUNDS = 100
+#: 壳边回扫上限（字符）——``\section{…}\label{…}`` 恒在数百字符内
+_EDGE_MAX = 512
+#: 空白行=段落界——壳边扩展不跨界抓料
+_EDGE_BLANK = re.compile(r"(?:\n[ \t]*){2,}")
 
 
 class SrcCutError(Exception):
@@ -380,17 +384,20 @@ def _snap_hi(piece: str, cut: int) -> int:
 
 @dataclass(slots=True)
 class _Piece:
-    """单块切片产物 + gap 回收所需的同源坐标。"""
+    """单块切片产物 + run 合并/壳边扩展所需的同源坐标。"""
 
     seq: int
     src_file: str
     text: str
     approx: bool
     #: 同源文本标识（``base:file``/``tar:file``/``""``=approx）——同 key 且
-    #: seq 相邻才回收 gap（跨 arm 坐标不互通、approx 无文件坐标）
+    #: seq 相邻才并 run（跨 arm 坐标不互通、approx 无文件坐标）
     src_key: str = ""
     span_start: int = 0
     span_end: int = 0
+    #: sent 档实裁侧——置位端拼接期跳过壳边扩展（裁掉的料不能被捞回）
+    clip_lo: bool = False
+    clip_hi: bool = False
 
 
 def _decode_file(path: Path) -> str | None:
@@ -464,51 +471,84 @@ class _Cutter:
             approx=True,
         )
 
-    def gap_text(
-        self,
-        prev_row: dict[str, Any],
-        prev_piece: _Piece,
-        row: dict[str, Any],
-        piece: _Piece,
-    ) -> str:
-        r"""同文件 seq 相邻块的间区原文（注释/``\label``/``\section`` 料）。
+    def edge_lo(self, src_file: str, start: int) -> int:
+        r"""``start`` 前最后一个空白行界的右端（壳头界）；无界 → ``start``。
 
-        只限同源文本坐标（同 arm 同文件）——跨 arm 坐标不互通、approx 无
-        文件坐标皆不拼。无料/越界 → ``""``。
+        span 只圈可译正文——``\section{`` 壳头与随行注释/``\label`` 落在
+        span 前，回扫 ``_EDGE_MAX`` 内最近空白行界之后即壳起点。
         """
-        if not piece.src_key or piece.src_key != prev_piece.src_key:
-            return ""
-        if int(row["seq"]) != int(prev_row["seq"]) + 1:
-            return ""
-        text, _arm = self.resolve(str(row["src_file"]))
-        b_start = int(row["byte_start"])
-        if text is None or not (prev_piece.span_end < b_start <= len(text)):
-            return ""
-        return text[prev_piece.span_end : b_start][:GAP_MAX]
+        text, _arm = self.resolve(src_file)
+        if text is None:
+            return start
+        ms = list(_EDGE_BLANK.finditer(text, max(0, start - _EDGE_MAX), start))
+        return ms[-1].end() if ms else start
+
+    def edge_hi(self, src_file: str, end: int) -> int:
+        r"""``end`` 后第一个空白行界的左端（壳尾界）；无界 → ``end``。
+
+        ``}\label{…}`` 壳尾在 span 后、空白行前——第一个空白行界之左即壳终点。
+        """
+        text, _arm = self.resolve(src_file)
+        if text is None:
+            return end
+        m = _EDGE_BLANK.search(text, end, min(len(text), end + _EDGE_MAX))
+        return m.start() if m else end
 
 
 def _sent_clips(
     rows: list[dict[str, Any]], pieces: list[_Piece | None], req: LatexRequest
-) -> dict[int, tuple[int, int]]:
-    """Sent 档边界块裁剪位 ``{row_i: (lo, hi)}``——anchor 定位与句界外扩。
+) -> tuple[dict[int, tuple[int, int]], set[int], set[int]]:
+    """Sent 档边界块裁剪位 ``{row_i: (lo, hi)}`` + 实裁侧集 ``(lo_cut, hi_cut)``。
 
     anchor 属「请求 seq 边界块」：行缺失（seqs 含无行 seq）时错块裁剪
     比不裁更糟，故按 ``rows[0].seq == min(seqs)`` / ``rows[-1] == max``
     对齐后才裁。定位失配/置信不足 → 不进表（该侧自然退 whole）。
+    ``lo_cut``/``hi_cut`` 记哪侧真裁过——拼接期对应侧跳过壳边扩展
+    （否则裁掉的头/尾会被 ``edge_lo``/``edge_hi`` 重新捞回）。
     """
     clips: dict[int, tuple[int, int]] = {}
+    lo_cut: set[int] = set()
+    hi_cut: set[int] = set()
     first = pieces[0]
     if req.head and first is not None and int(rows[0]["seq"]) == min(req.seqs):
         span = _anchor_span(first.text, req.head)
         if span is not None:
             clips[0] = (_snap_lo(first.text, span[0]), len(first.text))
+            lo_cut.add(0)
     li = len(rows) - 1
     last = pieces[li]
     if req.tail and last is not None and int(rows[li]["seq"]) == max(req.seqs):
         span = _anchor_span(last.text, req.tail)
         if span is not None:
             clips[li] = (clips.get(li, (0, 0))[0], _snap_hi(last.text, span[1]))
-    return clips
+            hi_cut.add(li)
+    return clips, lo_cut, hi_cut
+
+
+def _apply_sent_clips(
+    rows: list[dict[str, Any]], pieces: list[_Piece | None], req: LatexRequest
+) -> bool:
+    """Sent 档裁剪应用：回写 ``piece.text`` + span 坐标 + 实裁侧旗标 → 是否裁过。
+
+    span 同步保 ``text == text[span_start:span_end]`` 不变量——拼接期 verbatim
+    run 切片依赖该坐标；``clip_lo``/``clip_hi`` 旗标供 ``_join_pieces`` 跳过
+    对应侧壳边扩展。
+    """
+    if req.mode != "sent":
+        return False
+    clipped = False
+    clips, lo_cut, hi_cut = _sent_clips(rows, pieces, req)
+    for i, (lo, hi) in clips.items():
+        p = pieces[i]
+        if p is not None and lo < hi:
+            s = p.span_start + lo
+            p.span_end = p.span_start + hi
+            p.span_start = s
+            p.text = p.text[lo:hi]
+            clipped = True
+            p.clip_lo = i in lo_cut
+            p.clip_hi = i in hi_cut
+    return clipped
 
 
 def _join_pieces(
@@ -517,33 +557,66 @@ def _join_pieces(
     pieces: list[_Piece | None],
     req: LatexRequest,
 ) -> tuple[str, list[str]]:
-    r"""切片行集 → ``(latex, files)``：``\n\n`` 连接 + gap 料 + 跨文件界标。
+    r"""切片行集 → ``(latex, files)``：连续同源 run 发 verbatim 源区间 + 壳边扩展。
 
-    ``gaps`` 开时同文件 seq 相邻块间回收原文间区（注释/``\label`` 料）；
-    跨 ``src_file`` 恒插 ``% ── file: {src_file} ──`` 注释界标（LaTeX 安全，
-    防异文件切片静默串接）。未解析块按 ``%`` 占位注释落位。
+    ``gaps`` 开时同 ``src_key`` + seq 相邻 + 间区 ≤``GAP_MAX`` 的连续块并
+    作一个 run，整段发 ``text[lo:hi]`` 原文——间区注释/``\label``/``\section``
+    料随原文一体回收，不再单独切片外接 ``\n\n``；``lo``/``hi`` 各外扩到
+    最近空白行界（``edge_lo``/``edge_hi``），``\section{`` 壳头与 ``}\label``
+    壳尾随之入切——被 sent clip 裁过的端不扩，直接取裁剪后 span 坐标。
+    run 长 1（``gaps`` 关或邻块断裂）等价「逐块 + 壳边扩展」。approx 块无
+    文件坐标发 ``piece.text``，未解析块按 ``%`` 占位注释落位；跨
+    ``src_file`` 恒插 ``% ── file: {src_file} ──`` 注释界标（LaTeX 安全，
+    防异文件切片静默串接）。
     """
     out: list[str] = []
     files_seen: list[str] = []
-    for i, row in enumerate(rows):
+    i = 0
+    while i < len(rows):
         piece = pieces[i]
-        src_file = str(row["src_file"])
-        if i > 0:
-            prev_piece = pieces[i - 1]
-            if src_file != str(rows[i - 1]["src_file"]):
-                # 跨文件界标（LaTeX 注释形——不粘进语义，防异文件静默串接）
-                out.append(f"% ── file: {src_file} ──")
-            elif req.gaps and piece is not None and prev_piece is not None:
-                gap = cutter.gap_text(rows[i - 1], prev_piece, row, piece)
-                if gap.strip():
-                    out.append(gap)
-        out.append(
-            piece.text
-            if piece is not None
-            else f"% [seq {row['seq']}: source unavailable]"
-        )
-        if piece is not None and src_file not in files_seen:
+        src_file = str(rows[i]["src_file"])
+        if i > 0 and src_file != str(rows[i - 1]["src_file"]):
+            # 跨文件界标（LaTeX 注释形——不粘进语义，防异文件静默串接）
+            out.append(f"% ── file: {src_file} ──")
+        if piece is None:
+            out.append(f"% [seq {rows[i]['seq']}: source unavailable]")
+            i += 1
+            continue
+        if src_file not in files_seen:
             files_seen.append(src_file)
+        if not piece.src_key:
+            # approx 重构体无文件坐标——不能进 run 也不能壳边扩展
+            out.append(piece.text)
+            i += 1
+            continue
+        j = i
+        if req.gaps:
+            while (
+                j + 1 < len(rows)
+                and pieces[j + 1] is not None
+                and pieces[j + 1].src_key == piece.src_key
+                and str(rows[j + 1]["src_file"]) == src_file
+                and int(rows[j + 1]["seq"]) == int(rows[j]["seq"]) + 1
+                and pieces[j].span_end <= int(rows[j + 1]["byte_start"])
+                and int(rows[j + 1]["byte_start"]) - pieces[j].span_end <= GAP_MAX
+            ):
+                j += 1
+        text, _arm = cutter.resolve(src_file)
+        if text is None:
+            out.append(piece.text)
+        else:
+            lo = (
+                pieces[i].span_start
+                if pieces[i].clip_lo
+                else cutter.edge_lo(src_file, pieces[i].span_start)
+            )
+            hi = (
+                pieces[j].span_end
+                if pieces[j].clip_hi
+                else cutter.edge_hi(src_file, pieces[j].span_end)
+            )
+            out.append(text[lo:hi])
+        i = j + 1
     return "\n\n".join(out), files_seen
 
 
@@ -570,15 +643,9 @@ def cut_latex(
         raise SrcCutError(422, "源全不可得", "no_source")
 
     # ---------------- sent 档：边界块 anchor 定位 → 句界外扩 ----------------
-    clipped = False
-    if req.mode == "sent":
-        for i, (lo, hi) in _sent_clips(rows, pieces, req).items():
-            p = pieces[i]
-            if p is not None and lo < hi:
-                p.text = p.text[lo:hi]
-                clipped = True
+    clipped = _apply_sent_clips(rows, pieces, req)
 
-    # ---------------- 拼接：gap 料回收 + 跨文件界标 + \n\n ----------------
+    # ---------------- 拼接：连续 run verbatim + 壳边扩展 + 跨文件界标 -------
     latex, files_seen = _join_pieces(cutter, rows, pieces, req)
 
     # ---------------- 输出帽 + 响应面 ----------------

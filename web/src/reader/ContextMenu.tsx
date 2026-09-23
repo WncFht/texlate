@@ -198,7 +198,14 @@ function MenuLevel(props: LevelProps) {
         const onDown = (e: Event) => {
             if (!ul.contains(e.target as Node)) props.onClose();
         };
-        const onScroll = () => props.onClose();
+        // 右键把焦点锚 scrollIntoView——开单后 ~100ms 才落的程序化 scroll
+        // 非用户滚动，无差别关单=即开即杀（实证 ~104ms）；宽限外真人滚动
+        // 照常即关
+        const t0 = performance.now();
+        const onScroll = () => {
+            if (performance.now() - t0 < 250) return;
+            props.onClose();
+        };
         document.addEventListener("keydown", onKeyDoc, true);
         document.addEventListener("pointerdown", onDown);
         // scroll 不冒泡——capture 才能兜住 pane 内滚动容器（DomPane/HtmlPane）
