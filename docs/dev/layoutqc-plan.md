@@ -270,6 +270,15 @@ per-doc QC 记录 = {component scores: text/geo/float/structure, mean_grade, low
 
 **roundtrip 门**：31/31 PASS（gate3 在 reqc4 后自动跑，CROSS_ARM 跨臂信号自比全零）。
 
+**rescan6（284 vault 胞单臂重扫，tier 门+新探测器+标记页收割，2026-09-23 晚）**：
+
+- **tier 分布**（282 scored + 2 no_main）：clean 34 / warn 89 / **hard 159**——hard 占比 56% 主因是周期性占位检测把 2609.* mock 译文集群整批翻出。
+- **sig 总计**：`geo_text_overlap` 493（单臂裸口径含图内伪影）、`marks_absent` 282（存量预期）、`geo_margin_breach` 222/26 篇、`vis_degenerate` **143**、`xlat_residual_en` 93 篇、`overfull` 59、`float_fit` 26、`vis_void` 22、`float_lost` 21、`vis_blank_page` 9、`pdf_corrupt` 1、`no_pdf` 1。
+- **`vis_degenerate` 精度实证**：143 发全部落在 2609.* 占位译文集群（`degen_periodic_lines` 289–1613 行/篇，top_ngram 全部低于旧阈）——真实论文零命中，新检测器 FP≈0 召回=整批。
+- **新签实证**：`layout:pdf_corrupt` 2404.14219（newmain.pdf 坏 xref，poppler 全工具链拒读）；`xlat_broken_refs` 2505.21476（正文 646 ?? 字符，\cite/\ref 全断链）；`regress_ink_profile`/`geo_table_lost`/`vis_tofu_box` 在双臂子集活跃。
+- **reqc5（40 胞双臂重打分）**：hard 27 / warn 12 / clean 1——marks 跨臂面 `lost_element`/`float_drift`/`order_inversion`/`marks_coverage` 全类活跃；鲜度判（pdf.mtime>tex.mtime）识别 2505.21476 vault 存量 pdf 冒充重编产物（重编 100 错 abort），改按单臂语义计。
+- **收割面**：tier≥warn 胞格 flagged_pages PNG 落 `out*/<cell>/flagged/`（110dpi 收割专道）；176p 长文档收割 27/35 页实证 keep 模式只渲标记页。
+
 ### 10.6 已知 FP/盲区清单（留档不堵）
 
 - **矢量图内 bbox 伪影**：pgfplots/tikz 图内密集 tick 标签在 poppler 词级天然交叠；跨臂抑制吃大头，figure 区域分割（MinerU 式 layout parser）是根治但超范围。
@@ -305,7 +314,7 @@ per-doc QC 记录 = {component scores: text/geo/float/structure, mean_grade, low
 
 ## 11. 终版检验方案与工件保留政策（定稿 2026-09-23）
 
-§4–§6 是计划面；本节是**执行契约**——门定义、信号分档、删除政策全部按 §10 校准后代码（29 个已发射 sig）定稿。
+§4–§6 是计划面；本节是**执行契约**——门定义、信号分档、删除政策全部按 §10 校准后代码（31 个已发射 sig）定稿。
 
 ### 11.1 门定义：信号三档
 
@@ -313,8 +322,8 @@ per-doc QC 记录 = {component scores: text/geo/float/structure, mean_grade, low
 
 | 档 | 判定 | sig |
 | --- | --- | --- |
-| **HARD**（fail，留全档） | 元素丢失 / 编译截断 / 结构性版面崩坏 / 内容退化 | `layout:no_pdf` `layout:marks_coverage` `layout:lost_element` `layout:float_seq_mismatch` `layout:dropped_env` `layout:offpage` `layout:paper_mismatch` `layout:float_lost` `align_page_count` `align_figure_lost` `align_math_drift` `vis_degenerate` `vis_blank_page` `vis_ink_blob` `vis_void` `vis_tofu_box` `geo_table_lost` `geo_column_collapse` `geo_text_as_curves` |
-| **WARN**（进 QC score，不挡 done） | 真实但非阻断的版面/翻译质量扣分 | `xlat_residual_en` `geo_margin_breach` `geo_text_overlap` `layout:float_drift` `layout:order_inversion` `layout:overfull` `geo_header_lost` `align_order_break` |
+| **HARD**（fail，留全档） | 元素丢失 / 编译截断 / 结构性版面崩坏 / 内容退化 | `layout:no_pdf` `layout:pdf_corrupt` `layout:marks_coverage` `layout:lost_element` `layout:float_seq_mismatch` `layout:dropped_env` `layout:offpage` `layout:paper_mismatch` `layout:float_lost` `align_page_count` `align_figure_lost` `align_math_drift` `vis_degenerate` `vis_blank_page` `vis_ink_blob` `vis_void` `vis_tofu_box` `geo_table_lost` `geo_column_collapse` `geo_text_as_curves` |
+| **WARN**（进 QC score，不挡 done） | 真实但非阻断的版面/翻译质量扣分 | `xlat_residual_en` `xlat_broken_refs` `geo_margin_breach` `geo_text_overlap` `layout:float_drift` `layout:order_inversion` `layout:overfull` `geo_header_lost` `align_order_break` `regress_ink_profile` |
 | **INFO**（纯记账） | 机制回执 / 预期缺席 | `layout:float_fit`（FLOAT_SIZING 手术回执——splice fork 发现的「发射了没人消费」信号，现由本档闭环消费）；`layout:marks_absent`（存量无注入期胞格恒发；**新双臂编译语境下升级为 WARN**——注入缺席=仪表链断） |
 
 分档理由：
@@ -322,7 +331,7 @@ per-doc QC 记录 = {component scores: text/geo/float/structure, mean_grade, low
 - **HARD 全是「产出不可用或元素级丢失」**——§10.5 每条背后都有实证：截断编译（marks_coverage/float_lost）、letter 稿出 A4（paper_mismatch）、占位符 mock 译文（vis_degenerate）、掉图窟窿（vis_void）。
 - **WARN 是「读者能看见但读得完」**——residual_en 存量基线 ~33% 挡门会淹没分诊、text_overlap 含已知 figure 内伪影、drift/inversion 多为合法 reflow 事件。进 score 供人工分诊与质量统计，不挡。
 - `align_order_break` 是粗信号（LCS 抽取序噪声面已知，§10.6）——只作看页提示。
-- 已落地：`vis_tofu_box`（.notdef 空心框簇 ≥4/页，四边墨率判据挡 O/0 伪影）→ HARD；`geo_table_lost`（规则行数跨臂对拍，zh<base×0.6 且 base≥3）→ HARD。未建：`geo_biou_low`/`regress_ink_profile`（BIoU/SSIM 预期 → WARN）。
+- 已落地：`vis_tofu_box`（.notdef 空心框簇 ≥4/页，四边墨率判据挡 O/0 伪影）→ HARD；`geo_table_lost`（规则行数跨臂对拍，zh<base×0.6 且 base≥3）→ HARD；`regress_ink_profile`（逐页墨量回归，矢量图掉图补位）→ WARN；`layout:pdf_corrupt`（poppler 渲染级失败，坏 xref/断 stream）→ HARD；`xlat_broken_refs`（`?{2,}` run≥8 位点，断链 cite/ref）→ WARN。未建：`geo_biou_low`/SSIM（→ WARN 预期）。
 
 ### 11.2 QC 报告契约（保留扫描器的输入）
 

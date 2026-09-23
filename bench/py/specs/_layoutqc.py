@@ -52,7 +52,8 @@ INK_DROP_RATIO: Final = 0.35
 #: WARN 进 QC score 不挡、INFO 纯记账。未分类新 sig 默认按 WARN
 #: 计（新探测器默认不挡门，硬档须显式进 _HARD_SIGS）。
 _HARD_SIGS: Final = frozenset({
-    "layout:no_pdf", "layout:marks_coverage", "layout:lost_element",
+    "layout:no_pdf", "layout:pdf_corrupt", "layout:marks_coverage",
+    "layout:lost_element",
     "layout:float_seq_mismatch", "layout:dropped_env", "layout:offpage",
     "layout:paper_mismatch", "layout:float_lost", "align_page_count",
     "align_figure_lost", "align_math_drift", "vis_degenerate",
@@ -61,7 +62,8 @@ _HARD_SIGS: Final = frozenset({
     "geo_column_collapse", "geo_text_as_curves",
 })
 _WARN_SIGS: Final = frozenset({
-    "xlat_residual_en", "geo_margin_breach", "geo_text_overlap",
+    "xlat_residual_en", "xlat_broken_refs", "geo_margin_breach",
+    "geo_text_overlap",
     "layout:float_drift", "layout:order_inversion", "layout:overfull",
     "geo_header_lost", "align_order_break", "regress_ink_profile",
 })
@@ -154,6 +156,10 @@ _WORD_CHAR_RX: Final = re.compile(r"[A-Za-z一-鿿]")
 #: n-gram 对它失明——2609.19244 实证 top_rep=46 < 195 页放阈
 #: 但满页皆是占位符）。「…………」类无词字符单元不算。
 _PERIODIC_RX: Final = re.compile(r"(\S{2,12}?)\1{3,}")
+#: 断链引用位点——``?{2,}`` 每 run 计一位（``????`` 多键 cite 仍算
+#: 一位）；零散修辞双问号由 ≥8 位点阈豁免。
+_BROKEN_REF_RX: Final = re.compile(r"\?{2,}")
+BROKEN_REFS_MIN: Final = 8
 
 
 def _run(argv: list[str], cwd: Path | None = None,
@@ -481,6 +487,13 @@ def _plain_scan(text: str) -> tuple[list[dict], dict]:
                          "top_ngram_rep": top_rep,
                          "empty_pages": empty,
                          "periodic_lines": periodic})
+    # 断链引用：未解析 \cite/\ref 渲成 ?? run——编译 pass 不全的
+    # 产物级签名（2505.21476 正文 646 个 ?? 字符实证）；中文全角
+    # ？？天然不匹配，修辞性 ??/??? 够不到位点阈。
+    broken = len(_BROKEN_REF_RX.findall(text))
+    metrics["broken_refs"] = broken
+    if broken >= BROKEN_REFS_MIN:
+        findings.append({"sig": "xlat_broken_refs", "n": broken})
     return findings, metrics
 
 
@@ -821,6 +834,12 @@ def qc_paper(*, splice_dir: Path, main_rel: str,
                 metrics["raster"]["curves_pages"] = curves
         elif rz.get("error") and rz["error"] != "no_pillow":
             metrics["raster_error"] = rz["error"]
+            # poppler 渲染级失败 = 文件体损坏（坏 xref/断 stream，
+            # 2404.14219 实证）——区别于 "empty"（父侧超时）与
+            # pdftoppm:<exc>（子进程内渲染超时），按 HARD sig 立档。
+            if str(rz["error"]).startswith("pdftoppm_rc"):
+                findings.append({"sig": "layout:pdf_corrupt",
+                                 "err": rz["error"]})
     else:
         findings.append({"sig": "layout:no_pdf"})
 

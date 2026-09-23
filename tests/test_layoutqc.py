@@ -288,6 +288,19 @@ def test_plain_fffd() -> None:
     assert any(x["sig"] == "vis_degenerate" for x in f)
 
 
+def test_plain_broken_refs() -> None:
+    """断链引用 ?? run——每 run 计一位点；≥8 位点报警（2505.21476
+    正文 646 ?? 字符实证）。修辞双问号/全角？？不过阈。"""
+    text = "正常中文正文。\n" * 10 + "见文献 [??] 与图 ??，式 (??)。\n" * 5
+    f, m = _plain_scan(text)
+    assert m["broken_refs"] == 15  # noqa: PLR2004 -- 5 行 x 3 位点
+    assert any(x["sig"] == "xlat_broken_refs" for x in f)
+    # 偶发修辞 ??/??? 凑不满位点阈；全角？？天然不匹配
+    f2, m2 = _plain_scan("真的吗?? 不对??? 是全角？？问号。\n" * 3)
+    assert m2["broken_refs"] == 6  # noqa: PLR2004 -- 3 行 x 2 run
+    assert not any(x["sig"] == "xlat_broken_refs" for x in f2)
+
+
 def test_plain_periodic_placeholder() -> None:
     """行内短周期连珠 = CJK 占位/mock 译文签名——2609.19244 实证
     top_rep=46 被 running-head 放阈放走，行内连珠才是真签名。"""
@@ -428,6 +441,7 @@ def test_tier_classification() -> None:
     assert _tier_of([{"sig": "xlat_residual_en"},
                      {"sig": "vis_degenerate"}]) == "hard"
     assert _tier_of([{"sig": "layout:no_pdf"}]) == "hard"
+    assert _tier_of([{"sig": "layout:pdf_corrupt"}]) == "hard"
 
 
 # ---------------------------------------------------------------- raster 对拍
