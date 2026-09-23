@@ -138,7 +138,7 @@ def test_feed_row_status_denylist_drops_everything():
 
 
 def test_redact_authish_key_name_survives_value_dies():
-    out, n = importer.redact({"auth_token": "240127-x", "ok": 1})
+    out, n = importer.redact({"auth_token": "8675309-x", "ok": 1})
     assert "auth_token" in out  # key NAME is vocabulary, kept readable
     assert out["auth_token"]["$redact"]
     assert out["ok"] == 1
@@ -288,10 +288,11 @@ def test_eval_event_routes_to_eval_records(broot):
 # -- importer: vocab scalar redaction keeps grouping ------------------------------
 
 
-def test_rec_to_event_redacts_vocab_but_keeps_event(broot):
+def test_rec_to_event_redacts_vocab_but_keeps_event(broot, monkeypatch):
+    monkeypatch.setenv("TEXLATE_REDACT_SUBSTR", "8675309")
     rec = {
         "ts": 1.0, "id": "2101.12345", "canon_hint": None,
-        "arm": "real-240127abc", "up": "mock", "variant": "-",
+        "arm": "real-8675309abc", "up": "mock", "variant": "-",
         "stage": "xlat", "status": "ok", "dur_s": 1.0,
         "default_status": "ok",
         "metrics": {}, "errors": [], "sig": "", "code": "",

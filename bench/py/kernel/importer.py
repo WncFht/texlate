@@ -11,8 +11,8 @@ Phase 1 with the §3.3 ordering contract and the §3.10.7 canon gate:
   produces identical payload_shas and is filtered against the index
   dedupe table BEFORE hitting the ledger. Quarantine rows get the same
   treatment via a sha-set over quarantine.jsonl.
-- Secrets are redacted on the way in (R1): the gateway key substring
-  '240127', tailscale 100.64.0.0/10 addresses, and auth-ish JSON field
+- Secrets are redacted on the way in (R1): the configured gateway key
+  substrings (env-resolved), tailscale 100.64.0.0/10 addresses, and auth-ish JSON field
   values are replaced with {"$redact": sha256_of_original} so the ledger
   keeps verifiability without keeping the secret.
 - Canon gate (§3.10.7): canon_id() Ok -> event carries idc;
@@ -75,8 +75,21 @@ _DONE_ISH = frozenset({"ok", "partial", "clean"})
 _NEG_TERM = frozenset({"fail", "fault", "reject", "dirty_pdf"})
 
 # --- secret patterns --------------------------------------------------------
-# The known gateway key prefix — substring scan, wherever it appears.
-_KEY_SUBSTR = "240127"
+# Key material resolves from the live env at call time — no key literal
+# belongs in source. TEXLATE_REDACT_SUBSTR takes a comma-list of extra scrub
+# substrings (rotated/dead keys, deploy strings). <4 chars is too promiscuous
+# for a substring scan.
+def _secret_substrings() -> tuple:
+    subs: list = []
+    for name in ("TEXLATE_API_KEY", "TEXLATE_GATEWAY_KEY"):
+        v = os.environ.get(name, "").strip()
+        if len(v) >= 4 and v not in subs:
+            subs.append(v)
+    for tok in os.environ.get("TEXLATE_REDACT_SUBSTR", "").split(","):
+        t = tok.strip()
+        if len(t) >= 4 and t not in subs:
+            subs.append(t)
+    return tuple(subs)
 # tailscale 100.64.0.0/10 — needs all four octets so plain floats like
 # "seconds": 100.6 never match. No leading \b: an IP embedded in a token
 # ('node100.64.1.5') is still the IP.
@@ -99,8 +112,10 @@ _SEP_RE = re.compile(r"[-_.\s]+")
 _AUTH_KEYS = frozenset(_SEP_RE.sub("", k) for k in _AUTH_KEYS_RAW)
 
 # Exported per the module contract — introspectable redaction surface.
+# "substrings" is an import-time snapshot; checks call _secret_substrings()
+# live so env changes mid-process still apply.
 SECRET_PATTERNS = {
-    "substrings": (_KEY_SUBSTR,),
+    "substrings": _secret_substrings(),
     "regexes": (_TAILSCALE_RE,),
     "auth_keys": _AUTH_KEYS,
 }
@@ -165,7 +180,8 @@ def _authish(key) -> bool:
 
 
 def _scalar_secret(s: str) -> bool:
-    return _KEY_SUBSTR in s or bool(_TAILSCALE_RE.search(s))
+    return any(sub in s for sub in _secret_substrings()) or bool(
+        _TAILSCALE_RE.search(s))
 
 
 def _redact_str(s: str) -> str:
@@ -223,7 +239,7 @@ def redact(obj) -> tuple:
             return o
         if isinstance(o, (int, float)):
             s = repr(o) if isinstance(o, float) else str(o)
-            if _KEY_SUBSTR in s:
+            if any(sub in s for sub in _secret_substrings()):
                 n += 1
                 return {"$redact": _sha(s)}
             return o
@@ -597,11 +613,12 @@ def _rec_to_event(rec: dict, *, run_name: str, run_seq: int,
 
     def _num_field(v):
         """Numeric event fields (dur_s/queue_wait_s): a float can smuggle
-        the key substring (240127.0), and any non-numeric value drops out
+        a key-substring-shaped float (e.g. the numeric prefix inside a
+        longer number), and any non-numeric value drops out
         here rather than tripping schema-quarantine for the whole row."""
         if isinstance(v, bool) or not isinstance(v, (int, float)):
             return None
-        if _KEY_SUBSTR in repr(v):
+        if any(sub in repr(v) for sub in _secret_substrings()):
             stats["redacted"] += 1
             return None
         return v

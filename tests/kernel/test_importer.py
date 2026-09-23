@@ -1,7 +1,7 @@
 """tests/kernel/test_importer.py — Phase 1 import pipeline contract.
 
 Covers: redact() secret surface (gateway key substring, tailscale IPs,
-auth-ish keys — and the false-positive shapes pdf_bytes=2401273 /
+auth-ish keys — and the false-positive shapes pdf_bytes=86753093 /
 seconds=100.6 stay intact), import_benchdb on a tiny synthetic sqlite
 fixture (dedupe, canon->quarantine, secrets redaction, started_at run
 ordering, conservative paid/free resolution, idempotent re-import,
@@ -101,7 +101,7 @@ def _mk_benchdb(path: Path) -> Path:
         # auth-ish field)
         (1, "xlat", "2101.12345", "2101.12345", "real", "mock", "c1",
          "ok", 9.9, None, None, 4,
-         '{"api_key":"240127-supersecret","pdf_bytes":2401273,'
+         '{"api_key":"8675309-supersecret","pdf_bytes":86753093,'
          '"jump":"100.64.1.5","seconds":100.6}', "[]"),
         # run 1 — ambiguous bare tail (registry holds two cats)
         (1, "xlat", "9601002", "9601002", "real", "mock", "c1", "ok",
@@ -157,13 +157,14 @@ def _cell_payloads(index: Index) -> list[dict]:
 # -- redact -------------------------------------------------------------------
 
 
-def test_redact_surface():
+def test_redact_surface(monkeypatch):
+    monkeypatch.setenv("TEXLATE_REDACT_SUBSTR", "8675309")
     obj = {
-        "api_key": "240127-deadbeef",
+        "api_key": "8675309-deadbeef",
         "Authorization": "Bearer whatever",
         "nested": {"token": "tok", "safe": "x"},
         "jump_host": "ssh 100.64.1.5 and 100.200.1.1",
-        "pdf_bytes": 2401273,      # contains '240127' substring -> redacted
+        "pdf_bytes": 86753093,     # contains '8675309' substring -> redacted
         "seconds": 100.6,          # float, NOT a tailscale IP -> kept
         "tokens": 12345,           # 'tokens' is not an auth key -> kept
         "file_cache_key": "abc",   # not auth-ish -> kept
@@ -186,11 +187,12 @@ def test_redact_surface():
     assert out["jump_host"]["$redact"] == hashlib.sha256(
         b"ssh 100.64.1.5 and 100.200.1.1").hexdigest()
     # original is untouched (copy semantics)
-    assert obj["api_key"] == "240127-deadbeef"
+    assert obj["api_key"] == "8675309-deadbeef"
 
 
-def test_redact_list_and_str():
-    out, n = redact(["key=240127x", "plain", {"a": "100.64.0.1"}])
+def test_redact_list_and_str(monkeypatch):
+    monkeypatch.setenv("TEXLATE_REDACT_SUBSTR", "8675309")
+    out, n = redact(["key=8675309x", "plain", {"a": "100.64.0.1"}])
     assert n == 2
     assert out[0]["$redact"]
     assert out[1] == "plain"
@@ -200,7 +202,8 @@ def test_redact_list_and_str():
 # -- import_benchdb -----------------------------------------------------------
 
 
-def test_import_benchdb(broot, tmp_path):
+def test_import_benchdb(broot, tmp_path, monkeypatch):
+    monkeypatch.setenv("TEXLATE_REDACT_SUBSTR", "8675309")
     db_path = _mk_benchdb(tmp_path / "bench.db")
     index = Index()
     stats = import_benchdb(db_path, index, registry=_registry())
@@ -216,7 +219,7 @@ def test_import_benchdb(broot, tmp_path):
 
     # ledger got the events; run_registered minted per import run
     text = _ledger_text()
-    assert "240127-supersecret" not in text   # secret never reaches ledger
+    assert "8675309-supersecret" not in text  # secret never reaches ledger
     assert "100.64.1.5" not in text
     assert "$redact" in text
 
@@ -266,10 +269,11 @@ def test_import_benchdb(broot, tmp_path):
     assert "$redact" in sec["metrics"]["pdf_bytes"]
     assert "$redact" in sec["metrics"]["jump"]
     assert sec["metrics"]["seconds"] == 100.6
-    assert "240127-supersecret" not in events.dumps(sec)
+    assert "8675309-supersecret" not in events.dumps(sec)
 
 
-def test_import_benchdb_idempotent_and_dry(broot, tmp_path):
+def test_import_benchdb_idempotent_and_dry(broot, tmp_path, monkeypatch):
+    monkeypatch.setenv("TEXLATE_REDACT_SUBSTR", "8675309")
     db_path = _mk_benchdb(tmp_path / "bench.db")
     index = Index()
     reg = _registry()
@@ -406,7 +410,7 @@ def _mk_zhstore(tmp_path: Path) -> tuple[Path, Path]:
     put("0712.0031/splice/m.pdf", b"%PDF-sp")
     (zh / "0712.0031" / "provenance.json").write_text(json.dumps(
         {"arm": "real", "source_run": "run-a",
-         "api_key": "sk-240127-secret"}))
+         "api_key": "sk-8675309-secret"}))
     put("_quarantine/0712.0033/splice/s.pdf", b"%PDF-q")
     put("_quarantine/0712.0034/zh/m.pdf", b"%PDF-pq")
     put("bad id/zh/m.pdf", b"%PDF-bad")
@@ -434,9 +438,10 @@ def _mk_zhstore(tmp_path: Path) -> tuple[Path, Path]:
     return zh, manifest
 
 
-def test_seed_vault_zhstore(broot, tmp_path):
+def test_seed_vault_zhstore(broot, tmp_path, monkeypatch):
     from kernel import vault
 
+    monkeypatch.setenv("TEXLATE_REDACT_SUBSTR", "8675309")
     zh, manifest = _mk_zhstore(tmp_path)
     index = Index()
     stats = seed_vault_zhstore(manifest, zh, index, registry=_registry())
@@ -462,7 +467,7 @@ def test_seed_vault_zhstore(broot, tmp_path):
     assert set(rows[0]["files"]) == {"zh", "splice"}
     prov = rows[0]["provenance"]
     assert prov["arm"] == "real"
-    assert prov["api_key"] != "sk-240127-secret"  # redacted on the way in
+    assert prov["api_key"] != "sk-8675309-secret"  # redacted on the way in
     # migration marker: doctor's paid reconciliation exempts seeded bytes
     assert rows[0]["import_src"] == "import-zhstore-vault-seed"
 
@@ -522,7 +527,8 @@ def test_seed_vault_zhstore_dry(broot, tmp_path):
 # -- import_all ----------------------------------------------------------------
 
 
-def test_import_all(broot, tmp_path):
+def test_import_all(broot, tmp_path, monkeypatch):
+    monkeypatch.setenv("TEXLATE_REDACT_SUBSTR", "8675309")
     db_path = _mk_benchdb(tmp_path / "bench.db")
     zh = tmp_path / "zh-store"
     zh.mkdir()
