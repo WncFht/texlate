@@ -704,7 +704,11 @@ taxonomy:
     }
   # cls_affil ×2: acmart 署名 schema 错 (No country present, 疑似
   # unfixable-class)。
-  - { id: cls_affil, scope: head, pattern: "Class acmart Error: No country present" }
+  - {
+      id: cls_affil,
+      scope: head,
+      pattern: "Class acmart Error: No country present",
+    }
   # oldfont_cmd ×1: KOMA 2.09 字体开关护栏 (`\bf' 0712.1692 42-错格),
   # payload=cs → 209-switch polyfill 路由。
   - {
@@ -873,7 +877,11 @@ taxonomy:
   # —— 数值/数学/排版引擎错族 ——
   # display_math_close ×2 / dim_overflow ×5 / arith_overflow ×1 /
   # output_loop ×3 / mathchar_ext ×1 / xypic_err ×1。
-  - { id: display_math_close, scope: head, pattern: "Display math should end with \\$\\$" }
+  - {
+      id: display_math_close,
+      scope: head,
+      pattern: "Display math should end with \\$\\$",
+    }
   - { id: dim_overflow, scope: head, pattern: "Dimension too large" }
   - { id: arith_overflow, scope: head, pattern: "Arithmetic overflow" }
   - {
@@ -881,7 +889,11 @@ taxonomy:
       scope: head,
       pattern: "Output loop---\\d+ consecutive dead cycles",
     }
-  - { id: mathchar_ext, scope: head, pattern: "Extended mathchar used as mathchar" }
+  - {
+      id: mathchar_ext,
+      scope: head,
+      pattern: "Extended mathchar used as mathchar",
+    }
   - {
       id: xypic_err,
       scope: head,

@@ -8,20 +8,20 @@
 
 ## 1. 各工作度量口径总表
 
-| 工作 | 度量对象 | 核心指标名 | 报告口径 | 样本/语料 | 分层 | CI/统计 |
-| --- | --- | --- | --- | --- | --- | --- |
-| LaTeXML / arXMLiv[^latexml] | LaTeX→XML/HTML 转换 | 消息 severity：Info/Warn/Error/Fatal；文档状态 = 遭遇的最高 severity；批量报告四态：clean/warning/error/fatal | 官方口径：「error-free HTML 75%，目标 90%」[^ginev26]；逐版本 build report | 全 arXiv（~1.9M+ 篇） | 按 LaTeXML 版本、按年份 | 无 CI（N 极大，报原始占比） |
-| unarXive 2020[^unarxive20] | LaTeX→plain text→引用标注管线 | 逐阶段保留率（funnel）；reference→MAG 匹配率；人工核验 accuracy | 漏斗：1,378,096 sources→1,283,584 plain text (93.1%)→1,139,790 含引用标记 (82.7%)→39.7M 参考文献串、63.6M 引用标记；匹配率 42.64%（2018 子集 59.39%） | 149 万 arXiv 源文档 | 按年份、按学科 | Wilson + Jeffreys CI @0.95/0.99（Table 4），300 样本 3 错 → ≥96% |
-| unarXive 2022[^unarxive22] | 同上升级版 | 语料覆盖统计 | 1.9M 篇结构化全文、63M refs（28M 链 OpenAlex）、134M in-text 标记（65M 链） | ~2.4M arXiv | — | 摘要级（IEEE 闭源） |
-| S2ORC[^s2orc] | PDF(GROBID)/LaTeX→结构化全文 | 字段覆盖率；字段级 accuracy（title exact-match、authors 全序匹配）；bib-linking accuracy | 81.1M 篇→8.1M GROBID 全文 (10.0%)+1.5M LaTeX (1.8%)；PDF 预过滤漏斗（PyPDF2 error 0.54M、>50 页 2.27M、横向页 0.28M、PDFAlto error 0.21M）；人工评 500 簇 title 0.93/authors 0.89；600 bib-link GROBID 1.00/0.96、LaTeX 1.00/0.92 | 200M 簇→81.1M 篇 | 按来源、按解析通道 | 无 CI；抽样人工评（500/600 簇） |
-| GROBID[^grobid] | PDF header/引用/全文抽取 | 字段级 P/R/F1 + instance 级（整条 citation 全对才算） | 四种文本匹配档：strict（exact）/ soft（忽略标点大小写空格）/ relative Levenshtein / Ratcliff-Obershelp；authors 集合级 | PMC_sample_1943、bioRxiv-2000、PLOS_1000、eLife_984 | 按字段、按语料 | 无 CI；明示「非绝对质量，是版本间回归追踪」 |
-| Nougat[^nougat] | PDF→markup OCR | normalized edit distance（ED/max(len)）、BLEU、METEOR、token 级 P/R/F1 | 逐页算分后取均值（`metrics.py`）；软相似度路线代表 | arXiv 页测试集 | — | 指标名据源码确认 |
-| olmOCR-bench[^olmocr] | PDF→text 抽取 | unit-test 式事实断言：TextPresence(PRESENT/ABSENT)/TextOrder/Format/Table/Math/Footnote/Baseline 七类 | 分桶通过率表 + Overall ±CI（如 72.0±1.1） | 7,000+ test cases / 1,400 documents | 按文档类型分桶 | 报 CI（±1.0 量级） |
-| BabelDOC[^babeldoc] | PDF 翻译保版式 | BIoU（源/译版面 bbox IoU）；Likert 1–5 四维：Layout Fidelity/Translation Precision/Visual Aesthetics/Terminology Consistency；UTB/page（未译文本块/页） | 200 页 benchmark（80 学术+60 技术文档+60 专利）；3 标注员盲评 + LLM judge；消融 60 页按页型分层 | 200 页 | 按领域 3 桶、消融按页型 | 无 CI |
-| PDFMathTranslate[^pdfmathtrans] | PDF 翻译保版式 | 无保真度量；仅能力矩阵 + 速度 sec/page | 定性对比表 | — | — | 无 |
-| LaTeXTrans[^latextrans] | LaTeX 翻译（多 agent） | COMETKIWI（wmt22-cometkiwi-da 篇级）；LLM-judge 4 维 0–10；fc_score = clamp(100−10·errors−2·warnings+20·编译成功, 0,100)（数 .log 行） | ~50 篇 arXiv × 后端模型对比 | ~50 篇 | 按后端模型 | 无 CI |
-| MathTranslate[^mathtranslate] | LaTeX 翻译 | 无定量评测；定性声明「math perfectly kept」；issues.md 已知问题清单 | — | — | — | — |
-| texglot[^texglot] | LaTeX 翻译 | 无定量评测；管线内自检「protected markers/structure/target language」不合→重试→失败保留原文段+exit 1 标记 | — | — | — | — |
+| 工作                            | 度量对象                      | 核心指标名                                                                                                                                              | 报告口径                                                                                                                                                                                                                          | 样本/语料                                           | 分层                    | CI/统计                                                          |
+| ------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- | ----------------------- | ---------------------------------------------------------------- |
+| LaTeXML / arXMLiv[^latexml]     | LaTeX→XML/HTML 转换           | 消息 severity：Info/Warn/Error/Fatal；文档状态 = 遭遇的最高 severity；批量报告四态：clean/warning/error/fatal                                           | 官方口径：「error-free HTML 75%，目标 90%」[^ginev26]；逐版本 build report                                                                                                                                                        | 全 arXiv（~1.9M+ 篇）                               | 按 LaTeXML 版本、按年份 | 无 CI（N 极大，报原始占比）                                      |
+| unarXive 2020[^unarxive20]      | LaTeX→plain text→引用标注管线 | 逐阶段保留率（funnel）；reference→MAG 匹配率；人工核验 accuracy                                                                                         | 漏斗：1,378,096 sources→1,283,584 plain text (93.1%)→1,139,790 含引用标记 (82.7%)→39.7M 参考文献串、63.6M 引用标记；匹配率 42.64%（2018 子集 59.39%）                                                                             | 149 万 arXiv 源文档                                 | 按年份、按学科          | Wilson + Jeffreys CI @0.95/0.99（Table 4），300 样本 3 错 → ≥96% |
+| unarXive 2022[^unarxive22]      | 同上升级版                    | 语料覆盖统计                                                                                                                                            | 1.9M 篇结构化全文、63M refs（28M 链 OpenAlex）、134M in-text 标记（65M 链）                                                                                                                                                       | ~2.4M arXiv                                         | —                       | 摘要级（IEEE 闭源）                                              |
+| S2ORC[^s2orc]                   | PDF(GROBID)/LaTeX→结构化全文  | 字段覆盖率；字段级 accuracy（title exact-match、authors 全序匹配）；bib-linking accuracy                                                                | 81.1M 篇→8.1M GROBID 全文 (10.0%)+1.5M LaTeX (1.8%)；PDF 预过滤漏斗（PyPDF2 error 0.54M、>50 页 2.27M、横向页 0.28M、PDFAlto error 0.21M）；人工评 500 簇 title 0.93/authors 0.89；600 bib-link GROBID 1.00/0.96、LaTeX 1.00/0.92 | 200M 簇→81.1M 篇                                    | 按来源、按解析通道      | 无 CI；抽样人工评（500/600 簇）                                  |
+| GROBID[^grobid]                 | PDF header/引用/全文抽取      | 字段级 P/R/F1 + instance 级（整条 citation 全对才算）                                                                                                   | 四种文本匹配档：strict（exact）/ soft（忽略标点大小写空格）/ relative Levenshtein / Ratcliff-Obershelp；authors 集合级                                                                                                            | PMC_sample_1943、bioRxiv-2000、PLOS_1000、eLife_984 | 按字段、按语料          | 无 CI；明示「非绝对质量，是版本间回归追踪」                      |
+| Nougat[^nougat]                 | PDF→markup OCR                | normalized edit distance（ED/max(len)）、BLEU、METEOR、token 级 P/R/F1                                                                                  | 逐页算分后取均值（`metrics.py`）；软相似度路线代表                                                                                                                                                                                | arXiv 页测试集                                      | —                       | 指标名据源码确认                                                 |
+| olmOCR-bench[^olmocr]           | PDF→text 抽取                 | unit-test 式事实断言：TextPresence(PRESENT/ABSENT)/TextOrder/Format/Table/Math/Footnote/Baseline 七类                                                   | 分桶通过率表 + Overall ±CI（如 72.0±1.1）                                                                                                                                                                                         | 7,000+ test cases / 1,400 documents                 | 按文档类型分桶          | 报 CI（±1.0 量级）                                               |
+| BabelDOC[^babeldoc]             | PDF 翻译保版式                | BIoU（源/译版面 bbox IoU）；Likert 1–5 四维：Layout Fidelity/Translation Precision/Visual Aesthetics/Terminology Consistency；UTB/page（未译文本块/页） | 200 页 benchmark（80 学术+60 技术文档+60 专利）；3 标注员盲评 + LLM judge；消融 60 页按页型分层                                                                                                                                   | 200 页                                              | 按领域 3 桶、消融按页型 | 无 CI                                                            |
+| PDFMathTranslate[^pdfmathtrans] | PDF 翻译保版式                | 无保真度量；仅能力矩阵 + 速度 sec/page                                                                                                                  | 定性对比表                                                                                                                                                                                                                        | —                                                   | —                       | 无                                                               |
+| LaTeXTrans[^latextrans]         | LaTeX 翻译（多 agent）        | COMETKIWI（wmt22-cometkiwi-da 篇级）；LLM-judge 4 维 0–10；fc_score = clamp(100−10·errors−2·warnings+20·编译成功, 0,100)（数 .log 行）                  | ~50 篇 arXiv × 后端模型对比                                                                                                                                                                                                       | ~50 篇                                              | 按后端模型              | 无 CI                                                            |
+| MathTranslate[^mathtranslate]   | LaTeX 翻译                    | 无定量评测；定性声明「math perfectly kept」；issues.md 已知问题清单                                                                                     | —                                                                                                                                                                                                                                 | —                                                   | —                       | —                                                                |
+| texglot[^texglot]               | LaTeX 翻译                    | 无定量评测；管线内自检「protected markers/structure/target language」不合→重试→失败保留原文段+exit 1 标记                                               | —                                                                                                                                                                                                                                 | —                                                   | —                       | —                                                                |
 
 ## 2. 关键先例细节
 
@@ -63,12 +63,12 @@
 
 ### 2.7 解析器自测惯例（对「解析对了」的判定）
 
-| 项目 | 测试形态 |
-| --- | --- |
-| LaTeXML | `t/*.t` ~30 个 Test::More，按子系统分；`.tex`→XML 输出与入库 gold `.xml` 等值比较；`.tt` 标记 TODO 测试 |
-| plasTeX | `unittests/` pytest，按特性一文件一主题（NewCommands/Tokenizer/Verbatim/Encoding/Crossref…）+ benchmarks + FunctionalTests 整文档 |
-| tree-sitter-latex | `test/corpus/*.txt` 标准 tree-sitter corpus（输入 + 期望 S-expr），按构造分文件 + `examples/` 真实文件 + benches |
-| 共性 | curated 最小输入 + 期望输出快照等值为主；真实语料冒烟（arXMLiv 是唯一的「全量真实语料」先例）；无 fuzzing 传统 |
+| 项目              | 测试形态                                                                                                                          |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| LaTeXML           | `t/*.t` ~30 个 Test::More，按子系统分；`.tex`→XML 输出与入库 gold `.xml` 等值比较；`.tt` 标记 TODO 测试                           |
+| plasTeX           | `unittests/` pytest，按特性一文件一主题（NewCommands/Tokenizer/Verbatim/Encoding/Crossref…）+ benchmarks + FunctionalTests 整文档 |
+| tree-sitter-latex | `test/corpus/*.txt` 标准 tree-sitter corpus（输入 + 期望 S-expr），按构造分文件 + `examples/` 真实文件 + benches                  |
+| 共性              | curated 最小输入 + 期望输出快照等值为主；真实语料冒烟（arXMLiv 是唯一的「全量真实语料」先例）；无 fuzzing 传统                    |
 
 ## 3. 统计口径惯例
 
@@ -80,20 +80,20 @@
 
 ## 4. 指标名推荐与学理映射
 
-| 口径 | 推荐学名/写法 | 依据 |
-| --- | --- | --- |
-| 解析成功率（binary ok/fail） | severity 分级状态分布：{clean / warning / error / fatal 或 clean/degraded/failed}，文档状态=最高 severity；报漏斗式逐阶段保留率 | LaTeXML 四态 + arXiv 官方「error-free 75%」口径 + unarXive 漏斗；「出 PDF≠成功」已被 LaTeXML warn/error 区分实证 |
-| verdict（clean/partial/fail——已落地，`compile/judge.py`） | 三级保留并映射到 severity 词汇；编译健康若需软分，可引 LaTeXTrans fc_score 作对照 | fc_score=100−10e−2w+20·compiled |
-| 泄漏率 | leakage rate = 含受保护记号痕迹的可译块占比；补失败归因分解（按残留 token 类型分桶） | unarXive natbib 30%→5% 静默退化先例——证明必须独立于端到端指标单测 |
-| trap 断言 | unit-test 式 fact 断言 + 分桶通过率 + Wilson/自助 CI；报告话术借 olmOCR「simple, unambiguous, machine-checkable, similar to a unit test」 | olmOCR-bench 7,000 facts/1,400 docs；逐桶报而非只报总分 |
-| identity（strict/normalized/diverged——改名已落地，`bench/py/parsebench.py`） | identical→strict 采纳、normalized 保留（「soft」名未采纳，仅空白差异的语义对应 GROBID soft）、diverged 保留 | GROBID strict/soft 匹配档；等值比较是全部解析器测试的通用判据 |
-| chunk 统计 | coverage 表 + p50/p90 分布；补「每篇 chunks/chars 的桶间对比」 | S2ORC 逐元素均值、percentile 惯例 |
-| 占位符守恒 | placeholder/marker fidelity：守恒率、leftover 率、幻觉率分报三个数 | unarXive `{{cite:uuid}}` 同构 |
-| 锚点保留率 | landmark/anchor retention rate，分层报退化占比（无 hyperref 源=合理 0） | S2ORC 覆盖率表的「适用子集」写法 |
-| （缺）真实翻译残留 | UTB/page 或 untranslated-block rate：译文后仍含源语/占位的块比例 | BabelDOC UTB/page |
-| （缺）人工核验 | 小样本（~300）逐条人工判 + Wilson 95% CI；抽样分层按 chunk-kind | unarXive Table 4 范式 |
-| （缺）软相似度兜底 | 对非 identity 情形报 normalized edit distance（ED/max len） | Nougat 指标名 |
-| （缺）通道/难度分层 | 报告固定分层轴：docclass 家族 / 语言（含 LaTeX 2.09）/ 单文件 vs 多文件 / 规模桶 | olmOCR 8 桶 + S2ORC 通道分层 |
+| 口径                                                                         | 推荐学名/写法                                                                                                                             | 依据                                                                                                             |
+| ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| 解析成功率（binary ok/fail）                                                 | severity 分级状态分布：{clean / warning / error / fatal 或 clean/degraded/failed}，文档状态=最高 severity；报漏斗式逐阶段保留率           | LaTeXML 四态 + arXiv 官方「error-free 75%」口径 + unarXive 漏斗；「出 PDF≠成功」已被 LaTeXML warn/error 区分实证 |
+| verdict（clean/partial/fail——已落地，`compile/judge.py`）                    | 三级保留并映射到 severity 词汇；编译健康若需软分，可引 LaTeXTrans fc_score 作对照                                                         | fc_score=100−10e−2w+20·compiled                                                                                  |
+| 泄漏率                                                                       | leakage rate = 含受保护记号痕迹的可译块占比；补失败归因分解（按残留 token 类型分桶）                                                      | unarXive natbib 30%→5% 静默退化先例——证明必须独立于端到端指标单测                                                |
+| trap 断言                                                                    | unit-test 式 fact 断言 + 分桶通过率 + Wilson/自助 CI；报告话术借 olmOCR「simple, unambiguous, machine-checkable, similar to a unit test」 | olmOCR-bench 7,000 facts/1,400 docs；逐桶报而非只报总分                                                          |
+| identity（strict/normalized/diverged——改名已落地，`bench/py/parsebench.py`） | identical→strict 采纳、normalized 保留（「soft」名未采纳，仅空白差异的语义对应 GROBID soft）、diverged 保留                               | GROBID strict/soft 匹配档；等值比较是全部解析器测试的通用判据                                                    |
+| chunk 统计                                                                   | coverage 表 + p50/p90 分布；补「每篇 chunks/chars 的桶间对比」                                                                            | S2ORC 逐元素均值、percentile 惯例                                                                                |
+| 占位符守恒                                                                   | placeholder/marker fidelity：守恒率、leftover 率、幻觉率分报三个数                                                                        | unarXive `{{cite:uuid}}` 同构                                                                                    |
+| 锚点保留率                                                                   | landmark/anchor retention rate，分层报退化占比（无 hyperref 源=合理 0）                                                                   | S2ORC 覆盖率表的「适用子集」写法                                                                                 |
+| （缺）真实翻译残留                                                           | UTB/page 或 untranslated-block rate：译文后仍含源语/占位的块比例                                                                          | BabelDOC UTB/page                                                                                                |
+| （缺）人工核验                                                               | 小样本（~300）逐条人工判 + Wilson 95% CI；抽样分层按 chunk-kind                                                                           | unarXive Table 4 范式                                                                                            |
+| （缺）软相似度兜底                                                           | 对非 identity 情形报 normalized edit distance（ED/max len）                                                                               | Nougat 指标名                                                                                                    |
+| （缺）通道/难度分层                                                          | 报告固定分层轴：docclass 家族 / 语言（含 LaTeX 2.09）/ 单文件 vs 多文件 / 规模桶                                                          | olmOCR 8 桶 + S2ORC 通道分层                                                                                     |
 
 学界有而当时缺的六件：① per-stage funnel 统一成一张表（各阶段保留率×累计率）；② 失败归因分解列（不是失败率而是失败构成 100% 分解）；③ 人工核验样本的 Wilson CI；④ 非 identity 情形的 normalized-ED 软度量；⑤ 真实翻译阶段的 UTB 残留率；⑥ gold 噪声免责条款（GROBID 式：「回归追踪而非绝对质量」）。
 
@@ -105,15 +105,27 @@
 ### 参考文献
 
 [^latexml]: Miller et al. LaTeXML manual, Appendix E「Error Codes」& `Common/Error.pm`. [math.nist.gov/~BMiller/LaTeXML](https://math.nist.gov/~BMiller/LaTeXML/manual/errorcodes/)；[github.com/brucemiller/LaTeXML](https://github.com/brucemiller/LaTeXML)
+
 [^ginev26]: Ginev. Scaling Accessible Mathematics on arXiv: HTML Conversion and MathML 4. 2026（摘要经 OpenAlex）.
+
 [^unarxive20]: Saier, Färber. unarXive: a large scholarly data set with publications' full-text, annotated in-text citations, and links to metadata. Scientometrics 125, 2020. [doi.org/10.1007/s11192-020-03382-z](https://doi.org/10.1007/s11192-020-03382-z)
+
 [^unarxive22]: Saier et al. unarXive 2022: All arXiv Publications Pre-Processed for NLP. JCDL 2023. [doi.org/10.1109/JCDL57899.2023.00020](https://doi.org/10.1109/JCDL57899.2023.00020)；[github.com/IllDepence/unarXive](https://github.com/IllDepence/unarXive)
+
 [^s2orc]: Lo et al. S2ORC: The Semantic Scholar Open Research Corpus. ACL 2020. [aclanthology.org/2020.acl-main.447](https://aclanthology.org/2020.acl-main.447/)
+
 [^grobid]: Lopez et al. GROBID end-to-end evaluation 官方文档. [grobid.readthedocs.io](https://grobid.readthedocs.io/en/latest/End-to-end-evaluation/)
+
 [^nougat]: Blecher et al. Nougat: Neural Optical Understanding for Academic Documents. ICLR 2024（指标名据 `metrics.py`）. [github.com/facebookresearch/nougat](https://github.com/facebookresearch/nougat)
+
 [^olmocr]: AllenAI. olmOCR-bench README/tests.py——「olmOCR 2: Unit Test Rewards for Document OCR」. [github.com/allenai/olmocr](https://github.com/allenai/olmocr)；[arXiv:2510.19817](https://arxiv.org/abs/2510.19817)
+
 [^babeldoc]: BabelDOC: Yet Another Document Translator. ACL 2026 demo. [aclanthology.org/2026.acl-demo.25](https://aclanthology.org/2026.acl-demo.25/)
+
 [^pdfmathtrans]: PDFMathTranslate. EMNLP 2025 demo. [aclanthology.org/2025.emnlp-demos.71](https://aclanthology.org/2025.emnlp-demos.71/)
+
 [^latextrans]: NiuTrans. LaTeXTrans（评测脚本 `evaluation/scripts/`）. [github.com/NiuTrans/LaTeXTrans](https://github.com/NiuTrans/LaTeXTrans)；[arXiv:2508.18791](https://arxiv.org/abs/2508.18791)
+
 [^mathtranslate]: SUSYUSTC. MathTranslate. [github.com/SUSYUSTC/MathTranslate](https://github.com/SUSYUSTC/MathTranslate)
+
 [^texglot]: Mengqi-Lei. texglot. [github.com/Mengqi-Lei/texglot](https://github.com/Mengqi-Lei/texglot)

@@ -201,31 +201,31 @@ per-doc QC 记录 = {component scores: text/geo/float/structure, mean_grade, low
 
 ### 10.2 逐信号落地语义（与 §4 计划有差异者加粗）
 
-| sig | 落地语义 | 标定依据 |
-| --- | --- | --- |
-| `layout:overfull` | log 扫 Overfull \hbox/\vbox，计数+最大 pt | 3 findings/3 papers——真实溢出，保留 |
-| `layout:float_fit` | `TeXlate-Float-Fit` typeout 回读 | 信息信号（自家手术记账） |
-| `layout:float_lost` | `Float too large` 等 warning | 2408.03794 n=12——截断编译实证 |
-| `geo_margin_breach` | 词心限正文带（`t-2≤cy≤b+20`，页眉页脚豁免）+ CJK 全角标点 bbox 边缘每侧扣 0.6h | 2608.25736 8 findings 全 furniture/标点误报→修后 13 findings/9 papers 为真（超宽表出栏） |
-| `geo_text_overlap` | 词 IoU>0.3 跨行对，**跨臂抑制**：zh≤max(base×1.5, base+3) 不升级 | 2609.20519 1805 对全在矢量图内、两臂同构→43→17；残余 figure 内 bbox 伪影为已知 FP 类 |
-| ~~`geo_float_jam`~~ → **`geo_text_as_curves`** | 原「有墨无词且 images>0」语义颠倒——图版页全合法。改为：ink>0.5% ∧ 词<3 ∧ 无位图对象 → 文字渲成曲线（不可复制检索真缺陷） | 1706.02386 p27-28 图+caption 页实证原语义只抓合法面 |
-| `align_page_count` | zh/base 页数比 ∉[0.6,1.6] | 2408.03794 截断编译实证（9p vs 全档） |
-| `align_figure_lost` | pdfimages 计数 zh<base | 与 marks `lost_element` 互补 |
-| `align_order_break` | skeleton-LCS 覆盖 <0.6 | 数值表/双栏抽取序噪声面已知；2607.04366 cov=0.452 实证为抽取序效应 |
-| `align_math_drift` | marks 数学 env e-mark 数对拍 | 仅 marks 在位时 |
-| `geo_header_lost` | base 页眉覆盖≥50% 且 zh<20% | running-head 与 breach 解耦 |
-| `vis_degenerate` | FFFD>0 ∨ 词级 n-gram 超 cap（`max(3·npages,20)`，**纯符号 token 剔除**）∨ 空页>2 | 散点 marker ●/○ 连珠剔除（1706.02386 298×●）；refs 先截断 |
-| `xlat_residual_en` | refs 截断后词级英文行：**≥25 行 ∧ ≥2%** 或 **≥60 行** | 阈值前 22 papers 报警含 frontmatter/语料例句/图内 caption 合法英文；后 10 papers 全真（57-470 行级） |
-| `layout:paper_mismatch` | geom pw×PT2BP vs mediabox 差>2bp | 2503.10867 letter 几何出 A4 页=真实配置异常 |
-| `vis_void` | **内部白色连通块**（不贴测量区任一边）>30% 且非末页 | 矩形法把目录收尾/末页留白当洞；CC 语义后 23→0 全为贴边合法留白 |
-| `geo_column_collapse` | **横带众数栏数** zh_mode≠base_mode | 整页投影被通栏图填沟误 1 栏（2502.15152）；横带化后 19→0 |
-| `layout:float_drift` | **Theil-Sen 趋势残差**≥2 页（≥3 对）；<3 对用页数比期望 | 2512.01407 渐变 dp −2→−14 中位模型两头误报→趋势面后 18→0；2505.16322 wrapfig 降格漂 23 页=真信号 |
-| `layout:order_inversion` | **跨页倒置对**才报（Kendall-tau 对拍 (p,-y) 序） | 同页倒置=双栏行主序伪影（2601.02468/2607.06115 实证）；12→7 findings 全真重排事件 |
-| `layout:lost_element` | base 发排 e-mark 而 zh 无 | 声明序对拍 |
-| `layout:float_seq_mismatch` | 声明序浮体数不等 | 声明序对拍 |
-| `layout:dropped_env` | splice env 计数 < src（demote 改名归并） | wrapfigure→figure 改名不报警 |
-| `layout:marks_coverage` | 受钩 env 有 \\begin 无 mark | 2408.03794 figure*:7 截断实证；单臂信号不进 CROSS_ARM |
-| `layout:marks_absent` | .txlm 缺失 | 存量 282/284 无 marks=预期；新编译双臂注入 |
+| sig                                            | 落地语义                                                                                                                 | 标定依据                                                                                             |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| `layout:overfull`                              | log 扫 Overfull \hbox/\vbox，计数+最大 pt                                                                                | 3 findings/3 papers——真实溢出，保留                                                                  |
+| `layout:float_fit`                             | `TeXlate-Float-Fit` typeout 回读                                                                                         | 信息信号（自家手术记账）                                                                             |
+| `layout:float_lost`                            | `Float too large` 等 warning                                                                                             | 2408.03794 n=12——截断编译实证                                                                        |
+| `geo_margin_breach`                            | 词心限正文带（`t-2≤cy≤b+20`，页眉页脚豁免）+ CJK 全角标点 bbox 边缘每侧扣 0.6h                                           | 2608.25736 8 findings 全 furniture/标点误报→修后 13 findings/9 papers 为真（超宽表出栏）             |
+| `geo_text_overlap`                             | 词 IoU>0.3 跨行对，**跨臂抑制**：zh≤max(base×1.5, base+3) 不升级                                                         | 2609.20519 1805 对全在矢量图内、两臂同构→43→17；残余 figure 内 bbox 伪影为已知 FP 类                 |
+| ~~`geo_float_jam`~~ → **`geo_text_as_curves`** | 原「有墨无词且 images>0」语义颠倒——图版页全合法。改为：ink>0.5% ∧ 词<3 ∧ 无位图对象 → 文字渲成曲线（不可复制检索真缺陷） | 1706.02386 p27-28 图+caption 页实证原语义只抓合法面                                                  |
+| `align_page_count`                             | zh/base 页数比 ∉[0.6,1.6]                                                                                                | 2408.03794 截断编译实证（9p vs 全档）                                                                |
+| `align_figure_lost`                            | pdfimages 计数 zh<base                                                                                                   | 与 marks `lost_element` 互补                                                                         |
+| `align_order_break`                            | skeleton-LCS 覆盖 <0.6                                                                                                   | 数值表/双栏抽取序噪声面已知；2607.04366 cov=0.452 实证为抽取序效应                                   |
+| `align_math_drift`                             | marks 数学 env e-mark 数对拍                                                                                             | 仅 marks 在位时                                                                                      |
+| `geo_header_lost`                              | base 页眉覆盖≥50% 且 zh<20%                                                                                              | running-head 与 breach 解耦                                                                          |
+| `vis_degenerate`                               | FFFD>0 ∨ 词级 n-gram 超 cap（`max(3·npages,20)`，**纯符号 token 剔除**）∨ 空页>2                                         | 散点 marker ●/○ 连珠剔除（1706.02386 298×●）；refs 先截断                                            |
+| `xlat_residual_en`                             | refs 截断后词级英文行：**≥25 行 ∧ ≥2%** 或 **≥60 行**                                                                    | 阈值前 22 papers 报警含 frontmatter/语料例句/图内 caption 合法英文；后 10 papers 全真（57-470 行级） |
+| `layout:paper_mismatch`                        | geom pw×PT2BP vs mediabox 差>2bp                                                                                         | 2503.10867 letter 几何出 A4 页=真实配置异常                                                          |
+| `vis_void`                                     | **内部白色连通块**（不贴测量区任一边）>30% 且非末页                                                                      | 矩形法把目录收尾/末页留白当洞；CC 语义后 23→0 全为贴边合法留白                                       |
+| `geo_column_collapse`                          | **横带众数栏数** zh_mode≠base_mode                                                                                       | 整页投影被通栏图填沟误 1 栏（2502.15152）；横带化后 19→0                                             |
+| `layout:float_drift`                           | **Theil-Sen 趋势残差**≥2 页（≥3 对）；<3 对用页数比期望                                                                  | 2512.01407 渐变 dp −2→−14 中位模型两头误报→趋势面后 18→0；2505.16322 wrapfig 降格漂 23 页=真信号     |
+| `layout:order_inversion`                       | **跨页倒置对**才报（Kendall-tau 对拍 (p,-y) 序）                                                                         | 同页倒置=双栏行主序伪影（2601.02468/2607.06115 实证）；12→7 findings 全真重排事件                    |
+| `layout:lost_element`                          | base 发排 e-mark 而 zh 无                                                                                                | 声明序对拍                                                                                           |
+| `layout:float_seq_mismatch`                    | 声明序浮体数不等                                                                                                         | 声明序对拍                                                                                           |
+| `layout:dropped_env`                           | splice env 计数 < src（demote 改名归并）                                                                                 | wrapfigure→figure 改名不报警                                                                         |
+| `layout:marks_coverage`                        | 受钩 env 有 \\begin 无 mark                                                                                              | 2408.03794 figure*:7 截断实证；单臂信号不进 CROSS_ARM                                                |
+| `layout:marks_absent`                          | .txlm 缺失                                                                                                               | 存量 282/284 无 marks=预期；新编译双臂注入                                                           |
 
 ### 10.3 声明序匹配（demote 免疫）
 
@@ -233,32 +233,32 @@ per-doc QC 记录 = {component scores: text/geo/float/structure, mean_grade, low
 
 ### 10.4 实跑验证矩阵
 
-| 验证 | 规模 | 结果 |
-| --- | --- | --- |
-| `pytest tests/test_layoutqc.py` | 27 例 | 全过（含 e2e 实编 marks 注入→.txlm） |
-| run_exp 双臂重编 | 31 篇（e2e_real-2 39 id 中有 vault splice 者） | inject→compile→txlm→compare 全链路通 |
-| **no-op roundtrip 门**（zh=base=src 自比） | 31 篇 | **31/31 PASS**——跨臂信号自比全零，比对器自反无系统偏置 |
-| reqc 双臂复判（终版代码） | 31 篇 | 见 §10.5 |
-| backfill 单臂存量 | 284 vault 胞（0444-fused → copy_mutating 可写副本） | 见 §10.5 |
-| 逐页 PNG 人工核验 | 8 页 | 逐类误报归因见 §10.2 标定依据列 |
+| 验证                                       | 规模                                                | 结果                                                   |
+| ------------------------------------------ | --------------------------------------------------- | ------------------------------------------------------ |
+| `pytest tests/test_layoutqc.py`            | 27 例                                               | 全过（含 e2e 实编 marks 注入→.txlm）                   |
+| run_exp 双臂重编                           | 31 篇（e2e_real-2 39 id 中有 vault splice 者）      | inject→compile→txlm→compare 全链路通                   |
+| **no-op roundtrip 门**（zh=base=src 自比） | 31 篇                                               | **31/31 PASS**——跨臂信号自比全零，比对器自反无系统偏置 |
+| reqc 双臂复判（终版代码）                  | 31 篇                                               | 见 §10.5                                               |
+| backfill 单臂存量                          | 284 vault 胞（0444-fused → copy_mutating 可写副本） | 见 §10.5                                               |
+| 逐页 PNG 人工核验                          | 8 页                                                | 逐类误报归因见 §10.2 标定依据列                        |
 
 ### 10.5 终版实跑 AGG（reqc4 + backfill5，校准后代码）
 
 **reqc4（e2e_real-2 三十一篇双臂复判，findings 计数/篇数）**：
 
-| sig | findings | papers | 判读 |
-| --- | --- | --- | --- |
-| `xlat_residual_en` | 10 | 10 | 全真（25–470 行残留英文） |
-| `geo_margin_breach` | 13 | 9 | 真（超宽表出栏/URL 贴边） |
-| `geo_text_overlap` | 17 | 8 | 矢量图内 bbox 伪影为主（已知类） |
-| `layout:order_inversion` | 7 | 7 | 真重排事件（多良性，供分诊） |
-| `layout:float_drift` | 6 | 4 | 真离群（wrapfig 降格漂 22 页等） |
-| `align_order_break` | 4 | 4 | 粗信号，抽取序噪声面已知 |
-| `layout:overfull` | 3 | 3 | 真溢出 |
-| `layout:float_fit` | 3 | 3 | 自家手术记账 |
-| `vis_degenerate` | 4→1 | 4→1 | 3 篇为符号 token 伪影（后验已清），余 2408.03794 fffd=3695 真 |
-| `layout:marks_absent`/`marks_coverage`/`float_lost`/`paper_mismatch` | 3/2/1/1 | — | 全实证真（截断编译/配置异常） |
-| `layout:offpage`/`vis_void`/`geo_column_collapse`/`geo_text_as_curves`/`geo_float_jam` | **0** | 0 | 校准目标达成：无非零残留 |
+| sig                                                                                    | findings | papers | 判读                                                          |
+| -------------------------------------------------------------------------------------- | -------- | ------ | ------------------------------------------------------------- |
+| `xlat_residual_en`                                                                     | 10       | 10     | 全真（25–470 行残留英文）                                     |
+| `geo_margin_breach`                                                                    | 13       | 9      | 真（超宽表出栏/URL 贴边）                                     |
+| `geo_text_overlap`                                                                     | 17       | 8      | 矢量图内 bbox 伪影为主（已知类）                              |
+| `layout:order_inversion`                                                               | 7        | 7      | 真重排事件（多良性，供分诊）                                  |
+| `layout:float_drift`                                                                   | 6        | 4      | 真离群（wrapfig 降格漂 22 页等）                              |
+| `align_order_break`                                                                    | 4        | 4      | 粗信号，抽取序噪声面已知                                      |
+| `layout:overfull`                                                                      | 3        | 3      | 真溢出                                                        |
+| `layout:float_fit`                                                                     | 3        | 3      | 自家手术记账                                                  |
+| `vis_degenerate`                                                                       | 4→1      | 4→1    | 3 篇为符号 token 伪影（后验已清），余 2408.03794 fffd=3695 真 |
+| `layout:marks_absent`/`marks_coverage`/`float_lost`/`paper_mismatch`                   | 3/2/1/1  | —      | 全实证真（截断编译/配置异常）                                 |
+| `layout:offpage`/`vis_void`/`geo_column_collapse`/`geo_text_as_curves`/`geo_float_jam` | **0**    | 0      | 校准目标达成：无非零残留                                      |
 
 **backfill5（vault 284 胞单臂存量，papers_with/282 done）**：
 
@@ -312,19 +312,19 @@ per-doc QC 记录 = {component scores: text/geo/float/structure, mean_grade, low
 
 ### 10.7 检查面完备性自问（vs §3 外部调研）
 
-| 缺陷类 | 覆盖 | 备注 |
-| --- | --- | --- |
-| 丢图/丢浮体 | marks `lost_element` + `float_seq_mismatch` + `align_figure_lost` + `float_lost`(log) | 四层冗余 |
-| 浮体漂移/乱序 | `float_drift`(Theil-Sen) + `order_inversion`(跨页) + `offpage` | 声明序主键免疫 demote |
-| 溢出/越界 | `overfull`(log) + `margin_breach`(词级) + `offpage`(元素级) | 三视角 |
-| 文本重叠 | `text_overlap`(IoU 词对+跨臂抑制) | figure 内残余 FP 已知 |
-| 版面几何 | `paper_mismatch` + `column_collapse` + `header_lost` + `vis_void` + `text_as_curves` | |
-| 页数/序完整性 | `page_count` + `order_break` + `math_drift` | |
-| 内容退化 | `vis_degenerate`(fffd/ngram/空页) + `residual_en` | |
-| 编译截断 | `marks_coverage` + `marks_absent` + `no_pdf` | 2408.03794 实证 |
-| 表格 cell 级崩坏 | **半盲区**——`geo_table_lost` 规则行代理覆盖「网格线消失」类；cell 内错位/列错位仍只有 overfull/breach 间接面 | MinerU 式 parser 才够 |
-| 公式渲染错 | math placeholder 字节 identity（L0）+ `math_drift` 计数 | 渲染层面未验（CDM 已 SKIP） |
-| 阅读序 | marks (p,-y) 对拍 | 双栏行主序伪影已修 |
+| 缺陷类           | 覆盖                                                                                                         | 备注                        |
+| ---------------- | ------------------------------------------------------------------------------------------------------------ | --------------------------- |
+| 丢图/丢浮体      | marks `lost_element` + `float_seq_mismatch` + `align_figure_lost` + `float_lost`(log)                        | 四层冗余                    |
+| 浮体漂移/乱序    | `float_drift`(Theil-Sen) + `order_inversion`(跨页) + `offpage`                                               | 声明序主键免疫 demote       |
+| 溢出/越界        | `overfull`(log) + `margin_breach`(词级) + `offpage`(元素级)                                                  | 三视角                      |
+| 文本重叠         | `text_overlap`(IoU 词对+跨臂抑制)                                                                            | figure 内残余 FP 已知       |
+| 版面几何         | `paper_mismatch` + `column_collapse` + `header_lost` + `vis_void` + `text_as_curves`                         |                             |
+| 页数/序完整性    | `page_count` + `order_break` + `math_drift`                                                                  |                             |
+| 内容退化         | `vis_degenerate`(fffd/ngram/空页) + `residual_en`                                                            |                             |
+| 编译截断         | `marks_coverage` + `marks_absent` + `no_pdf`                                                                 | 2408.03794 实证             |
+| 表格 cell 级崩坏 | **半盲区**——`geo_table_lost` 规则行代理覆盖「网格线消失」类；cell 内错位/列错位仍只有 overfull/breach 间接面 | MinerU 式 parser 才够       |
+| 公式渲染错       | math placeholder 字节 identity（L0）+ `math_drift` 计数                                                      | 渲染层面未验（CDM 已 SKIP） |
+| 阅读序           | marks (p,-y) 对拍                                                                                            | 双栏行主序伪影已修          |
 
 结论：T0+T1 现行电池对**版面几何/浮体完整性/内容退化/编译完整性**四类是足的；真盲区只剩**表格 cell 级结构**与**渲染后公式**两处，均属 T2 parser/judge 范畴——按 §7 序收在此处是正确边界。
 
@@ -336,11 +336,11 @@ per-doc QC 记录 = {component scores: text/geo/float/structure, mean_grade, low
 
 `qc_paper` 产出的 sig 按「是否挡 done」分三档。**clean = 零非 INFO findings**。
 
-| 档 | 判定 | sig |
-| --- | --- | --- |
-| **HARD**（fail，留全档） | 元素丢失 / 编译截断 / 结构性版面崩坏 / 内容退化 | `layout:no_pdf` `layout:pdf_corrupt` `layout:marks_coverage` `layout:lost_element` `layout:float_seq_mismatch` `layout:dropped_env` `layout:offpage` `layout:paper_mismatch` `layout:float_lost` `align_page_count` `align_figure_lost` `align_math_drift` `vis_degenerate` `vis_blank_page` `vis_ink_blob` `vis_void` `vis_tofu_box` `geo_table_lost` `geo_column_collapse` `geo_text_as_curves` |
-| **WARN**（进 QC score，不挡 done） | 真实但非阻断的版面/翻译质量扣分 | `xlat_residual_en` `xlat_broken_refs` `geo_margin_breach` `geo_text_overlap` `layout:float_drift` `layout:order_inversion` `layout:overfull` `geo_header_lost` `align_order_break` `regress_ink_profile` |
-| **INFO**（纯记账） | 机制回执 / 预期缺席 | `layout:float_fit`（FLOAT_SIZING 手术回执——splice fork 发现的「发射了没人消费」信号，现由本档闭环消费）；`layout:marks_absent`（存量无注入期胞格恒发；**新双臂编译语境下升级为 WARN**——注入缺席=仪表链断） |
+| 档                                 | 判定                                            | sig                                                                                                                                                                                                                                                                                                                                                                                               |
+| ---------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **HARD**（fail，留全档）           | 元素丢失 / 编译截断 / 结构性版面崩坏 / 内容退化 | `layout:no_pdf` `layout:pdf_corrupt` `layout:marks_coverage` `layout:lost_element` `layout:float_seq_mismatch` `layout:dropped_env` `layout:offpage` `layout:paper_mismatch` `layout:float_lost` `align_page_count` `align_figure_lost` `align_math_drift` `vis_degenerate` `vis_blank_page` `vis_ink_blob` `vis_void` `vis_tofu_box` `geo_table_lost` `geo_column_collapse` `geo_text_as_curves` |
+| **WARN**（进 QC score，不挡 done） | 真实但非阻断的版面/翻译质量扣分                 | `xlat_residual_en` `xlat_broken_refs` `geo_margin_breach` `geo_text_overlap` `layout:float_drift` `layout:order_inversion` `layout:overfull` `geo_header_lost` `align_order_break` `regress_ink_profile`                                                                                                                                                                                          |
+| **INFO**（纯记账）                 | 机制回执 / 预期缺席                             | `layout:float_fit`（FLOAT_SIZING 手术回执——splice fork 发现的「发射了没人消费」信号，现由本档闭环消费）；`layout:marks_absent`（存量无注入期胞格恒发；**新双臂编译语境下升级为 WARN**——注入缺席=仪表链断）                                                                                                                                                                                        |
 
 分档理由：
 
@@ -354,9 +354,11 @@ per-doc QC 记录 = {component scores: text/geo/float/structure, mean_grade, low
 qc_paper 结果落 records 时须带三键，供删除政策消费：
 
 ```json
-{"qc_tier": "clean|warn|hard",
- "flagged_pages": [3, 7],
- "sig_counts": {"geo_margin_breach": 2}}
+{
+    "qc_tier": "clean|warn|hard",
+    "flagged_pages": [3, 7],
+    "sig_counts": { "geo_margin_breach": 2 }
+}
 ```
 
 - `qc_tier` = findings 里最高的非 INFO 档；无 findings → `clean`。
@@ -364,12 +366,12 @@ qc_paper 结果落 records 时须带三键，供删除政策消费：
 
 ### 11.3 工件保留政策（成功即删·定稿）
 
-| 终态 | 定义 | 保留 | 估算/篇 |
-| --- | --- | --- | --- |
-| `clean` | 零非 INFO findings | raw + zh tex + final.pdf + QC 报告 + metrics；extracted/workdir/splice 中间件全删 | ~8MB |
-| `warn` | 仅 WARN/INFO | 同上 + flagged_pages PNG + splice 内 tex（翻修素材） | ~10MB |
-| `hard` | ≥1 HARD | splice 全档 + workdir 诊断面 + flagged PNG | ~17-20MB |
-| `upstream fail` | no_pdf/no_main/fetch | catalog 行 + QC 报告 | ~0 |
+| 终态            | 定义                 | 保留                                                                              | 估算/篇  |
+| --------------- | -------------------- | --------------------------------------------------------------------------------- | -------- |
+| `clean`         | 零非 INFO findings   | raw + zh tex + final.pdf + QC 报告 + metrics；extracted/workdir/splice 中间件全删 | ~8MB     |
+| `warn`          | 仅 WARN/INFO         | 同上 + flagged_pages PNG + splice 内 tex（翻修素材）                              | ~10MB    |
+| `hard`          | ≥1 HARD              | splice 全档 + workdir 诊断面 + flagged PNG                                        | ~17-20MB |
+| `upstream fail` | no_pdf/no_main/fetch | catalog 行 + QC 报告                                                              | ~0       |
 
 与 §6 计划版的两处修订：
 

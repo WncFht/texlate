@@ -74,8 +74,7 @@ async function run() {
     page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
     // 资源 404 走 response 面（带 URL 可白名单）；console 的
     // "Failed to load resource" 无 URL，跳过改由 response 覆盖
-    const INHERENT_404 =
-        /\/Figures\/|\/api\/task\/[^/]+\/refs\/kept/;
+    const INHERENT_404 = /\/Figures\/|\/api\/task\/[^/]+\/refs\/kept/;
     page.on("response", (r) => {
         if (r.status() >= 400 && !INHERENT_404.test(r.url()))
             errors.push(`http ${r.status()}: ${r.url()}`);
@@ -134,9 +133,7 @@ async function run() {
                     /Figure 2/.test(label ?? ""),
                     label ?? "",
                 );
-                const items = await card
-                    .locator(".usage-card-item")
-                    .count();
+                const items = await card.locator(".usage-card-item").count();
                 check("Figure 2 has 3 sites", items === 3, `${items}`);
                 // zh 配对行（对侧索引在场）
                 const zhRows = await card
@@ -185,9 +182,7 @@ async function run() {
             await page.waitForTimeout(400);
             check("hover bibitem opens card", await cardVisible());
             if (await cardVisible()) {
-                const items = await card
-                    .locator(".usage-card-item")
-                    .count();
+                const items = await card.locator(".usage-card-item").count();
                 check("bib38 has 8 sites", items === 8, `${items}`);
             }
             await page.keyboard.press("Escape");
@@ -211,10 +206,7 @@ async function run() {
         }, BODY("original"));
         if (cmOk) {
             await page.waitForTimeout(200);
-            check(
-                "contextmenu on section opens card",
-                await cardVisible(),
-            );
+            check("contextmenu on section opens card", await cardVisible());
             check(
                 "custom ctx menu suppressed",
                 !(await page
@@ -241,10 +233,7 @@ async function run() {
         }, BODY("original"));
         if (shiftOk) {
             await page.waitForTimeout(200);
-            check(
-                "shift+contextmenu bypasses card",
-                !(await cardVisible()),
-            );
+            check("shift+contextmenu bypasses card", !(await cardVisible()));
             await page.keyboard.press("Escape");
             await page.waitForTimeout(120);
         }
@@ -282,8 +271,10 @@ async function run() {
             if (await btn.isVisible().catch(() => false)) {
                 await btn.click();
                 await page.waitForTimeout(250);
-                check("usages button switches to usage card",
-                    await cardVisible());
+                check(
+                    "usages button switches to usage card",
+                    await cardVisible(),
+                );
                 check(
                     "cite card closed (mutex)",
                     !(await citeCard.isVisible().catch(() => false)),
@@ -307,9 +298,7 @@ async function run() {
             // 带锚点坐标的合成 contextmenu——菜单落在锚旁（坐标 0,0 会把
             // fixed 菜单项渲出视口，click 永远等不到稳定）
             await page.evaluate((sel) => {
-                const a = document.querySelector(
-                    `${sel} a[href="#bib.bib38"]`,
-                );
+                const a = document.querySelector(`${sel} a[href="#bib.bib38"]`);
                 if (!a) return;
                 const r = a.getBoundingClientRect();
                 a.dispatchEvent(
@@ -325,26 +314,19 @@ async function run() {
             const menu = page.locator(".ctx-menu");
             const menuUp = await menu.isVisible().catch(() => false);
             check("cite anchor ctxm opens custom menu", menuUp);
-            const item = page.locator(
-                '.ctx-item[data-id="cite.usages"]',
-            );
+            const item = page.locator('.ctx-item[data-id="cite.usages"]');
             const itemUp = await item.isVisible().catch(() => false);
             check("cite.usages menu item present", itemUp);
             if (itemUp) {
                 await item.click();
                 await page.waitForTimeout(300);
-                check(
-                    "menu item opens usages card",
-                    await cardVisible(),
-                );
+                check("menu item opens usages card", await cardVisible());
                 check(
                     "ctx menu closed after pick",
                     !(await menu.isVisible().catch(() => false)),
                 );
                 if (await cardVisible()) {
-                    const n = await card
-                        .locator(".usage-card-item")
-                        .count();
+                    const n = await card.locator(".usage-card-item").count();
                     check("menu-opened card = bib38 sites", n === 8, `${n}`);
                 }
             }

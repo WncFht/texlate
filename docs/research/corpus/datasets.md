@@ -8,20 +8,20 @@
 
 ## 0. 渠道矩阵
 
-| 渠道 | 内容 | 全文？ | 引用？ | 版本史？ | 认证/成本 | 新鲜度 | 实测状态 |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| Kaggle `Cornell-University/arxiv` | OAI 元数据 JSONL（~2.4M+） | 摘要 | 无 | `versions[]`+`update_date` | Kaggle key，免费 | 周更 | 未实测（页面 JS 渲染），资料一致 |
-| **GCP `gs://arxiv-dataset`** | **逐文件 PDF** + OAI 元数据 + **arXiv 内部引用图** | PDF（无 LaTeX src） | `internal-citations.json`（冻于 2020-08） | 文件名带 `vN` | **实测匿名可读，无需 GCP 账号** | **PDF 到 ~2025-08**；metadata 冻于 2020-08 | ✅ 列目录/Range GET 均通 |
-| AWS `s3://arxiv` | PDF+LaTeX src 打 tar 包（官方正源） | **PDF + src** | 无 | manifest 含版本 | **requester-pays**，需 AWS 账号付请求 + 流量费 | 官方持续更新 | ✅ 匿名 403 确认 requester-pays |
-| HuggingFace | 社区镜像：LaTeX 全文 parquet、元数据快照、embedding、引用对 | 视数据集 | `cometadata/crossref-arxiv-citations` | 少数 | 匿名可下（部分 gated） | 多个数据集本月仍在更新 | ✅ API 通 |
-| Semantic Scholar Graph API | 元数据+citationCount+TLDR+openAccessPdf | 链接非全文 | citationCount/influential | 无 | 无 key 共享池≈100req/5min **实测持续 429**；免费 key ~1rps | 实时 | ✅ 验证（429 本身即结果） |
-| S2 Datasets API（S2ORC 等） | papers/abstracts/citations/s2orc/s2orc_v2/tldrs/embeddings 全量快照 | **s2orc = 解析后全文**（含 LaTeX 源解析） | 全量引用图 | 无 | **下载链接必须 API key**（免费申请） | release `2026-09-09` | ✅ release 列表无 key 可查，下载 401 |
-| **OpenAlex** | 全量 works：cited_by_count、counts_by_year、OA 位置、license/version | 链接非全文 | **cited_by_count + cited_by_api_url** | `version` 字段 | **完全免费无需 key**，mailto 进礼貌池 ~10rps | 日更（样本 updated 2026-09-12） | ✅ 多条实测 |
-| DataCite `10.48550/arXiv.*` | 每篇 arXiv 论文的 DOI 元数据 | 无 | 无 | **`dates[]` 全版本时间线**（最大亮点） | 免费无需 key | 实时（v9 都全） | ✅ HEAD→302 到 abs；API 返回全字段 |
-| unpaywall | OA 状态/合法 PDF 链接 | 链接 | 无 | 无 | 免费，email 参数 | — | ✅ 但 **arXiv DataCite DOI 未收录（404）**，只认 Crossref DOI |
-| CORE | 聚合各仓库全文 | 有 | 无 | — | 免费 key，~10rps | — | 未实测（需 key），资料记录 |
-| OpenReview | 会议投稿/评审 | 有（pdf 字段） | 无 | 有 revisions | 仅 `notes/search` 匿名可查；内容/pdf 端点需登录（见 `2026-09-19-iclr章节长度.md` 坑①） | 实时 | ✅ `notes/search` 200 |
-| Internet Archive `collection:arxiv` | 每篇一个 item：PDF+meta xml | PDF | 无 | 无 | 免费匿名 | **冻于 ~2017-04**（1,076,003 items） | ✅ |
+| 渠道                                | 内容                                                                 | 全文？                                    | 引用？                                    | 版本史？                               | 认证/成本                                                                              | 新鲜度                                     | 实测状态                                                      |
+| ----------------------------------- | -------------------------------------------------------------------- | ----------------------------------------- | ----------------------------------------- | -------------------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------ | ------------------------------------------------------------- |
+| Kaggle `Cornell-University/arxiv`   | OAI 元数据 JSONL（~2.4M+）                                           | 摘要                                      | 无                                        | `versions[]`+`update_date`             | Kaggle key，免费                                                                       | 周更                                       | 未实测（页面 JS 渲染），资料一致                              |
+| **GCP `gs://arxiv-dataset`**        | **逐文件 PDF** + OAI 元数据 + **arXiv 内部引用图**                   | PDF（无 LaTeX src）                       | `internal-citations.json`（冻于 2020-08） | 文件名带 `vN`                          | **实测匿名可读，无需 GCP 账号**                                                        | **PDF 到 ~2025-08**；metadata 冻于 2020-08 | ✅ 列目录/Range GET 均通                                      |
+| AWS `s3://arxiv`                    | PDF+LaTeX src 打 tar 包（官方正源）                                  | **PDF + src**                             | 无                                        | manifest 含版本                        | **requester-pays**，需 AWS 账号付请求 + 流量费                                         | 官方持续更新                               | ✅ 匿名 403 确认 requester-pays                               |
+| HuggingFace                         | 社区镜像：LaTeX 全文 parquet、元数据快照、embedding、引用对          | 视数据集                                  | `cometadata/crossref-arxiv-citations`     | 少数                                   | 匿名可下（部分 gated）                                                                 | 多个数据集本月仍在更新                     | ✅ API 通                                                     |
+| Semantic Scholar Graph API          | 元数据+citationCount+TLDR+openAccessPdf                              | 链接非全文                                | citationCount/influential                 | 无                                     | 无 key 共享池≈100req/5min **实测持续 429**；免费 key ~1rps                             | 实时                                       | ✅ 验证（429 本身即结果）                                     |
+| S2 Datasets API（S2ORC 等）         | papers/abstracts/citations/s2orc/s2orc_v2/tldrs/embeddings 全量快照  | **s2orc = 解析后全文**（含 LaTeX 源解析） | 全量引用图                                | 无                                     | **下载链接必须 API key**（免费申请）                                                   | release `2026-09-09`                       | ✅ release 列表无 key 可查，下载 401                          |
+| **OpenAlex**                        | 全量 works：cited_by_count、counts_by_year、OA 位置、license/version | 链接非全文                                | **cited_by_count + cited_by_api_url**     | `version` 字段                         | **完全免费无需 key**，mailto 进礼貌池 ~10rps                                           | 日更（样本 updated 2026-09-12）            | ✅ 多条实测                                                   |
+| DataCite `10.48550/arXiv.*`         | 每篇 arXiv 论文的 DOI 元数据                                         | 无                                        | 无                                        | **`dates[]` 全版本时间线**（最大亮点） | 免费无需 key                                                                           | 实时（v9 都全）                            | ✅ HEAD→302 到 abs；API 返回全字段                            |
+| unpaywall                           | OA 状态/合法 PDF 链接                                                | 链接                                      | 无                                        | 无                                     | 免费，email 参数                                                                       | —                                          | ✅ 但 **arXiv DataCite DOI 未收录（404）**，只认 Crossref DOI |
+| CORE                                | 聚合各仓库全文                                                       | 有                                        | 无                                        | —                                      | 免费 key，~10rps                                                                       | —                                          | 未实测（需 key），资料记录                                    |
+| OpenReview                          | 会议投稿/评审                                                        | 有（pdf 字段）                            | 无                                        | 有 revisions                           | 仅 `notes/search` 匿名可查；内容/pdf 端点需登录（见 `2026-09-19-iclr章节长度.md` 坑①） | 实时                                       | ✅ `notes/search` 200                                         |
+| Internet Archive `collection:arxiv` | 每篇一个 item：PDF+meta xml                                          | PDF                                       | 无                                        | 无                                     | 免费匿名                                                                               | **冻于 ~2017-04**（1,076,003 items）       | ✅                                                            |
 
 ## 1. Kaggle `Cornell-University/arxiv`
 
@@ -52,16 +52,16 @@
 
 ## 4. HuggingFace datasets（按价值挑 8 个）
 
-| 数据集 | 内容 | 规模/格式 | 更新 | license |
-| --- | --- | --- | --- | --- |
-| `scholarweave/arxiv-latex` | **LaTeX 源全文 parquet**（46 shards，带 manifest xml） | 1M<n<10M | 2026-08 | other |
-| `librarian-bots/arxiv-metadata-snapshot` | **Kaggle 元数据的滚动 parquet 快照**（10 shards） | 1M<n<10M | **当日更新（2026-09-14）** | CC0 |
-| `cometadata/crossref-arxiv-citations` | Crossref 挖掘的 **arXiv 引用对**（asserted+mined 两份 parquet） | 1M<n<10M | 2026-09 | CC0 |
-| `ccdv/arxiv-summarization` | article/abstract 对（203k 篇） | 100K<n<1M parquet | 停更 2024-08 | — |
-| `armanc/scientific_papers` | arXiv+PubMed 分节全文（经典 summarization 集） | 100K<n<1M | 停更 | unknown |
-| `taesiri/ArXivSignals` | 按日分区的新论文 + 信号监控 | 按 `date=` 分区 parquet | 2026-09 活跃 | CC-BY-4.0 |
-| `bluuebunny/arxiv_abstract_embedding_*` | 摘要 embedding（mxbai，含 milvus binary 版） | 全语料摘要 | 2026-09 活跃 | — |
-| `yufan/arxiv-metadata-2020-2026` | 按领域/年切分 metadata.jsonl | 100K<n<1M | 2026-09 | ODC-BY |
+| 数据集                                   | 内容                                                            | 规模/格式               | 更新                       | license   |
+| ---------------------------------------- | --------------------------------------------------------------- | ----------------------- | -------------------------- | --------- |
+| `scholarweave/arxiv-latex`               | **LaTeX 源全文 parquet**（46 shards，带 manifest xml）          | 1M<n<10M                | 2026-08                    | other     |
+| `librarian-bots/arxiv-metadata-snapshot` | **Kaggle 元数据的滚动 parquet 快照**（10 shards）               | 1M<n<10M                | **当日更新（2026-09-14）** | CC0       |
+| `cometadata/crossref-arxiv-citations`    | Crossref 挖掘的 **arXiv 引用对**（asserted+mined 两份 parquet） | 1M<n<10M                | 2026-09                    | CC0       |
+| `ccdv/arxiv-summarization`               | article/abstract 对（203k 篇）                                  | 100K<n<1M parquet       | 停更 2024-08               | —         |
+| `armanc/scientific_papers`               | arXiv+PubMed 分节全文（经典 summarization 集）                  | 100K<n<1M               | 停更                       | unknown   |
+| `taesiri/ArXivSignals`                   | 按日分区的新论文 + 信号监控                                     | 按 `date=` 分区 parquet | 2026-09 活跃               | CC-BY-4.0 |
+| `bluuebunny/arxiv_abstract_embedding_*`  | 摘要 embedding（mxbai，含 milvus binary 版）                    | 全语料摘要              | 2026-09 活跃               | —         |
+| `yufan/arxiv-metadata-2020-2026`         | 按领域/年切分 metadata.jsonl                                    | 100K<n<1M               | 2026-09                    | ODC-BY    |
 
 - 补充：`togethercomputer/RedPajama-Data-1T` 只放 `urls/arxiv.txt` 下载清单 + 脚本（数据本体在 arXiv S3）；The Pile 的 arXiv 分量是 LaTeX 清洗全文。
 - 意义：**免 key 拿「活的」元数据快照用 `librarian-bots/arxiv-metadata-snapshot`；LaTeX 全文用 `scholarweave/arxiv-latex`；引用对用 `cometadata/crossref-arxiv-citations`**——三件正好对上三个需求。HF LaTeX 源数据集细分横评见 `hf-latex-datasets.md`。
@@ -98,15 +98,15 @@
 
 ## 9. 需求 → 渠道映射
 
-| 需求 | 首选 | 备选 | 说明 |
-| --- | --- | --- | --- |
-| **元数据回填**（abstract/authors/categories/license/versions，不碰 arxiv.org） | `librarian-bots/arxiv-metadata-snapshot`（HF，CC0，当日更新，免 key） | Kaggle Cornell-University/arxiv（需 key）；GCS `metadata-v5`（冻 2020） | 字段最全的是 Kaggle/OAI 系；HF 版更新最勤 |
-| **引用排序校准**（语料内抽取计数 vs 外部计数对拍） | **OpenAlex `works/doi:10.48550/arXiv.{id}`**（注意 stub/分裂两坑） | GCS `internal-citations.json`（arXiv↔arXiv，冻 2020-08）；HF `crossref-arxiv-citations`（CC0，新）；S2 citationCount（需 key） | OpenAlex 是唯一日更 + 免 key + 逐篇可查的；GCS 引用图免 API 直接全量 |
-| **批量 PDF 语料** | `gs://arxiv-dataset` 匿名逐文件拉（至 2025-08） | IA（至 2017）；`s3://arxiv` tar（最新但付费） | 百篇级随便用；全量镜像选 S3 |
-| **LaTeX src 批量** | `s3://arxiv` `src/` tar（requester-pays） | IA arxiv-bulk（→2020-10 免费）；TIGER-5T（→2025-01 免费镜像）；HF `scholarweave/arxiv-latex` parquet（→2026-07 有损文本层） | 免费三家已实测裁决，见 `post2020-sourcing.md` |
-| **版本史** | **DataCite API `dates[]`**（免 key，全库） | Kaggle `versions[]` | 完全不依赖 arxiv.org |
-| **全量冷备** | `gs://arxiv-dataset`（PDF+metadata+引用图，零成本镜像） | `s3://arxiv`（含 src，付费） | GCS 桶已停更，镜像后需 S3/e-print 补增量 |
-| **发表版信息/OA 链接** | unpaywall（Crossref DOI）；OpenAlex `locations[]` | CORE | arXiv DOI 在 unpaywall 查不到，要走 journal-ref→Crossref |
+| 需求                                                                           | 首选                                                                  | 备选                                                                                                                           | 说明                                                                 |
+| ------------------------------------------------------------------------------ | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------- |
+| **元数据回填**（abstract/authors/categories/license/versions，不碰 arxiv.org） | `librarian-bots/arxiv-metadata-snapshot`（HF，CC0，当日更新，免 key） | Kaggle Cornell-University/arxiv（需 key）；GCS `metadata-v5`（冻 2020）                                                        | 字段最全的是 Kaggle/OAI 系；HF 版更新最勤                            |
+| **引用排序校准**（语料内抽取计数 vs 外部计数对拍）                             | **OpenAlex `works/doi:10.48550/arXiv.{id}`**（注意 stub/分裂两坑）    | GCS `internal-citations.json`（arXiv↔arXiv，冻 2020-08）；HF `crossref-arxiv-citations`（CC0，新）；S2 citationCount（需 key） | OpenAlex 是唯一日更 + 免 key + 逐篇可查的；GCS 引用图免 API 直接全量 |
+| **批量 PDF 语料**                                                              | `gs://arxiv-dataset` 匿名逐文件拉（至 2025-08）                       | IA（至 2017）；`s3://arxiv` tar（最新但付费）                                                                                  | 百篇级随便用；全量镜像选 S3                                          |
+| **LaTeX src 批量**                                                             | `s3://arxiv` `src/` tar（requester-pays）                             | IA arxiv-bulk（→2020-10 免费）；TIGER-5T（→2025-01 免费镜像）；HF `scholarweave/arxiv-latex` parquet（→2026-07 有损文本层）    | 免费三家已实测裁决，见 `post2020-sourcing.md`                        |
+| **版本史**                                                                     | **DataCite API `dates[]`**（免 key，全库）                            | Kaggle `versions[]`                                                                                                            | 完全不依赖 arxiv.org                                                 |
+| **全量冷备**                                                                   | `gs://arxiv-dataset`（PDF+metadata+引用图，零成本镜像）               | `s3://arxiv`（含 src，付费）                                                                                                   | GCS 桶已停更，镜像后需 S3/e-print 补增量                             |
+| **发表版信息/OA 链接**                                                         | unpaywall（Crossref DOI）；OpenAlex `locations[]`                     | CORE                                                                                                                           | arXiv DOI 在 unpaywall 查不到，要走 journal-ref→Crossref             |
 
 ## 10. 中国可达性与部署注意
 

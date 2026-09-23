@@ -11,76 +11,76 @@
 
 ## 总表
 
-| bench | 路径 | 一句话用途 | 成本 | 状态 |
-| --- | --- | --- | --- | --- |
-| stagerun | `bench/py/stagerun.py` + `stagerun_lib.py` + `stage_{ingest,parse,xlat,compile,fixloop}.py` | 五段批跑 DAG：ingest→parse→xlat→compile→fixloop，records jsonl 断点续跑 | LLM网关+LaTeX+重算力 | 已删 Wave-F → `specs/soak.py` + spec 套 |
-| stage_timing † | `bench/py/stage_timing.py` | records 分位/慢纸计时报告 → `_timing/{json,md}` | 无 | 已删（09-20 在飞删除） |
-| status_panel | `bench/py/status_panel.py` | :8766 只读状态面板（进度漏斗/看板/进程/磁盘/台账） | 无 | active——Wave-D 已改指 kernel runs/index |
-| task_ping | `bench/py/task_ping.py` | 原子写 tasks.d/<slug>.json 心跳看板 | 无 | active |
-| preflight_batch | `bench/py/preflight_batch.py` | 批跑前一票闸：import 走查+mock链+磁盘+manifest+工具链+网关鉴权 | 网络 | 已删 Wave-F → `bench doctor`+`bench plan` |
-| wave | `bench/py/wave.py` | 修复波编排：id 集解析→records 快照→stagerun 命令链→postmortem→scorecard | LaTeX+网络 | 已删 Wave-F → `bench run`+`rundiff`+`gate` |
-| nightwatch † | `bench/py/nightwatch.py` | 隔夜批 watchdog 报告 | 无 | 已删（无人调用、无定时器） |
-| parsebench (B1) | `bench/py/parsebench.py` | 产品解析器语料评测：ok/ms/identity/leak/死占位，分层加权+CI | 重算力 | 已删 Wave-F → `specs/parsebench.py` |
-| fixture_assert (B2) | `bench/py/fixture_assert.py` | 陷阱断言矩阵（@Tnn）跑产品解析器出 contract 输出 | 无 | 已删 Wave-F → `specs/fixture_assert.py` |
-| compilebench_v3 (B3) | `bench/py/compilebench_v3.py` | 语料 base 臂直接编译基线，双引擎 | LaTeX+重算力 | 已删 Wave-F → `specs/compilebench.py` |
-| compilebench_v2 † | `bench/py/compilebench_v2.py` | 旧版 B3（头注自标 LEGACY） | — | 已删 |
-| fixloop_bench | `bench/py/fixloop_bench.py` | B3 fixloop 营救率 + stagerun/e2e 复用的修复配方库 | 网络+LaTeX+重算力 | 已删 Wave-F → `specs/fixloop_bench.py`（配方面入 `specs/_fixloop.py`） |
-| xlatbench (B4a) | `bench/py/xlatbench.py` | 翻译硬契约回归：语料分块+S1–S4 陷阱→网关→L0 判 | LLM网关 | 已删 Wave-F → `specs/xlatbench.py` |
-| qualbench (B4b) | `bench/py/qualbench.py` | 翻译质量臂：ESA 协议 LLM judge 打分+聚合 | LLM网关 | 已删 Wave-F → `specs/qualbench.py` |
-| e2e_mock (B5-A) | `bench/py/e2e_mock_bench.py` | mock 翻译全链 e2e + B/C 破坏注入单源 | LaTeX+重算力 | 已删 Wave-F → `specs/e2e_mock.py` |
-| e2e_real (B5-B/D) | `bench/py/e2e_real_bench.py` | 真网关 e2e（批量已让位 stagerun，留 lib+单篇冒烟） | LLM网关+LaTeX | 已删 Wave-F → `specs/e2e_real.py` |
-| validbench (B6) | `bench/py/validbench.py` | 校验器 bench：10 类腐化变异测 L0/L1 检出/FP/延迟 | 重算力 | 已删 Wave-F → `specs/validbench.py` |
-| alignbench (B7) | `bench/py/alignbench.py` | named-dest 锚点保留率评测（en/zh PDF 对） | 无/LaTeX | 已删 Wave-F → `specs/alignbench.py` |
-| gullet_bench | `bench/py/gullet_bench.py` | gullet 展开流探针：计时/steps/warning/if-eval/不动点回填 | 重算力 | 已删 Wave-F → `specs/gullet.py` |
-| wrapfloat_bench | `bench/py/wrapfloat_bench.py` | wrapfig 环绕碰撞检测（poppler bbox） | LaTeX | 已删 Wave-F → `specs/wrapfloat.py` |
-| benchlib | `bench/py/benchlib.py` | bench 共享库：records IO/verdict_sig/judge_dict/层枚举（~30 importers） | 无 | 已删 Wave-F → `specs/_benchlite.py` |
-| translators_bench | `bench/py/translators_bench.py` | xlat 臂适配层：mock/sabotage/perturb 工厂+台账 | 无 | active——`specs/_sabotage.py`/`e2e_mock` 引用 |
-| triage | `bench/py/triage.py` | records 后处理：签名聚类→tickets+趋势+report | 无 | 已删 Wave-F → `bench triage` |
-| rundiff | `bench/py/rundiff.py` | 两 run 逐格迁移比较器（transition 矩阵） | 无 | 已删 Wave-F → `bench rundiff` |
-| harvest | `bench/py/harvest.py` | zh-store 收割器：终判 compile-clean → primary、已译非 clean → `_quarantine/`、落选 → `_alt/`（move 语义）+ manifest.jsonl 索引/`--reindex` 重建 | 无 | 已删 Wave-F |
-| gate_scorecard | `bench/py/gate_scorecard.py` | M2 出门记分卡：end-state/union 语义成功率+新鲜度闸 | 无 | 已删 Wave-F → `bench gate` |
-| gwpilot | `bench/py/gwpilot.py` | 机会型批跑驱动：JSONL 队列续跑 + serve 模式并发闸代理 | LLM网关 | 已删 Wave-F（裁决 drop：定死单网关后多租户调度面失效） |
-| quality_proxies | `bench/py/quality_proxies.py` | S5 事后质量代理：leak/term/landmark 三系指标侧车 | 无 | 已删 Wave-F → `specs/quality.py` |
-| qualanchor | `bench/py/report/qualanchor.py` | ESA^AI 人工评审包生成+收割（judge 校准） | 无 | 已删 Wave-F |
-| qualdrift | `bench/py/report/qualdrift.py` | judge 漂移哨兵：frozen-300 重判+漂移闸 | LLM网关 | 已删 Wave-F |
-| qualfreeze | `bench/py/report/qualfreeze.py` | frozen-300 pinset 抽取+四信号分布漂移闸 | 无 | 已删 Wave-F |
-| qualsample | `bench/py/report/qualsample.py` | qualbench 分层基线采样器 | 无 | 已删 Wave-F |
-| qualstats | `bench/py/report/qualstats.py` | qual 统计臂：block bootstrap CI+pairacc+report | 无 | 已删 Wave-F |
-| defect_ledger | `bench/py/report/defect_ledger.py` | 缺陷底账：fuzz+手工 P0–P2+test pin 合并 jsonl/md | 无 | 已删 Wave-F |
-| dossier | `bench/py/report/dossier.py` | 单 id 全链档案：签名→证据→历史→规则链 | 无 | 已删 Wave-F → `bench dossier`（run 档案口径） |
-| mech_ids | `bench/py/report/mech_ids.py` | 机制标签↔id 双向索引+规则反查+覆盖审计 | 无 | 已删 Wave-F |
-| mech_backfill | `bench/py/report/mech_backfill.py` | manifest mech_tags 回填器 | 无 | 已删 Wave-F |
-| layout_bench | `bench/py/report/layout_bench.py` | en↔zh 版面损伤挖掘：overfull/ink/特征→leaderboard | 重算力 | 已删 Wave-F |
-| l2_attr_probe | `bench/py/report/l2_attr_probe.py` | L2 归因 _l2_localize 分布级探针 | 重算力 | 已删 Wave-F |
-| extract_l2_fixture | `bench/py/report/extract_l2_fixture.py` | 真实 log→tests/fixtures/logs 入库件生成器 | 无 | 已删 Wave-F |
-| export_realbook | `bench/py/report/export_realbook.py` | 真书 EPUB 双语插译 OCF 级回归 | 无 | 已删 Wave-F |
-| bench_pylatexenc | `bench/py/report/bench_pylatexenc.py` | pylatexenc 横评（选型期已结案→archive 候选） | 重算力 | 已删 Wave-F |
-| ieeA_bench | `bench/py/report/ieeA_bench.py` | ieeA 参考实现横评（已结案→archive 候选） | 重算力 | 已删 Wave-F |
-| plastex_bench | `bench/py/report/plastex_bench.py` | plasTeX 横评（已结案→archive 候选） | 重算力 | 已删 Wave-F |
-| texsoup_bench | `bench/py/report/texsoup_bench.py` | TexSoup 横评（已结案→archive 候选） | 重算力 | 已删 Wave-F |
-| texsoup_diverge | `bench/py/report/texsoup_diverge.py` | texsoup 输出发散点一次性分析（→archive 候选） | 无 | 已删 Wave-F |
-| v2_diff | `bench/py/report/v2_diff.py` | v1↔v2 双跑 diff（v1 已退役→空转，archive 候选） | 重算力 | 已删 Wave-F |
-| build_corpus_v3 | `bench/py/corpus/build_corpus_v3.py` | v3 语料主构建+其他 builder 的共享库 | 网络+重算力 | 已删 Wave-F → `specs/corpus_v3.py` |
-| build_corpus_layers | `bench/py/corpus/build_corpus_layers.py` | holdout/dev_vol/dev_failmine/dev_recent 加层器 | 网络+重算力 | 已删 Wave-F → `specs/corpus_layers.py` |
-| build_corpus_expand | `bench/py/corpus/build_corpus_expand.py` | expand 层 +3866：失败率偏置采样+回填通道 | 网络+重算力 | 已删 Wave-F → `specs/corpus_expand.py` |
-| build_sw_layer | `bench/py/corpus/build_sw_layer.py` | scholarweave HF parquet 渠道适配（唯一 2025+ 免费批量源） | 网络+重算力 | 已删 Wave-F → `specs/corpus_sw.py` |
-| build_hot_layer | `bench/py/corpus/build_hot_layer.py` | hot 层：OpenAlex 高引+近期随机 | 网络 | 已删 Wave-F → `specs/corpus_hot.py` |
-| build_corpus_m1k | `bench/py/corpus/build_corpus_m1k.py` | m1k 评测语料 4 层 997 篇构建 | 网络 | 已删 Wave-F（manifest 留存） |
-| build_corpus_v2 | `bench/py/corpus/build_corpus_v2.py` | v2 分层随机构建（产出已并入统一语料） | 网络 | 已删 Wave-F |
-| iclr 家族 ×6 | `bench/py/iclr_{fetch,map,pdf,pdf_sections,sections,stats}.py` | ICLR 章节长度研究管线（暂停至 10 月，续跑手册见 research） | 网络+重算力 | active（暂停） |
-| bench-lu | `bench/ts/bench-lu.js` | latex-utensils v7 横评（robustness/陷阱/round-trip/leak） | 重算力 | one-shot（套件保留） |
-| bench-tsl | `bench/ts/bench-tsl.js` | tree-sitter-latex 0.6.0 横评 + L1 同语法邻接 | 重算力 | one-shot（套件保留） |
-| ul_corpus | `bench/ts/ul_corpus.js` | unified-latex 语料横评（worker_threads） | 重算力 | one-shot（套件保留） |
-| ul_tricky | `bench/ts/ul_tricky.js` | unified-latex @Tnn 陷阱断言 | 无 | one-shot（套件保留） |
-| ts libs | `bench/ts/{common,ul_common,ul_worker}.js` + `package.json` | 套件共享件 + npm 依赖清单（node_modules 是 L1 校验器硬依赖） | 网络 | active |
-| fixtures | `bench/fixtures/` | 陷阱 .tex 语料（@Tnn，字节即语义，禁格式化） | — | asset·保护区 |
-| frame | `bench/frame/` | 语料规划资产：universe parquet+item-index+分层配额（91M） | — | asset——`specs/frame_build.py` 可再生 |
-| PROTOCOL | `bench/PROTOCOL.md` | per-库评测协议 | — | 已删 2026-09-20 |
-| TIERS | `bench/TIERS.md` | L0–L3 验证分层契约 | — | asset·治理 |
-| RETENTION | `bench/RETENTION.md` | results/ 留存契约 | — | 已删 Wave-F（results/ 清零，契约失效） |
-| results/* | `bench/results/` | run 产物目录 | — | 已删 Wave-F——账本入 `backup/phase0-20260922`，新产物落仓外 `$TEXLATE_BENCH_ROOT/runs/` |
-| work_* | `bench/work_{e2ereal,gwpilot,iclr,m1k,v3}` | 各管线工作区（gitignored） | — | 已删 Wave-F（spec 工作区在 runs/ 内） |
-| .venv_babeldoc | `bench/py/.venv_babeldoc/` | babeldoc 对照实验专用 venv（664M macOS 原生件，bin/python 在 Linux 悬空） | — | **已删** 2026-09-20（机制位保留，按需重建） |
+| bench                | 路径                                                                                        | 一句话用途                                                                                                                                      | 成本                 | 状态                                                                                   |
+| -------------------- | ------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- | -------------------------------------------------------------------------------------- |
+| stagerun             | `bench/py/stagerun.py` + `stagerun_lib.py` + `stage_{ingest,parse,xlat,compile,fixloop}.py` | 五段批跑 DAG：ingest→parse→xlat→compile→fixloop，records jsonl 断点续跑                                                                         | LLM网关+LaTeX+重算力 | 已删 Wave-F → `specs/soak.py` + spec 套                                                |
+| stage_timing †       | `bench/py/stage_timing.py`                                                                  | records 分位/慢纸计时报告 → `_timing/{json,md}`                                                                                                 | 无                   | 已删（09-20 在飞删除）                                                                 |
+| status_panel         | `bench/py/status_panel.py`                                                                  | :8766 只读状态面板（进度漏斗/看板/进程/磁盘/台账）                                                                                              | 无                   | active——Wave-D 已改指 kernel runs/index                                                |
+| task_ping            | `bench/py/task_ping.py`                                                                     | 原子写 tasks.d/<slug>.json 心跳看板                                                                                                             | 无                   | active                                                                                 |
+| preflight_batch      | `bench/py/preflight_batch.py`                                                               | 批跑前一票闸：import 走查+mock链+磁盘+manifest+工具链+网关鉴权                                                                                  | 网络                 | 已删 Wave-F → `bench doctor`+`bench plan`                                              |
+| wave                 | `bench/py/wave.py`                                                                          | 修复波编排：id 集解析→records 快照→stagerun 命令链→postmortem→scorecard                                                                         | LaTeX+网络           | 已删 Wave-F → `bench run`+`rundiff`+`gate`                                             |
+| nightwatch †         | `bench/py/nightwatch.py`                                                                    | 隔夜批 watchdog 报告                                                                                                                            | 无                   | 已删（无人调用、无定时器）                                                             |
+| parsebench (B1)      | `bench/py/parsebench.py`                                                                    | 产品解析器语料评测：ok/ms/identity/leak/死占位，分层加权+CI                                                                                     | 重算力               | 已删 Wave-F → `specs/parsebench.py`                                                    |
+| fixture_assert (B2)  | `bench/py/fixture_assert.py`                                                                | 陷阱断言矩阵（@Tnn）跑产品解析器出 contract 输出                                                                                                | 无                   | 已删 Wave-F → `specs/fixture_assert.py`                                                |
+| compilebench_v3 (B3) | `bench/py/compilebench_v3.py`                                                               | 语料 base 臂直接编译基线，双引擎                                                                                                                | LaTeX+重算力         | 已删 Wave-F → `specs/compilebench.py`                                                  |
+| compilebench_v2 †    | `bench/py/compilebench_v2.py`                                                               | 旧版 B3（头注自标 LEGACY）                                                                                                                      | —                    | 已删                                                                                   |
+| fixloop_bench        | `bench/py/fixloop_bench.py`                                                                 | B3 fixloop 营救率 + stagerun/e2e 复用的修复配方库                                                                                               | 网络+LaTeX+重算力    | 已删 Wave-F → `specs/fixloop_bench.py`（配方面入 `specs/_fixloop.py`）                 |
+| xlatbench (B4a)      | `bench/py/xlatbench.py`                                                                     | 翻译硬契约回归：语料分块+S1–S4 陷阱→网关→L0 判                                                                                                  | LLM网关              | 已删 Wave-F → `specs/xlatbench.py`                                                     |
+| qualbench (B4b)      | `bench/py/qualbench.py`                                                                     | 翻译质量臂：ESA 协议 LLM judge 打分+聚合                                                                                                        | LLM网关              | 已删 Wave-F → `specs/qualbench.py`                                                     |
+| e2e_mock (B5-A)      | `bench/py/e2e_mock_bench.py`                                                                | mock 翻译全链 e2e + B/C 破坏注入单源                                                                                                            | LaTeX+重算力         | 已删 Wave-F → `specs/e2e_mock.py`                                                      |
+| e2e_real (B5-B/D)    | `bench/py/e2e_real_bench.py`                                                                | 真网关 e2e（批量已让位 stagerun，留 lib+单篇冒烟）                                                                                              | LLM网关+LaTeX        | 已删 Wave-F → `specs/e2e_real.py`                                                      |
+| validbench (B6)      | `bench/py/validbench.py`                                                                    | 校验器 bench：10 类腐化变异测 L0/L1 检出/FP/延迟                                                                                                | 重算力               | 已删 Wave-F → `specs/validbench.py`                                                    |
+| alignbench (B7)      | `bench/py/alignbench.py`                                                                    | named-dest 锚点保留率评测（en/zh PDF 对）                                                                                                       | 无/LaTeX             | 已删 Wave-F → `specs/alignbench.py`                                                    |
+| gullet_bench         | `bench/py/gullet_bench.py`                                                                  | gullet 展开流探针：计时/steps/warning/if-eval/不动点回填                                                                                        | 重算力               | 已删 Wave-F → `specs/gullet.py`                                                        |
+| wrapfloat_bench      | `bench/py/wrapfloat_bench.py`                                                               | wrapfig 环绕碰撞检测（poppler bbox）                                                                                                            | LaTeX                | 已删 Wave-F → `specs/wrapfloat.py`                                                     |
+| benchlib             | `bench/py/benchlib.py`                                                                      | bench 共享库：records IO/verdict_sig/judge_dict/层枚举（~30 importers）                                                                         | 无                   | 已删 Wave-F → `specs/_benchlite.py`                                                    |
+| translators_bench    | `bench/py/translators_bench.py`                                                             | xlat 臂适配层：mock/sabotage/perturb 工厂+台账                                                                                                  | 无                   | active——`specs/_sabotage.py`/`e2e_mock` 引用                                           |
+| triage               | `bench/py/triage.py`                                                                        | records 后处理：签名聚类→tickets+趋势+report                                                                                                    | 无                   | 已删 Wave-F → `bench triage`                                                           |
+| rundiff              | `bench/py/rundiff.py`                                                                       | 两 run 逐格迁移比较器（transition 矩阵）                                                                                                        | 无                   | 已删 Wave-F → `bench rundiff`                                                          |
+| harvest              | `bench/py/harvest.py`                                                                       | zh-store 收割器：终判 compile-clean → primary、已译非 clean → `_quarantine/`、落选 → `_alt/`（move 语义）+ manifest.jsonl 索引/`--reindex` 重建 | 无                   | 已删 Wave-F                                                                            |
+| gate_scorecard       | `bench/py/gate_scorecard.py`                                                                | M2 出门记分卡：end-state/union 语义成功率+新鲜度闸                                                                                              | 无                   | 已删 Wave-F → `bench gate`                                                             |
+| gwpilot              | `bench/py/gwpilot.py`                                                                       | 机会型批跑驱动：JSONL 队列续跑 + serve 模式并发闸代理                                                                                           | LLM网关              | 已删 Wave-F（裁决 drop：定死单网关后多租户调度面失效）                                 |
+| quality_proxies      | `bench/py/quality_proxies.py`                                                               | S5 事后质量代理：leak/term/landmark 三系指标侧车                                                                                                | 无                   | 已删 Wave-F → `specs/quality.py`                                                       |
+| qualanchor           | `bench/py/report/qualanchor.py`                                                             | ESA^AI 人工评审包生成+收割（judge 校准）                                                                                                        | 无                   | 已删 Wave-F                                                                            |
+| qualdrift            | `bench/py/report/qualdrift.py`                                                              | judge 漂移哨兵：frozen-300 重判+漂移闸                                                                                                          | LLM网关              | 已删 Wave-F                                                                            |
+| qualfreeze           | `bench/py/report/qualfreeze.py`                                                             | frozen-300 pinset 抽取+四信号分布漂移闸                                                                                                         | 无                   | 已删 Wave-F                                                                            |
+| qualsample           | `bench/py/report/qualsample.py`                                                             | qualbench 分层基线采样器                                                                                                                        | 无                   | 已删 Wave-F                                                                            |
+| qualstats            | `bench/py/report/qualstats.py`                                                              | qual 统计臂：block bootstrap CI+pairacc+report                                                                                                  | 无                   | 已删 Wave-F                                                                            |
+| defect_ledger        | `bench/py/report/defect_ledger.py`                                                          | 缺陷底账：fuzz+手工 P0–P2+test pin 合并 jsonl/md                                                                                                | 无                   | 已删 Wave-F                                                                            |
+| dossier              | `bench/py/report/dossier.py`                                                                | 单 id 全链档案：签名→证据→历史→规则链                                                                                                           | 无                   | 已删 Wave-F → `bench dossier`（run 档案口径）                                          |
+| mech_ids             | `bench/py/report/mech_ids.py`                                                               | 机制标签↔id 双向索引+规则反查+覆盖审计                                                                                                          | 无                   | 已删 Wave-F                                                                            |
+| mech_backfill        | `bench/py/report/mech_backfill.py`                                                          | manifest mech_tags 回填器                                                                                                                       | 无                   | 已删 Wave-F                                                                            |
+| layout_bench         | `bench/py/report/layout_bench.py`                                                           | en↔zh 版面损伤挖掘：overfull/ink/特征→leaderboard                                                                                               | 重算力               | 已删 Wave-F                                                                            |
+| l2_attr_probe        | `bench/py/report/l2_attr_probe.py`                                                          | L2 归因 _l2_localize 分布级探针                                                                                                                 | 重算力               | 已删 Wave-F                                                                            |
+| extract_l2_fixture   | `bench/py/report/extract_l2_fixture.py`                                                     | 真实 log→tests/fixtures/logs 入库件生成器                                                                                                       | 无                   | 已删 Wave-F                                                                            |
+| export_realbook      | `bench/py/report/export_realbook.py`                                                        | 真书 EPUB 双语插译 OCF 级回归                                                                                                                   | 无                   | 已删 Wave-F                                                                            |
+| bench_pylatexenc     | `bench/py/report/bench_pylatexenc.py`                                                       | pylatexenc 横评（选型期已结案→archive 候选）                                                                                                    | 重算力               | 已删 Wave-F                                                                            |
+| ieeA_bench           | `bench/py/report/ieeA_bench.py`                                                             | ieeA 参考实现横评（已结案→archive 候选）                                                                                                        | 重算力               | 已删 Wave-F                                                                            |
+| plastex_bench        | `bench/py/report/plastex_bench.py`                                                          | plasTeX 横评（已结案→archive 候选）                                                                                                             | 重算力               | 已删 Wave-F                                                                            |
+| texsoup_bench        | `bench/py/report/texsoup_bench.py`                                                          | TexSoup 横评（已结案→archive 候选）                                                                                                             | 重算力               | 已删 Wave-F                                                                            |
+| texsoup_diverge      | `bench/py/report/texsoup_diverge.py`                                                        | texsoup 输出发散点一次性分析（→archive 候选）                                                                                                   | 无                   | 已删 Wave-F                                                                            |
+| v2_diff              | `bench/py/report/v2_diff.py`                                                                | v1↔v2 双跑 diff（v1 已退役→空转，archive 候选）                                                                                                 | 重算力               | 已删 Wave-F                                                                            |
+| build_corpus_v3      | `bench/py/corpus/build_corpus_v3.py`                                                        | v3 语料主构建+其他 builder 的共享库                                                                                                             | 网络+重算力          | 已删 Wave-F → `specs/corpus_v3.py`                                                     |
+| build_corpus_layers  | `bench/py/corpus/build_corpus_layers.py`                                                    | holdout/dev_vol/dev_failmine/dev_recent 加层器                                                                                                  | 网络+重算力          | 已删 Wave-F → `specs/corpus_layers.py`                                                 |
+| build_corpus_expand  | `bench/py/corpus/build_corpus_expand.py`                                                    | expand 层 +3866：失败率偏置采样+回填通道                                                                                                        | 网络+重算力          | 已删 Wave-F → `specs/corpus_expand.py`                                                 |
+| build_sw_layer       | `bench/py/corpus/build_sw_layer.py`                                                         | scholarweave HF parquet 渠道适配（唯一 2025+ 免费批量源）                                                                                       | 网络+重算力          | 已删 Wave-F → `specs/corpus_sw.py`                                                     |
+| build_hot_layer      | `bench/py/corpus/build_hot_layer.py`                                                        | hot 层：OpenAlex 高引+近期随机                                                                                                                  | 网络                 | 已删 Wave-F → `specs/corpus_hot.py`                                                    |
+| build_corpus_m1k     | `bench/py/corpus/build_corpus_m1k.py`                                                       | m1k 评测语料 4 层 997 篇构建                                                                                                                    | 网络                 | 已删 Wave-F（manifest 留存）                                                           |
+| build_corpus_v2      | `bench/py/corpus/build_corpus_v2.py`                                                        | v2 分层随机构建（产出已并入统一语料）                                                                                                           | 网络                 | 已删 Wave-F                                                                            |
+| iclr 家族 ×6         | `bench/py/iclr_{fetch,map,pdf,pdf_sections,sections,stats}.py`                              | ICLR 章节长度研究管线（暂停至 10 月，续跑手册见 research）                                                                                      | 网络+重算力          | active（暂停）                                                                         |
+| bench-lu             | `bench/ts/bench-lu.js`                                                                      | latex-utensils v7 横评（robustness/陷阱/round-trip/leak）                                                                                       | 重算力               | one-shot（套件保留）                                                                   |
+| bench-tsl            | `bench/ts/bench-tsl.js`                                                                     | tree-sitter-latex 0.6.0 横评 + L1 同语法邻接                                                                                                    | 重算力               | one-shot（套件保留）                                                                   |
+| ul_corpus            | `bench/ts/ul_corpus.js`                                                                     | unified-latex 语料横评（worker_threads）                                                                                                        | 重算力               | one-shot（套件保留）                                                                   |
+| ul_tricky            | `bench/ts/ul_tricky.js`                                                                     | unified-latex @Tnn 陷阱断言                                                                                                                     | 无                   | one-shot（套件保留）                                                                   |
+| ts libs              | `bench/ts/{common,ul_common,ul_worker}.js` + `package.json`                                 | 套件共享件 + npm 依赖清单（node_modules 是 L1 校验器硬依赖）                                                                                    | 网络                 | active                                                                                 |
+| fixtures             | `bench/fixtures/`                                                                           | 陷阱 .tex 语料（@Tnn，字节即语义，禁格式化）                                                                                                    | —                    | asset·保护区                                                                           |
+| frame                | `bench/frame/`                                                                              | 语料规划资产：universe parquet+item-index+分层配额（91M）                                                                                       | —                    | asset——`specs/frame_build.py` 可再生                                                   |
+| PROTOCOL             | `bench/PROTOCOL.md`                                                                         | per-库评测协议                                                                                                                                  | —                    | 已删 2026-09-20                                                                        |
+| TIERS                | `bench/TIERS.md`                                                                            | L0–L3 验证分层契约                                                                                                                              | —                    | asset·治理                                                                             |
+| RETENTION            | `bench/RETENTION.md`                                                                        | results/ 留存契约                                                                                                                               | —                    | 已删 Wave-F（results/ 清零，契约失效）                                                 |
+| results/*            | `bench/results/`                                                                            | run 产物目录                                                                                                                                    | —                    | 已删 Wave-F——账本入 `backup/phase0-20260922`，新产物落仓外 `$TEXLATE_BENCH_ROOT/runs/` |
+| work_*               | `bench/work_{e2ereal,gwpilot,iclr,m1k,v3}`                                                  | 各管线工作区（gitignored）                                                                                                                      | —                    | 已删 Wave-F（spec 工作区在 runs/ 内）                                                  |
+| .venv_babeldoc       | `bench/py/.venv_babeldoc/`                                                                  | babeldoc 对照实验专用 venv（664M macOS 原生件，bin/python 在 Linux 悬空）                                                                       | —                    | **已删** 2026-09-20（机制位保留，按需重建）                                            |
 
 ## 语料管线（bench/py/corpus/）
 
@@ -268,14 +268,14 @@ gwpilot JSONL 任务队列投递位；`night.jsonl` 已于 release 清理删除�
 
 ### benchlib.py — bench 共享库（~30 importers）
 
-records jsonl 容错读写、原子写、safe_id/copytree_ignore、TUNA_TLNET pin、verdict_sig/judge_dict/fixloop_attr/fixloop_sig、层枚举。纯 stdlib，系统 python3 可载。**状态**：active——全体 stage_*/stagerun_lib/triage/gate_scorecard/e2e_*/各 bench + 3 test 文件引用。
+records jsonl 容错读写、原子写、safe_id/copytree_ignore、TUNA_TLNET pin、verdict_sig/judge_dict/fixloop_attr/fixloop_sig、层枚举。纯 stdlib，系统 python3 可载。**状态**：active——全体 stage__/stagerun_lib/triage/gate_scorecard/e2e__/各 bench + 3 test 文件引用。
 
 ## 翻译质量评估（B4b 下游 qual 家族 + 代理件）
 
 ### quality_proxies.py — S5 事后质量代理侧车
 
 - **运行**：`uv run python bench/py/quality_proxies.py bench/results/<run> [--jobs 8 --limit N --ids ... --manifest PATH --out PATH]`
-- **输入**：run 的 work/{id}/xlat-state/{arm}/state.json + compile 树（*.tex/*.bbl）+ records；terms/landmark 经 texlate.xlat.glossary/texlate.align
+- **输入**：run 的 work/{id}/xlat-state/{arm}/state.json + compile 树（_.tex/_.bbl）+ records；terms/landmark 经 texlate.xlat.glossary/texlate.align
 - **输出**：`<run>/quality-metrics.jsonl` 侧车（不动 records/）
 - **状态**：active——被 stage_xlat.py:27/stage_compile.py:19 引用（TERM_ARMS+landmark 接线）。
 
@@ -394,14 +394,14 @@ records jsonl 容错读写、原子写、safe_id/copytree_ignore、TUNA_TLNET pi
 
 以下六件 `bench/py/report/` 脚本由 `tools-runbook.md` 官宣「外部库横评（选型期已结案）」，运行依赖（pylatexenc/TexSoup/plasTeX/ieeA）已全部不在当前环境，产出已归档 `bench/archive-2026-09-20/results/`：
 
-| 脚本 | 运行 | 结案依据 |
-| --- | --- | --- |
-| `bench_pylatexenc.py` | `python3 bench/py/report/bench_pylatexenc.py {parse | fixtures | roundtrip | extract | damage | newcmd | all}` | PROTOCOL 四项横评；pylatexenc 不在任何 env |
-| `ieeA_bench.py` | `PYTHONPATH=tmp/refs/ieeA python3 bench/py/report/ieeA_bench.py` | 参考实现横评；ieeA 仅存 tmp/refs clone |
-| `plastex_bench.py` | `python3 bench/py/report/plastex_bench.py` | plasTeX 横评+宏展开参考；dep 不在 env |
-| `texsoup_bench.py` | `python3 bench/py/report/texsoup_bench.py` | TexSoup 四项横评；dep 不在 env |
-| `texsoup_diverge.py` | `python3 bench/py/report/texsoup_diverge.py` | texsoup 发散点一次性分析；输入 json 已归档 |
-| `v2_diff.py` | `uv run python bench/py/report/v2_diff.py [--n N --seed S]` | v1 scanner 已退役（474dfa91）→ diff 空转 |
+| 脚本                  | 运行                                                             | 结案依据                                   |
+| --------------------- | ---------------------------------------------------------------- | ------------------------------------------ |
+| `bench_pylatexenc.py` | `python3 bench/py/report/bench_pylatexenc.py {parse              | fixtures                                   | roundtrip | extract | damage | newcmd | all}` | PROTOCOL 四项横评；pylatexenc 不在任何 env |
+| `ieeA_bench.py`       | `PYTHONPATH=tmp/refs/ieeA python3 bench/py/report/ieeA_bench.py` | 参考实现横评；ieeA 仅存 tmp/refs clone     |
+| `plastex_bench.py`    | `python3 bench/py/report/plastex_bench.py`                       | plasTeX 横评+宏展开参考；dep 不在 env      |
+| `texsoup_bench.py`    | `python3 bench/py/report/texsoup_bench.py`                       | TexSoup 四项横评；dep 不在 env             |
+| `texsoup_diverge.py`  | `python3 bench/py/report/texsoup_diverge.py`                     | texsoup 发散点一次性分析；输入 json 已归档 |
+| `v2_diff.py`          | `uv run python bench/py/report/v2_diff.py [--n N --seed S]`      | v1 scanner 已退役（474dfa91）→ diff 空转   |
 
 另有 †`bench/py/scratch/`（encoding_probe、perf_tail×2）三件：已于 d39a1b23（09-18 release 清理）删除并 gitignore，留档。
 
@@ -409,14 +409,14 @@ records jsonl 容错读写、原子写、safe_id/copytree_ignore、TUNA_TLNET pi
 
 续跑手册：`research/corpus/2026-09-19-iclr章节长度.md`。六件套均 active（暂停态，2026-09-20 新提交 67996754）：
 
-| 脚本 | 运行 | 输入→输出 |
-| --- | --- | --- |
-| `iclr_map.py` | `uv run python bench/py/iclr_map.py [--phase oa | s2 | all --limit N]`（OPENALEX_API_KEY 在 paper-search skill .env） | accepted.jsonl→`work_iclr/map.jsonl`（orid→arxiv_id） |
-| `iclr_fetch.py` | `setsid nohup uv run python bench/py/iclr_fetch.py`（trial `--limit 30`） | map 行→`bench/corpus/{arxiv_id}/`+fetch.jsonl |
-| `iclr_pdf.py` | `uv run python bench/py/iclr_pdf.py [--limit N]`（OPENREVIEW_USER/PASS） | 无 arxiv_id 行→`bench/corpus_iclr_pdf/{orid}.pdf` |
-| `iclr_sections.py` | `uv run python bench/py/iclr_sections.py --corpus bench/corpus --out bench/work_iclr/sections.jsonl` | LaTeX 臂章节分桶（17 canon buckets） |
-| `iclr_pdf_sections.py` | `uv run python bench/py/iclr_pdf_sections.py [--limit N]`（需 poppler） | PDF 臂分桶→sections_pdf.jsonl |
-| `iclr_stats.py` | `uv run python bench/py/iclr_stats.py [--md out.md]` | 双臂 join→stats.json 分布+校准比 |
+| 脚本                   | 运行                                                                                                 | 输入→输出                                         |
+| ---------------------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| `iclr_map.py`          | `uv run python bench/py/iclr_map.py [--phase oa                                                      | s2                                                | all --limit N]`（OPENALEX_API_KEY 在 paper-search skill .env） | accepted.jsonl→`work_iclr/map.jsonl`（orid→arxiv_id） |
+| `iclr_fetch.py`        | `setsid nohup uv run python bench/py/iclr_fetch.py`（trial `--limit 30`）                            | map 行→`bench/corpus/{arxiv_id}/`+fetch.jsonl     |
+| `iclr_pdf.py`          | `uv run python bench/py/iclr_pdf.py [--limit N]`（OPENREVIEW_USER/PASS）                             | 无 arxiv_id 行→`bench/corpus_iclr_pdf/{orid}.pdf` |
+| `iclr_sections.py`     | `uv run python bench/py/iclr_sections.py --corpus bench/corpus --out bench/work_iclr/sections.jsonl` | LaTeX 臂章节分桶（17 canon buckets）              |
+| `iclr_pdf_sections.py` | `uv run python bench/py/iclr_pdf_sections.py [--limit N]`（需 poppler）                              | PDF 臂分桶→sections_pdf.jsonl                     |
+| `iclr_stats.py`        | `uv run python bench/py/iclr_stats.py [--md out.md]`                                                 | 双臂 join→stats.json 分布+校准比                  |
 
 ## JS 侧 bench（bench/ts/）
 
@@ -431,14 +431,14 @@ records jsonl 容错读写、原子写、safe_id/copytree_ignore、TUNA_TLNET pi
 
 ## 资产、产物与工作区
 
-| 项 | 说明 | 状态 |
-| --- | --- | --- |
-| `bench/fixtures/` | 陷阱 .tex 语料 92K（tricky*@Tnn/xlat-traps），字节即语义 | **保护区**·asset |
-| `bench/PROTOCOL.md` | per-库评测协议（四项横评+报告格式） | **已删** 2026-09-20（选型期协议退役，原文见 git 历史） |
-| `bench/TIERS.md` | L0–L3 验证分层契约 | 治理·keep |
-| `bench/RETENTION.md` | results/ 留存契约（归零后存活口径+删除谓词） | **已删** Wave-F——results/ 清零后契约失效 |
-| `bench/results/`（全部） | 09-20 归零后存活 run 目录（soak-09-18 / stagerun-overnite-09-20 / zhstore-verify-09-20 / stagerun-smk-unified-09-19 / status-panel） | **已删** Wave-F——89M 账本树已入 `$TEXLATE_BENCH_ROOT/backup/phase0-20260922`；看板状态改落 `$TEXLATE_BENCH_ROOT/state/status-panel/` |
-| `bench/work_daily` | daily-soak 工作区（lock+log） | **已删** 2026-09-21——daily-soak 链路退役（timer 拆除、脚本与 daily_arxiv.py 已删） |
-| `bench/work_*`（e2ereal/gwpilot/iclr/m1k/v3） | 各管线工作区 | **已删** Wave-F——spec 工作区在 run 目录内；work_iclr 早前已删（续跑重导见 `research/corpus/2026-09-19-iclr章节长度.md`） |
-| `bench/py/.venv_babeldoc` | babeldoc 对照 venv 664M——macOS 原生件，bin/python 在 Linux 悬空 | 现 absent·机制位（09-20 清理已删；如需重建 `uv venv bench/py/.venv_babeldoc --python 3.12 && uv pip install babeldoc`） |
-| †`bench/py/.venv` | 54M macOS 原生横评 venv（无 bin/python，彻底 broken） | **已删** |
+| 项                                            | 说明                                                                                                                                 | 状态                                                                                                                                 |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `bench/fixtures/`                             | 陷阱 .tex 语料 92K（tricky*@Tnn/xlat-traps），字节即语义                                                                             | **保护区**·asset                                                                                                                     |
+| `bench/PROTOCOL.md`                           | per-库评测协议（四项横评+报告格式）                                                                                                  | **已删** 2026-09-20（选型期协议退役，原文见 git 历史）                                                                               |
+| `bench/TIERS.md`                              | L0–L3 验证分层契约                                                                                                                   | 治理·keep                                                                                                                            |
+| `bench/RETENTION.md`                          | results/ 留存契约（归零后存活口径+删除谓词）                                                                                         | **已删** Wave-F——results/ 清零后契约失效                                                                                             |
+| `bench/results/`（全部）                      | 09-20 归零后存活 run 目录（soak-09-18 / stagerun-overnite-09-20 / zhstore-verify-09-20 / stagerun-smk-unified-09-19 / status-panel） | **已删** Wave-F——89M 账本树已入 `$TEXLATE_BENCH_ROOT/backup/phase0-20260922`；看板状态改落 `$TEXLATE_BENCH_ROOT/state/status-panel/` |
+| `bench/work_daily`                            | daily-soak 工作区（lock+log）                                                                                                        | **已删** 2026-09-21——daily-soak 链路退役（timer 拆除、脚本与 daily_arxiv.py 已删）                                                   |
+| `bench/work_*`（e2ereal/gwpilot/iclr/m1k/v3） | 各管线工作区                                                                                                                         | **已删** Wave-F——spec 工作区在 run 目录内；work_iclr 早前已删（续跑重导见 `research/corpus/2026-09-19-iclr章节长度.md`）             |
+| `bench/py/.venv_babeldoc`                     | babeldoc 对照 venv 664M——macOS 原生件，bin/python 在 Linux 悬空                                                                      | 现 absent·机制位（09-20 清理已删；如需重建 `uv venv bench/py/.venv_babeldoc --python 3.12 && uv pip install babeldoc`）              |
+| †`bench/py/.venv`                             | 54M macOS 原生横评 venv（无 bin/python，彻底 broken）                                                                                | **已删**                                                                                                                             |

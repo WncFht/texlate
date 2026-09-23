@@ -16,34 +16,34 @@
 
 ## 电子书阅读器（immersive 家族）
 
-| 产品 | 主题 | chrome 行为 | 控制面 |
-|---|---|---|---|
-| Apple Books iOS16+ | Original/Quiet/Paper/Bold/Calm/Focus，**主题族锁死亮暗变体对**随 OS | Aa 菜单本身被主题染色；整屏含边距取主题色——脱配构造性不可能 | Aa → Themes & Settings，2 tap |
-| Kindle app | 白/Sepia/浅绿/黑 | **双轴**：页色独立，chrome 跟系统深色——允许脱配（我们同款问题） | Aa 菜单，2 tap |
-| Kindle e-ink | Dark Mode 一键反色 | 整屏反色，单轴构造 | quick setting |
-| Google Play Books | Light/Sepia/Dark | chrome 跟系统+Material You 动态色；页色独立 | Display options，2 tap |
-| KOReader | 无预设，Night Mode=整帧缓冲反色 | 文档+UI 一起翻，单轴构造 | 菜单/手势；AutoWarmth 定时 |
-| Moon+ Reader | 10+ 主题，Day/Night 双 profile 全自定义 | 阅读 toolbar 一键切 day/night；app UI 主题另设 | 1 tap |
-| 微信读书 | 白/护眼绿/纸皮黄/黑 | 页边距沉浸=纸面；全局深色独立设置+跟随系统 | 书内设置页 2-3 tap |
-| Kobo | 设备 Dark Mode 整屏反色；app 有 Light/Sepia/Dark/Charcoal | 设备单轴；app 页色独立 | 阅读菜单 |
-| Onyx Boox NeoReader | Style→Mode→Dark | 页级控制，系统 UI 无全局深色——无法脱配 | 3 tap |
+| 产品                | 主题                                                                | chrome 行为                                                     | 控制面                        |
+| ------------------- | ------------------------------------------------------------------- | --------------------------------------------------------------- | ----------------------------- |
+| Apple Books iOS16+  | Original/Quiet/Paper/Bold/Calm/Focus，**主题族锁死亮暗变体对**随 OS | Aa 菜单本身被主题染色；整屏含边距取主题色——脱配构造性不可能     | Aa → Themes & Settings，2 tap |
+| Kindle app          | 白/Sepia/浅绿/黑                                                    | **双轴**：页色独立，chrome 跟系统深色——允许脱配（我们同款问题） | Aa 菜单，2 tap                |
+| Kindle e-ink        | Dark Mode 一键反色                                                  | 整屏反色，单轴构造                                              | quick setting                 |
+| Google Play Books   | Light/Sepia/Dark                                                    | chrome 跟系统+Material You 动态色；页色独立                     | Display options，2 tap        |
+| KOReader            | 无预设，Night Mode=整帧缓冲反色                                     | 文档+UI 一起翻，单轴构造                                        | 菜单/手势；AutoWarmth 定时    |
+| Moon+ Reader        | 10+ 主题，Day/Night 双 profile 全自定义                             | 阅读 toolbar 一键切 day/night；app UI 主题另设                  | 1 tap                         |
+| 微信读书            | 白/护眼绿/纸皮黄/黑                                                 | 页边距沉浸=纸面；全局深色独立设置+跟随系统                      | 书内设置页 2-3 tap            |
+| Kobo                | 设备 Dark Mode 整屏反色；app 有 Light/Sepia/Dark/Charcoal           | 设备单轴；app 页色独立                                          | 阅读菜单                      |
+| Onyx Boox NeoReader | Style→Mode→Dark                                                     | 页级控制，系统 UI 无全局深色——无法脱配                          | 3 tap                         |
 
 ## PDF 阅读器（workspace 家族——双轴分裂派）
 
-| 产品 | 页面重着色 | chrome/gutter | 控制面 |
-|---|---|---|---|
-| Acrobat | Preferences>Accessibility>Replace Document Colors（预设+自选 bg/fg） | Display Theme 另设；**gutter 跟 UI 主题不跟页色** | 两个不同深设置 |
-| PDF Expert | Day/Night/Sepia 预设 | chrome 跟系统；gutter 跟系统 | 阅读内 view settings |
-| Foxit | 同 Acrobat（Accessibility 重着色） | UI skin 另设 | 深设置 |
-| Xodo | Color Modes=Day/Night/Sepia+色轮自选 bg/fg；另有 Invert Colors 可存全局 | chrome 另设 | toolbar>View Mode / View tab |
-| Edge PDF | toolbar Page colors 下拉；高对比跟 OS 无障碍 | chrome 跟浏览器主题 | 工具栏下拉（不埋） |
-| Okular | Invert/Recolor/B&W/Invert Luma sRGB（保色相亮度反） | **gutter=第三色**，UseCustomBackgroundColor 手动设 | Configure>Accessibility |
-| Evince/GNOME Papers | Night Mode 二元反色 | chrome 跟 GTK；gutter 中性灰不动 | 窗口菜单 |
-| sioyek | toggle_dark_mode/custom_color；dark_mode_contrast 压白 | gutter 每模式独立配置（background_color vs dark_mode_background_color） | 配置+键，无 GUI |
-| Zotero 7 | 「Use Dark Mode for Content」反色 PDF（pdf.js pageColors，图 dim 不反） | reader canvas 跟 reader 主题；app 主题跟 OS | **reader View 菜单内**，per-doc 逃生口 |
-| macOS Preview | 无页面重着色 | 全跟系统 | — |
-| MuPDF | I 反色；-B/-C 双色 tint（默认米色纸！） | 无 chrome 概念；gutter 固定深灰 | 键/flag |
-| pdf.js stock | viewerCssTheme(auto/light/dark) 与 forcePageColors 两条**完全独立** pref；pageColors 默认吃系统 Canvas/CanvasText | gutter 跟 chrome；暗 OS 默认=暗 chrome+白页=脱配出厂态 | 构造期 pref，无运行时切换（要 rebuild viewer） |
+| 产品                | 页面重着色                                                                                                        | chrome/gutter                                                           | 控制面                                         |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | ---------------------------------------------- |
+| Acrobat             | Preferences>Accessibility>Replace Document Colors（预设+自选 bg/fg）                                              | Display Theme 另设；**gutter 跟 UI 主题不跟页色**                       | 两个不同深设置                                 |
+| PDF Expert          | Day/Night/Sepia 预设                                                                                              | chrome 跟系统；gutter 跟系统                                            | 阅读内 view settings                           |
+| Foxit               | 同 Acrobat（Accessibility 重着色）                                                                                | UI skin 另设                                                            | 深设置                                         |
+| Xodo                | Color Modes=Day/Night/Sepia+色轮自选 bg/fg；另有 Invert Colors 可存全局                                           | chrome 另设                                                             | toolbar>View Mode / View tab                   |
+| Edge PDF            | toolbar Page colors 下拉；高对比跟 OS 无障碍                                                                      | chrome 跟浏览器主题                                                     | 工具栏下拉（不埋）                             |
+| Okular              | Invert/Recolor/B&W/Invert Luma sRGB（保色相亮度反）                                                               | **gutter=第三色**，UseCustomBackgroundColor 手动设                      | Configure>Accessibility                        |
+| Evince/GNOME Papers | Night Mode 二元反色                                                                                               | chrome 跟 GTK；gutter 中性灰不动                                        | 窗口菜单                                       |
+| sioyek              | toggle_dark_mode/custom_color；dark_mode_contrast 压白                                                            | gutter 每模式独立配置（background_color vs dark_mode_background_color） | 配置+键，无 GUI                                |
+| Zotero 7            | 「Use Dark Mode for Content」反色 PDF（pdf.js pageColors，图 dim 不反）                                           | reader canvas 跟 reader 主题；app 主题跟 OS                             | **reader View 菜单内**，per-doc 逃生口         |
+| macOS Preview       | 无页面重着色                                                                                                      | 全跟系统                                                                | —                                              |
+| MuPDF               | I 反色；-B/-C 双色 tint（默认米色纸！）                                                                           | 无 chrome 概念；gutter 固定深灰                                         | 键/flag                                        |
+| pdf.js stock        | viewerCssTheme(auto/light/dark) 与 forcePageColors 两条**完全独立** pref；pageColors 默认吃系统 Canvas/CanvasText | gutter 跟 chrome；暗 OS 默认=暗 chrome+白页=脱配出厂态                  | 构造期 pref，无运行时切换（要 rebuild viewer） |
 
 ## 网页阅读模式 / 稍后读 / 学术阅读器
 

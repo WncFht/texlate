@@ -11,7 +11,10 @@ const TASK = "t_d7c669e8b3c92149";
 const root = join(homedir(), ".cache/ms-playwright");
 const EXE = join(
     root,
-    readdirSync(root).filter((x) => x.startsWith("chromium-")).sort().reverse()[0],
+    readdirSync(root)
+        .filter((x) => x.startsWith("chromium-"))
+        .sort()
+        .reverse()[0],
     "chrome-linux64/chrome",
 );
 if (!existsSync(EXE)) throw new Error(`no chromium at ${EXE}`);
@@ -32,7 +35,9 @@ const CASES = [
 ];
 
 const browser = await chromium.launch({ executablePath: EXE });
-const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 } });
+const ctx = await browser.newContext({
+    viewport: { width: 1400, height: 900 },
+});
 const page = await ctx.newPage();
 const errors = [];
 page.on("pageerror", (e) => errors.push(`PAGEERROR: ${e.message}`));
@@ -47,22 +52,29 @@ await page.waitForTimeout(2500);
 const measure = () =>
     page.evaluate(() => {
         const cv =
-            document.querySelector(".pane.active .pdfSlickViewer .page canvas") ??
-            document.querySelector(".pdfSlickViewer .page canvas");
+            document.querySelector(
+                ".pane.active .pdfSlickViewer .page canvas",
+            ) ?? document.querySelector(".pdfSlickViewer .page canvas");
         const viewer = cv?.closest(".pdfSlickViewer");
         let avg = null;
         try {
-            const d = cv.getContext("2d").getImageData(0, 0, cv.width, cv.height).data;
-            let s = 0, n = 0;
+            const d = cv
+                .getContext("2d")
+                .getImageData(0, 0, cv.width, cv.height).data;
+            let s = 0,
+                n = 0;
             for (let i = 0; i < d.length; i += 4 * 97) {
                 s += 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2];
                 n++;
             }
             avg = +(s / n).toFixed(1);
-        } catch { /* reset 间隙 h=0 */ }
+        } catch {
+            /* reset 间隙 h=0 */
+        }
         return {
             avg,
-            pageBg: viewer?.style.getPropertyValue("--page-bg-color") || "(unset)",
+            pageBg:
+                viewer?.style.getPropertyValue("--page-bg-color") || "(unset)",
         };
     });
 
@@ -105,10 +117,14 @@ for (const c of CASES) {
     console.log(
         `${ok ? "PASS" : "FAIL"} paper=${c.id} appDark=${c.dark} → avg=${m.avg} pageBg=${m.pageBg}`,
     );
-    await page.screenshot({ path: join(SHOTS, `paper-${c.id}-${c.dark ? "d" : "l"}.png`) });
+    await page.screenshot({
+        path: join(SHOTS, `paper-${c.id}-${c.dark ? "d" : "l"}.png`),
+    });
 }
 
-console.log(errors.length ? `errors:\n${errors.join("\n")}` : "no console errors");
+console.log(
+    errors.length ? `errors:\n${errors.join("\n")}` : "no console errors",
+);
 console.log(fails ? `${fails} FAIL` : "ALL PASS");
 await browser.close();
 process.exit(fails ? 1 : 0);

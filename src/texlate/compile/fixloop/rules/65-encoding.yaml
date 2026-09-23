@@ -114,7 +114,9 @@ rules:
     condition:
       any:
         # (a) aux_scan_eof: taxonomy 读端 pattern 复述 —— 对该 cat 恒真
-        - { ctx_suggests: "File ended while scanning use of \\\\?@?(newl@?bel|writefile|contentsline)" }
+        - {
+            ctx_suggests: "File ended while scanning use of \\\\?@?(newl@?bel|writefile|contentsline)",
+          }
         # (b) runaway_scan 读端 = aux 书写族 cs (含 \\@writefile 直引)
         # 2026-09-20 singbun: +redactcite (2606.18573 指派; 该格实为 doc 级
         # 未闭合 \\redactcite{ 非 aux 回读 —— 健康 aux 上 builtin decline,
@@ -127,8 +129,7 @@ rules:
     action:
       kind: builtin_transform
       function: purge_corrupt_intermediates
-      params:
-        {
+      params: {
           exts: [.aux, .out, .toc, .lof, .lot, .nav, .snm, .vrb, .ent],
           # payload 锚定臂: 良好字节形但含错配写端 cs 的 .aux —— 仅机械族
           # cs 放行 (bibcite/newlabel 类通用件不入, 防误删健康/xr 外链 aux)

@@ -12,15 +12,15 @@ L0 是校验链第一层，独立于任何 LaTeX 解析器——pylatexenc 静�
 
 ## 2. 七条规则
 
-| rule | 检查内容 | error 条件 | warn 条件 |
-| --- | --- | --- | --- |
-| `placeholder` | `[[A-Z_]+_\d+]` multiset diff + 模糊候选（`[[..]`、`[X_1]`、`【..】`）lev≤2 配对 | 缺失/多余/拼错（附修复建议） | — |
-| `brace` | `{}` 平衡（`\{` `\}` 转义、`%` 注释豁免） | zh 最小前缀深度 < src，或净余额 ≠ src | 计数不同但净额一致 |
-| `env` | `\begin{X}`/`\end{X}` 栈配对 + 环境名 multiset diff | 多余 end/不匹配/未闭合 begin/环境名增删 | end 名偏多（栈已覆盖时的补充） |
-| `key` | `\cite*`/`\*ref`/`\label`/`\bibitem`/`\bibliography` key multiset（逗号拆分、可选参豁免） | src−zh 漏 key | zh−src 新增 key（幻觉引用） |
-| `math` | 未转义 `$` 计数；`\(` `\)` `\[` `\]` 成对计数 | 任一计数 ≠ src | `$` 奇数个（继承自 src） |
-| `length` | zh/src 长度比；剥占位符/命令后 CJK 占（CJK+拉丁）比例 | — | 比出 [0.30, 2.50]；CJK<30% |
-| `macro` | zh 控制序列集合 − src 集合 | 命中结构族（`begin/end/documentclass/newcommand/usepackage` 等 31 个） | 其余新 cs（幻觉宏清单） |
+| rule          | 检查内容                                                                                  | error 条件                                                             | warn 条件                      |
+| ------------- | ----------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- | ------------------------------ |
+| `placeholder` | `[[A-Z_]+_\d+]` multiset diff + 模糊候选（`[[..]`、`[X_1]`、`【..】`）lev≤2 配对          | 缺失/多余/拼错（附修复建议）                                           | —                              |
+| `brace`       | `{}` 平衡（`\{` `\}` 转义、`%` 注释豁免）                                                 | zh 最小前缀深度 < src，或净余额 ≠ src                                  | 计数不同但净额一致             |
+| `env`         | `\begin{X}`/`\end{X}` 栈配对 + 环境名 multiset diff                                       | 多余 end/不匹配/未闭合 begin/环境名增删                                | end 名偏多（栈已覆盖时的补充） |
+| `key`         | `\cite*`/`\*ref`/`\label`/`\bibitem`/`\bibliography` key multiset（逗号拆分、可选参豁免） | src−zh 漏 key                                                          | zh−src 新增 key（幻觉引用）    |
+| `math`        | 未转义 `$` 计数；`\(` `\)` `\[` `\]` 成对计数                                             | 任一计数 ≠ src                                                         | `$` 奇数个（继承自 src）       |
+| `length`      | zh/src 长度比；剥占位符/命令后 CJK 占（CJK+拉丁）比例                                     | —                                                                      | 比出 [0.30, 2.50]；CJK<30%     |
+| `macro`       | zh 控制序列集合 − src 集合                                                                | 命中结构族（`begin/end/documentclass/newcommand/usepackage` 等 31 个） | 其余新 cs（幻觉宏清单）        |
 
 > **落地勘误**（本表为 2026-09-15 评测时点的历史快照；现行口径见 `validate/l0.py` 与 `spec/validate.md`）：生产规则集已扩至 **14 条 checker**（placeholder、brace、env、key、math、same_source、length、residual_en、macro、item_glue、ph_in_cs、bare_cs、protocol_echo、comment_eof——`spec/latex-pipeline.md`/`spec/validate.md` 作「14 项」）。表内两处已漂移：① `length` 现行口径是剥后 token 代理 est_tokens 比出 `[0.30,3.00]` 即 **error**（`TOKEN_RATIO_LO/HI`，E24 升级；src est<10 豁免），CJK<30% 仍 warn——原表「warn-only [0.30,2.50] 长度比」已作废；② `macro` 的 zh 新增方向在 E24 下**任何**新控制序列均 error（不只结构族，含 `\`+CJK 熔合 cs），src→zh 丢失方向中脆弱间距命令（`\` `\,` `\;` `\:` `\!` `~`）计数差（cs_dropped）为 error、其余丢失 warn；结构族 `STRUCT_CMDS` 实为 **27** 个（非 31，初版提交即 27）。
 

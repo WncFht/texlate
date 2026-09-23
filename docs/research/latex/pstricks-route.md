@@ -12,14 +12,14 @@
 
 ## 2. 四路线结果
 
-| 路线 | 配置 | 末遍 `!` 错 | 判定 |
-| --- | --- | --- | --- |
-| A1 | latex / xelatex，vendored sty 保留 | 128 / 126（undefined cs 级联） | FAIL |
-| A2 | latex + sty 摘除 + 补 `pst-tools.pro`[^ctan-pst] | 2（`Invalid UTF-8 byte`） | clean，dvips→ps2pdf 出 23 页 |
-| A3 | A2 + 注入 `\usepackage[latin5]{inputenc}` | 0 | clean |
-| B | xelatex + sty 摘除 | 0 | clean，直出 25 页（文本层 1×U+FFFD 静默） |
-| C | B + 注入 `\usepackage[fontset=fandol,UTF8]{ctex}` | 0 | clean，32 页——产品管线完全兼容 |
-| D | xelatex `-no-pdf` → dvipdfmx | 0 | clean（与 B 同链路） |
+| 路线 | 配置                                              | 末遍 `!` 错                    | 判定                                      |
+| ---- | ------------------------------------------------- | ------------------------------ | ----------------------------------------- |
+| A1   | latex / xelatex，vendored sty 保留                | 128 / 126（undefined cs 级联） | FAIL                                      |
+| A2   | latex + sty 摘除 + 补 `pst-tools.pro`[^ctan-pst]  | 2（`Invalid UTF-8 byte`）      | clean，dvips→ps2pdf 出 23 页              |
+| A3   | A2 + 注入 `\usepackage[latin5]{inputenc}`         | 0                              | clean                                     |
+| B    | xelatex + sty 摘除                                | 0                              | clean，直出 25 页（文本层 1×U+FFFD 静默） |
+| C    | B + 注入 `\usepackage[fontset=fandol,UTF8]{ctex}` | 0                              | clean，32 页——产品管线完全兼容            |
+| D    | xelatex `-no-pdf` → dvipdfmx                      | 0                              | clean（与 B 同链路）                      |
 
 页数差异（23/25/32）是排版基准差异：latex 是 IEEEtran 原生排版，xelatex 字体映射微异，ctex 行距/字号重排——译文产品本来就重排，无关对错。
 

@@ -35,4 +35,5 @@
 ### 参考文献
 
 [^xray-arxiv]: X-raying the arXiv——60 万篇 e-print 形态实测（88.6% 有效 TeX / 9.3% pdf-only / 1.6% 主文件难定位）. arXiv:2601.11385. [arxiv.org/abs/2601.11385](https://arxiv.org/abs/2601.11385)
+
 [^ar5iv]: ar5iv 分层数据集——2.17M 篇 LaTeXML 转换严重度分档（no_problem/warning/error）. [sigmathling.kwarc.info/resources/ar5iv-dataset-2024](https://sigmathling.kwarc.info/resources/ar5iv-dataset-2024/)

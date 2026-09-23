@@ -1,6 +1,6 @@
 # Corpus 重建终案 v4 —— 规模裁决 + 管线缺口 + 执行序列
 
-日期：2026-09-23。调研方式：5 路并行 agent 盘点（specs/hydration/selection 三路代码审计 + constraints 实测 + stats  sizing）。本文件取代此前口头的 ~7.3k / ~12.8k 两版估算，为重建的准绳。
+日期：2026-09-23。调研方式：5 路并行 agent 盘点（specs/hydration/selection 三路代码审计 + constraints 实测 + stats sizing）。本文件取代此前口头的 ~7.3k / ~12.8k 两版估算，为重建的准绳。
 
 ## 0. 一句话答案
 
@@ -12,13 +12,13 @@
 
 ### 1.1 每格精度（Wilson 95% 半宽）
 
-| n/格 | p=0.5 | p=0.8 |
-|---|---|---|
-| 100 | ±9.6pp | ±7.8pp |
+| n/格                 | p=0.5  | p=0.8  |
+| -------------------- | ------ | ------ |
+| 100                  | ±9.6pp | ±7.8pp |
 | 125（core 5k/40 格） | ±8.6pp | ±7.0pp |
-| 200 | ±6.9pp | ±5.5pp |
-| 325（13k/40） | ±5.4pp | ±4.3pp |
-| 500（20k/40） | ±4.4pp | ±3.5pp |
+| 200                  | ±6.9pp | ±5.5pp |
+| 325（13k/40）        | ±5.4pp | ±4.3pp |
+| 500（20k/40）        | ±4.4pp | ±3.5pp |
 
 ### 1.2 回归检出（two-proportion, α=.05, power=80%, 基线 0.75）
 
@@ -39,12 +39,12 @@ core 5k 是 knee；超出的规模只能通过 scale 层的签名发现来辩护
 
 ### 2.1 实测单价（推翻旧估算）
 
-| 对象 | 实测 | 旧估算 | 备注 |
-|---|---|---|---|
-| corpus cell hydrated | **mean ~11.9MB**（raw 5.4 + extracted 6.5，n=100>2M）；全群均 ~8.7MB | 4.4MB | era 加权投影 ~11.1MB（e 带 17.6MB 主导）；e/f 带现存 cell 偏大可再压 |
-| vault/zh | mean 4.7MB，其中 binary 图档 **4.5MB**、texish 0.22MB | — | 图档与 corpus cell 同字节但未挂 CAS → 可硬链去重 |
-| vault/splice | mean 9.4MB | — | final.pdf 1.5MB + .fixloop-entry.pdf 2.8MB（重复）+ 全部图 pdf/中间件 ~5MB |
-| TARS 暂存 | **每 chunk ~0.5GB 永不清理**（corpus_v3.py:92 无 prune） | — | 13k ~430 chunks ≈ 215G 瞬时——必须先修 |
+| 对象                 | 实测                                                                 | 旧估算 | 备注                                                                       |
+| -------------------- | -------------------------------------------------------------------- | ------ | -------------------------------------------------------------------------- |
+| corpus cell hydrated | **mean ~11.9MB**（raw 5.4 + extracted 6.5，n=100>2M）；全群均 ~8.7MB | 4.4MB  | era 加权投影 ~11.1MB（e 带 17.6MB 主导）；e/f 带现存 cell 偏大可再压       |
+| vault/zh             | mean 4.7MB，其中 binary 图档 **4.5MB**、texish 0.22MB                | —      | 图档与 corpus cell 同字节但未挂 CAS → 可硬链去重                           |
+| vault/splice         | mean 9.4MB                                                           | —      | final.pdf 1.5MB + .fixloop-entry.pdf 2.8MB（重复）+ 全部图 pdf/中间件 ~5MB |
+| TARS 暂存            | **每 chunk ~0.5GB 永不清理**（corpus_v3.py:92 无 prune）             | —      | 13k ~430 chunks ≈ 215G 瞬时——必须先修                                      |
 
 每篇全量 zh 稳态 = raw 5 + ext 6.5 + zh 4.7 + splice 9.4 ≈ **26MB**（现状政策）；修剪后 ≈ **8MB**。
 
@@ -55,12 +55,12 @@ core 5k 是 knee；超出的规模只能通过 scale 层的签名发现来辩护
 
 ### 2.3 保留政策档位（每篇稳态）
 
-| 政策 | 内容 | MB/篇 | 13k 总量 |
-|---|---|---|---|
-| P0 现状 | 全留 | ~26 | 338G ✗ |
-| P1 | evict extracted（lake 原生 LRU 档） | ~19.5 | 254G ✗ |
-| P2 | P1 + splice 只留 final.pdf+arm.json+log | ~11.6 | 151G ✗ |
-| P3 | P2 + zh 图档硬链 CAS（≈去重） | **~8** | **~104G ✓** |
+| 政策    | 内容                                    | MB/篇  | 13k 总量    |
+| ------- | --------------------------------------- | ------ | ----------- |
+| P0 现状 | 全留                                    | ~26    | 338G ✗      |
+| P1      | evict extracted（lake 原生 LRU 档）     | ~19.5  | 254G ✗      |
+| P2      | P1 + splice 只留 final.pdf+arm.json+log | ~11.6  | 151G ✗      |
+| P3      | P2 + zh 图档硬链 CAS（≈去重）           | **~8** | **~104G ✓** |
 
 **P3 = 13k 的准入政策**：raw 常驻（5MB，档案资产）、extracted 用完即 evict（lake `evict()` 原生支持，`raw_only` 档设计如此）、zh cell 图档走 CAS 硬链（~省 4.5MB/篇）、splice 只留 final.pdf+metrics（~省 8MB/篇）。
 
@@ -74,11 +74,11 @@ core 5k 是 knee；超出的规模只能通过 scale 层的签名发现来辩护
 
 ### 2.5 磁盘配方结论
 
-| 规模 | corpus raw | eval extracted | zh(链CAS) | splice(final only) | 稳态合计 | 判定 |
-|---|---|---|---|---|---|---|
-| 10k | 50G | 工作集 ~13G | ~8G | ~15G | **~86G** | 宽限 ✓ |
-| 13k | 65G | ~13G | ~10G | ~19G | **~107G** | 贴顶 ✓（需回收 quarantine） |
-| 20k | 100G | — | — | — | >150G | ✗ 需迁盘/压缩 zh |
+| 规模 | corpus raw | eval extracted | zh(链CAS) | splice(final only) | 稳态合计  | 判定                        |
+| ---- | ---------- | -------------- | --------- | ------------------ | --------- | --------------------------- |
+| 10k  | 50G        | 工作集 ~13G    | ~8G       | ~15G               | **~86G**  | 宽限 ✓                      |
+| 13k  | 65G        | ~13G           | ~10G      | ~19G               | **~107G** | 贴顶 ✓（需回收 quarantine） |
+| 20k  | 100G       | —              | —         | —                  | >150G     | ✗ 需迁盘/压缩 zh            |
 
 zh 时间面（不变）：j10 ≈ 55 papers/h、yield 0.77 → 全 zh 10k ≈ 9.8d、13k ≈ 12.8d，promo 23d 内都够。**瓶颈从始至终是磁盘，不是 API、不是天数。**
 
@@ -111,16 +111,16 @@ zh 时间面（不变）：j10 ≈ 55 papers/h、yield 0.77 → 全 zh 10k ≈ 9
 
 **裁决：参数化+扩展，不重写。** 全部 `_corpus_common`、lake.hydrate、fetch/zipsum/frame_lookup/sample/extract 阶段、qc 断言可复用。必须修的：
 
-| 项 | 严重度 | 位置 | 修法 |
-|---|---|---|---|
-| TARS 永不清理 | **launch 阻断** | corpus_v3.py:92 TARS=WORK/"tars" 无 prune | 新增 post-extract prune 阶段（extract 后即可删对应 item 的 .tar） |
-| quota 无法表达格级 floor | 高 | _sample :1337-1367 shares 制 + deficit backfill :1397 静默违反 cell 下限 | 换读 allocation-core-v4.csv（cluster×cat×target） |
-| pick_chunk_ids 写死 2 chunks/月 | 高 | :188-195 | 按 quota 扩（池须 ≥5× cell 需求） |
-| _scan 串行 ~30-60s/chunk | 中 | :1132-1159 | chunk 独立，并行化 → 4-7h 压到 ~1h |
-| _extract_members 串行+每 member 全 header 重扫 | 中 | :1704-1789, getmembers :1662 | 按 tag 并行；offset 索引复用 |
-| manifest 每次 run 全量重建 | 低 | _rebuild_manifest :1790+ | legacy 冻结用显式快照拷贝 |
-| zh/splice vault 不挂 CAS | 中（磁盘） | vault 写入处 | 未变 binary 文件硬链 objects/ → zh 省 4.5MB/篇、splice 省 ~5MB/篇 |
-| qc 文案写死 "目标 1000" | 低 | :2067 | 参数化 |
+| 项                                             | 严重度          | 位置                                                                     | 修法                                                              |
+| ---------------------------------------------- | --------------- | ------------------------------------------------------------------------ | ----------------------------------------------------------------- |
+| TARS 永不清理                                  | **launch 阻断** | corpus_v3.py:92 TARS=WORK/"tars" 无 prune                                | 新增 post-extract prune 阶段（extract 后即可删对应 item 的 .tar） |
+| quota 无法表达格级 floor                       | 高              | _sample :1337-1367 shares 制 + deficit backfill :1397 静默违反 cell 下限 | 换读 allocation-core-v4.csv（cluster×cat×target）                 |
+| pick_chunk_ids 写死 2 chunks/月                | 高              | :188-195                                                                 | 按 quota 扩（池须 ≥5× cell 需求）                                 |
+| _scan 串行 ~30-60s/chunk                       | 中              | :1132-1159                                                               | chunk 独立，并行化 → 4-7h 压到 ~1h                                |
+| _extract_members 串行+每 member 全 header 重扫 | 中              | :1704-1789, getmembers :1662                                             | 按 tag 并行；offset 索引复用                                      |
+| manifest 每次 run 全量重建                     | 低              | _rebuild_manifest :1790+                                                 | legacy 冻结用显式快照拷贝                                         |
+| zh/splice vault 不挂 CAS                       | 中（磁盘）      | vault 写入处                                                             | 未变 binary 文件硬链 objects/ → zh 省 4.5MB/篇、splice 省 ~5MB/篇 |
+| qc 文案写死 "目标 1000"                        | 低              | :2067                                                                    | 参数化                                                            |
 
 密度分发 verdict：core 层 dense（wanted≥12/item）整 tar 正确；稀疏层靠 `fetch_blob` 成员级 Range-GET 已存在，仅 id-keyed 补足时需要开关——**不是重建前置项**。
 
@@ -131,17 +131,17 @@ zh 时间面（不变）：j10 ≈ 55 papers/h、yield 0.77 → 全 zh 10k ≈ 9
 
 ## 4. 最终方案 —— ~13k，分层 zh
 
-| 层 | 篇数 | zh | 职责 |
-|---|---|---|---|
-| core | 5,000 | 全 | 40-cell 加权推断主资产（125/格） |
-| holdout | 2,000 | 全 | 回归门（pooled MDE 2.5pp） |
-| dev | 500 | 全 | 日常迭代 |
-| booster | 500 | 全 | 机制覆盖（263 机制账本） |
-| cc-release | 1,000 | 全 | 可发布子集（e-band CC 过采） |
-| hot | 300 | 全 | OpenAlex 热文 |
-| legacy | ~500 | 全 | 冻结旧资产 |
-| scale | 3,000 | **en-compile 优先，promo 余量补 zh** | 签名发现引擎 |
-| **合计** | **~12,800** | 9,800 全 zh + 3k 弹性 | |
+| 层         | 篇数        | zh                                   | 职责                             |
+| ---------- | ----------- | ------------------------------------ | -------------------------------- |
+| core       | 5,000       | 全                                   | 40-cell 加权推断主资产（125/格） |
+| holdout    | 2,000       | 全                                   | 回归门（pooled MDE 2.5pp）       |
+| dev        | 500         | 全                                   | 日常迭代                         |
+| booster    | 500         | 全                                   | 机制覆盖（263 机制账本）         |
+| cc-release | 1,000       | 全                                   | 可发布子集（e-band CC 过采）     |
+| hot        | 300         | 全                                   | OpenAlex 热文                    |
+| legacy     | ~500        | 全                                   | 冻结旧资产                       |
+| scale      | 3,000       | **en-compile 优先，promo 余量补 zh** | 签名发现引擎                     |
+| **合计**   | **~12,800** | 9,800 全 zh + 3k 弹性                |                                  |
 
 - zh 工作量：9.8k ÷ 0.77 yield ≈ 12.7k 次尝试 ≈ **9.6 天 @j10** —— promo 内余量充足，scale 层 zh 可吃到 ~13k 全 zh（12.8d）仍有余。
 - 磁盘：P3 政策下 13k ≈ **107G**，须先回收 quarantine 14G + backups 6.5G 才宽松；安全阀 = scale 降到 2k。

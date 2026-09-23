@@ -20,20 +20,20 @@ papers.cool（Cool Papers - Immersive Paper Discovery）是苏剑林（bojone，
 
 ## 协议面（全部无鉴权、无 CORS 限制、实测无限流）
 
-| 端点 | 实测结果 |
-| --- | --- |
-| `GET /arxiv/{cat}` | 分类列表页。`cat` 支持集合语法：`cs.CL,cs.CV`（并）、`cs.CL+cs.CV-cs.NE`（交 + 差，实测 Total: 224）。参数：`?date=YYYY-MM-DD` 历史日历（2024-01 起）、`?show=N` 页大小（show=100 实测出 100 条）、`?skip=N` 分页、`?sort=0`(date)/`1`(stars)/`词,词`(prefer)、`?query=` 页内过滤 |
-| `GET /arxiv/{id[,id2,...]}` | 论文详情页；多 ID 逗号聚合（实测 2 篇同页）；容忍 `v7` 版本后缀；无效 ID 返 200 空页 |
-| `GET /{arxiv,venue}/search?query=` | tantivy 搜索，SSR HTML 25 条/页，`Total: 1000` 封顶，`?highlight=1` 高亮 |
-| `GET /{path}/feed` | 任意页 + `/feed` 出 Atom（分类/venue/search 均支持，search feed 带 `?query=`） |
-| `GET /{b}/kimi?paper={id}` | **取缓存 FAQ**：命中即整包返回（22KB，0.2s）；全新未生成论文 500「Unhandled exception」；生成过但无人消费完的论文会**重新流式生成** |
-| `POST /{b}/kimi?paper={id}` | **生成或取缓存**：命中同上；未命中则入全局 FIFO 队列，轮到时开始**流式吐 markdown**（XHR onprogress 边收边渲染，实测生成速度 ~65B/s ≈ LLM token 流，完整 FAQ 需挂住连接约 5 分钟） |
-| `GET /{b}/progress?paper={id}` | 生成状态机：浮点 `0`=未开始、`-N`=**全局队列位次**（实测 -4→-1 逐位消化，单篇约 1-3min）、`0<p<1`=生成进度、`1`=完成 |
-| `POST /{b}/star?key={pdf,kimi,unstar}&paper={id}&delta={±N}` | 公开计数器：POST 增量返回新值；`delta=0` 即免写读取（页上 PDF 1086/Kimi 633 星就是这么来的） |
-| `POST /config` | 表单 `magic_token`+`kimi_lang` → 回 Bottle 签名 cookie（Max-Age 100 万秒），此后请求带上即生效 |
-| `GET /pdf?url={encoded}` | PDF 代理（venue 论文用，pdf.js viewer 的 file 参数）；arxiv URL 正常代理，非白名单域返回 200 空体——**非开放代理** |
-| `/venue/{CONF.YEAR}` `/venue/latest` | 顶会列表，论文 ID 为 `{openreviewId}@OpenReview`；kimi/progress/star/feed 端点与 arxiv 分支同构；**`?sort=0` 在 venue 必 500**（已知 bug，第三方也踩过） |
-| `/biorxiv/*` | 500/404 残余——已下线分支 |
+| 端点                                                         | 实测结果                                                                                                                                                                                                                                                                          |
+| ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /arxiv/{cat}`                                           | 分类列表页。`cat` 支持集合语法：`cs.CL,cs.CV`（并）、`cs.CL+cs.CV-cs.NE`（交 + 差，实测 Total: 224）。参数：`?date=YYYY-MM-DD` 历史日历（2024-01 起）、`?show=N` 页大小（show=100 实测出 100 条）、`?skip=N` 分页、`?sort=0`(date)/`1`(stars)/`词,词`(prefer)、`?query=` 页内过滤 |
+| `GET /arxiv/{id[,id2,...]}`                                  | 论文详情页；多 ID 逗号聚合（实测 2 篇同页）；容忍 `v7` 版本后缀；无效 ID 返 200 空页                                                                                                                                                                                              |
+| `GET /{arxiv,venue}/search?query=`                           | tantivy 搜索，SSR HTML 25 条/页，`Total: 1000` 封顶，`?highlight=1` 高亮                                                                                                                                                                                                          |
+| `GET /{path}/feed`                                           | 任意页 + `/feed` 出 Atom（分类/venue/search 均支持，search feed 带 `?query=`）                                                                                                                                                                                                    |
+| `GET /{b}/kimi?paper={id}`                                   | **取缓存 FAQ**：命中即整包返回（22KB，0.2s）；全新未生成论文 500「Unhandled exception」；生成过但无人消费完的论文会**重新流式生成**                                                                                                                                               |
+| `POST /{b}/kimi?paper={id}`                                  | **生成或取缓存**：命中同上；未命中则入全局 FIFO 队列，轮到时开始**流式吐 markdown**（XHR onprogress 边收边渲染，实测生成速度 ~65B/s ≈ LLM token 流，完整 FAQ 需挂住连接约 5 分钟）                                                                                                |
+| `GET /{b}/progress?paper={id}`                               | 生成状态机：浮点 `0`=未开始、`-N`=**全局队列位次**（实测 -4→-1 逐位消化，单篇约 1-3min）、`0<p<1`=生成进度、`1`=完成                                                                                                                                                              |
+| `POST /{b}/star?key={pdf,kimi,unstar}&paper={id}&delta={±N}` | 公开计数器：POST 增量返回新值；`delta=0` 即免写读取（页上 PDF 1086/Kimi 633 星就是这么来的）                                                                                                                                                                                      |
+| `POST /config`                                               | 表单 `magic_token`+`kimi_lang` → 回 Bottle 签名 cookie（Max-Age 100 万秒），此后请求带上即生效                                                                                                                                                                                    |
+| `GET /pdf?url={encoded}`                                     | PDF 代理（venue 论文用，pdf.js viewer 的 file 参数）；arxiv URL 正常代理，非白名单域返回 200 空体——**非开放代理**                                                                                                                                                                 |
+| `/venue/{CONF.YEAR}` `/venue/latest`                         | 顶会列表，论文 ID 为 `{openreviewId}@OpenReview`；kimi/progress/star/feed 端点与 arxiv 分支同构；**`?sort=0` 在 venue 必 500**（已知 bug，第三方也踩过）                                                                                                                          |
+| `/biorxiv/*`                                                 | 500/404 残余——已下线分支                                                                                                                                                                                                                                                          |
 
 ## Kimi 链路（核心价值所在）
 

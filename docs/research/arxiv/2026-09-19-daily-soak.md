@@ -10,10 +10,10 @@
 
 `rss.arxiv.org/rss/{archive}` 按**公告日**给出全量条目，一次拉取即得枚举所需全部字段，无需二次元数据调用。2026-09-18（周五公告日）实测：
 
-| 频道        | 总条目 | new | cross | replace | replace-cross |
-| ----------- | ------ | --- | ----- | ------- | ------------- |
-| /rss/cs     | 1205   | 748 | 78    | 333     | 46            |
-| /rss/math   | 723    | 396 | 57    | 231     | 39            |
+| 频道      | 总条目 | new | cross | replace | replace-cross |
+| --------- | ------ | --- | ----- | ------- | ------------- |
+| /rss/cs   | 1205   | 748 | 78    | 333     | 46            |
+| /rss/math | 723    | 396 | 57    | 231     | 39            |
 
 - **item 字段全齐**：`guid = oai:arXiv.org:{id}v{N}`（带版本）、`<category>` 列出全部类目（主+副）、`announce_type` 四值、`dc:rights` 许可、`dc:creator` 作者、标题+摘要。v1 ⇔ new/cross，v2+ ⇔ replace/replace-cross（实测 825v1 = 826 new+cross，误差 1 为计数粒度）。
 - **cs+math 并集去重后：new+cross = 1192 篇/日**，replace 系 592 篇/日（版本更新，默认不抓，可开关）。并集横跨 116 个类目——primary 在别库、cross 进 cs/math 的论文也计入（正是「相关」语义）。
@@ -68,4 +68,5 @@ TEXLATE_CORPUS=bench/corpus_daily stagerun ingest --layers {date}
 ### 参考文献
 
 [^arxiv-bulk]: arXiv. Bulk Data Access——export.arxiv.org 为指定抓取站、"play catch-up between bucket updates" 明示许可. info.arxiv.org. [help/bulk_data](https://info.arxiv.org/help/bulk_data.html)
+
 [^sanity-issue80]: arxiv-sanity 运维报告——~1200 篇连续抓取后全站 403 denied.html，~20min 自动解封. GitHub. [karpathy/arxiv-sanity-preserver#80](https://github.com/karpathy/arxiv-sanity-preserver/issues/80)

@@ -7,12 +7,12 @@
 
 阅读器暗色化不是 UI 换肤问题——PDF canvas 是绘制产物，`data-theme` 换 CSS token 动不了 canvas 里的像素。候选四条路线：
 
-| 路线 | 机制 | 代表 |
-| --- | --- | --- |
-| CSS filter | 合成层 `invert + hue-rotate` 后处理 | Chrome 扩展 Dark Reader、旧实现 |
-| pdf.js pageColors | 渲染后 SVG 滤镜 `feComponentTransfer` 离散重映射（fg→bg 六阶 ramp 双色调） | pdf.js ≥5.x 原生 `addHCMFilter` |
-| Blender | 渲染期拦 `fillStyle/strokeStyle/fillText/drawImage` 逐图元改色（Lab 空间） | Zotero reader（pdf.js fork 内置） |
-| 服务端重排 | 编译期注入配色 | 不在候选（破坏产物钉版语义） |
+| 路线              | 机制                                                                       | 代表                              |
+| ----------------- | -------------------------------------------------------------------------- | --------------------------------- |
+| CSS filter        | 合成层 `invert + hue-rotate` 后处理                                        | Chrome 扩展 Dark Reader、旧实现   |
+| pdf.js pageColors | 渲染后 SVG 滤镜 `feComponentTransfer` 离散重映射（fg→bg 六阶 ramp 双色调） | pdf.js ≥5.x 原生 `addHCMFilter`   |
+| Blender           | 渲染期拦 `fillStyle/strokeStyle/fillText/drawImage` 逐图元改色（Lab 空间） | Zotero reader（pdf.js fork 内置） |
+| 服务端重排        | 编译期注入配色                                                             | 不在候选（破坏产物钉版语义）      |
 
 ## 2. Zotero Blender 算法拆解
 
@@ -41,13 +41,13 @@ Zotero 的 pdf.js fork 在每个页面 ctx 实例上 `defineProperty` 拦 `fillS
 
 实验台 `tmp/pdf-theme-lab/`（playwright 驱动，4 PDF × 6 页 × 4 变体，`renderOnce` 口径，~1300×1700px 页）：
 
-| 变体 | 机制 | 每页增量 | 效果判定 |
-| --- | --- | --- | --- |
-| none | 基线渲染 12–18ms | — | 白底原色 |
-| css | `filter: invert(0.94) hue-rotate(180deg) sepia(0.18) brightness(0.96)` | **+0ms**（合成层免费） | 彩色近似保 hue（hue-rotate 在 sRGB 是近似）；图片负片化不可接受；无分类能力 |
-| hcm | pageColors → `addHCMFilter` | **+1.2–2.9ms**/页（后处理 pass） | 精确落色板但双色调：彩色全灭；pdfslick bug 需另修 |
-| hcmcss | pageColors + 外圈 CSS filter 补 | +0ms 增量（复用 hcm pass） | 同上，仍双色调 |
-| blender | 图元拦截 + Lab 改色 + 图像分类 | **10–63ms**/页（图片页 getImageData 回读尖峰：实测 21 次回读 = 39ms） | 中性色精确落板；彩色 Lab 保 hue；图像按类分治（照片保色/扫描件反色/公式图替换）；文字局部底色感知 |
+| 变体    | 机制                                                                   | 每页增量                                                              | 效果判定                                                                                          |
+| ------- | ---------------------------------------------------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| none    | 基线渲染 12–18ms                                                       | —                                                                     | 白底原色                                                                                          |
+| css     | `filter: invert(0.94) hue-rotate(180deg) sepia(0.18) brightness(0.96)` | **+0ms**（合成层免费）                                                | 彩色近似保 hue（hue-rotate 在 sRGB 是近似）；图片负片化不可接受；无分类能力                       |
+| hcm     | pageColors → `addHCMFilter`                                            | **+1.2–2.9ms**/页（后处理 pass）                                      | 精确落色板但双色调：彩色全灭；pdfslick bug 需另修                                                 |
+| hcmcss  | pageColors + 外圈 CSS filter 补                                        | +0ms 增量（复用 hcm pass）                                            | 同上，仍双色调                                                                                    |
+| blender | 图元拦截 + Lab 改色 + 图像分类                                         | **10–63ms**/页（图片页 getImageData 回读尖峰：实测 21 次回读 = 39ms） | 中性色精确落板；彩色 Lab 保 hue；图像按类分治（照片保色/扫描件反色/公式图替换）；文字局部底色感知 |
 
 主题切换耗时四管线同量级（~26ms ≈ 2 rAF）——切换成本在 reset+重渲调度，不在改色算法本身。
 
@@ -58,8 +58,8 @@ Zotero 的 pdf.js fork 在每个页面 ctx 实例上 `defineProperty` 拦 `fillS
 1. **钩点**：`PDFPageProxy` 不从 pdf.min.mjs 导出 → 原型补丁不可行；`HTMLCanvasElement.getContext` 全局补丁会把 Blender 自身分析 canvas 与 pdf.js 内部 scratch canvas 也套住（递归 + ~330ms 冷启动膨胀）。正解是**实例级 `pdfPage.render` 补丁**；再升级为 **`document.getPage` 补丁**——viewer/缩略图/懒取页共享同一 PDFPageProxy 产线，根除「`_pages[i].pdfPage` 懒赋值晚于扫描时机」的时序洞（实测：`_pages` 就位时 `pdfPage` 字段尚空，view 级扫描全漏）。
 2. **render 参数签名漂移**：pdf.js 6.x 主路是 `params.canvas`（元素，内部自取 `getContext("2d")`），`params.canvasContext` 为旧签名——拦 `canvasContext` 读空是首发事故根因；`canvas.getContext("2d")` 返回同一 ctx 实例，拿来即套。
 3. **Color 实现两坑**（TS 重写时引入，均经实测定因）：
-   - `new Color(labArray,"lab")` 后兜底 `_rgb ??= [0,0,0]` 无条件执行 → lab 色全部压黑（gradient 恒黑、整页漆黑的根因）——兜底必须只在字符串解析路径生效；
-   - `rgb(r,g,b)` 三分量串 `parseRGBA` 读 `parts[3]` 得 NaN → `toHex` 拼出 `#RRGGBBNaN` 非法串被 canvas 静默忽略（fillStyle 保持默认黑）——alpha 缺省必须归一为 1。
+    - `new Color(labArray,"lab")` 后兜底 `_rgb ??= [0,0,0]` 无条件执行 → lab 色全部压黑（gradient 恒黑、整页漆黑的根因）——兜底必须只在字符串解析路径生效；
+    - `rgb(r,g,b)` 三分量串 `parseRGBA` 读 `parts[3]` 得 NaN → `toHex` 拼出 `#RRGGBBNaN` 非法串被 canvas 静默忽略（fillStyle 保持默认黑）——alpha 缺省必须归一为 1。
 
 ## 6. 性能账与取舍
 

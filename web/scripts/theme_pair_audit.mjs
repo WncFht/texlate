@@ -23,7 +23,16 @@ if (!existsSync(EXE)) throw new Error(`no chromium at ${EXE}`);
 const SHOTS = new URL("./shots/", import.meta.url).pathname;
 mkdirSync(SHOTS, { recursive: true });
 
-const THEMES = ["auto", "none", "dark", "onedark", "black", "snow", "sepia", "paper"];
+const THEMES = [
+    "auto",
+    "none",
+    "dark",
+    "onedark",
+    "black",
+    "snow",
+    "sepia",
+    "paper",
+];
 const OS_DARK = process.env.OS_DARK !== "0"; // 默认模拟暗 OS(auto/none 才有戏)
 
 const PROBE = `(() => {

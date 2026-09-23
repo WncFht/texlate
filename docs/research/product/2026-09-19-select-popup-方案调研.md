@@ -10,12 +10,12 @@ web/ 原有 10 处原生 `<select>`（Settings 8、Home 1、Toolbar zoom 1）。
 
 ## 支持矩阵（2026-09-19 时点）
 
-| 引擎 | `appearance: base-select` | 备注 |
-|---|---|---|
-| Chrome/Edge | 135+（2025-03 稳定） | Finch 实验已收尾转正 |
-| Safari | 27（2026-09 随系统发布）[^webkit27][^wwdc26] | UA 默认含圆角/阴影/checkmark/暗色 |
-| Firefox | 149+ 分支已落地[^fx-base]，藏 `dom.select.customizable_select.enabled` | 2026-09-07 立 bug 2069977[^fx-nightly] 拟 Nightly 默认开启，预计 Release 2027 Q1–Q2 |
-| anchor positioning | Chrome 125+/Safari 26+/Firefox 147+[^fx-anchor] | 三引擎齐；Firefox 不支持 `position-try-order`，用 flip-* 配方 |
+| 引擎               | `appearance: base-select`                                              | 备注                                                                                |
+| ------------------ | ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| Chrome/Edge        | 135+（2025-03 稳定）                                                   | Finch 实验已收尾转正                                                                |
+| Safari             | 27（2026-09 随系统发布）[^webkit27][^wwdc26]                           | UA 默认含圆角/阴影/checkmark/暗色                                                   |
+| Firefox            | 149+ 分支已落地[^fx-base]，藏 `dom.select.customizable_select.enabled` | 2026-09-07 立 bug 2069977[^fx-nightly] 拟 Nightly 默认开启，预计 Release 2027 Q1–Q2 |
+| anchor positioning | Chrome 125+/Safari 26+/Firefox 147+[^fx-anchor]                        | 三引擎齐；Firefox 不支持 `position-try-order`，用 flip-* 配方                       |
 
 MDN/BCD 的"不支持"标注滞后于实装——有开发者实测 Firefox 150.0.1 开启 flag 后可用[^bcd-issue]。
 

@@ -60,10 +60,17 @@ API 面全部免鉴权：`POST /openalex/query/{W-id}?prune={n}` 建图+SQL（�
 ### 参考文献
 
 [^about]: Inciteful. About Inciteful（2026-09-19 实测提取）. incitefulmed.com/academic/about
+
 [^pde]: Inciteful. Paper Discovery Explained. inciteful-academic-docs repo. [raw.githubusercontent.com](https://raw.githubusercontent.com/inciteful-xyz/inciteful-academic-docs/master/paper-disovery-explained.md)
+
 [^pu]: Inciteful. Power Users (SQL schema + filters). inciteful-academic-docs repo. [raw.githubusercontent.com](https://raw.githubusercontent.com/inciteful-xyz/inciteful-academic-docs/master/power-users.md)
+
 [^lcd]: Inciteful. Literature Connector Explained. inciteful-academic-docs repo. [raw.githubusercontent.com](https://raw.githubusercontent.com/inciteful-xyz/inciteful-academic-docs/master/literature-connector-explained.md)
+
 [^istl]: Issues in Science and Technology Librarianship. Citation Network Based Research Discovery Using Inciteful. [journals.library.ualberta.ca](https://journals.library.ualberta.ca/istl/index.php/istl/article/download/2974/2860?inline=1)
+
 [^substack]: Erika@Inciteful Med. Welcome to Informed Consent. [incitefulmed.substack.com](https://incitefulmed.substack.com/p/welcome-to-informed-consent)
+
 [^gh]: GitHub. inciteful-xyz organization repositories. [github.com/inciteful-xyz](https://github.com/inciteful-xyz)
+
 [^mcp]: inciteful-xyz. inciteful-mcp README. [github.com/inciteful-xyz/inciteful-mcp](https://github.com/inciteful-xyz/inciteful-mcp)

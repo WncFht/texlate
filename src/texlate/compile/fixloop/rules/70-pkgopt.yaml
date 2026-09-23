@@ -943,8 +943,7 @@ rules:
         exts: [.tex, .sty, .cls]
         rewrites:
           # 一趟剥各 bracket 首个 \if 块; 别名同形条目串行剥 ≤6 块
-          - &optlist_cond_hoist_rw
-            {
+          - &optlist_cond_hoist_rw {
               pattern: "(\\\\(?:usepackage|RequirePackage)\\s*\\[)([^\\]\\\\]*?)\\\\(if[a-zA-Z@]+(?:(?:\\\\[a-zA-Z@]*|[=<>0-9.'`+\"\\-]|[ \\t])*?)?)[ \\t]*\\r?\\n\\s*((?:(?!\\\\(?:if|else|fi)[a-zA-Z@]*)[^{}]|\\{[^{}]*\\})*?)\\s*(?:\\\\else(?![a-zA-Z@])\\s*((?:(?!\\\\(?:if|else|fi)[a-zA-Z@]*)[^{}]|\\{[^{}]*\\})*?)\\s*)?\\\\fi(?![a-zA-Z@])[ \\t]*,?[ \\t]*\\r?\\n?(?=[^\\]]*\\]\\s*\\{([^{}\\n]+)\\})",
               repl: "\\\\\\g<3>\n\\\\PassOptionsToPackage{\\g<4>}{\\g<6>}\n\\\\else\n\\\\PassOptionsToPackage{\\g<5>}{\\g<6>}\n\\\\fi\n\\g<1>\\g<2>",
               match_surface: masked,

@@ -54,4 +54,5 @@
 ### 参考文献
 
 [^unified-latex]: unified-latex. unified-latex-ctan — CTAN macro/environment signatures for unified-latex (1.8.4). GitHub. [github.com/siefkenj/unified-latex](https://github.com/siefkenj/unified-latex)
+
 [^latex-utensils]: texlab & contributors. latex-utensils — LaTeX parsing utilities (latex.pegjs grammar). GitHub. [github.com/latex-lsp/latex-utensils](https://github.com/latex-lsp/latex-utensils)

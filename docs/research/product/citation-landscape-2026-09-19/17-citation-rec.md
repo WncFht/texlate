@@ -50,27 +50,51 @@ Beel et al. 2016（200+ 篇综述）：推荐方法分布**内容过滤 55%/协�
 ### 参考文献
 
 [^kessler63]: Kessler, M.M. Bibliographic coupling between scientific papers. American Documentation 14(1):10-25, 1963. [doi.org/10.1002/asi.5090140103](https://doi.org/10.1002/asi.5090140103)
+
 [^small73]: Small, H. Co-citation in the scientific literature. JASIS 24(4):265-269, 1973. [doi.org/10.1002/asi.4630240406](https://doi.org/10.1002/asi.4630240406)
+
 [^marshakova73]: Marshakova, I.V. System of document connections based on references. 1973. [en.wikipedia.org/wiki/Co-citation](https://en.wikipedia.org/wiki/Co-citation)
+
 [^relrec]: Garfield, E. Related Records / ISI 实践. [clarivate.com](https://clarivate.com/academia-government/scientific-and-academic-research/research-discovery-and-workflow-solutions/webofscience-platform/)
+
 [^boyack10]: Boyack, K.W. & Klavans, R. Co-citation analysis, bibliographic coupling, and direct citation. JASIST 61(12):2389-2404, 2010. [doi.org/10.1002/asi.21419](https://doi.org/10.1002/asi.21419)
+
 [^shibata09]: Shibata, N. et al. Detecting emerging research fronts based on topological measures. JASIST 60(3):571-580, 2009. [doi.org/10.1002/asi.21030](https://doi.org/10.1002/asi.21030)
+
 [^beel16]: Beel, J. et al. Research-paper recommender systems: a literature survey. IJDL 17(4):305-338, 2016. [doi.org/10.1007/s00799-015-0156-0](https://doi.org/10.1007/s00799-015-0156-0)
+
 [^farber20]: Färber, M. & Jatowt, A. Citation recommendation: approaches and datasets. IJDL 2020. [arxiv.org/abs/2002.06961](https://arxiv.org/abs/2002.06961)
+
 [^bethard10]: Bethard, S. & Jurafsky, D. Who should I cite. CIKM 2010. [doi.org/10.1145/1871437.1871517](https://doi.org/10.1145/1871437.1871517)
+
 [^gipp09]: Gipp, B. & Beel, J. Citation Proximity Analysis (CPA). ISSI 2009. [gipp.com](https://www.gipp.com/pub/issi09_gipp_beel.pdf)
+
 [^teufel06]: Teufel, S. et al. Automatic classification of citation function. EMNLP 2006. [aclanthology.org/W06-1613](https://aclanthology.org/W06-1613/)
+
 [^jurgens18]: Jurgens, D. et al. Measuring the evolution of a scientific field through citation frames. TACL 6:391-406, 2018. [aclanthology.org/Q18-1028](https://aclanthology.org/Q18-1028/)
+
 [^valenzuela15]: Valenzuela, M., Ha, V. & Etzioni, O. Identifying meaningful citations. AAAI Workshop 2015. [aaai.org](https://aaai.org/ocs/index.php/WS/AAAIW15/paper/view/10185)
+
 [^pride17]: Pride, D. & Knoth, P. Incidental or influential? ISSI 2017. [oro.open.ac.uk/50405](https://oro.open.ac.uk/50405/)
+
 [^chen07]: Chen, P. et al. Finding scientific gems with Google's PageRank algorithm. Journal of Informetrics 1(1):8-15, 2007.
+
 [^walker07]: Walker, D. et al. Ranking scientific publications using a model of network traffic (CiteRank). JSTAT P06010, 2007.
+
 [^liwillett09]: Li, J. & Willett, P. ArticleRank. Aslib Proceedings 61(6):605-618, 2009.
+
 [^radicchi08]: Radicchi, F. et al. Universality of citation distributions. PNAS 105(45):17268-17272, 2008.
+
 [^hutchins16]: Hutchins, B.I., Yuan, X., Anderson, J.M. & Santangelo, G.M. Relative Citation Ratio (RCR): A new metric that uses citation rates to measure influence at the article level. PLoS Biology 14(9):e1002541, 2016. [doi.org/10.1371/journal.pbio.1002541](https://doi.org/10.1371/journal.pbio.1002541)
+
 [^hutchins19]: Hutchins, B.I. et al. The NIH Open Citation Collection: A public access, broad coverage resource. PLoS Biology 17(10):e3000385, 2019. [doi.org/10.1371/journal.pbio.3000385](https://doi.org/10.1371/journal.pbio.3000385)
+
 [^kacem20]: Kacem, A., Flatt, J.W. & Mayr, P. Tracking self-citations in academic publishing. Scientometrics 123:1157-1165, 2020.
+
 [^szomszor20]: Szomszor, M., Pendlebury, D.A. & Adams, J.（Clarivate）. How much is too much? Scientometrics 2020. [doi.org/10.1007/s11192-020-03417-5](https://doi.org/10.1007/s11192-020-03417-5)
+
 [^wilhite12]: Wilhite, A.W. & Fong, E.A. Coercive citation in academic publishing. Science 335(6068):542-543, 2012.
+
 [^unarxive]: Saier, T. & Färber, M. unarXive. Scientometrics 125:3085-3108, 2020（2022 更新）. [doi.org/10.1007/s11192-020-03382-z](https://doi.org/10.1007/s11192-020-03382-z)
+
 [^bhag18]: Bhagavatula, C. et al. Content-based citation recommendation (Citeomatic). NAACL 2018. [aclanthology.org/N18-1022](https://aclanthology.org/N18-1022/)

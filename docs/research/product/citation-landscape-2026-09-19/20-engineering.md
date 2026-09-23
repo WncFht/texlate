@@ -18,12 +18,12 @@
 
 **档二：全图（~2.4B 边、2-3.3 亿节点）**。边存储：u64 ~38GB、u32（OpenAlex ID→int 映射）~20GB、parquet ~15-25GB、CSR u32 **~10-20GB**。处理：745GB jsonl 解压抽 (id, referenced_works) 两列单机估 4-10h（PySpark/Ray 可压到 1h 内）。
 
-| 形态 | 2.4B 边存储 | 一跳邻接查询 | 适用 |
-| --- | --- | --- | --- |
-| parquet + DuckDB | ~20GB | ~10-50ms | 离线批算、冷数据 |
-| SQLite（边表+索引） | ~30-40GB | ~1-5ms | 轻量在线、单写 |
-| 内存 CSR | ~10-20GB RAM | ~µs 级 | 在线服务热路径 |
-| Neo4j/Nebula | 150-300+GB | ~ms | 多跳图算法才值——本场景用不上 |
+| 形态                | 2.4B 边存储  | 一跳邻接查询 | 适用                         |
+| ------------------- | ------------ | ------------ | ---------------------------- |
+| parquet + DuckDB    | ~20GB        | ~10-50ms     | 离线批算、冷数据             |
+| SQLite（边表+索引） | ~30-40GB     | ~1-5ms       | 轻量在线、单写               |
+| 内存 CSR            | ~10-20GB RAM | ~µs 级       | 在线服务热路径               |
+| Neo4j/Nebula        | 150-300+GB   | ~ms          | 多跳图算法才值——本场景用不上 |
 
 **结论先行：不要上 Neo4j**——这个规模的邻接遍历用 CSR/DuckDB 便宜两个数量级。
 
@@ -35,14 +35,14 @@
 
 ## 三条路线成本模型
 
-| 项 | A 全自建 | B 全骑托管 API | C 混合 |
-| --- | --- | --- | --- |
-| 数据获取 | OpenAlex 快照 745GB 免费 + S2 datasets | 零下载 | OpenAlex 快照一次性+API 补长尾 |
-| 一次性算力 | 解压抽边 4-10h+topK 批算数小时（单机） | — | 同 A 左 |
-| 覆盖 316 万 arXiv backfill | 天然全覆盖 | OpenAlex 10 万 req/日→**~32 天**；S2 无 key 不可用 | 热数据全覆盖+冷启动 API |
-| 月运行 | $40-80 VPS | $0（速率内）但受配额绑死 | $40-80 VPS |
-| 更新 | 季度快照重导或 API diff | 自动 | 季度重导+API 增量 |
-| 风险 | 数据新鲜度=快照节奏 | 对方改算法/限流/停服即死 | 主要继承 A 的风险 |
+| 项                         | A 全自建                               | B 全骑托管 API                                     | C 混合                         |
+| -------------------------- | -------------------------------------- | -------------------------------------------------- | ------------------------------ |
+| 数据获取                   | OpenAlex 快照 745GB 免费 + S2 datasets | 零下载                                             | OpenAlex 快照一次性+API 补长尾 |
+| 一次性算力                 | 解压抽边 4-10h+topK 批算数小时（单机） | —                                                  | 同 A 左                        |
+| 覆盖 316 万 arXiv backfill | 天然全覆盖                             | OpenAlex 10 万 req/日→**~32 天**；S2 无 key 不可用 | 热数据全覆盖+冷启动 API        |
+| 月运行                     | $40-80 VPS                             | $0（速率内）但受配额绑死                           | $40-80 VPS                     |
+| 更新                       | 季度快照重导或 API diff                | 自动                                               | 季度重导+API 增量              |
+| 风险                       | 数据新鲜度=快照节奏                    | 对方改算法/限流/停服即死                           | 主要继承 A 的风险              |
 
 两个加分项：**LaTeX 自抽边的增量价值**——OpenAlex/S2 对 arXiv 新论文与被引匹配有 1-2 周+滞后，手里有 LaTeX 源可立刻产出出边（`.bbl`/`\bibitem` 解析），把「新论文无 similar」窗口从数周压到零，估算每篇抽取成本 <0.1 CPU·s；**OpenAlex `updated_date` 分区**——季度增量同步只需拉变更分区 ~几十 GB，不用全量重下。
 
@@ -60,9 +60,15 @@ arXiv 子图是单机问题，全图也只是一台大内存机器的问题；�
 ### 参考文献
 
 [^oa-manifest]: OurResearch. OpenAlex JSONL snapshot manifest（2026-06-26 release，s3://openalex 实测拉取）.
+
 [^oa-dl]: OpenAlex. Snapshot – Access & authentication. [help.openalex.org/access/snapshot](https://help.openalex.org/access/snapshot/)
+
 [^oa-limits]: OpenAlex. Rate limits and polite pool（响应头实测 2026-09-19）. [docs.openalex.org](https://docs.openalex.org/)
+
 [^s2-datasets]: Semantic Scholar. Academic Graph Datasets release 2026-09-17（实测）. [api.semanticscholar.org/datasets/v1](https://api.semanticscholar.org/datasets/v1/release/latest)
+
 [^arxiv-stats]: arXiv. Monthly submissions（截至 2026-09-03 共 3,157,829 篇）. [arxiv.org/stats/monthly_submissions](https://arxiv.org/stats/monthly_submissions)
+
 [^arxiv-s3]: arXiv. Full Text via S3. [info.arxiv.org/help/bulk_data_s3.html](https://info.arxiv.org/help/bulk_data_s3.html)
+
 [^arxiv-bulk]: arXiv. Bulk Data Access. [info.arxiv.org/help/bulk_data.html](https://info.arxiv.org/help/bulk_data.html)

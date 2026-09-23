@@ -14,26 +14,26 @@
 
 第二轮对修复后整树复审，汇总件 `tmp/jr_wf_7b0ace3b-589.txt` 共 94 条（13 fatal / 43 major / 30 minor / 8 note），按车道：
 
-| 车道 | 总数 | fatal | major | minor | note |
-| --- | --- | --- | --- | --- | --- |
-| ids/import/export/events（A 面） | 27 | 3 | 13 | 8 | 3 |
-| ids/import/export/events（B 面） | 21 | 2 | 11 | 6 | 2 |
-| durability（封存/水位/cas/lake 竞态） | 18 | 3 | 7 | 7 | 1 |
-| paid path（dedup/claims/locks/paid/kernel） | 18 | 3 | 9 | 6 | 0 |
-| 契约测试作者 | 2 | 0 | 2 | 0 | 0 |
-| 集成测试作者 | 8 | 2 | 1 | 3 | 2 |
+| 车道                                        | 总数 | fatal | major | minor | note |
+| ------------------------------------------- | ---- | ----- | ----- | ----- | ---- |
+| ids/import/export/events（A 面）            | 27   | 3     | 13    | 8     | 3    |
+| ids/import/export/events（B 面）            | 21   | 2     | 11    | 6     | 2    |
+| durability（封存/水位/cas/lake 竞态）       | 18   | 3     | 7     | 7     | 1    |
+| paid path（dedup/claims/locks/paid/kernel） | 18   | 3     | 9     | 6     | 0    |
+| 契约测试作者                                | 2    | 0     | 2     | 0     | 0    |
+| 集成测试作者                                | 8    | 2     | 1     | 3     | 2    |
 
 ## 裁决提交
 
-| 提交 | 覆盖车道 | 要点 |
-| --- | --- | --- |
-| `76dc3341` | round-1 ids-import | 事件白名单全域化、redact 补漏（dict 键/顶层字段/quar id/auth 名）、canon 大小写与旧式尾号、export 字符集过滤、eval 车道接通 |
-| `bb78edff` | round-1 paid/dedup | oracle 按 kind 裁决（altseq 感知+tombstone 通配）、harvest 全终态封存 mutates 树、paid_pool 强制 stage 过滤 |
-| `147e6766` | round-1 paid-path | paid 格 records dedup 全让位 oracle、claim lease 中格不释、客户端私有化、dedup_key 重映射编译期拒 |
-| `b7a7dd07` | round-2 paid-path | claims 表按 slot 复用分流（观察镜像 vs 生命周期）、claim 延迟释放灭再烧窗、probe 计配额、cell lock 移出工作树、oracle 封存追赶 |
-| `c203c1e6` | round-2 durability | index 回放封存段（raw 优先、zst 须验证）、水位绑 inode 防轮转混叠、scanback 跨段、lake/cas 锁竞态、mtree 符号链接入验 |
-| `56a13b12` | round-2 ids-import | minted canon 归一（混档/改名 archive 共享 idc）、事件按型别严校验、`$blob` 标记严形+sha 回验、`_safe_name` 单射编码、mint_run_seq 拒共享 shard |
-| `5254b776` | round-2 seal-wiring | 封存机制曾悬空——读侧正确但无调用者；sweep 全 pass 接管 §3.10.5 双触发轮转 + `seal_gc(ingested=)` 水位腿（无 index 时宁留不删） |
+| 提交       | 覆盖车道            | 要点                                                                                                                                           |
+| ---------- | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `76dc3341` | round-1 ids-import  | 事件白名单全域化、redact 补漏（dict 键/顶层字段/quar id/auth 名）、canon 大小写与旧式尾号、export 字符集过滤、eval 车道接通                    |
+| `bb78edff` | round-1 paid/dedup  | oracle 按 kind 裁决（altseq 感知+tombstone 通配）、harvest 全终态封存 mutates 树、paid_pool 强制 stage 过滤                                    |
+| `147e6766` | round-1 paid-path   | paid 格 records dedup 全让位 oracle、claim lease 中格不释、客户端私有化、dedup_key 重映射编译期拒                                              |
+| `b7a7dd07` | round-2 paid-path   | claims 表按 slot 复用分流（观察镜像 vs 生命周期）、claim 延迟释放灭再烧窗、probe 计配额、cell lock 移出工作树、oracle 封存追赶                 |
+| `c203c1e6` | round-2 durability  | index 回放封存段（raw 优先、zst 须验证）、水位绑 inode 防轮转混叠、scanback 跨段、lake/cas 锁竞态、mtree 符号链接入验                          |
+| `56a13b12` | round-2 ids-import  | minted canon 归一（混档/改名 archive 共享 idc）、事件按型别严校验、`$blob` 标记严形+sha 回验、`_safe_name` 单射编码、mint_run_seq 拒共享 shard |
+| `5254b776` | round-2 seal-wiring | 封存机制曾悬空——读侧正确但无调用者；sweep 全 pass 接管 §3.10.5 双触发轮转 + `seal_gc(ingested=)` 水位腿（无 index 时宁留不删）                 |
 
 ## 代表性已修缺陷
 

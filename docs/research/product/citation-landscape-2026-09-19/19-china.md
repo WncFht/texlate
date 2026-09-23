@@ -41,23 +41,43 @@ OAG v3.3 是今天就能开始下载的第三数据源（与 OpenAlex/S2 同级�
 ### 参考文献
 
 [^arnetminer]: Tang et al. ArnetMiner: Extraction and Mining of Academic Social Networks. KDD 2008. [dl.acm.org](https://dl.acm.org/doi/10.1145/1401890.1402008)
+
 [^wsdm16]: Tang. AMiner: Toward Understanding Big Scholar Data. WSDM 2016. [keg.cs.tsinghua.edu.cn](https://keg.cs.tsinghua.edu.cn/persons/jietang/publications/WSDM16-Tang-AMiner.pdf)
+
 [^kdd19]: Zhang et al. OAG: Toward Linking Large-scale Heterogeneous Entity Graphs. KDD 2019. [dl.acm.org](https://dl.acm.org/doi/10.1145/3292500.3330785)
+
 [^aminer-about]: AMiner. About AMiner. 2026. [aminer.cn](https://www.aminer.cn/aboutus/en-US/about)
+
 [^aminer-upgrade]: AMiner. AMiner 全面升级. 2026. [aminer.cn](https://www.aminer.cn/aboutus/zh-CN/articles/68d0e8cf0bdaf175736bca8e)
+
 [^aminer-openapi]: AMiner. AMiner 开放平台. 2023. [aminer.cn](https://www.aminer.cn/aboutus/zh-CN/articles/655733362ab17a07228377c5)
+
 [^aminer-pricing]: AMiner. 开放平台 API 文档. [open.aminer.cn](https://open.aminer.cn/open/docs)
+
 [^aminer-skill]: AMiner Open Platform API Complete Reference（社区整理）. [github.com](https://github.com/AI-SOIL-Lab/AIRA-Skill/blob/master/skills/aminer-data-search/references/api-catalog.md)
+
 [^oag-group]: Open Academic Graph Google Group. [groups.google.com](https://groups.google.com/g/open-academic-graph)
+
 [^oag21]: AMiner. OAG 2.1 下载页. [old.aminer.cn](https://old.aminer.cn/oag-2-1/oag-2-1)
+
 [^oag32]: AMiner. OAG 3.2 article（实测 2026-09-19）. [open.aminer.cn](https://open.aminer.cn/open/article?id=67aaf63af4cbd12984b6a5f0)
+
 [^oag33]: AMiner. OAG 3.3 发布页（含 v6 下载直链，实测 2026-09-19）. [aminer.cn](https://www.aminer.cn/aboutus/zh-CN/articles/6aa27e4e675c8612fa63599e)
+
 [^zenodo-mag]: Microsoft Academic Graph 2021-09-13 snapshot. Zenodo. [doi.org/10.5281/zenodo.6511057](https://doi.org/10.5281/zenodo.6511057)
+
 [^mag-openalex]: Scheidsteger et al. Comparison of metadata between MAG and OpenAlex. 2022. [arxiv.org/pdf/2206.14168](https://arxiv.org/pdf/2206.14168)
+
 [^xmol-help]: X-MOL. 怎样设置关键词/作者关注. [x-mol.com](https://www.x-mol.com/article/help/q2016)
+
 [^xmol-qq]: 免费追踪文献的平台，比肩谷歌学术. 腾讯新闻 2021. [news.qq.com](https://news.qq.com/rain/a/20211130A0D1HR00)
+
 [^stork-about]: 文献鸟. 关于文献鸟 Stork. [storkapp.cn](https://www.storkapp.cn/about.php)
+
 [^stork-membership]: 文献鸟. 会员价格页. [storkapp.me](https://www.storkapp.me/marketing/templates/Stork1/membership.php)
+
 [^stork-pro]: 文献鸟. Pro 功能页. [storkapp.cn](https://www.storkapp.cn/marketing/templates/Stork1/pro.php)
+
 [^stork-citenet]: 文献鸟. 文献引用网络功能页. [storkapp.cn](https://www.storkapp.cn/marketing/templates/Stork1/citenet.php)
+
 [^stork-citenet-page]: 文献鸟. 文献引用网络入口页（实测 2026-09-19）. [storkapp.cn](https://www.storkapp.cn/citenet/)

@@ -118,40 +118,40 @@
 
 ## 9. 反面清单（别抄的地方）
 
-| 位置 | 问题 | 评价 |
-| --- | --- | --- |
-| `jobs.py:56-57`、`config.py:18` | import 时 `mkdir`，import 副作用 | texlate 延迟到服务启动 |
-| `jobs.py:139,263` | `Semaphore(1)` 包住整条 pipeline | 全局一次只跑一个 job；texlate worker 用 `asyncio.Queue` 串行任务但不锁段级并发 |
-| `jobs.py:597-598` | 每翻完一段把整个 cache dict 重写一遍 | O(n²) IO；texlate 用 SQLite `translation_cache` 表天然解决 |
-| `config.py:74-80` | tmp 名固定 `.tmp` | 同路径并发写会撞（靠 slot=1 掩盖）；tmp 名应带 uuid |
-| `jobs.py:109-111` | `except(...): pass` 静默吞错 | 至少记 log |
-| `llm.py:221-224` | `redact` 只抹 `sk-*` 和自己的 key | 别家 key 形态照样进日志；texlate `logredact.py` 做 provider 无关脱敏 |
-| `compiler.py:1431` | env 过滤按子串 KEY/TOKEN/SECRET/PASSWORD | 误伤 `MONKEY`/`KEYSTONE` 等；正向做法是白名单 env |
-| `main.py:53-60` | 本地 API 无鉴权，只靠 Origin/Sec-Fetch-Site + TrustedHost | 本机任意进程可 curl `/api/jobs`；texlate server 模式另有 401 鉴权（`server/auth.py`） |
-| `main.py:69-93` | i18n 中间件对每个 `/api` JSON 响应读全 body 重序列化查表翻译 | 英文 UI 依赖后端中文原文不漂移——脆耦合；应返回 error code 由前端翻 |
-| `desktop/package.json` | mac ad-hoc 签名 + `hardenedRuntime:false` | dmg 下载者要绕 Gatekeeper；公发必须正签+公证 |
-| `llm.py:336-347` | 每段请求都带 ~400 词 system prompt | 无 prompt caching 意识；texlate glossary/prompt 设计考虑了前缀缓存命中 |
-| `jobs.py:528-541` | cache 文件按 config hash 命名但永不清理 | `cache-*.json` 无限累积；texlate 需 GC 策略（当前同样遗留） |
-| `config.py:164` | api_key 明文存 settings.json（0600） | BYOK 常态取舍但要承认；texlate 选择 key 不落盘（内存 `Secrets`） |
-| `figure_alignment.py:51-57` | 图形签名用原始压缩字节 | 两次编译 flate 字节不保证一致；应对解码后内容或图像 hash |
-| `PdfReader.tsx`（1200 行） | 单组件巨石：阅读器+批注+同步+持久化 | texlate 前端照 `readerNavigation.ts` 纯函数剥离方式写 |
-| `jobs.py:302-304` | `shutil.rmtree` 直接删目录无软删 | 风险低但重试路径多；texlate 用哨兵文件做段级幂等 |
+| 位置                            | 问题                                                         | 评价                                                                                  |
+| ------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------- |
+| `jobs.py:56-57`、`config.py:18` | import 时 `mkdir`，import 副作用                             | texlate 延迟到服务启动                                                                |
+| `jobs.py:139,263`               | `Semaphore(1)` 包住整条 pipeline                             | 全局一次只跑一个 job；texlate worker 用 `asyncio.Queue` 串行任务但不锁段级并发        |
+| `jobs.py:597-598`               | 每翻完一段把整个 cache dict 重写一遍                         | O(n²) IO；texlate 用 SQLite `translation_cache` 表天然解决                            |
+| `config.py:74-80`               | tmp 名固定 `.tmp`                                            | 同路径并发写会撞（靠 slot=1 掩盖）；tmp 名应带 uuid                                   |
+| `jobs.py:109-111`               | `except(...): pass` 静默吞错                                 | 至少记 log                                                                            |
+| `llm.py:221-224`                | `redact` 只抹 `sk-*` 和自己的 key                            | 别家 key 形态照样进日志；texlate `logredact.py` 做 provider 无关脱敏                  |
+| `compiler.py:1431`              | env 过滤按子串 KEY/TOKEN/SECRET/PASSWORD                     | 误伤 `MONKEY`/`KEYSTONE` 等；正向做法是白名单 env                                     |
+| `main.py:53-60`                 | 本地 API 无鉴权，只靠 Origin/Sec-Fetch-Site + TrustedHost    | 本机任意进程可 curl `/api/jobs`；texlate server 模式另有 401 鉴权（`server/auth.py`） |
+| `main.py:69-93`                 | i18n 中间件对每个 `/api` JSON 响应读全 body 重序列化查表翻译 | 英文 UI 依赖后端中文原文不漂移——脆耦合；应返回 error code 由前端翻                    |
+| `desktop/package.json`          | mac ad-hoc 签名 + `hardenedRuntime:false`                    | dmg 下载者要绕 Gatekeeper；公发必须正签+公证                                          |
+| `llm.py:336-347`                | 每段请求都带 ~400 词 system prompt                           | 无 prompt caching 意识；texlate glossary/prompt 设计考虑了前缀缓存命中                |
+| `jobs.py:528-541`               | cache 文件按 config hash 命名但永不清理                      | `cache-*.json` 无限累积；texlate 需 GC 策略（当前同样遗留）                           |
+| `config.py:164`                 | api_key 明文存 settings.json（0600）                         | BYOK 常态取舍但要承认；texlate 选择 key 不落盘（内存 `Secrets`）                      |
+| `figure_alignment.py:51-57`     | 图形签名用原始压缩字节                                       | 两次编译 flate 字节不保证一致；应对解码后内容或图像 hash                              |
+| `PdfReader.tsx`（1200 行）      | 单组件巨石：阅读器+批注+同步+持久化                          | texlate 前端照 `readerNavigation.ts` 纯函数剥离方式写                                 |
+| `jobs.py:302-304`               | `shutil.rmtree` 直接删目录无软删                             | 风险低但重试路径多；texlate 用哨兵文件做段级幂等                                      |
 
 值得一提的「糙但有担当」：翻译失败的段保留原文并把任务标 `partial` 而非 `failed`，配合 cache 可断点续翻——方向对，texlate 继承此语义（`delivered` 口径）。
 
 ## 附：texlate 复用对照
 
-| texlate 模块 | texglot 源 | 落地形 |
-| --- | --- | --- |
-| 源码归一化 | `compiler.py:344-447` + `sources.py:172-223` visible_tex + 五个前导块 | `compile/normalize.py` + `textutil/mask.py`；条件改写归 fixloop |
-| BYOK provider | `providers.py` + `llm.py:250-256` 方言点 | `xlat/client.py` dialect + `server/providers/`；key 不落盘 |
-| 段缓存 | `latex.py:256-285` + `jobs.py:528-598` + `config.py:74-80` | `translation_cache` 表 + `xlat/state.py` |
-| 对照阅读器 | `alignment.py` + `figure_alignment.py` + `readerNavigation.ts` | `align.py` → `dual.json`；SolidJS 前端 |
-| tectonic 分发 | `install_compiler.py` + `compiler.py:27-48,1121-1128` | 未采纳（非桌面分发形态） |
-| 桌面壳 | `service.cjs` + `build_desktop.py` + electron-builder | 未采纳（roadmap 裁决不做 Electron） |
-| 翻译回路 | `jobs.py:580-611` + `llm.py:378-408` + `latex.py:379-496` + `llm.py:420-571` | `xlat/retry.py` + `validate/l0.py` + `[n]` 批协议 |
-| 编译沙箱 | `compiler.py:928-975` + `:1428-1440` | `compile/sandbox.py` + fixloop caps |
-| 防注入/路径安全 | `compiler.py:896-925` + `sources.py:48-73` | `server/upload.py` 安全解包（底层引擎 `arxiv/unpack.py`）+ `textutil/osutil.py` `safe_resolve`/`safe_is_file`/`safe_is_dir` |
+| texlate 模块    | texglot 源                                                                   | 落地形                                                                                                                      |
+| --------------- | ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| 源码归一化      | `compiler.py:344-447` + `sources.py:172-223` visible_tex + 五个前导块        | `compile/normalize.py` + `textutil/mask.py`；条件改写归 fixloop                                                             |
+| BYOK provider   | `providers.py` + `llm.py:250-256` 方言点                                     | `xlat/client.py` dialect + `server/providers/`；key 不落盘                                                                  |
+| 段缓存          | `latex.py:256-285` + `jobs.py:528-598` + `config.py:74-80`                   | `translation_cache` 表 + `xlat/state.py`                                                                                    |
+| 对照阅读器      | `alignment.py` + `figure_alignment.py` + `readerNavigation.ts`               | `align.py` → `dual.json`；SolidJS 前端                                                                                      |
+| tectonic 分发   | `install_compiler.py` + `compiler.py:27-48,1121-1128`                        | 未采纳（非桌面分发形态）                                                                                                    |
+| 桌面壳          | `service.cjs` + `build_desktop.py` + electron-builder                        | 未采纳（roadmap 裁决不做 Electron）                                                                                         |
+| 翻译回路        | `jobs.py:580-611` + `llm.py:378-408` + `latex.py:379-496` + `llm.py:420-571` | `xlat/retry.py` + `validate/l0.py` + `[n]` 批协议                                                                           |
+| 编译沙箱        | `compiler.py:928-975` + `:1428-1440`                                         | `compile/sandbox.py` + fixloop caps                                                                                         |
+| 防注入/路径安全 | `compiler.py:896-925` + `sources.py:48-73`                                   | `server/upload.py` 安全解包（底层引擎 `arxiv/unpack.py`）+ `textutil/osutil.py` `safe_resolve`/`safe_is_file`/`safe_is_dir` |
 
 ### 参考文献
 

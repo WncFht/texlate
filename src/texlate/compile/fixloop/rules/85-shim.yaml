@@ -458,11 +458,21 @@ rules:
     condition:
       source_contains: "\\\\(?:usepackage|RequirePackage)\\s*(\\[[^\\]]*\\])?\\s*\\{[^}]*\\bsiunitx\\b"
       any:
-        - { source_contains: "\\\\(?:usepackage|RequirePackage)\\s*(\\[[^\\]]*\\])?\\s*\\{[^}]*\\bSIunits\\b" }
-        - { source_contains: "\\\\(?:usepackage|RequirePackage)\\s*(\\[[^\\]]*\\])?\\s*\\{[^}]*\\bsistyle\\b" }
-        - { source_contains: "\\\\(?:usepackage|RequirePackage)\\s*(\\[[^\\]]*\\])?\\s*\\{[^}]*\\bunits\\b" }
-        - { source_contains: "\\\\(?:usepackage|RequirePackage)\\s*(\\[[^\\]]*\\])?\\s*\\{[^}]*\\bunitsdef\\b" }
-        - { source_contains: "\\\\(?:usepackage|RequirePackage)\\s*(\\[[^\\]]*\\])?\\s*\\{[^}]*\\bfancyunits\\b" }
+        - {
+            source_contains: "\\\\(?:usepackage|RequirePackage)\\s*(\\[[^\\]]*\\])?\\s*\\{[^}]*\\bSIunits\\b",
+          }
+        - {
+            source_contains: "\\\\(?:usepackage|RequirePackage)\\s*(\\[[^\\]]*\\])?\\s*\\{[^}]*\\bsistyle\\b",
+          }
+        - {
+            source_contains: "\\\\(?:usepackage|RequirePackage)\\s*(\\[[^\\]]*\\])?\\s*\\{[^}]*\\bunits\\b",
+          }
+        - {
+            source_contains: "\\\\(?:usepackage|RequirePackage)\\s*(\\[[^\\]]*\\])?\\s*\\{[^}]*\\bunitsdef\\b",
+          }
+        - {
+            source_contains: "\\\\(?:usepackage|RequirePackage)\\s*(\\[[^\\]]*\\])?\\s*\\{[^}]*\\bfancyunits\\b",
+          }
     action:
       kind: builtin_transform
       function: siunitx_incompat_peace

@@ -4,38 +4,38 @@
 
 ## 一、七功能结论速览
 
-| Lane | 推荐形态（design 裁决） | 最小工作量 | 完整工作量 | 可行性 |
-|---|---|---|---|---|
-| sel-system | 单注册表+数据 when+三薄适配器（cmdreg）→ FloatBar+ContextMenu+键位分发 | 2–2.5d（无 cmdreg）/ P0+P1 ≈5d（含 cmdreg） | 9–12d（+游标模态+palette+assist） | 全绿：三件套 spike 42/22/26/66 测试全过 |
-| find-usages | 统一 UsageIndex（DOM 锚/PDF dest 反查/ph token 三 provider）+ 卡片/面板双形态 | ≈2d（dom 链 MVP） | 6–8d 三视图 | 全绿：锚普查/语境句/跳链全 confirmed |
-| copy-latex | alttext/annotation 公式级 + seq→span 选区级 verbatim | 1.5–2d | B 档 3–4d（C 档 1–2w 可选） | 全绿：100% 载体覆盖、span 映射已在 DB |
-| sent-align | 前端 bead 对齐 + CSS Custom Highlight（A），二期 dual.json sents+PDF \pdfdest（C） | ≈2d（client-bead-link） | A 5–7d + C 7–9d | 全绿，对齐正确率 87.5% 为固有上限 |
-| sel-translate | 泡钮→锚定卡 + 新同步端点 POST /xlat/selection + 词典/翻译双模 | 1.5–2d | MVP ≈4d；+流式/回查/持久化 ≈11.5d | 可行但须新建端点（现无自由文本通道）+ 网关限速适配 |
-| cite-translate | 卡内单译钮 + 文献抽屉批译 + toast/徽标观测面；服务端零新端点 | ≈1d（钮+toast） | 5–6.5d | 可行；硬前置=M1 keyless 修复（mock 毒化） |
-| misc-pack | 四件打包：M1 keyless 诚实面 / M2 URL canon / M3 pin 耐久 / M4 refs.bib | 3–4.5d | 8–9d | 全绿：四件各独立可 ship |
+| Lane           | 推荐形态（design 裁决）                                                            | 最小工作量                                  | 完整工作量                        | 可行性                                             |
+| -------------- | ---------------------------------------------------------------------------------- | ------------------------------------------- | --------------------------------- | -------------------------------------------------- |
+| sel-system     | 单注册表+数据 when+三薄适配器（cmdreg）→ FloatBar+ContextMenu+键位分发             | 2–2.5d（无 cmdreg）/ P0+P1 ≈5d（含 cmdreg） | 9–12d（+游标模态+palette+assist） | 全绿：三件套 spike 42/22/26/66 测试全过            |
+| find-usages    | 统一 UsageIndex（DOM 锚/PDF dest 反查/ph token 三 provider）+ 卡片/面板双形态      | ≈2d（dom 链 MVP）                           | 6–8d 三视图                       | 全绿：锚普查/语境句/跳链全 confirmed               |
+| copy-latex     | alttext/annotation 公式级 + seq→span 选区级 verbatim                               | 1.5–2d                                      | B 档 3–4d（C 档 1–2w 可选）       | 全绿：100% 载体覆盖、span 映射已在 DB              |
+| sent-align     | 前端 bead 对齐 + CSS Custom Highlight（A），二期 dual.json sents+PDF \pdfdest（C） | ≈2d（client-bead-link）                     | A 5–7d + C 7–9d                   | 全绿，对齐正确率 87.5% 为固有上限                  |
+| sel-translate  | 泡钮→锚定卡 + 新同步端点 POST /xlat/selection + 词典/翻译双模                      | 1.5–2d                                      | MVP ≈4d；+流式/回查/持久化 ≈11.5d | 可行但须新建端点（现无自由文本通道）+ 网关限速适配 |
+| cite-translate | 卡内单译钮 + 文献抽屉批译 + toast/徽标观测面；服务端零新端点                       | ≈1d（钮+toast）                             | 5–6.5d                            | 可行；硬前置=M1 keyless 修复（mock 毒化）          |
+| misc-pack      | 四件打包：M1 keyless 诚实面 / M2 URL canon / M3 pin 耐久 / M4 refs.bib             | 3–4.5d                                      | 8–9d                              | 全绿：四件各独立可 ship                            |
 
 ## 二、依赖关系（前置地基）
 
 ### 2.1 两个跨功能前置件（必须先落）
 
 1. **command registry（cmdreg + HitCtx + 单分发壳）** —— sel-system P0 同时就是它。
-   - 形态：`web/src/reader/cmd/{cmdreg,hitctx,commands}.ts + entries/{keymap,menu,floatbar}.ts`；`Command={id,title(i18n),when,enableWhen,keys,sec,bar,run(ctx)}`，when 是 VS Code 风字符串谓词（编译期爆坏语法、`whenKeys⊆ctxKeys` 可静态审计）；HitCtx=事件瞬间同步快照（sel/cite/math/chunk/caps 五 facet 非互斥）。
-   - 谁依赖它：sel-system 三入口（浮条/右键/键位）；之后 copy-latex 的菜单项（math.copyTex/chunk.copySrc）、sel-translate 的泡钮/菜单项（sel.xlat/sel.explain）、find-usages 的 cite.jump/usages、sent-align 的开关与游标模态键面，全部以「注册表加一行」方式接入。不建注册表的替代（入口自治）已被实测否定：现状三路监听已有 2 格失败+1 格双发。
-   - 工作量：≈3–4d（spike 产物 253/422/305 行净移植 + HitCtx 三视图解析器 + 21 项命令表 + 分发壳 + 审计测试）。
+    - 形态：`web/src/reader/cmd/{cmdreg,hitctx,commands}.ts + entries/{keymap,menu,floatbar}.ts`；`Command={id,title(i18n),when,enableWhen,keys,sec,bar,run(ctx)}`，when 是 VS Code 风字符串谓词（编译期爆坏语法、`whenKeys⊆ctxKeys` 可静态审计）；HitCtx=事件瞬间同步快照（sel/cite/math/chunk/caps 五 facet 非互斥）。
+    - 谁依赖它：sel-system 三入口（浮条/右键/键位）；之后 copy-latex 的菜单项（math.copyTex/chunk.copySrc）、sel-translate 的泡钮/菜单项（sel.xlat/sel.explain）、find-usages 的 cite.jump/usages、sent-align 的开关与游标模态键面，全部以「注册表加一行」方式接入。不建注册表的替代（入口自治）已被实测否定：现状三路监听已有 2 格失败+1 格双发。
+    - 工作量：≈3–4d（spike 产物 253/422/305 行净移植 + HitCtx 三视图解析器 + 21 项命令表 + 分发壳 + 审计测试）。
 
 2. **taskStatus 扩展（taskStore 窄面开放）** —— cite-translate 卡片 chip/徽标/批译面板的前提。
-   - 形态：不新建 store/传输层。tasks.ts 加 `track(taskId,{arxivId?})`（非 pin 登记）、`intents` Map（arxivId→taskId 竞态桥，TTL 60s）、`taskByArxiv()` 派生选择器；taskTransport 唯一改动=`pollListWanted` 从「只归并 wanted ids」改「整表归并」（新非终态行自动 wanted(pin:false)、消失行 unwant）——badge/Tasks 页零改自动吃红利。
-   - 纪律：pin 槽（MAX_SSE_TASKS=3）是 reader 聚焦专属，任何卡/badge 不得 `watch()`；queue_position 只在 SSE snapshot 帧下发，槽外只显「排队中」。
-   - 工作量：1.5–2d（含 vitest）。
+    - 形态：不新建 store/传输层。tasks.ts 加 `track(taskId,{arxivId?})`（非 pin 登记）、`intents` Map（arxivId→taskId 竞态桥，TTL 60s）、`taskByArxiv()` 派生选择器；taskTransport 唯一改动=`pollListWanted` 从「只归并 wanted ids」改「整表归并」（新非终态行自动 wanted(pin:false)、消失行 unwant）——badge/Tasks 页零改自动吃红利。
+    - 纪律：pin 槽（MAX_SSE_TASKS=3）是 reader 聚焦专属，任何卡/badge 不得 `watch()`；queue_position 只在 SSE snapshot 帧下发，槽外只显「排队中」。
+    - 工作量：1.5–2d（含 vitest）。
 
 ### 2.2 微插桩（行级改动，先落先解锁）
 
-| 插桩 | 位置 | 解锁面 |
-|---|---|---|
-| `ADD_ATTR:['alttext']` | `web/src/reader/sanitize.ts` DOM_PROFILE（1 行） | DomPane 公式 LaTeX 载体 0→100%（annotation/semantics 维持禁放=mXSS 防线） |
-| `chunk_id` 投影 | `worker/html.py:101 _dual_chunk_row` + `routers/tasks.py` chunks 端点 + `types.ts`（≈3 处各 1 行） | dom 视图 data-chunk key→seq 映射（chunk.retx、copyPair、usages seq 定位） |
-| `unmaskLatex` 插桩 | `web/src/reader/markdown.ts`：MATH 替换外包 `span[data-ph]`、CITE→`a.cite-ref[data-key]`（≈15 行） | html 视图 math.copyTex 0→2485 hits、cite.* 0→128 可解 |
-| PDF dest 预解析集 | PdfPane MO/加载期 `getAnnotations` 分片扫 → dest 名 Set | `cite.targetExists` 同步谓词（getDestinations() 批量 API 在真实文件返回 0，必须逐名/按页扫） |
+| 插桩                   | 位置                                                                                               | 解锁面                                                                                       |
+| ---------------------- | -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `ADD_ATTR:['alttext']` | `web/src/reader/sanitize.ts` DOM_PROFILE（1 行）                                                   | DomPane 公式 LaTeX 载体 0→100%（annotation/semantics 维持禁放=mXSS 防线）                    |
+| `chunk_id` 投影        | `worker/html.py:101 _dual_chunk_row` + `routers/tasks.py` chunks 端点 + `types.ts`（≈3 处各 1 行） | dom 视图 data-chunk key→seq 映射（chunk.retx、copyPair、usages seq 定位）                    |
+| `unmaskLatex` 插桩     | `web/src/reader/markdown.ts`：MATH 替换外包 `span[data-ph]`、CITE→`a.cite-ref[data-key]`（≈15 行） | html 视图 math.copyTex 0→2485 hits、cite.* 0→128 可解                                        |
+| PDF dest 预解析集      | PdfPane MO/加载期 `getAnnotations` 分片扫 → dest 名 Set                                            | `cite.targetExists` 同步谓词（getDestinations() 批量 API 在真实文件返回 0，必须逐名/按页扫） |
 
 ### 2.3 横向依赖链
 
@@ -96,29 +96,29 @@
 
 ## 四、总工作量
 
-| 口径 | 人日 |
-|---|---|
-| 七功能全 minimal + 共享地基（B0–B5 中 MVP 档） | ≈20–24d |
+| 口径                                                 | 人日    |
+| ---------------------------------------------------- | ------- |
+| 七功能全 minimal + 共享地基（B0–B5 中 MVP 档）       | ≈20–24d |
 | 推荐 rollout（B0–B5 含 sent-align A、cite 批译面板） | ≈30–35d |
-| 全 ideal（含 B6 深水区，不含 copy-latex P3 上限档） | ≈50–60d |
+| 全 ideal（含 B6 深水区，不含 copy-latex P3 上限档）  | ≈50–60d |
 
 ## 五、风险登记册（按严重度排）
 
-| # | 风险 | 等级 | 所在 lane | 缓解 |
-|---|---|---|---|---|
-| R1 | **Mock 毒化**：无 key local 提交静默产假译文并永久污染段缓存桶（reuse_hit 克隆+translation_cache 指纹缺 key/translator 身份），prefer=fresh 重跑仍 67% mock | 高 | misc/cite-translate | B0-M1 最先落；cite 卡 has_api_key 硬闸；显式 mock 走 TEXLATE_TRANSLATOR 白名单 |
-| R2 | **Esc/键位层栈**：ss-ctxmenu 核验出 3 缺陷（子菜单 roving 键未 sIP、与 CiteCard:62 同节点更早注册的 capture Esc 一次塌两层、开着的子菜单不关）；现状已有 2 fail+1 cofire | 高 | sel-system | 唯一解=中央层栈 registry（topmost 语义）+ 12 行层栈测试；FindBar Esc 移交层栈；editor 层只记账不消费 |
-| R3 | **zh 侧结构性丢失**：id 幸存 92%（bare inline id 随 clear() 丢 69 个）；nested-block kill 是内容丢失级 bug——嵌套 data-chunk 块被整棵 clear，§3.2.3 三个 item 译文缺席且 page↔page 同步 ~70% 文档错位 | 高 | fu/sent-align | emit 侧修：含后代 [data-chunk] 的块禁整棵 clear（提升为兄弟节点或保护 token）；zh pane 索引自建不依赖 en id |
-| R4 | **PDF dest 面**：29.1% 编译产物零 named dest；3.2% 匿名 hex 名（疑似 fixloop/重烘焙改写非 ASCII anchor）；getDestinations() 批量恒 0 | 高 | fu/sent-align | 逐名 getDestination/按页 getAnnotations 分片懒扫+version 缓存；hex-degenerate 文档诚实空态；查 fixloop anchor 改写 |
-| R5 | **对齐正确率天花板**：单调对齐 spotcheck 87.5%，失败清一色 zh 边界滑移级联；6.14% chunk 句数不等（zh>en 9.7:1 不对称） | 中 | sent-align/sel-translate | 诚实设计=n:m bead 整组亮、禁伪造 1:1；后端 beads 仅在双侧句数核验通过才采信；错亮不毁 chunk 级 sync |
-| R6 | **字符串注入死区**：zh 续行 `\n`+缩进被 marked 判 code block，`<span>` 变字面文本静默全灭（0.49% chunk）；fu-popover 第三 reopen 向量（卡卸载后指针下 figure 重触发） | 中 | sent-align/fu | 只做 DOM 后注入（TreeWalker text node），永不做字符串注入；移植带 suppressUntilExit |
-| R7 | **坐标系陷阱**：chunks.byte_start/end 是 decode_tex str 的**字符**偏移（非字节），坐标系是 normalize 后 base/ 非 src.tar（tar 回退腿 62% 静默错切须删）；EXPAND 组 chunk 调用点原文双侧不可重建，span 切片是唯一真源 | 中 | copy-latex | 端点只切 base/；API 面建议改名 char_start/end；base 缺失任务重扫或拒绝不兜底 |
-| R8 | **网关传输面**：隐式 ~6req/min + 60s 闩；上游限流回 200+SSE error 帧被静默吞成空流；swe-2 假流式（delta 挤末段）；固定 prompt 地板 ~470 tok（7-token ping 计 474）；REQUEST_TIMEOUT_MS=15s < p99 16.2s | 中 | sel-translate | 端点超时≥30s；客户端 ≤4/min 节流+retry-on-empty；`_sse_events` 补 error 帧→异常映射；按真账 usage 计费不按 chars |
-| R9 | **SSE 槽纪律与 store bug**：demotion→sseDead 误伤（降级任务永不再升回、槽位整会话空转）；`resetLive` merge 语义不清 done（陈旧终态泄进 retry 轮，Reader 拿旧 artifacts）；retry 撞 cache_key 裸 IntegrityError 500 | 中 | cite-translate | track() 非 pin 登记；closeChannel 前摘 wanted；修 resetLive 显式清 done；retry 撞槽归一 409 |
-| R10 | **覆盖率天花板要诚实**：56.7% \\bibitem 无任何 id（per-doc p50=19%、155 篇零覆盖）；eq 目标 id 覆盖仅 ~21-47%；sec inlinks 70% 是 TOC chrome | 中 | cite/fu | 面板头部「N 条·K 条可译」计数+灰态原因行；DOI 兜底臂 +7pp；eq 类 v1 不做触发面；chrome 锚剔除 |
-| R11 | **选区面暗坑**：linkAnnotation rect 上无法起拖（pdf.js 原生）；splitPct 拖条/流式插 DOM 不发 scroll/resize→浮条陈旧；合成 pointerup 丢失卡死 release 压制；28% 文本在 seq=null 锚（bibitem/figure/authors）；卡内文本再划词自触发 | 中 | sel-system | ResizeObserver+MutationObserver/refresh()；pointercancel+window blur 兜底；chunk facet 容忍 null、copyPair 按 counterpartAvail 门；closest 排除卡体 |
-| R12 | **sanitize/泄漏面**：alttext 恢复后泄漏尾文本节点是版本脆弱提取面（DOMPurify 升级可静默消失）；rewrap=md 全文正则腐蚀未掩码 `$..$`；`\newenvironment{xlatseg}`+`\providecommand{\xlatseg}` 名撞致 seq 泄漏进 PDF | 低-中 | copy-latex | raw 序索引为主、泄漏文本仅兜底+回归测试；rewrap 必须与掩码感知同层；env/macro 用非撞名 |
-| R13 | **新 schema/DDL 面**：kept_refs 走 DB（躲开 slim_task_dir 抹 sidecar——reading.json 已被实证会丢）；dual.json sents 须为「DB 行+可重扫源」纯函数（retranslate 重跑 _build_dual）；OPTIONAL_KEYS 扩键旧 kernel 拒读 | 低 | misc/sent-align | DDL 追加式迁移；payload 快照自愈序数漂移；kernel 单仓无跨版本面≈0 |
+| #   | 风险                                                                                                                                                                                                                              | 等级  | 所在 lane                | 缓解                                                                                                                                                |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R1  | **Mock 毒化**：无 key local 提交静默产假译文并永久污染段缓存桶（reuse_hit 克隆+translation_cache 指纹缺 key/translator 身份），prefer=fresh 重跑仍 67% mock                                                                       | 高    | misc/cite-translate      | B0-M1 最先落；cite 卡 has_api_key 硬闸；显式 mock 走 TEXLATE_TRANSLATOR 白名单                                                                      |
+| R2  | **Esc/键位层栈**：ss-ctxmenu 核验出 3 缺陷（子菜单 roving 键未 sIP、与 CiteCard:62 同节点更早注册的 capture Esc 一次塌两层、开着的子菜单不关）；现状已有 2 fail+1 cofire                                                          | 高    | sel-system               | 唯一解=中央层栈 registry（topmost 语义）+ 12 行层栈测试；FindBar Esc 移交层栈；editor 层只记账不消费                                                |
+| R3  | **zh 侧结构性丢失**：id 幸存 92%（bare inline id 随 clear() 丢 69 个）；nested-block kill 是内容丢失级 bug——嵌套 data-chunk 块被整棵 clear，§3.2.3 三个 item 译文缺席且 page↔page 同步 ~70% 文档错位                              | 高    | fu/sent-align            | emit 侧修：含后代 [data-chunk] 的块禁整棵 clear（提升为兄弟节点或保护 token）；zh pane 索引自建不依赖 en id                                         |
+| R4  | **PDF dest 面**：29.1% 编译产物零 named dest；3.2% 匿名 hex 名（疑似 fixloop/重烘焙改写非 ASCII anchor）；getDestinations() 批量恒 0                                                                                              | 高    | fu/sent-align            | 逐名 getDestination/按页 getAnnotations 分片懒扫+version 缓存；hex-degenerate 文档诚实空态；查 fixloop anchor 改写                                  |
+| R5  | **对齐正确率天花板**：单调对齐 spotcheck 87.5%，失败清一色 zh 边界滑移级联；6.14% chunk 句数不等（zh>en 9.7:1 不对称）                                                                                                            | 中    | sent-align/sel-translate | 诚实设计=n:m bead 整组亮、禁伪造 1:1；后端 beads 仅在双侧句数核验通过才采信；错亮不毁 chunk 级 sync                                                 |
+| R6  | **字符串注入死区**：zh 续行 `\n`+缩进被 marked 判 code block，`<span>` 变字面文本静默全灭（0.49% chunk）；fu-popover 第三 reopen 向量（卡卸载后指针下 figure 重触发）                                                             | 中    | sent-align/fu            | 只做 DOM 后注入（TreeWalker text node），永不做字符串注入；移植带 suppressUntilExit                                                                 |
+| R7  | **坐标系陷阱**：chunks.byte_start/end 是 decode_tex str 的**字符**偏移（非字节），坐标系是 normalize 后 base/ 非 src.tar（tar 回退腿 62% 静默错切须删）；EXPAND 组 chunk 调用点原文双侧不可重建，span 切片是唯一真源              | 中    | copy-latex               | 端点只切 base/；API 面建议改名 char_start/end；base 缺失任务重扫或拒绝不兜底                                                                        |
+| R8  | **网关传输面**：隐式 ~6req/min + 60s 闩；上游限流回 200+SSE error 帧被静默吞成空流；swe-2 假流式（delta 挤末段）；固定 prompt 地板 ~470 tok（7-token ping 计 474）；REQUEST_TIMEOUT_MS=15s < p99 16.2s                            | 中    | sel-translate            | 端点超时≥30s；客户端 ≤4/min 节流+retry-on-empty；`_sse_events` 补 error 帧→异常映射；按真账 usage 计费不按 chars                                    |
+| R9  | **SSE 槽纪律与 store bug**：demotion→sseDead 误伤（降级任务永不再升回、槽位整会话空转）；`resetLive` merge 语义不清 done（陈旧终态泄进 retry 轮，Reader 拿旧 artifacts）；retry 撞 cache_key 裸 IntegrityError 500                | 中    | cite-translate           | track() 非 pin 登记；closeChannel 前摘 wanted；修 resetLive 显式清 done；retry 撞槽归一 409                                                         |
+| R10 | **覆盖率天花板要诚实**：56.7% \\bibitem 无任何 id（per-doc p50=19%、155 篇零覆盖）；eq 目标 id 覆盖仅 ~21-47%；sec inlinks 70% 是 TOC chrome                                                                                      | 中    | cite/fu                  | 面板头部「N 条·K 条可译」计数+灰态原因行；DOI 兜底臂 +7pp；eq 类 v1 不做触发面；chrome 锚剔除                                                       |
+| R11 | **选区面暗坑**：linkAnnotation rect 上无法起拖（pdf.js 原生）；splitPct 拖条/流式插 DOM 不发 scroll/resize→浮条陈旧；合成 pointerup 丢失卡死 release 压制；28% 文本在 seq=null 锚（bibitem/figure/authors）；卡内文本再划词自触发 | 中    | sel-system               | ResizeObserver+MutationObserver/refresh()；pointercancel+window blur 兜底；chunk facet 容忍 null、copyPair 按 counterpartAvail 门；closest 排除卡体 |
+| R12 | **sanitize/泄漏面**：alttext 恢复后泄漏尾文本节点是版本脆弱提取面（DOMPurify 升级可静默消失）；rewrap=md 全文正则腐蚀未掩码 `$..$`；`\newenvironment{xlatseg}`+`\providecommand{\xlatseg}` 名撞致 seq 泄漏进 PDF                  | 低-中 | copy-latex               | raw 序索引为主、泄漏文本仅兜底+回归测试；rewrap 必须与掩码感知同层；env/macro 用非撞名                                                              |
+| R13 | **新 schema/DDL 面**：kept_refs 走 DB（躲开 slim_task_dir 抹 sidecar——reading.json 已被实证会丢）；dual.json sents 须为「DB 行+可重扫源」纯函数（retranslate 重跑 _build_dual）；OPTIONAL_KEYS 扩键旧 kernel 拒读                 | 低    | misc/sent-align          | DDL 追加式迁移；payload 快照自愈序数漂移；kernel 单仓无跨版本面≈0                                                                                   |
 
 ## 六、明确砍掉/不做清单（各 lane 设计裁决汇总）
 
@@ -141,20 +141,20 @@
 
 ### 落地清单
 
-| 功能 | 代码落点 | 验证 |
-|---|---|---|
-| toast 地基 | `web/src/stores/toastStore.ts` + `components/ToastHost.tsx`（挂 App.tsx）+ `styles/toast.css` | 8 vitest |
-| M1 缺 key 闸 | `routers/deps.py`（建行即 needs_auth+撞键收编 200）+ `store/_tasks.py`（mock_run 审计键、find_needs_auth_by_cache_key）+ `worker/translate.py` + `http.py` `_RESERVED_OPTION_KEYS` 摘 mock_run/no_seg_cache；前端 Home 提示+ResultBody banner/mock retry | tests/test_server_keyless_gate.py 9 项 |
-| M2 canon | `arxiv/fetch.py` canon/try_canon/CanonError + `home/search.ts` parseArxivId 扩面 | test_arxiv_canon.py + parseArxivId.test.ts（102 断言） |
-| M3 lake pin | `bench/py/kernel/` lake pin/unpin/status + PINNED 标记三清扫器全认 + sweep 尾段 gc_sweep + events 五键重放 + importer pinned 透传 | test_lake_pin.py 20 项 |
-| M4 kept+.bib | `store/_kept.py`+kept_refs DDL+`bibexport.py`（verbatim→@misc 降级+X-Refs-Degraded）+refs.py 三端点；前端 `stores/keptRefs.ts`+CiteCard ☆+Reader 下载项 | test_server_refs_kept.py 44 项 |
-| B2 taskStatus | `tasks.ts` track/intents/taskByArxiv/taskStatusOf + `taskTransport` 整表归并 + Toolbar「任务 N」chip + notifyDone 双写点 | taskObserve.test.ts |
-| 微插桩 | sanitize ADD_ATTR（alttext+data-sid+data-bead+data-ph+data-key+data-bib-key）、chunks 投影 chunk_id、markdown.ts unmask 产 span[data-ph]/a.cite-ref/span.bib-anchor、PdfPane dests() 预扫 | — |
-| sel-system | `reader/cmd/{cmdreg,hitctx,commands}.ts`（18 命令+when DSL+CTX_KEYS 审计）、`reader/sel/{selection,coveredChunks,escstack,sentseg,cursor}.ts`、`keymap.ts` 单分发器、`FloatBar.tsx`+`ContextMenu.tsx`、ReaderView 接线、`styles/selsys.css`、settings floatbar 开关 | sel 七件套 194 + 组件 25 vitest |
-| copy-latex | `server/srccut.py`+`routers/srccut.py`（POST /api/task/{id}/latex，三级回落+sent 锚定+gaps 回收）+`_chunks.py` spans_by_seqs；前端 `copylatex.ts`+`LatexCard.tsx`+`features/copylatex.ts` 三命令（math/chunk/sel.copyTex）+mathml-to-latex 懒载兜底 | 17 pytest + 20 vitest |
-| find-usages | `usages.ts`（DOM 锚扫+ph token+pdf dest 三层，TOC 剔除/自指丢弃/子图归并）+`uscontext.ts` 语境句+`UsagesCard.tsx`（suppressFocusOpenFor 已带）+`features/findusages.ts`（cite.usages+attachUsages）+DomPane/PaneSlot 委托+CiteCard「N 处引用→」 | 36 vitest + usages_verify.mjs 27/27 实跑 |
-| sent-align | `sentalign.ts`（splitEn/splitZh 正则臂/alignBeads MAXG=4/注入绕 marked 死区/.sa-hot/.sa-peer/点击跳+navstack+DOM→PDF fraction→/XYZ dest）+Settings 开关（texlate-sent-align 默认开） | 32 vitest |
-| cite-translate | `citeTranslate.ts` 七态机（含 terminal→running 回边+零帧行兜底+band 插值）+`RefTaskChip.tsx`+`RefsPanel.tsx` 批译抽屉（preflight 三桶+warn_big+串行 POST 独立 idem key）+Toolbar「文献」钮+CiteCard foot 翻译 chip+citations.ts 裸 DOI 臂 | 71 vitest |
+| 功能           | 代码落点                                                                                                                                                                                                                                                            | 验证                                                   |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| toast 地基     | `web/src/stores/toastStore.ts` + `components/ToastHost.tsx`（挂 App.tsx）+ `styles/toast.css`                                                                                                                                                                       | 8 vitest                                               |
+| M1 缺 key 闸   | `routers/deps.py`（建行即 needs_auth+撞键收编 200）+ `store/_tasks.py`（mock_run 审计键、find_needs_auth_by_cache_key）+ `worker/translate.py` + `http.py` `_RESERVED_OPTION_KEYS` 摘 mock_run/no_seg_cache；前端 Home 提示+ResultBody banner/mock retry            | tests/test_server_keyless_gate.py 9 项                 |
+| M2 canon       | `arxiv/fetch.py` canon/try_canon/CanonError + `home/search.ts` parseArxivId 扩面                                                                                                                                                                                    | test_arxiv_canon.py + parseArxivId.test.ts（102 断言） |
+| M3 lake pin    | `bench/py/kernel/` lake pin/unpin/status + PINNED 标记三清扫器全认 + sweep 尾段 gc_sweep + events 五键重放 + importer pinned 透传                                                                                                                                   | test_lake_pin.py 20 项                                 |
+| M4 kept+.bib   | `store/_kept.py`+kept_refs DDL+`bibexport.py`（verbatim→@misc 降级+X-Refs-Degraded）+refs.py 三端点；前端 `stores/keptRefs.ts`+CiteCard ☆+Reader 下载项                                                                                                             | test_server_refs_kept.py 44 项                         |
+| B2 taskStatus  | `tasks.ts` track/intents/taskByArxiv/taskStatusOf + `taskTransport` 整表归并 + Toolbar「任务 N」chip + notifyDone 双写点                                                                                                                                            | taskObserve.test.ts                                    |
+| 微插桩         | sanitize ADD_ATTR（alttext+data-sid+data-bead+data-ph+data-key+data-bib-key）、chunks 投影 chunk_id、markdown.ts unmask 产 span[data-ph]/a.cite-ref/span.bib-anchor、PdfPane dests() 预扫                                                                           | —                                                      |
+| sel-system     | `reader/cmd/{cmdreg,hitctx,commands}.ts`（18 命令+when DSL+CTX_KEYS 审计）、`reader/sel/{selection,coveredChunks,escstack,sentseg,cursor}.ts`、`keymap.ts` 单分发器、`FloatBar.tsx`+`ContextMenu.tsx`、ReaderView 接线、`styles/selsys.css`、settings floatbar 开关 | sel 七件套 194 + 组件 25 vitest                        |
+| copy-latex     | `server/srccut.py`+`routers/srccut.py`（POST /api/task/{id}/latex，三级回落+sent 锚定+gaps 回收）+`_chunks.py` spans_by_seqs；前端 `copylatex.ts`+`LatexCard.tsx`+`features/copylatex.ts` 三命令（math/chunk/sel.copyTex）+mathml-to-latex 懒载兜底                 | 17 pytest + 20 vitest                                  |
+| find-usages    | `usages.ts`（DOM 锚扫+ph token+pdf dest 三层，TOC 剔除/自指丢弃/子图归并）+`uscontext.ts` 语境句+`UsagesCard.tsx`（suppressFocusOpenFor 已带）+`features/findusages.ts`（cite.usages+attachUsages）+DomPane/PaneSlot 委托+CiteCard「N 处引用→」                     | 36 vitest + usages_verify.mjs 27/27 实跑               |
+| sent-align     | `sentalign.ts`（splitEn/splitZh 正则臂/alignBeads MAXG=4/注入绕 marked 死区/.sa-hot/.sa-peer/点击跳+navstack+DOM→PDF fraction→/XYZ dest）+Settings 开关（texlate-sent-align 默认开）                                                                                | 32 vitest                                              |
+| cite-translate | `citeTranslate.ts` 七态机（含 terminal→running 回边+零帧行兜底+band 插值）+`RefTaskChip.tsx`+`RefsPanel.tsx` 批译抽屉（preflight 三桶+warn_big+串行 POST 独立 idem key）+Toolbar「文献」钮+CiteCard foot 翻译 chip+citations.ts 裸 DOI 臂                           | 71 vitest                                              |
 
 ### 已记 deferral / 已知边界
 

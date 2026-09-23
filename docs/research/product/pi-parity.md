@@ -30,7 +30,7 @@
 | Agent teams   | 无原语；tmux 多 pane + `pi-chat` 文件快照模式                                                              | ⚠️ 近似         |
 | 跨会话消息    | 无 SendMessage；RPC 每进程一管；`chord` 对称 peer 未发布                                                   | ❌ 需自建       |
 | Workflow 编排 | `SubagentWorkflow`（跑 CC workflow 脚本）/ SDK 自建                                                        | ✅ 可配         |
-| Skills        | **原生** Agent Skills，已扫 `$HOME/.agents/skills/` + `.agents/skills/`                                        | ✅ 原生         |
+| Skills        | **原生** Agent Skills，已扫 `$HOME/.agents/skills/` + `.agents/skills/`                                    | ✅ 原生         |
 
 ### 2.1 Subagents —— 三条路
 

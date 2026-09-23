@@ -12,15 +12,15 @@ Smithsonian Astrophysical Observatory 在 NASA 资助下运营，覆盖天文/�
 
 ADS 查询语法 = Apache Solr + 一组二阶算子：先用普通查询取论文集合，算子把集合沿引用/使用/文本关系**变换成另一个集合**[^ads-second-order]。
 
-| 算子 | 语义 | 底层信号 |
-| --- | --- | --- |
-| `citations(query)` | 引用了结果集的论文 | 引用图入边 |
-| `references(query)` | 被结果集引用的论文 | 引用图出边 |
-| `similar(query)` | 按结果集合并摘要做文本相似（排除自身） | 摘要文本 |
-| `trending(query)` | 该集合的读者最近还在读什么（按频次） | 共读/使用量日志 |
-| `useful(query)` | 集合参考文献按被引频次聚合 → 「该领域的方法基石」 | 文献耦合聚合 |
-| `reviews(query)` | 引用集合的论文按频次聚合 → 「最 extensive 的综述」 | 共被引聚合 |
-| `topn(N, query, sort)` | 取前 N，可嵌套 | 通用截断 |
+| 算子                   | 语义                                               | 底层信号        |
+| ---------------------- | -------------------------------------------------- | --------------- |
+| `citations(query)`     | 引用了结果集的论文                                 | 引用图入边      |
+| `references(query)`    | 被结果集引用的论文                                 | 引用图出边      |
+| `similar(query)`       | 按结果集合并摘要做文本相似（排除自身）             | 摘要文本        |
+| `trending(query)`      | 该集合的读者最近还在读什么（按频次）               | 共读/使用量日志 |
+| `useful(query)`        | 集合参考文献按被引频次聚合 → 「该领域的方法基石」  | 文献耦合聚合    |
+| `reviews(query)`       | 引用集合的论文按频次聚合 → 「最 extensive 的综述」 | 共被引聚合      |
+| `topn(N, query, sort)` | 取前 N，可嵌套                                     | 通用截断        |
 
 发现语义拆解：`useful` ≈ 文献耦合的聚合版、`reviews` ≈ 共被引的聚合版、`trending` 是 ADS 独有（需要自家读者日志，别家抄不了）、`similar` 是纯文本线。官方惯用法：`similar(旧集查询) entdate:[NOW-7DAYS TO *]`——算子排除一阶结果，拼 disjoint 时间区间即「相似于旧集的新文」[^ads-citref]。
 
@@ -52,16 +52,16 @@ zbMATH Open REST API 免鉴权可用、记录含作者码与 review 文本，但
 
 ## 可借鉴算子清单
 
-| 算子/功能 | 所需数据 | 实现提示 |
-| --- | --- | --- |
-| `citations(q)`/`references(q)` | 引用图 | 边表 join，最易实现 |
-| `useful(q)`/`reviews(q)` | 引用图 | BC/CC 的聚合形式 → 方法基石/综述 |
-| `similar(q)` | 摘要+向量 | embedding ANN 或 Solr MoreLikeThis |
-| `trending(q)`、recent views | **使用量日志** | 无日志源做不了；可用公开页浏览计数替代 |
-| `topn(N,q,sort)` 嵌套 | 通用 | 组合子模式值得照搬 |
-| Paper Network | 引用图+标题 | coupling 矩阵+社区检测+TF-IDF 标注 |
-| 通知=持久化查询 | 图+调度器 | `entdate` 自动截断 trick |
-| curated_relation 标志 | 策展流程 | 引用边带 provenance 是专业库通行做法 |
+| 算子/功能                      | 所需数据       | 实现提示                               |
+| ------------------------------ | -------------- | -------------------------------------- |
+| `citations(q)`/`references(q)` | 引用图         | 边表 join，最易实现                    |
+| `useful(q)`/`reviews(q)`       | 引用图         | BC/CC 的聚合形式 → 方法基石/综述       |
+| `similar(q)`                   | 摘要+向量      | embedding ANN 或 Solr MoreLikeThis     |
+| `trending(q)`、recent views    | **使用量日志** | 无日志源做不了；可用公开页浏览计数替代 |
+| `topn(N,q,sort)` 嵌套          | 通用           | 组合子模式值得照搬                     |
+| Paper Network                  | 引用图+标题    | coupling 矩阵+社区检测+TF-IDF 标注     |
+| 通知=持久化查询                | 图+调度器      | `entdate` 自动截断 trick               |
+| curated_relation 标志          | 策展流程       | 引用边带 provenance 是专业库通行做法   |
 
 ## 结论
 
@@ -70,14 +70,25 @@ ADS 的独特壁垒是 readership 数据（trending/myADS 个性化都靠它）�
 ### 参考文献
 
 [^ads-home]: SAO/NASA ADS. ADS Home Page. [ui.adsabs.harvard.edu](https://ui.adsabs.harvard.edu)
+
 [^adsapi-readme]: NASA ADS. adsabs-dev-api README. [github.com/adsabs/adsabs-dev-api](https://github.com/adsabs/adsabs-dev-api/blob/master/README.md)
+
 [^adsapi-notebook]: NASA ADS. Search API (Python) notebook. [github.com/adsabs/adsabs-dev-api](https://github.com/adsabs/adsabs-dev-api/blob/master/API_documentation_Python/Search_API_Python.ipynb)
+
 [^adsapi-openapi]: NASA ADS. openapi_public.yaml. [github.com/adsabs/adsabs-dev-api](https://github.com/adsabs/adsabs-dev-api/blob/2e221c0f/openapi/openapi_public.yaml)
+
 [^ads-second-order]: NASA ADS. Second-Order Queries. [adsabs.github.io/help/search/second-order](https://adsabs.github.io/help/search/second-order)
+
 [^ads-citref]: NASA ADS. Citations and References Operators. [adsabs.github.io/help/search/citations-and-references](https://adsabs.github.io/help/search/citations-and-references)
+
 [^adsapi-oracle]: NASA ADS. oracle_service README. [github.com/adsabs/oracle_service](https://github.com/adsabs/oracle_service/blob/master/README.md)
+
 [^ads-viz]: NASA ADS. Visualize Results. [adsabs.github.io/help/actions/visualize](https://adsabs.github.io/help/actions/visualize)
+
 [^ads-myads]: NASA ADS. Introducing the New myADS. [ui.adsabs.harvard.edu/blog/the_new_myADS](https://ui.adsabs.harvard.edu/blog/the_new_myADS)
+
 [^ads-bibcode]: NASA ADS. The ADS Bibcode. [adsabs.github.io/help/actions/bibcode](https://adsabs.github.io/help/actions/bibcode)
+
 [^inspire-api]: INSPIRE Collaboration. INSPIRE REST API. [github.com/inspirehep/rest-api-doc](https://github.com/inspirehep/rest-api-doc/blob/master/README.md)
+
 [^refextract]: INSPIRE Collaboration. refextract README. [github.com/inspirehep/refextract](https://github.com/inspirehep/refextract)

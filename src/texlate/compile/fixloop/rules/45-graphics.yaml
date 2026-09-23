@@ -63,7 +63,11 @@ rules:
       # basename 在工程内存图形族交替件才点火。same-basename-anywhere
       # 语义 (kpathsea TEXINPUTS 近似, 宁宽勿严) —— false-accept 亏一轮,
       # false-abstain 会把盘上真图换成占位框。
-      fileset: { sibling_exts: [.pdf, .png, .jpg, .jpeg, .eps, .epsf, .epsi, .ps, .mps] }
+      fileset:
+        {
+          sibling_exts:
+            [.pdf, .png, .jpg, .jpeg, .eps, .epsf, .epsi, .ps, .mps],
+        }
     action:
       kind: regex_rewrite
       params:

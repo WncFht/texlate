@@ -6,15 +6,15 @@
 
 每个评测器对准管线一段 + 组合层。底材 = corpus 各层（`spec/corpus.md`），合成破坏案例各自生成[^suite]。
 
-| # | 评测器 | 测哪段 | 落点脚本 | 底材 | 核心指标 |
-| --- | --- | --- | --- | --- | --- |
-| B1 | parsebench | 解析段 | `bench/py/parsebench.py` | corpus `extracted/` 全层 + fixtures | ok / identity / leak / dead·orphan / 漏斗 |
-| B2 | fixtures | 解析段单元级 | `bench/py/fixture_assert.py` + `tests/test_bench_regression.py` | `bench/fixtures/*.tex` 手造 | 陷阱断言通过率 |
-| B3 | compilebench | 编译段 + fixloop | `bench/py/compilebench_v3.py` + `bench/py/fixloop_bench.py` | corpus `raw.*` blob | clean/pdf~/FAIL、救回率、规则触发谱 |
-| B4 | xlatbench | 翻译段 | `bench/py/xlatbench.py` + `bench/py/qualbench.py` | corpus chunk 抽样 | 硬契约率 / 延迟 / token 经济 / LLM-judge 质量 |
-| B5 | e2ebench | 全链组合 | `bench/py/e2e_mock_bench.py` + `bench/py/e2e_real_bench.py` | corpus 子集 | 环节成功率漏斗 + 终态分布 |
-| B6 | validbench | 校验段 | `bench/py/validbench.py` | 语料 chunk 变异生成 | 检出率 / error-FP / 延迟 |
-| B7 | alignbench | 阅读体验锚点 | `bench/py/alignbench.py` | en/zh 编译产物对 | named-dest 保留率 / 链权 |
+| #   | 评测器       | 测哪段           | 落点脚本                                                        | 底材                                | 核心指标                                      |
+| --- | ------------ | ---------------- | --------------------------------------------------------------- | ----------------------------------- | --------------------------------------------- |
+| B1  | parsebench   | 解析段           | `bench/py/parsebench.py`                                        | corpus `extracted/` 全层 + fixtures | ok / identity / leak / dead·orphan / 漏斗     |
+| B2  | fixtures     | 解析段单元级     | `bench/py/fixture_assert.py` + `tests/test_bench_regression.py` | `bench/fixtures/*.tex` 手造         | 陷阱断言通过率                                |
+| B3  | compilebench | 编译段 + fixloop | `bench/py/compilebench_v3.py` + `bench/py/fixloop_bench.py`     | corpus `raw.*` blob                 | clean/pdf~/FAIL、救回率、规则触发谱           |
+| B4  | xlatbench    | 翻译段           | `bench/py/xlatbench.py` + `bench/py/qualbench.py`               | corpus chunk 抽样                   | 硬契约率 / 延迟 / token 经济 / LLM-judge 质量 |
+| B5  | e2ebench     | 全链组合         | `bench/py/e2e_mock_bench.py` + `bench/py/e2e_real_bench.py`     | corpus 子集                         | 环节成功率漏斗 + 终态分布                     |
+| B6  | validbench   | 校验段           | `bench/py/validbench.py`                                        | 语料 chunk 变异生成                 | 检出率 / error-FP / 延迟                      |
+| B7  | alignbench   | 阅读体验锚点     | `bench/py/alignbench.py`                                        | en/zh 编译产物对                    | named-dest 保留率 / 链权                      |
 
 依赖序：`corpus → B1 → B4 → {B3, B5} → B7`；B2/B6 独立（合成输入）[^suite]。
 
@@ -22,12 +22,12 @@
 
 `bench/TIERS.md` 定义"一个问题该在哪层被抓"——修复不算完，直到它能看见的最便宜那层被钉住[^tiers]：
 
-| 层 | 入口 | 底材 | 量级 | 时机 |
-| --- | --- | --- | --- | --- |
-| L0 单元/断言 | `uv run pytest tests/`（含 `test_bench_regression.py` fixture 断言矩阵；契约产出走 `fixture_assert.py`） | 合成输入 + `bench/fixtures/` | 秒级/单文件 | 每 commit、CI 硬门 |
-| L1 机制覆盖 | `uv run python bench/py/parsebench.py --corpus <root>` | corpus 主库全层（v1/v2/m1k/iclr 层已并入） | 分钟级 | 解析/归一化改动后、开批前 |
-| L2 子集回归 | `bench/py/stagerun.py {parse,xlat,compile,fixloop} --n N --seed S` 或 `--ids` 定点 | `mechanisms.jsonl` 台账 + 分层 manifest | 分钟–小时 | stage 改动、新机制落账后定向重放 |
-| L3 全量集成 | stagerun 全层全臂 + fixloop + sabotage 两臂 → `gate_scorecard.py` + `triage.py`（操作单 `bench/py/runbook_loop.md`） | corpus 全层 | 过夜 | 里程碑门、发版前 |
+| 层           | 入口                                                                                                                 | 底材                                       | 量级        | 时机                             |
+| ------------ | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ | ----------- | -------------------------------- |
+| L0 单元/断言 | `uv run pytest tests/`（含 `test_bench_regression.py` fixture 断言矩阵；契约产出走 `fixture_assert.py`）             | 合成输入 + `bench/fixtures/`               | 秒级/单文件 | 每 commit、CI 硬门               |
+| L1 机制覆盖  | `uv run python bench/py/parsebench.py --corpus <root>`                                                               | corpus 主库全层（v1/v2/m1k/iclr 层已并入） | 分钟级      | 解析/归一化改动后、开批前        |
+| L2 子集回归  | `bench/py/stagerun.py {parse,xlat,compile,fixloop} --n N --seed S` 或 `--ids` 定点                                   | `mechanisms.jsonl` 台账 + 分层 manifest    | 分钟–小时   | stage 改动、新机制落账后定向重放 |
+| L3 全量集成  | stagerun 全层全臂 + fixloop + sabotage 两臂 → `gate_scorecard.py` + `triage.py`（操作单 `bench/py/runbook_loop.md`） | corpus 全层                                | 过夜        | 里程碑门、发版前                 |
 
 四条规则：能低不高（L0 能钉的不许只在高层撞见，批量发现的真坑沉淀回 L0）；逐层语义（每层绿只证明该层契约成立）；跨层不重复（同一断言不钉两层）；量级兑现（估时以 `runbook_loop.md` 为准，层级归属争议按"cheapest tier that can see it"裁决）[^tiers]。
 
@@ -49,17 +49,17 @@
 
 底材 `bench/fixtures/`（**逐字节即语义——永不格式化/润色**，不进 format 链）[^protocol]：
 
-| 文件 | 标记族 | 内容 |
-| --- | --- | --- |
-| `tricky.tex` | `@Tnn` | T01–T29 单点陷阱 26 条断言 + `_meta` 残留计数 info 行（T14 在 multi、T15/T28 未分配） |
-| `tricky-209.tex` | — | LaTeX 2.09 旧式组合 3 条（`\beq/\eeq`、`\documentstyle`、`\def`）+ parse_ok |
-| `tricky-multi/` | T14 | `\input/\include` 展平 4 条（注释掉的 `\input` 不得展开） |
-| `tricky-w.tex` | `@Wnn` | 野机制 11 条（W11/W15/W50/W67/W75/W82/W83/W84/W90/W91/W92），`@Wnn` ↔ `mechanisms.jsonl` 台账行 |
-| `tricky-w73/` | W73 | `\input{../}` 路径逃逸两向断言（根内照常 resolved inline / 出根行为钉死），目标件 `escape-outside.tex` |
-| `tricky-wenc.tex` | W72 | 混合编码字节件（合法 UTF-8 + 孤立 latin1 字节共存） |
-| `tricky-dollar.tex` | `@Dnn` | dollar 族 10 条（corpus `$`-leak 归因亚型钉） |
-| `tricky-mask.tex` | `@Mnn` | MASK 族 11 条（W07/W11/W84/W92 机制钉——docclass/usepackage 跨行夹注释等） |
-| `xlat-traps.tex` | `@Xn` | 翻译硬契约压力形 @X1–X4（遮蔽输出与 xlatbench S1–S4 逐字一致） |
+| 文件                | 标记族 | 内容                                                                                                   |
+| ------------------- | ------ | ------------------------------------------------------------------------------------------------------ |
+| `tricky.tex`        | `@Tnn` | T01–T29 单点陷阱 26 条断言 + `_meta` 残留计数 info 行（T14 在 multi、T15/T28 未分配）                  |
+| `tricky-209.tex`    | —      | LaTeX 2.09 旧式组合 3 条（`\beq/\eeq`、`\documentstyle`、`\def`）+ parse_ok                            |
+| `tricky-multi/`     | T14    | `\input/\include` 展平 4 条（注释掉的 `\input` 不得展开）                                              |
+| `tricky-w.tex`      | `@Wnn` | 野机制 11 条（W11/W15/W50/W67/W75/W82/W83/W84/W90/W91/W92），`@Wnn` ↔ `mechanisms.jsonl` 台账行        |
+| `tricky-w73/`       | W73    | `\input{../}` 路径逃逸两向断言（根内照常 resolved inline / 出根行为钉死），目标件 `escape-outside.tex` |
+| `tricky-wenc.tex`   | W72    | 混合编码字节件（合法 UTF-8 + 孤立 latin1 字节共存）                                                    |
+| `tricky-dollar.tex` | `@Dnn` | dollar 族 10 条（corpus `$`-leak 归因亚型钉）                                                          |
+| `tricky-mask.tex`   | `@Mnn` | MASK 族 11 条（W07/W11/W84/W92 机制钉——docclass/usepackage 跨行夹注释等）                              |
+| `xlat-traps.tex`    | `@Xn`  | 翻译硬契约压力形 @X1–X4（遮蔽输出与 xlatbench S1–S4 逐字一致）                                         |
 
 断言函数 `assert_tricky`/`assert_209`/`assert_multi`/`assert_xlat`/W·D·M 各组在 `tests/test_bench_regression.py`（跑在 `texlate.latex` 产品解析器上）与 `fixture_assert.py` 共享——后者只做计时执行 + 契约三件套落盘。**生长机制**：parsebench 归因与台账 `found-in-wild` 条目达 `covered` 后 → 最小复现提取 + `@Xnn` 登记为永久断言，只增不减[^protocol][^suite]。
 
@@ -106,7 +106,7 @@
 
 `bench/py/stagerun.py` 是五阶段批量驱动（`ingest → parse → xlat → compile → fixloop` 各一子命令、独立 executor、append 式 `records/{stage}.jsonl`、按 `(id,arm,upstream)` resume）；论文流过 DAG 靠 `work/{id}/` 中间产物树而非内存对象；`--layers` 切语料层、`--sem` 全局信号量压网关 in-flight、id 全链路 `canon_id` 归一[^stagerun]。各 stage 实现件：`stage_ingest.py`（corpus 物化副本 → `work/{id}/src/`）、`stage_parse.py`（route+normalize+parse_file → `zh/` + `parse.json`）、`stage_xlat.py`（XlatPipeline → `zh/` 就地翻译 + `xlat-{arm}.jsonl` 明细 + auth 断路器）、`stage_compile.py`（splice+inject+compile+judge，`--arm zh|base`）、`stage_fixloop.py`（非 clean 格就地修复 + post 复判）[^stagerun]。
 
-配套件：`translators_bench.py`（xlat 臂工厂：arm ∈ `{mock, sabotage-b, sabotage-c, perturb, real}`，sabotage/perturb 带台账 `.ledger`/`.finalize` 逐块归因，注入实现以 `e2e_mock_bench` Mode B/C 为唯一事实源）；`triage.py`（records → `tickets.jsonl` 签名聚类 + `metrics.jsonl` 跨 run 趋势）；`gate_scorecard.py`（M2 门记分卡：end-state 末段胜 / union best-of 双口径并列）；`rundiff.py`（两 run 逐格迁移矩阵：degraded/improved/added/removed）；`wave.py`（修复波编排壳：`--mech`/`--rule` 反查 id → 开波，选样/对账/记分一律 subprocess 调既有脚本零重实现）；`preflight_batch.py`（批前一票闸：import walk + mock 链 + 磁盘 + manifest + 工具链 + 网关认证）；`quality_proxies.py`（后算器：leak_*送译残留比率 / term_* 术语一致率，复用 `parsebench.LEAK_PATTERNS` 同口径）；`status_panel.py` + `task_ping.py`（本机只读状态面板 + 任务看板上报件）[^stagerun][^translators]。
+配套件：`translators_bench.py`（xlat 臂工厂：arm ∈ `{mock, sabotage-b, sabotage-c, perturb, real}`，sabotage/perturb 带台账 `.ledger`/`.finalize` 逐块归因，注入实现以 `e2e_mock_bench` Mode B/C 为唯一事实源）；`triage.py`（records → `tickets.jsonl` 签名聚类 + `metrics.jsonl` 跨 run 趋势）；`gate_scorecard.py`（M2 门记分卡：end-state 末段胜 / union best-of 双口径并列）；`rundiff.py`（两 run 逐格迁移矩阵：degraded/improved/added/removed）；`wave.py`（修复波编排壳：`--mech`/`--rule` 反查 id → 开波，选样/对账/记分一律 subprocess 调既有脚本零重实现）；`preflight_batch.py`（批前一票闸：import walk + mock 链 + 磁盘 + manifest + 工具链 + 网关认证）；`quality_proxies.py`（后算器：leak__送译残留比率 / term__ 术语一致率，复用 `parsebench.LEAK_PATTERNS` 同口径）；`status_panel.py` + `task_ping.py`（本机只读状态面板 + 任务看板上报件）[^stagerun][^translators]。
 
 另有专题/底层评测件：`gullet_bench.py`（展开机抽干流实测门）、`wrapfloat_bench.py`（wrapfig 绕排碰撞检出 + 降级修复验证，poppler bbox 交集信号）、`iclr_*.py`（ICLR 语料映射/取源/章节管线，`corpus_m1k` iclr 层与 `corpus_iclr_pdf` 的支撑件）。
 
@@ -123,30 +123,43 @@
 
 ## 8. 门槛汇总
 
-| 里程碑 | 门 | 指标 |
-| --- | --- | --- |
-| M0 | B1+B2 | parse ok 100% / identity ≥99.5% / leak ≤0.15% / dead·orphan 0 / fixtures 断言矩阵全绿 |
-| M0–M1 | B6 | 10 类破坏 100% 检出 / 干净对 0 error-FP |
-| M1 | B4a+B4b | 硬契约率基线不回退 / 100 篇真实翻译端到端 ≥85% |
-| M2 | B3 | 200 篇 zh 条件编译 ≥90% / reject 判定 100% / 无回归 |
-| 常驻 | B5 | mock A 全绿 / mock B 破坏 100% 编译前捕获 / L3 `escaped>0` 硬门 |
-| M3 | B7 | hyperref 对锚点保留率 ≥95% / 退化路径不崩 |
+| 里程碑 | 门      | 指标                                                                                  |
+| ------ | ------- | ------------------------------------------------------------------------------------- |
+| M0     | B1+B2   | parse ok 100% / identity ≥99.5% / leak ≤0.15% / dead·orphan 0 / fixtures 断言矩阵全绿 |
+| M0–M1  | B6      | 10 类破坏 100% 检出 / 干净对 0 error-FP                                               |
+| M1     | B4a+B4b | 硬契约率基线不回退 / 100 篇真实翻译端到端 ≥85%                                        |
+| M2     | B3      | 200 篇 zh 条件编译 ≥90% / reject 判定 100% / 无回归                                   |
+| 常驻   | B5      | mock A 全绿 / mock B 破坏 100% 编译前捕获 / L3 `escaped>0` 硬门                       |
+| M3     | B7      | hyperref 对锚点保留率 ≥95% / 退化路径不崩                                             |
 
 > 编号口径：本表 M0–M3 为里程碑门（对应 `decisions/background.md` 阶段线 M0→M4）；`log/roadmap-2026-09-17/ROADMAP.md` 中期工单另用 **MT1–MT10**，两套编号独立勿混。
 
 ### 参考文献
 
 [^suite]: 仓内证据件 `docs/10-benchmark-suite.md`（旧规格原文，逐门证据矩阵见 [spec0910](../log/audit-2026-09-16/spec0910.md)）。
+
 [^tiers]: 仓内证据件 `bench/TIERS.md`（验证分层契约原文）。
+
 [^protocol]: `bench/PROTOCOL.md`（逐库评测协议原文）已于 2026-09-20 退役删除，原文见 git 历史；陷阱断言登记以 `tests/test_bench_regression.py` 的 TRICKY_IDS 为准。
+
 [^v3plan]: 仓内证据件 [v3-plan](../research/corpus/v3-plan.md) §7–8（指标口径与门槛论证）与 [parsebench-v1](../research/corpus/parsebench-v1.md)。
+
 [^parsebench]: 仓内证据件 `bench/py/parsebench.py` 模块 docstring 与 [parse-metrics-literature](../research/methods/parse-metrics-literature.md)。
+
 [^fixloop]: 仓内证据件 `bench/py/{compilebench_v3,fixloop_bench}.py` docstring 与 [fixloop-rules](../research/latex/fixloop-rules.md)。
+
 [^xlatbench]: 仓内证据件 `bench/py/xlatbench.py` docstring 与 [model-selection](../research/model-selection.md)（338 调用方法实证）。
+
 [^qualbench]: 仓内证据件 `bench/py/qualbench.py` docstring（ESA 协议 + 六类 flag 口径）。
+
 [^e2ereal]: 仓内证据件 `bench/py/e2e_real_bench.py` docstring 与 [hardening-notes](../research/product/2026-09-16-hardening-notes.md)（§2 pipe-fix `onfail` 语义）、[e2e-mock-pipeline](../research/product/e2e-mock-pipeline.md)。
+
 [^validbench]: 仓内证据件 `bench/py/validbench.py` docstring 与 [validator-rules](../research/latex/validator-rules.md)、[validator-ts](../research/latex/validator-ts.md)。
+
 [^alignbench]: 仓内证据件 `bench/py/alignbench.py` docstring 与 [alignment-probe](../research/latex/alignment-probe.md)。
+
 [^stagerun]: 仓内证据件 `bench/py/stagerun.py` 模块 docstring 与 [hardening-notes](../research/product/2026-09-16-hardening-notes.md)（§1 stagerun 分阶段批量架构）、`bench/py/runbook_loop.md`。
+
 [^translators]: 仓内证据件 `bench/py/translators_bench.py` docstring（臂工厂与台账 schema）。
+
 [^retention]: 仓内证据件 `bench/RETENTION.md` 与 `bench/archive-2026-09-20/README.md`（2026-09-20 归零重启口径；RETENTION.md 正随库重组迁移，以落库后位置为准）。

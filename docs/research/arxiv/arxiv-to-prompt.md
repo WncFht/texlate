@@ -68,14 +68,14 @@
 
 ## 7. 本地实测汇总（`--local-folder`，0.14.1）
 
-| 语料           | 难点                                                    | 结果                                                                    | 质量                                                                                        |
-| -------------- | ------------------------------------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| 1706.03762     | 基线                                                    | 全通（list-sections/section/abstract/expand-macros/token-count 13352）  | 节树完整正确                                                                                |
-| 2201.05989     | camera.tex+paper.tex 双 documentclass                   | 展平 167KB                                                              | 「最长文件」启发恰好蒙对（paper.tex 1025>149 行）；不标 multi_doc，纯运气                   |
-| 1502.01589     | 103 文件、`\input X` 无括号、documentclass 陷注释       | **完全失败**                                                            | 选中 Planck.tex 宏文件当主文件，输出 202 行宏定义垃圾；即使选对，无括号 `\input` 也全不展开 |
-| hep-th/9901001 | `\documentstyle` LaTeX 2.09                             | 正常                                                                    | 27KB 干净全文，`\bye\|\end` 兜底逻辑覆盖更老 plain TeX                                      |
-| 2602.09511     | 法语 babel                                              | 正常                                                                    | 252KB；list-sections 有少量空名子节（`\subsection{}` 类）                                  |
-| synth fixture  | `\section[opt]`、`\input` 无括号、`\verb\|%`、`\url{%}` | **三连证实缺陷**                                                        | opt-arg 节消失；无括号 input 不展开；verb/url 内 `%` 被当注释截断                           |
+| 语料           | 难点                                                    | 结果                                                                   | 质量                                                                                        |
+| -------------- | ------------------------------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| 1706.03762     | 基线                                                    | 全通（list-sections/section/abstract/expand-macros/token-count 13352） | 节树完整正确                                                                                |
+| 2201.05989     | camera.tex+paper.tex 双 documentclass                   | 展平 167KB                                                             | 「最长文件」启发恰好蒙对（paper.tex 1025>149 行）；不标 multi_doc，纯运气                   |
+| 1502.01589     | 103 文件、`\input X` 无括号、documentclass 陷注释       | **完全失败**                                                           | 选中 Planck.tex 宏文件当主文件，输出 202 行宏定义垃圾；即使选对，无括号 `\input` 也全不展开 |
+| hep-th/9901001 | `\documentstyle` LaTeX 2.09                             | 正常                                                                   | 27KB 干净全文，`\bye\|\end` 兜底逻辑覆盖更老 plain TeX                                      |
+| 2602.09511     | 法语 babel                                              | 正常                                                                   | 252KB；list-sections 有少量空名子节（`\subsection{}` 类）                                   |
+| synth fixture  | `\section[opt]`、`\input` 无括号、`\verb\|%`、`\url{%}` | **三连证实缺陷**                                                       | opt-arg 节消失；无括号 input 不展开；verb/url 内 `%` 被当注释截断                           |
 
 ## 8. 可借鉴 / 不适用
 
@@ -101,4 +101,5 @@
 ### 参考文献
 
 [^atp-repo]: Takashi Ishida. arxiv-to-prompt — arXiv LaTeX 源码展平为单文件 prompt 的 CLI（MIT）. GitHub. [takashiishida/arxiv-to-prompt](https://github.com/takashiishida/arxiv-to-prompt)
+
 [^atp-pypi]: arxiv-to-prompt 0.14.1. PyPI. [pypi.org/project/arxiv-to-prompt](https://pypi.org/project/arxiv-to-prompt/)

@@ -20,11 +20,11 @@ hjfy 是中心化模式：平台付 token，代价是每日 100 篇新建配额�
 
 管线已有三层缓存，共享缓存是在产物级之上做**跨实例**延伸。
 
-| 层     | 键                                          | 命中物                  | 位置                            |
-| ------ | ------------------------------------------- | ----------------------- | ------------------------------- |
+| 层     | 键                                          | 命中物                  | 位置                             |
+| ------ | ------------------------------------------- | ----------------------- | -------------------------------- |
 | 源级   | `arxiv_id@resolved_ver`                     | arXiv e-print 解压树    | `data/src-cache/`（SourceCache） |
-| 产物级 | `sha256(id@ver\|model\|pipeline_ver\|lang)` | 整任务产物复用（reuse） | `tasks.cache_key`（store）      |
-| 段级   | `{cfg16}:{seg_key}`                         | 单 chunk 译文           | `translation_cache` 表（store） |
+| 产物级 | `sha256(id@ver\|model\|pipeline_ver\|lang)` | 整任务产物复用（reuse） | `tasks.cache_key`（store）       |
+| 段级   | `{cfg16}:{seg_key}`                         | 单 chunk 译文           | `translation_cache` 表（store）  |
 
 产物级 `cache_key_for` 的 docstring 已注明「公开论文的确定性函数可跨租户 reuse——hjfy 对等共享缓存是既定产品特性」，并提供 `TEXLATE_CACHE_SCOPE=per_key` 凭证分桶开关（`k:{key指纹}` 拼进键材料）消除本地缓存存在性 oracle。共享缓存是同一方向的跨实例化：本地 dedup 只能命中自己跑过的任务，共享包让其他人的付费产出可被复用。
 

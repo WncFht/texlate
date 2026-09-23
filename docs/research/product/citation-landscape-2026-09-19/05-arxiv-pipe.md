@@ -33,19 +33,35 @@ Unpaywall 是 OA 状态与全文定位的事实标准（S2ORC 即用它判 OA）
 ### 参考文献
 
 [^bulldata]: arXiv. Bulk Data Access. arXiv Docs. [github.com/arXiv/arxiv-docs](https://github.com/arXiv/arxiv-docs/blob/ca6e62d23ab863cef0031504d0a099c54065a7ff/help/bulk_data.md)
+
 [^oaipmh]: arXiv. OAI-PMH interface（oaipmh.arxiv.org/oai，2026-09-19 实测）.
+
 [^apimanual]: arXiv. API User's Manual. [info.arxiv.org/help/api/user-manual.html](https://info.arxiv.org/help/api/user-manual.html)
+
 [^kaggle]: Cornell University. arXiv Dataset. [kaggle.com/datasets/Cornell-University/arxiv](https://www.kaggle.com/datasets/Cornell-University/arxiv)
+
 [^gcs]: arXiv/Google. gs://arxiv-dataset（2026-09-19 实测匿名列举）.
+
 [^s3]: arXiv. Bulk Data Access on S3. [github.com/arXiv/arxiv-docs bulk_data_s3.md](https://github.com/arXiv/arxiv-docs/blob/develop/source/help/bulk_data_s3.md)
+
 [^grobid]: GROBID Documentation. [grobid.readthedocs.io](https://grobid.readthedocs.io/en/latest/Introduction/)
+
 [^parsereval]: Tkaczyk et al. Evaluation and Comparison of Open Source Bibliographic Reference Parsers. [arxiv.org/pdf/1811.10369](https://arxiv.org/pdf/1811.10369)
+
 [^freepipe]: Comparing Free Reference Extraction Pipelines. [doi.org/10.5281/zenodo.10582213](https://doi.org/10.5281/zenodo.10582213)
+
 [^s2orc]: Lo et al. S2ORC: The Semantic Scholar Open Research Corpus. ACL 2020. [aclanthology.org/2020.acl-main.447](https://aclanthology.org/2020.acl-main.447.pdf)
+
 [^doc2json]: allenai/s2orc-doc2json. [github.com/allenai/s2orc-doc2json](https://github.com/allenai/s2orc-doc2json)
+
 [^unarxiv22]: Saier, Krause & Färber. unarXive 2022. JCDL 2023. [doi.org/10.1109/JCDL57899.2023.00020](https://doi.org/10.1109/JCDL57899.2023.00020)
+
 [^unxgit]: IllDepence/unarXive. [github.com/IllDepence/unarXive](https://github.com/IllDepence/unarXive); [zenodo.org/records/7752754](https://zenodo.org/records/7752754)
+
 [^unpaywall]: Unpaywall (OurResearch). api.unpaywall.org.
+
 [^core]: CORE API. [core.ac.uk/services/api](https://core.ac.uk/services/api/)
+
 [^refcat]: The Fatcat Guide — Reference Graph (refcat). [guide.fatcat.wiki/reference_graph.html](https://guide.fatcat.wiki/reference_graph.html)
+
 [^wdstats]: Wikidata. Property P2860 usage stats. [wikidata.org Property:P2860](https://wikidata.org/wiki/Property:P2860)

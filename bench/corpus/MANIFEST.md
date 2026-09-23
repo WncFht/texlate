@@ -1136,15 +1136,15 @@ dr 删 2），管线修 `e7dc8f96`（异层 cell 只 skip 不克隆 + fetch 后 
 
 本目录成为全部静态语料的唯一物理根。`corpus`/`corpus_v2`/`corpus_m1k`/`corpus_iclr` 四库的 paper 树已 rename 并入（947 搬移 + 251 去重 + 3 冲突双保留）；同日兼容壳整体拆除（1197 个 symlink 随 shell 目录删除），四库文档折存为 `MANIFEST_{v1,v2,m1k}.md`（iclr 库本无入库文档），构建脚本归 `bench/py/corpus/`。
 
-| 新层 | 文件 | 条数 | 来源 |
-|---|---|---|---|
-| `v1` | `manifest_v1.jsonl` | 39 | 手挑陷阱库（裸布局 `{id}/files`，无 extracted/） |
-| `v2` | `manifest_v2.jsonl` | 217（139 在场） | 分层随机库；manifest 是 fetch-log 含失败项 |
-| `m1k-axhot` | `manifest_m1k-axhot.jsonl` | 247 | m1k run 语料 |
-| `m1k-iclr` | `manifest_m1k-iclr.jsonl` | 200 | 同上 |
-| `m1k-recent` | `manifest_m1k-recent.jsonl` | 300 | 同上 |
-| `m1k-v3` | `manifest_m1k-v3.jsonl` | 250 | 同上（自本根抽样子集） |
-| `iclr` | `manifest_iclr.jsonl` | 25 | ICLR section-study 源语料（扫盘生成） |
+| 新层         | 文件                        | 条数            | 来源                                             |
+| ------------ | --------------------------- | --------------- | ------------------------------------------------ |
+| `v1`         | `manifest_v1.jsonl`         | 39              | 手挑陷阱库（裸布局 `{id}/files`，无 extracted/） |
+| `v2`         | `manifest_v2.jsonl`         | 217（139 在场） | 分层随机库；manifest 是 fetch-log 含失败项       |
+| `m1k-axhot`  | `manifest_m1k-axhot.jsonl`  | 247             | m1k run 语料                                     |
+| `m1k-iclr`   | `manifest_m1k-iclr.jsonl`   | 200             | 同上                                             |
+| `m1k-recent` | `manifest_m1k-recent.jsonl` | 300             | 同上                                             |
+| `m1k-v3`     | `manifest_m1k-v3.jsonl`     | 250             | 同上（自本根抽样子集）                           |
+| `iclr`       | `manifest_iclr.jsonl`       | 25              | ICLR section-study 源语料（扫盘生成）            |
 
 冲突双保留（同名不同版）：`1706.03762`（v1 裸版）、`2106.09685`、`2407.21783`（m1k 版）的源库副本移存 `_alt-versions/{id}/`——本根 `{id}/` 始终是 v3 版（manifest blob_sha256 完整），`_alt-versions/` 是落选版本存档。
 

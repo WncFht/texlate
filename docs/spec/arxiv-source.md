@@ -6,12 +6,12 @@
 
 获取层是产品管线的最上游，只负责「源到手、定位到主文件」；解析、翻译、编译全部在下游层。
 
-| 消费方 | 入口 | 用到的能力 |
-| --- | --- | --- |
-| CLI（`texlate fetch` / `texlate run`） | `cli/fetch.py::_acquire` | `acquire_source` 全链 + offline 模式 |
-| Web 任务（arxiv 系 kind） | `server/worker/fetch.py::_Fetch._fetch_arxiv` | `acquire_source` + `fetch_metadata`（分类目喂术语层） |
-| Web HTML 臂（`kind=arxiv_html`） | `server/worker/fetch.py::_fetch_html` | `arxiv/html.py::fetch_html` 直取 HTML 版 |
-| 降级裁决 | `arxiv/meta.py::degrade` | L2/L3 层探测（当前由语料/bench 侧驱动，产品链 L3 走 babeldoc sidecar） |
+| 消费方                                 | 入口                                          | 用到的能力                                                             |
+| -------------------------------------- | --------------------------------------------- | ---------------------------------------------------------------------- |
+| CLI（`texlate fetch` / `texlate run`） | `cli/fetch.py::_acquire`                      | `acquire_source` 全链 + offline 模式                                   |
+| Web 任务（arxiv 系 kind）              | `server/worker/fetch.py::_Fetch._fetch_arxiv` | `acquire_source` + `fetch_metadata`（分类目喂术语层）                  |
+| Web HTML 臂（`kind=arxiv_html`）       | `server/worker/fetch.py::_fetch_html`         | `arxiv/html.py::fetch_html` 直取 HTML 版                               |
+| 降级裁决                               | `arxiv/meta.py::degrade`                      | L2/L3 层探测（当前由语料/bench 侧驱动，产品链 L3 走 babeldoc sidecar） |
 
 批量建库（benchmark 语料）不经过本层打 arxiv.org——见 §6。
 
@@ -21,15 +21,15 @@
 
 实现只用官方端点族；下载面在 `arxiv.org` 与 `export.arxiv.org` 两 host 间故障转移（`fetch.py::DEFAULT_HOSTS` + `Fetcher._across_hosts`，两端行为一致互为镜像，另有直连回退臂）。
 
-| 用途 | 路径 | 代码落点 |
-| --- | --- | --- |
-| e-print 源码包 | `/src/{id}[vN]`（`/e-print/` 同义） | `fetch.py::Fetcher.head_src`/`get_src` |
-| HTML 版 | `/html/{id}[vN]` | `Fetcher.head_path`/`get_path`（`html.py::fetch_html` 消费） |
-| PDF | `/pdf/{id}[vN]` | `Fetcher.head_path`/`get_path`（降级探测与 sidecar 取件） |
-| abs 页 | `/abs/{id}[vN]` | 归 `content` 限流类；产品链未消费（**未落地**：备用元数据源） |
-| Atom 元数据 | `export.arxiv.org/api/query?id_list={id}` | `meta.py::_atom_meta`（单篇查询；批量 id_list 未用） |
-| OAI-PMH | `oaipmh.arxiv.org/oai?verb=GetRecord&metadataPrefix=arXivRaw` | `meta.py::_oai_meta`（Atom 兜底） |
-| RSS | `arxiv.org/rss/{cat}` | **本层未落地**（语料日更管线在 bench 侧使用，见 §6） |
+| 用途           | 路径                                                          | 代码落点                                                      |
+| -------------- | ------------------------------------------------------------- | ------------------------------------------------------------- |
+| e-print 源码包 | `/src/{id}[vN]`（`/e-print/` 同义）                           | `fetch.py::Fetcher.head_src`/`get_src`                        |
+| HTML 版        | `/html/{id}[vN]`                                              | `Fetcher.head_path`/`get_path`（`html.py::fetch_html` 消费）  |
+| PDF            | `/pdf/{id}[vN]`                                               | `Fetcher.head_path`/`get_path`（降级探测与 sidecar 取件）     |
+| abs 页         | `/abs/{id}[vN]`                                               | 归 `content` 限流类；产品链未消费（**未落地**：备用元数据源） |
+| Atom 元数据    | `export.arxiv.org/api/query?id_list={id}`                     | `meta.py::_atom_meta`（单篇查询；批量 id_list 未用）          |
+| OAI-PMH        | `oaipmh.arxiv.org/oai?verb=GetRecord&metadataPrefix=arXivRaw` | `meta.py::_oai_meta`（Atom 兜底）                             |
+| RSS            | `arxiv.org/rss/{cat}`                                         | **本层未落地**（语料日更管线在 bench 侧使用，见 §6）          |
 
 ### 1.2 请求纪律（硬约束）
 
@@ -173,9 +173,15 @@ L3 取官方 `/pdf/{id}[vN]` 由 worker `_Pdf` 段交 babeldoc sidecar（独立�
 ### 参考文献
 
 [^arxiv-api]: arXiv. arXiv API User's Manual. [info.arxiv.org/help/api/user-manual.html](https://info.arxiv.org/help/api/user-manual.html)
+
 [^arxiv-bulk]: arXiv. arXiv Bulk Data Access. [info.arxiv.org/help/bulk_data.html](https://info.arxiv.org/help/bulk_data.html)
+
 [^arxiv-sanity]: karpathy/arxiv-sanity issue #80：arXiv denied.html 机器人封禁口径。[github.com/karpathy/arxiv-sanity](https://github.com/karpathy/arxiv-sanity/issues/80)
+
 [^layer]: TeXlate 调研档案 `research/arxiv/layer.md`：在线层实测主档（速率桶/406 配额/三态比例/版本语义/许可门裁决）。
+
 [^probes]: TeXlate 调研档案 `research/arxiv/probes.md`（§B 规模面含原 serial2 探针波次）：HEAD 预检、条件请求与分层抽样探针。
+
 [^export-probes]: TeXlate 调研档案 `research/arxiv/export-probes.md`：export 镜像=第二下载桶、限流按路径不按 host。
+
 [^oai-pmh]: TeXlate 调研档案 `research/arxiv/oai-pmh.md`：OAI-PMH 第三限流桶与 `<license>`/版本史字段。

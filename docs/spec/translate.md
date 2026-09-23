@@ -51,12 +51,12 @@ kind 专属条款：para/abstract 追加 C10 人名保原语（`always keep pers
 
 ### 1.3 占位符族（`xlat/placeholders.py`）
 
-| 族 | token | 保护对象 |
-| --- | --- | --- |
-| typed | `[[MATH_n]]/[[CITE_n]]/[[REF_n]]/[[ENV_n]]/[[AUTHOR_n]]` 等 | 数学/引用/参照/环境/人名等受保护 LaTeX 片段（上游 `latex.placeholder` 产出，`TYPED_PH_RX`） |
-| 换行 | `[[SL]]`（单换行）、`[[PL]]`（`\n\n+` 空段保底） | 段内换行编码，送翻/回译对称 |
-| 空格 | `[[SP]]`=`\`、`[[NBSP]]`=`~`、`[[THINSP]]`=`\,`、`[[MEDSP]]`=`\:`、`[[THICKSP]]`=`\;`、`[[NEGSP]]`=`\!` | 脆弱间距命令防熔合丢失，各带 `_RAW` 变体 |
-| 哨兵 | `[[__TEXLATE_{tag}_LIT{n}__]]` | 源文本字面含占位符形串时的转义链，支持任意深度嵌套（level≥2），对 `ANY_PH_RX` 不可见 |
+| 族    | token                                                                                                   | 保护对象                                                                                    |
+| ----- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| typed | `[[MATH_n]]/[[CITE_n]]/[[REF_n]]/[[ENV_n]]/[[AUTHOR_n]]` 等                                             | 数学/引用/参照/环境/人名等受保护 LaTeX 片段（上游 `latex.placeholder` 产出，`TYPED_PH_RX`） |
+| 换行  | `[[SL]]`（单换行）、`[[PL]]`（`\n\n+` 空段保底）                                                        | 段内换行编码，送翻/回译对称                                                                 |
+| 空格  | `[[SP]]`=`\`、`[[NBSP]]`=`~`、`[[THINSP]]`=`\,`、`[[MEDSP]]`=`\:`、`[[THICKSP]]`=`\;`、`[[NEGSP]]`=`\!` | 脆弱间距命令防熔合丢失，各带 `_RAW` 变体                                                    |
+| 哨兵  | `[[__TEXLATE_{tag}_LIT{n}__]]`                                                                          | 源文本字面含占位符形串时的转义链，支持任意深度嵌套（level≥2），对 `ANY_PH_RX` 不可见        |
 
 `encode_newlines`：`\n`→SL，k≥2 连换行→`PL×(k//2)+SL×(k%2)`；`EOL_RX` 归一 `\r\n|\r|\x0b|\x0c|\x85|U+2028|U+2029`。`diff()` 做 masked 多重集差 + lev≤2 模糊配对；`_BENIGN_EXTRA_TYPES={NBSP}` 容忍模型自发加入；注释区多余项单独计数。`recover_copied_tokens`：模型把受保护原文抄回译文时，仅**边界精确 + 全库唯一出现**才换回 token，不猜。
 
@@ -80,12 +80,12 @@ kind 专属条款：para/abstract 追加 C10 人名保原语（`always keep pers
 
 四段阶梯，逐段收窄：
 
-| 级 | 语义 | 要点 |
-| --- | --- | --- |
-| 1 | 整段 ×2 | 第二试优先 `corrector_fn`（专用 corrector prompt），否则带字段化 `previous_validation_error` 反馈重试 |
-| 2 | `_stage_lines` 行级 | `_split_lines_scoped` 闭合 scope 边界逐行译 + 审计重试；坏行回填 `src_l` |
-| 3 | `_stage_slots` 槽位 | `⟪S%04d⟫` 槽位 JSON（`response_format=json_object`）、`SLOTS_PER_BATCH=8`、`SLOT_MAX_CHARS=1500`、`SLOTS_MAX_ROUNDS=2`；失败槽只重问失败批 |
-| 4 | `fallback_orig` | 回退原文 |
+| 级  | 语义                | 要点                                                                                                                                       |
+| --- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | 整段 ×2             | 第二试优先 `corrector_fn`（专用 corrector prompt），否则带字段化 `previous_validation_error` 反馈重试                                      |
+| 2   | `_stage_lines` 行级 | `_split_lines_scoped` 闭合 scope 边界逐行译 + 审计重试；坏行回填 `src_l`                                                                   |
+| 3   | `_stage_slots` 槽位 | `⟪S%04d⟫` 槽位 JSON（`response_format=json_object`）、`SLOTS_PER_BATCH=8`、`SLOT_MAX_CHARS=1500`、`SLOTS_MAX_ROUNDS=2`；失败槽只重问失败批 |
+| 4   | `fallback_orig`     | 回退原文                                                                                                                                   |
 
 `_valid_slot_text` 按**字符出现**拒收槽译文：`⟪`/`⟫`/`[[`/`]]` 任一出现即非法，覆盖非规范/未闭合/小写残码与半边 token——畸形 token 放行会把原文带进译文。`bare_token_audit(shown_src, zh_raw)` 在解码前对 8 个解码族裸令牌做多重集比对。
 
@@ -97,11 +97,11 @@ kind 专属条款：para/abstract 追加 C10 人名保原语（`always keep pers
 
 缓存三层口径[^texglot]：
 
-| 层 | 键构成 | 落点 |
-| --- | --- | --- |
-| 段级 | `state.segment_key` = `sha256(role␀source␀失效tag…␀masked␀快照)`；`masked_snapshot` 是占位符布局摘要（`repr(ph_types)`），token 布局变则 key 变 | `xlat` 本地：`cache-{file16}.json` 内条目；server：`translation_cache` 表，键 = `{cfg_hash}:{seg_key}` |
-| 文件级 | `state.file_cache_key` = `sha256(prompt_version | base_url | model | lang | glossary | context)[:16]` | `cache-{16hex}.json` 文件名 |
-| 任务级 | `worker/_common.py::cache_key_for` = `sha256(arxiv_id@ver | model | PIPELINE_VERSION | lang[ | src:channel][ | fm:集][ | k:key指纹])` | `tasks.cache_key` 活跃态部分唯一索引（dedup/attach） |
+| 层     | 键构成                                                                                                                                          | 落点                                                                                                   |
+| ------ | ----------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| 段级   | `state.segment_key` = `sha256(role␀source␀失效tag…␀masked␀快照)`；`masked_snapshot` 是占位符布局摘要（`repr(ph_types)`），token 布局变则 key 变 | `xlat` 本地：`cache-{file16}.json` 内条目；server：`translation_cache` 表，键 = `{cfg_hash}:{seg_key}` |
+| 文件级 | `state.file_cache_key` = `sha256(prompt_version                                                                                                 | base_url                                                                                               | model            | lang  | glossary      | context)[:16]` | `cache-{16hex}.json` 文件名 |
+| 任务级 | `worker/_common.py::cache_key_for` = `sha256(arxiv_id@ver                                                                                       | model                                                                                                  | PIPELINE_VERSION | lang[ | src:channel][ | fm:集][        | k:key指纹])`                | `tasks.cache_key` 活跃态部分唯一索引（dedup/attach） |
 
 server 侧段缓存前缀 `cfg_hash` = `sha256(model|PROMPT_VERSION|target_lang|base_url|u:user_glossary_sig|l:local_sig|c:categories|ag:auto_glossary)[:16]`——base_url 进指纹防跨 provider 混桶中毒，categories/auto_glossary 开关进指纹同理；文档级 placeholders 不进（会把缓存锁成单文档桶）。`TEXLATE_CACHE_SCOPE=per_key` 时任务级与段级键均拼入 `sha256(api_key)[:16]` 指纹按凭证分桶，消除跨租户缓存存在性 oracle；默认 `shared`（公开论文确定性函数跨租户复用是既定特性）。`SegmentCache` 读面 = `_pending ∪ _written ∪ _pre`（prewarm 批量预载，`drain` 随 chunk flush 事务落盘）。
 
@@ -135,7 +135,7 @@ server 侧段缓存前缀 `cfg_hash` = `sha256(model|PROMPT_VERSION|target_lang|
 - 免费集动态发现 `discover_free_models`：网关面板 `cost_tier=="free"∧promo.active∧!disabled` ∩ `/v1/models` ∩ 探活（Semaphore 4、`max_probe=12`）+ memoize——**仅 `is_free_gateway_url`**（回环 ∪ CGNAT 段 ∪ tailnet 域名）启用；`fallback_candidates`/`_FallbackTranslator`（worker `retry_model`）消费。
 - 超时：`DEFAULT_TIMEOUT=httpx.Timeout(180, connect=10, read=300)`；`PROBE_TIMEOUT=60s`、`PROBE_MAX_TOKENS=1024`、`REASONING_MIN_MAX_TOKENS=8192`。
 - 错误型谱：`AuthError`(401/403) / `BillingError`(402) / `EndpointNotFoundError`(404) / `RetryableHTTPError`(429/408/409/425/5xx) / `ClientRejectedError` / `ContentFilterError`(max_tries=1) / `LengthTruncatedError`(status=200 伪装，max_tries=2，带 partial_content) / `EmptyContentError`·`MalformedResponseError`(max_tries=2)。
-- `redact()` provider 无关脱敏（Bearer/sk-*/sk-ant-*/AIza*/key=:token= + 显式 api_key）；`provider_for_url` host→provider 预设表（anthropic/deepseek/dashscope/azure|openai/其余 custom），`PROVIDER_KEY_ENV` 映射各家 key env——BYOK 通道。
+- `redact()` provider 无关脱敏（Bearer/sk-_/sk-ant-_/AIza*/key=:token= + 显式 api_key）；`provider_for_url` host→provider 预设表（anthropic/deepseek/dashscope/azure|openai/其余 custom），`PROVIDER_KEY_ENV` 映射各家 key env——BYOK 通道。
 
 ### 1.11 mock 臂与 translator 决议
 
@@ -183,20 +183,25 @@ server 侧段缓存前缀 `cfg_hash` = `sha256(model|PROMPT_VERSION|target_lang|
 
 ## 4. 状态词表（翻译侧）
 
-| 域 | 字段 | 取值 | 产出 |
-| --- | --- | --- | --- |
-| 块态 | `ChunkResult.status` | `ok` / `partial`（阶梯 recovered）/ `fault`（翻译或校验错；fallback_orig 亦落 fault + `fell_back`）/ `skipped`（门控跳过） | `xlat/pipeline.py` |
-| 阶梯态 | `LadderResult.status` | `ok` / `recovered` / `fallback_orig` | `xlat/retry.py` |
-| 错误型 | `ChunkResult.error_kind` | `""` / `auth` / `provider` / `crash` / `validate` | `xlat/pipeline.py` |
-| L2 判决 | `L2Verdict.ok` | `n_errors==0`；`log_missing` 单列 | `validate/l2.py` |
-| 编译判决 | `Verdict.status` | `clean` / `partial` / `fail`（无 reject——拒绝统一 partial + `reject_at` 审计字段，见 compile.md） | `compile/judge.py` |
-| 任务态 | job `status` | 活跃 `queued`/`fetching`/`parsing`/`translating`/`compiling`；终态 `done`/`partial`/`fault`/`cancelled`/`interrupted`/`needs_auth` | `server/store/` |
+| 域       | 字段                     | 取值                                                                                                                               | 产出               |
+| -------- | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
+| 块态     | `ChunkResult.status`     | `ok` / `partial`（阶梯 recovered）/ `fault`（翻译或校验错；fallback_orig 亦落 fault + `fell_back`）/ `skipped`（门控跳过）         | `xlat/pipeline.py` |
+| 阶梯态   | `LadderResult.status`    | `ok` / `recovered` / `fallback_orig`                                                                                               | `xlat/retry.py`    |
+| 错误型   | `ChunkResult.error_kind` | `""` / `auth` / `provider` / `crash` / `validate`                                                                                  | `xlat/pipeline.py` |
+| L2 判决  | `L2Verdict.ok`           | `n_errors==0`；`log_missing` 单列                                                                                                  | `validate/l2.py`   |
+| 编译判决 | `Verdict.status`         | `clean` / `partial` / `fail`（无 reject——拒绝统一 partial + `reject_at` 审计字段，见 compile.md）                                  | `compile/judge.py` |
+| 任务态   | job `status`             | 活跃 `queued`/`fetching`/`parsing`/`translating`/`compiling`；终态 `done`/`partial`/`fault`/`cancelled`/`interrupted`/`needs_auth` | `server/store/`    |
 
 ### 参考文献
 
 [^texglot]: TeXlate 调研档案：texglot 模式实录——归一化层/缓存键/重试阶梯/沙箱与网关实测. [research/latex/texglot-patterns.md](../research/latex/texglot-patterns.md)
+
 [^prompt-gloss]: TeXlate 调研档案：prompt 套件与术语表工程规格. [research/latex/prompt-glossary-spec.md](../research/latex/prompt-glossary-spec.md)
+
 [^l0-rules]: TeXlate 调研档案：L0 校验规则设计与对抗实测. [research/latex/validator-rules.md](../research/latex/validator-rules.md)
+
 [^l1-ts]: TeXlate 调研档案：tree-sitter 校验层与 baseline 相对判定. [research/latex/validator-ts.md](../research/latex/validator-ts.md)
+
 [^aux-cjk]: TeXlate 调研档案：aux 中间产物 CJK 截断归因. [research/latex/2026-09-16-aux-cjk-truncation.md](../research/latex/2026-09-16-aux-cjk-truncation.md)
+
 [^latextrans]: NiuTrans. LaTeXTrans（术语表种子来源，MIT；arXiv 2508.18791）. [github.com/NiuTrans/LaTeXTrans](https://github.com/NiuTrans/LaTeXTrans)

@@ -6,13 +6,13 @@
 
 ## 0. 裁决表
 
-| 语料 | 发行物内容 | 含 LaTeX 源码？ | 获取门槛 | license 可否再分发 |
-| --- | --- | --- | --- | --- |
-| arXMLiv 2020（最新 arXMLiv 牌） | 1,581,037 篇 HTML5+MathML | **否** | SIGMathLing 会员 + 互惠 NDA | **不可**（NDA 明示仅限会员） |
-| ar5iv-dataset-04.2024（后继版） | 2,170,799 篇 HTML，按 severity 分 3 包 | **否** | Google Form 签 C-UDA-1.0 | C-UDA：计算用途可、数据本体不可再分发 |
-| unarXive 2022 open subset | 结构化 JSONL（正文 + 引用标注） | **否** | Zenodo 直下，CC-BY-SA-4.0 | 可（但只有 JSONL 无源码） |
-| unarXive 2024 | 同上 JSONL，104.9GB tar.gz | **否** | Zenodo 直下，CC-BY-4.0 | 可 |
-| **scholarweave/arxiv-latex（HF）** | **3,120,928 篇文本类源文件全量** | **是（有损）** | **免 key 匿名直下** | 镜像 arXiv ToU，逐篇 license 字段 |
+| 语料                               | 发行物内容                             | 含 LaTeX 源码？ | 获取门槛                    | license 可否再分发                    |
+| ---------------------------------- | -------------------------------------- | --------------- | --------------------------- | ------------------------------------- |
+| arXMLiv 2020（最新 arXMLiv 牌）    | 1,581,037 篇 HTML5+MathML              | **否**          | SIGMathLing 会员 + 互惠 NDA | **不可**（NDA 明示仅限会员）          |
+| ar5iv-dataset-04.2024（后继版）    | 2,170,799 篇 HTML，按 severity 分 3 包 | **否**          | Google Form 签 C-UDA-1.0    | C-UDA：计算用途可、数据本体不可再分发 |
+| unarXive 2022 open subset          | 结构化 JSONL（正文 + 引用标注）        | **否**          | Zenodo 直下，CC-BY-SA-4.0   | 可（但只有 JSONL 无源码）             |
+| unarXive 2024                      | 同上 JSONL，104.9GB tar.gz             | **否**          | Zenodo 直下，CC-BY-4.0      | 可                                    |
+| **scholarweave/arxiv-latex（HF）** | **3,120,928 篇文本类源文件全量**       | **是（有损）**  | **免 key 匿名直下**         | 镜像 arXiv ToU，逐篇 license 字段     |
 
 ## 1. arXMLiv（kwarc/LaTeXML）发行物解剖
 
@@ -43,13 +43,13 @@
 
 ### 发行版矩阵（Zenodo API 实测）
 
-| record | 版本 | 访问 | license | 内容 | 体积 |
-| --- | --- | --- | --- | --- | --- |
-| 3385851 | 2019 | restricted | other-at | 旧格式 JSONL | 文件隐藏 |
-| 4313164 | 2020 | restricted | other-at | 旧格式 JSONL | 文件隐藏 |
-| 7752754 | 2022 full | **restricted（申请制）** | — | 全量（含非 permissive 论文） | 页面标 59.4TB，文件列表不可见 |
-| 7752615 | 2022 **open subset** | open | CC-BY-SA-4.0 | permissively-licensed 论文子集 | `unarXive_230324_open_subset.tar.xz` 4.84GB |
-| **17431595** | **2024** | **open** | **CC-BY-4.0** | 同 JSONL schema | **`unarXive_2024.tar.gz` 104.9GB** + preview.jsonl |
+| record       | 版本                 | 访问                     | license       | 内容                           | 体积                                               |
+| ------------ | -------------------- | ------------------------ | ------------- | ------------------------------ | -------------------------------------------------- |
+| 3385851      | 2019                 | restricted               | other-at      | 旧格式 JSONL                   | 文件隐藏                                           |
+| 4313164      | 2020                 | restricted               | other-at      | 旧格式 JSONL                   | 文件隐藏                                           |
+| 7752754      | 2022 full            | **restricted（申请制）** | —             | 全量（含非 permissive 论文）   | 页面标 59.4TB，文件列表不可见                      |
+| 7752615      | 2022 **open subset** | open                     | CC-BY-SA-4.0  | permissively-licensed 论文子集 | `unarXive_230324_open_subset.tar.xz` 4.84GB        |
+| **17431595** | **2024**             | **open**                 | **CC-BY-4.0** | 同 JSONL schema                | **`unarXive_2024.tar.gz` 104.9GB** + preview.jsonl |
 
 - 格式（README+preview 实证）：`<yy>/arXiv_src_<yymm>_<num>.jsonl`，每行一个 paper 对象：`paper_id / _source_hash / _source_name / metadata(OAI 全字段) / discipline / abstract / body_text[{section,sec_number,sec_type,content_type,text,cite_spans,ref_spans}] / bib_entries / ref_entries`。正文里 `{{cite:uuid}}`/`{{formula:uuid}}`/`{{figure:uuid}}` 占位符指向 ref_entries（公式保 LaTeX 串）。
 - **没有一行 LaTeX 源码**——连「展开后单文件」都不给，只有抽完的正文 + 标注。规模：2022 版 1.9M 篇 / 63M 参考文献 / 134M 文内引用标记 / 742M 公式片段；2024 版口径更大（105GB gz）。

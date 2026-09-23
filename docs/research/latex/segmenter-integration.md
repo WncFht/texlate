@@ -30,11 +30,11 @@ file bytes ──► Mouth（逐文件 tokenize，catcode 共享表）
 
 run 项升级为 `(surface, ident)` 双轨：
 
-| 来源 | surface（进 chunk.content/译文面） | ident（identity 面） |
-| --- | --- | --- |
-| gen=0 文本 token | `t.text`（space 已折叠，译文面要折叠形） | `vtex` 切片 `[cov_start, t.src.end)`——含前导间隙（注释随 identity 保留） |
-| ph 项（MATH/CITE/…） | `[[X_n]]` | 同一 token（ph_map 体即原文） |
-| 展开组 | 展开表面文本 | `[[EXPAND_n]]` token（体 = 调用点 vtex 切片） |
+| 来源                 | surface（进 chunk.content/译文面）       | ident（identity 面）                                                     |
+| -------------------- | ---------------------------------------- | ------------------------------------------------------------------------ |
+| gen=0 文本 token     | `t.text`（space 已折叠，译文面要折叠形） | `vtex` 切片 `[cov_start, t.src.end)`——含前导间隙（注释随 identity 保留） |
+| ph 项（MATH/CITE/…） | `[[X_n]]`                                | 同一 token（ph_map 体即原文）                                            |
+| 展开组               | 展开表面文本                             | `[[EXPAND_n]]` token（体 = 调用点 vtex 切片）                            |
 
 - 非 chunk 冲刷：piece.text = `join(ident)`——注释、展开调用点原文全部逐字回，identity 零新机制。
 - chunk 冲刷：content = `join(surface)`；identity 经 `ph_map["[[CHUNK_k]]"] = vtex[gspan]`——利用 `expand()` 现成的 `trans → ph_map → content` 优先级，零 schema 变更。仅当 run 含展开组才登记（`run_has_expand` 旗标），常态无额外开销。

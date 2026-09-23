@@ -78,19 +78,19 @@
 
 ## 6. 分报告索引
 
-| 报告                                   | 维度              | 头条结论                                                |
-| -------------------------------------- | ----------------- | ------------------------------------------------------- |
-| [m0.md](m0.md)                         | M0 验收           | 4/4 DONE                                                |
-| [m1.md](m1.md)                         | M1 验收           | 5P/2PART/1GAP，出口门带保留过                           |
+| 报告                                   | 维度              | 头条结论                                                                                                               |
+| -------------------------------------- | ----------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| [m0.md](m0.md)                         | M0 验收           | 4/4 DONE                                                                                                               |
+| [m1.md](m1.md)                         | M1 验收           | 5P/2PART/1GAP，出口门带保留过                                                                                          |
 | [m2.md](m2.md)                         | M2 验收           | 库层齐；89.5%/n172 为时点值，「未接链」已反转——fixloop/target_probe/L2 回灌/LLM 修复器均实装，详见文首 SUPERSEDED 注记 |
-| [m3.md](m3.md)                         | M3 验收           | 约半程；SPA 断链最刺眼                                  |
-| [spec06.md](spec06.md)                 | arxiv spec        | §3/§5 missing；unpack 有两套                            |
-| [spec07.md](spec07.md)                 | latex spec        | 仅 INLINE_MAX 死常量；余皆 spec 滞后                    |
-| [spec08.md](spec08.md)                 | xlat+compile spec | 库厚、编排断：fixloop/L2 回灌/target_probe              |
-| [spec0910.md](spec0910.md)             | 语料+bench spec   | B3/Mode-B/C 未跑、B7 FAIL                               |
-| [e2e-func.md](e2e-func.md)             | 功能实测          | 端到端真通，出双语 PDF                                  |
-| [tests.md](tests.md)                   | 测试质量          | 零假绿；e2e.py 零覆盖最要害                             |
-| [codehealth.md](codehealth.md)         | 代码健康 + 安全   | ruff 净；5 个真实安全发现                               |
-| [evidence.md](evidence.md)             | 数字对账          | HANDOFF 全部声明 MATCH                                  |
-| [docs.md](docs.md)                     | 文档漂移          | 里程碑标签/索引/工具链三处最需更新                      |
-| [wave2-findings.md](wave2-findings.md) | 波二 9-scout 台账 | 发现处置路由全录（fixed/fixer/routed/deferred/wontfix） |
+| [m3.md](m3.md)                         | M3 验收           | 约半程；SPA 断链最刺眼                                                                                                 |
+| [spec06.md](spec06.md)                 | arxiv spec        | §3/§5 missing；unpack 有两套                                                                                           |
+| [spec07.md](spec07.md)                 | latex spec        | 仅 INLINE_MAX 死常量；余皆 spec 滞后                                                                                   |
+| [spec08.md](spec08.md)                 | xlat+compile spec | 库厚、编排断：fixloop/L2 回灌/target_probe                                                                             |
+| [spec0910.md](spec0910.md)             | 语料+bench spec   | B3/Mode-B/C 未跑、B7 FAIL                                                                                              |
+| [e2e-func.md](e2e-func.md)             | 功能实测          | 端到端真通，出双语 PDF                                                                                                 |
+| [tests.md](tests.md)                   | 测试质量          | 零假绿；e2e.py 零覆盖最要害                                                                                            |
+| [codehealth.md](codehealth.md)         | 代码健康 + 安全   | ruff 净；5 个真实安全发现                                                                                              |
+| [evidence.md](evidence.md)             | 数字对账          | HANDOFF 全部声明 MATCH                                                                                                 |
+| [docs.md](docs.md)                     | 文档漂移          | 里程碑标签/索引/工具链三处最需更新                                                                                     |
+| [wave2-findings.md](wave2-findings.md) | 波二 9-scout 台账 | 发现处置路由全录（fixed/fixer/routed/deferred/wontfix）                                                                |

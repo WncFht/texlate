@@ -41,16 +41,16 @@
 
 ## 3. parsebench warning 分布变化逐条解释
 
-| warning | 基线 | 修复后 | 归因 |
-| --- | --- | --- | --- |
-| stray_end | 4 | 18 | #9 新信号，全真阳性（见下） |
-| env_mismatch | 0 | 1 | #9 新信号，真阳性 |
-| def_parse_fail | 420 | 312 | #6 `\endinput` 截停（marker 后 `\def` 不再扫） |
-| missing_input | 186 | 159 | 同上（marker 后 `\input` 不再尝试） |
-| unpaired_dollar | 172 | 173 | #15 判据收紧 +2 / #3 豁免消误报 −1 |
-| debt_repair | 13 | 12 | #3 豁免去掉的误报 |
-| if_unterminated | 2 | 1 | #6 截停（pstricks marker 后 `\if`） |
-| unclosed_env | 53 | 53 | 不变 |
+| warning         | 基线 | 修复后 | 归因                                           |
+| --------------- | ---- | ------ | ---------------------------------------------- |
+| stray_end       | 4    | 18     | #9 新信号，全真阳性（见下）                    |
+| env_mismatch    | 0    | 1      | #9 新信号，真阳性                              |
+| def_parse_fail  | 420  | 312    | #6 `\endinput` 截停（marker 后 `\def` 不再扫） |
+| missing_input   | 186  | 159    | 同上（marker 后 `\input` 不再尝试）            |
+| unpaired_dollar | 172  | 173    | #15 判据收紧 +2 / #3 豁免消误报 −1             |
+| debt_repair     | 13   | 12     | #3 豁免去掉的误报                              |
+| if_unterminated | 2    | 1      | #6 截停（pstricks marker 后 `\if`）            |
+| unclosed_env    | 53   | 53     | 不变                                           |
 
 **stray_end 4→18 是新检测灵敏度、非回归。** 增量集中在 `0905.4503/ms.tex`（+10）、`1811.03607`（三文件各 +1）、`0707.2108/pmeyerxi.TEX`（+1），全部同一形态——`\ifemulate \begin{deluxetable*}…\else \end{deluxetable}\fi`：env 的 begin/end 分居 `\if` 两分支，双分支 literal 扫描下 `\else` 分支的 `\end` 在栈上确无匹配。此前零信号静默通过，现在如实名化；扫描行为本身不变。
 

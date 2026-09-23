@@ -41,13 +41,23 @@ Flask webapp，页面数据 100% 来自 Wikidata 实时 SPARQL[^scholia-repo]。
 ### 参考文献
 
 [^gecko-readme]: Walker B.J. CitationGecko README & source (gecko-react). GitHub/Zenodo 2019-2023. [github.com/CitationGecko/gecko-react](https://github.com/CitationGecko/gecko-react)
+
 [^lcn-repo]: Woelfle T. Local Citation Network README/CHANGELOG. GitHub. [github.com/LocalCitationNetwork/LocalCitationNetwork.github.io](https://github.com/LocalCitationNetwork/LocalCitationNetwork.github.io)
+
 [^lcn-src]: Local-Citation-Network `index.js` v1.32（2026-09-19 clone 实读）.
+
 [^lcn-faq]: LCN web app FAQ（Top Cited/Top Citing/Completeness/Co*Citation 定义；RICS 协议 DOI 10.17605/OSF.IO/NPM2E）.
+
 [^lcn-bookmarklet]: Local-Citation-Network `bookmarklet.js`（17 家出版商引用列表 DOM 选择器 + DOI 正则）.
+
 [^cita-readme]: Zotero Cita README. GitHub. [github.com/zotero-cita/zotero-cita](https://github.com/zotero-cita/zotero-cita)
+
 [^cita-src]: zotero-cita `src/cita/indexers/*.ts`、`src/cita/matcher.ts`（2026-09-19 clone 实读）.
+
 [^scholia-repo]: Nielsen F.Å. et al. Scholia. GitHub/Toolforge. [github.com/WDscholia/scholia](https://github.com/WDscholia/scholia)
+
 [^scholia-sparql]: scholia `work_citations.sparql`、`ask_work_cito.sparql`（2026-09-19 实读）.
+
 [^litstudy-pypi]: litstudy 1.0.6. [pypi.org/project/litstudy](https://pypi.org/project/litstudy); [github.com/nlesc/litstudy](https://github.com/nlesc/litstudy)
+
 [^litstudy-src]: litstudy `litstudy/network.py`、`litstudy/sources/semanticscholar.py`（2026-09-19 clone 实读）.

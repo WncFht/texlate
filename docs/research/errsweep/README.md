@@ -2,9 +2,9 @@
 
 每日 errsweep agent 的工作报告归档位。agent 由 `scripts/errsweep.sh` 定时唤起，按 `docs/dev/errsweep-runbook.md` 契约工作：双臂（soak records + web 任务库）签名普查 → ≤5 签名分诊 → fixloop 规则/builtin/产品修复 → 三门验收 → 本目录落 `<date>-sweep.md` 报告（同份复制到 XDG state 根）。
 
-| 文件 | 内容 |
-| --- | --- |
+| 文件                  | 内容                                                                                 |
+| --------------------- | ------------------------------------------------------------------------------------ |
 | `2026-09-20-sweep.md` | 首份 sweep 报告（当日处置摘要）——实体在 `errsweep/2026-09-20` 分支待人工合入，见下注 |
-| _后续报告_ | `<date>-sweep.md` → 当日处置摘要，合入后在此登记 |
+| _后续报告_            | `<date>-sweep.md` → 当日处置摘要，合入后在此登记                                     |
 
 注：报告先落 `errsweep/<date>` 分支、经人工评审后合入本目录（runbook §2 以 `git branch -a 'errsweep/*'` 发现，merge/cherry-pick 是人工步骤）。截至 2026-09-21，`2026-09-20-sweep.md` 已在 `errsweep/2026-09-20` 分支上待合入——读最新报告请先查分支。

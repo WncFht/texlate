@@ -57,5 +57,7 @@ glossary 体积 ~3–4k token/请求，短块批量时可能超过正文体积�
 ### 参考文献
 
 [^latextrans]: LaTeXTrans contributors. LaTeXTrans — LaTeX document translation with LLMs. GitHub. [github.com/PolarisRisingWar/LaTeXTrans](https://github.com/PolarisRisingWar/LaTeXTrans)
+
 [^mathtranslate]: SUSYUSTC. MathTranslate — LaTeX translation via machine translation engines. GitHub. [github.com/SUSYUSTC/MathTranslate](https://github.com/SUSYUSTC/MathTranslate)
+
 [^ieea]: zcyisiee. ieeA. GitHub. [github.com/zcyisiee/ieeA](https://github.com/zcyisiee/ieeA)

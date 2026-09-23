@@ -18,11 +18,11 @@ Litmaps 2016 年创立于新西兰惠灵顿（Axton Pitt + Kyle Webster），初
 
 docs 列三个可选算法，与前端 bundle 算法注册表逐字对应[^docs-algo]：
 
-| key | 展示名 | 机制 |
-| --- | --- | --- |
-| `shallow` | Shared Citations & References（默认） | 一跳邻域（citations+references+共被引）按图内互联度排序 |
-| `authorFiltration` | Common Authors | 共同作者合作模式召回 |
-| `semantic` | Similar Text | 标题+摘要 embedding/LLM 语义检索，**唯一不用引用的算法** |
+| key                | 展示名                                | 机制                                                     |
+| ------------------ | ------------------------------------- | -------------------------------------------------------- |
+| `shallow`          | Shared Citations & References（默认） | 一跳邻域（citations+references+共被引）按图内互联度排序  |
+| `authorFiltration` | Common Authors                        | 共同作者合作模式召回                                     |
+| `semantic`         | Similar Text                          | 标题+摘要 embedding/LLM 语义检索，**唯一不用引用的算法** |
 
 隐藏模式 `seed`：输入恰 1 篇且无过滤时前端改写算法为 `seed` 返回 20 条。可视化排序轴：**Momentum**（被引数按新近度调整）、**Map Connectivity**（图内被引数）、Cite Count、Ref Count、Publication Date[^docs-vis]。
 
@@ -44,9 +44,15 @@ API 基址 `api.litmaps.com`；错误体 `{"error":true,"reason":...}`；解码�
 ### 参考文献
 
 [^dealroom]: Dealroom. Litmaps company information. [app.dealroom.co](https://app.dealroom.co/companies/litmaps)
+
 [^scoop]: Scoop Business. NZ Startup Litmaps Acquires US Rival And Raises $1M. 2025. [scoop.co.nz](https://www.scoop.co.nz/stories/BU2505/S00127/nz-startup-litmaps-acquires-us-rival-and-raises-1m-to-accelerate-ai-driven-research-worldwide.htm)
+
 [^ecommerce]: eCommerceNews. Litmaps secures NZD $1.4 million to drive global platform growth. [ecommercenews.co.nz](https://ecommercenews.co.nz/story/litmaps-secures-nzd-1-4-million-to-drive-global-platform-growth)
+
 [^docs-algo]: Litmaps Docs. Search algorithms in Litmaps（2026-09-19 实测）. [docs.litmaps.com](https://docs.litmaps.com/en/articles/9029858-search-algorithms-in-litmaps)
+
 [^docs-db]: Litmaps Docs. Our database FAQ（2026-09-19 实测）. [docs.litmaps.com](https://docs.litmaps.com/en/articles/7212085-our-database-faq)
+
 [^docs-vis]: Litmaps Docs. Understand research faster visually（2026-09-19 实测）. [docs.litmaps.com](https://docs.litmaps.com/en/articles/9181490-understand-research-faster-visually)
+
 [^pricing]: Litmaps Pricing 页（2026-09-19 实测）. [litmaps.com/pricing](https://www.litmaps.com/pricing)

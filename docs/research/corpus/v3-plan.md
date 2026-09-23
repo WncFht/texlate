@@ -19,14 +19,14 @@
 
 ## 2. 数量论证（sizing）
 
-| 需求 | 所需 n | 依据 |
-| --- | --- | --- |
-| 池化「parse+identity ≥99.5%」 | ≥600 篇零失败 | rule of three：零失败 95% 上界 ≈ 3/n[^hanley83] |
-| 每时代带单独下结论 | ~200/带 × 5 带 = 1,000 | 带内零失败 → ≤1.5% 上界 |
-| 泄漏率 CI | chunk 级 ~15 万自动满足 | n=137 时 17,375 chunks → ±0.05%；~1,200 篇（~15 万 chunks）→ ±0.015% |
-| 稀有机制发现（0.5%/篇） | 1,000 篇 → 期望 ~5 次命中 | n ≥ ln(1−α)/ln(1−p)（验收抽样传统[^nielsen93]） |
-| 编译段复用 | 每引擎×时代 ≥100 | 同底材摊薄成本 |
-| 比例误差边际 | n=1,000 → ±2.8% | n=z²p(1−p)/e²[^cochran77] |
+| 需求                          | 所需 n                    | 依据                                                                 |
+| ----------------------------- | ------------------------- | -------------------------------------------------------------------- |
+| 池化「parse+identity ≥99.5%」 | ≥600 篇零失败             | rule of three：零失败 95% 上界 ≈ 3/n[^hanley83]                      |
+| 每时代带单独下结论            | ~200/带 × 5 带 = 1,000    | 带内零失败 → ≤1.5% 上界                                              |
+| 泄漏率 CI                     | chunk 级 ~15 万自动满足   | n=137 时 17,375 chunks → ±0.05%；~1,200 篇（~15 万 chunks）→ ±0.015% |
+| 稀有机制发现（0.5%/篇）       | 1,000 篇 → 期望 ~5 次命中 | n ≥ ln(1−α)/ln(1−p)（验收抽样传统[^nielsen93]）                      |
+| 编译段复用                    | 每引擎×时代 ≥100          | 同底材摊薄成本                                                       |
+| 比例误差边际                  | n=1,000 → ±2.8%           | n=z²p(1−p)/e²[^cochran77]                                            |
 
 结论：**1,000 核心 + ~200 补强 ≈ 1,200**；原 corpus_v2（139 篇无偏钉版样本）折入核心层，保留 `channel=direct-fetch` 标签做渠道敏感性检查。
 
@@ -36,13 +36,13 @@
 
 ## 3. 数据源矩阵
 
-| 渠道 | 覆盖 | 保真 | 成本 | 角色 |
-| --- | --- | --- | --- | --- |
-| IA `arxiv-bulk` 月度 tar | 1991-07→2020-10 共 352 月无缺（3,242 src item / 1.66TB，实测索引） | 字节级（Range 单成员抽取逐字节核验通过） | 免费、实测 10.7–16.2MB/s | ≤2020 主力（~24 簇） |
-| HF `TIGER-Lab/arxiv-latex-5T` | 1991-07→2025-01 连续 403 月零缺口（9,547 tar） | 字节级已实证：与 IA `2008_001` 对拍，123/165 成员 sha256 全同，42 差异全是上游 v2+ 修订 | 免费但 HF CDN 仅 3.5–3.8MB/s | post-2020 主力（~6 簇）+ IA 缺月备份；冻于 2025-01 |
-| HF `scholarweave/arxiv-latex` | →2026-07 | .tex 逐字保真（845/845 全同）但结构有损：丢 72.6% 文件（图/bst）、7.1% 论文 U+FFFD、pdf_only 行 NULL | duckdb httpfs 谓词下推 | 文本层规模实验正源；**不进正式语料**；2025-02 后唯一批量源 |
-| HF `librarian-bots/arxiv-metadata-snapshot` | 全量元数据 | — | 免费、可远程列裁剪 | 分层 frame：年月/类目/license 键 |
-| AWS `s3://arxiv` | 全量 | 字节级 | requester-pays | 不用 |
+| 渠道                                        | 覆盖                                                               | 保真                                                                                                 | 成本                         | 角色                                                       |
+| ------------------------------------------- | ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- | ---------------------------- | ---------------------------------------------------------- |
+| IA `arxiv-bulk` 月度 tar                    | 1991-07→2020-10 共 352 月无缺（3,242 src item / 1.66TB，实测索引） | 字节级（Range 单成员抽取逐字节核验通过）                                                             | 免费、实测 10.7–16.2MB/s     | ≤2020 主力（~24 簇）                                       |
+| HF `TIGER-Lab/arxiv-latex-5T`               | 1991-07→2025-01 连续 403 月零缺口（9,547 tar）                     | 字节级已实证：与 IA `2008_001` 对拍，123/165 成员 sha256 全同，42 差异全是上游 v2+ 修订              | 免费但 HF CDN 仅 3.5–3.8MB/s | post-2020 主力（~6 簇）+ IA 缺月备份；冻于 2025-01         |
+| HF `scholarweave/arxiv-latex`               | →2026-07                                                           | .tex 逐字保真（845/845 全同）但结构有损：丢 72.6% 文件（图/bst）、7.1% 论文 U+FFFD、pdf_only 行 NULL | duckdb httpfs 谓词下推       | 文本层规模实验正源；**不进正式语料**；2025-02 后唯一批量源 |
+| HF `librarian-bots/arxiv-metadata-snapshot` | 全量元数据                                                         | —                                                                                                    | 免费、可远程列裁剪           | 分层 frame：年月/类目/license 键                           |
+| AWS `s3://arxiv`                            | 全量                                                               | 字节级                                                                                               | requester-pays               | 不用                                                       |
 
 渠道粒度与版本语义（实测）：
 
@@ -127,27 +127,27 @@ S0 frame 构建 ──► S1 簇下载（IA/TIGER tar）
 
 ## 8. 验收门槛（M0 重写 gate 建议）
 
-| 指标 | 门槛 |
-| --- | --- |
+| 指标                | 门槛                                       |
+| ------------------- | ------------------------------------------ |
 | parse ok（file 级） | 100%（CI 下界 ≥99.5%，n≥600 文件自动满足） |
-| strict identity | ≥99.5%（normalized 容差单列） |
-| leak rate | ≤0.15%（chunk 级 CI 上界） |
-| dead/orphan | 0 |
-| flatten coverage | ≥99% 主文件触及 |
+| strict identity     | ≥99.5%（normalized 容差单列）              |
+| leak rate           | ≤0.15%（chunk 级 CI 上界）                 |
+| dead/orphan         | 0                                          |
+| flatten coverage    | ≥99% 主文件触及                            |
 
 ## 9. 风险登记（设计时点）
 
-| 风险 | 缓解 |
-| --- | --- |
-| IA 单 tar 大（d/e 带整月 13–100GB）→ 磁盘峰值 | 已消解：簇单元 = 月内 1–2 chunk（0.13–0.54GB），抽完即删未中 blob |
-| 月度 tar 版本语义不明（id 跨月重复） | 已实测排除：3 chunk 2,763 成员跨月重叠 = 0 |
-| TIGER 镜像不保真 | 已验证：123/165 sha256 全同、差异全是上游修订 |
-| 同 id 跨渠道版本漂移 | manifest 四元组钉版；不跨渠道去重同一 id 的不同字节 |
-| `%auto-ignore` 12B 占位 stub 混入抽样 | QC 最小尺寸门槛 + 正文含量检测 |
-| 簇内配额不满（某月某 cat_group 不足） | d/e 带取间隔 2 块扩候选池；允许跨簇补位，记录配额达成率 |
-| cs/econ 类目源码稀缺（Word 主流） | 补强层配额兜底 + frame 预查可得率 |
-| agent 策展的可复现性/审计性 | 提名必须带 justification + 证据；mechanisms.jsonl + nomination log 即审计轨迹 |
-| HF CDN 慢（3.7MB/s vs IA 16.2MB/s） | post-2020 只取 ~6 块（~3GB）；能用 IA 的月份不用 TIGER |
+| 风险                                          | 缓解                                                                          |
+| --------------------------------------------- | ----------------------------------------------------------------------------- |
+| IA 单 tar 大（d/e 带整月 13–100GB）→ 磁盘峰值 | 已消解：簇单元 = 月内 1–2 chunk（0.13–0.54GB），抽完即删未中 blob             |
+| 月度 tar 版本语义不明（id 跨月重复）          | 已实测排除：3 chunk 2,763 成员跨月重叠 = 0                                    |
+| TIGER 镜像不保真                              | 已验证：123/165 sha256 全同、差异全是上游修订                                 |
+| 同 id 跨渠道版本漂移                          | manifest 四元组钉版；不跨渠道去重同一 id 的不同字节                           |
+| `%auto-ignore` 12B 占位 stub 混入抽样         | QC 最小尺寸门槛 + 正文含量检测                                                |
+| 簇内配额不满（某月某 cat_group 不足）         | d/e 带取间隔 2 块扩候选池；允许跨簇补位，记录配额达成率                       |
+| cs/econ 类目源码稀缺（Word 主流）             | 补强层配额兜底 + frame 预查可得率                                             |
+| agent 策展的可复现性/审计性                   | 提名必须带 justification + 证据；mechanisms.jsonl + nomination log 即审计轨迹 |
+| HF CDN 慢（3.7MB/s vs IA 16.2MB/s）           | post-2020 只取 ~6 块（~3GB）；能用 IA 的月份不用 TIGER                        |
 
 ## 落地结果（追记）
 
@@ -156,17 +156,31 @@ S0 frame 构建 ──► S1 簇下载（IA/TIGER tar）
 ### 参考文献
 
 [^hanley83]: Hanley & Lippman-Hand. If nothing goes wrong, is everything all right? JAMA 1983. [doi.org](https://doi.org/10.1001/jama.1983.03330370053031)
+
 [^nielsen93]: Nielsen & Landauer. A mathematical model of the finding of usability problems. CHI 1993. [doi.org](https://doi.org/10.1145/169059.169166)
+
 [^cochran77]: Cochran. Sampling Techniques, 3rd ed. Wiley 1977.
+
 [^card20]: Card et al. With Little Power Comes Great Responsibility. EMNLP 2020. [aclanthology.org](https://aclanthology.org/2020.emnlp-main.745/)
+
 [^image2struct]: Roberts et al. Image2Struct: Benchmarking Structure Extraction for Vision-Language Models. NeurIPS 2024 D&B. [arxiv.org](https://arxiv.org/abs/2410.22456)
+
 [^omnidoc]: Ouyang et al. OmniDocBench: Benchmarking Diverse PDF Document Parsing. arXiv 2412.07626. [arxiv.org](https://arxiv.org/abs/2412.07626)
+
 [^henderson82]: Henderson & Sundaresan. Cluster sampling to assess immunization coverage. Bull WHO 1982. [iris.who.int](https://iris.who.int/handle/10665/272820)
+
 [^kahan16]: Kahan et al. Increased risk of type I errors in cluster randomised trials with small or medium numbers of clusters. Trials 2016. [doi.org](https://doi.org/10.1186/s13063-016-1371-6)
+
 [^kish65]: Kish. Survey Sampling. Wiley 1965.
+
 [^neyman34]: Neyman. On the two different aspects of the representative method. JRSS 1934. [doi.org](https://doi.org/10.2307/2342192)
+
 [^holt79]: Holt & Smith. Post stratification. JRSS-A 1979. [jstor.org](https://www.jstor.org/stable/2344652)
+
 [^little93]: Little. Post-stratification: a modeler's perspective. JASA 1993. [doi.org](https://doi.org/10.1080/01621459.1993.10476368)
+
 [^brown01]: Brown, Cai & DasGupta. Interval estimation for a binomial proportion. Statistical Science 2001. [doi.org](https://doi.org/10.1214/ss/1009213286)
+
 [^unarxive22]: Saier, Krause & Färber. unarXive 2022: All arXiv Publications Pre-Processed for NLP. JCDL 2023. [doi.org](https://doi.org/10.1109/JCDL57899.2023.00020)
+
 [^laion]: Schuhmann et al. LAION-5B: An open large-scale dataset for training next generation image-text models. NeurIPS 2022 D&B. [arxiv.org](https://arxiv.org/abs/2210.08402)

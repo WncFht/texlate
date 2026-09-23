@@ -12,14 +12,14 @@
 
 ## 2. 检查项
 
-| 输出字段 | 实现 |
-| --- | --- |
-| `parse_errors` | ERROR + MISSING 节点收集（位置/snippet）；干净文件零成本 |
-| `env_mismatches` | 单次 Query 抓 begin/end/generic_command/裸 `\begin` 裸 `\end` 叶，文档序栈配对：`name_mismatch / dangling_end / unclosed_begin` |
-| `unclosed_math` | 定界符叶计数：`$`/`$$`/`\[`/`\]`/`\(`/`\)`（MISSING 叶不计） |
-| `brace_balance` | `{` − `}` 净值 |
-| `placeholders` | `[[TYPE_n]]` missing/unexpected 集合差 + lev≤2 typo 配对 |
-| `ok` / `ok_relative` | 绝对判定 / 相对判定（各项 ≤ baseline 且占位符干净） |
+| 输出字段             | 实现                                                                                                                            |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `parse_errors`       | ERROR + MISSING 节点收集（位置/snippet）；干净文件零成本                                                                        |
+| `env_mismatches`     | 单次 Query 抓 begin/end/generic_command/裸 `\begin` 裸 `\end` 叶，文档序栈配对：`name_mismatch / dangling_end / unclosed_begin` |
+| `unclosed_math`      | 定界符叶计数：`$`/`$$`/`\[`/`\]`/`\(`/`\)`（MISSING 叶不计）                                                                    |
+| `brace_balance`      | `{` − `}` 净值                                                                                                                  |
+| `placeholders`       | `[[TYPE_n]]` missing/unexpected 集合差 + lev≤2 typo 配对                                                                        |
+| `ok` / `ok_relative` | 绝对判定 / 相对判定（各项 ≤ baseline 且占位符干净）                                                                             |
 
 关键是**定界符用 CST 叶计数而非文本计数**——verbatim/comment 内的 `{`、`$`、`\end` 不产生对应节点，天然免疫误报；57 个真实主文件零 env 误报实证了这点。
 

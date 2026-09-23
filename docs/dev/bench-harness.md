@@ -2,32 +2,32 @@
 
 本仓的评测体系由 `bench/TIERS.md`（一个问题该在哪一层被抓）与 `docs/spec/benchmark.md`（B1–B7 评测器规格）定义；外部库选型期的逐库横评协议 `bench/PROTOCOL.md` 已于 2026-09-20 退役删除（原文见 git 历史）。本文把现行契约重整为公开口径：先讲四层验证契约，再讲语料与陷阱夹具的底材纪律，最后是 bench 产物落盘的工具链关系。各 spec/动词的逐件清单见 `dev/tools-runbook.md` §3。
 
-> **2026-09-23 Wave-F 注记**：trizone-ledger v2 迁移收口，旧 harness（stagerun/stage_*/各评测器脚本/triage/rundiff/gate_scorecard/benchlib/corpus build_*/report/）全部删除，继任面 = `bench/py/specs/*.py`（`uv run python bench/py/bench run <spec>` 跑批）+ `bench/py/verbs/*.py`（`bench <verb>` 分析）+ `bench/py/kernel/`（账本与调度）。run 产物不再落仓内——`$TEXLATE_BENCH_ROOT/runs/<kind>/<date>/<slug>/`（仓外账本根，git 天然不碰）。
+> **2026-09-23 Wave-F 注记**：trizone-ledger v2 迁移收口，旧 harness（stagerun/stage__/各评测器脚本/triage/rundiff/gate_scorecard/benchlib/corpus build__/report/）全部删除，继任面 = `bench/py/specs/*.py`（`uv run python bench/py/bench run <spec>` 跑批）+ `bench/py/verbs/*.py`（`bench <verb>` 分析）+ `bench/py/kernel/`（账本与调度）。run 产物不再落仓内——`$TEXLATE_BENCH_ROOT/runs/<kind>/<date>/<slug>/`（仓外账本根，git 天然不碰）。
 
 ## 1. 分层契约：什么问题在哪级验证
 
 核心原则一句话：修复不算完，直到它能看见的最便宜那层被钉住；更高层只接低层结构性看不见的东西。
 
-| 层 | 入口 | 底材 | 量级 | 时机 |
-| --- | --- | --- | --- | --- |
-| L0 单元/断言 | `uv run pytest tests/`（含 fixture 断言矩阵；契约产出走 `bench run fixture_assert`） | 合成输入 + `bench/fixtures/*.tex`（@Tnn/@Wnn/@Xn，逐字节即语义） | 秒级/单文件，分钟级/全套 | 每 commit、CI 硬门 |
-| L1 机制覆盖 | `uv run python bench/py/bench run parsebench` | `bench/corpus/` 统一物理根（v1 手挑陷阱 + v2 渠道敏感 + 分层全量各层） | 分钟级 | 解析/扫描/归一化改动后，开批前 |
-| L2 子集回归 | `uv run python bench/py/bench run soak ids=<csv>` 或 `n=<N> seed=<S>` 类参数定点子集 | corpus `mechanisms.jsonl` 机制台账 + 分层 manifest | 分钟–小时 | 管线 stage 改动、新机制落账后定向重放 |
-| L3 全量集成 | `bench run` 全层 spec 套（soak/e2e_mock/e2e_real 等）→ `bench gate` + `bench triage`（估时口径 `bench plan <spec>` 逐 spec 报价） | corpus 全层（core/booster/expand/hot/dev_*/holdout，规模以 manifest 实数为准） | 过夜级 | 里程碑门、发版前 |
+| 层           | 入口                                                                                                                              | 底材                                                                           | 量级                     | 时机                                  |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | ------------------------ | ------------------------------------- |
+| L0 单元/断言 | `uv run pytest tests/`（含 fixture 断言矩阵；契约产出走 `bench run fixture_assert`）                                              | 合成输入 + `bench/fixtures/*.tex`（@Tnn/@Wnn/@Xn，逐字节即语义）               | 秒级/单文件，分钟级/全套 | 每 commit、CI 硬门                    |
+| L1 机制覆盖  | `uv run python bench/py/bench run parsebench`                                                                                     | `bench/corpus/` 统一物理根（v1 手挑陷阱 + v2 渠道敏感 + 分层全量各层）         | 分钟级                   | 解析/扫描/归一化改动后，开批前        |
+| L2 子集回归  | `uv run python bench/py/bench run soak ids=<csv>` 或 `n=<N> seed=<S>` 类参数定点子集                                              | corpus `mechanisms.jsonl` 机制台账 + 分层 manifest                             | 分钟–小时                | 管线 stage 改动、新机制落账后定向重放 |
+| L3 全量集成  | `bench run` 全层 spec 套（soak/e2e_mock/e2e_real 等）→ `bench gate` + `bench triage`（估时口径 `bench plan <spec>` 逐 spec 报价） | corpus 全层（core/booster/expand/hot/dev_*/holdout，规模以 manifest 实数为准） | 过夜级                   | 里程碑门、发版前                      |
 
 问题类型到层级的首选映射：
 
-| 问题类型 | 首选层 | 说明 |
-| --- | --- | --- |
-| 纯函数/codec/mask/正则/边界逻辑 | L0 | 合成输入当场钉 |
-| 日志判定（分类/红线/verdict） | L0 + L3 | 合成 log 钉语义；真 `-file-line-error` log 只有 L3 生产面见得到 |
-| 解析机制（新坑/回归坑） | L0 → L1 → L2 | 最小复现 fixture 化登记 @Tnn；L1 确认分布面；`mechanisms.jsonl` 落账后 L2 定向重放 |
-| 翻译臂/台账契约（mock/sabotage/perturb） | L0 + L2 | 台账谓词单测钉口径；臂行为用 L2 子集跑真 records |
-| 编译/fixloop 规则触发 | L0 + L2/L3 | 合成 log 钉判定；救回率/规则谱只在批量上有意义 |
-| 逃逸面/对抗闸（sabotage/gate 红线） | L2 + L3 | sabotage 臂分钟级台账；`escaped>0` 是 L3 硬门 |
-| resume/StateStore/跨进程状态 | L2 | index 落账 + `(idc,arm,variant)` dedup/resume 语义跨运行才成立，L0 测不到 |
-| 性能/规模/并发/资源闸 | L3 | 低层无代表性负载 |
-| 接口漂移（harness↔产品） | L0 + L2 | 绑定/spy 钉接线；真跑是 L2 起 |
+| 问题类型                                 | 首选层       | 说明                                                                               |
+| ---------------------------------------- | ------------ | ---------------------------------------------------------------------------------- |
+| 纯函数/codec/mask/正则/边界逻辑          | L0           | 合成输入当场钉                                                                     |
+| 日志判定（分类/红线/verdict）            | L0 + L3      | 合成 log 钉语义；真 `-file-line-error` log 只有 L3 生产面见得到                    |
+| 解析机制（新坑/回归坑）                  | L0 → L1 → L2 | 最小复现 fixture 化登记 @Tnn；L1 确认分布面；`mechanisms.jsonl` 落账后 L2 定向重放 |
+| 翻译臂/台账契约（mock/sabotage/perturb） | L0 + L2      | 台账谓词单测钉口径；臂行为用 L2 子集跑真 records                                   |
+| 编译/fixloop 规则触发                    | L0 + L2/L3   | 合成 log 钉判定；救回率/规则谱只在批量上有意义                                     |
+| 逃逸面/对抗闸（sabotage/gate 红线）      | L2 + L3      | sabotage 臂分钟级台账；`escaped>0` 是 L3 硬门                                      |
+| resume/StateStore/跨进程状态             | L2           | index 落账 + `(idc,arm,variant)` dedup/resume 语义跨运行才成立，L0 测不到          |
+| 性能/规模/并发/资源闸                    | L3           | 低层无代表性负载                                                                   |
+| 接口漂移（harness↔产品）                 | L0 + L2      | 绑定/spy 钉接线；真跑是 L2 起                                                      |
 
 四条规则。其一「能低不高」：L0 能钉的（合成输入可复现）不许只在 L2/L3 靠批量撞见——批量发现的每个真坑都要沉淀回 L0 断言或 fixture。其二「逐层语义」：每层绿只证明该层契约成立，不证明下层问题不存在（L0 全绿 ≠ 分布面无漂；L3 闸过 ≠ 单点逻辑无残余）。其三「跨层不重复」：同一断言不重复钉在两层——高层存在的理由是低层看不见（规模/真料/跨进程），看得见的归低层。其四「量级兑现」：估时以 `bench plan <spec>` 的逐 spec 报价（plan.json 冻结格数 + dedup 桶）为准；层级归属争议按「cheapest tier that can see it」裁决。
 

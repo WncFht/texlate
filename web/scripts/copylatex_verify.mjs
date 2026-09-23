@@ -132,7 +132,9 @@ async function run() {
         const mathEl = page.locator(mathSel).first();
         const hasMath = (await mathEl.count()) > 0;
         if (!hasHtml || !hasMath) {
-            info("no html-side math host — card checks skipped (pdf-only task)");
+            info(
+                "no html-side math host — card checks skipped (pdf-only task)",
+            );
         } else {
             await mathEl.scrollIntoViewIfNeeded().catch(() => {});
             await page.waitForTimeout(300);
@@ -144,10 +146,17 @@ async function run() {
                 const src = (
                     await card.locator(".latex-src").textContent()
                 ).trim();
-                check("card has tex source", src.length > 0, `${src.length} chars`);
+                check(
+                    "card has tex source",
+                    src.length > 0,
+                    `${src.length} chars`,
+                );
                 check(
                     "card has copy button",
-                    await card.locator(".latex-copy").isVisible().catch(() => false),
+                    await card
+                        .locator(".latex-copy")
+                        .isVisible()
+                        .catch(() => false),
                 );
                 await page
                     .screenshot({ path: join(SHOTS, "latex-card.png") })
@@ -201,8 +210,7 @@ async function run() {
                     NodeFilter.SHOW_TEXT,
                 );
                 let n;
-                while ((n = w.nextNode()))
-                    if (n.textContent.trim()) return n;
+                while ((n = w.nextNode())) if (n.textContent.trim()) return n;
                 return null;
             };
             const html = document.querySelector(
@@ -258,8 +266,12 @@ async function run() {
                     await page.waitForTimeout(700);
                     check(
                         "POST /latex fired with seqs",
-                        !!latexReq && Array.isArray(latexReq.seqs) && latexReq.seqs.length > 0,
-                        latexReq ? `seqs=${JSON.stringify(latexReq.seqs)} mode=${latexReq.mode}` : "no request",
+                        !!latexReq &&
+                            Array.isArray(latexReq.seqs) &&
+                            latexReq.seqs.length > 0,
+                        latexReq
+                            ? `seqs=${JSON.stringify(latexReq.seqs)} mode=${latexReq.mode}`
+                            : "no request",
                     );
                     check(
                         "sel copy fires toast",

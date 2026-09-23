@@ -37,7 +37,9 @@ mkdirSync(PW_TMP, { recursive: true });
 const results = [];
 const check = (name, ok, detail = "") => {
     results.push({ name, ok, detail });
-    console.log(`${ok ? "PASS" : "FAIL"}  ${name}${detail ? `  — ${detail}` : ""}`);
+    console.log(
+        `${ok ? "PASS" : "FAIL"}  ${name}${detail ? `  — ${detail}` : ""}`,
+    );
 };
 
 // pane 内 pdf.js 滚动容器(viewer.container=#viewerContainer.pdfSlickContainer)
@@ -45,11 +47,15 @@ const SCROLLER = (side) => {
     const pane = document.querySelector(`.pane[data-side="${side}"]`);
     if (!pane) return null;
     const cand = [...pane.querySelectorAll("*")].filter(
-        (e) => e.scrollHeight > e.clientHeight + 80 &&
-               /auto|scroll/.test(getComputedStyle(e).overflowY));
+        (e) =>
+            e.scrollHeight > e.clientHeight + 80 &&
+            /auto|scroll/.test(getComputedStyle(e).overflowY),
+    );
     cand.sort((a, b) => b.scrollHeight - a.scrollHeight);
     const el = cand[0] ?? null;
-    return el ? { top: el.scrollTop, h: el.scrollHeight, sel: el.className } : null;
+    return el
+        ? { top: el.scrollTop, h: el.scrollHeight, sel: el.className }
+        : null;
 };
 
 async function run() {
@@ -82,9 +88,12 @@ async function run() {
         await page.goto(`${BASE}/#/reader/${TASK}`, {
             waitUntil: "domcontentloaded",
         });
-        await page.waitForSelector(".pane[data-side] .pdfSlickViewer .page canvas", {
-            timeout: 30000,
-        });
+        await page.waitForSelector(
+            ".pane[data-side] .pdfSlickViewer .page canvas",
+            {
+                timeout: 30000,
+            },
+        );
         await page.waitForTimeout(2500);
         bail();
 
@@ -93,10 +102,14 @@ async function run() {
         const setScroll = (side, delta) =>
             page.evaluate(
                 ([s, d]) => {
-                    const pane = document.querySelector(`.pane[data-side="${s}"]`);
+                    const pane = document.querySelector(
+                        `.pane[data-side="${s}"]`,
+                    );
                     const cand = [...pane.querySelectorAll("*")].filter(
-                        (e) => e.scrollHeight > e.clientHeight + 80 &&
-                               /auto|scroll/.test(getComputedStyle(e).overflowY));
+                        (e) =>
+                            e.scrollHeight > e.clientHeight + 80 &&
+                            /auto|scroll/.test(getComputedStyle(e).overflowY),
+                    );
                     cand.sort((a, b) => b.scrollHeight - a.scrollHeight);
                     cand[0].scrollTop += d;
                     return cand[0].scrollTop;
@@ -109,7 +122,10 @@ async function run() {
             const sel = `.pane[data-side="${side}"] section.linkAnnotation a[href^="#cite."]`;
             for (let i = 0; i < 40; i++) {
                 if (crashed) return null;
-                const n = await page.locator(sel).count().catch(() => 0);
+                const n = await page
+                    .locator(sel)
+                    .count()
+                    .catch(() => 0);
                 if (n > 0) return page.locator(sel).first();
                 await setScroll(side, 700).catch(() => {});
                 await page.waitForTimeout(280);
@@ -119,7 +135,9 @@ async function run() {
 
         const card = page.locator(".cite-card");
         const chip = (side) =>
-            page.locator(`.pane-slot:has(.pane[data-side="${side}"]) .nav-chip-btn`);
+            page.locator(
+                `.pane-slot:has(.pane[data-side="${side}"]) .nav-chip-btn`,
+            );
         // back=↩ fwd=↪(按文本内容取——单向时只有一个按钮,nth 不可靠)
         const chipBtn = (side, dir) =>
             chip(side).filter({ hasText: dir === "back" ? "↩" : "↪" });
@@ -139,8 +157,14 @@ async function run() {
         check("hover opens card", cardVisible);
         if (cardVisible) {
             const cardText = (await card.innerText()).trim();
-            check("card has content", cardText.length > 10, `${cardText.length} chars`);
-            await page.screenshot({ path: join(SHOTS, "cite-card.png") }).catch(() => {});
+            check(
+                "card has content",
+                cardText.length > 10,
+                `${cardText.length} chars`,
+            );
+            await page
+                .screenshot({ path: join(SHOTS, "cite-card.png") })
+                .catch(() => {});
         }
 
         // ---- 2. Esc 关卡 --------------------------------------------------
@@ -189,9 +213,13 @@ async function run() {
         await page.waitForTimeout(400);
         check(
             "nav chip back appears",
-            await chipBtn("original", "back").isVisible().catch(() => false),
+            await chipBtn("original", "back")
+                .isVisible()
+                .catch(() => false),
         );
-        await page.screenshot({ path: join(SHOTS, "cite-jumped.png") }).catch(() => {});
+        await page
+            .screenshot({ path: join(SHOTS, "cite-jumped.png") })
+            .catch(() => {});
 
         // ---- 4. ↩ 跳回 ----------------------------------------------------
         await chipBtn("original", "back").click();
@@ -202,7 +230,9 @@ async function run() {
             Math.abs(backPos - preJump) < 400,
             `pre=${Math.round(preJump)} back=${Math.round(backPos)}`,
         );
-        const fwdVisible = await chipBtn("original", "fwd").isVisible().catch(() => false);
+        const fwdVisible = await chipBtn("original", "fwd")
+            .isVisible()
+            .catch(() => false);
         check("nav chip fwd appears", fwdVisible);
         if (fwdVisible) {
             await chipBtn("original", "fwd").click();
@@ -233,16 +263,24 @@ async function run() {
             const preTap = await scrollTop("original");
             const bb = await anchor2.boundingBox();
             if (bb) {
-                await page.touchscreen.tap(bb.x + bb.width / 2, bb.y + bb.height / 2);
+                await page.touchscreen.tap(
+                    bb.x + bb.width / 2,
+                    bb.y + bb.height / 2,
+                );
                 await page.waitForTimeout(800);
-                check("touch tap opens card", await card.isVisible().catch(() => false));
+                check(
+                    "touch tap opens card",
+                    await card.isVisible().catch(() => false),
+                );
                 const postTap = await scrollTop("original");
                 check(
                     "touch tap does NOT jump",
                     Math.abs(postTap - preTap) < 100,
                     `${Math.round(preTap)} → ${Math.round(postTap)}`,
                 );
-                await page.screenshot({ path: join(SHOTS, "cite-touch.png") }).catch(() => {});
+                await page
+                    .screenshot({ path: join(SHOTS, "cite-touch.png") })
+                    .catch(() => {});
                 await page.keyboard.press("Escape");
             }
         }
@@ -261,12 +299,18 @@ async function run() {
                 .catch(() => false);
             console.log(`INFO  L2 meta block present: ${meta}`);
             if (await card.isVisible().catch(() => false)) {
-                await page.screenshot({ path: join(SHOTS, "cite-card-meta.png") }).catch(() => {});
+                await page
+                    .screenshot({ path: join(SHOTS, "cite-card-meta.png") })
+                    .catch(() => {});
                 await page.keyboard.press("Escape");
             }
         }
         bail();
-        check("zero console/page errors", errors.length === 0, errors.slice(0, 3).join(" | "));
+        check(
+            "zero console/page errors",
+            errors.length === 0,
+            errors.slice(0, 3).join(" | "),
+        );
     } finally {
         await browser.close().catch(() => {});
     }
@@ -278,13 +322,16 @@ for (let attempt = 1; attempt <= 3; attempt++) {
         break;
     } catch (e) {
         console.log(`attempt ${attempt} aborted: ${e.message}`);
-        if (attempt === 3) check("run completes without crash", false, e.message);
+        if (attempt === 3)
+            check("run completes without crash", false, e.message);
     }
 }
 
 const fails = results.filter((r) => !r.ok);
 console.log(
     `\n${results.length - fails.length}/${results.length} passed` +
-        (fails.length ? ` — FAILED: ${fails.map((f) => f.name).join(", ")}` : ""),
+        (fails.length
+            ? ` — FAILED: ${fails.map((f) => f.name).join(", ")}`
+            : ""),
 );
 process.exit(fails.length ? 1 : 0);

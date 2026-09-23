@@ -11,33 +11,33 @@
 
 ### 字段覆盖矩阵（datasets-server `/statistics` 实测，全库）
 
-| 字段 | 类型 | 覆盖率 | 分层用途 |
-| --- | --- | --- | --- |
-| id / title / abstract / authors / authors_parsed / categories / versions / update_date | string/list/datetime | ~100% | 主键、类目、版本史 |
-| license | string_label | **85.71%**（452,795 null），9 个取值 | license 分层 |
-| comments | string | 71.99% | 页数/撤稿线索 |
-| doi | string | 42.11% | 「已发表」信号 |
-| journal-ref | string | 30.47% | 「已发表」信号 |
-| submitter | string | 99.52% | — |
-| report-no | string | 6.10% | — |
+| 字段                                                                                   | 类型                 | 覆盖率                               | 分层用途           |
+| -------------------------------------------------------------------------------------- | -------------------- | ------------------------------------ | ------------------ |
+| id / title / abstract / authors / authors_parsed / categories / versions / update_date | string/list/datetime | ~100%                                | 主键、类目、版本史 |
+| license                                                                                | string_label         | **85.71%**（452,795 null），9 个取值 | license 分层       |
+| comments                                                                               | string               | 71.99%                               | 页数/撤稿线索      |
+| doi                                                                                    | string               | 42.11%                               | 「已发表」信号     |
+| journal-ref                                                                            | string               | 30.47%                               | 「已发表」信号     |
+| submitter                                                                              | string               | 99.52%                               | —                  |
+| report-no                                                                              | string               | 6.10%                                | —                  |
 
 - **年代分层的坑**：`update_date` 是「最近更新时间」，不是首发年份。首发年要用 `versions[1].created`（字符串 `'Thu, 03 Sep 2009 22:17:07 GMT'`，regexp 抽 `\d{4}` 即可）。
 - **「类目×年份×license」离线 join：已验证可行**。duckdb + httpfs 对远程 parquet 做列裁剪 range-read（只拉需要的列块，单 shard 查询秒级）。正式管线建议把 3GB parquet 一次性拉下来本地跑；datasets-server 的 `/filter`（SQL where）端点对本数据集实测一直 "index is loading"，不可靠。
 
 ### license 词表（9 值，与 OAI-PMH `arXiv` 格式 `<license>` 同词表——snapshot 即 OAI 收割产物）
 
-| license URI | 篇数 |
-| --- | ---: |
+| license URI                                 |      篇数 |
+| ------------------------------------------- | --------: |
 | arxiv.org/licenses/nonexclusive-distrib/1.0 | 1,909,582 |
-| CC-BY-4.0 | 578,816 |
-| CC-BY-NC-ND-4.0 | 89,035 |
-| CC-BY-NC-SA-4.0 | 65,822 |
-| CC-BY-SA-4.0 | 30,433 |
-| CC0-1.0 | 21,789 |
-| CC-BY-3.0 | 7,912 |
-| CC-BY-NC-SA-3.0 | 5,870 |
-| CC publicdomain | 2,474 |
-| (null) | 452,795 |
+| CC-BY-4.0                                   |   578,816 |
+| CC-BY-NC-ND-4.0                             |    89,035 |
+| CC-BY-NC-SA-4.0                             |    65,822 |
+| CC-BY-SA-4.0                                |    30,433 |
+| CC0-1.0                                     |    21,789 |
+| CC-BY-3.0                                   |     7,912 |
+| CC-BY-NC-SA-3.0                             |     5,870 |
+| CC publicdomain                             |     2,474 |
+| (null)                                      |   452,795 |
 
 - **可再分发子集**：CC0+publicdomain+CC-BY(3.0/4.0)+CC-BY-SA-4.0 ≈ **64.1 万篇**；NC 系（BY-NC-ND/BY-NC-SA）再 +16.1 万（内部 benchmark 可用、公开分发需斟酌）。null 集中在外观较老、近年无更新的记录——shard 0（近期活跃论文）上 license 覆盖率达 99.75%。
 - license 也随年代漂移：2024 投稿中 CC-BY-4.0 已与 nonexclusive 接近持平（5,467 vs 4,559，shard0 口径）。

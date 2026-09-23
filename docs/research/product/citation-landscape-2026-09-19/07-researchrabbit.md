@@ -40,11 +40,19 @@ ResearchRabbit 2021 年创立于西雅图（Michael Ma 创始），文献发现�
 ### 参考文献
 
 [^cbinsights]: CB Insights. ResearchRabbit company profile. [cbinsights.com](https://www.cbinsights.com/company/researchrabbit)
+
 [^scoop]: Scoop Business. NZ Startup Litmaps Acquires US Rival And Raises $1M. 2025. [scoop.co.nz](https://www.scoop.co.nz/stories/BU2505/S00127/nz-startup-litmaps-acquires-us-rival-and-raises-1m-to-accelerate-ai-driven-research-worldwide.htm)
+
 [^aarontay]: Aaron Tay. ResearchRabbit's 2025 revamp: iterative chaining without the clutter. Substack 2025. [aarontay.substack.com](https://aarontay.substack.com/p/researchrabbits-2025-revamp-iterative)
+
 [^db]: Digl. The ResearchRabbit Database. ResearchRabbit Guides 2026. [learn.researchrabbit.ai](https://learn.researchrabbit.ai/en/articles/12454605-the-researchrabbit-database)
+
 [^algo]: Digl. What's behind ResearchRabbit's search algorithm?. ResearchRabbit Guides 2025. [learn.researchrabbit.ai](https://learn.researchrabbit.ai/en/articles/12875619-what-s-behind-researchrabbit-s-search-algorithm)
+
 [^how]: Digl. How does ResearchRabbit work?. ResearchRabbit Guides 2025. [learn.researchrabbit.ai](https://learn.researchrabbit.ai/en/articles/12454660-how-does-researchrabbit-work)
+
 [^ai]: Nathan. How ResearchRabbit uses AI. ResearchRabbit Guides 2026. [learn.researchrabbit.ai](https://learn.researchrabbit.ai/en/articles/13545485-how-researchrabbit-uses-ai)
+
 [^signals]: Signals. Research Integrity Badge and Key Partnerships. 2025. [research-signals.com](https://research-signals.com/2025/08/21/badge-announcement/)
+
 [^pricing]: ResearchRabbit. Pricing. [researchrabbit.ai/pricing](https://www.researchrabbit.ai/pricing)

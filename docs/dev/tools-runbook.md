@@ -6,39 +6,39 @@
 
 下表只列命令面，完整用法、旗标与环境变量见 `guide/cli.md`。
 
-| 命令 | 用途 |
-| --- | --- |
-| `texlate fetch <id>` | arXiv 取源：HEAD→GET→sniff→解包→主文件定位→钉版缓存；`--offline` 零网络只查本地缓存 |
-| `texlate parse <tex>` | v2 Gullet+Segmenter 半解析分块；`--no-flatten` 不展平 `\input` |
-| `texlate run <id\|dir>` | mock 端到端（normalize→mock 翻译→ctex 注入→编译→判定）；`--server` 瘦客户端提交 web 任务队列 |
-| `texlate web` | 起 FastAPI+SSE 服务与 SPA 阅读器（SPA 需先 `scripts/build-web.sh`） |
-| `texlate export` | 双语插译导出 EPUB/DOCX |
-| `texlate share pack/unpack` | 任务产物社区共享包打包/解包（解包带 manifest 与 sha256 回验） |
-| `texlate doctor` | 环境自检：python/引擎/CJK 字体/pdftotext/网关连通逐项判定 |
-| `texlate version` | 打版本号 |
-| `texlate tools install-tectonic` | tectonic 便携引擎安装（sha256 钉版矩阵） |
+| 命令                             | 用途                                                                                         |
+| -------------------------------- | -------------------------------------------------------------------------------------------- |
+| `texlate fetch <id>`             | arXiv 取源：HEAD→GET→sniff→解包→主文件定位→钉版缓存；`--offline` 零网络只查本地缓存          |
+| `texlate parse <tex>`            | v2 Gullet+Segmenter 半解析分块；`--no-flatten` 不展平 `\input`                               |
+| `texlate run <id\|dir>`          | mock 端到端（normalize→mock 翻译→ctex 注入→编译→判定）；`--server` 瘦客户端提交 web 任务队列 |
+| `texlate web`                    | 起 FastAPI+SSE 服务与 SPA 阅读器（SPA 需先 `scripts/build-web.sh`）                          |
+| `texlate export`                 | 双语插译导出 EPUB/DOCX                                                                       |
+| `texlate share pack/unpack`      | 任务产物社区共享包打包/解包（解包带 manifest 与 sha256 回验）                                |
+| `texlate doctor`                 | 环境自检：python/引擎/CJK 字体/pdftotext/网关连通逐项判定                                    |
+| `texlate version`                | 打版本号                                                                                     |
+| `texlate tools install-tectonic` | tectonic 便携引擎安装（sha256 钉版矩阵）                                                     |
 
 通用约定：BYOK 环境变量 `TEXLATE_BASE_URL` / `TEXLATE_API_KEY` / `TEXLATE_MODEL`（网关统一为 OpenAI 兼容端点）；离线总闸 `TEXLATE_OFFLINE=1` 等效各命令 `--offline`；日志级别 `TEXLATE_LOG` 与 `-v`/`-q` 旗标，落盘文件 `TEXLATE_LOG_FILE`。
 
 ## 2. `scripts/` — 运维脚本
 
-| 脚本 | 用途 |
-| --- | --- |
-| `agent-links.sh` | 重建 agent 入口软链层（`CLAUDE.md`→`AGENTS.md`、`.claude/skills/`→`.agents/skills/`），clone 后跑一次；目标是实体文件时拒绝覆盖 |
-| `build-web.sh` | web SPA 构建并拷入 `src/texlate/server/static/`（gitignored 产物）；`--no-install` 跳过 `npm ci` |
-| `crossnote-links.sh` | MPE 预览 `.crossnote` 链接层重建（软链 + 硬链混合，编辑器原子保存换 inode 后需重跑） |
-| `demo.sh [id] [--real]` | 端到端冒烟演示：fetch→parse→mock run→pdftotext 验 CJK；`--real` 追加真翻译段 |
-| `dev-smoke.sh [--keep]` | web 前端 e2e 一条龙：起 vite→从 dev 日志解析实际端口（漂移安全）→mock 鉴别→playwright 冒烟→只杀自己进程 |
-| `errsweep.sh` | 错误清扫 agent 启动器：隔离 worktree 上按 runbook 蒸馏修复，flock 单实例；见 `dev/automation.md` |
-| `find-gateway-hog.sh` | 「谁在打网关」归因链：连接→进程→会话指纹逐级定位 |
-| `fmt-shell.sh` | git-format-staged 的 stdin→stdout formatter：zsh shebang 原样透传，其余按 `shfmt -i 2` |
-| `git-stash-export.sh` | stash 事故无损取证：tracked + untracked 两树导出 scratch，只读 stash 不动工作区/索引 |
-| `gw-health.sh` | 网关多路健康探测聚合单行报告，任一失败 exit 1（URL/超时均可 env 覆盖） |
-| `gw-tunnel.sh` | 网关 SSH 隧道常驻管理（`start/stop/status/logs`）：重连循环 + setsid 脱管，产品链要求 localhost 端点时把远端服务映射回本地 |
-| `loc.sh [--cloc]` | 代码量统计：git 跟踪文件分桶 + 剔数据快照后缀 + 未跟踪档单列 |
-| `pyspy-triage.sh <PID>` | py-spy 钉栈 triage：N 次 dump 栈签名逐项比对 + CPU 增量——全同+CPU 前进=疑似死循环/ReDoS、全同+CPU 平=阻塞待机、变动=健康推进 |
-| `server-smoke.sh [port] [dir]` | `texlate web` 全链 curl 冒烟：起服→health→SPA→openapi→upload→SSE→产物 sha256→收尾只杀自己 PID |
-| `tcp-relay.py <lport> <rhost> <rport>` | 微型 asyncio TCP 转发（纯 stdlib），让只认 localhost 的组件吃到远端服务 |
+| 脚本                                   | 用途                                                                                                                            |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `agent-links.sh`                       | 重建 agent 入口软链层（`CLAUDE.md`→`AGENTS.md`、`.claude/skills/`→`.agents/skills/`），clone 后跑一次；目标是实体文件时拒绝覆盖 |
+| `build-web.sh`                         | web SPA 构建并拷入 `src/texlate/server/static/`（gitignored 产物）；`--no-install` 跳过 `npm ci`                                |
+| `crossnote-links.sh`                   | MPE 预览 `.crossnote` 链接层重建（软链 + 硬链混合，编辑器原子保存换 inode 后需重跑）                                            |
+| `demo.sh [id] [--real]`                | 端到端冒烟演示：fetch→parse→mock run→pdftotext 验 CJK；`--real` 追加真翻译段                                                    |
+| `dev-smoke.sh [--keep]`                | web 前端 e2e 一条龙：起 vite→从 dev 日志解析实际端口（漂移安全）→mock 鉴别→playwright 冒烟→只杀自己进程                         |
+| `errsweep.sh`                          | 错误清扫 agent 启动器：隔离 worktree 上按 runbook 蒸馏修复，flock 单实例；见 `dev/automation.md`                                |
+| `find-gateway-hog.sh`                  | 「谁在打网关」归因链：连接→进程→会话指纹逐级定位                                                                                |
+| `fmt-shell.sh`                         | git-format-staged 的 stdin→stdout formatter：zsh shebang 原样透传，其余按 `shfmt -i 2`                                          |
+| `git-stash-export.sh`                  | stash 事故无损取证：tracked + untracked 两树导出 scratch，只读 stash 不动工作区/索引                                            |
+| `gw-health.sh`                         | 网关多路健康探测聚合单行报告，任一失败 exit 1（URL/超时均可 env 覆盖）                                                          |
+| `gw-tunnel.sh`                         | 网关 SSH 隧道常驻管理（`start/stop/status/logs`）：重连循环 + setsid 脱管，产品链要求 localhost 端点时把远端服务映射回本地      |
+| `loc.sh [--cloc]`                      | 代码量统计：git 跟踪文件分桶 + 剔数据快照后缀 + 未跟踪档单列                                                                    |
+| `pyspy-triage.sh <PID>`                | py-spy 钉栈 triage：N 次 dump 栈签名逐项比对 + CPU 增量——全同+CPU 前进=疑似死循环/ReDoS、全同+CPU 平=阻塞待机、变动=健康推进    |
+| `server-smoke.sh [port] [dir]`         | `texlate web` 全链 curl 冒烟：起服→health→SPA→openapi→upload→SSE→产物 sha256→收尾只杀自己 PID                                   |
+| `tcp-relay.py <lport> <rhost> <rport>` | 微型 asyncio TCP 转发（纯 stdlib），让只认 localhost 的组件吃到远端服务                                                         |
 
 两个子目录：`scripts/systemd/` 是 errsweep 的 systemd --user service/timer 样例（`ExecStart` 指向 `scripts/errsweep.sh`，部署时按本机路径调整）；`scripts/gwcap/` 是本机网关并发闸组件（nftables REDIRECT + 信号量代理 + bypass 规则维护），属单机部署载荷、已退役留档。
 
@@ -50,64 +50,64 @@
 
 B1–B7 评测规格对应（分层契约见 `dev/bench-harness.md`）：
 
-| spec | 对应 | 用途 |
-| --- | --- | --- |
-| `parsebench` | B1 | 产品解析管线评测：identity/leak/dead_ph/漏斗 + 分层加权池化；`n/seed/ids/layers/only`（layers 默认 core） |
-| `fixture_assert` | B2 | 陷阱断言跑分（`bench/fixtures/*.tex` 的 @Tnn/@Wnn/@Xn） |
-| `compilebench` | B3 | corpus base 臂编译基线：分层抽样 × 原文直编 × 双引擎 |
-| `fixloop_bench` | B3 | fixloop 救回率 + 配方单源（tlnet 索引、CaseSink 沉淀） |
-| `xlatbench` | B4a | 翻译硬契约回归：网关模型分层抽样，逐调用过 L0 校验（付费） |
-| `qualbench` | B4b | LLM-judge 翻译质量臂（ESA 协议错误标注 + 0–100 分）（付费） |
-| `e2e_mock` | B5-A | mock 端到端基线（产品 API 全链 + 破坏臂 pipeB/pipeC） |
-| `e2e_real` | B5-B/D | 真网关翻译 E2E：`fixloop`/`base` 臂位 + `ids/only/model/concurrency/timeout/oversize_cap/no_probe`（付费） |
-| `validbench` | B6 | 校验器破坏检出基准（L0/L1 逐 case 计时 + 对抗探针） |
-| `alignbench` | B7 | named-dest 锚点保留率（en/zh PDF 对配对） |
-| `gullet` | — | 展开机 corpus 实测：耗时/token 数/warning 分类 + 不动点重喂 |
-| `wrapfloat` | — | wrapfig 绕排碰撞检出 + 降级修复验证（poppler 信号） |
+| spec             | 对应   | 用途                                                                                                       |
+| ---------------- | ------ | ---------------------------------------------------------------------------------------------------------- |
+| `parsebench`     | B1     | 产品解析管线评测：identity/leak/dead_ph/漏斗 + 分层加权池化；`n/seed/ids/layers/only`（layers 默认 core）  |
+| `fixture_assert` | B2     | 陷阱断言跑分（`bench/fixtures/*.tex` 的 @Tnn/@Wnn/@Xn）                                                    |
+| `compilebench`   | B3     | corpus base 臂编译基线：分层抽样 × 原文直编 × 双引擎                                                       |
+| `fixloop_bench`  | B3     | fixloop 救回率 + 配方单源（tlnet 索引、CaseSink 沉淀）                                                     |
+| `xlatbench`      | B4a    | 翻译硬契约回归：网关模型分层抽样，逐调用过 L0 校验（付费）                                                 |
+| `qualbench`      | B4b    | LLM-judge 翻译质量臂（ESA 协议错误标注 + 0–100 分）（付费）                                                |
+| `e2e_mock`       | B5-A   | mock 端到端基线（产品 API 全链 + 破坏臂 pipeB/pipeC）                                                      |
+| `e2e_real`       | B5-B/D | 真网关翻译 E2E：`fixloop`/`base` 臂位 + `ids/only/model/concurrency/timeout/oversize_cap/no_probe`（付费） |
+| `validbench`     | B6     | 校验器破坏检出基准（L0/L1 逐 case 计时 + 对抗探针）                                                        |
+| `alignbench`     | B7     | named-dest 锚点保留率（en/zh PDF 对配对）                                                                  |
+| `gullet`         | —      | 展开机 corpus 实测：耗时/token 数/warning 分类 + 不动点重喂                                                |
+| `wrapfloat`      | —      | wrapfig 绕排碰撞检出 + 降级修复验证（poppler 信号）                                                        |
 
 管线与内核自检 spec：
 
-| spec | 用途 |
-| --- | --- |
-| `soak` | 生产主线五段链单 run 串行：ingest→parse→xlat→compile→fixloop（付费臂在内） |
-| `smoke` | 检出自检 spec：三免费 stage 跑合成件，证明 checkout 可用 |
-| `census` | 湖审计 spec：全部 manifested cell 走一遍，零付费 |
-| `quality` | 质量面代理指标 rescore：对既有 run 的账重算 leak/term/landmark 三族，纯本地 |
-| `errsweep` | 错误沉淀清扫的 kernel run 形态（协议见 `dev/errsweep-runbook.md`） |
-| `paid_stub` | 付费门全链 spec：可注入网关工厂，零真实花费验证 paid gate |
+| spec        | 用途                                                                        |
+| ----------- | --------------------------------------------------------------------------- |
+| `soak`      | 生产主线五段链单 run 串行：ingest→parse→xlat→compile→fixloop（付费臂在内）  |
+| `smoke`     | 检出自检 spec：三免费 stage 跑合成件，证明 checkout 可用                    |
+| `census`    | 湖审计 spec：全部 manifested cell 走一遍，零付费                            |
+| `quality`   | 质量面代理指标 rescore：对既有 run 的账重算 leak/term/landmark 三族，纯本地 |
+| `errsweep`  | 错误沉淀清扫的 kernel run 形态（协议见 `dev/errsweep-runbook.md`）          |
+| `paid_stub` | 付费门全链 spec：可注入网关工厂，零真实花费验证 paid gate                   |
 
 语料构建谱系（旧 `bench/py/corpus/build_*.py` 的 spec 重写）：
 
-| spec | 用途 |
-| --- | --- |
-| `frame_build` | `bench/frame/` 抽样框资产再生（corpus_* 的 ord-0 前置） |
-| `corpus_v3` | P2 主管线：簇下载→成员扫描→配额抽样→湖化物化→自检 |
-| `corpus_layers` | 扩库层构建：holdout / dev_vol / dev_failmine / dev_recent |
-| `corpus_expand` | 扩库增量管线（→ 总 ~5000 篇） |
-| `corpus_hot` | OpenAlex 高引近期 hot 层：免费渠道抽样→钉版取源→湖/清单双写 |
-| `corpus_sw` | scholarweave/arxiv-latex (HF) 通道适配器 + dev_recent 层 |
+| spec            | 用途                                                        |
+| --------------- | ----------------------------------------------------------- |
+| `frame_build`   | `bench/frame/` 抽样框资产再生（corpus_* 的 ord-0 前置）     |
+| `corpus_v3`     | P2 主管线：簇下载→成员扫描→配额抽样→湖化物化→自检           |
+| `corpus_layers` | 扩库层构建：holdout / dev_vol / dev_failmine / dev_recent   |
+| `corpus_expand` | 扩库增量管线（→ 总 ~5000 篇）                               |
+| `corpus_hot`    | OpenAlex 高引近期 hot 层：免费渠道抽样→钉版取源→湖/清单双写 |
+| `corpus_sw`     | scholarweave/arxiv-latex (HF) 通道适配器 + dev_recent 层    |
 
 ### 3.2 分析动词（`bench/py/verbs/`，`bench <verb>` 调用）
 
-| verb | 用途 |
-| --- | --- |
-| `bench triage` | records 聚类分诊 → triage 票 + index events |
-| `bench rundiff` | 两 run 逐格终态迁移对比 |
-| `bench gate` | pick_final 跨 run 终判 + scorecard（出口门） |
-| `bench dossier` | run 档案汇编（pick_run 按 run_seq） |
-| `bench xlat-report` | xlatbench eval_records → 模型榜 |
-| `bench xlat-rejudge` | 存 src/zh 本地重判（免网关） |
-| `bench qual-report` | qualbench 评判汇总 |
+| verb                   | 用途                                          |
+| ---------------------- | --------------------------------------------- |
+| `bench triage`         | records 聚类分诊 → triage 票 + index events   |
+| `bench rundiff`        | 两 run 逐格终态迁移对比                       |
+| `bench gate`           | pick_final 跨 run 终判 + scorecard（出口门）  |
+| `bench dossier`        | run 档案汇编（pick_run 按 run_seq）           |
+| `bench xlat-report`    | xlatbench eval_records → 模型榜               |
+| `bench xlat-rejudge`   | 存 src/zh 本地重判（免网关）                  |
+| `bench qual-report`    | qualbench 评判汇总                            |
 | `bench booster-select` | nominations 池 → booster 选择集（确定性变换） |
 
 ### 3.3 观测与共享件
 
-| 件 | 用途 |
-| --- | --- |
-| `status_panel.py` | 只读本机状态面板：单页自刷新 HTML，采集器各自故障隔离，脱管常驻；账本面已改指 kernel runs/index |
-| `task_ping.py` | 任务看板写入端：原子写 `tasks.d/*.json`，任何 agent/脚本可报进度 |
-| `translators_bench.py` | translator 工厂：mock/sabotage-b/sabotage-c/perturb + 破坏台账面——被 `specs/_sabotage.py` 与 `e2e_mock` 引用 |
-| `specs/_*.py` | spec 共享叶：`_shared`（base_url/接线）、`_benchlite`（records/编译常量，旧 benchlib 吸收面）、`_corpus_common`、`_sabotage`、`_fixloop`、`_fixture_matrix`、`_leak`、`_qmetrics`、`_qualframe`、`_xlat_async` |
+| 件                     | 用途                                                                                                                                                                                                           |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `status_panel.py`      | 只读本机状态面板：单页自刷新 HTML，采集器各自故障隔离，脱管常驻；账本面已改指 kernel runs/index                                                                                                                |
+| `task_ping.py`         | 任务看板写入端：原子写 `tasks.d/*.json`，任何 agent/脚本可报进度                                                                                                                                               |
+| `translators_bench.py` | translator 工厂：mock/sabotage-b/sabotage-c/perturb + 破坏台账面——被 `specs/_sabotage.py` 与 `e2e_mock` 引用                                                                                                   |
+| `specs/_*.py`          | spec 共享叶：`_shared`（base_url/接线）、`_benchlite`（records/编译常量，旧 benchlib 吸收面）、`_corpus_common`、`_sabotage`、`_fixloop`、`_fixture_matrix`、`_leak`、`_qmetrics`、`_qualframe`、`_xlat_async` |
 
 ### 3.4 ICLR 章节长度研究件
 

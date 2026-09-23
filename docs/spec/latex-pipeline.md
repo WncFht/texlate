@@ -10,7 +10,7 @@ TeXlate 的 LaTeX 层做的是**半解析**（semi-parsing）：单遍正向扫�
 
 - **输入**：单文件文本（`parse_tex`）或磁盘文件树（`parse_file`/`scan_tex_tree`）。
 - **输出**：`ScanResult`（`model.py`）——`protected_tex`（占位符化文本）、`chunks`（可译段）、`ph_map`（占位符→原文段）、`pieces`（平铺段列）、`inputs`（`\input` 事件）、`warnings`、`vtex`（坐标系文本）、`ph_reserved`（源文自带占位符形字面）、`macros`（scope 宏表终态）。
-- **下游**：译文侧按 `chunks` 逐段翻译，`reconstruct.py::reconstruct` 按 pieces + 占位符 DAG  splice 回完整文档；`validate/` 层做 src↔zh 相对校验（L0 契约见 §9）。
+- **下游**：译文侧按 `chunks` 逐段翻译，`reconstruct.py::reconstruct` 按 pieces + 占位符 DAG splice 回完整文档；`validate/` 层做 src↔zh 相对校验（L0 契约见 §9）。
 - **明确不做**：排版、数学求值、完整 TeX 语义（`\the`/计数器寄存器/`kpathsea` 库查找等）。一切未覆盖构造退化到保守保护路径，首要不变式是 splice-safe——字节全保、identity 重建逐字节等于原文。
 
 唯一解析路径是 **v2 token 流**（`gullet/` + `segmenter/` 包），`api.py` 顶部即声明；v1 字节扫描器已删除，`flatten.py::flatten_inputs` 仅存为独立字节级展平 API（bench/外部调用），不在解析主链上。
@@ -143,29 +143,29 @@ gullet 静默消费的字节段（`\def` 串、`\if` 条件区、`\input` 调用
 
 `_dispatch` 按 `_DISPATCH_FAMS` 22 行序判（`mainloop.py`，绑定单源 `_FAM_BIND`；各族名集常量单源 `tables.py`——`CITE_NAMES`/`PROTECT_NAMES`/`CHUNK_ARG_NAMES`/`VERBATIM_ENVS` 等）：
 
-| 序 | 族 | 行为 |
-| --- | --- | --- |
-| 1 | verb | `\verb`/`\verb*`/`\lstinline` 定界体 → `[[VERB]]`（`_handle_verb`；EOL 上限，字节级 `skip_past` resync） |
-| 2 | env | `\begin`/`\end` → 环境路径（§5.7） |
-| 3 | cite-ref | `CITE_NAMES`/`REF_NAMES` 族整调用 → `[[CITE]]`/`[[REF]]`/`[[LABEL]]`/`[[BIB]]`（`_protect_cs`，mand=签名内 m/v/n 位数） |
-| 4 | protect | `PROTECT_NAMES`（`\url`/`\path`/`\includegraphics`/`\bibliography` 等）→ 整调用 ph（`url`/`path` 支持定界形） |
-| 5 | href | `\href{url}{text}`：url 组 → `[[HREF]]`，text 组留主流（`_handle_href`） |
-| 6 | input-scan | `\input` 族漏网 → LITERAL/`[[CMD]]` + `inputs[]`（`_handle_input_cs` 四形） |
-| 7 | chunk-arg | `CHUNK_ARG_NAMES`（`\section`/`\caption`/`\footnote` 等）→ 头参保护 + 可译位独立 chunk（§5.5） |
-| 8 | protect-block | `PROTECT_BLOCK_NAMES`（`\author`/`\date` 等）整块 → `[[AUTHOR]]`；散文白名单名先走 `_mine_prose_block` |
-| 9 | transparent-head | `TRANSPARENT_HEAD_SPEC`（`\textcolor{red}{text}` 族）：头参 → `[[CMD]]`，文本参留主流 |
-| 10 | box-tail | `BOX_TAIL_NAMES`（`\hbox to\hsize{..}`）：`to|spread`+dimen 规格随 cs 进 `[[CMD]]`，`{body}` 照主流 |
-| 11 | transparent | `TRANSPARENT_NAMES` → 名逐字进 run |
-| 12 | boundary | `BOUNDARY_NAMES` → flush + LITERAL；`BOUNDARY_TAIL`/`DIMEN_TAIL_KIND` 尾参并入盖面；`\item` 置 `force_chunk` |
-| 13 | endinput | 漏网档：flush + 本文件余下逐字 + `_stop` |
-| 14 | cond | `\if` 族界标/`if*` 双参宏/`\Xtrue` 散件 → LITERAL/`[[COND]]`（`_handle_cond`，`_COND_GROUP_ARGS` 名槽并入盖面） |
-| 15/16 | math-open/close | `\[`/`\(` 定界数学 → `[[MATH]]`（`_on_math_delim`）；`\]`/`\)` 未配对 → 逐字 |
-| 17 | bsbs | `\\` 的 `[dimen]` 可选参命中 → 整调用 `[[CMD]]`（`_handle_bsbs`） |
-| 18 | accent | `\'e`/`\c{c}` 单参保护 → `[[CMD]]`（`_handle_accent`；参缺席回吐逐字） |
-| 19 | inline-literal | `INLINE_LITERAL_CMDS`/`FONT_SWITCHES`/单字符非字母命令 → 零参逐字 |
-| 20 | macro | 宏表命中：`env_begin`/`env_end` 走环境路径，`opaque`/`math` → `[[MACRO]]`（`_handle_opaque_macro` spec 走参 + 散文挖掘） |
-| 21 | pair-block | `PAIR_BLOCK_CMDS` cs 对界 DSL（`\labellist…\endlabellist` 形）→ 整段 `[[ENV]]`/孤闭 `[[CMD]]`（`_handle_pair_block`） |
-| 22 | unknown | 尾参扫 → keyarg → argspec → 探针 → 逐字（`_handle_unknown_cs`，§5.9） |
+| 序    | 族               | 行为                                                                                                                     |
+| ----- | ---------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| 1     | verb             | `\verb`/`\verb*`/`\lstinline` 定界体 → `[[VERB]]`（`_handle_verb`；EOL 上限，字节级 `skip_past` resync）                 |
+| 2     | env              | `\begin`/`\end` → 环境路径（§5.7）                                                                                       |
+| 3     | cite-ref         | `CITE_NAMES`/`REF_NAMES` 族整调用 → `[[CITE]]`/`[[REF]]`/`[[LABEL]]`/`[[BIB]]`（`_protect_cs`，mand=签名内 m/v/n 位数）  |
+| 4     | protect          | `PROTECT_NAMES`（`\url`/`\path`/`\includegraphics`/`\bibliography` 等）→ 整调用 ph（`url`/`path` 支持定界形）            |
+| 5     | href             | `\href{url}{text}`：url 组 → `[[HREF]]`，text 组留主流（`_handle_href`）                                                 |
+| 6     | input-scan       | `\input` 族漏网 → LITERAL/`[[CMD]]` + `inputs[]`（`_handle_input_cs` 四形）                                              |
+| 7     | chunk-arg        | `CHUNK_ARG_NAMES`（`\section`/`\caption`/`\footnote` 等）→ 头参保护 + 可译位独立 chunk（§5.5）                           |
+| 8     | protect-block    | `PROTECT_BLOCK_NAMES`（`\author`/`\date` 等）整块 → `[[AUTHOR]]`；散文白名单名先走 `_mine_prose_block`                   |
+| 9     | transparent-head | `TRANSPARENT_HEAD_SPEC`（`\textcolor{red}{text}` 族）：头参 → `[[CMD]]`，文本参留主流                                    |
+| 10    | box-tail         | `BOX_TAIL_NAMES`（`\hbox to\hsize{..}`）：`to                                                                            | spread`+dimen 规格随 cs 进 `[[CMD]]`，`{body}` 照主流 |
+| 11    | transparent      | `TRANSPARENT_NAMES` → 名逐字进 run                                                                                       |
+| 12    | boundary         | `BOUNDARY_NAMES` → flush + LITERAL；`BOUNDARY_TAIL`/`DIMEN_TAIL_KIND` 尾参并入盖面；`\item` 置 `force_chunk`             |
+| 13    | endinput         | 漏网档：flush + 本文件余下逐字 + `_stop`                                                                                 |
+| 14    | cond             | `\if` 族界标/`if*` 双参宏/`\Xtrue` 散件 → LITERAL/`[[COND]]`（`_handle_cond`，`_COND_GROUP_ARGS` 名槽并入盖面）          |
+| 15/16 | math-open/close  | `\[`/`\(` 定界数学 → `[[MATH]]`（`_on_math_delim`）；`\]`/`\)` 未配对 → 逐字                                             |
+| 17    | bsbs             | `\\` 的 `[dimen]` 可选参命中 → 整调用 `[[CMD]]`（`_handle_bsbs`）                                                        |
+| 18    | accent           | `\'e`/`\c{c}` 单参保护 → `[[CMD]]`（`_handle_accent`；参缺席回吐逐字）                                                   |
+| 19    | inline-literal   | `INLINE_LITERAL_CMDS`/`FONT_SWITCHES`/单字符非字母命令 → 零参逐字                                                        |
+| 20    | macro            | 宏表命中：`env_begin`/`env_end` 走环境路径，`opaque`/`math` → `[[MACRO]]`（`_handle_opaque_macro` spec 走参 + 散文挖掘） |
+| 21    | pair-block       | `PAIR_BLOCK_CMDS` cs 对界 DSL（`\labellist…\endlabellist` 形）→ 整段 `[[ENV]]`/孤闭 `[[CMD]]`（`_handle_pair_block`）    |
+| 22    | unknown          | 尾参扫 → keyarg → argspec → 探针 → 逐字（`_handle_unknown_cs`，§5.9）                                                    |
 
 组内对价（`_GRP_SURFACE_FAMS`）与跨界待绑对价（`_PEND_SPEC_FAMS`）是同一绑定的另两面投影，行序各自适配组内/槽形语义（`pending.py` 表头注释逐行标注差异点）。
 
@@ -283,8 +283,13 @@ gullet 静默消费的字节段（`\def` 串、`\if` 条件区、`\input` 调用
 ### 参考文献
 
 [^adr-semi]: TeXlate 决策记录。ADR-0002 LaTeX 半解析：自研 scanner + pieces 区间 splice. 本库 `decisions/adr/0002-semi-parsing.md`.
+
 [^miniscanner]: TeXlate 调研档案。miniscanner 扶正重写实施规格。本库 `research/latex/miniscanner-rewrite-spec.md`（主仓 `docs/research/latex/` 同名件）.
+
 [^exp-design]: TeXlate 调研档案。宏展开层设计规格——扫描中即时展开（gullet 模式）. 本库 `research/latex/expansion-design.md`.
+
 [^exp-timing]: TeXlate 调研档案。宏展开时机语料实验——即时展开 vs 二遍展开。本库 `research/latex/expansion-timing.md`.
+
 [^ctan-argspec]: TeXlate 调研档案。CTAN argspec 签名表导出 + 语料覆盖率实验。本库 `research/latex/ctan-argspec.md`.
+
 [^validator]: TeXlate 调研档案。规则校验器原型——译文机械不变量校验。本库 `research/latex/validator-rules.md`.

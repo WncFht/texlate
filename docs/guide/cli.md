@@ -33,15 +33,15 @@ texlate run <arxiv_id> --server <URL> [--model M --api-key K --base-url U] [-o �
 
 关键旗标：
 
-| 旗标 | 作用 |
-| ---- | ---- |
-| `-e, --engine` | `auto`（缺省，按论文自动选）\| `xelatex` \| `tectonic` |
-| `-w, --work-dir` | 指定工作目录；缺省用系统临时目录，跑完即删 |
-| `--keep` | 保留工作目录——产物 PDF 与编译日志都在里面 |
-| `--timeout` | 单次编译超时秒数（缺省 240） |
-| `--offline` | 取源零网络（本地目录源无影响） |
+| 旗标             | 作用                                                                   |
+| ---------------- | ---------------------------------------------------------------------- |
+| `-e, --engine`   | `auto`（缺省，按论文自动选）\| `xelatex` \| `tectonic`                 |
+| `-w, --work-dir` | 指定工作目录；缺省用系统临时目录，跑完即删                             |
+| `--keep`         | 保留工作目录——产物 PDF 与编译日志都在里面                              |
+| `--timeout`      | 单次编译超时秒数（缺省 240）                                           |
+| `--offline`      | 取源零网络（本地目录源无影响）                                         |
 | `--front-matter` | 前置内容翻译白名单，逗号分隔 `abstract,title,author`；缺省翻摘要和标题 |
-| `-q` | 关掉 stderr 实况进度 |
+| `-q`             | 关掉 stderr 实况进度                                                   |
 
 `--server` 切到瘦客户端模式：任务提交给一台正在运行的 `texlate web` 服务（本机或远端都行），流式显示进度，终态后把产物校验下载到 `--out` 目录（缺省 `./texlate-<id>-<任务前缀>/`）。`--model`、`--api-key`、`--base-url`、`--dialect` 这四个旗标只在这个模式下有意义，作为请求头逐项覆盖服务端配置——临时换 key 或换模型不用改 Settings。同一论文同一配置重复提交会自动挂到进行中的任务上，不会重复烧配额；`--wait` 控制最长等待秒数（缺省 1800），超时后任务仍在服务端继续，同参数重跑即可重新挂上。
 
@@ -97,26 +97,26 @@ texlate tools install-tectonic     # 探测或安装 tectonic 引擎
 
 按主题分组，全部 `TEXLATE_` 前缀：
 
-| 变量 | 作用 |
-| ---- | ---- |
-| `TEXLATE_BASE_URL` / `TEXLATE_API_KEY` / `TEXLATE_MODEL` / `TEXLATE_DIALECT` | BYOK 四件套：端点、key、模型、方言（`auto`\|`openai`\|`anthropic`\|`responses`） |
+| 变量                                                                                                      | 作用                                                                                                                                                            |
+| --------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `TEXLATE_BASE_URL` / `TEXLATE_API_KEY` / `TEXLATE_MODEL` / `TEXLATE_DIALECT`                              | BYOK 四件套：端点、key、模型、方言（`auto`\|`openai`\|`anthropic`\|`responses`）                                                                                |
 | `OPENAI_API_KEY` / `DEEPSEEK_API_KEY` / `DASHSCOPE_API_KEY` / `ANTHROPIC_API_KEY` / `TEXLATE_GATEWAY_KEY` | `TEXLATE_API_KEY` 为空时按端点域名自动认读对应的专名变量；`TEXLATE_GATEWAY_KEY` 对应回环端点（127.0.0.1/localhost/::1，含缺省本地网关 `http://127.0.0.1:3033`） |
-| `TEXLATE_OFFLINE` | `=1` 等效 `fetch`/`run` 的 `--offline` 总闸 |
-| `TEXLATE_DATA_DIR` | 数据目录（任务库、设置、日志、共享包、托管引擎），缺省主目录下 `.texlate/` |
-| `TEXLATE_LOG` | 日志级别 `debug`\|`info`\|`warning`\|`error`\|`off`；未给 `-v`/`-q` 旗标时生效（旗标优先于 env） |
-| `TEXLATE_LOG_FILE` | 额外落盘的日志文件路径；`=off` 关闭（server 入口缺省落 `<数据目录>/logs/texlate.log`） |
-| `TEXLATE_TRANSLATOR` | `mock`\|`gateway` 强制翻译臂（export 与 server worker 共用） |
-| `TEXLATE_FRONT_MATTER` | 前置内容翻译集，逗号分隔 `abstract,title,author` |
-| `TEXLATE_NO_FIXLOOP` / `TEXLATE_NO_L2` | 关掉编译修复循环 / 译文归因重译 |
-| `TEXLATE_ENV_JUDGE` | 开启环境可译性判定（缺省关；server 侧作逐任务 `env_judge` 选项的 env 兜底） |
-| `TEXLATE_AUTO_GLOSSARY` | 自动术语抽取——仅作用于本地 `run`/e2e（mock 占位管线）与 bench，缺省关；server/web 任务走逐任务选项 `auto_glossary`（缺省已开），此 env 在真实翻译路径无效 |
-| `TEXLATE_COMPILE_TIMEOUT` | server 侧编译超时秒数上限调整 |
-| `TEXLATE_MODE` | `server` 切多租户部署形态（写操作要 `X-Texlate-Key`；缺省 `local`） |
-| `TEXLATE_CACHE_SCOPE` | `shared`（缺省，译文缓存跨 key 共享）\| `per_key`（按 key 分桶隔离） |
-| `TEXLATE_SHARE_DIR` | 共享包发布目录（缺省 `<数据目录>/share/`） |
-| `TEXLATE_MODEL_PROBE` | 保存 Settings 时的模型可用性探活，`=0` 关（离线环境用） |
-| `TEXLATE_NO_DOWNLOAD` | 禁止自动下载 tectonic 等外部件 |
-| `TEXLATE_NODE` | L1 校验用的 node 可执行文件路径（缺省按 PATH 找） |
+| `TEXLATE_OFFLINE`                                                                                         | `=1` 等效 `fetch`/`run` 的 `--offline` 总闸                                                                                                                     |
+| `TEXLATE_DATA_DIR`                                                                                        | 数据目录（任务库、设置、日志、共享包、托管引擎），缺省主目录下 `.texlate/`                                                                                      |
+| `TEXLATE_LOG`                                                                                             | 日志级别 `debug`\|`info`\|`warning`\|`error`\|`off`；未给 `-v`/`-q` 旗标时生效（旗标优先于 env）                                                                |
+| `TEXLATE_LOG_FILE`                                                                                        | 额外落盘的日志文件路径；`=off` 关闭（server 入口缺省落 `<数据目录>/logs/texlate.log`）                                                                          |
+| `TEXLATE_TRANSLATOR`                                                                                      | `mock`\|`gateway` 强制翻译臂（export 与 server worker 共用）                                                                                                    |
+| `TEXLATE_FRONT_MATTER`                                                                                    | 前置内容翻译集，逗号分隔 `abstract,title,author`                                                                                                                |
+| `TEXLATE_NO_FIXLOOP` / `TEXLATE_NO_L2`                                                                    | 关掉编译修复循环 / 译文归因重译                                                                                                                                 |
+| `TEXLATE_ENV_JUDGE`                                                                                       | 开启环境可译性判定（缺省关；server 侧作逐任务 `env_judge` 选项的 env 兜底）                                                                                     |
+| `TEXLATE_AUTO_GLOSSARY`                                                                                   | 自动术语抽取——仅作用于本地 `run`/e2e（mock 占位管线）与 bench，缺省关；server/web 任务走逐任务选项 `auto_glossary`（缺省已开），此 env 在真实翻译路径无效       |
+| `TEXLATE_COMPILE_TIMEOUT`                                                                                 | server 侧编译超时秒数上限调整                                                                                                                                   |
+| `TEXLATE_MODE`                                                                                            | `server` 切多租户部署形态（写操作要 `X-Texlate-Key`；缺省 `local`）                                                                                             |
+| `TEXLATE_CACHE_SCOPE`                                                                                     | `shared`（缺省，译文缓存跨 key 共享）\| `per_key`（按 key 分桶隔离）                                                                                            |
+| `TEXLATE_SHARE_DIR`                                                                                       | 共享包发布目录（缺省 `<数据目录>/share/`）                                                                                                                      |
+| `TEXLATE_MODEL_PROBE`                                                                                     | 保存 Settings 时的模型可用性探活，`=0` 关（离线环境用）                                                                                                         |
+| `TEXLATE_NO_DOWNLOAD`                                                                                     | 禁止自动下载 tectonic 等外部件                                                                                                                                  |
+| `TEXLATE_NODE`                                                                                            | L1 校验用的 node 可执行文件路径（缺省按 PATH 找）                                                                                                               |
 
 ## 日志与实况
 

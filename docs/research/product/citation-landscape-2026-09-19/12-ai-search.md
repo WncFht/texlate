@@ -33,26 +33,49 @@ AI 检索系证明两件事：引用数据即使只作标量（被引数/FWCI）
 ### 参考文献
 
 [^elicit-search]: Elicit. Paper Search — How does Elicit's AI search work. [elicit.com/solutions/search](https://elicit.com/solutions/search)
+
 [^elicit-corpus]: Elicit Help Center. Elicit's source for papers. 2026. [support.elicit.com](https://support.elicit.com/en/articles/14758040-elicit-s-source-for-papers)
+
 [^elicit-api]: Elicit. Elicit API Reference. [docs.elicit.com](https://docs.elicit.com/)
+
 [^elicit-pricing]: Elicit. Pricing. [elicit.com/pricing](https://elicit.com/pricing)
+
 [^consensus-how]: Consensus Help Center. How Consensus works. [help.consensus.app](https://help.consensus.app/en/articles/9922673-how-consensus-works)
+
 [^consensus-meter]: Consensus Help Center. The Consensus Meter. [help.consensus.app](https://help.consensus.app/en/articles/10069920-the-consensus-meter)
+
 [^consensus-plans]: Consensus Help Center. Subscription Plans. [help.consensus.app](https://help.consensus.app/en/articles/10087865-subscription-plans)
+
 [^consensus-library]: Consensus. Consensus Library Primer. [consensus.app](https://consensus.app/home/blog/consensus-library-primer/)
+
 [^undermind-whitepaper]: Hartke T, Ramette J. Benchmarking the Undermind Search Assistant. [undermind.ai/whitepaper.pdf](https://www.undermind.ai/whitepaper.pdf)
+
 [^undermind-site]: Undermind. Product site & v2 benchmark. [undermind.ai](https://www.undermind.ai/)
+
 [^casrai-undermind]: CASRAI. Undermind: What It Is and How Its Deep Search Agent Works. 2026. [casrai.org](https://casrai.org/guides/undermind-ai)
+
 [^aarontay]: Tay A. Undermind.ai — a different type of AI agent style search optimized for high recall?. 2024. [aarontay.substack.com](https://aarontay.substack.com/p/undermindai-different-type-of-ai-agent)
+
 [^scispace-aaai]: SciSpace. SciSpace Copilot: Empowering Researchers through Intelligent Reading Assistance. AAAI 2024. [doi.org/10.1609/aaai.v38i21.30578](https://doi.org/10.1609/aaai.v38i21.30578)
+
 [^casrai-scispace]: CASRAI. SciSpace: What It Is and How Deep Review Works. 2026. [casrai.org](https://casrai.org/guides/scispace)
+
 [^theaiselect]: TheAISelect. SciSpace Review 2026. [theaiselect.com](https://theaiselect.com/en/tools/scispace)
+
 [^keenious-search]: Keenious Help Center. How Search Works in Keenious. [help.keenious.com](https://help.keenious.com/en/articles/169371-how-search-works-in-keenious)
+
 [^keenious-openalex]: Keenious Help Center. How Keenious Uses OpenAlex. [help.keenious.com](https://help.keenious.com/en/articles/203843-understanding-our-data-source-how-keenious-uses-openalex)
+
 [^keenious-index]: Keenious Help Center. How Keenious Curates Its Index. 2026. [help.keenious.com](https://help.keenious.com/en/articles/699209-how-keenious-curates-its-index)
+
 [^keenious-pricing]: Keenious. Pricing（2026-09-19 实测）. [keenious.com/pricing](https://keenious.com/pricing)
+
 [^scinapse-site]: Pluto Labs. Scinapse product page. [pluto.im/product/scinapse](https://www.pluto.im/product/scinapse)
+
 [^scinapse-data]: Pluto Labs. About Our Data. [about.scinapse.io/about_our_data](https://about.scinapse.io/about_our_data)
+
 [^scinapse-pricing]: Scinapse. Plans & Pricing. [scinapse.io/pricing](https://www.scinapse.io/pricing)
+
 [^pluto-paper]: Yoo J. Topic Is Not Agenda: A Citation-Community Audit of Text Embeddings. arXiv:2605.07158. [arxiv.org/html/2605.07158](https://arxiv.org/html/2605.07158)
+
 [^pith-review]: Pith Review. Review of arXiv:2605.07158. [pith.science/paper/2605.07158](https://pith.science/paper/2605.07158)

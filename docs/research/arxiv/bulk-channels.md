@@ -8,21 +8,21 @@
 
 ## 1. 渠道总表
 
-| 渠道                                        | 有 LaTeX src？                              | 规模                                    | 新鲜度              | 凭据/成本                                             | 粒度                              | 状态                     |
-| ------------------------------------------- | ------------------------------------------- | --------------------------------------- | ------------------- | ----------------------------------------------------- | --------------------------------- | ------------------------ |
-| **`s3://arxiv` `src/`**                     | ✅ e-print 原始 blob                        | ~2.9TB（2023-03），月更                 | 持续（每月）        | AWS 账号 + requester-pays（~$0.09/GB egress+ 请求费）  | 500MB tar/月-chunk，manifest 定位 | 匿名 403 实测            |
-| **IA `arxiv-bulk`**[^ia-bulk]               | ✅ 同上 tar 原样镜像                        | 1.65TB（3,242 src + 3,523 pdf chunks）  | **冻 2020-10**      | 免费匿名                                              | 同上                              | ✅ 实测列目录/Range/tar 头 |
-| **HF `scholarweave/arxiv-latex`**[^hf-latex] | ✅ 展平文本（FILE: 分隔，**无图无二进制**） | 289GB / 3.12M 行                        | **月更至 2026-07**  | 免费匿名（HF 访问视地区可能需镜像）                   | 46 shards，manifest 给 id→shard   | ✅ 实测 rows API          |
-| `gs://arxiv-dataset`[^gcs]                  | ❌ 零 src                                   | pdf 2.77M+ps 1.63M 文件（至 2508）      | 冻 2025-08          | 免费匿名                                              | 逐文件                            | ✅ 三重核实               |
-| IA `collection:arxiv`（单篇 item）          | ❌ 仅 PDF+meta                              | 1,076,003 items                         | 冻 ~2017-04         | 免费匿名                                              | 逐篇 PDF                          | ✅                        |
-| IA `arxiv-bulk-hashes`                      | —（成员级 checksum 清单）                   | zipsum TSV ~213MB                       | 2017-09/2018-01     | 免费                                                  | `{yymm}/{id}.gz\|pdf` 逐成员      | ✅ Range 实测             |
-| IA `arxiv-bulk-metadata`                    | —（OAI-PMH dump）                           | 2.4–2.8GB XML ×3                        | 2017-09/2018-01     | 免费                                                  | 全量 XML                          | ✅                        |
-| IA `ARXIV-CRAWL-2019-10`                    | 间接（WARC 爬虫）                           | 37×~10GB WARC                           | 2019-10 一次        | 免费                                                  | WARC                              | ✅                        |
-| Kaggle `Cornell-University/arxiv`[^kaggle]  | ❌ 仅元数据 JSONL                           | ~2.4M 条                                | 周更                | Kaggle key                                            | 单文件                            | 沿用渠道普查             |
-| HF `librarian-bots/arxiv-metadata-snapshot`[^hf-meta] | ❌ 元数据 parquet                 | 全库                                    | **日更**            | 免费                                                  | 10 shards                         | 沿用                     |
-| S2 S2ORC                                    | 间接（GROBID/LaTeX 解析全文，非原始 blob）  | 千万级                                  | 滚动 release        | 免费 key（申请等待）                                  | API/批量 dump                     | 下载需 key（401 实测）   |
-| Academic Torrents                           | 站点当时不可达                              | —                                       | —                   | —                                                     | —                                 | ⚠️ 未实测；IA item 自带 .torrent 可替代 |
-| Common Crawl                                | ❌（e-print blob 不在抓取面）               | —                                       | —                   | —                                                     | —                                 | 不推荐                   |
+| 渠道                                                  | 有 LaTeX src？                              | 规模                                   | 新鲜度             | 凭据/成本                                             | 粒度                              | 状态                                    |
+| ----------------------------------------------------- | ------------------------------------------- | -------------------------------------- | ------------------ | ----------------------------------------------------- | --------------------------------- | --------------------------------------- |
+| **`s3://arxiv` `src/`**                               | ✅ e-print 原始 blob                        | ~2.9TB（2023-03），月更                | 持续（每月）       | AWS 账号 + requester-pays（~$0.09/GB egress+ 请求费） | 500MB tar/月-chunk，manifest 定位 | 匿名 403 实测                           |
+| **IA `arxiv-bulk`**[^ia-bulk]                         | ✅ 同上 tar 原样镜像                        | 1.65TB（3,242 src + 3,523 pdf chunks） | **冻 2020-10**     | 免费匿名                                              | 同上                              | ✅ 实测列目录/Range/tar 头              |
+| **HF `scholarweave/arxiv-latex`**[^hf-latex]          | ✅ 展平文本（FILE: 分隔，**无图无二进制**） | 289GB / 3.12M 行                       | **月更至 2026-07** | 免费匿名（HF 访问视地区可能需镜像）                   | 46 shards，manifest 给 id→shard   | ✅ 实测 rows API                        |
+| `gs://arxiv-dataset`[^gcs]                            | ❌ 零 src                                   | pdf 2.77M+ps 1.63M 文件（至 2508）     | 冻 2025-08         | 免费匿名                                              | 逐文件                            | ✅ 三重核实                             |
+| IA `collection:arxiv`（单篇 item）                    | ❌ 仅 PDF+meta                              | 1,076,003 items                        | 冻 ~2017-04        | 免费匿名                                              | 逐篇 PDF                          | ✅                                      |
+| IA `arxiv-bulk-hashes`                                | —（成员级 checksum 清单）                   | zipsum TSV ~213MB                      | 2017-09/2018-01    | 免费                                                  | `{yymm}/{id}.gz\|pdf` 逐成员      | ✅ Range 实测                           |
+| IA `arxiv-bulk-metadata`                              | —（OAI-PMH dump）                           | 2.4–2.8GB XML ×3                       | 2017-09/2018-01    | 免费                                                  | 全量 XML                          | ✅                                      |
+| IA `ARXIV-CRAWL-2019-10`                              | 间接（WARC 爬虫）                           | 37×~10GB WARC                          | 2019-10 一次       | 免费                                                  | WARC                              | ✅                                      |
+| Kaggle `Cornell-University/arxiv`[^kaggle]            | ❌ 仅元数据 JSONL                           | ~2.4M 条                               | 周更               | Kaggle key                                            | 单文件                            | 沿用渠道普查                            |
+| HF `librarian-bots/arxiv-metadata-snapshot`[^hf-meta] | ❌ 元数据 parquet                           | 全库                                   | **日更**           | 免费                                                  | 10 shards                         | 沿用                                    |
+| S2 S2ORC                                              | 间接（GROBID/LaTeX 解析全文，非原始 blob）  | 千万级                                 | 滚动 release       | 免费 key（申请等待）                                  | API/批量 dump                     | 下载需 key（401 实测）                  |
+| Academic Torrents                                     | 站点当时不可达                              | —                                      | —                  | —                                                     | —                                 | ⚠️ 未实测；IA item 自带 .torrent 可替代 |
+| Common Crawl                                          | ❌（e-print blob 不在抓取面）               | —                                      | —                  | —                                                     | —                                 | 不推荐                                  |
 
 ### 关键细节
 
@@ -46,13 +46,13 @@
 
 对照批量渠道（同一 5,000 篇）：
 
-| 路径                  | 字节量                                   | 耗时 @实测带宽            | 适用条件                         |
-| --------------------- | ---------------------------------------- | ------------------------- | -------------------------------- |
+| 路径                  | 字节量                                   | 耗时 @实测带宽            | 适用条件                           |
+| --------------------- | ---------------------------------------- | ------------------------- | ---------------------------------- |
 | IA tar（聚集选月）    | ~10–25 chunk ≈ 5–13GB                    | ~15–40min @4 并发 6.6MB/s | 「任取 N 篇」，选 1–2 个现代月即可 |
-| IA tar（散选 id）     | 每篇拖 500MB chunk                       | 散选 200 chunk=105GB≈4.4h | 与直采打平，还多流量             |
-| S3 tar（散选 id）     | 同上但 ~50–100MB/s+                      | 每 chunk 5–10s            | 付费后散选也赢（~$0.09/GB）      |
-| HF parquet（散选 id） | manifest 定位 shard，命中 shard 数×2–7GB | shard ~10–25min @3.9MB/s  | 覆盖至 2026-07，近月 shard 小    |
-| HF `/rows`（连续段）  | 0 下载                                   | 50 req API                | 仅限连续 id 段/取样              |
+| IA tar（散选 id）     | 每篇拖 500MB chunk                       | 散选 200 chunk=105GB≈4.4h | 与直采打平，还多流量               |
+| S3 tar（散选 id）     | 同上但 ~50–100MB/s+                      | 每 chunk 5–10s            | 付费后散选也赢（~$0.09/GB）        |
+| HF parquet（散选 id） | manifest 定位 shard，命中 shard 数×2–7GB | shard ~10–25min @3.9MB/s  | 覆盖至 2026-07，近月 shard 小      |
+| HF `/rows`（连续段）  | 0 下载                                   | 50 req API                | 仅限连续 id 段/取样                |
 
 **拐点建议**：
 
@@ -68,7 +68,7 @@
 | S3 `src/`           | 上月（月更）                                 | arXiv 官方每月打包推送 |
 | HF scholarweave     | **2026-07**（月同步）                        | 跟着 S3 月度 drop 跑   |
 | GCS pdf             | 2025-08（停更，2025-08-24 全量重同步过一次） | 只当冷备               |
-| IA arxiv-bulk       | **2020-10**                                  | 已停更 5 年 +           |
+| IA arxiv-bulk       | **2020-10**                                  | 已停更 5 年 +          |
 | IA collection:arxiv | ~2017-04                                     | 化石层                 |
 | Kaggle/HF 元数据    | 周更/日更                                    | 元数据无此忧           |
 
@@ -85,8 +85,13 @@ benchmark 语料对新鲜度不敏感（TeX 方言演化以年计），但 2020�
 ### 参考文献
 
 [^arxiv-bulk]: arXiv. Bulk Data Access via S3（bucket 布局/manifest 字段/requester-pays/规模口径）. info.arxiv.org / github.com/arxiv/arxiv-docs. [bulk_data_s3](https://info.arxiv.org/help/bulk_data_s3.html)
+
 [^ia-bulk]: Internet Archive. arxiv-bulk 集合（S3 镜像 tar chunks，冻 2020-10）. [archive.org/details/arxiv-bulk](https://archive.org/details/arxiv-bulk)
+
 [^hf-latex]: scholarweave. arxiv-latex（LaTeX 展平文本 parquet，月更）. HuggingFace. [datasets/scholarweave/arxiv-latex](https://huggingface.co/datasets/scholarweave/arxiv-latex)
+
 [^hf-meta]: librarian-bots. arxiv-metadata-snapshot（CC0 元数据 parquet，日更）. HuggingFace. [datasets/librarian-bots/arxiv-metadata-snapshot](https://huggingface.co/datasets/librarian-bots/arxiv-metadata-snapshot)
+
 [^gcs]: Google Cloud. arxiv-dataset（逐篇 PDF/ps/html + metadata-v5 快照，无源码）. [console.cloud.google.com/storage/browser/arxiv-dataset](https://console.cloud.google.com/storage/browser/arxiv-dataset)
+
 [^kaggle]: Cornell University. arXiv Dataset（元数据 JSONL，周更）. Kaggle. [kaggle.com/datasets/Cornell-University/arxiv](https://www.kaggle.com/datasets/Cornell-University/arxiv)

@@ -40,14 +40,25 @@
 ### 参考文献
 
 [^ocindex]: Heibi I, Moretti A, Peroni S, Soricetti M. The OpenCitations Index: Description of a database providing open citation data. Scientometrics, 2024. [doi.org](https://doi.org/10.1007/s11192-024-05160-7)
+
 [^ocdump]: OpenCitations. Download — OpenCitations Index data dumps. 2026. [download.opencitations.net](https://download.opencitations.net/)
+
 [^ocmeta]: OpenCitations, Massari & Peroni. OpenCitations Meta Database Dump v9.2.0. Zenodo, 2026. [zenodo.org](https://zenodo.org/records/21001553)
+
 [^ocapi]: OpenCitations. OpenCitations Index REST API v2 documentation. [api.opencitations.net](https://api.opencitations.net/index/v2)
+
 [^crrate]: Crossref. Access and authentication — REST API rate limits. [crossref.org](https://www.crossref.org/documentation/retrieve-metadata/rest-api/access-and-authentication/)
+
 [^i4oc]: I4OC. Initiative for Open Citations. [i4oc.org](https://i4oc.org/)
+
 [^i4ocstats]: Kramer B. I4OC_stats — monthly statistics on submitted references per publisher. GitHub. [github.com](https://github.com/bmkramer/I4OC_stats)
+
 [^crfile]: Crossref. 2025 public data file now available. [crossref.org](https://www.crossref.org/blog/2025-public-data-file-now-available/)
+
 [^lensitk]: The Lens. Institutional Toolkit Subscriber Onboarding. [support.lens.org](https://support.lens.org/knowledge-base/onboarding-institutional-toolkit-subscribers/)
+
 [^lensapi]: The Lens. Lens API Documentation / Scholar Request. [docs.api.lens.org](https://docs.api.lens.org/request-scholar.html)
+
 [^oag]: OpenAIRE. OpenAIRE Graph Dataset (2026-06 release). Zenodo. [doi.org](https://doi.org/10.5281/zenodo.20428976)
+
 [^wdp2860]: Wikidata. Property talk:P2860 cites work — usage statistics. [wikidata.org](https://wikidata.org/wiki/Property_talk:P2860)

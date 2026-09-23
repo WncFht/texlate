@@ -36,12 +36,21 @@ OpenAlex 快照是自建引用图的主干数据源（唯一 CC0 + 免费 bulk +
 ### 参考文献
 
 [^oa-worksobj]: OpenAlex. Work object attributes. GitHub ourresearch/openalex-docs. [api-entities/works/work-object/README.md](https://github.com/ourresearch/openalex-docs/blob/main/api-entities/works/work-object/README.md)
+
 [^oa-attrs]: OpenAlex. Attributes – Works. Help Center. [help.openalex.org/data/works/attributes](https://help.openalex.org/data/works/attributes/)
+
 [^oa-recipes]: OpenAlex. API recipes. [developers.openalex.org/guides/recipes](https://developers.openalex.org/guides/recipes)
+
 [^oa-snapshot]: OpenAlex. Snapshot – Channels. Help Center. [help.openalex.org/access/snapshot](https://help.openalex.org/access/snapshot/)
+
 [^oa-snapfmt]: OpenAlex. Snapshot data format. [developers.openalex.org/download/snapshot-format](https://developers.openalex.org/download/snapshot-format)
+
 [^oa-devdl]: OpenAlex. Download to your machine. [developers.openalex.org/download/download-to-machine](https://developers.openalex.org/download/download-to-machine)
+
 [^oa-sync]: OpenAlex. Sync – Products. Help Center. [help.openalex.org/access/sync](https://help.openalex.org/access/sync/)
+
 [^oa-mintlify]: OpenAlex. Download overview. [openalex.mintlify.app/download/overview](https://openalex.mintlify.app/download/overview)
+
 [^oa-auth]: OpenAlex. Authentication. [developers.openalex.org/api-reference/authentication](https://developers.openalex.org/api-reference/authentication)
+
 [^oa-pricing]: OpenAlex. Pricing Overview. [help.openalex.org/access/pricing](https://help.openalex.org/access/pricing/)

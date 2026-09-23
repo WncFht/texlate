@@ -62,9 +62,15 @@ frame.parquet 为主资产，加**增量维护管线**：librarian-bots 日更 s
 ### 参考文献
 
 [^arxiv-robots]: arXiv. Robots 政策——/src/ 程序化抓取限制与批量正道指引. [arxiv.org/robots.txt](https://arxiv.org/robots.txt) / info.arxiv.org [help/robots](https://info.arxiv.org/help/robots.html)
+
 [^arxiv-bulk]: arXiv. Bulk Data Access via S3——requester-pays 定价口径与 manifest 布局. info.arxiv.org. [help/bulk_data_s3](https://info.arxiv.org/help/bulk_data_s3.html)
+
 [^arxiv-etl]: arthiondaena. arxivETL_sync——us-east-1 区内免费消化 S3 桶的开源 Rust ETL（scholarweave 同款上游）. GitHub. [arthiondaena/arxivETL_sync](https://github.com/arthiondaena/arxivETL_sync)
+
 [^xray]: X-raying the arXiv——60 万篇 e-print 形态实测（88.6% TeX / 9.3% pdf-only / 主文件定位难 1.6% / BaRDE 裁决器）. arXiv:2601.11385. [arxiv.org/abs/2601.11385](https://arxiv.org/abs/2601.11385)
+
 [^ar5iv]: ar5iv 分层数据集——2.17M 篇 LaTeXML 转换严重度分档（no_problem/warning/error）. [sigmathling.kwarc.info/resources/ar5iv-dataset-2024](https://sigmathling.kwarc.info/resources/ar5iv-dataset-2024/)
+
 [^kaggle]: Cornell University. arXiv Dataset（元数据 JSONL 周更，license/versions 全字段）. Kaggle. [kaggle.com/datasets/Cornell-University/arxiv](https://www.kaggle.com/datasets/Cornell-University/arxiv)
+
 [^hf-meta]: librarian-bots. arxiv-metadata-snapshot（CC0 元数据 parquet，日更）. HuggingFace. [datasets/librarian-bots/arxiv-metadata-snapshot](https://huggingface.co/datasets/librarian-bots/arxiv-metadata-snapshot)

@@ -10,41 +10,41 @@
 
 phase：`gate`=每轮分类后最先评估 / `precheck`=编译前一次性 / `loop`=每轮错误驱动；同 phase 内按 order 升序，每轮只应用一条。
 
-| # | id | phase/order | 触发 (category) | 动作 |
-| --- | --- | --- | --- | --- |
-| 1 | `latex209_reject` | gate/1 | `latex209` 或 `missing_file`+主文件含 `\documentstyle` | reject_route → latex+dvips |
-| 2 | `static_precheck` | precheck/0 | always | 扫 `\usepackage/\RequirePackage/\documentclass` → 探测缺失 → filemap 批量装包 |
-| 3 | `install_file` | loop/10 | `missing_file` | filemap 查包→安装→复核；扩展名∈{tfm,pfb,vf,fd,map,enc} 时装后重建 map |
-| 4 | `install_tfm` | loop/20 | `missing_tfm` | 装 `{pay}.tfm` 所在包 + updmap |
-| 5 | `install_sysfont` | loop/30 | `fontspec_missing` | 按 `{pay}.otf/.ttf/.ttc` 搜包装 + updmap |
-| 6 | `missing_pfb_updmap` | loop/40 | `missing_pfb` | `updmap-user` 重建 map |
-| 7 | `pdftex_prim_guard` | loop/50 | `pdftex_prim` | 13 个 `\pdf*` 原语套 `\ifdefined…\fi`（lookbehind 幂等） |
-| 8 | `px_to_bp` | loop/60 | `illegal_unit` | `N px` → `N*0.75 bp`（命名函数，算术非纯模板） |
-| 9 | `microtype_off` | loop/70 | `xetexglyph_tfm` | microtype 强制 `[protrusion=false,expansion=false]` |
-| 10 | `times_to_newtx` | loop/80 | `xetexglyph_tfm` | `{mathptmx/mathptm}`→`{newtxtext,newtxmath}`，`{times}`→`{newtxtext}` |
-| 11 | `hyphenation_sane` | loop/90 | `hyphenation` | `\hyphenation{}` 只留 `[a-zA-Z-]` token（命名函数） |
-| 12 | `soul_cjk_mbox` | loop/100 | `soul_err` | `\hl/\ul/\st/\so/\caps` 含 CJK 参数套 `\mbox` |
-| 13 | `thm_sibling_strip` | loop/110 | `already_def` | 剥 `sibling=\w+,?` |
-| 14 | `option_clash_merge` | loop/120 | `option_clash` | 同名包重复加载→合并选项到首处 + 注释后处（算法型 builtin） |
-| 15 | `minted_frozencache` | loop/130 | `minted_froz` | 有 pygmentize 才剥 `frozencache` 选项（需 shell-escape） |
-| 16 | `undefined_cs_guess` | loop/900 | `undefined_cs` | escalate_llm（spike 期占位） |
+| #   | id                   | phase/order | 触发 (category)                                        | 动作                                                                          |
+| --- | -------------------- | ----------- | ------------------------------------------------------ | ----------------------------------------------------------------------------- |
+| 1   | `latex209_reject`    | gate/1      | `latex209` 或 `missing_file`+主文件含 `\documentstyle` | reject_route → latex+dvips                                                    |
+| 2   | `static_precheck`    | precheck/0  | always                                                 | 扫 `\usepackage/\RequirePackage/\documentclass` → 探测缺失 → filemap 批量装包 |
+| 3   | `install_file`       | loop/10     | `missing_file`                                         | filemap 查包→安装→复核；扩展名∈{tfm,pfb,vf,fd,map,enc} 时装后重建 map         |
+| 4   | `install_tfm`        | loop/20     | `missing_tfm`                                          | 装 `{pay}.tfm` 所在包 + updmap                                                |
+| 5   | `install_sysfont`    | loop/30     | `fontspec_missing`                                     | 按 `{pay}.otf/.ttf/.ttc` 搜包装 + updmap                                      |
+| 6   | `missing_pfb_updmap` | loop/40     | `missing_pfb`                                          | `updmap-user` 重建 map                                                        |
+| 7   | `pdftex_prim_guard`  | loop/50     | `pdftex_prim`                                          | 13 个 `\pdf*` 原语套 `\ifdefined…\fi`（lookbehind 幂等）                      |
+| 8   | `px_to_bp`           | loop/60     | `illegal_unit`                                         | `N px` → `N*0.75 bp`（命名函数，算术非纯模板）                                |
+| 9   | `microtype_off`      | loop/70     | `xetexglyph_tfm`                                       | microtype 强制 `[protrusion=false,expansion=false]`                           |
+| 10  | `times_to_newtx`     | loop/80     | `xetexglyph_tfm`                                       | `{mathptmx/mathptm}`→`{newtxtext,newtxmath}`，`{times}`→`{newtxtext}`         |
+| 11  | `hyphenation_sane`   | loop/90     | `hyphenation`                                          | `\hyphenation{}` 只留 `[a-zA-Z-]` token（命名函数）                           |
+| 12  | `soul_cjk_mbox`      | loop/100    | `soul_err`                                             | `\hl/\ul/\st/\so/\caps` 含 CJK 参数套 `\mbox`                                 |
+| 13  | `thm_sibling_strip`  | loop/110    | `already_def`                                          | 剥 `sibling=\w+,?`                                                            |
+| 14  | `option_clash_merge` | loop/120    | `option_clash`                                         | 同名包重复加载→合并选项到首处 + 注释后处（算法型 builtin）                    |
+| 15  | `minted_frozencache` | loop/130    | `minted_froz`                                          | 有 pygmentize 才剥 `frozencache` 选项（需 shell-escape）                      |
+| 16  | `undefined_cs_guess` | loop/900    | `undefined_cs`                                         | escalate_llm（spike 期占位）                                                  |
 
 **动作原语** 7 种（`action.kind`）：`scan_install`(1)、`install_file`(3-5 共用参数不同)、`run_tool`(6)、`regex_rewrite`(7-13,15)、`builtin_transform`(14)、`reject_route`(1)、`escalate_llm`(16)。**命名函数注册表**只有 3 个算法型改写——`px_to_bp`、`keep_latin_tokens`、`option_clash_merge`——其余全是 pattern+repl 模板；社区贡献新规则多数只需写 regex，新函数才需要 PR 代码。
 
 ## 2. 覆盖统计（22 格实测）
 
-| 规则 | 触发次数 | 所在格终出 pdf | 状态 |
-| --- | --- | --- | --- |
-| static_precheck | 22 | 22 | 实战验证 |
-| install_file | 26 | 17 | 实战验证 |
-| install_sysfont | 14 | 14 | 实战验证 |
-| install_tfm | 13 | 13 | 实战验证 |
-| microtype_off | 4 | 4 | 实战验证 |
-| pdftex_prim_guard | 3 | 3 | 实战验证 |
-| px_to_bp | 3 | 3 | 实战验证 |
-| hyphenation_sane | 1 | 1 | 实战验证 |
-| soul_cjk_mbox | 0¹ | 0 | **已知缺口** |
-| missing_pfb_updmap / times_to_newtx / thm_sibling_strip / option_clash_merge / minted_frozencache / latex209_reject / undefined_cs_guess | 0 | 0 | proposed（防御性/经验移植） |
+| 规则                                                                                                                                     | 触发次数 | 所在格终出 pdf | 状态                        |
+| ---------------------------------------------------------------------------------------------------------------------------------------- | -------- | -------------- | --------------------------- |
+| static_precheck                                                                                                                          | 22       | 22             | 实战验证                    |
+| install_file                                                                                                                             | 26       | 17             | 实战验证                    |
+| install_sysfont                                                                                                                          | 14       | 14             | 实战验证                    |
+| install_tfm                                                                                                                              | 13       | 13             | 实战验证                    |
+| microtype_off                                                                                                                            | 4        | 4              | 实战验证                    |
+| pdftex_prim_guard                                                                                                                        | 3        | 3              | 实战验证                    |
+| px_to_bp                                                                                                                                 | 3        | 3              | 实战验证                    |
+| hyphenation_sane                                                                                                                         | 1        | 1              | 实战验证                    |
+| soul_cjk_mbox                                                                                                                            | 0¹       | 0              | **已知缺口**                |
+| missing_pfb_updmap / times_to_newtx / thm_sibling_strip / option_clash_merge / minted_frozencache / latex209_reject / undefined_cs_guess | 0        | 0              | proposed（防御性/经验移植） |
 
 ¹ 2005.11401/zh 触发 `soul_err` 但 regex 0 文件命中 → skip → 全场唯一 dirty_pdf（6 errs）。
 
@@ -65,17 +65,17 @@ phase：`gate`=每轮分类后最先评估 / `precheck`=编译前一次性 / `lo
 
 tectonic = XeTeX 内核 + TeX Live bundle 按需拉取；**无 tlmgr / 无 kpsewhich / 无 updmap**。taxonomy 层全部可复用（log 格式同源）。规则层：
 
-| 规则 | 依赖能力 | tectonic 可行性 | 降级方案 |
-| --- | --- | --- | --- |
-| static_precheck | kpsewhich+tlmgr | 可省 | `skip`——bundle 按需拉包使预检多余；可选轻量版仅查本地存在性，缺→ctan_fetch |
-| install_file | tlmgr search/install | **核心降级** | `ctan_fetch`：filemap 离线索引（解析 texlive.tlpdb）得包名 → 拉 `tlnet/archive/<pkg>.tar.xz` → 解包到工作目录（本地文件优先于 bundle）；查不到 → `advisory` |
-| install_tfm | 同上+updmap | 同上 | `ctan_fetch`（tfm 落工作目录直读可用）；要 pfb map → escalate（无 updmap） |
-| install_sysfont | 同上+updmap | partial | `ctan_fetch_font` 拉到字体后 fontspec 按名查找仍不可见 → 需配套源改写注入 `Path=./` 或注册 fontconfig；否则 advisory |
-| missing_pfb_updmap | updmap | **不支持** | escalate_llm / 路由回 xelatex |
-| pdftex_prim_guard / px_to_bp / microtype_off / times_to_newtx / hyphenation_sane / soul_cjk_mbox / thm_sibling_strip / option_clash_merge | —（源改写） | same | 无需降级；newtx 在 bundle 内 |
-| minted_frozencache | pygmentize+shell-escape | partial | shell-escape 受限 → 剥选项后未必能跑；备选改写 listings 或 advisory |
-| latex209_reject | —（路由策略） | same | — |
-| undefined_cs_guess | —（LLM） | same | — |
+| 规则                                                                                                                                      | 依赖能力                | tectonic 可行性 | 降级方案                                                                                                                                                    |
+| ----------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| static_precheck                                                                                                                           | kpsewhich+tlmgr         | 可省            | `skip`——bundle 按需拉包使预检多余；可选轻量版仅查本地存在性，缺→ctan_fetch                                                                                  |
+| install_file                                                                                                                              | tlmgr search/install    | **核心降级**    | `ctan_fetch`：filemap 离线索引（解析 texlive.tlpdb）得包名 → 拉 `tlnet/archive/<pkg>.tar.xz` → 解包到工作目录（本地文件优先于 bundle）；查不到 → `advisory` |
+| install_tfm                                                                                                                               | 同上+updmap             | 同上            | `ctan_fetch`（tfm 落工作目录直读可用）；要 pfb map → escalate（无 updmap）                                                                                  |
+| install_sysfont                                                                                                                           | 同上+updmap             | partial         | `ctan_fetch_font` 拉到字体后 fontspec 按名查找仍不可见 → 需配套源改写注入 `Path=./` 或注册 fontconfig；否则 advisory                                        |
+| missing_pfb_updmap                                                                                                                        | updmap                  | **不支持**      | escalate_llm / 路由回 xelatex                                                                                                                               |
+| pdftex_prim_guard / px_to_bp / microtype_off / times_to_newtx / hyphenation_sane / soul_cjk_mbox / thm_sibling_strip / option_clash_merge | —（源改写）             | same            | 无需降级；newtx 在 bundle 内                                                                                                                                |
+| minted_frozencache                                                                                                                        | pygmentize+shell-escape | partial         | shell-escape 受限 → 剥选项后未必能跑；备选改写 listings 或 advisory                                                                                         |
+| latex209_reject                                                                                                                           | —（路由策略）           | same            | —                                                                                                                                                           |
+| undefined_cs_guess                                                                                                                        | —（LLM）                | same            | —                                                                                                                                                           |
 
 **降级架构要点**：5 条降级里 4 条汇到同一原语 `ctan_fetch`——真正要建的资产是 **file→TL 包索引**（xelatex 下由 `tlmgr search --file` 充当；tectonic 下用 texlive.tlpdb 离线解析生成，随规则库分发 + `overrides` 手工表兜底）。这一个索引同时喂 static_precheck 与 install_* 三招。updmap 无替代物——TFM 直读不需要它，需要 pfb map 的场景直接 escalate。→ 落地即 `compile/ctan.py`（实测见 `ctanfetch-probe.md`）。
 

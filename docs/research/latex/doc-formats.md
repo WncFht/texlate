@@ -19,14 +19,14 @@
 
 ## 2. texlate EPUB v1 取舍
 
-| 抄 | 不抄（v1） |
-| --- | --- |
-| DRM stdlib 预检 | plan/classify/ledger 全套 |
-| unit 枚举 + job_id + 前缀校验断点 | 单译模式（只做双语） |
-| 克隆插译 + 受限容器内联追加 | sentence_mode、retranslate、披露页 |
-| marker 占位协议三件套 | 字体解/重混淆（照抄 zip 条目即免疫） |
+| 抄                                    | 不抄（v1）                                                     |
+| ------------------------------------- | -------------------------------------------------------------- |
+| DRM stdlib 预检                       | plan/classify/ledger 全套                                      |
+| unit 枚举 + job_id + 前缀校验断点     | 单译模式（只做双语）                                           |
+| 克隆插译 + 受限容器内联追加           | sentence_mode、retranslate、披露页                             |
+| marker 占位协议三件套                 | 字体解/重混淆（照抄 zip 条目即免疫）                           |
 | barrier 最小子集：嵌套 block + `<br>` | CSS display 解析器（只查 `hidden` 属性 + 内联 `display:none`） |
-| `(n)`/`@@` 解析 + 对齐梯子 | epubcheck 全量对账（只留 strip id + 内容模型两条硬规则） |
+| `(n)`/`@@` 解析 + 对齐梯子            | epubcheck 全量对账（只留 strip id + 内容模型两条硬规则）       |
 
 EPUB 特有注意点：**mimetype 必须第一且 ZIP_STORED**（OCF 硬性要求）；nav.xhtml 走受限容器内联追加；字体混淆照抄 `encryption.xml` + 不改 `dc:identifier` 即免疫（这是 stdlib 相对 ebooklib 的净赚——后者丢 META-INF 被迫写 deob/reob）；fixed-layout（`rendition:layout=pre-paginated`）检测后警告拒翻；译文样式用 `class="texlate-zh"` + `<head>` 内嵌 `<style>`（不动 manifest）；NCX 的 `navLabel/text` 可直接 text-node 替换便宜翻掉。
 
@@ -50,21 +50,21 @@ python-docx[^python-docx]（MIT）。插译核心 ~30 行：`copy.deepcopy(parag
 
 ## 5. 边界一览
 
-| 边界 | EPUB | DOCX |
-| --- | --- | --- |
-| 图文混排 | `<img>` 短保护→marker；`<a><img>` 取外层 a；figure+figcaption 走受限容器 | `w:drawing` 原文段不动译文段纯文本；纯图段 skip；保位用 marker+deepcopy `w:r` |
-| 数学 | `<math>` 永不进源文；句中→wordless marker | `m:oMath`/`m:t` 跳过；句中公式 `⟦mathN⟧` 保位或整段跳过 |
-| 竖排 | CSS `writing-mode` 克隆继承免处理 | `w:textDirection` 在 pPr 里 deepcopy 自带 |
-| fixed-layout | `pre-paginated` 警告拒翻 | 本就固定版式正常翻 |
-| ruby/注音 | `rt/rp/rtc` 永不送模型 | `w:ruby` phonetic 跳过 |
-| DRM/加密 | stdlib 预检拒开 | python-docx 开不了即拒 |
-| 字体 | 照抄 `encryption.xml`+保留 `dc:identifier` | 嵌入字体随 package 原样保留 |
-| 目录 | nav `<li>` 内联追加；NCX 翻 `<text>` 或留 | TOC 域代码跳过 |
-| 表格 | `td/th` 普通 block owner | `w:tc` 递归遍历 |
-| 脚注/尾注 | `epub:type=footnote` 即使 CSS 隐藏也翻 | `footnotes.xml` raw part 同法插译 |
-| 批注/修订 | — | comments.xml 翻；`w:del` 跳 `w:ins` 翻 |
-| 长保护内联 | >40 字符含词/>400 无词保持 barrier | 大 drawing/object 整段跳过 |
-| 隐藏文本 | `display:none`/`hidden` 跳（footnote 义除外） | `w:vanish` 跳过 |
+| 边界         | EPUB                                                                     | DOCX                                                                          |
+| ------------ | ------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
+| 图文混排     | `<img>` 短保护→marker；`<a><img>` 取外层 a；figure+figcaption 走受限容器 | `w:drawing` 原文段不动译文段纯文本；纯图段 skip；保位用 marker+deepcopy `w:r` |
+| 数学         | `<math>` 永不进源文；句中→wordless marker                                | `m:oMath`/`m:t` 跳过；句中公式 `⟦mathN⟧` 保位或整段跳过                       |
+| 竖排         | CSS `writing-mode` 克隆继承免处理                                        | `w:textDirection` 在 pPr 里 deepcopy 自带                                     |
+| fixed-layout | `pre-paginated` 警告拒翻                                                 | 本就固定版式正常翻                                                            |
+| ruby/注音    | `rt/rp/rtc` 永不送模型                                                   | `w:ruby` phonetic 跳过                                                        |
+| DRM/加密     | stdlib 预检拒开                                                          | python-docx 开不了即拒                                                        |
+| 字体         | 照抄 `encryption.xml`+保留 `dc:identifier`                               | 嵌入字体随 package 原样保留                                                   |
+| 目录         | nav `<li>` 内联追加；NCX 翻 `<text>` 或留                                | TOC 域代码跳过                                                                |
+| 表格         | `td/th` 普通 block owner                                                 | `w:tc` 递归遍历                                                               |
+| 脚注/尾注    | `epub:type=footnote` 即使 CSS 隐藏也翻                                   | `footnotes.xml` raw part 同法插译                                             |
+| 批注/修订    | —                                                                        | comments.xml 翻；`w:del` 跳 `w:ins` 翻                                        |
+| 长保护内联   | >40 字符含词/>400 无词保持 barrier                                       | 大 drawing/object 整段跳过                                                    |
+| 隐藏文本     | `display:none`/`hidden` 跳（footnote 义除外）                            | `w:vanish` 跳过                                                               |
 
 ## 6. 优先级裁决回顾
 
@@ -73,4 +73,5 @@ EPUB 先行、DOCX 紧随、PDF 不提前——bbm 把 epubcheck 级别的坑全
 ### 参考文献
 
 [^bbm]: bilingual_book_maker contributors. bilingual_book_maker — bilingual EPUB translation tool. GitHub. [github.com/yihong0618/bilingual_book_maker](https://github.com/yihong0618/bilingual_book_maker)
+
 [^python-docx]: python-openxml. python-docx — Create and update Microsoft Word .docx files (MIT). GitHub. [github.com/python-openxml/python-docx](https://github.com/python-openxml/python-docx)

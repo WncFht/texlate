@@ -136,9 +136,7 @@ async function run() {
         const menuVisible = await menu.isVisible().catch(() => false);
         check("contextmenu opens .ctx-menu", menuVisible);
         if (menuVisible) {
-            const items = await menu
-                .locator("li[role='menuitem']")
-                .count();
+            const items = await menu.locator("li[role='menuitem']").count();
             check("menu has items", items > 0, `${items} items`);
             // FloatBar 互斥：开单后条必收
             if (barBeforeMenu)

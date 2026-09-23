@@ -10,15 +10,15 @@
 
 ### 1.1 端点表
 
-| 用途        | URL                                              | 备注                                                       |
-| ----------- | ------------------------------------------------ | ---------------------------------------------------------- |
-| 源码包      | `arxiv.org/src/{id}[vN]`（`/e-print/` 301 到此） | tar.gz / 单文件 .gz / PDF 直投 / includepdf 壳四态         |
-| HTML 版     | `arxiv.org/html/{id}[vN]`                        | LaTeXML 输出；探 `{id}`（最新版）后逐版本回退              |
-| abs 页      | `arxiv.org/abs/{id}[vN]`                         | license 机读位（`div.abs-license a[href]`）、备用元数据    |
-| PDF         | `arxiv.org/pdf/{id}[vN]`                         | `content-disposition: inline`（注意与 /src 的 attachment 不同） |
-| Atom 元数据 | `export.arxiv.org/api/query?id_list={id},…`      | 批量 id_list 一次拉多篇；arxiv.org/api 仅 302 转发到此     |
-| OAI-PMH     | `oaipmh.arxiv.org/oai?verb=…`                    | 已迁出 export（/oai2 全动词 301）；独立第三限流桶          |
-| RSS 日更    | `export.arxiv.org/rss/{cat}`（arxiv.org 302 到此） | 日更种子源首选，见 [probes.md](probes.md)                  |
+| 用途        | URL                                                | 备注                                                            |
+| ----------- | -------------------------------------------------- | --------------------------------------------------------------- |
+| 源码包      | `arxiv.org/src/{id}[vN]`（`/e-print/` 301 到此）   | tar.gz / 单文件 .gz / PDF 直投 / includepdf 壳四态              |
+| HTML 版     | `arxiv.org/html/{id}[vN]`                          | LaTeXML 输出；探 `{id}`（最新版）后逐版本回退                   |
+| abs 页      | `arxiv.org/abs/{id}[vN]`                           | license 机读位（`div.abs-license a[href]`）、备用元数据         |
+| PDF         | `arxiv.org/pdf/{id}[vN]`                           | `content-disposition: inline`（注意与 /src 的 attachment 不同） |
+| Atom 元数据 | `export.arxiv.org/api/query?id_list={id},…`        | 批量 id_list 一次拉多篇；arxiv.org/api 仅 302 转发到此          |
+| OAI-PMH     | `oaipmh.arxiv.org/oai?verb=…`                      | 已迁出 export（/oai2 全动词 301）；独立第三限流桶               |
+| RSS 日更    | `export.arxiv.org/rss/{cat}`（arxiv.org 302 到此） | 日更种子源首选，见 [probes.md](probes.md)                       |
 
 `export.arxiv.org` 实测为**全站镜像**：`/src` `/pdf` `/abs` `/e-print` 全通且 etag 行为一致——是第二下载桶与主站故障转移目标，不只 API host（证据见 [export-probes.md](export-probes.md)）。
 
@@ -31,13 +31,13 @@
 
 ### 1.3 退避与惩罚窗口（实测校准）
 
-| 场景                      | 动作                                                                                                       |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| 单请求 429 / 406 / 5xx    | 重试 3 次：+10s → +30s → +90s（±20% jitter）；有 `Retry-After` 从其值                                       |
-| 单请求 404                | 不重试，记 `not_found`                                                                                     |
-| 传输层错误                | 同 429 退避                                                                                                |
-| 同 (host, path-class) 连 2 次 429/406/403 | **断路器**：该路径类整体 park 30min 起步、翻倍封顶 2h；checkpoint 落盘可恢复                        |
-| 持续 ~150 发后 /src 406   | **按 IP 累计配额惩罚**：1–3min 自愈但密度渐升至近 100%，与 UA/Accept/代理无关 → 直采日预算 ≈150–200 发 |
+| 场景                                      | 动作                                                                                                   |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| 单请求 429 / 406 / 5xx                    | 重试 3 次：+10s → +30s → +90s（±20% jitter）；有 `Retry-After` 从其值                                  |
+| 单请求 404                                | 不重试，记 `not_found`                                                                                 |
+| 传输层错误                                | 同 429 退避                                                                                            |
+| 同 (host, path-class) 连 2 次 429/406/403 | **断路器**：该路径类整体 park 30min 起步、翻倍封顶 2h；checkpoint 落盘可恢复                           |
+| 持续 ~150 发后 /src 406                   | **按 IP 累计配额惩罚**：1–3min 自愈但密度渐升至近 100%，与 UA/Accept/代理无关 → 直采日预算 ≈150–200 发 |
 
 关键实测事实（探针证据见 [export-probes.md](export-probes.md)）：
 
@@ -144,21 +144,24 @@ IA `arxiv-bulk` = S3 桶免费镜像但**冻结 2020-10**；HF `scholarweave/arx
 
 ## 10. 落地对照（2026-09-20 核 `src/texlate/arxiv/`）
 
-| 本文条目                     | 实装位置                                              |
-| ---------------------------- | ----------------------------------------------------- |
+| 本文条目                      | 实装位置                                                      |
+| ----------------------------- | ------------------------------------------------------------- |
 | §1 三限流桶 + 断路器 + 日预算 | `ratelimit.py`（per-host 桶、(host,path-class) park、180/日） |
-| §1 export 第二桶故障转移     | `fetch.py` `DEFAULT_HOSTS` + `_across_hosts`          |
-| §1.2 HEAD 预检 + 304 重验证  | `fetch.py` `head_src`/`get_src`/`_refresh_head`       |
-| §2 钉版缓存 + 原子发布       | `cache.py`（staging→rename+`.old` 回滚）              |
-| §3 四态判别 + 解包安全       | `sniff.py`（魔数+`check_pdf_wrapper`）、`unpack.py`   |
-| §4 定位 + 八形态拓扑         | `locate.py`                                           |
-| §5 Atom 主源 + OAI 兜底      | `meta.py`（`fetch_metadata`/`resolve_version`）       |
-| §6 降级链                    | `meta.py` `degrade`（L2 逐版本回退窗口 ≤24）+ `html.py` |
-| §8/§9 批量层 / 引用排序      | **未实装**                                            |
+| §1 export 第二桶故障转移      | `fetch.py` `DEFAULT_HOSTS` + `_across_hosts`                  |
+| §1.2 HEAD 预检 + 304 重验证   | `fetch.py` `head_src`/`get_src`/`_refresh_head`               |
+| §2 钉版缓存 + 原子发布        | `cache.py`（staging→rename+`.old` 回滚）                      |
+| §3 四态判别 + 解包安全        | `sniff.py`（魔数+`check_pdf_wrapper`）、`unpack.py`           |
+| §4 定位 + 八形态拓扑          | `locate.py`                                                   |
+| §5 Atom 主源 + OAI 兜底       | `meta.py`（`fetch_metadata`/`resolve_version`）               |
+| §6 降级链                     | `meta.py` `degrade`（L2 逐版本回退窗口 ≤24）+ `html.py`       |
+| §8/§9 批量层 / 引用排序       | **未实装**                                                    |
 
 ### 参考文献
 
 [^arxiv-tou]: arXiv. arXiv API Terms of Use. info.arxiv.org. [help/api/tou](https://info.arxiv.org/help/api/tou.html)
+
 [^arxiv-bulk]: arXiv. Bulk Data Access via S3. info.arxiv.org / github.com/arxiv/arxiv-docs. [bulk_data_s3](https://info.arxiv.org/help/bulk_data_s3.html)
+
 [^sanity-issue80]: karpathy/arxiv-sanity. "Blocked by arxiv (403)" — 同 IP ~1200 篇后全站 403、约 20min 自解的社区实证. GitHub issue #80. [arxiv-sanity#80](https://github.com/karpathy/arxiv-sanity/issues/80)
+
 [^xray]: X-raying the arXiv. arXiv:2601.11385. 60 万篇实测：88.6% 有效 TeX / 9.3% pdf-only / 0.37% 撤稿 stub / 1.6% 主文件难定位.

@@ -10,53 +10,53 @@
 
 ## 1. 内核缺口（阻塞项先行，G 序）
 
-| # | 缺口 | 阻塞谁 | 处置 |
-|---|------|--------|------|
-| G1 | `items()` 零参物化，params 无法影响枚举；`--sel` 只喂 regen 门 | soak（--n/--seed/--ids/--layers）、xlatbench、qualbench、e2e | kernel 长 `items(params)` 或 plan-filter 通道；soak spec 前必须落 |
-| G2 | 评测型付费 `dedup_key` 自声明被 linter 禁（spec.py:603-611 只许资产键），与 §4/§5.2 直接冲突 | xlatbench、qualbench | linter 按 §4 放开评测型键空间 + 审计清单加「dedup_key 与历史 eval_records 键域对拍」 |
-| G3 | lake/cache 只有空目录：无 cache.py、无 ctx.seg_cache、无终态 ok 提交钩子、无逐出/doctor 覆盖、无 vault→cache 重建动词、命中指标口径未定 | stage_xlat、e2e_real（首个付费翻译 spec 前落） | 新建 kernel/cache.py：桶键=file_cache_key 全维（src/texlate/xlat/state.py:71-115 公式复用）、段键=segment_key；写入口径「cell 终态 ok 后才 flush」;hits/misses/stores 经 ctx.emit 进 metrics；修复/校正写手旁路（server compile.py:832 前科——hint 语境不在键里会污染命名空间） |
-| G4 | 无水化钩子：ctx.lake_path/src_path 纯路径返回，spec 无法声明 fetch_fn；§3.10 承诺的 plan 期批量水化+lookahead 未实现 | soak ingest、一切 corpus 消费 spec | ctx.lake_ensure() 或 spec 级 fetch_fn 声明；§3.10.8 编排 |
-| G5 | `gateway_factory` 须 spec 模块自带，无 bench 侧标准 factory helper | 一切付费 spec | kernel 或 specs/_shared 落一个标准 helper（session 懒建+prices/meter 跨 run 共享语义写清） |
-| G6 | 无 run 级聚合/finalize 钩子（needs 是 cell 级行谓词） | xlatbench report、e2e results.json 聚合 | 裁决：聚合落 bench derive/分析动词，内核不加 stage 类型（推荐——聚合=读面） |
-| G7 | `Stage.mutates` 词表 {zh,splice,state} 窄于 ASSET_KINDS（另有 pdf/report） | compile 类驱动产 PDF 的声明 | 语义正确（pdf 可从 vault 字节重派生），维持现状+doc 注记，或扩词表——裁决项 |
-| G8 | `executor='process'` 现态必炸：kernel.py:997 提交的是闭包，ProcessPoolExecutor.map pickle 不过 | parse（CPU 密集唯一可能用户） | 修内核（提交可 pickle 的 callable）或 parse 先 thread——裁决项 |
-| G9 | `runs.add_case` 零调用孤儿，Ctx 无 emit_case 桥——评测型驱动无 per-sample 账行通道 | qualbench（逐 chunk 判定行）、xlatbench（逐 sample 行） | 接 Ctx.emit_case→cases 表，或约定 metrics blob——按查询需求裁决 |
-| G10 | 事件词表封闭（10 类写死） | 潜在新账行形态 | 需要时改 events.py+index schema（内核变更，逐案评） |
-| G11 | status_panel 是 daemon 不是 verb：§5.2 派 verb 道、§5.3 收删除单，实无对应物；cli.py 无 status-panel 位 | 删除清单 | 裁决：一行改 RESULTS_DIR 续命 vs 正式退役（写面已在新根，读面仍 bench/results） |
-| G12 | `sig` 不自动合成：内核终态行只透传 fn 给的 sig，旧世界 errors_sig 是 benchlib 合成 | 一切依赖 triage 聚类的 spec | spec 内复刻 cat:pay 合成行，或内核加默认合成——建议内核加（少一处每 spec 重抄） |
+| #   | 缺口                                                                                                                                    | 阻塞谁                                                       | 处置                                                                                                                                                                                                                                                                           |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| G1  | `items()` 零参物化，params 无法影响枚举；`--sel` 只喂 regen 门                                                                          | soak（--n/--seed/--ids/--layers）、xlatbench、qualbench、e2e | kernel 长 `items(params)` 或 plan-filter 通道；soak spec 前必须落                                                                                                                                                                                                              |
+| G2  | 评测型付费 `dedup_key` 自声明被 linter 禁（spec.py:603-611 只许资产键），与 §4/§5.2 直接冲突                                            | xlatbench、qualbench                                         | linter 按 §4 放开评测型键空间 + 审计清单加「dedup_key 与历史 eval_records 键域对拍」                                                                                                                                                                                           |
+| G3  | lake/cache 只有空目录：无 cache.py、无 ctx.seg_cache、无终态 ok 提交钩子、无逐出/doctor 覆盖、无 vault→cache 重建动词、命中指标口径未定 | stage_xlat、e2e_real（首个付费翻译 spec 前落）               | 新建 kernel/cache.py：桶键=file_cache_key 全维（src/texlate/xlat/state.py:71-115 公式复用）、段键=segment_key；写入口径「cell 终态 ok 后才 flush」;hits/misses/stores 经 ctx.emit 进 metrics；修复/校正写手旁路（server compile.py:832 前科——hint 语境不在键里会污染命名空间） |
+| G4  | 无水化钩子：ctx.lake_path/src_path 纯路径返回，spec 无法声明 fetch_fn；§3.10 承诺的 plan 期批量水化+lookahead 未实现                    | soak ingest、一切 corpus 消费 spec                           | ctx.lake_ensure() 或 spec 级 fetch_fn 声明；§3.10.8 编排                                                                                                                                                                                                                       |
+| G5  | `gateway_factory` 须 spec 模块自带，无 bench 侧标准 factory helper                                                                      | 一切付费 spec                                                | kernel 或 specs/_shared 落一个标准 helper（session 懒建+prices/meter 跨 run 共享语义写清）                                                                                                                                                                                     |
+| G6  | 无 run 级聚合/finalize 钩子（needs 是 cell 级行谓词）                                                                                   | xlatbench report、e2e results.json 聚合                      | 裁决：聚合落 bench derive/分析动词，内核不加 stage 类型（推荐——聚合=读面）                                                                                                                                                                                                     |
+| G7  | `Stage.mutates` 词表 {zh,splice,state} 窄于 ASSET_KINDS（另有 pdf/report）                                                              | compile 类驱动产 PDF 的声明                                  | 语义正确（pdf 可从 vault 字节重派生），维持现状+doc 注记，或扩词表——裁决项                                                                                                                                                                                                     |
+| G8  | `executor='process'` 现态必炸：kernel.py:997 提交的是闭包，ProcessPoolExecutor.map pickle 不过                                          | parse（CPU 密集唯一可能用户）                                | 修内核（提交可 pickle 的 callable）或 parse 先 thread——裁决项                                                                                                                                                                                                                  |
+| G9  | `runs.add_case` 零调用孤儿，Ctx 无 emit_case 桥——评测型驱动无 per-sample 账行通道                                                       | qualbench（逐 chunk 判定行）、xlatbench（逐 sample 行）      | 接 Ctx.emit_case→cases 表，或约定 metrics blob——按查询需求裁决                                                                                                                                                                                                                 |
+| G10 | 事件词表封闭（10 类写死）                                                                                                               | 潜在新账行形态                                               | 需要时改 events.py+index schema（内核变更，逐案评）                                                                                                                                                                                                                            |
+| G11 | status_panel 是 daemon 不是 verb：§5.2 派 verb 道、§5.3 收删除单，实无对应物；cli.py 无 status-panel 位                                 | 删除清单                                                     | 裁决：一行改 RESULTS_DIR 续命 vs 正式退役（写面已在新根，读面仍 bench/results）                                                                                                                                                                                                |
+| G12 | `sig` 不自动合成：内核终态行只透传 fn 给的 sig，旧世界 errors_sig 是 benchlib 合成                                                      | 一切依赖 triage 聚类的 spec                                  | spec 内复刻 cat:pay 合成行，或内核加默认合成——建议内核加（少一处每 spec 重抄）                                                                                                                                                                                                 |
 
 ## 2. 共享件落点（依赖边，必须先定主在家）
 
-| 件 | 现位置 | 被谁引用 | 落点裁决 |
-|----|--------|----------|----------|
-| LEAK_PATTERNS 六族正则 | parsebench.py | quality_proxies ← stage_compile/stage_xlat | 挪 texlate 侧或 kernel 共享位——**先于 parsebench spec 化**，否则连坐掐断 leak 口径 |
-| sabotage Mode B/C 注入 | e2e_mock_bench.py | translators_bench（唯一事实源）+ tests/test_sabotage_arms | 抽独立模块（bench/py/ 或 texlate 侧），e2e_mock spec 与 tb 吸收同案定主 |
-| pick_final 跨 run 终判 | gate_scorecard.py | harvest.py | 随 gate verb 落地保留；harvest 死后逻辑不能死 |
-| translate_tree_async | stage_xlat.py | e2e_real_bench | 抽共享 helper（kernel ctx 或 absorbed lib），两 spec 不各抄一份 |
-| canon_id/load_latest/workdir/errors_sig | benchlib.py | 40+ 文件 | 逐个函数归 kernel/随 spec/删；errors_sig 合成见 G12 |
-| fixloop 修复配方库 | fixloop_bench.py | stage_fixloop、e2e_real_bench | fixloop_bench 双判：B3 evaluator→spec 道 + 配方库→absorb-lib |
-| 断言矩阵 | tests/test_bench_regression.py | fixture_assert 反向 import | vendor 进 bench 可 import 面（spec import tests 是反模式） |
+| 件                                      | 现位置                         | 被谁引用                                                  | 落点裁决                                                                           |
+| --------------------------------------- | ------------------------------ | --------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| LEAK_PATTERNS 六族正则                  | parsebench.py                  | quality_proxies ← stage_compile/stage_xlat                | 挪 texlate 侧或 kernel 共享位——**先于 parsebench spec 化**，否则连坐掐断 leak 口径 |
+| sabotage Mode B/C 注入                  | e2e_mock_bench.py              | translators_bench（唯一事实源）+ tests/test_sabotage_arms | 抽独立模块（bench/py/ 或 texlate 侧），e2e_mock spec 与 tb 吸收同案定主            |
+| pick_final 跨 run 终判                  | gate_scorecard.py              | harvest.py                                                | 随 gate verb 落地保留；harvest 死后逻辑不能死                                      |
+| translate_tree_async                    | stage_xlat.py                  | e2e_real_bench                                            | 抽共享 helper（kernel ctx 或 absorbed lib），两 spec 不各抄一份                    |
+| canon_id/load_latest/workdir/errors_sig | benchlib.py                    | 40+ 文件                                                  | 逐个函数归 kernel/随 spec/删；errors_sig 合成见 G12                                |
+| fixloop 修复配方库                      | fixloop_bench.py               | stage_fixloop、e2e_real_bench                             | fixloop_bench 双判：B3 evaluator→spec 道 + 配方库→absorb-lib                       |
+| 断言矩阵                                | tests/test_bench_regression.py | fixture_assert 反向 import                                | vendor 进 bench 可 import 面（spec import tests 是反模式）                         |
 
 ### 2.1 benchlib.py 逐函数归类（40+ 引用面的处置表）
 
 kernel 已有等价物直接对位；spec 域函数随消费它的 spec 落 `specs/_*.py`；
 纯旧世界投影随驱动一起进 §5.3 删除单。
 
-| benchlib 成员 | 落点 | 依据 |
-|---|---|---|
-| `safe_id` / `canon_id` | **kernel/idnorm**（已有：`safe_id`、`canon_id`→CanonResult） | id 归一单解 §3.10.7；benchlib 版是 str 壳，调用方随 spec 重写换 CanonResult |
-| `iter_jsonl` / `read_jsonl` / `write_jsonl` / `append_jsonl` | **kernel/events+fsutil**（`iter_jsonl` 已有；写径用 `runs._append_row`/`ledger.emit`） | jsonl 读写是 kernel 原语 |
-| `atomic_write` / `atomic_write_text` / `copytree_ignore` | **kernel/fsutil**（`atomic_write` 已有） | fs 原语 |
-| `latest_by` / `rec_key` / `load_records` / `latest_records` / `seed_run_records` / `cond_status` / `fetch_done` | **删** | 旧 records.jsonl 投影面，被 index `records` 表取代 |
-| `OK_STATUS`/`SKIP_STATUS`/`RESCUED_STATUS`/`DONE_STATUS`/`RETRIABLE_STATUS`/`COMPILED_STATUS`/`STATUS_RANK`/`TERMINAL_WORDS`/`BENCH_ERROR_STATUS` | **随 spec** | kernel 有 `events.STATUS_DONE` + status_class；bench 语义集（rescued/dirty_pdf 等）由消费 spec 自声明 |
-| `errors_sig` | **kernel 终态合成**（Wave-A0 已落：`sig`=首个 errors cat） | G12 已裁内核合成；`cat:pay` 细形由 triage verb 再聚类 |
-| `fixloop_attr` / `fixloop_sig` / `verdict_sig` / `judge_dict` / `_fixloop_rs` / `_taxonomy_of` / `misschar_partial` / `_strkey` / `compile_fp` | **随 spec**（fixloop_bench/xlatbench 吸收道） | 域内 sig/verdict 合成，不进 kernel |
-| `manifest_paths` / `load_manifest_rows` / `manifest_layers` / `corpus_ids` / `dev_layers` / `EVAL_ONLY_LAYERS` / `pick_sample` | **Wave-E corpus builders** | corpus manifest 选择层，与 builders 同案迁 |
-| `materialize_entry` | **soak ingest stage**（Wave-A2） | corpus→work 物化逻辑归 ingest |
-| `code_stamp` | **kernel/spec**（`specmod.code_sha` 已有） | 钉版口径已在内核 |
-| `load_env` / `ENV_FP` / `rss_preflight` | **删** | daily-soak 遗物（已退役 0921） |
-| `quantile` / `strip_comments` | **specs/_shared** 按需 | 小工具，哪个 spec 用随哪个引 |
-| `MAX_TOTAL_CHARS` / `AUTH_DEAD_STREAK` | **随 spec** | 付费循环常量，归消费它的 stage |
+| benchlib 成员                                                                                                                                     | 落点                                                                                   | 依据                                                                                                  |
+| ------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `safe_id` / `canon_id`                                                                                                                            | **kernel/idnorm**（已有：`safe_id`、`canon_id`→CanonResult）                           | id 归一单解 §3.10.7；benchlib 版是 str 壳，调用方随 spec 重写换 CanonResult                           |
+| `iter_jsonl` / `read_jsonl` / `write_jsonl` / `append_jsonl`                                                                                      | **kernel/events+fsutil**（`iter_jsonl` 已有；写径用 `runs._append_row`/`ledger.emit`） | jsonl 读写是 kernel 原语                                                                              |
+| `atomic_write` / `atomic_write_text` / `copytree_ignore`                                                                                          | **kernel/fsutil**（`atomic_write` 已有）                                               | fs 原语                                                                                               |
+| `latest_by` / `rec_key` / `load_records` / `latest_records` / `seed_run_records` / `cond_status` / `fetch_done`                                   | **删**                                                                                 | 旧 records.jsonl 投影面，被 index `records` 表取代                                                    |
+| `OK_STATUS`/`SKIP_STATUS`/`RESCUED_STATUS`/`DONE_STATUS`/`RETRIABLE_STATUS`/`COMPILED_STATUS`/`STATUS_RANK`/`TERMINAL_WORDS`/`BENCH_ERROR_STATUS` | **随 spec**                                                                            | kernel 有 `events.STATUS_DONE` + status_class；bench 语义集（rescued/dirty_pdf 等）由消费 spec 自声明 |
+| `errors_sig`                                                                                                                                      | **kernel 终态合成**（Wave-A0 已落：`sig`=首个 errors cat）                             | G12 已裁内核合成；`cat:pay` 细形由 triage verb 再聚类                                                 |
+| `fixloop_attr` / `fixloop_sig` / `verdict_sig` / `judge_dict` / `_fixloop_rs` / `_taxonomy_of` / `misschar_partial` / `_strkey` / `compile_fp`    | **随 spec**（fixloop_bench/xlatbench 吸收道）                                          | 域内 sig/verdict 合成，不进 kernel                                                                    |
+| `manifest_paths` / `load_manifest_rows` / `manifest_layers` / `corpus_ids` / `dev_layers` / `EVAL_ONLY_LAYERS` / `pick_sample`                    | **Wave-E corpus builders**                                                             | corpus manifest 选择层，与 builders 同案迁                                                            |
+| `materialize_entry`                                                                                                                               | **soak ingest stage**（Wave-A2）                                                       | corpus→work 物化逻辑归 ingest                                                                         |
+| `code_stamp`                                                                                                                                      | **kernel/spec**（`specmod.code_sha` 已有）                                             | 钉版口径已在内核                                                                                      |
+| `load_env` / `ENV_FP` / `rss_preflight`                                                                                                           | **删**                                                                                 | daily-soak 遗物（已退役 0921）                                                                        |
+| `quantile` / `strip_comments`                                                                                                                     | **specs/\_shared** 按需                                                                | 小工具，哪个 spec 用随哪个引                                                                          |
+| `MAX_TOTAL_CHARS` / `AUTH_DEAD_STREAK`                                                                                                            | **随 spec**                                                                            | 付费循环常量，归消费它的 stage                                                                        |
 
 ## 3. spec 重写队列（按使用频率）
 
@@ -66,13 +66,13 @@ kernel 已有等价物直接对位；spec 域函数随消费它的 spec 落 `spe
 
 `kind="soak"`:ingest→parse→xlat(paid)→compile→fixloop(paid) 单 run 内串行——旗舰用例，杀死「五 run/日」账务碎裂。
 
-| stage | 源 | 要点（详见底稿） |
-|-------|-----|------------------|
-| ingest | stage_ingest.py 131 行 | 分类树平移：catalog failed/empty→reject、skeleton/absent/hydrating→skip；**陷阱**:src_path() 对 empty 态返 cell_dir→伪 ok，必须先按 catalog state 分类；下游一律自调 ctx.src_path()（跨 run dedup 后本 run 无 work/src） |
-| parse | stage_parse.py | route_project→normalize→scan→zh/ + parse.json;process executor 取决于 G8 |
-| xlat | stage_xlat.py 649 行 | paid=True+executor="async-owned"；构造点 XlatPipeline 传 cache=(G3 落地后接）；scan_tree 切 chunk/oversize 语义平移；429/自适应并发闸语义来自 gwpilot——裁决收编或弃 |
-| compile | stage_compile.py | 双臂 zh+base 归因；mutates=[zh,splice]；错误分类表平移 |
-| fixloop | stage_fixloop.py + fixloop_bench.py 配方 | paid；Ruleset yaml 引擎+迭代上限；与 compile 往返协议 needs/on 边 |
+| stage   | 源                                       | 要点（详见底稿）                                                                                                                                                                                                         |
+| ------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| ingest  | stage_ingest.py 131 行                   | 分类树平移：catalog failed/empty→reject、skeleton/absent/hydrating→skip；**陷阱**:src_path() 对 empty 态返 cell_dir→伪 ok，必须先按 catalog state 分类；下游一律自调 ctx.src_path()（跨 run dedup 后本 run 无 work/src） |
+| parse   | stage_parse.py                           | route_project→normalize→scan→zh/ + parse.json;process executor 取决于 G8                                                                                                                                                 |
+| xlat    | stage_xlat.py 649 行                     | paid=True+executor="async-owned"；构造点 XlatPipeline 传 cache=(G3 落地后接）；scan_tree 切 chunk/oversize 语义平移；429/自适应并发闸语义来自 gwpilot——裁决收编或弃                                                      |
+| compile | stage_compile.py                         | 双臂 zh+base 归因；mutates=[zh,splice]；错误分类表平移                                                                                                                                                                   |
+| fixloop | stage_fixloop.py + fixloop_bench.py 配方 | paid；Ruleset yaml 引擎+迭代上限；与 compile 往返协议 needs/on 边                                                                                                                                                        |
 
 **分母守恒对拍（整条链）**：同一批 id 上旧 records 逐 stage 末条 status 多重集 ↔ 新 index 逐 cell 终态多重集逐项相等，白名单豁免（eprint_fetch_unwired/no_item→skip、catalog empty→reject、torn→error/skip）+ metrics.n_files 逐 id 相等。
 
@@ -132,4 +132,4 @@ build_corpus_v3（主管线，frame-lookup 读 bench/frame/frame.parquet)、expa
 
 ---
 
-*底稿：tmp/phase4-research-20260922/research.json(655KB，逐驱动 audit_checklist+risks+io 全字段）*
+_底稿：tmp/phase4-research-20260922/research.json(655KB，逐驱动 audit_checklist+risks+io 全字段）_

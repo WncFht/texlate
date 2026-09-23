@@ -49,13 +49,13 @@
 
 `exp/ss-menu-content/menu-spec.json` 为唯一事实源。每语境菜单非空率 100%（min 2 / max 10 项）：
 
-| 段 | 项 | 谓词要点 |
-|---|---|---|
-| sel | `sel.copy` 复制 / `sel.copyPair` 复制双语对照 / `sel.find` 文档内查找 / `sel.explain` 解释选段 | `sel.text` 非空；copyPair 要 `sel.inChunk && chunk.counterpartAvail`；explain 需 `caps.assist`（新后端端点） |
-| cite | `cite.card` 查看引用条目 / `cite.jump` 跳至目标（动态文案按 targetKind：bib=文献条目 figure=图表 section=小节）/ `cite.copy` 复制条目 / `cite.arxiv` / `cite.doi` / `cite.alphaxiv` | `cite.targetKind=='bib'` + entryText/arxivId/doi 存在性；alphaxiv 走既有 `api.discoverOverview`，未收录回包 `{available:false}` 按 toast 降级 |
-| math | `math.copyTex` 复制 TeX / `math.copyMathml` | `math.tex` 取 `alttext` 或 `annotation[encoding=application/x-tex]`（latexml 真标记，dom 语料 142 个 math 100% 有 alttext） |
+| 段    | 项                                                                                                                                                                                                                       | 谓词要点                                                                                                                                       |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| sel   | `sel.copy` 复制 / `sel.copyPair` 复制双语对照 / `sel.find` 文档内查找 / `sel.explain` 解释选段                                                                                                                           | `sel.text` 非空；copyPair 要 `sel.inChunk && chunk.counterpartAvail`；explain 需 `caps.assist`（新后端端点）                                   |
+| cite  | `cite.card` 查看引用条目 / `cite.jump` 跳至目标（动态文案按 targetKind：bib=文献条目 figure=图表 section=小节）/ `cite.copy` 复制条目 / `cite.arxiv` / `cite.doi` / `cite.alphaxiv`                                      | `cite.targetKind=='bib'` + entryText/arxivId/doi 存在性；alphaxiv 走既有 `api.discoverOverview`，未收录回包 `{available:false}` 按 toast 降级  |
+| math  | `math.copyTex` 复制 TeX / `math.copyMathml`                                                                                                                                                                              | `math.tex` 取 `alttext` 或 `annotation[encoding=application/x-tex]`（latexml 真标记，dom 语料 142 个 math 100% 有 alttext）                    |
 | chunk | `chunk.copySrc` 复制原文（含 hasNontext 兜底：1/163 空 textContent 容器块）/ `chunk.copyZh` 复制译文 / `chunk.copyPair` 复制双语段 / `chunk.retx` 重译此段 / `chunk.copyTex` 复制 LaTeX 源 / `chunk.copyLink` 复制段链接 | retx：`seq∈pending` 时 **disabled 不 hidden**，且需 `intSeq`（DomPane 需 chunk_id→seq 映射，见管线节）；copyLink 需路由 `seq` 参数（见后端节） |
-| pane | `pane.find` 窗格内查找 / `pane.navBack` 跳回 / `pane.navFwd` 前进 | caps.findInPane（现仅 PdfPane 有 openFind）；navBack/navFwd 按跳回栈非空 |
+| pane  | `pane.find` 窗格内查找 / `pane.navBack` 跳回 / `pane.navFwd` 前进                                                                                                                                                        | caps.findInPane（现仅 PdfPane 有 openFind）；navBack/navFwd 按跳回栈非空                                                                       |
 
 语料普查支撑的覆盖率：dom 侧 cite 锚→bib 解析率 81.7%、死锚 0、math alttext 100%；pdf 侧 40 个 cite dest 全可解析。注意 cite.* 项在今日 html 语料未实际 fire（en.html 的 cite 锚结构走的是 dom pane）——以 dom/pdf 侧为准。
 
@@ -99,20 +99,20 @@
 
 **新增 `web/src/reader/sel/` 子目录**（与 reader 机制同层内聚）：
 
-| 文件 | 来源 | 说明 |
-|---|---|---|
-| `cmdreg.ts` | ss-cmdreg/cmdreg.ts（253 行） | when 子句 DSL（`key`/`!`/`&&`/`\|\|`/括号/`=='lit'`，编译缓存+`whenKeys` 静态审计防拼写漂移）+ `Registry`（register 即编译，坏 when 启动期爆；`enabled()` 0.6µs、`byKey()` 1.0µs） |
-| `context.ts` | ss-cmdreg/context.ts（90 行扩写） | `snapshotCtx(target, sel)` 一次快照产全部谓词键——扩到 menu-spec 全集：`sel{text,inChunk}`、`cite{targetKind,targetExists,entryText,cardFillable,arxivId,doi}`、`math{tex,mathml}`、`chunk{hasEn,hasZh,hasNontext,zhUntranslated,counterpartAvail,intSeq,hasPh}`、`view`、`caps{assist,retx,findInPane,linkScheme,discover,navBack,navFwd}`、`inInput`、`paneSide`；谓词键 ⊆ 产出键由 whenKeys 审计保证 |
-| `commands.ts` | ss-cmdreg/commands.ts + menu-spec.json | 21 项命令表：title 换 i18n key、run 接真身（clipboard/navBack/gotoAnchor/api.retranslateChunk/api.discoverOverview/FindBar/assist） |
-| `entries.ts` | ss-cmdreg/entries/*.ts | 三入口同构消费：`menuItemsFor`（enabled→CtxItem[]+组间 sep）、`chordOf`+`byKey`、`paletteItems`（commandScore 模糊排序——vendored `command-score.ts` 副本已在 exp 根） |
-| `coveredChunks.ts` | ss-dom-sel/coveredChunks.mjs（78 行） | `makeChunkResolver(bodyEl)` 工厂，契约与边界规则见交互规格 |
-| `ContextMenu.tsx` | ss-ctxmenu/ContextMenu.tsx（437 行，含两处已修缺陷补丁） | 默认导出组件 + `useContextMenu(build)` 钩子；`placeMenu`/`placeSubmenu` 导出供 fuzz 测试 |
-| `FloatBar.tsx` + `floatbar.ts` | ss-floatbar/floatbar.mjs（305 行） | `placeBar` 纯函数 + Solid 化控制器（Portal→body 固定壳、组件根作 bar 元素传入）；**补三处对抗坑**：ResizeObserver/重渲染后 refresh、pointercancel 解 stuck suppression、live 模式可关 |
-| `keymap.ts` | ss-hotkeys/keymap.js proposed 支 | `attachReaderKeys(hooks)` 单分发器 + `ESC_ORDER` 层栈注册面（各浮层 register/unregister 替代自有 Esc 监听） |
-| `sentseg.ts` | ss-a11y/sentseg.js（161 行） | `segmentDoc(root, side)` → sents[]；注入时机=DomPane 分片 innerHTML 后 / HtmlPane render 后 |
-| `cursor.ts` | ss-a11y/cursor.js（246 行，roving 形态） | `makeCursor({pane, body, sents, otherSents, live})`；接入 keymap 层栈（cursor 模态层在 help 之下、sel 之上） |
-| `web/src/styles/sel.css` | ss-ctxmenu/ctxmenu.css + 新写 | `.ctx-menu/.ctx-item/.ctx-sep/.ctx-sub`（token 复用）、`.floatbar`、`.sb` 哨兵（零宽但可被 .cur/.sel 高亮——outline/marker 伪元素）、`.pane.cursor-on` 态 |
-| 测试文件×6 | 各 exp 测试移植 | 见测试计划 |
+| 文件                           | 来源                                                     | 说明                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ------------------------------ | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `cmdreg.ts`                    | ss-cmdreg/cmdreg.ts（253 行）                            | when 子句 DSL（`key`/`!`/`&&`/`\|\|`/括号/`=='lit'`，编译缓存+`whenKeys` 静态审计防拼写漂移）+ `Registry`（register 即编译，坏 when 启动期爆；`enabled()` 0.6µs、`byKey()` 1.0µs）                                                                                                                                                                                                                     |
+| `context.ts`                   | ss-cmdreg/context.ts（90 行扩写）                        | `snapshotCtx(target, sel)` 一次快照产全部谓词键——扩到 menu-spec 全集：`sel{text,inChunk}`、`cite{targetKind,targetExists,entryText,cardFillable,arxivId,doi}`、`math{tex,mathml}`、`chunk{hasEn,hasZh,hasNontext,zhUntranslated,counterpartAvail,intSeq,hasPh}`、`view`、`caps{assist,retx,findInPane,linkScheme,discover,navBack,navFwd}`、`inInput`、`paneSide`；谓词键 ⊆ 产出键由 whenKeys 审计保证 |
+| `commands.ts`                  | ss-cmdreg/commands.ts + menu-spec.json                   | 21 项命令表：title 换 i18n key、run 接真身（clipboard/navBack/gotoAnchor/api.retranslateChunk/api.discoverOverview/FindBar/assist）                                                                                                                                                                                                                                                                    |
+| `entries.ts`                   | ss-cmdreg/entries/*.ts                                   | 三入口同构消费：`menuItemsFor`（enabled→CtxItem[]+组间 sep）、`chordOf`+`byKey`、`paletteItems`（commandScore 模糊排序——vendored `command-score.ts` 副本已在 exp 根）                                                                                                                                                                                                                                  |
+| `coveredChunks.ts`             | ss-dom-sel/coveredChunks.mjs（78 行）                    | `makeChunkResolver(bodyEl)` 工厂，契约与边界规则见交互规格                                                                                                                                                                                                                                                                                                                                             |
+| `ContextMenu.tsx`              | ss-ctxmenu/ContextMenu.tsx（437 行，含两处已修缺陷补丁） | 默认导出组件 + `useContextMenu(build)` 钩子；`placeMenu`/`placeSubmenu` 导出供 fuzz 测试                                                                                                                                                                                                                                                                                                               |
+| `FloatBar.tsx` + `floatbar.ts` | ss-floatbar/floatbar.mjs（305 行）                       | `placeBar` 纯函数 + Solid 化控制器（Portal→body 固定壳、组件根作 bar 元素传入）；**补三处对抗坑**：ResizeObserver/重渲染后 refresh、pointercancel 解 stuck suppression、live 模式可关                                                                                                                                                                                                                  |
+| `keymap.ts`                    | ss-hotkeys/keymap.js proposed 支                         | `attachReaderKeys(hooks)` 单分发器 + `ESC_ORDER` 层栈注册面（各浮层 register/unregister 替代自有 Esc 监听）                                                                                                                                                                                                                                                                                            |
+| `sentseg.ts`                   | ss-a11y/sentseg.js（161 行）                             | `segmentDoc(root, side)` → sents[]；注入时机=DomPane 分片 innerHTML 后 / HtmlPane render 后                                                                                                                                                                                                                                                                                                            |
+| `cursor.ts`                    | ss-a11y/cursor.js（246 行，roving 形态）                 | `makeCursor({pane, body, sents, otherSents, live})`；接入 keymap 层栈（cursor 模态层在 help 之下、sel 之上）                                                                                                                                                                                                                                                                                           |
+| `web/src/styles/sel.css`       | ss-ctxmenu/ctxmenu.css + 新写                            | `.ctx-menu/.ctx-item/.ctx-sep/.ctx-sub`（token 复用）、`.floatbar`、`.sb` 哨兵（零宽但可被 .cur/.sel 高亮——outline/marker 伪元素）、`.pane.cursor-on` 态                                                                                                                                                                                                                                               |
+| 测试文件×6                     | 各 exp 测试移植                                          | 见测试计划                                                                                                                                                                                                                                                                                                                                                                                             |
 
 **修改既有文件**：
 
@@ -167,11 +167,11 @@
 
 移植为主、新写为辅——源码合计约 2000 行可直接搬，测试约 1300 行：
 
-| 期 | 内容 | 估时 |
-|---|---|---|
-| **P0 基座** | cmdreg + context + commands 骨架 + **统一 keymap/Esc 层栈**（CiteCard/FindBar/menuNav/DocInfo 四处 Esc 收编）+ 8 个 legacy 缺陷修复 | 2–3 天 |
-| **P1 主面** | coveredChunks + sel.copy/copyPair + ContextMenu + FloatBar + menu-spec 中不依赖新后端的 18 项 + i18n + 样式 | 3–4 天 |
-| **P2 游标** | sentseg + cursor（roving）+ aria-live + help 文档化 | 2 天 |
+| 期          | 内容                                                                                                                                                               | 估时   |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------ |
+| **P0 基座** | cmdreg + context + commands 骨架 + **统一 keymap/Esc 层栈**（CiteCard/FindBar/menuNav/DocInfo 四处 Esc 收编）+ 8 个 legacy 缺陷修复                                | 2–3 天 |
+| **P1 主面** | coveredChunks + sel.copy/copyPair + ContextMenu + FloatBar + menu-spec 中不依赖新后端的 18 项 + i18n + 样式                                                        | 3–4 天 |
+| **P2 游标** | sentseg + cursor（roving）+ aria-live + help 文档化                                                                                                                | 2 天   |
 | **P3 长尾** | assist 端点 + sel.explain/math.explainFormula + `?seq=` 路由 + chunk.copyLink + chunk pane 的 openFind（caps.findInPane 补全）+ palette 入口（ctrl+k，注册表已备） | 2–3 天 |
 
 合计约 9–12 个工作日。**顺序约束**：Esc 层栈（P0）必须先于 ContextMenu 落地——否则 ctxmenu 已记录的「早注册 capture Esc 双塌」约束会成真缺陷。

@@ -2,12 +2,12 @@
 
 杂项加固包，四个互不依赖的小特性，可独立分期落地：
 
-| 编号 | 特性 | 实验 | 一句话 |
-|---|---|---|---|
-| M1 | 缺 key 防护链 | ms-keyless | local 形态无 key 提交今天静默产全量假译文并以 done 交付，且毒化段缓存与任务级复用 |
-| M2 | arXiv ID canon 扩展 | ms-urlnorm | `normalize_arxiv_id` 30 形态只过 19；升级为 canon() 单源，前端 `parseArxivId` 同步放宽 |
-| M3 | lake 格位 pin + CAS GC 接线 | ms-pin | evict 已认 `pinned` 字段但无 pin/unpin 动词、catalog 重建丢 pin、CAS `gc_sweep` 零调用方 |
-| M4 | 参考文献 .bib 导出（+kept refs 选配） | ms-bib-export | src.tar .bib verbatim 覆盖 68.2% key，id 臂走远端 bibtex，meta 合成兜底；S2 恒 429 不进链 |
+| 编号 | 特性                                  | 实验          | 一句话                                                                                    |
+| ---- | ------------------------------------- | ------------- | ----------------------------------------------------------------------------------------- |
+| M1   | 缺 key 防护链                         | ms-keyless    | local 形态无 key 提交今天静默产全量假译文并以 done 交付，且毒化段缓存与任务级复用         |
+| M2   | arXiv ID canon 扩展                   | ms-urlnorm    | `normalize_arxiv_id` 30 形态只过 19；升级为 canon() 单源，前端 `parseArxivId` 同步放宽    |
+| M3   | lake 格位 pin + CAS GC 接线           | ms-pin        | evict 已认 `pinned` 字段但无 pin/unpin 动词、catalog 重建丢 pin、CAS `gc_sweep` 零调用方  |
+| M4   | 参考文献 .bib 导出（+kept refs 选配） | ms-bib-export | src.tar .bib verbatim 覆盖 68.2% key，id 臂走远端 bibtex，meta 合成兜底；S2 恒 429 不进链 |
 
 证据文件：`tmp/ux-research-20260922/exp/ms-{keyless,urlnorm,pin,bib-export}/`、设计稿 `tmp/ux-research-20260922/arxiv-id-canon-spec.md` 与 `kept-refs-design.md`。
 
@@ -174,13 +174,13 @@
 
 ## 工作量与分期
 
-| 期 | 内容 | 估时 |
-|---|---|---|
-| S1 | M2 canon（服务端 + web 镜像 + 测试） | 1.5–2 天 |
-| S1 | M3 pin（event schema + catalog/CLI/sweep + 测试） | 1.5 天 |
-| S2 | M1 缺 key 防护（建行闸 + mock 围栅 + 缓存防毒 + 前端预检/banner/富 401 + retry 道） | 2–2.5 天 |
-| S3 | M4 Phase A（bibexport 叶 + refs.bib 端点 + Toolbar 下载项 + 桩测） | 2 天 |
-| S4 | M4 Phase B（kept_refs 表 + 端点 + keptRefs store + CiteCard ☆ + DomPane 补线） | 2 天 |
+| 期  | 内容                                                                                | 估时     |
+| --- | ----------------------------------------------------------------------------------- | -------- |
+| S1  | M2 canon（服务端 + web 镜像 + 测试）                                                | 1.5–2 天 |
+| S1  | M3 pin（event schema + catalog/CLI/sweep + 测试）                                   | 1.5 天   |
+| S2  | M1 缺 key 防护（建行闸 + mock 围栅 + 缓存防毒 + 前端预检/banner/富 401 + retry 道） | 2–2.5 天 |
+| S3  | M4 Phase A（bibexport 叶 + refs.bib 端点 + Toolbar 下载项 + 桩测）                  | 2 天     |
+| S4  | M4 Phase B（kept_refs 表 + 端点 + keptRefs store + CiteCard ☆ + DomPane 补线）      | 2 天     |
 
 合计 ~9 天。S1 两项零风险先行；M1 的 mock 防毒（K3）与建行闸（K2）须在同一个 PR 内落——只堵入口不清缓存会留存量毒。
 

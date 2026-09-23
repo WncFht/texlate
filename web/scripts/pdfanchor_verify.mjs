@@ -200,19 +200,14 @@ async function routeMock(page, pdf, cap) {
  * markedContent 锚内可能嵌套子 span——两端一律落到 Text 节点防 element
  * offset 语义炸 IndexSizeError。 */
 const selectIn = ([side, spanSel, fromIdx, toIdx]) => {
-    const tl = document.querySelector(
-        `.pane[data-side="${side}"] .textLayer`,
-    );
+    const tl = document.querySelector(`.pane[data-side="${side}"] .textLayer`);
     if (!tl) return false;
-    const spans = [...tl.querySelectorAll(spanSel)].filter(
-        (e) => (e.textContent || "").trim(),
+    const spans = [...tl.querySelectorAll(spanSel)].filter((e) =>
+        (e.textContent || "").trim(),
     );
     if (spans.length <= Math.max(fromIdx, toIdx)) return false;
     const texts = (el) => {
-        const w = el.ownerDocument.createTreeWalker(
-            el,
-            NodeFilter.SHOW_TEXT,
-        );
+        const w = el.ownerDocument.createTreeWalker(el, NodeFilter.SHOW_TEXT);
         const ts = [];
         for (let n = w.nextNode(); n; n = w.nextNode())
             if (n.textContent.trim()) ts.push(n);
@@ -286,7 +281,10 @@ async function run() {
         cap.req = null;
         const bar = page.locator(".floatbar");
         if (!(await bar.isVisible().catch(() => false))) return null;
-        const btn = bar.locator("button").filter({ hasText: LATEX_BTN }).first();
+        const btn = bar
+            .locator("button")
+            .filter({ hasText: LATEX_BTN })
+            .first();
         if (!(await btn.isVisible().catch(() => false))) return null;
         await btn.click();
         await page.waitForTimeout(700);
@@ -297,10 +295,9 @@ async function run() {
         await page.goto(`${BASE}/#/reader/${mockMode ? MOCK_ID : TASK}`, {
             waitUntil: "domcontentloaded",
         });
-        await page.waitForSelector(
-            '.pane[data-side="translated"] .textLayer',
-            { timeout: 30000 },
-        );
+        await page.waitForSelector('.pane[data-side="translated"] .textLayer', {
+            timeout: 30000,
+        });
         await page.waitForTimeout(2000);
         bail();
 
@@ -345,10 +342,12 @@ async function run() {
         const marked = zhIds.length;
         if (marked >= 1) {
             // 2a. 圈第一枚锚内文 → seqs=[0]
-            const ok1 = await page.evaluate(
-                selectIn,
-                ["translated", "span.markedContent", 0, 0],
-            );
+            const ok1 = await page.evaluate(selectIn, [
+                "translated",
+                "span.markedContent",
+                0,
+                0,
+            ]);
             check("select inside first marked span", ok1);
             if (ok1) {
                 await page.waitForTimeout(450);

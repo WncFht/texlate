@@ -112,7 +112,11 @@ rules:
           - { id: acute_sp, cps: [0x00B4], replace: "\\ensuremath{'}" }
           - { id: frac14, cps: [0x00BC], replace: "\\ensuremath{\\frac{1}{4}}" }
           - { id: frac12, cps: [0x00BD], replace: "\\ensuremath{\\frac{1}{2}}" }
-          - { id: ordmasc, cps: [0x00BA], replace: "\\mbox{\\textordmasculine}" }
+          - {
+              id: ordmasc,
+              cps: [0x00BA],
+              replace: "\\mbox{\\textordmasculine}",
+            }
           - { id: leq, cps: [0x2264], replace: "\\ensuremath{\\leq}" }
           - { id: dotop, cps: [0x22C5], replace: "\\ensuremath{\\cdot}" }
           - { id: tildeop, cps: [0x223C], replace: "\\ensuremath{\\sim}" }
@@ -150,8 +154,16 @@ rules:
           - { id: wedgeop, cps: [0x2227], replace: "\\ensuremath{\\wedge}" }
           - { id: veeop, cps: [0x2228], replace: "\\ensuremath{\\vee}" }
           - { id: cupop, cps: [0x222A], replace: "\\ensuremath{\\cup}" }
-          - { id: langle_27e8, cps: [0x27E8], replace: "\\ensuremath{\\langle}" }
-          - { id: rangle_27e9, cps: [0x27E9], replace: "\\ensuremath{\\rangle}" }
+          - {
+              id: langle_27e8,
+              cps: [0x27E8],
+              replace: "\\ensuremath{\\langle}",
+            }
+          - {
+              id: rangle_27e9,
+              cps: [0x27E9],
+              replace: "\\ensuremath{\\rangle}",
+            }
           - { id: dblgrave, cps: [0x02F5], replace: "\\mbox{''}" }
           # ── 2026-09-20 erafam char-table (failmine7 桶 → lane-erafam census) ──
           # ‒ figuredash .bbl 字面落 lmroman12 (2603.07352) —— U+2012 在
@@ -609,7 +621,7 @@ rules:
     provenance:
       - {
           corpus: "2104.00026 (loop3 残余普查 tmp/lane-misscharcen/cells.json) master2020.bbl",
-          error: 'Missing character: no ^^80 (U+0080)/^^93 (U+0093) ×4 lmroman9 —— bibtex 字节记法 ^^e2^^80^^93=en-dash / ^^c3^^bc=ü',
+          error: "Missing character: no ^^80 (U+0080)/^^93 (U+0093) ×4 lmroman9 —— bibtex 字节记法 ^^e2^^80^^93=en-dash / ^^c3^^bc=ü",
         }
     stats: { fires: 3, rescued_cells: 1, status: active }
     source_ref: "task #169 misscharcen wave-2; tmp/lane-misscharcen/cells.json ^^80/^^93 rows"
@@ -700,7 +712,7 @@ rules:
     provenance:
       - {
           corpus: "soak-2026-09-18 (2609.19582 main.tex \\setmainfont{Nimbus Roman}/Sans/Mono PS ×3 站点)",
-          error: 'fontspec_missing|Nimbus Roman — URW nimbus 只发 TFM/pfb → TeX Gyre 同源克隆',
+          error: "fontspec_missing|Nimbus Roman — URW nimbus 只发 TFM/pfb → TeX Gyre 同源克隆",
         }
       - {
           corpus: "soak-2026-09-18 (2609.20064 anthology-ch.cls \\setmainfont{Tinos}[Path=fonts/Tinos/] + \\newfontfamily\\scfallbackfont{NotoSerif}[Path=fonts/Noto_Serif/])",

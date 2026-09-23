@@ -6,27 +6,27 @@
 
 ## 1. 各源认证要求（实测口径）
 
-| 源              | 认证要求                                     | 匿名实测（2026-09-14）                                     |
-| --------------- | -------------------------------------------- | ---------------------------------------------------------- |
-| arXiv Atom      | 无                                           | 可用（限速纪律自理）                                       |
-| **OpenAlex**    | `Authorization: Bearer` API key              | **匿名池限流**：`Anonymous search is temporarily rate-limited`（retryAfter 30s）——key 有实测价值 |
-| Semantic Scholar | `x-api-key`（免费申请）                     | **HTTP 429** → 匿名不可用                                  |
-| Crossref        | 无（礼貌 UA 带 mailto 即可）                 | 可用                                                       |
-| DBLP            | 无（礼貌 UA）                                | **被反爬**：200 但返回 bot 检测 HTML；curl 直连同样拦      |
-| OpenReview      | v1/v2 登录态（用户名+密码）                  | 匿名 403 ChallengeRequired                                 |
+| 源               | 认证要求                        | 匿名实测（2026-09-14）                                                                           |
+| ---------------- | ------------------------------- | ------------------------------------------------------------------------------------------------ |
+| arXiv Atom       | 无                              | 可用（限速纪律自理）                                                                             |
+| **OpenAlex**     | `Authorization: Bearer` API key | **匿名池限流**：`Anonymous search is temporarily rate-limited`（retryAfter 30s）——key 有实测价值 |
+| Semantic Scholar | `x-api-key`（免费申请）         | **HTTP 429** → 匿名不可用                                                                        |
+| Crossref         | 无（礼貌 UA 带 mailto 即可）    | 可用                                                                                             |
+| DBLP             | 无（礼貌 UA）                   | **被反爬**：200 但返回 bot 检测 HTML；curl 直连同样拦                                            |
+| OpenReview       | v1/v2 登录态（用户名+密码）     | 匿名 403 ChallengeRequired                                                                       |
 
 其 `.env` 加载模式可抄：从脚本目录向上找第一个 `.env`（到 repo root 止），`os.environ.setdefault` 注入、shell 已导出值优先——免依赖的凭据加载范式。
 
 ## 2. Connector 矩阵
 
-| 源                   | endpoint                                                                                       | 引用数                             | 摘要                                | venue                                  | arXiv↔DOI 互转                                      | 限速/重试                                                                                  |
-| -------------------- | ---------------------------------------------------------------------------------------------- | ---------------------------------- | ----------------------------------- | -------------------------------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| **arXiv**            | `export.arxiv.org/api/query`（Atom XML）+ `id_list` 批查（≤100/批）                            | 无                                 | 有                                  | 恒 "arXiv"                             | Atom `id`→`arxiv_id`（剥 vN）；`arxiv:doi` 字段→doi | 跨进程 flock 强制 ≥4s 间隔（`ARXIV_MIN_INTERVAL`）；通用 429/5xx 重试                      |
-| **OpenAlex**[^openalex] | `api.openalex.org/works`，cursor 分页 200/页；`search`（词面）/`search.semantic`（≤50 不分页） | `cited_by_count`                   | `abstract_inverted_index` 重建      | `primary_location.source.display_name` | doi 有；`arxiv_id` **不填**（恒 None）              | 页间 sleep 1s；语义模式上限 50                                                             |
-| **Semantic Scholar**[^s2] | `api.semanticscholar.org/graph/v1/paper/search`，offset 分页 ≤100                            | `citationCount`                    | 有                                  | `venue`                                | `externalIds` 给 DOI + ArXiv **双向**               | 页间 sleep 1s；匿名 429 直接抛 `AnonymousRateLimitError` 中止该源                          |
-| **Crossref**[^crossref] | `api.crossref.org/works` + `/works/{doi}` 单查                                                 | `is-referenced-by-count`           | `abstract`（HTML 标签剥离，常为空） | `container-title`                      | doi 主键；无 arXiv                                  | offset 分页 ≤100，页间 sleep 1s                                                            |
-| **DBLP**[^dblp]        | `dblp.org/search/publ/api?format=json`，≤1000/页                                               | 无                                 | 无（可选逐条 Crossref 富化）        | `venue`                                | `info.doi`                                          | `backoff_base=5.0`；实测被反爬 HTML 挑战拦截                                               |
-| **OpenReview**[^openreview] | `api2.openreview.net`（v2）/ `api.openreview.net`（v1）+ 本地 SQLite 缓存                  | 无 API 字段；缓存预填 S2 crosswalk | 有                                  | venueid→venue                          | note.id 是主键；缓存有 `arxiv_id` 列                | 跨进程 flock ≥0.5s；v1 必须 offset 分页（`after` 游标丢数据）                              |
+| 源                          | endpoint                                                                                       | 引用数                             | 摘要                                | venue                                  | arXiv↔DOI 互转                                      | 限速/重试                                                             |
+| --------------------------- | ---------------------------------------------------------------------------------------------- | ---------------------------------- | ----------------------------------- | -------------------------------------- | --------------------------------------------------- | --------------------------------------------------------------------- |
+| **arXiv**                   | `export.arxiv.org/api/query`（Atom XML）+ `id_list` 批查（≤100/批）                            | 无                                 | 有                                  | 恒 "arXiv"                             | Atom `id`→`arxiv_id`（剥 vN）；`arxiv:doi` 字段→doi | 跨进程 flock 强制 ≥4s 间隔（`ARXIV_MIN_INTERVAL`）；通用 429/5xx 重试 |
+| **OpenAlex**[^openalex]     | `api.openalex.org/works`，cursor 分页 200/页；`search`（词面）/`search.semantic`（≤50 不分页） | `cited_by_count`                   | `abstract_inverted_index` 重建      | `primary_location.source.display_name` | doi 有；`arxiv_id` **不填**（恒 None）              | 页间 sleep 1s；语义模式上限 50                                        |
+| **Semantic Scholar**[^s2]   | `api.semanticscholar.org/graph/v1/paper/search`，offset 分页 ≤100                              | `citationCount`                    | 有                                  | `venue`                                | `externalIds` 给 DOI + ArXiv **双向**               | 页间 sleep 1s；匿名 429 直接抛 `AnonymousRateLimitError` 中止该源     |
+| **Crossref**[^crossref]     | `api.crossref.org/works` + `/works/{doi}` 单查                                                 | `is-referenced-by-count`           | `abstract`（HTML 标签剥离，常为空） | `container-title`                      | doi 主键；无 arXiv                                  | offset 分页 ≤100，页间 sleep 1s                                       |
+| **DBLP**[^dblp]             | `dblp.org/search/publ/api?format=json`，≤1000/页                                               | 无                                 | 无（可选逐条 Crossref 富化）        | `venue`                                | `info.doi`                                          | `backoff_base=5.0`；实测被反爬 HTML 挑战拦截                          |
+| **OpenReview**[^openreview] | `api2.openreview.net`（v2）/ `api.openreview.net`（v1）+ 本地 SQLite 缓存                      | 无 API 字段；缓存预填 S2 crosswalk | 有                                  | venueid→venue                          | note.id 是主键；缓存有 `arxiv_id` 列                | 跨进程 flock ≥0.5s；v1 必须 offset 分页（`after` 游标丢数据）         |
 
 公共层 `_http_runtime.py`：connect 15s / read-idle 300s / 4 attempts；429/500/502/503/504 有界重试且服从 `Retry-After`；连接/超时异常指数退避（DBLP base 5s，默认 3s）；per-source 墙钟预算（默认 180s，OpenReview 600s）；`configure_external_session` 能把同策略挂到第三方 Session 上（openreview-py 用）。
 
@@ -42,14 +42,14 @@
 
 ## 4. 实测记录（2026-09-14）
 
-| 测试                                    | 结果                                                                                                                                                                           |
-| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| OpenAlex 关键词（带 key）               | 正常。Diffusion Policy：IJRR venue、cited_by 515、完整摘要、day 精度日期                                                                                                       |
-| Crossref DOI 直查 `10.1038/nature14539` | 正常。LeCun Deep learning：is-referenced-by **76,281**、venue=Nature、摘要空                                                                                                   |
-| S2 匿名                                 | **HTTP 429** → `AnonymousRateLimitError`，无 key 不可用                                                                                                                        |
-| DBLP                                    | **被反爬**：200 但返回 bot 检测 HTML → JSONDecodeError。curl 直连同样拦                                                                                                        |
-| OpenAlex 匿名对照                       | `Anonymous search is temporarily rate-limited`（retryAfter 30s）——key 有实测价值                                                                                              |
-| `enrich_citations` 对 arXiv id          | `1412.6980`→OpenAlex **84,617**（vs 语料内计数 29,512，校准方向正确）；`1706.03762` 的 `10.48550` DOI 在 OpenAlex **404**——DataCite DOI 覆盖不全，老文尤其缺                   |
+| 测试                                    | 结果                                                                                                                                                                        |
+| --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| OpenAlex 关键词（带 key）               | 正常。Diffusion Policy：IJRR venue、cited_by 515、完整摘要、day 精度日期                                                                                                    |
+| Crossref DOI 直查 `10.1038/nature14539` | 正常。LeCun Deep learning：is-referenced-by **76,281**、venue=Nature、摘要空                                                                                                |
+| S2 匿名                                 | **HTTP 429** → `AnonymousRateLimitError`，无 key 不可用                                                                                                                     |
+| DBLP                                    | **被反爬**：200 但返回 bot 检测 HTML → JSONDecodeError。curl 直连同样拦                                                                                                     |
+| OpenAlex 匿名对照                       | `Anonymous search is temporarily rate-limited`（retryAfter 30s）——key 有实测价值                                                                                            |
+| `enrich_citations` 对 arXiv id          | `1412.6980`→OpenAlex **84,617**（vs 语料内计数 29,512，校准方向正确）；`1706.03762` 的 `10.48550` DOI 在 OpenAlex **404**——DataCite DOI 覆盖不全，老文尤其缺                |
 | OpenReview 本地缓存                     | 97,248 行（accepted 57,834 / rejected 26,458 / withdrawn 12,820 / submitted 136）；`arxiv_id` 预填 15,032、`citation_count` 预填 17,983（crosswalk 来源，2025+ 届次未覆盖） |
 
 ## 5. 映射到 TeXlate 各层
@@ -93,7 +93,11 @@
 ### 参考文献
 
 [^openalex]: OpenAlex. Works API（cursor 分页、filter=doi 批查、cited_by_count）. [docs.openalex.org](https://docs.openalex.org/)
+
 [^s2]: Semantic Scholar. Academic Graph API（`x-api-key`、externalIds 双向映射）. [api.semanticscholar.org](https://api.semanticscholar.org/api-docs/)
+
 [^crossref]: Crossref. REST API（`/works/{doi}`、is-referenced-by-count、礼貌池 mailto）. [crossref.org/documentation](https://www.crossref.org/documentation/retrieve-metadata/rest-api/)
+
 [^dblp]: DBLP. Search API（`search/publ/api?format=json`）. [dblp.org/faq](https://dblp.org/faq/1474681.html)
+
 [^openreview]: OpenReview. API v1/v2（登录态、offset 分页语义）. [docs.openreview.net](https://docs.openreview.net/)

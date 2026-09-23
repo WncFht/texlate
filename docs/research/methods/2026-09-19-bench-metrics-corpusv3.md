@@ -10,20 +10,20 @@
 
 ## 逐臂指标
 
-| 臂 | 规模 | 核心指标 | 门槛对比 |
-| --- | --- | --- | --- |
-| 完整性审计 | 13,266 cells | sha256 13,266/13,266 · 0 dup · 0 missing | — |
-| parsebench (B1) | 13,253 篇 / 28,904 .tex / 1,647.8s | parse ok 100.0%(1 err) · strict identity 99.99%(28,899 strict/3 norm/1 diverged) · leak 0.004%(76/1,845,338) · expand footprint strict 28,105/norm 259/diverged 539 · flatten 93.7% | identity ≥99.5% PASS · leak ≤0.15% PASS · dead protect ph=3 FAIL（门=0）· flatten 93.7%<99% FAIL（已知 errata） |
-| compilebench baseline (B3) | 500 格 ×2 引擎 | xelatex 56.3% clean / 80.3% pdf · tectonic 38.6% / 62.4% · 联合 pdf 90.4% | — |
-| compilebench zh-arm | 500 格 | xelatex 72.4% clean / 85.4% pdf（+16pt vs baseline，normalize 修复源缺陷）· tectonic 45.7% / 59.8% | — |
-| fixloop (corpus_v2 40) | 80 格 | xelatex 34 FAIL→25 救回 74% · tectonic 1/16（eps_route reject 主导）· union pdf 26→32/40 | — |
-| alignbench (B7) | 812 对 | 门全过；但 765/812 对 named-dests=0，真实覆盖仅 42 个 hyperref 对（retention p50 1.0） | 覆盖不足，指标口径需复核 |
-| e2e_mock (B5) | corpus39 | pipe-xel 33/39 clean vs base-xel 19/39（管线净正）· 引入回归 1+2 | — |
-| e2e_real (B5) | n=24 + n=60 | n=60：58/58 翻译 · chunk ok 6,053/7,580（partial 43/fault 8）· splice 残留 0 PASS · pipe-xel clean 43/fail 7/partial 6 · fixloop 再救 13 格 · 0 管线引入回归 | — |
-| xlatbench (B4) | 271 样本 | hard_ok 94% · http_err 0 · 延迟 p50 4.2s / p95 29.7s（批量队列可见） | — |
-| qualbench (B4b) | 324 篇 / 1,937 chunk | judge 强模型：mean 94.0 / median 95，≥90 占 90.6% · contested 5.5%(106) · critical 仅 1（non-translation） | — |
-| gullet | 200 文档 | 199/200 展开成功 · median 39.6ms / 19 steps · 1 locate/decode 边界错 | — |
-| stagerun 全 DAG | 80 篇跨层 | ingest 80 → parse 79 ok → xlat 76 ok+3 partial → compile zh 50 clean/19 partial/10 fail → fixloop 21 格全救回（13 clean+8 partial）· union pdf 79/80=98.75% · clean 71/80=88.75% | M2 union-pdf ≥90% PASS（样本口径） |
+| 臂                         | 规模                               | 核心指标                                                                                                                                                                            | 门槛对比                                                                                                        |
+| -------------------------- | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| 完整性审计                 | 13,266 cells                       | sha256 13,266/13,266 · 0 dup · 0 missing                                                                                                                                            | —                                                                                                               |
+| parsebench (B1)            | 13,253 篇 / 28,904 .tex / 1,647.8s | parse ok 100.0%(1 err) · strict identity 99.99%(28,899 strict/3 norm/1 diverged) · leak 0.004%(76/1,845,338) · expand footprint strict 28,105/norm 259/diverged 539 · flatten 93.7% | identity ≥99.5% PASS · leak ≤0.15% PASS · dead protect ph=3 FAIL（门=0）· flatten 93.7%<99% FAIL（已知 errata） |
+| compilebench baseline (B3) | 500 格 ×2 引擎                     | xelatex 56.3% clean / 80.3% pdf · tectonic 38.6% / 62.4% · 联合 pdf 90.4%                                                                                                           | —                                                                                                               |
+| compilebench zh-arm        | 500 格                             | xelatex 72.4% clean / 85.4% pdf（+16pt vs baseline，normalize 修复源缺陷）· tectonic 45.7% / 59.8%                                                                                  | —                                                                                                               |
+| fixloop (corpus_v2 40)     | 80 格                              | xelatex 34 FAIL→25 救回 74% · tectonic 1/16（eps_route reject 主导）· union pdf 26→32/40                                                                                            | —                                                                                                               |
+| alignbench (B7)            | 812 对                             | 门全过；但 765/812 对 named-dests=0，真实覆盖仅 42 个 hyperref 对（retention p50 1.0）                                                                                              | 覆盖不足，指标口径需复核                                                                                        |
+| e2e_mock (B5)              | corpus39                           | pipe-xel 33/39 clean vs base-xel 19/39（管线净正）· 引入回归 1+2                                                                                                                    | —                                                                                                               |
+| e2e_real (B5)              | n=24 + n=60                        | n=60：58/58 翻译 · chunk ok 6,053/7,580（partial 43/fault 8）· splice 残留 0 PASS · pipe-xel clean 43/fail 7/partial 6 · fixloop 再救 13 格 · 0 管线引入回归                        | —                                                                                                               |
+| xlatbench (B4)             | 271 样本                           | hard_ok 94% · http_err 0 · 延迟 p50 4.2s / p95 29.7s（批量队列可见）                                                                                                                | —                                                                                                               |
+| qualbench (B4b)            | 324 篇 / 1,937 chunk               | judge 强模型：mean 94.0 / median 95，≥90 占 90.6% · contested 5.5%(106) · critical 仅 1（non-translation）                                                                          | —                                                                                                               |
+| gullet                     | 200 文档                           | 199/200 展开成功 · median 39.6ms / 19 steps · 1 locate/decode 边界错                                                                                                                | —                                                                                                               |
+| stagerun 全 DAG            | 80 篇跨层                          | ingest 80 → parse 79 ok → xlat 76 ok+3 partial → compile zh 50 clean/19 partial/10 fail → fixloop 21 格全救回（13 clean+8 partial）· union pdf 79/80=98.75% · clean 71/80=88.75%    | M2 union-pdf ≥90% PASS（样本口径）                                                                              |
 
 ## 失败类分布（归因要点）
 

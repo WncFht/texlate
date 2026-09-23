@@ -8,133 +8,133 @@ TeXlate 是「幻觉翻译」（hjfy.top）的开源复现[^hjfy]：arXiv LaTeX 
 
 ## 1. 顶层布局
 
-| 路径 | 角色 |
-| --- | --- |
-| `src/texlate/` | 产品包：hatchling src 布局，Python ≥3.12，uv 管理（`uv sync` 起 `.venv`；web/server 形态加 `--extra server`） |
-| `web/` | SPA 前端：SolidJS + Vite + TypeScript，独立 `package.json`/`tsconfig`/vitest/eslint 工具链 |
-| `tests/` | pytest 套件：350+ 个 `test_*.py` + `conftest.py` 共享件 + `fixtures/`（真编译 log 实物） |
-| `docs/` | 文档库六分区：`guide/` 用户文档、`spec/` 技术规范（实现唯一事实源）、`decisions/` ADR、`dev/` 贡献者文档、`research/` 调研档案、`log/` 工程日志；维护规则 `docs/MAINTENANCE.md` |
-| `bench/` | 评测 harness、语料库与产出区（§7） |
-| `scripts/` | 工程脚本：`agent-links.sh`（agent 入口软链重建）、`build-web.sh`（SPA 构建拷入 `server/static`）、`errsweep.sh`（定时运维）、`dev-smoke.sh`/`server-smoke.sh`/`demo.sh`（冒烟）、`fmt-shell.sh`（shfmt 包装、zsh 透传）、`systemd/`（部署单元样例） |
-| `zotero/` | Zotero 插件子工程：TypeScript，独立 `package.json`/tsconfig，与产品包无构建耦合 |
-| `shots/` | 文档用截图资产 |
-| `dist/` | `texlate-0.1.0` wheel + sdist 构建产物（gitignored） |
-| `tmp/` | scratch 实验区（整目录 gitignored） |
-| 根配置 | `pyproject.toml`（包元数据 + pytest 配置）、`uv.lock`、`ruff.toml`、`package.json`（npm 工具链版本唯一事实源）、`eslint.config.js`、`.pre-commit-config.yaml`、`.markdownlint-cli2.jsonc`、`.prettierrc`、`Dockerfile`、`README.md`、`LICENSE`（Apache-2.0）、`NOTICE` |
-| agent 入口 | `AGENTS.md` 与 `.agents/` 是入库唯一事实源（`.agents/skills/` 为入库 skill 目录，各带 `agents/openai.yaml` 元数据）；`CLAUDE.md`/`.claude/` 是指向它们的本机软链、不入库，clone 后经 `scripts/agent-links.sh` 重建 |
+| 路径           | 角色                                                                                                                                                                                                                                                                   |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/texlate/` | 产品包：hatchling src 布局，Python ≥3.12，uv 管理（`uv sync` 起 `.venv`；web/server 形态加 `--extra server`）                                                                                                                                                          |
+| `web/`         | SPA 前端：SolidJS + Vite + TypeScript，独立 `package.json`/`tsconfig`/vitest/eslint 工具链                                                                                                                                                                             |
+| `tests/`       | pytest 套件：350+ 个 `test_*.py` + `conftest.py` 共享件 + `fixtures/`（真编译 log 实物）                                                                                                                                                                               |
+| `docs/`        | 文档库六分区：`guide/` 用户文档、`spec/` 技术规范（实现唯一事实源）、`decisions/` ADR、`dev/` 贡献者文档、`research/` 调研档案、`log/` 工程日志；维护规则 `docs/MAINTENANCE.md`                                                                                        |
+| `bench/`       | 评测 harness、语料库与产出区（§7）                                                                                                                                                                                                                                     |
+| `scripts/`     | 工程脚本：`agent-links.sh`（agent 入口软链重建）、`build-web.sh`（SPA 构建拷入 `server/static`）、`errsweep.sh`（定时运维）、`dev-smoke.sh`/`server-smoke.sh`/`demo.sh`（冒烟）、`fmt-shell.sh`（shfmt 包装、zsh 透传）、`systemd/`（部署单元样例）                    |
+| `zotero/`      | Zotero 插件子工程：TypeScript，独立 `package.json`/tsconfig，与产品包无构建耦合                                                                                                                                                                                        |
+| `shots/`       | 文档用截图资产                                                                                                                                                                                                                                                         |
+| `dist/`        | `texlate-0.1.0` wheel + sdist 构建产物（gitignored）                                                                                                                                                                                                                   |
+| `tmp/`         | scratch 实验区（整目录 gitignored）                                                                                                                                                                                                                                    |
+| 根配置         | `pyproject.toml`（包元数据 + pytest 配置）、`uv.lock`、`ruff.toml`、`package.json`（npm 工具链版本唯一事实源）、`eslint.config.js`、`.pre-commit-config.yaml`、`.markdownlint-cli2.jsonc`、`.prettierrc`、`Dockerfile`、`README.md`、`LICENSE`（Apache-2.0）、`NOTICE` |
+| agent 入口     | `AGENTS.md` 与 `.agents/` 是入库唯一事实源（`.agents/skills/` 为入库 skill 目录，各带 `agents/openai.yaml` 元数据）；`CLAUDE.md`/`.claude/` 是指向它们的本机软链、不入库，clone 后经 `scripts/agent-links.sh` 重建                                                     |
 
 ## 2. `src/texlate/` 包树
 
 ### 2.1 顶层模块
 
-| 模块 | 职责 |
-| --- | --- |
-| `cli/` | typer 命令行入口包（`cli.py` → `cli/` 拆分 facade）：`_common` 持 Typer `app` 实例与 `_CliPath` 参数型，`_output` 持 stderr Console 单例与 `ReportSink` 实况渲染；各命令一叶（§3），`thin.py` 是 `run --server` 瘦客户端实现 |
-| `align.py` | dual.json `alignment` 段产出：en/zh PDF named-dest 锚点对齐（阅读器滚动同步用） |
-| `chunk.py` | xlat 输入契约的低层共享位 |
-| `e2e.py` | mock 端到端驱动：`route_project → normalize_project → XlatPipeline(MockTranslator)+L0 → splice → prepare_chinese → engine.compile → judge`；编译失败先 L2 回灌重译、后 fixloop 修源；`texlate run` 与 bench harness 共用此实现 |
-| `logsetup.py` | 日志装配单源：`texlate` logger 的 RichHandler stderr、`RedactFilter` 脱敏、轮转文件；`TEXLATE_LOG`（级别）/`TEXLATE_LOG_FILE`（落盘路径）env |
-| `pipecore.py` | 管线核心契约层：e2e / worker / bench 三臂共享的 policy 脊——状态空间映射、`scan_tree` 四级分流、`translate_tree_run` 写回、编译尾段 judge、修复链编排（`fixloop_round`/`l2_repair`/`RepairPolicy`/reject 判词） |
-| `redlines.py` | 红线信号单源注册表：同一概念在多层（L0/L2/log taxonomy/fixloop）的拼写并列登记 |
-| `repair.py` | e2e 与 server.worker 双编排器共享的修复低层件（`run_fixloop`/`consume_engine_flags`/`embed_tounicode_quiet` 等） |
-| `repair_l2.py` | L2 回灌 / env judge 归因簇（自 `repair` 拆出）：编译 log 错误定位到 chunk → 点名重译 → 再不过回落原文 |
-| `share.py` | 社区共享译文缓存纯库层：寻址键 + `.share.zip` 包格式 + 校验解包，零新依赖 |
-| `texlog.py` | TeX `.log` 词法原语：`file:line:` 文件栈解析单源（engine/L2/fixloop 三处收敛于此） |
+| 模块           | 职责                                                                                                                                                                                                                           |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `cli/`         | typer 命令行入口包（`cli.py` → `cli/` 拆分 facade）：`_common` 持 Typer `app` 实例与 `_CliPath` 参数型，`_output` 持 stderr Console 单例与 `ReportSink` 实况渲染；各命令一叶（§3），`thin.py` 是 `run --server` 瘦客户端实现   |
+| `align.py`     | dual.json `alignment` 段产出：en/zh PDF named-dest 锚点对齐（阅读器滚动同步用）                                                                                                                                                |
+| `chunk.py`     | xlat 输入契约的低层共享位                                                                                                                                                                                                      |
+| `e2e.py`       | mock 端到端驱动：`route_project → normalize_project → XlatPipeline(MockTranslator)+L0 → splice → prepare_chinese → engine.compile → judge`；编译失败先 L2 回灌重译、后 fixloop 修源；`texlate run` 与 bench harness 共用此实现 |
+| `logsetup.py`  | 日志装配单源：`texlate` logger 的 RichHandler stderr、`RedactFilter` 脱敏、轮转文件；`TEXLATE_LOG`（级别）/`TEXLATE_LOG_FILE`（落盘路径）env                                                                                   |
+| `pipecore.py`  | 管线核心契约层：e2e / worker / bench 三臂共享的 policy 脊——状态空间映射、`scan_tree` 四级分流、`translate_tree_run` 写回、编译尾段 judge、修复链编排（`fixloop_round`/`l2_repair`/`RepairPolicy`/reject 判词）                 |
+| `redlines.py`  | 红线信号单源注册表：同一概念在多层（L0/L2/log taxonomy/fixloop）的拼写并列登记                                                                                                                                                 |
+| `repair.py`    | e2e 与 server.worker 双编排器共享的修复低层件（`run_fixloop`/`consume_engine_flags`/`embed_tounicode_quiet` 等）                                                                                                               |
+| `repair_l2.py` | L2 回灌 / env judge 归因簇（自 `repair` 拆出）：编译 log 错误定位到 chunk → 点名重译 → 再不过回落原文                                                                                                                          |
+| `share.py`     | 社区共享译文缓存纯库层：寻址键 + `.share.zip` 包格式 + 校验解包，零新依赖                                                                                                                                                      |
+| `texlog.py`    | TeX `.log` 词法原语：`file:line:` 文件栈解析单源（engine/L2/fixloop 三处收敛于此）                                                                                                                                             |
 
 ### 2.2 `arxiv/` — 获取层
 
-| 模块 | 职责 |
-| --- | --- |
-| `fetch.py` | 在线获取编排：HEAD 预检 → GET e-print → sniff → unpack → locate，钉版落缓存 |
-| `sniff.py` | e-print 线缆格式判别（魔数）+ `pdf_wrapper` 源码壳检测 |
-| `unpack.py` | e-print 解包：逐成员路径安全（绝对路径/`..` 拒绝）+ mtree 清单 |
-| `cache.py` | source-tier 钉版缓存：`{id}v{ver}` 精确查、未钉版取已缓存最高版 |
-| `locate.py` | 主文件定位 + `\input` 拓扑 |
-| `meta.py` | 元数据层：Atom API 主源 + OAI-PMH 兜底 + 降级链 |
-| `ratelimit.py` | 请求纪律：按 host 限速桶 + (host, path) 断路器 + 日预算 |
-| `html.py` | arXiv 原生 HTML 降级链 phase 1（latexml 渲染产物消费） |
-| `_texutil.py` | LaTeX 源码文本工具：注释剥离（`\%` 转义 / verbatim / comment 环境感知） |
+| 模块           | 职责                                                                        |
+| -------------- | --------------------------------------------------------------------------- |
+| `fetch.py`     | 在线获取编排：HEAD 预检 → GET e-print → sniff → unpack → locate，钉版落缓存 |
+| `sniff.py`     | e-print 线缆格式判别（魔数）+ `pdf_wrapper` 源码壳检测                      |
+| `unpack.py`    | e-print 解包：逐成员路径安全（绝对路径/`..` 拒绝）+ mtree 清单              |
+| `cache.py`     | source-tier 钉版缓存：`{id}v{ver}` 精确查、未钉版取已缓存最高版             |
+| `locate.py`    | 主文件定位 + `\input` 拓扑                                                  |
+| `meta.py`      | 元数据层：Atom API 主源 + OAI-PMH 兜底 + 降级链                             |
+| `ratelimit.py` | 请求纪律：按 host 限速桶 + (host, path) 断路器 + 日预算                     |
+| `html.py`      | arXiv 原生 HTML 降级链 phase 1（latexml 渲染产物消费）                      |
+| `_texutil.py`  | LaTeX 源码文本工具：注释剥离（`\%` 转义 / verbatim / comment 环境感知）     |
 
 ### 2.3 `latex/` — 半解析管线
 
 唯一解析路径是 v2 架构：`mouth`（字符→token）→ `gullet`（回压式不动点展开，plasTeX `TeX.__iter__` 移植[^plastex]）→ `segmenter`（`next_expanded()` token 流消费者 → 可译 chunk）。
 
-| 模块 | 职责 |
-| --- | --- |
-| `api.py` | 入口装配：`parse_tex`/`parse_file`/`scan_tex_tree` |
-| `model.py` | 管线核心数据结构（纯数据层，不反向依赖；`ArgspecEntry` 等） |
-| `chars.py` | 字符级原语层：单遍逐字符扫描共享低层工具（`ws_skip`/`ws_skip_arg`/`match_brace`/`match_bracket`/`read_cmd_name`/`env_name_at` 等），自 `model` 扶正出的零依赖底叶——`model`/`tables`/`segmenter`/`macro_table`/`flatten`/`gullet` 单向依赖，旧 `model.ws_skip` 调用面由 model 再出口 |
-| `mouth.py` | Mouth：字符 → token（plasTeX `Tokenizer.py` 移植[^plastex]） |
-| `gullet/` | Gullet 展开机包：`core`（源栈 + 主循环 + 原语分派）+ `decls`/`defcmd`/`args`/`expand`/`cond`/`input`/`classify`/`entries`/`names`/`tokutil` 十片 god-class 机械拆分叶 |
-| `segmenter/` | Segmenter 切块器包：`core`/`mainloop`/`args`/`env`/`group`/`pending`/`_common` 拆分叶 |
-| `macro_table.py` | 宏体分类 + argspec 编译：gullet/segmenter 共享的登记侧 helper |
-| `tables.py` | 命令族常量表（纯数据）+ `argspec_tables()` 懒加载 `data/argspec.json`（~500KB：CTAN 宏/环境的包归属 + xparse 签名 + 参数角色，`text`/`opt-text` 可译、`key`/`verbatim`/`skip` 保护） |
-| `flatten.py` | `\input`/`\include` 展平 |
-| `placeholder.py` | 占位符方案（数学/引用/verbatim 保护皮） |
-| `prose.py` | 散文门（prose gate）：文件级「含可译散文」判别——support 文件不进翻译集 |
-| `reconstruct.py` | splice 重建 + DAG 递归展开 + validate |
-| `data/argspec.json` | argspec 表数据资产（随包分发，`importlib.resources` 读取） |
+| 模块                | 职责                                                                                                                                                                                                                                                                                |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `api.py`            | 入口装配：`parse_tex`/`parse_file`/`scan_tex_tree`                                                                                                                                                                                                                                  |
+| `model.py`          | 管线核心数据结构（纯数据层，不反向依赖；`ArgspecEntry` 等）                                                                                                                                                                                                                         |
+| `chars.py`          | 字符级原语层：单遍逐字符扫描共享低层工具（`ws_skip`/`ws_skip_arg`/`match_brace`/`match_bracket`/`read_cmd_name`/`env_name_at` 等），自 `model` 扶正出的零依赖底叶——`model`/`tables`/`segmenter`/`macro_table`/`flatten`/`gullet` 单向依赖，旧 `model.ws_skip` 调用面由 model 再出口 |
+| `mouth.py`          | Mouth：字符 → token（plasTeX `Tokenizer.py` 移植[^plastex]）                                                                                                                                                                                                                        |
+| `gullet/`           | Gullet 展开机包：`core`（源栈 + 主循环 + 原语分派）+ `decls`/`defcmd`/`args`/`expand`/`cond`/`input`/`classify`/`entries`/`names`/`tokutil` 十片 god-class 机械拆分叶                                                                                                               |
+| `segmenter/`        | Segmenter 切块器包：`core`/`mainloop`/`args`/`env`/`group`/`pending`/`_common` 拆分叶                                                                                                                                                                                               |
+| `macro_table.py`    | 宏体分类 + argspec 编译：gullet/segmenter 共享的登记侧 helper                                                                                                                                                                                                                       |
+| `tables.py`         | 命令族常量表（纯数据）+ `argspec_tables()` 懒加载 `data/argspec.json`（~500KB：CTAN 宏/环境的包归属 + xparse 签名 + 参数角色，`text`/`opt-text` 可译、`key`/`verbatim`/`skip` 保护）                                                                                                |
+| `flatten.py`        | `\input`/`\include` 展平                                                                                                                                                                                                                                                            |
+| `placeholder.py`    | 占位符方案（数学/引用/verbatim 保护皮）                                                                                                                                                                                                                                             |
+| `prose.py`          | 散文门（prose gate）：文件级「含可译散文」判别——support 文件不进翻译集                                                                                                                                                                                                              |
+| `reconstruct.py`    | splice 重建 + DAG 递归展开 + validate                                                                                                                                                                                                                                               |
+| `data/argspec.json` | argspec 表数据资产（随包分发，`importlib.resources` 读取）                                                                                                                                                                                                                          |
 
 ### 2.4 `xlat/` — 翻译编排层
 
-| 模块 | 职责 |
-| --- | --- |
-| `client.py` | LLM 客户端门面：`ChatClient` 传输循环 + 薄委托——三方言编解码/免费集发现/错误分类实现已出叶（`_dialects`/`_discovery`/`_errors`/`stream`），经 `from leaf import` 回引保持 `texlate.xlat.client.X` 钉点名不变（`AuthError`/`RetryableHTTPError`/`ChatError`/`discover_free_models` 等仍由 client 出口） |
-| `_errors.py` | xlat 错误面（client 出叶）：`ChatError` 分类学 + `classify_status` 状态码→异常映射 + 降级/兜底臂级判据 + secret 脱敏与传输族异常包装 |
-| `_dialects.py` | openai/anthropic/responses 三方言编解码（client 出叶）：请求头/请求体/响应解析纯函数 + `Usage`/`ChatResult`/`ChatOptions` 结果载具 |
-| `_discovery.py` | 免费端点集发现面（client 出叶）：`normalize_base_url`/`is_free_gateway_url` 端点闸 + `list_models`/`panel_models`/`probe_model`/`discover_free_models` 发现链 + `rank_models`/`pick_model` 排序 |
-| `stream.py` | SSE 流式面（client 出叶）：`StreamEvent` 词汇 + 三方言 `data:` 行/帧解析 + `chat` 流式兜底臂执行体（`_chat_via_stream`） |
-| `pipeline.py` | 翻译编排骨架：`asyncio.Queue` + N worker + 首发单飞暖缓存（升格拦截网与 auth 熔断闸已出叶 `intercept`/`authgate`） |
-| `intercept.py` | 升格拦截网注册表 `_INTERCEPT_NETS`（pipeline 出叶）：zh 毒译签名 → fault + 回退原文；段级缓存否决/账本/裸形三消费点同迭代本表 |
-| `authgate.py` | auth 失败分类 `_kind_of` + 连续熔断闸 `AuthGate`/`AuthTrippedError`（pipeline 出叶）：凭证失效时论文 fault，绝不静默写 fallback 原文 |
-| `batch.py` | 批量协议：全量入批 + K 量化等大装箱 + `[n]` 编号 + `@@` 兜底 + 整批退单翻 |
-| `retry.py` | 重试：HTTP 指数退避 + 四段语义阶梯 |
-| `prompts.py` | 六 kind system prompt 套件 |
-| `glossary.py` | 三级术语表 + ph→ph 恒等注入 + 文档级过滤烤进稳定 system prompt |
-| `autogloss.py` | 自动术语抽取：masked chunk 文列 → LLM 域名词表 → 多数表决 `{en: zh}` |
-| `placeholders.py` | 占位符编解码与 src↔zh 对账（口径对齐 L0 校验层） |
-| `state.py` | 断点续跑 state + 段级缓存 |
-| `mock.py` | `MockTranslator` 占位译文：E2E/bench/干跑专用，不触网、确定性 |
-| `terms/` | 内建术语表资产：`index.yaml`（arXiv category → CSV 映射）+ 8 张 CSV；种子表来自 LaTeXTrans（MIT）[^latextrans] |
+| 模块              | 职责                                                                                                                                                                                                                                                                                                   |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `client.py`       | LLM 客户端门面：`ChatClient` 传输循环 + 薄委托——三方言编解码/免费集发现/错误分类实现已出叶（`_dialects`/`_discovery`/`_errors`/`stream`），经 `from leaf import` 回引保持 `texlate.xlat.client.X` 钉点名不变（`AuthError`/`RetryableHTTPError`/`ChatError`/`discover_free_models` 等仍由 client 出口） |
+| `_errors.py`      | xlat 错误面（client 出叶）：`ChatError` 分类学 + `classify_status` 状态码→异常映射 + 降级/兜底臂级判据 + secret 脱敏与传输族异常包装                                                                                                                                                                   |
+| `_dialects.py`    | openai/anthropic/responses 三方言编解码（client 出叶）：请求头/请求体/响应解析纯函数 + `Usage`/`ChatResult`/`ChatOptions` 结果载具                                                                                                                                                                     |
+| `_discovery.py`   | 免费端点集发现面（client 出叶）：`normalize_base_url`/`is_free_gateway_url` 端点闸 + `list_models`/`panel_models`/`probe_model`/`discover_free_models` 发现链 + `rank_models`/`pick_model` 排序                                                                                                        |
+| `stream.py`       | SSE 流式面（client 出叶）：`StreamEvent` 词汇 + 三方言 `data:` 行/帧解析 + `chat` 流式兜底臂执行体（`_chat_via_stream`）                                                                                                                                                                               |
+| `pipeline.py`     | 翻译编排骨架：`asyncio.Queue` + N worker + 首发单飞暖缓存（升格拦截网与 auth 熔断闸已出叶 `intercept`/`authgate`）                                                                                                                                                                                     |
+| `intercept.py`    | 升格拦截网注册表 `_INTERCEPT_NETS`（pipeline 出叶）：zh 毒译签名 → fault + 回退原文；段级缓存否决/账本/裸形三消费点同迭代本表                                                                                                                                                                          |
+| `authgate.py`     | auth 失败分类 `_kind_of` + 连续熔断闸 `AuthGate`/`AuthTrippedError`（pipeline 出叶）：凭证失效时论文 fault，绝不静默写 fallback 原文                                                                                                                                                                   |
+| `batch.py`        | 批量协议：全量入批 + K 量化等大装箱 + `[n]` 编号 + `@@` 兜底 + 整批退单翻                                                                                                                                                                                                                              |
+| `retry.py`        | 重试：HTTP 指数退避 + 四段语义阶梯                                                                                                                                                                                                                                                                     |
+| `prompts.py`      | 六 kind system prompt 套件                                                                                                                                                                                                                                                                             |
+| `glossary.py`     | 三级术语表 + ph→ph 恒等注入 + 文档级过滤烤进稳定 system prompt                                                                                                                                                                                                                                         |
+| `autogloss.py`    | 自动术语抽取：masked chunk 文列 → LLM 域名词表 → 多数表决 `{en: zh}`                                                                                                                                                                                                                                   |
+| `placeholders.py` | 占位符编解码与 src↔zh 对账（口径对齐 L0 校验层）                                                                                                                                                                                                                                                       |
+| `state.py`        | 断点续跑 state + 段级缓存                                                                                                                                                                                                                                                                              |
+| `mock.py`         | `MockTranslator` 占位译文：E2E/bench/干跑专用，不触网、确定性                                                                                                                                                                                                                                          |
+| `terms/`          | 内建术语表资产：`index.yaml`（arXiv category → CSV 映射）+ 8 张 CSV；种子表来自 LaTeXTrans（MIT）[^latextrans]                                                                                                                                                                                         |
 
 ### 2.5 `validate/` — 校验层
 
-| 模块 | 职责 |
-| --- | --- |
-| `l0.py` | L0 规则校验：stdlib always-on，src↔zh 相对判定（占位符对账/结构/泄漏红线） |
-| `l1.py` | L1 tree-sitter CST 校验：node 子进程 JSONL 批处理；`shutil.which("node")` 探测缺席即降级 L0，属可选组件 |
-| `l2.py` | L2 编译 log 回灌：xelatex/tectonic `.log` 结构化解析 |
-| `report.py` | 三级校验结果聚合输出（L0 规则 / L1 CST / L2 编译 log） |
-| `ts/` | L1 node 侧随包数据件：`validator.js` + `package.json`（依赖 `@pfoerster/tree-sitter-latex` + `tree-sitter`，均有 prebuilt）；node_modules 缺席时 `npm i --prefix` 补装，`TEXLATE_TS_NODE_PATH` 可指现成依赖；`ts-validator` extra 是空占位（python 侧零依赖） |
+| 模块        | 职责                                                                                                                                                                                                                                                          |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `l0.py`     | L0 规则校验：stdlib always-on，src↔zh 相对判定（占位符对账/结构/泄漏红线）                                                                                                                                                                                    |
+| `l1.py`     | L1 tree-sitter CST 校验：node 子进程 JSONL 批处理；`shutil.which("node")` 探测缺席即降级 L0，属可选组件                                                                                                                                                       |
+| `l2.py`     | L2 编译 log 回灌：xelatex/tectonic `.log` 结构化解析                                                                                                                                                                                                          |
+| `report.py` | 三级校验结果聚合输出（L0 规则 / L1 CST / L2 编译 log）                                                                                                                                                                                                        |
+| `ts/`       | L1 node 侧随包数据件：`validator.js` + `package.json`（依赖 `@pfoerster/tree-sitter-latex` + `tree-sitter`，均有 prebuilt）；node_modules 缺席时 `npm i --prefix` 补装，`TEXLATE_TS_NODE_PATH` 可指现成依赖；`ts-validator` extra 是空占位（python 侧零依赖） |
 
 ### 2.6 `compile/` — 编译层
 
-| 模块 | 职责 |
-| --- | --- |
-| `engine/` | 引擎层包：`_base`（Engine 协议 + CompRes 结果类型）、`_route`（静态路由表 `route_project`/`engine_for` + 签名集）、`_xelatex`（TeX Live 系全工具链通路）、`_tectonic`（便携 bundle 自足通路）、`_cache`（tlmgr file→pkg 搜索落盘缓存） |
-| `inject.py` | 中文支持注入：ctex `[fontset=fandol,UTF8]` 默认路径 + xeCJK 降级路径 + 数学兜底；公共面 `prepare_chinese`/`find_main_tex`/`InjectRejectError` |
-| `layout.py` | 版式手术（inject C4 拆出叶） |
-| `mainfile.py` | 主文件定位与 `\input` 闭包（inject C4 拆出叶） |
-| `normalize.py` | 归一化层：pdfTeX 时代源码 → XeTeX/tectonic 可编译形态的无条件手术 |
-| `mask.py` | 遮蔽视图与 TeX 词法小件：normalize/inject 所有正则定位共用 |
-| `shadow.py` | 系统包遮蔽层：`invalid_utf8` 修复臂三（normalize 拆出） |
-| `transcode.py` | 支持件字节卫生层：非 `.tex` 手术面文件的 UTF-8 转码/净化（normalize 拆出） |
-| `probe.py` | 声明依赖静态探针 + `compiled_dependencies` 权威集差分 |
-| `deps.py` | 依赖记录解析：`.fls` INPUT / `dependencies.mk` |
-| `loginfo.py` | log 语义层：`.log` → `LogInfo` + 错误分类学适配 |
-| `logparse.py` | `.log` 解析 + taxonomy 分类（compile 层共享地基） |
-| `judge.py` | clean 判定三件套 `Verdict`/`judge`/`paired_slot_diff`（只判据不修复） |
-| `latex209.py` | LaTeX 2.09 `\documentstyle` → LaTeX2e `\documentclass` 受限升级器 |
-| `sandbox.py` | 编译沙箱策略面：env 白名单 + macOS `sandbox-exec` + linux `bwrap` |
-| `proc.py` | 子进程 runner：Popen 管线 + 单调钟排干环 + 超时 killpg + rlimits + 暴走活哨 |
-| `toolchain.py` | tectonic 便携引擎分发：五平台 sha256 钉死矩阵 + 自动安装[^tectonic] |
-| `cjkmap.py` | GB1→UCS2 ToUnicode CMap 注入（消费 `cmaps/Adobe-GB1-UCS2`） |
-| `ctan.py` | `ctan_fetch` 原语：tlpdb 离线索引 → tlnet 拉包 → cwd 平铺遮蔽 |
-| `seams.py` | compile 层唯一 monkeypatch 面收口 |
-| `_seams.py` | docclass/bd 注入缝原语（inject C4 拆出）：`find_docclass_ends`/`_splice_after_seams`/`_splice_before_document`——inject/layout/normalize/fixloop builtins 单向取用，仅依赖 textutil/mask；与上件 monkeypatch 收口 `seams.py` 同名不同概念 |
-| `_yamlish.py` | `rules/` 目录装载薄封装：PyYAML `safe_load` + 文件路径上下文错误 |
-| `cmaps/` | `Adobe-GB1-UCS2` cmap 数据资产 |
-| `fixloop/` | yaml 规则驱动的编译自动修复循环（§2.7） |
+| 模块           | 职责                                                                                                                                                                                                                                     |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `engine/`      | 引擎层包：`_base`（Engine 协议 + CompRes 结果类型）、`_route`（静态路由表 `route_project`/`engine_for` + 签名集）、`_xelatex`（TeX Live 系全工具链通路）、`_tectonic`（便携 bundle 自足通路）、`_cache`（tlmgr file→pkg 搜索落盘缓存）   |
+| `inject.py`    | 中文支持注入：ctex `[fontset=fandol,UTF8]` 默认路径 + xeCJK 降级路径 + 数学兜底；公共面 `prepare_chinese`/`find_main_tex`/`InjectRejectError`                                                                                            |
+| `layout.py`    | 版式手术（inject C4 拆出叶）                                                                                                                                                                                                             |
+| `mainfile.py`  | 主文件定位与 `\input` 闭包（inject C4 拆出叶）                                                                                                                                                                                           |
+| `normalize.py` | 归一化层：pdfTeX 时代源码 → XeTeX/tectonic 可编译形态的无条件手术                                                                                                                                                                        |
+| `mask.py`      | 遮蔽视图与 TeX 词法小件：normalize/inject 所有正则定位共用                                                                                                                                                                               |
+| `shadow.py`    | 系统包遮蔽层：`invalid_utf8` 修复臂三（normalize 拆出）                                                                                                                                                                                  |
+| `transcode.py` | 支持件字节卫生层：非 `.tex` 手术面文件的 UTF-8 转码/净化（normalize 拆出）                                                                                                                                                               |
+| `probe.py`     | 声明依赖静态探针 + `compiled_dependencies` 权威集差分                                                                                                                                                                                    |
+| `deps.py`      | 依赖记录解析：`.fls` INPUT / `dependencies.mk`                                                                                                                                                                                           |
+| `loginfo.py`   | log 语义层：`.log` → `LogInfo` + 错误分类学适配                                                                                                                                                                                          |
+| `logparse.py`  | `.log` 解析 + taxonomy 分类（compile 层共享地基）                                                                                                                                                                                        |
+| `judge.py`     | clean 判定三件套 `Verdict`/`judge`/`paired_slot_diff`（只判据不修复）                                                                                                                                                                    |
+| `latex209.py`  | LaTeX 2.09 `\documentstyle` → LaTeX2e `\documentclass` 受限升级器                                                                                                                                                                        |
+| `sandbox.py`   | 编译沙箱策略面：env 白名单 + macOS `sandbox-exec` + linux `bwrap`                                                                                                                                                                        |
+| `proc.py`      | 子进程 runner：Popen 管线 + 单调钟排干环 + 超时 killpg + rlimits + 暴走活哨                                                                                                                                                              |
+| `toolchain.py` | tectonic 便携引擎分发：五平台 sha256 钉死矩阵 + 自动安装[^tectonic]                                                                                                                                                                      |
+| `cjkmap.py`    | GB1→UCS2 ToUnicode CMap 注入（消费 `cmaps/Adobe-GB1-UCS2`）                                                                                                                                                                              |
+| `ctan.py`      | `ctan_fetch` 原语：tlpdb 离线索引 → tlnet 拉包 → cwd 平铺遮蔽                                                                                                                                                                            |
+| `seams.py`     | compile 层唯一 monkeypatch 面收口                                                                                                                                                                                                        |
+| `_seams.py`    | docclass/bd 注入缝原语（inject C4 拆出）：`find_docclass_ends`/`_splice_after_seams`/`_splice_before_document`——inject/layout/normalize/fixloop builtins 单向取用，仅依赖 textutil/mask；与上件 monkeypatch 收口 `seams.py` 同名不同概念 |
+| `_yamlish.py`  | `rules/` 目录装载薄封装：PyYAML `safe_load` + 文件路径上下文错误                                                                                                                                                                         |
+| `cmaps/`       | `Adobe-GB1-UCS2` cmap 数据资产                                                                                                                                                                                                           |
+| `fixloop/`     | yaml 规则驱动的编译自动修复循环（§2.7）                                                                                                                                                                                                  |
 
 ### 2.7 `compile/fixloop/` — 修复引擎
 
@@ -146,71 +146,71 @@ TeXlate 是「幻觉翻译」（hjfy.top）的开源复现[^hjfy]：arXiv LaTeX 
 
 FastAPI + SSE + SQLite 任务队列 + BYOK，需 `server` extra（fastapi/uvicorn/sse-starlette/python-multipart）；包本体经 PEP 562 延迟加载保持轻依赖。
 
-| 模块 | 职责 |
-| --- | --- |
-| `app.py` | `create_app()` 装配：`Store` + `EventBus` + `TaskRunner`/`PipelineWorker` → `AppDeps` → `register_routers`；入站闸 `request_gate_mw`（local Host 白名单 + mutating 请求 Origin/`Sec-Fetch-Site` 同源检查 + server 形态匿名写 401）、`/api` 一律 `Cache-Control: no-store`、CORS/GZip、统一 JSON 错误面 |
-| `__main__.py` | `python -m texlate.server` uvicorn 入口（不经 `service.lock`，瘦客户端自动拉起/容器内通路） |
-| `http.py` | 请求层纯件：multipart 流式落盘、body 闸、同源/host 判定、统一错误面 |
-| `settings.py` | BYOK 与本地设置层：`SettingsStore`（`settings.json` 0600）、BYOK 字段 spec 单源、provider 探活编排（TTL 缓存/`model_warning`/`TEXLATE_MODEL_PROBE` 闸） |
-| `auth.py` | 凭证三级回落 `resolve_auth`/`AuthContext` + `tenant_for`/`server_salt` 指纹盐 |
-| `validate.py` | 请求边界校验件：`base_url`/`model` 入参闸（settings 写径与 auth 决议径共用） |
-| `providers.py` | provider 探测传输 + 预设目录：`/v1/models` 探活与 settings 页清单 |
-| `logredact.py` | 日志脱敏簇 server 侧装配点（`scrub`/`RedactFilter`/`install_log_scrub`） |
-| `events.py` | SSE 事件总线：`task_events` 落盘 + 内存订阅扇出（§4.3） |
-| `staticfiles.py` | SPA 静态产物定位与挂载（`web/dist` → 包内 `server/static/`） |
-| `babeldoc.py` | BabelDOC sidecar spawn 契约：PDF 降级翻译通路（§4.8） |
-| `upload.py` | 上传物 unpack/sniff 安全件：zip 成员名拒绝面 + 数量/解压总量闸 |
-| `_common.py` | server 顶层共享件：`slim_terminal_tasks`——`create_app` retention loop 与 `POST /api/tasks/slim` 同一套终态瘦身扫描（只 import `store`，server extra 缺席也可 import） |
-| `routers/` | 端点域叶包（§4.2）：`deps.py` 持 `AppDeps` 依赖注入面，`__init__.py::register_routers` 统一挂点 |
-| `store/` | SQLite 任务库包（§4.4）：`_common` 底料 + 六聚合 repo 叶 + `Store` 门面 |
-| `worker/` | 管线 worker 包（§4.7） |
+| 模块             | 职责                                                                                                                                                                                                                                                                                                   |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `app.py`         | `create_app()` 装配：`Store` + `EventBus` + `TaskRunner`/`PipelineWorker` → `AppDeps` → `register_routers`；入站闸 `request_gate_mw`（local Host 白名单 + mutating 请求 Origin/`Sec-Fetch-Site` 同源检查 + server 形态匿名写 401）、`/api` 一律 `Cache-Control: no-store`、CORS/GZip、统一 JSON 错误面 |
+| `__main__.py`    | `python -m texlate.server` uvicorn 入口（不经 `service.lock`，瘦客户端自动拉起/容器内通路）                                                                                                                                                                                                            |
+| `http.py`        | 请求层纯件：multipart 流式落盘、body 闸、同源/host 判定、统一错误面                                                                                                                                                                                                                                    |
+| `settings.py`    | BYOK 与本地设置层：`SettingsStore`（`settings.json` 0600）、BYOK 字段 spec 单源、provider 探活编排（TTL 缓存/`model_warning`/`TEXLATE_MODEL_PROBE` 闸）                                                                                                                                                |
+| `auth.py`        | 凭证三级回落 `resolve_auth`/`AuthContext` + `tenant_for`/`server_salt` 指纹盐                                                                                                                                                                                                                          |
+| `validate.py`    | 请求边界校验件：`base_url`/`model` 入参闸（settings 写径与 auth 决议径共用）                                                                                                                                                                                                                           |
+| `providers.py`   | provider 探测传输 + 预设目录：`/v1/models` 探活与 settings 页清单                                                                                                                                                                                                                                      |
+| `logredact.py`   | 日志脱敏簇 server 侧装配点（`scrub`/`RedactFilter`/`install_log_scrub`）                                                                                                                                                                                                                               |
+| `events.py`      | SSE 事件总线：`task_events` 落盘 + 内存订阅扇出（§4.3）                                                                                                                                                                                                                                                |
+| `staticfiles.py` | SPA 静态产物定位与挂载（`web/dist` → 包内 `server/static/`）                                                                                                                                                                                                                                           |
+| `babeldoc.py`    | BabelDOC sidecar spawn 契约：PDF 降级翻译通路（§4.8）                                                                                                                                                                                                                                                  |
+| `upload.py`      | 上传物 unpack/sniff 安全件：zip 成员名拒绝面 + 数量/解压总量闸                                                                                                                                                                                                                                         |
+| `_common.py`     | server 顶层共享件：`slim_terminal_tasks`——`create_app` retention loop 与 `POST /api/tasks/slim` 同一套终态瘦身扫描（只 import `store`，server extra 缺席也可 import）                                                                                                                                  |
+| `routers/`       | 端点域叶包（§4.2）：`deps.py` 持 `AppDeps` 依赖注入面，`__init__.py::register_routers` 统一挂点                                                                                                                                                                                                        |
+| `store/`         | SQLite 任务库包（§4.4）：`_common` 底料 + 六聚合 repo 叶 + `Store` 门面                                                                                                                                                                                                                                |
+| `worker/`        | 管线 worker 包（§4.7）                                                                                                                                                                                                                                                                                 |
 
 ### 2.9 `export/` — EPUB/DOCX 双语插译
 
 bilingual_book_maker 蓝图照抄、stdlib 自拆实现，不碰 EbookLib（AGPL）[^bbm]。
 
-| 模块 | 职责 |
-| --- | --- |
-| `common.py` | 共享件：错误族 + 统一报告 + `glossary` 入参归一 + 双驱骨架 |
-| `filters.py` | 送模型前的文本过滤与归一化 |
-| `markers.py` | 行内 marker 占位协议（`[[TAG_n]]` token 皮） |
-| `rights.py` | EPUB 技术保护措施声明探测（DRM 预检） |
-| `docx.py` | DOCX 管线：python-docx deepcopy `w:p` + `addnext` 插译 |
-| `epub/` | EPUB 管线包：`driver`（load → units → XlatPipeline → insert → serialize → save 全链）、`load`（DRM 预检 → zip → container → OPF → 文档面枚举）、`model`（`EpubBook`/`Unit`）、`units`（block owner 判定 + run 切分 + NCX navLabel 单元）、`insert`（原文节点不动、译文按形态集插后）、`sanitize`（html.parser 宽容 DOM → 合法 XML）、`serialize`（OCF 写回、mimetype 首位 STORED）、`tags`（DOM 词法常量） |
+| 模块         | 职责                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `common.py`  | 共享件：错误族 + 统一报告 + `glossary` 入参归一 + 双驱骨架                                                                                                                                                                                                                                                                                                                                                 |
+| `filters.py` | 送模型前的文本过滤与归一化                                                                                                                                                                                                                                                                                                                                                                                 |
+| `markers.py` | 行内 marker 占位协议（`[[TAG_n]]` token 皮）                                                                                                                                                                                                                                                                                                                                                               |
+| `rights.py`  | EPUB 技术保护措施声明探测（DRM 预检）                                                                                                                                                                                                                                                                                                                                                                      |
+| `docx.py`    | DOCX 管线：python-docx deepcopy `w:p` + `addnext` 插译                                                                                                                                                                                                                                                                                                                                                     |
+| `epub/`      | EPUB 管线包：`driver`（load → units → XlatPipeline → insert → serialize → save 全链）、`load`（DRM 预检 → zip → container → OPF → 文档面枚举）、`model`（`EpubBook`/`Unit`）、`units`（block owner 判定 + run 切分 + NCX navLabel 单元）、`insert`（原文节点不动、译文按形态集插后）、`sanitize`（html.parser 宽容 DOM → 合法 XML）、`serialize`（OCF 写回、mimetype 首位 STORED）、`tags`（DOM 词法常量） |
 
 ### 2.10 `textutil/` — 文本工具包
 
 跨层宿主包：编码/遮盖/词法/`TEXLATE_*` env/正则词表单源。
 
-| 模块 | 职责 |
-| --- | --- |
-| `cjk.py` | CJK 码点面 + 排序不相交区间 bisect 判定 |
-| `decls.py` | 文档声明/结构探测正则族单一事实源 |
-| `encoding.py` | arXiv 源码字节 → str 的按文件分档解码（~600 行自包含编码判定簇） |
-| `mask.py` | 等长遮盖机 + 逐字/失活环境注册表 + 遮盖视图迭代件 |
-| `cite.py` | cite/bib 键面词法：`\cite` 族/`\bibitem`/aux 陈旧键抽取单源 |
-| `ifscan.py` | 条件栈字面扫描器：`unclosed_if_close`/`unclosed_if_close_eof` 共用件 |
-| `nets.py` | 校验域知识件：net 检测器簇与共享口径件（validate/xlat/fixloop 跨层宿主） |
-| `osutil.py` | os 边界小件：env 读取与路径防御各层共用单源 |
-| `jsonl.py` | jsonl 追加件：flock 串行化单行 append 跨层单源 `append_jsonl`（`share.index_append` 与 fixloop `cases.CaseSink` 共用；无 fcntl 平台退化为无锁） |
-| `targate.py` | tar 伪装二进制闸 `_tar_disguised`：arXiv 源码 blob 的 tar 伪装件判定（compile/latex 两层共用底叶，前 64KB 扫 `ustar` + 回推 257 验头） |
+| 模块          | 职责                                                                                                                                            |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cjk.py`      | CJK 码点面 + 排序不相交区间 bisect 判定                                                                                                         |
+| `decls.py`    | 文档声明/结构探测正则族单一事实源                                                                                                               |
+| `encoding.py` | arXiv 源码字节 → str 的按文件分档解码（~600 行自包含编码判定簇）                                                                                |
+| `mask.py`     | 等长遮盖机 + 逐字/失活环境注册表 + 遮盖视图迭代件                                                                                               |
+| `cite.py`     | cite/bib 键面词法：`\cite` 族/`\bibitem`/aux 陈旧键抽取单源                                                                                     |
+| `ifscan.py`   | 条件栈字面扫描器：`unclosed_if_close`/`unclosed_if_close_eof` 共用件                                                                            |
+| `nets.py`     | 校验域知识件：net 检测器簇与共享口径件（validate/xlat/fixloop 跨层宿主）                                                                        |
+| `osutil.py`   | os 边界小件：env 读取与路径防御各层共用单源                                                                                                     |
+| `jsonl.py`    | jsonl 追加件：flock 串行化单行 append 跨层单源 `append_jsonl`（`share.index_append` 与 fixloop `cases.CaseSink` 共用；无 fcntl 平台退化为无锁） |
+| `targate.py`  | tar 伪装二进制闸 `_tar_disguised`：arXiv 源码 blob 的 tar 伪装件判定（compile/latex 两层共用底叶，前 64KB 扫 `ustar` + 回推 257 验头）          |
 
 ## 3. CLI 面
 
 入口 `texlate = texlate.cli:app`（typer）。全局旗标：`-v`/`-vv` 日志加噪、`-q`/`-qq` 降噪（覆盖 `-v`），子命令前给；级别决议序 = 旗标 > `TEXLATE_LOG` env > 缺省 `WARNING`——未给旗标时 `TEXLATE_LOG` 生效（`run` 子命令位同名旗标同口径覆盖）。
 
-| 命令 | 语义与关键 flag |
-| --- | --- |
-| `fetch {arxiv_id}` | 取 e-print：HEAD → GET → sniff → unpack → locate 钉版落缓存；`--version` 钉版、`--cache` 缓存根、`--offline`/`TEXLATE_OFFLINE=1` 零网络（钉版精确查、未钉版取已缓存最高版，无缓存报 `offline_no_cache` 退出 1） |
-| `parse {path}` | 半解析单 `.tex` → 分块/占位符/警告统计；`--flatten/--no-flatten`（展开 `\input` 图）、`-o` 落 `chunks.jsonl` |
-| `run {source}` | 端到端：arXiv id 或本地工程目录 → normalize → mock 翻译 → ctex 注入 → 编译 → 判定；`--engine auto\|xelatex\|tectonic`、`--work-dir`、`--timeout`（单引擎 240s）、`--cache`、`--offline`、`--keep`、`--front-matter`（preamble 翻译白名单，缺省 abstract,title） |
-| `run --server URL` | 瘦客户端形态：`POST /api/arxiv/{id}/translate` → 2s 快照轮询（不依赖 SSE 客户端栈）→ 产物 sha256 自验下载；`--model`/`--api-key`/`--base-url`/`--dialect`（`x-texlate-*` 头）/`--out`/`--wait`（缺省 1800s）；同 `cache_key` 重跑自然 attach 进行中任务（409 duplicate_active 复用 task_id） |
-| `web` | 起 FastAPI+SSE 服务（server extra）：`--host`（缺省 loopback）、`--port`（缺省 8765）、`--data-dir`（缺省 `TEXLATE_DATA_DIR` 或家目录下 `.texlate/`）；`<data_dir>/service.lock` flock 单实例——已运行则打开浏览器退出 |
-| `export {path}` | EPUB/DOCX → 双语插译文档（zip 内容嗅探不看后缀；DRM 声明/fixed-layout/畸形包拒开）：`--out`（缺省 `{stem}_bilingual{ext}`）、`--model`（缺省 `TEXLATE_MODEL`）、`--glossary`（user 层叠内建默认表）、`--mock` 干跑；中断留 `{dst}.state/` 自动续跑 |
-| `share pack` / `share unpack` | 本地任务产物 → `{share_key}.share.zip`；`.share.zip` → 校验解包 + manifest 摘要 |
-| `doctor` | 环境自检逐项 ok/warn/fail/n/a：Python≥3.12、编译引擎、CJK 字体（kpsewhich/fc-list）、pdftotext、BYOK 网关连通、数据目录可写、server extra、babeldoc；任一 fail → 退出 1 |
-| `tools install-tectonic` | 探测 tectonic（系统件/托管件/缺失），缺失时下载安装到托管目录 |
-| `version` | 打印版本号 |
+| 命令                          | 语义与关键 flag                                                                                                                                                                                                                                                                              |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `fetch {arxiv_id}`            | 取 e-print：HEAD → GET → sniff → unpack → locate 钉版落缓存；`--version` 钉版、`--cache` 缓存根、`--offline`/`TEXLATE_OFFLINE=1` 零网络（钉版精确查、未钉版取已缓存最高版，无缓存报 `offline_no_cache` 退出 1）                                                                              |
+| `parse {path}`                | 半解析单 `.tex` → 分块/占位符/警告统计；`--flatten/--no-flatten`（展开 `\input` 图）、`-o` 落 `chunks.jsonl`                                                                                                                                                                                 |
+| `run {source}`                | 端到端：arXiv id 或本地工程目录 → normalize → mock 翻译 → ctex 注入 → 编译 → 判定；`--engine auto\|xelatex\|tectonic`、`--work-dir`、`--timeout`（单引擎 240s）、`--cache`、`--offline`、`--keep`、`--front-matter`（preamble 翻译白名单，缺省 abstract,title）                              |
+| `run --server URL`            | 瘦客户端形态：`POST /api/arxiv/{id}/translate` → 2s 快照轮询（不依赖 SSE 客户端栈）→ 产物 sha256 自验下载；`--model`/`--api-key`/`--base-url`/`--dialect`（`x-texlate-*` 头）/`--out`/`--wait`（缺省 1800s）；同 `cache_key` 重跑自然 attach 进行中任务（409 duplicate_active 复用 task_id） |
+| `web`                         | 起 FastAPI+SSE 服务（server extra）：`--host`（缺省 loopback）、`--port`（缺省 8765）、`--data-dir`（缺省 `TEXLATE_DATA_DIR` 或家目录下 `.texlate/`）；`<data_dir>/service.lock` flock 单实例——已运行则打开浏览器退出                                                                        |
+| `export {path}`               | EPUB/DOCX → 双语插译文档（zip 内容嗅探不看后缀；DRM 声明/fixed-layout/畸形包拒开）：`--out`（缺省 `{stem}_bilingual{ext}`）、`--model`（缺省 `TEXLATE_MODEL`）、`--glossary`（user 层叠内建默认表）、`--mock` 干跑；中断留 `{dst}.state/` 自动续跑                                           |
+| `share pack` / `share unpack` | 本地任务产物 → `{share_key}.share.zip`；`.share.zip` → 校验解包 + manifest 摘要                                                                                                                                                                                                              |
+| `doctor`                      | 环境自检逐项 ok/warn/fail/n/a：Python≥3.12、编译引擎、CJK 字体（kpsewhich/fc-list）、pdftotext、BYOK 网关连通、数据目录可写、server extra、babeldoc；任一 fail → 退出 1                                                                                                                      |
+| `tools install-tectonic`      | 探测 tectonic（系统件/托管件/缺失），缺失时下载安装到托管目录                                                                                                                                                                                                                                |
+| `version`                     | 打印版本号                                                                                                                                                                                                                                                                                   |
 
 `run` 退出码：0 = clean/partial（远端 done/partial）；1 = 编译失败（修复链走尽仍无 pdf）、远端终态 fault/cancelled/interrupted/needs_auth、快照失联、`--wait` 超时；2 = 用法错与策略拒绝（未知引擎、`--work-dir` 非空、本地目录喂 `--server`、status=partial+reject_at、提交被拒、传输错）。
 
@@ -222,17 +222,17 @@ bilingual_book_maker 蓝图照抄、stdlib 自拆实现，不碰 EbookLib（AGPL
 
 ### 4.2 路由清单
 
-| 域叶 | 端点 |
-| --- | --- |
-| `routers/tasks.py` | `POST /api/arxiv/{arxiv_id}/translate`（建任务）、`GET /api/tasks`（列表）、`GET /api/task/{task_id}`（快照或 SSE 流）、`GET /api/task/{task_id}/chunks`（分页，单页上限 500）、`POST /api/task/{task_id}/cancel`、`POST /api/task/{task_id}/retry`、`DELETE /api/task/{task_id}`、`POST /api/tasks/slim`（脚手架清扫）、`POST /api/task/{task_id}/chunk/{seq}/retranslate`（单块重译） |
-| `routers/upload.py` | `POST /api/upload`：multipart 流式落盘 → 魔数分发 upload_tex/upload_pdf/docx/epub |
-| `routers/files.py` | `GET /api/files/{task_id}`（产物清单）、`GET /api/files/{task_id}/{kind}`（kind 白名单下载，`?version=sha256` 内容寻址） |
-| `routers/reader.py` | `GET /api/task/{task_id}/reader`（dual.json 阅读器装配）、`PUT /api/task/{task_id}/reader/position`（阅读位置字段级合并落盘） |
-| `routers/settings.py` | `GET/PUT /api/settings`（public 读面 + 合并写）、`POST /api/settings/test`（探活）、`GET /api/providers`（预设清单） |
-| `routers/share.py` | `POST /api/share/import`（共享包校验解包建行）、`POST /api/task/{task_id}/share/pack`（终态任务事后打包发布） |
-| `routers/compat.py` | `GET /api/arxivStatus/{arxiv_id}`、`GET /api/arxivFiles/{arxiv_id}`——hjfy 前端轮询协议兼容面 |
-| `routers/discover.py` | `GET /api/discover/feed`、`/api/discover/search`、`/api/discover/overview/{arxiv_id}`、`/api/discover/og/{arxiv_id}`——alphaXiv 公共面只读代理[^alphaxiv] |
-| `routers/meta.py` | `GET /api/health`——探活（local 深检编译器面 + server db/队列深度） |
+| 域叶                  | 端点                                                                                                                                                                                                                                                                                                                                                                                    |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `routers/tasks.py`    | `POST /api/arxiv/{arxiv_id}/translate`（建任务）、`GET /api/tasks`（列表）、`GET /api/task/{task_id}`（快照或 SSE 流）、`GET /api/task/{task_id}/chunks`（分页，单页上限 500）、`POST /api/task/{task_id}/cancel`、`POST /api/task/{task_id}/retry`、`DELETE /api/task/{task_id}`、`POST /api/tasks/slim`（脚手架清扫）、`POST /api/task/{task_id}/chunk/{seq}/retranslate`（单块重译） |
+| `routers/upload.py`   | `POST /api/upload`：multipart 流式落盘 → 魔数分发 upload_tex/upload_pdf/docx/epub                                                                                                                                                                                                                                                                                                       |
+| `routers/files.py`    | `GET /api/files/{task_id}`（产物清单）、`GET /api/files/{task_id}/{kind}`（kind 白名单下载，`?version=sha256` 内容寻址）                                                                                                                                                                                                                                                                |
+| `routers/reader.py`   | `GET /api/task/{task_id}/reader`（dual.json 阅读器装配）、`PUT /api/task/{task_id}/reader/position`（阅读位置字段级合并落盘）                                                                                                                                                                                                                                                           |
+| `routers/settings.py` | `GET/PUT /api/settings`（public 读面 + 合并写）、`POST /api/settings/test`（探活）、`GET /api/providers`（预设清单）                                                                                                                                                                                                                                                                    |
+| `routers/share.py`    | `POST /api/share/import`（共享包校验解包建行）、`POST /api/task/{task_id}/share/pack`（终态任务事后打包发布）                                                                                                                                                                                                                                                                           |
+| `routers/compat.py`   | `GET /api/arxivStatus/{arxiv_id}`、`GET /api/arxivFiles/{arxiv_id}`——hjfy 前端轮询协议兼容面                                                                                                                                                                                                                                                                                            |
+| `routers/discover.py` | `GET /api/discover/feed`、`/api/discover/search`、`/api/discover/overview/{arxiv_id}`、`/api/discover/og/{arxiv_id}`——alphaXiv 公共面只读代理[^alphaxiv]                                                                                                                                                                                                                                |
+| `routers/meta.py`     | `GET /api/health`——探活（local 深检编译器面 + server db/队列深度）                                                                                                                                                                                                                                                                                                                      |
 
 ### 4.3 SSE 事件流
 
@@ -264,19 +264,19 @@ SolidJS + Vite + TypeScript + vitest + eslint（`eslint-plugin-solid`）；独�
 
 `web/src/` 结构：
 
-| 目录/文件 | 角色 |
-| --- | --- |
-| `pages/` | 五页：`Home`（提交/选项/上传）、`Tasks`（任务列表）、`Reader`（双语阅读器）、`Settings`（BYOK 设置）、`Discover`（alphaXiv 发现面） |
-| `api/` | 传输层：`client`/`rest`（REST 封装）、`sse`（EventSource + `Last-Event-ID` 重连）、`idem`（幂等键）、`types` |
-| `stores/` | 状态层：`tasks`/`taskTransport`（SSE/轮询双通道）、`liveFrames`（实况帧）、`settings` |
-| `reader/` | 阅读器域：`ReaderView` + pane 集（`PdfPane` 走 pdfslick、`DomPane`/`HtmlPane` 服务 arxiv_html 链、`LivePane` 进行中视图、`GuidePane` 导读）、`sync`/`alignment`（滚动同步 + named-dest 锚点）、`sanitize`/`markdown`、`FindBar`/`PaneSidebar`/`TaskProgress`/`ShareBlock`/`taskActions` 等 |
-| `home/` | 首页域：`OptionsForm`/`UploadBar`/`dropzone`/`search`/`HealthLine`/`submit` |
-| `components/` | 共享件：`TaskList`/`Toolbar`/`ProgressGrid`/`Segmented`/`menuNav` |
-| `i18n/` | zh/en 双语文案 |
-| `styles/` | 约 20 张样式表（app/panes/reader/settings/progress/responsive/…） |
-| `test/` | 40+ vitest 用例（a11y/alignment/byok/idempotency/sse/sharePack/sync/tasks/upload 等域） |
-| `web/dev/mock-api.ts` | 开发态 mock API |
-| `web/scripts/` | 截图/冒烟脚本（独立 `package.json`） |
+| 目录/文件             | 角色                                                                                                                                                                                                                                                                                       |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `pages/`              | 五页：`Home`（提交/选项/上传）、`Tasks`（任务列表）、`Reader`（双语阅读器）、`Settings`（BYOK 设置）、`Discover`（alphaXiv 发现面）                                                                                                                                                        |
+| `api/`                | 传输层：`client`/`rest`（REST 封装）、`sse`（EventSource + `Last-Event-ID` 重连）、`idem`（幂等键）、`types`                                                                                                                                                                               |
+| `stores/`             | 状态层：`tasks`/`taskTransport`（SSE/轮询双通道）、`liveFrames`（实况帧）、`settings`                                                                                                                                                                                                      |
+| `reader/`             | 阅读器域：`ReaderView` + pane 集（`PdfPane` 走 pdfslick、`DomPane`/`HtmlPane` 服务 arxiv_html 链、`LivePane` 进行中视图、`GuidePane` 导读）、`sync`/`alignment`（滚动同步 + named-dest 锚点）、`sanitize`/`markdown`、`FindBar`/`PaneSidebar`/`TaskProgress`/`ShareBlock`/`taskActions` 等 |
+| `home/`               | 首页域：`OptionsForm`/`UploadBar`/`dropzone`/`search`/`HealthLine`/`submit`                                                                                                                                                                                                                |
+| `components/`         | 共享件：`TaskList`/`Toolbar`/`ProgressGrid`/`Segmented`/`menuNav`                                                                                                                                                                                                                          |
+| `i18n/`               | zh/en 双语文案                                                                                                                                                                                                                                                                             |
+| `styles/`             | 约 20 张样式表（app/panes/reader/settings/progress/responsive/…）                                                                                                                                                                                                                          |
+| `test/`               | 40+ vitest 用例（a11y/alignment/byok/idempotency/sse/sharePack/sync/tasks/upload 等域）                                                                                                                                                                                                    |
+| `web/dev/mock-api.ts` | 开发态 mock API                                                                                                                                                                                                                                                                            |
+| `web/scripts/`        | 截图/冒烟脚本（独立 `package.json`）                                                                                                                                                                                                                                                       |
 
 ## 6. `tests/`
 
@@ -286,22 +286,22 @@ SolidJS + Vite + TypeScript + vitest + eslint（`eslint-plugin-solid`）；独�
 
 两份契约文档管这一层：`TIERS.md`（验证分层：L0 单元/L1 机制覆盖/L2 子集回归/L3 全量集成，「能低不高」）；`RETENTION.md` 已随 Wave-F（2026-09-23）删除——`results/` 产物目录清零后留存契约失效。fixtures 陷阱断言登记在 `tests/test_bench_regression.py` 的 TRICKY_IDS 与 fixtures 内联 `% @Tnn`；逐库横评协议 `PROTOCOL.md` 已于 2026-09-20 退役删除（原文见 git 历史）。
 
-| 路径 | 角色 |
-| --- | --- |
-| `py/` | bench 统一入口 `bench`（shim → `kernel/cli.py`）+ 三子目录 `kernel/`、`specs/`、`verbs/`；顶层残留独立件 `status_panel.py`（只读状态面板）、`task_ping.py`（看板心跳写入）、`translators_bench.py`（translator 工厂，specs/_sabotage 引用）、`iclr_*`（ICLR PDF 研究臂，暂停至 10 月）、`.venv_babeldoc/`（babeldoc 对照专用 venv，gitignored）。旧 harness（stagerun/stage_*/评测器脚本/triage/rundiff/gate_scorecard/benchlib/wave/harvest/preflight_batch/gwpilot/corpus build_*/report/）已于 Wave-F 全部删除 |
-| `py/kernel/` | trizone-ledger v2 bench 内核（设计 `docs/dev/bench-redesign-v2-trizone.md`，架构图 `docs/dev/assets/trizone-arch.svg`）：基础件 `idnorm/locks/fsutil/cas`，账本 `ledger`（emit/seal/seal_gc）+ `index`（sqlite 可弃投影回放）+ `events`，三区件 `runs/vault/lake`+`cache`，付费闸 `dedup/claims/paid`，维护 `sweep/doctor`，边界 `importer/report`（进场/derive 投影），运行径 `spec/ctx/executors/kernel` 与 `cli.py` 全动词入口；测试 `tests/kernel/`（Phase-4 Wave-F 收口：24 spec + 8 分析动词全部落位） |
-| `py/specs/` | spec 库（`bench run <spec>` 起批）：B1–B7 评测器重写（`parsebench`/`fixture_assert`/`compilebench`/`fixloop_bench`/`xlatbench`/`qualbench`/`e2e_mock`/`e2e_real`/`validbench`/`alignbench`/`gullet`/`wrapfloat`）、管线 spec（`soak`/`smoke`/`census`/`quality`/`errsweep`/`paid_stub`）、语料谱系（`frame_build`/`corpus_{v3,layers,expand,hot,sw}`）+ `_*.py` 共享叶 |
-| `py/verbs/` | 分析动词（`bench <verb>`）：`triage`/`rundiff`/`gate`/`dossier`/`xlat-report`/`xlat-rejudge`/`qual-report`/`booster-select` |
-| `ts/` | js 侧对照评测：latex-utensils/unified-latex/tree-sitter-latex（独立 `package.json`，CommonJS，`npm ci` 装依赖；L1 校验件也可经 `TEXLATE_TS_NODE_PATH` 吃这里 node_modules） |
-| `fixtures/` | 陷阱构造 `.tex`：`% @Tnn`/`@Wnn`/`@Xn` 标记，逐字节即语义——不格式化、不润色 |
-| `corpus_v3/` | 主语料物理根（规划目标名；磁盘与 git index 上仍是合一的 `corpus/`，拆分未登记）：~14k 篇 arXiv e-print 解压原样（gitignored），入库层化 manifest（core 1000 / booster 200 / expand 3866 / hot 166 / `manifest_dev_{failmine,vol,recent}` 开发层 / `manifest_holdout` 留出评测层）+ `mechanisms.jsonl` 机制台账 + `MANIFEST.md` 口径文档 + `nominations/` 提名审计轨迹 |
-| `corpus_m1k/` | m1k 四层语料的独立 manifest 根（规划目标名，磁盘/index 尚不存在） |
-| `corpus_v2/` | v2 分层随机语料 manifest + 构建脚本（规划目标名，磁盘/index 尚不存在） |
-| `corpus_daily/` | soak 滚动窗口语料——日更链 2026-09-21 退役（timer/脚本/daily_arxiv.py 已删），目录废弃留盘勿重建 |
-| `corpus_iclr_pdf/` | ICLR PDF 产物库（非 e-print 树） |
-| `zh-store/` | real 臂 LLM 译文资产库：`{canon_id}/{zh,splice,provenance.json}` 不可再生；`_quarantine/` 是已译非 clean 格隔离区（付费字节保留供日后免费重试），`_alt/` 是同 id 重译落选副本 |
-| `archive-2026-09-20/` | results 归零前的账本镜像与审计留痕（数据 gitignored，README 入库） |
-| `frame/` | 抽样框资产（parquet/csv：分层、簇、配额、覆盖率簿记；`bench run frame_build` 可再生） |
+| 路径                  | 角色                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `py/`                 | bench 统一入口 `bench`（shim → `kernel/cli.py`）+ 三子目录 `kernel/`、`specs/`、`verbs/`；顶层残留独立件 `status_panel.py`（只读状态面板）、`task_ping.py`（看板心跳写入）、`translators_bench.py`（translator 工厂，specs/_sabotage 引用）、`iclr_*`（ICLR PDF 研究臂，暂停至 10 月）、`.venv_babeldoc/`（babeldoc 对照专用 venv，gitignored）。旧 harness（stagerun/stage__/评测器脚本/triage/rundiff/gate_scorecard/benchlib/wave/harvest/preflight_batch/gwpilot/corpus build__/report/）已于 Wave-F 全部删除 |
+| `py/kernel/`          | trizone-ledger v2 bench 内核（设计 `docs/dev/bench-redesign-v2-trizone.md`，架构图 `docs/dev/assets/trizone-arch.svg`）：基础件 `idnorm/locks/fsutil/cas`，账本 `ledger`（emit/seal/seal_gc）+ `index`（sqlite 可弃投影回放）+ `events`，三区件 `runs/vault/lake`+`cache`，付费闸 `dedup/claims/paid`，维护 `sweep/doctor`，边界 `importer/report`（进场/derive 投影），运行径 `spec/ctx/executors/kernel` 与 `cli.py` 全动词入口；测试 `tests/kernel/`（Phase-4 Wave-F 收口：24 spec + 8 分析动词全部落位）      |
+| `py/specs/`           | spec 库（`bench run <spec>` 起批）：B1–B7 评测器重写（`parsebench`/`fixture_assert`/`compilebench`/`fixloop_bench`/`xlatbench`/`qualbench`/`e2e_mock`/`e2e_real`/`validbench`/`alignbench`/`gullet`/`wrapfloat`）、管线 spec（`soak`/`smoke`/`census`/`quality`/`errsweep`/`paid_stub`）、语料谱系（`frame_build`/`corpus_{v3,layers,expand,hot,sw}`）+ `_*.py` 共享叶                                                                                                                                            |
+| `py/verbs/`           | 分析动词（`bench <verb>`）：`triage`/`rundiff`/`gate`/`dossier`/`xlat-report`/`xlat-rejudge`/`qual-report`/`booster-select`                                                                                                                                                                                                                                                                                                                                                                                       |
+| `ts/`                 | js 侧对照评测：latex-utensils/unified-latex/tree-sitter-latex（独立 `package.json`，CommonJS，`npm ci` 装依赖；L1 校验件也可经 `TEXLATE_TS_NODE_PATH` 吃这里 node_modules）                                                                                                                                                                                                                                                                                                                                       |
+| `fixtures/`           | 陷阱构造 `.tex`：`% @Tnn`/`@Wnn`/`@Xn` 标记，逐字节即语义——不格式化、不润色                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `corpus_v3/`          | 主语料物理根（规划目标名；磁盘与 git index 上仍是合一的 `corpus/`，拆分未登记）：~14k 篇 arXiv e-print 解压原样（gitignored），入库层化 manifest（core 1000 / booster 200 / expand 3866 / hot 166 / `manifest_dev_{failmine,vol,recent}` 开发层 / `manifest_holdout` 留出评测层）+ `mechanisms.jsonl` 机制台账 + `MANIFEST.md` 口径文档 + `nominations/` 提名审计轨迹                                                                                                                                             |
+| `corpus_m1k/`         | m1k 四层语料的独立 manifest 根（规划目标名，磁盘/index 尚不存在）                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `corpus_v2/`          | v2 分层随机语料 manifest + 构建脚本（规划目标名，磁盘/index 尚不存在）                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `corpus_daily/`       | soak 滚动窗口语料——日更链 2026-09-21 退役（timer/脚本/daily_arxiv.py 已删），目录废弃留盘勿重建                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `corpus_iclr_pdf/`    | ICLR PDF 产物库（非 e-print 树）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `zh-store/`           | real 臂 LLM 译文资产库：`{canon_id}/{zh,splice,provenance.json}` 不可再生；`_quarantine/` 是已译非 clean 格隔离区（付费字节保留供日后免费重试），`_alt/` 是同 id 重译落选副本                                                                                                                                                                                                                                                                                                                                     |
+| `archive-2026-09-20/` | results 归零前的账本镜像与审计留痕（数据 gitignored，README 入库）                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `frame/`              | 抽样框资产（parquet/csv：分层、簇、配额、覆盖率簿记；`bench run frame_build` 可再生）                                                                                                                                                                                                                                                                                                                                                                                                                             |
 
 ## 8. 构建与工具链
 
@@ -319,22 +319,28 @@ CI（`.github/workflows/ci.yml`）八 job 与本地同源：`format`（prettier 
 
 运行期写入的「用户态目录」分四处（不写本机绝对路径，均以 env/flag 可覆盖）：
 
-| 目录 | 缺省位置 | 内容 |
-| --- | --- | --- |
-| source-tier 缓存 | XDG 缓存根下 `texlate/src/` | arXiv e-print 钉版源码（`fetch --cache`/`run --cache` 覆盖） |
-| 数据目录 | `TEXLATE_DATA_DIR` 或家目录下 `.texlate/` | `texlate.db`（SQLite 任务库）、`tasks/`（任务工作树）、`tmp/upload-spool`（上传暂存）、`settings.json`（0600，BYOK）、`service.lock`（单实例锁）、`logs/texlate.log`（轮转日志） |
-| 共享包目录 | `TEXLATE_SHARE_DIR`（缺省在数据目录下） | `.share.zip` 共享包导入/发布暂存 |
-| 编译工作目录 | `mkdtemp`（`run --work-dir`/`--keep` 指定/保留） | normalize/zh/splice 树与编译产物 |
-| bench 根 | `TEXLATE_BENCH_ROOT` 或家目录下 `.local/share/texlate-bench/` | trizone-ledger 内核四区 `ledger/`（事件账+sealed+index）·`runs/`（run 自描述档案）·`vault/`（付费字节）·`lake/`（免费载荷）——必须在 git checkout 之外 |
+| 目录             | 缺省位置                                                      | 内容                                                                                                                                                                             |
+| ---------------- | ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| source-tier 缓存 | XDG 缓存根下 `texlate/src/`                                   | arXiv e-print 钉版源码（`fetch --cache`/`run --cache` 覆盖）                                                                                                                     |
+| 数据目录         | `TEXLATE_DATA_DIR` 或家目录下 `.texlate/`                     | `texlate.db`（SQLite 任务库）、`tasks/`（任务工作树）、`tmp/upload-spool`（上传暂存）、`settings.json`（0600，BYOK）、`service.lock`（单实例锁）、`logs/texlate.log`（轮转日志） |
+| 共享包目录       | `TEXLATE_SHARE_DIR`（缺省在数据目录下）                       | `.share.zip` 共享包导入/发布暂存                                                                                                                                                 |
+| 编译工作目录     | `mkdtemp`（`run --work-dir`/`--keep` 指定/保留）              | normalize/zh/splice 树与编译产物                                                                                                                                                 |
+| bench 根         | `TEXLATE_BENCH_ROOT` 或家目录下 `.local/share/texlate-bench/` | trizone-ledger 内核四区 `ledger/`（事件账+sealed+index）·`runs/`（run 自描述档案）·`vault/`（付费字节）·`lake/`（免费载荷）——必须在 git checkout 之外                            |
 
 主要 `TEXLATE_*` env：`TEXLATE_OFFLINE`（零网络）、`TEXLATE_LOG`/`TEXLATE_LOG_FILE`（日志级别/落盘）、`TEXLATE_DATA_DIR`/`TEXLATE_SHARE_DIR`（目录）、`TEXLATE_CACHE_SCOPE`（段缓存 `shared` 跨租户共享 / `per_key` 按凭证分桶）、`TEXLATE_MODE`（local/server 形态）、`TEXLATE_MODEL`/`TEXLATE_BASE_URL`/`TEXLATE_API_KEY`（BYOK env 逃生舱）、`TEXLATE_NO_FIXLOOP`/`TEXLATE_ENV_JUDGE`（修复链开关）、`TEXLATE_COMPILE_TIMEOUT`、`TEXLATE_TS_NODE_PATH`/`TEXLATE_TS_WORKER`（L1 node 侧覆盖）、`TEXLATE_TRANSLATOR`/`TEXLATE_MODEL_PROBE`、`TEXLATE_NO_DOWNLOAD`、`TEXLATE_LIVE`（测试闸）。上游 LLM 网关以 OpenAI 兼容协议对接（方言 auto/openai/anthropic/responses）。
 
 ### 参考文献
 
 [^hjfy]: hjfy.top（幻觉翻译）. 商业在线服务。[hjfy.top](https://hjfy.top/)
+
 [^plastex]: plasTeX 项目。LaTeX 文档处理框架（mouth/gullet 的移植源）. [github.com/plastex/plastex](https://github.com/plastex/plastex)
+
 [^latextrans]: NiuTrans. LaTeXTrans（术语表种子来源，MIT；arXiv 2508.18791）. [github.com/NiuTrans/LaTeXTrans](https://github.com/NiuTrans/LaTeXTrans)
+
 [^tectonic]: Tectonic Typesetting. Tectonic 编译引擎（五平台 sha256 钉死二进制分发）. [github.com/tectonic-typesetting/tectonic](https://github.com/tectonic-typesetting/tectonic)
+
 [^babeldoc]: funstory-ai. BabelDOC（PDF 降级翻译 sidecar，AGPL 进程边界）. [github.com/funstory-ai/BabelDOC](https://github.com/funstory-ai/BabelDOC)
+
 [^bbm]: yihong0618. bilingual_book_maker（EPUB/DOCX 双语插译蓝图）. [github.com/yihong0618/bilingual_book_maker](https://github.com/yihong0618/bilingual_book_maker)
+
 [^alphaxiv]: alphaXiv（discover 面只读代理上游）. [alphaxiv.org](https://www.alphaxiv.org)

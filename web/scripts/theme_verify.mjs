@@ -35,13 +35,18 @@ mkdirSync(PW_TMP, { recursive: true });
 const results = [];
 const check = (name, ok, detail = "") => {
     results.push({ name, ok, detail });
-    console.log(`${ok ? "PASS" : "FAIL"}  ${name}${detail ? `  — ${detail}` : ""}`);
+    console.log(
+        `${ok ? "PASS" : "FAIL"}  ${name}${detail ? `  — ${detail}` : ""}`,
+    );
 };
 
 // computed 可能是 rgb(0-255) 也可能是 color(srgb 0-1)——color-mix 的
 // 结算形是后者,统一归一到 0-255 再做亮度/近似断言
 const rgbOf = (s) => {
-    const v = s.match(/-?\d+(\.\d+)?/g)?.map(Number).slice(0, 3) ?? [0, 0, 0];
+    const v = s
+        .match(/-?\d+(\.\d+)?/g)
+        ?.map(Number)
+        .slice(0, 3) ?? [0, 0, 0];
     return v.every((x) => x <= 1) ? v.map((x) => x * 255) : v;
 };
 const lum = ([r, g, b]) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
@@ -183,8 +188,7 @@ async function run() {
         await page.waitForTimeout(400); // effect 落覆写一帧
 
         const s = await page.evaluate(() => {
-            const cs = (sel) =>
-                getComputedStyle(document.querySelector(sel));
+            const cs = (sel) => getComputedStyle(document.querySelector(sel));
             const el = document.documentElement;
             return {
                 theme: el.dataset.theme ?? "",
@@ -199,8 +203,7 @@ async function run() {
                 pageVar: cs(".pdfSlickViewer")
                     .getPropertyValue("--page-bg-color")
                     .trim(),
-                topnavBtns: document.querySelectorAll(".topnav button")
-                    .length,
+                topnavBtns: document.querySelectorAll(".topnav button").length,
                 selAria: [
                     ...document.querySelectorAll(".reader-toolbar select"),
                 ]
@@ -239,7 +242,9 @@ async function run() {
         }
         if (s.pageVar !== sc.pageVar) {
             ok = false;
-            why.push(`pageVar=${s.pageVar || "(empty)"} 期望 ${sc.pageVar || "(empty)"}`);
+            why.push(
+                `pageVar=${s.pageVar || "(empty)"} 期望 ${sc.pageVar || "(empty)"}`,
+            );
         }
         if (sc.toolbarNear && !near(s.toolbarBg, sc.toolbarNear)) {
             ok = false;
@@ -272,7 +277,11 @@ async function run() {
                 why.push(`toolbar 不冷 r=${r} b=${b}`);
             }
         }
-        check(sc.name, ok, parts.join(" ") + (why.length ? ` | ${why.join(";")}` : ""));
+        check(
+            sc.name,
+            ok,
+            parts.join(" ") + (why.length ? ` | ${why.join(";")}` : ""),
+        );
     }
 
     // ---- 全局面:色板驱动非阅读页 chrome;控件面合一 ----

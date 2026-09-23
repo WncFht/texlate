@@ -156,9 +156,7 @@ async function run() {
         // ---- 2. 面板开合 --------------------------------------------------
         await refsBtn.first().click();
         await page.waitForTimeout(400);
-        const panel = page.locator(
-            'div[role="dialog"][aria-modal="true"]',
-        );
+        const panel = page.locator('div[role="dialog"][aria-modal="true"]');
         const panelVisible = await panel.isVisible().catch(() => false);
         check("refs panel opens (role=dialog)", panelVisible);
         if (!panelVisible) return;
@@ -207,7 +205,7 @@ async function run() {
 
         // ---- 4. 行内 chip 提交（或凭证门臂） ------------------------------
         const translateChip = panel.locator(
-            'button.ref-task-chip.is-idle, ' +
+            "button.ref-task-chip.is-idle, " +
                 'button.ref-task-chip:has-text("翻译此文"), ' +
                 'button.ref-task-chip:has-text("Translate")',
         );

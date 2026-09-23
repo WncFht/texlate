@@ -12,20 +12,20 @@
 
 ## 2. 失败分类学（E1–E12）
 
-| # | 类别 | 引擎 | 可修性 | 修法/路由 |
-| --- | --- | --- | --- | --- |
-| E1 | missing_* 链（class/sty/file） | xelatex | 实测可修 | `tlmgr --usermode install`，链深 1–5 轮（最深 acmart→hyperxmp→polytable→lazylist→newunicodechar） |
-| E2 | EPS/PS 图片 | tectonic 硬墙 | 换引擎 | `xdvipdfmx: image inclusion failed for *.eps`——静态扫 `*.eps`/pstricks/pspicture → 路由 xelatex |
-| E3 | bundle 缺物理字体 | tectonic | 换引擎 | `Cannot proceed without .vf or physical font`（bbm10 等位图字体）；TL 侧装好即过 |
-| E4 | bundle 包版本旧→语义错 | tectonic | 换引擎 | 同 cls 同 bbl xelatex 全过而 tectonic 报 `missing \item`；bundle 内包不可换 |
-| E5 | 自带旧 .sty 遮蔽新包 | xelatex | fixloop 规则 | 项目内 pstricks.sty v0.36 包住新 pstricks.tex → 126 个 undefined；隔离 vendored 文件 |
-| E6 | latin-5 静默 U+FFFD | 两引擎共有 | 判据层 | `Invalid UTF-8 byte`/`Missing character.*U+FFFD` 只是 warning 非 `!`——clean 判据盲区，须加 warning 扫描或转码预处理 |
-| E7 | `\ifnum\pdfoutput` 读取型 | xelatex | 新规则 | 赋值型守卫对它无效，需 polyfill `\ifdefined\pdfoutput\else\chardef\pdfoutput=1\fi` |
-| E8 | minted 版本错配 | xelatex | 规则 | v3.8 × v2 frozencache → 50 错；`{minted}`→`{minted2}` 一行替换；tectonic bundle v2.6 反而天然兼容（反向红利） |
-| E9 | LaTeX 2.09 + 私类 | 三引擎全死 | 拒绝 | ptptex.cls 不在任何源——`\documentstyle` 检测即拒绝，latex+dvips 路由了也缺类 |
-| E10 | 宏冲突级联 | 两引擎 | 半规则 | `\c@lemma already defined` 类，tectonic 级联更大但同样出残 pdf |
-| E11 | acmart × baselinestretch | xelatex | 低危 | acmart+ctex 摩擦，1 err 不致命 |
-| E12 | unicode 数学符号缺包 | xelatex | 长射 | `\blacktriangleright` ×71：需 cs→pkg 知识库（fdsymbol/stix/unicode-math） |
+| #   | 类别                           | 引擎          | 可修性       | 修法/路由                                                                                                           |
+| --- | ------------------------------ | ------------- | ------------ | ------------------------------------------------------------------------------------------------------------------- |
+| E1  | missing_* 链（class/sty/file） | xelatex       | 实测可修     | `tlmgr --usermode install`，链深 1–5 轮（最深 acmart→hyperxmp→polytable→lazylist→newunicodechar）                   |
+| E2  | EPS/PS 图片                    | tectonic 硬墙 | 换引擎       | `xdvipdfmx: image inclusion failed for *.eps`——静态扫 `*.eps`/pstricks/pspicture → 路由 xelatex                     |
+| E3  | bundle 缺物理字体              | tectonic      | 换引擎       | `Cannot proceed without .vf or physical font`（bbm10 等位图字体）；TL 侧装好即过                                    |
+| E4  | bundle 包版本旧→语义错         | tectonic      | 换引擎       | 同 cls 同 bbl xelatex 全过而 tectonic 报 `missing \item`；bundle 内包不可换                                         |
+| E5  | 自带旧 .sty 遮蔽新包           | xelatex       | fixloop 规则 | 项目内 pstricks.sty v0.36 包住新 pstricks.tex → 126 个 undefined；隔离 vendored 文件                                |
+| E6  | latin-5 静默 U+FFFD            | 两引擎共有    | 判据层       | `Invalid UTF-8 byte`/`Missing character.*U+FFFD` 只是 warning 非 `!`——clean 判据盲区，须加 warning 扫描或转码预处理 |
+| E7  | `\ifnum\pdfoutput` 读取型      | xelatex       | 新规则       | 赋值型守卫对它无效，需 polyfill `\ifdefined\pdfoutput\else\chardef\pdfoutput=1\fi`                                  |
+| E8  | minted 版本错配                | xelatex       | 规则         | v3.8 × v2 frozencache → 50 错；`{minted}`→`{minted2}` 一行替换；tectonic bundle v2.6 反而天然兼容（反向红利）       |
+| E9  | LaTeX 2.09 + 私类              | 三引擎全死    | 拒绝         | ptptex.cls 不在任何源——`\documentstyle` 检测即拒绝，latex+dvips 路由了也缺类                                        |
+| E10 | 宏冲突级联                     | 两引擎        | 半规则       | `\c@lemma already defined` 类，tectonic 级联更大但同样出残 pdf                                                      |
+| E11 | acmart × baselinestretch       | xelatex       | 低危         | acmart+ctex 摩擦，1 err 不致命                                                                                      |
+| E12 | unicode 数学符号缺包           | xelatex       | 长射         | `\blacktriangleright` ×71：需 cs→pkg 知识库（fdsymbol/stix/unicode-math）                                           |
 
 ## 3. 专项发现
 
@@ -45,12 +45,12 @@
 
 分发默认 **tectonic 优先 + xelatex 兜底 + 静态路由预检**：便携二进制无 tlmgr 依赖、初始 clean 率更高。静态预检表（编译前即可决策）：
 
-| 检测 | 路由 |
-| --- | --- |
-| `\documentstyle` | 拒绝（三引擎全死已实证） |
-| `*.eps` / `\usepackage{pstricks}` / `pspicture` | 跳过 tectonic 直走 xelatex（E2 硬墙） |
-| `frozencache` + minted 装载共现 | tectonic 优先（E8 bundle v2.6 兼容） |
-| bbm/dsfont 类位图字体包 | tectonic 高风险 → 失败后换 xelatex（E3） |
+| 检测                                            | 路由                                     |
+| ----------------------------------------------- | ---------------------------------------- |
+| `\documentstyle`                                | 拒绝（三引擎全死已实证）                 |
+| `*.eps` / `\usepackage{pstricks}` / `pspicture` | 跳过 tectonic 直走 xelatex（E2 硬墙）    |
+| `frozencache` + minted 装载共现                 | tectonic 优先（E8 bundle v2.6 兼容）     |
+| bbm/dsfont 类位图字体包                         | tectonic 高风险 → 失败后换 xelatex（E3） |
 
 clean 判据三件套：① pdf 存在；② `!`≤3 且首错非 missing_*/undefined_cs；③ log warning 扫描（`Invalid UTF-8 byte`/`Missing character.*U+FFFD`/tectonic `File.*not found` 降级行）任一命中即 dirty。
 

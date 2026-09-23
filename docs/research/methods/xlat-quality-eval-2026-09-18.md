@@ -55,37 +55,71 @@ reference-based 指标的整体衰落有官方排名背书：WMT24 metrics 共 2
 ### 参考文献
 
 [^freitag21]: Freitag, Foster, Grangier, Ratnakar, Tan, Macherey. Experts, Errors, and Context: A Large-Scale Study of Human Evaluation for Machine Translation. TACL 2021. [arXiv:2104.14478](https://arxiv.org/abs/2104.14478)
+
 [^esa24]: Kocmi, Zouhar, Avramidis, Grundkiewicz, Karpinska, Popović, Sachan, Shmatova. Error Span Annotation: A Balanced Approach for Human Evaluation of Machine Translation. WMT 2024. [aclanthology.org/2024.wmt-1.131](https://aclanthology.org/2024.wmt-1.131/)
+
 [^esaai24]: Zouhar et al. ESA^AI: LLM-assisted Error Span Annotation. 2024. [arXiv:2406.12419](https://arxiv.org/abs/2406.12419)
+
 [^wmt24general]: Kocmi et al. The LLM Era Is Here but MT Is Not Solved Yet: WMT24 General MT Findings. WMT 2024. [aclanthology.org/2024.wmt-1.1](https://aclanthology.org/2024.wmt-1.1/)
+
 [^wmt25general]: WMT25 General MT Findings（ESA for 13/15 pairs）. WMT 2025. [aclanthology.org/2025.wmt-1.22](https://aclanthology.org/2025.wmt-1.22/)
+
 [^gemba23]: Kocmi, Federmann. Large Language Models Are State-of-the-Art Evaluators of Translation Quality. EAMT 2023. [arXiv:2302.14520](https://arxiv.org/abs/2302.14520)
+
 [^gembamqm23]: Kocmi, Federmann. GEMBA-MQM: Detecting Translation Quality Error Spans with GPT-4. WMT 2023. [arXiv:2310.13988](https://arxiv.org/abs/2310.13988)
+
 [^wmt23metrics]: Freitag et al. Results of WMT23 Metrics Shared Task: Metrics Might Be Guilty but References Are Not Innocent. WMT 2023. [aclanthology.org/2023.wmt-1.51](https://aclanthology.org/2023.wmt-1.51/)
+
 [^wmt24metrics]: Freitag et al. Are LLMs Breaking MT Metrics? Results of the WMT24 Metrics Shared Task. WMT 2024. [aclanthology.org/2024.wmt-1.2](https://aclanthology.org/2024.wmt-1.2/)
+
 [^wmt25eval]: Lavie et al. Findings of the WMT25 Shared Task on Automated Translation Evaluation Systems. WMT 2025. [aclanthology.org/2025.wmt-1.24](https://aclanthology.org/2025.wmt-1.24/)
+
 [^eaprompt24]: Lu, Qiu, Ding, Zhang, Kocmi, Tao. Error Analysis Prompting Enables Human-Like Translation Evaluation. Findings of ACL 2024. [arXiv:2303.13809](https://arxiv.org/abs/2303.13809)
+
 [^automqm23]: Fernandes et al. The Devil Is in the Errors: Leveraging Large Language Models for Fine-grained Machine Translation Evaluation (AutoMQM). WMT 2023. [arXiv:2308.07286](https://arxiv.org/abs/2308.07286)
+
 [^thinmqm25]: Zhan, Huang, Yang, Chao, Yang, Wong. ThinMQM: Efficient MQM Evaluation with Reasoning Models. NeurIPS 2025. [arXiv:2510.20780](https://arxiv.org/abs/2510.20780)
+
 [^mqmape25]: Lu et al. MQM-APE: Toward High-Quality Error Annotation Predictors for MT Evaluation. COLING 2025. [aclanthology.org/2025.coling-main.374](https://aclanthology.org/2025.coling-main.374/)
+
 [^rubricmqm25]: Kim. Rubric-MQM: Improving LLM-based MT Evaluation with Rubric-style Prompting. ACL 2025 Industry. [aclanthology.org/2025.acl-industry.12](https://aclanthology.org/2025.acl-industry.12/)
+
 [^liteval25]: LitEval-Corpus: Evaluating Literary MT — GEMBA-MQM cannot separate human from literal LLM translations. NAACL 2025. [aclanthology.org/2025.naacl-long.548](https://aclanthology.org/2025.naacl-long.548/)
+
 [^mmad25]: Feng et al. M-MAD: Multidimensional Multi-Agent Debate for MT Evaluation. ACL 2025. [arXiv:2412.20127](https://arxiv.org/abs/2412.20127)
+
 [^himate25]: HiMATE: Hierarchical Multi-Agent Translation Evaluation. Findings of EMNLP 2025. [aclanthology.org/2025.findings-emnlp.593](https://aclanthology.org/2025.findings-emnlp.593/)
+
 [^instructscore23]: Xu et al. INSTRUCTSCORE: Towards Explainable Text Generation Evaluation. EMNLP 2023. [arXiv:2305.14282](https://arxiv.org/abs/2305.14282)
+
 [^cometkiwi22]: Rei et al. CometKiwi: IST-Unbabel 2022 Submission for the Quality Estimation Shared Task. WMT 2022. [arXiv:2209.06243](https://arxiv.org/abs/2209.06243)
+
 [^cometkiwi23]: Rei et al. Scaling up CometKiwi: WMT23 QE Submission. WMT 2023. [arXiv:2309.11925](https://arxiv.org/abs/2309.11925)
+
 [^xcomet24]: Guerreiro et al. xCOMET: Transparent Machine Translation Evaluation through Fine-grained Error Detection. TACL 2024. [arXiv:2310.10482](https://arxiv.org/abs/2310.10482)
+
 [^metricx24]: Juraska, Deutsch, Finkelstein, Freitag. MetricX-24: The Google Submission to the WMT 2024 Metrics Shared Task. WMT 2024. [aclanthology.org/2024.wmt-1.35](https://aclanthology.org/2024.wmt-1.35/)
+
 [^panickssery24]: Panickssery, Bowman, Feng. LLM Evaluators Recognize and Favor Their Own Generations. NeurIPS 2024. [arXiv:2404.13076](https://arxiv.org/abs/2404.13076)
+
 [^narcissistic24]: Liu, Moosavi, Lin. LLMs as Narcissistic Evaluators. Findings of ACL 2024. [arXiv:2311.09766](https://arxiv.org/abs/2311.09766)
+
 [^wataoka24]: Wataoka, Takahashi, Ri. Self-Preference Bias in LLM-as-a-Judge. NeurIPS 2024 workshop. [arXiv:2410.21819](https://arxiv.org/abs/2410.21819)
+
 [^mtbench23]: Zheng et al. Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena. NeurIPS 2023 D&B. [arXiv:2306.05685](https://arxiv.org/abs/2306.05685)
+
 [^koehn04]: Koehn. Statistical Significance Tests for Machine Translation Evaluation. EMNLP 2004. [aclanthology.org/W04-3250](https://aclanthology.org/W04-3250/)
+
 [^tiesmatter23]: Deutsch, Foster, Freitag. Ties Matter: Meta-Evaluating Modern Metrics with Pairwise Accuracy and Tie Calibration. EMNLP 2023. [arXiv:2305.14324](https://arxiv.org/abs/2305.14324)
+
 [^mtme]: Google Research. mt-metrics-eval — WMT metrics meta-evaluation tooling（block bootstrap, k_block=100）. [github.com/google-research/mt-metrics-eval](https://github.com/google-research/mt-metrics-eval)
+
 [^metricsmaze24]: Kocmi, Zouhar, Federmann, Post. Navigating the Metrics Maze: Reconciling Score Magnitudes and Accuracies. ACL 2024. [arXiv:2401.06760](https://arxiv.org/abs/2401.06760)
+
 [^summeval21]: Fabbri et al. SummEval: Re-evaluating Summarization Evaluation. TACL 2021. [arXiv:2011.06161](https://arxiv.org/abs/2011.06161)
+
 [^card20]: Card, Henderson, Khandelwal, Jia, Mahowald, Jurafsky. With Little Power Comes Great Responsibility. EMNLP 2020. [aclanthology.org/2020.emnlp-main.745](https://aclanthology.org/2020.emnlp-main.745/)
+
 [^dfki24]: DFKI Challenge Set submission, WMT24 Metrics（LLM-prompt avg 69.7% on fine-grained categories）. WMT 2024. [aclanthology.org/2024.wmt-1.37](https://aclanthology.org/2024.wmt-1.37/)
+
 [^penlength25]: Penalizing Length: MQM linear penalty accumulation penalizes long translations. 2025. [arXiv:2510.22028](https://arxiv.org/abs/2510.22028)

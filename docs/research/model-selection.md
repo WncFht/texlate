@@ -92,11 +92,11 @@
 
 ### 4.3 BYOK 单篇成本（2026-09 时点刊例价）
 
-| 模型档      | 单价 in/out (per M tok) | 每篇 p50    | 每篇 mean | 万篇（按 mean） |
-| ----------- | ----------------------- | ----------: | --------: | --------------: |
-| qwen-turbo  | ¥0.3 / ¥0.6             | **¥0.036**  |    ¥0.065 |          **¥653** |
-| deepseek-v3 | ¥1.0 / ¥2.0             |     ¥0.121  |    ¥0.218 |         ¥2,177  |
-| gpt-4o-mini | $0.15 / $0.6            |     ¥0.195  |    ¥0.355 |         ¥3,551  |
+| 模型档      | 单价 in/out (per M tok) |   每篇 p50 | 每篇 mean | 万篇（按 mean） |
+| ----------- | ----------------------- | ---------: | --------: | --------------: |
+| qwen-turbo  | ¥0.3 / ¥0.6             | **¥0.036** |    ¥0.065 |        **¥653** |
+| deepseek-v3 | ¥1.0 / ¥2.0             |     ¥0.121 |    ¥0.218 |          ¥2,177 |
+| gpt-4o-mini | $0.15 / $0.6            |     ¥0.195 |    ¥0.355 |          ¥3,551 |
 
 刊例价见各厂定价页[^pricing]。「幻觉翻译」3 亿 token/万篇 ≈ ¥140 的口径隐含约 3 万计费 token/篇，比上述任何方案低约 3 倍——最可能解释是 prompt 缓存命中（本模型里占输入 68% 的开销项在缓存命中后趋零）与跳译非正文内容；追平路径 = 缓存复用 + 激进批处理 + 跳译策略，而非解析质量改进。
 
@@ -142,29 +142,41 @@
 
 选型结论表（2026-09-17 口径，促销到期后按链自动降级）：
 
-| 定位         | 模型                                      | 依据                                                          |
-| ------------ | ----------------------------------------- | ------------------------------------------------------------- |
-| **默认**     | `swe-2-medium`                            | 唯一 100% 硬契约（80/80）、rsn p50 98 字符思考地板、out 中位 134、5.9s/段、行为方差最小 |
-| 质量升级档   | `swe-2-high`                              | 契约 99%、延迟 +70%、思考开销中等                              |
-| 促销窗口快选 | `glm-5-2`                                 | 契约 91%、有灾难性吞占位符史——仅窗口期内当速度档且必须配重试阶梯 |
-| 修复器专座   | `swe-2-max`                               | reasoning 最深，留给编译修复回路的 LLM 修复器兜底               |
-| 禁用         | `swe-1-7-medium`、`swe-1-7`               | BIBITEM 契约事故史 / reasoning 爆炸不可预算                     |
-| BYOK 对照    | `glm-5-3-low`、`claude-sonnet-5-medium`   | 付费侧质量/速度基准，不进默认链                                |
+| 定位         | 模型                                    | 依据                                                                                    |
+| ------------ | --------------------------------------- | --------------------------------------------------------------------------------------- |
+| **默认**     | `swe-2-medium`                          | 唯一 100% 硬契约（80/80）、rsn p50 98 字符思考地板、out 中位 134、5.9s/段、行为方差最小 |
+| 质量升级档   | `swe-2-high`                            | 契约 99%、延迟 +70%、思考开销中等                                                       |
+| 促销窗口快选 | `glm-5-2`                               | 契约 91%、有灾难性吞占位符史——仅窗口期内当速度档且必须配重试阶梯                        |
+| 修复器专座   | `swe-2-max`                             | reasoning 最深，留给编译修复回路的 LLM 修复器兜底                                       |
+| 禁用         | `swe-1-7-medium`、`swe-1-7`             | BIBITEM 契约事故史 / reasoning 爆炸不可预算                                             |
+| BYOK 对照    | `glm-5-3-low`、`claude-sonnet-5-medium` | 付费侧质量/速度基准，不进默认链                                                         |
 
 方法论沉淀（可泛化到其他「输出必须被程序消费」的 LLM 选型）：契约存活率优先于质量跑分与延迟；reasoning 开销是成本与延迟的第一驱动，「思考地板」型号是金矿；模型名后缀比运行时 effort 参数可靠；模型目录不等于可用面，探针先行、测活常态化。
 
 ### 参考文献
 
 [^hjfy]: 幻觉翻译 hjfy.top 公开成本说明（约 10 万 token/篇、3 亿 token/万篇 ≈ ¥140 口径）. [hjfy.top](https://hjfy.top/)
+
 [^pricing]: 各厂刊例价：阿里云百炼模型服务定价 [help.aliyun.com](https://help.aliyun.com/zh/model-studio/billing-for-model-studio)；DeepSeek API 定价 [api-docs.deepseek.com](https://api-docs.deepseek.com/quick_start/pricing)；OpenAI API 定价 [openai.com](https://openai.com/api/pricing/)
+
 [^ms]: ModelScope 魔搭免费推理额度说明. [modelscope.cn](https://modelscope.cn/docs)；限额响应头参考实现 [github.com](https://github.com/Morningstars666/ModelScopeApiBalanceCheck)
+
 [^glm]: 智谱 bigmodel 模型概览与速率限制. [docs.bigmodel.cn](https://docs.bigmodel.cn/cn/guide/start/model-overview)
+
 [^sf]: SiliconFlow 免费层说明. [getmodelkey.com](https://www.getmodelkey.com/zh/guides/siliconflow-api-free-tier-2026/)
+
 [^bailian]: 阿里云百炼新人免费额度及用完即停说明. [help.aliyun.com](https://help.aliyun.com/zh/model-studio/new-free-quota)
+
 [^gemini]: Google. Gemini API rate limits. [ai.google.dev](https://ai.google.dev/gemini-api/docs/rate-limits)
+
 [^groq]: Groq. Rate limits. [console.groq.com](https://console.groq.com/docs/rate-limits)
+
 [^or]: OpenRouter. API limits 与 free 变体. [openrouter.ai](https://openrouter.ai/docs/guides/routing/model-variants/free)
+
 [^cf]: Cloudflare. Workers AI pricing. [developers.cloudflare.com](https://developers.cloudflare.com/workers-ai/platform/pricing/)
+
 [^nim]: NVIDIA. NIM build integrations. [build.nvidia.com](https://build.nvidia.com/settings/integrations)
+
 [^mistral]: Mistral AI. Rate limits help. [help.mistral.ai](https://help.mistral.ai/en/articles/698531)
+
 [^cli2api]: CLIProxyAPI [github.com/router-for-me/CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI)；AIClient-2-API [github.com/justlovemaki/AIClient-2-API](https://github.com/justlovemaki/AIClient-2-API)

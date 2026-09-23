@@ -38,20 +38,36 @@ scite 2018 年创立于纽约布鲁克林（Josh Nicholson CEO），把「A 引 
 
 ### 参考文献
 
-[^qss]: Nicholson JM, Mordaunt M, Lopez P, et al. scite: A smart citation index that displays the context of citations and classifies their intent using deep learning. *Quantitative Science Studies* 2021;2(3):882-898. [bioRxiv](https://www.biorxiv.org/content/10.1101/2021.03.15.435418v1)
+[^qss]: Nicholson JM, Mordaunt M, Lopez P, et al. scite: A smart citation index that displays the context of citations and classifies their intent using deep learning. _Quantitative Science Studies_ 2021;2(3):882-898. [bioRxiv](https://www.biorxiv.org/content/10.1101/2021.03.15.435418v1)
+
 [^docs]: Scite API Documentation. docs.scite.ai 2026. [docs.scite.ai](https://docs.scite.ai/)
+
 [^ccc]: Adding Context to Research with "Smart Citations". Copyright Clearance Center blog. [copyright.com](https://www.copyright.com/blog/adding-context-to-research-with-scite-smart-citations/)
+
 [^merger]: Agreement of Merger, Research Solutions × Scite Inc. SEC EDGAR 2023-11-24. [sec.gov](https://www.sec.gov/Archives/edgar/data/1386301/000110465923121108/tm2331467d1_ex2-1.htm)
+
 [^sec]: Research Solutions 8-K/ex99-2（$14.8M EV、4.11× ARR）. SEC EDGAR 2023-11-27. [sec.gov](https://www.sec.gov/Archives/edgar/data/1386301/000110465923121108/tm2331467d1_ex99-2.htm)
+
 [^sbir]: NSF SBIR Phase I award 1913619. 2019.
+
 [^nih]: scite awarded NIH SBIR Fast-Track grant. scite blog 2019-10. [scite.ai](https://scite.ai/blog/scite-awarded-nih-sbir-fast-track-grant-eeccadec97f4)
+
 [^data]: Scite Data page. [scite.ai/data](https://scite.ai/data)
+
 [^qa]: Alfasoft Online Demo Days 2025 Scite Q&A. [alfasoft.com](https://alfasoft.com/files/odd/2025/Scite-QA-EN.pdf)
+
 [^nature]: New bot flags scientific studies that cite retracted papers. Nature Index News. [nature.com](https://www.nature.com/nature-index/news/new-bot-flags-scientific-research-studies-that-cite-retracted-papers)
+
 [^notices]: A new, open system for the automated detection of retractions and other editorial notices. scite blog 2022. [scite.ai](https://scite.ai/blog/2022-10-19_automated-notice-detection)
+
 [^sjp]: Content-aware rankings: a new approach to rankings in scholarship. arXiv:2504.05206, 2025. [arxiv.org](https://arxiv.org/pdf/2504.05206)
+
 [^mcp]: Scite MCP overview + tools + prompts. [docs.scite.ai/mcp](https://docs.scite.ai/mcp/overview)
+
 [^pricing]: Pricing and plans. [docs.scite.ai](https://docs.scite.ai/pricing-and-plans)
+
 [^handbook]: Assistant by scite — LLM Prompt Handbook. Research Solutions. [researchsolutions.com](https://www.researchsolutions.com/hubfs/LLM-Prompt-Handbook-Scite-Assistant.pdf)
-[^bakker]: Bakker C, Theis-Mahon N, Brown SJ. Evaluating the accuracy of scite. *Hypothesis* 2023;35(2). [indianapolis.iu.edu](https://journals.indianapolis.iu.edu/index.php/hypothesis/article/download/26528/25101/54274)
-[^reply]: Rife S, Nicholson J, Uppala A, Rosati D. Reply to Bakker et al. *Hypothesis* 2025;37(1). [indianapolis.iu.edu](https://journals.indianapolis.iu.edu/index.php/hypothesis/article/view/28018)
+
+[^bakker]: Bakker C, Theis-Mahon N, Brown SJ. Evaluating the accuracy of scite. _Hypothesis_ 2023;35(2). [indianapolis.iu.edu](https://journals.indianapolis.iu.edu/index.php/hypothesis/article/download/26528/25101/54274)
+
+[^reply]: Rife S, Nicholson J, Uppala A, Rosati D. Reply to Bakker et al. _Hypothesis_ 2025;37(1). [indianapolis.iu.edu](https://journals.indianapolis.iu.edu/index.php/hypothesis/article/view/28018)

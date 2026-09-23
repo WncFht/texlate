@@ -6,8 +6,9 @@
 > 新编译任务确定性 seq 级；C（textLayer 模糊匹配）升级为存量兜底——
 > 7 个存量任务 2947 chunks 零重编受益。A（SyncTeX）不做。
 > **依据**：`docs/research/product/2026-09-23-pdf-anchoring.md` §7 三实验实证
-> + 6-lane 侦察工作流 `wf_a2e01a17-361`（reconstruct/fixloop/pdfpane/matcher/
-> tex-safety/test-surface 全量内勘）。
+>
+> - 6-lane 侦察工作流 `wf_a2e01a17-361`（reconstruct/fixloop/pdfpane/matcher/
+>   tex-safety/test-surface 全量内勘）。
 
 ## 1. 标记形态（已端到端实证）
 
@@ -54,14 +55,14 @@ reconstruct(res, translations=None, *, mark_seq0: int | None = None,
 chunk 发射点由三类 piece 产生：顶层 run 冲刷（para/item/abstract）、
 chunk-arg 花括号内（context=命令名）、mined env 体。逐语境判定：
 
-| 条件                                                  | 判定 |
-| ----------------------------------------------------- | ---- |
-| site 花括号栈含 soul 族 cs（`ul|hl|sout|uline|uwave|st|caps`） | SKIP——soul 逐 token 重扫遇 whatsit = 编译错 |
-| `chunk.env` ∈ ALIGN_ENVS（tabular/longtable/Nice*/tabbing/deluxetable/tblr/supertabular/xtabular/ltablex/array/matrix 族） | SKIP——行间 whatsit → Misplaced \noalign |
-| 后继非空 token 以 `\\`/`\hline`/`\noalign`/`\midrule`/`\cline` 起头 | SKIP（行间冗余闸；piece 尾尽时回看下一 piece 头） |
-| site 栈含 moving-arg cs 或 `chunk.context` ∈ MOVING（section/subsection/subsubsection/paragraph/subparagraph/chapter/part/caption/captionof/subcaption/tablecaption/addcontentsline） | `mark_moving` False → SKIP；True → INLINE |
-| `chunk.context` ∈ {intertext, shortintertext, pdfbookmark} | SKIP |
-| 其余（para/item/abstract + 非 moving chunk-arg：footnote/thanks/title/author/date/keywords/abst 等） | INLINE |
+| 条件                                                                                                                                                                                  | 判定                                              |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| site 花括号栈含 soul 族 cs（`ul                                                                                                                                                       | hl                                                | sout | uline | uwave | st  | caps`） | SKIP——soul 逐 token 重扫遇 whatsit = 编译错 |
+| `chunk.env` ∈ ALIGN_ENVS（tabular/longtable/Nice*/tabbing/deluxetable/tblr/supertabular/xtabular/ltablex/array/matrix 族）                                                            | SKIP——行间 whatsit → Misplaced \noalign           |
+| 后继非空 token 以 `\\`/`\hline`/`\noalign`/`\midrule`/`\cline` 起头                                                                                                                   | SKIP（行间冗余闸；piece 尾尽时回看下一 piece 头） |
+| site 栈含 moving-arg cs 或 `chunk.context` ∈ MOVING（section/subsection/subsubsection/paragraph/subparagraph/chapter/part/caption/captionof/subcaption/tablecaption/addcontentsline） | `mark_moving` False → SKIP；True → INLINE         |
+| `chunk.context` ∈ {intertext, shortintertext, pdfbookmark}                                                                                                                            | SKIP                                              |
+| 其余（para/item/abstract + 非 moving chunk-arg：footnote/thanks/title/author/date/keywords/abst 等）                                                                                  | INLINE                                            |
 
 - site 花括号栈：`mask_tex(protected_tex)` 上**前向单遍**维护 cs-brace 栈，
   在每个 piece 边界快照 → piece 起点 enclosing cs 集合 O(1) 查；字面段内嵌
@@ -73,11 +74,11 @@ chunk-arg 花括号内（context=命令名）、mined env 体。逐语境判定�
 
 ### 2.3 seq 透传（三调用点）
 
-| 调用点 | seq0 计算 |
-| ------ | --------- |
-| `worker/compile.py::_build_zh` (:332) | `ctx.scans.items()` 序累计 `len(res.chunks)`（**无条件累计**——`if not by_int: continue` 跳文件时 seq 仍须占位，与 parse.py:162 `seq=len(rows)` 同口径） |
-| `pipecore.translate_tree_run` (:407) | `enumerate(scans)` 序累计同上 |
-| `repair_l2._resplice_and_diffs` (:593) | `sum(len(run.scans[j][1].chunks) for j < fidx)` |
+| 调用点                                 | seq0 计算                                                                                                                                               |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `worker/compile.py::_build_zh` (:332)  | `ctx.scans.items()` 序累计 `len(res.chunks)`（**无条件累计**——`if not by_int: continue` 跳文件时 seq 仍须占位，与 parse.py:162 `seq=len(rows)` 同口径） |
+| `pipecore.translate_tree_run` (:407)   | `enumerate(scans)` 序累计同上                                                                                                                           |
+| `repair_l2._resplice_and_diffs` (:593) | `sum(len(run.scans[j][1].chunks) for j < fidx)`                                                                                                         |
 
 `moving` 判定由调用方对全部 vtex 扫一次
 `\tableofcontents|\listoffigures|\listoftables|hyperref` 得 `moving_ok`。
@@ -96,7 +97,7 @@ chunk-arg 花括号内（context=命令名）、mined env 体。逐语境判定�
 - **失衡 lint**（`_sync_fixed_sources` compile.py:139 唯一漏斗）：每个镜像
   文件查 `/TLXC` BDC 数 == `pdf:code EMC` 数 且 MCID 无重；失衡→剥该文件
   全部 `\\special{pdf:code ...}` token（inline 可不在行首，剥 token 非剥行）
-  + log，降级模糊锚。**不阻断编译**——pdf.js 对失衡本就容忍。
+    - log，降级模糊锚。**不阻断编译**——pdf.js 对失衡本就容忍。
 - `_build_zh` 注入后 assert 平衡（catch 注入器自身 bug）。
 - 高危动作面登记：latex209_upgrade 全文重写、subfile_docclass_strip 截尾、
   fileset_relocate 复制（同 MCID 双份=seq 冲突→lint 抓）、escalate_llm
@@ -129,19 +130,19 @@ seqOfMarkedSpan(el): number | null      // id 尾 _mc<N> 且 N>=50000 → N-5000
 - 懒建 seqmap：idle 逐页 `getTextContent({includeMarkedContent:true})`
   （`scanDests` 同款切片）→ `seq → {page, itemBegin, itemEnd}`。
 - `PaneHandle` 增：
-  - `seqEls?(seq): HTMLElement[]`——`container.querySelectorAll(
-    'span.markedContent')` 滤 id 尾（跨页续段多枚；未渲染页缺席——调用方先
-    `gotoPage`）。rect 消费 = `el.getClientRects()`（span 天然包裹 chunk
-    全部 textDivs）。
-  - `seqPage?(seq): number | null`——seqmap 查页。
+    - `seqEls?(seq): HTMLElement[]`——`container.querySelectorAll(
+'span.markedContent')` 滤 id 尾（跨页续段多枚；未渲染页缺席——调用方先
+      `gotoPage`）。rect 消费 = `el.getClientRects()`（span 天然包裹 chunk
+      全部 textDivs）。
+    - `seqPage?(seq): number | null`——seqmap 查页。
 - sent-align gotoPeer 的 pdf 臂以此桥接（本计划交付桥，goto 接线单记）。
 
 ### 3.4 find-usages pdf 臂（修 ReaderView:213 死臂）
 
 - `PdfPane` 实现 `openUsagesFor(target, anchor)`：
-  - `scanDests` 扩记 link annot → `(dest, page, rect)` 站集（现只存名）。
-  - usages of key = 全部 dest 指向 `cite.<key>`/`cite.bib<key>` 族锚名的
-    link annot → UsagesCard 条目（page+rect 跳转）。
+    - `scanDests` 扩记 link annot → `(dest, page, rect)` 站集（现只存名）。
+    - usages of key = 全部 dest 指向 `cite.<key>`/`cite.bib<key>` 族锚名的
+      link annot → UsagesCard 条目（page+rect 跳转）。
 - dests 集合已扫（PdfPane.tsx:286-314），只补 annot 侧反查表。
 
 ## 4. C 路升级（copylatex.ts，存量任务唯一通路）
@@ -163,15 +164,15 @@ seqOfMarkedSpan(el): number | null      // id 尾 _mc<N> 且 N>=50000 → N-5000
 
 ## 5. 测试验证矩阵
 
-| 层 | 件 | 用例 |
-| -- | -- | ---- |
-| pytest | `tests/test_seqmarks.py` | 块界注入字节钉 / identity 零标记 / chunk-arg in-brace / moving+lists→skip / soul 栈→skip / align env→skip / `\hline` 后继→skip / seq 跨文件偏移对表 / lint 失衡剥净 / resplice 自愈 |
-| pytest integration | 同上 +`@pytest.mark.integration` | tmp_path 真 xelatex（skipif）→ pypdf 解内容流断 `/TLXC <</MCID \d+>> BDC` 在场 + log 无 Reconstruction failed/Misplaced |
-| vitest | `src/test/pdfmarks.test.ts` | `_mc` 尾解码、resolver 对 span.markedContent、选区跨 span 序 |
-| vitest | `copylatex.test.ts` 增例 | texStrip 残留段命中、gap 断口合并、散落命中不膨胀、NFKD 连字 |
-| vitest node | `expPdfAnchor.test.ts` 重跑 | 升级后命中数回归报告（C 路实测量） |
-| playwright | `scripts/pdfanchor_verify.mjs` | mock-api miniPdf 注 BMC→`span.markedContent` 计数→选区→copyTex seq 断言（TASK= 可换真任务厚臂） |
-| 全量 | 四件套 | `tsc --noEmit` + `vitest run` + `pytest tests/` + `pytest tests/kernel/` + `ruff check` |
+| 层                 | 件                               | 用例                                                                                                                                                                                |
+| ------------------ | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| pytest             | `tests/test_seqmarks.py`         | 块界注入字节钉 / identity 零标记 / chunk-arg in-brace / moving+lists→skip / soul 栈→skip / align env→skip / `\hline` 后继→skip / seq 跨文件偏移对表 / lint 失衡剥净 / resplice 自愈 |
+| pytest integration | 同上 +`@pytest.mark.integration` | tmp_path 真 xelatex（skipif）→ pypdf 解内容流断 `/TLXC <</MCID \d+>> BDC` 在场 + log 无 Reconstruction failed/Misplaced                                                             |
+| vitest             | `src/test/pdfmarks.test.ts`      | `_mc` 尾解码、resolver 对 span.markedContent、选区跨 span 序                                                                                                                        |
+| vitest             | `copylatex.test.ts` 增例         | texStrip 残留段命中、gap 断口合并、散落命中不膨胀、NFKD 连字                                                                                                                        |
+| vitest node        | `expPdfAnchor.test.ts` 重跑      | 升级后命中数回归报告（C 路实测量）                                                                                                                                                  |
+| playwright         | `scripts/pdfanchor_verify.mjs`   | mock-api miniPdf 注 BMC→`span.markedContent` 计数→选区→copyTex seq 断言（TASK= 可换真任务厚臂）                                                                                     |
+| 全量               | 四件套                           | `tsc --noEmit` + `vitest run` + `pytest tests/` + `pytest tests/kernel/` + `ruff check`                                                                                             |
 
 ## 6. 风险登记（侦察裁决后）
 
@@ -187,13 +188,13 @@ seqOfMarkedSpan(el): number | null      // id 尾 _mc<N> 且 N>=50000 → N-5000
 
 ## 7. 落地验证结果（2026-09-23）
 
-| 层 | 结果 |
-| -- | ---- |
-| `tests/test_seqmarks.py` | **48/48 PASS**——字节钉/identity 零标记/五闸逐条（8 env、4 moving ctx、5 skip ctx、7 soul cs、ROW_TAIL/HEAD 各形态、site 兜底、非顶层空沿）/跨文件 seq0/env 旗标/moving-unsafe demote/失衡自愈 + 真 xelatex integration（pypdf 解流 50000/50001 在场、log 无错位错） |
-| `web/src/test/pdfmarks.test.ts` | 全绿——`_mc` 尾解码、TLXC tag 校验、跨 span/同 seq 双 span/自有锚（mc<50000）混排 resolver |
-| `web/scripts/pdfanchor_verify.mjs` mock 臂 | **7/7 PASS**——手工 marked pdf → `p3R_mc5000{0,1}` 两枚 span、锚内选区 seqs=[0]、跨锚 seqs=[0,1] |
-| 同上真任务臂（`t_d7c669e8b3c92149`） | **6/6 PASS**——52 页真 zh.pdf 外科注锚 8 MCID（p3R/p19R 两组可见）→ 选区 seqs=[0]/[0,1] 精确命中、零 console 错；同任务老产物的 C 路模糊兜底亦验过（seqs 非空） |
-| 四件套 | `tsc --noEmit` 绿；`vitest run` 绿（usages.test.ts 真论文索引改 beforeAll 共享后 26/26）；`pytest tests/` 绿（仅 `test_shipped_specs_compile` 红=在飞 layoutqc spec 外账，`test_s07` 并发例 5/5 单跑过=负载抖动）；`ruff check` 本会话件全净 |
+| 层                                         | 结果                                                                                                                                                                                                                                                                |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tests/test_seqmarks.py`                   | **48/48 PASS**——字节钉/identity 零标记/五闸逐条（8 env、4 moving ctx、5 skip ctx、7 soul cs、ROW_TAIL/HEAD 各形态、site 兜底、非顶层空沿）/跨文件 seq0/env 旗标/moving-unsafe demote/失衡自愈 + 真 xelatex integration（pypdf 解流 50000/50001 在场、log 无错位错） |
+| `web/src/test/pdfmarks.test.ts`            | 全绿——`_mc` 尾解码、TLXC tag 校验、跨 span/同 seq 双 span/自有锚（mc<50000）混排 resolver                                                                                                                                                                           |
+| `web/scripts/pdfanchor_verify.mjs` mock 臂 | **7/7 PASS**——手工 marked pdf → `p3R_mc5000{0,1}` 两枚 span、锚内选区 seqs=[0]、跨锚 seqs=[0,1]                                                                                                                                                                     |
+| 同上真任务臂（`t_d7c669e8b3c92149`）       | **6/6 PASS**——52 页真 zh.pdf 外科注锚 8 MCID（p3R/p19R 两组可见）→ 选区 seqs=[0]/[0,1] 精确命中、零 console 错；同任务老产物的 C 路模糊兜底亦验过（seqs 非空）                                                                                                      |
+| 四件套                                     | `tsc --noEmit` 绿；`vitest run` 绿（usages.test.ts 真论文索引改 beforeAll 共享后 26/26）；`pytest tests/` 绿（仅 `test_shipped_specs_compile` 红=在飞 layoutqc spec 外账，`test_s07` 并发例 5/5 单跑过=负载抖动）；`ruff check` 本会话件全净                        |
 
 外科注锚实证路径（活服旧码不重启的验证法）记 `tmp/zzmark_real_task.py`
 ——task zh/ 拷贝→`\n\n` 段块 CJK≥20 前 8 枚包 BDC/EMC→xelatex→pypdf

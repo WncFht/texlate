@@ -4,21 +4,21 @@
 
 ## 域索引
 
-| 域 | 内容 | 件数 |
-| --- | --- | --- |
-| [arxiv/](arxiv/) | arXiv 端点行为、限流纪律、e-print 形态、OAI-PMH、批量渠道、许可边界、HTML/PDF 降级链、规模化路线 | 12 + 索引 |
-| [latex/](latex/) | 展开机设计、gullet/segmenter 切换、引擎矩阵、fixloop 规则引擎、占位符/术语表规格、校验器两档、CTAN 补给链、PDF 通路、对齐探针 | 18 + 索引 |
-| [corpus/](corpus/) | corpus_v3 设计、分层 frame、IA/HF 渠道实测、post-2020 裁决、expand 层落地、ICLR 章节研究 | 13 + 索引 |
-| [methods/](methods/) | 语料构建方法学、解析/翻译质量度量文献、自改进协议、失败签名挖掘、版式损伤 bench、corpus_v3 指标总表、评测体系报告工程 | 9 + 索引 |
-| [product/](product/) | hjfy.top 侦察与竞品、Web 层设计取证（SUPERSEDED）、Web 性能审计、PDF 暗色渲染实测、共享缓存、E2E 验证、agent/工具生态、alphaXiv/papers.cool 逆向、引用图谱生态 20 lane、引用跳转/悬浮卡生态 126-agent 调研 | 17 + 索引 |
-| [errsweep/](errsweep/) | 每日 errsweep agent 错误清扫报告（根因修复蒸馏层的工作档案，契约见 `dev/errsweep-runbook.md`） | 索引 |
+| 域                     | 内容                                                                                                                                                                                                       | 件数      |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| [arxiv/](arxiv/)       | arXiv 端点行为、限流纪律、e-print 形态、OAI-PMH、批量渠道、许可边界、HTML/PDF 降级链、规模化路线                                                                                                           | 12 + 索引 |
+| [latex/](latex/)       | 展开机设计、gullet/segmenter 切换、引擎矩阵、fixloop 规则引擎、占位符/术语表规格、校验器两档、CTAN 补给链、PDF 通路、对齐探针                                                                              | 18 + 索引 |
+| [corpus/](corpus/)     | corpus_v3 设计、分层 frame、IA/HF 渠道实测、post-2020 裁决、expand 层落地、ICLR 章节研究                                                                                                                   | 13 + 索引 |
+| [methods/](methods/)   | 语料构建方法学、解析/翻译质量度量文献、自改进协议、失败签名挖掘、版式损伤 bench、corpus_v3 指标总表、评测体系报告工程                                                                                      | 9 + 索引  |
+| [product/](product/)   | hjfy.top 侦察与竞品、Web 层设计取证（SUPERSEDED）、Web 性能审计、PDF 暗色渲染实测、共享缓存、E2E 验证、agent/工具生态、alphaXiv/papers.cool 逆向、引用图谱生态 20 lane、引用跳转/悬浮卡生态 126-agent 调研 | 17 + 索引 |
+| [errsweep/](errsweep/) | 每日 errsweep agent 错误清扫报告（根因修复蒸馏层的工作档案，契约见 `dev/errsweep-runbook.md`）                                                                                                             | 索引      |
 
 ## 顶层单件
 
-| 文件 | 内容 |
-| --- | --- |
+| 文件                                     | 内容                                                                                                                                                          |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [model-selection.md](model-selection.md) | 翻译模型选型实证：占位符契约一票否决制横评（网关调研蒸馏件——原 `gateway/` 九件涉内部部署细节不入库，结论、方法学、供给面类型学与 fg/bg 准入设计全部蒸馏于此） |
-| [bibliography.md](bibliography.md) | 文献清单：unarXive/arXMLiv/S2ORC/PDFMathTranslate/BabelDOC/Nougat/olmOCR 等 11 项参照系 + 残档判定注记（`lit/` 二进制原件不入库） |
+| [bibliography.md](bibliography.md)       | 文献清单：unarXive/arXMLiv/S2ORC/PDFMathTranslate/BabelDOC/Nougat/olmOCR 等 11 项参照系 + 残档判定注记（`lit/` 二进制原件不入库）                             |
 
 ## 阅读建议
 

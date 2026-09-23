@@ -10,18 +10,18 @@
 
 - 模型池只用内部网关列出的免费档；与被评同型的模型永不任 judge；judge≠translator 按每条 chunk 的 meta.model 强制。
 - judge 调用参数：temperature=0.1（temp=0 会触发网关 502）、max_tokens≥8192（reasoning 烧预算）、read timeout 300s、3 次重试。
-- >30min 的批一律脱管运行（setsid+nohup + run.log 直写 + 文件面监控），绝不前台阻塞等。
+- > 30min 的批一律脱管运行（setsid+nohup + run.log 直写 + 文件面监控），绝不前台阻塞等。
 - 不碰正在运行的进程、不读写他队在飞状态；scratch 只写仓库内 scratch 区。
 - 对外语义改动要升级给人确认：judge 协议形态、contested 触发阈值、门禁线、新模型入网、假设池 REVIEW 级条目。其余全自主，不等批准。
 
 ## dense feedback 分层（核心纪律）
 
-| 层 | 成本 | 内容 |
-| --- | --- | --- |
-| L0 确定性层 | 免费秒回 | ph_missing/ph_invented、en_residue≥8、same-as-source 回显、长度比带、scoped pytest、parsebench identity/leak。这层能判死的假设不许烧模型 |
-| L1 单发 judge | 极廉价 | ESA 协议一次调用出 `{errors[], stated100}`；探针规模 n≤10，先探针后批量 |
-| L2 批层 | ~1.6 万 mult·call | 1200-chunk 分层基线 + frozen-300 回归子集 + contested→第二 judge 二裁 |
-| L3 人锚层 | 人工 | ~200-chunk ESA^AI 半标注（judge 预标、人核改判），产校准读数 |
+| 层            | 成本              | 内容                                                                                                                                     |
+| ------------- | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| L0 确定性层   | 免费秒回          | ph_missing/ph_invented、en_residue≥8、same-as-source 回显、长度比带、scoped pytest、parsebench identity/leak。这层能判死的假设不许烧模型 |
+| L1 单发 judge | 极廉价            | ESA 协议一次调用出 `{errors[], stated100}`；探针规模 n≤10，先探针后批量                                                                  |
+| L2 批层       | ~1.6 万 mult·call | 1200-chunk 分层基线 + frozen-300 回归子集 + contested→第二 judge 二裁                                                                    |
+| L3 人锚层     | 人工              | ~200-chunk ESA^AI 半标注（judge 预标、人核改判），产校准读数                                                                             |
 
 ## 车队结构（20 lane，波次发车，文件归属互斥登记进台账）
 
@@ -45,9 +45,9 @@
 **Wave-2 改进环**（依赖基线读数；假设从池 open 区按证据强度取）：
 
 12. skel-curate：假设池卫生——去重、状态流转、证据指针校验、upstream 挖掘补新。
-13–18. 每假设一 lane（一轮 ≤4 并发实装）：如低分块重翻闭环、abstract-context、auto-extract-glossary、c0-json-strip、output-sanity-gate、glossary-ws-flex…
-19. drift-watch：监控 contested 率/flag 分布/en_residue 漂移，异常即报。
-20. triangulate：XCOMET-QE 非 LLM 对照臂可行性评估件（CC-BY-NC-SA 仅内部用）。
+    13–18. 每假设一 lane（一轮 ≤4 并发实装）：如低分块重翻闭环、abstract-context、auto-extract-glossary、c0-json-strip、output-sanity-gate、glossary-ws-flex…
+13. drift-watch：监控 contested 率/flag 分布/en_residue 漂移，异常即报。
+14. triangulate：XCOMET-QE 非 LLM 对照臂可行性评估件（CC-BY-NC-SA 仅内部用）。
 
 ## 单 lane 循环协议
 

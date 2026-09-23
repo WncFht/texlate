@@ -60,14 +60,14 @@ xparse argspec 覆盖 `m o O{def} s d<> D<> r<> R<> v e t b`；`_args` 按签名
 
 ## 6. 25 处泄漏 → 4 机制修复映射
 
-| 机制 | 现象 | 处数 | 修复 |
-| --- | --- | --- | --- |
-| A | `_args` 单 token 参数兜底让 `[[CMD]]` 吞掉 `$` 及后续字符 → 全局 `$` 配对错位 | 12 | 未知命令禁用单 token 参数（第一层）+ math-debt repair（第二层） |
-| B | caption/footnote 参数内注释行（含 `$`）字面落进 chunk | 5 | in_arg 注释改发 `[[COMMENT_n]]` |
-| C1 | `\begin{multline*}…\end{multline}` 星号笔误 → `find_env_end` 失败 → `\begin` 落 run | 1 | env 名 `rstrip('*')` 归一匹配；未命中一律 `\begin` 行 LITERAL + warning |
-| C2 | arg 内未知环境（如 lhs2TeX `code`）begin/end 字面落 chunk | 2 | in_arg 未知 env 走 `_env_with_mined` → `[[ENV_n]]`；`ARG_TRANSPARENT_ENVS` 纯白容器仍 `[[ENVTAG]]` |
-| D | `\ifAnonymous{a}{b}` 等条件命令在 arg 子扫描被当字面 | 4 | in_arg 条件命令发 `[[COND_n]]` |
-| — | 源文件自身未配对 `$` | 1 | 不可修，记 warning 豁免 |
+| 机制 | 现象                                                                                | 处数 | 修复                                                                                               |
+| ---- | ----------------------------------------------------------------------------------- | ---- | -------------------------------------------------------------------------------------------------- |
+| A    | `_args` 单 token 参数兜底让 `[[CMD]]` 吞掉 `$` 及后续字符 → 全局 `$` 配对错位       | 12   | 未知命令禁用单 token 参数（第一层）+ math-debt repair（第二层）                                    |
+| B    | caption/footnote 参数内注释行（含 `$`）字面落进 chunk                               | 5    | in_arg 注释改发 `[[COMMENT_n]]`                                                                    |
+| C1   | `\begin{multline*}…\end{multline}` 星号笔误 → `find_env_end` 失败 → `\begin` 落 run | 1    | env 名 `rstrip('*')` 归一匹配；未命中一律 `\begin` 行 LITERAL + warning                            |
+| C2   | arg 内未知环境（如 lhs2TeX `code`）begin/end 字面落 chunk                           | 2    | in_arg 未知 env 走 `_env_with_mined` → `[[ENV_n]]`；`ARG_TRANSPARENT_ENVS` 纯白容器仍 `[[ENVTAG]]` |
+| D    | `\ifAnonymous{a}{b}` 等条件命令在 arg 子扫描被当字面                                | 4    | in_arg 条件命令发 `[[COND_n]]`                                                                     |
+| —    | 源文件自身未配对 `$`                                                                | 1    | 不可修，记 warning 豁免                                                                            |
 
 实证锚点：`\num{53807} $(2.5` 被单 token 吞 5 字符、`$\mHy` 前缀被 `\lrinhypersequent{}\n` 后的单 token 吞、`%% 注释行` 含 `$*$`/`$\dagger$`/`$Y_1$` 等均为语料实测。目标泄漏 ≤3 处（~0.01%）。
 
@@ -77,14 +77,14 @@ xparse argspec 覆盖 `m o O{def} s d<> D<> r<> R<> v e t b`；`_args` 按签名
 
 ## 8. 验收口径与实测
 
-| 指标 | spike 基线 | 验收 |
-| --- | --- | --- |
-| 解析成功 | 259/259 | ≥259/259，0 异常 0 超时（30s/文件） |
-| 陷阱断言 | 32/32 | 32/32 |
-| 泄漏 | 25/23427（0.11%） | ≤5（≤0.03%），`\cite/\ref` 命中 0 |
-| identity 重建 | 259/259 | 259/259 |
-| 死占位符/孤儿 chunk | 0/0 | 0/0 |
-| 性能 | 中位 1.3ms、max 253ms | 中位 ≤5ms、max ≤500ms |
+| 指标                | spike 基线            | 验收                                |
+| ------------------- | --------------------- | ----------------------------------- |
+| 解析成功            | 259/259               | ≥259/259，0 异常 0 超时（30s/文件） |
+| 陷阱断言            | 32/32                 | 32/32                               |
+| 泄漏                | 25/23427（0.11%）     | ≤5（≤0.03%），`\cite/\ref` 命中 0   |
+| identity 重建       | 259/259               | 259/259                             |
+| 死占位符/孤儿 chunk | 0/0                   | 0/0                                 |
+| 性能                | 中位 1.3ms、max 253ms | 中位 ≤5ms、max ≤500ms               |
 
 按此规格落地的 v1 通过了上述口径，但其字节级扫描与「先定义后使用」的假设在真实语料上暴露结构性极限（宏体藏文本、正文内 `\def`、展开时序），最终被 v2 记号流管线取代——演进过程见 `segmenter-integration.md`，现行模型见 `spec/latex-pipeline.md`。
 

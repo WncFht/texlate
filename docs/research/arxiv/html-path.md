@@ -41,14 +41,14 @@ SKIPTREE = 'table.ltx_equation, table.ltx_equationgroup, li.ltx_bibitem,
 
 ### 跳过清单（与 LaTeX 路黑名单对齐）
 
-| 节点                                        | 处理                                              | 理由                                                                       |
-| ------------------------------------------- | ------------------------------------------------- | -------------------------------------------------------------------------- |
-| `table.ltx_equation*`                       | 整树跳过（连编号 tag 都不进块）                   | 行间公式不可译                                                             |
-| `li.ltx_bibitem`                            | 整树跳过                                          | 对齐 thebibliography 黑名单；**省 ~11% 字符量**（2203: 20K/182K）          |
-| `div.ltx_authors` 内 personname/contact 等  | 原子级跳过                                        | 人名保原语；`ltx_note_content` 例外（致谢散文，译）                        |
-| `ltx_tag`（"Figure 1:"/"•"）                | **保留在文本内**                                  | "图 1："该翻；项目符号本来就是符号                                         |
-| `span.ltx_ERROR`                            | 文本原样进 chunk + 计数进质量信号                 | 它是可见文本（如 `\preprintnumber` 残留）                                  |
-| `pre`/`.ltx_verbatim`/`.ltx_listing`        | 跳过子树                                          | 代码不译（样本未覆盖，防御性保留）                                         |
+| 节点                                       | 处理                              | 理由                                                              |
+| ------------------------------------------ | --------------------------------- | ----------------------------------------------------------------- |
+| `table.ltx_equation*`                      | 整树跳过（连编号 tag 都不进块）   | 行间公式不可译                                                    |
+| `li.ltx_bibitem`                           | 整树跳过                          | 对齐 thebibliography 黑名单；**省 ~11% 字符量**（2203: 20K/182K） |
+| `div.ltx_authors` 内 personname/contact 等 | 原子级跳过                        | 人名保原语；`ltx_note_content` 例外（致谢散文，译）               |
+| `ltx_tag`（"Figure 1:"/"•"）               | **保留在文本内**                  | "图 1："该翻；项目符号本来就是符号                                |
+| `span.ltx_ERROR`                           | 文本原样进 chunk + 计数进质量信号 | 它是可见文本（如 `\preprintnumber` 残留）                         |
+| `pre`/`.ltx_verbatim`/`.ltx_listing`       | 跳过子树                          | 代码不译（样本未覆盖，防御性保留）                                |
 
 ### 抽取与占位符契约
 
@@ -71,13 +71,13 @@ SKIPTREE = 'table.ltx_equation, table.ltx_equationgroup, li.ltx_bibitem,
 
 DOM 内零额外请求信号：
 
-| 信号                            | 正常       | stub (1412.6980)                      | 判定                                                                |
-| ------------------------------- | ---------- | ------------------------------------- | ------------------------------------------------------------------- |
-| `ltx_section`+`ltx_appendix` 数 | 8–87       | **0**                                 | ==0 ∧ 文本<2KB → `html_stub`                                        |
-| article 文本长                  | ≥30K chars | 35 chars                              | 主判据                                                              |
-| 文本模式                        | —          | `See pages 1-last of 0_adam_main.pdf` | `See pages? [\d\-last]+ of \S+\.pdf` → **pdf_wrapper 亚型**         |
-| `span.ltx_ERROR`                | 0–2        | 0                                     | >0 → warning（未定义宏残留）                                        |
-| `math.ltx_math_unparsed`        | 0–1        | —                                     | >5% of math → degraded 警告                                         |
+| 信号                            | 正常       | stub (1412.6980)                      | 判定                                                        |
+| ------------------------------- | ---------- | ------------------------------------- | ----------------------------------------------------------- |
+| `ltx_section`+`ltx_appendix` 数 | 8–87       | **0**                                 | ==0 ∧ 文本<2KB → `html_stub`                                |
+| article 文本长                  | ≥30K chars | 35 chars                              | 主判据                                                      |
+| 文本模式                        | —          | `See pages 1-last of 0_adam_main.pdf` | `See pages? [\d\-last]+ of \S+\.pdf` → **pdf_wrapper 亚型** |
+| `span.ltx_ERROR`                | 0–2        | 0                                     | >0 → warning（未定义宏残留）                                |
+| `math.ltx_math_unparsed`        | 0–1        | —                                     | >5% of math → degraded 警告                                 |
 
 路由：stub+pdf_wrapper → 「论文本体是扫描 PDF」跳 L3；stub 非 wrapper（LaTeXML 崩）→ 也跳 L3；**stub 不送翻译**。外部可选信号（懒加载）：arxiv.org 每页 footer 链 `./{id}v{N}/__stdout.txt`（构建日志）；ar5iv `/log/{id}` 机器可读转换报告（`Status:conversion:N` 0=ok/1=warn/2=error/3=fatal）。
 
@@ -102,4 +102,5 @@ zh 节点 = 克隆叶元素同名同类 + `texlate-zh`/`lang="zh-CN"`/`data-chun
 ### 参考文献
 
 [^latexml]: NIST / DLMF. LaTeXML — arxiv.org/html 与 ar5iv 共同的转换引擎（0.7.x DOM 方言，`ltx_*` class 体系）. [latexml](https://math.nist.gov/~BMiller/LaTeXML/)
+
 [^ar5iv]: ar5iv — arXiv 论文的 LaTeXML HTML 独立镜像（`/log/{id}` 转换报告机器可读）. [ar5iv.labs.arxiv.org](https://ar5iv.labs.arxiv.org/)

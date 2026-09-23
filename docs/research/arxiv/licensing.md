@@ -37,41 +37,41 @@ arXiv 官方未发布过公开的 license 占比统计（只在 ToU/FAQ 给定�
 
 ### 2.1 全量分布（n=3,164,528）
 
-| license URI                                    |      条数 |      占比 |
-| ---------------------------------------------- | --------: | --------: |
-| `arxiv.org/licenses/nonexclusive-distrib/1.0/` | 1,909,582 | **60.3%** |
-| `creativecommons.org/licenses/by/4.0/`         |   578,816 |     18.3% |
-| `…/by-nc-nd/4.0/`                              |    89,035 |      2.8% |
-| `…/by-nc-sa/4.0/`                              |    65,822 |      2.1% |
-| `…/by-sa/4.0/`                                 |    30,433 |      1.0% |
-| `…/publicdomain/zero/1.0/` (CC0)               |    21,789 |      0.7% |
-| `…/by/3.0/` + `…/by-nc-sa/3.0/` + `…/publicdomain/` |   16,256 |     0.5% |
-| null（pre-2004 assumed 为主）                  |   452,795 |     14.3% |
+| license URI                                         |      条数 |      占比 |
+| --------------------------------------------------- | --------: | --------: |
+| `arxiv.org/licenses/nonexclusive-distrib/1.0/`      | 1,909,582 | **60.3%** |
+| `creativecommons.org/licenses/by/4.0/`              |   578,816 |     18.3% |
+| `…/by-nc-nd/4.0/`                                   |    89,035 |      2.8% |
+| `…/by-nc-sa/4.0/`                                   |    65,822 |      2.1% |
+| `…/by-sa/4.0/`                                      |    30,433 |      1.0% |
+| `…/publicdomain/zero/1.0/` (CC0)                    |    21,789 |      0.7% |
+| `…/by/3.0/` + `…/by-nc-sa/3.0/` + `…/publicdomain/` |    16,256 |      0.5% |
+| null（pre-2004 assumed 为主）                       |   452,795 |     14.3% |
 
 ### 2.2 近窗分布（update_date ≥ 2023-01-01，n=1,114,915）
 
-| license           | 条数    | 占比      |
-| ----------------- | ------: | --------: |
-| non-exclusive     | 519,928 | **46.6%** |
-| CC BY 4.0         | 443,955 | **39.8%** |
-| CC BY-NC-ND 4.0   |  68,522 |      6.2% |
-| CC BY-NC-SA 4.0   |  45,157 |      4.1% |
-| CC BY-SA 4.0      |  21,802 |      2.0% |
-| CC0               |  13,315 |      1.2% |
-| null + 旧版 URI   |   2,236 |      0.2% |
+| license         |    条数 |      占比 |
+| --------------- | ------: | --------: |
+| non-exclusive   | 519,928 | **46.6%** |
+| CC BY 4.0       | 443,955 | **39.8%** |
+| CC BY-NC-ND 4.0 |  68,522 |      6.2% |
+| CC BY-NC-SA 4.0 |  45,157 |      4.1% |
+| CC BY-SA 4.0    |  21,802 |      2.0% |
+| CC0             |  13,315 |      1.2% |
+| null + 旧版 URI |   2,236 |      0.2% |
 
 残差 2,236 行（0.2%）= update_date≥2023 的老论文仍挂原许可——pre-2004 篇 license=null 与 pre-2013 时代 3.0/PD URI 落同一桶，两成分占比未分拆。2025+ 延续同趋势：non-exclusive 45.8% / CC-BY 41.0% / NC-ND 6.0%。**读法**：CC 采用率随年代显著上升；对「以近一两年 CS/ML 论文为主」的服务形态：~47% 可合规公开托管译文（BY+SA+CC0+非商业下 NC-SA），~47% 连原文都无权再分发，~6% 禁止衍生托管——ND 占比虽小但绝对量大（近窗 6.9 万篇）不能忽略。
 
 ## 3. 机器可读入口
 
-| 入口                | 有无 license                                                                                                              | 证据/说明                                                                                              |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| **Atom API**        | **无**——官方 reuse FAQ 明言 license 不在 search API schema[^arxiv-reuse]                                                  | entry 字段只有 title/id/published/updated/summary/author/link/category + arxiv: 扩展                   |
-| **OAI-PMH**         | **有**——`arXiv`/`arXivRaw`/`arXivOld` 均含顶层 `<license>`（anyURI）；`oai_dc` 无；记录级单元素（逐版本许可只见最新值）   | XSD schema 实锤 + [oai-pmh.md](oai-pmh.md) §2 字段矩阵                                                 |
-| **RSS**             | **有**——每条 item 的 `dc:rights` 即许可 URI，与 abs/OAI 同一 URL 词表                                                     | [probes.md](probes.md) §A.4/A.7 + [daily-soak.md](2026-09-19-daily-soak.md)；日更增量、仅覆盖公告日    |
-| **abs 页 HTML**     | **有**——`div.abs-license > a[href]` 的 href 即许可 URI；CC 许可附 `class="has_license"`+图标；无 `rel=license`/`citation_license` meta | [probes.md](probes.md) §A.4 三实例验证                                                                 |
-| **Kaggle/HF 快照**  | 有 `license` 字段（URI 或 null）                                                                                          | §2                                                                                                     |
-| e-print 源码包/PDF  | 无结构化 license；CC 论文 PDF 内文可能有作者自注（不可靠），勿依赖                                                          | —                                                                                                      |
+| 入口               | 有无 license                                                                                                                           | 证据/说明                                                                                           |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| **Atom API**       | **无**——官方 reuse FAQ 明言 license 不在 search API schema[^arxiv-reuse]                                                               | entry 字段只有 title/id/published/updated/summary/author/link/category + arxiv: 扩展                |
+| **OAI-PMH**        | **有**——`arXiv`/`arXivRaw`/`arXivOld` 均含顶层 `<license>`（anyURI）；`oai_dc` 无；记录级单元素（逐版本许可只见最新值）                | XSD schema 实锤 + [oai-pmh.md](oai-pmh.md) §2 字段矩阵                                              |
+| **RSS**            | **有**——每条 item 的 `dc:rights` 即许可 URI，与 abs/OAI 同一 URL 词表                                                                  | [probes.md](probes.md) §A.4/A.7 + [daily-soak.md](2026-09-19-daily-soak.md)；日更增量、仅覆盖公告日 |
+| **abs 页 HTML**    | **有**——`div.abs-license > a[href]` 的 href 即许可 URI；CC 许可附 `class="has_license"`+图标；无 `rel=license`/`citation_license` meta | [probes.md](probes.md) §A.4 三实例验证                                                              |
+| **Kaggle/HF 快照** | 有 `license` 字段（URI 或 null）                                                                                                       | §2                                                                                                  |
+| e-print 源码包/PDF | 无结构化 license；CC 论文 PDF 内文可能有作者自注（不可靠），勿依赖                                                                     | —                                                                                                   |
 
 工程含义：license 要么走 OAI-PMH（批量建库回溯），要么走 RSS `dc:rights`（日更增量——daily-soak 现走此道），要么解析 abs 页 `abs-license`（单篇随取——与下载 e-print 同域同限速顺路拿）；Atom 拿不到。
 
@@ -129,8 +129,13 @@ e-print 下载 + 私人翻译 = ToU 明示的 personal/research use，衍生译�
 ### 参考文献
 
 [^arxiv-license]: arXiv. License 选项说明（六选项、逐版本不可撤销、元数据 CC0）. info.arxiv.org. [help/license](https://info.arxiv.org/help/license/index.html)
+
 [^arxiv-reuse]: arXiv. Reuse FAQ——non-exclusive 不授予 further reuse、redistribution 需版权人许可、search API 无 license 字段. info.arxiv.org. [help/license/reuse](https://info.arxiv.org/help/license/reuse.html)
+
 [^arxiv-tou]: arXiv. API Terms of Use——personal/research use、禁 store-and-serve、3s/单连接限速. info.arxiv.org. [help/api/tou](https://info.arxiv.org/help/api/tou.html)
+
 [^arxiv-robots]: arXiv. Robots 政策——禁无差别自动下载、403 后继续打视为攻击. info.arxiv.org. [help/robots](https://info.arxiv.org/help/robots.html)
+
 [^arxiv-blog-nd]: arXiv blog. 2020-11-09 CC BY-NC-ND 上线公告与选项排序. [blog.arxiv.org](https://blog.arxiv.org/2020/11/09/new-license-option-cc-by-nc-nd-4-0/)
+
 [^hf-meta]: librarian-bots. arxiv-metadata-snapshot（arXiv 元数据镜像，CC0 日更，含 license 字段）. HuggingFace. [datasets/librarian-bots/arxiv-metadata-snapshot](https://huggingface.co/datasets/librarian-bots/arxiv-metadata-snapshot)

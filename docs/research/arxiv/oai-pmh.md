@@ -16,20 +16,20 @@
 
 ## 2. 四格式字段矩阵（同一 id 各拉一条 + XSD 定稿）
 
-| 字段                     | arXivRaw                                                              | arXiv                                          | arXivOld | oai_dc                                       |
-| ------------------------ | --------------------------------------------------------------------- | ---------------------------------------------- | -------- | -------------------------------------------- |
-| id                       | ✅                                                                    | ✅                                             | ✅       | dc:identifier=abs URL ×2（https+http）       |
-| 版本史                   | ✅ `<version v=N><date>`(RFC822)+`<size>`+`<source_type>`              | ❌                                             | ❌       | ❌（dc:date ×2 无标签）                      |
-| created/updated          | ❌（隐含版本史）                                                      | ✅ `<created>`/`<updated>`                      | ❌       | dc:date                                      |
-| submitter                | ✅ 原始字符串                                                         | ❌                                             | ❌       | ❌                                           |
-| authors                  | 扁平 `"A and B"`                                                      | **结构化** keyname/forenames/suffix/affiliation | 扁平     | dc:creator `"姓, 名"` ×N                     |
-| categories               | ✅ 代码 `cs.LG`                                                       | ✅                                             | ✅       | dc:subject=**类名**"Machine Learning"        |
-| comments                 | ✅                                                                    | ✅                                             | ✅       | dc:description #2                            |
-| **license**              | ✅ anyURI                                                             | ✅                                             | ✅       | **❌**                                       |
-| journal-ref / doi        | schema 可选（0..1）                                                   | schema 可选                                    | ❌       | ❌                                           |
-| report-no / acm/msc/proxy | schema 可选                                                          | schema 可选                                    | ❌       | ❌                                           |
-| abstract                 | ✅                                                                    | ✅                                             | ✅       | dc:description #1                            |
-| 体积（本条）             | 4452B                                                                 | 2934B                                          | 2588B    | 2905B                                        |
+| 字段                      | arXivRaw                                                  | arXiv                                           | arXivOld | oai_dc                                 |
+| ------------------------- | --------------------------------------------------------- | ----------------------------------------------- | -------- | -------------------------------------- |
+| id                        | ✅                                                        | ✅                                              | ✅       | dc:identifier=abs URL ×2（https+http） |
+| 版本史                    | ✅ `<version v=N><date>`(RFC822)+`<size>`+`<source_type>` | ❌                                              | ❌       | ❌（dc:date ×2 无标签）                |
+| created/updated           | ❌（隐含版本史）                                          | ✅ `<created>`/`<updated>`                      | ❌       | dc:date                                |
+| submitter                 | ✅ 原始字符串                                             | ❌                                              | ❌       | ❌                                     |
+| authors                   | 扁平 `"A and B"`                                          | **结构化** keyname/forenames/suffix/affiliation | 扁平     | dc:creator `"姓, 名"` ×N               |
+| categories                | ✅ 代码 `cs.LG`                                           | ✅                                              | ✅       | dc:subject=**类名**"Machine Learning"  |
+| comments                  | ✅                                                        | ✅                                              | ✅       | dc:description #2                      |
+| **license**               | ✅ anyURI                                                 | ✅                                              | ✅       | **❌**                                 |
+| journal-ref / doi         | schema 可选（0..1）                                       | schema 可选                                     | ❌       | ❌                                     |
+| report-no / acm/msc/proxy | schema 可选                                               | schema 可选                                     | ❌       | ❌                                     |
+| abstract                  | ✅                                                        | ✅                                              | ✅       | dc:description #1                      |
+| 体积（本条）              | 4452B                                                     | 2934B                                           | 2588B    | 2905B                                  |
 
 license 实锤：`<license>http://arxiv.org/licenses/nonexclusive-distrib/1.0/</license>`——Atom API 没有此字段[^arxiv-reuse]。2074 条 cs 记录 100% 带 license，分布：nonexclusive 45.2%、CC-BY 41.6%、CC-BY-NC-ND 6.5%、CC-BY-NC-SA 3.8%、CC-BY-SA 2.0%、CC0 0.9%（与 [licensing.md](licensing.md) 全量统计同向）。
 
@@ -56,4 +56,5 @@ license 实锤：`<license>http://arxiv.org/licenses/nonexclusive-distrib/1.0/</
 ### 参考文献
 
 [^arxiv-oai]: arXiv. OAI-PMH harvesting 说明（基址/格式/收割策略/full-content 限制）. info.arxiv.org. [help/oa](https://info.arxiv.org/help/oa/index.html)
+
 [^arxiv-reuse]: arXiv. Reuse FAQ——"the license for the full text is not a part of the current search API schema". info.arxiv.org. [help/license/reuse](https://info.arxiv.org/help/license/reuse.html)

@@ -14,14 +14,14 @@ API 免鉴权只读（`inspirehep.net/api`）：**老 arXiv ID 直接可查**（
 
 ADS 的核心价值不在数据（要 token、有日额），而在它把「引用图谱发现」抽象成一组可组合的二阶查询算子[^ads-second-order][^ads-citref]：
 
-| 算子 | 语义 | 图谱操作 |
-| --- | --- | --- |
-| `citations(q)` / `references(q)` | 引用方 / 被引方集合 | 入边 / 出边遍历 |
-| `useful(q)` | 合并结果集的参考文献表按被引频次排 | **文献耦合聚合形态——找领域方法/工具论文** |
-| `reviews(q)` | 找大量引用结果集的论文 | **共被引聚合形态——找综述** |
-| `similar(q)` | 摘要拼大文档做文本相似 | 文本相似（非图谱） |
-| `trending(q)` | 读这些论文的人还在读什么 | 协同阅读（行为信号，ADS 独有需使用日志） |
-| `topn(n,q,sort)` | 结果集内按序取前 n | 排序裁剪 |
+| 算子                             | 语义                               | 图谱操作                                  |
+| -------------------------------- | ---------------------------------- | ----------------------------------------- |
+| `citations(q)` / `references(q)` | 引用方 / 被引方集合                | 入边 / 出边遍历                           |
+| `useful(q)`                      | 合并结果集的参考文献表按被引频次排 | **文献耦合聚合形态——找领域方法/工具论文** |
+| `reviews(q)`                     | 找大量引用结果集的论文             | **共被引聚合形态——找综述**                |
+| `similar(q)`                     | 摘要拼大文档做文本相似             | 文本相似（非图谱）                        |
+| `trending(q)`                    | 读这些论文的人还在读什么           | 协同阅读（行为信号，ADS 独有需使用日志）  |
+| `topn(n,q,sort)`                 | 结果集内按序取前 n                 | 排序裁剪                                  |
 
 算子可嵌套（`trending(topn(10, reviews("weak lensing")))`）、可与布尔查询组合。API 需免费 token，Solr 搜索 ~5000 次/日、`/search/bigquery`（POST bibcode 列表 ≤2000）~100 次/日[^ads-api]。
 
@@ -49,14 +49,25 @@ ADS 的核心价值不在数据（要 token、有日额），而在它把「引�
 ### 参考文献
 
 [^inspire-api-doc]: INSPIRE-HEP. REST API documentation. GitHub. [inspirehep/rest-api-doc](https://github.com/inspirehep/rest-api-doc)
+
 [^inspire-harvest]: INSPIRE-HEP. Harvesting documentation. [inspirehep.readthedocs.io/en/latest/harvesting.html](https://inspirehep.readthedocs.io/en/latest/harvesting.html)
+
 [^refextract]: INSPIRE-HEP. refextract — library for extracting references used in scholarly communication. GitHub. [inspirehep/refextract](https://github.com/inspirehep/refextract)
+
 [^ads-api]: ADS. adsabs-dev-api README — token, rate limits. GitHub. [adsabs/adsabs-dev-api](https://github.com/adsabs/adsabs-dev-api/blob/master/README.md)
+
 [^ads-second-order]: ADS. Second-Order Query Operators. [adsabs.github.io/help/search/second-order](https://adsabs.github.io/help/search/second-order)
+
 [^ads-citref]: ADS. Citations and Reference Operators. [adsabs.github.io/help/search/citations-and-references](https://adsabs.github.io/help/search/citations-and-references)
+
 [^icite-api]: NIH Office of Portfolio Analysis. iCite API documentation. [icite.od.nih.gov/api](https://icite.od.nih.gov/api)
+
 [^icite-fields]: NIH OPA. iCite User Guide — Open Citations module. [icite.od.nih.gov/user_guide](https://icite.od.nih.gov/user_guide?page_id=ug_data)
+
 [^nih-occ]: Hutchins BI et al. The NIH Open Citation Collection. PLOS Biology 2019. [journals.plos.org](https://journals.plos.org/plosbiology/article?id=10.1371%2Fjournal.pbio.3000385)
+
 [^epmc-rest]: Europe PMC. RESTful Web Service reference. [europepmc.org/RestfulWebService](https://europepmc.org/RestfulWebService)
+
 [^zbmath]: zbMATH Open. api.zbmath.org/v1 REST API. [api.zbmath.org](https://api.zbmath.org/v1/)
+
 [^openaire-graph]: OpenAIRE. OpenAIRE Graph Dataset (v11.1.1). Zenodo 2026. [zenodo.org/records/20428976](https://zenodo.org/records/20428976)

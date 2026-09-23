@@ -45,13 +45,13 @@ soak：`bench triage <run>` 出 tickets 榜 + `load_cases+triage` 出 case 队�
 
 每签名开 ≤3 个代表现场：soak 用 `repro_path`/`work/{wid}/splice` + 该 id 的 index records 行（`bench status --id <id>` 或 sqlite3 -readonly 查 cells/records）；web 用 `error_json.detail` + `compile.log` 尾 + `task_events`。判定落点：
 
-| 判定 | 落点 |
-| --- | --- |
-| 确定性修法、条件可捕获 | `src/texlate/compile/fixloop/rules/` 对应分片加规则 |
-| 需 transform 逻辑 | `_builtins_*` 加 builtin + rules/ 引用（**builtin 先落是安全方向**） |
-| 产品代码缺陷 | 最小面修复 + 对应 pytest |
-| 环境/工具链/数据 | 报告归因，不修 |
-| 论文怪癖不可泛化 | 报告记录，不修 |
+| 判定                   | 落点                                                                 |
+| ---------------------- | -------------------------------------------------------------------- |
+| 确定性修法、条件可捕获 | `src/texlate/compile/fixloop/rules/` 对应分片加规则                  |
+| 需 transform 逻辑      | `_builtins_*` 加 builtin + rules/ 引用（**builtin 先落是安全方向**） |
+| 产品代码缺陷           | 最小面修复 + 对应 pytest                                             |
+| 环境/工具链/数据       | 报告归因，不修                                                       |
+| 论文怪癖不可泛化       | 报告记录，不修                                                       |
 
 ### 4. 验证（落盘即验）
 

@@ -6,22 +6,22 @@
 
 ## 留存件清点
 
-| 留存文件                | 判定                                                       |
-| ----------------------- | ---------------------------------------------------------- |
-| unarxive2020.pdf        | unarXive 2020 论文（Scientometrics 2020）                   |
-| unarxive2022a.pdf       | unarXive 2022 论文（arXiv 预印本，2023）                    |
-| unarxive2022b.pdf       | 与 unarxive2022a.pdf 字节级相同的重复副本                   |
-| kitopen_record.html     | KITopen 数据仓中 unarXive 2022 数据集的记录页               |
-| arxmliv_stats.html      | 空文件（0 字节），抓取失败残档，意图应为 arXMLiv 统计页     |
-| sig.html                | 19 字节「404 page not found」，原抓取意图无法判读           |
-| nougat.pdf              | OpenReview 403 错误页 HTML，非论文本体                      |
-| nougat2.pdf             | OpenReview 挑战验证 JSON 错误，非论文本体                   |
-| nougat3.pdf             | 同上（同一附件的第二次失败抓取）                            |
-| babeldoc.pdf            | BabelDOC 论文（ACL 2026 System Demonstrations）             |
-| pdfmathtranslate.pdf    | PDFMathTranslate 论文（EMNLP 2025 System Demonstrations）   |
-| s2orc.pdf               | S2ORC 论文（ACL 2020）                                      |
-| multiagent-survey.pdf   | 内部生态调研快照（8 页），非外部出版物                      |
-| olmocr_tests.py         | olmOCR 仓评测件源码快照                                     |
+| 留存文件              | 判定                                                      |
+| --------------------- | --------------------------------------------------------- |
+| unarxive2020.pdf      | unarXive 2020 论文（Scientometrics 2020）                 |
+| unarxive2022a.pdf     | unarXive 2022 论文（arXiv 预印本，2023）                  |
+| unarxive2022b.pdf     | 与 unarxive2022a.pdf 字节级相同的重复副本                 |
+| kitopen_record.html   | KITopen 数据仓中 unarXive 2022 数据集的记录页             |
+| arxmliv_stats.html    | 空文件（0 字节），抓取失败残档，意图应为 arXMLiv 统计页   |
+| sig.html              | 19 字节「404 page not found」，原抓取意图无法判读         |
+| nougat.pdf            | OpenReview 403 错误页 HTML，非论文本体                    |
+| nougat2.pdf           | OpenReview 挑战验证 JSON 错误，非论文本体                 |
+| nougat3.pdf           | 同上（同一附件的第二次失败抓取）                          |
+| babeldoc.pdf          | BabelDOC 论文（ACL 2026 System Demonstrations）           |
+| pdfmathtranslate.pdf  | PDFMathTranslate 论文（EMNLP 2025 System Demonstrations） |
+| s2orc.pdf             | S2ORC 论文（ACL 2020）                                    |
+| multiagent-survey.pdf | 内部生态调研快照（8 页），非外部出版物                    |
+| olmocr_tests.py       | olmOCR 仓评测件源码快照                                   |
 
 ## arXiv 语料集
 
@@ -74,11 +74,19 @@ multiagent-survey.pdf 为一份内部生态调研的 PDF 快照（标注 2026-09
 ### 参考文献
 
 [^unarxive20]: Saier, T., & Färber, M. unarXive: a large scholarly data set with publications' full-text, annotated in-text citations, and links to metadata. Scientometrics 124, 2020. [arxiv.org](https://arxiv.org/abs/2003.04022)
+
 [^unarxive22]: Saier, T., Krause, J., & Färber, M. unarXive 2022: All arXiv Publications Pre-Processed for NLP, Including Structured Full-Text and Citation Network. arXiv:2303.14957, 2023. [arxiv.org](https://arxiv.org/abs/2303.14957)
+
 [^kitopen]: Saier, T., Krause, J., & Färber, M. unarXive 2022（数据集记录）. KITopen, DOI 10.5445/IR/1000174916, 2023. [doi.org](https://doi.org/10.5445/IR/1000174916)
+
 [^arxmliv]: arXMLiv 项目（latexml 驱动的 arXiv→XML+MathML 语料）. [arxmliv.kwarc.info](https://arxmliv.kwarc.info/)
+
 [^s2orc]: Lo, K., Wang, L. L., Neumann, M., Kinney, R., & Weld, D. S. S2ORC: The Semantic Scholar Open Research Corpus. ACL 2020. [arxiv.org](https://arxiv.org/abs/1911.02782)
+
 [^pdf2zh]: Ouyang, R., Chu, C., Xin, Z., & Ma, X. PDFMathTranslate: Scientific Document Translation Preserving Layouts. EMNLP 2025 System Demonstrations. [aclanthology.org](https://aclanthology.org/2025.emnlp-demos.71/)
+
 [^babeldoc]: Qi, Y., Ma, X., Wang, X., Wang, H., & Wang, R. BabelDOC: Better Layout-Preserving PDF Translation via Intermediate Representation. ACL 2026 System Demonstrations. [aclanthology.org](https://aclanthology.org/2026.acl-demo.25/)
+
 [^nougat]: Blecher, L., Cucurull, G., Scialom, T., & Stojnic, R. Nougat: Neural Optical Understanding for Academic Documents. ICLR 2024. [arxiv.org](https://arxiv.org/abs/2308.13418)
+
 [^olmocr]: Allen Institute for AI. olmOCR 工具包与评测件. [github.com/allenai/olmocr](https://github.com/allenai/olmocr)；olmOCR: Unlocking Trillions of Tokens in PDFs with Vision Language Models. [arxiv.org](https://arxiv.org/abs/2502.18443)

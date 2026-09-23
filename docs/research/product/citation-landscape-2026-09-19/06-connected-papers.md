@@ -25,15 +25,15 @@ Connected Papers 2019 年创立于以色列特拉维夫，四人团队（Alex Ta
 
 站点首页直接暴露 `/rest-addr.json`（基址 `rest.prod.connectedpapers.com`）、`/adb2c-config.json`（Azure AD B2C 租户）、`/config.json`（分析 key）。
 
-| 端点 | 实测 |
-| --- | --- |
-| `POST graph/<s2id>` | **建图/取图一体端点，无鉴权**，1.2s 返回完整图 |
-| `POST graph/<id1>+<id2>` | multi-origin 图 |
-| `GET graph_no_build/<s2id>` / `fresh_graph_no_build/` | 仅取已建图不触发构建 |
-| `GET versions/<s2id>/1` / `graph_version/<s2id>/<uuid>` | 月度版本链与历史版本 |
+| 端点                                                    | 实测                                                |
+| ------------------------------------------------------- | --------------------------------------------------- |
+| `POST graph/<s2id>`                                     | **建图/取图一体端点，无鉴权**，1.2s 返回完整图      |
+| `POST graph/<id1>+<id2>`                                | multi-origin 图                                     |
+| `GET graph_no_build/<s2id>` / `fresh_graph_no_build/`   | 仅取已建图不触发构建                                |
+| `GET versions/<s2id>/1` / `graph_version/<s2id>/<uuid>` | 月度版本链与历史版本                                |
 | `GET title/`、`links/`、`autocomplete/`、`POST search/` | 元数据与检索（search 返回 `totalResults` 384 万级） |
-| `POST is_premium_by_ip` | 机构 IP 识别 |
-| `POST graph_history`、`in_what_lists`、`paypro_*` | auth：历史/收藏/计费 |
+| `POST is_premium_by_ip`                                 | 机构 IP 识别                                        |
+| `POST graph_history`、`in_what_lists`、`paypro_*`       | auth：历史/收藏/计费                                |
 
 **CPGR 二进制格式**（实测解码）：`"CPGR"` magic + u32 状态码 + u32 解压长度 + zlib(JSON)；状态码 `0x01`=OK、`0x08`=请求非法、`0x09`=论文不在库。**图 JSON schema**：`nodes`（~41 个，全量 S2 元数据 + `cit_with_start`/`ref_with_start`/`pos`/`path_length`）、`edges`（~799 条 `[src,dst,weight]`）、`common_citations`/`common_references`（各 top-10 附交集明细）、`common_authors`、`path_lengths`、`parameters`。
 
@@ -52,5 +52,7 @@ Connected Papers 2019 年创立于以色列特拉维夫，四人团队（Alex Ta
 ### 参考文献
 
 [^tracxn]: Tracxn. Connected Papers Company Profile. 2026. [tracxn.com](https://tracxn.com/d/companies/connectedpapers/__8w2xWhlgS-l0dACrdAVk5hwBnTPi31NSrf_COG79JN0)
+
 [^istl]: Issues in Science and Technology Librarianship. Visual Exploration of Literature Using Connected Papers. 2023. [doi.org/10.29173/istl2760](https://doi.org/10.29173/istl2760)
+
 [^about]: Connected Papers. About / FAQ（前端 bundle 内嵌文案实测提取）. [connectedpapers.com/about](https://www.connectedpapers.com/about/)

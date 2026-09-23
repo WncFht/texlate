@@ -17,15 +17,15 @@
 
 ## 2. 度量定义（学理对齐）
 
-| 口径 | 学名/惯例来源 | 定义 |
-| --- | --- | --- |
-| parse ok | — | `parse_file` 无异常返回（30s 超时） |
-| strict identity | GROBID strict match | `reconstruct()` 输出与原文逐字节一致 |
-| normalized | GROBID soft | 仅空白差异 |
-| diverged | — | 有实质差异（报首差异位置） |
-| leak rate | UTB 残留同族（BabelDOC 借名） | 可译 chunk 内含 `$`/`\cite*`/`\*ref`/`\begin{`/`\if*`/`\input{` 的块占比 |
-| dead/orphan | — | fake-translation 重建后残留 CHUNK 占位符数 / 孤儿 chunk 数 |
-| flatten coverage | unarXive 漏斗项 | .tex 文件是否被主文件 `\input` 图触及 |
+| 口径             | 学名/惯例来源                 | 定义                                                                     |
+| ---------------- | ----------------------------- | ------------------------------------------------------------------------ |
+| parse ok         | —                             | `parse_file` 无异常返回（30s 超时）                                      |
+| strict identity  | GROBID strict match           | `reconstruct()` 输出与原文逐字节一致                                     |
+| normalized       | GROBID soft                   | 仅空白差异                                                               |
+| diverged         | —                             | 有实质差异（报首差异位置）                                               |
+| leak rate        | UTB 残留同族（BabelDOC 借名） | 可译 chunk 内含 `$`/`\cite*`/`\*ref`/`\begin{`/`\if*`/`\input{` 的块占比 |
+| dead/orphan      | —                             | fake-translation 重建后残留 CHUNK 占位符数 / 孤儿 chunk 数               |
+| flatten coverage | unarXive 漏斗项               | .tex 文件是否被主文件 `\input` 图触及                                    |
 
 ## 3. 漏斗与失败归因（unarXive 式）
 
@@ -40,12 +40,12 @@ fake-translate rebuild ──▶ 0 dead / 0 orphan
 
 泄漏归因分解（15 hits 逐条人工复核）：
 
-| 机制 | 次数 | 严重度 | 例证 |
-| --- | --- | --- | --- |
-| `%` 注释残留在被挖的 caption/footnote 参数内，注释里恰好有 `$`/`\ref` | ≥4 | 低-中 | `2109.12648` caption 内 `%$\vec x\mathcal{L}_\kappa...`；`hep-ph/0411093` 两个 caption 内 `%DAMA/NaI...` |
-| 散文中字面 `$`（货币/单位/排版习惯写法） | ~8 | 低（多数良性——`$` 本就是可译文本的合法字符） | `0808.2824` 段落、`2207.12086` 数据集描述 |
-| footnote 内条件式排版 hack | 1 | 低 | `1404.4155` `\footnotetext{...\ifnum...\thehours}` 页脚日期戳 |
-| caption 内 ref_family 漏保护 | 1 | 中 | `1409.6539` caption 内 `\eq{key}` 自定义宏引用未入 KEY 占位 |
+| 机制                                                                  | 次数 | 严重度                                       | 例证                                                                                                     |
+| --------------------------------------------------------------------- | ---- | -------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `%` 注释残留在被挖的 caption/footnote 参数内，注释里恰好有 `$`/`\ref` | ≥4   | 低-中                                        | `2109.12648` caption 内 `%$\vec x\mathcal{L}_\kappa...`；`hep-ph/0411093` 两个 caption 内 `%DAMA/NaI...` |
+| 散文中字面 `$`（货币/单位/排版习惯写法）                              | ~8   | 低（多数良性——`$` 本就是可译文本的合法字符） | `0808.2824` 段落、`2207.12086` 数据集描述                                                                |
+| footnote 内条件式排版 hack                                            | 1    | 低                                           | `1404.4155` `\footnotetext{...\ifnum...\thehours}` 页脚日期戳                                            |
+| caption 内 ref_family 漏保护                                          | 1    | 中                                           | `1409.6539` caption 内 `\eq{key}` 自定义宏引用未入 KEY 占位                                              |
 
 → 产生的 rewrite 规格项：**`_arg_inline` 挖掘时剥参数内注释**（注释文本会混进 chunk 送 LLM）。
 
@@ -58,11 +58,11 @@ fake-translate rebuild ──▶ 0 dead / 0 orphan
 
 ## 5. 对照表
 
-| 语料 | n 文件 | ok% | strict ident% | leak% | 死/孤儿 |
-| --- | --- | --- | --- | --- | --- |
-| corpus39（手挑陷阱） | 256 | 100 | 100 | 0.11 | 0/0 |
-| **corpus_v2（无偏随机）** | **223** | **100** | **100** | **0.086** | **0/0** |
-| ieeA 旧基线（90 文件旧语料） | 90+ | 100 | 0 | 10.24 | 16 dead |
+| 语料                         | n 文件  | ok%     | strict ident% | leak%     | 死/孤儿 |
+| ---------------------------- | ------- | ------- | ------------- | --------- | ------- |
+| corpus39（手挑陷阱）         | 256     | 100     | 100           | 0.11      | 0/0     |
+| **corpus_v2（无偏随机）**    | **223** | **100** | **100**       | **0.086** | **0/0** |
+| ieeA 旧基线（90 文件旧语料） | 90+     | 100     | 0             | 10.24     | 16 dead |
 
 ## 6. 局限（诚实清单）
 

@@ -28,13 +28,13 @@ caps 语义：xelatex=`{"kpsewhich","tlmgr","updmap","recorder"}`，tectonic=`{"
 
 `route_project(root, *, prefer="tectonic") -> RouteDecision{engines, reject, reasons, non_utf8, latex209_suspect}`——`reject` 槽位保留但**恒 None**（LaTeX 2.09 无条件拒已移 fixloop `latex209_reject` gate）。流程：扫全部 .tex → `decode_tex`（非 UTF-8 记 `non_utf8`）→ `visible_tex` 遮盖 blob 上跑签名集。
 
-| 签名 | 检测 | 路由效果 |
-| --- | --- | --- |
-| eps/pstricks | `*.eps` 文件、`\usepackage{pstricks}`/`pstricks-*`/`pst-*`、`pspicture` env、`\psset`、`\special{psfile}` | **xelatex 置首**（xdvipdfmx 硬墙）[^pstricks] |
-| minted+frozencache | `_MINTED_FROZEN_RE` 且 minted 同现 | tectonic 置首（bundle v2.6 吃 v2 缓存） |
-| bitmap fonts | `bbm/bbmfonts/dsfont/bbold/yfonts/wasy/wasysym`、`*.mf` | reasons（tectonic 高风险提示，不改序） |
-| 非 UTF-8 | `decode_tex` 分档 | reasons |
-| `\documentstyle` | LaTeX 2.09 嫌疑 | `latex209_suspect` 标记 + reasons |
+| 签名               | 检测                                                                                                      | 路由效果                                      |
+| ------------------ | --------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| eps/pstricks       | `*.eps` 文件、`\usepackage{pstricks}`/`pstricks-*`/`pst-*`、`pspicture` env、`\psset`、`\special{psfile}` | **xelatex 置首**（xdvipdfmx 硬墙）[^pstricks] |
+| minted+frozencache | `_MINTED_FROZEN_RE` 且 minted 同现                                                                        | tectonic 置首（bundle v2.6 吃 v2 缓存）       |
+| bitmap fonts       | `bbm/bbmfonts/dsfont/bbold/yfonts/wasy/wasysym`、`*.mf`                                                   | reasons（tectonic 高风险提示，不改序）        |
+| 非 UTF-8           | `decode_tex` 分档                                                                                         | reasons                                       |
+| `\documentstyle`   | LaTeX 2.09 嫌疑                                                                                           | `latex209_suspect` 标记 + reasons             |
 
 决策默认 `prefer="tectonic"`（便携无 tlmgr 依赖、初始 clean 率更高），命中 xelatex 签名即重排[^engine-matrix]。消费方：`e2e.py` 与 `server/worker`（经 `worker/seams.route_project`）；probe 的 `prefer_engine` 是 advisory 不改本决策。biber/biblatex 版本错配不在本层——归 fixloop `_builtins_bib.biber_biblatex_skew_route`（`rules/80-bib.yaml`，order 8）。
 
@@ -56,7 +56,7 @@ caps 语义：xelatex=`{"kpsewhich","tlmgr","updmap","recorder"}`，tectonic=`{"
 
 ## 2. 沙箱与进程（`compile/sandbox.py` + `compile/proc.py`）
 
-`child_env` env 白名单三层（非黑名单）：`_ENV_PASS_EXACT`（HOME/PATH/TMP*/LANG/LC_*/USER/LOGNAME/SOURCE_DATE_EPOCH/TEXLATE_TEX_BUNDLE）+ `_ENV_PASS_PREFIX`（TEXMF*/TEXINPUTS/BIBINPUTS/BSTINPUTS/*FONTS/TEXFONTMAPS/ENCFONTS）+ `_ENV_FORCED`{`TECTONIC_UNTRUSTED_MODE=1, openin_any=p, openout_any=p, shell_escape=f, max_print_line=10000`}——env_extra 压不过 forced。
+`child_env` env 白名单三层（非黑名单）：`_ENV_PASS_EXACT`（HOME/PATH/TMP*/LANG/LC__/USER/LOGNAME/SOURCE_DATE_EPOCH/TEXLATE_TEX_BUNDLE）+ `_ENV_PASS_PREFIX`（TEXMF_/TEXINPUTS/BIBINPUTS/BSTINPUTS/*FONTS/TEXFONTMAPS/ENCFONTS）+ `_ENV_FORCED`{`TECTONIC_UNTRUSTED_MODE=1, openin_any=p, openout_any=p, shell_escape=f, max_print_line=10000`}——env_extra 压不过 forced。
 
 `_apply_sandbox` 四态 `off/sandbox-exec/bwrap/env`：
 
@@ -115,17 +115,17 @@ caps 语义：xelatex=`{"kpsewhich","tlmgr","updmap","recorder"}`，tectonic=`{"
 
 ## 5. 支撑件
 
-| 件 | 职责 |
-| --- | --- |
-| `toolchain.py` | tectonic 便携引擎分发：`TECTONIC_VERSION=0.17.0`、五平台 sha256 钉死 `ASSETS`、`install_tectonic`（sha256 校验 + 原子换名）/`ensure_tectonic`/`resolve_tool`；`TEXLATE_NO_DOWNLOAD`>CI 默认关[^tectonic] |
-| `ctan.py` | `ctan_fetch` 原语全模块：`TlpdbIndex`（texlive.tlpdb 解析→filemap.json 缓存，`TEXLATE_CACHE`>数据目录下 cache）、`fetch_package`（INDEX/OVERLAY_EXTS，flat 平铺\|tree 前缀剥，成员名穿越拒收 + 撤回，`FetchCaps` 五上限）、`check_version_compat`（`_NEEDFMT`/`_PKGLATER` 双 date 族 vs epoch）、`CtanFetcher`（tectonic 注入适配，索引首访惰建）[^ctanprobe] |
-| `sandbox.py`/`proc.py` | §2 |
-| `mask.py` | `TEX_SOURCE_SUFFIXES` + `visible_tex`/`without_comments`/`group_end`/`apply_edits`——normalize/inject 所有正则定位共用遮蔽契约 |
-| `shadow.py` | `_shadow_broken_system_packages`（§3.4 translate.md 同族——xelatex/lualatex 坏字节系统包遮影） |
-| `transcode.py` | 支持件字节卫生（§3.4 translate.md 同族——aux/bib/intermediate/ps 转码 + `(atend)` bbox 回溯 ledgers） |
-| `seams.py` | compile 层唯一 monkeypatch 面收口（`_SOURCES` 惰性 `__getattr__`） |
-| `_yamlish.py` | `load_yaml`（目录分片合并装载薄封装）+ `loads` + `YamlishError`——PyYAML `safe_load` 正式依赖化后，自定义子集解析器已退役 |
-| `__init__.py` | facade 全量再出口 |
+| 件                     | 职责                                                                                                                                                                                                                                                                                                                                                          |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `toolchain.py`         | tectonic 便携引擎分发：`TECTONIC_VERSION=0.17.0`、五平台 sha256 钉死 `ASSETS`、`install_tectonic`（sha256 校验 + 原子换名）/`ensure_tectonic`/`resolve_tool`；`TEXLATE_NO_DOWNLOAD`>CI 默认关[^tectonic]                                                                                                                                                      |
+| `ctan.py`              | `ctan_fetch` 原语全模块：`TlpdbIndex`（texlive.tlpdb 解析→filemap.json 缓存，`TEXLATE_CACHE`>数据目录下 cache）、`fetch_package`（INDEX/OVERLAY_EXTS，flat 平铺\|tree 前缀剥，成员名穿越拒收 + 撤回，`FetchCaps` 五上限）、`check_version_compat`（`_NEEDFMT`/`_PKGLATER` 双 date 族 vs epoch）、`CtanFetcher`（tectonic 注入适配，索引首访惰建）[^ctanprobe] |
+| `sandbox.py`/`proc.py` | §2                                                                                                                                                                                                                                                                                                                                                            |
+| `mask.py`              | `TEX_SOURCE_SUFFIXES` + `visible_tex`/`without_comments`/`group_end`/`apply_edits`——normalize/inject 所有正则定位共用遮蔽契约                                                                                                                                                                                                                                 |
+| `shadow.py`            | `_shadow_broken_system_packages`（§3.4 translate.md 同族——xelatex/lualatex 坏字节系统包遮影）                                                                                                                                                                                                                                                                 |
+| `transcode.py`         | 支持件字节卫生（§3.4 translate.md 同族——aux/bib/intermediate/ps 转码 + `(atend)` bbox 回溯 ledgers）                                                                                                                                                                                                                                                          |
+| `seams.py`             | compile 层唯一 monkeypatch 面收口（`_SOURCES` 惰性 `__getattr__`）                                                                                                                                                                                                                                                                                            |
+| `_yamlish.py`          | `load_yaml`（目录分片合并装载薄封装）+ `loads` + `YamlishError`——PyYAML `safe_load` 正式依赖化后，自定义子集解析器已退役                                                                                                                                                                                                                                      |
+| `__init__.py`          | facade 全量再出口                                                                                                                                                                                                                                                                                                                                             |
 
 ## 6. fixloop（`compile/fixloop/`）
 
@@ -151,24 +151,24 @@ yaml 规则驱动的编译自动修复循环：log→taxonomy 分类→规则匹
 
 ### 6.3 `rules/` 分片图谱（16 分片，文件名序合并）
 
-| 分片 | 内容 | rules | phase |
-| --- | --- | --- | --- |
-| `00-base` | version/meta/capabilities/filemap（非列表段） | 0 | — |
-| `10-taxonomy` | taxonomy 全段：116 行 / 87 unique id（head 108 / tail 6 / warnings 2）；首命中序即语义 | 0 | — |
-| `20-warnings` | warnings 段 4 条：invalid_utf8/missing_char/missing_graphic/tectonic_degrade | 0 | — |
-| `30-route` | gate 拒路 + precheck 预检 | 10 | gate 3 / precheck 7 |
-| `40-install` | missing_file/tfm → install/fetch + babel 选项 | 30 | loop |
-| `45-graphics` | ps_image/missing_graphic eps 链 + input_sty_to_usepackage | 16 | loop 15 / precheck 1 |
-| `50-font` | fontspec/missing_pfb 字体族 | 10 | loop |
-| `55-prim` | pdftex_prim/expl3 后端/glyphtounicode | 7 | loop |
-| `60-misschar` | warn_missing_char/warn_utf8 缺字族 | 11 | loop |
-| `65-encoding` | inputenc/非 UTF-8/aux 腐蚀 | 9 | loop |
-| `70-pkgopt` | option_clash/pkg_order/minted/hyperref | 21 | loop |
-| `75-syntax` | syntax/already_def/散件 + `undefined_cs_guess` 兜底 | 50 | loop |
-| `80-bib` | bbl stub/regen/citekey/bbx/biber-biblatex skew | 8 | loop |
-| `85-shim` | vendored 隔离/bundle 遮蔽/polyfill | 13 | loop 11 / precheck 2 |
-| `90-shim-legacy` | `legacy_pkg_shim` shim_map 大表 + input_sty_209_requirepkg | 4 | loop 3 / precheck 1 |
-| `95-targeted` | `cs_targeted_fix` 定点表独占片 | 20 | loop |
+| 分片             | 内容                                                                                   | rules | phase                |
+| ---------------- | -------------------------------------------------------------------------------------- | ----- | -------------------- |
+| `00-base`        | version/meta/capabilities/filemap（非列表段）                                          | 0     | —                    |
+| `10-taxonomy`    | taxonomy 全段：116 行 / 87 unique id（head 108 / tail 6 / warnings 2）；首命中序即语义 | 0     | —                    |
+| `20-warnings`    | warnings 段 4 条：invalid_utf8/missing_char/missing_graphic/tectonic_degrade           | 0     | —                    |
+| `30-route`       | gate 拒路 + precheck 预检                                                              | 10    | gate 3 / precheck 7  |
+| `40-install`     | missing_file/tfm → install/fetch + babel 选项                                          | 30    | loop                 |
+| `45-graphics`    | ps_image/missing_graphic eps 链 + input_sty_to_usepackage                              | 16    | loop 15 / precheck 1 |
+| `50-font`        | fontspec/missing_pfb 字体族                                                            | 10    | loop                 |
+| `55-prim`        | pdftex_prim/expl3 后端/glyphtounicode                                                  | 7     | loop                 |
+| `60-misschar`    | warn_missing_char/warn_utf8 缺字族                                                     | 11    | loop                 |
+| `65-encoding`    | inputenc/非 UTF-8/aux 腐蚀                                                             | 9     | loop                 |
+| `70-pkgopt`      | option_clash/pkg_order/minted/hyperref                                                 | 21    | loop                 |
+| `75-syntax`      | syntax/already_def/散件 + `undefined_cs_guess` 兜底                                    | 50    | loop                 |
+| `80-bib`         | bbl stub/regen/citekey/bbx/biber-biblatex skew                                         | 8     | loop                 |
+| `85-shim`        | vendored 隔离/bundle 遮蔽/polyfill                                                     | 13    | loop 11 / precheck 2 |
+| `90-shim-legacy` | `legacy_pkg_shim` shim_map 大表 + input_sty_209_requirepkg                             | 4     | loop 3 / precheck 1  |
+| `95-targeted`    | `cs_targeted_fix` 定点表独占片                                                         | 20    | loop                 |
 
 合计 **209 条规则**（gate 3 / precheck 11 / loop 195）；action 分布 builtin_transform 97 / regex_rewrite 86 / run_tool 13 / install_file 7 / reject_route 4 / scan_install 1 / escalate_llm 1。`00-base` 的 `meta.loop` 全键：`max_rounds=8, one_rule_per_round, dedup_key, stuck_sig_repeat=3, clean_err_max=3, compile_passes=2, timeout_sec=120, warn_demote=false, warn_driven_fixes=true`；`filemap.overrides`=105 钉（babel .ldf 大表 + 噪声 null 项）；`version_guard` epoch 2022-07-14；`capabilities` 段为审计文档不参与 dispatch。
 
@@ -204,15 +204,15 @@ for rnd in 1..max_rounds(8):
 
 ### 6.5 action 原语（`actions._apply` 分派）
 
-| kind | 语义 |
-| --- | --- |
-| `scan_install` | 静态扫 `\usepackage/\RequirePackage/\documentclass/\input` → probe → `eng.install_file` 批量装；`vendored:true` 时 install 败件走 `_scan_vendored` repo 兜底落盘 + `_dep_fanout` 深度 2 依赖闭包 |
-| `install_file` | file/try_exts/font_related/file_aliases/already_present_ok；`.fd` 大小写双变体；先 `_requester_paths` 要求方 fanout；probe(cwd=wdir)→install→复核→`rebuild_fontmaps` |
-| `run_tool` | `argv` 直跑（`ctx.runner` 注入点）；实证多为 `tool_available:python3` 门控的内嵌 `python3 -c` 脚本 |
-| `regex_rewrite` | `rewrites[]{pattern, repl | function, flags, match_surface:masked}` + exts + `engine_flags`（仅 n>0 时注 flag） |
-| `builtin_transform` | `TRANSFORM_FNS[name](ctx, eng, pay, params)` |
-| `reject_route` | `REJECT: route=<r> <reason>` |
-| `escalate_llm` | `ctx.llm_hook(ctx, rep)`，无 hook→False stub |
+| kind                | 语义                                                                                                                                                                                             |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `scan_install`      | 静态扫 `\usepackage/\RequirePackage/\documentclass/\input` → probe → `eng.install_file` 批量装；`vendored:true` 时 install 败件走 `_scan_vendored` repo 兜底落盘 + `_dep_fanout` 深度 2 依赖闭包 |
+| `install_file`      | file/try_exts/font_related/file_aliases/already_present_ok；`.fd` 大小写双变体；先 `_requester_paths` 要求方 fanout；probe(cwd=wdir)→install→复核→`rebuild_fontmaps`                             |
+| `run_tool`          | `argv` 直跑（`ctx.runner` 注入点）；实证多为 `tool_available:python3` 门控的内嵌 `python3 -c` 脚本                                                                                               |
+| `regex_rewrite`     | `rewrites[]{pattern, repl                                                                                                                                                                        | function, flags, match_surface:masked}`+ exts +`engine_flags`（仅 n>0 时注 flag） |
+| `builtin_transform` | `TRANSFORM_FNS[name](ctx, eng, pay, params)`                                                                                                                                                     |
+| `reject_route`      | `REJECT: route=<r> <reason>`                                                                                                                                                                     |
+| `escalate_llm`      | `ctx.llm_hook(ctx, rep)`，无 hook→False stub                                                                                                                                                     |
 
 `cap_available`/`tool_available` 即引擎 caps 门——tlmgr/kpsewhich/updmap 依赖规则在 tectonic 侧自动降级或汇到 `ctan_fetch`/`vendored_fetch` 臂[^ctanprobe]。
 
@@ -220,28 +220,28 @@ for rnd in 1..max_rounds(8):
 
 `builtins.py` 门面 = 全量 re-export + `REWRITE_FNS`（3：`px_to_bp`/`keep_latin_tokens`/`graphics_kv_strip_obsolete`）+ `TRANSFORM_FNS`（**80**）。yaml 引用：`action.function`→TRANSFORM_FNS 键、`rewrites[].function`→REWRITE_FNS 键、`@pdftex_prims` 占位符 yaml 全树展开（`_FAMILY_TOKENS`，112 词表）。社区新规则多数只写 regex，新函数才需 PR 代码。
 
-| 叶 | 主题 |
-| --- | --- |
-| `_builtins_common` | 跨域原语：mask_tex/live_matches/`_resolve_site`/`_inject_write` 指纹闸/`_mc_*` 缺字读侧/`_MC_TABLE`/PDFTEX_PRIMS/`_drop_pkg_loads` |
-| `_builtins_bib` | bbl stub 改写/bbl_regen/`biber_biblatex_skew_route`/`cite_in_math_mbox`/`citekey_sanitize` |
-| `_builtins_csfix` | undefined_cs/already_def cs 名打靶（`cs_targeted_fix`/`ctlseq_undefine`/`undefine_for_redef` 等） |
-| `_builtins_docfix` | 文档结构打靶：`pdfstring_cs_disarm`/`if_phantom_protect`/`premature_cs_guard`/`cs_delim_tail_fix`/`spacefactor_atdef_wrap`（at-def 包裹） |
-| `_builtins_graphics` | pstricks/dvips 预检/eps→pdf/svg_prepare/graphic_repair/pdf_asset_sanitize/xbb_pregen |
-| `_builtins_misschar` | missing_char 族修复（missing_char_fix/accent_mark_fix/font_fallback/nfss_* 六件） |
-| `_builtins_misc` | non_utf8_recode/purge_corrupt_intermediates/restore_support_from_src/plain_format_detect/harvest_build_directives/docstrip_generate/extract_tar_blobs/latex209_upgrade/cjk_env_relax 等 |
-| `_builtins_paralong` | para_longize——非 long 宏撞 `\par` |
-| `_builtins_pkgload` | 装载点外科：option_clash_merge/strip_inputenc/physics_stub_detach/font_sub_shim/xy_option_load 等 |
-| `_builtins_shim` | stub/遮蔽/polyfill 注入：legacy_pkg_shim/generated_stub/journal_cs_polyfill/pdftex_prim_polyfill/fileset_relocate/doc_absent_stub/driver_tfm_hoist 等 |
-| `_builtins_slotrev` | slot_arg_revert——zh 机位实参 revert（segmenter 侧病灶） |
-| `_builtins_vendored` | `find_vendored_shadows`（\ProvidesX 日期面 ld<sd 确证；tectonic 走 filemap 索引 advisory 级）/vendored_shadow_isolate/`vendored_fetch`(+multi)/amsmath_family_retire/revtex_era_retire |
+| 叶                   | 主题                                                                                                                                                                                    |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `_builtins_common`   | 跨域原语：mask_tex/live_matches/`_resolve_site`/`_inject_write` 指纹闸/`_mc_*` 缺字读侧/`_MC_TABLE`/PDFTEX_PRIMS/`_drop_pkg_loads`                                                      |
+| `_builtins_bib`      | bbl stub 改写/bbl_regen/`biber_biblatex_skew_route`/`cite_in_math_mbox`/`citekey_sanitize`                                                                                              |
+| `_builtins_csfix`    | undefined_cs/already_def cs 名打靶（`cs_targeted_fix`/`ctlseq_undefine`/`undefine_for_redef` 等）                                                                                       |
+| `_builtins_docfix`   | 文档结构打靶：`pdfstring_cs_disarm`/`if_phantom_protect`/`premature_cs_guard`/`cs_delim_tail_fix`/`spacefactor_atdef_wrap`（at-def 包裹）                                               |
+| `_builtins_graphics` | pstricks/dvips 预检/eps→pdf/svg_prepare/graphic_repair/pdf_asset_sanitize/xbb_pregen                                                                                                    |
+| `_builtins_misschar` | missing_char 族修复（missing_char_fix/accent_mark_fix/font_fallback/nfss_* 六件）                                                                                                       |
+| `_builtins_misc`     | non_utf8_recode/purge_corrupt_intermediates/restore_support_from_src/plain_format_detect/harvest_build_directives/docstrip_generate/extract_tar_blobs/latex209_upgrade/cjk_env_relax 等 |
+| `_builtins_paralong` | para_longize——非 long 宏撞 `\par`                                                                                                                                                       |
+| `_builtins_pkgload`  | 装载点外科：option_clash_merge/strip_inputenc/physics_stub_detach/font_sub_shim/xy_option_load 等                                                                                       |
+| `_builtins_shim`     | stub/遮蔽/polyfill 注入：legacy_pkg_shim/generated_stub/journal_cs_polyfill/pdftex_prim_polyfill/fileset_relocate/doc_absent_stub/driver_tfm_hoist 等                                   |
+| `_builtins_slotrev`  | slot_arg_revert——zh 机位实参 revert（segmenter 侧病灶）                                                                                                                                 |
+| `_builtins_vendored` | `find_vendored_shadows`（\ProvidesX 日期面 ld<sd 确证；tectonic 走 filemap 索引 advisory 级）/vendored_shadow_isolate/`vendored_fetch`(+multi)/amsmath_family_retire/revtex_era_retire  |
 
 ### 6.7 `vendor/` 离线资产三层
 
-| 层 | 件数 | 角色 |
-| --- | --- | --- |
-| `files/` | 183 件真档（.sty 80/.tex 47/.cls 13/.def 9/.rtx 8/.tfm 5/.mf 5/.ldf 2/.clo 2/.con 1 + 无扩展名 11 件 pst-*/multido/epsf） | 许可逐件核过的真身——missing_file 臂 off-CTAN 绝版件零网络平铺（`vendored_fetch`） |
-| `stubs/` | 26 件 | 许可禁分发件的最小宏面 stub——签名按 corpus 真件参数形状逐条对齐（吞参形状错位即吃调用点 token） |
-| `shims/` | 9 件 .cls 替身（aipproc/imsart/JHEP3/JHEP/mn2e/mn/revtex/svjour3/svjour） | 受限 cls 重写替身 |
+| 层       | 件数                                                                                                                      | 角色                                                                                            |
+| -------- | ------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `files/` | 183 件真档（.sty 80/.tex 47/.cls 13/.def 9/.rtx 8/.tfm 5/.mf 5/.ldf 2/.clo 2/.con 1 + 无扩展名 11 件 pst-*/multido/epsf） | 许可逐件核过的真身——missing_file 臂 off-CTAN 绝版件零网络平铺（`vendored_fetch`）               |
+| `stubs/` | 26 件                                                                                                                     | 许可禁分发件的最小宏面 stub——签名按 corpus 真件参数形状逐条对齐（吞参形状错位即吃调用点 token） |
+| `shims/` | 9 件 .cls 替身（aipproc/imsart/JHEP3/JHEP/mn2e/mn/revtex/svjour3/svjour）                                                 | 受限 cls 重写替身                                                                               |
 
 `_vendored_source` basename 按 `files→stubs→shims` 序查件（basename 跨层唯一）；`_resolve_site` 保 payload 相对径落位；`_inject_write` 指纹闸（外来件永不覆写，旧代注入件可刷新）。`doc_absent_stub`：版本缀 sibling 搬真件否则空 stub；`fileset_relocate`：稿自带件归位 `<main_dir>/`；`find_vendored_shadows`：工程自带旧 .sty 遮蔽已装新版——按 `\ProvidesPackage` 日期面确证（ld<sd）才 rename 隔离，盲删必死（同目录 cls 可能是唯一来源）。
 
@@ -261,19 +261,24 @@ for rnd in 1..max_rounds(8):
 
 ## 7. 状态词表（编译侧）
 
-| 域 | 字段 | 取值 | 产出 |
-| --- | --- | --- | --- |
-| 编译判决 | `Verdict.status` | `clean` / `partial` / `fail`（无 reject——三处拒绝统一 partial + `reject_at`） | `compile/judge.py` |
-| 注入态 | inject `status` | `injected` / `already` / `no-docline` | `compile/inject.py` |
-| fixloop 判决 | cases `verdict` | `clean` / `acceptable_pdf` / `best_effort_pdf` / `dirty_pdf` / `unfixable:<cat>` / `stuck` / `max_rounds` / `reject:<rid>` / `no_errors_no_pdf` / `no_main_tex[:<sub>]` | `fixloop/engine.py`、`fixloop/cases.py` |
-| 规则态 | `stats.status` | `active` / `proposed` / `validated` / `verified` / `proven` / `stub`（审计元数据非门控） | `fixloop/rules/` |
-| 跨臂退化 | `VERDICT_RANK` | `clean:3 > partial:2 > fail:1 > reject:0`——终态不得低于上游 | `repair.py` |
+| 域           | 字段             | 取值                                                                                                                                                                    | 产出                                    |
+| ------------ | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| 编译判决     | `Verdict.status` | `clean` / `partial` / `fail`（无 reject——三处拒绝统一 partial + `reject_at`）                                                                                           | `compile/judge.py`                      |
+| 注入态       | inject `status`  | `injected` / `already` / `no-docline`                                                                                                                                   | `compile/inject.py`                     |
+| fixloop 判决 | cases `verdict`  | `clean` / `acceptable_pdf` / `best_effort_pdf` / `dirty_pdf` / `unfixable:<cat>` / `stuck` / `max_rounds` / `reject:<rid>` / `no_errors_no_pdf` / `no_main_tex[:<sub>]` | `fixloop/engine.py`、`fixloop/cases.py` |
+| 规则态       | `stats.status`   | `active` / `proposed` / `validated` / `verified` / `proven` / `stub`（审计元数据非门控）                                                                                | `fixloop/rules/`                        |
+| 跨臂退化     | `VERDICT_RANK`   | `clean:3 > partial:2 > fail:1 > reject:0`——终态不得低于上游                                                                                                             | `repair.py`                             |
 
 ### 参考文献
 
 [^pstricks]: TeXlate 调研档案：pstricks/EPS 路由与 dvips 兜底链。[research/latex/pstricks-route.md](../research/latex/pstricks-route.md)
+
 [^engine-matrix]: TeXlate 调研档案：tectonic/xelatex 引擎矩阵实测。[research/latex/engine-matrix.md](../research/latex/engine-matrix.md)
+
 [^ctanprobe]: TeXlate 调研档案：ctan_fetch 原语与 tlpdb 离线索引实测。[research/latex/ctanfetch-probe.md](../research/latex/ctanfetch-probe.md)
+
 [^fixloop-rules]: TeXlate 调研档案：fixloop 规则库设计与沉淀机制。[research/latex/fixloop-rules.md](../research/latex/fixloop-rules.md)
+
 [^f3-note]: TeXlate ADR-0006：引擎路由裁决（2026-09-16 更新：策略拒绝归一 `partial`+`reject_at`）. [decisions/adr/0006-engine-routing.md](../decisions/adr/0006-engine-routing.md)
+
 [^tectonic]: Tectonic Typesetting. Tectonic 编译引擎（五平台 sha256 钉死二进制分发）. [github.com/tectonic-typesetting/tectonic](https://github.com/tectonic-typesetting/tectonic)

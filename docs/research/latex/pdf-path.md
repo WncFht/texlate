@@ -64,19 +64,20 @@ MinerU[^mineru] 3.4.5，Apache-2.0 + 附加条款（在线服务需署名、超�
 
 ## 6. 决策矩阵
 
-| 维度 | MinerU→md 对照 | BabelDOC 双语 PDF |
-| --- | --- | --- |
-| 产出物 | md/content_list → 需自建对照阅读器 | dual/mono PDF → 复用现有双栏阅读器 |
-| 翻译编排 | 走 texlate 编排（术语/缓存/校验复用） | BabelDOC 内部闭环（网关层复用） |
-| 进度 | 状态轮询（粗） | stage 事件流（细，SSE 直转） |
-| 部署 | torch + GB 级模型；vlm 要 GPU | ~50MB ONNX + 字体，纯 CPU |
-| 扫描件/OCR | `parse_method=ocr` 能吃 | `ScannedPDFError` 拒收 |
-| 单篇成本 | 解析本地免费 + LLM 编排成本 | LLM ~$0.02–0.05 + 本地 ONNX |
-| 假成功检测 | 自有校验器可控 | translate_tracking.json（已解） |
+| 维度       | MinerU→md 对照                        | BabelDOC 双语 PDF                  |
+| ---------- | ------------------------------------- | ---------------------------------- |
+| 产出物     | md/content_list → 需自建对照阅读器    | dual/mono PDF → 复用现有双栏阅读器 |
+| 翻译编排   | 走 texlate 编排（术语/缓存/校验复用） | BabelDOC 内部闭环（网关层复用）    |
+| 进度       | 状态轮询（粗）                        | stage 事件流（细，SSE 直转）       |
+| 部署       | torch + GB 级模型；vlm 要 GPU         | ~50MB ONNX + 字体，纯 CPU          |
+| 扫描件/OCR | `parse_method=ocr` 能吃               | `ScannedPDFError` 拒收             |
+| 单篇成本   | 解析本地免费 + LLM 编排成本           | LLM ~$0.02–0.05 + 本地 ONNX        |
+| 假成功检测 | 自有校验器可控                        | translate_tracking.json（已解）    |
 
 若实测发现 BabelDOC 在真实语料上的不可接受失败率（乱版/缺字/公式炸）过高，回头把 MinerU→md 作 B 方案——`page_idx`+`text_level` 已足够做页级对照。
 
 ### 参考文献
 
 [^babeldoc]: funstory-ai. BabelDOC — PDF scientific paper translation and bilingual comparison library (0.6.4, AGPL-3.0). GitHub. [github.com/funstory-ai/BabelDOC](https://github.com/funstory-ai/BabelDOC)
+
 [^mineru]: opendatalab. MinerU — document parsing tool (3.4.5, Apache-2.0 + 附加条款). GitHub. [github.com/opendatalab/MinerU](https://github.com/opendatalab/MinerU)

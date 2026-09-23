@@ -4,11 +4,11 @@ TeXlate 不捆绑模型服务：翻译请求发给你自己的 OpenAI 兼容端�
 
 ## 三种配法与优先级
 
-| 配法 | 在哪配 | 适用 |
-| ---- | ------ | ---- |
-| Settings 页 | `#/settings` 表单，存进数据目录的 `settings.json` | 日常默认，存一次长期生效 |
-| 环境变量 | `TEXLATE_BASE_URL` / `TEXLATE_API_KEY` / `TEXLATE_MODEL` / `TEXLATE_DIALECT` | 不落地配置的启动覆盖、容器与脚本 |
-| 单次请求 | 首页高级选项的「临时 API Key」，或 `run --server` 的 `--api-key/--base-url/--model/--dialect` | 临时换个 key 或端点跑一次，不写进任何配置 |
+| 配法        | 在哪配                                                                                        | 适用                                      |
+| ----------- | --------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| Settings 页 | `#/settings` 表单，存进数据目录的 `settings.json`                                             | 日常默认，存一次长期生效                  |
+| 环境变量    | `TEXLATE_BASE_URL` / `TEXLATE_API_KEY` / `TEXLATE_MODEL` / `TEXLATE_DIALECT`                  | 不落地配置的启动覆盖、容器与脚本          |
+| 单次请求    | 首页高级选项的「临时 API Key」，或 `run --server` 的 `--api-key/--base-url/--model/--dialect` | 临时换个 key 或端点跑一次，不写进任何配置 |
 
 同一字段三处都配时的生效顺序要分两半看：key 是「请求头 > Settings > 环境变量」；base_url、model、dialect 是「请求头 > 环境变量 > Settings」——环境变量是部署者的覆盖手段，能整端盖掉界面里的配置。
 

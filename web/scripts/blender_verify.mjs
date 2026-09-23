@@ -66,13 +66,16 @@ const THUMB_SAMPLE = `(() => { try {
     } catch { return null; } })()`;
 
 const browser = await chromium.launch({ executablePath: EXE });
-const ctx = await browser.newContext({ viewport: { width: 1400, height: 950 } });
+const ctx = await browser.newContext({
+    viewport: { width: 1400, height: 950 },
+});
 // 先亮色开文档,拿到「白底」基线,再切暗验证重渲路径(reset+update)
 await ctx.addInitScript(() => localStorage.setItem("texlate-theme", "light"));
 const page = await ctx.newPage();
 page.on("pageerror", (e) => console.log("[pageerror]", e.message));
 page.on("console", (m) => {
-    if (m.type() === "error") console.log("[console.error]", m.text().slice(0, 200));
+    if (m.type() === "error")
+        console.log("[console.error]", m.text().slice(0, 200));
 });
 await page.goto(`${BASE}/#/reader/${TASK}`, { waitUntil: "domcontentloaded" });
 await page.waitForSelector(".pdfSlickViewer .page canvas", { timeout: 20000 });
@@ -90,14 +93,21 @@ await page.evaluate(() => {
 await page.waitForTimeout(300);
 
 // 等重渲:像素均值跌破阈为止(最多 8s;reset 会换新 canvas 故直接采样)
-await page.waitForFunction(
-    `(() => { const r = ${SAMPLE}; return r && r.avg < 120; })()`,
-    { timeout: 8000 },
-).catch(() => console.log("!! dark wait timeout"));
+await page
+    .waitForFunction(
+        `(() => { const r = ${SAMPLE}; return r && r.avg < 120; })()`,
+        { timeout: 8000 },
+    )
+    .catch(() => console.log("!! dark wait timeout"));
 await page.waitForTimeout(400);
 const dark = await page.evaluate(SAMPLE);
 const thumbDark = await page.evaluate(THUMB_SAMPLE);
-console.log("dark render:", JSON.stringify(dark), "thumb:", JSON.stringify(thumbDark));
+console.log(
+    "dark render:",
+    JSON.stringify(dark),
+    "thumb:",
+    JSON.stringify(thumbDark),
+);
 await page.screenshot({ path: join(SHOTS, "blender-dark-reader.png") });
 
 // 切回亮色 → 应回白底
@@ -105,19 +115,25 @@ await page.evaluate(() => {
     localStorage.setItem("texlate-theme", "light");
     document.documentElement.dataset.theme = "light";
 });
-await page.waitForFunction(
-    `(() => { const r = ${SAMPLE}; return r && r.avg > 180; })()`,
-    { timeout: 8000 },
-).catch(() => console.log("!! light wait timeout"));
+await page
+    .waitForFunction(
+        `(() => { const r = ${SAMPLE}; return r && r.avg > 180; })()`,
+        { timeout: 8000 },
+    )
+    .catch(() => console.log("!! light wait timeout"));
 await page.waitForTimeout(400);
 const relight = await page.evaluate(SAMPLE);
 console.log("relight render:", JSON.stringify(relight));
 await page.screenshot({ path: join(SHOTS, "blender-light-reader.png") });
 
 const ok =
-    light && light.avg > 180 &&
-    dark && dark.avg < 120 && dark.darkPct > 50 &&
-    relight && relight.avg > 180;
+    light &&
+    light.avg > 180 &&
+    dark &&
+    dark.avg < 120 &&
+    dark.darkPct > 50 &&
+    relight &&
+    relight.avg > 180;
 console.log(ok ? "PASS" : "FAIL");
 await browser.close();
 process.exit(ok ? 0 : 1);

@@ -37,17 +37,31 @@
 ### 参考文献
 
 [^beel09a]: Beel, J., & Gipp, B. Google Scholar's Ranking Algorithm: An Introductory Overview. ISSI 2009. [issi-society.org](https://www.issi-society.org/proceedings/issi_2009/ISSI2009-proc-vol1_Aug2009_batch2-paper-1.pdf)
+
 [^beel09b]: Beel, J., & Gipp, B. Google Scholar's Ranking Algorithm: The Impact of Citation Counts. 2009. [uni-goettingen.de](https://gipplab.uni-goettingen.de/wp-content/papercite-data/pdf/beel09a.pdf)
+
 [^gsblog]: Google Scholar Blog. Scholar Updates: Making New Connections（2012）. [benhannigan.com 转引](https://benhannigan.com/2013/07/16/academic-networking/)
+
 [^lse]: LSE Impact Blog. How to keep up to date with the literature but avoid information overload. 2018. [blogs.lse.ac.uk](https://blogs.lse.ac.uk/impactofsocialsciences/2018/05/18/how-to-keep-up-to-date-with-the-literature-but-avoid-information-overload/)
+
 [^serpapi]: SerpApi. Google Scholar API documentation. [serpapi.com/google-scholar-api](https://serpapi.com/google-scholar-api)
+
 [^s2swagger]: Semantic Scholar. Recommendations API swagger（2026-09-19 自取）. api.semanticscholar.org/recommendations/v1/swagger.json
+
 [^s2medium]: AI2. Semantic Scholar Releases New Recommendations API. [medium.com/ai2-blog](https://medium.com/ai2-blog/semantic-scholar-releases-new-recommendations-api-ca01ef2d80d4)
+
 [^s2faq]: Semantic Scholar. FAQ: What are Research Feeds. [semanticscholar.org/faq](https://www.semanticscholar.org/faq/what-are-research-feeds)
+
 [^feedlens]: Kaur, H., et al. FeedLens: Polymorphic Lenses for Personalizing Exploratory Search over Knowledge Graphs. UIST 2022. [arxiv.org/abs/2208.07531](https://arxiv.org/abs/2208.07531)
+
 [^mag]: Wang, D., et al. A Scalable Hybrid Research Paper Recommender System for Microsoft Academic. WWW 2019. [arxiv.org/pdf/1905.08880](https://arxiv.org/pdf/1905.08880)
+
 [^rgrec]: A hybrid recommendation system for ResearchGate academic social network. [springerprofessional.de](https://www.springerprofessional.de/a-hybrid-recommendation-system-for-researchgate-academic-social-/24643936)
+
 [^mendeley]: Jack, K., et al. Recommending Scientific Literature: Comparing Use-Cases and Algorithms. 2014. [arxiv.org/abs/1409.1357](https://ar5iv.labs.arxiv.org/html/1409.1357)
+
 [^coread]: Personalized Recommendation of Research Papers by Fusing Recommendations from Explicit and Implicit Social Network. [academia.edu](https://www.academia.edu/124793479/)
+
 [^ads]: Henneken, E., et al. Finding and Recommending Scholarly Articles. 2012. [arxiv.org/abs/1209.1318](https://doi.org/10.48550/arxiv.1209.1318)
+
 [^dl-survey]: A Hybrid Recommender System Guided by…（数字图书馆推荐综述）. JETWI 2014. [jetwi.us](http://www.jetwi.us/uploadfile/2014/1226/20141226015349581.pdf)

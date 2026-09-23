@@ -18,11 +18,11 @@
 
 ### 触发面（三入口，全部 `when=hasSelection` 门控）
 
-| 入口 | 行为 | 实证数据 |
-|---|---|---|
-| 浮动工具条 FloatBar | mouseup/键盘 Shift+选择后 ~55ms 内出现于选区首行附近（below-first + flip + 视口钳位）；按钮「翻译 t」「词典 l」「复制 c」 | ss-floatbar 25/25 PASS，scroll-follow 误差 ≤0.1px |
-| 上下文菜单 ContextMenu | 右键弹自定义菜单，sel 组：翻译/词典/复制（解释占位禁用项）；mousedown 即快照 selection（右键点在选区外会先塌缩选区） | ss-ctxmenu 27/27 jsdom + 17/17 real Chrome，open 71ms |
-| 热键 | `t`=翻译、`l`=词典、`c`=复制——仅 hasSelection 时激活；Escape 关闭顺序 editor > cite > find > menu > info > help > sel | ss-hotkeys 冲突表 60/60 |
+| 入口                   | 行为                                                                                                                      | 实证数据                                              |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| 浮动工具条 FloatBar    | mouseup/键盘 Shift+选择后 ~55ms 内出现于选区首行附近（below-first + flip + 视口钳位）；按钮「翻译 t」「词典 l」「复制 c」 | ss-floatbar 25/25 PASS，scroll-follow 误差 ≤0.1px     |
+| 上下文菜单 ContextMenu | 右键弹自定义菜单，sel 组：翻译/词典/复制（解释占位禁用项）；mousedown 即快照 selection（右键点在选区外会先塌缩选区）      | ss-ctxmenu 27/27 jsdom + 17/17 real Chrome，open 71ms |
+| 热键                   | `t`=翻译、`l`=词典、`c`=复制——仅 hasSelection 时激活；Escape 关闭顺序 editor > cite > find > menu > info > help > sel     | ss-hotkeys 冲突表 60/60                               |
 
 选区采集：以 `selection→[data-chunk]` walk 法定位归属 chunk（24.7µs，远优于全文 scan 42.5ms）；选区文本 `range.toString()`，上下文取选区所在 chunk 文本前后各 ≤500 字符（服务端再截断兜底）。**Chromium 会塌缩跨 pane 选区**——UI 只处理单 pane 选区，pane 归属随 selection anchorNode 判定。
 
@@ -123,15 +123,15 @@ st-backcheck 产出 per-chunk 对齐图：`{seq, kind, en_sents[], zh_sents[], b
 新增文件：
 
 - `src/texlate/server/routers/selxlat.py` — 照 `refs.py` 叶模板 `register(app, deps)`。handler 阶梯：
-  1. `_read_body`（4MB 闸+CT 415+坏 JSON 400 白拿）→ 字段校验 `text 1..4096c`、`context` 截 ±500c、`mode∈{translate,dict}`、`target_lang∈TARGET_LANGS`（缺省取任务行）；
-  2. `deps.get_task` → 404；`status∈{done,partial}` else 409（tasks.py retranslate 同款先例）；
-  3. `deps.auth(request)`：`source="none"`（server 匿名）→ 池臂：`pool_per_day>0` else 503，扣 pool；否则 `Secrets.from_auth` → 用户 key 臂；
-  4. `in_flight` 检查 → peer 双闸（`deps.sel_quota`）→ 429 `{scope,retry_after_s}`；
-  5. `store.cache_get(selkey)` → hit → 200 `cached:true`；
-  6. `ChatClient.chat`（dict 模式 `response_format=json_object`）→ **空内容检测+1 次重试** → 仍败 502 `provider_error`；429/timeout 上抛归一 502/429；
-  7. `usage_sink` → meter repo 实结 + peer 桶 est→settled 修正 + pool 扣减；
-  8. `cache_put` → 200 带 `quota{…}` 余量。
-  dict 模式另加 JSON parse 失败重试 1 次。
+    1. `_read_body`（4MB 闸+CT 415+坏 JSON 400 白拿）→ 字段校验 `text 1..4096c`、`context` 截 ±500c、`mode∈{translate,dict}`、`target_lang∈TARGET_LANGS`（缺省取任务行）；
+    2. `deps.get_task` → 404；`status∈{done,partial}` else 409（tasks.py retranslate 同款先例）；
+    3. `deps.auth(request)`：`source="none"`（server 匿名）→ 池臂：`pool_per_day>0` else 503，扣 pool；否则 `Secrets.from_auth` → 用户 key 臂；
+    4. `in_flight` 检查 → peer 双闸（`deps.sel_quota`）→ 429 `{scope,retry_after_s}`；
+    5. `store.cache_get(selkey)` → hit → 200 `cached:true`；
+    6. `ChatClient.chat`（dict 模式 `response_format=json_object`）→ **空内容检测+1 次重试** → 仍败 502 `provider_error`；429/timeout 上抛归一 502/429；
+    7. `usage_sink` → meter repo 实结 + peer 桶 est→settled 修正 + pool 扣减；
+    8. `cache_put` → 200 带 `quota{…}` 余量。
+       dict 模式另加 JSON parse 失败重试 1 次。
 
 修改文件：
 
@@ -172,12 +172,12 @@ e2e 手动清单：三 pane 划选（dom/html/pdf textLayer）、跨 pane 拖选
 
 ## 工作量与分期
 
-| 期 | 内容 | 估算 |
-|---|---|---|
-| **M1 核心闭环** | selxlat.py 端点（同步、双闸、缓存、计量、空流重试）+ deps/app/settings/store 接线；前端 selxlat.ts + SelModal（同步渲染+骨架屏）+ FloatBar + `t` 热键 + DomPane/HtmlPane 钩子 + rest.ts/types.ts/i18n/css | 2–3 天 |
-| **M2 入口补全** | ContextMenu+cmdreg 落地、PdfPane textLayer、Esc 层栈统一（含 CiteCard 收编）、settings 开关、匿名池 | 1–2 天 |
-| **M3 体验增强** | dict 模式（端点 mode+前端词条卡视图）；`kind='sel'` 瘦身 prompt + A/B；可选 SSE 流式 + block 渲染（swe-2 假流式下收益小，按上游模型定夺） | 1 天 |
-| **M4 回检标注（可选）** | backcheck 数据落地（dual.json `sents` 字段或独立 artifact + FileKind）、zhseg JS 移植、zh 句→en bead 高亮 UI | 2–3 天 |
+| 期                      | 内容                                                                                                                                                                                                      | 估算   |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| **M1 核心闭环**         | selxlat.py 端点（同步、双闸、缓存、计量、空流重试）+ deps/app/settings/store 接线；前端 selxlat.ts + SelModal（同步渲染+骨架屏）+ FloatBar + `t` 热键 + DomPane/HtmlPane 钩子 + rest.ts/types.ts/i18n/css | 2–3 天 |
+| **M2 入口补全**         | ContextMenu+cmdreg 落地、PdfPane textLayer、Esc 层栈统一（含 CiteCard 收编）、settings 开关、匿名池                                                                                                       | 1–2 天 |
+| **M3 体验增强**         | dict 模式（端点 mode+前端词条卡视图）；`kind='sel'` 瘦身 prompt + A/B；可选 SSE 流式 + block 渲染（swe-2 假流式下收益小，按上游模型定夺）                                                                 | 1 天   |
+| **M4 回检标注（可选）** | backcheck 数据落地（dual.json `sents` 字段或独立 artifact + FileKind）、zhseg JS 移植、zh 句→en bead 高亮 UI                                                                                              | 2–3 天 |
 
 M1 即可独立交付用户价值；M2/M3 可按反馈重排；M4 是独立增量，不阻塞主线。
 

@@ -12,6 +12,7 @@
 4. 默认开、可关；对文本零污染（textContent 字节恒等已实证），对渲染零布局扰动。
 
 **证据基座**（各 lane 关键数字在后文引用处标注）：
+
 - align-sample：真实 dual.json 取样 3 篇（400/164/85 chunks），zh/en 长比中位 0.38–0.43。
 - align-en-split：2020 en chunk → 5548 句（均值 2.75/chunk），join 恒等 2020/2020，过切率 0.03%。
 - align-zh-split：1048 zh DOM 节点，Intl.Segmenter vs 正则 97.7% 一致；**RAW 变体 Intl 在 `\n` 处乱切（4571 vs 4025）——必须切扁平化文本**。
@@ -26,28 +27,33 @@
 ## 交互规格
 
 ### sid 协议
+
 - `sid = "{data-chunk 值}.{k}"`，k 为块内句序位（0 起）。`data-chunk` 值在 DomPane 是键串（`S3.SS2.SSS1.p1`），在 HtmlPane/LivePane 是数字 seq——同一窗格对内两侧键集一致，直接作字符串用。
 - DOM 形态：`<span class="ens" data-sid="…">`（en 侧）/`<span class="zhs" data-sid="…">`（zh 侧）。span 本身无样式，仅作锚。
 - **契约：sid→元素集合**。任何消费方一律 `blockEl.querySelectorAll('[data-sid="…"]')`，禁止假设单元素（实测 182/361≈49% sid 跨多文本节点）。
 
 ### bead 语义（对位单位）
+
 - 每个 chunk 内，en 句列与 zh 句列经**贪心单调对位器**切成 bead 序列；bead 是 m:n 句组（实测 87.6% 1:1，其余 1:2/2:1/2:2/3:1…，单侧上限 MAXG=4）。
 - 交互单位是 bead 不是句：悬停/点击高亮与跳转的粒度 = 整个 bead。句数不等时（7.53% chunk）天然降级为组高亮——**绝不伪装 1:1**，这是 mismatch 实测结论决定的交互底线。
 - sid 同时携带 bead 标引：注入后对每 chunk 跑一次对位，给每个 span 补 `data-bead="{chunk}.{b}"`；悬停时取 `data-bead` 查两侧元素集。
 
 ### 悬停
+
 - 委托监听挂在各 pane 的 `bodyEl`/容器上（与 DomPane 现有 cite-card 委托同址）：`pointerover`/`pointerout` 冒泡取 `closest('[data-sid]')` → 得 sid/bead → 本侧元素集加 `.sa-hot`，对侧 pane 同 bead 元素集加 `.sa-peer`。
 - 对侧 bead 不可见时**不自动滚动**（滚动只发生在点击跳转；悬停只着色——避免与 SyncEngine 滚动同步打架）。
 - 离开即清。增量注入（repaint/paint）后新 span 自动生效（委托无重绑成本——实测 ~0ms vs 逐 span 8–40ms/+2000 spans）。
 - 无 bead 的 span（support 块噪声 sid、对侧 chunk 缺失）悬停只给本侧 `.sa-hot`。
 
 ### 点击跳转
+
 - DOM→DOM：对侧 bead 首元素 `jumpToEl` + `flash`（DomPane 已有）；跳转前后 `capturePos` 记 `navStacks[side].recordJump(pre, post, pair)`，`mirrorTo` 的 pair 机制原样复用——Backspace/Alt+← 回退成对生效。
 - DOM→PDF（v1.5）：源 bead → 所在 chunk 的 Pos + 句内分位（bead 起始字符偏移/chunk 字符数）→ `createPositionMapper`（`alignment.ts`，已支持 pairs/regions 插值）→ 目标 `{page, fraction}` → 合成 `[page, /XYZ, x, y]` dest 走 `handle.goToDestination`（PdfPane 已支持显式 dest 对象，`:774` 实例在案）。精度=chunk 内线性插值，够用；真句级等 v2。
 - PDF→DOM（v2）：文本层命中句锚 quad → sid → 对侧 bead 跳转同上。
 - 点击后 `.sa-flash` 闪目标 bead（复用 flash 动效，深色主题变量见 §前端改动-CSS）。
 
 ### 开关与发现性
+
 - Settings 页加开关（默认开），`localStorage` 键 `texlate-sent-align`，信号面与 `paperTheme` 同构（`settings.ts:24` `PAPER_KEY` 模式）。
 - 悬停高亮本身即发现通道，不另加引导。
 
@@ -56,17 +62,20 @@
 **v1/v1.5：双.json schema 与后端零改动。** sid/bead 全部由前端在挂载后对两侧 DOM 文本重切派生；dual.json 的 `chunks[].zh` 保持裸 markdown（A 方案被否的根因之一即防污染 copy/search/md.zip 消费面）。
 
 **v2（PDF 句锚，管线 additive）**：
+
 - `worker/compile.py::_build_zh`（`:342` `reconstruct(res, by_int)` 之后、`prepare_chinese` 之前）：按 en 侧 `sentence_ends` 口径在 zh tex 句界处插裸锚原语——pdftex `\pdfdest name{tl.{chunk}.{k}} xyz`、xelatex `\special{pdf:dest (tl.{chunk}.{k}) [@thispage /XYZ @xpos @ypos null]}`。实测 26B/锚、编译 +~20ms（+5%）、PDF 文本层与布局字节不变（46,393 字符恒等）。**严禁 `\hypertarget`**——类级 `pdfview=FitH` 会把它降级丢 x 坐标（pdftex/xelatex 双臂实证）。
 - 锚名进 `⟪⟫` 名字空间管理体系以防与用户宏撞名（`xlat/placeholders.py` 哨兵 codec 同族）。
 - 存量任务无锚（仅 31.5% splice PDF 有 dest）→ 前端无 `tl.*` dest 时整体降级到 chunk 级（现行为），不报错。
 
 **v3（译文携带句标，打破序位上限）**：
+
 - 序位对位天花板实测 ~93.4% chunk 全对 / ~6% 句级漂移；真提准只有让模型输出句界标。扩展 `xlat/retry.py` 现有 `⟪S0000⟫` 槽位协议（`SLOTS_PER_BATCH=8`、`SLOT_MAX_CHARS=1500`、`_SLOT_ECHO_RX` 回显拒收、`_SLOT_ZW_CHARS` 零宽清洗全套现成）到全量 chunk：翻译产物中句间嵌 `⟪S{k}⟫`，splice/emit 时剥离成 sidecar `dual.json.chunks[i].sent_marks`（additive 可选字段，`web/src/api/types.ts` 同步），前端直接读 marks 跳过重切。
 - 备选 spike-C 形态：后端在 zh 文本注 `⟦S{seq}.{i}⟧` 文本级标记（任何路径都存活为文本，前端物化成 span；不占 `ANY_PH_RX` 名字空间）。
 
 ## 前端改动（文件级）
 
 ### 新增 `web/src/reader/sentalign.ts`（核心模块，~300 LOC）
+
 四段纯逻辑 + 一段会话，全部可单测：
 
 1. **`zhSentenceSpans(text)`**——`zhseg.py` 的 JS 移植（~50 行）：终结 run `[。！？!?…]+closers` 吸收闭标点；ASCII `.` 由 `_abbrev_dot` 闸（尾词含 `.` 或 ≤3 字母、数字相邻则豁免）；`_GUARD_RX` 跳 `[[..]]`/`$..$`/`$$..$$`/`\(...\)`/URL；`{}` 深度>0 抑制切点；`\\` 双跳；`;；,，` 永不为界；句尾吸收随行空白进前句。用 `/dg` flag 的 `m.indices` 取区间。**与生产 `sentence_ends`（`xlat/batch.py:327`）同款不对称修正**——这是 chunk-exact 从 84.0%→93.4% 的来源，不许用裸 Intl 替代 zh 侧。
@@ -76,36 +85,45 @@
 5. **`SentAlignSession`**——持两侧 pane `el`；`mount()` 用 `forEachSliced`（`sync.ts:37`，SLICE_MS=40 同口径防大文档卡顿）跑 inject+对位并建 `bead → {side → Element[]}` 索引；`attach(bodyEl)` 挂委托 pointerover/pointerout/click；`destroy()` 摘监听清索引。~120 行。
 
 ### `web/src/reader/DomPane.tsx`
+
 - 挂载尾部（分片 append 完、`geom.rebind()` 后）调 `session.mountSide(side, bodyEl)`。
 - 委托监听与现有 cite-card click/pointerover/pointerout **同址并列**（bodyEl 上再加三行 delegate）。
 - 点击跳：现有 `jumpToEl`/`flash` 直接复用；把 `recordJump`/`mirrorTo` 回调经 props 接进 ReaderView 现有对（`onDestJump` 同型）。
 
 ### `web/src/reader/HtmlPane.tsx` 与 `LivePane.tsx`
+
 - 注入点=共享上色管线尾：`HtmlPane.tsx:69` 本地 `finishChunk`（`:138` repaint、`:232` 分片 mount 两处调用）与 `LivePane.tsx:143-144` paint 内 `unmaskLatex`+`renderMath` 之后各加一行 `injectSentSpans(sec, 'zh'|'en')`。**必须在 renderMath 之后**（math 子树是 SKIP 类）。`markdown.ts:279` 共享 `finishChunk` 同步加（三处同口径注释处）。
 - `repaint(seq)` 重建 section → 注入自然随 paint 重跑（B 方案覆盖增量路径的关键论据），session 对该 chunk 重建 bead。
 
 ### `web/src/reader/PdfPane.tsx`（v1.5 + v2）
+
 - v1.5：无改动——`goToDestination(dest)`/`mirrorDest`（`:66,:70`）已接受合成 XYZ dest 数组。
 - v2：文本层（textLayer div）上跑句锚 quad 派生——相邻 `tl.*` 锚间文本发射切片按基线行切 quad（两相法则：最近基线+同行 x-span，60/60 双栏+CJK 段中 dy=0 实证）；quad 叠层 div 加 `.sa-hot`/`.sa-peer`。zh 文本抽取需 `cMapUrl`+`standardFontDataUrl`。页尾 folio 吞锚用 leading-gap 闸（>2× median leading）。委托监听挂 `viewer.container`（cite-card 委托同址）。
 
 ### `web/src/reader/ReaderView.tsx`
+
 - 持 `SentAlignSession` 生命周期：双侧 handle ready（`paneReady` 补投口 `:554` 同款）且开关开 → mount；`planModeChange`/换视图/关开关 → destroy 重挂。
 - 点击跳回调接入 `navStacks`/`pendingMirror`/`mirrorTo`（`:132,:389`）——跳转对共用一个 pair 计数，drift 抑制窗（`:369`）复用。
 
 ### `web/src/stores/settings.ts` / `Settings.tsx` / `Toolbar.tsx`
+
 - `settings.ts`：仿 `PAPER_KEY`（`:24`）加 `SENT_ALIGN_KEY="texlate-sent-align"` + `sentAlign` 信号（默认 true）。
 - `Settings.tsx`：开关行；`Toolbar.tsx` 可选 chip（v1 可不做）。
 
 ### `web/src/i18n/en.ts` / `zh.ts`
+
 - `settings.sentAlign`、tooltip、`reader.sentAlignJumped` 等 3–4 键。
 
 ### `web/src/styles/reader.css`
+
 - `.ens,.zhs{display:inline}`（零样式锚）；`.sa-hot`/`.sa-peer` 用主题变量底色（须兼容 blender 深色——ADR-0020 变量族）；`.sa-flash` 跳转动效。PDF quad 叠层类同名复用。
 
 ### `web/src/reader/sanitize.ts`（防御性一行）
+
 - `ADD_ATTR` 补 `"data-sid","data-bead"`（`:36` 同处）——v1 运行时注入其实不过 sanitizer，此行为 v3 emit 期注 sid 与防回归预备，并配一条 sanitize 回归测试。
 
 ### `sync.ts` / `alignment.ts` / `navstack.ts` / `citations.ts`
+
 - **零改动**。bead 跳转走元素级 `jumpToEl`/合成 dest，不触 `pages()` 几何与 PosMap 内部。
 
 ## 后端改动
@@ -133,12 +151,12 @@ fixture 来源：**必须**从 `~/.texlate/tasks/` 拷真实 dual.json/en.html/z
 
 ## 工作量与分期
 
-| 期 | 内容 | 改动面 | 估时 |
-|---|---|---|---|
-| v1 | DOM↔DOM 句级悬停高亮+点击跳+开关 | `sentalign.ts` 新增 ~300 LOC；DomPane/HtmlPane/LivePane/markdown 各 1–3 行钩；ReaderView ~50 行；settings/i18n/CSS ~80 行 | 2–3 天含测试 |
-| v1.5 | DOM→PDF 点击跳（PosMap 分位插值+合成 XYZ dest） | sentalign +~60 行，PdfPane 零改 | 0.5–1 天 |
-| v2 | PDF 句锚+文本层 quad+PDF→DOM 双向 | 后端 ~80 行（compile.py+placeholders.py）；前端 sentalignPdf ~150 行；存量任务重跑 splice 才生效 | 3–4 天 |
-| v3 | 译文携带句标（⟪S⟫ 槽位推广）+`sent_marks` sidecar | retry/batch/emit/types ~150 行 + prompt/协议改动；打破 ~93.4% 序位天花板 | 2–3 天 + 重译成本 |
+| 期   | 内容                                              | 改动面                                                                                                                    | 估时              |
+| ---- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ----------------- |
+| v1   | DOM↔DOM 句级悬停高亮+点击跳+开关                  | `sentalign.ts` 新增 ~300 LOC；DomPane/HtmlPane/LivePane/markdown 各 1–3 行钩；ReaderView ~50 行；settings/i18n/CSS ~80 行 | 2–3 天含测试      |
+| v1.5 | DOM→PDF 点击跳（PosMap 分位插值+合成 XYZ dest）   | sentalign +~60 行，PdfPane 零改                                                                                           | 0.5–1 天          |
+| v2   | PDF 句锚+文本层 quad+PDF→DOM 双向                 | 后端 ~80 行（compile.py+placeholders.py）；前端 sentalignPdf ~150 行；存量任务重跑 splice 才生效                          | 3–4 天            |
+| v3   | 译文携带句标（⟪S⟫ 槽位推广）+`sent_marks` sidecar | retry/batch/emit/types ~150 行 + prompt/协议改动；打破 ~93.4% 序位天花板                                                  | 2–3 天 + 重译成本 |
 
 依赖：v1 无前置；v1.5 依赖 v1 的 bead 索引；v2 依赖 v1.5 跳转通道；v3 独立可插队（收益是替掉前端重切+提准）。
 

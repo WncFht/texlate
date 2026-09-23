@@ -32,11 +32,11 @@
 
 ## 选型路线（数百万篇量级 similar-papers 服务）
 
-| 路线 | 资产 | 冷启动 | 量化成本 | 适用 |
-| --- | --- | --- | --- | --- |
-| A. 吃 S2 specter_v2 dump | 120M 现成向量（需 key，ODC-BY） | 覆盖 S2 已收录 | arXiv 子集 ~2.5M×768 fp16≈3.8GB（~2.5M=specter_v2 dump 内 arXiv 子集口径：快照时点、仅含可编码条目；现刊全量 ~3.2M 见 `20-engineering.md`），hnswlib 单机即可 | 起步首选，当天能用 |
-| B. 自跑 SPECTER2 proximity | HF/S3 模型（BERT-base+adapter） | **任何新论文当天可编码** | ~3.2M 篇（arXiv 现刊口径）≈A100 数小时/消费级 GPU 约一天 | 补 S2 缺口与新鲜度 |
-| C. 图派层（ProNE 类） | 自建引用图 | 需引用累积，新文冷启动差 | 单线程 29h/亿节点；产出 280d 小向量 | 召回补充/重排，补 CBF 结构盲区 |
+| 路线                       | 资产                            | 冷启动                   | 量化成本                                                                                                                                                      | 适用                           |
+| -------------------------- | ------------------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
+| A. 吃 S2 specter_v2 dump   | 120M 现成向量（需 key，ODC-BY） | 覆盖 S2 已收录           | arXiv 子集 ~2.5M×768 fp16≈3.8GB（~2.5M=specter_v2 dump 内 arXiv 子集口径：快照时点、仅含可编码条目；现刊全量 ~3.2M 见 `20-engineering.md`），hnswlib 单机即可 | 起步首选，当天能用             |
+| B. 自跑 SPECTER2 proximity | HF/S3 模型（BERT-base+adapter） | **任何新论文当天可编码** | ~3.2M 篇（arXiv 现刊口径）≈A100 数小时/消费级 GPU 约一天                                                                                                      | 补 S2 缺口与新鲜度             |
+| C. 图派层（ProNE 类）      | 自建引用图                      | 需引用累积，新文冷启动差 | 单线程 29h/亿节点；产出 280d 小向量                                                                                                                           | 召回补充/重排，补 CBF 结构盲区 |
 
 推荐组合 **A 打底 + B 补新 + C 做候选扩充与重排**——即 multi-perspectives 论文论证有效的 CBF×GB ensemble 形态。ANN 侧 arXiv 规模 hnswlib 单实例足够，亿级换 FAISS IVF+PQ。两个风险要记住：SPECTER 两版本向量不可混用；S2 下载需 API key 且未鉴权端点限流凶。模型权重除 HF 外另发在 SPECTER2 官方 AWS S3 渠道[^specter2-gh]。
 
@@ -47,18 +47,33 @@ embedding 侧「引用图当监督信号」是最经济的融合——向量天�
 ### 参考文献
 
 [^specter]: Cohan, Feldman, Beltagy, Downey, Weld. SPECTER: Document-level Representation Learning using Citation-informed Transformers. ACL 2020. [arXiv:2004.07180](https://arxiv.org/pdf/2004.07180)
+
 [^specter-gh]: AllenAI. SPECTER GitHub README（errata、API 版本说明）. [github.com/allenai/specter](https://github.com/allenai/specter/blob/master/README.md)
+
 [^scincl]: Ostendorff, Rethmeier, Augenstein, Gipp, Rehm. Neighborhood Contrastive Learning for Scientific Document Representations. EMNLP 2022. [aclanthology.org/2022.emnlp-main.802](https://aclanthology.org/2022.emnlp-main.802/)
+
 [^scincl-gh]: malteos. SciNCL 代码与模型卡. [github.com/malteos/scincl](https://github.com/malteos/scincl/)
+
 [^scirepeval]: Singh, D'Arcy, Cohan, Downey, Feldman. SciRepEval. EMNLP 2023. [aclanthology.org/2023.emnlp-main.338](https://aclanthology.org/2023.emnlp-main.338/)
+
 [^ai2-blog]: AllenAI. SPECTER2: Adapting scientific document embeddings to multiple fields and task formats. [allenai.org blog](https://allenai.org/blog/specter2-adapting-scientific-document-embeddings-to-multiple-fields-and-task-formats-c95686c06567)
+
 [^specter2-hf]: AllenAI. allenai/specter2_base / specter2 model cards. [huggingface.co/allenai/specter2_base](https://huggingface.co/allenai/specter2_base)
+
 [^specter2-gh]: AllenAI. SPECTER2 GitHub README（重命名表、MDCR 成绩、S3 渠道）. [github.com/allenai/SPECTER2](https://github.com/allenai/SPECTER2)
+
 [^s2-datasets]: Semantic Scholar. Datasets API release 2026-09-17 清单（2026-09-19 实测）. [api.semanticscholar.org/datasets/v1](https://api.semanticscholar.org/datasets/v1/release/latest)
+
 [^s2-recs-blog]: AI2. Semantic Scholar releases new Recommendations API. [medium.com/ai2-blog](https://medium.com/ai2-blog/semantic-scholar-releases-new-recommendations-api-ca01ef2d80d4)
+
 [^s2-recs-docs]: Semantic Scholar API Guide. Recommendations API. [semanticscholar-api-docs](https://mulatta.github.io/semanticscholar-api-docs/en/06-recommendations/)
+
 [^openalex-docs]: OpenAlex. Work object documentation — related_works 定义. [openalex-docs](https://github.com/ourresearch/openalex-docs/blob/main/api-entities/works/work-object/README.md)
+
 [^multi-persp]: Academic Article Recommendation Using Multiple Perspectives. [arXiv:2407.05836](https://doi.org/10.48550/arxiv.2407.05836)
+
 [^prone]: Zhang, Dong, Wang, Tang, Ding. ProNE: Fast and Scalable Network Representation Learning. IJCAI 2019. [ijcai.org/proceedings/2019/594](https://www.ijcai.org/proceedings/2019/0594.pdf)
+
 [^prone-gh]: THUDM. ProNE 参考实现. [github.com/THUDM/ProNE](https://github.com/THUDM/ProNE/)
+
 [^hgt]: Hu, Dong, Wang, Sun. Heterogeneous Graph Transformer. WWW 2020.

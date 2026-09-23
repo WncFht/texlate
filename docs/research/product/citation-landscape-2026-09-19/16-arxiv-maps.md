@@ -6,13 +6,13 @@
 
 ## 总览
 
-| 工具 | 状态 | 机制 | 开源 | 引用图 |
-| --- | --- | --- | --- | --- |
-| paperscape.org | 活，宣称日更（blog 停在 2020-06） | Barnes-Hut N-body 布局，边=引用/被引 | 后端+客户端+数据全 MIT | 是（自建，TeX/PDF 抽取） |
-| arxiv-sanity-preserver | 死（站点 502） | tf-idf 全文+用户库 SVM | MIT | 否 |
-| arxiv-sanity-lite | 活 | tf-idf 摘要+per-tag SVM | MIT | 否 |
-| Argo Scholar | 活 | 浏览器内增量构图，PageRank/Degree 映射 | MIT | 是（骑 S2 API） |
-| CiteLens 等 GitHub 小件 | 多为课程/个人项目 | S2/OpenAlex API 拼装 | MIT 不等 | 部分 |
+| 工具                    | 状态                              | 机制                                   | 开源                   | 引用图                   |
+| ----------------------- | --------------------------------- | -------------------------------------- | ---------------------- | ------------------------ |
+| paperscape.org          | 活，宣称日更（blog 停在 2020-06） | Barnes-Hut N-body 布局，边=引用/被引   | 后端+客户端+数据全 MIT | 是（自建，TeX/PDF 抽取） |
+| arxiv-sanity-preserver  | 死（站点 502）                    | tf-idf 全文+用户库 SVM                 | MIT                    | 否                       |
+| arxiv-sanity-lite       | 活                                | tf-idf 摘要+per-tag SVM                | MIT                    | 否                       |
+| Argo Scholar            | 活                                | 浏览器内增量构图，PageRank/Degree 映射 | MIT                    | 是（骑 S2 API）          |
+| CiteLens 等 GitHub 小件 | 多为课程/个人项目                 | S2/OpenAlex API 拼装                   | MIT 不等               | 部分                     |
 
 ## paperscape —— 唯一的全 arXiv 引用图先例
 
@@ -45,10 +45,17 @@ CiteLens（引用者排序：Impact 45% OpenAlex 领域归一化+FWCI / Network 
 ### 参考文献
 
 [^pscp-about]: D. George, R. Knegjens. About Paperscape. blog.paperscape.org, 2013. [page_id=2](https://blog.paperscape.org/?page_id=2)
+
 [^pscp-data]: Paperscape data dumps. GitHub/Zenodo 2018. [paperscape/paperscape-data](https://github.com/paperscape/paperscape-data)
+
 [^pscp-backend]: Paperscape backend source. MIT. [paperscape/paperscape-backend](https://github.com/paperscape/paperscape-backend)
+
 [^pscp-nbody]: N-body algorithm README, paperscape-backend/nbody/README.md.
+
 [^as-preserve]: A. Karpathy. arxiv-sanity-preserver. MIT. [karpathy/arxiv-sanity-preserver](https://github.com/karpathy/arxiv-sanity-preserver)
+
 [^as-lite]: A. Karpathy. arxiv-sanity-lite. MIT. [karpathy/arxiv-sanity-lite](https://github.com/karpathy/arxiv-sanity-lite)
+
 [^argo]: K. Chaurasia et al. Argo Scholar: interactive graph exploration system. Poloclub, Georgia Tech.
+
 [^argo-gh]: poloclub/argo-scholar. MIT. [github.com/poloclub/argo-scholar](https://github.com/poloclub/argo-scholar)

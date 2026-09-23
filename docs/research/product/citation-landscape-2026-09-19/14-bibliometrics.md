@@ -54,30 +54,56 @@ R 包（GPL-3），开源可编程性最强[^aria2017]。数据流矩阵代数�
 
 ### 参考文献
 
-[^epi2020]: Moral-Muñoz J.A. et al. Software tools for conducting bibliometric analysis in science. *Profesional de la información* 2020. [doi.org/10.3145/epi.2020.ene.03](https://doi.org/10.3145/epi.2020.ene.03)
+[^epi2020]: Moral-Muñoz J.A. et al. Software tools for conducting bibliometric analysis in science. _Profesional de la información_ 2020. [doi.org/10.3145/epi.2020.ene.03](https://doi.org/10.3145/epi.2020.ene.03)
+
 [^citespace-notes]: CiteSpace 数据处理笔记（数据源转换至 WoS 格式清单）. [programmersought.com](https://www.programmersought.com/article/67413375716/)
+
 [^bibliometrix-cran]: Help for package 'bibliometrix' (CRAN refman, v5.4.1). [cran.r-project.org](https://cran.r-project.org/web/packages/bibliometrix/refman/bibliometrix.html)
-[^vaneck2010]: van Eck N.J., Waltman L. Software survey: VOSviewer, a computer program for bibliometric mapping. *Scientometrics* 84, 523–538, 2010.
+
+[^vaneck2010]: van Eck N.J., Waltman L. Software survey: VOSviewer, a computer program for bibliometric mapping. _Scientometrics_ 84, 523–538, 2010.
+
 [^vos-features]: VOSviewer Features/Highlights 页（2026-09-19 实测）. [vosviewer.com/features/highlights/](https://www.vosviewer.com/features/highlights/)
-[^vaneck2009]: Van Eck N.J., Waltman L. How to normalize cooccurrence data? *JASIST* 60(8), 1635–1651, 2009.
+
+[^vaneck2009]: Van Eck N.J., Waltman L. How to normalize cooccurrence data? _JASIST_ 60(8), 1635–1651, 2009.
+
 [^perianes2016]: Perianes-Rodriguez A., Waltman L., van Eck N.J. Constructing bibliometric networks: full vs fractional counting. arXiv:1607.02452, 2016.
+
 [^vos-chapter]: Waltman L., van Eck N.J. Visualizing bibliometric networks. [vosviewer.com/download/f-x2.pdf](https://www.vosviewer.com/download/f-x2.pdf)
+
 [^hal-chapter]: Bibliometric network analysis chapter（SMACOF 求解 VOS 目标）. [hal.science](https://hal.science/hal-03408373v1/preview/493186_1_En_3_Chapter.pdf)
-[^waltman2010unified]: Waltman L., van Eck N.J., Noyons E.C.M. A unified approach to mapping and clustering of bibliometric networks. *Journal of Informetrics* 4, 629–635, 2010.
-[^waltman2013slm]: Waltman L., van Eck N.J. A smart local moving algorithm for large-scale modularity-based community detection. *EPJ B* 86, 2013.
+
+[^waltman2010unified]: Waltman L., van Eck N.J., Noyons E.C.M. A unified approach to mapping and clustering of bibliometric networks. _Journal of Informetrics_ 4, 629–635, 2010.
+
+[^waltman2013slm]: Waltman L., van Eck N.J. A smart local moving algorithm for large-scale modularity-based community detection. _EPJ B_ 86, 2013.
+
 [^vos-online-cp]: VOSviewer Online Docs — Control panel. [app.vosviewer.com/docs/user-interface/control-panel/](https://app.vosviewer.com/docs/user-interface/control-panel/)
+
 [^vos-manual165]: Manual for VOSviewer 1.6.5/1.6.21. [1.6.5 PDF](https://www.vosviewer.com/documentation/Manual_VOSviewer_1.6.5.pdf) + [1.6.21 PDF](https://www.vosviewer.com/documentation/Manual_VOSviewer_1.6.21.pdf)
+
 [^vos-online-gh]: neesjanvaneck/VOSviewer-Online（MIT、npm 包）. [github.com/neesjanvaneck/vosviewer-online](https://github.com/neesjanvaneck/vosviewer-online)
+
 [^chen2006]: Chen C. CiteSpace II: Visualization and knowledge discovery in bibliographic databases. [pmc.ncbi.nlm.nih.gov/articles/PMC1560567](https://pmc.ncbi.nlm.nih.gov/articles/PMC1560567/)
-[^chen2006jasist]: Chen C. CiteSpace II: Detecting and visualizing emerging trends and transient patterns in scientific literature. *JASIST* 57(3), 359–377, 2006.
+
+[^chen2006jasist]: Chen C. CiteSpace II: Detecting and visualizing emerging trends and transient patterns in scientific literature. _JASIST_ 57(3), 359–377, 2006.
+
 [^podia]: CiteSpace Podia 站（版本与价格，2026-09-19 实测）. [citespace.podia.com](https://citespace.podia.com/)
+
 [^podia-burst]: CiteSpace Glossary — Burstness. [citespace.podia.com/glossary-burstness](https://citespace.podia.com/glossary-burstness)
-[^chen2010]: Chen C., Ibekwe-SanJuan F., Hou J. The structure and dynamics of co-citation clusters. *JASIST* 61(7), 1386–1409, 2010.
-[^vaneck2014cne]: van Eck N.J., Waltman L. CitNetExplorer. *Journal of Informetrics* 8(4), 802–823, 2014. [arxiv.org/pdf/1404.5322](https://arxiv.org/pdf/1404.5322)
-[^aria2017]: Aria M., Cuccurullo C. bibliometrix: An R-tool for comprehensive science mapping analysis. *Journal of Informetrics* 11(4), 959–975, 2017.
+
+[^chen2010]: Chen C., Ibekwe-SanJuan F., Hou J. The structure and dynamics of co-citation clusters. _JASIST_ 61(7), 1386–1409, 2010.
+
+[^vaneck2014cne]: van Eck N.J., Waltman L. CitNetExplorer. _Journal of Informetrics_ 8(4), 802–823, 2014. [arxiv.org/pdf/1404.5322](https://arxiv.org/pdf/1404.5322)
+
+[^aria2017]: Aria M., Cuccurullo C. bibliometrix: An R-tool for comprehensive science mapping analysis. _Journal of Informetrics_ 11(4), 959–975, 2017.
+
 [^bibliometrix-site]: massimoaria/bibliometrix README. [github.com/massimoaria/bibliometrix](https://github.com/massimoaria/bibliometrix)
+
 [^biblioshiny]: Biblioshiny 官方页（SAAS 工作流、OpenAlex/PubMed API、PRISMA）. [bibliometrix.org/biblioshiny/](https://www.bibliometrix.org/biblioshiny/)
+
 [^pop-metrics]: Publish or Perish — Citation metrics. [harzing.com](https://harzing.com/resources/publish-or-perish/manual/using/query-results/metrics)
-[^pybliometrics]: Rose M.E., Kitchin J.R. pybliometrics: Scriptable bibliometrics using a Python interface to Scopus. *SoftwareX* 10, 2019.
-[^crexplorer]: Thor A., Marx W., Leydesdorff L., Bornmann L. Introducing CitedReferencesExplorer. *Journal of Informetrics* 10(2), 503–515, 2016.
+
+[^pybliometrics]: Rose M.E., Kitchin J.R. pybliometrics: Scriptable bibliometrics using a Python interface to Scopus. _SoftwareX_ 10, 2019.
+
+[^crexplorer]: Thor A., Marx W., Leydesdorff L., Bornmann L. Introducing CitedReferencesExplorer. _Journal of Informetrics_ 10(2), 503–515, 2016.
+
 [^pyscisci]: Gates A.J. et al. Reproducible science of science at scale: pySciSci. [barabasi.com](https://barabasi.com/media/2023-Gates-Reproducible-science.pdf)

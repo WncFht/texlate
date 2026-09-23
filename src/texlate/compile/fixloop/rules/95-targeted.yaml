@@ -678,7 +678,8 @@ rules:
           # 2.09-era \pagestyle{X} 的 undefined-pagestyle 错误分支 cs
           # (hep-ph/9412208/9412226 + math/0103032/0103031; X=columns/
           # textheight/textwidth/normal) —— noop 吞错
-          undefinedpagestyle: { polyfill: "\n\\providecommand\\undefinedpagestyle{}" }
+          undefinedpagestyle:
+            { polyfill: "\n\\providecommand\\undefinedpagestyle{}" }
           # aastex-era 0 参字体开关 thebibliography 内 (hep-ph/9412208/9412226)
           bibfont: { polyfill: "\n\\providecommand\\bibfont{}" }
           # running-head 元数据 → gobble (0712.1200/0712.1491)
@@ -712,7 +713,8 @@ rules:
           texttau:
             { polyfill: "\n\\providecommand\\texttau{\\ensuremath{\\tau}}" }
           # svmultproof env end-macro {\qed\end{proof}} 无 amsthm (0712.0600)
-          qed: { polyfill: "\n\\providecommand\\qed{\\hfill\\ensuremath{\\Box}}" }
+          qed:
+            { polyfill: "\n\\providecommand\\qed{\\hfill\\ensuremath{\\Box}}" }
           # \movetableright=-1in dimen 赋值 (2505.07962) —— 须 \newdimen
           # 非 \def; \ifdefined 守卫
           movetableright:
