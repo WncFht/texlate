@@ -34,8 +34,6 @@ from texlate.xlat.batch import sentence_ends
 #: 请求面硬帽（实现文档 §后端改动 + §风险 9）
 SEQS_MAX = 300
 ANCHOR_MAX = 400
-#: 单 gap 回收上限（字符——对 decode 后文本切）
-GAP_MAX = 2048
 #: 输出 UTF-8 字节帽——超界截尾 + ``truncated:true``
 OUT_CAP = 256 << 10
 #: tar 臂校验头最小归一化长——首个达标 literal 段做针
@@ -50,6 +48,10 @@ _UNMASK_ROUNDS = 100
 _EDGE_MAX = 512
 #: 空白行=段落界——壳边扩展不跨界抓料
 _EDGE_BLANK = re.compile(r"(?:\n[ \t]*){2,}")
+#: env 开合 token——壳尾配平扫描用
+_ENV_RX = re.compile(r"\\(begin|end)\{([^}]+)\}")
+#: 壳头带入 env 时壳尾追 ``\end`` 的前探上限（字符）——大表/图体可至数十 K
+_ENV_TAIL_MAX = 64 << 10
 
 
 class SrcCutError(Exception):
@@ -483,16 +485,39 @@ class _Cutter:
         ms = list(_EDGE_BLANK.finditer(text, max(0, start - _EDGE_MAX), start))
         return ms[-1].end() if ms else start
 
-    def edge_hi(self, src_file: str, end: int) -> int:
+    def edge_hi(self, src_file: str, end: int, opened: list[str] | None = None) -> int:
         r"""``end`` 后第一个空白行界的左端（壳尾界）；无界 → ``end``。
 
         ``}\label{…}`` 壳尾在 span 后、空白行前——第一个空白行界之左即壳终点。
+        ``opened`` 非空 = 壳头/正文已含未闭合 ``\begin{env}``——尾继续吃到
+        配对 ``\end``（``_ENV_TAIL_MAX`` 内）；吃不到按原界交付。
+        空 opened 时区域出现无配对 ``\end`` 的孤儿 ``\begin{env}`` → 截在
+        其前（不带半张表/图进切片）。
         """
         text, _arm = self.resolve(src_file)
         if text is None:
             return end
         m = _EDGE_BLANK.search(text, end, min(len(text), end + _EDGE_MAX))
-        return m.start() if m else end
+        hi = m.start() if m else end
+        if opened:
+            need = list(opened)
+            far = min(len(text), end + _ENV_TAIL_MAX)
+            for mm in _ENV_RX.finditer(text, end, far):
+                if mm.group(1) == "begin":
+                    need.append(mm.group(2))
+                elif need and mm.group(2) == need[-1]:
+                    need.pop()
+                    if not need:
+                        hi = max(hi, mm.end())
+                        break
+            return hi
+        stack: list[tuple[str, int]] = []
+        for mm in _ENV_RX.finditer(text, end, hi):
+            if mm.group(1) == "begin":
+                stack.append((mm.group(2), mm.start()))
+            elif stack and stack[-1][0] == mm.group(2):
+                stack.pop()
+        return stack[0][1] if stack else hi
 
 
 def _sent_clips(
@@ -551,6 +576,36 @@ def _apply_sent_clips(
     return clipped
 
 
+def _open_envs(text: str, lo: int, hi: int) -> list[str]:
+    r"""``text[lo:hi]`` 内未闭合的 ``\begin{env}`` 名栈（顶在尾）。
+
+    同名顶匹才 pop——``\begin{a}\begin{b}\end{a}`` 保守视为全未闭。
+    """
+    stack: list[str] = []
+    for mm in _ENV_RX.finditer(text, lo, hi):
+        if mm.group(1) == "begin":
+            stack.append(mm.group(2))
+        elif stack and stack[-1] == mm.group(2):
+            stack.pop()
+    return stack
+
+
+def _run_hi(
+    cutter: _Cutter, text: str, src_file: str, lo: int, piece: _Piece
+) -> int:
+    r"""Run 尾界：sent 实裁侧取 span；否则空白行界 + env 配平。
+
+    ``document`` 帧 env 不追 ``\end``——壳头偶带 ``\begin{document}``
+    会把全文件尾段拉进小选区切片。
+    """
+    if piece.clip_hi:
+        return piece.span_end
+    opened = _open_envs(text, lo, piece.span_end)
+    if "document" in opened:
+        opened = []
+    return cutter.edge_hi(src_file, piece.span_end, opened)
+
+
 def _join_pieces(
     cutter: _Cutter,
     rows: list[dict[str, Any]],
@@ -559,15 +614,16 @@ def _join_pieces(
 ) -> tuple[str, list[str]]:
     r"""切片行集 → ``(latex, files)``：连续同源 run 发 verbatim 源区间 + 壳边扩展。
 
-    ``gaps`` 开时同 ``src_key`` + seq 相邻 + 间区 ≤``GAP_MAX`` 的连续块并
-    作一个 run，整段发 ``text[lo:hi]`` 原文——间区注释/``\label``/``\section``
-    料随原文一体回收，不再单独切片外接 ``\n\n``；``lo``/``hi`` 各外扩到
-    最近空白行界（``edge_lo``/``edge_hi``），``\section{`` 壳头与 ``}\label``
-    壳尾随之入切——被 sent clip 裁过的端不扩，直接取裁剪后 span 坐标。
-    run 长 1（``gaps`` 关或邻块断裂）等价「逐块 + 壳边扩展」。approx 块无
-    文件坐标发 ``piece.text``，未解析块按 ``%`` 占位注释落位；跨
-    ``src_file`` 恒插 ``% ── file: {src_file} ──`` 注释界标（LaTeX 安全，
-    防异文件切片静默串接）。
+    ``gaps`` 开时同 ``src_key`` + seq 相邻的连续块并作一个 run，整段发
+    ``text[lo:hi]`` 原文——间区恒为非 chunk 料（表格/公式/图体/注释），
+    一体回收不设大小帽（``OUT_CAP`` 为总闸）；``lo``/``hi`` 各外扩到
+    最近空白行界（``edge_lo``/``edge_hi``），``\section{`` 壳头与
+    ``}\label`` 壳尾随之入切；壳头带入的 env 未闭合时 ``edge_hi``
+    追配对 ``\end`` 配平。被 sent clip 裁过的端不扩，直接取裁剪后
+    span 坐标。run 长 1（``gaps`` 关或邻块断裂）等价「逐块 + 壳边
+    扩展」。approx 块无文件坐标发 ``piece.text``，未解析块按 ``%``
+    占位注释落位；跨 ``src_file`` 恒插 ``% ── file: {src_file} ──``
+    注释界标（LaTeX 安全，防异文件切片静默串接）。
     """
     out: list[str] = []
     files_seen: list[str] = []
@@ -598,7 +654,6 @@ def _join_pieces(
                 and str(rows[j + 1]["src_file"]) == src_file
                 and int(rows[j + 1]["seq"]) == int(rows[j]["seq"]) + 1
                 and pieces[j].span_end <= int(rows[j + 1]["byte_start"])
-                and int(rows[j + 1]["byte_start"]) - pieces[j].span_end <= GAP_MAX
             ):
                 j += 1
         text, _arm = cutter.resolve(src_file)
@@ -610,11 +665,7 @@ def _join_pieces(
                 if pieces[i].clip_lo
                 else cutter.edge_lo(src_file, pieces[i].span_start)
             )
-            hi = (
-                pieces[j].span_end
-                if pieces[j].clip_hi
-                else cutter.edge_hi(src_file, pieces[j].span_end)
-            )
+            hi = _run_hi(cutter, text, src_file, lo, pieces[j])
             out.append(text[lo:hi])
         i = j + 1
     return "\n\n".join(out), files_seen

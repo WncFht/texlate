@@ -244,6 +244,96 @@ class TestWhole:
         assert body["files"] == ["main.tex"]
 
 
+# ------------------------------------------------------------ env 配平/巨间区
+
+_TAB_ROWS = "".join(f"row{i} & value{i}\\\\\n" for i in range(400))  # ~7KB 间区
+_TAB_MAIN = (
+    "\\documentclass{article}\n"
+    "\\begin{document}\n"
+    "Intro paragraph text before the float.\n"
+    "\n"
+    "\\begin{table}[htbp]\n"
+    "\\centering\n"
+    "\\caption{Caption text for the table.}\n"
+    "\\label{tab:big}\n"
+    "\\begin{tabular}{ll}\n"
+    + _TAB_ROWS
+    + "\\end{tabular}\n"
+    "\\end{table}\n"
+    "\n"
+    "After paragraph text past the float.\n"
+    "\\end{document}\n"
+)
+_TAB_P0 = "Intro paragraph text before the float."
+_TAB_CAP = "Caption text for the table."
+_TAB_P1 = "After paragraph text past the float."
+
+
+class TestOpaqueGap:
+    def test_large_env_gap_recovered(self, client: TestClient) -> None:
+        """seq 相邻块间区 >2KB 的 tabular（非 chunk 料）一体回收。
+
+        回归钉：旧 ``GAP_MAX=2048`` 让 caption→后段 run 断裂，整个
+        ``\\begin{tabular}…\\end{tabular}`` 随间区丢弃（实证
+        2609.25611v1 seq121→122 语言表）。
+        """
+        tid = _mk_src_task(
+            client,
+            {"main.tex": _TAB_MAIN},
+            {"main.tex": [_TAB_P0, _TAB_CAP, _TAB_P1]},
+        )
+        r = _post(client, tid, {"seqs": [0, 1, 2]})
+        assert r.status_code == HTTPStatus.OK, r.text
+        body = r.json()
+        for frag in (
+            "\\begin{table}[htbp]",
+            "\\begin{tabular}{ll}",
+            "row399 & value399",
+            "\\end{tabular}",
+            "\\end{table}",
+            "\\label{tab:big}",
+            _TAB_P1,
+        ):
+            assert frag in body["latex"], frag
+
+    def test_caption_only_balanced_slice(self, client: TestClient) -> None:
+        """单块选 caption：壳头带 ``\\begin{table}`` → 尾吃到 ``\\end{table}``。
+
+        壳头回扫带进 ``\\begin{env}`` 时尾必须配平——否则输出半截
+        ``\\caption{…`` 开花括号（线上实证碎形）。
+        """
+        tid = _mk_src_task(
+            client,
+            {"main.tex": _TAB_MAIN},
+            {"main.tex": [_TAB_CAP]},
+        )
+        r = _post(client, tid, {"seqs": [0]})
+        assert r.status_code == HTTPStatus.OK, r.text
+        latex = r.json()["latex"]
+        assert "\\end{tabular}" in latex
+        assert "\\end{table}" in latex
+        assert latex.count("\\begin{") == latex.count("\\end{")
+
+    def test_orphan_begin_cut(self, client: TestClient) -> None:
+        """尾区孤儿 ``\\begin{env}``（无配对 \\end）→ 截在其前不带半张表。
+
+        ``\\end{itemize}`` 落在空白行界之后：尾区只罩进 env 头时宁缺不滥。
+        """
+        main = (
+            "\\documentclass{article}\n\\begin{document}\n"
+            + _P0
+            + "\n\\begin{itemize}\n\\item x\n\n\\end{itemize}\n\n"
+            + _P1
+            + "\n\\end{document}\n"
+        )
+        # 尾区界=\\item x 后空白行——\\begin{itemize} 无配对 \end 成孤儿
+        tid = _mk_src_task(client, {"main.tex": main}, {"main.tex": [_P0]})
+        r = _post(client, tid, {"seqs": [0]})
+        assert r.status_code == HTTPStatus.OK, r.text
+        latex = r.json()["latex"]
+        assert "\\begin{itemize}" not in latex
+
+
 # ------------------------------------------------------------ sent 档
 
 
