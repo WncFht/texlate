@@ -1,6 +1,6 @@
 # 决策记录
 
-本目录是 texlate 全部架构与产品决策的叙事面：`background.md` 讲项目缘起（hjfy.top 是什么、原作者结论、texlate 差异化），`adr/` 下 19 篇 ADR 承载全部裁决。每篇 ADR 收敛到**当前生效状态**——历史改判在「演变」节带过，「现状」节与代码对齐；读决策只需读最新状态，不必翻裁决史。
+本目录是 texlate 全部架构与产品决策的叙事面：`background.md` 讲项目缘起（hjfy.top 是什么、原作者结论、texlate 差异化），`adr/` 下 20 篇 ADR 承载全部裁决。每篇 ADR 收敛到**当前生效状态**——历史改判在「演变」节带过，「现状」节与代码对齐；读决策只需读最新状态，不必翻裁决史。
 
 ## 体例
 
@@ -65,6 +65,8 @@
 | ADR-0016 | [阅读器前端：SolidJS + pdfslick 薄壳 + named-dest 锚点同步](adr/0016-web-frontend.md) | 2026-09-15 | 现行 |
 | ADR-0017 | [PDF 直译路径：BabelDOC spawn-CLI sidecar](adr/0017-pdf-path.md) | 2026-09-15 | 现行 |
 | ADR-0018 | [导出格式：EPUB/DOCX 双语插译，绕开 AGPL 库](adr/0018-export-formats.md) | 2026-09-15 | 现行 |
+| ADR-0020 | [PDF 页面主题化：Zotero Blender 图元改色 + getPage 实例补丁（免 fork）](adr/0020-pdf-dark-theme.md) | 2026-09-21 | 现行 |
+| ADR-0021 | [引用跳转/跳回与文献悬浮卡：同锚双语义 + 自研跳回栈 + 本地条目三路兜底](adr/0021-citation-ux.md) | 2026-09-21 | 现行 |
 
 ## 与主仓文档的关系
 

@@ -24,6 +24,7 @@
 
 - 2026-09-17：G1 落地新增 `DomPane`——arXiv HTML 链任务（kind=arxiv_html）在 en 侧直接渲染 arXiv 官方 HTML DOM 块，锚点同步面复用同一 {page,fraction,viewport} 折算的 DOM 对应物；share 导入产物走同一阅读器。
 - 阅读器扩面：done 终态阅读器 + partial 终态 result-banner + doc 类任务产物面板三形态收口；「分享本译文」按钮挂三点（见 ADR-0012）。
+- 2026-09-21：PDF 页面暗色化落地——Blender 图元改色 + `document.getPage` 实例补丁（免 fork），`data-theme` 翻转经 MutationObserver 驱动全页原位重渲；裁决独立成 ADR-0020。
 
 ## 现状
 

@@ -14,6 +14,7 @@
 | `bench-harness.md`    | 评测协议与分层契约：L0–L3 问题归层规则、四项评测内容、fixtures 字节即语义纪律、corpus 层化布局、run 产物仓外账本根                 |
 | `automation.md`       | 每日自动化系统：arXiv 日更 soak（2026-09-21 退役，留档）与 errsweep（错误沉淀→根因蒸馏修复，在役）的设计与操作契约                |
 | `seams.md`            | 测试补丁缝纪律：惰性门面 patch 叶子、注册表 setitem、LoopCtx 平名转写；改动时的两侧义务与已登记接缝清单                            |
+| `ux-impl-2026-09-22/` | 阅读器 UX 六功能实现包：选区内核（cmdreg/HitCtx/Esc栈/FloatBar/ContextMenu/句游标）、find-usages、copy-latex、sent-align、cite-translate、misc-pack——每 lane 一份实现文档（交互规格+文件级改动+测试计划），总路线图 §8 为落地终态（2026-09-23 全量实施验收绿） |
 | `pdf-seq-anchors-impl-2026-09-23.md` | PDF seq 锚定实施计划与落地实录：B 路 marked-content 注锚（`\special{pdf:code}` 五闸+seq 编码 MCID）为主锚、C 路 textLayer 模糊锚升级为存量兜底；§7 落地验证表 + L2 归因闸回归修复注记 |
 
 上手序：建仓环境（`uv sync` + 格式化工具链，见 `repository.md`）→ 文档维护规则 `../MAINTENANCE.md` → 改动对应层跑对应级验证（`bench-harness.md` §1）。

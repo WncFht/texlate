@@ -19,6 +19,9 @@
 | [shared-cache.md](shared-cache.md) | 社区共享译文缓存设计：share key 七组分寻址、`.share.zip` 包格式、「下载不直接渲染、本地全链重跑」信任模型——已实装 |
 | [2026-09-19-select-popup-方案调研.md](2026-09-19-select-popup-方案调研.md) | select 弹层两段式决策：≤4 项枚举改 Segmented 恒可见、长列表 `appearance: base-select` 渐进增强——已落地 `web/src/styles/select.css` |
 | [review3-web-perf-2026-09-19.md](review3-web-perf-2026-09-19.md) | Web 前端性能专项审计：慢感三主因（chunkPoll 全量轮询、挂载单帧巨渲染、缺 content-visibility）+ 20 项 findings 当日实施记录 |
+| [2026-09-21-pdf-dark-rendering.md](2026-09-21-pdf-dark-rendering.md) | PDF 暗色渲染四路线实测：CSS filter / pdf.js pageColors / Zotero Blender 效果×性能矩阵，Blender 胜出（ADR-0020）；Zotero 算法拆解、pdfslick 丢参 bug、免 fork 三接入坑全记录 |
+| [2026-09-21-citation-ux.md](2026-09-21-citation-ux.md) | 引用跳转/跳回+悬浮卡 126-agent 生态调研：同锚双语义（hover=卡 click=跳）+自研跳回栈裁决；PDFHistory 进 SPA 毒药、本地 bib 串三路兜底、S2/OpenAlex 429 铁律；**已落地 v1（ADR-0021，cite_verify.mjs 16/16）**；原始数据在 [citation-ux-2026-09-21/](citation-ux-2026-09-21/) |
+| [2026-09-23-pdf-anchoring.md](2026-09-23-pdf-anchoring.md) | PDF 窗格功能锚定可行性 13-agent 调研：「PDF 位置→chunk seq」是唯一真缺口；C 模糊锚已在产线、A SyncTeX ~1 周、B marked-content 注锚 3-5 天已双引擎实证；ActualText/tagpdf/覆盖式改形均否决 |
 
 ### 端到端验证与强化记录
 
@@ -41,6 +44,7 @@
 | --- | --- |
 | [2026-09-19-alphaxiv-reverse.md](2026-09-19-alphaxiv-reverse.md) | alphaXiv 逆向：公共 REST 面免鉴权、SDK 端点枚举；references 解析器与 per-language 状态机可借鉴（附 [管线图](2026-09-19-alphaxiv-pipeline.svg)） |
 | [2026-09-19-paperscool-reverse.md](2026-09-19-paperscool-reverse.md) | papers.cool 逆向：刻意做薄的「刷论文」前端、个性化全在 localStorage；做「筛」不做「读」，与 texlate 不同层 |
+| [2026-09-22-moonlight-reverse.md](2026-09-22-moonlight-reverse.md) | Moonlight(Corca) 逆向：Chrome 扩展劫持分发+overlay 阅读器；可抄=行内引用协议/框选解释/匿名漏斗/SEO 语料页/wasmtex；Team=计费容器无协作 |
 
 ### 引用图谱发现生态
 
