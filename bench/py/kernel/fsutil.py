@@ -26,6 +26,7 @@ deliberate non-goal here.
 """
 from __future__ import annotations
 
+import contextlib
 import errno
 import hashlib
 import json
@@ -83,10 +84,8 @@ def atomic_write(path, data: bytes, mode: int | None = None) -> None:
         os.replace(tmp, path)
         fsync_dir(path.parent)
     except BaseException:
-        try:
+        with contextlib.suppress(OSError):
             os.unlink(tmp)
-        except OSError:
-            pass
         raise
 
 
@@ -260,9 +259,9 @@ def verify_mtree(tree, mtree, resha_sample: float = 0.0) -> list[str]:
         if st.st_size != ent["size"] or st.st_mtime != ent["mtime"]:
             drifted.add(rel)
             continue
-        if resha_sample > 0.0 and rng() < resha_sample and "sha256" in ent:
-            if _sha256_file(p) != ent["sha256"]:
-                drifted.add(rel)
+        if (resha_sample > 0.0 and rng() < resha_sample and "sha256" in ent
+                and _sha256_file(p) != ent["sha256"]):
+            drifted.add(rel)
 
     for rel in actual:  # unmanifested payload
         if rel != MTREE_NAME:
@@ -318,7 +317,8 @@ def hardlink_farm(src, dst, mtree=None) -> int:
             made += 1
             continue
         if kind == "other":
-            raise ValueError(f"special file cannot be projected: {p}")
+            msg = f"special file cannot be projected: {p}"
+            raise ValueError(msg)
 
         s_st = p.stat(follow_symlinks=False)
         t_st = None
@@ -374,7 +374,8 @@ def copy_mutating(src, dst) -> int:
             made += 1
             continue
         if kind == "other":
-            raise ValueError(f"special file cannot be projected: {p}")
+            msg = f"special file cannot be projected: {p}"
+            raise ValueError(msg)
         _fresh_dst(target)
         shutil.copyfile(p, target)
         st = target.stat()

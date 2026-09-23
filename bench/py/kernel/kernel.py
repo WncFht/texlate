@@ -50,30 +50,43 @@ import shutil
 import sys
 import threading
 import time
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 from kernel import (
     cache as cachemod,
+)
+from kernel import (
     claims,
-    dedup as dedupmod,
     events,
     executors,
     fsutil,
     idnorm,
-    index as indexmod,
     lake,
     ledger,
     locks,
-    paid as paidmod,
     paths,
     runs,
-    spec as specmod,
     vault,
+)
+from kernel import (
+    dedup as dedupmod,
+)
+from kernel import (
+    index as indexmod,
+)
+from kernel import (
+    paid as paidmod,
+)
+from kernel import (
+    spec as specmod,
 )
 from kernel.ctx import Ctx
 from kernel.spec import Spec, SpecError, cell_fp, compile_checks, load_spec
 
-__all__ = ["run", "plan", "RunError"]
+if TYPE_CHECKING:
+    from pathlib import Path
+
+__all__ = ["RunError", "plan", "run"]
 
 
 class RunError(RuntimeError):
@@ -92,17 +105,16 @@ def _sel_hit(sel, cell: dict) -> bool:
     s = str(sel).strip()
     if not s or s == "*":
         return True
-    for pred in s.split(","):
-        pred = pred.strip()
+    for raw_pred in s.split(","):
+        pred = raw_pred.strip()
         if not pred:
             continue
         if "=" in pred:
             k, v = pred.split("=", 1)
             if str(cell.get(k.strip(), "")) != v.strip():
                 return False
-        else:
-            if pred not in (str(cell.get("id")), str(cell.get("idc"))):
-                return False
+        elif pred not in (str(cell.get("id")), str(cell.get("idc"))):
+            return False
     return True
 
 
@@ -112,8 +124,8 @@ def _coerce_params(spec: Spec, params) -> dict:
     params = dict(params or {})
     unknown = sorted(set(params) - set(spec.params))
     if unknown:
-        raise SpecError([f"unknown run params {unknown} — spec declares "
-                         f"{sorted(spec.params)}"])
+        raise SpecError([(f"unknown run params {unknown} — spec declares "
+                          f"{sorted(spec.params)}")])
     out = {}
     for name, p in spec.params.items():
         raw = params.get(name, p.default)
@@ -186,11 +198,9 @@ def _first_fire_gate(spec: Spec, oracle, cells: list, rd) -> dict:
             paid_keys.add(spec.dedup_key_of(st, c))
     quote = oracle.quote(sorted(paid_keys))
     stamp = None
-    try:
+    with contextlib.suppress(OSError, ValueError):
         stamp = json.loads(
             paths.vault_verify_stamp_path().read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        pass
     verify_age = (time.time() - stamp["ts"]
                   if isinstance(stamp, dict)
                   and isinstance(stamp.get("ts"), (int, float))
@@ -425,12 +435,12 @@ def _needs_eval(rd: runs.RunDir, spec: Spec, idx, cell: dict,
                             cell["variant"], up_stage, domain=domain,
                             statuses=events.STATUS_DONE)
         if rec is None:
-            return ("skip", f"needs {up_stage}: no done row "
-                            f"(latest domain: {latest['status']})")
+            return ("skip", (f"needs {up_stage}: no done row "
+                             f"(latest domain: {latest['status']})"))
         accept = stage.accept_for(up_stage)
         if rec["status"] not in accept:
-            return ("skip", f"needs {up_stage}: status {rec['status']!r} "
-                            f"not in accept {sorted(accept)}")
+            return ("skip", (f"needs {up_stage}: status {rec['status']!r} "
+                             f"not in accept {sorted(accept)}"))
         up_spec = spec.stage(up_stage)
         if not _product_ok(rd, cell, up_stage, up_spec, rec,
                            cell["idc"], cell["arm"], cell["variant"], safe):
@@ -544,10 +554,9 @@ def _terminal_ev(env, cell, status: str, *, seq: int, cat=None, dur_s=None,
 
 def _note(env, text: str, level: str = "info"):
     """Kernel note row — negative seqs (kernel writer namespace)."""
-    try:
+    # best-effort: a dead run dir must never kill the cell that wanted a note
+    with contextlib.suppress(Exception):
         runs._emit_note(env["rd"], text, level=level)
-    except Exception:
-        pass
 
 
 # --- lake lookahead prefetcher (§3.10.3 预取双机制) ------------------------------------
@@ -617,7 +626,7 @@ class _Lookahead:
             try:
                 d = lake.hydrate(idc, fetch_fn=spec.fetch_fn,
                                  source=source, run_seq=run_seq)
-            except Exception as exc:  # noqa: BLE001 - advisory lane
+            except Exception as exc:
                 _note(env, f"lake prefetch {idc} failed: "
                            f"{type(exc).__name__}: {exc}", level="warn")
                 continue
@@ -717,7 +726,7 @@ def _harvest_last_mutating(env, idx, cell, stage_name, status, alloc):
             idc, arm, variant, assets, source_run=rd.run,
             id=cell["id"], seq=alloc, sink=idx.apply_event,
             run_dir=rd.path)
-    except Exception as exc:  # noqa: BLE001 - loud, not fatal
+    except Exception as exc:
         _note(env, f"harvest failed for {idc}/{arm}/{variant}: "
                    f"{type(exc).__name__}: {exc}", level="warn")
 
@@ -895,7 +904,7 @@ def _run_cell(env, cell: dict) -> dict:
         except paidmod.AuthError as exc:
             status = "error"
             exc_errors = [{"cat": "auth_dead", "msg": str(exc)}]
-        except Exception as exc:  # noqa: BLE001 - cell isolation
+        except Exception as exc:
             status = "error"
             exc_errors = [{"cat": "exception",
                            "msg": f"{type(exc).__name__}: {exc}"}]
@@ -1038,9 +1047,11 @@ def _wrap_factory(gateway_factory, max_cost):
     if callable(gateway_factory):
         return paidmod.GatewayFactory(gateway_factory, None,
                                       max_cost=max_cost)
-    raise TypeError(
+    msg = (
         f"gateway_factory must be a GatewayFactory or callable, got "
-        f"{type(gateway_factory).__name__}")
+        f"{type(gateway_factory).__name__}"
+    )
+    raise TypeError(msg)
 
 
 def run(spec_or_path, params=None, *, date=None, slug=None, resume=False,
@@ -1061,22 +1072,28 @@ def run(spec_or_path, params=None, *, date=None, slug=None, resume=False,
         jobs = 4
     if spec.has_paid():
         if max_cost is None:
-            raise RunError(
+            msg = (
                 "paid spec refuses to run without --max-cost (§3.6 cost "
-                "fuse is mandatory, not advisory)")
+                "fuse is mandatory, not advisory)"
+            )
+            raise RunError(msg)
         if gateway_factory is None:
-            raise RunError(
+            msg = (
                 "paid spec refuses to run without a gateway_factory "
-                "(client construction IS the paid assertion)")
+                "(client construction IS the paid assertion)"
+            )
+            raise RunError(msg)
     factory = _wrap_factory(gateway_factory, max_cost)
     if spec.has_paid() and factory is not None and not factory.meter.prices \
             and not any(getattr(s, "cost_hook", None)
                         for s in spec.stages if s.paid):
-        raise RunError(
+        msg = (
             "paid spec has no pricing surface: meter.prices is empty and "
             "no paid stage declares cost_hook — every request would "
             "account $0 and the mandatory --max-cost fuse could never "
-            "bind (§3.6)")
+            "bind (§3.6)"
+        )
+        raise RunError(msg)
     # executor='process' is declared in the vocabulary but not wired: the
     # submitted callable must cross a pickle boundary (env holds
     # thread-local Index/Oracle/factory — none picklable) and the cost
@@ -1086,10 +1103,12 @@ def run(spec_or_path, params=None, *, date=None, slug=None, resume=False,
     # bottleneck).
     for _st in spec.stages:
         if (_st.executor or spec.executor) == "process":
-            raise RunError(
+            msg = (
                 "executor='process' is not wired yet (env/alloc/meter "
                 "cannot cross the pickle boundary) — use 'thread' or "
-                "'async-owned' for now")
+                "'async-owned' for now"
+            )
+            raise RunError(msg)
 
     # 2. items + canon (eval specs run verbatim — no registry gate)
     registry = None if spec.eval else idnorm.PapersRegistry.load()
@@ -1104,8 +1123,11 @@ def run(spec_or_path, params=None, *, date=None, slug=None, resume=False,
     shash = specmod.spec_hash(spec)
     if resume:
         if date is None or slug is None:
-            raise RunError("resume needs explicit date+slug (the run "
-                           "identity is the triple, never inferred)")
+            msg = (
+                "resume needs explicit date+slug (the run "
+                "identity is the triple, never inferred)"
+            )
+            raise RunError(msg)
         rd = runs.load_run(spec.kind, date, slug)
     else:
         rd = runs.create_run(spec.kind, slug=slug, date=date,
@@ -1264,8 +1286,11 @@ def run(spec_or_path, params=None, *, date=None, slug=None, resume=False,
                 "cells": len(cells),
             }
     except locks.WouldBlock as exc:
-        raise RunError(f"run dir {rd.path} is locked by another runner "
-                       f"({exc})") from exc
+        msg = (
+            f"run dir {rd.path} is locked by another runner "
+            f"({exc})"
+        )
+        raise RunError(msg) from exc
     finally:
         stop_hb.set()
         if hb is not None:
@@ -1310,7 +1335,7 @@ def _reconcile_pending(env, idx):
                 vault.promote(idc, arm, variant, altseq, zone, verdict,
                               source_run=rd.run, sink=idx.apply_event,
                               run_dir=rd.path)
-        except Exception as exc:  # noqa: BLE001 - reconcile must not crash
+        except Exception as exc:
             _note(env, f"reconcile failed for {idc}/{arm}/{variant}@"
                        f"{altseq}: {type(exc).__name__}: {exc}",
                   level="warn")

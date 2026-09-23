@@ -25,7 +25,7 @@ import shutil
 import stat as statmod
 import tempfile
 import time
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from pathlib import Path
 
 from . import fsutil, locks, paths
@@ -50,9 +50,11 @@ def object_path(sha: str, kind: str = "blob") -> Path:
     """``objects/{kind}/{sha[:2]}/{sha[2:4]}/{sha}`` — validates sha/kind so a
     caller-supplied sha can never escape the objects dir (no '/' or '..')."""
     if not _SHA_RE.fullmatch(sha):
-        raise ValueError(f"bad sha256 {sha!r}: expected 64 lowercase hex")
+        msg = f"bad sha256 {sha!r}: expected 64 lowercase hex"
+        raise ValueError(msg)
     if not _KIND_RE.fullmatch(kind):
-        raise ValueError(f"bad object kind {kind!r}")
+        msg = f"bad object kind {kind!r}"
+        raise ValueError(msg)
     return paths.lake_objects_dir() / kind / sha[:2] / sha[2:4] / sha
 
 
@@ -64,10 +66,9 @@ def _refresh(obj: Path) -> None:
     """Touch mtime on a dedup hit — re-store asserts the bytes are live again,
     so the object gets a fresh grace window and gc cannot reap it in the
     store→link gap. Owner may utime a 0444 file."""
-    try:
+    # refresh is best-effort; a vanished object is gc's business
+    with suppress(OSError):
         os.utime(obj, None)
-    except OSError:
-        pass  # refresh is best-effort; a vanished object is gc's business
 
 
 def store_bytes(data: bytes, kind: str = "blob") -> str:
@@ -97,7 +98,8 @@ def store_file(src, kind: str = "file") -> str:
     src = Path(src)
     src_st = src.stat()  # FileNotFoundError on a missing src — loud is right
     if not statmod.S_ISREG(src_st.st_mode):
-        raise ValueError(f"cannot store special file: {src}")  # fifo would block
+        msg = f"cannot store special file: {src}"
+        raise ValueError(msg)  # fifo would block
     pre_sha = fsutil._sha256_file(src)
     pre_obj = object_path(pre_sha, kind)
     with _cas_lock(exclusive=False):
@@ -129,13 +131,12 @@ def store_file(src, kind: str = "file") -> str:
         obj.parent.mkdir(parents=True, exist_ok=True)
         os.replace(tmp, obj)
         fsutil.fsync_dir(obj.parent)
-        return sha
     except BaseException:
-        try:
+        with suppress(OSError):
             os.unlink(tmp)
-        except OSError:
-            pass
         raise
+    else:
+        return sha
 
 
 def link_out(sha: str, dst, kind: str = "blob") -> Path:

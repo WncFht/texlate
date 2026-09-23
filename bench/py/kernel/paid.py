@@ -24,6 +24,7 @@ never half-burns a request.
 """
 from __future__ import annotations
 
+import contextlib
 import math
 import threading
 
@@ -75,9 +76,7 @@ def is_auth_error(exc: BaseException) -> bool:
         if getattr(exc, attr, None) == 401:
             return True
     resp = getattr(exc, "response", None)
-    if resp is not None and getattr(resp, "status_code", None) == 401:
-        return True
-    return False
+    return resp is not None and getattr(resp, "status_code", None) == 401
 
 
 # --- usage / pricing -----------------------------------------------------------------
@@ -207,13 +206,17 @@ class CostMeter:
         if max_cost is None:
             return
         if self.spent() >= float(max_cost):
-            raise BudgetExceeded(
+            msg = (
                 f"cost fuse: spent {self.spent():.4f} >= max_cost "
-                f"{max_cost}")
+                f"{max_cost}"
+            )
+            raise BudgetExceeded(msg)
         if self.spent() + self.estimate_next() > float(max_cost):
-            raise BudgetExceeded(
+            msg = (
                 f"cost fuse: spent {self.spent():.4f} + estimate_next "
-                f"{self.estimate_next():.4f} > max_cost {max_cost}")
+                f"{self.estimate_next():.4f} > max_cost {max_cost}"
+            )
+            raise BudgetExceeded(msg)
 
 
 # --- factory / session -----------------------------------------------------------------
@@ -233,7 +236,8 @@ class GatewayFactory:
     def __init__(self, factory_fn, ctx=None, *, prices=None, meter=None,
                  nslots: int = 4, max_cost=None):
         if not callable(factory_fn):
-            raise TypeError("GatewayFactory needs a callable factory_fn")
+            msg = "GatewayFactory needs a callable factory_fn"
+            raise TypeError(msg)
         self.factory_fn = factory_fn
         self.ctx = ctx
         self.meter = meter if meter is not None else CostMeter(prices)
@@ -249,7 +253,8 @@ class GatewayFactory:
         Private: the raw client must never be reachable from stage code —
         session.request() is the only wire path."""
         if locks.auth_dead():
-            raise PaidAbortRun("AUTH_DEAD sentinel engaged")
+            msg = "AUTH_DEAD sentinel engaged"
+            raise PaidAbortRun(msg)
         with self._client_lock:
             if self._client_obj is None:
                 self._client_obj = (
@@ -269,7 +274,7 @@ class GatewayFactory:
         except (TypeError, ValueError):
             return False
 
-    def session(self, ctx) -> "PaidSession":
+    def session(self, ctx) -> PaidSession:
         """Mint a per-cell session bound to this cell's claim key."""
         return PaidSession(self, ctx)
 
@@ -343,10 +348,8 @@ class PaidSession:
             idc, arm, variant = self._key()
             self._lease = claims.ClaimLease(idc, arm=arm, variant=variant)
             self._lease.acquire(blocking=True)
-            try:
+            with contextlib.suppress(AttributeError):
                 self.ctx.claim_lease = self._lease
-            except AttributeError:
-                pass
         return self._lease
 
     def release_claim(self, fate: str | None = None):
@@ -358,10 +361,8 @@ class PaidSession:
 
     def _mark_fate(self, fate: str | None):
         if fate:
-            try:
+            with contextlib.suppress(AttributeError):
                 self.ctx.claim_fate = fate
-            except AttributeError:
-                pass
 
     def _trip_claim(self):
         """Auth-trip bookkeeping: mark the release-audit fate. The lease
@@ -387,9 +388,11 @@ class PaidSession:
         uncounted probe would let a probing fleet exceed the concurrency
         ceiling and hide traffic from the cost ledger."""
         if locks.auth_dead():
-            raise PaidAbortRun("AUTH_DEAD sentinel engaged")
+            msg = "AUTH_DEAD sentinel engaged"
+            raise PaidAbortRun(msg)
         if self.factory.aborted():
-            raise PaidAbortRun("run aborted by auth breaker")
+            msg = "run aborted by auth breaker"
+            raise PaidAbortRun(msg)
         cli = self._client()
         probe = getattr(cli, "probe_model", None)
         if not callable(probe):
@@ -433,7 +436,7 @@ class PaidSession:
             ledger.emit(ev,
                         run_dir=rd.path if rd is not None else None,
                         sink=sink)
-        except Exception:
+        except Exception:  # noqa: S110 -- docstring 声明观测镜像失败全吞咽
             pass
 
     # -- the wire ----------------------------------------------------------------------
@@ -442,12 +445,15 @@ class PaidSession:
         callable taking (*a, **kw)."""
         # gates that cost nothing — checked on EVERY request
         if locks.pause_engaged():
-            raise PaidPause("PAUSE sentinel engaged")
+            msg = "PAUSE sentinel engaged"
+            raise PaidPause(msg)
         if locks.auth_dead():
             self.factory.abort()
-            raise PaidAbortRun("AUTH_DEAD sentinel engaged")
+            msg = "AUTH_DEAD sentinel engaged"
+            raise PaidAbortRun(msg)
         if self.factory.aborted():
-            raise PaidAbortRun("run aborted by auth breaker")
+            msg = "run aborted by auth breaker"
+            raise PaidAbortRun(msg)
         self.factory.meter.check(self.factory.max_cost)
 
         idc, _arm, _var = self._key()
@@ -461,12 +467,15 @@ class PaidSession:
                     # queued must still stop the wire call (the pre-wait
                     # checks are stale by the time the slot lands)
                     if locks.pause_engaged():
-                        raise PaidPause("PAUSE sentinel engaged")
+                        msg = "PAUSE sentinel engaged"
+                        raise PaidPause(msg)
                     if locks.auth_dead():
                         self.factory.abort()
-                        raise PaidAbortRun("AUTH_DEAD sentinel engaged")
+                        msg = "AUTH_DEAD sentinel engaged"
+                        raise PaidAbortRun(msg)
                     if self.factory.aborted():
-                        raise PaidAbortRun("run aborted by auth breaker")
+                        msg = "run aborted by auth breaker"
+                        raise PaidAbortRun(msg)
                     self.factory.meter.check(self.factory.max_cost)
                     res = self._call(method, *a, **kw)
                 finally:
@@ -485,15 +494,21 @@ class PaidSession:
                             f"{all_failed} papers all_failed on 401 "
                             f"(last: {idc})")
                         self.factory.abort()
-                        raise PaidAbortRun(
+                        msg = (
                             f"auth breaker: {all_failed} papers all_failed; "
-                            "AUTH_DEAD tripped") from exc
-                    raise PaidAbortCell(
+                            "AUTH_DEAD tripped"
+                        )
+                        raise PaidAbortRun(msg) from exc
+                    msg = (
                         f"auth breaker: {idc} saw {n}x401 — cell aborted, "
-                        "claim released auth_trip") from exc
-                raise AuthError(
+                        "claim released auth_trip"
+                    )
+                    raise PaidAbortCell(msg) from exc
+                msg = (
                     f"401 from gateway (paper {idc}, {n}/"
-                    f"{self.PAPER_401_LIMIT})", status=401) from exc
+                    f"{self.PAPER_401_LIMIT})"
+                )
+                raise AuthError(msg, status=401) from exc
             raise
         # usage accounting — post-request, inside the claim
         usage = _usage_of(res)

@@ -27,6 +27,9 @@ the full pass on its hourly timer. Duties:
 6. **Ledger seal** (§3.10.5): the periodic driver for the >256MB/30d
    rotation trigger plus verified-raw gc gated on the index's replayed
    segment set.
+7. **CAS GC** (§3.10.2): ``cas.gc_sweep`` at the tail of the full pass —
+   nlink==1 objects past the 24h grace are reaped (the refcount GC has no
+   other driver).
 
 Concurrency: the whole sweep runs under a single NB flock
 (``locks/sweep.lock``) inside a ``kernel_active_hold`` SH hold — a second
@@ -47,13 +50,28 @@ Thresholds are module constants so callers/tests can tune them:
 from __future__ import annotations
 
 import time
-from pathlib import Path
+from typing import TYPE_CHECKING
 
-from kernel import claims, dedup, events, index, lake, ledger, locks, paths
-from kernel import runs, vault
+from kernel import (
+    cas,
+    claims,
+    dedup,
+    events,
+    index,
+    lake,
+    ledger,
+    locks,
+    paths,
+    runs,
+    vault,
+)
 from kernel.idnorm import idc_from_safe, safe_id
 
+if TYPE_CHECKING:
+    from pathlib import Path
+
 __all__ = [
+    "CAS_GC_GRACE_S",
     "FAIL_TOMBSTONE_AGE_S",
     "ORPHAN_AGE_S",
     "PENDING_META_AGE_S",
@@ -65,6 +83,7 @@ ZOMBIE_AGE_S = 600.0                 # §3.10.1: heartbeat stops >10min
 PENDING_META_AGE_S = 15 * 60.0       # older than the zombie window
 ORPHAN_AGE_S = 3600.0                # meta-less dir commit grace
 FAIL_TOMBSTONE_AGE_S = 7 * 86400.0   # permafail → tombstone age
+CAS_GC_GRACE_S = 86400.0             # §3.10.2: 24h store→link grace
 
 _CLEAN_STATUSES = frozenset({"ok", "partial", "clean"})
 _FAIL_STATUSES = frozenset({"fail", "fault", "dirty_pdf", "reject"})
@@ -444,8 +463,14 @@ def _sweep_lake_orphans(report: dict) -> None:
             idc = idc_from_safe(cell.name)
             if idc in rows or idc in ledger_idcs:
                 continue
-            cat.set(idc, "skeleton", source=source_dir.name,
-                    manifested=False, orphan=True)
+            # A PINNED marker on the orphan dir survives the adoption:
+            # the catalog is rebuilt (the cell was invisible to it), so the
+            # file-side truth must be re-projected into the new row.
+            kw = {"source": source_dir.name,
+                  "manifested": False, "orphan": True}
+            if lake.cell_pinned(cell):
+                kw["pinned"] = True
+            cat.set(idc, "skeleton", **kw)
             report["lake_orphans"].append(
                 {"path": str(cell), "idc": idc})
     if report["lake_orphans"]:
@@ -466,7 +491,7 @@ def _sweep_harvest_pending(idx: index.Index | None, report: dict) -> None:
         intent.add((r["idc"], r["arm"], r["variant"]))
     marks = ",".join("?" for _ in _VAULT_KINDS)
     for r in idx.conn.execute(
-            f"SELECT DISTINCT idc, arm, variant FROM assets"
+            f"SELECT DISTINCT idc, arm, variant FROM assets"  # noqa: S608 -- marks 是 "?"*n 占位符
             f" WHERE kind IN ({marks})", tuple(sorted(_VAULT_KINDS))):
         intent.add((r["idc"], r["arm"], r["variant"]))
     if not intent:
@@ -561,6 +586,22 @@ def _sweep_seal(idx: index.Index | None, report: dict) -> None:
         report["seal_gc"].append(raw.name)
 
 
+def _sweep_cas_gc(report: dict) -> None:
+    """§3.10.2 CAS refcount GC — gc_sweep's only production driver.
+
+    nlink==1 (unreferenced) objects older than the 24h grace are unlinked;
+    grace covers the store→link publish gap and each candidate re-stats
+    under the pool's EX lock, so a racing link_out is never swept. A GC
+    failure is an error entry, never a sweep abort — the pool just grows.
+    """
+    try:
+        removed = cas.gc_sweep(grace_s=CAS_GC_GRACE_S)
+    except Exception as e:
+        report["errors"].append(f"cas gc_sweep: {e}")
+        return
+    report["cas_swept"] = [p.name for p in removed]
+
+
 def sweep(light: bool = False) -> dict:
     """Run the reaper. light=True is the fast auto-pass at write-command
     start: zombies + stale claims only (the duties that keep claim/slot
@@ -573,30 +614,31 @@ def sweep(light: bool = False) -> dict:
         "zombies": [], "reaped_claims": [], "promoted": [],
         "adopted": [], "harvest_pending": [], "tombstoned": [],
         "meta_less": [], "lake_orphans": [], "errors": [],
-        "sealed": [], "seal_gc": [],
+        "sealed": [], "seal_gc": [], "cas_swept": [],
     }
     try:
-        with locks.flock(_sweep_lock_path(), exclusive=True, blocking=False):
-            with locks.kernel_active_hold():
-                now = time.time()
-                idx = _open_index()
-                try:
-                    _sweep_zombies(report)
-                    _sweep_stale_claims(idx, report)
-                    if light:
-                        return report
-                    active = {
-                        a["run"] for a in runs.active_runs()
-                    }
-                    _sweep_pending_metas(idx, active, report, now)
-                    _sweep_vault_orphans(report, now)
-                    _sweep_lake_orphans(report)
-                    _sweep_harvest_pending(idx, report)
-                    _sweep_permafail(idx, report, now)
-                    _sweep_seal(idx, report)
-                finally:
-                    if idx is not None:
-                        idx.close()
+        with locks.flock(_sweep_lock_path(), exclusive=True, blocking=False), \
+                locks.kernel_active_hold():
+            now = time.time()
+            idx = _open_index()
+            try:
+                _sweep_zombies(report)
+                _sweep_stale_claims(idx, report)
+                if light:
+                    return report
+                active = {
+                    a["run"] for a in runs.active_runs()
+                }
+                _sweep_pending_metas(idx, active, report, now)
+                _sweep_vault_orphans(report, now)
+                _sweep_lake_orphans(report)
+                _sweep_harvest_pending(idx, report)
+                _sweep_permafail(idx, report, now)
+                _sweep_seal(idx, report)
+                _sweep_cas_gc(report)
+            finally:
+                if idx is not None:
+                    idx.close()
     except locks.WouldBlock:
         report["skipped"] = "another sweep holds locks/sweep.lock"
     return report

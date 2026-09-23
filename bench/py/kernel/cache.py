@@ -32,14 +32,24 @@ from __future__ import annotations
 import json
 import os
 import re
-import time
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 from kernel import fsutil, locks, paths
 
-__all__ = ["FLUSH_STATUSES", "SegCache", "bucket_path", "file_key_of",
-           "metrics_of", "open_bucket", "status", "evict",
-           "rebuild_from_vault"]
+if TYPE_CHECKING:
+    from pathlib import Path
+
+__all__ = [
+    "FLUSH_STATUSES",
+    "SegCache",
+    "bucket_path",
+    "evict",
+    "file_key_of",
+    "metrics_of",
+    "open_bucket",
+    "rebuild_from_vault",
+    "status",
+]
 
 #: Cell terminals that release buffered stores into the shared buckets.
 #: DONE minus the failure set — "cell 终态 ok 后才 flush" (§3.9).
@@ -64,7 +74,8 @@ def bucket_path(file_key: str) -> Path:
     """lake/cache/{file_key[:2]}/{file_key}.json — 256-way fanout."""
     fk = str(file_key)
     if not re.fullmatch(r"[0-9a-f]{16}", fk):
-        raise ValueError(f"bad bucket key {file_key!r} (want 16-hex)")
+        msg = f"bad bucket key {file_key!r} (want 16-hex)"
+        raise ValueError(msg)
     return paths.lake_cache_dir() / fk[:2] / f"{fk}.json"
 
 
@@ -266,7 +277,7 @@ def evict(to_free: int) -> list[Path]:
     lock so a concurrent flush can never be unlinked mid-merge."""
     removed: list[Path] = []
     freed = 0
-    for p, st in sorted(_iter_buckets(), key=lambda t: t[1].st_mtime):
+    for p, _st in sorted(_iter_buckets(), key=lambda t: t[1].st_mtime):
         if freed >= to_free:
             break
         with _bucket_lock(p.stem):

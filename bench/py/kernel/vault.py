@@ -162,32 +162,37 @@ def _check_idc(idc) -> str:
     forms decode, vN strips per §3.10.7, deny-listed/bare tails refuse."""
     res = idnorm.canon_id(str(idc))
     if not res.ok or not res.idc:
-        raise ValueError(f"bad vault id {idc!r}: {res.reason}")
+        msg = f"bad vault id {idc!r}: {res.reason}"
+        raise ValueError(msg)
     sid = idnorm.safe_id(res.idc)
     if not sid or sid.startswith(".") or "/" in sid or "\\" in sid:
-        raise ValueError(f"bad vault id {idc!r}: unusable safe_id {sid!r}")
+        msg = f"bad vault id {idc!r}: unusable safe_id {sid!r}"
+        raise ValueError(msg)
     return res.idc
 
 
 def _check_altseq(altseq) -> str:
     a = str(altseq)
     if not _ALTSEQ_RE.fullmatch(a):
-        raise ValueError(f"bad altseq {altseq!r}: restricted to [A-Za-z0-9-]")
+        msg = f"bad altseq {altseq!r}: restricted to [A-Za-z0-9-]"
+        raise ValueError(msg)
     return a
 
 
 def _norm_zone(zone) -> str:
     z = _ZONE_ALIASES.get(zone, zone)
     if z not in ZONES:
-        raise ValueError(f"bad vault zone {zone!r} (allowed: {sorted(ZONES)})")
+        msg = f"bad vault zone {zone!r} (allowed: {sorted(ZONES)})"
+        raise ValueError(msg)
     return z
 
 
 def _norm_verdict(verdict) -> str:
     v = _ZONE_ALIASES.get(verdict, verdict)
     if v not in VERDICTS:
+        msg = f"bad vault verdict {verdict!r} (allowed: {sorted(VERDICTS)})"
         raise ValueError(
-            f"bad vault verdict {verdict!r} (allowed: {sorted(VERDICTS)})")
+            msg)
     return v
 
 
@@ -214,10 +219,12 @@ def parse_dir_key(name) -> tuple[str, str, str]:
         armvar, altseq = parts
         _check_altseq(altseq)
     else:
-        raise ValueError(f"unparseable vault dir key {name!r}")
+        msg = f"unparseable vault dir key {name!r}"
+        raise ValueError(msg)
     av = armvar.split("@")
     if len(av) > 2 or not av[0]:
-        raise ValueError(f"unparseable vault dir key {name!r}")
+        msg = f"unparseable vault dir key {name!r}"
+        raise ValueError(msg)
     arm = idnorm.unescape_component(av[0])
     variant = idnorm.unescape_component(av[1]) if len(av) == 2 else "-"
     return arm, variant, altseq
@@ -236,11 +243,13 @@ def parse_meta_key(name) -> tuple[str, str, str, str]:
     suffix, then splits escaped components (§3.10.4 parse order)."""
     stem = Path(name).name
     if not stem.endswith(_META_SUFFIX):
-        raise ValueError(f"not a vault meta name {name!r}")
+        msg = f"not a vault meta name {name!r}"
+        raise ValueError(msg)
     stem = stem[: -len(_META_SUFFIX)]
     parts = stem.split(".")
     if len(parts) not in (2, 3):
-        raise ValueError(f"unparseable vault meta name {name!r}")
+        msg = f"unparseable vault meta name {name!r}"
+        raise ValueError(msg)
     idc = idnorm.idc_from_safe(idnorm.unescape_component(parts[0]))
     arm, variant, altseq = parse_dir_key(".".join(parts[1:]))
     return idc, arm, variant, altseq
@@ -292,9 +301,12 @@ def _require_sentinel() -> None:
     """R5: refuse vault writes when the mount proof is absent — an empty
     mount point must never silently swallow paid bytes."""
     if not paths.vault_sentinel_path().exists():
-        raise VaultError(
+        msg = (
             f"vault sentinel {paths.vault_sentinel_path()} missing — "
-            "refusing to write into a possibly-unmounted vault dir")
+                        "refusing to write into a possibly-unmounted vault dir"
+        )
+        raise VaultError(
+            msg)
 
 
 def _fsync_file(p: Path) -> None:
@@ -323,7 +335,7 @@ def _fsync_ancestors(leaf_parent: Path) -> None:
     vault = paths.vault_dir()
     while True:
         fsutil.fsync_dir(p)
-        if p == vault or p.parent == p:
+        if p in (vault, p.parent):
             break
         p = p.parent
 
@@ -395,7 +407,7 @@ def _safe_rel(rel) -> str | None:
     corrupt meta must never steer verify/restore outside its leaf dir."""
     if not isinstance(rel, str) or not rel:
         return None
-    if rel.startswith("/") or rel.startswith("\\"):
+    if rel.startswith(("/", "\\")):
         return None
     if any(part in ("", ".", "..") for part in rel.split("/")):
         return None
@@ -476,16 +488,18 @@ def _choose_altseq(idc: str, arm: str, variant: str, altseq,
     if altseq is not None:
         a = _check_altseq(altseq)
         if _slot_taken(idc, arm, variant, a):
-            raise DestOccupied(
+            msg = (
                 f"vault copy ({idc},{arm},{variant},{a}) already occupied — "
-                "refusing to nest into an existing destination")
+                "refusing to nest into an existing destination"
+            )
+            raise DestOccupied(msg)
         return a
     for i in range(10000):
         a = str(i)
         if not _slot_taken(idc, arm, variant, a):
             return a
-    raise VaultError(f"no free altseq slot for ({idc},{arm},{variant})")
-
+    msg = f"no free altseq slot for ({idc},{arm},{variant})"
+    raise VaultError(msg)
 
 def _group_files(rows: list[dict]) -> dict:
     """[{kind,path,size,sha256}] -> {kind: [{path,size,sha256}]} for meta."""
@@ -498,7 +512,7 @@ def _group_files(rows: list[dict]) -> dict:
 
 def harvest(idc, arm, variant, assets: dict, source_run: str = "adhoc",
             altseq=None, verdict: str = "pending", zone=None, model=None,
-            id=None, seq=None, staged: bool = False, sink=None,
+            id=None, seq=None, staged: bool = False, sink=None,  # noqa: A002 -- id=/seq= 是事件行键名，调用方以 kwarg 传入
             run_dir=None, _op: str = "harvest") -> Path:
     """THE commit path — stage, fuse, rename, meta-last, manifest, emit.
 
@@ -520,27 +534,31 @@ def harvest(idc, arm, variant, assets: dict, source_run: str = "adhoc",
     _require_sentinel()
     paths.assert_vault_same_volume()
     if not isinstance(assets, dict) or not assets:
-        raise ValueError("harvest needs a non-empty {kind: src_dir} dict")
+        msg = "harvest needs a non-empty {kind: src_dir} dict"
+        raise ValueError(msg)
     kinds = sorted(assets)
     unknown = set(kinds) - KINDS
     if unknown:
-        raise ValueError(
-            f"unknown asset kinds {sorted(unknown)} (allowed: {sorted(KINDS)})")
+        msg = f"unknown asset kinds {sorted(unknown)} (allowed: {sorted(KINDS)})"
+        raise ValueError(msg)
     srcs: dict[str, Path] = {}
     for k in kinds:
         src = Path(assets[k])
         if not src.is_dir():
-            raise VaultError(f"asset {k} source is not a directory: {src}")
+            msg = f"asset {k} source is not a directory: {src}"
+            raise VaultError(msg)
         offenders = _non_regular(src)
         if offenders:
-            raise VaultError(
+            msg = (
                 f"asset {k} holds non-regular files (vault stores regular "
-                f"bytes only): {[str(o) for o in offenders[:5]]}")
+                f"bytes only): {[str(o) for o in offenders[:5]]}"
+            )
+            raise VaultError(msg)
         files = _iter_files(src)
         if not files or all(p.stat().st_size == 0 for p, _ in files):
-            raise VaultError(f"asset {k} carries no non-empty bytes: {src}")
+            msg = f"asset {k} carries no non-empty bytes: {src}"
+            raise VaultError(msg)
         srcs[k] = src
-
     sid = idnorm.safe_id(idc)
     with locks.flock(paths.vault_lock_path(), exclusive=True):
         chosen = _choose_altseq(idc, arm, variant, altseq)
@@ -688,8 +706,8 @@ def promote(idc, arm, variant, altseq, zone, verdict,
         mpath = meta_path(idc, arm, variant, altseq)
         meta = _read_meta(mpath)
         if meta is None:
-            raise MetaMissing(
-                f"no parseable meta at {mpath} — nothing to promote")
+            msg = f"no parseable meta at {mpath} — nothing to promote"
+            raise MetaMissing(msg)
         old_zone = _norm_zone(meta.get("zone", "pending"))
         moved: list[str] = []
         missing: list[str] = []
@@ -702,8 +720,8 @@ def promote(idc, arm, variant, altseq, zone, verdict,
                         missing.append(k)
                         continue
                     if dst.exists():
-                        raise DestOccupied(
-                            f"promote destination occupied: {dst}")
+                        msg = f"promote destination occupied: {dst}"
+                        raise DestOccupied(msg)  # noqa: TRY301 -- raise 必须留在 try 内：except 回滚已搬动的 moved 集
                     dst.parent.mkdir(parents=True, exist_ok=True)
                     # lift the root fuse so rename() may rewrite '..'
                     # (committed leaf dirs are 0555); re-fuse after landing.
@@ -717,10 +735,12 @@ def promote(idc, arm, variant, altseq, zone, verdict,
                     _fsync_ancestors(src.parent)
                     moved.append(k)
                 if missing and not moved:
-                    raise VaultError(
+                    msg = (
                         f"promote {idc}/{arm}/{variant}/{altseq}: every "
                         f"declared kind missing under {old_zone} "
-                        f"({missing}) — nothing to move")
+                        f"({missing}) — nothing to move"
+                    )
+                    raise VaultError(msg)  # noqa: TRY301 -- 同上：触发回滚的中止点
         except BaseException:
             for k in moved:
                 dst = _kind_root(zone, k) / sid / key
@@ -843,9 +863,9 @@ def query(idc, arm: str = "*", variant: str = "*") -> list[dict]:
         kidc, karm, kvar, kalt = key
         if kidc != idc:
             continue
-        if arm != "*" and karm != arm:
+        if arm not in ("*", karm):
             continue
-        if variant != "*" and kvar != variant:
+        if variant not in ("*", kvar):
             continue
         row = dict(meta) if meta is not None else {}
         row.update({"idc": kidc, "arm": karm, "variant": kvar,
@@ -891,7 +911,8 @@ def verify(level: str = "stat", sample_frac: float = 0.05,
     covering meta], meta_bad:[unparseable/credential-mismatched metas],
     extra:[unmanifested files inside covered dirs]}."""
     if level not in ("stat", "sample", "full"):
-        raise ValueError(f"bad verify level {level!r}")
+        msg = f"bad verify level {level!r}"
+        raise ValueError(msg)
     rng = random.Random(seed)
     with locks.flock(paths.vault_lock_path(), exclusive=False):
         return _verify_scan(level, sample_frac, rng)
@@ -966,9 +987,9 @@ def _verify_scan(level: str, sample_frac: float, rng) -> dict:
         expected = {ent.get("sha256") for _p, ent in aliases}
         size_bad = any(st.st_size != ent.get("size") for _p, ent in aliases)
         sha_bad = False
-        if not size_bad and level != "stat":
-            if level == "full" or rng.random() < sample_frac:
-                sha_bad = fsutil._sha256_file(aliases[0][0]) not in expected
+        if (not size_bad and level != "stat"
+                and (level == "full" or rng.random() < sample_frac)):
+            sha_bad = fsutil._sha256_file(aliases[0][0]) not in expected
         if size_bad or sha_bad:
             report["bad"].append({
                 "paths": [str(p) for p, _e in aliases],
@@ -1013,9 +1034,11 @@ def heal(verify_report: dict | None = None) -> int:
             cands = {ino: p for ino, p in donors.get(want, {}).items()
                      if ino != bad_ino}
             if len(cands) > 1:
-                raise AmbiguousDonor(
+                msg = (
                     f"multiple good inodes carry sha {want[:16]}… — refusing "
-                    "to pick (§3.10.4 sha-binding ambiguity)")
+                    "to pick (§3.10.4 sha-binding ambiguity)"
+                )
+                raise AmbiguousDonor(msg)
             if not cands:
                 continue
             donor_path = next(iter(cands.values()))
@@ -1103,7 +1126,7 @@ def _donor_map() -> dict:
 # --- adopt / restore / tombstone / orphan scan ---------------------------------------
 
 def adopt(src_dir, idc, arm: str = "-", variant: str = "-",
-          reason: str = "orphan", kind: str = "zh", id=None,
+          reason: str = "orphan", kind: str = "zh", id=None,  # noqa: A002 -- 事件行键名
           sink=None, run_dir=None) -> Path:
     """Orphan bytes -> quarantine. The whole tree becomes one quar-zone copy
     via the normal two-phase commit (verdict='quar', state='adopted'), then
@@ -1113,16 +1136,19 @@ def adopt(src_dir, idc, arm: str = "-", variant: str = "-",
     arm = _comp(arm)
     variant = _comp(variant)
     if kind not in KINDS:
-        raise ValueError(
-            f"adopt kind must be one of {sorted(KINDS)}, got {kind!r}")
+        msg = f"adopt kind must be one of {sorted(KINDS)}, got {kind!r}"
+        raise ValueError(msg)
     src = Path(src_dir)
     if not src.is_dir():
-        raise VaultError(f"adopt source is not a directory: {src}")
+        msg = f"adopt source is not a directory: {src}"
+        raise VaultError(msg)
     offenders = _non_regular(src)
     if offenders:
-        raise VaultError(
+        msg = (
             f"adopt refuses non-regular files: "
-            f"{[str(o) for o in offenders[:5]]}")
+            f"{[str(o) for o in offenders[:5]]}"
+        )
+        raise VaultError(msg)
     mpath = harvest(idc, arm, variant, {kind: src}, source_run="adopt",
                     verdict="quar", zone="quar", id=id, sink=sink,
                     run_dir=run_dir, _op="adopt")
@@ -1157,15 +1183,18 @@ def restore(idc, arm, variant, dest, altseq=None, mode: str = "copy") -> int:
     arm = _comp(arm)
     variant = _comp(variant)
     if mode not in ("copy", "link"):
-        raise ValueError(f"restore mode must be 'copy'|'link', got {mode!r}")
+        msg = f"restore mode must be 'copy'|'link', got {mode!r}"
+        raise ValueError(msg)
     _require_sentinel()
     dest = Path(dest)
     with locks.flock(paths.vault_lock_path(), exclusive=False):
         meta = _select_copy(idc, arm, variant, altseq)
         if meta is None:
-            raise VaultError(
+            msg = (
                 f"no intact committed copy for "
-                f"({idc},{arm},{variant},{altseq})")
+                f"({idc},{arm},{variant},{altseq})"
+            )
+            raise VaultError(msg)
         zone = _norm_zone(meta.get("zone", "pending"))
         sid = idnorm.safe_id(idc)
         key = dir_key(arm, variant, meta.get("altseq", "0"))
@@ -1204,7 +1233,7 @@ def _select_copy(idc: str, arm: str, variant: str, altseq) -> dict | None:
 
 
 def tombstone(idc, arm, variant, kind, reason, lost_run: str = "",
-              id=None, sink=None, run_dir=None) -> None:
+              id=None, sink=None, run_dir=None) -> None:  # noqa: A002 -- 事件行键名
     """Register lost bytes: a manifest tombstone row inside the vault lock,
     then a first-class tombstone event in the ledger (§3.1 — tombstones are
     events, not separate files). The regen gate reads these rows upstream."""

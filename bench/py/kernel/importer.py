@@ -48,7 +48,7 @@ import re
 import shutil
 import sqlite3
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from kernel import events, fsutil, idnorm, ledger, paths
@@ -132,7 +132,7 @@ def _parse_ts(val) -> float | None:
     except ValueError:
         return None
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
+        dt = dt.replace(tzinfo=UTC)
     return dt.timestamp()
 
 
@@ -251,10 +251,10 @@ def _load_quar_shas() -> set[str]:
     p = paths.quarantine_path()
     if p.exists():
         with open(p, "rb") as f:
-            for line in f:
-                line = line.rstrip(b"\n")
-                if line:
-                    seen.add(hashlib.sha256(line).hexdigest())
+            for raw_ln in f:
+                ln = raw_ln.rstrip(b"\n")
+                if ln:
+                    seen.add(hashlib.sha256(ln).hexdigest())
     return seen
 
 
@@ -736,7 +736,7 @@ def _known_shas(index, evs: list) -> set:
         part = shas[i:i + 900]
         marks = ",".join("?" * len(part))
         for row in index.conn.execute(
-            f"SELECT payload_sha FROM dedupe WHERE payload_sha IN ({marks})",
+            f"SELECT payload_sha FROM dedupe WHERE payload_sha IN ({marks})",  # noqa: S608 -- marks 是 "?"*n 占位符，本模块内构造
             part,
         ):
             known.add(row[0])
@@ -835,7 +835,7 @@ def _run_date(run: dict) -> str:
     if p:
         try:
             mt = Path(p).stat().st_mtime
-            return datetime.fromtimestamp(mt, tz=timezone.utc).strftime(
+            return datetime.fromtimestamp(mt, tz=UTC).strftime(
                 "%Y-%m-%d")
         except OSError:
             pass
@@ -902,7 +902,7 @@ def import_benchdb(db_path, index, registry=None, dry: bool = False) -> dict:
             if table not in existing:
                 continue
             for (rid,) in db.execute(
-                    f"SELECT DISTINCT run_id FROM {table}"):
+                    f"SELECT DISTINCT run_id FROM {table}"):  # noqa: S608 -- table 来自 _DB_TABLES 白名单迭代
                 run = runs.get(rid) or {
                     "run_id": rid, "name": f"run-{rid}", "created_at": None,
                     "path": None, "kind": "?", "source": "?"}
@@ -927,13 +927,15 @@ def import_benchdb(db_path, index, registry=None, dry: bool = False) -> dict:
                 index.apply_events([rr])
 
             if table == "records":
-                norm_fn = lambda row: _norm_db_record(row, run_ts)  # noqa: E731
+                norm_fn = lambda row, _ts=run_ts: _norm_db_record(row, _ts)  # noqa: E731
             else:
-                norm_fn = lambda row: _norm_db_raw(table, row, run_ts)  # noqa: E731
-            def rows():
+                norm_fn = lambda row, _t=table, _ts=run_ts: _norm_db_raw(  # noqa: E731
+                    _t, row, _ts)
+
+            def rows(_table=table, _rid=rid):
                 for r in db.execute(
-                        f"SELECT * FROM {table} WHERE run_id=?"
-                        " ORDER BY rec_id", (rid,)):
+                        f"SELECT * FROM {_table} WHERE run_id=?"  # noqa: S608 -- _table 来自 _DB_TABLES 白名单
+                        " ORDER BY rec_id", (_rid,)):
                     stats["rows"] += 1
                     yield dict(r)
 
@@ -988,7 +990,7 @@ def import_jsonl_file(path, run, stage_map=None, index=None, registry=None,
         )
     file_ts = path.stat().st_mtime
     ts_start = _run_meta_ts(src_dir) or file_ts
-    date = datetime.fromtimestamp(ts_start, tz=timezone.utc).strftime(
+    date = datetime.fromtimestamp(ts_start, tz=UTC).strftime(
         "%Y-%m-%d")
     slug = _slugify(run_name.removeprefix("import-"))
     run_seq, rdir, minted, rr = _ensure_import_run(
@@ -1064,17 +1066,15 @@ def _zh_dir_candidates(bytes_root: Path, row: dict, idc: str) -> list:
     zone = row.get("zone")
     cands = []
     if zone in ("quarantine", "_quarantine"):
-        for cont in _QUAR_CONTAINERS:
-            for n in dict.fromkeys((raw, sid)):
-                if n:
-                    cands.append(bytes_root / cont / n)
-    for n in dict.fromkeys((raw, sid)):
-        if n:
-            cands.append(bytes_root / n)
-    for cont in _QUAR_CONTAINERS:
-        for n in dict.fromkeys((raw, sid)):
-            if n:
-                cands.append(bytes_root / cont / n)
+        cands.extend(
+            bytes_root / cont / n
+            for cont in _QUAR_CONTAINERS
+            for n in dict.fromkeys((raw, sid)) if n)
+    cands.extend(bytes_root / n for n in dict.fromkeys((raw, sid)) if n)
+    cands.extend(
+        bytes_root / cont / n
+        for cont in _QUAR_CONTAINERS
+        for n in dict.fromkeys((raw, sid)) if n)
     seen = set()
     out = []
     for c in cands:
@@ -1099,7 +1099,7 @@ def import_zhstore(manifest_path, bytes_root, index, registry=None,
     bytes_root = Path(bytes_root)
     run_name = "import-zhstore"
     file_ts = manifest_path.stat().st_mtime
-    date = datetime.fromtimestamp(file_ts, tz=timezone.utc).strftime(
+    date = datetime.fromtimestamp(file_ts, tz=UTC).strftime(
         "%Y-%m-%d")
     run_seq, rdir, minted, rr = _ensure_import_run(
         index, run_name, date=date, slug="zhstore",
@@ -1362,6 +1362,11 @@ def seed_vault_zhstore(manifest_path, bytes_root, index, registry=None,
       enter the paid-byte store. They stay in place for the operator.
     - provenance.json (per-id) merges into the harvested meta under
       'provenance'.
+    - Manifest rows may carry an optional ``pinned`` field (append-only,
+      last-wins — harvest.py's reindex propagates it from a row's
+      provenance.json). It is tolerated and passed through into the
+      harvested meta verbatim; no delete verb consumes it yet (schema
+      placeholder).
 
     Idempotent: a (idc, arm, '-') copy that already bytes_ok and declares
     every on-disk kind is skipped, so a crashed census re-run continues
@@ -1376,7 +1381,7 @@ def seed_vault_zhstore(manifest_path, bytes_root, index, registry=None,
     manifest_path = Path(manifest_path)
     bytes_root = Path(bytes_root)
     file_ts = manifest_path.stat().st_mtime
-    date = datetime.fromtimestamp(file_ts, tz=timezone.utc).strftime(
+    date = datetime.fromtimestamp(file_ts, tz=UTC).strftime(
         "%Y-%m-%d")
     run_name = "import-zhstore-vault-seed"
     run_seq, rdir, minted, rr = _ensure_import_run(
@@ -1399,12 +1404,14 @@ def seed_vault_zhstore(manifest_path, bytes_root, index, registry=None,
         for cont in _QUAR_CONTAINERS:
             try:
                 base.relative_to(bytes_root / cont)
-                return True
             except ValueError:
                 continue
+            else:
+                return True
         return False
 
-    def _patch_meta(mpath: Path, base: Path, adopted: bool) -> None:
+    def _patch_meta(mpath: Path, base: Path, adopted: bool,
+                    row: dict | None = None) -> None:
         meta = vault._read_meta(mpath) or {}
         prov = _provenance(base, stats)
         if prov:
@@ -1415,6 +1422,10 @@ def seed_vault_zhstore(manifest_path, bytes_root, index, registry=None,
         # claim machinery, so doctor's paid reconciliation exempts them
         # (the meta-plane mirror of the events' import_src convention).
         meta["import_src"] = run_name
+        if row is not None and row.get("pinned"):
+            # zh-store manifest `pinned` — tolerated passthrough into the
+            # vault meta (placeholder: no delete verb consumes it yet).
+            meta["pinned"] = True
         vault._write_meta(mpath, meta)
         stats["bytes"] += int(meta.get("bytes") or 0)
 
@@ -1482,6 +1493,9 @@ def seed_vault_zhstore(manifest_path, bytes_root, index, registry=None,
                 if meta.get("import_src") != run_name:
                     meta["import_src"] = run_name
                     changed = True
+                if row.get("pinned") and not meta.get("pinned"):
+                    meta["pinned"] = True
+                    changed = True
                 if changed and not dry:
                     vault._write_meta(Path(m["meta_path"]), meta)
             continue
@@ -1508,7 +1522,7 @@ def seed_vault_zhstore(manifest_path, bytes_root, index, registry=None,
             stats["conflicts"].append(f"{idc}: {exc}")
             stats["errors"] += 1
             continue
-        _patch_meta(mpath, base, adopted=False)
+        _patch_meta(mpath, base, adopted=False, row=row)
         stats["harvested"] += 1
         stats["kinds_harvested"] += len(assets)
         stats["events"] += len(assets)
@@ -1637,8 +1651,8 @@ def _manifest_files(manifest_paths) -> list[Path]:
     """Expand a mixed list of manifest files/dirs into concrete
     manifest*.jsonl paths (dirs contribute their glob, sorted)."""
     out: list[Path] = []
-    for mp in manifest_paths or []:
-        mp = Path(mp)
+    for mpath in manifest_paths or []:
+        mp = Path(mpath)
         if mp.is_dir():
             out.extend(sorted(mp.glob("manifest*.jsonl")))
         elif mp.is_file():
@@ -1678,7 +1692,7 @@ def register_lake_manifests(manifest_paths, index, registry=None,
         stats["errors"] = 1
         return stats
     date = datetime.fromtimestamp(
-        max(f.stat().st_mtime for f in files), tz=timezone.utc
+        max(f.stat().st_mtime for f in files), tz=UTC
     ).strftime("%Y-%m-%d")
     run_name = "import-lake-register"
     run_seq, rdir, minted, rr = _ensure_import_run(
@@ -1845,7 +1859,7 @@ def absorb_corpus(bytes_root, index, registry=None, manifests=None,
                         manifested.add(res.idc)
     run_seq, rdir, minted, rr = _ensure_import_run(
         index, "import-lake-absorb", date=datetime.now(
-            tz=timezone.utc).strftime("%Y-%m-%d"),
+            tz=UTC).strftime("%Y-%m-%d"),
         slug="corpus-absorb", spec_hash="corpus-absorb", dry=dry)
     stats["runs"] += 1
     stats["runs_minted"] += int(minted)

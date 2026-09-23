@@ -279,7 +279,9 @@ def assert_vault_same_volume() -> None:
     v = vault_dir().stat().st_dev
     s = vault_staging_dir().stat().st_dev
     if v != s:
-        raise RuntimeError(
+        msg = (
             f"vault {vault_dir()} and staging {vault_staging_dir()} on different devices "
-            f"({v} vs {s}) — cross-device rename would lose atomicity"
+                        f"({v} vs {s}) — cross-device rename would lose atomicity"
         )
+        raise RuntimeError(
+            msg       )

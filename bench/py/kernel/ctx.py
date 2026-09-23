@@ -23,10 +23,11 @@ Hard guarantees:
 """
 from __future__ import annotations
 
+import contextlib
 import shutil
 from pathlib import Path
 
-from kernel import claims, events, fsutil, idnorm, lake, locks, paid as paidmod
+from kernel import claims, events, fsutil, idnorm, lake
 
 __all__ = ["Ctx"]
 
@@ -182,11 +183,13 @@ class Ctx:
         mutating subtrees probe themselves (workspace/asset_dir).
         """
         if self.rundir is None:
-            raise RuntimeError("ctx has no rundir — work paths unavailable")
+            msg = "ctx has no rundir — work paths unavailable"
+            raise RuntimeError(msg)
         d = self.rundir.work(self.safe)
         d.mkdir(parents=True, exist_ok=True)
         if not d.stat().st_mode & 0o200:
-            raise PermissionError(f"{d}: non-writable paper dir")
+            msg = f"{d}: non-writable paper dir"
+            raise PermissionError(msg)
         return d
 
     def workspace(self, scratch: bool = True) -> Path:
@@ -207,10 +210,8 @@ class Ctx:
         if scratch:
             marker = d / ".wsrun"
             owner = None
-            try:
+            with contextlib.suppress(OSError):
                 owner = marker.read_text(encoding="utf-8").strip()
-            except OSError:
-                pass
             if owner != self.run:
                 if d.exists():
                     shutil.rmtree(d)
@@ -321,9 +322,11 @@ class Ctx:
         if self._session is not None:
             return self._session
         if self.factory is None:
-            raise RuntimeError(
+            msg = (
                 "paid gateway requested but no gateway_factory was wired "
-                "(construction IS the paid assertion)")
+                "(construction IS the paid assertion)"
+            )
+            raise RuntimeError(msg)
         self._session = self.factory.session(self)
         return self._session
 
@@ -385,7 +388,8 @@ class Ctx:
         """Author → note event. Buffered with the cell batch when no
         emit_note_fn is wired."""
         if level not in events.NOTE_LEVELS:
-            raise ValueError(f"bad note level {level!r}")
+            msg = f"bad note level {level!r}"
+            raise ValueError(msg)
         if self._emit_note_fn is not None:
             return self._emit_note_fn(text, level)
         ev = events.make_event(events.T_NOTE, run=self.run, seq=None,
@@ -399,9 +403,11 @@ class Ctx:
     def _assert_writable(d: Path):
         bad = fsutil.has_nonwritable(d)
         if bad:
-            raise PermissionError(
+            msg = (
                 f"{d}: {len(bad)} non-writable entries — a vault-fused tree "
-                f"leaked into the mutating workspace (first: {bad[0]})")
+                f"leaked into the mutating workspace (first: {bad[0]})"
+            )
+            raise PermissionError(msg)
 
     def __repr__(self) -> str:  # pragma: no cover - debugging aid
         return (f"Ctx(run={self.run!r}, cell={self.idc}/{self.arm}/"

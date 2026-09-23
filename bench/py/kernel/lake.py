@@ -24,6 +24,13 @@ State machine: ``skeleton → hydrating → hydrated ⇄ pinned`` plus tiered
 ``failed`` (manifest-seeded stub/pdf_only/fetch_error, never in the fetch
 set). ``manifested:false`` marks orphan cells — first eviction candidates.
 
+Pin is a FIELD (``pinned:true`` on the catalog row) anchored by a
+cell-side ``PINNED`` marker file — never a state: ``state=='pinned'``
+silently un-pins on the next ``set()`` (the merge carries fields, not the
+replaced state), so the file is the truth the row projects and every
+byte-deleting verb (evict tiers, shrink_shell, remove_cell_tree, orphan
+adoption) must consult the marker, not just the row.
+
 Read predicate (THE consumer gate, §3.10.3): ``is_complete`` = cell dir
 exists ∧ meta.json parseable ∧ meta.n_files == actual payload file count —
 half trees NEVER satisfy, so a paid cell never projects a torn corpus entry.
@@ -52,21 +59,33 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
 
 __all__ = [
+    "PIN_MARKER",
     "LakeCatalog",
     "admit",
     "cell_dir",
+    "cell_pinned",
     "evict",
     "hydrate",
     "is_complete",
     "lake_lock",
+    "pin",
     "register_skeleton",
     "shrink_shell",
+    "unpin",
 ]
 
 _HEAL_CHUNK = 64 * 1024
 
-# Bookkeeping files that are never counted as cell payload.
-_BOOKKEEP = {"meta.json", "mtree.txt", "files.txt"}
+#: Pin truth file — lives at the cell dir root (``{cell}/PINNED`` for lake
+#: cells, ``work/{safe_id}/PINNED`` for run cells). Every byte-deleting verb
+#: honors it; the catalog ``pinned`` field is its ledger-replayable
+#: projection, not the source of truth.
+PIN_MARKER = "PINNED"
+
+# Bookkeeping files that are never counted as cell payload. PIN_MARKER is
+# bookkeeping by definition — without the exclusion a pinned cell's payload
+# count inflates by one and is_complete can never vouch for it again.
+_BOOKKEEP = {"meta.json", "mtree.txt", "files.txt", PIN_MARKER}
 
 _ENV_LAKE_CAP_GB = "TEXLATE_LAKE_CAP_GB"
 _ENV_LAKE_FLOOR_GB = "TEXLATE_LAKE_FLOOR_GB"
@@ -75,9 +94,11 @@ _GIB = 1024 ** 3
 # Files kept by shrink_shell on a terminal cell (§3.10.1 shell set).
 # ``xlat-state.*`` directories are additionally preserved — the chunk-level
 # paid checkpoint is prune-exempt until vaulted (§3.10.1 revision + R17:
-# losing it re-burns paid quota on resume).
+# losing it re-burns paid quota on resume). PIN_MARKER rides the keep set
+# so a shrink can never eat the pin marker (measured gap), though a pinned
+# cell short-circuits shrink_shell before the keep-list is even consulted.
 _SHELL_KEEP_EXACT = frozenset({
-    "receipt.json", "parse.json", ".xlat-arm.json", ".lock",
+    "receipt.json", "parse.json", ".xlat-arm.json", ".lock", PIN_MARKER,
 })
 _SHELL_KEEP_GLOB = ("xlat-*.jsonl", "xlat-state.*")
 
@@ -135,6 +156,11 @@ def _append_row(path: Path, row: dict) -> None:
 def cell_dir(idc: str, source: str = "arxiv") -> Path:
     """``lake/corpus/{source}/{safe_id}`` — pure path math."""
     return paths.lake_corpus_dir() / source / safe_id(idc)
+
+
+def cell_pinned(cell: Path) -> bool:
+    """Cell-side pin truth: ``{cell}/PINNED`` exists."""
+    return (Path(cell) / PIN_MARKER).exists()
 
 
 def _read_meta(cell: Path) -> dict:
@@ -304,15 +330,72 @@ class LakeCatalog:
         self._rows[idc] = row
         return row
 
+    def pin(self, idc: str, source: str = "arxiv", sink=None,
+            run_dir=None) -> dict:
+        """Pin a cell against eviction: marker file first (the truth), then
+        a catalog row with ``pinned=True`` — state left as-is (pin is a
+        field, never a state; ``state=='pinned'`` un-pins on the next set).
+
+        Both writes fail toward pinned: a crash between them leaves either
+        the marker (still honored by every delete verb's file check) or
+        marker + row. Pinning an absent cell anchors an empty dir holding
+        just the marker — state ``skeleton``, ``manifested=False`` (nothing
+        manifested it; the pin itself exempts it from orphan eviction).
+        """
+        # state/source come from the on-disk latest row, not self._rows —
+        # a stale catalog instance must never clobber the true state with
+        # the 'absent' fallback (same freshness rule set() applies to its
+        # merge base). The row's source wins over the arg: it names the
+        # dir where the bytes actually live, and rewriting it would orphan
+        # the real cell while marking an empty one.
+        latest = _latest_row(idc)
+        state = latest.get("state", "absent")
+        source = str(latest.get("source") or source)
+        d = cell_dir(idc, source)
+        d.mkdir(parents=True, exist_ok=True)
+        marker = d / PIN_MARKER
+        if not marker.exists():
+            fsutil.atomic_write(marker, b"pinned\n")
+        if state == "absent":
+            return self.set(idc, "skeleton", source=source, pinned=True,
+                            manifested=False, sink=sink, run_dir=run_dir)
+        return self.set(idc, state, source=source, pinned=True,
+                        sink=sink, run_dir=run_dir)
+
+    def unpin(self, idc: str, source: str = "arxiv", sink=None,
+              run_dir=None) -> dict | None:
+        """Lift the pin: remove the marker first, then project
+        ``pinned=False`` — a crash between the two leaves the row pinned
+        (fail-safe: still protected until the next set reconciles).
+        Unpinning an absent, unmarked cell is a no-op returning None."""
+        latest = _latest_row(idc)
+        state = latest.get("state", "absent")
+        source = str(latest.get("source") or source)
+        d = cell_dir(idc, source)
+        with suppress(FileNotFoundError):
+            (d / PIN_MARKER).unlink()
+        if state == "absent":
+            return None
+        return self.set(idc, state, source=source, pinned=False,
+                        sink=sink, run_dir=run_dir)
+
 
 # --- skeleton ---------------------------------------------------------------------------
 
 
 def _lake_event(row: dict) -> dict:
-    """Catalog row -> T_LAKE_CELL event (the catalog's ledger projection)."""
+    """Catalog row -> T_LAKE_CELL event (the catalog's ledger projection).
+
+    Forwards the volatile fields — pinned/manifested/orphan/regen_cost/
+    last_used_at — so a catalog rebuild replaying lake_cell events loses
+    nothing the row carried (they are whitelisted OPTIONAL_KEYS; absent
+    keys stay absent rather than being defaulted into the event).
+    """
     ev_kw = {"source": row.get("source", "arxiv")}
-    if row.get("bytes") is not None:
-        ev_kw["bytes"] = row["bytes"]
+    for k in ("bytes", "pinned", "manifested", "orphan", "regen_cost",
+              "last_used_at"):
+        if row.get(k) is not None:
+            ev_kw[k] = row[k]
     return make_event(
         events.T_LAKE_CELL, id=row["idc"], idc=row["idc"],
         state=row["state"], **ev_kw
@@ -344,6 +427,22 @@ def register_skeleton(idc: str, source: str = "arxiv",
     cat = LakeCatalog.load()
     cat.set(idc, "skeleton", source=source, manifested=True, **(meta or {}))
     return d
+
+
+# --- pin verbs --------------------------------------------------------------------
+
+
+def pin(idc: str, source: str = "arxiv", sink=None, run_dir=None) -> dict:
+    """Module-level ``LakeCatalog().pin`` — see the method for semantics."""
+    return LakeCatalog.load().pin(idc, source=source, sink=sink,
+                                  run_dir=run_dir)
+
+
+def unpin(idc: str, source: str = "arxiv", sink=None,
+          run_dir=None) -> dict | None:
+    """Module-level ``LakeCatalog().unpin`` — see the method for semantics."""
+    return LakeCatalog.load().unpin(idc, source=source, sink=sink,
+                                    run_dir=run_dir)
 
 
 # --- hydration ----------------------------------------------------------------------------
@@ -406,8 +505,15 @@ def _publish_stage(stage: Path, dest: Path) -> bool:
             and n_files == _payload_count(dest)
         ):
             return False
+        # The PINNED marker rides the torn tree into rmtree — carry it
+        # across the rename so a re-hydrate can never silently un-pin.
+        keep_pin = cell_pinned(dest)
         shutil.rmtree(dest)
+    else:
+        keep_pin = False
     os.rename(stage, dest)
+    if keep_pin:
+        (dest / PIN_MARKER).write_bytes(b"pinned\n")
     fsutil.fsync_dir(dest.parent)
     return True
 
@@ -548,7 +654,21 @@ def admit(n_bytes: int, cap_gb: float | None = None,
 
 
 def _pinned(row: dict) -> bool:
-    return bool(row.get("pinned")) or row.get("state") == "pinned"
+    """Pin read predicate, three legs (any one suffices):
+
+    - ``pinned`` field — the projected truth (survives mark_used/state
+      transitions through the row merge);
+    - ``state=='pinned'`` — read-compat for存量 rows written before pin
+      became a field;
+    - the ``PINNED`` marker file in the cell dir — the on-disk truth that
+      outlives a catalog rebuild that lost the field.
+    """
+    if bool(row.get("pinned")) or row.get("state") == "pinned":
+        return True
+    idc = row.get("idc")
+    if not isinstance(idc, str) or not idc:
+        return False
+    return cell_pinned(cell_dir(idc, row.get("source") or "arxiv"))
 
 
 def _freeable_size(root: Path) -> int:
@@ -678,9 +798,15 @@ def shrink_shell(work_cell_dir) -> None:
 
     Called by prune/sweep AFTER terminal status; NOT a delete verb for the
     cell root (that is remove_cell_tree's job).
+
+    A ``PINNED`` marker exempts the whole tree: pin protects bytes, not
+    just the marker, so a pinned cell is left whole (the marker also rides
+    the keep-list, belt-and-suspenders, if the early return is ever lost).
     """
     d = Path(work_cell_dir)
     if not d.is_dir():
+        return
+    if cell_pinned(d):
         return
     for entry in d.iterdir():
         name = entry.name

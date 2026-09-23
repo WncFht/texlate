@@ -226,8 +226,8 @@ def emit_batch(events: list[dict], run_dir: Path | None = None, sink=None) -> li
     """
     lines = []
     out_evs = []
-    for ev in events:
-        ev = _offload_for(ev, run_dir)
+    for raw_ev in events:
+        ev = _offload_for(raw_ev, run_dir)
         validate(ev)
         out_evs.append(ev)
         lines.append(dumps(ev).encode("utf-8") + b"\n")
@@ -371,11 +371,14 @@ def mint_run_seq(run: str, kind: str, date: str, slug: str, spec_hash: str) -> i
         if shard.is_file():
             for _ln, prev, _raw in iter_jsonl(shard):
                 if isinstance(prev, dict) and prev.get("type") == T_RUN_REGISTERED:
-                    raise EventError(
+                    msg = (
                         f"{rdir} shard already bound to run "
-                        f"{prev.get('run')!r} (run_seq="
-                        f"{prev.get('run_seq')!r}) — refusing to share a "
-                        "shard across runs"
+                                                f"{prev.get('run')!r} (run_seq="
+                                                f"{prev.get('run_seq')!r}) — refusing to share a "
+                                                "shard across runs"
+                    )
+                    raise EventError(
+                        msg
                     )
         _emit_lines_locked([dumps(ev).encode("utf-8") + b"\n"], rdir)
         # runs.jsonl is report-only but the §3.10.5 doctor invariant expects

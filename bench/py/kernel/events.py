@@ -33,7 +33,10 @@ import hashlib
 import json
 import re
 import time
-from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 SCHEMA_V = 1
 
@@ -134,7 +137,8 @@ class EventError(ValueError):
 def make_event(etype: str, **kw) -> dict:
     """Construct + validate an event. `ts` and `v` filled automatically."""
     if etype not in EVENT_TYPES:
-        raise EventError(f"unknown event type {etype!r}")
+        msg = f"unknown event type {etype!r}"
+        raise EventError(msg)
     ev = {"type": etype, "v": SCHEMA_V, "ts": kw.pop("ts", round(time.time(), 3))}
     ev.update(kw)
     validate(ev)
@@ -187,82 +191,111 @@ _NUM_OPT: dict[str, tuple[str, ...]] = {
 def validate(ev: dict) -> None:
     etype = ev.get("type")
     if etype not in EVENT_TYPES:
-        raise EventError(f"bad event type {etype!r}: {ev!r}")
+        msg = f"bad event type {etype!r}: {ev!r}"
+        raise EventError(msg)
     missing = REQUIRED[etype] - ev.keys()
     if missing:
-        raise EventError(f"{etype} missing keys {sorted(missing)}: {ev!r}")
+        msg = f"{etype} missing keys {sorted(missing)}: {ev!r}"
+        raise EventError(msg)
     extra = (set(ev) - REQUIRED[etype] - OPTIONAL_WHITELIST - COMMON_KEYS
              - OPTIONAL_KEYS[etype])
     if extra:
+        msg = f"{etype} event has non-whitelisted keys {sorted(extra)}"
         raise EventError(
-            f"{etype} event has non-whitelisted keys {sorted(extra)}")
+            msg)
     if ev.get("v") != SCHEMA_V:
-        raise EventError(f"bad schema v {ev.get('v')!r}")
+        msg = f"bad schema v {ev.get('v')!r}"
+        raise EventError(msg)
     for k in ("seq", "run_seq"):
         if not _type_ok(ev.get(k), int):
-            raise EventError(f"{etype} {k} must be int|None: {ev.get(k)!r}")
+            msg = f"{etype} {k} must be int|None: {ev.get(k)!r}"
+            raise EventError(msg)
     if not _type_ok(ev.get("ts"), int, float):
-        raise EventError(f"{etype} ts must be number|None: {ev.get('ts')!r}")
+        msg = f"{etype} ts must be number|None: {ev.get('ts')!r}"
+        raise EventError(msg)
     if not _type_ok(ev.get("queue_wait_s"), int, float):
-        raise EventError("queue_wait_s must be number|None")
+        msg = "queue_wait_s must be number|None"
+        raise EventError(msg)
     if not _type_ok(ev.get("attempt"), int):
-        raise EventError("attempt must be int|None")
+        msg = "attempt must be int|None"
+        raise EventError(msg)
     for k in ("import_src", "canon_drift_of"):
         if not _type_ok(ev.get(k), str):
-            raise EventError(f"{etype} {k} must be str|None")
+            msg = f"{etype} {k} must be str|None"
+            raise EventError(msg)
     at = ev.get("auth_tripped")
     if at is not None and not isinstance(at, (bool, int)):
-        raise EventError("auth_tripped must be bool|int|None")
+        msg = "auth_tripped must be bool|int|None"
+        raise EventError(msg)
     for k in _STR_REQ[etype]:
         if not isinstance(ev.get(k), str):
-            raise EventError(f"{etype} {k} must be str: {ev.get(k)!r}")
+            msg = f"{etype} {k} must be str: {ev.get(k)!r}"
+            raise EventError(msg)
     for k in _STR_OPT.get(etype, ()):
         if not _type_ok(ev.get(k), str):
-            raise EventError(f"{etype} {k} must be str|None")
+            msg = f"{etype} {k} must be str|None"
+            raise EventError(msg)
     for k in _NUM_OPT.get(etype, ()):
         if not _type_ok(ev.get(k), int, float):
-            raise EventError(f"{etype} {k} must be number|None")
+            msg = f"{etype} {k} must be number|None"
+            raise EventError(msg)
     if etype == T_CELL_QUEUED and not _type_ok(ev.get("needs"), list):
-        raise EventError("cell_queued needs must be list|None")
+        msg = "cell_queued needs must be list|None"
+        raise EventError(msg)
     if etype == T_FINISHED:
         if not isinstance(ev.get("wall_s"), (int, float)) \
                 or isinstance(ev.get("wall_s"), bool):
-            raise EventError("finished wall_s must be number")
+            msg = "finished wall_s must be number"
+            raise EventError(msg)
         if not isinstance(ev.get("counts"), dict):
-            raise EventError("finished counts must be dict")
+            msg = "finished counts must be dict"
+            raise EventError(msg)
         ao = ev.get("accounting_ok")
         if ao is not None and not isinstance(ao, (bool, int)):
-            raise EventError("accounting_ok must be bool|int|None")
+            msg = "accounting_ok must be bool|int|None"
+            raise EventError(msg)
     if etype == T_CELL:
         if ev.get("status") not in ALL_STATUSES:
-            raise EventError(f"unknown cell status {ev.get('status')!r}")
+            msg = f"unknown cell status {ev.get('status')!r}"
+            raise EventError(msg)
         if not _type_ok(ev.get("metrics"), dict):
-            raise EventError("cell metrics must be dict|None")
+            msg = "cell metrics must be dict|None"
+            raise EventError(msg)
         if not _type_ok(ev.get("errors"), list):
-            raise EventError("cell errors must be list|None")
+            msg = "cell errors must be list|None"
+            raise EventError(msg)
         cat = ev.get("cat")
         if cat is not None and cat not in CATS:
-            raise EventError(f"unknown cell cat {cat!r}")
+            msg = f"unknown cell cat {cat!r}"
+            raise EventError(msg)
         evl = ev.get("eval")
         if evl is not None and not isinstance(evl, (int, bool)):
-            raise EventError("cell eval must be int/bool|None")
+            msg = "cell eval must be int/bool|None"
+            raise EventError(msg)
     if etype == T_CLAIM and ev.get("op") not in CLAIM_OPS:
-        raise EventError(f"bad claim op {ev.get('op')!r}")
+        msg = f"bad claim op {ev.get('op')!r}"
+        raise EventError(msg)
     if etype == T_ASSET:
         if ev.get("kind") not in ASSET_KINDS:
-            raise EventError(f"bad asset kind {ev.get('kind')!r}")
+            msg = f"bad asset kind {ev.get('kind')!r}"
+            raise EventError(msg)
         if ev.get("state") not in ASSET_STATES:
-            raise EventError(f"bad asset state {ev.get('state')!r}")
+            msg = f"bad asset state {ev.get('state')!r}"
+            raise EventError(msg)
     if etype == T_LAKE_CELL:
         if ev.get("state") not in LAKE_STATES:
-            raise EventError(f"bad lake state {ev.get('state')!r}")
+            msg = f"bad lake state {ev.get('state')!r}"
+            raise EventError(msg)
         for k in ("pinned", "manifested", "orphan"):
             if ev.get(k) is not None and not isinstance(ev.get(k), bool):
-                raise EventError(f"lake_cell {k} must be bool|None")
+                msg = f"lake_cell {k} must be bool|None"
+                raise EventError(msg)
     if etype == T_NOTE and ev.get("level") not in NOTE_LEVELS:
-        raise EventError(f"bad note level {ev.get('level')!r}")
+        msg = f"bad note level {ev.get('level')!r}"
+        raise EventError(msg)
     if etype == T_CASE and not isinstance(ev.get("payload"), dict):
-        raise EventError("case payload must be a dict")
+        msg = "case payload must be a dict"
+        raise EventError(msg)
 
 
 def dumps(ev: dict) -> str:
@@ -336,9 +369,9 @@ def iter_jsonl(path: Path):
     Bad lines yield event=None so callers can count/quarantine them — the
     read-side contract is skip-and-warn, never crash on a torn line.
     """
-    with open(path, "r", encoding="utf-8", errors="replace") as f:
-        for lineno, line in enumerate(f, 1):
-            line = line.rstrip("\n")
+    with open(path, encoding="utf-8", errors="replace") as f:
+        for lineno, raw_line in enumerate(f, 1):
+            line = raw_line.rstrip("\n")
             if not line:
                 continue
             try:

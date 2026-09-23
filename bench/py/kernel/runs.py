@@ -48,7 +48,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from kernel import events, fsutil, ledger, locks, paths
+from kernel import events, fsutil, lake, ledger, locks, paths
 from kernel.events import iter_jsonl
 from kernel.idnorm import idc_from_safe
 
@@ -547,6 +547,11 @@ def remove_cell_tree(rundir: RunDir, safe_id: str, vault_check=None) -> Path:
     "paid tree ∧ no vault meta → block + note" hard gate). ``None`` means the
     caller asserts the tree carries no paid bytes — use with care.
 
+    A ``PINNED`` marker file in the cell root is an unconditional refusal —
+    checked before vault_check, so a pinned tree is refused even when its
+    bytes are fully vaulted (pin is an operator's "keep this", orthogonal
+    to the paid-byte gate).
+
     Always emits a note event; returns the (former) cell path.
     """
     cell = rundir.work(safe_id)
@@ -558,6 +563,18 @@ def remove_cell_tree(rundir: RunDir, safe_id: str, vault_check=None) -> Path:
             # inode and a fresh lock double-owns the cell. The lock is
             # HELD through vault_check + rmtree; a live cell's hold makes
             # the NB acquire raise WouldBlock — the loud refusal.
+            if lake.cell_pinned(cell):
+                _emit_note(
+                    rundir,
+                    f"remove_cell_tree BLOCKED for {safe_id}: PINNED "
+                    f"marker present — unpin before delete",
+                    level="warn", safe_id=safe_id,
+                )
+                msg = (
+                    f"{safe_id}: cell carries a PINNED marker — "
+                    "refusing delete (unpin first)"
+                )
+                raise BlockedDelete(msg)
             if vault_check is not None and not vault_check():
                 _emit_note(
                     rundir,
@@ -581,8 +598,10 @@ def remove_cell_tree(rundir: RunDir, safe_id: str, vault_check=None) -> Path:
             f"live cell, refusing delete (R21)",
             level="warn", safe_id=safe_id,
         )
-        raise BlockedDelete(
+        msg = (
             f"{safe_id}: cell lock held — refusing delete (R21: rmtree "
-            f"kills the lock inode and a fresh lock double-owns the cell)")
+            f"kills the lock inode and a fresh lock double-owns the cell)"
+        )
+        raise BlockedDelete(msg) from None
     _emit_note(rundir, f"remove_cell_tree: {safe_id}", safe_id=safe_id)
     return cell

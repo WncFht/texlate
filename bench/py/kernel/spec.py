@@ -42,7 +42,6 @@ import inspect
 import json
 import re
 import sys
-from dataclasses import dataclass, field
 from pathlib import Path
 
 from kernel import events
@@ -81,8 +80,8 @@ STATUS_CLASSES = frozenset({"terminal", "retriable", "upstream"})
 # shipped specs rely on this).
 DEFAULT_STATUS_CLASS = dict(
     sorted(
-        {**{s: "terminal" for s in events.STATUS_DONE},
-         **{s: "retriable" for s in events.STATUS_RETRIABLE}}.items()
+        {**dict.fromkeys(events.STATUS_DONE, "terminal"),
+         **dict.fromkeys(events.STATUS_RETRIABLE, "retriable")}.items()
     )
 )
 
@@ -125,7 +124,7 @@ class Param:
     poison fingerprints.
     """
 
-    def __init__(self, type=str, default=None, required: bool = False,
+    def __init__(self, type=str, default=None, required: bool = False,  # noqa: A002 -- 公开 kwarg：Param(type=int)
                  choices=None, fp=None):
         self.type = type
         self.default = default
@@ -157,12 +156,11 @@ class Param:
             except (TypeError, ValueError):
                 raise SpecError(
                     [f"param {name!r}: {raw!r} is not a {self.type.__name__}"]
-                )
-        if not isinstance(v, self.type) or isinstance(v, bool) != (self.type is bool) and self.type is bool:
-            if not isinstance(v, self.type):
-                raise SpecError(
-                    [f"param {name!r}: {v!r} is not a {self.type.__name__}"]
-                )
+                ) from None
+        if not isinstance(v, self.type):
+            raise SpecError(
+                [f"param {name!r}: {v!r} is not a {self.type.__name__}"]
+            )
         if self.choices is not None and v not in self.choices:
             raise SpecError(
                 [f"param {name!r}: {v!r} not in choices {self.choices}"]
@@ -237,7 +235,8 @@ class Stage:
 
     def __init__(self, name, fn, needs=None, paid: bool = False,
                  executor=None, cost_hook=None, mutates=None, on=None,
-                 status_class=None, dedup_key=None, eval: bool = False):
+                 status_class=None, dedup_key=None,
+                 eval: bool = False):  # noqa: A002 -- 公开 kwarg：Stage(eval=True)
         self.name = str(name)
         self.fn = fn
         self.needs = [_norm_need(n) for n in (needs or [])]
@@ -292,7 +291,8 @@ class Spec:
                  env_probes=None, code_deps=None, foreign_runs=None,
                  allowed_layers=None, lake: bool = False,
                  same_id_serial: bool = True, dedup_key=None,
-                 eval: bool = False, gateway_factory=None, select=None,
+                 eval: bool = False,  # noqa: A002 -- 公开 kwarg：Spec(eval=True)
+                 gateway_factory=None, select=None,
                  fetch_fn=None, prefetch: bool = True,
                  lake_source: str = "arxiv"):
         self.kind = str(kind)
@@ -354,10 +354,7 @@ class Spec:
     def iter_items(self) -> list:
         """Normalized item dicts: {id, arm, up, variant, stage?, layer?,
         params?, fp_input?}. Raw ids only — canon happens at plan time."""
-        out = []
-        for it in self.materialize_items():
-            out.append(norm_item(it))
-        return out
+        return [norm_item(it) for it in self.materialize_items()]
 
     def stage(self, name: str) -> Stage | None:
         for st in self.stages:
@@ -429,7 +426,7 @@ class Spec:
                     str(cell.get("variant", "-")))
         if callable(key):
             out = key(cell)
-            idc, arm, variant = (list(out) + ["-", "-"])[:3]
+            idc, arm, variant = ([*list(out), "-", "-"])[:3]
             return str(idc), str(arm), str(variant)
         fields = list(key)
         vals = [str(cell.get(f, "-")) for f in fields[:3]]
@@ -514,10 +511,10 @@ def compile_checks(spec: Spec) -> list[str]:
     if spec.executor not in EXECUTORS:
         problems.append(
             f"executor {spec.executor!r} not in {sorted(EXECUTORS)}")
-    for fr in spec.foreign_runs:
-        if not _RUN_RE.fullmatch(str(fr)):
-            problems.append(
-                f"foreign_runs entry {fr!r} is not kind/date/slug")
+    problems.extend(
+        f"foreign_runs entry {fr!r} is not kind/date/slug"
+        for fr in spec.foreign_runs
+        if not _RUN_RE.fullmatch(str(fr)))
 
     # -- params ----------------------------------------------------------------------
     for name, p in spec.params.items():
@@ -563,11 +560,11 @@ def compile_checks(spec: Spec) -> list[str]:
             problems.append(
                 f"stage {st.name!r}: executor {st.executor!r} not in "
                 f"{sorted(EXECUTORS)}")
-        for k in st.mutates:
-            if k not in _MUTATE_KINDS:
-                problems.append(
-                    f"stage {st.name!r}: mutates kind {k!r} not in "
-                    f"{sorted(_MUTATE_KINDS)}")
+        problems.extend(
+            f"stage {st.name!r}: mutates kind {k!r} not in "
+            f"{sorted(_MUTATE_KINDS)}"
+            for k in st.mutates
+            if k not in _MUTATE_KINDS)
 
     names = {st.name for st in spec.stages if isinstance(st, Stage)}
 

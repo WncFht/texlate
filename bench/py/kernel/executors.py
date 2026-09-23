@@ -67,7 +67,7 @@ def _run_group(cells: list, run_cell_fn) -> list:
     for cell in cells:
         try:
             out.append((cell, run_cell_fn(cell)))
-        except BaseException as exc:  # noqa: BLE001 - collect, never raise
+        except BaseException as exc:
             out.append((cell, exc))
     return out
 
@@ -79,7 +79,7 @@ def _run_group_ctx(cells: list, run_cell_fn) -> list:
         try:
             ctx = contextvars.copy_context()
             out.append((cell, ctx.run(run_cell_fn, cell)))
-        except BaseException as exc:  # noqa: BLE001
+        except BaseException as exc:
             out.append((cell, exc))
     return out
 
@@ -94,7 +94,8 @@ def execute_cells(cells, run_cell_fn, executor: str = "thread", jobs: int = 4,
     business) and ignored.
     """
     if executor not in _EXECUTORS:
-        raise ValueError(f"executor {executor!r} not in {_EXECUTORS}")
+        msg = f"executor {executor!r} not in {_EXECUTORS}"
+        raise ValueError(msg)
     cells = list(cells)
     if not cells:
         return []

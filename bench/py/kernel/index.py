@@ -47,7 +47,7 @@ import json
 import os
 import sqlite3
 import time
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from pathlib import Path
 
 from kernel import events, paths
@@ -322,9 +322,10 @@ class Index:
                 r["name"]
                 for r in self.conn.execute("PRAGMA index_list(events)")
             }
-            return "idx_events_line_no" in idxs
         except sqlite3.OperationalError:
             return False
+        else:
+            return "idx_events_line_no" in idxs
 
     def _init_schema(self, *, force: bool) -> None:
         if not force and self._schema_current():
@@ -335,9 +336,12 @@ class Index:
         v = self._meta_get("schema_v")
         if v is not None and v != str(INDEX_SCHEMA_V):
             if not force:
-                raise RuntimeError(
+                msg = (
                     f"index schema_v {v} != {INDEX_SCHEMA_V} — "
-                    "run rebuild_index() to recreate"
+                                        "run rebuild_index() to recreate"
+                )
+                raise RuntimeError(
+                    msg
                 )
             self._drop_all()
             self.conn.executescript(_SCHEMA)
@@ -374,7 +378,7 @@ class Index:
 
     def _drop_all(self) -> None:
         with self._txn():
-            for t in _PROJECTION_TABLES + ("meta",):
+            for t in (*_PROJECTION_TABLES, "meta"):
                 self.conn.execute(f"DROP TABLE IF EXISTS {t}")
 
     # -- meta ------------------------------------------------------------------
@@ -472,7 +476,8 @@ class Index:
 
     def _apply_one(self, ev: dict, *, runless: bool = False) -> str:
         if not isinstance(ev, dict):
-            raise TypeError(f"event must be a dict, got {type(ev).__name__}")
+            msg = f"event must be a dict, got {type(ev).__name__}"
+            raise TypeError(msg)
         sha = events.content_hash(ev)
         if self.conn.execute(
             "SELECT 1 FROM dedupe WHERE payload_sha=?", (sha,)
@@ -875,10 +880,11 @@ class Index:
         consistent index and leaves the flag alone). Returns rows applied.
         """
         if not _kernel_idle():
-            raise RuntimeError(
+            msg = (
                 "kernel active — index rebuild refused "
                 "(claims/done projections would go blind mid-run)"
             )
+            raise RuntimeError(msg)
         # Snapshot the durable cursors BEFORE replaying: stamping a
         # watermark measured after replay could cover ledger lines that
         # arrived mid-replay and were never applied — the index would sit
@@ -891,7 +897,7 @@ class Index:
         applied = 0
         with self._txn():
             for t in _PROJECTION_TABLES:
-                self.conn.execute(f"DELETE FROM {t}")
+                self.conn.execute(f"DELETE FROM {t}")  # noqa: S608 -- t 来自 _PROJECTION_TABLES 常量表名
             for k in _META_COUNTERS:
                 if k != "sealed_gen":  # generation only moves forward
                     self._meta_set(k, "0")
@@ -907,10 +913,8 @@ class Index:
             self._meta_set("watermark_tag", wtag)
             self._meta_set("sealed_done", json.dumps(sorted(sealed_names)))
         # Commit succeeded — the index is sealed again; only now clear dirty.
-        try:
+        with suppress(FileNotFoundError):
             paths.index_dirty_path().unlink()
-        except FileNotFoundError:
-            pass
         return applied
 
     # -- queries --------------------------------------------------------------------
@@ -940,12 +944,11 @@ class Index:
         gen_now, watermark = self.sealed_state()
         if gen_now != int(gen):
             return False
-        if min_tag:
-            if _file_tag(paths.events_path()) != min_tag:
-                return (
-                    bool(_sealed_segment_names())
-                    and self._sealed_covered()
-                )
+        if min_tag and _file_tag(paths.events_path()) != min_tag:
+            return (
+                bool(_sealed_segment_names())
+                and self._sealed_covered()
+            )
         return self._sealed_covered() and watermark >= int(min_offset)
 
     def done(self, idc, arm, up, variant, stage, runs=None) -> bool:
@@ -1005,7 +1008,7 @@ class Index:
         return {
             (r["idc"], r["arm"], r["variant"])
             for r in self.conn.execute(
-                f"SELECT DISTINCT idc,arm,variant FROM vault_meta"
+                f"SELECT DISTINCT idc,arm,variant FROM vault_meta"  # noqa: S608 -- marks 是 "?"*n 占位符
                 f" WHERE verdict IN ({marks})",
                 tuple(sorted(_VAULT_BYTES_OK)),
             )

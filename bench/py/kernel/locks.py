@@ -85,7 +85,8 @@ def flock(path, exclusive: bool = True, blocking: bool = True):
         fcntl.flock(fd, op)
     except BlockingIOError as e:
         os.close(fd)
-        raise WouldBlock(f"{path} is held") from e
+        msg = f"{path} is held"
+        raise WouldBlock(msg) from e
     except BaseException:
         os.close(fd)
         raise
@@ -200,7 +201,8 @@ def paid_slot(nslots: int = 4, blocking: bool = True,
     holder's slot frees itself — the reaper only has to fix the audit side.
     """
     if nslots < 1:
-        raise ValueError(f"paid_slot needs nslots>=1, got {nslots}")
+        msg = f"paid_slot needs nslots>=1, got {nslots}"
+        raise ValueError(msg)
     slot_paths = [paths.slots_dir() / f"slot{i}.lock" for i in range(nslots)]
     deadline = None if timeout is None else time.monotonic() + timeout
     while True:
@@ -222,10 +224,12 @@ def paid_slot(nslots: int = 4, blocking: bool = True,
                 os.close(fd)
             return
         if not blocking:
-            raise WouldBlock(f"all {nslots} paid slots held")
+            msg = f"all {nslots} paid slots held"
+            raise WouldBlock(msg)
         if deadline is not None and time.monotonic() >= deadline:
+            msg = f"paid_slot: no slot freed within {timeout}s"
             raise TimeoutError(
-                f"paid_slot: no slot freed within {timeout}s")
+                msg)
         time.sleep(poll_s)
 
 
@@ -262,10 +266,12 @@ def _read_ack(rfd: int, timeout: float | None) -> bytes:
         if deadline is not None:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
-                raise TimeoutError("detach ack timeout")
+                msg = "detach ack timeout"
+                raise TimeoutError(msg)
             ready, _, _ = select.select([rfd], [], [], remaining)
             if not ready:
-                raise TimeoutError("detach ack timeout")
+                msg = "detach ack timeout"
+                raise TimeoutError(msg)
         chunk = os.read(rfd, 2 - len(buf))
         if not chunk:
             break                       # EOF: stub died before ack
@@ -295,7 +301,8 @@ def detach_with_lock(argv, lock_path, *, ack_timeout: float | None = None,
     argv = [str(a) for a in (argv or ())]
     lock_path = str(lock_path)
     if argv and shutil.which(argv[0]) is None:
-        raise FileNotFoundError(f"detach target not on PATH: {argv[0]}")
+        msg = f"detach target not on PATH: {argv[0]}"
+        raise FileNotFoundError(msg)
 
     # Fast-path pre-probe (also materializes the immortal lock file).
     pfd = _open_lock(lock_path)
@@ -303,7 +310,8 @@ def detach_with_lock(argv, lock_path, *, ack_timeout: float | None = None,
         try:
             fcntl.flock(pfd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError as e:
-            raise WouldBlock(f"{lock_path} already held") from e
+            msg = f"{lock_path} already held"
+            raise WouldBlock(msg) from e
         fcntl.flock(pfd, fcntl.LOCK_UN)
     finally:
         os.close(pfd)
@@ -333,5 +341,6 @@ def detach_with_lock(argv, lock_path, *, ack_timeout: float | None = None,
     if ack != b"ok":
         proc.kill()
         proc.wait()
-        raise RuntimeError(f"detach stub failed before ack ({ack!r})")
+        msg = f"detach stub failed before ack ({ack!r})"
+        raise RuntimeError(msg)
     return proc

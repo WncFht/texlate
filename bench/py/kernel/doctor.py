@@ -58,8 +58,7 @@ import shutil
 import time
 from pathlib import Path
 
-from kernel import claims, dedup, events, index, lake, ledger, locks, paths
-from kernel import runs, vault
+from kernel import claims, dedup, events, index, lake, ledger, locks, paths, runs, vault
 from kernel.idnorm import idc_from_safe
 
 __all__ = [
@@ -125,17 +124,20 @@ def _check_layout(checks: list) -> None:
     if not r.is_dir():
         _check(checks, "layout", False, f"root missing: {r}")
         return
-    for d in (paths.ledger_dir(), paths.runs_dir(), paths.vault_dir(),
-              paths.lake_dir(), paths.locks_dir()):
-        if not d.is_dir():
-            problems.append(f"missing zone dir {d}")
-    for s in (paths.ledger_sentinel_path(), paths.vault_sentinel_path()):
-        if not s.exists():
-            problems.append(f"missing sentinel {s}")
-    for f in (paths.ledger_lock_path(), paths.vault_lock_path(),
-              paths.events_path(), paths.runs_jsonl_path()):
-        if not f.exists():
-            problems.append(f"missing {f}")
+    problems.extend(
+        f"missing zone dir {d}"
+        for d in (paths.ledger_dir(), paths.runs_dir(), paths.vault_dir(),
+                  paths.lake_dir(), paths.locks_dir())
+        if not d.is_dir())
+    problems.extend(
+        f"missing sentinel {s}"
+        for s in (paths.ledger_sentinel_path(), paths.vault_sentinel_path())
+        if not s.exists())
+    problems.extend(
+        f"missing {f}"
+        for f in (paths.ledger_lock_path(), paths.vault_lock_path(),
+                  paths.events_path(), paths.runs_jsonl_path())
+        if not f.exists())
     try:
         int(paths.seqfile_path().read_text().strip() or "0")
     except (OSError, ValueError) as e:
@@ -206,14 +208,16 @@ def _stale_claims(idx: index.Index | None) -> list[tuple]:
 
 def _check_lock_invariants(checks: list, idx: index.Index | None) -> list:
     problems = []
-    for f in (paths.ledger_lock_path(), paths.vault_lock_path()):
-        if not f.exists():
-            problems.append(f"immortal lock file missing: {f}")
+    problems.extend(
+        f"immortal lock file missing: {f}"
+        for f in (paths.ledger_lock_path(), paths.vault_lock_path())
+        if not f.exists())
     base = paths.runs_dir()
     if base.is_dir():
-        for rdir in sorted(base.glob("*/*/*")):
-            if rdir.is_dir() and not (rdir / ".lock").exists():
-                problems.append(f"run .lock unlinked: {rdir}")
+        problems.extend(
+            f"run .lock unlinked: {rdir}"
+            for rdir in sorted(base.glob("*/*/*"))
+            if rdir.is_dir() and not (rdir / ".lock").exists())
     stale = _stale_claims(idx)
     if stale:
         problems.append(f"{len(stale)} claim leases held-by-dead: "
@@ -491,7 +495,7 @@ def _check_cache(checks: list) -> None:
     try:
         from kernel import cache as cachemod
         st = cachemod.status()
-    except Exception as exc:  # noqa: BLE001 - doctor must not crash
+    except Exception as exc:
         _check(checks, "cache", False, f"cache status failed: {exc}")
         return
     problems = []
@@ -628,7 +632,9 @@ def fsck(defer_edges: bool = False) -> dict:
     - vault verify('stat'): declared files present + size-exact;
       meta_missing/extra are warn-level (the hardened predicate owns them)
     - lake catalog vs dirs: hydrated/pinned/raw_only/skeleton rows whose
-      cell dir vanished → fail; uncataloged dirs → warn
+      cell dir vanished → fail (a pinned row's missing dir is flagged
+      separately — losing pinned bytes is strictly worse than a plain
+      dirless row); uncataloged dirs → warn
     - claims vs locks: acquire-open lease with a free flock → fail
     - from_run edges: plan.json needs entries referencing other runs —
       missing run → fail; run present but cell undone → warn
@@ -674,15 +680,24 @@ def fsck(defer_edges: bool = False) -> dict:
         for source_dir in sorted(corpus.iterdir()):
             if not source_dir.is_dir() or source_dir.name.startswith("."):
                 continue
-            for cell in sorted(source_dir.iterdir()):
-                if cell.is_dir() and not cell.name.startswith("."):
-                    if idc_from_safe(cell.name) not in rows:
-                        uncataloged.append(str(cell))
+            uncataloged.extend(
+                str(cell) for cell in sorted(source_dir.iterdir())
+                if cell.is_dir() and not cell.name.startswith(".")
+                and idc_from_safe(cell.name) not in rows)
     problems = []
     warnings = []
     if dirless:
+        pinned_dirless = [i for i in dirless
+                          if lake._pinned(rows[i])]
         problems.append(f"{len(dirless)} catalog rows state hydrated/"
                         f"skeleton with no cell dir: {dirless[:5]}")
+        if pinned_dirless:
+            # a pinned row's missing dir also lost the PINNED marker —
+            # strictly worse than a plain dirless row, so it gets its own
+            # surfaced sub-case rather than drowning in the count.
+            problems.append(f"{len(pinned_dirless)} of them are PINNED "
+                            f"cells (pin marker lost with the dir): "
+                            f"{pinned_dirless[:5]}")
     if uncataloged:
         warnings.append(f"{len(uncataloged)} lake dirs with no catalog "
                         f"row (orphans — sweep adopts)")

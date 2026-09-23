@@ -56,6 +56,7 @@ regen (§3.6): tombstoned ids ship as a decision list, never a run set.
 """
 from __future__ import annotations
 
+import contextlib
 import json
 from pathlib import Path
 
@@ -483,7 +484,7 @@ class DedupOracle:
         self.kind_evidence = kind_evidence or {}
 
     @classmethod
-    def snapshot(cls, index, paid_stages=None) -> "DedupOracle":
+    def snapshot(cls, index, paid_stages=None) -> DedupOracle:
         """Capture the run-start oracle (§3.10.6 ②).
 
         sealed_gen/min_offset come from index.sealed_state() — lifted to
@@ -525,10 +526,9 @@ class DedupOracle:
         if self.index.check_sealed(
                 self.sealed_gen, self.min_offset, self.min_tag):
             return True
-        try:
+        # ingest is best-effort — an unreadable tail still fails closed below
+        with contextlib.suppress(Exception):
             self.index.tail_ingest()
-        except Exception:
-            pass
         return self.index.check_sealed(
             self.sealed_gen, self.min_offset, self.min_tag)
 
@@ -745,8 +745,7 @@ def _cell_spec(cell) -> tuple[str, str, str, bool, object]:
     seq = list(cell)
     idc = str(seq[0])
     arm = _norm(seq[1] if len(seq) > 1 else "-")
-    if len(seq) >= 4:
-        variant = _norm(seq[3])  # full cell key: (idc,arm,up,variant,stage,...)
-    else:
-        variant = _norm(seq[2] if len(seq) > 2 else "-")
+    # full cell key: (idc,arm,up,variant,stage,...); short form: (idc,arm,variant)
+    variant = _norm(seq[3]) if len(seq) >= 4 else _norm(
+        seq[2] if len(seq) > 2 else "-")
     return idc, arm, variant, True, None
