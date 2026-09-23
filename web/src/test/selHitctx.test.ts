@@ -128,6 +128,30 @@ describe("snapshotHit: cite lane", () => {
         expect(hit.cite.targetKind).toBe("other");
         expect(hit.cite.targetExists).toBe(false);
     });
+    it("pdf linkAnnotation 裸锚 → figure kind，dests 证明存在", () => {
+        // pdf 批注层锚无类无文本——唯一入口是裸 a[href^='#'] + dests 集
+        const pane = document.createElement("div");
+        pane.className = "pane pane-pdf";
+        pane.setAttribute("data-side", "original");
+        pane.innerHTML =
+            `<div class="pane-body"><section class="linkAnnotation">` +
+            `<a href="#figure.caption.3"></a>` +
+            `<a href="#page.5"></a></section></div>`;
+        document.body.appendChild(pane);
+        const [figA, pageA] = [...pane.querySelectorAll("a")];
+        const hit = snapshotHit(figA, null, {
+            dests: new Set(["figure.caption.3", "page.5"]),
+        });
+        expect(hit.view).toBe("pdf");
+        expect(hit.cite.targetId).toBe("figure.caption.3");
+        expect(hit.cite.targetKind).toBe("figure");
+        expect(hit.cite.targetExists).toBe(true);
+        expect(hit.cite.anchorEl).toBe(figA);
+        // page.N/Doc-Start 归 other——cite.usages 谓词（!=other）不收
+        const ph = snapshotHit(pageA, null, { dests: new Set(["page.5"]) });
+        expect(ph.cite.targetKind).toBe("other");
+        expect(ph.cite.targetExists).toBe(true);
+    });
     it("unresolvable id + deps.dests hit → targetExists via pdf dests", () => {
         // 造一个 DOM 里不存在的 dest 锚
         const a = document.createElement("a");

@@ -40,6 +40,7 @@ import CiteCard, { CiteCardBody } from "./CiteCard";
 import UsagesCard from "./UsagesCard";
 import { MARKED_SEL, seqOfMarkedSpan, seqOfTextItem } from "./pdfmarks";
 import { pdfCiteDests, type UsageEntry } from "./usages";
+import { classifyDestName } from "./cmd/hitctx";
 import type { KeptRef, TaskSnapshot } from "../api/client";
 import { ensurePdfjsWorker } from "../pdfjs";
 import {
@@ -262,6 +263,60 @@ export default function PdfPane(props: Props) {
             "section.linkAnnotation a[href^='#']",
         ) ?? null;
 
+    /** 批注锚矩形覆盖的印刷文本——<a> 是无文本空元素、caretRangeFromPoint
+        不穿透批注层；取同页 .textLayer 相交 span 内逐字 Range 矩形扫描，
+        只留真被锚矩形覆盖的字符（行级 span 也能精确切出 "Fig. 3B"）。 */
+    const anchorTextOf = (a: Element | null): string => {
+        if (!a?.isConnected) return "";
+        const r = a.getBoundingClientRect();
+        if (!r.width || !r.height) return "";
+        const page = a.closest("[data-page-number]");
+        if (!page) return "";
+        const rng = a.ownerDocument.createRange();
+        const out: string[] = [];
+        for (const span of page.querySelectorAll(".textLayer span")) {
+            const s = span.getBoundingClientRect();
+            const overlap =
+                s.bottom > r.top + 1 &&
+                s.top < r.bottom - 1 &&
+                s.right > r.left &&
+                s.left < r.right;
+            if (!overlap) continue;
+            const tn = span.firstChild;
+            if (!tn || tn.nodeType !== 3) continue;
+            const text = tn.textContent ?? "";
+            let lo = -1;
+            let hi = -1;
+            for (let i = 0; i < text.length; i++) {
+                rng.setStart(tn, i);
+                rng.setEnd(tn, i + 1);
+                const cr = rng.getBoundingClientRect();
+                const hit =
+                    cr.right > r.left &&
+                    cr.left < r.right &&
+                    cr.bottom > r.top &&
+                    cr.top < r.bottom;
+                if (hit) {
+                    if (lo < 0) lo = i;
+                    hi = i;
+                } else if (lo >= 0 && cr.left > r.right) break;
+            }
+            if (lo >= 0) {
+                let s = text.slice(lo, hi + 1);
+                // 锚面只罩编号（Fig.~\ref 链面="6C"）——紧前方的
+                // 标签词捞回来，卡片标题才读得出「图 6C」
+                const before = text.slice(Math.max(0, lo - 16), lo);
+                const m =
+                    /(?:Fig(?:ure)?s?|Tab(?:le)?|Eq(?:n|uation)?s?|Theorems?|Thm|Lemmas?|图|表|式|定理|命题|引理|推论)\.?\s*$/.exec(
+                        before,
+                    );
+                if (m) s = m[0] + s;
+                out.push(s);
+            }
+        }
+        return out.join(" ").replace(/\s+/g, " ").trim();
+    };
+
     const openCard = (a: Element) => {
         // dwell 期间 annotationLayer 可能被逐出/重建（主题 reset、LRU）——
         // 死锚 getBoundingClientRect 全零会让卡落在视口左上
@@ -309,9 +364,10 @@ export default function PdfPane(props: Props) {
             })
             .catch(() => bumpCard(seq, { loading: false, notFound: true }));
     };
-    /** find-usages pdf 臂：cite.<key> dest 反查全页 link annot 站集 →
-        UsagesCard。target=hit.cite.targetId（"cite.key"）或元素；站点
-        text 用页码占位（pdf 侧无句级语境——句层靠 seq 锚/C 路另补） */
+    /** find-usages pdf 臂：任意 named dest 反查全页 link annot 站集 →
+        UsagesCard。target=hit.cite.targetId（"cite.key"/"figure.caption.3"
+        皆收）或元素；站点 text 用页码占位（pdf 侧无句级语境——句层靠
+        seq 锚/C 路另补）。非 cite 族 kind/label 按 dest 分类+锚印刷文本 */
     const openUsagesFor = (
         target: Element | string | null,
         anchor: Element | null,
@@ -332,14 +388,19 @@ export default function PdfPane(props: Props) {
             (cands.find((d) => destNames.has(d)) ?? cands[0]!);
         const sites = destSites.get(destName) ?? [];
         usageJumps = sites;
+        // 图/表/式锚的 dest 尾号≠印刷编号（figure.caption.11 可能是「图 1」）
+        // ——label 取锚矩形下 textLayer 的印刷文本（"Fig. 3"/"表 1"/"(4)"；
+        // 批注层 <a> 是无文本空元素）；bib 照旧 bibkey
+        const kind = classifyDestName(destName);
+        const anchorText = anchorTextOf(anchor);
         const entry: UsageEntry = {
             target: {
-                kind: "bib",
+                kind,
                 el: null as unknown as HTMLElement,
                 // id=解析后 dest 名（onJumpTarget 直用作 goToDestination
-                // 参数）；label=bibkey 展示
+                // 参数）
                 id: destName,
-                label: key,
+                label: kind === "bib" ? key : anchorText || key,
             },
             sites: sites.map((s, i) => ({
                 text: `p.${s.page}`,
@@ -912,11 +973,28 @@ export default function PdfPane(props: Props) {
         if (!s || !isDocumentLoaded()) return;
         const container = s.viewer.container;
 
+        // 悬停/触屏/键盘强入口的 dest 类分派：bib→CiteCard；浮动体+式+定理
+        // →UsagesCard（"被引用在哪"正是用户要的面）；section/other 不进门
+        // ——sec 引用密、悬停即弹太吵，走右键 cite.usages
+        const USAGE_HOVER = new Set(["figure", "table", "equation", "theorem"]);
+        const destLane = (a: Element): "bib" | "usage" | null => {
+            const dest = destOf(a);
+            if (!dest) return null;
+            const kind = classifyDestName(dest);
+            if (kind === "bib") return "bib";
+            return USAGE_HOVER.has(kind) ? "usage" : null;
+        };
+
         const armOpen = (a: Element) => {
+            const lane = destLane(a);
+            const dest = destOf(a);
+            if (!lane || !dest) return;
             window.clearTimeout(openTimer);
             openTimer = window.setTimeout(() => {
                 openTimer = 0; // 发后即清零——同锚复悬才能再武装
-                openCard(a);
+                if (!a.isConnected) return;
+                if (lane === "bib") openCard(a);
+                else openUsagesFor(dest, a);
             }, OPEN_DELAY);
         };
         const armClose = () => {
@@ -928,14 +1006,13 @@ export default function PdfPane(props: Props) {
             if (e.pointerType === "touch") return; // tap=卡走 click 路
             const a = citeAnchorOf(e.target);
             if (!a) return;
-            // 非 cite 锚不进门——否则 curAnchor 被非卡锚占住，cite 卡武装受阻
-            const dest = destOf(a);
-            if (!dest?.startsWith("cite.")) return;
+            // 非卡面锚不进门——否则 curAnchor 被非卡锚占住，卡武装受阻
+            if (!destLane(a)) return;
             if (a === curAnchor) {
                 // 同锚复悬/跨行 rect 间走——只续不关（isUserDwelling 同款）；
                 // 卡未开且定时器已逝（openCard 早退路径）要补武装
                 window.clearTimeout(closeTimer);
-                if (!card() && !openTimer) armOpen(a);
+                if (!card() && !ucard() && !openTimer) armOpen(a);
                 return;
             }
             clearCardTimers();
@@ -958,11 +1035,14 @@ export default function PdfPane(props: Props) {
             // 指针点击引发的 focus 不出卡（:focus-visible 只对键盘 focus 成立）
             if (!(a instanceof HTMLElement) || !a.matches(":focus-visible"))
                 return;
+            const lane = destLane(a);
             const dest = destOf(a);
-            if (!dest?.startsWith("cite.")) return;
+            if (!lane || !dest) return;
             clearCardTimers();
             curAnchor = a;
-            openCard(a); // 键盘 focus 等效 hover——dwell 从略
+            // 键盘 focus 等效 hover——dwell 从略
+            if (lane === "bib") openCard(a);
+            else openUsagesFor(dest, a);
         };
         const onFocusOut = (e: FocusEvent) => {
             const rel = e.relatedTarget as Element | null;
@@ -983,15 +1063,19 @@ export default function PdfPane(props: Props) {
             }
             const dest = destOf(a);
             // detail=0 是键盘/AT 合成的 click——保持跳转语义不截卡
-            if (lastTouch && e.detail !== 0 && dest?.startsWith("cite.")) {
-                // 触屏 tap=出卡：capture 期 stopPropagation——事件到不了
-                // target，onclick 属性处理器（goToDestination）根本不触发
-                e.stopPropagation();
-                e.preventDefault();
-                clearCardTimers();
-                curAnchor = a;
-                openCard(a);
-                return;
+            if (lastTouch && e.detail !== 0 && dest) {
+                const lane = destLane(a);
+                if (lane) {
+                    // 触屏 tap=出卡：capture 期 stopPropagation——事件到不了
+                    // target，onclick 属性处理器（goToDestination）根本不触发
+                    e.stopPropagation();
+                    e.preventDefault();
+                    clearCardTimers();
+                    curAnchor = a;
+                    if (lane === "bib") openCard(a);
+                    else openUsagesFor(dest, a);
+                    return;
+                }
             }
             closeAll(); // 鼠标 click=跳——卡随跳收
         };

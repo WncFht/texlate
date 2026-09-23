@@ -237,8 +237,10 @@ const normSide = (raw: string | null): PaneSide | null =>
           : null;
 
 const MATH_SEL = "math, .katex, mjx-container";
+// 末项罩 pdf 批注层全部内链锚（figure./table./equation./section./cite.*）——
+// 类由 classifyDestName 分桶，bib 谓词照常只接 cite.*
 const CITE_SEL =
-    "a.cite-ref, .ltx_cite, a.ltx_ref[href^='#'], a[href^='#bib.'], a[href^='#cite.']";
+    "a.cite-ref, .ltx_cite, a.ltx_ref[href^='#'], a[href^='#bib.'], a[href^='#cite.'], section.linkAnnotation a[href^='#']";
 const NONTEXT_SEL = "table, math, img, svg, figure, video, canvas, iframe";
 
 function texOf(mathEl: Element): string | null {

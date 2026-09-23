@@ -47,7 +47,9 @@ export function registerFindUsages(
         id: "cite.usages",
         title: "menu.cite.usages",
         sec: "cite",
-        when: "cite.targetExists",
+        // other 桶（page.N/Doc-Start/Item.N）不出「查找引用」——那些是
+        // 页码/杂链非学术引用；bib/figure/table/equation/section/theorem 全收
+        when: "cite.targetExists && cite.targetKind != 'other'",
         run: (c) => opts.open?.(c),
     };
     reg.register(cmd);
