@@ -27,6 +27,7 @@ from specs._layoutqc import (
 )
 from specs._raster_child import _ranges, _void_frac
 
+from texlate.compile import marks
 from texlate.compile.marks import (
     compare_marks,
     env_inventory,
@@ -103,6 +104,18 @@ def test_inject_inserts_and_idempotent(tmp_path: Path) -> None:
     assert "TeXlateMark" in text
     assert "txlm@out" in text
     assert inject_layout_marks(tmp_path) == 0  # 哨兵幂等
+
+
+def test_marks_block_end_hook_bakes_env_name() -> None:
+    """env/<name>/end 触发点 \\@currenvir 可能已恢复外层名
+    （2609.20793 maketitle 内 tabular 读出 center → \\the\\relax +
+    center-0-e 毒化）——end 钩子须注册期烙名，不得自取 currenvir。"""
+    block = marks.LAYOUT_MARKS
+    assert "\\txlm@e{#1}" in block
+    assert "AddToHook{env/#1/end}" in block
+    # end 路径不再引用 \@currenvir——只允许出现在 begin 钩子定义里
+    end_ctx = block.split("\\def\\txlm@e", 1)[1].split("\\def", 1)[0]
+    assert "\\@currenvir" not in end_ctx
 
 
 # ---------------------------------------------------------------- compare_marks
@@ -299,6 +312,10 @@ def test_plain_broken_refs() -> None:
     f2, m2 = _plain_scan("真的吗?? 不对??? 是全角？？问号。\n" * 3)
     assert m2["broken_refs"] == 6  # noqa: PLR2004 -- 3 行 x 2 run
     assert not any(x["sig"] == "xlat_broken_refs" for x in f2)
+    # natbib 面：括内单 (?) 也是断链位点（2602.09703 实证）
+    f3, m3 = _plain_scan("Shami Corpus (?) 与 UFAL (?)、DoDa (?)。\n" * 4)
+    assert m3["broken_refs"] == 12  # noqa: PLR2004 -- 4 行 x 3 位点
+    assert any(x["sig"] == "xlat_broken_refs" for x in f3)
 
 
 def test_plain_periodic_placeholder() -> None:

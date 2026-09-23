@@ -56,10 +56,15 @@ _INNER_ENVS: Final = frozenset(
     {"tabular", "tabularx", "longtable", "minipage", "textblock"}
 )
 
-#: 注入块——``\@for`` 逐环境注册 ``env/<name>/begin|end`` 钩子，钩子体
-#: 全同（``\@currenvir`` 自取环境名）。uid = ``<env>-<per-env序>-<b|e>``，
-#: per-env 计数器 ``\csname txlm@c@<env>\endcsname`` 惰性 ``\newcount``，
+#: 注入块——``\@for`` 逐环境注册 ``env/<name>/begin|end`` 钩子。
+#: uid = ``<env>-<per-env序>-<b|e>``，per-env 计数器
+#: ``\csname txlm@c@<env>\endcsname`` 惰性 ``\newcount``，
 #: ``\global\advance`` 抗浮体组作用域；begin 才 bump，end 复用同值成对。
+#: begin 钩子 ``\@currenvir`` 自取环境名（此时恒为当前 env）；
+#: end 钩子改为注册期烙名 ``\txlm@e{<env>}``——``env/<name>/end``
+#: 触发点上 ``\@currenvir`` 可能已恢复成外层环境（2609.20793 实证：
+#: \maketitle 内 authblk tabular 的 end 钩子读出 center →
+#: ``\the\relax`` 报错 + ``center-0-e`` 毒化 mark + 编译 rc=1）。
 LAYOUT_MARKS: Final = r"""% texlate: layout ground-truth marks v1
 \makeatletter
 \ifdefined\pdfsavepos
@@ -75,10 +80,12 @@ LAYOUT_MARKS: Final = r"""% texlate: layout ground-truth marks v1
     \expandafter\newcount\csname txlm@c@\@currenvir\endcsname\fi
   \global\expandafter\advance\csname txlm@c@\@currenvir\endcsname\@ne
   \txlm@mark{\@currenvir-\the\csname txlm@c@\@currenvir\endcsname-b}}
-\def\txlm@e{\txlm@mark{\@currenvir-\the\csname txlm@c@\@currenvir\endcsname-e}}
+\def\txlm@e#1{\expandafter\ifx\csname txlm@c@#1\endcsname\relax\else
+  \txlm@mark{#1-\the\csname txlm@c@#1\endcsname-e}\fi}
+\def\txlm@hook#1{\AddToHook{env/#1/begin}{\txlm@b}%
+  \AddToHook{env/#1/end}{\txlm@e{#1}}}
 \@for\txlm@n:=figure,figure*,table,table*,wrapfigure,wrapfigure*,wraptable,wraptable*,wrapfloat,tabular,tabularx,longtable,minipage,equation,equation*,align,align*,gather,gather*,multline,multline*,eqnarray,eqnarray*,textblock\do{%
-  \edef\txlm@h{env/\txlm@n/begin}\expandafter\AddToHook\expandafter{\txlm@h}{\txlm@b}%
-  \edef\txlm@h{env/\txlm@n/end}\expandafter\AddToHook\expandafter{\txlm@h}{\txlm@e}}
+  \expandafter\txlm@hook\expandafter{\txlm@n}}
 \AtBeginDocument{\immediate\write\txlm@out{GEOM pw=\the\paperwidth\space
   ph=\the\paperheight\space tw=\the\textwidth\space th=\the\textheight\space
   tm=\the\topmargin\space hh=\the\headheight\space hs=\the\headsep\space

@@ -279,6 +279,14 @@ per-doc QC 记录 = {component scores: text/geo/float/structure, mean_grade, low
 - **reqc5（40 胞双臂重打分）**：hard 27 / warn 12 / clean 1——marks 跨臂面 `lost_element`/`float_drift`/`order_inversion`/`marks_coverage` 全类活跃；鲜度判（pdf.mtime>tex.mtime）识别 2505.21476 vault 存量 pdf 冒充重编产物（重编 100 错 abort），改按单臂语义计。
 - **收割面**：tier≥warn 胞格 flagged_pages PNG 落 `out*/<cell>/flagged/`（110dpi 收割专道）；176p 长文档收割 27/35 页实证 keep 模式只渲标记页。
 
+**run4 扩容波（胞 41–120 双臂 marks 重编，2026-09-23 深夜）**：
+
+- **鲜度闸连合 bug（已修）**：首波 run3 把 `pdf.mtime>tex.mtime` 当「本波已编」——copytree 承 vault mtime 下存量 pdf 恒新于 tex，80/80 zh 漏注入漏编、marks_absent 满发、跨臂面全哑。修为「`TeXlateMark` 哨兵在 tex + pdf 更新」才算 fresh（recompile zh/base 两路同闸，reqc marks_era 判据同改）。
+- **end 钩子 `\@currenvir` 毒化（已修 marks.py）**：`env/<name>/end` 触发点上 `\@currenvir` 可能已恢复成外层 env——2609.20793 `\maketitle` 内 authblk tabular 的 end 钩子读出 `center` → `\the\relax` 报错 + `center-0-e` 毒化 mark + 编译 rc=1 双收。修为 end 钩子注册期烙名 `\txlm@e{<env>}`（begin 仍 `\@currenvir` 自取，实证恒对），加未分配计数器守卫。authblk repro 全 uid 成对。
+- **`_compile` 成败判（已修）**：`rc==0` 闸过严——nonstopmode 可恢复错误照常出 pdf 但 rc=1，7 格 zh_compile_fail 中 5 格实有新鲜产物。修为「编译后 pdf 新于 tex」判成功。
+- **run4 分布**（80 胞）：clean 5 / warn 18 / hard 50 / error 7——marks 面全类实弹：`float_drift`（单格 15 位点）、`order_inversion`、`marks_coverage`、`align_page_count`、`align_order_break`；`marks_absent` 清零。
+- **error 格归宿**：5/7 是 rc 闸误杀（reqc 免编译重打分自动拾回）；2404.14219 真编译死（pdf_corrupt 本源）；1610.02136 早前波次已编。
+
 ### 10.6 已知 FP/盲区清单（留档不堵）
 
 - **矢量图内 bbox 伪影**：pgfplots/tikz 图内密集 tick 标签在 poppler 词级天然交叠；跨臂抑制吃大头，figure 区域分割（MinerU 式 layout parser）是根治但超范围。
@@ -292,6 +300,8 @@ per-doc QC 记录 = {component scores: text/geo/float/structure, mean_grade, low
 - **BIoU/SSIM 要素未落地**：`vis_tofu_box`/`geo_table_lost`（规则行代理）/`regress_ink_profile`（逐页墨量回归抓矢量图掉图，pdfimages 盲区补位）已落地；`geo_biou_low`/SSIM 仍在计划面；LLM judge(T2) 未建。
 - **raster 超时静默缺口（已修）**：`_run` 60s 帽对长文档 raster 全灭——load~38 下 15p 实测 42s、176p 必然 `raster_error=empty` 静默丢全 raster 层（2505.21476 实证）。修为度量遍 RASTER_TIMEOUT=420s + 收割专道（keep 模式只渲标记页 -f/-l 段批，不再二遍全扫）。
 - **void_frac 直方图栈 bug（已修）**：最大白矩形实现存索引栈、弹出高度不回传左界，有墨页也虚报 1.0（2403.05234 全页 void_frac=1.0 实证）——findings 走 `void_int` 未受灾，口径修复后备路径不再说谎。
+- **存量树鲜度判连合（已修）**：一切「pdf.mtime>tex.mtime ⇒ 本波产物」判据都被 vault copytree 承 mtime 骗过——run3 80/80 zh 漏注入实证。凡鲜度判必须「`TeXlateMark` 哨兵在 tex」与「pdf 新于 tex」双条件。
+- **env end 钩子环境名（已修 marks.py）**：`env/<name>/end` 钩子里 `\@currenvir` 非契约可靠（\maketitle 内 env 嵌套读出外层名），end 钩子一律注册期烙名；begin 钩子 `\@currenvir` 自取实证可靠。
 - **`layout:no_pdf`**：zh PDF 缺席兜底 sig。
 
 ### 10.7 检查面完备性自问（vs §3 外部调研）
