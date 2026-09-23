@@ -82,6 +82,41 @@ core 5k 是 knee；超出的规模只能通过 scale 层的签名发现来辩护
 
 zh 时间面（不变）：j10 ≈ 55 papers/h、yield 0.77 → 全 zh 10k ≈ 9.8d、13k ≈ 12.8d，promo 23d 内都够。**瓶颈从始至终是磁盘，不是 API、不是天数。**
 
+### 2.6 压缩 vs 删除——实验裁决（2026-09-23 晚，磁盘手术后）
+
+**手术结果**：quarantine-20260922 14G + phase0 4.3G（fht-mba 副本指纹已验）+ 旧 tar 1.1G 已删，另约 105G 同期由他途释放——**余量 63G → 187G（79%）**。13k@P3 的准入条件已满足且余量翻倍，**scale 层无需砍到 2k，维持 3k**。
+
+**zstd 实测（12 样本/类，-3/-19 两档，比值=压缩后/原）**：
+
+| 类型                                              | zst-3 | zst-19 | 判定                     |
+| ------------------------------------------------- | ----- | ------ | ------------------------ |
+| .map                                              | 0.08  | 0.06   | 压缩 12×，但可再生→删    |
+| .log/.aux/.cls                                    | ~0.22 | ~0.20  | 好                       |
+| .tex/.bib/.sty/.bbl/.json                         | ~0.33 | ~0.29  | 好                       |
+| .eps                                              | 0.41  | 0.38   | 一般                     |
+| **.jpg/.pdf/.png（占 work 83%、splice ~80%）**    | ~0.91 | ~0.89  | **无效**                 |
+
+**裁决：全树压缩否决**。主字节（pdf/png/jpg）压不动且杀掉随机读；可压件（.map/.log/.aux）的正确处理是**删**（可再生/诊断完即弃）不是压。压缩路线只在「20k 梦」里对 zh 文本档有意义，且先被 CAS 硬链覆盖。
+
+**删除面实测**：
+
+| 对象 | 实测 | 策略后 | 机制 |
+| ---- | ---- | ------ | ---- |
+| runs work/ | **23MB/篇**（e2e_real-2: 902MB/39） | ~0 | 终态后 `shrink_shell`→sweep→`bench prune`（remove_cell_tree 带 vault_check 拒删未 harvest 付费字节） |
+| vault splice | mean 9.4MB（pdf 67%） | **~1.4MB**（40 胞实测） | P3 slim：final.pdf+arm.json+log——**slim verb 不存在，属 Step1 新码** |
+| lake cell | hydrated 7.2MB（raw 2.9+ext 4.3，n=50） | 2.9MB | `lake evict` 原生 tier：extracted 先 evict→raw_only |
+| backup tar | 1.1G/日 ×∞ | 保 3 日+周 1 | bench-backup.sh **无轮转**，须加 keep-last-N |
+
+**每篇稳态（激进删除版）**：raw 2.9 + zh 4.7（CAS 后 ~0.4）+ splice-slim 1.4 + state/qc 0.8 ≈ **9.8MB（CAS 前）/ ~5.5MB（CAS 后）**；对照现状政策 ~44MB → 4.5×。
+
+**规模重算**：usable ~150G（187G − tmp/杂项余量）。
+
+| 规模 | zh 篇 | 稳态估算 | 判定 |
+| ---- | ----- | -------- | ---- |
+| 13k（v4 表） | 9.8k | 9.8k×9.8 + 3k×3.7 ≈ **107G** | ✓ 余量 ~43G，scale 保 3k |
+| 13k+CAS | 9.8k | ~65G | ✓ 宽限 |
+| 20k | 17k | ~94G（须 CAS+extracted 全 evict） | 可达，硬条件=zh 图档 CAS 落地 |
+
 ## 3. 管线现状与缺口
 
 ### 3.1 已有（可直接复用）
