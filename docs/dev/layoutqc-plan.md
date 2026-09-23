@@ -293,6 +293,13 @@ per-doc QC 记录 = {component scores: text/geo/float/structure, mean_grade, low
 - **rescan7（284 vault 胞单臂）**：clean 33 / warn 90 / hard 159 / error 2（皆 no_main）——与 rescan6 分布稳定（clean 34→33 边缘抖动）；新签 `xlat_broken_refs` **15 胞**、`pdf_corrupt` 1、`no_pdf` 1。
 - **双臂 vs 单臂对照**：同一批 2609.\* 占位集群在双臂下 marks 面额外供出 drift/inversion/coverage 三类真值——单臂只能看 marks_absent+degen，双臂才可证「浮体级丢件/乱序」；证实双臂 marks 是检测面的独占深度层。
 
+**run7 全量波（214 胞双臂 marks 重编，2026-09-23 晚，float_score 全量 eligible）**：
+
+- **规模**：vault/splice ∩ lake-tex eligible 215 选 214——存量 121 work tree 走鲜度闸 fresh-skip 只重打分（吃 natbib `(?)`/`[?]` 断引正则），~94 新格编译+QC。
+- **分布**：clean 13 / warn 45 / hard 153 / error 3（2× zh_compile_fail + 2609.20756 zh_no_main——该格 splice 只有 root.pdf 无 tex 源，退化胞格记档）。对照 reqc6（120 胞）clean 率 6.7%→6.1% 持平、hard 66.7%→71.5%——新覆盖的 float_score 尾部并不比头部干净，版面缺陷是全面性的不是头部密集格的专利。
+- **信号总计（前八）**：`geo_margin_breach` 245、`float_drift` 234、`geo_text_overlap` 208、`vis_degenerate` 143、`offpage` 114、`xlat_residual_en` 74、`regress_ink_profile`/`order_inversion` 各 54；`xlat_broken_refs` 9 胞（natbib 扩面后新检出）。
+- **口径注记**：存量 121 树的 txlm 是 marks end-hook 烙名修复（`\@currenvir` 外层还原误读）前的产物——偶发错名 -e 标记属已知噪音，未重编；新格全部吃修复后代码。
+
 ### 10.6 已知 FP/盲区清单（留档不堵）
 
 - **矢量图内 bbox 伪影**：pgfplots/tikz 图内密集 tick 标签在 poppler 词级天然交叠；跨臂抑制吃大头，figure 区域分割（MinerU 式 layout parser）是根治但超范围。
