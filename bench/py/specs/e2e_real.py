@@ -88,6 +88,7 @@ from kernel.spec import Param, Spec, Stage
 
 from specs import _benchlite as benchlib
 from specs import _fixloop as flb  # 冷 usertree 引擎配方单源
+from specs._layoutqc import qc_paper
 from specs._shared import (
     DEFAULT_MODEL,
     PaidEscape,
@@ -104,6 +105,7 @@ from texlate.compile.inject import (
     find_main_tex,
     prepare_chinese,
 )
+from texlate.compile.marks import inject_layout_marks
 from texlate.compile.normalize import normalize_project
 from texlate.e2e import base_condition
 from texlate.pipecore import scan_tree as _scan_tree
@@ -150,13 +152,32 @@ def _last_done(ctx, stage: str) -> dict | None:
     （本 run 那行是 dedup 非 DONE）——want_fix/want_base/expect_cjk 这些
     「上游账」判读必须读全域，否则跨 run 续跑全部看成 None 走歪。
     """
+    return _last_row(ctx, stage, done_only=True)
+
+
+_LAST_ANY_SQL = (
+    "SELECT run,seq,id,idc,arm,up,variant,stage,status,cat,sig,code,"
+    "fp,dur_s,metrics,errors,ts FROM records "
+    "WHERE idc=? AND arm=? AND up=? AND variant=? AND stage=? "
+    "ORDER BY rowid DESC LIMIT 1"
+)
+
+
+def _last_row(ctx, stage: str, *, done_only: bool = False) -> dict | None:
+    """末条账（任意 status；done_only=True 时同 _last_done 旧口径）。"""
     idx = ctx.index
     if idx is None:
         return None
-    row = idx.conn.execute(
-        _LAST_DONE_SQL,
-        (ctx.idc, ctx.arm, ctx.up, ctx.variant, stage, *_DONE_STS),
-    ).fetchone()
+    if done_only:
+        row = idx.conn.execute(
+            _LAST_DONE_SQL,
+            (ctx.idc, ctx.arm, ctx.up, ctx.variant, stage, *_DONE_STS),
+        ).fetchone()
+    else:
+        row = idx.conn.execute(
+            _LAST_ANY_SQL,
+            (ctx.idc, ctx.arm, ctx.up, ctx.variant, stage),
+        ).fetchone()
     if row is None:
         return None
     d = dict(row)
@@ -514,7 +535,8 @@ def _compile(ctx) -> dict:
     metrics["main_rel"] = main_rel
     timeout = float(ctx.params["timeout"])
     try:
-        metrics["inject"] = prepare_chinese(splice, main_rel)
+        metrics["inject"] = prepare_chinese(
+            splice, main_rel, layout_marks=bool(ctx.params["marks"]))
     except InjectRejectError as e:
         metrics["verdict"] = {"status": "reject", "reasons": [e.reason]}
         metrics["reject_at"] = "inject"
@@ -624,8 +646,12 @@ def _fixloop(ctx) -> dict:
             # 链永死（xlat 终态败 → compile 永不立账）——收割 state.-。
             return _decline("no_compile", {"xlat_status": xr.get("status")})
         # 上游仍在 flux（error/skip 可续）——retriable 不固化 decline。
+        # 文案须带末态：compile 行可能已 error/skip 落账（重试穷尽前
+        # 的瞬态），「in flight」把终态误读成竞态（e2e_real-2 六例）。
+        last_c = _last_row(ctx, "compile")
+        last_s = (last_c or {}).get("status") or "absent"
         return _gate("error", "compile_flux", "upstream",
-                     "no DONE compile row; upstream still in flight")
+                     f"compile has no DONE row (last={last_s})")
     cm = comp_rec.get("metrics") or {}
     cst = comp_rec.get("status")
     if not _want_fix(mode, cst, cm.get("verdict") or {},
@@ -794,6 +820,9 @@ def _base(ctx) -> dict:
     if work.exists():
         shutil.rmtree(work)
     shutil.copytree(src, work, ignore=benchlib.copytree_ignore())
+    # en 基线臂同样打 marks——跨臂浮体对照（drift/lost/inversion）的真值源
+    if ctx.params["marks"]:
+        metrics["base_marks"] = inject_layout_marks(work)
     rec = base_condition(work, "xelatex", main_rel,
                          float(ctx.params["timeout"]))
     metrics.update(rec)
@@ -808,6 +837,77 @@ def _base(ctx) -> dict:
                 "cat": v.get("category"),
                 "payload": v.get("payload"),
             }
+        ]
+    return out
+
+
+# ---------------------------------------------------------------- stage: layoutqc
+
+
+def _layoutqc(ctx) -> dict:
+    """T0 版面质检汇（needs-free，mutates=["layoutqc"]）。
+
+    读 splice zh 产物（pdf/log/txlm）+ build-base en 对照 + src 期望
+    面 → specs._layoutqc.qc_paper。findings 全量进 metrics + 逐条
+    errors（cat='layoutqc'），sig 取首条。qc.json + 双臂 .txlm 拷进
+    layoutqc.- 资产——harvest 以本格为末段 mutates 把质检面包进
+    vault（保留政策的诊断料）。本格只测不改：永远不断言 zh 不合格，
+    clean/ok 皆 terminal，缺陷密度全交给 triage 聚合。"""
+    comp = _last_done(ctx, "compile") or {}
+    cm = comp.get("metrics") or {}
+    main_rel = cm.get("main_rel")
+    if not main_rel:
+        main_rel = ((_last_done(ctx, "route") or {}).get("metrics")
+                    or {}).get("main_rel")
+    splice = ctx.upstream_asset_dir("splice")
+    if splice is None or not main_rel:
+        return {"status": "reject", "sig": "declined:qc_no_input",
+                "metrics": {"gate": "qc_no_input",
+                            "has_splice": splice is not None,
+                            "has_main_rel": bool(main_rel)}}
+    base_dir = ctx.paper_dir() / "build-base"
+    if not base_dir.is_dir():
+        base_dir = None
+    src = ctx.src_path()
+    out_dir = ctx.asset_dir("layoutqc")
+    qc = qc_paper(splice_dir=splice, main_rel=main_rel,
+                  base_dir=base_dir, src_dir=src,
+                  marks_era=bool(ctx.params["marks"]),
+                  flag_dir=out_dir / "flagged")
+    findings = qc["findings"]
+    metrics = {"main_rel": main_rel, "n_findings": len(findings),
+               "qc_tier": qc["qc_tier"],
+               "sig_counts": qc["sig_counts"],
+               "flagged_pages": qc["flagged_pages"],
+               "qc": qc["metrics"]}
+    # 质检包：qc.json + 双臂 .txlm（<stem>.zh.txlm / .base.txlm）
+    stem = Path(main_rel).stem
+    try:
+        (out_dir / "qc.json").write_text(
+            json.dumps({"idc": ctx.idc, "main_rel": main_rel,
+                        "qc_tier": qc["qc_tier"],
+                        "sig_counts": qc["sig_counts"],
+                        "flagged_pages": qc["flagged_pages"],
+                        "findings": findings, "metrics": qc["metrics"]},
+                       ensure_ascii=False, indent=1),
+            encoding="utf-8")
+        zh_t = splice / Path(main_rel).parent / f"{stem}.txlm"
+        if zh_t.exists():
+            shutil.copy2(zh_t, out_dir / f"{stem}.zh.txlm")
+        if base_dir is not None:
+            b_t = base_dir / Path(main_rel).parent / f"{stem}.txlm"
+            if b_t.exists():
+                shutil.copy2(b_t, out_dir / f"{stem}.base.txlm")
+    except OSError as e:
+        metrics["qc_write_error"] = str(e)
+    status = "clean" if not findings else "ok"
+    out = {"status": status, "metrics": metrics,
+           "sig": findings[0]["sig"] if findings else "qc:clean"}
+    if findings:
+        out["errors"] = [
+            {"code": f["sig"], "cat": "layoutqc",
+             "payload": json.dumps(f, ensure_ascii=False)[:300]}
+            for f in findings
         ]
     return out
 
@@ -830,6 +930,9 @@ spec = Spec(
         "fixloop": Param(str, default="onfail",
                          choices=["always", "onfail", "never"], fp=True),
         "no_probe": Param(bool, default=False, fp=False),
+        # \pdfsavepos 版面真值注入（compile/marks.py）——bench 默认开，
+        # 开销 <1%；zh 臂走 prepare_chinese kwarg，en 臂走 _base 直注
+        "marks": Param(bool, default=True, fp=True),
     },
     items=_items,
     select=_select,
@@ -929,6 +1032,28 @@ spec = Spec(
                 "fail": "terminal",
                 "reject": "terminal",
                 "dirty_pdf": "terminal",
+                "error": "retriable",
+            },
+        ),
+        Stage(
+            "layoutqc",
+            _layoutqc,
+            # needs-free 末段汇：on 双 topo 边钉死「fixloop ∧ base 之后」，
+            # 任何上游死法都照跑（fn 内按产物在否降级）。mutates 使本格
+            # 成为 last_mutating_stage → harvest 触发点从 fixloop 移此，
+            # splice/zh/state 内容不变、多封 qc.json+txlm 质检包。
+            on={
+                "fixloop": {"clean", "ok", "partial", "fail", "reject",
+                            "dirty_pdf", "skip", "error"},
+                "base": {"clean", "ok", "partial", "fail", "reject",
+                         "dirty_pdf", "skip", "error"},
+            },
+            mutates=["layoutqc"],
+            status_class={
+                "clean": "terminal",
+                "ok": "terminal",
+                "reject": "terminal",
+                "skip": "upstream",
                 "error": "retriable",
             },
         ),
