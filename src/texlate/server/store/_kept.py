@@ -38,9 +38,7 @@ class KeptRepo(_Repo):
                 out[str(row["ref_key"])] = payload
         return out
 
-    def kept_put(
-        self, task_id: str, ref_key: str, payload: dict[str, Any]
-    ) -> None:
+    def kept_put(self, task_id: str, ref_key: str, payload: dict[str, Any]) -> None:
         """Upsert 一条 kept（同 key 覆盖 payload + 刷 updated_at）。"""
         blob = json.dumps(payload, ensure_ascii=False)
         if len(blob.encode("utf-8")) > KEPT_PAYLOAD_MAX:

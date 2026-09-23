@@ -156,9 +156,7 @@ class TestCanonAccept:
     def test_strict_era_off(self) -> None:
         """``strict_era=False`` 放行跨时代形（MM 闸仍在）。"""
         assert canon("9912.00001", strict_era=False).base == "9912.00001"
-        assert (
-            canon("hep-th/0801001", strict_era=False).base == "hep-th/0801001"
-        )
+        assert canon("hep-th/0801001", strict_era=False).base == "hep-th/0801001"
 
 
 class TestCanonReject:

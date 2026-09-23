@@ -36,9 +36,7 @@ if TYPE_CHECKING:
 
     from texlate.latex.model import ScanResult
 
-_PROSE_A = (
-    "First paragraph text here that is long enough to be a chunk for sure yes indeed it is."
-)
+_PROSE_A = "First paragraph text here that is long enough to be a chunk for sure yes indeed it is."
 _PROSE_B = (
     "Second paragraph also long enough to become its own chunk in the scan output."
 )
@@ -130,7 +128,16 @@ def test_non_chunk_ph_never_marked() -> None:
 
 @pytest.mark.parametrize(
     "env",
-    ["tabular", "tabularx", "longtable", "tblr", "array", "cases", "bmatrix", "nicetabular"],
+    [
+        "tabular",
+        "tabularx",
+        "longtable",
+        "tblr",
+        "array",
+        "cases",
+        "bmatrix",
+        "nicetabular",
+    ],
 )
 def test_align_env_skips(env: str) -> None:
     r"""对齐族 env（含 ``*matrix`` 后缀/``nice*`` 前缀形态）→ 行间 whatsit 免注。"""
@@ -152,7 +159,9 @@ def test_moving_ctx_skips_unless_allowed(ctx: str) -> None:
     assert _mcid(0) in zh2
 
 
-@pytest.mark.parametrize("ctx", ["intertext", "shortintertext", "pdfbookmark", "index", "glossary"])
+@pytest.mark.parametrize(
+    "ctx", ["intertext", "shortintertext", "pdfbookmark", "index", "glossary"]
+)
 def test_skip_ctx_always_skips(ctx: str) -> None:
     """写流/书签类 ctx 硬免注——``mark_moving=True`` 也救不回。"""
     res = scan_doc(_BODY2)
@@ -161,7 +170,9 @@ def test_skip_ctx_always_skips(ctx: str) -> None:
     assert _mcid(0) not in zh
 
 
-@pytest.mark.parametrize("cs", ["ul", "hl", "sout", "uline", "uwave", "st", "letterspace"])
+@pytest.mark.parametrize(
+    "cs", ["ul", "hl", "sout", "uline", "uwave", "st", "letterspace"]
+)
 def test_soul_stack_skips(cs: str) -> None:
     r"""soul/ulem 族开栈内引用点 → 免注（whatsit 进参 = Reconstruction failed）。"""
     res = scan_doc(_BODY2)
@@ -316,7 +327,9 @@ def test_resplice_moving_unsafe_vtex_demotes(tmp_path: Path) -> None:
     r"""vtex 含 ``\tableofcontents`` → ``moving_ok=False``：moving ctx 免注、para 照注。"""
     body = "\\tableofcontents\n\n" + _BODY2
     work, run = _mk_run(tmp_path, {"main.tex": (body, dict(_ZH2))})
-    run.scans[0][1].chunks[0].context = "section"  # post-parse 改面（谓词直读 Chunk.context）
+    run.scans[0][1].chunks[
+        0
+    ].context = "section"  # post-parse 改面（谓词直读 Chunk.context）
     _resplice(run, work, "main.tex", {0}, seq_marks=True)
     zh = (work / "main.tex").read_text(encoding="utf-8")
     assert _mcid(0) not in zh  # section chunk 免注
@@ -401,9 +414,7 @@ def test_xelatex_marked_content_stream(tmp_path: Path) -> None:
     import pypdf  # noqa: PLC0415 -- integration 臂随用随引
 
     reader = pypdf.PdfReader(str(tmp_path / "main.pdf"))
-    data = b"\n".join(
-        (p.get_contents().get_data() or b"") for p in reader.pages
-    )
+    data = b"\n".join((p.get_contents().get_data() or b"") for p in reader.pages)
     mcids = re.findall(rb"/TLXC\s*<<\s*/MCID\s+(\d+)\s*>>\s*BDC", data)
     assert b"50000" in mcids
     assert b"50001" in mcids

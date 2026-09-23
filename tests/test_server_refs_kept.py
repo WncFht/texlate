@@ -74,9 +74,7 @@ def _mock_client(
     handler: Callable[[httpx.Request], httpx.Response],
 ) -> httpx.AsyncClient:
     """``MockTransport`` 包出的 AsyncClient（替换 ``refs._client`` 面）。"""
-    return httpx.AsyncClient(
-        transport=httpx.MockTransport(handler), timeout=5.0
-    )
+    return httpx.AsyncClient(transport=httpx.MockTransport(handler), timeout=5.0)
 
 
 def _fail_all(_req: httpx.Request) -> httpx.Response:
@@ -145,19 +143,14 @@ class TestKeptCrud:
         tid = _mk_task(client)
         base = f"/api/task/{tid}/refs/kept"
         assert (
-            client.put(base, json={"payload": {}}).status_code
+            client.put(base, json={"payload": {}}).status_code == HTTPStatus.BAD_REQUEST
+        )
+        assert (
+            client.put(base, json={"key": "x" * 161, "payload": {}}).status_code
             == HTTPStatus.BAD_REQUEST
         )
         assert (
-            client.put(
-                base, json={"key": "x" * 161, "payload": {}}
-            ).status_code
-            == HTTPStatus.BAD_REQUEST
-        )
-        assert (
-            client.put(
-                base, json={"key": "k", "payload": ["not", "dict"]}
-            ).status_code
+            client.put(base, json={"key": "k", "payload": ["not", "dict"]}).status_code
             == HTTPStatus.BAD_REQUEST
         )
         # 64KB 闸（序列化后超限 → StoreError → 400）
@@ -182,9 +175,7 @@ class TestKeptCrud:
             json={"key": "k1", "payload": {"text": "t"}},
         )
         force_status(client, tid, "done")
-        assert (
-            client.delete(f"/api/task/{tid}").status_code == HTTPStatus.OK
-        )
+        assert client.delete(f"/api/task/{tid}").status_code == HTTPStatus.OK
         store = client.app.state.store
         assert store_call(client, store.kept_list, tid) == {}
 
@@ -335,14 +326,10 @@ class TestRefsBib:
             if "crossref.org" in req.url.host:
                 return httpx.Response(
                     200,
-                    json={
-                        "message": {"items": [{"DOI": "10.1/unrelated"}]}
-                    },
+                    json={"message": {"items": [{"DOI": "10.1/unrelated"}]}},
                 )
             # doi.org 回一个标题零重叠的 bibtex → 门控应拒
-            return httpx.Response(
-                200, text="@article{x,\n title = {Quantum Zebra},\n}"
-            )
+            return httpx.Response(200, text="@article{x,\n title = {Quantum Zebra},\n}")
 
         monkeypatch.setattr(refs, "_client", lambda: _mock_client(handler))
         r = client.get(f"/api/task/{tid}/refs.bib?keys=Delta2022")

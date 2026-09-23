@@ -38,16 +38,44 @@ from .transcode import _iter_files
 #: lstlisting 等自定义浮体 env 名不在内核钩子清单里的会被
 #: env_inventory 计数差暴露（marks_coverage 信号）。
 _MARK_ENVS: Final = (
-    "figure", "figure*", "table", "table*",
-    "wrapfigure", "wrapfigure*", "wraptable", "wraptable*", "wrapfloat",
-    "tabular", "tabularx", "longtable", "minipage",
-    "equation", "equation*", "align", "align*", "gather", "gather*",
-    "multline", "multline*", "eqnarray", "eqnarray*", "textblock",
+    "figure",
+    "figure*",
+    "table",
+    "table*",
+    "wrapfigure",
+    "wrapfigure*",
+    "wraptable",
+    "wraptable*",
+    "wrapfloat",
+    "tabular",
+    "tabularx",
+    "longtable",
+    "minipage",
+    "equation",
+    "equation*",
+    "align",
+    "align*",
+    "gather",
+    "gather*",
+    "multline",
+    "multline*",
+    "eqnarray",
+    "eqnarray*",
+    "textblock",
 )
 
 _FLOAT_ENVS: Final = frozenset(
-    {"figure", "figure*", "table", "table*",
-     "wrapfigure", "wrapfigure*", "wraptable", "wraptable*", "wrapfloat"}
+    {
+        "figure",
+        "figure*",
+        "table",
+        "table*",
+        "wrapfigure",
+        "wrapfigure*",
+        "wraptable",
+        "wraptable*",
+        "wrapfloat",
+    }
 )
 
 #: 内层 env——可居变换容器（tikz/rotatebox/sideways），savepos 坐标
@@ -102,9 +130,7 @@ _BEGIN_ENV_RX: Final = re.compile(
     r"\\begin\s*\{(" + "|".join(re.escape(e) for e in _MARK_ENVS) + r")\*?\}"
 )
 
-_MARK_RX: Final = re.compile(
-    r"^MARK\s+(\S+)\s+x=(-?\d+)\s+y=(-?\d+)\s+p=(\d+)\s*$"
-)
+_MARK_RX: Final = re.compile(r"^MARK\s+(\S+)\s+x=(-?\d+)\s+y=(-?\d+)\s+p=(\d+)\s*$")
 _GEOM_RX: Final = re.compile(r"^GEOM\s+(.*)$")
 _GEOM_KV_RX: Final = re.compile(r"(\w+)=(-?[\d.]+)pt")
 _UID_RX: Final = re.compile(r"^(.*)-(\d+)-(b|e)$")
@@ -154,7 +180,12 @@ def parse_txlm(path: Path) -> dict:
             raw = line.strip()
             m = _MARK_RX.match(raw)
             if m:
-                uid, x, y, p = m.group(1), int(m.group(2)), int(m.group(3)), int(m.group(4))
+                uid, x, y, p = (
+                    m.group(1),
+                    int(m.group(2)),
+                    int(m.group(3)),
+                    int(m.group(4)),
+                )
                 # (uid,page) keep-first：moving-arg 双发射等重名只取首个
                 key = f"{uid}@{p}"
                 if key not in marks:
@@ -185,8 +216,7 @@ def env_inventory(root: Path) -> dict[str, int]:
     return inv
 
 
-def env_sequence(root: Path,
-                 envs: frozenset = _FLOAT_ENVS) -> list[str]:
+def env_sequence(root: Path, envs: frozenset = _FLOAT_ENVS) -> list[str]:
     """源序浮体 uid 清单 ``<env>-<per-env序>``——声明锚真值。
 
     跨臂元素匹配的**主键**（不用 b-mark：探针实证 b whatsit 独占末页
@@ -218,9 +248,13 @@ def _uid_key(uid: str) -> tuple[str, str, str] | None:
     return m.group(1), m.group(2), m.group(3)
 
 
-def _drift_findings(pairs: list[tuple[int, str, str, dict, dict]], *,
-                    zh_pages: int | None, base_pages: int | None,
-                    drift_pages: int) -> list[dict]:
+def _drift_findings(
+    pairs: list[tuple[int, str, str, dict, dict]],
+    *,
+    zh_pages: int | None,
+    base_pages: int | None,
+    drift_pages: int,
+) -> list[dict]:
     """离群漂移：浮体落点趋势建模后取残差。
 
     zh 篇幅整体压缩时 dp 随位置线性增长（2512.01407 实证 −2→−14 渐
@@ -230,35 +264,49 @@ def _drift_findings(pairs: list[tuple[int, str, str, dict, dict]], *,
     """
     out: list[dict] = []
     if len(pairs) >= _TREND_MIN_PAIRS:
-        slopes = [(z2["p"] - z1["p"]) / (b2["p"] - b1["p"])
-                  for _i, _u1, _u2, b1, z1 in pairs
-                  for _j, _v1, _v2, b2, z2 in pairs
-                  if b2["p"] != b1["p"] and _j > _i]
+        slopes = [
+            (z2["p"] - z1["p"]) / (b2["p"] - b1["p"])
+            for _i, _u1, _u2, b1, z1 in pairs
+            for _j, _v1, _v2, b2, z2 in pairs
+            if b2["p"] != b1["p"] and _j > _i
+        ]
         b_slope = sorted(slopes)[len(slopes) // 2] if slopes else 1.0
-        inter = sorted(z["p"] - b_slope * be["p"]
-                       for _, _, _, be, z in pairs)
+        inter = sorted(z["p"] - b_slope * be["p"] for _, _, _, be, z in pairs)
         a_icept = inter[len(inter) // 2]
         for i, buid, zuid, be, ze in pairs:
             expect = a_icept + b_slope * be["p"]
             dev = ze["p"] - expect
             if abs(dev) >= drift_pages:
-                out.append({"sig": "layout:float_drift", "i": i,
-                            "base_uid": buid, "zh_uid": zuid,
-                            "dev": round(dev, 2),
-                            "expect_p": round(expect, 1),
-                            "trend": [round(a_icept, 2),
-                                      round(b_slope, 3)],
-                            "zh_p": ze["p"], "base_p": be["p"]})
+                out.append(
+                    {
+                        "sig": "layout:float_drift",
+                        "i": i,
+                        "base_uid": buid,
+                        "zh_uid": zuid,
+                        "dev": round(dev, 2),
+                        "expect_p": round(expect, 1),
+                        "trend": [round(a_icept, 2), round(b_slope, 3)],
+                        "zh_p": ze["p"],
+                        "base_p": be["p"],
+                    }
+                )
     elif pairs and zh_pages and base_pages:
         ratio = zh_pages / base_pages
         for i, buid, zuid, be, ze in pairs:
             dev = ze["p"] - round(be["p"] * ratio)
             if abs(dev) >= drift_pages:
-                out.append({"sig": "layout:float_drift", "i": i,
-                            "base_uid": buid, "zh_uid": zuid,
-                            "dp": ze["p"] - be["p"],
-                            "expect_p": round(be["p"] * ratio),
-                            "zh_p": ze["p"], "base_p": be["p"]})
+                out.append(
+                    {
+                        "sig": "layout:float_drift",
+                        "i": i,
+                        "base_uid": buid,
+                        "zh_uid": zuid,
+                        "dp": ze["p"] - be["p"],
+                        "expect_p": round(be["p"] * ratio),
+                        "zh_p": ze["p"],
+                        "base_p": be["p"],
+                    }
+                )
     return out
 
 
@@ -269,24 +317,32 @@ def _order_findings(pairs: list[tuple[int, str, str, dict, dict]]) -> list[dict]
     前，但视觉阅读序是先左栏后右栏（2601.02468/2607.06115 实证全
     部同页倒置均为栏位伪影）；只有跨页倒置才可能是真错序。
     """
-    base_order = [z for _, _, z, be, _ in sorted(
-        pairs, key=lambda t: (t[3]["p"], -t[3]["y"]))]
-    zh_order = [z for _, _, z, _, ze in sorted(
-        pairs, key=lambda t: (t[4]["p"], -t[4]["y"]))]
+    base_order = [
+        z for _, _, z, be, _ in sorted(pairs, key=lambda t: (t[3]["p"], -t[3]["y"]))
+    ]
+    zh_order = [
+        z for _, _, z, _, ze in sorted(pairs, key=lambda t: (t[4]["p"], -t[4]["y"]))
+    ]
     if zh_order == base_order:
         return []
     pos = {z: i for i, z in enumerate(zh_order)}
     ze_of = {z: ze for _, _, z, _, ze in pairs}
-    bad = [(a, b) for i, a in enumerate(base_order)
-           for b in base_order[i + 1:]
-           if pos.get(a, -1) > pos.get(b, -1)
-           and ze_of[a]["p"] != ze_of[b]["p"]]
+    bad = [
+        (a, b)
+        for i, a in enumerate(base_order)
+        for b in base_order[i + 1 :]
+        if pos.get(a, -1) > pos.get(b, -1) and ze_of[a]["p"] != ze_of[b]["p"]
+    ]
     if not bad:
         return []
-    return [{"sig": "layout:order_inversion",
-             "pairs": bad,
-             "base_order": base_order,
-             "zh_order": zh_order}]
+    return [
+        {
+            "sig": "layout:order_inversion",
+            "pairs": bad,
+            "base_order": base_order,
+            "zh_order": zh_order,
+        }
+    ]
 
 
 def _env_of(uid: str) -> str | None:
@@ -298,7 +354,8 @@ def _env_of(uid: str) -> str | None:
 def _float_b_seq(marks: dict) -> list[str]:
     """文件序浮体 decl 列表（dict 插入序=txlm 行序≈声明序）。"""
     return [
-        k.rsplit("@", 1)[0][:-2] for k in marks
+        k.rsplit("@", 1)[0][:-2]
+        for k in marks
         if k.rsplit("@", 1)[0].endswith("-b")
         and _env_of(k.rsplit("@", 1)[0]) in _FLOAT_ENVS
     ]
@@ -334,19 +391,34 @@ def _offpage_findings(zh: dict, offpage_pt: float) -> list[dict]:
         env = _env_of(v["uid"])
         if env in _INNER_ENVS:
             continue
-        if v["x"] < -lim or v["x"] > pw * SP_PER_PT + lim \
-                or v["y"] < -lim or v["y"] > ph * SP_PER_PT + lim:
-            out.append({"sig": "layout:offpage", "uid": v["uid"],
-                        "x": v["x"], "y": v["y"], "p": v["p"]})
+        if (
+            v["x"] < -lim
+            or v["x"] > pw * SP_PER_PT + lim
+            or v["y"] < -lim
+            or v["y"] > ph * SP_PER_PT + lim
+        ):
+            out.append(
+                {
+                    "sig": "layout:offpage",
+                    "uid": v["uid"],
+                    "x": v["x"],
+                    "y": v["y"],
+                    "p": v["p"],
+                }
+            )
     return out
 
 
-def _cross_findings(zh: dict, base: dict, *,  # noqa: PLR0913 -- 同 compare_marks 旋钮面直通
-                    zh_decl: list[str] | None,
-                    base_decl: list[str] | None,
-                    zh_pages: int | None,
-                    base_pages: int | None,
-                    drift_pages: int) -> list[dict]:
+def _cross_findings(
+    zh: dict,
+    base: dict,
+    *,  # noqa: PLR0913 -- 同 compare_marks 旋钮面直通
+    zh_decl: list[str] | None,
+    base_decl: list[str] | None,
+    zh_pages: int | None,
+    base_pages: int | None,
+    drift_pages: int,
+) -> list[dict]:
     """跨臂对位主路。
 
     声明序主键 zip → seq_mismatch/lost_element + drift/order 两助手。
@@ -354,13 +426,16 @@ def _cross_findings(zh: dict, base: dict, *,  # noqa: PLR0913 -- 同 compare_mar
     out: list[dict] = []
     zh_e = _e_map(zh.get("marks", {}))
     base_e = _e_map(base.get("marks", {}))
-    zs = zh_decl if zh_decl is not None else _float_b_seq(
-        zh.get("marks", {}))
-    bs = base_decl if base_decl is not None else _float_b_seq(
-        base.get("marks", {}))
+    zs = zh_decl if zh_decl is not None else _float_b_seq(zh.get("marks", {}))
+    bs = base_decl if base_decl is not None else _float_b_seq(base.get("marks", {}))
     if len(zs) != len(bs):
-        out.append({"sig": "layout:float_seq_mismatch",
-                    "zh_floats": len(zs), "base_floats": len(bs)})
+        out.append(
+            {
+                "sig": "layout:float_seq_mismatch",
+                "zh_floats": len(zs),
+                "base_floats": len(bs),
+            }
+        )
     pairs: list[tuple[int, str, str, dict, dict]] = []
     for i, (buid, zuid) in enumerate(zip(bs, zs, strict=False)):
         be = base_e.get(buid)
@@ -368,27 +443,39 @@ def _cross_findings(zh: dict, base: dict, *,  # noqa: PLR0913 -- 同 compare_mar
         if be is None:
             continue  # base 自己没发排——固有缺陷，不归 zh
         if ze is None:
-            out.append({"sig": "layout:lost_element", "i": i,
-                        "base_uid": buid, "zh_uid": zuid,
-                        "base_env": _env_of(buid + "-b"),
-                        "zh_env": _env_of(zuid + "-b"),
-                        "base_p": be["p"]})
+            out.append(
+                {
+                    "sig": "layout:lost_element",
+                    "i": i,
+                    "base_uid": buid,
+                    "zh_uid": zuid,
+                    "base_env": _env_of(buid + "-b"),
+                    "zh_env": _env_of(zuid + "-b"),
+                    "base_p": be["p"],
+                }
+            )
             continue
         pairs.append((i, buid, zuid, be, ze))
-    out.extend(_drift_findings(pairs, zh_pages=zh_pages,
-                               base_pages=base_pages,
-                               drift_pages=drift_pages))
+    out.extend(
+        _drift_findings(
+            pairs, zh_pages=zh_pages, base_pages=base_pages, drift_pages=drift_pages
+        )
+    )
     out.extend(_order_findings(pairs))
     return out
 
 
-def compare_marks(zh: dict, base: dict | None, *,  # noqa: PLR0913 -- 检测旋钮面穿透（decl 主键/页数外推/阈值各臂）
-                  zh_decl: list[str] | None = None,
-                  base_decl: list[str] | None = None,
-                  zh_pages: int | None = None,
-                  base_pages: int | None = None,
-                  drift_pages: int = 2,
-                  offpage_pt: float = 2.0) -> list[dict]:
+def compare_marks(
+    zh: dict,
+    base: dict | None,
+    *,  # noqa: PLR0913 -- 检测旋钮面穿透（decl 主键/页数外推/阈值各臂）
+    zh_decl: list[str] | None = None,
+    base_decl: list[str] | None = None,
+    zh_pages: int | None = None,
+    base_pages: int | None = None,
+    drift_pages: int = 2,
+    offpage_pt: float = 2.0,
+) -> list[dict]:
     """zh/base 两副 marks 对照 → findings 清单（逐条 {sig, …}）。
 
     base=None 时只做单侧检查（offpage）。跨臂元素匹配**不按 uid 名**——
@@ -406,9 +493,15 @@ def compare_marks(zh: dict, base: dict | None, *,  # noqa: PLR0913 -- 检测旋�
     """
     out = _offpage_findings(zh, offpage_pt)
     if base:
-        out.extend(_cross_findings(zh, base, zh_decl=zh_decl,
-                                   base_decl=base_decl,
-                                   zh_pages=zh_pages,
-                                   base_pages=base_pages,
-                                   drift_pages=drift_pages))
+        out.extend(
+            _cross_findings(
+                zh,
+                base,
+                zh_decl=zh_decl,
+                base_decl=base_decl,
+                zh_pages=zh_pages,
+                base_pages=base_pages,
+                drift_pages=drift_pages,
+            )
+        )
     return out

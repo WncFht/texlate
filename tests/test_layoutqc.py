@@ -48,14 +48,19 @@ def _txlm(tmp: Path, lines: list[str]) -> Path:
 
 
 def test_parse_txlm_geom_and_dedupe(tmp_path: Path) -> None:
-    p = _txlm(tmp_path, [
-        ("GEOM pw=614.295pt ph=794.96pt tw=345.0pt th=550.0pt tm=16.0pt "
-         "hh=12.0pt hs=18.0pt ho=0.0pt vo=0.0pt oi=62.0pt cs=10.0pt"),
-        "MARK figure-1-b x=100 y=200 p=1",
-        "MARK figure-1-b x=999 y=999 p=1",  # keep-first
-        "MARK figure-1-e x=150 y=250 p=2",
-        "garbage line",
-    ])
+    p = _txlm(
+        tmp_path,
+        [
+            (
+                "GEOM pw=614.295pt ph=794.96pt tw=345.0pt th=550.0pt tm=16.0pt "
+                "hh=12.0pt hs=18.0pt ho=0.0pt vo=0.0pt oi=62.0pt cs=10.0pt"
+            ),
+            "MARK figure-1-b x=100 y=200 p=1",
+            "MARK figure-1-b x=999 y=999 p=1",  # keep-first
+            "MARK figure-1-e x=150 y=250 p=2",
+            "garbage line",
+        ],
+    )
     r = parse_txlm(p)
     assert r["geom"]["pw"] == pytest.approx(614.295)
     assert r["geom"]["hs"] == pytest.approx(18.0)
@@ -77,7 +82,8 @@ def test_env_inventory_counts(tmp_path: Path) -> None:
         "\\begin{figure}x\\end{figure}\n% \\begin{table}commented\\end{table}\n"
         "\\begin{wrapfigure}{r}{0.4\\textwidth}y\\end{wrapfigure}\n"
         "\\begin{figure}z\\end{figure}\n",
-        encoding="utf-8")
+        encoding="utf-8",
+    )
     inv = env_inventory(tmp_path)
     assert inv["figure"] == 2  # noqa: PLR2004
     assert inv["wrapfigure"] == 1
@@ -89,8 +95,9 @@ def test_env_inventory_counts(tmp_path: Path) -> None:
 
 def test_inject_gate_no_envs(tmp_path: Path) -> None:
     (tmp_path / "m.tex").write_text(
-        "\\documentclass{article}\n\\begin{document}\ntext only\n"
-        "\\end{document}\n", encoding="utf-8")
+        "\\documentclass{article}\n\\begin{document}\ntext only\n\\end{document}\n",
+        encoding="utf-8",
+    )
     assert inject_layout_marks(tmp_path) == 0
 
 
@@ -98,7 +105,8 @@ def test_inject_inserts_and_idempotent(tmp_path: Path) -> None:
     (tmp_path / "m.tex").write_text(
         "\\documentclass{article}\n\\begin{document}\n"
         "\\begin{figure}x\\end{figure}\n\\end{document}\n",
-        encoding="utf-8")
+        encoding="utf-8",
+    )
     assert inject_layout_marks(tmp_path) == 1
     text = (tmp_path / "m.tex").read_text(encoding="utf-8")
     assert "TeXlateMark" in text
@@ -130,7 +138,7 @@ def _mk_marks(items: list[tuple[str, int, int, int]]) -> dict:
 
 
 def test_compare_offpage() -> None:
-    zh = _mk_marks([("figure-1-e", -10**7, 10**8, 1)])
+    zh = _mk_marks([("figure-1-e", -(10**7), 10**8, 1)])
     zh["geom"] = {"pw": 600, "ph": 800}
     out = compare_marks(zh, None)
     assert [f["sig"] for f in out] == ["layout:offpage"]
@@ -146,25 +154,33 @@ def test_compare_offpage_inner_env_ignored() -> None:
 
 def test_compare_drift_and_lost_by_index() -> None:
     # base 两浮体声明序 [fig1, fig2]；zh demote 改名后序 [fig1, fig2]
-    base = _mk_marks([
-        ("wrapfigure-1-b", 0, 0, 1), ("figure-1-b", 0, 0, 1),
-        ("wrapfigure-1-e", 0, 0, 2), ("figure-1-e", 0, 0, 2),
-    ])
-    zh = _mk_marks([
-        ("figure-1-b", 0, 0, 1), ("figure-2-b", 0, 0, 1),
-        ("figure-1-e", 0, 0, 5),  # wrapfig→figure-1，漂到 p5
-        # figure-2-e 缺席 → lost_element
-    ])
+    base = _mk_marks(
+        [
+            ("wrapfigure-1-b", 0, 0, 1),
+            ("figure-1-b", 0, 0, 1),
+            ("wrapfigure-1-e", 0, 0, 2),
+            ("figure-1-e", 0, 0, 2),
+        ]
+    )
+    zh = _mk_marks(
+        [
+            ("figure-1-b", 0, 0, 1),
+            ("figure-2-b", 0, 0, 1),
+            ("figure-1-e", 0, 0, 5),  # wrapfig→figure-1，漂到 p5
+            # figure-2-e 缺席 → lost_element
+        ]
+    )
     sigs = {f["sig"] for f in compare_marks(zh, base)}
     assert "layout:lost_element" in sigs
     # <3 对：页数比外推——base 10 页 zh 5 页，fig1 base_p=2 期望 p1，
     # 实测 p5 → 漂移 +4 报警
-    sigs = {f["sig"] for f in compare_marks(
-        zh, base, zh_pages=5, base_pages=10)}
+    sigs = {f["sig"] for f in compare_marks(zh, base, zh_pages=5, base_pages=10)}
     assert "layout:float_drift" in sigs
-    drift = next(f for f in compare_marks(
-        zh, base, zh_pages=5, base_pages=10)
-        if f["sig"] == "layout:float_drift")
+    drift = next(
+        f
+        for f in compare_marks(zh, base, zh_pages=5, base_pages=10)
+        if f["sig"] == "layout:float_drift"
+    )
     assert drift["zh_uid"] == "figure-1"
     assert drift["dp"] == 3  # noqa: PLR2004 -- 实测p5-基准p2
 
@@ -172,43 +188,69 @@ def test_compare_drift_and_lost_by_index() -> None:
 def test_compare_drift_median_trend() -> None:
     """≥3 对走 Theil-Sen 趋势：统一平移（dp=-5）下离群者报警；
     比例压缩（zh_p≈0.7·base_p 渐变）不报警——2512.01407 实证。"""
-    base = _mk_marks([
-        ("figure-1-b", 0, 0, 1), ("figure-2-b", 0, 0, 1),
-        ("figure-3-b", 0, 0, 1), ("figure-4-b", 0, 0, 1),
-        ("figure-1-e", 0, 0, 10), ("figure-2-e", 0, 0, 11),
-        ("figure-3-e", 0, 0, 12), ("figure-4-e", 0, 0, 13),
-    ])
-    zh = _mk_marks([
-        ("figure-1-b", 0, 0, 1), ("figure-2-b", 0, 0, 1),
-        ("figure-3-b", 0, 0, 1), ("figure-4-b", 0, 0, 1),
-        ("figure-1-e", 0, 0, 5), ("figure-2-e", 0, 0, 6),
-        ("figure-3-e", 0, 0, 7), ("figure-4-e", 0, 0, 2),  # fig4 前移
-    ])
+    base = _mk_marks(
+        [
+            ("figure-1-b", 0, 0, 1),
+            ("figure-2-b", 0, 0, 1),
+            ("figure-3-b", 0, 0, 1),
+            ("figure-4-b", 0, 0, 1),
+            ("figure-1-e", 0, 0, 10),
+            ("figure-2-e", 0, 0, 11),
+            ("figure-3-e", 0, 0, 12),
+            ("figure-4-e", 0, 0, 13),
+        ]
+    )
+    zh = _mk_marks(
+        [
+            ("figure-1-b", 0, 0, 1),
+            ("figure-2-b", 0, 0, 1),
+            ("figure-3-b", 0, 0, 1),
+            ("figure-4-b", 0, 0, 1),
+            ("figure-1-e", 0, 0, 5),
+            ("figure-2-e", 0, 0, 6),
+            ("figure-3-e", 0, 0, 7),
+            ("figure-4-e", 0, 0, 2),  # fig4 前移
+        ]
+    )
     out = compare_marks(zh, base)
     drifts = [f for f in out if f["sig"] == "layout:float_drift"]
     # 斜率=1 平移趋势下 fig4 期望 p8 实测 p2，dev=-6 报警
     assert [f["zh_uid"] for f in drifts] == ["figure-4"]
     assert drifts[0]["expect_p"] == 8  # noqa: PLR2004 -- 斜率1平移趋势期望页
     # 比例压缩面：zh_p = round(0.7 * base_p)，整体趋势合法 → 零报警
-    zh2 = _mk_marks([
-        ("figure-1-b", 0, 0, 1), ("figure-2-b", 0, 0, 1),
-        ("figure-3-b", 0, 0, 1), ("figure-4-b", 0, 0, 1),
-        ("figure-1-e", 0, 0, 7), ("figure-2-e", 0, 0, 8),
-        ("figure-3-e", 0, 0, 8), ("figure-4-e", 0, 0, 9),
-    ])
+    zh2 = _mk_marks(
+        [
+            ("figure-1-b", 0, 0, 1),
+            ("figure-2-b", 0, 0, 1),
+            ("figure-3-b", 0, 0, 1),
+            ("figure-4-b", 0, 0, 1),
+            ("figure-1-e", 0, 0, 7),
+            ("figure-2-e", 0, 0, 8),
+            ("figure-3-e", 0, 0, 8),
+            ("figure-4-e", 0, 0, 9),
+        ]
+    )
     out2 = compare_marks(zh2, base)
     assert not any(f["sig"] == "layout:float_drift" for f in out2)
 
 
 def test_compare_order_inversion() -> None:
-    base = _mk_marks([
-        ("figure-1-b", 0, 0, 1), ("figure-2-b", 0, 0, 1),
-        ("figure-1-e", 0, 100, 2), ("figure-2-e", 0, 50, 3),
-    ])
-    zh = _mk_marks([
-        ("figure-1-b", 0, 0, 1), ("figure-2-b", 0, 0, 1),
-        ("figure-1-e", 0, 50, 4), ("figure-2-e", 0, 100, 2),  # 跨页序倒
-    ])
+    base = _mk_marks(
+        [
+            ("figure-1-b", 0, 0, 1),
+            ("figure-2-b", 0, 0, 1),
+            ("figure-1-e", 0, 100, 2),
+            ("figure-2-e", 0, 50, 3),
+        ]
+    )
+    zh = _mk_marks(
+        [
+            ("figure-1-b", 0, 0, 1),
+            ("figure-2-b", 0, 0, 1),
+            ("figure-1-e", 0, 50, 4),
+            ("figure-2-e", 0, 100, 2),  # 跨页序倒
+        ]
+    )
     out = compare_marks(zh, base)
     inv = [f for f in out if f["sig"] == "layout:order_inversion"]
     assert inv
@@ -218,14 +260,22 @@ def test_compare_order_inversion() -> None:
 
 def test_compare_order_inversion_same_page_ok() -> None:
     """同页倒置 = 双栏栏位伪影（右栏顶 vs 左栏底），不报警。"""
-    base = _mk_marks([
-        ("figure-1-b", 0, 0, 1), ("figure-2-b", 0, 0, 1),
-        ("figure-1-e", 0, 100, 2), ("figure-2-e", 0, 50, 3),
-    ])
-    zh = _mk_marks([
-        ("figure-1-b", 0, 0, 1), ("figure-2-b", 0, 0, 1),
-        ("figure-1-e", 0, 50, 2), ("figure-2-e", 0, 100, 2),  # 同页序倒
-    ])
+    base = _mk_marks(
+        [
+            ("figure-1-b", 0, 0, 1),
+            ("figure-2-b", 0, 0, 1),
+            ("figure-1-e", 0, 100, 2),
+            ("figure-2-e", 0, 50, 3),
+        ]
+    )
+    zh = _mk_marks(
+        [
+            ("figure-1-b", 0, 0, 1),
+            ("figure-2-b", 0, 0, 1),
+            ("figure-1-e", 0, 50, 2),
+            ("figure-2-e", 0, 100, 2),  # 同页序倒
+        ]
+    )
     out = compare_marks(zh, base)
     assert not any(f["sig"] == "layout:order_inversion" for f in out)
 
@@ -241,17 +291,18 @@ def test_compare_seq_mismatch() -> None:
 
 
 def test_logscan_overfull_and_fit() -> None:
-    log = ("Overfull \\hbox (60.5pt too wide) in paragraph\n"
-           "Overfull \\vbox (12pt too high)\n"
-           "TeXlate-Float-Fit: figure-3 shrunk\n"
-           "LaTeX Warning: Float too large for page\n")
+    log = (
+        "Overfull \\hbox (60.5pt too wide) in paragraph\n"
+        "Overfull \\vbox (12pt too high)\n"
+        "TeXlate-Float-Fit: figure-3 shrunk\n"
+        "LaTeX Warning: Float too large for page\n"
+    )
     f, m = _logscan(log)
     sigs = {x["sig"] for x in f}
     assert m["overfull_n"] == 2  # noqa: PLR2004
     assert m["overfull_max_pt"] == 60.5  # noqa: PLR2004 -- 越界点数即规格
     assert m["overfull_vbox_n"] == 1
-    assert sigs == {"layout:overfull", "layout:float_fit",
-                    "layout:float_lost"}
+    assert sigs == {"layout:overfull", "layout:float_fit", "layout:float_lost"}
 
 
 def test_logscan_quiet() -> None:
@@ -276,8 +327,7 @@ def test_plain_residual_en_noise_floor() -> None:
     13 行标题页英文全是 frontmatter+algorithm+表头，阈值提到
     ≥25行且≥2%（或绝对质量 ≥60 行）后不再报警。"""
     en_line = "Alexandre Sac-Morane, Katerina Ioannidou, Duke University"
-    text = ("中文内容正常翻译，这段文字很长很长很长。\n" * 40
-            + en_line + "\n") * 13
+    text = ("中文内容正常翻译，这段文字很长很长很长。\n" * 40 + en_line + "\n") * 13
     f, m = _plain_scan(text)
     assert m["residual_en_lines"] == 13  # noqa: PLR2004 -- 2512.01407 实证行数
     assert not any(x["sig"] == "xlat_residual_en" for x in f)
@@ -289,8 +339,9 @@ def test_plain_degenerate_ngram() -> None:
     assert m["top_ngram_rep"] > 20  # noqa: PLR2004 -- ngram 退化阈即规格
     assert any(x["sig"] == "vis_degenerate" for x in f)
     # 纯符号连珠（散点 marker ●/○）不算退化——1706.02386 实证
-    text2 = "".join(f"第{i}段正常中文内容各不相同。\n" for i in range(30)) \
-        + " ".join(["●"] * 400)
+    text2 = "".join(f"第{i}段正常中文内容各不相同。\n" for i in range(30)) + " ".join(
+        ["●"] * 400
+    )
     _f2, m2 = _plain_scan(text2)
     assert m2["top_ngram_rep"] <= 20  # noqa: PLR2004
 
@@ -322,14 +373,17 @@ def test_plain_periodic_placeholder() -> None:
     """行内短周期连珠 = CJK 占位/mock 译文签名——2609.19244 实证
     top_rep=46 被 running-head 放阈放走，行内连珠才是真签名。"""
     spam = "这是译文这是译文这是译文这是译文这是译文这是译文这是译文"
-    text = "正常中文正文段落。\n" * 5 + (spam + "\n") * 4 \
-        + "又一段正常内容。\n" * 5
+    text = "正常中文正文段落。\n" * 5 + (spam + "\n") * 4 + "又一段正常内容。\n" * 5
     f, m = _plain_scan(text)
     assert m["degen_periodic_lines"] == 4  # noqa: PLR2004
     assert any(x["sig"] == "vis_degenerate" for x in f)
     # 单两行修辞性重复不过阈；无词字符单元（……/====）不算
-    legit = "正常段落。\n" * 6 + "他说哈哈哈哈哈哈哈哈哈哈地笑。\n" \
-        + "分隔 ………………………… 与 ======== 行。\n" + "收尾。\n" * 4
+    legit = (
+        "正常段落。\n" * 6
+        + "他说哈哈哈哈哈哈哈哈哈哈地笑。\n"
+        + "分隔 ………………………… 与 ======== 行。\n"
+        + "收尾。\n" * 4
+    )
     _f2, m2 = _plain_scan(legit)
     assert m2["degen_periodic_lines"] <= 2  # noqa: PLR2004
 
@@ -340,9 +394,19 @@ def test_plain_periodic_placeholder() -> None:
 def test_textblock_geom_vs_fallback() -> None:
     # A4 真值：\paperwidth=597.51pt vs mediabox 595.28bp——pt→bp 换算
     # 后等价，geom 分支命中（letter=614.295pt/612bp 同理）。
-    geom = {"pw": 597.508, "ph": 845.047, "tw": 345.0, "th": 550.0,
-            "tm": 16.0, "hh": 12.0, "hs": 18.0, "ho": 0.0, "vo": 0.0,
-            "oi": 62.0, "cs": 10.0}
+    geom = {
+        "pw": 597.508,
+        "ph": 845.047,
+        "tw": 345.0,
+        "th": 550.0,
+        "tm": 16.0,
+        "hh": 12.0,
+        "hs": 18.0,
+        "ho": 0.0,
+        "vo": 0.0,
+        "oi": 62.0,
+        "cs": 10.0,
+    }
     pt2bp = 72.0 / 72.27
     left, t, r, _b = _textblock(geom, 595.28, 841.89)
     assert left == pytest.approx((72.27 + 62.0) * pt2bp, abs=0.01)
@@ -355,18 +419,15 @@ def test_textblock_geom_vs_fallback() -> None:
 
 def test_bbox_paper_mismatch_units() -> None:
     letter_geom = {"pw": 614.295, "ph": 794.97}
-    ok, _m = _bbox_scan([{"w": 612.0, "h": 792.0, "words": []}],
-                        letter_geom, {})
+    ok, _m = _bbox_scan([{"w": 612.0, "h": 792.0, "words": []}], letter_geom, {})
     assert not any(f["sig"] == "layout:paper_mismatch" for f in ok)
-    bad, _m = _bbox_scan([{"w": 595.28, "h": 841.89, "words": []}],
-                         letter_geom, {})
+    bad, _m = _bbox_scan([{"w": 595.28, "h": 841.89, "words": []}], letter_geom, {})
     assert any(f["sig"] == "layout:paper_mismatch" for f in bad)
 
 
 def test_plain_residual_en_refs_tail_cut() -> None:
     en_ref = "Smith J and Doe K. Some english reference entry here."
-    text = ("正常中文正文。\n" * 8
-            + "References\n" + (en_ref + "\n") * 30)
+    text = "正常中文正文。\n" * 8 + "References\n" + (en_ref + "\n") * 30
     f, m = _plain_scan(text)
     assert m["residual_en_lines"] == 0
     assert m["en_tail_cut"] == 8  # noqa: PLR2004 -- 正文 8 行后参考尾截断
@@ -402,16 +463,22 @@ def test_marks_scan_coverage_and_dropped(tmp_path: Path) -> None:
     splice.mkdir()
     src.mkdir()
     (splice / "m.tex").write_text(
-        "\\begin{figure}a\\end{figure}\\begin{figure}b\\end{figure}",
-        encoding="utf-8")
+        "\\begin{figure}a\\end{figure}\\begin{figure}b\\end{figure}", encoding="utf-8"
+    )
     (src / "m.tex").write_text(
         "\\begin{figure}a\\end{figure}\\begin{wrapfigure}w\\end{wrapfigure}",
-        encoding="utf-8")
-    tx = _txlm(splice, [
-        "GEOM pw=600pt ph=800pt",
-        "MARK figure-1-b x=1 y=1 p=1", "MARK figure-1-e x=1 y=1 p=1",
-        "MARK figure-2-b x=1 y=1 p=1", "MARK figure-2-e x=1 y=1 p=1",
-    ])
+        encoding="utf-8",
+    )
+    tx = _txlm(
+        splice,
+        [
+            "GEOM pw=600pt ph=800pt",
+            "MARK figure-1-b x=1 y=1 p=1",
+            "MARK figure-1-e x=1 y=1 p=1",
+            "MARK figure-2-b x=1 y=1 p=1",
+            "MARK figure-2-e x=1 y=1 p=1",
+        ],
+    )
     f, _m = _marks_scan(tx, None, splice, src)
     sigs = {x["sig"] for x in f}
     # wrapfigure demote→figure（figure 计数 1→2 增长）→ 非 dropped
@@ -425,14 +492,18 @@ def test_marks_scan_dropped_env(tmp_path: Path) -> None:
     src = tmp_path / "src"
     splice.mkdir()
     src.mkdir()
-    (splice / "m.tex").write_text("\\begin{figure}a\\end{figure}",
-                                  encoding="utf-8")
+    (splice / "m.tex").write_text("\\begin{figure}a\\end{figure}", encoding="utf-8")
     (src / "m.tex").write_text(
-        "\\begin{figure}a\\end{figure}\\begin{table}t\\end{table}",
-        encoding="utf-8")
-    tx = _txlm(splice, ["GEOM pw=600pt ph=800pt",
-                        "MARK figure-1-b x=1 y=1 p=1",
-                        "MARK figure-1-e x=1 y=1 p=1"])
+        "\\begin{figure}a\\end{figure}\\begin{table}t\\end{table}", encoding="utf-8"
+    )
+    tx = _txlm(
+        splice,
+        [
+            "GEOM pw=600pt ph=800pt",
+            "MARK figure-1-b x=1 y=1 p=1",
+            "MARK figure-1-e x=1 y=1 p=1",
+        ],
+    )
     f, _m = _marks_scan(tx, None, splice, src)
     dropped = next(x for x in f if x["sig"] == "layout:dropped_env")
     assert dropped["envs"] == {"table": 1}
@@ -451,12 +522,10 @@ def test_tier_classification() -> None:
     assert _tier_of([{"sig": "layout:float_fit"}]) == "clean"  # INFO 不抬档
     assert _tier_of([{"sig": "layout:marks_absent"}]) == "clean"  # 存量 INFO
     # marks_era（双臂注入编译）下 marks_absent 升 WARN
-    assert _tier_of([{"sig": "layout:marks_absent"}],
-                    marks_era=True) == "warn"
+    assert _tier_of([{"sig": "layout:marks_absent"}], marks_era=True) == "warn"
     assert _tier_of([{"sig": "xlat_residual_en"}]) == "warn"
     assert _tier_of([{"sig": "some_future_sig"}]) == "warn"  # 未分类保守 WARN
-    assert _tier_of([{"sig": "xlat_residual_en"},
-                     {"sig": "vis_degenerate"}]) == "hard"
+    assert _tier_of([{"sig": "xlat_residual_en"}, {"sig": "vis_degenerate"}]) == "hard"
     assert _tier_of([{"sig": "layout:no_pdf"}]) == "hard"
     assert _tier_of([{"sig": "layout:pdf_corrupt"}]) == "hard"
 
@@ -465,8 +534,15 @@ def test_tier_classification() -> None:
 
 
 def _pg(**kw: float) -> dict:
-    d = {"ink": 0.05, "dark_cc": 0.01, "tofu": 0, "rules": 0,
-         "void_frac": 0.0, "void_int": 0.0, "cols": 2}
+    d = {
+        "ink": 0.05,
+        "dark_cc": 0.01,
+        "tofu": 0,
+        "rules": 0,
+        "void_frac": 0.0,
+        "void_int": 0.0,
+        "cols": 2,
+    }
     d.update(kw)
     return d
 
@@ -529,6 +605,7 @@ def test_raster_ink_blob_suppressed_on_image_pages() -> None:
 def test_raster_child_void_frac_maxrect() -> None:
     """_void_frac 直方图最大矩形：旧栈存索引、弹出高度不回传，
     有墨页也虚报 1.0（2403.05234 实证）。(左界,高) 对栈修复验证。"""
+
     class _FakeImg:
         def __init__(self, white: list[list[bool]]) -> None:
             self._w = white
@@ -544,19 +621,20 @@ def test_raster_child_void_frac_maxrect() -> None:
                 def __getitem__(self, xy: tuple[int, int]) -> int:
                     x, y = xy
                     return 255 if w[y][x] else 0
+
             return _Px()
 
     rows = [[True] * 20 for _ in range(20)]
     for y in range(8, 12):
         for x in range(8, 12):
-            rows[y][x] = False            # 居中 4x4 墨块
+            rows[y][x] = False  # 居中 4x4 墨块
     vf, vi = _void_frac(_FakeImg(rows))
-    assert vf == pytest.approx(0.4)       # 最大白矩形=全宽条带 20x8
-    assert vi == 0.0                      # 白区连通贴边→内部洞为零
+    assert vf == pytest.approx(0.4)  # 最大白矩形=全宽条带 20x8
+    assert vi == 0.0  # 白区连通贴边→内部洞为零
     rows2 = [[True] * 20 for _ in range(20)]
-    rows2[10][10] = False                 # 单墨像素：满行带或满列带
+    rows2[10][10] = False  # 单墨像素：满行带或满列带
     vf2, _vi2 = _void_frac(_FakeImg(rows2))
-    assert vf2 == pytest.approx(0.5)      # 20x10=200/400，绝不虚报 1.0
+    assert vf2 == pytest.approx(0.5)  # 20x10=200/400，绝不虚报 1.0
 
 
 def test_raster_child_page_ranges() -> None:
@@ -591,12 +669,17 @@ def test_marks_e2e_real_compile(tmp_path: Path) -> None:
         "p1 text \\newpage\n"
         "\\begin{figure}[b]\\rule{2cm}{2cm}\\end{figure}\n"
         "trailing text\n"
-        "\\end{document}\n", encoding="utf-8")
+        "\\end{document}\n",
+        encoding="utf-8",
+    )
     assert inject_layout_marks(tmp_path) == 1
     r = subprocess.run(  # noqa: S603 -- argv[0] 来自 shutil.which 绝对路径
-        [shutil.which("xelatex") or "xelatex",
-         "-interaction=nonstopmode", "m.tex"],
-        cwd=tmp_path, capture_output=True, timeout=120, check=False)
+        [shutil.which("xelatex") or "xelatex", "-interaction=nonstopmode", "m.tex"],
+        cwd=tmp_path,
+        capture_output=True,
+        timeout=120,
+        check=False,
+    )
     assert r.returncode == 0
     res = parse_txlm(tmp_path / "m.txlm")
     assert res["geom"].get("pw")

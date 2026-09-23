@@ -313,9 +313,7 @@ def rewrite_key(bib: str, key: str) -> str:
 
 def bibtex_title(bib: str) -> str:
     """回包 bibtex 的 title 字段值（门控比较用）。"""
-    m = re.search(
-        r'title\s*=\s*[{"](.+?)[}"]\s*,', bib, re.DOTALL | re.IGNORECASE
-    )
+    m = re.search(r'title\s*=\s*[{"](.+?)[}"]\s*,', bib, re.DOTALL | re.IGNORECASE)
     return re.sub(r"\s+", " ", m.group(1)).strip() if m else ""
 
 
@@ -377,9 +375,7 @@ async def _crossref_top_doi(client: httpx.AsyncClient, text: str) -> str | None:
     return doi if isinstance(doi, str) and doi else None
 
 
-async def _crossref_bib(
-    client: httpx.AsyncClient, text: str, key: str
-) -> str | None:
+async def _crossref_bib(client: httpx.AsyncClient, text: str, key: str) -> str | None:
     """Crossref 末臂：检索命中 DOI → crosscite → overlap≥0.5 门控。
 
     ``title_overlap`` 实测拐点 0.5（12 探 5 过）——不门控即毒导出，门控
@@ -405,9 +401,7 @@ async def _resolve_one(
                 if bib:
                     return item.key, bib
             if item.arxiv:
-                bib = await _crosscite(
-                    client, f"10.48550/arXiv.{item.arxiv}", item.key
-                )
+                bib = await _crosscite(client, f"10.48550/arXiv.{item.arxiv}", item.key)
                 if bib:
                     return item.key, bib
             if item.text:
@@ -433,9 +427,7 @@ async def resolve_remote(
     sem = asyncio.Semaphore(REMOTE_CONCURRENCY)
     tasks = [asyncio.ensure_future(_resolve_one(client, sem, it)) for it in items]
     try:
-        await asyncio.wait_for(
-            asyncio.gather(*tasks, return_exceptions=True), deadline
-        )
+        await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), deadline)
     except TimeoutError:
         log.info("bibexport remote deadline %.0fs hit", deadline)
     out: dict[str, str] = {}
@@ -516,9 +508,7 @@ def build_bib(
     degraded: list[str] = []
     for it in items:
         if it.verbatim is not None:
-            need_strings |= entry_uses_strings(
-                it.verbatim, set(strings)
-            )
+            need_strings |= entry_uses_strings(it.verbatim, set(strings))
             blocks.append(it.verbatim)
             continue
         bib = remote.get(it.key)

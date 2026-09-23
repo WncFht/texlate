@@ -249,20 +249,11 @@ def _collect_jobs(refs: list[Any]) -> list[tuple[str, str, str | None]]:
         if not isinstance(r, dict):
             continue
         key = r.get("key")
-        if (
-            not isinstance(key, str)
-            or not key
-            or len(key) > _MAX_KEY
-            or key in seen
-        ):
+        if not isinstance(key, str) or not key or len(key) > _MAX_KEY or key in seen:
             continue
         seen.add(key)
         doi = r.get("doi")
-        doi = (
-            _norm_doi(doi)
-            if isinstance(doi, str) and len(doi) <= _MAX_DOI
-            else None
-        )
+        doi = _norm_doi(doi) if isinstance(doi, str) and len(doi) <= _MAX_DOI else None
         s2id: str | None = None
         raw_ax = r.get("arxivId")
         if isinstance(raw_ax, str) and len(raw_ax) <= _MAX_ARXIV:
@@ -367,9 +358,7 @@ def _kept_list(deps: AppDeps, request: Request, task_id: str) -> dict[str, Any]:
     return {"kept": deps.store.kept_list(task_id)}
 
 
-async def _kept_put(
-    deps: AppDeps, request: Request, task_id: str
-) -> dict[str, Any]:
+async def _kept_put(deps: AppDeps, request: Request, task_id: str) -> dict[str, Any]:
     """``{key, payload}`` upsert / ``payload:null`` unkeep（乐观写回滚对端）。"""
     deps.get_task(request, task_id)
     body = await _read_body(request)
@@ -384,15 +373,11 @@ async def _kept_put(
         deps.store.kept_delete(task_id, key)
         return {"kept": False}
     if not isinstance(payload, dict):
-        raise _ApiError(
-            400, {"detail": "payload: object|null", "code": "bad_request"}
-        )
+        raise _ApiError(400, {"detail": "payload: object|null", "code": "bad_request"})
     try:
         deps.store.kept_put(task_id, key, payload)
     except StoreError as e:
-        raise _ApiError(
-            400, {"detail": str(e), "code": "bad_request"}
-        ) from e
+        raise _ApiError(400, {"detail": str(e), "code": "bad_request"}) from e
     return {"kept": True}
 
 
@@ -402,9 +387,7 @@ def _kept_delete(
     """按 key 删 kept（``:path`` 容纳 key 内 ``/``）；未命中 → 404。"""
     deps.get_task(request, task_id)
     if not deps.store.kept_delete(task_id, key):
-        raise _ApiError(
-            404, {"detail": "kept ref not found", "code": "not_found"}
-        )
+        raise _ApiError(404, {"detail": "kept ref not found", "code": "not_found"})
     return {"kept": False}
 
 
@@ -434,9 +417,7 @@ def _qint(request: Request, name: str) -> int:
         ) from e
 
 
-async def _refs_bib(
-    deps: AppDeps, request: Request, task_id: str
-) -> Response:
+async def _refs_bib(deps: AppDeps, request: Request, task_id: str) -> Response:
     """``.bib`` 导出体：key 集裁定 → 物料/远端臂 → build_bib → Response。"""
     deps.get_task(request, task_id)
     keys = request.query_params.get("keys") or ""
@@ -458,13 +439,9 @@ async def _refs_bib(
         wanted = wanted[:_MAX_REFS]
 
     items = bibexport.plan_items(wanted, idx, kept)
-    remote_items = [
-        it for it in items if it.verbatim is None and it.remote_worthy
-    ]
+    remote_items = [it for it in items if it.verbatim is None and it.remote_worthy]
     remote = (
-        await bibexport.resolve_remote(_client(), remote_items)
-        if remote_items
-        else {}
+        await bibexport.resolve_remote(_client(), remote_items) if remote_items else {}
     )
     body, degraded = bibexport.build_bib(
         items, remote, idx.strings, truncated=truncated
