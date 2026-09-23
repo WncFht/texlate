@@ -817,6 +817,22 @@ export class SentAlignSession {
 
     // ---------------------------------------------------------- 点击跳转
 
+    /** pdfDest→pdfJump→recordJump→闪示公共尾（四调用点同构）：
+        seq 在场且 pdfFlashSeq 可用 → 锚闪，否则 pdfFlash 行带兜底；
+        dest/jump 任一环落空静默收（deps 闸在调用方）。 */
+    private pdfJumpFlash(dst: SaSide, pos: Pos, seq?: number | null): void {
+        void Promise.resolve(this.deps.pdfDest!(dst, pos)).then((dest) => {
+            if (!dest) return;
+            return this.deps.pdfJump!(dst, dest).then((r) => {
+                if (!r) return;
+                this.deps.recordJump?.(dst, r.pre, r.post);
+                if (this.deps.pdfFlashSeq && seq != null)
+                    this.deps.pdfFlashSeq(dst, seq, r.post);
+                else this.deps.pdfFlash?.(dst, r.post);
+            });
+        });
+    }
+
     /** 点击 → 对侧 bead 首元素跳转（DOM 侧）：scroller 滚位 + flash +
         recordJump（pre/post 由宿主 capture 供——无 capture 只跳不记）。 */
     private jumpToBead(dst: SaSide, bead: string, _src: SaSide): void {
@@ -868,16 +884,7 @@ export class SentAlignSession {
         const pos = this.deps.seqPos?.(seq, dst) ?? null;
         if (!pos || !this.deps.pdfDest || !this.deps.pdfJump) return false;
         this.deps.navBegin?.();
-        void Promise.resolve(this.deps.pdfDest(dst, pos)).then((dest) => {
-            if (!dest) return;
-            return this.deps.pdfJump!(dst, dest).then((r) => {
-                if (!r) return;
-                this.deps.recordJump?.(dst, r.pre, r.post);
-                if (this.deps.pdfFlashSeq)
-                    this.deps.pdfFlashSeq(dst, seq, r.post);
-                else this.deps.pdfFlash?.(dst, r.post);
-            });
-        });
+        this.pdfJumpFlash(dst, pos, seq);
         return true;
     }
 
@@ -896,33 +903,14 @@ export class SentAlignSession {
         const sPos =
             seq != null ? (this.deps.seqPos?.(seq, dst) ?? null) : null;
         if (sPos && this.deps.pdfDest && this.deps.pdfJump) {
-            void Promise.resolve(this.deps.pdfDest(dst, sPos)).then(
-                (dest) => {
-                    if (!dest) return;
-                    return this.deps.pdfJump!(dst, dest).then((r) => {
-                        if (!r) return;
-                        this.deps.recordJump?.(dst, r.pre, r.post);
-                        if (this.deps.pdfFlashSeq && seq != null)
-                            this.deps.pdfFlashSeq(dst, seq, r.post);
-                        else this.deps.pdfFlash?.(dst, r.post);
-                    });
-                },
-            );
+            this.pdfJumpFlash(dst, sPos, seq);
             return;
         }
         if (!this.deps.mapPos || !this.deps.pdfDest || !this.deps.pdfJump)
             return;
         const pos = this.sidPos(src, sp);
         if (!pos) return;
-        const mapped = this.deps.mapPos(pos, src);
-        void Promise.resolve(this.deps.pdfDest(dst, mapped)).then((dest) => {
-            if (!dest) return;
-            return this.deps.pdfJump!(dst, dest).then((r) => {
-                if (!r) return;
-                this.deps.recordJump?.(dst, r.pre, r.post);
-                this.deps.pdfFlash?.(dst, r.post);
-            });
-        });
+        this.pdfJumpFlash(dst, this.deps.mapPos(pos, src));
     }
 
     /** PDF→PDF：源侧点击位 Pos → mapPos → pdfDest → pdfJump →
@@ -934,15 +922,7 @@ export class SentAlignSession {
         if (!this.deps.mapPos || !this.deps.pdfDest || !this.deps.pdfJump)
             return;
         this.deps.navBegin?.();
-        const mapped = this.deps.mapPos(pos, src);
-        void Promise.resolve(this.deps.pdfDest(dst, mapped)).then((dest) => {
-            if (!dest) return;
-            return this.deps.pdfJump!(dst, dest).then((r) => {
-                if (!r) return;
-                this.deps.recordJump?.(dst, r.pre, r.post);
-                this.deps.pdfFlash?.(dst, r.post);
-            });
-        });
+        this.pdfJumpFlash(dst, this.deps.mapPos(pos, src));
     }
 
     /** 命令面入口：从 src 侧 bead 跳到对侧（sent.gotoPeer 同款路径）。 */
