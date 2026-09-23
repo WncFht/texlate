@@ -24,11 +24,6 @@
     z-index: 6;
 }
 
-/* 对照模式只留激活侧 rail——非激活窗格的 rail 白吃 34px 还引误触 */
-.panes:not(.single) .pane:not(.active) .pane-rail {
-    display: none;
-}
-
 .rail-btn {
     width: 26px;
     height: 26px;
