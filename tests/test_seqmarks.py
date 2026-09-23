@@ -1,0 +1,384 @@
+r"""seq 注锚（B 路 marked-content）——reconstruct 五闸 + resplice 偏移/自愈 + xelatex 实证。
+
+规格锚点 = docs/dev/pdf-seq-anchors-impl-2026-09-23.md §2/§5：
+``[[CHUNK_n]]`` 引用点按谓词包 ``\special{pdf:code /TLXC <</MCID 50000+seq>>
+BDC}…\special{pdf:code EMC}``——xdvipdfmx 落内容流、pdf.js ``includeMarkedContent``
+透出 ``span.markedContent[id$="_mc<N>"]``。五闸（skip ctx → 对齐 env → soul 栈 →
+moving-arg → 行间界）保守方向 = 判不出不注；``seq_mark_issues`` 失衡即
+``strip_seq_marks`` 全剥降级（丢锚不丢编译）。
+"""
+
+from __future__ import annotations
+
+import logging
+import re
+import shutil
+import subprocess
+from typing import TYPE_CHECKING
+
+import pytest
+from conftest import DOC, scan_doc
+
+from texlate.latex.reconstruct import (
+    _MARK_CLOSE,
+    _Expander,
+    _mark_open,
+    reconstruct,
+    seq_mark_issues,
+    strip_seq_marks,
+    translation_tokens,
+)
+from texlate.repair_l2 import TreeRun, _resplice
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    from texlate.latex.model import ScanResult
+
+_PROSE_A = (
+    "First paragraph text here that is long enough to be a chunk for sure yes indeed it is."
+)
+_PROSE_B = (
+    "Second paragraph also long enough to become its own chunk in the scan output."
+)
+_BODY2 = _PROSE_A + "\n\n" + _PROSE_B + "\n"
+_ZH2 = {0: "第一段译文。", 1: "第二段译文。"}
+_BASE = 50000  # SEQ_MARK_BASE
+
+
+def _mcid(seq: int) -> str:
+    return f"<</MCID {_BASE + seq}>>"
+
+
+def _mk_exp(
+    res: ScanResult,
+    trans: dict[int, str],
+    *,
+    mark_seq0: int = 0,
+    mark_moving: bool = False,
+) -> _Expander:
+    """顶层注锚口径的 expander（``glue_latin=True`` = 译文落盘侧同形）。"""
+    return _Expander(
+        res,
+        translation_tokens(res, trans),
+        glue_latin=True,
+        mark_seq0=mark_seq0,
+        mark_moving=mark_moving,
+    )
+
+
+# ---------------------------------------------------------------- 字节钉
+
+
+def test_marks_wrap_chunk_expansion() -> None:
+    """译文块引用点包 BDC…EMC——MCID = 50000+seq0+id 字节钉。"""
+    res = scan_doc(_BODY2)
+    zh = reconstruct(res, dict(_ZH2), mark_seq0=0)
+    assert _mark_open(0) + _ZH2[0] + _MARK_CLOSE in zh
+    assert _mark_open(1) + _ZH2[1] + _MARK_CLOSE in zh
+    assert seq_mark_issues(zh) == []
+
+
+def test_mark_seq0_offsets_mcid() -> None:
+    """跨文件 seq 基址：``mark_seq0=7`` → MCID 50007/50008（未译块同序注锚）。"""
+    res = scan_doc(_BODY2)
+    zh = reconstruct(res, {0: "译文零。"}, mark_seq0=7)
+    assert _mcid(7) in zh  # 已译块：译文包锚
+    assert _mcid(8) in zh  # 未译块：原文包锚（seq 是区格标识非译文标识）
+
+
+def test_identity_never_marks() -> None:
+    """``translations=None`` → identity 重建：永不注锚 + 字节等价原文。"""
+    res = scan_doc(_BODY2)
+    out = reconstruct(res, None, mark_seq0=0)
+    assert "TLXC" not in out
+    assert out == DOC % _BODY2
+    assert "TLXC" not in reconstruct(res)
+
+
+def test_mark_seq0_none_no_marks() -> None:
+    """有译文无 ``mark_seq0`` → 不注锚（旧调用面零副作用）。"""
+    res = scan_doc(_BODY2)
+    zh = reconstruct(res, dict(_ZH2))
+    assert "TLXC" not in zh
+    assert _ZH2[0] in zh
+
+
+def test_in_brace_arg_marks() -> None:
+    """``\\textbf{[[CHUNK_0]]}`` 内层 brace：whatsit 进 hmode 组合法 → 注锚。"""
+    res = scan_doc(_BODY2)
+    ex = _mk_exp(res, {0: "译文。"})
+    out = ex.expand_body(r"\textbf{[[CHUNK_0]]}", top=True)
+    assert out.startswith(r"\textbf{")
+    assert out.endswith("}")
+    assert _mark_open(0) + "译文。" + _MARK_CLOSE in out
+
+
+def test_non_chunk_ph_never_marked() -> None:
+    """非 ``[[CHUNK_n]]`` ph token（查无实体 → dangling 字面）→ 不注锚。"""
+    res = scan_doc(_BODY2)
+    ex = _mk_exp(res, {0: "译文。"})
+    out = ex.expand_body("pre [[MATH_9]] post", top=True)
+    assert "TLXC" not in out
+    assert "[[MATH_9]]" in out
+    assert "MATH_9" in ex.dangling or "[[MATH_9]]" in ex.dangling
+
+
+# ---------------------------------------------------------------- 五闸
+
+
+@pytest.mark.parametrize(
+    "env",
+    ["tabular", "tabularx", "longtable", "tblr", "array", "cases", "bmatrix", "nicetabular"],
+)
+def test_align_env_skips(env: str) -> None:
+    r"""对齐族 env（含 ``*matrix`` 后缀/``nice*`` 前缀形态）→ 行间 whatsit 免注。"""
+    res = scan_doc(_BODY2)
+    res.chunks[0].env = env
+    zh = reconstruct(res, dict(_ZH2), mark_seq0=0)
+    assert _mcid(0) not in zh  # chunk0 免注
+    assert _mcid(1) in zh  # chunk1 照注
+
+
+@pytest.mark.parametrize("ctx", ["section", "subsection", "caption", "addcontentsline"])
+def test_moving_ctx_skips_unless_allowed(ctx: str) -> None:
+    """moving-arg ctx：``mark_moving=False`` 免注（目录重放歧义）；True 放行。"""
+    res = scan_doc(_BODY2)
+    res.chunks[0].context = ctx
+    zh = reconstruct(res, dict(_ZH2), mark_seq0=0)
+    assert _mcid(0) not in zh
+    zh2 = reconstruct(res, dict(_ZH2), mark_seq0=0, mark_moving=True)
+    assert _mcid(0) in zh2
+
+
+@pytest.mark.parametrize("ctx", ["intertext", "shortintertext", "pdfbookmark", "index", "glossary"])
+def test_skip_ctx_always_skips(ctx: str) -> None:
+    """写流/书签类 ctx 硬免注——``mark_moving=True`` 也救不回。"""
+    res = scan_doc(_BODY2)
+    res.chunks[0].context = ctx
+    zh = reconstruct(res, dict(_ZH2), mark_seq0=0, mark_moving=True)
+    assert _mcid(0) not in zh
+
+
+@pytest.mark.parametrize("cs", ["ul", "hl", "sout", "uline", "uwave", "st", "letterspace"])
+def test_soul_stack_skips(cs: str) -> None:
+    r"""soul/ulem 族开栈内引用点 → 免注（whatsit 进参 = Reconstruction failed）。"""
+    res = scan_doc(_BODY2)
+    ex = _mk_exp(res, {0: "译文。"})
+    out = ex.expand_body("\\" + cs + "{[[CHUNK_0]]}", top=True)
+    assert "TLXC" not in out
+
+
+def test_soul_nested_stack_skips() -> None:
+    """嵌套 soul 栈同样免注；非 soul 包裹（``\\emph``）不拦。"""
+    res = scan_doc(_BODY2)
+    ex = _mk_exp(res, {0: "译文。"})
+    assert "TLXC" not in ex.expand_body(r"\emph{\ul{[[CHUNK_0]]}}", top=True)
+    out = ex.expand_body(r"\emph{[[CHUNK_0]]}", top=True)
+    assert _mark_open(0) in out
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "a b \\\\\n[[CHUNK_0]]",  # \\ 行尾紧贴
+        "a b \\\\[2pt]\n[[CHUNK_0]]",  # \\[opt] 行距参形态
+    ],
+)
+def test_row_tail_skips(body: str) -> None:
+    r"""chunk 前贴 ``\\``（含 ``[..]`` 垂直距参）→ 行间位免注。"""
+    res = scan_doc(_BODY2)
+    ex = _mk_exp(res, {0: "译文。"})
+    assert "TLXC" not in ex.expand_body(body, top=True)
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "[[CHUNK_0]] \\\\\n\\hline x",  # \\ 后继
+        "[[CHUNK_0]]\n\\hline x",  # \hline 后继
+        "[[CHUNK_0]]\n\\midrule x",
+        "[[CHUNK_0]]\n\\toprule\n",
+    ],
+)
+def test_row_head_skips(body: str) -> None:
+    r"""chunk 尾贴 ``\\``/行规族 token → 行间位免注（破 noalign 前瞻）。"""
+    res = scan_doc(_BODY2)
+    ex = _mk_exp(res, {0: "译文。"})
+    assert "TLXC" not in ex.expand_body(body, top=True)
+
+
+def test_row_gates_fall_back_to_site() -> None:
+    """顶层 piece 体首/尾空 → 查 ``_site_prev``/``_site_next``（相邻 piece 界）。"""
+    res = scan_doc(_BODY2)
+    ex = _mk_exp(res, {0: "译文。"})
+    ex.set_site(frozenset(), "a b \\\\", "")
+    assert "TLXC" not in ex.expand_body("[[CHUNK_0]]", top=True)
+    ex.set_site(frozenset(), "", "\\\\ x")
+    assert "TLXC" not in ex.expand_body("[[CHUNK_0]]", top=True)
+    ex.set_site(frozenset(), "", "")
+    assert _mark_open(0) in ex.expand_body("[[CHUNK_0]]", top=True)
+
+
+def test_nontop_empty_edge_never_marks() -> None:
+    """嵌套层（``top=False``）体外上下文不可知：首/尾空即弃注；有文则按 ROW 判。"""
+    res = scan_doc(_BODY2)
+    ex = _mk_exp(res, {0: "译文。"})
+    assert ex.expand_body("[[CHUNK_0]]", top=False) == "译文。"
+    assert "TLXC" not in ex.expand_body("  [[CHUNK_0]]", top=False)
+    assert _mark_open(0) in ex.expand_body("x [[CHUNK_0]] y", top=False)
+
+
+# ---------------------------------------------------------------- lint/剥面
+
+
+def test_seq_mark_issues_clean() -> None:
+    zh = _mark_open(0) + "a" + _MARK_CLOSE + _mark_open(1) + "b" + _MARK_CLOSE
+    assert seq_mark_issues(zh) == []
+
+
+def test_seq_mark_issues_imbalance_and_dup() -> None:
+    bad = _mark_open(0) + "a" + _MARK_CLOSE + _mark_open(0) + "b"  # dup MCID + 失衡
+    issues = seq_mark_issues(bad)
+    assert any("bdc=2 emc=1" in i for i in issues)
+    assert any("dup_mcid" in i and "50000" in i for i in issues)
+
+
+def test_strip_seq_marks_all() -> None:
+    zh = _mark_open(3) + "a" + _MARK_CLOSE + "mid" + _mark_open(4) + "b" + _MARK_CLOSE
+    stripped = strip_seq_marks(zh)
+    assert stripped == "amidb"
+    assert seq_mark_issues(stripped) == []
+
+
+# ---------------------------------------------------------------- resplice 面
+
+
+def _mk_run(
+    tmp_path: Path, files: dict[str, tuple[str, dict[int, str]]]
+) -> tuple[Path, TreeRun]:
+    """``{rel: (body, trans)}`` → workdir 落盘 + TreeRun（pipe 空——resplice 不触）。"""
+    work = tmp_path / "w"
+    scans = []
+    trans: dict[int, dict[int, str]] = {}
+    for i, (rel, (body, tr)) in enumerate(files.items()):
+        f = work / rel
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text(DOC % body, encoding="utf-8")
+        scans.append((f, scan_doc(body)))
+        if tr:
+            trans[i] = tr
+    return work, TreeRun(scans=scans, trans=trans, chunk_ins={}, pipe=None)
+
+
+def test_resplice_cross_file_seq_offset(tmp_path: Path) -> None:
+    """seq0 = 前序文件 chunk 累计——sub.tex 首块 MCID = 50000+2+0。"""
+    work, run = _mk_run(
+        tmp_path,
+        {
+            "main.tex": (_BODY2, dict(_ZH2)),
+            "sub.tex": (_PROSE_A + "\n", {0: "子文件译文。"}),
+        },
+    )
+    _resplice(run, work, "main.tex", {0, 1}, seq_marks=True)
+    main_zh = (work / "main.tex").read_text(encoding="utf-8")
+    sub_zh = (work / "sub.tex").read_text(encoding="utf-8")
+    assert _mcid(0) in main_zh
+    assert _mcid(1) in main_zh
+    assert _mcid(2) in sub_zh
+    assert seq_mark_issues(sub_zh) == []
+
+
+def test_resplice_seq_marks_off(tmp_path: Path) -> None:
+    """``seq_marks=False`` → 重写零锚（显式关优先级高于 env 决议）。"""
+    work, run = _mk_run(tmp_path, {"main.tex": (_BODY2, dict(_ZH2))})
+    _resplice(run, work, "main.tex", {0}, seq_marks=False)
+    zh = (work / "main.tex").read_text(encoding="utf-8")
+    assert "TLXC" not in zh
+    assert _ZH2[0] in zh
+
+
+def test_resplice_env_flag_default(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``seq_marks=None`` → ``TEXLATE_NO_SEQ_MARKS`` env 决议（缺省开）。"""
+    work, run = _mk_run(tmp_path, {"main.tex": (_BODY2, dict(_ZH2))})
+    monkeypatch.setenv("TEXLATE_NO_SEQ_MARKS", "1")
+    _resplice(run, work, "main.tex", {0})
+    assert "TLXC" not in (work / "main.tex").read_text(encoding="utf-8")
+    monkeypatch.delenv("TEXLATE_NO_SEQ_MARKS")
+    _resplice(run, work, "main.tex", {0})
+    assert "TLXC" in (work / "main.tex").read_text(encoding="utf-8")
+
+
+def test_resplice_moving_unsafe_vtex_demotes(tmp_path: Path) -> None:
+    r"""vtex 含 ``\tableofcontents`` → ``moving_ok=False``：moving ctx 免注、para 照注。"""
+    body = "\\tableofcontents\n\n" + _BODY2
+    work, run = _mk_run(tmp_path, {"main.tex": (body, dict(_ZH2))})
+    run.scans[0][1].chunks[0].context = "section"  # post-parse 改面（谓词直读 Chunk.context）
+    _resplice(run, work, "main.tex", {0}, seq_marks=True)
+    zh = (work / "main.tex").read_text(encoding="utf-8")
+    assert _mcid(0) not in zh  # section chunk 免注
+    assert _mcid(1) in zh  # para chunk 照注
+
+
+def test_resplice_imbalance_self_heal(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """译文夹带游离 EMC → BDC≠EMC 失衡 → 剥净降级（锚全丢换编译面干净）。"""
+    work, run = _mk_run(
+        tmp_path,
+        {"main.tex": (_BODY2, {0: "译文 " + _MARK_CLOSE + " 尾", 1: "二段。"})},
+    )
+    with caplog.at_level(logging.WARNING):
+        _resplice(run, work, "main.tex", {0}, seq_marks=True)
+    zh = (work / "main.tex").read_text(encoding="utf-8")
+    assert "TLXC" not in zh
+    assert "pdf:code EMC" not in zh
+    assert "imbalanced" in caplog.text
+
+
+# ---------------------------------------------------------------- xelatex 实证
+
+_XELATEX = shutil.which("xelatex")
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(_XELATEX is None, reason="xelatex not installed")
+def test_xelatex_marked_content_stream(tmp_path: Path) -> None:
+    r"""注锚稿真编译 → pypdf 解内容流 ``/TLXC <</MCID \d+>> BDC`` 在场 + log 无错位错。
+
+    ``\special{pdf:code}`` 经 xdvipdfmx 原样落流；ASCII 伪译文避开 CJK 字体面，
+    本钉只证 marked-content 存活与 ``Misplaced \noalign``/``Reconstruction failed``
+    缺席（pdf.js DOM 侧锚面由 web/scripts/pdfanchor_verify.mjs 覆盖）。
+    """
+    res = scan_doc(_BODY2)
+    zh = reconstruct(
+        res,
+        {0: "Translated paragraph one.", 1: "Translated paragraph two."},
+        mark_seq0=0,
+    )
+    main = tmp_path / "main.tex"
+    main.write_text(zh, encoding="utf-8")
+    subprocess.run(  # noqa: S603 -- argv[0] 来自 shutil.which 绝对路径
+        [_XELATEX, "-interaction=nonstopmode", "main.tex"],
+        cwd=tmp_path,
+        capture_output=True,
+        timeout=180,
+        check=False,
+    )
+    assert (tmp_path / "main.pdf").is_file()
+    log_text = (tmp_path / "main.log").read_text(encoding="utf-8", errors="replace")
+    assert "Reconstruction failed" not in log_text
+    assert "Misplaced" not in log_text
+
+    import pypdf  # noqa: PLC0415 -- integration 臂随用随引
+
+    reader = pypdf.PdfReader(str(tmp_path / "main.pdf"))
+    data = b"\n".join(
+        (p.get_contents().get_data() or b"") for p in reader.pages
+    )
+    mcids = re.findall(rb"/TLXC\s*<<\s*/MCID\s+(\d+)\s*>>\s*BDC", data)
+    assert b"50000" in mcids
+    assert b"50001" in mcids
+    assert len(re.findall(rb"\bEMC\b", data)) >= len(mcids)

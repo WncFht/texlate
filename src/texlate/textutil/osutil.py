@@ -114,6 +114,8 @@ ENV_NO_DOWNLOAD: Final = "TEXLATE_NO_DOWNLOAD"
 ENV_NO_FIXLOOP: Final = "TEXLATE_NO_FIXLOOP"
 #: L2 回灌关（缺省皆开，同 ``NO_*`` 族口径）。
 ENV_NO_L2: Final = "TEXLATE_NO_L2"
+#: zh.pdf seq marked-content 注锚关（缺省开——``options.seq_marks`` 同键）。
+ENV_NO_SEQ_MARKS: Final = "TEXLATE_NO_SEQ_MARKS"
 #: node 可执行路径（validate TS worker；缺省 ``shutil.which("node")``）。
 ENV_NODE: Final = "TEXLATE_NODE"
 #: 离线模式——只用本地缓存、零网络请求（``--offline`` 等效）。

@@ -24,8 +24,11 @@ from typing import TYPE_CHECKING, Any
 from texlate.compile.inject import InjectRejectError, prepare_chinese
 from texlate.compile.judge import paired_slot_diff
 from texlate.latex.reconstruct import (
+    MARK_MOVING_UNSAFE_RX,
     _Expander,
     reconstruct,
+    seq_mark_issues,
+    strip_seq_marks,
     translation_tokens,
 )
 from texlate.latex.tables import (
@@ -35,9 +38,11 @@ from texlate.latex.tables import (
     VERBATIM_ENVS,
 )
 from texlate.repair import log_text_of
+from texlate.textutil import env_flag, mask_tex
 from texlate.textutil.osutil import (  # noqa: F401 -- env 名钉点回引（字面量单源在 osutil 注册表）
     ENV_ENV_JUDGE,
     ENV_NO_L2,
+    ENV_NO_SEQ_MARKS,
 )
 from texlate.validate import l2 as l2_mod
 from texlate.xlat import prompts as xlat_prompts
@@ -567,13 +572,14 @@ async def retranslate_hits(
     return rep
 
 
-def _resplice_and_diffs(
+def _resplice_and_diffs(  # noqa: PLR0913 -- 注入面穿透（写盘/diff/锚三臂缝）
     run: TreeRun,
     work: Path,
     main_rel: str,
     fidxs: set[int],
     *,
     diffs: bool = True,
+    seq_marks: bool | None = None,
 ) -> tuple[list[str], dict[str, list[str]]]:
     """受影响文件 reconstruct 重写 + 写入即 ``paired_slot_diff`` 对账（单遍）。
 
@@ -583,15 +589,34 @@ def _resplice_and_diffs(
     ``prepare_chinese`` 重跑补 ctex 在全量写+diff 之后；注入后树级审计
     由 ``machine_slot_audit``（judge）覆盖。``diffs=False`` 跳过对账
     （``_resplice`` 写盘臂——调用方另走 ``_slot_diffs`` 盘后真值口径，
-    在手 diff 算了也丢）。
+    在手 diff 算了也丢）。``seq_marks`` 三态：None → ``TEXLATE_NO_SEQ_MARKS``
+    env 决议（缺省开）；重烘焙产物与 ``_build_zh`` 同 seq 口径
+    （``sum(len(chunks) for j < fidx)`` 基址）自动补锚，失衡即剥降级。
     """
+    marks_on = (
+        not env_flag(ENV_NO_SEQ_MARKS, default=False)
+        if seq_marks is None
+        else seq_marks
+    )
+    moving_ok = marks_on and not MARK_MOVING_UNSAFE_RX.search(
+        "\n".join(mask_tex(res.vtex) for _, res in run.scans)
+    )
     main_path = work / main_rel
     rewritten: list[str] = []
     diff_map: dict[str, list[str]] = {}
     touched_main = False
     for fidx in sorted(fidxs):
         f, res = run.scans[fidx]
-        zh = reconstruct(res, run.trans.get(fidx) or {})
+        seq0 = sum(len(run.scans[j][1].chunks) for j in range(fidx))
+        zh = reconstruct(
+            res,
+            run.trans.get(fidx) or {},
+            mark_seq0=seq0 if marks_on else None,
+            mark_moving=moving_ok,
+        )
+        if marks_on and (issues := seq_mark_issues(zh)):
+            log.warning("seq marks imbalanced in %s (%s); stripped", f, "; ".join(issues))
+            zh = strip_seq_marks(zh)
         f.write_text(zh, encoding="utf-8")
         rel = f.relative_to(work).as_posix()
         rewritten.append(rel)
@@ -605,14 +630,23 @@ def _resplice_and_diffs(
     return rewritten, diff_map
 
 
-def _resplice(run: TreeRun, work: Path, main_rel: str, fidxs: set[int]) -> list[str]:
+def _resplice(
+    run: TreeRun,
+    work: Path,
+    main_rel: str,
+    fidxs: set[int],
+    *,
+    seq_marks: bool | None = None,
+) -> list[str]:
     """受影响文件 reconstruct 重写；主文件重跑 ``prepare_chinese`` 补 ctex。
 
     ``_resplice_and_diffs`` 的写盘臂（worker ``_retr_resplice`` 旧签名档——
     其 ``_slot_diffs`` 盘后读回保留注入后磁盘真值口径，在手 diff 臂
     ``diffs=False`` 跳过不算）。
     """
-    return _resplice_and_diffs(run, work, main_rel, fidxs, diffs=False)[0]
+    return _resplice_and_diffs(
+        run, work, main_rel, fidxs, diffs=False, seq_marks=seq_marks
+    )[0]
 
 
 def _slot_diffs(run: TreeRun, work: Path, fidxs: set[int]) -> dict[str, list[str]]:
@@ -641,6 +675,7 @@ def l2_repair_round(  # noqa: C901, PLR0913 -- 阶梯直铺：钩子面穿透两
     recompile: Callable[[], tuple[CompRes, Verdict]],
     checkpoint: Callable[[], None] | None = None,
     baseline_sigs: set[str] | None = None,
+    seq_marks: bool | None = None,
 ) -> tuple[dict[str, Any], CompRes, Verdict | None]:
     """L2 回灌一轮骨架：归因 → 重译 → resplice → 重编 → 余孽回落原文。
 
@@ -651,7 +686,8 @@ def l2_repair_round(  # noqa: C901, PLR0913 -- 阶梯直铺：钩子面穿透两
     同位三处：重译前/后、首编后），缺省无操作。
     ``baseline_sigs`` 是 en 基线错误签名集（``err_signatures`` 快照）——
     命中判源生错不进归因面；两轮 localize（首归因 + 重编后余孽检测）
-    同口径过滤。返回 (l2 报告, 最新 CompRes, 新 Verdict 或 None=未重编)。
+    同口径过滤。``seq_marks`` 透传 ``_resplice_and_diffs``（None → env
+    决议）。返回 (l2 报告, 最新 CompRes, 新 Verdict 或 None=未重编)。
     """
     rep: dict[str, Any] = {"enabled": True, "cap": cap}
     hits, n_err = _l2_localize(work, run, res, baseline_sigs=baseline_sigs)
@@ -674,7 +710,9 @@ def l2_repair_round(  # noqa: C901, PLR0913 -- 阶梯直铺：钩子面穿透两
         return rep, last_res, None
 
     fidxs = {split_cid(c)[0] for c in changed}
-    rep["rewritten"], diffs = _resplice_and_diffs(run, work, main_rel, fidxs)
+    rep["rewritten"], diffs = _resplice_and_diffs(
+        run, work, main_rel, fidxs, seq_marks=seq_marks
+    )
     if diffs:
         rep["slot_diffs"] = diffs
     res2, v2 = recompile()
@@ -697,7 +735,7 @@ def l2_repair_round(  # noqa: C901, PLR0913 -- 阶梯直铺：钩子面穿透两
             run.trans.get(fidx, {}).pop(ccid, None)
         fb_fidxs = {split_cid(c)[0] for c in still_bad}
         rep["fallback_rewritten"], fb_diffs = _resplice_and_diffs(
-            run, work, main_rel, fb_fidxs
+            run, work, main_rel, fb_fidxs, seq_marks=seq_marks
         )
         if fb_diffs:
             rep["fallback_slot_diffs"] = fb_diffs

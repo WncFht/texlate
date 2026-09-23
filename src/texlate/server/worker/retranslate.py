@@ -18,6 +18,7 @@ import threading
 from typing import TYPE_CHECKING, Any
 
 from texlate.compile.judge import judge
+from texlate.pipecore import _opt_switch
 from texlate.repair_l2 import (
     _resplice,
     _slot_diffs,
@@ -25,7 +26,7 @@ from texlate.repair_l2 import (
 )
 from texlate.server.settings import scrub
 from texlate.textutil import env_str
-from texlate.textutil.osutil import ENV_TRANSLATOR
+from texlate.textutil.osutil import ENV_NO_SEQ_MARKS, ENV_TRANSLATOR
 
 from ._common import (
     TaskCtx,
@@ -181,7 +182,15 @@ class _Retranslate:
 
     def _retr_resplice(self, ctx: TaskCtx, run: TreeRun, fidx: int) -> None:
         """受影响文件 reconstruct 重写进 ``zh/`` + 编译哨兵失效 + zh-src.zip 重打。"""
-        rewritten = _resplice(run, ctx.zh_dir, ctx.main_rel, {fidx})
+        rewritten = _resplice(
+            run,
+            ctx.zh_dir,
+            ctx.main_rel,
+            {fidx},
+            seq_marks=_opt_switch(
+                ctx.options(), "seq_marks", ENV_NO_SEQ_MARKS, explicit=None
+            ),
+        )
         for rel, notes in _slot_diffs(run, ctx.zh_dir, {fidx}).items():
             self._log(
                 ctx, f"retranslate slotdiff {rel}: {'; '.join(notes)}", force=True

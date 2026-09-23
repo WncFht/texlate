@@ -20,11 +20,17 @@ from texlate.compile.probe import (
     deps_diff,
 )
 from texlate.latex.placeholder import PH_RX
-from texlate.latex.reconstruct import reconstruct
+from texlate.latex.reconstruct import (
+    MARK_MOVING_UNSAFE_RX,
+    reconstruct,
+    seq_mark_issues,
+    strip_seq_marks,
+)
 from texlate.pipecore import (
     DB_TO_PIPE,
     PipeJob,
     RepairPolicy,
+    _opt_switch,
     compile_judge,
     delivered_db,
     fixloop_flags_tail,
@@ -57,8 +63,8 @@ from texlate.server.upload import (
     _md_member,
     pdf_pages,
 )
-from texlate.textutil import env_flag, env_str
-from texlate.textutil.osutil import ENV_TRANSLATOR
+from texlate.textutil import env_flag, env_str, mask_tex
+from texlate.textutil.osutil import ENV_NO_SEQ_MARKS, ENV_TRANSLATOR
 from texlate.validate.l0 import pair_feedback
 from texlate.xlat.client import DEFAULT_MODEL
 from texlate.xlat.pipeline import (
@@ -136,6 +142,24 @@ def _fixloop_summary(cell: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _seq_mark_scrub(rel: str, suffix: str, src: bytes) -> bytes:
+    """``.tex`` 回灌件的 seq 锚失衡 lint——BDC/EMC 不配平或 MCID 重复时剥全锚。
+
+    fixloop 改写可能拆散 BDC/EMC 对或复制出重复 MCID（fileset_relocate
+    同锚双份）；剥锚换编译面干净，锚面降级模糊匹配（pdf.js 对失衡本就
+    容忍，此处是双保险不阻断）。
+    """
+    if suffix != ".tex" or b"TLXC" not in src:
+        return src
+    issues = seq_mark_issues(src.decode("utf-8", errors="replace"))
+    if not issues:
+        return src
+    log.warning(
+        "seq marks imbalanced in %s (%s); stripped", rel, "; ".join(issues)
+    )
+    return strip_seq_marks(src.decode("utf-8", errors="replace")).encode("utf-8")
+
+
 def _sync_fixed_sources(work: Path, zh: Path) -> int:
     """Fixloop 改动回灌：``work`` 内 TeX 输入层文件 → ``zh/`` 镜像（含删除）。
 
@@ -157,9 +181,10 @@ def _sync_fixed_sources(work: Path, zh: Path) -> int:
             continue
         keep.add(rel.as_posix())
         dst = zh / rel
-        if not dst.is_file() or dst.read_bytes() != f.read_bytes():
+        src = _seq_mark_scrub(rel.as_posix(), f.suffix.lower(), f.read_bytes())
+        if not dst.is_file() or dst.read_bytes() != src:
             dst.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(f, dst)
+            dst.write_bytes(src)
             n += 1
     for f in zh.rglob("*"):
         if not f.is_file():
@@ -328,9 +353,18 @@ class _Compile:
         shutil.copytree(ctx.base_dir, ctx.zh_dir)
         rows = self._on_loop(self._all_chunks, ctx)
         trans = self._env_judge_filter(ctx, _delivered_map(rows), rows)
+        marks_on = _opt_switch(
+            ctx.options(), "seq_marks", ENV_NO_SEQ_MARKS, explicit=None
+        )
+        moving_ok = marks_on and not MARK_MOVING_UNSAFE_RX.search(
+            "\n".join(mask_tex(res.vtex) for res in ctx.scans.values())
+        )
         n_files = 0
+        seq0 = 0
         for rel, res in ctx.scans.items():
             self._abort_if_cancelled(ctx)  # 逐文件 reconstruct——大工程秒级段
+            cur0 = seq0
+            seq0 += len(res.chunks)  # 无条件累计——跳译文件 seq 仍占位
             by_int: dict[int, str] = {}
             for c in res.chunks:
                 cid = chunk_db_id(rel, c.span.start, c.span.end)
@@ -339,7 +373,15 @@ class _Compile:
                     by_int[c.id] = zh
             if not by_int:
                 continue
-            out = reconstruct(res, by_int)
+            out = reconstruct(
+                res,
+                by_int,
+                mark_seq0=cur0 if marks_on else None,
+                mark_moving=moving_ok,
+            )
+            if marks_on and (issues := seq_mark_issues(out)):
+                self._log(ctx, f"seqmarks {rel} 失衡({'; '.join(issues)})——剥锚降级")
+                out = strip_seq_marks(out)
             if notes := paired_slot_diff(res.vtex, out, rel):
                 self._log(ctx, f"slotdiff {rel}: {'; '.join(notes)}")
             (ctx.zh_dir / rel).write_text(out, encoding="utf-8")
@@ -935,6 +977,9 @@ class _Compile:
                     lambda t, p: self._repair_event(ctx, t, p),
                 ),
                 baseline_sigs=self._en_err_sigs(ctx),
+                seq_marks=_opt_switch(
+                    ctx.options(), "seq_marks", ENV_NO_SEQ_MARKS, explicit=None
+                ),
             )
         finally:
             # L2 重译也烧 token——不入账就从 task_usage 里蒸发；clients

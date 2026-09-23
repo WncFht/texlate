@@ -39,7 +39,12 @@ from texlate.compile.engine import engine_for
 from texlate.compile.judge import Verdict, judge, paired_slot_diff
 from texlate.compile.probe import target_probe
 from texlate.latex.api import scan_tex_tree
-from texlate.latex.reconstruct import reconstruct
+from texlate.latex.reconstruct import (
+    MARK_MOVING_UNSAFE_RX,
+    reconstruct,
+    seq_mark_issues,
+    strip_seq_marks,
+)
 from texlate.repair import (
     ENV_FIXLOOP_LLM,
     ENV_NO_FIXLOOP,
@@ -60,8 +65,8 @@ from texlate.repair_l2 import (
     split_cid,
     unknown_env_of,
 )
-from texlate.textutil import PH_RX, env_flag, env_str
-from texlate.textutil.osutil import ENV_FRONT_MATTER
+from texlate.textutil import PH_RX, env_flag, env_str, mask_tex
+from texlate.textutil.osutil import ENV_FRONT_MATTER, ENV_NO_SEQ_MARKS
 from texlate.validate.l0 import pair_feedback
 from texlate.xlat.client import DEFAULT_MODEL
 from texlate.xlat.glossary import Glossary
@@ -329,6 +334,7 @@ def translate_tree_run(  # noqa: PLR0913 -- 注入面穿透（scan/validator/sin
     validator: Callable[[str, str], str] | None = None,
     front_matter: frozenset[str] = frozenset(),
     sink: ReportSink = NULL_SINK,
+    seq_marks: bool | None = None,
 ) -> tuple[dict[str, Any], TreeRun, list[ChunkResult]]:
     """目录树翻译 + splice 写回 → ``(stats, TreeRun, 逐块 results)``。
 
@@ -342,6 +348,9 @@ def translate_tree_run(  # noqa: PLR0913 -- 注入面穿透（scan/validator/sin
     ``sink`` 收 ``translate`` 实况帧：scan 后 ``start``（载 total/files，
     CLI 靠它建进度条——裸 ``on_result`` 拿不到总量）、逐块 ``chunk``
     （done/total/status/chunk_id）、splice 后 ``done``（载 stats）。
+    ``seq_marks`` 三态：None → ``TEXLATE_NO_SEQ_MARKS`` env 决议（缺省开）
+    ——splice 时 ``[[CHUNK_n]]`` 按 seq（scans 序累计）注 marked-content
+    锚，失衡文件剥锚降级。
     """
     scan = (
         (lambda r: scan_tree(r, front_matter=front_matter))
@@ -404,11 +413,28 @@ def translate_tree_run(  # noqa: PLR0913 -- 注入面穿透（scan/validator/sin
     n_files = 0
     n_leftover = 0
     slot_diffs: dict[str, list[str]] = {}
+    marks_on = _opt_switch(None, "seq_marks", ENV_NO_SEQ_MARKS, explicit=seq_marks)
+    moving_ok = marks_on and not MARK_MOVING_UNSAFE_RX.search(
+        "\n".join(mask_tex(res.vtex) for _, res in scans)
+    )
+    seq0 = 0
     for idx, (f, res) in enumerate(scans):
+        cur0 = seq0
+        seq0 += len(res.chunks)  # 无条件累计——跳译文件 seq 仍占位
         trans = by_file.get(idx)
         if not trans:
             continue
-        zh = reconstruct(res, trans)
+        zh = reconstruct(
+            res,
+            trans,
+            mark_seq0=cur0 if marks_on else None,
+            mark_moving=moving_ok,
+        )
+        if marks_on and (issues := seq_mark_issues(zh)):
+            log.warning(
+                "seq marks imbalanced in %s (%s); stripped", f, "; ".join(issues)
+            )
+            zh = strip_seq_marks(zh)
         f.write_text(zh, encoding="utf-8")
         rel = f.relative_to(root).as_posix()
         if notes := paired_slot_diff(res.vtex, zh, rel):
@@ -727,6 +753,7 @@ def l2_repair(  # noqa: PLR0913 -- 阶梯钩子面穿透（与 l2_repair_round �
     checkpoint: Callable[[], None] | None = None,
     sink: ReportSink = NULL_SINK,
     baseline_sigs: set[str] | None = None,
+    seq_marks: bool | None = None,
 ) -> tuple[dict[str, Any], CompRes, Verdict | None]:
     """L2 回灌一轮 + done 实况帧（``sink.event`` 平铺统计键 + report 全量）。
 
@@ -735,7 +762,8 @@ def l2_repair(  # noqa: PLR0913 -- 阶梯钩子面穿透（与 l2_repair_round �
     平铺键 ``enabled/errors/retranslated/fallback`` 前端卡片直读，
     ``report`` 载全量 rep（worker 侧经 ``_repair_event`` scrub）。
     ``baseline_sigs`` 透传 ``l2_repair_round``——en 基线签名命中判源生
-    不进归因面。返回 (l2 报告, 最新 CompRes, 新 Verdict 或 None=未重编)。
+    不进归因面。``seq_marks`` 同路透传（None → env 决议）。返回
+    (l2 报告, 最新 CompRes, 新 Verdict 或 None=未重编)。
     """
     rep, last_res, v = l2_repair_round(
         run,
@@ -747,6 +775,7 @@ def l2_repair(  # noqa: PLR0913 -- 阶梯钩子面穿透（与 l2_repair_round �
         recompile=recompile,
         checkpoint=checkpoint,
         baseline_sigs=baseline_sigs,
+        seq_marks=seq_marks,
     )
     sink.event(
         "l2",

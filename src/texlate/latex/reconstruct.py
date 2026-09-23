@@ -23,10 +23,14 @@ import logging
 import re
 from collections import Counter
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from texlate.latex.model import Chunk, ScanResult, ScanWarning, Span
 from texlate.latex.placeholder import CHUNK_RX, PH_RX
 from texlate.textutil import CJK_RANGES, mask_tex, needs_seam_space
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 log = logging.getLogger(__name__)
 
@@ -271,6 +275,180 @@ def translation_tokens(
     }
 
 
+# ---------------------------------------------------------------- seq 锚标记
+#: zh.pdf seq 注锚（docs/dev/pdf-seq-anchors-impl-2026-09-23.md）：xdvipdfmx
+#: 血统引擎（xelatex/tectonic）把 ``\special{pdf:code ...}`` 原样落内容流；
+#: pdf.js ``includeMarkedContent`` 透出 ``{tag,id}`` → textLayer 产
+#: ``span.markedContent[id$="_mc<N>"]``——``N - SEQ_MARK_BASE`` 即 chunk
+#: seq。whatsit 排版代价实测：块界 vmode 零漂移、段内 hmode ≤2.3bp；跨页
+#: 不配平 pdf.js 容忍（页尾自闭合/页首孤儿丢弃）——DOM 不损，最差=部分锚。
+SEQ_MARK_TAG = "TLXC"
+SEQ_MARK_BASE = 50000  # mcid = SEQ_MARK_BASE + seq；避开文档自有 tagpdf MCID
+
+
+def _mark_open(seq: int) -> str:
+    """BDC 头——``/TLXC`` 恒定 tag + ``/MCID`` 载 seq（pdf.js 须 MCID 才发 DOM id）。"""
+    return (
+        "\\special{pdf:code /"
+        + SEQ_MARK_TAG
+        + " <</MCID "
+        + str(SEQ_MARK_BASE + seq)
+        + ">> BDC}"
+    )
+
+
+_MARK_CLOSE = "\\special{pdf:code EMC}"
+
+#: lint/剥面 token 集——inline 形态可不在行首，剥 token 非剥行。
+SEQ_MARK_OPEN_RX = re.compile(
+    r"\\special\{pdf:code /" + SEQ_MARK_TAG + r" <</MCID (\d+)>> BDC\}"
+)
+_SEQ_MARK_EMC_RX = re.compile(r"\\special\{pdf:code EMC\}")
+SEQ_MARK_RX = re.compile(
+    r"\\special\{pdf:code (?:/" + SEQ_MARK_TAG + r" <</MCID \d+>> BDC|EMC)\}"
+)
+
+#: soul/ulem 族逐 token 重扫参数——whatsit 进参 = "Reconstruction failed"
+#: 编译错。包围 cs-brace 栈命中即免注（16KB 内有限回溯，深嵌套残余登记）。
+_MARK_SOUL_CS = frozenset(
+    {
+        "ul", "hl", "sout", "xout", "dashuline", "dotuline", "uline", "uwave",
+        "st", "caps", "so", "letterspace", "markoverwith",
+    }
+)
+
+#: 对齐族 env——行间 whatsit（``\\`` 与 ``\hline`` 间）→ Misplaced \noalign。
+_MARK_ALIGN_ENVS = frozenset(
+    {
+        "tabular", "tabularx", "tabulary", "tabu", "longtabu", "tblr",
+        "longtblr", "talltblr", "longtable", "deluxetable", "planotable",
+        "tabbing", "supertabular", "xtabular", "ltablex", "nicetabular",
+        "nicearray", "array", "matrix", "pmatrix", "bmatrix", "vmatrix",
+        "smallmatrix", "cases", "blockarray",
+    }
+)
+
+#: moving-arg context——``\protected@write`` 把参数字面写 .toc/.lof/.lot：
+#: 目录页重放同 MCID = 锚歧义；hyperref ``\pdfstringdef`` 剥 special 告警。
+#: 调用方 ``mark_moving=True`` 证明无该面后放行。
+_MARK_MOVING_CTX = frozenset(
+    {
+        "section", "subsection", "subsubsection", "paragraph", "subparagraph",
+        "chapter", "part", "sect", "subsect", "caption", "subcaption",
+        "captionof", "tablecaption", "addcontentsline",
+    }
+)
+
+#: 写流/书签类 context——whatsit 进参无锚收益且污染 .idx/.out。
+_MARK_SKIP_CTX = frozenset(
+    {"intertext", "shortintertext", "pdfbookmark", "index", "glossary"}
+)
+
+#: chunk 尾贴 ``\\``/行规族 token = 行间位——whatsit 破 align_peek
+#: noalign 资格（未登记对齐 env 的冗余闸；``\end{`` 合法不在表内）。
+_MARK_ROW_HEAD_RX = re.compile(
+    r"^\s*(?:\\\\|\\(?:hline|noalign|midrule|cline|cmidrule|toprule|bottomrule"
+    r"|specialrule|morecmidrules)\b)"
+)
+
+#: chunk 前贴 ``\\``（可带 ``[..]`` 垂直距参）——BMC 落 ``\\`` 与行间
+#: 材料间同样破 noalign 前瞻。
+_MARK_ROW_TAIL_RX = re.compile(r"\\\\(?:\[[^\]]*\])?\s*$")
+
+#: moving-arg 放行探针（调用方对全部 vtex 扫一遍——目录/listof/hyperref
+#: 任一在场即 ``mark_moving=False``；``hyperref`` 裸词匹 usepackage/RequirePackage
+#: 两行，误伤面是自定义同名宏→不注锚降级，方向安全）。
+MARK_MOVING_UNSAFE_RX = re.compile(
+    r"\\(?:tableofcontents|listoffigures|listoftables|listofalgorithms?)\b|hyperref"
+)
+
+_BRACE_TOK_RX = re.compile(r"\\([a-zA-Z@]+\*?)[ \t]*\{|[{}]")
+
+
+def _brace_events(text: str) -> Iterator[tuple[str, str | None]]:
+    r"""``\\cs{``/``{``/``}`` 事件流（``\\{`` 字面豁免——前驱奇数个 ``\\``）。"""
+    for m in _BRACE_TOK_RX.finditer(text):
+        g = m.group(0)
+        if g == "}":
+            yield ("close", None)
+            continue
+        i = m.end() - 1  # '{' 位置
+        bs = 0
+        while i - bs - 1 >= 0 and text[i - bs - 1] == "\\":
+            bs += 1
+        if bs % 2:
+            continue  # \{ 字面花括号
+        yield ("open", m.group(1))
+
+
+def _open_cs(text: str) -> frozenset[str]:
+    r"""扫描末尾仍开放的 ``\\cs{`` 名集（小写、去星、无名组不记名）。"""
+    stack: list[str | None] = []
+    for ev, name in _brace_events(text):
+        if ev == "open":
+            stack.append(name)
+        elif stack:
+            stack.pop()
+    return frozenset(
+        n.rstrip("*").lower() for n in stack if n is not None
+    )
+
+
+def _piece_site_map(res: ScanResult) -> dict[int, frozenset[str]]:
+    r"""``piece.span.start`` → 该点包围 ``\\cs{`` 名集（mask_tex 单遍+边界快照）。
+
+    verbatim/comment 体等长遮盖——其内 ``{}``/``\\cs`` 不可见；piece 起点
+    恰在 ``{`` 位时该括号未入栈（piece 内字面侧由 ``_open_cs`` 前缀补）。
+    """
+    masked = mask_tex(res.protected_tex)
+    out: dict[int, frozenset[str]] = {}
+    stack: list[str | None] = []
+    starts = iter(sorted(p.span.start for p in res.pieces))
+    start = next(starts, None)
+
+    def snap() -> frozenset[str]:
+        return frozenset(n.rstrip("*").lower() for n in stack if n is not None)
+
+    for m in _BRACE_TOK_RX.finditer(masked):
+        while start is not None and start <= m.start():
+            out[start] = snap()
+            start = next(starts, None)
+        g = m.group(0)
+        if g == "}":
+            if stack:
+                stack.pop()
+            continue
+        i = m.end() - 1
+        bs = 0
+        while i - bs - 1 >= 0 and masked[i - bs - 1] == "\\":
+            bs += 1
+        if bs % 2:
+            continue
+        stack.append(m.group(1))
+    while start is not None:
+        out[start] = snap()
+        start = next(starts, None)
+    return out
+
+
+def seq_mark_issues(text: str) -> list[str]:
+    """注锚失衡诊断：BDC/EMC 数差 + MCID 重复（``[]`` = 干净；lint 判据）。"""
+    opens = SEQ_MARK_OPEN_RX.findall(text)
+    emc = len(_SEQ_MARK_EMC_RX.findall(text))
+    issues: list[str] = []
+    if len(opens) != emc:
+        issues.append(f"bdc={len(opens)} emc={emc}")
+    dup = sorted(m for m, n in Counter(opens).items() if n > 1)
+    if dup:
+        issues.append("dup_mcid=" + ",".join(dup[:5]))
+    return issues
+
+
+def strip_seq_marks(text: str) -> str:
+    """剥全部注锚 token（fixloop 失衡降级——锚全丢换编译面干净）。"""
+    return SEQ_MARK_RX.sub("", text)
+
+
 class _Expander:
     r"""``[[X_n]]`` 占位符 DAG 递归展开器（``reconstruct``/``chunk_spans`` 单源）。
 
@@ -282,13 +460,30 @@ class _Expander:
     """
 
     def __init__(
-        self, res: ScanResult, trans_map: dict[str, str], *, glue_latin: bool
+        self,
+        res: ScanResult,
+        trans_map: dict[str, str],
+        *,
+        glue_latin: bool,
+        mark_seq0: int | None = None,
+        mark_moving: bool = False,
     ) -> None:
         self.res = res
         self.trans = trans_map
         self.glue_latin = glue_latin
         self.memo: dict[str, str] = {}
         self.active: set[str] = set()
+        # seq 注锚表：{chunk_idx: seq}；None → 不注锚（identity/chunk_spans 同径）
+        self.mark = (
+            {c.id: mark_seq0 + c.id for c in res.chunks}
+            if mark_seq0 is not None
+            else None
+        )
+        self.mark_moving = mark_moving
+        # piece 级 site 上下文（顶层 expand_body 前由 reconstruct 逐 piece 写入）
+        self._site_cs: frozenset[str] = frozenset()
+        self._site_prev = ""
+        self._site_next = ""
         # 查无实体的 ph token——留字面并记名（原静默残留）
         self.dangling: set[str] = set()
         # 短参 chunk 集：context 非 para/item 的已译 [[CHUNK_n]]——展开后
@@ -324,7 +519,69 @@ class _Expander:
         self.active.discard(token)
         return memo[token]
 
-    def expand_body(self, body: str, *, fold_par: bool = False) -> str:
+    def set_site(
+        self, cs: frozenset[str], prev: str, nxt: str
+    ) -> None:
+        """Piece 级 site 上下文写入——``reconstruct`` 逐顶层 piece 调用。"""
+        self._site_cs = cs
+        self._site_prev = prev
+        self._site_next = nxt
+
+    def _mark_seq(  # noqa: C901, PLR0911, PLR0912 — 五闸顺序短路，逐条直铺即谓词清单
+        self, tok: str, body: str, mstart: int, mend: int, *, top: bool
+    ) -> int | None:
+        r"""引用点注锚判定——seq 或 None（保守方向：判不出=不注，丢锚不丢编译）。
+
+        谓词全貌见 docs/dev/pdf-seq-anchors-impl-2026-09-23.md §2.2：
+        soul 栈/对齐 env/skip context/moving-arg/行间界五闸。``top`` 区分
+        顶层 piece 体（前后文可查 ``_site_prev/_site_next``）与嵌套体
+        （体外上下文不可知→首尾判不出即弃注）。
+        """
+        if self.mark is None:
+            return None
+        m = CHUNK_RX.fullmatch(tok)
+        if not m:
+            return None
+        idx = int(m.group(1))
+        if not (0 <= idx < len(self.res.chunks)):
+            return None
+        chunk = self.res.chunks[idx]
+        ctx = (chunk.context or "").lower()
+        if ctx in _MARK_SKIP_CTX:
+            return None
+        env = (chunk.env or "").lower().rstrip("*")
+        if env in _MARK_ALIGN_ENVS or env.endswith("matrix") or env.startswith("nice"):
+            return None
+        site_cs = self._site_cs | _open_cs(body[:mstart])
+        if site_cs & _MARK_SOUL_CS:
+            return None
+        if not self.mark_moving and (
+            ctx in _MARK_MOVING_CTX or site_cs & _MARK_MOVING_CTX
+        ):
+            return None
+        pre = body[:mstart]
+        if pre.strip():
+            if _MARK_ROW_TAIL_RX.search(pre):
+                return None
+        elif top:
+            if _MARK_ROW_TAIL_RX.search(self._site_prev):
+                return None
+        else:
+            return None
+        post = body[mend:]
+        if post.strip():
+            if _MARK_ROW_HEAD_RX.match(post):
+                return None
+        elif top:
+            if _MARK_ROW_HEAD_RX.match(self._site_next):
+                return None
+        else:
+            return None
+        return self.mark.get(idx)
+
+    def expand_body(
+        self, body: str, *, fold_par: bool = False, top: bool = False
+    ) -> str:
         r"""字面+ph 交错体展开——token 递归展开后过接缝守卫。
 
         ``fold_par`` 折叠域 = 本层字面段 + 字面↔ph 接缝；嵌套 ph 展开体
@@ -346,7 +603,7 @@ class _Expander:
             segs.append(seg)
             prev_ph = False
 
-        def push_ph(tok: str) -> None:
+        def push_ph(tok: str, mstart: int, mend: int) -> None:
             nonlocal prev_ph
             exp = self.expand(tok)
             if (
@@ -357,27 +614,59 @@ class _Expander:
                 and segs[-1].endswith("\n")
             ):
                 segs[-1] = segs[-1][:-1]
+            seq = self._mark_seq(tok, body, mstart, mend, top=top)
+            if seq is not None and exp != tok:
+                exp = _mark_open(seq) + exp + _MARK_CLOSE
             segs.append(exp)
             prev_ph = True
 
         pos = 0
         for mm in PH_RX.finditer(body):
             push_literal(body[pos : mm.start()])
-            push_ph(mm.group(0))
+            push_ph(mm.group(0), mm.start(), mm.end())
             pos = mm.end()
         push_literal(body[pos:])
         return seg_join(segs) if self.glue_latin else "".join(segs)
 
 
-def reconstruct(res: ScanResult, translations: dict[int, str] | None = None) -> str:
-    """按 pieces splice + 占位符 DAG 递归展开（docs/spec/latex-pipeline.md 伪码原样）。
+def reconstruct(
+    res: ScanResult,
+    translations: dict[int, str] | None = None,
+    *,
+    mark_seq0: int | None = None,
+    mark_moving: bool = False,
+) -> str:
+    r"""按 pieces splice + 占位符 DAG 递归展开（docs/spec/latex-pipeline.md 伪码原样）。
 
-    ``translations``：``{chunk_id: 译文}``；None → identity 重建。
+    ``translations``：``{chunk_id: 译文}``；None → identity 重建（永不注锚，
+    字节等价原文）。``mark_seq0`` 给本文件 seq 基址——非 None 且有译文时
+    ``[[CHUNK_n]]`` 引用点按安全谓词包 ``/TLXC <</MCID 50000+seq>> BDC``
+    marked-content 锚（seq = mark_seq0 + chunk 下标）；``mark_moving`` 由
+    调用方证明无 ``\\tableofcontents``/``\\listof*``/hyperref 后放行
+    moving-arg chunk。
     """
     glue_latin = translations is not None
-    ex = _Expander(res, translation_tokens(res, translations), glue_latin=glue_latin)
+    marking = translations is not None and mark_seq0 is not None
+    ex = _Expander(
+        res,
+        translation_tokens(res, translations),
+        glue_latin=glue_latin,
+        mark_seq0=mark_seq0 if marking else None,
+        mark_moving=mark_moving,
+    )
     # LITERAL 段也可能内嵌 ph（短 run / MINED_ONLY run 发渲染文本）——全段展开。
-    out = [ex.expand_body(p.text) for p in res.pieces]
+    if marking:
+        sites = _piece_site_map(res)
+        out = []
+        for i, p in enumerate(res.pieces):
+            ex.set_site(
+                sites.get(p.span.start, frozenset()),
+                res.pieces[i - 1].text[-64:] if i else "",
+                res.pieces[i + 1].text[:64] if i + 1 < len(res.pieces) else "",
+            )
+            out.append(ex.expand_body(p.text, top=True))
+    else:
+        out = [ex.expand_body(p.text) for p in res.pieces]
     result = seg_join(out) if glue_latin else "".join(out)
     if ex.dangling:
         log.warning(
