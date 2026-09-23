@@ -56,6 +56,7 @@ from .layout import (  # noqa: F401 — C4 出叶回引：layout 缝原语转 _s
     inject_float_sizing,
     inject_table_fitting,
 )
+from .marks import inject_layout_marks  # noqa: F401 — 同 C4 转引面
 from .mainfile import (  # noqa: F401 — C4 出叶回引：find_main_tex/_walk_inputs 等公共+私名钉点面守恒
     _MAIN_TEX_SUFFIXES,
     _resolve_input,
@@ -674,6 +675,7 @@ def prepare_chinese(
     mode: str = "ctex",
     float_sizing: bool = True,
     demote_wrap: bool = True,
+    layout_marks: bool = False,
 ) -> dict:
     r"""工程级中文注入编排：ctex/xeCJK 注入 + 浮体钩子 + wrapfloat 降级。
 
@@ -711,4 +713,8 @@ def prepare_chinese(
         info["wrapfloats_demoted"] = demote_wrapfloats(root)
     if float_sizing:
         info["float_sizing"] = inject_float_sizing(root)
+    if layout_marks:
+        # 末位注入：marks 钩子面要在 FLOAT_SIZING 对 ``\@endfloatbox``
+        # 的补丁就位之后再注册，读到的才是手术后尺寸。
+        info["layout_marks"] = inject_layout_marks(root)
     return info
