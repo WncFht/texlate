@@ -21,7 +21,7 @@ from texlate.server.settings import (
 from texlate.textutil import env_flag, env_str
 from texlate.textutil.osutil import ENV_TRANSLATOR
 from texlate.validate.l0 import pair_feedback
-from texlate.xlat.client import DEFAULT_MODEL, ChatClient, UsageRecord
+from texlate.xlat.client import DEFAULT_MODEL, AuthError, ChatClient, UsageRecord
 from texlate.xlat.glossary import (
     LOCAL_GLOSSARY_NAME,
     Glossary,
@@ -105,6 +105,62 @@ def _repend_puts(
     cut = len(cache._prefix) + 1  # noqa: SLF001 -- 回挂须剥全键前缀（类无公共面）
     for key, translation, _model, _lang in puts:
         cache[key[cut:]] = translation
+
+
+class _NullCache(SegmentCache):
+    """段缓存全哑面（M1 防毒围栅）：读只认本 run 自写、``drain`` 恒空不落库。
+
+    适用面在 ``_make_cache`` 判定——段缓存键指纹不含凭证，无 key/mock
+    形态写出的占位译文会跨凭证命中续毒（实测 fresh+真 key 重交同论文
+    仍 67% 段命中 mock 缓存）；结构性短路比事后清洗可靠。
+
+    ``_pending``/``_written`` 保留 run 内 dedup 语义（同文档重复段只译
+    一次——``no_seg_cache`` 的重跑臂不为每条重复句白烧 token）；落盘
+    面整层短路。继承只为 ``SegmentCache`` 注解位兼容（``_stage_translate``
+    /``_flush_translate``/``_repend_puts``），``__init__`` 不走父类——无
+    store/prefix 绑定，所有触库方法全部覆写。
+    """
+
+    def __init__(self) -> None:
+        self.hits = 0
+        self._prefix = ""
+        self._pending: dict[str, str] = {}
+        self._written: dict[str, str] = {}
+
+    def prewarm(self, seg_keys: Iterable[str]) -> None:
+        """无持久面可预载——读面只有本 run 自写内存层。"""
+
+    def __contains__(self, seg_key: object) -> bool:
+        """存在性探测只看 run 内层（持久面恒 miss——防毒核心语义）。"""
+        return isinstance(seg_key, str) and (
+            seg_key in self._pending or seg_key in self._written
+        )
+
+    def __getitem__(self, seg_key: str) -> str:
+        """Run 内层命中记 hits（``_flush_translate`` 的 cached 计数口径不变）。"""
+        hit = self._pending.get(seg_key)
+        if hit is None:
+            hit = self._written.get(seg_key)
+        if hit is None:
+            raise KeyError(seg_key)
+        self.hits += 1
+        return hit
+
+    def __setitem__(self, seg_key: str, translation: str) -> None:
+        self._pending[seg_key] = translation
+
+    def __delitem__(self, seg_key: str) -> None:
+        self._pending.pop(seg_key, None)
+        self._written.pop(seg_key, None)
+
+    def __len__(self) -> int:
+        return len(self._pending)
+
+    def drain(self) -> list[tuple[str, str, str, str]]:
+        """吞掉待写：挪进 ``_written`` 保 run 内可读，返空不落 ``translation_cache``。"""
+        self._written.update(self._pending)
+        self._pending.clear()
+        return []
 
 
 def _glossary_option(ctx: TaskCtx, cfg: Mapping[str, Any]) -> str:
@@ -596,6 +652,44 @@ class _Translate:
                 )
         return ""
 
+    def _flag_mock_run(self, ctx: TaskCtx, tr: Translator) -> None:
+        """``mock_run`` 审计键幂等写/清——resolve 出的真实形态是标记唯一真源。
+
+        ``isinstance(MockTranslator)`` 命中 → 置 ``1`` + 按任务去重发
+        ``mock_translator`` warning（建行臂的 env-mock 预标记幂等会合）；
+        非 mock resolve 而行上有陈旧标记（env flip / needs_auth 补 key
+        重跑成真）→ 摘除。``ctx.set_option`` 先同步 ``ctx.row`` 内存快照
+        （同 run 下游 ``_make_cache`` 即刻可见），库写经 ``_on_loop``
+        回弹——本方法在 loop（``_stage_translate``）与工作线程
+        （``_l2_run_state``/``_llm_hook_pack`` 的 to_thread 段）两侧都会
+        被调到，写面必须走单写者通道。
+        """
+        is_mock = isinstance(tr, MockTranslator)
+        if is_mock:
+            if ctx.task_id not in self._mock_warned:
+                self._mock_warned.add(ctx.task_id)
+                self._warning(
+                    ctx,
+                    "mock_translator",
+                    "本任务译文由 MockTranslator 产出——占位译文而非真实翻译",
+                )
+            if not ctx.options().get("mock_run"):
+                options_json = ctx.set_option("mock_run", 1)
+                self._on_loop(
+                    self.store.update_fields,
+                    ctx.task_id,
+                    options_json=options_json,
+                )
+        elif ctx.options().get("mock_run"):
+            options_json = ctx.update_options(
+                lambda opts: opts.pop("mock_run", None)
+            )
+            self._on_loop(
+                self.store.update_fields,
+                ctx.task_id,
+                options_json=options_json,
+            )
+
     def _resolve_translator(
         self,
         ctx: TaskCtx,
@@ -606,7 +700,7 @@ class _Translate:
         """统一 ``Translator`` 构造决策链（``_make/_doc/_llm_hook_pack`` 同源）。
 
         序即优先级：``translator_factory`` 注入 → ``TEXLATE_TRANSLATOR=mock``
-        → 网关臂（``force=gateway`` 或有 ``api_key``）→ 无 key 回退 Mock。
+        → 网关臂（``force=gateway`` 或有 ``api_key``）→ 无 key 硬失败。
 
         网关臂两形态：``sink`` 给定 = ephemeral-loop 消费面（doc 路/llm_hook
         的 ``asyncio.run`` 临时 loop——共享 client 跨 loop 复用会炸、aclose
@@ -616,45 +710,60 @@ class _Translate:
         ``retry_model`` 的旁路臂（llm_hook——备选模型烧 token 的语义不擅自
         加）用。
 
-        无 key 且未显式 mock/gateway 时静默假译文是生产事故面，必须留痕：
-        ``_mock_warned`` 按 task_id 去重记 ``mock_translator`` warning。
+        无 key 且未显式 mock/gateway 时静默假译文是生产事故面（M1）——
+        建行闸拦常规入口后本臂兜底 replay/直拉残留：留 ``mock_translator``
+        warning 痕后抛 ``AuthError``（``core.run`` 归 ``provider_auth``
+        fault，``retryable=False``）。Mock 自此只对显式 opt-in 可达。
+
+        每条成功返回路径先过 ``_flag_mock_run``——mock 形态落
+        ``options_json.mock_run`` 审计键（reuse/dedup 排除 + retry 放行
+        的消费面），非 mock resolve 顺带摘陈旧标记。
         """
+        tr: Translator
         if self._translator_factory is not None:
-            return self._translator_factory(ctx)
-        force = env_str(ENV_TRANSLATOR)
-        if force == "mock":
-            return MockTranslator()
-        if force == "gateway" or ctx.secrets.api_key:
-            model = ctx.secrets.model or DEFAULT_MODEL
-            retry_model = self._retry_model_of(ctx, model) if retry else ""
-            if sink is not None:
-                return _PerCallTranslator(
-                    ctx.secrets.base_url,
-                    ctx.secrets.api_key,
-                    model,
-                    sink,
-                    retry_model=retry_model,
-                    dialect=ctx.secrets.dialect,
-                )
-            client = ChatClient(
-                ctx.secrets.base_url,
-                ctx.secrets.api_key,
-                dialect=ctx.secrets.dialect,
-            )
-            primary = GatewayTranslator(client, model)
-            if retry_model:
-                return _FallbackTranslator(
-                    primary, GatewayTranslator(client, retry_model)
-                )
-            return primary
-        if ctx.task_id not in self._mock_warned:
-            self._mock_warned.add(ctx.task_id)
-            self._warning(
-                ctx,
-                "mock_translator",
-                "未配置 API key——回退 MockTranslator，产出为占位译文而非真实翻译",
-            )
-        return MockTranslator()
+            tr = self._translator_factory(ctx)
+        else:
+            force = env_str(ENV_TRANSLATOR)
+            if force == "mock":
+                tr = MockTranslator()
+            elif force == "gateway" or ctx.secrets.api_key:
+                model = ctx.secrets.model or DEFAULT_MODEL
+                retry_model = self._retry_model_of(ctx, model) if retry else ""
+                if sink is not None:
+                    tr = _PerCallTranslator(
+                        ctx.secrets.base_url,
+                        ctx.secrets.api_key,
+                        model,
+                        sink,
+                        retry_model=retry_model,
+                        dialect=ctx.secrets.dialect,
+                    )
+                else:
+                    client = ChatClient(
+                        ctx.secrets.base_url,
+                        ctx.secrets.api_key,
+                        dialect=ctx.secrets.dialect,
+                    )
+                    primary = GatewayTranslator(client, model)
+                    tr = (
+                        _FallbackTranslator(
+                            primary, GatewayTranslator(client, retry_model)
+                        )
+                        if retry_model
+                        else primary
+                    )
+            else:
+                if ctx.task_id not in self._mock_warned:
+                    self._mock_warned.add(ctx.task_id)
+                    self._warning(
+                        ctx,
+                        "mock_translator",
+                        "未配置 API key——翻译中止（请配置 key 后重试）",
+                    )
+                msg = "未配置 API key——请在设置页或 X-Texlate-Key 头提供"
+                raise AuthError(msg)
+        self._flag_mock_run(ctx, tr)
+        return tr
 
     def _make_translator(self, ctx: TaskCtx) -> Translator:
         """默认工厂：key 或 ``TEXLATE_TRANSLATOR=gateway`` → 网关，否则 Mock。
@@ -810,7 +919,28 @@ class _Translate:
         return _fn
 
     def _make_cache(self, ctx: TaskCtx) -> SegmentCache:
-        """段缓存门面（cfg 指纹前缀含 model/prompt_ver/lang[/key 指纹]）。"""
+        """段缓存门面（cfg 指纹前缀含 model/prompt_ver/lang[/key 指纹]）。
+
+        M1 防毒围栅——以下任一成立返 ``_NullCache``（持久面读恒 miss、
+        写不落库；run 内 dedup 语义保留）：
+
+        - 无 ``api_key``：``file_cache_key`` 指纹不含凭证，无 key 形态
+          写出的条目跨凭证命中续毒（实测 fresh+真 key 仍 67% 命中 mock
+          残段）——缺 key 臂已被 ``_resolve_translator`` AuthError 拦死，
+          本项兜 factory 注入/未来新入口的零 key 跑；
+        - ``TEXLATE_TRANSLATOR=mock`` / 行 ``mock_run`` 标记：mock 产物
+          永不进共享缓存；
+        - ``no_seg_cache`` 内部选项：retry 闸对 mock_run 行注入——绕开
+          mock 期写入的存量残毒（读面也断）。
+        """
+        opts = ctx.options()
+        if (
+            not ctx.secrets.api_key
+            or env_str(ENV_TRANSLATOR) == "mock"
+            or opt_bool(opts, "no_seg_cache", lambda: False)
+            or opt_bool(opts, "mock_run", lambda: False)
+        ):
+            return _NullCache()
         cfg_row = ctx.config()
         # user/local 层解析与 ``_make_glossary`` 同源（``warn=False``
         # 静默 confine——告警由 load 路 ``_glossary_path`` 单发不双发）

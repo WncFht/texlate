@@ -33,6 +33,9 @@ if TYPE_CHECKING:
 ARXIV = "2401.00031"
 KEY_A = {"X-Texlate-Key": "sk-tenant-a"}
 KEY_B = {"X-Texlate-Key": "sk-tenant-b"}
+#: M1 缺 key 硬闸后，无 key 建行即 ``needs_auth`` 终态——需要 ``queued``/ACTIVE
+#: 语义承载的用例统一带此头走 keyed 路径（local 形态 tenant 恒 "local"）。
+KEY = {"X-Texlate-Key": "sk-test"}
 _RUNNER = CliRunner()
 
 
@@ -207,7 +210,8 @@ class TestDeleteGuard:
         assert not tdir.exists()
 
     def test_active_delete_409(self, client: TestClient) -> None:
-        tid = mk_api_task(client, ARXIV)  # queued = ACTIVE
+        # M1：无 key 建行即 needs_auth 终态——queued(ACTIVE) 须带 key
+        tid = mk_api_task(client, ARXIV, headers=KEY)  # queued = ACTIVE
         r = client.delete(f"/api/task/{tid}")
         assert r.status_code == HTTPStatus.CONFLICT
         assert get_row(client, tid) is not None
@@ -290,11 +294,23 @@ class TestIntegrityErrorMapped:
         self, client: TestClient, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """dedup 查臂与 INSERT 之间并发撞 ACTIVE 唯一索引 → 409
-        duplicate_active（旧路径裸 500）。"""
-        mk_api_task(client, ARXIV)  # queued 同 cache_key 行占位
+        duplicate_active（旧路径裸 500）。
+
+        竞态模拟：查臂放行（None 一次）后 INSERT 撞键——except 臂内
+        ``find_active`` 须走真实现指认持槽行（恒 None 会把撞键行推进
+        ``cache_key=None`` 重建臂，语义变成静默成功而非 409）。
+        """
+        mk_api_task(client, ARXIV, headers=KEY)  # queued 同 cache_key 行占位
         store = client.app.state.store
-        monkeypatch.setattr(store, "find_active_by_cache_key", lambda *_a, **_k: None)
-        r = client.post(f"/api/arxiv/{ARXIV}/translate", json={})
+        real_find = store.find_active_by_cache_key
+        calls = {"n": 0}
+
+        def flaky(*a: object, **k: object) -> object:
+            calls["n"] += 1
+            return None if calls["n"] == 1 else real_find(*a, **k)
+
+        monkeypatch.setattr(store, "find_active_by_cache_key", flaky)
+        r = client.post(f"/api/arxiv/{ARXIV}/translate", json={}, headers=KEY)
         assert r.status_code == HTTPStatus.CONFLICT
         assert r.json()["code"] == "duplicate_active"
 

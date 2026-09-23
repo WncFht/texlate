@@ -341,7 +341,15 @@ async def _read_body(request: Request) -> dict[str, Any]:
 #: 的强制覆盖审计载荷。入参侧一律摘除（idempotency_key/prefer/main/glossary
 #: 等用户合法键不在列）。
 _RESERVED_OPTION_KEYS = frozenset(
-    {"reuse_hit", "arxiv_categories", "engine_resolved", "route_engines", "share"}
+    {
+        "reuse_hit",
+        "arxiv_categories",
+        "engine_resolved",
+        "route_engines",
+        "share",
+        "mock_run",
+        "no_seg_cache",
+    }
 )
 
 #: options.engine 白名单（settings ``_normalize_updates`` 同口径——

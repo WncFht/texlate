@@ -14,6 +14,10 @@ from texlate.server.store._common import CHUNKS_PAGE_MAX, _qmarks, _Repo, _set_c
 #: 消费的固定列集，``src_text``/``translation`` 全文列只走这两路出。
 _PREVIEW_COLS = "seq, chunk_id, kind, status, src_text, translation"
 
+#: copy-latex span 列（``spans_by_seqs`` 专用）——``_PREVIEW_COLS`` 无
+#: ``src_file``/``byte_*`` span 列，新方法不复用（实现文档 §后端 2）。
+_SPAN_COLS = "seq, chunk_id, src_file, byte_start, byte_end, kind, src_text"
+
 
 class ChunkRepo(_Repo):
     """chunks 表聚合。构造只存门面回指——连接在 ``open()`` 后才可用。"""
@@ -117,6 +121,23 @@ class ChunkRepo(_Repo):
             (task_id, *seqs),
         ).fetchall()
         return [dict(r) for r in rows], total
+
+    def spans_by_seqs(self, task_id: str, seqs: list[int]) -> list[dict[str, Any]]:
+        """按 seq 集取 span 列（copy-latex ``POST /latex`` 供）→ seq 升序命中行。
+
+        列集 ``seq,chunk_id,src_file,byte_start,byte_end,kind,src_text``——
+        ``byte_*`` 是 ``decode_tex`` 后 str 的字符偏移（列名谎称，切片方
+        负责对 str 切）。空 seqs 短路。
+        """
+        if not seqs:
+            return []
+        rows = self.conn.execute(
+            f"SELECT {_SPAN_COLS}"  # noqa: S608 -- 列集为模块常量；IN 占位符全为参数化生成
+            f" FROM chunks WHERE task_id = ? AND seq IN ({_qmarks(seqs)})"
+            " ORDER BY seq",
+            (task_id, *seqs),
+        ).fetchall()
+        return [dict(r) for r in rows]
 
     def _count(self, task_id: str) -> int:
         """任务 chunks 全集行数——``chunks_page``/``chunks_by_seqs`` 的 total 同契约。"""

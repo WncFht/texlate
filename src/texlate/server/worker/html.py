@@ -109,6 +109,7 @@ def _dual_chunk_row(r: dict[str, Any]) -> dict[str, Any]:
     """
     return {
         "seq": r["seq"],
+        "chunk_id": r["chunk_id"],
         "src_file": r["src_file"],
         "en": r["src_text"],
         "zh": zh_slot(r),

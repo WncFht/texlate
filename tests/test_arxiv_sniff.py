@@ -13,26 +13,23 @@ from texlate.arxiv.sniff import (
 
 CORPUS = Path(__file__).resolve().parent.parent / "bench" / "corpus"
 
-# 数据层 gitignored：干净 clone 目录仍在（MANIFEST 等入库），守卫须判数据文件而非目录
-_HAS_V1 = any(CORPUS.rglob("*.tex"))
+# 数据层 gitignored：干净 clone 目录仍在（MANIFEST 等入库），守卫须判数据文件而非目录。
+# v1 陷阱包成员判据须落到具体文件——v3 统一根后 extracted/ 树里全是 .tex，
+# 粗粒度 rglob 会把「v1 包缺席」误判在场。
+_HAS_V1 = (CORPUS / "1412.6980" / "arxiv.tex").is_file()
 _HAS_V2 = any(CORPUS.rglob("meta.json"))
 
 
 def _raw_blobs() -> list[Path]:
-    manifest = CORPUS / "manifest_v2.jsonl"
-    if not manifest.is_file():
-        return []
-    return sorted(
-        b
-        for line in manifest.read_text().splitlines()
-        for b in (CORPUS / json.loads(line)["id"]).glob("raw.*")
-    )
+    """盘上 ``*/raw.*`` 全量枚举——v3 统一根重建后 manifest_v2.jsonl 的
+    old-style id 与在盘成员已不同集，枚举以实盘为准。"""
+    return sorted(CORPUS.glob("*/raw.*"))
 
 
 @pytest.mark.slow
 @pytest.mark.skipif(not _HAS_V2, reason="corpus 数据不在场（gitignored）")
 def test_sniff_corpus_all() -> None:
-    """manifest_v2 全量真实包：魔数判别与构建期 meta.json 的 format 字段全部一致。"""
+    """corpus 全量真实包：魔数判别与构建期 meta.json 的 format 字段全部一致。"""
     blobs = _raw_blobs()
     assert blobs
     kind_counts = {
@@ -52,9 +49,11 @@ def test_sniff_corpus_all() -> None:
         if expected and expected != s.kind.value:
             mismatches.append(f"{blob.parent.name}: meta={expected} got={s.kind}")
     assert not mismatches, "; ".join(mismatches)
-    # 语料分布：tar 主导、单文件 .gz 次之、pdf/unknown 为零（构建期已滤掉 pdf_only）
+    # v3 语料分布：tar 主导、pdf_only 行保留（不再构建期滤除）、single_gz 少量、
+    # unknown 恒零（全部 blob 须可判别——漏网即 meta 不一致或真未知）
     assert kind_counts[BlobKind.TAR] > kind_counts[BlobKind.SINGLE]
-    assert kind_counts[BlobKind.PDF] == 0
+    assert kind_counts[BlobKind.SINGLE] > 0
+    assert kind_counts[BlobKind.PDF] > 0
     assert kind_counts[BlobKind.UNKNOWN] == 0
 
 
@@ -90,13 +89,16 @@ def test_pdf_wrapper_detect() -> None:
     assert v.n_sections == 0
 
 
-@pytest.mark.skipif(not _HAS_V2, reason="corpus 数据不在场（gitignored）")
+#: 真文档反例锚点：meta.locate.pdf_wrapper=False 的 latex 主文件
+#: （v3 重建后原锚 2210.15358 已不在语料内）。
+_WRAPPER_NEG = (
+    CORPUS / "2509.18111" / "extracted" / "iclr2026" / "iclr2026_conference.tex"
+)
+
+
+@pytest.mark.skipif(not _WRAPPER_NEG.is_file(), reason="corpus 成员不在场（gitignored）")
 def test_pdf_wrapper_negative() -> None:
-    src = (
-        (CORPUS / "2210.15358" / "extracted" / "acl_latex.tex")
-        .read_bytes()
-        .decode("utf-8", "replace")
-    )
+    src = _WRAPPER_NEG.read_bytes().decode("utf-8", "replace")
     v = check_pdf_wrapper(src)
     assert not v.is_wrapper
     assert not v.is_stub

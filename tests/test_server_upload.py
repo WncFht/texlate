@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import zipfile
+from functools import partial
 from http import HTTPStatus
 from pathlib import Path
 
@@ -16,6 +17,11 @@ from conftest import live_app, make_app, task_events, upload, wait_terminal
 from starlette.testclient import TestClient
 
 from texlate.server.settings import SettingsStore
+from texlate.server.store import new_task_id
+
+#: M1 缺 key 硬闸后，无 key 建行即 ``needs_auth`` 终态——需要 ``queued``
+#: 语义承载的用例统一带此头走 keyed 路径（local 形态 tenant 恒 "local"）。
+KEY = {"X-Texlate-Key": "sk-test"}
 
 
 def _settings(data_root: Path, **updates: object) -> None:
@@ -52,12 +58,13 @@ class TestUploadDocRoute:
     """docx/epub → 202 + kind 建行 + upload blob 落盘（不再 501）。"""
 
     def test_docx_202_kind(self, client: TestClient) -> None:
-        body = upload(client, name="报告.docx", data=_docx())
+        # M1：无 key 建行即 needs_auth 终态——queued/入队语义须带 key
+        body = upload(client, name="报告.docx", data=_docx(), headers=KEY)
         assert body["status"] == "queued"
         assert _task_kind(client, body["task_id"]) == "docx"
 
     def test_epub_202_kind(self, client: TestClient) -> None:
-        body = upload(client, name="book.epub", data=_epub())
+        body = upload(client, name="book.epub", data=_epub(), headers=KEY)
         assert body["status"] == "queued"
         assert _task_kind(client, body["task_id"]) == "epub"
 
@@ -338,29 +345,53 @@ class TestDocPipeline:
         self,
         tmp_path: Path,
         clean_env: pytest.MonkeyPatch,  # noqa: ARG002
-        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """无 key 且未显式 mock → ``mock_translator`` warning 事件留痕。"""
-        self._fake_export(monkeypatch)
+        """无 key 且未显式 mock → ``mock_translator`` warning + provider_auth fault。
+
+        M1 建行闸后 keyless 建行即 ``needs_auth`` 终态、永远到不了 worker——
+        本用例走 ``_resolve_translator`` 无 key 臂留存的「直拉残留」语义：
+        直建行 queued + 直拉 ``runner.enqueue``（不登记 secrets），worker
+        兜底留 ``mock_translator`` warning 痕后 ``AuthError`` → fault。
+        """
         app = make_app(tmp_path, start_worker=True)  # 无 translator_factory
         with TestClient(app) as c:
-            body = upload(c, name="a.docx", data=_docx())
-            snap = wait_terminal(c, body["task_id"])
-            assert snap["status"] == "done"
+            tid = new_task_id()
+            updir = c.app.state.data_dir / "tasks" / tid / "upload"
+            updir.mkdir(parents=True)
+            (updir / "a.docx").write_bytes(_docx())
+            c.portal.call(
+                partial(
+                    c.app.state.store.create_task,
+                    task_id=tid,
+                    kind="docx",
+                    target_lang="zh-CN",
+                    model="m",
+                    source_name="a.docx",
+                    auth_source="none",
+                )
+            )
+            c.portal.call(partial(c.app.state.runner.enqueue, tid))
+            snap = wait_terminal(c, tid)
+            assert snap["status"] == "fault"
+            assert snap["error"]["code"] == "provider_auth"
             warns = [
                 e["data"]["code"]
-                for e in task_events(c, body["task_id"])
+                for e in task_events(c, tid)
                 if e["type"] == "warning"
             ]
             assert warns == ["mock_translator"]
 
-    def test_explicit_mock_env_no_warning(
+    def test_explicit_mock_env_warns(
         self,
         tmp_path: Path,
         clean_env: pytest.MonkeyPatch,  # noqa: ARG002
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """``TEXLATE_TRANSLATOR=mock`` 是显式选择——不打 mock_translator 警告。"""
+        """``TEXLATE_TRANSLATOR=mock`` 显式 mock：M1 起 ``_flag_mock_run`` 对一切
+
+        MockTranslator resolve 发 ``mock_translator`` warning——mock_run 快照
+        键不透出后 warning 是前端识别 mock 产物的唯一通道。
+        """
         monkeypatch.setenv("TEXLATE_TRANSLATOR", "mock")
         self._fake_export(monkeypatch)
         app = make_app(tmp_path, start_worker=True)
@@ -373,4 +404,4 @@ class TestDocPipeline:
                 for e in task_events(c, body["task_id"])
                 if e["type"] == "warning"
             ]
-            assert "mock_translator" not in warns
+            assert "mock_translator" in warns

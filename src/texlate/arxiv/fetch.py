@@ -140,45 +140,189 @@ class AcquireResult:
 _NO_HEAD: Final = HeadInfo(http_status=0, url="")
 
 
-_ID_URL_RE: Final = re.compile(
-    r"^(?:(?:https?://)?(?:[\w.-]+\.)?arxiv\.org/(?:abs|pdf|src|e-print|html|format)/+|"
-    r"arxiv\s*:\s*)",
-    re.IGNORECASE,
-)
+# ---------------------------------------------------------------- canon
+# 单源归一化（规格 docs 对应 tmp/ux-research-20260922/arxiv-id-canon-spec.md）：
+# 剥离序管线化——锚定正则前缀剥（不 urlparse 任意 host，端口/双斜杠/怪
+# scheme 结构性拒收），``ar5iv.org``/``alphaxiv.org`` 走显式 host 白名单臂
+# （动词限 abs|pdf|html，须带 scheme），LANL 镜像/ADS bibcode/散文形不收。
+
 _VER_RE: Final = re.compile(r"^(?P<base>.+?)[vV](?P<ver>\d{1,3})$", re.ASCII)
-_NEW_ID_RE: Final = re.compile(r"^\d{4}\.\d{4,5}$", re.ASCII)
-_OLD_ID_RE: Final = re.compile(r"^[a-zA-Z-]+(?:\.[A-Z][a-zA-Z]+)?/\d{7}$", re.ASCII)
+_NEW_ID_RE: Final = re.compile(r"^(\d{4})\.(\d{4,5})$", re.ASCII)
+_OLD_ID_RE: Final = re.compile(
+    r"^([A-Za-z-]+)(?:\.[A-Za-z][A-Za-z-]*)?/(\d{7})$", re.ASCII
+)
 _CD_FN_RE: Final = re.compile(r'filename="?([^";]+)')
 _CD_VER_RE: Final = re.compile(
     r"[vV](\d+)\.(tar\.gz|gz|pdf)$", re.IGNORECASE | re.ASCII
 )
 
+#: canon 前缀剥壳表（循环至不动点——``doi.org/`` 后再落 ``10.48550/arXiv.``）。
+#: 子域组要求显式 ``.`` 边界（``(?:[\w.-]+\.)?``）——``notarxiv.org`` 寄生域
+#: 不得命中；scheme 只认 ``http(s)``，缺 scheme 只放行裸 ``*.arxiv.org``。
+_PREFIX_RES: Final = (
+    re.compile(
+        r"^(?:https?://)?(?:[\w.-]+\.)?arxiv\.org/"
+        r"(?:abs|pdf|src|e-print|html|format)/+",
+        re.IGNORECASE,
+    ),
+    re.compile(r"^https?://(?:dx\.)?doi\.org/", re.IGNORECASE),
+    re.compile(r"^doi:\s*", re.IGNORECASE),
+    re.compile(r"^10\.48550/arXiv\.", re.IGNORECASE),
+    re.compile(r"^oai\s*:\s*arxiv\.org\s*:\s*", re.IGNORECASE),
+    re.compile(r"^arxiv\s*[:.]\s*", re.IGNORECASE),
+)
+#: ar5iv/alphaXiv 显式 host 白名单臂：须带 http(s) scheme，动词白名单收窄。
+_MIRROR_PREFIX_RE: Final = re.compile(
+    r"^https?://(?:[\w.-]+\.)?(?:ar5iv|alphaxiv)\.org/(?:abs|pdf|html)/+",
+    re.IGNORECASE,
+)
+_EXT_RE: Final = re.compile(
+    r"\.(?:pdf|ps|eps|dvi|gz|tgz|tar\.gz)$", re.IGNORECASE
+)
+_TAILNOTE_RE: Final = re.compile(r"\s*\[[^\]]{1,20}\]\s*$", re.ASCII)
+
+
+class CanonError(ValueError):
+    """canon 拒收——``reason`` ∈ bad_shape|bad_month|bad_era|bad_version|unsafe。"""
+
+    def __init__(self, reason: str, raw: str) -> None:
+        """原因码入 ``reason`` 属性（服务端 400 detail 派生源）；raw 留原始输入。"""
+        self.reason = reason
+        super().__init__(f"{reason}: {raw!r}")
+
+
+@dataclass(frozen=True, slots=True)
+class CanonId:
+    """canon 规范形：``base``（新 ``YYMM.NNNNN``/旧 ``archive/YYMMNNN`` 裸形）。
+
+    旧形 class 已剥（``math.GT/0309136`` → ``math/0309136``）、archive 已小写化；
+    ``version`` 仅用户钉版时非 None（≥1、无导零）。
+    """
+
+    base: str
+    version: int | None = None
+    scheme: str = "new"  # "new" | "old"
+
+    def __str__(self) -> str:
+        """渲染 ``base`` 或 ``{base}v{version}``——幂等回喂 canon 得自身。"""
+        return f"{self.base}v{self.version}" if self.version else self.base
+
+    def safe(self) -> str:
+        """单层存储拼写（``/``→``--``）——``benchlib.safe_id`` 同形。"""
+        return self.base.replace("/", "--")
+
+
+def _old_era(yymm: str) -> bool:
+    """YYMM ∈ 旧形时代窗（9107–9912 ∪ 0000–0703，世纪回绕）。"""
+    return yymm >= "9107" or yymm <= "0703"
+
+
+def _canon_strip(raw: str) -> str:
+    """剥离管线（绝不抛）。
+
+    空白 → ``--``→``/`` → 前缀循环 → ``?#`` 截断 → 尾 ``/`` → ``[class]``
+    尾注/扩展名不动点循环。返回值即「剩件」——版本钉与形校验在 ``canon``
+    本体；失败路径把剩件回给 ``normalize_arxiv_id`` 作旧口径 fallback
+    （调用方 ``valid_id`` 复核）。
+    """
+    s = raw.strip()
+    # ``--`` 永不可能出现在合法 id（旧 archive 只带单 ``-``）——safe_id
+    # 存储拼写回流并进前置步，raw/safe 两形同键。
+    s = s.replace("--", "/")
+    prev = None
+    while prev != s:  # 前缀循环至不动点
+        prev = s
+        for rx in _PREFIX_RES:
+            s = rx.sub("", s)
+        s = _MIRROR_PREFIX_RE.sub("", s)
+        s = s.strip()
+    s = s.split("?", 1)[0].split("#", 1)[0].strip("/").strip()
+    prev = None
+    while prev != s:  # 尾注/扩展名循环至不动点——``id [cs.CL].pdf`` 两序皆收
+        prev = s
+        s = _TAILNOTE_RE.sub("", s)  # ``[cs.CL]`` 引用尾注
+        s = _EXT_RE.sub("", s)
+    return s
+
+
+def _peel_ver(s: str, orig: str) -> tuple[str, int | None]:
+    """``vN`` 钉版剥离——``v0``/``v00`` 判非法不静默去钉（保留旧语义）。"""
+    m = _VER_RE.match(s)
+    if m is None:
+        return s, None
+    v = int(m.group("ver"))
+    if v < 1:
+        raise CanonError(reason="bad_version", raw=orig)
+    return m.group("base"), v
+
+
+def _canon_semantic_gate(yymm: str, orig: str, *, old: bool, strict_era: bool) -> None:
+    """MM∈[01,12] + strict_era 时代窗闸（新形须旧时代窗外、旧形反之）。"""
+    if not 1 <= int(yymm[2:4]) <= 12:  # noqa: PLR2004 -- 月份上下界自明
+        raise CanonError(reason="bad_month", raw=orig)
+    if strict_era and old != _old_era(yymm):
+        raise CanonError(reason="bad_era", raw=orig)
+
+
+def canon(raw: str, *, strict_era: bool = True) -> CanonId:
+    """任意常见 arXiv 形态 → ``CanonId``；不可识别抛 ``CanonError``。
+
+    ``strict_era``（默认开）：新形 YYMM 须落在旧形时代窗之外
+    （``0704``–``9106``），旧形反之——``9912.00001``/``hep-th/0801001``
+    这类不可能 id 本地即拒（省一轮远端 404）。
+    """
+    orig = raw
+    s = _canon_strip(raw)
+    if ".." in s:
+        raise CanonError(reason="unsafe", raw=orig)
+    if not s:
+        raise CanonError(reason="bad_shape", raw=orig)
+    s, version = _peel_ver(s, orig)
+    m = _OLD_ID_RE.match(s)
+    if m:
+        _canon_semantic_gate(m.group(2), orig, old=True, strict_era=strict_era)
+        base = f"{m.group(1).lower()}/{m.group(2)}"
+        return CanonId(base=base, version=version, scheme="old")
+    m = _NEW_ID_RE.match(s)
+    if m:
+        _canon_semantic_gate(m.group(1), orig, old=False, strict_era=strict_era)
+        return CanonId(base=s, version=version, scheme="new")
+    raise CanonError(reason="bad_shape", raw=orig)
+
+
+def try_canon(raw: str, **kw: object) -> CanonId | None:
+    """``canon`` 不抛变体——不可识别归 ``None``。"""
+    try:
+        return canon(raw, **kw)  # type: ignore[arg-type]
+    except CanonError:
+        return None
+
 
 def normalize_arxiv_id(raw: str) -> tuple[str, int | None]:
     """``1412.6980``/``1412.6980v3``/``arXiv:hep-th/9901001``/abs URL → (id, ver)。
 
-    返回的 base id 不带版本后缀；ver 为 None 表示未钉版。
+    薄壳转发 ``canon``：成功 → ``(canon.base, canon.version)``；拒收 →
+    ``(剥离剩件, None)``——旧契约「任意输入不抛」保留，剩件恒过不了
+    ``valid_id``/下游闸（``canon`` 已拒的串再 canon 必仍拒）。
     """
-    s = _ID_URL_RE.sub("", raw.strip())
-    s = s.split("?")[0].split("#")[0].strip("/")
-    s = re.sub(r"\.pdf$", "", s, flags=re.IGNORECASE)
-    m = _VER_RE.match(s)
-    if (
-        m
-        and int(m.group("ver")) >= 1  # v0/v00 非合法版本——落非法 id 统一拒
-        and (_NEW_ID_RE.match(m.group("base")) or _OLD_ID_RE.match(m.group("base")))
-    ):
-        return m.group("base"), int(m.group("ver"))
-    return s, None
+    try:
+        c = canon(raw)
+    except CanonError:
+        return _canon_strip(raw), None
+    return c.base, c.version
 
 
 def valid_id(base: str) -> bool:
-    """校验 base 为合法 arXiv id 形（新 ``YYMM.NNNNN`` / 旧 ``archive/NNNNNNN``）。
+    """校验 base 为 canon 规范形 id（新 ``YYMM.NNNNN`` / 旧 ``archive/NNNNNNN``）。
 
-    ``a/../b`` 之类经 URL 归一化仍能拿到远端 200，但会把另一篇的内容写进
-    错误的缓存键（碰撞污染），甚至借 ``..`` 逃逸出缓存根——取源前必须拒。
+    语义收窄为「已是规范形」：classful 旧形/``vN`` 钉版串/``--`` 安全拼写
+    都是 canon 可收输入但不是合法 base——``canon(x)`` 必须成立且输出
+    ``str()`` 回读等于输入。``a/../b`` 之类经 URL 归一化仍能拿到远端 200，
+    但会把另一篇的内容写进错误的缓存键（碰撞污染），甚至借 ``..`` 逃逸
+    出缓存根——取源前必须拒。
     """
-    return bool(_NEW_ID_RE.match(base) or _OLD_ID_RE.match(base))
+    c = try_canon(base)
+    return c is not None and c.version is None and c.base == base
 
 
 def req_base_ver(arxiv_id: str, version: int | None = None) -> tuple[str, int | None]:
@@ -187,12 +331,16 @@ def req_base_ver(arxiv_id: str, version: int | None = None) -> tuple[str, int | 
     ``version`` 实参优先于 id 串内 ``vN`` 钉版；返回 ``ver=None`` 表示未钉版。
     取源/降级各入口共用的 id 前置闸。
     """
-    base, pin = normalize_arxiv_id(arxiv_id)
-    ver = version if version is not None else pin
-    if not valid_id(base) or (ver is not None and ver < 1):
-        msg = f"bad arxiv id: {arxiv_id!r}"
+    try:
+        c = canon(arxiv_id)
+    except CanonError as e:
+        msg = f"bad arxiv id: {arxiv_id!r} ({e.reason})"
+        raise ValueError(msg) from e
+    ver = version if version is not None else c.version
+    if ver is not None and ver < 1:
+        msg = f"bad arxiv id: {arxiv_id!r} (bad_version)"
         raise ValueError(msg)
-    return base, ver
+    return c.base, ver
 
 
 def _cd_filename(headers: httpx.Headers) -> str:

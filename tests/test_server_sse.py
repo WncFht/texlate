@@ -27,6 +27,9 @@ if TYPE_CHECKING:
     from starlette.testclient import TestClient
 
 ARXIV = "2401.00002"
+#: M1 缺 key 硬闸后，无 key 建行即 ``needs_auth`` 终态——需要任务停在
+#: ACTIVE（流式订阅不即终）的用例带 key 走 queued 路径。
+KEY = {"X-Texlate-Key": "sk-test"}
 
 
 def _has_sub(bus: EventBus, tid: str) -> bool:
@@ -206,7 +209,7 @@ class TestHttpSse:
 
     def test_live_publish_then_done(self, client: TestClient) -> None:
         """订阅建立后的 publish 走实时队列扇出。"""
-        tid = mk_api_task(client, ARXIV)
+        tid = mk_api_task(client, ARXIV, headers=KEY)  # M1：keyless→needs_auth 即终，流不复开
         bus = client.app.state.bus
 
         def feed() -> None:

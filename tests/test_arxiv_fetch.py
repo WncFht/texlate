@@ -113,7 +113,7 @@ def test_get_src_304_and_404() -> None:
     f = mk_fetcher(httpx.MockTransport(handler), FakeClock())
     res = f.get_src("2001.00001", etag='"E1"')
     assert res.status is FetchStatus.NOT_MODIFIED
-    res404 = f.get_src("missing/9999999")
+    res404 = f.get_src("missing/9901001")  # mm=99 过不了 canon 语义闸——换合法旧形
     assert res404.status is FetchStatus.NOT_FOUND
 
 

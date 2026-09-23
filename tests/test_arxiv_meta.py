@@ -288,7 +288,7 @@ def test_oai_version_history_sorted_and_v0_dropped() -> None:
 <OAI-PMH xmlns="http://www.openarchives.org/OAI/2.0/">
   <GetRecord><record><metadata>
     <arXivRaw xmlns="http://arxiv.org/OAI/arXivRaw/">
-      <id>1234.5678</id>
+      <id>1212.5678</id>
       <version version="v3"><date>Wed, 01 Jan 2020 00:00:00 GMT</date></version>
       <version version="v0"><date>Sun, 01 Jan 1989 00:00:00 GMT</date></version>
       <version version="v1"><date>Tue, 02 Jan 1990 00:00:00 GMT</date></version>
@@ -304,13 +304,13 @@ def test_oai_version_history_sorted_and_v0_dropped() -> None:
         return httpx.Response(HTTP_OK, content=body)
 
     f = mk_fetcher(httpx.MockTransport(handler), FakeClock())
-    meta = fetch_metadata("1234.5678", fetcher=f)
+    meta = fetch_metadata("1212.5678", fetcher=f)  # mm=34 过不了 canon 语义闸
     assert meta is not None
     assert [v.version for v in meta.versions] == [1, V3]  # v0 滤除 + 升序
     assert meta.published == "1990-01-02T00:00:00Z"  # v1 date，不是 v3
     assert meta.updated == "2020-01-01T00:00:00Z"  # v3 date
     assert not meta.has_version(0)
-    assert resolve_version("1234.5678", want=0, fetcher=f) is None
+    assert resolve_version("1212.5678", want=0, fetcher=f) is None
 
 
 def test_resolve_version_via_oai_when_atom_down() -> None:
@@ -333,7 +333,7 @@ def test_resolve_version_none_when_nothing() -> None:
         return httpx.Response(HTTP_OK, content=OAI_ERROR.encode())
 
     f = mk_fetcher(httpx.MockTransport(handler), FakeClock())
-    assert resolve_version("9999.99999", fetcher=f) is None
+    assert resolve_version("2012.99999", fetcher=f) is None  # mm=99 过不了语义闸
 
 
 def test_degrade_parse_failed_html_latest() -> None:

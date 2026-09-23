@@ -16,6 +16,9 @@ if TYPE_CHECKING:
 
 ARXIV = "2401.00001"
 _TASKS_LEN = 1
+#: M1 缺 key 硬闸后，无 key 建行即 ``needs_auth`` 终态——需要 ``queued``/ACTIVE
+#: 语义承载的用例统一带此头走 keyed 路径（local 形态 tenant 恒 "local"，无串桶）。
+KEY = {"X-Texlate-Key": "sk-test"}
 
 
 def _docx() -> bytes:
@@ -38,7 +41,9 @@ class TestHealth:
 
 class TestArxivTranslate:
     def test_202_shape(self, client: TestClient) -> None:
-        r = client.post(f"/api/arxiv/{ARXIV}/translate", json={"model": "mock-m"})
+        r = client.post(
+            f"/api/arxiv/{ARXIV}/translate", json={"model": "mock-m"}, headers=KEY
+        )
         assert r.status_code == HTTPStatus.ACCEPTED
         body = r.json()
         tid = body["task_id"]
@@ -72,8 +77,11 @@ class TestArxivTranslate:
         assert r.status_code == HTTPStatus.BAD_REQUEST
 
     def test_duplicate_active_409(self, client: TestClient) -> None:
-        tid = mk_api_task(client, ARXIV, model="mock-m")
-        r = client.post(f"/api/arxiv/{ARXIV}/translate", json={"model": "mock-m"})
+        # 两请求同 key → 同 cache_key——首个 queued 行持槽，第二撞 409
+        tid = mk_api_task(client, ARXIV, model="mock-m", headers=KEY)
+        r = client.post(
+            f"/api/arxiv/{ARXIV}/translate", json={"model": "mock-m"}, headers=KEY
+        )
         assert r.status_code == HTTPStatus.CONFLICT
         body = r.json()
         assert body["task_id"] == tid
@@ -97,18 +105,21 @@ class TestArxivTranslate:
 
 class TestCacheReuse:
     def test_reuse_after_done(self, client: TestClient) -> None:
-        tid = mk_api_task(client, ARXIV, model="mock-m")
+        tid = mk_api_task(client, ARXIV, model="mock-m", headers=KEY)
         force_status(client, tid, "done")
-        r = client.post(f"/api/arxiv/{ARXIV}/translate", json={"model": "mock-m"})
+        r = client.post(
+            f"/api/arxiv/{ARXIV}/translate", json={"model": "mock-m"}, headers=KEY
+        )
         assert r.status_code == HTTPStatus.OK
         assert r.json()["reused"] is True
         assert r.json()["task_id"] == tid
 
     def test_fresh_bypasses(self, client: TestClient) -> None:
-        tid = mk_api_task(client, ARXIV, model="mock-m")
+        tid = mk_api_task(client, ARXIV, model="mock-m", headers=KEY)
         r = client.post(
             f"/api/arxiv/{ARXIV}/translate",
             json={"model": "mock-m", "options": {"prefer": "fresh"}},
+            headers=KEY,
         )
         assert r.status_code == HTTPStatus.ACCEPTED
         assert r.json()["task_id"] != tid
@@ -116,7 +127,7 @@ class TestCacheReuse:
 
 class TestTaskGet:
     def test_snapshot(self, client: TestClient) -> None:
-        tid = mk_api_task(client, ARXIV, model="mock-m")
+        tid = mk_api_task(client, ARXIV, model="mock-m", headers=KEY)
         r = client.get(f"/api/task/{tid}")
         assert r.status_code == HTTPStatus.OK
         snap = r.json()
@@ -135,7 +146,7 @@ class TestTaskGet:
 
 class TestCancelRetry:
     def test_cancel_queued(self, client: TestClient) -> None:
-        tid = mk_api_task(client, ARXIV, model="mock-m")
+        tid = mk_api_task(client, ARXIV, model="mock-m", headers=KEY)
         r = client.post(f"/api/task/{tid}/cancel")
         assert r.status_code == HTTPStatus.OK
         assert r.json()["status"] == "cancelled"
@@ -143,20 +154,20 @@ class TestCancelRetry:
         assert snap["status"] == "cancelled"
 
     def test_cancel_terminal_409(self, client: TestClient) -> None:
-        tid = mk_api_task(client, ARXIV, model="mock-m")
+        tid = mk_api_task(client, ARXIV, model="mock-m", headers=KEY)
         client.post(f"/api/task/{tid}/cancel")
         r = client.post(f"/api/task/{tid}/cancel")
         assert r.status_code == HTTPStatus.CONFLICT
 
     def test_retry_cancelled(self, client: TestClient) -> None:
-        tid = mk_api_task(client, ARXIV, model="mock-m")
+        tid = mk_api_task(client, ARXIV, model="mock-m", headers=KEY)
         client.post(f"/api/task/{tid}/cancel")
         r = client.post(f"/api/task/{tid}/retry", json={})
         assert r.status_code == HTTPStatus.ACCEPTED
         assert client.get(f"/api/task/{tid}").json()["status"] == "queued"
 
     def test_retry_active_409(self, client: TestClient) -> None:
-        tid = mk_api_task(client, ARXIV, model="mock-m")
+        tid = mk_api_task(client, ARXIV, model="mock-m", headers=KEY)
         r = client.post(f"/api/task/{tid}/retry", json={})
         assert r.status_code == HTTPStatus.CONFLICT
 
@@ -184,6 +195,7 @@ class TestUpload:
         r = client.post(
             "/api/upload",
             files={"file": ("main.tex", MINI_TEX.encode(), "text/plain")},
+            headers=KEY,
         )
         assert r.status_code == HTTPStatus.ACCEPTED
         assert r.json()["status"] == "queued"
@@ -316,7 +328,7 @@ class TestReader:
 
 class TestTasksList:
     def test_list(self, client: TestClient) -> None:
-        mk_api_task(client, ARXIV, model="mock-m")
+        mk_api_task(client, ARXIV, model="mock-m", headers=KEY)
         r = client.get("/api/tasks")
         assert r.status_code == HTTPStatus.OK
         tasks = r.json()["tasks"]
@@ -325,7 +337,7 @@ class TestTasksList:
         assert tasks[0]["arxiv_id"] == ARXIV
 
     def test_status_filter(self, client: TestClient) -> None:
-        tid = mk_api_task(client, ARXIV, model="mock-m")
+        tid = mk_api_task(client, ARXIV, model="mock-m", headers=KEY)
         client.post(f"/api/task/{tid}/cancel")
         r = client.get("/api/tasks?status=cancelled")
         assert [t["task_id"] for t in r.json()["tasks"]] == [tid]

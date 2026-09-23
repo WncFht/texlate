@@ -15,6 +15,7 @@ pytest.importorskip("starlette.testclient", reason="server extra 未装")
 from conftest import (
     get_row,
     live_app,
+    upload,
     upload_tex,
     wait_terminal,
 )
@@ -102,7 +103,11 @@ class TestF3RejectPartial:
 def _glossary_ctx(
     tmp_path: Path, options: dict[str, object] | None = None
 ) -> tuple[TaskCtx, PipelineWorker]:
-    """最小 TaskCtx + worker（glossary/cache 装配面单测用）。"""
+    """最小 TaskCtx + worker（glossary/cache 装配面单测用）。
+
+    ``api_key`` 常驻：M1 起 ``_make_cache`` 对零 key ctx 返 ``_NullCache``
+    （无 ``_prefix``/drain 恒空）——cache 指纹面用例须带 key 才走真实现。
+    """
     store = Store(tmp_path / "t.db")
     store.open()
     bus = EventBus(store)
@@ -117,7 +122,7 @@ def _glossary_ctx(
             "model": "m",
             "target_lang": "zh-CN",
         },
-        secrets=Secrets(),
+        secrets=Secrets(api_key="k"),
         root=tmp_path / "task",
     )
     return ctx, worker
@@ -303,7 +308,8 @@ class TestTaskDelete:
         assert not tdir.exists()
 
     def test_delete_active_409(self, client: TestClient) -> None:
-        tid = upload_tex(client)["task_id"]  # queued = ACTIVE
+        # M1：无 key 建行即 needs_auth 终态——须带 key 才落 queued(ACTIVE)
+        tid = upload(client, headers={"X-Texlate-Key": "sk-test"})["task_id"]
         r = client.delete(f"/api/task/{tid}")
         assert r.status_code == HTTPStatus.CONFLICT
         assert r.json()["code"] == "invalid_transition"

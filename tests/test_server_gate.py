@@ -17,7 +17,7 @@ import pytest
 pytest.importorskip("fastapi", reason="server extra 未装")
 pytest.importorskip("starlette.testclient", reason="server extra 未装")
 
-from conftest import MINI_TEX, make_app, refused_base_url, upload_tex
+from conftest import MINI_TEX, make_app, refused_base_url, upload, upload_tex
 from starlette.testclient import TestClient
 
 from texlate.server.settings import SettingsStore, resolve_auth, validate_model
@@ -286,8 +286,12 @@ class TestCrossSiteGate:
         assert r.status_code == HTTPStatus.ACCEPTED
 
     def test_empty_body_no_ct_passes(self, client: TestClient) -> None:
-        """无 body 无 CT 的 POST 照旧（retry/cancel 类 curl 式调用）。"""
-        tid = upload_tex(client)["task_id"]
+        """无 body 无 CT 的 POST 照旧（retry/cancel 类 curl 式调用）。
+
+        M1：keyless 建行即 needs_auth 终态（cancel 409）——cancel 要打的
+        是 ACTIVE 行，建行带 key。
+        """
+        tid = upload(client, headers=KEY)["task_id"]
         r = client.post(f"/api/task/{tid}/cancel")
         assert r.status_code == HTTPStatus.OK
 

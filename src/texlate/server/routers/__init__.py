@@ -17,8 +17,10 @@ from texlate.server.routers import (
     files,
     meta,
     reader,
+    refs,
     settings,
     share,
+    srccut,
     tasks,
     upload,
 )
@@ -45,3 +47,5 @@ def register_routers(app: FastAPI, deps: AppDeps) -> None:
     reader.register(app, deps)
     settings.register(app, deps)
     discover.register(app, deps)
+    refs.register(app, deps)
+    srccut.register(app, deps)

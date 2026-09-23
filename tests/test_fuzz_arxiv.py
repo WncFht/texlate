@@ -312,19 +312,23 @@ def test_fuzz_normalize_two_step_fixed_point() -> None:
 
 
 def test_normalize_valid_roundtrip() -> None:
-    """合法 (base, ver) 钉版串 round-trip：normalize(f"{base}v{ver}") 原样回。"""
+    """合法 (base, ver) 钉版串 round-trip：normalize(f"{base}v{ver}") 原样回。
+
+    旧形 classful 输入的 ``base`` 期望是 canon 规范形（class 段剥除：
+    ``cs.AI``→``cs``、``math.GT``→``math``）——归一是 spec 特性非 drift。
+    """
     cases = [
-        ("1412.6980", 1),
-        ("1412.6980", 99),
-        ("2001.00001", 3),
-        ("hep-th/9901001", 2),
-        ("cond-mat/0408438", 1),
-        ("cs.AI/0301024", 7),
-        ("math.GT/0309136", 12),
+        ("1412.6980", "1412.6980", 1),
+        ("1412.6980", "1412.6980", 99),
+        ("2001.00001", "2001.00001", 3),
+        ("hep-th/9901001", "hep-th/9901001", 2),
+        ("cond-mat/0408438", "cond-mat/0408438", 1),
+        ("cs.AI/0301024", "cs/0301024", 7),
+        ("math.GT/0309136", "math/0309136", 12),
     ]
-    for base, ver in cases:
-        assert normalize_arxiv_id(f"{base}v{ver}") == (base, ver)
-        assert normalize_arxiv_id(base) == (base, None)
+    for raw, base, ver in cases:
+        assert normalize_arxiv_id(f"{raw}v{ver}") == (base, ver)
+        assert normalize_arxiv_id(raw) == (base, None)
 
 
 def test_normalize_unicode_digit_id_rejected() -> None:

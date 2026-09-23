@@ -98,6 +98,9 @@ _PDF_BYTES = b"%PDF-1.4 fake bytes for upload"
 
 
 def _upload_pdf(client: TestClient, **kw: object) -> str:
+    # M1：无 key 建行即 needs_auth 终态、worker 永不到达——默认带 key
+    # （test_key_only_in_toml 自带 headers 时 setdefault 不覆盖）
+    kw.setdefault("headers", {"X-Texlate-Key": "sk-test"})
     body = upload(
         client,
         name="paper.pdf",

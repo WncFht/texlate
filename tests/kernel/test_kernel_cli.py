@@ -90,9 +90,19 @@ def test_spec_list_finds_specs(broot: Path, capsys: pytest.CaptureFixture) -> No
 
 
 @pytest.mark.parametrize("name", ["triage", "gate", "dossier"])
-def test_stub_verbs_exit_2(broot: Path, capsys: pytest.CaptureFixture, name: str) -> None:
-    assert cli.main([name]) == cli.EXIT_REFUSED
-    assert "not yet implemented" in capsys.readouterr().err
+def test_verbs_bare_invocation_exit_2(broot: Path, capsys: pytest.CaptureFixture, name: str) -> None:
+    """verbs landed under bench/py/verbs/ — bare invocation is a usage refusal.
+
+    triage's required ``run`` positional exits via argparse ``SystemExit(2)``;
+    gate/dossier refuse inside ``main()`` with ``EXIT_REFUSED``.
+    """
+    if name == "triage":
+        with pytest.raises(SystemExit) as exc:
+            cli.main([name])
+        assert exc.value.code == cli.EXIT_REFUSED
+    else:
+        assert cli.main([name]) == cli.EXIT_REFUSED
+    assert capsys.readouterr().err
 
 
 # --- status ------------------------------------------------------------------------

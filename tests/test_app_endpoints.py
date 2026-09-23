@@ -45,6 +45,9 @@ if TYPE_CHECKING:
     from typing import ClassVar
 
 ARXIV = "2401.00021"
+#: M1 缺 key 硬闸后无 key 建行即 ``needs_auth``——需要 queued/ACTIVE 承载态
+#: 的用例统一带 key 头（local 形态 tenant 恒 "local"，无串桶副作用）。
+KEY = {"X-Texlate-Key": "sk-test"}
 
 
 @pytest.fixture
@@ -677,7 +680,7 @@ class TestCancelEdges:
 
     def test_cancel_publishes_done_event(self, client: TestClient) -> None:
         """cancel 同步补 done{cancelled} 事件——SSE 订阅者正常收尾。"""
-        tid = mk_api_task(client, ARXIV)
+        tid = mk_api_task(client, ARXIV, headers=KEY)
         client.post(f"/api/task/{tid}/cancel")
         evs = task_events(client, tid)
         done = [e for e in evs if e["type"] == "done"]
@@ -693,21 +696,21 @@ class TestRetryEdges:
 
     def test_retry_done_409(self, client: TestClient) -> None:
         """done ∉ RETRYABLE_FROM → 409 invalid_transition。"""
-        tid = mk_api_task(client, ARXIV)
+        tid = mk_api_task(client, ARXIV, headers=KEY)
         force_status(client, tid, "done")
         r = client.post(f"/api/task/{tid}/retry", json={})
         assert r.status_code == HTTPStatus.CONFLICT
         assert r.json()["code"] == "invalid_transition"
 
     def test_retry_fault_202(self, client: TestClient) -> None:
-        tid = mk_api_task(client, ARXIV)
+        tid = mk_api_task(client, ARXIV, headers=KEY)
         force_status(client, tid, "fault")
         r = client.post(f"/api/task/{tid}/retry", json={})
         assert r.status_code == HTTPStatus.ACCEPTED
         assert client.get(f"/api/task/{tid}").json()["status"] == "queued"
 
     def test_retry_bad_json_400(self, client: TestClient) -> None:
-        tid = mk_api_task(client, ARXIV)
+        tid = mk_api_task(client, ARXIV, headers=KEY)
         client.post(f"/api/task/{tid}/cancel")
         r = client.post(
             f"/api/task/{tid}/retry",
@@ -719,7 +722,7 @@ class TestRetryEdges:
 
     def test_retry_options_merge(self, client: TestClient) -> None:
         """body.options 深并入 options_json（不覆盖未提键）。"""
-        tid = mk_api_task(client, ARXIV, options={"glossary": "a.yaml"})
+        tid = mk_api_task(client, ARXIV, headers=KEY, options={"glossary": "a.yaml"})
         client.post(f"/api/task/{tid}/cancel")
         r = client.post(
             f"/api/task/{tid}/retry", json={"options": {"retry_model": "alt"}}
@@ -736,7 +739,7 @@ class TestRetryEdges:
         tmp_path: Path,  # noqa: ARG002
     ) -> None:
         """换主文件 retry → chunks 清 + base/zh/build-* 目录删（src 保留）。"""
-        tid = mk_api_task(client, ARXIV)
+        tid = mk_api_task(client, ARXIV, headers=KEY)
         tdir = client.app.state.data_dir / "tasks" / tid
         for d in ("base", "zh", "build-en", "build-zh"):
             (tdir / d).mkdir(parents=True)
@@ -755,7 +758,7 @@ class TestRetryEdges:
 
     def test_retry_same_main_preserves(self, client: TestClient) -> None:
         """main 未变 → chunks 不清（断点续跑）。"""
-        tid = mk_api_task(client, ARXIV)
+        tid = mk_api_task(client, ARXIV, headers=KEY)
         _insert_chunk(client, tid)
         client.portal.call(
             partial(client.app.state.store.update_fields, tid, main_tex="main.tex")
@@ -788,7 +791,7 @@ class TestRetryEdges:
 
     def test_retry_unknown_keys_400(self, client: TestClient) -> None:
         """body.model/target_lang 曾是静默丢弃（空诺）——白名单外键一律 400。"""
-        tid = mk_api_task(client, ARXIV)
+        tid = mk_api_task(client, ARXIV, headers=KEY)
         client.post(f"/api/task/{tid}/cancel")
         r = client.post(f"/api/task/{tid}/retry", json={"model": "other-m"})
         assert r.status_code == HTTPStatus.BAD_REQUEST
@@ -804,7 +807,7 @@ class TestRetryEdges:
 
     def test_retry_known_keys_still_202(self, client: TestClient) -> None:
         """main/options 白名单内——不误伤。"""
-        tid = mk_api_task(client, ARXIV)
+        tid = mk_api_task(client, ARXIV, headers=KEY)
         client.post(f"/api/task/{tid}/cancel")
         r = client.post(
             f"/api/task/{tid}/retry",
@@ -1411,7 +1414,7 @@ class TestOptionsGate:
 
     def test_retry_options_gate(self, client: TestClient) -> None:
         """retry 并入增量同闸：非法 engine 400、保留键摘、合法键 clamp 并入。"""
-        tid = mk_api_task(client, ARXIV)
+        tid = mk_api_task(client, ARXIV, headers=KEY)
         client.post(f"/api/task/{tid}/cancel")
         r = client.post(
             f"/api/task/{tid}/retry", json={"options": {"engine": "pdflatex"}}

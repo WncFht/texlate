@@ -51,7 +51,7 @@ from texlate.server.http import (
     _route_path,
     _same_origin,
 )
-from texlate.server.routers import AppDeps, discover, register_routers
+from texlate.server.routers import AppDeps, discover, refs, register_routers
 from texlate.server.settings import (
     BYOK_FIELDS,
     SettingsStore,
@@ -309,6 +309,7 @@ def create_app(  # noqa: C901, PLR0913, PLR0915 -- 装配阶梯+闭包面平铺
             await runner.stop()
             bus.close_all()
             await discover._aclose_clients()  # noqa: SLF001 -- lifespan 收尾钩
+            await refs._aclose_clients()  # noqa: SLF001 -- 同上 loop 桶收尾
             store.close()
 
     app = FastAPI(title="texlate-server", version=__version__, lifespan=lifespan)

@@ -15,6 +15,7 @@ pytest.importorskip("starlette.testclient", reason="server extra 未装")
 from conftest import (
     FakeEngine,
     make_app,
+    mk_chunk_row,
     mk_task_row,
     upload_tex,
     wait_terminal,
@@ -215,8 +216,43 @@ class TestRetranslateJob:
         tmp_path: Path,
         clean_env: pytest.MonkeyPatch,  # noqa: ARG002 -- fixture 副作用
     ) -> None:
-        """无 BYOK key + 无注入厂 → 拒绝落 MockTranslator 占位译文（闸守真译）。"""
-        _retranslate_keeps_chunk(tmp_path, needle="无 BYOK")
+        """无 BYOK key + 无注入厂 → 拒绝落 MockTranslator 占位译文（闸守真译）。
+
+        M1 建行闸后无 key 建行即 ``needs_auth``、到不了 done——直建行造
+        done 现场（chunk + splice 标记），``enqueue_retranslate`` 不带
+        secrets 即无 key 臂；观测「无 BYOK」跳过重译、原译不被覆写。
+        """
+        engine = FakeEngine()
+        app = make_app(
+            tmp_path,
+            start_worker=True,
+            engine_factory=lambda _name: engine,
+        )
+        with TestClient(app) as c:
+            store = c.app.state.store
+
+            def setup() -> str:
+                row = mk_task_row(store)
+                tid = str(row["id"])
+                store.insert_chunks(tid, [mk_chunk_row(0)])
+                store.update_chunk(
+                    tid, "c0", {"translation": "这是译文", "status": "ok"}
+                )
+                store.conn.commit()
+                store.transition(tid, "done", force=True)
+                zh = c.app.state.data_dir / "tasks" / tid / "zh"
+                zh.mkdir(parents=True)
+                (zh / ".splice-done").touch()
+                return tid
+
+            tid = c.portal.call(setup)
+            db = tmp_path / "data" / "texlate.db"
+            before = _chunk(db, tid, 0)
+            c.portal.call(partial(c.app.state.runner.enqueue_retranslate, tid, 0))
+            _wait_event(db, tid, "无 BYOK")
+            after = _chunk(db, tid, 0)
+        assert after["translation"] == before["translation"]
+        assert len(engine.calls) == 0  # 跳过重译不触碰编译面
 
 
 class TestEnqueueGates:

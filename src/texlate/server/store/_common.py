@@ -119,6 +119,19 @@ CREATE TABLE IF NOT EXISTS task_usage (
   latency_s         REAL NOT NULL DEFAULT 0,
   updated_at        REAL NOT NULL
 );
+
+-- M4 Phase B：kept refs 收藏（misc-pack 实现文档 §M4）。payload 是自含
+-- RefMeta 快照 JSON 文本（`label/text/arxivId/doi/meta`——dom 路 key 漂移
+-- 时导出不受影响）；无 tenant 列——task_id 经 get_task 租户闸即隔离；
+-- 任务删行 ON DELETE CASCADE 殉葬。64KB 上限 CHECK 兜底（API 层先闸）。
+CREATE TABLE IF NOT EXISTS kept_refs (
+  task_id    TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  ref_key    TEXT NOT NULL,
+  payload    TEXT NOT NULL CHECK (length(payload) <= 65536),
+  created_at REAL NOT NULL,
+  updated_at REAL NOT NULL,
+  PRIMARY KEY (task_id, ref_key)
+);
 """
 
 #: 列级迁移（CREATE IF NOT EXISTS 盖不住的老库加列）：
@@ -178,6 +191,8 @@ _WARNINGS_CAP = 200
 #: ``snapshot.options`` 摘除键——app._RESERVED_OPTION_KEYS 的镜像
 #: （worker 写入的内部审计字段）+ ``idempotency_key`` 一次性入参。
 #: 环形依赖不许反向 import app，键集漂移时两侧同步改。
+#: ``mock_run``/``no_seg_cache`` 同列：M1 审计/缓存围栅键（worker 与
+#: retry 端点写入面），透出会让前端克隆任务把内部标记带进新任务。
 _SNAPSHOT_OPTS_DROP = frozenset(
     {
         "reuse_hit",
@@ -186,6 +201,8 @@ _SNAPSHOT_OPTS_DROP = frozenset(
         "route_engines",
         "share",
         "idempotency_key",
+        "mock_run",
+        "no_seg_cache",
     }
 )
 

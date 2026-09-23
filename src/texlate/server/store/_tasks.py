@@ -60,6 +60,15 @@ assert f"({_sql_str_list(_CACHE_KEY_HELD_STATUSES)})" in DDL  # noqa: S101 -- �
 _TERMINAL_IN = f"({_qmarks(TERMINAL_STATUSES)})"
 _TERMINAL_ARGS: tuple[str, ...] = tuple(sorted(TERMINAL_STATUSES))
 
+#: mock 审计键排除谓词（M1）：``options_json`` 内嵌 ``mock_run`` 标记的行
+#: 不进 reuse/active 命中集——mock 产物跨请求复用即毒传播。``json_extract``
+#: 遇坏 JSON 会炸整条查询（存量 options_json 可经直写腐化）——``json_valid``
+#: 先行，坏格按无标记收编（腐化行先于 mock_run 时代，无标记可读）。
+_MOCK_RUN_EXCLUDE = (
+    " AND CASE WHEN json_valid(options_json)"
+    " THEN json_extract(options_json, '$.mock_run') IS NULL ELSE 1 END"
+)
+
 
 class TaskRepo(_Repo):
     """tasks 表聚合。构造只存门面回指——连接在 ``open()`` 后才可用。"""
@@ -183,6 +192,21 @@ class TaskRepo(_Repo):
         row = self.conn.execute(
             "SELECT * FROM tasks WHERE cache_key = ? AND status IN"  # noqa: S608 -- 状态集为内部枚举字面量渲染，cache_key 仍走绑定
             f" ({_sql_str_list(_CACHE_KEY_HELD_STATUSES)})"
+            f"{_MOCK_RUN_EXCLUDE}"
+            " ORDER BY created_at DESC LIMIT 1",
+            (cache_key,),
+        ).fetchone()
+        return dict(row) if row else None
+
+    def find_needs_auth_by_cache_key(self, cache_key: str) -> dict[str, Any] | None:
+        """同 cache_key 的 ``needs_auth`` 终态行——缺 key 建行闸的撞键查。
+
+        ``needs_auth`` 不在 ``uq_tasks_cachekey_active`` 谓词内（不占唯一
+        槽），同键重复提交不产生 IntegrityError——建行侧必须显式查本函数
+        才能 200 收编到既有缺 key 行（用户补 key 走该行的 retry 通道）。
+        """
+        row = self.conn.execute(
+            "SELECT * FROM tasks WHERE cache_key = ? AND status = 'needs_auth'"
             " ORDER BY created_at DESC LIMIT 1",
             (cache_key,),
         ).fetchone()
@@ -195,10 +219,12 @@ class TaskRepo(_Repo):
         收敛），``_finish_reuse`` 会原样镜像其终态 + ``error_json``——把腐
         产物克隆给后来者等于毒传播（``t_f74894ebc691aaf4`` 缺包 partial
         被 reuse 克隆给 ``t_74d635d226e68251`` 实证）。partial 命中方请
-        走真跑（修复链可能收敛成 done）。
+        走真跑（修复链可能收敛成 done）。``mock_run`` 标记行同不收（M1：
+        mock 译文复用即毒传播——命中方走真跑）。
         """
         row = self.conn.execute(
-            "SELECT * FROM tasks WHERE cache_key = ? AND status = 'done'"
+            "SELECT * FROM tasks WHERE cache_key = ? AND status = 'done'"  # noqa: S608 -- _MOCK_RUN_EXCLUDE 是模块内常量片段，非外部输入
+            f"{_MOCK_RUN_EXCLUDE}"
             " ORDER BY created_at DESC LIMIT 1",
             (cache_key,),
         ).fetchone()

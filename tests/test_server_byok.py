@@ -44,8 +44,13 @@ class TestPriorityChain:
         assert client.app.state.runner.secrets[tid].api_key == "sk-env-key"
 
     def test_none_source(self, client: TestClient) -> None:
+        """无 key 源（M1 后语义）：建行即 ``needs_auth`` 终态——不登记
+        secrets、不入队（空 key 任务不再有可跑的 mock 面）。"""
         tid = mk_api_task(client, ARXIV, model="m")
-        assert client.app.state.runner.secrets[tid].api_key == ""
+        row = get_row(client, tid)
+        assert row["status"] == "needs_auth"
+        assert row["auth_source"] == "none"
+        assert tid not in client.app.state.runner.secrets
 
 
 class TestTenant:

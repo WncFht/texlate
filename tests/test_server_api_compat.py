@@ -33,6 +33,9 @@ if TYPE_CHECKING:
     from texlate.server.store import Store
 
 ARXIV = "2401.00001"
+#: M1 缺 key 硬闸后，无 key 建行即 ``needs_auth`` 终态——需要 ``queued``/ACTIVE
+#: 语义承载的用例统一带此头走 keyed 路径（local 形态 tenant 恒 "local"）。
+KEY = {"X-Texlate-Key": "sk-test"}
 
 
 class TestRetryEngineWipe:
@@ -160,7 +163,7 @@ class TestArxivStatusCompat:
     """``GET /api/arxivStatus/{id}`` → hjfy ``{status, info}`` 词汇面。"""
 
     def test_active_maps_start(self, client: TestClient) -> None:
-        tid = mk_api_task(client, ARXIV)
+        tid = mk_api_task(client, ARXIV, headers=KEY)
         r = client.get(f"/api/arxivStatus/{ARXIV}")
         assert r.status_code == HTTPStatus.OK
         body = r.json()
@@ -281,7 +284,7 @@ class TestArxivFilesCompat:
 
     def test_active_pending(self, client: TestClient) -> None:
         """进行中：status 0 + 「正在处理中」，产物 URL 空串。"""
-        mk_api_task(client, ARXIV)
+        mk_api_task(client, ARXIV, headers=KEY)
         body = client.get(f"/api/arxivFiles/{ARXIV}").json()
         assert body["status"] == 0
         assert body["msg"] == "正在处理中"

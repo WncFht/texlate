@@ -75,7 +75,7 @@ def test_get_src_body_streaming_cap() -> None:
             return httpx.Response(
                 HTTPStatus.OK,
                 headers={
-                    "content-disposition": 'attachment; filename="arXiv-1234.5678v1.tar.gz"'
+                    "content-disposition": 'attachment; filename="arXiv-1212.5678v1.tar.gz"'
                 },
             )
         return httpx.Response(HTTPStatus.OK, content=gen())
@@ -87,7 +87,7 @@ def test_get_src_body_streaming_cap() -> None:
         hosts=("arxiv.org",),
         sleep=clk.sleep,
     )
-    res = fetcher.get_src("1234.5678")
+    res = fetcher.get_src("1212.5678")
     assert res.status is FetchStatus.TOO_LARGE
     assert pulled < total_chunks  # 提前断流——生成器未被穷尽
 

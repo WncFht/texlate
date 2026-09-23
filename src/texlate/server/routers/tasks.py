@@ -180,6 +180,7 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 端
                 "chunks": [
                     {
                         "seq": r["seq"],
+                        "chunk_id": r["chunk_id"],
                         "kind": r["kind"],
                         "status": r["status"],
                         "en": r.get("src_text") or "",
@@ -297,9 +298,15 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 端
         静默丢弃比报错糟，故 body 白名单外的键一律 400。
         """
         row = deps.get_task(request, task_id)
+        opts = row_json(row, "options_json")
+        # M1：mock_run 标记的 done 行放行 retry——mock 产物按 done 交付
+        # 后用户无任何重跑入口（done ∉ RETRYABLE_FROM 是故意的常规闸，
+        # mock 行是例外）。下方 transition 须 force（store 层守卫不认
+        # mock 例外——本端点已验标记，属端点授权越闸）。
+        mock_done = row["status"] == "done" and bool(opts.get("mock_run"))
         # 状态守卫必须在一切 mutation 之前——done 任务 retry 只许纯 409，
         # 不得先清 chunks/删目录/写 options（B3）
-        if row["status"] not in RETRYABLE_FROM:
+        if row["status"] not in RETRYABLE_FROM and not mock_done:
             raise TransitionError(task_id, row["status"], "queued")
         body = await _read_body(request)
         header_key = request.headers.get("x-texlate-key", "")
@@ -318,12 +325,20 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 端
             )
         if "options" in body and not isinstance(body["options"], dict):
             return _json_error(400, "retry options 须为 object", "invalid_request")
-        opts = row_json(row, "options_json")
         if isinstance(body.get("options"), dict):
             # 合并臂不注默认——``inject_defaults=False`` 只校验 body 真实
             # 出现的键，缺席的 ``source`` 不会被改回 ``eprint``（html 任务
             # 的存量 source 原样保留）
             opts.update(_clean_task_options(body["options"], inject_defaults=False))
+        if mock_done:
+            # mock 行重跑强制 fresh 口径：``prefer=fresh`` 跳过 worker 侧
+            # post-resolve dedup/find_reusable（否则新行又撞 mock 行毒
+            # 复用）；``no_seg_cache`` 是内部选项——worker ``_make_cache``
+            # 认它返 NullCache，绕开 mock 期写入的段缓存残毒。两键随
+            # options_json 落库（后续 retry 仍保 fresh 语义），snapshot
+            # 经 ``_SNAPSHOT_OPTS_DROP`` 不透出。
+            opts["prefer"] = "fresh"
+            opts["no_seg_cache"] = 1
         if body.get("main"):
             opts["main"] = str(body["main"])
         # 合并结果重跑帽闸——_clean_task_options 只闸 body 增量，存量+增量
@@ -346,17 +361,23 @@ def register(app: FastAPI, deps: AppDeps) -> None:  # noqa: C901, PLR0915 -- 端
         # 原子守卫先行——抢到 queued 前不做任何破坏清理。双发 retry 时后者
         # 在此 409 出局，不再抹掉 worker 已重插的 chunks / 覆盖 options（B3）
         try:
-            deps.store.transition(task_id, "queued", message="重试入队")
+            deps.store.transition(
+                task_id, "queued", message="重试入队", force=mock_done
+            )
         except TransitionError as e:
             return _json_error(409, str(e), "invalid_transition")
         try:
             if (
                 main_req and main_req != str(row.get("main_tex") or "")
-            ) or engine_stale:
+            ) or engine_stale or mock_done:
                 # 换主文件（body.main 与 options.main 同口径）或显式换引擎 →
                 # 解析产物作废（chunks/base/zh 重建，src/ 保留）；派生产物行
                 # 与磁盘件并删——残行会让 files/reader 照发上一轮产物
                 # （en.pdf 也随 base/ 同死：换 main/引擎后它编译自另一棵树）
+                # mock_done 同臂：mock 行的 chunks 全是 status=ok 占位译文，
+                # 不删则 DBStateBridge.load 全收 completed、重跑零重译——
+                # 清 chunks 逼重解析（src/.fetch-done 在，fetch 不重取），
+                # 产物行同清防 retry 期间照发 mock 产物。
                 deps.store.delete_chunks(task_id)
                 task_root = deps.task_dir(task_id)
                 recs = [

@@ -30,30 +30,38 @@ def _write_tree(root: Path, files: dict[str, str]) -> None:
 @pytest.mark.slow
 @pytest.mark.skipif(not _HAS_V2, reason="corpus 数据不在场（gitignored）")
 def test_locate_corpus_v2_all() -> None:
-    """manifest_v2 全量定位：全部 kind=latex 且有 main，order 首元素即 main。"""
-    v2_ids = [
-        json.loads(line)["id"]
-        for line in (CORPUS / "manifest_v2.jsonl").read_text().splitlines()
-    ]
-    metas = sorted(m for i in v2_ids if (m := CORPUS / i / "meta.json").is_file())
+    """corpus 全量定位：全部 kind=latex 且有 main，order 首元素即 main。
+
+    枚举面以盘上 ``*/meta.json`` 为准（v3 统一根重建后 manifest_v2.jsonl
+    的 old-style id 与在盘成员已不再同集）；``format=="pdf"`` 的 pdf_only
+    行无 tex 源不属本测试面；plain_tex/none 是语料真实成员（Knuth
+    plain-TeX、索引包等）——locate 的正确分类，不算定位失败。
+    """
+    metas = sorted(CORPUS.glob("*/meta.json"))
     assert metas
     failures: list[str] = []
     multi = 0
     for meta_p in metas:
+        meta = json.loads(meta_p.read_text())
+        if meta.get("format") == "pdf":
+            continue
         ext = meta_p.parent / "extracted"
         if not ext.is_dir():
             failures.append(f"{meta_p.parent.name}:no_extracted")
             continue
-        arxiv_id = json.loads(meta_p.read_text())["arxiv_id"]
+        arxiv_id = meta["arxiv_id"]
         r = locate(ext, arxiv_id=arxiv_id)
-        if r.kind is not DocKind.LATEX or r.main is None:
+        if r.kind is not DocKind.LATEX:
+            # plain_tex/none 是语料真实成员——locate 的正确分类非定位失败
+            continue
+        if r.main is None:
             failures.append(f"{arxiv_id}:{r.kind}:{r.main}")
             continue
         assert r.order[0] == r.main
         if r.multi_doc:
             multi += 1
     assert not failures, "; ".join(failures)
-    assert multi >= 1  # 语料中确有 multi_doc（2101.07948 等）
+    assert multi >= 1  # 语料中确有 multi_doc（meta.locate 面 ~98 例）
 
 
 @pytest.mark.skipif(not _HAS_V1, reason="corpus 数据不在场（gitignored）")

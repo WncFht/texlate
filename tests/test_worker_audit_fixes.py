@@ -91,7 +91,11 @@ class TestPhFragments:
         monkeypatch: pytest.MonkeyPatch,
         clean_env: pytest.MonkeyPatch,  # noqa: ARG002 -- fixture 副作用
     ) -> None:
-        ctx, worker, store = mk_ctx(tmp_path)
+        ctx, worker, store = mk_ctx(
+            tmp_path,
+            # M1 后无 key 直调 translate 段撞 AuthError——注入 factory 桩显式 mock 臂
+            worker_kw={"translator_factory": lambda _ctx: MockTranslator()},
+        )
         scan_base(ctx, worker, store, _MATH_TEX)
         frag_of = worker._ph_frag_map(ctx)  # noqa: SLF001
         math_cid = next(cid for cid, m in frag_of.items() if "$x+y$" in m.values())
@@ -1229,6 +1233,7 @@ class TestCacheUserGlossarySig:
 
     def test_same_path_content_change_rekeys(self, tmp_path: Path) -> None:
         ctx, worker, _store = mk_ctx(tmp_path, options={"glossary": "g.yaml"})
+        ctx.secrets = Secrets(api_key="k")  # M1：无 key → _NullCache 无 _prefix
         ctx.base_dir.mkdir(parents=True, exist_ok=True)
         g = ctx.base_dir / "g.yaml"
         g.write_text("a: 甲\n", encoding="utf-8")
@@ -1239,6 +1244,7 @@ class TestCacheUserGlossarySig:
 
     def test_diff_path_same_content_shares(self, tmp_path: Path) -> None:
         ctx, worker, _store = mk_ctx(tmp_path, options={"glossary": "g.yaml"})
+        ctx.secrets = Secrets(api_key="k")  # M1：无 key → _NullCache 无 _prefix
         ctx.base_dir.mkdir(parents=True, exist_ok=True)
         (ctx.base_dir / "g.yaml").write_text("a: 甲\n", encoding="utf-8")
         p1 = worker._make_cache(ctx)._prefix  # noqa: SLF001
@@ -1257,6 +1263,7 @@ class TestCacheUserGlossarySig:
         ufile.write_text("x: 一\n", encoding="utf-8")
         monkeypatch.setattr(worker_mod.seams, "USER_GLOSSARY_PATH", ufile)
         ctx, worker, _store = mk_ctx(tmp_path)
+        ctx.secrets = Secrets(api_key="k")  # M1：无 key → _NullCache 无 _prefix
         p1 = worker._make_cache(ctx)._prefix  # noqa: SLF001
         ufile.write_text("x: 二\n", encoding="utf-8")
         p2 = worker._make_cache(ctx)._prefix  # noqa: SLF001

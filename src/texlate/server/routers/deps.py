@@ -28,6 +28,8 @@ from texlate.server.settings import (
 )
 from texlate.server.store import new_task_id, valid_task_id
 from texlate.server.worker import Secrets, artifact_urls, cache_key_for
+from texlate.textutil import env_str
+from texlate.textutil.osutil import ENV_TRANSLATOR
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -210,7 +212,7 @@ class AppDeps:
         bucket[0] += 1
         bucket[1] += incoming_bytes
 
-    def create_and_enqueue(  # noqa: C901, PLR0913 -- dedup/reuse/建行阶梯 + 参数面平铺
+    def create_and_enqueue(  # noqa: C901, PLR0912, PLR0913 -- dedup/reuse/建行阶梯 + 参数面平铺
         self,
         request: Request,
         *,
@@ -233,6 +235,19 @@ class AppDeps:
         """
         auth = self.auth(request)
         store = self.store
+        # M1 缺 key 硬闸的两块判据（建行前算定，臂内共用）：
+        # ``mock_env`` —— ``TEXLATE_TRANSLATOR=mock`` 显式 opt-in 面
+        # （bench/e2e 夹具），该形态下建行即写 ``mock_run:1`` 审计键
+        # （``_SNAPSHOT_OPTS_DROP`` 同款不透出口径）；
+        # ``explicit_mock`` —— mock 可达即豁免缺 key 闸（env mock 或注入
+        # ``translator_factory`` 测试桩），否则无 key 请求建行即落
+        # ``needs_auth`` 终态不进队列——静默 Mock 译文按 done 交付 +
+        # 毒化段缓存/reuse 链是实测事故面（misc-pack §M1）。
+        mock_env = env_str(ENV_TRANSLATOR) == "mock"
+        explicit_mock = (
+            mock_env
+            or self.worker._translator_factory is not None  # noqa: SLF001 -- 装配注入面只读探测（同 _llm_hook_pack 判据）
+        )
         idem = request.headers.get("idempotency-key") or options.get("idempotency_key")
         if idem:
             hit = store.find_by_idempotency(auth.tenant, str(idem))
@@ -276,11 +291,25 @@ class AppDeps:
                         )
                 else:
                     return done, 200, {"reused": True}
+            # needs_auth 终态行不占 cache_key 唯一槽——同键再撞不产
+            # IntegrityError，须显式查收编：缺 key 用户重交同论文回
+            # 既有 needs_auth 行（200 + task_id），补 key 走该行 retry
+            # 通道，而非再堆一条新死行（misc-pack §M1 风险 1）。
+            needs = store.find_needs_auth_by_cache_key(cache_key)
+            if needs is not None:
+                return needs, 200, {"reused": True}
         self.check_quota(
             auth,
             incoming_bytes,
             request.client.host if request.client is not None else "",
         )
+        if mock_env and kind != "share":
+            # env mock 形态建行即打 mock_run 审计键——queued 未跑的行
+            # 也提前进排除集（worker 侧 ``_flag_mock_run`` 在 resolve 时
+            # 对 factory/存量行补同一标记，两处幂等会合）。share 豁免：
+            # 共享包译文是真实产物非 mock 占位，误标会把真译文踢出
+            # reuse 命中集。
+            options = {**options, "mock_run": 1}
         tid = task_id or new_task_id()
         config = {
             "base_url": auth.base_url,
@@ -315,17 +344,42 @@ class AppDeps:
                 # 检查-建行之间并发插入撞 ACTIVE 唯一索引——归 duplicate_active
                 # （原来裸 re-raise 出 FastAPI 成无码 500）
                 active = store.find_active_by_cache_key(cache_key)
-                body: dict[str, Any] = {
-                    "detail": "active task exists",
-                    "code": "duplicate_active",
-                }
                 if active is not None:
-                    body["detail"] = f"active task {active['id']} exists"
-                    body["task_id"] = active["id"]
-                raise _ApiError(409, body) from None
-            # fresh：cache_key 撞活跃行——放弃 dedup 键强行新建（§2.1）
-            kw["cache_key"] = None
-            row = store.create_task(**kw)
+                    raise _ApiError(
+                        409,
+                        {
+                            "detail": f"active task {active['id']} exists",
+                            "task_id": active["id"],
+                            "code": "duplicate_active",
+                        },
+                    ) from None
+                # 持槽行已迁出 ACTIVE（查-写窗内完成/取消）：needs_auth
+                # 撞键行收编 200——缺 key 重交指向可补 key 的既有行，
+                # 不发无 task_id 的 409 死信（misc-pack §M1 风险 1）
+                needs = store.find_needs_auth_by_cache_key(cache_key)
+                if needs is not None:
+                    return needs, 200, {"reused": True}
+                # 剩余撞键面：持槽行是 mock_run 排除集内行（唯一索引不含
+                # mock 谓词，active mock 行仍占槽）或持槽行在查-写窗内
+                # 消失——无可指认对象时放弃 dedup 键建行（fresh 同语义，
+                # 优于死信 409）
+                kw["cache_key"] = None
+                row = store.create_task(**kw)
+            else:
+                # fresh：cache_key 撞活跃行——放弃 dedup 键强行新建（§2.1）
+                kw["cache_key"] = None
+                row = store.create_task(**kw)
+        if auth.source == "none" and not explicit_mock and kind != "share":
+            # 缺 key 硬闸（M1）：建行即落 needs_auth 终态，不进队列——
+            # Mock 兜底译文按 done 静默交付是事故面；needs_auth 行复用
+            # 既有 UX（ResultBody 内联 key + retry 端点带 X-Texlate-Key）。
+            # ``kind=="share`` 豁免：share 链全程不 resolve translator
+            # （``_run_share`` 无 translating 段，compile 各 LLM 臂被
+            # ``_share_sourced`` 闸死）——零 token 消费不需要 key。
+            row = store.transition(
+                tid, "needs_auth", force=True, message="未配置 API Key"
+            )
+            return row, 202, {"cache": "miss"}
         self.runner.enqueue(
             tid,
             Secrets.from_auth(auth, model=model),

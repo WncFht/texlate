@@ -45,6 +45,7 @@ from texlate.server.store._common import (
 )
 from texlate.server.store._events import EventRepo
 from texlate.server.store._files import FileRepo
+from texlate.server.store._kept import KeptRepo
 from texlate.server.store._tasks import TaskRepo
 from texlate.server.store._usage import UsageRepo
 
@@ -99,6 +100,7 @@ class Store:
         self._cache = CacheRepo(self, self._cache_hits)
         self._events = EventRepo(self)
         self._usage = UsageRepo(self)
+        self._kept = KeptRepo(self)
 
     def __getattr__(self, name: str) -> object:
         """``store.X`` 透传：未命中门面本体时按序查聚合 repo。
@@ -107,7 +109,15 @@ class Store:
         ``_cache_hits``/各 ``_*Repo``）与 monkeypatch 的实例遮蔽
         （``setattr(store, "get", ...)``）一律优先，调用面语义不变。
         """
-        for key in ("_tasks", "_chunks", "_files", "_cache", "_events", "_usage"):
+        for key in (
+            "_tasks",
+            "_chunks",
+            "_files",
+            "_cache",
+            "_events",
+            "_usage",
+            "_kept",
+        ):
             repo = self.__dict__.get(key)
             if repo is not None and hasattr(repo, name):
                 return getattr(repo, name)
