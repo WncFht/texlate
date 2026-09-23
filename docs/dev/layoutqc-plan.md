@@ -287,6 +287,12 @@ per-doc QC 记录 = {component scores: text/geo/float/structure, mean_grade, low
 - **run4 分布**（80 胞）：clean 5 / warn 18 / hard 50 / error 7——marks 面全类实弹：`float_drift`（单格 15 位点）、`order_inversion`、`marks_coverage`、`align_page_count`、`align_order_break`；`marks_absent` 清零。
 - **error 格归宿**：5/7 是 rc 闸误杀（reqc 免编译重打分自动拾回）；2404.14219 真编译死（pdf_corrupt 本源）；1610.02136 早前波次已编。
 
+**reqc6 + rescan7（终版代码统一重打分，2026-09-23 深夜）**：
+
+- **reqc6（120 胞双臂）**：clean 8 / warn 32 / hard 80 / **0 error**——marks 真值面全量在位：`float_drift` 123 位点、`order_inversion` 36、`lost_element` 12、`marks_coverage` 9、`align_page_count` 15、`align_order_break` 17、`offpage` 1；`marks_absent` 仅 9（118/120 鲜度闸过、2 格 stale vault pdf + 编译死格按单臂 INFO 计）。新签 `xlat_broken_refs` 9 胞、`geo_table_lost` 1、`align_figure_lost` 2、`align_math_drift` 2、`geo_column_collapse` 2。
+- **rescan7（284 vault 胞单臂）**：clean 33 / warn 90 / hard 159 / error 2（皆 no_main）——与 rescan6 分布稳定（clean 34→33 边缘抖动）；新签 `xlat_broken_refs` **15 胞**、`pdf_corrupt` 1、`no_pdf` 1。
+- **双臂 vs 单臂对照**：同一批 2609.\* 占位集群在双臂下 marks 面额外供出 drift/inversion/coverage 三类真值——单臂只能看 marks_absent+degen，双臂才可证「浮体级丢件/乱序」；证实双臂 marks 是检测面的独占深度层。
+
 ### 10.6 已知 FP/盲区清单（留档不堵）
 
 - **矢量图内 bbox 伪影**：pgfplots/tikz 图内密集 tick 标签在 poppler 词级天然交叠；跨臂抑制吃大头，figure 区域分割（MinerU 式 layout parser）是根治但超范围。
