@@ -300,8 +300,11 @@ export default function ReaderView(props: Props) {
                             "posAtPoint" in h
                                 ? h.posAtPoint?.(x, y)
                                 : null;
+                        // 距离闸 1.0=只收同页锚——稀疏 seqpos（老任务
+                        // 无 TLXC 标）下防点击被吸到跨页孤锚，超距落回
+                        // jumpPosToPdf 比例旧路
                         return p
-                            ? nearestSeq(seqposMap(), saSide, p)
+                            ? nearestSeq(seqposMap(), saSide, p, 1)
                             : null;
                     },
                 });

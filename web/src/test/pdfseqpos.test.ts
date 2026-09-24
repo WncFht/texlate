@@ -75,4 +75,18 @@ describe("nearestSeq", () => {
             }),
         ).toBeNull();
     });
+    it("maxScore 距离闸：超距 → null（稀疏 seqpos 落回旧路）", () => {
+        // 点击 p4——最近锚 seq7 在 p3，score=1+(1-0.2)=1.8 > 1 → 拒
+        expect(
+            nearestSeq(MAP, "zh", { page: 4, fraction: 0.5 }, 1),
+        ).toBeNull();
+        // 同页锚 score=|Δf|≤1 恒收
+        expect(
+            nearestSeq(MAP, "en", { page: 1, fraction: 0.9 }, 1),
+        ).toBe(3);
+        // 闸放宽到 2 → 同一跨页锚收
+        expect(
+            nearestSeq(MAP, "zh", { page: 4, fraction: 0.5 }, 2),
+        ).toBe(7);
+    });
 });

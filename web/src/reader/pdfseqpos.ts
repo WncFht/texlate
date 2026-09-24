@@ -40,11 +40,15 @@ export function seqPairs(map: SeqPosMap): AlignmentPair[] {
 
 /** Pos → 最近 seq。同页比分位差（恒 <1 优先）；跨页按页差 + 到页沿
     距离粗排——点击落在无 seq 覆盖区（页眉/参考文献间缝）时给的是
-    诚实最近邻，不是精确命中（调用方按「兜底」语义消费）。 */
+    诚实最近邻，不是精确命中（调用方按「兜底」语义消费）。
+    maxScore 设距离闸：bestScore 超限 → null——稀疏 seqpos（老任务
+    无 TLXC 标走文本匹配、覆盖参差）下宁 null 让调用方落比例旧路，
+    不把点击吸到几十页外的孤锚。同页锚 score<1 恒收。 */
 export function nearestSeq(
     map: SeqPosMap,
     side: SaSide,
     pos: Pos,
+    maxScore = Number.POSITIVE_INFINITY,
 ): number | null {
     const k = sideKey(side);
     let best: number | null = null;
@@ -62,5 +66,5 @@ export function nearestSeq(
             best = Number(key);
         }
     }
-    return best;
+    return bestScore <= maxScore ? best : null;
 }
