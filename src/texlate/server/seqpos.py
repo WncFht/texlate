@@ -35,7 +35,7 @@ log = logging.getLogger(__name__)
 __all__ = ["seqpos_for_task"]
 
 _CACHE = "seqpos.json"
-_VERSION = 23
+_VERSION = 24
 
 #: 行聚类 y 容差（pt，底向上坐标同线合并）
 _LINE_TOL = 2.5
@@ -1276,11 +1276,19 @@ def _row_extent(
     cands = [b for b in bounds if b[1] == page]
     if not cands:
         return None
-    b = min(cands, key=lambda b: abs(b[2] - frac))
-    if abs(b[2] - frac) > _ROW_EPS:
+    # 先按 frac 收窄到同视觉行（双栏同线左右段常同 frac），行集里再按
+    # x 行距（到 [x0,x1] 幅面距离）定栏——frac/eps 先取会把 x1 snap 到
+    # 错栏行幅面（左栏行 x1+eps 糊住右栏标 x：0.514 vs 0.486+0.03 实证）；
+    # x 全行不认领（>eps）即拒——防把标记 snap 到同 frac 的异行。
+    near = [b for b in cands if abs(b[2] - frac) <= _ROW_EPS]
+    if not near:
         return None
-    if x is not None and not (b[3] - _ROW_EPSX <= x <= b[4] + _ROW_EPSX):
-        return None
+    if x is not None:
+        b = min(near, key=lambda b: max(b[3] - x, x - b[4], 0.0))
+        if max(b[3] - x, x - b[4], 0.0) > _ROW_EPSX:
+            return None
+    else:
+        b = min(near, key=lambda b: abs(b[2] - frac))
     return b[3], b[4]
 
 
