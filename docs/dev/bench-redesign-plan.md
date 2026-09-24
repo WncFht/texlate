@@ -1,5 +1,7 @@
 # bench 工作区最终方案：**thin-runner + 薄门面**(kernel 收敛样板 + 契约钉死承重面 + exec 单入口）
 
+> **已取代（2026-09-23 Wave-F）**：本方案（v1 thin-runner 路线）未实施即被 trizone-ledger v2 全量重写取代——实际落地见 `dev/bench-redesign-v2-trizone.md` 与 `bench/py/kernel/`；本文保留作方案评审史记录，其中 stagerun/records/results 面均已是历史。
+>
 > 骨架 = 排名第一 thin-runner（零存储/schema 移动、函数式 run_bench 内核、additive benchlib helpers);嫁接 = 亚军 bench-cli-facade 的单入口薄门面（修正为 exec-only + 更名 bench_cli.py);全部 fatal/major 攻击逐条处置（无 fatal 成立，major 共 19 条，对策内嵌于步骤与风险节）。已逐条实证关键行号。
 
 ---

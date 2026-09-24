@@ -1,5 +1,7 @@
 # Phase 4 实施计划 — spec 全覆盖与清场
 
+> **已收口（2026-09-23 Wave-F）**：本计划排定的 spec 化/动词化/删除单已全部执行——24 spec + 8 分析动词落位、旧 harness 全删、repo 数据面出仓至 `$TEXLATE_BENCH_ROOT`。本文保留作裁决记录；执行结果见 [log/2026-09-24 收官件](../log/2026-09-24-磁盘策略落地与探针批指标.md)。
+>
 > 调研底稿：43-agent 深读普查（2026-09-22,`tmp/phase4-research-20260922/research.json`，逐驱动含 done_today/spec_draft/audit_checklist/denominator 全字段）。本文是裁决与排序；审计细节查底稿。
 
 ## 0. 总判定

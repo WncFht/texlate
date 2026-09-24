@@ -67,7 +67,7 @@ fixtures 是陷阱构造语料：`tricky.tex`（@Tnn 主集）、`tricky-209.tex
 
 ### 3.3 run 产物面 — 仓外账本根
 
-旧 `bench/results/` 目录已随 Wave-F 删除：run 产物整体迁出仓库，落 `$TEXLATE_BENCH_ROOT/runs/<kind>/<date>/<slug>/`（`runs/` 元格 + `derived/` 报表），索引是账本根下的 sqlite（`bench status` / `bench doctor` 可直查）。仓内不再有「重跑即覆盖」的产出目录需要工具链豁免；残留的 gitignored 数据只剩 §3.2 语料层与 `bench/zh-store/`（唯一不可再生真译段库）。
+旧 `bench/results/` 目录已随 Wave-F 删除：run 产物整体迁出仓库，落 `$TEXLATE_BENCH_ROOT/runs/<kind>/<date>/<slug>/`（`runs/` 元格 + `derived/` 报表），索引是账本根下的 sqlite（`bench status` / `bench doctor` 可直查）。仓内不再有「重跑即覆盖」的产出目录需要工具链豁免；gitignored 数据面全部出仓——语料载荷在 `lake/corpus/`、不可再生真译与成品在 `vault/`（继任旧 `bench/zh-store/`）。
 
 ## 4. 产出契约与记账
 
