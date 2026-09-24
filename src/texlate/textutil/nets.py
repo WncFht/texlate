@@ -284,6 +284,48 @@ _RESID_EN_WORD_RX: Final = re.compile(r"[A-Za-z]+(?:[-'][A-Za-z]+)*")
 _RESID_EN_ADDR_RX: Final = re.compile(
     r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+|(?:https?://|www\.)[\w./?=&%#+:-]+"
 )
+#: 人名列小写连接词（nobiliary/romance 颗粒）——计入豁免覆盖而非稀释
+#: 大写占比：``Ministerio de Ciencia y Universidade``、``École
+#: Polytechnique Fédérale de Lausanne`` 机构/人名靠 de/y/di 等颗粒
+#: 串接，纯大写口径实测只能到 ~50%（e2e_real 残英误杀实证）。
+_RESID_EN_LINKERS: Final = frozenset(
+    {
+        "al",
+        "d",
+        "da",
+        "das",
+        "de",
+        "del",
+        "den",
+        "der",
+        "des",
+        "di",
+        "dos",
+        "du",
+        "e",
+        "el",
+        "het",
+        "i",
+        "l",
+        "la",
+        "le",
+        "ten",
+        "ter",
+        "van",
+        "von",
+        "y",
+    }
+)
+#: 撇号省略形人名颗粒（``d'Ormesson``/``l'Oréal``）——WORD_RX 把
+#: ``d'Ormesson`` 收成一词后首字母小写不沾大写豁免，单列一类。
+_RESID_EN_ELISION_RX: Final = re.compile(r"[a-z]+'[A-Z]")
+#: 「技术负载 token」签名——token 内含 数字/=<>_{}\/. 或以 ``-`` 起首
+#: （命令行 flag）。命令行调用、XML/标记块、代码片段 verbatim 照抄是
+#: 正确态而非漏翻：英文散句的 tech 份额实测 ≤0.25，payload ≥0.5
+#: （e2e_real 探针批：texttt{foldseek easy-search …}/ccs2012 块/
+#: {rotate QRcode} 链全被 Tier-A 误杀）。
+_RESID_EN_TECH_RX: Final = re.compile(r"[\d=<>_{}\\/.]")
+_RESID_EN_TECH_SHARE: Final = 0.5
 
 #: run 边缘非标点剥离——CJK 切出的 run 会带 ``。，`` 等界标点，
 #: verbatim 回显的 src 子串判定须先剥边缘才不被界标点卡掉短回显。
@@ -293,8 +335,8 @@ _RESID_EN_EDGE_RX: Final = re.compile(r"^[^A-Za-z0-9]+|[^A-Za-z0-9]+$")
 def _keep_verbatim_run(run: str) -> bool:
     """Run 是否人名/专名/地址列签名。
 
-    ≥70% 词是首字母大写或落在邮箱/URL span 内即豁免——句子夹个把
-    名字/邮箱凑不够 70%，整句英文不误放。
+    ≥70% 词是首字母大写、人名连接词、或落在邮箱/URL span 内即豁免——
+    句子夹个把名字/邮箱凑不够 70%，整句英文不误放。
     """
     wms = list(_RESID_EN_WORD_RX.finditer(run))
     if len(wms) < _RESID_EN_NAME_MIN_TOKENS:
@@ -303,9 +345,26 @@ def _keep_verbatim_run(run: str) -> bool:
     covered = sum(
         1
         for m in wms
-        if m.group(0)[:1].isupper() or any(s <= m.start() < e for s, e in spans)
+        if m.group(0)[:1].isupper()
+        or m.group(0).lower() in _RESID_EN_LINKERS
+        or _RESID_EN_ELISION_RX.match(m.group(0))
+        or any(s <= m.start() < e for s, e in spans)
     )
     return covered / len(wms) >= _RESID_EN_NAME_CAP_SHARE
+
+
+def _tech_run(core: str) -> bool:
+    """Run 是否技术负载（命令行/XML/代码 payload）而非英文散句。
+
+    逐 token 判定：含数字/结构符/点号（``scipy.a.b(c)`` 调用形）或以
+    ``-`` 起首（``-s``/``-{}-alignment-type`` flag 形）计一票，份额
+    ≥0.5 豁免——两 token 的短 run 必是纯 payload 才够 est 门槛。
+    """
+    toks = core.split()
+    if not toks:
+        return False
+    tech = sum(1 for t in toks if _RESID_EN_TECH_RX.search(t) or t.startswith("-"))
+    return tech / len(toks) >= _RESID_EN_TECH_SHARE
 
 
 def residual_en_net(src: str, zh: str) -> list[str]:
@@ -323,8 +382,12 @@ def residual_en_net(src: str, zh: str) -> list[str]:
       子串——行级 ``src_l`` 回退/整句照抄的确切签名；
     - **Tier-B 混血**：run 不在 src 且 alpha 词 ≥8 且拉丁字母 ≥40——
       非照抄的整句英文（改写/漏翻长句）；
-    - **人名/地址豁免**：run 为近全大写人名/专名列、或词几乎全落在
-      邮箱/URL span 内（``_keep_verbatim_run``）不判。
+    - **技术负载豁免**：run 半数以上 token 含数字/结构符/点号或以
+      ``-`` 起首（``_tech_run``）——命令行/XML/代码 payload 照抄是
+      正确态；
+    - **人名/地址豁免**：run 为近全大写人名/专名列（de/y/von 类
+      连接词计入覆盖）、或词几乎全落在邮箱/URL span 内
+      （``_keep_verbatim_run``）不判。
 
     门槛：``src`` 含 ``[[BIB_`` → ``[]``（文献直通留英合法，同
     ``same_source`` 豁免口径）；zh prose 零 CJK → ``[]``（全英译文归
@@ -345,7 +408,7 @@ def residual_en_net(src: str, zh: str) -> list[str]:
         if not core:
             continue
         words = _RESID_EN_WORD_RX.findall(run)
-        if _keep_verbatim_run(run):
+        if _tech_run(core) or _keep_verbatim_run(run):
             continue
         if est_tokens(core) >= _RESID_EN_MIN_EST and core in ss:
             hits.append(run)

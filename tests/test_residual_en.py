@@ -74,6 +74,63 @@ class TestNet:
         zh = "作者有 john smith jane doe alan turing bob jones amy lee 等人。"
         assert len(residual_en_net(_SRC, zh)) == 1
 
+    def test_tech_payload_texttt_no_hit(self) -> None:
+        # \texttt{} 参数 verbatim 照抄是正确态 —— tech-token 份额 ≥0.5 豁免
+        # （e2e_real 探针批 foldseek run 被 Tier-A 误杀实证）
+        src = (
+            "We ran \\texttt{foldseek easy-search -s 7.5 -{}-alignment-type 1 "
+            "-{}-max-seqs 1000} against the database."
+        )
+        zh = (
+            "我们对数据库运行了（\\texttt{foldseek easy-search -s 7.5 "
+            "-{}-alignment-type 1 -{}-max-seqs 1000}）。"
+        )
+        assert residual_en_net(src, zh) == []
+
+    def test_tech_payload_xml_no_hit(self) -> None:
+        # <ccs2012> 分类块 verbatim —— 尖括号/数字 token 密集同样豁免
+        payload = (
+            "<ccs2012><concept><concept_desc>Computer systems "
+            "organization~Embedded systems</concept_desc>"
+            "<concept_significance>500</concept_significance></concept>"
+            "<concept><concept_desc>Networks~Network reliability"
+            "</concept_desc><concept_significance>300</concept_significance>"
+            "</concept></ccs2012>"
+        )
+        src = f"Metadata block. {payload} Tail."
+        zh = f"元数据块保留：{payload}。"
+        assert residual_en_net(src, zh) == []
+
+    def test_tech_payload_brace_chain_no_hit(self) -> None:
+        # {rotate, QRcode}（+37） 族动作链 —— Tier-B 路径同样被豁免盖住
+        zh = (
+            "动作链为 {rotate, QRcode}（+37）、{move, playingcard, away}"
+            "（+21）、{move, pillbottle, pad}（+22）、{place, shoe}（+26）。"
+        )
+        assert residual_en_net(_SRC, zh) == []
+
+    def test_linker_name_run_no_hit(self) -> None:
+        # de/e/y 连接词计入豁免覆盖 —— 机构名 Tier-B 误杀实证
+        zh = "致谢 Ministerio de Ciencia e Innovación y Universidade 资助。"
+        assert residual_en_net(_SRC, zh) == []
+
+    def test_accented_name_linker_no_hit(self) -> None:
+        # É/Fé 斩词后靠 de 连接词仍够 70% —— EPFL 机构名 verbatim
+        src = (
+            "The authors are with École Polytechnique Fédérale de Lausanne "
+            "(EPFL), Switzerland."
+        )
+        zh = "作者单位为 École Polytechnique Fédérale de Lausanne (EPFL)。"
+        assert residual_en_net(src, zh) == []
+
+    def test_stats_heavy_sentence_still_hit(self) -> None:
+        # 数字/符号夹带但未达 0.5 份额的真英文句仍判 —— 豁免只吃 payload
+        zh = (
+            "结果显示 the p value < 0.05 with n = 1000 samples shows "
+            "significant gains overall 成立。"
+        )
+        assert len(residual_en_net(_SRC, zh)) == 1
+
     def test_bib_passthrough_no_hit(self) -> None:
         zh = (
             "文献。The quick brown fox jumps over the lazy dog "
