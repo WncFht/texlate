@@ -35,7 +35,7 @@ log = logging.getLogger(__name__)
 __all__ = ["seqpos_for_task"]
 
 _CACHE = "seqpos.json"
-_VERSION = 20
+_VERSION = 23
 
 #: 行聚类 y 容差（pt，底向上坐标同线合并）
 _LINE_TOL = 2.5
@@ -86,8 +86,19 @@ _ORPHAN_MIN_ND = 8
 _ORPHAN_PAGES = 5
 #: mark 校验 SM 覆盖阈——occurrence 标内文本对 zh needle 低于则不可信
 _MARK_COV = 0.35
+#: 实标兜底：裹字形数下限（目录/LOF 重放行达不到的量级）与针覆盖地板
+#: （防 splice 错位裹进全无关段）。snap 寻不到针时末锚定标按位兜底。
+_MARK_FALLBACK_CHARS = 48
+_MARK_FB_COV = 0.10
+#: 小碎片兜底副车道：页中区（f<0.92，folio 区之上）裹 ≥8 字形的锚定标
+#: 免针地板——十几字形里针覆盖全是噪声（t_0c25 seq48 zh 15 字形段首
+#: 残件实证）；folio 区小碎片多为页码残件（t_5248 seq87 "19" 实证）不兜。
+_MARK_FB_CHARS_LO = 8
+_MARK_FB_MAXFRAC = 0.92
 #: 引文数字缝桥接的流侧缝宽上限（'[12,46,101,423]' 类连引实测 ~12 位）
 _CITE_GAP = 20
+#: 桥接缝里 ≥3 字母连跑 = 真词插入——渲染件残件（数字/bib 标签/符号）不桥
+_GAP_WORD_RX = re.compile(r"[a-zA-Z]{3,}")
 #: 栏判定 x 中点契约（col = x>=0.45 ? 1 : 0）——与前端阅读序键同口径
 _COL_SPLIT_X = 0.45
 
@@ -772,9 +783,11 @@ def _sm_cov(stream: str, lo: int, hi: int, needle: str) -> tuple[float, int, int
     sm = SequenceMatcher(None, stream[lo:hi], needle, autojunk=False)
     blocks = sm.get_matching_blocks()
     cov = sum(b.size for b in blocks) / len(needle)
-    # 引文数字缝桥接：相邻 block 在针上连续（needle 已剥 [[CITE_n]]）而
-    # 流侧仅隔纯数字短跑（行内渲染的引文上标 '…策略124610142343然而…'）
-    # ——合并计最长块。非数字/超长缝/针侧有残段不桥（防回多跳拼接假锚）。
+    # 渲染件缝桥接：相邻 block 在针上连续（needle 已剥 [[CITE_n]]/[[REF_n]]/
+    # [[MATH_n]]）而流侧仅隔短渲染件——引文数字串 '124610142343'、bib 标签
+    # 'b2'/'e1'、单枚数学符号 'θ' 皆是针剥占位后的流侧残件。含 ≥3 字母连
+    # 跑的缝不桥（真词插入=别段文本）；超长缝/针侧有残段不桥（防回多跳
+    # 拼接假锚）。
     longest = cur = 0
     prev_a = prev_b = 0
     for b in blocks:
@@ -784,7 +797,7 @@ def _sm_cov(stream: str, lo: int, hi: int, needle: str) -> tuple[float, int, int
             prev_a
             and b.b == prev_b
             and 0 < b.a - prev_a <= _CITE_GAP
-            and stream[lo + prev_a : lo + b.a].isdigit()
+            and not _GAP_WORD_RX.search(stream[lo + prev_a : lo + b.a])
         ):
             cur += b.size
         else:
@@ -858,11 +871,26 @@ def _match_bounded(  # noqa: C901, PLR0912 -- gram 锚定+兜底+打分是同一
         if lo <= s0 and s0 + ln <= hi and stream[s0 : s0 + ln] == needle:
             cov, p, e, blk = 1.0, s0, s0 + ln, ln
         elif ln < _COV_SHORT:
-            # 短针只收 verbatim——SM 碎块凑分对短针全是噪声（"projectwho"
-            # ≈"projectlead" cov0.91 毒锚、反把邻位夹逼界带崩实证）
-            if stream[s0 : s0 + ln] != needle:
+            # 短针除 verbatim 外只收「纯插入」近似：匹配块在针上全序连续
+            # （无替换/缺失）、流侧缝皆 ≤_CITE_GAP 渲染件——宏展开残件
+            # （\ourmodelthree→'tabpfn3'）/引文数字插进流不是针错（t_25e3
+            # seq22 zh 针 cov1.0 缝 'tabpfn3'/'1' 实证）；替换型近似仍弃
+            # （'projectwho'≈'projectlead' 类碎块凑分毒锚实证）。
+            lo2 = max(0, lo, s0 - 8)
+            hi2 = min(hi, s0 + ln * 3 + 40)
+            if hi2 <= lo2:
                 continue
-            cov, p, e, blk = 1.0, s0, s0 + ln, ln
+            sm2 = SequenceMatcher(None, stream[lo2:hi2], needle, autojunk=False)
+            bl = [b for b in sm2.get_matching_blocks() if b.size]
+            if not bl or not all(
+                b.b == a.b + a.size and b.a - (a.a + a.size) <= _CITE_GAP
+                for a, b in zip(bl, bl[1:])
+            ):
+                continue
+            cov = sum(b.size for b in bl) / ln
+            p = max(lo, lo2 + bl[0].a - bl[0].b)
+            e = lo2 + bl[-1].a + bl[-1].size
+            blk = ln  # 针侧全序连续链视同一个块
         else:
             lo2 = max(0, lo, s0 - 8)
             hi2 = min(hi, s0 + ln * 3 + 40)
@@ -1356,25 +1384,55 @@ def _mark_trusted(  # noqa: PLR0913 -- 双侧共用校验件，参面=校验输�
     if gidx is not None:
         for seq in suspects:
             nd = nd_map.get(seq) or ""
-            if len(nd) < _ORPHAN_MIN_ND:
-                continue
-            occ = trusted.get(seq) or marks[seq][-1]
-            lo = next((b[0] for b in bounds if b[1] >= occ["page"] - _ORPHAN_PAGES), 0)
-            hi = next(
-                (b[0] for b in bounds if b[1] > occ["page"] + _ORPHAN_PAGES),
-                len(stream),
-            )
-            p, _cov, _e = _match_bounded(nd, stream, gidx, lo, hi)
-            if p < 0:
-                continue
-            pos = _pos_at(bounds, p)
-            if pos is not None:
-                trusted[seq] = {
-                    "page": pos["page"],
-                    "fraction": pos["fraction"],
-                    "x": pos["x"],
-                    "chars": occ["chars"],
-                }
+            if len(nd) >= _ORPHAN_MIN_ND:
+                occ = trusted.get(seq) or marks[seq][-1]
+                lo = next(
+                    (b[0] for b in bounds if b[1] >= occ["page"] - _ORPHAN_PAGES),
+                    0,
+                )
+                hi = next(
+                    (b[0] for b in bounds if b[1] > occ["page"] + _ORPHAN_PAGES),
+                    len(stream),
+                )
+                p, _cov, _e = _match_bounded(nd, stream, gidx, lo, hi)
+                if p >= 0:
+                    pos = _pos_at(bounds, p)
+                    if pos is not None:
+                        trusted[seq] = {
+                            "page": pos["page"],
+                            "fraction": pos["fraction"],
+                            "x": pos["x"],
+                            "chars": occ["chars"],
+                        }
+                        continue
+            # 实标兜底：snap 寻不到针（数学符号/引文渲染汤把针切碎，
+            # need_blk 不可达——t_5248 seq214 标内 351 字形 cov 0.26 实
+            # 证）或针过短时，裹足量字形的末锚定 occurrence 按位兜底——
+            # BDC/EMC 落点随字形走，cov 低是针被稀释而非位置错。TOC/LOF
+            # 重放落文档前序故取末锚定即正文；裹字过少的小碎片（页断沉
+            # 底 2 字符类）无位置证据不兜，针微命地板防裹进全无关段。
+            if seq not in trusted:
+                anch = [o for o in marks[seq] if o["fraction"] is not None]
+                if anch:
+                    last = anch[-1]
+                    n_ch = last.get("chars") or 0
+                    if (
+                        n_ch >= _MARK_FALLBACK_CHARS
+                        and (
+                            not nd
+                            or _text_cov(last.get("text") or "", nd)
+                            >= _MARK_FB_COV
+                        )
+                    ) or (
+                        n_ch >= _MARK_FB_CHARS_LO
+                        and last["fraction"] < _MARK_FB_MAXFRAC
+                    ):
+                        trusted[seq] = {
+                            "page": last["page"],
+                            "fraction": last["fraction"],
+                            "x": last.get("x"),
+                            "chars": last["chars"],
+                        }
     return trusted, gidx
 
 
@@ -1534,13 +1592,13 @@ def compute_seqpos(  # noqa: C901, PLR0912, PLR0915 -- 装配阶梯单流：mark
             s: o
             for s, o in zh_off.items()
             if s not in dead_seqs
-            or not any(s2 != s and a <= o <= b for s2, a, b in zh_spans)
+            or not any(s2 != s and a <= o < b for s2, a, b in zh_spans)
         }
         en_off = {
             s: o
             for s, o in en_off.items()
             if s not in dead_seqs
-            or not any(s2 != s and a <= o <= b for s2, a, b in en_spans)
+            or not any(s2 != s and a <= o < b for s2, a, b in en_spans)
         }
 
     out: dict[str, Any] = {}
