@@ -131,6 +131,95 @@ def test_dedup_skip_on_second_run(broot: Path):
     assert r2["ok"] is True
 
 
+def _collector_spec(fn, items):
+    """Needs-free collector stage (the e2e_real fixloop/layoutqc shape):
+    no needs edges, upstream gates live inside the fn."""
+    st = _stage("coll", fn, status_class=dict(SC, reject="terminal"))
+    return Spec(stages=[st], items=items, kind="tbench", eval=True)
+
+
+def _seed_verdict(idc, status, seq, sig=None):
+    """Stamp a historical cross-run cell row straight into the index."""
+    idx = indexmod.Index()
+    ev = events.make_event(
+        events.T_CELL,
+        run="seed",
+        run_seq=900,
+        seq=seq,
+        id=idc,
+        idc=idc,
+        arm="-",
+        up="-",
+        variant="-",
+        stage="coll",
+        status=status,
+        dur_s=0.1,
+    )
+    if sig is not None:
+        ev["sig"] = sig
+    assert idx.apply_event(ev) == "applied"
+    idx.close()
+
+
+def test_declined_gate_reject_never_dedups(broot: Path):
+    """declined:* rejects are conditional gate verdicts over the upstream
+    state at emit time — upstream revival must re-run the fn, not inherit
+    the stale decline."""
+    calls = []
+
+    def coll(ctx):
+        calls.append("coll")
+        if len(calls) == 1:
+            return {"status": "reject", "sig": "declined:qc_no_input"}
+        return "ok"
+
+    spec = _collector_spec(coll, [{"id": "2401.00001"}])
+    r1 = kernel.run(spec, **_quiet())
+    rd1 = runs.load_run(spec.kind, r1["date"], r1["slug"])
+    row = _cell_rows(rd1)[0]
+    assert row["status"] == "reject" and row["sig"] == "declined:qc_no_input"
+
+    # upstream "revived" — the decline must not dedup; the fn re-evaluates
+    r2 = kernel.run(spec, **_quiet())
+    rd2 = runs.load_run(spec.kind, r2["date"], r2["slug"])
+    assert _cell_rows(rd2)[0]["status"] == "ok"
+    assert calls == ["coll", "coll"]
+
+    # and the real verdict dedups normally from here on
+    r3 = kernel.run(spec, **_quiet())
+    rd3 = runs.load_run(spec.kind, r3["date"], r3["slug"])
+    assert _cell_rows(rd3)[0]["status"] == "dedup"
+    assert calls == ["coll", "coll"]
+
+
+def test_dedup_pile_over_declined_reads_through(broot: Path):
+    """Dedup rows stacked on a declined row are pointers to it — the scan
+    reads through the whole pile, so a poisoned cell unbricks on the next
+    run without ledger surgery."""
+    spec = _collector_spec(lambda ctx: "ok", [{"id": "2401.00001"}])
+    _seed_verdict("2401.00001", "reject", 1, sig="declined:qc_no_input")
+    _seed_verdict("2401.00001", "dedup", 2)
+    _seed_verdict("2401.00001", "dedup", 3)
+    res = kernel.run(spec, **_quiet())
+    rd = runs.load_run(spec.kind, res["date"], res["slug"])
+    assert _cell_rows(rd)[0]["status"] == "ok"
+
+
+def test_dedup_pile_over_verdict_still_dedups(broot: Path):
+    """Guard against over-masking: dedup rows on a real verdict keep
+    deduping — the mask only removes pointer rows, not work evidence."""
+    calls = []
+    spec = _collector_spec(lambda ctx: calls.append("c") or "ok",
+                           [{"id": "2401.00001"}])
+    _seed_verdict("2401.00001", "ok", 1)
+    _seed_verdict("2401.00001", "dedup", 2)
+    _seed_verdict("2401.00001", "dedup", 3)
+    res = kernel.run(spec, **_quiet())
+    rd = runs.load_run(spec.kind, res["date"], res["slug"])
+    assert _cell_rows(rd)[0]["status"] == "dedup"
+    assert calls == []
+
+
 def test_fp_changes_do_not_affect_done_set(broot: Path):
     spec = _free_spec({"a": lambda ctx: "ok"}, [{"id": "2401.00001"}],
                       params={"temp": Param(float, default=0.1)})

@@ -321,11 +321,28 @@ def _last_outcome(idx, idc, arm, up, variant, stage) -> dict | None:
     cell_queued/cell_started events mask prior terminal outcomes to
     'queued'/'started'. `records` holds T_CELL rows only, so it is the
     honest outcome history the self-dedup check must read (§3.1).
+
+    Two row shapes are transparent to this scan — neither is a verdict:
+
+    - `dedup` rows are pointers at an earlier verdict (needs_eval
+      already resolves them to the last DONE row the same way). Reading
+      through them lands on the verdict they resolved to — except when
+      the chain bottoms at a declined row, which is the poison case
+      below.
+    - `reject` rows with sig `declined:*` are gate verdicts over the
+      upstream state at emit time (needs-free collector stages keep
+      their gates inside the fn). They must stay DONE — the terminal
+      emit fires the last-mutating-stage harvest — but upstream revival
+      makes them stale, so they never count as work evidence and the fn
+      re-evaluates its gates every run.
     """
     row = idx.conn.execute(
         "SELECT run,seq,id,idc,arm,up,variant,stage,status,cat,sig,code,"
         "fp,dur_s,metrics,errors,ts FROM records "
         "WHERE idc=? AND arm=? AND up=? AND variant=? AND stage=? "
+        "AND status != 'dedup' "
+        "AND NOT (status = 'reject' AND COALESCE(sig, '') "
+        "         LIKE 'declined:%') "
         "ORDER BY rowid DESC LIMIT 1",
         (idc, arm, up, variant, stage)).fetchone()
     return dict(row) if row is not None else None
@@ -772,9 +789,12 @@ def _run_cell(env, cell: dict) -> dict:
         if key in env["terminal_keys"]:
             return {"cell": key, "status": "already-terminal"}
 
-        # 2. cross-run dedup — the last OUTCOME row (records, not the
-        #    queued-masked cells table) decides; DONE ∪ {dedup} = work
-        #    evidence. 'lost'/'claimed'/'unpaid_gate' are KERNEL
+        # 2. cross-run dedup — the last VERDICT row (records, not the
+        #    queued-masked cells table) decides; DONE = work evidence.
+        #    'dedup' pointer rows and 'declined:*' gate rejects are
+        #    transparent to _last_outcome — a decline is conditional on
+        #    the upstream state at emit time and must be re-evaluated,
+        #    not inherited. 'lost'/'claimed'/'unpaid_gate' are KERNEL
         #    adjudication states (swept zombie, live-lock mask, gate
         #    refusal) — deduping them bricks a never-completed cell
         #    forever. ASSET-PAID STAGES SKIP THIS ENTIRELY: the step-3
