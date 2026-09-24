@@ -35,7 +35,7 @@ log = logging.getLogger(__name__)
 __all__ = ["seqpos_for_task"]
 
 _CACHE = "seqpos.json"
-_VERSION = 17
+_VERSION = 20
 
 #: 行聚类 y 容差（pt，底向上坐标同线合并）
 _LINE_TOL = 2.5
@@ -201,7 +201,16 @@ def _reading_order(  # noqa: C901
         gl -= 3.0
     while gr + 3 < hi and cross(gr + 3) <= thr:
         gr += 3.0
-    if gr - gl < _GUTTER_MIN_W:
+    # 采样量化修正：探针撞 >thr 停步时缝缘真值落在相邻两样本之间，
+    # 各侧外扩半步取中点估计——3pt 采样把 ~12pt 物理缝量成 9pt 会
+    # 假阴性丢整页栏序（t_f748 en p13：带内 0 穿线两侧 45+ 实证）；
+    # 探针撞 lo/hi 扫描界的方向不外扩（真界未知，保守不加）。
+    gw = gr - gl
+    if gl - 3 > lo:
+        gw += 1.5
+    if gr + 3 < hi:
+        gw += 1.5
+    if gw < _GUTTER_MIN_W:
         return lines, None
     g = (gl + gr) / 2
     # 跨缝多 part 行（同基线左右栏合并行）拆成左/右两条独立行——
@@ -1386,6 +1395,20 @@ def compute_seqpos(  # noqa: C901, PLR0912, PLR0915 -- 装配阶梯单流：mark
         en_stream, en_bounds, en_marks = _char_stream(en_pdf, collect_marks=True)
         zh_stream, zh_bounds, zh_marks = _char_stream(zh_pdf, collect_marks=True)
 
+    # 全 0 字形标 = 死区空壳（\iftoggle 吞参/弃置盒：BDC/EMC 执行了但
+    # 标内零字形）——无位置证据，剥出标记层防孤儿 snap 拿针撞上近
+    # 重复孪生段（t_f748 seq161：\icra{} 空壳 snap 到 \arxiv 段实证）。
+    en_marks = {
+        s: occs
+        for s, occs in en_marks.items()
+        if any(o.get("chars") for o in occs)
+    }
+    zh_marks = {
+        s: occs
+        for s, occs in zh_marks.items()
+        if any(o.get("chars") for o in occs)
+    }
+
     order = _doc_order(task_dir, chunks) if task_dir is not None else {}
     en_needles = _needles(chunks, "en")
     zh_needles = _needles(chunks, "zh")
@@ -1426,6 +1449,20 @@ def compute_seqpos(  # noqa: C901, PLR0912, PLR0915 -- 装配阶梯单流：mark
         en_bounds,
         n_needles=len(en_needles),
     )
+
+    # 双侧零标字形 = 死区候选（\iftoggle 吞参/弃置盒/声明点不渲染）：
+    # 空壳标已剥出 marks，不在双侧标记层者进针配后滤——命中别家
+    # trusted 标幅面 = 近重复孪生段误锚（t_f748 seq161/162→163/165
+    # 实证）剥；命中无标自渲区（\maketitle 类收集-迟发文本，t_32fc
+    # seq1 署名单实证）保留。整文档无标（遗产任务）不启用。
+    if en_marks or zh_marks:
+        dead_seqs = {
+            s
+            for s, _nd in en_needles
+            if s not in en_marks and s not in zh_marks
+        }
+    else:
+        dead_seqs = set()
 
     # zh：trusted mark 免匹配——换算成流 offset 当补缺界桩
     chunks_by_seq = {c.get("seq"): c for c in chunks if isinstance(c.get("seq"), int)}
@@ -1473,6 +1510,38 @@ def compute_seqpos(  # noqa: C901, PLR0912, PLR0915 -- 装配阶梯单流：mark
         if en_unmarked
         else {}
     )
+
+    # 死区 seq 针配后滤：命中落在别家 trusted 标幅面内 = 近重复孪生
+    # 段误锚，剥（锚应属标主）；落无标区 = 声明点迟发文本真渲染，留。
+    if dead_seqs:
+
+        def _mk_spans(
+            mk: dict[int, dict[str, Any]],
+            bs: list[tuple[int, int, float, float, float]],
+        ) -> list[tuple[int, int, int]]:
+            return [
+                (
+                    s,
+                    (o0 := _offset_at(bs, occ["page"], occ["fraction"], occ.get("x"))),
+                    o0 + (occ.get("chars") or 0),
+                )
+                for s, occ in mk.items()
+            ]
+
+        zh_spans = _mk_spans(trusted, zh_bounds)
+        en_spans = _mk_spans(en_trusted, en_bounds)
+        zh_off = {
+            s: o
+            for s, o in zh_off.items()
+            if s not in dead_seqs
+            or not any(s2 != s and a <= o <= b for s2, a, b in zh_spans)
+        }
+        en_off = {
+            s: o
+            for s, o in en_off.items()
+            if s not in dead_seqs
+            or not any(s2 != s and a <= o <= b for s2, a, b in en_spans)
+        }
 
     out: dict[str, Any] = {}
     # en_trusted 必须进并集——en-only seq（zh='' 未译 caption/abstract
