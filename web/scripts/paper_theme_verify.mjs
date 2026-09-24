@@ -74,18 +74,19 @@ const measure = () =>
         return {
             avg,
             pageBg:
-                viewer?.style.getPropertyValue("--page-bg-color") || "(unset)",
+                viewer &&
+                (getComputedStyle(viewer)
+                    .getPropertyValue("--page-bg-color")
+                    .trim() || "(unset)"),
         };
     });
 
 let fails = 0;
 for (const c of CASES) {
-    // app 主题:data-theme 即权威态(MutationObserver → resolvedTheme);
-    // 纸面配色:信号只在 init 读 localStorage,运行时切必须走真实 select
-    await page.evaluate((dark) => {
-        localStorage.setItem("texlate-theme", dark ? "dark" : "light");
-        document.documentElement.dataset.theme = dark ? "dark" : "light";
-    }, c.dark);
+    // 单轴模型:OS 明暗唯一信号源=prefers-color-scheme——emulateMedia
+    // 翻转打 matchMedia change→osDark();旧双轴遗物(texlate-theme 键/
+    // dataset.theme 手改)不驱动任何东西,写了只污染迁移面
+    await page.emulateMedia({ colorScheme: c.dark ? "dark" : "light" });
     await page.waitForTimeout(600);
     await page.evaluate(() =>
         [...document.querySelectorAll("button")]

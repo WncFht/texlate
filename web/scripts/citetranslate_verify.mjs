@@ -220,6 +220,9 @@ async function run() {
                     (await keyBox.count()) > 0 && posted.length === 0,
                     `posted=${posted.length}`,
                 );
+                // key 框是 Esc 层栈内层——先收框再轮到面板
+                await page.keyboard.press("Escape");
+                await page.waitForTimeout(300);
             } else {
                 check(
                     "chip click → POST /translate intercepted",

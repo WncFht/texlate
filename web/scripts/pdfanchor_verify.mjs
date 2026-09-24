@@ -339,9 +339,13 @@ async function run() {
         }
 
         // ---- 2. 选区→seqs --------------------------------------------------
+        // 期望 seq 从实得锚 id 反推（_mc{50000+seq}）——真任务标记稀疏
+        // （seq1 未注锚时两片是 [0,2]），硬编码 [0,1] 只适用密标 mock
+        const seqOf = (id) => Number(/_mc(\d+)$/.exec(id)?.[1]) - 50000;
         const marked = zhIds.length;
         if (marked >= 1) {
-            // 2a. 圈第一枚锚内文 → seqs=[0]
+            const want1 = seqOf(zhIds[0]);
+            // 2a. 圈第一枚锚内文 → seqs=[其锚 seq]
             const ok1 = await page.evaluate(selectIn, [
                 "translated",
                 "span.markedContent",
@@ -353,17 +357,18 @@ async function run() {
                 await page.waitForTimeout(450);
                 const r1 = await fireCopy();
                 check(
-                    "seqs for first anchor == [0]",
+                    `seqs for first anchor == [${want1}]`,
                     !!r1 &&
                         Array.isArray(r1.seqs) &&
                         r1.seqs.length === 1 &&
-                        r1.seqs[0] === 0,
+                        r1.seqs[0] === want1,
                     r1 ? `seqs=${JSON.stringify(r1.seqs)}` : "no request",
                 );
             }
         }
         if (marked >= 2) {
-            // 2b. 跨两枚锚 → seqs=[0,1]
+            const want2 = [seqOf(zhIds[0]), seqOf(zhIds[1])];
+            // 2b. 跨两枚锚 → seqs=两锚 seq 对
             const ok2 = await page.evaluate(selectIn, [
                 "translated",
                 "span.markedContent",
@@ -375,12 +380,12 @@ async function run() {
                 await page.waitForTimeout(450);
                 const r2 = await fireCopy();
                 check(
-                    "seqs across anchors == [0,1]",
+                    `seqs across anchors == [${want2}]`,
                     !!r2 &&
                         Array.isArray(r2.seqs) &&
                         r2.seqs.length === 2 &&
-                        r2.seqs[0] === 0 &&
-                        r2.seqs[1] === 1,
+                        r2.seqs[0] === want2[0] &&
+                        r2.seqs[1] === want2[1],
                     r2 ? `seqs=${JSON.stringify(r2.seqs)}` : "no request",
                 );
             }

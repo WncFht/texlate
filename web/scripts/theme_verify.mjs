@@ -64,8 +64,10 @@ const SCENARIOS = [
         scheme: "light",
         meta: "#f5f1e8",
         toolbarNear: [253, 251, 245], // light --panel #fdfbf5
-        containerNear: [237, 231, 217], // light --paper-2 #ede7d9
-        pageVar: "",
+        // null 主题 → base.css :root --gutter #e8e8e8 中性灰衬底
+        // （衬底≠--paper-2 下沉 chrome 面——pdfjs.css:4 明令）
+        containerNear: [232, 232, 232],
+        pageVar: "#fff", // computed --page-bg-color: :root 恒定义,空串不可达
     },
     {
         name: "OS暗 + auto → 暖黑对",
@@ -75,7 +77,9 @@ const SCENARIOS = [
         scheme: "dark",
         meta: "#17140f",
         toolbarNear: [38, 33, 26], // dark --panel #26211a
-        containerNear: [31, 27, 21], // dark --paper-2 #1f1b15
+        // auto-暗走 baseTokensFor→命名槽路径:--gutter=mix(bg,#000,92)
+        // ≈rgb(21,18,14)——衬底压暗于纸面(#17140f),不是 --paper-2
+        containerNear: [21, 18, 14],
         pageVar: "#17140f",
     },
     {
@@ -86,8 +90,9 @@ const SCENARIOS = [
         scheme: "dark",
         meta: "#17140f",
         toolbarNear: [38, 33, 26],
+        // 暗 [data-theme] 套 --gutter=--paper-2 #1f1b15(暗衬底兜白纸)
         containerNear: [31, 27, 21],
-        pageVar: "",
+        pageVar: "#fff",
     },
     {
         name: "OS暗 + paper → 命名槽锁亮对(不听OS)",
@@ -142,7 +147,7 @@ const SCENARIOS = [
         scheme: "dark",
         meta: "#17140f",
         toolbarNear: [38, 33, 26],
-        containerNear: [31, 27, 21],
+        containerNear: [21, 18, 14], // 命名槽 dark → gutter=mix 压暗
         pageVar: "#17140f",
     },
     {
