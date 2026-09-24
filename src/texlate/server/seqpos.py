@@ -35,7 +35,7 @@ log = logging.getLogger(__name__)
 __all__ = ["seqpos_for_task"]
 
 _CACHE = "seqpos.json"
-_VERSION = 16
+_VERSION = 17
 
 #: 行聚类 y 容差（pt，底向上坐标同线合并）
 _LINE_TOL = 2.5
@@ -86,6 +86,8 @@ _ORPHAN_MIN_ND = 8
 _ORPHAN_PAGES = 5
 #: mark 校验 SM 覆盖阈——occurrence 标内文本对 zh needle 低于则不可信
 _MARK_COV = 0.35
+#: 引文数字缝桥接的流侧缝宽上限（'[12,46,101,423]' 类连引实测 ~12 位）
+_CITE_GAP = 20
 #: 栏判定 x 中点契约（col = x>=0.45 ? 1 : 0）——与前端阅读序键同口径
 _COL_SPLIT_X = 0.45
 
@@ -171,11 +173,18 @@ def _reading_order(  # noqa: C901
     thr = max(2, int(len(lines) * 0.10))
 
     def cross(x: float) -> int:
+        # 逐 part 投票：merged-row（同基线左右栏聚行）左/右 part 各投
+        # 自栏幅面——真缝在它们之间零票当选；仅整带横跨的单 part
+        # （真通栏标题 run）弃票（对所有 x 等权会顶过阈误杀真缝）。
+        # 旧路按行 bbox 弃票把 merged-row 全部弃权 → 缝区零票、
+        # best_x 钉在带缘 → MIN_SIDE 假阴性 → 整页栏文交错。
         return sum(
             1
             for ln in lines
-            if not (ln[2] < lo and ln[3] > hi)
-            and any(px <= x <= px + pw for px, _t, pw in ln[1])
+            if any(
+                px <= x <= px + pw and not (px < lo and px + pw > hi)
+                for px, _t, pw in ln[1]
+            )
         )
 
     best_x, best_c = -1.0, 1 << 30
@@ -754,7 +763,25 @@ def _sm_cov(stream: str, lo: int, hi: int, needle: str) -> tuple[float, int, int
     sm = SequenceMatcher(None, stream[lo:hi], needle, autojunk=False)
     blocks = sm.get_matching_blocks()
     cov = sum(b.size for b in blocks) / len(needle)
-    longest = max((b.size for b in blocks), default=0)
+    # 引文数字缝桥接：相邻 block 在针上连续（needle 已剥 [[CITE_n]]）而
+    # 流侧仅隔纯数字短跑（行内渲染的引文上标 '…策略124610142343然而…'）
+    # ——合并计最长块。非数字/超长缝/针侧有残段不桥（防回多跳拼接假锚）。
+    longest = cur = 0
+    prev_a = prev_b = 0
+    for b in blocks:
+        if not b.size:
+            continue
+        if (
+            prev_a
+            and b.b == prev_b
+            and 0 < b.a - prev_a <= _CITE_GAP
+            and stream[lo + prev_a : lo + b.a].isdigit()
+        ):
+            cur += b.size
+        else:
+            cur = b.size
+        longest = max(longest, cur)
+        prev_a, prev_b = b.a + b.size, b.b + b.size
     first = blocks[0]
     pos = max(lo, lo + first.a - first.b) if first.size else lo
     real = [b for b in blocks if b.size]
@@ -1448,7 +1475,12 @@ def compute_seqpos(  # noqa: C901, PLR0912, PLR0915 -- 装配阶梯单流：mark
     )
 
     out: dict[str, Any] = {}
-    for seq in sorted(set(en_off) | set(trusted) | set(zh_off)):
+    # en_trusted 必须进并集——en-only seq（zh='' 未译 caption/abstract
+    # 等：无 zh mark、无 zh needle、不在 en_unmarked）仅靠 en 标定位，
+    # 漏集则整条 seq 从 seqpos 蒸发（t_f748 seq0/1 实证）
+    for seq in sorted(
+        set(en_off) | set(en_trusted) | set(trusted) | set(zh_off)
+    ):
         c = chunks_by_seq.get(seq) or {}
         if not c.get("en") and not c.get("zh"):
             continue
