@@ -36,6 +36,10 @@ const BASE = "/api";
  *  UPLOAD_TIMEOUT_MS，80MB 慢链要远比 15s 宽）。 */
 export const REQUEST_TIMEOUT_MS = 15_000;
 
+/** /reader 首开的宽限——seqpos 缓存未命中时服务端懒算要重解析整本
+ *  pypdf CMap（实测大稿 ~19s），默认 15s 必然 abort 成 "signal timed out"。 */
+const READER_TIMEOUT_MS = 60_000;
+
 /** 上传 xhr 超时——10min：80MB 上限在 ~150KB/s 慢链约 9min 传完 */
 const UPLOAD_TIMEOUT_MS = 10 * 60_000;
 
@@ -357,7 +361,10 @@ export const api = {
         return `${BASE}/files/${taskId}/${kind}${qs ? `?${qs}` : ""}`;
     },
 
-    reader: (taskId: string) => request<ReaderInfo>(`/task/${taskId}/reader`),
+    reader: (taskId: string) =>
+        request<ReaderInfo>(`/task/${taskId}/reader`, {
+            signal: AbortSignal.timeout?.(READER_TIMEOUT_MS) ?? null,
+        }),
     /**
      * keepalive=true 走 fetch keepalive——pagehide 冲刷期请求可在页面
      * 卸载后送达（载荷上限 64KB，阅读态远低）。M5 关 tab 兜底。
