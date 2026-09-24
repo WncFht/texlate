@@ -5,8 +5,9 @@ pypdf ``visitor_operand_before`` 直读精确点锚；en.pdf（base 编译链无
 与未标记 zh seq 走文本匹配：chunk 文本 texstrip+alnum 归一成 needle，PDF
 ``extract_text`` 聚行成归一化字符流（行界记 page/fraction）。匹配两遍——
 光标窗口快路建单调骨架，漏跑段在相邻命中夹逼的流区间内 6-gram 锚定补缺
-（浮动体出序/字体丢空格粘连都能救回）。行界记 ``(char_off,page,frac,x)``
-——x 是段左缘页宽分位，栏判定/阅读序键 ``(page,col,frac)`` 的原料。
+（浮动体出序/字体丢空格粘连都能救回）。行界记 ``(char_off,page,frac,x,x1)``
+——x/x1 是段左右缘页宽分位，栏判定/阅读序键 ``(page,col,frac)`` 的原料
++ 宽行 snap 幅面。
 结果缓存 ``task_dir/seqpos.json``，
 输入件 mtime 更新即重算；dual.json 本体不动（``?version=sha256`` 不可变）。
 """
@@ -34,7 +35,7 @@ log = logging.getLogger(__name__)
 __all__ = ["seqpos_for_task"]
 
 _CACHE = "seqpos.json"
-_VERSION = 10
+_VERSION = 16
 
 #: 行聚类 y 容差（pt，底向上坐标同线合并）
 _LINE_TOL = 2.5
@@ -73,6 +74,8 @@ _GRAM = 6
 _GRAM_FREQ = 240
 #: 补缺候选打分上限
 _CAND_CAP = 48
+#: pass-C 无窗兜底的 cov 阈——无界 fuzzy 命中抬门槛宁缺勿滥
+_PASSC_COV = 0.9
 #: pass-A 接受命中允许的最大前跳（流字符）——超了宁可 miss 让
 # pass-B 邻位夹逼判，防止一次误锚把 cursor 拖到 doc 尾连锁塌方
 _JUMP_CAP = 6000
@@ -123,12 +126,19 @@ def _est_w(text: str, size: float) -> float:
     return sum(1.0 if ord(c) > _CJK_MIN else 0.55 for c in text) * size
 
 
-def _cluster_lines(runs: list[tuple[float, float, float, str]]) -> list[Any]:
-    """(y,x,size,text) → [y, parts[(x,text,w)], x0, x1, max_sz]，y 降序聚行。"""
+def _cluster_lines(
+    runs: list[tuple[float, float, float, str, float | None]],
+) -> list[Any]:
+    """(y,x,size,text,实测宽|None) → [y, parts[(x,text,w)], x0, x1, max_sz]。
+
+    pymupdf 路喂真实 span 宽——_est_w 估宽过冲会把同基线左右栏聚行
+    的虚幅面推过中缝，跨缝拆分闸失效、bound x1 胀到 0.89 抢对栏点
+    击（t_0c2574 p7 实证）。None 走 _est_w 兜底（pypdf 路）。
+    """
     runs.sort(key=lambda r: (-r[0], r[1]))
     lines: list[Any] = []
-    for y, x, sz, t in runs:
-        w = _est_w(t, sz)
+    for y, x, sz, t, rw in runs:
+        w = rw if rw is not None else _est_w(t, sz)
         if lines and abs(lines[-1][0] - y) <= _LINE_TOL:
             ln = lines[-1]
             ln[1].append((x, t, w))
@@ -252,38 +262,88 @@ def _reading_order(  # noqa: C901
     return out, (gl, gr)
 
 
-def _char_stream(  # noqa: C901, PLR0915 -- 页循环+双 visitor 平铺是抽取语义本体
+def _char_stream(
     path: Path, *, collect_marks: bool = False
-) -> tuple[str, list[tuple[int, int, float, float]], dict[int, list[dict[str, Any]]]]:
-    """PDF → (归一字符流, 行界 [(char_off,page,frac,x)], marks)。
+) -> tuple[
+    str, list[tuple[int, int, float, float, float]], dict[int, list[dict[str, Any]]]
+]:
+    """PDF → (归一字符流, 行界 [(char_off,page,frac,x,x1)], marks)。
+
+    双遍架构（pymupdf 可用时）——文本面与标记面各取最强解码器：
+
+    - 文本/行界走 pymupdf ``get_text("dict")``：CMap 回退链完整，无
+      ToUnicode 的 CJK 字体也能出真码点（pypdf ``visitor_text`` 同档
+      PDF 全错码点——zh 文本匹配整侧瘫死实证）。span 基线原点
+      ``origin`` 翻转成底向上 y，run 元组与 pypdf 时代同形，下游
+      ``_cluster_lines``/``_reading_order``/``_est_w`` 全不感
+      知。行界 x/x1=段左右缘页宽分位（栏判定/阅读序键/宽行 snap
+      原料）；跨缝多 part 行已在 ``_reading_order`` 拆成独立流段。
+      pymupdf 是 AGPL 可选件（不入 wheel 依赖面）——缺席/开启失败
+      回落 ``_char_stream_pypdf`` 单遍老路。
+
+    - ``collect_marks`` 时第二遍走 pypdf ``visitor_operand_before``
+      只读 TLXC 标记（``BDC /MCID=50000+seq``）——MCID/BDC 栈语义
+      pymupdf 高层 API 不透出，pypdf 是唯一来源。occurrence 记
+      page/fraction/x/chars + 标内 run 几何表；hyperref/TOC 重放
+      产生同 MCID 双 BDC，全量收下由下游校验择优。BDC/EMC 配对用
+      栈：嵌套/外来/无 MCID 的 BDC 压 None 占位，EMC 弹栈，归属=
+      栈顶向下最近非 None 项。锚位取标内首个 text run 的 (x,y)——
+      vob 里的 tm 是上一个文本对象的陈旧矩阵（全部标记偏高 ~1 行、
+      栏首偏 82% 页高实证）；fraction 口径与行界统一 1-(y+asc)/h
+      （行顶非基线——floor 语义下基线锚会把行首点击漏给上一条
+      seq）。chars 是标内真字形数，供孤儿判定：页断处 BDC 只裹
+      1~2 字形沉底、正文被推走。
+
+    - occurrence 的 ``text`` 不由 pypdf 供给（zh 乱码会废掉
+      ``_text_cov`` 校验）——收尾按标内 run 的 (页,frac 带,x 幅面)
+      在归一流里取行界切片几何回填：行界落在标 y 带内且 x 交叠即
+      认作标裹行。pymupdf 真文本下 zh mark 校验复活；回收为空时
+      occurrence 校验自然不通过、落 needle 路（语义诚实降级）。
+    """
+    try:
+        import pymupdf  # noqa: F401, PLC0415 -- AGPL 可选件探测
+    except ImportError:
+        pass
+    else:
+        try:
+            stream, bounds, dims = _text_layer(path)
+        except Exception as exc:  # noqa: BLE001 -- pymupdf 坏档不拖全链
+            log.warning(
+                "seqpos: %s pymupdf 文本面失败(%s)——回落 pypdf 单遍",
+                path.name,
+                exc,
+            )
+        else:
+            marks = _marks_layer(path, dims) if collect_marks else {}
+            if marks:
+                _mark_text_geom(marks, stream, bounds, dims)
+            return stream, bounds, marks
+    return _char_stream_pypdf(path, collect_marks=collect_marks)
+
+
+def _char_stream_pypdf(  # noqa: C901, PLR0915 -- 页循环+双 visitor 平铺是抽取语义本体
+    path: Path, *, collect_marks: bool = False
+) -> tuple[
+    str, list[tuple[int, int, float, float, float]], dict[int, list[dict[str, Any]]]
+]:
+    """Pypdf 单遍老路（pymupdf 缺席兜底）——文本/行界/标记同一遍抽取。
 
     ``visitor_text`` 的 tm 是局部矩阵——绝对位须复合 cm：
     ``x=tm4*cm0+tm5*cm2+cm4, y=tm4*cm1+tm5*cm3+cm5``（底向上）。
-    行界 x=段左缘页宽分位（栏判定/阅读序键原料）；跨缝多 part 行已
-    在 ``_reading_order`` 拆成独立流段，各带自己的 bounds 条目。
-
-    ``collect_marks`` 时同遍经 ``visitor_operand_before`` 直读 TLXC
-    标记（``BDC /MCID=50000+seq``）→ seq→occurrence 列表（每条记
-    page/fraction/x/text/chars）——hyperref/TOC 重放会产生同 MCID
-    双 BDC，只记首个必锚到目录页，全量收下由下游校验择优。
-    BDC/EMC 配对用栈：嵌套/外来/无 MCID 的 BDC 压 None 占位，EMC
-    弹栈，归属=栈顶向下最近非 None 项（单标量会被嵌套击穿实证）。
-    锚位取标内首个 text run 的 (x,y)——vob 里的 tm 是上一个文本
-    对象的陈旧矩阵（全部标记偏高 ~1 行、栏首偏 82% 页高实证）；
-    fraction 口径与行界统一 1-(y+asc)/h（行顶非基线——floor 语义
-    下基线锚会把行首点击漏给上一条 seq）。chars 供孤儿判定：页断处 BDC
-    只裹 1~2 字形沉底、正文被推走。
+    无 ToUnicode 的 CJK 字体出乱码码点——zh 文本匹配死路，下游
+    ``zh_dead`` 判据兜底。标记 occurrence 的 ``text`` 直接收 vt
+    run 文本（en 正常、zh 乱码由 dead 判定豁免 cov 校验）。
     """
     from pypdf import PdfReader  # noqa: PLC0415 -- 与 align.py 同例懒载
 
     reader = PdfReader(str(path))
     chars: list[str] = []
-    bounds: list[tuple[int, int, float, float]] = []
+    bounds: list[tuple[int, int, float, float, float]] = []
     marks: dict[int, list[dict[str, Any]]] = {}
     mstack: list[dict[str, Any] | None] = []
     char_off = 0
     for pi, page in enumerate(reader.pages):
-        runs: list[tuple[float, float, float, str]] = []
+        runs: list[tuple[float, float, float, str, float | None]] = []
         height = float(page.mediabox.height)
         width = float(page.mediabox.width)
         mstack.clear()
@@ -294,7 +354,7 @@ def _char_stream(  # noqa: C901, PLR0915 -- 页循环+双 visitor 平铺是抽�
             tm: list[float],
             font: object,  # noqa: ARG001 -- 签名由 pypdf 定死
             size: float,
-            _runs: list[tuple[float, float, float, str]] = runs,
+            _runs: list[tuple[float, float, float, str, float | None]] = runs,
             _st: list[dict[str, Any] | None] = mstack,
             _h: float = height,
             _w: float = width,
@@ -303,7 +363,7 @@ def _char_stream(  # noqa: C901, PLR0915 -- 页循环+双 visitor 平铺是抽�
                 return
             y = tm[4] * cm[1] + tm[5] * cm[3] + cm[5]
             x = tm[4] * cm[0] + tm[5] * cm[2] + cm[4]
-            _runs.append((y, x, float(size or 10.0), text))
+            _runs.append((y, x, float(size or 10.0), text, None))
             occ = next((e for e in reversed(_st) if e is not None), None)
             if occ is not None:
                 t = text.strip()
@@ -371,6 +431,7 @@ def _char_stream(  # noqa: C901, PLR0915 -- 页循环+双 visitor 平铺是抽�
                     pi + 1,
                     round(1 - (ln[0] + _ASC * ln[4]) / height, 5),
                     round(ln[2] / width, 5),
+                    round(ln[3] / width, 5),
                 )
             )
             chars.append(nc)
@@ -379,6 +440,207 @@ def _char_stream(  # noqa: C901, PLR0915 -- 页循环+双 visitor 平铺是抽�
         for occ in occs:
             occ["text"] = "".join(occ["text"])
     return "".join(chars), bounds, marks
+
+
+def _text_layer(  # noqa: C901 -- 页循环+行界发射是同一段语义平铺
+    path: Path,
+) -> tuple[str, list[tuple[int, int, float, float, float]], list[tuple[float, float]]]:
+    """Pymupdf ``dict`` 抽取 → (流, 行界, 各页 (w,h))——真 unicode 文本面。
+
+    span ``origin`` 是顶向下基线起点——y_bu=h-origin.y 与旧 pypdf
+    tm·cm 复合口径同义；x 取 span bbox 左缘。行聚类/阅读序件全复用。
+    """
+    import pymupdf  # noqa: PLC0415 -- 与 pypdf 同例懒载
+
+    doc = pymupdf.open(str(path))
+    chars: list[str] = []
+    bounds: list[tuple[int, int, float, float, float]] = []
+    dims: list[tuple[float, float]] = []
+    char_off = 0
+    for pi in range(doc.page_count):
+        page = doc[pi]
+        width = float(page.rect.width) or 1.0
+        height = float(page.rect.height) or 1.0
+        dims.append((width, height))
+        runs: list[tuple[float, float, float, str, float | None]] = []
+        try:
+            dd = page.get_text("dict")
+        except Exception as exc:  # noqa: BLE001 -- 单页坏不拖全文档
+            log.debug("seqpos: %s p%d pymupdf dict failed: %s", path.name, pi + 1, exc)
+            continue
+        for blk in dd["blocks"]:
+            if blk.get("type") != 0:
+                continue
+            for ln in blk["lines"]:
+                for sp in ln["spans"]:
+                    t = sp["text"]
+                    if not t.strip():
+                        continue
+                    org = sp.get("origin")
+                    if org is not None:
+                        y_bu = height - float(org[1])
+                        x = float(org[0])
+                    else:  # 防御：origin 缺席退 bbox 左下角
+                        bb = sp["bbox"]
+                        y_bu = height - float(bb[3])
+                        x = float(bb[0])
+                    bb = sp["bbox"]
+                    real_w = float(bb[2]) - float(bb[0])
+                    runs.append((y_bu, x, float(sp["size"] or 10.0), t, real_w))
+        ordered, _gut = _reading_order(_cluster_lines(runs), width)
+        for ln in ordered:
+            nc = _norm_chars("".join(p[1] for p in ln[1]))
+            if not nc:
+                continue
+            bounds.append(
+                (
+                    char_off,
+                    pi + 1,
+                    round(1 - (ln[0] + _ASC * ln[4]) / height, 5),
+                    round(ln[2] / width, 5),
+                    round(ln[3] / width, 5),
+                )
+            )
+            chars.append(nc)
+            char_off += len(nc)
+    return "".join(chars), bounds, dims
+
+
+def _marks_layer(  # noqa: C901 -- 双 visitor 闭包+栈平铺是标记语义本体
+    path: Path, dims: list[tuple[float, float]]
+) -> dict[int, list[dict[str, Any]]]:
+    """Pypdf ``visitor_operand_before`` 只读 BDC/EMC 栈 → seq→occurrence。
+
+    occurrence: ``{page, fraction, x, chars, runs[(y,x,sz,w)]}``——
+    runs 是标内 text run 几何（文本面由 ``_mark_text_geom`` 回填）。
+    """
+    from pypdf import PdfReader  # noqa: PLC0415 -- 与 align.py 同例懒载
+
+    reader = PdfReader(str(path))
+    marks: dict[int, list[dict[str, Any]]] = {}
+    mstack: list[dict[str, Any] | None] = []
+    for pi, page in enumerate(reader.pages):
+        width, height = (
+            dims[pi]
+            if pi < len(dims)
+            else (
+                float(page.mediabox.width),
+                float(page.mediabox.height),
+            )
+        )
+        mstack.clear()
+
+        def vt(
+            text: str,
+            cm: list[float],
+            tm: list[float],
+            font: object,  # noqa: ARG001 -- 签名由 pypdf 定死
+            size: float,
+            _st: list[dict[str, Any] | None] = mstack,
+            _h: float = height,
+            _w: float = width,
+        ) -> None:
+            if not text.strip():
+                return
+            occ = next((e for e in reversed(_st) if e is not None), None)
+            if occ is None:
+                return
+            y = tm[4] * cm[1] + tm[5] * cm[3] + cm[5]
+            x = tm[4] * cm[0] + tm[5] * cm[2] + cm[4]
+            t = text.strip()
+            sz = float(size or 10.0)
+            occ["runs"].append((y, x, sz, _est_w(t, sz)))
+            occ["chars"] += len(t)
+            if occ["fraction"] is None:
+                occ["fraction"] = round(1 - (y + _ASC * sz) / _h, 5)
+                occ["x"] = round(x / _w, 5)
+
+        def vob(
+            op: bytes,
+            args: list[object],
+            cm: list[float],  # noqa: ARG001 -- 签名由 pypdf 定死
+            tm: list[float],  # noqa: ARG001 -- 同上；锚位改由 vt 首 run 记
+            _pi: int = pi,
+            _st: list[dict[str, Any] | None] = mstack,
+            _marks: dict[int, list[dict[str, Any]]] = marks,
+        ) -> None:
+            if op == b"EMC":
+                if _st:
+                    _st.pop()
+                return
+            if op != b"BDC":
+                return
+            seq = -1
+            if len(args) >= _BDC_ARGC:
+                prop = args[1]
+                d = prop.get_object() if hasattr(prop, "get_object") else prop
+                mcid = d.get("/MCID") if hasattr(d, "get") else None
+                try:
+                    seq = int(mcid) - 50000  # type: ignore[arg-type]
+                except (TypeError, ValueError):
+                    seq = -1
+            if seq < 0:
+                _st.append(None)  # 外来/无 MCID BDC 占位——配对 EMC 不吃里层 mark
+                return
+            occ: dict[str, Any] = {
+                "page": _pi + 1,
+                "fraction": None,
+                "x": None,
+                "runs": [],
+                "chars": 0,
+            }
+            _marks.setdefault(seq, []).append(occ)
+            _st.append(occ)
+
+        try:
+            page.extract_text(visitor_text=vt, visitor_operand_before=vob)
+        except Exception as exc:  # noqa: BLE001 -- 单页坏不拖全文档
+            log.debug("seqpos: %s p%d extract_text failed: %s", path.name, pi + 1, exc)
+            continue
+    return marks
+
+
+#: mark 几何回填的 frac 带 / x 幅面容差（行界行顶 vs 标基线带的落差）
+_MARK_FTOL = 0.008
+_MARK_XTOL_PT = 6.0
+
+
+def _mark_text_geom(
+    marks: dict[int, list[dict[str, Any]]],
+    stream: str,
+    bounds: list[tuple[int, int, float, float, float]],
+    dims: list[tuple[float, float]],
+) -> None:
+    """标内文本几何回填——occurrence run 的 (页,frac 带,x 幅面) 取行界流切片。
+
+    pypdf 侧 zh 标内文本是错码点垃圾——真实 unicode 只能从 pymupdf
+    文本面取。标的 y 覆盖带 = run 行顶带 [1-(y+asc·sz)/h 最小,
+    1-(y-desc·sz)/h 最大]；x 覆盖带 = [min run x, max run x+估宽]。
+    行界 frac 落带内且 [x0,x1] 与标 x 带交叠 → 该行流切片计入标内
+    文本。错栏防串：标 x 带在左栏时右栏行 x0 超出 xmax 自然排出。
+    """
+    by_page: dict[int, list[int]] = {}
+    for i, b in enumerate(bounds):
+        by_page.setdefault(b[1], []).append(i)
+    for occs in marks.values():
+        for occ in occs:
+            runs = occ.pop("runs", None) or []
+            text_parts: list[str] = []
+            if runs and occ["fraction"] is not None and occ["page"] <= len(dims):
+                w, h = dims[occ["page"] - 1]
+                f_lo = min(1 - (y + _ASC * sz) / h for y, _x, sz, _wd in runs)
+                f_hi = max(1 - (y - 0.25 * sz) / h for y, _x, sz, _wd in runs)
+                x_lo = min(x for _y, x, _sz, _wd in runs)
+                x_hi = max(x + wd for _y, x, _sz, wd in runs)
+                for bi in by_page.get(occ["page"], []):
+                    off, _pg, fr, x0, x1 = bounds[bi]
+                    if not (f_lo - _MARK_FTOL <= fr <= f_hi + _MARK_FTOL):
+                        continue
+                    if x1 * w < x_lo - _MARK_XTOL_PT or x0 * w > x_hi + _MARK_XTOL_PT:
+                        continue
+                    end = bounds[bi + 1][0] if bi + 1 < len(bounds) else len(stream)
+                    text_parts.append(stream[off:end])
+            occ["text"] = "".join(text_parts)
 
 
 # ---------------------------------------------------------------- 文档序
@@ -559,6 +821,12 @@ def _match_bounded(  # noqa: C901, PLR0912 -- gram 锚定+兜底+打分是同一
         # s0∈[lo-40,lo) 时旧路 SM 窗从 lo 截、返位≠s0，直返会破窗约
         if lo <= s0 and s0 + ln <= hi and stream[s0 : s0 + ln] == needle:
             cov, p, e, blk = 1.0, s0, s0 + ln, ln
+        elif ln < _COV_SHORT:
+            # 短针只收 verbatim——SM 碎块凑分对短针全是噪声（"projectwho"
+            # ≈"projectlead" cov0.91 毒锚、反把邻位夹逼界带崩实证）
+            if stream[s0 : s0 + ln] != needle:
+                continue
+            cov, p, e, blk = 1.0, s0, s0 + ln, ln
         else:
             lo2 = max(0, lo, s0 - 8)
             hi2 = min(hi, s0 + ln * 3 + 40)
@@ -568,6 +836,48 @@ def _match_bounded(  # noqa: C901, PLR0912 -- gram 锚定+兜底+打分是同一
         if blk >= need_blk and cov >= mcov and cov > best[1]:
             best = (p, cov, e)
     return best
+
+
+def _match_all(  # noqa: C901 -- gram 锚定+find 兜底+SM 打分为同一阶梯，拆散反失上下文
+    needle: str, stream: str, gidx: dict[str, list[int]]
+) -> list[tuple[int, float, int]]:
+    """全流扫描返回所有 (pos,cov,end) 达阈候选——pass-C 消歧用。"""
+    ln = len(needle)
+    g = min(_GRAM, ln)
+    cand: set[int] = set()
+    if g >= _GRAM:
+        grams = sorted(
+            (len(gidx[needle[i : i + g]]), i)
+            for i in range(0, ln - g + 1, 4)
+            if 0 < len(gidx.get(needle[i : i + g], [])) <= _GRAM_FREQ
+        )
+        for _cnt, i in grams[:8]:
+            for p in gidx[needle[i : i + g]]:
+                if p >= i:
+                    cand.add(p - i)
+    if not cand:
+        start = 0
+        while len(cand) < _CAND_CAP:
+            j = stream.find(needle, start)
+            if j < 0:
+                break
+            cand.add(j)
+            start = j + 1
+    need_blk = min(ln, max(6, 0.3 * ln), 64)
+    mcov = _min_cov(ln)
+    out: list[tuple[int, float, int]] = []
+    for s0 in sorted(cand)[:_CAND_CAP]:
+        if s0 >= 0 and stream[s0 : s0 + ln] == needle:
+            out.append((s0, 1.0, s0 + ln))
+            continue
+        lo2 = max(0, s0 - 8)
+        hi2 = min(len(stream), s0 + ln * 3 + 40)
+        if hi2 <= lo2:
+            continue
+        cov, p, e, blk = _sm_cov(stream, lo2, hi2, needle)
+        if blk >= need_blk and cov >= mcov:
+            out.append((p, cov, e))
+    return out
 
 
 def _skips_pending(  # noqa: PLR0913, PLR0917 -- 探针参数即上下文六件，拆包反损可读
@@ -597,7 +907,7 @@ def _skips_pending(  # noqa: PLR0913, PLR0917 -- 探针参数即上下文六件�
 
 
 def _offset_at(
-    bounds: list[tuple[int, int, float, float]],
+    bounds: list[tuple[int, int, float, float, float]],
     page: int,
     frac: float,
     x: float | None = None,
@@ -663,7 +973,10 @@ def _match_side(  # noqa: C901, PLR0912, PLR0913, PLR0915, PLR0917 -- 两遍骨�
 
     hit: dict[int, tuple[int, int]] = {}  # seq → (pos, end)
     miss: list[tuple[int, str]] = []
-    max_key = max(order.values()) if order else 0
+    # 补缺重试的 est 用序位比例而非裸 key 比——``_doc_order`` 的
+    # r*big+j 编码下 key/max_key 对早文件 seq 恒≈0，重试窗钉死文首
+    # （t_e300 seq72 真位 33557 窗外 MISS 实证）
+    sorted_keys = sorted(order.values()) if order else []
     if lo_known:
         # 有已知锚才够格全走夹逼；空锚（marks=0 的任务）走 pass-A
         # 光标骨架——空表 is-not-None 判定曾把全量针丢进无界夹逼（9/85）
@@ -746,14 +1059,68 @@ def _match_side(  # noqa: C901, PLR0912, PLR0913, PLR0915, PLR0917 -- 两遍骨�
         if not (p >= 0 and cov >= _min_cov(len(nd))) and order:
             # 夹逼窗全斥——邻锚是假锚或整段浮动体重排（实证：单一假锚
             # 把整文件区钉死在窗外，114 针全真位 cov≈1 全灭）。退到
-            # rank 比例估计带 est±band 再试一次
-            est = int(key(seq) / max(max_key, 1) * len(stream))
+            # rank 序位比例估计带 est±band 再试一次
+            est = int(
+                bisect.bisect_left(sorted_keys, key(seq))
+                / max(1, len(sorted_keys))
+                * len(stream)
+            )
             lo2, hi2 = max(0, est - band), min(len(stream), est + band)
             p, cov, e = _match_bounded(nd, stream, gidx, lo2, max(hi2, lo2 + 200))
         if p >= 0 and cov >= _min_cov(len(nd)):
             # e=SM 尾块端点会被噪声甩远（交错区命中实证 e 超 p+3ln），
             # 它要当后续缺口的夹逼下界——截到 p+3ln 防界膨胀塌窗
             hit[seq] = (p, min(e, p + 3 * len(nd)))
+
+    # pass-C 全局兜底：段级转置/漂移让所有窗口假设同时失效时（dual 旧
+    # 分段编号 vs 渲染序——t_e300 整段 19 针灭实证），对仍未中的针做
+    # 全流扫描。短针只收 verbatim 命中，长针收 cov 达阈候选；多候选
+    # 取离已命中邻位夹逼中点最近者消歧。阈值抬到 0.9——无窗先验下
+    # 弱 fuzzy 命中宁缺勿滥。
+    still = [(seq, nd) for seq, nd in miss if seq not in hit]
+    for seq, nd in sorted(still, key=lambda sn: key(sn[0])):
+        ln = len(nd)
+        if ln < _COV_SHORT:
+            occ: list[int] = []
+            j = stream.find(nd)
+            while j >= 0 and len(occ) < _CAND_CAP:
+                occ.append(j)
+                j = stream.find(nd, j + 1)
+            cands = [(o, 1.0, o + ln) for o in occ]
+        else:
+            cands = [
+                (p, cov, e)
+                for p, cov, e in _match_all(nd, stream, gidx)
+                if cov >= _PASSC_COV
+            ]
+        if not cands:
+            continue
+        if len(cands) > 1:
+            k = key(seq)
+            lo = max((e for s, (_p, e) in hit.items() if key(s) < k), default=0)
+            hi = min(
+                (p for s, (p, _e) in hit.items() if key(s) > k),
+                default=len(stream),
+            )
+            if lo_known:
+                lo = max(
+                    lo,
+                    max(
+                        (o for s, o in lo_known.items() if key(s) < k),
+                        default=0,
+                    ),
+                )
+                hi = min(
+                    hi,
+                    min(
+                        (o for s, o in lo_known.items() if key(s) > k),
+                        default=len(stream),
+                    ),
+                )
+            mid = (lo + hi) / 2
+            cands.sort(key=lambda cpe: abs(cpe[0] - mid))
+        p, _cov, e = cands[0]
+        hit[seq] = (p, min(e, p + 3 * ln))
     return {seq: p for seq, (p, _) in hit.items()}
 
 
@@ -808,16 +1175,49 @@ def _needles(chunks: list[dict[str, Any]], side: str) -> list[tuple[int, str]]:
     return out
 
 
+def _nd_unmatchable(nd: str, *, starved: bool) -> bool:
+    """CJK 重针在错码点饥荒流上必死——剔出免拖垮夹逼界（半译混合档）。"""
+    if not starved:
+        return False
+    return sum(1 for ch in nd if "一" <= ch <= "鿿") > max(4, len(nd) // 2)
+
+
 def _pos_at(
-    bounds: list[tuple[int, int, float, float]],
+    bounds: list[tuple[int, int, float, float, float]],
     off: int,
 ) -> dict[str, Any] | None:
-    """流 offset → 所在行界 Pos（含栏位 x）。offset 落行内——上取该行。"""
+    """流 offset → 所在行界 Pos（含栏位 x + 行右缘 x1）。offset 落行内——上取该行。"""
     i = bisect.bisect_right([b[0] for b in bounds], off) - 1
     if i < 0:
         return None
     b = bounds[i]
-    return {"page": b[1], "fraction": b[2], "x": b[3]}
+    return {"page": b[1], "fraction": b[2], "x": b[3], "x1": b[4]}
+
+
+_ROW_EPS = 0.012  # 同视觉行判定：锚=行顶 frac、点击/标位=字形带中 → ~半行高容差
+_ROW_EPSX = 0.03  # 行幅面 x 容差（est_w 估宽噪声 + 标首字形未必贴左缘）
+
+
+def _row_extent(
+    bounds: list[tuple[int, int, float, float, float]],
+    page: int,
+    frac: float,
+    x: float | None,
+) -> tuple[float, float] | None:
+    """(page,frac) 最近行界 → (行左缘x0, 行右缘x1)——mark 锚补行幅面。
+
+    锚行须同页且 |Δfrac|≤半行级容差；mark 自带 x 时还要求 x 落回该行
+    ``[x0,x1]`` 内（防把标记 snap 到同 frac 的异行）。
+    """
+    cands = [b for b in bounds if b[1] == page]
+    if not cands:
+        return None
+    b = min(cands, key=lambda b: abs(b[2] - frac))
+    if abs(b[2] - frac) > _ROW_EPS:
+        return None
+    if x is not None and not (b[3] - _ROW_EPSX <= x <= b[4] + _ROW_EPSX):
+        return None
+    return b[3], b[4]
 
 
 def _interp_t(
@@ -873,6 +1273,75 @@ def _interp_t(
     return t_pos
 
 
+def _mark_trusted(  # noqa: PLR0913 -- 双侧共用校验件，参面=校验输入全集
+    marks: dict[int, list[dict[str, Any]]],
+    nd_map: dict[int, str],
+    stream: str,
+    bounds: list[tuple[int, int, float, float, float]],
+    *,
+    dead: bool = False,
+    n_needles: int = 0,
+) -> tuple[dict[int, dict[str, Any]], dict[str, list[int]] | None]:
+    """Validate marked seqs → trusted anchor occurrences（双侧同件：zh/en 共用校验+snap 链）。
+
+    mark 校验：occurrence 标内文本对 needle SM 覆盖——同 MCID 重放
+    （hyperref/TOC）首 occurrence 常落目录页；可信集（cov≥阈）取末个
+    （TOC 在前真标在后）；全低分/无锚 → 不可信，留待 snap/needle 路。
+
+    孤儿 snap：标记不可信/裹字形过少（页断沉底 + fr≤0.85 中页错锚）
+    → 语义匹配在标称页 ±5 页双向寻真位，命中行界为新锚；救不回的
+    留 needle 路。返回 ``(trusted, gidx)``——gidx 供调用方复用于
+    ``_match_side``（未命中 needle 补缺同索引），无需时为 None。
+    """
+    trusted: dict[int, dict[str, Any]] = {}
+    for seq, occs in marks.items():
+        anchored = [o for o in occs if o["fraction"] is not None]
+        if not anchored:
+            continue
+        nd = nd_map.get(seq) or ""
+        good = (
+            [o for o in anchored if _text_cov(o["text"], nd) >= _MARK_COV]
+            if nd and not dead
+            else anchored
+        )
+        if good:
+            trusted[seq] = good[-1]
+
+    suspects = [
+        seq
+        for seq in marks
+        if seq not in trusted or trusted[seq]["chars"] < _ORPHAN_CHARS
+    ]
+    gidx = (
+        _gram_index(stream)
+        if not dead and (suspects or n_needles > len(trusted))
+        else None
+    )
+    if gidx is not None:
+        for seq in suspects:
+            nd = nd_map.get(seq) or ""
+            if len(nd) < _ORPHAN_MIN_ND:
+                continue
+            occ = trusted.get(seq) or marks[seq][-1]
+            lo = next((b[0] for b in bounds if b[1] >= occ["page"] - _ORPHAN_PAGES), 0)
+            hi = next(
+                (b[0] for b in bounds if b[1] > occ["page"] + _ORPHAN_PAGES),
+                len(stream),
+            )
+            p, _cov, _e = _match_bounded(nd, stream, gidx, lo, hi)
+            if p < 0:
+                continue
+            pos = _pos_at(bounds, p)
+            if pos is not None:
+                trusted[seq] = {
+                    "page": pos["page"],
+                    "fraction": pos["fraction"],
+                    "x": pos["x"],
+                    "chars": occ["chars"],
+                }
+    return trusted, gidx
+
+
 def compute_seqpos(  # noqa: C901, PLR0912, PLR0915 -- 装配阶梯单流：marks 校验→snap→双侧匹配→降级
     en_pdf: Path,
     zh_pdf: Path,
@@ -887,7 +1356,7 @@ def compute_seqpos(  # noqa: C901, PLR0912, PLR0915 -- 装配阶梯单流：mark
     库——双要条件在无标记任务上丢 36~43% seq（实证）。
     """
     with _font_cache_ctx():
-        en_stream, en_bounds, _en_marks = _char_stream(en_pdf)
+        en_stream, en_bounds, en_marks = _char_stream(en_pdf, collect_marks=True)
         zh_stream, zh_bounds, zh_marks = _char_stream(zh_pdf, collect_marks=True)
 
     order = _doc_order(task_dir, chunks) if task_dir is not None else {}
@@ -904,64 +1373,32 @@ def compute_seqpos(  # noqa: C901, PLR0912, PLR0915 -- 装配阶梯单流：mark
     # 时 CJK 全错码点，文本匹配是死路。密度阈而非 any()——错码点面也
     # 会零星撞上 CJK 区（85234 字符混 156 个 CJK 照样全废实证）
     zh_cjk = sum(1 for ch in zh_stream if "一" <= ch <= "鿿")
-    zh_dead = zh_cjk < max(100, len(zh_stream) // 20) and any(
-        "一" <= ch <= "鿿" for c in chunks for ch in (c.get("zh") or "")
-    )
+    zh_starved = zh_cjk < max(100, len(zh_stream) // 20)
+    # 死活判据看针面 CJK 占比而非 chunks any()——zh==en 未译任务流面
+    # CJK 必饥荒，旧判据把可匹配的英文针全灭、锚全靠 _interp_t 猜
+    # （t_e300 实证 zh 锚 0.45 frac 级错位）
+    zh_nd_len = sum(len(nd) for _s, nd in zh_needles)
+    zh_nd_cjk = sum(1 for _s, nd in zh_needles for ch in nd if "一" <= ch <= "鿿")
+    zh_dead = zh_starved and zh_nd_cjk > max(100, zh_nd_len // 4)
 
-    # mark 校验：occurrence 标内文本对 zh needle SM 覆盖——同 MCID 重放
-    # （hyperref/TOC）首 occurrence 常落目录页；可信集（cov≥阈）取末个
-    # （TOC 在前真标在后）；全低分/无锚 → 不可信，留待 snap/needle 路
-    trusted: dict[int, dict[str, Any]] = {}
-    for seq, occs in zh_marks.items():
-        anchored = [o for o in occs if o["fraction"] is not None]
-        if not anchored:
-            continue
-        nd = zh_nd.get(seq) or ""
-        good = (
-            [o for o in anchored if _text_cov(o["text"], nd) >= _MARK_COV]
-            if nd and not zh_dead
-            else anchored
-        )
-        if good:
-            trusted[seq] = good[-1]
-
-    # 孤儿 snap：标记不可信/裹字形过少（页断沉底 + fr≤0.85 中页错锚）
-    # → 语义匹配在标称页 ±5 页双向寻真位，命中行界为新锚；救不回的
-    # 留 needle 路（zh_unmarked 在 snap 后算——救回的不重走文本匹配）
-    suspects = [
-        seq
-        for seq in zh_marks
-        if seq not in trusted or trusted[seq]["chars"] < _ORPHAN_CHARS
-    ]
-    zh_gidx = (
-        _gram_index(zh_stream)
-        if not zh_dead and (suspects or len(zh_needles) > len(trusted))
-        else None
+    # zh/en 标记共走 ``_mark_trusted``：cov 校验 + 孤儿 snap——救回的
+    # 不重走文本匹配（unmarked 在 snap 后算）
+    trusted, zh_gidx = _mark_trusted(
+        zh_marks,
+        zh_nd,
+        zh_stream,
+        zh_bounds,
+        dead=zh_dead,
+        n_needles=len(zh_needles),
     )
-    if zh_gidx is not None:
-        for seq in suspects:
-            nd = zh_nd.get(seq) or ""
-            if len(nd) < _ORPHAN_MIN_ND:
-                continue
-            occ = trusted.get(seq) or zh_marks[seq][-1]
-            lo = next(
-                (b[0] for b in zh_bounds if b[1] >= occ["page"] - _ORPHAN_PAGES), 0
-            )
-            hi = next(
-                (b[0] for b in zh_bounds if b[1] > occ["page"] + _ORPHAN_PAGES),
-                len(zh_stream),
-            )
-            p, _cov, _e = _match_bounded(nd, zh_stream, zh_gidx, lo, hi)
-            if p < 0:
-                continue
-            pos = _pos_at(zh_bounds, p)
-            if pos is not None:
-                trusted[seq] = {
-                    "page": pos["page"],
-                    "fraction": pos["fraction"],
-                    "x": pos["x"],
-                    "chars": occ["chars"],
-                }
+    en_nd = dict(en_needles)
+    en_trusted, en_gidx = _mark_trusted(
+        en_marks,
+        en_nd,
+        en_stream,
+        en_bounds,
+        n_needles=len(en_needles),
+    )
 
     # zh：trusted mark 免匹配——换算成流 offset 当补缺界桩
     chunks_by_seq = {c.get("seq"): c for c in chunks if isinstance(c.get("seq"), int)}
@@ -969,7 +1406,11 @@ def compute_seqpos(  # noqa: C901, PLR0912, PLR0915 -- 装配阶梯单流：mark
         seq: _offset_at(zh_bounds, occ["page"], occ["fraction"], occ["x"])
         for seq, occ in trusted.items()
     }
-    zh_unmarked = [(seq, nd) for seq, nd in zh_needles if seq not in trusted]
+    zh_unmarked = [
+        (seq, nd)
+        for seq, nd in zh_needles
+        if seq not in trusted and not _nd_unmatchable(nd, starved=zh_starved)
+    ]
     zh_off = (
         _match_side(
             zh_unmarked,
@@ -982,26 +1423,55 @@ def compute_seqpos(  # noqa: C901, PLR0912, PLR0915 -- 装配阶梯单流：mark
         else {}
     )
 
-    # en 侧先验：zh 锚 offset（trusted marks + zh 文本命中）按流长比
-    # 映射成 est±band 窗——局部相似文本（TOC↔章节题/参考文献惯用句）
-    # 误锚实证；双侧锚越多约束越紧
+    # en：en marks 自身即已知锚（lo_known 全走夹逼）——zh 锚按流长比
+    # 映射的 est±band 先验带继续约束无标 seq（局部相似文本误锚实证）
+    en_off_known = {
+        seq: _offset_at(en_bounds, occ["page"], occ["fraction"], occ["x"])
+        for seq, occ in en_trusted.items()
+    }
     scale = len(en_stream) / max(1, len(zh_stream))
     en_prior = {seq: int(off * scale) for seq, off in zh_off_known.items()}
     for seq, off in zh_off.items():
         en_prior[seq] = int(off * scale)
-    en_off = _match_side(en_needles, en_stream, en_prior, order=order)
+    en_unmarked = [(seq, nd) for seq, nd in en_needles if seq not in en_trusted]
+    en_off = (
+        _match_side(
+            en_unmarked,
+            en_stream,
+            en_prior,
+            lo_known=en_off_known or None,
+            order=order,
+            gidx=en_gidx,
+        )
+        if en_unmarked
+        else {}
+    )
 
     out: dict[str, Any] = {}
     for seq in sorted(set(en_off) | set(trusted) | set(zh_off)):
         c = chunks_by_seq.get(seq) or {}
         if not c.get("en") and not c.get("zh"):
             continue
-        o_pos = _pos_at(en_bounds, en_off[seq]) if seq in en_off else None
+        if seq in en_trusted:
+            m = en_trusted[seq]
+            o_pos = {"page": m["page"], "fraction": m["fraction"]}
+            if m.get("x") is not None:
+                o_pos["x"] = m["x"]
+            ext = _row_extent(en_bounds, m["page"], m["fraction"], m.get("x"))
+            if ext is not None:
+                o_pos["x1"] = ext[1]
+        elif seq in en_off:
+            o_pos = _pos_at(en_bounds, en_off[seq])
+        else:
+            o_pos = None
         if seq in trusted:
             m = trusted[seq]
             t_pos = {"page": m["page"], "fraction": m["fraction"]}
             if m.get("x") is not None:
                 t_pos["x"] = m["x"]
+            ext = _row_extent(zh_bounds, m["page"], m["fraction"], m.get("x"))
+            if ext is not None:
+                t_pos["x1"] = ext[1]
         elif seq in zh_off:
             t_pos = _pos_at(zh_bounds, zh_off[seq])
         elif zh_dead and o_pos:

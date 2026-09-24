@@ -86,13 +86,19 @@ def test_mark_seq0_offsets_mcid() -> None:
     assert _mcid(8) in zh  # 未译块：原文包锚（seq 是区格标识非译文标识）
 
 
-def test_identity_never_marks() -> None:
-    """``translations=None`` → identity 重建：永不注锚 + 字节等价原文。"""
+def test_identity_marks_byte_equal() -> None:
+    """``translations=None`` + ``mark_seq0`` → identity 注锚（en.pdf 源侧锚）：
+
+    剥锚后逐字节 = 原文（glue/cjk 修正随译文缺席而关），锚内是原文块体。
+    """
     res = scan_doc(_BODY2)
     out = reconstruct(res, None, mark_seq0=0)
-    assert "TLXC" not in out
-    assert out == DOC % _BODY2
-    assert "TLXC" not in reconstruct(res)
+    assert _mark_open(0) + _PROSE_A + _MARK_CLOSE in out
+    assert _mcid(1) in out
+    assert _PROSE_B in out
+    assert strip_seq_marks(out) == DOC % _BODY2
+    assert seq_mark_issues(out) == []
+    assert "TLXC" not in reconstruct(res)  # mark_seq0=None 旧面零副作用
 
 
 def test_mark_seq0_none_no_marks() -> None:
@@ -107,7 +113,7 @@ def test_in_brace_arg_marks() -> None:
     """``\\textbf{[[CHUNK_0]]}`` 内层 brace：whatsit 进 hmode 组合法 → 注锚。"""
     res = scan_doc(_BODY2)
     ex = _mk_exp(res, {0: "译文。"})
-    out = ex.expand_body(r"\textbf{[[CHUNK_0]]}", top=True)
+    out = ex.expand_body(r"\textbf{[[CHUNK_0]]}")
     assert out.startswith(r"\textbf{")
     assert out.endswith("}")
     assert _mark_open(0) + "译文。" + _MARK_CLOSE in out
@@ -117,7 +123,7 @@ def test_non_chunk_ph_never_marked() -> None:
     """非 ``[[CHUNK_n]]`` ph token（查无实体 → dangling 字面）→ 不注锚。"""
     res = scan_doc(_BODY2)
     ex = _mk_exp(res, {0: "译文。"})
-    out = ex.expand_body("pre [[MATH_9]] post", top=True)
+    out = ex.expand_body("pre [[MATH_9]] post")
     assert "TLXC" not in out
     assert "[[MATH_9]]" in out
     assert "MATH_9" in ex.dangling or "[[MATH_9]]" in ex.dangling
@@ -140,12 +146,84 @@ def test_non_chunk_ph_never_marked() -> None:
     ],
 )
 def test_align_env_skips(env: str) -> None:
-    r"""对齐族 env（含 ``*matrix`` 后缀/``nice*`` 前缀形态）→ 行间 whatsit 免注。"""
+    r"""对齐族 env 白名单化位判：``*matrix``/``nice*`` 数学对齐恒免注；
+    具名对齐 env 在裸 piece 引用点（非序言/非行规缘）按 hmode 位照注
+    ——env 标签不否决，whatsit 落点合法性才否决。"""
     res = scan_doc(_BODY2)
     res.chunks[0].env = env
     zh = reconstruct(res, dict(_ZH2), mark_seq0=0)
-    assert _mcid(0) not in zh  # chunk0 免注
+    if env.endswith("matrix") or env.startswith("nice"):
+        assert _mcid(0) not in zh  # 数学对齐 env 恒免注
+    else:
+        assert _mcid(0) in zh  # 裸 hmode 位：whatsit 合法 → 照注
     assert _mcid(1) in zh  # chunk1 照注
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "\\multicolumn{3}{c}{[[CHUNK_0]]}",  # multicolumn 文字参内
+        "x & [[CHUNK_0]] & y",  # 裸单元格（& 界内）
+        "x & \\textbf{[[CHUNK_0]]} & y",  # 单元格内组合
+        "a \\\\ [[CHUNK_0]] & b",  # 行界后首格（whatsit 开新行 cell）
+        "a \\hline [[CHUNK_0]] & b",  # 行规后首格同上
+    ],
+)
+def test_align_env_cell_sites_mark(body: str) -> None:
+    r"""对齐 env 单元格内 whatsit 合法（hmode 组合/行首格隐式起点）→ 注锚。"""
+    res = scan_doc(_BODY2)
+    res.chunks[0].env = "tabular"
+    ex = _mk_exp(res, {0: "译文。"})
+    out = ex.expand_body(body)
+    assert _mark_open(0) + "译文。" + _MARK_CLOSE in out
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "\\begin{tabular}{[[CHUNK_0]]}",  # 序言参内
+        "\\begin{tabular}[t]{[[CHUNK_0]]}",
+        "\\begin{tabular}{cc|[[CHUNK_0]]}",  # 序言中段
+    ],
+)
+def test_align_env_preamble_skips(body: str) -> None:
+    r"""``\begin{env}[opt]{preamble}`` 内 whatsit = 进参非法 → 免注。"""
+    res = scan_doc(_BODY2)
+    res.chunks[0].env = "tabular"
+    ex = _mk_exp(res, {0: "译文。"})
+    assert "TLXC" not in ex.expand_body(body)
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "a & [[CHUNK_0]] \\hline b",  # head 行规——marked 体后 \hline 行间错位
+        "a & [[CHUNK_0]] \\midrule",
+        "a & [[CHUNK_0]] \\multicolumn{2}{c}{x}",  # head omit 前瞻
+    ],
+)
+def test_align_env_rule_head_skips(body: str) -> None:
+    r"""对齐内 head 贴行规/omit 族 → 免注（``\\`` 后继合法不在此列）。"""
+    res = scan_doc(_BODY2)
+    res.chunks[0].env = "tabular"
+    ex = _mk_exp(res, {0: "译文。"})
+    assert "TLXC" not in ex.expand_body(body)
+
+
+def test_align_env_expansion_edges_skip() -> None:
+    r"""展开体头 ``\multicolumn``/尾 ``\\``（含 ph 边代换）→ 免注。"""
+    res = scan_doc(_BODY2)
+    res.chunks[0].env = "tabular"
+    res.chunks[0].content = "\\multicolumn{2}{c}{x}"
+    ex = _mk_exp(res, {})
+    assert "TLXC" not in ex.expand_body("a & [[CHUNK_0]]")
+    res.chunks[0].content = "cell text \\\\"
+    ex = _mk_exp(res, {})
+    assert "TLXC" not in ex.expand_body("a & [[CHUNK_0]]")
+    # ph 边代换：译文以 [[CMD]] 收尾、CMD 体以 \\ 收尾 → 同样拦
+    res.ph_map["[[CMD_9]]"] = "x \\\\"
+    ex = _mk_exp(res, {0: "cell [[CMD_9]]"})
+    assert "TLXC" not in ex.expand_body("a & [[CHUNK_0]]")
 
 
 @pytest.mark.parametrize("ctx", ["section", "subsection", "caption", "addcontentsline"])
@@ -177,7 +255,7 @@ def test_soul_stack_skips(cs: str) -> None:
     r"""soul/ulem 族开栈内引用点 → 免注（whatsit 进参 = Reconstruction failed）。"""
     res = scan_doc(_BODY2)
     ex = _mk_exp(res, {0: "译文。"})
-    out = ex.expand_body("\\" + cs + "{[[CHUNK_0]]}", top=True)
+    out = ex.expand_body("\\" + cs + "{[[CHUNK_0]]}")
     assert "TLXC" not in out
 
 
@@ -185,8 +263,8 @@ def test_soul_nested_stack_skips() -> None:
     """嵌套 soul 栈同样免注；非 soul 包裹（``\\emph``）不拦。"""
     res = scan_doc(_BODY2)
     ex = _mk_exp(res, {0: "译文。"})
-    assert "TLXC" not in ex.expand_body(r"\emph{\ul{[[CHUNK_0]]}}", top=True)
-    out = ex.expand_body(r"\emph{[[CHUNK_0]]}", top=True)
+    assert "TLXC" not in ex.expand_body(r"\emph{\ul{[[CHUNK_0]]}}")
+    out = ex.expand_body(r"\emph{[[CHUNK_0]]}")
     assert _mark_open(0) in out
 
 
@@ -201,7 +279,7 @@ def test_row_tail_skips(body: str) -> None:
     r"""chunk 前贴 ``\\``（含 ``[..]`` 垂直距参）→ 行间位免注。"""
     res = scan_doc(_BODY2)
     ex = _mk_exp(res, {0: "译文。"})
-    assert "TLXC" not in ex.expand_body(body, top=True)
+    assert "TLXC" not in ex.expand_body(body)
 
 
 @pytest.mark.parametrize(
@@ -217,7 +295,7 @@ def test_row_head_skips(body: str) -> None:
     r"""chunk 尾贴 ``\\``/行规族 token → 行间位免注（破 noalign 前瞻）。"""
     res = scan_doc(_BODY2)
     ex = _mk_exp(res, {0: "译文。"})
-    assert "TLXC" not in ex.expand_body(body, top=True)
+    assert "TLXC" not in ex.expand_body(body)
 
 
 def test_row_gates_fall_back_to_site() -> None:
@@ -225,20 +303,33 @@ def test_row_gates_fall_back_to_site() -> None:
     res = scan_doc(_BODY2)
     ex = _mk_exp(res, {0: "译文。"})
     ex.set_site(frozenset(), "a b \\\\", "")
-    assert "TLXC" not in ex.expand_body("[[CHUNK_0]]", top=True)
+    assert "TLXC" not in ex.expand_body("[[CHUNK_0]]")
     ex.set_site(frozenset(), "", "\\\\ x")
-    assert "TLXC" not in ex.expand_body("[[CHUNK_0]]", top=True)
+    assert "TLXC" not in ex.expand_body("[[CHUNK_0]]")
     ex.set_site(frozenset(), "", "")
-    assert _mark_open(0) in ex.expand_body("[[CHUNK_0]]", top=True)
+    assert _mark_open(0) in ex.expand_body("[[CHUNK_0]]")
 
 
-def test_nontop_empty_edge_never_marks() -> None:
-    """嵌套层（``top=False``）体外上下文不可知：首/尾空即弃注；有文则按 ROW 判。"""
+def test_nested_inherits_outer_context() -> None:
+    """嵌套空缘引用点回落 ``_ctx_chain`` 外层邻居判闸（v11 链式语境）。
+
+    - ``[[ENV_7]]`` 体 = 裸 ``[[CHUNK_0]]``：嵌套层首尾皆空 → 看外层
+      引用点邻居——``\\ `` 行尾传染 → 拒注；孤立位 → 照注。
+    - 嵌套体自身有字面邻居时邻居优先（``x [[CHUNK_0]] y`` 体内判）。
+    """
     res = scan_doc(_BODY2)
     ex = _mk_exp(res, {0: "译文。"})
-    assert ex.expand_body("[[CHUNK_0]]", top=False) == "译文。"
-    assert "TLXC" not in ex.expand_body("  [[CHUNK_0]]", top=False)
-    assert _mark_open(0) in ex.expand_body("x [[CHUNK_0]] y", top=False)
+    res.ph_map["[[ENV_7]]"] = "[[CHUNK_0]]"
+    # 外层引用点贴 \\ 行尾 → 嵌套空缘回落外层 tail → ROW_TAIL 拒注
+    assert "TLXC" not in ex.expand_body("a \\\\ [[ENV_7]]")
+    # 孤立位（全空语境）→ 无行界证据 → 注锚
+    assert _mark_open(0) in ex.expand_body("[[ENV_7]]")
+    # 嵌套体自带字面邻居 → 本层判（外层语境不遮）
+    res.ph_map["[[ENV_8]]"] = "x [[CHUNK_0]] y"
+    assert _mark_open(0) in ex.expand_body("[[ENV_8]]")
+    # soul 栈经 ph 体前缀传染：嵌套 pre 的 _open_cs 照常命中
+    res.ph_map["[[ENV_9]]"] = "\\ul{[[CHUNK_0]]}"
+    assert "TLXC" not in ex.expand_body("[[ENV_9]]")
 
 
 # ---------------------------------------------------------------- lint/剥面
@@ -323,8 +414,9 @@ def test_resplice_env_flag_default(
     assert "TLXC" in (work / "main.tex").read_text(encoding="utf-8")
 
 
-def test_resplice_moving_unsafe_vtex_demotes(tmp_path: Path) -> None:
-    r"""vtex 含 ``\tableofcontents`` → ``moving_ok=False``：moving ctx 免注、para 照注。"""
+def test_resplice_moving_ctx_marked(tmp_path: Path) -> None:
+    r"""vtex 含 ``\tableofcontents`` 也全量注锚——moving ctx 照注（目录重放
+    出的重复 occurrence 由读侧 seqpos occurrence 校验收敛）、para 同注。"""
     body = "\\tableofcontents\n\n" + _BODY2
     work, run = _mk_run(tmp_path, {"main.tex": (body, dict(_ZH2))})
     run.scans[0][1].chunks[
@@ -332,7 +424,7 @@ def test_resplice_moving_unsafe_vtex_demotes(tmp_path: Path) -> None:
     ].context = "section"  # post-parse 改面（谓词直读 Chunk.context）
     _resplice(run, work, "main.tex", {0}, seq_marks=True)
     zh = (work / "main.tex").read_text(encoding="utf-8")
-    assert _mcid(0) not in zh  # section chunk 免注
+    assert _mcid(0) in zh  # section chunk 照注
     assert _mcid(1) in zh  # para chunk 照注
 
 

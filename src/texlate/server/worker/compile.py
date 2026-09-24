@@ -21,7 +21,6 @@ from texlate.compile.probe import (
 )
 from texlate.latex.placeholder import PH_RX
 from texlate.latex.reconstruct import (
-    MARK_MOVING_UNSAFE_RX,
     reconstruct,
     seq_mark_issues,
     strip_seq_marks,
@@ -63,7 +62,7 @@ from texlate.server.upload import (
     _md_member,
     pdf_pages,
 )
-from texlate.textutil import env_flag, env_str, mask_tex
+from texlate.textutil import env_flag, env_str
 from texlate.textutil.osutil import ENV_NO_SEQ_MARKS, ENV_TRANSLATOR
 from texlate.validate.l0 import pair_feedback
 from texlate.xlat.client import DEFAULT_MODEL
@@ -356,9 +355,11 @@ class _Compile:
         marks_on = _opt_switch(
             ctx.options(), "seq_marks", ENV_NO_SEQ_MARKS, explicit=None
         )
-        moving_ok = marks_on and not MARK_MOVING_UNSAFE_RX.search(
-            "\n".join(mask_tex(res.vtex) for res in ctx.scans.values())
-        )
+        # moving-arg 全量放行（废 .tex 面 RX 闸）：hyperref 常经 .cls/.sty 传递
+        # 加载，.tex 扫描必漏检——漏检时同 MCID 被 .toc 重放成双 BDC，命中又
+        # 误杀全部标题/图题锚。实证注入仅换 pdfstring 期 hyperref
+        # "removing \special" 警告、编译无害（4 任务 zh.pdf 均产出）；目录/
+        # 页眉重放出的重复 occurrence 由读侧 seqpos dedupe 收敛。
         n_files = 0
         seq0 = 0
         for rel, res in ctx.scans.items():
@@ -377,7 +378,7 @@ class _Compile:
                 res,
                 by_int,
                 mark_seq0=cur0 if marks_on else None,
-                mark_moving=moving_ok,
+                mark_moving=marks_on,
             )
             if marks_on and (issues := seq_mark_issues(out)):
                 self._log(ctx, f"seqmarks {rel} 失衡({'; '.join(issues)})——剥锚降级")
@@ -540,6 +541,36 @@ class _Compile:
         if work.exists():
             shutil.rmtree(work)
         shutil.copytree(ctx.base_dir, work)
+        # en.pdf 注锚：identity reconstruct（translations=None → 原文逐字节）
+        # 只叠 /TLXC marked-content——seq 口径与 _build_zh 同序累计，双侧
+        # seq 对位一致。谓词拒绝/失衡文件剥锚留原文，注锚异常不挡编译。
+        marks_on = _opt_switch(
+            ctx.options(), "seq_marks", ENV_NO_SEQ_MARKS, explicit=None
+        )
+        if marks_on and ctx.scans:
+            seq0 = 0
+            n_marked = 0
+            for rel, res in ctx.scans.items():
+                cur0 = seq0
+                seq0 += len(res.chunks)  # 无条件累计——与 zh 侧同序保 seq 对位
+                if not res.chunks:
+                    continue
+                try:
+                    out = reconstruct(
+                        res, None, mark_seq0=cur0, mark_moving=True
+                    )
+                except Exception as e:  # noqa: BLE001 -- 注锚失败=原样编译
+                    self._log(ctx, f"seqmarks-en {rel} 注锚异常({e})——原样编译")
+                    continue
+                if issues := seq_mark_issues(out):
+                    self._log(
+                        ctx,
+                        f"seqmarks-en {rel} 失衡({'; '.join(issues)})——剥锚降级",
+                    )
+                    out = strip_seq_marks(out)
+                (work / rel).write_text(out, encoding="utf-8")
+                n_marked += 1
+            self._log(ctx, f"seqmarks-en: {n_marked} files marked")
         rep = self._probe_target(ctx, work)
         eng = self._engine(ctx)
         res = eng.compile(

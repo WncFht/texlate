@@ -88,6 +88,23 @@ _PROSE_BLOCK_ARITY = {
     "affiliation": 1,
 }
 
+#: 参内块级信号 cs 名——任一出现即判该参为排版体而非数据槽（探针臂
+#: ``_arg_body_shaped`` 用）。env 界标/``\item``/节题皆不可能当真参数值。
+_BODY_CS_NAMES = frozenset(
+    {
+        "begin",
+        "end",
+        "item",
+        "section",
+        "subsection",
+        "subsubsection",
+        "paragraph",
+        "subparagraph",
+        "chapter",
+        "part",
+    }
+)
+
 # ------------------------------------------------------------- _ArgTok 构造厂
 # 三构形本地版（hoist 候选 ``_common._ArgTok`` classmethod ``.group/.single/
 # .empty``——mainloop/pending 面也有同形手抄点）：组参（``{..}``/``[..]``/
@@ -957,6 +974,17 @@ class _Args:
             src.unread(toks)
 
     @staticmethod
+    def _arg_body_shaped(a: _ArgTok) -> bool:
+        r"""参 token 流是否块级排版体（而非参数槽）：``eol_par`` 空行（TeX
+        ``\long`` 语义多段参）或 ``\begin``/``\end``/``\item``/节题 cs 任一即体。"""
+        for x in a.all_toks:
+            if x.kind == "eol_par":
+                return True
+            if x.kind == "cs" and x.text in _BODY_CS_NAMES:
+                return True
+        return False
+
+    @staticmethod
     def _split_rendered(core: str) -> list[str]:
         """渲染串二次切分——v1 ``_split_core`` 原样（``[[X_n]]`` 边界优先）。
 
@@ -1543,6 +1571,25 @@ class _Args:
             self._rappend_tok(t)
             return
         args, end = hit
+        # 块级体参（参内含空行/`\begin`/`\end`/`\item`/节题 cs）不是参数是
+        # 排版体——standalone 段文件扫不到 main.tex 的 ``\newcommand`` 注册，
+        # ``\arxiv{整段}`` 族整参糊 [[CMD]] 会连块结构带散文全吞（t_f748
+        # 实证 EOF 吞 1.6K）。cs 名保 [[CMD]]、参 token 回放主流重分派，
+        # 组内按块自然分段（等效 flatten 展开）。吞块/死文本/死尾参名闸
+        # 不旁路——``\comment``/``\deleted``/``\replaced`` 语义仍罩。
+        nm = name or t.text
+        if (
+            nm not in _SWALLOW_ARG_NAMES
+            and nm not in _DEAD_ARG_NAMES
+            and nm not in _DEAD_TAIL_NAMES
+            and any(self._arg_body_shaped(a) for a in args)
+        ):
+            self.state.warnings.append(
+                ScanWarning("body_arg_replay", len(self.vt), f"\\{nm}")
+            )
+            self._cover_ph(fid, b, PhType.CMD, gap=t)
+            self._unread_args(src, args)
+            return
         # 与 ``_handle_opaque_macro`` 同款散文参挖掘：投机参里的 ``{散文}``
         # 抠出 [[CMD]] 覆盖子扫渲进 run surface——``\@maketitle{…prose…}``
         # 类调用块不再整块蒸发（1803.00127 实测）。宏名/非散文参/散文参

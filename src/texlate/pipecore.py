@@ -40,7 +40,6 @@ from texlate.compile.judge import Verdict, judge, paired_slot_diff
 from texlate.compile.probe import target_probe
 from texlate.latex.api import scan_tex_tree
 from texlate.latex.reconstruct import (
-    MARK_MOVING_UNSAFE_RX,
     reconstruct,
     seq_mark_issues,
     strip_seq_marks,
@@ -65,7 +64,7 @@ from texlate.repair_l2 import (
     split_cid,
     unknown_env_of,
 )
-from texlate.textutil import PH_RX, env_flag, env_str, mask_tex
+from texlate.textutil import PH_RX, env_flag, env_str
 from texlate.textutil.osutil import ENV_FRONT_MATTER, ENV_NO_SEQ_MARKS
 from texlate.validate.l0 import pair_feedback
 from texlate.xlat.client import DEFAULT_MODEL
@@ -414,9 +413,6 @@ def translate_tree_run(  # noqa: PLR0913 -- 注入面穿透（scan/validator/sin
     n_leftover = 0
     slot_diffs: dict[str, list[str]] = {}
     marks_on = _opt_switch(None, "seq_marks", ENV_NO_SEQ_MARKS, explicit=seq_marks)
-    moving_ok = marks_on and not MARK_MOVING_UNSAFE_RX.search(
-        "\n".join(mask_tex(res.vtex) for _, res in scans)
-    )
     seq0 = 0
     for idx, (f, res) in enumerate(scans):
         cur0 = seq0
@@ -428,7 +424,7 @@ def translate_tree_run(  # noqa: PLR0913 -- 注入面穿透（scan/validator/sin
             res,
             trans,
             mark_seq0=cur0 if marks_on else None,
-            mark_moving=moving_ok,
+            mark_moving=marks_on,
         )
         if marks_on and (issues := seq_mark_issues(zh)):
             log.warning(

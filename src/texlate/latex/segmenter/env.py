@@ -286,9 +286,11 @@ class _Env:
             return
         for _ in range(self._env_pop(env, vspan.start)):
             src.scope_pop()
-        if not self._doc_opened and not self.env_stack:
+        if not self._doc_opened and not self.env_stack and self._doc_begin >= 0:
             # 前置发射 env（preamble abstract 等）弹空栈 → 回 preamble 档
             # 直到 ``\begin{document}``；document 已开则永不回档。
+            # ``_doc_begin<0``（\input 散件全篇无 document）不回档——
+            # 无档可回，否则顶层 env 一弹栈余文全灭（t_e300 实证 13 段丢）。
             self._preamble = True
 
     def _env_pop(self, env: str, vpos: int) -> int:

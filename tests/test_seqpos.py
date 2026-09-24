@@ -312,8 +312,12 @@ class TestReadingOrder:
 
 class TestOffsetAt:
     def test_same_col_nearest(self) -> None:
-        # (char_off, page, frac, x)——候选=同页同栏 |Δfrac| 最小者
-        bounds = [(0, 1, 0.1, 0.1), (50, 1, 0.3, 0.6), (100, 2, 0.1, 0.1)]
+        # (char_off, page, frac, x, x1)——候选=同页同栏 |Δfrac| 最小者
+        bounds = [
+            (0, 1, 0.1, 0.1, 0.4),
+            (50, 1, 0.3, 0.6, 0.9),
+            (100, 2, 0.1, 0.1, 0.4),
+        ]
         # x=0.6(右栏) 目标 frac0.15：全页最近是 frac0.1 界，同栏只取右栏界
         assert M._offset_at(bounds, 1, 0.15, 0.6) == 50  # noqa: SLF001, PLR2004
         # x 缺席 → 退化全页最近
@@ -418,8 +422,10 @@ class TestEndToEnd:
         _s, _b, marks = M._char_stream(zh, collect_marks=True)  # noqa: SLF001
         occ = marks[0][0]
         # 外来 Span BDC 压 None——Inner1/2/3 都归属外层 TLXC
-        # （单标量 cur_mark 在首个 EMC 即丢标，Outer3 会漏记）
-        assert occ["text"] == "Inner1Inner2Outer3"
+        # （单标量 cur_mark 在首个 EMC 即丢标，Outer3 会漏记）。
+        # pymupdf 文本面下 occ["text"] 是归一流切片（几何回填）——
+        # 大小写/标点剥除是 ``_text_cov`` 的输入口径，钉归一等价。
+        assert occ["text"] == M._norm_chars("Inner1Inner2Outer3")  # noqa: SLF001
         assert occ["chars"] == 18  # noqa: PLR2004 -- 钉字面裹字形数
         assert abs(occ["fraction"] - (1 - 708 / 792)) < 1e-4  # noqa: PLR2004
 
@@ -509,6 +515,8 @@ class TestEndToEnd:
         assert len(bounds) == 20  # noqa: PLR2004 -- 10 合并行 × 2 段
         assert abs(bounds[0][3] - 60 / 612) < 1e-3  # noqa: PLR2004 -- 左栏 x
         assert abs(bounds[10][3] - 340 / 612) < 1e-3  # noqa: PLR2004 -- 右栏 x
+        # x1 = 行右缘（x0 + est_w）：左栏行右缘 < 中缝、右栏行右缘近页右
+        assert bounds[0][4] < bounds[10][3] < bounds[10][4] <= 1.0
 
     def test_seqpos_for_task_cache(self, tmp_path: Path) -> None:
         _mk_pdf(tmp_path / "en.pdf", [[(72, 700, "Alpha intro text")]])

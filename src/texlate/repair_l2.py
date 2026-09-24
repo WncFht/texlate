@@ -24,7 +24,6 @@ from typing import TYPE_CHECKING, Any
 from texlate.compile.inject import InjectRejectError, prepare_chinese
 from texlate.compile.judge import paired_slot_diff
 from texlate.latex.reconstruct import (
-    MARK_MOVING_UNSAFE_RX,
     SEQ_MARK_RX,
     _Expander,
     reconstruct,
@@ -39,7 +38,7 @@ from texlate.latex.tables import (
     VERBATIM_ENVS,
 )
 from texlate.repair import log_text_of
-from texlate.textutil import env_flag, mask_tex
+from texlate.textutil import env_flag
 from texlate.textutil.osutil import (  # noqa: F401 -- env 名钉点回引（字面量单源在 osutil 注册表）
     ENV_ENV_JUDGE,
     ENV_NO_L2,
@@ -604,9 +603,6 @@ def _resplice_and_diffs(  # noqa: PLR0913 -- 注入面穿透（写盘/diff/锚�
         if seq_marks is None
         else seq_marks
     )
-    moving_ok = marks_on and not MARK_MOVING_UNSAFE_RX.search(
-        "\n".join(mask_tex(res.vtex) for _, res in run.scans)
-    )
     main_path = work / main_rel
     rewritten: list[str] = []
     diff_map: dict[str, list[str]] = {}
@@ -618,7 +614,7 @@ def _resplice_and_diffs(  # noqa: PLR0913 -- 注入面穿透（写盘/diff/锚�
             res,
             run.trans.get(fidx) or {},
             mark_seq0=seq0 if marks_on else None,
-            mark_moving=moving_ok,
+            mark_moving=marks_on,
         )
         if marks_on and (issues := seq_mark_issues(zh)):
             log.warning("seq marks imbalanced in %s (%s); stripped", f, "; ".join(issues))
