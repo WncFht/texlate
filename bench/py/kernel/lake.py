@@ -51,7 +51,7 @@ from contextlib import contextmanager, suppress
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from kernel import events, fsutil, ledger, locks, paths
+from kernel import events, fsutil, ledger, locks, paths, vault
 from kernel.events import iter_jsonl, make_event
 from kernel.idnorm import safe_id
 
@@ -92,15 +92,21 @@ _ENV_LAKE_FLOOR_GB = "TEXLATE_LAKE_FLOOR_GB"
 _GIB = 1024 ** 3
 
 # Files kept by shrink_shell on a terminal cell (§3.10.1 shell set).
-# ``xlat-state.*`` directories are additionally preserved — the chunk-level
-# paid checkpoint is prune-exempt until vaulted (§3.10.1 revision + R17:
-# losing it re-burns paid quota on resume). PIN_MARKER rides the keep set
-# so a shrink can never eat the pin marker (measured gap), though a pinned
-# cell short-circuits shrink_shell before the keep-list is even consulted.
+# ``xlat-state.*``/``state.*`` directories are additionally preserved — the
+# chunk-level paid checkpoint is prune-exempt until vaulted (§3.10.1
+# revision + R17: losing it re-burns paid quota on resume). The cell-side
+# dir is ``state.{arm}[@{variant}]`` (xlat-state is the vault kind name);
+# both spellings ride the glob. PIN_MARKER rides the keep set so a shrink
+# can never eat the pin marker (measured gap), though a pinned cell
+# short-circuits shrink_shell before the keep-list is even consulted.
 _SHELL_KEEP_EXACT = frozenset({
     "receipt.json", "parse.json", ".xlat-arm.json", ".lock", PIN_MARKER,
 })
-_SHELL_KEEP_GLOB = ("xlat-*.jsonl", "xlat-state.*")
+_SHELL_KEEP_GLOB = (
+    "xlat-*.jsonl",
+    "xlat-state", "xlat-state.*",
+    "state", "state.*",
+)
 
 
 # --- small append helper ---------------------------------------------------------
@@ -565,6 +571,7 @@ def hydrate(idc: str, fetch_fn: Callable | None = None,
                 shutil.rmtree(stage_e)
             stage_e.mkdir(parents=True)
             _populate_from_raw(raw_dir, stage_e)
+            vault.cas_link_tree(stage_e)
             ex = d / "extracted"
             if ex.is_symlink():
                 ex.unlink()  # never a projection dir — clear it
@@ -597,6 +604,9 @@ def hydrate(idc: str, fetch_fn: Callable | None = None,
         try:
             ret = fetch_fn(idc, stage)
             meta_extra = dict(ret) if isinstance(ret, dict) else {}
+            ex_dir = stage / "extracted"
+            if ex_dir.is_dir():
+                vault.cas_link_tree(ex_dir)
             n = _payload_count(stage)
             meta = {**old_meta, "idc": idc, "source": source,
                     "n_files": n, "hydrated_at": round(time.time(), 3),
@@ -792,9 +802,10 @@ def evict(target_free_bytes: int, catalog: LakeCatalog | None = None) -> list:
 def shrink_shell(work_cell_dir) -> None:
     """Reduce a terminal cell tree to its shell (§3.10.1): keep only
     ``{receipt.json, parse.json, xlat-*.jsonl, .xlat-arm.json, .lock}``
-    plus ``xlat-state.*`` dirs (paid chunk checkpoint — prune-exempt until
-    vaulted, R17). Everything else — zh/splice/src@/state/build.* trees —
-    is deleted. The cell dir itself stays.
+    plus ``xlat-state.*``/``state.*`` dirs (the paid chunk checkpoint —
+    prune-exempt until vaulted, R17; the cell-side spelling is
+    ``state.{arm}[@{variant}]``). Everything else — zh/splice/src@/
+    build.* trees — is deleted. The cell dir itself stays.
 
     Called by prune/sweep AFTER terminal status; NOT a delete verb for the
     cell root (that is remove_cell_tree's job).

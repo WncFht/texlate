@@ -678,6 +678,42 @@ def _cmd_vault_seed(args) -> int:
     return EXIT_OK
 
 
+def _cmd_vault_slim(args) -> int:
+    """P3 retention: committed splice leaves → final pdf + arm json + logs."""
+    _pre_write()
+    rows = vault.slim_splice(idc=args.idc, dry=args.dry)
+    freed = sum(r["dropped_bytes"] for r in rows)
+    verb = "would slim" if args.dry else "slimmed"
+    for r in rows:
+        print(
+            f"  {verb} {r['zone']}/{r['sid']}/{r['key']}"
+            f"  kept={len(r['kept'])} dropped_bytes={r['dropped_bytes']}"
+            + ("" if r.get("meta", True) else "  (no meta)")
+        )
+    print(
+        f"vault slim: {len(rows)} leaf(s) {verb},"
+        f" freed={freed} bytes ({freed / 2**20:.1f} MiB)"
+    )
+    return EXIT_OK
+
+
+def _cmd_vault_cas_link(args) -> int:
+    """P3 retention: CAS-link committed leaves (retroverb for pre-hook
+    harvests); new writes link inside harvest itself."""
+    _pre_write()
+    rows = vault.cas_link_leaves(kind=args.kind, idc=args.idc, dry=args.dry)
+    moved = sum(r["bytes"] for r in rows)
+    linked = sum(r["linked"] for r in rows)
+    cand = sum(r.get("candidates", r["linked"]) for r in rows)
+    verb = "would link" if args.dry else "linked"
+    print(
+        f"vault cas-link: {len(rows)} leaf(s) scanned,"
+        f" {cand} candidate file(s) ≥{vault.CAS_LINK_FLOOR}B,"
+        f" {linked} {verb}, {moved} bytes ({moved / 2**20:.1f} MiB) projected"
+    )
+    return EXIT_OK
+
+
 # --- ledger -------------------------------------------------------------------------
 
 
@@ -1017,6 +1053,31 @@ def _cell_has_paid_bytes(cell: Path) -> bool:
     return False
 
 
+# ``state.{arm}[@{variant}]`` is the real cell-side spelling of the
+# xlat-state paid checkpoint (vault kind name vs work-tree dirname) — both
+# spellings ride the shrink keep-glob and this gate.
+_CHECKPOINT_DIRS = ("xlat-state", "state")
+
+
+def _cell_shrinkable(cell: Path) -> bool:
+    """Checkpoint-only paid shape: every paid-prefixed dir carrying files is
+    a chunk checkpoint (``xlat-state.*`` / ``state.*``) — no zh/splice
+    product trees. Shrinking such a cell keeps the paid checkpoint while
+    freeing the rebuildable bulk; a cell with un-vaulted zh/splice product
+    must stay whole for a later harvest."""
+    try:
+        for e in cell.iterdir():
+            if not e.is_dir():
+                continue
+            base = e.name.split(".", 1)[0].split("@", 1)[0]
+            if base in _PAID_TREE_PREFIXES and base not in _CHECKPOINT_DIRS \
+                    and any(p.is_file() for p in e.rglob("*")):
+                return False
+    except OSError:
+        return False
+    return True
+
+
 def _cmd_prune(args) -> int:
     """Reduce a run dir to its keep-list (§2.1 prune).
 
@@ -1076,7 +1137,22 @@ def _cmd_prune(args) -> int:
                         print(f"  pruned  work/{sid}")
                     except runs.BlockedDelete as exc:
                         blocked += 1
-                        _err(f"  blocked work/{sid}: {exc}")
+                        shrunk = False
+                        if _cell_shrinkable(cell):
+                            try:
+                                with locks.flock(
+                                    rd.cell_lock_path(sid),
+                                    exclusive=True,
+                                    blocking=False,
+                                ):
+                                    lake.shrink_shell(cell)
+                                    shrunk = True
+                            except locks.WouldBlock:
+                                pass  # live cell — the lock IS the refusal
+                        _err(
+                            f"  blocked work/{sid}: {exc}"
+                            + (" — shrunk to shell" if shrunk else "")
+                        )
                 if not blocked:
                     # cells gone or none — drop the remaining tree (_texmf
                     # shared cache et al.; all rebuildable)
@@ -1458,6 +1534,18 @@ def _build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--manifest", required=True, help="zh-store manifest.jsonl")
     sp.add_argument("--bytes-root", required=True, help="zh-store payload root")
     sp.add_argument("--dry", action="store_true")
+    sp = vsub.add_parser(
+        "slim", help="shrink committed splice leaves to final pdf + "
+                     "arm json + logs (P3 retention)")
+    sp.add_argument("--idc", default=None, help="limit to one id")
+    sp.add_argument("--dry", action="store_true")
+    sp = vsub.add_parser(
+        "cas-link", help="hardlink committed leaf files ≥256KiB through "
+                         "the CAS (retroverb; harvest links new writes)")
+    sp.add_argument("--kind", default=None, choices=sorted(vault.KINDS),
+                    help="limit to one asset kind")
+    sp.add_argument("--idc", default=None, help="limit to one id")
+    sp.add_argument("--dry", action="store_true")
 
     lp = sub.add_parser("ledger", help="event ledger verbs")
     lsub = lp.add_subparsers(dest="lsub", required=True)
@@ -1602,6 +1690,8 @@ def main(argv=None) -> int:
             "adopt": _cmd_vault_adopt,
             "tombstone": _cmd_vault_tombstone,
             "seed": _cmd_vault_seed,
+            "slim": _cmd_vault_slim,
+            "cas-link": _cmd_vault_cas_link,
         }[args.vsub](args)
     if cmd == "ledger":
         return {

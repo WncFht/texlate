@@ -1702,12 +1702,16 @@ def _make_fetch(rec: dict, c: dict | None, feat: dict, layer: str,
 
 
 def _extract_members(ctx, wanted: dict[str, dict[str, dict]], layer: str,
-                     stratum_fn, sel_of=None, feat_lut=None) -> dict:
+                     stratum_fn, sel_of=None, feat_lut=None,
+                     prune_tars: set[str] | None = None) -> dict:
     """成员物化主循环——extract 与 extract_booster 共用。
 
     wanted: {tag: {member: rec}}（rec 带 id/cluster_id/cat_group/...）。
     feat_lut 缺省按 wanted tag 现扫 features/{tag}.jsonl（core 口径）；
     booster 臂传全局 member→feat 映射。返回计数 + faults[(cat,payload)]。
+
+    prune_tars: 允许用完即删的 tag 集——成员循环正常收尾（非 limit 截断）
+    且 tag 在集内时，该 chunk 的 .tar/.part 即删（§2.4 峰值控制）。
     """
     chunks = {f"{c['yymm']}_{c['chunk_no']:03d}": c for c in load_chunks()}
     if feat_lut is None:
@@ -1722,13 +1726,16 @@ def _extract_members(ctx, wanted: dict[str, dict[str, dict]], layer: str,
 
     run_seq = getattr(ctx.rundir, "run_seq", 0) or 0
     limit = ctx.params.get("limit")
-    stats = {"hydrated": 0, "reused": 0, "adopted": 0, "empty": 0}
+    stats = {"hydrated": 0, "reused": 0, "adopted": 0, "empty": 0,
+             "tar_freed_bytes": 0}
     faults: list[tuple[str, str]] = []
     n_done = 0
     for tag, members in sorted(wanted.items()):
         c = chunks.get(tag)
+        truncated = False
         for mname, rec in sorted(members.items()):
             if limit and n_done >= int(limit):
+                truncated = True
                 break
             n_done += 1
             feat = feat_lut.get(mname)
@@ -1784,7 +1791,27 @@ def _extract_members(ctx, wanted: dict[str, dict[str, dict]], layer: str,
                     idc, {k: v for k, v in extra.items() if v is not None}
                 )
                 stats["adopted"] += 1
+        if (
+            c is not None and not truncated
+            and prune_tars is not None and tag in prune_tars
+        ):
+            # TARS 用后即焚（§2.4 运行期峰值）：本 chunk 全部中选成员已落
+            # lake cell，.tar/.part 即死存——重跑由 fetch 阶段 .part 续传
+            # 自愈。limit 截断的 tag 不删：余下成员还要读它。
+            stats["tar_freed_bytes"] += _prune_tar(c)
     return {**stats, "faults": faults}
+
+
+def _prune_tar(c: dict) -> int:
+    """删除单 chunk 的 ``{item}.tar`` 与 ``{item}.tar.part``，返回释放字节。"""
+    freed = 0
+    for p in (TARS / f"{c['item']}.tar", TARS / f"{c['item']}.tar.part"):
+        try:
+            freed += p.stat().st_size
+        except FileNotFoundError:
+            continue
+        p.unlink()
+    return freed
 
 
 def _rebuild_manifest(layer: str, out_name: str) -> list[dict]:
@@ -1853,10 +1880,29 @@ def _stage_extract(ctx):
                 **rec,
                 "cluster_id": cid,
             }
+    # TARS 用完即删：booster 选集缺席时本段是唯一消费者，全 tag 可删；
+    # 在场时只删 booster 用不到的 chunk（其成员提取走同一批 tar）。
+    prune_tars: set[str] | None = set(wanted)
+    sel_path = CORPUS / "booster_selection.jsonl"
+    if sel_path.is_file():
+        bsel = {s["id"] for s in _read_jsonl(sel_path) if s.get("id")}
+        tag_of_item = {
+            c["item"]: f"{c['yymm']}_{c['chunk_no']:03d}"
+            for c in load_chunks()
+        }
+        btags: set[str] = set()
+        fdir = WORK / "features"
+        if fdir.is_dir():
+            for ff in sorted(fdir.glob("*.jsonl")):
+                for f in _read_jsonl(ff):
+                    if f.get("id") in bsel:
+                        btags.add(tag_of_item.get(f["item"], "unknown"))
+        prune_tars = set(wanted) - btags
     stats = _extract_members(
         ctx, wanted, "core",
         lambda rec, _feat: f"{BAND_OF_CLUSTER.get(rec['cluster_id'], '')}"
         f"|{rec.get('cat_group')}",
+        prune_tars=prune_tars,
     )
     manifest = _rebuild_manifest("core", "manifest.jsonl")
     _write_manifest_md(manifest)
@@ -1985,6 +2031,7 @@ def _stage_extract_booster(ctx):
         f"{BAND_OF_CLUSTER.get(rec.get('cluster_id') or feat.get('cluster_id'), '')}",
         sel_of=lambda rec: want.get(rec["id"]),
         feat_lut=feat_lut,
+        prune_tars=set(wanted),  # booster 是 TARS 末段消费者，用完即删
     )
     manifest = _rebuild_manifest("booster", "manifest_booster.jsonl")
     faults = stats.pop("faults")

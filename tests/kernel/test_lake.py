@@ -366,11 +366,17 @@ def test_shrink_shell_keeps_shell_set_only(broot: Path) -> None:
     for name in kept:
         cell.mkdir(parents=True, exist_ok=True)
         (cell / name).write_bytes(b"k")
-    # paid checkpoint dir is prune-exempt (R17) — kept
+    # paid checkpoint dirs are prune-exempt (R17) — kept under both
+    # spellings: xlat-state.* (vault-kind name) and state.{arm}@v /
+    # bare state/ (real cell-side dirnames)
     (cell / "xlat-state.zh").mkdir()
     (cell / "xlat-state.zh" / "seg-0001.json").write_bytes(b"state")
+    (cell / "state.real@v1").mkdir()
+    (cell / "state.real@v1" / "state.json").write_bytes(b"ckpt")
+    (cell / "state").mkdir()
+    (cell / "state" / "store.json").write_bytes(b"store")
     # everything else goes
-    for name in ["zh.mock", "splice.mock", "state", "build.x", "src"]:
+    for name in ["zh.mock", "splice.mock", "build.x", "src"]:
         (cell / name).mkdir()
         (cell / name / "junk.bin").write_bytes(b"j")
     (cell / "misc.txt").write_bytes(b"m")
@@ -380,8 +386,11 @@ def test_shrink_shell_keeps_shell_set_only(broot: Path) -> None:
     for name in kept:
         assert (cell / name).exists(), name
     assert (cell / "xlat-state.zh" / "seg-0001.json").exists()
+    assert (cell / "state.real@v1" / "state.json").exists()
+    assert (cell / "state" / "store.json").exists()
     survivors = {p.name for p in cell.iterdir()}
-    assert survivors == set(kept) | {"xlat-state.zh"}
+    assert survivors == set(kept) | {"xlat-state.zh", "state.real@v1",
+                                   "state"}
 
 
 def test_shrink_shell_missing_dir_noop(broot: Path) -> None:
