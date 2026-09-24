@@ -1308,6 +1308,14 @@ class _Compile:
             doc["chunks"].append(ch)
         atomic_json(ctx.root / "dual.json", doc)
         self._register(ctx, "dual_json", "dual.json")
+        # seqpos 预算：reader 首开的懒算峰（39pp 实测 ~11s pypdf CMap
+        # 重解析）挪进编译尾段——此处本就在 _to_thread 里，首开即缓存命中
+        try:
+            from texlate.server.seqpos import seqpos_for_task  # noqa: PLC0415
+
+            seqpos_for_task(ctx.root, doc)
+        except Exception as e:  # noqa: BLE001 -- 对位是增强件，失败不挡交付
+            self._log(ctx, f"seqpos precompute failed: {e}")
 
     def _build_md_zip(self, ctx: TaskCtx) -> None:
         """md.zip 降级产物（§5.4）：编译彻底失败但译文在库 → 双语 markdown 包。
