@@ -138,13 +138,69 @@ const enSeg = new Intl.Segmenter("en", { granularity: "sentence" });
     等长替换保偏移映射不变。 */
 const flatOf = (text: string): string => text.replace(/\n/g, " ");
 
-/** en 文本 → 句区间表（ws-only segment 剔除——只返非空句）。 */
+const EN_CLOSERS_RX = /["'’”』」》）)\]】>*\s]+$/;
+const EN_TAIL_WORD_RX = /[A-Za-z.]+$/;
+/** 超 3 字母仍属缩写的尾词表（zhAbbrevDot 词表外延——Fig/al/Dr 等
+    ≤3 已被长度闸兜住，这里只收更长者） */
+const EN_ABBREV_WORDS = new Set(
+    (
+        "prof figs secs refs approx ibid resp etal assoc dept univ inc ltd " +
+        "jan feb mar apr jun jul aug sep sept oct nov dec"
+    ).split(" "),
+);
+
+/** 句段尾是缩写/碎片则不切——zhAbbrevDot 同口径增强：点前尾词含 '.'
+    （e.g./i.i.d./U.S.）强证据直并；短尾词 ≤3（al/Fig/Dr）、白名单、
+    数字尾（3.14/v2.1）是弱证据——要下句以小写/数字起的续句信号才并
+    （否则 "One. Two." 式短句会链式全并；[[占位]] 不作续句信号——
+    占位符同样可以是新句主语，"Elo. [[CMD]]" 实证误并）。过并比过切
+    安全——碎片句级联错 bead（en 领先 zh 一句实证），并多了只是
+    bead 略宽。 */
+function enFragTail(seg: string, next: string): boolean {
+    const core = seg.replace(/[.\s]+$/, "");
+    const tail = EN_TAIL_WORD_RX.exec(core)?.[0] ?? "";
+    if (tail.includes(".")) return true;
+    const weak =
+        (tail.length > 0 && tail.length <= 3) ||
+        EN_ABBREV_WORDS.has(tail.replace(/\./g, "").toLowerCase()) ||
+        (!tail && /\d$/.test(core));
+    if (!weak) return false;
+    return /^[\p{Ll}\d]/u.test(next);
+}
+
+/** en 文本 → 句区间表（ws-only segment 剔除 + 碎片后并）。 */
 export function splitEn(text: string): SentSpan[] {
     const flat = flatOf(text);
-    const out: SentSpan[] = [];
+    const raw: SentSpan[] = [];
     for (const s of enSeg.segment(flat)) {
         const e = s.index + s.segment.length;
-        if (flat.slice(s.index, e).trim()) out.push([s.index, e]);
+        if (flat.slice(s.index, e).trim()) raw.push([s.index, e]);
+    }
+    const out: SentSpan[] = [];
+    let carry: number | null = null; // 纯占位片起点——并下句
+    for (const [s, e] of raw) {
+        const st: number = carry ?? s;
+        carry = null;
+        if (sentLen(flat.slice(s, e)) === 0) {
+            carry = st; // 整片只含掩码占位符——无独立句格
+            continue;
+        }
+        if (out.length) {
+            const prev = out[out.length - 1]!;
+            const pseg = flat.slice(prev[0], prev[1]).replace(EN_CLOSERS_RX, "");
+            const nxt = flat.slice(s, e).trimStart();
+            if (enFragTail(pseg, nxt)) {
+                out[out.length - 1] = [prev[0], e];
+                continue;
+            }
+        }
+        out.push([st, e]);
+    }
+    if (carry != null) {
+        const lastE = raw[raw.length - 1]![1];
+        // 末位残片并回末句（全占位文本防御：无句则自成片）
+        if (out.length) out[out.length - 1] = [out[out.length - 1]![0], lastE];
+        else out.push([carry, lastE]);
     }
     return out;
 }
