@@ -330,6 +330,43 @@ def test_verified_via_vault_meta_file(broot):
     idx.close()
 
 
+def test_partial_kind_meta_does_not_verify_uncovered_needs(broot):
+    """retry39 regression: a {state}-only harvest (xlat checkpoint sealed,
+    zh never produced) must NOT mint 'verified' for a stage whose
+    need_kinds span zh+state — the meta only vouches kinds it declares.
+    The scalar meta_ok leg used to pass this through, deduping xlat while
+    no DONE row and no zh bytes existed: every downstream stage
+    needs-skipped forever (compile skip needs / fixloop upstream-error).
+    """
+    _commit_copy("cs/0601040", verdict="primary", kinds=("state",))
+    idx = _sealed_index(broot)
+    oracle = DedupOracle.snapshot(idx)
+    # full need span: zh never sealed and nothing is dead -> absent, so
+    # the paid cell re-runs (resuming from the state checkpoint)
+    assert oracle.check("cs/0601040", ARM,
+                        need_kinds={"zh", "state"}) == ABSENT
+    # a stage needing only the sealed kind still verifies
+    assert oracle.check("cs/0601040", ARM,
+                        need_kinds={"state"}) == VERIFIED
+    # callers without need_kinds keep the cell-level leg
+    assert oracle.check("cs/0601040", ARM) == VERIFIED
+    idx.close()
+
+
+def test_split_kinds_across_copies_verify(broot):
+    """Two intact copies each declaring a different needed kind union to
+    full coverage — kind coverage is per-cell, not per-copy."""
+    _commit_copy("cs/0601041", verdict="primary", altseq="0",
+                 kinds=("zh",))
+    _commit_copy("cs/0601041", verdict="alt", altseq="1",
+                 kinds=("state",))
+    idx = _sealed_index(broot)
+    oracle = DedupOracle.snapshot(idx)
+    assert oracle.check("cs/0601041", ARM,
+                        need_kinds={"zh", "state"}) == VERIFIED
+    idx.close()
+
+
 def test_committed_but_bytes_gone_is_missing(broot):
     """Meta verdict=primary whose declared files are absent on disk is
     §3.6's third state (付过费但字节没了) -> missing -> regen gate, never

@@ -326,7 +326,9 @@ def manifest_tail(path=None, max_rows: int = _MANIFEST_TAIL_ROWS) -> set[tuple]:
 
 
 def _scan_vault_meta(idc: str, arm: str, variant: str):
-    """Durable meta-dir scan for one cell -> (bytes_ok, missing, io_error).
+    """Durable meta-dir scan for one cell -> (bytes_ok, missing, io_error,
+    kinds). ``kinds`` is the union of asset kinds that intact bytes-ok
+    copies vouch for — a meta only ever proves the kinds it declares.
 
     Delegates iteration+parse+intactness to vault.query — the single meta
     implementation — so the §3.10.4 filename-authoritative credential and
@@ -341,10 +343,11 @@ def _scan_vault_meta(idc: str, arm: str, variant: str):
     try:
         rows = vault.query(idc, _norm(arm), _norm(variant))
     except ValueError:
-        return False, False, False  # non-canon idc can never own vault bytes
+        return False, False, False, set()  # non-canon idc: no vault bytes
     except OSError:
-        return False, False, True
+        return False, False, True, set()
     bytes_ok = miss = False
+    kinds: set[str] = set()
     for row in rows:
         if row.get("_parse_error"):
             miss = True
@@ -353,11 +356,12 @@ def _scan_vault_meta(idc: str, arm: str, variant: str):
         if verdict in BYTES_OK_VERDICTS:
             if row.get("bytes_ok"):
                 bytes_ok = True
+                kinds |= {str(k) for k in (row.get("files") or {})}
             else:
                 miss = True
         if verdict in MISSING_VERDICTS:
             miss = True
-    return bytes_ok, miss, False
+    return bytes_ok, miss, False, kinds
 
 
 # -- index-side evidence (only ever read under a seal) -----------------------------
@@ -576,10 +580,11 @@ class DedupOracle:
         # 3. verified — durable/frozen legs only: manifest tail bytes_ok,
         #    vault meta on disk, the frozen paid_pool snapshot. The live
         #    index is advisory, never a verified leg.
-        meta_ok, meta_missing, meta_io_error = _scan_vault_meta(idc, arm, variant)
+        meta_ok, meta_missing, meta_io_error, meta_kinds = _scan_vault_meta(
+            idc, arm, variant)
         if meta_io_error:
             return UNSEALED
-        if self._verified(key, meta_ok, need_kinds):
+        if self._verified(key, meta_ok, meta_kinds, need_kinds):
             return VERIFIED
 
         # 4. missing — tombstone/quar evidence with no verified leg.
@@ -616,15 +621,18 @@ class DedupOracle:
             row and row["op"] == "release" and row["fate"] == "verified"
         )
 
-    def _verified(self, key, meta_ok: bool, need_kinds) -> bool:
+    def _verified(self, key, meta_ok: bool, meta_kinds, need_kinds) -> bool:
         """The verified legs under kind-aware adjudication.
 
         need_kinds given: manifest must prove every needed kind alive;
-        the pool/meta legs then verify only when no needed kind is
-        manifest-dead (a paid-ok row or physically-intact meta must not
-        resurrect a declared-dead product). need_kinds None: the flat
-        manifest_tail set (surviving evidence with no dead kind) plus
-        pool/meta vetoed by ANY dead kind — fail-closed partial loss.
+        the meta leg vouches only the kinds intact copies actually
+        declare (a {state}-only harvest must not dedup a cell whose zh
+        was never sealed); the paid_pool leg (a paid terminal row) vouches
+        all mutates. All non-manifest legs still require no needed kind
+        manifest-dead (a paid-ok row or intact meta must not resurrect a
+        declared-dead product). need_kinds None: the flat manifest_tail
+        set (surviving evidence with no dead kind) plus pool/meta vetoed
+        by ANY dead kind — fail-closed partial loss.
         """
         ev = self.kind_evidence.get(key)
         alive = ev["alive"] if ev else set()
@@ -634,7 +642,8 @@ class DedupOracle:
         if need:
             if need <= alive:
                 return True
-            pool_meta = key in self.paid_pool_snap or meta_ok
+            pool_meta = (key in self.paid_pool_snap
+                         or (meta_ok and need <= meta_kinds))
             return pool_meta and not (need & dead) and not ag_dead
         if key in self.manifest_tail:
             return True
