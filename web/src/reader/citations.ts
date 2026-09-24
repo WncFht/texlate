@@ -193,11 +193,15 @@ export function buildCiteIndex(dual: DualJson | null | undefined): CiteIndex {
 
 export interface PdfDocLike {
     getDestination(name: string): Promise<unknown[] | null>;
+    /** pdf.js≥4 返回 Map（含 name-tree 锚）；老版本为 Record——消费方须两形兼容 */
+    getDestinations?(): Promise<
+        Map<string, unknown> | Record<string, unknown> | null
+    >;
     getPageIndex(ref: unknown): Promise<number>;
     getPage(n: number): Promise<PdfPageLike>;
 }
 export interface PdfPageLike {
-    getViewport(o: { scale: number }): { height: number };
+    getViewport(o: { scale: number }): { height: number; width: number };
     getTextContent(): Promise<{
         items: { str: string; transform: number[] }[];
     }>;
@@ -207,6 +211,37 @@ interface TextLine {
     y: number; // pdf 用户空间（自底向上）
     minX: number;
     str: string;
+}
+
+export interface DestPoint {
+    /** 页引用（getPageIndex 直喂） */
+    ref: unknown;
+    /** pdf 用户空间 y（bottom-up）；Fit/FitV/XYZ-null 等整页锚为 null */
+    y: number | null;
+    /** pdf 用户空间 x（仅 XYZ 携带）；缺席 null */
+    x: number | null;
+}
+
+/** named/explicit dest 数组 → 落点。y 槽位随 fit 型而变：
+    XYZ=[ref,XYZ,left,top,zoom]、FitH/FitBH=[ref,FitH,top]、
+    FitR=[ref,FitR,left,bottom,right,top]；Fit/FitB/FitV/FitBV 与
+    XYZ null-top 无 y。extractBibAtDest 与 PdfPane destPos 的单一解析点。 */
+export function destPointOf(dest: unknown): DestPoint | null {
+    if (!Array.isArray(dest) || dest.length < 2) return null;
+    const kind = (dest[1] as { name?: string } | undefined)?.name ?? "";
+    let x: number | null = null;
+    let y: number | null = null;
+    if (kind === "XYZ") {
+        x = dest[2] == null ? null : Number(dest[2]);
+        y = dest[3] == null ? null : Number(dest[3]);
+    } else if (kind === "FitH" || kind === "FitBH") {
+        y = Number(dest[2]);
+    } else if (kind === "FitR") {
+        y = Number(dest[5]);
+    }
+    if (x !== null && !Number.isFinite(x)) x = null;
+    if (y !== null && !Number.isFinite(y)) y = null;
+    return { ref: dest[0], x, y };
 }
 
 /** 新条目边界启发式：行首 `[n]`/`[Author …]` 标签（首行自身不算） */
@@ -227,20 +262,12 @@ export async function extractBibAtDest(
     } catch {
         return null;
     }
-    if (!dest || !Array.isArray(dest) || dest.length < 2) return null;
-    const ref = dest[0];
-    // y 坐标在 dest 数组里的位置随 fit 型而变：XYZ=[ref,n,left,top,zoom]、
-    // FitH/FitBH=[ref,n,top]、FitR=[ref,n,l,b,r,t]；Fit/FitB/FitV/FitBV 与
-    // XYZ null-top 无 y——ICLR/ICML/CoRL 模板 pdfview=FitH 的 cite.* 锚
-    // 正是 len-3 FitH，老代码 len<4 直接 null 是实测踩中的坑
-    const kind = (dest[1] as { name?: string } | undefined)?.name ?? "";
-    let targetY: number | null = null;
-    if (kind === "XYZ")
-        targetY = dest[3] == null ? null : Number(dest[3]);
-    else if (kind === "FitH" || kind === "FitBH")
-        targetY = Number(dest[2]);
-    else if (kind === "FitR") targetY = Number(dest[4]);
-    if (targetY !== null && !Number.isFinite(targetY)) targetY = null;
+    const pt = destPointOf(dest);
+    if (!pt) return null;
+    const ref = pt.ref;
+    // ICLR/ICML/CoRL 模板 pdfview=FitH 的 cite.* 锚正是 len-3 FitH，
+    // 老代码 len<4 直接 null 是实测踩中的坑——y=null 走首标签兜底
+    const targetY = pt.y;
     let page: PdfPageLike;
     try {
         const idx = await doc.getPageIndex(ref);

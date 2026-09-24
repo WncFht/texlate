@@ -28,6 +28,7 @@ import {
     type PaneLike,
 } from "./sync";
 import {
+    destPointOf,
     extractBibAtDest,
     extractRefIds,
     type BibEntry,
@@ -103,10 +104,15 @@ export interface PaneHandle extends PaneLike {
     /** seq 锚闪示（sent-align seq 精度臂）：seqEls 命中则整组闪；
         无已渲染锚（懒渲染页/en.pdf 无标）→ pos 在场落回 flashAtPos */
     flashSeq?(seq: number, pos: Pos | null): void;
-    /** find-usages pdf 臂：cite.<key> dest 反查 link annot 站集开卡 */
+    /** 图/表/式/定理等本体坐标 → 落点 dest 名（destPos 反查——右键
+        本体反查 usages 的命台面）；无候选/未扫完/other 类 null */
+    destAtPoint?(x: number, y: number): string | null;
+    /** find-usages pdf 臂：cite.<key> dest 反查 link annot 站集开卡；
+        at=显式卡锚矩形（右键本体路——锚元素缺席时卡落点击点） */
     openUsagesFor?(
         target: Element | string | null,
         anchor: Element | null,
+        at?: Pick<DOMRect, "left" | "right" | "top" | "bottom">,
     ): boolean;
 }
 
@@ -377,6 +383,7 @@ export default function PdfPane(props: Props) {
     const openUsagesFor = (
         target: Element | string | null,
         anchor: Element | null,
+        at?: Pick<DOMRect, "left" | "right" | "top" | "bottom">,
     ): boolean => {
         const raw =
             typeof target === "string"
@@ -426,9 +433,13 @@ export default function PdfPane(props: Props) {
             })),
         };
         const a = anchor as HTMLElement | null;
-        const rect = a?.isConnected
-            ? (a.getClientRects()[0] ?? a.getBoundingClientRect())
-            : (viewer()?.container?.getBoundingClientRect() ?? null);
+        // at（右键落点矩形）优先——本体右键无锚元素，卡要落在点击点上
+        // 而不是锚 span/容器角
+        const rect =
+            at ??
+            (a?.isConnected
+                ? (a.getClientRects()[0] ?? a.getBoundingClientRect())
+                : (viewer()?.container?.getBoundingClientRect() ?? null));
         if (!rect) return false;
         closeCard();
         scrollGraceUntil = performance.now() + 600;
@@ -461,6 +472,13 @@ export default function PdfPane(props: Props) {
     const destNames = new Set<string>();
     /** dest 名 → 指向它的 link annot 站（usages pdf 臂数据源） */
     const destSites = new Map<string, { page: number; y: number }[]>();
+    /** 页 → dest 落点表（{name, 页内 top-down 分位, x 分位}）——图/式
+        本体右键反查 usages 的命台面；getDestinations 词表驱动、idle
+        渐进充填 */
+    const destPos = new Map<
+        number,
+        { name: string; frac: number; fx: number | null }[]
+    >();
     /** seq → {page, 内容流 item 区间}（item 层 id 尾解码——DOM id
         撞名风险旁路主径；begin/end 供 seq→页内分位跳转） */
     const seqPageMap = new Map<
@@ -529,6 +547,89 @@ export default function PdfPane(props: Props) {
                 /* 单页注记/文本拉取失败不挡后续页 */
             }
             if (!destScanAbort && page < numPages) idle(() => void step());
+            else void resolveDestPoints();
+        };
+        void step();
+    };
+
+    /** 第二程：dest 词表 → 落点页内分位（本体反查命台面）。
+        getDestinations 一把梭全词表，getPageIndex/getPage 逐名解——
+        页对象按号缓存复用，idle 切片 24 名/帧不堵交互。无 y 的整页锚
+        记 0.5（「页中」是最近邻口径下最诚实的落点——顶/底会偏吸页沿）。 */
+    const resolveDestPoints = async () => {
+        const d = pdfDoc();
+        if (!d?.getDestinations) return;
+        // pdf.js≥4 返回 Map（词表含 name-tree 锚——LaTeX 引擎的 dest 全在
+        // 那）；老版本/测试桩是 Record——两形都收，漏读 Map 是词表全空的
+        // 静默塌方（posTotal=0 → destAtPoint 恒 null）
+        let all: Map<string, unknown> | Record<string, unknown>;
+        try {
+            all = (await d.getDestinations()) ?? new Map();
+        } catch {
+            return;
+        }
+        const idle =
+            window.requestIdleCallback ??
+            ((f: () => void) => window.setTimeout(f, 20));
+        const pageCache = new Map<number, Promise<PdfPageLike>>();
+        const pageOf = (n: number) => {
+            let p = pageCache.get(n);
+            if (!p) {
+                p = d.getPage(n);
+                pageCache.set(n, p);
+            }
+            return p;
+        };
+        const entries =
+            all instanceof Map
+                ? [...all.entries()]
+                : Object.entries(all);
+        let i = 0;
+        const step = async () => {
+            if (destScanAbort || i >= entries.length) return;
+            const slice = entries.slice(i, i + 24);
+            i += 24;
+            for (const [name, raw] of slice) {
+                // 词表值应是 dest 数组；{D:…} 包装形防御摊平
+                const pt = destPointOf(
+                    Array.isArray(raw)
+                        ? raw
+                        : (raw as { D?: unknown } | null)?.D,
+                );
+                if (!pt) continue;
+                try {
+                    const pnum = (await d.getPageIndex(pt.ref)) + 1;
+                    const pg = await pageOf(pnum);
+                    const view = (pg as unknown as { view?: number[] }).view;
+                    const vp = pg.getViewport({ scale: 1 });
+                    const h =
+                        view && view.length >= 4
+                            ? view[3] - view[1]
+                            : vp.height;
+                    const w =
+                        view && view.length >= 4
+                            ? view[2] - view[0]
+                            : vp.width;
+                    if (!(h > 0)) continue;
+                    const x0 = view?.[0] ?? 0;
+                    const y0 = view?.[1] ?? 0;
+                    const frac =
+                        pt.y == null
+                            ? 0.5
+                            : Math.min(Math.max(1 - (pt.y - y0) / h, 0), 1);
+                    const fx =
+                        pt.x == null || !(w > 0)
+                            ? null
+                            : Math.min(Math.max((pt.x - x0) / w, 0), 1);
+                    const arr =
+                        destPos.get(pnum) ??
+                        destPos.set(pnum, []).get(pnum)!;
+                    arr.push({ name, frac, fx });
+                } catch {
+                    /* 单 dest 解页失败不挡后续名 */
+                }
+            }
+            if (!destScanAbort && i < entries.length) idle(() => void step());
         };
         void step();
     };
@@ -582,6 +683,41 @@ export default function PdfPane(props: Props) {
     /** pdf.js 批注选中态快照——editingstateschanged.details
         .hasSelectedEditor 边扫边存（keymap 占有判定的实时面） */
     let edSelected = false;
+
+    /** 本体坐标 → 落点 dest 名：posAtPoint 同法解页+分位（多取 x 分位做
+        双栏并列消歧），同页 destPos 候选过「other 类拒收 + |Δfy|≤0.4 闸 +
+        Δfy+0.25Δfx 最近邻」；有引用站（destSites 非空）的候选优先——同距
+        时「真被引过」的才是用户要答的。 */
+    const destAtPoint = (x: number, y: number): string | null => {
+        const c = viewer()?.container;
+        if (!c) return null;
+        const pg = c.ownerDocument
+            .elementFromPoint(x, y)
+            ?.closest<HTMLElement>("[data-page-number]");
+        if (!pg || !c.contains(pg)) return null;
+        const page = Number(pg.getAttribute("data-page-number"));
+        if (!Number.isFinite(page)) return null;
+        const r = pg.getBoundingClientRect();
+        if (r.height <= 0 || r.width <= 0) return null;
+        const fy = (y - r.top) / r.height;
+        const fx = (x - r.left) / r.width;
+        let bestAny: { score: number; name: string } | null = null;
+        let bestHit: { score: number; name: string } | null = null;
+        for (const d of destPos.get(page) ?? []) {
+            if (classifyDestName(d.name) === "other") continue;
+            const dy = Math.abs(d.frac - fy);
+            if (dy > 0.4) continue;
+            const score =
+                dy +
+                (d.fx != null ? Math.min(Math.abs(d.fx - fx), 1) * 0.25 : 0);
+            if (!bestAny || score < bestAny.score)
+                bestAny = { score, name: d.name };
+            if (destSites.get(d.name)?.length)
+                if (!bestHit || score < bestHit.score)
+                    bestHit = { score, name: d.name };
+        }
+        return (bestHit ?? bestAny)?.name ?? null;
+    };
 
     const handle: PaneHandle = {
         side: untrack(() => props.side),
@@ -714,6 +850,7 @@ export default function PdfPane(props: Props) {
             if (els.length) saFlash(els);
         },
         openUsagesFor,
+        destAtPoint,
         async mirrorDest(dest) {
             const s = pdfSlick();
             const orig = origGoTo;
@@ -1048,10 +1185,20 @@ export default function PdfPane(props: Props) {
             if (rel?.closest?.(".cite-card, .usage-card")) return; // 指针进卡不关
             if (rel === curAnchor) return;
             const a = citeAnchorOf(e.target);
-            if (a || card() || ucard()) {
+            if (a) {
                 window.clearTimeout(openTimer);
                 armClose();
+                return;
             }
+            // 卡开着时「任意 pointerout→arm」会被 DOM 更迭噪声打死：右键
+            // 本体开卡瞬间 pdf.js 的 selectionRendering 重排 textLayer 节点，
+            // 指针原地不动也吐 pointerout（rel=非卡元素）——开卡宽限窗内
+            // 只认真锚离开，噪声窗后恢复正常宽限关
+            if (
+                (card() || ucard()) &&
+                performance.now() >= scrollGraceUntil
+            )
+                armClose();
         };
         const onFocusIn = (e: FocusEvent) => {
             const a = citeAnchorOf(e.target);
@@ -1072,6 +1219,9 @@ export default function PdfPane(props: Props) {
             const rel = e.relatedTarget as Element | null;
             if (rel?.closest?.(".cite-card, .usage-card")) return;
             if (!citeAnchorOf(e.target) && !card() && !ucard()) return;
+            // 开卡宽限窗内焦点迁移多半是平台噪声（右键/菜单焦点让渡），
+            // 与 onOut 同闸
+            if (performance.now() < scrollGraceUntil) return;
             armClose();
         };
         const onPointerDown = (e: PointerEvent) => {
@@ -1120,10 +1270,36 @@ export default function PdfPane(props: Props) {
             if (performance.now() < scrollGraceUntil) return;
             closeAll();
         };
+        // 图/表/式/定理等本体右键 → 直开 usages 卡（dom 臂
+        // attachUsages.onContextMenu 同语义、contextmenu 全类规格）。
+        // 让行：shift=原生菜单；链锚=ctxm 菜单（cite.usages 项）；无
+        // dest 命中=ctxm 常规菜单。命中才 preventDefault+stopPropagation
+        // ——.panes 上的 ctxm 委托收不到，浏览器原生菜单也不弹
+        const onCtxMenu = (e: MouseEvent) => {
+            if (e.shiftKey) return;
+            if (citeAnchorOf(e.target)) return;
+            const dest = destAtPoint(e.clientX, e.clientY);
+            if (!dest) return;
+            e.preventDefault();
+            e.stopPropagation();
+            // 卡锚=点击点小矩形；文本片命中时 span 兼作 label 语境源
+            // （anchorTextOf 捞印刷体「Fig. 3」）
+            const span =
+                (e.target as Element | null)?.closest?.(
+                    ".textLayer span",
+                ) ?? null;
+            openUsagesFor(dest, span, {
+                left: e.clientX - 1,
+                right: e.clientX + 1,
+                top: e.clientY - 1,
+                bottom: e.clientY + 1,
+            });
+        };
         container.addEventListener("pointerover", onOver);
         container.addEventListener("pointerout", onOut);
         container.addEventListener("pointerdown", onPointerDown, true);
         container.addEventListener("click", onClickCapture, true);
+        container.addEventListener("contextmenu", onCtxMenu);
         container.addEventListener("scroll", onScrollClose, { passive: true });
         paneEl.addEventListener("focusin", onFocusIn);
         paneEl.addEventListener("focusout", onFocusOut);
@@ -1165,6 +1341,7 @@ export default function PdfPane(props: Props) {
             container.removeEventListener("pointerout", onOut);
             container.removeEventListener("pointerdown", onPointerDown, true);
             container.removeEventListener("click", onClickCapture, true);
+            container.removeEventListener("contextmenu", onCtxMenu);
             container.removeEventListener("scroll", onScrollClose);
             paneEl.removeEventListener("focusin", onFocusIn);
             paneEl.removeEventListener("focusout", onFocusOut);
