@@ -34,7 +34,7 @@ log = logging.getLogger(__name__)
 __all__ = ["seqpos_for_task"]
 
 _CACHE = "seqpos.json"
-_VERSION = 9
+_VERSION = 10
 
 #: 行聚类 y 容差（pt，底向上坐标同线合并）
 _LINE_TOL = 2.5
@@ -544,8 +544,9 @@ def _match_bounded(  # noqa: C901, PLR0912 -- gram 锚定+兜底+打分是同一
             start = j + 1
     best = (-1, 0.0, 0)
     # 双闸：最长单匹配块 + sum-cov——碎块凑数（多跳拼接高 cov）曾产出
-    # 32 例跨页假锚；块阈随针长收但封顶针长（短针整串命中仍算数）
-    need_blk = min(ln, max(6, 0.3 * ln))
+    # 32 例跨页假锚；块阈随针长收但封顶 64——\cite 渲染成行内文本把长段
+    # 切碎（实证 1133 字针 cov=1.0 而 blk 仅 73），0.3·ln 对长针不可达
+    need_blk = min(ln, max(6, 0.3 * ln), 64)
     mcov = _min_cov(ln)
     # 候选超帽时按离窗心距离取——最小 offset 截断会把窗内真位挤出去
     mid = (lo + hi) / 2
