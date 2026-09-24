@@ -901,7 +901,7 @@ def _layoutqc(ctx) -> dict:
         main_rel = ((_last_done(ctx, "route") or {}).get("metrics") or {}).get(
             "main_rel"
         )
-    splice = ctx.upstream_asset_dir("splice")
+    splice = _ensure_kind(ctx, "splice")
     if splice is None or not main_rel:
         return {
             "status": "reject",
