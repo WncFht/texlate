@@ -73,12 +73,34 @@ def degrade(lands, pos):
     return pos
 
 
+# 同行判定非对称窗：锚=行顶、点击=行内 → d∈[-0.004,+0.017]（pdfseqpos 同款）
+ROW_UP = 0.004
+ROW_DOWN = 0.017
+ROW_EPSX = 0.025  # 行幅面 x 容差（est_w 估宽噪声）
+
+
 def containing(lands: list[tuple[int, dict]], pos: dict) -> int | None:
     """pdfseqpos.ts containingSeq 逐行移植。"""
     if not lands:
         return None
     first = lands[0]
     if pos.get("x") is not None:
+        # 同行幅面 snap：点击落在锚行 [x0,x1] 内且行带命中 → 直命该 seq。
+        # 多候选（同行多格表头）→ x0≤点击的最右者，全右则最近 x0，再按 d。
+        row_seq, row_key = -1, None
+        for s, p in lands:
+            if p["page"] != pos["page"] or p.get("x") is None or p.get("x1") is None:
+                continue
+            d = pos["fraction"] - p["fraction"]
+            if d < -ROW_UP or d > ROW_DOWN:
+                continue
+            if not (p["x"] - ROW_EPSX <= pos["x"] <= p["x1"] + ROW_EPSX):
+                continue
+            key = (0, -p["x"], abs(d)) if p["x"] <= pos["x"] else (1, p["x"], abs(d))
+            if row_key is None or key < row_key:
+                row_key, row_seq = key, s
+        if row_seq >= 0:
+            return row_seq
         eff = degrade(lands, pos)
         if key_of(eff) < key_of(first[1]):
             return first[0] if lin_of(first[1]) - lin_of(eff) <= 1 else None
@@ -92,6 +114,19 @@ def containing(lands: list[tuple[int, dict]], pos: dict) -> int | None:
                 hi = mid - 1
         if best < 0:
             return None
+        # 同键并列 → 按 x 取点击所辖格段（pdfseqpos.ts 同规移植）
+        bk = key_of(lands[best][1])
+        g0 = best
+        while g0 > 0 and key_of(lands[g0 - 1][1]) == bk:
+            g0 -= 1
+        pk = None
+        for i in range(g0, best + 1):
+            px = lands[i][1].get("x")
+            if px is None:
+                continue
+            k = (0, -px) if px <= pos["x"] else (1, px)
+            if pk is None or k < pk:
+                pk, best = k, i
         return (
             lands[best][0] if abs(lin_of(lands[best][1]) - lin_of(eff)) <= 1.2 else None
         )
@@ -132,27 +167,58 @@ def nearest(lands: list[tuple[int, dict]], pos: dict, max_score: float = 1.0):
 
 
 def frac_in_block(lands, seq, pos):
-    """sentalign.fracInBlock：u=(roLin(click)−roLin(S))/(roLin(S')−roLin(S))。"""
+    """sentalign.fracInBlock：u=(roLin(click)−roLin(S))/(roLin(S')−roLin(S))。
+
+    返回 (u, d_src)——d_src 供 interp_dst 的 dst 文本幅面夹取。
+    点击落在锚行幅面内（宽行跨中缝）→ 栏随锚行（pdfseqpos 同闸）。"""
     idx = next((i for i, l in enumerate(lands) if l[0] == seq), -1)
     if idx < 0 or idx + 1 >= len(lands):
         return None
-    p = degrade(lands, pos)
+    sp = lands[idx][1]
+    if (
+        pos.get("x") is not None
+        and sp.get("x") is not None
+        and sp.get("x1") is not None
+        and -ROW_UP <= pos["fraction"] - sp["fraction"] <= ROW_DOWN
+        and sp["x"] - ROW_EPSX <= pos["x"] <= sp["x1"] + ROW_EPSX
+    ):
+        p = {**pos, "x": sp["x"]}
+    else:
+        p = degrade(lands, pos)
     a = ro_lin(lands[idx][1])
     d = ro_lin(lands[idx + 1][1]) - a
     if d == 0:
         return None
-    return min(1.0, max(0.0, (ro_lin(p) - a) / d))
+    return min(1.0, max(0.0, (ro_lin(p) - a) / d)), d
 
 
-def interp_dst(lands, seq, u):
-    """sentalign.interpDst：dst 同 seq 区间插回 Pos。"""
-    if u is None:
+# 字形宽差补偿：zh 字 ≈2× en 字宽 → 同字符数 zh 行数 ≈2×
+_W_DST = {"t": 2.0, "o": 0.5}
+
+
+def interp_dst(lands, seq, u_pack, dst_side, len_src, len_dst):
+    """sentalign.interpDst：dst 同 seq 区间插回 Pos + 文本幅面夹取。
+
+    浮动体/跨页缝会让 dst 块区间远超本块文本幅面——u·Δdst 按比例
+    插值会落进图区/下页。估计 dst 文本幅面 = Δsrc·(len_dst/len_src)·W
+    并与 Δdst 取小；src 侧对称 rescale（src 块膨胀时 u 被稀释，
+    除回 min(Δsrc, est_src) 恢复 text-relative u）。
+    """
+    if u_pack is None:
         return None
+    u, d_src = u_pack
     idx = next((i for i, l in enumerate(lands) if l[0] == seq), -1)
     if idx < 0 or idx + 1 >= len(lands):
         return None
     pa, pb = lands[idx][1], lands[idx + 1][1]
-    y = ro_lin(pa) + u * (ro_lin(pb) - ro_lin(pa))
+    d_dst = ro_lin(pb) - ro_lin(pa)
+    if len_src > 0 and len_dst > 0:
+        r = (len_dst / len_src) * _W_DST[dst_side]
+        est_dst = d_src * r
+        est_src = d_dst / r if r > 0 else d_dst
+        u = min(1.0, max(0.0, u * d_src / max(1e-9, min(d_src, est_src))))
+        d_dst = min(d_dst, est_dst)
+    y = ro_lin(pa) + u * d_dst
     page = int(y)
     s = y - page
     col = 1 if s >= 0.5 else 0
@@ -260,6 +326,8 @@ def sim(tid: str) -> dict:
     en = pymupdf.open(td / "en.pdf")
     zh = pymupdf.open(td / "zh.pdf")
     _, _, marks = _char_stream(td / "zh.pdf", collect_marks=True)
+    _, _, en_marks = _char_stream(td / "en.pdf", collect_marks=True)
+    side_marks = {"o": en_marks, "t": marks}
     en2, enp = col_census(en)
     zh2, zhp = col_census(zh)
 
@@ -297,6 +365,7 @@ def sim(tid: str) -> dict:
     stat = {
         s: {
             "n": 0,
+            "tnd": 0,
             "pick": 0,
             "e2e": 0,
             "e2e25": 0,
@@ -326,7 +395,7 @@ def sim(tid: str) -> dict:
                 }
                 st = stat[side]
                 st["n"] += 1
-                if side == "t" and seq in marks:
+                if seq in side_marks[side]:
                     picked = seq
                     marked_n += 1
                 else:
@@ -341,8 +410,13 @@ def sim(tid: str) -> dict:
                     if picked == seq:
                         st["pick"] += 1
                     # jumpSeq：u 插值 → seqPos 直锚 → mapPos
-                    u = frac_in_block(lands[side], picked, pos)
-                    land_pos = interp_dst(lands[dst_side], picked, u)
+                    u_pack = frac_in_block(lands[side], picked, pos)
+                    pk_row = ch.get(picked) or {}
+                    len_src = len(pk_row.get("en" if side == "o" else "zh") or "")
+                    len_dst = len(pk_row.get("zh" if side == "o" else "en") or "")
+                    land_pos = interp_dst(
+                        lands[dst_side], picked, u_pack, dst_side, len_src, len_dst
+                    )
                     if land_pos is None:
                         dp = sp_by_seq.get(picked, {}).get(dst_side)
                         land_pos = dict(dp) if dp else None
@@ -350,6 +424,7 @@ def sim(tid: str) -> dict:
                         st["nodst"] += 1
                         land_pos = mapper(pos, side)
                 if dst_rect is None:
+                    st["tnd"] += 1  # dst 无真值探针——不计 e2e 分母（测量盲区非落地错）
                     continue
                 dno, dr, _, dh = dst_rect
                 dfrac = (dr.y0 + dr.y1) / 2 / dh
@@ -368,6 +443,11 @@ def sim(tid: str) -> dict:
                             "seq": seq,
                             "side": side,
                             "pick": picked,
+                            "click": [
+                                pos["page"],
+                                round(pos["fraction"], 3),
+                                round(pos.get("x") or 0, 2),
+                            ],
                             "land": [land_pos["page"], round(land_pos["fraction"], 3)],
                             "true": [dno, round(dfrac, 3)],
                         }
@@ -391,52 +471,64 @@ def sim(tid: str) -> dict:
                 ):
                     inv_big += 1
 
-    # 栏边界应力：点击贴锚内侧——右栏首锚下沿/左栏末锚下沿
+    # 栏边界应力：点击贴锚行内（+0.008=行中段，锚 frac=行顶、行高约
+    # 0.013-0.02）。want=意向 seq（栏内首/末锚）；通过条件=got==want
+    # 或 got 锚行物理含点（row-snap 同判）——通栏行/同排多格/锚序倒置
+    # 下点击合法属于邻锚，不算栏界错划。
+    def _owns(p, pos):
+        if p is None or p.get("x") is None or p.get("x1") is None:
+            return False
+        d = pos["fraction"] - p["fraction"]
+        return (
+            -ROW_UP <= d <= ROW_DOWN
+            and p["x"] - ROW_EPSX <= pos["x"] <= p["x1"] + ROW_EPSX
+        )
+
     bounds = []
     for pg_i in range(en.page_count):
         pno = pg_i + 1
         col1 = [l for l in lands["o"] if l[1]["page"] == pno and col_of(l[1]) == 1]
         col0 = [l for l in lands["o"] if l[1]["page"] == pno and col_of(l[1]) == 0]
-        if col1:
-            want = min(col1, key=lambda l: l[1]["fraction"])
+        for kind, group, keyf, x in (
+            ("rtop", col1, lambda l: l[1]["fraction"], 0.7),
+            ("lbot", col0, lambda l: -l[1]["fraction"], 0.2),
+        ):
+            if kind == "lbot" and not (col0 and col1):
+                continue
+            if not group:
+                continue
+            want = min(group, key=keyf)
             pos = {
                 "page": pno,
-                "fraction": min(0.99, want[1]["fraction"] + 0.02),
-                "x": 0.7,
+                "fraction": min(0.99, want[1]["fraction"] + 0.008),
+                "x": x,
             }
-            bounds.append(
-                {
-                    "kind": "rtop",
-                    "page": pno,
-                    "want": want[0],
-                    "got": containing(lands["o"], pos),
-                }
+            got = containing(lands["o"], pos)
+            ok = got == want[0] or (
+                got is not None
+                and _owns(sp_by_seq.get(got, {}).get("o"), pos)
             )
-        if col0 and col1:
-            want = max(col0, key=lambda l: l[1]["fraction"])
-            pos = {
-                "page": pno,
-                "fraction": min(0.99, want[1]["fraction"] + 0.02),
-                "x": 0.2,
-            }
             bounds.append(
                 {
-                    "kind": "lbot",
+                    "kind": kind,
                     "page": pno,
                     "want": want[0],
-                    "got": containing(lands["o"], pos),
+                    "got": got,
+                    "ok": ok,
                 }
             )
 
     def agg(s):
         d = stat[s]
         n = d["n"] or 1
+        ne = (d["n"] - d["tnd"]) or 1  # e2e 分母=可真值化点击
         return {
             "n": d["n"],
+            "tnd": d["tnd"],
             "pick": round(d["pick"] / n, 3),
-            "pg": round(d["pg"] / n, 3),
-            "e2e": round(d["e2e"] / n, 3),
-            "e2e25": round(d["e2e25"] / n, 3),
+            "pg": round(d["pg"] / ne, 3),
+            "e2e": round(d["e2e"] / ne, 3),
+            "e2e25": round(d["e2e25"] / ne, 3),
             "null": round(d["null"] / n, 3),
             "nodst": round(d["nodst"] / n, 3),
             "nearest": round(d["near"] / n, 3),
@@ -455,6 +547,7 @@ def sim(tid: str) -> dict:
         "cols": {"en": [en2, enp], "zh": [zh2, zhp]},
         "x_cov": xcov,
         "marked_n": len(marks),
+        "marked_n_en": len(en_marks),
         "marked_clicks": marked_n,
         "inv": [inv, tot, inv_big],
         "o": agg("o"),
@@ -481,7 +574,7 @@ def main() -> None:
             r = sim(tid)
             out.append(r)
             bd = len(r["bounds"])
-            bdok = sum(1 for b in r["bounds"] if b["want"] == b["got"])
+            bdok = sum(1 for b in r["bounds"] if b["ok"])
             invp = r["inv"][0] / r["inv"][1] * 100 if r["inv"][1] else 0
             print(
                 f"{tid:24} {r['cols']['en'][0]:>2}/{r['cols']['en'][1]:<4} "
@@ -501,19 +594,22 @@ def main() -> None:
     agg = {}
     for r in out:
         for s in ("o", "t"):
-            a = agg.setdefault(s, [0] * 6)
+            a = agg.setdefault(s, [0] * 7)
             a[0] += r[s]["n"]
+            a[6] += r[s]["tnd"]
+            ne = (r[s]["n"] - r[s]["tnd"]) or 1
             a[1] += r[s]["pick"] * r[s]["n"]
-            a[2] += r[s]["e2e"] * r[s]["n"]
-            a[3] += r[s]["e2e25"] * r[s]["n"]
-            a[4] += r[s]["pg"] * r[s]["n"]
+            a[2] += r[s]["e2e"] * ne
+            a[3] += r[s]["e2e25"] * ne
+            a[4] += r[s]["pg"] * ne
             a[5] += r[s]["nearest"] * r[s]["n"]
     print("== aggregate ==")
-    for s, (n, pk, e2, e25, pg, nr) in agg.items():
+    for s, (n, pk, e2, e25, pg, nr, tnd) in agg.items():
         if n:
+            ne = (n - tnd) or 1
             print(
-                f"{s}: N={n} pick={pk / n:.1%} pg={pg / n:.1%} e2e@.10={e2 / n:.1%} "
-                f"e2e@.25={e25 / n:.1%} nearest={nr / n:.1%}"
+                f"{s}: N={n} eval={ne} pick={pk / n:.1%} pg={pg / ne:.1%} "
+                f"e2e@.10={e2 / ne:.1%} e2e@.25={e25 / ne:.1%} nearest={nr / n:.1%}"
             )
     print(f"\nwrote tmp/seqpos-e2e.json ({len(out)} tasks)")
 
