@@ -26,6 +26,7 @@
 // 契约：sid/bead → 元素集合——任何消费方一律 querySelectorAll，禁单元素假设。
 
 import type { Pos } from "./alignment";
+import { ROW_DOWN, ROW_EPSX, ROW_UP } from "./pdfseqpos";
 import { forEachSliced } from "./sync";
 
 // ------------------------------------------------------------------ 类型
@@ -53,6 +54,13 @@ export interface SentInfo {
 }
 
 const other = (s: SaSide): SaSide => (s === "en" ? "zh" : "en");
+const clamp = (v: number, lo: number, hi: number) =>
+    Math.min(Math.max(v, lo), hi);
+const colOf = (p: Pos): number => (p.x != null && p.x >= 0.45 ? 1 : 0);
+/** 阅读序位 page+(col+frac)/2——与 alignment.ts share 同构；跨栏
+    续块 S=(p,c0,.5)→S'=(p,c1,.1) 下 lin 差仍为正（page+frac 线性位
+    在该情形下为负、u 恒夹 0/1——对抗复核 N2 实证） */
+const roLin = (p: Pos): number => p.page + (colOf(p) + p.fraction) / 2;
 
 // ================================================================== 切句
 
@@ -510,8 +518,16 @@ export interface SentAlignDeps {
     /** seq+侧 → Pos（服务端 seqpos——seq 精度直锚，seq 臂优先于
         mapPos 分位插值）；不可查返回 null */
     seqPos?(seq: number, side: SaSide): Pos | null;
+    /** 同侧阅读序地标表（pdfseqpos.seqLands）——块内插值 u/S' 的
+        发现面：源侧点击位在块内占比 → 对侧同 seq 区间插值落点；
+        缺省退块首锚（行为同旧版） */
+    seqLands?(side: SaSide): readonly { seq: number; pos: Pos }[];
     /** data-chunk key → seq（ReaderView seqOf 桥——DOM 侧 seq 定位） */
     seqOfChunk?(key: string): number | null;
+    /** seq+侧 → 块文本长（ph 剥净——ReaderView seqLenOf 桥）：供
+        interpDst 的 dst 幅面夹取（浮动体撑大的 dst 块区间 ≠ 文本幅面，
+        u·Δdst 会把落点甩进图区/下页）；缺省不夹（行为同旧版） */
+    chunkLen?(seq: number, side: SaSide): number;
     /** seq 锚闪示（PdfPane.flashSeq 桥——markedContent 整组闪；
         缺省调用方落回 pdfFlash 行带） */
     pdfFlashSeq?(dst: SaSide, seq: number, pos: Pos | null): void;
@@ -604,8 +620,10 @@ export class SentAlignSession {
             const sel = el.ownerDocument?.getSelection?.();
             if (sel && !sel.isCollapsed) return;
             const seq = seqAtPoint?.(e.clientX, e.clientY) ?? null;
-            if (seq != null && this.jumpSeq(side, seq)) return;
-            const pos = posAtPoint(e.clientX, e.clientY);
+            // posAt 惰性化——seq 快路落地时不许碰 posAtPoint（调用序契约）
+            const posAt = () => posAtPoint(e.clientX, e.clientY);
+            if (seq != null && this.jumpSeq(side, seq, posAt)) return;
+            const pos = posAt();
             if (!pos) return;
             this.jumpPosToPdf(side, pos);
         };
@@ -877,16 +895,18 @@ export class SentAlignSession {
         seq 在场且 pdfFlashSeq 可用 → 锚闪，否则 pdfFlash 行带兜底；
         dest/jump 任一环落空静默收（deps 闸在调用方）。 */
     private pdfJumpFlash(dst: SaSide, pos: Pos, seq?: number | null): void {
-        void Promise.resolve(this.deps.pdfDest!(dst, pos)).then((dest) => {
-            if (!dest) return;
-            return this.deps.pdfJump!(dst, dest).then((r) => {
-                if (!r) return;
-                this.deps.recordJump?.(dst, r.pre, r.post);
-                if (this.deps.pdfFlashSeq && seq != null)
-                    this.deps.pdfFlashSeq(dst, seq, r.post);
-                else this.deps.pdfFlash?.(dst, r.post);
-            });
-        });
+        void Promise.resolve(this.deps.pdfDest!(dst, pos))
+            .then((dest) => {
+                if (!dest) return;
+                return this.deps.pdfJump!(dst, dest).then((r) => {
+                    if (!r) return;
+                    this.deps.recordJump?.(dst, r.pre, r.post);
+                    if (this.deps.pdfFlashSeq && seq != null)
+                        this.deps.pdfFlashSeq(dst, seq, r.post);
+                    else this.deps.pdfFlash?.(dst, r.post);
+                });
+            })
+            .catch(() => {}); // deps 拒收同落空口径——静默收
     }
 
     /** 点击 → 对侧 bead 首元素跳转（DOM 侧）：scroller 滚位 + flash +
@@ -909,11 +929,20 @@ export class SentAlignSession {
     }
 
     /** seq 精度点击分派（v2）：PDF 源侧 seqAtPoint 命中后的快路。
-        dst 是 DOM → seqOfChunk 找块元素滚位+sa-flash；dst 是 pdf →
-        seqPos 直锚 → pdfDest/pdfJump → pdfFlashSeq（锚闪）/pdfFlash
-        （行带兜底）。不可落地 → false（调用方走位置映射兜底）。 */
-    private jumpSeq(src: SaSide, seq: number): boolean {
+        srcPosAt 供块内分位 u（seq 锚记块首——点击落点按比例推进块内：
+        DOM 臂落到所在句 span，pdf 臂 S→S' 区间线性插值）；无 seqLands
+        dep/末块/未取位 → u=null 退块首锚。dst 是 DOM → seqOfChunk 找
+        块元素滚位+sa-flash；dst 是 pdf → 插值位/seqPos 直锚 →
+        pdfDest/pdfJump → pdfFlashSeq（锚闪）/pdfFlash（行带兜底）。
+        不可落地 → false（调用方走位置映射兜底）。 */
+    private jumpSeq(
+        src: SaSide,
+        seq: number,
+        srcPosAt?: () => Pos | null,
+    ): boolean {
         const dst = other(src);
+        const fb = this.fracInBlock(src, seq, srcPosAt);
+        const u = fb?.u ?? null;
         const st = this.sides.get(dst);
         if (st?.body && this.deps.seqOfChunk) {
             const els = [
@@ -927,21 +956,143 @@ export class SentAlignSession {
             if (els.length) {
                 this.deps.navBegin?.();
                 const pre = st.capture?.() ?? null;
-                const first = els[0] as HTMLElement;
+                // u 在场 → 目标句 span（块内偏移比块首更贴点）；查不到
+                // 句/无 span 退整块锚
+                let first = els[0] as HTMLElement;
+                let flashSet: Element[] = els;
+                if (u != null) {
+                    const cs = st.chunks.get(
+                        first.getAttribute("data-chunk") ?? "",
+                    );
+                    const sent = cs?.sents.length
+                        ? (cs.sents.find(
+                              (s) => s.end > u * cs.concatLen,
+                          ) ?? cs.sents[cs.sents.length - 1]!)
+                        : null;
+                    const spans = sent
+                        ? [
+                              ...first.querySelectorAll(
+                                  attrSel("data-sid", sent.sid),
+                              ),
+                          ]
+                        : [];
+                    if (spans.length) {
+                        first = spans[0] as HTMLElement;
+                        flashSet = spans;
+                    }
+                }
                 const sr = st.scroller.getBoundingClientRect();
                 st.scroller.scrollTop +=
                     first.getBoundingClientRect().top - sr.top - 12;
-                this.flash(els);
+                this.flash(flashSet);
                 const post = st.capture?.() ?? null;
                 this.deps.recordJump?.(dst, pre, post);
                 return true;
             }
         }
-        const pos = this.deps.seqPos?.(seq, dst) ?? null;
+        const pos =
+            this.interpDst(dst, seq, u, fb?.span ?? null) ??
+            this.deps.seqPos?.(seq, dst) ??
+            null;
         if (!pos || !this.deps.pdfDest || !this.deps.pdfJump) return false;
         this.deps.navBegin?.();
         this.pdfJumpFlash(dst, pos, seq);
         return true;
+    }
+
+    /** 源侧点击位的块内分位 u = (lin(click)−lin(S_src)) /
+        (lin(S'_src)−lin(S_src)) clamp [0,1]——seq 锚是块首，S' 是
+        阅读序下一锚（无下一锚=末块无从插值 → null）。srcPosAt 惰性
+        取位：seqLands dep 缺席时一步不动（posAtPoint 调用序契约）。 */
+    private fracInBlock(
+        src: SaSide,
+        seq: number,
+        srcPosAt?: () => Pos | null,
+    ): { u: number; span: number } | null {
+        const lands = this.deps.seqLands?.(src);
+        if (!lands?.length || !srcPosAt) return null;
+        const i = lands.findIndex((l) => l.seq === seq);
+        if (i < 0 || i + 1 >= lands.length) return null;
+        const p0 = srcPosAt();
+        if (!p0) return null;
+        // 点击落在锚行幅面 [x,x1] 内且行带命中（宽行跨中缝——raw-x 栏判
+        // 会把点击划去对栏，roLin 把 u 冲穿）→ 栏随锚行；否则同
+        // containingSeq 栏降级：本页无右栏地标时右半点击退 col0，
+        // 否则阅读序位落进空带 u 恒夹 1
+        const sp = lands[i]!.pos;
+        const onRow =
+            p0.x != null &&
+            sp.x != null &&
+            sp.x1 != null &&
+            p0.fraction - sp.fraction >= -ROW_UP &&
+            p0.fraction - sp.fraction <= ROW_DOWN &&
+            p0.x >= sp.x - ROW_EPSX &&
+            p0.x <= sp.x1 + ROW_EPSX;
+        const p = onRow
+            ? { ...p0, x: sp.x }
+            : p0.x != null &&
+                p0.x >= 0.45 &&
+                !lands.some(
+                    (l) => l.pos.page === p0.page && colOf(l.pos) === 1,
+                )
+              ? { ...p0, x: 0 }
+              : p0;
+        const a = roLin(lands[i]!.pos);
+        const d = roLin(lands[i + 1]!.pos) - a;
+        if (d === 0) return null;
+        return { u: clamp((roLin(p) - a) / d, 0, 1), span: d };
+    }
+
+    /** u 应用侧：dst 同 seq 区间 [S_dst,S'_dst) 线性插回 Pos；
+        序列不齐/末块 → null（调用方退 seqPos 块首锚）。
+        srcSpan 在场且块长可查时做文本幅面夹取——浮动体/跨页缝把
+        dst 块区间撑成数倍文本高，u·Δdst 会把落点甩进图区/邻页；
+        est_dst = srcSpan·(len_dst/len_src)·W（W 补字形宽差 zh2/en0.5），
+        src 侧对称 rescale（src 块膨胀稀释的 u 除回 min(srcSpan,est_src)）。 */
+    private interpDst(
+        dst: SaSide,
+        seq: number,
+        u: number | null,
+        srcSpan: number | null = null,
+    ): Pos | null {
+        if (u == null) return null;
+        const lands = this.deps.seqLands?.(dst);
+        if (!lands?.length) return null;
+        const i = lands.findIndex((l) => l.seq === seq);
+        if (i < 0 || i + 1 >= lands.length) return null;
+        const pa = lands[i]!.pos;
+        const pb = lands[i + 1]!.pos;
+        let dDst = roLin(pb) - roLin(pa);
+        if (srcSpan != null && srcSpan > 0) {
+            const lenSrc = this.deps.chunkLen?.(seq, other(dst)) ?? 0;
+            const lenDst = this.deps.chunkLen?.(seq, dst) ?? 0;
+            if (lenSrc > 0 && lenDst > 0) {
+                const r = (lenDst / lenSrc) * (dst === "zh" ? 2.0 : 0.5);
+                const estDst = srcSpan * r;
+                const estSrc = r > 0 ? dDst / r : dDst;
+                u = clamp(
+                    (u * srcSpan) / Math.max(1e-9, Math.min(srcSpan, estSrc)),
+                    0,
+                    1,
+                );
+                dDst = Math.min(dDst, estDst);
+            }
+        }
+        const y = roLin(pa) + u * dDst;
+        const page = Math.floor(y);
+        const s = y - page; // 页内阅读序分位：[0,.5)=左栏 [.5,1)=右栏
+        const col = s >= 0.5 ? 1 : 0;
+        const out: Pos = {
+            page,
+            fraction: clamp((s - col * 0.5) * 2, 0, 0.999),
+        };
+        // x 沿两锚线性插补——单侧缺退单锚值，双缺不带（契约可选）
+        const x =
+            pa.x != null && pb.x != null
+                ? pa.x + u * (pb.x - pa.x)
+                : (pa.x ?? pb.x);
+        if (x != null) out.x = clamp(x, 0, 1);
+        return out;
     }
 
     /** DOM→PDF：seq 快路优先（chunk key→seq→seqPos 直锚，seq 精度+
@@ -956,17 +1107,23 @@ export class SentAlignSession {
             ?.getAttribute("data-chunk");
         const seq =
             key != null ? (this.deps.seqOfChunk?.(key) ?? null) : null;
+        // 句内分位充块内插值的 u——seq 锚是块首，u 把落点推进块内
+        // （seqLands dep 缺席时 interpDst 直接 null，等价旧版直锚）
+        const sidP = this.sidPos(src, sp);
         const sPos =
-            seq != null ? (this.deps.seqPos?.(seq, dst) ?? null) : null;
+            seq != null
+                ? (this.interpDst(dst, seq, sidP?.fraction ?? null) ??
+                  this.deps.seqPos?.(seq, dst) ??
+                  null)
+                : null;
         if (sPos && this.deps.pdfDest && this.deps.pdfJump) {
             this.pdfJumpFlash(dst, sPos, seq);
             return;
         }
         if (!this.deps.mapPos || !this.deps.pdfDest || !this.deps.pdfJump)
             return;
-        const pos = this.sidPos(src, sp);
-        if (!pos) return;
-        this.pdfJumpFlash(dst, this.deps.mapPos(pos, src));
+        if (!sidP) return;
+        this.pdfJumpFlash(dst, this.deps.mapPos(sidP, src));
     }
 
     /** PDF→PDF：源侧点击位 Pos → mapPos → pdfDest → pdfJump →

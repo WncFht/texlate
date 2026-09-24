@@ -1,7 +1,9 @@
 // 位置模型与映射 —— docs/research/product/web-layer.md §5.3/§5.4。
-// 坐标线性化：x = Σheights[0..page-1] + fraction * h[page]，pairs 是服务端
-// 已排序的单调链，二分插值；regions（图浮动）优先于 pairs；无 pairs 退化为
-// kind:"pages" 同页码映射。
+// 坐标线性化：x = Σheights[0..page-1] + share * h[page]；pairs 带 x 时
+// share=(col+fraction)/2——阅读序键 (page,col,fraction) 与坐标同构
+// （xs 单调、插值不穿栏）；全无 x 退 fraction（旧数据逐位同旧）。
+// pairs 是服务端已排序的单调链，二分插值；regions（图浮动）优先于
+// pairs；无 pairs 退化为 kind:"pages" 同页码映射。
 // 线形载荷（Pos/Alignment 族）是 API 契约——单一事实源在 api/types.ts，
 // 本文件只做消费（createPositionMapper）与门面再导出（消费方沿旧路径拿）。
 
@@ -31,6 +33,9 @@ export const other = (s: Side): Side =>
     s === "original" ? "translated" : "original";
 const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi);
 
+/** 栏判定：x>=0.45 → 右栏；x 缺席（旧数据/滚动位无 x）→ 0 */
+const colOf = (p: Pos): number => (p.x != null && p.x >= 0.45 ? 1 : 0);
+
 interface SideGeom {
     pages: number;
     h: (page: number) => number; // 1-based
@@ -45,12 +50,15 @@ function geom(side: Side, heights: Alignment["heights"], pages: number): SideGeo
     return { pages, h, off };
 }
 
-function toLinear(g: SideGeom, pos: Pos): number {
+function toLinear(g: SideGeom, pos: Pos, colAware: boolean): number {
     const page = clamp(Math.round(pos.page), 1, g.pages);
-    return g.off[page - 1] + pos.fraction * g.h(page);
+    // col-aware：页内份额 (col+frac)/2——左栏压进 [0,.5)、右栏
+    // [.5,1)，阅读序与坐标同构；否则原 fraction 份额
+    const share = colAware ? (colOf(pos) + pos.fraction) / 2 : pos.fraction;
+    return g.off[page - 1] + share * g.h(page);
 }
 
-function fromLinear(g: SideGeom, x: number): Pos {
+function fromLinear(g: SideGeom, x: number, colAware: boolean): Pos {
     const total = g.off[g.pages];
     if (x <= 0) return { page: 1, fraction: 0 };
     if (x >= total) return { page: g.pages, fraction: 1 };
@@ -63,7 +71,56 @@ function fromLinear(g: SideGeom, x: number): Pos {
         else hi = mid;
     }
     const hh = g.h(lo + 1);
-    return { page: lo + 1, fraction: hh > 0 ? clamp((x - g.off[lo]) / hh, 0, 1) : 0 };
+    const rem = hh > 0 ? clamp((x - g.off[lo]) / hh, 0, 1) : 0;
+    // 栏半页反解：≤0.5 属左栏（0.5 取页底 frac=1，防底→顶跳变），
+    // >0.5 右栏；x 不回写——消费面只吃 page+fraction
+    const fraction = colAware
+        ? rem <= 0.5
+            ? rem * 2
+            : (rem - 0.5) * 2
+        : rem;
+    return { page: lo + 1, fraction };
+}
+
+/** 离群锚剔除：needle 误锚把分段插值拽出 V 形（实测单锚偏 ±20 页）。
+    双向各查一遍——锚的 dst 线性位与前后邻插值期望差 >2 个 dst 均页高
+    即剔（src 侧错位只在对侧序里现形）；端点无两邻不查。<3 锚无可剔。 */
+function dropOutliers(
+    pairs: AlignmentPair[],
+    geoms: Record<Side, SideGeom>,
+    colAware: boolean,
+): AlignmentPair[] {
+    if (pairs.length < 3) return pairs;
+    const drop = new Set<number>();
+    for (const [src, dst] of [
+        ["original", "translated"],
+        ["translated", "original"],
+    ] as const) {
+        const unit =
+            geoms[dst].off[geoms[dst].pages] / Math.max(geoms[dst].pages, 1);
+        const order = pairs
+            .map((_, i) => i)
+            .sort(
+                (a, b) =>
+                    toLinear(geoms[src], pairs[a]![src], colAware) -
+                    toLinear(geoms[src], pairs[b]![src], colAware),
+            );
+        const xs = order.map((i) =>
+            toLinear(geoms[src], pairs[i]![src], colAware),
+        );
+        const ys = order.map((i) =>
+            toLinear(geoms[dst], pairs[i]![dst], colAware),
+        );
+        for (let k = 1; k + 1 < order.length; k++) {
+            const span = xs[k + 1]! - xs[k - 1]!;
+            if (span <= 0) continue;
+            const exp =
+                ys[k - 1]! +
+                (ys[k + 1]! - ys[k - 1]!) * ((xs[k]! - xs[k - 1]!) / span);
+            if (Math.abs(ys[k]! - exp) > 2 * unit) drop.add(order[k]!);
+        }
+    }
+    return drop.size ? pairs.filter((_, i) => !drop.has(i)) : pairs;
 }
 
 /**
@@ -79,13 +136,22 @@ export function createPositionMapper(
         translated: geom("translated", alignment?.heights, Math.max(1, pages.translated)),
     };
 
+    // pairs 任一侧带 x → 双栏阅读序线性化（toLinear 的 share 口径）；
+    // 全无 x 的旧数据保持原 page+frac——结果与旧版逐位一致
+    const rawPairs = alignment?.pairs ?? [];
+    const colAware = rawPairs.some(
+        (p) => p.original.x != null || p.translated.x != null,
+    );
+    // 建 interp 前先剔离群锚——needle 假锚会把同步拽出 V 形
+    const pairs = dropOutliers(rawPairs, geoms, colAware);
+
     // regions → 源侧线性区间表（升序）
     const regions = (alignment?.regions ?? [])
         .map((r) => {
-            const so = toLinear(geoms.original, { page: r.original.page, fraction: r.original.start });
-            const eo = toLinear(geoms.original, { page: r.original.page, fraction: r.original.end });
-            const st = toLinear(geoms.translated, { page: r.translated.page, fraction: r.translated.start });
-            const et = toLinear(geoms.translated, { page: r.translated.page, fraction: r.translated.end });
+            const so = toLinear(geoms.original, { page: r.original.page, fraction: r.original.start }, colAware);
+            const eo = toLinear(geoms.original, { page: r.original.page, fraction: r.original.end }, colAware);
+            const st = toLinear(geoms.translated, { page: r.translated.page, fraction: r.translated.start }, colAware);
+            const et = toLinear(geoms.translated, { page: r.translated.page, fraction: r.translated.end }, colAware);
             // 两侧区间同口径 min/max 归一——start>end 的反向 region 在
             // 命中插值时 y 会倒序映射（ds>de 折返），先归一保单调
             return {
@@ -95,19 +161,19 @@ export function createPositionMapper(
         })
         .sort((a, b) => a.o[0] - b.o[0]);
 
-    // pairs → 两个方向的单调折线
-    const rawPairs = alignment?.pairs ?? [];
-    const byOrig = [...rawPairs].sort(
-        (a, b) => toLinear(geoms.original, a.original) - toLinear(geoms.original, b.original),
+    // pairs → 两个方向的单调折线（线性化已含 col——按值排序即
+    // 阅读序 (page,col,fraction) 排序）
+    const byOrig = [...pairs].sort(
+        (a, b) => toLinear(geoms.original, a.original, colAware) - toLinear(geoms.original, b.original, colAware),
     );
-    const byTrans = [...rawPairs].sort(
-        (a, b) => toLinear(geoms.translated, a.translated) - toLinear(geoms.translated, b.translated),
+    const byTrans = [...pairs].sort(
+        (a, b) => toLinear(geoms.translated, a.translated, colAware) - toLinear(geoms.translated, b.translated, colAware),
     );
 
-    const xsO = byOrig.map((p) => toLinear(geoms.original, p.original));
-    const ysO = byOrig.map((p) => toLinear(geoms.translated, p.translated));
-    const xsT = byTrans.map((p) => toLinear(geoms.translated, p.translated));
-    const ysT = byTrans.map((p) => toLinear(geoms.original, p.original));
+    const xsO = byOrig.map((p) => toLinear(geoms.original, p.original, colAware));
+    const ysO = byOrig.map((p) => toLinear(geoms.translated, p.translated, colAware));
+    const xsT = byTrans.map((p) => toLinear(geoms.translated, p.translated, colAware));
+    const ysT = byTrans.map((p) => toLinear(geoms.original, p.original, colAware));
 
     const interp = (x: number, xs: number[], ys: number[]): number => {
         if (xs.length === 0) return x;
@@ -125,13 +191,13 @@ export function createPositionMapper(
         return ys[lo] + t * (ys[lo + 1] - ys[lo]);
     };
 
-    const useLandmarks = alignment?.kind !== "pages" && rawPairs.length > 0;
+    const useLandmarks = alignment?.kind !== "pages" && pairs.length > 0;
 
     return (pos, from) => {
         const to = other(from);
         const src = geoms[from];
         const dst = geoms[to];
-        const x = toLinear(src, pos);
+        const x = toLinear(src, pos, colAware);
 
         let y: number;
         if (useLandmarks) {
@@ -154,7 +220,7 @@ export function createPositionMapper(
                 const ys = from === "original" ? ysO : ysT;
                 y = interp(x, xs, ys);
             }
-            const out = fromLinear(dst, y);
+            const out = fromLinear(dst, y, colAware);
             return { ...out, viewport: pos.viewport };
         }
         // kind:"pages" 退化：同页码 + 同 fraction，目标页数不足则截断

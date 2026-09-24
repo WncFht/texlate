@@ -10,6 +10,13 @@
 .pdfSlickViewer .page {
     box-shadow: var(--shadow);
     border: 0 !important;
+    /* 上游 --page-margin:1px auto -8px——负底边距原本被 9px 透明
+       border 吸收（11px 视觉缝）；border:0 后页底 ~7px 与下一页
+       叠合，elementFromPoint 命中错页（点击归隔壁页 seq）。
+       补 10px 底边距复原缝距；!important 因本表先于
+       pdf_viewer.css 加载（app.css @import vs PdfPane 组件内
+       import），同优先级须权重压 */
+    margin-bottom: 10px !important;
 }
 
 /* ---------- 页面对位 ----------

@@ -41,7 +41,12 @@ import {
     type DocId,
     type Pos,
 } from "./alignment";
-import { nearestSeq, seqPairs, seqPos } from "./pdfseqpos";
+import {
+    containingSeq,
+    seqLands,
+    seqPairs,
+    seqPos,
+} from "./pdfseqpos";
 import { annotFileName, zoomToFontPx } from "./paneUtils";
 import { capturePos, jumpTo, scrollTopFor, SyncEngine } from "./sync";
 import { buildCiteIndex, type BibEntry, type RefMeta } from "./citations";
@@ -276,7 +281,8 @@ export default function ReaderView(props: Props) {
                 });
             } else {
                 // pdf 窗格无 DOM 体——DOM→PDF 跳转目标 + PDF 点击源
-                // （seqAtPoint：TLXC 锚命中优先，未命中 nearestSeq 兜底）
+                // （seqAtPoint：TLXC 锚命中优先，未命中 containingSeq
+                // 兜底——含点块 floor 语义）
                 out.push({
                     kind: "pdf",
                     side: saSide,
@@ -300,11 +306,11 @@ export default function ReaderView(props: Props) {
                             "posAtPoint" in h
                                 ? h.posAtPoint?.(x, y)
                                 : null;
-                        // 距离闸 1.0=只收同页锚——稀疏 seqpos（老任务
-                        // 无 TLXC 标）下防点击被吸到跨页孤锚，超距落回
+                        // 距离闸内置于 containingSeq（floor>1.2 页/
+                        // 早于首锚>1 页 → null）——稀疏 seqpos 下落回
                         // jumpPosToPdf 比例旧路
                         return p
-                            ? nearestSeq(seqposMap(), saSide, p, 1)
+                            ? containingSeq(seqposMap(), saSide, p)
                             : null;
                     },
                 });
@@ -348,7 +354,10 @@ export default function ReaderView(props: Props) {
             },
             // seq 臂：seqpos 直锚（Option B 服务端注入的消费口）
             seqPos: (seq, side) => seqPos(seqposMap(), seq, side),
+            // 块内插值地标表——点击块内偏移 u 推进 S→S' 区间
+            seqLands: (side) => seqLands(seqposMap(), side),
             seqOfChunk: (key) => seqOf().get(key) ?? null,
+            chunkLen: (seq, side) => seqLenOf().get(seq)?.[side] ?? 0,
             pdfFlashSeq: (dst, seq, pos) => {
                 const h =
                     handles()[dst === "zh" ? "translated" : "original"];
@@ -418,6 +427,19 @@ export default function ReaderView(props: Props) {
         for (const c of dual()?.chunks ?? []) {
             if (c.chunk_id) m.set(c.chunk_id, c.seq);
             m.set(String(c.seq), c.seq);
+        }
+        return m;
+    });
+
+    /** seq→双侧块文本长（ph 剥净）——sentalign interpDst 的 dst
+        幅面夹取原料（浮动撑大的块区间 ≠ 文本幅面） */
+    const seqLenOf = createMemo(() => {
+        const m = new Map<number, { en: number; zh: number }>();
+        for (const c of dual()?.chunks ?? []) {
+            if (typeof c.seq !== "number") continue;
+            const strip = (s?: string) =>
+                (s ?? "").replace(/\[\[[A-Z]+_\d+\]\]/g, "").length;
+            m.set(c.seq, { en: strip(c.en), zh: strip(c.zh) });
         }
         return m;
     });

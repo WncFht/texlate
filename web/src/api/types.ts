@@ -318,6 +318,13 @@ export interface FileManifest {
 export interface Pos {
     page: number;
     fraction: number;
+    /** 页宽分位列位（seqpos 锚行左缘 / posAtPoint 点击 x）——双栏
+        阅读序键 (page,col,fraction) 的 col 源：x>=0.45 → 右栏；
+        缺席（旧数据/滚动位）→ 0 */
+    x?: number;
+    /** 锚行右缘页宽分位（seqpos v11+）——宽行（TOC/通栏标题/多栏合并
+        行）点击 x 落右半时供同行 snap 判栏，缺席 → 无幅面信息 */
+    x1?: number;
     /** 焦点行距视口顶部的比例（跨页跳转后锚点停在屏幕同一高度） */
     viewport?: number;
 }

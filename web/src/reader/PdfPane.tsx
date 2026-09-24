@@ -93,7 +93,7 @@ export interface PaneHandle extends PaneLike {
     /** seq → 页码（idle seqmap 渐进充填——未扫到/无锚 null） */
     seqPage?(seq: number): number | null;
     /** 点击坐标 → Pos（sent-align PDF 源侧臂）：elementFromPoint 命中页 →
-        {page, 页内 top-down 分位}；容器外/页间缝 null */
+        {page, 页内 top-down 分位, x 页宽分位}；容器外/页间缝 null */
     posAtPoint?(x: number, y: number): Pos | null;
     /** 点击坐标 → seq（elementFromPoint 命中 markedContent span——
         TLXC 锚文档精确序；无锚命中/未渲染页 null，调用方按兜底语义走） */
@@ -213,6 +213,16 @@ export default function PdfPane(props: Props) {
     // sent-align 落点闪（单轨——连点两落点旧带当场清算，cite-flash 同款）
     let saFlashEls: HTMLElement[] = [];
     let saFlashTimer = 0;
+    // 容器 → 有形叶子：display:contents 元素自身无盒不可染，递归取
+    // 无元素子级的后代；裸文本容器（无子级）按叶子计——染了看不见但
+    // 不挡同组其余叶子
+    const leafEls = (el: HTMLElement): HTMLElement[] => {
+        const kids = el.children;
+        if (!kids.length) return [el];
+        const out: HTMLElement[] = [];
+        for (const k of kids) out.push(...leafEls(k as HTMLElement));
+        return out;
+    };
     const saFlash = (els: HTMLElement[]) => {
         for (const el of saFlashEls) el.classList.remove("sa-flash");
         window.clearTimeout(saFlashTimer);
@@ -824,12 +834,19 @@ export default function PdfPane(props: Props) {
                     r.height > 0
                         ? Math.min(Math.max((y - r.top) / r.height, 0), 1)
                         : 0,
+                x:
+                    r.width > 0
+                        ? Math.min(Math.max((x - r.left) / r.width, 0), 1)
+                        : 0,
             };
         },
         flashSeq(seq, pos) {
             const els = this.seqEls?.(seq) ?? [];
-            if (els.length) {
-                saFlash(els);
+            // markedContent 容器是 display:contents 无盒——类打上也不
+            // 渲染；逐层下钻到无元素子级的叶子（真字形 span）逐个打闪
+            const leaves = els.flatMap(leafEls);
+            if (leaves.length) {
+                saFlash(leaves);
                 return;
             }
             if (pos) this.flashAtPos?.(pos);
@@ -841,13 +858,27 @@ export default function PdfPane(props: Props) {
             const div = views?.[pos.page - 1]?.div;
             if (!div) return;
             const y = pos.fraction * div.offsetHeight;
-            const els = [
+            const band = [
                 ...div.querySelectorAll<HTMLElement>(".textLayer span"),
             ].filter(
                 (sp) =>
                     sp.offsetTop <= y && y < sp.offsetTop + sp.offsetHeight,
             );
+            // pos 带 x 时收窄到同栏半区——右栏落点不闪同 y 左栏行；
+            // 收窄后空集（缝带点击）落回整行带兜底
+            const wantCol = (pos.x ?? 0) >= 0.45;
+            const els =
+                pos.x == null
+                    ? band
+                    : band.filter(
+                          (sp) =>
+                              ((sp.offsetLeft + sp.offsetWidth / 2) /
+                                  div.offsetWidth) >=
+                                  0.45 ===
+                              wantCol,
+                      );
             if (els.length) saFlash(els);
+            else if (pos.x != null && band.length) saFlash(band);
         },
         openUsagesFor,
         destAtPoint,
@@ -913,14 +944,24 @@ export default function PdfPane(props: Props) {
                         : page.getViewport({ scale: 1 }).height;
                 if (!(h > 0)) return null;
                 // XYZ dest：[页0基, {name:'XYZ'}, x, y, zoom]——x/zoom
-                // null 保持现状；fraction 是 top-down 分位 → bottom-up y
-                return [
-                    pos.page - 1,
-                    { name: "XYZ" },
-                    null,
-                    (1 - pos.fraction) * h,
-                    null,
-                ];
+                // null 保持现状；fraction 是 top-down 分位 → bottom-up y。
+                // y 上抬 0.18*可见高——pdf.js 把 dest 点贴到视口顶，
+                // 多留这段让目标行停在与 capturePos 一致的 ~20% 焦点线；
+                // 可见高是 CSS px，dest y 是 PDF 单位底向上，要除当前
+                // 缩放换算
+                const scale =
+                    (viewer() as unknown as { currentScale?: number })
+                        ?.currentScale ?? 1;
+                const visH =
+                    scale > 0
+                        ? (viewer()?.container.clientHeight ?? 0) / scale
+                        : 0;
+                const y0 = view && view.length >= 4 ? view[1]! : 0;
+                const y = Math.min(
+                    y0 + (1 - pos.fraction) * h + 0.18 * visH,
+                    y0 + h,
+                );
+                return [pos.page - 1, { name: "XYZ" }, null, y, null];
             } catch {
                 return null;
             }

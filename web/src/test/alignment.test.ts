@@ -146,4 +146,51 @@ describe("createPositionMapper", () => {
         expect(out.page).toBe(3);
         expect(out.fraction).toBeCloseTo(0.5, 5);
     });
+
+    it("colAware：pairs 带 x → 阅读序线性化（右栏顶排在左栏底之后）", () => {
+        const al: Alignment = {
+            kind: "landmarks",
+            heights,
+            pairs: [
+                { id: "a", original: { page: 1, fraction: 0, x: 0.1 }, translated: { page: 1, fraction: 0, x: 0.1 } },
+                { id: "b", original: { page: 2, fraction: 0.9, x: 0.1 }, translated: { page: 2, fraction: 0.9, x: 0.1 } },
+                { id: "c", original: { page: 2, fraction: 0.1, x: 0.6 }, translated: { page: 2, fraction: 0.1, x: 0.6 } },
+                { id: "d", original: { page: 3, fraction: 0, x: 0.1 }, translated: { page: 3, fraction: 0, x: 0.1 } },
+            ],
+        };
+        const map = createPositionMapper(al, { original: 4, translated: 6 });
+        // 右栏顶 (p2,.05,x.6)：阅读序位 1.525（左栏底 1.45 之后）——
+        // 映回右栏顶；旧版 page+frac 线性位 1.05 会错落到 a/b 段
+        const rt = map({ page: 2, fraction: 0.05, x: 0.6 }, "original");
+        expect(rt.page).toBe(2);
+        expect(rt.fraction).toBeCloseTo(0.05, 2);
+        // 左栏底 (p2,.9,x.1) 映回左栏底，不穿栏
+        const lb = map({ page: 2, fraction: 0.9, x: 0.1 }, "original");
+        expect(lb.page).toBe(2);
+        expect(lb.fraction).toBeCloseTo(0.9, 2);
+    });
+
+    it("dropOutliers：离群锚被剔——插值不被拽出 V 形", () => {
+        const al: Alignment = {
+            kind: "landmarks",
+            heights,
+            pairs: [
+                { id: "a", original: { page: 1, fraction: 0 }, translated: { page: 1, fraction: 0 } },
+                { id: "b", original: { page: 2, fraction: 0 }, translated: { page: 2, fraction: 0 } },
+                // 假锚：原文 p3 错锚到译文 p6（邻锚期望 ~p3，偏 3 页 > 2 均页高）
+                { id: "bad", original: { page: 3, fraction: 0 }, translated: { page: 6, fraction: 0 } },
+                { id: "c", original: { page: 4, fraction: 0 }, translated: { page: 4, fraction: 0 } },
+                { id: "d", original: { page: 5, fraction: 0 }, translated: { page: 5, fraction: 0 } },
+            ],
+        };
+        const map = createPositionMapper(al, { original: 4, translated: 6 });
+        // 原文 p3 顶剔除假锚后在 b/c 间插 → 译文 p3；不剔则落 p6
+        expect(map({ page: 3, fraction: 0 }, "original")).toMatchObject({
+            page: 3,
+            fraction: 0,
+        });
+        // 反向同样剔：译文 p6 映回原文末段（d 锚 p5 后 clamp 域），不落到 p3 假锚
+        const back = map({ page: 6, fraction: 0 }, "translated");
+        expect(back.page).toBeGreaterThanOrEqual(4);
+    });
 });

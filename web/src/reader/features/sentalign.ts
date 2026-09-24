@@ -49,7 +49,7 @@ export interface SentAlignPane {
     clickEl?: HTMLElement;
     /** 点击坐标 → Pos（PdfPane.posAtPoint 桥） */
     posAtPoint?(x: number, y: number): Pos | null;
-    /** 点击坐标 → seq（PdfPane.seqAtPoint 桥 + 宿主 nearestSeq 兜底——
+    /** 点击坐标 → seq（PdfPane.seqAtPoint 桥 + 宿主 containingSeq 兜底——
         在场时点击走 seq 精度快路，Pos 臂降为兜底） */
     seqAtPoint?(x: number, y: number): number | null;
 }
