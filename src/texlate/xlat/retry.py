@@ -91,6 +91,10 @@ class RetryPolicy:
     base_delay: float = 1.0
     rate_limit_floor: float = 5.0
     timeout_floor: float = 10.0
+    # 单次睡眠硬顶：3^attempt/2^attempt 无盖时风暴期高 attempt 会睡数小时
+    # （W1-soak 实证：429 风暴后 12 格全沉 ~160min、上游恢复仍不出井）。
+    # 拉满的是试次持久性，不是单次睡眠长度。
+    max_delay: float = 180.0
 
 
 def _backoff_delay(e: BaseException, attempt: int, p: RetryPolicy) -> float | None:
@@ -122,6 +126,8 @@ def _backoff_delay(e: BaseException, attempt: int, p: RetryPolicy) -> float | No
     else:
         # 裸 TimeoutError 等传输层错误
         delay = max(p.timeout_floor, p.base_delay * (2**attempt))
+    if delay is not None:
+        delay = min(delay, p.max_delay)
     return delay
 
 
