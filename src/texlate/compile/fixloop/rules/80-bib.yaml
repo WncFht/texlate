@@ -159,6 +159,49 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "_builtins_bib.py biber_biblatex_skew_route; repair.py cross_engine_retry reject_route 臂"
 
+  # 2026-09-25 scale50 批实证 (t_0c9a/2609.20470, t_dce88/2609.19713,
+  # t_a4ae/2510.22418): tectonic bib 管线双盲区——
+  # (a) 内嵌 Rust bibtex 特定输入死循环: tex pass 出 xdv 后
+  #   ``note: Running BibTeX on main.aux`` 即无输出烧满 240s 墙钟落
+  #   timeout (系统 bibtex 同 .aux 秒过);
+  # (b) tectonic 不看 .bbl 在席强跑 biber: src 只发 main.bbl 未发
+  #   references.bib 时 ``! can't open path`` 落 other 硬毙 (xelatex
+  #   _bib_pass bbl 在席整臂跳过)。
+  # 两臂签名走 builtin 两级复核 (err_head → _fixloop_log); REJECT
+  # route=xelatex 令牌同 skew_route 跨引擎臂换编。order 8.1 贴 skew(8)
+  # 后: 同族硬墙先路由。
+  - id: tectonic_bib_stall_route
+    mechanisms: [B05]
+    description: "tectonic bibtex 挂死/bbl在席缺.bib 强跑 biber 毙 → REJECT route=xelatex 换引擎 (不改源)"
+    phase: loop
+    order: 8.1 # skew_route(8) 后: 工具链硬墙族先路由
+    when: { any: [{ category: timeout }, { category: other }] }
+    condition:
+      engine_in: [tectonic]
+    action:
+      kind: builtin_transform
+      function: tectonic_bib_stall_route
+      params: { route: xelatex }
+    risk: low # 不改源只发路由令牌; 签名自验不中即 False
+    engines:
+      tectonic: { mode: native }
+      xelatex: { mode: skip } # xelatex 侧 bib 工具链全由系统件承担, 无此盲区
+    provenance:
+      - {
+          corpus: "scale50 批 t_0c9a3e4159db8ffb (arXiv 2609.20470v1, 2026-09-25)",
+          error: "unfixable:timeout — note: Running BibTeX on main.aux 后静默烧墙钟",
+        }
+      - {
+          corpus: "scale50 批 t_dce88d3272e1fd5e (arXiv 2609.19713v1, 2026-09-25)",
+          error: "unfixable:timeout — 同 bibtex 挂死签名 (120 页)",
+        }
+      - {
+          corpus: "scale50 批 t_a4ae1dea34e2bf45 (arXiv 2510.22418v1, 2026-09-25)",
+          error: "unfixable:other — ! can't open path `references.bib` (main.bbl 在席)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "_builtins_bib.py tectonic_bib_stall_route; repair.py cross_engine_retry reject_route 臂"
+
   # 2026-09-18 natbib-lane (astro-ph/0307344, stagerun-rt1): natbib_numbers_pass
   # (95-targeted order 186) 的 (\\begin\{document\}) 重写无注释遮盖——注释行
   # 提到 \begin{document} 的被 \n 尾巴切成两半, "command."/"." 尾脱注释成

@@ -38,6 +38,7 @@ if TYPE_CHECKING:
         biber_biblatex_skew_route,
         cite_in_math_mbox,
         citekey_sanitize,
+        tectonic_bib_stall_route,
     )
     from texlate.compile.fixloop._builtins_common import (
         _MC_TABLE,
@@ -116,6 +117,7 @@ if TYPE_CHECKING:
         latex209_upgrade,
         main_wrapper_promote,
         non_utf8_recode,
+        para_loosen,
         pfa_to_pfb,
         plain_format_detect,
         purge_corrupt_intermediates,
@@ -189,6 +191,7 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "biber_biblatex_skew_route",
         "cite_in_math_mbox",
         "citekey_sanitize",
+        "tectonic_bib_stall_route",
     ),
     "_builtins_common": (
         "_MC_TABLE",
@@ -267,6 +270,7 @@ _LEAF_EXPORTS: dict[str, tuple[str, ...]] = {
         "latex209_upgrade",
         "main_wrapper_promote",
         "non_utf8_recode",
+        "para_loosen",
         "pfa_to_pfb",
         "plain_format_detect",
         "purge_corrupt_intermediates",
@@ -342,6 +346,7 @@ _TRANSFORM_KEYS: tuple[str, ...] = (
     "bbl_stub_rewrite",
     "bbl_regen",
     "biber_biblatex_skew_route",
+    "tectonic_bib_stall_route",
     "bm_mathchar_wrap",
     "cite_in_math_mbox",
     "svjour_clo_stub",
@@ -415,6 +420,7 @@ _TRANSFORM_KEYS: tuple[str, ...] = (
     "tcolorbox_breakable_inject",
     "float_h_demote",
     "float_opt_cs_expand",
+    "para_loosen",
 )
 
 # 字面列表——ruff F401 re-export 判定要静态 __all__; 键集 = _LAZY 键集 +
@@ -515,6 +521,7 @@ __all__ = [
     "non_utf8_recode",
     "option_clash_merge",
     "para_longize",
+    "para_loosen",
     "pdf_asset_sanitize",
     "pdfstring_cs_disarm",
     "pdftex_prim_polyfill",
@@ -539,6 +546,7 @@ __all__ = [
     "svg_prepare",
     "svjour_clo_stub",
     "tcolorbox_breakable_inject",
+    "tectonic_bib_stall_route",
     "undefine_for_redef",
     "undefined_env_polyfill",
     "vendored_fetch",

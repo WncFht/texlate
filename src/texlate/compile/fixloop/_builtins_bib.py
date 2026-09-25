@@ -302,3 +302,48 @@ def cite_in_math_mbox(
     if not changed:
         return False, "no bare cite-family calls in math regions"
     return True, f"wrap cite-in-math in \\mbox: {', '.join(changed)}"
+
+
+#: tectonic 内嵌 bibtex 挂死尾锚——``note: Running BibTeX on`` 是 kill 前
+#: 末位管线 note 即死在 bibtex 内部 (t_0c9a/t_dce88 实证: tex pass 出
+#: xdv 后 bibtex 无输出烧满 240s 墙钟; 系统 bibtex 同 .aux 秒过——
+#: tectonic 0.15 Rust bibtex 特定输入死循环, timeout 类死因)。
+_BIBTEX_STALL_TAIL_RE = re.compile(r"note: Running BibTeX on [^\n]+\s*$")
+
+#: bbl 在席而 .bib 缺席的 biber 硬毙签名——tectonic 管线无 ``.bbl 在席
+#: 跳过`` 分支, aux 有 citation 即跑 biber (t_a4ae 实证: src 只发
+#: main.bbl 未发 references.bib, ``! can't open path`` 落 other 硬毙;
+#: xelatex ``_bib_pass`` 同态 bbl 在席整臂跳过)。
+_BIB_CANT_OPEN_RE = re.compile(r"can't open path [`']([^`']+\.bib)")
+
+
+def tectonic_bib_stall_route(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    """tectonic bib 管线死面 → ``REJECT: route=<route>`` 路由令牌 (不改源)。
+
+    两臂复核 (``err_head`` 快径 → ``_fixloop_log`` 全文兜底, 同
+    ``biber_biblatex_skew_route`` 两级序):
+
+    - **bibtex 挂死**: 末位管线 note = ``Running BibTeX on`` 即死在
+      bibtex 内部 (judge 落 timeout); xelatex 工具链走系统 bibtex 无此
+      病种。
+    - **bbl 在席缺 .bib**: ``can't open path '<name>.bib'`` 且 wdir 有
+      ``*.bbl`` → tectonic 不看 bbl 在席强跑 biber 硬毙; xelatex
+      ``_bib_pass`` 文件态触发、bbl 在席跳过 bib 趟。
+
+    不中 → False 让位后续规则; 只发令牌不改源 (repair 跨引擎臂换编)。
+    """
+    del eng, payload
+    route = str(params.get("route") or "xelatex")
+    head = ctx.err_head or ""
+    log = _fixloop_log(ctx)
+    tail = log[-4096:]
+    if _BIBTEX_STALL_TAIL_RE.search(tail) or _BIBTEX_STALL_TAIL_RE.search(head):
+        return True, f"REJECT: route={route} tectonic bibtex stall (killed inside bibtex)"
+    m = _BIB_CANT_OPEN_RE.search(head) or _BIB_CANT_OPEN_RE.search(log)
+    if m is not None and any(ctx.wdir.rglob("*.bbl")):
+        return True, (
+            f"REJECT: route={route} missing {m.group(1)} but bundled .bbl present"
+        )
+    return False, "no tectonic bib-stall signature"
