@@ -32,14 +32,56 @@ PH = re.compile(r"\[\[[A-Z]+_\d+\]\]")
 COL_X = 0.45
 
 
-def lit_probe(txt: str, want: int = 24) -> str | None:
-    s = _tex_strip(txt or "")
-    frags = [re.sub(r"\s+", " ", f.strip()) for f in PH.split(s)]
-    frags = [f for f in frags if len(re.sub(r"[^0-9A-Za-z一-鿿]", "", f)) >= 4]
-    if not frags:
-        return None
-    best = max(frags, key=len)
-    return best[:want] if len(best) > want else best
+_SEG_SPLIT = re.compile(r"\[\[[A-Z]+_\d+\]\]|\$[^$]*\$|\\\([^)]*\\\)|\\\[[^\]]*\]")
+_ALNUM_CH = re.compile(r"[0-9A-Za-z一-鿿]")
+_CJK_CH = re.compile(r"[一-鿿]")
+
+
+def lit_probe(txt: str, short_ok: bool = False) -> list[str]:
+    """真值探针组——洞外连段 + 多相位滑窗。
+
+    探针必须取占位符/行间数学之间的连段：先剥成空格再切片会得到跨洞
+    针，PDF 洞位是真字形（数学/引用/图表号），跨洞探针永远全灭
+    （bedd zh 侧 60% 盲区实证）。CJK 可在任意字间断行 → 定宽滑窗
+    多相位铺满，至少一格整窗落单行内；段含 CJK 时另发去空格变体
+    （\\textbf{后件：}由 → 后件：由 连排无空白，假洞=latex 命令位）。
+    short_ok：seq 有锚页时用 ≥2 字针兜底（'引言'级短题头近窗可钉）。
+    """
+    cands: list[str] = []
+    for piece in _SEG_SPLIT.split(txt or ""):
+        seg = _tex_strip(piece)
+        sp = re.sub(r"\s+", " ", seg).strip()
+        variants = [sp]
+        if _CJK_CH.search(sp):
+            ns = sp.replace(" ", "")
+            if ns != sp:
+                variants.append(ns)
+        cands.extend(v for v in variants if len(_ALNUM_CH.findall(v)) >= 4)
+    if not cands:
+        if not short_ok:
+            return []
+        sp = re.sub(r"\s+", " ", _tex_strip(txt or "")).strip()
+        return [
+            v[:12]
+            for v in dict.fromkeys((sp, sp.replace(" ", "")))
+            if len(_ALNUM_CH.findall(v)) >= 2
+        ]
+    out: list[str] = []
+
+    def add(p: str) -> None:
+        if p and p not in out and len(out) < 9:
+            out.append(p)
+
+    best = max(cands, key=len)
+    add(best[:24])
+    wide = 10 if _CJK_CH.search(best) else 16
+    if len(best) > wide:
+        for off in range(0, len(best) - wide + 1, max(wide - 2, 1)):
+            add(best[off : off + wide])
+        add(best[-wide:])
+    for c in sorted(cands, key=len, reverse=True):
+        add(c if len(c) <= 24 else c[:24])
+    return out
 
 
 # ---------- 生产语义复刻（pdfseqpos.ts / sentalign.ts / alignment.ts） ----------
@@ -287,17 +329,32 @@ def _scan(doc, phrase, pages):
     return out
 
 
-def truth_rects(doc, phrase, near_page=None, win=2):
-    """search_for → [(pno1, rect, w, h)]。近窗先扫、窗空才全扫。"""
-    if not phrase:
-        return []
+def truth_rects(doc, probes, near_page=None, win=2):
+    """search_for 探针组 → [(pno1, rect, w, h)]。近窗全探针并集，远窗先中先用。
+
+    近窗必须并集全探针：滑窗片在锚位出现点可能恰跨断行全灭、却在
+    孪生出现点单行命中——首中即返会把真值钉到远端孪生（a7c5 seq13
+    en 锚 0.839 vs 真值错挑 0.088 实证）；并集后近锚挑选才稳。
+    """
     pages = list(range(doc.page_count))
     if near_page is not None:
         lo, hi = near_page - 1 - win, near_page - 1 + win
-        out = _scan(doc, phrase, [p for p in pages if lo <= p <= hi])
+        span = [p for p in pages if lo <= p <= hi]
+        seen: set[tuple] = set()
+        near: list[tuple] = []
+        for phrase in probes:
+            for h in _scan(doc, phrase, span):
+                k = (h[0], round(h[1].x0, 1), round(h[1].y0, 1))
+                if k not in seen:
+                    seen.add(k)
+                    near.append(h)
+        if near:
+            return near
+    for phrase in probes:
+        out = _scan(doc, phrase, pages)
         if out:
             return out
-    return _scan(doc, phrase, pages)
+    return []
 
 
 def col_census(doc) -> tuple[int, int]:
@@ -350,7 +407,9 @@ def sim(tid: str) -> dict:
         for side, doc, tkey in (("o", en, "en"), ("t", zh, "zh")):
             cp = comp.get(side)
             hits = truth_rects(
-                doc, lit_probe(c.get(tkey) or ""), cp["page"] if cp else None
+                doc,
+                lit_probe(c.get(tkey) or "", short_ok=cp is not None),
+                cp["page"] if cp else None,
             )
             if not hits:
                 rects[seq][side] = None
@@ -505,8 +564,7 @@ def sim(tid: str) -> dict:
             }
             got = containing(lands["o"], pos)
             ok = got == want[0] or (
-                got is not None
-                and _owns(sp_by_seq.get(got, {}).get("o"), pos)
+                got is not None and _owns(sp_by_seq.get(got, {}).get("o"), pos)
             )
             bounds.append(
                 {

@@ -35,7 +35,7 @@ log = logging.getLogger(__name__)
 __all__ = ["seqpos_for_task"]
 
 _CACHE = "seqpos.json"
-_VERSION = 24
+_VERSION = 25
 
 #: 行聚类 y 容差（pt，底向上坐标同线合并）
 _LINE_TOL = 2.5
@@ -1309,12 +1309,26 @@ def _pos_at(
     bounds: list[tuple[int, int, float, float, float]],
     off: int,
 ) -> dict[str, Any] | None:
-    """流 offset → 所在行界 Pos（含栏位 x + 行右缘 x1）。offset 落行内——上取该行。"""
+    """流 offset → 所在行界 Pos（针首字位 x + 行右缘 x1）。offset 落行内——上取该行。"""
     i = bisect.bisect_right([b[0] for b in bounds], off) - 1
     if i < 0:
         return None
     b = bounds[i]
-    return {"page": b[1], "fraction": b[2], "x": b[3], "x1": b[4]}
+    x = b[3]
+    if i + 1 < len(bounds):
+        ln = bounds[i + 1][0] - b[0]
+        if ln > 0 and b[4] > b[3]:
+            # 针首字按行内字位内插：同视觉行多 seq 锚（TOC 行/行内多标）
+            # 行级 x0 并列时 x 序失效——containing 同排格段规取 x0≤点击
+            # 最右者会吸错邻（bedd seq76/79 同 TOC 行同幅面锚实证）。
+            # 栏身份钉死行左缘：col0 行内插越中缝会把通栏行针记成 col1。
+            xi = x + (off - b[0]) / ln * (b[4] - b[3])
+            x = (
+                min(xi, _COL_SPLIT_X - 0.001)
+                if b[3] < _COL_SPLIT_X
+                else xi
+            )
+    return {"page": b[1], "fraction": b[2], "x": x, "x1": b[4]}
 
 
 _ROW_EPS = 0.012  # 同视觉行判定：锚=行顶 frac、点击/标位=字形带中 → ~半行高容差
