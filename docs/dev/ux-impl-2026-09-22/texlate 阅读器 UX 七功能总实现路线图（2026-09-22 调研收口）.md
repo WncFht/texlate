@@ -155,6 +155,7 @@
 | find-usages    | `usages.ts`（DOM 锚扫+ph token+pdf dest 三层，TOC 剔除/自指丢弃/子图归并）+`uscontext.ts` 语境句+`UsagesCard.tsx`（suppressFocusOpenFor 已带）+`features/findusages.ts`（cite.usages+attachUsages）+DomPane/PaneSlot 委托+CiteCard「N 处引用→」                     | 36 vitest + usages_verify.mjs 27/27 实跑               |
 | sent-align     | `sentalign.ts`（splitEn/splitZh 正则臂/alignBeads MAXG=4/注入绕 marked 死区/.sa-hot/.sa-peer/点击跳+navstack+DOM→PDF fraction→/XYZ dest）+Settings 开关（texlate-sent-align 默认开）                                                                                | 32 vitest                                              |
 | cite-translate | `citeTranslate.ts` 七态机（含 terminal→running 回边+零帧行兜底+band 插值）+`RefTaskChip.tsx`+`RefsPanel.tsx` 批译抽屉（preflight 三桶+warn_big+串行 POST 独立 idem key）+Toolbar「文献」钮+CiteCard foot 翻译 chip+citations.ts 裸 DOI 臂                           | 71 vitest                                              |
+| sentalign 动效 | `anim.ts`（涟漪/连线+行擦入/clearLandFx 单轨）+ sentalign `from` 穿线·`peerGen` 代际·侧限定键·节流+滚动清轨·injectChunk 重备 + PdfPane `saTintReq` 重染 + `mountedPdf` 免重挂（v1.6，`f8a848bb`，2026-09-26）                                                       | anim+sentalign 62 vitest + playwright 10/10            |
 
 ### 已记 deferral / 已知边界
 

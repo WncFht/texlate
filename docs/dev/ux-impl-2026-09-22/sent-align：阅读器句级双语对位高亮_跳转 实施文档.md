@@ -177,3 +177,25 @@ fixture 来源：**必须**从 `~/.texlate/tasks/` 拷真实 dual.json/en.html/z
 13. **fixture 真空**：repo 无真实 dual.json——测试基建第一步是快照合法化（体积+隐私：选小任务、脱 task id 亦可）。
 14. **sanitize 回归面**：运行时注入不过 DOMPurify，但 v3 emit 直出时被剥光即静默失效——ADD_ATTR 声明+测试先行。
 15. **zh 侧勿用裸 Intl**：Intl 与 zhseg 虽 97.7% 节点一致，但序位对位的 93.4% 天花板依赖与 `sentence_ends` 同款的 `{}` 深度/abbrev 不对称修正；混用会把 chunk-exact 打回 ~84%。
+
+## v1.6 动效臂落地实录（2026-09-26，`f8a848bb`）
+
+动效三件套已上线（方案 D 平滑滚动经评估否决——与 SyncEngine/navstack 抢滚动主权，负收益）：
+
+- **A press 涟漪**：`anim.press(x,y)` 源点 fixed 扩散环 ~420ms 自清。
+- **B land 连线+行擦入**：源点→首个视口内行左缘中的三次贝塞尔（pathLength=1 dash 描入渐隐 1.1s）+ 逐行 `.sa-wipe` scaleX 擦入（40ms stagger、≤8 行）；`from=null`（gotoPeer 等非点击跳）只擦不连。
+- **C PDF 悬停对位**：pdf 窗格 pointermove → `seqAtPoint` → 对侧经 `pdfHover` 桥锚/带染色。
+
+机制要点（32-agent review `wf_8fc4404c-65f` 加固后形态）：
+
+- `from` 坐标 param 穿线（`animPress` 返回值沿 jumpSeq/jumpSidToPdf/pdfJumpFlash 一路透传给 `animLand`），取代 animFrom 字段+TTL——陈旧源点与异步单槽竞态按构造消除。
+- hover 键侧限定 `${side}|${sid}|${bead}`——1:1 bead（87.6%）双侧键串全同，不限定则 en→zh 直迁在 en 侧留死色、zh 侧永不染。
+- `peerGen` 代际闸：外源 clearHot（滚动清轨/DOM 悬停扫）把 pdf 侧已备 peer 扫掉后 `cur` 仍持械，须凭代际比对打破 sameSeq early-return 才可重备。
+- PdfPane `saTintReq` + `textlayerrendered` 重染——懒渲页 materialize 即补 peer 色；`hoverSeq` 清场按 cls 限定（广播 `sa-peer` 清扫不踩在场 `sa-hot` 轨）。
+- 滚动清轨：`{capture:true}` 挂 scroll（scroll 不冒泡，须捕获才捕得到内层 .pdfSlickContainer）；pointermove trailing-edge 节流（pend 存最新坐标、单 timer 窗尾重解 seq）。
+- injectChunk 重注入（MO 感知）→ hover∩chunk 命中先 clearHot 再按记忆侧/seq 重备 DOM hover 或 pdf peer。
+- `mountedPdf` 同体免重挂——重挂先 detach 会把在场悬停轨扫掉。
+- `lineRects` 同行碎片并集（em/a 切开同 sid 的行幅取并）；`land` 内部只清 land 面（`clearLandFx`）不动涟漪——`cancelLand` 是视图销毁口径才全摘（涟漪截没回归即 playwright 验收实捕）。
+- reduced-motion 全域降级；全部 fixed+transform/opacity 零重排。
+
+验证：review 确认 20 条 findings——本批修 17、2 条 by-design 跳过（land ≤1.1s 冻结窗滚动取消会连杀着陆连线；PdfPane 组件测试基建缺位）、修复期间另自查捕获 2 条（peerGen 重备、land 截没在飞涟漪）；anim+sentalign 62/62 vitest、全套 931/931（69 文件）、tsc/eslint/vite build 绿、`scripts/sentalign_anim_verify.mjs` playwright 浏览器验收 10/10。
