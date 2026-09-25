@@ -669,6 +669,41 @@ rules:
     stats: { fires: 0, status: proposed }
     source_ref: "tmp/lane-unk26spec/bundles.json B1 + tmp/lane-unk26/census.md"
 
+  # 2026-09-25 scale50 批 (t_c32920e49e7f1f70): 稿自带 fontspec v2.9h
+  # (2026/08/11) 套件喂 LaTeX2e 2021-11-15 核 —— \SetKeys/expl3 原语
+  # 未定义连锁爆, fontspec 初始化全灭 → ctex/xeCJK 字体永不配 → CJK
+  # 全部落无 ToUnicode 替身, zh.pdf 文本层 U+FFFF 死层 (exit 0 +
+  # status=ok 的假绿——视觉面字形尚在, 抽取/复制/搜索全死)。
+  # vendored_shadow_isolate 的 ld<sd 只确证旧向遮蔽, 新版 vendor 喂
+  # 旧核的正向 skew 是其盲区; fontspec 是内核耦合件, 任何方向跨版本
+  # vendor 都无安全面 → 签名复核 (err_head → _fixloop_log) + 系统/
+  # bundle 递补自证后整族退役。
+  - id: fontspec_kernel_shadow_retire
+    mechanisms: [B05]
+    description: "稿自带 fontspec 套件撞内核 expl3/原语面 → .fixloop-iso 整族退役 (双向 skew 同收; 系统/bundle 递补自证)"
+    phase: loop
+    order: 11.925 # era_bundle_shadow_retire(11.92) 后, microtype_era_cfg_retire(11.93) 前 —— 同族内核耦合遮蔽
+    when:
+      any: # \SetKeys/__fontspec 未定义落 undefined_cs; macro param 级联落 syntax/other 保兼容
+        - { category: undefined_cs }
+        - { category: syntax }
+        - { category: other }
+    action:
+      kind: builtin_transform
+      function: fontspec_kernel_shadow_retire
+      params: { suffix: ".fixloop-iso" }
+    risk: low # 签名级复核 + 递补自证双闸; fontspec 跨版本 vendor 无安全面
+    engines:
+      xelatex: { mode: native }
+      tectonic: { mode: same } # bundle 内 fontspec 恒有, filemap 索引递补判据
+    provenance:
+      - {
+          corpus: "scale50 批 t_c32920e49e7f1f70 (DQI-Kit, 2026-09-25)",
+          error: "vendored fontspec 2026 vs 内核 2021: \\SetKeys undefined → CJK 死文本层 (zh.pdf 全 U+FFFF)",
+        }
+    stats: { fires: 0, status: proposed }
+    source_ref: "_builtins_vendored.py fontspec_kernel_shadow_retire; tmp/seqpos-e2e.json t_c32920 行 (e2e 0.0 测量盲)"
+
   # 2026-09-20 implunk26 lane (unk26spec B6, 0812.1138): 稿自带 era
   # microtype 包捆 —— microtype.sty (\ProvidesPackage[2008/06/04 v2.3b])
   # + microtype.cfg + 19 mt-*.cfg + letterspace.sty。era cfg 的

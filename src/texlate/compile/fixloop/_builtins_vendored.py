@@ -17,6 +17,7 @@ from texlate.arxiv.locate import safe_rel
 from texlate.compile.fixloop._builtins_common import (
     _FINGERPRINT_RE,
     _LEGACY_INJECTED_HEADS,
+    _fixloop_log,
     _inject_write,
     _live_matches,
     _mark_injected,
@@ -791,3 +792,69 @@ def vendored_fetch_multi(
     if notes:
         note += f" (skip: {'; '.join(notes)})"
     return True, note
+
+
+#: 稿自带 fontspec 套件——内核耦合件: expl3/关键原语 (``\SetKeys``/
+#: ``\__fontspec_msg_new``/``__keys_``) 随内核滚动, 新版 vendor 喂旧核
+#: (t_c32920: 稿带 fontspec v2.9h/2026-08-11 上 2021-11-15 核 → \SetKeys
+#: undefined 连锁爆, fontspec 初始化全灭 → CJK 字体永不配 → 文本层
+#: U+FFFF 死层) 或旧版喂新核同形态。vendored_shadow 的 ld<sd 只收旧向,
+#: 新向 skew 盲区由本件补——fontspec 跨版本 vendor 无安全面, 系统 kpse
+#: 必有递补, 签名级复核后整族退役 (与 era_bundle_shadow_retire 同
+#: 保守度: 签名不中即 False)。
+_FONTSPEC_SUITE = (
+    "fontspec.sty",
+    "fontspec-xetex.sty",
+    "fontspec-luatex.sty",
+    "fontspec.cfg",
+    "fontspec.lua",
+    "fontspec-math.sty",
+    "fontspec-patches.sty",
+)
+#: fontspec 内核错配签名——包内原语名只在炸开时上 log; ``\SetKeys`` 是
+#: LaTeX2e 2022+ 内核原语 (旧核 undefined), ``__fontspec``/``__keys_``
+#: 是 expl3 内部名 (任何炸点泄漏即 fontspec 域病)。
+_FONTSPEC_SKEW_RE = re.compile(
+    r"__fontspec|\\SetKeys|__keys_|fontspec.*internal|\(fontspec\.sty[^)]*$"
+)
+
+
+def fontspec_kernel_shadow_retire(
+    ctx: LoopCtx, eng: Engine, payload: str | None, params: dict[str, Any]
+) -> tuple[bool, str]:
+    r"""稿自带 fontspec 套件 + fontspec/expl3 错配签名 → ``.fixloop-iso`` 整族退役。
+
+    内核耦合件双向 skew 即死: ``vendored_shadow_isolate`` (ld<sd) 只确证
+    旧向遮蔽, fontspec v2.9h 喂 2021 核的新向盲区收不进 (t_c32920 scale50
+    实证——CJK 全灭成 U+FFFF 死文本层而任务仍 status=ok)。签名复核两级:
+    ``err_head`` 快径 → ``_fixloop_log`` 全文; 无签名即 False 让位。系统
+    侧 fontspec.sty 不可解 (probe 落空) 时不退——退即造 missing_file。
+    """
+    del payload
+    suffix = str(params.get("suffix") or ".fixloop-iso")
+    head = ctx.err_head or ""
+    if (
+        _FONTSPEC_SKEW_RE.search(head) is None
+        and _FONTSPEC_SKEW_RE.search(_fixloop_log(ctx)) is None
+    ):
+        return False, "no fontspec kernel-skew signature"
+    # 递补判双路: xelatex 走 probe_file, tectonic 走 filemap/bundle 索引
+    # (probe_file 无 cwd 恒 None——fontspec 在 bundle 内属于恒有件)。
+    if _probe_external(ctx, eng, "fontspec.sty") is None and not _index_providers(
+        eng, "fontspec.sty"
+    ):
+        return False, "系统侧无 fontspec 递补, 不退"
+    moved: list[str] = []
+    for name in _FONTSPEC_SUITE:
+        for f in sorted(ctx.wdir.rglob(name)):
+            if not safe_is_file(f) or f.name.endswith(suffix):
+                continue
+            rel = f.relative_to(ctx.wdir).as_posix()
+            _isolate_rename(f, suffix)
+            moved.append(rel)
+            shim = _path_shim_for(ctx, eng, f, None)
+            if shim:
+                moved.append(shim)
+    if not moved:
+        return False, "签名在场但 wdir 无 fontspec 套件可退"
+    return True, f"retire vendored fontspec suite: {', '.join(moved)}"
